@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.4.2';
+    const VERSION = '1.5.0';
     
     class ConfigManager {
         constructor() {
@@ -12,10 +12,26 @@
                 graphDiffusionEnabled: true,
                 autoSave: true,
                 maxSummaryLength: 200,
-                extractionPrompt: `分析以下对话，提取JSON格式：
-{"characters": ["角色名"], "events": [{"type": "事件", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系"}], "summary": "用一句话概括这段对话发生了什么、角色间关系有何进展（30-60字，必须是你自己的概括，禁止照抄原文）"}
+                extractionPrompt: `你是剧情记忆整理员。阅读【本轮对话】，对照【已知角色名单】与【前情提要】，只提取明确发生的事实，禁止编造与推测。
 
-对话：{{CONTENT}}`,
+【已知角色名单】（提取角色必须复用这些主名；识别出别名/昵称/代称时，归并到对应主名）
+{{KNOWN_CHARS}}
+
+【前情提要】（此前剧情摘要，仅供理解上下文，禁止重复提取其中已记录的内容）
+{{HISTORY}}
+
+【本轮对话】
+{{CONTENT}}
+
+【提取规则】
+1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
+2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。
+3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
+4. summary：30-60字概括本轮剧情。第三方视角客观记录：只写事实，移除修辞与对话引用，不抒情、不比喻、不升华，结尾保持开放，禁止"关系迈入新阶段"式总结收尾。
+5. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
+
+【输出格式】
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括"}`,
                 // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
                 apiProviderCustom: false,       // false=跟随正文接口, true=用下方独立配置
                 apiUrl: '',
@@ -36,6 +52,13 @@
             try {
                 const saved = localStorage.getItem('lonsha_memory_config');
                 if (saved) this.config = {...this.config, ...JSON.parse(saved)};
+                // [v1.5] 迁移到三家融合版提示词（已知角色名单+前情提要+客观纪要规范）
+                if (this.config.extractionPrompt && !this.config.extractionPrompt.includes('{{KNOWN_CHARS}}')) {
+                    const defaults = new (this.constructor)().config;
+                    this.config.extractionPrompt = defaults.extractionPrompt;
+                    this.saveConfig();
+                    console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已升级到 v1.5 (已知角色名单+记忆回环+客观纪要)`);
+                }
                 // [v1.4.2] 迁移旧版提示词：summary 字段描述太弱导致 LLM 返回空摘要
                 if (this.config.extractionPrompt?.includes('"summary": "摘要"')) {
                     this.config.extractionPrompt = this.config.extractionPrompt.replace(
@@ -231,7 +254,8 @@
                 
                 if (extracted?.characters) {
                     for (const char of extracted.characters) {
-                        this.graph.addNode({type: 'character', name: char, data: {source: messageText}});
+                        const canonical = this.resolveCharacterName(char);
+                        this.graph.addNode({type: 'character', name: canonical, data: {source: messageText}});
                     }
                 }
                 
@@ -248,7 +272,13 @@
                 
                 if (extracted?.relationships) {
                     for (const rel of extracted.relationships) {
-                        this.graph.addEdge({from: rel.from, to: rel.to, label: rel.type, weight: 1.0, data: rel});
+                        // [v1.5] 单向主观关系：主名归并 + attitude 三值入边数据
+                        this.graph.addEdge({
+                            from: this.resolveCharacterName(rel.from),
+                            to: this.resolveCharacterName(rel.to),
+                            label: rel.type, weight: 1.0,
+                            data: {attitude: rel.attitude || 'neutral', note: rel.note || ''}
+                        });
                     }
                 }
                 
@@ -290,7 +320,13 @@
             if (!this.config.config.extractionEnabled) return this.extractMemorySimple(message);
             try {
                 const content = (message.mes || '').substring(0, 2000);
-                const prompt = this.config.config.extractionPrompt.replace('{{CONTENT}}', content);
+                // [v1.5] 抄 HCDiary：注入已知角色名单 + 前情提要（记忆回环）
+                const knownChars = this.getKnownCharacters();
+                const history = this.summary.summaries.slice(-5).map(s => s.text).join('\n');
+                const prompt = this.config.config.extractionPrompt
+                    .replace('{{KNOWN_CHARS}}', knownChars.join('、') || '（暂无，从本轮开始积累）')
+                    .replace('{{HISTORY}}', history || '（暂无）')
+                    .replace('{{CONTENT}}', content);
                 const response = await this.llm.callAPI(prompt);
                 if (!response) {
                     console.warn(`[${PLUGIN_NAME}] LLM无响应，用简单提取`);
@@ -313,6 +349,46 @@
                 console.error(`[${PLUGIN_NAME}] LLM提取失败:`, err);
                 return this.extractMemorySimple(message);
             }
+        }
+        
+        // [v1.5] 抄 HCDiary cdCaptureCast：从最近楼层捕获登场角色（词边界正则，防误匹配）
+        captureCast() {
+            const ctx = window.SillyTavern?.getContext?.();
+            const chat = ctx?.chat || [];
+            const window = chat.slice(-8); // 最近8楼判定窗口
+            const sceneText = window.map(m => (m?.mes || '')).join('\n');
+            if (!sceneText) return [];
+            const cast = [];
+            for (const name of this.getKnownCharacters()) {
+                if (!name || name.length < 2) continue;
+                try {
+                    const re = new RegExp('(?<![\u4e00-\u9fa5a-zA-Z])' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-zA-Z0-9])', 'i');
+                    if (re.test(sceneText)) cast.push(name);
+                } catch (e) { /* 正则失败跳过 */ }
+            }
+            return cast.slice(0, 5);
+        }
+
+        // [v1.5] 抄 HCDiary：已知角色名单（主卡角色 + 图谱已积累角色，排除用户）
+        getKnownCharacters() {
+            const known = [];
+            const ctx = window.SillyTavern?.getContext?.();
+            if (ctx?.name2 && ctx.name2 !== ctx.name1) known.push(ctx.name2);
+            for (const node of this.graph.nodes.values()) {
+                if (node.type === 'character' && node.name && !known.includes(node.name) && node.name !== ctx?.name1) {
+                    known.push(node.name);
+                }
+            }
+            return known.slice(0, 20);
+        }
+        // [v1.5] 抄 HCDiary：别名归并——新名字与已有主名互为包含时，归并到主名
+        resolveCharacterName(name) {
+            if (!name) return name;
+            if (this.graph.nameIndex.has(name)) return name;
+            for (const known of this.graph.nameIndex.keys()) {
+                if (known.includes(name) || name.includes(known)) return known;
+            }
+            return name;
         }
         
         extractMemorySimple(message) {
@@ -358,6 +434,10 @@
             const results = {summary: [], graph: [], diary: [], vector: [], diffusion: []};
             
             results.summary = this.summary.search(query.text);
+            
+            // [v1.5] 登场角色捕获（抄 HCDiary）：从最近楼层窗口判断谁登场，只召回这些角色的记忆
+            const castCaptured = this.captureCast();
+            if (castCaptured.length > 0) query.characters = castCaptured;
             
             if (query.characters?.length > 0) {
                 results.graph = this.graph.findByNames(query.characters);
@@ -410,7 +490,41 @@
             return this.hybridMerge(results);
         }
         
+        // [v1.5] RRF 倒数排名融合（抄 shujuku reciprocalRankFusion）——
+        // 比固定权重 alpha 更稳健：不需要调参，多路召回中同时命中的记忆自动获得更高分
         hybridMerge(results) {
+            const K = 60; // RRF 标准常数
+            const lists = [
+                results.vector || [],
+                results.diffusion || [],
+                results.graph || [],
+                results.summary || [],
+                results.diary || []
+            ];
+            const byKey = new Map();
+            lists.forEach((list, listIdx) => {
+                list.forEach((item, rank) => {
+                    const key = item.id || item.text || item.name || JSON.stringify(item).substring(0, 80);
+                    const rrfScore = 1 / (K + rank + 1);
+                    const prev = byKey.get(key);
+                    byKey.set(key, {
+                        ...item,
+                        rrfScore: (prev?.rrfScore || 0) + rrfScore,
+                        hits: (prev?.hits || 0) + 1,   // 被几路召回命中
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary'][listIdx]
+                    });
+                });
+            });
+            const merged = Array.from(byKey.values());
+            merged.sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
+            const top = merged.slice(0, this.config.config.vectorTopK * 2);
+            if (this.config.config.debugMode) {
+                console.log(`[${PLUGIN_NAME}] RRF融合: ${merged.length} 项, 多路命中: ${top.filter(t => t.hits > 1).length} 项`);
+            }
+            return top;
+        }
+
+        _legacyHybridMerge(results) {
             const alpha = this.config.config.hybridAlpha;
             const merged = [];
             const seen = new Set();
@@ -463,15 +577,39 @@
             return Array.from(chars);
         }
         
+        // [v1.5] 注入格式（抄 baibai 私密简报包裹 + HCDiary 分区结构）
         buildInjection(recalled) {
             if (!recalled?.length) return '';
-            let text = '\n\n[记忆系统]\n';
-            for (const item of recalled.slice(0, 5)) {
-                const score = item.score || item.finalScore || 0;
-                const scoreStr = this.config.config.debugMode ? ` (${score.toFixed(3)})` : '';
-                text += `• ${item.text || item.summary || item.name || ''}${scoreStr}\n`;
+            const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
+            const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
+            
+            // 分区：剧情摘要 / 角色关系 / 角色日记（抄 HCDiary 的分类注入）
+            const summaries = [], relations = [], diaries = [];
+            for (const item of recalled.slice(0, this.config.config.vectorTopK)) {
+                if (item.source?.includes('diary')) diaries.push(item);
+                else if (item.source?.includes('graph')) relations.push(item);
+                else summaries.push(item);
             }
-            return text;
+            
+            const blocks = [];
+            if (summaries.length) {
+                blocks.push('[前情摘要]');
+                summaries.forEach(i => blocks.push(`- ${i.text || i.summary || i.name || ''}`));
+            }
+            if (relations.length) {
+                blocks.push('[角色关系]');
+                relations.forEach(i => {
+                    const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : '中立';
+                    blocks.push(`- ${i.from || i.name} → ${i.to || ''}：${i.label || '相关'}[${att}]`);
+                });
+            }
+            if (diaries.length) {
+                blocks.push('[角色日记·近期]');
+                diaries.forEach(i => blocks.push(`- ${i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}）：${i.text || i.entry || ''}`));
+            }
+            
+            if (!blocks.length) return '';
+            return `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
         }
         
         getCurrentChatId() {
