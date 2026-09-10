@@ -1,0 +1,32 @@
+{
+  "display_name": "LonSha记忆引擎",
+  "loading_order": 10,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "LonSha",
+  "version": "1.2.0",
+  "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
+  "auto_update": false,
+  "minimum_client_version": "1.12.0",
+  "extra_js": [
+    "modules_combined.js",
+    "graph_algorithms.js",
+    "worker-manager.js",
+    "virtual-renderer.js",
+    "wasm-bridge.js",
+    "storage.js",
+    "gpu-renderer.js",
+    "realtime-sync.js",
+    "cloud-sync.js",
+    "gnn-recommender.js",
+    "llm-entity-extractor.js",
+    "smart-summary-anomaly.js",
+    "production-hardening.js",
+    "auto-tuning.js"
+  ],
+  "extra_css": [
+    "visualizer.css"
+  ]
+}
