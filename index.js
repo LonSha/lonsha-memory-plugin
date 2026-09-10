@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.4.1';
+    const VERSION = '1.4.2';
     
     class ConfigManager {
         constructor() {
@@ -13,7 +13,7 @@
                 autoSave: true,
                 maxSummaryLength: 200,
                 extractionPrompt: `分析以下对话，提取JSON格式：
-{"characters": ["角色名"], "events": [{"type": "事件", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系"}], "summary": "摘要"}
+{"characters": ["角色名"], "events": [{"type": "事件", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系"}], "summary": "用一句话概括这段对话发生了什么、角色间关系有何进展（30-60字，必须是你自己的概括，禁止照抄原文）"}
 
 对话：{{CONTENT}}`,
                 // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
@@ -36,6 +36,15 @@
             try {
                 const saved = localStorage.getItem('lonsha_memory_config');
                 if (saved) this.config = {...this.config, ...JSON.parse(saved)};
+                // [v1.4.2] 迁移旧版提示词：summary 字段描述太弱导致 LLM 返回空摘要
+                if (this.config.extractionPrompt?.includes('"summary": "摘要"')) {
+                    this.config.extractionPrompt = this.config.extractionPrompt.replace(
+                        '"summary": "摘要"',
+                        '"summary": "用一句话概括这段对话发生了什么、角色间关系有何进展（30-60字，必须是你自己的概括，禁止照抄原文）"'
+                    );
+                    this.saveConfig();
+                    console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已自动升级 (summary 要求真概括)`);
+                }
             } catch (e) {}
         }
         saveConfig() {
@@ -252,7 +261,7 @@
                 }
                 
                 if (this.config.config.vectorEnabled) {
-                    const vectorText = `${extracted?.summary || messageText.substring(0, 200)}\n角色:${extracted?.characters?.join(',') || ''}`;
+                    const vectorText = `${extracted?.summary || this.summary.smartTruncate(messageText, 200)}\n角色:${extracted?.characters?.join(',') || ''}`;
                     await this.vector.addVector(vectorText, {
                         floor: message.index || 0,
                         characters: extracted?.characters || [],
@@ -318,7 +327,7 @@
                 if (node.type === 'character' && node.name) known.add(node.name);
             }
             const characters = Array.from(known).filter(n => n && content.includes(n)).slice(0, 5);
-            return {characters, events: [], relationships: [], entities: [], summary: content.substring(0, 100)};
+            return {characters, events: [], relationships: [], entities: [], summary: this.summary.smartTruncate(content, 100)};
         }
         
         // [v1.4] 正文清洗：剥离注释/标签/世界书标记
@@ -511,8 +520,20 @@
     
     class SummarySystem {
         constructor() { this.summaries = []; }
+        // [v1.4.2] 智能截断：优先在句子边界断开，避免"但那个"式半句截断
+        smartTruncate(text, maxLen) {
+            text = String(text || '').trim();
+            if (text.length <= maxLen) return text;
+            const cut = text.substring(0, maxLen);
+            let lastEnd = -1;
+            for (const ch of ['。', '！', '？', '…', '”', '"']) {
+                const i = cut.lastIndexOf(ch);
+                if (i > lastEnd) lastEnd = i;
+            }
+            return lastEnd > maxLen * 0.5 ? cut.substring(0, lastEnd + 1) : cut + '……';
+        }
         async createSummary(message, llmSummary) {
-            const text = llmSummary || (message.mes || '').substring(0, 200);
+            const text = llmSummary || this.smartTruncate(message.mes || '', 200);
             const summary = {floor: message.index || 0, text, level: 1, timestamp: Date.now()};
             this.summaries.push(summary);
             return summary;
