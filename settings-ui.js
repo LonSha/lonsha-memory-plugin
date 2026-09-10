@@ -1,0 +1,288 @@
+// LonSha记忆引擎 - 设置与状态面板 (v1.3)
+// settings-ui.js - 移动端适配的设置界面，通过原型扩展挂载到 LonShaMemoryPlugin
+(function() {
+    'use strict';
+
+    // 等插件就绪后挂载
+    const mount = () => {
+        const plugin = window.LonShaMemory;
+        if (!plugin) { setTimeout(mount, 200); return; }
+
+        const PLUGIN_NAME = 'LonSha记忆引擎';
+        const VERSION = plugin.engine?.config?.config ? '1.3.0' : '1.3.0';
+
+        // ========== 共享样式 ==========
+        const style = document.createElement('style');
+        style.textContent = `
+            .lonsha-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10002; display: flex; align-items: flex-end; justify-content: center; }
+            @media (min-width: 600px) { .lonsha-overlay { align-items: center; } }
+            .lonsha-sheet { background: #1e1e2e; width: 100%; max-width: 500px; max-height: 85vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; border: 1px solid #45475a; }
+            @media (min-width: 600px) { .lonsha-sheet { border-radius: 16px; max-height: 80vh; } }
+            .lonsha-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #313244; color: #cdd6f4; font-size: 16px; font-weight: bold; flex-shrink: 0; }
+            .lonsha-sheet-close { padding: 8px 12px; color: #f38ba8; font-size: 18px; cursor: pointer; }
+            .lonsha-sheet-body { padding: 12px 16px 24px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: #cdd6f4; }
+            .ls-group { margin-bottom: 16px; }
+            .ls-group-title { font-size: 12px; color: #89b4fa; margin: 8px 0 6px; font-weight: bold; letter-spacing: 1px; }
+            .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #313244; font-size: 15px; }
+            .ls-row:last-child { border-bottom: none; }
+            .ls-row input[type="checkbox"] { width: 44px; height: 44px; margin: 0; accent-color: #89b4fa; }
+            .ls-slider { width: 100%; accent-color: #89b4fa; height: 32px; }
+            .ls-slider-label { display: flex; justify-content: space-between; font-size: 14px; padding: 8px; color: #a6adc8; }
+            .ls-slider-val { color: #89b4fa; font-weight: bold; }
+            .ls-textarea { width: 100%; min-height: 120px; background: #181825; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 10px; font-size: 13px; font-family: monospace; box-sizing: border-box; }
+            .ls-btn { display: block; width: 100%; padding: 13px; margin: 8px 0; background: #313244; color: #cdd6f4; border: none; border-radius: 10px; font-size: 15px; text-align: center; cursor: pointer; }
+            .ls-btn:active { background: #45475a; }
+            .ls-btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+            .ls-btn-danger { background: #45273a; color: #f38ba8; }
+            .ls-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+            .ls-stat-card { background: #181825; border-radius: 10px; padding: 12px 4px; text-align: center; }
+            .ls-stat-num { font-size: 20px; font-weight: bold; color: #89b4fa; }
+            .ls-stat-label { font-size: 11px; color: #a6adc8; margin-top: 2px; }
+            .ls-hint { font-size: 12px; color: #6c7086; padding: 6px 8px; line-height: 1.5; }
+            .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: #a6e3a1; color: #1e1e2e; padding: 10px 20px; border-radius: 20px; font-size: 14px; z-index: 10003; }
+        `;
+        document.head.appendChild(style);
+
+        // ========== 工具 ==========
+        const closeOverlay = (id) => document.getElementById(id)?.remove();
+        const makeSheet = (id, title, bodyHTML) => {
+            closeOverlay(id);
+            const overlay = document.createElement('div');
+            overlay.id = id;
+            overlay.className = 'lonsha-overlay';
+            overlay.innerHTML = `
+                <div class="lonsha-sheet">
+                    <div class="lonsha-sheet-header"><span>${title}</span><span class="lonsha-sheet-close">✕</span></div>
+                    <div class="lonsha-sheet-body">${bodyHTML}</div>
+                </div>
+            `;
+            overlay.querySelector('.lonsha-sheet-close').addEventListener('click', () => closeOverlay(id));
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(id); });
+            document.body.appendChild(overlay);
+            return overlay;
+        };
+        const toast = (msg) => {
+            const t = document.createElement('div');
+            t.className = 'ls-toast';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 1800);
+        };
+
+        // ========== 状态总览 ==========
+        plugin.showStatsPanel = function() {
+            const s = this.engine;
+            const cfg = s.config.config;
+            const body = `
+                <div class="ls-stat-grid">
+                    <div class="ls-stat-card"><div class="ls-stat-num">${s.graph.nodes.size}</div><div class="ls-stat-label">图谱节点</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num">${s.graph.edges.size}</div><div class="ls-stat-label">关系边</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num">${s.summary.summaries.length}</div><div class="ls-stat-label">摘要</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num">${s.vector.vectors.length}</div><div class="ls-stat-label">向量</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.diary.diaries).length}</div><div class="ls-stat-label">角色日记</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num">${cfg.enabled ? '✅' : '⛔'}</div><div class="ls-stat-label">插件状态</div></div>
+                </div>
+                <div class="ls-hint">数据保存在当前对话的 chatMetadata 中，随对话自动持久化。切换对话自动加载对应记忆。</div>
+            `;
+            makeSheet('lonsha-stats-overlay', '📊 状态总览', body);
+        };
+
+        // ========== 设置面板 ==========
+        plugin.showSettingsPanel = function() {
+            const self = this;
+            const c = this.engine.config.config;
+            const ck = (key, label, hint) => `
+                <label class="ls-row">
+                    <div><div>${label}</div>${hint ? `<div class="ls-hint">${hint}</div>` : ''}</div>
+                    <input type="checkbox" data-cfg="${key}" ${c[key] ? 'checked' : ''}>
+                </label>`;
+            const body = `
+                <div class="ls-group">
+                    <div class="ls-group-title">基础开关</div>
+                    ${ck('enabled', '启用插件', '总开关，关闭后不提取也不注入')}
+                    ${ck('extractionEnabled', '自动提取', '每条 AI 回复后自动用 LLM 提取记忆')}
+                    ${ck('vectorEnabled', '向量检索', '需要 Embedding API，关闭则只用关键词+图谱')}
+                    ${ck('graphDiffusionEnabled', 'PageRank 图扩散', '从已知角色出发扩散召回关联记忆')}
+                    ${ck('autoSave', '自动保存', '每次提取后自动写入对话存档')}
+                    ${ck('debugMode', '调试模式', 'console 显示召回分数与提取详情')}
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">召回与注入</div>
+                    <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK}" data-cfg-num="vectorTopK">
+                    <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha}" data-cfg-num="hybridAlpha">
+                    <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength}</span></div>
+                    <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength}" data-cfg-num="maxSummaryLength">
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">提取提示词</div>
+                    <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
+                    <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
+                    <button class="ls-btn" id="ls-prompt-reset">↩️ 恢复默认提示词</button>
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">数据管理</div>
+                    <button class="ls-btn" id="ls-export">📤 导出记忆数据 (JSON)</button>
+                    <button class="ls-btn" id="ls-import">📥 导入记忆数据</button>
+                    <button class="ls-btn ls-btn-danger" id="ls-clear">🗑️ 清空当前对话记忆</button>
+                </div>
+                <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
+            `;
+
+            const overlay = makeSheet('lonsha-settings-overlay', '⚙️ 记忆引擎设置', body);
+
+            // 滑块实时显示
+            overlay.querySelectorAll('input[type=range]').forEach(r => {
+                r.addEventListener('input', () => {
+                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen' };
+                    const el = document.getElementById(map[r.dataset.cfgNum]);
+                    if (el) el.textContent = r.value;
+                });
+            });
+
+            // 恢复默认提示词
+            overlay.querySelector('#ls-prompt-reset').addEventListener('click', () => {
+                overlay.querySelector('#ls-prompt').value = `分析以下对话，提取JSON格式：
+{"characters": ["角色名"], "events": [{"type": "事件", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系"}], "summary": "摘要"}
+
+对话：{{CONTENT}}`;
+                toast('已恢复默认提示词');
+            });
+
+            // 导出
+            overlay.querySelector('#ls-export').addEventListener('click', () => {
+                const data = {
+                    graph: this.engine.graph.export(),
+                    summaries: this.engine.summary.export(),
+                    diaries: this.engine.diary.export(),
+                    vectors: this.engine.vector.export(),
+                    exportedAt: new Date().toISOString()
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `lonsha-memory-${Date.now()}.json`;
+                a.click();
+                toast('已导出');
+            });
+
+            // 导入
+            overlay.querySelector('#ls-import').addEventListener('click', () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = () => {
+                    const file = input.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        try {
+                            const data = JSON.parse(reader.result);
+                            if (data.graph) this.engine.graph.import(data.graph);
+                            if (data.summaries) this.engine.summary.import(data.summaries);
+                            if (data.diaries) this.engine.diary.import(data.diaries);
+                            if (data.vectors) this.engine.vector.import(data.vectors);
+                            const chatId = this.engine.getCurrentChatId();
+                            if (chatId) this.engine.storage.save(chatId, {
+                                graph: this.engine.graph.export(),
+                                summaries: this.engine.summary.export(),
+                                diaries: this.engine.diary.export(),
+                                vectors: this.engine.vector.export(),
+                                version: '1.3.0'
+                            });
+                            toast('✅ 导入成功');
+                        } catch (e) { toast('❌ 导入失败: ' + e.message); }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            });
+
+            // 清空
+            overlay.querySelector('#ls-clear').addEventListener('click', () => {
+                if (!confirm('确定清空当前对话的所有记忆数据？此操作不可恢复。')) return;
+                this.engine.graph.nodes.clear();
+                this.engine.graph.edges.clear();
+                this.engine.graph.nameIndex.clear();
+                this.engine.summary.summaries = [];
+                this.engine.diary.diaries = {};
+                this.engine.vector.vectors = [];
+                const chatId = this.engine.getCurrentChatId();
+                if (chatId) this.engine.storage.save(chatId, { graph: {nodes:[],edges:[]}, summaries: [], diaries: {}, vectors: [], version: '1.3.0' });
+                toast('已清空');
+            });
+
+            // 保存
+            overlay.querySelector('#ls-save').addEventListener('click', () => {
+                overlay.querySelectorAll('[data-cfg]').forEach(el => {
+                    this.engine.config.config[el.dataset.cfg] = el.checked;
+                });
+                overlay.querySelectorAll('[data-cfg-num]').forEach(el => {
+                    const v = parseFloat(el.value);
+                    this.engine.config.config[el.dataset.cfgNum] = Number.isInteger(v) && el.max !== '1' ? v : v;
+                    if (el.dataset.cfgNum === 'vectorTopK' || el.dataset.cfgNum === 'maxSummaryLength') {
+                        this.engine.config.config[el.dataset.cfgNum] = parseInt(el.value);
+                    }
+                });
+                const promptEl = overlay.querySelector('#ls-prompt');
+                if (promptEl && promptEl.value.trim()) {
+                    this.engine.config.config.extractionPrompt = promptEl.value;
+                }
+                this.engine.config.saveConfig();
+                toast('✅ 设置已保存');
+                closeOverlay('lonsha-settings-overlay');
+            });
+        };
+
+        // ========== FAB 快捷菜单 ==========
+        plugin.showFabMenu = function() {
+            const existing = document.getElementById('lonsha-fab-menu');
+            if (existing) { existing.remove(); return; }
+
+            const menu = document.createElement('div');
+            menu.id = 'lonsha-fab-menu';
+            menu.innerHTML = `
+                <div style="padding:6px 14px;color:#a6adc8;font-size:11px;border-bottom:1px solid #313244;margin-bottom:4px;">LonSha记忆引擎</div>
+                <div class="lsm-item" data-act="stats">📊 状态总览</div>
+                <div class="lsm-item" data-act="viz">🕸️ 记忆图谱</div>
+                <div class="lsm-item" data-act="settings">⚙️ 设置</div>
+                <style>
+                    #lonsha-fab-menu { position: fixed; bottom: 145px; right: 20px; background: #1e1e2e; border: 1px solid #45475a; border-radius: 14px; padding: 6px; z-index: 10001; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 190px; }
+                    .lsm-item { padding: 13px 14px; color: #cdd6f4; font-size: 15px; border-radius: 9px; cursor: pointer; }
+                    .lsm-item:active { background: #45475a; }
+                </style>
+            `;
+            menu.querySelectorAll('.lsm-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    menu.remove();
+                    const act = item.dataset.act;
+                    if (act === 'stats') plugin.showStatsPanel();
+                    else if (act === 'viz') {
+                        if (plugin.visualizer) plugin.visualizer.createPanel();
+                        else plugin.showStatsPanel();
+                    }
+                    else if (act === 'settings') plugin.showSettingsPanel();
+                });
+            });
+            document.body.appendChild(menu);
+            setTimeout(() => {
+                const closer = (e) => {
+                    if (!menu.contains(e.target) && e.target.id !== 'lonsha-memory-fab') {
+                        menu.remove();
+                        document.removeEventListener('click', closer);
+                    }
+                };
+                document.addEventListener('click', closer);
+            }, 50);
+        };
+
+        console.log('[LonSha记忆引擎] ✓ 设置面板模块已挂载 (点击🧠 → ⚙️设置)');
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(mount, 300));
+    } else {
+        setTimeout(mount, 300);
+    }
+})();

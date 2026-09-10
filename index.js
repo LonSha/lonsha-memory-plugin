@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.2.0';
+    const VERSION = '1.3.0';
     
     class ConfigManager {
         constructor() {
@@ -522,6 +522,7 @@
             this.loadModules();
             this.registerEvents();
             this.createUI();
+            await this.ensureSettingsUI();
             // [v1.2] 初始化时加载当前对话的已有记忆数据
             try {
                 const chatId = this.engine.getCurrentChatId();
@@ -534,6 +535,32 @@
             }
             this.initialized = true;
             console.log(`[${PLUGIN_NAME}] ✓ 初始化完成 (LLM+向量检索+图扩散+可视化已启用)`);
+        }
+        
+        // [v1.3] 设置面板加载兜底：宿主若不加载 extra_js，则动态注入 settings-ui.js
+        async ensureSettingsUI() {
+            if (this.showSettingsPanel) { this._settingsUIMounted = true; return; }
+            try {
+                const scriptSrc = document.currentScript?.src
+                    || Array.from(document.querySelectorAll('script[src]')).map(s => s.src).find(s => s.includes('lonsha-memory-plugin') && s.endsWith('index.js'));
+                if (!scriptSrc) return;
+                const base = scriptSrc.replace(/index\.js.*$/, '');
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = base + 'settings-ui.js';
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+                // 等待挂载完成
+                for (let i = 0; i < 20 && !this.showSettingsPanel; i++) {
+                    await new Promise(r => setTimeout(r, 150));
+                }
+                this._settingsUIMounted = !!this.showSettingsPanel;
+                console.log(`[${PLUGIN_NAME}] ${this._settingsUIMounted ? '✓ 设置面板已加载 (动态注入)' : '⚠️ 设置面板加载超时'}`);
+            } catch (err) {
+                console.warn(`[${PLUGIN_NAME}] settings-ui.js 动态加载失败:`, err);
+            }
         }
         loadModules() {
             // 加载图扩散模块
@@ -635,15 +662,11 @@
             document.body.appendChild(fab);
         }
         showPanel() {
-            // 如果可视化模块已加载，显示完整面板
-            if (this.visualizer) {
-                this.visualizer.createPanel();
-                return;
-            }
-            
-            // 降级：显示简单统计弹窗
-            const stats = {nodes: this.engine.graph.nodes.size, edges: this.engine.graph.edges.size, summaries: this.engine.summary.summaries.length, diaries: Object.keys(this.engine.diary.diaries).length, vectors: this.engine.vector.vectors.length};
-            alert(`${PLUGIN_NAME} v${VERSION}\n\n📊 统计：\n• 图谱节点: ${stats.nodes}\n• 关系边: ${stats.edges}\n• 摘要: ${stats.summaries}\n• 角色日记: ${stats.diaries}\n• 向量: ${stats.vectors}\n\n✨ v0.5.0新功能：\n• PageRank图扩散\n• DPP多样性采样\n• 社区检测\n• 可视化面板\n\n🔧 调试: window.LonShaMemory`);
+            // 设置面板模块 (settings-ui.js) 会覆盖 showFabMenu 提供完整菜单；
+            // 此处为兜底：模块未加载时提示
+            if (this.showFabMenu && this._settingsUIMounted) return this.showFabMenu();
+            const stats = {nodes: this.engine.graph.nodes.size, edges: this.engine.graph.edges.size, vectors: this.engine.vector.vectors.length};
+            alert(`LonSha记忆引擎 v${VERSION}\n\n图谱节点: ${stats.nodes} | 关系边: ${stats.edges} | 向量: ${stats.vectors}\n\n⚠️ 设置面板模块未加载（检查 settings-ui.js）\n🔧 调试: window.LonShaMemory`);
         }
     }
     
