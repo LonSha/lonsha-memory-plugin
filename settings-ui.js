@@ -29,6 +29,8 @@
             .ls-slider { width: 100%; accent-color: #89b4fa; height: 32px; }
             .ls-slider-label { display: flex; justify-content: space-between; font-size: 14px; padding: 8px; color: #a6adc8; }
             .ls-slider-val { color: #89b4fa; font-weight: bold; }
+            .ls-input { width: 100%; background: #181825; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 11px; font-size: 14px; margin: 5px 0; box-sizing: border-box; }
+            .ls-input::placeholder { color: #585b70; }
             .ls-textarea { width: 100%; min-height: 120px; background: #181825; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 10px; font-size: 13px; font-family: monospace; box-sizing: border-box; }
             .ls-btn { display: block; width: 100%; padding: 13px; margin: 8px 0; background: #313244; color: #cdd6f4; border: none; border-radius: 10px; font-size: 15px; text-align: center; cursor: pointer; }
             .ls-btn:active { background: #45475a; }
@@ -196,6 +198,26 @@
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength}" data-cfg-num="maxSummaryLength">
                 </div>
                 <div class="ls-group">
+                    <div class="ls-group-title">API 配置（可选）</div>
+                    <label class="ls-row">
+                        <div><div>使用独立提取接口</div><div class="ls-hint">开启后提取走下方 API，不再蹭正文接口。关闭则用宿主接口。</div></div>
+                        <input type="checkbox" data-cfg="apiProviderCustom" ${c.apiProviderCustom ? 'checked' : ''}>
+                    </label>
+                    <div style="padding: 4px 8px;">
+                        <input type="text" class="ls-input" placeholder="API 地址（如 https://api.xxx.com/v1）" value="${c.apiUrl || ''}" data-cfg-text="apiUrl" autocomplete="off">
+                        <input type="password" class="ls-input" placeholder="API Key" value="${c.apiKey || ''}" data-cfg-text="apiKey" autocomplete="off">
+                        <input type="text" class="ls-input" placeholder="模型名（如 gpt-4o-mini / deepseek-chat）" value="${c.apiModel || ''}" data-cfg-text="apiModel" autocomplete="off">
+                        <div class="ls-hint">兼容 OpenAI 格式；地址填 base 即可（自动补 /chat/completions）</div>
+                    </div>
+                    <div style="padding: 0 8px;"><div class="ls-group-title" style="margin-top:10px">Embedding（向量检索用）</div></div>
+                    <div style="padding: 4px 8px;">
+                        <input type="text" class="ls-input" placeholder="Embedding 地址（留空=同提取API）" value="${c.embeddingUrl || ''}" data-cfg-text="embeddingUrl" autocomplete="off">
+                        <input type="password" class="ls-input" placeholder="Embedding Key（留空=用提取Key）" value="${c.embeddingKey || ''}" data-cfg-text="embeddingKey" autocomplete="off">
+                        <input type="text" class="ls-input" placeholder="Embedding 模型（如 text-embedding-3-small）" value="${c.embeddingModel || ''}" data-cfg-text="embeddingModel" autocomplete="off">
+                        <div class="ls-hint">不配置时向量功能用简化算法（弱但免费），配置后为真语义检索</div>
+                    </div>
+                </div>
+                <div class="ls-group">
                     <div class="ls-group-title">提取提示词</div>
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
                     <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
@@ -304,6 +326,9 @@
                     if (el.dataset.cfgNum === 'vectorTopK' || el.dataset.cfgNum === 'maxSummaryLength') {
                         this.engine.config.config[el.dataset.cfgNum] = parseInt(el.value);
                     }
+                });
+                overlay.querySelectorAll('[data-cfg-text]').forEach(el => {
+                    this.engine.config.config[el.dataset.cfgText] = el.value.trim();
                 });
                 const promptEl = overlay.querySelector('#ls-prompt');
                 if (promptEl && promptEl.value.trim()) {

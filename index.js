@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.3.1';
+    const VERSION = '1.4.0';
     
     class ConfigManager {
         constructor() {
@@ -16,6 +16,13 @@
 {"characters": ["角色名"], "events": [{"type": "事件", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系"}], "summary": "摘要"}
 
 对话：{{CONTENT}}`,
+                // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
+                apiProviderCustom: false,       // false=跟随正文接口, true=用下方独立配置
+                apiUrl: '',
+                apiKey: '',
+                apiModel: 'gpt-4o-mini',
+                embeddingUrl: '',
+                embeddingKey: '',
                 embeddingModel: 'text-embedding-ada-002',
                 vectorTopK: 5,
                 hybridAlpha: 0.7,
@@ -42,16 +49,16 @@
         constructor(config) { this.config = config; }
         async callAPI(prompt) {
             try {
+                const cfg = this.config.config;
+                // [v1.4] 优先：独立 API（设置面板配置）
+                if (cfg.apiProviderCustom && cfg.apiUrl && cfg.apiKey) {
+                    const result = await this.callOpenAI(prompt, cfg.apiUrl, cfg.apiKey, cfg.apiModel);
+                    if (result) return result;
+                    console.warn(`[${PLUGIN_NAME}] 独立API调用失败，降级到宿主接口`);
+                }
+                // 次选：宿主 generateQuietPrompt（走正文同款接口）
                 if (typeof window.generateQuietPrompt === 'function') {
                     return await window.generateQuietPrompt(prompt, false, false);
-                }
-                const main_api = localStorage.getItem('main_api') || 'openai';
-                const api_server = localStorage.getItem('api_server') || '';
-                const api_key = localStorage.getItem('api_key_openai') || '';
-                if (main_api === 'openai' && api_key) {
-                    return await this.callOpenAI(prompt, api_server || 'https://api.openai.com/v1/chat/completions', api_key);
-                } else if (api_server) {
-                    return await this.callGeneric(prompt, api_server);
                 }
                 return null;
             } catch (err) {
@@ -59,12 +66,18 @@
                 return null;
             }
         }
-        async callOpenAI(prompt, url, key) {
-            const res = await fetch(url, {
+        async callOpenAI(prompt, url, key, model) {
+            // 端点归一化：兼容 base(https://x.com/v1) 和完整端点两种填法
+            let endpoint = url.replace(/\/+$/, '');
+            if (!endpoint.includes('/chat/completions')) {
+                endpoint = endpoint.endsWith('/v1') ? endpoint + '/chat/completions' : endpoint + '/v1/chat/completions';
+            }
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${key}`},
-                body: JSON.stringify({model: 'gpt-3.5-turbo', messages: [{role: 'user', content: prompt}], temperature: 0.3, max_tokens: 1000})
+                body: JSON.stringify({model: model || 'gpt-4o-mini', messages: [{role: 'user', content: prompt}], temperature: 0.3, max_tokens: 1000})
             });
+            if (!res.ok) throw new Error(`API ${res.status}: ${await res.text().catch(() => '')}`);
             const data = await res.json();
             return data.choices?.[0]?.message?.content || '';
         }
@@ -88,15 +101,17 @@
         
         async getEmbedding(text) {
             try {
-                const api_key = localStorage.getItem('api_key_openai') || '';
-                const api_server = localStorage.getItem('api_server') || 'https://api.openai.com';
+                // [v1.4] 独立 Embedding 配置优先，Key 可回退到提取 Key
+                const cfg = this.config.config;
+                const api_key = cfg.embeddingKey || cfg.apiKey || localStorage.getItem('api_key_openai') || '';
+                const api_base = (cfg.embeddingUrl || 'https://api.openai.com').replace(/\/+$/, '');
                 
                 if (!api_key) {
-                    console.warn(`[${PLUGIN_NAME}] 无OpenAI密钥，使用简化向量`);
+                    console.warn(`[${PLUGIN_NAME}] 无Embedding密钥，使用简化向量（可在设置中配置）`);
                     return this.simpleEmbedding(text);
                 }
                 
-                const url = `${api_server}/v1/embeddings`;
+                const url = api_base.endsWith('/v1') ? `${api_base}/embeddings` : `${api_base}/v1/embeddings`;
                 const res = await fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${api_key}`},
@@ -176,6 +191,9 @@
             // [v1.2 真机适配修复] ST 消息对象没有 index 字段，
             // 楼层号来自 eventSource 回调的 messageId
             message = { ...message, index: messageId ?? message.index ?? 0 };
+            // [v1.4] 清洗正文：剥离 HTML注释/SDC标签/自定义标签，防止脏数据入库
+            message.mes = this.cleanMessageText(message.mes || message.content || '');
+            if (!message.mes) { console.log(`[${PLUGIN_NAME}] 消息清洗后为空，跳过`); return; }
             console.log(`[${PLUGIN_NAME}] 处理新消息 (楼层 ${message.index})`);
             const chatId = this.getCurrentChatId();
             if (!chatId) return;
@@ -255,7 +273,14 @@
                 }
                 const jsonMatch = response.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
-                    return JSON.parse(jsonMatch[0]);
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    // [v1.4] 角色名合法性校验：1-8字、无标点数字，过滤"钥匙在锁"类误提取
+                    if (Array.isArray(parsed.characters)) {
+                        parsed.characters = parsed.characters.filter(n =>
+                            typeof n === 'string' && n.length >= 1 && n.length <= 8 && !/[\d\p{P}\s]/u.test(n)
+                        );
+                    }
+                    return parsed;
                 } else {
                     return this.extractMemorySimple(message);
                 }
@@ -266,12 +291,28 @@
         }
         
         extractMemorySimple(message) {
+            // [v1.4 修复] 旧版用正则抓任意中文词块当角色名，产生"钥匙在锁""两下"这类垃圾。
+            // 现在只匹配已知角色（当前角色卡 + 图谱已有节点），宁可漏记不记错。
             const content = message.mes || '';
-            const characters = [];
-            const namePattern = /([A-Z][a-z]+|[\u4e00-\u9fa5]{2,4})/g;
-            const matches = content.match(namePattern);
-            if (matches) characters.push(...new Set(matches.slice(0, 3)));
+            const known = new Set();
+            const ctx = window.SillyTavern?.getContext?.();
+            if (ctx?.name2) known.add(ctx.name2);
+            if (ctx?.name1) known.add(ctx.name1);
+            for (const node of this.graph.nodes.values()) {
+                if (node.type === 'character' && node.name) known.add(node.name);
+            }
+            const characters = Array.from(known).filter(n => n && content.includes(n)).slice(0, 5);
             return {characters, events: [], relationships: [], entities: [], summary: content.substring(0, 100)};
+        }
+        
+        // [v1.4] 正文清洗：剥离注释/标签/世界书标记
+        cleanMessageText(text) {
+            return String(text || '')
+                .replace(/<!--[\s\S]*?-->/g, '')      // HTML注释 (SDC-start 等)
+                .replace(/<\/?[a-zA-Z_][\w-]*[^>]*>/g, '')  // 自定义标签 (konatan_planning 等)
+                .replace(/\[\[.*?\]\]/g, '')           // [[宏]]
+                .replace(/\{\{.*?\}\}/g, '')          // {{宏}}
+                .trim();
         }
         
         async onBeforeGeneration(context) {
