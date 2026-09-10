@@ -39,6 +39,11 @@
             .ls-stat-num { font-size: 20px; font-weight: bold; color: #89b4fa; }
             .ls-stat-label { font-size: 11px; color: #a6adc8; margin-top: 2px; }
             .ls-hint { font-size: 12px; color: #6c7086; padding: 6px 8px; line-height: 1.5; }
+            .ls-clickable { cursor: pointer; transition: transform 0.15s; }
+            .ls-clickable:active { transform: scale(0.95); }
+            .ls-item { background: #181825; border-radius: 10px; padding: 10px 12px; margin: 6px 0; }
+            .ls-item-meta { font-size: 11px; color: #6c7086; margin-bottom: 4px; }
+            .ls-item-text { font-size: 14px; color: #cdd6f4; line-height: 1.6; word-break: break-word; }
             .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: #a6e3a1; color: #1e1e2e; padding: 10px 20px; border-radius: 20px; font-size: 14px; z-index: 10003; }
         `;
         document.head.appendChild(style);
@@ -75,16 +80,91 @@
             const cfg = s.config.config;
             const body = `
                 <div class="ls-stat-grid">
-                    <div class="ls-stat-card"><div class="ls-stat-num">${s.graph.nodes.size}</div><div class="ls-stat-label">图谱节点</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${s.graph.edges.size}</div><div class="ls-stat-label">关系边</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${s.summary.summaries.length}</div><div class="ls-stat-label">摘要</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${s.vector.vectors.length}</div><div class="ls-stat-label">向量</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.diary.diaries).length}</div><div class="ls-stat-label">角色日记</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="graph"><div class="ls-stat-num">${s.graph.nodes.size}</div><div class="ls-stat-label">图谱节点 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="relations"><div class="ls-stat-num">${s.graph.edges.size}</div><div class="ls-stat-label">关系边 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="summaries"><div class="ls-stat-num">${s.summary.summaries.length}</div><div class="ls-stat-label">摘要 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="vectors"><div class="ls-stat-num">${s.vector.vectors.length}</div><div class="ls-stat-label">向量 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="diaries"><div class="ls-stat-num">${Object.keys(s.diary.diaries).length}</div><div class="ls-stat-label">角色日记 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${cfg.enabled ? '✅' : '⛔'}</div><div class="ls-stat-label">插件状态</div></div>
                 </div>
-                <div class="ls-hint">数据保存在当前对话的 chatMetadata 中，随对话自动持久化。切换对话自动加载对应记忆。</div>
+                <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
             `;
-            makeSheet('lonsha-stats-overlay', '📊 状态总览', body);
+            const ov = makeSheet('lonsha-stats-overlay', '📊 状态总览', body);
+            ov.querySelectorAll('.ls-clickable').forEach(card => {
+                card.addEventListener('click', () => plugin.showBrowser(card.dataset.view));
+            });
+        };
+
+        // ========== 记忆内容浏览器（v1.3.1）==========
+        plugin.showBrowser = function(viewType) {
+            const s = this.engine;
+            let title = '', body = '';
+            const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const fmtTime = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
+
+            if (viewType === 'summaries') {
+                title = '📝 摘要列表';
+                const list = s.summary.summaries;
+                body = list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
+                    list.slice().reverse().map(m => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta">楼层 ${m.floor ?? '?'} · ${fmtTime(m.timestamp)}</div>
+                            <div class="ls-item-text">${esc(m.text)}</div>
+                        </div>`).join('');
+            }
+            else if (viewType === 'diaries') {
+                title = '📔 角色日记';
+                const diaries = s.diary.diaries;
+                const names = Object.keys(diaries);
+                body = names.length === 0 ? '<div class="ls-hint">暂无日记。提取到角色后会自动撰写。</div>' :
+                    names.map(name => `
+                        <div class="ls-group">
+                            <div class="ls-group-title">📓 ${esc(name)} (${diaries[name].length} 篇)</div>
+                            ${diaries[name].slice(-10).reverse().map(d => `
+                                <div class="ls-item">
+                                    <div class="ls-item-meta">楼层 ${d.floor ?? '?'} · ${fmtTime(d.timestamp)}</div>
+                                    <div class="ls-item-text">${esc(d.text)}</div>
+                                </div>`).join('')}
+                        </div>`).join('');
+            }
+            else if (viewType === 'graph') {
+                title = '🕸️ 图谱节点';
+                const nodes = Array.from(s.graph.nodes.values());
+                body = nodes.length === 0 ? '<div class="ls-hint">暂无节点。</div>' :
+                    nodes.map(n => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta">${esc(n.type || '未知类型')} · ${fmtTime(n.timestamp)}</div>
+                            <div class="ls-item-text"><b>${esc(n.name)}</b>${n.data?.description ? ' — ' + esc(n.data.description) : ''}</div>
+                        </div>`).join('');
+            }
+            else if (viewType === 'relations') {
+                title = '🔗 关系边';
+                const nameOf = (id) => s.graph.nodes.get(id)?.name || id;
+                const edges = Array.from(s.graph.edges.values());
+                body = edges.length === 0 ? '<div class="ls-hint">暂无关系。</div>' :
+                    edges.map(e => `
+                        <div class="ls-item">
+                            <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:#89b4fa">—[${esc(e.label || '相关')}]→</span> ${esc(nameOf(e.to))}</div>
+                        </div>`).join('');
+            }
+            else if (viewType === 'vectors') {
+                title = '🧲 向量记忆';
+                const vecs = s.vector.vectors;
+                body = vecs.length === 0 ? '<div class="ls-hint">暂无向量。需要配置 Embedding API。</div>' :
+                    vecs.slice().reverse().map(v => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta">楼层 ${v.metadata?.floor ?? '?'} · ${fmtTime(v.timestamp)}</div>
+                            <div class="ls-item-text">${esc((v.text || '').substring(0, 150))}</div>
+                        </div>`).join('');
+            }
+
+            const ov = makeSheet('lonsha-browser-overlay', title, body || '<div class="ls-hint">暂无数据</div>');
+            // 浏览器里加一个返回按钮
+            const back = document.createElement('div');
+            back.className = 'ls-btn';
+            back.textContent = '← 返回状态总览';
+            back.addEventListener('click', () => { ov.remove(); plugin.showStatsPanel(); });
+            ov.querySelector('.lonsha-sheet-body').appendChild(back);
         };
 
         // ========== 设置面板 ==========
