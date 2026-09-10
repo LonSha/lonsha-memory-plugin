@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.4.0';
+    const VERSION = '1.4.1';
     
     class ConfigManager {
         constructor() {
@@ -56,15 +56,31 @@
                     if (result) return result;
                     console.warn(`[${PLUGIN_NAME}] 独立API调用失败，降级到宿主接口`);
                 }
-                // 次选：宿主 generateQuietPrompt（走正文同款接口）
-                if (typeof window.generateQuietPrompt === 'function') {
-                    return await window.generateQuietPrompt(prompt, false, false);
+                // [v1.4.1 关键修复] generateQuietPrompt 只在 getContext() 上，不在 window！
+                const ctx = window.SillyTavern?.getContext?.();
+                const quiet = ctx?.generateQuietPrompt;
+                if (typeof quiet === 'function') {
+                    const result = await quiet({ quietPrompt: prompt, quietToLoud: false, skipWIAN: false });
+                    if (result) return result;
+                    // 兼容旧签名（位置参数）
+                    return await quiet(prompt, false, false);
                 }
+                console.warn(`[${PLUGIN_NAME}] 宿主无 generateQuietPrompt，请在设置中配置独立API`);
                 return null;
             } catch (err) {
                 console.error(`[${PLUGIN_NAME}] API调用失败:`, err);
                 return null;
             }
+        }
+        // [v1.4.1] 抓取模型列表（OpenAI 兼容 /models 端点）
+        async fetchModels(url, key) {
+            let base = url.replace(/\/+$/, '');
+            if (base.includes('/chat/completions')) base = base.replace(/\/chat\/completions$/, '');
+            const endpoint = base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
+            const res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${key}` } });
+            if (!res.ok) throw new Error(`模型列表 ${res.status}`);
+            const data = await res.json();
+            return (data.data || data.models || []).map(m => m.id || m.name).filter(Boolean).sort();
         }
         async callOpenAI(prompt, url, key, model) {
             // 端点归一化：兼容 base(https://x.com/v1) 和完整端点两种填法

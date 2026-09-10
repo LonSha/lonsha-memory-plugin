@@ -206,7 +206,12 @@
                     <div style="padding: 4px 8px;">
                         <input type="text" class="ls-input" placeholder="API 地址（如 https://api.xxx.com/v1）" value="${c.apiUrl || ''}" data-cfg-text="apiUrl" autocomplete="off">
                         <input type="password" class="ls-input" placeholder="API Key" value="${c.apiKey || ''}" data-cfg-text="apiKey" autocomplete="off">
-                        <input type="text" class="ls-input" placeholder="模型名（如 gpt-4o-mini / deepseek-chat）" value="${c.apiModel || ''}" data-cfg-text="apiModel" autocomplete="off">
+                        <div style="display:flex;gap:6px;">
+                            <select class="ls-input" id="ls-model-select" data-cfg-text="apiModel" style="flex:1;display:none;"><option value="${c.apiModel || ''}">${c.apiModel || '点击右侧抓取模型'}</option></select>
+                            <input type="text" class="ls-input" id="ls-model-input" placeholder="模型名（或点右侧抓取列表）" value="${c.apiModel || ''}" style="flex:1;display:block;" autocomplete="off">
+                            <button class="ls-btn" id="ls-fetch-models" style="width:auto;padding:0 14px;margin:5px 0;white-space:nowrap;">🔄</button>
+                        </div>
+                        <div class="ls-hint" id="ls-model-status"></div>
                         <div class="ls-hint">兼容 OpenAI 格式；地址填 base 即可（自动补 /chat/completions）</div>
                     </div>
                     <div style="padding: 0 8px;"><div class="ls-group-title" style="margin-top:10px">Embedding（向量检索用）</div></div>
@@ -241,6 +246,27 @@
                     const el = document.getElementById(map[r.dataset.cfgNum]);
                     if (el) el.textContent = r.value;
                 });
+            });
+
+            // [v1.4.1] 抓取模型列表
+            overlay.querySelector('#ls-fetch-models').addEventListener('click', async () => {
+                const url = overlay.querySelector('[data-cfg-text="apiUrl"]').value.trim();
+                const key = overlay.querySelector('[data-cfg-text="apiKey"]').value.trim();
+                const status = overlay.querySelector('#ls-model-status');
+                if (!url || !key) { status.textContent = '⚠️ 请先填 API 地址和 Key'; return; }
+                status.textContent = '⏳ 抓取中...';
+                try {
+                    const models = await this.engine.llm.fetchModels(url, key);
+                    if (!models.length) { status.textContent = '⚠️ 列表为空'; return; }
+                    const sel = overlay.querySelector('#ls-model-select');
+                    sel.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
+                    if (models.includes(this.engine.config.config.apiModel)) sel.value = this.engine.config.config.apiModel;
+                    sel.style.display = 'block';
+                    overlay.querySelector('#ls-model-input').style.display = 'none';
+                    status.textContent = `✅ 已加载 ${models.length} 个模型`; 
+                } catch (e) {
+                    status.textContent = '❌ 抓取失败: ' + e.message + '（可手动填模型名）';
+                }
             });
 
             // 恢复默认提示词
