@@ -344,6 +344,15 @@
                     </div>
                 </div>
                 <div class="ls-group">
+                    <div class="ls-group-title">🎯 Rerank 精排（可选，抄 baibai 两阶段检索）</div>
+                    ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
+                    <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
+                    <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
+                    <input type="text" class="ls-input" placeholder="精排模型（建议快而便宜的小模型）" value="${c.rerankModel || ''}" data-cfg-text="rerankModel" autocomplete="off">
+                    <div class="ls-slider-label"><span>精排候选数</span><span class="ls-slider-val" id="ls-v-rerank">${c.rerankCandidates || 12}</span></div>
+                    <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
+                </div>
+                <div class="ls-group">
                     <div class="ls-group-title">提取提示词</div>
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
                     <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
@@ -354,6 +363,9 @@
                     <button class="ls-btn" id="ls-export">📤 导出记忆数据 (JSON)</button>
                     <button class="ls-btn" id="ls-import">📥 导入记忆数据</button>
                     <button class="ls-btn ls-btn-danger" id="ls-clear">🗑️ 清空当前对话记忆</button>
+                    <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载（抄 baibai carryover）。</div>
+                    <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（带去新对话）</button>
+                    <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新对话开局用）</button>
                 </div>
                 <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
             `;
@@ -390,6 +402,47 @@
                 }
             });
 
+            // [v2.3] 携带背包: 打包 → localStorage + 文件下载; 导入 → 应用到当前对话
+            overlay.querySelector('#ls-carry-pack').addEventListener('click', () => {
+                const pack = this.engine.packCarryover();
+                if (!pack) { toast('打包失败'); return; }
+                try {
+                    localStorage.setItem('lonsha_carryover_pack', JSON.stringify(pack));
+                    const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `lonsha-carryover-${Date.now()}.json`;
+                    a.click();
+                    toast(`已打包 ${pack.summaries.length}条摘要+${pack.suspense.length}条悬念 (本地+文件双备份)`);
+                } catch (e) { toast('打包失败: ' + e.message); }
+            });
+            overlay.querySelector('#ls-carry-apply').addEventListener('click', () => {
+                let pack = null;
+                try { pack = JSON.parse(localStorage.getItem('lonsha_carryover_pack') || 'null'); } catch (e) {}
+                const apply = (p) => {
+                    if (this.engine.applyCarryover(p)) {
+                        const chatId = this.engine.getCurrentChatId();
+                        if (chatId) this.engine.storage.save(chatId, {
+                            graph: this.engine.graph.export(), summaries: this.engine.summary.export(),
+                            diaries: this.engine.diary.export(), vectors: this.engine.vector.export(),
+                            povs: this.engine.pov.export(), timeline: this.engine.timeline.export(),
+                            status: this.engine.status.export(), ledger: this.engine.ledger.export(),
+                            suspense: this.engine.suspense.export(), version: '2.3.0'
+                        });
+                        toast('✅ 携带包已导入，剧情无缝衔接');
+                    } else toast('导入失败');
+                };
+                if (pack && pack.summaries) { apply(pack); return; }
+                const input = document.createElement('input');
+                input.type = 'file'; input.accept = '.json';
+                input.onchange = () => {
+                    const f = input.files[0]; if (!f) return;
+                    const r = new FileReader();
+                    r.onload = () => { try { apply(JSON.parse(r.result)); } catch (e) { toast('文件解析失败'); } };
+                    r.readAsText(f);
+                };
+                input.click();
+            });
             // 恢复默认提示词
             overlay.querySelector('#ls-prompt-reset').addEventListener('click', () => {
                 overlay.querySelector('#ls-prompt').value = `分析以下对话，提取JSON格式：
