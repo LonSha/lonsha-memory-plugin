@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.3.0';
+    const VERSION = '2.4.0';
     
     class ConfigManager {
         constructor() {
@@ -19,6 +19,8 @@
 {{HISTORY}}
 【悬念簿】（此前立下但尚未了结的约定/伏笔/未解之谜。若本轮有进展或了结，必须在 plans.resolve 中登记；禁止重复提取已了结项）
 {{SUSPENSE}}
+【已知场景树】（location/scenes.path 必须使用这些已登记路径，或在其下新增更细一层）
+{{SCENES}}
 【本轮对话】
 {{CONTENT}}
 【提取规则】
@@ -30,10 +32,13 @@
 6. pov_memories：本轮产生的角色私密认知/秘密/内心独白（摄像头拍不到、仅该角色自己知道的内容）。每条必须给出 owner（哪个角色知道）和 content（一句话说清）。已在对话中公开说出口的内容不算。没有则填空数组。
 7. plans：本轮剧情中【新出现】的约定、目标、伏笔或未解之谜。kind 填 "plan"（角色主动要做的事）或 "suspense"（埋下的谜团/伏笔）。content 一句话写清。contentIsNew 必须为 true。没有新悬念则填空数组。禁止把悬念簿里已有的悬项重复登记。
 8. plans.resolve：本轮【了结】了悬念簿里的悬项时填写。id 必须使用【悬念簿】中列出的编号（如 s3）。outcome 填 "done"（真做成/真揭晓）或 "cancelled"（被取消/放弃/作废）或 "failed"（尝试了但失败/以坏结局收场）。reason 一句话写明怎么收场的。没有则填空数组。
-9. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
+9. scenes：本轮【新出现】或【描述变化】的地点。action 填 "add"（新地点）或 "update"（更新描述）。path 是由大到小的数组（如 ["城市","街区","店铺"]，最多3层，末级=具体场所）。没有则填空数组。
+10. location：本轮剧情结束时主角所在的场景完整路径（必须用已登记场景路径之一；移动了才填，没动填 null）。
+11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}]}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "location": null}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
+                // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
                 // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
@@ -83,7 +88,11 @@
                 rerankApiUrl: '',
                 rerankApiKey: '',
                 rerankModel: '',
-                rerankCandidates: 12           // 进入精排的候选数
+                rerankCandidates: 12,          // 进入精排的候选数
+                // [v2.4] RE: 场景树 + 在场分档 + 查询重写
+                sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
+                presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
+                queryRewrite: false            // 生成前用小模型重写检索查询（需API，提升召回命中）
             };
             this.loadConfig();
         }
@@ -149,6 +158,27 @@
                 console.error(`[${PLUGIN_NAME}] API调用失败:`, err);
                 return null;
             }
+        }
+        // [v2.4] RE: 查询重写（抄 baibai rewriteQuery——把最近剧情改写成检索意图，失败返回 null 降级）
+        async rewriteQuery(recentText) {
+            try {
+                if (!this.config.config.queryRewrite) return null;
+                const cfg = this.config.config;
+                const prompt = `把下面的剧情进展改写成 1-3 条适合检索历史记忆的短查询（每条一行，只写关键人名/地点/物件/事件词，去掉口语与修饰）。只输出查询行，不要解释。\n${String(recentText || '').substring(0, 600)}`;
+                let raw = null;
+                if (cfg.apiProviderCustom && cfg.apiUrl && cfg.apiKey) {
+                    raw = await this.callOpenAI(prompt, cfg.apiUrl, cfg.apiKey, cfg.apiModel);
+                } else {
+                    const ctx = window.SillyTavern?.getContext?.();
+                    const quiet = ctx?.generateQuietPrompt;
+                    if (typeof quiet !== 'function') return null;
+                    raw = await quiet({ quietPrompt: prompt, quietToLoud: false, skipWIAN: false });
+                    if (!raw) raw = await quiet(prompt, false, false);
+                }
+                if (!raw) return null;
+                const lines = String(raw).split('\n').map(s => s.replace(/^[-•\d.、\s]+/, '').trim()).filter(s => s.length >= 2 && s.length <= 40).slice(0, 3);
+                return lines.length ? lines : null;
+            } catch (e) { return null; }
         }
         // [v2.3] RD: rerank 精排——小模型把候选按与查询的相关度重排。失败返回 null (调用方静默降级)
         async rerank(query, docs) {
@@ -321,6 +351,8 @@
             this.holiday = new HolidayAware();
             // [v2.2] RC
             this.suspense = new SuspenseBook();
+            // [v2.4] RE
+            this.scene = new SceneBook();
         }
         
         async onMessageReceived(message, messageId = null) {
@@ -442,6 +474,17 @@
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 悬念簿处理失败:`, e); }
                 }
 
+                // [v2.4] RE: 场景树（新地点登记 + 位置追踪）
+                if (this.config.config.sceneEnabled && extracted) {
+                    try {
+                        const scN = this.scene.apply(extracted.scenes, message.index || 0);
+                        if (extracted.location) this.scene.setLocation(message.index || 0, extracted.location);
+                        if ((scN || extracted.location) && this.config.config.debugMode) {
+                            console.log(`[${PLUGIN_NAME}] 场景树: +${scN} 地点, 位置=${SceneBook.keyOf(extracted.location) || '未变'}`);
+                        }
+                    } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 场景树处理失败:`, e); }
+                }
+
                 // [v2.0] P2: 角色状态 + 待办 + 楼层账本
                 const floor = message.index || 0;
                 const nodesBefore = this.graph.nodes.size;
@@ -517,6 +560,7 @@
                         status: this.status.export(),
                         ledger: this.ledger.export(),
                         suspense: this.suspense.export(),
+                        scene: this.scene.export(),
                         version: VERSION
                     });
                 }
@@ -542,6 +586,7 @@
                     .replace('{{KNOWN_CHARS}}', knownChars.join('、') || '（暂无，从本轮开始积累）')
                     .replace('{{HISTORY}}', historyFull || '（暂无）')
                     .replace('{{SUSPENSE}}', (this.config.config.suspenseEnabled && this.suspense.openItems().length) ? this.suspense.briefForPrompt() : '（暂无未了结的悬念）')
+                    .replace('{{SCENES}}', (this.config.config.sceneEnabled && this.scene.nodes.size) ? this.scene.brief() : '（暂无已登记场景）')
                     .replace('{{CONTENT}}', content);
                 const response = await this.llm.callAPI(prompt);
                 if (!response) {
@@ -675,15 +720,31 @@
             try {
                 await this.storage.load(chatId);
                 const query = this.buildQuery(context);
+                // [v2.4] RE: 召回价值判断（抄 baibai recallWorthRunning——剧情全在窗口内时跳过，省额度）
+                if (!this.recallWorthRunning()) return '';
+                // [v2.4] RE: 查询重写——把最近剧情改写成多条检索查询，主查询之外追加多路
+                try {
+                    const qs = await this.llm.rewriteQuery(query.text);
+                    if (qs && qs.length) query.queries = qs;
+                } catch (e) {}
                 const recalled = await this.recallMemory(query);
                 return this.buildInjection(recalled);
             } catch (err) {
                 return '';
             }
         }
+        // [v2.4] RE: 是否值得跑召回——最近5楼就在全部对话里(无更早历史)则没有可召回的旧事
+        recallWorthRunning() {
+            try {
+                const chat = window.SillyTavern?.getContext?.()?.chat || [];
+                const aiFloors = chat.filter(m => !m.is_user).length;
+                if (aiFloors <= 5) return false;   // 几乎全部在上下文窗口内
+                return true;
+            } catch (e) { return true; }
+        }
         
         async recallMemory(query) {
-            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: []};
+            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: []};
             
             results.summary = this.summary.search(query.text);
             
@@ -729,6 +790,7 @@
                 }
             }
             
+            // [v2.4] RE: 多查询召回——主查询 + rewriteQuery 改写的查询分别检索，结果并入同一路（RRF 会融合）
             if (this.config.config.vectorEnabled && query.text) {
                 const vectorResults = await this.vector.search(query.text, this.config.config.vectorTopK);
                 results.vector = vectorResults.map(v => ({
@@ -737,6 +799,14 @@
                     metadata: v.metadata,
                     source: 'vector'
                 }));
+                if (Array.isArray(query.queries) && query.queries.length) {
+                    for (const q2 of query.queries) {
+                        try {
+                            const more = await this.vector.search(q2, 3);
+                            for (const v of more) results.vector.push({text: v.text, score: v.score * 0.9, metadata: v.metadata, source: 'vector'});
+                        } catch (e) {}
+                    }
+                }
             }
             
             // [v1.9] P1: BM25 稀疏检索召回
@@ -744,6 +814,14 @@
                 try {
                     results.bm25 = this.bm25.search(query.text, this.config.config.bm25TopK || 5)
                         .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, source: 'bm25'}));
+                    if (Array.isArray(query.queries) && query.queries.length) {
+                        const seenB = new Set(results.bm25.map(x => x.id));
+                        for (const q2 of query.queries) {
+                            for (const d of this.bm25.search(q2, 3)) {
+                                if (!seenB.has(d.id)) { seenB.add(d.id); results.bm25.push({id: d.id, text: d.text, floor: d.floor, score: d.score, source: 'bm25'}); }
+                            }
+                        }
+                    }
                 } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] BM25检索失败:`, e); }
             }
             // [v1.9] P1: 卷摘要召回（已折叠的高层概括）
@@ -819,6 +897,24 @@
                 }
             }
             
+            // [v2.4] RE: 在场分档——不在场已登场角色给极简档（防 AI 让不在场的人凭空出现）
+            if (this.config.config.presenceInjection) {
+                try {
+                    const castNow = castCaptured.length ? castCaptured : query.characters || [];
+                    const absent = this.getKnownCharacters()
+                        .filter(n => !castNow.includes(n))
+                        .map(n => {
+                            const loc = this.status?.characters?.[n]?.fields?.['位置'];
+                            return { name: n, loc: loc || null };
+                        })
+                        .slice(0, 6);
+                    results.presence = absent.map(a => ({
+                        id: 'abs_' + a.name, text: a.loc ? `${a.name}（现在: ${a.loc}，不在场）` : `${a.name}（不在场）`,
+                        source: 'presence'
+                    }));
+                } catch (e) {}
+            }
+            
             // [v2.2] RC: 悬念簿召回（未了结悬项 + 近期了结，防 AI 把办完的事反复提/把伏笔写丢）
             if (this.config.config.suspenseEnabled && this.suspense.items.length) {
                 try {
@@ -879,7 +975,8 @@
                 results.volume || [],
                 results.status || [],
                 results.holiday || [],
-                results.suspense || []
+                results.suspense || [],
+                results.presence || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -891,7 +988,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday','suspense'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday','suspense','presence'][listIdx]
                     });
                 });
             });
@@ -946,7 +1043,7 @@
         buildQuery(context) {
             const recentMsgs = window.SillyTavern?.getContext?.()?.chat?.slice(-5) || [];
             const text = recentMsgs.map(m => m.mes).join(' ');
-            return {text, characters: this.extractCharactersFromContext(text)};
+            return {text, characters: this.extractCharactersFromContext(text), queries: null};
         }
         
         extractCharactersFromContext(text) {
@@ -1041,6 +1138,32 @@
                 blocks.push('[手机生活记忆]');
                 phoneMem.forEach(i => blocks.push(`- ${i.text || i.content || ''}`));
             }
+            const scenesList = [], presenceList = [];
+            for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
+                if (item.source === 'scene') scenesList.push(item);
+                else if (item.source === 'presence') presenceList.push(item);
+            }
+            if (this.config.config.sceneEnabled) {
+                try {
+                    const cur = this.scene.currentKey();
+                    if (cur) {
+                        const chain = this.scene.chainOf(cur);
+                        if (chain.length) {
+                            blocks.push('[当前场景]');
+                            const line = chain.map(n => n.path[n.path.length - 1] + (n.desc ? `（${n.desc}）` : '')).join(' › ');
+                            blocks.push(`- ${line}`);
+                        }
+                    }
+                } catch (e) {}
+            }
+            if (scenesList.length) {
+                blocks.push('[相关地点]');
+                scenesList.forEach(i => blocks.push(`- ${i.text || ''}`));
+            }
+            if (presenceList.length) {
+                blocks.push('〔不在场角色｜未经剧情发展不得让他们凭空出现或立即知晓场内发生的事〕');
+                presenceList.forEach(i => blocks.push(`- ${i.text || ''}`));
+            }
             if (suspenses.length) {
                 blocks.push('[悬念簿]');
                 const seenS = new Set();
@@ -1110,6 +1233,10 @@
                         this.status.ops = this.status.ops.filter(o => o.floor < floor);
                         this.status.rebuildFromOps();
                     }
+                } catch (e) {}
+                // [v2.4] RE: 场景树回滚（真源过滤+重放）
+                try {
+                    if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) this.scene.rollbackFrom(floor);
                 } catch (e) {}
                 // [v2.2] RC: 回滚该楼层登记/了结的悬念簿条目
                 try {
@@ -1186,6 +1313,90 @@
         }
     }
     
+    // [v2.4] RE: 场景地图树（抄 baibai MemScene：由大到小路径层级 + 当前位置追踪 + ops重放）
+    class SceneBook {
+        constructor() {
+            this.nodes = new Map();   // key: 'a/b/c' → {path[], desc, floor, updatedAt} (派生缓存)
+            this.track = [];          // [{floor, pathKey}] 位置轨迹 (取末位=当前)
+            this.opsLog = [];         // [{floor, ops}] 真源 (重放重建用, 抄 baibai delta-replay)
+        }
+        static keyOf(path) { return (path || []).map(s => String(s).trim()).filter(Boolean).join('/'); }
+        /** 应用场景 ops。op: {action:'add'|'update', path:[由大到小], desc} */
+        apply(ops, floor, _replaying = false) {
+            let n = 0;
+            for (const op of (ops || [])) {
+                const path = (op?.path || []).map(s => String(s).trim()).filter(Boolean).slice(0, 4);
+                if (!path.length) continue;
+                const k = SceneBook.keyOf(path);
+                const exist = this.nodes.get(k);
+                if (op.action === 'update' && !exist) continue;   // update 只改已存在的
+                if (!exist) {
+                    for (let i = 1; i < path.length; i++) {
+                        const pk = SceneBook.keyOf(path.slice(0, i));
+                        if (!this.nodes.has(pk)) this.nodes.set(pk, { path: path.slice(0, i), desc: '', floor, updatedAt: Date.now() });
+                    }
+                    this.nodes.set(k, { path, desc: String(op.desc || '').slice(0, 80), floor, updatedAt: Date.now() });
+                } else if (op.desc && op.desc !== exist.desc) {
+                    exist.desc = String(op.desc).slice(0, 80); exist.updatedAt = Date.now(); exist.floor = floor;
+                } else continue;
+                n++;
+            }
+            if (!_replaying && n) {
+                const i = this.opsLog.findIndex(o => o.floor === floor);
+                if (i >= 0) this.opsLog[i] = { floor, ops };
+                else this.opsLog.push({ floor, ops });
+                if (this.opsLog.length > 400) this.opsLog.shift();
+            }
+            return n;
+        }
+        /** 记录位置轨迹（同楼覆盖） */
+        setLocation(floor, path) {
+            const k = SceneBook.keyOf(path);
+            if (!k) return;
+            const i = this.track.findIndex(t => t.floor === floor);
+            if (i >= 0) this.track[i] = { floor, pathKey: k };
+            else this.track.push({ floor, pathKey: k });
+            if (this.track.length > 200) this.track.shift();
+        }
+        currentKey() { return this.track.length ? this.track[this.track.length - 1].pathKey : null; }
+        /** 某位置的由大到小链（含描述） */
+        chainOf(key) {
+            const parts = String(key || '').split('/').filter(Boolean);
+            const out = [];
+            for (let i = 1; i <= parts.length; i++) {
+                const n = this.nodes.get(parts.slice(0, i).join('/'));
+                if (n) out.push(n);
+            }
+            return out;
+        }
+        /** 重建（删楼回滚后: 过滤真源 → 重放） */
+        rebuildFromOps() {
+            this.nodes.clear();
+            this.track = this.track.filter(t => t.floor < (this._cutoff || 0) || this._cutoff === undefined ? true : false);
+            const log = [...this.opsLog].sort((a, b) => a.floor - b.floor);
+            for (const e of log) { this.apply(e.ops, e.floor, true); }
+        }
+        rollbackFrom(floor) {
+            this.opsLog = this.opsLog.filter(o => o.floor < floor);
+            this.track = this.track.filter(t => t.floor < floor);
+            this.nodes.clear();
+            for (const e of [...this.opsLog].sort((a, b) => a.floor - b.floor)) this.apply(e.ops, e.floor, true);
+        }
+        /** 给提取 prompt 的场景清单（最多15行） */
+        brief() {
+            const arr = [...this.nodes.values()].filter(n => n.desc || n.path.length >= 2).slice(-15);
+            if (!arr.length) return '（暂无已登记场景）';
+            return arr.map(n => `${n.path.join('/')} — ${n.desc || ''}`).join('\n');
+        }
+        export() { return { nodes: Array.from(this.nodes.values()), track: this.track, opsLog: this.opsLog }; }
+        import(data) {
+            if (!data || typeof data !== 'object') return;
+            this.nodes = new Map((data.nodes || []).map(n => [SceneBook.keyOf(n.path), n]));
+            this.track = Array.isArray(data.track) ? data.track : [];
+            this.opsLog = Array.isArray(data.opsLog) ? data.opsLog : [];
+        }
+    }
+
     // [v2.2] RC: 悬念簿（抄 baibai MemPlan：约定/伏笔/未解之谜 + done/cancelled/failed 三态了结）
     class SuspenseBook {
         constructor() { this.items = []; this._seq = 0; }
@@ -1853,6 +2064,7 @@
                     if (data.status && engine.status) engine.status.import(data.status);
                     if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
                     if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
+                    if (data.scene && engine.scene) engine.scene.import(data.scene);
                 }
                 return data;
             } catch (err) { return null; }
@@ -1970,7 +2182,36 @@
                     this.eventHandlers.push({ eventSource, type: types.CHAT_CHANGED });
                 }
 
-                // [v2.0] P2: 删楼回滚（楼层账本）
+                // [v2.4] RE: 楼层编辑/滑动感知——被编辑的楼层及其之后全部按删楼处理 (同 baibai 陈旧失效语义)
+                if (types.MESSAGE_EDITED) {
+                    eventSource.on(types.MESSAGE_EDITED, (messageId) => {
+                        try {
+                            const f = Number(messageId);
+                            if (Number.isFinite(f) && f >= 0) {
+                                console.log(`[${PLUGIN_NAME}] 楼层 ${f} 被编辑, 级联回滚该楼及之后的记忆`);
+                                this.engine.rollbackFloor(f);
+                                const c = window.SillyTavern?.getContext?.();
+                                const after = [];
+                                for (let i = f + 1; i < (c?.chat?.length || 0); i++) after.push(i);
+                                for (const ff of after.reverse()) this.engine.rollbackFloor(ff);
+                            }
+                        } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
+                    });
+                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED });
+                }
+                if (types.MESSAGE_SWIPED) {
+                    eventSource.on(types.MESSAGE_SWIPED, (messageId) => {
+                        try {
+                            const f = Number(messageId);
+                            if (Number.isFinite(f) && f >= 0) {
+                                if (this.configMgr.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${f} 滑动/重生成, 回滚该楼记忆`);
+                                this.engine.rollbackFloor(f);
+                            }
+                        } catch (err) {}
+                    });
+                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_SWIPED });
+                }
+// [v2.0] P2: 删楼回滚（楼层账本）
                 if (types.MESSAGE_DELETED) {
                     eventSource.on(types.MESSAGE_DELETED, (messageId) => {
                         try {

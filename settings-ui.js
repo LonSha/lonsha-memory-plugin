@@ -101,6 +101,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="volumes"><div class="ls-stat-num">${s.summary?.volumes?.length || 0}</div><div class="ls-stat-label">卷摘要 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="suspense"><div class="ls-stat-num">${s.suspense?.openItems?.().length || 0}</div><div class="ls-stat-label">悬念簿 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="scene"><div class="ls-stat-num">${s.scene?.nodes?.size || 0}</div><div class="ls-stat-label">场景树 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
@@ -203,6 +204,16 @@
                         </div>`;
                     }).join('');
             }
+            else if (viewType === 'scene') {
+                title = '🗺️ 场景树';
+                const cur = s.scene?.currentKey?.();
+                const nodes = Array.from(s.scene?.nodes?.values() || []);
+                body = (nodes.length === 0) ? '<div class="ls-hint">暂无场景。LLM 提取到地点后会自动登记层级。</div>' :
+                    (cur ? `<div class="ls-group"><div class="ls-group-title">当前位置</div><div class="ls-item"><div class="ls-item-text">${esc(cur.split('/').join(' › '))}</div></div></div>` : '') +
+                    `<div class="ls-group"><div class="ls-group-title">全部地点 (${nodes.length})</div>` +
+                    nodes.map(n => `<div class="ls-item"><div class="ls-item-meta">第${n.floor ?? '?'}楼</div><div class="ls-item-text">${esc(n.path.join(' › '))}${n.desc ? ' — ' + esc(n.desc) : ''}</div></div>`).join('') +
+                    '</div>';
+            }
             else if (viewType === 'suspense') {
                 title = '🔖 悬念簿';
                 const items = s.suspense?.items || [];
@@ -303,6 +314,12 @@
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
                 <div class="ls-group">
+                    <div class="ls-group-title">🗺️ 场景树 + 在场分档</div>
+                    ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
+                    ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现')}
+                    ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
+                </div>
+                <div class="ls-group">
                     <div class="ls-group-title">🔖 悬念簿 + 相对时间</div>
                     ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
                     ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然')}
@@ -375,7 +392,7 @@
             // 滑块实时显示
             overlay.querySelectorAll('input[type=range]').forEach(r => {
                 r.addEventListener('input', () => {
-                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen' };
+                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen', rerankCandidates: 'ls-v-rerank', suspenseMaxOpen: 'ls-v-susmax' };
                     const el = document.getElementById(map[r.dataset.cfgNum]);
                     if (el) el.textContent = r.value;
                 });
