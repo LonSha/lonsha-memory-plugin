@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.5.0';
+    const VERSION = '1.6.0';
     
     class ConfigManager {
         constructor() {
@@ -27,7 +27,7 @@
 1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
 2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。
 3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
-4. summary：30-60字概括本轮剧情。第三方视角客观记录：只写事实，移除修辞与对话引用，不抒情、不比喻、不升华，结尾保持开放，禁止"关系迈入新阶段"式总结收尾。
+4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
 5. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 
 【输出格式】
@@ -52,6 +52,13 @@
             try {
                 const saved = localStorage.getItem('lonsha_memory_config');
                 if (saved) this.config = {...this.config, ...JSON.parse(saved)};
+                // [v1.6] 迁移摘要规则到笔录风格（治照抄）
+                if (this.config.extractionPrompt?.includes('30-60字概括本轮剧情')) {
+                    const defaults = new (this.constructor)().config;
+                    this.config.extractionPrompt = defaults.extractionPrompt;
+                    this.saveConfig();
+                    console.log(`[${PLUGIN_NAME}] ✓ 摘要规则已升级到 v1.6 (笔录风格·治照抄)`);
+                }
                 // [v1.5] 迁移到三家融合版提示词（已知角色名单+前情提要+客观纪要规范）
                 if (this.config.extractionPrompt && !this.config.extractionPrompt.includes('{{KNOWN_CHARS}}')) {
                     const defaults = new (this.constructor)().config;
