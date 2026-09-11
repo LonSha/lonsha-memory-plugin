@@ -314,6 +314,16 @@
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
                 <div class="ls-group">
+                    <div class="ls-group-title">🪞 反思 + 物品台账 + 注入深度</div>
+                    ${ck('reflectionEnabled', '反思节点（抄stbme，需API）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
+                    <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
+                    <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
+                    ${ck('itemLedgerEnabled', '物品台账（抄yuzuki）', '提取物品获得/转移/损坏流转，注入"谁持有什么、什么状态"，防物品凭空消失又出现')}
+                    <div class="ls-slider-label"><span>注入深度 D0/D1/D2</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
+                    <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
+                </div>
+                <div class="ls-group">
                     <div class="ls-group-title">📢 回响池 + 日记 + 提取节流</div>
                     ${ck('echoEnabled', '回响池（抄anima）', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
                     ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
@@ -406,7 +416,7 @@
             // 滑块实时显示
             overlay.querySelectorAll('input[type=range]').forEach(r => {
                 r.addEventListener('input', () => {
-                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen', rerankCandidates: 'ls-v-rerank', suspenseMaxOpen: 'ls-v-susmax', echoBaseLife: 'ls-v-echo', diaryEveryFloors: 'ls-v-df', injectionDepth: 'ls-v-injdepth' };
+                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen', rerankCandidates: 'ls-v-rerank', suspenseMaxOpen: 'ls-v-susmax', echoBaseLife: 'ls-v-echo', diaryEveryFloors: 'ls-v-df', injectionDepth: 'ls-v-injdepth', reflectEveryFloors: 'ls-v-rf' };
                     const el = document.getElementById(map[r.dataset.cfgNum]);
                     if (el) el.textContent = r.value;
                 });

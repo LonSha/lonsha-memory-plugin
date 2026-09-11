@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.7.0';
+    const VERSION = '2.8.0';
     
     class ConfigManager {
         constructor() {
@@ -33,10 +33,10 @@
 7. plans：本轮剧情中【新出现】的约定、目标、伏笔或未解之谜。kind 填 "plan"（角色主动要做的事）或 "suspense"（埋下的谜团/伏笔）。content 一句话写清。contentIsNew 必须为 true。没有新悬念则填空数组。禁止把悬念簿里已有的悬项重复登记。
 8. plans.resolve：本轮【了结】了悬念簿里的悬项时填写。id 必须使用【悬念簿】中列出的编号（如 s3）。outcome 填 "done"（真做成/真揭晓）或 "cancelled"（被取消/放弃/作废）或 "failed"（尝试了但失败/以坏结局收场）。reason 一句话写明怎么收场的。没有则填空数组。
 9. scenes：本轮【新出现】或【描述变化】的地点。action 填 "add"（新地点）或 "update"（更新描述）。path 是由大到小的数组（如 ["城市","街区","店铺"]，最多3层，末级=具体场所）。没有则填空数组。
-10. location：本轮剧情结束时主角所在的场景完整路径（必须用已登记场景路径之一；移动了才填，没动填 null）。
+9b. items：本轮剧情中【明确出现实体流转】的物品。新增获得填 {"action":"add","name":"物品名","desc":"一句话描述","holder":"当前持有者角色名"}；位置/状态变化填 {"action":"update","name":"已有物品名","holder":"新持有者或空","state":"完好/损坏/丢失/使用完毕"}；禁止臆测没有依据的物品；没有则填空数组。\n10. location：本轮剧情结束时主角所在的场景完整路径（必须用已登记场景路径之一；移动了才填，没动填 null）。
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "location": null}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "location": null}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
@@ -100,7 +100,9 @@
                 echoMaxCount: 10,              // 回响池容量
                 livingDiary: true,             // 活人感日记（抄hcdiary：第一人称+secret+记忆回环）
                 diaryEveryFloors: 3,           // 每N楼写一次日记（0=每楼）
-                reflectionEnabled: false       // 反思节点（抄stbme：洞察提炼，需API，默认关）
+                reflectionEnabled: false,      // 反思节点（抄stbme：洞察提炼，需API，默认关）
+                reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
+                itemLedgerEnabled: true        // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
             };
             this.loadConfig();
         }
@@ -350,6 +352,9 @@
             this.graph = new MemoryGraph();
             this.summary = new SummarySystem();
             this.diary = new DiarySystem();
+            this.reflection = new ReflectionSystem();  // [v2.8] RT-B 反思系统
+            this.items = { records: [] };               // [v2.8] RT-C 物品台账（派生缓存）
+            this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
             this.llm = new LLMCaller(config);
@@ -501,6 +506,14 @@
                     try {
                         const scN = this.scene.apply(extracted.scenes, message.index || 0);
                         if (extracted.location) this.scene.setLocation(message.index || 0, extracted.location);
+                        // [v2.8] RT-C: 物品台账应用（ops 真源记录，回滚可重放）
+                        if (this.config.config.itemLedgerEnabled && Array.isArray(extracted.items) && extracted.items.length) {
+                            for (const it of extracted.items) {
+                                if (!it?.name) continue;
+                                this.itemOps.push({ floor: message.index || 0, ...it });
+                            }
+                            this.rebuildItems();
+                        }
                         if ((scN || extracted.location) && this.config.config.debugMode) {
                             console.log(`[${PLUGIN_NAME}] 场景树: +${scN} 地点, 位置=${SceneBook.keyOf(extracted.location) || '未变'}`);
                         }
@@ -544,6 +557,8 @@
                 if (this.config.config.livingDiary) {
                     try {
                         const dn = await this.diary.generateLiving(this.config.config, this.llm, extracted?.characters ? this.getKnownCharacters() : [], message.index || 0);
+                        // [v2.8] RT-B: 反思生成（每N楼节流，与日记独立）
+                        try { if (this.config.config.reflectionEnabled) await this.reflection.generate(this.config.config, this.llm, this, message.index || 0); } catch (e) {}
                         if (dn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 活人感日记 +${dn} 条`);
                     } catch (e) {}
                 }
@@ -578,6 +593,8 @@
                         graph: this.graph.export(),
                         summaries: this.summary.export(),
                         diaries: this.diary.export(),
+                        reflection: this.reflection?.export?.(),
+                        itemOps: this.itemOps,
                         vectors: this.vector.export(),
                         povs: this.pov.export(),
                         timeline: this.timeline.export(),
@@ -771,6 +788,29 @@
             }
         }
         // [v2.4] RE: 是否值得跑召回——最近5楼就在全部对话里(无更早历史)则没有可召回的旧事
+        // [v2.8] RT-C: 物品台账重建（ops 真源重放——事件溯源范式，与 status/scene 一致）
+        rebuildItems() {
+            const map = new Map();
+            for (const op of (this.itemOps || [])) {
+                const exist = map.get(op.name);
+                if (op.action === 'add' && !exist) {
+                    map.set(op.name, { name: op.name, desc: String(op.desc || '').slice(0, 80), holder: String(op.holder || '').slice(0, 20), state: '完好', floor: op.floor });
+                } else if (op.action === 'update' && exist) {
+                    if (op.holder) exist.holder = String(op.holder).slice(0, 20);
+                    if (op.state) exist.state = String(op.state).slice(0, 10);
+                    exist.floor = op.floor;
+                }
+            }
+            this.items.records = Array.from(map.values()).slice(-25);
+        }
+        // 物品回滚（真源过滤+重放）
+        rollbackItemsFrom(floor) {
+            const before = (this.itemOps || []).length;
+            this.itemOps = (this.itemOps || []).filter(o => o.floor < floor);
+            if (this.itemOps.length !== before) this.rebuildItems();
+            return before - this.itemOps.length;
+        }
+
         recallWorthRunning() {
             try {
                 const chat = window.SillyTavern?.getContext?.()?.chat || [];
@@ -914,6 +954,21 @@
                 }
             }
             
+            // [v2.8] RT-C: 物品台账召回（当前登场角色持有/查询命中的物品）
+            if (this.config.config.itemLedgerEnabled && this.itemOps?.length) {
+                const cast = this.captureCast();
+                const relevant = this.items.records.filter(r =>
+                    cast.some(c => (r.holder || '').includes(c)) || (query.text && query.text.includes(r.name))
+                ).slice(-5);
+                if (relevant.length) {
+                    results.items = relevant.map(r => ({ text: `${r.name}（${r.holder || '无主'}持有，${r.state}）${r.desc ? '：' + r.desc : ''}`, source: 'items' }));
+                }
+            }
+            // [v2.8] RT-B: 反思召回（重要度 Top-2）
+            if (this.config.config.reflectionEnabled && this.reflection?.items?.length) {
+                results.reflections = this.reflection.search(2).map(r => ({ text: `洞察：${r.insight}${r.suggestion ? '（提示：' + r.suggestion + '）' : ''}`, source: 'reflection' }));
+            }
+
             // [v1.7] RubyPhone 联动②: 手机记忆库作为一路召回源
             if (this.config.config.rubyPhoneRecall && query.text) {
                 try {
@@ -1098,9 +1153,11 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
-                if (item.source === 'status') statuses.push(item);
+                if (item.source === 'items') itemRecs.push(item);
+                else if (item.source === 'reflection') reflectRecs.push(item);
+                else if (item.source === 'status') statuses.push(item);
                 else if (item.source === 'suspense') suspenses.push(item);
                 else if (item.source?.includes('holiday')) holidays.push(item);
                 else if (item.source?.includes('volume')) volumes.push(item);
@@ -1179,6 +1236,14 @@
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
                 if (item.source === 'scene') scenesList.push(item);
                 else if (item.source === 'presence') presenceList.push(item);
+            }
+            if (itemRecs.length) {
+                blocks.push('[物品台账]');
+                itemRecs.forEach(i => blocks.push(`- ${i.text || ''}`));
+            }
+            if (reflectRecs.length) {
+                blocks.push('[高层洞察]（长线关系趋势/线索，供叙事参考不作事实）');
+                reflectRecs.forEach(i => blocks.push(`- ${i.text || ''}`));
             }
             if (this.config.config.sceneEnabled) {
                 try {
@@ -1282,6 +1347,9 @@
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
                 try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) {}
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) {}
+                // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
+                try { const ni = this.rollbackItemsFrom ? this.rollbackItemsFrom(floor) : 0; if (ni && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 物品回滚: ${ni}条ops`); } catch (e) {}
+                try { if (this.reflection?.items?.length) this.reflection.items = this.reflection.items.filter(r => r.floor !== floor); } catch (e) {}
                 // [v2.2] RC: 回滚该楼层登记/了结的悬念簿条目
                 try {
                     if (this.suspense.items.length) {
@@ -1334,6 +1402,8 @@
                     graph: this.graph.export(),
                     povs: this.pov?.export?.() || [],
                     diary: this.diary?.export?.() || { diaries: {} },
+                    reflection: this.reflection?.export?.() || { items: [] },
+                    itemOps: [...(this.itemOps || [])],
                     scene: this.config.config.sceneEnabled ? this.scene.export() : null,
                     vectors: this.config.config.vectorEnabled ? this.vector.export() : null,
                     counts: {
@@ -1362,6 +1432,8 @@
                 try { if (pack.graph?.nodes) this.graph.import(pack.graph); } catch (e) { console.warn('[LonSha] graph导入失败:', e); }
                 try { if (Array.isArray(pack.povs) && pack.povs.length && this.pov?.import) this.pov.import(pack.povs); } catch (e) {}
                 try { if (pack.diary && this.diary?.import) this.diary.import(pack.diary); } catch (e) {}
+                try { if (pack.reflection && this.reflection?.import) this.reflection.import(pack.reflection); } catch (e) {}
+                try { if (Array.isArray(pack.itemOps)) { this.itemOps = pack.itemOps; this.rebuildItems(); } } catch (e) {}
                 try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) {}
                 try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
@@ -2261,6 +2333,70 @@
     }
     
     // [v2.5] RF: 活人感日记（抄 hcdiary——第一人称心声+secret+记忆回环; 旧版仅summary副本已废弃）
+    // [v2.8] RT-B: 反思系统（抄 stbme reflection——每N楼从近期剧情提炼高层洞察）
+    class ReflectionSystem {
+        constructor() { this.items = []; this._lastReflectFloor = -1; this._running = false; }
+        /** 反思生成：抽最近窗口剧情+已知矛盾区，产出 {insight,trigger,suggestion,importance} */
+        async generate(config, llm, engine, floor) {
+            const every = Math.max(0, Number(config.reflectEveryFloors || 10));
+            if (!config.reflectionEnabled || !llm) return 0;
+            if (every > 0 && (floor - this._lastReflectFloor) < every) return 0;
+            if (this._running) return 0;
+            this._running = true;
+            this._lastReflectFloor = floor;
+            try {
+                const ctx = window.SillyTavern?.getContext?.();
+                const chat = ctx?.chat || [];
+                const win = chat.slice(-Math.max(6, every)).map(m => (m.mes || '').substring(0, 400)).join('\n');
+                if (!win) return 0;
+                const contradictions = (engine.suspense?.items || []).filter(x => x.status !== 'open').slice(-3)
+                    .map(x => `- ${x.content}（${x.status}）`).join('\n') || '(无)';
+                const recentInsights = this.items.slice(-3).map(i => `- ${i.insight}`).join('\n') || '(无)';
+                const prompt = `你是 RP 长期记忆系统的反思生成器。阅读最近剧情，提炼最值得长期保留的高层结论。
+规则：
+- insight 总结最近情节中最值得长期保留的变化、关系趋势或潜在线索（50字内，不复述事件）。
+- trigger 说明触发这条反思的关键事件或矛盾。
+- suggestion 给出后续叙事上值得关注的提示。
+- importance 1-10，数字越大越重要。
+- 只输出JSON：{"insight":"...","trigger":"...","suggestion":"...","importance":5}
+【最近剧情】
+${win}
+【近期已有反思】（禁止重复提炼相同结论）
+${recentInsights}
+【已了结/失败的悬念】（可作为矛盾线索参考）
+${contradictions}`;
+                const raw = await llm.callAPI(prompt);
+                if (!raw) return 0;
+                const m = String(raw).match(/\{[\s\S]*\}/);
+                if (!m) return 0;
+                const parsed = JSON.parse(m[0]);
+                const insight = String(parsed?.insight || '').trim();
+                if (insight.length < 8) return 0;
+                this.items.push({
+                    floor, insight: insight.slice(0, 120),
+                    trigger: String(parsed?.trigger || '').slice(0, 120),
+                    suggestion: String(parsed?.suggestion || '').slice(0, 120),
+                    importance: Math.min(10, Math.max(1, Number(parsed?.importance) || 5)),
+                    timestamp: Date.now()
+                });
+                if (this.items.length > 20) this.items.shift();
+                return 1;
+            } catch (e) { return 0; }
+            finally { this._running = false; }
+        }
+        /** 召回：重要度 Top-N */
+        search(limit = 2) {
+            return [...this.items].sort((a, b) => b.importance - a.importance).slice(0, limit);
+        }
+        export() { return { items: this.items, lastReflectFloor: this._lastReflectFloor }; }
+        import(data) {
+            if (data && typeof data === 'object' && Array.isArray(data.items)) {
+                this.items = data.items;
+                this._lastReflectFloor = Number(data.lastReflectFloor ?? -1);
+            } else if (Array.isArray(data)) { this.items = data; }
+        }
+    }
+
     class DiarySystem {
         constructor() { this.diaries = {}; this._lastDiaryFloor = -1; this._writing = false; this._pending = null; }
         /**
@@ -2370,6 +2506,8 @@ ${win}`;
                     if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
                     if (data.scene && engine.scene) engine.scene.import(data.scene);
                     if (data.echo && engine.echo) engine.echo.import(data.echo);
+                    if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
+                    if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; engine.rebuildItems?.(); }
                 }
                 return data;
             } catch (err) { return null; }
