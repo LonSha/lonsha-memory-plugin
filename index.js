@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.1.0';
+    const VERSION = '2.2.0';
     
     class ConfigManager {
         constructor() {
@@ -12,17 +12,15 @@
                 graphDiffusionEnabled: true,
                 autoSave: true,
                 maxSummaryLength: 200,
-                extractionPrompt: `你是剧情记忆整理员。阅读【本轮对话】，对照【已知角色名单】与【前情提要】，只提取明确发生的事实，禁止编造与推测。
-
+                extractionPrompt: `你是剧情记忆整理员。阅读【本轮对话】，对照【已知角色名单】、【前情提要】与【悬念簿】，只提取明确发生的事实，禁止编造与推测。
 【已知角色名单】（提取角色必须复用这些主名；识别出别名/昵称/代称时，归并到对应主名）
 {{KNOWN_CHARS}}
-
 【前情提要】（此前剧情摘要，仅供理解上下文，禁止重复提取其中已记录的内容）
 {{HISTORY}}
-
+【悬念簿】（此前立下但尚未了结的约定/伏笔/未解之谜。若本轮有进展或了结，必须在 plans.resolve 中登记；禁止重复提取已了结项）
+{{SUSPENSE}}
 【本轮对话】
 {{CONTENT}}
-
 【提取规则】
 1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
 2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。每个事件标注 scope："objective"（公开事实，所有在场角色都知道）或 "pov"（仅某角色亲眼看到/独自知道的事实，此时必须给出 owner=该角色主名）。
@@ -30,10 +28,13 @@
 4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
 5. story_date：本轮剧情中明确写出的日期（如"3月12日""2026年5月1日"）；未明确写出则填 null。禁止编造日期。
 6. pov_memories：本轮产生的角色私密认知/秘密/内心独白（摄像头拍不到、仅该角色自己知道的内容）。每条必须给出 owner（哪个角色知道）和 content（一句话说清）。已在对话中公开说出口的内容不算。没有则填空数组。
-7. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
-
+7. plans：本轮剧情中【新出现】的约定、目标、伏笔或未解之谜。kind 填 "plan"（角色主动要做的事）或 "suspense"（埋下的谜团/伏笔）。content 一句话写清。contentIsNew 必须为 true。没有新悬念则填空数组。禁止把悬念簿里已有的悬项重复登记。
+8. plans.resolve：本轮【了结】了悬念簿里的悬项时填写。id 必须使用【悬念簿】中列出的编号（如 s3）。outcome 填 "done"（真做成/真揭晓）或 "cancelled"（被取消/放弃/作废）或 "failed"（尝试了但失败/以坏结局收场）。reason 一句话写明怎么收场的。没有则填空数组。
+9. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}]}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}]}`,
+                // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
+                // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
                 // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
                 apiProviderCustom: false,       // false=跟随正文接口, true=用下方独立配置
@@ -72,7 +73,11 @@
                 extractionLockEnabled: true,   // 提取互斥（防并发写坏数据）
                 injectionBudget: 3000,         // 注入简报字符预算（超预算自动裁剪）
                 budgetStrategy: 'balanced',    // 预算策略: balanced | recency | relevance
-                holidayAware: true             // 节日感知（剧情日期临近节日时增强相关记忆）
+                holidayAware: true,            // 节日感知（剧情日期临近节日时增强相关记忆）
+                // [v2.2] RC: 悬念簿 + 相对时间
+                suspenseEnabled: true,         // 悬念簿（约定/伏笔/未解之谜，三态了结防复读）
+                suspenseMaxOpen: 20,           // 悬念簿在追踪上限（超出最旧的自动沉降）
+                relativeTime: true             // 剧情时间线注入加相对时间前缀（如"3天前·3月12日"）
             };
             this.loadConfig();
         }
@@ -278,6 +283,8 @@
             // [v2.1] P3
             this.mutex = new Mutex();
             this.holiday = new HolidayAware();
+            // [v2.2] RC
+            this.suspense = new SuspenseBook();
         }
         
         async onMessageReceived(message, messageId = null) {
@@ -377,6 +384,28 @@
                     this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || []);
                 }
 
+                // [v2.2] RC: 悬念簿（新悬项登记 + 了结核销 + 超限沉降）
+                if (this.config.config.suspenseEnabled && extracted) {
+                    try {
+                        let susN = 0;
+                        for (const pl of (extracted.plans || [])) {
+                            if (pl && pl.contentIsNew !== false && pl.content) {
+                                if (this.suspense.add(pl.kind, pl.content, message.index || 0, extracted.story_date || null)) susN++;
+                            }
+                        }
+                        let resN = 0;
+                        for (const pr of (extracted.plans_resolve || [])) {
+                            if (pr && (pr.id || pr.content)) {
+                                if (this.suspense.resolve(pr.id || pr.content, pr.outcome, pr.reason, message.index || 0)) resN++;
+                            }
+                        }
+                        const pruned = this.suspense.prune(this.config.config.suspenseMaxOpen || 20);
+                        if ((susN || resN || pruned) && this.config.config.debugMode) {
+                            console.log(`[${PLUGIN_NAME}] 悬念簿: +${susN} 新增, ${resN} 了结, ${pruned} 沉降`);
+                        }
+                    } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 悬念簿处理失败:`, e); }
+                }
+
                 // [v2.0] P2: 角色状态 + 待办 + 楼层账本
                 const floor = message.index || 0;
                 const nodesBefore = this.graph.nodes.size;
@@ -436,6 +465,11 @@
                     try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) {}
                 }
 
+                // [v2.2] RB: 楼层提交盖章 → 桥同步手机侧楼层状态 (幂等)
+                try {
+                    const rb = window.VirtualPhone?.lonshaBridge;
+                    if (rb?.onFloorCommitted) rb.onFloorCommitted(message.index || 0);
+                } catch (e) {}
                 if (this.config.config.autoSave) {
                     await this.storage.save(chatId, {
                         graph: this.graph.export(),
@@ -446,6 +480,7 @@
                         timeline: this.timeline.export(),
                         status: this.status.export(),
                         ledger: this.ledger.export(),
+                        suspense: this.suspense.export(),
                         version: VERSION
                     });
                 }
@@ -470,6 +505,7 @@
                 const prompt = this.config.config.extractionPrompt
                     .replace('{{KNOWN_CHARS}}', knownChars.join('、') || '（暂无，从本轮开始积累）')
                     .replace('{{HISTORY}}', historyFull || '（暂无）')
+                    .replace('{{SUSPENSE}}', (this.config.config.suspenseEnabled && this.suspense.openItems().length) ? this.suspense.briefForPrompt() : '（暂无未了结的悬念）')
                     .replace('{{CONTENT}}', content);
                 const response = await this.llm.callAPI(prompt);
                 if (!response) {
@@ -611,7 +647,7 @@
         }
         
         async recallMemory(query) {
-            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: []};
+            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: []};
             
             results.summary = this.summary.search(query.text);
             
@@ -714,8 +750,16 @@
             if (this.config.config.plotTimeline && this.timeline.entries.length) {
                 const anchorDate = this.getLatestStoryDate();
                 if (anchorDate) {
+                    const relOn = this.config.config.relativeTime !== false;
                     results.timeline = this.timeline.searchNear(anchorDate, this.config.config.timelineWindowDays, 5)
-                        .map(e => ({id: e.id, text: `[${e.date}] ${e.text}`, date: e.date, floor: e.floor, source: 'timeline'}));
+                        .map(e => {
+                            // [v2.2] RC: 相对时间前缀（"3天前·3月12日"），解析失败不加（宁可不标绝不标错）
+                            let rel = '';
+                            if (relOn) {
+                                try { rel = relativePrefix(e.date, anchorDate); } catch (err) { rel = ''; }
+                            }
+                            return {id: e.id, text: `[${rel ? rel + '·' : ''}${e.date}] ${e.text}`, date: e.date, floor: e.floor, source: 'timeline'};
+                        });
                 }
             }
             
@@ -737,6 +781,21 @@
                 } catch (e) {
                     if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] RubyPhone召回失败:`, e);
                 }
+            }
+            
+            // [v2.2] RC: 悬念簿召回（未了结悬项 + 近期了结，防 AI 把办完的事反复提/把伏笔写丢）
+            if (this.config.config.suspenseEnabled && this.suspense.items.length) {
+                try {
+                    const openList = this.suspense.openItems().slice(0, 8).map(x => ({
+                        id: x.id, text: `${x.kind === 'suspense' ? '未解之谜' : '约定/目标'}（第${x.floor != null ? x.floor + '楼立下' : '早期'}）: ${x.content}`,
+                        floor: x.floor, source: 'suspense'
+                    }));
+                    const resolvedList = this.suspense.recentlyResolved(3).map(x => ({
+                        id: x.id, text: `已了结[${x.outcome === 'done' ? '完成' : x.outcome === 'cancelled' ? '取消' : '失败'}]${x.resolvedReason ? '：' + x.resolvedReason : ''} — 原项: ${x.content}`,
+                        floor: x.resolvedFloor, source: 'suspense'
+                    }));
+                    results.suspense = openList.concat(resolvedList);
+                } catch (e) {}
             }
             
             // [v1.8] P0: POV 私密记忆召回（只取当前登场角色的，防剧透）
@@ -768,7 +827,8 @@
                 results.bm25 || [],
                 results.volume || [],
                 results.status || [],
-                results.holiday || []
+                results.holiday || [],
+                results.suspense || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -780,7 +840,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday','suspense'][listIdx]
                     });
                 });
             });
@@ -853,9 +913,10 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
                 if (item.source === 'status') statuses.push(item);
+                else if (item.source === 'suspense') suspenses.push(item);
                 else if (item.source?.includes('holiday')) holidays.push(item);
                 else if (item.source?.includes('volume')) volumes.push(item);
                 else if (item.source === 'bm25') bm25Hits.push(item);
@@ -929,6 +990,16 @@
                 blocks.push('[手机生活记忆]');
                 phoneMem.forEach(i => blocks.push(`- ${i.text || i.content || ''}`));
             }
+            if (suspenses.length) {
+                blocks.push('[悬念簿]');
+                const seenS = new Set();
+                suspenses.forEach(i => {
+                    const key = i.text || '';
+                    if (seenS.has(key)) return;
+                    seenS.add(key);
+                    blocks.push(`- ${key}`);
+                });
+            }
             if (holidays.length) {
                 blocks.push(`〔剧情时间临近 ${holidays[0].holiday}｜氛围提示，可自然融入但不强求〕`);
                 const seenH = new Set();
@@ -982,8 +1053,23 @@
                 // 回滚时间线
                 const tlIdSet = new Set(entry.timelineIds || []);
                 this.timeline.entries = this.timeline.entries.filter(t => !tlIdSet.has(t.id));
+                // [v2.2] RC: 回滚该楼层登记/了结的悬念簿条目
+                try {
+                    if (this.suspense.items.length) {
+                        const before = this.suspense.items.length;
+                        this.suspense.items = this.suspense.items.filter(x => x.floor !== floor && x.resolvedFloor !== floor);
+                        if (this.suspense.items.length !== before && this.config.config.debugMode) {
+                            console.log(`[${PLUGIN_NAME}] 悬念簿回滚: 清除 ${before - this.suspense.items.length} 条 (楼层 ${floor})`);
+                        }
+                    }
+                } catch (e) {}
                 // 回滚该楼层摘要
                 this.summary.summaries = this.summary.summaries.filter(s => s.floor !== floor);
+                // [v2.2] RB: 楼层回滚联动 RubyPhone 手机记忆 (幂等, 桥不在时静默跳过)
+                try {
+                    const rb = window.VirtualPhone?.lonshaBridge;
+                    if (rb?.onFloorRollback) rb.onFloorRollback(floor);
+                } catch (e) {}
                 // 移除账本记录
                 this.ledger.remove(floor);
                 // 重建 BM25 索引
@@ -1003,6 +1089,118 @@
         }
     }
     
+    // [v2.2] RC: 悬念簿（抄 baibai MemPlan：约定/伏笔/未解之谜 + done/cancelled/failed 三态了结）
+    class SuspenseBook {
+        constructor() { this.items = []; this._seq = 0; }
+        /** 添加新悬项。kind: 'plan'|'suspense' */
+        add(kind, content, floor, createdTime) {
+            const c = String(content || '').trim();
+            if (c.length < 4) return null;
+            const id = 'sus_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            this._seq = (this._seq || 0) + 1;
+            this.items.push({
+                id, sid: 's' + this._seq, kind: (kind === 'suspense' ? 'suspense' : 'plan'), content: c.slice(0, 120),
+                status: 'open', floor: floor ?? null, createdTime: createdTime || null,
+                outcome: null, resolvedReason: null, resolvedFloor: null, createdAt: Date.now()
+            });
+            return id;
+        }
+        /** 了结悬项。outcome: 'done'|'cancelled'|'failed' */
+        resolve(idOrContent, outcome, reason, floor) {
+            let it = this.items.find(x => x.id === idOrContent && x.status === 'open');
+            if (!it) it = this.items.find(x => x.sid === idOrContent && x.status === 'open');
+            if (!it) {
+                const key = String(idOrContent || '').trim();
+                it = this.items.find(x => x.status === 'open' && (x.content.includes(key) || key.includes(x.content)));
+            }
+            if (!it) return null;
+            it.status = 'resolved';
+            it.outcome = ['done', 'cancelled', 'failed'].includes(outcome) ? outcome : 'done';
+            it.resolvedReason = String(reason || '').slice(0, 80) || null;
+            it.resolvedFloor = floor ?? null;
+            return it;
+        }
+        openItems() { return this.items.filter(x => x.status === 'open'); }
+        /** 近期了结（注入"已了结"分区，防主模型把办完的事再拿出来说） */
+        recentlyResolved(limit = 3) {
+            return this.items.filter(x => x.status === 'resolved').slice(-limit).reverse();
+        }
+        /** 上限控制：超出的最旧 open 沉降（不再注入，但保留记录） */
+        prune(maxOpen) {
+            const open = this.openItems();
+            if (open.length <= (maxOpen || 20)) return 0;
+            const toClose = open.slice(0, open.length - (maxOpen || 20));
+            for (const it of toClose) { it.status = 'resolved'; it.outcome = 'cancelled'; it.resolvedReason = '（长期未了结，自动沉降）'; }
+            return toClose.length;
+        }
+        /** 给提取 prompt 的悬念清单（带稳定短编号 s1/s2… 供 LLM 引用了结） */
+        briefForPrompt() {
+            const open = this.openItems();
+            if (!open.length) return '（暂无未了结的悬念）';
+            return open.slice(0, 12).map(x => `${x.sid || '?'}: ${x.kind === 'suspense' ? '[谜团]' : '[约定]'} ${x.content}`).join('\n');
+        }
+        export() { return this.items; }
+        import(data) {
+            this.items = Array.isArray(data) ? data : [];
+            // 恢复序号器: 取历史最大 sid 编号, 防新条目 sid 撞号
+            let mx = 0;
+            for (const x of this.items) {
+                const m = String(x.sid || '').match(/^s(\d+)$/);
+                if (m) mx = Math.max(mx, Number(m[1]));
+            }
+            this._seq = mx;
+        }
+    }
+
+    // [v2.2] RC: 相对时间前缀（抄 baibai timeRel：数字日历精确算天数差，宁可不标绝不标错）
+    function parseStoryDateLoose(s) {
+        s = String(s || '');
+        // 带年: 2026年3月12日 / 2026-3-12 / 2026/3/12 / 2026.3.12
+        let m = s.match(/(\d{3,4})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/) || s.match(/(\d{1,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})/);
+        if (m) {
+            let y = Number(m[1]); if (y < 100) y += 2000;
+            const mo = Number(m[2]), d = Number(m[3]);
+            if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return { y, mo, d };
+            return null;
+        }
+        // 无年: 3月12日 / 3月12 / 3-12(后接边界, 防"1.5个小时"小数误判)
+        m = s.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日?/) || s.match(/(\d{1,2})[\/\-.](\d{1,2})(?=$|\s|日)/);
+        if (m) {
+            const mo = Number(m[1]), d = Number(m[2]);
+            if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return { y: null, mo, d };
+        }
+        return null;
+    }
+    function storyDayDiff(dateA, dateB) {
+        const a = parseStoryDateLoose(dateA), b = parseStoryDateLoose(dateB);
+        if (!a || !b) return null;
+        // 年份补齐: 双方都无年按同年比; 一方无年借用对方的年; 差值超2年视为年份推测可疑, 宁可不标
+        let ya = a.y, yb = b.y;
+        if (ya === null && yb === null) { ya = 2000; yb = 2000; }
+        else if (ya === null) ya = yb;
+        else if (yb === null) yb = ya;
+        const diff = Math.round((new Date(ya, a.mo - 1, a.d) - new Date(yb, b.mo - 1, b.d)) / 86400000);
+        if (isNaN(diff) || Math.abs(diff) > 730) return null;
+        return diff;
+    }
+    function relativePrefix(dateStr, nowStr) {
+        try {
+            if (!dateStr || !nowStr) return '';
+            const diff = storyDayDiff(nowStr, dateStr);
+            if (diff === null || isNaN(diff)) return '';
+            if (diff === 0) return '今天';
+            if (diff === 1) return '昨天';
+            if (diff === 2) return '前天';
+            if (diff > 2 && diff < 7) return diff + '天前';
+            if (diff >= 7 && diff < 30) return Math.floor(diff / 7) + '周前';
+            if (diff >= 30 && diff < 365) return Math.floor(diff / 30) + '个月前';
+            if (diff >= 365) return Math.floor(diff / 365) + '年前';
+            if (diff === -1) return '明天';
+            if (diff < -1 && diff > -7) return Math.abs(diff) + '天后';
+            return '';   // 更远的未来不标（宁可不标绝不标错）
+        } catch (e) { return ''; }
+    }
+
     class MemoryGraph {
         constructor() { this.nodes = new Map(); this.edges = new Map(); this.nameIndex = new Map(); }
         addNode(node) {
@@ -1416,10 +1614,17 @@
             ];
         }
         _parse(dateStr) {
-            const m = String(dateStr || '').match(/(\d{1,4})\s*[年\-\/]\s*(\d{1,2})\s*[月\-\/]\s*(\d{1,2})/);
+            const s = String(dateStr || '');
+            // [v2.2] 修复: 支持无年日期("3月12日"); 节日比较只看月/日, 年缺省用占位年
+            const m = s.match(/(\d{3,4})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/)
+                || s.match(/(\d{1,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})/)
+                || s.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
             if (!m) return null;
-            let y = Number(m[1]); if (y < 100) y += 2000;
-            return { y, mo: Number(m[2]), d: Number(m[3]) };
+            const mo = Number(m[m.length - 2]), d = Number(m[m.length - 1]);
+            if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+            let y = m.length === 4 ? Number(m[1]) : 2024;
+            if (y < 100) y += 2000;
+            return { y, mo, d };
         }
         /** 返回当前日期所处的节日（含临近窗口），无则 null */
         current(dateStr) {
@@ -1507,6 +1712,7 @@
                     if (data.timeline && engine.timeline) engine.timeline.import(data.timeline);
                     if (data.status && engine.status) engine.status.import(data.status);
                     if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
+                    if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
                 }
                 return data;
             } catch (err) { return null; }

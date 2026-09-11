@@ -83,7 +83,10 @@
             let phoneStatus = '未安装';
             try {
                 const bridge = window.VirtualPhone?.lonshaBridge;
-                if (bridge) phoneStatus = (bridge.enabled ? '✅ 已连接' : '⛔ 已关闭') + ` (回填${bridge.stats?.backfillCount || 0})`;
+                if (bridge) {
+                    const bs = bridge.getStats?.() || {};
+                    phoneStatus = (bridge.enabled ? '✅ 已连接' : '⛔ 已关闭') + ` (回填${bs.backfillCount || 0}·BM25 ${bs.bm25Docs || 0}${bridge.isCoordinated ? '·协调注入' : ''})`;
+                }
                 else if (window.VirtualPhone?.memoryCore) phoneStatus = '⚠️ 桥未挂载';
             } catch (e) {}
             const body = `
@@ -97,6 +100,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="povs"><div class="ls-stat-num">${s.pov?.povs?.length || 0}</div><div class="ls-stat-label">POV私密记忆 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="volumes"><div class="ls-stat-num">${s.summary?.volumes?.length || 0}</div><div class="ls-stat-label">卷摘要 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="suspense"><div class="ls-stat-num">${s.suspense?.openItems?.().length || 0}</div><div class="ls-stat-label">悬念簿 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
@@ -199,6 +203,18 @@
                         </div>`;
                     }).join('');
             }
+            else if (viewType === 'suspense') {
+                title = '🔖 悬念簿';
+                const items = s.suspense?.items || [];
+                const open = items.filter(x => x.status === 'open');
+                const resolved = items.filter(x => x.status === 'resolved').slice(-10).reverse();
+                body = (items.length === 0) ? '<div class="ls-hint">暂无悬念。LLM 提取到约定/伏笔/谜团后会自动登记。</div>' :
+                    `<div class="ls-group"><div class="ls-group-title">未了结 (${open.length})</div>` +
+                    (open.map(x => `<div class="ls-item"><div class="ls-item-meta">${x.kind === 'suspense' ? '谜团' : '约定'} · 第${x.floor ?? '?'}楼${x.createdTime ? ' · ' + esc(x.createdTime) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
+                    `</div><div class="ls-group"><div class="ls-group-title">近期了结</div>` +
+                    (resolved.map(x => `<div class="ls-item"><div class="ls-item-meta">${x.outcome === 'done' ? '✅ 完成' : x.outcome === 'cancelled' ? '🚫 取消' : '❌ 失败'}${x.resolvedReason ? ' · ' + esc(x.resolvedReason) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
+                    '</div>';
+            }
             else if (viewType === 'relations') {
                 title = '🔗 关系边';
                 const nameOf = (id) => s.graph.nodes.get(id)?.name || id;
@@ -285,6 +301,14 @@
                     ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密认知/秘密单独存储，只注入当前登场角色的，防剧透')}
                     ${ck('plotTimeline', '剧情时间线', '按剧情日期整理摘要，召回时优先取当前剧情时间附近')}
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">🔖 悬念簿 + 相对时间</div>
+                    ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
+                    ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然')}
+                    <div class="ls-slider-label"><span>悬念追踪上限（条）</span><span class="ls-slider-val" id="ls-v-susmax">${c.suspenseMaxOpen || 20}</span></div>
+                    <input type="range" class="ls-slider" min="5" max="40" step="5" value="${c.suspenseMaxOpen || 20}" data-cfg-num="suspenseMaxOpen">
+                    <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">📱 RubyPhone 联动</div>
