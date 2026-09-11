@@ -444,7 +444,7 @@
                     a.href = URL.createObjectURL(blob);
                     a.download = `lonsha-carryover-${Date.now()}.json`;
                     a.click();
-                    toast(`已打包 ${pack.summaries.length}条摘要+${pack.suspense.length}条悬念 (本地+文件双备份)`);
+                    toast(`已打包 摘要${pack.counts?.summaries ?? pack.summaries.length}+悬念${pack.counts?.suspense ?? pack.suspense.length}+图谱${pack.counts?.graphNodes ?? 0}+日记${pack.counts?.diaries ?? 0}+向量${pack.counts?.vectors ?? 0} (本地+文件双备份)`);
                 } catch (e) { toast('打包失败: ' + e.message); }
             });
             overlay.querySelector('#ls-carry-apply').addEventListener('click', () => {
@@ -458,7 +458,7 @@
                             diaries: this.engine.diary.export(), vectors: this.engine.vector.export(),
                             povs: this.engine.pov.export(), timeline: this.engine.timeline.export(),
                             status: this.engine.status.export(), ledger: this.engine.ledger.export(),
-                            suspense: this.engine.suspense.export(), version: '2.3.0'
+                            suspense: this.engine.suspense.export(), version: '2.7.0'
                         });
                         toast('✅ 携带包已导入，剧情无缝衔接');
                     } else toast('导入失败');

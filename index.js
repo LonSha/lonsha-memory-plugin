@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.6.0';
+    const VERSION = '2.7.0';
     
     class ConfigManager {
         constructor() {
@@ -320,6 +320,13 @@
             return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
         }
         
+        // [v2.7] RS: 按楼层删除向量（rollbackFloor 联动，幂等）
+        removeByFloor(floor) {
+            const before = this.vectors.length;
+            this.vectors = this.vectors.filter(v => v.metadata?.floor !== floor);
+            return before - this.vectors.length;
+        }
+
         async search(query, topK = 5) {
             if (this.vectors.length === 0) return [];
             const queryVec = await this.getEmbedding(query);
@@ -1272,6 +1279,9 @@
                 try {
                     if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) this.scene.rollbackFrom(floor);
                 } catch (e) {}
+                // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
+                try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) {}
+                try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) {}
                 // [v2.2] RC: 回滚该楼层登记/了结的悬念簿条目
                 try {
                     if (this.suspense.items.length) {
@@ -1313,12 +1323,24 @@
                         statusFlat.push({ character: name, field, value, reason: '携带自旧对话' });
                     }
                 }
+                // [v2.7] RS: 全量携带——补 graph/diary/scene/vector/pov（v2.3 版只带摘要+悬念+时间线+状态）
                 return {
+                    version: '2.7.0',
                     summaries: active.map(s => ({ floor: s.floor, text: s.text, level: 1, timestamp: s.timestamp, folded: false })),
                     volumes: [...(this.summary.volumes || [])],
                     suspense: this.suspense.items.filter(x => x.status === 'open'),
                     timeline: [...this.timeline.entries],
                     statusFlat,
+                    graph: this.graph.export(),
+                    povs: this.pov?.export?.() || [],
+                    diary: this.diary?.export?.() || { diaries: {} },
+                    scene: this.config.config.sceneEnabled ? this.scene.export() : null,
+                    vectors: this.config.config.vectorEnabled ? this.vector.export() : null,
+                    counts: {
+                        summaries: active.length, suspense: this.suspense.items.filter(x => x.status === 'open').length,
+                        graphNodes: this.graph.nodes.size, diaries: Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0),
+                        vectors: this.config.config.vectorEnabled ? this.vector.vectors.length : 0
+                    },
                     packedAt: new Date().toISOString()
                 };
             } catch (e) { return null; }
@@ -1336,8 +1358,17 @@
                 if (Array.isArray(pack.statusFlat) && pack.statusFlat.length) {
                     this.status.applyChanges(pack.statusFlat, 0, true);
                 }
+                // [v2.7] RS: 全量导入（graph/pov/diary/scene/vector，兼容 v2.3 旧包——字段缺失静默跳过）
+                try { if (pack.graph?.nodes) this.graph.import(pack.graph); } catch (e) { console.warn('[LonSha] graph导入失败:', e); }
+                try { if (Array.isArray(pack.povs) && pack.povs.length && this.pov?.import) this.pov.import(pack.povs); } catch (e) {}
+                try { if (pack.diary && this.diary?.import) this.diary.import(pack.diary); } catch (e) {}
+                try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) {}
+                try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
                     this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                }
+                if (this.config.config.debugMode && pack.counts) {
+                    console.log(`[${PLUGIN_NAME}] 携带包导入: 图谱${this.graph.nodes.size}/${pack.counts.graphNodes} 日记${Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0)}/${pack.counts.diaries} 向量${this.vector.vectors.length}/${pack.counts.vectors}`);
                 }
                 return true;
             } catch (e) { return false; }
@@ -2289,6 +2320,16 @@ ${win}`;
             const results = [];
             for (const char of (characters || [])) if (this.diaries[char]) results.push(...this.diaries[char].slice(-3));
             return results;
+        }
+        // [v2.7] RS: 按楼层删除日记（rollbackFloor 联动，幂等）
+        removeByFloor(floor) {
+            let n = 0;
+            for (const name of Object.keys(this.diaries)) {
+                const arr = this.diaries[name];
+                const filtered = arr.filter(d => d.floor !== floor);
+                if (filtered.length !== arr.length) { n += arr.length - filtered.length; this.diaries[name] = filtered; }
+            }
+            return n;
         }
         export() { return { diaries: this.diaries, lastDiaryFloor: this._lastDiaryFloor }; }
         import(data) {
