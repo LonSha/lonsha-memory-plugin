@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.2.0';
+    const VERSION = '2.3.0';
     
     class ConfigManager {
         constructor() {
@@ -77,7 +77,13 @@
                 // [v2.2] RC: 悬念簿 + 相对时间
                 suspenseEnabled: true,         // 悬念簿（约定/伏笔/未解之谜，三态了结防复读）
                 suspenseMaxOpen: 20,           // 悬念簿在追踪上限（超出最旧的自动沉降）
-                relativeTime: true             // 剧情时间线注入加相对时间前缀（如"3天前·3月12日"）
+                relativeTime: true,            // 剧情时间线注入加相对时间前缀（如"3天前·3月12日"）
+                // [v2.3] RD: rerank 精排（抄 baibai 两阶段检索）
+                rerankEnabled: false,          // LLM 精排召回结果（需配独立API，延迟+费用换精度）
+                rerankApiUrl: '',
+                rerankApiKey: '',
+                rerankModel: '',
+                rerankCandidates: 12           // 进入精排的候选数
             };
             this.loadConfig();
         }
@@ -143,6 +149,36 @@
                 console.error(`[${PLUGIN_NAME}] API调用失败:`, err);
                 return null;
             }
+        }
+        // [v2.3] RD: rerank 精排——小模型把候选按与查询的相关度重排。失败返回 null (调用方静默降级)
+        async rerank(query, docs) {
+            try {
+                const cfg = this.config.config;
+                const url = cfg.rerankApiUrl || cfg.apiUrl;
+                const key = cfg.rerankApiKey || cfg.apiKey;
+                const model = cfg.rerankModel || cfg.apiModel;
+                if (!cfg.rerankEnabled || !url || !key) return null;
+                const list = docs.map((d, i) => `[${i + 1}] ${(d.text || d.summary || d.name || '').substring(0, 150)}`).join('\n');
+                const prompt = `你是检索精排器。给定【查询】和编号候选列表，按与查询的相关度从高到低输出候选编号。只输出JSON数组（如 ["3","1","7"]），不要解释。可以只输出明显相关的编号（无关的不要收录）。
+【查询】${String(query || '').substring(0, 300)}
+【候选】\n${list}`;
+                let raw = null;
+                if (cfg.apiProviderCustom && url && key) {
+                    raw = await this.callOpenAI(prompt, url, key, model);
+                } else {
+                    const ctx = window.SillyTavern?.getContext?.();
+                    const quiet = ctx?.generateQuietPrompt;
+                    if (typeof quiet !== 'function') return null;
+                    raw = await quiet({ quietPrompt: prompt, quietToLoud: false, skipWIAN: false });
+                    if (!raw) raw = await quiet(prompt, false, false);
+                }
+                if (!raw) return null;
+                const m = String(raw).match(/\[[\s\S]*?\]/);
+                if (!m) return null;
+                const order = JSON.parse(m[0]);
+                if (!Array.isArray(order) || !order.length) return null;
+                return order.map(x => Number(x) - 1).filter(i => i >= 0 && i < docs.length);
+            } catch (e) { return null; }
         }
         // [v1.4.1] 抓取模型列表（OpenAI 兼容 /models 端点）
         async fetchModels(url, key) {
@@ -808,7 +844,22 @@
                 }
             }
             
-            return this.hybridMerge(results);
+            // [v2.3] RD: 两阶段精排 (抄 baibai recall: 多路粗召回 → LLM rerank 精排)
+            const merged = this.hybridMerge(results);
+            if (this.config.config.rerankEnabled && merged.length > 3 && query.text) {
+                try {
+                    const candN = this.config.config.rerankCandidates || 12;
+                    const candidates = merged.slice(0, candN);
+                    const rest = merged.slice(candN);
+                    const order = await this.llm.rerank(query.text, candidates);
+                    if (order && order.length) {
+                        const picked = order.map(i => candidates[i]).filter(Boolean);
+                        const restSet = new Set(candidates.filter((_, i) => !order.includes(i)));
+                        return [...picked, ...restSet, ...rest];
+                    }
+                } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] rerank失败(降级):`, e); }
+            }
+            return merged;
         }
         
         // [v1.5] RRF 倒数排名融合（抄 shujuku reciprocalRankFusion）——
@@ -1053,6 +1104,13 @@
                 // 回滚时间线
                 const tlIdSet = new Set(entry.timelineIds || []);
                 this.timeline.entries = this.timeline.entries.filter(t => !tlIdSet.has(t.id));
+                // [v2.3] RD: 状态回滚改为事件溯源范式——删 ops 真源 → 重放重建 (不再依赖字段级补偿)
+                try {
+                    if (this.status?.ops?.length) {
+                        this.status.ops = this.status.ops.filter(o => o.floor < floor);
+                        this.status.rebuildFromOps();
+                    }
+                } catch (e) {}
                 // [v2.2] RC: 回滚该楼层登记/了结的悬念簿条目
                 try {
                     if (this.suspense.items.length) {
@@ -1084,6 +1142,45 @@
             }
         }
 
+        // [v2.3] RD: 携带背包（抄 baibai carryover——把记忆打包带走，新对话无缝续写）
+        packCarryover() {
+            try {
+                const active = this.summary.getActiveSummaries().slice(-40);
+                const statusFlat = [];
+                for (const [name, rec] of Object.entries(this.status.characters || {})) {
+                    for (const [field, value] of Object.entries(rec.fields || {})) {
+                        statusFlat.push({ character: name, field, value, reason: '携带自旧对话' });
+                    }
+                }
+                return {
+                    summaries: active.map(s => ({ floor: s.floor, text: s.text, level: 1, timestamp: s.timestamp, folded: false })),
+                    volumes: [...(this.summary.volumes || [])],
+                    suspense: this.suspense.items.filter(x => x.status === 'open'),
+                    timeline: [...this.timeline.entries],
+                    statusFlat,
+                    packedAt: new Date().toISOString()
+                };
+            } catch (e) { return null; }
+        }
+        // 应用携带包 (新对话开局调用: 摘要/卷/时间线/悬念导入 + 状态重建)
+        applyCarryover(pack) {
+            try {
+                if (!pack) return false;
+                if (Array.isArray(pack.summaries) && pack.summaries.length) {
+                    this.summary.summaries = pack.summaries.map(s => ({ ...s, folded: false }));
+                }
+                if (Array.isArray(pack.volumes) && pack.volumes.length) this.summary.volumes = pack.volumes;
+                if (Array.isArray(pack.suspense)) this.suspense.import(pack.suspense);
+                if (Array.isArray(pack.timeline) && pack.timeline.length) this.timeline.entries = [...pack.timeline];
+                if (Array.isArray(pack.statusFlat) && pack.statusFlat.length) {
+                    this.status.applyChanges(pack.statusFlat, 0, true);
+                }
+                if (this.config.config.bm25Enabled) {
+                    this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                }
+                return true;
+            } catch (e) { return false; }
+        }
         getCurrentChatId() {
             try { return window.SillyTavern?.getContext?.()?.chatId; } catch { return null; }
         }
@@ -1422,9 +1519,37 @@
     // [v2.0] P2: 角色状态表（抄 yuzuki character-status：数值状态 + 待办生命周期）
     class CharacterState {
         constructor() {
-            this.characters = {};   // { 角色名: { fields: {...}, todos: [...], updatedAt, floor } }
+            this.characters = {};   // { 角色名: { fields: {...}, todos: [...], updatedAt, floor } } (派生缓存)
+            // [v2.3] RD: 事件溯源真源——每楼一条 op {floor, changes, todos}, 状态由重放推导 (抄 baibai delta-replay)
+            this.ops = [];
+            this.MAX_OPS = 500;
             this.MAX_FIELDS = 24;
             this.MAX_TODOS = 12;
+        }
+        // [v2.3] ops 记录 (同楼覆盖式: 重复提取同楼时后写覆盖前写, 重放幂等)
+        _logOp(floor, kind, items) {
+            try {
+                if (!items || !items.length) return;
+                let op = this.ops.find(o => o.floor === floor);
+                if (!op) {
+                    op = { floor, changes: [], todos: [] };
+                    this.ops.push(op);
+                    if (this.ops.length > this.MAX_OPS) this.ops.shift();
+                }
+                if (kind === 'changes') op.changes = items;
+                if (kind === 'todos') op.todos = items;
+            } catch (e) {}
+        }
+        // [v2.3] 重放重建: 清空派生状态, 按楼层升序重放全部 ops (删楼回滚后调它, 天然一致)
+        rebuildFromOps() {
+            try {
+                const saved = [...this.ops].sort((a, b) => a.floor - b.floor);
+                this.characters = {};
+                for (const op of saved) {
+                    if (Array.isArray(op.changes) && op.changes.length) this.applyChanges(op.changes, op.floor, true);
+                    if (Array.isArray(op.todos) && op.todos.length) this.addTodos(op.todos, op.floor, true);
+                }
+            } catch (e) {}
         }
         _ensure(name) {
             if (!this.characters[name]) {
@@ -1432,10 +1557,11 @@
             }
             return this.characters[name];
         }
-        // 设置/增量修改状态字段
-        applyChanges(changes, floor) {
+        // 设置/增量修改状态字段 ([v2.3] _replaying=true 表示正在重放, 不再记 op)
+        applyChanges(changes, floor, _replaying = false) {
             if (!Array.isArray(changes)) return 0;
             let n = 0;
+            const effective = [];
             for (const c of changes) {
                 const name = String(c?.character || c?.name || '').trim();
                 const field = String(c?.field || '').trim();
@@ -1454,14 +1580,17 @@
                 // 字段数上限保护
                 const keys = Object.keys(rec.fields);
                 if (keys.length > this.MAX_FIELDS) delete rec.fields[keys[0]];
+                effective.push(c);
                 n++;
             }
+            if (!_replaying && effective.length) this._logOp(floor, 'changes', effective);
             return n;
         }
-        // 待办事项（带去重 + 过期清理）
-        addTodos(items, floor) {
+        // 待办事项（带去重 + 过期清理）([v2.3] _replaying=true 表示正在重放)
+        addTodos(items, floor, _replaying = false) {
             if (!Array.isArray(items)) return 0;
             let n = 0;
+            const effective = [];
             for (const t of items) {
                 const name = String(t?.character || t?.owner || '').trim();
                 const text = String(t?.text || t?.content || '').trim();
@@ -1470,8 +1599,10 @@
                 rec.todos = rec.todos.filter(x => x.text !== text);
                 rec.todos.push({ text, date: t.date ? String(t.date).trim() : '', floor: floor || 0, createdAt: Date.now() });
                 if (rec.todos.length > this.MAX_TODOS) rec.todos.shift();
+                effective.push(t);
                 n++;
             }
+            if (!_replaying && effective.length) this._logOp(floor, 'todos', effective);
             return n;
         }
         // 过期待办清理（抄 yuzuki todo-manager：剧情时间超过延迟即移除）
@@ -1512,8 +1643,17 @@
             }
             return out.slice(0, limit);
         }
-        export() { return this.characters; }
-        import(data) { this.characters = (data && typeof data === 'object') ? data : {}; }
+        export() { return { characters: this.characters, ops: this.ops }; }
+        import(data) {
+            if (data && typeof data === 'object' && data.characters) {
+                this.characters = data.characters;
+                this.ops = Array.isArray(data.ops) ? data.ops : [];
+            } else {
+                // 旧格式 (v2.2 之前): 纯 characters 对象, ops 从零开始积累
+                this.characters = (data && typeof data === 'object') ? data : {};
+                this.ops = [];
+            }
+        }
     }
     
     // [v2.0] P2: 楼层账本（抄 yuzuki floor-ledger：记忆变更绑定楼层，删楼/重生成自动回滚）
