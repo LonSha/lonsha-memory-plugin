@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.7.0';
+    const VERSION = '1.8.0';
     
     class ConfigManager {
         constructor() {
@@ -25,13 +25,15 @@
 
 【提取规则】
 1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
-2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。
+2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。每个事件标注 scope："objective"（公开事实，所有在场角色都知道）或 "pov"（仅某角色亲眼看到/独自知道的事实，此时必须给出 owner=该角色主名）。
 3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
 4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
-5. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
+5. story_date：本轮剧情中明确写出的日期（如"3月12日""2026年5月1日"）；未明确写出则填 null。禁止编造日期。
+6. pov_memories：本轮产生的角色私密认知/秘密/内心独白（摄像头拍不到、仅该角色自己知道的内容）。每条必须给出 owner（哪个角色知道）和 content（一句话说清）。已在对话中公开说出口的内容不算。没有则填空数组。
+7. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括"}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}]}`,
                 // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
                 apiProviderCustom: false,       // false=跟随正文接口, true=用下方独立配置
                 apiUrl: '',
@@ -48,7 +50,12 @@
                 // [v1.7] RubyPhone 双向联动
                 rubyPhoneBridge: true,      // 回填: LLM 提取结果 → RubyPhone 手机记忆
                 rubyPhoneRecall: true,      // 召回: RubyPhone 记忆库作为一路召回源
-                rubyPhoneRecallTopN: 3      // 每轮从手机记忆召回条数
+                rubyPhoneRecallTopN: 3,     // 每轮从手机记忆召回条数
+                // [v1.8] P0: POV 认知边界 + 剧情时间线
+                povIsolation: true,         // 角色私密记忆隔离（只注入当前登场角色的 POV）
+                povMaxPerTurn: 3,           // 每轮最多注入的 POV 条数
+                plotTimeline: true,         // 剧情时间线（按剧情日期整理摘要）
+                timelineWindowDays: 3       // 时间线召回时间窗（天）
             };
             this.loadConfig();
         }
@@ -243,6 +250,9 @@
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
             this.llm = new LLMCaller(config);
+            // [v1.8] P0
+            this.pov = new PovMemory();
+            this.timeline = new PlotTimeline();
         }
         
         async onMessageReceived(message, messageId = null) {
@@ -308,6 +318,32 @@
                     }
                 }
                 
+                // [v1.8] P0: 写入角色私密记忆（POV 隔离）
+                if (this.config.config.povIsolation && Array.isArray(extracted?.pov_memories)) {
+                    let povCount = 0;
+                    for (const p of extracted.pov_memories) {
+                        if (p?.owner && p?.content) {
+                            const owner = this.resolveCharacterName(p.owner);
+                            this.pov.add(owner, String(p.content).trim(), message.index || 0);
+                            povCount++;
+                        }
+                    }
+                    // 事件里标了 scope:pov 的也收进 POV 池
+                    for (const ev of (extracted?.events || [])) {
+                        if (ev?.scope === 'pov' && ev?.owner && ev?.description) {
+                            this.pov.add(this.resolveCharacterName(ev.owner), String(ev.description).trim(), message.index || 0);
+                            povCount++;
+                        }
+                    }
+                    if (povCount && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] POV私密记忆 +${povCount}`);
+                }
+
+                // [v1.8] P0: 写入剧情时间线
+                if (this.config.config.plotTimeline && extracted?.summary) {
+                    const sd = this.extractStoryDate(message.mes || '', extracted.story_date);
+                    this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || []);
+                }
+
                 const summary = await this.summary.createSummary(message, extracted?.summary);
                 
                 if (extracted?.characters) {
@@ -332,6 +368,8 @@
                         summaries: this.summary.export(),
                         diaries: this.diary.export(),
                         vectors: this.vector.export(),
+                        povs: this.pov.export(),
+                        timeline: this.timeline.export(),
                         version: VERSION
                     });
                 }
@@ -432,6 +470,42 @@
             return {characters, events: [], relationships: [], entities: [], summary: this.summary.smartTruncate(content, 100)};
         }
         
+        // [v1.8] P0: 剧情日期提取（优先 LLM 标注，其次从正文匹配，最后兜底实时日期）
+        extractStoryDate(messageText, llmDate) {
+            if (llmDate) return String(llmDate).trim();
+            const m = String(messageText || '').match(/(\d{1,4})\s*[年\/-]\s*(\d{1,2})\s*[月\/-]\s*(\d{1,2})\s*日?/);
+            if (m) return `${m[1]}年${m[2]}月${m[3]}日`;
+            try {
+                const tm = window.VirtualPhone?.timeManager;
+                if (tm?.getCurrentStoryTime) {
+                    const t = tm.getCurrentStoryTime();
+                    if (t?.date && !t.isReal) return String(t.date);
+                }
+            } catch (e) {}
+            return null;
+        }
+        // [v1.8] P0: 当前剧情时间锚点（时间线召回用）
+        getLatestStoryDate() {
+            try {
+                // 优先从最近楼层找剧情日期
+                const ctx = window.SillyTavern?.getContext?.();
+                const chat = ctx?.chat || [];
+                for (let i = chat.length - 1; i >= Math.max(0, chat.length - 6); i--) {
+                    const m = chat[i];
+                    const text = (m?.mes || '') + (m?.content || '');
+                    const hit = String(text).match(/(\d{1,4})\s*[年\/-]\s*(\d{1,2})\s*[月\/-]\s*(\d{1,2})\s*日?/);
+                    if (hit) return `${hit[1]}年${hit[2]}月${hit[3]}日`;
+                }
+                // 兜底：手机时间管理器
+                const tm = window.VirtualPhone?.timeManager;
+                if (tm?.getCurrentStoryTime) {
+                    const t = tm.getCurrentStoryTime();
+                    if (t?.date && !t.isReal) return String(t.date);
+                }
+            } catch (e) {}
+            return null;
+        }
+
         // [v1.4] 正文清洗：剥离注释/标签/世界书标记
         cleanMessageText(text) {
             return String(text || '')
@@ -457,7 +531,7 @@
         }
         
         async recallMemory(query) {
-            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: []};
+            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: []};
             
             results.summary = this.summary.search(query.text);
             
@@ -513,6 +587,15 @@
                 }));
             }
             
+            // [v1.8] P0: 剧情时间线召回（按剧情日期相近度）
+            if (this.config.config.plotTimeline && this.timeline.entries.length) {
+                const anchorDate = this.getLatestStoryDate();
+                if (anchorDate) {
+                    results.timeline = this.timeline.searchNear(anchorDate, this.config.config.timelineWindowDays, 5)
+                        .map(e => ({id: e.id, text: `[${e.date}] ${e.text}`, date: e.date, floor: e.floor, source: 'timeline'}));
+                }
+            }
+            
             // [v1.7] RubyPhone 联动②: 手机记忆库作为一路召回源
             if (this.config.config.rubyPhoneRecall && query.text) {
                 try {
@@ -533,6 +616,16 @@
                 }
             }
             
+            // [v1.8] P0: POV 私密记忆召回（只取当前登场角色的，防剧透）
+            if (this.config.config.povIsolation && this.pov.povs.length) {
+                const present = this.captureCast();
+                const owners = present.length ? present : (window.SillyTavern?.getContext?.()?.name2 ? [window.SillyTavern.getContext().name2] : []);
+                if (owners.length) {
+                    results.pov = this.pov.search(owners, this.config.config.povMaxPerTurn || 3)
+                        .map(p => ({id: p.id, owner: p.owner, text: p.content, floor: p.floor, source: 'pov'}));
+                }
+            }
+            
             return this.hybridMerge(results);
         }
         
@@ -546,7 +639,9 @@
                 results.graph || [],
                 results.summary || [],
                 results.diary || [],
-                results.rubyphone || []
+                results.rubyphone || [],
+                results.timeline || [],
+                results.pov || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -558,7 +653,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov'][listIdx]
                     });
                 });
             });
@@ -631,9 +726,11 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [];
-            for (const item of recalled.slice(0, this.config.config.vectorTopK)) {
-                if (item.source?.includes('rubyphone')) phoneMem.push(item);
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [];
+            for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
+                if (item.source?.includes('pov')) povs.push(item);
+                else if (item.source?.includes('timeline')) timelines.push(item);
+                else if (item.source?.includes('rubyphone')) phoneMem.push(item);
                 else if (item.source?.includes('diary')) diaries.push(item);
                 else if (item.source?.includes('graph')) relations.push(item);
                 else summaries.push(item);
@@ -654,6 +751,22 @@
             if (diaries.length) {
                 blocks.push('[角色日记·近期]');
                 diaries.forEach(i => blocks.push(`- ${i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}）：${i.text || i.entry || ''}`));
+            }
+            if (timelines.length) {
+                blocks.push('[剧情时间线]');
+                const seen = new Set();
+                timelines.forEach(i => {
+                    const key = i.text || '';
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    blocks.push(`- ${key}`);
+                });
+            }
+            if (povs.length) {
+                const present = this.captureCast();
+                const who = present.length ? present.join('、') : '当前角色';
+                blocks.push(`〔${who}的内心/私密认知｜仅该角色知晓，其他角色不得表现出已知道〕`);
+                povs.forEach(i => blocks.push(`- ${i.owner}：${i.text || ''}`));
             }
             if (phoneMem.length) {
                 blocks.push('[手机生活记忆]');
@@ -733,7 +846,62 @@
         import(data) { this.summaries = data || []; }
     }
     
+
+    // [v1.8] P0: POV 私密记忆（抄 stbme memory-scope：客观 vs 角色主观认知隔离）
+    class PovMemory {
+        constructor() { this.povs = []; }
+        add(owner, content, floor) {
+            if (!owner || !content) return null;
+            const exist = this.povs.find(p => p.owner === owner && p.content === content);
+            if (exist) { exist.floor = floor; exist.timestamp = Date.now(); exist.count = (exist.count || 0) + 1; return exist; }
+            const p = {id: 'pov_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), owner, content, floor, timestamp: Date.now(), count: 1};
+            this.povs.push(p);
+            if (this.povs.length > 200) this.povs.shift();
+            return p;
+        }
+        // 只取指定角色（当前登场者）的私密记忆，防剧透
+        search(owners, limit = 3) {
+            const set = new Set(owners);
+            return this.povs.filter(p => set.has(p.owner)).slice(-limit).reverse();
+        }
+        export() { return this.povs; }
+        import(data) { this.povs = Array.isArray(data) ? data : []; }
+    }
+    
+    // [v1.8] P0: 剧情时间线（抄 yuzuki plot-summary：按剧情日期排序）
+    class PlotTimeline {
+        constructor() { this.entries = []; }
+        add(date, text, floor, characters = []) {
+            if (!date || !text) return null;
+            const exist = this.entries.find(e => e.date === date && e.text === text);
+            if (exist) { exist.floor = floor; exist.timestamp = Date.now(); return exist; }
+            const e = {id: 'tl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), date, text, floor, characters, timestamp: Date.now()};
+            this.entries.push(e);
+            if (this.entries.length > 500) this.entries.shift();
+            return e;
+        }
+        // 按剧情日期相近度召回（同日最优先，前缀相近次之，最后兜底最新）
+        searchNear(date, windowDays = 3, limit = 5) {
+            if (!date) return this.entries.slice(-limit).reverse();
+            const key = this._norm(date);
+            const scored = this.entries.map(e => {
+                const ek = this._norm(e.date);
+                let dist = 999;
+                if (ek === key) dist = 0;
+                else if (ek.slice(0, 6) === key.slice(0, 6)) dist = 1;
+                else if (ek.slice(0, 4) === key.slice(0, 4)) dist = 2;
+                return {e, dist, t: e.timestamp};
+            });
+            scored.sort((a, b) => a.dist - b.dist || b.t - a.t);
+            return scored.slice(0, limit).map(s => s.e);
+        }
+        _norm(d) { return String(d || '').replace(/\s+/g, '').replace(/[年月日]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); }
+        export() { return this.entries; }
+        import(data) { this.entries = Array.isArray(data) ? data : []; }
+    }
+    
     class DiarySystem {
+
         constructor() { this.diaries = {}; }
         async writeDiary(character, message, summary, extracted) {
             if (!this.diaries[character]) this.diaries[character] = [];
@@ -769,6 +937,8 @@
                     if (data.summaries) engine.summary.import(data.summaries);
                     if (data.diaries) engine.diary.import(data.diaries);
                     if (data.vectors) engine.vector.import(data.vectors);
+                    if (data.povs && engine.pov) engine.pov.import(data.povs);
+                    if (data.timeline && engine.timeline) engine.timeline.import(data.timeline);
                 }
                 return data;
             } catch (err) { return null; }

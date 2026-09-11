@@ -94,6 +94,8 @@
                     <div class="ls-stat-card ls-clickable" data-view="vectors"><div class="ls-stat-num">${s.vector.vectors.length}</div><div class="ls-stat-label">向量 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="diaries"><div class="ls-stat-num">${Object.keys(s.diary.diaries).length}</div><div class="ls-stat-label">角色日记 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${cfg.enabled ? '✅' : '⛔'}</div><div class="ls-stat-label">插件状态</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="povs"><div class="ls-stat-num">${s.pov?.povs?.length || 0}</div><div class="ls-stat-label">POV私密记忆 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
                 </div>
                 <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
@@ -144,6 +146,26 @@
                         <div class="ls-item">
                             <div class="ls-item-meta">${esc(n.type || '未知类型')} · ${fmtTime(n.timestamp)}</div>
                             <div class="ls-item-text"><b>${esc(n.name)}</b>${n.data?.description ? ' — ' + esc(n.data.description) : ''}</div>
+                        </div>`).join('');
+            }
+            else if (viewType === 'povs') {
+                title = '🧠 POV 私密记忆';
+                const povs = s.pov?.povs || [];
+                body = povs.length === 0 ? '<div class="ls-hint">暂无私密记忆。提取到角色内心/秘密时会自动记录。</div>' :
+                    povs.slice().reverse().map(p => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta"><b>${esc(p.owner)}</b> · 楼层 ${p.floor ?? '?'} · 触发${p.count || 1}次</div>
+                            <div class="ls-item-text">${esc(p.content)}</div>
+                        </div>`).join('');
+            }
+            else if (viewType === 'timeline') {
+                title = '📅 剧情时间线';
+                const tl = s.timeline?.entries || [];
+                body = tl.length === 0 ? '<div class="ls-hint">暂无剧情时间线。剧情中出现明确日期时会自动记录。</div>' :
+                    tl.slice().reverse().map(e => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''}</div>
+                            <div class="ls-item-text">${esc(e.text)}</div>
                         </div>`).join('');
             }
             else if (viewType === 'relations') {
@@ -203,6 +225,12 @@
                     <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha}" data-cfg-num="hybridAlpha">
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength}" data-cfg-num="maxSummaryLength">
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">🧠 POV 认知边界 + 剧情时间线</div>
+                    ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密认知/秘密单独存储，只注入当前登场角色的，防剧透')}
+                    ${ck('plotTimeline', '剧情时间线', '按剧情日期整理摘要，召回时优先取当前剧情时间附近')}
+                    <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">📱 RubyPhone 联动</div>
@@ -351,8 +379,10 @@
                 this.engine.summary.summaries = [];
                 this.engine.diary.diaries = {};
                 this.engine.vector.vectors = [];
+                if (this.engine.pov) this.engine.pov.povs = [];
+                if (this.engine.timeline) this.engine.timeline.entries = [];
                 const chatId = this.engine.getCurrentChatId();
-                if (chatId) this.engine.storage.save(chatId, { graph: {nodes:[],edges:[]}, summaries: [], diaries: {}, vectors: [], version: '1.3.0' });
+                if (chatId) this.engine.storage.save(chatId, { graph: {nodes:[],edges:[]}, summaries: [], diaries: {}, vectors: [], povs: [], timeline: [], version: '1.8.0' });
                 toast('已清空');
             });
 
