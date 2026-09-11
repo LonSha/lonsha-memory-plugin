@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.8.0';
+    const VERSION = '2.9.0';
     
     class ConfigManager {
         constructor() {
@@ -34,9 +34,10 @@
 8. plans.resolve：本轮【了结】了悬念簿里的悬项时填写。id 必须使用【悬念簿】中列出的编号（如 s3）。outcome 填 "done"（真做成/真揭晓）或 "cancelled"（被取消/放弃/作废）或 "failed"（尝试了但失败/以坏结局收场）。reason 一句话写明怎么收场的。没有则填空数组。
 9. scenes：本轮【新出现】或【描述变化】的地点。action 填 "add"（新地点）或 "update"（更新描述）。path 是由大到小的数组（如 ["城市","街区","店铺"]，最多3层，末级=具体场所）。没有则填空数组。
 9b. items：本轮剧情中【明确出现实体流转】的物品。新增获得填 {"action":"add","name":"物品名","desc":"一句话描述","holder":"当前持有者角色名"}；位置/状态变化填 {"action":"update","name":"已有物品名","holder":"新持有者或空","state":"完好/损坏/丢失/使用完毕"}；禁止臆测没有依据的物品；没有则填空数组。\n10. location：本轮剧情结束时主角所在的场景完整路径（必须用已登记场景路径之一；移动了才填，没动填 null）。
+9c. time_advance_days：本轮剧情结束时相对上一楼【跳过了几天】（如正文出现\"三天后\",\"次日\",\"一周后\"且未写出具体日期时，填天数3/1/7；日期明确写了具体年月日则填0；没有时间跳跃填 null）。禁止臆测。
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "location": null}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "location": null}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
@@ -102,7 +103,11 @@
                 diaryEveryFloors: 3,           // 每N楼写一次日记（0=每楼）
                 reflectionEnabled: false,      // 反思节点（抄stbme：洞察提炼，需API，默认关）
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
-                itemLedgerEnabled: true        // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
+                itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
+                recallCacheEnabled: true,      // [v2.9] RU-D: swipe同楼重roll复用召回缓存
+                vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
+                summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
+                optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
             };
             this.loadConfig();
         }
@@ -354,6 +359,10 @@
             this.diary = new DiarySystem();
             this.reflection = new ReflectionSystem();  // [v2.8] RT-B 反思系统
             this.items = { records: [] };               // [v2.8] RT-C 物品台账（派生缓存）
+            this._lastStoryDate = null;                 // [v2.9] RU-A 主动时间推进的锚点
+            this._recallCache = null;                   // [v2.9] RU-D swipe 召回缓存 {floor, queryKey, injection}
+            this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
+            this._lastOptimizeFloor = 0;                // [v2.9] RU-B 优化周期锚点
             this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
@@ -476,7 +485,20 @@
                 // [v1.8] P0: 写入剧情时间线
                 if (this.config.config.plotTimeline && extracted?.summary) {
                     const sd = this.extractStoryDate(message.mes || '', extracted.story_date);
-                    this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || []);
+                    if (sd) this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || []);
+                    // [v2.9] RU-A: 主动时间推进——正文说"三天后/次日"但没写日期时，基于上一楼日期算术推进
+                    const adv = Number(extracted.time_advance_days) || 0;
+                    if (adv > 0) {
+                        const base = sd || this._lastStoryDate;
+                        const advanced = base ? this.advanceStoryDate(base, adv) : null;
+                        if (advanced) {
+                            this.timeline.add(advanced, extracted.summary, message.index || 0, extracted.characters || []);
+                            this._lastStoryDate = advanced;
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 时间推进: ${base} +${adv}天 → ${advanced}`);
+                        }
+                    } else if (sd) {
+                        this._lastStoryDate = sd;
+                    }
                 }
 
                 // [v2.2] RC: 悬念簿（新悬项登记 + 了结核销 + 超限沉降）
@@ -559,6 +581,14 @@
                         const dn = await this.diary.generateLiving(this.config.config, this.llm, extracted?.characters ? this.getKnownCharacters() : [], message.index || 0);
                         // [v2.8] RT-B: 反思生成（每N楼节流，与日记独立）
                         try { if (this.config.config.reflectionEnabled) await this.reflection.generate(this.config.config, this.llm, this, message.index || 0); } catch (e) {}
+                        // [v2.9] RU-B: 定期记忆优化（每N楼防膨胀）
+                        try {
+                            const oEvery = this.config.config.optimizeEveryFloors || 50;
+                            if (!this._lastOptimizeFloor || (message.index || 0) - this._lastOptimizeFloor >= oEvery) {
+                                this._lastOptimizeFloor = message.index || 0;
+                                this.optimizeMemory();
+                            }
+                        } catch (e) {}
                         if (dn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 活人感日记 +${dn} 条`);
                     } catch (e) {}
                 }
@@ -589,6 +619,17 @@
                     if (rb?.onFloorCommitted) rb.onFloorCommitted(message.index || 0);
                 } catch (e) {}
                 if (this.config.config.autoSave) {
+                    // [v2.9] RU-C: 定期快照（每 snapshotEveryFloors 楼一份，IndexedDB 独立于 chatMetadata）
+                    try {
+                        const snapEvery = this.config.config.snapshotEveryFloors || 50;
+                        const curFloor = message.index || 0;
+                        if (!this._lastSnapshotFloor || curFloor - this._lastSnapshotFloor >= snapEvery) {
+                            this._lastSnapshotFloor = curFloor;
+                            const snapData = await this.collectExport();
+                            await this.snapshots.save(chatId, curFloor, snapData);
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 快照已保存 (floor ${curFloor})`);
+                        }
+                    } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 快照失败:`, e); }
                     await this.storage.save(chatId, {
                         graph: this.graph.export(),
                         summaries: this.summary.export(),
@@ -723,6 +764,21 @@
             } catch (e) {}
             return null;
         }
+        // [v2.9] RU-A: 主动时间推进（抄 shujuku plot-runtime——"三天后"无具体日期时算术推进）
+        advanceStoryDate(baseDate, days) {
+            try {
+                const h = new RelativeTimeHelper();
+                const parsed = h.parseStoryDate(baseDate);
+                if (!parsed || parsed.type !== 'standard') return null;  // 架空日历无法算术，宁可不推
+                const now = new Date();
+                const y = parsed.year ?? now.getFullYear();
+                const m = parsed.month ?? (now.getMonth() + 1);
+                const d = parsed.day ?? 1;
+                const t = new Date(y, m - 1, d + Number(days));
+                return `${t.getFullYear()}年${t.getMonth() + 1}月${t.getDate()}日`;
+            } catch (e) { return null; }
+        }
+
         // [v1.8] P0: 当前剧情时间锚点（时间线召回用）
         getLatestStoryDate() {
             try {
@@ -762,6 +818,18 @@
             try {
                 await this.storage.load(chatId);
                 const query = this.buildQuery(context);
+                // [v2.9] RU-D: swipe 同楼重roll复用缓存（抄 anima _lastRetrievalPayload——同楼且同查询直接复用，省 rewrite+embedding+rerank 三次调用）
+                if (this.config.config.recallCacheEnabled && this._recallCache) {
+                    try {
+                        const ctxChat = window.SillyTavern?.getContext?.()?.chat || [];
+                        const curFloor = ctxChat.length - 1;
+                        const qKey = String(query.text || '').slice(0, 200);
+                        if (this._recallCache.floor === curFloor && this._recallCache.queryKey === qKey && this._recallCache.injection) {
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 召回缓存命中 (floor ${curFloor})`);
+                            return this._recallCache.injection;
+                        }
+                    } catch (e) {}
+                }
                 // [v2.4] RE: 召回价值判断（抄 baibai recallWorthRunning——剧情全在窗口内时跳过，省额度）
                 if (!this.recallWorthRunning()) return '';
                 // [v2.4] RE: 查询重写——把最近剧情改写成多条检索查询，主查询之外追加多路
@@ -779,10 +847,20 @@
                             if (e.text && !merged.has(e.key)) merged.set(e.key, { id: e.key, text: e.text, source: e.source, echo: true });
                         }
                         this.echo.onRecalled(recalled);
-                        return this.buildInjection(Array.from(merged.values()).slice(0, this.config.config.vectorTopK * 2 + (this.config.config.echoMaxCount || 10)));
+                        const inj1 = this.buildInjection(Array.from(merged.values()).slice(0, this.config.config.vectorTopK * 2 + (this.config.config.echoMaxCount || 10)));
+                        try {
+                            const cc = window.SillyTavern?.getContext?.()?.chat || [];
+                            this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj1};
+                        } catch (e) {}
+                        return inj1;
                     }
                 } catch (e) {}
-                return this.buildInjection(recalled);
+                const inj2 = this.buildInjection(recalled);
+                try {
+                    const cc = window.SillyTavern?.getContext?.()?.chat || [];
+                    this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj2};
+                } catch (e) {}
+                return inj2;
             } catch (err) {
                 return '';
             }
@@ -809,6 +887,46 @@
             this.itemOps = (this.itemOps || []).filter(o => o.floor < floor);
             if (this.itemOps.length !== before) this.rebuildItems();
             return before - this.itemOps.length;
+        }
+
+        // [v2.9] RU-B: 记忆优化器（抄 shujuku optimization——防长对话记忆无限膨胀）
+        optimizeMemory() {
+            let removed = 0;
+            // 1. 向量文本级去重（完全相同文本只留最新）
+            const seen = new Map();
+            for (const v of this.vector.vectors) {
+                const key = String(v.text || '').trim();
+                if (!key) continue;
+                const prev = seen.get(key);
+                if (prev && prev.timestamp <= v.timestamp) { prev._dup = true; seen.set(key, v); }
+                else if (prev) { v._dup = true; }
+                else seen.set(key, v);
+            }
+            const beforeDup = this.vector.vectors.length;
+            this.vector.vectors = this.vector.vectors.filter(v => !v._dup);
+            removed += beforeDup - this.vector.vectors.length;
+            // 2. 向量硬上限（超限删最旧）
+            const vMax = this.config.config.vectorMaxCount || 500;
+            if (this.vector.vectors.length > vMax) {
+                this.vector.vectors.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                const cut = this.vector.vectors.length - vMax;
+                this.vector.vectors = this.vector.vectors.slice(cut);
+                removed += cut;
+            }
+            // 3. 摘要硬上限（已折叠的最旧条目物理删除；maybeFold 负责合并，这里兜底）
+            const sMax = this.config.config.summaryMaxCount || 400;
+            const sums = this.summary.summaries;
+            if (sums.length > sMax) {
+                const foldedOld = sums.filter(s => s.folded);
+                const foldable = Math.min(sums.length - sMax, foldedOld.length);
+                if (foldable > 0) {
+                    const removeIds = new Set(foldedOld.slice(0, foldable).map(s => s.floor));
+                    this.summary.summaries = sums.filter(s => !removeIds.has(s.floor));
+                    removed += foldable;
+                }
+            }
+            if (removed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 记忆优化: 清理 ${removed} 条冗余`);
+            return removed;
         }
 
         recallWorthRunning() {
@@ -1445,6 +1563,26 @@
                 return true;
             } catch (e) { return false; }
         }
+        // [v2.9] RU-C: 全量导出（快照/存档共用同构数据）
+        collectExport() {
+            return {
+                graph: this.graph.export(),
+                summaries: this.summary.export(),
+                diaries: this.diary.export(),
+                reflection: this.reflection?.export?.(),
+                itemOps: this.itemOps,
+                vectors: this.vector.export(),
+                povs: this.pov.export(),
+                timeline: this.timeline.export(),
+                status: this.status.export(),
+                ledger: this.ledger.export(),
+                suspense: this.suspense.export(),
+                scene: this.scene.export(),
+                echo: this.echo?.export?.(),
+                packedAt: new Date().toISOString()
+            };
+        }
+
         getCurrentChatId() {
             try { return window.SillyTavern?.getContext?.()?.chatId; } catch { return null; }
         }
@@ -2478,6 +2616,78 @@ ${win}`;
         }
     }
     
+    // [v2.9] RU-C: 存储快照管理（抄 shujuku SQLite 版本管理理念——IndexedDB 每50楼一份快照，可回溯恢复）
+    class SnapshotManager {
+        constructor() { this.DB_NAME = 'lonsha_snapshots'; this.STORE = 'snaps'; this.MAX_KEEP = 5; this._db = null; }
+        async _open() {
+            if (this._db) return this._db;
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(this.DB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(this.STORE)) {
+                        db.createObjectStore(this.STORE, { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = () => { this._db = req.result; resolve(req.result); };
+                req.onerror = () => reject(req.error);
+            });
+        }
+        /** 保存快照（同对话只保留最近 MAX_KEEP 份，同楼覆盖） */
+        async save(chatId, floor, data) {
+            try {
+                const db = await this._open();
+                const id = `${chatId}`;
+                // 读出该对话现有快照
+                const existing = await new Promise((resolve) => {
+                    const tx = db.transaction(this.STORE, 'readonly');
+                    const req = tx.objectStore(this.STORE).get(id);
+                    req.onsuccess = () => resolve(req.result || {id, snaps: []});
+                    req.onerror = () => resolve({id, snaps: []});
+                });
+                const snaps = (existing.snaps || []).filter(s => s.floor !== floor);
+                snaps.push({floor, data, timestamp: Date.now()});
+                snaps.sort((a, b) => a.floor - b.floor);
+                while (snaps.length > this.MAX_KEEP) snaps.shift();
+                const doc = {id, snaps};
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(this.STORE, 'readwrite');
+                    tx.objectStore(this.STORE).put(doc);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+                return snaps.length;
+            } catch (e) { return 0; }
+        }
+        /** 列出该对话的快照（楼层+时间） */
+        async list(chatId) {
+            try {
+                const db = await this._open();
+                return await new Promise((resolve) => {
+                    const tx = db.transaction(this.STORE, 'readonly');
+                    const req = tx.objectStore(this.STORE).get(`${chatId}`);
+                    req.onsuccess = () => resolve((req.result?.snaps || []).map(s => ({floor: s.floor, timestamp: s.timestamp})));
+                    req.onerror = () => resolve([]);
+                });
+            } catch (e) { return []; }
+        }
+        /** 恢复指定楼层的快照数据 */
+        async restore(chatId, floor) {
+            try {
+                const db = await this._open();
+                return await new Promise((resolve) => {
+                    const tx = db.transaction(this.STORE, 'readonly');
+                    const req = tx.objectStore(this.STORE).get(`${chatId}`);
+                    req.onsuccess = () => {
+                        const snap = (req.result?.snaps || []).find(s => s.floor === floor);
+                        resolve(snap?.data || null);
+                    };
+                    req.onerror = () => resolve(null);
+                });
+            } catch (e) { return null; }
+        }
+    }
+
     class StorageManager {
         constructor() { this.STORAGE_KEY = 'lonsha_memory'; }
         async save(chatId, data) {
@@ -2615,6 +2825,7 @@ ${win}`;
                 // CHAT_CHANGED：切换对话时重新加载对应数据
                 if (types.CHAT_CHANGED) {
                     eventSource.on(types.CHAT_CHANGED, async () => {
+                        try { this.engine._recallCache = null; } catch (e) {}  // [v2.9] RU-D: 换对话，缓存失效
                         try {
                             const chatId = this.engine.getCurrentChatId();
                             if (chatId) await this.engine.storage.load(chatId);
@@ -2628,6 +2839,7 @@ ${win}`;
                 // [v2.4] RE: 楼层编辑/滑动感知——被编辑的楼层及其之后全部按删楼处理 (同 baibai 陈旧失效语义)
                 if (types.MESSAGE_EDITED) {
                     eventSource.on(types.MESSAGE_EDITED, (messageId) => {
+                        try { this.engine._recallCache = null; } catch (e) {}  // [v2.9] RU-D: 上下文变了，缓存失效
                         try {
                             const f = Number(messageId);
                             if (Number.isFinite(f) && f >= 0) {
@@ -2647,7 +2859,8 @@ ${win}`;
                         try {
                             const f = Number(messageId);
                             if (Number.isFinite(f) && f >= 0) {
-                                if (this.configMgr.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${f} 滑动/重生成, 回滚该楼记忆`);
+                                // [v2.9] RU-D: swipe 不清召回缓存（同楼重roll复用，本楼记忆对召回影响极小）
+                    if (this.configMgr.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${f} 滑动/重生成, 回滚该楼记忆`);
                                 this.engine.rollbackFloor(f);
                             }
                         } catch (err) {}
@@ -2657,6 +2870,7 @@ ${win}`;
 // [v2.0] P2: 删楼回滚（楼层账本）
                 if (types.MESSAGE_DELETED) {
                     eventSource.on(types.MESSAGE_DELETED, (messageId) => {
+                        try { this.engine._recallCache = null; } catch (e) {}  // [v2.9] RU-D: 上下文变了，缓存失效
                         try {
                             const c = window.SillyTavern?.getContext?.();
                             // ST 删楼后 chat 已变化，直接尝试回滚该楼及其后的记忆

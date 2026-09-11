@@ -322,6 +322,7 @@
                     <div class="ls-slider-label"><span>注入深度 D0/D1/D2</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
                     <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
+                    <div class="ls-hint" style="padding:0 8px; margin-top:6px;">📦 记忆优化：每 ${c.optimizeEveryFloors || 50} 楼自动去重+淘汰最旧（向量上限 ${c.vectorMaxCount || 500} / 摘要上限 ${c.summaryMaxCount || 400}）；🗄️ 每 ${c.snapshotEveryFloors || 50} 楼自动快照（保留最近5份，IndexedDB）。</div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">📢 回响池 + 日记 + 提取节流</div>
@@ -408,9 +409,11 @@
                     <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（带去新对话）</button>
                     <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新对话开局用）</button>
                 </div>
+                <button class="ls-btn" id="ls-snap-restore">🗄️ 快照恢复</button>
                 <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
             `;
 
+            overlay.querySelector('#ls-snap-restore').addEventListener('click', () => { plugin.showSnapshotRestore(); });
             const overlay = makeSheet('lonsha-settings-overlay', '⚙️ 记忆引擎设置', body);
 
             // 滑块实时显示
@@ -625,6 +628,58 @@
                 };
                 document.addEventListener('click', closer);
             }, 50);
+        };
+
+        // [v2.9] RU-C: 快照恢复面板
+        plugin.showSnapshotRestore = async function() {
+            const engine = plugin.engine;
+            const chatId = engine.getCurrentChatId();
+            if (!chatId) { toast('无可用对话'); return; }
+            const snaps = await engine.snapshots.list(chatId);
+            if (!snaps.length) { toast('暂无快照（每50楼自动保存一份）'); return; }
+            const body = snaps.map(s => {
+                const time = new Date(s.timestamp).toLocaleString();
+                return `<div class="lsm-item" data-floor="${s.floor}" style="display:flex;justify-content:space-between;">
+                    <span>楼层 ${s.floor}</span><span style="color:#a6adc8;font-size:12px;">${time}</span>
+                </div>`;
+            }).join('');
+            const menu = document.createElement('div');
+            menu.id = 'lonsha-snap-menu';
+            menu.innerHTML = `
+                <div style="padding:6px 14px;color:#a6adc8;font-size:11px;border-bottom:1px solid #313244;">🗄️ 快照恢复（选择要恢复的楼层）</div>
+                ${body}
+                <style>#lonsha-snap-menu { position: fixed; bottom: 200px; right: 20px; background: #1e1e2e; border: 1px solid #45475a; border-radius: 14px; padding: 6px; z-index: 10001; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 260px; max-height: 60vh; overflow-y: auto; }</style>`;
+            menu.querySelectorAll('.lsm-item').forEach(item => {
+                item.addEventListener('click', async () => {
+                    const floor = Number(item.dataset.floor);
+                    const data = await engine.snapshots.restore(chatId, floor);
+                    if (!data) { toast('快照数据为空'); return; }
+                    // 恢复：与 load 相同的导入管线
+                    try {
+                        if (data.graph) engine.graph.import(data.graph);
+                        if (data.summaries) engine.summary.import(data.summaries);
+                        if (data.diaries) engine.diary.import(data.diaries);
+                        if (data.vectors) engine.vector.import(data.vectors);
+                        if (data.povs && engine.pov) engine.pov.import(data.povs);
+                        if (data.timeline && engine.timeline) engine.timeline.import(data.timeline);
+                        if (data.status && engine.status) engine.status.import(data.status);
+                        if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
+                        if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
+                        if (data.scene && engine.scene) engine.scene.import(data.scene);
+                        if (data.echo && engine.echo) engine.echo.import(data.echo);
+                        if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
+                        if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; engine.rebuildItems(); }
+                        if (data.itemOps) engine.rebuildItems();
+                        const cid = engine.getCurrentChatId();
+                        if (cid) await engine.storage.save(cid, engine.collectExport());
+                        menu.remove();
+                        toast(`✅ 已恢复到快照（楼层 ${floor}）`);
+                    } catch (e) { toast('恢复失败: ' + e.message); }
+                });
+            });
+            const closer = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', closer); } };
+            setTimeout(() => document.addEventListener('click', closer), 50);
+            document.body.appendChild(menu);
         };
 
         console.log('[LonSha记忆引擎] ✓ 设置面板模块已挂载 (点击🧠 → ⚙️设置)');
