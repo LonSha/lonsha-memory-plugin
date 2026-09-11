@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.8.0';
+    const VERSION = '1.9.0';
     
     class ConfigManager {
         constructor() {
@@ -55,7 +55,13 @@
                 povIsolation: true,         // 角色私密记忆隔离（只注入当前登场角色的 POV）
                 povMaxPerTurn: 3,           // 每轮最多注入的 POV 条数
                 plotTimeline: true,         // 剧情时间线（按剧情日期整理摘要）
-                timelineWindowDays: 3       // 时间线召回时间窗（天）
+                timelineWindowDays: 3,      // 时间线召回时间窗（天）
+                // [v1.9] P1: 层级摘要折叠 + BM25 稀疏检索
+                summaryFoldEnabled: true,   // 摘要超阈值自动折叠成卷摘要
+                summaryFoldThreshold: 30,   // 触发折叠的活跃摘要条数
+                summaryFoldBatchSize: 20,   // 每批折叠条数
+                bm25Enabled: true,          // BM25 稀疏检索（词频×逆文档频率）
+                bm25TopK: 5                 // BM25 每轮召回条数
             };
             this.loadConfig();
         }
@@ -253,6 +259,8 @@
             // [v1.8] P0
             this.pov = new PovMemory();
             this.timeline = new PlotTimeline();
+            // [v1.9] P1
+            this.bm25 = new BM25();
         }
         
         async onMessageReceived(message, messageId = null) {
@@ -362,6 +370,16 @@
                     });
                 }
                 
+                // [v1.9] P1: BM25 索引重建 + 层级摘要折叠
+                if (this.config.config.bm25Enabled) {
+                    try {
+                        this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                    } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] BM25重建失败:`, e); }
+                }
+                if (this.config.config.summaryFoldEnabled) {
+                    try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) {}
+                }
+
                 if (this.config.config.autoSave) {
                     await this.storage.save(chatId, {
                         graph: this.graph.export(),
@@ -386,10 +404,12 @@
                 const content = (message.mes || '').substring(0, 2000);
                 // [v1.5] 抄 HCDiary：注入已知角色名单 + 前情提要（记忆回环）
                 const knownChars = this.getKnownCharacters();
-                const history = this.summary.summaries.slice(-5).map(s => s.text).join('\n');
+                const history = this.summary.getActiveSummaries().slice(-5).map(s => s.text).join('\n');
+                const volText = (this.summary.volumes || []).slice(-2).map(v => `【卷${v.floorStart}-${v.floorEnd}】${v.text}`).join('\n');
+                const historyFull = [volText, history].filter(Boolean).join('\n');
                 const prompt = this.config.config.extractionPrompt
                     .replace('{{KNOWN_CHARS}}', knownChars.join('、') || '（暂无，从本轮开始积累）')
-                    .replace('{{HISTORY}}', history || '（暂无）')
+                    .replace('{{HISTORY}}', historyFull || '（暂无）')
                     .replace('{{CONTENT}}', content);
                 const response = await this.llm.callAPI(prompt);
                 if (!response) {
@@ -531,7 +551,7 @@
         }
         
         async recallMemory(query) {
-            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: []};
+            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: []};
             
             results.summary = this.summary.search(query.text);
             
@@ -585,6 +605,19 @@
                     metadata: v.metadata,
                     source: 'vector'
                 }));
+            }
+            
+            // [v1.9] P1: BM25 稀疏检索召回
+            if (this.config.config.bm25Enabled && this.bm25.N && query.text) {
+                try {
+                    results.bm25 = this.bm25.search(query.text, this.config.config.bm25TopK || 5)
+                        .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, source: 'bm25'}));
+                } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] BM25检索失败:`, e); }
+            }
+            // [v1.9] P1: 卷摘要召回（已折叠的高层概括）
+            if (this.config.config.summaryFoldEnabled && this.summary.volumes.length) {
+                results.volume = this.summary.searchVolumes(2)
+                    .map(v => ({id: v.id, text: `【卷${v.floorStart}-${v.floorEnd}】${v.text}`, floor: v.floorStart, source: 'volume'}));
             }
             
             // [v1.8] P0: 剧情时间线召回（按剧情日期相近度）
@@ -641,7 +674,9 @@
                 results.diary || [],
                 results.rubyphone || [],
                 results.timeline || [],
-                results.pov || []
+                results.pov || [],
+                results.bm25 || [],
+                results.volume || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -653,7 +688,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume'][listIdx]
                     });
                 });
             });
@@ -726,9 +761,11 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
-                if (item.source?.includes('pov')) povs.push(item);
+                if (item.source?.includes('volume')) volumes.push(item);
+                else if (item.source === 'bm25') bm25Hits.push(item);
+                else if (item.source?.includes('pov')) povs.push(item);
                 else if (item.source?.includes('timeline')) timelines.push(item);
                 else if (item.source?.includes('rubyphone')) phoneMem.push(item);
                 else if (item.source?.includes('diary')) diaries.push(item);
@@ -737,9 +774,27 @@
             }
             
             const blocks = [];
+            if (volumes.length) {
+                blocks.push('[早前剧情概括·卷]');
+                const seenV = new Set();
+                volumes.forEach(i => {
+                    const key = i.text || '';
+                    if (seenV.has(key)) return;
+                    seenV.add(key);
+                    blocks.push(`- ${key}`);
+                });
+            }
             if (summaries.length) {
                 blocks.push('[前情摘要]');
                 summaries.forEach(i => blocks.push(`- ${i.text || i.summary || i.name || ''}`));
+            }
+            if (bm25Hits.length) {
+                const seenB = new Set((summaries.length ? summaries : []).map(x => x.text));
+                const fresh = bm25Hits.filter(b => !seenB.has(b.text));
+                if (fresh.length) {
+                    blocks.push('[相关片段·关键词命中]');
+                    fresh.forEach(i => blocks.push(`- ${i.text || ''}`));
+                }
             }
             if (relations.length) {
                 blocks.push('[角色关系]');
@@ -822,7 +877,7 @@
     }
     
     class SummarySystem {
-        constructor() { this.summaries = []; }
+        constructor() { this.summaries = []; this.volumes = []; this.folding = false; }
         // [v1.4.2] 智能截断：优先在句子边界断开，避免"但那个"式半句截断
         smartTruncate(text, maxLen) {
             text = String(text || '').trim();
@@ -837,13 +892,59 @@
         }
         async createSummary(message, llmSummary) {
             const text = llmSummary || this.smartTruncate(message.mes || '', 200);
-            const summary = {floor: message.index || 0, text, level: 1, timestamp: Date.now()};
+            const summary = {floor: message.index || 0, text, level: 1, timestamp: Date.now(), folded: false};
             this.summaries.push(summary);
             return summary;
         }
-        search(query) { return this.summaries.filter(s => s.text.includes(query)).slice(0, 5); }
-        export() { return this.summaries; }
-        import(data) { this.summaries = data || []; }
+        // 活跃（未折叠）摘要
+        getActiveSummaries() { return this.summaries.filter(s => !s.folded); }
+        search(query) { return this.getActiveSummaries().filter(s => s.text.includes(query)).slice(0, 5); }
+        // [v1.9] P1: 层级折叠——活跃摘要超过阈值时，把最早一批用 LLM 合并成卷摘要
+        async maybeFold(config, llm) {
+            if (this.folding || !config?.summaryFoldEnabled) return null;
+            const active = this.getActiveSummaries();
+            if (active.length < (config.summaryFoldThreshold || 30)) return null;
+            const batchSize = config.summaryFoldBatchSize || 20;
+            const batch = active.slice(0, batchSize);
+            if (batch.length < 5) return null;
+            this.folding = true;
+            try {
+                const list = batch.map(s => '- ' + s.text).join('\n');
+                const prompt = `你是剧情记忆整理员。以下是同一段长剧情的前${batch.length}条楼层摘要。请把它们合并成一条80-150字的高层剧情概括（卷摘要），保留关键人物、地点、因果与转折，丢弃重复细节。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
+                const raw = await llm.callAPI(prompt);
+                const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
+                if (clean && clean.length >= 20) {
+                    const floors = batch.map(s => s.floor).filter(f => f !== undefined && f !== null);
+                    this.volumes.push({
+                        id: 'vol_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                        text: clean,
+                        floorStart: floors.length ? Math.min(...floors) : 0,
+                        floorEnd: floors.length ? Math.max(...floors) : 0,
+                        count: batch.length,
+                        timestamp: Date.now()
+                    });
+                    batch.forEach(s => { s.folded = true; });
+                    if (this.volumes.length > 20) this.volumes.shift();
+                    if (config.debugMode) console.log(`[${PLUGIN_NAME}] 摘要折叠: ${batch.length}条 → 卷摘要#${this.volumes.length}`);
+                    return this.volumes[this.volumes.length - 1];
+                }
+            } catch (e) {
+                if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 摘要折叠失败:`, e);
+            } finally {
+                this.folding = false;
+            }
+            return null;
+        }
+        // 卷摘要召回（最近 N 卷，低权重）
+        searchVolumes(limit = 2) { return this.volumes.slice(-limit).reverse(); }
+        export() { return { summaries: this.summaries, volumes: this.volumes }; }
+        import(data) {
+            if (Array.isArray(data)) { this.summaries = data; this.volumes = []; }
+            else if (data && typeof data === 'object') {
+                this.summaries = Array.isArray(data.summaries) ? data.summaries : [];
+                this.volumes = Array.isArray(data.volumes) ? data.volumes : [];
+            }
+        }
     }
     
 
@@ -900,7 +1001,62 @@
         import(data) { this.entries = Array.isArray(data) ? data : []; }
     }
     
+    // [v1.9] P1: BM25 稀疏检索（抄 anima bm25：词频×逆文档频率×长度归一化）
+    class BM25 {
+        constructor() { this.docs = []; this.docTerms = []; this.df = new Map(); this.N = 0; this.avgLen = 0; }
+        _tokenize(text) {
+            const tokens = [];
+            const s = String(text || '').toLowerCase();
+            (s.match(/[a-z0-9]+/g) || []).forEach(w => tokens.push(w));
+            const cjkRuns = s.match(/[\u4e00-\u9fa5]+/g) || [];
+            for (const run of cjkRuns) {
+                if (run.length === 1) { tokens.push(run); continue; }
+                for (let i = 0; i < run.length - 1; i++) tokens.push(run.slice(i, i + 2));
+            }
+            return tokens;
+        }
+        rebuild(docs) {
+            this.docs = docs || [];
+            this.N = this.docs.length;
+            this.docTerms = this.docs.map(d => {
+                const terms = this._tokenize(d.text);
+                const map = new Map();
+                terms.forEach(t => map.set(t, (map.get(t) || 0) + 1));
+                return map;
+            });
+            this.df = new Map();
+            for (const tm of this.docTerms) for (const t of tm.keys()) this.df.set(t, (this.df.get(t) || 0) + 1);
+            this.avgLen = this.N ? this.docTerms.reduce((a, m) => a + m.size, 0) / this.N : 0;
+        }
+        search(query, topK = 5) {
+            if (!this.N) return [];
+            const qTerms = this._tokenize(query);
+            if (!qTerms.length) return [];
+            const k1 = 1.2, b = 0.75;
+            const scored = [];
+            for (let i = 0; i < this.N; i++) {
+                const tm = this.docTerms[i];
+                const len = tm.size || 1;
+                let score = 0;
+                const seen = new Set();
+                for (const qt of qTerms) {
+                    if (seen.has(qt)) continue;
+                    seen.add(qt);
+                    const tf = tm.get(qt) || 0;
+                    if (!tf) continue;
+                    const df = this.df.get(qt) || 0;
+                    const idf = Math.log(1 + (this.N - df + 0.5) / (df + 0.5));
+                    score += idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * len / (this.avgLen || 1)));
+                }
+                if (score > 0) scored.push({ ...this.docs[i], score });
+            }
+            scored.sort((a, b) => b.score - a.score);
+            return scored.slice(0, topK);
+        }
+    }
+    
     class DiarySystem {
+
 
         constructor() { this.diaries = {}; }
         async writeDiary(character, message, summary, extracted) {

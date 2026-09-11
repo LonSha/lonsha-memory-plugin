@@ -96,6 +96,8 @@
                     <div class="ls-stat-card"><div class="ls-stat-num">${cfg.enabled ? '✅' : '⛔'}</div><div class="ls-stat-label">插件状态</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="povs"><div class="ls-stat-num">${s.pov?.povs?.length || 0}</div><div class="ls-stat-label">POV私密记忆 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="volumes"><div class="ls-stat-num">${s.summary?.volumes?.length || 0}</div><div class="ls-stat-label">卷摘要 👁</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
                 </div>
                 <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
@@ -168,6 +170,16 @@
                             <div class="ls-item-text">${esc(e.text)}</div>
                         </div>`).join('');
             }
+            else if (viewType === 'volumes') {
+                title = '📚 卷摘要（高层剧情概括）';
+                const vols = s.summary?.volumes || [];
+                body = vols.length === 0 ? '<div class="ls-hint">暂无卷摘要。活跃摘要超过阈值后会自动折叠生成。</div>' :
+                    vols.slice().reverse().map(v => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta"><b>卷 ${v.floorStart ?? '?'}-${v.floorEnd ?? '?'}</b> · ${v.count || 0}条合并</div>
+                            <div class="ls-item-text">${esc(v.text)}</div>
+                        </div>`).join('');
+            }
             else if (viewType === 'relations') {
                 title = '🔗 关系边';
                 const nameOf = (id) => s.graph.nodes.get(id)?.name || id;
@@ -225,6 +237,14 @@
                     <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha}" data-cfg-num="hybridAlpha">
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength}" data-cfg-num="maxSummaryLength">
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">📚 层级摘要折叠 + BM25 稀疏检索</div>
+                    ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
+                    ${ck('bm25Enabled', 'BM25 关键词检索', '词频×逆文档频率稀疏检索，比纯包含匹配更准')}
+                    <div class="ls-slider-label"><span>折叠阈值（条）</span><span class="ls-slider-val" id="ls-v-fold">${c.summaryFoldThreshold || 30}</span></div>
+                    <input type="range" class="ls-slider" min="15" max="80" step="5" value="${c.summaryFoldThreshold || 30}" data-cfg-num="summaryFoldThreshold">
+                    <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">🧠 POV 认知边界 + 剧情时间线</div>
