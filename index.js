@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.6.0';
+    const VERSION = '1.7.0';
     
     class ConfigManager {
         constructor() {
@@ -44,7 +44,11 @@
                 hybridAlpha: 0.7,
                 pageRankDamping: 0.85,
                 dppLambda: 0.5,
-                debugMode: false
+                debugMode: false,
+                // [v1.7] RubyPhone 双向联动
+                rubyPhoneBridge: true,      // 回填: LLM 提取结果 → RubyPhone 手机记忆
+                rubyPhoneRecall: true,      // 召回: RubyPhone 记忆库作为一路召回源
+                rubyPhoneRecallTopN: 3      // 每轮从手机记忆召回条数
             };
             this.loadConfig();
         }
@@ -252,10 +256,25 @@
             console.log(`[${PLUGIN_NAME}] 处理新消息 (楼层 ${message.index})`);
             const chatId = this.getCurrentChatId();
             if (!chatId) return;
-            
             try {
                 const extracted = await this.extractMemoryWithLLM(message);
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 提取:`, extracted);
+                
+                // [v1.7] RubyPhone 联动①: LLM 提取结果回填手机记忆库
+                if (this.config.config.rubyPhoneBridge && extracted) {
+                    try {
+                        const bridge = window.VirtualPhone?.lonshaBridge;
+                        if (bridge?.backfill) {
+                            bridge.backfill(extracted);
+                        } else if (window.VirtualPhone?.memoryCore) {
+                            // 兜底: 桥未挂载时直接写入记忆库 (摘要→长期记忆)
+                            const s = String(extracted.summary || '').trim();
+                            if (s.length >= 15) window.VirtualPhone.memoryCore.record('ai', '[剧情] ' + s, {});
+                        }
+                    } catch (e) {
+                        if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] RubyPhone回填失败:`, e);
+                    }
+                }
                 
                 const messageText = message.mes || '';
                 
@@ -494,6 +513,26 @@
                 }));
             }
             
+            // [v1.7] RubyPhone 联动②: 手机记忆库作为一路召回源
+            if (this.config.config.rubyPhoneRecall && query.text) {
+                try {
+                    const bridge = window.VirtualPhone?.lonshaBridge;
+                    if (bridge?.recall) {
+                        const phoneHits = bridge.recall(query.text, this.config.config.rubyPhoneRecallTopN || 3);
+                        if (phoneHits.length) {
+                            results.rubyphone = phoneHits.map(h => ({
+                                text: h.content,
+                                score: h.score,
+                                metadata: { layer: h.layer, source: 'rubyphone' },
+                                source: 'rubyphone'
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] RubyPhone召回失败:`, e);
+                }
+            }
+            
             return this.hybridMerge(results);
         }
         
@@ -506,7 +545,8 @@
                 results.diffusion || [],
                 results.graph || [],
                 results.summary || [],
-                results.diary || []
+                results.diary || [],
+                results.rubyphone || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -518,7 +558,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone'][listIdx]
                     });
                 });
             });
@@ -590,10 +630,11 @@
             const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
-            // 分区：剧情摘要 / 角色关系 / 角色日记（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [];
+            // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
+            const summaries = [], relations = [], diaries = [], phoneMem = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK)) {
-                if (item.source?.includes('diary')) diaries.push(item);
+                if (item.source?.includes('rubyphone')) phoneMem.push(item);
+                else if (item.source?.includes('diary')) diaries.push(item);
                 else if (item.source?.includes('graph')) relations.push(item);
                 else summaries.push(item);
             }
@@ -613,6 +654,10 @@
             if (diaries.length) {
                 blocks.push('[角色日记·近期]');
                 diaries.forEach(i => blocks.push(`- ${i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}）：${i.text || i.entry || ''}`));
+            }
+            if (phoneMem.length) {
+                blocks.push('[手机生活记忆]');
+                phoneMem.forEach(i => blocks.push(`- ${i.text || i.content || ''}`));
             }
             
             if (!blocks.length) return '';
