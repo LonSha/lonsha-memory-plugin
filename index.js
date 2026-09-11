@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.5.0';
+    const VERSION = '2.6.0';
     
     class ConfigManager {
         constructor() {
@@ -83,6 +83,7 @@
                 suspenseEnabled: true,         // 悬念簿（约定/伏笔/未解之谜，三态了结防复读）
                 suspenseMaxOpen: 20,           // 悬念簿在追踪上限（超出最旧的自动沉降）
                 relativeTime: true,            // 剧情时间线注入加相对时间前缀（如"3天前·3月12日"）
+                injectionDepth: 0,             // [v2.6] RG: 注入深度（0=D0紧邻最新输入；D1/D2 需 ST 核心支持，预留）
                 // [v2.3] RD: rerank 精排（抄 baibai 两阶段检索）
                 rerankEnabled: false,          // LLM 精排召回结果（需配独立API，延迟+费用换精度）
                 rerankApiUrl: '',
@@ -1548,7 +1549,12 @@
         if (isNaN(diff) || Math.abs(diff) > 730) return null;
         return diff;
     }
+    // [v2.6] RG: 相对时间统一走 RelativeTimeHelper（架空日历/全角分隔符容忍），旧 storyDayDiff 保留为兜底
     function relativePrefix(dateStr, nowStr) {
+        try {
+            const p = new RelativeTimeHelper().relativeTimePrefix(dateStr, nowStr);
+            if (p) return p;
+        } catch (e) {}
         try {
             if (!dateStr || !nowStr) return '';
             const diff = storyDayDiff(nowStr, dateStr);
@@ -1699,6 +1705,153 @@
     }
     
     // [v1.8] P0: 剧情时间线（抄 yuzuki plot-summary：按剧情日期排序）
+    // ═══════════════════════════════════════════════════════════════
+    // [v2.6] RG: 相对时间工具类（移植自 baibai timeRel.ts 核心算法）
+    // 用途：给历史记忆注入加相对前缀（「昨天」「3天前」「上周」），
+    // 让主模型与用户都能直观感知「这段剧情距离现在多久」。
+    // 设计底线（沿用 baibai）：时间是 AI 写的自由文本，数字日历精确算天数差，
+    // 架空日历（霜月3日）仅同月可算，跨架空月放弃。宁可不标，绝不标错。
+    // ═══════════════════════════════════════════════════════════════
+    class RelativeTimeHelper {
+        constructor() {
+            this.DAY_MS = 24 * 60 * 60 * 1000;
+            this.WEEK_MS = 7 * this.DAY_MS;
+            // 带「年月日」单位的日期字段之间允许出现的装饰分隔符
+            this.DATE_FIELD_SEPARATOR = '[\\s·・•‧∙⋅.．。﹒/／,，、_\\-—–－]*';
+        }
+
+        /** 把全角/中文句点等日期分隔符规范成 / */
+        normalizeNumericDateSeparators(dateStr) {
+            if (!dateStr) return dateStr;
+            return dateStr
+                // 长格式(4 位年起):日数后只要不再跟数字/点即认,容忍后接逗号、中文、括号等
+                .replace(/^(\d{4,})[.．。﹒](\d{1,2})[.．。﹒](\d{1,2})(?![\d.．。﹒])/, '$1/$2/$3')
+                // 短格式(M.D):歧义大,仍要求后接空白或结尾,保守
+                .replace(/^(\d{1,2})[.．。﹒](\d{1,2})(?=$|\s)/, '$1/$2');
+        }
+
+        /** 看起来是结构化数字日期(用于排除「霜月3日」误判为架空) */
+        looksLikeStructuredNumericDate(dateStr) {
+            if (!dateStr) return false;
+            return (
+                /^(?:\d{4,}[/.\-．。﹒]\d{1,2}[/.\-．。﹒]\d{1,2}|\d{1,2}[/.\-．。﹒]\d{1,2})(?=$|\s)/.test(dateStr) ||
+                new RegExp(`^\\d+\\s*年${this.DATE_FIELD_SEPARATOR}\\d{1,2}\\s*月${this.DATE_FIELD_SEPARATOR}\\d{1,2}\\s*日?(?=$|\\s)`).test(dateStr) ||
+                new RegExp(`^\\d{1,2}\\s*月${this.DATE_FIELD_SEPARATOR}\\d{1,2}\\s*日?(?=$|\\s)`).test(dateStr)
+            );
+        }
+
+        /** 从架空日期串里抽「日数」(阿拉伯优先,无则取首个数字) */
+        extractDayNumber(dateStr) {
+            if (!dateStr) return null;
+            const m = dateStr.match(/(\d+)\s*[日号]/) || dateStr.match(/第\s*(\d+)/);
+            if (m) return parseInt(m[1], 10);
+            const any = dateStr.match(/(\d+)/);
+            if (any) return parseInt(any[1], 10);
+            return null;
+        }
+
+        /** 从架空日期串里抽「月标识」(如「霜月」) */
+        extractMonthIdentifier(dateStr) {
+            if (!dateStr) return null;
+            const m = dateStr.match(/([^\s\d]+月)/);
+            if (m) return m[1];
+            const num = dateStr.match(/(?:\d{4}[/\-])?(\d{1,2})[/\-]\d{1,2}/);
+            if (num) return `M${num[1]}`;
+            return null;
+        }
+
+        /** 解析故事日期字符串 → {type: 'standard'|'fantasy', year?, month?, day?, monthId?, calendarPrefix?} */
+        parseStoryDate(dateStr) {
+            if (!dateStr || typeof dateStr !== 'string') return null;
+            const trimmed = dateStr.trim();
+            if (!trimmed) return null;
+
+            const normalized = this.normalizeNumericDateSeparators(trimmed);
+
+            // 1. 尝试结构化数字日期
+            if (this.looksLikeStructuredNumericDate(normalized)) {
+                // 长格式：YYYY/M/D 或 YYYY-M-D
+                let m = normalized.match(/^(\d{4,})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+                if (m) return {type: 'standard', year: parseInt(m[1], 10), month: parseInt(m[2], 10), day: parseInt(m[3], 10)};
+
+                // 短格式：M/D 或 M-D
+                m = normalized.match(/^(\d{1,2})[\/\-](\d{1,2})(?=$|\s)/);
+                if (m) return {type: 'standard', month: parseInt(m[1], 10), day: parseInt(m[2], 10)};
+
+                // 中文格式：X年Y月Z日
+                const reYear = new RegExp(`^(\\d+)\\s*年${this.DATE_FIELD_SEPARATOR}(\\d{1,2})\\s*月${this.DATE_FIELD_SEPARATOR}(\\d{1,2})\\s*日?`);
+                m = trimmed.match(reYear);
+                if (m) return {type: 'standard', year: parseInt(m[1], 10), month: parseInt(m[2], 10), day: parseInt(m[3], 10)};
+
+                // 中文格式：X月Y日
+                const reMonth = new RegExp(`^(\\d{1,2})\\s*月${this.DATE_FIELD_SEPARATOR}(\\d{1,2})\\s*日?`);
+                m = trimmed.match(reMonth);
+                if (m) return {type: 'standard', month: parseInt(m[1], 10), day: parseInt(m[2], 10)};
+            }
+
+            // 2. 尝试架空日历（如「霜月3日」）
+            const monthId = this.extractMonthIdentifier(trimmed);
+            const day = this.extractDayNumber(trimmed);
+            if (monthId && day) return {type: 'fantasy', monthId, day};
+
+            return null;
+        }
+
+        /** 算天数差（standard 日期精确算，fantasy 日期仅同月可算） */
+        calcDaysDiff(date1, date2) {
+            if (!date1 || !date2) return null;
+            if (date1.type !== date2.type) return null;
+
+            if (date1.type === 'standard') {
+                // 补齐缺失的年/月（按当前真实时间补）
+                const now = new Date();
+                const y1 = date1.year ?? now.getFullYear();
+                const m1 = date1.month ?? (now.getMonth() + 1);
+                const d1 = date1.day ?? 1;
+                const y2 = date2.year ?? now.getFullYear();
+                const m2 = date2.month ?? (now.getMonth() + 1);
+                const d2 = date2.day ?? 1;
+
+                const t1 = new Date(y1, m1 - 1, d1).getTime();
+                const t2 = new Date(y2, m2 - 1, d2).getTime();
+                return Math.round((t2 - t1) / this.DAY_MS);
+            }
+
+            if (date1.type === 'fantasy') {
+                // 架空日历：只有同月才能算天数差
+                if (date1.monthId !== date2.monthId) return null;
+                return (date2.day ?? 0) - (date1.day ?? 0);
+            }
+
+            return null;
+        }
+
+        /** 生成相对时间前缀（「昨天」「3天前」「上周」等） */
+        relativeTimePrefix(storyDate, nowDate) {
+            const parsed1 = this.parseStoryDate(storyDate);
+            const parsed2 = this.parseStoryDate(nowDate);
+            const daysDiff = this.calcDaysDiff(parsed1, parsed2);
+
+            if (daysDiff === null || daysDiff === undefined) return '';
+            if (daysDiff === 0) return '今天';
+            if (daysDiff === 1) return '昨天';
+            if (daysDiff === 2) return '前天';
+            if (daysDiff === -1) return '明天';
+            if (daysDiff === -2) return '后天';
+            if (daysDiff > 0 && daysDiff <= 7) return `${daysDiff}天前`;
+            if (daysDiff < 0 && daysDiff >= -7) return `${-daysDiff}天后`;
+            if (daysDiff > 7 && daysDiff < 14) return '上周';
+            if (daysDiff < -7 && daysDiff > -14) return '下周';
+            if (daysDiff >= 14 && daysDiff < 30) return `${Math.floor(daysDiff / 7)}周前`;
+            if (daysDiff <= -14 && daysDiff > -30) return `${Math.floor(-daysDiff / 7)}周后`;
+            if (daysDiff >= 30 && daysDiff < 365) return `${Math.floor(daysDiff / 30)}个月前`;
+            if (daysDiff <= -30 && daysDiff > -365) return `${Math.floor(-daysDiff / 30)}个月后`;
+            if (daysDiff >= 365) return `${Math.floor(daysDiff / 365)}年前`;
+            if (daysDiff <= -365) return `${Math.floor(-daysDiff / 365)}年后`;
+            return '';
+        }
+    }
+
     class PlotTimeline {
         constructor() { this.entries = []; }
         add(date, text, floor, characters = []) {
