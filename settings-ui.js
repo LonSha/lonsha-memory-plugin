@@ -98,6 +98,8 @@
                     <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="volumes"><div class="ls-stat-num">${s.summary?.volumes?.length || 0}</div><div class="ls-stat-label">卷摘要 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
                 </div>
                 <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
@@ -180,6 +182,22 @@
                             <div class="ls-item-text">${esc(v.text)}</div>
                         </div>`).join('');
             }
+            else if (viewType === 'status') {
+                title = '🎮 角色状态 + 待办';
+                const chars = s.status?.characters || {};
+                const names = Object.keys(chars);
+                body = names.length === 0 ? '<div class="ls-hint">暂无角色状态。聊几句后 LLM 会自动提取数值变化。</div>' :
+                    names.map(n => {
+                        const rec = chars[n];
+                        const fields = Object.entries(rec.fields || {}).map(([k, v]) => `<span class="ls-item-text">${esc(k)}:${esc(String(v))}</span>`).join(' | ');
+                        const todos = (rec.todos || []).map(t => `<div class="ls-item-text">· ${esc(t.date ? t.date + ' ' : '')}${esc(t.text)}</div>`).join('');
+                        return `<div class="ls-group">
+                            <div class="ls-group-title">📊 ${esc(n)}</div>
+                            <div class="ls-item">${fields || '<span class="ls-hint">无状态字段</span>'}</div>
+                            ${todos ? `<div class="ls-item"><div class="ls-item-meta">待办</div>${todos}</div>` : ''}
+                        </div>`;
+                    }).join('');
+            }
             else if (viewType === 'relations') {
                 title = '🔗 关系边';
                 const nameOf = (id) => s.graph.nodes.get(id)?.name || id;
@@ -237,6 +255,13 @@
                     <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha}" data-cfg-num="hybridAlpha">
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength}" data-cfg-num="maxSummaryLength">
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">🎮 角色状态 + 待办 + 楼层账本</div>
+                    ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
+                    ${ck('todoTrackingEnabled', '待办追踪', '提取角色待办事项，剧情时间过期自动清理')}
+                    ${ck('floorLedgerEnabled', '楼层账本', '删楼/重生成时自动回滚该楼层产生的记忆')}
+                    <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。</div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">📚 层级摘要折叠 + BM25 稀疏检索</div>
@@ -401,8 +426,10 @@
                 this.engine.vector.vectors = [];
                 if (this.engine.pov) this.engine.pov.povs = [];
                 if (this.engine.timeline) this.engine.timeline.entries = [];
+                if (this.engine.status) this.engine.status.characters = {};
+                if (this.engine.ledger) this.engine.ledger.floors = {};
                 const chatId = this.engine.getCurrentChatId();
-                if (chatId) this.engine.storage.save(chatId, { graph: {nodes:[],edges:[]}, summaries: [], diaries: {}, vectors: [], povs: [], timeline: [], version: '1.8.0' });
+                if (chatId) this.engine.storage.save(chatId, { graph: {nodes:[],edges:[]}, summaries: {summaries:[],volumes:[]}, diaries: {}, vectors: [], povs: [], timeline: [], status: {}, ledger: {}, version: '2.0.0' });
                 toast('已清空');
             });
 

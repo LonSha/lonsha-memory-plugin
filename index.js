@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '1.9.0';
+    const VERSION = '2.0.0';
     
     class ConfigManager {
         constructor() {
@@ -33,7 +33,8 @@
 7. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}]}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}]}`,
+                // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
                 // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
                 apiProviderCustom: false,       // false=跟随正文接口, true=用下方独立配置
                 apiUrl: '',
@@ -61,7 +62,12 @@
                 summaryFoldThreshold: 30,   // 触发折叠的活跃摘要条数
                 summaryFoldBatchSize: 20,   // 每批折叠条数
                 bm25Enabled: true,          // BM25 稀疏检索（词频×逆文档频率）
-                bm25TopK: 5                 // BM25 每轮召回条数
+                bm25TopK: 5,                // BM25 每轮召回条数
+                // [v2.0] P2: 角色状态表 + 楼层账本
+                characterStateEnabled: true,   // 角色数值状态追踪（好感/疲劳/心情等）
+                todoTrackingEnabled: true,     // 待办事项追踪（带剧情日期，过期自动清理）
+                todoExpiryMinutes: 60,         // 待办过期延迟（分钟）
+                floorLedgerEnabled: true       // 楼层账本（删楼/重生成自动回滚记忆）
             };
             this.loadConfig();
         }
@@ -261,6 +267,9 @@
             this.timeline = new PlotTimeline();
             // [v1.9] P1
             this.bm25 = new BM25();
+            // [v2.0] P2
+            this.status = new CharacterState();
+            this.ledger = new FloorLedger();
         }
         
         async onMessageReceived(message, messageId = null) {
@@ -352,6 +361,37 @@
                     this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || []);
                 }
 
+                // [v2.0] P2: 角色状态 + 待办 + 楼层账本
+                const floor = message.index || 0;
+                const nodesBefore = this.graph.nodes.size;
+                if (this.config.config.characterStateEnabled && extracted?.status_changes) {
+                    try {
+                        const n = this.status.applyChanges(extracted.status_changes, floor);
+                        if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 状态更新 ${n} 项`);
+                    } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 状态写入失败:`, e); }
+                }
+                if (this.config.config.todoTrackingEnabled && extracted?.todos) {
+                    try {
+                        this.status.addTodos(extracted.todos, floor);
+                    } catch (e) {}
+                }
+                if (this.config.config.todoTrackingEnabled) {
+                    try {
+                        const sd = this.getLatestStoryDate();
+                        if (sd) this.status.pruneTodos(sd, this.config.config.todoExpiryMinutes || 60);
+                    } catch (e) {}
+                }
+                if (this.config.config.floorLedgerEnabled) {
+                    try {
+                        const allIds = Array.from(this.graph.nodes.keys());
+                        this.ledger.record(floor, {
+                            nodeIds: allIds.slice(nodesBefore),
+                            povIds: this.pov.povs.filter(p => p.floor === floor).map(p => p.id),
+                            timelineIds: this.timeline.entries.filter(t => t.floor === floor).map(t => t.id)
+                        });
+                    } catch (e) {}
+                }
+
                 const summary = await this.summary.createSummary(message, extracted?.summary);
                 
                 if (extracted?.characters) {
@@ -388,6 +428,8 @@
                         vectors: this.vector.export(),
                         povs: this.pov.export(),
                         timeline: this.timeline.export(),
+                        status: this.status.export(),
+                        ledger: this.ledger.export(),
                         version: VERSION
                     });
                 }
@@ -551,7 +593,7 @@
         }
         
         async recallMemory(query) {
-            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: []};
+            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: []};
             
             results.summary = this.summary.search(query.text);
             
@@ -620,6 +662,17 @@
                     .map(v => ({id: v.id, text: `【卷${v.floorStart}-${v.floorEnd}】${v.text}`, floor: v.floorStart, source: 'volume'}));
             }
             
+            // [v2.0] P2: 角色状态召回（只取当前登场角色）
+            if (this.config.config.characterStateEnabled && Object.keys(this.status.characters || {}).length) {
+                const presentCast = this.captureCast();
+                const owners = presentCast.length ? presentCast : (window.SillyTavern?.getContext?.()?.name2 ? [window.SillyTavern.getContext().name2] : []);
+                if (owners.length) {
+                    results.status = this.status.searchByNames(owners, 5).map(r => ({
+                        name: r.name, fields: r.fields, todos: r.todos, source: 'status'
+                    }));
+                }
+            }
+            
             // [v1.8] P0: 剧情时间线召回（按剧情日期相近度）
             if (this.config.config.plotTimeline && this.timeline.entries.length) {
                 const anchorDate = this.getLatestStoryDate();
@@ -676,7 +729,8 @@
                 results.timeline || [],
                 results.pov || [],
                 results.bm25 || [],
-                results.volume || []
+                results.volume || [],
+                results.status || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -688,7 +742,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status'][listIdx]
                     });
                 });
             });
@@ -761,9 +815,10 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
-                if (item.source?.includes('volume')) volumes.push(item);
+                if (item.source === 'status') statuses.push(item);
+                else if (item.source?.includes('volume')) volumes.push(item);
                 else if (item.source === 'bm25') bm25Hits.push(item);
                 else if (item.source?.includes('pov')) povs.push(item);
                 else if (item.source?.includes('timeline')) timelines.push(item);
@@ -795,6 +850,14 @@
                     blocks.push('[相关片段·关键词命中]');
                     fresh.forEach(i => blocks.push(`- ${i.text || ''}`));
                 }
+            }
+            if (statuses.length) {
+                blocks.push('[角色状态]');
+                statuses.forEach(s => {
+                    const fieldText = (s.fields || []).map(([k, v]) => `${k}:${v}`).join(' | ');
+                    const todoText = (s.todos || []).length ? `；待办: ${s.todos.map(t => (t.date ? `${t.date} ` : '') + t.text).join('、')}` : '';
+                    blocks.push(`- ${s.name}${fieldText ? ' — ' + fieldText : ''}${todoText}`);
+                });
             }
             if (relations.length) {
                 blocks.push('[角色关系]');
@@ -832,6 +895,39 @@
             return `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
         }
         
+        // [v2.0] P2: 楼层账本回滚（删楼/重生成后把该楼层产生的记忆撤掉）
+        rollbackFloor(floor) {
+            try {
+                if (!this.config.config.floorLedgerEnabled) return 0;
+                const entry = this.ledger.get(floor);
+                if (!entry) return 0;
+                // 回滚节点（该楼新增的图谱节点）
+                for (const id of (entry.nodeIds || [])) {
+                    this.graph.nodes.delete(id);
+                    this.graph.nameIndex.clear();
+                }
+                // 回滚 POV
+                const povIdSet = new Set(entry.povIds || []);
+                this.pov.povs = this.pov.povs.filter(p => !povIdSet.has(p.id));
+                // 回滚时间线
+                const tlIdSet = new Set(entry.timelineIds || []);
+                this.timeline.entries = this.timeline.entries.filter(t => !tlIdSet.has(t.id));
+                // 回滚该楼层摘要
+                this.summary.summaries = this.summary.summaries.filter(s => s.floor !== floor);
+                // 移除账本记录
+                this.ledger.remove(floor);
+                // 重建 BM25 索引
+                if (this.config.config.bm25Enabled) {
+                    this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                }
+                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${floor} 记忆已回滚`);
+                return 1;
+            } catch (e) {
+                if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 楼层回滚失败:`, e);
+                return 0;
+            }
+        }
+
         getCurrentChatId() {
             try { return window.SillyTavern?.getContext?.()?.chatId; } catch { return null; }
         }
@@ -1055,7 +1151,151 @@
         }
     }
     
+    // [v2.0] P2: 角色状态表（抄 yuzuki character-status：数值状态 + 待办生命周期）
+    class CharacterState {
+        constructor() {
+            this.characters = {};   // { 角色名: { fields: {...}, todos: [...], updatedAt, floor } }
+            this.MAX_FIELDS = 24;
+            this.MAX_TODOS = 12;
+        }
+        _ensure(name) {
+            if (!this.characters[name]) {
+                this.characters[name] = { name, fields: {}, todos: [], updatedAt: Date.now(), floor: 0 };
+            }
+            return this.characters[name];
+        }
+        // 设置/增量修改状态字段
+        applyChanges(changes, floor) {
+            if (!Array.isArray(changes)) return 0;
+            let n = 0;
+            for (const c of changes) {
+                const name = String(c?.character || c?.name || '').trim();
+                const field = String(c?.field || '').trim();
+                if (!name || !field) continue;
+                const rec = this._ensure(name);
+                // 数值增量 / 绝对值 / 文本
+                if (c.delta !== undefined && c.delta !== null && !isNaN(Number(c.delta))) {
+                    const base = Number(rec.fields[field]) || 0;
+                    rec.fields[field] = Math.round((base + Number(c.delta)) * 100) / 100;
+                } else if (c.value !== undefined && c.value !== null) {
+                    rec.fields[field] = (typeof c.value === 'number') ? c.value : String(c.value).trim();
+                }
+                if (c.reason) rec.lastReason = String(c.reason).trim();
+                rec.updatedAt = Date.now();
+                rec.floor = floor || 0;
+                // 字段数上限保护
+                const keys = Object.keys(rec.fields);
+                if (keys.length > this.MAX_FIELDS) delete rec.fields[keys[0]];
+                n++;
+            }
+            return n;
+        }
+        // 待办事项（带去重 + 过期清理）
+        addTodos(items, floor) {
+            if (!Array.isArray(items)) return 0;
+            let n = 0;
+            for (const t of items) {
+                const name = String(t?.character || t?.owner || '').trim();
+                const text = String(t?.text || t?.content || '').trim();
+                if (!name || !text) continue;
+                const rec = this._ensure(name);
+                rec.todos = rec.todos.filter(x => x.text !== text);
+                rec.todos.push({ text, date: t.date ? String(t.date).trim() : '', floor: floor || 0, createdAt: Date.now() });
+                if (rec.todos.length > this.MAX_TODOS) rec.todos.shift();
+                n++;
+            }
+            return n;
+        }
+        // 过期待办清理（抄 yuzuki todo-manager：剧情时间超过延迟即移除）
+        pruneTodos(currentDate, expiryMinutes = 60) {
+            if (!currentDate) return 0;
+            const cur = this._parseDate(currentDate);
+            if (!cur) return 0;
+            let removed = 0;
+            for (const name of Object.keys(this.characters)) {
+                const rec = this.characters[name];
+                rec.todos = (rec.todos || []).filter(t => {
+                    if (!t.date) return true;
+                    const td = this._parseDate(t.date);
+                    if (!td) return true;
+                    const diffMin = (cur - td) / 60000;
+                    if (diffMin > expiryMinutes) { removed++; return false; }
+                    return true;
+                });
+            }
+            return removed;
+        }
+        _parseDate(d) {
+            const m = String(d || '').match(/(\d{1,4})\s*[年\/-]\s*(\d{1,2})\s*[月\/-]\s*(\d{1,2})/);
+            if (!m) return null;
+            let y = Number(m[1]); if (y < 100) y += 2000;
+            return new Date(y, Number(m[2]) - 1, Number(m[3]), 0, 0, 0).getTime();
+        }
+        // 按角色召回（只返回有状态的）
+        searchByNames(names, limit = 5) {
+            const out = [];
+            for (const n of (names || [])) {
+                const rec = this.characters[n];
+                if (!rec) continue;
+                const fields = Object.entries(rec.fields || {});
+                const todos = (rec.todos || []);
+                if (!fields.length && !todos.length) continue;
+                out.push({ name: n, fields, todos });
+            }
+            return out.slice(0, limit);
+        }
+        export() { return this.characters; }
+        import(data) { this.characters = (data && typeof data === 'object') ? data : {}; }
+    }
+    
+    // [v2.0] P2: 楼层账本（抄 yuzuki floor-ledger：记忆变更绑定楼层，删楼/重生成自动回滚）
+    class FloorLedger {
+        constructor() {
+            this.floors = {};   // { floor: { nodeIds:[], summaryFloors:[], povIds:[], timelineIds:[], statusSnapshot:{} } }
+            this.MAX_FLOORS = 400;
+        }
+        beginFloor(floor, statusSnapshot) {
+            this.floors[floor] = {
+                floor,
+                nodeIds: [],
+                summaryFloors: [],
+                povIds: [],
+                timelineIds: [],
+                statusSnapshot: statusSnapshot || null,
+                createdAt: Date.now()
+            };
+            const keys = Object.keys(this.floors);
+            if (keys.length > this.MAX_FLOORS) {
+                delete this.floors[keys.sort((a, b) => a - b)[0]];
+            }
+            return this.floors[floor];
+        }
+        record(floor, patch) {
+            const e = this.floors[floor] || this.beginFloor(floor);
+            if (patch.nodeIds) e.nodeIds.push(...patch.nodeIds);
+            if (patch.summaryFloors) e.summaryFloors.push(...patch.summaryFloors);
+            if (patch.povIds) e.povIds.push(...patch.povIds);
+            if (patch.timelineIds) e.timelineIds.push(...patch.timelineIds);
+            return e;
+        }
+        get(floor) { return this.floors[floor] || null; }
+        // 移除楼层记录，返回被移除的条目（供调用方回滚）
+        remove(floor) {
+            const e = this.floors[floor];
+            if (!e) return null;
+            delete this.floors[floor];
+            return e;
+        }
+        // 该楼层之后的所有楼层（重生成/删楼后需回滚的）
+        floorsAfter(floor) {
+            return Object.keys(this.floors).map(Number).filter(f => f > floor).sort((a, b) => a - b);
+        }
+        export() { return this.floors; }
+        import(data) { this.floors = (data && typeof data === 'object') ? data : {}; }
+    }
+    
     class DiarySystem {
+
 
 
         constructor() { this.diaries = {}; }
@@ -1095,6 +1335,8 @@
                     if (data.vectors) engine.vector.import(data.vectors);
                     if (data.povs && engine.pov) engine.pov.import(data.povs);
                     if (data.timeline && engine.timeline) engine.timeline.import(data.timeline);
+                    if (data.status && engine.status) engine.status.import(data.status);
+                    if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
                 }
                 return data;
             } catch (err) { return null; }
@@ -1212,6 +1454,24 @@
                     this.eventHandlers.push({ eventSource, type: types.CHAT_CHANGED });
                 }
 
+                // [v2.0] P2: 删楼回滚（楼层账本）
+                if (types.MESSAGE_DELETED) {
+                    eventSource.on(types.MESSAGE_DELETED, (messageId) => {
+                        try {
+                            const c = window.SillyTavern?.getContext?.();
+                            // ST 删楼后 chat 已变化，直接尝试回滚该楼及其后的记忆
+                            const floor = Number(messageId);
+                            if (!Number.isFinite(floor)) return;
+                            plugin.engine.rollbackFloor(floor);
+                            // 同时清掉该楼之后的账本残留（删楼会连锁前移）
+                            const after = plugin.engine.ledger.floorsAfter(floor);
+                            for (const f of after.reverse()) plugin.engine.rollbackFloor(f);
+                        } catch (err) {
+                            if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);
+                        }
+                    });
+                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_DELETED });
+                }
                 // [v1.2] GENERATION_STARTED：生成前注入记忆（主注入路径）
                 if (types.GENERATION_STARTED) {
                     eventSource.on(types.GENERATION_STARTED, async () => {
