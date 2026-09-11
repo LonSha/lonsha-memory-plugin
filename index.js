@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.0.0';
+    const VERSION = '2.1.0';
     
     class ConfigManager {
         constructor() {
@@ -67,7 +67,12 @@
                 characterStateEnabled: true,   // 角色数值状态追踪（好感/疲劳/心情等）
                 todoTrackingEnabled: true,     // 待办事项追踪（带剧情日期，过期自动清理）
                 todoExpiryMinutes: 60,         // 待办过期延迟（分钟）
-                floorLedgerEnabled: true       // 楼层账本（删楼/重生成自动回滚记忆）
+                floorLedgerEnabled: true,      // 楼层账本（删楼/重生成自动回滚记忆）
+                // [v2.1] P3: 互斥锁 + 上下文预算 + 节日感知
+                extractionLockEnabled: true,   // 提取互斥（防并发写坏数据）
+                injectionBudget: 3000,         // 注入简报字符预算（超预算自动裁剪）
+                budgetStrategy: 'balanced',    // 预算策略: balanced | recency | relevance
+                holidayAware: true             // 节日感知（剧情日期临近节日时增强相关记忆）
             };
             this.loadConfig();
         }
@@ -270,6 +275,9 @@
             // [v2.0] P2
             this.status = new CharacterState();
             this.ledger = new FloorLedger();
+            // [v2.1] P3
+            this.mutex = new Mutex();
+            this.holiday = new HolidayAware();
         }
         
         async onMessageReceived(message, messageId = null) {
@@ -283,6 +291,14 @@
             console.log(`[${PLUGIN_NAME}] 处理新消息 (楼层 ${message.index})`);
             const chatId = this.getCurrentChatId();
             if (!chatId) return;
+            // [v2.1] P3: 提取互斥（抄 hcdiary cdBusy——防并发提取写坏数据）
+            if (this.config.config.extractionLockEnabled) {
+                const acquired = await this.mutex.acquire();
+                if (!acquired) {
+                    if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，跳过本轮`);
+                    return;
+                }
+            }
             try {
                 const extracted = await this.extractMemoryWithLLM(message);
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 提取:`, extracted);
@@ -437,6 +453,8 @@
                 console.log(`[${PLUGIN_NAME}] ✓ 完成 (${extracted?.characters?.length || 0}角色, ${extracted?.events?.length || 0}事件, 向量=${this.vector.vectors.length})`);
             } catch (err) {
                 console.error(`[${PLUGIN_NAME}] ✗ 失败:`, err);
+            } finally {
+                if (this.config.config.extractionLockEnabled) this.mutex.release();
             }
         }
         
@@ -593,7 +611,7 @@
         }
         
         async recallMemory(query) {
-            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: []};
+            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: []};
             
             results.summary = this.summary.search(query.text);
             
@@ -660,6 +678,25 @@
             if (this.config.config.summaryFoldEnabled && this.summary.volumes.length) {
                 results.volume = this.summary.searchVolumes(2)
                     .map(v => ({id: v.id, text: `【卷${v.floorStart}-${v.floorEnd}】${v.text}`, floor: v.floorStart, source: 'volume'}));
+            }
+            
+            // [v2.1] P3: 节日感知召回（剧情日期临近节日时，用节日关键词召回相关记忆）
+            if (this.config.config.holidayAware) {
+                try {
+                    const sd = this.getLatestStoryDate();
+                    const h = sd ? this.holiday.current(sd) : null;
+                    if (h) {
+                        const kw = this.holiday.keywords(h.name);
+                        const kwHits = [];
+                        if (kw.length) {
+                            for (const s of this.summary.getActiveSummaries()) {
+                                if (kw.some(k => s.text.includes(k))) kwHits.push({id: 'hol_' + s.floor, text: s.text, floor: s.floor, holiday: h.name, source: 'holiday'});
+                            }
+                            results.holiday = kwHits.slice(0, 3);
+                        }
+                        if (this.config.config.debugMode && h) console.log(`[${PLUGIN_NAME}] 🎉 节日感知: ${h.name} (偏移${h.offsetDays}天)`);
+                    }
+                } catch (e) {}
             }
             
             // [v2.0] P2: 角色状态召回（只取当前登场角色）
@@ -730,7 +767,8 @@
                 results.pov || [],
                 results.bm25 || [],
                 results.volume || [],
-                results.status || []
+                results.status || [],
+                results.holiday || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -742,7 +780,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday'][listIdx]
                     });
                 });
             });
@@ -815,9 +853,10 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
                 if (item.source === 'status') statuses.push(item);
+                else if (item.source?.includes('holiday')) holidays.push(item);
                 else if (item.source?.includes('volume')) volumes.push(item);
                 else if (item.source === 'bm25') bm25Hits.push(item);
                 else if (item.source?.includes('pov')) povs.push(item);
@@ -890,9 +929,40 @@
                 blocks.push('[手机生活记忆]');
                 phoneMem.forEach(i => blocks.push(`- ${i.text || i.content || ''}`));
             }
+            if (holidays.length) {
+                blocks.push(`〔剧情时间临近 ${holidays[0].holiday}｜氛围提示，可自然融入但不强求〕`);
+                const seenH = new Set();
+                holidays.forEach(i => {
+                    const key = i.text || '';
+                    if (seenH.has(key)) return;
+                    seenH.add(key);
+                    blocks.push(`- ${key}`);
+                });
+            }
             
             if (!blocks.length) return '';
-            return `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
+            let full = `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
+            // [v2.1] P3: 注入预算裁剪（抄 stbme context-window：超预算优先保近期/相关）
+            const budget = this.config.config.injectionBudget || 3000;
+            if (full.length > budget) {
+                const strategy = this.config.config.budgetStrategy || 'balanced';
+                if (strategy === 'relevance') {
+                    // 只保留 RRF 得分最高的（已排序，前 60% 内容）
+                    const slice = Math.floor(blocks.length * 0.6);
+                    const kept = blocks.slice(0, Math.max(3, slice));
+                    full = `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n`;
+                } else if (strategy === 'recency') {
+                    // 保留时间线/POV/状态等"近期"分区，砍掉早前概括与 BM25
+                    const keepTypes = ['剧情时间线', '角色状态', 'POV', '手机生活记忆', '前情摘要', '节日'];
+                    const kept = blocks.filter(b => keepTypes.some(k => b.startsWith('[' + k) || b.includes(k)));
+                    full = kept.length ? `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n` : full.slice(0, budget);
+                } else {
+                    // balanced：整体截断到预算
+                    full = full.slice(0, budget);
+                }
+                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 注入预算裁剪: ${budget} 字符`);
+            }
+            return full;
         }
         
         // [v2.0] P2: 楼层账本回滚（删楼/重生成后把该楼层产生的记忆撤掉）
@@ -1294,7 +1364,107 @@
         import(data) { this.floors = (data && typeof data === 'object') ? data : {}; }
     }
     
+    // [v2.1] P3: 提取互斥锁（抄 hcdiary：cdBusy/cdPending 防并发写坏数据）
+    class Mutex {
+        constructor() { this.busy = false; this.pending = false; this.waiters = []; }
+        async acquire() {
+            if (!this.busy) { this.busy = true; return true; }
+            // 已有任务在跑：排队等待（最多等 30s，避免死等）
+            return new Promise((resolve) => {
+                let done = false;
+                const timer = setTimeout(() => {
+                    if (done) return;
+                    done = true;
+                    const i = this.waiters.indexOf(entry);
+                    if (i >= 0) this.waiters.splice(i, 1);
+                    resolve(false);
+                }, 30000);
+                const entry = (ok) => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(timer);
+                    if (ok) this.busy = true;
+                    resolve(ok);
+                };
+                this.waiters.push(entry);
+            });
+        }
+        release() {
+            if (this.waiters.length) {
+                const next = this.waiters.shift();
+                next(true);   // 直接把锁交给下一个等待者
+            } else {
+                this.busy = false;
+            }
+        }
+        get locked() { return this.busy; }
+        get queueLength() { return this.waiters.length; }
+    }
+    
+    // [v2.1] P3: 节日感知（抄 anima default_rag_strategy.holidays：日期临近节日时增强）
+    class HolidayAware {
+        constructor() {
+            this.holidays = [
+                { date: '12-25', name: '圣诞节', before: 3, after: 3 },
+                { date: '02-14', name: '情人节', before: 2, after: 2 },
+                { date: '01-01', name: '元旦', before: 3, after: 3 },
+                { date: '10-31', name: '万圣节', before: 1, after: 1 },
+                { date: '05-20', name: '网络情人节', before: 1, after: 1 },
+                { date: '06-01', name: '儿童节', before: 1, after: 1 },
+                { date: '08-15', name: '中秋节', before: 3, after: 3 },
+                { date: '07-07', name: '七夕', before: 2, after: 2 }
+            ];
+        }
+        _parse(dateStr) {
+            const m = String(dateStr || '').match(/(\d{1,4})\s*[年\-\/]\s*(\d{1,2})\s*[月\-\/]\s*(\d{1,2})/);
+            if (!m) return null;
+            let y = Number(m[1]); if (y < 100) y += 2000;
+            return { y, mo: Number(m[2]), d: Number(m[3]) };
+        }
+        /** 返回当前日期所处的节日（含临近窗口），无则 null */
+        current(dateStr) {
+            const p = this._parse(dateStr);
+            if (!p) return null;
+            for (const h of this.holidays) {
+                const [hm, hd] = h.date.split('-').map(Number);
+                const cur = p.mo * 100 + p.d;
+                const target = hm * 100 + hd;
+                // 允许跨月窗口（简单按天数近似）
+                const diff = this._dayDiff(p.mo, p.d, hm, hd, p.y);
+                if (diff >= -h.before && diff <= h.after) {
+                    return { name: h.name, date: h.date, offsetDays: diff };
+                }
+            }
+            return null;
+        }
+        _dayDiff(m1, d1, m2, d2, year) {
+            const a = new Date(year, m1 - 1, d1).getTime();
+            let bYear = year;
+            const b = new Date(bYear, m2 - 1, d2).getTime();
+            let diff = Math.round((a - b) / 86400000);
+            // 处理跨年（如 12月 看 1月1日）
+            if (diff > 180) diff -= 365;
+            if (diff < -180) diff += 365;
+            return diff;
+        }
+        /** 节日关键词（用于召回加权 / 注入提示） */
+        keywords(holidayName) {
+            const map = {
+                '圣诞节': ['圣诞', '圣诞树', '礼物', '平安夜', '雪'],
+                '情人节': ['情人节', '玫瑰', '巧克力', '告白', '约会'],
+                '元旦': ['元旦', '新年', '跨年', '倒计时'],
+                '万圣节': ['万圣', '南瓜', '糖果', '变装'],
+                '网络情人节': ['520', '告白', '我爱你'],
+                '儿童节': ['儿童节', '游乐场', '糖果'],
+                '中秋节': ['中秋', '月饼', '团圆', '赏月'],
+                '七夕': ['七夕', '牛郎织女', '鹊桥', '乞巧']
+            };
+            return map[holidayName] || [];
+        }
+    }
+    
     class DiarySystem {
+
 
 
 
