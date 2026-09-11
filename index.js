@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.4.0';
+    const VERSION = '2.5.0';
     
     class ConfigManager {
         constructor() {
@@ -92,7 +92,14 @@
                 // [v2.4] RE: 场景树 + 在场分档 + 查询重写
                 sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
                 presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
-                queryRewrite: false            // 生成前用小模型重写检索查询（需API，提升召回命中）
+                queryRewrite: false,           // 生成前用小模型重写检索查询（需API，提升召回命中）
+                // [v2.5] RF: 回响池 + 活人感日记 + 每N楼提取 + 反思
+                echoEnabled: true,             // 回响池（抄anima：召回过的记忆停留N轮防闪烁）
+                echoBaseLife: 2,               // 常规召回停留轮数
+                echoMaxCount: 10,              // 回响池容量
+                livingDiary: true,             // 活人感日记（抄hcdiary：第一人称+secret+记忆回环）
+                diaryEveryFloors: 3,           // 每N楼写一次日记（0=每楼）
+                reflectionEnabled: false       // 反思节点（抄stbme：洞察提炼，需API，默认关）
             };
             this.loadConfig();
         }
@@ -353,6 +360,8 @@
             this.suspense = new SuspenseBook();
             // [v2.4] RE
             this.scene = new SceneBook();
+            // [v2.5] RF
+            this.echo = new EchoPool();
         }
         
         async onMessageReceived(message, messageId = null) {
@@ -370,7 +379,12 @@
             if (this.config.config.extractionLockEnabled) {
                 const acquired = await this.mutex.acquire();
                 if (!acquired) {
-                    if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，跳过本轮`);
+                    // [v2.5] 修复: 原实现直接 return 丢消息；改为至少做摘要兜底，防该楼彻底无记忆
+                    try {
+                        const fallback = this.extractMemorySimple(message);
+                        if (fallback?.summary) await this.summary.createSummary(message, fallback.summary);
+                        console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，已降级为本地摘要 (楼层 ${message.index})`);
+                    } catch (e) {}
                     return;
                 }
             }
@@ -518,10 +532,12 @@
 
                 const summary = await this.summary.createSummary(message, extracted?.summary);
                 
-                if (extracted?.characters) {
-                    for (const char of extracted.characters) {
-                        await this.diary.writeDiary(char, message, summary, extracted);
-                    }
+                // [v2.5] RF: 活人感日记——每N楼一次批量生成登场角色第一人称日记
+                if (this.config.config.livingDiary) {
+                    try {
+                        const dn = await this.diary.generateLiving(this.config.config, this.llm, extracted?.characters ? this.getKnownCharacters() : [], message.index || 0);
+                        if (dn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 活人感日记 +${dn} 条`);
+                    } catch (e) {}
                 }
                 
                 if (this.config.config.vectorEnabled) {
@@ -561,6 +577,7 @@
                         ledger: this.ledger.export(),
                         suspense: this.suspense.export(),
                         scene: this.scene.export(),
+                        echo: this.echo.export(),
                         version: VERSION
                     });
                 }
@@ -728,6 +745,18 @@
                     if (qs && qs.length) query.queries = qs;
                 } catch (e) {}
                 const recalled = await this.recallMemory(query);
+                // [v2.5] RF: 回响池——本轮召回的进池续命，池中仍在停留期的合并注入（召回结果跨轮连续，不再闪烁）
+                try {
+                    if (this.config.config.echoEnabled) {
+                        const merged = new Map();
+                        for (const r of recalled) merged.set(r.id || r.text || JSON.stringify(r).slice(0, 60), r);
+                        for (const e of this.echo.tick()) {
+                            if (e.text && !merged.has(e.key)) merged.set(e.key, { id: e.key, text: e.text, source: e.source, echo: true });
+                        }
+                        this.echo.onRecalled(recalled);
+                        return this.buildInjection(Array.from(merged.values()).slice(0, this.config.config.vectorTopK * 2 + (this.config.config.echoMaxCount || 10)));
+                    }
+                } catch (e) {}
                 return this.buildInjection(recalled);
             } catch (err) {
                 return '';
@@ -1115,8 +1144,8 @@
                 });
             }
             if (diaries.length) {
-                blocks.push('[角色日记·近期]');
-                diaries.forEach(i => blocks.push(`- ${i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}）：${i.text || i.entry || ''}`));
+                blocks.push('[角色日记·近期]（第一人称心声，仅作内心参考，不得在对话中直接引用原文）');
+                diaries.forEach(i => blocks.push(`- ${i.name || i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}${i.mood ? '·' + i.mood : ''}）：${i.text || i.entry || ''}${i.secret ? ' ｜未说出口: ' + i.secret : ''}`));
             }
             if (timelines.length) {
                 blocks.push('[剧情时间线]');
@@ -1219,6 +1248,10 @@
                 // 回滚节点（该楼新增的图谱节点）
                 for (const id of (entry.nodeIds || [])) {
                     this.graph.nodes.delete(id);
+                    // [v2.5] 修复: 同步清掉指向被删节点的边 (原实现边残留, findByNames 后引用悬空节点)
+                    for (const [eid, e] of Array.from(this.graph.edges)) {
+                        if (e.from === id || e.to === id) this.graph.edges.delete(eid);
+                    }
                     this.graph.nameIndex.clear();
                 }
                 // 回滚 POV
@@ -1313,6 +1346,30 @@
         }
     }
     
+    // [v2.5] RF: 回响池（抄 anima echoConfig——召回过的记忆停留N轮，防同一记忆"闪现又消失"）
+    class EchoPool {
+        constructor() { this.items = []; }   // [{key, text, source, life}]
+        onRecalled(recalled) {
+            try {
+                const now = Date.now();
+                for (const item of (recalled || []).slice(0, 20)) {
+                    const key = item.id || item.text || JSON.stringify(item).slice(0, 60);
+                    const exist = this.items.find(x => x.key === key);
+                    if (exist) { exist.life = Math.max(exist.life, 2); exist.lastSeen = now; }   // 重要度更高的条目粘更久
+                    else this.items.push({ key, text: item.text || item.content || item.summary || '', source: item.source, life: 2, lastSeen: now });
+                }
+                if (this.items.length > 30) this.items = this.items.slice(-30);
+            } catch (e) {}
+        }
+        /** 每轮衰减；返回仍存活的（life>0） */
+        tick() {
+            this.items = this.items.filter(x => { x.life -= 1; return x.life > 0; });
+            return this.items;
+        }
+        export() { return this.items; }
+        import(data) { this.items = Array.isArray(data) ? data.slice(0, 30) : []; }
+    }
+
     // [v2.4] RE: 场景地图树（抄 baibai MemScene：由大到小路径层级 + 当前位置追踪 + ops重放）
     class SceneBook {
         constructor() {
@@ -2019,23 +2076,76 @@
         }
     }
     
+    // [v2.5] RF: 活人感日记（抄 hcdiary——第一人称心声+secret+记忆回环; 旧版仅summary副本已废弃）
     class DiarySystem {
-
-
-
-
-        constructor() { this.diaries = {}; }
-        async writeDiary(character, message, summary, extracted) {
-            if (!this.diaries[character]) this.diaries[character] = [];
-            this.diaries[character].push({floor: message.index || 0, text: summary.text, mood: 'neutral', events: extracted?.events || [], timestamp: Date.now()});
+        constructor() { this.diaries = {}; this._lastDiaryFloor = -1; this._writing = false; this._pending = null; }
+        /**
+         * 活人感日记生成（每N楼节流，抽最近窗口一次生成所有登场角色的日记）
+         * @returns {number} 写入条数
+         */
+        async generateLiving(config, llm, knownChars, floor) {
+            const every = Math.max(0, Number(config.diaryEveryFloors || 3));
+            if (!config.livingDiary || !llm) return 0;
+            if (every > 0 && (floor - this._lastDiaryFloor) < every) return 0;
+            if (this._writing) { this._pending = floor; return 0; }
+            this._writing = true;
+            this._lastDiaryFloor = floor;
+            try {
+                const ctx = window.SillyTavern?.getContext?.();
+                const chat = ctx?.chat || [];
+                const win = chat.slice(-Math.max(4, every * 2 + 2)).map(m => (m.mes || '').substring(0, 500)).join('\n');
+                if (!win) return 0;
+                const memory = Object.entries(this.diaries).map(([n, arr]) => {
+                    const last = (arr || []).slice(-1)[0];
+                    return last ? `${n}: ${String(last.text || '').substring(0, 60)}` : null;
+                }).filter(Boolean).slice(0, 10).join('\n');
+                const prompt = `你是"角色日记"记录员。阅读给定剧情片段，为其中每个有名有戏份的登场角色，以该角色第一人称主观视角写一篇日记。
+规则：
+- 只为有名字、有实际戏份的角色写；纯路人忽略；不要为用户/玩家角色写日记。
+- 第一人称，带该角色的情绪、私心、主观理解（可与事实有偏差）。同一事件不同角色可以记得不同。
+- entry 是心声不是剧情复述：聚焦心理活动、情绪、关系变化、关键决定。100字内。
+- secret 写"没说出口的心思"（没有填空串）。
+- 复用已知角色名单中的主名。只输出JSON：{"diaries":[{"name":"主名","entry":"第一人称正文","mood":"心情词","secret":"没说出口的心思"}]}
+${knownChars?.length ? `已知角色名单: ${knownChars.join('、')}` : '已知角色名单: (暂无)'}
+${memory ? `各角色已有记忆(最新日记):\n${memory}` : '各角色已有记忆: (暂无)'}
+【剧情片段】
+${win}`;
+                const raw = await llm.callAPI(prompt);
+                if (!raw) return 0;
+                const m = String(raw).match(/\{[\s\S]*\}/);
+                if (!m) return 0;
+                const parsed = JSON.parse(m[0]);
+                let n = 0;
+                for (const d of (parsed.diaries || [])) {
+                    const name = String(d?.name || '').trim();
+                    const entry = String(d?.entry || '').trim();
+                    if (!name || entry.length < 4) continue;
+                    if (!this.diaries[name]) this.diaries[name] = [];
+                    this.diaries[name].push({
+                        floor, text: entry.slice(0, 200), mood: String(d.mood || '平静').slice(0, 10),
+                        secret: String(d.secret || '').slice(0, 100), timestamp: Date.now()
+                    });
+                    if (this.diaries[name].length > 30) this.diaries[name].shift();
+                    n++;
+                }
+                return n;
+            } catch (e) { return 0; }
+            finally { this._writing = false; }
         }
         search(characters) {
             const results = [];
-            for (const char of characters) if (this.diaries[char]) results.push(...this.diaries[char].slice(-3));
+            for (const char of (characters || [])) if (this.diaries[char]) results.push(...this.diaries[char].slice(-3));
             return results;
         }
-        export() { return this.diaries; }
-        import(data) { this.diaries = data || {}; }
+        export() { return { diaries: this.diaries, lastDiaryFloor: this._lastDiaryFloor }; }
+        import(data) {
+            if (data && typeof data === 'object' && data.diaries) {
+                this.diaries = data.diaries;
+                this._lastDiaryFloor = Number(data.lastDiaryFloor ?? -1);
+            } else {
+                this.diaries = data || {};
+            }
+        }
     }
     
     class StorageManager {
@@ -2065,6 +2175,7 @@
                     if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
                     if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
                     if (data.scene && engine.scene) engine.scene.import(data.scene);
+                    if (data.echo && engine.echo) engine.echo.import(data.echo);
                 }
                 return data;
             } catch (err) { return null; }

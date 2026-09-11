@@ -314,6 +314,17 @@
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
                 <div class="ls-group">
+                    <div class="ls-group-title">📢 回响池 + 日记 + 提取节流</div>
+                    ${ck('echoEnabled', '回响池（抄anima）', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
+                    ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
+                    ${ck('reflectionEnabled', '反思节点（抄stbme，需API）', '定期从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，默认关')}
+                    <div class="ls-slider-label"><span>回响停留轮数</span><span class="ls-slider-val" id="ls-v-echo">${c.echoBaseLife || 2}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.echoBaseLife || 2}" data-cfg-num="echoBaseLife">
+                    <div class="ls-slider-label"><span>每N楼写一次日记</span><span class="ls-slider-val" id="ls-v-df">${c.diaryEveryFloors || 3}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="10" step="1" value="${c.diaryEveryFloors || 3}" data-cfg-num="diaryEveryFloors">
+                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（0=每楼），省API额度；生成失败自动跳过不影响主流程。</div>
+                </div>
+                <div class="ls-group">
                     <div class="ls-group-title">🗺️ 场景树 + 在场分档</div>
                     ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
                     ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现')}
@@ -392,7 +403,7 @@
             // 滑块实时显示
             overlay.querySelectorAll('input[type=range]').forEach(r => {
                 r.addEventListener('input', () => {
-                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen', rerankCandidates: 'ls-v-rerank', suspenseMaxOpen: 'ls-v-susmax' };
+                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen', rerankCandidates: 'ls-v-rerank', suspenseMaxOpen: 'ls-v-susmax', echoBaseLife: 'ls-v-echo', diaryEveryFloors: 'ls-v-df' };
                     const el = document.getElementById(map[r.dataset.cfgNum]);
                     if (el) el.textContent = r.value;
                 });
