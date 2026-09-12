@@ -172,7 +172,7 @@
                 const list = s.summary.summaries;
                 body = list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
                     list.slice().reverse().map(m => `
-                        <div class="ls-item">
+                        <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${m.floor}">
                             <div class="ls-item-meta">楼层 ${m.floor ?? '?'} · ${fmtTime(m.timestamp)}</div>
                             <div class="ls-item-text">${esc(m.text)}</div>
                         </div>`).join('');
@@ -207,7 +207,7 @@
                 const povs = s.pov?.povs || [];
                 body = povs.length === 0 ? '<div class="ls-hint">暂无私密记忆。提取到角色内心/秘密时会自动记录。</div>' :
                     povs.slice().reverse().map(p => `
-                        <div class="ls-item">
+                        <div class="ls-item ls-clickable" data-opkind="pov" data-opid="${p.id}">
                             <div class="ls-item-meta"><b>${esc(p.owner)}</b> · 楼层 ${p.floor ?? '?'} · 触发${p.count || 1}次</div>
                             <div class="ls-item-text">${esc(p.content)}</div>
                         </div>`).join('');
@@ -217,8 +217,8 @@
                 const tl = s.timeline?.entries || [];
                 body = tl.length === 0 ? '<div class="ls-hint">暂无剧情时间线。剧情中出现明确日期时会自动记录。</div>' :
                     tl.slice().reverse().map(e => `
-                        <div class="ls-item">
-                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''}</div>
+                        <div class="ls-item ls-clickable" data-opkind="timeline" data-opid="${e.id}">
+                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · ⭐${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''}</div>
                             <div class="ls-item-text">${esc(e.text)}</div>
                         </div>`).join('');
             }
@@ -265,7 +265,7 @@
                 const resolved = items.filter(x => x.status === 'resolved').slice(-10).reverse();
                 body = (items.length === 0) ? '<div class="ls-hint">暂无悬念。LLM 提取到约定/伏笔/谜团后会自动登记。</div>' :
                     `<div class="ls-group"><div class="ls-group-title">未了结 (${open.length})</div>` +
-                    (open.map(x => `<div class="ls-item"><div class="ls-item-meta">${x.kind === 'suspense' ? '谜团' : '约定'} · 第${x.floor ?? '?'}楼${x.createdTime ? ' · ' + esc(x.createdTime) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
+                    (open.map(x => `<div class="ls-item ls-clickable" data-opkind="suspense" data-opid="${x.id}"><div class="ls-item-meta">${x.kind === 'suspense' ? '谜团' : '约定'} · 第${x.floor ?? '?'}楼${x.createdTime ? ' · ' + esc(x.createdTime) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
                     `</div><div class="ls-group"><div class="ls-group-title">近期了结</div>` +
                     (resolved.map(x => `<div class="ls-item"><div class="ls-item-meta">${x.outcome === 'done' ? '✅ 完成' : x.outcome === 'cancelled' ? '🚫 取消' : '❌ 失败'}${x.resolvedReason ? ' · ' + esc(x.resolvedReason) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
                     '</div>';
@@ -285,13 +285,22 @@
                 const vecs = s.vector.vectors;
                 body = vecs.length === 0 ? '<div class="ls-hint">暂无向量。需要配置 Embedding API。</div>' :
                     vecs.slice().reverse().map(v => `
-                        <div class="ls-item">
+                        <div class="ls-item ls-clickable" data-opkind="vector" data-opid="${v.id}">
                             <div class="ls-item-meta">楼层 ${v.metadata?.floor ?? '?'} · ${fmtTime(v.timestamp)}</div>
                             <div class="ls-item-text">${esc((v.text || '').substring(0, 150))}</div>
                         </div>`).join('');
             }
 
-            const ov = makeSheet('lonsha-browser-overlay', title, body || '<div class="ls-hint">暂无数据</div>');
+            const opHint = '<div class="ls-hint" style="color:#89b4fa;margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>';
+            const ov = makeSheet('lonsha-browser-overlay', title, body ? (opHint + body) : '<div class="ls-hint">暂无数据</div>');
+            ov.querySelectorAll('[data-opkind]').forEach(it => {
+                it.addEventListener('click', () => {
+                    plugin._memOps(it.dataset.opkind, it.dataset.opid, () => {
+                        ov.remove();
+                        plugin.showBrowser(viewType);
+                    });
+                });
+            });
             // 浏览器里加一个返回按钮
             const back = document.createElement('div');
             back.className = 'ls-btn';
@@ -667,6 +676,7 @@
             menu.innerHTML = `
                 <div style="padding:6px 14px;color:#a6adc8;font-size:11px;border-bottom:1px solid #313244;margin-bottom:4px;">LonSha记忆引擎</div>
                 <div class="lsm-item" data-act="stats">📊 状态总览</div>
+                <div class="lsm-item" data-act="timeline">📅 剧情时间线</div>
                 <div class="lsm-item" data-act="viz">🕸️ 记忆图谱</div>
                 <div class="lsm-item" data-act="settings">⚙️ 设置</div>
                 <div class="lsm-item" data-act="diag">🩺 一键诊断</div>
@@ -686,6 +696,7 @@
                         else plugin.showStatsPanel();
                     }
                     else if (act === 'settings') plugin.showSettingsPanel();
+                    else if (act === 'timeline') plugin.showBrowser('timeline');
                     else if (act === 'diag') plugin.showDiagnose();
                 });
             });
@@ -753,6 +764,132 @@
         };
 
         // [v3.0] SD: 一键诊断面板
+        // [v3.34] 记忆管理器
+        plugin._memPersist = async function() {
+            try {
+                const eng = this.engine;
+                await eng.storage.save(eng.getCurrentChatId(), eng.collectExport());
+                return true;
+            } catch (e) { console.error("[LonSha] persist fail:", e); return false; }
+        };
+        plugin._memToast = function(msg, ok = true) {
+            const t = document.createElement("div");
+            t.className = "ls-toast";
+            t.style.background = ok ? "#a6e3a1" : "#f38ba8";
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 1800);
+        };
+        plugin._memOps = function(kind, id, onDone) {
+            const eng = this.engine;
+            const esc = (t) => String(t || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+            let label = "", actions = [];
+            if (kind === "timeline") {
+                const e = eng.timeline.entries.find(x => x.id === id);
+                if (!e) return;
+                label = esc(e.text).substring(0, 60);
+                actions = [
+                    { t: "⭐ 提升重要度", fn: () => { e.importance = Math.min(10, (e.importance || 5) + 2); return "重要度→" + e.importance; } },
+                    { t: "🗑 删除该条", fn: () => { eng.timeline.entries = eng.timeline.entries.filter(x => x.id !== id); return "已删除"; }, danger: true },
+                ];
+            }
+            else if (kind === "summary") {
+                const m = eng.summary.summaries.find(x => x.floor === id);
+                if (!m) return;
+                label = esc(m.text).substring(0, 60);
+                actions = [
+                    { t: "🗑 删除该摘要", fn: () => { eng.summary.summaries = eng.summary.summaries.filter(x => x.floor !== id); return "已删除摘要"; }, danger: true },
+                ];
+            } else if (kind === "pov") {
+                const p = (eng.pov?.povs || []).find(x => x.id === id);
+                if (!p) return;
+                label = esc(p.content).substring(0, 60);
+                actions = [
+                    { t: "🗑 删除该私密记忆", fn: () => { eng.pov.povs = eng.pov.povs.filter(x => x.id !== id); return "已删除POV"; }, danger: true },
+                ];
+            }
+            else if (kind === "vector") {
+                const v = eng.vector.vectors.find(x => x.id === id);
+                if (!v) return;
+                label = esc((v.text || "").substring(0, 60));
+                actions = [
+                    { t: "🗑 删除该向量", fn: () => { eng.vector.vectors = eng.vector.vectors.filter(x => x.id !== id); if (eng.bm25?.rebuild) eng.bm25.rebuild(eng.vector.vectors.map(x => ({id: x.id, text: x.text}))); return "已删除向量"; }, danger: true },
+                ];
+            } else if (kind === "todo") {
+                const parts = String(id).split("|||");
+                const ch = parts[0], text = parts.slice(1).join("|||");
+                const rec = eng.status?.characters?.[ch];
+                if (!rec) return;
+                label = esc(ch) + " · 待办: " + esc(text);
+                actions = [
+                    { t: "✅ 标记完成（删除）", fn: () => { rec.todos = (rec.todos || []).filter(x => x.text !== text); return "待办已移除"; } },
+                ];
+            }
+            else if (kind === "field") {
+                const parts = String(id).split("|||");
+                const ch = parts[0], field = parts[1];
+                const rec = eng.status?.characters?.[ch];
+                if (!rec) return;
+                label = esc(ch) + " · " + esc(field) + " = " + esc(String(rec.fields?.[field] ?? ""));
+                actions = [
+                    { t: "✏️ 修改数值", fn: () => {
+                        const cur = rec.fields?.[field] ?? 0;
+                        const nv = prompt("新值（支持 +5 / -3 / 绝对值 / 文本）:", String(cur));
+                        if (nv === null) return null;
+                        const val = nv.trim(); if (!val) return null;
+                        if (/^[+-]\d+([.]\d+)?$/.test(val)) {
+                            const base = Number(rec.fields[field]) || 0;
+                            rec.fields[field] = Math.round((base + Number(val)) * 100) / 100;
+                        } else rec.fields[field] = val;
+                        return field + " → " + rec.fields[field];
+                    } },
+                    { t: "🗑 删除该字段", fn: () => { delete rec.fields[field]; return "字段已删除"; }, danger: true },
+                ];
+            }
+            else if (kind === "suspense") {
+                const it = (eng.suspense?.items || []).find(x => x.id === id);
+                if (!it) return;
+                label = esc(it.content).substring(0, 60);
+                actions = [
+                    { t: "✅ 标记完成", fn: () => { eng.suspense.resolve(id, "done", "（手动了结）"); return "悬念已了结"; } },
+                    { t: "🚫 标记取消", fn: () => { eng.suspense.resolve(id, "cancelled", "（手动取消）"); return "悬念已取消"; } },
+                    { t: "🗑 删除该条", fn: () => { eng.suspense.items = eng.suspense.items.filter(x => x.id !== id); return "已删除悬念"; }, danger: true },
+                ];
+            } else if (kind === "item") {
+                const rec = (eng.items?.records || []).find(x => x.name === id);
+                if (!rec) return;
+                label = esc(rec.name) + "（" + esc(rec.holder || "无主") + "）";
+                actions = [
+                    { t: "🗑 删除物品记录", fn: () => { eng.itemOps = (eng.itemOps || []).filter(o => o?.name !== id); eng.rebuildItems(); return "物品记录已删除"; }, danger: true },
+                ];
+            }
+            if (!actions.length) return;
+            plugin._memOpsRender(label, actions, onDone);
+        };
+        plugin._memOpsRender = function(label, actions, onDone) {
+            const ovId = "lonsha-memops-overlay";
+            document.getElementById(ovId)?.remove();
+            const ov = document.createElement("div");
+            ov.id = ovId;
+            ov.className = "lonsha-overlay";
+            ov.innerHTML = `<div class="lonsha-sheet" style="max-width:400px;"><div class="lonsha-sheet-header"><span>✏️ 记忆操作</span><span class="lonsha-sheet-close" id="memops-close">✕</span></div><div class="lonsha-sheet-body"><div class="ls-item" style="margin-bottom:10px;"><div class="ls-item-text">${label}</div></div>${actions.map((a, i) => `<div class="ls-btn ${a.danger ? "ls-btn-danger" : ""}" data-ai="${i}" style="margin:6px 0;">${a.t}</div>`).join("")}</div></div>`;
+            document.body.appendChild(ov);
+            ov.querySelector("#memops-close").addEventListener("click", () => ov.remove());
+            ov.addEventListener("click", (e) => { if (e.target === ov) ov.remove(); });
+            ov.querySelectorAll("[data-ai]").forEach(btn => {
+                btn.addEventListener("click", async () => {
+                    const a = actions[Number(btn.dataset.ai)];
+                    let msg;
+                    try { msg = a.fn(); } catch (e2) { msg = null; console.error(e2); }
+                    if (msg === null || msg === undefined) return;
+                    ov.remove();
+                    const ok = await plugin._memPersist();
+                    plugin._memToast(ok ? "✅ " + msg : "⚠️ 已改但存盘失败", ok);
+                    if (ok && typeof onDone === "function") onDone();
+                });
+            });
+        };
+
         plugin.showDiagnose = async function() {
             const engine = plugin.engine;
             if (!engine) { toast('引擎未初始化'); return; }

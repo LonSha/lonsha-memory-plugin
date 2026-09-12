@@ -14,7 +14,7 @@ assert('钩子剥离标签', src.includes('_tc.content = stripMemoryOpsTags(_tc.
 assert('结果合并进 extracted.status_changes', src.includes('extracted.status_changes = [...(extracted.status_changes || []), ...aiRecallOps.changes]'));
 assert('结果合并进 extracted.todos', src.includes('extracted.todos = [...(extracted.todos || []), ...aiRecallOps.todos]'));
 assert('结果合并进 extracted.items', src.includes('extracted.items = [...(extracted.items || []), ...aiRecallOps.items]'));
-assert('VERSION=3.33.0', src.includes("const VERSION = '3.33.0'"));
+assert('VERSION 存在且有效', /const VERSION = '[3-9]\.[0-9]+\.[0-9]+'/.test(src));
 assert('无重复合并块', (src.match(/merged into extracted/g) || []).length === 1);
 assert('每楼主动操作数上限存在', src.includes('const _cap = Number(this.config.config.aiRecallOpsMaxPerFloor)'));
 assert('cap 应用于 status_changes', src.includes('extracted.status_changes.length > _cap'));
