@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.38.0';
+    const VERSION = '3.39.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -2462,17 +2462,15 @@
                         const entityCandidates = new Set();
                         (results.bm25 || []).slice(0, 5).forEach(b => {
                             if (b.text) {
-                                for (const [nid, node] of this.graph.nodes) {
-                                    if (node.name && node.name.length >= 2 && b.text.includes(node.name)) entityCandidates.add(node);
-                                }
+                                const matched = this.graph.findNodesMentionedIn(b.text);
+                                for (const node of matched) entityCandidates.add(node);
                             }
                         });
                         (results.items || []).slice(0, 3).forEach(it => {
                             const raw = it.name || it.text || '';
                             if (raw) {
-                                for (const [nid, node] of this.graph.nodes) {
-                                    if (node.name && node.name.length >= 2 && raw.includes(node.name)) entityCandidates.add(node);
-                                }
+                                const matched = this.graph.findNodesMentionedIn(raw);
+                                for (const node of matched) entityCandidates.add(node);
                             }
                         });
                         for (const cand of entityCandidates) {
@@ -3630,7 +3628,7 @@
                 this._snapshots.sort((a, b) => a.floor - b.floor);
                 this._snapshots.shift();
             }
-            if (window.LonShaMemory?.engine?.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 图谱快照: 楼层 ${f} (共 ${this._snapshots.length} 张)`);
+            if (typeof window !== 'undefined' && window.LonShaMemory?.engine?.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 图谱快照: 楼层 ${f} (共 ${this._snapshots.length} 张)`);
             return snap;
         }
         // [v3.15] 楼层截断回溯: 删除 floor 及之后的快照，回滚到 floor 前的最近快照重建图
@@ -3648,7 +3646,7 @@
                 for (const n of before.nodes) this.nodes.set(n.id, n);
                 for (const e of before.edges) this.edges.set(e.id, e);
                 this.rebuildNameIndex();
-                if (window.LonShaMemory?.engine?.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 图谱回溯: 回滚到楼层 ${before.floor} 状态 (删楼 ${f})`);
+                if (typeof window !== 'undefined' && window.LonShaMemory?.engine?.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 图谱回溯: 回滚到楼层 ${before.floor} 状态 (删楼 ${f})`);
             }
             return !!before;
         }
@@ -3774,8 +3772,11 @@
             return lastEnd > maxLen * 0.5 ? cut.substring(0, lastEnd + 1) : cut + '……';
         }
         async createSummary(message, llmSummary, opts = {}) {
-            const text = llmSummary || this.smartTruncate(message.mes || '', 200);
-            const floor = message.index || 0;
+            if (!message && !llmSummary) return null;
+            const safeMes = typeof message?.mes === 'string' ? message.mes : (typeof message === 'string' ? message : '');
+            const text = llmSummary || this.smartTruncate(safeMes, 200);
+            const rawFloor = Number(message?.index ?? message?.floor);
+            const floor = Number.isFinite(rawFloor) ? Math.max(0, Math.round(rawFloor)) : 0;
             // [v3.7] 同楼去重: 编辑重提取/手动补提时同楼摘要替换而非堆积（原实现 push 不去重——10 次编辑 = 10 条同楼摘要）
             const existIdx = this.summaries.findIndex(s => s.floor === floor);
             if (existIdx >= 0) {

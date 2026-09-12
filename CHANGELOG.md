@@ -1,3 +1,11 @@
+## [v3.39.0] - 2026-09-13
+### 数据库级架构对齐、高压基准与极端环境韧性自愈
+- **性能优化 (倒排索引检索)**：为 MemoryGraph 新增 `findNodesMentionedIn(text)`，HippoRAG 双路引燃由 $O(N)$ 全表扫描升级为基于 `nameIndex` 的哈希快速匹配。
+- **数据完整性 (外键悬挂边自愈)**：`MemoryGraph.import` 引入外键一致性校验，导入时自动净化两端均不存在的孤立死边（Dangling Edges）。
+- **极端环境容错 (Null-Safety)**：`SummarySystem.createSummary` 增加空消息、非法楼层与畸形文本类型推导防御，彻底杜绝 TypeError 崩溃。
+- **运行环境安全**：修复 `MemoryGraph.snapshotGraph` / `truncateGraphFrom` 中裸 `window` 访问，全面兼容 Node/Worker 等无 window 纯净上下文。
+- **高压与混沌套件**：建立 `tests/stress_bench.test.mjs` (1000节点/5000边/5000篇BM25) 与 `tests/chaos_resilience.test.mjs` (500轮内存压力与脏数据容错)。
+
 # 更新日志
 ## v3.38.0 (2026-09-13) - 全链路自愈闭环 + 多维时态演化 + 语义休眠激活 + 台账撤销栈 🛡️
 
