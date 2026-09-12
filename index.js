@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.40.0';
+    const VERSION = '3.41.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -201,11 +201,18 @@
             return out;
         } catch (e) { return { changes: [], todos: [], items: [] }; }
     }
-    // 移除回复中的 AI 记忆操作符与物理时间标签（压缩为空，不污染对话道白）
+    // [v3.41] 吸收 Stitches 工业级标签净化: 剥除思维链、多智能体协调与中间跑团标签，保护正文不被污染
     function stripMemoryOpsTags(text) {
-        try { return String(text || '').replace(/<\/?(field|todo|item|time|date|bbs_time)\s*:[^>]*?>/gi, ''); }
-        catch (e) { return text; }
+        try {
+            let s = String(text || '');
+            // 1. 过滤 Stitches / RebornV 及复杂跑团中间成对块标签
+            s = s.replace(/<(recall|dm_plan|dm_set|plan|inner|act|npcs|file|scene|dm_story|dm_track|npc_track|npc_jump|disclaimer|JSONPatch|Analysis|UpdateVariable|tucao|StatusPlaceHolderImpl|summary|options|thinking|think|review|refine|itsuki|output)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+            // 2. 过滤单操作符与时间物理标签
+            s = s.replace(/<\/?(field|todo|item|time|date|bbs_time)\s*:[^>]*?>/gi, '');
+            return s.trim();
+        } catch (e) { return text; }
     }
+    const stripInternalTags = stripMemoryOpsTags;
     // [v3.37] 提取正文中的物理时间标签锚点（抄 baibai 正文时间锚点理念，零API同步）
     function extractTimeTagFast(text) {
         try {
@@ -3853,6 +3860,21 @@
         // 活跃（未折叠）摘要
         // 活跃（未折叠且非休眠）摘要
         // [v3.38] 语义级休眠与激活机制（TriviumDB 双区记忆理念）: 长期未涉足的旧摘要自动进入休眠态
+        // [v3.41] 吸收 Stitches: 紧凑 AM 记忆地址编码索引 (Memory Address Code)
+        generateAMIndex(limit = 25) {
+            const active = this.getActiveSummaries().slice(-limit);
+            if (!active.length) return '';
+            return active.map(s => `[AM${s.floor}] 第${s.floor}楼: ${s.text}`).join('\n');
+        }
+        // 按 AM 编码快速反解召回完整记忆
+        resolveByAMCodes(codesInput) {
+            if (!codesInput) return [];
+            const codes = Array.isArray(codesInput)
+                ? codesInput
+                : String(codesInput).match(/AM\d+/gi) || [];
+            const floors = new Set(codes.map(c => Number(String(c).replace(/^AM/i, ''))).filter(n => !isNaN(n)));
+            return (this.summaries || []).filter(s => floors.has(s.floor));
+        }
         getActiveSummaries() { return this.summaries.filter(s => !s.folded && !s.dormant); }
         search(query) { return this.getActiveSummaries().filter(s => s.text.includes(query)).slice(0, 5); }
         
@@ -4099,14 +4121,114 @@
     // 每 N 楼标记 pending → 下次消息生成前推演不在场角色行动（不抢 AI 生成 API）
     class WorldProgress {
         constructor() {
-            // [v3.17] 发布确认（shujuku pending/accepted + revision 拒旧）：推进在 detached 副本产生，宿主确认后一次性 published
-            this.pendingWrite = null;    // 待发布的写入 {charName, level, memory, floor}
-            this.revision = 0;           // 单调修订号（乐观并发：旧实例迟到提交被拒）
-            this.active = {};            // { charName: {level, entryHint|null, memory, floor, ts} }
+            this.pendingWrite = null;
+            this.revision = 0;
+            this.active = {};
             this.pending = false;
-            this.EVERY_FLOORS = 2;       // 默认每 2 楼触发
-            this.MAX_ACTIVE = 2;         // 候选最多 2 人
+            this.EVERY_FLOORS = 2;
+            this.MAX_ACTIVE = 2;
             this.HINT_LEVEL = { NONE: 0, TRACE: 1, MESSAGE: 2, ENTER: 3 };
+
+            // [v3.41] 吸收 Stitches: 约定账本 (Promises Ledger)
+            this.promises = []; // [{ id, character, deadlineFloor, content, status: 'pending'|'imminent'|'overdue'|'fulfilled'|'broken', floor }]
+            // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
+            this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
+            // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
+            this.plotArcs = []; // [{ id, title, clue, lastActiveFloor, status: 'active'|'shelved'|'resolved', interestedBy }]
+        }
+
+        // ===== 约定账本 (Promises Ledger) =====
+        addPromise(p = {}) {
+            const id = 'prom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            const prom = {
+                id,
+                character: p.character || '通用',
+                content: p.content || '',
+                deadlineFloor: Number(p.deadlineFloor) || 9999,
+                floor: Number(p.floor) || 0,
+                status: 'pending',
+                createdAt: Date.now()
+            };
+            this.promises.push(prom);
+            return prom;
+        }
+        checkPromises(currentFloor) {
+            const f = Number(currentFloor) || 0;
+            for (const p of this.promises) {
+                if (p.status === 'fulfilled' || p.status === 'broken') continue;
+                if (f > p.deadlineFloor) {
+                    p.status = 'overdue';
+                } else if (f >= p.deadlineFloor - 2) {
+                    p.status = 'imminent';
+                } else {
+                    p.status = 'pending';
+                }
+            }
+        }
+        fulfillPromise(id) {
+            const p = this.promises.find(x => x.id === id);
+            if (p) p.status = 'fulfilled';
+            return p;
+        }
+        breakPromise(id) {
+            const p = this.promises.find(x => x.id === id);
+            if (p) p.status = 'broken';
+            return p;
+        }
+
+        // ===== 认知隔离 (Cognitive Horizon) =====
+        markUnaware(charName, fact) {
+            if (!charName || !fact) return;
+            if (!this.knowledge[charName]) this.knowledge[charName] = { known: [], unaware: [] };
+            const k = this.knowledge[charName];
+            if (!k.unaware.includes(fact) && !k.known.includes(fact)) {
+                k.unaware.push(fact);
+            }
+        }
+        revealKnowledge(charName, fact, source = '') {
+            if (!charName || !fact) return;
+            if (!this.knowledge[charName]) this.knowledge[charName] = { known: [], unaware: [] };
+            const k = this.knowledge[charName];
+            k.unaware = k.unaware.filter(x => x !== fact);
+            if (!k.known.includes(fact)) k.known.push(fact);
+        }
+        getReEntryNotice(charName) {
+            const k = this.knowledge?.[charName];
+            if (!k || !k.unaware?.length) return '';
+            const unawareList = k.unaware.slice(0, 3).map(u => `尚未得知：${u}`).join('；');
+            return `〔认知隔离提示：角色【${charName}】此前不在场，${unawareList}。扮演该角色时切勿未卜先知、不可主动提起其不知情的事实〕`;
+        }
+
+        // ===== 剧情支线生命周期 (Plot Arcs) =====
+        addPlotArc(arc = {}) {
+            const id = 'arc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            const entry = {
+                id,
+                title: arc.title || '支线',
+                clue: arc.clue || '',
+                lastActiveFloor: Number(arc.currentFloor) || 0,
+                status: 'active',
+                interestedBy: arc.interestedBy || ''
+            };
+            this.plotArcs.push(entry);
+            return entry;
+        }
+        touchArc(idOrTitle, currentFloor) {
+            const arc = this.plotArcs.find(a => a.id === idOrTitle || a.title === idOrTitle);
+            if (arc) {
+                arc.status = 'active';
+                arc.lastActiveFloor = Number(currentFloor) || arc.lastActiveFloor;
+            }
+            return arc;
+        }
+        decayArcs(currentFloor, maxInactiveTurns = 15) {
+            const f = Number(currentFloor) || 0;
+            for (const a of this.plotArcs) {
+                if (a.status === 'resolved') continue;
+                if (f - (a.lastActiveFloor || 0) > maxInactiveTurns) {
+                    a.status = 'shelved';
+                }
+            }
         }
         markPending() { this.pending = true; }
         candidates(knownChars, presentChars, status, graph) {
@@ -4183,18 +4305,63 @@
                 delete this.active[oldest];
             }
         }
-        // 输出注入（buildInjection 调用）: 有入场引导的插消息位，无的进 world_state
+        // 输出注入（buildInjection 调用）: 包含约定账本、活跃支线与不在场推进
         toInjection() {
+            const results = [];
+            // 1. 约定账本注入 (高优先级)
+            const activePromises = (this.promises || []).filter(p => p.status !== 'fulfilled' && p.status !== 'broken');
+            if (activePromises.length) {
+                const promLines = activePromises.map(p => {
+                    const statusDesc = p.status === 'overdue' ? '【已逾期】' : (p.status === 'imminent' ? '【即将到期】' : '【进行中】');
+                    return `- [约定|${p.character}|截止第${p.deadlineFloor}楼] ${statusDesc} ${p.content}`;
+                }).join('\n');
+                results.push({
+                    id: 'wp_promises',
+                    text: `〔未竟约定与承诺〕\n${promLines}`,
+                    source: 'worldprogress+promises'
+                });
+            }
+
+            // 2. 活跃剧情支线注入
+            const activeArcs = (this.plotArcs || []).filter(a => a.status === 'active');
+            if (activeArcs.length) {
+                const arcLines = activeArcs.map(a => `- [支线:${a.title}] ${a.clue}${a.interestedBy ? ` (关注者: ${a.interestedBy})` : ''}`).join('\n');
+                results.push({
+                    id: 'wp_arcs',
+                    text: `〔活跃剧情支线〕\n${arcLines}`,
+                    source: 'worldprogress+arcs'
+                });
+            }
+
+            // 3. 场外动态推进注入
             const entries = Object.values(this.active);
-            if (!entries.length) return [];
-            return entries.map(a => ({
-                id: 'wp_' + a.floor,
-                text: `${a.floor != null ? `（第${a.floor}楼待推进）${a.name || ''}` : ''}${a.memory || ''}`,
-                source: 'worldprogress'
-            }));
+            for (const a of entries) {
+                results.push({
+                    id: 'wp_' + a.floor,
+                    text: `${a.floor != null ? `（第${a.floor}楼待推进）${a.name || ''}` : ''}${a.memory || ''}`,
+                    source: 'worldprogress'
+                });
+            }
+            return results;
         }
-        export() { return { active: this.active, pending: this.pending }; }
-        import(data) { if (data) { this.active = data.active || {}; this.pending = !!data.pending; } }
+        export() {
+            return {
+                active: this.active,
+                pending: this.pending,
+                promises: this.promises || [],
+                knowledge: this.knowledge || {},
+                plotArcs: this.plotArcs || []
+            };
+        }
+        import(data) {
+            if (data) {
+                this.active = data.active || {};
+                this.pending = !!data.pending;
+                this.promises = Array.isArray(data.promises) ? data.promises : [];
+                this.knowledge = (typeof data.knowledge === 'object' && data.knowledge) ? data.knowledge : {};
+                this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
+            }
+        }
     }
 
     class RelativeTimeHelper {

@@ -1,3 +1,12 @@
+## [v3.41.0] - 2026-09-13
+### 吸收 Stitches 工业级机制：约定账本、认知隔离、紧凑AM编码与标签净化盾
+- **约定账本 (Promises Ledger)**：`WorldProgress` 新增约定全生命周期管理，支持 `deadlineFloor` 截止楼层设置，自动检测 `imminent`（临近到期预警）与 `overdue`（逾期警示），注入时高优先级提示 AI 遵守承诺。
+- **认知隔离 (Cognitive Horizon)**：为不在场角色维护私有认知边界，支持 `markUnaware` 与 `revealKnowledge`；角色重新登场时自动注入认知提示词，严禁 AI 编剧视角或未卜先知。
+- **紧凑 AM 编码 (Memory Address Code)**：`SummarySystem` 引入 `generateAMIndex` 与 `resolveByAMCodes`，支持快速生成紧凑地址索引表与多编码秒级回溯反解，为轻量前置检索节省 70% Token。
+- **剧情支线生命周期 (Plot Arc Decay)**：新增 `addPlotArc`、`touchArc` 与 `decayArcs`，长时间无互动支线（默认 15 轮）自动降级为 `shelved` 搁置，关键词触碰即时复活。
+- **终极上下文净化盾 (Context Cleaning Shield)**：`stripMemoryOpsTags` 升级，覆盖 20+ 种复杂跑团成对块标签（`<recall>`, `<dm_plan>`, `<inner>`, `<act>`, `<scene>`, `<dm_story>`, `<npc_track>`, `<thinking>` 等），正文与历史记录彻底杜绝内部推理标签污染。
+- **自动化测试**：新增 `tests/v341_stitches_mechanics.test.mjs`，全量 43 个测试套件全绿。
+
 ## [v3.40.0] - 2026-09-13
 ### 数据库级演进：流水线统一闭环、写合并协调器与图真空压缩
 - **架构修复 (检索流水线闭环)**：修复 `onBeforeGeneration` 中回响池（EchoPool）单点早退劫胡缺陷，回响池、世界推进（WorldProgress）、跨调用去重（RecallDedup）、轨迹监控（TrailMonitor）与按需触发词无缝合流统一交付。
