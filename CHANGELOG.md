@@ -1,4 +1,21 @@
 # 更新日志
+## v3.2.2 (2026-09-12) - DF 防御包（研究收编）🛡️
+### 🔴 重大修复：DF5 注入参数错位——"注入深度配置化"自 v2.8 起从未真正生效
+- **根因**：旧调用 `setExtensionPrompt(key, content, depth, true, 4)` 与 ST 标准签名 `(prompt_id, content, position, depth, scan, role, filter)` 错位——配置深度值落进了 position 位（D0 时 position=0 非 IN_CHAT、D2 时 position=2 为非法值）、`true` 落进 depth 位、`4` 落进 scan 位（意外开启绿灯扫描）。
+- **三源交叉验证**：shujuku 官方类型定义 `@types/iframe/exported.sillytavern.d.ts` + baibai inject.ts（注释抄 script.js:486，`IN_CHAT=1`、`ROLE_SYSTEM=0`）+ stbme 实际调用（6 参数）。
+- **修复**：收敛为唯一写入通道 `writeInjectSlot(key, content, depth)` / `clearInjectSlots()`——position 恒 IN_CHAT=1、scan=false、role=SYSTEM=0、filter=null；格式错位在结构上不可能再发生（stbme 单一通道思想）。
+### 🟠 DF1 注入槽位生命周期（baibai clearInjection 范式）
+- `setExtensionPrompt` 是持久化的——修复：切聊天（CHAT_CHANGED）清空双槽、引擎停用时清空、interceptor 同语义；旧聊天注入不再泄漏到新聊天。
+### 🟠 DF6 空召回残留修复（baibai "注入空串等于清除"语义）
+- 修复：召回价值判断跳过（剧情全在窗口内）时返回空串，旧槽位内容不再残留注入本轮；卷摘要槽独立刷新（空卷=清除旧卷）。
+### 🟡 DF2 fetch 外部取消语义（baibai 认知#27）
+- 新增 `opts.externalSignal` 转发；外部中止绝不重试（新增入口检查 + AbortError 来源区分）；`AbortError` 移出无脑重试白名单（仅内部超时/TypeError 重试）。
+### 🟡 DF3 物品 op 清洗（anima zod clamp 纪律）
+- `_sanitizeItemOp`：action 白名单（add/update）+ 名称 NFKC 归一 + 字段宽度 clamp（name≤40/desc≤80/holder≤20/state≤10）；真源 itemOps 不动（旧档兼容，回滚语义不变）。
+### 🟢 DF4 诊断面板错误日志裁剪
+- selfCheck 只展示最近 15 条（环形缓冲仍存 50 条）。
+### ✅ 测试
+- `tests/df5_inject_slot.test.mjs`（16 项）+ `tests/v320_defense.test.mjs`（14 项）：旧错位模式绝迹断言 + 通道参数序列实测 + 外部取消行为实测 + 清洗边界。
 
 ## v1.2.0 (2026-09-11) - 真机适配修复 🔧
 ### ✨ 重大更新：修复提取与注入两大核心链路
