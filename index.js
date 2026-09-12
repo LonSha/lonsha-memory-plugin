@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.39.0';
+    const VERSION = '3.40.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1874,7 +1874,8 @@
                     if (qs && qs.length) query.queries = qs;
                 } catch (e) { errLog(e, 'cleanMessageText'); }
                 const recalled = await this.recallMemory(query);
-                // [v2.5] RF: 回响池——本轮召回的进池续命，池中仍在停留期的合并注入（召回结果跨轮连续，不再闪烁）
+                // [v2.5/v3.40] RF: 回响池——本轮召回的进池续命，池中仍在停留期的合并注入（与下游世界推进与去重无缝合流，杜绝早退截断）
+                let candidateItems = [...recalled];
                 try {
                     if (this.config.config.echoEnabled) {
                         const merged = new Map();
@@ -1883,14 +1884,9 @@
                             if (e.text && !merged.has(e.key)) merged.set(e.key, { id: e.key, text: e.text, source: e.source, echo: true });
                         }
                         this.echo.onRecalled(recalled);
-                        const inj1 = this.buildInjection(Array.from(merged.values()).slice(0, this.config.config.vectorTopK * 2 + (this.config.config.echoMaxCount || 10)));
-                        try {
-                            const cc = window.SillyTavern?.getContext?.()?.chat || [];
-                            this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj1};
-                        } catch (e) { errLog(e, 'cleanMessageText'); }
-                        return inj1;
+                        candidateItems = Array.from(merged.values()).slice(0, this.config.config.vectorTopK * 2 + (this.config.config.echoMaxCount || 10));
                     }
-                } catch (e) { errLog(e, 'cleanMessageText'); }
+                } catch (e) { errLog(e, 'onBeforeGeneration.回响池'); }
                 // [v3.16] 世界推进: 生成路径注入前把待推进的不在场角色动态并入（zhino: 玩家发消息不在生成时挤 API，后台推演产物注入）
                 try {
                     if (this.config.config.worldProgressEnabled) {
@@ -1911,25 +1907,24 @@
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进推演'); }
             const prog = this.worldProg ? this.worldProg.toInjection() : [];
                         for (const wp of prog) {
-                            if (!recalled.some(r => (r.text || '') === wp.text)) recalled.push(wp);
+                            if (!candidateItems.some(r => (r.text || '') === wp.text)) candidateItems.push(wp);
                         }
                         // [v3.23] 跨调用去重: 本轮回溯结果记指纹（NE-Memory）。同一话题连续追问时下轮识别已覆盖项
                         try {
                             const ctxCc = window.SillyTavern?.getContext?.();
                             const chatIdCc = ctxCc?.chatId || ctxCc?.characterId || '';
                             // 先记指纹（基于原始 recalled，不含 DEDUP 标记前缀，防自污染）
-                            recallDedupRemember(recalled);
-                            const dedupMarked = recallDedupMark(recalled, chatIdCc, String(query.text || ''));
+                            recallDedupRemember(candidateItems);
+                            const dedupMarked = recallDedupMark(candidateItems, chatIdCc, String(query.text || ''));
                             if (dedupMarked && dedupMarked.length) {
-                                // [DEDUP] 提示项追加到尾部（RRF 已排序，去重标记推后不顶掉新召回）
                                 for (const dm of dedupMarked) {
-                                    recalled.push({ text: `[DEDUP已覆盖·若本轮查询需更深细节才用] ${dm.text || ''}`, source: 'dedup' });
+                                    candidateItems.push({ text: `[DEDUP已覆盖·若本轮查询需更深细节才用] ${dm.text || ''}`, source: 'dedup' });
                                 }
                             }
                         } catch (e) { errLog(e, 'recallMemory.跨调用去重'); }
                     }
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
-                const inj2 = this.buildInjection(recalled);
+                const inj2 = this.buildInjection(candidateItems);
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
                     if (this.config.config.trailMonitor) {
@@ -3673,9 +3668,9 @@
         addEdge(edge) {
             const from = String(edge.from || '');
             const to = String(edge.to || '');
-            const label = String(edge.label || 'related');
+            const label = String(edge.label || edge.relation || 'related');
             const floor = Math.max(0, Math.round(Number(edge.floor ?? edge.validFrom ?? 0)));
-            const id = `${from}-${to}-${label}`;
+            const id = edge.id || (edge.active === false ? `${from}-${to}-${label}-${edge.validTo ?? floor}` : `${from}-${to}-${label}`);
 
             if (label !== 'participated_in') {
                 for (const [existingId, e] of this.edges) {
@@ -3745,6 +3740,68 @@
                     }
                 }
             } catch (e) { errLog(e, 'GD.rebuildNameIndex'); }
+        }
+        // [v3.39] 数据库级实体倒排索引快速匹配: 代替 O(N) 全量循环
+        findNodesMentionedIn(text) {
+            if (!text || typeof text !== 'string') return [];
+            const hits = new Set();
+            for (const [nameKey, ids] of this.nameIndex) {
+                if (nameKey.length >= 2 && text.includes(nameKey)) {
+                    for (const id of ids) {
+                        const node = this.nodes.get(id);
+                        if (node) hits.add(node);
+                    }
+                }
+            }
+            return Array.from(hits);
+        }
+        // [v3.40] 数据库级碎片整理与真空压缩 (Graph Vacuum & Compaction)
+        vacuum(options = {}) {
+            const maxHistoricalPerPair = Math.max(1, Number(options.maxHistoricalPerPair) || 3);
+            const pruneOrphans = options.pruneOrphans !== false;
+            let prunedEdges = 0;
+            let prunedNodes = 0;
+
+            // 1. 时态历史边压缩 (Historical Edges Compaction)
+            const pairHistMap = new Map();
+            for (const [id, e] of this.edges) {
+                if (e.active === false) {
+                    const pairKey = `${e.from}->${e.to}`;
+                    if (!pairHistMap.has(pairKey)) pairHistMap.set(pairKey, []);
+                    pairHistMap.get(pairKey).push(e);
+                }
+            }
+            for (const [pairKey, histEdges] of pairHistMap) {
+                if (histEdges.length > maxHistoricalPerPair) {
+                    histEdges.sort((a, b) => (Number(b.validTo) || 0) - (Number(a.validTo) || 0));
+                    const toRemove = histEdges.slice(maxHistoricalPerPair);
+                    for (const re of toRemove) {
+                        this.edges.delete(re.id);
+                        prunedEdges++;
+                    }
+                }
+            }
+
+            // 2. 孤儿临时节点回收 (Prune Orphan Transient Nodes)
+            if (pruneOrphans) {
+                const connectedNodeIds = new Set();
+                for (const e of this.edges.values()) {
+                    connectedNodeIds.add(e.from);
+                    connectedNodeIds.add(e.to);
+                }
+                for (const [id, node] of this.nodes) {
+                    if (node && node.type !== 'character' && !connectedNodeIds.has(id)) {
+                        this.nodes.delete(id);
+                        prunedNodes++;
+                    }
+                }
+            }
+
+            // 3. 索引自愈重构
+            if (prunedNodes > 0 || prunedEdges > 0) {
+                this.rebuildNameIndex();
+            }
+            return { prunedEdges, prunedNodes, remainingNodes: this.nodes.size, remainingEdges: this.edges.size };
         }
         export() { return {nodes: Array.from(this.nodes.values()), edges: Array.from(this.edges.values()), snapshots: Array.isArray(this._snapshots) ? this._snapshots : []}; }
         import(data) {
@@ -4908,26 +4965,65 @@ ${win}`;
     }
 
     class StorageManager {
-        constructor() { this.STORAGE_KEY = 'lonsha_memory'; }
+        constructor() {
+            this.STORAGE_KEY = 'lonsha_memory';
+            this._isWriting = false;
+            this._pendingWrite = null;
+        }
+        // [v3.40] 数据库级写入协调器 (Write Coalescing & Serialized Mutex)
         async save(chatId, data) {
+            if (!chatId || !data) return;
+            if (this._isWriting) {
+                this._pendingWrite = { chatId, data };
+                return;
+            }
+            this._isWriting = true;
             try {
-                const ctx = window.SillyTavern?.getContext?.();
-                if (!ctx?.chatMetadata) return;
-                // [v3.4] DB: 摘要骤减保护——存储前对比上一版，总量骤减（>50%且缺口≥20）先紧急备份再写
-                try {
-                    const prev = ctx.chatMetadata.extensions?.[this.STORAGE_KEY]?.data;
-                    const prevN = Array.isArray(prev?.summaries?.summaries) ? prev.summaries.summaries.length : (Array.isArray(prev?.summaries) ? prev.summaries.length : 0);
-                    const nextN = Array.isArray(data?.summaries?.summaries) ? data.summaries.summaries.length : (Array.isArray(data?.summaries) ? data.summaries.length : 0);
-                    if (prevN >= 30 && nextN < prevN * 0.5 && (prevN - nextN) >= 20) {
-                        console.warn(`[${PLUGIN_NAME}] 摘要骤减 ${prevN}→${nextN}，写紧急备份`);
-                        const eb = window.LonShaMemory?.emergency;
-                        if (eb?.save) await eb.save(chatId, `摘要骤减 ${prevN}→${nextN}`, prev, { summaries: prevN });
+                let curChatId = chatId;
+                let curData = data;
+                while (curData) {
+                    try {
+                        const ctx = window.SillyTavern?.getContext?.();
+                        if (ctx?.chatMetadata) {
+                            // [v3.4] DB: 摘要骤减保护——存储前对比上一版，总量骤减（>50%且缺口≥20）先紧急备份再写
+                            try {
+                                const prev = ctx.chatMetadata.extensions?.[this.STORAGE_KEY]?.data;
+                                const prevN = Array.isArray(prev?.summaries?.summaries) ? prev.summaries.summaries.length : (Array.isArray(prev?.summaries) ? prev.summaries.length : 0);
+                                const nextN = Array.isArray(curData?.summaries?.summaries) ? curData.summaries.summaries.length : (Array.isArray(curData?.summaries) ? curData.summaries.length : 0);
+                                if (prevN >= 30 && nextN < prevN * 0.5 && (prevN - nextN) >= 20) {
+                                    console.warn(`[${PLUGIN_NAME}] 摘要骤减 ${prevN}→${nextN}，写紧急备份`);
+                                    const eb = window.LonShaMemory?.emergency;
+                                    if (eb?.save) await eb.save(curChatId, `摘要骤减 ${prevN}→${nextN}`, prev, { summaries: prevN });
+                                }
+                            } catch (e) { errLog(e, 'DB.骤减检测'); }
+                            if (!ctx.chatMetadata.extensions) ctx.chatMetadata.extensions = {};
+                            const stats = {
+                                nodes: curData?.graph?.nodes?.length || 0,
+                                edges: curData?.graph?.edges?.length || 0,
+                                summaries: Array.isArray(curData?.summaries?.summaries) ? curData.summaries.summaries.length : (Array.isArray(curData?.summaries) ? curData.summaries.length : 0),
+                                ts: Date.now()
+                            };
+                            ctx.chatMetadata.extensions[this.STORAGE_KEY] = {
+                                version: VERSION,
+                                chatId: curChatId,
+                                stats,
+                                data: curData,
+                                timestamp: Date.now()
+                            };
+                            if (ctx.saveChat) await ctx.saveChat(); else if (window.saveChat) await window.saveChat();
+                        }
+                    } catch (err) { console.error('保存失败:', err); }
+                    if (this._pendingWrite) {
+                        curChatId = this._pendingWrite.chatId;
+                        curData = this._pendingWrite.data;
+                        this._pendingWrite = null;
+                    } else {
+                        curData = null;
                     }
-                } catch (e) { errLog(e, 'DB.骤减检测'); }
-                if (!ctx.chatMetadata.extensions) ctx.chatMetadata.extensions = {};
-                ctx.chatMetadata.extensions[this.STORAGE_KEY] = {version: VERSION, chatId, data, timestamp: Date.now()};
-                if (ctx.saveChat) await ctx.saveChat(); else if (window.saveChat) await window.saveChat();
-            } catch (err) { console.error('保存失败:', err); }
+                }
+            } finally {
+                this._isWriting = false;
+            }
         }
         async load(chatId, opts = {}) {
             try {

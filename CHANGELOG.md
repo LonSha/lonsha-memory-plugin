@@ -1,3 +1,11 @@
+## [v3.40.0] - 2026-09-13
+### 数据库级演进：流水线统一闭环、写合并协调器与图真空压缩
+- **架构修复 (检索流水线闭环)**：修复 `onBeforeGeneration` 中回响池（EchoPool）单点早退劫胡缺陷，回响池、世界推进（WorldProgress）、跨调用去重（RecallDedup）、轨迹监控（TrailMonitor）与按需触发词无缝合流统一交付。
+- **存储协调 (Write Coalescing)**：`StorageManager.save` 引入自包含写协调锁与防抖合并循环，高频并发保存自动合并，附加 `stats` 数据完整性摘要，杜绝 I/O 竞态卡顿。
+- **数据压缩 (Graph Vacuum)**：`MemoryGraph` 新增 `vacuum` 数据库级碎片整理，支持闭环冗余历史边按楼层保留上限裁剪、非关键角色孤儿死节点回收与倒排索引自愈。
+- **主键增强**：时态关系边支持复合历史主键与 `edge.relation` 别名兼容，避免重复事件覆盖。
+- **自动化测试**：新增 `tests/v340_database_evolution.test.mjs`，全量 42 个测试套件全绿。
+
 ## [v3.39.0] - 2026-09-13
 ### 数据库级架构对齐、高压基准与极端环境韧性自愈
 - **性能优化 (倒排索引检索)**：为 MemoryGraph 新增 `findNodesMentionedIn(text)`，HippoRAG 双路引燃由 $O(N)$ 全表扫描升级为基于 `nameIndex` 的哈希快速匹配。
