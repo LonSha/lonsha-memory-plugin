@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.46.0';
+    const VERSION = '3.47.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -514,6 +514,9 @@
 1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
 2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。每个事件标注 scope："objective"（公开事实，所有在场角色都知道）或 "pov"（仅某角色亲眼看到/独自知道的事实，此时必须给出 owner=该角色主名）。每个事件还要标注 importance（1-10，数字越大越重要：1-3日常琐事、4-6值得注意、7-8重大事件、9-10故事定义级）。
 3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
+3b. conflicts：本轮对话中出现【同一事实的两个版本对不上】时登记（如某角色在甲事件声称X、本轮又声称Y）。
+先判断是更正还是真矛盾：更正（时间线自然演进，如搬家/换工作）不登记，由正常提取覆盖；
+真矛盾（说不通的版本冲突，如自相矛盾的口供、立场摇摆）填 {"subject":"角色名或事实","versionA":"版本A描述","versionB":"版本B描述","note":"矛盾性质一句话"}。没有则填空数组。
 4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
 5. story_date：本轮剧情中明确写出的日期（如"3月12日""2026年5月1日"）；未明确写出则填 null。禁止编造日期。
 6. pov_memories：本轮产生的角色私密认知/秘密/内心独白（摄像头拍不到、仅该角色自己知道的内容）。每条必须给出 owner（哪个角色知道）和 content（一句话说清）。已在对话中公开说出口的内容不算。没有则填空数组。
@@ -522,9 +525,10 @@
 9. scenes：本轮【新出现】或【描述变化】的地点。action 填 "add"（新地点）或 "update"（更新描述）。path 是由大到小的数组（如 ["城市","街区","店铺"]，最多3层，末级=具体场所）。没有则填空数组。
 9b. items：本轮剧情中【明确出现实体流转】的物品。新增获得填 {"action":"add","name":"物品名","desc":"一句话描述","holder":"当前持有者角色名"}；位置/状态变化填 {"action":"update","name":"已有物品名","holder":"新持有者或空","state":"完好/损坏/丢失/使用完毕"}；禁止臆测没有依据的物品；没有则填空数组。\n10. location：本轮剧情结束时主角所在的场景完整路径（必须用已登记场景路径之一；移动了才填，没动填 null）。
 9c. time_advance_days：本轮剧情结束时相对上一楼【跳过了几天】（如正文出现\"三天后\",\"次日\",\"一周后\"且未写出具体日期时，填天数3/1/7；日期明确写了具体年月日则填0；没有时间跳跃填 null）。禁止臆测。
+9d. money_changes：本轮剧情中【明确写出金额变动】的记录。新增收入填 {"character":"角色名","value":新金额数字,"reason":"干了什么加多少钱"}；明确写出花了多少/赚了多少（未写总余额）填 {"character":"角色名","delta":±数字,"reason":"买了什么减多少钱"}。角色名填主角时用"主角"。禁止臆测没有明确金额的变动；没有则填空数组。
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "location": null}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
@@ -1171,6 +1175,10 @@
                 this.scan = () => []; this.isSuperseded = () => false;
                 this.revive = () => 0; this.export = () => ({supersededMap:{}}); this.import = () => {};
             })();
+            // [v3.47] 钱财账本 + 剧情卡牌（hcdiary 吸收）
+            this.moneyLedger = new MoneyLedger();
+            this.cards = new CardCollection();
+            this.conflicts = new ConflictBook();
         }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
@@ -1520,6 +1528,37 @@
                         if (sd) this.status.pruneTodos(sd, this.config.config.todoExpiryMinutes || 60);
                     } catch (e) { errLog(e, 'onMessageReceived.状态应用'); }
                 }
+                // [v3.47] 钱财账本 + 剧情卡牌（hcdiary 吸收）
+                if (this.config.config.moneyLedgerEnabled !== false && Array.isArray(extracted?.money_changes) && extracted.money_changes.length) {
+                    try {
+                        const sd = this.getLatestStoryDate();
+                        for (const mc of extracted.money_changes) {
+                            const nm = String(mc?.character || '').trim();
+                            if (!nm) continue;
+                            if (mc.value !== null && mc.value !== undefined && mc.value !== '') {
+                                this.moneyLedger.setMoney(nm, Number(mc.value) || 0, mc.reason || '', floor, sd);
+                            } else if (mc.delta) {
+                                this.moneyLedger.addDelta(nm, Number(mc.delta) || 0, mc.reason || '', floor, sd);
+                            }
+                        }
+                        if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财账本更新 ${extracted.money_changes.length} 项`);
+                    } catch (e) { errLog(e, 'onMessageReceived.钱财账本'); }
+                }
+                // [v3.47] 矛盾账本（memorybooks 吸收：真矛盾显式标注并存）
+                if (this.config.config.conflictBookEnabled !== false && Array.isArray(extracted?.conflicts) && extracted.conflicts.length) {
+                    try {
+                        const sd = this.getLatestStoryDate();
+                        const n = this.conflicts.addFromExtracted(extracted.conflicts, floor, sd);
+                        if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] ⚔️ 登记真矛盾 ${n} 条`);
+                    } catch (e) { errLog(e, 'onMessageReceived.矛盾账本'); }
+                }
+                if (this.config.config.cardCollectionEnabled !== false && Array.isArray(extracted?.events)) {
+                    try {
+                        const sd = this.getLatestStoryDate();
+                        const n = this.cards.forgeFromEvents(extracted.events, floor, sd, 8);
+                        if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🃏 铸造剧情卡牌 ${n} 张`);
+                    } catch (e) { errLog(e, 'onMessageReceived.剧情卡牌'); }
+                }
                 if (this.config.config.floorLedgerEnabled) {
                     try {
                         const allIds = Array.from(this.graph.nodes.keys());
@@ -1600,6 +1639,12 @@
                     if (!this._lastOptimizeFloor || (message.index || 0) - this._lastOptimizeFloor >= oEvery) {
                         this._lastOptimizeFloor = message.index || 0;
                         this.optimizeMemory();
+                        // [v3.47] 睡眠周期：每 sleepEveryN 次提取触发一次归档遗忘
+                        try {
+                            this._sleepCount = (this._sleepCount || 0) + 1;
+                            const sleepN = Number(this.config.config.sleepEveryN) || 10;
+                            if (this._sleepCount % sleepN === 0) this.sleepCycle();
+                        } catch (e) { errLog(e, 'sleepCycle.触发'); }
                     }
                 } catch (e) { errLog(e, 'onMessageReceived.优化器'); }
                 
@@ -1681,6 +1726,9 @@
                         status: this.status.export(),
                         ledger: this.ledger.export(),
                         suspense: this.suspense.export(),
+                        moneyLedger: this.moneyLedger.export(),
+                        cards: this.cards.export(),
+                        conflicts: this.conflicts.export(),
                         scene: this.scene.export(),
                         echo: this.echo.export(),
                         supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
@@ -2475,6 +2523,42 @@
             return done;
         }
 
+        // [v3.47] 睡眠周期·归档式遗忘（stbme sleepCycle 吸收）：每 N 次提取触发一次"睡眠"，
+        // 保留价值低于阈值的记忆归档（不物理删除，滚入冷存档 archivedMemories），需要时可唤醒。
+        // 修复 stbme 已知 bug：accessCount 未初始化时 NaN 参与比较导致永不遗忘（NaN < threshold 为 false）——此处显式 Number() 兜底。
+        sleepCycle() {
+            const cfg = this.config.config;
+            if (cfg.sleepCycleEnabled === false) return { archived: 0 };
+            const now = Date.now();
+            const threshold = Number(cfg.sleepForgetThreshold) || 0.5;
+            let archived = 0;
+            try {
+                // 对摘要系统执行睡眠：活跃摘要中低保留价值条目归档
+                const sums = this.summary.summaries || [];
+                for (const s of sums) {
+                    if (!s || s.archivedForSleep) continue;
+                    if (s.importance >= 8) continue;  // 高重要度豁免
+                    const created = Number(s.createdAt || s.timestamp || 0);
+                    if (!created || (now - created) < 3600 * 1000) continue;  // 创建不足1小时豁免
+                    const ageHours = Math.max(0.1, (now - created) / 3600000);
+                    const recency = 1 / (1 + Math.log10(1 + ageHours));
+                    const access = Number(s.accessCount);  // 修 NaN：undefined → NaN → || 0
+                    const accessCount = Number.isFinite(access) ? access : 0;
+                    const accessFreq = accessCount / Math.max(1, ageHours / 24);
+                    const imp = Number(s.importance);
+                    const importance = Number.isFinite(imp) ? imp : 5;
+                    const retentionValue = (importance / 10) * recency * (1 + accessFreq);
+                    if (retentionValue < threshold) {
+                        s.archivedForSleep = true;
+                        s.archivedAt = now;
+                        archived++;
+                    }
+                }
+                if (archived && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 😴 睡眠周期: 归档 ${archived} 条低价值记忆`);
+            } catch (e) { errLog(e, 'sleepCycle'); }
+            return { archived };
+        }
+
         // [v2.9] RU-B: 记忆优化器（抄 shujuku optimization——防长对话记忆无限膨胀）
         optimizeMemory() {
             let removed = 0;
@@ -2964,7 +3048,8 @@
                     results.summary = results.summary.filter(item => {
                         const key = item.id || (item.source === 'summary' ? 'sum_' + item.floor : null);
                         return !(key && this.supersede.isSuperseded(key));
-                    });
+                    })
+                    .filter(i => !(i?.source === 'summary' && i?.archivedForSleep));  // [v3.47] 睡眠归档：低价值记忆不进入召回（存档中可查）
                 } catch (e) { errLog(e, 'recallMemory.supersede过滤'); }
             }
 
@@ -3399,7 +3484,20 @@
             }
             if (diaries.length) {
                 blocks.push('[角色日记·近期]（第一人称心声，仅作内心参考，不得在对话中直接引用原文）');
-                diaries.forEach(i => blocks.push(`- ${i.name || i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}${i.mood ? '·' + i.mood : ''}）：${i.text || i.entry || ''}${i.secret ? ' ｜未说出口: ' + i.secret : ''}`));
+                diaries.forEach(i => blocks.push(`- ${i.name || i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}${i.mood ? '·' + i.mood : ''}）：${i.text || i.entry || ''}${i.secret ? ' ｜未说出口: ' + i.secret : ''}${i.attitude ? ' ｜对用户态度: ' + i.attitude : ''}${Array.isArray(i.keyEvents) && i.keyEvents.length ? ' ｜亲历要事: ' + i.keyEvents.join('；') : ''}${Array.isArray(i.subjRelations) && i.subjRelations.length ? ' ｜主观关系印象: ' + i.subjRelations.join('；') : ''}`));
+            }
+            // [v3.47] 钱财账本 + 剧情卡牌注入（hcdiary 吸收）
+            if (this.moneyLedger) {
+                const moneyPrompt = this.moneyLedger.toPrompt();
+                if (moneyPrompt) blocks.push(moneyPrompt);
+            }
+            if (this.cards) {
+                const cardsPrompt = this.cards.toPrompt();
+                if (cardsPrompt) blocks.push(cardsPrompt);
+            }
+            if (this.conflicts) {
+                const conflictPrompt = this.conflicts.toPrompt();
+                if (conflictPrompt) blocks.push(conflictPrompt);
             }
             if (timelines.length) {
                 // [v3.32] chronicle timeline tiering (Visual-Memory highlightThreshold idea): key events >=7 top block, rest as list
@@ -3620,6 +3718,9 @@
                 } catch (e) { errLog(e, 'rollbackFloor.status回滚'); }
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
                 try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
+                try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
+                try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
+                try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
                 try { const ni = this.rollbackItemsFrom ? this.rollbackItemsFrom(floor) : 0; if (ni && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 台账对账: 清理 ${ni} 条失效ops`); } catch (e) { errLog(e, 'rollbackFloor.台账对账'); }
@@ -3697,6 +3798,10 @@
                 }
                 // 物品台账
                 for (const o of (this.itemOps || [])) o.floor = dec(o.floor);
+                // [v3.47] 钱财账本流水 + 剧情卡牌 + 矛盾账本
+                for (const l of (this.moneyLedger?.moneyLog || [])) l.floor = dec(l.floor);
+                for (const c of (this.cards?.cards || [])) c.floor = dec(c.floor);
+                for (const c of (this.conflicts?.conflicts || [])) c.floor = dec(c.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
                 // 角色状态 ops + todos.floor
@@ -3799,6 +3904,9 @@
                 }
                 if (Array.isArray(pack.volumes) && pack.volumes.length) this.summary.volumes = pack.volumes;
                 if (Array.isArray(pack.suspense)) this.suspense.import(pack.suspense);
+                if (pack.moneyLedger && this.moneyLedger) this.moneyLedger.import(pack.moneyLedger);
+                if (pack.cards && this.cards) this.cards.import(pack.cards);
+                if (pack.conflicts && this.conflicts) this.conflicts.import(pack.conflicts);
                 if (Array.isArray(pack.timeline) && pack.timeline.length) this.timeline.entries = [...pack.timeline];
                 if (Array.isArray(pack.statusFlat) && pack.statusFlat.length) {
                     this.status.applyChanges(pack.statusFlat, 0, true);
@@ -3903,6 +4011,9 @@
                 status: this.status.export(),
                 ledger: this.ledger.export(),
                 suspense: this.suspense.export(),
+                moneyLedger: this.moneyLedger.export(),
+                cards: this.cards.export(),
+                conflicts: this.conflicts.export(),
                 scene: this.scene.export(),
                 echo: this.echo?.export?.(),
                 supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
@@ -6064,7 +6175,10 @@ ${contradictions}`;
 - 第一人称，带该角色的情绪、私心、主观理解（可与事实有偏差）。同一事件不同角色可以记得不同。
 - entry 是心声不是剧情复述：聚焦心理活动、情绪、关系变化、关键决定。100字内。
 - secret 写"没说出口的心思"（没有填空串）。
-- 复用已知角色名单中的主名。只输出JSON：{"diaries":[{"name":"主名","entry":"第一人称正文","mood":"心情词","secret":"没说出口的心思"}]}
+- attitude_to_user 写该角色此刻对用户/主角的态度（一句话，如：表面客气心底记仇、依赖中带试探）。
+- key_events 写他亲历且对他个人有分量的事件（数组，最多3条）。
+- relationship_with_others 写他对自己与别人关系的主观印象（对象:描述；按他经历来写，不是上帝视角结论，可有偏差——单恋/错付/误判都是宝贵素材）。
+- 复用已知角色名单中的主名。只输出JSON：{"diaries":[{"name":"主名","entry":"第一人称正文","mood":"心情词","secret":"没说出口的心思","attitude_to_user":"对用户态度","key_events":["事件1"],"relationship_with_others":{"某角色":"他眼中的关系"}}]}
 ${knownChars?.length ? `已知角色名单: ${knownChars.join('、')}` : '已知角色名单: (暂无)'}
 ${memory ? `各角色已有记忆(最新日记):\n${memory}` : '各角色已有记忆: (暂无)'}
 【剧情片段】
@@ -6082,7 +6196,10 @@ ${win}`;
                     if (!this.diaries[name]) this.diaries[name] = [];
                     this.diaries[name].push({
                         floor, text: entry.slice(0, 200), mood: String(d.mood || '平静').slice(0, 10),
-                        secret: String(d.secret || '').slice(0, 100), timestamp: Date.now()
+                        secret: String(d.secret || '').slice(0, 100), timestamp: Date.now(),
+                        attitude: String(d.attitude_to_user || '').slice(0, 60),
+                        keyEvents: (Array.isArray(d.key_events) ? d.key_events : []).map(x => String(x).slice(0, 60)).slice(0, 3),
+                        subjRelations: (d.relationship_with_others && typeof d.relationship_with_others === 'object' && !Array.isArray(d.relationship_with_others)) ? Object.entries(d.relationship_with_others).slice(0, 4).map(([k, v]) => `${String(k).slice(0, 12)}:${String(v).slice(0, 40)}`) : []
                     });
                     if (this.diaries[name].length > 30) this.diaries[name].shift();
                     n++;
@@ -6117,6 +6234,146 @@ ${win}`;
         }
     }
     
+
+    // [v3.47] 吸收 hcdiary: 钱财账本（经济系统追踪——当前金额覆盖式 + 变动流水追加式）
+    class MoneyLedger {
+        constructor() { this.money = {}; this.moneyLog = []; }
+        /** 设置/调整某角色当前金额（覆盖式；delta 为数值增减） */
+        setMoney(name, amount, reason, floor, storyTime) {
+            const key = normalizeCharName(name);
+            if (!key) return false;
+            const prev = Number(this.money[key]?.amount) || 0;
+            const next = amount;
+            this.money[key] = { name: String(name).trim(), amount: next, updatedAt: Date.now(), floor: floor || 0 };
+            if (reason) {
+                this.moneyLog.push({ key, name: String(name).trim(), time: storyTime || '', floor: floor || 0, desc: String(reason).slice(0, 80), delta: Math.round((next - prev) * 100) / 100, timestamp: Date.now() });
+                if (this.moneyLog.length > 60) this.moneyLog.shift();
+            }
+            return true;
+        }
+        /** 数值增减（delta 可负） */
+        addDelta(name, delta, reason, floor, storyTime) {
+            const key = normalizeCharName(name);
+            const prev = Number(this.money[key]?.amount) || 0;
+            return this.setMoney(name, prev + (Number(delta) || 0), reason, floor, storyTime);
+        }
+        getMoney(name) { return this.money[normalizeCharName(name)] || null; }
+        /** 注入提示词（当前金额 + 最近流水） */
+        toPrompt() {
+            const lines = [];
+            const entries = Object.values(this.money).filter(e => e && e.name).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+            for (const e of entries) lines.push(`- ${e.name}：${e.amount}`);
+            const logs = this.moneyLog.slice(-5);
+            const logLines = logs.map(l => `  · ${l.name} ${l.delta >= 0 ? '+' : ''}${l.delta}（${l.desc}）`).filter(Boolean);
+            if (!lines.length) return '';
+            let out = '[当前钱财账本]（角色经济状态，花钱/挣钱须与账本一致，禁止凭空获得或挥霍）：\n' + lines.join('\n');
+            if (logLines.length) out += '\n[钱财变动流水·最近]：\n' + logLines.join('\n');
+            return out;
+        }
+        removeByFloor(floor) {
+            let n = 0;
+            const before = this.moneyLog.length;
+            this.moneyLog = this.moneyLog.filter(l => l.floor !== floor);
+            n += before - this.moneyLog.length;
+            return n;
+        }
+        export() { return { money: this.money, moneyLog: this.moneyLog }; }
+        import(data) {
+            if (data && typeof data === 'object') {
+                this.money = data.money || {};
+                this.moneyLog = Array.isArray(data.moneyLog) ? data.moneyLog : [];
+            }
+        }
+    }
+
+    // [v3.47] 吸收 hcdiary: 剧情卡牌收集（重要剧情时刻铸成记忆卡牌，游戏化收藏）
+    class CardCollection {
+        constructor() { this.cards = []; }
+        /** 铸卡（重要度>=8 的事件自动成卡；幂等：同楼层同标题不重复铸） */
+        forge(title, desc, floor, icon, storyTime) {
+            const t = String(title || '').trim();
+            if (!t || t.length < 2) return false;
+            if (this.cards.some(c => c.floor === floor && c.title === t)) return false;
+            this.cards.push({
+                title: t.slice(0, 30),
+                desc: String(desc || '').slice(0, 100),
+                floor: floor || 0,
+                time: String(storyTime || '').slice(0, 30),
+                icon: String(icon || '🃏').slice(0, 8),
+                timestamp: Date.now()
+            });
+            if (this.cards.length > 50) this.cards.shift();
+            return true;
+        }
+        /** 从事件列表铸卡（importance>=threshold） */
+        forgeFromEvents(events, floor, storyTime, threshold) {
+            const th = Number(threshold) || 8;
+            let n = 0;
+            for (const ev of (events || [])) {
+                if (!ev || (Number(ev.importance) || 0) < th) continue;
+                if (this.forge(ev.type || '事件', ev.description, floor, '🃏', storyTime)) n++;
+            }
+            return n;
+        }
+        toPrompt() {
+            if (!this.cards.length) return '';
+            const recent = this.cards.slice(-8);
+            const rows = recent.map(c => `- ${c.icon}【${c.title}】${c.desc}${c.time ? `（${c.time}）` : ''}`);
+            return `[剧情卡牌收集]（重要时刻纪念，可作为话题回忆）：\n${rows.join('\n')}`;
+        }
+        removeByFloor(floor) {
+            const before = this.cards.length;
+            this.cards = this.cards.filter(c => c.floor !== floor);
+            return before - this.cards.length;
+        }
+        export() { return { cards: this.cards }; }
+        import(data) { if (data && Array.isArray(data.cards)) this.cards = data.cards; }
+    }
+
+    // [v3.47] 吸收 memorybooks: 矛盾账本（真矛盾显式标注并存，"某角色在甲事件声称X，在乙事件声称Y"，不静默择一）
+    class ConflictBook {
+        constructor() { this.conflicts = []; }
+        /** 登记真矛盾（幂等：同 subject 同版本对不重复登记） */
+        add(subject, versionA, versionB, note, floor, storyTime) {
+            const s = String(subject || '').trim();
+            if (!s || s.length < 2) return false;
+            const a = String(versionA || '').slice(0, 100);
+            const b = String(versionB || '').slice(0, 100);
+            if (!a || !b) return false;
+            if (this.conflicts.some(c => c.subject === s && c.versionA === a && c.versionB === b)) return false;
+            this.conflicts.push({
+                subject: s.slice(0, 40), versionA: a, versionB: b,
+                note: String(note || '').slice(0, 60),
+                floor: floor || 0, time: String(storyTime || '').slice(0, 30),
+                timestamp: Date.now()
+            });
+            if (this.conflicts.length > 30) this.conflicts.shift();
+            return true;
+        }
+        /** 提取处理入口 */
+        addFromExtracted(list, floor, storyTime) {
+            let n = 0;
+            for (const c of (list || [])) {
+                if (this.add(c?.subject, c?.versionA, c?.versionB, c?.note, floor, storyTime)) n++;
+            }
+            return n;
+        }
+        /** 注入提示词：矛盾显式标注，提示 AI 这些事实存在多版本，不得擅自裁决 */
+        toPrompt() {
+            if (!this.conflicts.length) return '';
+            const rows = this.conflicts.slice(-6).map(c =>
+                `- ${c.subject}：版本A「${c.versionA}」 ↔ 版本B「${c.versionB}」${c.note ? `（${c.note}）` : ''}`);
+            return `[未决矛盾·显式标注]（以下事实存在多个对不上的版本，是剧情资产。对话涉及这些事实时保持张力或自然揭示，严禁擅自裁决谁对谁错）：\n${rows.join('\n')}`;
+        }
+        removeByFloor(floor) {
+            const before = this.conflicts.length;
+            this.conflicts = this.conflicts.filter(c => c.floor !== floor);
+            return before - this.conflicts.length;
+        }
+        export() { return { conflicts: this.conflicts }; }
+        import(data) { if (data && Array.isArray(data.conflicts)) this.conflicts = data.conflicts; }
+    }
+
     // [v2.9] RU-C: 存储快照管理（抄 shujuku SQLite 版本管理理念——IndexedDB 每50楼一份快照，可回溯恢复）
     class SnapshotManager {
         constructor() { this.DB_NAME = 'lonsha_snapshots'; this.STORE = 'snaps'; this.MAX_KEEP = 5; this._db = null; }

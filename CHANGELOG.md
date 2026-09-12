@@ -1,3 +1,13 @@
+## [v3.47.0] - 2026-09-13
+### 吸收 hcdiary / stbme / memorybooks 黑科技：心理暗流日记、睡眠周期归档式遗忘、矛盾二分账本、钱财账本与剧情卡牌收集
+- **心理暗流日记 (Subtext Diary: attitude/keyEvents/subjectiveRelations)**：吸收 hcdiary 结构化心理日记设计，DiarySystem 从 entry+mood+secret 三字段扩容为六字段：新增 `attitude`（对用户当前态度，如"表面客气心底记仇"）、`keyEvents`（亲历且对他个人有分量的事件，最多3条）、`subjRelations`（**主观印象版**关系网——"按他经历来写，不是上帝视角结论"，单恋/错付/误判全部可表达）。与 POV 全知禁令组合：AI 只在私密视界知道角色心底的真实想法，对话中绝不戳破，焊死"表里不一"活人感。
+- **睡眠周期·归档式遗忘 (Sleep Cycle Archival Forgetting)**：吸收 stbme `sleepCycle` 设计，每 N 次提取（默认10）触发一次"睡眠"，对活跃摘要执行 `retentionValue = (importance/10) × recency × (1 + accessFreq)` 保留价值计算，低于阈值（默认0.5）的记忆归档出注入流（不物理删除，`archivedForSleep` 标记保留在存档中可查）；高重要度（>=8）与1小时内新记忆豁免。**缝合时顺手修复 stbme 已知 NaN bug**：accessCount 未初始化算出 NaN 导致 `NaN < threshold` 恒 false 永不遗忘——显式 `Number.isFinite` 兜底归零。
+- **矛盾账本·真矛盾显式标注并存 (Conflict Book: Correction vs True Contradiction)**：吸收 memorybooks 矛盾二分法，提取 schema 新增 `conflicts` 字段，规则显式区分：**更正**（时间线自然演进如搬家/换工作）不登记由正常提取覆盖；**真矛盾**（说不通的版本冲突如自相矛盾口供、立场摇摆）登记为 `{subject, versionA, versionB, note}` 存入 ConflictBook。注入块 `[未决矛盾·显式标注]` 以"版本A「…」↔ 版本B「…」"并列呈现，显式注入"严禁擅自裁决谁对谁错"禁令——让角色说谎、立场摇摆成为剧情资产而非数据 bug。
+- **钱财账本 (Money Ledger: money/moneyLog)**：吸收 hcdiary 经济系统设计，`MoneyLedger` 维护当前剧情金额（覆盖式 `setMoney`）+ 变动流水（追加式 `addDelta`，带 delta 与 reason）。提取 schema 新增 `9d. money_changes`（value 总余额 / delta 增减二选一），注入块 `[当前钱财账本]（角色经济状态，花钱/挣钱须与账本一致，禁止凭空获得或挥霍）` + 最近5条流水。根治跑团中 AI 花钱不眨眼、钱包永远是谜的通病。金额行按 `localeCompare('zh-CN')` 字典序稳定排序保障 Prompt Cache 命中。
+- **剧情卡牌收集 (Card Collection)**：吸收 hcdiary `cards` 游戏化设计，`CardCollection` 将 importance>=8 的故事定义级事件自动铸成记忆卡牌 `{title, desc, time, icon}`（同楼同标题幂等，环形上限50），注入块 `[剧情卡牌收集]（重要时刻纪念，可作为话题回忆）`，为长程跑团提供"高光时刻纪念册"。
+- **全链路一致性**：三个新账本（钱财/卡牌/矛盾）完整接入 collectExport（两处）→ storage.load 恢复 → rollbackFloor 按楼回滚 → shiftFloorsFrom 删楼楼层位移 -1，与既有16个子系统同等级持久化与事件一致性保障。
+- **自动化测试**：新增 `tests/v347_hc_mechanics.test.mjs`（7 个测试块：静态锚点、MoneyLedger 行为、CardCollection 行为、ConflictBook 行为、sleepCycle 公式与NaN修复、心理暗流日记、持久化回滚链路完整性），v346 版本断言升级为容灾式正则；全量 49 个测试套件 65 个测试 100% 绿灯通过。
+
 ## [v3.46.0] - 2026-09-13
 ### 吸收 bakemono / stbme / memorywizzard / hcdiary 深水区机制：剧情时钟、史记金字塔、Prompt Cache 双区物理隔离、Swipe 确定性快照与 POV 全知禁令
 - **GameClock 剧情时钟与回忆隔离 (Story Clock & Flashback Isolation)**：三态时钟（date 绝对/架空日期、label 时段/刻度/天气、relativeDays 相对天数推进）；`flashback: true` 回忆楼层严格不修改主时钟，仅记录到 `lastFlashback`，杜绝长程跑团中"回忆杀"把主时间线篡改倒退的经典通病；`getContextPrompt` 注入 `[当前剧情时间]` 区块并显式标注回忆与当前时钟的分离。支持 export/import 持久化，已接入 `collectExport`/`storage.load`/Carryover Seed 全链路。

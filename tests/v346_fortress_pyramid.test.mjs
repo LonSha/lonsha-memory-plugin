@@ -31,7 +31,7 @@ function extractClass(name) {
 const errLog = () => {};
 
 test('=== 1. 静态关键锚点与版本检查 ===', () => {
-    assert.ok(src.includes("const VERSION = '3.46.0';"), '版本号必须递增至 3.46.0');
+    assert.match(src.match(/const VERSION = '([^']+)';/)?.[1] || '', /^3\.(?:4[6-9]|5\d)/, '版本号必须 >= 3.46.0');
     assert.ok(src.includes('class GameClock'), '必须声明 GameClock 剧情时钟类');
     assert.ok(src.includes('addGrandChronicle') && src.includes('getGrandChroniclePrompt'), 'SummarySystem 必须声明宏观史记方法');
     assert.ok(src.includes('getOpenPrompts(clockDate)'), 'SuspenseBook 必须支持时钟联动倒计时');
