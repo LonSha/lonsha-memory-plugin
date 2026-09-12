@@ -1,4 +1,27 @@
 # 更新日志
+## v3.25.0 (2026-09-12) - 召回分级/预算双层/归档隐藏/扩散疲劳（四项目收编）📦
+
+> 收编来源：MemoryPilot（召回类型分级）+ 角色记忆数据库v5（token 预算双层）+ Bakemono/MemoryBooks/记忆库v5 共识（归档隐藏）+ TriviumDB（图扩散不应期疲劳）
+> 本批是「记忆管理三大成熟范式」的落地：归档隐藏已覆盖楼层、召回价值分级、图扩散疲劳抑制
+
+### 新增
+
+1. **召回类型分级**（MemoryPilot）——常驻分区（前情摘要/角色状态/角色关系/剧情时间线/卷摘要）每轮必注优先保留；触发分区（BM25/图扩散/POV/物品）按预算裁剪。`recallTierEnabled` 开关。预算超标时三种策略（relevance/recency/balanced）全部改为「常驻全保 + 触发裁剪」
+
+2. **token 预算双层**（角色记忆数据库v5）——`memoryTokenBudget`（记忆注入 token 上限，默认 900，token→字符×4 换算）+ `keepRecentTokenReserve`（保留给最近正文的 token 预留，>0 时注入预算自动扣减）。替代单层字符预算，注入预算不再挤占最近正文空间
+
+3. **归档隐藏已覆盖楼层**（Bakemono/MemoryBooks/记忆库v5 三项目共识）——`autoArchiveCovered`（默认关，防灾）+ `archivePreserveRecent`（保留最近 6 AI 楼）+ `archiveCoveredFloors()`（把被卷摘要折叠的旧楼 `hideChatMessageRange` 设为隐藏，可逆）+ `restoreArchivedFloors()`（恢复）。接在 maybeFold 折叠成功后触发；`_archivedFloorIds` 跟踪已归档楼层
+
+4. **图扩散不应期疲劳**（TriviumDB Refractory Period）——`_diffusionFatigue` Map + Top-5 赢家打疲劳标 + 下轮命中能量×0.15 降权 + 被抑制即解除（无记忆效应）+ 超时 3 轮衰减（防永久封印）。在 diffusion 调用点包裹实现（不改外部库）
+
+5. **黑洞降权后处理**（TriviumDB Link Specificity 等效）——扩散返回中的热点（重复召回）通过疲劳机制等效抑制，冷门但相关的亚支路记忆有机会浮现
+
+### 测试
+
+- 新增 tests/v325_recall_tier.test.mjs（23 项：分级 3 + 预算 4 + 归档 7 + 疲劳 7 + 黑洞 2 + 版本 2）
+- 全量回归 25 文件 311 项全过
+
+全量回归 311 项。
 ## v3.24.0 (2026-09-12) - 跨调用去重指纹同步重置（NE-Memory 收编完整性）🩹
 
 > 收编完整性审计：v3.23 引入的跨调用去重 `_recallDedupState` 未在事件处理器清理 `_recallCache` 时同步重置——编辑/swipe/删楼后旧楼层文本指纹残留，导致**新内容被误标「已覆盖·防复读」**（连续追问去重机制在新楼层内容上误伤）。

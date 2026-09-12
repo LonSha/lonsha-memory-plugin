@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.24.0';
+    const VERSION = '3.25.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -309,6 +309,12 @@
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
                 recallCacheEnabled: true,      // [v2.9] RU-D: swipe同楼重roll复用召回缓存
+                // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
+                recallTierEnabled: true,       // 召回类型分级（常驻 constant / 触发 trigger，注入预算裁剪优先保常驻）
+                memoryTokenBudget: 900,        // 记忆注入 token 预算（替代单层字符预算，按 token 剪裁）
+                keepRecentTokenReserve: 0,     // 保留给最近正文的 token 预留（0=不预留；>0 时注入预算自动扣减）
+                autoArchiveCovered: false,     // 归档隐藏已被卷摘要覆盖的旧楼层（默认关，防灾）
+                archivePreserveRecent: 6,      // 归档时保留最近 N 个 AI 楼层不隐藏
                 vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
                 summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
                 optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
@@ -772,6 +778,12 @@
         constructor(config) {
             // [v3.23] chatMetadata 迁移恢复防重入（NE auto-restore）
             this._migrateRestored = false;
+            // [v3.25] 图扩散不应期疲劳（TriviumDB Refractory Period）: Top-N 赢家打疲劳标, 下轮命中降权
+            this._diffusionFatigue = new Map();   // { nodeId/name: fatigueCount }
+            this._diffusionFatigueTopN = 5;
+            this._diffusionFatigueTimeout = 3;    // 疲劳标记保留轮数（防永久封印）
+            // [v3.25] 归档隐藏状态（Bakemono archive-controller）
+            this._archivedFloorIds = new Set();   // 已被插件归档隐藏的楼层（可恢复）
             this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
             this.config = config;
             this.graph = new MemoryGraph();
@@ -1106,6 +1118,10 @@
                 if (this.config.config.summaryFoldEnabled) {
                     try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
                 }
+                // [v3.25] 归档隐藏已覆盖楼层（Bakemono 共识，默认关）: 折叠成功后把 folded 旧楼设 is_hidden
+                if (this.config.config.autoArchiveCovered) {
+                    try { this.archiveCoveredFloors(); } catch (e) { errLog(e, 'onMessageReceived.归档隐藏'); }
+                }
                 // [v3.16] 世界推进触发: 每 EVERY_FLOORS 楼标记 pending，等下次生成前推演（独立于摘要折叠开关）
                 try {
                     const wpEvery = Number(this.config.config.worldProgressEveryFloors || (this.worldProg?.EVERY_FLOORS || 2));
@@ -1399,6 +1415,65 @@
         // 不要求主模型改协议，仅用现有 story_date 数据做一致性防线
         _lastStoryDateSeen = null;
         _lastStoryDateFloor = -1;
+        // [v3.25] 图扩散节点身份提取（TriviumDB Refractory 用）：兼容原始 result 与 {node} 包裹
+        _nodeIdentity(r) {
+            try {
+                const n = r?.node || r || {};
+                return n.id || n.name || n.key || null;
+            } catch (e) { return null; }
+        }
+        // [v3.25] 归档隐藏已被卷摘要覆盖的旧楼层（Bakemono archive-controller 移植，默认关）:
+        // 可逆（is_hidden 可恢复）、保留最近 N 个 AI 楼、手动确认由 settings-ui 触发
+        archiveCoveredFloors(preserveRecent) {
+            try {
+                const c = window.SillyTavern?.getContext?.();
+                const chat = c?.chat || [];
+                if (!chat.length || typeof c?.hideChatMessageRange !== 'function') return 0;
+                const keep = Math.max(0, Number(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent) || 0);
+                // 被卷摘要覆盖的楼层 = 折叠标记（folded=true）对应的摘要楼层
+                const foldedFloors = new Set(
+                    (this.summary?.summaries || [])
+                        .filter(s => s.folded && Number.isFinite(s.floor))
+                        .map(s => s.floor)
+                );
+                // 收集这些楼对应的 chat 下标（最近 keep 个 AI 楼保留）
+                let aiSeen = 0;
+                const toHide = [];
+                for (let i = 0; i < chat.length; i++) {
+                    const m = chat[i];
+                    if (!m || m.is_user || m.is_system || m.is_hidden) continue;
+                    aiSeen++;
+                    if (aiSeen > keep && foldedFloors.has(i) && !this._archivedFloorIds.has(i)) {
+                        toHide.push(i);
+                    }
+                }
+                // 执行隐藏（逐个，可逆）
+                let hid = 0;
+                for (const idx of toHide) {
+                    try { c.hideChatMessageRange(idx, idx, false); this._archivedFloorIds.add(idx); hid++; } catch (e) {}
+                }
+                if (hid && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 归档隐藏: ${hid} 楼 (保留最近 ${keep} AI楼)`);
+                return hid;
+            } catch (e) { errLog(e, '归档隐藏.archiveCoveredFloors'); return 0; }
+        }
+        // 恢复插件归档隐藏的楼层（is_hidden=false）
+        restoreArchivedFloors() {
+            try {
+                const c = window.SillyTavern?.getContext?.();
+                const chat = c?.chat || [];
+                if (!this._archivedFloorIds.size) return 0;
+                let restored = 0;
+                for (const idx of this._archivedFloorIds) {
+                    const m = chat[idx];
+                    if (m && typeof c?.setIsHidden === 'function') {
+                        try { c.setIsHidden(idx, false); restored++; } catch (e) {}
+                    }
+                }
+                this._archivedFloorIds.clear();
+                if (restored && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 归档恢复: ${restored} 楼`);
+                return restored;
+            } catch (e) { errLog(e, '归档隐藏.restoreArchivedFloors'); return 0; }
+        }
         // [v3.23] chatMetadata 嵌入记忆库迁移恢复（NE auto-restore 轻量版）
         // 检测 chatMetadata.extensions.LonShaMemory.embeddedVault（导出时嵌入的全量存档），
         // 本地有更新版本则忽略并清理；本地为空则在启动时提示恢复。
@@ -1943,25 +2018,46 @@
                     try {
                         const seedNodes = results.graph.slice(0, 3);
                         if (seedNodes.length > 0) {
+                            // [v3.25] 不应期疲劳：滚轮前先衰减疲劳计数（防永久封印，TriviumDB Refractory）
+                            for (const [k, v] of this._diffusionFatigue) {
+                                if (v <= 1) this._diffusionFatigue.delete(k);
+                                else this._diffusionFatigue.set(k, v - 1);
+                            }
                             const diffusionResults = window.LonShaMemory.diffusion.personalizedPageRank(
                                 seedNodes, 
                                 3, 
                                 this.config.config.vectorTopK
                             );
-                            
-                            // DPP多样性采样
+                            // [v3.25] 黑洞降权 + 疲劳抑制（TriviumDB Link Specificity + Refractory）
+                            const fatigue = this._diffusionFatigue;
+                            const suppressed = [];
+                            for (const r of diffusionResults) {
+                                const nid = this._nodeIdentity(r);
+                                // 疲劳抑制：命中疲劳节点 → 能量×0.15（TriviumDB fatigue_discount）
+                                if (nid && fatigue.has(nid)) {
+                                    suppressed.push({ ...r, score: (r.score || 0) * 0.15 });
+                                    // 被抑制即解除（无记忆效应）
+                                    fatigue.delete(nid);
+                                } else {
+                                    suppressed.push(r);
+                                }
+                            }
+                            // DPP多样性采样（用抑制后的结果）
                             const diverseResults = window.LonShaMemory.diffusion.diversitySampling(
-                                diffusionResults,
-                                Math.min(5, diffusionResults.length),
+                                suppressed,
+                                Math.min(5, suppressed.length),
                                 this.config.config.dppLambda
                             );
-                            
                             results.diffusion = diverseResults.map(r => ({
                                 ...r.node,
                                 score: r.score,
                                 source: 'diffusion'
                             }));
-                            
+                            // [v3.25] Top-N 赢家打疲劳标（下一轮抑制热点）
+                            for (const r of results.diffusion.slice(0, this._diffusionFatigueTopN)) {
+                                const nid = this._nodeIdentity({ node: r });
+                                if (nid) this._diffusionFatigue.set(nid, this._diffusionFatigueTimeout);
+                            }
                             if (this.config.config.debugMode) {
                                 console.log(`[${PLUGIN_NAME}] 图扩散召回: ${results.diffusion.length}条`);
                             }
@@ -2425,25 +2521,45 @@
             
             if (!blocks.length) return '';
             let full = `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
+            // [v3.25] 召回类型分级 + token 预算双层（MemoryPilot + 记忆库v5）:
+            // 常驻分区（role=constant，每轮必注）优先保留；触发分区按预算裁剪
+            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[剧情时间线]', '[卷]', '[早前剧情概括]'];
+            const residentBlocks = blocks.filter(b => RESIDENT_MARKERS.some(m => b.startsWith(m)));
+            const triggerBlocks = blocks.filter(b => !RESIDENT_MARKERS.some(m => b.startsWith(m)));
             // [v2.1] P3: 注入预算裁剪（抄 stbme context-window：超预算优先保近期/相关）
-            const budget = this.config.config.injectionBudget || 3000;
+            let budget = this.config.config.injectionBudget || 3000;
+            // [v3.25] token 预算双层：memoryTokenBudget（记忆注入 token 上限）扣减 keepRecentTokenReserve（最近正文预留）
+            const reserve = Number(this.config.config.keepRecentTokenReserve) || 0;
+            const tokenBudget = Number(this.config.config.memoryTokenBudget) || 0;
+            if (tokenBudget > 0) budget = Math.max(200, Math.min(budget, Math.floor(tokenBudget * 4)));  // token→字符粗换算(~0.25 token/字符)
+            if (reserve > 0) budget = Math.max(200, budget - Math.floor(reserve * 4));
+            const keepCount = this.config.config.budgetStrategy || 'balanced';
             if (full.length > budget) {
-                const strategy = this.config.config.budgetStrategy || 'balanced';
+                const strategy = keepCount;
                 if (strategy === 'relevance') {
-                    // 只保留 RRF 得分最高的（已排序，前 60% 内容）
-                    const slice = Math.floor(blocks.length * 0.6);
-                    const kept = blocks.slice(0, Math.max(3, slice));
+                    // 常驻全保留 + 触发保留 RRF 前 60%
+                    const keepTrig = Math.max(3, Math.floor(triggerBlocks.length * 0.6));
+                    const kept = [...residentBlocks, ...triggerBlocks.slice(0, keepTrig)];
                     full = `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n`;
                 } else if (strategy === 'recency') {
-                    // 保留时间线/POV/状态等"近期"分区，砍掉早前概括与 BM25
-                    const keepTypes = ['剧情时间线', '角色状态', 'POV', '手机生活记忆', '前情摘要', '节日'];
-                    const kept = blocks.filter(b => keepTypes.some(k => b.startsWith('[' + k) || b.includes(k)));
+                    // 保留常驻 + 近期分区
+                    const recencyTypes = ['[剧情时间线]', '[角色状态]', 'POV', '[手机生活记忆]', '[前情摘要]', '[节日]'];
+                    const kept = [...residentBlocks, ...triggerBlocks.filter(b => recencyTypes.some(k => b.startsWith(k) || b.includes(k)))];
                     full = kept.length ? `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n` : full.slice(0, budget);
                 } else {
-                    // balanced：整体截断到预算
-                    full = full.slice(0, budget);
+                    // balanced：常驻全保留 + 触发截断到剩余预算
+                    const residentText = `\n\n${NOTE}\n${residentBlocks.join('\n')}`;
+                    const triggerFull = triggerBlocks.join('\n');
+                    const triggerBudget = Math.max(0, budget - residentText.length);
+                    const triggerKept = [];
+                    let acc = 0;
+                    for (const t of triggerBlocks) {
+                        if (acc + t.length > triggerBudget) break;
+                        triggerKept.push(t); acc += t.length;
+                    }
+                    full = `${residentText}${triggerKept.length ? '\n' + triggerKept.join('\n') : ''}\n${END}\n`;
                 }
-                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 注入预算裁剪: ${budget} 字符`);
+                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 注入预算裁剪: ${budget} 字符 (常驻${residentBlocks.length}块保留)`);
             }
             return full;
         }
