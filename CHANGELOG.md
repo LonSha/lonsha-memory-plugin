@@ -1,4 +1,15 @@
 # 更新日志
+## v3.11.0 (2026-09-12) - 历史降级保存块修复·审计第五轮（多AI代码差异清理）🔧
+### 🔴 重大修复：settings-ui 三个保存块字段严重缺失（多AI时代代码差异的典型技术债）
+三个保存块各自停留在不同版本格式（1.3.0/2.0.0/2.7.0），是跨版本开发留下的接缝：
+- **文件导入块（version 1.3.0）**：只保存 graph/summaries/diaries/vectors 四个字段——导入文件后 reflection/itemOps/povs/timeline/status/ledger/suspense/scene/echo **全部丢失**（v2.x+ 新子系统记忆被清空）。修复：完整导入管线（13 子系统）+ 存盘统一 collectExport；reader.onload 改 async。
+- **携带包导入块（version 2.7.0）**：缺 reflection/scene/echo/itemOps。修复：统一 collectExport；apply 回调改 async。
+- **清空块（version 2.0.0）**：内存里清了但存档残留 itemOps/reflection/suspense/scene/echo。修复：清空补齐 + collectExport 统一；回调改 async。
+- **carryover pack version 硬编码**：动态化（version: VERSION）。
+### ✅ 审计方法
+本版由「跨版本风格一致性审计」驱动——不再按功能面切轮次，而是按「同一概念在不同时期的写法差异」扫：发现 settings-ui 的三个保存块是 v1.x/v2.x 时代代码，从未跟上 v2.4+ 新子系统。统一到 collectExport（stbme 单一事实源思想）后，格式漂移在结构上不可能再发生。
+### ✅ 测试
+- tests/v311_save_blocks.test.mjs（7 项）：旧版本块绝迹 / collectExport 统一 / 完整导入管线 / 清空字段补齐 / version 动态化 / 回调 async 化 / applyCarryover 行为。全量回归 118 项。
 ## v3.10.0 (2026-<think>  response111 项全过。写 CHANGELOG 条目并提交推送 v3.10：</think>09-12) - 生成状态与并发修复·审计第四轮 ⚡
 ### 🟠 生成状态标志 `_generationActive`（参照 baibai currentRun + stbme hostGeneration.running）
 - **旧缺口**：插件无任何生成重入防护（grep 零命中）——自愈重提取可能与生成前召回（onBeforeGeneration 的 LLM 调用）并发执行，互相读脏数据。

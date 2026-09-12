@@ -479,16 +479,11 @@
             overlay.querySelector('#ls-carry-apply').addEventListener('click', () => {
                 let pack = null;
                 try { pack = JSON.parse(localStorage.getItem('lonsha_carryover_pack') || 'null'); } catch (e) {}
-                const apply = (p) => {
+                const apply = async (p) => {
                     if (this.engine.applyCarryover(p)) {
                         const chatId = this.engine.getCurrentChatId();
-                        if (chatId) this.engine.storage.save(chatId, {
-                            graph: this.engine.graph.export(), summaries: this.engine.summary.export(),
-                            diaries: this.engine.diary.export(), vectors: this.engine.vector.export(),
-                            povs: this.engine.pov.export(), timeline: this.engine.timeline.export(),
-                            status: this.engine.status.export(), ledger: this.engine.ledger.export(),
-                            suspense: this.engine.suspense.export(), version: '2.7.0'
-                        });
+                        // [v3.11] 存盘统一走 collectExport（原 '2.7.0' 块缺 reflection/scene/echo/itemOps）
+                        if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
                         toast('✅ 携带包已导入，剧情无缝衔接');
                     } else toast('导入失败');
                 };
@@ -538,21 +533,26 @@
                     const file = input.files[0];
                     if (!file) return;
                     const reader = new FileReader();
-                    reader.onload = () => {
+                    reader.onload = async () => {
                         try {
                             const data = JSON.parse(reader.result);
+                            // [v3.11] 完整导入管线（原实现只导 4 个字段，reflection/itemOps/povs/timeline/status/ledger/suspense/scene/echo 全丢）
                             if (data.graph) this.engine.graph.import(data.graph);
                             if (data.summaries) this.engine.summary.import(data.summaries);
                             if (data.diaries) this.engine.diary.import(data.diaries);
                             if (data.vectors) this.engine.vector.import(data.vectors);
+                            if (data.povs && this.engine.pov) this.engine.pov.import(data.povs);
+                            if (data.timeline && this.engine.timeline) this.engine.timeline.import(data.timeline);
+                            if (data.status && this.engine.status) this.engine.status.import(data.status);
+                            if (data.ledger && this.engine.ledger) this.engine.ledger.import(data.ledger);
+                            if (data.suspense && this.engine.suspense) this.engine.suspense.import(data.suspense);
+                            if (data.scene && this.engine.scene) this.engine.scene.import(data.scene);
+                            if (data.echo && this.engine.echo) this.engine.echo.import(data.echo);
+                            if (data.reflection && this.engine.reflection) this.engine.reflection.import(data.reflection);
+                            if (Array.isArray(data.itemOps)) { this.engine.itemOps = data.itemOps; (this.engine.reconcileItemOps || this.engine.rebuildItems).call(this.engine); }
                             const chatId = this.engine.getCurrentChatId();
-                            if (chatId) this.engine.storage.save(chatId, {
-                                graph: this.engine.graph.export(),
-                                summaries: this.engine.summary.export(),
-                                diaries: this.engine.diary.export(),
-                                vectors: this.engine.vector.export(),
-                                version: '1.3.0'
-                            });
+                            // [v3.11] 存盘统一走 collectExport（原 version '1.3.0' 块只存 4 字段——导入后新子系统记忆全丢）
+                            if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
                             toast('✅ 导入成功');
                         } catch (e) { toast('❌ 导入失败: ' + e.message); }
                     };
@@ -562,7 +562,7 @@
             });
 
             // 清空
-            overlay.querySelector('#ls-clear').addEventListener('click', () => {
+            overlay.querySelector('#ls-clear').addEventListener('click', async () => {
                 if (!confirm('确定清空当前对话的所有记忆数据？此操作不可恢复。')) return;
                 this.engine.graph.nodes.clear();
                 this.engine.graph.edges.clear();
@@ -574,8 +574,15 @@
                 if (this.engine.timeline) this.engine.timeline.entries = [];
                 if (this.engine.status) this.engine.status.characters = {};
                 if (this.engine.ledger) this.engine.ledger.floors = {};
+                if (this.engine.itemOps) this.engine.itemOps = [];   // [v3.11] 清空补齐：这些子系统此前清了内存但存档里残留
+                if (this.engine.reflection) this.engine.reflection.items = [];
+                if (this.engine.suspense) this.engine.suspense.items = [];
+                if (this.engine.scene) { this.engine.scene.nodes = new Map(); this.engine.scene.track = []; this.engine.scene.opsLog = []; }
+                if (this.engine.echo) this.engine.echo.items = [];
+                if (this.engine.pov) this.engine.pov.povs = this.engine.pov.povs || [];
                 const chatId = this.engine.getCurrentChatId();
-                if (chatId) this.engine.storage.save(chatId, { graph: {nodes:[],edges:[]}, summaries: {summaries:[],volumes:[]}, diaries: {}, vectors: [], povs: [], timeline: [], status: {}, ledger: {}, version: '2.0.0' });
+                // [v3.11] 存盘统一走 collectExport（原 '2.0.0' 块字段不全——itemOps/reflection/suspense/scene/echo 残留）
+                if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
                 toast('已清空');
             });
 

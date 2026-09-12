@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.10.0';
+    const VERSION = '3.11.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1965,7 +1965,7 @@
                 }
                 // [v2.7] RS: 全量携带——补 graph/diary/scene/vector/pov（v2.3 版只带摘要+悬念+时间线+状态）
                 return {
-                    version: '2.7.0',
+                    version: VERSION,   // [v3.11] 硬编码 '2.7.0' → 动态版本
                     summaries: active.map(s => ({ floor: s.floor, text: s.text, level: 1, timestamp: s.timestamp, folded: false })),
                     volumes: [...(this.summary.volumes || [])],
                     suspense: this.suspense.items.filter(x => x.status === 'open'),
