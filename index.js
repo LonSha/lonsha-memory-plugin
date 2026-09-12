@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.45.0';
+    const VERSION = '3.46.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -280,6 +280,7 @@
 
         const rows = [...grouped.values()]
             .filter(entry => entry.ties.length > 0)
+            .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))
             .map(entry => `- ${entry.name}：${entry.ties.join('；')}`);
         return rows.length ? `[角色长期关系网]（血缘/婚姻/主仆/宿敌等，不因是否在场而失效）：\n${rows.join('\n')}` : '';
     }
@@ -1148,6 +1149,8 @@
             // [v1.8] P0
             this.pov = new PovMemory();
             this.timeline = new PlotTimeline();
+            // [v3.46] 剧情时钟与回忆隔离
+            this.clock = new GameClock();
             // [v1.9] P1
             this.bm25 = new BM25();
             // [v2.0] P2
@@ -1399,6 +1402,28 @@
                         }
                     } catch (e) { errLog(e, 'onMessageReceived.charMem写入'); }
                 }
+
+                // [v3.46] 吸收 Bakemono: 剧情时钟维护与回忆隔离
+                try {
+                    const curFloor = message.index || 0;
+                    const clk = extracted?.story_clock;
+                    if (clk && typeof clk === 'object') {
+                        this.clock.setTime({
+                            date: clk.date,
+                            label: clk.label,
+                            flashback: !!clk.is_flashback,
+                            relativeDays: clk.relative_days,
+                            floor: curFloor
+                        });
+                    } else if (extracted?.story_date) {
+                        const isFlashback = /回忆|往事|当年|曾经|十年前|百年前/.test(message.mes || '');
+                        this.clock.setTime({
+                            date: extracted.story_date,
+                            flashback: isFlashback,
+                            floor: curFloor
+                        });
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.GameClock'); }
 
                 // [v1.8] P0: 写入剧情时间线
                 if (this.config.config.plotTimeline && extracted?.summary) {
@@ -3136,6 +3161,7 @@
                     type: 'lonsha_carryover_seed',
                     version: VERSION,
                     createdAt: Date.now(),
+                    clock: this.clock?.getSnapshot?.() || null,
                     sourceFloor: curFloor,
                     summaryRecap: recapParts.join('\n'),
                     protagonist: this.status?.getProtagonist?.() || {},
@@ -3160,6 +3186,7 @@
                 if (seed.summaryRecap && this.summary) {
                     this.summary.createSummary({ mes: '', index: 0 }, `【跨会话前情承接】\n${seed.summaryRecap}`, { seed: true });
                 }
+                if (seed.clock && this.clock?.import) this.clock.import(seed.clock);
                 if (seed.protagonist && this.status?.setProtagonist) {
                     this.status.setProtagonist(seed.protagonist, 0);
                 }
@@ -3274,6 +3301,43 @@
             }
             
             const blocks = [];
+            // ===== A. 静态锚定前缀区 (Static Cache Anchor Zone - Prompt Cache Guard) =====
+            // [v3.46] 宏观世界线·纪元史记 (Grand Chronicle)
+            if (this.summary?.getGrandChroniclePrompt) {
+                const grandText = this.summary.getGrandChroniclePrompt();
+                if (grandText) blocks.push(grandText);
+            }
+            // [v3.45] 吸收 baibai: 主角客观档案与生活习惯癖好追踪
+            if (this.config.config.protagonistTracking !== false) {
+                const proPrompt = this.status?.getProtagonistPrompt?.();
+                const lifePrompt = this.status?.getLifeDetailsPrompt?.(5) || [];
+                if (proPrompt || lifePrompt.length) {
+                    blocks.push('[主角当前客观状态与生活习惯]');
+                    if (proPrompt) blocks.push(`- ${proPrompt}`);
+                    if (lifePrompt.length) blocks.push(...lifePrompt);
+                }
+            }
+            // [v3.45] 吸收 baibai: 跨空间角色长期人伦社会羁绊网（稳定字典序排序）
+            if (this.config.config.npcTiesInjection !== false) {
+                const tiesText = this.getNpcTiesPrompt?.();
+                if (tiesText) {
+                    blocks.push(tiesText);
+                }
+            }
+            if (this.config.config.npcTierInjection !== false) {
+                const npcTierLines = buildNpcTierInjection(this.buildNpcTierRecords());
+                if (npcTierLines.length) {
+                    blocks.push('[角色索引·分级注入]');
+                    blocks.push(...npcTierLines);
+                }
+            }
+
+            // ===== B. 动态易变尾部区 (Volatile Dynamic Zone) =====
+            // [v3.46] 吸收 Bakemono: 当前剧情时钟与回忆隔离
+            const clockPrompt = this.clock?.getContextPrompt?.();
+            if (clockPrompt) {
+                blocks.push(clockPrompt);
+            }
             if (volumes.length) {
                 blocks.push('[早前剧情概括·卷]');
                 const seenV = new Set();
@@ -3313,30 +3377,6 @@
                     const histNote = (i.active === false && i.validTo != null) ? `（曾于第${i.validTo}楼前）` : '';
                     blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}]${histNote}`);
                 });
-            }
-            if (this.config.config.npcTierInjection !== false) {
-                const npcTierLines = buildNpcTierInjection(this.buildNpcTierRecords());
-                if (npcTierLines.length) {
-                    blocks.push('[角色索引·分级注入]');
-                    blocks.push(...npcTierLines);
-                }
-            }
-            // [v3.45] 吸收 baibai: 跨空间角色长期人伦社会羁绊网
-            if (this.config.config.npcTiesInjection !== false) {
-                const tiesText = this.getNpcTiesPrompt?.();
-                if (tiesText) {
-                    blocks.push(tiesText);
-                }
-            }
-            // [v3.45] 吸收 baibai: 主角客观档案与生活习惯癖好追踪
-            if (this.config.config.protagonistTracking !== false) {
-                const proPrompt = this.status?.getProtagonistPrompt?.();
-                const lifePrompt = this.status?.getLifeDetailsPrompt?.(5) || [];
-                if (proPrompt || lifePrompt.length) {
-                    blocks.push('[主角当前客观状态与生活习惯]');
-                    if (proPrompt) blocks.push(`- ${proPrompt}`);
-                    if (lifePrompt.length) blocks.push(...lifePrompt);
-                }
             }
             // [v3.45] 吸收 baibai: 近期已了结/已作废事项防复读注入
             const recentDone = this.suspense?.getRecentlyResolvedPrompt?.(3) || [];
@@ -3393,9 +3433,16 @@
             }
             if (povs.length) {
                 const present = this.captureCast();
-                const who = present.length ? present.join('、') : '当前角色';
-                blocks.push(`〔${who}的内心/私密认知｜仅该角色知晓，其他角色不得表现出已知道〕`);
-                povs.forEach(i => blocks.push(`- ${i.owner}：${i.text || ''}`));
+                const presentSet = new Set(present.map(p => this.resolveCharacterName(p)));
+                // [v3.46] 视界隔离与全知禁令：当前有在场角色时，滤除不在场角色的私密心声防隔空读心透视
+                const validPovs = (present.length > 0)
+                    ? povs.filter(p => !p.owner || presentSet.has(this.resolveCharacterName(p.owner)))
+                    : povs;
+                if (validPovs.length) {
+                    const who = present.length ? present.join('、') : '当前角色';
+                    blocks.push(`〔全知禁令与私密视界｜仅${who}知晓，其他角色绝不知情，严禁未卜先知或在对话动作中直接戳破〕`);
+                    validPovs.forEach(i => blocks.push(`- ${i.owner}：${i.text || ''}`));
+                }
             }
             if (phoneMem.length) {
                 blocks.push('[手机生活记忆]');
@@ -3474,7 +3521,7 @@
             let full = `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
             // [v3.25] 召回类型分级 + token 预算双层（MemoryPilot + 记忆库v5）:
             // 常驻分区（role=constant，每轮必注）优先保留；触发分区按预算裁剪
-            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]', '[角色长期关系网]', '[主角当前客观状态与生活习惯]', '[近期已了结事项'];
+            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]', '[角色长期关系网]', '[主角当前客观状态与生活习惯]', '[近期已了结事项', '[宏观世界线·纪元史记]', '[当前剧情时间]'];
             const residentBlocks = blocks.filter(b => RESIDENT_MARKERS.some(m => b.startsWith(m)));
             const triggerBlocks = blocks.filter(b => !RESIDENT_MARKERS.some(m => b.startsWith(m)));
             // [v2.1] P3: 注入预算裁剪（抄 stbme context-window：超预算优先保近期/相关）
@@ -3842,6 +3889,7 @@
         collectExport() {
             return {
                 version: VERSION,
+                clock: this.clock?.export?.() || null,
                 graph: this.graph.export(),
                 charMem: this.charMem ? this.charMem.export() : {},
                 worldProg: this.worldProg ? this.worldProg.export() : {},
@@ -3990,17 +4038,46 @@
     class SuspenseBook {
         constructor() { this.items = []; this._seq = 0; }
         /** 添加新悬项。kind: 'plan'|'suspense' */
-        add(kind, content, floor, createdTime) {
+        add(kind, content, floor, createdTime, due) {
             const c = String(content || '').trim();
             if (c.length < 4) return null;
             const id = 'sus_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
             this._seq = (this._seq || 0) + 1;
             this.items.push({
                 id, sid: 's' + this._seq, kind: (kind === 'suspense' ? 'suspense' : 'plan'), content: c.slice(0, 120),
-                status: 'open', floor: floor ?? null, createdTime: createdTime || null,
+                status: 'open', floor: floor ?? null, createdTime: createdTime || null, due: due || null,
                 outcome: null, resolvedReason: null, resolvedFloor: null, createdAt: Date.now()
             });
             return id;
+        }
+        /** [v3.46] 吸收 Bakemono: 悬念倒计时与剧情时钟联动计算 */
+        getOpenPrompts(clockDate) {
+            const rth = new RelativeTimeHelper();
+            return this.openItems().map(it => {
+                let note = `${it.sid} [${it.kind === 'plan' ? '计划' : '悬念'}] ${it.content}`;
+                if (it.due) {
+                    const dueStr = String(it.due).trim();
+                    if (clockDate && rth) {
+                        try {
+                            const pClock = rth.parseStoryDate(clockDate);
+                            const pDue = rth.parseStoryDate(dueStr);
+                            if (pClock && pDue && pClock.type === 'standard' && pDue.type === 'standard') {
+                                const d1 = new Date(Date.UTC(pClock.year || 2026, (pClock.month || 1) - 1, pClock.day || 1));
+                                const d2 = new Date(Date.UTC(pDue.year || 2026, (pDue.month || 1) - 1, pDue.day || 1));
+                                const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+                                if (diffDays < 0) note += ` [已逾期${Math.abs(diffDays)}天!]`;
+                                else if (diffDays === 0) note += ' [今日到期!]';
+                                else note += ` [距期限还剩${diffDays}天]`;
+                            } else {
+                                note += ` [期限:${dueStr}]`;
+                            }
+                        } catch (e) { note += ` [期限:${dueStr}]`; }
+                    } else {
+                        note += ` [期限:${dueStr}]`;
+                    }
+                }
+                return note;
+            });
         }
         /** 了结悬项。outcome: 'done'|'cancelled'|'failed' */
         resolve(idOrContent, outcome, reason, floor) {
@@ -4536,6 +4613,29 @@
         // 活跃周记（未入史记）
         getActiveVolumes() { return this.volumes.filter(v => !v.archived); }
         searchVolumes(limit = 2) { return this.volumes.slice(-limit).reverse(); }
+        // [v3.46] 吸收 Bakemono / MemoryWizard: 宏观史记与编年金字塔 (Grand Chronicle)
+        addGrandChronicle(text, opts = {}) {
+            const clean = String(text || '').replace(/^[-•\s]+/, '').trim();
+            if (!clean) return null;
+            const entry = {
+                id: 'his_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                text: clean,
+                floorStart: Number.isFinite(Number(opts.floorStart)) ? Number(opts.floorStart) : 0,
+                floorEnd: Number.isFinite(Number(opts.floorEnd)) ? Number(opts.floorEnd) : 0,
+                count: Number.isFinite(Number(opts.count)) ? Number(opts.count) : 1,
+                timestamp: Date.now(),
+                level: 3,
+                source: opts.source || 'manual'
+            };
+            this.historical.push(entry);
+            if (this.historical.length > 6) this.historical.shift();
+            return entry;
+        }
+        getGrandChroniclePrompt() {
+            if (!this.historical || !this.historical.length) return '';
+            const rows = this.historical.map(h => '- ' + h.text);
+            return '[宏观世界线·纪元史记]（长程核心脉络与不可变历史大事件）：\n' + rows.join('\n');
+        }
         export() { return { summaries: this.summaries, volumes: this.volumes, historical: this.historical }; }
         import(data) {
             if (Array.isArray(data)) { this.summaries = data; this.volumes = []; this.historical = []; }
@@ -5104,6 +5204,102 @@
             if (daysDiff >= 365) return `${Math.floor(daysDiff / 365)}年前`;
             if (daysDiff <= -365) return `${Math.floor(-daysDiff / 365)}年后`;
             return '';
+        }
+    }
+
+        // [v3.46] 吸收 Bakemono: 剧情时钟与回忆隔离（GameClock）
+    class GameClock {
+        constructor() {
+            this.date = '';             // 绝对日期或架空历法，如 '2026-09-13', '天顺三年春'
+            this.label = '';            // 时段/刻度/天气，如 '申时·薄暮·大雪', '清晨'
+            this.precision = 'unknown'; // 'day' | 'approximate' | 'unknown'
+            this.lastFlashback = null;  // { date, label, floor, recordedAt }
+            this.turn = 0;              // 当前所处轮次/楼层
+        }
+
+        // 设置/推进剧情时间
+        // opts: { date, label, flashback, floor, relativeDays }
+        setTime(opts = {}) {
+            const isFlashback = !!opts.flashback;
+            const newDate = opts.date ? String(opts.date).trim() : '';
+            const newLabel = opts.label ? String(opts.label).trim() : '';
+            const floor = Number.isFinite(Number(opts.floor)) ? Math.max(0, Math.round(Number(opts.floor))) : this.turn;
+
+            if (isFlashback) {
+                // 回忆时间：严格隔离！绝不修改当前主剧情时钟！
+                this.lastFlashback = {
+                    date: newDate,
+                    label: newLabel,
+                    floor,
+                    recordedAt: Date.now()
+                };
+                return { updated: false, flashback: true, clock: this.getSnapshot() };
+            }
+
+            let changed = false;
+            if (newDate && newDate !== this.date) {
+                this.date = newDate;
+                this.precision = 'day';
+                changed = true;
+            }
+            if (newLabel && newLabel !== this.label) {
+                this.label = newLabel;
+                if (!this.precision || this.precision === 'unknown') this.precision = 'approximate';
+                changed = true;
+            }
+            if (opts.relativeDays && Number.isInteger(Number(opts.relativeDays))) {
+                const days = Number(opts.relativeDays);
+                if (this.date) {
+                    try {
+                        const rth = new RelativeTimeHelper();
+                        const parsed = rth.parseStoryDate(this.date);
+                        if (parsed && parsed.type === 'standard') {
+                            const now = new Date();
+                            const y = parsed.year ?? now.getFullYear();
+                            const m = parsed.month ?? (now.getMonth() + 1);
+                            const d = parsed.day ?? 1;
+                            const t = new Date(Date.UTC(y, m - 1, d + days));
+                            this.date = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
+                            changed = true;
+                        }
+                    } catch (e) {}
+                }
+            }
+            this.turn = floor;
+            return { updated: changed, flashback: false, clock: this.getSnapshot() };
+        }
+
+        getSnapshot() {
+            return {
+                date: this.date,
+                label: this.label,
+                precision: this.precision,
+                lastFlashback: this.lastFlashback ? { ...this.lastFlashback } : null,
+                turn: this.turn
+            };
+        }
+
+        getContextPrompt() {
+            const parts = [];
+            if (this.date) parts.push(this.date);
+            if (this.label) parts.push(this.label);
+            if (!parts.length) return '';
+            let text = `[当前剧情时间]：${parts.join(' · ')}。回忆不改变当前时钟。`;
+            if (this.lastFlashback && (this.lastFlashback.date || this.lastFlashback.label)) {
+                const fb = [this.lastFlashback.date, this.lastFlashback.label].filter(Boolean).join(' · ');
+                text += `（前情往事回忆为 ${fb}，非当前时钟）`;
+            }
+            return text;
+        }
+
+        export() { return this.getSnapshot(); }
+        import(data) {
+            if (!data || typeof data !== 'object') return;
+            this.date = String(data.date || '').trim();
+            this.label = String(data.label || '').trim();
+            this.precision = String(data.precision || 'unknown');
+            this.lastFlashback = data.lastFlashback && typeof data.lastFlashback === 'object' ? { ...data.lastFlashback } : null;
+            this.turn = Number.isFinite(Number(data.turn)) ? Math.max(0, Math.round(Number(data.turn))) : 0;
         }
     }
 
@@ -6096,6 +6292,7 @@ ${win}`;
                     if (data.povs && engine.pov) engine.pov.import(data.povs);
                     if (data.timeline && engine.timeline) engine.timeline.import(data.timeline);
                     if (data.status && engine.status) engine.status.import(data.status);
+                    if (data.clock && engine.clock) engine.clock.import(data.clock);
                     if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
                     if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
                     if (data.scene && engine.scene) engine.scene.import(data.scene);

@@ -1,3 +1,12 @@
+## [v3.46.0] - 2026-09-13
+### 吸收 bakemono / stbme / memorywizzard / hcdiary 深水区机制：剧情时钟、史记金字塔、Prompt Cache 双区物理隔离、Swipe 确定性快照与 POV 全知禁令
+- **GameClock 剧情时钟与回忆隔离 (Story Clock & Flashback Isolation)**：三态时钟（date 绝对/架空日期、label 时段/刻度/天气、relativeDays 相对天数推进）；`flashback: true` 回忆楼层严格不修改主时钟，仅记录到 `lastFlashback`，杜绝长程跑团中"回忆杀"把主时间线篡改倒退的经典通病；`getContextPrompt` 注入 `[当前剧情时间]` 区块并显式标注回忆与当前时钟的分离。支持 export/import 持久化，已接入 `collectExport`/`storage.load`/Carryover Seed 全链路。
+- **悬念簿期限倒计时联动 (Suspense Deadline Countdown)**：`SuspenseBook.add` 新增 `due` 期限参数，`getOpenPrompts(clockDate)` 遍历全部未结项并联动剧情时钟，自动计算 `[距期限还剩N天]`/`[今日到期!]`/`[已逾期N天!]` 倒计时标记；无期限项不附加标记。让 AI 在剧情推进中对临期约定自然产生紧迫感。
+- **GrandChronicle 纪元宏观史记金字塔 (Era Grand Chronicle Pyramid)**：`SummarySystem` 新增 `addGrandChronicle` 与 `getGrandChroniclePrompt`，构建微观近期细节→中观章节周记→宏观纪元史记三层时空景深金字塔；宏观史记注入块 `[宏观世界线·纪元史记]（长程核心脉络与不可变历史大事件）` 常驻锚定，为超长程跑团提供不可变的世界线大事件骨架。
+- **Prompt Cache 双区物理隔离 (Static Anchor / Dynamic Tail Physical Partition)**：`buildInjection` 重构为 A 区（静态锚定前缀区：宏观史记、主角档案、NPC 长期关系网、NPC 分级索引）与 B 区（动态易变尾部区：剧情时钟、卷摘要、前情摘要、角色状态、POV 等）双区物理隔离；`fmtNpcTiesContext` 加入 `localeCompare('zh-CN')` 确定性字典序排序，不同输入顺序生成完全一致字符串，最大化 Claude/DeepSeek/Kimi 等原生 Prefix Caching 模型的输入 Token 命中率。
+- **POV 视界隔离与全知禁令 (POV Horizon & Omniscience Ban)**：POV 注入分支构造 `presentSet` 在场列表严格核对，当前存在场角色时过滤不在场角色的私密心声；注入头升级为 `〔全知禁令与私密视界｜仅{在场角色}知晓，其他角色绝不知情，严禁未卜先知或在对话动作中直接戳破〕`，焊死大模型全知视角出戏 Bug。
+- **自动化测试**：新增 `tests/v346_fortress_pyramid.test.mjs`（6 个测试块：静态锚点、GameClock 回忆隔离、悬念簿倒计时、史记金字塔、Prompt Cache 字典序、Carryover 时钟延续），全量 48 个测试套件 58 个测试 100% 绿灯通过。
+
 ## [v3.45.0] - 2026-09-13
 ### 吸收 baibai 与 shujuku 深水区机制：NPC长期人伦羁绊网、主角客观档案与生活癖好、了结事项防复读、推理截断宽容熔断与跨会话Carryover
 - **NPC 长期社会人伦羁绊网 (Long-term NPC Ties Network)**：吸收 baibai `fmtNpcTiesContext` 理念，在 `CharacterState` 与 `MemoryEngine` 中独立抽离不随物理空间是否在场而失效的长期社会人伦羁绊网。聚合规范化姓名并对 ties 执行分号解析与幂等去重；即便 NPC 离开视线滚入 Tier 4，血缘、婚姻、结拜、主仆与宿敌羁绊依然常驻注入，彻底焊死角色伦理纲常，杜绝长程跑团中乱伦与辈分颠倒通病。
