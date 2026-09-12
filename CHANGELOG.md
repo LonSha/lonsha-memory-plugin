@@ -1,5 +1,17 @@
 # 更新日志
-## v3.9.0 (2026-09-12) - 删楼语义修复·审计第三轮 🏗️
+## v3.10.0 (2026-<think>  response111 项全过。写 CHANGELOG 条目并提交推送 v3.10：</think>09-12) - 生成状态与并发修复·审计第四轮 ⚡
+### 🟠 生成状态标志 `_generationActive`（参照 baibai currentRun + stbme hostGeneration.running）
+- **旧缺口**：插件无任何生成重入防护（grep 零命中）——自愈重提取可能与生成前召回（onBeforeGeneration 的 LLM 调用）并发执行，互相读脏数据。
+- **修复**：`GENERATION_STARTED` 置位 → `MESSAGE_RECEIVED` 复位（新回复落层=本轮生成闭环）。
+### 🟠 自愈执行体守卫（调度器/执行体分离）
+- **生成中延后**：`_generationActive=true` 时不重提取（楼层留待愈集合，5s 后重试）——防并发读脏。
+- **防重入**：`_selfHealRunning` 标志——执行中再调度不叠加（连续 swipe 场景）。
+- **调度器轻量化**：`_scheduleFloorHeal`（排队）与 `_runFloorHeal`（执行）分离。
+### 🟠 提取锁降级不永久丢楼
+- **旧问题**：提取锁排队超时（30s）后降级为本地截断摘要，该楼的 LLM 级记忆**永久丢失**（此后无任何机制补回）。
+- **修复**：降级时记录到 `_lockDegradePending` 集合；锁释放后（下一条消息处理完）自动 `backfillFloors` 补提取（单次最多 10 楼防堆积）。
+### ✅ 测试
+- `tests/v310_generation_state.test.mjs`（7 项）：生成标志生命周期 / 自愈守卫 4 场景（生成中留集合、正常提取、防重入、延后重试恢复）/ 降级排队链路 / 调度器轻量化。全量回归 111 项。## v3.9.0 (2026-09-12) - 删楼语义修复·审计第三轮 🏗️
 ### 🔴 重大修复：废除「删楼级联销毁」（数据丢失级缺陷）
 - **旧行为**：删楼 f → rollbackFloor(f) + floorsAfter 循环回滚 f 之后**所有楼层**的全部记忆——删中间一楼 = 后面 N 楼记忆全丢（摘要/日记/向量/POV/时间线/悬念/图谱节点全灭）。
 - **正解依据**（stbme history-safety）：ST 删楼后消息只是位置前移，记忆内容本身仍对应前移后的文本——该 shift（键 -1）而非删除。

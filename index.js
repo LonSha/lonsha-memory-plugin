@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.9.0';
+    const VERSION = '3.10.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -465,6 +465,7 @@
             this.items = { records: [] };               // [v2.8] RT-C 物品台账（派生缓存）
             this._lastStoryDate = null;                 // [v2.9] RU-A 主动时间推进的锚点
             this._recallCache = null;                   // [v2.9] RU-D swipe 召回缓存 {floor, queryKey, injection}
+            this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
             this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
             this._lastOptimizeFloor = 0;                // [v2.9] RU-B 优化周期锚点
@@ -499,6 +500,8 @@
         }
 
         async onMessageReceived(message, messageId = null) {
+            // [v3.10] 生成结束（新回复落层=本轮生成闭环），复位生成标志
+            this._generationActive = false;
             if (!this.config.config.enabled) return;
             // [v3.1] SF5: 番外楼双保险（事件层已短路，这里防直接调用路径）
             if (this.isOmittedFloor(message)) { if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层为番外楼，引擎跳过`); return; }
@@ -520,7 +523,10 @@
                         const fallback = this.extractMemorySimple(message);
                         // [v3.8] 降级摘要不覆盖已有优质摘要（opts.degraded）
                         if (fallback?.summary) await this.summary.createSummary(message, fallback.summary, { degraded: true });
-                        console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，已降级为本地摘要 (楼层 ${message.index})`);
+                        // [v3.10] 记录到待补集合：锁释放后（下一条消息处理完）由 CHAT 补提取
+                        this._lockDegradePending = this._lockDegradePending || new Set();
+                        this._lockDegradePending.add(message.index || 0);
+                        console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，已降级为本地摘要并排队补提取 (楼层 ${message.index})`);
                     } catch (e) { errLog(e, 'onMessageReceived.提取锁降级'); }
                     return;
                 }
@@ -783,6 +789,19 @@
                 console.error(`[${PLUGIN_NAME}] ✗ 失败:`, err);
             } finally {
                 if (this.config.config.extractionLockEnabled) this.mutex.release();
+                // [v3.10] 锁释放后补提取降级楼层（一次最多 10 楼，防堆积）
+                try {
+                    if (this._lockDegradePending?.size && this.config.config.extractionEnabled) {
+                        const list = Array.from(this._lockDegradePending).sort((a, b) => a - b).slice(0, 10);
+                        for (const f of list) this._lockDegradePending.delete(f);
+                        if (list.length) {
+                            console.log(`[${PLUGIN_NAME}] 锁空闲，补提取降级楼层: ${list.join(',')}`);
+                            setTimeout(async () => {
+                                try { await this.backfillFloors(list); } catch (e) { errLog(e, 'EV.锁后补提取'); }
+                            }, 1000);
+                        }
+                    }
+                } catch (e) { errLog(e, 'EV.锁后补提取调度'); }
             }
         }
         
@@ -3530,6 +3549,7 @@ ${win}`;
                                 clearInjectSlots();
                                 return;
                             }
+                            this.engine._generationActive = true;   // [v3.10] 标记生成中（自愈调度器读）
                             const injection = await this.engine.onBeforeGeneration();
                             // [v3.2] DF6: 空召回=显式清除（baibai 语义"注入空串等于清除"——召回价值判断跳过时旧槽位残留会注入上一轮记忆）
                             const depth = Math.min(2, Math.max(0, Number(this.engine.config.config.injectionDepth) || 0));
@@ -3556,10 +3576,29 @@ ${win}`;
                 this._editHealPending = this._editHealPending || new Set();
                 this._editHealPending.add(f);
                 if (this._editHealTimer) clearTimeout(this._editHealTimer);
-                this._editHealTimer = setTimeout(async () => {
+                this._editHealTimer = setTimeout(() => {
                     this._editHealTimer = null;
-                    const pending = Array.from(this._editHealPending || []).sort((a, b) => a - b);
-                    this._editHealPending = new Set();
+                    this._runFloorHeal();
+                }, 3000);
+            } catch (e) { errLog(e, 'events.楼层自愈计时'); }
+        }
+        // [v3.10] 自愈执行体：生成中延后重试（防与 onBeforeGeneration 召回并发读脏）；防重入（执行中再调度不叠加）
+        async _runFloorHeal() {
+            try {
+                if (this._selfHealRunning) return;   // 防重入：上一轮未完成，本轮跳过（pending 已收集，下轮定时器会再跑）
+                // [v3.10] 生成中（LLM 召回在飞）不重提取——楼层留在待愈集合，5s 后再试
+                if (this.engine?._generationActive) {
+                    if (this._editHealPending?.size) {
+                        this._editHealTimer = setTimeout(() => { this._editHealTimer = null; this._runFloorHeal(); }, 5000);
+                    }
+                    return;
+                }
+                const pending = Array.from(this._editHealPending || []).sort((a, b) => a - b);
+                this._editHealPending = new Set();
+            this._selfHealRunning = false;             // [v3.10] 自愈执行防重入
+                if (!pending.length) return;
+                this._selfHealRunning = true;
+                try {
                     for (const hf of pending) {
                         try {
                             const c = window.SillyTavern?.getContext?.();
@@ -3572,8 +3611,8 @@ ${win}`;
                             await this.engine.onMessageReceived({ ...m, index: hf }, hf);
                         } catch (e) { errLog(e, `events.楼层自愈重提取.${hf}`); }
                     }
-                }, 3000);
-            } catch (e) { errLog(e, 'events.楼层自愈计时'); }
+                } finally { this._selfHealRunning = false; }
+            } catch (e) { errLog(e, 'events.楼层自愈执行'); }
         }
         // 插件卸载时清理事件监听
         unregisterEvents() {
