@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.14.0';
+    const VERSION = '3.15.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -617,6 +617,7 @@
                     // [v3.6] 图谱膨胀修复: 先查后建（原实现每楼新 id——同角色 N 楼 = N 个重复节点，长对话无限膨胀）
                     for (const char of extracted.characters) {
                         const canonical = this.resolveCharacterName(char);
+                        this.graph.snapshotGraph(message.index);   // [v3.15] 图谱快照: 楼层起点
                         const existChar = this.graph.findCharacterByName(canonical);
                         if (existChar) {
                             // 已存在: 只补首次出现信息（不重复建；source 保留首次）
@@ -1972,6 +1973,8 @@
                     }
                 }
                 this.graph.rebuildNameIndex();
+                // [v3.15] 图谱楼层截断回溯（收编 zhino）: 删楼后用楼层前状态重建（truncateGraphFrom 内部会再 rebuildNameIndex）
+                try { this.graph.truncateGraphFrom(floor); } catch (e) { errLog(e, 'rollbackFloor.图谱回溯'); }
                 if (keepIds.size && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 回滚: 保留 ${keepIds.size} 个长寿命角色节点`);
                 // 回滚 POV
                 const povIdSet = new Set(entry.povIds || []);
@@ -2474,7 +2477,43 @@
     }
 
     class MemoryGraph {
-        constructor() { this.nodes = new Map(); this.edges = new Map(); this.nameIndex = new Map(); }
+        constructor() { this.nodes = new Map(); this.edges = new Map(); this.nameIndex = new Map(); this._snapshots = []; this.SNAP_MAX = 6; }
+        // [v3.15] 图谱版本快照（收编 zhino）: 每楼记录楼层起点图状态，最多 SNAP_MAX 张
+        snapshotGraph(floor) {
+            const f = Math.max(0, Math.round(Number(floor) || 0));
+            if (!this._snapshots) this._snapshots = [];
+            // 同楼重复拍只更新（swipe/重试时覆盖旧快照，不堆积）
+            const idx = this._snapshots.findIndex(s => s.floor === f);
+            const snap = { floor: f, nodes: Array.from(this.nodes.values()).map(n => ({...n})), edges: Array.from(this.edges.values()).map(e => ({...e})), ts: Date.now() };
+            if (idx >= 0) this._snapshots[idx] = snap; else this._snapshots.push(snap);
+            // 最多 6 张，超额淘汰最旧
+            if (this._snapshots.length > this.SNAP_MAX) {
+                this._snapshots.sort((a, b) => a.floor - b.floor);
+                this._snapshots.shift();
+            }
+            if (window.LonShaMemory?.engine?.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 图谱快照: 楼层 ${f} (共 ${this._snapshots.length} 张)`);
+            return snap;
+        }
+        // [v3.15] 楼层截断回溯: 删除 floor 及之后的快照，回滚到 floor 前的最近快照重建图
+        // （zhino: 重roll某楼层后，该楼层及之后的图谱版本被自动截断，用楼层前状态重建）
+        truncateGraphFrom(floor) {
+            if (!Array.isArray(this._snapshots) || !this._snapshots.length) return false;
+            const f = Math.max(0, Math.round(Number(floor) || 0));
+            // 找 floor 前（不含）的最近快照
+            const before = this._snapshots.filter(s => s.floor < f).sort((a, b) => b.floor - a.floor)[0];
+            // 截断: 删除 floor 及之后的快照
+            this._snapshots = this._snapshots.filter(s => s.floor < f);
+            if (before) {
+                this.nodes.clear();
+                this.edges.clear();
+                for (const n of before.nodes) this.nodes.set(n.id, n);
+                for (const e of before.edges) this.edges.set(e.id, e);
+                this.rebuildNameIndex();
+                if (window.LonShaMemory?.engine?.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 图谱回溯: 回滚到楼层 ${before.floor} 状态 (删楼 ${f})`);
+            }
+            return !!before;
+        }
+
         addNode(node) {
             const id = node.id || `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const fullNode = {...node, id, timestamp: Date.now()};
@@ -2534,8 +2573,9 @@
                 }
             } catch (e) { errLog(e, 'GD.rebuildNameIndex'); }
         }
-        export() { return {nodes: Array.from(this.nodes.values()), edges: Array.from(this.edges.values())}; }
+        export() { return {nodes: Array.from(this.nodes.values()), edges: Array.from(this.edges.values()), snapshots: Array.isArray(this._snapshots) ? this._snapshots : []}; }
         import(data) {
+            this._snapshots = Array.isArray(data?.snapshots) ? data.snapshots : [];
             this.nodes.clear(); this.edges.clear(); this.nameIndex.clear();
             if (data?.nodes) for (const node of data.nodes) this.nodes.set(node.id, node);
             if (data?.edges) for (const edge of data.edges) this.edges.set(edge.id, edge);

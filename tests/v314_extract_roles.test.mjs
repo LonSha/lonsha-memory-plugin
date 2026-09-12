@@ -167,10 +167,13 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   if (!sui.includes('engine.storage.save(chatId, engine.collectExport())')) fail('ST4 持久化缺失');
   ok('ST4: 写入后 collectExport + storage.save 即时持久化');
 }
-// ST5: 版本号
+// ST5: 版本号已前进（>= v3.14）
 {
-  if (!src.includes("VERSION = '3.14.0'")) fail('ST5 版本号');
-  ok('ST5: 版本号 3.14.0');
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST5 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 14) || (M === 3 && m === 14 && p >= 0))) fail('ST5 版本号过低: ' + vm[1]);
+  ok('ST5: 版本号已前进 (>=3.14.0): ' + vm[1]);
 }
 
 console.log(`\n✓ v3.14 从世界书提取角色测试全过 (${pass} 项)`);
