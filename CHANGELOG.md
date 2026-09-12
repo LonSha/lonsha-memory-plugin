@@ -1,4 +1,22 @@
 # 更新日志
+## v3.29.0 (2026-09-12) - 收编完整性审计修复（史记折叠空转 + synopsis 清洗冲突）🔬
+
+> 第八轮审计（链路完整性 + 组合推演）：审计 v3.23-v3.28 连续六版密集收编，抓到 2 个僵尸链路/冲突 bug。
+
+### 🔴 Bug PD-1：史记折叠空转（v3.28）
+**推演链**：`maybeFoldHistorical` 用 `this.folding` 防重入——但它在 `maybeFold` 的 try 块内被调用（此时 `folding=true`）→ **永远 return null，史记折叠从不执行**（与 v3.21 世界推进空转同类的僵尸链路）。
+**修复**：改用独立 `foldingHistorical` 标志；阈值判断对齐（`vols.length < threshold` 时 return，`>= threshold` 才折叠）。
+
+### 🔴 Bug PD-2：synopsis 快速路径失效（v3.27）
+**推演链**：`onMessageReceived` 先 `cleanMessageText`（剥 `<synopsis>` 标签）再 `extractSynopsisFast(message.mes)` → 检测永远为空 → **快速路径从未生效**。
+**修复**：在清洗前快照原始文本 `_rawForSynopsis`，synopsis 检测用原始文本。
+
+### 验证
+- 新增 tests/v329_audit_fixes.test.mjs（15 项：PD1 修复 5 + PD2 修复 3 + 回归 7）
+- v327 断言同步更新（快速路径检测文本）
+- 全量回归 29 文件 378 项全过
+
+全量回归 378 项。
 ## v3.28.0 (2026-09-12) - 三级金字塔摘要 + 记忆树路由召回（st-memory-wizzard）📦
 
 > 收编来源：st-memory-wizzard（Memory Wizard，分层摘要金字塔 + 记忆树路由召回）

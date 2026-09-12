@@ -26,7 +26,7 @@ const ok = (m) => { pass++; console.log('ok: ' + m); };
     else fail('T1: extractSynopsisFast 缺失');
     if (src.includes('synopsisFastPath')) ok('T1: synopsisFastPath 开关存在');
     else fail('T1: synopsisFastPath 缺失');
-    if (src.includes('extractSynopsisFast(message.mes || message.content || \'\')')) ok('T1: 快速路径接入提取管线');
+    if (src.includes('extractSynopsisFast(_rawForSynopsis || message.mes || message.content || \'\')')) ok('T1: 快速路径接入提取管线');
     else fail('T1: 快速路径未接入');
 }
 

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.28.0';
+    const VERSION = '3.29.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -864,6 +864,8 @@
             // [v3.13] 思维链/正文分流: 先剥 <thinking> 再清洗（zhino A5.2.1——思维链草稿不入正文/摘要/图谱）
             // 注意: thinking 存引擎信号队列而非 message.extra（message 是浅拷贝，extra 引用与原对象共享，直接写会污染 ST 真实消息）
             const _tc = extractThinkingChain(message.mes || message.content || '');
+            // [v3.29] synopsis 快速路径需原始文本——cleanMessageText 会剥 <synopsis> 标签，故在清洗前快照原文
+            const _rawForSynopsis = String(_tc.content || message.content || '');
             message.mes = this.cleanMessageText(_tc.content);
             if (_tc.thinking) {
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 思维链已分流 (楼层 ${message.index}, ${_tc.thinking.length} 字)`);
@@ -892,9 +894,10 @@
             }
             try {
                 // [v3.27] <synopsis> 轻量提取快速路径（AnchorNote）: AI 自带 <synopsis> 标签时正则直取做 summary，省一次 LLM 调用
+                // [v3.29] 用清洗前的原文检测（cleanMessageText 会剥 <synopsis> 标签导致快速路径失效）
                 let extracted = null;
                 if (this.config.config.synopsisFastPath) {
-                    const synopsisText = extractSynopsisFast(message.mes || message.content || '');
+                    const synopsisText = extractSynopsisFast(_rawForSynopsis || message.mes || message.content || '');
                     if (synopsisText) {
                         extracted = { summary: synopsisText, characters: [], events: [], relationships: [] };
                         if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] <synopsis>快速路径: 楼层 ${message.index}`);
@@ -3316,7 +3319,7 @@
     }
     
     class SummarySystem {
-        constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.folding = false; }
+        constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.folding = false; this.foldingHistorical = false; }
         // [v3.28] 三级金字塔（st-memory-wizzard）: summaries(level1日记) → volumes(level2周记/卷) → historical(level3史记)
         // [v1.4.2] 智能截断：优先在句子边界断开，避免"但那个"式半句截断
         smartTruncate(text, maxLen) {
@@ -3395,13 +3398,15 @@
         }
         // 卷摘要召回（最近 N 卷，低权重）
         // [v3.28] 三级金字塔最高层: 卷摘要（周记）积累超阈值 → 折叠成史记（最高层，跨阶段总览）
+        // [v3.29] 修复僵尸链路: 原用 this.folding 防重入——但本方法在 maybeFold 的 try 块内被调（folding=true），
+        // 导致永远 return null（史记折叠从不执行）。改用独立 foldingHistorical 标志。
         async maybeFoldHistorical(config, llm) {
-            if (this.folding) return null;
+            if (this.foldingHistorical) return null;
             const vols = this.volumes;
             const threshold = config?.historicalFoldThreshold || 12;
-            if (vols.length < Math.min(4, threshold)) return null;
+            if (vols.length < threshold) return null;
             const batch = vols.slice(0, threshold);
-            this.folding = true;
+            this.foldingHistorical = true;
             try {
                 const list = batch.map(v => `[第${v.floorStart}-${v.floorEnd}楼] ${v.text}`).join('\n');
                 const prompt = `你是历史学家。以下是同一段长剧情的${batch.length}个阶段概括（周记）。请把它们合并成一段150-250字的历史总览（史记），保留关键人物、重要转折、长期伏笔与因果主线，压缩重复描述。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
@@ -3423,7 +3428,7 @@
                     if (config?.debugMode) console.log(`[${PLUGIN_NAME}] 史记折叠: ${batch.length}个周记 → 史记#${this.historical.length}`);
                     return this.historical[this.historical.length - 1];
                 }
-            } finally { this.folding = false; }
+            } finally { this.foldingHistorical = false; }
             return null;
         }
         // 活跃周记（未入史记）
