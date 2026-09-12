@@ -1,4 +1,26 @@
 # 更新日志
+## v3.26.0 (2026-09-12) - 归档状态事件清理（v3.25 收编完整性）🩹
+
+> 收编完整性审计：v3.25 引入的 `_archivedFloorIds`（归档隐藏状态）未在事件处理器清理——换对话/编辑/删楼后旧对话楼层 index 残留，`restoreArchivedFloors()` 会误操作新对话楼层。
+
+### 修复
+
+在 4 个事件点同步清空 `_archivedFloorIds`：
+
+| 事件 | 场景 | 原因 |
+|---|---|---|
+| `CHAT_CHANGED` | 切换对话 | 防旧对话楼层 index 误操作新对话 |
+| `MESSAGE_EDITED` | 编辑楼层 | 该楼折叠覆盖关系可能已变化 |
+| `MESSAGE_DELETED` | 删除楼层 | 楼层 index 前移，旧归档 index 语义失效 |
+| `rollbackFloor` | 楼层回滚 | 楼层 index 前移，归档状态失效 |
+
+### 测试
+
+- 新增 tests/v326_archive_reset.test.mjs（11 项：四事件接入 4 + rollback 1 + v3.25 功能回归 3 + v3.23/24 回归 4）
+- v325 T6 版本断言升级为容灾式（>= 3.25）
+- 全量回归 26 文件 322 项全过
+
+全量回归 322 项。
 ## v3.25.0 (2026-09-12) - 召回分级/预算双层/归档隐藏/扩散疲劳（四项目收编）📦
 
 > 收编来源：MemoryPilot（召回类型分级）+ 角色记忆数据库v5（token 预算双层）+ Bakemono/MemoryBooks/记忆库v5 共识（归档隐藏）+ TriviumDB（图扩散不应期疲劳）

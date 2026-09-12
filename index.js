@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.25.0';
+    const VERSION = '3.26.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -2597,6 +2597,8 @@
                 // [v3.22] 角色记忆银行 + 场外信号 楼层清理（rollback 未清 → 旧记忆残留）
                 try { if (this.charMem?.removeByFloor) this.charMem.removeByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.charMem清理'); }
                 try { this.clearThinkingSignalsByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.场外信号清理'); }
+                // [v3.25.1] rollbackFloor 清空归档状态（楼层 index 前移，旧归档失效）
+                try { this._archivedFloorIds?.clear(); } catch (e) { errLog(e, 'rollbackFloor.归档状态清理'); }
                 if (keepIds.size && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 回滚: 保留 ${keepIds.size} 个长寿命角色节点`);
                 // 回滚 POV
                 const povIdSet = new Set(entry.povIds || []);
@@ -4522,6 +4524,8 @@ ${win}`;
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
                         // [v3.23.1] 换对话同步清空 dedup 指纹（防旧对话文本误标新对话）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.CHAT_CHANGED去重清空'); }
+                        // [v3.25.1] 换对话同步清空归档状态（防旧对话楼层 index 误操作新对话）
+                        try { this.engine._archivedFloorIds?.clear(); } catch (e) { errLog(e, 'events.CHAT_CHANGED归档清空'); }
                         // [v3.2] DF1/DF5: 清空注入槽位（setExtensionPrompt 持久化，旧聊天注入会残留到新聊天；GENERATION_STARTED 若仍活跃会立即重新注入）
                         try { clearInjectSlots(); } catch (e) { errLog(e, 'events.CHAT_CHANGED槽位清空'); }
                         // [v3.9] SF2: 基线重置（换聊天后用新聊天的长度，防旧基线误报批量删除）
@@ -4551,6 +4555,8 @@ ${win}`;
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_EDITED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         // [v3.23.1] 编辑楼同步清空 dedup 指纹（防编辑后的新内容被旧指纹误标）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_EDITED去重清空'); }
+                        // [v3.25.1] 编辑楼清空归档状态（该楼折叠覆盖关系可能已变化）
+                        try { this.engine._archivedFloorIds?.clear(); } catch (e) { errLog(e, 'events.MESSAGE_EDITED归档清空'); }
                         try {
                             const f = Number(messageId);
                             if (!Number.isFinite(f) || f < 0) return;
@@ -4594,6 +4600,8 @@ ${win}`;
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         // [v3.23.1] 删楼同步清空 dedup 指纹（防删楼后残留指纹误标后续召回）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_DELETED去重清空'); }
+                        // [v3.25.1] 删楼清空归档状态（楼层 index 前移，旧归档 index 语义失效）
+                        try { this.engine._archivedFloorIds?.clear(); } catch (e) { errLog(e, 'events.MESSAGE_DELETED归档清空'); }
                         // [v3.1] SF2: 渲染切片保护（抄 stbme history-safety——删除 payload 不可靠，批量删除时警告）
                         try {
                             const c = window.SillyTavern?.getContext?.();

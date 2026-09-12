@@ -88,8 +88,9 @@ const ok = (m) => { pass++; console.log('ok: ' + m); };
 
 // ── T6: 版本 + 全量回归保障 ──
 {
-    if (src.includes("const VERSION = '3.25.0'")) ok('T6: VERSION 3.25.0');
-    else fail('T6: VERSION 未更新');
+    const vm6 = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+    if (vm6 && parseFloat(vm6[1]) >= 3.25) ok('T6: VERSION ' + vm6[1]);
+    else fail('T6: VERSION >= 3.25');
     if (src.includes('recallTierEnabled') && src.includes('memoryTokenBudget') && src.includes('autoArchiveCovered')) ok('T6: v3.25 config 全开关在位');
     else fail('T6: config 开关缺失');
 }
