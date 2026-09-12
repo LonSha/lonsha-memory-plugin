@@ -315,6 +315,22 @@
             // 浏览器里加一个返回按钮
             const back = document.createElement('div');
             back.className = 'ls-btn';
+            // [v3.38] 撤销上次人工操作按钮
+            const auditCount = (plugin._auditStack && plugin._auditStack.length) || 0;
+            if (auditCount > 0) {
+                const undoBtn = document.createElement('div');
+                undoBtn.className = 'ls-btn';
+                undoBtn.style.background = '#313244';
+                undoBtn.style.color = '#fab387';
+                undoBtn.style.marginBottom = '6px';
+                undoBtn.textContent = `↺ 撤销上次修改（剩余可撤销: ${auditCount}）`;
+                undoBtn.addEventListener('click', async () => {
+                    await plugin.undoLastOp();
+                    ov.remove();
+                    plugin.showBrowser(viewType);
+                });
+                ov.querySelector('.lonsha-sheet-body').appendChild(undoBtn);
+            }
             back.textContent = '← 返回状态总览';
             back.addEventListener('click', () => { ov.remove(); plugin.showStatsPanel(); });
             ov.querySelector('.lonsha-sheet-body').appendChild(back);
@@ -799,6 +815,28 @@
             document.body.appendChild(t);
             setTimeout(() => t.remove(), 1800);
         };
+        // [v3.38] 人工干预撤销栈与撤销方法（Event Sourcing Audit Trail）
+        plugin._auditStack = [];
+        plugin.undoLastOp = async function() {
+            if (!this._auditStack || !this._auditStack.length) {
+                this._memToast('暂无可撤销的操作', false);
+                return false;
+            }
+            const op = this._auditStack.pop();
+            try {
+                if (typeof op?.undo === 'function') {
+                    await op.undo();
+                    const ok = await this._memPersist();
+                    this._memToast(`↺ 已撤销: ${op.desc || '上一步操作'}`, ok);
+                    return ok;
+                }
+            } catch (e) {
+                console.error('undo failed:', e);
+                this._memToast('撤销执行异常: ' + e.message, false);
+            }
+            return false;
+        };
+
         plugin._memOps = function(kind, id, onDone) {
             const eng = this.engine;
             const esc = (t) => String(t || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -895,7 +933,15 @@
                         const currentFloor = eng.summary?.summaries?.length || 0;
                         eng.itemOps.push({ action: "update", name: rec.name, holder, floor: currentFloor });
                         eng.rebuildItems();
-                        return "持有者 → " + holder;
+                        const oldH = rec.holder || "地上";
+                        return {
+                            label: "持有者 → " + holder,
+                            desc: `物品【${rec.name}】持有者还原为 ${oldH}`,
+                            undo: () => {
+                                eng.itemOps.push({ action: "update", name: rec.name, holder: oldH, floor: eng.summary?.summaries?.length || 0 });
+                                eng.rebuildItems();
+                            }
+                        };
                     } },
                     { t: "📦 变更状态", fn: () => {
                         let ns = null;
@@ -906,14 +952,31 @@
                         const currentFloor = eng.summary?.summaries?.length || 0;
                         eng.itemOps.push({ action: "update", name: rec.name, state, floor: currentFloor });
                         eng.rebuildItems();
-                        return "状态 → " + state;
+                        const oldS = rec.state || "完好";
+                        return {
+                            label: "状态 → " + state,
+                            desc: `物品【${rec.name}】状态还原为 ${oldS}`,
+                            undo: () => {
+                                eng.itemOps.push({ action: "update", name: rec.name, state: oldS, floor: eng.summary?.summaries?.length || 0 });
+                                eng.rebuildItems();
+                            }
+                        };
                     } },
                     { t: "🗑 标记丢弃/移除", fn: () => {
                         eng.itemOps = eng.itemOps || [];
                         const currentFloor = eng.summary?.summaries?.length || 0;
                         eng.itemOps.push({ action: "remove", name: rec.name, state: "丢弃", floor: currentFloor });
                         eng.rebuildItems();
-                        return "物品已移除活动列表";
+                        const oldS = rec.state || "完好";
+                        const oldH = rec.holder || "地上";
+                        return {
+                            label: "物品已移除活动列表",
+                            desc: `恢复物品【${rec.name}】`,
+                            undo: () => {
+                                eng.itemOps.push({ action: "add", name: rec.name, holder: oldH, state: oldS, floor: eng.summary?.summaries?.length || 0 });
+                                eng.rebuildItems();
+                            }
+                        };
                     }, danger: true },
                 ];
             }
@@ -933,9 +996,16 @@
             ov.querySelectorAll("[data-ai]").forEach(btn => {
                 btn.addEventListener("click", async () => {
                     const a = actions[Number(btn.dataset.ai)];
-                    let msg;
-                    try { msg = a.fn(); } catch (e2) { msg = null; console.error(e2); }
-                    if (msg === null || msg === undefined) return;
+                    let res;
+                    try { res = a.fn(); } catch (e2) { res = null; console.error(e2); }
+                    if (res === null || res === undefined) return;
+                    const msg = typeof res === 'object' ? res.label : String(res);
+                    if (typeof res === 'object' && typeof res.undo === 'function') {
+                        plugin._auditStack = plugin._auditStack || [];
+                        plugin._auditStack.push(res);
+                        if (plugin._auditStack.length > 30) plugin._auditStack.shift();
+                    }
+                    // validated above
                     ov.remove();
                     const ok = await plugin._memPersist();
                     plugin._memToast(ok ? "✅ " + msg : "⚠️ 已改但存盘失败", ok);

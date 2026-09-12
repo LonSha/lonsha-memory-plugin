@@ -1,4 +1,35 @@
 # 更新日志
+## v3.38.0 (2026-09-13) - 全链路自愈闭环 + 多维时态演化 + 语义休眠激活 + 台账撤销栈 🛡️
+
+> 本版完成了对上一轮工业级支柱的端到端严密审计与全链路闭环，彻底修复了五大真实隐藏缺陷，并补全四大前沿系统级拼图。
+> 39 个全量测试套件、620+ 断言 100% 全部通过，系统成熟度跃升为真正可商用的长文本认知底座。
+
+### 核心 Bug 彻底根治（Must Fix）
+1. **时态图谱（Temporal Graph）导入闭环保护与双向匹配修复**：
+   - 修复了 `import(data)` 时历史边 `validTo` 被硬编码 `null` 覆盖的致命缺陷；
+   - 修复了 `recallMemory` 中拿节点内部 UUID 匹配角色中文名导致历史边 100% 漏召回的问题，支持中文名与节点 ID 双向匹配。
+2. **HippoRAG 执行时序颠倒彻底纠偏**：
+   - 将 BM25 与物品台账检索提取至图扩散之前，使实体引燃在执行扩散时真正能提取到 BM25 与物品文本作为种子节点，告别静默空转。
+3. **删楼（`shiftFloorsFrom`）图谱时态位移自愈**：
+   - 补齐图谱边 `validFrom`、`validTo`、`floor` 与快照 `_snapshots` 在删楼时的 `-1` 前移，杜绝时序漂移。
+4. **反思生成器容错与延迟更新**：
+   - 接入全局 `sanitizeJson` 容错清洗，且只有在有效产生反思后才推进 `_lastReflectFloor`，失败不再产生长达 10 楼的哑火惩罚期。
+5. **全量无损导出木桶补全**：
+   - `collectExport` 完整补齐 `charMem`（角色记忆银行）、`worldProg`（世界推进）、`supersede`（矛盾换代）与 `narrativeEntropy`（叙事惊奇度），跨设备迁移与快照导出零丢失。
+
+### 四大系统级前沿拼图落地（Architecture Evolution）
+1. **多维关系并存与冲突演化（Relational Multi-dimension & Evolution）**：
+   - 引入 `RELATION_CONFLICT_GROUPS`，定义情感态度组与立场阵营组；
+   - 只有在同维度冲突（如“恋人”走向“决裂”，“盟友”走向“宿敌”）时才闭环旧关系；正交维度（如“师徒”与“恋人”）和谐并存，彻底支持多面立体角色情感网。
+2. **语义级休眠与实体唤醒机制（Dormant vs Active Lifecycle，TriviumDB 双区模型）**：
+   - 超过 30 楼未提及且重要度普通的已折叠旧摘要自动标记为 `dormant: true`，不占用基础活跃带宽；
+   - 一旦剧情重新出现相关实体线索，触发 `awakenByEntities` 语义唤醒，提权复活并冠以【久别重现】标签，完美解决长篇伏笔与上下文防爆的矛盾。
+3. **可视化台账 Undo/Redo 命令审计栈（Event Sourcing Audit Trail）**：
+   - 面板新增 `_auditStack` 命令栈，记录每次人工对物品持有者、状态、属性或悬念的修改操作；
+   - 台账浏览器增加「↺ 撤销上次修改」交互按钮与 `plugin.undoLastOp()`，手滑改错可一键还原重放。
+4. **全链路真实端到端集成套件（E2E Integration Test Suite）**：
+   - 建立 `tests/v338_e2e_integration.test.mjs`，包含 36 项全链路行为断言，覆盖 1~20 楼完整演变、删楼自愈与快照恢复。
+
 ## v3.37.0 (2026-09-13) - 工业级长文本记忆五大前沿支柱演进（HippoRAG + Zep + MemGPT + Prefix Cache）🏛️
 
 > 本版是 LonSha 走向中大型、完备工业级记忆系统的体系化跨越。

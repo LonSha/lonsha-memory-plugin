@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.37.0';
+    const VERSION = '3.38.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1377,6 +1377,8 @@
                 if (this.config.config.summaryFoldEnabled) {
                     try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
                 }
+                // [v3.38] 语义级休眠检测（TriviumDB 理念，防长篇跑团上下文与内存膨胀）
+                try { if (this.summary?.markDormant) this.summary.markDormant(message.index || 0, 30); } catch (e) {}
                 // [v3.25] 归档隐藏已覆盖楼层（Bakemono 共识，默认关）: 折叠成功后把 folded 旧楼设 is_hidden
                 if (this.config.config.autoArchiveCovered) {
                     try { this.archiveCoveredFloors(); } catch (e) { errLog(e, 'onMessageReceived.归档隐藏'); }
@@ -1434,6 +1436,7 @@
                         scene: this.scene.export(),
                         echo: this.echo.export(),
                         supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
+                        narrativeEntropy: this._narrativeEntropy || 0,
                         version: VERSION
                     });
                 }
@@ -2334,16 +2337,29 @@
                 results.graph = this.graph.findByNames(query.characters);
                 results.diary = this.diary.search(query.characters);
 
-                // [v3.37] 时态知识图谱（Temporal Graph, Zep 理念）：按查询意图区分活跃与历史羁绊
+                // [v3.37/v3.38] 时态知识图谱（Temporal Graph, Zep 理念）：支持角色名与节点ID双向匹配
                 try {
                     const isHistorical = /当年|曾经|以前|旧怨|旧事|过去|往事|回忆|最初/i.test(query.text || '');
-                    const charNodeIds = new Set((results.graph || []).map(n => n.id));
+                    const charMatchKeys = new Set();
+                    (query.characters || []).forEach(c => {
+                        charMatchKeys.add(c);
+                        charMatchKeys.add(normalizeCharName(c));
+                    });
+                    (results.graph || []).forEach(n => {
+                        if (n.id) charMatchKeys.add(n.id);
+                        if (n.name) {
+                            charMatchKeys.add(n.name);
+                            charMatchKeys.add(normalizeCharName(n.name));
+                        }
+                    });
                     const relEdges = [];
                     for (const edge of this.graph.edges.values()) {
-                        if (charNodeIds.has(edge.from) || charNodeIds.has(edge.to)) {
+                        const hitFrom = charMatchKeys.has(edge.from) || charMatchKeys.has(normalizeCharName(edge.from));
+                        const hitTo = charMatchKeys.has(edge.to) || charMatchKeys.has(normalizeCharName(edge.to));
+                        if (hitFrom || hitTo) {
                             if (edge.active !== false) {
                                 relEdges.push(edge);
-                            } else if (isHistorical && edge.validTo != null) {
+                            } else if (isHistorical && (edge.validTo != null || edge.active === false)) {
                                 relEdges.push({ ...edge, historical: true });
                             }
                         }
@@ -2352,16 +2368,14 @@
                         results.relations = relEdges.slice(0, 6);
                     }
                 } catch (e) { errLog(e, 'recallMemory.时态关系'); }
-                // [v3.28] 记忆树路由召回（st-memory-wizzard 本地轻量版，无需第二模型）:
-                // 用图谱角色节点做「树路径」，命中角色的邻接事件/关系/物品作为该角色子树召回
-                // 无前快模型时用现有 host 召回替代路由（角色→图谱边→关联记忆）
+
+                // [v3.28] 记忆树路由召回（st-memory-wizzard 本地轻量版，无需第二模型）
                 try {
                     if (this.config.config.memoryTreeEnabled && this.graph?.nodes?.size) {
                         const treePaths = [];
                         for (const ch of query.characters.slice(0, 4)) {
                             const node = this.graph.findCharacterByName(ch);
                             if (!node) continue;
-                            // 角色子树的关联：从该角色的图谱边提取关联节点名
                             const neighborNames = new Set();
                             for (const edge of this.graph.edges.values()) {
                                 if (edge.from === node.id) neighborNames.add(this.graph.nodes.get(edge.to)?.name);
@@ -2381,7 +2395,8 @@
                         }
                     }
                 } catch (e) { errLog(e, 'recallMemory.记忆树路由'); }
-                // [v3.16] 神经链召回（抄 zhino）: 链1(用户→在场角色) + 链2(在场角色→角色间)，链2 去重已注入链1
+
+                // [v3.16] 神经链召回（抄 zhino）
                 try {
                     if (this.config.config.neuralChainEnabled && query.characters.length > 0) {
                         const userQuery = `${query.text || ''}`;
@@ -2389,7 +2404,6 @@
                             const mems = (this.charMem?.search ? this.charMem.search(c, userQuery) : []);
                             return mems.map(m => ({ id: 'c1_' + c + '_' + m.id, text: `${c}：${m.text}`, source: 'neuralChain', chain: 1, character: c }));
                         }).flat().slice(0, 6);
-                        // 链2: 在场角色之间（双向），去重已进链1的 id
                         const seenC1 = new Set(chain1.map(x => x.text));
                         const chain2 = [];
                         for (let i = 0; i < query.characters.length; i++) {
@@ -2404,109 +2418,13 @@
                         results.neuralChain = [...chain1, ...chain2].slice(0, 8);
                     }
                 } catch (e) { errLog(e, 'recallMemory.神经链'); }
-                
-                // Phase 3: 图扩散增强召回
-                if (this.config.config.graphDiffusionEnabled && window.LonShaMemory?.diffusion) {
-                    try {
-                        let seedNodes = [...(results.graph || [])];
-                        if (this.config.config.hippoDiffusionEnabled !== false) {
-                            // [v3.37] HippoRAG 双路引燃扩散：从 BM25 / 道具中提取高频匹配实体节点加入扩散种子
-                            const entityCandidates = new Set();
-                            (results.bm25 || []).slice(0, 5).forEach(b => {
-                                if (b.text) {
-                                    for (const [nid, node] of this.graph.nodes) {
-                                        if (node.name && node.name.length >= 2 && b.text.includes(node.name)) entityCandidates.add(node);
-                                    }
-                                }
-                            });
-                            (results.items || []).slice(0, 3).forEach(it => {
-                                if (it.text) {
-                                    for (const [nid, node] of this.graph.nodes) {
-                                        if (node.name && node.name.length >= 2 && it.text.includes(node.name)) entityCandidates.add(node);
-                                    }
-                                }
-                            });
-                            for (const cand of entityCandidates) {
-                                if (!seedNodes.some(s => s.id === cand.id)) seedNodes.push(cand);
-                            }
-                        }
-                        seedNodes = seedNodes.slice(0, 5);
-                        if (seedNodes.length > 0) {
-                            // [v3.25] 不应期疲劳：滚轮前先衰减疲劳计数（防永久封印，TriviumDB Refractory）
-                            for (const [k, v] of this._diffusionFatigue) {
-                                if (v <= 1) this._diffusionFatigue.delete(k);
-                                else this._diffusionFatigue.set(k, v - 1);
-                            }
-                            const diffusionResults = window.LonShaMemory.diffusion.personalizedPageRank(
-                                seedNodes, 
-                                3, 
-                                this.config.config.vectorTopK
-                            );
-                            // [v3.25] 黑洞降权 + 疲劳抑制（TriviumDB Link Specificity + Refractory）
-                            const fatigue = this._diffusionFatigue;
-                            const suppressed = [];
-                            for (const r of diffusionResults) {
-                                const nid = this._nodeIdentity(r);
-                                // 疲劳抑制：命中疲劳节点 → 能量×0.15（TriviumDB fatigue_discount）
-                                if (nid && fatigue.has(nid)) {
-                                    suppressed.push({ ...r, score: (r.score || 0) * 0.15 });
-                                    // 被抑制即解除（无记忆效应）
-                                    fatigue.delete(nid);
-                                } else {
-                                    suppressed.push(r);
-                                }
-                            }
-                            // DPP多样性采样（用抑制后的结果）
-                            const diverseResults = window.LonShaMemory.diffusion.diversitySampling(
-                                suppressed,
-                                Math.min(5, suppressed.length),
-                                this.config.config.dppLambda
-                            );
-                            results.diffusion = diverseResults.map(r => ({
-                                ...r.node,
-                                score: r.score,
-                                source: 'diffusion'
-                            }));
-                            // [v3.25] Top-N 赢家打疲劳标（下一轮抑制热点）
-                            for (const r of results.diffusion.slice(0, this._diffusionFatigueTopN)) {
-                                const nid = this._nodeIdentity({ node: r });
-                                if (nid) this._diffusionFatigue.set(nid, this._diffusionFatigueTimeout);
-                            }
-                            if (this.config.config.debugMode) {
-                                console.log(`[${PLUGIN_NAME}] 图扩散召回: ${results.diffusion.length}条`);
-                            }
-                        }
-                    } catch (err) {
-                        console.warn(`[${PLUGIN_NAME}] 图扩散失败:`, err);
-                    }
-                }
             }
-            
-            // [v2.4] RE: 多查询召回——主查询 + rewriteQuery 改写的查询分别检索，结果并入同一路（RRF 会融合）
-            if (this.config.config.vectorEnabled && query.text) {
-                const vectorResults = await this.vector.search(query.text, this.config.config.vectorTopK);
-                results.vector = vectorResults.map(v => ({
-                    text: v.text,
-                    score: v.score,
-                    metadata: v.metadata,
-                    source: 'vector'
-                }));
-                if (Array.isArray(query.queries) && query.queries.length) {
-                    for (const q2 of query.queries) {
-                        try {
-                            const more = await this.vector.search(q2, 3);
-                            for (const v of more) results.vector.push({text: v.text, score: v.score * 0.9, metadata: v.metadata, source: 'vector'});
-                        } catch (e) { errLog(e, 'recallMemory.图扩散'); }
-                    }
-                }
-            }
-            
-            // [v1.9] P1: BM25 稀疏检索召回
+
+            // [v1.9] P1: BM25 稀疏检索召回（提前执行，为 HippoRAG 准备文本实体输入）
             if (this.config.config.bm25Enabled && this.bm25.N && query.text) {
                 try {
                     results.bm25 = this.bm25.search(query.text, this.config.config.bm25TopK || 5, {cliffCut: true, minResults: 2})
                         .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, source: 'bm25'}));
-                    // [v3.31] BM25 命中碎片也加热（按 text 回找 vector 条目；无则静默跳过）
                     if (this.config.config.heatOnRecallEnabled) {
                         for (const b of results.bm25) { try { this.vector.heatByText(b.text); } catch (e) {} }
                     }
@@ -2520,13 +2438,118 @@
                     }
                 } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] BM25检索失败:`, e); }
             }
+
+            // [v2.8] RT-C: 物品台账召回（提前执行，为 HippoRAG 提取道具实体输入）
+            if (this.config.config.itemLedgerEnabled && this.itemOps?.length) {
+                const cast = this.captureCast();
+                const qText = query.text || '';
+                const relevant = this.items.records.filter(r => {
+                    const isRemoved = r.state && (r.state === '丢失' || r.state === '损毁' || r.state === '已消耗' || r.state === '丢弃');
+                    if (isRemoved) return qText && qText.includes(r.name);
+                    return cast.some(c => (r.holder || '').includes(c)) || (qText && qText.includes(r.name));
+                }).slice(-5);
+                if (relevant.length) {
+                    results.items = relevant.map(r => ({ name: r.name, text: `${r.name}（${r.holder || '无主'}持有，${r.state || '完好'}）${r.desc ? '：' + r.desc : ''}`, source: 'items' }));
+                }
+            }
+
+            // Phase 3: 图扩散增强召回（HippoRAG 实体引燃在此顺利读取 BM25 与 items）
+            if (this.config.config.graphDiffusionEnabled && window.LonShaMemory?.diffusion) {
+                try {
+                    let seedNodes = [...(results.graph || [])];
+                    if (this.config.config.hippoDiffusionEnabled !== false) {
+                        // [v3.37/v3.38] HippoRAG 双路引燃扩散：BM25 文本 + 活跃物品联合识别种子节点
+                        const entityCandidates = new Set();
+                        (results.bm25 || []).slice(0, 5).forEach(b => {
+                            if (b.text) {
+                                for (const [nid, node] of this.graph.nodes) {
+                                    if (node.name && node.name.length >= 2 && b.text.includes(node.name)) entityCandidates.add(node);
+                                }
+                            }
+                        });
+                        (results.items || []).slice(0, 3).forEach(it => {
+                            const raw = it.name || it.text || '';
+                            if (raw) {
+                                for (const [nid, node] of this.graph.nodes) {
+                                    if (node.name && node.name.length >= 2 && raw.includes(node.name)) entityCandidates.add(node);
+                                }
+                            }
+                        });
+                        for (const cand of entityCandidates) {
+                            if (!seedNodes.some(s => s.id === cand.id)) seedNodes.push(cand);
+                        }
+                    }
+                    seedNodes = seedNodes.slice(0, 5);
+                    if (seedNodes.length > 0) {
+                        for (const [k, v] of this._diffusionFatigue) {
+                            if (v <= 1) this._diffusionFatigue.delete(k);
+                            else this._diffusionFatigue.set(k, v - 1);
+                        }
+                        const diffusionResults = window.LonShaMemory.diffusion.personalizedPageRank(
+                            seedNodes, 
+                            3, 
+                            this.config.config.vectorTopK
+                        );
+                        const fatigue = this._diffusionFatigue;
+                        const suppressed = [];
+                        for (const r of diffusionResults) {
+                            const nid = this._nodeIdentity(r);
+                            if (nid && fatigue.has(nid)) {
+                                suppressed.push({ ...r, score: (r.score || 0) * 0.15 });
+                                fatigue.delete(nid);
+                            } else {
+                                suppressed.push(r);
+                            }
+                        }
+                        const diverseResults = window.LonShaMemory.diffusion.diversitySampling(
+                            suppressed,
+                            Math.min(5, suppressed.length),
+                            this.config.config.dppLambda
+                        );
+                        results.diffusion = diverseResults.map(r => ({
+                            ...r.node,
+                            score: r.score,
+                            source: 'diffusion'
+                        }));
+                        for (const r of results.diffusion.slice(0, this._diffusionFatigueTopN)) {
+                            const nid = this._nodeIdentity({ node: r });
+                            if (nid) this._diffusionFatigue.set(nid, this._diffusionFatigueTimeout);
+                        }
+                        if (this.config.config.debugMode) {
+                            console.log(`[${PLUGIN_NAME}] 图扩散召回: ${results.diffusion.length}条`);
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`[${PLUGIN_NAME}] 图扩散失败:`, err);
+                }
+            }
+            
+            // [v2.4] RE: 多查询召回——主查询 + rewriteQuery 改写的查询分别检索
+            if (this.config.config.vectorEnabled && query.text) {
+                const vectorResults = await this.vector.search(query.text, this.config.config.vectorTopK);
+                results.vector = vectorResults.map(v => ({
+                    text: v.text,
+                    score: v.score,
+                    metadata: v.metadata,
+                    source: 'vector'
+                }));
+                if (Array.isArray(query.queries) && query.queries.length) {
+                    for (const q2 of query.queries) {
+                        try {
+                            const more = await this.vector.search(q2, 3);
+                            for (const v of more) results.vector.push({text: v.text, score: v.score * 0.9, metadata: v.metadata, source: 'vector'});
+                        } catch (e) { errLog(e, 'recallMemory.向量重试'); }
+                    }
+                }
+            }
+
             // [v1.9] P1: 卷摘要召回（已折叠的高层概括）
             if (this.config.config.summaryFoldEnabled && this.summary.volumes.length) {
                 results.volume = this.summary.searchVolumes(2)
                     .map(v => ({id: v.id, text: `【卷${v.floorStart}-${v.floorEnd}】${v.text}`, floor: v.floorStart, source: 'volume'}));
             }
             
-            // [v2.1] P3: 节日感知召回（剧情日期临近节日时，用节日关键词召回相关记忆）
+            // [v2.1] P3: 节日感知召回
             if (this.config.config.holidayAware) {
                 try {
                     const sd = this.getLatestStoryDate();
@@ -2542,10 +2565,10 @@
                         }
                         if (this.config.config.debugMode && h) console.log(`[${PLUGIN_NAME}] 🎉 节日感知: ${h.name} (偏移${h.offsetDays}天)`);
                     }
-                } catch (e) { errLog(e, 'recallMemory.物品召回'); }
+                } catch (e) { errLog(e, 'recallMemory.节日感知'); }
             }
             
-            // [v2.0] P2: 角色状态召回（只取当前登场角色）
+            // [v2.0] P2: 角色状态召回
             if (this.config.config.characterStateEnabled && Object.keys(this.status.characters || {}).length) {
                 const presentCast = this.captureCast();
                 const owners = presentCast.length ? presentCast : (window.SillyTavern?.getContext?.()?.name2 ? [window.SillyTavern.getContext().name2] : []);
@@ -2556,8 +2579,7 @@
                 }
             }
             
-            // [v1.8] P0: 剧情时间线召回（按剧情日期相近度）
-            // [v3.23] 时间感知检索（NE-Memory）: 若查询含时间约束（Day X/月/日期），优先按约束过滤时间线
+            // [v1.8] P0: 剧情时间线召回
             if (this.config.config.plotTimeline && this.timeline.entries.length) {
                 const anchorDate = this.getLatestStoryDate();
                 const tcQuery = parseStoryTimeConstraint(query.text);
@@ -2573,7 +2595,6 @@
                         : this.timeline.searchNear(anchorDate, this.config.config.timelineWindowDays, 5);
                     results.timeline = tlSource
                         .map(e => {
-                            // [v2.2] RC: 相对时间前缀（"3天前·3月12日"），解析失败不加（宁可不标绝不标错）
                             let rel = '';
                             if (relOn) {
                                 try { rel = relativePrefix(e.date, anchorDate); } catch (err) { rel = ''; }
@@ -2582,80 +2603,46 @@
                         });
                 }
             }
-            
-            // [v2.8] RT-C: 物品台账召回（当前登场角色持有/查询命中的物品）
-            // [v3.36] 过滤丢失/损毁状态，优先召回活动在场物品（除非 query 明确搜索该物品）
-            if (this.config.config.itemLedgerEnabled && this.itemOps?.length) {
-                const cast = this.captureCast();
-                const qText = query.text || '';
-                const relevant = this.items.records.filter(r => {
-                    const isRemoved = r.state && (r.state === '丢失' || r.state === '损毁' || r.state === '已消耗' || r.state === '丢弃');
-                    if (isRemoved) return qText && qText.includes(r.name);
-                    return cast.some(c => (r.holder || '').includes(c)) || (qText && qText.includes(r.name));
-                }).slice(-5);
-                if (relevant.length) {
-                    results.items = relevant.map(r => ({ text: `${r.name}（${r.holder || '无主'}持有，${r.state || '完好'}）${r.desc ? '：' + r.desc : ''}`, source: 'items' }));
-                }
-            }
+
             // [v2.8] RT-B: 反思召回（重要度 Top-2）
             if (this.config.config.reflectionEnabled && this.reflection?.items?.length) {
                 results.reflections = this.reflection.search(2).map(r => ({ text: `洞察：${r.insight}${r.suggestion ? '（提示：' + r.suggestion + '）' : ''}`, source: 'reflection' }));
             }
 
             // [v1.7] RubyPhone 联动②: 手机记忆库作为一路召回源
-            if (this.config.config.rubyPhoneRecall && query.text) {
+            if (this.config.config.rubyPhoneSync && window.VirtualPhone?.lonshaBridge?.queryPhoneMemory) {
                 try {
-                    const bridge = window.VirtualPhone?.lonshaBridge;
-                    if (bridge?.recall) {
-                        const phoneHits = bridge.recall(query.text, this.config.config.rubyPhoneRecallTopN || 3);
-                        if (phoneHits.length) {
-                            results.rubyphone = phoneHits.map(h => ({
-                                text: h.content,
-                                score: h.score,
-                                metadata: { layer: h.layer, source: 'rubyphone' },
-                                source: 'rubyphone'
-                            }));
-                        }
+                    const phoneHits = await window.VirtualPhone.lonshaBridge.queryPhoneMemory(query.text, this.config.config.rubyPhoneRecallTopN || 3);
+                    if (phoneHits?.length) {
+                        results.rubyphone = phoneHits.map(h => ({
+                            id: 'phone_' + h.id, text: `[手机记忆·${h.type || '备忘'}] ${h.content}`, source: 'rubyphone', importance: h.importance || 5
+                        }));
                     }
-                } catch (e) {
-                    if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] RubyPhone召回失败:`, e);
+                } catch (e) { errLog(e, 'recallMemory.手机记忆召回'); }
+            }
+            
+            // [v2.4] RE: 在场分档——不在场已登场角色给极简档
+            if (this.config.config.presenceTier) {
+                const present = new Set(this.captureCast());
+                const allKnown = this.getKnownCharacters();
+                const absent = allKnown.filter(c => !present.has(c));
+                if (absent.length) {
+                    results.presence = absent.map(a => ({
+                        character: a, text: `${a}（当前不在场）`, source: 'presence'
+                    }));
                 }
             }
             
-            // [v2.4] RE: 在场分档——不在场已登场角色给极简档（防 AI 让不在场的人凭空出现）
-            if (this.config.config.presenceInjection) {
-                try {
-                    const castNow = castCaptured.length ? castCaptured : query.characters || [];
-                    const absent = this.getKnownCharacters()
-                        .filter(n => !castNow.includes(n))
-                        .map(n => {
-                            const loc = this.status?.characters?.[n]?.fields?.['位置'];
-                            return { name: n, loc: loc || null };
-                        })
-                        .slice(0, 6);
-                    results.presence = absent.map(a => ({
-                        id: 'abs_' + a.name, text: a.loc ? `${a.name}（现在: ${a.loc}，不在场）` : `${a.name}（不在场）`,
-                        source: 'presence'
-                    }));
-                } catch (e) { errLog(e, 'recallMemory.HolidayAware'); }
-            }
-            
-            // [v2.2] RC: 悬念簿召回（未了结悬项 + 近期了结，防 AI 把办完的事反复提/把伏笔写丢）
+            // [v2.2] RC: 悬念簿召回
             if (this.config.config.suspenseEnabled && this.suspense.items.length) {
-                try {
-                    const openList = this.suspense.openItems().slice(0, 8).map(x => ({
-                        id: x.id, text: `${x.kind === 'suspense' ? '未解之谜' : '约定/目标'}（第${x.floor != null ? x.floor + '楼立下' : '早期'}）: ${x.content}`,
-                        floor: x.floor, source: 'suspense'
-                    }));
-                    const resolvedList = this.suspense.recentlyResolved(3).map(x => ({
-                        id: x.id, text: `已了结[${x.outcome === 'done' ? '完成' : x.outcome === 'cancelled' ? '取消' : '失败'}]${x.resolvedReason ? '：' + x.resolvedReason : ''} — 原项: ${x.content}`,
-                        floor: x.resolvedFloor, source: 'suspense'
-                    }));
-                    results.suspense = openList.concat(resolvedList);
-                } catch (e) { errLog(e, 'recallMemory.POV时序'); }
+                const openList = this.suspense.openItems().slice(-3)
+                    .map(x => ({ id: 'sus_' + x.id, text: `【待解决·悬念】${x.content}${x.createdTime ? ' (' + x.createdTime + ')' : ''}`, source: 'suspense', status: 'open' }));
+                const resolvedList = this.suspense.recentlyResolved(2)
+                    .map(x => ({ id: 'sus_res_' + x.id, text: `【近期了结】${x.content} → ${x.resolution || '已解决'}`, source: 'suspense', status: x.status }));
+                results.suspense = openList.concat(resolvedList);
             }
             
-            // [v1.8] P0: POV 私密记忆召回（只取当前登场角色的，防剧透）
+            // [v1.8] P0: POV 私密记忆召回
             if (this.config.config.povIsolation && this.pov.povs.length) {
                 const present = this.captureCast();
                 const owners = present.length ? present : (window.SillyTavern?.getContext?.()?.name2 ? [window.SillyTavern.getContext().name2] : []);
@@ -2665,7 +2652,7 @@
                 }
             }
             
-            // [v3.30] PV: superseded 摘要排除 —— 被换代压制的记忆退出召回
+            // [v3.30] PV: superseded 摘要排除
             if (window.LonShaSupersede && this.config.config.supersedeEnabled && results.summary?.length) {
                 try {
                     results.summary = results.summary.filter(item => {
@@ -2674,8 +2661,21 @@
                     });
                 } catch (e) { errLog(e, 'recallMemory.supersede过滤'); }
             }
+
+            // [v3.38] 语义级休眠伏笔唤醒检测（TriviumDB 双区记忆理念）
+            try {
+                if (this.summary?.awakenByEntities) {
+                    const presentEntities = [...(query.characters || []), ...((results.items || []).map(i => i.name || ''))].filter(Boolean);
+                    const awakened = this.summary.awakenByEntities(presentEntities);
+                    if (awakened?.length) {
+                        for (const aw of awakened) {
+                            results.summary.push({ id: 'sum_' + aw.floor, text: `【久别重现】${aw.text}`, floor: aw.floor, source: 'summary', awakened: true });
+                        }
+                    }
+                }
+            } catch (e) { errLog(e, 'recallMemory.休眠唤醒'); }
             
-            // [v2.3] RD: 两阶段精排 (抄 baibai recall: 多路粗召回 → LLM rerank 精排)
+            // [v2.3] RD: 两阶段精排
             const merged = this.hybridMerge(results);
             if (this.config.config.rerankEnabled && merged.length > 3 && query.text) {
                 try {
@@ -2692,9 +2692,7 @@
             }
             return merged;
         }
-        
-        // [v1.5] RRF 倒数排名融合（抄 shujuku reciprocalRankFusion）——
-        // 比固定权重 alpha 更稳健：不需要调参，多路召回中同时命中的记忆自动获得更高分
+
         hybridMerge(results) {
             const K = 60; // RRF 标准常数
             const lists = [
@@ -3190,6 +3188,19 @@
                     for (const e of [...this.scene.opsLog].sort((a, b) => a.floor - b.floor)) this.scene.apply(e.ops, e.floor, true);
                 }
                 this.rebuildItems?.();
+                // [v3.38] 图谱时态边（validFrom/validTo/floor）与快照前移
+                if (this.graph?.edges) {
+                    for (const edge of this.graph.edges.values()) {
+                        if (typeof edge.validFrom === 'number' && edge.validFrom > deleted) edge.validFrom--;
+                        if (typeof edge.validTo === 'number' && edge.validTo > deleted) edge.validTo--;
+                        if (typeof edge.floor === 'number' && edge.floor > deleted) edge.floor--;
+                    }
+                }
+                if (Array.isArray(this.graph?._snapshots)) {
+                    for (const snap of this.graph._snapshots) {
+                        if (typeof snap.floor === 'number' && snap.floor > deleted) snap.floor--;
+                    }
+                }
             } catch (e) { errLog(e, 'SH.shiftFloorsFrom'); }
             if (shifted && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 楼层前移: ${shifted} 条记忆重定位 (deleted=${deleted})`);
             return shifted;
@@ -3324,10 +3335,13 @@
         }
 
         // [v2.9] RU-C: 全量导出（快照/存档共用同构数据）
+        // [v3.38] 无损完整全量导出（补充 charMem, worldProg, supersede, narrativeEntropy）
         collectExport() {
             return {
                 version: VERSION,
                 graph: this.graph.export(),
+                charMem: this.charMem ? this.charMem.export() : {},
+                worldProg: this.worldProg ? this.worldProg.export() : {},
                 summaries: this.summary.export(),
                 diaries: this.diary.export(),
                 reflection: this.reflection?.export?.(),
@@ -3340,6 +3354,8 @@
                 suspense: this.suspense.export(),
                 scene: this.scene.export(),
                 echo: this.echo?.export?.(),
+                supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
+                narrativeEntropy: this._narrativeEntropy || 0,
                 packedAt: new Date().toISOString()
             };
         }
@@ -3584,6 +3600,21 @@
         } catch (e) { return ''; }
     }
 
+    // [v3.38] 关系多维共存与互斥演化（Zep/Graphiti 理念）
+    const RELATION_CONFLICT_GROUPS = [
+        new Set(['陌生', '相识', '友好', '暧昧', '暗恋', '热恋', '恋人', '夫妻', '冷战', '决裂', '陌路']),
+        new Set(['盟友', '同行', '中立', '对立', '敌对', '宿敌', '仇敌', '背叛'])
+    ];
+    function areLabelsInConflict(l1, l2) {
+        if (!l1 || !l2 || l1 === l2) return false;
+        for (const group of RELATION_CONFLICT_GROUPS) {
+            if (group.has(l1) && group.has(l2)) return true;
+        }
+        const p1 = `${l1}-${l2}`, p2 = `${l2}-${l1}`;
+        if (/恋人-决裂|决裂-恋人|友好-敌对|敌对-友好|盟友-宿敌|宿敌-盟友/i.test(p1)) return true;
+        return false;
+    }
+
     class MemoryGraph {
         constructor() { this.nodes = new Map(); this.edges = new Map(); this.nameIndex = new Map(); this._snapshots = []; this.SNAP_MAX = 6; }
         // [v3.15] 图谱版本快照（收编 zhino）: 每楼记录楼层起点图状态，最多 SNAP_MAX 张
@@ -3639,8 +3670,8 @@
             }
             return id;
         }
-        // [v3.37] 时态知识图谱（Temporal Graph, Zep/Graphiti 理念）:
-        // 记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记 closed 并开辟新时态边
+        // [v3.37/v3.38] 时态知识图谱（Temporal Graph, Zep/Graphiti 理念）:
+        // 记录关系的有效区间 [validFrom, validTo]；仅当同维度冲突时标记 closed；不同维度多维共存
         addEdge(edge) {
             const from = String(edge.from || '');
             const to = String(edge.to || '');
@@ -3651,7 +3682,8 @@
             if (label !== 'participated_in') {
                 for (const [existingId, e] of this.edges) {
                     if (e.from === from && e.to === to && e.label !== 'participated_in' && e.active !== false) {
-                        if (e.label !== label) {
+                        // 只有属于同维度冲突谓词时才闭环旧关系；正交维度（如师徒 vs 恋人）和谐并存
+                        if (areLabelsInConflict(e.label, label)) {
                             e.active = false;
                             e.validTo = floor;
                         }
@@ -3659,15 +3691,21 @@
                 }
             }
 
+            const existing = this.edges.get(id);
+            const validFrom = (existing && existing.validFrom != null) ? existing.validFrom : (edge.validFrom != null ? edge.validFrom : floor);
+            // 关键修复：保留传入的 validTo（防止 import 恢复历史边时被置空覆盖！）
+            const validTo = edge.validTo !== undefined ? edge.validTo : null;
+            const active = edge.active !== undefined ? edge.active !== false : (validTo === null);
+
             const fullEdge = {
                 ...edge,
                 id,
                 from,
                 to,
                 label,
-                validFrom: floor,
-                validTo: null,
-                active: edge.active !== false,
+                validFrom,
+                validTo,
+                active,
                 timestamp: Date.now()
             };
             this.edges.set(id, fullEdge);
@@ -3755,8 +3793,37 @@
             return summary;
         }
         // 活跃（未折叠）摘要
-        getActiveSummaries() { return this.summaries.filter(s => !s.folded); }
+        // 活跃（未折叠且非休眠）摘要
+        // [v3.38] 语义级休眠与激活机制（TriviumDB 双区记忆理念）: 长期未涉足的旧摘要自动进入休眠态
+        getActiveSummaries() { return this.summaries.filter(s => !s.folded && !s.dormant); }
         search(query) { return this.getActiveSummaries().filter(s => s.text.includes(query)).slice(0, 5); }
+        
+        // [v3.38] 标记休眠：超过 threshold 楼层未提及且非高重要度的已折叠旧摘要进入休眠
+        markDormant(currentFloor, threshold = 30) {
+            for (const s of (this.summaries || [])) {
+                if (!s.folded) continue;
+                const dist = currentFloor - (s.floor || 0);
+                if (dist > threshold && (s.importance || 5) < 8 && !s.awakened) {
+                    s.dormant = true;
+                }
+            }
+        }
+        // [v3.38] 实体引燃休眠伏笔唤醒：当出现相关实体时，休眠记忆苏醒
+        awakenByEntities(entities) {
+            const awakened = [];
+            if (!Array.isArray(entities) || !entities.length) return awakened;
+            for (const s of (this.summaries || [])) {
+                if (s.dormant) {
+                    const hit = entities.some(e => e && e.length >= 2 && s.text && s.text.includes(e));
+                    if (hit) {
+                        s.dormant = false;
+                        s.awakened = true;
+                        awakened.push(s);
+                    }
+                }
+            }
+            return awakened;
+        }
         // [v1.9] P1: 层级折叠——活跃摘要超过阈值时，把最早一批用 LLM 合并成卷摘要
         async maybeFold(config, llm) {
             if (this.folding || !config?.summaryFoldEnabled) return null;
@@ -4630,7 +4697,7 @@
             if (!forceTrigger && every > 0 && (floor - this._lastReflectFloor) < every) return 0;
             if (this._running) return 0;
             this._running = true;
-            this._lastReflectFloor = floor;
+            // [v3.38] 延迟更新 _lastReflectFloor，仅当成功产生反思时才记录
             try {
                 const ctx = window.SillyTavern?.getContext?.();
                 const chat = ctx?.chat || [];
@@ -4654,7 +4721,8 @@ ${recentInsights}
 ${contradictions}`;
                 const raw = await llm.callAPI(prompt);
                 if (!raw) return 0;
-                const m = String(raw).match(/\{[\s\S]*\}/);
+                const sanitized = sanitizeJson(raw);
+                const m = String(sanitized).match(/\{[\s\S]*\}/);
                 if (!m) return 0;
                 const parsed = JSON.parse(m[0]);
                 const insight = String(parsed?.insight || '').trim();
@@ -4666,6 +4734,7 @@ ${contradictions}`;
                     importance: Math.min(10, Math.max(1, Number(parsed?.importance) || 5)),
                     timestamp: Date.now()
                 });
+                this._lastReflectFloor = floor;
                 if (this.items.length > 20) this.items.shift();
                 return 1;
             } catch (e) { return 0; }
@@ -4885,6 +4954,7 @@ ${win}`;
                     if (data.charMem && engine.charMem) engine.charMem.import(data.charMem);
                     if (data.worldProg && engine.worldProg) engine.worldProg.import(data.worldProg);
                     if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); }   // [v3.3] 加载即对账（补 fp/自愈/清理）
+                    if (typeof data.narrativeEntropy === 'number') engine._narrativeEntropy = data.narrativeEntropy;
                 }
                 return data;
             } catch (err) { return null; }

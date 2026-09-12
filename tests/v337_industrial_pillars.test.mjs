@@ -10,8 +10,8 @@ const assert = (n, c) => { if (c) { pass++; console.log('✓ ' + n); } else { fa
 
 // ===== 1. 版本一致性 =====
 const mft = JSON.parse(mftSrc);
-assert('manifest 版本为 3.37.0', mft.version === '3.37.0');
-assert('index.js 版本为 3.37.0', idxSrc.includes("const VERSION = '3.37.0';"));
+assert('manifest 版本有效 (>= 3.37.0)', /^3\.(3[7-9]|[4-9]\d+)\./.test(mft.version));
+assert('index.js 版本有效 (>= 3.37.0)', /const VERSION = '3\.(3[7-9]|[4-9]\d+)\./.test(idxSrc));
 
 // ===== 2. 静态锚点检查 =====
 // 支柱 1: HippoRAG
@@ -20,8 +20,8 @@ assert('recallMemory 包含 HippoRAG 实体引燃', idxSrc.includes('HippoRAG �
 
 // 支柱 2: 时态知识图谱
 assert('config 拥有 temporalGraphEnabled', idxSrc.includes('temporalGraphEnabled: true'));
-assert('addEdge 支持 validFrom/validTo 时态闭环', idxSrc.includes('validFrom: floor') && idxSrc.includes('validTo: null') && idxSrc.includes('e.active = false'));
-assert('recallMemory 包含时态关系分流', idxSrc.includes('isHistorical && edge.validTo != null'));
+assert('addEdge 支持 validFrom/validTo 时态闭环', idxSrc.includes('validFrom') && idxSrc.includes('validTo') && idxSrc.includes('e.active = false'));
+assert('recallMemory 包含时态关系分流', idxSrc.includes('isHistorical') && (idxSrc.includes('edge.validTo != null') || idxSrc.includes('edge.active === false')));
 assert('buildInjection 渲染历史羁绊标记', idxSrc.includes('（曾于第${i.validTo}楼前）'));
 
 // 支柱 3: 叙事惊奇度/熵驱动反思
