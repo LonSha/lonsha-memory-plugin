@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.32.0';
+    const VERSION = '3.33.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -141,6 +141,70 @@
             // 剥掉内层子标签（Nub/Title 等），只保留正文概括
             return content.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
         } catch (e) { return null; }
+    }
+
+    // [v3.33] AI 主动记忆操作符解析（st-memory-enhancement AI 编辑表格理念轻量版）：从回复原文提取 <field>/<todo>/<item> 标签并转为结构化操作，供后端 applyChanges/addTodos/itemOps 直接纳入。能力与主线 LLM 提取互补（主动写高置信覆盖，被动提取保底全量）
+    function extractMemoryOpsFromText(text) {
+        try {
+            const out = { changes: [], todos: [], items: [] };
+            const src = String(text || '');
+            if (!src.includes('<')) return out;
+            const re = /<(field|todo|item)\s*:\s*([^>]+?)>\s*/gi;
+            let m;
+            while ((m = re.exec(src)) && out.changes.length + out.todos.length + out.items.length < 30) {
+                const kind = m[1].toLowerCase();
+                const body = String(m[2] || '').trim();
+                if (!body) continue;
+                if (kind === 'field') {
+                    // <field:角色.字段=值或增量>
+                    const eq = body.indexOf('=');
+                    if (eq < 1) continue;
+                    const lhs = body.slice(0, eq).trim();
+                    const val = body.slice(eq + 1).trim();
+                    if (!val) continue;
+                    const dot = lhs.indexOf('.');
+                    if (dot < 1) continue;
+                    const character = lhs.slice(0, dot).trim();
+                    const field = lhs.slice(dot + 1).trim();
+                    if (!character || !field) continue;
+                    const chg = { character, field };
+                    if (/^[+-]\d+([.]\d+)?$/.test(val)) chg.delta = Number(val);
+                    else chg.value = val;
+                    out.changes.push(chg);
+                } else if (kind === 'todo') {
+                    // <todo:角色.事项|日期>
+                    const bar = body.indexOf('|');
+                    const lhs = bar > 0 ? body.slice(0, bar) : body;
+                    const dot = lhs.indexOf('.');
+                    const character = (dot > 0 ? lhs.slice(0, dot) : lhs).trim();
+                    const text = (dot > 0 ? lhs.slice(dot + 1) : '').trim();
+                    const date = bar > 0 ? body.slice(bar + 1).trim() : '';
+                    if (!character || !text) continue;
+                    out.todos.push({ character, text, date });
+                } else if (kind === 'item') {
+                    // <item:取得=角色.物品名|描述> 或 <item:失去=角色.物品名>
+                    const eq = body.indexOf('=');
+                    if (eq < 1) continue;
+                    const action = body.slice(0, eq).trim();
+                    const rest = body.slice(eq + 1).trim();
+                    const dot = rest.indexOf('.');
+                    if (dot < 1) continue;
+                    const holder = rest.slice(0, dot).trim();
+                    const rest2 = rest.slice(dot + 1);
+                    const bar = rest2.indexOf('|');
+                    const name = (bar > 0 ? rest2.slice(0, bar) : rest2).trim();
+                    const desc = bar > 0 ? rest2.slice(bar + 1).trim() : '';
+                    if (!holder || !name) continue;
+                    out.items.push({ action: action === '失去' ? 'update' : 'add', name, desc, holder, state: action === '失去' ? '丢失' : '' });
+                }
+            }
+            return out;
+        } catch (e) { return { changes: [], todos: [], items: [] }; }
+    }
+    // 移除回复中的 AI 记忆操作符标签（压缩为空，不污染对话道白）
+    function stripMemoryOpsTags(text) {
+        try { return String(text || '').replace(/<\/?(field|todo|item)\s*:[^>]*?>/gi, ''); }
+        catch (e) { return text; }
     }
 
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
@@ -332,6 +396,10 @@
                 // [v3.27] 命中监控 + synopsis 轻量提取 + 触发词按需注入（MemoryPilot + AnchorNote）
                 trailMonitor: true,             // 记录最近一次召回轨迹（settings-ui 状态面板展示）
                 synopsisFastPath: true,         // AI 回复已含 <synopsis> 标签时正则直取（省 LLM 调用）
+                // [v3.33] AI 主动记忆操作符（st-memory-enhancement AI 编辑表格理念的轻量版）：AI 在回复中写标签主动更新状态/待办/物品
+                aiRecallOps: true,               // 总开关：允许 AI 用 <field>/<todo>/<item> 标签主动写记忆
+                aiRecallOpsMaxPerFloor: 12,     // 每楼最多归入主动操作数
+                aiRecallOpsDebug: false,        // 调试日志
                 onDemandTriggerPhrase: '',      // 触发词按需注入长指令（空=关闭该功能；填「请生成锚点日记」等）
                 // [v3.28] 三级金字塔 + 记忆树路由（st-memory-wizzard 本地轻量版）
                 historicalFoldThreshold: 12,    // 卷摘要（周记）积累多少条后折叠成史记
@@ -901,6 +969,12 @@
             const _tc = extractThinkingChain(message.mes || message.content || '');
             // [v3.29] synopsis 快速路径需原始文本——cleanMessageText 会剥 <synopsis> 标签，故在清洗前快照原文
             const _rawForSynopsis = String(_tc.content || message.content || '');
+            // [v3.33] AI 主动记忆操作符：从原文提取 <field>/<todo>/<item> 标签（清洗前，因为 cleanMessageText 会剥标签）
+            const aiRecallOps = this.config.config.aiRecallOps ? extractMemoryOpsFromText(_rawForSynopsis) : null;
+            if (aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) {
+                if (this.config.config.aiRecallOpsDebug) console.log(`[${PLUGIN_NAME}] 主动记忆操作: 字段${aiRecallOps.changes.length} 待办${aiRecallOps.todos.length} 物品${aiRecallOps.items.length} (楼层 ${message.index})`);
+                _tc.content = stripMemoryOpsTags(_tc.content);
+            }
             message.mes = this.cleanMessageText(_tc.content);
             if (_tc.thinking) {
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 思维链已分流 (楼层 ${message.index}, ${_tc.thinking.length} 字)`);
@@ -939,6 +1013,18 @@
                     }
                 }
                 if (!extracted) extracted = await this.extractMemoryWithLLM(message);
+                // [v3.33] AI 主动记忆操作 merged into extracted: high-confidence writes override/augment passive LLM extraction
+                if (aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) {
+                    extracted = extracted || { characters: [], events: [], relationships: [], summary: "" };
+                    extracted.status_changes = [...(extracted.status_changes || []), ...aiRecallOps.changes];
+                    extracted.todos = [...(extracted.todos || []), ...aiRecallOps.todos];
+                    extracted.items = [...(extracted.items || []), ...aiRecallOps.items];
+                    // [v3.33] 每楼主动操作数上限（防 AI 滥用标签洪流）
+                    const _cap = Number(this.config.config.aiRecallOpsMaxPerFloor) || 12;
+                    if (extracted.status_changes.length > _cap) extracted.status_changes = extracted.status_changes.slice(-_cap);
+                    if (extracted.todos.length > _cap) extracted.todos = extracted.todos.slice(-_cap);
+                    if (extracted.items.length > _cap) extracted.items = extracted.items.slice(-_cap);
+                }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 提取:`, extracted);
                 
                 // [v1.7] RubyPhone 联动①: LLM 提取结果回填手机记忆库
