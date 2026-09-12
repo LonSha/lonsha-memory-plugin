@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.2.2';
+    const VERSION = '3.3.1';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -67,6 +67,28 @@
     function clearInjectSlots() {
         writeInjectSlot('lonsha_memory', '', 0);
         writeInjectSlot('lonsha_memory_history', '', 9999);
+    }
+
+    // [v3.3] 台账重放化：楼层指纹（位置无关的消息身份）——编辑/swipe/删楼后对账用。
+    // 范式: baibai 叶子 leafValid（失效≠删除）+ yuzuki getMessageSignature（role|swipe|hash|gen）。
+    // 与楼层号解耦: 删楼后消息前移，指纹仍能重新定位（自愈）；翻 swipe 时 swipe 段变化（失活/复活）。
+    function hash32(str) {
+        let h = 0x811c9dc5;
+        const s = String(str || '');
+        for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+        return (h >>> 0).toString(16).padStart(8, '0');
+    }
+    function msgTextOf(m) {
+        try {
+            const sw = Math.max(0, Math.round(Number(m?.swipe_id) || 0));
+            if (Array.isArray(m?.swipes) && typeof m.swipes[sw] === 'string') return m.swipes[sw];
+            return String(m?.mes || m?.content || m?.text || '');
+        } catch (e) { return ''; }
+    }
+    function msgFpOf(m) {
+        try {
+            return [(m?.is_user === true || m?.role === 'user') ? 'u' : 'a', Math.max(0, Math.round(Number(m?.swipe_id) || 0)), hash32(msgTextOf(m)), String(m?.send_date || m?.extra?.send_date || '')].join('|');
+        } catch (e) { errLog(e, 'V33.msgFpOf'); return ''; }
     }
 
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
@@ -621,10 +643,14 @@
                         const scN = this.scene.apply(extracted.scenes, message.index || 0);
                         if (extracted.location) this.scene.setLocation(message.index || 0, extracted.location);
                         // [v2.8] RT-C: 物品台账应用（ops 真源记录，回滚可重放）
+                        // [v3.3] 台账重放化：op 带楼层指纹 fp；同楼旧提取先清（新提取=该楼当前文本的权威记忆，覆盖该楼任何旧 ops）
                         if (this.config.config.itemLedgerEnabled && Array.isArray(extracted.items) && extracted.items.length) {
+                            const fpNow = msgFpOf(message);
+                            const floorNow = message.index || 0;
+                            if (fpNow) this.itemOps = (this.itemOps || []).filter(o => !(o && o.floor === floorNow && o.fp !== fpNow));
                             for (const it of extracted.items) {
                                 if (!it?.name) continue;
-                                this.itemOps.push({ floor: message.index || 0, ...it });
+                                this.itemOps.push({ floor: floorNow, fp: fpNow, ...it });
                             }
                             this.rebuildItems();
                         }
@@ -979,10 +1005,17 @@
             } catch (e) { errLog(e, 'DF3.sanitizeItemOp'); return null; }
         }
         rebuildItems() {
+            // [v3.3] 台账重放化：只应用「指纹匹配当前聊天」的 ops（baibai leafValid 语义——
+            // 编辑/swipe 自动失活、翻回复活、删楼自愈；carried（携带自旧档）/无 fp（旧数据）不过滤）
+            let chat = null;
+            try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) {}
+            const liveFp = chat ? new Set(chat.map(m => msgFpOf(m))) : null;
             const map = new Map();
+            let skipped = 0;
             for (const rawOp of (this.itemOps || [])) {
                 const op = this._sanitizeItemOp(rawOp);   // [v3.2] DF3: 渲染前清洗（真源不动，旧档兼容）
                 if (!op) continue;
+                if (chat && rawOp && rawOp.fp && rawOp.carried !== true && !liveFp.has(rawOp.fp)) { skipped++; continue; }
                 const exist = map.get(op.name);
                 if (op.action === 'add' && !exist) {
                     map.set(op.name, { name: op.name, desc: String(op.desc || '').slice(0, 80), holder: String(op.holder || '').slice(0, 20), state: '完好', floor: op.floor });
@@ -992,15 +1025,64 @@
                     exist.floor = op.floor;
                 }
             }
-            // [v3.2] DF3: 派生视图硬上限（真源 itemOps 不裁剪，回滚语义不受影响）
+            // [v3.2] DF3: 派生视图硬上限（真源 itemOps 不裁剪，重放语义不受影响）
             this.items.records = Array.from(map.values()).slice(-25);
+            this.items._stale = skipped;   // [v3.3] 失活计数（selfCheck 展示）
         }
-        // 物品回滚（真源过滤+重放）
+        // [v3.3] 台账重放化：楼层回滚改为「全量指纹对账」（不再硬过滤——
+        // 编辑楼 f 只失活 f 自己的 ops，f+1.. 楼指纹未变继续生效；删楼前移按指纹重新定位自愈）
         rollbackItemsFrom(floor) {
-            const before = (this.itemOps || []).length;
-            this.itemOps = (this.itemOps || []).filter(o => o.floor < floor);
-            if (this.itemOps.length !== before) this.rebuildItems();
-            return before - this.itemOps.length;
+            return this.reconcileItemOps();
+        }
+        reconcileItemOps() {
+            let removed = 0, healed = 0, adopted = 0;
+            try {
+                let chat = null;
+                try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) {}
+                if (!chat) { this.rebuildItems(); return 0; }
+                const byFp = new Map();   // fp → [floor...]（保序）
+                chat.forEach((m, i) => { const fp = msgFpOf(m); if (!fp) return; const arr = byFp.get(fp); if (arr) arr.push(i); else byFp.set(fp, [i]); });
+                const next = [];
+                for (const op of (this.itemOps || [])) {
+                    if (!op || typeof op !== 'object') continue;
+                    if (op.carried === true) { next.push(op); continue; }   // 携带自旧档：无对应楼层，永久有效
+                    if (!op.fp) {
+                        // 旧档迁移：按当前楼层补采指纹；楼不存在则清理
+                        const m = chat[op.floor];
+                        if (m) { op.fp = msgFpOf(m); adopted++; next.push(op); } else { removed++; }
+                        continue;
+                    }
+                    const positions = byFp.get(op.fp);
+                    if (positions && positions.length) {
+                        // 自愈：指纹在聊天中重新定位（删楼前移等）→ 取最接近原 floor 的位置
+                        let best = positions[0];
+                        for (const p of positions) { if (Math.abs(p - op.floor) < Math.abs(best - op.floor)) best = p; }
+                        if (op.floor !== best) { op.floor = best; healed++; }
+                        next.push(op);
+                    } else if (Math.floor(Number(op.floor) || 0) >= chat.length) {
+                        removed++;   // 楼整体不存在且指纹全局无匹配 → 清理
+                    } else {
+                        next.push(op);   // 楼在但文本已变（编辑/swipe）→ 保留失活（可能翻回复活）
+                    }
+                }
+                this.itemOps = next;
+                this.rebuildItems();
+            } catch (e) { errLog(e, 'V33.reconcileItemOps'); }
+            if ((removed || healed || adopted) && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 台账对账: 清理 ${removed} / 自愈 ${healed} / 补采 ${adopted}`);
+            return removed;
+        }
+        // [v3.3] 当前有效 ops 列表（打包/导出用）：carried 或指纹匹配当前聊天；无 fp 旧档保留（下游标 carried 兜底）
+        activeItemOps() {
+            let chat = null;
+            try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) {}
+            if (!chat) return [...(this.itemOps || [])];
+            const liveFp = new Set(chat.map(m => msgFpOf(m)));
+            return (this.itemOps || []).filter(o => {
+                if (!o || typeof o !== 'object') return false;
+                if (o.carried === true) return true;
+                if (!o.fp) return true;
+                return liveFp.has(o.fp);
+            });
         }
 
         // [v2.9] RU-B: 记忆优化器（抄 shujuku optimization——防长对话记忆无限膨胀）
@@ -1588,7 +1670,7 @@
                 try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
-                try { const ni = this.rollbackItemsFrom ? this.rollbackItemsFrom(floor) : 0; if (ni && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 物品回滚: ${ni}条ops`); } catch (e) { errLog(e, 'rollbackFloor.物品回滚'); }
+                try { const ni = this.rollbackItemsFrom ? this.rollbackItemsFrom(floor) : 0; if (ni && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 台账对账: 清理 ${ni} 条失效ops`); } catch (e) { errLog(e, 'rollbackFloor.台账对账'); }
                 try { if (this.reflection?.items?.length) this.reflection.items = this.reflection.items.filter(r => r.floor !== floor); } catch (e) { errLog(e, 'rollbackFloor.反思回滚'); }
                 // [v2.2] RC: 回滚该楼层登记/了结的悬念簿条目
                 try {
@@ -1643,7 +1725,7 @@
                     povs: this.pov?.export?.() || [],
                     diary: this.diary?.export?.() || { diaries: {} },
                     reflection: this.reflection?.export?.() || { items: [] },
-                    itemOps: [...(this.itemOps || [])],
+                    itemOps: this.activeItemOps(),   // [v3.3] 只携带当前有效的 ops（失活项不得以 carried 形式永久化到新对话）
                     scene: this.config.config.sceneEnabled ? this.scene.export() : null,
                     vectors: this.config.config.vectorEnabled ? this.vector.export() : null,
                     counts: {
@@ -1673,7 +1755,7 @@
                 try { if (Array.isArray(pack.povs) && pack.povs.length && this.pov?.import) this.pov.import(pack.povs); } catch (e) { errLog(e, 'applyCarryover.graph'); }
                 try { if (pack.diary && this.diary?.import) this.diary.import(pack.diary); } catch (e) { errLog(e, 'applyCarryover.pov'); }
                 try { if (pack.reflection && this.reflection?.import) this.reflection.import(pack.reflection); } catch (e) { errLog(e, 'applyCarryover.diary'); }
-                try { if (Array.isArray(pack.itemOps)) { this.itemOps = pack.itemOps; this.rebuildItems(); } } catch (e) { errLog(e, 'applyCarryover.itemOps'); }
+                try { if (Array.isArray(pack.itemOps)) { this.itemOps = pack.itemOps.map(o => ({ ...o, carried: true })); this.rebuildItems(); } } catch (e) { errLog(e, 'applyCarryover.itemOps'); }   // [v3.3] 携带包：无对应楼层，标 carried 永久有效
                 try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) { errLog(e, 'applyCarryover.scene'); }
                 try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
@@ -1708,7 +1790,7 @@
                     ['时间线', `${this.timeline.entries.length} 条`],
                     ['悬念簿', `${this.suspense.items.filter(x => x.status === 'open').length} 开放 / ${this.suspense.items.length} 总`],
                     ['场景树', `${this.scene.nodes.size} 节点 / ops ${this.scene.opsLog.length}`],
-                    ['物品台账', `${this.items.records.length} 件 / ops ${this.itemOps.length}`],
+                    ['物品台账', `${this.items.records.length} 件 / ops ${this.itemOps.length}${this.items._stale ? `（失活 ${this.items._stale}）` : ''}`],
                     ['反思', `${this.reflection.items.length} 条`],
                     ['POV', `${this.pov.povs.length} 条`],
                     ['角色状态', `${Object.keys(this.status.characters || {}).length} 人`],
@@ -2904,7 +2986,7 @@ ${win}`;
                     if (data.scene && engine.scene) engine.scene.import(data.scene);
                     if (data.echo && engine.echo) engine.echo.import(data.echo);
                     if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
-                    if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; engine.rebuildItems?.(); }
+                    if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); }   // [v3.3] 加载即对账（补 fp/自愈/清理）
                 }
                 return data;
             } catch (err) { return null; }
@@ -3084,6 +3166,8 @@ ${win}`;
                             // 同时清掉该楼之后的账本残留（删楼会连锁前移）
                             const after = plugin.engine.ledger.floorsAfter(floor);
                             for (const f of after.reverse()) plugin.engine.rollbackFloor(f);
+                            // [v3.3] 台账重放化：删除后全量对账——删除点之前的楼层前移，ops 按指纹自愈重定位
+                            try { plugin.engine.reconcileItemOps?.(); } catch (e) { errLog(e, 'V33.删楼全量对账'); }
                         } catch (err) {
                             if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);
                         }

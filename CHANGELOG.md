@@ -1,4 +1,17 @@
 # 更新日志
+## v3.3.1 (2026-09-12) - 台账重放化（研究收编：baibai leafValid + yuzuki 签名对账）📒
+### 🟠 核心升级：物品台账楼层指纹重放化
+- **旧问题**：`rollbackItemsFrom` 按「floor < f 硬过滤」——编辑楼 f 时 f+1.. 楼的物品记忆被级联误杀（不可恢复）；楼层号是位置不是身份。
+- **修复（位置无关指纹）**：op 记录楼层指纹 `fp = role|swipe|textHash|send_date`（范式：baibai 叶子身份 + yuzuki getMessageSignature）；
+  - **编辑/swipe → 自动失活**：指纹不匹配当前聊天，渲染层跳过（数据不删，翻回可复活）；
+  - **删楼 → 自愈**：指纹在聊天中重新定位，ops.floor 自动修正（位置迁移不影响记忆归属）；
+  - **同楼重提取**：新提取覆盖旧 fp 的 ops（该楼当前文本的权威记忆）；
+  - **旧档迁移**：无 fp 旧 ops 按当前楼层补采指纹；楼不存在则清理；
+  - **carried 直通**：携带自旧对话的 ops（无对应楼层）永久有效；
+  - **打包过滤**：carryover 只携带当前有效 ops（失活项不以 carried 形式永久化到新对话）；
+  - **同步**：加载恢复点即对账、删楼处理器补齐全量对账、selfCheck 展示失活计数。
+### ✅ 测试
+- `tests/v330_ledger_replay.test.mjs`（17 项）：指纹行为（内容/编辑/swipe/角色段）+ 重放过滤（失活·复活·carried·旧档）+ 对账六场景（自愈/保留失活/补采/清理/carried直通/越界清理）+ activeItemOps 打包过滤。
 ## v3.2.2 (2026-09-12) - DF 防御包（研究收编）🛡️
 ### 🔴 重大修复：DF5 注入参数错位——"注入深度配置化"自 v2.8 起从未真正生效
 - **根因**：旧调用 `setExtensionPrompt(key, content, depth, true, 4)` 与 ST 标准签名 `(prompt_id, content, position, depth, scan, role, filter)` 错位——配置深度值落进了 position 位（D0 时 position=0 非 IN_CHAT、D2 时 position=2 为非法值）、`true` 落进 depth 位、`4` 落进 scan 位（意外开启绿灯扫描）。
