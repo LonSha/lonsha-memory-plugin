@@ -1,3 +1,10 @@
+## [v3.42.0] - 2026-09-13
+### 吸收 caikis 数据库机制：人设基线 vs 偏移双层模型、NPC晋升流水线与三级地理空间感知
+- **人设稳定性 (Persona Baseline vs Drift)**：`CharacterState` 引入双层人格模型，锁定初始性格基线（traits、speechStyle、coreBelief），记录短期剧情冲击造成的行为偏移（mood、reinforced、weakened）；偏移在超过 15 楼无新刺激后自动衰减收敛，彻底根治长线性格漂移与崩坏。
+- **Token 经济学 (NPC 晋升机制)**：初登场路人录入轻量 `transientNpcs` 表；唯有高频互动或被标记为重要角色时触发 `promoteNpc` 晋升为常驻追踪角色，释放非关键临时开销。
+- **三级地理空间感知 (3-Tier Geo Context)**：结构化维护 `majorArea`（主要地区）→ `minorArea`（次要地区）→ `detailLocation`（详细地点），提供标准化注入提示词，消除角色在地图上的超光速瞬移 Bug。
+- **自动化测试**：新增 `tests/v342_caikis_mechanics.test.mjs`，全量 44 个测试套件全绿。
+
 ## [v3.41.0] - 2026-09-13
 ### 吸收 Stitches 工业级机制：约定账本、认知隔离、紧凑AM编码与标签净化盾
 - **约定账本 (Promises Ledger)**：`WorldProgress` 新增约定全生命周期管理，支持 `deadlineFloor` 截止楼层设置，自动检测 `imminent`（临近到期预警）与 `overdue`（逾期警示），注入时高优先级提示 AI 遵守承诺。

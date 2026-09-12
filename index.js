@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.41.0';
+    const VERSION = '3.42.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4614,11 +4614,123 @@
     class CharacterState {
         constructor() {
             this.characters = {};   // { 角色名: { fields: {...}, todos: [...], updatedAt, floor } } (派生缓存)
-            // [v2.3] RD: 事件溯源真源——每楼一条 op {floor, changes, todos}, 状态由重放推导 (抄 baibai delta-replay)
             this.ops = [];
             this.MAX_OPS = 500;
             this.MAX_FIELDS = 24;
             this.MAX_TODOS = 12;
+
+            // [v3.42] 吸收 caikis: 人设基线与短期人设偏移 (Baseline vs Drift)
+            this.baselines = {};    // { [name]: { traits: [], speechStyle: '', coreBelief: '', lockedAtFloor, updatedAt } }
+            this.drifts = {};       // { [name]: { mood: '', reinforced: '', weakened: '', behaviorChange: '', floor: 0, updatedAt } }
+            // [v3.42] 吸收 caikis: NPC 晋升机制 (Promotion Pipeline)
+            this.transientNpcs = {};// 轻量路人 { [name]: { identity, firstSeenFloor, lastSeenFloor, meetCount } }
+            this.trackedNpcs = new Set(); // 晋升为常驻深度追踪的角色
+            // [v3.42] 吸收 caikis: 三级地理空间感知 (3-Tier Geo Context)
+            this.geoContext = { majorArea: '', minorArea: '', detailLocation: '', floor: 0, updatedAt: 0 };
+        }
+
+        // ===== [v3.42] 吸收 caikis: 人设基线 (Baseline) vs 人设偏移 (Drift) =====
+        setBaseline(name, b = {}) {
+            if (!name) return null;
+            this.baselines[name] = {
+                traits: Array.isArray(b.traits) ? b.traits : (b.traits ? [b.traits] : []),
+                speechStyle: b.speechStyle || '',
+                coreBelief: b.coreBelief || '',
+                lockedAtFloor: Number(b.floor) || 0,
+                updatedAt: Date.now()
+            };
+            return this.baselines[name];
+        }
+        recordDrift(name, d = {}) {
+            if (!name) return null;
+            this.drifts[name] = {
+                mood: d.mood || '',
+                reinforced: d.reinforced || '',
+                weakened: d.weakened || '',
+                behaviorChange: d.behaviorChange || '',
+                floor: Number(d.floor) || 0,
+                updatedAt: Date.now()
+            };
+            return this.drifts[name];
+        }
+        getEffectivePersona(name, currentFloor = 0) {
+            const base = this.baselines[name];
+            const drift = this.drifts[name];
+            if (!base && !drift) return { name, hasDrift: false, description: '' };
+            const f = Number(currentFloor) || 0;
+            // 超过 15 楼无新刺激，性格偏移衰减收敛
+            const driftAge = drift ? Math.max(0, f - (drift.floor || 0)) : 999;
+            const hasActiveDrift = !!(drift && driftAge <= 15);
+
+            const parts = [];
+            if (base) {
+                if (base.traits.length) parts.push(`核心性格：${base.traits.join('、')}`);
+                if (base.speechStyle) parts.push(`用语习惯：${base.speechStyle}`);
+                if (base.coreBelief) parts.push(`基线定海神针：${base.coreBelief}`);
+            }
+            if (hasActiveDrift) {
+                parts.push(`【近期人设偏移·第${drift.floor}楼受刺激】`);
+                if (drift.mood) parts.push(`当前心境：${drift.mood}`);
+                if (drift.reinforced) parts.push(`被强化侧面：${drift.reinforced}`);
+                if (drift.weakened) parts.push(`被弱化：${drift.weakened}`);
+                if (drift.behaviorChange) parts.push(`行为模式变化：${drift.behaviorChange}`);
+            }
+            return {
+                name,
+                hasDrift: hasActiveDrift,
+                baseline: base,
+                drift: hasActiveDrift ? drift : null,
+                description: parts.join('；')
+            };
+        }
+
+        // ===== [v3.42] 吸收 caikis: NPC 晋升机制 (Promotion Pipeline) =====
+        registerTransientNpc(name, info = {}) {
+            if (!name || this.trackedNpcs.has(name)) return;
+            if (!this.transientNpcs[name]) {
+                this.transientNpcs[name] = {
+                    name,
+                    identity: info.identity || '路人',
+                    firstSeenFloor: Number(info.floor) || 0,
+                    lastSeenFloor: Number(info.floor) || 0,
+                    meetCount: 1
+                };
+            } else {
+                const rec = this.transientNpcs[name];
+                rec.lastSeenFloor = Number(info.floor) || rec.lastSeenFloor;
+                rec.meetCount = (rec.meetCount || 1) + 1;
+                if (info.identity) rec.identity = info.identity;
+            }
+            return this.transientNpcs[name];
+        }
+        promoteNpc(name) {
+            if (!name) return false;
+            this.trackedNpcs.add(name);
+            delete this.transientNpcs[name];
+            return true;
+        }
+        isNpcTracked(name) {
+            return this.trackedNpcs.has(name);
+        }
+
+        // ===== [v3.42] 吸收 caikis: 三级地理空间感知 (3-Tier Geo Context) =====
+        setGeoLocation(geo = {}) {
+            this.geoContext = {
+                majorArea: geo.majorArea || '',
+                minorArea: geo.minorArea || '',
+                detailLocation: geo.detailLocation || '',
+                floor: Number(geo.floor) || 0,
+                updatedAt: Date.now()
+            };
+            return this.geoContext;
+        }
+        getGeoLocation() {
+            return this.geoContext;
+        }
+        getGeoPrompt() {
+            const g = this.geoContext;
+            if (!g || (!g.majorArea && !g.minorArea && !g.detailLocation)) return '';
+            return `〔当前地理位置〕主要地区: ${g.majorArea || '未知'} | 次要地区: ${g.minorArea || '未知'} | 详细地点: ${g.detailLocation || '未知'}`;
         }
         // [v2.3] ops 记录 (同楼覆盖式: 重复提取同楼时后写覆盖前写, 重放幂等)
         _logOp(floor, kind, items) {
@@ -4745,15 +4857,34 @@
             }
             return out.slice(0, limit);
         }
-        export() { return { characters: this.characters, ops: this.ops }; }
+        export() {
+            return {
+                characters: this.characters,
+                ops: this.ops,
+                baselines: this.baselines || {},
+                drifts: this.drifts || {},
+                transientNpcs: this.transientNpcs || {},
+                trackedNpcs: Array.from(this.trackedNpcs || []),
+                geoContext: this.geoContext || {}
+            };
+        }
         import(data) {
             if (data && typeof data === 'object' && data.characters) {
                 this.characters = data.characters;
                 this.ops = Array.isArray(data.ops) ? data.ops : [];
+                this.baselines = data.baselines || {};
+                this.drifts = data.drifts || {};
+                this.transientNpcs = data.transientNpcs || {};
+                this.trackedNpcs = new Set(Array.isArray(data.trackedNpcs) ? data.trackedNpcs : []);
+                this.geoContext = data.geoContext || { majorArea: '', minorArea: '', detailLocation: '', floor: 0, updatedAt: 0 };
             } else {
-                // 旧格式 (v2.2 之前): 纯 characters 对象, ops 从零开始积累
                 this.characters = (data && typeof data === 'object') ? data : {};
                 this.ops = [];
+                this.baselines = {};
+                this.drifts = {};
+                this.transientNpcs = {};
+                this.trackedNpcs = new Set();
+                this.geoContext = { majorArea: '', minorArea: '', detailLocation: '', floor: 0, updatedAt: 0 };
             }
         }
     }

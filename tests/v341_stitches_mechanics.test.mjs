@@ -33,7 +33,7 @@ const normFn = (n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim
 const errLog = () => {};
 
 console.log('=== 1. 静态关键锚点与版本检查 ===');
-assert.ok(src.includes("const VERSION = '3.41.0';"), '版本号必须递增至 3.41.0');
+assert.ok(/const VERSION = '3\.(4[1-9]|[5-9]\d+)\./.test(src), '版本号必须有效 (>= 3.41.0)');
 assert.ok(src.includes('addPromise') && src.includes('checkPromises'), 'WorldProgress 必须实现约定账本 (Promises Ledger)');
 assert.ok(src.includes('markUnaware') && src.includes('getReEntryNotice'), 'WorldProgress 必须实现认知隔离 (Cognitive Horizon)');
 assert.ok(src.includes('generateAMIndex') && src.includes('resolveByAMCodes'), 'SummarySystem 必须实现紧凑 AM 记忆地址编码');
