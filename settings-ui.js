@@ -411,12 +411,26 @@
                     <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新对话开局用）</button>
                 </div>
                 <button class="ls-btn" id="ls-snap-restore">🗄️ 快照恢复</button>
+                <button class="ls-btn" id="ls-backfill">🔧 补提取缺失楼层</button>
                 <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
             `;
 
             const overlay = makeSheet('lonsha-settings-overlay', '⚙️ 记忆引擎设置', body);
             // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
             overlay.querySelector('#ls-snap-restore').addEventListener('click', () => { plugin.showSnapshotRestore(); });
+            // [v3.5] 补提取缺失楼层
+            overlay.querySelector('#ls-backfill').addEventListener('click', async () => {
+                const engine = plugin.engine;
+                const missing = engine.scanMissingFloors();
+                if (!missing.length) { toast('✅ 没有缺失楼层，记忆全覆盖'); return; }
+                const preview = missing.slice(0, 10).join(', ') + (missing.length > 10 ? ` … 共 ${missing.length} 楼` : '');
+                if (!confirm(`发现 ${missing.length} 个楼层无记忆（AI 楼）。补提取将调用 API 逐楼提取，是否继续？\n\n楼层: ${preview}`)) return;
+                toast(`🔧 补提取中…（${Math.min(missing.length, 30)} 楼，需一些时间）`);
+                const done = await engine.backfillFloors(missing, (idx, d) => {
+                    if ((d.ok + d.fail) % 5 === 0) toast(`🔧 补提取进度: ${d.ok + d.fail}/${Math.min(missing.length, 30)}`);
+                });
+                toast(`✅ 补提取完成: ${done.ok} 成功 / ${done.fail} 失败 / ${done.skipped} 跳过`);
+            });
 
             // 滑块实时显示
             overlay.querySelectorAll('input[type=range]').forEach(r => {

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.4.1';
+    const VERSION = '3.5.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1085,6 +1085,89 @@
             });
         }
 
+        // [v3.5] 补提取：扫出「AI 楼且无摘要」的缺口（插件禁用期/提取失败/中途安装的场景）
+        // 判定：非 user、非系统、非番外楼、正文非空、且 summaries 无该楼层记录
+        scanMissingFloors() {
+            const missing = [];
+            try {
+                const chat = window.SillyTavern?.getContext?.()?.chat;
+                if (!Array.isArray(chat)) return missing;
+                const covered = new Set((this.summary?.summaries || []).map(s => s.floor));
+                // 番外楼（lonsha_omit）与空楼跳过；user 楼不提取（提取管线只处理 AI 楼）
+                for (let i = 0; i < chat.length; i++) {
+                    const m = chat[i];
+                    if (!m || m.is_user) continue;
+                    if (m.is_system === true) continue;
+                    if (this.isOmittedFloor(m)) continue;
+                    const text = String(m.mes || '').trim();
+                    if (!text) continue;
+                    if (covered.has(i)) continue;
+                    missing.push(i);
+                }
+            } catch (e) { errLog(e, 'BF.scanMissingFloors'); }
+            return missing;
+        }
+        // [v3.5] 补提取指定楼层（复跑提取管线——复用 onMessageReceived 的提取段，但跳过摘要回滚等）
+        // 上限保护：单次最多 30 楼（防一次扫全车）；带互斥锁防与实时提取并发
+        async backfillFloors(floors, onProgress) {
+            const done = { ok: 0, fail: 0, skipped: 0 };
+            try {
+                const acquired = await this.mutex.acquire();
+                if (!acquired) { console.warn(`[${PLUGIN_NAME}] 补提取排队超时（实时提取进行中）`); return done; }
+                try {
+                    const chat = window.SillyTavern?.getContext?.()?.chat || [];
+                    const list = (Array.isArray(floors) ? floors : []).slice(0, 30);
+                    for (const idx of list) {
+                        const m = chat[idx];
+                        if (!m || !String(m.mes || '').trim()) { done.skipped++; continue; }
+                        try {
+                            // 复用主管线消息对象构造（与 onMessageReceived 相同语义）
+                            const msg = { ...m, index: idx };
+                            msg.mes = this.cleanMessageText(msg.mes || '');
+                            if (!msg.mes) { done.skipped++; continue; }
+                            const extracted = await this.extractMemoryWithLLM(msg);
+                            // 只补「图谱节点/关系 + 摘要」核心两类（保召回可用）；细粒度子系统（状态/悬念/物品）交后续实时楼带动
+                            // 去重纪律：addNode 不去重（每次新 id）——补提取对角色节点先查后建，防历史重灌放大重复
+                            if (extracted?.characters) {
+                                for (const char of extracted.characters) {
+                                    try {
+                                        const canonical = this.resolveCharacterName(char);
+                                        const exist = this.graph.findByNames([canonical]).some(n => n.type === 'character');
+                                        if (!exist) this.graph.addNode({type: 'character', name: canonical, data: {source: msg.mes}});
+                                    } catch (e) {}
+                                }
+                            }
+                            if (extracted?.events) {
+                                for (const event of extracted.events) {
+                                    try {
+                                        const nodeId = this.graph.addNode({type: 'event', name: event.type, data: {...event, backfillFloor: idx}});
+                                        for (const p of (event.participants || [])) {
+                                            try { this.graph.addEdge({from: p, to: nodeId, label: 'participated_in'}); } catch (e) {}
+                                        }
+                                    } catch (e) {}
+                                }
+                            }
+                            if (extracted?.relationships) {
+                                for (const rel of extracted.relationships) {
+                                    try {
+                                        this.graph.addEdge({from: this.resolveCharacterName(rel.from), to: this.resolveCharacterName(rel.to), label: rel.type, weight: 1.0, data: {attitude: rel.attitude || 'neutral', note: rel.note || ''}});
+                                    } catch (e) {}
+                                }
+                            }
+                            if (extracted?.summary) await this.summary.createSummary(msg, extracted.summary);
+                            done.ok++;
+                            if (typeof onProgress === 'function') { try { onProgress(idx, done); } catch (e) {} }
+                        } catch (e) { errLog(e, `BF.backfill.floor${idx}`); done.fail++; }
+                    }
+                } finally { if (this.config.config.extractionLockEnabled) this.mutex.release(); }
+            } catch (e) { errLog(e, 'BF.backfillFloors'); }
+            if (done.ok || done.fail) {
+                try { await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
+            }
+            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 补提取完成: ${done.ok}成/${done.fail}败/${done.skipped}跳`);
+            return done;
+        }
+
         // [v2.9] RU-B: 记忆优化器（抄 shujuku optimization——防长对话记忆无限膨胀）
         optimizeMemory() {
             let removed = 0;
@@ -1791,6 +1874,7 @@
                     ['悬念簿', `${this.suspense.items.filter(x => x.status === 'open').length} 开放 / ${this.suspense.items.length} 总`],
                     ['场景树', `${this.scene.nodes.size} 节点 / ops ${this.scene.opsLog.length}`],
                     ['物品台账', `${this.items.records.length} 件 / ops ${this.itemOps.length}${this.items._stale ? `（失活 ${this.items._stale}）` : ''}`],
+                    ['补提取', `${this.scanMissingFloors().length} 个楼层无记忆（可在设置面板补提取）`],
                     ['反思', `${this.reflection.items.length} 条`],
                     ['POV', `${this.pov.povs.length} 条`],
                     ['角色状态', `${Object.keys(this.status.characters || {}).length} 人`],
