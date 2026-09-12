@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.23.0';
+    const VERSION = '3.24.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -762,6 +762,11 @@
             if (!Array.isArray(recalled) || !recalled.length) return;
             _recallDedupState.lastTexts = recalled.map(r => String(r.text || r.summary || r.name || '')).filter(Boolean).slice(0, 12);
         } catch (e) {}
+    }
+    // [v3.23.1] 跨调用去重指纹重置（NE-Memory 补救）: 事件清理 _recallCache 时同步清空 dedup 指纹，
+    // 防编辑/swipe/删楼后旧楼层文本残留导致新内容被误标"已覆盖"
+    function resetRecallDedup() {
+        try { _recallDedupState.lastTexts = null; _recallDedupState.lastQuery = ''; _recallDedupState.lastChatId = ''; } catch (e) {}
     }
     class MemoryEngine {
         constructor(config) {
@@ -4399,6 +4404,8 @@ ${win}`;
                 if (types.CHAT_CHANGED) {
                     eventSource.on(types.CHAT_CHANGED, async () => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
+                        // [v3.23.1] 换对话同步清空 dedup 指纹（防旧对话文本误标新对话）
+                        try { resetRecallDedup(); } catch (e) { errLog(e, 'events.CHAT_CHANGED去重清空'); }
                         // [v3.2] DF1/DF5: 清空注入槽位（setExtensionPrompt 持久化，旧聊天注入会残留到新聊天；GENERATION_STARTED 若仍活跃会立即重新注入）
                         try { clearInjectSlots(); } catch (e) { errLog(e, 'events.CHAT_CHANGED槽位清空'); }
                         // [v3.9] SF2: 基线重置（换聊天后用新聊天的长度，防旧基线误报批量删除）
@@ -4426,6 +4433,8 @@ ${win}`;
                 if (types.MESSAGE_EDITED) {
                     eventSource.on(types.MESSAGE_EDITED, (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_EDITED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
+                        // [v3.23.1] 编辑楼同步清空 dedup 指纹（防编辑后的新内容被旧指纹误标）
+                        try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_EDITED去重清空'); }
                         try {
                             const f = Number(messageId);
                             if (!Number.isFinite(f) || f < 0) return;
@@ -4443,6 +4452,8 @@ ${win}`;
                 }
                 if (types.MESSAGE_SWIPED) {
                     eventSource.on(types.MESSAGE_SWIPED, (messageId) => {
+                        // [v3.23.1] swipe 重roll后同步清空 dedup 指纹（防旧 swipe 文本残留误标新回复）
+                        try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_SWIPED去重清空'); }
                         try {
                             const f = Number(messageId);
                             if (Number.isFinite(f) && f >= 0) {
@@ -4465,6 +4476,8 @@ ${win}`;
                 if (types.MESSAGE_DELETED) {
                     eventSource.on(types.MESSAGE_DELETED, async (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
+                        // [v3.23.1] 删楼同步清空 dedup 指纹（防删楼后残留指纹误标后续召回）
+                        try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_DELETED去重清空'); }
                         // [v3.1] SF2: 渲染切片保护（抄 stbme history-safety——删除 payload 不可靠，批量删除时警告）
                         try {
                             const c = window.SillyTavern?.getContext?.();

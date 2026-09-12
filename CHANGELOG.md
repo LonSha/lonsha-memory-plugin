@@ -1,4 +1,26 @@
 # 更新日志
+## v3.24.0 (2026-09-12) - 跨调用去重指纹同步重置（NE-Memory 收编完整性）🩹
+
+> 收编完整性审计：v3.23 引入的跨调用去重 `_recallDedupState` 未在事件处理器清理 `_recallCache` 时同步重置——编辑/swipe/删楼后旧楼层文本指纹残留，导致**新内容被误标「已覆盖·防复读」**（连续追问去重机制在新楼层内容上误伤）。
+
+### 修复
+
+新增 `resetRecallDedup()` 顶层函数（清空 lastTexts/lastQuery/lastChatId 三字段），并在 4 个事件处理器同步接入：
+
+| 事件 | 场景 | 效果 |
+|---|---|---|
+| `CHAT_CHANGED` | 切换对话 | 防旧对话文本指纹误标新对话 |
+| `MESSAGE_EDITED` | 编辑楼层 | 防编辑后的新内容被旧指纹误标 |
+| `MESSAGE_DELETED` | 删除楼层 | 防删楼后残留指纹误标后续召回 |
+| `MESSAGE_SWIPED` | 重roll/翻swipe | 防旧 swipe 文本残留误标新回复 |
+
+### 测试
+
+- 新增 tests/v324_dedup_reset.test.mjs（10 项：resetRecallDedup 存在 + 四事件接入 + 三字段全清 + v3.23 功能回归）
+- v324 版本断言容灾式（>= 3.24）
+- 全量回归 24 文件 288 项全过
+
+全量回归 288 项。
 ## v3.23.0 (2026-09-12) - NE-Memory 收编（断崖截断/时间感知/跨调用去重/迁移恢复）📦
 
 > 收编来源：Melody-0321/NE-Memory（SillyTavern 叙事事件记忆引擎，TH 运行，完整源码 + CODE_WIKI/BUGS 文档）
