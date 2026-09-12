@@ -1,4 +1,22 @@
 # 更新日志
+## v3.30.0 (2026-09-12) - 记忆矛盾换代（supersede）🕊
+> 移植 Paramecium「原文是唯一真相」/ RubyPhone supersede-engine 的纯规则机制（MIT）。
+> 解决「角色换了工作/搬了家/戒了奶茶，旧信息还在召回里打架」——新事实出现时旧记忆自动让位。
+
+### 新增
+1. **memory-supersede.js 独立模块**（manifest extra_js 加载，挂 `window.LonShaSupersede`）
+   - 纯规则零 LLM：2-gram overlap 相似度闸门 + 主题锚点反义立场词表（奶茶/住所/饮食/工作/宠物/情感）
+   - 新记忆分量足且高置信冲突 → 旧条目标记 `superseded` 退出召回（原文保留、可逆）
+   - 压制方消失/被换代 → 旧条自动复活（链式换代走链）
+2. **onMessageReceived 接入**：摘要创建后与新活跃摘要做高置信冲突扫描，标记 superseded 并累计 `statsSuperseded`
+3. **recallMemory 接入**：召回前过滤 superseded 摘要（`sum_<floor>` key 判定），被换代记忆不再进入 prompt
+4. **持久化**：`supersede.supersededMap` 随 chatMetadata 存档/恢复（楼层回滚自动复活对应被压条目）
+5. **配置**：`supersedeEnabled`（总开关默认开）+ `supersedeScanPool`（扫描池大小 30）
+
+### 验证
+- tests/supersede.test.mjs（9 项单元）+ tests/supersede-integration.test.mjs（5 项端到端）全绿
+- 全量语法门 0 失败
+
 ## v3.29.0 (2026-09-12) - 收编完整性审计修复（史记折叠空转 + synopsis 清洗冲突）🔬
 
 > 第八轮审计（链路完整性 + 组合推演）：审计 v3.23-v3.28 连续六版密集收编，抓到 2 个僵尸链路/冲突 bug。

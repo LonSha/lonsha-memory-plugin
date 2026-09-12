@@ -338,6 +338,10 @@
                 vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
                 summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
                 optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
+                // [v3.30] PV: 记忆矛盾换代（supersede）——新记忆与旧记忆高置信冲突时旧条退出召回
+                supersedeEnabled: true,          // 总开关
+                supersedeScanPool: 30,           // 每次扫描池大小
+
             };
             this.loadConfig();
         }
@@ -842,6 +846,12 @@
             this.scene = new SceneBook();
             // [v2.5] RF
             this.echo = new EchoPool();
+            // [v3.30] PV: 记忆矛盾换代（window.LonShaSupersede）
+            this.supersede = new (window.LonShaSupersede?.SupersedeManager || function() {
+                this.supersededMap = {}; this.config = {};
+                this.scan = () => []; this.isSuperseded = () => false;
+                this.revive = () => 0; this.export = () => ({supersededMap:{}}); this.import = () => {};
+            })();
         }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
@@ -1113,6 +1123,26 @@
 
                 const summary = await this.summary.createSummary(message, extracted?.summary);
                 
+                // [v3.30] PV: 记忆矛盾换代 —— 新摘要与既有活跃摘要做高置信冲突检测, 旧条 superseded 退出召回
+                if (window.LonShaSupersede && this.config.config.supersedeEnabled) {
+                    try {
+                        const newKey = 'sum_' + (message.index || 0);
+                        const activeSumsLc = this.summary.getActiveSummaries()
+                            .map(s => ({ key: 'sum_' + s.floor, text: s.text, importance: s.importance || extracted?.importance || 5 }));
+                        const newSumsLc = activeSumsLc.filter(s => s.key === newKey);
+                        const oldSumsLc = activeSumsLc.filter(s => s.key !== newKey)
+                            .slice(-(this.config.config.supersedeScanPool || 30));
+                        const supersededLc = newSumsLc.length
+                            ? this.supersede.scan(newSumsLc, oldSumsLc)
+                            : [];
+                        if (supersededLc.length) {
+                            this.statsSuperseded = (this.statsSuperseded || 0) + supersededLc.length;
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🕊 矛盾换代: ${supersededLc.length} 条旧记忆被新事实压制`);
+                        }
+                        this.supersede.revive(activeSumsLc.map(s => s.key));
+                    } catch (e) { errLog(e, 'onMessageReceived.supersede'); }
+                }
+                
                 // [v2.5] RF: 活人感日记——每N楼一次批量生成登场角色第一人称日记
                 if (this.config.config.livingDiary) {
                     try {
@@ -1208,6 +1238,7 @@
                         suspense: this.suspense.export(),
                         scene: this.scene.export(),
                         echo: this.echo.export(),
+                        supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
                         version: VERSION
                     });
                 }
@@ -2333,6 +2364,16 @@
                     results.pov = this.pov.search(owners, this.config.config.povMaxPerTurn || 3)
                         .map(p => ({id: p.id, owner: p.owner, text: p.content, floor: p.floor, source: 'pov'}));
                 }
+            }
+            
+            // [v3.30] PV: superseded 摘要排除 —— 被换代压制的记忆退出召回
+            if (window.LonShaSupersede && this.config.config.supersedeEnabled && results.summary?.length) {
+                try {
+                    results.summary = results.summary.filter(item => {
+                        const key = item.id || (item.source === 'summary' ? 'sum_' + item.floor : null);
+                        return !(key && this.supersede.isSuperseded(key));
+                    });
+                } catch (e) { errLog(e, 'recallMemory.supersede过滤'); }
             }
             
             // [v2.3] RD: 两阶段精排 (抄 baibai recall: 多路粗召回 → LLM rerank 精排)
@@ -4468,6 +4509,7 @@ ${win}`;
                     if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
                     if (data.scene && engine.scene) engine.scene.import(data.scene);
                     if (data.echo && engine.echo) engine.echo.import(data.echo);
+                    if (data.supersede && engine.supersede) engine.supersede.import(data.supersede);
                     if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
                     // [v3.16] 角色记忆银行 + 世界推进恢复
                     if (data.charMem && engine.charMem) engine.charMem.import(data.charMem);
