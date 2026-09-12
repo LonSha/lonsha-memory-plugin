@@ -9,8 +9,8 @@ const assert = (n, c) => { if (c) { pass++; console.log('✓ ' + n); } else { fa
 
 // ===== 1. 版本一致性 =====
 const mft = JSON.parse(mftSrc);
-assert('manifest 版本为 3.36.0', mft.version === '3.36.0');
-assert('index.js 版本为 3.36.0', idxSrc.includes("const VERSION = '3.36.0';"));
+assert('manifest 版本有效 (>= 3.36.0)', /^3\.(3[6-9]|[4-9]\d+)\./.test(mft.version));
+assert('index.js 版本有效 (>= 3.36.0)', /const VERSION = '3\.(3[6-9]|[4-9]\d+)\./.test(idxSrc));
 
 // ===== 2. 静态锚点检查 =====
 assert('index.js 拥有 normalizeItemKey', idxSrc.includes('static normalizeItemKey(name)'));

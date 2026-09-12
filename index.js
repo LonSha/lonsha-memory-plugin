@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.36.0';
+    const VERSION = '3.37.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -201,10 +201,23 @@
             return out;
         } catch (e) { return { changes: [], todos: [], items: [] }; }
     }
-    // 移除回复中的 AI 记忆操作符标签（压缩为空，不污染对话道白）
+    // 移除回复中的 AI 记忆操作符与物理时间标签（压缩为空，不污染对话道白）
     function stripMemoryOpsTags(text) {
-        try { return String(text || '').replace(/<\/?(field|todo|item)\s*:[^>]*?>/gi, ''); }
+        try { return String(text || '').replace(/<\/?(field|todo|item|time|date|bbs_time)\s*:[^>]*?>/gi, ''); }
         catch (e) { return text; }
+    }
+    // [v3.37] 提取正文中的物理时间标签锚点（抄 baibai 正文时间锚点理念，零API同步）
+    function extractTimeTagFast(text) {
+        try {
+            const s = String(text || '');
+            if (!s.includes('<')) return null;
+            const m = /<(?:time|date|bbs_time)\s*:\s*([^>]+?)>/i.exec(s);
+            if (m && m[1]) {
+                const rawTime = m[1].trim();
+                if (rawTime.length >= 2 && rawTime.length <= 40) return rawTime;
+            }
+            return null;
+        } catch (e) { return null; }
     }
 
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
@@ -425,7 +438,13 @@
                 // [v3.30] PV: 记忆矛盾换代（supersede）——新记忆与旧记忆高置信冲突时旧条退出召回
                 supersedeEnabled: true,          // 总开关
                 supersedeScanPool: 30,           // 每次扫描池大小
-
+                // [v3.37] 工业级体系化演进新配置：
+                hippoDiffusionEnabled: true,     // HippoRAG 双路引燃扩散（BM25/实体联合做种子）
+                temporalGraphEnabled: true,      // 时态图谱（有效区间 validFrom/To + 历史追溯）
+                entropyReflectionEnabled: true,  // 叙事熵/惊奇度累加器驱动自适应反思
+                entropyThreshold: 15,            // 触发自适应反思的惊奇度累积阈值
+                timeTagAnchorEnabled: true,      // 正文时间标签物理锚点快速提取
+                cacheFriendlyInjection: true,    // Prompt Cache 友好型冷热槽位分流
             };
             this.loadConfig();
         }
@@ -918,6 +937,8 @@
             this._archivedFloorIds = new Set();   // 已被插件归档隐藏的楼层（可恢复）
             // [v3.27] 命中轨迹记录（MemoryPilot monitor）: 最近一次召回详情供面板诊断
             this._lastRecallTrace = null;   // { query, sources, hitCount, durationMs, ts, triggerHit }
+            // [v3.37] 叙事惊奇度/熵累加器（MemGPT 动态反思理念）
+            this._narrativeEntropy = 0;
             this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
             this.config = config;
             this.graph = new MemoryGraph();
@@ -986,8 +1007,11 @@
             const _rawForSynopsis = String(_tc.content || message.content || '');
             // [v3.33] AI 主动记忆操作符：从原文提取 <field>/<todo>/<item> 标签（清洗前，因为 cleanMessageText 会剥标签）
             const aiRecallOps = this.config.config.aiRecallOps ? extractMemoryOpsFromText(_rawForSynopsis) : null;
-            if (aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) {
-                if (this.config.config.aiRecallOpsDebug) console.log(`[${PLUGIN_NAME}] 主动记忆操作: 字段${aiRecallOps.changes.length} 待办${aiRecallOps.todos.length} 物品${aiRecallOps.items.length} (楼层 ${message.index})`);
+            // [v3.37] 物理时间标签锚点：从原文提取 <time>/<date> 标签（baibai 理念，零API同步）
+            const timeTagFound = (this.config.config.timeTagAnchorEnabled !== false) ? extractTimeTagFast(_rawForSynopsis) : null;
+            if ((aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) || timeTagFound) {
+                if (aiRecallOps && this.config.config.aiRecallOpsDebug) console.log(`[${PLUGIN_NAME}] 主动记忆操作: 字段${aiRecallOps.changes.length} 待办${aiRecallOps.todos.length} 物品${aiRecallOps.items.length} (楼层 ${message.index})`);
+                if (timeTagFound && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 物理时间标签命中: ${timeTagFound} (楼层 ${message.index})`);
                 _tc.content = stripMemoryOpsTags(_tc.content);
             }
             message.mes = this.cleanMessageText(_tc.content);
@@ -1040,6 +1064,12 @@
                     if (extracted.todos.length > _cap) extracted.todos = extracted.todos.slice(-_cap);
                     if (extracted.items.length > _cap) extracted.items = extracted.items.slice(-_cap);
                 }
+                // [v3.37] 物理时间标签优先赋权盖章（baibai 权威时间同步）
+                if (timeTagFound) {
+                    extracted = extracted || { characters: [], events: [], relationships: [], summary: "" };
+                    extracted.story_date = timeTagFound;
+                    this._lastStoryDateSeen = timeTagFound;
+                }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 提取:`, extracted);
                 
                 // [v1.7] RubyPhone 联动①: LLM 提取结果回填手机记忆库
@@ -1089,10 +1119,12 @@
                 if (extracted?.relationships) {
                     for (const rel of extracted.relationships) {
                         // [v1.5] 单向主观关系：主名归并 + attitude 三值入边数据
+                        // [v3.37] 传入时态楼层 floor（时态图谱 Zep 理念）
                         this.graph.addEdge({
                             from: this.resolveCharacterName(rel.from),
                             to: this.resolveCharacterName(rel.to),
                             label: rel.type, weight: 1.0,
+                            floor: message.index || 0,
                             data: {attitude: rel.attitude || 'neutral', note: rel.note || ''}
                         });
                     }
@@ -1279,19 +1311,50 @@
                 if (this.config.config.livingDiary) {
                     try {
                         const dn = await this.diary.generateLiving(this.config.config, this.llm, extracted?.characters ? this.getKnownCharacters() : [], message.index || 0);
-                        // [v2.8] RT-B: 反思生成（每N楼节流，与日记独立）
-                        try { if (this.config.config.reflectionEnabled) await this.reflection.generate(this.config.config, this.llm, this, message.index || 0); } catch (e) { errLog(e, 'onMessageReceived.反思生成'); }
-                        // [v2.9] RU-B: 定期记忆优化（每N楼防膨胀）
-                        try {
-                            const oEvery = this.config.config.optimizeEveryFloors || 50;
-                            if (!this._lastOptimizeFloor || (message.index || 0) - this._lastOptimizeFloor >= oEvery) {
-                                this._lastOptimizeFloor = message.index || 0;
-                                this.optimizeMemory();
-                            }
-                        } catch (e) { errLog(e, 'onMessageReceived.优化器'); }
                         if (dn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 活人感日记 +${dn} 条`);
                     } catch (e) { errLog(e, 'onMessageReceived.POV状态回收'); }
                 }
+
+                // [v3.37] 叙事惊奇度/熵累加器（MemGPT 动态反思理念）
+                let deltaEntropy = 0;
+                let hasTurnaround = false;
+                if (Array.isArray(extracted?.events)) {
+                    for (const ev of extracted.events) {
+                        const imp = Number(ev.importance) || 5;
+                        if (imp >= 9) { deltaEntropy += 6; hasTurnaround = true; }
+                        else if (imp >= 7) { deltaEntropy += 3; }
+                        else if (imp >= 5) { deltaEntropy += 1; }
+                    }
+                }
+                if (Array.isArray(extracted?.status_changes) && extracted.status_changes.length) {
+                    deltaEntropy += Math.min(5, extracted.status_changes.length);
+                }
+                if (Array.isArray(extracted?.plans_resolve) && extracted.plans_resolve.length) {
+                    deltaEntropy += extracted.plans_resolve.length * 4;
+                }
+                this._narrativeEntropy = (this._narrativeEntropy || 0) + deltaEntropy;
+                const entropyThresh = Number(this.config.config.entropyThreshold || 15);
+                const isEntropyTriggered = this.config.config.entropyReflectionEnabled !== false && (this._narrativeEntropy >= entropyThresh || hasTurnaround);
+
+                // [v2.8] RT-B + [v3.37]: 反思生成（周期节流 OR 惊奇度冲顶自适应触发，与日记独立）
+                try {
+                    if (this.config.config.reflectionEnabled) {
+                        const didReflect = await this.reflection.generate(this.config.config, this.llm, this, message.index || 0, isEntropyTriggered);
+                        if (didReflect) {
+                            this._narrativeEntropy = 0;
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 💡 触发反思提炼（${isEntropyTriggered ? '惊奇度自适应' : '周期节流'}）`);
+                        }
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.反思生成'); }
+
+                // [v2.9] RU-B: 定期记忆优化（每N楼防膨胀）
+                try {
+                    const oEvery = this.config.config.optimizeEveryFloors || 50;
+                    if (!this._lastOptimizeFloor || (message.index || 0) - this._lastOptimizeFloor >= oEvery) {
+                        this._lastOptimizeFloor = message.index || 0;
+                        this.optimizeMemory();
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.优化器'); }
                 
                 if (this.config.config.vectorEnabled) {
                     // [v3.13] 场外信号拼入向量素材（只影响检索，不进注入文本）
@@ -2270,6 +2333,25 @@
             if (query.characters?.length > 0) {
                 results.graph = this.graph.findByNames(query.characters);
                 results.diary = this.diary.search(query.characters);
+
+                // [v3.37] 时态知识图谱（Temporal Graph, Zep 理念）：按查询意图区分活跃与历史羁绊
+                try {
+                    const isHistorical = /当年|曾经|以前|旧怨|旧事|过去|往事|回忆|最初/i.test(query.text || '');
+                    const charNodeIds = new Set((results.graph || []).map(n => n.id));
+                    const relEdges = [];
+                    for (const edge of this.graph.edges.values()) {
+                        if (charNodeIds.has(edge.from) || charNodeIds.has(edge.to)) {
+                            if (edge.active !== false) {
+                                relEdges.push(edge);
+                            } else if (isHistorical && edge.validTo != null) {
+                                relEdges.push({ ...edge, historical: true });
+                            }
+                        }
+                    }
+                    if (relEdges.length) {
+                        results.relations = relEdges.slice(0, 6);
+                    }
+                } catch (e) { errLog(e, 'recallMemory.时态关系'); }
                 // [v3.28] 记忆树路由召回（st-memory-wizzard 本地轻量版，无需第二模型）:
                 // 用图谱角色节点做「树路径」，命中角色的邻接事件/关系/物品作为该角色子树召回
                 // 无前快模型时用现有 host 召回替代路由（角色→图谱边→关联记忆）
@@ -2326,7 +2408,29 @@
                 // Phase 3: 图扩散增强召回
                 if (this.config.config.graphDiffusionEnabled && window.LonShaMemory?.diffusion) {
                     try {
-                        const seedNodes = results.graph.slice(0, 3);
+                        let seedNodes = [...(results.graph || [])];
+                        if (this.config.config.hippoDiffusionEnabled !== false) {
+                            // [v3.37] HippoRAG 双路引燃扩散：从 BM25 / 道具中提取高频匹配实体节点加入扩散种子
+                            const entityCandidates = new Set();
+                            (results.bm25 || []).slice(0, 5).forEach(b => {
+                                if (b.text) {
+                                    for (const [nid, node] of this.graph.nodes) {
+                                        if (node.name && node.name.length >= 2 && b.text.includes(node.name)) entityCandidates.add(node);
+                                    }
+                                }
+                            });
+                            (results.items || []).slice(0, 3).forEach(it => {
+                                if (it.text) {
+                                    for (const [nid, node] of this.graph.nodes) {
+                                        if (node.name && node.name.length >= 2 && it.text.includes(node.name)) entityCandidates.add(node);
+                                    }
+                                }
+                            });
+                            for (const cand of entityCandidates) {
+                                if (!seedNodes.some(s => s.id === cand.id)) seedNodes.push(cand);
+                            }
+                        }
+                        seedNodes = seedNodes.slice(0, 5);
                         if (seedNodes.length > 0) {
                             // [v3.25] 不应期疲劳：滚轮前先衰减疲劳计数（防永久封印，TriviumDB Refractory）
                             for (const [k, v] of this._diffusionFatigue) {
@@ -2751,8 +2855,19 @@
                 blocks.push('[角色关系]');
                 relations.forEach(i => {
                     const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : '中立';
-                    blocks.push(`- ${i.from || i.name} → ${i.to || ''}：${i.label || '相关'}[${att}]`);
+                    const fromName = this.graph.nodes.get(i.from)?.name || i.from || i.name;
+                    const toName = this.graph.nodes.get(i.to)?.name || i.to || '';
+                    const histNote = (i.active === false && i.validTo != null) ? `（曾于第${i.validTo}楼前）` : '';
+                    blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}]${histNote}`);
                 });
+            }
+            // [v3.37] Prompt Cache 友好优化：活跃阶段周记随底层动态槽注入
+            if (this.config.config.cacheFriendlyInjection !== false && this.summary.getActiveVolumes) {
+                const activeVols = this.summary.getActiveVolumes().slice(-2);
+                if (activeVols.length) {
+                    blocks.push('[阶段进展·周记]');
+                    activeVols.forEach(v => blocks.push(`- （第${v.floorStart}-${v.floorEnd}楼）${v.text}`));
+                }
             }
             if (treeNotes.length) {
                 // [v3.28] 记忆树路由召回（st-memory-wizzard）
@@ -3145,11 +3260,13 @@
             } catch (e) { return false; }
         }
         // [v3.1] SF6: 卷摘要顶部注入
+        // [v3.37] Prompt Cache 友好优化：开启 cacheFriendlyInjection 时，顶槽(9999)只写入绝对稳定的【史记】
+        // 只要无新史记折叠，顶槽字符串保持绝对恒定，确保大模型持续命中 Prefix Caching！
         buildVolumeInjection() {
             try {
-                // [v3.28] 三级金字塔注入: 史记(最高层) + 活跃周记(中层) + 最新卷(近层)
                 const his = (this.summary.historical || []).slice(-3);
-                const vols = this.summary.getActiveVolumes ? this.summary.getActiveVolumes().slice(-3) : (this.summary.volumes || []).slice(-3);
+                const isCacheFriendly = this.config.config.cacheFriendlyInjection !== false;
+                const vols = isCacheFriendly ? [] : (this.summary.getActiveVolumes ? this.summary.getActiveVolumes().slice(-3) : (this.summary.volumes || []).slice(-3));
                 if (!his.length && !vols.length) return '';
                 const parts = [];
                 if (his.length) parts.push('【史记·跨阶段总览】' + his.map(h => h.text).join('\n'));
@@ -3522,9 +3639,38 @@
             }
             return id;
         }
+        // [v3.37] 时态知识图谱（Temporal Graph, Zep/Graphiti 理念）:
+        // 记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记 closed 并开辟新时态边
         addEdge(edge) {
-            const id = `${edge.from}-${edge.to}-${edge.label || 'related'}`;
-            this.edges.set(id, {...edge, id, timestamp: Date.now()});
+            const from = String(edge.from || '');
+            const to = String(edge.to || '');
+            const label = String(edge.label || 'related');
+            const floor = Math.max(0, Math.round(Number(edge.floor ?? edge.validFrom ?? 0)));
+            const id = `${from}-${to}-${label}`;
+
+            if (label !== 'participated_in') {
+                for (const [existingId, e] of this.edges) {
+                    if (e.from === from && e.to === to && e.label !== 'participated_in' && e.active !== false) {
+                        if (e.label !== label) {
+                            e.active = false;
+                            e.validTo = floor;
+                        }
+                    }
+                }
+            }
+
+            const fullEdge = {
+                ...edge,
+                id,
+                from,
+                to,
+                label,
+                validFrom: floor,
+                validTo: null,
+                active: edge.active !== false,
+                timestamp: Date.now()
+            };
+            this.edges.set(id, fullEdge);
             return id;
         }
         findByNames(names) {
@@ -4477,10 +4623,11 @@
     class ReflectionSystem {
         constructor() { this.items = []; this._lastReflectFloor = -1; this._running = false; }
         /** 反思生成：抽最近窗口剧情+已知矛盾区，产出 {insight,trigger,suggestion,importance} */
-        async generate(config, llm, engine, floor) {
+        // [v3.37] 扩展 forceTrigger 支持惊奇度冲顶自适应触发
+        async generate(config, llm, engine, floor, forceTrigger = false) {
             const every = Math.max(0, Number(config.reflectEveryFloors || 10));
             if (!config.reflectionEnabled || !llm) return 0;
-            if (every > 0 && (floor - this._lastReflectFloor) < every) return 0;
+            if (!forceTrigger && every > 0 && (floor - this._lastReflectFloor) < every) return 0;
             if (this._running) return 0;
             this._running = true;
             this._lastReflectFloor = floor;
