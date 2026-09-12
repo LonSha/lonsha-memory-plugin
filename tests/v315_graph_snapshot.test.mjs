@@ -142,10 +142,13 @@ global.window = { LonShaMemory: { engine: { config: { config: { debugMode: false
   if (!src.includes('this._snapshots = []; this.SNAP_MAX = 6;')) fail('ST4 初始化');
   ok('ST4: 初始化 _snapshots + SNAP_MAX=6');
 }
-// ST5: 版本号
+// ST5: 版本号已前进（>= v3.15）
 {
-  if (!src.includes("VERSION = '3.15.0'")) fail('ST5 版本号');
-  ok('ST5: 版本号 3.15.0');
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST5 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 15) || (M === 3 && m === 15 && p >= 0))) fail('ST5 版本号过低: ' + vm[1]);
+  ok('ST5: 版本号已前进 (>=3.15.0): ' + vm[1]);
 }
 
 console.log(`\n✓ v3.15 图谱版本快照测试全过 (${pass} 项)`);

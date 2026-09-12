@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.15.0';
+    const VERSION = '3.16.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -245,6 +245,12 @@
                 // [v2.4] RE: 场景树 + 在场分档 + 查询重写
                 sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
                 presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
+                // [v3.16] zhino 三核心开关
+                charMemEnabled: true,        // 角色记忆银行（两层记忆）
+                neuralChainEnabled: true,    // 神经链召回（链1+链2）
+                worldProgressEnabled: false, // 世界推进（默认关，需观察效果后开）
+                worldProgressEveryFloors: 2,
+                worldProgressMaxCandidates: 2,
                 queryRewrite: false,           // 生成前用小模型重写检索查询（需API，提升召回命中）
                 // [v2.5] RF: 回响池 + 活人感日记 + 每N楼提取 + 反思
                 echoEnabled: true,             // 回响池（抄anima：召回过的记忆停留N轮防闪烁）
@@ -514,6 +520,8 @@
             this.graph = new MemoryGraph();
             this.summary = new SummarySystem();
             this.diary = new DiarySystem();
+            this.charMem = new CharacterMemoryBank();   // [v3.16] 角色记忆银行（核心/近期两层）
+            this.worldProg = new WorldProgress();        // [v3.16] 世界推进（不在场角色）
             this.reflection = new ReflectionSystem();  // [v2.8] RT-B 反思系统
             this.items = { records: [] };               // [v2.8] RT-C 物品台账（派生缓存）
             this._lastStoryDate = null;                 // [v2.9] RU-A 主动时间推进的锚点
@@ -670,6 +678,36 @@
                     }
                     if (povCount && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] POV私密记忆 +${povCount}`);
                 }
+                // [v3.16] 角色记忆银行写入（收编 zhino 两层记忆）: 近期=每轮摘要; 核心=关系变化/约定/重大事件
+                if (this.config.config.charMemEnabled && extracted) {
+                    try {
+                        const floor = message.index || 0;
+                        // 近期记忆: 当前角色最近发生了什么
+                        const chars = (extracted.characters || []).slice(0, 5);
+                        if (chars.length && extracted.summary) {
+                            for (const ch of chars) {
+                                const cn = this.resolveCharacterName(ch);
+                                this.charMem.addRecent(cn, extracted.summary.slice(0, 120), floor);
+                            }
+                        }
+                        // 核心记忆: 关系变化（关系建立/恶化）、约定/目标新立
+                        for (const rel of (extracted.relationships || [])) {
+                            const att = rel?.attitude;
+                            if (att === 'positive' || att === 'negative') {
+                                const a = this.resolveCharacterName(rel.from), b = this.resolveCharacterName(rel.to);
+                                const coreText = `${a}与${b}关系（${att === 'positive' ? '友好' : '对立'}）`;
+                                this.charMem.addCore(a, coreText, floor);
+                                this.charMem.addCore(b, coreText, floor);
+                            }
+                        }
+                        for (const pl of (extracted.plans || [])) {
+                            if (pl?.contentIsNew && pl.content) {
+                                const owner = (pl.character && this.resolveCharacterName(pl.character)) || (chars[0] && this.resolveCharacterName(chars[0]));
+                                if (owner) this.charMem.addCore(owner, `约定/目标: ${String(pl.content).slice(0, 100)}`, floor);
+                            }
+                        }
+                    } catch (e) { errLog(e, 'onMessageReceived.charMem写入'); }
+                }
 
                 // [v1.8] P0: 写入剧情时间线
                 if (this.config.config.plotTimeline && extracted?.summary) {
@@ -809,6 +847,13 @@
                 if (this.config.config.summaryFoldEnabled) {
                     try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
                 }
+                // [v3.16] 世界推进触发: 每 EVERY_FLOORS 楼标记 pending，等下次生成前推演（独立于摘要折叠开关）
+                try {
+                    const wpEvery = Number(this.config.config.worldProgressEveryFloors || (this.worldProg?.EVERY_FLOORS || 2));
+                    if (this.config.config.worldProgressEnabled && wpEvery > 0 && (message.index || 0) % wpEvery === 0) {
+                        this.worldProg.markPending();
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.世界推进标记'); }
 
                 // [v3.1] SF2: 更新聊天长度基线（供删除事件对比，防渲染切片误判）
                 try { this._lastKnownChatLen = (window.SillyTavern?.getContext?.()?.chat?.length) || this._lastKnownChatLen; } catch (e) { errLog(e, 'SF2.基线更新'); }
@@ -830,8 +875,9 @@
                         }
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 快照失败:`, e); }
                     await this.storage.save(chatId, {
-                        graph: this.graph.export(),
-                        summaries: this.summary.export(),
+                                                graph: this.graph.export(),
+                        charMem: this.charMem ? this.charMem.export() : {},
+                        worldProg: this.worldProg ? this.worldProg.export() : {}, summaries: this.summary.export(),
                         diaries: this.diary.export(),
                         reflection: this.reflection?.export?.(),
                         itemOps: this.itemOps,
@@ -1146,6 +1192,15 @@
                         return inj1;
                     }
                 } catch (e) { errLog(e, 'cleanMessageText'); }
+                // [v3.16] 世界推进: 生成路径注入前把待推进的不在场角色动态并入（zhino: 玩家发消息不在生成时挤 API，后台推演产物注入）
+                try {
+                    if (this.config.config.worldProgressEnabled) {
+                        const prog = this.worldProg ? this.worldProg.toInjection() : [];
+                        for (const wp of prog) {
+                            if (!recalled.some(r => (r.text || '') === wp.text)) recalled.push(wp);
+                        }
+                    }
+                } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
                 const inj2 = this.buildInjection(recalled);
                 try {
                     const cc = window.SillyTavern?.getContext?.()?.chat || [];
@@ -1456,7 +1511,7 @@
         }
         
         async recallMemory(query) {
-            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: []};
+            const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: [], neuralChain: [], worldProg: []};
             
             results.summary = this.summary.search(query.text);
             
@@ -1467,6 +1522,29 @@
             if (query.characters?.length > 0) {
                 results.graph = this.graph.findByNames(query.characters);
                 results.diary = this.diary.search(query.characters);
+                // [v3.16] 神经链召回（抄 zhino）: 链1(用户→在场角色) + 链2(在场角色→角色间)，链2 去重已注入链1
+                try {
+                    if (this.config.config.neuralChainEnabled && query.characters.length > 0) {
+                        const userQuery = `${query.text || ''}`;
+                        const chain1 = query.characters.slice(0, 3).map(c => {
+                            const mems = (this.charMem?.search ? this.charMem.search(c, userQuery) : []);
+                            return mems.map(m => ({ id: 'c1_' + c + '_' + m.id, text: `${c}：${m.text}`, source: 'neuralChain', chain: 1, character: c }));
+                        }).flat().slice(0, 6);
+                        // 链2: 在场角色之间（双向），去重已进链1的 id
+                        const seenC1 = new Set(chain1.map(x => x.text));
+                        const chain2 = [];
+                        for (let i = 0; i < query.characters.length; i++) {
+                            for (let j = i + 1; j < query.characters.length; j++) {
+                                const a = query.characters[i], b = query.characters[j];
+                                for (const mem of (this.charMem?.search ? [...this.charMem.search(a, b), ...this.charMem.search(b, a)] : [])) {
+                                    const text = `${a}↔${b}：${mem.text}`;
+                                    if (!seenC1.has(text)) chain2.push({ id: 'c2_' + mem.id, text, source: 'neuralChain', chain: 2 });
+                                }
+                            }
+                        }
+                        results.neuralChain = [...chain1, ...chain2].slice(0, 8);
+                    }
+                } catch (e) { errLog(e, 'recallMemory.神经链'); }
                 
                 // Phase 3: 图扩散增强召回
                 if (this.config.config.graphDiffusionEnabled && window.LonShaMemory?.diffusion) {
@@ -1724,6 +1802,9 @@
             const top = merged.slice(0, this.config.config.vectorTopK * 2);
             if (this.config.config.debugMode) {
                 console.log(`[${PLUGIN_NAME}] RRF融合: ${merged.length} 项, 多路命中: ${top.filter(t => t.hits > 1).length} 项`);
+            // [v3.16] 神经链 + 世界推进 汇入召回结果
+            if (results.neuralChain?.length) for (const nc of results.neuralChain) { if (!top.some(t => (t.text||'') === nc.text)) top.push(nc); }
+            if (results.worldProg?.length) for (const wp of results.worldProg) { if (!top.some(t => (t.text||'') === wp.text)) top.push(wp); }
             }
             return top;
         }
@@ -1788,9 +1869,11 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
-                if (item.source === 'items') itemRecs.push(item);
+                if (item.source === 'worldprogress') worldProgs.push(item);
+                else if (item.source === 'neuralChain') neuralChains.push(item);
+                else if (item.source === 'items') itemRecs.push(item);
                 else if (item.source === 'reflection') reflectRecs.push(item);
                 else if (item.source === 'status') statuses.push(item);
                 else if (item.source === 'suspense') suspenses.push(item);
@@ -1896,6 +1979,16 @@
             if (scenesList.length) {
                 blocks.push('[相关地点]');
                 scenesList.forEach(i => blocks.push(`- ${i.text || ''}`));
+            }
+            if (neuralChains.length) {
+                blocks.push('[关系记忆·神经链]（链1用户→角色 / 链2角色↔角色）');
+                const seenN = new Set();
+                neuralChains.forEach(i => { const key = i.text || ''; if (!seenN.has(key)) { seenN.add(key); blocks.push(`- ${key}`); } });
+            }
+            if (worldProgs.length) {
+                blocks.push('〔场外角色动态｜他们已各自行动，可自然成为后续话题〕');
+                const seenW = new Set();
+                worldProgs.forEach(i => { const key = i.text || ''; if (!seenW.has(key)) { seenW.add(key); blocks.push(`- ${key}`); } });
             }
             if (presenceList.length) {
                 blocks.push('〔不在场角色｜未经剧情发展不得让他们凭空出现或立即知晓场内发生的事〕');
@@ -2669,6 +2762,50 @@
     
 
     // [v1.8] P0: POV 私密记忆（抄 stbme memory-scope：客观 vs 角色主观认知隔离）
+    // [v3.16] 角色记忆银行（收编 zhino 两层记忆）: 核心(永久) + 近期(自动更替)
+    class CharacterMemoryBank {
+        constructor() {
+            this.memories = {};   // { charName: { core: [], recent: [] } }
+            this.RECENT_KEEP = 3; // 近期记忆保留最近 3 个版本
+        }
+        // 追加核心记忆（永久，不自动删）
+        addCore(char, text, floor) {
+            if (!char || !text) return null;
+            const c = this._c(char);
+            const m = { id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            c.core.push(m);
+            if (c.core.length > 50) c.core.shift();   // 硬上限防爆
+            return m;
+        }
+        // 追加近期记忆（自动更替: 保留最近 RECENT_KEEP 条）
+        addRecent(char, text, floor) {
+            if (!char || !text) return null;
+            const c = this._c(char);
+            const m = { id: 'mr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            c.recent.push(m);
+            if (c.recent.length > this.RECENT_KEEP) c.recent.shift();
+            return m;
+        }
+        // 手动升降级（核心 ↔ 近期）
+        promoteToCore(char, id) { const c = this._c(char); const i = c.recent.findIndex(m => m.id === id); if (i < 0) return false; const [m] = c.recent.splice(i, 1); m.ts = Date.now(); c.core.push(m); return true; }
+        demoteToRecent(char, id) { const c = this._c(char); const i = c.core.findIndex(m => m.id === id); if (i < 0) return false; const [m] = c.core.splice(i, 1); m.ts = Date.now(); c.recent.push(m); if (c.recent.length > this.RECENT_KEEP) c.recent.shift(); return true; }
+        // 删除单条
+        deleteMemory(char, id) { const c = this._c(char); c.core = c.core.filter(m => m.id !== id); c.recent = c.recent.filter(m => m.id !== id); return true; }
+        // 该角色全部记忆
+        of(char) { return this._c(char); }
+        // 召回（链1/链2 用）: 匹配查询词，按相关性+时间衰减排序
+        search(char, query) {
+            const c = this._c(char);
+            const q = String(query || '').slice(0, 60);
+            const all = [...c.core, ...c.recent].map(m => ({...m, _isCore: c.core.includes(m)}));
+            if (!q) return all.slice(-8).reverse();
+            return all.filter(m => m.text.includes(q)).sort((a, b) => (b._isCore ? 1 : 0) - (a._isCore ? 1 : 0) || b.ts - a.ts).slice(0, 6);
+        }
+        _c(char) { if (!this.memories[char]) this.memories[char] = { core: [], recent: [] }; return this.memories[char]; }
+        export() { return this.memories; }
+        import(data) { this.memories = (data && typeof data === 'object') ? data : {}; for (const k of Object.keys(this.memories)) { if (!this.memories[k].core) this.memories[k].core = []; if (!this.memories[k].recent) this.memories[k].recent = []; } }
+    }
+
     class PovMemory {
         constructor() { this.povs = []; }
         add(owner, content, floor) {
@@ -2697,6 +2834,54 @@
     // 设计底线（沿用 baibai）：时间是 AI 写的自由文本，数字日历精确算天数差，
     // 架空日历（霜月3日）仅同月可算，跨架空月放弃。宁可不标，绝不标错。
     // ═══════════════════════════════════════════════════════════════
+    // [v3.16] 世界推进（收编 zhino）: 不在场角色独立行动
+    // 每 N 楼标记 pending → 下次消息生成前推演不在场角色行动（不抢 AI 生成 API）
+    class WorldProgress {
+        constructor() {
+            this.active = {};            // { charName: {level, entryHint|null, memory, floor, ts} }
+            this.pending = false;
+            this.EVERY_FLOORS = 2;       // 默认每 2 楼触发
+            this.MAX_ACTIVE = 2;         // 候选最多 2 人
+            this.HINT_LEVEL = { NONE: 0, TRACE: 1, MESSAGE: 2, ENTER: 3 };
+        }
+        markPending() { this.pending = true; }
+        candidates(knownChars, presentChars, status, graph) {
+            // 不在场 = 已知角色 - 在场角色
+            return knownChars.filter(n => !presentChars.includes(n)).slice(0, 8);
+        }
+        // 选出最多 2 个候选（综合上次互动轮距 / 有无待办）
+        select(candidates, status) {
+            const scored = candidates.map(c => {
+                let score = 0;
+                const st = status?.characters?.[c];
+                const lastSeen = st?.fields?.['上次互动'] ? Number(st.fields['上次互动']) : 0;
+                const floorGap = st ? 0 : 5;
+                score = (st?.fields?.['有独立目标'] ? 3 : 0) + lastSeen + (st?.todos?.length ? 2 : 0) + floorGap;
+                return { name: c, score };
+            }).sort((a, b) => b.score - a.score);
+            return scored.slice(0, this.MAX_ACTIVE).map(s => s.name);
+        }
+        store(char, level, memory, floor) {
+            this.active[char] = { level: level || 0, entryHint: level >= 1 && level <= 3 ? memory : null, memory, floor: floor || 0, ts: Date.now() };
+            if (Object.keys(this.active).length > 10) {
+                const oldest = Object.keys(this.active).sort((a, b) => this.active[a].ts - this.active[b].ts)[0];
+                delete this.active[oldest];
+            }
+        }
+        // 输出注入（buildInjection 调用）: 有入场引导的插消息位，无的进 world_state
+        toInjection() {
+            const entries = Object.values(this.active);
+            if (!entries.length) return [];
+            return entries.map(a => ({
+                id: 'wp_' + a.floor,
+                text: `${a.floor != null ? `（第${a.floor}楼待推进）${a.name || ''}` : ''}${a.memory || ''}`,
+                source: 'worldprogress'
+            }));
+        }
+        export() { return { active: this.active, pending: this.pending }; }
+        import(data) { if (data) { this.active = data.active || {}; this.pending = !!data.pending; } }
+    }
+
     class RelativeTimeHelper {
         constructor() {
             this.DAY_MS = 24 * 60 * 60 * 1000;
@@ -3475,6 +3660,9 @@ ${win}`;
                     if (data.scene && engine.scene) engine.scene.import(data.scene);
                     if (data.echo && engine.echo) engine.echo.import(data.echo);
                     if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
+                    // [v3.16] 角色记忆银行 + 世界推进恢复
+                    if (data.charMem && engine.charMem) engine.charMem.import(data.charMem);
+                    if (data.worldProg && engine.worldProg) engine.worldProg.import(data.worldProg);
                     if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); }   // [v3.3] 加载即对账（补 fp/自愈/清理）
                 }
                 return data;
