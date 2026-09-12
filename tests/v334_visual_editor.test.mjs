@@ -50,5 +50,9 @@ assert('manifest 版本有效', /"version": "[3-9]\.[0-9]+\.[0-9]+"/.test(mftSrc
   rec.todos = rec.todos.filter(x => x.text !== '还书');
   assert('待办完成移除成功', rec.todos.length === 0);
 }
+// ===== 5. 行为验证：BM25 索引维护安全 =====
+assert('删除 summary 时重建 BM25', uiSrc.includes("eng.bm25.rebuild(eng.summary.getActiveSummaries().map"));
+assert('删除 vector 时不破坏 BM25 语料', !uiSrc.includes("eng.bm25.rebuild(eng.vector.vectors.map"));
+
 console.log('[visual-editor] ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

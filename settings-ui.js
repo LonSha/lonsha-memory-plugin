@@ -798,7 +798,13 @@
                 if (!m) return;
                 label = esc(m.text).substring(0, 60);
                 actions = [
-                    { t: "🗑 删除该摘要", fn: () => { eng.summary.summaries = eng.summary.summaries.filter(x => x.floor !== id); return "已删除摘要"; }, danger: true },
+                    { t: "🗑 删除该摘要", fn: () => {
+                        eng.summary.summaries = eng.summary.summaries.filter(x => x.floor !== id);
+                        if (eng.bm25?.rebuild && eng.summary?.getActiveSummaries) {
+                            eng.bm25.rebuild(eng.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                        }
+                        return "已删除摘要";
+                    }, danger: true },
                 ];
             } else if (kind === "pov") {
                 const p = (eng.pov?.povs || []).find(x => x.id === id);
@@ -813,7 +819,7 @@
                 if (!v) return;
                 label = esc((v.text || "").substring(0, 60));
                 actions = [
-                    { t: "🗑 删除该向量", fn: () => { eng.vector.vectors = eng.vector.vectors.filter(x => x.id !== id); if (eng.bm25?.rebuild) eng.bm25.rebuild(eng.vector.vectors.map(x => ({id: x.id, text: x.text}))); return "已删除向量"; }, danger: true },
+                    { t: "🗑 删除该向量", fn: () => { eng.vector.vectors = eng.vector.vectors.filter(x => x.id !== id); return "已删除向量"; }, danger: true },
                 ];
             } else if (kind === "todo") {
                 const parts = String(id).split("|||");
