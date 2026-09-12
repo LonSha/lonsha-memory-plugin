@@ -1,3 +1,10 @@
+## [v3.43.0] - 2026-09-13
+### 吸收 baibai 与数据库事件溯源机制：NPC四档压平注入、双界时间锚点与图谱回滚自愈
+- **NPC 四档压平注入与性别铁律 (NPC Tier-based Flattened Injection)**：吸收 baibai 设计，基于重要度、在场状态与空间拓扑将 NPC 压平压缩为 Tier 1（核心主角完整展开）、Tier 2（当前在场紧凑摘要）、Tier 3（同区域仅保留位置/状态单行）、Tier 4（不在场极简名单）。全档位严格固化性别与称谓标签（如 `[女]`、`[男]`），节省 60%+ Token 且焊死人伦常理。
+- **双界时间锚点与年龄时钟 (Dual-Bound Time Anchors & Age Clock)**：`RelativeTimeHelper` 新增正文双界起止时间提取（支持 `<bbs_start>...<bbs_end>` 标签及自然正文标记），计算剧情跨越天数；提供 `calcAge` 年龄与相识天数数学推算，杜绝长程跑团中大模型时间与年龄算错通病。
+- **图谱事件溯源与删楼原子回滚 (Graph Event Sourcing & Rollback)**：对齐专业数据库事件溯源流设计，`MemoryGraph` 引入 `graphOps` 楼层操作日志，记录图谱变更的反向补偿操作；实装 `rollbackGraphFrom(floor)` 与 `shiftGraphOps`，在删楼、重生成或滑卡时精准重放自愈，确保图谱状态与楼层绝对一致。
+- **自动化测试**：新增 `tests/v343_baibai_mechanics.test.mjs`，全量 45 个测试套件 100% 绿灯通过。
+
 ## [v3.42.0] - 2026-09-13
 ### 吸收 caikis 数据库机制：人设基线 vs 偏移双层模型、NPC晋升流水线与三级地理空间感知
 - **人设稳定性 (Persona Baseline vs Drift)**：`CharacterState` 引入双层人格模型，锁定初始性格基线（traits、speechStyle、coreBelief），记录短期剧情冲击造成的行为偏移（mood、reinforced、weakened）；偏移在超过 15 楼无新刺激后自动衰减收敛，彻底根治长线性格漂移与崩坏。

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.42.0';
+    const VERSION = '3.43.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -201,6 +201,35 @@
             return out;
         } catch (e) { return { changes: [], todos: [], items: [] }; }
     }
+    // [v3.43] 吸收 baibai: NPC 四档压平分级注入与性别铁律
+    function buildNpcTierInjection(npcs = []) {
+        if (!Array.isArray(npcs)) return [];
+        const oneLine = (value) => String(value ?? '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        const out = [];
+        for (const npc of npcs) {
+            if (!npc || !String(npc.name || '').trim()) continue;
+            const name = oneLine(npc.name);
+            const gender = npc.gender ? `[性别:${oneLine(npc.gender)}]` : '';
+            const tier = npc.roleTier || (npc.isImportant ? 'important' : npc.isPresent ? 'present' : 'absent');
+            if (tier === 'important') {
+                const fields = Array.isArray(npc.fields) ? npc.fields.map(x => Array.isArray(x) ? `${oneLine(x[0])}:${oneLine(x[1])}` : '').filter(Boolean).join(' | ') : '';
+                const todos = Array.isArray(npc.todos) ? npc.todos.map(x => oneLine(x?.text || x?.content)).filter(Boolean).join('、') : '';
+                out.push(oneLine(`- ${name}${gender}${npc.title ? `（${oneLine(npc.title)}）` : ''}${fields ? ` — ${fields}` : ''}${todos ? `；待办:${todos}` : ''}${npc.persona ? `；当前人设:${oneLine(npc.persona)}` : ''}`));
+            } else if (tier === 'present') {
+                const fields = Array.isArray(npc.fields) ? npc.fields.map(x => Array.isArray(x) ? `${oneLine(x[0])}:${oneLine(x[1])}` : '').filter(Boolean).join(' | ') : '';
+                out.push(oneLine(`- ${name}${gender}${npc.now ? ` 当前姿态:${oneLine(npc.now)}` : ''}${fields ? ` — ${fields}` : ''}${npc.persona ? `；当前人设:${oneLine(npc.persona)}` : ''}`));
+            } else if (tier === 'same_area') {
+                const traits = Array.isArray(npc.traits) ? npc.traits.map(oneLine).filter(Boolean).slice(0, 3).join('、') : '';
+                out.push(oneLine(`- ${name}${gender}${npc.identity ? `（${oneLine(npc.identity)}）` : ''}${traits ? ` — 性格:${traits}` : ''}`));
+            } else {
+                const relationHead = oneLine(npc.relation || '').split(/[，,]/)[0].slice(0, 12);
+                const identity = oneLine(npc.title || npc.identity || '');
+                out.push(oneLine(`- ${name}${gender}${relationHead ? ` 称谓:${relationHead}` : ''}${identity ? ` 身份:${identity}` : ''}`));
+            }
+        }
+        return out;
+    }
+    // [v3.43] end NPC tier injection
     // [v3.41] 吸收 Stitches 工业级标签净化: 剥除思维链、多智能体协调与中间跑团标签，保护正文不被污染
     function stripMemoryOpsTags(text) {
         try {
@@ -404,6 +433,8 @@
                 // [v2.4] RE: 场景树 + 在场分档 + 查询重写
                 sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
                 presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
+                npcTierInjection: true,        // baibai 四档角色分级压平注入
+                dualTimeAnchorEnabled: true,    // baibai 正文起止时间锚点
                 // [v3.16] zhino 三核心开关
                 charMemEnabled: true,        // 角色记忆银行（两层记忆）
                 neuralChainEnabled: true,    // 神经链召回（链1+链2）
@@ -1016,7 +1047,10 @@
             const aiRecallOps = this.config.config.aiRecallOps ? extractMemoryOpsFromText(_rawForSynopsis) : null;
             // [v3.37] 物理时间标签锚点：从原文提取 <time>/<date> 标签（baibai 理念，零API同步）
             const timeTagFound = (this.config.config.timeTagAnchorEnabled !== false) ? extractTimeTagFast(_rawForSynopsis) : null;
-            if ((aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) || timeTagFound) {
+            const dualTimeAnchor = (this.config.config.dualTimeAnchorEnabled !== false) ? (() => {
+                try { return new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis); } catch (e) { return null; }
+            })() : null;
+            if ((aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) || timeTagFound || dualTimeAnchor?.hasDual) {
                 if (aiRecallOps && this.config.config.aiRecallOpsDebug) console.log(`[${PLUGIN_NAME}] 主动记忆操作: 字段${aiRecallOps.changes.length} 待办${aiRecallOps.todos.length} 物品${aiRecallOps.items.length} (楼层 ${message.index})`);
                 if (timeTagFound && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 物理时间标签命中: ${timeTagFound} (楼层 ${message.index})`);
                 _tc.content = stripMemoryOpsTags(_tc.content);
@@ -1077,6 +1111,10 @@
                     extracted.story_date = timeTagFound;
                     this._lastStoryDateSeen = timeTagFound;
                 }
+                if (dualTimeAnchor?.hasDual) {
+                    extracted = extracted || { characters: [], events: [], relationships: [], summary: "" };
+                    extracted.time_anchor = { start: dualTimeAnchor.start, end: dualTimeAnchor.end, durationMinutes: dualTimeAnchor.durationMinutes };
+                }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 提取:`, extracted);
                 
                 // [v1.7] RubyPhone 联动①: LLM 提取结果回填手机记忆库
@@ -1117,7 +1155,7 @@
                         const nodeId = this.graph.addNode({type: 'event', name: event.type, data: event});
                         if (event.participants) {
                             for (const p of event.participants) {
-                                this.graph.addEdge({from: p, to: nodeId, label: 'participated_in'});
+                                this.graph.addEdge({from: p, to: nodeId, label: 'participated_in', floor: message.index || 0});
                             }
                         }
                     }
@@ -1125,18 +1163,35 @@
                 
                 if (extracted?.relationships) {
                     for (const rel of extracted.relationships) {
+                        const relFrom = this.resolveCharacterName(rel.from);
+                        const relTo = this.resolveCharacterName(rel.to);
                         // [v1.5] 单向主观关系：主名归并 + attitude 三值入边数据
                         // [v3.37] 传入时态楼层 floor（时态图谱 Zep 理念）
                         this.graph.addEdge({
-                            from: this.resolveCharacterName(rel.from),
-                            to: this.resolveCharacterName(rel.to),
+                            from: relFrom,
+                            to: relTo,
                             label: rel.type, weight: 1.0,
                             floor: message.index || 0,
                             data: {attitude: rel.attitude || 'neutral', note: rel.note || ''}
                         });
+                        // [v3.43] 图谱关系已由 addEdge 记录为楼层 delta，供 swipe/删楼重放
                     }
                 }
                 
+                // [v3.42/v3.43] 将提取出的结构化人格、地理与不在场认知写入对应真源
+                try {
+                    const storyFloor = message.index || 0;
+                    for (const ch of (extracted?.characters || [])) {
+                        const cn = this.resolveCharacterName(ch);
+                        const node = this.graph.findCharacterByName(cn);
+                        const fields = extracted?.character_states?.[ch] || extracted?.character_states?.[cn] || null;
+                        if (fields?.baseline) this.status.setBaseline(cn, { ...fields.baseline, floor: storyFloor });
+                        if (fields?.drift) this.status.recordDrift(cn, { ...fields.drift, floor: storyFloor });
+                    }
+                    const geo = extracted?.geo_location || extracted?.location_context;
+                    if (geo && typeof geo === 'object') this.status.setGeoLocation({ ...geo, floor: storyFloor });
+                } catch (e) { errLog(e, 'onMessageReceived.caikis状态增强'); }
+
                 // [v1.8] P0: 写入角色私密记忆（POV 隔离）
                 if (this.config.config.povIsolation && Array.isArray(extracted?.pov_memories)) {
                     let povCount = 0;
@@ -1198,6 +1253,7 @@
                     }
                     // [v3.18] 时间锚点一致性校验（检测倒跳）
                     if (sd) this.checkTimeMonotonic(sd, message.index || 0);
+                    if (extracted?.time_anchor?.end) this.checkTimeMonotonic(extracted.time_anchor.end, message.index || 0);
                     if (sd) this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || [], tlImp);
                     // [v2.9] RU-A: 主动时间推进——正文说"三天后/次日"但没写日期时，基于上一楼日期算术推进
                     const adv = Number(extracted.time_advance_days) || 0;
@@ -1287,7 +1343,8 @@
                         this.ledger.record(floor, {
                             nodeIds: allIds.slice(nodesBefore),
                             povIds: this.pov.povs.filter(p => p.floor === floor).map(p => p.id),
-                            timelineIds: this.timeline.entries.filter(t => t.floor === floor).map(t => t.id)
+                            timelineIds: this.timeline.entries.filter(t => t.floor === floor).map(t => t.id),
+                            timeAnchor: extracted?.time_anchor || null
                         });
                     } catch (e) { errLog(e, 'onMessageReceived.楼层账本'); }
                 }
@@ -1371,7 +1428,8 @@
                         floor: message.index || 0,
                         characters: extracted?.characters || [],
                         events: extracted?.events || [],
-                        summary: extracted?.summary || ''
+                        summary: extracted?.summary || '',
+                        timeAnchor: extracted?.time_anchor || null
                     });
                 }
                 
@@ -2790,6 +2848,43 @@
             return Array.from(chars);
         }
         
+        // [v3.43] 从当前图谱/状态生成四档 NPC 轻量记录，供 buildInjection 使用
+        buildNpcTierRecords() {
+            try {
+                const present = new Set(this.captureCast());
+                const ctx = window.SillyTavern?.getContext?.();
+                const currentLocation = this.status?.geoContext?.minorArea || '';
+                const known = this.getKnownCharacters();
+                return known.slice(0, 20).map(name => {
+                    const node = this.graph.findCharacterByName(name);
+                    const rec = this.status?.characters?.[name] || {};
+                    const baseline = this.status?.baselines?.[name];
+                    const persona = this.status?.getEffectivePersona?.(name, (ctx?.chat || []).length - 1);
+                    const isPresent = present.has(name);
+                    const isImportant = this.status?.isNpcTracked?.(name) || !!baseline || !!rec.fields?.['重要'];
+                    const roleTier = isImportant ? 'important' : isPresent ? 'present' : 'absent';
+                    return {
+                        name,
+                        gender: node?.data?.gender || node?.gender || rec.fields?.['性别'] || '',
+                        roleTier,
+                        isPresent,
+                        isImportant,
+                        title: node?.data?.title || node?.data?.identity || '',
+                        identity: node?.data?.identity || '',
+                        relation: node?.data?.relation || '',
+                        now: rec.fields?.['当前动作'] || rec.fields?.['姿态'] || '',
+                        fields: Object.entries(rec.fields || {}).slice(0, 6),
+                        todos: rec.todos || [],
+                        traits: baseline?.traits || [],
+                        persona: persona?.description || '',
+                        location: currentLocation
+                    };
+                });
+            } catch (e) {
+                errLog(e, 'buildNpcTierRecords');
+                return [];
+            }
+        }
         // [v1.5] 注入格式（抄 baibai 私密简报包裹 + HCDiary 分区结构）
         buildInjection(recalled) {
             if (!recalled?.length) return '';
@@ -2858,6 +2953,13 @@
                     const histNote = (i.active === false && i.validTo != null) ? `（曾于第${i.validTo}楼前）` : '';
                     blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}]${histNote}`);
                 });
+            }
+            if (this.config.config.npcTierInjection !== false) {
+                const npcTierLines = buildNpcTierInjection(this.buildNpcTierRecords());
+                if (npcTierLines.length) {
+                    blocks.push('[角色索引·分级注入]');
+                    blocks.push(...npcTierLines);
+                }
             }
             // [v3.37] Prompt Cache 友好优化：活跃阶段周记随底层动态槽注入
             if (this.config.config.cacheFriendlyInjection !== false && this.summary.getActiveVolumes) {
@@ -3053,7 +3155,10 @@
                 }
                 this.graph.rebuildNameIndex();
                 // [v3.15] 图谱楼层截断回溯（收编 zhino）: 删楼后用楼层前状态重建（truncateGraphFrom 内部会再 rebuildNameIndex）
-                try { this.graph.truncateGraphFrom(floor); } catch (e) { errLog(e, 'rollbackFloor.图谱回溯'); }
+                try {
+                    if (this.graph?.rollbackGraphFrom) this.graph.rollbackGraphFrom(floor);
+                    else this.graph.truncateGraphFrom(floor);
+                } catch (e) { errLog(e, 'rollbackFloor.图谱回溯'); }
                 // [v3.17] 世界推进对账（yuzuki）+ 丢弃 pending（shujuku 拒绝半提交）: 删楼后过期推进失活
                 try { if (this.worldProg) { this.worldProg.discard(); this.worldProg.reconcile(floor - 1); } } catch (e) { errLog(e, 'rollbackFloor.世界推进对账'); }
                 // [v3.22] 角色记忆银行 + 场外信号 楼层清理（rollback 未清 → 旧记忆残留）
@@ -3199,6 +3304,17 @@
                 if (Array.isArray(this.graph?._snapshots)) {
                     for (const snap of this.graph._snapshots) {
                         if (typeof snap.floor === 'number' && snap.floor > deleted) snap.floor--;
+                    }
+                }
+                if (Array.isArray(this.graph?.graphOps)) {
+                    this.graph.graphOps = this.graph.graphOps.filter(op => op.floor !== deleted);
+                    for (const op of this.graph.graphOps) {
+                        if (typeof op.floor === 'number' && op.floor > deleted) op.floor--;
+                        if (op.edge) {
+                            if (typeof op.edge.validFrom === 'number' && op.edge.validFrom > deleted) op.edge.validFrom--;
+                            if (typeof op.edge.validTo === 'number' && op.edge.validTo > deleted) op.edge.validTo--;
+                            if (typeof op.edge.floor === 'number' && op.edge.floor > deleted) op.edge.floor--;
+                        }
                     }
                 }
             } catch (e) { errLog(e, 'SH.shiftFloorsFrom'); }
@@ -3616,7 +3732,44 @@
     }
 
     class MemoryGraph {
-        constructor() { this.nodes = new Map(); this.edges = new Map(); this.nameIndex = new Map(); this._snapshots = []; this.SNAP_MAX = 6; }
+        constructor() {
+            this.nodes = new Map();
+            this.edges = new Map();
+            this.nameIndex = new Map();
+            this._snapshots = [];
+            this.SNAP_MAX = 6;
+            // [v3.43] 吸收 baibai: 图谱关系事件溯源真源 (Graph Delta Replay)
+            this.graphOps = []; // [{ floor, edge, ts }]
+            this.MAX_GRAPH_OPS = 500;
+        }
+
+        // 记录关系操作事件
+        _logGraphOp(floor, edge) {
+            try {
+                this.graphOps.push({ floor: Number(floor) || 0, edge: { ...edge }, ts: Date.now() });
+                if (this.graphOps.length > this.MAX_GRAPH_OPS) this.graphOps.shift();
+            } catch (e) { errLog(e, 'MemoryGraph._logGraphOp'); }
+        }
+
+        // 事件溯源重放：清空所有边，按楼层顺序幂等重放关系网络
+        rebuildGraphFromOps() {
+            try {
+                this.edges.clear();
+                const sorted = [...this.graphOps].sort((a, b) => a.floor - b.floor);
+                for (const op of sorted) {
+                    if (op.edge) this.addEdge(op.edge, true);
+                }
+            } catch (e) { errLog(e, 'MemoryGraph.rebuildGraphFromOps'); }
+        }
+
+        // 楼层回滚/滑动重roll时截断溯源流并重放
+        rollbackGraphFrom(cutoffFloor) {
+            try {
+                const f = Number(cutoffFloor) || 0;
+                this.graphOps = this.graphOps.filter(op => op.floor < f);
+                this.rebuildGraphFromOps();
+            } catch (e) { errLog(e, 'MemoryGraph.rollbackGraphFrom'); }
+        }
         // [v3.15] 图谱版本快照（收编 zhino）: 每楼记录楼层起点图状态，最多 SNAP_MAX 张
         snapshotGraph(floor) {
             const f = Math.max(0, Math.round(Number(floor) || 0));
@@ -3672,7 +3825,7 @@
         }
         // [v3.37/v3.38] 时态知识图谱（Temporal Graph, Zep/Graphiti 理念）:
         // 记录关系的有效区间 [validFrom, validTo]；仅当同维度冲突时标记 closed；不同维度多维共存
-        addEdge(edge) {
+        addEdge(edge, _replaying = false) {
             const from = String(edge.from || '');
             const to = String(edge.to || '');
             const label = String(edge.label || edge.relation || 'related');
@@ -3709,6 +3862,7 @@
                 timestamp: Date.now()
             };
             this.edges.set(id, fullEdge);
+            if (!_replaying) this._logGraphOp(floor, fullEdge);
             return id;
         }
         findByNames(names) {
@@ -3810,12 +3964,13 @@
             }
             return { prunedEdges, prunedNodes, remainingNodes: this.nodes.size, remainingEdges: this.edges.size };
         }
-        export() { return {nodes: Array.from(this.nodes.values()), edges: Array.from(this.edges.values()), snapshots: Array.isArray(this._snapshots) ? this._snapshots : []}; }
+        export() { return {nodes: Array.from(this.nodes.values()), edges: Array.from(this.edges.values()), snapshots: Array.isArray(this._snapshots) ? this._snapshots : [], graphOps: Array.isArray(this.graphOps) ? this.graphOps : []}; }
         import(data) {
             this._snapshots = Array.isArray(data?.snapshots) ? data.snapshots : [];
             this.nodes.clear(); this.edges.clear(); this.nameIndex.clear();
             if (data?.nodes) for (const node of data.nodes) this.nodes.set(node.id, node);
             if (data?.edges) for (const edge of data.edges) this.edges.set(edge.id, edge);
+            this.graphOps = Array.isArray(data?.graphOps) ? data.graphOps : [];
             this.rebuildNameIndex();   // [v3.6] 统一走重建（原实现不归一化，SF4 归一化键缺失）
         }
     }
@@ -4365,6 +4520,56 @@
     }
 
     class RelativeTimeHelper {
+        // [v3.43] 吸收 baibai: 双界时间锚点提取 (起止时间与经过时长)
+        extractDualTimeTags(text) {
+            const s = String(text || '');
+            const startM = /<bbs_start>([\s\S]*?)<\/bbs_start>/i.exec(s);
+            const endM = /<bbs_end>([\s\S]*?)<\/bbs_end>/i.exec(s);
+            if (startM && endM) {
+                const start = startM[1].trim();
+                const end = endM[1].trim();
+                let durationMinutes = 0;
+                try {
+                    const t1 = new Date(start).getTime();
+                    const t2 = new Date(end).getTime();
+                    if (!isNaN(t1) && !isNaN(t2)) {
+                        durationMinutes = Math.max(0, Math.round((t2 - t1) / 60000));
+                    }
+                } catch (e) {}
+                return { hasDual: true, start, end, durationMinutes };
+            }
+            return { hasDual: false, start: null, end: null, durationMinutes: 0 };
+        }
+
+        // [v3.43] 吸收 baibai: 年龄精准推算时钟 (基于出生日期与当前剧情日期的数学差)
+        calcAge(birthDateStr, currentStoryDateStr) {
+            try {
+                const b = this.parseStoryDate(birthDateStr);
+                const c = this.parseStoryDate(currentStoryDateStr);
+                if (b && c && b.year && c.year) {
+                    let age = c.year - b.year;
+                    if (c.month != null && b.month != null) {
+                        if (c.month < b.month || (c.month === b.month && (c.day || 0) < (b.day || 0))) {
+                            age--;
+                        }
+                    }
+                    return Math.max(0, age);
+                }
+            } catch (e) {}
+            return 0;
+        }
+
+        // [v3.43] 吸收 baibai: 相识天数数学推算
+        calcDaysTogether(firstMetDateStr, currentStoryDateStr) {
+            try {
+                const d1 = new Date(this.normalizeNumericDateSeparators(firstMetDateStr)).getTime();
+                const d2 = new Date(this.normalizeNumericDateSeparators(currentStoryDateStr)).getTime();
+                if (!isNaN(d1) && !isNaN(d2)) {
+                    return Math.max(0, Math.floor((d2 - d1) / this.DAY_MS));
+                }
+            } catch (e) {}
+            return 0;
+        }
         constructor() {
             this.DAY_MS = 24 * 60 * 60 * 1000;
             this.WEEK_MS = 7 * this.DAY_MS;

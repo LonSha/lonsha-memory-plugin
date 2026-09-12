@@ -139,7 +139,7 @@ global.window = { LonShaMemory: { engine: { config: { config: { debugMode: false
 }
 // ST4: 快照初始化 + 上限常量
 {
-  if (!src.includes('this._snapshots = []; this.SNAP_MAX = 6;')) fail('ST4 初始化');
+  if (!src.includes('this._snapshots = []') || !src.includes('this.SNAP_MAX = 6')) fail('ST4 初始化');
   ok('ST4: 初始化 _snapshots + SNAP_MAX=6');
 }
 // ST5: 版本号已前进（>= v3.15）
