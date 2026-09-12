@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.5.0';
+    const VERSION = '3.6.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -547,9 +547,16 @@
                 const messageText = message.mes || '';
                 
                 if (extracted?.characters) {
+                    // [v3.6] 图谱膨胀修复: 先查后建（原实现每楼新 id——同角色 N 楼 = N 个重复节点，长对话无限膨胀）
                     for (const char of extracted.characters) {
                         const canonical = this.resolveCharacterName(char);
-                        this.graph.addNode({type: 'character', name: canonical, data: {source: messageText}});
+                        const existChar = this.graph.findCharacterByName(canonical);
+                        if (existChar) {
+                            // 已存在: 只补首次出现信息（不重复建；source 保留首次）
+                            if (!existChar.data?.source && messageText) existChar.data = {...(existChar.data || {}), source: messageText};
+                        } else {
+                            this.graph.addNode({type: 'character', name: canonical, data: {source: messageText}});
+                        }
                     }
                 }
                 
@@ -1212,6 +1219,36 @@
                     removed += foldable;
                 }
             }
+            // 4. [v3.6] 图谱重复角色节点合并（兜底：对历史已膨胀的图谱——同归一化名只留最早一个，迁移边）
+            try {
+                const byName = new Map();
+                const dupIds = [];
+                for (const node of Array.from(this.graph.nodes.values())) {
+                    if (node.type !== 'character' || !node.name) continue;
+                    const nk = normalizeCharName(node.name);
+                    const prev = byName.get(nk);
+                    if (!prev) { byName.set(nk, node); continue; }
+                    // 保留更早创建的，另一个标记合并
+                    const [keep, drop] = (prev.timestamp || 0) <= (node.timestamp || 0) ? [prev, node] : [node, prev];
+                    byName.set(nk, keep);
+                    dupIds.push({ keepId: keep.id, dropId: drop.id });
+                }
+                for (const { keepId, dropId } of dupIds) {
+                    // 迁移边: 指向 drop 的边重定向到 keep（去重后 addEdge 复合 id 天然去重）
+                    for (const [eid, e] of Array.from(this.graph.edges)) {
+                        if (e.from === dropId || e.to === dropId) {
+                            this.graph.edges.delete(eid);
+                            const newFrom = e.from === dropId ? keepId : e.from;
+                            const newTo = e.to === dropId ? keepId : e.to;
+                            if (newFrom !== newTo) this.graph.edges.set(`${newFrom}-${newTo}-${e.label || 'related'}`, {...e, from: newFrom, to: newTo, id: `${newFrom}-${newTo}-${e.label || 'related'}`});
+                        }
+                    }
+                    this.graph.nodes.delete(dropId);
+                    removed++;
+                }
+                if (dupIds.length) this.graph.rebuildNameIndex();
+                if (dupIds.length && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 图谱去重: 合并 ${dupIds.length} 个重复角色节点`);
+            } catch (e) { errLog(e, 'GD.图谱去重'); }
             if (removed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 记忆优化: 清理 ${removed} 条冗余`);
             return removed;
         }
@@ -1724,14 +1761,26 @@
                 const entry = this.ledger.get(floor);
                 if (!entry) return 0;
                 // 回滚节点（该楼新增的图谱节点）
+                // [v3.6] 升级: ① character 节点长寿命——删前检查后续摘要是否仍提及该角色，提及则保留；
+                //          ② 删完统一 rebuildNameIndex（原实现只 clear 不重建，名称查询全失效）
+                const keepIds = new Set();
                 for (const id of (entry.nodeIds || [])) {
+                    const node = this.graph.nodes.get(id);
+                    if (!node) continue;
+                    if (node.type === 'character') {
+                        try {
+                            const laterTexts = (this.summary?.summaries || []).filter(s => (s.floor || 0) > floor).map(s => s.text || '').join('\n');
+                            const nameHit = node.name && laterTexts.includes(node.name);
+                            if (nameHit) { keepIds.add(id); continue; }   // 后续剧情仍提及 → 保留（长寿命实体）
+                        } catch (e) {}
+                    }
                     this.graph.nodes.delete(id);
-                    // [v2.5] 修复: 同步清掉指向被删节点的边 (原实现边残留, findByNames 后引用悬空节点)
                     for (const [eid, e] of Array.from(this.graph.edges)) {
                         if (e.from === id || e.to === id) this.graph.edges.delete(eid);
                     }
-                    this.graph.nameIndex.clear();
                 }
+                this.graph.rebuildNameIndex();
+                if (keepIds.size && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 回滚: 保留 ${keepIds.size} 个长寿命角色节点`);
                 // 回滚 POV
                 const povIdSet = new Set(entry.povIds || []);
                 this.pov.povs = this.pov.povs.filter(p => !povIdSet.has(p.id));
@@ -2191,17 +2240,40 @@
             }
             return results;
         }
+        // [v3.6] 按名查单节点（角色去重用——命中第一个 character 类型的节点）
+        findCharacterByName(name) {
+            try {
+                const nk = normalizeCharName(name);
+                const ids = [...(this.nameIndex.get(nk) || []), ...(this.nameIndex.get(name) || [])];
+                for (const id of ids) {
+                    const n = this.nodes.get(id);
+                    if (n && n.type === 'character') return n;
+                }
+                return null;
+            } catch (e) { errLog(e, 'GD.findCharacterByName'); return null; }
+        }
+        // [v3.6] 索引全量重建（rollbackFloor 删节点后必须重建——原实现只 clear 不重建，名称查询全失效）
+        rebuildNameIndex() {
+            try {
+                this.nameIndex.clear();
+                for (const node of this.nodes.values()) {
+                    if (!node?.name) continue;
+                    const nk = normalizeCharName(node.name);
+                    if (!this.nameIndex.has(nk)) this.nameIndex.set(nk, []);
+                    if (!this.nameIndex.get(nk).includes(node.id)) this.nameIndex.get(nk).push(node.id);
+                    if (nk !== node.name) {
+                        if (!this.nameIndex.has(node.name)) this.nameIndex.set(node.name, []);
+                        if (!this.nameIndex.get(node.name).includes(node.id)) this.nameIndex.get(node.name).push(node.id);
+                    }
+                }
+            } catch (e) { errLog(e, 'GD.rebuildNameIndex'); }
+        }
         export() { return {nodes: Array.from(this.nodes.values()), edges: Array.from(this.edges.values())}; }
         import(data) {
             this.nodes.clear(); this.edges.clear(); this.nameIndex.clear();
-            if (data?.nodes) for (const node of data.nodes) {
-                this.nodes.set(node.id, node);
-                if (node.name) {
-                    if (!this.nameIndex.has(node.name)) this.nameIndex.set(node.name, []);
-                    this.nameIndex.get(node.name).push(node.id);
-                }
-            }
+            if (data?.nodes) for (const node of data.nodes) this.nodes.set(node.id, node);
             if (data?.edges) for (const edge of data.edges) this.edges.set(edge.id, edge);
+            this.rebuildNameIndex();   // [v3.6] 统一走重建（原实现不归一化，SF4 归一化键缺失）
         }
     }
     
