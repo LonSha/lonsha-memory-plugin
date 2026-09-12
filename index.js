@@ -2914,13 +2914,15 @@
                 try {
                     const rb = window.VirtualPhone?.lonshaBridge;
                     if (rb?.onFloorRollback) rb.onFloorRollback(floor);
-                } catch (e) { errLog(e, 'rollbackFloor.BM25重建'); }
+                } catch (e) { errLog(e, 'rollbackFloor.手机记忆联动'); }
                 // 移除账本记录
                 this.ledger.remove(floor);
                 // 重建 BM25 索引
-                if (this.config.config.bm25Enabled) {
-                    this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
-                }
+                try {
+                    if (this.config.config.bm25Enabled) {
+                        this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                    }
+                } catch (e) { errLog(e, 'rollbackFloor.BM25重建'); }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${floor} 记忆已回滚`);
                 // [v3.19] 删楼后书签重同步（ruby resyncAfterDeletion）: 楼层序数前移，书签补偿
                 try {
@@ -3152,7 +3154,10 @@
         }
 
         getCurrentChatId() {
-            try { return window.SillyTavern?.getContext?.()?.chatId; } catch { return null; }
+            try {
+                const c = window.SillyTavern?.getContext?.();
+                return c?.chatId || c?.chatMetadata?.file_name || null;
+            } catch { return null; }
         }
     }
     

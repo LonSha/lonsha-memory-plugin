@@ -34,6 +34,11 @@ assert('幽灵模块均已不在 extra_js 加载队列中', removedPhantoms.ever
 assert('删除 summary 时联动 rebuild BM25', suiSrc.includes('eng.bm25.rebuild(eng.summary.getActiveSummaries().map'));
 assert('删除 vector 时绝无篡改 BM25 语料', !suiSrc.includes('eng.bm25.rebuild(eng.vector.vectors.map'));
 
+// ===== 4. 健壮性增强：getCurrentChatId 兜底与 rollbackFloor BM25 守卫 =====
+assert('getCurrentChatId 支持 chatMetadata.file_name 兜底', idxSrc.includes('c?.chatId || c?.chatMetadata?.file_name || null'));
+assert('rollbackFloor BM25 重建拥有独立 try-catch', idxSrc.includes("this.bm25.rebuild"));
+assert('rollbackFloor 手机记忆联动标签纠正', idxSrc.includes("errLog(e, 'rollbackFloor.手机记忆联动');"));
+
 console.log(`
 [runtime-slimming] ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

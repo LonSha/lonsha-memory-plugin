@@ -840,7 +840,8 @@
                 actions = [
                     { t: "✏️ 修改数值", fn: () => {
                         const cur = rec.fields?.[field] ?? 0;
-                        const nv = prompt("新值（支持 +5 / -3 / 绝对值 / 文本）:", String(cur));
+                        let nv = null;
+                        try { nv = prompt("新值（支持 +5 / -3 / 绝对值 / 文本）:", String(cur)); } catch (e) { console.warn("prompt unavailable:", e); }
                         if (nv === null) return null;
                         const val = nv.trim(); if (!val) return null;
                         if (/^[+-]\d+([.]\d+)?$/.test(val)) {
