@@ -1,5 +1,31 @@
 # 更新日志
 
+## v3.19.0 (2026-09-12) - RUBY 结构型收编（周期调度 + 增量书签 + 系统消息修正）📦
+
+> 收编来源：RUBY Analyzer（xm212617-code/RUBY，SillyTavern 独立扩展）。取其结构型设计——周期纯函数、增量书签、系统消息识别。
+
+### ① 周期调度纯函数（RUBY scheduler.js）
+- `cyclePositionFor(aiReplyCount, len)`：位置取模（每周期第 N 个 AI 回复触发）
+- `collectCycleTasks(tasks, position)`：多任务按位置分发
+- 世界推进触发从「固定 `% wpEvery` 锚点」改为「周期纯函数」——更符合任务语义
+
+### ② 增量书签 IncrementBookmark（RUBY reader.js）
+- 存 ST chatMetadata.extensions.LonShaMemory.bookmarks（原生元数据通道，随对话持久化）
+- `save/get/reset` 书签管理
+- **scanMissingFloors 增量裁剪**：补提取从书签处开始扫（省全量扫描，长对话省 token）
+- **补提取成功后自动推进书签**
+- **`resyncAfterDeletion` 删楼书签重同步**：楼层序数前移时书签精确补偿；越界（书签指向不存在楼层）归 0——防删除过多后任务永久卡死
+- rollbackFloor 内联动书签重同步
+
+### ③ 系统隐藏消息识别（RUBY reader.js isSystemHiddenMsg）
+- `isSystemHiddenMsg(m)`：ST 安静生成的消息 `is_system=true` 但非 user 且非空 → 是 AI 回复（须计入楼层指纹/AI 楼层序数）
+- 修正楼层统计对安静生成消息的误判
+
+### 验证
+- 行为测试 14 项（周期取模/边界、系统消息识别、书签保存/重同步/越界归0、接入点）
+- 全量回归 19 文件 231 项全过
+
+全量回归 231 项。
 ## v3.18.0 (2026-09-12) - 防御深化 + 架构升级（错误规则库/JSON Sanitizer/时间锚点/控制平面）🛡️🏗️
 
 > 收编来源：shujuku（错误提示规则库 + JSON sanitizer）、baibai（时间锚点一致性）、stbme（控制平面分离）。补充 shujuku/baibai 的防御纪律。

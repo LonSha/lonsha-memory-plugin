@@ -114,7 +114,13 @@ if (!ctmM) fail('checkTimeMonotonic 未找到');
 { if (!src.includes('this.checkTimeMonotonic(sd, message.index')) fail('ST3'); ok('ST3: 时间校验接入写入点'); }
 // ST4: 控制平面就绪检查接入 registerEvents
 { if (!src.includes('控制平面未就绪，跳过事件注册')) fail('ST4'); ok('ST4: registerEvents 就绪检查'); }
-// ST5: 版本号
-{ if (!src.includes("VERSION = '3.18.0'")) fail('ST5'); ok('ST5: 版本号 3.18.0'); }
+// ST5: 版本号已前进（>= v3.18）
+{
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST5 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 18) || (M === 3 && m === 18 && p >= 0))) fail('ST5 版本号过低: ' + vm[1]);
+  ok('ST5: 版本号已前进 (>=3.18.0): ' + vm[1]);
+}
 
 console.log(`\n✓ v3.18 防御深化+架构测试全过 (${pass} 项)`);

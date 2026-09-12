@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.18.0';
+    const VERSION = '3.19.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -561,8 +561,70 @@
         }
     }
     
+    // [v3.19] 周期调度纯函数（收编 RUBY scheduler.js）: 位置取模 + 多任务分发
+    function cyclePositionFor(aiReplyCount, len) {
+        if (!len || len <= 0 || aiReplyCount <= 0) return 0;
+        return ((aiReplyCount - 1) % len) + 1;
+    }
+    function collectCycleTasks(tasks, position) {
+        if (!position || position <= 0) return [];
+        return (tasks || []).filter(t => t?.enabled && (t.cyclePositions || []).includes(position));
+    }
+    // [v3.19] 系统隐藏消息识别（ruby reader.js isSystemHiddenMsg）:
+    // ST 安静生成的消息 is_system=true 但非 user 且非空 → 是 AI 回复（须计入楼层指纹/AI 楼层序数）
+    function isSystemHiddenMsg(m) {
+        if (!m) return false;
+        if (m.is_system !== true) return false;
+        if (m.is_user === true) return false;
+        return !!(m.name && String(m.mes || '').trim().length > 0);
+    }
+    // [v3.19] 增量书签（ruby reader.js）: 按用途记录已读楼层，只增量读新楼
+    // 存 chatMetadata.extensions.LonShaMemory.bookmarks（ST 原生元数据通道）
+    class IncrementBookmark {
+        constructor(engine) { this.engine = engine; this.NS = 'LonShaMemory'; }
+        _store() {
+            try {
+                const ctx = window.SillyTavern?.getContext?.();
+                const meta = ctx?.chatMetadata;
+                if (!meta) return null;
+                meta.extensions ??= {};
+                meta.extensions[this.NS] ??= {};
+                meta.extensions[this.NS].bookmarks ??= {};
+                return meta.extensions[this.NS].bookmarks;
+            } catch (e) { return null; }
+        }
+        get(key) { const s = this._store(); if (!s) return 0; const v = Number(s[key]); return Number.isFinite(v) && v > 0 ? v : 0; }
+        save(key, ordinal) {
+            const s = this._store();
+            if (!s || !Number.isFinite(ordinal) || ordinal <= 0) return;
+            s[key] = ordinal;
+            try { window.SillyTavern?.getContext?.()?.saveMetadataDebounced?.(); } catch (e) {}
+        }
+        reset(key) { const s = this._store(); if (s) delete s[key]; }
+        all() { const s = this._store(); return s ? { ...s } : {}; }
+        // [v3.19] 删楼后书签重同步（ruby resyncBookmarksAfterDeletion）:
+        // 删除使后续楼层序数前移，书签减去位于其前的被删楼层数；越界重置
+        resyncAfterDeletion(deletedOldOrdinals, currentAiCount) {
+            const s = this._store();
+            if (!s || !deletedOldOrdinals?.length) return [];
+            const changed = [];
+            for (const [k, raw] of Object.entries(s)) {
+                const b = Number(raw);
+                if (!Number.isFinite(b) || b <= 0) continue;
+                let next = b - deletedOldOrdinals.filter(d => d <= b).length;
+                if (next > currentAiCount) next = 0;
+                if (next !== b) { s[k] = next; changed.push(`${k} ${b}→${next}`); }
+            }
+            if (changed.length && window.SillyTavern?.getContext?.()?.saveMetadataDebounced) {
+                try { window.SillyTavern.getContext().saveMetadataDebounced(); } catch (e) {}
+            }
+            return changed;
+        }
+    }
+
     class MemoryEngine {
         constructor(config) {
+            this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
             this.config = config;
             this.graph = new MemoryGraph();
             this.summary = new SummarySystem();
@@ -899,7 +961,8 @@
                 // [v3.16] 世界推进触发: 每 EVERY_FLOORS 楼标记 pending，等下次生成前推演（独立于摘要折叠开关）
                 try {
                     const wpEvery = Number(this.config.config.worldProgressEveryFloors || (this.worldProg?.EVERY_FLOORS || 2));
-                    if (this.config.config.worldProgressEnabled && wpEvery > 0 && (message.index || 0) % wpEvery === 0) {
+                    // [v3.19] 周期纯函数（ruby）: 位置取模替代固定锚点
+                    if (this.config.config.worldProgressEnabled && wpEvery > 0 && cyclePositionFor(message.index || 0, wpEvery) === wpEvery) {
                         this.worldProg.markPending();
                     }
                 } catch (e) { errLog(e, 'onMessageReceived.世界推进标记'); }
@@ -1391,8 +1454,10 @@
                 const chat = window.SillyTavern?.getContext?.()?.chat;
                 if (!Array.isArray(chat)) return missing;
                 const covered = new Set((this.summary?.summaries || []).map(s => s.floor));
+                // [v3.19] 增量书签裁剪（ruby）: 从书签处开始扫描（省全量扫描）
+                const fromFloor = (this.bookmarks && this.bookmarks.get('scan')) || 0;
                 // 番外楼（lonsha_omit）与空楼跳过；user 楼不提取（提取管线只处理 AI 楼）
-                for (let i = 0; i < chat.length; i++) {
+                for (let i = Math.max(fromFloor, 0); i < chat.length; i++) {
                     const m = chat[i];
                     if (!m || m.is_user) continue;
                     if (m.is_system === true) continue;
@@ -1458,7 +1523,9 @@
                         } catch (e) { errLog(e, `BF.backfill.floor${idx}`); done.fail++; }
                     }
                 } finally { if (this.config.config.extractionLockEnabled) this.mutex.release(); }
-            } catch (e) { errLog(e, 'BF.backfillFloors'); }
+                    } catch (e) { errLog(e, 'BF.backfillFloors'); }
+                    // [v3.19] 补提取完成后推进书签
+                    try { if (this.bookmarks && floors?.length) this.bookmarks.save('scan', Math.max(...floors) + 1); } catch (e) {}
             if (done.ok || done.fail) {
                 try { await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
             }
@@ -2190,6 +2257,14 @@
                     this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
                 }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${floor} 记忆已回滚`);
+                // [v3.19] 删楼后书签重同步（ruby resyncAfterDeletion）: 楼层序数前移，书签补偿
+                try {
+                    if (this.bookmarks) {
+                        const curCount = (window.SillyTavern?.getContext?.()?.chat?.length) || 0;
+                        const changed = this.bookmarks.resyncAfterDeletion([Number(floor) || 0], curCount);
+                        if (changed.length && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 书签重同步: ${changed.join(', ')}`);
+                    }
+                } catch (e) { errLog(e, 'rollbackFloor.书签重同步'); }
                 return 1;
             } catch (e) {
                 if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 楼层回滚失败:`, e);
