@@ -1,4 +1,26 @@
 # 更新日志
+## v3.28.0 (2026-09-12) - 三级金字塔摘要 + 记忆树路由召回（st-memory-wizzard）📦
+
+> 收编来源：st-memory-wizzard（Memory Wizard，分层摘要金字塔 + 记忆树路由召回）
+> 采用「本地轻量版」：三级金字塔全量实现；记忆树路由用现有图谱/召回做路由（无需第二模型）
+
+### 新增
+
+1. **三级金字塔摘要**——升级既有两级（摘要→卷）为三级：
+   - **日记（level 1）**：现有 summaries（近层，每楼）
+   - **周记（level 2）**：卷摘要升级为周记层（`level: 2` 标记）
+   - **史记（level 3）**：新增 `historical` 数组 + `maybeFoldHistorical()`——卷摘要积累超 `historicalFoldThreshold`（12 条）时折叠成跨阶段史记（最高层）
+   - 已入史记的周记标 `archived`（不再单独注入，防重复）
+   - 注入 `buildVolumeInjection` 增强为「史记 + 活跃周记」三级；export/import 对称（含兼容旧卷摘要数据补 level/archived）
+
+2. **记忆树路由召回**（本地轻量版，`memoryTreeEnabled` 默认关）——用图谱角色节点做「树路径」：命中角色 → 提取图谱邻接节点 → 作为该角色子树召回（`source: 'memoryTree'`），注入渲染为独立「[记忆树·角色关联]」块。无前快模型时用现有 host 召回替代路由
+
+### 测试
+
+- 新增 tests/v328_pyramid_tree.test.mjs（23 项：金字塔结构 9 + 折叠逻辑 3 + 记忆树 7 + 回归 4）
+- 全量回归 28 文件 363 项全过
+
+全量回归 363 项。
 ## v3.27.0 (2026-09-12) - 命中监控/synopsis轻量提取/触发词按需注入（MemoryPilot + AnchorNote）📦
 
 > 收编来源：MemoryPilot（召回命中监控）+ AnchorNote（<synopsis> 轻量提取 + 触发词按需注入）

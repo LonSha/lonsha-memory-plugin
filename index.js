@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.27.0';
+    const VERSION = '3.28.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -332,6 +332,9 @@
                 trailMonitor: true,             // 记录最近一次召回轨迹（settings-ui 状态面板展示）
                 synopsisFastPath: true,         // AI 回复已含 <synopsis> 标签时正则直取（省 LLM 调用）
                 onDemandTriggerPhrase: '',      // 触发词按需注入长指令（空=关闭该功能；填「请生成锚点日记」等）
+                // [v3.28] 三级金字塔 + 记忆树路由（st-memory-wizzard 本地轻量版）
+                historicalFoldThreshold: 12,    // 卷摘要（周记）积累多少条后折叠成史记
+                memoryTreeEnabled: false,       // 记忆树路由召回（本地轻量版，无需第二模型；默认关观察）
                 vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
                 summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
                 optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
@@ -2046,6 +2049,35 @@
             if (query.characters?.length > 0) {
                 results.graph = this.graph.findByNames(query.characters);
                 results.diary = this.diary.search(query.characters);
+                // [v3.28] 记忆树路由召回（st-memory-wizzard 本地轻量版，无需第二模型）:
+                // 用图谱角色节点做「树路径」，命中角色的邻接事件/关系/物品作为该角色子树召回
+                // 无前快模型时用现有 host 召回替代路由（角色→图谱边→关联记忆）
+                try {
+                    if (this.config.config.memoryTreeEnabled && this.graph?.nodes?.size) {
+                        const treePaths = [];
+                        for (const ch of query.characters.slice(0, 4)) {
+                            const node = this.graph.findCharacterByName(ch);
+                            if (!node) continue;
+                            // 角色子树的关联：从该角色的图谱边提取关联节点名
+                            const neighborNames = new Set();
+                            for (const edge of this.graph.edges.values()) {
+                                if (edge.from === node.id) neighborNames.add(this.graph.nodes.get(edge.to)?.name);
+                                else if (edge.to === node.id) neighborNames.add(this.graph.nodes.get(edge.from)?.name);
+                            }
+                            for (const nn of neighborNames) {
+                                if (!nn || nn === ch) continue;
+                                const nm = this.graph.findCharacterByName(nn);
+                                if (nm?.data?.description) {
+                                    treePaths.push({ id: 'tree_' + node.id + '_' + nm.id, text: `${ch} → ${nn}：${String(nm.data.description).slice(0, 80)}`, source: 'memoryTree', character: ch });
+                                }
+                            }
+                        }
+                        if (treePaths.length) {
+                            const exists = new Set((results.graph || []).map(g => g.id || g.name || g.node?.id));
+                            results.graph = [...(results.graph || []), ...treePaths.filter(t => !exists.has(t.id))].slice(0, this.config.config.vectorTopK * 2 + 4);
+                        }
+                    }
+                } catch (e) { errLog(e, 'recallMemory.记忆树路由'); }
                 // [v3.16] 神经链召回（抄 zhino）: 链1(用户→在场角色) + 链2(在场角色→角色间)，链2 去重已注入链1
                 try {
                     if (this.config.config.neuralChainEnabled && query.characters.length > 0) {
@@ -2424,7 +2456,7 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [], dedupNotes = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [], dedupNotes = [], treeNotes = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
                 if (item.source === 'worldprogress') worldProgs.push(item);
                 else if (item.source === 'neuralChain') neuralChains.push(item);
@@ -2440,6 +2472,7 @@
                 else if (item.source?.includes('rubyphone')) phoneMem.push(item);
                 else if (item.source?.includes('diary')) diaries.push(item);
                 else if (item.source?.includes('graph')) relations.push(item);
+                else if (item.source === 'memoryTree') treeNotes.push(item);
                 else if (item.source === 'dedup') dedupNotes.push(item);
                 else summaries.push(item);
             }
@@ -2481,6 +2514,11 @@
                     const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : '中立';
                     blocks.push(`- ${i.from || i.name} → ${i.to || ''}：${i.label || '相关'}[${att}]`);
                 });
+            }
+            if (treeNotes.length) {
+                // [v3.28] 记忆树路由召回（st-memory-wizzard）
+                blocks.push('[记忆树·角色关联]');
+                treeNotes.forEach(i => blocks.push(`- ${i.text || ''}`));
             }
             if (diaries.length) {
                 blocks.push('[角色日记·近期]（第一人称心声，仅作内心参考，不得在对话中直接引用原文）');
@@ -2853,10 +2891,14 @@
         // [v3.1] SF6: 卷摘要顶部注入
         buildVolumeInjection() {
             try {
-                const vols = (this.summary.volumes || []).slice(-3);
-                if (!vols.length) return '';
-                const body = vols.map(v => `【更早剧情（第${v.floorStart}-${v.floorEnd}楼概括）】${v.text}`).join('\n');
-                return `\n〔前情总览｜早期剧情高层概括，细节以正文和记忆简报为准〕\n${body}\n`;
+                // [v3.28] 三级金字塔注入: 史记(最高层) + 活跃周记(中层) + 最新卷(近层)
+                const his = (this.summary.historical || []).slice(-3);
+                const vols = this.summary.getActiveVolumes ? this.summary.getActiveVolumes().slice(-3) : (this.summary.volumes || []).slice(-3);
+                if (!his.length && !vols.length) return '';
+                const parts = [];
+                if (his.length) parts.push('【史记·跨阶段总览】' + his.map(h => h.text).join('\n'));
+                if (vols.length) parts.push('【周记·阶段概括】' + vols.map(v => `（第${v.floorStart}-${v.floorEnd}楼）${v.text}`).join('\n'));
+                return `\n〔前情总览｜早期剧情层级概括，细节以正文和记忆简报为准〕\n${parts.join('\n')}\n`;
             } catch (e) { errLog(e, 'SF6.buildVolumeInjection'); return ''; }
         }
 
@@ -3274,7 +3316,8 @@
     }
     
     class SummarySystem {
-        constructor() { this.summaries = []; this.volumes = []; this.folding = false; }
+        constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.folding = false; }
+        // [v3.28] 三级金字塔（st-memory-wizzard）: summaries(level1日记) → volumes(level2周记/卷) → historical(level3史记)
         // [v1.4.2] 智能截断：优先在句子边界断开，避免"但那个"式半句截断
         smartTruncate(text, maxLen) {
             text = String(text || '').trim();
@@ -3331,10 +3374,15 @@
                         floorStart: floors.length ? Math.min(...floors) : 0,
                         floorEnd: floors.length ? Math.max(...floors) : 0,
                         count: batch.length,
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        level: 2   // [v3.28] 卷摘要 = 周记层（中层）
                     });
                     batch.forEach(s => { s.folded = true; });
                     if (this.volumes.length > 20) this.volumes.shift();
+                    // [v3.28] 三级金字塔: 卷摘要（周记）积累超阈值 → 继续折叠成史记（最高层）
+                    if (this.volumes.length >= (config.historicalFoldThreshold || 12)) {
+                        try { this.maybeFoldHistorical(config, llm); } catch (e2) { if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 史记折叠失败:`, e2); }
+                    }
                     if (config.debugMode) console.log(`[${PLUGIN_NAME}] 摘要折叠: ${batch.length}条 → 卷摘要#${this.volumes.length}`);
                     return this.volumes[this.volumes.length - 1];
                 }
@@ -3346,13 +3394,51 @@
             return null;
         }
         // 卷摘要召回（最近 N 卷，低权重）
+        // [v3.28] 三级金字塔最高层: 卷摘要（周记）积累超阈值 → 折叠成史记（最高层，跨阶段总览）
+        async maybeFoldHistorical(config, llm) {
+            if (this.folding) return null;
+            const vols = this.volumes;
+            const threshold = config?.historicalFoldThreshold || 12;
+            if (vols.length < Math.min(4, threshold)) return null;
+            const batch = vols.slice(0, threshold);
+            this.folding = true;
+            try {
+                const list = batch.map(v => `[第${v.floorStart}-${v.floorEnd}楼] ${v.text}`).join('\n');
+                const prompt = `你是历史学家。以下是同一段长剧情的${batch.length}个阶段概括（周记）。请把它们合并成一段150-250字的历史总览（史记），保留关键人物、重要转折、长期伏笔与因果主线，压缩重复描述。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
+                const raw = await llm.callAPI(prompt);
+                const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
+                if (clean && clean.length >= 30) {
+                    this.historical.push({
+                        id: 'his_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                        text: clean,
+                        floorStart: batch[0]?.floorStart ?? 0,
+                        floorEnd: batch[batch.length - 1]?.floorEnd ?? 0,
+                        count: batch.length,
+                        timestamp: Date.now(),
+                        level: 3
+                    });
+                    // 已入史记的周记标记归档（不再作为中层单独注入）
+                    batch.forEach(v => { v.archived = true; });
+                    if (this.historical.length > 6) this.historical.shift();
+                    if (config?.debugMode) console.log(`[${PLUGIN_NAME}] 史记折叠: ${batch.length}个周记 → 史记#${this.historical.length}`);
+                    return this.historical[this.historical.length - 1];
+                }
+            } finally { this.folding = false; }
+            return null;
+        }
+        // 活跃周记（未入史记）
+        getActiveVolumes() { return this.volumes.filter(v => !v.archived); }
         searchVolumes(limit = 2) { return this.volumes.slice(-limit).reverse(); }
-        export() { return { summaries: this.summaries, volumes: this.volumes }; }
+        export() { return { summaries: this.summaries, volumes: this.volumes, historical: this.historical }; }
         import(data) {
-            if (Array.isArray(data)) { this.summaries = data; this.volumes = []; }
+            if (Array.isArray(data)) { this.summaries = data; this.volumes = []; this.historical = []; }
             else if (data && typeof data === 'object') {
                 this.summaries = Array.isArray(data.summaries) ? data.summaries : [];
                 this.volumes = Array.isArray(data.volumes) ? data.volumes : [];
+                // [v3.28] 史记层导入对称
+                this.historical = Array.isArray(data.historical) ? data.historical : [];
+                // 兼容旧卷摘要数据（无 level/archived）: 自动补默认
+                for (const v of this.volumes) { if (v.level === undefined) v.level = 2; if (v.archived === undefined) v.archived = false; }
             }
         }
     }
