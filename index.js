@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.13.0';
+    const VERSION = '3.14.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -149,6 +149,20 @@
                 graphDiffusionEnabled: true,
                 autoSave: true,
                 maxSummaryLength: 200,
+                // [v3.14] 从世界书提取角色提示词（zhino 触发词优先思路）
+                extractRolesLimit: 50,
+                extractRolesPrompt: `你是角色名提取器。从下面世界书条目中提取【角色】及其别名。
+规则：
+1. 只提取明确是角色/人物的条目（含拟人化角色），跳过地点/物品/组织/概念类条目
+2. 条目标题路径（title）和触发词（key）是最可靠的角色名来源，优先采用
+3. 正文中的其他称呼、昵称、代号、外号可作别名（aliases），最多 8 个
+4. 不要提取路人、一次性出场、纯背景板（宁可漏记也不多记）
+5. 输出 JSON 数组：[{"name":"角色名","aliases":["别名1","别名2"]}]，仅输出 JSON，不要解释
+
+世界书条目：
+{{LORE}}
+
+请提取最多 {{ROLE_COUNT}} 个角色。`,
                 extractionPrompt: `你是剧情记忆整理员。阅读【本轮对话】，对照【已知角色名单】、【前情提要】与【悬念簿】，只提取明确发生的事实，禁止编造与推测。注意：思维链/内心独白中的构思草稿、模拟对话、心理预演均尚未发生，严禁当作剧情事实提取。
 【已知角色名单】（提取角色必须复用这些主名；识别出别名/昵称/代称时，归并到对应主名）
 {{KNOWN_CHARS}}
@@ -949,6 +963,66 @@
             if (this._thinkingSignals.length > 12) this._thinkingSignals.shift();
             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 场外信号入库（仅检索用）楼层 ${f}`);
         }
+    // [v3.14] 从世界书提取角色（收编 zhino A5.2.1: 触发词=世界书 key 是别名最可靠来源）
+    // 快速模式: 只读 条目标题路径 + 触发词(key) + 正文前300字
+    async extractRolesFromLore() {
+        try {
+            const ctx = window.SillyTavern?.getContext?.();
+            const lore = ctx?.lore;
+            if (!lore || !Array.isArray(lore) || !lore.length) return [];
+            // 收集条目（覆盖全部条目的 key/comment/content 前300字——zhino: 触发词比正文更小更准）
+            const samples = lore.slice(0, Math.min(lore.length, 400)).map(e => {
+                const key = String(e?.key || '').trim();
+                const title = String(e?.comment || e?.displayName || key || '').trim();
+                const body = String(e?.content || '').trim().slice(0, 300);
+                return { key, title, body };
+            }).filter(s => s.key || s.title || s.body);
+            if (!samples.length) return [];
+            const prompt = this.config.config.extractRolesPrompt
+                .replace('{{LORE}}', samples.map(s => `【${s.title || s.key}】key=${s.key}\n${s.body}`).join('\n---\n'))
+                .replace('{{ROLE_COUNT}}', String(Math.min(samples.length, 80)));
+            const raw = await this.llm.callAPI(prompt);
+            // 宽松 JSON 解析（兼容 ```json 围栏）
+            let arr = [];
+            const m = String(raw || '').match(/```json\s*([\s\S]*?)```/);
+            const json = m ? m[1] : String(raw || '').replace(/[\s\S]*?(\[.*\])[\s\S]*/s, '$1');
+            try { arr = JSON.parse(json); } catch (_) { arr = []; }
+            if (!Array.isArray(arr)) arr = [];
+            return arr
+                .filter(x => x && typeof x.name === 'string' && x.name.trim())
+                .map(x => ({
+                    name: x.name.trim(),
+                    aliases: (Array.isArray(x.aliases) ? x.aliases : []).filter(a => typeof a === 'string' && a.trim() && a.trim() !== x.name.trim()).map(a => a.trim()).slice(0, 8),
+                }))
+                .slice(0, Number(this.config.config.extractRolesLimit) || 50);
+        } catch (e) { errLog(e, 'V314.extractRolesFromLore'); return []; }
+    }
+
+    // [v3.14] 写入图谱: 已有角色只补别名（zhino: 不改主名）；新角色入节点
+    applyExtractedRoles(roles) {
+        if (!Array.isArray(roles) || !roles.length) return { added: 0, aliasPatched: 0 };
+        let added = 0, aliasPatched = 0;
+        for (const r of roles) {
+            try {
+                const canonical = this.resolveCharacterName(r.name);
+                const node = this.graph.findCharacterByName(canonical);
+                if (node) {
+                    // 已有角色: 只补别名，不入新节点
+                    const cur = new Set(node.data?.aliases || []);
+                    let changed = false;
+                    for (const a of (r.aliases || [])) {
+                        if (a && !cur.has(a)) { cur.add(a); changed = true; }
+                    }
+                    if (changed) { node.data = { ...(node.data || {}), aliases: Array.from(cur) }; aliasPatched++; }
+                } else {
+                    this.graph.addNode({ type: 'character', name: canonical, data: { source: '[世界书]', aliases: r.aliases || [] } });
+                    added++;
+                }
+            } catch (e) { errLog(e, 'V314.applyExtractedRoles'); }
+        }
+        return { added, aliasPatched };
+    }
+
 
         extractMemorySimple(message) {
             // [v1.4 修复] 旧版用正则抓任意中文词块当角色名，产生"钥匙在锁""两下"这类垃圾。

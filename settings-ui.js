@@ -116,6 +116,49 @@
             });
         };
 
+        // [v3.14] 从世界书提取角色面板（收编 zhino）: 提取 → 预览勾选 → 确认写入
+        plugin.showExtractRoles = async function() {
+            const engine = plugin.engine;
+            if (!engine) { toast('引擎未初始化'); return; }
+            toast('📚 正在读取世界书并提取角色…');
+            let roles = [];
+            try { roles = await engine.extractRolesFromLore(); } catch (e) { toast('提取失败: ' + e.message); return; }
+            if (!roles.length) { toast('⚠️ 未提取到角色（检查是否绑定了世界书/API 是否可用）'); return; }
+            const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            // 标注已存在角色（将只补别名）
+            const known = new Set(engine.getKnownCharacters ? engine.getKnownCharacters() : []);
+            const rows = roles.map((r, idx) => {
+                const isKnown = known.has(r.name) || (engine.graph?.findCharacterByName ? !!engine.graph.findCharacterByName(r.name) : false);
+                return `<div class="ls-item" style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;">
+                    <input type="checkbox" class="ls-extract-cb" data-idx="${idx}" checked style="margin-top:3px;flex:0 0 auto;">
+                    <div style="flex:1;">
+                        <div><b>${esc(r.name)}</b> ${isKnown ? '<span style="color:#a6e3a1;font-size:11px;">（已存在，仅补别名）</span>' : '<span style="color:#f9e2af;font-size:11px;">（新角色）</span>'}</div>
+                        ${r.aliases?.length ? `<div style="color:#a6adc8;font-size:12px;">别名: ${esc(r.aliases.join('、'))}</div>` : ''}
+                    </div>
+                </div>`;
+            }).join('') || '<div class="ls-hint">无角色可写入</div>';
+            const body = `
+                <div style="padding:4px 8px;font-size:12px;color:#a6adc8;">提取到 ${roles.length} 个角色，勾选要写入的条目（已存在角色只会补别名，不会覆盖主名或数据）</div>
+                <div style="max-height:40vh;overflow-y:auto;margin:6px 0;">${rows}</div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="ls-btn" id="ls-extract-cancel">取消</button>
+                    <button class="ls-btn ls-btn-primary" id="ls-extract-apply">✅ 写入 ${roles.length} 个</button>
+                </div>`;
+            const overlay = makeSheet('lonsha-extract-overlay', '📚 从世界书提取角色', body);
+            overlay.querySelector('#ls-extract-cancel').addEventListener('click', () => { overlay.remove(); });
+            overlay.querySelector('#ls-extract-apply').addEventListener('click', async () => {
+                const sel = Array.from(overlay.querySelectorAll('.ls-extract-cb:checked')).map(cb => roles[Number(cb.dataset.idx)]);
+                if (!sel.length) { toast('未勾选任何角色'); return; }
+                try {
+                    const res = engine.applyExtractedRoles(sel);
+                    const chatId = engine.getCurrentChatId();
+                    if (chatId) await engine.storage.save(chatId, engine.collectExport());
+                    toast(`✅ 写入完成: 新增 ${res.added} 个，补别名 ${res.aliasPatched} 个`);
+                    overlay.remove();
+                } catch (e) { toast('写入失败: ' + e.message); }
+            });
+        };
+
         // ========== 记忆内容浏览器（v1.3.1）==========
         plugin.showBrowser = function(viewType) {
             const s = this.engine;
@@ -412,6 +455,7 @@
                 </div>
                 <button class="ls-btn" id="ls-snap-restore">🗄️ 快照恢复</button>
                 <button class="ls-btn" id="ls-backfill">🔧 补提取缺失楼层</button>
+            <button class="ls-btn" id="ls-extract-roles">📚 从世界书提取角色</button>
                 <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
             `;
 
@@ -419,6 +463,7 @@
             // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
             overlay.querySelector('#ls-snap-restore').addEventListener('click', () => { plugin.showSnapshotRestore(); });
             // [v3.5] 补提取缺失楼层
+            overlay.querySelector('#ls-extract-roles').addEventListener('click', async () => { plugin.showExtractRoles(); });
             overlay.querySelector('#ls-backfill').addEventListener('click', async () => {
                 const engine = plugin.engine;
                 const missing = engine.scanMissingFloors();

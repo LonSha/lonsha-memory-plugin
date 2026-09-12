@@ -146,11 +146,13 @@ function cfgProxy() { return { config: { debugMode: false } }; }
   if (vi < 0) fail('ST5 向量素材拼接缺失');
   ok('ST5: 场外信号仅拼入 vectorText（检索素材），不进注入文本');
 }
-// ST6: settings-ui 无需改动（确认无版本号残留冲突）
+// ST6: 版本号已前进（不低于 v3.13，允许后续版本号）
 {
-  if (src.includes("VERSION = '3.12.0'")) fail('ST6 版本号未更新');
-  if (!src.includes("VERSION = '3.13.0'")) fail('ST6 新版本号缺失');
-  ok('ST6: 版本号 3.13.0');
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST6 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 13) || (M === 3 && m === 13 && p >= 0))) fail('ST6 版本号过低: ' + vm[1]);
+  ok('ST6: 版本号已前进 (>=3.13.0): ' + vm[1]);
 }
 
 console.log(`\n✓ v3.13 思维链分流测试全过 (${pass} 项)`);
