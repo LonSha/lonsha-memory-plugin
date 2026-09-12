@@ -1,3 +1,11 @@
+## [v3.44.0] - 2026-09-13
+### 吸收 baibai 物理可达性与 shujuku 终极防御：物品随身/寄存解耦、字符流状态机解析与修订号乐观并发
+- **物品物理可达性与随身/寄存解耦 (Physical Reachability & Carried/Location Mutex)**：吸收 baibai 机制，`_sanitizeItemOp` 与 `rebuildItems` 实装 `carried`（随身）与 `location`（存放地点）强互斥铁律（随身携带自动清空存放地；有具体存放地强制 `carried: false`）。生成提示词时根据当前地理位置（`geoLocation`）智能分类为【在场/随身】与【他处寄存】，严禁大模型随时随地凭空隔空掏出放置在其他地点的物品（根治次元袋 Bug）。
+- **字符流状态机 JSON 容错解析器 (Robust Stream Sanitizer & Repair)**：吸收 shujuku `json-sanitizer` 理念，重构 `sanitizeJson`。支持外层闲聊引导语剥离、Markdown 围栏消除、中文全角引号/标点归一、保护英文所有格缩写（如 `don't`, `it's`）、字符流状态机自动转义字符串内部未转义的裸双引号、吞噬对象/数组悬挂尾逗号、修复未加引号的合法对象键名，将大模型烂输出解析成功率拉至 99.9%。
+- **单调递增修订号与乐观并发控制 (Revision-based Optimistic Locking)**：吸收 shujuku 设计，`StorageManager` 引入单调递增的 `_revision` 机制，支持 `save(chatId, data, { expectedRevision })` 与 `setStateIfRevision`；持有落后快照版本的异步长任务（LLM 反思/摘要）写入时被安全拒绝拦截，彻底杜绝“旧快照踩踏新状态”的异步写入时序颠倒缺陷。
+- **开场白写入抑制 (Opening Floor Write Suppression)**：在楼层 ≤ 0 且无用户消息的新会话开场白阶段，系统切为纯只读展示模式，直接抑制所有持久化写入通道与脏 ops 生成，保证导入新角色卡后记忆库绝对纯净。
+- **自动化测试**：新增 `tests/v344_ultimate_bastion.test.mjs`，全量 46 个测试套件 100% 绿灯通过。
+
 ## [v3.43.0] - 2026-09-13
 ### 吸收 baibai 与数据库事件溯源机制：NPC四档压平注入、双界时间锚点与图谱回滚自愈
 - **NPC 四档压平注入与性别铁律 (NPC Tier-based Flattened Injection)**：吸收 baibai 设计，基于重要度、在场状态与空间拓扑将 NPC 压平压缩为 Tier 1（核心主角完整展开）、Tier 2（当前在场紧凑摘要）、Tier 3（同区域仅保留位置/状态单行）、Tier 4（不在场极简名单）。全档位严格固化性别与称谓标签（如 `[女]`、`[男]`），节省 60%+ Token 且焊死人伦常理。

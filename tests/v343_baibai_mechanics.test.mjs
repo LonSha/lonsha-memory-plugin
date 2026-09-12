@@ -31,7 +31,7 @@ const normFn = (n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim
 const errLog = () => {};
 
 console.log('=== 1. 静态关键锚点与版本检查 ===');
-assert.ok(src.includes("const VERSION = '3.43.0';"), '版本号必须递增至 3.43.0');
+assert.ok(/VERSION = '3\.(4[3-9]|[5-9]\d)\.0'/.test(src), '版本号必须有效 (>= 3.43.0)');
 assert.ok(src.includes('buildNpcTierInjection'), 'MemoryEngine 必须拥有 NPC 四档压平分级注入');
 assert.ok(src.includes('extractDualTimeTags') && src.includes('calcAge'), 'RelativeTimeHelper 必须拥有双界时间提取与年龄推算');
 assert.ok(src.includes('graphOps') && src.includes('rebuildGraphFromOps'), 'MemoryGraph 必须拥有关系事件溯源');

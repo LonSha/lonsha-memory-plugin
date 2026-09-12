@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.43.0';
+    const VERSION = '3.44.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -289,20 +289,114 @@
         { re: /RangeError|Maximum call stack|out of memory/i, title: '内存/调用栈溢出', reason: '记忆链路循环递归或超大单体文本撑爆内存。', action: '降低检索条数上限，减少单楼正文字符数。' }
     ];
     // [v3.18] JSON sanitizer（shujuku/baibai）: 全角引号归一 + 未转义引号修复
+    // [v3.44] 吸收 shujuku: 字符流状态机 JSON 容错解析器 (Robust Stream Sanitizer)
     function sanitizeJson(raw) {
         try {
-            let s = String(raw || '').trim();
-            if (!s) return s;
-            // 全角引号/逗号/冒号 → 半角
-            s = s.replace(/\u201c|\u201d|\u201e/g, '"').replace(/\uff0c/g, ',').replace(/\uff1a/g, ':');
-            // 剥离 ```json 围栏
-            s = s.replace(/^```json\s*/i, '').replace(/```\s*$/, '');
-            // 未转义引号修复（状态机）：字符串内裸引号前补转义
-            // （简单实现：只处理 JSON.parse 失败的常见情况——尾部逗号、单引号）
-            s = s.replace(/,\s*([}\]])/g, '$1');   // 去尾逗号
-            s = s.replace(/'/g, '"');                 // 单引号→双引号
-            return s;
-        } catch (e) { return String(raw || ''); }
+            if (!raw) return '';
+            let s = String(raw).trim();
+            if (!s) return '';
+
+            // 1. 全角引号与全角标点归一化
+            s = s.replace(/[\u201c\u201d\u201e\u300c\u300d]/g, '"')
+                 .replace(/[\u2018\u2019]/g, "'")
+                 .replace(/\uff0c/g, ',')
+                 .replace(/\uff1a/g, ':')
+                 .replace(/\uff1b/g, ';');
+            // 单引号键值向双引号转换（保护 don't, it's 等字母间缩写）
+            s = s.replace(/([a-zA-Z])'([a-zA-Z])/g, '$1__APOSTROPHE__$2')
+                 .replace(/'/g, '"')
+                 .replace(/__APOSTROPHE__/g, "'");
+
+            // 2. 剥离外层闲聊废话与 Markdown 围栏
+            const firstObj = s.indexOf('{');
+            const firstArr = s.indexOf('[');
+            let startIdx = -1;
+            let isArray = false;
+            if (firstObj !== -1 && firstArr !== -1) {
+                if (firstObj < firstArr) { startIdx = firstObj; isArray = false; }
+                else { startIdx = firstArr; isArray = true; }
+            } else if (firstObj !== -1) {
+                startIdx = firstObj; isArray = false;
+            } else if (firstArr !== -1) {
+                startIdx = firstArr; isArray = true;
+            }
+
+            if (startIdx === -1) {
+                return s.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+            }
+
+            const endToken = isArray ? ']' : '}';
+            const endIdx = s.lastIndexOf(endToken);
+            if (endIdx > startIdx) {
+                s = s.slice(startIdx, endIdx + 1);
+            } else {
+                s = s.slice(startIdx);
+            }
+
+            // 3. 字符流状态机：修复未转义双引号与字符串内部裸引号
+            let out = '';
+            let inString = false;
+            let escaped = false;
+            for (let i = 0; i < s.length; i++) {
+                const ch = s[i];
+                if (escaped) {
+                    out += ch;
+                    escaped = false;
+                    continue;
+                }
+                if (ch === '\\') {
+                    out += ch;
+                    escaped = true;
+                    continue;
+                }
+                if (ch === '"') {
+                    if (!inString) {
+                        inString = true;
+                        out += ch;
+                    } else {
+                        // 前瞻下一个非空白字符
+                        let nextNonSpace = '';
+                        for (let j = i + 1; j < s.length; j++) {
+                            const nc = s[j];
+                            if (nc !== ' ' && nc !== '\t' && nc !== '\r' && nc !== '\n') {
+                                nextNonSpace = nc;
+                                break;
+                            }
+                        }
+                        if (!nextNonSpace || nextNonSpace === ',' || nextNonSpace === ':' || nextNonSpace === '}' || nextNonSpace === ']') {
+                            inString = false;
+                            out += ch;
+                        } else {
+                            out += '\\"';
+                        }
+                    }
+                } else {
+                    out += ch;
+                }
+            }
+
+            // 4. 清除对象/数组尾部多余的逗号（悬挂逗号：, } 或 , ]）
+            out = out.replace(/,\s*([}\]])/g, '$1');
+
+            // 5. 修复未加引号的纯英文字母对象键（如 { name: "value" } -> { "name": "value" }）
+            out = out.replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":');
+
+            return out.trim();
+        } catch (e) {
+            return String(raw || '').trim();
+        }
+    }
+    function safeJsonParse(raw, fallback = null) {
+        if (!raw) return fallback;
+        try {
+            return JSON.parse(raw);
+        } catch (_) {
+            try {
+                return JSON.parse(sanitizeJson(raw));
+            } catch (e) {
+                return fallback;
+            }
+        }
     }
     function hintForError(err) {
         const msg = String(err?.message || err || '').slice(0, 300);
@@ -1037,6 +1131,15 @@
             // [v1.2 真机适配修复] ST 消息对象没有 index 字段，
             // 楼层号来自 eventSource 回调的 messageId
             message = { ...message, index: messageId ?? message.index ?? 0 };
+
+            // [v3.44] 开场白写入抑制 (Opening Floor Write Suppression，抄 shujuku)
+            // 无用户消息、仅第 0 楼开场白时，系统只读加载，抑制所有写操作与记忆 ops 生成，保持新会话纯净
+            const _ctxChat = window.SillyTavern?.getContext?.()?.chat;
+            const _isOpeningStage = (!_ctxChat || _ctxChat.length <= 1 || (_ctxChat.length === 1 && !_ctxChat[0]?.is_user)) && message.index <= 0;
+            if (_isOpeningStage && !message.is_user) {
+                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 处于首楼开场白阶段，只读展示，抑制自动记忆写入`);
+                return;
+            }
             // [v1.4] 清洗正文：剥离 HTML注释/SDC标签/自定义标签，防止脏数据入库
             // [v3.13] 思维链/正文分流: 先剥 <thinking> 再清洗（zhino A5.2.1——思维链草稿不入正文/摘要/图谱）
             // 注意: thinking 存引擎信号队列而非 message.extra（message 是浅拷贝，extra 引用与原对象共享，直接写会污染 ST 真实消息）
@@ -2062,6 +2165,20 @@
                     clean.holder = '地上/遗落';
                 }
                 if (op.state !== undefined && op.state !== null) clean.state = String(op.state).trim().slice(0, 10);
+                // [v3.44] 吸收 baibai: 物品物理可达性与随身/存放互斥铁律
+                if (op.carried !== undefined && op.carried !== null) {
+                    clean.carried = (op.carried === true || op.carried === 'true' || op.carried === 1);
+                }
+                if (op.location !== undefined && op.location !== null) {
+                    const loc = String(op.location).trim().slice(0, 40);
+                    clean.location = (loc === 'null' || loc === 'none' || loc === '无') ? '' : loc;
+                }
+                // 互斥自愈：随身携带则清空存放地点；有具体存放地点则 carried 强制为 false
+                if (clean.carried === true) {
+                    clean.location = '';
+                } else if (clean.location) {
+                    clean.carried = false;
+                }
                 return clean;
             } catch (e) { errLog(e, 'DF3.sanitizeItemOp'); return null; }
         }
@@ -2099,7 +2216,9 @@
                                 desc: op.desc || '',
                                 holder: op.holder || '无主',
                                 state: op.state || '完好',
-                                floor: op.floor
+                                floor: op.floor,
+                                carried: op.carried !== undefined ? op.carried : (!op.location),
+                                location: op.location || ''
                             });
                         }
                     } else {
@@ -2107,6 +2226,10 @@
                         if (op.desc !== undefined) exist.desc = op.desc;
                         if (op.holder !== undefined) exist.holder = op.holder;
                         if (op.state !== undefined) exist.state = op.state;
+                        if (op.carried !== undefined) exist.carried = op.carried;
+                        if (op.location !== undefined) exist.location = op.location;
+                        if (exist.carried === true) exist.location = '';
+                        else if (exist.location) exist.carried = false;
                         exist.floor = op.floor;
                         if (exist.state && REMOVE_STATES.has(exist.state)) map.delete(itemKey);
                     }
@@ -2115,6 +2238,10 @@
                     if (op.desc !== undefined) exist.desc = op.desc;
                     if (op.holder !== undefined) exist.holder = op.holder;
                     if (op.state !== undefined) exist.state = op.state;
+                    if (op.carried !== undefined) exist.carried = op.carried;
+                    if (op.location !== undefined) exist.location = op.location;
+                    if (exist.carried === true) exist.location = '';
+                    else if (exist.location) exist.carried = false;
                     exist.floor = op.floor;
                     if (exist.state && REMOVE_STATES.has(exist.state)) {
                         map.delete(itemKey);
@@ -2500,16 +2627,57 @@
             }
 
             // [v2.8] RT-C: 物品台账召回（提前执行，为 HippoRAG 提取道具实体输入）
+            // [v3.44] 吸收 baibai: 物品物理可达性与随身/寄存解耦（Carried vs Location 互斥）
             if (this.config.config.itemLedgerEnabled && this.itemOps?.length) {
                 const cast = this.captureCast();
                 const qText = query.text || '';
+                let currentGeo = '';
+                try {
+                    const charState = window.LonShaMemory?.engine?.characterState;
+                    if (charState?.getGeoLocation) {
+                        const geo = charState.getGeoLocation();
+                        currentGeo = `${geo.majorArea || ''} ${geo.minorArea || ''} ${geo.detailLocation || ''}`.trim().toLowerCase();
+                    }
+                } catch (e) {}
+
                 const relevant = this.items.records.filter(r => {
                     const isRemoved = r.state && (r.state === '丢失' || r.state === '损毁' || r.state === '已消耗' || r.state === '丢弃');
                     if (isRemoved) return qText && qText.includes(r.name);
                     return cast.some(c => (r.holder || '').includes(c)) || (qText && qText.includes(r.name));
-                }).slice(-5);
+                }).slice(-8);
+
                 if (relevant.length) {
-                    results.items = relevant.map(r => ({ name: r.name, text: `${r.name}（${r.holder || '无主'}持有，${r.state || '完好'}）${r.desc ? '：' + r.desc : ''}`, source: 'items' }));
+                    const accessible = [];
+                    const stored = [];
+                    for (const r of relevant) {
+                        const isCarried = (r.carried === true || (!r.location && r.carried !== false));
+                        if (isCarried) {
+                            accessible.push({
+                                name: r.name,
+                                text: `${r.name}（随身·${r.holder || '无主'}持有，${r.state || '完好'}）${r.desc ? '：' + r.desc : ''}`,
+                                source: 'items'
+                            });
+                        } else {
+                            const loc = (r.location || '').trim();
+                            const locLower = loc.toLowerCase();
+                            const isNearby = locLower && currentGeo && (currentGeo.includes(locLower) || locLower.includes(currentGeo));
+                            if (isNearby) {
+                                accessible.push({
+                                    name: r.name,
+                                    text: `${r.name}（在场·存放于${loc}，${r.state || '完好'}）${r.desc ? '：' + r.desc : ''}`,
+                                    source: 'items'
+                                });
+                            } else {
+                                stored.push({
+                                    name: r.name,
+                                    text: `${r.name}（存放于${loc || '他处'}，${r.holder || '无主'}持有）`,
+                                    source: 'items_stored'
+                                });
+                            }
+                        }
+                    }
+                    results.items = accessible;
+                    if (stored.length) results.itemsStored = stored;
                 }
             }
 
@@ -2767,7 +2935,9 @@
                 results.status || [],
                 results.holiday || [],
                 results.suspense || [],
-                results.presence || []
+                results.presence || [],
+                results.items || [],
+                results.itemsStored || []
             ];
             const byKey = new Map();
             lists.forEach((list, listIdx) => {
@@ -2779,7 +2949,7 @@
                         ...item,
                         rrfScore: (prev?.rrfScore || 0) + rrfScore,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
-                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday','suspense','presence'][listIdx]
+                        source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday','suspense','presence','items','items_stored'][listIdx]
                     });
                 });
             });
@@ -2892,11 +3062,12 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [], dedupNotes = [], treeNotes = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], itemStoredRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [], dedupNotes = [], treeNotes = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
                 if (item.source === 'worldprogress') worldProgs.push(item);
                 else if (item.source === 'neuralChain') neuralChains.push(item);
                 else if (item.source === 'items') itemRecs.push(item);
+                else if (item.source === 'items_stored' || item.source?.includes('items_stored')) itemStoredRecs.push(item);
                 else if (item.source === 'reflection') reflectRecs.push(item);
                 else if (item.source === 'status') statuses.push(item);
                 else if (item.source === 'suspense') suspenses.push(item);
@@ -3024,8 +3195,12 @@
                 else if (item.source === 'presence') presenceList.push(item);
             }
             if (itemRecs.length) {
-                blocks.push('[物品台账]');
+                blocks.push(itemStoredRecs.length ? '[物品台账·在场/随身]' : '[物品台账]');
                 itemRecs.forEach(i => blocks.push(`- ${i.text || ''}`));
+            }
+            if (itemStoredRecs.length) {
+                blocks.push('[物品台账·他处寄存]（注意：以下物品存放于其他地点或未随身携带，角色当前不可随手隔空取出）');
+                itemStoredRecs.forEach(i => blocks.push(`- ${i.text || ''}`));
             }
             if (reflectRecs.length) {
                 blocks.push('[高层洞察]（长线关系趋势/线索，供叙事参考不作事实）');
@@ -5472,13 +5647,33 @@ ${win}`;
             this.STORAGE_KEY = 'lonsha_memory';
             this._isWriting = false;
             this._pendingWrite = null;
+            this._revision = 0; // [v3.44] 乐观并发单调修订号 (Revision-based Optimistic Locking)
+        }
+        getRevision() {
+            return this._revision;
+        }
+        setStateIfRevision(expectedRev, updateFn) {
+            if (expectedRev != null && expectedRev < this._revision) {
+                console.warn(`[${PLUGIN_NAME}] 状态更新被拒绝：版本冲突 (当前 rev: ${this._revision}, 请求 rev: ${expectedRev})`);
+                return false;
+            }
+            if (typeof updateFn === 'function') updateFn();
+            return true;
         }
         // [v3.40] 数据库级写入协调器 (Write Coalescing & Serialized Mutex)
+        // [v3.44] 乐观并发修订号校验 (opts.expectedRevision)
         async save(chatId, data) {
-            if (!chatId || !data) return;
+            const opts = arguments[2] || {};
+            if (!chatId || !data) return false;
+            if (opts.expectedRevision != null && opts.expectedRevision < this._revision) {
+                console.warn(`[${PLUGIN_NAME}] 存储写入被拒绝：检测到修订版本冲突 (当前 rev: ${this._revision}, 请求 rev: ${opts.expectedRevision})，防止旧快照覆盖最新状态`);
+                return false;
+            }
+            this._revision += 1;
+            const currentRev = this._revision;
             if (this._isWriting) {
-                this._pendingWrite = { chatId, data };
-                return;
+                this._pendingWrite = { chatId, data, revision: currentRev };
+                return true;
             }
             this._isWriting = true;
             try {
@@ -5508,6 +5703,7 @@ ${win}`;
                             };
                             ctx.chatMetadata.extensions[this.STORAGE_KEY] = {
                                 version: VERSION,
+                                revision: currentRev,
                                 chatId: curChatId,
                                 stats,
                                 data: curData,
@@ -5527,11 +5723,16 @@ ${win}`;
             } finally {
                 this._isWriting = false;
             }
+            return true;
         }
         async load(chatId, opts = {}) {
             try {
                 const ctx = window.SillyTavern?.getContext?.();
-                const data = ctx?.chatMetadata?.extensions?.[this.STORAGE_KEY]?.data;
+                const extData = ctx?.chatMetadata?.extensions?.[this.STORAGE_KEY];
+                const data = extData?.data;
+                if (extData?.revision != null) {
+                    this._revision = Math.max(this._revision, Number(extData.revision) || 0);
+                }
                 // [v3.12] preserveRuntime=true（生成路径）: 只读返回存档数据，不 import 覆盖运行时——
                 //   运行时内存里的自愈/shift/编辑修改是最新状态，被旧存档盖回=回退（v3.7~v3.9 修复成果全被冲掉的经典 bug）
                 if (opts.preserveRuntime) return data || null;
@@ -5999,6 +6200,8 @@ ${win}`;
         return chat;
     };
     const plugin = new LonShaMemoryPlugin();
+    plugin.sanitizeJson = sanitizeJson;
+    plugin.safeJsonParse = safeJsonParse;
     plugin.init().catch(err => console.error(`[${PLUGIN_NAME}] 初始化失败:`, err));
     window.LonShaMemory = plugin;
 })();

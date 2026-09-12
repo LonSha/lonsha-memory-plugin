@@ -31,7 +31,7 @@ function extractClass(name) {
 const errLog = () => {};
 
 console.log('=== 1. 静态锚点与版本检查 ===');
-assert.ok(src.includes("VERSION = '3.43.0'"), '版本号必须有效 (>= 3.42.0)');
+assert.ok(/VERSION = '3\.(4[2-9]|[5-9]\d)\.0'/.test(src), '版本号必须有效 (>= 3.42.0)');
 assert.ok(src.includes('setBaseline') && src.includes('recordDrift'), 'CharacterState 必须实现人设基线与人设偏移');
 assert.ok(src.includes('registerTransientNpc') && src.includes('promoteNpc'), 'CharacterState 必须实现 NPC 晋升机制');
 assert.ok(src.includes('setGeoLocation') && src.includes('getGeoLocation'), 'CharacterState 必须实现三级地理空间感知');
