@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.35.0';
+    const VERSION = '3.36.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -209,24 +209,35 @@
 
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
     const _errBuf = [];
-    // [v3.18] 错误提示规则库（shujuku: 43条→精简15条人话 + 通用兜底）
+    // [v3.18] 错误提示规则库（shujuku: 43条精简版）
+    // [v3.36] 升级为结构化人话诊断矩阵（包含原因诊断与具体可操作建议）
     const _ERROR_HINTS = [
-        // [network] 网络/API
-        { re: /Failed to fetch|NetworkError|network error|fetch failed|ECONNREFUSED|ENOTFOUND/i, hint: '网络不通：检查设备是否联网、地址是否正确。' },
-        { re: /401|Unauthorized|invalid.*api.*key|api key.*invalid/i, hint: 'API Key 无效或过期：去设置→网络与API 检查 Key。' },
-        { re: /403|Forbidden|permission denied/i, hint: '权限不足：API Key 可能无权限访问该模型/端点。' },
-        { re: /429|Too Many Requests|rate limit|quota|insufficient_quota/i, hint: '触发限流/额度用完：稍等重试，或降低并发/调用频率。' },
-        { re: /5\d\d|Internal Server Error|Bad Gateway|Service Unavailable/i, hint: 'API 服务器错误：通常是上游临时故障，稍后重试。' },
-        { re: /timeout|timed out|ETIMEDOUT|aborted/i, hint: '请求超时：网络慢或模型响应慢，可加大超时时间。' },
-        { re: /CORS|cross.origin|Access-Control-Allow/i, hint: '跨域受限：该 API 端点不支持浏览器跨域访问，需走代理。' },
-        // [storage] 存储
-        { re: /QuotaExceeded|quota exceeded|exceeded.*storage/i, hint: '浏览器存储空间已满：清理浏览器数据或减少记忆量。' },
-        { re: /IndexedDB|indexedDB.*error|object store/i, hint: '本地数据库异常：可能是浏览器隐私模式或数据损坏，尝试恢复快照。' },
-        // [parse] 解析/数据
-        { re: /Unexpected token.*JSON|JSON\.parse|Unexpected end of JSON/i, hint: '模型返回的 JSON 损坏：插件已自动容错，可重试该楼提取。' },
-        { re: /undefined is not|Cannot read propert|is not a function/i, hint: '内部数据缺失（常见于导入旧存档）：建议尝试快照恢复或重新导入。' },
-        { re: /RangeError|Maximum call stack|out of memory/i, hint: '内存/栈溢出：记忆量过大，建议清空部分历史或减少注入预算。' },
-        // [unknown] 未知兜底
+        // [api-auth] 鉴权与配额
+        { re: /401|Unauthorized|invalid.*api.*key|api key.*invalid/i, title: 'API Key 无效', reason: '密钥错误、被撤销或未配置。', action: '前往设置检查 API Key 与端点地址是否匹配。' },
+        { re: /403|Forbidden|permission denied/i, title: '访问受限', reason: '当前 Key 缺少该模型权限或账户被封禁。', action: '检查账户权限或切换具有权限的模型。' },
+        { re: /insufficient_quota|quota exceeded|billing|balance/i, title: '额度耗尽', reason: 'API 提供商账户余额用尽或免费额度已过期。', action: '前往服务商控制台充值，或更换有效服务商。' },
+        { re: /429|Too Many Requests|rate limit|quota/i, title: '触发频控限流', reason: '短时间内调用频率过高。', action: '稍等片刻重试，或调大并发间隔时间。' },
+        
+        // [api-model] 模型与上下文
+        { re: /404|not found|The model .* does not exist/i, title: '模型不存在', reason: '服务商端点未找到填写的模型名。', action: '在设置中核对模型名称拼写（如区分-preview/-latest）。' },
+        { re: /context_length_exceeded|maximum context length|too many tokens|max_tokens/i, title: '上下文超限', reason: '单次提示词总 Token 超出了模型支持的上下文窗口。', action: '在设置中降低记忆注入预算，或开启归档隐藏已折叠楼层。' },
+        { re: /content_filter|sensitive|safety|policy violation/i, title: '内容安全拦截', reason: '剧情内容触发了提供商的敏感词安全审查。', action: '适当调整角色台词/剧情道白，或更换审查宽松的模型。' },
+
+        // [network] 网络通信
+        { re: /Failed to fetch|NetworkError|network error|fetch failed|ECONNREFUSED|ENOTFOUND/i, title: '网络不通（连接失败）', reason: '无法连接到指定的 API 目标地址。', action: '检查设备是否联网、代理软件是否放行或域名是否拼写错误。' },
+        { re: /timeout|timed out|ETIMEDOUT|aborted/i, title: '请求超时', reason: '上游服务器在限定时间内未完成响应。', action: '检查网络延迟，或在设置中加大提取/向量超时上限。' },
+        { re: /CORS|cross.origin|Access-Control-Allow/i, title: '跨域访问受限', reason: '浏览器禁止网页直接跨域调用该私有或公网端点。', action: '配置反向代理（如酒馆内置代理）或在服务端放行 CORS。' },
+        { re: /5\d\d|Internal Server Error|Bad Gateway|Service Unavailable/i, title: '上游服务器异常', reason: 'API 服务商内部服务故障或宕机。', action: '通常为服务商短暂波动，稍作等待后重试。' },
+
+        // [storage] 本地存储
+        { re: /QuotaExceeded|quota exceeded|exceeded.*storage/i, title: '浏览器存储满', reason: '当前源的 localStorage 或 IndexedDB 配额已耗尽。', action: '导出聊天记录后清理多余历史，或精简非必要插件缓存。' },
+        { re: /IndexedDB|indexedDB.*error|object store|SecurityError/i, title: '数据库/权限受限', reason: '浏览器隐私模式或无痕模式限制了本地持久化。', action: '关闭隐私无痕模式，或通过顶部菜单执行快照恢复。' },
+
+        // [runtime] 数据与宿主
+        { re: /Unexpected token.*JSON|JSON\.parse|Unexpected end of JSON/i, title: 'JSON 格式破损', reason: 'LLM 未按约束输出标准 JSON（夹带了解释文本或未转义引号）。', action: '插件已自动安全兜底；若持续出现建议更换指令遵循能力更强的模型。' },
+        { re: /setExtensionPrompt|getContext/i, title: '酒馆接口未就绪', reason: 'SillyTavern 核心接口未就绪或被第三方扩展拦截。', action: '刷新酒馆页面，并确认 SillyTavern 版本 >= 1.12.0。' },
+        { re: /undefined is not|Cannot read propert|is not a function/i, title: '内部引用空指针', reason: '运行时数据字段缺失（多见于跨大版本旧档）。', action: '建议在设置面板点击【一键自愈】或重新导入最新备份。' },
+        { re: /RangeError|Maximum call stack|out of memory/i, title: '内存/调用栈溢出', reason: '记忆链路循环递归或超大单体文本撑爆内存。', action: '降低检索条数上限，减少单楼正文字符数。' }
     ];
     // [v3.18] JSON sanitizer（shujuku/baibai）: 全角引号归一 + 未转义引号修复
     function sanitizeJson(raw) {
@@ -245,9 +256,13 @@
         } catch (e) { return String(raw || ''); }
     }
     function hintForError(err) {
-        const msg = String(err?.message || err || '').slice(0, 200);
-        for (const h of _ERROR_HINTS) if (h.re.test(msg)) return h.hint;
-        return '未知错误：可复制上面的错误信息反馈给插件作者。';
+        const msg = String(err?.message || err || '').slice(0, 300);
+        for (const h of _ERROR_HINTS) {
+            if (h.re.test(msg)) {
+                return `【${h.title}】${h.reason} 建议：${h.action}`;
+            }
+        }
+        return '【未知错误】未命中已知错误模式。建议复制错误日志反馈给插件作者。';
     }
     // [v3.18] 错误提示规则库附加到 errLog 记录中
     function errLog(err, tag) {
@@ -1887,42 +1902,97 @@
         }
         // [v2.4] RE: 是否值得跑召回——最近5楼就在全部对话里(无更早历史)则没有可召回的旧事
         // [v2.8] RT-C: 物品台账重建（ops 真源重放——事件溯源范式，与 status/scene 一致）
+        // [v3.36] 确定性物品键名归一（抄 baibai 确定性 id 理念）：
+        // 剥离包裹的书名号《》、方括号【】[]、小括号（）()、引号等，NFKC 归一化并转小写
+        static normalizeItemKey(name) {
+            try {
+                return String(name || '')
+                    .normalize('NFKC')
+                    .replace(/[《》【】\[\]（）\(\)\u0022\u0027“”‘’〈〉]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase();
+            } catch (e) { return String(name || '').trim().toLowerCase(); }
+        }
         // [v3.2] DF3: 物品 op 清洗（LLM 原文直存 ops，desc/holder 无长度上限会撑爆注入与存档）
+        // [v3.36] 扩展支持 remove 动作及确定性键名归一与三态补丁解析
         _sanitizeItemOp(op) {
             try {
                 if (!op || typeof op !== 'object') return null;
-                const action = op.action === 'add' ? 'add' : (op.action === 'update' ? 'update' : '');
+                const act = String(op.action || '').trim().toLowerCase();
+                // 白名单只放行 add, update, remove
+                const action = (act === 'add' || act === 'update' || act === 'remove') ? act : '';
                 const name = String(op.name || '').normalize('NFKC').replace(/\s+/g, ' ').trim().slice(0, 40);
                 if (!action || !name) return null;
-                const clean = { action, name, floor: Math.max(0, Math.round(Number(op.floor) || 0)) };
-                const desc = String(op.desc || '').trim();
-                const holder = String(op.holder || '').trim();
-                const state = String(op.state || '').trim();
-                if (desc) clean.desc = desc.slice(0, 80);
-                if (holder) clean.holder = holder.slice(0, 20);
-                if (state) clean.state = state.slice(0, 10);
+                // 内部自包含确定性归一化，无需外部变量依赖
+                const key = name.replace(/[《》【】\[\]（）\(\)\u0022\u0027“”‘’〈〉]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+                if (!key) return null;
+                const clean = { action, name, key, floor: Math.max(0, Math.round(Number(op.floor) || 0)) };
+                if (op.desc !== undefined && op.desc !== null) clean.desc = String(op.desc).trim().slice(0, 80);
+                if (op.holder !== undefined && op.holder !== null) {
+                    const h = String(op.holder).trim();
+                    clean.holder = (h === '' || h === '无' || h === '地上' || h === 'null') ? '地上/遗落' : h.slice(0, 20);
+                } else if (op.holder === null) {
+                    clean.holder = '地上/遗落';
+                }
+                if (op.state !== undefined && op.state !== null) clean.state = String(op.state).trim().slice(0, 10);
                 return clean;
             } catch (e) { errLog(e, 'DF3.sanitizeItemOp'); return null; }
         }
         rebuildItems() {
             // [v3.3] 台账重放化：只应用「指纹匹配当前聊天」的 ops（baibai leafValid 语义——
             // 编辑/swipe 自动失活、翻回复活、删楼自愈；carried（携带自旧档）/无 fp（旧数据）不过滤）
+            // [v3.36] 确定性 ID 索引 + 三态补丁语义（未提供不更新、明确置空清空、有效值覆盖）+ remove 剔除
             let chat = null;
             try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) {}
             const liveFp = chat ? new Set(chat.map(m => msgFpOf(m))) : null;
             const map = new Map();
             let skipped = 0;
+            // 排除仅为状态属性的损坏，只剔除明确不在身上的丢失/丢弃/消耗项
+            const REMOVE_STATES = new Set(['丢失', '损毁', '已消耗', '消耗完毕', '丢弃', '已丢弃', '遗落']);
+
             for (const rawOp of (this.itemOps || [])) {
                 const op = this._sanitizeItemOp(rawOp);   // [v3.2] DF3: 渲染前清洗（真源不动，旧档兼容）
                 if (!op) continue;
                 if (chat && rawOp && rawOp.fp && rawOp.carried !== true && !liveFp.has(rawOp.fp)) { skipped++; continue; }
-                const exist = map.get(op.name);
-                if (op.action === 'add' && !exist) {
-                    map.set(op.name, { name: op.name, desc: String(op.desc || '').slice(0, 80), holder: String(op.holder || '').slice(0, 20), state: '完好', floor: op.floor });
+                const itemKey = op.key || (op.name ? op.name.replace(/[《》【】\[\]（）\(\)\u0022\u0027“”‘’〈〉]/g, '').trim().toLowerCase() : '');
+                const exist = map.get(itemKey);
+
+                if (op.action === 'remove') {
+                    map.delete(itemKey);
+                    continue;
+                }
+
+                if (op.action === 'add') {
+                    if (!exist) {
+                        const isRemoved = op.state && REMOVE_STATES.has(op.state);
+                        if (!isRemoved) {
+                            map.set(itemKey, {
+                                name: op.name,
+                                key: itemKey,
+                                desc: op.desc || '',
+                                holder: op.holder || '无主',
+                                state: op.state || '完好',
+                                floor: op.floor
+                            });
+                        }
+                    } else {
+                        // 重复 add 视为更新属性
+                        if (op.desc !== undefined) exist.desc = op.desc;
+                        if (op.holder !== undefined) exist.holder = op.holder;
+                        if (op.state !== undefined) exist.state = op.state;
+                        exist.floor = op.floor;
+                        if (exist.state && REMOVE_STATES.has(exist.state)) map.delete(itemKey);
+                    }
                 } else if (op.action === 'update' && exist) {
-                    if (op.holder) exist.holder = String(op.holder).slice(0, 20);
-                    if (op.state) exist.state = String(op.state).slice(0, 10);
+                    // 三态补丁语义: undefined 保持原值，提供值则覆盖
+                    if (op.desc !== undefined) exist.desc = op.desc;
+                    if (op.holder !== undefined) exist.holder = op.holder;
+                    if (op.state !== undefined) exist.state = op.state;
                     exist.floor = op.floor;
+                    if (exist.state && REMOVE_STATES.has(exist.state)) {
+                        map.delete(itemKey);
+                    }
                 }
             }
             // [v3.2] DF3: 派生视图硬上限（真源 itemOps 不裁剪，重放语义不受影响）
@@ -2410,13 +2480,17 @@
             }
             
             // [v2.8] RT-C: 物品台账召回（当前登场角色持有/查询命中的物品）
+            // [v3.36] 过滤丢失/损毁状态，优先召回活动在场物品（除非 query 明确搜索该物品）
             if (this.config.config.itemLedgerEnabled && this.itemOps?.length) {
                 const cast = this.captureCast();
-                const relevant = this.items.records.filter(r =>
-                    cast.some(c => (r.holder || '').includes(c)) || (query.text && query.text.includes(r.name))
-                ).slice(-5);
+                const qText = query.text || '';
+                const relevant = this.items.records.filter(r => {
+                    const isRemoved = r.state && (r.state === '丢失' || r.state === '损毁' || r.state === '已消耗' || r.state === '丢弃');
+                    if (isRemoved) return qText && qText.includes(r.name);
+                    return cast.some(c => (r.holder || '').includes(c)) || (qText && qText.includes(r.name));
+                }).slice(-5);
                 if (relevant.length) {
-                    results.items = relevant.map(r => ({ text: `${r.name}（${r.holder || '无主'}持有，${r.state}）${r.desc ? '：' + r.desc : ''}`, source: 'items' }));
+                    results.items = relevant.map(r => ({ text: `${r.name}（${r.holder || '无主'}持有，${r.state || '完好'}）${r.desc ? '：' + r.desc : ''}`, source: 'items' }));
                 }
             }
             // [v2.8] RT-B: 反思召回（重要度 Top-2）
@@ -3111,7 +3185,7 @@
                     const query = this.buildQuery(null);
                     const qText = String(query.text || '').trim();
                     if (!qText) {
-                        report.pipeline = { ok: false, note: '查询文本为空（对话太短？）' };
+                        report.pipeline = { ok: false, note: '查询文本为空（对话太短？）', hint: '多聊几句产生对话正文后会自动恢复正常' };
                     } else {
                         const t0 = Date.now();
                         const recalled = await this.recallMemory(query);
@@ -3119,15 +3193,15 @@
                         const merged = recalled.filter(Boolean).reduce((a, b) => a + (Array.isArray(b) ? b.length : 0), 0);
                         report.pipeline = { ok: true, queryLen: qText.length, routes: Object.entries(recalled).filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => `${k}:${v.length}`), merged, injLen: (inj || '').length, ms: Date.now() - t0 };
                     }
-                } catch (e) { report.pipeline = { ok: false, note: 'dry-run异常: ' + (e?.message || e) }; }
+                } catch (e) { report.pipeline = { ok: false, note: 'dry-run异常: ' + (e?.message || e), hint: hintForError(e) }; }
                 // 3. 存档 schema 校验（export 字段 vs load 导入字段配对）
                 try {
                     const saved = this.collectExport();
                     const expected = ['graph', 'summaries', 'diaries', 'vectors', 'povs', 'timeline', 'status', 'ledger', 'suspense', 'scene'];
                     const missing = expected.filter(k => saved[k] === undefined || saved[k] === null);
                     const nonEmpty = expected.filter(k => saved[k] && (Array.isArray(saved[k]) ? saved[k].length : Object.keys(saved[k]).length) > 0);
-                    report.schema = { ok: missing.length === 0, missing, nonEmpty };
-                } catch (e) { report.schema = { ok: false, missing: ['collectExport异常: ' + (e?.message || e)] }; }
+                    report.schema = { ok: missing.length === 0, missing, nonEmpty, hint: missing.length ? '建议点击设置面板【一键自愈】以自动补齐缺省数据' : '' };
+                } catch (e) { report.schema = { ok: false, missing: ['collectExport异常: ' + (e?.message || e)], hint: hintForError(e) }; }
             } catch (e) { report.fatal = String(e?.message || e); }
             return report;
         }

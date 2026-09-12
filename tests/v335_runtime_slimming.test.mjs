@@ -9,8 +9,8 @@ const assert = (n, c) => { if (c) { pass++; console.log('✓ ' + n); } else { fa
 
 // ===== 1. 版本一致性 =====
 const mft = JSON.parse(mftSrc);
-assert('manifest 版本为 3.35.0', mft.version === '3.35.0');
-assert('index.js 版本为 3.35.0', idxSrc.includes("const VERSION = '3.35.0';"));
+assert('manifest 版本有效 (>= 3.35.0)', /^3\.(3[5-9]|[4-9]\d+)\./.test(mft.version));
+assert('index.js 版本有效 (>= 3.35.0)', /const VERSION = '3\.(3[5-9]|[4-9]\d+)\./.test(idxSrc));
 
 // ===== 2. 运行时瘦身：extra_js 幽灵依赖清洗 =====
 const requiredExtra = [

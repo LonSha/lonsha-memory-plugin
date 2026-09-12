@@ -104,6 +104,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="scene"><div class="ls-stat-num">${s.scene?.nodes?.size || 0}</div><div class="ls-stat-label">场景树 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.mutex?.locked ? '🔒' : '🟢'}</div><div class="ls-stat-label">提取锁 ${s.mutex?.queueLength ? `(队列${s.mutex.queueLength})` : ''}</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
@@ -288,6 +289,16 @@
                         <div class="ls-item ls-clickable" data-opkind="vector" data-opid="${v.id}">
                             <div class="ls-item-meta">楼层 ${v.metadata?.floor ?? '?'} · ${fmtTime(v.timestamp)}</div>
                             <div class="ls-item-text">${esc((v.text || '').substring(0, 150))}</div>
+                        </div>`).join('');
+            }
+            else if (viewType === 'items') {
+                title = '🎒 物品台账';
+                const items = s.items?.records || [];
+                body = items.length === 0 ? '<div class="ls-hint">暂无物品记录。剧情中出现物品获得、转交或丢失时会自动登记。</div>' :
+                    items.slice().reverse().map(it => `
+                        <div class="ls-item ls-clickable" data-opkind="item" data-opid="${esc(it.name)}">
+                            <div class="ls-item-meta"><b>${esc(it.name)}</b> · 持有者: ${esc(it.holder || '无主')} · 状态: ${esc(it.state || '完好')}${it.floor !== undefined ? ` · 第${it.floor}楼` : ''}</div>
+                            <div class="ls-item-text">${esc(it.desc || '（无描述）')}</div>
                         </div>`).join('');
             }
 
@@ -865,9 +876,37 @@
             } else if (kind === "item") {
                 const rec = (eng.items?.records || []).find(x => x.name === id);
                 if (!rec) return;
-                label = esc(rec.name) + "（" + esc(rec.holder || "无主") + "）";
+                label = esc(rec.name) + "（" + esc(rec.holder || "无主") + " · " + esc(rec.state || "完好") + "）";
                 actions = [
-                    { t: "🗑 删除物品记录", fn: () => { eng.itemOps = (eng.itemOps || []).filter(o => o?.name !== id); eng.rebuildItems(); return "物品记录已删除"; }, danger: true },
+                    { t: "👤 变更持有者", fn: () => {
+                        let nh = null;
+                        try { nh = prompt("新持有者名称（置空填 '地上'）:", String(rec.holder || "")); } catch (e) {}
+                        if (nh === null) return null;
+                        const holder = nh.trim() || "地上";
+                        eng.itemOps = eng.itemOps || [];
+                        const currentFloor = eng.summary?.summaries?.length || 0;
+                        eng.itemOps.push({ action: "update", name: rec.name, holder, floor: currentFloor });
+                        eng.rebuildItems();
+                        return "持有者 → " + holder;
+                    } },
+                    { t: "📦 变更状态", fn: () => {
+                        let ns = null;
+                        try { ns = prompt("新状态（完好 / 损坏 / 消耗完毕 / 丢失）:", String(rec.state || "完好")); } catch (e) {}
+                        if (ns === null) return null;
+                        const state = ns.trim() || "完好";
+                        eng.itemOps = eng.itemOps || [];
+                        const currentFloor = eng.summary?.summaries?.length || 0;
+                        eng.itemOps.push({ action: "update", name: rec.name, state, floor: currentFloor });
+                        eng.rebuildItems();
+                        return "状态 → " + state;
+                    } },
+                    { t: "🗑 标记丢弃/移除", fn: () => {
+                        eng.itemOps = eng.itemOps || [];
+                        const currentFloor = eng.summary?.summaries?.length || 0;
+                        eng.itemOps.push({ action: "remove", name: rec.name, state: "丢弃", floor: currentFloor });
+                        eng.rebuildItems();
+                        return "物品已移除活动列表";
+                    }, danger: true },
                 ];
             }
             if (!actions.length) return;
@@ -904,20 +943,24 @@
             let r;
             try { r = await engine.selfCheck(); } catch (e) { toast('诊断失败: ' + e.message); return; }
             const errRows = (r.errors || []).slice(-15).reverse().map(e2 =>
-                `<div style="padding:4px 8px;font-size:11px;border-bottom:1px solid #313244;">
-                    <span style="color:#f38ba8;">[${e2.tag}]</span> <span style="color:#a6adc8;">${new Date(e2.t).toLocaleTimeString()}</span>
-                    <div style="color:#cdd6f4;font-size:12px;">${(e2.msg || '').substring(0, 120)}</div>
+                `<div style="padding:6px 8px;font-size:11px;border-bottom:1px solid #313244;">
+                    <div style="display:flex;justify-content:space-between;">
+                        <span style="color:#f38ba8;font-weight:bold;">[${esc(e2.tag)}]</span>
+                        <span style="color:#a6adc8;">${new Date(e2.t).toLocaleTimeString()}</span>
+                    </div>
+                    <div style="color:#cdd6f4;font-size:12px;margin:3px 0;">${esc(e2.msg || '').substring(0, 150)}</div>
+                    ${e2.hint ? `<div style="color:#f9e2af;font-size:11px;background:#1e1e2e;padding:4px 8px;border-radius:4px;margin-top:4px;border-left:3px solid #fab387;">💡 诊断指引：${esc(e2.hint)}</div>` : ''}
                 </div>`).join('') || '<div style="padding:8px;color:#a6e3a1;font-size:12px;">✓ 无错误记录</div>';
             const statRows = (r.stats || []).map(s => `<div style="display:flex;justify-content:space-between;padding:5px 8px;font-size:13px;border-bottom:1px solid #313244;">
                 <span style="color:#a6adc8;">${s.k}</span><span>${s.v}</span></div>`).join('');
             const p = r.pipeline;
             const pipeHTML = p ? (p.ok
                 ? `<div style="padding:6px 8px;font-size:12px;color:#a6e3a1;">✓ 管线通畅 ${p.ms}ms ｜ 查询${p.queryLen}字 → 命中[${(p.routes || []).join(' ')}] → 合并${p.merged}条 → 注入${p.injLen}字</div>`
-                : `<div style="padding:6px 8px;font-size:12px;color:#f9e2af;">⚠️ ${p.note || '管线异常'}</div>`) : '';
+                : `<div style="padding:6px 8px;font-size:12px;color:#f9e2af;">⚠️ ${esc(p.note || '管线异常')}${p.hint ? `<br><span style="color:#cdd6f4;font-size:11px;">💡 ${esc(p.hint)}</span>` : ''}</div>`) : '';
             const sc = r.schema;
             const schemaHTML = sc ? (sc.ok
                 ? `<div style="padding:6px 8px;font-size:12px;color:#a6e3a1;">✓ 存档完整（非空: ${(sc.nonEmpty || []).join('、') || '暂无数据'}）</div>`
-                : `<div style="padding:6px 8px;font-size:12px;color:#f38ba8;">✗ 缺失字段: ${(sc.missing || []).join('、')}</div>`) : '';
+                : `<div style="padding:6px 8px;font-size:12px;color:#f38ba8;">✗ 缺失字段: ${(sc.missing || []).join('、')}${sc.hint ? `<br><span style="color:#f9e2af;font-size:11px;">💡 ${esc(sc.hint)}</span>` : ''}</div>`) : '';
             const body = `
                 <div style="padding:4px 8px;font-size:11px;color:#a6adc8;">${r.time} ｜ v${r.version}</div>
                 <div style="margin:6px 0;">${statRows}</div>
