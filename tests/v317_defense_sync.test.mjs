@@ -129,7 +129,13 @@ const { CharacterMemoryBank, WorldProgress } = evalC(bankM[0] + '\n' + wpM[0]);
 { if (!src.includes('this.worldProg.discard(); this.worldProg.reconcile(floor - 1)')) fail('ST4 对账'); ok('ST4: rollbackFloor 内 世界推进隔离+对账'); }
 // ST5: 宿主确认点在生成路径
 { if (!src.includes('public this.worldProg.publish()')) ok('ST5c 注释'); if (!src.includes('pendingWrite) this.worldProg.publish()')) fail('ST5 宿主确认'); ok('ST5: 生成路径宿主确认点'); }
-// ST6: 版本号
-{ if (!src.includes("VERSION = '3.17.0'")) fail('ST6 版本号'); ok('ST6: 版本号 3.17.0'); }
+// ST6: 版本号已前进（>= v3.17）
+{
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST6 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 17) || (M === 3 && m === 17 && p >= 0))) fail('ST6 版本号过低: ' + vm[1]);
+  ok('ST6: 版本号已前进 (>=3.17.0): ' + vm[1]);
+}
 
 console.log(`\n✓ v3.17 防御缝合包测试全过 (${pass} 项)`);

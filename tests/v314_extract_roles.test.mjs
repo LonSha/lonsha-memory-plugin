@@ -22,7 +22,8 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   let called = false;
   const fnBody = m1[0]
     .replace(/this\.config\.config/g, 'conf')
-    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)');
+    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)')
+    .replace(/sanitizeJson\(json\)/g, 'json');
   const extractor = new Function('conf', '__llmMock', 'window', 'errLog', `
     ${fnBody.replace(/    async extractRolesFromLore\(\) \{/, 'async function extractRolesFromLore() {')}
     return extractRolesFromLore;
@@ -40,7 +41,8 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   let llmResult = '```json\n[{"name":"夏木","aliases":["小夏","Natsuki"]},{"name":"路人甲","aliases":[]}]\n```';
   const fnBody = m1[0]
     .replace(/this\.config\.config/g, 'conf')
-    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)');
+    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)')
+    .replace(/sanitizeJson\(json\)/g, 'json');
   const extractor = new Function('conf', '__llmMock', 'window', 'errLog', `
     ${fnBody.replace(/    async extractRolesFromLore\(\) \{/, 'async function extractRolesFromLore() {')}
     return extractRolesFromLore;
@@ -60,7 +62,8 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   let llmResult = '[{"name":"甲","aliases":[]}]';
   const fnBody = m1[0]
     .replace(/this\.config\.config/g, 'conf')
-    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)');
+    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)')
+    .replace(/sanitizeJson\(json\)/g, 'json');
   const extractor = new Function('conf', '__llmMock', 'window', 'errLog', `
     ${fnBody.replace(/    async extractRolesFromLore\(\) \{/, 'async function extractRolesFromLore() {')}
     return extractRolesFromLore;
@@ -76,7 +79,8 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   let llmResult = '这不是JSON';
   const fnBody = m1[0]
     .replace(/this\.config\.config/g, 'conf')
-    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)');
+    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)')
+    .replace(/sanitizeJson\(json\)/g, 'json');
   const extractor = new Function('conf', '__llmMock', 'window', 'errLog', `
     ${fnBody.replace(/    async extractRolesFromLore\(\) \{/, 'async function extractRolesFromLore() {')}
     return extractRolesFromLore;
@@ -93,7 +97,8 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   let llmResult = '[{"name":"甲","aliases":["阿甲"]},{"name":"   ","aliases":[]},{"name":"","aliases":[]}]';
   const fnBody = m1[0]
     .replace(/this\.config\.config/g, 'conf')
-    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)');
+    .replace(/this\.llm\.callAPI\(prompt\)/g, '__llmMock(prompt)')
+    .replace(/sanitizeJson\(json\)/g, 'json');
   const extractor = new Function('conf', '__llmMock', 'window', 'errLog', `
     ${fnBody.replace(/    async extractRolesFromLore\(\) \{/, 'async function extractRolesFromLore() {')}
     return extractRolesFromLore;

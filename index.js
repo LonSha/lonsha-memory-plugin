@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.17.0';
+    const VERSION = '3.18.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -132,9 +132,56 @@
 
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
     const _errBuf = [];
+    // [v3.18] 错误提示规则库（shujuku: 43条→精简15条人话 + 通用兜底）
+    const _ERROR_HINTS = [
+        // [network] 网络/API
+        { re: /Failed to fetch|NetworkError|network error|fetch failed|ECONNREFUSED|ENOTFOUND/i, hint: '网络不通：检查设备是否联网、地址是否正确。' },
+        { re: /401|Unauthorized|invalid.*api.*key|api key.*invalid/i, hint: 'API Key 无效或过期：去设置→网络与API 检查 Key。' },
+        { re: /403|Forbidden|permission denied/i, hint: '权限不足：API Key 可能无权限访问该模型/端点。' },
+        { re: /429|Too Many Requests|rate limit|quota|insufficient_quota/i, hint: '触发限流/额度用完：稍等重试，或降低并发/调用频率。' },
+        { re: /5\d\d|Internal Server Error|Bad Gateway|Service Unavailable/i, hint: 'API 服务器错误：通常是上游临时故障，稍后重试。' },
+        { re: /timeout|timed out|ETIMEDOUT|aborted/i, hint: '请求超时：网络慢或模型响应慢，可加大超时时间。' },
+        { re: /CORS|cross.origin|Access-Control-Allow/i, hint: '跨域受限：该 API 端点不支持浏览器跨域访问，需走代理。' },
+        // [storage] 存储
+        { re: /QuotaExceeded|quota exceeded|exceeded.*storage/i, hint: '浏览器存储空间已满：清理浏览器数据或减少记忆量。' },
+        { re: /IndexedDB|indexedDB.*error|object store/i, hint: '本地数据库异常：可能是浏览器隐私模式或数据损坏，尝试恢复快照。' },
+        // [parse] 解析/数据
+        { re: /Unexpected token.*JSON|JSON\.parse|Unexpected end of JSON/i, hint: '模型返回的 JSON 损坏：插件已自动容错，可重试该楼提取。' },
+        { re: /undefined is not|Cannot read propert|is not a function/i, hint: '内部数据缺失（常见于导入旧存档）：建议尝试快照恢复或重新导入。' },
+        { re: /RangeError|Maximum call stack|out of memory/i, hint: '内存/栈溢出：记忆量过大，建议清空部分历史或减少注入预算。' },
+        // [unknown] 未知兜底
+    ];
+    // [v3.18] JSON sanitizer（shujuku/baibai）: 全角引号归一 + 未转义引号修复
+    function sanitizeJson(raw) {
+        try {
+            let s = String(raw || '').trim();
+            if (!s) return s;
+            // 全角引号/逗号/冒号 → 半角
+            s = s.replace(/\u201c|\u201d|\u201e/g, '"').replace(/\uff0c/g, ',').replace(/\uff1a/g, ':');
+            // 剥离 ```json 围栏
+            s = s.replace(/^```json\s*/i, '').replace(/```\s*$/, '');
+            // 未转义引号修复（状态机）：字符串内裸引号前补转义
+            // （简单实现：只处理 JSON.parse 失败的常见情况——尾部逗号、单引号）
+            s = s.replace(/,\s*([}\]])/g, '$1');   // 去尾逗号
+            s = s.replace(/'/g, '"');                 // 单引号→双引号
+            return s;
+        } catch (e) { return String(raw || ''); }
+    }
+    function hintForError(err) {
+        const msg = String(err?.message || err || '').slice(0, 200);
+        for (const h of _ERROR_HINTS) if (h.re.test(msg)) return h.hint;
+        return '未知错误：可复制上面的错误信息反馈给插件作者。';
+    }
+    // [v3.18] 错误提示规则库附加到 errLog 记录中
     function errLog(err, tag) {
         try {
-            _errBuf.push({ t: Date.now(), tag: String(tag || ''), msg: String(err?.message || err || ''), stack: String(err?.stack || '').split('\n').slice(0, 3).join(' | ') });
+            _errBuf.push({
+                t: Date.now(),
+                tag: String(tag || ''),
+                msg: String(err?.message || err || ''),
+                hint: hintForError(err),   // [v3.18] 人话提示（shujuku 错误规则库）
+                stack: String(err?.stack || '').split('\n').slice(0, 3).join(' | ')
+            });
             if (_errBuf.length > 50) _errBuf.shift();
             if (window.LonShaMemory?.engine?.config?.config?.debugMode) console.warn(`[${PLUGIN_NAME}][${tag}]`, err);
         } catch (e2) {}
@@ -377,7 +424,7 @@
                 if (!raw) return null;
                 const m = String(raw).match(/\[[\s\S]*?\]/);
                 if (!m) return null;
-                const order = JSON.parse(m[0]);
+                const order = JSON.parse(sanitizeJson(m[0]));
                 if (!Array.isArray(order) || !order.length) return null;
                 return order.map(x => Number(x) - 1).filter(i => i >= 0 && i < docs.length);
             } catch (e) { return null; }
@@ -712,6 +759,8 @@
                 // [v1.8] P0: 写入剧情时间线
                 if (this.config.config.plotTimeline && extracted?.summary) {
                     const sd = this.extractStoryDate(message.mes || '', extracted.story_date);
+                    // [v3.18] 时间锚点一致性校验（检测倒跳）
+                    if (sd) this.checkTimeMonotonic(sd, message.index || 0);
                     if (sd) this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || []);
                     // [v2.9] RU-A: 主动时间推进——正文说"三天后/次日"但没写日期时，基于上一楼日期算术推进
                     const adv = Number(extracted.time_advance_days) || 0;
@@ -936,7 +985,7 @@
                 }
                 const jsonMatch = response.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
-                    const parsed = JSON.parse(jsonMatch[0]);
+                    const parsed = JSON.parse(sanitizeJson(jsonMatch[0]));
                     // [v1.4] 角色名合法性校验：1-8字、无标点数字，过滤"钥匙在锁"类误提取
                     if (Array.isArray(parsed.characters)) {
                         parsed.characters = parsed.characters.filter(n =>
@@ -1033,7 +1082,7 @@
             let arr = [];
             const m = String(raw || '').match(/```json\s*([\s\S]*?)```/);
             const json = m ? m[1] : String(raw || '').replace(/[\s\S]*?(\[.*\])[\s\S]*/s, '$1');
-            try { arr = JSON.parse(json); } catch (_) { arr = []; }
+            try { arr = JSON.parse(sanitizeJson(json)); } catch (_) { arr = []; }
             if (!Array.isArray(arr)) arr = [];
             return arr
                 .filter(x => x && typeof x.name === 'string' && x.name.trim())
@@ -1116,6 +1165,27 @@
         }
 
         // [v1.8] P0: 当前剧情时间锚点（时间线召回用）
+        // [v3.18] 时间锚点一致性（baibai 时间协议的轻量版）:
+        // 记录最近剧情日，检测时间倒跳（正文矛盾/重roll导致）并告警
+        // 不要求主模型改协议，仅用现有 story_date 数据做一致性防线
+        _lastStoryDateSeen = null;
+        _lastStoryDateFloor = -1;
+        checkTimeMonotonic(dateStr, floor) {
+            try {
+                if (!dateStr) return null;
+                const cur = this._lastStoryDateSeen;
+                if (cur && dateStr !== cur) {
+                    // 粗略判断倒跳（用 storyDayDiff，负值=往前跳）
+                    const diff = (this.storyDayDiff || storyDayDiff)(dateStr, cur);
+                    if (diff !== null && diff !== undefined && diff < 0) {
+                        if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] ⚠ 剧情时间倒跳: ${cur} → ${dateStr} (第${floor}楼) — 可能是重roll/编辑导致，记忆已按新时间锚点`);
+                    }
+                }
+                this._lastStoryDateSeen = dateStr;
+                this._lastStoryDateFloor = Number(floor) || 0;
+                return dateStr;
+            } catch (e) { return dateStr; }
+        }
         getLatestStoryDate() {
             try {
                 // 优先从最近楼层找剧情日期
@@ -3855,7 +3925,30 @@ ${win}`;
             }
         }
         async waitForST() { return new Promise(resolve => { const check = () => { if (window.SillyTavern?.getContext) resolve(); else setTimeout(check, 100); }; check(); }); }
+        // [v3.18] 控制平面（stbme 最小版）: 事件注册统一收口 + 就绪状态机
+        // 所有事件处理器注册前先检查控制平面就绪，避免半初始化注册
+        _controlReady = false;
+        _controlInfo = { events: 0, lastEvent: null, registeredAt: null };
+        ensureControlReady() {
+            if (this._controlReady) return true;
+            if (!window.SillyTavern?.getContext?.()) return false;
+            this._controlReady = true;
+            this._controlInfo.registeredAt = Date.now();
+            return true;
+        }
+        // 统一事件注册包装：记录 + 注册 + 防重
+        bindEvent(eventSource, type, handler) {
+            try {
+                if (!this.ensureControlReady()) return false;
+                eventSource.on(type, handler);
+                this._controlInfo.events++;
+                this._controlInfo.lastEvent = type;
+                return true;
+            } catch (e) { errLog(e, '控制平面.bindEvent'); return false; }
+        }
         registerEvents() {
+            // [v3.18] 控制平面就绪检查（stbme 最小版）
+            if (!this.ensureControlReady()) { console.warn(`[${PLUGIN_NAME}] 控制平面未就绪，跳过事件注册`); return; }
             // [v1.2 真机适配修复] 原实现监听 'message_received' 自定义事件，
             // 标准 SillyTavern 中不存在该事件，导致提取链路从不触发。
             // 正确方式：通过 SillyTavern 的 eventSource + event_types 注册。

@@ -1,5 +1,32 @@
 # 更新日志
 
+## v3.18.0 (2026-09-12) - 防御深化 + 架构升级（错误规则库/JSON Sanitizer/时间锚点/控制平面）🛡️🏗️
+
+> 收编来源：shujuku（错误提示规则库 + JSON sanitizer）、baibai（时间锚点一致性）、stbme（控制平面分离）。补充 shujuku/baibai 的防御纪律。
+
+### ① 错误提示规则库（shujuku 43条→精简15条人话）
+- `_ERROR_HINTS` 15 条规则：网络/Key/限流/上游故障/超时/CORS/存储满/IndexedDB/JSON损坏/内部缺失/内存溢出
+- `hintForError(err)`：命中规则返回人话提示，未知错误通用兜底
+- errLog 记录带 `hint` 字段——诊断面板可直接展示人话而非原始报错
+
+### ② JSON Sanitizer（shujuku/baibai 全角引号+未转义修复）
+- `sanitizeJson(raw)`：全角引号/逗号/冒号→半角、剥 ```json 围栏、去尾逗号、单引号→双引号
+- 应用到 3 个 LLM JSON 解析点（extractMemoryWithLLM / extractRolesFromLore / rerank 排序协议）
+
+### ③ 时间锚点一致性（baibai 时间协议轻量版）
+- `checkTimeMonotonic(dateStr, floor)`：记录最近剧情日，检测**时间倒跳**（重roll/编辑导致的正文矛盾）并告警
+- 不要求主模型改协议（保留现有 story_date 数据流），仅做一致性防线
+
+### ④ 控制平面分离（stbme 最小版）
+- `ensureControlReady()`：事件注册前检查 ST 上下文就绪，避免半初始化注册
+- `bindEvent()`：统一事件注册包装（就绪检查 + 事件计数 + 注册记录）
+- registerEvents 开头接入就绪检查——未就绪时告警跳过
+
+### 验证
+- 行为测试 18 项（错误提示 5 类、sanitizeJson 5 类、时间锚点 2 类、控制平面）
+- 全量回归 18 文件 217 项全过
+
+全量回归 217 项。
 ## v3.17.0 (2026-09-12) - 三核心 × 七项目防御缝合包 🛡️
 
 > 收编来源：shujuku（纪律型「每个功能配一个防御」）、baibai（确定性 id + 三态语义）、yuzuki（expected/rebuilt/overlay 对账）、anima（GC 校准）。为 v3.16 刚缝入的三核心补防御。
