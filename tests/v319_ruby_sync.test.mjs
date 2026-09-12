@@ -142,7 +142,13 @@ const IBLogic = {
 { if (!src.includes("this.bookmarks.save('scan', Math.max(...floors)")) fail('ST2'); ok('ST2: 补提取推进书签'); }
 // ST3: 删楼重同步挂 rollbackFloor
 { if (!src.includes('this.bookmarks.resyncAfterDeletion([Number(floor)')) fail('ST3'); ok('ST3: rollbackFloor 书签重同步'); }
-// ST4: 版本号
-{ if (!src.includes("VERSION = '3.19.0'")) fail('ST4'); ok('ST4: 版本号 3.19.0'); }
+// ST4: 版本号已前进（>= v3.19）
+{
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST4 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 19) || (M === 3 && m === 19 && p >= 0))) fail('ST4 版本号过低: ' + vm[1]);
+  ok('ST4: 版本号已前进 (>=3.19.0): ' + vm[1]);
+}
 
 console.log(`\n✓ v3.19 RUBY 结构型收编测试全过 (${pass} 项)`);

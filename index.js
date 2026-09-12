@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.19.0';
+    const VERSION = '3.20.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -580,6 +580,44 @@
     }
     // [v3.19] 增量书签（ruby reader.js）: 按用途记录已读楼层，只增量读新楼
     // 存 chatMetadata.extensions.LonShaMemory.bookmarks（ST 原生元数据通道）
+    // [v3.20] Ebbinghaus 衰减评分（收编 ruby-phone-work，移植自 sxiphone）
+    // 综合: 重要性×激活次数^0.3×e^(-λ·天数)×情绪权重×强化保护
+    // 特例: pinned=999, permanent>=100, feel>=50, resolved×0.05
+    function decayScore(m, conf) {
+        if (!m) return 0;
+        const lambda = conf?.lambda || 0.03;
+        const now = Date.now();
+        const lastActive = m.lastActive ? (typeof m.lastActive === 'number' ? m.lastActive : new Date(m.lastActive).getTime()) : (m.ts || now);
+        const days = (now - lastActive) / 86400000;
+        const hours = (now - lastActive) / 3600000;
+        const importance = (m.importance !== undefined && m.importance !== null) ? m.importance : (m._isCore ? 1 : 0.5);   // [v3.20] 修复 ?? 与 ?: 优先级
+        const activation = m.activationCount || 1;
+        const strength = m.memoryStrength ?? (m._isCore ? 0.8 : 0.4);
+        const freshHalfLife = conf?.freshHalfLife || 48;
+        const reinforcement = 1 + Math.min((m.reinforcementCount || 0) * 0.15, 1.5);
+        const arousal = m.emotion?.arousal ?? 0.5;
+        const emotionWeight = 1 + arousal * 0.8;
+        const combined = days <= (conf?.shortTermDays || 7)
+            ? Math.exp(-0.1 * days) * 0.7 + emotionWeight * 0.3
+            : emotionWeight * 0.7 + Math.exp(-0.1 * days) * 0.3;
+        const freshness = 1 + Math.exp(-hours / freshHalfLife);
+        let score = Math.max(importance, 1) * Math.pow(activation, 0.3) * Math.exp(-lambda * Math.max(days, 0)) * combined * freshness * (0.5 + strength * 0.5) * reinforcement;
+        if (m.resolved) score *= 0.05;
+        if (m.pinned) score = 999;
+        return score;
+    }
+    // [v3.20] Ebbinghaus 补充字段（addCore/addRecent 写入时初始化）
+    function _initEbbingMeta(m) {
+        if (!m.ts) m.ts = Date.now();
+        if (m.lastActive === undefined) m.lastActive = m.ts;
+        if (m.activationCount === undefined) m.activationCount = 1;
+        if (m.importance === undefined) m.importance = 3;   // 1-5 默认3
+        if (m.memoryStrength === undefined) m.memoryStrength = 0.5;
+        if (m.reinforcementCount === undefined) m.reinforcementCount = 0;
+        if (m.emotion === undefined) m.emotion = { valence: 0.5, arousal: 0.5 };
+        return m;
+    }
+
     class IncrementBookmark {
         constructor(engine) { this.engine = engine; this.NS = 'LonShaMemory'; }
         _store() {
@@ -2929,6 +2967,7 @@
             const c = this._c(char);
             // [v3.17] 确定性 id（baibai 确定性语义）: 同角色同文本同楼层 → 同 id，swipe 重run 幂等不重复
             const m = { id: 'cm_' + this._detId(char, text) + '_' + (Math.max(0, Math.round(Number(floor) || 0))), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            _initEbbingMeta(m);   // [v3.20] Ebbinghaus 字段
             // 三态补丁: 同 id 已存在则更新（幂等），不同文本新增
             const existIdx = c.core.findIndex(x => x.id === m.id);
             if (existIdx >= 0) { c.core[existIdx].text = m.text; c.core[existIdx].ts = m.ts; return c.core[existIdx]; }
@@ -2941,6 +2980,7 @@
             if (!char || !text) return null;
             const c = this._c(char);
             const m = { id: 'mr_' + this._detId(char, text) + '_' + (Math.max(0, Math.round(Number(floor) || 0))), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            _initEbbingMeta(m);   // [v3.20] Ebbinghaus 字段
             const existIdx = c.recent.findIndex(x => x.id === m.id);
             if (existIdx >= 0) { c.recent[existIdx].text = m.text; c.recent[existIdx].ts = m.ts; return c.recent[existIdx]; }
             c.recent.push(m);
@@ -2950,9 +2990,11 @@
         // [v3.17] GC 校准器（anima retention value）: 淘汰「没人在乎的」而非粗暴截断
         _gcCore(c, now) {
             if (!c.core || c.core.length <= 50) return;
-            // retention = 最近访问 + 重要性（这里用 ts 新鲜度），淘汰最旧的 1/4
-            const sorted = c.core.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
-            c.core = sorted.slice(0, 50);
+            // [v3.20] Ebbinghaus 衰减评分（收编 ruby-phone-work）: 淘汰「没人在乎的」
+            // 按 decayScore 保底，淘汰分数最低的（最重要/最常激活/最新鲜的保留）
+            const scored = c.core.map(m => ({ m, s: decayScore(m, {}) }));
+            scored.sort((a, b) => b.s - a.s);
+            c.core = scored.slice(0, 50).map(x => x.m);
         }
         // [v3.17] GC 校准器对外接口（可手动触发，淘汰访问频次最低者）
         gc(char, now) {
@@ -2972,7 +3014,13 @@
             const q = String(query || '').slice(0, 60);
             const all = [...c.core, ...c.recent].map(m => ({...m, _isCore: c.core.includes(m)}));
             if (!q) return all.slice(-8).reverse();
-            return all.filter(m => m.text.includes(q)).sort((a, b) => (b._isCore ? 1 : 0) - (a._isCore ? 1 : 0) || b.ts - a.ts).slice(0, 6);
+            // [v3.20] Ebbinghaus 衰减排序（ruby-phone-work）: 核心优先 + 衰减价值 + 时间
+            return all.filter(m => m.text.includes(q))
+                .sort((a, b) => {
+                    const sa = decayScore(a, {}) * (a._isCore ? 3 : 1), sb = decayScore(b, {}) * (b._isCore ? 3 : 1);
+                    return sb - sa || (b.ts || 0) - (a.ts || 0);
+                })
+                .slice(0, 6);
         }
         _c(char) { if (!this.memories[char]) this.memories[char] = { core: [], recent: [] }; return this.memories[char]; }
         export() { return this.memories; }

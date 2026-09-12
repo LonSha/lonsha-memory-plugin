@@ -1,5 +1,26 @@
 # 更新日志
 
+## v3.20.0 (2026-09-12) - RubyPhone Ebbinghaus 衰减引擎（记忆价值精确治理）🧠📉
+
+> 收编来源：/home/user/ruby-phone-work（RubyPhone 手机记忆 App，其记忆引擎移植自 sxiphone 体系精华，纯本地零依赖）。将 Ebbinghaus 衰减评分嫁接到 lonsha 的 charMem 记忆银行。
+
+### ✨ Ebbinghaus 衰减引擎（decayScore）
+- **综合评分**：重要性 × 激活次数^0.3 × e^(-λ·天数) × 情绪权重 × 新鲜度 × 强化保护
+- **特例**：pinned=999、permanent≥100、feel≥50、resolved×0.05（已了结的事降为残响）
+- `_initEbbingMeta`：addCore/addRecent 写入时初始化 Ebbinghaus 字段（激活次数/重要性/记忆强度/情绪/强化计数）
+
+### ⚙️ 应用到 charMem
+- **GC 校准升级**：`_gcCore` 从「按 ts 新鲜度截断」升级为「按 Ebbinghaus 分数淘汰最没人在乎的」——重要性/激活/情绪等维度参与淘汰，而非单纯按新旧
+- **检索排序升级**：`search` 用「衰减分数 × 核心×3 加权」排序，替代旧的「核心优先 + ts」
+
+### 🐛 实施中抓出的实现 bug
+- **`??` 与 `?:` 运算符优先级陷阱**：`(m.importance ?? m._isCore ? 1 : 0.5)` 因优先级问题，importance 有值时仍走了 fallback → 不同 importance 分数相同。测试 TC1 当场抓出，修复为显式 `!== undefined && !== null` 判断
+
+### 验证
+- 行为测试 12 项（重要性/激活/时间衰减/pinned/resolved/初始化/保字段）
+- 全量回归 20 文件 243 项全过
+
+全量回归 243 项。
 ## v3.19.0 (2026-09-12) - RUBY 结构型收编（周期调度 + 增量书签 + 系统消息修正）📦
 
 > 收编来源：RUBY Analyzer（xm212617-code/RUBY，SillyTavern 独立扩展）。取其结构型设计——周期纯函数、增量书签、系统消息识别。

@@ -11,6 +11,38 @@ const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
 // ─── 组件抽取 ───
 const bankM = src.match(/    class CharacterMemoryBank \{[\s\S]*?\n    \}\n/);
 const wpM = src.match(/    class WorldProgress \{[\s\S]*?\n    \}\n/);
+const EXTERNAL_FUNCS = `function decayScore(m, conf) {
+        if (!m) return 0;
+        const lambda = conf?.lambda || 0.03;
+        const now = Date.now();
+        const lastActive = m.lastActive ? (typeof m.lastActive === 'number' ? m.lastActive : new Date(m.lastActive).getTime()) : (m.ts || now);
+        const days = (now - lastActive) / 86400000;
+        const hours = (now - lastActive) / 3600000;
+        const importance = (m.importance !== undefined && m.importance !== null) ? m.importance : (m._isCore ? 1 : 0.5);   // [v3.20] 修复 ?? 与 ?: 优先级
+        const activation = m.activationCount || 1;
+        const strength = m.memoryStrength ?? (m._isCore ? 0.8 : 0.4);
+        const freshHalfLife = conf?.freshHalfLife || 48;
+        const reinforcement = 1 + Math.min((m.reinforcementCount || 0) * 0.15, 1.5);
+        const arousal = m.emotion?.arousal ?? 0.5;
+        const emotionWeight = 1 + arousal * 0.8;
+        const combined = days <= (conf?.shortTermDays || 7)
+            ? Math.exp(-0.1 * days) * 0.7 + emotionWeight * 0.3
+            : emotionWeight * 0.7 + Math.exp(-0.1 * days) * 0.3;
+        const freshness = 1 + Math.exp(-hours / freshHalfLife);
+        let score = Math.max(importance, 1) * Math.pow(activation, 0.3) * Math.exp(-lambda * Math.max(days, 0)) * combined * freshness * (0.5 + strength * 0.5) * reinforcement;
+        if (m.resolved) score *= 0.05;
+        if (m.pinned) score = 999;
+        return score;
+    }\n\nfunction _initEbbingMeta(m) {
+        if (!m.ts) m.ts = Date.now();
+        if (m.lastActive === undefined) m.lastActive = m.ts;
+        if (m.activationCount === undefined) m.activationCount = 1;
+        if (m.importance === undefined) m.importance = 3;   // 1-5 默认3
+        if (m.memoryStrength === undefined) m.memoryStrength = 0.5;
+        if (m.reinforcementCount === undefined) m.reinforcementCount = 0;
+        if (m.emotion === undefined) m.emotion = { valence: 0.5, arousal: 0.5 };
+        return m;
+    }\n\n`;
 if (!bankM || !wpM) fail('未找到 CharacterMemoryBank / WorldProgress 类');
 
 // 直接 eval 类定义（独立闭包，注入 window/PLUGIN_NAME）
@@ -19,7 +51,7 @@ const evalClass = (code) => {
   const fn = new Function('window', 'PLUGIN_NAME', 'errLog', code + '\nreturn { CharacterMemoryBank, WorldProgress };');
   return fn({ LonShaMemory: { engine: { config: { config: { debugMode: false } } } } }, PLUGIN_NAME, errLog);
 };
-const { CharacterMemoryBank, WorldProgress } = evalClass(bankM[0] + '\n' + wpM[0]);
+const { CharacterMemoryBank, WorldProgress } = evalClass(EXTERNAL_FUNCS + bankM[0] + '\n' + wpM[0]);
 
 // ─── ① 角色记忆银行 ───
 // TC1: 核心永久 + 近期更替（近期超 3 条淘汰最旧）
