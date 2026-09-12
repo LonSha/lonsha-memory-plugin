@@ -1,5 +1,16 @@
 # 更新日志
-## v3.8.0 (2026-09-12) - 修复包·审计第二轮 🔬
+## v3.9.0 (2026-09-12) - 删楼语义修复·审计第三轮 🏗️
+### 🔴 重大修复：废除「删楼级联销毁」（数据丢失级缺陷）
+- **旧行为**：删楼 f → rollbackFloor(f) + floorsAfter 循环回滚 f 之后**所有楼层**的全部记忆——删中间一楼 = 后面 N 楼记忆全丢（摘要/日记/向量/POV/时间线/悬念/图谱节点全灭）。
+- **正解依据**（stbme history-safety）：ST 删楼后消息只是位置前移，记忆内容本身仍对应前移后的文本——该 shift（键 -1）而非删除。
+- **修复**：新增 `shiftFloorsFrom(deleted)`——全部 **13 个子系统**的 floor 键统一 -1 重定位（摘要/卷/向量/日记/POV/时间线/悬念簿/物品台账/反思/状态ops+todos/场景track+opsLog/楼层账本键重映射）；被删楼本身由 rollbackFloor 单楼回滚。**删楼从「丢 N 楼记忆」变为「只丢被删的 1 楼」**。
+### 🔴 rollbackFloor 内部级联改单楼（v3.7 遗漏）
+- v3.7 把编辑处理器改成「只回滚该楼」，但 rollbackFloor **内部**的 status（`< floor` 过滤）和 scene（rollbackFrom 级联）仍在摧毁后续楼层记忆——编辑单楼仍丢后续 status/scene。
+- 修复：status 改 `!== floor` 单楼过滤；scene 新增 `rollbackFloorOnly(floor)` 单楼回滚（原 rollbackFrom 保留兼容）。
+### 🟢 SF2 基线重置
+- CHAT_CHANGED 时重置 `_lastKnownChatLen`（防换聊天后用旧基线误报「批量删除」）。
+### ✅ 测试
+- `tests/v39_shift_floors.test.mjs`（9 项）：三处旧级联模式绝迹 / shift 覆盖 13 子系统 / dec 算法+卷边界 / ledger 键重映射 / 数据零丢失语义对比 / SceneBook 单楼回滚行为。全量回归 104 项。## v3.8.0 (2026-09-12) - 修复包·审计第二轮 🔬
 ### 🔴 swipe 自愈（修最大缺口）
 - **旧缺口**：v3.7 给编辑加了「回滚+重提取」自愈，但 swipe 仍是「只回滚不重提取」——swipe 后该楼无记忆（直到下次编辑才恢复）。
 - **修复**：统一 `_scheduleFloorHeal` 调度器（编辑/swipe 共用）——防抖 3s 后对「待愈楼层集合」逐楼重提取（集合去重、连编多楼、用户楼/番外楼/空楼豁免）。

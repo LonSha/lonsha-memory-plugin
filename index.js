@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.8.0';
+    const VERSION = '3.9.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1819,16 +1819,16 @@
                 // 回滚时间线
                 const tlIdSet = new Set(entry.timelineIds || []);
                 this.timeline.entries = this.timeline.entries.filter(t => !tlIdSet.has(t.id));
-                // [v2.3] RD: 状态回滚改为事件溯源范式——删 ops 真源 → 重放重建 (不再依赖字段级补偿)
+                // [v2.3] RD: 状态回滚——[v3.9] 改单楼语义（原 < floor 级联：编辑单楼会摧毁后续所有楼的 status 记忆）
                 try {
                     if (this.status?.ops?.length) {
-                        this.status.ops = this.status.ops.filter(o => o.floor < floor);
+                        this.status.ops = this.status.ops.filter(o => o.floor !== floor);
                         this.status.rebuildFromOps();
                     }
                 } catch (e) { errLog(e, 'rollbackFloor.节点清理'); }
-                // [v2.4] RE: 场景树回滚（真源过滤+重放）
+                // [v2.4] RE: 场景树回滚——[v3.9] 改单楼语义（同上，原 rollbackFrom 级联过滤）
                 try {
-                    if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) this.scene.rollbackFrom(floor);
+                    if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) this.scene.rollbackFloorOnly(floor);
                 } catch (e) { errLog(e, 'rollbackFloor.status回滚'); }
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
                 try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
@@ -1865,6 +1865,73 @@
                 if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 楼层回滚失败:`, e);
                 return 0;
             }
+        }
+
+        // [v3.9] 删楼后楼层前移重定位：所有子系统中 floor > deleted 的键 -1（数据零丢失——
+        // 旧实现把被删楼之后的记忆全部销毁，但这些楼只是位置前移，记忆内容仍对应前移后的文本）
+        shiftFloorsFrom(deleted) {
+            let shifted = 0;
+            const dec = (v) => { if (v > deleted) { shifted++; return v - 1; } return v; };
+            try {
+                // 摘要
+                for (const s of (this.summary.summaries || [])) s.floor = dec(s.floor);
+                // 卷（范围缩1：起止同减；跨被删楼则 end-1）
+                for (const v of (this.summary.volumes || [])) {
+                    if (v.floorStart > deleted) v.floorStart--;
+                    if (v.floorEnd >= deleted) v.floorEnd = Math.max(v.floorStart, v.floorEnd - 1);
+                }
+                // 向量（metadata.floor）
+                for (const v of (this.vector.vectors || [])) {
+                    if (v.metadata && typeof v.metadata.floor === 'number' && v.metadata.floor > deleted) v.metadata.floor--;
+                }
+                // 日记
+                for (const name of Object.keys(this.diary?.diaries || {})) {
+                    for (const d of this.diary.diaries[name]) d.floor = dec(d.floor);
+                }
+                // POV
+                for (const p of (this.pov?.povs || [])) p.floor = dec(p.floor);
+                // 时间线
+                for (const e of (this.timeline?.entries || [])) e.floor = dec(e.floor);
+                // 悬念簿（floor 与 resolvedFloor 分别处理）
+                for (const x of (this.suspense?.items || [])) {
+                    if (x.floor !== null && x.floor !== undefined) x.floor = dec(x.floor);
+                    if (x.resolvedFloor !== null && x.resolvedFloor !== undefined) x.resolvedFloor = dec(x.resolvedFloor);
+                }
+                // 物品台账
+                for (const o of (this.itemOps || [])) o.floor = dec(o.floor);
+                // 反思
+                for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
+                // 角色状态 ops + todos.floor
+                for (const op of (this.status?.ops || [])) {
+                    op.floor = dec(op.floor);
+                    for (const t of (op.todos || [])) t.floor = dec(t.floor);
+                }
+                for (const name of Object.keys(this.status?.characters || {})) {
+                    for (const t of (this.status.characters[name]?.todos || [])) t.floor = dec(t.floor);
+                }
+                // 场景 track + opsLog
+                for (const t of (this.scene?.track || [])) t.floor = dec(t.floor);
+                for (const o of (this.scene?.opsLog || [])) o.floor = dec(o.floor);
+                // 楼层账本（键与内容同移）
+                const fl = this.ledger?.floors || {};
+                const entries = Object.entries(fl).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]);
+                const next = {};
+                for (const [f, v] of entries) {
+                    if (f === deleted) continue;          // 被删楼已回滚
+                    const nf = f > deleted ? f - 1 : f;
+                    v.floor = nf;
+                    next[nf] = v;
+                }
+                if (this.ledger) this.ledger.floors = next;
+                // 场景派生重建（track/opsLog 的 floor 已变）
+                if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) {
+                    this.scene.nodes.clear();
+                    for (const e of [...this.scene.opsLog].sort((a, b) => a.floor - b.floor)) this.scene.apply(e.ops, e.floor, true);
+                }
+                this.rebuildItems?.();
+            } catch (e) { errLog(e, 'SH.shiftFloorsFrom'); }
+            if (shifted && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 楼层前移: ${shifted} 条记忆重定位 (deleted=${deleted})`);
+            return shifted;
         }
 
         // [v2.3] RD: 携带背包（抄 baibai carryover——把记忆打包带走，新对话无缝续写）
@@ -2104,6 +2171,13 @@
         rollbackFrom(floor) {
             this.opsLog = this.opsLog.filter(o => o.floor < floor);
             this.track = this.track.filter(t => t.floor < floor);
+            this.nodes.clear();
+            for (const e of [...this.opsLog].sort((a, b) => a.floor - b.floor)) this.apply(e.ops, e.floor, true);
+        }
+        // [v3.9] 单楼回滚（只清该楼的 opsLog/track 并重放——不级联摧毁后续楼层；编辑路径用）
+        rollbackFloorOnly(floor) {
+            this.opsLog = this.opsLog.filter(o => o.floor !== floor);
+            this.track = this.track.filter(t => t.floor !== floor);
             this.nodes.clear();
             for (const e of [...this.opsLog].sort((a, b) => a.floor - b.floor)) this.apply(e.ops, e.floor, true);
         }
@@ -3373,6 +3447,8 @@ ${win}`;
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
                         // [v3.2] DF1/DF5: 清空注入槽位（setExtensionPrompt 持久化，旧聊天注入会残留到新聊天；GENERATION_STARTED 若仍活跃会立即重新注入）
                         try { clearInjectSlots(); } catch (e) { errLog(e, 'events.CHAT_CHANGED槽位清空'); }
+                        // [v3.9] SF2: 基线重置（换聊天后用新聊天的长度，防旧基线误报批量删除）
+                        try { this.engine._lastKnownChatLen = window.SillyTavern?.getContext?.()?.chat?.length || 0; } catch (e) {}
                         try {
                             const chatId = this.engine.getCurrentChatId();
                             if (chatId) await this.engine.storage.load(chatId);
@@ -3434,10 +3510,9 @@ ${win}`;
                             const floor = Number(messageId);
                             if (!Number.isFinite(floor)) return;
                             plugin.engine.rollbackFloor(floor);
-                            // 同时清掉该楼之后的账本残留（删楼会连锁前移）
-                            const after = plugin.engine.ledger.floorsAfter(floor);
-                            for (const f of after.reverse()) plugin.engine.rollbackFloor(f);
-                            // [v3.3] 台账重放化：删除后全量对账——删除点之前的楼层前移，ops 按指纹自愈重定位
+                            // [v3.9] 废除级联销毁：被删楼之后的记忆不再删除，改为楼层前移重定位（数据零丢失）
+                            try { plugin.engine.shiftFloorsFrom?.(floor); } catch (e) { errLog(e, 'SH.删楼前移'); }
+                            // [v3.3] 台账重放化：删除后全量对账
                             try { plugin.engine.reconcileItemOps?.(); } catch (e) { errLog(e, 'V33.删楼全量对账'); }
                         } catch (err) {
                             if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);
