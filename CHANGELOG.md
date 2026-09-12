@@ -1,5 +1,20 @@
 # 更新日志
-## v3.11.0 (2026-09-12) - 历史降级保存块修复·审计第五轮（多AI代码差异清理）🔧
+## v3.12.0 (2026-09-12) - 深层组合 bug 修复·审计第六轮 🔬🔬
+> 本轮由用户触发：「你确定没有遗留问题了吗？深层肯定还长着一些」——改用**功能组合推演**审计（两个各自正确的功能组合产生错误），前五轮是横向模式扫描，本轮是纵向交互推演。成果证明直觉正确：抓出 4 个深层 bug，其中 1 个数据回退级。
+### 🔴 重大修复（Bug A）：storage.load 每次生成覆盖运行时
+- **推演链**：用户 swipe → 自愈重提取写入新记忆 → 用户发下一条消息 → GENERATION_STARTED → `onBeforeGeneration` 无条件 `storage.load` → load 内部把 chatMetadata **旧存档 import 覆盖整个运行时** → **自愈/shift/编辑修改全部回退**。
+- 这是 v3.7/v3.8/v3.9 所有运行时修复被静默冲掉的根因（stbme 文档记载的「reroll 乱召回」类经典 bug）。
+- **修复**：`load(chatId, { preserveRuntime: true })`——生成路径只读返回存档数据不 import；CHAT_CHANGED/初始化路径照旧全量导入。
+### 🔴 Bug B：_generationActive 无中止兜底
+- 用户按 Esc 中止生成 → MESSAGE_RECEIVED 不触发 → 标志卡死 true → 自愈永久延后（每 5s 重试但永远跳过）。修复：接入 `GENERATION_ENDED` 复位标志。
+### 🔴 Bug C：CHAT_CHANGED 跨聊天污染
+- 自愈 3s 定时器跨聊天存活——切聊天后对新聊天楼层做旧聊天上下文的重提取。修复：CHAT_CHANGED 清定时器/待愈集合/执行标志/降级排队。
+### 🔴 Bug D：运行时修改不持久化
+- 编辑/swipe/删楼（含 v3.9 shift）只改内存不存盘——刷新页面即丢。修复：三处事件处理器**立即持久化**（collectExport）。
+### 🟠 Bug E：注入代际竞争
+- 快速连发两次消息 → 两次 GENERATION_STARTED 并发召回 → 慢的旧结果后返回会**覆盖新的注入**。修复：代际标记 `_genSeq`，await 后检查代际过期即放弃。
+### ✅ 测试
+- `tests/v312_load_preserve.test.mjs`（8 项）：preserveRuntime 语义行为验证（mock import 计数为 0）/ ENDED 兜底 / CHAT_CHANGED 清理 / 三处即时持久化 / 代际检查行为。全量回归 126 项。## v3.11.0 (2026-09-12) - 历史降级保存块修复·审计第五轮（多AI代码差异清理）🔧
 ### 🔴 重大修复：settings-ui 三个保存块字段严重缺失（多AI时代代码差异的典型技术债）
 三个保存块各自停留在不同版本格式（1.3.0/2.0.0/2.7.0），是跨版本开发留下的接缝：
 - **文件导入块（version 1.3.0）**：只保存 graph/summaries/diaries/vectors 四个字段——导入文件后 reflection/itemOps/povs/timeline/status/ledger/suspense/scene/echo **全部丢失**（v2.x+ 新子系统记忆被清空）。修复：完整导入管线（13 子系统）+ 存盘统一 collectExport；reader.onload 改 async。

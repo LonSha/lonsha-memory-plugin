@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.11.0';
+    const VERSION = '3.12.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -965,7 +965,8 @@
             const chatId = this.getCurrentChatId();
             if (!chatId) return '';
             try {
-                await this.storage.load(chatId);
+                // [v3.12] 生成路径只读加载（原无条件 load 会 import 旧存档覆盖运行时——自愈/shift/编辑修改全被回退）
+                await this.storage.load(chatId, { preserveRuntime: true });
                 const query = this.buildQuery(context);
                 // [v2.9] RU-D: swipe 同楼重roll复用缓存（抄 anima _lastRetrievalPayload——同楼且同查询直接复用，省 rewrite+embedding+rerank 三次调用）
                 if (this.config.config.recallCacheEnabled && this._recallCache) {
@@ -3273,10 +3274,13 @@ ${win}`;
                 if (ctx.saveChat) await ctx.saveChat(); else if (window.saveChat) await window.saveChat();
             } catch (err) { console.error('保存失败:', err); }
         }
-        async load(chatId) {
+        async load(chatId, opts = {}) {
             try {
                 const ctx = window.SillyTavern?.getContext?.();
                 const data = ctx?.chatMetadata?.extensions?.[this.STORAGE_KEY]?.data;
+                // [v3.12] preserveRuntime=true（生成路径）: 只读返回存档数据，不 import 覆盖运行时——
+                //   运行时内存里的自愈/shift/编辑修改是最新状态，被旧存档盖回=回退（v3.7~v3.9 修复成果全被冲掉的经典 bug）
+                if (opts.preserveRuntime) return data || null;
                 if (data && window.LonShaMemory?.engine) {
                     const engine = window.LonShaMemory.engine;
                     if (data.graph) engine.graph.import(data.graph);
@@ -3468,6 +3472,13 @@ ${win}`;
                         try { clearInjectSlots(); } catch (e) { errLog(e, 'events.CHAT_CHANGED槽位清空'); }
                         // [v3.9] SF2: 基线重置（换聊天后用新聊天的长度，防旧基线误报批量删除）
                         try { this.engine._lastKnownChatLen = window.SillyTavern?.getContext?.()?.chat?.length || 0; } catch (e) {}
+                        // [v3.12] 清自愈定时器/待愈集合（跨聊天污染防护——旧聊天的待愈楼层对新聊天无意义）
+                        try {
+                            if (this._editHealTimer) { clearTimeout(this._editHealTimer); this._editHealTimer = null; }
+                            this._editHealPending = new Set();
+                            this._selfHealRunning = false;
+                            this._lockDegradePending = new Set();
+                        } catch (e) { errLog(e, 'events.CHAT_CHANGED自愈清理'); }
                         try {
                             const chatId = this.engine.getCurrentChatId();
                             if (chatId) await this.engine.storage.load(chatId);
@@ -3490,6 +3501,11 @@ ${win}`;
                             console.log(`[${PLUGIN_NAME}] 楼层 ${f} 被编辑: 回滚该楼 + 防抖自愈`);
                             this.engine.rollbackFloor(f);
                             this._scheduleFloorHeal(f);   // [v3.8] 统一调度器
+                            // [v3.12] 立即持久化（原只改内存——刷新页面丢 v3.9 shift/回滚成果）
+                            try {
+                                const cSave = window.SillyTavern?.getContext?.();
+                                if (cSave?.chat?.length) this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport());
+                            } catch (e) { errLog(e, 'events.编辑即时存盘'); }
                         } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
                     });
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED });
@@ -3504,6 +3520,11 @@ ${win}`;
                                 this.engine.rollbackFloor(f);
                                 // [v3.8] swipe 自愈: 修「swipe 后该楼无记忆」缺口——防抖后重提取当前变体（编辑自愈同款）
                                 this._scheduleFloorHeal(f);
+                                // [v3.12] 立即持久化（刷新页面防丢）
+                                try {
+                                    const cSave = window.SillyTavern?.getContext?.();
+                                    if (cSave?.chat?.length) this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport());
+                                } catch (e) { errLog(e, 'events.swipe即时存盘'); }
                             }
                         } catch (err) {}
                     });
@@ -3511,7 +3532,7 @@ ${win}`;
                 }
 // [v2.0] P2: 删楼回滚（楼层账本）
                 if (types.MESSAGE_DELETED) {
-                    eventSource.on(types.MESSAGE_DELETED, (messageId) => {
+                    eventSource.on(types.MESSAGE_DELETED, async (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         // [v3.1] SF2: 渲染切片保护（抄 stbme history-safety——删除 payload 不可靠，批量删除时警告）
                         try {
@@ -3533,6 +3554,11 @@ ${win}`;
                             try { plugin.engine.shiftFloorsFrom?.(floor); } catch (e) { errLog(e, 'SH.删楼前移'); }
                             // [v3.3] 台账重放化：删除后全量对账
                             try { plugin.engine.reconcileItemOps?.(); } catch (e) { errLog(e, 'V33.删楼全量对账'); }
+                            // [v3.12] 立即持久化（删楼+shift 成果防刷新丢失）
+                            try {
+                                const cidSave = plugin.engine.getCurrentChatId();
+                                if (cidSave) await plugin.engine.storage.save(cidSave, plugin.engine.collectExport());
+                            } catch (e) { errLog(e, 'events.删楼即时存盘'); }
                         } catch (err) {
                             if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);
                         }
@@ -3540,8 +3566,17 @@ ${win}`;
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_DELETED });
                 }
                 // [v1.2] GENERATION_STARTED：生成前注入记忆（主注入路径）
+                // [v3.12] GENERATION_ENDED 兜底: 用户 Esc 中止生成时 MESSAGE_RECEIVED 不触发，标志卡死 true → 自愈永久延后
+                if (types.GENERATION_ENDED) {
+                    eventSource.on(types.GENERATION_ENDED, () => {
+                        try { this.engine._generationActive = false; } catch (e) { errLog(e, 'events.GENERATION_ENDED复位'); }
+                    });
+                    this.eventHandlers.push({ eventSource, type: types.GENERATION_ENDED });
+                }
                 if (types.GENERATION_STARTED) {
                     eventSource.on(types.GENERATION_STARTED, async () => {
+                        // [v3.12] 代际标记: 并发两次 STARTED（快速连发）时，后到者递增代际；先到者的慢写最后检查代际避免覆盖新注入
+                        const myGen = (this._genSeq = (this._genSeq || 0) + 1);
                         try {
                             // [v3.2] DF1: 引擎停用（总开关关，或提取+向量全关）时清空槽位并跳过——持久化槽位不清则旧注入残留
                             const _cfg = this.engine.config.config;
@@ -3551,6 +3586,8 @@ ${win}`;
                             }
                             this.engine._generationActive = true;   // [v3.10] 标记生成中（自愈调度器读）
                             const injection = await this.engine.onBeforeGeneration();
+                            // [v3.12] 代际检查: await 期间若已有更新的一次 STARTED（myGen 过期），放弃本次慢结果（防旧注入覆盖新注入）
+                            if (myGen !== this._genSeq) { console.log(`[${PLUGIN_NAME}] 注入代际过期，放弃本次结果`); return; }
                             // [v3.2] DF6: 空召回=显式清除（baibai 语义"注入空串等于清除"——召回价值判断跳过时旧槽位残留会注入上一轮记忆）
                             const depth = Math.min(2, Math.max(0, Number(this.engine.config.config.injectionDepth) || 0));
                             writeInjectSlot('lonsha_memory', injection || '', depth);
