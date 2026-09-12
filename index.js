@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.44.0';
+    const VERSION = '3.45.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -91,38 +91,61 @@
         } catch (e) { errLog(e, 'V33.msgFpOf'); return ''; }
     }
 
-    // [v3.13] 思维链/正文分流（收编 zhino A5.2.1: 思维链泄漏进正文 23 条 → 0 条）
-    // 剥离 <thinking>...</thinking>（含残缺变体），返回 {content, thinking}
-    // - 完整标签: 成对剥离（支持嵌套配对）
-    // - 闭标签缺失: 从开标签剥到文末（残缺思维链整段丢弃，防草稿泄漏）
-    // - ``` 围栏内的开标签不剥（代码示例中的标签不是思维链）
+    // [v3.13] 思维链/正文分流
+    // [v3.45] 吸收 shujuku lenient-text: 扩展主流推理标签 (think/thinking/thought/reasoning/analysis)
+    // 并在未闭合截断时引入宽容熔断器，剥离开标签、保护真实正文不被吞没白屏
     function extractThinkingChain(text) {
         try {
             let s = String(text || '');
             if (!s) return { content: '', thinking: '' };
             const thinkingParts = [];
             const fenceMask = [];
-            // 先遮罩 ``` 围栏，防止剥掉代码示例里的 <thinking> 标签
+            // 先遮罩 ``` 围栏，防止剥掉代码示例里的推理标签
             s = s.replace(/```[\s\S]*?```/g, (m) => { fenceMask.push(m); return '\u0000F' + (fenceMask.length - 1) + '\u0000'; });
-            // 嵌套配对剥离: 遇开标签 depth+1，遇闭标签 depth-1，depth 归零时整段截出
+            
+            // [v3.45] 扩展支持 think|thinking|thought|reasoning|analysis 5类推理标签
             let out = '', depth = 0, buf = '';
-            const tokens = s.split(/(<\/?thinking>)/i);
+            const tokens = s.split(/(<\/?(?:think|thinking|thought|reasoning|analysis)\b[^>]*>)/i);
             for (const tk of tokens) {
-                if (/^<thinking>$/i.test(tk)) { if (depth === 0) buf = ''; depth++; }
-                else if (/^<\/thinking>$/i.test(tk)) {
+                if (/^<(?:think|thinking|thought|reasoning|analysis)\b[^>]*>$/i.test(tk)) {
+                    if (depth === 0) buf = '';
+                    depth++;
+                } else if (/^<\/(?:think|thinking|thought|reasoning|analysis)\s*>$/i.test(tk)) {
                     depth--;
-                    if (depth <= 0) { if (buf) thinkingParts.push(buf); buf = ''; depth = 0; }
-                    else if (buf) { buf += tk; }
+                    if (depth <= 0) {
+                        if (buf && buf.trim()) thinkingParts.push(buf.trim());
+                        buf = '';
+                        depth = 0;
+                    } else if (buf) {
+                        buf += tk;
+                    }
+                } else if (depth > 0) {
+                    buf += tk;
+                } else {
+                    out += tk;
                 }
-                else if (depth > 0) { buf += tk; }
-                else { out += tk; }
             }
-            // 残缺: 有开无闭——buf 里是剥到文末的思维链，整段丢弃（不进正文）
-            if (depth > 0 && buf) thinkingParts.push(buf);
+            // [v3.45] 宽容熔断器 (shujuku lenient-text): 处理未闭合标签
+            if (depth > 0 && buf) {
+                const switchMatch = buf.match(/\n\s*\n(?=[\u4e00-\u9fa5A-Za-z0-9"'#*[{`])/);
+                if (switchMatch) {
+                    const thinkContent = buf.slice(0, switchMatch.index).trim();
+                    const bodyContent = buf.slice(switchMatch.index).trim();
+                    if (thinkContent) thinkingParts.push(thinkContent);
+                    out += (out ? '\n\n' : '') + bodyContent;
+                } else {
+                    // 纯思考且截断
+                    if (buf.trim()) thinkingParts.push(buf.trim());
+                }
+            }
+
             // 清理剥离后残留的空标签与多余空行，还原围栏
-            out = out.replace(/<\/?thinking>/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+            out = out.replace(/<\/?(?:think|thinking|thought|reasoning|analysis)\b[^>]*>/gi, '').replace(/\n{3,}/g, '\n\n').trim();
             out = out.replace(/\u0000F(\d+)\u0000/g, (_, i) => fenceMask[Number(i)] || '');
-            return { content: out, thinking: thinkingParts.join('\n').replace(/\n{3,}/g, '\n\n').trim() };
+            return {
+                content: out,
+                thinking: thinkingParts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim()
+            };
         } catch (e) { errLog(e, 'V313.extractThinkingChain'); return { content: String(text || ''), thinking: '' }; }
     }
     // [v3.13] 思维链投递头框定（抄 zhino 锚点构造——防草稿被下游当已发生事实）
@@ -230,12 +253,42 @@
         return out;
     }
     // [v3.43] end NPC tier injection
+    // [v3.45] 吸收 baibai: NPC 长期社会人伦羁绊网（血缘/婚姻/主仆/宿敌，不因不在场而失效）
+    function fmtNpcTiesContext(npcs) {
+        if (!Array.isArray(npcs) || !npcs.length) return '';
+        const oneLine = (value) => String(value ?? '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        const relationKey = (value) => String(value || '').toLowerCase().replace(/[；;]/g, ';').replace(/\s+/g, ' ').trim();
+        const grouped = new Map();
+        for (const npc of npcs) {
+            const name = oneLine(npc?.name);
+            const rawTies = Array.isArray(npc?.ties) ? npc.ties.join(';') : oneLine(npc?.ties);
+            if (!name || !rawTies) continue;
+
+            const nameKey = name.toLowerCase();
+            let entry = grouped.get(nameKey);
+            if (!entry) {
+                entry = { name, ties: [], seen: new Set() };
+                grouped.set(nameKey, entry);
+            }
+            for (const tie of rawTies.split(/[；;]/).map(one => one.trim()).filter(Boolean)) {
+                const tieKey = relationKey(tie);
+                if (entry.seen.has(tieKey)) continue;
+                entry.seen.add(tieKey);
+                entry.ties.push(tie);
+            }
+        }
+
+        const rows = [...grouped.values()]
+            .filter(entry => entry.ties.length > 0)
+            .map(entry => `- ${entry.name}：${entry.ties.join('；')}`);
+        return rows.length ? `[角色长期关系网]（血缘/婚姻/主仆/宿敌等，不因是否在场而失效）：\n${rows.join('\n')}` : '';
+    }
     // [v3.41] 吸收 Stitches 工业级标签净化: 剥除思维链、多智能体协调与中间跑团标签，保护正文不被污染
     function stripMemoryOpsTags(text) {
         try {
             let s = String(text || '');
             // 1. 过滤 Stitches / RebornV 及复杂跑团中间成对块标签
-            s = s.replace(/<(recall|dm_plan|dm_set|plan|inner|act|npcs|file|scene|dm_story|dm_track|npc_track|npc_jump|disclaimer|JSONPatch|Analysis|UpdateVariable|tucao|StatusPlaceHolderImpl|summary|options|thinking|think|review|refine|itsuki|output)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+            s = s.replace(/<(recall|dm_plan|dm_set|plan|inner|act|npcs|file|scene|dm_story|dm_track|npc_track|npc_jump|disclaimer|JSONPatch|Analysis|UpdateVariable|tucao|StatusPlaceHolderImpl|summary|options|thinking|think|thought|reasoning|analysis|review|refine|itsuki|output)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
             // 2. 过滤单操作符与时间物理标签
             s = s.replace(/<\/?(field|todo|item|time|date|bbs_time)\s*:[^>]*?>/gi, '');
             return s.trim();
@@ -528,6 +581,8 @@
                 sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
                 presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
                 npcTierInjection: true,        // baibai 四档角色分级压平注入
+                npcTiesInjection: true,        // baibai 跨空间 NPC 长期社会人伦羁绊网注入
+                protagonistTracking: true,     // baibai 主角客观档案与生活习惯癖好追踪
                 dualTimeAnchorEnabled: true,    // baibai 正文起止时间锚点
                 // [v3.16] zhino 三核心开关
                 charMemEnabled: true,        // 角色记忆银行（两层记忆）
@@ -3019,6 +3074,140 @@
         }
         
         // [v3.43] 从当前图谱/状态生成四档 NPC 轻量记录，供 buildInjection 使用
+        // [v3.45] 吸收 baibai: 跨空间 NPC 长期人伦社会羁绊网
+        getNpcTiesRecords() {
+            try {
+                const map = new Map();
+                // 1. 从 status.npcTies 获取
+                const statusTies = this.status?.getNpcTiesRecords?.() || [];
+                for (const r of statusTies) {
+                    if (r.name && r.ties?.length) {
+                        map.set(r.name.toLowerCase(), { name: r.name, ties: [...r.ties] });
+                    }
+                }
+                // 2. 从 graph 中获取长期人伦羁绊边
+                if (this.graph?.edges) {
+                    const PERMANENT_REL_RE = /母|父|妻|夫|女|子|兄|弟|姐|妹|宿敌|死敌|主仆|结义|结拜|恩师|师傅|徒弟|亲属|血亲/;
+                    for (const e of this.graph.edges.values()) {
+                        const label = String(e.label || e.relation || '');
+                        if (PERMANENT_REL_RE.test(label) || e.permanent === true) {
+                            const fromNode = this.graph.nodes.get(e.from);
+                            const toNode = this.graph.nodes.get(e.to);
+                            const fromName = fromNode?.name || e.from;
+                            const toName = toNode?.name || e.to;
+                            if (fromName && toName && label) {
+                                const key = fromName.toLowerCase();
+                                const tieStr = `${toName}之${label}`;
+                                if (!map.has(key)) map.set(key, { name: fromName, ties: [] });
+                                const rec = map.get(key);
+                                if (!rec.ties.includes(tieStr)) rec.ties.push(tieStr);
+                            }
+                        }
+                    }
+                }
+                return Array.from(map.values());
+            } catch (e) {
+                errLog(e, 'getNpcTiesRecords');
+                return [];
+            }
+        }
+        getNpcTiesPrompt() {
+            try {
+                const recs = this.getNpcTiesRecords();
+                return fmtNpcTiesContext(recs);
+            } catch (e) { return ''; }
+        }
+
+        // [v3.45] 吸收 baibai: 跨会话数据平移与状态种子 (Carryover Seed)
+        generateCarryoverSeed(options = {}) {
+            try {
+                const ctx = window.SillyTavern?.getContext?.();
+                const curFloor = (ctx?.chat || []).length - 1;
+                const activeVols = this.summary?.getActiveVolumes?.() || [];
+                const recentSums = (this.summary?.summaries || []).slice(-5).map(s => s.text || s.summary || '').filter(Boolean);
+                const recapParts = [];
+                if (activeVols.length) {
+                    recapParts.push(...activeVols.map(v => `（第${v.floorStart}-${v.floorEnd}楼）${v.text}`));
+                }
+                if (recentSums.length) {
+                    recapParts.push(...recentSums);
+                }
+                return {
+                    type: 'lonsha_carryover_seed',
+                    version: VERSION,
+                    createdAt: Date.now(),
+                    sourceFloor: curFloor,
+                    summaryRecap: recapParts.join('\n'),
+                    protagonist: this.status?.getProtagonist?.() || {},
+                    lifeDetails: (this.status?.lifeDetails || []).filter(d => d.tier !== 'archive'),
+                    carriedItems: (this.items?.records || []).filter(i => i.carried || !i.location),
+                    openSuspenses: this.suspense?.openItems?.() || [],
+                    npcTies: this.status?.getAllNpcTies?.() || {},
+                    baselines: this.status?.baselines || {},
+                    geoContext: this.status?.getGeoLocation?.() || {}
+                };
+            } catch (e) {
+                errLog(e, 'generateCarryoverSeed');
+                return null;
+            }
+        }
+        importCarryoverSeed(seed, options = {}) {
+            if (!seed || typeof seed !== 'object' || seed.type !== 'lonsha_carryover_seed') {
+                console.warn(`[${PLUGIN_NAME}] 无效的 Carryover 种子数据`);
+                return false;
+            }
+            try {
+                if (seed.summaryRecap && this.summary) {
+                    this.summary.createSummary({ mes: '', index: 0 }, `【跨会话前情承接】\n${seed.summaryRecap}`, { seed: true });
+                }
+                if (seed.protagonist && this.status?.setProtagonist) {
+                    this.status.setProtagonist(seed.protagonist, 0);
+                }
+                if (Array.isArray(seed.lifeDetails) && this.status?.addLifeDetail) {
+                    for (const d of seed.lifeDetails) this.status.addLifeDetail(d, 0);
+                }
+                if (Array.isArray(seed.carriedItems)) {
+                    for (const it of seed.carriedItems) {
+                        this.itemOps.push({
+                            floor: 0,
+                            action: 'add',
+                            name: it.name,
+                            desc: it.desc || '',
+                            holder: it.holder || '主角',
+                            carried: true,
+                            location: '',
+                            state: it.state || '完好',
+                            updatedAt: Date.now()
+                        });
+                    }
+                    (this.reconcileItemOps || this.rebuildItems)?.call(this);
+                }
+                if (Array.isArray(seed.openSuspenses) && this.suspense?.add) {
+                    for (const s of seed.openSuspenses) {
+                        this.suspense.add(s.kind || 'plan', s.content, 0, s.createdTime);
+                    }
+                }
+                if (seed.npcTies && this.status?.setNpcTies) {
+                    for (const [name, ties] of Object.entries(seed.npcTies)) {
+                        this.status.setNpcTies(name, ties);
+                    }
+                }
+                if (seed.baselines && this.status?.setBaseline) {
+                    for (const [name, base] of Object.entries(seed.baselines)) {
+                        this.status.setBaseline(name, base);
+                    }
+                }
+                if (seed.geoContext && this.status?.setGeoLocation) {
+                    this.status.setGeoLocation(seed.geoContext);
+                }
+                console.log(`[${PLUGIN_NAME}] ✓ 跨会话 Carryover 种子导入成功 (来源版本: ${seed.version || 'unknown'})`);
+                return true;
+            } catch (e) {
+                errLog(e, 'importCarryoverSeed');
+                return false;
+            }
+        }
+
         buildNpcTierRecords() {
             try {
                 const present = new Set(this.captureCast());
@@ -3131,6 +3320,29 @@
                     blocks.push('[角色索引·分级注入]');
                     blocks.push(...npcTierLines);
                 }
+            }
+            // [v3.45] 吸收 baibai: 跨空间角色长期人伦社会羁绊网
+            if (this.config.config.npcTiesInjection !== false) {
+                const tiesText = this.getNpcTiesPrompt?.();
+                if (tiesText) {
+                    blocks.push(tiesText);
+                }
+            }
+            // [v3.45] 吸收 baibai: 主角客观档案与生活习惯癖好追踪
+            if (this.config.config.protagonistTracking !== false) {
+                const proPrompt = this.status?.getProtagonistPrompt?.();
+                const lifePrompt = this.status?.getLifeDetailsPrompt?.(5) || [];
+                if (proPrompt || lifePrompt.length) {
+                    blocks.push('[主角当前客观状态与生活习惯]');
+                    if (proPrompt) blocks.push(`- ${proPrompt}`);
+                    if (lifePrompt.length) blocks.push(...lifePrompt);
+                }
+            }
+            // [v3.45] 吸收 baibai: 近期已了结/已作废事项防复读注入
+            const recentDone = this.suspense?.getRecentlyResolvedPrompt?.(3) || [];
+            if (recentDone.length) {
+                blocks.push('[近期已了结事项·切勿重复执行或提及]');
+                blocks.push(...recentDone);
             }
             // [v3.37] Prompt Cache 友好优化：活跃阶段周记随底层动态槽注入
             if (this.config.config.cacheFriendlyInjection !== false && this.summary.getActiveVolumes) {
@@ -3262,7 +3474,7 @@
             let full = `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
             // [v3.25] 召回类型分级 + token 预算双层（MemoryPilot + 记忆库v5）:
             // 常驻分区（role=constant，每轮必注）优先保留；触发分区按预算裁剪
-            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]'];
+            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]', '[角色长期关系网]', '[主角当前客观状态与生活习惯]', '[近期已了结事项'];
             const residentBlocks = blocks.filter(b => RESIDENT_MARKERS.some(m => b.startsWith(m)));
             const triggerBlocks = blocks.filter(b => !RESIDENT_MARKERS.some(m => b.startsWith(m)));
             // [v2.1] P3: 注入预算裁剪（抄 stbme context-window：超预算优先保近期/相关）
@@ -3809,6 +4021,17 @@
         /** 近期了结（注入"已了结"分区，防主模型把办完的事再拿出来说） */
         recentlyResolved(limit = 3) {
             return this.items.filter(x => x.status === 'resolved').slice(-limit).reverse();
+        }
+        /** [v3.45] 近期已了结/已作废事项防复读注入 (baibai 理念) */
+        getRecentlyResolvedPrompt(limit = 3) {
+            const recents = this.recentlyResolved(limit);
+            if (!recents.length) return [];
+            return recents.map(x => {
+                const outcomeMap = { done: '已达成', cancelled: '已作废', failed: '已失败' };
+                const outLabel = outcomeMap[x.outcome] || '已了结';
+                const reason = x.resolvedReason ? `（原因：${x.resolvedReason}）` : '';
+                return `- [${outLabel}] ${x.content}${reason}`;
+            });
         }
         /** 上限控制：超出的最旧 open 沉降（不再注入，但保留记录） */
         prune(maxOpen) {
@@ -5007,6 +5230,11 @@
             this.trackedNpcs = new Set(); // 晋升为常驻深度追踪的角色
             // [v3.42] 吸收 caikis: 三级地理空间感知 (3-Tier Geo Context)
             this.geoContext = { majorArea: '', minorArea: '', detailLocation: '', floor: 0, updatedAt: 0 };
+            // [v3.45] 吸收 baibai: NPC 长期人伦社会羁绊网 (Long-term NPC Ties)
+            this.npcTies = {}; // { [name]: string[] }
+            // [v3.45] 吸收 baibai: 主角客观状态 (Protagonist State) 与 生活细节癖好 (Life Details)
+            this.protagonist = { gender: '', age: '', identity: '', appearance: '', outfit: '', condition: '', floor: 0, updatedAt: 0 };
+            this.lifeDetails = []; // [ { id, text, topics: [], tier: 'active', floor, createdAt } ]
         }
 
         // ===== [v3.42] 吸收 caikis: 人设基线 (Baseline) vs 人设偏移 (Drift) =====
@@ -5111,6 +5339,120 @@
             const g = this.geoContext;
             if (!g || (!g.majorArea && !g.minorArea && !g.detailLocation)) return '';
             return `〔当前地理位置〕主要地区: ${g.majorArea || '未知'} | 次要地区: ${g.minorArea || '未知'} | 详细地点: ${g.detailLocation || '未知'}`;
+        }
+
+        // ===== [v3.45] 吸收 baibai: NPC 长期社会人伦羁绊 (NPC Ties) =====
+        addNpcTie(name, tie) {
+            if (!name || !tie) return null;
+            const normName = String(name).trim();
+            if (!normName) return null;
+            this.npcTies[normName] = this.npcTies[normName] || [];
+            const parts = String(tie).split(/[；;]/).map(s => s.trim()).filter(Boolean);
+            for (const p of parts) {
+                if (!this.npcTies[normName].includes(p)) {
+                    this.npcTies[normName].push(p);
+                }
+            }
+            return this.npcTies[normName];
+        }
+        setNpcTies(name, ties) {
+            if (!name) return null;
+            const normName = String(name).trim();
+            const list = Array.isArray(ties) ? ties : String(ties || '').split(/[；;]/);
+            this.npcTies[normName] = [];
+            for (const t of list) {
+                const s = String(t || '').trim();
+                if (s && !this.npcTies[normName].includes(s)) {
+                    this.npcTies[normName].push(s);
+                }
+            }
+            return this.npcTies[normName];
+        }
+        getNpcTies(name) {
+            return this.npcTies[String(name || '').trim()] || [];
+        }
+        getAllNpcTies() {
+            return { ...this.npcTies };
+        }
+        getNpcTiesRecords() {
+            return Object.entries(this.npcTies).map(([name, ties]) => ({ name, ties: [...ties] }));
+        }
+
+        // ===== [v3.45] 吸收 baibai: 主角客观档案 (Protagonist) =====
+        setProtagonist(patch = {}, floor = 0) {
+            if (!patch || typeof patch !== 'object') return this.protagonist;
+            for (const key of ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition']) {
+                if (patch[key] !== undefined) {
+                    this.protagonist[key] = String(patch[key] ?? '').trim();
+                }
+            }
+            this.protagonist.floor = Number(floor) || this.protagonist.floor || 0;
+            this.protagonist.updatedAt = Date.now();
+            return this.protagonist;
+        }
+        getProtagonist() {
+            return { ...this.protagonist };
+        }
+        getProtagonistPrompt() {
+            const p = this.protagonist;
+            if (!p) return '';
+            const parts = [];
+            if (p.gender) parts.push(`[性别:${p.gender}]`);
+            if (p.age) parts.push(`年龄:${p.age}`);
+            if (p.identity) parts.push(`身份:${p.identity}`);
+            if (p.appearance) parts.push(`体貌:${p.appearance}`);
+            if (p.outfit) parts.push(`当前着装:${p.outfit}`);
+            if (p.condition) parts.push(`生理/伤病状况:${p.condition}`);
+            return parts.length ? parts.join(' | ') : '';
+        }
+
+        // ===== [v3.45] 吸收 baibai: 主角生活习惯与癖好档案 (Life Details) =====
+        _normalizeDetailText(text) {
+            return String(text || '').trim().toLowerCase().replace(/[，。！？!?、；;：:\s]+$/u, '');
+        }
+        addLifeDetail(detail, floor = 0) {
+            const rawText = typeof detail === 'string' ? detail : (detail?.text || '');
+            const cleanText = String(rawText || '').trim();
+            if (!cleanText || cleanText.length < 2) return null;
+
+            const norm = this._normalizeDetailText(cleanText);
+            const topics = Array.isArray(detail?.topics) ? detail.topics.map(t => String(t).trim()).filter(Boolean) : [];
+            const tier = ['pinned', 'active', 'archive'].includes(detail?.tier) ? detail.tier : 'active';
+
+            let existing = this.lifeDetails.find(d => this._normalizeDetailText(d.text) === norm);
+            if (existing) {
+                existing.text = cleanText;
+                existing.tier = tier;
+                if (topics.length) existing.topics = Array.from(new Set([...existing.topics, ...topics]));
+                existing.floor = Number(floor) || existing.floor || 0;
+                return existing;
+            }
+
+            const item = {
+                id: `life_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                text: cleanText,
+                topics,
+                tier,
+                floor: Number(floor) || 0,
+                createdAt: Date.now()
+            };
+            this.lifeDetails.push(item);
+            if (this.lifeDetails.length > 30) this.lifeDetails.shift();
+            return item;
+        }
+        removeLifeDetail(idOrText) {
+            if (!idOrText) return false;
+            const norm = this._normalizeDetailText(idOrText);
+            const idx = this.lifeDetails.findIndex(d => d.id === idOrText || this._normalizeDetailText(d.text) === norm);
+            if (idx !== -1) {
+                this.lifeDetails.splice(idx, 1);
+                return true;
+            }
+            return false;
+        }
+        getLifeDetailsPrompt(limit = 5) {
+            const active = this.lifeDetails.filter(d => d.tier !== 'archive').slice(-limit);
+            return active.map(d => `- ${d.text}${d.topics?.length ? ` [${d.topics.join('/')}]` : ''}`);
         }
         // [v2.3] ops 记录 (同楼覆盖式: 重复提取同楼时后写覆盖前写, 重放幂等)
         _logOp(floor, kind, items) {
@@ -5245,7 +5587,10 @@
                 drifts: this.drifts || {},
                 transientNpcs: this.transientNpcs || {},
                 trackedNpcs: Array.from(this.trackedNpcs || []),
-                geoContext: this.geoContext || {}
+                geoContext: this.geoContext || {},
+                npcTies: this.npcTies || {},
+                protagonist: this.protagonist || {},
+                lifeDetails: Array.isArray(this.lifeDetails) ? this.lifeDetails : []
             };
         }
         import(data) {
@@ -5257,6 +5602,9 @@
                 this.transientNpcs = data.transientNpcs || {};
                 this.trackedNpcs = new Set(Array.isArray(data.trackedNpcs) ? data.trackedNpcs : []);
                 this.geoContext = data.geoContext || { majorArea: '', minorArea: '', detailLocation: '', floor: 0, updatedAt: 0 };
+                this.npcTies = data.npcTies || {};
+                this.protagonist = data.protagonist || { gender: '', age: '', identity: '', appearance: '', outfit: '', condition: '', floor: 0, updatedAt: 0 };
+                this.lifeDetails = Array.isArray(data.lifeDetails) ? data.lifeDetails : [];
             } else {
                 this.characters = (data && typeof data === 'object') ? data : {};
                 this.ops = [];
@@ -5265,6 +5613,9 @@
                 this.transientNpcs = {};
                 this.trackedNpcs = new Set();
                 this.geoContext = { majorArea: '', minorArea: '', detailLocation: '', floor: 0, updatedAt: 0 };
+                this.npcTies = {};
+                this.protagonist = { gender: '', age: '', identity: '', appearance: '', outfit: '', condition: '', floor: 0, updatedAt: 0 };
+                this.lifeDetails = [];
             }
         }
     }

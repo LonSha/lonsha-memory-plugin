@@ -1,3 +1,12 @@
+## [v3.45.0] - 2026-09-13
+### 吸收 baibai 与 shujuku 深水区机制：NPC长期人伦羁绊网、主角客观档案与生活癖好、了结事项防复读、推理截断宽容熔断与跨会话Carryover
+- **NPC 长期社会人伦羁绊网 (Long-term NPC Ties Network)**：吸收 baibai `fmtNpcTiesContext` 理念，在 `CharacterState` 与 `MemoryEngine` 中独立抽离不随物理空间是否在场而失效的长期社会人伦羁绊网。聚合规范化姓名并对 ties 执行分号解析与幂等去重；即便 NPC 离开视线滚入 Tier 4，血缘、婚姻、结拜、主仆与宿敌羁绊依然常驻注入，彻底焊死角色伦理纲常，杜绝长程跑团中乱伦与辈分颠倒通病。
+- **主角客观状态与生活习惯癖好追踪 (Protagonist Profile & Life Details)**：吸收 baibai `protagonist` 与 `lifeDetails` 设计，在 `CharacterState` 中将 User/主角作为独立客观实体进行追踪。支持性别、年龄、当前身份、外貌体貌、着装伪装与覆盖型伤病生理状况（`condition` 痊愈后自动清空）；建立生活习惯癖好档案，支持主题标签与去重规范化，将主角的真实肉体伤情与雷区癖好（如严重过敏、饮食喜好）紧凑注入上下文，彻底消灭断手挥拳、乱吃过敏物的出戏 Bug。
+- **悬念簿近期已了结事项防复读注入 (Recently Resolved Task Lifecycle)**：吸收 baibai 理念，`SuspenseBook` 增加 `getRecentlyResolvedPrompt`，提取近期了结的约定/悬念，将 `done`（已达成）、`cancelled`（已作废）、`failed`（已失败）三种不同收场方式连同其一句话收场原因紧凑注入私密简报，并纳入常驻最高优先级保护，杜绝大模型在剧情推进后对作废历史任务的“诈尸复读”。
+- **现代多推理标签与截断宽容熔断器 (Lenient Multi-Tag Reasoning Sanitizer)**：吸收 shujuku `lenient-text` 思想重构 `extractThinkingChain` 与 `stripMemoryOpsTags`。支持主流 5 类推理标签（`think`, `thinking`, `thought`, `reasoning`, `analysis`）；实装未闭合思考标签宽容熔断器，当模型发生 token 截断或忘记闭合标签时，精准识别连续换行后的真实叙事/对话/Markdown/JSON 切换点，切分思考并安全保留正文，杜绝推理模型截断造成的正文全量吞没白屏。
+- **跨会话数据平移与状态种子 (Carryover Seed & Replay)**：吸收 baibai `carryover.ts` 架构，`MemoryEngine` 提供 `generateCarryoverSeed()` 与 `importCarryoverSeed()`。在新开会话或长程故事迁移时，一键将当前最高层剧情摘要、主角客观档案、随身物品、未结悬念、NPC羁绊网与地理位置打包为自包含种子，在新会话第 0 楼无缝初始化先验记忆基石。
+- **自动化测试**：新增 `tests/v345_deep_bastion.test.mjs`，全量 47 个测试套件 100% 绿灯全绿通过。
+
 ## [v3.44.0] - 2026-09-13
 ### 吸收 baibai 物理可达性与 shujuku 终极防御：物品随身/寄存解耦、字符流状态机解析与修订号乐观并发
 - **物品物理可达性与随身/寄存解耦 (Physical Reachability & Carried/Location Mutex)**：吸收 baibai 机制，`_sanitizeItemOp` 与 `rebuildItems` 实装 `carried`（随身）与 `location`（存放地点）强互斥铁律（随身携带自动清空存放地；有具体存放地强制 `carried: false`）。生成提示词时根据当前地理位置（`geoLocation`）智能分类为【在场/随身】与【他处寄存】，严禁大模型随时随地凭空隔空掏出放置在其他地点的物品（根治次元袋 Bug）。
