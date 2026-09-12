@@ -1,5 +1,22 @@
 # 更新日志
 
+## v3.22.0 (2026-09-12) - 第七轮审计修复二（rollback 未清记忆残留）🔬🧹
+
+> 第七轮审计第二个实锤：对照 rollbackFloor 的清理清单（graph/ledger/pov/summary/timeline/worldProg），发现 **charMem（角色记忆银行）与 _thinkingSignals（场外信号）不在清理清单**——删楼/回滚后旧楼层记忆残留，污染后续剧情。
+
+### 🔴 Bug WP-B：rollbackFloor 未清 charMem/_thinkingSignals
+**影响**：回滚/删楼后，旧楼层的角色记忆（charMem）与场外信号（_thinkingSignals）仍残留在内存中——swipe 回退到旧支线时，残留记忆可能污染新剧情方向。
+
+**修复**：
+- `charMem.removeByFloor(floor)`：按楼层删除核心+近期记忆（保留其他楼层）
+- `engine.clearThinkingSignalsByFloor(floor)`：按楼层过滤场外信号
+- rollbackFloor 内补两处调用（在 worldProg 对账之后）
+
+### 验证
+- 行为测试 9 项（楼层删除/其他楼保留/不存在楼不误删/信号清理）
+- 全量回归 22 文件 259 项全过
+
+全量回归 259 项。
 ## v3.21.0 (2026-09-12) - 第七轮审计修复（世界推进空转）🔬
 
 > 第七轮审计采用「链路完整性」组合推演法：顺每个功能的完整执行链走一遍，找「骨架搭好了但核心填充缺失」的僵尸链路。

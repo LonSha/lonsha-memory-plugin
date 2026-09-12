@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.21.0';
+    const VERSION = '3.22.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1145,6 +1145,15 @@
         
         // [v3.13] 思维链白名单投递: 提取"场外信号"（角色疑虑/迟到暗示/外部动作/下一幕预告），
         // 仅作为附件包附加向量素材（提升召回命中），绝不写入 summary/timeline/graph/status 任何事实性记忆
+        // [v3.22] 场外信号按楼层清理（rollbackFloor 联动）: 删楼后旧信号不残留
+        clearThinkingSignalsByFloor(floor) {
+            try {
+                const f = Math.max(0, Math.round(Number(floor) || 0));
+                if (Array.isArray(this._thinkingSignals)) {
+                    this._thinkingSignals = this._thinkingSignals.filter(s => s.floor !== f);
+                }
+            } catch (e) { errLog(e, 'rollbackFloor.场外信号清理'); }
+        }
         feedThinking(thinking, floor) {
             if (!thinking) return;
             const t = String(thinking).slice(0, 800);
@@ -2260,6 +2269,9 @@
                 try { this.graph.truncateGraphFrom(floor); } catch (e) { errLog(e, 'rollbackFloor.图谱回溯'); }
                 // [v3.17] 世界推进对账（yuzuki）+ 丢弃 pending（shujuku 拒绝半提交）: 删楼后过期推进失活
                 try { if (this.worldProg) { this.worldProg.discard(); this.worldProg.reconcile(floor - 1); } } catch (e) { errLog(e, 'rollbackFloor.世界推进对账'); }
+                // [v3.22] 角色记忆银行 + 场外信号 楼层清理（rollback 未清 → 旧记忆残留）
+                try { if (this.charMem?.removeByFloor) this.charMem.removeByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.charMem清理'); }
+                try { this.clearThinkingSignalsByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.场外信号清理'); }
                 if (keepIds.size && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 回滚: 保留 ${keepIds.size} 个长寿命角色节点`);
                 // 回滚 POV
                 const povIdSet = new Set(entry.povIds || []);
@@ -3036,6 +3048,18 @@
                 .slice(0, 6);
         }
         _c(char) { if (!this.memories[char]) this.memories[char] = { core: [], recent: [] }; return this.memories[char]; }
+        // [v3.22] 按楼层删除（rollbackFloor 联动）: 删楼后该楼记忆不残留
+        removeByFloor(floor) {
+            const f = Math.max(0, Math.round(Number(floor) || 0));
+            let removed = 0;
+            for (const char of Object.keys(this.memories)) {
+                const c = this.memories[char];
+                c.core = c.core.filter(x => x.floor !== f);
+                c.recent = c.recent.filter(x => x.floor !== f);
+                removed += 1;
+            }
+            return removed;
+        }
         export() { return this.memories; }
         import(data) { this.memories = (data && typeof data === 'object') ? data : {}; for (const k of Object.keys(this.memories)) { if (!this.memories[k].core) this.memories[k].core = []; if (!this.memories[k].recent) this.memories[k].recent = []; } }
     }

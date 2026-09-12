@@ -82,7 +82,13 @@ charMem._m['珞珈'] = [{ text: '珞珈准备去祭典' }];
 { if (!src.includes('if (this.worldProg.pendingWrite) this.worldProg.publish()')) fail('ST2 publish'); ok('ST2: 生成路径确认 publish'); }
 // ST3: 动态文本含角色名 + 场外标记
 { if (!src.includes('（场外动态）')) fail('ST3 场外标记'); ok('ST3: 场外动态标记文本'); }
-// ST4: 版本号
-{ if (!src.includes("VERSION = '3.21.0'")) fail('ST4'); ok('ST4: 版本号 3.21.0'); }
+// ST4: 版本号已前进（>= v3.21）
+{
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST4 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 21) || (M === 3 && m === 21 && p >= 0))) fail('ST4 版本号过低: ' + vm[1]);
+  ok('ST4: 版本号已前进 (>=3.21.0): ' + vm[1]);
+}
 
 console.log(`\n✓ v3.21 世界推进修复测试全过 (${pass} 项)`);
