@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.6.0';
+    const VERSION = '3.7.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -2293,7 +2293,18 @@
         }
         async createSummary(message, llmSummary) {
             const text = llmSummary || this.smartTruncate(message.mes || '', 200);
-            const summary = {floor: message.index || 0, text, level: 1, timestamp: Date.now(), folded: false};
+            const floor = message.index || 0;
+            // [v3.7] 同楼去重: 编辑重提取/手动补提时同楼摘要替换而非堆积（原实现 push 不去重——10 次编辑 = 10 条同楼摘要）
+            const existIdx = this.summaries.findIndex(s => s.floor === floor);
+            if (existIdx >= 0) {
+                const old = this.summaries[existIdx];
+                // 仅当新文本不同才替换（保 id/timestamp 连续性）
+                if (old.text !== text) {
+                    this.summaries[existIdx] = { ...old, text, timestamp: Date.now() };
+                }
+                return this.summaries[existIdx];
+            }
+            const summary = {floor, text, level: 1, timestamp: Date.now(), folded: false};
             this.summaries.push(summary);
             return summary;
         }
@@ -3338,20 +3349,40 @@ ${win}`;
                     this.eventHandlers.push({ eventSource, type: types.CHAT_CHANGED });
                 }
 
-                // [v2.4] RE: 楼层编辑/滑动感知——被编辑的楼层及其之后全部按删楼处理 (同 baibai 陈旧失效语义)
+                // [v3.7] 楼层编辑——升级为「精准回滚 + 防抖自愈」:
+                //   只回滚被编辑楼（不再级联摧毁下游记忆），防抖 3s 后自动重提取该楼（编辑=新内容的新记忆）
+                //   语义依据: 下游楼各自记录的是「它们所述剧情」，编辑楼改动不使下游失效（细致于旧级联策略）
                 if (types.MESSAGE_EDITED) {
                     eventSource.on(types.MESSAGE_EDITED, (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_EDITED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         try {
                             const f = Number(messageId);
-                            if (Number.isFinite(f) && f >= 0) {
-                                console.log(`[${PLUGIN_NAME}] 楼层 ${f} 被编辑, 级联回滚该楼及之后的记忆`);
-                                this.engine.rollbackFloor(f);
-                                const c = window.SillyTavern?.getContext?.();
-                                const after = [];
-                                for (let i = f + 1; i < (c?.chat?.length || 0); i++) after.push(i);
-                                for (const ff of after.reverse()) this.engine.rollbackFloor(ff);
-                            }
+                            if (!Number.isFinite(f) || f < 0) return;
+                            console.log(`[${PLUGIN_NAME}] 楼层 ${f} 被编辑: 回滚该楼 + 防抖自愈`);
+                            this.engine.rollbackFloor(f);
+                            // 防抖自愈: 编辑往往连续多次（改写中途），3s 静默后重提取待愈楼层（集合——支持连编多楼）
+                            try {
+                                this._editHealPending = this._editHealPending || new Set();
+                                this._editHealPending.add(f);
+                                if (this._editHealTimer) clearTimeout(this._editHealTimer);
+                                this._editHealTimer = setTimeout(async () => {
+                                    this._editHealTimer = null;
+                                    const pending = Array.from(this._editHealPending || []).sort((a, b) => a - b);
+                                    this._editHealPending = new Set();
+                                    for (const hf of pending) {
+                                        try {
+                                            const c = window.SillyTavern?.getContext?.();
+                                            const m = c?.chat?.[hf];
+                                            if (!m || m.is_user === true) continue;   // 用户楼不提取
+                                            if (this.engine.isOmittedFloor?.(m)) continue;
+                                            const text = String(m.mes || '').trim();
+                                            if (!text) continue;
+                                            console.log(`[${PLUGIN_NAME}] 编辑自愈: 重提取楼层 ${hf}`);
+                                            await this.engine.onMessageReceived({ ...m, index: hf }, hf);
+                                        } catch (e) { errLog(e, `events.编辑自愈重提取.${hf}`); }
+                                    }
+                                }, 3000);
+                            } catch (e) { errLog(e, 'events.编辑自愈计时'); }
                         } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
                     });
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED });
