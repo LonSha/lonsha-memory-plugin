@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.31.0';
+    const VERSION = '3.32.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -236,7 +236,7 @@
 {{CONTENT}}
 【提取规则】
 1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
-2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。每个事件标注 scope："objective"（公开事实，所有在场角色都知道）或 "pov"（仅某角色亲眼看到/独自知道的事实，此时必须给出 owner=该角色主名）。
+2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。每个事件标注 scope："objective"（公开事实，所有在场角色都知道）或 "pov"（仅某角色亲眼看到/独自知道的事实，此时必须给出 owner=该角色主名）。每个事件还要标注 importance（1-10，数字越大越重要：1-3日常琐事、4-6值得注意、7-8重大事件、9-10故事定义级）。
 3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
 4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
 5. story_date：本轮剧情中明确写出的日期（如"3月12日""2026年5月1日"）；未明确写出则填 null。禁止编造日期。
@@ -248,7 +248,7 @@
 9c. time_advance_days：本轮剧情结束时相对上一楼【跳过了几天】（如正文出现\"三天后\",\"次日\",\"一周后\"且未写出具体日期时，填天数3/1/7；日期明确写了具体年月日则填0；没有时间跳跃填 null）。禁止臆测。
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": ""}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "location": null}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "location": null}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
@@ -1050,16 +1050,22 @@
                 // [v1.8] P0: 写入剧情时间线
                 if (this.config.config.plotTimeline && extracted?.summary) {
                     const sd = this.extractStoryDate(message.mes || '', extracted.story_date);
+                    // [v3.32] event importance aggregation - Visual-Memory tiering
+                    let tlImp = 5;
+                    for (const ev of (extracted?.events || [])) {
+                        const v = Number(ev?.importance);
+                        if (v >= 1 && v <= 10 && v > tlImp) tlImp = v;
+                    }
                     // [v3.18] 时间锚点一致性校验（检测倒跳）
                     if (sd) this.checkTimeMonotonic(sd, message.index || 0);
-                    if (sd) this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || []);
+                    if (sd) this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || [], tlImp);
                     // [v2.9] RU-A: 主动时间推进——正文说"三天后/次日"但没写日期时，基于上一楼日期算术推进
                     const adv = Number(extracted.time_advance_days) || 0;
                     if (adv > 0) {
                         const base = sd || this._lastStoryDate;
                         const advanced = base ? this.advanceStoryDate(base, adv) : null;
                         if (advanced) {
-                            this.timeline.add(advanced, extracted.summary, message.index || 0, extracted.characters || []);
+                            this.timeline.add(advanced, extracted.summary, message.index || 0, extracted.characters || [], tlImp);
                             this._lastStoryDate = advanced;
                             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 时间推进: ${base} +${adv}天 → ${advanced}`);
                         }
@@ -2312,7 +2318,7 @@
                             if (relOn) {
                                 try { rel = relativePrefix(e.date, anchorDate); } catch (err) { rel = ''; }
                             }
-                            return {id: e.id, text: `[${rel ? rel + '·' : ''}${e.date}] ${e.text}`, date: e.date, floor: e.floor, source: 'timeline'};
+                            return {id: e.id, text: `[${rel ? rel + '·' : ''}${e.date}] ${e.text}`, date: e.date, floor: e.floor, source: 'timeline', importance: e.importance || 5};
                         });
                 }
             }
@@ -2598,14 +2604,29 @@
                 diaries.forEach(i => blocks.push(`- ${i.name || i.character || ''}（${i.floor != null ? '第' + i.floor + '楼' : ''}${i.mood ? '·' + i.mood : ''}）：${i.text || i.entry || ''}${i.secret ? ' ｜未说出口: ' + i.secret : ''}`));
             }
             if (timelines.length) {
-                blocks.push('[剧情时间线]');
-                const seen = new Set();
-                timelines.forEach(i => {
-                    const key = i.text || '';
-                    if (seen.has(key)) return;
-                    seen.add(key);
-                    blocks.push(`- ${key}`);
-                });
+                // [v3.32] chronicle timeline tiering (Visual-Memory highlightThreshold idea): key events >=7 top block, rest as list
+                const tlKey = timelines.filter(i => (i.importance || 5) >= 7);
+                const tlRest = timelines.filter(i => (i.importance || 5) < 7);
+                if (tlKey.length) {
+                    blocks.push("[关键事件·影响当前]");
+                    const seenK = new Set();
+                    tlKey.forEach(i => {
+                        const key = i.text || "";
+                        if (seenK.has(key)) return;
+                        seenK.add(key);
+                        blocks.push(`- ${key}`);
+                    });
+                }
+                if (tlRest.length) {
+                    blocks.push("[剧情时间线]");
+                    const seen = new Set();
+                    tlRest.forEach(i => {
+                        const key = i.text || "";
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                        blocks.push(`- ${key}`);
+                    });
+                }
             }
             if (dedupNotes.length) {
                 // [v3.23] 跨调用去重提示（NE-Memory）: 标记上轮已覆盖项，防连续追问复读
@@ -2691,7 +2712,7 @@
             let full = `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
             // [v3.25] 召回类型分级 + token 预算双层（MemoryPilot + 记忆库v5）:
             // 常驻分区（role=constant，每轮必注）优先保留；触发分区按预算裁剪
-            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[剧情时间线]', '[卷]', '[早前剧情概括]'];
+            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]'];
             const residentBlocks = blocks.filter(b => RESIDENT_MARKERS.some(m => b.startsWith(m)));
             const triggerBlocks = blocks.filter(b => !RESIDENT_MARKERS.some(m => b.startsWith(m)));
             // [v2.1] P3: 注入预算裁剪（抄 stbme context-window：超预算优先保近期/相关）
@@ -2711,7 +2732,7 @@
                     full = `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n`;
                 } else if (strategy === 'recency') {
                     // 保留常驻 + 近期分区
-                    const recencyTypes = ['[剧情时间线]', '[角色状态]', 'POV', '[手机生活记忆]', '[前情摘要]', '[节日]'];
+                    const recencyTypes = ['[关键事件·影响当前]', '[剧情时间线]', '[角色状态]', 'POV', '[手机生活记忆]', '[前情摘要]', '[节日]'];
                     const kept = [...residentBlocks, ...triggerBlocks.filter(b => recencyTypes.some(k => b.startsWith(k) || b.includes(k)))];
                     full = kept.length ? `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n` : full.slice(0, budget);
                 } else {
@@ -3882,11 +3903,11 @@
 
     class PlotTimeline {
         constructor() { this.entries = []; }
-        add(date, text, floor, characters = []) {
+        add(date, text, floor, characters = [], importance = 5) {
             if (!date || !text) return null;
             const exist = this.entries.find(e => e.date === date && e.text === text);
-            if (exist) { exist.floor = floor; exist.timestamp = Date.now(); return exist; }
-            const e = {id: 'tl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), date, text, floor, characters, timestamp: Date.now()};
+            if (exist) { exist.floor = floor; exist.timestamp = Date.now(); if (importance > (exist.importance || 5)) exist.importance = importance; return exist; }
+            const e = {id: 'tl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), date, text, floor, characters, importance: (importance >= 1 && importance <= 10) ? importance : 5, timestamp: Date.now()};
             this.entries.push(e);
             if (this.entries.length > 500) this.entries.shift();
             return e;
