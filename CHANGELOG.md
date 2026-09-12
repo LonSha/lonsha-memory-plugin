@@ -1,4 +1,16 @@
 # 更新日志
+## v3.4.1 (2026-09-12) - DB 内容升级 + TDZ 重大修复（hcdiary 启示）
+### 🔴 重大修复：设置面板 TDZ 崩溃（自 v2.9.0 起存在）
+- **根因**：settings-ui.js 中 `overlay.querySelector('#ls-snap-restore')` 写在其 `const overlay = makeSheet(...)` 声明之前——TDZ（暂时性死区）ReferenceError，**设置面板打开即崩**。
+- **考证**：v2.9.0（快照功能引入时）写入，连续 6 个版本漏检（自测均未覆盖 UI 打开路径）。
+- **修复**：声明移至使用之前；新增全文件 TDZ 扫描测试（同类隐患=0）。
+### 🟠 摘要骤减保护（抄 hcdiary 日记骤减补回）
+- **EmergencyBackup 类**：检测到摘要总量骤减（>50% 且缺口 ≥20）时自动写紧急备份（IndexedDB + localStorage 双写兜底，每聊天保留 8 份）；
+- **storage.save 内嵌守卫**：存储前对比上一版，触发骤减时先备份再落盘（不阻断写入）；旧数组格式兼容。
+### 🟢 快照恢复管线修正
+- 去掉重复 rebuildItems 调用；恢复后走 v3.3 对账（补 fp/自愈/清理）。
+### ✅ 测试
+- `tests/v340_content_db.test.mjs`（9 项）：TDZ 静态断言+全文件扫描 / EmergencyBackup 结构 / 骤减守卫 6 场景行为测试。全量回归 56 项。
 ## v3.3.1 (2026-09-12) - 台账重放化（研究收编：baibai leafValid + yuzuki 签名对账）📒
 ### 🟠 核心升级：物品台账楼层指纹重放化
 - **旧问题**：`rollbackItemsFrom` 按「floor < f 硬过滤」——编辑楼 f 时 f+1.. 楼的物品记忆被级联误杀（不可恢复）；楼层号是位置不是身份。

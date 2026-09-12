@@ -414,8 +414,9 @@
                 <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
             `;
 
-            overlay.querySelector('#ls-snap-restore').addEventListener('click', () => { plugin.showSnapshotRestore(); });
             const overlay = makeSheet('lonsha-settings-overlay', '⚙️ 记忆引擎设置', body);
+            // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
+            overlay.querySelector('#ls-snap-restore').addEventListener('click', () => { plugin.showSnapshotRestore(); });
 
             // 滑块实时显示
             overlay.querySelectorAll('input[type=range]').forEach(r => {
@@ -671,8 +672,7 @@
                         if (data.scene && engine.scene) engine.scene.import(data.scene);
                         if (data.echo && engine.echo) engine.echo.import(data.echo);
                         if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
-                        if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; engine.rebuildItems(); }
-                        if (data.itemOps) engine.rebuildItems();
+                        if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems).call(engine); }   // [v3.4] 恢复后走对账（补 fp/清理，去重复调用）
                         const cid = engine.getCurrentChatId();
                         if (cid) await engine.storage.save(cid, engine.collectExport());
                         menu.remove();

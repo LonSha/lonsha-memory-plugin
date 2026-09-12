@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.3.1';
+    const VERSION = '3.4.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -2963,6 +2963,17 @@ ${win}`;
             try {
                 const ctx = window.SillyTavern?.getContext?.();
                 if (!ctx?.chatMetadata) return;
+                // [v3.4] DB: 摘要骤减保护——存储前对比上一版，总量骤减（>50%且缺口≥20）先紧急备份再写
+                try {
+                    const prev = ctx.chatMetadata.extensions?.[this.STORAGE_KEY]?.data;
+                    const prevN = Array.isArray(prev?.summaries?.summaries) ? prev.summaries.summaries.length : (Array.isArray(prev?.summaries) ? prev.summaries.length : 0);
+                    const nextN = Array.isArray(data?.summaries?.summaries) ? data.summaries.summaries.length : (Array.isArray(data?.summaries) ? data.summaries.length : 0);
+                    if (prevN >= 30 && nextN < prevN * 0.5 && (prevN - nextN) >= 20) {
+                        console.warn(`[${PLUGIN_NAME}] 摘要骤减 ${prevN}→${nextN}，写紧急备份`);
+                        const eb = window.LonShaMemory?.emergency;
+                        if (eb?.save) await eb.save(chatId, `摘要骤减 ${prevN}→${nextN}`, prev, { summaries: prevN });
+                    }
+                } catch (e) { errLog(e, 'DB.骤减检测'); }
                 if (!ctx.chatMetadata.extensions) ctx.chatMetadata.extensions = {};
                 ctx.chatMetadata.extensions[this.STORAGE_KEY] = {version: VERSION, chatId, data, timestamp: Date.now()};
                 if (ctx.saveChat) await ctx.saveChat(); else if (window.saveChat) await window.saveChat();
@@ -2993,10 +3004,69 @@ ${win}`;
         }
     }
     
+    // [v3.4] DB: 紧急备份（摘要骤减保护，抄 hcdiary 日记骤减补回——检测到骤减自动写 IndexedDB 快照 + localStorage）
+    class EmergencyBackup {
+        constructor() { this.DB_NAME = 'lonsha_snapshots'; this.STORE = 'snaps'; this.MAX_EMERGENCY = 8; this.LS_KEY = 'lonsha_emergency_backup'; this._db = null; }
+        async _open() {
+            if (this._db) return this._db;
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(this.DB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(this.STORE)) db.createObjectStore(this.STORE, { keyPath: 'id' });
+                };
+                req.onsuccess = () => { this._db = req.result; resolve(req.result); };
+                req.onerror = () => reject(req.error);
+            });
+        }
+        /** 写紧急备份（同聊天最多保留 MAX_EMERGENCY 份；IndexedDB + localStorage 双写） */
+        async save(chatId, reason, data, counts) {
+            const entry = { floor: -1, emergency: true, reason: String(reason || ''), counts: counts || {}, data, timestamp: Date.now() };
+            // localStorage 兜底（IndexedDB 不可用时也能保命）
+            try {
+                if (data.summaries && JSON.stringify(data.summaries).length < 900000) {
+                    localStorage.setItem(this.LS_KEY + ':' + String(chatId || 'default'), JSON.stringify({ reason: entry.reason, counts: entry.counts, timestamp: entry.timestamp, data: { summaries: data.summaries, diaries: data.diaries, graph: data.graph, itemOps: data.itemOps } }));
+                }
+            } catch (e) {}
+            try {
+                const db = await this._open();
+                const id = 'emergency:' + String(chatId || 'default');
+                const existing = await new Promise((resolve) => {
+                    const tx = db.transaction(this.STORE, 'readonly');
+                    const req = tx.objectStore(this.STORE).get(id);
+                    req.onsuccess = () => resolve(req.result || { id, snaps: [] });
+                    req.onerror = () => resolve({ id, snaps: [] });
+                });
+                const snaps = (existing.snaps || []).slice(-(this.MAX_EMERGENCY - 1));
+                snaps.push(entry);
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(this.STORE, 'readwrite');
+                    tx.objectStore(this.STORE).put({ id, snaps });
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+                return true;
+            } catch (e) { errLog(e, 'DB.emergency.save'); return false; }
+        }
+        /** 读最近一份紧急备份 */
+        async latest(chatId) {
+            try {
+                const db = await this._open();
+                return await new Promise((resolve) => {
+                    const tx = db.transaction(this.STORE, 'readonly');
+                    const req = tx.objectStore(this.STORE).get('emergency:' + String(chatId || 'default'));
+                    req.onsuccess = () => { const s = req.result?.snaps || []; resolve(s.length ? s[s.length - 1] : null); };
+                    req.onerror = () => resolve(null);
+                });
+            } catch (e) { return null; }
+        }
+    }
+
     class LonShaMemoryPlugin {
         constructor() { 
             this.configMgr = new ConfigManager(); 
             this.engine = new MemoryEngine(this.configMgr); 
+            this.emergency = new EmergencyBackup();   // [v3.4] DB: 紧急备份
             this.diffusion = null;
             this.visualizer = null;
             this.initialized = false; 
