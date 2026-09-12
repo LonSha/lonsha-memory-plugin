@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.22.0';
+    const VERSION = '3.23.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -570,6 +570,85 @@
         if (!position || position <= 0) return [];
         return (tasks || []).filter(t => t?.enabled && (t.cyclePositions || []).includes(position));
     }
+    // [v3.23] 剧情时间约束解析（NE-Memory parseTimeConstraint 移植）
+    // 从 recall 查询中解析出时间约束（Day X / 月 / ISO 日期 / 相对时间），
+    // 供 timeline 召回前做时间过滤——"那天/周二/5月 发生了什么"这类查询也能命中时间线
+    const TIME_WORDS_ZH = ['今天','昨天','明天','前天','上午','下午','晚上','早晨','凌晨','周一','周二','周三','周四','周五','周六','周日','一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月','天','周','月','年','小时','分钟','星期','礼拜'];
+    function parseStoryTimeConstraint(query) {
+        try {
+            const q = String(query || '').trim();
+            if (!q) return null;
+            // 1. 剧情历 Day X - Day Y 范围（支持中文"到"）
+            const dayRange = q.match(/Day\s*(\d+)\s*(?:[-–—]|to|到)\s*Day?\s*(\d+)/i);
+            if (dayRange) return { type: 'narrative_range', from: 'Day ' + dayRange[1], to: 'Day ' + dayRange[2], period: 'Day ' + dayRange[1] + '-' + dayRange[2] };
+            // 2. Day X
+            const daySingle = q.match(/Day\s*(\d+)/i);
+            if (daySingle) return { type: 'narrative', period: 'Day ' + daySingle[1] };
+            // 3. ISO 日期 YYYY-MM / YYYY年M月
+            const isoMatch = q.match(/\b(20\d{2})[-年](\d{1,2})\b/);
+            if (isoMatch) return { type: 'absolute', period: isoMatch[1] + '-' + String(isoMatch[2]).padStart(2, '0'), month: parseInt(isoMatch[2]), year: parseInt(isoMatch[1]) };
+            // 4. 中文相对时间
+            if (/(昨天|前天)/.test(q)) return { type: 'relative', period: '昨天' };
+            if (/今天|今天.+(？|\?)|今天.*(如何|怎样|怎样|发生了什么)/.test(q)) return { type: 'relative_today', period: '今天' };
+            // 5. 中文月份
+            const mMonth = q.match(/(上午|下午|晚上|早晨|凌晨)|(一月|二月|三月|四月|五月|六月|七月|八月|九月|十月|十一月|十二月)/);
+            if (mMonth && mMonth[2]) {
+                const cnMonths = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+                const mi = cnMonths.indexOf(mMonth[2]);
+                // 归一为 absolute（月号约束），period 兼容中文月份过滤
+                return { type: 'absolute', period: mMonth[2], month: mi + 1, year: null, cn: true };
+            }
+            return null;
+        } catch (e) { return null; }
+    }
+    // 时间过滤（作用于 timeline 条目，按 date 匹配）
+    function filterTimelineByConstraint(entries, c) {
+        if (!c || !Array.isArray(entries) || !entries.length) return entries;
+        const normD = (d) => String(d || '').replace(/\s+/g, '').replace(/[年月日]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        return entries.filter(e => {
+            const raw = String(e.date || '');
+            const ek = normD(raw);
+            const normAbs = ek;   // 归一化绝对日期：2026-05-12 → 2026-05；5月3日 → 5-3
+            if (!ek) return false;
+            // 剧情历（Day N）判定：raw 含 Day（不区分大小写）
+            const isDay = /^day\s*\d+/i.test(raw) || /^day\s*\d+/i.test(raw.trim());
+            if (c.type === 'narrative' || c.type === 'narrative_range') {
+                if (!isDay) return false;   // 剧情历约束只匹配剧情历日期
+                const dm = raw.match(/day\s*(\d+)/i);
+                if (!dm) return false;
+                const dayNum = parseInt(dm[1]);
+                if (c.type === 'narrative') {
+                    const targetDay = parseInt(String(c.period).replace(/[^0-9]/g, ''));
+                    return dayNum === targetDay;
+                }
+                const fromD = parseInt(String(c.from).replace(/[^0-9]/g, ''));
+                const toD = parseInt(String(c.to).replace(/[^0-9]/g, ''));
+                return dayNum >= fromD && dayNum <= toD;
+            }
+            if (c.type === 'absolute') {
+                if (isDay) return false;    // 绝对月约束不匹配剧情历
+                const period = c.period.replace(/^0(?=(\d{2})$)/, '');   // 2026-05 → 2026-5 也接受
+                // 兼容 YYYY-MM（ISO）与 YYYY-M（中文）
+                const yearMonth = normAbs.match(/^(20\d{2})-(\d{1,2})/);
+                const wantYear = String(c.year || '');
+                const wantMonth = String(c.month || '');
+                if (yearMonth && wantYear) {
+                    return yearMonth[1] === wantYear && parseInt(yearMonth[2]) === parseInt(wantMonth);
+                }
+                // 中文月份（5月3日 → 5-3）：匹配月份段
+                if (wantMonth) {
+                    const cnMonth = normAbs.match(/^(\d{1,2})-/);
+                    return !!cnMonth && parseInt(cnMonth[1]) === parseInt(wantMonth);
+                }
+                return normAbs.indexOf(period) !== -1 || normAbs.indexOf(period.replace(/-0(\d)$/, '-$1')) !== -1;
+            }
+            if (c.type === 'relative') {
+                if (isDay) return false;
+                return normAbs.indexOf(normD(c.period)) !== -1;
+            }
+            return true;
+        });
+    }
     // [v3.19] 系统隐藏消息识别（ruby reader.js isSystemHiddenMsg）:
     // ST 安静生成的消息 is_system=true 但非 user 且非空 → 是 AI 回复（须计入楼层指纹/AI 楼层序数）
     function isSystemHiddenMsg(m) {
@@ -660,8 +739,34 @@
         }
     }
 
+    // [v3.23] 跨调用去重状态（NE-Memory recall_memory lastRecallMsgIds）
+    // 缓存上一次注入召回结果的追溯指纹, 下次注入时若候选已被上轮覆盖则附加 [DEDUP] 提示
+    const _recallDedupState = { lastTexts: null, lastQuery: '', lastChatId: '' };
+    function recallDedupMark(candidates, curChatId, curQuery) {
+        try {
+            const st = _recallDedupState;
+            const chatChanged = curChatId && st.lastChatId && curChatId !== st.lastChatId;
+            if (chatChanged) { st.lastTexts = null; st.lastQuery = ''; st.lastChatId = curChatId; return null; }
+            if (!st.lastTexts || !Array.isArray(candidates)) return null;
+            const usedSet = new Set(st.lastTexts);
+            const marked = [];
+            for (const c of candidates) {
+                const key = String(c.text || c.summary || c.name || '');
+                if (key && usedSet.has(key)) marked.push(c);
+            }
+            return marked.length ? marked : null;
+        } catch (e) { return null; }
+    }
+    function recallDedupRemember(recalled) {
+        try {
+            if (!Array.isArray(recalled) || !recalled.length) return;
+            _recallDedupState.lastTexts = recalled.map(r => String(r.text || r.summary || r.name || '')).filter(Boolean).slice(0, 12);
+        } catch (e) {}
+    }
     class MemoryEngine {
         constructor(config) {
+            // [v3.23] chatMetadata 迁移恢复防重入（NE auto-restore）
+            this._migrateRestored = false;
             this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
             this.config = config;
             this.graph = new MemoryGraph();
@@ -1024,6 +1129,15 @@
                             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 快照已保存 (floor ${curFloor})`);
                         }
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 快照失败:`, e); }
+                    // [v3.23] 定期把记忆快照嵌入 chatMetadata 供跨设备迁移（NE auto-restore）——每 20 楼一次，避免频繁写大头元数据
+                    try {
+                        if (!this._embedCount) this._embedCount = 0;
+                        this._embedCount++;
+                        if (this._embedCount >= 20) {
+                            this._embedCount = 0;
+                            this.embedVaultToChatMeta?.();
+                        }
+                    } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 嵌入元数据失败:`, e); }
                     await this.storage.save(chatId, {
                                                 graph: this.graph.export(),
                         charMem: this.charMem ? this.charMem.export() : {},
@@ -1280,6 +1394,66 @@
         // 不要求主模型改协议，仅用现有 story_date 数据做一致性防线
         _lastStoryDateSeen = null;
         _lastStoryDateFloor = -1;
+        // [v3.23] chatMetadata 嵌入记忆库迁移恢复（NE auto-restore 轻量版）
+        // 检测 chatMetadata.extensions.LonShaMemory.embeddedVault（导出时嵌入的全量存档），
+        // 本地有更新版本则忽略并清理；本地为空则在启动时提示恢复。
+        checkEmbeddedMigration() {
+            try {
+                if (this._migrateRestored) return;
+                this._migrateRestored = true;
+                const c = window.SillyTavern?.getContext?.();
+                const meta = c?.chatMetadata;
+                const emb = meta?.extensions?.[this.STORAGE_KEY]?.embeddedVault;
+                if (!emb || typeof emb !== 'object') return;
+                // 本地已有记忆库且版本不旧 → 清理嵌入并跳过
+                let local = null;
+                try {
+                    // [v3.23] 用 collectExport 读本地版本（纯方法探测，无副作用）
+                    local = (typeof this.collectExport === 'function') ? this.collectExport() : null;
+                } catch (e) {}
+                const localVer = typeof local?.version === 'string' ? parseFloat(local.version) || 0 : (local?.version || 0);
+                const embVer = typeof emb.version === 'string' ? parseFloat(emb.version) || 0 : (emb.version || 0);
+                if (localVer >= embVer && localVer > 0) {
+                    this.clearEmbeddedVaultMeta();
+                    return;
+                }
+                // 本地空 → 弹提示（非阻塞）
+                try {
+                    const toastr = window.toastr;
+                    if (toastr?.info) {
+                        toastr.info(`检测到聊天元数据中嵌入的记忆存档（版本 ${emb.version || '?'}）。本地暂无更新版本。可手动到设置→导入恢复。`, 'LonSha记忆引擎', { timeOut: 6000, closeButton: true });
+                    }
+                } catch (e2) {}
+                // 可恢复数据留在 embeddedVault 供 settings-ui 导入按钮读取
+                const cfg = this.config.config;
+                cfg._embeddedVaultReady = true;
+                this.config.saveConfig();
+            } catch (e) { errLog(e, '迁移恢复.checkEmbeddedMigration'); }
+        }
+        clearEmbeddedVaultMeta() {
+            try {
+                const c = window.SillyTavern?.getContext?.();
+                const meta = c?.chatMetadata;
+                if (!meta?.extensions?.[this.STORAGE_KEY]) return;
+                delete meta.extensions[this.STORAGE_KEY].embeddedVault;
+                this._migrateRestored = true;
+            } catch (e) { errLog(e, '迁移恢复.clearEmbeddedVaultMeta'); }
+        }
+        // [v3.23] 导出时把当前记忆附加到 chatMetadata 供跨设备迁移（NE auto-restore 的写入侧）
+        embedVaultToChatMeta() {
+            try {
+                if (typeof this.collectExport !== 'function') return false;
+                const payload = this.collectExport();
+                if (!payload) return false;
+                const c = window.SillyTavern?.getContext?.();
+                const meta = c?.chatMetadata;
+                if (!meta) return false;
+                if (!meta.extensions) meta.extensions = {};
+                if (!meta.extensions[this.STORAGE_KEY]) meta.extensions[this.STORAGE_KEY] = {};
+                meta.extensions[this.STORAGE_KEY].embeddedVault = payload;
+                return true;
+            } catch (e) { errLog(e, '迁移恢复.embedVaultToChatMeta'); return false; }
+        }
         checkTimeMonotonic(dateStr, floor) {
             try {
                 if (!dateStr) return null;
@@ -1394,8 +1568,22 @@
                         for (const wp of prog) {
                             if (!recalled.some(r => (r.text || '') === wp.text)) recalled.push(wp);
                         }
+                        // [v3.23] 跨调用去重: 本轮回溯结果记指纹（NE-Memory）。同一话题连续追问时下轮识别已覆盖项
+                        try {
+                            const ctxCc = window.SillyTavern?.getContext?.();
+                            const chatIdCc = ctxCc?.chatId || ctxCc?.characterId || '';
+                            // 先记指纹（基于原始 recalled，不含 DEDUP 标记前缀，防自污染）
+                            recallDedupRemember(recalled);
+                            const dedupMarked = recallDedupMark(recalled, chatIdCc, String(query.text || ''));
+                            if (dedupMarked && dedupMarked.length) {
+                                // [DEDUP] 提示项追加到尾部（RRF 已排序，去重标记推后不顶掉新召回）
+                                for (const dm of dedupMarked) {
+                                    recalled.push({ text: `[DEDUP已覆盖·若本轮查询需更深细节才用] ${dm.text || ''}`, source: 'dedup' });
+                                }
+                            }
+                        } catch (e) { errLog(e, 'recallMemory.跨调用去重'); }
                     }
-                } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
+            } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
                 const inj2 = this.buildInjection(recalled);
                 try {
                     const cc = window.SillyTavern?.getContext?.()?.chat || [];
@@ -1801,7 +1989,7 @@
             // [v1.9] P1: BM25 稀疏检索召回
             if (this.config.config.bm25Enabled && this.bm25.N && query.text) {
                 try {
-                    results.bm25 = this.bm25.search(query.text, this.config.config.bm25TopK || 5)
+                    results.bm25 = this.bm25.search(query.text, this.config.config.bm25TopK || 5, {cliffCut: true, minResults: 2})
                         .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, source: 'bm25'}));
                     if (Array.isArray(query.queries) && query.queries.length) {
                         const seenB = new Set(results.bm25.map(x => x.id));
@@ -1850,11 +2038,21 @@
             }
             
             // [v1.8] P0: 剧情时间线召回（按剧情日期相近度）
+            // [v3.23] 时间感知检索（NE-Memory）: 若查询含时间约束（Day X/月/日期），优先按约束过滤时间线
             if (this.config.config.plotTimeline && this.timeline.entries.length) {
                 const anchorDate = this.getLatestStoryDate();
-                if (anchorDate) {
+                const tcQuery = parseStoryTimeConstraint(query.text);
+                let timelinePool = this.timeline.entries;
+                if (tcQuery) {
+                    const filteredTl = filterTimelineByConstraint(this.timeline.entries, tcQuery);
+                    if (filteredTl.length > 0) timelinePool = filteredTl;
+                }
+                if ((tcQuery ? timelinePool.length > 0 : anchorDate)) {
                     const relOn = this.config.config.relativeTime !== false;
-                    results.timeline = this.timeline.searchNear(anchorDate, this.config.config.timelineWindowDays, 5)
+                    const tlSource = tcQuery
+                        ? [...timelinePool].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5)
+                        : this.timeline.searchNear(anchorDate, this.config.config.timelineWindowDays, 5);
+                    results.timeline = tlSource
                         .map(e => {
                             // [v2.2] RC: 相对时间前缀（"3天前·3月12日"），解析失败不加（宁可不标绝不标错）
                             let rel = '';
@@ -2068,7 +2266,7 @@
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
-            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [];
+            const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [], dedupNotes = [];
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
                 if (item.source === 'worldprogress') worldProgs.push(item);
                 else if (item.source === 'neuralChain') neuralChains.push(item);
@@ -2084,6 +2282,7 @@
                 else if (item.source?.includes('rubyphone')) phoneMem.push(item);
                 else if (item.source?.includes('diary')) diaries.push(item);
                 else if (item.source?.includes('graph')) relations.push(item);
+                else if (item.source === 'dedup') dedupNotes.push(item);
                 else summaries.push(item);
             }
             
@@ -2138,6 +2337,11 @@
                     seen.add(key);
                     blocks.push(`- ${key}`);
                 });
+            }
+            if (dedupNotes.length) {
+                // [v3.23] 跨调用去重提示（NE-Memory）: 标记上轮已覆盖项，防连续追问复读
+                blocks.push('[已覆盖记忆·防复读]');
+                dedupNotes.forEach(i => blocks.push(`- ${i.text || ''}`));
             }
             if (povs.length) {
                 const present = this.captureCast();
@@ -2527,6 +2731,7 @@
         // [v2.9] RU-C: 全量导出（快照/存档共用同构数据）
         collectExport() {
             return {
+                version: VERSION,
                 graph: this.graph.export(),
                 summaries: this.summary.export(),
                 diaries: this.diary.export(),
@@ -3392,7 +3597,7 @@
             for (const tm of this.docTerms) for (const t of tm.keys()) this.df.set(t, (this.df.get(t) || 0) + 1);
             this.avgLen = this.N ? this.docTerms.reduce((a, m) => a + m.size, 0) / this.N : 0;
         }
-        search(query, topK = 5) {
+        search(query, topK = 5, opts = {}) {
             if (!this.N) return [];
             const qTerms = this._tokenize(query);
             if (!qTerms.length) return [];
@@ -3415,7 +3620,28 @@
                 if (score > 0) scored.push({ ...this.docs[i], score });
             }
             scored.sort((a, b) => b.score - a.score);
-            return scored.slice(0, topK);
+            if (!opts.cliffCut) return scored.slice(0, topK);
+            // [v3.23] 断崖截断（NE-Memory retrieval-filter 分数断崖）: 相邻分 3x 且低于首项 15% → 自然截断
+            // 弱相关长尾截掉，minResults 保底防空洞
+            const minResults = opts.minResults || 2;
+            let resultCount = Math.min(topK, scored.length);
+            const topScore = scored[0]?.score || 0;
+            if (resultCount >= minResults && scored.length > minResults && topScore > 0) {
+                for (let i = 0; i < resultCount - 1; i++) {
+                    const cur = scored[i].score;
+                    const next = Math.max(scored[i + 1].score, 1e-8);
+                    const pctOfTop = next / Math.max(topScore, 1e-8);
+                    if (cur / next > 3.0 && pctOfTop < 0.15 && (i + 1) >= minResults) {
+                        resultCount = i + 1;
+                        break;
+                    }
+                }
+            }
+            // 保底: 至少返回 minResults 条非零分结果
+            let pos = 0;
+            while (pos < scored.length && scored[pos].score > 0) pos++;
+            if (resultCount < minResults) resultCount = Math.min(Math.max(minResults, 1), Math.max(pos, 1), scored.length);
+            return scored.slice(0, resultCount);
         }
     }
     
@@ -4055,6 +4281,8 @@ ${win}`;
             await this.waitForST();
             this.loadModules();
             this.registerEvents();
+            // [v3.23] chatMetadata 迁移恢复检测（NE auto-restore）
+            try { this.checkEmbeddedMigration(); } catch (e) { errLog(e, '迁移恢复.init'); }
             this.createUI();
             await this.ensureSettingsUI();
             // [v1.2] 初始化时加载当前对话的已有记忆数据

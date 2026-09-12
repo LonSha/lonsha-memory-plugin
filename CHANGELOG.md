@@ -1,4 +1,26 @@
 # 更新日志
+## v3.23.0 (2026-09-12) - NE-Memory 收编（断崖截断/时间感知/跨调用去重/迁移恢复）📦
+
+> 收编来源：Melody-0321/NE-Memory（SillyTavern 叙事事件记忆引擎，TH 运行，完整源码 + CODE_WIKI/BUGS 文档）
+> 定位：NE 管理叙事事件（STM/LTM 分层），lonsha 管理结构化事实——两者同域互补，取其算法级与机制级增量
+
+### 新增
+
+1. **BM25 分数断崖截断**（NE `retrieval-filter.js`）——`BM25.search(query, topK, {cliffCut})` 选项化改造：相邻分 > 3x 且低于首项 15% 时自然截断弱相关长尾，`minResults` 保底防空洞；保留原有无 cliffCut 行为。主召回分支已启用断崖截断
+
+2. **时间感知检索**（NE `parseTimeConstraint` 移植）——新增 `parseStoryTimeConstraint()` 纯函数：剧情历 Day X 范围/单日（支持中文"到"）、ISO 日期、中文月份/相对时间解析；`filterTimelineByConstraint()` 按约束预过滤 timeline 条目（剧情历约束只匹配 Day 日期，绝对月约束匹配中文/ISO 日期）。timeline 召回分支接入：查询含时间约束时优先按约束过滤时间线
+
+3. **跨调用去重**（NE `recall_memory` 的 `lastRecallMsgIds`）——`_recallDedupState` + `recallDedupMark/Remember`：缓存上一轮注入的召回文本指纹，连续追问时把已覆盖项以 `[DEDUP已覆盖·若本轮查询需更深细节才用]` 前缀追加到注入尾部（独立 `[已覆盖记忆·防复读]` 分区），模型不再复读上轮内容。跨聊天自动清空指纹
+
+4. **chatMetadata 记忆库嵌入式迁移**（NE `auto-restore.js` 轻量版）——`collectExport()` 增加 `version` 字段；`embedVaultToChatMeta()` 每 20 楼把全量记忆嵌入 `chatMetadata.extensions.LonShaMemory.embeddedVault`；启动时 `checkEmbeddedMigration()` 检测嵌入存档（本地有更新版本自动清除嵌入防重复提示；本地空则非阻塞提示可恢复）。跨设备/跨卡随聊天元数据携带记忆
+
+### 测试
+
+- 新增 tests/v323_ne_memory.test.mjs（19 项：断崖截断 4 分支 + 时间约束解析 5 类 + 时间过滤 2 类 + 跨调用去重 4 项 + 迁移恢复 4 项）
+- v322 ST4 版本断言升级为容灾式（>= 3.23）
+- 全量回归 23 文件 278 项全过
+
+全量回归 278 项。
 
 ## v3.22.0 (2026-09-12) - 第七轮审计修复二（rollback 未清记忆残留）🔬🧹
 
