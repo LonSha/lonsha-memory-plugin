@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.20.0';
+    const VERSION = '3.21.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1367,7 +1367,20 @@
                 try {
                     if (this.config.config.worldProgressEnabled) {
                         // [v3.17] 发布确认: 生成路径注入 = 宿主确认点，pending 一次性 publish（shujuku 语义）
-            try { if (this.worldProg && this.worldProg.pendingWrite) this.worldProg.publish(); } catch (e) { errLog(e, 'onBeforeGeneration.世界推进发布'); }
+            // [v3.21] 世界推进实际推演（修复空转）: active 为空时用 charMem 填充，再 publish/toInjection
+            try {
+                if (this.config.config.worldProgressEnabled && this.worldProg) {
+                    const activeCount = this.worldProg.active ? Object.keys(this.worldProg.active).length : 0;
+                    if (activeCount === 0) {
+                        const currentChat = window.SillyTavern?.getContext?.()?.chat || [];
+                        const known = this.getKnownCharacters();
+                        const present = this.captureCast();
+                        const floor = currentChat.length;
+                        this.worldProg.generateFromMemory(this, known, present, floor);
+                    }
+                    if (this.worldProg.pendingWrite) this.worldProg.publish();
+                }
+            } catch (e) { errLog(e, 'onBeforeGeneration.世界推进推演'); }
             const prog = this.worldProg ? this.worldProg.toInjection() : [];
                         for (const wp of prog) {
                             if (!recalled.some(r => (r.text || '') === wp.text)) recalled.push(wp);
@@ -3111,6 +3124,30 @@
                 if (this.active[k].floor > f) { delete this.active[k]; removed++; }
             }
             return removed;
+        }
+        // [v3.21] 实际推演: 用 charMem 最近记忆 + 图谱位置生成不在场角色动态（零新增 API 调用）
+        // 这是 WorldProgress 的核心填充步骤——此前 active 恒空，世界推进空转
+        generateFromMemory(engine, knownChars, presentChars, floor) {
+            if (!engine || !knownChars?.length) return 0;
+            const cands = this.candidates(knownChars, presentChars, null, engine.graph);
+            if (!cands.length) return 0;
+            const chosen = this.select(cands, engine.status);
+            if (!chosen.length) return 0;
+            let filled = 0;
+            for (const name of chosen) {
+                const mems = engine.charMem?.search ? engine.charMem.search(name, '') : [];
+                if (!mems.length) continue;
+                const recent = mems[0]?.text || '';
+                if (!recent) continue;
+                const memory = `（场外动态）${name}：${recent} —— 其生活仍在继续`;
+                this.active[name] = { level: 0, entryHint: null, memory, floor: Number(floor) || 0, ts: Date.now() };
+                filled++;
+            }
+            if (Object.keys(this.active).length > 10) {
+                const oldest = Object.keys(this.active).sort((a, b) => this.active[a].ts - this.active[b].ts)[0];
+                delete this.active[oldest];
+            }
+            return filled;
         }
         store(char, level, memory, floor) {
             this.active[char] = { level: level || 0, entryHint: level >= 1 && level <= 3 ? memory : null, memory, floor: floor || 0, ts: Date.now() };

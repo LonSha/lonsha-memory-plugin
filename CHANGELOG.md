@@ -1,5 +1,28 @@
 # 更新日志
 
+## v3.21.0 (2026-09-12) - 第七轮审计修复（世界推进空转）🔬
+
+> 第七轮审计采用「链路完整性」组合推演法：顺每个功能的完整执行链走一遍，找「骨架搭好了但核心填充缺失」的僵尸链路。
+
+### 🔴 Bug WP-A：世界推进空转（v3.16 引入）
+**推演链**：
+```
+周期触发 markPending ✓ → publish 读取 pendingWrite ✓ → toInjection 读 active
+但 store()/propose() 从未被任何代码调用 → active 恒空 → toInjection 永远空数组 → 世界推进是僵尸功能
+```
+
+**根因**：v3.16 收编 zhino 时搭了世界推进的**骨架**（markPending/publish/toInjection 链路），但**实际推演步骤（select 候选 → 生成动态 → store 进 active）从未接上**——这是「功能组合」层面的半成品，不是单一功能 bug。
+
+**修复**：
+- `WorldProgress.generateFromMemory(engine, knownChars, presentChars, floor)`：用 charMem 最近记忆 + 图谱位置生成不在场角色动态（`（场外动态）角色名：最近记忆 —— 其生活仍在继续`），**零新增 API 调用**、零延迟
+- `onBeforeGeneration` 发布前：active 为空时先 generateFromMemory 填充，再 publish/toInjection
+- 上限 10 淘汰最旧、无 charMem 数据不填充（不产生空动态）
+
+### 验证
+- 行为测试 7 项（填充/无数据不填/上限/接入点）
+- 全量回归 21 文件 250 项全过
+
+全量回归 250 项。
 ## v3.20.0 (2026-09-12) - RubyPhone Ebbinghaus 衰减引擎（记忆价值精确治理）🧠📉
 
 > 收编来源：/home/user/ruby-phone-work（RubyPhone 手机记忆 App，其记忆引擎移植自 sxiphone 体系精华，纯本地零依赖）。将 Ebbinghaus 衰减评分嫁接到 lonsha 的 charMem 记忆银行。

@@ -71,7 +71,13 @@ const _initEbbingMeta = new Function('return ' + iM[0].trim() + '; _initEbbingMe
 { if (!src.includes('const sa = decayScore(a, {}) * (a._isCore ? 3 : 1)')) fail('ST2'); ok('ST2: search 用衰减价值排序（核心×3加权）'); }
 // ST3: addCore/addRecent 初始化
 { if (src.split('_initEbbingMeta(m);').length - 1 < 2) fail('ST3 初始化点'); ok('ST3: addCore/addRecent 都初始化 Ebbinghaus 字段'); }
-// ST4: 版本号
-{ if (!src.includes("VERSION = '3.20.0'")) fail('ST4'); ok('ST4: 版本号 3.20.0'); }
+// ST4: 版本号已前进（>= v3.20）
+{
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST4 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 20) || (M === 3 && m === 20 && p >= 0))) fail('ST4 版本号过低: ' + vm[1]);
+  ok('ST4: 版本号已前进 (>=3.20.0): ' + vm[1]);
+}
 
 console.log(`\n✓ v3.20 Ebbinghaus 引擎测试全过 (${pass} 项)`);
