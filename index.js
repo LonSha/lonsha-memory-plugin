@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.7.0';
+    const VERSION = '3.8.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -518,7 +518,8 @@
                     // [v2.5] 修复: 原实现直接 return 丢消息；改为至少做摘要兜底，防该楼彻底无记忆
                     try {
                         const fallback = this.extractMemorySimple(message);
-                        if (fallback?.summary) await this.summary.createSummary(message, fallback.summary);
+                        // [v3.8] 降级摘要不覆盖已有优质摘要（opts.degraded）
+                        if (fallback?.summary) await this.summary.createSummary(message, fallback.summary, { degraded: true });
                         console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，已降级为本地摘要 (楼层 ${message.index})`);
                     } catch (e) { errLog(e, 'onMessageReceived.提取锁降级'); }
                     return;
@@ -650,11 +651,13 @@
                         const scN = this.scene.apply(extracted.scenes, message.index || 0);
                         if (extracted.location) this.scene.setLocation(message.index || 0, extracted.location);
                         // [v2.8] RT-C: 物品台账应用（ops 真源记录，回滚可重放）
-                        // [v3.3] 台账重放化：op 带楼层指纹 fp；同楼旧提取先清（新提取=该楼当前文本的权威记忆，覆盖该楼任何旧 ops）
+                        // [v3.8] 修复 v3.3「先清」自相矛盾：改为「同状态(fp)清、多变体保留」——
+                        //   同一文本状态重复提取时清旧防堆积；不同 swipe 变体（不同 fp）保留，
+                        //   切回旧变体时由 rebuildItems 的 fp 匹配自动复活（不再依赖重提取重建）
                         if (this.config.config.itemLedgerEnabled && Array.isArray(extracted.items) && extracted.items.length) {
                             const fpNow = msgFpOf(message);
                             const floorNow = message.index || 0;
-                            if (fpNow) this.itemOps = (this.itemOps || []).filter(o => !(o && o.floor === floorNow && o.fp !== fpNow));
+                            if (fpNow) this.itemOps = (this.itemOps || []).filter(o => !(o && o.floor === floorNow && o.fp === fpNow));
                             for (const it of extracted.items) {
                                 if (!it?.name) continue;
                                 this.itemOps.push({ floor: floorNow, fp: fpNow, ...it });
@@ -1219,6 +1222,35 @@
                     removed += foldable;
                 }
             }
+            // 3b. [v3.8] 孤儿物资 ops 清理（v3.8 多变体保留后的必要对账：fp 不在该楼任何 swipe 取值中的 ops 是彻底废除的变体）
+            try {
+                const chat = window.SillyTavern?.getContext?.()?.chat;
+                if (Array.isArray(chat) && this.itemOps?.length) {
+                    const floorFps = new Map();   // floor → Set(该楼所有 swipe 文本的 fp)
+                    chat.forEach((m, i) => {
+                        const set = new Set();
+                        set.add(msgFpOf(m));
+                        if (Array.isArray(m?.swipes)) {
+                            for (let sw = 0; sw < m.swipes.length; sw++) {
+                                if (typeof m.swipes[sw] === 'string') {
+                                    set.add([(m?.is_user === true || m?.role === 'user') ? 'u' : 'a', sw, hash32(m.swipes[sw]), String(m?.send_date || m?.extra?.send_date || '')].join('|'));
+                                }
+                            }
+                        }
+                        floorFps.set(i, set);
+                    });
+                    const beforeOps = this.itemOps.length;
+                    this.itemOps = this.itemOps.filter(o => {
+                        if (!o || typeof o !== 'object') return false;
+                        if (o.carried === true || !o.fp) return true;   // carried/旧档保留
+                        const set = floorFps.get(o.floor);
+                        if (!set) return Math.floor(Number(o.floor) || 0) < chat.length;   // 越界清（楼层不存在）；界限内保（pending）
+                        return set.has(o.fp);
+                    });
+                    const opGone = beforeOps - this.itemOps.length;
+                    if (opGone > 0) { removed += opGone; this.rebuildItems(); }
+                }
+            } catch (e) { errLog(e, 'HS.孤儿ops清理'); }
             // 4. [v3.6] 图谱重复角色节点合并（兜底：对历史已膨胀的图谱——同归一化名只留最早一个，迁移边）
             try {
                 const byName = new Map();
@@ -2291,16 +2323,18 @@
             }
             return lastEnd > maxLen * 0.5 ? cut.substring(0, lastEnd + 1) : cut + '……';
         }
-        async createSummary(message, llmSummary) {
+        async createSummary(message, llmSummary, opts = {}) {
             const text = llmSummary || this.smartTruncate(message.mes || '', 200);
             const floor = message.index || 0;
             // [v3.7] 同楼去重: 编辑重提取/手动补提时同楼摘要替换而非堆积（原实现 push 不去重——10 次编辑 = 10 条同楼摘要）
             const existIdx = this.summaries.findIndex(s => s.floor === floor);
             if (existIdx >= 0) {
                 const old = this.summaries[existIdx];
+                // [v3.8] 降级保护: 本地截断摘要（无 LLM 时）不得劣化覆盖已有摘要（提取锁排队超时场景）
+                if (opts.degraded && !opts.force) return old;
                 // 仅当新文本不同才替换（保 id/timestamp 连续性）
                 if (old.text !== text) {
-                    this.summaries[existIdx] = { ...old, text, timestamp: Date.now() };
+                    this.summaries[existIdx] = { ...old, text, timestamp: Date.now(), degradedText: !!opts.degraded || undefined };
                 }
                 return this.summaries[existIdx];
             }
@@ -3360,29 +3394,7 @@ ${win}`;
                             if (!Number.isFinite(f) || f < 0) return;
                             console.log(`[${PLUGIN_NAME}] 楼层 ${f} 被编辑: 回滚该楼 + 防抖自愈`);
                             this.engine.rollbackFloor(f);
-                            // 防抖自愈: 编辑往往连续多次（改写中途），3s 静默后重提取待愈楼层（集合——支持连编多楼）
-                            try {
-                                this._editHealPending = this._editHealPending || new Set();
-                                this._editHealPending.add(f);
-                                if (this._editHealTimer) clearTimeout(this._editHealTimer);
-                                this._editHealTimer = setTimeout(async () => {
-                                    this._editHealTimer = null;
-                                    const pending = Array.from(this._editHealPending || []).sort((a, b) => a - b);
-                                    this._editHealPending = new Set();
-                                    for (const hf of pending) {
-                                        try {
-                                            const c = window.SillyTavern?.getContext?.();
-                                            const m = c?.chat?.[hf];
-                                            if (!m || m.is_user === true) continue;   // 用户楼不提取
-                                            if (this.engine.isOmittedFloor?.(m)) continue;
-                                            const text = String(m.mes || '').trim();
-                                            if (!text) continue;
-                                            console.log(`[${PLUGIN_NAME}] 编辑自愈: 重提取楼层 ${hf}`);
-                                            await this.engine.onMessageReceived({ ...m, index: hf }, hf);
-                                        } catch (e) { errLog(e, `events.编辑自愈重提取.${hf}`); }
-                                    }
-                                }, 3000);
-                            } catch (e) { errLog(e, 'events.编辑自愈计时'); }
+                            this._scheduleFloorHeal(f);   // [v3.8] 统一调度器
                         } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
                     });
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED });
@@ -3393,8 +3405,10 @@ ${win}`;
                             const f = Number(messageId);
                             if (Number.isFinite(f) && f >= 0) {
                                 // [v2.9] RU-D: swipe 不清召回缓存（同楼重roll复用，本楼记忆对召回影响极小）
-                    if (this.configMgr.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${f} 滑动/重生成, 回滚该楼记忆`);
+                                if (this.configMgr.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${f} 滑动/重生成, 回滚该楼记忆`);
                                 this.engine.rollbackFloor(f);
+                                // [v3.8] swipe 自愈: 修「swipe 后该楼无记忆」缺口——防抖后重提取当前变体（编辑自愈同款）
+                                this._scheduleFloorHeal(f);
                             }
                         } catch (err) {}
                     });
@@ -3460,6 +3474,32 @@ ${win}`;
             }
         }
 
+        // [v3.8] 统一楼层自愈调度器（编辑/swipe 共用）:
+        //   防抖 3s 后对「待愈楼层集合」逐楼重提取（集合去重 + 连编多楼支持）
+        _scheduleFloorHeal(f) {
+            try {
+                this._editHealPending = this._editHealPending || new Set();
+                this._editHealPending.add(f);
+                if (this._editHealTimer) clearTimeout(this._editHealTimer);
+                this._editHealTimer = setTimeout(async () => {
+                    this._editHealTimer = null;
+                    const pending = Array.from(this._editHealPending || []).sort((a, b) => a - b);
+                    this._editHealPending = new Set();
+                    for (const hf of pending) {
+                        try {
+                            const c = window.SillyTavern?.getContext?.();
+                            const m = c?.chat?.[hf];
+                            if (!m || m.is_user === true) continue;   // 用户楼不提取
+                            if (this.engine.isOmittedFloor?.(m)) continue;
+                            const text = String(m.mes || '').trim();
+                            if (!text) continue;
+                            console.log(`[${PLUGIN_NAME}] 楼层自愈: 重提取楼层 ${hf}`);
+                            await this.engine.onMessageReceived({ ...m, index: hf }, hf);
+                        } catch (e) { errLog(e, `events.楼层自愈重提取.${hf}`); }
+                    }
+                }, 3000);
+            } catch (e) { errLog(e, 'events.楼层自愈计时'); }
+        }
         // 插件卸载时清理事件监听
         unregisterEvents() {
             if (!this.eventHandlers) return;

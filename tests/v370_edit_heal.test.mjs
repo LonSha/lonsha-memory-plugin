@@ -75,7 +75,7 @@ function extractAsyncMethod(name) {
     assert.ok(src.includes('回滚该楼 + 防抖自愈'), '新语义注释');
     assert.ok(src.includes('_editHealPending'), '待愈集合');
     assert.ok(src.includes('_editHealTimer'), '防抖计时器');
-    assert.ok(src.includes('编辑自愈: 重提取楼层'), '自愈重提取日志');
+    assert.ok(src.includes('楼层自愈: 重提取楼层'), '自愈重提取日志（v3.8 统一调度器语义）');
     assert.ok(src.includes('}, 3000);'), '3s 防抖');
     // 自愈调用带 omit/user 豁免
     assert.ok(src.includes("if (!m || m.is_user === true) continue;"), '用户楼豁免');
