@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.26.0';
+    const VERSION = '3.27.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -128,6 +128,19 @@
     // [v3.13] 思维链投递头框定（抄 zhino 锚点构造——防草稿被下游当已发生事实）
     function thinkingAnchorHeader() {
         return '【思维链·场外信号（仅供检索参考，其中构思/模拟/内心独白段落尚未发生，严禁当作剧情事实写入摘要/时间线/图谱）】';
+    }
+    // [v3.27] <synopsis> 轻量提取（AnchorNote）: AI 回复已带 synopsis 标签时正则直取做摘要，省一次 LLM 调用
+    const SYNOPSIS_BLOCK_RE = /(?:^|\n)\s*<synopsis\b[^>]*>\s*\n?([\s\S]*?)\n?\s*<\/synopsis>\s*(?=\n|$)/i;
+    function extractSynopsisFast(text) {
+        try {
+            const s = String(text || '');
+            const m = s.match(SYNOPSIS_BLOCK_RE);
+            if (!m) return null;
+            const content = String(m[1] || '').trim();
+            if (!content || content.length < 12) return null;
+            // 剥掉内层子标签（Nub/Title 等），只保留正文概括
+            return content.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        } catch (e) { return null; }
     }
 
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
@@ -315,6 +328,10 @@
                 keepRecentTokenReserve: 0,     // 保留给最近正文的 token 预留（0=不预留；>0 时注入预算自动扣减）
                 autoArchiveCovered: false,     // 归档隐藏已被卷摘要覆盖的旧楼层（默认关，防灾）
                 archivePreserveRecent: 6,      // 归档时保留最近 N 个 AI 楼层不隐藏
+                // [v3.27] 命中监控 + synopsis 轻量提取 + 触发词按需注入（MemoryPilot + AnchorNote）
+                trailMonitor: true,             // 记录最近一次召回轨迹（settings-ui 状态面板展示）
+                synopsisFastPath: true,         // AI 回复已含 <synopsis> 标签时正则直取（省 LLM 调用）
+                onDemandTriggerPhrase: '',      // 触发词按需注入长指令（空=关闭该功能；填「请生成锚点日记」等）
                 vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
                 summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
                 optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
@@ -784,6 +801,8 @@
             this._diffusionFatigueTimeout = 3;    // 疲劳标记保留轮数（防永久封印）
             // [v3.25] 归档隐藏状态（Bakemono archive-controller）
             this._archivedFloorIds = new Set();   // 已被插件归档隐藏的楼层（可恢复）
+            // [v3.27] 命中轨迹记录（MemoryPilot monitor）: 最近一次召回详情供面板诊断
+            this._lastRecallTrace = null;   // { query, sources, hitCount, durationMs, ts, triggerHit }
             this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
             this.config = config;
             this.graph = new MemoryGraph();
@@ -869,7 +888,16 @@
                 }
             }
             try {
-                const extracted = await this.extractMemoryWithLLM(message);
+                // [v3.27] <synopsis> 轻量提取快速路径（AnchorNote）: AI 自带 <synopsis> 标签时正则直取做 summary，省一次 LLM 调用
+                let extracted = null;
+                if (this.config.config.synopsisFastPath) {
+                    const synopsisText = extractSynopsisFast(message.mes || message.content || '');
+                    if (synopsisText) {
+                        extracted = { summary: synopsisText, characters: [], events: [], relationships: [] };
+                        if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] <synopsis>快速路径: 楼层 ${message.index}`);
+                    }
+                }
+                if (!extracted) extracted = await this.extractMemoryWithLLM(message);
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 提取:`, extracted);
                 
                 // [v1.7] RubyPhone 联动①: LLM 提取结果回填手机记忆库
@@ -1586,6 +1614,8 @@
             const chatId = this.getCurrentChatId();
             if (!chatId) return '';
             try {
+                // [v3.27] 命中轨迹计时起点（MemoryPilot monitor）
+                this._traceStartTime = Date.now();
                 // [v3.12] 生成路径只读加载（原无条件 load 会 import 旧存档覆盖运行时——自愈/shift/编辑修改全被回退）
                 await this.storage.load(chatId, { preserveRuntime: true });
                 const query = this.buildQuery(context);
@@ -1665,6 +1695,33 @@
                     }
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
                 const inj2 = this.buildInjection(recalled);
+                // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
+                try {
+                    if (this.config.config.trailMonitor) {
+                        const srcMap = {};
+                        for (const r of (recalled || [])) { const s = String(r?.source || 'other').split('+')[0]; srcMap[s] = (srcMap[s] || 0) + 1; }
+                        this._lastRecallTrace = {
+                            query: String(query?.text || '').slice(0, 120),
+                            sources: srcMap,
+                            hitCount: (recalled || []).length,
+                            durationMs: Date.now() - (this._traceStartTime || Date.now()),
+                            ts: new Date().toISOString(),
+                            triggerHit: false
+                        };
+                    }
+                    // 触发词按需注入: 用户最近消息含触发词时，追加对应长指令到注入尾部（省 token——平时不发）
+                    const triggerPhrase = this.config.config.onDemandTriggerPhrase;
+                    if (triggerPhrase) {
+                        const users = window.SillyTavern?.getContext?.()?.chat?.filter(m => m.is_user) || [];
+                        const lastUser = users.length ? String(users[users.length - 1]?.mes || '') : '';
+                        const worldNote = this.worldProg?.toInjection?.() || [];
+                        const noteText = worldNote.map(w => w.text || w.content || '').filter(Boolean).slice(0, 5).join('\n');
+                        if (lastUser.includes(triggerPhrase) && noteText) {
+                            inj2 += '\n\n〔场外世界推进·按需指令已触发〕' + noteText;
+                            if (this._lastRecallTrace) this._lastRecallTrace.triggerHit = true;
+                        }
+                    }
+                } catch (e) { errLog(e, 'onBeforeGeneration.轨迹/触发词'); }
                 try {
                     const cc = window.SillyTavern?.getContext?.()?.chat || [];
                     this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj2};

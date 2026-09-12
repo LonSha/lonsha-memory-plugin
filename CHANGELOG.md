@@ -1,4 +1,22 @@
 # 更新日志
+## v3.27.0 (2026-09-12) - 命中监控/synopsis轻量提取/触发词按需注入（MemoryPilot + AnchorNote）📦
+
+> 收编来源：MemoryPilot（召回命中监控）+ AnchorNote（<synopsis> 轻量提取 + 触发词按需注入）
+
+### 新增
+
+1. **召回命中监控**（MemoryPilot monitor）——`trailMonitor` 开关：`onBeforeGeneration` 记录 `_lastRecallTrace`（查询/来源分布/命中数/耗时/时间/触发命中），状态面板「📊 状态总览」新增「🎯 最近一次召回」区块展示。诊断「为什么这条命中了/为什么没召回」
+
+2. **`<synopsis>` 轻量提取**（AnchorNote）——`synopsisFastPath` 开关：AI 回复自带 `<synopsis>` 标签时，`extractSynopsisFast()` 正则直取做 summary（省一次 LLM 调用），无标签时退回 LLM 提取。零 API 成本
+
+3. **触发词按需注入**（AnchorNote anchorOnDemand）——`onDemandTriggerPhrase` 配置：用户最近消息含触发词时，把世界推进说明追加到注入尾部（`triggerHit` 标记）；平时不发长指令省 token
+
+### 测试
+
+- 新增 tests/v327_trail_synopsis_trigger.test.mjs（18 项：synopsis 4 + 监控 6 + 触发词 4 + 回归 4）
+- 全量回归 27 文件 340 项全过
+
+全量回归 340 项。
 ## v3.26.0 (2026-09-12) - 归档状态事件清理（v3.25 收编完整性）🩹
 
 > 收编完整性审计：v3.25 引入的 `_archivedFloorIds`（归档隐藏状态）未在事件处理器清理——换对话/编辑/删楼后旧对话楼层 index 残留，`restoreArchivedFloors()` 会误操作新对话楼层。
