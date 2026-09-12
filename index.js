@@ -1,7 +1,46 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.0.0';
+    const VERSION = '3.1.0';
+    // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
+    // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
+    async function fetchWithTimeoutRetry(url, init, opts) {
+        const { timeoutSec = 30, retries = 2, label = 'API' } = opts || {};
+        const maxAttempts = Math.max(1, 1 + Math.max(0, retries));
+        let lastErr = null;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const ctrl = new AbortController();
+            let timedOut = false;
+            const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, Math.max(1000, timeoutSec * 1000));
+            try {
+                const resp = await fetch(url, { ...init, signal: ctrl.signal });
+                clearTimeout(timer);
+                if ((resp.status >= 500 || resp.status === 429) && attempt < maxAttempts - 1) {
+                    lastErr = new Error(`${label} API ${resp.status}`);
+                    await new Promise(r => setTimeout(r, 800));
+                    continue;
+                }
+                return resp;
+            } catch (err) {
+                clearTimeout(timer);
+                if ((timedOut || err?.name === 'TypeError' || err?.name === 'AbortError') && attempt < maxAttempts - 1) {
+                    lastErr = err;
+                    await new Promise(r => setTimeout(r, 800));
+                    continue;
+                }
+                throw (lastErr || err);
+            }
+        }
+        throw (lastErr || new Error(`${label} 重试耗尽`));
+    }
+
+    // [v3.1] SF4: 角色名归一化（抄 yuzuki character-name-matcher——NFKC+空白折叠，防跨楼身份分裂）
+    function normalizeCharName(name) {
+        try {
+            return String(name || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
+        } catch (e) { errLog(e, 'SF4.normalizeCharName'); return String(name || ''); }
+    }
+
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
     const _errBuf = [];
     function errLog(err, tag) {
@@ -239,7 +278,7 @@
             let base = url.replace(/\/+$/, '');
             if (base.includes('/chat/completions')) base = base.replace(/\/chat\/completions$/, '');
             const endpoint = base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
-            const res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${key}` } });
+            const res = await fetchWithTimeoutRetry(endpoint, { headers: { 'Authorization': `Bearer ${key}` } }, { timeoutSec: 15, retries: 1, label: '模型列表' });
             if (!res.ok) throw new Error(`模型列表 ${res.status}`);
             const data = await res.json();
             return (data.data || data.models || []).map(m => m.id || m.name).filter(Boolean).sort();
@@ -250,7 +289,8 @@
             if (!endpoint.includes('/chat/completions')) {
                 endpoint = endpoint.endsWith('/v1') ? endpoint + '/chat/completions' : endpoint + '/v1/chat/completions';
             }
-            const res = await fetch(endpoint, {
+            // [v3.1] SF1: 超时+分类重试（5xx/429/超时重试，4xx不重试）
+            const res = await fetchWithTimeoutRetry(endpoint, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${key}`},
                 body: JSON.stringify({model: model || 'gpt-4o-mini', messages: [{role: 'user', content: prompt}], temperature: 0.3, max_tokens: 1000})
@@ -260,7 +300,7 @@
             return data.choices?.[0]?.message?.content || '';
         }
         async callGeneric(prompt, server) {
-            const res = await fetch(`${server}/api/v1/generate`, {
+            const res = await fetchWithTimeoutRetry(`${server}/api/v1/generate`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({prompt, max_length: 500, temperature: 0.3})
@@ -290,7 +330,7 @@
                 }
                 
                 const url = api_base.endsWith('/v1') ? `${api_base}/embeddings` : `${api_base}/v1/embeddings`;
-                const res = await fetch(url, {
+                const res = await fetchWithTimeoutRetry(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${api_key}`},
                     body: JSON.stringify({model: this.config.config.embeddingModel, input: text})
@@ -321,7 +361,7 @@
         async addVector(text, metadata) {
             const embedding = await this.getEmbedding(text);
             const id = `vec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            this.vectors.push({id, text, embedding, metadata, timestamp: Date.now()});
+            this.vectors.push({id, text, embedding, metadata, timestamp: Date.now(), accessCount: 0, importance: metadata?.importance || 5});
             return id;
         }
         
@@ -351,6 +391,11 @@
                 score: this.cosineSimilarity(queryVec, v.embedding)
             }));
             scored.sort((a, b) => b.score - a.score);
+            // [v3.1] SF3: 召回命中计数（遗忘价值公式的 accessFreq 输入）
+            for (const v of scored.slice(0, topK)) {
+                const src = this.vectors.find(x => x.id === v.id);
+                if (src) src.accessCount = (src.accessCount || 0) + 1;
+            }
             return scored.slice(0, topK);
         }
         
@@ -371,6 +416,7 @@
             this._lastStoryDate = null;                 // [v2.9] RU-A 主动时间推进的锚点
             this._recallCache = null;                   // [v2.9] RU-D swipe 召回缓存 {floor, queryKey, injection}
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
+            this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
             this._lastOptimizeFloor = 0;                // [v2.9] RU-B 优化周期锚点
             this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
             this.vector = new VectorStore(config);
@@ -395,8 +441,17 @@
             this.echo = new EchoPool();
         }
         
+        // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
+        isOmittedFloor(message) {
+            try {
+                return message?.extra?.lonsha_omit === true;
+            } catch (e) { errLog(e, 'SF5.isOmittedFloor'); return false; }
+        }
+
         async onMessageReceived(message, messageId = null) {
             if (!this.config.config.enabled) return;
+            // [v3.1] SF5: 番外楼双保险（事件层已短路，这里防直接调用路径）
+            if (this.isOmittedFloor(message)) { if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层为番外楼，引擎跳过`); return; }
             // [v1.2 真机适配修复] ST 消息对象没有 index 字段，
             // 楼层号来自 eventSource 回调的 messageId
             message = { ...message, index: messageId ?? message.index ?? 0 };
@@ -415,7 +470,7 @@
                         const fallback = this.extractMemorySimple(message);
                         if (fallback?.summary) await this.summary.createSummary(message, fallback.summary);
                         console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，已降级为本地摘要 (楼层 ${message.index})`);
-                    } catch (e) { errLog(e, 'LLMCaller.constructor'); }
+                    } catch (e) { errLog(e, 'onMessageReceived.提取锁降级'); }
                     return;
                 }
             }
@@ -622,6 +677,8 @@
                     try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
                 }
 
+                // [v3.1] SF2: 更新聊天长度基线（供删除事件对比，防渲染切片误判）
+                try { this._lastKnownChatLen = (window.SillyTavern?.getContext?.()?.chat?.length) || this._lastKnownChatLen; } catch (e) { errLog(e, 'SF2.基线更新'); }
                 // [v2.2] RB: 楼层提交盖章 → 桥同步手机侧楼层状态 (幂等)
                 try {
                     const rb = window.VirtualPhone?.lonshaBridge;
@@ -914,10 +971,18 @@
             const beforeDup = this.vector.vectors.length;
             this.vector.vectors = this.vector.vectors.filter(v => !v._dup);
             removed += beforeDup - this.vector.vectors.length;
-            // 2. 向量硬上限（超限删最旧）
+            // 2. 向量硬上限（超限按遗忘价值淘汰）
             const vMax = this.config.config.vectorMaxCount || 500;
             if (this.vector.vectors.length > vMax) {
-                this.vector.vectors.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                // [v3.1] SF3: 遗忘价值淘汰（importance/10 × recency × (1+accessFreq)，淘汰没人在乎的而非最老的）
+                const now = Date.now();
+                const rv = (v) => {
+                    const ageH = Math.max(0.5, (now - (v.timestamp || now)) / 3600000);
+                    const recency = 1 / (1 + Math.log10(1 + ageH));
+                    const accessFreq = (v.accessCount || 0) / Math.max(1, ageH / 24);
+                    return ((v.importance || 5) / 10) * recency * (1 + accessFreq);
+                };
+                this.vector.vectors.sort((a, b) => rv(a) - rv(b));
                 const cut = this.vector.vectors.length - vMax;
                 this.vector.vectors = this.vector.vectors.slice(cut);
                 removed += cut;
@@ -1572,6 +1637,16 @@
                 return true;
             } catch (e) { return false; }
         }
+        // [v3.1] SF6: 卷摘要顶部注入
+        buildVolumeInjection() {
+            try {
+                const vols = (this.summary.volumes || []).slice(-3);
+                if (!vols.length) return '';
+                const body = vols.map(v => `【更早剧情（第${v.floorStart}-${v.floorEnd}楼概括）】${v.text}`).join('\n');
+                return `\n〔前情总览｜早期剧情高层概括，细节以正文和记忆简报为准〕\n${body}\n`;
+            } catch (e) { errLog(e, 'SF6.buildVolumeInjection'); return ''; }
+        }
+
         // [v3.0] SD: 一键诊断——子系统统计 + 召回管线 dry-run + 存档 schema 校验 + 错误日志
         async selfCheck() {
             const report = { time: new Date().toLocaleString(), version: VERSION, stats: [], errors: [..._errBuf], pipeline: null, schema: null };
@@ -1876,8 +1951,15 @@
             const fullNode = {...node, id, timestamp: Date.now()};
             this.nodes.set(id, fullNode);
             if (node.name) {
-                if (!this.nameIndex.has(node.name)) this.nameIndex.set(node.name, []);
-                this.nameIndex.get(node.name).push(id);
+                // [v3.1] SF4: 归一化索引键（NFKC+空白折叠+小写），「绫地宁宁」与「绫地 宁宁」同一身份
+                const nk = normalizeCharName(node.name);
+                if (!this.nameIndex.has(nk)) this.nameIndex.set(nk, []);
+                if (!this.nameIndex.get(nk).includes(id)) this.nameIndex.get(nk).push(id);
+                // 原名键也保留（兼容未归一化的旧查询）
+                if (nk !== node.name) {
+                    if (!this.nameIndex.has(node.name)) this.nameIndex.set(node.name, []);
+                    if (!this.nameIndex.get(node.name).includes(id)) this.nameIndex.get(node.name).push(id);
+                }
             }
             return id;
         }
@@ -1889,7 +1971,8 @@
         findByNames(names) {
             const results = [];
             for (const name of names) {
-                const ids = this.nameIndex.get(name);
+                // [v3.1] SF4: 查询键归一化（原名查不到时降级归一化键）
+                const ids = this.nameIndex.get(name) || this.nameIndex.get(normalizeCharName(name));
                 if (ids) for (const id of ids) { const node = this.nodes.get(id); if (node) results.push(node); }
             }
             return results;
@@ -2871,6 +2954,11 @@ ${win}`;
                     try {
                         const c = window.SillyTavern?.getContext?.();
                         const message = c?.chat?.[messageId];
+                        // [v3.1] SF5: 番外楼跳过（extra.lonsha_omit=true 的楼彻底排除记忆——必须在提取之前判定）
+                        if (message?.extra?.lonsha_omit === true) {
+                            if (this.engine.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${messageId} 为番外楼，跳过记忆提取`);
+                            return;
+                        }
                         if (message) this.engine.onMessageReceived(message, messageId);
                     } catch (err) {
                         console.error(`[${PLUGIN_NAME}] 消息处理失败:`, err);
@@ -2927,6 +3015,16 @@ ${win}`;
                 if (types.MESSAGE_DELETED) {
                     eventSource.on(types.MESSAGE_DELETED, (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
+                        // [v3.1] SF2: 渲染切片保护（抄 stbme history-safety——删除 payload 不可靠，批量删除时警告）
+                        try {
+                            const c = window.SillyTavern?.getContext?.();
+                            const chatLen = c?.chat?.length || 0;
+                            if (this.engine._lastKnownChatLen && this.engine._lastKnownChatLen - chatLen > 5) {
+                                console.warn(`[${PLUGIN_NAME}] 检测到批量删除(${this.engine._lastKnownChatLen}→${chatLen})，楼层账本回滚可能不完整，建议打开诊断面板核对`);
+                                errLog(new Error(`批量删除 ${this.engine._lastKnownChatLen}→${chatLen}，回滚可能不完整`), 'SF2.批量删除警告');
+                            }
+                            this.engine._lastKnownChatLen = chatLen;
+                        } catch (e) { errLog(e, 'SF2.渲染切片保护'); }
                         try {
                             const c = window.SillyTavern?.getContext?.();
                             // ST 删楼后 chat 已变化，直接尝试回滚该楼及其后的记忆
@@ -2950,8 +3048,11 @@ ${win}`;
                             if (injection) {
                                 const c = window.SillyTavern?.getContext?.();
                                 if (c?.setExtensionPrompt) {
-                                    // depth=1 较浅位置, scan=true, role=4 (system)
-                                    c.setExtensionPrompt('lonsha_memory', injection, 1, true, 4);
+                                    // [v2.8补+v3.1] RT-A: 注入深度配置化 + SF6: 卷摘要顶部槽位
+                                    const depth = Math.min(2, Math.max(0, Number(this.engine.config.config.injectionDepth) || 0));
+                                    c.setExtensionPrompt('lonsha_memory', injection, depth, true, 4);
+                                    const volText = this.engine.buildVolumeInjection();
+                                    c.setExtensionPrompt('lonsha_memory_history', volText || '', 9999, true, 4);
                                 }
                             }
                         } catch (err) {
@@ -3003,7 +3104,11 @@ ${win}`;
             if (injection) {
                 const c = window.SillyTavern?.getContext?.();
                 if (c?.setExtensionPrompt) {
-                    c.setExtensionPrompt('lonsha_memory', injection, 1, 4);
+                    // [v2.8补+v3.1] RT-A: 配置化深度 + SF6: 卷摘要顶部槽位
+                    const depth = Math.min(2, Math.max(0, Number(plugin.engine.config.config.injectionDepth) || 0));
+                    c.setExtensionPrompt('lonsha_memory', injection, depth, true, 4);
+                    const volText = plugin.engine.buildVolumeInjection();
+                    c.setExtensionPrompt('lonsha_memory_history', volText || '', 9999, true, 4);
                 } else if (Array.isArray(chat) && chat.length > 0 && chat[0]) {
                     // 降级：注入到 system 消息尾部
                     chat[0].mes = (chat[0].mes || '') + injection;
