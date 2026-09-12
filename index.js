@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.29.0';
+    const VERSION = '3.31.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -322,6 +322,7 @@
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
                 recallCacheEnabled: true,      // [v2.9] RU-D: swipe同楼重roll复用召回缓存
+                heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
                 recallTierEnabled: true,       // 召回类型分级（常驻 constant / 触发 trigger，注入预算裁剪优先保常驻）
                 memoryTokenBudget: 900,        // 记忆注入 token 预算（替代单层字符预算，按 token 剪裁）
@@ -578,11 +579,35 @@
             }));
             scored.sort((a, b) => b.score - a.score);
             // [v3.1] SF3: 召回命中计数（遗忘价值公式的 accessFreq 输入）
+            // [v3.31] 切分加热：被想起→激活次数+1 + lastActive 刷新（接 decayScore 的续命轴，打通 accessCount 与 activationCount 双字段）
             for (const v of scored.slice(0, topK)) {
                 const src = this.vectors.find(x => x.id === v.id);
-                if (src) src.accessCount = (src.accessCount || 0) + 1;
+                if (src) this._heatEntry(src);
             }
             return scored.slice(0, topK);
+        }
+        // [v3.31] 单条记忆加热（kiwi-mem 记忆热度「被想起即升温」）：
+        // 召回命中 → activationCount++（decayScore 公式的激活次数臂）+ lastActive=now（重置衰减轴=天然续命）
+        // 设计点：VectorStore 条目同时承载 accessCount(遗忘价值) 与 activationCount(热度公式)，
+        // 过去只有 accessCount 涨、activationCount 永不更新 → 衰减轴越走越老，「常被聊到」却热度不升。
+        _heatEntry(v) {
+            v.accessCount = (v.accessCount || 0) + 1;
+            v.activationCount = (v.activationCount || 1) + 1;
+            v.lastActive = Date.now();
+            v.metadata = { ...(v.metadata || {}), accessCount: v.accessCount, activationCount: v.activationCount, lastActive: v.lastActive };
+            return v;
+        }
+        // [v3.31] 按文本匹配加热（BM25/摘要碎片被想起但无独立 vector id 时按 text 回找）
+        heatByText(text) {
+            if (!text) return 0;
+            let heated = 0;
+            for (const v of this.vectors) {
+                if (v.text && v.text === text) {
+                    this._heatEntry(v);
+                    heated++;
+                }
+            }
+            return heated;
         }
         
         export() { return this.vectors.map(v => ({...v, embedding: Array.from(v.embedding)})); }
@@ -2215,6 +2240,10 @@
                 try {
                     results.bm25 = this.bm25.search(query.text, this.config.config.bm25TopK || 5, {cliffCut: true, minResults: 2})
                         .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, source: 'bm25'}));
+                    // [v3.31] BM25 命中碎片也加热（按 text 回找 vector 条目；无则静默跳过）
+                    if (this.config.config.heatOnRecallEnabled) {
+                        for (const b of results.bm25) { try { this.vector.heatByText(b.text); } catch (e) {} }
+                    }
                     if (Array.isArray(query.queries) && query.queries.length) {
                         const seenB = new Set(results.bm25.map(x => x.id));
                         for (const q2 of query.queries) {
@@ -4037,8 +4066,14 @@
                 const text = String(t?.text || t?.content || '').trim();
                 if (!name || !text) continue;
                 const rec = this._ensure(name);
-                rec.todos = rec.todos.filter(x => x.text !== text);
-                rec.todos.push({ text, date: t.date ? String(t.date).trim() : '', floor: floor || 0, createdAt: Date.now() });
+                // [v3.31] concern 复发（kiwi-mem/kimi-core 理念）：同一待办被再次提起 = 复发
+                const reoccurred = (rec.todos || []).some(x => x.text === text);   // 先查旧件是否存在
+                rec.todos = rec.todos.filter(x => x.text !== text);                // 再移除旧件
+                rec.todos.push({
+                    text, date: t.date ? String(t.date).trim() : '', floor: floor || 0, createdAt: Date.now(),
+                    lastMentionedAt: Date.now(),         // [v3.31] 复发追踪：最近一次被提及
+                    reoccurred: reoccurred || undefined, // [v3.31] 标记这是复发（历史上有过）
+                });
                 if (rec.todos.length > this.MAX_TODOS) rec.todos.shift();
                 effective.push(t);
                 n++;
@@ -4055,6 +4090,8 @@
             for (const name of Object.keys(this.characters)) {
                 const rec = this.characters[name];
                 rec.todos = (rec.todos || []).filter(t => {
+                    // [v3.31] concern 复发豁免：最近 24h 内被重申的待办即使日期已过也暂不清（延续生命周期）
+                    if (t.lastMentionedAt && (Date.now() - t.lastMentionedAt < 24 * 3600000)) return true;
                     if (!t.date) return true;
                     const td = this._parseDate(t.date);
                     if (!td) return true;

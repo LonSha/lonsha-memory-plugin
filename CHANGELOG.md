@@ -1,5 +1,25 @@
 # 更新日志
-## v3.30.0 (2026-09-12) - 记忆矛盾换代（supersede）🕊
+## v3.31.0 (2026-09-12) - 召回加热 + 待办复发（kiwi-mem + kimi-core 理念）
+
+> 补全记忆热度闭环：过去只有衰减（decayScore 读字段），激活/续命从未写 →「常被聊到」却热度不升。
+> 待办升级为 concern 语义：重申即复发、最近重申豁免过期清理。纯规则零 LLM。
+
+### 新增
+1. **召回加热（heatOnRecall）**：VectorStore.search 命中 → _heatEntry（accessCount++ + activationCount++ + lastActive=now）
+   - 打通 accessCount（遗忘价值，原写入）与 activationCount（decayScore 公式激活臂，原先从未更新）
+   - lastActive 刷新 = 衰减轴重置 = 天然续命（「被想起 → 记忆升温」）
+   - BM25 命中碎片按 text 回找加热（heatByText），无匹配静默跳过
+2. **待办复发（concern 语义）**：addTodos 重申同 text → 标记 reoccurred + 刷新 lastMentionedAt + 更新 date
+   - pruneTodos 复发豁免：最近 24h 重申的待办即使日期已过也暂不清（延续生命周期）
+
+### 修复
+- index.js VERSION 修正：v3.30.0 时只升 manifest 未升代码版本号（滞后 3.29.0），本版对齐 3.31.0
+
+### 验证
+- tests/v331_heat_concern.test.mjs（18 项单元+行为）全绿
+- 全量回归见仓库 tests/
+
+ (2026-09-12) - 记忆矛盾换代（supersede）🕊
 > 移植 Paramecium「原文是唯一真相」/ RubyPhone supersede-engine 的纯规则机制（MIT）。
 > 解决「角色换了工作/搬了家/戒了奶茶，旧信息还在召回里打架」——新事实出现时旧记忆自动让位。
 
