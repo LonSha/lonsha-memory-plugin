@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.12.0';
+    const VERSION = '3.13.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -91,6 +91,45 @@
         } catch (e) { errLog(e, 'V33.msgFpOf'); return ''; }
     }
 
+    // [v3.13] 思维链/正文分流（收编 zhino A5.2.1: 思维链泄漏进正文 23 条 → 0 条）
+    // 剥离 <thinking>...</thinking>（含残缺变体），返回 {content, thinking}
+    // - 完整标签: 成对剥离（支持嵌套配对）
+    // - 闭标签缺失: 从开标签剥到文末（残缺思维链整段丢弃，防草稿泄漏）
+    // - ``` 围栏内的开标签不剥（代码示例中的标签不是思维链）
+    function extractThinkingChain(text) {
+        try {
+            let s = String(text || '');
+            if (!s) return { content: '', thinking: '' };
+            const thinkingParts = [];
+            const fenceMask = [];
+            // 先遮罩 ``` 围栏，防止剥掉代码示例里的 <thinking> 标签
+            s = s.replace(/```[\s\S]*?```/g, (m) => { fenceMask.push(m); return '\u0000F' + (fenceMask.length - 1) + '\u0000'; });
+            // 嵌套配对剥离: 遇开标签 depth+1，遇闭标签 depth-1，depth 归零时整段截出
+            let out = '', depth = 0, buf = '';
+            const tokens = s.split(/(<\/?thinking>)/i);
+            for (const tk of tokens) {
+                if (/^<thinking>$/i.test(tk)) { if (depth === 0) buf = ''; depth++; }
+                else if (/^<\/thinking>$/i.test(tk)) {
+                    depth--;
+                    if (depth <= 0) { if (buf) thinkingParts.push(buf); buf = ''; depth = 0; }
+                    else if (buf) { buf += tk; }
+                }
+                else if (depth > 0) { buf += tk; }
+                else { out += tk; }
+            }
+            // 残缺: 有开无闭——buf 里是剥到文末的思维链，整段丢弃（不进正文）
+            if (depth > 0 && buf) thinkingParts.push(buf);
+            // 清理剥离后残留的空标签与多余空行，还原围栏
+            out = out.replace(/<\/?thinking>/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+            out = out.replace(/\u0000F(\d+)\u0000/g, (_, i) => fenceMask[Number(i)] || '');
+            return { content: out, thinking: thinkingParts.join('\n').replace(/\n{3,}/g, '\n\n').trim() };
+        } catch (e) { errLog(e, 'V313.extractThinkingChain'); return { content: String(text || ''), thinking: '' }; }
+    }
+    // [v3.13] 思维链投递头框定（抄 zhino 锚点构造——防草稿被下游当已发生事实）
+    function thinkingAnchorHeader() {
+        return '【思维链·场外信号（仅供检索参考，其中构思/模拟/内心独白段落尚未发生，严禁当作剧情事实写入摘要/时间线/图谱）】';
+    }
+
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
     const _errBuf = [];
     function errLog(err, tag) {
@@ -110,7 +149,7 @@
                 graphDiffusionEnabled: true,
                 autoSave: true,
                 maxSummaryLength: 200,
-                extractionPrompt: `你是剧情记忆整理员。阅读【本轮对话】，对照【已知角色名单】、【前情提要】与【悬念簿】，只提取明确发生的事实，禁止编造与推测。
+                extractionPrompt: `你是剧情记忆整理员。阅读【本轮对话】，对照【已知角色名单】、【前情提要】与【悬念簿】，只提取明确发生的事实，禁止编造与推测。注意：思维链/内心独白中的构思草稿、模拟对话、心理预演均尚未发生，严禁当作剧情事实提取。
 【已知角色名单】（提取角色必须复用这些主名；识别出别名/昵称/代称时，归并到对应主名）
 {{KNOWN_CHARS}}
 【前情提要】（此前剧情摘要，仅供理解上下文，禁止重复提取其中已记录的内容）
@@ -509,7 +548,14 @@
             // 楼层号来自 eventSource 回调的 messageId
             message = { ...message, index: messageId ?? message.index ?? 0 };
             // [v1.4] 清洗正文：剥离 HTML注释/SDC标签/自定义标签，防止脏数据入库
-            message.mes = this.cleanMessageText(message.mes || message.content || '');
+            // [v3.13] 思维链/正文分流: 先剥 <thinking> 再清洗（zhino A5.2.1——思维链草稿不入正文/摘要/图谱）
+            // 注意: thinking 存引擎信号队列而非 message.extra（message 是浅拷贝，extra 引用与原对象共享，直接写会污染 ST 真实消息）
+            const _tc = extractThinkingChain(message.mes || message.content || '');
+            message.mes = this.cleanMessageText(_tc.content);
+            if (_tc.thinking) {
+                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 思维链已分流 (楼层 ${message.index}, ${_tc.thinking.length} 字)`);
+                try { this.feedThinking(_tc.thinking, message.index); } catch (e) { errLog(e, 'feedThinking'); }
+            }
             if (!message.mes) { console.log(`[${PLUGIN_NAME}] 消息清洗后为空，跳过`); return; }
             console.log(`[${PLUGIN_NAME}] 处理新消息 (楼层 ${message.index})`);
             const chatId = this.getCurrentChatId();
@@ -728,7 +774,9 @@
                 }
                 
                 if (this.config.config.vectorEnabled) {
-                    const vectorText = `${extracted?.summary || this.summary.smartTruncate(messageText, 200)}\n角色:${extracted?.characters?.join(',') || ''}`;
+                    // [v3.13] 场外信号拼入向量素材（只影响检索，不进注入文本）
+                const _sig = (this._thinkingSignals || []).filter(s => s.floor === message.index).map(s => (s.text.split('\n')[1] || '').slice(0, 120));
+                const vectorText = `${extracted?.summary || this.summary.smartTruncate(messageText, 200)}\n角色:${extracted?.characters?.join(',') || ''}${_sig.length ? '\n场外:' + _sig.join(' ') : ''}`;
                     await this.vector.addVector(vectorText, {
                         floor: message.index || 0,
                         characters: extracted?.characters || [],
@@ -884,6 +932,24 @@
             return name;
         }
         
+        // [v3.13] 思维链白名单投递: 提取"场外信号"（角色疑虑/迟到暗示/外部动作/下一幕预告），
+        // 仅作为附件包附加向量素材（提升召回命中），绝不写入 summary/timeline/graph/status 任何事实性记忆
+        feedThinking(thinking, floor) {
+            if (!thinking) return;
+            const t = String(thinking).slice(0, 800);
+            // 场外信号判定: 疑虑/预告/外部/未发生类关键词命中才投递（防思维链噪音全量入库）
+            const SIGNAL_RE = /(疑虑|怀疑|犹豫|担心|打算|计划|准备|迟到|缺席|不在场|场外|暗中|偷偷|预示|预告|即将|接下来|下一幕|伏笔|内疚|隐瞒)/;
+            if (!SIGNAL_RE.test(t)) return;
+            const f = Math.max(0, Math.round(Number(floor) || 0));
+            this._thinkingSignals = this._thinkingSignals || [];
+            // 同楼覆盖（swipe 重跑时替换旧信号，不堆积）
+            const idx = this._thinkingSignals.findIndex(s => s.floor === f);
+            const sig = { floor: f, text: thinkingAnchorHeader() + '\n' + t, ts: Date.now() };
+            if (idx >= 0) this._thinkingSignals[idx] = sig; else this._thinkingSignals.push(sig);
+            if (this._thinkingSignals.length > 12) this._thinkingSignals.shift();
+            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 场外信号入库（仅检索用）楼层 ${f}`);
+        }
+
         extractMemorySimple(message) {
             // [v1.4 修复] 旧版用正则抓任意中文词块当角色名，产生"钥匙在锁""两下"这类垃圾。
             // 现在只匹配已知角色（当前角色卡 + 图谱已有节点），宁可漏记不记错。
