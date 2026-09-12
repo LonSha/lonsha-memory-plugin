@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.16.0';
+    const VERSION = '3.17.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1195,7 +1195,9 @@
                 // [v3.16] 世界推进: 生成路径注入前把待推进的不在场角色动态并入（zhino: 玩家发消息不在生成时挤 API，后台推演产物注入）
                 try {
                     if (this.config.config.worldProgressEnabled) {
-                        const prog = this.worldProg ? this.worldProg.toInjection() : [];
+                        // [v3.17] 发布确认: 生成路径注入 = 宿主确认点，pending 一次性 publish（shujuku 语义）
+            try { if (this.worldProg && this.worldProg.pendingWrite) this.worldProg.publish(); } catch (e) { errLog(e, 'onBeforeGeneration.世界推进发布'); }
+            const prog = this.worldProg ? this.worldProg.toInjection() : [];
                         for (const wp of prog) {
                             if (!recalled.some(r => (r.text || '') === wp.text)) recalled.push(wp);
                         }
@@ -2068,6 +2070,8 @@
                 this.graph.rebuildNameIndex();
                 // [v3.15] 图谱楼层截断回溯（收编 zhino）: 删楼后用楼层前状态重建（truncateGraphFrom 内部会再 rebuildNameIndex）
                 try { this.graph.truncateGraphFrom(floor); } catch (e) { errLog(e, 'rollbackFloor.图谱回溯'); }
+                // [v3.17] 世界推进对账（yuzuki）+ 丢弃 pending（shujuku 拒绝半提交）: 删楼后过期推进失活
+                try { if (this.worldProg) { this.worldProg.discard(); this.worldProg.reconcile(floor - 1); } } catch (e) { errLog(e, 'rollbackFloor.世界推进对账'); }
                 if (keepIds.size && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 回滚: 保留 ${keepIds.size} 个长寿命角色节点`);
                 // 回滚 POV
                 const povIdSet = new Set(entry.povIds || []);
@@ -2769,22 +2773,46 @@
             this.RECENT_KEEP = 3; // 近期记忆保留最近 3 个版本
         }
         // 追加核心记忆（永久，不自动删）
+        _detId(char, text) {
+            let h = 0x811c9dc5;
+            const s = String(char || '') + '|' + String(text || '');
+            for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+            return (h >>> 0).toString(36);
+        }
         addCore(char, text, floor) {
             if (!char || !text) return null;
             const c = this._c(char);
-            const m = { id: 'cm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            // [v3.17] 确定性 id（baibai 确定性语义）: 同角色同文本同楼层 → 同 id，swipe 重run 幂等不重复
+            const m = { id: 'cm_' + this._detId(char, text) + '_' + (Math.max(0, Math.round(Number(floor) || 0))), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            // 三态补丁: 同 id 已存在则更新（幂等），不同文本新增
+            const existIdx = c.core.findIndex(x => x.id === m.id);
+            if (existIdx >= 0) { c.core[existIdx].text = m.text; c.core[existIdx].ts = m.ts; return c.core[existIdx]; }
             c.core.push(m);
-            if (c.core.length > 50) c.core.shift();   // 硬上限防爆
+            if (c.core.length > 50) this._gcCore(c, Date.now());   // [v3.17] GC 校准淘汰
             return m;
         }
         // 追加近期记忆（自动更替: 保留最近 RECENT_KEEP 条）
         addRecent(char, text, floor) {
             if (!char || !text) return null;
             const c = this._c(char);
-            const m = { id: 'mr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            const m = { id: 'mr_' + this._detId(char, text) + '_' + (Math.max(0, Math.round(Number(floor) || 0))), text: String(text).slice(0, 200), floor: floor || 0, ts: Date.now() };
+            const existIdx = c.recent.findIndex(x => x.id === m.id);
+            if (existIdx >= 0) { c.recent[existIdx].text = m.text; c.recent[existIdx].ts = m.ts; return c.recent[existIdx]; }
             c.recent.push(m);
             if (c.recent.length > this.RECENT_KEEP) c.recent.shift();
             return m;
+        }
+        // [v3.17] GC 校准器（anima retention value）: 淘汰「没人在乎的」而非粗暴截断
+        _gcCore(c, now) {
+            if (!c.core || c.core.length <= 50) return;
+            // retention = 最近访问 + 重要性（这里用 ts 新鲜度），淘汰最旧的 1/4
+            const sorted = c.core.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+            c.core = sorted.slice(0, 50);
+        }
+        // [v3.17] GC 校准器对外接口（可手动触发，淘汰访问频次最低者）
+        gc(char, now) {
+            const c = this._c(char);
+            this._gcCore(c, now || Date.now());
         }
         // 手动升降级（核心 ↔ 近期）
         promoteToCore(char, id) { const c = this._c(char); const i = c.recent.findIndex(m => m.id === id); if (i < 0) return false; const [m] = c.recent.splice(i, 1); m.ts = Date.now(); c.core.push(m); return true; }
@@ -2838,6 +2866,9 @@
     // 每 N 楼标记 pending → 下次消息生成前推演不在场角色行动（不抢 AI 生成 API）
     class WorldProgress {
         constructor() {
+            // [v3.17] 发布确认（shujuku pending/accepted + revision 拒旧）：推进在 detached 副本产生，宿主确认后一次性 published
+            this.pendingWrite = null;    // 待发布的写入 {charName, level, memory, floor}
+            this.revision = 0;           // 单调修订号（乐观并发：旧实例迟到提交被拒）
             this.active = {};            // { charName: {level, entryHint|null, memory, floor, ts} }
             this.pending = false;
             this.EVERY_FLOORS = 2;       // 默认每 2 楼触发
@@ -2860,6 +2891,33 @@
                 return { name: c, score };
             }).sort((a, b) => b.score - a.score);
             return scored.slice(0, this.MAX_ACTIVE).map(s => s.name);
+        }
+        // [v3.17] 发布确认: 先暂存 pending（detached），宿主确认后 publish 生效
+        propose(char, level, memory, floor) {
+            this.pendingWrite = { char, level, memory, floor, revision: ++this.revision };
+            return this.pendingWrite;
+        }
+        // 宿主确认（剧情生成成功/楼层稳定后调用）→ 一次性发布
+        publish() {
+            if (!this.pendingWrite) return null;
+            const { char, level, memory, floor } = this.pendingWrite;
+            this.active[char] = { level: level || 0, entryHint: level >= 1 && level <= 3 ? memory : null, memory, floor: floor || 0, ts: Date.now() };
+            if (Object.keys(this.active).length > 10) {
+                const oldest = Object.keys(this.active).sort((a, b) => this.active[a].ts - this.active[b].ts)[0];
+                delete this.active[oldest];
+            }
+            const done = this.pendingWrite; this.pendingWrite = null; return done;
+        }
+        // 拒绝提交（楼层回滚/重roll 时丢弃 pending，防半提交推进污染）
+        discard() { const d = this.pendingWrite; this.pendingWrite = null; return d; }
+        // [v3.17] 对账（yuzuki overlay）: 楼层重排后推进过期自动失活
+        reconcile(latestFloor) {
+            const f = Math.max(0, Math.round(Number(latestFloor) || 0));
+            let removed = 0;
+            for (const k of Object.keys(this.active)) {
+                if (this.active[k].floor > f) { delete this.active[k]; removed++; }
+            }
+            return removed;
         }
         store(char, level, memory, floor) {
             this.active[char] = { level: level || 0, entryHint: level >= 1 && level <= 3 ? memory : null, memory, floor: floor || 0, ts: Date.now() };

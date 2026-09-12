@@ -144,7 +144,13 @@ const { CharacterMemoryBank, WorldProgress } = evalClass(bankM[0] + '\n' + wpM[0
 { if (!src.includes('〔场外角色动态') || !src.includes('[关系记忆·神经链]')) fail('ST5 渲染'); ok('ST5: 场外动态 + 神经链注入渲染块'); }
 // ST6: 导出/导入对称（collectExport + load import）
 { if (!src.includes('charMem: this.charMem ? this.charMem.export()')) fail('ST6 导出'); if (!src.includes('engine.charMem.import(data.charMem)')) fail('ST6 导入'); ok('ST6: charMem/worldProg 导出导入对称'); }
-// ST7: 版本号
-{ if (!src.includes("VERSION = '3.16.0'")) fail('ST7 版本号'); ok('ST7: 版本号 3.16.0'); }
+// ST7: 版本号已前进（>= v3.16）
+{
+  const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
+  if (!vm) fail('ST7 未找到版本号');
+  const [M, m, p] = vm[1].split('.').map(Number);
+  if (!(M > 3 || (M === 3 && m > 16) || (M === 3 && m === 16 && p >= 0))) fail('ST7 版本号过低: ' + vm[1]);
+  ok('ST7: 版本号已前进 (>=3.16.0): ' + vm[1]);
+}
 
 console.log(`\n✓ v3.16 zhino 三核心测试全过 (${pass} 项)`);

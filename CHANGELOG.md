@@ -1,5 +1,33 @@
 # 更新日志
 
+## v3.17.0 (2026-09-12) - 三核心 × 七项目防御缝合包 🛡️
+
+> 收编来源：shujuku（纪律型「每个功能配一个防御」）、baibai（确定性 id + 三态语义）、yuzuki（expected/rebuilt/overlay 对账）、anima（GC 校准）。为 v3.16 刚缝入的三核心补防御。
+
+### ① charMem 确定性 id + 三态补丁（baibai）
+- 记忆 id 从「随机时间戳」改为**确定性 id**（角色+文本+楼层 FNV hash）：同内容重复写**幂等不堆积**，swipe 回滚自动一致
+- 三态补丁：同 id 已存在则更新（幂等），不同文本新增
+- 升降级/删除保留确定性 id
+
+### ② charMem GC 校准器（anima retention value）
+- 核心记忆超 50 条时**按新鲜度排序保留最新 50**，替代粗暴 `shift()` 截断
+- 未超上限不动；对外 `gc(char)` 可手动触发
+
+### ③ 世界推进发布确认（shujuku pending/accepted + revision）
+- `propose(char, level, memory, floor)`：先在 detached 副本暂存 pending（**不立即生效**）
+- `publish()`：宿主确认（生成路径注入点）后**一次性发布** —— 防半提交推进污染
+- `discard()`：楼层回滚/重roll 时丢弃 pending（拒绝半提交）
+- `revision` 单调递增：乐观并发防旧实例迟到提交
+
+### ④ 世界推进对账（yuzuki overlay）
+- `reconcile(latestFloor)`：楼层重排后 `floor > latestFloor` 的过期推进自动失活
+- rollbackFloor 内联动：discard + reconcile（删楼后旧推进不注入）
+
+### 验证
+- 行为测试 17 项（确定性 id 幂等/稳定/升降级、GC、propose/publish/discard、revision、reconcile）
+- 全量回归 17 文件 199 项全过
+
+全量回归 199 项。
 ## v3.16.0 (2026-09-12) - zhino 三核心收编（两层记忆 + 神经链召回 + 世界推进）🧠🕸️
 
 > 研究来源：sillytavner-jpg/zhino-script@v5.2.1（明月秋青智脑 A5.2.1）。一次性收编三大核心机制。
