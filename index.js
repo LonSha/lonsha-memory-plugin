@@ -1,7 +1,16 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '2.9.0';
+    const VERSION = '3.0.0';
+    // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。
+    const _errBuf = [];
+    function errLog(err, tag) {
+        try {
+            _errBuf.push({ t: Date.now(), tag: String(tag || ''), msg: String(err?.message || err || ''), stack: String(err?.stack || '').split('\n').slice(0, 3).join(' | ') });
+            if (_errBuf.length > 50) _errBuf.shift();
+            if (window.LonShaMemory?.engine?.config?.config?.debugMode) console.warn(`[${PLUGIN_NAME}][${tag}]`, err);
+        } catch (e2) {}
+    }
     
     class ConfigManager {
         constructor() {
@@ -138,12 +147,12 @@
                     this.saveConfig();
                     console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已自动升级 (summary 要求真概括)`);
                 }
-            } catch (e) {}
+            } catch (e) { errLog(e, 'ConfigManager.loadConfig'); }
         }
         saveConfig() {
             try {
                 localStorage.setItem('lonsha_memory_config', JSON.stringify(this.config));
-            } catch (e) {}
+            } catch (e) { errLog(e, 'ConfigManager.saveConfig'); }
         }
     }
     
@@ -406,7 +415,7 @@
                         const fallback = this.extractMemorySimple(message);
                         if (fallback?.summary) await this.summary.createSummary(message, fallback.summary);
                         console.warn(`[${PLUGIN_NAME}] 提取锁排队超时，已降级为本地摘要 (楼层 ${message.index})`);
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'LLMCaller.constructor'); }
                     return;
                 }
             }
@@ -554,13 +563,13 @@
                 if (this.config.config.todoTrackingEnabled && extracted?.todos) {
                     try {
                         this.status.addTodos(extracted.todos, floor);
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'onMessageReceived.文本清洗'); }
                 }
                 if (this.config.config.todoTrackingEnabled) {
                     try {
                         const sd = this.getLatestStoryDate();
                         if (sd) this.status.pruneTodos(sd, this.config.config.todoExpiryMinutes || 60);
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'onMessageReceived.状态应用'); }
                 }
                 if (this.config.config.floorLedgerEnabled) {
                     try {
@@ -570,7 +579,7 @@
                             povIds: this.pov.povs.filter(p => p.floor === floor).map(p => p.id),
                             timelineIds: this.timeline.entries.filter(t => t.floor === floor).map(t => t.id)
                         });
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'onMessageReceived.楼层账本'); }
                 }
 
                 const summary = await this.summary.createSummary(message, extracted?.summary);
@@ -580,7 +589,7 @@
                     try {
                         const dn = await this.diary.generateLiving(this.config.config, this.llm, extracted?.characters ? this.getKnownCharacters() : [], message.index || 0);
                         // [v2.8] RT-B: 反思生成（每N楼节流，与日记独立）
-                        try { if (this.config.config.reflectionEnabled) await this.reflection.generate(this.config.config, this.llm, this, message.index || 0); } catch (e) {}
+                        try { if (this.config.config.reflectionEnabled) await this.reflection.generate(this.config.config, this.llm, this, message.index || 0); } catch (e) { errLog(e, 'onMessageReceived.反思生成'); }
                         // [v2.9] RU-B: 定期记忆优化（每N楼防膨胀）
                         try {
                             const oEvery = this.config.config.optimizeEveryFloors || 50;
@@ -588,9 +597,9 @@
                                 this._lastOptimizeFloor = message.index || 0;
                                 this.optimizeMemory();
                             }
-                        } catch (e) {}
+                        } catch (e) { errLog(e, 'onMessageReceived.优化器'); }
                         if (dn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 活人感日记 +${dn} 条`);
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'onMessageReceived.POV状态回收'); }
                 }
                 
                 if (this.config.config.vectorEnabled) {
@@ -610,14 +619,14 @@
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] BM25重建失败:`, e); }
                 }
                 if (this.config.config.summaryFoldEnabled) {
-                    try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) {}
+                    try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
                 }
 
                 // [v2.2] RB: 楼层提交盖章 → 桥同步手机侧楼层状态 (幂等)
                 try {
                     const rb = window.VirtualPhone?.lonshaBridge;
                     if (rb?.onFloorCommitted) rb.onFloorCommitted(message.index || 0);
-                } catch (e) {}
+                } catch (e) { errLog(e, 'onMessageReceived.RubyPhone桥'); }
                 if (this.config.config.autoSave) {
                     // [v2.9] RU-C: 定期快照（每 snapshotEveryFloors 楼一份，IndexedDB 独立于 chatMetadata）
                     try {
@@ -761,7 +770,7 @@
                     const t = tm.getCurrentStoryTime();
                     if (t?.date && !t.isReal) return String(t.date);
                 }
-            } catch (e) {}
+            } catch (e) { errLog(e, 'extractStoryDate'); }
             return null;
         }
         // [v2.9] RU-A: 主动时间推进（抄 shujuku plot-runtime——"三天后"无具体日期时算术推进）
@@ -797,7 +806,7 @@
                     const t = tm.getCurrentStoryTime();
                     if (t?.date && !t.isReal) return String(t.date);
                 }
-            } catch (e) {}
+            } catch (e) { errLog(e, 'getLatestStoryDate'); }
             return null;
         }
 
@@ -828,7 +837,7 @@
                             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 召回缓存命中 (floor ${curFloor})`);
                             return this._recallCache.injection;
                         }
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'cleanMessageText'); }
                 }
                 // [v2.4] RE: 召回价值判断（抄 baibai recallWorthRunning——剧情全在窗口内时跳过，省额度）
                 if (!this.recallWorthRunning()) return '';
@@ -836,7 +845,7 @@
                 try {
                     const qs = await this.llm.rewriteQuery(query.text);
                     if (qs && qs.length) query.queries = qs;
-                } catch (e) {}
+                } catch (e) { errLog(e, 'cleanMessageText'); }
                 const recalled = await this.recallMemory(query);
                 // [v2.5] RF: 回响池——本轮召回的进池续命，池中仍在停留期的合并注入（召回结果跨轮连续，不再闪烁）
                 try {
@@ -851,15 +860,15 @@
                         try {
                             const cc = window.SillyTavern?.getContext?.()?.chat || [];
                             this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj1};
-                        } catch (e) {}
+                        } catch (e) { errLog(e, 'cleanMessageText'); }
                         return inj1;
                     }
-                } catch (e) {}
+                } catch (e) { errLog(e, 'cleanMessageText'); }
                 const inj2 = this.buildInjection(recalled);
                 try {
                     const cc = window.SillyTavern?.getContext?.()?.chat || [];
                     this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj2};
-                } catch (e) {}
+                } catch (e) { errLog(e, 'cleanMessageText'); }
                 return inj2;
             } catch (err) {
                 return '';
@@ -999,7 +1008,7 @@
                         try {
                             const more = await this.vector.search(q2, 3);
                             for (const v of more) results.vector.push({text: v.text, score: v.score * 0.9, metadata: v.metadata, source: 'vector'});
-                        } catch (e) {}
+                        } catch (e) { errLog(e, 'recallMemory.图扩散'); }
                     }
                 }
             }
@@ -1041,7 +1050,7 @@
                         }
                         if (this.config.config.debugMode && h) console.log(`[${PLUGIN_NAME}] 🎉 节日感知: ${h.name} (偏移${h.offsetDays}天)`);
                     }
-                } catch (e) {}
+                } catch (e) { errLog(e, 'recallMemory.物品召回'); }
             }
             
             // [v2.0] P2: 角色状态召回（只取当前登场角色）
@@ -1122,7 +1131,7 @@
                         id: 'abs_' + a.name, text: a.loc ? `${a.name}（现在: ${a.loc}，不在场）` : `${a.name}（不在场）`,
                         source: 'presence'
                     }));
-                } catch (e) {}
+                } catch (e) { errLog(e, 'recallMemory.HolidayAware'); }
             }
             
             // [v2.2] RC: 悬念簿召回（未了结悬项 + 近期了结，防 AI 把办完的事反复提/把伏笔写丢）
@@ -1137,7 +1146,7 @@
                         floor: x.resolvedFloor, source: 'suspense'
                     }));
                     results.suspense = openList.concat(resolvedList);
-                } catch (e) {}
+                } catch (e) { errLog(e, 'recallMemory.POV时序'); }
             }
             
             // [v1.8] P0: POV 私密记忆召回（只取当前登场角色的，防剧透）
@@ -1374,7 +1383,7 @@
                             blocks.push(`- ${line}`);
                         }
                     }
-                } catch (e) {}
+                } catch (e) { errLog(e, 'buildInjection.场景链'); }
             }
             if (scenesList.length) {
                 blocks.push('[相关地点]');
@@ -1457,17 +1466,17 @@
                         this.status.ops = this.status.ops.filter(o => o.floor < floor);
                         this.status.rebuildFromOps();
                     }
-                } catch (e) {}
+                } catch (e) { errLog(e, 'rollbackFloor.节点清理'); }
                 // [v2.4] RE: 场景树回滚（真源过滤+重放）
                 try {
                     if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) this.scene.rollbackFrom(floor);
-                } catch (e) {}
+                } catch (e) { errLog(e, 'rollbackFloor.status回滚'); }
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
-                try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) {}
-                try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) {}
+                try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
+                try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
-                try { const ni = this.rollbackItemsFrom ? this.rollbackItemsFrom(floor) : 0; if (ni && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 物品回滚: ${ni}条ops`); } catch (e) {}
-                try { if (this.reflection?.items?.length) this.reflection.items = this.reflection.items.filter(r => r.floor !== floor); } catch (e) {}
+                try { const ni = this.rollbackItemsFrom ? this.rollbackItemsFrom(floor) : 0; if (ni && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 物品回滚: ${ni}条ops`); } catch (e) { errLog(e, 'rollbackFloor.物品回滚'); }
+                try { if (this.reflection?.items?.length) this.reflection.items = this.reflection.items.filter(r => r.floor !== floor); } catch (e) { errLog(e, 'rollbackFloor.反思回滚'); }
                 // [v2.2] RC: 回滚该楼层登记/了结的悬念簿条目
                 try {
                     if (this.suspense.items.length) {
@@ -1477,14 +1486,14 @@
                             console.log(`[${PLUGIN_NAME}] 悬念簿回滚: 清除 ${before - this.suspense.items.length} 条 (楼层 ${floor})`);
                         }
                     }
-                } catch (e) {}
+                } catch (e) { errLog(e, 'rollbackFloor.悬念回滚'); }
                 // 回滚该楼层摘要
                 this.summary.summaries = this.summary.summaries.filter(s => s.floor !== floor);
                 // [v2.2] RB: 楼层回滚联动 RubyPhone 手机记忆 (幂等, 桥不在时静默跳过)
                 try {
                     const rb = window.VirtualPhone?.lonshaBridge;
                     if (rb?.onFloorRollback) rb.onFloorRollback(floor);
-                } catch (e) {}
+                } catch (e) { errLog(e, 'rollbackFloor.BM25重建'); }
                 // 移除账本记录
                 this.ledger.remove(floor);
                 // 重建 BM25 索引
@@ -1548,11 +1557,11 @@
                 }
                 // [v2.7] RS: 全量导入（graph/pov/diary/scene/vector，兼容 v2.3 旧包——字段缺失静默跳过）
                 try { if (pack.graph?.nodes) this.graph.import(pack.graph); } catch (e) { console.warn('[LonSha] graph导入失败:', e); }
-                try { if (Array.isArray(pack.povs) && pack.povs.length && this.pov?.import) this.pov.import(pack.povs); } catch (e) {}
-                try { if (pack.diary && this.diary?.import) this.diary.import(pack.diary); } catch (e) {}
-                try { if (pack.reflection && this.reflection?.import) this.reflection.import(pack.reflection); } catch (e) {}
-                try { if (Array.isArray(pack.itemOps)) { this.itemOps = pack.itemOps; this.rebuildItems(); } } catch (e) {}
-                try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) {}
+                try { if (Array.isArray(pack.povs) && pack.povs.length && this.pov?.import) this.pov.import(pack.povs); } catch (e) { errLog(e, 'applyCarryover.graph'); }
+                try { if (pack.diary && this.diary?.import) this.diary.import(pack.diary); } catch (e) { errLog(e, 'applyCarryover.pov'); }
+                try { if (pack.reflection && this.reflection?.import) this.reflection.import(pack.reflection); } catch (e) { errLog(e, 'applyCarryover.diary'); }
+                try { if (Array.isArray(pack.itemOps)) { this.itemOps = pack.itemOps; this.rebuildItems(); } } catch (e) { errLog(e, 'applyCarryover.itemOps'); }
+                try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) { errLog(e, 'applyCarryover.scene'); }
                 try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
                     this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
@@ -1563,6 +1572,53 @@
                 return true;
             } catch (e) { return false; }
         }
+        // [v3.0] SD: 一键诊断——子系统统计 + 召回管线 dry-run + 存档 schema 校验 + 错误日志
+        async selfCheck() {
+            const report = { time: new Date().toLocaleString(), version: VERSION, stats: [], errors: [..._errBuf], pipeline: null, schema: null };
+            try {
+                // 1. 各子系统数据量统计
+                const rows = [
+                    ['图谱', `${this.graph.nodes.size} 节点 / ${this.graph.edges.size} 边`],
+                    ['向量', `${this.vector.vectors.length} 条${(this.vector.vectors.length || 0) > (this.config.config.vectorMaxCount || 500) ? ' ⚠️超限' : ''}`],
+                    ['摘要', `${this.summary.summaries.length} 条（${this.summary.summaries.filter(s => s.folded).length} 已折叠 / 卷 ${this.summary.volumes.length}）`],
+                    ['日记', `${Object.keys(this.diary.diaries).length} 角色 / ${Object.values(this.diary.diaries).reduce((a, b) => a + b.length, 0)} 篇`],
+                    ['时间线', `${this.timeline.entries.length} 条`],
+                    ['悬念簿', `${this.suspense.items.filter(x => x.status === 'open').length} 开放 / ${this.suspense.items.length} 总`],
+                    ['场景树', `${this.scene.nodes.size} 节点 / ops ${this.scene.opsLog.length}`],
+                    ['物品台账', `${this.items.records.length} 件 / ops ${this.itemOps.length}`],
+                    ['反思', `${this.reflection.items.length} 条`],
+                    ['POV', `${this.pov.povs.length} 条`],
+                    ['角色状态', `${Object.keys(this.status.characters || {}).length} 人`],
+                    ['回响池', `${this.echo.pool ? this.echo.pool.size : (this.echo.items ? this.echo.items.length : '?')}`],
+                    ['楼层账本', `${Object.keys(this.ledger.floors || {}).length} 楼`],
+                ];
+                report.stats = rows.map(([k, v]) => ({k, v}));
+                // 2. 召回管线 dry-run（不注入，只验证链路通）
+                try {
+                    const query = this.buildQuery(null);
+                    const qText = String(query.text || '').trim();
+                    if (!qText) {
+                        report.pipeline = { ok: false, note: '查询文本为空（对话太短？）' };
+                    } else {
+                        const t0 = Date.now();
+                        const recalled = await this.recallMemory(query);
+                        const inj = this.buildInjection(recalled);
+                        const merged = recalled.filter(Boolean).reduce((a, b) => a + (Array.isArray(b) ? b.length : 0), 0);
+                        report.pipeline = { ok: true, queryLen: qText.length, routes: Object.entries(recalled).filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => `${k}:${v.length}`), merged, injLen: (inj || '').length, ms: Date.now() - t0 };
+                    }
+                } catch (e) { report.pipeline = { ok: false, note: 'dry-run异常: ' + (e?.message || e) }; }
+                // 3. 存档 schema 校验（export 字段 vs load 导入字段配对）
+                try {
+                    const saved = this.collectExport();
+                    const expected = ['graph', 'summaries', 'diaries', 'vectors', 'povs', 'timeline', 'status', 'ledger', 'suspense', 'scene'];
+                    const missing = expected.filter(k => saved[k] === undefined || saved[k] === null);
+                    const nonEmpty = expected.filter(k => saved[k] && (Array.isArray(saved[k]) ? saved[k].length : Object.keys(saved[k]).length) > 0);
+                    report.schema = { ok: missing.length === 0, missing, nonEmpty };
+                } catch (e) { report.schema = { ok: false, missing: ['collectExport异常: ' + (e?.message || e)] }; }
+            } catch (e) { report.fatal = String(e?.message || e); }
+            return report;
+        }
+
         // [v2.9] RU-C: 全量导出（快照/存档共用同构数据）
         collectExport() {
             return {
@@ -1601,7 +1657,7 @@
                     else this.items.push({ key, text: item.text || item.content || item.summary || '', source: item.source, life: 2, lastSeen: now });
                 }
                 if (this.items.length > 30) this.items = this.items.slice(-30);
-            } catch (e) {}
+            } catch (e) { errLog(e, 'EchoPool.onRecalled'); }
         }
         /** 每轮衰减；返回仍存活的（life>0） */
         tick() {
@@ -1795,7 +1851,7 @@
         try {
             const p = new RelativeTimeHelper().relativeTimePrefix(dateStr, nowStr);
             if (p) return p;
-        } catch (e) {}
+        } catch (e) { errLog(e, 'relativePrefix.legacy兜底'); }
         try {
             if (!dateStr || !nowStr) return '';
             const diff = storyDayDiff(nowStr, dateStr);
@@ -2200,7 +2256,7 @@
                 }
                 if (kind === 'changes') op.changes = items;
                 if (kind === 'todos') op.todos = items;
-            } catch (e) {}
+            } catch (e) { errLog(e, 'CharacterState._logOp'); }
         }
         // [v2.3] 重放重建: 清空派生状态, 按楼层升序重放全部 ops (删楼回滚后调它, 天然一致)
         rebuildFromOps() {
@@ -2211,7 +2267,7 @@
                     if (Array.isArray(op.changes) && op.changes.length) this.applyChanges(op.changes, op.floor, true);
                     if (Array.isArray(op.todos) && op.todos.length) this.addTodos(op.todos, op.floor, true);
                 }
-            } catch (e) {}
+            } catch (e) { errLog(e, 'CharacterState.rebuildFromOps'); }
         }
         _ensure(name) {
             if (!this.characters[name]) {
@@ -2825,7 +2881,7 @@ ${win}`;
                 // CHAT_CHANGED：切换对话时重新加载对应数据
                 if (types.CHAT_CHANGED) {
                     eventSource.on(types.CHAT_CHANGED, async () => {
-                        try { this.engine._recallCache = null; } catch (e) {}  // [v2.9] RU-D: 换对话，缓存失效
+                        try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
                         try {
                             const chatId = this.engine.getCurrentChatId();
                             if (chatId) await this.engine.storage.load(chatId);
@@ -2839,7 +2895,7 @@ ${win}`;
                 // [v2.4] RE: 楼层编辑/滑动感知——被编辑的楼层及其之后全部按删楼处理 (同 baibai 陈旧失效语义)
                 if (types.MESSAGE_EDITED) {
                     eventSource.on(types.MESSAGE_EDITED, (messageId) => {
-                        try { this.engine._recallCache = null; } catch (e) {}  // [v2.9] RU-D: 上下文变了，缓存失效
+                        try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_EDITED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         try {
                             const f = Number(messageId);
                             if (Number.isFinite(f) && f >= 0) {
@@ -2870,7 +2926,7 @@ ${win}`;
 // [v2.0] P2: 删楼回滚（楼层账本）
                 if (types.MESSAGE_DELETED) {
                     eventSource.on(types.MESSAGE_DELETED, (messageId) => {
-                        try { this.engine._recallCache = null; } catch (e) {}  // [v2.9] RU-D: 上下文变了，缓存失效
+                        try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         try {
                             const c = window.SillyTavern?.getContext?.();
                             // ST 删楼后 chat 已变化，直接尝试回滚该楼及其后的记忆

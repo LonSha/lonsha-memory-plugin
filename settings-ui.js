@@ -600,6 +600,7 @@
                 <div class="lsm-item" data-act="stats">📊 状态总览</div>
                 <div class="lsm-item" data-act="viz">🕸️ 记忆图谱</div>
                 <div class="lsm-item" data-act="settings">⚙️ 设置</div>
+                <div class="lsm-item" data-act="diag">🩺 一键诊断</div>
                 <style>
                     #lonsha-fab-menu { position: fixed; bottom: 145px; right: 20px; background: #1e1e2e; border: 1px solid #45475a; border-radius: 14px; padding: 6px; z-index: 10001; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 190px; }
                     .lsm-item { padding: 13px 14px; color: #cdd6f4; font-size: 15px; border-radius: 9px; cursor: pointer; }
@@ -616,6 +617,7 @@
                         else plugin.showStatsPanel();
                     }
                     else if (act === 'settings') plugin.showSettingsPanel();
+                    else if (act === 'diag') plugin.showDiagnose();
                 });
             });
             document.body.appendChild(menu);
@@ -680,6 +682,37 @@
             const closer = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', closer); } };
             setTimeout(() => document.addEventListener('click', closer), 50);
             document.body.appendChild(menu);
+        };
+
+        // [v3.0] SD: 一键诊断面板
+        plugin.showDiagnose = async function() {
+            const engine = plugin.engine;
+            if (!engine) { toast('引擎未初始化'); return; }
+            toast('诊断中…');
+            let r;
+            try { r = await engine.selfCheck(); } catch (e) { toast('诊断失败: ' + e.message); return; }
+            const errRows = (r.errors || []).slice(-15).reverse().map(e2 =>
+                `<div style="padding:4px 8px;font-size:11px;border-bottom:1px solid #313244;">
+                    <span style="color:#f38ba8;">[${e2.tag}]</span> <span style="color:#a6adc8;">${new Date(e2.t).toLocaleTimeString()}</span>
+                    <div style="color:#cdd6f4;font-size:12px;">${(e2.msg || '').substring(0, 120)}</div>
+                </div>`).join('') || '<div style="padding:8px;color:#a6e3a1;font-size:12px;">✓ 无错误记录</div>';
+            const statRows = (r.stats || []).map(s => `<div style="display:flex;justify-content:space-between;padding:5px 8px;font-size:13px;border-bottom:1px solid #313244;">
+                <span style="color:#a6adc8;">${s.k}</span><span>${s.v}</span></div>`).join('');
+            const p = r.pipeline;
+            const pipeHTML = p ? (p.ok
+                ? `<div style="padding:6px 8px;font-size:12px;color:#a6e3a1;">✓ 管线通畅 ${p.ms}ms ｜ 查询${p.queryLen}字 → 命中[${(p.routes || []).join(' ')}] → 合并${p.merged}条 → 注入${p.injLen}字</div>`
+                : `<div style="padding:6px 8px;font-size:12px;color:#f9e2af;">⚠️ ${p.note || '管线异常'}</div>`) : '';
+            const sc = r.schema;
+            const schemaHTML = sc ? (sc.ok
+                ? `<div style="padding:6px 8px;font-size:12px;color:#a6e3a1;">✓ 存档完整（非空: ${(sc.nonEmpty || []).join('、') || '暂无数据'}）</div>`
+                : `<div style="padding:6px 8px;font-size:12px;color:#f38ba8;">✗ 缺失字段: ${(sc.missing || []).join('、')}</div>`) : '';
+            const body = `
+                <div style="padding:4px 8px;font-size:11px;color:#a6adc8;">${r.time} ｜ v${r.version}</div>
+                <div style="margin:6px 0;">${statRows}</div>
+                ${pipeHTML}${schemaHTML}
+                <div style="padding:6px 8px;font-size:12px;color:#a6adc8;border-top:1px solid #45475a;margin-top:6px;">最近错误（环形缓冲，最多50条）</div>
+                <div style="max-height:30vh;overflow-y:auto;">${errRows}</div>`;
+            const overlay = makeSheet('lonsha-diag-overlay', '🩺 一键诊断', body);
         };
 
         console.log('[LonSha记忆引擎] ✓ 设置面板模块已挂载 (点击🧠 → ⚙️设置)');
