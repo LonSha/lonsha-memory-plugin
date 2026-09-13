@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.49.0';
+    const VERSION = '3.50.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -775,7 +775,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const model = cfg.rerankModel || cfg.apiModel;
                 if (!cfg.rerankEnabled || !url || !key) return null;
                 const list = docs.map((d, i) => `[${i + 1}] ${(d.text || d.summary || d.name || '').substring(0, 150)}`).join('\n');
-                const prompt = `你是检索精排器。给定【查询】和编号候选列表，按与查询的相关度从高到低输出候选编号。只输出JSON数组（如 ["3","1","7"]），不要解释。可以只输出明显相关的编号（无关的不要收录）。
+                // [v3.50] 评分式精排：每条 0-10 分（无关 0 分），比排序式更稳——单条失败不影响全局，且可按阈值过滤
+                const prompt = `你是检索评分器。给定【查询】和编号候选列表，为每条候选打相关度分（0-10 整数：0=完全无关，1-3=弱相关，4-6=有用，7-8=高度相关，9-10=直接回答查询）。只输出JSON对象（如 {"1":8,"3":4,"7":0}），键为候选编号字符串、值为分数，无关候选可省略（视为0分）。不要解释。
 【查询】${String(query || '').substring(0, 300)}
 【候选】\n${list}`;
                 let raw = null;
@@ -789,7 +790,25 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     if (!raw) raw = await quiet(prompt, false, false);
                 }
                 if (!raw) return null;
-                const m = String(raw).match(/\[[\s\S]*?\]/);
+                const rawStr = String(raw);
+                // [v3.50] 优先解析评分对象 {"1":8,...}；兼容旧排序数组 ["3","1"]
+                const objM = rawStr.match(/\{[\s\S]*?\}/);
+                if (objM) {
+                    try {
+                        const scores = JSON.parse(sanitizeJson(objM[0]));
+                        if (scores && typeof scores === 'object') {
+                            const scored = docs.map((d, i) => ({ d, i, s: Number(scores[String(i + 1)]) || 0 }))
+                                .filter(x => x.s > 0)
+                                .sort((a, b) => b.s - a.s);
+                            if (scored.length) {
+                                // 把分数写回 item（供下游 RRF/预算裁剪参考），返回排序索引
+                                for (const x of scored) if (docs[x.i]) docs[x.i]._rerankScore = x.s;
+                                return scored.map(x => x.i);
+                            }
+                        }
+                    } catch (e) { /* 落入旧格式解析 */ }
+                }
+                const m = rawStr.match(/\[[\s\S]*?\]/);
                 if (!m) return null;
                 const order = JSON.parse(sanitizeJson(m[0]));
                 if (!Array.isArray(order) || !order.length) return null;
@@ -1348,6 +1367,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                             // [v3.49] P4: 心理暗流日记双端互通（幂等回填手机日记 App）
                             if (this.config.config.diaryBridgeEnabled !== false && this.diary?.diaries) {
                                 try { bridge.backfillDiaries?.(this.diary.diaries); } catch (e) { errLog(e, 'rubyPhoneBridge.日记回填'); }
+                            }
+                            // [v3.50] P6: 剧情时钟权威同步（GameClock → 手机状态栏，仅日期变化时写）
+                            if (this.config.config.clockSyncEnabled !== false && _backfillPayload.clock?.date) {
+                                try { bridge.syncClock?.(_backfillPayload.clock); } catch (e) { errLog(e, 'rubyPhoneBridge.时钟同步'); }
                             }
                         } else if (window.VirtualPhone?.memoryCore) {
                             // 兜底: 桥未挂载时直接写入记忆库 (摘要→长期记忆)
@@ -3225,10 +3248,12 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 list.forEach((item, rank) => {
                     const key = item.id || item.text || item.name || JSON.stringify(item).substring(0, 80);
                     const rrfScore = 1 / (K + rank + 1);
+                    // [v3.50] 精排分加成：LLM 评分式 rerank 的高分项（>=6）给 RRF 加权（评分/10 × 0.05）
+                    const rerankBonus = item._rerankScore >= 6 ? (item._rerankScore / 10) * 0.05 : 0;
                     const prev = byKey.get(key);
                     byKey.set(key, {
                         ...item,
-                        rrfScore: (prev?.rrfScore || 0) + rrfScore,
+                        rrfScore: (prev?.rrfScore || 0) + rrfScore + rerankBonus,
                         hits: (prev?.hits || 0) + 1,   // 被几路召回命中
                         source: prev?.source ? prev.source + '+' : ['vector','diffusion','graph','summary','diary','rubyphone','timeline','pov','bm25','volume','status','holiday','suspense','presence','items','items_stored'][listIdx]
                     });
@@ -3757,6 +3782,18 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             const tokenBudget = Number(this.config.config.memoryTokenBudget) || 0;
             if (tokenBudget > 0) budget = Math.max(200, Math.min(budget, Math.floor(tokenBudget * 4)));  // token→字符粗换算(~0.25 token/字符)
             if (reserve > 0) budget = Math.max(200, budget - Math.floor(reserve * 4));
+            // [v3.50] 第三层：上下文感知自适应——聊天楼层少（上下文占用低）时自动扩容预算（早期多喂记忆加速建立世界感），
+            // 楼层多时按基准收紧（保护最近正文空间）。扩张系数随楼层衰减，clamp 0.6x~1.8x 基准。
+            if (this.config.config.adaptiveBudget !== false) {
+                try {
+                    const _chatLen = window.SillyTavern?.getContext?.()?.chat?.length || 0;
+                    if (_chatLen > 0) {
+                        const decayRef = Number(this.config.config.adaptiveBudgetDecayFloors) || 80;
+                        const factor = Math.max(0.6, Math.min(1.8, 1.8 - (_chatLen / decayRef) * 1.2));
+                        budget = Math.max(200, Math.floor(budget * factor));
+                    }
+                } catch (e) { /* 上下文不可用时用基准预算 */ }
+            }
             const keepCount = this.config.config.budgetStrategy || 'balanced';
             if (full.length > budget) {
                 const strategy = keepCount;

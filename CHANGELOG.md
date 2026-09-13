@@ -1,3 +1,11 @@
+## [v3.50.0] - 2026-09-13
+### 自适应调优：剧情时钟权威同步、rerank 评分式精排、注入预算上下文感知自适应
+- **剧情时钟权威同步 (GameClock → Phone TimeManager)**：`bridge.syncClock(clock)` 将 LonSha GameClock（含架空历法/回忆隔离的剧情时间唯一真源）强制同步到手机 timeManager——状态栏/日历/时间相关 App 以剧情时间为准。幂等设计：同日期不重复写入（`_lastSyncClockDate` 缓存，防每楼重置手机时间缓存导致状态栏闪烁）。`clockSyncEnabled` 开关（默认开）——两套时间系统自此统一。
+- **rerank 评分式精排升级 (Score-based Rerank)**：LLM 精排从"排序号列表"式（要求输出完整排序，单条失败影响全局）升级为**评分式**——每条候选 0-10 分（0=完全无关/9-10=直接回答），无关候选可省略。三重收益：① 单条评分失败不影响其他条目；② 零分项天然过滤（不进注入）；③ 分数写回 `_rerankScore` 供下游消费。兼容旧排序数组格式（fallback 解析）。
+- **RRF 精排分消费 (Rerank-Boosted Fusion)**：`hybridMerge` 的 RRF 融合消费精排分——高分项（>=6）获得 `(score/10) × 0.05` 的 RRF 加权，让 LLM 精排结果真正影响最终排序，而非仅作参考。
+- **注入预算上下文感知自适应 (Adaptive Context Budget)**：预算体系新增第三层——聊天楼层少（上下文占用低）时自动**扩容**预算至 1.8x（早期多喂记忆加速建立世界感），楼层多时随 `/adaptiveBudgetDecayFloors`（默认80楼）线性**收紧**至 0.6x（保护最近正文空间）。`adaptiveBudget` 开关（默认开），clamp 0.6x~1.8x。与 v3.25 双层预算（memoryTokenBudget/keepRecentTokenReserve）正交互补。
+- **自动化测试**：新增 `tests/v350_adaptive_tuning.test.mjs`（4 测试块：时钟同步双端验证、评分式精排升级、自适应预算、行为模拟），全量 52 个测试套件 76 个测试 100% 绿灯通过。
+
 ## [v3.49.0] - 2026-09-13
 ### 日记双端互通与群像归因式记忆：心理暗流日记同步手机日记App、PairMemory 关系对归因切片
 - **心理暗流日记双端互通 (Subtext Diary Bridge)**：`bridge.backfillDiaries(diaries)` 将 LonSha DiarySystem 的结构化心理日记（v3.47 的 entry/mood/secret/attitude/keyEvents/subjRelations 六字段）同步渲染进手机日记 App 的实体书排版。排版文本含「没说出口：…」「对用户态度：…」「主观印象：…」三段式；幂等（`lonsha_{name}_{floor}` 条目 id，同楼同角色不重复）；每角色只同步最近 3 篇防堆积。`diaryBridgeEnabled` 开关（默认开）——双端自此共用一套"人心"数据，手机日记 App 8.9 万行的实体书排版界面直接渲染 v3.47 心理暗流字段。
