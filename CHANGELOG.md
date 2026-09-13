@@ -1,4 +1,17 @@
 
+## [3.64.0] - 2026-09-13
+
+### Added（severity 全链路 + 全景报告锁定板块 + 手机铁律标识）
+
+- **全景报告锁定事实板块**：exportMemoryReport 升级 12 板块——概览新增锁定事实计数，新增「🔒 用户锁定事实」板块（逐字铁律档案 + 锁定楼层溯源），位于主角档案之前
+- **conflicts severity 全链路落地**：ConflictBook.add 签名扩展 severity（low/medium/high 白名单，非法值兜底 medium）；addFromExtracted 透传 c?.severity；toPrompt 对 high/low 显式标注【严重度:xxx】（medium 不标注省 token）；export/import 对称
+- **手机记忆 App 铁律标识**：memory-view 新增 ironTag——[铁律] 前缀条目显示金色「🔒铁律」徽标（mem-iron class，用户锁定事实永不遗忘），渲染序最前优先显示；memory.css 新增金色渐变样式
+- **桥侧对齐**：铁律徽标正则与 bridge 回填的 [铁律] 前缀对齐，双端识别一致
+
+### Tests
+- 新增 tests/v364_severity_report.test.mjs（7 组：静态关键字/ConflictBook severity 功能/toPrompt 标注/export-import 对称/幂等与旧数据兼容/报告板块位置/手机渲染完整性）
+- 全量 66 套件 126 测试通过
+
 ## [3.63.0] - 2026-09-13
 
 ### Added（锁定事实 UI 管理 + 手机端回填：lockedFacts 闭环补全）

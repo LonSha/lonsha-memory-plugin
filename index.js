@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.63.0';
+    const VERSION = '3.64.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4285,7 +4285,18 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             push(`- 物品台账：${(this.itemOps || []).length}`);
             push(`- 悬念簿：${(this.suspense?.openItems?.() || []).length} 未结`);
             push(`- 审计事件：${opLogStatsCompat(this)} 条`);
+            push(`- 锁定事实：${(this.summary?.getLockedFacts?.() || []).length} 条`);
             push('');
+            // [v3.64] 锁定事实板块（用户主权的铁律档案）
+            const lfList = this.summary?.getLockedFacts?.() || [];
+            if (lfList.length) {
+                push('## 🔒 用户锁定事实');
+                push('');
+                push('> 以下事实由用户显式锁定，逐字进入每轮摘要与注入流，永不因压缩丢失。');
+                push('');
+                for (const f of lfList) push(`- ${f.text}（第${f.floor}楼锁定）`);
+                push('');
+            }
             // 主角
             const prot = this.status?.protagonist;
             if (prot) {
@@ -6780,17 +6791,20 @@ ${win}`;
     class ConflictBook {
         constructor() { this.conflicts = []; }
         /** 登记真矛盾（幂等：同 subject 同版本对不重复登记） */
-        add(subject, versionA, versionB, note, floor, storyTime) {
+        add(subject, versionA, versionB, note, floor, storyTime, severity) {
             const s = String(subject || '').trim();
             if (!s || s.length < 2) return false;
             const a = String(versionA || '').slice(0, 100);
             const b = String(versionB || '').slice(0, 100);
             if (!a || !b) return false;
             if (this.conflicts.some(c => c.subject === s && c.versionA === a && c.versionB === b)) return false;
+            // [v3.64] severity 严重度分级（dsh 证据链）：low/medium/high
+            const sev = ['low', 'medium', 'high'].includes(severity) ? severity : 'medium';
             this.conflicts.push({
                 subject: s.slice(0, 40), versionA: a, versionB: b,
                 note: String(note || '').slice(0, 60),
                 floor: floor || 0, time: String(storyTime || '').slice(0, 30),
+                severity: sev,
                 timestamp: Date.now()
             });
             if (this.conflicts.length > 30) this.conflicts.shift();
@@ -6800,7 +6814,7 @@ ${win}`;
         addFromExtracted(list, floor, storyTime) {
             let n = 0;
             for (const c of (list || [])) {
-                if (this.add(c?.subject, c?.versionA, c?.versionB, c?.note, floor, storyTime)) n++;
+                if (this.add(c?.subject, c?.versionA, c?.versionB, c?.note, floor, storyTime, c?.severity)) n++;
             }
             return n;
         }
@@ -6808,7 +6822,7 @@ ${win}`;
         toPrompt() {
             if (!this.conflicts.length) return '';
             const rows = this.conflicts.slice(-6).map(c =>
-                `- ${c.subject}：版本A「${c.versionA}」 ↔ 版本B「${c.versionB}」${c.note ? `（${c.note}）` : ''}`);
+                `- ${c.subject}：版本A「${c.versionA}」 ↔ 版本B「${c.versionB}」${c.note ? `（${c.note}）` : ''}${c.severity && c.severity !== 'medium' ? ` 【严重度:${c.severity}】` : ''}`);
             return `[未决矛盾·显式标注]（以下事实存在多个对不上的版本，是剧情资产。对话涉及这些事实时保持张力或自然揭示，严禁擅自裁决谁对谁错）：\n${rows.join('\n')}`;
         }
         removeByFloor(floor) {
