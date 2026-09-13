@@ -105,6 +105,7 @@
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.mutex?.locked ? '🔒' : '🟢'}</div><div class="ls-stat-label">提取锁 ${s.mutex?.queueLength ? `(队列${s.mutex.queueLength})` : ''}</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
@@ -301,6 +302,25 @@
                             <div class="ls-item-meta"><b>${esc(it.name)}</b> · 持有者: ${esc(it.holder || '无主')} · 状态: ${esc(it.state || '完好')}${it.floor !== undefined ? ` · 第${it.floor}楼` : ''}</div>
                             <div class="ls-item-text">${esc(it.desc || '（无描述）')}</div>
                         </div>`).join('');
+            }
+
+            else if (viewType === 'oplog') {
+                // [v3.55] P16: 事件溯源审计浏览器（消费 v3.54 OpLog）
+                title = '🔍 事件审计链（OpLog）';
+                const opLog = s.opLog;
+                if (!opLog || !opLog.entries?.length) {
+                    body = '<div class="ls-hint">暂无事件记录。进行几轮对话后，此处显示所有记忆变更的完整审计链。</div>';
+                } else {
+                    const st = opLog.stats();
+                    const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚' };
+                    const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`;
+                    const rows = opLog.recent(80).slice().reverse().map(e => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta">#${e.seq} · ${typeCn[e.type] || e.type} · ${esc(e.op)} · ${e.floor !== null && e.floor !== undefined ? `第${e.floor}楼` : '—'} · ${fmtTime(e.ts)}</div>
+                            <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:#a6adc8">— ${esc(e.meta)}</span>` : ''}</div>
+                        </div>`).join('');
+                    body = head + rows;
+                }
             }
 
             const opHint = '<div class="ls-hint" style="color:#89b4fa;margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>';
