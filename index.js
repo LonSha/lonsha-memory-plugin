@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.52.0';
+    const VERSION = '3.53.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -301,6 +301,8 @@
     function detectEthicsConflict(fromName, toName, relationType, existingTies) {
         try {
             const cls = classifyRelationshipType(relationType);
+            const bloodRe = /(父|母|兄|弟|姐|妹|祖|孙|叔|伯|姑|姨|舅|侄|甥|血缘|血亲|亲生|兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女)/;
+            const bidirectionalRe = /(兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女|祖孙|血缘|血亲)/;
             if (cls !== 'intimate') return null;
             // 检查两人之间是否已有 family 类羁绊（血缘/婚姻）
             const key = normalizeCharName(toName);
@@ -308,13 +310,17 @@
                 const tName = normalizeCharName(tie?.name || '');
                 if (tName !== key) continue;
                 const ties = Array.isArray(tie?.ties) ? tie.ties.join(';') : String(tie?.ties || '');
-                // [v3.48] 置信分级：tie 显式含 from 名（如「苏晨:亲生哥哥」）→ 直接告警；
-                // 双向血缘词（兄妹/父子等，从任何一方看都成立）→ 也告警；
-                // 单向关系词无主名（如只写「亲生妹妹」未写是谁的妹妹）→ 不告警（无法确认 from 是血亲）
-                const explicitFrom = ties.includes(fromName);
-                const bidirectional = /(兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女|祖孙|血缘|血亲)/.test(ties);
-                if (explicitFrom || bidirectional) {  // 防乱伦优先：血缘证据即告警（保守策略）
-                    return { from: fromName, to: toName, relation: relationType, tie: ties };
+                // [v3.53] P14b 逐条判定修复：join(';') 后 includes(fromName) 会把「林一:朋友」误判为
+                // 林一的血亲证据（名字出现在朋友关系的 tie 里）。改为逐条 tie：
+                // 命中 = 该条 tie 同时含 from 名与血缘词，或该条 tie 含双向血缘词（兄妹/父子等）
+                const bloodRe = /(父|母|兄|弟|姐|妹|祖|孙|叔|伯|姑|姨|舅|侄|甥|血缘|血亲|亲生|兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女)/;
+                const hitTie = ties.split(';').find(t => {
+                    const hasBlood = bloodRe.test(t);
+                    if (!hasBlood) return false;
+                    return t.includes(fromName) || bidirectionalRe.test(t);
+                });
+                if (hitTie) {
+                    return { from: fromName, to: toName, relation: relationType, tie: hitTie };
                 }
             }
             return null;
@@ -1426,10 +1432,15 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         });
                         // [v3.43] 图谱关系已由 addEdge 记录为楼层 delta，供 swipe/删楼重放
                         // [v3.48] P2: 伦理冲突检测（family × intimate 交叉即告警，配合 v3.45 羁绊网防乱伦）
-                        if (this.config.config.ethicsConflictEnabled !== false && Array.isArray(extracted?.ties_context)) {
-                            const _ethics = detectEthicsConflict(relFrom, relTo, rel.type, extracted.ties_context);
-                            if (_ethics && this.config.config.debugMode) {
-                                console.warn(`[${PLUGIN_NAME}] ⚠️ 伦理冲突: ${_ethics.from} × ${_ethics.to}（${_ethics.relation}）与既有血缘羁绊「${_ethics.tie}」交叉`);
+                        // [v3.53] P14 静默缺口修复: extracted.ties_context 从未在提取 schema 中定义（v3.48 遗留），
+                        // existingTies 永远 undefined → 检测从未工作。改用 engine 侧真实羁绊数据。
+                        if (this.config.config.ethicsConflictEnabled !== false) {
+                            const _tiesData = this.status?.getNpcTiesRecords?.() || [];
+                            if (_tiesData.length) {
+                                const _ethics = detectEthicsConflict(relFrom, relTo, rel.type, _tiesData);
+                                if (_ethics && this.config.config.debugMode) {
+                                    console.warn(`[${PLUGIN_NAME}] ⚠️ 伦理冲突: ${_ethics.from} × ${_ethics.to}（${_ethics.relation}）与既有血缘羁绊「${_ethics.tie}」交叉`);
+                                }
                             }
                         }
                     }

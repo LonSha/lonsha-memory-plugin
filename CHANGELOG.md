@@ -1,3 +1,10 @@
+## [v3.53.0] - 2026-09-13
+### 可观测性与防线落地：诊断面板命中率卡片、伦理检测静默缺口根治（v3.48 遗留实锤）
+- **诊断面板召回源命中率卡片 (Hit-Rate Panel Card)**：settings-ui 状态总览新增「📈 召回源命中率」卡片（消费 v3.52 的 `_recallSourceStats`）——按命中次数降序渲染各召回源的 ASCII 条形图 + 百分比（`vector ████████ 80%（160 次/200 轮）`），附调优提示「长期 0% 的召回源可在设置中关闭以省资源」。召回调优从"看日志猜"变为"看面板读数"。
+- **伦理检测静默缺口根治 (Ethics Guard Silent Gap Fix)**：**v3.48 实锤遗留缺陷**——`detectEthicsConflict` 的调用守卫读 `extracted.ties_context`，但该字段从未在提取 schema 中定义，`existingTies` 永远 undefined，**伦理防线从未实际工作过**。修复：改用 engine 侧真实羁绊数据 `this.status.getNpcTiesRecords()`。
+- **逐条 tie 精准判定 (Per-Tie Precision)**：修复过程中暴露第二层 bug——`ties.join(';').includes(fromName)` 会把「林一:朋友」误判为林一的血亲证据（名字出现在朋友关系的 tie 里，表兄弟式误报）。重构为**逐条 tie 判定**：命中 = 该条 tie 同时含 from 名与血缘词，或该条 tie 含双向血缘词（兄妹/父子等）；返回的 `tie` 字段从整串降为命中的单条，告警信息更精准。
+- **自动化测试**：新增 `tests/v353_panel_ethics_fix.test.mjs`（3 测试块：面板卡片双文件验证、静默缺口根治、伦理检测端到端模拟——含朋友关系不误报的高置信断言），全量 55 个测试套件 84 个测试 100% 绿灯通过。
+
 ## [v3.52.0] - 2026-09-13
 ### 性能工程：bridge BM25 增量索引、召回源累计命中率统计
 - **bridge BM25 增量更新 (Incremental BM25 Indexing)**：手机端桥的检索索引从"每次 dirty 全量 rebuild"升级为**增量 append**——维护 `_indexedIds` 已索引集合，dirty 时只对新记忆调用 `BM25.add()`（IDF 增量更新），长对话免全量重扫。混合策略：首次（N===0）或超 800 条时全量 rebuild 保 IDF 精度。pool 感知层条目无稳定 id，用**内容前缀 hash** 幂等（同内容不重复索引）。
