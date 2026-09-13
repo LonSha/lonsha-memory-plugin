@@ -12,8 +12,8 @@ const suSrc = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8
 test('=== 1. 注入缓存双路径验证 ===', () => {
     assert.ok(src.includes("this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null }"), '主路径缓存（含 prev 快照）');
     assert.ok(src.includes("this._lastInjection = { html: inj, ts: Date.now(), prev: this._lastInjection?.html || null }"), '降级路径缓存（含 prev 快照）');
-    // 缓存的是裁剪后最终形态（buildInjection 返回值）
-    assert.ok(src.includes('const inj2 = this.buildInjection(candidateItems);'), '主路径调用在位');
+    // 缓存的是裁剪后最终形态（buildInjection 返回值）——[v3.87] 起 inj2 为 let（追加前情注入）
+    assert.ok(src.includes('let inj2 = this.buildInjection(candidateItems);'), '主路径调用在位');
     console.log('✓ 注入缓存双路径验证通过');
 });
 

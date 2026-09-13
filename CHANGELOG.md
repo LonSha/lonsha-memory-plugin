@@ -1,3 +1,14 @@
+## [3.87.0] - 2026-09-14
+### Added
+- **前情导入与边界加权切片注入**（吸收 MyriadKnots recall-prequel）：新增 PrequelSystem——用户在设置面板粘贴过去经历原文（旧存档概要/前作剧情/人设背景），随聊天持久化（collectExport/storage.load/文件导入/快照恢复四路接线）
+- **边界加权切片**（忠实移植 splitPrequelText）：换行权重3/句叹分号2/空白1，默认 560 字/片，在窗口末端回溯最高权重边界断句，避免切断句子
+- **BM25 分支归一化选段**（复用 v3.86 战果）：超预算时用临时 BM25 实例装载切片，以 latestUser(0.65)/recentAssistant(0.25)/previousUser(0.1) 三分支 + 主查询 0.3 锚点做 searchBranches 选段——前情选段与主召回共享同一套分支归一化引擎
+- **预算策略**：前情占注入预算 30%（千千结 PREQUEL_BUDGET_SHARE），token 上限 1200（千千结 MAX_PREQUEL_TOKENS），字符/token 双口径取严；预算内全量注入
+- **无命中兜底**（fallbackToTail）：当前对话与前情无 BM25 重叠时注入末尾两段（剧情结尾通常是最新状态）
+- **注入格式**：【用户导入的过去经历资料】头 + 「旧状态不代表现在仍持续」指令行 + 【前情片段 N】分块，追加在记忆私密简报尾部
+- 设置面板：状态总览新增「📜 前情导入」卡片（prequel 视图 textarea 编辑/保存/清空）、设置开关 prequelEnabled
+### Tests
+- 新增 v387_prequel.test.mjs（切片边界加权/预算内全量注入/超限分支选段/无命中尾部兜底/持久化往返/接线静态检查），全量测试全绿
 ## [3.86.0] - 2026-09-14
 ### Added
 - **BM25 多路分支归一化检索**（吸收 MyriadKnots recall-ranking）：BM25 新增 searchBranches(branches, topK, opts)——每路查询（latestUser 0.65 / recentAssistant 0.25 / previousUser 0.1）先按分支内最高分独立归一化再加权合成，解决长背景文本 BM25 绝对分淹没用户最新短输入的顽疾；分支全零保持全零（不放大全语料级低 IDF 重叠）；结果携带 branchScores 供命中监控溯源

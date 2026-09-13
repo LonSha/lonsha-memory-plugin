@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.86.0';
+    const VERSION = '3.87.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -618,6 +618,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 summaryFoldBatchSize: 20,   // 每批折叠条数
                 bm25Enabled: true,          // BM25 稀疏检索（词频×逆文档频率）
                 bm25TopK: 5,                // BM25 每轮召回条数
+                prequelEnabled: true,       // [v3.87] 用户导入前情资料（Prequel）按相关性选段注入
+
                 // [v2.0] P2: 角色状态表 + 楼层账本
                 characterStateEnabled: true,   // 角色数值状态追踪（好感/疲劳/心情等）
                 todoTrackingEnabled: true,     // 待办事项追踪（带剧情日期，过期自动清理）
@@ -1296,6 +1298,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.clock = new GameClock();
             // [v1.9] P1
             this.bm25 = new BM25();
+            this.prequel = new PrequelSystem();   // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入前情资料
             // [v2.0] P2
             this.status = new CharacterState();
             this.ledger = new FloorLedger();
@@ -2608,7 +2611,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         } catch (e) { errLog(e, 'recallMemory.跨调用去重'); }
                     }
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
-                const inj2 = this.buildInjection(candidateItems);
+                let inj2 = this.buildInjection(candidateItems);
+                const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
+                if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
                 if (inj2) this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
@@ -3833,6 +3838,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return [];
             }
         }
+        // [v3.87] 前情资料注入（吸收 MyriadKnots recall-prequel：边界加权切片 + BM25 分支归一化选段）
+        buildPrequelInjection(query) {
+            try {
+                if (!this.prequel) return '';
+                return this.prequel.buildInjection(query, {
+                    baseChars: Number(this.config.config.injectionBudget) || 3000,
+                    tokenBase: Number(this.config.config.memoryTokenBudget) || 900,
+                    enabled: this.config.config.prequelEnabled !== false
+                });
+            } catch (e) { errLog(e, 'buildPrequelInjection'); return ''; }
+        }
         // [v1.5] 注入格式（抄 baibai 私密简报包裹 + HCDiary 分区结构）
         buildInjection(recalled) {
             if (!recalled?.length) return '';
@@ -4734,6 +4750,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 conflicts: this.conflicts.export(),
                 scene: this.scene.export(),
                 echo: this.echo?.export?.(),
+                prequel: this.prequel ? this.prequel.export() : { text: '' },   // [v3.87] 前情资料随聊天持久化
                 supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
                 narrativeEntropy: this._narrativeEntropy || 0,
                 packedAt: new Date().toISOString()
@@ -5276,6 +5293,128 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             if (data?.edges) for (const edge of data.edges) this.edges.set(edge.id, edge);
             this.graphOps = Array.isArray(data?.graphOps) ? data.graphOps : [];
             this.rebuildNameIndex();   // [v3.6] 统一走重建（原实现不归一化，SF4 归一化键缺失）
+        }
+    }
+    
+    // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入的过去经历资料（前情导入）
+    // 边界加权切片（换行3/句叹分号2/空白1）+ BM25 分支归一化选段 + 预算内注入
+    class PrequelSystem {
+        constructor() {
+            this.text = '';          // 前情原文（随聊天持久化）
+            this.importedAt = 0;
+            this._fragCache = { src: null, maxChars: 0, fragments: [] };
+        }
+        FRAGMENT_CHARS = 560;      // 千千结 DEFAULT_FRAGMENT_CHARACTERS
+        BUDGET_SHARE = 0.3;        // 千千结 PREQUEL_BUDGET_SHARE
+        MAX_TOKENS = 1200;         // 千千结 MAX_PREQUEL_TOKENS
+        INSTRUCTION = '以下内容为用户导入的过去经历资料，仅用于理解前情。旧状态不代表现在仍持续；若新聊天已明确发生变化，以新聊天为准。';
+        MAX_SOURCE_CHARS = 400000; // 硬上限防恶意输入
+
+        importPrequel(text) {
+            const s = String(text ?? '').replace(/\r\n/g, '\n').trim();
+            if (!s) return { ok: false, chars: 0 };
+            const truncated = s.length > this.MAX_SOURCE_CHARS;
+            this.text = truncated ? s.slice(0, this.MAX_SOURCE_CHARS) : s;
+            this.importedAt = Date.now();
+            this._fragCache = { src: null, maxChars: 0, fragments: [] };
+            return { ok: true, chars: this.text.length, truncated };
+        }
+        clearPrequel() { this.text = ''; this.importedAt = 0; this._fragCache = { src: null, maxChars: 0, fragments: [] }; }
+        export() { return { text: this.text, importedAt: this.importedAt }; }
+        import(data) {
+            if (!data || typeof data !== 'object') return;
+            this.text = String(data.text || '');
+            this.importedAt = Number(data.importedAt) || 0;
+            this._fragCache = { src: null, maxChars: 0, fragments: [] };
+        }
+        // 边界权重（千千结 boundaryWeight）：换行3 / 句叹分号2 / 空白1
+        _boundaryWeight(ch) {
+            if (/[\n\r]/.test(ch)) return 3;
+            if (/[。！？!?；;]/u.test(ch)) return 2;
+            if (/\s/u.test(ch)) return 1;
+            return 0;
+        }
+        // 边界加权切片（忠实移植 splitPrequelText）
+        splitFragments(source, maxChars = 560) {
+            const s = String(source ?? '');
+            if (!s) return [];
+            const chars = [...s];
+            const maximum = Math.max(32, Math.floor(Number(maxChars) || 560));
+            const fragments = [];
+            for (let start = 0; start < chars.length;) {
+                const endLimit = Math.min(chars.length, start + maximum);
+                let end = endLimit;
+                if (endLimit < chars.length) {
+                    const minimum = Math.min(endLimit, start + Math.max(16, Math.floor(maximum * 0.55)));
+                    let bestWeight = 0;
+                    for (let index = endLimit - 1; index >= minimum; index -= 1) {
+                        const weight = this._boundaryWeight(chars[index]);
+                        if (weight > bestWeight) { end = index + 1; bestWeight = weight; }
+                        if (weight === 3) break;
+                    }
+                }
+                fragments.push({ index: fragments.length + 1, text: chars.slice(start, end).join('') });
+                start = end;
+            }
+            return fragments;
+        }
+        _frags(maxChars) {
+            if (this._fragCache.src === this.text && this._fragCache.maxChars === maxChars) return this._fragCache.fragments;
+            const fragments = this.splitFragments(this.text, maxChars);
+            this._fragCache = { src: this.text, maxChars, fragments };
+            return fragments;
+        }
+        _format(selected) {
+            if (!selected || !selected.length) return '';
+            return '【用户导入的过去经历资料】\n' + this.INSTRUCTION + '\n\n'
+                + selected.map(f => '【前情片段 ' + f.index + '】\n' + f.text).join('\n\n');
+        }
+        _estimateTokens(text) { return Math.ceil((text || '').length / 4); }   // ~0.25 token/字符（与注入预算口径一致）
+        _tailFallback(fragments) { return fragments.slice(-2); }   // 千千结 fallbackToTail：无命中取尾部两段
+        // 选段：预算内全量；超限时用 BM25 分支归一化按当前对话相关性挑片段
+        selectInjection(fragments, branchList, mainText, charBudget, tokenBudget) {
+            const within = (sel) => {
+                const t = this._format(sel);
+                return t.length <= charBudget && this._estimateTokens(t) <= tokenBudget;
+            };
+            const complete = this._format(fragments);
+            if (complete.length <= charBudget && this._estimateTokens(complete) <= tokenBudget) {
+                return fragments.slice();
+            }
+            const bm = new BM25();
+            bm.rebuild(fragments.map(f => ({ id: f.index, text: f.text, floor: f.index, source: 'prequel' })));
+            const branchSet = (branchList || [])
+                .filter(b => b && b.text && Number(b.weight) > 0)
+                .map(b => ({ key: b.key, text: b.text, weight: Number(b.weight) }));
+            branchSet.push({ key: 'main', text: String(mainText || ''), weight: 0.3 });   // 主查询 0.3 锚点（与召回管线同基调）
+            let ranked = [];
+            try { ranked = bm.searchBranches(branchSet, fragments.length, { cliffCut: false }); } catch (e) { ranked = []; }
+            const byIndex = new Map(fragments.map(f => [f.index, f]));
+            const matches = ranked.filter(r => (r.score || 0) > 0).sort((a, b) => (b.score - a.score) || (b.id - a.id));
+            const candidates = matches.length ? matches.map(m => byIndex.get(m.id)).filter(Boolean) : this._tailFallback(fragments);
+            let selected = [];
+            for (const frag of candidates) {
+                const attempt = [...selected, frag].sort((a, b) => a.index - b.index);
+                if (within(attempt)) selected = attempt;
+            }
+            return selected;
+        }
+        buildInjection(query = {}, opts = {}) {
+            if (opts.enabled === false) return '';
+            if (!String(this.text || '').trim()) return '';
+            const baseChars = Math.max(600, Number(opts.baseChars) || 3000);
+            const tokenBase = Math.max(200, Number(opts.tokenBase) || 900);
+            // 前情预算占比 30%（千千结 PREQUEL_BUDGET_SHARE），字符/token 双口径取严
+            const charBudget = Math.max(200, Math.floor(baseChars * this.BUDGET_SHARE));
+            const tokenBudget = Math.min(this.MAX_TOKENS, Math.max(150, Math.floor(tokenBase * this.BUDGET_SHARE)));
+            const effCharBudget = Math.min(charBudget, tokenBudget * 4);
+            const fragMax = Math.max(32, Math.min(this.FRAGMENT_CHARS, effCharBudget - 120));
+            const fragments = this._frags(fragMax);
+            if (!fragments.length) return '';
+            const branchList = (query?.branches || []).map(b => ({ key: b.key, text: b.text, weight: Number(b.weight) }));
+            const selected = this.selectInjection(fragments, branchList, String(query?.text || ''), effCharBudget, tokenBudget);
+            const injectionText = this._format(selected);
+            return injectionText;
         }
     }
     
@@ -8232,6 +8371,7 @@ ${recentTurns}`;
                     if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
                     if (data.scene && engine.scene) engine.scene.import(data.scene);
                     if (data.echo && engine.echo) engine.echo.import(data.echo);
+                    if (data.prequel && engine.prequel) engine.prequel.import(data.prequel);   // [v3.87] 前情资料
                     if (data.supersede && engine.supersede) engine.supersede.import(data.supersede);
                     if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
                     // [v3.16] 角色记忆银行 + 世界推进恢复

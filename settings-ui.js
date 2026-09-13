@@ -108,6 +108,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">🔒 锁定事实 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="prequel"><div class="ls-stat-num">${s.prequel?.text ? '👁' : '—'}</div><div class="ls-stat-label">📜 前情导入 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">⚔️ 未决矛盾 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="deltas"><div class="ls-stat-num">${s.deltaBook?.deltas?.length || 0}</div><div class="ls-stat-label">📒 正史增量 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
@@ -153,6 +154,29 @@
                 });
             }
 
+            // [v3.87] prequel 视图的保存绑定
+            if (viewType === 'prequel') {
+                const saveBtn = ov.querySelector('#ls-pq-save');
+                const ta = ov.querySelector('#ls-pq-text');
+                if (saveBtn && ta) {
+                    saveBtn.addEventListener('click', async () => {
+                        const val = (ta.value || '').trim();
+                        try {
+                            if (!val) {
+                                s.prequel?.clearPrequel?.();
+                                toast('已清空前情资料');
+                            } else {
+                                const r = s.prequel.importPrequel(val);
+                                if (!r.ok) { toast('内容为空'); return; }
+                                toast(r.truncated ? ('✅ 已保存（超长截断至 ' + r.chars + ' 字符）') : ('✅ 已保存 ' + r.chars + ' 字符'));
+                            }
+                            const chatId = s.getCurrentChatId?.();
+                            if (chatId) await s.storage.save(chatId, s.collectExport());
+                            plugin.showBrowser('prequel');
+                        } catch (e) { toast('保存失败: ' + e.message); }
+                    });
+                }
+            }
             // [v3.74] B3: summaries 视图的手动补摘绑定
             if (viewType === 'summaries') {
                 const addBtn = ov.querySelector('#ls-ms-add');
@@ -567,6 +591,16 @@
                 }
             }
 
+            else if (viewType === 'prequel') {
+                // [v3.87] 前情导入（吸收 MyriadKnots recall-prequel）
+                title = '📜 前情导入';
+                const pq = s.prequel;
+                const cur = pq?.text || '';
+                body = `<div class="ls-hint">粘贴过去经历的原文资料（旧存档概要/前作剧情/人设背景等）。每次生成时自动切片并按当前对话相关性选段注入（预算为注入预算的 30%，token 上限 1200）；无命中时兜底注入末尾两段。留空保存即清除。</div>
+                    <textarea class="ls-textarea" id="ls-pq-text" style="min-height:200px;" placeholder="在此粘贴前情资料…">${esc(cur)}</textarea>
+                    <div class="ls-hint" id="ls-pq-stat">当前 ${cur.length} 字符${pq?.importedAt ? ' · 导入于 ' + new Date(pq.importedAt).toLocaleString('zh-CN') : ''}</div>
+                    <button class="ls-btn ls-btn-primary" id="ls-pq-save">💾 保存前情资料</button>`;
+            }
             else if (viewType === 'report') {
                 // [v3.61] P24: 记忆全景 Markdown 报告导出
                 const md = this.engine.exportMemoryReport();
@@ -678,6 +712,7 @@
                     <div class="ls-group-title">📚 层级摘要折叠 + BM25 稀疏检索</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
                     ${ck('bm25Enabled', 'BM25 关键词检索', '词频×逆文档频率稀疏检索，比纯包含匹配更准')}
+                    ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}
                     <div class="ls-slider-label"><span>折叠阈值（条）</span><span class="ls-slider-val" id="ls-v-fold">${c.summaryFoldThreshold || 30}</span></div>
                     <input type="range" class="ls-slider" min="15" max="80" step="5" value="${c.summaryFoldThreshold || 30}" data-cfg-num="summaryFoldThreshold">
                     <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
@@ -939,6 +974,7 @@
                             if (data.suspense && this.engine.suspense) this.engine.suspense.import(data.suspense);
                             if (data.scene && this.engine.scene) this.engine.scene.import(data.scene);
                             if (data.echo && this.engine.echo) this.engine.echo.import(data.echo);
+                            if (data.prequel && this.engine.prequel) this.engine.prequel.import(data.prequel);   // [v3.87] 前情资料
                             if (data.reflection && this.engine.reflection) this.engine.reflection.import(data.reflection);
                             if (Array.isArray(data.itemOps)) { this.engine.itemOps = data.itemOps; (this.engine.reconcileItemOps || this.engine.rebuildItems).call(this.engine); }
                             const chatId = this.engine.getCurrentChatId();
@@ -1113,6 +1149,7 @@
                         if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
                         if (data.scene && engine.scene) engine.scene.import(data.scene);
                         if (data.echo && engine.echo) engine.echo.import(data.echo);
+                        if (data.prequel && engine.prequel) engine.prequel.import(data.prequel);   // [v3.87] 前情资料
                         if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
                         if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems).call(engine); }   // [v3.4] 恢复后走对账（补 fp/清理，去重复调用）
                         const cid = engine.getCurrentChatId();
