@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.48.0';
+    const VERSION = '3.49.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1222,6 +1222,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             this.cards = new CardCollection();
             this.conflicts = new ConflictBook();
             this.outline = new OutlineDirector();
+            this.pairMem = new PairMemory();
         }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
@@ -1344,6 +1345,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                             // [v3.48] P0-4: backfill 携带剧情时钟快照（money_changes/conflicts 已在 extracted 原生 schema）
                             const _backfillPayload = { ...extracted, clock: this.clock?.export?.() || null };
                             bridge.backfill(_backfillPayload);
+                            // [v3.49] P4: 心理暗流日记双端互通（幂等回填手机日记 App）
+                            if (this.config.config.diaryBridgeEnabled !== false && this.diary?.diaries) {
+                                try { bridge.backfillDiaries?.(this.diary.diaries); } catch (e) { errLog(e, 'rubyPhoneBridge.日记回填'); }
+                            }
                         } else if (window.VirtualPhone?.memoryCore) {
                             // 兜底: 桥未挂载时直接写入记忆库 (摘要→长期记忆)
                             const s = String(extracted.summary || '').trim();
@@ -1595,6 +1600,14 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         if (sd) this.status.pruneTodos(sd, this.config.config.todoExpiryMinutes || 60);
                     } catch (e) { errLog(e, 'onMessageReceived.状态应用'); }
                 }
+                // [v3.49] P5: 群像共同记忆（关系对归因式切片）
+                if (this.config.config.pairMemoryEnabled !== false && Array.isArray(extracted?.relationships)) {
+                    try {
+                        const sd = this.getLatestStoryDate();
+                        const n = this.pairMem.addFromExtracted(extracted.relationships, extracted.characters, floor, sd);
+                        if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 👥 群像记忆更新 ${n} 条`);
+                    } catch (e) { errLog(e, 'onMessageReceived.群像记忆'); }
+                }
                 // [v3.47] 钱财账本 + 剧情卡牌（hcdiary 吸收）
                 if (this.config.config.moneyLedgerEnabled !== false && Array.isArray(extracted?.money_changes) && extracted.money_changes.length) {
                     try {
@@ -1797,7 +1810,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         cards: this.cards.export(),
                         conflicts: this.conflicts.export(),
                 outline: this.outline.export(),
+                pairMem: this.pairMem.export(),
                         outline: this.outline.export(),
+                        pairMem: this.pairMem.export(),
                         scene: this.scene.export(),
                         echo: this.echo.export(),
                         supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
@@ -3607,6 +3622,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const outlinePrompt = this.outline.toPrompt();
                 if (outlinePrompt) blocks.push(outlinePrompt);
             }
+            // [v3.49] P5: 群像共同记忆注入（只注入在场角色相关的关系对）
+            if (this.pairMem) {
+                const pairPrompt = this.pairMem.toPrompt(extracted?.characters || this.captureCast());
+                if (pairPrompt) blocks.push(pairPrompt);
+            }
             if (timelines.length) {
                 // [v3.32] chronicle timeline tiering (Visual-Memory highlightThreshold idea): key events >=7 top block, rest as list
                 const tlKey = timelines.filter(i => (i.importance || 5) >= 7);
@@ -3829,6 +3849,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
                 try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
+                try { const npm = this.pairMem?.removeByFloor ? this.pairMem.removeByFloor(floor) : 0; if (npm && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 群像回滚: ${npm}条`); } catch (e) { errLog(e, 'rollbackFloor.群像回滚'); }
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
                 try { const ni = this.rollbackItemsFrom ? this.rollbackItemsFrom(floor) : 0; if (ni && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 台账对账: 清理 ${ni} 条失效ops`); } catch (e) { errLog(e, 'rollbackFloor.台账对账'); }
@@ -3910,6 +3931,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 for (const l of (this.moneyLedger?.moneyLog || [])) l.floor = dec(l.floor);
                 for (const c of (this.cards?.cards || [])) c.floor = dec(c.floor);
                 for (const c of (this.conflicts?.conflicts || [])) c.floor = dec(c.floor);
+                for (const p of (this.pairMem?.pairs || [])) for (const e of p.entries) e.floor = dec(e.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
                 // 角色状态 ops + todos.floor
@@ -4016,6 +4038,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 if (pack.cards && this.cards) this.cards.import(pack.cards);
                 if (pack.conflicts && this.conflicts) this.conflicts.import(pack.conflicts);
                 if (pack.outline && this.outline) this.outline.import(pack.outline);
+                if (pack.pairMem && this.pairMem) this.pairMem.import(pack.pairMem);
                 if (Array.isArray(pack.timeline) && pack.timeline.length) this.timeline.entries = [...pack.timeline];
                 if (Array.isArray(pack.statusFlat) && pack.statusFlat.length) {
                     this.status.applyChanges(pack.statusFlat, 0, true);
@@ -6603,6 +6626,92 @@ ${win}`;
                 this.history = Array.isArray(data.history) ? data.history : [];
             }
         }
+    }
+
+    // [v3.49] 吸收 memorybooks Topical Clip: 群像共同记忆（关系对为单位，归因式）
+    // "Alice did X, Bob thought Y, both agreed Z"——归因清晰，不合并人格；
+    // 只有单方知晓的事实时显式标注，不暗示共享认知（除非剧情支持）。
+    class PairMemory {
+        constructor() { this.pairs = []; }
+        static _keyOf(a, b) {
+            const x = normalizeCharName(a), y = normalizeCharName(b);
+            return [x, y].sort().join('|');
+        }
+        /** 记录关系对共同经历的事件（归因式） */
+        addEntry(a, b, floor, storyTime, attribution) {
+            const ka = String(a || '').trim(), kb = String(b || '').trim();
+            if (!ka || !kb || ka === kb) return false;
+            const event = String(attribution?.event || '').trim();
+            if (event.length < 4) return false;
+            const key = PairMemory._keyOf(ka, kb);
+            if (this.pairs.some(p => p.key === key && p.entries.some(e => e.event === event))) return false;
+            let pair = this.pairs.find(p => p.key === key);
+            if (!pair) {
+                pair = { key, a: ka, b: kb, entries: [] };
+                this.pairs.push(pair);
+            }
+            pair.entries.push({
+                event: event.slice(0, 100),
+                // 归因：谁做了什么、谁怎么想、共同约定（memorybooks 原则：不合并人格）
+                actorDo: String(attribution?.actorDo || '').slice(0, 80),
+                otherThink: String(attribution?.otherThink || '').slice(0, 80),
+                bothAgreed: String(attribution?.bothAgreed || '').slice(0, 80),
+                // 认知归属：只有单方知道的事实时显式标注
+                knownBy: attribution?.knownBy === 'both' ? 'both' : 'one',
+                floor: floor || 0,
+                time: String(storyTime || '').slice(0, 30),
+                timestamp: Date.now()
+            });
+            if (pair.entries.length > 20) pair.entries.shift();
+            return true;
+        }
+        /** 从提取的 relationships + events 归因构建 */
+        addFromExtracted(relationships, characters, floor, storyTime) {
+            let n = 0;
+            for (const rel of (relationships || []).slice(0, 6)) {
+                const from = rel?.from || '', to = rel?.to || '';
+                if (!from || !to) continue;
+                if (this.addEntry(from, to, floor, storyTime, {
+                    event: `关系确立/变化：${rel.type || '相关'}`,
+                    actorDo: `${from} 对 ${to} 的态度：${rel.type}`,
+                    knownBy: 'both'
+                })) n++;
+            }
+            return n;
+        }
+        /** 注入：关系对的历史事件线（Topical Clip 风格） */
+        toPrompt(presentChars) {
+            if (!this.pairs.length) return '';
+            const present = new Set((presentChars || []).map(c => normalizeCharName(c)));
+            // 只注入在场角色相关的关系对
+            const relevant = this.pairs.filter(p => present.has(p.a) || present.has(p.b));
+            if (!relevant.length) return '';
+            const rows = [];
+            for (const pair of relevant.slice(-5)) {
+                const recent = pair.entries.slice(-3);
+                for (const e of recent) {
+                    let line = `- ${pair.a} × ${pair.b}：${e.event}`;
+                    if (e.actorDo) line += `｜${e.actorDo}`;
+                    if (e.otherThink) line += `｜${e.otherThink}`;
+                    if (e.bothAgreed) line += `｜共同：${e.bothAgreed}`;
+                    if (e.knownBy === 'one') line += '｜⚠️仅单方知晓';
+                    rows.push(line);
+                }
+            }
+            return rows.length ? `[群像共同记忆·归因式]（关系对的共同经历，归因清晰；⚠️标注项仅单方知晓，另一方绝不知情）：\n${rows.join('\n')}` : '';
+        }
+        removeByFloor(floor) {
+            let n = 0;
+            for (const pair of this.pairs) {
+                const before = pair.entries.length;
+                pair.entries = pair.entries.filter(e => e.floor !== floor);
+                n += before - pair.entries.length;
+            }
+            this.pairs = this.pairs.filter(p => p.entries.length > 0);
+            return n;
+        }
+        export() { return { pairs: this.pairs }; }
+        import(data) { if (data && Array.isArray(data.pairs)) this.pairs = data.pairs; }
     }
 
     // [v2.9] RU-C: 存储快照管理（抄 shujuku SQLite 版本管理理念——IndexedDB 每50楼一份快照，可回溯恢复）

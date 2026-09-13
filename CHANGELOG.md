@@ -1,3 +1,10 @@
+## [v3.49.0] - 2026-09-13
+### 日记双端互通与群像归因式记忆：心理暗流日记同步手机日记App、PairMemory 关系对归因切片
+- **心理暗流日记双端互通 (Subtext Diary Bridge)**：`bridge.backfillDiaries(diaries)` 将 LonSha DiarySystem 的结构化心理日记（v3.47 的 entry/mood/secret/attitude/keyEvents/subjRelations 六字段）同步渲染进手机日记 App 的实体书排版。排版文本含「没说出口：…」「对用户态度：…」「主观印象：…」三段式；幂等（`lonsha_{name}_{floor}` 条目 id，同楼同角色不重复）；每角色只同步最近 3 篇防堆积。`diaryBridgeEnabled` 开关（默认开）——双端自此共用一套"人心"数据，手机日记 App 8.9 万行的实体书排版界面直接渲染 v3.47 心理暗流字段。
+- **群像共同记忆 (PairMemory: Attribution-style Group Memory)**：吸收 memorybooks Topical Clip 归因式原则，新增 `PairMemory` 类——以**关系对**为单位记忆共同经历："Alice did X, Bob thought Y, both agreed Z"归因清晰不合并人格。`addEntry` 记录 `{event, actorDo（谁做了什么）, otherThink（对方怎么想）, bothAgreed（共同约定）, knownBy}`；关系对 key 排序归一（A|B 与 B|A 同一关系对）；`knownBy: 'one'` 单方知晓事实显式标注「⚠️仅单方知晓」，与 POV 全知禁令组合。`[群像共同记忆·归因式]` 注入块只注入在场角色相关的关系对（在场过滤）。提取路由从 relationships 自动归因构建。
+- **全链路一致性**：pairMem 完整接入 collectExport（两处）→ storage.load 恢复 → rollbackFloor 按楼回滚 → shiftFloorsFrom 删楼位移，与既有子系统同等级保障。
+- **自动化测试**：新增 `tests/v349_pair_diary_bridge.test.mjs`（3 测试块：日记双端静态验证、PairMemory 完整行为（归因/幂等/排序归一/在场过滤/单方知晓标注）、接入链路完整性），全量 51 个测试套件 72 个测试 100% 绿灯通过。
+
 ## [v3.48.0] - 2026-09-13
 ### 桥修复与导演系统：LonSha↔RubyPhone 双向桥三处断线根治、剧情大纲导演（pacing 四相）、关系五分类学与伦理冲突检测、本地意图分流重排
 - **P0 桥三处断线根治 (Bridge Breakdown Fix)**：排查 LonSha↔RubyPhone 双向桥发现三处 v1.7 时代遗留的静默失效：① LonSha 调用 `lonshaBridge.queryPhoneMemory` 但桥从未实现该方法（只有 `recall`）——`?.` 可选链静默吞调用，**手机记忆作为召回源从未真正生效**；② 守卫开关读 `rubyPhoneSync` 但配置定义的是 `rubyPhoneRecall`——开关恒 undefined；③ 字段映射期望 `h.id/h.type` 但 `recall` 返回 `{content,score,layer,floor}`。修复：桥补 `queryPhoneMemory` 别名（转发 recall）、开关名对齐、字段映射兼容 `h.layer`。双向桥自此名副其实。
