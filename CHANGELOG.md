@@ -1,3 +1,11 @@
+## [3.85.0] - 2026-09-13
+### Added
+- **WorldProgress 数据源接线**（v3.41 吸收的承诺账本/剧情支线/认知隔离从"有壳无水源"变为完整管线）：提取 prompt 新增 9h promises（明确立下的承诺，deadlineFloor 仅正文给出楼层时才填）、9i plot_arcs（新增/触碰/解决三态）、9j knowledge_changes（认知 unaware/reveal）、9k promises_resolve（履行/违约既有承诺）；JSON schema 示例同步声明。onMessageReceived 应用块（受 worldProgressEnabled 门控）：addPromise 批量上限 3（空内容不入账、同角色同内容幂等合并）、addPlotArc 上限 3（同标题同线索合并、记录 createdFloor）、knowledge 上限 8；每楼即时 checkPromises + decayArcs；opLog 埋点
+- **WorldProgress 楼层生命周期**：removeByFloor（删楼清该楼来源承诺/场外动态/支线，支线 lastActive 指针回退、resolutionFloor 撤销重置）+ shiftFloorRefs（删楼前移后 floor/deadlineFloor/lastActiveFloor/createdFloor 指针跟随，9999 哨兵豁免）；rollbackFloor 与 shiftFloorsFrom 双双挂接
+- **OutlineDirector 楼层生命周期**：removeByFloor/rollbackFloor（删已执行轮次→撤销历史+回退 _turnIndex/_turnFloor，未执行计划保留）+ shiftFloorRefs（history floorFrom/floorTo + _turnFloor 位移）；rollbackFloor 与 shiftFloorsFrom 挂接
+- **认知隔离提示真正投放**：toInjection(knownChars) 新增 wp_knowledge 注入块（当前在场角色 getReEntryNotice 非空时）；生成前注入改为 worldProgressEnabled 门控（默认关时不注入）
+### Tests
+- 新增 v385_worldprogress_pipeline.test.mjs（7 组：prompt 字段+JSON schema/承诺规范化复刻 5 用例/支线合并复刻 4 用例/WorldProgress 楼层生命周期复刻 6 用例/OutlineDirector 楼层生命周期复刻 5 用例/挂接与注入门控静态/回归防护），全量 264 测试全绿
 ## [3.84.0] - 2026-09-13
 ### Added
 - **角色记忆银行楼层生命周期**（charMem 位移缺口闭环）：CharacterMemoryBank 新增 shiftFloorRefs——删楼前移后 core/recent 记忆的 floor 指针跟随（防显示错位与后续按楼层误删）；shiftFloorsFrom 挂接

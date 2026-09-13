@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.84.0';
+    const VERSION = '3.85.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -578,9 +578,14 @@ pacing 语义：setup=铺垫（关系/信息/情绪），pressure=施压（行�
 tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，aftermath=余波消化。JSON 输出中不需要包含 outline 字段。
 9f. protagonist：主角客观档案变化（gender/age/identity/appearance/outfit/condition 六字段，只填本轮【明确变化或有新信息】的字段，其余省略；没有变化填 null）。例：{"outfit":"换上了蓝色礼服","condition":"左手受伤缠着绷带"}。
 9g. life_details：主角的偏好/习惯/近期个人状态（如"不吃香菜""在赶项目死线"）。【铁律：只认主角自己明说过、或正文明确揭示的】禁止从行为/语气推断偏好与内心。每条 {"text":"细节文本","topics":["饮食"],"anchors":["香菜"],"until":""}：topics 填 1-3 个主题标签（饮食/作息/工作…），anchors 填原文可检索的关键词，until 填故事内到期时间表示有时效（如"3月20日"），长期稳定偏好 until 留空。已有同义条目一律不重复。没有则填空数组。
+9h. promises：本轮剧情中【明确立下】的承诺/约定（只认角色说出口或正文明确写出的内容，禁止根据意图臆测）。每条 {"character":"承诺者主名","content":"承诺内容","deadlineFloor":15}；deadlineFloor 只有正文明确给出将在哪个楼层/节点前完成时才填写数字，否则填 null。没有则填空数组。不要把普通计划、愿望或悬念重复填入 promises。
+9i. plot_arcs：本轮新建立或明确推进的长期剧情支线。新增填 {"action":"add","title":"支线标题","clue":"当前线索","interestedBy":"关注角色主名"}；本轮触碰既有支线填 {"action":"touch","title":"既有支线标题"}；明确解决填 {"action":"resolve","title":"既有支线标题","reason":"解决方式"}。没有则填空数组。不要凭空创建支线。
+9j. knowledge_changes：角色对事实的认知边界变化。角色在场外期间明确不知道某事实填 {"action":"unaware","character":"角色主名","fact":"事实"}；本轮明确获知填 {"action":"reveal","character":"角色主名","fact":"事实"}。没有则填空数组。只记录正文明确表达的认知，不根据沉默推断。
+9k. promises_resolve：本轮明确履行或违约的既有承诺。填 {"id":"承诺账本中的 prom_ 编号","status":"fulfilled|broken"}；没有则填空数组。只能处理【未竟约定与承诺】中已有的编号。
+
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "promises": [{"character": "承诺者主名", "content": "归还典籍", "deadlineFloor": 15}], "promises_resolve": [{"id": "prom_示例", "status": "fulfilled"}], "plot_arcs": [{"action": "add", "title": "调查异变", "clue": "湖水出现不明水怪", "interestedBy": "角色主名"}], "knowledge_changes": [{"action": "unaware", "character": "角色主名", "fact": "某事实"}],  "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
@@ -1678,6 +1683,73 @@ function relativeTimeLabel(eventTime, nowTime) {
                         }
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 悬念簿处理失败:`, e); }
                 }
+                // [v3.85] A/B/C: WorldProgress 数据源接线（承诺账本/剧情支线/认知隔离）
+                if (this.config.config.worldProgressEnabled && extracted) {
+                    try {
+                        const wpFloor = Number(message.index) || 0;
+                        let promiseCount = 0, arcCount = 0, knowledgeCount = 0;
+                        const explicitPromises = Array.isArray(extracted.promises) ? extracted.promises : [];
+                        for (const raw of explicitPromises.slice(0, 3)) {
+                            const item = typeof raw === 'string' ? { content: raw } : (raw || {});
+                            const content = String(item.content || item.text || '').trim();
+                            if (!content) continue;
+                            const character = String(item.character || item.owner || '通用').trim().slice(0, 40) || '通用';
+                            const deadline = Number(item.deadlineFloor);
+                            const p = this.worldProg.addPromise({
+                                character,
+                                content: content.slice(0, 180),
+                                deadlineFloor: Number.isFinite(deadline) && deadline > 0 ? deadline : null,
+                                floor: wpFloor
+                            });
+                            if (p) promiseCount++;
+                        }
+                        const arcs = Array.isArray(extracted.plot_arcs) ? extracted.plot_arcs : [];
+                        for (const raw of arcs.slice(0, 3)) {
+                            if (!raw || typeof raw !== 'object') continue;
+                            const action = String(raw.action || 'add').trim().toLowerCase();
+                            const key = String(raw.id || raw.title || '').trim();
+                            if (!key) continue;
+                            if (action === 'touch') {
+                                if (this.worldProg.touchArc(key, wpFloor)) arcCount++;
+                            } else if (action === 'resolve') {
+                                const arc = this.worldProg.plotArcs.find(a => a.id === raw.id || a.title === key);
+                                if (arc) {
+                                    arc.status = 'resolved';
+                                    arc.resolutionFloor = wpFloor;
+                                    arc.resolutionReason = String(raw.reason || '').slice(0, 120);
+                                    arcCount++;
+                                }
+                            } else {
+                                const arc = this.worldProg.addPlotArc({
+                                    title: key.slice(0, 80),
+                                    clue: String(raw.clue || raw.content || '').slice(0, 180),
+                                    interestedBy: String(raw.interestedBy || raw.character || '').slice(0, 40),
+                                    currentFloor: wpFloor,
+                                    createdFloor: wpFloor
+                                });
+                                if (arc) arcCount++;
+                            }
+                        }
+                        const changes = Array.isArray(extracted.knowledge_changes) ? extracted.knowledge_changes : [];
+                        for (const raw of changes.slice(0, 8)) {
+                            if (!raw || typeof raw !== 'object') continue;
+                            const character = String(raw.character || raw.owner || '').trim().slice(0, 40);
+                            const fact = String(raw.fact || raw.content || '').trim().slice(0, 180);
+                            if (!character || !fact) continue;
+                            const action = String(raw.action || 'unaware').toLowerCase();
+                            if (action === 'reveal' || action === 'known') this.worldProg.revealKnowledge(character, fact, raw.source || '');
+                            else this.worldProg.markUnaware(character, fact);
+                            knowledgeCount++;
+                        }
+                        // 即时推进检查：不等到下一次生成才刷新 imminent/overdue 与支线沉降。
+                        this.worldProg.checkPromises(wpFloor);
+                        this.worldProg.decayArcs(wpFloor, 15);
+                        if (promiseCount || arcCount || knowledgeCount) {
+                            this.opLog?.log('worldprogress', 'update', promiseCount + ' promises/' + arcCount + ' arcs/' + knowledgeCount + ' knowledge', wpFloor, '');
+                            if (this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] 🌐 世界推进接线: 承诺' + promiseCount + '·支线' + arcCount + '·认知' + knowledgeCount);
+                        }
+                    } catch (e) { errLog(e, 'onMessageReceived.WorldProgress接线'); }
+                }
 
                 // [v2.4] RE: 场景树（新地点登记 + 位置追踪）
                 if (this.config.config.sceneEnabled && extracted) {
@@ -2517,7 +2589,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (this.worldProg.pendingWrite) this.worldProg.publish();
                 }
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进推演'); }
-            const prog = this.worldProg ? this.worldProg.toInjection() : [];
+            const prog = this.config.config.worldProgressEnabled && this.worldProg ? this.worldProg.toInjection(this.captureCast?.() || []) : [];
                         for (const wp of prog) {
                             if (!candidateItems.some(r => (r.text || '') === wp.text)) candidateItems.push(wp);
                         }
@@ -4117,6 +4189,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                 } catch (e) { errLog(e, 'rollbackFloor.图谱回溯'); }
                 // [v3.17] 世界推进对账（yuzuki）+ 丢弃 pending（shujuku 拒绝半提交）: 删楼后过期推进失活
                 try { if (this.worldProg) { this.worldProg.discard(); this.worldProg.reconcile(floor - 1); } } catch (e) { errLog(e, 'rollbackFloor.世界推进对账'); }
+                // [v3.85] WorldProgress/OutlineDirector 回滚（删楼撤销该楼来源，计划本体保留）。
+                try { this.worldProg?.removeByFloor?.(floor); } catch (e) { errLog(e, 'rollbackFloor.WorldProgress回滚'); }
+                try { this.outline?.rollbackFloor?.(floor); } catch (e) { errLog(e, 'rollbackFloor.OutlineDirector回滚'); }
                 // [v3.22] 角色记忆银行 + 场外信号 楼层清理（rollback 未清 → 旧记忆残留）
                 try { if (this.charMem?.removeByFloor) this.charMem.removeByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.charMem清理'); }
                 try { this.clearThinkingSignalsByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.场外信号清理'); }
@@ -4244,6 +4319,9 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { this.status?.shiftLifeDetailFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.生活小档案位移'); }
                 // [v3.83] B: 主角档案楼层指针位移（删楼前移，floor 指针跟随）
                 try { this.status?.shiftProtagonistFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.主角档案位移'); }
+                // [v3.85] WorldProgress/OutlineDirector 位移（删楼后续楼层指针前移）。
+                try { this.worldProg?.shiftFloorRefs?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.WorldProgress位移'); }
+                try { this.outline?.shiftFloorRefs?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.OutlineDirector位移'); }
                 // [v3.84] A: 角色记忆银行楼层位移（删楼前移，floor 指针跟随）
                 try { if (this.charMem?.shiftFloorRefs) this.charMem.shiftFloorRefs(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.角色记忆位移'); }
                 // [v3.84] B: 人设偏移楼层位移（删楼前移，15 楼衰减窗口不错位）
@@ -5829,12 +5907,22 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
 
         // ===== 约定账本 (Promises Ledger) =====
         addPromise(p = {}) {
+            const character = String(p.character || '通用').trim().slice(0, 40) || '通用';
+            const content = String(p.content || '').trim().slice(0, 180);
+            if (!content) return null;
+            const old = this.promises.find(x => x.character === character && x.content === content && x.status !== 'fulfilled' && x.status !== 'broken');
+            if (old) {
+                if (Number.isFinite(Number(p.deadlineFloor)) && Number(p.deadlineFloor) > 0) old.deadlineFloor = Number(p.deadlineFloor);
+                if (Number.isFinite(Number(p.floor))) old.floor = Number(p.floor);
+                return old;
+            }
             const id = 'prom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            const deadline = Number(p.deadlineFloor);
             const prom = {
                 id,
-                character: p.character || '通用',
-                content: p.content || '',
-                deadlineFloor: Number(p.deadlineFloor) || 9999,
+                character,
+                content,
+                deadlineFloor: Number.isFinite(deadline) && deadline > 0 ? deadline : 9999,
                 floor: Number(p.floor) || 0,
                 status: 'pending',
                 createdAt: Date.now()
@@ -5891,14 +5979,25 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
 
         // ===== 剧情支线生命周期 (Plot Arcs) =====
         addPlotArc(arc = {}) {
+            const title = String(arc.title || '支线').trim().slice(0, 80) || '支线';
+            const clue = String(arc.clue || '').trim().slice(0, 180);
+            const currentFloor = Number(arc.currentFloor) || 0;
+            const existing = this.plotArcs.find(a => a.title === title && (clue ? a.clue === clue : true));
+            if (existing) {
+                existing.status = 'active';
+                existing.lastActiveFloor = currentFloor || existing.lastActiveFloor;
+                if (arc.interestedBy) existing.interestedBy = String(arc.interestedBy).slice(0, 40);
+                return existing;
+            }
             const id = 'arc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
             const entry = {
                 id,
-                title: arc.title || '支线',
-                clue: arc.clue || '',
-                lastActiveFloor: Number(arc.currentFloor) || 0,
+                title,
+                clue,
+                lastActiveFloor: currentFloor,
+                createdFloor: Number(arc.createdFloor) || currentFloor,
                 status: 'active',
-                interestedBy: arc.interestedBy || ''
+                interestedBy: String(arc.interestedBy || '').slice(0, 40)
             };
             this.plotArcs.push(entry);
             return entry;
@@ -5919,6 +6018,51 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     a.status = 'shelved';
                 }
             }
+        }
+        // [v3.85] WorldProgress 楼层生命周期：承诺/支线/场外动态随删楼回滚与前移。
+        removeByFloor(floor) {
+            const f = Number(floor);
+            if (!Number.isFinite(f)) return 0;
+            let removed = 0;
+            const beforePromises = this.promises.length;
+            this.promises = this.promises.filter(p => Number(p.floor) !== f);
+            removed += beforePromises - this.promises.length;
+            for (const key of Object.keys(this.active || {})) {
+                if (Number(this.active[key]?.floor) === f) { delete this.active[key]; removed++; }
+            }
+            const beforeArcs = this.plotArcs.length;
+            this.plotArcs = this.plotArcs.filter(a => Number(a.createdFloor) !== f);
+            removed += beforeArcs - this.plotArcs.length;
+            for (const a of this.plotArcs) {
+                if (Number(a.lastActiveFloor) === f) a.lastActiveFloor = Math.max(0, f - 1);
+                if (Number(a.resolutionFloor) === f) { a.status = 'active'; delete a.resolutionFloor; delete a.resolutionReason; }
+            }
+            if (Number(this.pendingWrite?.floor) === f) this.pendingWrite = null;
+            return removed;
+        }
+        shiftFloorRefs(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            const dec = (value, allowSentinel = false) => {
+                const n = Number(value);
+                if (!Number.isFinite(n) || n <= del || (allowSentinel && n >= 9999)) return value;
+                return n - 1;
+            };
+            let shifted = 0;
+            for (const p of this.promises) {
+                const oldFloor = p.floor;
+                p.floor = dec(p.floor);
+                if (p.floor !== oldFloor) shifted++;
+                p.deadlineFloor = dec(p.deadlineFloor, true);
+            }
+            for (const a of this.plotArcs) {
+                a.lastActiveFloor = dec(a.lastActiveFloor);
+                a.createdFloor = dec(a.createdFloor);
+                a.resolutionFloor = dec(a.resolutionFloor);
+            }
+            for (const key of Object.keys(this.active || {})) this.active[key].floor = dec(this.active[key].floor);
+            if (this.pendingWrite) this.pendingWrite.floor = dec(this.pendingWrite.floor);
+            return shifted;
         }
         markPending() { this.pending = true; }
         candidates(knownChars, presentChars, status, graph) {
@@ -5996,8 +6140,17 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
         }
         // 输出注入（buildInjection 调用）: 包含约定账本、活跃支线与不在场推进
-        toInjection() {
+        toInjection(knownChars = []) {
             const results = [];
+            const names = Array.isArray(knownChars) ? knownChars.filter(Boolean).slice(0, 8) : [];
+            const notices = names.map(name => this.getReEntryNotice(name)).filter(Boolean);
+            if (notices.length) {
+                results.push({
+                    id: 'wp_knowledge',
+                    text: '〔认知隔离提示〕\n' + notices.join('\n'),
+                    source: 'worldprogress+knowledge'
+                });
+            }
             // 1. 约定账本注入 (高优先级)
             const activePromises = (this.promises || []).filter(p => p.status !== 'fulfilled' && p.status !== 'broken');
             if (activePromises.length) {
@@ -7623,9 +7776,45 @@ ${win}`;
             }
             return lines.join('\n');
         }
+        // [v3.85] OutlineDirector 楼层生命周期：删楼撤销对应已执行轮次，但保留未执行计划。
         removeByFloor(floor) {
-            // 大纲是计划不是事实——不做按楼回滚（轮指针只进不退）
-            return 0;
+            const f = Number(floor);
+            if (!Number.isFinite(f)) return 0;
+            const before = this.history.length;
+            this.history = this.history.filter(h => Number(h.floorTo) !== f);
+            const removed = before - this.history.length;
+            if (removed) {
+                this._turnIndex = Math.max(0, this._turnIndex - removed);
+                const prev = this.history[this.history.length - 1];
+                this._turnFloor = prev ? Number(prev.floorTo) || 0 : 0;
+            } else if (Number(this._turnFloor) === f) {
+                const prev = this.history[this.history.length - 1];
+                this._turnFloor = prev ? Number(prev.floorTo) || 0 : 0;
+            }
+            return removed;
+        }
+        rollbackFloor(floor) {
+            return this.removeByFloor(floor);
+        }
+        shiftFloorRefs(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            const dec = (value) => {
+                const n = Number(value);
+                return Number.isFinite(n) && n > del ? n - 1 : value;
+            };
+            let shifted = 0;
+            const oldTurnFloor = this._turnFloor;
+            this._turnFloor = dec(this._turnFloor);
+            if (this._turnFloor !== oldTurnFloor) shifted++;
+            for (const h of this.history) {
+                const oldFrom = h.floorFrom, oldTo = h.floorTo;
+                h.floorFrom = dec(h.floorFrom);
+                h.floorTo = dec(h.floorTo);
+                if (h.floorFrom !== oldFrom) shifted++;
+                if (h.floorTo !== oldTo) shifted++;
+            }
+            return shifted;
         }
         /**
          * [v3.56] P18: 大纲耗尽时 LLM 自动规划新阶段（导演系统闭环）。
