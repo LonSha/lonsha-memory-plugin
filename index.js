@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.57.0';
+    const VERSION = '3.58.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1473,6 +1473,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         if (p?.owner && p?.content) {
                             const owner = this.resolveCharacterName(p.owner);
                             this.pov.add(owner, String(p.content).trim(), message.index || 0);
+                            this.opLog?.log('pov', 'add', owner, message.index || 0, String(p.content).slice(0, 40));  // [v3.58] P20
                             povCount++;
                         }
                     }
@@ -1551,6 +1552,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     if (sd) this.checkTimeMonotonic(sd, message.index || 0);
                     if (extracted?.time_anchor?.end) this.checkTimeMonotonic(extracted.time_anchor.end, message.index || 0);
                     if (sd) this.timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || [], tlImp);
+                    this.opLog?.log('timeline', 'add', `tl_${message.index || 0}`, message.index || 0, sd || '');  // [v3.58] P20
                     // [v2.9] RU-A: 主动时间推进——正文说"三天后/次日"但没写日期时，基于上一楼日期算术推进
                     const adv = Number(extracted.time_advance_days) || 0;
                     if (adv > 0) {
@@ -1659,6 +1661,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         const sd = this.getLatestStoryDate();
                         const n = this.pairMem.addFromExtracted(extracted.relationships, extracted.characters, floor, sd);
                         if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 👥 群像记忆更新 ${n} 条`);
+                        // [v3.58] P20: op-log 群像埋点
+                        if (n) this.opLog?.log('pair', 'add', `${n} pairs`, floor, '');
                     } catch (e) { errLog(e, 'onMessageReceived.群像记忆'); }
                 }
                 // [v3.47] 钱财账本 + 剧情卡牌（hcdiary 吸收）
@@ -1675,6 +1679,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                             }
                         }
                         if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财账本更新 ${extracted.money_changes.length} 项`);
+                        // [v3.58] P20: op-log 钱财埋点
+                        if (extracted.money_changes.length) this.opLog?.log('money', 'update', `${extracted.money_changes.length} changes`, floor, extracted.money_changes.map(mc => mc?.character).join(',').slice(0, 50));
                     } catch (e) { errLog(e, 'onMessageReceived.钱财账本'); }
                 }
                 // [v3.47] 矛盾账本（memorybooks 吸收：真矛盾显式标注并存）
@@ -1683,6 +1689,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         const sd = this.getLatestStoryDate();
                         const n = this.conflicts.addFromExtracted(extracted.conflicts, floor, sd);
                         if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] ⚔️ 登记真矛盾 ${n} 条`);
+                        // [v3.58] P20: op-log 矛盾埋点
+                        if (n) this.opLog?.log('conflict', 'add', `${n} conflicts`, floor, '');
                     } catch (e) { errLog(e, 'onMessageReceived.矛盾账本'); }
                 }
                 if (this.config.config.cardCollectionEnabled !== false && Array.isArray(extracted?.events)) {
@@ -1690,6 +1698,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         const sd = this.getLatestStoryDate();
                         const n = this.cards.forgeFromEvents(extracted.events, floor, sd, 8);
                         if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🃏 铸造剧情卡牌 ${n} 张`);
+                        // [v3.58] P20: op-log 卡牌埋点
+                        if (n) this.opLog?.log('card', 'forge', `${n} cards`, floor, '');
                     } catch (e) { errLog(e, 'onMessageReceived.剧情卡牌'); }
                 }
                 if (this.config.config.floorLedgerEnabled) {
@@ -1732,6 +1742,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     try {
                         const dn = await this.diary.generateLiving(this.config.config, this.llm, extracted?.characters ? this.getKnownCharacters() : [], message.index || 0);
                         if (dn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 活人感日记 +${dn} 条`);
+                        // [v3.58] P20: op-log 日记埋点
+                        if (dn) this.opLog?.log('diary', 'add', `${dn} entries`, message.index || 0, '');
                     } catch (e) { errLog(e, 'onMessageReceived.POV状态回收'); }
                 }
 
