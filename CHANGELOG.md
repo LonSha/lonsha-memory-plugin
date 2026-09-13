@@ -1,3 +1,10 @@
+## [3.89.0] - 2026-09-14
+### Added
+- **swipe 感知召回缓存（三元组定位符校验）**（吸收 MyriadKnots floor-binding）：召回缓存命中前验证末楼消息指纹（复用 v3.3 `msgFpOf` 的 role|swipe|hash|date 四段指纹）——翻 swipe 变体指纹变化自动失效重算，修复「翻到不同变体后 recentAssistant 分支内容已变、旧注入却仍命中缓存」的正确性缺口；翻回旧变体指纹一致，到变体级复用（v2.9 原意更精细化）
+- **`swipeFingerprintGuard` 开关**（默认开）：指纹校验可关闭，关闭时行为与 v3.88 完全一致
+### Changed
+- 召回缓存写入时记录末楼指纹位（`fp`），缓存条目结构 `{floor, queryKey, injection}` → `{floor, queryKey, injection, fp}`；MESSAGE_SWIPED 事件处理器语义注释更新（不清缓存改为命中前校验）
+
 ## [3.88.0] - 2026-09-14
 ### Added
 - **公开只读快照桥**（`window.lonsha_memory_bridge_v1`）：对外暴露引擎状态只读深拷贝快照——主角档案/生活小档案/NPC 状态卡/钱财账本/大纲导演/世界推进/游戏时钟，供手机前端、调试台、衍生卡等外部脚本读取，无需再侵入 `window.LonShaMemory.engine` 内部结构

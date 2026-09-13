@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.88.0';
+    const VERSION = '3.89.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -666,6 +666,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
                 recallCacheEnabled: true,      // [v2.9] RU-D: swipe同楼重roll复用召回缓存
+                swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
                 recallTierEnabled: true,       // 召回类型分级（常驻 constant / 触发 trigger，注入预算裁剪优先保常驻）
@@ -2537,10 +2538,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const ctxChat = window.SillyTavern?.getContext?.()?.chat || [];
                         const curFloor = ctxChat.length - 1;
                         const qKey = String(query.text || '').slice(0, 200);
-                        if (this._recallCache.floor === curFloor && this._recallCache.queryKey === qKey && this._recallCache.injection) {
+                        // [v3.89] 三元组定位符校验（吸收 MyriadKnots floor-binding）：floor + 消息指纹（role|swipe|hash|date）双验证
+                        // 翻 swipe 变体 → fp 变化 → 自动失效重算；翻回旧变体 → fp 相同 → 到变体级复用（v2.9 原意更精细化）
+                        const curMsg = ctxChat[curFloor];
+                        const curFp = (this.config.config.swipeFingerprintGuard !== false && curMsg) ? msgFpOf(curMsg) : '';
+                        if (this._recallCache.floor === curFloor && this._recallCache.queryKey === qKey && this._recallCache.injection
+                            && this._recallCache.fp === curFp) {
                             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 召回缓存命中 (floor ${curFloor})`);
                             return this._recallCache.injection;
                         }
+                        if (this._recallCache.floor === curFloor && typeof this._recallCache.fp === 'string' && this._recallCache.fp !== curFp
+                            && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [v3.89] 召回缓存失效: 末楼指纹变化（swipe/编辑），重算召回`);
                     } catch (e) { errLog(e, 'cleanMessageText'); }
                 }
                 // [v2.4] RE: 召回价值判断（抄 baibai recallWorthRunning——剧情全在窗口内时跳过，省额度）
@@ -2664,7 +2672,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                 } catch (e) { errLog(e, 'onBeforeGeneration.轨迹/触发词'); }
                 try {
                     const cc = window.SillyTavern?.getContext?.()?.chat || [];
-                    this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj2};
+                    const _cm = cc[cc.length - 1];
+                    this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj2, fp: (this.config.config.swipeFingerprintGuard !== false && _cm) ? msgFpOf(_cm) : ''};   // [v3.89] + 三元组定位符的消息指纹位（写入/命中路径同受开关门控，保证关闭时指纹恒空串、行为退回 v2.9）
                 } catch (e) { errLog(e, 'cleanMessageText'); }
                 return inj2;
             } catch (err) {
@@ -8660,7 +8669,7 @@ ${recentTurns}`;
                         try {
                             const f = Number(messageId);
                             if (Number.isFinite(f) && f >= 0) {
-                                // [v2.9] RU-D: swipe 不清召回缓存（同楼重roll复用，本楼记忆对召回影响极小）
+                                // [v2.9] RU-D: swipe 不清召回缓存（同楼重roll复用）；[v3.89] 起命中前经三元组定位符校验，翻变体自动失效
                                 if (this.configMgr.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${f} 滑动/重生成, 回滚该楼记忆`);
                                 this.engine.rollbackFloor(f);
                                 // [v3.8] swipe 自愈: 修「swipe 后该楼无记忆」缺口——防抖后重提取当前变体（编辑自愈同款）

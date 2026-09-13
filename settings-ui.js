@@ -712,6 +712,7 @@
                     <div class="ls-group-title">📚 层级摘要折叠 + BM25 稀疏检索</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
                     ${ck('bm25Enabled', 'BM25 关键词检索', '词频×逆文档频率稀疏检索，比纯包含匹配更准')}
+                    ${ck('swipeFingerprintGuard', 'swipe 指纹校验', '召回缓存命中前验证末楼消息指纹：翻变体自动失效重算，翻回旧变体则到变体级复用')}
                     ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}
                     ${ck('bridgeEnabled', '公开快照桥', '在 window.lonsha_memory_bridge_v1 暴露只读状态快照（主角/NPC账本/大纲/世界推进），供外部脚本读取')}
                     <div class="ls-slider-label"><span>折叠阈值（条）</span><span class="ls-slider-val" id="ls-v-fold">${c.summaryFoldThreshold || 30}</span></div>

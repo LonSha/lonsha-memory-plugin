@@ -12,7 +12,7 @@ assert.ok(src.includes('window.lonsha_memory_bridge_v1'), 'bridge 全局挂载�
 assert.ok(src.includes("bridgeEnabled: true,        // [v3.88] 公开只读快照桥"), 'config 默认值在位');
 assert.ok(src.includes("window.lonsha_memory_bridge_v1?.refresh?.()"), '生成管线刷新在位');
 assert.ok(sui.includes("ck('bridgeEnabled', '公开快照桥'"), '设置开关在位');
-assert.strictEqual(man.version, '3.88.0', 'manifest 版本 3.88.0');
+assert.strictEqual(man.version, '3.89.0', 'manifest 版本 3.89.0');
 console.log('✓ 静态接线检查通过');
 
 // ---------- 提取 buildBridgeSnapshot 方法（花括号计数） ----------
