@@ -1,4 +1,16 @@
 
+## [3.72.0] - 2026-09-13
+
+### Added（柏宝书 TIME_TAG_PROMPT 缝入：时间标签生产闭环）
+
+- **时间标签生产 prompt**：GameClock.getContextPrompt 注入【时间锚点要求(系统强制)】——要求 AI 每楼正文首尾输出 <bbs_start>起止时刻</bbs_start>…<bbs_end>  标签（现代题材数字日期时间/古风奇幻纪年时辰+完整年份、禁止"稍后/不久/某天"模糊说法、以上一段结束时间为基准推进、开篇自设基准不算编造、标签只各出现一次）——解析器（v3.43 extractDualTimeTags）早已就位，本轮补上生产端形成闭环：时间从事后推断变正文事实
+- **正文事实优先**：剧情时间线落账时，正文时间标签的 end 日期部分优先为 story_date 来源（正文事实 > LLM 猜测），架空纪年（庆历四年）同样命中，hasDual false 或解析失败降级原 story_date
+- **与 v3.71 链路衔接**：标签 end → story_date → relativeTimeLabel → 注入行「（昨天）」全链路打通
+
+### Tests
+- 新增 tests/v372_time_tag_production.test.mjs（5 组：静态关键字/extractDualTimeTags 功能/end 日期提取复刻/生产-解析格式一致/prompt 位置）
+- 全量 74 套件 173 测试通过
+
 ## [3.71.0] - 2026-09-13
 
 ### Added（真正的柏宝书 timeRel 缝入：相对时间前缀 + 完整时间锚点协议）

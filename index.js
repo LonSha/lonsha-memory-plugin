@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.71.0';
+    const VERSION = '3.72.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1601,7 +1601,15 @@ function relativeTimeLabel(eventTime, nowTime) {
 
                 // [v1.8] P0: 写入剧情时间线
                 if (this.config.config.plotTimeline && extracted?.summary) {
-                    const sd = this.extractStoryDate(message.mes || '', extracted.story_date);
+                    let sd = this.extractStoryDate(message.mes || '', extracted.story_date);
+                    // [v3.72] B: 正文时间标签的 end 优先为剧情日期（正文事实优先于 LLM 猜测）
+                    try {
+                        const dta = new RelativeTimeHelper().extractDualTimeTags(message.mes || '');
+                        if (dta?.hasDual && dta.end) {
+                            const endDate = String(dta.end).split(/\s+/)[0];  // 取日期部分（去时刻）
+                            if (endDate && /[\d年月/.]/.test(endDate)) sd = endDate;
+                        }
+                    } catch (e) { /* 时间标签解析失败用原 story_date */ }
                     // [v3.32] event importance aggregation - Visual-Memory tiering
                     let tlImp = 5;
                     for (const ev of (extracted?.events || [])) {
@@ -6107,6 +6115,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             if (this.label) parts.push(this.label);
             if (!parts.length) return '';
             let text = `[当前剧情时间]：${parts.join(' · ')}。回忆不改变当前时钟。`;
+            // [v3.72] A: 时间标签生产要求（柏宝书 TIME_TAG_PROMPT 缝入）——时间从事后推断变正文事实
+            text += `\n【时间锚点要求(系统强制)】在本次输出正文的最前面和最后面，各放一个时间标签，标明这段剧情的开始时刻与结束时刻：<bbs_start>1988/9/29 21:30</bbs_start>（正文……）<bbs_end>1988/9/29 21:45</bbs_end>。规则：时间要具体可定位，风格与正文世界观一致（现代题材用数字日期时间；古风/奇幻题材用纪年与时辰，但必须保留完整年份或纪年）；禁止"稍后""不久""某天"等无法定位的模糊说法；以上一段的结束时间为基准合理推进（对话约几分钟、用餐约一小时、过夜跨到次日）；若此前没有任何已知时间，请自行设定一个符合世界观的具体起始时刻——这是为记忆系统建立时间锚点所必需的合理设定，不算编造；标签只各出现一次，标签内只有时间。`;
             if (this.lastFlashback && (this.lastFlashback.date || this.lastFlashback.label)) {
                 const fb = [this.lastFlashback.date, this.lastFlashback.label].filter(Boolean).join(' · ');
                 text += `（前情往事回忆为 ${fb}，非当前时钟）`;
