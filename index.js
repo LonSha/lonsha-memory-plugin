@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.65.0';
+    const VERSION = '3.66.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1256,6 +1256,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             this.moneyLedger = new MoneyLedger();
             this.cards = new CardCollection();
             this.conflicts = new ConflictBook();
+            this.deltaBook = new DeltaBook();  // [v3.66] 正史增量账本
             this.outline = new OutlineDirector();
             this.pairMem = new PairMemory();
             this.opLog = new OpLog();  // [v3.54] 事件溯源日志
@@ -1882,6 +1883,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         moneyLedger: this.moneyLedger.export(),
                         cards: this.cards.export(),
                         conflicts: this.conflicts.export(),
+                        deltaBook: this.deltaBook.export(),  // [v3.66] 正史增量持久化
                 outline: this.outline.export(),
                 pairMem: this.pairMem.export(),
                 opLog: this.opLog?.export?.() || null,
@@ -3758,6 +3760,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const conflictPrompt = this.conflicts.toPrompt();
                 if (conflictPrompt) blocks.push(conflictPrompt);
             }
+            // [v3.66] 正史增量注入（established/uncertain 分状态展示）
+            if (this.deltaBook) {
+                const deltaPrompt = this.deltaBook.toPrompt();
+                if (deltaPrompt) blocks.push(deltaPrompt);
+            }
             // [v3.48] P1: 大纲导演注入（导演视角：本轮目标+节奏）
             if (this.outline) {
                 const outlinePrompt = this.outline.toPrompt();
@@ -4193,6 +4200,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 if (pack.moneyLedger && this.moneyLedger) this.moneyLedger.import(pack.moneyLedger);
                 if (pack.cards && this.cards) this.cards.import(pack.cards);
                 if (pack.conflicts && this.conflicts) this.conflicts.import(pack.conflicts);
+                if (pack.deltaBook && this.deltaBook) this.deltaBook.import(pack.deltaBook);  // [v3.66] 正史增量恢复
                 if (pack.outline && this.outline) this.outline.import(pack.outline);
                 if (pack.pairMem && this.pairMem) this.pairMem.import(pack.pairMem);
                 if (pack.opLog && this.opLog) this.opLog.import(pack.opLog);
@@ -5127,10 +5135,43 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 // [v3.62] 增量摘要（dsh appendDelta 理念）：携带上一卷摘要为基线，只追加新增与更正，不重抄旧事件
                 const prevVol = this.volumes.length ? this.volumes[this.volumes.length - 1] : null;
                 const baseline = prevVol ? '【既有卷摘要基线】（第' + prevVol.floorStart + '-' + prevVol.floorEnd + '楼，本次输出必须在此基线上追加，不要删除、概括或重新抄写基线中已记录的事件）\n' + prevVol.text + '\n\n' : '';
-                const prompt = `你是剧情记忆整理员。${baseline}以下是新一段剧情的${batch.length}条楼层摘要（带楼层指针）。请输出更新后的完整卷摘要（120-220字）：在既有基线之上追加新剧情与状态变化，保留关键人物、地点、因果、转折、具体台词与数字，关键事实后附（第N楼）指针。丢弃楼层摘要间的重复细节，但不得丢失新事件。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
+                // [v3.66] dsh 三合一：text（卷摘要）+ deltas（正史增量）+ conflicts（矛盾核对）一次产出
+                const prompt = `你是剧情记忆整理员。${baseline}以下是新一段剧情的${batch.length}条楼层摘要（带楼层指针）。请返回 JSON 对象（只输出 JSON，不要 markdown 代码块）：
+{"text":"更新后的完整卷摘要（120-220字，在既有基线上追加，保留关键人物、地点、因果、转折、具体台词与数字，关键事实后附（第N楼）指针）","deltas":[{"evidenceFloor":来源楼层号,"summary":"新增事实一句话","status":"established或uncertain"}],"conflicts":[{"evidenceFloor":来源楼层号,"claim":"新说法","canon":"既有记录","severity":"low或medium或high"}]}
+deltas 只列本次新增的重要事实（established=有明确证据，uncertain=存疑待后续佐证）；conflicts 只列新旧说法对不上的矛盾（不把未知情况当冲突）。没有增量或矛盾时对应数组为空。\n\n${list}`;
                 const raw = await llm.callAPI(prompt);
-                const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
+                const rawText = String(raw || '').trim();
+                // [v3.66] 三通道解析：优先 JSON（text+deltas+conflicts），降级纯文本（只取 text）
+                let clean = '';
+                let deltasList = null, conflictsList = null;
+                const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        const parsed = JSON.parse(sanitizeJson(jsonMatch[0]));
+                        if (typeof parsed.text === 'string' && parsed.text.length >= 20) {
+                            clean = parsed.text.trim();
+                            deltasList = Array.isArray(parsed.deltas) ? parsed.deltas : [];
+                            conflictsList = Array.isArray(parsed.conflicts) ? parsed.conflicts : [];
+                        }
+                    } catch (e) { /* JSON 解析失败降级纯文本 */ }
+                }
+                if (clean === null) {
+                    clean = rawText.replace(/^[-•\s]+/, '').trim();
+                    // 剥离可能残留的 JSON 包装说明
+                    if (clean.startsWith(String.fromCharCode(96,96,96))) clean = clean.slice(3).trim();
+                }
+                clean = String(clean || '');
                 if (clean && clean.length >= 20) {
+                    // [v3.66] 双通道消费：deltas 进正史增量账本，conflicts 进矛盾账本
+                    if (deltasList?.length && this.deltaBook) {
+                        const n = this.deltaBook.addFromList(deltasList, batch[0]?.floor);
+                        if (n > 0 && config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量 +${n} 条（卷摘要折叠）`);
+                    }
+                    if (conflictsList?.length && this.conflicts) {
+                        for (const c of conflictsList) {
+                            this.conflicts.add(c?.claim, c?.canon, String(c?.claim || '').slice(0, 100), c?.note || '摘要核对', batch[0]?.floor, '', c?.severity);
+                        }
+                    }
                     const floors = batch.map(s => s.floor).filter(f => f !== undefined && f !== null);
                     this.volumes.push({
                         id: 'vol_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -6851,7 +6892,62 @@ ${win}`;
         import(data) { if (data && Array.isArray(data.conflicts)) this.conflicts = data.conflicts; }
     }
 
-    // [v3.48] 吸收 shujuku: 剧情大纲导演（阶段节奏四形态 + 轮级 pacing 四相 + 宽容标签解析）
+    // [v3.66] 正史增量账本（dsh deltas 理念）：摘要时同步产出的增量事实，established/uncertain 状态
+    class DeltaBook {
+        constructor() { this.deltas = []; }
+        /** 登记增量事实（幂等：同 evidenceFloor 同 summary 不重复） */
+        add(summary, status, evidenceFloor) {
+            const s = String(summary || '').trim();
+            if (!s || s.length < 4) return false;
+            const st = ['established', 'uncertain'].includes(status) ? status : 'uncertain';
+            if (this.deltas.some(d => d.summary === s && d.evidenceFloor === (evidenceFloor || 0))) return false;
+            this.deltas.push({
+                summary: s.slice(0, 150),
+                status: st,
+                evidenceFloor: evidenceFloor || 0,
+                timestamp: Date.now()
+            });
+            if (this.deltas.length > 60) this.deltas.shift();
+            return true;
+        }
+        /** 从 LLM deltas 数组批量登记 */
+        addFromList(list, floor) {
+            let n = 0;
+            for (const d of (list || [])) {
+                if (this.add(d?.summary, d?.status, d?.evidenceFloor ?? floor)) n++;
+            }
+            return n;
+        }
+        /** 确证待定项（uncertain → established，用户确认或后续剧情佐证时调用） */
+        confirm(summaryMatch) {
+            let n = 0;
+            for (const d of this.deltas) {
+                if (d.status === 'uncertain' && d.summary.includes(String(summaryMatch || ' '))) {
+                    d.status = 'established';
+                    n++;
+                }
+            }
+            return n;
+        }
+        /** 注入提示词：增量事实分状态展示 */
+        toPrompt() {
+            if (!this.deltas.length) return '';
+            const est = this.deltas.filter(d => d.status === 'established').slice(-4);
+            const unc = this.deltas.filter(d => d.status === 'uncertain').slice(-4);
+            const rows = [];
+            for (const d of est) rows.push(`- [已确证] ${d.summary}`);
+            for (const d of unc) rows.push(`- [待定] ${d.summary}（后续剧情可能佐证或推翻）`);
+            return `[正史增量]（摘要阶段产出的增量事实记录）：\n${rows.join('\n')}`;
+        }
+        removeByFloor(floor) {
+            const before = this.deltas.length;
+            this.deltas = this.deltas.filter(d => d.evidenceFloor !== floor);
+            return before - this.deltas.length;
+        }
+        export() { return { deltas: this.deltas }; }
+        import(data) { if (data && Array.isArray(data.deltas)) this.deltas = data.deltas; }
+    }
+        // [v3.48] 吸收 shujuku: 剧情大纲导演（阶段节奏四形态 + 轮级 pacing 四相 + 宽容标签解析）
     // 记忆插件从此有了"导演视角"：不只记录过去，还规划未来。
     class OutlineDirector {
         constructor() {

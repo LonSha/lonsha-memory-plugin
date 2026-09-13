@@ -1,4 +1,17 @@
 
+## [3.66.0] - 2026-09-13
+
+### Added（dsh deltas 双通道：正史增量账本 + 三合一摘要折叠）
+
+- **正史增量账本 DeltaBook**：新增账本类——摘要阶段产出的增量事实记录，established（有明确证据）/uncertain（存疑待佐证）双状态；addFromList 批量登记、confirm 确证待定项、removeByFloor 楼层清理、export/import 对称、环形 60 条
+- **三合一摘要折叠**：maybeFold 升级 dsh 三合一模式——一次 LLM 调用同时产出 text（卷摘要）+ deltas（正史增量）+ conflicts（矛盾核对）JSON；deltas 进 DeltaBook、conflicts 进 ConflictBook（claim/canon/severity 对齐）
+- **三通道解析降级链**：JSON 解析失败自动降级纯文本（只取 text），代码块包装 包装残留剥离，卷摘要功能永不因 LLM 输出格式失败而中断
+- **注入流接入**：deltaBook.toPrompt 进入 buildInjection（conflicts 注入区之后），[已确证]/[待定] 分状态展示
+
+### Tests
+- 新增 tests/v366_delta_book.test.mjs（7 组：静态关键字/DeltaBook 功能/confirm 确证/toPrompt 分状态/removeByFloor 与对称/三合一解析/冲突通道签名对齐）
+- 全量 68 套件 139 测试通过
+
 ## [3.65.0] - 2026-09-13
 
 ### Added（OpLog 锁定埋点 + 未决矛盾视图 + 桥统计铁律计数）
