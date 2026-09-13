@@ -1,4 +1,16 @@
 
+## [3.70.0] - 2026-09-13
+
+### Added（柏宝书 7 层金字塔泛化 + 合并任务重试队列）
+
+- **金字塔泛化**：借鉴柏宝书（memorybooks）STMB_SUMMARY_TIERS 7 层设计——SummarySystem 新增 foldHigherTiers 通用折叠链：史记（tier2）积累超阈值自动生长 tier3（书）→ tier4（传奇），genericTiers 存储 + foldedUp 折叠标记防重复；pyramidAutoExtend/pyramidTiers 可配置；历史入账后折叠链衔接（A4）
+- **合并任务重试队列**：借鉴柏宝书 stmbJobs 结构化 job 设计——SummarySystem 新增 enqueueRetry/processRetryQueue：折叠失败结构化入队（幂等：同 kind 同 tier 复用），指数退避重试（30s/60s/120s），最多 3 次后清除；每次摘要折叠周期消费一次
+- **持久化对称**：genericTiers 随 SummarySystem export/import 对称，旧快照格式兼容
+
+### Tests
+- 新增 tests/v370_pyramid_retry.test.mjs（6 组：静态关键字/通用折叠链复刻/重试队列功能/export-import 对称/调用位置/配置默认值）
+- 全量 72 套件 163 测试通过
+
 ## [3.69.0] - 2026-09-13
 
 ### Added（全景报告增量板块 + OpLog delta 埋点 + 手机统计展示）

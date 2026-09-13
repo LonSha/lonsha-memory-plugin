@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.69.0';
+    const VERSION = '3.70.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -672,7 +672,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 aiRecallOpsDebug: false,        // 调试日志
                 onDemandTriggerPhrase: '',      // 触发词按需注入长指令（空=关闭该功能；填「请生成锚点日记」等）
                 // [v3.28] 三级金字塔 + 记忆树路由（st-memory-wizzard 本地轻量版）
-                historicalFoldThreshold: 12,    // 卷摘要（周记）积累多少条后折叠成史记
+                historicalFoldThreshold: 12,    // 卷摘要（周记）积累多少条后折叠成史记,
+                // [v3.70] 柏宝书 7 层金字塔泛化：史记（tier2）之上自动生长更高层
+                pyramidAutoExtend: true,        // 自动扩展金字塔 层数总开关
+                pyramidTiers: ['日记', '周记', '史记', '书', '传奇'],  // 层级名（tier0-4，可配置）
                 memoryTreeEnabled: false,       // 记忆树路由召回（本地轻量版，无需第二模型；默认关观察）
                 vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
                 summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
@@ -1821,7 +1824,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] BM25重建失败:`, e); }
                 }
                 if (this.config.config.summaryFoldEnabled) {
-                    try { await this.summary.maybeFold(this.config.config, this.llm); } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
+                    try { await this.summary.maybeFold(this.config.config, this.llm);
+                            try { await this.summary.processRetryQueue?.(this.config.config, this.llm); } catch (e) {} } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
                 }
                 // [v3.38] 语义级休眠检测（TriviumDB 理念，防长篇跑团上下文与内存膨胀）
                 try { if (this.summary?.markDormant) this.summary.markDormant(message.index || 0, 30); } catch (e) {}
@@ -5022,7 +5026,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
     }
     
     class SummarySystem {
-        constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.folding = false; this.foldingHistorical = false; }
+        constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.genericTiers = []; this.folding = false; this.foldingHistorical = false; }
         // [v3.62] 用户锁定剧情事实（dsh-nexttavern lockedFacts 理念）：逐字保护，永不因摘要压缩丢失
         addLockedFact(text, floor) {
             const t = String(text || '').trim();
@@ -5237,10 +5241,100 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 }
             } catch (e) {
                 if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 摘要折叠失败:`, e);
+                // [v3.70] B: 折叠失败入重试队列（结构化重试，指数退避）
+                try { this.enqueueRetry('volume', 1, { batchLen: batch?.length }, config); } catch (e2) {}
             } finally {
                 this.folding = false;
             }
             return null;
+        }
+        // [v3.70] 柏宝书 7 层金字塔泛化：史记之上自动生长 tier3（书）/tier4（传奇）
+        // genericTiers: [{ tier: 3, name: '书', items: [...] }, { tier: 4, name: '传奇', items: [...] }]
+        async foldHigherTiers(config, llm) {
+            if (!config?.pyramidAutoExtend) return null;
+            const tiers = Array.isArray(config.pyramidTiers) ? config.pyramidTiers : ['日记', '周记', '史记', '书', '传奇'];
+            if (!this.genericTiers) this.genericTiers = [];
+            // 从 tier3 开始逐层检查：上一层（historical 或上一层 generic）积累超阈值 → 折叠
+            let changed = false;
+            for (let t = 3; t < tiers.length; t++) {
+                const sourceItems = t === 3 ? this.historical : (this.genericTiers.find(g => g.tier === t - 1)?.items || []);
+                const threshold = config.historicalFoldThreshold || 12;
+                if (sourceItems.length < threshold) break;
+                // 当前层是否已存在
+                let cur = this.genericTiers.find(g => g.tier === t);
+                if (!cur) {
+                    cur = { tier: t, name: tiers[t], items: [] };
+                    this.genericTiers.push(cur);
+                }
+                // 折叠最近 threshold 条源条目
+                const batch = sourceItems.slice(0, threshold);
+                const list = batch.map(x => (typeof x === 'string' ? x : (x.text || ''))).filter(Boolean).map(s => '- ' + s).join('\n');
+                if (!list) break;
+                try {
+                    const prompt = `你是历史学家。以下是同一段长剧情的${batch.length}个${tiers[t - 1]}条目。请把它们合并成一段更高层的${tiers[t]}级总览（250-400字）。记录要求：宁可详细，不可精简；保留关键人物、重要转折、长期伏笔与因果主线；只压缩逐字重复的描述。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
+                    const raw = await llm.callAPI(prompt);
+                    const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
+                    if (clean && clean.length >= 30) {
+                        cur.items.push({
+                            text: clean,
+                            floorStart: batch[0]?.floorStart ?? batch[0]?.floor ?? 0,
+                            floorEnd: batch[batch.length - 1]?.floorEnd ?? batch[batch.length - 1]?.floor ?? 0,
+                            count: batch.length,
+                            timestamp: Date.now(),
+                            tier: t
+                        });
+                        if (cur.items.length > 20) cur.items.shift();
+                        // 源条目标记已折叠（避免重复折叠）
+                        batch.forEach(x => { if (typeof x === 'object') x.foldedUp = true; });
+                        changed = true;
+                    }
+                } catch (e) {
+                    // 折叠失败静默（下轮再试）
+                    break;
+                }
+            }
+            return changed;
+        }
+        // [v3.70] B: 合并任务重试队列（柏宝书 stmbJobs 理念）——折叠失败结构化入队，指数退避重试
+        // queue: [{ id, kind: 'volume'|'historical'|'tier', tier, attempts, nextAttemptAt, payload }]
+        enqueueRetry(kind, tier, payload, config) {
+            this.retryQueue = this.retryQueue || [];
+            // 幂等：同 kind 同 tier 只保留一个待重试任务
+            const exist = this.retryQueue.find(j => j.kind === kind && j.tier === tier);
+            if (exist) { exist.payload = payload; return exist.id; }
+            const id = 'rj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            this.retryQueue.push({ id, kind, tier, attempts: 0, nextAttemptAt: 0, payload });
+            if (this.retryQueue.length > 5) this.retryQueue.shift();
+            return id;
+        }
+        /** 尝试消费重试队列（每次摘要折叠周期调用一次；指数退避：30s → 60s → 120s） */
+        async processRetryQueue(config, llm) {
+            if (!this.retryQueue || !this.retryQueue.length) return 0;
+            const now = Date.now();
+            const job = this.retryQueue.find(j => now >= j.nextAttemptAt);
+            if (!job) return 0;
+            if (job.attempts >= 3) {
+                this.retryQueue = this.retryQueue.filter(j => j.id !== job.id);
+                return 0;
+            }
+            job.attempts++;
+            job.nextAttemptAt = now + 30000 * Math.pow(2, job.attempts - 1);  // 30s/60s/120s
+            try {
+                if (job.kind === 'volume') {
+                    const r = await this.maybeFold(config, llm);
+                    if (r) this.retryQueue = this.retryQueue.filter(j => j.id !== job.id);
+                } else if (job.kind === 'historical') {
+                    const r = await this.maybeFoldHistorical(config, llm);
+                    if (r) {
+                        this.retryQueue = this.retryQueue.filter(j => j.id !== job.id);
+                        await this.foldHigherTiers(config, llm);
+                    }
+                } else if (job.kind === 'tier') {
+                    const r = await this.foldHigherTiers(config, llm);
+                    if (r) this.retryQueue = this.retryQueue.filter(j => j.id !== job.id);
+                }
+            } catch (e) { /* 保留任务等待下次 */ }
+            return 1;
         }
         // 卷摘要召回（最近 N 卷，低权重）
         // [v3.28] 三级金字塔最高层: 卷摘要（周记）积累超阈值 → 折叠成史记（最高层，跨阶段总览）
@@ -5273,6 +5367,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     batch.forEach(v => { v.archived = true; });
                     if (this.historical.length > 6) this.historical.shift();
                     if (config?.debugMode) console.log(`[${PLUGIN_NAME}] 史记折叠: ${batch.length}个周记 → 史记#${this.historical.length}`);
+                    // [v3.70] A4: 折叠链衔接——史记入账后立即检查更高层（书/传奇）是否可折叠
+                    try { await this.foldHigherTiers(config, llm); } catch (e3) { if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 高层折叠失败:`, e3); }
                     return this.historical[this.historical.length - 1];
                 }
             } finally { this.foldingHistorical = false; }
@@ -5304,7 +5400,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             const rows = this.historical.map(h => '- ' + h.text);
             return '[宏观世界线·纪元史记]（长程核心脉络与不可变历史大事件）：\n' + rows.join('\n');
         }
-        export() { return { summaries: this.summaries, volumes: this.volumes, historical: this.historical, lockedFacts: this.lockedFacts || [] }; }
+        export() { return { summaries: this.summaries, volumes: this.volumes, historical: this.historical, lockedFacts: this.lockedFacts || [], genericTiers: this.genericTiers || [] }; }
         import(data) {
             if (Array.isArray(data)) { this.summaries = data; this.volumes = []; this.historical = []; }
             else if (data && typeof data === 'object') {
@@ -5314,6 +5410,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 this.historical = Array.isArray(data.historical) ? data.historical : [];
                 // [v3.62] 锁定事实导入对称
                 this.lockedFacts = Array.isArray(data.lockedFacts) ? data.lockedFacts : [];
+                // [v3.70] 金字塔泛化层导入对称
+                this.genericTiers = Array.isArray(data.genericTiers) ? data.genericTiers : [];
                 // 兼容旧卷摘要数据（无 level/archived）: 自动补默认
                 for (const v of this.volumes) { if (v.level === undefined) v.level = 2; if (v.archived === undefined) v.archived = false; }
             }

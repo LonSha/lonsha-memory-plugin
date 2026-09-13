@@ -51,7 +51,7 @@ test('=== 1. 静态关键字检查 ===', () => {
     assert.ok(src.includes('[用户锁定剧情事实]'), '注入区块标题');
     // G 持久化
     assert.ok(src.includes('lockedFacts: this.summary.getLockedFacts()'), '快照持久化');
-    assert.ok(src.includes('lockedFacts: this.lockedFacts || [] }'), 'export 对称');
+    assert.ok(src.includes('lockedFacts: this.lockedFacts || []'), 'export 对称');
     assert.ok(src.includes('this.lockedFacts = Array.isArray(data.lockedFacts) ? data.lockedFacts : [];'), 'import 对称');
 });
 
