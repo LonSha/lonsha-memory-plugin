@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.82.0';
+    const VERSION = '3.83.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4151,6 +4151,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { const ndb = this.deltaBook?.removeByFloor ? this.deltaBook.removeByFloor(floor) : 0; if (ndb && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量回滚: ${ndb}条`); } catch (e) { errLog(e, 'rollbackFloor.正史增量回滚'); }
                 // [v3.82] A: 生活小档案回滚（删楼后该楼来源的偏好/习惯撤掉，防幽灵条目）
                 try { const nld = this.status?.removeLifeDetailByFloor ? this.status.removeLifeDetailByFloor(floor) : 0; if (nld && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧬 生活小档案回滚: ${nld}条`); } catch (e) { errLog(e, 'rollbackFloor.生活小档案回滚'); }
+                // [v3.83] A: 主角档案楼层指针回滚（来源楼层被删时指针失效归零，防幽灵楼层）
+                try { const npf = this.status?.removeProtagonistByFloor ? this.status.removeProtagonistByFloor(floor) : 0; if (npf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧍 主角档案指针回滚`); } catch (e) { errLog(e, 'rollbackFloor.主角档案指针回滚'); }
                 try { const npm = this.pairMem?.removeByFloor ? this.pairMem.removeByFloor(floor) : 0; if (npm && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 群像回滚: ${npm}条`); } catch (e) { errLog(e, 'rollbackFloor.群像回滚'); }
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
@@ -4238,6 +4240,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 for (const d of (this.deltaBook?.deltas || [])) d.evidenceFloor = dec(d.evidenceFloor);
                 // [v3.82] B: 生活小档案楼层位移（删楼前移，floor 指针跟随）
                 try { this.status?.shiftLifeDetailFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.生活小档案位移'); }
+                // [v3.83] B: 主角档案楼层指针位移（删楼前移，floor 指针跟随）
+                try { this.status?.shiftProtagonistFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.主角档案位移'); }
                 for (const e of (this.opLog?.entries || [])) if (typeof e.floor === 'number') e.floor = dec(e.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
@@ -4493,6 +4497,17 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 push('');
                 for (const k of ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition']) {
                     if (prot[k]) push(`- **${k}**：${prot[k]}`);
+                }
+                push('');
+            }
+            // [v3.83] C: 生活小档案板块（三投放层：置顶/常规/沉降）
+            const ldList = this.status?.lifeDetails || [];
+            if (ldList.length) {
+                push('## 🧬 生活小档案');
+                push('');
+                for (const d of ldList) {
+                    const tag = d.tier === 'pinned' ? '📌 ' : d.tier === 'archive' ? '📦 ' : '';
+                    push(`- ${tag}${d.text}${d.floor ? `（第${d.floor}楼）` : ''}`);
                 }
                 push('');
             }
@@ -6689,6 +6704,24 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 if (Number.isFinite(f) && f > del) { d.floor = f - 1; n++; }
             }
             return n;
+        }
+        // [v3.83] A: 主角档案楼层指针回滚——来源楼层被删时指针失效归零（防幽灵楼层；内容为合并态不回滚，仅处理指针）
+        removeProtagonistByFloor(floor) {
+            const f = Number(floor);
+            if (!Number.isFinite(f) || f <= 0) return 0;
+            if (this.protagonist && Number(this.protagonist.floor) === f) {
+                this.protagonist.floor = 0;
+                return 1;
+            }
+            return 0;
+        }
+        // [v3.83] B: 主角档案楼层指针位移——删楼前移后 floor 指针跟随
+        shiftProtagonistFloor(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            const f = Number(this.protagonist?.floor);
+            if (Number.isFinite(f) && f > del) { this.protagonist.floor = f - 1; return 1; }
+            return 0;
         }
         getLifeDetailsPrompt(limit = 5, contextText = null, nowTime = null) {
             // [v3.78] B: 三投放层选择算法（柏宝书 selectLifeDetailsForInjection 缝入）

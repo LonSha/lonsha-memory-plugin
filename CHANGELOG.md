@@ -1,3 +1,10 @@
+## [3.83.0] - 2026-09-13
+### Added
+- **主角档案楼层生命周期补全**（protagonist.floor 指针联动）：CharacterState 新增 removeProtagonistByFloor（来源楼被删→指针归零防幽灵楼层；内容为合并态不回滚）+ shiftProtagonistFloor（删楼前移后指针跟随）；rollbackFloor 与 shiftFloorsFrom 双双挂接（可选链守卫，debugMode 日志）
+- **主角档案 + 生活小档案 UI 视图**（v3.45/v3.78 数据首次可视化可操作）：统计面板新增「主角档案 👁」卡片；新视图含六字段行（点击编辑，带楼层标注）+ 生活小档案三 tier 分组（📌置顶常驻/🔹常规/📦沉降，显示楼层/anchors/until）；_memOps 新增 protagonist_field 与 life 操作分支——字段编辑、tier 切换（置顶/常规/沉降）、内容编辑、删除（均带撤销栈）
+- **记忆全景报告第 12 板块「🧬 生活小档案」**：报告含 tier 标签（📌/📦）与楼层标注；板块文案 11→12 更新
+### Tests
+- 新增 v383_protagonist_lifecycle_ui.test.mjs（8 组：生命周期方法静态特征/removeProtagonistByFloor 复刻 6 用例/shiftProtagonistFloor 复刻 5 用例/UI 视图与操作分支静态特征/操作分支逻辑复刻（tier 切换+删除原位还原+编辑还原）/报告第 12 板块/报告输出复刻 3 用例/版本与完整性），全量 250 测试全绿
 
 ## [3.82.0] - 2026-09-13
 

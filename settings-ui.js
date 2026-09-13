@@ -104,6 +104,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="scene"><div class="ls-stat-num">${s.scene?.nodes?.size || 0}</div><div class="ls-stat-label">场景树 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="protagonist"><div class="ls-stat-num">${['gender','age','identity','appearance','outfit','condition'].filter(k => s.status?.protagonist?.[k]).length}</div><div class="ls-stat-label">主角档案 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">🔒 锁定事实 👁</div></div>
@@ -383,6 +384,26 @@
                         </div>`;
                     }).join('');
             }
+            else if (viewType === 'protagonist') {
+                title = '🧍 主角档案 + 生活小档案';
+                const p = s.status?.protagonist || {};
+                const pFields = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
+                const pLabels = { gender: '性别', age: '年龄', identity: '身份', appearance: '体貌', outfit: '当前着装', condition: '生理/伤病状况' };
+                const pRows = pFields.map(k => `<div class="ls-item ls-clickable" data-opkind="protagonist_field" data-opid="${k}"><div class="ls-item-meta">${pLabels[k]}${p.floor ? ` · 第${p.floor}楼更新` : ''}</div><div class="ls-item-text">${esc(p[k]) || '<span class="ls-hint">未登记（点击编辑）</span>'}</div></div>`).join('');
+                const lds = s.status?.lifeDetails || [];
+                const tierName = { pinned: '📌 置顶常驻', active: '🔹 常规', archive: '📦 沉降' };
+                let ldHtml = '';
+                for (const tier of ['pinned', 'active', 'archive']) {
+                    const group = lds.filter(d => (d.tier || 'active') === tier);
+                    if (!group.length) continue;
+                    ldHtml += `<div class="ls-group"><div class="ls-group-title">${tierName[tier]} (${group.length})</div>` +
+                        group.map(d => `<div class="ls-item ls-clickable" data-opkind="life" data-opid="${esc(d.id)}"><div class="ls-item-meta">${d.floor ? `第${d.floor}楼` : '—'}${(d.anchors || []).length ? ' · ' + esc((d.anchors || []).slice(0, 4).join('/')) : ''}${d.until ? ' · 至 ' + esc(d.until) : ''}</div><div class="ls-item-text">${esc(d.text)}</div></div>`).join('') + '</div>';
+                }
+                body = `<div class="ls-group"><div class="ls-group-title">🧍 主角档案（点击字段可编辑）</div>${pRows}</div>` +
+                    `<div class="ls-group"><div class="ls-group-title">🧬 生活小档案 (${lds.length})</div>` +
+                    (ldHtml || '<div class="ls-hint">暂无。LLM 提取到主角习惯/偏好后会自动登记。</div>') +
+                    '<div class="ls-hint">📌 置顶常驻 · 🔹 常规时效 · 📦 沉降仅命中浮出（点击条目可操作）</div></div>';
+            }
             else if (viewType === 'scene') {
                 title = '🗺️ 场景树';
                 const cur = s.scene?.currentKey?.();
@@ -555,7 +576,7 @@
                 a.download = `lonsha-memory-report-${Date.now()}.md`;
                 a.click();
                 toast('📄 记忆全景报告已导出');
-                body = '<div class="ls-hint">✅ 报告已下载。包含：概览/主角档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 11 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:#1e1e2e;padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
+                body = '<div class="ls-hint">✅ 报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:#1e1e2e;padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
             }
 
             const opHint = '<div class="ls-hint" style="color:#89b4fa;margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>';
@@ -1227,6 +1248,56 @@
                         return field + " → " + rec.fields[field];
                     } },
                     { t: "🗑 删除该字段", fn: () => { delete rec.fields[field]; return "字段已删除"; }, danger: true },
+                ];
+            }
+            else if (kind === "protagonist_field") {
+                const p = eng.status?.protagonist;
+                if (!p) return;
+                const labels = { gender: "性别", age: "年龄", identity: "身份", appearance: "体貌", outfit: "当前着装", condition: "生理/伤病状况" };
+                const field = String(id);
+                if (!labels[field]) return;
+                label = "🧍 " + labels[field] + " = " + esc(String(p[field] || "（未登记）"));
+                actions = [
+                    { t: "✏️ 编辑", fn: () => {
+                        let nv = null;
+                        try { nv = prompt(labels[field] + "（留空清除）:", String(p[field] || "")); } catch (e) { console.warn("prompt unavailable:", e); }
+                        if (nv === null) return null;
+                        const old = String(p[field] || "");
+                        const curFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
+                        eng.status.setProtagonist({ [field]: nv }, curFloor);
+                        return { label: "已更新「" + labels[field] + "」", desc: "主角档案「" + labels[field] + "」还原", undo: () => { eng.status.setProtagonist({ [field]: old }, curFloor); } };
+                    } },
+                ];
+            }
+            else if (kind === "life") {
+                const ld = (eng.status?.lifeDetails || []).find(x => x.id === id);
+                if (!ld) return;
+                label = esc(ld.text).substring(0, 60);
+                const setTier = (tier, name) => () => {
+                    const old = ld.tier || "active";
+                    ld.tier = tier;
+                    return { label: "已" + name, desc: "生活小档案层级还原", undo: () => { ld.tier = old; } };
+                };
+                actions = [
+                    { t: "📌 置顶常驻", fn: setTier("pinned", "置顶") },
+                    { t: "🔹 常规", fn: setTier("active", "设为常规") },
+                    { t: "📦 沉降", fn: setTier("archive", "沉降") },
+                    { t: "✏️ 编辑内容", fn: () => {
+                        let nv = null;
+                        try { nv = prompt("编辑生活小档案:", ld.text); } catch (e) { console.warn("prompt unavailable:", e); }
+                        if (nv === null) return null;
+                        const next = String(nv).trim();
+                        if (!next) return null;
+                        const old = ld.text;
+                        ld.text = next;
+                        return { label: "已更新", desc: "生活小档案内容还原", undo: () => { ld.text = old; } };
+                    } },
+                    { t: "🗑 删除该条", fn: () => {
+                        const backup = { ...ld };
+                        const idx2 = (eng.status.lifeDetails || []).indexOf(ld);
+                        eng.status.lifeDetails = eng.status.lifeDetails.filter(x => x.id !== id);
+                        return { label: "已删除", desc: "生活小档案删除还原", undo: () => { if (idx2 >= 0) eng.status.lifeDetails.splice(idx2, 0, backup); else eng.status.lifeDetails.push(backup); } };
+                    }, danger: true },
                 ];
             }
             else if (kind === "suspense") {
