@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.61.0';
+    const VERSION = '3.62.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -551,6 +551,8 @@
 {{SUSPENSE}}
 【已知场景树】（location/scenes.path 必须使用这些已登记路径，或在其下新增更细一层）
 {{SCENES}}
+【用户锁定事实】（用户显式要求永久保留的剧情事实。summary 中必须逐字包含这些事实，一字不差，禁止概括改写或遗漏；没有则忽略本节）
+{{LOCKED_FACTS}}
 【本轮对话】
 {{CONTENT}}
 【提取规则】
@@ -559,7 +561,7 @@
 3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
 3b. conflicts：本轮对话中出现【同一事实的两个版本对不上】时登记（如某角色在甲事件声称X、本轮又声称Y）。
 先判断是更正还是真矛盾：更正（时间线自然演进，如搬家/换工作）不登记，由正常提取覆盖；
-真矛盾（说不通的版本冲突，如自相矛盾的口供、立场摇摆）填 {"subject":"角色名或事实","versionA":"版本A描述","versionB":"版本B描述","note":"矛盾性质一句话"}。没有则填空数组。
+真矛盾（说不通的版本冲突，如自相矛盾的口供、立场摇摆）填 {"subject":"角色名或事实","versionA":"版本A描述","versionB":"版本B描述","note":"矛盾性质一句话","severity":"low/medium/high（按矛盾严重度）"}。没有则填空数组。
 4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
 5. story_date：本轮剧情中明确写出的日期（如"3月12日""2026年5月1日"）；未明确写出则填 null。禁止编造日期。
 6. pov_memories：本轮产生的角色私密认知/秘密/内心独白（摄像头拍不到、仅该角色自己知道的内容）。每条必须给出 owner（哪个角色知道）和 content（一句话说清）。已在对话中公开说出口的内容不算。没有则填空数组。
@@ -678,6 +680,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v3.30] PV: 记忆矛盾换代（supersede）——新记忆与旧记忆高置信冲突时旧条退出召回
                 supersedeEnabled: true,          // 总开关
                 supersedeScanPool: 30,           // 每次扫描池大小
+                // [v3.62] dsh 锁定事实：用户显式锁定的剧情事实逐字进摘要与注入，校验器防遗漏
+                lockedFactsEnabled: true,        // 锁定事实总开关
+                lockedFactMaxChars: 4000,        // 注入预算上限（字符）
                 // [v3.48/v3.56] 大纲导演配置（守卫用容灾式 !== false，此处显式声明供 settings-ui 配置）
                 outlineDirectorEnabled: true,     // 大纲导演：解析 AI 回复中的大纲标签
                 outlineAutoPlan: true,            // 大纲耗尽时 LLM 自动规划新阶段
@@ -1864,6 +1869,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                                                 graph: this.graph.export(),
                         charMem: this.charMem ? this.charMem.export() : {},
                         worldProg: this.worldProg ? this.worldProg.export() : {}, summaries: this.summary.export(),
+                        lockedFacts: this.summary.getLockedFacts(),  // [v3.62] 锁定事实随快照持久化
                         diaries: this.diary.export(),
                         reflection: this.reflection?.export?.(),
                         itemOps: this.itemOps,
@@ -1921,10 +1927,13 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const history = this.summary.getActiveSummaries().slice(-5).map(s => s.text).join('\n');
                 const volText = (this.summary.volumes || []).slice(-2).map(v => `【卷${v.floorStart}-${v.floorEnd}】${v.text}`).join('\n');
                 const historyFull = [volText, history].filter(Boolean).join('\n');
+                // [v3.62] 锁定事实：用户显式锁定，摘要必须逐字保留
+                const lockedText = (this.config.config.lockedFactsEnabled !== false) ? this.summary.lockedFactsForPrompt() : '';
                 const prompt = this.config.config.extractionPrompt
                     .replace('{{KNOWN_CHARS}}', knownChars.join('、') || '（暂无，从本轮开始积累）')
                     .replace('{{HISTORY}}', historyFull || '（暂无）')
                     .replace('{{SUSPENSE}}', (this.config.config.suspenseEnabled && this.suspense.openItems().length) ? this.suspense.briefForPrompt() : '（暂无未了结的悬念）')
+                    .replace('{{LOCKED_FACTS}}', lockedText || '（无）')
                     .replace('{{SCENES}}', (this.config.config.sceneEnabled && this.scene.nodes.size) ? this.scene.brief() : '（暂无已登记场景）')
                     .replace('{{CONTENT}}', content);
                 const response = await this.llm.callAPI(prompt);
@@ -1935,6 +1944,25 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const jsonMatch = response.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
                     const parsed = JSON.parse(sanitizeJson(jsonMatch[0]));
+                    // [v3.62] 锁定事实校验器（dsh validateDetailedSummary 理念）：summary 遗漏锁定事实→警告并附提示重试一次
+                    if (lockedText && parsed.summary) {
+                        const factItems = lockedText.split('\n').map(l => l.replace(/^- /, '').replace(/（第\d+楼锁定）$/, '').trim()).filter(Boolean);
+                        const missing = factItems.filter(f => !parsed.summary.includes(f) && !this._lockedRetryDone);
+                        if (missing.length) {
+                            this._lockedRetryDone = true;
+                            console.warn('[' + PLUGIN_NAME + '] ⚠ 摘要遗漏锁定事实 ' + missing.length + ' 条，重试一次');
+                            const retryPrompt = prompt + '\n\n【严重警告】你上一次输出的 summary 遗漏了以下用户锁定事实：' + missing.join('；') + '\n请重新输出完整 JSON，summary 必须逐字包含全部锁定事实。';
+                            try {
+                                const retry = await this.llm.callAPI(retryPrompt);
+                                const rm = retry && retry.match(/\{[\s\S]*\}/);
+                                if (rm) {
+                                    const rp = JSON.parse(sanitizeJson(rm[0]));
+                                    if (rp.summary && factItems.every(f => rp.summary.includes(f) || f === '')) { parsed.summary = rp.summary; }
+                                }
+                            } catch (e2) { /* 重试失败用原结果 */ }
+                            this._lockedRetryDone = false;
+                        }
+                    }
                     // [v1.4] 角色名合法性校验：1-8字、无标点数字，过滤"钥匙在锁"类误提取
                     if (Array.isArray(parsed.characters)) {
                         parsed.characters = parsed.characters.filter(n =>
@@ -3599,6 +3627,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const grandText = this.summary.getGrandChroniclePrompt();
                 if (grandText) blocks.push(grandText);
             }
+            // [v3.62] 用户锁定事实（dsh lockedFacts）：逐字进静态锚定区，最高优先级事实保护
+            if (this.config.config.lockedFactsEnabled !== false) {
+                const lfText = this.summary?.lockedFactsForPrompt?.();
+                if (lfText) blocks.push('[用户锁定剧情事实]\n' + lfText);
+            }
             // [v3.45] 吸收 baibai: 主角客观档案与生活习惯癖好追踪
             if (this.config.config.protagonistTracking !== false) {
                 const proPrompt = this.status?.getProtagonistPrompt?.();
@@ -4914,6 +4947,28 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
     
     class SummarySystem {
         constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.folding = false; this.foldingHistorical = false; }
+        // [v3.62] 用户锁定剧情事实（dsh-nexttavern lockedFacts 理念）：逐字保护，永不因摘要压缩丢失
+        addLockedFact(text, floor) {
+            const t = String(text || '').trim();
+            if (!t) return null;
+            this.lockedFacts = this.lockedFacts || [];
+            const id = 'lf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            this.lockedFacts.push({ id, text: t, floor: Number(floor) || 0, createdAt: Date.now() });
+            return id;
+        }
+        removeLockedFact(id) {
+            this.lockedFacts = this.lockedFacts || [];
+            const before = this.lockedFacts.length;
+            this.lockedFacts = this.lockedFacts.filter(f => f.id !== id);
+            return this.lockedFacts.length < before;
+        }
+        getLockedFacts() { return this.lockedFacts || []; }
+        // 锁定事实注入文本（逐字，带来源楼层）
+        lockedFactsForPrompt() {
+            const list = this.getLockedFacts();
+            if (!list.length) return '';
+            return list.map(f => '- ' + f.text + '（第' + f.floor + '楼锁定）').join('\n');
+        }
         // [v3.28] 三级金字塔（st-memory-wizzard）: summaries(level1日记) → volumes(level2周记/卷) → historical(level3史记)
         // [v1.4.2] 智能截断：优先在句子边界断开，避免"但那个"式半句截断
         smartTruncate(text, maxLen) {
@@ -5040,8 +5095,11 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             if (batch.length < 5) return null;
             this.folding = true;
             try {
-                const list = batch.map(s => '- ' + s.text).join('\n');
-                const prompt = `你是剧情记忆整理员。以下是同一段长剧情的前${batch.length}条楼层摘要。请把它们合并成一条80-150字的高层剧情概括（卷摘要），保留关键人物、地点、因果与转折，丢弃重复细节。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
+                const list = batch.map(s => '- [第' + s.floor + '楼] ' + s.text).join('\n');
+                // [v3.62] 增量摘要（dsh appendDelta 理念）：携带上一卷摘要为基线，只追加新增与更正，不重抄旧事件
+                const prevVol = this.volumes.length ? this.volumes[this.volumes.length - 1] : null;
+                const baseline = prevVol ? '【既有卷摘要基线】（第' + prevVol.floorStart + '-' + prevVol.floorEnd + '楼，本次输出必须在此基线上追加，不要删除、概括或重新抄写基线中已记录的事件）\n' + prevVol.text + '\n\n' : '';
+                const prompt = `你是剧情记忆整理员。${baseline}以下是新一段剧情的${batch.length}条楼层摘要（带楼层指针）。请输出更新后的完整卷摘要（120-220字）：在既有基线之上追加新剧情与状态变化，保留关键人物、地点、因果、转折、具体台词与数字，关键事实后附（第N楼）指针。丢弃楼层摘要间的重复细节，但不得丢失新事件。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
                 const raw = await llm.callAPI(prompt);
                 const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
                 if (clean && clean.length >= 20) {
@@ -5084,7 +5142,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             this.foldingHistorical = true;
             try {
                 const list = batch.map(v => `[第${v.floorStart}-${v.floorEnd}楼] ${v.text}`).join('\n');
-                const prompt = `你是历史学家。以下是同一段长剧情的${batch.length}个阶段概括（周记）。请把它们合并成一段150-250字的历史总览（史记），保留关键人物、重要转折、长期伏笔与因果主线，压缩重复描述。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
+                // [v3.62] 史记详细保留哲学（dsh）：宁可详细不可精简，伏笔与未解决线索全保留，附楼层指针
+                const prompt = `你是历史学家。以下是同一段长剧情的${batch.length}个阶段概括（周记）。请把它们合并成一段200-350字的历史总览（史记）。记录要求：宁可详细，不可精简；保留关键人物、重要转折、长期伏笔、已兑现与未兑现的约定、因果主线；保留专名、数字与关键台词；重要事实后附（第N楼）指针；只压缩逐字重复的描述。只输出概括本身，不要编号、不要markdown、不要换行。\n\n${list}`;
                 const raw = await llm.callAPI(prompt);
                 const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
                 if (clean && clean.length >= 30) {
@@ -5132,7 +5191,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             const rows = this.historical.map(h => '- ' + h.text);
             return '[宏观世界线·纪元史记]（长程核心脉络与不可变历史大事件）：\n' + rows.join('\n');
         }
-        export() { return { summaries: this.summaries, volumes: this.volumes, historical: this.historical }; }
+        export() { return { summaries: this.summaries, volumes: this.volumes, historical: this.historical, lockedFacts: this.lockedFacts || [] }; }
         import(data) {
             if (Array.isArray(data)) { this.summaries = data; this.volumes = []; this.historical = []; }
             else if (data && typeof data === 'object') {
@@ -5140,6 +5199,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 this.volumes = Array.isArray(data.volumes) ? data.volumes : [];
                 // [v3.28] 史记层导入对称
                 this.historical = Array.isArray(data.historical) ? data.historical : [];
+                // [v3.62] 锁定事实导入对称
+                this.lockedFacts = Array.isArray(data.lockedFacts) ? data.lockedFacts : [];
                 // 兼容旧卷摘要数据（无 level/archived）: 自动补默认
                 for (const v of this.volumes) { if (v.level === undefined) v.level = 2; if (v.archived === undefined) v.archived = false; }
             }

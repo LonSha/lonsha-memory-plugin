@@ -1,3 +1,20 @@
+
+## [3.62.0] - 2026-09-13
+
+### Added（dsh-nexttavern 记忆方式缝入：锁定事实 + 增量摘要 + 溯源 + 证据链 + 详细哲学）
+
+- **用户锁定事实（lockedFacts）**：借鉴 dsh-nexttavern 的 lockedFacts 机制——用户在面板显式锁定的剧情事实**逐字**进入摘要与注入流，永不因摘要压缩丢失。SummarySystem 新增 addLockedFact/removeLockedFact/getLockedFacts/lockedFactsForPrompt 四方法；extractMemoryWithLLM prompt 新增【用户锁定事实】段（逐字保留、一字不差、禁止概括改写）
+- **锁定事实校验器**：summary 生成后逐条核对锁定事实是否逐字保留，遗漏时附缺失清单重试一次（dsh validateDetailedSummary 理念）——防 LLM 偷懒丢事实的硬防线
+- **注入流接入**：锁定事实进入 buildInjection 静态锚定区（Prompt Cache A区，主角档案之前），区块标题「[用户锁定剧情事实]」
+- **增量卷摘要**：maybeFold 从全量重写升级为增量追加——携带上一卷摘要为基线，prompt 明令「不要删除、概括或重新抄写基线中已记录的事件」，旧事件零信息损耗
+- **楼层溯源指针**：卷摘要/史记的关键事实后附（第N楼）指针，配合 OpLog 审计可回查原始出处（dsh seq 溯源理念）
+- **矛盾证据链**：conflicts 提取字段新增 severity（low/medium/high）严重度分级
+- **史记详细保留哲学**：史记折叠 prompt 从 150-250 字压缩导向升级为 200-350 字详细保留导向（宁可详细不可精简、已兑现与未兑现约定全保留、只压缩逐字重复）
+- **持久化对称**：lockedFacts 随 collectExport 快照 + SummarySystem export/import 对称，旧快照格式兼容
+
+### Tests
+- 新增 tests/v362_locked_facts.test.mjs（7 组：静态关键字/方法功能/export-import 对称/校验器逻辑/增量结构/注入区位置/配置守卫）
+- 全量 64 套件 114 测试通过
 ## [v3.61.0] - 2026-09-13
 ### 记忆全景报告：exportMemoryReport Markdown 导出（11 板块）、版本断言宽域统一
 - **记忆全景报告 (Memory Panorama Report)**：`engine.exportMemoryReport()` 将所有子系统数据汇总为一份可读 Markdown 档案——11 个板块：📊概览（时钟/摘要/图谱/悬念/审计计数）、🧍主角档案、🕸️角色羁绊网、📚章节卷摘要、🏛️纪元史记、👥群像共同记忆（归因式）、🧩未结悬念、📔角色日记（含 secret/attitude）、🎒物品台账、🎬当前大纲（含本轮目标/节奏）、🔍审计统计。settings-ui 状态面板新增「📄 全景报告 ⬇」入口卡片，点击生成并下载 `.md` 文件（Blob 下载），面板内同步展示报告前 1500 字预览（esc 转义）。跑了几百楼的记忆库从此可以一键导出为人类可读的完整档案。
