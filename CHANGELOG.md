@@ -1,4 +1,17 @@
 
+## [3.63.0] - 2026-09-13
+
+### Added（锁定事实 UI 管理 + 手机端回填：lockedFacts 闭环补全）
+
+- **settings-ui 锁定管理卡片**：状态总览新增「🔒 锁定事实 👁」卡片（动态计数），点击直达管理视图
+- **锁定事实管理视图**：查看/新增/删除三合一——输入框 + Enter 提交锁定、✕ 按钮 confirm 后解除、每条显示锁定楼层与时间、esc 转义防 XSS、空输入防护
+- **双端桥接通道**：bridge.backfill 新增 lockedFacts 通道——LonSha 锁定事实回填手机长期记忆（pinned、importance 9、[铁律] 标签），第 N 楼由用户锁定溯源标注，最多 6 条节流
+- **payload 携带**：_backfillPayload 新增 lockedFacts 字段（lockedFactsEnabled 守卫），手机记忆库从此共享用户的铁律事实
+
+### Tests
+- 新增 tests/v363_locked_facts_ui.test.mjs（5 组：UI 静态关键字/交互绑定/卡片位置/双端桥接/桥侧幂等）
+- 全量 65 套件 119 测试通过
+
 ## [3.62.0] - 2026-09-13
 
 ### Added（dsh-nexttavern 记忆方式缝入：锁定事实 + 增量摘要 + 溯源 + 证据链 + 详细哲学）

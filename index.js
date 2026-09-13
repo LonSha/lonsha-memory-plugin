@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.62.0';
+    const VERSION = '3.63.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1380,7 +1380,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         if (bridge?.backfill) {
                             // [v3.48] P0-4: backfill 携带剧情时钟快照（money_changes/conflicts 已在 extracted 原生 schema）
                             // [v3.59] A2: payload 携带群像记忆（bridge 回填手机）
-                            const _backfillPayload = { ...extracted, clock: this.clock?.export?.() || null, pairs: this.pairMem?.export?.()?.pairs || [] };
+                            const _backfillPayload = { ...extracted, clock: this.clock?.export?.() || null, pairs: this.pairMem?.export?.()?.pairs || [], lockedFacts: (this.config.config.lockedFactsEnabled !== false) ? this.summary.getLockedFacts() : [] };
                             bridge.backfill(_backfillPayload);
                             // [v3.49] P4: 心理暗流日记双端互通（幂等回填手机日记 App）
                             if (this.config.config.diaryBridgeEnabled !== false && this.diary?.diaries) {

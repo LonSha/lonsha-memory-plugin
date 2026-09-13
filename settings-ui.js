@@ -106,6 +106,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">🔒 锁定事实 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
@@ -120,6 +121,34 @@
             ov.querySelectorAll('.ls-clickable').forEach(card => {
                 card.addEventListener('click', () => plugin.showBrowser(card.dataset.view));
             });
+            // [v3.63] lockedfacts 视图的交互绑定
+            if (viewType === 'lockedfacts') {
+                const addBtn = ov.querySelector('#ls-lf-add');
+                const input = ov.querySelector('#ls-lf-input');
+                if (addBtn && input) {
+                    const doAdd = () => {
+                        const text = (input.value || '').trim();
+                        if (!text) { toast('请输入事实内容'); return; }
+                        const curFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
+                        s.summary.addLockedFact(text, curFloor);
+                        toast('🔒 已锁定：' + text.slice(0, 30) + (text.length > 30 ? '…' : ''));
+                        plugin.showBrowser('lockedfacts');
+                    };
+                    addBtn.addEventListener('click', doAdd);
+                    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+                }
+                ov.querySelectorAll('.ls-lf-del').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.dataset.lfid;
+                        const fact = (s.summary.getLockedFacts() || []).find(f => f.id === id);
+                        if (fact && confirm('解除锁定并从摘要保护中移除？\n\n' + fact.text)) {
+                            s.summary.removeLockedFact(id);
+                            toast('已解除锁定');
+                            plugin.showBrowser('lockedfacts');
+                        }
+                    });
+                });
+            }
         };
 
         // [v3.14] 从世界书提取角色面板（收编 zhino）: 提取 → 预览勾选 → 确认写入
@@ -327,6 +356,27 @@
                 }
             }
 
+            else if (viewType === 'lockedfacts') {
+                // [v3.63] 锁定事实管理（dsh lockedFacts）：查看/新增/删除，逐字保护
+                title = '🔒 用户锁定剧情事实';
+                const list = (s.summary?.getLockedFacts?.() || []);
+                const head = `<div class="ls-hint">锁定的剧情事实会<b>逐字</b>进入每轮摘要与注入流，永不因压缩丢失。摘要生成后有校验器防遗漏。适用于：关键约定、物品归属、重要转折、你不想被 AI 忘记的一切。</div>`;
+                const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
+                    <input id="ls-lf-input" type="text" placeholder="输入要锁定的剧情事实…" style="flex:1;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
+                    <button id="ls-lf-add" class="ls-btn" style="padding:6px 14px;">🔒 锁定</button>
+                </div>`;
+                const items = list.length === 0
+                    ? '<div class="ls-hint">暂无锁定事实。在输入框输入事实后点击锁定。</div>'
+                    : list.slice().reverse().map(f => `
+                        <div class="ls-item" style="display:flex;align-items:flex-start;gap:8px;">
+                            <div style="flex:1;">
+                                <div class="ls-item-meta">第${f.floor}楼锁定 · ${fmtTime(f.createdAt)}</div>
+                                <div class="ls-item-text">${esc(f.text)}</div>
+                            </div>
+                            <button class="ls-btn ls-lf-del" data-lfid="${esc(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✕</button>
+                        </div>`).join('');
+                body = head + addForm + '<div style="margin-top:8px;">' + items + '</div>';
+            }
             else if (viewType === 'injection') {
                 // [v3.57] P19: 注入内容预览（AI 实际看到的完整上下文）
                 title = '👁 注入内容预览';
