@@ -1,4 +1,18 @@
 
+## [3.80.0] - 2026-09-13
+
+### Added
+- **backfillFloors 番外楼防护**（防御纵深）：补提取循环内新增 isOmittedFloor 检查——scanMissingFloors 已排除番外楼，此处防「直接调用传入番外楼」路径把其补进记忆（违反「番外楼对引擎彻底不存在」原则）
+- **backfillFloors 补 protagonist/lifeDetails**：与 v3.78 主提取管线对齐——补提取现在同样产出主角档案与生活小档案（hasAny 守卫 + 批量上限 5 + 独立 try/catch）
+- **addManualSummary storyTime 衔接**：补摘支持 storyTime 参数（可选，空白不写字段保持向后兼容）；completeMissingFloors 批量补齐时从该楼原文提取 bbs_start/bbs_end 时间标签（结束时间优先、start 兜底）作为 storyTime——补齐摘要也能被相对时间前缀与时间线消费
+
+### Fixed
+- v350_backfill.test.mjs mock 环境补 isOmittedFloor（A 补丁新增调用后 mock 缺失导致场景失败）
+- v374_manual_summary.test.mjs 签名断言宽域化（addManualSummary 支持 storyTime 参数后旧断言失效）
+
+### Tests
+- 新增 v380_backfill_hardening.test.mjs（5 组：番外防护含结构验证/补字段对齐/storyTime 衔接含 4 用例复刻/addManualSummary 复刻 3 用例/回归防护），全量 232 测试全绿
+
 ## [3.79.0] - 2026-09-13
 
 ### Added

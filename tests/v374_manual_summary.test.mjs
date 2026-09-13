@@ -22,7 +22,7 @@ function extractClass(source, startMarker) {
 test('=== 1. 静态关键字检查 ===', () => {
     // A 引擎侧
     assert.ok(src.includes('updateSummaryText(floor, newText)'), '编辑摘要方法');
-    assert.ok(src.includes('addManualSummary(floor, text)'), '手动补摘方法');
+    assert.ok(/addManualSummary\(floor, text(, storyTime = '')?\)/.test(src), '手动补摘方法');   // [v3.80] 宽域化：支持 storyTime 参数
     assert.ok(src.includes('missingFloors(maxFloor)'), '缺失楼层清单');
     assert.ok(src.includes('s.edited = true;'), '编辑标记');
     assert.ok(src.includes('manual: true'), '补摘标记');

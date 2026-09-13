@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.79.0';
+    const VERSION = '3.80.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -2808,6 +2808,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                     for (const idx of list) {
                         const m = chat[idx];
                         if (!m || !String(m.mes || '').trim()) { done.skipped++; continue; }
+                        // [v3.80] A: 番外楼防护（防御纵深——scanMissingFloors 已排除，这里防直接调用路径）
+                        if (this.isOmittedFloor(m)) { done.skipped++; continue; }
                         try {
                             // 复用主管线消息对象构造（与 onMessageReceived 相同语义）
                             const msg = { ...m, index: idx };
@@ -2843,6 +2845,21 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 }
                             }
                             if (extracted?.summary) await this.summary.createSummary(msg, extracted.summary);
+                            // [v3.80] B: 主角档案/生活小档案（与 v3.78 主提取管线对齐——补提取同样产出）
+                            try {
+                                if (this.config.config.protagonistTracking !== false && extracted) {
+                                    if (extracted.protagonist && typeof extracted.protagonist === 'object') {
+                                        const keys = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
+                                        const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '');
+                                        if (hasAny) this.status.setProtagonist(extracted.protagonist, idx);
+                                    }
+                                    if (Array.isArray(extracted.life_details) && extracted.life_details.length) {
+                                        for (const ld of extracted.life_details.slice(0, 5)) {
+                                            if (ld && (typeof ld === 'string' || ld.text)) { try { this.status.addLifeDetail(ld, idx); } catch (e) {} }
+                                        }
+                                    }
+                                }
+                            } catch (e) { errLog(e, 'BF.backfill.主角档案'); }
                             done.ok++;
                             if (typeof onProgress === 'function') { try { onProgress(idx, done); } catch (e) {} }
                         } catch (e) { errLog(e, `BF.backfill.floor${idx}`); done.fail++; }
@@ -5175,8 +5192,9 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             try { this.opLog?.log?.('summary', 'update', 'sum_' + floor, floor, String(t).slice(0, 40)); } catch (e) {}
             return true;
         }
-        /** 手动补摘（柏宝书：任意楼层单独补摘）——为缺失楼层的旧剧情补一条摘要 */
-        addManualSummary(floor, text) {
+        /** 手动补摘（柏宝书：任意楼层单独补摘）——为缺失楼层的旧剧情补一条摘要
+         *  [v3.80] C: 支持 storyTime 参数（从原文时间标签提取——供相对时间前缀与时间线衔接） */
+        addManualSummary(floor, text, storyTime = '') {
             const t = String(text || '').trim();
             const f = Number(floor);
             if (!t || !Number.isFinite(f) || f < 0) return null;
@@ -5189,6 +5207,9 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 manual: true,
                 importance: 5
             };
+            // [v3.80] C: 时间标签衔接（补齐摘要也能被相对时间前缀消费）
+            const st = String(storyTime || '').trim();
+            if (st) s.storyTime = st;
             this.summaries.push(s);
             this.summaries.sort((a, b) => a.floor - b.floor);
             // [v3.75] A: OpLog 埋点（summary/manual）
@@ -5235,7 +5256,14 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                         const raw = await llm.callAPI(prompt);
                         const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
                         if (clean && clean.length >= 10) {
-                            const s = this.addManualSummary(f, clean);
+                            // [v3.80] C: 从该楼原文提取时间标签（bbs_start/bbs_end → 结束时间作为 storyTime）
+                            let stTag = '';
+                            try {
+                                const dta = new RelativeTimeHelper().extractDualTimeTags(text);
+                                if (dta?.hasDual && dta.end) stTag = String(dta.end).split(/\s+/)[0];
+                                else if (dta?.start) stTag = String(dta.start).split(/\s+/)[0];
+                            } catch (e) {}
+                            const s = this.addManualSummary(f, clean, stTag);
                             if (s) {
                                 done++;
                                 try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, '批量补齐'); } catch (e) {}

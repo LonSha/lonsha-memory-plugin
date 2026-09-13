@@ -94,6 +94,7 @@ function extractAsyncMethod(name) {
         const eng = {
             config: { config: { extractionLockEnabled: false, debugMode: false } },
             mutex: { acquire: async () => true, release: () => {} },
+            isOmittedFloor: () => false,   // [v3.80] A: 番外楼防护 mock（引擎侧真实存在）
             cleanMessageText: (t) => t,
             extractMemoryWithLLM: async () => extracted,
             resolveCharacterName: (n) => String(n || '').trim().toLowerCase(),
