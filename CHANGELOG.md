@@ -1,3 +1,9 @@
+## [v3.52.0] - 2026-09-13
+### 性能工程：bridge BM25 增量索引、召回源累计命中率统计
+- **bridge BM25 增量更新 (Incremental BM25 Indexing)**：手机端桥的检索索引从"每次 dirty 全量 rebuild"升级为**增量 append**——维护 `_indexedIds` 已索引集合，dirty 时只对新记忆调用 `BM25.add()`（IDF 增量更新），长对话免全量重扫。混合策略：首次（N===0）或超 800 条时全量 rebuild 保 IDF 精度。pool 感知层条目无稳定 id，用**内容前缀 hash** 幂等（同内容不重复索引）。
+- **召回源累计命中率统计 (Recall Source Stats)**：trailMonitor 升级——新增 `_recallSourceStats` 累计各召回源（vector/diffusion/bm25/rubyphone/graph…）的命中次数与轮次，200 轮环形窗口自动**半衰**防无限膨胀。collectExport 携带统计快照。诊断面板从此可回答"哪路召回在干活、哪路是摆设"——召回调优有了数据依据。
+- **自动化测试**：新增 `tests/v352_incremental_stats.test.mjs`（3 测试块：增量索引双端验证、统计容器与半衰、行为模拟），全量 54 个测试套件 81 个测试 100% 绿灯通过。
+
 ## [v3.51.0] - 2026-09-13
 ### 召回素材质量：compressSummary 主干句压缩（氛围句剔除/动作句提权/时序保持）接入向量索引
 - **主干句压缩 (Compress Summary: Skeleton-First Indexing)**：吸收 baibai 摘要纪律，`SummarySystem` 新增 `compressSummary(text, maxLen)`——为检索索引（向量/BM25 素材）提取「谁+做了什么+结果」主干句，**索引质量决定召回质量**。四层评分：动作/交互主干词（说/发现/拿/走/杀/救…）+3、主干长度带（8-80字）+2、台词引用 +1；氛围/阅读理解句式（气氛/仿佛/体现了/暗示了/心态…）-4 且**直接剔除**（负分句不入素材，全噪声时保底留最高分 1 句）；纯过渡短句（然后/接着 + 短）-2。取 top 句按**原文顺序**拼接（保持叙事时序），smartTruncate 长度保底。

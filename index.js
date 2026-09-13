@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.51.0';
+    const VERSION = '3.52.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1190,6 +1190,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             this._archivedFloorIds = new Set();   // 已被插件归档隐藏的楼层（可恢复）
             // [v3.27] 命中轨迹记录（MemoryPilot monitor）: 最近一次召回详情供面板诊断
             this._lastRecallTrace = null;   // { query, sources, hitCount, durationMs, ts, triggerHit }
+            this._recallSourceStats = { total: 0, bySource: {} };  // [v3.52] P12: 各召回源累计命中率（诊断面板：哪路召回在干活）
             // [v3.37] 叙事惊奇度/熵累加器（MemGPT 动态反思理念）
             this._narrativeEntropy = 0;
             this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
@@ -1836,6 +1837,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 pairMem: this.pairMem.export(),
                         outline: this.outline.export(),
                         pairMem: this.pairMem.export(),
+                        recallSourceStats: this._recallSourceStats || null,
                         scene: this.scene.export(),
                         echo: this.echo.export(),
                         supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
@@ -2341,6 +2343,24 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                             ts: new Date().toISOString(),
                             triggerHit: false
                         };
+                        // [v3.52] P12: 累计各源命中（环形窗口 200 轮防无限膨胀：超过时按比例衰减）
+                        this._recallSourceStats.total++;
+                        for (const [sk, sv] of Object.entries(srcMap)) {
+                            const cur = this._recallSourceStats.bySource[sk] || { hits: 0, rounds: 0 };
+                            cur.hits += sv;
+                            this._recallSourceStats.bySource[sk] = cur;
+                        }
+                        for (const sk of Object.keys(this._recallSourceStats.bySource)) {
+                            this._recallSourceStats.bySource[sk].rounds = this._recallSourceStats.total;
+                        }
+                        if (this._recallSourceStats.total > 200) {
+                            const half = Math.floor(this._recallSourceStats.total / 2);
+                            this._recallSourceStats.total = half;
+                            for (const sk of Object.keys(this._recallSourceStats.bySource)) {
+                                this._recallSourceStats.bySource[sk].hits = Math.ceil(this._recallSourceStats.bySource[sk].hits / 2);
+                                this._recallSourceStats.bySource[sk].rounds = half;
+                            }
+                        }
                     }
                     // 触发词按需注入: 用户最近消息含触发词时，追加对应长指令到注入尾部（省 token——平时不发）
                     const triggerPhrase = this.config.config.onDemandTriggerPhrase;
