@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.78.0';
+    const VERSION = '3.79.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -5195,11 +5195,26 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, String(t).slice(0, 40)); } catch (e) {}
             return s;
         }
-        /** 缺失楼层清单（柏宝书：一键把落下的楼层批量补齐的前置） */
+        /** 缺失楼层清单（柏宝书：一键把落下的楼层批量补齐的前置）
+         *  [v3.79] B: 排除番外楼（lonsha_omit）——番外楼对引擎彻底不存在，不得被扫入批量补齐 */
         missingFloors(maxFloor) {
             const have = new Set(this.summaries.map(s => s.floor));
             const missing = [];
-            for (let f = 0; f <= (Number(maxFloor) || 0); f++) if (!have.has(f)) missing.push(f);
+            let chat = null;
+            try { chat = window.SillyTavern?.getContext?.()?.chat || null; } catch (e) {}
+            for (let f = 0; f <= (Number(maxFloor) || 0); f++) {
+                if (have.has(f)) continue;
+                // 番外楼 / 用户楼 / 系统楼不列入缺失（不是「落下的」而是「不该记的」）
+                try {
+                    const m = chat?.[f];
+                    if (m) {
+                        if (m.extra?.lonsha_omit === true) continue;
+                        if (m.is_user === true) continue;
+                        if (m.is_system === true && m.extra?.type) continue;
+                    }
+                } catch (e) {}
+                missing.push(f);
+            }
             return missing;
         }
         /** [v3.76] A: 一键批量补齐（柏宝书「一键把落下的楼层批量补齐」）——异步 LLM 管线，最多补 maxBatch 楼
@@ -7329,7 +7344,7 @@ ${win}`;
         confirm(summaryMatch) {
             let n = 0;
             for (const d of this.deltas) {
-                if (d.status === 'uncertain' && d.summary.includes(String(summaryMatch || ' '))) {
+                if (d.status === 'uncertain' && d.summary.includes(String(summaryMatch || ''))) {
                     d.status = 'established';
                     n++;
                 }

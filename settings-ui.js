@@ -176,6 +176,51 @@
                     addBtn.addEventListener('click', doAdd);
                     textIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
                 }
+                // [v3.79] A: 一键批量补齐按钮（v3.76 引擎管线首次获得 UI 入口）
+                const compBtn = ov.querySelector('#ls-ms-complete');
+                if (compBtn) {
+                    compBtn.addEventListener('click', async () => {
+                        if (!s.summary?.completeMissingFloors) { toast('引擎版本过旧'); return; }
+                        let missingN = 0;
+                        try { missingN = s.summary.missingFloors((window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1).length; } catch (e) {}
+                        if (!missingN) { toast('✅ 无缺失楼层'); return; }
+                        if (!confirm('发现 ' + missingN + ' 个缺失楼层（不含番外/用户楼）。\n将调用 LLM 批量补齐（每批最多 5 楼，本批补完后可再次点击续补）。\n继续？')) return;
+                        compBtn.disabled = true; compBtn.textContent = '⏳ 补齐中…';
+                        try {
+                            const chat = window.SillyTavern?.getContext?.()?.chat || [];
+                            const r = await s.summary.completeMissingFloors(s.config.config, s.llm, (f) => String(chat?.[f]?.mes || ''), 5);
+                            if (r?.skipped) { toast('⚠️ 上一批仍在进行中'); }
+                            else {
+                                toast('✅ 已补齐 ' + (r.done || 0) + ' 楼' + (r.missing ? '（还剩 ' + r.missing + ' 楼）' : ''));
+                                if (s.bm25?.rebuild && s.summary?.getActiveSummaries) {
+                                    s.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: "sum_" + x.floor, text: x.text, floor: x.floor, source: "bm25"})));
+                                }
+                                plugin.showBrowser('summaries');
+                            }
+                        } catch (e) { toast('❌ 补齐失败：' + (e.message || e)); }
+                    });
+                }
+                // [v3.79] C: 番外楼标记/取消（替代控制台命令，柏宝书 bbs_omit 的 UI 入口）
+                const omitIn = ov.querySelector('#ls-omit-floor');
+                const omitMark = ov.querySelector('#ls-omit-mark');
+                const omitUnmark = ov.querySelector('#ls-omit-unmark');
+                if (omitIn && omitMark && omitUnmark) {
+                    const setOmit = (mark) => {
+                        const f = Number(omitIn.value);
+                        if (!Number.isFinite(f) || f < 0) { toast('请输入有效楼层号'); return; }
+                        try {
+                            const chat = window.SillyTavern?.getContext?.()?.chat || [];
+                            const m = chat[f];
+                            if (!m) { toast('该楼层不存在'); return; }
+                            m.extra = m.extra || {};
+                            m.extra.lonsha_omit = mark;
+                            toast(mark ? '🎬 第 ' + f + ' 楼已标记为番外（引擎将彻底忽略）' : '↩️ 第 ' + f + ' 楼已取消番外标记');
+                            if (mark && s.summary?.removeByFloor) { try { s.summary.removeByFloor(f); } catch (e) {} }
+                        } catch (e) { toast('操作失败：' + (e.message || e)); }
+                    };
+                    omitMark.addEventListener('click', () => setOmit(true));
+                    omitUnmark.addEventListener('click', () => setOmit(false));
+                }
             }
 
             // [v3.68] A: deltas 视图的手动确证绑定
@@ -253,6 +298,12 @@
                     <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
                     <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
                     <button id="ls-ms-add" class="ls-btn" style="padding:6px 14px;">+ 补摘</button>
+                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background:#45475a;" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）">🔧 批量补齐</button>
+                </div>
+                <div style="display:flex;gap:6px;margin:0 0 8px 0;">
+                    <input id="ls-omit-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
+                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background:#3d3d5c;" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）">🎬 标记番外</button>
+                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background:#3d3d5c;" title="取消番外标记，恢复该楼记忆处理">↩️ 取消番外</button>
                 </div><div class="ls-hint" style="font-size:11px;color:#888;margin:4px 0;">💡 若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置 → 正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
                 body = addForm + (list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
                     list.slice().reverse().map(m => `
