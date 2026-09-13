@@ -106,6 +106,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.mutex?.locked ? '🔒' : '🟢'}</div><div class="ls-stat-label">提取锁 ${s.mutex?.queueLength ? `(队列${s.mutex.queueLength})` : ''}</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
@@ -320,6 +321,27 @@
                             <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:#a6adc8">— ${esc(e.meta)}</span>` : ''}</div>
                         </div>`).join('');
                     body = head + rows;
+                }
+            }
+
+            else if (viewType === 'injection') {
+                // [v3.57] P19: 注入内容预览（AI 实际看到的完整上下文）
+                title = '👁 注入内容预览';
+                const inj = s._lastInjection;
+                if (!inj?.html) {
+                    body = '<div class="ls-hint">暂无注入记录。生成一次回复后，此处显示 AI 实际看到的完整记忆注入块（含预算裁剪后的最终形态）。</div>';
+                } else {
+                    const head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · ${inj.html.length} 字符（已经预算裁剪，即 AI 真实所见）</div>`;
+                    // 分块渲染：按区块标题拆分便于阅读
+                    const blocks = inj.html.split('\n').filter(l => l.trim());
+                    const bodyHtml = blocks.map(l => {
+                        const isHeader = /^\[[^\]]+\]/.test(l.trim()) || l.includes('〔') || l.includes('NOTE');
+                        const text = esc(l.trim());
+                        return isHeader
+                            ? `<div class="ls-item-meta" style="color:#a6e3a1;font-weight:bold;margin-top:6px;">${text}</div>`
+                            : `<div class="ls-item-text" style="padding-left:12px;">${text}</div>`;
+                    }).join('');
+                    body = head + `<div class="ls-item">${bodyHtml}</div>`;
                 }
             }
 

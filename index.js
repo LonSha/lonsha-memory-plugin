@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.56.0';
+    const VERSION = '3.57.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -2362,6 +2362,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     }
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
                 const inj2 = this.buildInjection(candidateItems);
+                if (inj2) this._lastInjection = { html: inj2, ts: Date.now() };  // [v3.57] P19: 注入预览缓存
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
                     if (this.config.config.trailMonitor) {
@@ -4201,6 +4202,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                         const t0 = Date.now();
                         const recalled = await this.recallMemory(query);
                         const inj = this.buildInjection(recalled);
+                        if (inj) this._lastInjection = { html: inj, ts: Date.now() };  // [v3.57] P19
                         const merged = recalled.filter(Boolean).reduce((a, b) => a + (Array.isArray(b) ? b.length : 0), 0);
                         report.pipeline = { ok: true, queryLen: qText.length, routes: Object.entries(recalled).filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => `${k}:${v.length}`), merged, injLen: (inj || '').length, ms: Date.now() - t0 };
                     }
