@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.77.0';
+    const VERSION = '3.78.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -576,6 +576,8 @@
 <node><node_title>节点标题</node_title><node_goal>节点目标</node_goal><turn pacing="setup|pressure|turn|cooldown">该轮要发生的具体剧情</turn>...</node>...
 pacing 语义：setup=铺垫（关系/信息/情绪），pressure=施压（行动+阻碍+悬念），turn=反转（揭示/爆点），cooldown=收束（后果/余韵）。
 tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，aftermath=余波消化。JSON 输出中不需要包含 outline 字段。
+9f. protagonist：主角客观档案变化（gender/age/identity/appearance/outfit/condition 六字段，只填本轮【明确变化或有新信息】的字段，其余省略；没有变化填 null）。例：{"outfit":"换上了蓝色礼服","condition":"左手受伤缠着绷带"}。
+9g. life_details：主角的偏好/习惯/近期个人状态（如"不吃香菜""在赶项目死线"）。【铁律：只认主角自己明说过、或正文明确揭示的】禁止从行为/语气推断偏好与内心。每条 {"text":"细节文本","topics":["饮食"],"anchors":["香菜"],"until":""}：topics 填 1-3 个主题标签（饮食/作息/工作…），anchors 填原文可检索的关键词，until 填故事内到期时间表示有时效（如"3月20日"），长期稳定偏好 until 留空。已有同义条目一律不重复。没有则填空数组。
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
 {"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null}`,
@@ -1714,6 +1716,27 @@ function relativeTimeLabel(eventTime, nowTime) {
                         // [v3.54] op-log: 状态变更事件
                         if (n) this.opLog?.log('status', 'update', `${n} changes`, floor, (extracted.status_changes || []).map(c => c?.character + '.' + c?.field).join(',').slice(0, 60));
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 状态写入失败:`, e); }
+                }
+                // [v3.78] A: 主角客观档案 + 生活小档案写入（修复 v3.45 有壳无水源——提取管线从不产出这两字段）
+                if (this.config.config.protagonistTracking !== false && extracted) {
+                    try {
+                        if (extracted.protagonist && typeof extracted.protagonist === 'object') {
+                            const keys = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
+                            const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '');
+                            if (hasAny) {
+                                this.status.setProtagonist(extracted.protagonist, floor);
+                                this.opLog?.log('status', 'update', 'protagonist', floor, keys.filter(k => extracted.protagonist[k] !== undefined).join(','));
+                            }
+                        }
+                        if (Array.isArray(extracted.life_details) && extracted.life_details.length) {
+                            let ln = 0;
+                            for (const ld of extracted.life_details.slice(0, 5)) {
+                                if (ld && (typeof ld === 'string' || ld.text)) { if (this.status.addLifeDetail(ld, floor)) ln++; }
+                            }
+                            if (ln && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧬 生活小档案 + ${ln} 条`);
+                            if (ln) this.opLog?.log('status', 'add', `${ln} life details`, floor, '');
+                        }
+                    } catch (e) { errLog(e, 'onMessageReceived.主角档案'); }
                 }
                 if (this.config.config.todoTrackingEnabled && extracted?.todos) {
                     try {
@@ -6561,13 +6584,18 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
 
             const norm = this._normalizeDetailText(cleanText);
             const topics = Array.isArray(detail?.topics) ? detail.topics.map(t => String(t).trim()).filter(Boolean) : [];
+            // [v3.78] C: anchors（原文可检索关键词）+ until（时效到期）——柏宝书 lifeDetails 三投放层选择的数据基础
+            const anchors = Array.isArray(detail?.anchors) ? detail.anchors.map(a => String(a).trim()).filter(Boolean).slice(0, 8) : [];
+            const until = String(detail?.until || '').trim();
             const tier = ['pinned', 'active', 'archive'].includes(detail?.tier) ? detail.tier : 'active';
 
             let existing = this.lifeDetails.find(d => this._normalizeDetailText(d.text) === norm);
             if (existing) {
                 existing.text = cleanText;
                 existing.tier = tier;
-                if (topics.length) existing.topics = Array.from(new Set([...existing.topics, ...topics]));
+                if (topics.length) existing.topics = Array.from(new Set([...(existing.topics || []), ...topics]));
+                if (anchors.length) existing.anchors = Array.from(new Set([...(existing.anchors || []), ...anchors]));
+                if (until) existing.until = until;
                 existing.floor = Number(floor) || existing.floor || 0;
                 return existing;
             }
@@ -6576,6 +6604,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 id: `life_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                 text: cleanText,
                 topics,
+                anchors,
+                until,
                 tier,
                 floor: Number(floor) || 0,
                 createdAt: Date.now()
@@ -6594,9 +6624,64 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
             return false;
         }
-        getLifeDetailsPrompt(limit = 5) {
-            const active = this.lifeDetails.filter(d => d.tier !== 'archive').slice(-limit);
-            return active.map(d => `- ${d.text}${d.topics?.length ? ` [${d.topics.join('/')}]` : ''}`);
+        getLifeDetailsPrompt(limit = 5, contextText = null, nowTime = null) {
+            // [v3.78] B: 三投放层选择算法（柏宝书 selectLifeDetailsForInjection 缝入）
+            //   pinned:手动置顶,常驻(≤limit); active:时效层,未过期且与近期上下文相关才注入,
+            //   无关键词的长期 active 兜底注入; archive:沉降层,仅 anchors/topics 命中才浮出。
+            //   记住 ≠ 每回合必提——只在注入选择层做裁剪,绝不删改真源条目。
+            try {
+                const PIN_CAP = Math.max(1, limit);
+                const TOTAL_CAP = Math.max(2, limit + 1);
+                // 上下文文本：未传时从聊天最近几条自动取（指代/关键词命中用）
+                let ctx = contextText;
+                if (ctx === null) {
+                    try {
+                        const msgs = window.SillyTavern?.getContext?.()?.chat?.slice(-4) || [];
+                        ctx = msgs.map(m => m?.mes || '').join(' ');
+                    } catch (e) { ctx = ''; }
+                }
+                ctx = String(ctx || '');
+                // 当前故事时间：未传时从引擎 clock 取（时效过期判断用）
+                let now = nowTime;
+                if (now === null) {
+                    try { now = window.LonShaMemory?.engine?.clock?.date || ''; } catch (e) { now = ''; }
+                }
+                now = String(now || '');
+                // 时效过期判断（复用全局 parseStoryDateLoose + storyDayDiff 式天数差；解析不出宁可不判）
+                const isExpired = (d) => {
+                    if (!d?.until || !now) return false;
+                    try {
+                        const h = new RelativeTimeHelper();
+                        const a = h.parseStoryDate(d.until), b = h.parseStoryDate(now);
+                        if (!a || !b || a.type !== 'standard' || b.type !== 'standard') return false;
+                        const da = new Date(a.year ?? 2000, (a.month ?? 1) - 1, a.day ?? 1);
+                        const db = new Date(b.year ?? 2000, (b.month ?? 1) - 1, b.day ?? 1);
+                        const gap = Math.round((da - db) / 86400000);
+                        return gap < 0;   // until 早于 now → 已过期
+                    } catch (e) { return false; }
+                };
+                const list = Array.isArray(this.lifeDetails) ? this.lifeDetails : [];
+                const pinned = list.filter(d => d.tier === 'pinned').slice(0, PIN_CAP);
+                const picked = [];
+                for (const d of list) {
+                    if (d.tier === 'pinned') continue;
+                    if (pinned.length + picked.length >= TOTAL_CAP) break;
+                    // active 过期不注入（数据保留，可手动沉降/删除）
+                    if (d.tier === 'active' && isExpired(d)) continue;
+                    const keys = [...(d.anchors || []), ...(d.topics || [])].map(s => String(s).trim()).filter(Boolean);
+                    // 命中判定：有关键词+有上下文→需命中；有关键词但无上下文→active 兜底（无依据时宁可不裁）；
+                    // 无关键词→仅 active 兜底注入（archive 无关键词不浮出）
+                    const hit = keys.length
+                        ? (ctx ? keys.some(k => ctx.includes(k)) : d.tier === 'active')
+                        : d.tier === 'active';
+                    if (hit) picked.push(d);
+                }
+                return [...pinned, ...picked].map(d => `- ${d.text}${d.topics?.length ? ` [${d.topics.join('/')}]` : ''}`);
+            } catch (e) {
+                // 兜底：旧行为（不因选择算法失败丢注入）
+                const active = this.lifeDetails.filter(d => d.tier !== 'archive').slice(-limit);
+                return active.map(d => `- ${d.text}${d.topics?.length ? ` [${d.topics.join('/')}]` : ''}`);
+            }
         }
         // [v2.3] ops 记录 (同楼覆盖式: 重复提取同楼时后写覆盖前写, 重放幂等)
         _logOp(floor, kind, items) {

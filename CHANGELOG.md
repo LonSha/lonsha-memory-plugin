@@ -1,4 +1,17 @@
 
+## [3.78.0] - 2026-09-13
+
+### Added
+- **主角档案/生活小档案水源补全（重大缺口修复）**：v3.45 缝入 baibai 时只吸了「壳」（数据结构/注入/携带包），提取管线从不产出 protagonist/lifeDetails 字段——本次补全水源：提取 prompt 新增 9f（protagonist 六字段，只填明确变化）+ 9g（life_details，铁律「只认主角明说或正文揭示」）；提取应用区新增写入（setProtagonist + addLifeDetail 批量上限 5、空值守卫、OpLog 埋点）
+- **三投放层选择算法**（柏宝书 selectLifeDetailsForInjection 缝入）：getLifeDetailsPrompt 从哑过滤升级为三档选择——pinned 常驻（≤limit）/active 时效+命中（无关键词兜底）/archive 仅命中浮出；总量封顶（limit+1）；时效过期检查（until vs clock.date，解析不出宁可不判）；ctx 为空时不做命中裁剪（无依据时宁可不裁）；失败静默降级旧行为
+- **anchors/until 字段支持**：addLifeDetail 扩展 anchors（原文可检索关键词，上限 8、合并去重）+ until（时效到期时间）——三投放层选择的数据基础
+
+### Fixed
+- v362_locked_facts.test.mjs 注入位置断言作用域修复（A2 补丁在提取应用区新增 protagonistTracking 引用后，全文件 indexOf 命中错误位置——限定 buildInjection 体内搜索）
+
+### Tests
+- 新增 v378_life_details.test.mjs（6 组：prompt 水源/应用区写入/三投放层选择复刻含 8 用例/时效过期复刻/anchors 字段/回归防护），全量 222 测试全绿
+
 ## [3.77.0] - 2026-09-13
 
 ### Added

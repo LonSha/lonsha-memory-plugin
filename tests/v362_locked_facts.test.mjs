@@ -139,10 +139,13 @@ test('=== 5. 增量卷摘要 prompt 结构检查 ===', () => {
 
 test('=== 6. 注入流锁定区块位置正确（静态锚定区，Prompt Cache A区） ===', () => {
     // 锁定事实注入应在 buildInjection 内且在主角档案之前（静态区靠前，字典序稳定）
+    // [v3.78] 作用域修复：protagonistTracking 在提取应用区也有引用，须限定在 buildInjection 体内搜索
     const injIdx = src.indexOf('buildInjection(recalled)');
-    const lfIdx = src.indexOf('[用户锁定剧情事实]');
-    const protIdx = src.indexOf('protagonistTracking !== false');
-    assert.ok(injIdx > 0 && lfIdx > injIdx, '注入块在 buildInjection 内');
+    const injSeg = src.slice(injIdx, injIdx + 12000);
+    const lfIdx = injSeg.indexOf('[用户锁定剧情事实]');
+    const protIdx = injSeg.indexOf('protagonistTracking !== false');
+    assert.ok(injIdx > 0 && lfIdx > 0, '注入块在 buildInjection 内');
+    assert.ok(protIdx > 0, '主角档案块在 buildInjection 内');
     assert.ok(lfIdx < protIdx, '在主角档案（静态锚定区）之前');
 });
 
