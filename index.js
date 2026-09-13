@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.75.1';
+    const VERSION = '3.76.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4517,6 +4517,19 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             for (const [k, v] of Object.entries(opLogStatsCompat(this).byType || {})) {
                 push(`- ${k}：${v} 次`);
             }
+            // [v3.76] B: 金字塔与重试队列状态
+            const gt = this.summary?.genericTiers || [];
+            if (gt.length) {
+                push('');
+                push('**金字塔扩展层：**');
+                for (const g of gt) push(`- ${g.name}（tier${g.tier}）：${(g.items || []).length} 条`);
+            }
+            const rq = this.summary?.retryQueue || [];
+            if (rq.length) {
+                push('');
+                push(`**重试队列：** ${rq.length} 个待重试任务`);
+                for (const j of rq.slice(-3)) push(`- ${j.kind}/tier${j.tier}：已试 ${j.attempts} 次`);
+            }
             return L.join('\n');
         }
 
@@ -5152,6 +5165,37 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             const missing = [];
             for (let f = 0; f <= (Number(maxFloor) || 0); f++) if (!have.has(f)) missing.push(f);
             return missing;
+        }
+        /** [v3.76] A: 一键批量补齐（柏宝书「一键把落下的楼层批量补齐」）——异步 LLM 管线，最多补 maxBatch 楼
+         *  防重入 _batchCompleting；调用方须传 chatLookup(floor) → 该楼原文（由引擎层注入） */
+        async completeMissingFloors(config, llm, chatLookup, maxBatch = 5) {
+            if (this._batchCompleting) return { done: 0, skipped: true };
+            const maxFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
+            const missing = this.missingFloors(maxFloor);
+            if (!missing.length) return { done: 0, missing: 0 };
+            this._batchCompleting = true;
+            let done = 0;
+            try {
+                for (const f of missing.slice(0, maxBatch)) {
+                    const text = typeof chatLookup === 'function' ? (chatLookup(f) || '') : '';
+                    if (!text || text.length < 10) continue;
+                    try {
+                        const prompt = '你是剧情记忆整理员。以下是第' + f + '楼的对话原文，请用【监控摄像头视角】重写本轮剧情摘要，30-80字，纯叙述句，无markdown。只输出摘要本身。\n\n' + text.slice(0, 1500);
+                        const raw = await llm.callAPI(prompt);
+                        const clean = String(raw || '').replace(/^[-•\s]+/, '').trim();
+                        if (clean && clean.length >= 10) {
+                            const s = this.addManualSummary(f, clean);
+                            if (s) {
+                                done++;
+                                try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, '批量补齐'); } catch (e) {}
+                            }
+                        }
+                    } catch (e) { /* 单楼失败跳过 */ }
+                }
+            } finally {
+                this._batchCompleting = false;
+            }
+            return { done, missing: this.missingFloors(maxFloor).length };
         }
         // [v1.4.2] 智能截断：优先在句子边界断开，避免"但那个"式半句截断
         smartTruncate(text, maxLen) {

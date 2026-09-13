@@ -1,4 +1,14 @@
 
+## [3.76.0] - 2026-09-13
+
+### Added
+- **一键批量补齐**（柏宝书 carryover 缝入）：SummarySystem.completeMissingFloors 异步 LLM 补齐管线——缺失楼层清单自动批量生成摘要（每批最多 5 楼），防重入 _batchCompleting 守卫，单楼失败跳过不中断，补齐项走 OpLog summary/manual 埋点（meta: 批量补齐）
+- **全景报告扩展**：审计统计板块追加「金字塔扩展层」（genericTiers 遍历展示）与「重试队列」（retryQueue 计数 + 最近 3 条状态），条件显示（无数据不占位）
+- **手机端桥接统计**：memory-view 桥接统计行追加「📝摘要同步 N」（消费 bridgeStats.summarySyncCount）
+
+### Tests
+- 新增 v376_batch_complete.test.mjs（5 组：静态特征/批量补齐逻辑复刻/防重入标志/报告扩展/手机统计），全量 211 测试全绿
+
 ## [3.75.1] - 2026-09-13
 
 ### 审计版（全面双向审计 + 修复抓出的实锤 Bug）
