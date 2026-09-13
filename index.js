@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.60.0';
+    const VERSION = '3.61.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4233,7 +4233,118 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
         }
 
         // [v2.9] RU-C: 全量导出（快照/存档共用同构数据）
-        // [v3.38] 无损完整全量导出（补充 charMem, worldProg, supersede, narrativeEntropy）
+        // [v3.38] 无损完整全量导出（补充 charMem, worldProg, supersede, narrativeEntropy）        // [v3.61] P24: 记忆全景 Markdown 报告导出（所有子系统数据汇总为可读档案）
+        exportMemoryReport() {
+            const L = [];
+            const push = (s) => L.push(s);
+            push('# LonSha 记忆库全景报告');
+            push('');
+            push('> 导出时间：' + new Date().toLocaleString('zh-CN'));
+            push('');
+            // 概览
+            const opStats = this.opLog?.stats?.() || { total: 0, byType: {} };
+            push('## 📊 概览');
+            push('');
+            push(`-  剧情时钟：${this.clock?.date || '未设定'}${this.clock?.label ? ' · ' + this.clock.label : ''}`);
+            push(`- 活跃摘要：${(this.summary?.getActiveSummaries?.() || []).length} 条`);
+            push(`- 卷/史记：${(this.summary?.volumes || []).length} / ${(this.summary?.historical || []).length}`);
+            push(`- 图谱：${this.graph?.nodes?.size || 0} 节点 · ${this.graph?.edges?.size || 0} 边`);
+            push(`- 物品台账：${(this.itemOps || []).length}`);
+            push(`- 悬念簿：${(this.suspense?.openItems?.() || []).length} 未结`);
+            push(`- 审计事件：${opLogStatsCompat(this)} 条`);
+            push('');
+            // 主角
+            const prot = this.status?.protagonist;
+            if (prot) {
+                push('## 🧍 主角档案');
+                push('');
+                for (const k of ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition']) {
+                    if (prot[k]) push(`- **${k}**：${prot[k]}`);
+                }
+                push('');
+            }
+            // NPC 羁绊
+            const ties = this.status?.getNpcTiesRecords?.() || [];
+            if (ties.length) {
+                push('## 🕸️ 角色羁绊网');
+                push('');
+                for (const t of ties) push(`- **${t.name}**：${(t.ties || []).join('；')}`);
+                push('');
+            }
+            // 卷摘要 + 史记
+            const vols = this.summary?.volumes || [];
+            if (vols.length) {
+                push('## 📚 章节卷摘要');
+                push('');
+                for (const v of vols.slice(-5)) push(`- 【卷${v.floorStart}-${v.floorEnd}】${v.text}`);
+                push('');
+            }
+            const hist = this.summary?.historical || [];
+            if (hist.length) {
+                push('## 🏛️ 纪元史记');
+                push('');
+                for (const h of hist) push(`- ${h.text || h}`);
+                push('');
+            }
+            // 群像
+            const pairs = this.pairMem?.pairs || [];
+            if (pairs.length) {
+                push('## 👥 群像共同记忆');
+                push('');
+                for (const p of pairs.slice(-8)) {
+                    for (const e of (p.entries || []).slice(-2)) {
+                        push(`- **${p.a} × ${p.b}**：${e.event}${e.actorDo ? `（${e.actorDo}）` : ''}${e.knownBy === 'one' ? ' ⚠️仅单方知晓' : ''}`);
+                    }
+                }
+                push('');
+            }
+            // 悬念簿
+            const open = this.suspense?.openItems?.() || [];
+            if (open.length) {
+                push('## 🧩 未结悬念');
+                push('');
+                for (const x of open) push(`- [${x.kind || 'plan'}] ${x.content}`);
+                push('');
+            }
+            // 群像日记
+            const diaries = this.diary?.diaries || {};
+            if (Object.keys(diaries).length) {
+                push('## 📔 角色日记');
+                push('');
+                for (const [name, arr] of Object.entries(diaries)) {
+                    const last = (arr || []).slice(-1)[0];
+                    if (last) push(`- **${name}**（第${last.floor ?? '?'}楼·${last.mood || '平静'}）：${String(last.text || '').slice(0, 80)}${last.secret ? ` ｜未说出口：${last.secret}` : ''}`);
+                }
+                push('');
+            }
+            // 物品
+            if ((this.itemOps || []).length) {
+                push('## 🎒 物品台账');
+                push('');
+                for (const o of (this.itemOps || []).slice(-10)) {
+                    if (o?.name) push(`- **${o.name}**（持有：${o.holder || '无主'} · 状态：${o.state || '完好'}）`);
+                }
+                push('');
+            }
+            // 大纲
+            if (this.outline?.stage) {
+                push('## 🎬 当前大纲');
+                push('');
+                push(`**「${this.outline.stage.title}」**：${this.outline.stage.goal}（tempo: ${this.outline.stage.tempo}）`);
+                const cur = this.outline.currentTurn;
+                if (cur) push(`- 本轮（第${this.outline._turnIndex + 1}/${this.outline.flatTurns.length}轮）：${cur.goal} [${cur.pacing}]`);
+                push('');
+            }
+            // 事件统计
+            push('## 🔍 审计统计');
+            push('');
+            for (const [k, v] of Object.entries(opLogStatsCompat(this).byType || {})) {
+                push(`- ${k}：${v} 次`);
+            }
+            return L.join('\n');
+        }
+
+
         collectExport() {
             return {
                 version: VERSION,
@@ -7579,4 +7690,10 @@ ${recentTurns}`;
     plugin.safeJsonParse = safeJsonParse;
     plugin.init().catch(err => console.error(`[${PLUGIN_NAME}] 初始化失败:`, err));
     window.LonShaMemory = plugin;
+    function opLogStatsCompat(engine) {
+        try { return engine.opLog?.stats?.() || { total: 0, byType: {} }; } catch (e) { return { total: 0, byType: {} }; }
+    }
+
+
+
 })();

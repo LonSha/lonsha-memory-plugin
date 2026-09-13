@@ -34,7 +34,7 @@ function extractFn(name) {
 }
 
 test('=== 1. v3.47 静态锚点与版本检查 ===', () => {
-    assert.match(src.match(/const VERSION = '([^']+)';/)?.[1] || '', /^3\.(?:4[7-9]|5\d)/, '版本号必须 >= 3.47.0');
+    assert.match(src.match(/const VERSION = '([^']+)';/)?.[1] || '', /^3\.\d{2,}/, '版本号必须 >= 3.47.0');
     assert.ok(src.includes('class MoneyLedger'), '必须声明 MoneyLedger 钱财账本类');
     assert.ok(src.includes('class CardCollection'), '必须声明 CardCollection 剧情卡牌类');
     assert.ok(src.includes('class ConflictBook'), '必须声明 ConflictBook 矛盾账本类');

@@ -107,6 +107,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.mutex?.locked ? '🔒' : '🟢'}</div><div class="ls-stat-label">提取锁 ${s.mutex?.queueLength ? `(队列${s.mutex.queueLength})` : ''}</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
@@ -353,6 +354,18 @@
                     const diffNote = prevLines ? `<div class="ls-hint" style="color:#a6e3a1;">🆕 本轮新增 ${newCount} 行（绿色标注）</div>` : '';
                     body = head + diffNote + `<div class="ls-item">${bodyHtml}</div>`;
                 }
+            }
+
+            else if (viewType === 'report') {
+                // [v3.61] P24: 记忆全景 Markdown 报告导出
+                const md = this.engine.exportMemoryReport();
+                const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `lonsha-memory-report-${Date.now()}.md`;
+                a.click();
+                toast('📄 记忆全景报告已导出');
+                body = '<div class="ls-hint">✅ 报告已下载。包含：概览/主角档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 11 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:#1e1e2e;padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
             }
 
             const opHint = '<div class="ls-hint" style="color:#89b4fa;margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>';

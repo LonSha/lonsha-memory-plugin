@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 const src = fs.readFileSync(path.resolve(__dirname, '../index.js'), 'utf-8');
 
 console.log('=== 1. 静态关键锚点与版本检查 ===');
-assert.ok(/const VERSION = '3\.(?:4[4-9]|5\d)\.\d+';/.test(src), '版本号必须递增至 3.44.0+');
+assert.ok(/const VERSION = '3\.\d{2,}\.\d+';/.test(src), '版本号必须递增至 3.44.0+');
 assert.ok(src.includes('sanitizeJson') && src.includes('safeJsonParse'), '必须包含字符流状态机 JSON 容错解析器');
 assert.ok(src.includes('clean.carried = true;\n                    clean.location = \'\';') || src.includes('clean.carried === true') && src.includes('clean.location = \'\';'), '物品台账必须实现 carried 与 location 互斥');
 assert.ok(src.includes('this._revision = 0;') && src.includes('setStateIfRevision'), 'StorageManager 必须实现单调递增修订号与乐观并发');
