@@ -1,4 +1,14 @@
 
+## [3.81.0] - 2026-09-13
+
+### Added
+- **主角档案/生活小档案回填手机**（v3.78 数据 → 手机端闭环）：LonSha payload 携带 protagonist（getProtagonist 快照）+ lifeDetails（排除 archive 层）；桥 backfill 消费——主角六字段拼接（性别/年龄/身份/体貌/着装/状况）→ 手机长期记忆 pinned importance 7；生活小档案（含 topics 标签）→ 手机长期记忆 importance 5（偏好/习惯贴合）
+- **桥 stats 新计数**：protagonistIngested / lifeDetailIngested（v3.65/v3.68/v3.75 计数体系延续）
+- **手机端展示**：memory-view 桥接统计行追加「🧑主角 N · 🧬生活 N」（消费 bridgeStats 新字段）
+
+### Tests
+- 新增 v381_bridge_protagonist.test.mjs（5 组：payload 携带/桥消费含六字段拼接复刻/stats 计数/memory-view 展示/回归防护），全量 237 测试全绿 + rubyphone-integration 全过
+
 ## [3.80.0] - 2026-09-13
 
 ### Added
