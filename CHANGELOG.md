@@ -1,3 +1,10 @@
+## [3.88.0] - 2026-09-14
+### Added
+- **公开只读快照桥**（`window.lonsha_memory_bridge_v1`）：对外暴露引擎状态只读深拷贝快照——主角档案/生活小档案/NPC 状态卡/钱财账本/大纲导演/世界推进/游戏时钟，供手机前端、调试台、衍生卡等外部脚本读取，无需再侵入 `window.LonShaMemory.engine` 内部结构
+- **只读契约**：bridge 对象仅含 `version`/`bridge`/`snapshot`/`refresh()`，不提供任何写入引擎的方法；快照内全部字段经 structuredClone/JSON 双保险深拷贝，外部改动不回灌引擎
+- **随生成刷新**：快照在 onBeforeGeneration 注入管线尾部自动刷新（bridgeEnabled 门控），外部脚本任意时刻读到的都是最近一次生成时的完整状态
+- **容灾**：任一子系统缺失时字段降级为空对象或 null，不阻塞生成管线
+
 ## [3.87.0] - 2026-09-14
 ### Added
 - **前情导入与边界加权切片注入**（吸收 MyriadKnots recall-prequel）：新增 PrequelSystem——用户在设置面板粘贴过去经历原文（旧存档概要/前作剧情/人设背景），随聊天持久化（collectExport/storage.load/文件导入/快照恢复四路接线）

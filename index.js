@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.87.0';
+    const VERSION = '3.88.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -619,6 +619,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 bm25Enabled: true,          // BM25 稀疏检索（词频×逆文档频率）
                 bm25TopK: 5,                // BM25 每轮召回条数
                 prequelEnabled: true,       // [v3.87] 用户导入前情资料（Prequel）按相关性选段注入
+                bridgeEnabled: true,        // [v3.88] 公开只读快照桥（window.lonsha_memory_bridge_v1）
 
                 // [v2.0] P2: 角色状态表 + 楼层账本
                 characterStateEnabled: true,   // 角色数值状态追踪（好感/疲劳/心情等）
@@ -2615,6 +2616,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
                 if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
                 if (inj2) this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff
+                try { if (this.config.config.bridgeEnabled !== false) window.lonsha_memory_bridge_v1?.refresh?.(); } catch (e) {}   // [v3.88] 快照桥随生成刷新
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
                     if (this.config.config.trailMonitor) {
@@ -3848,6 +3850,31 @@ function relativeTimeLabel(eventTime, nowTime) {
                     enabled: this.config.config.prequelEnabled !== false
                 });
             } catch (e) { errLog(e, 'buildPrequelInjection'); return ''; }
+        }
+        // [v3.88] 公开只读快照桥（globalThis.lonsha_memory_bridge_v1）：
+        // 供外部脚本（手机前端/调试台/衍生卡）读取引擎当前状态快照。全部深拷贝，外部写入不影响引擎内部状态。
+        buildBridgeSnapshot() {
+            try {
+                const deep = (v) => {
+                    try { return (typeof structuredClone === 'function') ? structuredClone(v) : JSON.parse(JSON.stringify(v ?? null)); }
+                    catch (e) { try { return JSON.parse(JSON.stringify(v ?? null)); } catch (e2) { return null; } }
+                };
+                const floor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
+                return {
+                    version: 1,
+                    bridge: 'lonsha_memory_bridge_v1',
+                    pluginVersion: VERSION,
+                    floor,
+                    exportedAt: Date.now(),
+                    protagonist: deep(this.status?.getProtagonist?.() || {}),
+                    lifeDetails: deep((this.status?.lifeDetails || []).filter(d => d.tier !== 'archive')),
+                    characters: deep(this.status?.characters || {}),
+                    moneyLedger: deep(this.moneyLedger?.export?.() || {}),
+                    outline: deep(this.outline?.export?.() || {}),
+                    worldProg: deep(this.worldProg?.export?.() || {}),
+                    clock: deep(this.clock?.export?.() || null)
+                };
+            } catch (e) { errLog(e, 'buildBridgeSnapshot'); return null; }
         }
         // [v1.5] 注入格式（抄 baibai 私密简报包裹 + HCDiary 分区结构）
         buildInjection(recalled) {
@@ -8828,6 +8855,18 @@ ${recentTurns}`;
     plugin.VERSION = VERSION;   // [v3.77] A: 版本真值暴露（settings-ui 原硬编码 '1.3.0' 假版本）
     plugin.init().catch(err => console.error(`[${PLUGIN_NAME}] 初始化失败:`, err));
     window.LonShaMemory = plugin;
+    // [v3.88] 公开只读快照桥：外部脚本经 window.lonsha_memory_bridge_v1.snapshot 读取最近一次生成时的状态快照。
+    // 只读契约——本对象不提供任何写入引擎的方法；快照仅由引擎在生成管线内 refresh。
+    window.lonsha_memory_bridge_v1 = {
+        version: 1,
+        bridge: 'lonsha_memory_bridge_v1',
+        snapshot: null,
+        refresh() {
+            try { this.snapshot = plugin.engine?.buildBridgeSnapshot?.() || null; }
+            catch (e) { this.snapshot = null; }
+            return this.snapshot;
+        }
+    };
     function opLogStatsCompat(engine) {
         try { return engine.opLog?.stats?.() || { total: 0, byType: {} }; } catch (e) { return { total: 0, byType: {} }; }
     }
