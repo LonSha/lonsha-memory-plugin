@@ -208,7 +208,10 @@ test('【正向10】结构完整性', () => {
         assert.ok(src.includes(cls), '类缺失: ' + cls);
     }
     // 版本一致
-    assert.ok(src.includes("const VERSION = '3.75.1';"), 'VERSION');
+    assert.ok(/const VERSION = '3\.[0-9]+\.[0-9]+';/.test(src), 'VERSION');   // [v3.77] 宽域化：不绑定具体小版本
     const manifest = JSON.parse(readFileSync('/home/user/lonsha-memory-plugin/manifest.json', 'utf-8'));
-    assert.strictEqual(manifest.version, '3.75.1', 'manifest 版本');
+    assert.ok(/^3\.[0-9]+\.[0-9]+$/.test(manifest.version), 'manifest 版本格式');   // [v3.77] 宽域化
+    // 版本一致性：manifest 与 index.js 的 VERSION 相同
+    const verMatch = src.match(/const VERSION = '(3\.[0-9]+\.[0-9]+)';/);
+    assert.strictEqual(manifest.version, verMatch[1], 'manifest 与 index.js 版本一致');
 });

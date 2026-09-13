@@ -9,7 +9,7 @@
         if (!plugin) { setTimeout(mount, 200); return; }
 
         const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = plugin.engine?.config?.config ? '1.3.0' : '1.3.0';
+        const VERSION = plugin.VERSION || '3.77.0';   // [v3.77] A: 版本真值（原硬编码 '1.3.0' 假版本，自检/展示全用真值）
 
         // ========== 共享样式 ==========
         const style = document.createElement('style');
@@ -779,6 +779,12 @@
             overlay.querySelector('#ls-carry-pack').addEventListener('click', () => {
                 const pack = this.engine.packCarryover();
                 if (!pack) { toast('打包失败'); return; }
+                // [v3.77] B: 携带预览（抄 baibai CarryoverPlan——先预览「将携带多少」，确认后才落盘下载）
+                try {
+                    const c = pack.counts || {};
+                    const prevMsg = '🚚 携带包预览\n\n摘要 ' + (c.summaries ?? pack.summaries?.length ?? 0) + ' 条\n悬念 ' + (c.suspense ?? pack.suspense?.length ?? 0) + ' 条\n图谱节点 ' + (c.graphNodes ?? 0) + '\n日记 ' + (c.diaries ?? 0) + '\n向量 ' + (c.vectors ?? 0) + '\n\n确认打包？（打包后新对话点「导入携带包」无缝续写）';
+                    if (!confirm(prevMsg)) { toast('已取消打包'); return; }
+                } catch (e) {}
                 try {
                     localStorage.setItem('lonsha_carryover_pack', JSON.stringify(pack));
                     const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
@@ -924,6 +930,32 @@
             });
         };
 
+        // [v3.77] A: 版本更新检测（抄 baibai update.ts——对比远端 manifest，结果不缓存防「更新完仍提示」）
+        plugin.checkUpdate = async function() {
+            const cur = plugin.VERSION || '3.77.0';
+            toast('🔄 正在检查更新...');
+            try {
+                const url = 'https://raw.githubusercontent.com/LonSha/lonsha-memory-plugin/main/manifest.json?t=' + Date.now();
+                const res = await fetch(url, { cache: 'no-store' });
+                if (!res.ok) { toast('❌ 检查失败：HTTP ' + res.status); return; }
+                const mf = await res.json();
+                const latest = String(mf.version || '');
+                if (!latest) { toast('❌ 远端版本号缺失'); return; }
+                const isNewer = (a, b) => {
+                    const pa = a.split('.').map(n => parseInt(n, 10) || 0);
+                    const pb = b.split('.').map(n => parseInt(n, 10) || 0);
+                    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                        const x = pa[i] || 0, y = pb[i] || 0;
+                        if (x > y) return true;
+                        if (x < y) return false;
+                    }
+                    return false;
+                };
+                if (isNewer(latest, cur)) toast(`🆕 发现新版本 ${latest}（当前 ${cur}）`);
+                else toast(`✅ 已是最新版本 ${cur}`);
+            } catch (e) { toast('❌ 检查失败：' + (e.message || e)); }
+        };
+
         // ========== FAB 快捷菜单 ==========
         plugin.showFabMenu = function() {
             const existing = document.getElementById('lonsha-fab-menu');
@@ -938,6 +970,7 @@
                 <div class="lsm-item" data-act="viz">🕸️ 记忆图谱</div>
                 <div class="lsm-item" data-act="settings">⚙️ 设置</div>
                 <div class="lsm-item" data-act="diag">🩺 一键诊断</div>
+                <div class="lsm-item" data-act="update">🔄 检查更新</div>
                 <style>
                     #lonsha-fab-menu { position: fixed; bottom: 145px; right: 20px; background: #1e1e2e; border: 1px solid #45475a; border-radius: 14px; padding: 6px; z-index: 10001; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 190px; }
                     .lsm-item { padding: 13px 14px; color: #cdd6f4; font-size: 15px; border-radius: 9px; cursor: pointer; }
@@ -956,6 +989,7 @@
                     else if (act === 'settings') plugin.showSettingsPanel();
                     else if (act === 'timeline') plugin.showBrowser('timeline');
                     else if (act === 'diag') plugin.showDiagnose();
+                    else if (act === 'update') plugin.checkUpdate();
                 });
             });
             document.body.appendChild(menu);

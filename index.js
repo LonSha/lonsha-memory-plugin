@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.76.0';
+    const VERSION = '3.77.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -764,11 +764,13 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             }
         }
         // [v2.4] RE: 查询重写（抄 baibai rewriteQuery——把最近剧情改写成检索意图，失败返回 null 降级）
-        async rewriteQuery(recentText) {
+        async rewriteQuery(recentText, ctxSnapshot = '') {
             try {
                 if (!this.config.config.queryRewrite) return null;
                 const cfg = this.config.config;
-                const prompt = `把下面的剧情进展改写成 1-3 条适合检索历史记忆的短查询（每条一行，只写关键人名/地点/物件/事件词，去掉口语与修饰）。只输出查询行，不要解释。\n${String(recentText || '').substring(0, 600)}`;
+                // [v3.77] C: 上下文增强（抄 baibai rewrite 上下文构造——状态快照注入，让改写查询指向滚出窗口的实体）
+                const snapLine = ctxSnapshot ? `\n[当前状态快照（供指代消解，查询可引用其中人名/地点/物件）]\n${String(ctxSnapshot).substring(0, 400)}\n` : '';
+                const prompt = `把下面的剧情进展改写成 1-3 条适合检索历史记忆的短查询（每条一行，只写关键人名/地点/物件/事件词，去掉口语与修饰）。只输出查询行，不要解释。${snapLine}\n${String(recentText || '').substring(0, 600)}`;
                 let raw = null;
                 if (cfg.apiProviderCustom && cfg.apiUrl && cfg.apiKey) {
                     raw = await this.callOpenAI(prompt, cfg.apiUrl, cfg.apiKey, cfg.apiModel);
@@ -2446,7 +2448,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (!this.recallWorthRunning()) return '';
                 // [v2.4] RE: 查询重写——把最近剧情改写成多条检索查询，主查询之外追加多路
                 try {
-                    const qs = await this.llm.rewriteQuery(query.text);
+                    // [v3.77] C: 构建状态快照（主角/场景/时间——供改写查询指代消解，柏宝书 rewrite 上下文构造）
+                    let _rwSnap = '';
+                    try {
+                        const _parts = [];
+                        const _pr = this.status?.getProtagonist?.();
+                        if (_pr && (_pr.identity || _pr.outfit)) _parts.push('主角:' + [_pr.identity, _pr.outfit].filter(Boolean).join('/'));
+                        const _sc = this.scene?.currentKey?.();
+                        if (_sc) { const _ch = this.scene.chainOf?.(_sc) || []; if (_ch.length) _parts.push('场景:' + _ch.map(n => n.path?.[n.path.length - 1] || '').filter(Boolean).join('›')); }
+                        if (this.clock?.date) _parts.push('时间:' + this.clock.date);
+                        _rwSnap = _parts.join(' | ');
+                    } catch (e) {}
+                    const qs = await this.llm.rewriteQuery(query.text, _rwSnap);
                     if (qs && qs.length) query.queries = qs;
                 } catch (e) { errLog(e, 'cleanMessageText'); }
                 const recalled = await this.recallMemory(query);
@@ -8185,6 +8198,7 @@ ${recentTurns}`;
     const plugin = new LonShaMemoryPlugin();
     plugin.sanitizeJson = sanitizeJson;
     plugin.safeJsonParse = safeJsonParse;
+    plugin.VERSION = VERSION;   // [v3.77] A: 版本真值暴露（settings-ui 原硬编码 '1.3.0' 假版本）
     plugin.init().catch(err => console.error(`[${PLUGIN_NAME}] 初始化失败:`, err));
     window.LonShaMemory = plugin;
     function opLogStatsCompat(engine) {
