@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.64.0';
+    const VERSION = '3.65.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1918,6 +1918,23 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             }
         }
         
+        // [v3.65] A: 锁定事实操作包装（带 OpLog 埋点，locked_fact 类型）
+        lockFact(text) {
+            const floor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
+            const id = this.summary.addLockedFact(text, floor);
+            if (id) {
+                this.opLog?.log?.('locked_fact', 'add', id.slice(0, 12), floor, String(text).slice(0, 40));
+            }
+            return id;
+        }
+        unlockFact(id) {
+            const fact = (this.summary.getLockedFacts() || []).find(f => f.id === id);
+            const ok = this.summary.removeLockedFact(id);
+            if (ok && fact) {
+                this.opLog?.log?.('locked_fact', 'remove', id.slice(0, 12), fact.floor, String(fact.text).slice(0, 40));
+            }
+            return ok;
+        }
         async extractMemoryWithLLM(message) {
             if (!this.config.config.extractionEnabled) return this.extractMemorySimple(message);
             try {
@@ -7103,7 +7120,7 @@ ${recentTurns}`;
             this.entries.push({
                 seq: ++this._seq,
                 ts: Date.now(),
-                type: String(type || '').slice(0, 20),      // summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair
+                type: String(type || '').slice(0, 20),      // summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair|locked_fact
                 op: String(op || '').slice(0, 10),          // add|update|remove|resolve|forge|shift
                 ref: String(ref || '').slice(0, 60),        // 目标 id/键/摘要签名
                 floor: floor ?? null,

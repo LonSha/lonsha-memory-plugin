@@ -1,4 +1,17 @@
 
+## [3.65.0] - 2026-09-13
+
+### Added（OpLog 锁定埋点 + 未决矛盾视图 + 桥统计铁律计数）
+
+- **OpLog locked_fact 埋点（第 14 类型）**：引擎新增 lockFact/unlockFact 包装方法——锁定/解除操作进事件溯源（locked_fact 类型，add/remove 操作，含 id/floor/文本摘要），OpLog 类型注释同步更新
+- **UI 改调包装方法**：settings-ui 锁定/解除调用优先走引擎包装（带埋点），旧方法名降级兜底兼容
+- **未决矛盾视图**：showBrowser 新增 conflicts 视图——severity 严重度三色徽标（🔴高/🟡中/🔵低）、版本对比、楼层溯源、XSS 转义；状态总览新增「⚔️ 未决矛盾 👁」动态计数卡片（锁定事实与注入预览之间）
+- **桥统计铁律计数**：bridge stats 新增 lockedFactsIngested 字段，铁律回填实际写入后累加（计数在 record 之后，只有真写入才计数）
+
+### Tests
+- 新增 tests/v365_oplog_lockfact.test.mjs（6 组：埋点检查/UI 包装方法/矛盾视图/卡片位置/桥统计/埋点功能模拟）
+- 全量 67 套件 132 测试通过
+
 ## [3.64.0] - 2026-09-13
 
 ### Added（severity 全链路 + 全景报告锁定板块 + 手机铁律标识）

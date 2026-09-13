@@ -107,6 +107,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">🔒 锁定事实 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">⚔️ 未决矛盾 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
@@ -130,7 +131,7 @@
                         const text = (input.value || '').trim();
                         if (!text) { toast('请输入事实内容'); return; }
                         const curFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
-                        s.summary.addLockedFact(text, curFloor);
+                        s.lockFact ? s.lockFact(text) : s.summary.addLockedFact(text, curFloor);
                         toast('🔒 已锁定：' + text.slice(0, 30) + (text.length > 30 ? '…' : ''));
                         plugin.showBrowser('lockedfacts');
                     };
@@ -142,7 +143,7 @@
                         const id = btn.dataset.lfid;
                         const fact = (s.summary.getLockedFacts() || []).find(f => f.id === id);
                         if (fact && confirm('解除锁定并从摘要保护中移除？\n\n' + fact.text)) {
-                            s.summary.removeLockedFact(id);
+                            s.unlockFact ? s.unlockFact(id) : s.summary.removeLockedFact(id);
                             toast('已解除锁定');
                             plugin.showBrowser('lockedfacts');
                         }
@@ -376,6 +377,25 @@
                             <button class="ls-btn ls-lf-del" data-lfid="${esc(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✕</button>
                         </div>`).join('');
                 body = head + addForm + '<div style="margin-top:8px;">' + items + '</div>';
+            }
+            else if (viewType === 'conflicts') {
+                // [v3.65] C: 未决矛盾视图（severity 严重度分级展示）
+                title = '⚔️ 未决矛盾账本';
+                const list = s.conflicts?.conflicts || [];
+                if (!list.length) {
+                    body = '<div class="ls-hint">暂无未决矛盾。LLM 检测到同一事实两个版本对不上时自动登记（矛盾是剧情资产，AI 不会擅自裁决）。</div>';
+                } else {
+                    const sevBadge = (sev) => {
+                        if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:#fecaca;background:rgba(248,113,113,0.15);border-radius:4px;padding:1px 6px;">🔴高</span>';
+                        if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:#93c5fd;background:rgba(96,165,250,0.12);border-radius:4px;padding:1px 6px;">🔵低</span>';
+                        return '<span style="font-size:10px;font-weight:700;color:#fcd34d;background:rgba(251,191,36,0.12);border-radius:4px;padding:1px 6px;">🟡中</span>';
+                    };
+                    body = list.slice().reverse().map(c => `
+                        <div class="ls-item">
+                            <div class="ls-item-meta">${sevBadge(c.severity)} <b>${esc(c.subject)}</b> · 第${c.floor}楼${c.time ? ' · ' + esc(c.time) : ''}</div>
+                            <div class="ls-item-text">版本A「${esc(c.versionA)}」 ↔ 版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:#888;">' + esc(c.note) + '</span>' : ''}</div>
+                        </div>`).join('');
+                }
             }
             else if (viewType === 'injection') {
                 // [v3.57] P19: 注入内容预览（AI 实际看到的完整上下文）
