@@ -1,4 +1,17 @@
 
+## [3.74.0] - 2026-09-13
+
+### Added（柏宝书手动操作缝入：编辑摘要 + 手动补摘 + 缺失楼层清单）
+
+- **编辑摘要**：SummarySystem 新增 updateSummaryText——直接修改任意楼层摘要文本（edited 标记 + editedAt 时间戳，smartTruncate 2000 截断）；UI 摘要操作区新增「✏ 编辑该摘要」按钮（prompt 编辑 + BM25 索引同步重建）
+- **手动补摘**：SummarySystem 新增 addManualSummary——为缺失楼层的旧剧情补一条摘要（manual 标记、幂等同楼层拒绝、floor 升序排序保持）；UI 摘要列表视图顶部新增补摘输入框（楼层号 + 一句话 + Enter/按钮提交，BM25 同步）
+- **缺失楼层清单**：missingFloors(maxFloor)——返回未覆盖楼层数组，为「一键批量补齐」预留前置
+- 版本守卫：UI 调用前检查引擎方法存在（引擎版本过旧提示）
+
+### Tests
+- 新增 tests/v374_manual_summary.test.mjs（5 组：静态关键字/updateSummaryText 功能/addManualSummary 功能/missingFloors/UI 交互完整性）
+- 全量 76 套件 183 测试通过
+
 ## [3.73.0] - 2026-09-13
 
 ### Fixed + Added（时间标签清洗误伤根治 + 时间段压缩展示）

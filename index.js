@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.73.0';
+    const VERSION = '3.74.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -5113,6 +5113,42 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             return list.map(f => '- ' + f.text + '（第' + f.floor + '楼锁定）').join('\n');
         }
         // [v3.28] 三级金字塔（st-memory-wizzard）: summaries(level1日记) → volumes(level2周记/卷) → historical(level3史记)
+        // [v3.74] A: 摘要手动操作（柏宝书 editSummary 缝入）——编辑摘要文本 + 手动补摘
+        updateSummaryText(floor, newText) {
+            const t = String(newText || '').trim();
+            if (!t) return false;
+            const s = this.summaries.find(x => x.floor === Number(floor));
+            if (!s) return false;
+            s.text = this.smartTruncate(t, 2000);
+            s.edited = true;
+            s.editedAt = Date.now();
+            return true;
+        }
+        /** 手动补摘（柏宝书：任意楼层单独补摘）——为缺失楼层的旧剧情补一条摘要 */
+        addManualSummary(floor, text) {
+            const t = String(text || '').trim();
+            const f = Number(floor);
+            if (!t || !Number.isFinite(f) || f < 0) return null;
+            // 幂等：同楼层已有摘要则拒绝
+            if (this.summaries.some(x => x.floor === f)) return null;
+            const s = {
+                floor: f,
+                text: this.smartTruncate(t, 2000),
+                timestamp: Date.now(),
+                manual: true,
+                importance: 5
+            };
+            this.summaries.push(s);
+            this.summaries.sort((a, b) => a.floor - b.floor);
+            return s;
+        }
+        /** 缺失楼层清单（柏宝书：一键把落下的楼层批量补齐的前置） */
+        missingFloors(maxFloor) {
+            const have = new Set(this.summaries.map(s => s.floor));
+            const missing = [];
+            for (let f = 0; f <= (Number(maxFloor) || 0); f++) if (!have.has(f)) missing.push(f);
+            return missing;
+        }
         // [v1.4.2] 智能截断：优先在句子边界断开，避免"但那个"式半句截断
         smartTruncate(text, maxLen) {
             text = String(text || '').trim();

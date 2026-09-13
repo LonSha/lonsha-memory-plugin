@@ -152,6 +152,32 @@
                 });
             }
 
+            // [v3.74] B3: summaries 视图的手动补摘绑定
+            if (viewType === 'summaries') {
+                const addBtn = ov.querySelector('#ls-ms-add');
+                const floorIn = ov.querySelector('#ls-ms-floor');
+                const textIn = ov.querySelector('#ls-ms-text');
+                if (addBtn && floorIn && textIn) {
+                    const doAdd = () => {
+                        const f = Number(floorIn.value);
+                        const t = (textIn.value || '').trim();
+                        if (!t) { toast('请输入摘要内容'); return; }
+                        if (!Number.isFinite(f) || f < 0) { toast('请输入有效楼层号'); return; }
+                        if (!s.summary?.addManualSummary) { toast('引擎版本过旧'); return; }
+                        const r = s.summary.addManualSummary(f, t);
+                        if (r) {
+                            toast('✅ 已补录第 ' + f + ' 楼摘要');
+                            if (eng?.bm25?.rebuild && s.summary?.getActiveSummaries) {
+                                eng.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: 'sum_' + x.floor, text: x.text, floor: x.floor, source: 'bm25'})));
+                            }
+                            plugin.showBrowser('summaries');
+                        } else { toast('该楼层已有摘要'); }
+                    };
+                    addBtn.addEventListener('click', doAdd);
+                    textIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+                }
+            }
+
             // [v3.68] A: deltas 视图的手动确证绑定
             if (viewType === 'deltas') {
                 ov.querySelectorAll('.ls-delta-confirm').forEach(btn => {
@@ -222,12 +248,18 @@
             if (viewType === 'summaries') {
                 title = '📝 摘要列表';
                 const list = s.summary.summaries;
-                body = list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
+                // [v3.74] B2: 手动补摘输入框（柏宝书：任意楼层单独补摘）
+                const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
+                    <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
+                    <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
+                    <button id="ls-ms-add" class="ls-btn" style="padding:6px 14px;">+ 补摘</button>
+                </div>`;
+                body = addForm + (list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
                     list.slice().reverse().map(m => `
                         <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${m.floor}">
                             <div class="ls-item-meta">楼层 ${m.floor ?? '?'} · ${fmtTime(m.timestamp)}</div>
                             <div class="ls-item-text">${esc(m.text)}</div>
-                        </div>`).join('');
+                        </div>`).join(''));
             }
             else if (viewType === 'diaries') {
                 title = '📔 角色日记';
@@ -1046,6 +1078,17 @@
                 if (!m) return;
                 label = esc(m.text).substring(0, 60);
                 actions = [
+                    { t: "✏ 编辑该摘要", fn: () => {
+                        const nt = prompt('编辑第 ' + id + ' 楼摘要（可直接修改文本）：', m.text);
+                        if (nt === null) return;
+                        if (!eng.summary?.updateSummaryText) { toast('引擎版本过旧'); return; }
+                        if (eng.summary.updateSummaryText(id, nt)) {
+                            toast('✅ 摘要已更新');
+                            if (eng.bm25?.rebuild && eng.summary?.getActiveSummaries) {
+                                eng.bm25.rebuild(eng.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                            }
+                        } else { toast('更新失败'); }
+                    } },
                     { t: "🗑 删除该摘要", fn: () => {
                         eng.summary.summaries = eng.summary.summaries.filter(x => x.floor !== id);
                         if (eng.bm25?.rebuild && eng.summary?.getActiveSummaries) {
