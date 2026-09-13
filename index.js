@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.68.0';
+    const VERSION = '3.69.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4342,6 +4342,26 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 for (const f of lfList) push(`- ${f.text}（第${f.floor}楼锁定）`);
                 push('');
             }
+            // [v3.69] A1: 正史增量板块（established/uncertain 分状态）
+            const dbList = this.deltaBook?.deltas || [];
+            if (dbList.length) {
+                push('## 📒 正史增量');
+                push('');
+                const est = dbList.filter(d => d.status === 'established');
+                const unc = dbList.filter(d => d.status === 'uncertain');
+                if (est.length) {
+                    push('**已确证：**');
+                    push('');
+                    for (const d of est.slice(-8)) push(`- ${d.summary}（第${d.evidenceFloor}楼佐证）`);
+                    push('');
+                }
+                if (unc.length) {
+                    push('**待定：**');
+                    push('');
+                    for (const d of unc.slice(-8)) push(`- ${d.summary}（第${d.evidenceFloor}楼，待佐证）`);
+                    push('');
+                }
+            }
             // 主角
             const prot = this.status?.protagonist;
             if (prot) {
@@ -5185,7 +5205,11 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     // [v3.66] 双通道消费：deltas 进正史增量账本，conflicts 进矛盾账本
                     if (deltasList?.length && this.deltaBook) {
                         const n = this.deltaBook.addFromList(deltasList, batch[0]?.floor);
-                        if (n > 0 && config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量 +${n} 条（卷摘要折叠）`);
+                        if (n > 0) {
+                            if (config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量 +${n} 条（卷摘要折叠）`);
+                            // [v3.69] A2: OpLog delta 埋点（第 15 类型）
+                            this.opLog?.log?.('delta', 'add', 'fold_' + (batch[0]?.floor ?? '?'), batch[0]?.floor, '+' + n + '条增量');
+                        }
                     }
                     if (conflictsList?.length && this.conflicts) {
                         for (const c of conflictsList) {

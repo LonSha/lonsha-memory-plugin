@@ -1,4 +1,16 @@
 
+## [3.69.0] - 2026-09-13
+
+### Added（全景报告增量板块 + OpLog delta 埋点 + 手机统计展示）
+
+- **全景报告正史增量板块（13 板块）**：exportMemoryReport 新增「📒 正史增量」板块（锁定事实板块之后）——established/uncertain 分组展示、楼层佐证溯源、各取最近 8 条
+- **OpLog delta 埋点（第 15 类型）**：卷摘要折叠的 deltas 消费处新增埋点（delta/add 操作，fold_N ref，+N条增量 meta），仅在 n > 0 时记录
+- **手机端统计展示**：memory-view 桥接统计行新增「🔒铁律 N · 📒正史 N」回填计数（消费 bridge stats 的 lockedFactsIngested/deltaIngested），桥接统计从 4 项扩到 6 项
+
+### Tests
+- 新增 tests/v369_report_delta_oplog.test.mjs（5 组：报告板块/OpLog 埋点/手机统计/数据链路/埋点功能模拟）
+- 全量 71 套件 157 测试通过
+
 ## [3.68.0] - 2026-09-13
 
 ### Added（DeltaBook 面板视图 + 手机增量回填 + 双向审计）
