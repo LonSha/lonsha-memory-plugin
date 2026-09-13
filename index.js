@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.66.0';
+    const VERSION = '3.67.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1987,6 +1987,22 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         parsed.characters = parsed.characters.filter(n =>
                             typeof n === 'string' && n.length >= 1 && n.length <= 8 && !/[\d\p{P}\s]/u.test(n)
                         );
+                    }
+                    // [v3.67] C: 正史增量自动确证——新提取的 events/summary 佐证待定项
+                    if (this.deltaBook && this.deltaBook.deltas.some(d => d.status === 'uncertain')) {
+                        try {
+                            const evidence = [JSON.stringify(parsed.events || ''), parsed.summary || ''].join(' ');
+                            let confirmed = 0;
+                            for (const d of this.deltaBook.deltas.filter(x => x.status === 'uncertain')) {
+                                // 待定项摘要中的关键词（≥2字连续中文/英文片段）出现在新证据中 → 确证
+                                const kws = d.summary.split(/[，。；、\s]/).filter(w => w.length >= 2);
+                                if (kws.length && kws.filter(k => evidence.includes(k)).length >= 2) {
+                                    d.status = 'established';
+                                    confirmed++;
+                                }
+                            }
+                            if (confirmed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量自动确证: ${confirmed}条`);
+                        } catch (e) { errLog(e, 'deltaBook.自动确证'); }
                     }
                     return parsed;
                 } else {
@@ -4011,6 +4027,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
                 try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
+                // [v3.67] A: 正史增量回滚（删楼/重生成后该楼层的增量事实撤掉，防幽灵事实）
+                try { const ndb = this.deltaBook?.removeByFloor ? this.deltaBook.removeByFloor(floor) : 0; if (ndb && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量回滚: ${ndb}条`); } catch (e) { errLog(e, 'rollbackFloor.正史增量回滚'); }
                 try { const npm = this.pairMem?.removeByFloor ? this.pairMem.removeByFloor(floor) : 0; if (npm && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 群像回滚: ${npm}条`); } catch (e) { errLog(e, 'rollbackFloor.群像回滚'); }
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
@@ -4094,6 +4112,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 for (const c of (this.cards?.cards || [])) c.floor = dec(c.floor);
                 for (const c of (this.conflicts?.conflicts || [])) c.floor = dec(c.floor);
                 for (const p of (this.pairMem?.pairs || [])) for (const e of p.entries) e.floor = dec(e.floor);
+                // [v3.67] B: 正史增量楼层位移（删楼前移，增量指针跟随文本）
+                for (const d of (this.deltaBook?.deltas || [])) d.evidenceFloor = dec(d.evidenceFloor);
                 for (const e of (this.opLog?.entries || [])) if (typeof e.floor === 'number') e.floor = dec(e.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);

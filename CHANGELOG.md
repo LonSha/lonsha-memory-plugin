@@ -1,4 +1,17 @@
 
+## [3.67.0] - 2026-09-13
+
+### Added（正史增量生命周期：回滚联动 + 楼层位移 + 自动确证）
+
+- **回滚联动**：rollbackFloor 新增正史增量回滚——删楼/重生成时该楼层的 DeltaBook 增量事实同步撤掉（防幽灵事实），与矛盾回滚同款埋点模式
+- **楼层位移联动**：shiftFloorsFrom 新增 DeltaBook evidenceFloor 位移（dec 模式，与群像/矛盾同款）——删楼前移时增量指针跟随文本
+- **自动确证**：extractMemoryWithLLM 解析成功后，用新提取的 events/summary 对 uncertain 待定项做关键词佐证（≥2 个关键词片段命中即确证 established）——待定事实随剧情推进自动转正
+- **DeltaBook 生命周期闭环**：登记(add/addFromList) → 注入(toPrompt) → 确证(confirm+自动) → 回滚(removeByFloor) → 位移(shiftFloorsFrom) → 持久化(export/import) 全链路齐备
+
+### Tests
+- 新增 tests/v367_delta_lifecycle.test.mjs（6 组：静态关键字/回滚功能/位移复刻/自动确证复刻/联动位置/生命周期完整性）
+- 全量 69 套件 145 测试通过
+
 ## [3.66.0] - 2026-09-13
 
 ### Added（dsh deltas 双通道：正史增量账本 + 三合一摘要折叠）
