@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.83.0';
+    const VERSION = '3.84.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4153,6 +4153,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { const nld = this.status?.removeLifeDetailByFloor ? this.status.removeLifeDetailByFloor(floor) : 0; if (nld && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧬 生活小档案回滚: ${nld}条`); } catch (e) { errLog(e, 'rollbackFloor.生活小档案回滚'); }
                 // [v3.83] A: 主角档案楼层指针回滚（来源楼层被删时指针失效归零，防幽灵楼层）
                 try { const npf = this.status?.removeProtagonistByFloor ? this.status.removeProtagonistByFloor(floor) : 0; if (npf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧍 主角档案指针回滚`); } catch (e) { errLog(e, 'rollbackFloor.主角档案指针回滚'); }
+                // [v3.84] B: 人设偏移楼层回滚（来源楼被删→偏移清空，防幽灵偏移）
+                try { const ndr = this.status?.removeDriftByFloor ? this.status.removeDriftByFloor(floor) : 0; if (ndr && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🎭 人设偏移回滚: ${ndr}条`); } catch (e) { errLog(e, 'rollbackFloor.人设偏移回滚'); }
                 try { const npm = this.pairMem?.removeByFloor ? this.pairMem.removeByFloor(floor) : 0; if (npm && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 群像回滚: ${npm}条`); } catch (e) { errLog(e, 'rollbackFloor.群像回滚'); }
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
@@ -4242,6 +4244,13 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { this.status?.shiftLifeDetailFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.生活小档案位移'); }
                 // [v3.83] B: 主角档案楼层指针位移（删楼前移，floor 指针跟随）
                 try { this.status?.shiftProtagonistFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.主角档案位移'); }
+                // [v3.84] A: 角色记忆银行楼层位移（删楼前移，floor 指针跟随）
+                try { if (this.charMem?.shiftFloorRefs) this.charMem.shiftFloorRefs(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.角色记忆位移'); }
+                // [v3.84] B: 人设偏移楼层位移（删楼前移，15 楼衰减窗口不错位）
+                try { this.status?.shiftDriftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设偏移位移'); }
+                // [v3.84] C: 人设基线锁定楼层 + 地理上下文楼层位移
+                try { this.status?.shiftBaselineFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设基线位移'); }
+                try { this.status?.shiftGeoFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.地理上下文位移'); }
                 for (const e of (this.opLog?.entries || [])) if (typeof e.floor === 'number') e.floor = dec(e.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
@@ -5745,11 +5754,26 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             let removed = 0;
             for (const char of Object.keys(this.memories)) {
                 const c = this.memories[char];
+                const beforeCore = c.core.length, beforeRecent = c.recent.length;
                 c.core = c.core.filter(x => x.floor !== f);
                 c.recent = c.recent.filter(x => x.floor !== f);
-                removed += 1;
+                removed += (beforeCore - c.core.length) + (beforeRecent - c.recent.length);
             }
             return removed;
+        }
+        // [v3.84] A: 角色记忆银行楼层位移——删楼前移后 core/recent 记忆的 floor 指针跟随
+        shiftFloorRefs(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            let n = 0;
+            for (const char of Object.keys(this.memories)) {
+                for (const arr of ['core', 'recent']) {
+                    for (const m of (this.memories[char][arr] || [])) {
+                        if (typeof m.floor === 'number' && m.floor > del) { m.floor = m.floor - 1; n++; }
+                    }
+                }
+            }
+            return n;
         }
         export() { return this.memories; }
         import(data) { this.memories = (data && typeof data === 'object') ? data : {}; for (const k of Object.keys(this.memories)) { if (!this.memories[k].core) this.memories[k].core = []; if (!this.memories[k].recent) this.memories[k].recent = []; } }
@@ -6721,6 +6745,47 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             if (!Number.isFinite(del)) return 0;
             const f = Number(this.protagonist?.floor);
             if (Number.isFinite(f) && f > del) { this.protagonist.floor = f - 1; return 1; }
+            return 0;
+        }
+        // [v3.84] B: 人设偏移楼层位移——删楼前移后 drift.floor 指针跟随（15 楼衰减窗口不错位）
+        shiftDriftFloors(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            let n = 0;
+            for (const name of Object.keys(this.drifts || {})) {
+                const d = this.drifts[name];
+                if (d && typeof d.floor === 'number' && d.floor > del) { d.floor = d.floor - 1; n++; }
+            }
+            return n;
+        }
+        // [v3.84] B: 人设偏移楼层回滚——来源楼被删时偏移清空（防幽灵偏移；基线不受影响）
+        removeDriftByFloor(floor) {
+            const f = Number(floor);
+            if (!Number.isFinite(f)) return 0;
+            let n = 0;
+            for (const name of Object.keys(this.drifts || {})) {
+                const d = this.drifts[name];
+                if (d && Number(d.floor) === f) { delete this.drifts[name]; n++; }
+            }
+            return n;
+        }
+        // [v3.84] C: 人设基线锁定楼层位移（lockedAtFloor 指针跟随）
+        shiftBaselineFloors(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            let n = 0;
+            for (const name of Object.keys(this.baselines || {})) {
+                const b = this.baselines[name];
+                if (b && typeof b.lockedAtFloor === 'number' && b.lockedAtFloor > del) { b.lockedAtFloor = b.lockedAtFloor - 1; n++; }
+            }
+            return n;
+        }
+        // [v3.84] C: 地理上下文楼层位移（geoContext.floor 指针跟随）
+        shiftGeoFloor(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            const g = this.geoContext;
+            if (g && typeof g.floor === 'number' && g.floor > del) { g.floor = g.floor - 1; return 1; }
             return 0;
         }
         getLifeDetailsPrompt(limit = 5, contextText = null, nowTime = null) {

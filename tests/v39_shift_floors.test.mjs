@@ -40,7 +40,8 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
     let missing = [];
     for (const [pattern, label] of mustShift) {
         const idx = src.indexOf('shiftFloorsFrom(deleted)');
-        const seg = src.slice(idx, idx + 4000);
+        const end = src.indexOf('return shifted;', idx);
+        const seg = src.slice(idx, end + 20);
         if (!seg.includes(pattern)) missing.push(label);
     }
     assert.ok(missing.length === 0, `shift 覆盖缺失: ${missing.join(',')}`);

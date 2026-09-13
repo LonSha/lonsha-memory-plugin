@@ -1,3 +1,13 @@
+## [3.84.0] - 2026-09-13
+### Added
+- **角色记忆银行楼层生命周期**（charMem 位移缺口闭环）：CharacterMemoryBank 新增 shiftFloorRefs——删楼前移后 core/recent 记忆的 floor 指针跟随（防显示错位与后续按楼层误删）；shiftFloorsFrom 挂接
+- **人设偏移（drift）楼层生命周期**：CharacterState 新增 shiftDriftFloors（drift.floor 指针跟随——15 楼衰减窗口不错位）+ removeDriftByFloor（来源楼被删→偏移清空防幽灵偏移）；rollbackFloor 与 shiftFloorsFrom 双双挂接
+- **人设基线（baseline）+ 地理上下文（geo）楼层指针联动**：shiftBaselineFloors（lockedAtFloor 跟随）+ shiftGeoFloor（geoContext.floor 跟随），shiftFloorsFrom 挂接
+### Fixed
+- **charMem.removeByFloor 计数修复**：removed 原为"处理角色数"（每角色恒 +1，无论删没删），改为实际删除条数（beforeCore/beforeRecent 差值）——rollback 日志数字现在真实
+- **v39_shift_floors.test.mjs 固定窗口脆弱性**：4000 字符切片窗口改为动态（到 return shifted 结束）——v3.84 新增挂接行把 scene/ledger 推出窗口导致误报覆盖缺失
+### Tests
+- 新增 v384_floor_lifecycle_complete.test.mjs（7 组：charMem 位移静态/位移复刻 6 用例/计数修复复刻+旧 bug 绝迹/drift 生命周期静态/复刻含衰减窗口语义 8 用例/baseline+geo 复刻 6 用例/回归防护），全量 257 测试全绿
 ## [3.83.0] - 2026-09-13
 ### Added
 - **主角档案楼层生命周期补全**（protagonist.floor 指针联动）：CharacterState 新增 removeProtagonistByFloor（来源楼被删→指针归零防幽灵楼层；内容为合并态不回滚）+ shiftProtagonistFloor（删楼前移后指针跟随）；rollbackFloor 与 shiftFloorsFrom 双双挂接（可选链守卫，debugMode 日志）
