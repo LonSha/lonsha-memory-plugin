@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.81.0';
+    const VERSION = '3.82.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -4149,6 +4149,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
                 // [v3.67] A: 正史增量回滚（删楼/重生成后该楼层的增量事实撤掉，防幽灵事实）
                 try { const ndb = this.deltaBook?.removeByFloor ? this.deltaBook.removeByFloor(floor) : 0; if (ndb && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量回滚: ${ndb}条`); } catch (e) { errLog(e, 'rollbackFloor.正史增量回滚'); }
+                // [v3.82] A: 生活小档案回滚（删楼后该楼来源的偏好/习惯撤掉，防幽灵条目）
+                try { const nld = this.status?.removeLifeDetailByFloor ? this.status.removeLifeDetailByFloor(floor) : 0; if (nld && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧬 生活小档案回滚: ${nld}条`); } catch (e) { errLog(e, 'rollbackFloor.生活小档案回滚'); }
                 try { const npm = this.pairMem?.removeByFloor ? this.pairMem.removeByFloor(floor) : 0; if (npm && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 群像回滚: ${npm}条`); } catch (e) { errLog(e, 'rollbackFloor.群像回滚'); }
                 try { const nv = this.vector?.removeByFloor ? this.vector.removeByFloor(floor) : 0; if (nv && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 向量回滚: ${nv}条`); } catch (e) { errLog(e, 'rollbackFloor.向量回滚'); }
                 // [v2.8] RT: 物品台账回滚（ops真源过滤+重放）+ 反思条目回滚
@@ -4234,6 +4236,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 for (const p of (this.pairMem?.pairs || [])) for (const e of p.entries) e.floor = dec(e.floor);
                 // [v3.67] B: 正史增量楼层位移（删楼前移，增量指针跟随文本）
                 for (const d of (this.deltaBook?.deltas || [])) d.evidenceFloor = dec(d.evidenceFloor);
+                // [v3.82] B: 生活小档案楼层位移（删楼前移，floor 指针跟随）
+                try { this.status?.shiftLifeDetailFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.生活小档案位移'); }
                 for (const e of (this.opLog?.entries || [])) if (typeof e.floor === 'number') e.floor = dec(e.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
@@ -6666,6 +6670,25 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 return true;
             }
             return false;
+        }
+        // [v3.82] A: 删楼联动——清除该楼层来源的生活小档案（防幽灵偏好残留）
+        removeLifeDetailByFloor(floor) {
+            const f = Number(floor);
+            if (!Number.isFinite(f)) return 0;
+            const before = this.lifeDetails.length;
+            this.lifeDetails = this.lifeDetails.filter(d => Number(d.floor) !== f);
+            return before - this.lifeDetails.length;
+        }
+        // [v3.82] B: 楼层位移联动——删楼前移后生活小档案的 floor 指针跟随
+        shiftLifeDetailFloors(deleted) {
+            const del = Number(deleted);
+            if (!Number.isFinite(del)) return 0;
+            let n = 0;
+            for (const d of this.lifeDetails) {
+                const f = Number(d.floor);
+                if (Number.isFinite(f) && f > del) { d.floor = f - 1; n++; }
+            }
+            return n;
         }
         getLifeDetailsPrompt(limit = 5, contextText = null, nowTime = null) {
             // [v3.78] B: 三投放层选择算法（柏宝书 selectLifeDetailsForInjection 缝入）

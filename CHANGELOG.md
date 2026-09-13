@@ -1,4 +1,12 @@
 
+## [3.82.0] - 2026-09-13
+
+### Added
+- **生活小档案生命周期补全**（v3.78 数据 → 楼层联动闭环）：CharacterState 新增 removeLifeDetailByFloor（删楼时清除该楼来源的偏好/习惯，防幽灵条目）+ shiftLifeDetailFloors（删楼前移后 floor 指针跟随）；rollbackFloor 与 shiftFloorsFrom 双双挂接（可选链守卫防旧版，debugMode 日志）
+
+### Tests
+- 新增 v382_life_details_lifecycle.test.mjs（5 组：新方法静态特征/删楼复刻 5 用例/位移复刻 5 用例/生命周期挂接结构验证/回归防护），全量 242 测试全绿
+
 ## [3.81.0] - 2026-09-13
 
 ### Added
