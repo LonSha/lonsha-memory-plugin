@@ -1,3 +1,10 @@
+## [v3.54.0] - 2026-09-13
+### 事件溯源与手机端体检：OpLog 全量变更日志（append-only 环形）、六路埋点审计、体检结论固化
+- **事件溯源日志 (OpLog: Append-Only Event Sourcing)**：吸收 shujuku replay 理念（轻量版），新增 `OpLog` 类——记录所有记忆子系统的**结构化变更事件** `{seq, ts, type, op, ref, floor, meta}`。三大价值：① **审计**——任何时刻可回答"这条记忆何时/为何产生"（queryByFloor/queryByType/queryByRef）；② **诊断**——记忆异常时回放查因；③ **与 17 个子系统各自的回滚机制互为验证**（双保险）。环形缓冲 500 条防膨胀，seq 全局递增保证事件顺序，export/import 持久化（随 collectExport 跨会话保留审计链）。
+- **六路埋点 (Six-Path Instrumentation)**：主流程关键写入点全部埋点——summary（每楼笔录落账）、graph（新角色节点入图）、status（状态变更）、suspense（悬念簿增删）、item（物品台账变更）、rollback（删楼/回滚事件）。`rollbackFloor` 事件记录审计链（修复过程中发现初版引用了不存在的 `reason` 参数——rollbackFloor 签名仅 `floor`，已修正为常量标注）。shiftFloorsFrom 删楼时 opLog 楼层同步位移。
+- **手机端体检 (RubyPhone Health Check)**：全库静态扫描完成——① 53 个"零引用类"候选经复核全部为 import 引用误报（扫描正则未覆盖 import 语句），**无真实死类**；② MemoryCore/EmotionTagger/MemoryPool/bridge 四条链路经 v3.48 修复后全部为活链路（pool 有 6 处调用、emotion 有 record 内部调用）；③ 超大文件清单（chat-view 897KB / settings-app 684KB）列为观察项（重构风险大，暂不动）；④ 全库 console 647 条（index.js 103 条）暂不治理——移动端容错日志有诊断价值。体检结论以测试断言固化（活链路四通道回归验证）。
+- **自动化测试**：新增 `tests/v354_oplog_health.test.mjs`（4 测试块：OpLog 完整行为（环形/查询/统计/持久化）、六路埋点覆盖、持久化链路、体检结论固化），全量 56 个测试套件 88 个测试 100% 绿灯通过。
+
 ## [v3.53.0] - 2026-09-13
 ### 可观测性与防线落地：诊断面板命中率卡片、伦理检测静默缺口根治（v3.48 遗留实锤）
 - **诊断面板召回源命中率卡片 (Hit-Rate Panel Card)**：settings-ui 状态总览新增「📈 召回源命中率」卡片（消费 v3.52 的 `_recallSourceStats`）——按命中次数降序渲染各召回源的 ASCII 条形图 + 百分比（`vector ████████ 80%（160 次/200 轮）`），附调优提示「长期 0% 的召回源可在设置中关闭以省资源」。召回调优从"看日志猜"变为"看面板读数"。

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.53.0';
+    const VERSION = '3.54.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1249,6 +1249,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             this.conflicts = new ConflictBook();
             this.outline = new OutlineDirector();
             this.pairMem = new PairMemory();
+            this.opLog = new OpLog();  // [v3.54] 事件溯源日志
         }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
@@ -1402,6 +1403,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                             if (!existChar.data?.source && messageText) existChar.data = {...(existChar.data || {}), source: messageText};
                         } else {
                             this.graph.addNode({type: 'character', name: canonical, data: {source: messageText}});
+                            this.opLog?.log('graph', 'add', canonical, message?.index || 0, 'character node');  // [v3.54] op-log
                         }
                     }
                 }
@@ -1583,6 +1585,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                                 if (this.suspense.resolve(pr.id || pr.content, pr.outcome, pr.reason, message.index || 0)) resN++;
                             }
                         }
+                        // [v3.54] op-log: 悬念簿变更事件
+                        if (susN) this.opLog?.log('suspense', 'add', `${susN} items`, message?.index || 0, '');
                         const pruned = this.suspense.prune(this.config.config.suspenseMaxOpen || 20);
                         if ((susN || resN || pruned) && this.config.config.debugMode) {
                             console.log(`[${PLUGIN_NAME}] 悬念簿: +${susN} 新增, ${resN} 了结, ${pruned} 沉降`);
@@ -1608,6 +1612,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                                 this.itemOps.push({ floor: floorNow, fp: fpNow, ...it });
                             }
                             this.rebuildItems();
+                            // [v3.54] op-log: 物品台账变更事件
+                            if (this.itemOps?.length) this.opLog?.log('item', 'update', `${this.itemOps.length} items`, floorNow, '');
                         }
                         if ((scN || extracted.location) && this.config.config.debugMode) {
                             console.log(`[${PLUGIN_NAME}] 场景树: +${scN} 地点, 位置=${SceneBook.keyOf(extracted.location) || '未变'}`);
@@ -1622,6 +1628,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     try {
                         const n = this.status.applyChanges(extracted.status_changes, floor);
                         if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 状态更新 ${n} 项`);
+                        // [v3.54] op-log: 状态变更事件
+                        if (n) this.opLog?.log('status', 'update', `${n} changes`, floor, (extracted.status_changes || []).map(c => c?.character + '.' + c?.field).join(',').slice(0, 60));
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 状态写入失败:`, e); }
                 }
                 if (this.config.config.todoTrackingEnabled && extracted?.todos) {
@@ -1687,6 +1695,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 }
 
                 const summary = await this.summary.createSummary(message, extracted?.summary);
+                        this.opLog?.log('summary', 'add', `sum_${message?.index || 0}`, message?.index || 0, (extracted?.summary || '').slice(0, 40));  // [v3.54] op-log
                 
                 // [v3.30] PV: 记忆矛盾换代 —— 新摘要与既有活跃摘要做高置信冲突检测, 旧条 superseded 退出召回
                 if (window.LonShaSupersede && this.config.config.supersedeEnabled) {
@@ -1846,9 +1855,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         conflicts: this.conflicts.export(),
                 outline: this.outline.export(),
                 pairMem: this.pairMem.export(),
+                opLog: this.opLog?.export?.() || null,
                         outline: this.outline.export(),
                         pairMem: this.pairMem.export(),
                         recallSourceStats: this._recallSourceStats || null,
+                        opLog: this.opLog?.export?.() || null,
                         scene: this.scene.export(),
                         echo: this.echo.export(),
                         supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
@@ -3913,7 +3924,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) this.scene.rollbackFloorOnly(floor);
                 } catch (e) { errLog(e, 'rollbackFloor.status回滚'); }
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
-                try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
+                                // [v3.54] op-log: 回滚事件（审计链）
+                this.opLog?.log('rollback', 'remove', `floor ${floor}`, floor, 'edit/delete');
+try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
                 try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
                 try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
@@ -4000,6 +4013,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 for (const c of (this.cards?.cards || [])) c.floor = dec(c.floor);
                 for (const c of (this.conflicts?.conflicts || [])) c.floor = dec(c.floor);
                 for (const p of (this.pairMem?.pairs || [])) for (const e of p.entries) e.floor = dec(e.floor);
+                for (const e of (this.opLog?.entries || [])) if (typeof e.floor === 'number') e.floor = dec(e.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
                 // 角色状态 ops + todos.floor
@@ -4107,6 +4121,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 if (pack.conflicts && this.conflicts) this.conflicts.import(pack.conflicts);
                 if (pack.outline && this.outline) this.outline.import(pack.outline);
                 if (pack.pairMem && this.pairMem) this.pairMem.import(pack.pairMem);
+                if (pack.opLog && this.opLog) this.opLog.import(pack.opLog);
                 if (Array.isArray(pack.timeline) && pack.timeline.length) this.timeline.entries = [...pack.timeline];
                 if (Array.isArray(pack.statusFlat) && pack.statusFlat.length) {
                     this.status.applyChanges(pack.statusFlat, 0, true);
@@ -6814,6 +6829,43 @@ ${win}`;
         }
         export() { return { pairs: this.pairs }; }
         import(data) { if (data && Array.isArray(data.pairs)) this.pairs = data.pairs; }
+    }
+
+    // [v3.54] 吸收 shujuku replay: 全量事件溯源日志（append-only op-log）
+    // 记录所有记忆子系统的结构化变更事件：审计（这条记忆何时/为何产生）、诊断（异常回放查因）、
+    // 与各子系统自身回滚机制互为验证。环形缓冲 500 条防膨胀。
+    class OpLog {
+        constructor() { this.entries = []; this._seq = 0; }
+        /** 记录一条变更事件 */
+        log(type, op, ref, floor, meta) {
+            this.entries.push({
+                seq: ++this._seq,
+                ts: Date.now(),
+                type: String(type || '').slice(0, 20),      // summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair
+                op: String(op || '').slice(0, 10),          // add|update|remove|resolve|forge|shift
+                ref: String(ref || '').slice(0, 60),        // 目标 id/键/摘要签名
+                floor: floor ?? null,
+                meta: meta ? String(meta).slice(0, 80) : ''
+            });
+            if (this.entries.length > 500) this.entries.splice(0, this.entries.length - 500);
+        }
+        queryByFloor(floor) { return this.entries.filter(e => e.floor === floor); }
+        queryByType(type) { return this.entries.filter(e => e.type === type); }
+        queryByRef(refId) { return this.entries.filter(e => e.ref === refId); }
+        recent(n) { return this.entries.slice(-Math.max(1, Number(n) || 20)); }
+        /** 审计摘要：各类型事件计数 */
+        stats() {
+            const byType = {};
+            for (const e of this.entries) byType[e.type] = (byType[e.type] || 0) + 1;
+            return { total: this.entries.length, byType };
+        }
+        export() { return { entries: this.entries, seq: this._seq }; }
+        import(data) {
+            if (data && typeof data === 'object') {
+                this.entries = Array.isArray(data.entries) ? data.entries.slice(-500) : [];
+                this._seq = Number(data.seq) || this.entries.length;
+            }
+        }
     }
 
     // [v2.9] RU-C: 存储快照管理（抄 shujuku SQLite 版本管理理念——IndexedDB 每50楼一份快照，可回溯恢复）
