@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.55.0';
+    const VERSION = '3.56.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -678,6 +678,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v3.30] PV: 记忆矛盾换代（supersede）——新记忆与旧记忆高置信冲突时旧条退出召回
                 supersedeEnabled: true,          // 总开关
                 supersedeScanPool: 30,           // 每次扫描池大小
+                // [v3.48/v3.56] 大纲导演配置（守卫用容灾式 !== false，此处显式声明供 settings-ui 配置）
+                outlineDirectorEnabled: true,     // 大纲导演：解析 AI 回复中的大纲标签
+                outlineAutoPlan: true,            // 大纲耗尽时 LLM 自动规划新阶段
+                outlinePlanCooldownFloors: 10,    // 大纲规划失败冷却楼层
                 // [v3.37] 工业级体系化演进新配置：
                 hippoDiffusionEnabled: true,     // HippoRAG 双路引燃扩散（BM25/实体联合做种子）
                 temporalGraphEnabled: true,      // 时态图谱（有效区间 validFrom/To + 历史追溯）
@@ -1568,6 +1572,12 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         const _curBefore = this.outline._turnIndex;
                         this.outline.advanceTurn(message.index || 0);
                         if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🎬 大纲推进: 第${_curBefore + 1}轮完成 → 指针 ${this.outline._turnIndex}`);
+                        // [v3.56] P18: 大纲耗尽时异步规划新阶段（不阻塞生成流）
+                        if (this.config.config.outlineAutoPlan && this.outline.exhausted && !this.outline._planning) {
+                            this.outline.planNext(this.config.config, this.llm, this, message.index || 0)
+                                .then(st => { if (st && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🎬 新阶段已规划: ${st.title}（${st.nodes.length} 节点）`); })
+                                .catch(() => {});
+                        }
                     } catch (e) { errLog(e, 'onMessageReceived.大纲推进'); }
                 }
                 // [v2.2] RC: 悬念簿（新悬项登记 + 了结核销 + 超限沉降）
@@ -6731,6 +6741,57 @@ ${win}`;
         removeByFloor(floor) {
             // 大纲是计划不是事实——不做按楼回滚（轮指针只进不退）
             return 0;
+        }
+        /**
+         * [v3.56] P18: 大纲耗尽时 LLM 自动规划新阶段（导演系统闭环）。
+         * 上下文：最近摘要 + 群像关系 + 悬念簿（未结伏笔是新阶段最好的素材）。
+         * 防重入 _planning + 冷却（失败后 outlinePlanCooldownFloors 楼内不重试，默认10）。
+         * @returns 新阶段对象（规划成功）或 null
+         */
+        async planNext(config, llm, engine, floor) {
+            if (!config.outlineAutoPlan || !llm) return null;
+            if (!this.exhausted) return null;                    // 未耗尽不规划
+            if (this._planning) return null;                     // 防重入
+            const cooldown = Number(config.outlinePlanCooldownFloors) || 10;
+            if (this._lastPlanFailFloor && (floor - this._lastPlanFailFloor) < cooldown) return null;
+            this._planning = true;
+            try {
+                const ctx = (typeof window !== 'undefined') ? window.SillyTavern?.getContext?.() : null;
+                const chat = ctx?.chat || [];
+                const recentSummaries = (engine.summary?.getActiveSummaries?.() || []).slice(-4)
+                    .map(s => `- ${s.text}`).join('\n') || '(无)';
+                const openSusp = (engine.suspense?.openItems?.() || []).slice(-5)
+                    .map(x => `- ${x.content}`).join('\n') || '(无)';
+                const chars = (engine.getKnownCharacters?.() || []).slice(0, 12).join('、') || '(无)';
+                const recentTurns = (this.history || []).slice(-3)
+                    .map(h => `- [${h.pacing}] ${h.goal}`).join('\n') || '(首阶段)';
+                const prompt = `你是 RP 剧情导演。上一阶段大纲已演完，请为接下来的剧情规划【新阶段大纲】。
+规则：
+- 新阶段要自然衔接最近剧情，优先消化【未结悬念】（伏笔是最好的阶段素材）。
+- stage_tempo 从 buildup/mixed/surge/aftermath 中选（语义：铺垫蓄力/松紧交替/高压密集/余波消化）。
+- 2-3 个 <node>，每个 node 内 2-4 个 <turn>，每个 turn 带 pacing 属性（setup 铺垫/pressure 施压/turn 反转/cooldown 收束）。
+- turn 目标写具体剧情（一句话），不许空话；遵守角色名单，不新增主要角色。
+- 标签外可写简短规划思路，系统只读标签内内容。
+只输出以下标签结构：
+<stage_title>阶段标题</stage_title>
+<stage_goal>阶段整体目标</stage_goal>
+<stage_tempo>形态</stage_tempo>
+<node><node_title>节点标题</node_title><node_goal>节点目标</node_goal><turn pacing="setup">该轮剧情</turn>...</node>...
+【角色名单】${chars}
+【最近剧情摘要】
+${recentSummaries}
+【未结悬念】（新阶段优先消化）
+${openSusp}
+【上一阶段最后几轮】（衔接参考）
+${recentTurns}`;
+                const raw = await llm.callAPI(prompt);
+                if (!raw) { this._lastPlanFailFloor = floor; return null; }
+                const stage = this.parseOutline(raw, floor);
+                if (!stage) { this._lastPlanFailFloor = floor; return null; }
+                this._lastPlanFailFloor = 0;
+                return stage;
+            } catch (e) { this._lastPlanFailFloor = floor; return null; }
+            finally { this._planning = false; }
         }
         export() {
             return { stage: this.stage, turnIndex: this._turnIndex, turnFloor: this._turnFloor, history: this.history };

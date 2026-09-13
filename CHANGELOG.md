@@ -1,3 +1,10 @@
+## [v3.56.0] - 2026-09-13
+### 导演系统闭环：大纲耗尽 LLM 自动规划管线（OutlineDirector.planNext）
+- **大纲自动规划 (Outline Auto-Planning)**：`OutlineDirector.planNext(config, llm, engine, floor)`——大纲轮次耗尽时自动用 LLM 规划新阶段，**导演系统从"被动解析 AI 自发输出"升级为"主动请求规划"闭环**。上下文自动聚合：最近 4 条活跃摘要 + 未结悬念簿（伏笔是新阶段最好的素材）+ 角色名单 + 上一阶段最后几轮（衔接参考）。规划 prompt 显式要求：优先消化未结悬念、stage_tempo 四形态、2-3 节点每节点 2-4 turn 带 pacing 属性、turn 目标写具体剧情不许空话、遵守角色名单不新增主要角色。产出直接经 parseOutline 解析入导演系统（与 v3.48 大纲标签格式无缝闭环）。
+- **健壮性三重防护**：① 防重入（`_planning` 标志 + finally 复位）；② 失败冷却（`outlinePlanCooldownFloors` 默认 10 楼内不重试，成功后冷却清零）；③ 异步触发不阻塞生成流（advanceTurn 后 fire-and-forget，`.then` 记录规划结果）。`outlineAutoPlan`/`outlineDirectorEnabled`/`outlinePlanCooldownFloors` 配置开关显式声明（supersedeScanPool 配置区）。
+- **实施教训**：planNext 内 `window.SillyTavern` 访问需 `typeof window !== 'undefined'` 全局守卫——new Function 测试环境无 window，裸引用会 ReferenceError 进 catch 被静默吞掉（_lastPlanFailFloor 置位暴露了问题路径）。测试逻辑修正：planNext 成功后新大纲有 N 个 turn，需推进 N 次才耗尽（单次 advanceTurn 后仍剩轮次）。
+- **自动化测试**：新增 `tests/v356_outline_autoplan.test.mjs`（2 测试块：静态验证 + mock LLM 闭环行为测试——规划成功/未耗尽不规划/解析失败冷却/冷却期后重试/开关关闭），全量 58 个测试套件 93 个测试 100% 绿灯通过。
+
 ## [v3.55.0] - 2026-09-13
 ### 审计可视化：OpLog 事件审计浏览器（状态面板直达 + 统计头 + 中文化类型标签）
 - **事件审计浏览器 (OpLog Browser)**：showBrowser 新增 `oplog` 视图（消费 v3.54 OpLog）——状态面板新增「🔍 事件审计 👁」入口卡片（显示环形缓冲事件计数），点击直达审计链：统计头（各类型事件计数中文标签：📝摘要/🕸️图谱/📊状态/🎒物品/🧩悬念/↩️回滚…）+ 最近 80 条事件倒序渲染（`#seq · 类型 · 操作 · 楼层 · 时间` + ref 与 meta 灰字备注）。全部字段经 esc 转义防 XSS。记忆审计从"需要开发者查日志"变为"用户点点面板就能翻"。
