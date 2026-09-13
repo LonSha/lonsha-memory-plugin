@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.85.0';
+    const VERSION = '3.86.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -3196,10 +3196,17 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
 
             // [v1.9] P1: BM25 稀疏检索召回（提前执行，为 HippoRAG 准备文本实体输入）
+            // [v3.86] 吸收 MyriadKnots：有分支查询时走 searchBranches 多路归一化（主查询降权为 0.3 锚点），
+            // 防长背景文本绝对分淹没最新用户输入；无分支时主查询 weight=1 行为等价旧版
             if (this.config.config.bm25Enabled && this.bm25.N && query.text) {
                 try {
-                    results.bm25 = this.bm25.search(query.text, this.config.config.bm25TopK || 5, {cliffCut: true, minResults: 2})
-                        .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, source: 'bm25'}));
+                    const bmTopK = this.config.config.bm25TopK || 5;
+                    const branchSet = [{ key: 'main', text: query.text, weight: 0.3 }];
+                    if (Array.isArray(query.branches) && query.branches.length) {
+                        for (const b of query.branches) branchSet.push({ key: b.key, text: b.text, weight: Number(b.weight) || 0 });
+                    }
+                    results.bm25 = this.bm25.searchBranches(branchSet, bmTopK, {cliffCut: true, minResults: 2})
+                        .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, branchScores: d.branchScores, source: 'bm25'}));
                     if (this.config.config.heatOnRecallEnabled) {
                         for (const b of results.bm25) { try { this.vector.heatByText(b.text); } catch (e) {} }
                     }
@@ -3628,9 +3635,21 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
         
         buildQuery(context) {
-            const recentMsgs = window.SillyTavern?.getContext?.()?.chat?.slice(-5) || [];
+            const chat = window.SillyTavern?.getContext?.()?.chat || [];
+            const recentMsgs = chat.slice(-5);
             const text = recentMsgs.map(m => m.mes).join(' ');
-            return {text, characters: this.extractCharactersFromContext(text), queries: null};
+            // [v3.86] 吸收 MyriadKnots：多路分支查询（latestUser/recentAssistant/previousUser 独立加权）
+            const branches = [];
+            try {
+                const rev = [...chat].reverse();
+                const lastUser = rev.find(m => m.is_user);
+                const lastAssistant = rev.find(m => !m.is_user);
+                const prevUser = rev.filter(m => m.is_user)[1];
+                if (String(lastUser?.mes || '').trim()) branches.push({ key: 'latestUser', text: String(lastUser.mes || ''), weight: 0.65 });
+                if (String(lastAssistant?.mes || '').trim()) branches.push({ key: 'recentAssistant', text: String(lastAssistant.mes || ''), weight: 0.25 });
+                if (String(prevUser?.mes || '').trim()) branches.push({ key: 'previousUser', text: String(prevUser.mes || ''), weight: 0.1 });
+            } catch (e) { errLog(e, 'buildQuery.branches'); }
+            return {text, characters: this.extractCharactersFromContext(text), queries: null, branches};
         }
         
         extractCharactersFromContext(text) {
@@ -6547,14 +6566,16 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
     // [v1.9] P1: BM25 稀疏检索（抄 anima bm25：词频×逆文档频率×长度归一化）
     class BM25 {
         constructor() { this.docs = []; this.docTerms = []; this.df = new Map(); this.N = 0; this.avgLen = 0; }
+        // [v3.86] 吸收 MyriadKnots Han-bigram 分词：NFKC 归一化 + Unicode Script 属性
+        // （覆盖扩展区汉字/全角字符；拉丁与数字整词保留，汉字重叠二元组）
         _tokenize(text) {
             const tokens = [];
-            const s = String(text || '').toLowerCase();
-            (s.match(/[a-z0-9]+/g) || []).forEach(w => tokens.push(w));
-            const cjkRuns = s.match(/[\u4e00-\u9fa5]+/g) || [];
-            for (const run of cjkRuns) {
-                if (run.length === 1) { tokens.push(run); continue; }
-                for (let i = 0; i < run.length - 1; i++) tokens.push(run.slice(i, i + 2));
+            const s = String(text ?? '').normalize('NFKC').toLocaleLowerCase('zh-CN');
+            for (const m of s.matchAll(/[\p{Script=Latin}\p{N}]+/gu)) tokens.push(m[0]);
+            for (const m of s.matchAll(/\p{Script=Han}+/gu)) {
+                const ch = [...m[0]];
+                if (ch.length === 1) { tokens.push(ch[0]); continue; }
+                for (let i = 0; i + 1 < ch.length; i++) tokens.push(ch[i] + ch[i + 1]);
             }
             return tokens;
         }
@@ -6571,32 +6592,11 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             for (const tm of this.docTerms) for (const t of tm.keys()) this.df.set(t, (this.df.get(t) || 0) + 1);
             this.avgLen = this.N ? this.docTerms.reduce((a, m) => a + m.size, 0) / this.N : 0;
         }
-        search(query, topK = 5, opts = {}) {
-            if (!this.N) return [];
-            const qTerms = this._tokenize(query);
-            if (!qTerms.length) return [];
-            const k1 = 1.2, b = 0.75;
-            const scored = [];
-            for (let i = 0; i < this.N; i++) {
-                const tm = this.docTerms[i];
-                const len = tm.size || 1;
-                let score = 0;
-                const seen = new Set();
-                for (const qt of qTerms) {
-                    if (seen.has(qt)) continue;
-                    seen.add(qt);
-                    const tf = tm.get(qt) || 0;
-                    if (!tf) continue;
-                    const df = this.df.get(qt) || 0;
-                    const idf = Math.log(1 + (this.N - df + 0.5) / (df + 0.5));
-                    score += idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * len / (this.avgLen || 1)));
-                }
-                if (score > 0) scored.push({ ...this.docs[i], score });
-            }
+        // [v3.23] 断崖截断（NE-Memory retrieval-filter 分数断崖）: 相邻分 3x 且低于首项 15% → 自然截断
+        // 弱相关长尾截掉，minResults 保底防空洞
+        _cliffCut(scored, topK, opts = {}) {
             scored.sort((a, b) => b.score - a.score);
             if (!opts.cliffCut) return scored.slice(0, topK);
-            // [v3.23] 断崖截断（NE-Memory retrieval-filter 分数断崖）: 相邻分 3x 且低于首项 15% → 自然截断
-            // 弱相关长尾截掉，minResults 保底防空洞
             const minResults = opts.minResults || 2;
             let resultCount = Math.min(topK, scored.length);
             const topScore = scored[0]?.score || 0;
@@ -6616,6 +6616,55 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             while (pos < scored.length && scored[pos].score > 0) pos++;
             if (resultCount < minResults) resultCount = Math.min(Math.max(minResults, 1), Math.max(pos, 1), scored.length);
             return scored.slice(0, resultCount);
+        }
+        search(query, topK = 5, opts = {}) {
+            // [v3.86] 单查询等价为主分支（weight=1），统一走 searchBranches 管线
+            return this.searchBranches([{ key: 'main', text: query, weight: 1 }], topK, opts);
+        }
+        // [v3.86] 吸收 MyriadKnots recall-ranking：多路查询分支各自按分支内最高分归一化后加权合成。
+        // 解决痛点：长背景文本（recentAssistant）的 BM25 绝对分高，会淹没用户最新短输入（latestUser）。
+        // 分支独立归一化后，短查询在自己分支内也能拿满 1.0，锚定最新诉求。
+        searchBranches(branches, topK = 5, opts = {}) {
+            if (!this.N) return [];
+            const active = (Array.isArray(branches) ? branches : [])
+                .map((b, i) => ({ key: String(b?.key ?? i), weight: Number(b?.weight) || 0, terms: [...new Set(this._tokenize(b?.text))] }))
+                .filter(b => b.weight > 0 && b.terms.length);
+            if (!active.length) return [];
+            const weightTotal = active.reduce((s, b) => s + b.weight, 0);
+            if (weightTotal <= 0) return [];
+            const k1 = 1.2, bParam = 0.75;
+            const normByBranch = [];
+            for (const q of active) {
+                const raw = new Array(this.N).fill(0);
+                for (let i = 0; i < this.N; i++) {
+                    const tm = this.docTerms[i];
+                    const len = tm.size || 1;
+                    let score = 0;
+                    for (const qt of q.terms) {
+                        const tf = tm.get(qt) || 0;
+                        if (!tf) continue;
+                        const df = this.df.get(qt) || 0;
+                        const idf = Math.log(1 + (this.N - df + 0.5) / (df + 0.5));
+                        score += idf * (tf * (k1 + 1)) / (tf + k1 * (1 - bParam + bParam * len / (this.avgLen || 1)));
+                    }
+                    raw[i] = score;
+                }
+                // 分支内按最高分归一化；分支全零时保持全零（不放大全语料级低 IDF 重叠）
+                const max = Math.max(0, ...raw);
+                normByBranch.push(raw.map(s => max > 0 ? s / max : 0));
+            }
+            const scored = [];
+            for (let i = 0; i < this.N; i++) {
+                let score = 0;
+                const branchScores = {};
+                for (let j = 0; j < active.length; j++) {
+                    const norm = normByBranch[j][i];
+                    branchScores[active[j].key] = norm;
+                    score += norm * (active[j].weight / weightTotal);
+                }
+                if (score > 0) scored.push({ ...this.docs[i], score, branchScores });
+            }
+            return this._cliffCut(scored, topK, opts);
         }
     }
     

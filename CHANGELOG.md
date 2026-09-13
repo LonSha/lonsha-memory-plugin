@@ -1,3 +1,12 @@
+## [3.86.0] - 2026-09-14
+### Added
+- **BM25 多路分支归一化检索**（吸收 MyriadKnots recall-ranking）：BM25 新增 searchBranches(branches, topK, opts)——每路查询（latestUser 0.65 / recentAssistant 0.25 / previousUser 0.1）先按分支内最高分独立归一化再加权合成，解决长背景文本 BM25 绝对分淹没用户最新短输入的顽疾；分支全零保持全零（不放大全语料级低 IDF 重叠）；结果携带 branchScores 供命中监控溯源
+- **buildQuery 多路分支捕获**：从最近聊天提取 latestUser/recentAssistant/previousUser 三分支，随 query.branches 传入召回管线；主查询在 recallMemory 中降权为 0.3 锚点与分支合并检索
+- **Unicode 分词升级**（吸收 MyriadKnots tokenizeRecallText）：_tokenize 改用 NFKC 归一化 + toLocaleLowerCase('zh-CN') + \p{Script=Han}/\p{Script=Latin} Unicode 属性匹配，覆盖扩展区汉字与全角字符（旧版 [\u4e00-\u9fa5] 仅基本区）
+- 兼容性：单查询 search() 等价为主分支 weight=1 的 searchBranches，旧调用点与断崖截断 _cliffCut 行为不变
+### Tests
+- 新增 v386_bm25_branches.test.mjs（Unicode 分词属性测试/分支归一化行为复刻：短用户输入不被长背景淹没/主查询锚点/断崖截断回归/多分支权重合成/buildQuery 分支捕获静态检查），全量测试全绿
+
 ## [3.85.0] - 2026-09-13
 ### Added
 - **WorldProgress 数据源接线**（v3.41 吸收的承诺账本/剧情支线/认知隔离从"有壳无水源"变为完整管线）：提取 prompt 新增 9h promises（明确立下的承诺，deadlineFloor 仅正文给出楼层时才填）、9i plot_arcs（新增/触碰/解决三态）、9j knowledge_changes（认知 unaware/reveal）、9k promises_resolve（履行/违约既有承诺）；JSON schema 示例同步声明。onMessageReceived 应用块（受 worldProgressEnabled 门控）：addPromise 批量上限 3（空内容不入账、同角色同内容幂等合并）、addPlotArc 上限 3（同标题同线索合并、记录 createdFloor）、knowledge 上限 8；每楼即时 checkPromises + decayArcs；opLog 埋点
