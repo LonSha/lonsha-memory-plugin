@@ -10,8 +10,8 @@ const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
 const suSrc = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8');
 
 test('=== 1. 注入缓存双路径验证 ===', () => {
-    assert.ok(src.includes("if (inj2) this._lastInjection = { html: inj2, ts: Date.now() }"), '主路径缓存');
-    assert.ok(src.includes("if (inj) this._lastInjection = { html: inj, ts: Date.now() }"), '降级路径缓存');
+    assert.ok(src.includes("this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null }"), '主路径缓存（含 prev 快照）');
+    assert.ok(src.includes("this._lastInjection = { html: inj, ts: Date.now(), prev: this._lastInjection?.html || null }"), '降级路径缓存（含 prev 快照）');
     // 缓存的是裁剪后最终形态（buildInjection 返回值）
     assert.ok(src.includes('const inj2 = this.buildInjection(candidateItems);'), '主路径调用在位');
     console.log('✓ 注入缓存双路径验证通过');
@@ -25,7 +25,7 @@ test('=== 2. 预览视图验证 ===', () => {
     // 区块标题高亮（绿色 meta 行）
     assert.ok(suSrc.includes('color:#a6e3a1'), '区块头高亮');
     // XSS  转义
-    assert.ok(suSrc.includes('esc(l.trim())'), '行级转义');
+    assert.ok(suSrc.includes('esc(trimmed)'), '行级转义');
     // 空态提示
     assert.ok(suSrc.includes('暂无注入记录'), '空态提示');
     console.log('✓ 预览视图验证通过');

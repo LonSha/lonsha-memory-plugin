@@ -1,3 +1,10 @@
+## [v3.59.0] - 2026-09-13
+### 互通补全与预览进化：群像记忆手机端回填、OpLog 楼层过滤、注入预览 diff
+- **群像记忆手机端回填 (PairMemory Phone Bridge)**：`bridge.backfill` 新增 pairs 通道——PairMemory 归因式事件（v3.49）回填手机长期记忆（pinned），格式 `[群像] A × B: 事件｜actorDo 归因｜⚠️仅单方知晓`，双角色 tags。LonSha 侧 backfill payload 携带 `pairs`（与 diary/clock 同级的桥通道）。手机记忆库从此包含"谁和谁共同经历了什么、谁怎么想"的群像维度。
+- **OpLog 楼层过滤 (Audit Floor Filter)**：事件审计浏览器新增楼层过滤输入框——输入楼层号实时过滤该楼全部事件（`第N楼` 正则提取），空值恢复全部。配合 v3.55 审计浏览器，"查这条记忆哪来的"从翻 80 条变为输入楼层号直达。
+- **注入预览 diff (Injection Diff)**：`_lastInjection` 缓存增加 `prev` 快照（上一轮注入），预览视图对比两轮注入——**新增行**绿色左边框 + 淡绿背景 + `NEW` 标注，头部显示「🆕 本轮新增 N 行」。一眼看出"这轮 AI 的记忆里多了什么/少了什么"——Prompt Cache 命中率调优、注入内容审计的可视化利器。
+- **自动化测试**：新增 `tests/v359_pair_backfill_diff.test.mjs`（3 测试块：群像回填双端、楼层过滤、注入 diff），全量 61 个测试套件 101 个测试 100% 绿灯通过。
+
 ## [v3.58.0] - 2026-09-13
 ### 全量事件溯源：OpLog 十三类型埋点补全（diary/pov/timeline/card/money/conflict/pair）
 - **埋点全量覆盖 (Full Instrumentation)**：v3.54 的 OpLog 只埋了六路（summary/graph/status/suspense/item/rollback），本轮补全剩余七路——`diary`（活人感日记写入后按条数记录）、`pov`（私密认知入账，含 owner 与内容摘录 40 字）、`timeline`（剧情时间线落账，含剧情日期）、`card`（卡牌铸造）、`money`（钱财账本变更，含变动角色列表）、`conflict`（真矛盾登记）、`pair`（群像共同记忆更新）。**OpLog 类注释声明的 13 类型从此全部有真实埋点**——全子系统的每一条记忆变更都有审计记录，"事件溯源"名副其实。

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.58.0';
+    const VERSION = '3.59.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1374,7 +1374,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         const bridge = window.VirtualPhone?.lonshaBridge;
                         if (bridge?.backfill) {
                             // [v3.48] P0-4: backfill 携带剧情时钟快照（money_changes/conflicts 已在 extracted 原生 schema）
-                            const _backfillPayload = { ...extracted, clock: this.clock?.export?.() || null };
+                            // [v3.59] A2: payload 携带群像记忆（bridge 回填手机）
+                            const _backfillPayload = { ...extracted, clock: this.clock?.export?.() || null, pairs: this.pairMem?.export?.()?.pairs || [] };
                             bridge.backfill(_backfillPayload);
                             // [v3.49] P4: 心理暗流日记双端互通（幂等回填手机日记 App）
                             if (this.config.config.diaryBridgeEnabled !== false && this.diary?.diaries) {
@@ -2374,7 +2375,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     }
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
                 const inj2 = this.buildInjection(candidateItems);
-                if (inj2) this._lastInjection = { html: inj2, ts: Date.now() };  // [v3.57] P19: 注入预览缓存
+                if (inj2) this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
                     if (this.config.config.trailMonitor) {
@@ -4214,7 +4215,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                         const t0 = Date.now();
                         const recalled = await this.recallMemory(query);
                         const inj = this.buildInjection(recalled);
-                        if (inj) this._lastInjection = { html: inj, ts: Date.now() };  // [v3.57] P19
+                        if (inj) this._lastInjection = { html: inj, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D
                         const merged = recalled.filter(Boolean).reduce((a, b) => a + (Array.isArray(b) ? b.length : 0), 0);
                         report.pipeline = { ok: true, queryLen: qText.length, routes: Object.entries(recalled).filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => `${k}:${v.length}`), merged, injLen: (inj || '').length, ms: Date.now() - t0 };
                     }

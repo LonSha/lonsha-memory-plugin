@@ -315,12 +315,14 @@
                     const st = opLog.stats();
                     const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚' };
                     const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`;
+                    // [v3.59] B: 楼层过滤输入框（输入楼层号只显示该楼事件；空=全部）
+                    const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
                     const rows = opLog.recent(80).slice().reverse().map(e => `
                         <div class="ls-item">
                             <div class="ls-item-meta">#${e.seq} · ${typeCn[e.type] || e.type} · ${esc(e.op)} · ${e.floor !== null && e.floor !== undefined ? `第${e.floor}楼` : '—'} · ${fmtTime(e.ts)}</div>
                             <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:#a6adc8">— ${esc(e.meta)}</span>` : ''}</div>
                         </div>`).join('');
-                    body = head + rows;
+                    body = head + floorInput + `<div id="lonsha-oplog-rows">${rows}</div>`;
                 }
             }
 
@@ -334,14 +336,22 @@
                     const head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · ${inj.html.length} 字符（已经预算裁剪，即 AI 真实所见）</div>`;
                     // 分块渲染：按区块标题拆分便于阅读
                     const blocks = inj.html.split('\n').filter(l => l.trim());
+                    // [v3.59] D2: diff 高亮——对比上一轮注入，新增行标绿色边框
+                    const prevLines = inj.prev ? new Set(inj.prev.split('\n').map(x => x.trim())) : null;
+                    let newCount = 0;
                     const bodyHtml = blocks.map(l => {
-                        const isHeader = /^\[[^\]]+\]/.test(l.trim()) || l.includes('〔') || l.includes('NOTE');
-                        const text = esc(l.trim());
+                        const trimmed = l.trim();
+                        const isHeader = /^\[[^\]]+\]/.test(trimmed) || trimmed.includes('〔') || trimmed.includes('NOTE');
+                        const text = esc(trimmed);
+                        const isNew = prevLines && !prevLines.has(trimmed) && !isHeader;
+                        if (isNew) newCount++;
+                        const newStyle = isNew ? 'border-left:2px solid #a6e3a1;background:rgba(166,227,161,0.06);' : '';
                         return isHeader
                             ? `<div class="ls-item-meta" style="color:#a6e3a1;font-weight:bold;margin-top:6px;">${text}</div>`
-                            : `<div class="ls-item-text" style="padding-left:12px;">${text}</div>`;
+                            : `<div class="ls-item-text" style="padding-left:12px;${newStyle}">${text}${isNew ? ' <span style="color:#a6e3a1;font-size:11px;">NEW</span>' : ''}</div>`;
                     }).join('');
-                    body = head + `<div class="ls-item">${bodyHtml}</div>`;
+                    const diffNote = prevLines ? `<div class="ls-hint" style="color:#a6e3a1;">🆕 本轮新增 ${newCount} 行（绿色标注）</div>` : '';
+                    body = head + diffNote + `<div class="ls-item">${bodyHtml}</div>`;
                 }
             }
 
@@ -355,6 +365,24 @@
                     });
                 });
             });
+
+            // [v3.59] B2: OpLog 楼层过滤交互（输入楼层号实时过滤该楼事件）
+            const floorFilter = ov.querySelector('#lonsha-oplog-floor-filter');
+            const oplogRows = ov.querySelector('#lonsha-oplog-rows');
+            if (floorFilter && oplogRows && viewType === 'oplog' && s.opLog?.entries) {
+                const allRows = Array.from(oplogRows.children);
+                floorFilter.addEventListener('input', () => {
+                    const q = floorFilter.value.trim();
+                    if (!q) { allRows.forEach(r => r.style.display = ''); return; }
+                    const fl = Number(q);
+                    allRows.forEach(r => {
+                        // 从条目 meta 行提取楼层（"第N楼"或"—"）
+                        const m = r.querySelector('.ls-item-meta')?.textContent || '';
+                        const match = /第(\d+)楼/.exec(m);
+                        r.style.display = (match && Number(match[1]) === fl) ? '' : 'none';
+                    });
+                });
+            }
             // 浏览器里加一个返回按钮
             const back = document.createElement('div');
             back.className = 'ls-btn';
