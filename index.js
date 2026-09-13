@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.70.0';
+    const VERSION = '3.71.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -562,7 +562,7 @@
 3b. conflicts：本轮对话中出现【同一事实的两个版本对不上】时登记（如某角色在甲事件声称X、本轮又声称Y）。
 先判断是更正还是真矛盾：更正（时间线自然演进，如搬家/换工作）不登记，由正常提取覆盖；
 真矛盾（说不通的版本冲突，如自相矛盾的口供、立场摇摆）填 {"subject":"角色名或事实","versionA":"版本A描述","versionB":"版本B描述","note":"矛盾性质一句话","severity":"low/medium/high（按矛盾严重度）"}。没有则填空数组。
-4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
+4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。story_date 若剧情明确写出时间，必须保留完整年份或纪年（如"1988年9月29日""庆历四年"），禁止省略年份只写月日的短格式（"9月29日"不带年份时照抄原文但标注无年份）；古风/奇幻题材保留完整纪年与年份。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
 5. story_date：本轮剧情中明确写出的日期（如"3月12日""2026年5月1日"）；未明确写出则填 null。禁止编造日期。
 6. pov_memories：本轮产生的角色私密认知/秘密/内心独白（摄像头拍不到、仅该角色自己知道的内容）。每条必须给出 owner（哪个角色知道）和 content（一句话说清）。已在对话中公开说出口的内容不算。没有则填空数组。
 7. plans：本轮剧情中【新出现】的约定、目标、伏笔或未解之谜。kind 填 "plan"（角色主动要做的事）或 "suspense"（埋下的谜团/伏笔）。content 一句话写清。contentIsNew 必须为 true。没有新悬念则填空数组。禁止把悬念簿里已有的悬项重复登记。
@@ -990,6 +990,56 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
     }
     
     // [v3.19] 周期调度纯函数（收编 RUBY scheduler.js）: 位置取模 + 多任务分发
+    
+// [v3.71] A1: 相对时间前缀（柏宝书 timeRel.relativeTimeLabel 缝入）——宁可不标，绝不标错
+function parseStoryDateLoose(dateStr) {
+    const s = String(dateStr || '').trim();
+    if (!s) return null;
+    let m = s.match(/(\d{3,4})[年/.](\d{1,2})[月/.](\d{1,2})/);
+    if (m) return { type: 'standard', year: +m[1], month: +m[2], day: +m[3] };
+    m = s.match(/(\d{1,2})月(\d{1,2})日?/);
+    if (m) return { type: 'standard', year: null, month: +m[1], day: +m[2] };
+    const monthId = (s.match(/([^\s\d]+月)/) || [])[1] || null;
+    const dayM = s.match(/(\d+)\s*[日号]/) || s.match(/第\s*(\d+)/) || s.match(/(\d+)/);
+    if (monthId && dayM) return { type: 'fantasy', monthId, day: +dayM[1], year: null, month: null };
+    return null;
+}
+function relativeTimeLabel(eventTime, nowTime) {
+    const ev = parseStoryDateLoose(eventTime);
+    const now = parseStoryDateLoose(nowTime);
+    if (!ev || !now) return '';
+    if (ev.type === 'fantasy' || now.type === 'fantasy') {
+        if (ev.type !== now.type) return '';
+        if (ev.monthId !== now.monthId) return '';
+        const dd = (now.day || 0) - (ev.day || 0);
+        if (dd === 0) return '今天';
+        if (dd === 1) return '昨天';
+        if (dd === -1) return '明天';
+        if (dd > 1) return dd + '天前';
+        return Math.abs(dd) + '天后';
+    }
+    const mkTs = (d) => (d.year == null ? null : new Date(d.year, (d.month || 1) - 1, d.day || 1).getTime());
+    const evTs = mkTs(ev), nowTs = mkTs(now);
+    if (evTs == null || nowTs == null) return '';
+    const days = Math.round((nowTs - evTs) / 86400000);
+    if (days === 0) return '今天';
+    if (days === 1) return '昨天';
+    if (days === 2) return '前天';
+    if (days === 3) return '大前天';
+    if (days === -1) return '明天';
+    if (days === -2) return '后天';
+    if (days > 0) {
+        if (days < 30) return days + '天前';
+        if (days < 365) return Math.floor(days / 30) + '个月前';
+        const years = Math.floor(days / 365);
+        const remain = Math.round((days % 365) / 30);
+        return (remain > 0 && years < 5) ? years + '年' + remain + '个月前' : years + '年前';
+    }
+    const abs = Math.abs(days);
+    if (abs < 30) return abs + '天后';
+    if (abs < 365) return Math.floor(abs / 30) + '个月后';
+    return Math.floor(abs / 365) + '年后';
+}
     function cyclePositionFor(aiReplyCount, len) {
         if (!len || len <= 0 || aiReplyCount <= 0) return 0;
         return ((aiReplyCount - 1) % len) + 1;
@@ -3806,7 +3856,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         const key = i.text || "";
                         if (seenK.has(key)) return;
                         seenK.add(key);
-                        blocks.push(`- ${key}`);
+                        // [v3.71] A2: 相对时间前缀（柏宝书 timeRel 理念：宁可不标，绝不标错）
+                        const rel = i.storyTime ? relativeTimeLabel(i.storyTime, this.clock?.date || '') : '';
+                        blocks.push(`- ${key}${rel ? '（' + rel + '）' : ''}`);
                     });
                 }
                 if (tlRest.length) {
@@ -3816,7 +3868,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                         const key = i.text || "";
                         if (seen.has(key)) return;
                         seen.add(key);
-                        blocks.push(`- ${key}`);
+                        // [v3.71] A2: 相对时间前缀
+                        const rel = i.storyTime ? relativeTimeLabel(i.storyTime, this.clock?.date || '') : '';
+                        blocks.push(`- ${key}${rel ? '（' + rel + '）' : ''}`);
                     });
                 }
             }
