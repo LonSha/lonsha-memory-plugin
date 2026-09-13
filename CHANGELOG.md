@@ -1,3 +1,10 @@
+## [v3.60.0] - 2026-09-13
+### 手机端专项：记忆 App 桥接统计卡片（bridge.getStats 消费落地、巩固次数可见）
+- **记忆 App 桥接统计卡片 (Memory App Bridge Stats)**：RubyPhone 记忆 App 统计区新增两卡片——「回填次数」（LonSha→手机记忆回填计数）与「检索索引」（桥 BM25 文档数），并新增「🔗 LonSha 桥接」状态行：`回填 N · 召回 M 次 · 巩固 K · 🟢 启用 · 协调注入`。bridge.getStats 此前**数据完备但零消费**（体检实锤）——双向桥的运行状态从此在手机记忆 App 里直观可见。
+- **巩固次数可见 (Sleep Tick Visibility)**：v3.48 激活的巩固结晶管线（`_sleepTick` 计数器）此前只增不显——现在桥接状态行显示巩固次数，短期→长期记忆结晶的运行状况一目了然。
+- **手机端深度体检结论**：① bridge.getStats 零消费（本轮修复）；② memory-data 仅 2 处静默吞错且均为故意的可选链守卫（无害）；③ memory-view 已消费 memoryCore.getStats（统计展示完好）；④  超大文件（chat-view 897KB）与 console 647 条维持观察项。
+- **自动化测试**：新增 `tests/v360_phone_stats.test.mjs`（3 测试块：桥接卡片、巩固可见、数据源结构），全量 62 个测试套件 104 个测试 100% 绿灯通过。
+
 ## [v3.59.0] - 2026-09-13
 ### 互通补全与预览进化：群像记忆手机端回填、OpLog 楼层过滤、注入预览 diff
 - **群像记忆手机端回填 (PairMemory Phone Bridge)**：`bridge.backfill` 新增 pairs 通道——PairMemory 归因式事件（v3.49）回填手机长期记忆（pinned），格式 `[群像] A × B: 事件｜actorDo 归因｜⚠️仅单方知晓`，双角色 tags。LonSha 侧 backfill payload 携带 `pairs`（与 diary/clock 同级的桥通道）。手机记忆库从此包含"谁和谁共同经历了什么、谁怎么想"的群像维度。
