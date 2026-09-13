@@ -208,7 +208,7 @@ test('【正向10】结构完整性', () => {
         assert.ok(src.includes(cls), '类缺失: ' + cls);
     }
     // 版本一致
-    assert.ok(src.includes("const VERSION = '3.75.0';"), 'VERSION');
+    assert.ok(src.includes("const VERSION = '3.75.1';"), 'VERSION');
     const manifest = JSON.parse(readFileSync('/home/user/lonsha-memory-plugin/manifest.json', 'utf-8'));
-    assert.strictEqual(manifest.version, '3.75.0', 'manifest 版本');
+    assert.strictEqual(manifest.version, '3.75.1', 'manifest 版本');
 });
