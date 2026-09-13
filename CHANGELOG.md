@@ -1,3 +1,9 @@
+## [v3.51.0] - 2026-09-13
+### 召回素材质量：compressSummary 主干句压缩（氛围句剔除/动作句提权/时序保持）接入向量索引
+- **主干句压缩 (Compress Summary: Skeleton-First Indexing)**：吸收 baibai 摘要纪律，`SummarySystem` 新增 `compressSummary(text, maxLen)`——为检索索引（向量/BM25 素材）提取「谁+做了什么+结果」主干句，**索引质量决定召回质量**。四层评分：动作/交互主干词（说/发现/拿/走/杀/救…）+3、主干长度带（8-80字）+2、台词引用 +1；氛围/阅读理解句式（气氛/仿佛/体现了/暗示了/心态…）-4 且**直接剔除**（负分句不入素材，全噪声时保底留最高分 1 句）；纯过渡短句（然后/接着 + 短）-2。取 top 句按**原文顺序**拼接（保持叙事时序），smartTruncate 长度保底。
+- **向量索引接入**：`vectorText` 索引素材从 `smartTruncate(原文, 200)` 升级为 `compressSummary(原文, 160)`——向量嵌入不再被氛围描写稀释，动作/对话主干获得更高语义密度，长程召回命中率提升。正文摘要路径不受影响（createSummary 兜底仍为 smartTruncate）。
+- **自动化测试**：新增 `tests/v351_compress.test.mjs`（2 测试块：compressSummary 五场景行为测试（混合句/短文本/空文本/截断保底/阅读理解过滤）、向量索引接入），全量 53 个测试套件 78 个测试 100% 绿灯通过。
+
 ## [v3.50.0] - 2026-09-13
 ### 自适应调优：剧情时钟权威同步、rerank 评分式精排、注入预算上下文感知自适应
 - **剧情时钟权威同步 (GameClock → Phone TimeManager)**：`bridge.syncClock(clock)` 将 LonSha GameClock（含架空历法/回忆隔离的剧情时间唯一真源）强制同步到手机 timeManager——状态栏/日历/时间相关 App 以剧情时间为准。幂等设计：同日期不重复写入（`_lastSyncClockDate` 缓存，防每楼重置手机时间缓存导致状态栏闪烁）。`clockSyncEnabled` 开关（默认开）——两套时间系统自此统一。

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.50.0';
+    const VERSION = '3.51.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1754,7 +1754,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 if (this.config.config.vectorEnabled) {
                     // [v3.13] 场外信号拼入向量素材（只影响检索，不进注入文本）
                 const _sig = (this._thinkingSignals || []).filter(s => s.floor === message.index).map(s => (s.text.split('\n')[1] || '').slice(0, 120));
-                const vectorText = `${extracted?.summary || this.summary.smartTruncate(messageText, 200)}\n角色:${extracted?.characters?.join(',') || ''}${_sig.length ? '\n场外:' + _sig.join(' ') : ''}`;
+                const vectorText = `${extracted?.summary || this.summary.compressSummary(messageText, 160)}\n角色:${extracted?.characters?.join(',') || ''}${_sig.length ? '\n场外:' + _sig.join(' ') : ''}`;
                     await this.vector.addVector(vectorText, {
                         floor: message.index || 0,
                         characters: extracted?.characters || [],
@@ -4744,6 +4744,40 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 if (i > lastEnd) lastEnd = i;
             }
             return lastEnd > maxLen * 0.5 ? cut.substring(0, lastEnd + 1) : cut + '……';
+        }
+
+        // [v3.51] 吸收 baibai 摘要纪律: 主干句压缩——抽取「谁+做了什么+结果」，去氛围描写/阅读理解句式。
+        // 用于向量/BM25 索引素材（索引质量决定召回质量），正文摘要不改动。
+        compressSummary(text, maxLen) {
+            text = String(text || '').replace(/\s+/g, ' ').trim();
+            if (!text) return '';
+            // 按句切分
+            const sentences = text.split(/(?<=[。！？…])/).map(s => s.trim()).filter(Boolean);
+            if (!sentences.length) return this.smartTruncate(text, maxLen || 120);
+            // 氛围/阅读理解句式过滤（抄 baibai 摘要纪律：索引只要事实主干）
+            const noise = /(气氛|氛围|空气|安静的|沉默的|仿佛|似乎|让人|令人|体现了|暗示了|意味着|象征着|心态|情绪的|复杂的)/;
+            const timeWords = /(然后|接着|随后|之后|最后|同时)/;
+            const scored = [];
+            for (const s of sentences) {
+                let score = 0;
+                if (s.length >= 8 && s.length <= 80) score += 2;          // 主干长度带
+                if (/[""「」''\u201c\u201d]/.test(s)) score += 1;        // 含台词引用
+                if (/(说|问|答|喊|叫|道|告诉|发现|拿|给|走|来|去|杀|死|救|帮助|拒绝|同意)/.test(s)) score += 3;  // 动作/交互主干
+                if (noise.test(s)) score -= 4;                            // 氛围句降权
+                if (timeWords.test(s) && s.length < 20) score -= 2;       // 纯过渡短句降权
+                scored.push({ s, score });
+            }
+            // [v3.51] 噪声句（负分）直接剔除——氛围/阅读理解句式不入索引素材
+            const kept = scored.filter(x => x.score > 0);
+            const usable = kept.length ? kept : scored.slice().sort((a, b) => b.score - a.score).slice(0, 1);  // 全噪声时保底留最高分1句
+            usable.sort((a, b) => b.score - a.score);
+            // 取 top 句子按原文顺序拼接（保持叙事时序）
+            const limit = Math.max(1, Math.ceil((maxLen || 120) / 40));
+            const picked = usable.slice(0, limit).map(x => x.s);
+            // 按原句顺序重排
+            const ordered = sentences.filter(s => picked.includes(s));
+            const out = (ordered.length ? ordered : picked).join('');
+            return this.smartTruncate(out, maxLen || 120);
         }
         async createSummary(message, llmSummary, opts = {}) {
             if (!message && !llmSummary) return null;
