@@ -253,7 +253,7 @@
                     <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
                     <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
                     <button id="ls-ms-add" class="ls-btn" style="padding:6px 14px;">+ 补摘</button>
-                </div>`;
+                </div><div class="ls-hint" style="font-size:11px;color:#888;margin:4px 0;">💡 若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置 → 正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
                 body = addForm + (list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
                     list.slice().reverse().map(m => `
                         <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${m.floor}">

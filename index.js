@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.74.0';
+    const VERSION = '3.75.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -5122,6 +5122,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             s.text = this.smartTruncate(t, 2000);
             s.edited = true;
             s.editedAt = Date.now();
+            // [v3.75] A: OpLog 埋点（summary/update）
+            try { this.opLog?.log?.('summary', 'update', 'sum_' + floor, floor, String(t).slice(0, 40)); } catch (e) {}
             return true;
         }
         /** 手动补摘（柏宝书：任意楼层单独补摘）——为缺失楼层的旧剧情补一条摘要 */
@@ -5140,6 +5142,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             };
             this.summaries.push(s);
             this.summaries.sort((a, b) => a.floor - b.floor);
+            // [v3.75] A: OpLog 埋点（summary/manual）
+            try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, String(t).slice(0, 40)); } catch (e) {}
             return s;
         }
         /** 缺失楼层清单（柏宝书：一键把落下的楼层批量补齐的前置） */

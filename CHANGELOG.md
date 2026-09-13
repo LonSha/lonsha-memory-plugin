@@ -1,4 +1,16 @@
 
+## [3.75.0] - 2026-09-13
+
+### Added（摘要手动操作收尾：OpLog 埋点 + 显示说明 + 手机同步）
+
+- **摘要手动操作 OpLog 埋点**：updateSummaryText/addManualSummary 操作进事件溯源（summary/update 与 summary/manual 操作，sum_N ref，文本摘要 meta）——手动摘要的变更进入审计链
+- **时间标签显示说明**：摘要列表视图 hint 追加 bbs_start/bbs_end 显示处理提示——告知用户用酒馆正则隐藏标签原文（标签仍保留在底层数据供记忆系统使用）
+- **手机端摘要编辑同步**：桥新增 syncSummaryEdit(floor, text)——LonSha 编辑/补摘后同步手机记忆池对应条目（[摘要·第N楼] 幂等标记，exist 走 updateEntry 更新/否则 record 新增，summary-sync 标签 pinned importance 6，summarySyncCount 统计）
+
+### Tests
+- 新增 tests/v375_summary_sync.test.mjs（5 组：OpLog 埋点/显示说明/桥同步方法/幂等逻辑复刻/埋点功能模拟）
+- 全量 77 套件 188 测试通过
+
 ## [3.74.0] - 2026-09-13
 
 ### Added（柏宝书手动操作缝入：编辑摘要 + 手动补摘 + 缺失楼层清单）
