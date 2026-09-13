@@ -1,4 +1,18 @@
 
+## [3.68.0] - 2026-09-13
+
+### Added（DeltaBook 面板视图 + 手机增量回填 + 双向审计）
+
+- **正史增量面板视图**：状态总览新增「📒 正史增量 👁」卡片（矛盾与注入预览之间）；deltas 视图 established/uncertain 双状态徽标（✅已确证/⏳待定）、楼层溯源、手动确证按钮（✓ 一键转正）
+- **手机端增量回填**：bridge.backfill 新增正史通道——仅 established 事实回填手机长期记忆（pinned、importance 7、[正史] 标签、第 N 楼佐证标注），最多 4 条节流；stats 新增 deltaIngested 计数
+- **手机记忆 App 正史徽标**：memory-view 新增 deltaTag——[正史] 前缀条目显示绿色「📒正史」徽标（渲染序最前），memory.css 绿色渐变样式
+- **payload 携带**：_backfillPayload 新增 deltaBook 字段（export null 兜底）
+- **双向审计**：新增测试套件同时覆盖正向审计（UI 端到端链路/卡片位置/回填链路/渲染序）与逆向审计（假设 deltaBook 未实例化的守卫检查/桥空值防护/旧数据兼容/双端识别一致性）
+
+### Tests
+- 新增 tests/v368_delta_ui_backfill_audit.test.mjs（7 组：正向 UI 链路/位置渲染序/手机回填/逆向守卫/桥空值防护/旧数据兼容/双端一致性）
+- 全量 70 套件 152 测试通过
+
 ## [3.67.0] - 2026-09-13
 
 ### Added（正史增量生命周期：回滚联动 + 楼层位移 + 自动确证）

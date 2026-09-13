@@ -108,6 +108,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">🔒 锁定事实 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">⚔️ 未决矛盾 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="deltas"><div class="ls-stat-num">${s.deltaBook?.deltas?.length || 0}</div><div class="ls-stat-label">📒 正史增量 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
@@ -146,6 +147,22 @@
                             s.unlockFact ? s.unlockFact(id) : s.summary.removeLockedFact(id);
                             toast('已解除锁定');
                             plugin.showBrowser('lockedfacts');
+                        }
+                    });
+                });
+            }
+
+            // [v3.68] A: deltas 视图的手动确证绑定
+            if (viewType === 'deltas') {
+                ov.querySelectorAll('.ls-delta-confirm').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const dsum = btn.dataset.dsum;
+                        const n = s.deltaBook?.confirm?.(dsum) || 0;
+                        if (n > 0) {
+                            toast('✅ 已确证 ' + n + ' 条增量事实');
+                            plugin.showBrowser('deltas');
+                        } else {
+                            toast('未找到匹配的待定项');
                         }
                     });
                 });
@@ -377,6 +394,26 @@
                             <button class="ls-btn ls-lf-del" data-lfid="${esc(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✕</button>
                         </div>`).join('');
                 body = head + addForm + '<div style="margin-top:8px;">' + items + '</div>';
+            }
+            else if (viewType === 'deltas') {
+                // [v3.68] A: 正史增量视图（established/uncertain 分状态，手动确证）
+                title = '📒 正史增量账本';
+                const list = s.deltaBook?.deltas || [];
+                if (!list.length) {
+                    body = '<div class="ls-hint">暂无正史增量。摘要折叠时 LLM 会同步产出增量事实（established=有明确证据，uncertain=存疑待佐证，后续剧情会自动确证）。</div>';
+                } else {
+                    const stBadge = (st) => st === 'established'
+                        ? '<span style="font-size:10px;font-weight:700;color:#86efac;background:rgba(74,222,128,0.12);border-radius:4px;padding:1px 6px;">✅已确证</span>'
+                        : '<span style="font-size:10px;font-weight:700;color:#fcd34d;background:rgba(251,191,36,0.12);border-radius:4px;padding:1px 6px;">⏳待定</span>';
+                    body = list.slice().reverse().map(d => `
+                        <div class="ls-item" style="display:flex;align-items:flex-start;gap:8px;">
+                            <div style="flex:1;">
+                                <div class="ls-item-meta">${stBadge(d.status)} · 第${d.evidenceFloor}楼 · ${fmtTime(d.timestamp)}</div>
+                                <div class="ls-item-text">${esc(d.summary)}</div>
+                            </div>
+                            ${d.status === 'uncertain' ? `<button class="ls-btn ls-delta-confirm" data-dsum="${esc(d.summary)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✓</button>` : ''}
+                        </div>`).join('');
+                }
             }
             else if (viewType === 'conflicts') {
                 // [v3.65] C: 未决矛盾视图（severity 严重度分级展示）
