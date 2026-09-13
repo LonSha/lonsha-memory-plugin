@@ -1,3 +1,13 @@
+## [v3.48.0] - 2026-09-13
+### 桥修复与导演系统：LonSha↔RubyPhone 双向桥三处断线根治、剧情大纲导演（pacing 四相）、关系五分类学与伦理冲突检测、本地意图分流重排
+- **P0 桥三处断线根治 (Bridge Breakdown Fix)**：排查 LonSha↔RubyPhone 双向桥发现三处 v1.7 时代遗留的静默失效：① LonSha 调用 `lonshaBridge.queryPhoneMemory` 但桥从未实现该方法（只有 `recall`）——`?.` 可选链静默吞调用，**手机记忆作为召回源从未真正生效**；② 守卫开关读 `rubyPhoneSync` 但配置定义的是 `rubyPhoneRecall`——开关恒 undefined；③ 字段映射期望 `h.id/h.type` 但 `recall` 返回 `{content,score,layer,floor}`。修复：桥补 `queryPhoneMemory` 别名（转发 recall）、开关名对齐、字段映射兼容 `h.layer`。双向桥自此名副其实。
+- **P0 巩固结晶激活 (Sleep Engine Activation)**：RubyPhone `memoryCore.sleep()`（短期→长期巩固结晶，sxiphone 移植核心算法）全库 0 次调用——短期缓冲无限堆积永不结晶。每 12 条 AI 消息节流触发一次巩固。
+- **P0 账本回填与感官池喂数 (Ledger Backfill & Pool Feeding)**：`bridge.backfill` 从旧三字段（summary/events/relationships）扩容为八通道：新增场景位置→记忆池**空间层**（激活 spatial 嗅觉/触觉触发式回忆）、钱财账本→长期记忆、矛盾账本→pinned 长期记忆、GameClock 剧情时钟→时间锚（LonSha 侧 backfill payload 携带 clock 快照）。
+- **P1 剧情大纲导演 (Outline Director)**：吸收 shujuku 大纲系统，新增 `OutlineDirector` 类：宽容解析 AI 回复中的 `<stage_title>/<stage_goal>/<stage_tempo>/<node>/<turn pacing>` 标签（标签外内容全部忽略）；`stage_tempo` 四形态（buildup 铺垫蓄力/mixed 松紧交替/surge 高压密集/aftermath 余波消化）+ 轮级 `pacing` 四相（setup 铺垫/pressure 施压/turn 反转/cooldown 收束）语义注入。`[剧情大纲·导演视角]` 注入块提供当前阶段→节点→本轮目标→本轮节奏→下一轮预告的完整导演链，轮次耗尽时注入收束提示。每 AI 楼层自动推进 turn 指针，export/import 持久化。提取 prompt 新增 9e 规则（大纲标签写法说明）——记忆插件从此有了"导演视角"：不只记录过去，还规划未来。
+- **P2 关系五分类学与伦理冲突检测 (Relationship Taxonomy & Ethics Guard)**：吸收 yuzuki `classifyRelationship`，新增 `classifyRelationshipType` 五分类正则（family 血缘/intimate 亲密/hostile 敌对/social 社交/other）；关系边携带 `relClass` 分类标签，`[角色关系]` 注入渲染为 `[友好·血缘]` 分类格式。新增 `detectEthicsConflict` 伦理冲突检测（family × intimate 交叉即告警，配合 v3.45 羁绊网防乱伦）——「师父」含「父」字必须先于 family 判定的优先级修正。关系注入提示词同步升级。
+- **P3 本地意图分流重排 (Intent Rerank Pipeline)**：吸收 triviumdb on_rerank 管线理念，新增 `intentRerank` 本地中间层（零 API）：历史回顾类 query 提权时态历史边（+2.0）、物品类 query 提权物品台账（+2.0）、关系类 query 提权关系网（+1.5）。之前三路意图分流散落在 recallMemory 各分支，本管线收敛为召回后统一重排层。
+- **自动化测试**：新增 `tests/v348_director_bridge.test.mjs`（4 测试块：P0 桥修复双端静态验证、OutlineDirector 完整行为、五分类与伦理检测、大纲接入链路完整性），全量 50 个测试套件 69 个测试 100% 绿灯通过。
+
 ## [v3.47.0] - 2026-09-13
 ### 吸收 hcdiary / stbme / memorybooks 黑科技：心理暗流日记、睡眠周期归档式遗忘、矛盾二分账本、钱财账本与剧情卡牌收集
 - **心理暗流日记 (Subtext Diary: attitude/keyEvents/subjectiveRelations)**：吸收 hcdiary 结构化心理日记设计，DiarySystem 从 entry+mood+secret 三字段扩容为六字段：新增 `attitude`（对用户当前态度，如"表面客气心底记仇"）、`keyEvents`（亲历且对他个人有分量的事件，最多3条）、`subjRelations`（**主观印象版**关系网——"按他经历来写，不是上帝视角结论"，单恋/错付/误判全部可表达）。与 POV 全知禁令组合：AI 只在私密视界知道角色心底的真实想法，对话中绝不戳破，焊死"表里不一"活人感。

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.47.0';
+    const VERSION = '3.48.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -284,6 +284,43 @@
             .map(entry => `- ${entry.name}：${entry.ties.join('；')}`);
         return rows.length ? `[角色长期关系网]（血缘/婚姻/主仆/宿敌等，不因是否在场而失效）：\n${rows.join('\n')}` : '';
     }
+    // [v3.48] 吸收 yuzuki: 关系五分类学（family/intimate/hostile/social/other 正则分类）
+    function classifyRelationshipType(relation) {
+        try {
+            const value = String(relation || '');
+            if (!value) return 'other';
+            if (/(师父|师母|师傅|干爹|干妈|义父|义母)/.test(value)) return 'social';  // [v3.48] 「师父」含「父」字，必须先于 family 判定
+            if (/(父|母|兄|弟|姐|妹|祖|孙|叔|伯|姑|姨|舅|侄|甥|亲属|亲戚|家人|家族|养父|养母|继父|继母|异母|异父|血缘|血亲)/.test(value)) return 'family';
+            if (/(恋|爱|婚|夫|妻|情侣|伴侣|未婚|情人|暗恋|亲密|前任|暧昧|床)/.test(value)) return 'intimate';
+            if (/(敌|仇|宿敌|竞争|对手|冲突|敌对|嫌疑|警惕|背叛|出卖)/.test(value)) return 'hostile';
+            if (/(同事|同学|朋友|好友|上司|下属|老师|学生|师父|徒弟|合作|盟友|搭档|邻居|校友|秘书|助理|雇主|雇员|主仆|仆人|侍女)/.test(value)) return 'social';
+            return 'other';
+        } catch (e) { return 'other'; }
+    }
+    // [v3.48] 吸收 yuzuki + 配合 v3.45 羁绊网: 伦理冲突检测（family × intimate 交叉即告警）
+    function detectEthicsConflict(fromName, toName, relationType, existingTies) {
+        try {
+            const cls = classifyRelationshipType(relationType);
+            if (cls !== 'intimate') return null;
+            // 检查两人之间是否已有 family 类羁绊（血缘/婚姻）
+            const key = normalizeCharName(toName);
+            for (const tie of (existingTies || [])) {
+                const tName = normalizeCharName(tie?.name || '');
+                if (tName !== key) continue;
+                const ties = Array.isArray(tie?.ties) ? tie.ties.join(';') : String(tie?.ties || '');
+                // [v3.48] 置信分级：tie 显式含 from 名（如「苏晨:亲生哥哥」）→ 直接告警；
+                // 双向血缘词（兄妹/父子等，从任何一方看都成立）→ 也告警；
+                // 单向关系词无主名（如只写「亲生妹妹」未写是谁的妹妹）→ 不告警（无法确认 from 是血亲）
+                const explicitFrom = ties.includes(fromName);
+                const bidirectional = /(兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女|祖孙|血缘|血亲)/.test(ties);
+                if (explicitFrom || bidirectional) {  // 防乱伦优先：血缘证据即告警（保守策略）
+                    return { from: fromName, to: toName, relation: relationType, tie: ties };
+                }
+            }
+            return null;
+        } catch (e) { return null; }
+    }
+
     // [v3.41] 吸收 Stitches 工业级标签净化: 剥除思维链、多智能体协调与中间跑团标签，保护正文不被污染
     function stripMemoryOpsTags(text) {
         try {
@@ -526,6 +563,11 @@
 9b. items：本轮剧情中【明确出现实体流转】的物品。新增获得填 {"action":"add","name":"物品名","desc":"一句话描述","holder":"当前持有者角色名"}；位置/状态变化填 {"action":"update","name":"已有物品名","holder":"新持有者或空","state":"完好/损坏/丢失/使用完毕"}；禁止臆测没有依据的物品；没有则填空数组。\n10. location：本轮剧情结束时主角所在的场景完整路径（必须用已登记场景路径之一；移动了才填，没动填 null）。
 9c. time_advance_days：本轮剧情结束时相对上一楼【跳过了几天】（如正文出现\"三天后\",\"次日\",\"一周后\"且未写出具体日期时，填天数3/1/7；日期明确写了具体年月日则填0；没有时间跳跃填 null）。禁止臆测。
 9d. money_changes：本轮剧情中【明确写出金额变动】的记录。新增收入填 {"character":"角色名","value":新金额数字,"reason":"干了什么加多少钱"}；明确写出花了多少/赚了多少（未写总余额）填 {"character":"角色名","delta":±数字,"reason":"买了什么减多少钱"}。角色名填主角时用"主角"。禁止臆测没有明确金额的变动；没有则填空数组。
+9e. outline：仅当用户消息或剧情明显进入【新阶段转折】且你在回复中规划了新阶段时，才在回复正文（非 JSON）中输出大纲标签块：
+<stage_title>阶段标题</stage_title><stage_goal>阶段整体目标</stage_goal><stage_tempo>buildup|mixed|surge|aftermath</stage_tempo>
+<node><node_title>节点标题</node_title><node_goal>节点目标</node_goal><turn pacing="setup|pressure|turn|cooldown">该轮要发生的具体剧情</turn>...</node>...
+pacing 语义：setup=铺垫（关系/信息/情绪），pressure=施压（行动+阻碍+悬念），turn=反转（揭示/爆点），cooldown=收束（后果/余韵）。
+tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，aftermath=余波消化。JSON 输出中不需要包含 outline 字段。
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
 {"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null}`,
@@ -1179,6 +1221,7 @@
             this.moneyLedger = new MoneyLedger();
             this.cards = new CardCollection();
             this.conflicts = new ConflictBook();
+            this.outline = new OutlineDirector();
         }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
@@ -1216,6 +1259,13 @@
             const aiRecallOps = this.config.config.aiRecallOps ? extractMemoryOpsFromText(_rawForSynopsis) : null;
             // [v3.37] 物理时间标签锚点：从原文提取 <time>/<date> 标签（baibai 理念，零API同步）
             const timeTagFound = (this.config.config.timeTagAnchorEnabled !== false) ? extractTimeTagFast(_rawForSynopsis) : null;
+            // [v3.48] P1: 大纲标签解析（AI 回复自带 <stage_title>/<node>/<turn> 时自动成为导演大纲）
+            if (this.config.config.outlineDirectorEnabled !== false && _rawForSynopsis && _rawForSynopsis.includes('<node')) {
+                try {
+                    const _outlineParsed = this.outline.parseOutline(_rawForSynopsis, message.index || 0);
+                    if (_outlineParsed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🎬 解析剧情大纲: ${_outlineParsed.title}（${_outlineParsed.nodes.length} 节点）`);
+                } catch (e) { errLog(e, 'onMessageReceived.大纲解析'); }
+            }
             const dualTimeAnchor = (this.config.config.dualTimeAnchorEnabled !== false) ? (() => {
                 try { return new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis); } catch (e) { return null; }
             })() : null;
@@ -1291,7 +1341,9 @@
                     try {
                         const bridge = window.VirtualPhone?.lonshaBridge;
                         if (bridge?.backfill) {
-                            bridge.backfill(extracted);
+                            // [v3.48] P0-4: backfill 携带剧情时钟快照（money_changes/conflicts 已在 extracted 原生 schema）
+                            const _backfillPayload = { ...extracted, clock: this.clock?.export?.() || null };
+                            bridge.backfill(_backfillPayload);
                         } else if (window.VirtualPhone?.memoryCore) {
                             // 兜底: 桥未挂载时直接写入记忆库 (摘要→长期记忆)
                             const s = String(extracted.summary || '').trim();
@@ -1341,9 +1393,16 @@
                             to: relTo,
                             label: rel.type, weight: 1.0,
                             floor: message.index || 0,
-                            data: {attitude: rel.attitude || 'neutral', note: rel.note || ''}
+                            data: {attitude: rel.attitude || 'neutral', note: rel.note || '', relClass: classifyRelationshipType(rel.type)}
                         });
                         // [v3.43] 图谱关系已由 addEdge 记录为楼层 delta，供 swipe/删楼重放
+                        // [v3.48] P2: 伦理冲突检测（family × intimate 交叉即告警，配合 v3.45 羁绊网防乱伦）
+                        if (this.config.config.ethicsConflictEnabled !== false && Array.isArray(extracted?.ties_context)) {
+                            const _ethics = detectEthicsConflict(relFrom, relTo, rel.type, extracted.ties_context);
+                            if (_ethics && this.config.config.debugMode) {
+                                console.warn(`[${PLUGIN_NAME}] ⚠️ 伦理冲突: ${_ethics.from} × ${_ethics.to}（${_ethics.relation}）与既有血缘羁绊「${_ethics.tie}」交叉`);
+                            }
+                        }
                     }
                 }
                 
@@ -1461,6 +1520,14 @@
                     }
                 }
 
+                // [v3.48] P1: 大纲轮次推进（每个 AI 楼层处理完 → 当前 turn 记入简史并推进指针）
+                if (this.config.config.outlineDirectorEnabled !== false && this.outline?.stage && !message.is_user) {
+                    try {
+                        const _curBefore = this.outline._turnIndex;
+                        this.outline.advanceTurn(message.index || 0);
+                        if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🎬 大纲推进: 第${_curBefore + 1}轮完成 → 指针 ${this.outline._turnIndex}`);
+                    } catch (e) { errLog(e, 'onMessageReceived.大纲推进'); }
+                }
                 // [v2.2] RC: 悬念簿（新悬项登记 + 了结核销 + 超限沉降）
                 if (this.config.config.suspenseEnabled && extracted) {
                     try {
@@ -1729,6 +1796,8 @@
                         moneyLedger: this.moneyLedger.export(),
                         cards: this.cards.export(),
                         conflicts: this.conflicts.export(),
+                outline: this.outline.export(),
+                        outline: this.outline.export(),
                         scene: this.scene.export(),
                         echo: this.echo.export(),
                         supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
@@ -3000,12 +3069,19 @@
             }
 
             // [v1.7] RubyPhone 联动②: 手机记忆库作为一路召回源
-            if (this.config.config.rubyPhoneSync && window.VirtualPhone?.lonshaBridge?.queryPhoneMemory) {
+            // [v3.48] P0 桥修复: queryPhoneMemory 是 v1.7 时代写错的方法名（bridge 只有 recall），守卫开关 rubyPhoneSync 也不存在（配置叫 rubyPhoneRecall）——三处断线导致手机召回通道从未生效
+            if (this.config.config.rubyPhoneRecall && window.VirtualPhone?.lonshaBridge) {
                 try {
-                    const phoneHits = await window.VirtualPhone.lonshaBridge.queryPhoneMemory(query.text, this.config.config.rubyPhoneRecallTopN || 3);
+                    const _phoneQuery = window.VirtualPhone.lonshaBridge.queryPhoneMemory || window.VirtualPhone.lonshaBridge.recall.bind(window.VirtualPhone.lonshaBridge);
+                    const phoneHits = await _phoneQuery(query.text, this.config.config.rubyPhoneRecallTopN || 3);
                     if (phoneHits?.length) {
-                        results.rubyphone = phoneHits.map(h => ({
-                            id: 'phone_' + h.id, text: `[手机记忆·${h.type || '备忘'}] ${h.content}`, source: 'rubyphone', importance: h.importance || 5
+                        results.rubyphone = phoneHits.map((h, i) => ({
+                            // [v3.48] P0 字段对齐: bridge.recall 返回 {content, score, layer, floor}，旧映射期望 h.id/h.type  恒 undefined
+                            id: 'phone_' + (h.id ?? (h.floor ?? 'i') + '_' + i),
+                            text: `[手机记忆·${h.layer || h.type || '生活'}] ${h.content}`,
+                            source: 'rubyphone',
+                            importance: h.importance || 5,
+                            score: h.score || 0.5
                         }));
                     }
                 } catch (e) { errLog(e, 'recallMemory.手机记忆召回'); }
@@ -3081,7 +3157,32 @@
                     }
                 } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] rerank失败(降级):`, e); }
             }
-            return merged;
+            // [v3.48] P3: 本地意图分流重排（零 API 中间层，历史/物品/关系三路意图统一收敛）
+            return this.intentRerank(merged, queryText);
+        }
+
+        // [v3.48] P3: 本地意图分流重排管线（triviumdb on_rerank 理念，零 API）
+        // 统一化三路意图分流：历史回顾类 query 提权时态历史边；物品类 query 提权物品台账；关系类 query 提权关系网。
+        // 之前三路意图分流散落在 recallMemory 各分支（isHistorical 等），本管线将其收敛为召回后统一中间层。
+        intentRerank(merged, queryText) {
+            try {
+                const q = String(queryText || '');
+                if (!q || !Array.isArray(merged) || merged.length < 2) return merged;
+                const isHistory = /当年|曾经|以前|旧怨|旧事|过去|往事|回忆|最初|那时候/i.test(q);
+                const isItem = /物品|道具|东西|短剑|信物|钥匙|账本|礼物|随身|物品栏|装备/i.test(q) || this.itemOps?.some(o => o?.name && q.includes(o.name));
+                const isRelation = /关系|羁绊|仇|恩|暗恋|结义|师徒|婚|血缘/i.test(q);
+                if (!isHistory && !isItem && !isRelation) return merged;
+                const boost = (item) => {
+                    const text = String(item?.text || '');
+                    let b = 0;
+                    if (isHistory && (item?.historical || /当年|曾经|以前|旧|最初/.test(text))) b += 2.0;
+                    if (isItem && (/物品|道具|随身|寄存/.test(text) || (text.includes('[') && this.itemOps?.some(o => o?.name && text.includes(o.name))))) b += 2.0;
+                    if (isRelation && /关系|羁绊|→|恩怨|结义|血缘/.test(text)) b += 1.5;
+                    return b;
+                };
+                return merged.map(item => ({ ...item, _intentBoost: boost(item) }))
+                    .sort((a, b) => (b._intentBoost || 0) - (a._intentBoost || 0));
+            } catch (e) { errLog(e, 'intentRerank'); return merged; }
         }
 
         hybridMerge(results) {
@@ -3455,12 +3556,14 @@
             }
             if (relations.length) {
                 blocks.push('[角色关系]');
+                const CLS_CN = { family: '血缘', intimate: '亲密', hostile: '敌对', social: '社交', other: '其他' };
                 relations.forEach(i => {
                     const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : '中立';
                     const fromName = this.graph.nodes.get(i.from)?.name || i.from || i.name;
                     const toName = this.graph.nodes.get(i.to)?.name || i.to || '';
                     const histNote = (i.active === false && i.validTo != null) ? `（曾于第${i.validTo}楼前）` : '';
-                    blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}]${histNote}`);
+                    const cls = i.data?.relClass || classifyRelationshipType(i.label);
+                    blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}·${CLS_CN[cls] || '其他'}]${histNote}`);
                 });
             }
             // [v3.45] 吸收 baibai: 近期已了结/已作废事项防复读注入
@@ -3498,6 +3601,11 @@
             if (this.conflicts) {
                 const conflictPrompt = this.conflicts.toPrompt();
                 if (conflictPrompt) blocks.push(conflictPrompt);
+            }
+            // [v3.48] P1: 大纲导演注入（导演视角：本轮目标+节奏）
+            if (this.outline) {
+                const outlinePrompt = this.outline.toPrompt();
+                if (outlinePrompt) blocks.push(outlinePrompt);
             }
             if (timelines.length) {
                 // [v3.32] chronicle timeline tiering (Visual-Memory highlightThreshold idea): key events >=7 top block, rest as list
@@ -3907,6 +4015,7 @@
                 if (pack.moneyLedger && this.moneyLedger) this.moneyLedger.import(pack.moneyLedger);
                 if (pack.cards && this.cards) this.cards.import(pack.cards);
                 if (pack.conflicts && this.conflicts) this.conflicts.import(pack.conflicts);
+                if (pack.outline && this.outline) this.outline.import(pack.outline);
                 if (Array.isArray(pack.timeline) && pack.timeline.length) this.timeline.entries = [...pack.timeline];
                 if (Array.isArray(pack.statusFlat) && pack.statusFlat.length) {
                     this.status.applyChanges(pack.statusFlat, 0, true);
@@ -6372,6 +6481,128 @@ ${win}`;
         }
         export() { return { conflicts: this.conflicts }; }
         import(data) { if (data && Array.isArray(data.conflicts)) this.conflicts = data.conflicts; }
+    }
+
+    // [v3.48] 吸收 shujuku: 剧情大纲导演（阶段节奏四形态 + 轮级 pacing 四相 + 宽容标签解析）
+    // 记忆插件从此有了"导演视角"：不只记录过去，还规划未来。
+    class OutlineDirector {
+        constructor() {
+            this.stage = null;        // { title, goal, tempo, nodes: [{title, goal, turns: [{goal, pacing}] }] }
+            this._turnIndex = 0;      // 全局扁平 turn 指针
+            this._turnFloor = 0;      // 当前 turn 起始楼层
+            this.history = [];        // 已完成 turn 的简史
+        }
+        static TEMPOS = [
+            { key: 'buildup', desc: '铺垫型：低压为主，攒关系与信息，为爆发蓄力' },
+            { key: 'mixed', desc: '起伏型：常规推进，松紧交替' },
+            { key: 'surge', desc: '高压型：决战/逃亡/密集事件' },
+            { key: 'aftermath', desc: '余波型：消化代价、重建关系、落地前段高压' }
+        ];
+        static PACINGS = [
+            { key: 'setup', desc: '铺垫：关系变化、信息沉淀、情绪落地' },
+            { key: 'pressure', desc: '施压：行动+阻碍+悬念，冲突升级' },
+            { key: 'turn', desc: '反转：揭示/转折/高潮爆点' },
+            { key: 'cooldown', desc: '收束：后果消化、余韵' }
+        ];
+        get flatTurns() {
+            if (!this.stage) return [];
+            const out = [];
+            for (const n of this.stage.nodes) for (const t of n.turns) out.push(t);
+            return out;
+        }
+        get currentTurn() { return this.flatTurns[this._turnIndex] || null; }
+        get exhausted() { return !this.stage || this._turnIndex >= this.flatTurns.length; }
+        /** 宽容解析 AI 回复中的大纲标签（标签外内容全部忽略；<think> 已在上游剥离） */
+        parseOutline(raw, floor) {
+            const text = String(raw || '');
+            if (!text.includes('<node')) return null;
+            try {
+                const pick = (tag) => {
+                    const m = new RegExp('<' + tag + '>\\s*([\\s\\S]*?)\\s*</' + tag + '>', 'i').exec(text);
+                    return m ? m[1].trim() : '';
+                };
+                const nodeBlocks = [];
+                const nodeRe = /<node>([\s\S]*?)<\/node>/gi;
+                let nm;
+                while ((nm = nodeRe.exec(text))) {
+                    const block = nm[1];
+                    const turns = [];
+                    const turnRe = /<turn([^>]*)>([\s\S]*?)<\/turn>/gi;
+                    let tm;
+                    while ((tm = turnRe.exec(block))) {
+                        const pacingM = /pacing\s*=\s*[^a-z0-9]{0,2}([a-z]+)/i.exec(tm[1] || '');
+                        const goal = String(tm[2] || '').replace(/<[^>]+>/g, '').trim();
+                        if (goal) turns.push({ goal: goal.slice(0, 120), pacing: pacingM ? pacingM[1].toLowerCase() : 'mixed' });
+                    }
+                    if (turns.length) nodeBlocks.push({
+                        title: (pick.call(null, 'node_title') || '').slice(0, 40),
+                        goal: (pick.call(null, 'node_goal') || '').slice(0, 150),
+                        turns
+                    });
+                }
+                if (!nodeBlocks.length) return null;
+                this.stage = {
+                    title: pick('stage_title').slice(0, 60) || '未命名阶段',
+                    goal: pick('stage_goal').slice(0, 200),
+                    tempo: (pick('stage_tempo') || 'mixed').toLowerCase(),
+                    nodes: nodeBlocks
+                };
+                this._turnIndex = 0;
+                this._turnFloor = floor || 0;
+                return this.stage;
+            } catch (e) { return null; }
+        }
+        /** 每楼推进：当前 turn 的起始楼层距离超过 N 楼或剧情明显完成时推进（由外部判定） */
+        advanceTurn(floor) {
+            const cur = this.currentTurn;
+            if (cur) {
+                this.history.push({ goal: cur.goal, pacing: cur.pacing, floorFrom: this._turnFloor, floorTo: floor || 0 });
+                if (this.history.length > 30) this.history.shift();
+            }
+            this._turnIndex++;
+            this._turnFloor = floor || 0;
+        }
+        /** 注入块（导演视角：阶段/节点/本轮目标/本轮节奏） */
+        toPrompt() {
+            if (!this.stage) return '';
+            const lines = [];
+            const tempoDef = OutlineDirector.TEMPOS.find(t => t.key === this.stage.tempo);
+            lines.push(`[剧情大纲·导演视角]（当前阶段「${this.stage.title}」：${this.stage.goal}）`);
+            lines.push(`阶段节奏：${this.stage.tempo}${tempoDef ? '（' + tempoDef.desc + '）' : ''}`);
+            // 扁平定位当前 node
+            let acc = 0, nodeInfo = null;
+            for (const n of this.stage.nodes) {
+                if (this._turnIndex < acc + n.turns.length) { nodeInfo = { n, local: this._turnIndex - acc }; break; }
+                acc += n.turns.length;
+            }
+            if (nodeInfo) {
+                lines.push(`当前节点「${nodeInfo.n.title || '未命名'}」：${nodeInfo.n.goal}`);
+                const cur = nodeInfo.n.turns[nodeInfo.local];
+                const pacDef = OutlineDirector.PACINGS.find(p => p.key === cur.pacing);
+                lines.push(`本轮目标（第${this._turnIndex + 1}/${this.flatTurns.length}轮）：${cur.goal}`);
+                lines.push(`本轮节奏：${cur.pacing}${pacDef ? '（' + pacDef.desc + '）' : ''}——剧情推进应贴合该节奏形态`);
+                const next = nodeInfo.n.turns[nodeInfo.local + 1];
+                if (next) lines.push(`下一轮预告：${next.goal}`);
+            } else if (this.exhausted) {
+                lines.push('⚠️ 大纲轮次已耗尽：剧情可自然收束本阶段，建议 AI 以收束姿态推进并在方便时提出新的阶段方向');
+            }
+            return lines.join('\n');
+        }
+        removeByFloor(floor) {
+            // 大纲是计划不是事实——不做按楼回滚（轮指针只进不退）
+            return 0;
+        }
+        export() {
+            return { stage: this.stage, turnIndex: this._turnIndex, turnFloor: this._turnFloor, history: this.history };
+        }
+        import(data) {
+            if (data && typeof data === 'object') {
+                this.stage = data.stage || null;
+                this._turnIndex = Number(data.turnIndex) || 0;
+                this._turnFloor = Number(data.turnFloor) || 0;
+                this.history = Array.isArray(data.history) ? data.history : [];
+            }
+        }
     }
 
     // [v2.9] RU-C: 存储快照管理（抄 shujuku SQLite 版本管理理念——IndexedDB 每50楼一份快照，可回溯恢复）
