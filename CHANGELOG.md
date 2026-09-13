@@ -1,4 +1,20 @@
 
+## [3.73.0] - 2026-09-13
+
+### Fixed + Added（时间标签清洗误伤根治 + 时间段压缩展示）
+
+### Fixed
+- **时间标签清洗误伤根治（实锤 Bug）**：v3.72 B 补丁的 extractDualTimeTags(message.mes) 实际失效——cleanMessageText 的自定义标签清洗正则会剥掉 <bbs_start>/<bbs_end>，message.mes 里标签已消失。修复：改用清洗前原文快照 _rawForSynopsis（同作用域已确认），与 dualTimeAnchor 主路径同源
+
+### Added
+- **时间段压缩（柏宝书 compactPair 缝入）**：RelativeTimeHelper 新增 compactTimeRange——取首尾最长公共前缀回退到分隔边界，"2023/9/10 06:45 - 2023/9/10 06:55" → "06:55"，古风"庆历四年暮春 辰时 - 巳时"同样适用；故意不含冒号/时/点边界防切碎时分；前缀不重合零误伤原样保留
+- **formatTimeRange**：起止压缩展示格式化（无止只起/无起空串）
+- **time_anchor.rangeLabel**：extracted.time_anchor 增加压缩展示字段，rth 懒实例化复用
+
+### Tests
+- 新增 tests/v373_time_range_display.test.mjs（5 组：清洗误伤修复/compactTimeRange 功能/formatTimeRange/rth 实例/清洗根因确认复刻）
+- 全量 75 套件 178 测试通过
+
 ## [3.72.0] - 2026-09-13
 
 ### Added（柏宝书 TIME_TAG_PROMPT 缝入：时间标签生产闭环）

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.72.0';
+    const VERSION = '3.73.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -1357,7 +1357,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (_outlineParsed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🎬 解析剧情大纲: ${_outlineParsed.title}（${_outlineParsed.nodes.length} 节点）`);
                 } catch (e) { errLog(e, 'onMessageReceived.大纲解析'); }
             }
-            const dualTimeAnchor = (this.config.config.dualTimeAnchorEnabled !== false) ? (() => {
+            if (!this.rth) this.rth = new RelativeTimeHelper();
+                const dualTimeAnchor = (this.config.config.dualTimeAnchorEnabled !== false) ? (() => {
                 try { return new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis); } catch (e) { return null; }
             })() : null;
             if ((aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) || timeTagFound || dualTimeAnchor?.hasDual) {
@@ -1423,7 +1424,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 if (dualTimeAnchor?.hasDual) {
                     extracted = extracted || { characters: [], events: [], relationships: [], summary: "" };
-                    extracted.time_anchor = { start: dualTimeAnchor.start, end: dualTimeAnchor.end, durationMinutes: dualTimeAnchor.durationMinutes };
+                    extracted.time_anchor = { start: dualTimeAnchor.start, end: dualTimeAnchor.end, durationMinutes: dualTimeAnchor.durationMinutes, rangeLabel: this.rth ? this.rth.formatTimeRange(dualTimeAnchor.start, dualTimeAnchor.end) : '' };
                 }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 提取:`, extracted);
                 
@@ -1604,7 +1605,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     let sd = this.extractStoryDate(message.mes || '', extracted.story_date);
                     // [v3.72] B: 正文时间标签的 end 优先为剧情日期（正文事实优先于 LLM 猜测）
                     try {
-                        const dta = new RelativeTimeHelper().extractDualTimeTags(message.mes || '');
+                        const dta = new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');  // [v3.73] 清洗前原文（cleanMessageText 会剥 bbs 标签）
                         if (dta?.hasDual && dta.end) {
                             const endDate = String(dta.end).split(/\s+/)[0];  // 取日期部分（去时刻）
                             if (endDate && /[\d年月/.]/.test(endDate)) sd = endDate;
@@ -5869,6 +5870,24 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             return { hasDual: false, start: null, end: null, durationMinutes: 0 };
         }
 
+        // [v3.73] D: 时间段压缩（柏宝书 compactPair 理念）——"2023/9/10 06:45 - 2023/9/10 06:55" → "2023/9/10 06:45 - 06:55"
+        // 通用做法：取首尾最长公共前缀，回退到最近的分隔边界（含），零误伤无需判断能否解析
+        compactTimeRange(a, b) {
+            const s1 = String(a || '').trim(), s2 = String(b || '').trim();
+            if (!s1 || !s2) return s2;
+            let p = 0;
+            const minLen = Math.min(s1.length, s2.length);
+            while (p < minLen && s1[p] === s2[p]) p++;
+            // 回退到最近的分隔边界（含）——故意不含 : 与时/点，避免切碎时分
+            while (p > 0 && !/[\s/／\-－年月日]/.test(s2[p - 1])) p--;
+            return p > 0 ? s2.slice(p) : s2;
+        }
+        // [v3.73] D2: 时间标签格式化（起止压缩展示 +  原始保留双模式）
+        formatTimeRange(start, end) {
+            if (!start) return '';
+            if (!end) return String(start).trim();
+            return String(start).trim() + ' - ' + this.compactTimeRange(start, end);
+        }
         // [v3.43] 吸收 baibai: 年龄精准推算时钟 (基于出生日期与当前剧情日期的数学差)
         calcAge(birthDateStr, currentStoryDateStr) {
             try {
