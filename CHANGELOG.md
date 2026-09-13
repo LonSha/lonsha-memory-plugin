@@ -1,4 +1,18 @@
 
+## [3.75.1] - 2026-09-13
+
+### 审计版（全面双向审计 + 修复抓出的实锤 Bug）
+
+### Fixed（审计抓出）
+- **旧数组格式快照导入兜底缺失（实锤）**：import(data) 的 Array.isArray 分支未初始化 lockedFacts/genericTiers——旧格式快照导入后 getLockedFacts() 返回 undefined，后续调用会崩。修复：数组分支补 this.lockedFacts = this.lockedFacts || []; this.genericTiers = this.genericTiers || [];
+
+### Added（审计套件，永久守护）
+- **逆向审计套件 full_audit_reverse.test.mjs（8 组）**：假设出错审计——deltaBook/lockedFacts 全调用点守卫（12+10 处）、旧版桥兼容（可选链）、空值/畸形数据防护、旧快照导入兼容、清洗前原文快照、标签前缀唯一性、引擎未初始化守卫
+- **正向审计套件 full_audit_forward.test.mjs（10 组）**：模拟运行时验证——SummarySystem 全方法端到端、DeltaBook 生命周期、ConflictBook severity 全链路、金字塔多层生长、相对时间全场景（含 calcAge）、桥九通道完整性、OpLog 15 类型全集、全景报告板块结构与顺序、关键开关全关仿真、语法结构完整性
+
+### 全量
+- 79 套件 206 测试 100% 通过（含双向审计 18 组）
+
 ## [3.75.0] - 2026-09-13
 
 ### Added（摘要手动操作收尾：OpLog 埋点 + 显示说明 + 手机同步）

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.75.0';
+    const VERSION = '3.75.1';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -5505,7 +5505,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         }
         export() { return { summaries: this.summaries, volumes: this.volumes, historical: this.historical, lockedFacts: this.lockedFacts || [], genericTiers: this.genericTiers || [] }; }
         import(data) {
-            if (Array.isArray(data)) { this.summaries = data; this.volumes = []; this.historical = []; }
+            if (Array.isArray(data)) { this.summaries = data; this.volumes = []; this.historical = []; this.lockedFacts = this.lockedFacts || []; this.genericTiers = this.genericTiers || []; }
             else if (data && typeof data === 'object') {
                 this.summaries = Array.isArray(data.summaries) ? data.summaries : [];
                 this.volumes = Array.isArray(data.volumes) ? data.volumes : [];
