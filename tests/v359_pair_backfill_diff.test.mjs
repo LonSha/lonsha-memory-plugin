@@ -34,6 +34,6 @@ test('=== 3. D 注入预览 diff 验证 ===', () => {
     assert.ok(suSrc.includes('const prevLines = inj.prev ? new Set(inj.prev.split'), 'prev 行集合');
     assert.ok(suSrc.includes('🆕 本轮新增'), '新增计数提示');
     assert.ok(suSrc.includes('NEW</span>'), 'NEW  标注');
-    assert.ok(suSrc.includes('border-left:2px solid #a6e3a1'), '新增行绿色边框');
+    assert.ok(suSrc.includes('border-left:2px solid var(--ls-success,#3fb950)'), '新增行绿色边框');
     console.log('✓ D 注入预览 diff 验证通过');
 });

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.94.0';
+    const VERSION = '3.95.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -654,6 +654,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 stmLtmThreshold: 5,            // 巩固触发阈值（待巩固片段数）
                 unifiedRecallEnabled: false,   // 统一召回管线（图谱节点候选化走同一套评分，类型保底）
                 secondaryApis: {},             // 副API通道表 { [task]: {endpoint,apiKey,model,enabled} }，task: extract/summarize/embed/select/rerank/rewrite/state
+                // [v3.95] 缝合 vectors-enhanced 智能分块（长文本向量化按语义边界切块+重叠）
+                vectorChunkEnabled: false,     // 长文本向量化分块（超 vectorChunkThreshold 字符才切，短文本直向量化）
+                vectorChunkThreshold: 1200,    // 触发分块的文本长度阈值
+                vectorChunkSize: 800,          // 单块目标字符数
+                vectorChunkOverlap: 10,        // 块间重叠百分比（跨块上下文连续）
                 // [v2.4] RE: 场景树 + 在场分档 + 查询重写
                 sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
                 presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
@@ -949,6 +954,35 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             const id = `vec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             this.vectors.push({id, text, embedding, metadata, timestamp: Date.now(), accessCount: 0, importance: metadata?.importance || 5});
             return id;
+        }
+
+        // [v3.95] 智能分块向量化（缝合 vectors-enhanced）：长文本按语义边界切块+重叠，逐块向量化。
+        // 短文本/未开启时等价 addVector。返回主 id（首块 id），块间用 metadata.chunkGroup 串联。
+        async addVectorAuto(text, metadata, cfg = {}) {
+            try {
+                const t = String(text ?? '');
+                const enabled = cfg.vectorChunkEnabled && (typeof window !== 'undefined' ? window.LonShaTextChunk : (typeof require !== 'undefined' ? (() => { try { return require('./text-chunk.js'); } catch { return null; } })() : null));
+                const threshold = Number(cfg.vectorChunkThreshold) || 1200;
+                if (!enabled || t.length <= threshold) {
+                    return await this.addVector(t, metadata);
+                }
+                const TC = enabled;
+                const chunks = TC.chunkText(t, Number(cfg.vectorChunkSize) || 800, Number(cfg.vectorChunkOverlap) || 10);
+                if (!chunks.length || chunks.length === 1) return await this.addVector(t, metadata);
+                const group = `cg_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
+                let firstId = null;
+                for (let i = 0; i < chunks.length; i++) {
+                    const id = await this.addVector(chunks[i], {
+                        ...(metadata || {}),
+                        chunkGroup: group,
+                        chunkIndex: i,
+                        chunkTotal: chunks.length,
+                        isChunk: true
+                    });
+                    if (i === 0) firstId = id;
+                }
+                return firstId;
+            } catch (e) { errLog(e, 'VectorStore.addVectorAuto'); return await this.addVector(text, metadata); }
         }
         
         cosineSimilarity(vecA, vecB) {
@@ -2089,13 +2123,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // [v3.13] 场外信号拼入向量素材（只影响检索，不进注入文本）
                 const _sig = (this._thinkingSignals || []).filter(s => s.floor === message.index).map(s => (s.text.split('\n')[1] || '').slice(0, 120));
                 const vectorText = `${extracted?.summary || this.summary.compressSummary(messageText, 160)}\n角色:${extracted?.characters?.join(',') || ''}${_sig.length ? '\n场外:' + _sig.join(' ') : ''}`;
-                    await this.vector.addVector(vectorText, {
+                    await this.vector.addVectorAuto(vectorText, {
                         floor: message.index || 0,
                         characters: extracted?.characters || [],
                         events: extracted?.events || [],
                         summary: extracted?.summary || '',
                         timeAnchor: extracted?.time_anchor || null
-                    });
+                    }, this.config.config);
                 }
                 
                 // [v1.9] P1: BM25 索引重建 + 层级摘要折叠

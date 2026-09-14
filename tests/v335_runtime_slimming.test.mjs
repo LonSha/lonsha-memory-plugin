@@ -20,7 +20,9 @@ const requiredExtra = [
     'memory-supersede.js'
 ];
 assert('extra_js 包含全部必需核心文件', requiredExtra.every(f => mft.extra_js.includes(f)));
-assert('extra_js 剔除了全部 12 个零引用幽灵模块', mft.extra_js.length === 4);
+// [v3.94] 修正过时断言：原 `extra_js.length === 4` 是 v3.35 剔除幽灵后的脆弱数量锁，
+//         后续合法新增核心模块（cse-engine/narrative-pulse/v3.96 四模块）会误破。
+//         语义应为「无幽灵残留」——由下方 removedPhantoms 断言精确保证，此处不锁死数量。
 
 const removedPhantoms = [
     'worker-manager.js', 'virtual-renderer.js', 'wasm-bridge.js', 'storage.js',
