@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.89.0';
+    const VERSION = '3.90.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -618,6 +618,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 summaryFoldBatchSize: 20,   // 每批折叠条数
                 bm25Enabled: true,          // BM25 稀疏检索（词频×逆文档频率）
                 bm25TopK: 5,                // BM25 每轮召回条数
+                aliasQueryExpansion: true,  // [v3.90] 实体别名查询扩展（吸收 MyriadKnots entity-identity）：查询命中角色别名时附加主名词条
                 prequelEnabled: true,       // [v3.87] 用户导入前情资料（Prequel）按相关性选段注入
                 bridgeEnabled: true,        // [v3.88] 公开只读快照桥（window.lonsha_memory_bridge_v1）
 
@@ -3221,7 +3222,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (Array.isArray(query.branches) && query.branches.length) {
                         for (const b of query.branches) branchSet.push({ key: b.key, text: b.text, weight: Number(b.weight) || 0 });
                     }
-                    results.bm25 = this.bm25.searchBranches(branchSet, bmTopK, {cliffCut: true, minResults: 2})
+                    results.bm25 = this.bm25.searchBranches(branchSet, bmTopK, {cliffCut: true, minResults: 2, aliasMap: query.aliases})
                         .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, branchScores: d.branchScores, source: 'bm25'}));
                     if (this.config.config.heatOnRecallEnabled) {
                         for (const b of results.bm25) { try { this.vector.heatByText(b.text); } catch (e) {} }
@@ -3665,7 +3666,33 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (String(lastAssistant?.mes || '').trim()) branches.push({ key: 'recentAssistant', text: String(lastAssistant.mes || ''), weight: 0.25 });
                 if (String(prevUser?.mes || '').trim()) branches.push({ key: 'previousUser', text: String(prevUser.mes || ''), weight: 0.1 });
             } catch (e) { errLog(e, 'buildQuery.branches'); }
-            return {text, characters: this.extractCharactersFromContext(text), queries: null, branches};
+            // [v3.90] 吸收 MyriadKnots entity-identity：别名→主名映射（NFKC 归一），供 BM25 查询侧扩展
+            let aliases = null;
+            try {
+                if (this.config?.config?.aliasQueryExpansion !== false) aliases = this.buildAliasMap();
+            } catch (e) { errLog(e, 'buildQuery.aliasMap'); }
+            return {text, characters: this.extractCharactersFromContext(text), queries: null, branches, aliases};
+        }
+        
+        // [v3.90] 吸收 MyriadKnots entity-identity：实体身份归一。从图谱角色节点构建 alias→主名映射，
+        // NFKC 归一（与 BM25 _tokenize 同基调），同名/短别名/自映射防碰撞剔除
+        buildAliasMap() {
+            const map = new Map();
+            try {
+                const canon = v => String(v ?? '').normalize('NFKC').trim().toLocaleLowerCase('zh-CN');
+                for (const node of this.graph?.nodes?.values() || []) {
+                    if (node?.type !== 'character' || !node.name) continue;
+                    const main = canon(node.name);
+                    if (!main) continue;
+                    const aliases = Array.isArray(node.data?.aliases) ? node.data.aliases : [];
+                    for (const a of aliases) {
+                        const key = canon(a);
+                        if (!key || key === main || key.length < 2 || key.length > 20) continue;
+                        if (!map.has(key)) map.set(key, node.name);
+                    }
+                }
+            } catch (e) { errLog(e, 'buildAliasMap'); }
+            return map;
         }
         
         extractCharactersFromContext(text) {
@@ -5408,7 +5435,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
         _estimateTokens(text) { return Math.ceil((text || '').length / 4); }   // ~0.25 token/字符（与注入预算口径一致）
         _tailFallback(fragments) { return fragments.slice(-2); }   // 千千结 fallbackToTail：无命中取尾部两段
         // 选段：预算内全量；超限时用 BM25 分支归一化按当前对话相关性挑片段
-        selectInjection(fragments, branchList, mainText, charBudget, tokenBudget) {
+        selectInjection(fragments, branchList, mainText, charBudget, tokenBudget, aliasMap) {
             const within = (sel) => {
                 const t = this._format(sel);
                 return t.length <= charBudget && this._estimateTokens(t) <= tokenBudget;
@@ -5424,7 +5451,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 .map(b => ({ key: b.key, text: b.text, weight: Number(b.weight) }));
             branchSet.push({ key: 'main', text: String(mainText || ''), weight: 0.3 });   // 主查询 0.3 锚点（与召回管线同基调）
             let ranked = [];
-            try { ranked = bm.searchBranches(branchSet, fragments.length, { cliffCut: false }); } catch (e) { ranked = []; }
+            try { ranked = bm.searchBranches(branchSet, fragments.length, { cliffCut: false, aliasMap: aliasMap || null }); } catch (e) { ranked = []; }
             const byIndex = new Map(fragments.map(f => [f.index, f]));
             const matches = ranked.filter(r => (r.score || 0) > 0).sort((a, b) => (b.score - a.score) || (b.id - a.id));
             const candidates = matches.length ? matches.map(m => byIndex.get(m.id)).filter(Boolean) : this._tailFallback(fragments);
@@ -5448,7 +5475,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             const fragments = this._frags(fragMax);
             if (!fragments.length) return '';
             const branchList = (query?.branches || []).map(b => ({ key: b.key, text: b.text, weight: Number(b.weight) }));
-            const selected = this.selectInjection(fragments, branchList, String(query?.text || ''), effCharBudget, tokenBudget);
+            const selected = this.selectInjection(fragments, branchList, String(query?.text || ''), effCharBudget, tokenBudget, query?.aliases || null);
             const injectionText = this._format(selected);
             return injectionText;
         }
@@ -6796,13 +6823,24 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             // [v3.86] 单查询等价为主分支（weight=1），统一走 searchBranches 管线
             return this.searchBranches([{ key: 'main', text: query, weight: 1 }], topK, opts);
         }
+        // [v3.90] 吸收 MyriadKnots entity-identity：查询侧别名扩展。命中别名→附加主名原文，
+        // 注意扩展在分词前的文本层做（中文二元切分下 3 字以上别名整串永远不是 token）
+        _expandAliases(text, aliasMap) {
+            if (!(aliasMap instanceof Map) || !aliasMap.size) return String(text ?? '');
+            let out = String(text ?? '');
+            const norm = out.normalize('NFKC').toLocaleLowerCase('zh-CN');   // 归一化副本上检测（全角/大小写别名也能命中）
+            for (const [key, main] of aliasMap) {
+                if (norm.includes(key)) out += ' ' + String(main ?? '').trim();
+            }
+            return out;
+        }
         // [v3.86] 吸收 MyriadKnots recall-ranking：多路查询分支各自按分支内最高分归一化后加权合成。
         // 解决痛点：长背景文本（recentAssistant）的 BM25 绝对分高，会淹没用户最新短输入（latestUser）。
         // 分支独立归一化后，短查询在自己分支内也能拿满 1.0，锚定最新诉求。
         searchBranches(branches, topK = 5, opts = {}) {
             if (!this.N) return [];
             const active = (Array.isArray(branches) ? branches : [])
-                .map((b, i) => ({ key: String(b?.key ?? i), weight: Number(b?.weight) || 0, terms: [...new Set(this._tokenize(b?.text))] }))
+.map((b, i) => ({ key: String(b?.key ?? i), weight: Number(b?.weight) || 0, terms: [...new Set(this._tokenize(opts.aliasMap ? this._expandAliases(b?.text, opts.aliasMap) : b?.text))] }))
                 .filter(b => b.weight > 0 && b.terms.length);
             if (!active.length) return [];
             const weightTotal = active.reduce((s, b) => s + b.weight, 0);

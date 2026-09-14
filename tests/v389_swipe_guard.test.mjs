@@ -11,8 +11,8 @@ assert.ok(src.includes("swipeFingerprintGuard: true,   // [v3.89]"), 'config 默
 assert.ok(src.includes('this._recallCache.fp === curFp'), '命中校验含指纹位');
 assert.ok(src.includes("fp: (this.config.config.swipeFingerprintGuard !== false && _cm) ? msgFpOf(_cm) : ''"), '缓存写入含指纹位（写入路径同受开关门控）');
 assert.ok(sui.includes("ck('swipeFingerprintGuard', 'swipe 指纹校验'"), '设置开关在位');
-assert.strictEqual(man.version, '3.89.0', 'manifest 版本 3.89.0');
-assert.strictEqual(src.match(/const VERSION = '([^']+)'/)[1], '3.89.0', 'VERSION 与 manifest 同步');
+assert.strictEqual(man.version, '3.90.0', 'manifest 版本 3.90.0');
+assert.strictEqual(src.match(/const VERSION = '([^']+)'/)[1], '3.90.0', 'VERSION 与 manifest 同步');
 console.log('✓ 静态接线检查通过');
 
 // ---------- 提取 msgFpOf 及依赖（花括号计数） ----------

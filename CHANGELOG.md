@@ -1,3 +1,10 @@
+## [3.90.0] - 2026-09-14
+### Added
+- **实体别名查询扩展**（吸收 MyriadKnots entity-identity）：`buildAliasMap()` 从图谱角色节点构建 alias→主名映射（NFKC 归一，与 BM25 `_tokenize` 同基调）；BM25 `searchBranches` 接受 `opts.aliasMap`，查询分支命中别名时附加主名原文参与检索——用户喊角色昵称/别名也能召回主名记忆（v3.86 BM25 检索的查询侧补全）
+- **`aliasQueryExpansion` 开关**（默认开）：关闭后行为与 v3.89 完全一致
+### Changed
+- 召回管线与前情选段（v3.87）两条 BM25 路径均接入别名扩展；扩展在分词前的文本层做（中文二元切分下 3 字以上别名整串永远不是 token，token 层替换无效）；别名匹配在 NFKC 归一化副本上检测（全角/大小写别名可命中），主名以原文附加（与文档侧词形一致）；防碰撞纪律：别名归一后与主名相同/长度 1/超 20 字的剔除，同键首写优先
+
 ## [3.89.0] - 2026-09-14
 ### Added
 - **swipe 感知召回缓存（三元组定位符校验）**（吸收 MyriadKnots floor-binding）：召回缓存命中前验证末楼消息指纹（复用 v3.3 `msgFpOf` 的 role|swipe|hash|date 四段指纹）——翻 swipe 变体指纹变化自动失效重算，修复「翻到不同变体后 recentAssistant 分支内容已变、旧注入却仍命中缓存」的正确性缺口；翻回旧变体指纹一致，到变体级复用（v2.9 原意更精细化）
