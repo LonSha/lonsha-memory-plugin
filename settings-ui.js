@@ -752,7 +752,7 @@
                 <div class="ls-group">
                     <div class="ls-group-title">🗺️ 场景树 + 在场分档</div>
                     ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
-                    ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现')}
+                    ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现（v3.91 修复：此前门控键断裂导致该功能从未生效）')}
                     ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
                 </div>
                 <div class="ls-group">

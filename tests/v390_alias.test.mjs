@@ -12,8 +12,8 @@ assert.ok(src.includes('aliasQueryExpansion: true,  // [v3.90] 实体别名查�
 assert.ok(src.includes('aliasMap: query.aliases'), '召回管线传参在位');
 assert.ok(src.includes('query?.aliases || null'), '前情选段传参在位');
 assert.ok(sui.includes("ck('aliasQueryExpansion', '别名查询扩展'"), '设置开关在位');
-assert.strictEqual(man.version, '3.90.0', 'manifest 版本 3.90.0');
-assert.strictEqual(src.match(/const VERSION = '([^']+)'/)[1], '3.90.0', 'VERSION 与 manifest 同步');
+assert.strictEqual(man.version, '3.91.0', 'manifest 版本 3.90.0');
+assert.strictEqual(src.match(/const VERSION = '([^']+)'/)[1], '3.91.0', 'VERSION 与 manifest 同步');
 console.log('✓ 静态接线检查通过');
 
 // ---------- 方法提取（花括号计数，复用 v388 模式） ----------

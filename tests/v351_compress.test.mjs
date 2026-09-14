@@ -62,6 +62,7 @@ test('=== 2. 向量索引接入验证 ===', () => {
     assert.ok(src.includes('this.summary.compressSummary(messageText, 160)'), '向量索引素材使用压缩摘要');
     assert.ok(src.includes('compressSummary(text, maxLen) {'), '方法定义存在');
     // 正文摘要路径不受影响（createSummary 仍用 smartTruncate 兜底）
-    assert.ok(src.includes('smartTruncate(safeMes, 200)'), '正文摘要兜底路径保留');
+    // [v3.91] 兜底长度已从硬编码 200 改为 opts.maxLen（接入 config.maxSummaryLength），缺省仍为 200
+    assert.ok(src.includes('this.smartTruncate(safeMes, Number.isFinite(_maxLen) && _maxLen > 0 ? Math.round(_maxLen) : 200)'), '正文摘要兜底路径保留（smartTruncate + 缺省 200）');
     console.log('✓ 向量索引接入验证通过');
 });

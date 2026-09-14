@@ -102,7 +102,12 @@ function extractClass(name) {
     assert.ok(src.includes("errLog(e, 'events.swipe即时存盘')"), 'swipe 即时存盘');
     assert.ok(src.includes("errLog(e, 'events.删楼即时存盘')"), '删楼即时存盘');
     // 删楼回调 async 化
-    assert.ok(src.includes('types.MESSAGE_DELETED, async (messageId) => {'), '删楼回调 async 化');
+    // [v3.91] handler 已抽为具名常量（保存引用供精确卸载），断言改为验证 async 语义而非内联写法
+    assert.ok(
+        src.includes('types.MESSAGE_DELETED, async (messageId) => {')
+        || /const _h\d+ = async \(messageId\) => \{[\s\S]{0,4000}?eventSource\.on\(types\.MESSAGE_DELETED, _h\d+\);/.test(src),
+        '删楼回调 async 化'
+    );
     ok('BugD: 编辑/swipe/删楼 三处即时持久化');
 }
 

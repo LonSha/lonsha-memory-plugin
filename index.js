@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.90.0';
+    const VERSION = '3.91.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -646,6 +646,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v2.4] RE: 场景树 + 在场分档 + 查询重写
                 sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
                 presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
+                presenceMaxCandidates: 8,      // [v3.91] 不在场角色单路候选上限（防角色库膨胀灌满 RRF 融合池）
                 npcTierInjection: true,        // baibai 四档角色分级压平注入
                 npcTiesInjection: true,        // baibai 跨空间 NPC 长期社会人伦羁绊网注入
                 protagonistTracking: true,     // baibai 主角客观档案与生活习惯癖好追踪
@@ -1313,7 +1314,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v2.4] RE
             this.scene = new SceneBook();
             // [v2.5] RF
-            this.echo = new EchoPool();
+            this.echo = new EchoPool(() => this.config?.config || null);
             // [v3.30] PV: 记忆矛盾换代（window.LonShaSupersede）
             this.supersede = new (window.LonShaSupersede?.SupersedeManager || function() {
                 this.supersededMap = {}; this.config = {};
@@ -1398,7 +1399,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     try {
                         const fallback = this.extractMemorySimple(message);
                         // [v3.8] 降级摘要不覆盖已有优质摘要（opts.degraded）
-                        if (fallback?.summary) await this.summary.createSummary(message, fallback.summary, { degraded: true });
+                        if (fallback?.summary) await this.summary.createSummary(message, fallback.summary, { degraded: true, maxLen: this.config.config.maxSummaryLength });
                         // [v3.10] 记录到待补集合：锁释放后（下一条消息处理完）由 CHAT 补提取
                         this._lockDegradePending = this._lockDegradePending || new Set();
                         this._lockDegradePending.add(message.index || 0);
@@ -1886,7 +1887,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     } catch (e) { errLog(e, 'onMessageReceived.楼层账本'); }
                 }
 
-                const summary = await this.summary.createSummary(message, extracted?.summary);
+                const summary = await this.summary.createSummary(message, extracted?.summary, { maxLen: this.config.config.maxSummaryLength });
                         this.opLog?.log('summary', 'add', `sum_${message?.index || 0}`, message?.index || 0, (extracted?.summary || '').slice(0, 40));  // [v3.54] op-log
                 
                 // [v3.30] PV: 记忆矛盾换代 —— 新摘要与既有活跃摘要做高置信冲突检测, 旧条 superseded 退出召回
@@ -2909,28 +2910,31 @@ function relativeTimeLabel(eventTime, nowTime) {
                             // 去重纪律：addNode 不去重（每次新 id）——补提取对角色节点先查后建，防历史重灌放大重复
                             if (extracted?.characters) {
                                 for (const char of extracted.characters) {
+                                    // [v3.91] 审计修复：原空 catch 静默吞噬——LLM 抽取数据不可信，角色节点写入图谱
+                                    //         失败将无人知情（违反故障可见性）。改记入 errLog 错误缓冲（面板可诊断）。
                                     try {
                                         const canonical = this.resolveCharacterName(char);
                                         const exist = this.graph.findByNames([canonical]).some(n => n.type === 'character');
                                         if (!exist) this.graph.addNode({type: 'character', name: canonical, data: {source: msg.mes}});
-                                    } catch (e) {}
+                                    } catch (e) { errLog(e, 'graph.角色节点写入'); }
                                 }
                             }
                             if (extracted?.events) {
                                 for (const event of extracted.events) {
+                                    // [v3.91] 审计修复：空 catch → errLog（故障可见性，事件节点/参与边写入失败可诊断）
                                     try {
                                         const nodeId = this.graph.addNode({type: 'event', name: event.type, data: {...event, backfillFloor: idx}});
                                         for (const p of (event.participants || [])) {
-                                            try { this.graph.addEdge({from: p, to: nodeId, label: 'participated_in'}); } catch (e) {}
+                                            try { this.graph.addEdge({from: p, to: nodeId, label: 'participated_in'}); } catch (e) { errLog(e, 'graph.参与边写入'); }
                                         }
-                                    } catch (e) {}
+                                    } catch (e) { errLog(e, 'graph.事件节点写入'); }
                                 }
                             }
                             if (extracted?.relationships) {
                                 for (const rel of extracted.relationships) {
                                     try {
                                         this.graph.addEdge({from: this.resolveCharacterName(rel.from), to: this.resolveCharacterName(rel.to), label: rel.type, weight: 1.0, data: {attitude: rel.attitude || 'neutral', note: rel.note || ''}});
-                                    } catch (e) {}
+                                    } catch (e) { errLog(e, 'graph.关系边写入'); }
                                 }
                             }
                             if (extracted?.summary) await this.summary.createSummary(msg, extracted.summary);
@@ -3145,13 +3149,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                         }
                     });
                     const relEdges = [];
+                    // [v3.91] 审计修复：config.temporalGraphEnabled 此前全项目零引用（历史边追溯恒开）。
+                    //         关闭时只召回 active 边，不回溯 validTo 已闭合的历史关系。
+                    const _temporalOn = this.config.config.temporalGraphEnabled !== false;
                     for (const edge of this.graph.edges.values()) {
                         const hitFrom = charMatchKeys.has(edge.from) || charMatchKeys.has(normalizeCharName(edge.from));
                         const hitTo = charMatchKeys.has(edge.to) || charMatchKeys.has(normalizeCharName(edge.to));
                         if (hitFrom || hitTo) {
                             if (edge.active !== false) {
                                 relEdges.push(edge);
-                            } else if (isHistorical && (edge.validTo != null || edge.active === false)) {
+                            } else if (_temporalOn && isHistorical && (edge.validTo != null || edge.active === false)) {
                                 relEdges.push({ ...edge, historical: true });
                             }
                         }
@@ -3326,7 +3333,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const diffusionResults = window.LonShaMemory.diffusion.personalizedPageRank(
                             seedNodes, 
                             3, 
-                            this.config.config.vectorTopK
+                            this.config.config.vectorTopK,
+                            this.config.config.pageRankDamping   // [v3.91] 审计修复：此前该配置全项目零引用，扩散阻尼恒为库内硬编码 0.85
                         );
                         const fatigue = this._diffusionFatigue;
                         const suppressed = [];
@@ -3467,12 +3475,16 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             
             // [v2.4] RE: 在场分档——不在场已登场角色给极简档
-            if (this.config.config.presenceTier) {
+            // [v3.91] 审计修复：门控键原为 presenceTier（无默认值，恒 undefined 导致功能死锁关闭），
+            //         与 config/UI 声明的 presenceInjection 键名断裂。统一到 presenceInjection。
+            if (this.config.config.presenceInjection !== false) {
                 const present = new Set(this.captureCast());
                 const allKnown = this.getKnownCharacters();
                 const absent = allKnown.filter(c => !present.has(c));
                 if (absent.length) {
-                    results.presence = absent.map(a => ({
+                    // [v3.91] 该路此前因键名断裂从未生效；启用后加候选上限，防角色库膨胀时单路灌满 RRF 融合池
+                    const cap = Math.max(1, Number(this.config.config.presenceMaxCandidates) || 8);
+                    results.presence = absent.slice(0, cap).map(a => ({
                         character: a, text: `${a}（当前不在场）`, source: 'presence'
                     }));
                 }
@@ -3950,7 +3962,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             // [v3.62] 用户锁定事实（dsh lockedFacts）：逐字进静态锚定区，最高优先级事实保护
             if (this.config.config.lockedFactsEnabled !== false) {
-                const lfText = this.summary?.lockedFactsForPrompt?.();
+                const lfText = this.summary?.lockedFactsForPrompt?.(this.config.config.lockedFactMaxChars);
                 if (lfText) blocks.push('[用户锁定剧情事实]\n' + lfText);
             }
             // [v3.45] 吸收 baibai: 主角客观档案与生活习惯癖好追踪
@@ -3979,6 +3991,12 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
 
             // ===== B. 动态易变尾部区 (Volatile Dynamic Zone) =====
+            // [v3.91] 审计修复：setGeoLocation 从 LLM geo_location 抽取并写入，getGeoLocation 被召回路径消费，
+            //         但 getGeoPrompt 从未进入注入（数据空转）。位置会随剧情变化，故放动态区而非静态锚定。
+            try {
+                const geoPrompt = this.status?.getGeoPrompt?.();
+                if (geoPrompt) blocks.push(geoPrompt);
+            } catch (e) { errLog(e, 'buildInjection.geoPrompt'); }
             // [v3.46] 吸收 Bakemono: 当前剧情时钟与回忆隔离
             const clockPrompt = this.clock?.getContextPrompt?.();
             if (clockPrompt) {
@@ -4202,8 +4220,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v3.25] 召回类型分级 + token 预算双层（MemoryPilot + 记忆库v5）:
             // 常驻分区（role=constant，每轮必注）优先保留；触发分区按预算裁剪
             const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]', '[角色长期关系网]', '[主角当前客观状态与生活习惯]', '[近期已了结事项', '[宏观世界线·纪元史记]', '[当前剧情时间]'];
-            const residentBlocks = blocks.filter(b => RESIDENT_MARKERS.some(m => b.startsWith(m)));
-            const triggerBlocks = blocks.filter(b => !RESIDENT_MARKERS.some(m => b.startsWith(m)));
+            // [v3.91] 审计修复：config.recallTierEnabled 此前全项目零引用（分级恒开，开关形同虚设）。
+            //         关闭时不做常驻/触发分区，全部块走统一预算裁剪。
+            const _tierOn = this.config.config.recallTierEnabled !== false;
+            const residentBlocks = _tierOn ? blocks.filter(b => RESIDENT_MARKERS.some(m => b.startsWith(m))) : [];
+            const triggerBlocks = _tierOn ? blocks.filter(b => !RESIDENT_MARKERS.some(m => b.startsWith(m))) : blocks.slice();
             // [v2.1] P3: 注入预算裁剪（抄 stbme context-window：超预算优先保近期/相关）
             let budget = this.config.config.injectionBudget || 3000;
             // [v3.25] token 预算双层：memoryTokenBudget（记忆注入 token 上限）扣减 keepRecentTokenReserve（最近正文预留）
@@ -4830,17 +4851,32 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
     
     // [v2.5] RF: 回响池（抄 anima echoConfig——召回过的记忆停留N轮，防同一记忆"闪现又消失"）
     class EchoPool {
-        constructor() { this.items = []; }   // [{key, text, source, life}]
+        // [v3.91] 审计修复：baseLife/maxCount 原为硬编码 2/30，绕过 config.echoBaseLife(2)/echoMaxCount(10)，
+        //         配置项与 UI 滑块调整均无实际效果，且容量行为与声明不符。改为构造注入（cfgGetter 惰性读取，支持运行时改配置）。
+        constructor(cfgGetter = null) {
+            this.items = [];   // [{key, text, source, life}]
+            this._cfg = typeof cfgGetter === 'function' ? cfgGetter : null;
+        }
+        _baseLife() {
+            const v = Number(this._cfg?.()?.echoBaseLife);
+            return Number.isFinite(v) && v >= 1 ? Math.round(v) : 2;
+        }
+        _maxCount() {
+            const v = Number(this._cfg?.()?.echoMaxCount);
+            return Number.isFinite(v) && v >= 1 ? Math.round(v) : 10;
+        }
         onRecalled(recalled) {
             try {
                 const now = Date.now();
+                const baseLife = this._baseLife();
                 for (const item of (recalled || []).slice(0, 20)) {
                     const key = item.id || item.text || JSON.stringify(item).slice(0, 60);
                     const exist = this.items.find(x => x.key === key);
-                    if (exist) { exist.life = Math.max(exist.life, 2); exist.lastSeen = now; }   // 重要度更高的条目粘更久
-                    else this.items.push({ key, text: item.text || item.content || item.summary || '', source: item.source, life: 2, lastSeen: now });
+                    if (exist) { exist.life = Math.max(exist.life, baseLife); exist.lastSeen = now; }   // 重要度更高的条目粘更久
+                    else this.items.push({ key, text: item.text || item.content || item.summary || '', source: item.source, life: baseLife, lastSeen: now });
                 }
-                if (this.items.length > 30) this.items = this.items.slice(-30);
+                const cap = this._maxCount();
+                if (this.items.length > cap) this.items = this.items.slice(-cap);
             } catch (e) { errLog(e, 'EchoPool.onRecalled'); }
         }
         /** 每轮衰减；返回仍存活的（life>0） */
@@ -4849,7 +4885,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             return this.items;
         }
         export() { return this.items; }
-        import(data) { this.items = Array.isArray(data) ? data.slice(0, 30) : []; }
+        import(data) { this.items = Array.isArray(data) ? data.slice(-this._maxCount()) : []; }
     }
 
     // [v2.4] RE: 场景地图树（抄 baibai MemScene：由大到小路径层级 + 当前位置追踪 + ops重放）
@@ -5500,10 +5536,22 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
         }
         getLockedFacts() { return this.lockedFacts || []; }
         // 锁定事实注入文本（逐字，带来源楼层）
-        lockedFactsForPrompt() {
+        // [v3.91] 审计修复：config.lockedFactMaxChars 此前全项目零引用，锁定事实无上限灌入注入。
+        //         预算裁剪按条目顺序累加，超出预算的条目整体舍弃（不截断单条，避免语义残缺）。
+        lockedFactsForPrompt(maxChars) {
             const list = this.getLockedFacts();
             if (!list.length) return '';
-            return list.map(f => '- ' + f.text + '（第' + f.floor + '楼锁定）').join('\n');
+            const cap = Number(maxChars);
+            const budget = Number.isFinite(cap) && cap > 0 ? Math.round(cap) : Infinity;
+            const lines = [];
+            let used = 0;
+            for (const f of list) {
+                const line = '- ' + f.text + '（第' + f.floor + '楼锁定）';
+                if (used + line.length + (lines.length ? 1 : 0) > budget) break;
+                lines.push(line);
+                used += line.length + (lines.length > 1 ? 1 : 0);
+            }
+            return lines.join('\n');
         }
         // [v3.28] 三级金字塔（st-memory-wizzard）: summaries(level1日记) → volumes(level2周记/卷) → historical(level3史记)
         // [v3.74] A: 摘要手动操作（柏宝书 editSummary 缝入）——编辑摘要文本 + 手动补摘
@@ -5652,7 +5700,10 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
         async createSummary(message, llmSummary, opts = {}) {
             if (!message && !llmSummary) return null;
             const safeMes = typeof message?.mes === 'string' ? message.mes : (typeof message === 'string' ? message : '');
-            const text = llmSummary || this.smartTruncate(safeMes, 200);
+            // [v3.91] 审计修复：降级截断长度原硬编码 200，绕过 config.maxSummaryLength（UI 有 50-500 滑块但引擎从不读取）。
+            //         改由调用方通过 opts.maxLen 传入；缺省仍为 200 保持行为兼容。
+            const _maxLen = Number(opts.maxLen);
+            const text = llmSummary || this.smartTruncate(safeMes, Number.isFinite(_maxLen) && _maxLen > 0 ? Math.round(_maxLen) : 200);
             const rawFloor = Number(message?.index ?? message?.floor);
             const floor = Number.isFinite(rawFloor) ? Math.max(0, Math.round(rawFloor)) : 0;
             // [v3.7] 同楼去重: 编辑重提取/手动补提时同楼摘要替换而非堆积（原实现 push 不去重——10 次编辑 = 10 条同楼摘要）
@@ -6290,8 +6341,10 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             // 不在场 = 已知角色 - 在场角色
             return knownChars.filter(n => !presentChars.includes(n)).slice(0, 8);
         }
-        // 选出最多 2 个候选（综合上次互动轮距 / 有无待办）
-        select(candidates, status) {
+        // 选出最多 MAX_ACTIVE 个候选（综合上次互动轮距 / 有无待办）
+        // [v3.91] 审计修复：上限原恒取 this.MAX_ACTIVE，config.worldProgressMaxCandidates 全项目零引用。
+        //         增加可选 maxCandidates 参数，缺省仍回落 MAX_ACTIVE。
+        select(candidates, status, maxCandidates) {
             const scored = candidates.map(c => {
                 let score = 0;
                 const st = status?.characters?.[c];
@@ -6300,7 +6353,9 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 score = (st?.fields?.['有独立目标'] ? 3 : 0) + lastSeen + (st?.todos?.length ? 2 : 0) + floorGap;
                 return { name: c, score };
             }).sort((a, b) => b.score - a.score);
-            return scored.slice(0, this.MAX_ACTIVE).map(s => s.name);
+            const mc = Number(maxCandidates);
+            const cap = Number.isFinite(mc) && mc >= 1 ? Math.round(mc) : this.MAX_ACTIVE;
+            return scored.slice(0, cap).map(s => s.name);
         }
         // [v3.17] 发布确认: 先暂存 pending（detached），宿主确认后 publish 生效
         propose(char, level, memory, floor) {
@@ -6335,7 +6390,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             if (!engine || !knownChars?.length) return 0;
             const cands = this.candidates(knownChars, presentChars, null, engine.graph);
             if (!cands.length) return 0;
-            const chosen = this.select(cands, engine.status);
+            const chosen = this.select(cands, engine.status, engine?.config?.config?.worldProgressMaxCandidates);
             if (!chosen.length) return 0;
             let filled = 0;
             for (const name of chosen) {
@@ -8630,7 +8685,7 @@ ${recentTurns}`;
                 }
 
                 // MESSAGE_RECEIVED 回调参数是 messageId，需要从 chat 数组取消息对象
-                eventSource.on(types.MESSAGE_RECEIVED, (messageId) => {
+                const _h1 = (messageId) => {
                     try {
                         const c = window.SillyTavern?.getContext?.();
                         const message = c?.chat?.[messageId];
@@ -8643,12 +8698,13 @@ ${recentTurns}`;
                     } catch (err) {
                         console.error(`[${PLUGIN_NAME}] 消息处理失败:`, err);
                     }
-                });
-                this.eventHandlers.push({ eventSource, type: types.MESSAGE_RECEIVED });
+                };
+                eventSource.on(types.MESSAGE_RECEIVED, _h1);
+                this.eventHandlers.push({ eventSource, type: types.MESSAGE_RECEIVED, handler: _h1 });
 
                 // CHAT_CHANGED：切换对话时重新加载对应数据
                 if (types.CHAT_CHANGED) {
-                    eventSource.on(types.CHAT_CHANGED, async () => {
+                    const _h2 = async () => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
                         // [v3.23.1] 换对话同步清空 dedup 指纹（防旧对话文本误标新对话）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.CHAT_CHANGED去重清空'); }
@@ -8671,15 +8727,16 @@ ${recentTurns}`;
                         } catch (err) {
                             console.error(`[${PLUGIN_NAME}] 对话切换加载失败:`, err);
                         }
-                    });
-                    this.eventHandlers.push({ eventSource, type: types.CHAT_CHANGED });
+                    };
+                    eventSource.on(types.CHAT_CHANGED, _h2);
+                    this.eventHandlers.push({ eventSource, type: types.CHAT_CHANGED, handler: _h2 });
                 }
 
                 // [v3.7] 楼层编辑——升级为「精准回滚 + 防抖自愈」:
                 //   只回滚被编辑楼（不再级联摧毁下游记忆），防抖 3s 后自动重提取该楼（编辑=新内容的新记忆）
                 //   语义依据: 下游楼各自记录的是「它们所述剧情」，编辑楼改动不使下游失效（细致于旧级联策略）
                 if (types.MESSAGE_EDITED) {
-                    eventSource.on(types.MESSAGE_EDITED, (messageId) => {
+                    const _h3 = (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_EDITED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         // [v3.23.1] 编辑楼同步清空 dedup 指纹（防编辑后的新内容被旧指纹误标）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_EDITED去重清空'); }
@@ -8697,11 +8754,12 @@ ${recentTurns}`;
                                 if (cSave?.chat?.length) this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport());
                             } catch (e) { errLog(e, 'events.编辑即时存盘'); }
                         } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
-                    });
-                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED });
+                    };
+                    eventSource.on(types.MESSAGE_EDITED, _h3);
+                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED, handler: _h3 });
                 }
                 if (types.MESSAGE_SWIPED) {
-                    eventSource.on(types.MESSAGE_SWIPED, (messageId) => {
+                    const _h4 = (messageId) => {
                         // [v3.23.1] swipe 重roll后同步清空 dedup 指纹（防旧 swipe 文本残留误标新回复）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_SWIPED去重清空'); }
                         try {
@@ -8719,12 +8777,13 @@ ${recentTurns}`;
                                 } catch (e) { errLog(e, 'events.swipe即时存盘'); }
                             }
                         } catch (err) {}
-                    });
-                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_SWIPED });
+                    };
+                    eventSource.on(types.MESSAGE_SWIPED, _h4);
+                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_SWIPED, handler: _h4 });
                 }
 // [v2.0] P2: 删楼回滚（楼层账本）
                 if (types.MESSAGE_DELETED) {
-                    eventSource.on(types.MESSAGE_DELETED, async (messageId) => {
+                    const _h5 = async (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         // [v3.23.1] 删楼同步清空 dedup 指纹（防删楼后残留指纹误标后续召回）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_DELETED去重清空'); }
@@ -8758,19 +8817,21 @@ ${recentTurns}`;
                         } catch (err) {
                             if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);
                         }
-                    });
-                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_DELETED });
+                    };
+                    eventSource.on(types.MESSAGE_DELETED, _h5);
+                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_DELETED, handler: _h5 });
                 }
                 // [v1.2] GENERATION_STARTED：生成前注入记忆（主注入路径）
                 // [v3.12] GENERATION_ENDED 兜底: 用户 Esc 中止生成时 MESSAGE_RECEIVED 不触发，标志卡死 true → 自愈永久延后
                 if (types.GENERATION_ENDED) {
-                    eventSource.on(types.GENERATION_ENDED, () => {
+                    const _h6 = () => {
                         try { this.engine._generationActive = false; } catch (e) { errLog(e, 'events.GENERATION_ENDED复位'); }
-                    });
-                    this.eventHandlers.push({ eventSource, type: types.GENERATION_ENDED });
+                    };
+                    eventSource.on(types.GENERATION_ENDED, _h6);
+                    this.eventHandlers.push({ eventSource, type: types.GENERATION_ENDED, handler: _h6 });
                 }
                 if (types.GENERATION_STARTED) {
-                    eventSource.on(types.GENERATION_STARTED, async () => {
+                    const _h7 = async () => {
                         // [v3.12] 代际标记: 并发两次 STARTED（快速连发）时，后到者递增代际；先到者的慢写最后检查代际避免覆盖新注入
                         const myGen = (this._genSeq = (this._genSeq || 0) + 1);
                         try {
@@ -8792,8 +8853,9 @@ ${recentTurns}`;
                         } catch (err) {
                             console.error(`[${PLUGIN_NAME}] 生成前注入失败:`, err);
                         }
-                    });
-                    this.eventHandlers.push({ eventSource, type: types.GENERATION_STARTED });
+                    };
+                    eventSource.on(types.GENERATION_STARTED, _h7);
+                    this.eventHandlers.push({ eventSource, type: types.GENERATION_STARTED, handler: _h7 });
                 }
 
                 console.log(`[${PLUGIN_NAME}] ✓ 事件监听已注册 (MESSAGE_RECEIVED${types.CHAT_CHANGED ? ' + CHAT_CHANGED' : ''}${types.GENERATION_STARTED ? ' + GENERATION_STARTED' : ''})`);
@@ -8848,12 +8910,23 @@ ${recentTurns}`;
             } catch (e) { errLog(e, 'events.楼层自愈执行'); }
         }
         // 插件卸载时清理事件监听
+        // [v3.91] 审计修复：原实现只存 {eventSource, type} 不存 handler 引用，而 SillyTavern eventSource
+        //         的 removeListener/off 需要 handler 才能精确移除——原卸载路径实际无效（且不带 handler 调用
+        //         有误删其他扩展同类型监听的风险）。改为保存 handler 引用并按引用移除。
         unregisterEvents() {
             if (!this.eventHandlers) return;
-            for (const { eventSource, type } of this.eventHandlers) {
-                try { eventSource.removeListener?.(type); } catch {}
-                try { eventSource.off?.(type); } catch {}
+            let removed = 0;
+            for (const rec of this.eventHandlers) {
+                const { eventSource, type, handler } = rec || {};
+                if (!eventSource || !type) continue;
+                try {
+                    if (handler && typeof eventSource.removeListener === 'function') { eventSource.removeListener(type, handler); removed++; continue; }
+                    if (handler && typeof eventSource.off === 'function') { eventSource.off(type, handler); removed++; continue; }
+                    // 无 handler 引用时不做无参移除（会误删他人监听），仅告警
+                    console.warn(`[${PLUGIN_NAME}] 事件 ${type} 无 handler 引用，跳过卸载（防误删其他扩展监听）`);
+                } catch (e) { errLog(e, 'events.unregisterEvents:' + type); }
             }
+            if (this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 已卸载 ${removed}/${this.eventHandlers.length} 个事件监听`);
             this.eventHandlers = [];
         }
         createUI() {

@@ -11,7 +11,7 @@ const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
 // 版本断言
 const vMatch = src.match(/const VERSION = '([^']+)'/);
 assert.ok(vMatch, 'VERSION 未找到');
-assert.strictEqual(vMatch[1], '3.90.0', `版本应为 3.90.0，实际 ${vMatch[1]}`);
+assert.strictEqual(vMatch[1], '3.91.0', `版本应为 3.91.0，实际 ${vMatch[1]}`);
 
 // 抽取 PrequelSystem 类（依赖 BM25 类）
 function extractClasses() {
@@ -153,5 +153,5 @@ test('=== 6. 生成路径/持久化/导入/UI 接线静态检查 ===', () => {
     assert.ok(ui.match(/engine\.prequel\.import\(data\.prequel\)/g)?.length >= 2, 'UI 两处导入路径');
     // manifest 版本
     const mani = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf-8'));
-    assert.strictEqual(mani.version, '3.90.0', 'manifest 版本同步');
+    assert.strictEqual(mani.version, '3.91.0', 'manifest 版本同步');
 });

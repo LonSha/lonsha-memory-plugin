@@ -1,3 +1,21 @@
+## [3.91.0] - 2026-09-14
+### Fixed（全项目审计：8 项「配置声明存在但引擎零引用」断链修复 + 2 项容灾修复）
+- **presenceInjection 门控键断裂**（P0，功能死锁）：召回路径读 `presenceTier`（无默认值恒 undefined）而 config/UI 声明 `presenceInjection`——不在场角色提示功能自引入起从未生效。统一到 `presenceInjection !== false`，新增 `presenceMaxCandidates: 8` 单路候选上限（该路经 RRF 融合，防角色库膨胀时单路灌满）
+- **EchoPool 配置被硬编码绕过**：`echoBaseLife`（默认 2）/`echoMaxCount`（默认 10）两项全项目零引用，实现硬编码 life=2/容量 30——UI 滑块调整无任何效果且容量行为与声明不符。EchoPool 改构造注入 `cfgGetter`（惰性读取支持运行时改配置），import 语义同步改为按新近度保留
+- **maxSummaryLength 引擎不读**：UI 有 50-500 滑块但引擎零引用，createSummary 兜底截断硬编码 200。改由调用方经 `opts.maxLen` 传入（缺省仍 200 行为兼容），三条调用点接线（含 v3.8 降级摘要路径）
+- **pageRankDamping 跨文件脱钩**：index.js 配置零引用，graph_algorithms.js 的 personalizedPageRank 硬编码 0.85。库函数加第 4 参（越界回落 0.85），调用点传入配置
+- **lockedFactMaxChars 注入无上限**：配置零引用，锁定事实无预算灌入静态锚定区。`lockedFactsForPrompt(maxChars)` 按条目预算裁剪（超限整体舍弃不截断残句；预算过小返回空），注入路径传参，校验器路径保持全量（校验应看全部锁定事实）
+- **getGeoPrompt 数据空转**（P0）：`setGeoLocation` 从 LLM `geo_location` 抽取写入、召回路径消费，但 `getGeoPrompt` 从未进注入——地理数据完全空转。接入 buildInjection 动态区（位置随剧情变，不进静态锚定破坏 prompt cache）
+- **worldProgressMaxCandidates 零引用**：WorldProgress.select 恒取 `MAX_ACTIVE`。加可选 `maxCandidates` 参数（缺省回落），调用点经可选链传入
+- **recallTierEnabled / temporalGraphEnabled 无门控**：两项配置零引用（常驻/触发分级与历史边追溯恒开，开关形同虚设）。关闭时不做分区/不回溯历史边，全部块走统一预算裁剪（无块丢失）
+- **事件监听卸载无效**（容灾）：`eventHandlers` 只存 `{eventSource, type}` 不存 handler 引用，removeListener/off 无 handler 实际移除不了监听（且有误删其他扩展同类型监听风险）。7 个注册点改具名 handler 变量并保存引用，按引用精确卸载；无引用记录跳过并告警（防误删）
+- **图谱抽取空 catch**（容灾）：LLM 抽取的角色/事件/关系节点与边写入图谱失败被空 catch 静默吞噬（抽取数据不可信，真实可能抛异常），改记入 errLog 错误缓冲供面板诊断（graph.角色节点写入/事件节点写入/参与边写入/关系边写入）
+### Added
+- **`tests/audit/` 审计基建**：scan_wiring.mjs（配置键/UI 开关/方法调用三向对齐扫描）、scan_resilience.mjs（空 catch/定时器/事件注册卸载/裸 await/持久化 key/全局污染扫描）——审计层可复用脚本基建
+- 新增 v391_audit_fixes.test.mjs（11 项：8 项断链修复行为级验证 + 回归门「不得再出现零引用配置键」+ 事件卸载引用移除 + 版本一致性）
+### Tests
+- 全量 289/289 全绿（278 → 289，新增 11 项专项）
+
 ## [3.90.0] - 2026-09-14
 ### Added
 - **实体别名查询扩展**（吸收 MyriadKnots entity-identity）：`buildAliasMap()` 从图谱角色节点构建 alias→主名映射（NFKC 归一，与 BM25 `_tokenize` 同基调）；BM25 `searchBranches` 接受 `opts.aliasMap`，查询分支命中别名时附加主名原文参与检索——用户喊角色昵称/别名也能召回主名记忆（v3.86 BM25 检索的查询侧补全）

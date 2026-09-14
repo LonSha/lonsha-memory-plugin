@@ -120,10 +120,13 @@ class GraphDiffusion {
     }
     
     // 个性化PageRank - 从种子节点扩散
-    personalizedPageRank(seedNodes, hops = 3, topK = 10) {
+    // [v3.91] 审计修复：dampingFactor 原硬编码 0.85，使 index.js 的 config.pageRankDamping 完全失效（全项目零引用）。
+    //         增加第 4 参 dampingFactor（缺省 0.85 保持行为兼容）。
+    personalizedPageRank(seedNodes, hops = 3, topK = 10, dampingFactor = 0.85) {
         const seedIds = seedNodes.map(n => n.id || n);
+        const d = Number(dampingFactor);
         const ranks = this.pageRank({
-            dampingFactor: 0.85,
+            dampingFactor: (Number.isFinite(d) && d > 0 && d < 1) ? d : 0.85,
             maxIterations: 20,
             startNodes: seedIds
         });
