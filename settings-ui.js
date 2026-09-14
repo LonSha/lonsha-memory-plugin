@@ -122,6 +122,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="prequel"><div class="ls-stat-num">${s.prequel?.text ? '👁' : '—'}</div><div class="ls-stat-label">📜 前情导入 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">⚔️ 未决矛盾 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="deltas"><div class="ls-stat-num">${s.deltaBook?.deltas?.length || 0}</div><div class="ls-stat-label">📒 正史增量 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="pulse"><div class="ls-stat-num">${s.pulse?.beats?.length || 0}</div><div class="ls-stat-label">💓 叙事心电图 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
@@ -553,8 +554,61 @@
                             ${d.status === 'uncertain' ? `<button class="ls-btn ls-delta-confirm" data-dsum="${esc(d.summary)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✓</button>` : ''}
                         </div>`).join('');
                 }
-            }
-            else if (viewType === 'conflicts') {
+}
+             else if (viewType === 'pulse') {
+                 // [v3.96] 叙事心电图视图（原创：张力曲线 + 节奏诊断 + 角色弧光）
+                 title = '💓 叙事心电图';
+                 const beats = s.pulse?.beats || [];
+                 const arcs = s.pulse?.arcs || {};
+                 if (!beats.length) {
+                     body = '<div class="ls-hint">暂无叙事心电图数据。生成几楼剧情后，此处会画出张力曲线（情感极性×冲突×悬念合成）与角色弧光阶段。纯文本启发式，零额外 API。</div>';
+                 } else {
+                     const diag = s.pulse.diagnose(6);
+                     // 节奏状态横幅
+                     const statusMap = {
+                         breath: { c: '#d29922', bg: 'rgba(210,153,34,0.12)', t: '持续高压，建议呼吸拍' },
+                         surge:  { c: '#58a6ff', bg: 'rgba(56,139,253,0.12)', t: '偏平淡，建议掀波澜' },
+                         flow:   { c: '#3fb950', bg: 'rgba(63,185,80,0.12)', t: '节奏平稳' }
+                     };
+                     const sm = statusMap[diag.status] || statusMap.flow;
+                     const banner = `<div class="ls-item" style="border-left:3px solid ${sm.c};background:${sm.bg};">
+                         <div class="ls-item-meta" style="color:${sm.c};font-weight:700;">${sm.t} · 近楼均张力 ${Math.round(diag.avgTension*100)}% · 极性 ${diag.avgPolarity>=0?'+':''}${diag.avgPolarity.toFixed(2)}</div>
+                         ${diag.advice ? `<div class="ls-item-text">${esc(diag.advice)}</div>` : ''}
+                     </div>`;
+                     // 张力曲线（最近 40 楼，纯 CSS 竖条；高度=张力，颜色=极性冷暖）
+                     const recent = beats.slice(-40);
+                     const barColor = b => {
+                         if (b.polarity > 0.15) return 'var(--ls-success,#3fb950)';   // 暖
+                         if (b.polarity < -0.15) return 'var(--ls-danger,#f85149)';    // 冷
+                         return 'var(--ls-info,#58a6ff)';                                 // 中性
+                     };
+                     const bars = recent.map(b => {
+                         const h = Math.max(4, Math.round(b.tension * 60));
+                         return `<div title="第${b.floor}楼 · 张力${Math.round(b.tension*100)}% · 极性${b.polarity.toFixed(2)}${b.dominant?(' · '+b.dominant):''}" style="flex:1;min-width:3px;height:${h}px;background:${barColor(b)};border-radius:2px 2px 0 0;opacity:0.85;align-self:flex-end;"></div>`;
+                     }).join('');
+                     const chart = `<div class="ls-item">
+                         <div class="ls-item-meta">张力曲线（近 ${recent.length} 楼 · 绿=情绪上扬 / 红=情绪下沉 / 蓝=中性，高度=张力）</div>
+                         <div style="display:flex;align-items:flex-end;gap:2px;height:64px;padding:6px 2px 0;border-bottom:1px solid var(--ls-border,#30363d);">${bars}</div>
+                     </div>`;
+                     // 角色弧光阶段
+                     const arcKeys = Object.keys(arcs).filter(k => arcs[k].polarityTrail?.length >= 3);
+                     const phaseBadge = p => {
+                         const cmap = { '启程':'#58a6ff', '历练':'#d29922', '低谷':'#f85149', '蜕变':'#bc8cff', '归真':'#3fb950' };
+                         const col = cmap[p] || '#8b949e';
+                         return `<span style="font-size:11px;font-weight:700;color:${col};background:${col}22;border-radius:4px;padding:1px 7px;">${p}</span>`;
+                     };
+                     const arcHtml = arcKeys.length ? `<div class="ls-item">
+                         <div class="ls-item-meta">角色弧光阶段（情感轨迹拟合）</div>
+                         ${arcKeys.slice(0,8).map(k => {
+                             const a = arcs[k];
+                             const trail = a.polarityTrail.slice(-6).map(x => x.polarity >= 0 ? '↗' : '↘').join('');
+                             return `<div class="ls-item-text" style="display:flex;justify-content:space-between;align-items:center;"><span><b>${esc(k)}</b> <span style="color:var(--ls-text-3,#6e7681);font-size:11px;">${trail}</span></span>${phaseBadge(a.phase)}</div>`;
+                         }).join('')}
+                     </div>` : '';
+                     body = banner + chart + arcHtml;
+                 }
+             }
+             else if (viewType === 'conflicts') {
                 // [v3.65] C: 未决矛盾视图（severity 严重度分级展示）
                 title = '⚔️ 未决矛盾账本';
                 const list = s.conflicts?.conflicts || [];
