@@ -625,6 +625,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
 
                 // [v2.0] P2: 角色状态表 + 楼层账本
                 characterStateEnabled: true,   // 角色数值状态追踪（好感/疲劳/心情等）
+                 cseEnabled: true,              // [v3.94] CSE 级人物状态引擎（自研：分层+toward+可见性+证据链置信度）
+                 narrativePulseEnabled: true,   // [v3.95] 叙事心电图（完全原创：情感极性+张力节奏+角色弧光+自反性节奏建议，零额外 API）
                 todoTrackingEnabled: true,     // 待办事项追踪（带剧情日期，过期自动清理）
                 todoExpiryMinutes: 60,         // 待办过期延迟（分钟）
                 floorLedgerEnabled: true,      // 楼层账本（删楼/重生成自动回滚记忆）
@@ -1332,6 +1334,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return { set(){return null}, addFromExtracted(){return 0}, confirm(){return false}, get(){return []}, getToward(){return []}, toPrompt(){return ''}, shiftFloors(){return 0}, removeByFloor(){return 0}, removeChar(){return false}, export(){return {chars:{}}}, import(){} };
             })();
             this.outline = new OutlineDirector();
+            // [v3.95] 叙事心电图（完全原创·LonSha 独有，window.LonShaNarrativePulse，降级为空实现）
+            this.pulse = new (window.LonShaNarrativePulse?.NarrativePulse || function() {
+                return { beat(){return null}, diagnose(){return {status:'flow',advice:'',streakHigh:0,streakLow:0,avgTension:0,avgPolarity:0}}, getArc(){return null}, toPrompt(){return ''}, shiftFloors(){return 0}, removeByFloor(){return 0}, export(){return {beats:[],arcs:{}}}, import(){} };
+            })();
             this.pairMem = new PairMemory();
             this.opLog = new OpLog();  // [v3.54] 事件溯源日志
         }
@@ -1887,6 +1893,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                         if (n) this.opLog?.log('cse', 'set', `${n} states`, floor, (extracted.cse_states || []).map(s => s?.character + '.' + s?.field).join(',').slice(0, 60));
                     } catch (e) { errLog(e, 'onMessageReceived.cse'); }
                 }
+                // [v3.95] 叙事心电图（完全原创：情感极性+张力节奏+角色弧光+自反性节奏建议，零额外 API）
+                if (this.config.config.narrativePulseEnabled !== false) {
+                    try {
+                        const _suspCnt = (this.suspense?.openItems?.() || []).length;
+                        const _beat = this.pulse.beat(floor, {
+                            mesText: _rawForSynopsis || message.mes || '',
+                            events: extracted?.events || [],
+                            suspenseCount: _suspCnt,
+                            characters: extracted?.characters || []
+                        });
+                        if (_beat && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 💓 叙事心电图 floor=${floor} 张力=${Math.round(_beat.tension*100)}% 极性=${_beat.polarity.toFixed(2)}`);
+                    } catch (e) { errLog(e, 'onMessageReceived.叙事心电图'); }
+                }
                 if (this.config.config.cardCollectionEnabled !== false && Array.isArray(extracted?.events)) {
                     try {
                         const sd = this.getLatestStoryDate();
@@ -2073,6 +2092,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         conflicts: this.conflicts.export(),
                         deltaBook: this.deltaBook.export(),  // [v3.66] 正史增量持久化
                         cse: this.cse?.export?.() || { chars: {} },  // [v3.94] CSE 人物状态持久化
+                        pulse: this.pulse?.export?.() || { beats: [], arcs: {} },  // [v3.95] 叙事心电图持久化
                 outline: this.outline.export(),
                 pairMem: this.pairMem.export(),
                 opLog: this.opLog?.export?.() || null,
@@ -4011,6 +4031,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (cseText) blocks.push(cseText);
                 } catch (e) { errLog(e, 'buildInjection.cse'); }
             }
+            // [v3.95] 叙事心电图注入（原创：节奏自反提示，仅在连续高压/平淡时输出，避免每轮噪音）
+            if (this.config.config.narrativePulseEnabled !== false) {
+                try {
+                    const pulseText = this.pulse?.toPrompt?.({ characters: [] });
+                    if (pulseText) blocks.push(pulseText);
+                } catch (e) { errLog(e, 'buildInjection.叙事心电图'); }
+            }
             if (this.config.config.npcTierInjection !== false) {
                 const npcTierLines = buildNpcTierInjection(this.buildNpcTierRecords());
                 if (npcTierLines.length) {
@@ -4372,9 +4399,11 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
                 // [v3.67] A: 正史增量回滚（删楼/重生成后该楼层的增量事实撤掉，防幽灵事实）
                 try { const ndb = this.deltaBook?.removeByFloor ? this.deltaBook.removeByFloor(floor) : 0; if (ndb && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量回滚: ${ndb}条`); } catch (e) { errLog(e, 'rollbackFloor.正史增量回滚'); }
-                try { const ncs = this.cse?.removeByFloor ? this.cse.removeByFloor(floor) : 0; if (ncs && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧠 CSE 回滚: ${ncs}条`); } catch (e) { errLog(e, 'rollbackFloor.cse回滚'); }
                 // [v3.82] A: 生活小档案回滚（删楼后该楼来源的偏好/习惯撤掉，防幽灵条目）
                 try { const nld = this.status?.removeLifeDetailByFloor ? this.status.removeLifeDetailByFloor(floor) : 0; if (nld && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧬 生活小档案回滚: ${nld}条`); } catch (e) { errLog(e, 'rollbackFloor.生活小档案回滚'); }
+                // [v3.94] CSE 回滚 + [v3.95] 叙事心电图回滚（挂生活小档案之后，保持 deltaBook→lifeDetail 紧邻断言窗口）
+                try { const ncs = this.cse?.removeByFloor ? this.cse.removeByFloor(floor) : 0; if (ncs && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧠 CSE 回滚: ${ncs}条`); } catch (e) { errLog(e, 'rollbackFloor.cse回滚'); }
+                try { const npl = this.pulse?.removeByFloor ? this.pulse.removeByFloor(floor) : 0; if (npl && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 💓 叙事心电图回滚: ${npl}拍`); } catch (e) { errLog(e, 'rollbackFloor.叙事心电图回滚'); }
                 // [v3.83] A: 主角档案楼层指针回滚（来源楼层被删时指针失效归零，防幽灵楼层）
                 try { const npf = this.status?.removeProtagonistByFloor ? this.status.removeProtagonistByFloor(floor) : 0; if (npf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧍 主角档案指针回滚`); } catch (e) { errLog(e, 'rollbackFloor.主角档案指针回滚'); }
                 // [v3.84] B: 人设偏移楼层回滚（来源楼被删→偏移清空，防幽灵偏移）
@@ -4476,6 +4505,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 // [v3.84] B: 人设偏移楼层位移（删楼前移，15 楼衰减窗口不错位）
                 try { this.status?.shiftDriftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设偏移位移'); }
                 try { this.cse?.shiftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.cse位移'); }
+                try { this.pulse?.shiftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.叙事心电图位移'); }
                 // [v3.84] C: 人设基线锁定楼层 + 地理上下文楼层位移
                 try { this.status?.shiftBaselineFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设基线位移'); }
                 try { this.status?.shiftGeoFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.地理上下文位移'); }
@@ -4587,6 +4617,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 if (pack.conflicts && this.conflicts) this.conflicts.import(pack.conflicts);
                 if (pack.deltaBook && this.deltaBook) this.deltaBook.import(pack.deltaBook);  // [v3.66] 正史增量恢复
                 if (pack.cse && this.cse) this.cse.import(pack.cse);  // [v3.94] CSE 人物状态恢复
+                if (pack.pulse && this.pulse) this.pulse.import(pack.pulse);  // [v3.95] 叙事心电图恢复
                 if (pack.outline && this.outline) this.outline.import(pack.outline);
                 if (pack.pairMem && this.pairMem) this.pairMem.import(pack.pairMem);
                 if (pack.opLog && this.opLog) this.opLog.import(pack.opLog);
