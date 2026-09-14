@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.97.0",
+  "version": "3.98.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -24,7 +24,8 @@
     "api-channels.js",
     "text-chunk.js",
  "entity-semantic.js",
- "floor-range.js"
+ "floor-range.js",
+ "extraction-cadence.js"
 ],
   "extra_css": [
     "lonsha-design.css",
