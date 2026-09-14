@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.93.0",
+  "version": "3.94.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -17,7 +17,11 @@
     "memory-supersede.js",
     "story-clock-parse.js",
     "cse-engine.js",
-    "narrative-pulse.js"
+    "narrative-pulse.js",
+    "ai-select.js",
+    "stm-ltm.js",
+    "unified-recall.js",
+    "api-channels.js"
   ],
   "extra_css": [
     "lonsha-design.css",

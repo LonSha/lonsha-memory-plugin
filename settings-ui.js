@@ -880,9 +880,22 @@
                     <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
                     <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
                     <input type="text" class="ls-input" placeholder="精排模型（建议快而便宜的小模型）" value="${c.rerankModel || ''}" data-cfg-text="rerankModel" autocomplete="off">
-                    <div class="ls-slider-label"><span>精排候选数</span><span class="ls-slider-val" id="ls-v-rerank">${c.rerankCandidates || 12}</span></div>
-                    <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
-                </div>
+<div class="ls-slider-label"><span>精排候选数</span><span class="ls-slider-val" id="ls-v-rerank">${c.rerankCandidates || 12}</span></div>
+                     <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
+                 </div>
+                 <div class="ls-group">
+                     <div class="ls-group-title">🧠 [v3.96] 智能记忆升级（缝合 ai-worldbook-router + NE-Memory）</div>
+                     ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选→前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
+                     <div class="ls-slider-label"><span>精选候选上限</span><span class="ls-slider-val" id="ls-v-aiselcand">${c.aiSelectMaxCandidates || 20}</span></div>
+                     <input type="range" class="ls-slider" min="8" max="40" step="4" value="${c.aiSelectMaxCandidates || 20}" data-cfg-num="aiSelectMaxCandidates">
+                     <div class="ls-slider-label"><span>AI 精选条数</span><span class="ls-slider-val" id="ls-v-aiselsel">${c.aiSelectMaxSelect || 6}</span></div>
+                     <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.aiSelectMaxSelect || 6}" data-cfg-num="aiSelectMaxSelect">
+                     ${ck('stmLtmEnabled', 'STM/LTM 分层巩固', '短期记忆逐条积累→达阈值巩固→溢出滚入长期摘要。游标断点续跑，新消息从上次进度继续，崩溃可恢复')}
+                     <div class="ls-slider-label"><span>巩固触发阈值</span><span class="ls-slider-val" id="ls-v-stmth">${c.stmLtmThreshold || 5}</span></div>
+                     <input type="range" class="ls-slider" min="3" max="10" step="1" value="${c.stmLtmThreshold || 5}" data-cfg-num="stmLtmThreshold">
+                     ${ck('unifiedRecallEnabled', '统一召回管线', '图谱记忆节点候选化成统一 keys 结构，与世界书条目走同一套评分召回；event/quest/character/location 类型保底入选')}
+                     <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
+                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">提取提示词</div>
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>

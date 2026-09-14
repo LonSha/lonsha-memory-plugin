@@ -18,7 +18,13 @@ const src = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
 ok('index.js 含 getPublicData 门面', src.includes('getPublicData() {'));
 ok('index.js 含 getGraphWriter 门面', src.includes('getGraphWriter() {'));
 ok('门面标注 v3.93.0', src.includes('[v3.93.0] 官方只读门面'));
-ok('版本号已升至 3.93.0', src.includes("const VERSION = '3.93.0'"));
+// 版本号动态断言（不硬编码具体值，未来升级不再误破）：读取 VERSION 并校验 >= 3.93.0
+const _vm = src.match(/const VERSION = '([0-9]+)\.([0-9]+)\.([0-9]+)'/);
+ok('版本号声明存在', !!_vm);
+if (_vm) {
+  const [maj, min, pat] = [Number(_vm[1]), Number(_vm[2]), Number(_vm[3])];
+  ok('版本号 >= 3.93.0（门面引入版本）', (maj > 3) || (maj === 3 && min > 93) || (maj === 3 && min === 93 && pat >= 0), `实际 ${maj}.${min}.${pat}`);
+}
 
 // 2. 行为: 提取方法体在受控上下文执行
 // 用 new Function 构造一个带 mock engine 的对象来运行门面方法

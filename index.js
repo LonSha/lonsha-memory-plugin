@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.93.0';
+    const VERSION = '3.94.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -646,6 +646,14 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 rerankApiKey: '',
                 rerankModel: '',
                 rerankCandidates: 12,          // 进入精排的候选数
+                // [v3.96] 缝合四模块：前置AI精选 + STM/LTM游标巩固 + 统一召回 + 副API通道
+                aiSelectEnabled: false,        // 前置 AI 精选（粗召回候选→AI JSON精选本轮相关，省token提精度；需AI通道）
+                aiSelectMaxCandidates: 20,     // 进入精选的粗召回候选上限
+                aiSelectMaxSelect: 6,          // AI 最多精选条数
+                stmLtmEnabled: false,          // STM/LTM 游标巩固（unconsolidated→stm→ltm 分层，断点续跑）
+                stmLtmThreshold: 5,            // 巩固触发阈值（待巩固片段数）
+                unifiedRecallEnabled: false,   // 统一召回管线（图谱节点候选化走同一套评分，类型保底）
+                secondaryApis: {},             // 副API通道表 { [task]: {endpoint,apiKey,model,enabled} }，task: extract/summarize/embed/select/rerank/rewrite/state
                 // [v2.4] RE: 场景树 + 在场分档 + 查询重写
                 sceneEnabled: true,            // 场景地图树（由大到小路径层级，注入当前场景）
                 presenceInjection: true,       // 不在场角色分档注入（防凭空出现）
@@ -1340,6 +1348,21 @@ function relativeTimeLabel(eventTime, nowTime) {
             })();
             this.pairMem = new PairMemory();
             this.opLog = new OpLog();  // [v3.54] 事件溯源日志
+            // [v3.96] 缝合四模块实例化（降级为空实现，缺 window 全局时不影响主链路）
+            // ① 前置 AI 精选（ai-select.js）：候选语义精选，注入 llm.callAPI 走独立API+宿主双通道
+            this.aiSelect = new (window.LonShaAISelect?.AISelect || function() {
+                return { async route(c){ return { selected: (c||[]), source: 'local-noai', candidates: (c||[]).length, aiRaw: null }; }, lastTrace: null };
+            })({
+                callAI: async (prompt) => { try { return await this.llm.callAPI(prompt); } catch (e) { return null; } },
+                maxCandidates: this.config.config.aiSelectMaxCandidates || 20,
+                maxSelect: this.config.config.aiSelectMaxSelect || 6
+            });
+            // ② STM/LTM 游标巩固（stm-ltm.js）：纯函数引擎，state 持久化到 chatMetadata
+            this.stmLtm = window.LonShaStmLtm || null;
+            // ③ 统一召回管线（unified-recall.js）：图谱节点候选化
+            this.unifiedRecall = window.LonShaUnifiedRecall || null;
+            // ④ 副API通道表（api-channels.js）：任务路由
+            this.apiChannels = window.LonShaApiChannels || null;
         }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
@@ -1347,6 +1370,59 @@ function relativeTimeLabel(eventTime, nowTime) {
             try {
                 return message?.extra?.lonsha_omit === true;
             } catch (e) { errLog(e, 'SF5.isOmittedFloor'); return false; }
+        }
+
+        // [v3.96] STM/LTM 游标巩固：摄入本轮净文本到 unconsolidated_stm，达阈值异步巩固
+        _stmLtmIngest(message) {
+            try {
+                if (!this.stmLtm) return;
+                const text = String(message?.mes || '').trim();
+                if (!text || text.length < 8) return; // 过短片段不摄入（防噪声）
+                const floor = Number(message?.index ?? 0);
+                const msgId = message?.id ?? message?.index ?? null;
+                if (!this._stmLtmState) this._stmLtmState = this.stmLtm.normalizeState(null);
+                this._stmLtmState.consolidate_threshold = Math.max(1, Number(this.config.config.stmLtmThreshold) || 5);
+                this._stmLtmState = this.stmLtm.ingest(this._stmLtmState, [{ text: text.slice(0, 800), msg_id: msgId, floor }]);
+                // 达阈值 → 异步巩固（不 await，fire-and-forget）
+                const pend = this._stmLtmState.unconsolidated_stm.length;
+                if (pend >= this._stmLtmState.consolidate_threshold) {
+                    this._stmLtmConsolidate().catch(e => errLog(e, 'stmLtm.consolidate'));
+                }
+            } catch (e) { errLog(e, '_stmLtmIngest'); }
+        }
+
+        // [v3.96] STM/LTM 巩固：摘要通道经副API通道表路由（ne_stm_api 思路：巩固任务可配独立通道），无通道降级拼接；完成后落盘
+        async _stmLtmConsolidate(force = false) {
+            if (!this.stmLtm || !this._stmLtmState) return { consolidated: 0 };
+            const summarize = async (texts) => {
+                try {
+                    const joined = texts.map((t, i) => `${i + 1}. ${t}`).join('\n').slice(0, 1600);
+                    const prompt = `<task>把以下连续剧情片段压缩成一段客观摘要（60字内，保留人名/物品/地点/关键结果，纯叙述无评论）。</task>\n${joined}`;
+                    // 副API通道路由：summarize 任务查通道表，配了独立通道走副通道，否则走主通道 llm.callAPI
+                    if (this.apiChannels) {
+                        const channels = this.apiChannels.normalizeChannels(this.config.config.secondaryApis);
+                        const r = await this.apiChannels.route({
+                            task: 'summarize', prompt, channels,
+                            callMain: async (p) => this.llm.callAPI(p),
+                            // 副通道：用通道表配置的独立端点直连 callOpenAI（不占用主回复通道）
+                            callSecondary: async (p, ch) => {
+                                if (ch && (ch.endpoint || ch.model)) {
+                                    return await this.llm.callOpenAI(p, ch.endpoint || this.config.config.apiUrl, ch.apiKey || this.config.config.apiKey, ch.model || this.config.config.apiModel);
+                                }
+                                return await this.llm.callAPI(p);
+                            }
+                        });
+                        return r.text || null;
+                    }
+                    return await this.llm.callAPI(prompt);
+                } catch (e) { return null; }
+            };
+            const r = await this.stmLtm.consolidate(this._stmLtmState, { summarize, force });
+            this._stmLtmState = r.state;
+            // 落盘（复用主持久化通道）
+            try { if (r.consolidated > 0) await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'stmLtm.save'); }
+            if (this.config.config.debugMode && r.consolidated > 0) console.log(`[${PLUGIN_NAME}] STM巩固: ${r.consolidated}片段→stm (usedAI=${r.usedAI})`);
+            return r;
         }
 
         async onMessageReceived(message, messageId = null) {
@@ -1394,6 +1470,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                 _tc.content = stripMemoryOpsTags(_tc.content);
             }
             message.mes = this.cleanMessageText(_tc.content);
+            // [v3.96] STM/LTM 游标巩固摄入（fire-and-forget，不阻塞主链路；达阈值自动巩固）
+            try { if (this.config.config.stmLtmEnabled && this.stmLtm) this._stmLtmIngest(message); } catch (e) { errLog(e, 'onMessageReceived.stmLtm'); }
             if (_tc.thinking) {
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 思维链已分流 (楼层 ${message.index}, ${_tc.thinking.length} 字)`);
                 try { this.feedThinking(_tc.thinking, message.index); } catch (e) { errLog(e, 'feedThinking'); }
@@ -2664,6 +2742,46 @@ function relativeTimeLabel(eventTime, nowTime) {
                         } catch (e) { errLog(e, 'recallMemory.跨调用去重'); }
                     }
             } catch (e) { errLog(e, 'onBeforeGeneration.世界推进'); }
+                // [v3.96] 缝合：前置 AI 精选 + 统一召回管线（在 buildInjection 前对 candidateItems 做语义精选）
+                try {
+                    const _cfg = this.config.config;
+                    // ③ 统一召回：把图谱节点候选化并入候选池（走同一套评分，类型保底）
+                    if (_cfg.unifiedRecallEnabled && this.unifiedRecall && this.graph && this.graph.nodes) {
+                        try {
+                            const graphCands = this.unifiedRecall.graphToCandidates(this.graph.nodes);
+                            const _lut = String(query.text || '');
+                            const _lrt = String(query.recentText || query.text || '');
+                            for (const gc of graphCands) {
+                                const r = window.LonShaAISelect?.scoreEntry ? window.LonShaAISelect.scoreEntry(gc, _lut + '\n' + _lrt, _lut, _lrt) : { score: 0 };
+                                if ((r.score || 0) > 0 || gc._guaranteed) {
+                                    const txt = (gc.content || gc._label || '').trim();
+                                    if (txt && !candidateItems.some(x => (x.text || '') === txt)) {
+                                        candidateItems.push({ id: gc.id, text: txt, source: 'graph:' + gc._nodeType, _score: r.score || 0 });
+                                    }
+                                }
+                            }
+                        } catch (e) { errLog(e, 'onBeforeGeneration.统一召回'); }
+                    }
+                    // ① 前置 AI 精选：候选语义精选（仅当开启且候选数超出精选上限时才介入，避免小候选浪费调用）
+                    if (_cfg.aiSelectEnabled && this.aiSelect && Array.isArray(candidateItems) && candidateItems.length > (_cfg.aiSelectMaxSelect || 6)) {
+                        try {
+                            // 把 candidateItems 包装成带 keys 的候选（text 作 label/content，供 scoreEntry 与 prompt 使用）
+                            const _lut = String(query.text || '');
+                            const _lrt = String(query.recentText || query.text || '');
+                            const wrapped = candidateItems.map((it, i) => {
+                                const t = String(it.text || '').trim();
+                                const label = (t.split(/[\n，。]/)[0] || t).slice(0, 24) || ('条目' + i);
+                                return { id: it.id || ('cand_' + i), _label: label, comment: label, content: t.slice(0, 200), constant: false, keys: { primary: [label], secondary: [], all: [label] }, _orig: it };
+                            });
+                            const selRes = await this.aiSelect.route(wrapped, { lastUserText: _lut, recentText: _lrt, stateSummary: '' });
+                            const picked = (selRes.selected || []).map(w => w._orig || w);
+                            if (picked.length) {
+                                candidateItems = picked;
+                                if (_cfg.debugMode) console.log(`[${PLUGIN_NAME}] AI精选: ${wrapped.length}候选→${picked.length}条 (source=${selRes.source})`);
+                            }
+                        } catch (e) { errLog(e, 'onBeforeGeneration.AI精选'); }
+                    }
+                } catch (e) { errLog(e, 'onBeforeGeneration.v396缝合'); }
                 let inj2 = this.buildInjection(candidateItems);
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
                 if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
@@ -4404,6 +4522,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 // [v3.94] CSE 回滚 + [v3.95] 叙事心电图回滚（挂生活小档案之后，保持 deltaBook→lifeDetail 紧邻断言窗口）
                 try { const ncs = this.cse?.removeByFloor ? this.cse.removeByFloor(floor) : 0; if (ncs && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧠 CSE 回滚: ${ncs}条`); } catch (e) { errLog(e, 'rollbackFloor.cse回滚'); }
                 try { const npl = this.pulse?.removeByFloor ? this.pulse.removeByFloor(floor) : 0; if (npl && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 💓 叙事心电图回滚: ${npl}拍`); } catch (e) { errLog(e, 'rollbackFloor.叙事心电图回滚'); }
+                // [v3.96] STM/LTM 楼层级联清理（挂 pulse 之后，远离 deltaBook→lifeDetail 紧邻窗口）
+                try { if (this.stmLtm && this._stmLtmState) { this._stmLtmState = this.stmLtm.removeByFloors(this._stmLtmState, [floor]); } } catch (e) { errLog(e, 'rollbackFloor.stmLtm清理'); }
                 // [v3.83] A: 主角档案楼层指针回滚（来源楼层被删时指针失效归零，防幽灵楼层）
                 try { const npf = this.status?.removeProtagonistByFloor ? this.status.removeProtagonistByFloor(floor) : 0; if (npf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧍 主角档案指针回滚`); } catch (e) { errLog(e, 'rollbackFloor.主角档案指针回滚'); }
                 // [v3.84] B: 人设偏移楼层回滚（来源楼被删→偏移清空，防幽灵偏移）
@@ -4900,6 +5020,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 prequel: this.prequel ? this.prequel.export() : { text: '' },   // [v3.87] 前情资料随聊天持久化
                 supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
                 narrativeEntropy: this._narrativeEntropy || 0,
+                stmLtm: this._stmLtmState || null,   // [v3.96] STM/LTM 游标巩固状态随聊天持久化
                 packedAt: new Date().toISOString()
             };
         }
@@ -8598,6 +8719,7 @@ ${recentTurns}`;
                     if (data.worldProg && engine.worldProg) engine.worldProg.import(data.worldProg);
                     if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); }   // [v3.3] 加载即对账（补 fp/自愈/清理）
                     if (typeof data.narrativeEntropy === 'number') engine._narrativeEntropy = data.narrativeEntropy;
+                    if (data.stmLtm && engine.stmLtm) engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm);   // [v3.96] STM/LTM 状态恢复
                 }
                 return data;
             } catch (err) { return null; }
