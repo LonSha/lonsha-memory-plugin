@@ -8965,7 +8965,7 @@ ${recentTurns}`;
         createUI() {
             const fab = document.createElement('div');
             fab.id = 'lonsha-memory-fab'; fab.innerHTML = '🧠';
-            fab.style.cssText = 'position:fixed;bottom:80px;right:20px;width:50px;height:50px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:10000;transition:transform 0.2s;';
+            fab.style.cssText = 'position:fixed;bottom:80px;right:20px;width:52px;height:52px;background:var(--ls-bg-2,#161b22);backdrop-filter:var(--ls-blur,none);-webkit-backdrop-filter:var(--ls-blur,none);color:var(--ls-accent,#58a6ff);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:var(--ls-sh-2,0 8px 24px rgba(1,4,9,0.6));z-index:10000;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;';
             fab.addEventListener('click', () => this.showPanel());
             fab.addEventListener('mouseenter', () => fab.style.transform = 'scale(1.1) rotate(5deg)');
             fab.addEventListener('mouseleave', () => fab.style.transform = 'scale(1)');

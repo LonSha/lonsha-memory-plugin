@@ -1,0 +1,81 @@
+/* ============================================================
+   LonSha 记忆引擎 · 设计系统 Token（Design Tokens）
+   单一事实源：全部 UI 颜色 / 阴影 / 圆角 / 间距 / 动效 / 层级
+   设计语言：石墨冷灰底 + 单一青蓝强调，克制、专业、高级
+   加载顺序：须在 style.css / visualizer.css / settings-ui 之前
+   ============================================================ */
+:root {
+    /* ---- 强调色（唯一品牌色：青蓝） ---- */
+    --ls-accent:        #58a6ff;
+    --ls-accent-strong: #1f6feb;   /* 实心主按钮底 */
+    --ls-accent-hover:  #79c0ff;
+    --ls-accent-soft:   rgba(56, 139, 253, 0.15);  /* 强调底 */
+    --ls-accent-softer: rgba(56, 139, 253, 0.08);
+    --ls-accent-line:   rgba(56, 139, 253, 0.35);  /* 强调描边 */
+    --ls-on-accent:     #ffffff;
+
+    /* ---- 中性面（石墨冷灰分层，由深到浅） ---- */
+    --ls-bg-0:   #010409;   /* 最深层（画布/代码底） */
+    --ls-bg-1:   #0d1117;   /* 面板底 */
+    --ls-bg-2:   #161b22;   /* 卡片/输入底 */
+    --ls-bg-3:   #21262d;   /* 悬浮/按钮底 */
+    --ls-bg-4:   #30363d;   /* hover 底 */
+
+    /* ---- 描边 ---- */
+    --ls-line:        rgba(240, 246, 252, 0.10);
+    --ls-line-strong: rgba(240, 246, 252, 0.18);
+
+    /* ---- 文本 ---- */
+    --ls-text:    #e6edf3;
+    --ls-text-2:  #9da7b3;
+    --ls-text-3:  #6e7681;
+    --ls-inverse: #0d1117;   /* 亮底上的深字（toast） */
+
+    /* ---- 语义色（冷调克制） ---- */
+    --ls-success:      #3fb950;
+    --ls-success-soft: rgba(63, 185, 80, 0.12);
+    --ls-warn:         #d29922;
+    --ls-warn-soft:    rgba(210, 153, 34, 0.12);
+    --ls-danger:       #f85149;
+    --ls-danger-soft:  rgba(248, 81, 73, 0.14);
+    --ls-danger-line:  rgba(248, 81, 73, 0.35);
+    --ls-info:         #58a6ff;
+    --ls-info-soft:    rgba(56, 139, 253, 0.12);
+
+    /* ---- 圆角 ---- */
+    --ls-r-sm: 8px;
+    --ls-r-md: 12px;
+    --ls-r-lg: 16px;
+    --ls-r-xl: 20px;
+    --ls-r-pill: 999px;
+
+    /* ---- 阴影（冷调分层） ---- */
+    --ls-sh-1: 0 1px 0 rgba(240, 246, 252, 0.04) inset, 0 8px 24px rgba(1, 4, 9, 0.55);
+    --ls-sh-2: 0 12px 32px rgba(1, 4, 9, 0.60), 0 4px 12px rgba(1, 4, 9, 0.40);
+    --ls-sh-3: 0 24px 64px rgba(1, 4, 9, 0.72), 0 8px 24px rgba(1, 4, 9, 0.50);
+    --ls-sh-accent: 0 4px 14px rgba(56, 139, 253, 0.35);
+    --ls-sh-accent-lg: 0 8px 28px rgba(56, 139, 253, 0.45);
+
+    /* ---- 动效 ---- */
+    --ls-t-fast: 120ms;
+    --ls-t-med:  200ms;
+    --ls-t-slow: 320ms;
+    --ls-ease:   cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* ---- 字体 ---- */
+    --ls-font: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --ls-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+
+    /* ---- 毛玻璃参数（可由 JS 依据性能开关禁用） ---- */
+    --ls-blur: saturate(140%) blur(18px);
+}
+
+/* 降低动效：系统级偏好 → 关闭一切过渡/动画（性能底线：动效可关） */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

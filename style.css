@@ -1,16 +1,25 @@
+/* ============================================================
+   LonSha 记忆引擎 · FAB 与主面板
+   依赖 lonsha-design.css 的 token（--ls-*）
+   ============================================================ */
+
+/* ---- FAB 悬浮按钮：玻璃拟态 + 强调描边 ---- */
 #lonsha-memory-fab {
-    transition: all 0.3s ease;
+    transition: transform var(--ls-t-med) var(--ls-ease),
+                box-shadow var(--ls-t-med) var(--ls-ease),
+                border-color var(--ls-t-med) var(--ls-ease);
 }
-
 #lonsha-memory-fab:hover {
-    transform: scale(1.1) rotate(5deg);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    transform: translateY(-2px) scale(1.06);
+    box-shadow: var(--ls-sh-accent-lg), var(--ls-sh-2);
+    border-color: var(--ls-accent-line) !important;
 }
-
 #lonsha-memory-fab:active {
-    transform: scale(0.95);
+    transform: scale(0.94);
+    transition-duration: var(--ls-t-fast);
 }
 
+/* ---- 主面板：深色玻璃拟态 ---- */
 .lonsha-memory-panel {
     position: fixed;
     top: 50%;
@@ -18,19 +27,34 @@
     transform: translate(-50%, -50%);
     width: 80%;
     max-width: 600px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-    padding: 20px;
+    background: var(--ls-bg-1);
+    backdrop-filter: var(--ls-blur);
+    -webkit-backdrop-filter: var(--ls-blur);
+    border: 1px solid var(--ls-line);
+    border-radius: var(--ls-r-xl);
+    box-shadow: var(--ls-sh-3);
+    padding: 24px;
     z-index: 10001;
+    color: var(--ls-text);
+    font-family: var(--ls-font);
+    animation: ls-panel-in var(--ls-t-slow) var(--ls-ease);
 }
 
 .lonsha-memory-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
+    inset: 0;
+    background: rgba(1, 4, 9, 0.62);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 10000;
+    animation: ls-fade-in var(--ls-t-med) var(--ls-ease);
+}
+
+@keyframes ls-panel-in {
+    from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes ls-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }

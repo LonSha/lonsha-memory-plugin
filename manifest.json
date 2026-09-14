@@ -17,6 +17,7 @@
     "memory-supersede.js"
   ],
   "extra_css": [
+    "lonsha-design.css",
     "visualizer.css"
   ]
 }

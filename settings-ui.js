@@ -14,39 +14,50 @@
         // ========== 共享样式 ==========
         const style = document.createElement('style');
         style.textContent = `
-            .lonsha-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10002; display: flex; align-items: flex-end; justify-content: center; }
+            /* ==== LonSha 设置面板 · 基于 lonsha-design.css token ==== */
+            .lonsha-overlay { position: fixed; inset: 0; background: rgba(1,4,9,0.62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 10002; display: flex; align-items: flex-end; justify-content: center; animation: ls-fade var(--ls-t-med,200ms) var(--ls-ease,ease); }
             @media (min-width: 600px) { .lonsha-overlay { align-items: center; } }
-            .lonsha-sheet { background: #1e1e2e; width: 100%; max-width: 500px; max-height: 85vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; border: 1px solid #45475a; }
-            @media (min-width: 600px) { .lonsha-sheet { border-radius: 16px; max-height: 80vh; } }
-            .lonsha-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #313244; color: #cdd6f4; font-size: 16px; font-weight: bold; flex-shrink: 0; }
-            .lonsha-sheet-close { padding: 8px 12px; color: #f38ba8; font-size: 18px; cursor: pointer; }
-            .lonsha-sheet-body { padding: 12px 16px 24px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: #cdd6f4; }
-            .ls-group { margin-bottom: 16px; }
-            .ls-group-title { font-size: 12px; color: #89b4fa; margin: 8px 0 6px; font-weight: bold; letter-spacing: 1px; }
-            .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid #313244; font-size: 15px; }
+            @keyframes ls-fade { from { opacity: 0; } to { opacity: 1; } }
+            .lonsha-sheet { background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); width: 100%; max-width: 500px; max-height: 85vh; border-radius: var(--ls-r-lg,16px) var(--ls-r-lg,16px) 0 0; display: flex; flex-direction: column; border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); box-shadow: var(--ls-sh-3,0 24px 64px rgba(1,4,9,0.72)); color: var(--ls-text,#e6edf3); font-family: var(--ls-font,system-ui,sans-serif); animation: ls-sheet-up var(--ls-t-slow,320ms) var(--ls-ease,ease); }
+            @media (min-width: 600px) { .lonsha-sheet { border-radius: var(--ls-r-xl,20px); max-height: 80vh; animation: ls-sheet-pop var(--ls-t-slow,320ms) var(--ls-ease,ease); } }
+            @keyframes ls-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+            @keyframes ls-sheet-pop { from { transform: scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+            .lonsha-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--ls-line,rgba(240,246,252,0.10)); color: var(--ls-text,#e6edf3); font-size: 16px; font-weight: 600; letter-spacing: 0.2px; flex-shrink: 0; }
+            .lonsha-sheet-close { padding: 8px 12px; color: var(--ls-text-2,#9da7b3); font-size: 18px; cursor: pointer; border-radius: var(--ls-r-sm,8px); transition: background var(--ls-t-fast,120ms), color var(--ls-t-fast,120ms); }
+            .lonsha-sheet-close:hover { background: var(--ls-danger-soft,rgba(248,81,73,0.14)); color: var(--ls-danger,#f85149); }
+            .lonsha-sheet-body { padding: 14px 18px 26px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: var(--ls-text,#e6edf3); }
+            .ls-group { margin-bottom: 18px; }
+            .ls-group-title { font-size: 12px; color: var(--ls-accent,#58a6ff); margin: 10px 0 6px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; }
+            .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--ls-line,rgba(240,246,252,0.10)); font-size: 15px; }
             .ls-row:last-child { border-bottom: none; }
-            .ls-row input[type="checkbox"] { width: 44px; height: 44px; margin: 0; accent-color: #89b4fa; }
-            .ls-slider { width: 100%; accent-color: #89b4fa; height: 32px; }
-            .ls-slider-label { display: flex; justify-content: space-between; font-size: 14px; padding: 8px; color: #a6adc8; }
-            .ls-slider-val { color: #89b4fa; font-weight: bold; }
-            .ls-input { width: 100%; background: #181825; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 11px; font-size: 14px; margin: 5px 0; box-sizing: border-box; }
-            .ls-input::placeholder { color: #585b70; }
-            .ls-textarea { width: 100%; min-height: 120px; background: #181825; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 10px; font-size: 13px; font-family: monospace; box-sizing: border-box; }
-            .ls-btn { display: block; width: 100%; padding: 13px; margin: 8px 0; background: #313244; color: #cdd6f4; border: none; border-radius: 10px; font-size: 15px; text-align: center; cursor: pointer; }
-            .ls-btn:active { background: #45475a; }
-            .ls-btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
-            .ls-btn-danger { background: #45273a; color: #f38ba8; }
-            .ls-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
-            .ls-stat-card { background: #181825; border-radius: 10px; padding: 12px 4px; text-align: center; }
-            .ls-stat-num { font-size: 20px; font-weight: bold; color: #89b4fa; }
-            .ls-stat-label { font-size: 11px; color: #a6adc8; margin-top: 2px; }
-            .ls-hint { font-size: 12px; color: #6c7086; padding: 6px 8px; line-height: 1.5; }
-            .ls-clickable { cursor: pointer; transition: transform 0.15s; }
-            .ls-clickable:active { transform: scale(0.95); }
-            .ls-item { background: #181825; border-radius: 10px; padding: 10px 12px; margin: 6px 0; }
-            .ls-item-meta { font-size: 11px; color: #6c7086; margin-bottom: 4px; }
-            .ls-item-text { font-size: 14px; color: #cdd6f4; line-height: 1.6; word-break: break-word; }
-            .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: #a6e3a1; color: #1e1e2e; padding: 10px 20px; border-radius: 20px; font-size: 14px; z-index: 10003; }
+            .ls-row input[type="checkbox"] { width: 44px; height: 44px; margin: 0; accent-color: var(--ls-accent,#58a6ff); }
+            .ls-slider { width: 100%; accent-color: var(--ls-accent,#58a6ff); height: 32px; }
+            .ls-slider-label { display: flex; justify-content: space-between; font-size: 14px; padding: 8px; color: var(--ls-text-2,#9da7b3); }
+            .ls-slider-val { color: var(--ls-accent,#58a6ff); font-weight: 600; font-variant-numeric: tabular-nums; }
+            .ls-input { width: 100%; background: var(--ls-bg-2,#161b22); color: var(--ls-text,#e6edf3); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 12px; font-size: 14px; margin: 5px 0; box-sizing: border-box; transition: border-color var(--ls-t-fast,120ms), box-shadow var(--ls-t-fast,120ms); }
+            .ls-input:focus { outline: none; border-color: var(--ls-accent,#58a6ff); box-shadow: 0 0 0 3px var(--ls-accent-soft,rgba(56,139,253,0.15)); }
+            .ls-input::placeholder { color: var(--ls-text-3,#6e7681); }
+            .ls-textarea { width: 100%; min-height: 120px; background: var(--ls-bg-2,#161b22); color: var(--ls-text,#e6edf3); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 12px; font-size: 13px; font-family: var(--ls-mono,monospace); box-sizing: border-box; transition: border-color var(--ls-t-fast,120ms), box-shadow var(--ls-t-fast,120ms); }
+            .ls-textarea:focus { outline: none; border-color: var(--ls-accent,#58a6ff); box-shadow: 0 0 0 3px var(--ls-accent-soft,rgba(56,139,253,0.15)); }
+            .ls-btn { display: block; width: 100%; padding: 13px; margin: 8px 0; background: var(--ls-bg-3,#21262d); color: var(--ls-text,#e6edf3); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); font-size: 15px; text-align: center; cursor: pointer; transition: background var(--ls-t-fast,120ms), transform var(--ls-t-fast,120ms), border-color var(--ls-t-fast,120ms); }
+            .ls-btn:hover { background: var(--ls-bg-4,#30363d); border-color: var(--ls-line-strong,rgba(240,246,252,0.18)); }
+            .ls-btn:active { transform: scale(0.98); }
+            .ls-btn-primary { background: var(--ls-accent-strong,#1f6feb); border-color: transparent; color: var(--ls-on-accent,#fff); font-weight: 600; box-shadow: var(--ls-sh-accent,0 4px 14px rgba(56,139,253,0.35)); }
+            .ls-btn-primary:hover { background: var(--ls-accent,#58a6ff); }
+            .ls-btn-danger { background: var(--ls-danger-soft,rgba(248,81,73,0.14)); border-color: var(--ls-danger-line,rgba(248,81,73,0.35)); color: var(--ls-danger,#f85149); }
+            .ls-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0; }
+            .ls-stat-card { background: var(--ls-bg-2,#161b22); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 14px 4px; text-align: center; transition: transform var(--ls-t-med,200ms), border-color var(--ls-t-med,200ms); }
+            .ls-stat-card:hover { transform: translateY(-2px); border-color: var(--ls-accent-line,rgba(56,139,253,0.35)); }
+            .ls-stat-num { font-size: 20px; font-weight: 700; color: var(--ls-accent,#58a6ff); font-variant-numeric: tabular-nums; }
+            .ls-stat-label { font-size: 11px; color: var(--ls-text-2,#9da7b3); margin-top: 2px; }
+            .ls-hint { font-size: 12px; color: var(--ls-text-3,#6e7681); padding: 6px 8px; line-height: 1.5; }
+            .ls-clickable { cursor: pointer; transition: transform var(--ls-t-fast,120ms), border-color var(--ls-t-fast,120ms); }
+            .ls-clickable:active { transform: scale(0.97); }
+            .ls-item { background: var(--ls-bg-2,#161b22); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 13px; margin: 6px 0; }
+            .ls-item-meta { font-size: 11px; color: var(--ls-text-3,#6e7681); margin-bottom: 4px; }
+            .ls-item-text { font-size: 14px; color: var(--ls-text,#e6edf3); line-height: 1.6; word-break: break-word; }
+            .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: var(--ls-success,#3fb950); color: var(--ls-inverse,#0d1117); padding: 10px 20px; border-radius: var(--ls-r-pill,999px); font-size: 14px; font-weight: 600; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); z-index: 10003; animation: ls-toast-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
+            @keyframes ls-toast-in { from { transform: translate(-50%,8px); opacity: 0; } to { transform: translate(-50%,0); opacity: 1; } }
         `;
         document.head.appendChild(style);
 
@@ -118,7 +129,7 @@
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
                 </div>
                 <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
-                ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title">🎯 最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:#f9e2af">⚠️ 触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint">🎯 最近召回监控：生成过一次后显示命中来源分布。</div>'}
+                ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title">🎯 最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:var(--ls-warn,#d29922)">⚠️ 触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint">🎯 最近召回监控：生成过一次后显示命中来源分布。</div>'}
                 ${(s._recallSourceStats && s._recallSourceStats.total > 0) ? `<div class="ls-group"><div class="ls-group-title">📈 召回源命中率（最近 ${s._recallSourceStats.total} 轮）</div><div class="ls-item">${Object.entries(s._recallSourceStats.bySource || {}).sort((a, b) => b[1].hits - a[1].hits).map(([k, v]) => { const pct = Math.min(100, Math.round((v.hits / Math.max(1, v.rounds)) * 100)); const bar = '█'.repeat(Math.max(1, Math.round(pct / 10))); return `<div class="ls-item-text" style="margin:2px 0"><b>${k}</b> ${bar} ${pct}%（${v.hits} 次/${v.rounds} 轮）</div>`; }).join('')}</div><div class="ls-hint">💡 长期 0% 的召回源可在设置中关闭以省资源；命中率数据 200 轮半衰，反映近期状态。</div></div>` : ''}
             `;
             const ov = makeSheet('lonsha-stats-overlay', '📊 状态总览', body);
@@ -281,13 +292,13 @@
                 return `<div class="ls-item" style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;">
                     <input type="checkbox" class="ls-extract-cb" data-idx="${idx}" checked style="margin-top:3px;flex:0 0 auto;">
                     <div style="flex:1;">
-                        <div><b>${esc(r.name)}</b> ${isKnown ? '<span style="color:#a6e3a1;font-size:11px;">（已存在，仅补别名）</span>' : '<span style="color:#f9e2af;font-size:11px;">（新角色）</span>'}</div>
-                        ${r.aliases?.length ? `<div style="color:#a6adc8;font-size:12px;">别名: ${esc(r.aliases.join('、'))}</div>` : ''}
+                        <div><b>${esc(r.name)}</b> ${isKnown ? '<span style="color:var(--ls-success,#3fb950);font-size:11px;">（已存在，仅补别名）</span>' : '<span style="color:var(--ls-warn,#d29922);font-size:11px;">（新角色）</span>'}</div>
+                        ${r.aliases?.length ? `<div style="color:var(--ls-text-2,#9da7b3);font-size:12px;">别名: ${esc(r.aliases.join('、'))}</div>` : ''}
                     </div>
                 </div>`;
             }).join('') || '<div class="ls-hint">无角色可写入</div>';
             const body = `
-                <div style="padding:4px 8px;font-size:12px;color:#a6adc8;">提取到 ${roles.length} 个角色，勾选要写入的条目（已存在角色只会补别名，不会覆盖主名或数据）</div>
+                <div style="padding:4px 8px;font-size:12px;color:var(--ls-text-2,#9da7b3);">提取到 ${roles.length} 个角色，勾选要写入的条目（已存在角色只会补别名，不会覆盖主名或数据）</div>
                 <div style="max-height:40vh;overflow-y:auto;margin:6px 0;">${rows}</div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
                     <button class="ls-btn" id="ls-extract-cancel">取消</button>
@@ -320,16 +331,16 @@
                 const list = s.summary.summaries;
                 // [v3.74] B2: 手动补摘输入框（柏宝书：任意楼层单独补摘）
                 const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
-                    <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
-                    <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
+                    <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
+                    <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
                     <button id="ls-ms-add" class="ls-btn" style="padding:6px 14px;">+ 补摘</button>
-                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background:#45475a;" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）">🔧 批量补齐</button>
+                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background:var(--ls-line-strong,rgba(240,246,252,0.18));" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）">🔧 批量补齐</button>
                 </div>
                 <div style="display:flex;gap:6px;margin:0 0 8px 0;">
-                    <input id="ls-omit-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
-                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background:#3d3d5c;" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）">🎬 标记番外</button>
-                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background:#3d3d5c;" title="取消番外标记，恢复该楼记忆处理">↩️ 取消番外</button>
-                </div><div class="ls-hint" style="font-size:11px;color:#888;margin:4px 0;">💡 若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置 → 正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
+                    <input id="ls-omit-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
+                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background:var(--ls-bg-3,#21262d);" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）">🎬 标记番外</button>
+                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background:var(--ls-bg-3,#21262d);" title="取消番外标记，恢复该楼记忆处理">↩️ 取消番外</button>
+                </div><div class="ls-hint" style="font-size:11px;color:var(--ls-text-3,#6e7681);margin:4px 0;">💡 若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置 → 正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
                 body = addForm + (list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
                     list.slice().reverse().map(m => `
                         <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${m.floor}">
@@ -457,7 +468,7 @@
                 body = edges.length === 0 ? '<div class="ls-hint">暂无关系。</div>' :
                     edges.map(e => `
                         <div class="ls-item">
-                            <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:#89b4fa">—[${esc(e.label || '相关')}]→</span> ${esc(nameOf(e.to))}</div>
+                            <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:var(--ls-accent,#58a6ff)">—[${esc(e.label || '相关')}]→</span> ${esc(nameOf(e.to))}</div>
                         </div>`).join('');
             }
             else if (viewType === 'vectors') {
@@ -492,11 +503,11 @@
                     const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚' };
                     const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`;
                     // [v3.59] B: 楼层过滤输入框（输入楼层号只显示该楼事件；空=全部）
-                    const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
+                    const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
                     const rows = opLog.recent(80).slice().reverse().map(e => `
                         <div class="ls-item">
                             <div class="ls-item-meta">#${e.seq} · ${typeCn[e.type] || e.type} · ${esc(e.op)} · ${e.floor !== null && e.floor !== undefined ? `第${e.floor}楼` : '—'} · ${fmtTime(e.ts)}</div>
-                            <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:#a6adc8">— ${esc(e.meta)}</span>` : ''}</div>
+                            <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:var(--ls-text-2,#9da7b3)">— ${esc(e.meta)}</span>` : ''}</div>
                         </div>`).join('');
                     body = head + floorInput + `<div id="lonsha-oplog-rows">${rows}</div>`;
                 }
@@ -508,7 +519,7 @@
                 const list = (s.summary?.getLockedFacts?.() || []);
                 const head = `<div class="ls-hint">锁定的剧情事实会<b>逐字</b>进入每轮摘要与注入流，永不因压缩丢失。摘要生成后有校验器防遗漏。适用于：关键约定、物品归属、重要转折、你不想被 AI 忘记的一切。</div>`;
                 const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
-                    <input id="ls-lf-input" type="text" placeholder="输入要锁定的剧情事实…" style="flex:1;padding:6px 8px;border:1px solid #555;border-radius:6px;background:#1e1e2e;color:#cdd6f4;font-size:13px;" />
+                    <input id="ls-lf-input" type="text" placeholder="输入要锁定的剧情事实…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
                     <button id="ls-lf-add" class="ls-btn" style="padding:6px 14px;">🔒 锁定</button>
                 </div>`;
                 const items = list.length === 0
@@ -531,8 +542,8 @@
                     body = '<div class="ls-hint">暂无正史增量。摘要折叠时 LLM 会同步产出增量事实（established=有明确证据，uncertain=存疑待佐证，后续剧情会自动确证）。</div>';
                 } else {
                     const stBadge = (st) => st === 'established'
-                        ? '<span style="font-size:10px;font-weight:700;color:#86efac;background:rgba(74,222,128,0.12);border-radius:4px;padding:1px 6px;">✅已确证</span>'
-                        : '<span style="font-size:10px;font-weight:700;color:#fcd34d;background:rgba(251,191,36,0.12);border-radius:4px;padding:1px 6px;">⏳待定</span>';
+                        ? '<span style="font-size:10px;font-weight:700;color:var(--ls-success,#3fb950);background:var(--ls-success-soft,rgba(63,185,80,0.12));border-radius:4px;padding:1px 6px;">✅已确证</span>'
+                        : '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;">⏳待定</span>';
                     body = list.slice().reverse().map(d => `
                         <div class="ls-item" style="display:flex;align-items:flex-start;gap:8px;">
                             <div style="flex:1;">
@@ -551,14 +562,14 @@
                     body = '<div class="ls-hint">暂无未决矛盾。LLM 检测到同一事实两个版本对不上时自动登记（矛盾是剧情资产，AI 不会擅自裁决）。</div>';
                 } else {
                     const sevBadge = (sev) => {
-                        if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:#fecaca;background:rgba(248,113,113,0.15);border-radius:4px;padding:1px 6px;">🔴高</span>';
-                        if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:#93c5fd;background:rgba(96,165,250,0.12);border-radius:4px;padding:1px 6px;">🔵低</span>';
-                        return '<span style="font-size:10px;font-weight:700;color:#fcd34d;background:rgba(251,191,36,0.12);border-radius:4px;padding:1px 6px;">🟡中</span>';
+                        if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:var(--ls-danger,#f85149);background:var(--ls-danger-soft,rgba(248,81,73,0.14));border-radius:4px;padding:1px 6px;">🔴高</span>';
+                        if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:var(--ls-info,#58a6ff);background:var(--ls-info-soft,rgba(56,139,253,0.12));border-radius:4px;padding:1px 6px;">🔵低</span>';
+                        return '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;">🟡中</span>';
                     };
                     body = list.slice().reverse().map(c => `
                         <div class="ls-item">
                             <div class="ls-item-meta">${sevBadge(c.severity)} <b>${esc(c.subject)}</b> · 第${c.floor}楼${c.time ? ' · ' + esc(c.time) : ''}</div>
-                            <div class="ls-item-text">版本A「${esc(c.versionA)}」 ↔ 版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:#888;">' + esc(c.note) + '</span>' : ''}</div>
+                            <div class="ls-item-text">版本A「${esc(c.versionA)}」 ↔ 版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:var(--ls-text-3,#6e7681);">' + esc(c.note) + '</span>' : ''}</div>
                         </div>`).join('');
                 }
             }
@@ -581,12 +592,12 @@
                         const text = esc(trimmed);
                         const isNew = prevLines && !prevLines.has(trimmed) && !isHeader;
                         if (isNew) newCount++;
-                        const newStyle = isNew ? 'border-left:2px solid #a6e3a1;background:rgba(166,227,161,0.06);' : '';
+                        const newStyle = isNew ? 'border-left:2px solid var(--ls-success,#3fb950);background:var(--ls-success-soft,rgba(63,185,80,0.12));' : '';
                         return isHeader
-                            ? `<div class="ls-item-meta" style="color:#a6e3a1;font-weight:bold;margin-top:6px;">${text}</div>`
-                            : `<div class="ls-item-text" style="padding-left:12px;${newStyle}">${text}${isNew ? ' <span style="color:#a6e3a1;font-size:11px;">NEW</span>' : ''}</div>`;
+                            ? `<div class="ls-item-meta" style="color:var(--ls-success,#3fb950);font-weight:bold;margin-top:6px;">${text}</div>`
+                            : `<div class="ls-item-text" style="padding-left:12px;${newStyle}">${text}${isNew ? ' <span style="color:var(--ls-success,#3fb950);font-size:11px;">NEW</span>' : ''}</div>`;
                     }).join('');
-                    const diffNote = prevLines ? `<div class="ls-hint" style="color:#a6e3a1;">🆕 本轮新增 ${newCount} 行（绿色标注）</div>` : '';
+                    const diffNote = prevLines ? `<div class="ls-hint" style="color:var(--ls-success,#3fb950);">🆕 本轮新增 ${newCount} 行（绿色标注）</div>` : '';
                     body = head + diffNote + `<div class="ls-item">${bodyHtml}</div>`;
                 }
             }
@@ -610,10 +621,10 @@
                 a.download = `lonsha-memory-report-${Date.now()}.md`;
                 a.click();
                 toast('📄 记忆全景报告已导出');
-                body = '<div class="ls-hint">✅ 报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:#1e1e2e;padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
+                body = '<div class="ls-hint">✅ 报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:var(--ls-bg-1,#0d1117);padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
             }
 
-            const opHint = '<div class="ls-hint" style="color:#89b4fa;margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>';
+            const opHint = '<div class="ls-hint" style="color:var(--ls-accent,#58a6ff);margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>';
             const ov = makeSheet('lonsha-browser-overlay', title, body ? (opHint + body) : '<div class="ls-hint">暂无数据</div>');
             ov.querySelectorAll('[data-opkind]').forEach(it => {
                 it.addEventListener('click', () => {
@@ -649,8 +660,8 @@
             if (auditCount > 0) {
                 const undoBtn = document.createElement('div');
                 undoBtn.className = 'ls-btn';
-                undoBtn.style.background = '#313244';
-                undoBtn.style.color = '#fab387';
+                undoBtn.style.background = 'var(--ls-line,rgba(240,246,252,0.10))';
+                undoBtn.style.color = 'var(--ls-warn,#d29922)';
                 undoBtn.style.marginBottom = '6px';
                 undoBtn.textContent = `↺ 撤销上次修改（剩余可撤销: ${auditCount}）`;
                 undoBtn.addEventListener('click', async () => {
@@ -1075,7 +1086,7 @@
             const menu = document.createElement('div');
             menu.id = 'lonsha-fab-menu';
             menu.innerHTML = `
-                <div style="padding:6px 14px;color:#a6adc8;font-size:11px;border-bottom:1px solid #313244;margin-bottom:4px;">LonSha记忆引擎</div>
+                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));margin-bottom:4px;">LonSha记忆引擎</div>
                 <div class="lsm-item" data-act="stats">📊 状态总览</div>
                 <div class="lsm-item" data-act="timeline">📅 剧情时间线</div>
                 <div class="lsm-item" data-act="viz">🕸️ 记忆图谱</div>
@@ -1083,9 +1094,11 @@
                 <div class="lsm-item" data-act="diag">🩺 一键诊断</div>
                 <div class="lsm-item" data-act="update">🔄 检查更新</div>
                 <style>
-                    #lonsha-fab-menu { position: fixed; bottom: 145px; right: 20px; background: #1e1e2e; border: 1px solid #45475a; border-radius: 14px; padding: 6px; z-index: 10001; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 190px; }
-                    .lsm-item { padding: 13px 14px; color: #cdd6f4; font-size: 15px; border-radius: 9px; cursor: pointer; }
-                    .lsm-item:active { background: #45475a; }
+                    #lonsha-fab-menu { position: fixed; bottom: 145px; right: 20px; background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 200px; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
+                    @keyframes ls-menu-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+                    .lsm-item { padding: 13px 14px; color: var(--ls-text,#e6edf3); font-size: 15px; border-radius: var(--ls-r-md,12px); cursor: pointer; transition: background var(--ls-t-fast,120ms); }
+                    .lsm-item:hover { background: var(--ls-bg-3,#21262d); }
+                    .lsm-item:active { background: var(--ls-bg-4,#30363d); }
                 </style>
             `;
             menu.querySelectorAll('.lsm-item').forEach(item => {
@@ -1125,15 +1138,15 @@
             const body = snaps.map(s => {
                 const time = new Date(s.timestamp).toLocaleString();
                 return `<div class="lsm-item" data-floor="${s.floor}" style="display:flex;justify-content:space-between;">
-                    <span>楼层 ${s.floor}</span><span style="color:#a6adc8;font-size:12px;">${time}</span>
+                    <span>楼层 ${s.floor}</span><span style="color:var(--ls-text-2,#9da7b3);font-size:12px;">${time}</span>
                 </div>`;
             }).join('');
             const menu = document.createElement('div');
             menu.id = 'lonsha-snap-menu';
             menu.innerHTML = `
-                <div style="padding:6px 14px;color:#a6adc8;font-size:11px;border-bottom:1px solid #313244;">🗄️ 快照恢复（选择要恢复的楼层）</div>
+                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">🗄️ 快照恢复（选择要恢复的楼层）</div>
                 ${body}
-                <style>#lonsha-snap-menu { position: fixed; bottom: 200px; right: 20px; background: #1e1e2e; border: 1px solid #45475a; border-radius: 14px; padding: 6px; z-index: 10001; box-shadow: 0 8px 32px rgba(0,0,0,0.6); min-width: 260px; max-height: 60vh; overflow-y: auto; }</style>`;
+                <style>#lonsha-snap-menu { position: fixed; bottom: 200px; right: 20px; background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 260px; max-height: 60vh; overflow-y: auto; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }</style>`;
             menu.querySelectorAll('.lsm-item').forEach(item => {
                 item.addEventListener('click', async () => {
                     const floor = Number(item.dataset.floor);
@@ -1179,7 +1192,7 @@
         plugin._memToast = function(msg, ok = true) {
             const t = document.createElement("div");
             t.className = "ls-toast";
-            t.style.background = ok ? "#a6e3a1" : "#f38ba8";
+            t.style.background = ok ? "var(--ls-success,#3fb950)" : "var(--ls-danger,#f85149)";
             t.textContent = msg;
             document.body.appendChild(t);
             setTimeout(() => t.remove(), 1800);
@@ -1451,29 +1464,29 @@
             let r;
             try { r = await engine.selfCheck(); } catch (e) { toast('诊断失败: ' + e.message); return; }
             const errRows = (r.errors || []).slice(-15).reverse().map(e2 =>
-                `<div style="padding:6px 8px;font-size:11px;border-bottom:1px solid #313244;">
+                `<div style="padding:6px 8px;font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">
                     <div style="display:flex;justify-content:space-between;">
-                        <span style="color:#f38ba8;font-weight:bold;">[${esc(e2.tag)}]</span>
-                        <span style="color:#a6adc8;">${new Date(e2.t).toLocaleTimeString()}</span>
+                        <span style="color:var(--ls-danger,#f85149);font-weight:bold;">[${esc(e2.tag)}]</span>
+                        <span style="color:var(--ls-text-2,#9da7b3);">${new Date(e2.t).toLocaleTimeString()}</span>
                     </div>
-                    <div style="color:#cdd6f4;font-size:12px;margin:3px 0;">${esc(e2.msg || '').substring(0, 150)}</div>
-                    ${e2.hint ? `<div style="color:#f9e2af;font-size:11px;background:#1e1e2e;padding:4px 8px;border-radius:4px;margin-top:4px;border-left:3px solid #fab387;">💡 诊断指引：${esc(e2.hint)}</div>` : ''}
-                </div>`).join('') || '<div style="padding:8px;color:#a6e3a1;font-size:12px;">✓ 无错误记录</div>';
-            const statRows = (r.stats || []).map(s => `<div style="display:flex;justify-content:space-between;padding:5px 8px;font-size:13px;border-bottom:1px solid #313244;">
-                <span style="color:#a6adc8;">${s.k}</span><span>${s.v}</span></div>`).join('');
+                    <div style="color:var(--ls-text,#e6edf3);font-size:12px;margin:3px 0;">${esc(e2.msg || '').substring(0, 150)}</div>
+                    ${e2.hint ? `<div style="color:var(--ls-warn,#d29922);font-size:11px;background:var(--ls-bg-1,#0d1117);padding:4px 8px;border-radius:4px;margin-top:4px;border-left:3px solid var(--ls-warn,#d29922);">💡 诊断指引：${esc(e2.hint)}</div>` : ''}
+                </div>`).join('') || '<div style="padding:8px;color:var(--ls-success,#3fb950);font-size:12px;">✓ 无错误记录</div>';
+            const statRows = (r.stats || []).map(s => `<div style="display:flex;justify-content:space-between;padding:5px 8px;font-size:13px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">
+                <span style="color:var(--ls-text-2,#9da7b3);">${s.k}</span><span>${s.v}</span></div>`).join('');
             const p = r.pipeline;
             const pipeHTML = p ? (p.ok
-                ? `<div style="padding:6px 8px;font-size:12px;color:#a6e3a1;">✓ 管线通畅 ${p.ms}ms ｜ 查询${p.queryLen}字 → 命中[${(p.routes || []).join(' ')}] → 合并${p.merged}条 → 注入${p.injLen}字</div>`
-                : `<div style="padding:6px 8px;font-size:12px;color:#f9e2af;">⚠️ ${esc(p.note || '管线异常')}${p.hint ? `<br><span style="color:#cdd6f4;font-size:11px;">💡 ${esc(p.hint)}</span>` : ''}</div>`) : '';
+                ? `<div style="padding:6px 8px;font-size:12px;color:var(--ls-success,#3fb950);">✓ 管线通畅 ${p.ms}ms ｜ 查询${p.queryLen}字 → 命中[${(p.routes || []).join(' ')}] → 合并${p.merged}条 → 注入${p.injLen}字</div>`
+                : `<div style="padding:6px 8px;font-size:12px;color:var(--ls-warn,#d29922);">⚠️ ${esc(p.note || '管线异常')}${p.hint ? `<br><span style="color:var(--ls-text,#e6edf3);font-size:11px;">💡 ${esc(p.hint)}</span>` : ''}</div>`) : '';
             const sc = r.schema;
             const schemaHTML = sc ? (sc.ok
-                ? `<div style="padding:6px 8px;font-size:12px;color:#a6e3a1;">✓ 存档完整（非空: ${(sc.nonEmpty || []).join('、') || '暂无数据'}）</div>`
-                : `<div style="padding:6px 8px;font-size:12px;color:#f38ba8;">✗ 缺失字段: ${(sc.missing || []).join('、')}${sc.hint ? `<br><span style="color:#f9e2af;font-size:11px;">💡 ${esc(sc.hint)}</span>` : ''}</div>`) : '';
+                ? `<div style="padding:6px 8px;font-size:12px;color:var(--ls-success,#3fb950);">✓ 存档完整（非空: ${(sc.nonEmpty || []).join('、') || '暂无数据'}）</div>`
+                : `<div style="padding:6px 8px;font-size:12px;color:var(--ls-danger,#f85149);">✗ 缺失字段: ${(sc.missing || []).join('、')}${sc.hint ? `<br><span style="color:var(--ls-warn,#d29922);font-size:11px;">💡 ${esc(sc.hint)}</span>` : ''}</div>`) : '';
             const body = `
-                <div style="padding:4px 8px;font-size:11px;color:#a6adc8;">${r.time} ｜ v${r.version}</div>
+                <div style="padding:4px 8px;font-size:11px;color:var(--ls-text-2,#9da7b3);">${r.time} ｜ v${r.version}</div>
                 <div style="margin:6px 0;">${statRows}</div>
                 ${pipeHTML}${schemaHTML}
-                <div style="padding:6px 8px;font-size:12px;color:#a6adc8;border-top:1px solid #45475a;margin-top:6px;">最近错误（环形缓冲，最多50条）</div>
+                <div style="padding:6px 8px;font-size:12px;color:var(--ls-text-2,#9da7b3);border-top:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));margin-top:6px;">最近错误（环形缓冲，最多50条）</div>
                 <div style="max-height:30vh;overflow-y:auto;">${errRows}</div>`;
             const overlay = makeSheet('lonsha-diag-overlay', '🩺 一键诊断', body);
         };
