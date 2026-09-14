@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.95.0",
+  "version": "3.96.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -22,8 +22,9 @@
     "stm-ltm.js",
     "unified-recall.js",
     "api-channels.js",
-    "text-chunk.js"
-  ],
+    "text-chunk.js",
+ "entity-semantic.js"
+],
   "extra_css": [
     "lonsha-design.css",
     "visualizer.css"
