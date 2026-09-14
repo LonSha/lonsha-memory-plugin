@@ -1,3 +1,15 @@
+## [3.92.0] - 2026-09-14
+### Added（跨系统复审：补齐与 ruby-phone 同构的入口语法盲区）
+- **`tests/audit/scan_syntax.mjs` 语法门（审计基建 C）**：v3.91 的 scan_wiring/scan_resilience 只做源码文本正则统计，仓库 95 个测试文件里 `import index.js` 的数量为 **0**——即入口 `index.js` 的语法完全无门。ruby-phone 已因此在插件**根本无法解析、完全不可加载**的状态下连续发布了约 9 个版本。本门以 `--input-type=module` 从 stdin 强制按 ES Module 解析全部 117 个 `.js/.mjs`，任一失败即非 0 退出并列出文件与行号。
+  - 策略说明（均经实测否证过替代方案）：**不**采用「CJS 检查失败→ESM 复检」的自适应（对 `import`+结构损坏文件 CJS 检查直接返回 0，永不进入复检，恰漏掉目标缺陷）；**不**用自写 tokenizer 猜模块形态（正则字面量使引号状态机错位，把 9 个纯 CJS 文件误判成 ESM）。改为**一律强制 ESM 解析**：ESM 语法是 CJS 超集，实测本仓库 19 个 IIFE/CJS 风格 `.js`（15 个含 `require`/`module.exports`）在强制 ESM 下 0 失败，故无假阳性。
+  - ⚠️ 本仓库**不可**照搬 ruby-phone 的 `package.json "type":"module"`：15 个 `.js` 含运行时 `require`，加了会炸。拦截能力只能由脚本自身提供。
+- **`tests/v392_syntax_gate.test.mjs`（12 项断言，含负控制与变异测试验证）**：复现并锁定「裸 `node --check` 对 ESM 结构损坏返回 0」的假绿机制；验证门拦住 ESM/CJS/.mjs 三类损坏并报出文件名；验证放行合法 ESM 与 IIFE/CJS（无假阳性）；验证不被注释/字符串里的假 `import|export` 误导；断言 `index.js` 确在覆盖清单内、覆盖数 ≥ 110（防遍历被改坏致门退化成空跑）；断言根目录不得出现 `type: "module"`。
+  - 该测试自身经**变异测试**验证有效：把语法门改为 no-op 后，5/12 项立即变红（含「覆盖面=0」「index.js 未被覆盖」），证明它不是空跑。
+
+### Notes
+- 本轮同时修正上一轮报告中依赖本地过期副本得出的错误结论（详见 ruby-phone v2.8.11 提交说明）。
+- 另有两条推测经实测否定、未落代码：`lonsha_memory_bridge_v1` 快照只含状态域（protagonist/characters/ledger/clock），不含 graph-bridge 所需的结构域（graph/summaries/diaries/vectors），不可替代；桥接读取 `Float32Array` 的序列化隐患因 `vectors` 字段全仓库零消费方而属潜在非现实。
+
 ## [3.91.0] - 2026-09-14
 ### Fixed（全项目审计：8 项「配置声明存在但引擎零引用」断链修复 + 2 项容灾修复）
 - **presenceInjection 门控键断裂**（P0，功能死锁）：召回路径读 `presenceTier`（无默认值恒 undefined）而 config/UI 声明 `presenceInjection`——不在场角色提示功能自引入起从未生效。统一到 `presenceInjection !== false`，新增 `presenceMaxCandidates: 8` 单路候选上限（该路经 RRF 融合，防角色库膨胀时单路灌满）

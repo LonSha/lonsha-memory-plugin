@@ -12,8 +12,11 @@ assert.ok(src.includes('aliasQueryExpansion: true,  // [v3.90] 实体别名查�
 assert.ok(src.includes('aliasMap: query.aliases'), '召回管线传参在位');
 assert.ok(src.includes('query?.aliases || null'), '前情选段传参在位');
 assert.ok(sui.includes("ck('aliasQueryExpansion', '别名查询扩展'"), '设置开关在位');
-assert.strictEqual(man.version, '3.91.0', 'manifest 版本 3.90.0');
-assert.strictEqual(src.match(/const VERSION = '([^']+)'/)[1], '3.91.0', 'VERSION 与 manifest 同步');
+// [v3.92] 硬编码 -> 跨源自洽（真实不变量是两源相等，不是等于某字面量）
+const __verIdx = (src.match(/const VERSION = '([^']+)'/) || [])[1];
+assert.ok(__verIdx, 'index.js 未找到 VERSION 常量');
+assert.match(__verIdx, /^\d+\.\d+\.\d+$/, `VERSION 非法 semver: ${__verIdx}`);
+assert.strictEqual(man.version, __verIdx, `manifest(${man.version}) 与 index.js VERSION(${__verIdx}) 漂移`);
 console.log('✓ 静态接线检查通过');
 
 // ---------- 方法提取（花括号计数，复用 v388 模式） ----------

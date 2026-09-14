@@ -12,7 +12,11 @@ assert.ok(src.includes('window.lonsha_memory_bridge_v1'), 'bridge 全局挂载�
 assert.ok(src.includes("bridgeEnabled: true,        // [v3.88] 公开只读快照桥"), 'config 默认值在位');
 assert.ok(src.includes("window.lonsha_memory_bridge_v1?.refresh?.()"), '生成管线刷新在位');
 assert.ok(sui.includes("ck('bridgeEnabled', '公开快照桥'"), '设置开关在位');
-assert.strictEqual(man.version, '3.91.0', 'manifest 版本 3.90.0');
+// [v3.92] 原为硬编码 '3.91.0'（失败信息仍写 3.90.0，已过期两轮）。
+// 改为校验真实不变量：两处版本源一致，避免每次发布都要改测试。
+const __verIdx = (src.match(/const VERSION = '([^']+)'/) || [])[1];
+assert.ok(__verIdx, 'index.js 未找到 VERSION 常量');
+assert.strictEqual(man.version, __verIdx, `manifest(${man.version}) 与 index.js VERSION(${__verIdx}) 漂移`);
 console.log('✓ 静态接线检查通过');
 
 // ---------- 提取 buildBridgeSnapshot 方法（花括号计数） ----------

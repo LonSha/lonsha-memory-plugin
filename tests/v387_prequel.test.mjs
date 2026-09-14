@@ -11,7 +11,8 @@ const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
 // 版本断言
 const vMatch = src.match(/const VERSION = '([^']+)'/);
 assert.ok(vMatch, 'VERSION 未找到');
-assert.strictEqual(vMatch[1], '3.91.0', `版本应为 3.91.0，实际 ${vMatch[1]}`);
+// [v3.92] 版本断言改为跨源自洽：不再硬编码具体版本号（原实现每次发布都要手改，改漏即红）
+assert.match(vMatch[1], /^\d+\.\d+\.\d+$/, `VERSION 应为合法 semver，实际 ${vMatch[1]}`);
 
 // 抽取 PrequelSystem 类（依赖 BM25 类）
 function extractClasses() {
@@ -153,5 +154,6 @@ test('=== 6. 生成路径/持久化/导入/UI 接线静态检查 ===', () => {
     assert.ok(ui.match(/engine\.prequel\.import\(data\.prequel\)/g)?.length >= 2, 'UI 两处导入路径');
     // manifest 版本
     const mani = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf-8'));
-    assert.strictEqual(mani.version, '3.91.0', 'manifest 版本同步');
+    // [v3.92] 真不变量是「index.js VERSION == manifest.version」，而非等于某个字面量
+    assert.strictEqual(mani.version, vMatch[1], `manifest(${mani.version}) 与 index.js VERSION(${vMatch[1]}) 漂移`);
 });

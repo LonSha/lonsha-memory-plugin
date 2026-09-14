@@ -267,7 +267,10 @@ test('【11】unregisterEvents 保存并按 handler 引用精确卸载', () => {
 test('【10】版本号一致性', () => {
     const v = src.match(/const VERSION = '([\d.]+)'/)?.[1];
     const mv = JSON.parse(fs.readFileSync('manifest.json', 'utf8')).version;
-    assert.strictEqual(v, '3.91.0', `index.js VERSION 应为 3.91.0，实际 ${v}`);
-    assert.strictEqual(mv, '3.91.0', `manifest 版本应为 3.91.0，实际 ${mv}`);
-    console.log('✓ 10: 版本号一致 (3.91.0)');
+    // [v3.92] 原为两处硬编码字面量：升版必改、改漏即红，且测不出两源互相漂移。
+    // 改为跨源自洽 + semver 格式，断言的是不变量本身。
+    assert.ok(v, 'index.js 未找到 VERSION 常量');
+    assert.match(String(v), /^\d+\.\d+\.\d+$/, `VERSION 非法 semver: ${v}`);
+    assert.strictEqual(mv, v, `manifest(${mv}) 与 index.js VERSION(${v}) 漂移`);
+    console.log(`✓ 10: 版本号跨源一致 (${v})`);
 });
