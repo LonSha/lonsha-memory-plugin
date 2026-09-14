@@ -14,7 +14,8 @@
     "settings-ui.js",
     "modules_combined.js",
     "graph_algorithms.js",
-    "memory-supersede.js"
+    "memory-supersede.js",
+    "story-clock-parse.js"
   ],
   "extra_css": [
     "lonsha-design.css",

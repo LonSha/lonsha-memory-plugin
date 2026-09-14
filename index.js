@@ -1614,6 +1614,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                             floor: curFloor
                         });
                     }
+                    // [v3.94] 缝入 MyriadKnots story-clock 解析：正文 HTML 注释时间戳回读校准。
+                    // 正文为最高事实源——若 LLM 按 v3.72 在正文首尾写了结构化时间注释，
+                    // 优先用正文实际时间校准（LLM 提取的 story_clock 仅为次优推断）。
+                    // 须在 cleanMessageText 剥标签前的原文上解析。
+                    try {
+                        const rawMes = (typeof _rawForSynopsis !== 'undefined' && _rawForSynopsis) ? _rawForSynopsis : (message.mes || '');
+                        if (rawMes) this.clock.syncFromNarrative(rawMes, { floor: curFloor });
+                    } catch (e) { errLog(e, 'onMessageReceived.syncFromNarrative'); }
                 } catch (e) { errLog(e, 'onMessageReceived.GameClock'); }
 
                 // [v1.8] P0: 写入剧情时间线
@@ -6752,7 +6760,6 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.turn = floor;
             return { updated: changed, flashback: false, clock: this.getSnapshot() };
         }
-
         getSnapshot() {
             return {
                 date: this.date,
@@ -6762,6 +6769,34 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 turn: this.turn
             };
         }
+
+        // [v3.94] 缝入 MyriadKnots story-clock 解析核心：从最新正文 HTML 注释回读结构化时钟。
+        // 「正文为最高事实源」——若 LLM 按 v3.72 要求在正文首尾写了时间注释，优先用正文
+        // 里的实际时间校准当前时钟（而非仅靠事后推断）。纯增量：解析不到完整时钟时不动现状。
+        // mesText: 本楼正文；opts.floor: 当前楼层。返回 { synced, clock } 或 { synced:false }。
+        syncFromNarrative(mesText, opts = {}) {
+            try {
+                const parser = window.LonShaStoryClock;
+                if (!parser || typeof parser.parseSharedStoryClock !== 'function') return { synced: false, reason: 'parser-unavailable' };
+                const found = parser.parseSharedStoryClock(mesText);
+                if (!found || found.complete !== true || !found.endMeta) return { synced: false, reason: 'no-complete-clock' };
+                // 以「结束时刻」为本楼后的当前时钟（剧情推进到本楼末尾）
+                const endDate = String(found.endMeta.date || '').trim();
+                const endTime = String(found.endMeta.time || '').trim();
+                const weekday = String(found.endMeta.weekday || '').trim();
+                if (!endDate) return { synced: false, reason: 'empty-end-date' };
+                const floor = Number.isFinite(Number(opts.floor)) ? Math.max(0, Math.round(Number(opts.floor))) : this.turn;
+                let changed = false;
+                if (endDate !== this.date) { this.date = endDate; this.precision = 'day'; changed = true; }
+                const newLabel = [weekday, endTime].filter(Boolean).join(' ');
+                if (newLabel && newLabel !== this.label) { this.label = newLabel; changed = true; }
+                this.turn = floor;
+                // 记录正文时间锚点证据（供审计/调试）
+                this.lastNarrativeAnchor = { namespace: found.namespace, start: found.start, end: found.end, floor, at: Date.now() };
+                return { synced: changed, clock: this.getSnapshot() };
+            } catch (e) { errLog(e, 'GameClock.syncFromNarrative'); return { synced: false, reason: 'error' }; }
+        }
+
 
         getContextPrompt() {
             const parts = [];
