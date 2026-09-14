@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.92.0';
+    const VERSION = '3.93.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -8580,6 +8580,39 @@ ${recentTurns}`;
             this.diffusion = null;
             this.visualizer = null;
             this.initialized = false; 
+        }
+        /** [v3.93.0] 官方只读门面: 供外部脚本(如 RubyPhone graph-bridge)读取结构域数据,
+         *  替代对 engine 内部深层结构 (graph.nodes.values()/summary.summaries/...) 的硬编码访问。
+         *  只读契约——返回 plain object, 不暴露任何写入引擎的引用。
+         * @returns {null|{graph:{nodes,edges},summaries,diaries,povs,timeline,status,ledger,vectors}} */
+        getPublicData() {
+            try {
+                const engine = this.engine;
+                if (!engine || !engine.graph) return null;
+                return {
+                    graph: {
+                        nodes: Array.from(engine.graph.nodes?.values?.() || []),
+                        edges: Array.from(engine.graph.edges?.values?.() || [])
+                    },
+                    summaries: engine.summary?.summaries || [],
+                    diaries: engine.diary?.diaries || engine.diary?.list || [],
+                    povs: engine.pov?.povs || [],
+                    timeline: engine.timeline?.events || engine.timeline?.list || [],
+                    status: engine.status || null,
+                    ledger: engine.ledger || null,
+                    vectors: engine.vector?.vectors || []
+                };
+            } catch (e) { return null; }
+        }
+        /** [v3.93.0] 官方写入门面: 向图谱追加高价值记忆节点 (官方 addNode/addEdge 通道)。
+         *  供 RubyPhone pushPhoneMemories 等外部写入, 替代直连 engine.graph。
+         * @returns {{graph: null|Object}} 图谱句柄 (仅含 addNode/addEdge/nodes), 插件不可用时为 null */
+        getGraphWriter() {
+            try {
+                const g = this.engine?.graph;
+                if (!g || typeof g.addNode !== 'function') return null;
+                return g;
+            } catch (e) { return null; }
         }
         async init() {
             if (this.initialized) return;

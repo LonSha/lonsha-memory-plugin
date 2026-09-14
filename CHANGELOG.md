@@ -1,3 +1,11 @@
+## [3.93.0] - 2026-09-14
+### Added（跨系统协同：官方门面收敛 RubyPhone 对本插件的私有耦合）
+- **`LonShaMemoryPlugin.getPublicData()` 官方只读门面**：对外（RubyPhone `graph-bridge`）暴露结构域数据（graph.nodes/edges、summaries、diaries、povs、timeline、status、ledger、vectors），替代对 `engine.graph.nodes.values()` 等深层内部结构的硬编码直访。只读契约——返回 plain object（Map 已转数组），不含 `addNode`/`addEdge` 等写入引用，与既有 `lonsha_memory_bridge_v1` 快照桥的只读风格一致。
+- **`LonShaMemoryPlugin.getGraphWriter()` 官方写入门面**：返回图谱句柄（含 `addNode`/`addEdge`/`nodes`），供 RubyPhone `pushPhoneMemories` 经官方通道追加高价值手机记忆节点，替代直连 `engine.graph`。插件不可用或图谱缺 `addNode` 时返回 `null`。
+- **`tests/v393_facade.test.mjs`（21 项断言）**：用括号配平提取器从 `index.js` 取出门面方法体，在受控 `new Function` 上下文挂 mock engine 做行为验证（避免 DOM/ST 依赖）——覆盖聚合正确性、`diary.list`/`timeline.list` 备用通道、缺子模块容错、engine/graph 缺失返回 null、写入门面缺失 `addNode` 返回 null、只读门面不泄漏写入引用。
+
+### Notes
+- 配套改动在 RubyPhone v2.8.13：`graph-bridge` 的 `probe()`/`getData()`/`pushPhoneMemories()` 三处改为「门面优先 + engine 降级」，向后兼容未升级本插件的旧版本。本轮为**纯新增**，未改动任何既有内部结构或行为。
 ## [3.92.0] - 2026-09-14
 ### Added（跨系统复审：补齐与 ruby-phone 同构的入口语法盲区）
 - **`tests/audit/scan_syntax.mjs` 语法门（审计基建 C）**：v3.91 的 scan_wiring/scan_resilience 只做源码文本正则统计，仓库 95 个测试文件里 `import index.js` 的数量为 **0**——即入口 `index.js` 的语法完全无门。ruby-phone 已因此在插件**根本无法解析、完全不可加载**的状态下连续发布了约 9 个版本。本门以 `--input-type=module` 从 stdin 强制按 ES Module 解析全部 117 个 `.js/.mjs`，任一失败即非 0 退出并列出文件与行号。
