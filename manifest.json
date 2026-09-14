@@ -15,7 +15,8 @@
     "modules_combined.js",
     "graph_algorithms.js",
     "memory-supersede.js",
-    "story-clock-parse.js"
+    "story-clock-parse.js",
+    "cse-engine.js"
   ],
   "extra_css": [
     "lonsha-design.css",

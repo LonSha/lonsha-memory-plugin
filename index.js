@@ -585,9 +585,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
 
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "promises": [{"character": "承诺者主名", "content": "归还典籍", "deadlineFloor": 15}], "promises_resolve": [{"id": "prom_示例", "status": "fulfilled"}], "plot_arcs": [{"action": "add", "title": "调查异变", "clue": "湖水出现不明水怪", "interestedBy": "角色主名"}], "knowledge_changes": [{"action": "unaware", "character": "角色主名", "fact": "某事实"}],  "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "promises": [{"character": "承诺者主名", "content": "归还典籍", "deadlineFloor": 15}], "promises_resolve": [{"id": "prom_示例", "status": "fulfilled"}], "plot_arcs": [{"action": "add", "title": "调查异变", "clue": "湖水出现不明水怪", "interestedBy": "角色主名"}], "knowledge_changes": [{"action": "unaware", "character": "角色主名", "fact": "某事实"}],  "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null, "cse_states": [{"character": "角色名", "layer": "situational", "field": "情绪", "value": "紧张", "toward": null, "visibility": "observable"}]}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
+                // [v3.94] cse_states=CSE 级人物状态（自研引擎，可选）：layer: core=稳定核心人设/adaptive=逐渐适应固化/situational=当下一时状态；toward=明确指向对象（有剧情证据才填，core 层不填，A→B 不自动镜像 B→A）；visibility: observable=可观察/private=该角色私密/authorial=幕后（仅 AI 知）。无则空数组。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
                 // [v2.0] status_changes: delta=数值增减(可负)，value=直接设绝对值，二选一；field 用简短中文（好感/疲劳/心情/健康/信任/金钱等）。todos: date 是剧情中明确出现的日期，无则空字符串。无变化填空数组。
                 // [v1.4] 独立 API 配置（提取用 LLM + 向量用 Embedding）
@@ -1326,6 +1327,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.cards = new CardCollection();
             this.conflicts = new ConflictBook();
             this.deltaBook = new DeltaBook();  // [v3.66] 正史增量账本
+            // [v3.94] CSE 级人物状态引擎（自研融合增强版，window.LonShaCSE，降级为空实现）
+            this.cse = new (window.LonShaCSE?.CSEngine || function() {
+                return { set(){return null}, addFromExtracted(){return 0}, confirm(){return false}, get(){return []}, getToward(){return []}, toPrompt(){return ''}, shiftFloors(){return 0}, removeByFloor(){return 0}, removeChar(){return false}, export(){return {chars:{}}}, import(){} };
+            })();
             this.outline = new OutlineDirector();
             this.pairMem = new PairMemory();
             this.opLog = new OpLog();  // [v3.54] 事件溯源日志
@@ -1874,6 +1879,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                         if (n) this.opLog?.log('conflict', 'add', `${n} conflicts`, floor, '');
                     } catch (e) { errLog(e, 'onMessageReceived.矛盾账本'); }
                 }
+                // [v3.94] CSE 级人物状态引擎（自研融合增强：分层+toward+visibility+证据链+置信度）
+                if (this.config.config.cseEnabled !== false && Array.isArray(extracted?.cse_states) && extracted.cse_states.length) {
+                    try {
+                        const n = this.cse.addFromExtracted(extracted.cse_states, floor);
+                        if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧠 CSE 登记人物状态 ${n} 条`);
+                        if (n) this.opLog?.log('cse', 'set', `${n} states`, floor, (extracted.cse_states || []).map(s => s?.character + '.' + s?.field).join(',').slice(0, 60));
+                    } catch (e) { errLog(e, 'onMessageReceived.cse'); }
+                }
                 if (this.config.config.cardCollectionEnabled !== false && Array.isArray(extracted?.events)) {
                     try {
                         const sd = this.getLatestStoryDate();
@@ -2059,6 +2072,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         cards: this.cards.export(),
                         conflicts: this.conflicts.export(),
                         deltaBook: this.deltaBook.export(),  // [v3.66] 正史增量持久化
+                        cse: this.cse?.export?.() || { chars: {} },  // [v3.94] CSE 人物状态持久化
                 outline: this.outline.export(),
                 pairMem: this.pairMem.export(),
                 opLog: this.opLog?.export?.() || null,
@@ -3990,6 +4004,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                     blocks.push(tiesText);
                 }
             }
+            // [v3.94] CSE 级人物状态引擎注入（分层呈现+toward+可见性+待证标注）
+            if (this.config.config.cseEnabled !== false) {
+                try {
+                    const cseText = this.cse?.toPrompt?.(null, { includePrivate: true, maxStates: 10 });
+                    if (cseText) blocks.push(cseText);
+                } catch (e) { errLog(e, 'buildInjection.cse'); }
+            }
             if (this.config.config.npcTierInjection !== false) {
                 const npcTierLines = buildNpcTierInjection(this.buildNpcTierRecords());
                 if (npcTierLines.length) {
@@ -4351,6 +4372,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
                 // [v3.67] A: 正史增量回滚（删楼/重生成后该楼层的增量事实撤掉，防幽灵事实）
                 try { const ndb = this.deltaBook?.removeByFloor ? this.deltaBook.removeByFloor(floor) : 0; if (ndb && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量回滚: ${ndb}条`); } catch (e) { errLog(e, 'rollbackFloor.正史增量回滚'); }
+                try { const ncs = this.cse?.removeByFloor ? this.cse.removeByFloor(floor) : 0; if (ncs && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧠 CSE 回滚: ${ncs}条`); } catch (e) { errLog(e, 'rollbackFloor.cse回滚'); }
                 // [v3.82] A: 生活小档案回滚（删楼后该楼来源的偏好/习惯撤掉，防幽灵条目）
                 try { const nld = this.status?.removeLifeDetailByFloor ? this.status.removeLifeDetailByFloor(floor) : 0; if (nld && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧬 生活小档案回滚: ${nld}条`); } catch (e) { errLog(e, 'rollbackFloor.生活小档案回滚'); }
                 // [v3.83] A: 主角档案楼层指针回滚（来源楼层被删时指针失效归零，防幽灵楼层）
@@ -4453,6 +4475,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 try { if (this.charMem?.shiftFloorRefs) this.charMem.shiftFloorRefs(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.角色记忆位移'); }
                 // [v3.84] B: 人设偏移楼层位移（删楼前移，15 楼衰减窗口不错位）
                 try { this.status?.shiftDriftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设偏移位移'); }
+                try { this.cse?.shiftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.cse位移'); }
                 // [v3.84] C: 人设基线锁定楼层 + 地理上下文楼层位移
                 try { this.status?.shiftBaselineFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设基线位移'); }
                 try { this.status?.shiftGeoFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.地理上下文位移'); }
@@ -4563,6 +4586,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 if (pack.cards && this.cards) this.cards.import(pack.cards);
                 if (pack.conflicts && this.conflicts) this.conflicts.import(pack.conflicts);
                 if (pack.deltaBook && this.deltaBook) this.deltaBook.import(pack.deltaBook);  // [v3.66] 正史增量恢复
+                if (pack.cse && this.cse) this.cse.import(pack.cse);  // [v3.94] CSE 人物状态恢复
                 if (pack.outline && this.outline) this.outline.import(pack.outline);
                 if (pack.pairMem && this.pairMem) this.pairMem.import(pack.pairMem);
                 if (pack.opLog && this.opLog) this.opLog.import(pack.opLog);
