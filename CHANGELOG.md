@@ -1,3 +1,7 @@
+## v3.132.0
+- **时间协议一致性收口**：正文标签校准时钟后同样纳入 checkTimeMonotonic 倒跳检测（此前只有 LLM 提取路径走校验，标签驱动的倒跳不可见）。
+- **注释回读证据持久化**：GameClock.lastNarrativeAnchor（MyriadKnots 注释回读的时间锚点证据）纳入 getSnapshot/import，随存档跨会话保留。
+
 ## v3.131.0
 - **保存地面真源方法化**：新增 recordSaveSource(source, floor)，realtime/stmLtm/backfill/edit/swipe/delete 六个保存点全部登记来源计数，随存档持久化，诊断面板展示「谁在保存」。
 - **持久化对称性审计（A8）**：scan_wiring 新增 collectExport 导出键 vs storage.load 恢复键双向比对（存而不读/读而无存），当前零缺口，防止单真源再漂移。

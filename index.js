@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.131.0';
+    const VERSION = '3.132.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -1972,6 +1972,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 if (_endD && /[\d年月/.]/.test(_endD)) {
                                     this.clock.setTime({ date: _endD, label: String(_dtt.end).split(/\s+/).slice(1).join(' '), floor: curFloor });
                                     _tts.calibrated++;
+                                    // [v3.132] 标签驱动的时间跳变同样纳入倒跳检测（此前只有 LLM 提取的 story_date 走 checkTimeMonotonic）
+                                    this.checkTimeMonotonic(_endD, curFloor);
                                     if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🕐 正文时间标签校准时钟: ${_endD} (楼层 ${curFloor})`);
                                 }
                             }
@@ -7788,7 +7790,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 precision: this.precision,
                 lastFlashback: this.lastFlashback ? { ...this.lastFlashback } : null,
                 turn: this.turn,
-                timeTagStats: { ...(this.timeTagStats || { total: 0, paired: 0, unparseable: 0, calibrated: 0 }) }   // [v3.130]
+                timeTagStats: { ...(this.timeTagStats || { total: 0, paired: 0, unparseable: 0, calibrated: 0 }) },   // [v3.130]
+                lastNarrativeAnchor: this.lastNarrativeAnchor ? { ...this.lastNarrativeAnchor } : null   // [v3.132] 注释回读证据随存档走
             };
         }
 
@@ -7849,6 +7852,9 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     total: Number(s.total) || 0, paired: Number(s.paired) || 0,
                     unparseable: Number(s.unparseable) || 0, calibrated: Number(s.calibrated) || 0
                 };
+            }
+            if (data.lastNarrativeAnchor && typeof data.lastNarrativeAnchor === 'object') {   // [v3.132]
+                this.lastNarrativeAnchor = { ...data.lastNarrativeAnchor };
             }
         }
     }

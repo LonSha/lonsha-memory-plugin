@@ -82,9 +82,9 @@ test('v3.130 时间标签→时钟校准接线与协议健康统计', () => {
 
 test('v3.130 版本三处同步', () => {
     const m = /const VERSION = '([^']+)'/.exec(src);
-    assert.equal(m[1], '3.131.0');
+    assert.equal(m[1], '3.132.0');
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '3.131.0');
-    assert.equal(pkg.version, '3.131.0');
+    assert.equal(manifest.version, '3.132.0');
+    assert.equal(pkg.version, '3.132.0');
 });
