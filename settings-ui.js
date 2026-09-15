@@ -809,6 +809,7 @@
                     <input type="range" class="ls-slider" min="7" max="120" step="1" value="${c.maintenanceOverdueWarnDays || 45}" data-cfg-num="maintenanceOverdueWarnDays">
                     <div class="ls-hint" style="padding:0 8px;">距上次维护超过该天数 → 流水线跳回优化步骤补做一次（防长篇长时间挂机后记忆长期未整理）。</div>
                     ${ck('llmEventChainEnabled', 'LLM 调用事件链审计（抄engram/bionic）', '为每次模型调用记录事件链并校验迁移不变量（run_started→model_requested→assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
+                    ${ck('recallArtifactEnabled', '召回产物持久化（抄bionic）', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 → 自动拒绝复用陈旧注入。默认关')}
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">📢 回响池 + 日记 + 提取节流</div>

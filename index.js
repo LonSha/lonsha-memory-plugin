@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.108.0';
+    const VERSION = '3.109.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -686,6 +686,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
                 recallCacheEnabled: true,      // [v2.9] RU-D: swipe同楼重roll复用召回缓存
+                // [v3.109] 召回产物持久化（缝合 bionic turn-artifact）：跨会话复用 + 历史指纹判据
+                recallArtifactEnabled: false,  // 默认关：仅显式开启后才落产物并按历史指纹判复用
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
@@ -1402,6 +1404,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.items = { records: [] };               // [v2.8] RT-C 物品台账（派生缓存）
             this._lastStoryDate = null;                 // [v2.9] RU-A 主动时间推进的锚点
             this._recallCache = null;                   // [v2.9] RU-D swipe 召回缓存 {floor, queryKey, injection}
+            this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
             this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
@@ -1470,6 +1473,30 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
+        // [v3.109] 历史指纹（缝合 bionic turn-artifact 的 historyFingerprint）：
+        //   把「已落定楼层（除末楼外）的角色+文本」折叠成一个稳定指纹。
+        //   用途：召回产物复用的判据——位置与查询都没变，但更早的历史被编辑/删楼/回填时，
+        //   指纹必然变化 → 拒绝复用陈旧注入（这是既有三元组缓存覆盖不到的场景）。
+        //   纯读，无副作用；超长历史只取尾部 40 条（早期楼层已被摘要覆盖，逐字比对价值低）。
+        _historyFingerprint() {
+            try {
+                const ctx = window.SillyTavern?.getContext?.();
+                const chat = ctx?.chat || [];
+                if (!chat.length) return '';
+                const tail = chat.slice(0, Math.max(0, chat.length - 1)).slice(-40);
+                let h = 0x811c9dc5;
+                for (const m of tail) {
+                    const s = (m?.is_user ? 'u:' : 'a:') + String(m?.mes || '').replace(/\r\n/g, '\n').trim();
+                    for (let i = 0; i < s.length; i++) {
+                        h ^= s.charCodeAt(i);
+                        h = Math.imul(h, 0x01000193);
+                    }
+                    h ^= 0x2c; h = Math.imul(h, 0x01000193);   // 条目分隔符
+                }
+                return ((h >>> 0).toString(16).padStart(8, '0')) + '_' + tail.length;
+            } catch (e) { return ''; }
+        }
+
         isOmittedFloor(message) {
             try {
                 return message?.extra?.lonsha_omit === true;
@@ -2784,6 +2811,39 @@ function relativeTimeLabel(eventTime, nowTime) {
                 await this.storage.load(chatId, { preserveRuntime: true });
                 const query = this.buildQuery(context);
                 // [v2.9] RU-D: swipe 同楼重roll复用缓存（抄 anima _lastRetrievalPayload——同楼且同查询直接复用，省 rewrite+embedding+rerank 三次调用）
+                // [v3.109] 召回产物持久化（缝合 bionic turn-artifact）：在既有三元组缓存之外，
+                //   额外按「历史指纹」判定复用——上游更早楼层被编辑/swipe 后，位置与查询都没变
+                //   但历史已不同，此时必须放弃复用（既有实现会照旧复用陈旧注入）。
+                //   默认关（recallArtifactEnabled:false），且仅在跨会话（内存缓存为空）时取用。
+                if (this.config.config.recallArtifactEnabled === true) {
+                    try {
+                        const aa = (typeof window !== 'undefined' ? window.LonShaRecallArtifact : null)
+                            || (typeof require !== 'undefined' ? (() => { try { return require('./recall-artifact.js'); } catch { return null; } })() : null);
+                        if (aa) {
+                            const ctxChat2 = window.SillyTavern?.getContext?.()?.chat || [];
+                            const curFloor2 = ctxChat2.length - 1;
+                            const histFp = this._historyFingerprint ? this._historyFingerprint() : '';
+                            const want = {
+                                turnId: 'turn_' + curFloor2,
+                                artifactKind: 'recall',
+                                inputFingerprint: aa.createInputFingerprint({
+                                    turnId: 'turn_' + curFloor2,
+                                    userMessage: String(query.text || ''),
+                                    historyFingerprint: histFp,
+                                }),
+                                historyFingerprint: histFp,
+                            };
+                            const hit2 = aa.findReusableArtifact(this._recallArtifacts, want);
+                            // 仅在内存缓存缺失（新会话/重新打开）时才取用持久产物；内存缓存命中优先走既有路径
+                            if (hit2.artifact && !this._recallCache) {
+                                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [v3.109] 召回产物复用（跨会话命中，历史指纹一致）`);
+                                return hit2.artifact.injectionText;
+                            } else if (this.config.config.debugMode && !hit2.artifact && hit2.reason === 'history-changed') {
+                                console.log(`[${PLUGIN_NAME}] [v3.109] 召回产物不可复用: 历史指纹变化（上游楼被编辑/删楼），重算召回`);
+                            }
+                        }
+                    } catch (e) { errLog(e, 'onBeforeGeneration.召回产物'); }
+                }
                 if (this.config.config.recallCacheEnabled && this._recallCache) {
                     try {
                         const ctxChat = window.SillyTavern?.getContext?.()?.chat || [];
@@ -2965,6 +3025,31 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const cc = window.SillyTavern?.getContext?.()?.chat || [];
                     const _cm = cc[cc.length - 1];
                     this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj2, fp: (this.config.config.swipeFingerprintGuard !== false && _cm) ? msgFpOf(_cm) : ''};   // [v3.89] + 三元组定位符的消息指纹位（写入/命中路径同受开关门控，保证关闭时指纹恒空串、行为退回 v2.9）
+                    // [v3.109] 同时落一条召回产物（含历史指纹），供跨会话复用与「上游变更后拒绝复用」判定
+                    if (this.config.config.recallArtifactEnabled === true) {
+                        try {
+                            const aa = (typeof window !== 'undefined' ? window.LonShaRecallArtifact : null)
+                                || (typeof require !== 'undefined' ? (() => { try { return require('./recall-artifact.js'); } catch { return null; } })() : null);
+                            if (aa) {
+                                const histFp = this._historyFingerprint ? this._historyFingerprint() : '';
+                                const plan = aa.planCommitArtifact(this._recallArtifacts, {
+                                    turnId: 'turn_' + (cc.length - 1),
+                                    artifactKind: 'recall',
+                                    floor: cc.length - 1,
+                                    userMessage: String(query.text || ''),
+                                    historyFingerprint: histFp,
+                                    stateFingerprint: String(msgFpOf(_cm) || ''),
+                                    injectionText: inj2,
+                                    selectedMemoryIds: (typeof recalledIds === 'object' && Array.isArray(recalledIds)) ? recalledIds : [],
+                                    candidateCount: Number(this._lastCandidateCount || 0),
+                                    source: 'onBeforeGeneration',
+                                });
+                                this._recallArtifacts = plan.store;
+                                const pruned = aa.pruneArtifacts(this._recallArtifacts, { maxEntries: 32 });
+                                this._recallArtifacts = pruned.store;
+                            }
+                        } catch (e) { errLog(e, 'onBeforeGeneration.召回产物落盘'); }
+                    }
                 } catch (e) { errLog(e, 'cleanMessageText'); }
                 return inj2;
             } catch (err) {
@@ -5191,6 +5276,17 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                     if (inbox.waitingMs > 0) push(`- 最旧待办等待：${Math.round(inbox.waitingMs / 60000)} 分钟`);
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.任务收件箱'); }
+            // [v3.109] 召回产物诊断（缝合 bionic turn-artifact）：命中率 / 平均注入长度
+            try {
+                const aa = (typeof window !== 'undefined' ? window.LonShaRecallArtifact : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./recall-artifact.js'); } catch { return null; } })() : null);
+                if (aa && this._recallArtifacts && this._recallArtifacts.length) {
+                    const s = aa.summarizeArtifacts(this._recallArtifacts);
+                    push('');
+                    push(`**召回产物：** ${s.total} 条（复用 ${s.reuses} 次，命中率 ${(s.hitRate * 100).toFixed(1)}%）`);
+                    push(`- 平均注入 ${s.avgInjectionChars} 字 / 空产物 ${s.empties} 条`);
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.召回产物'); }
             return L.join('\n');
         }
 
@@ -5221,6 +5317,8 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
                 narrativeEntropy: this._narrativeEntropy || 0,
                 stmLtm: this._stmLtmState || null,   // [v3.96] STM/LTM 游标巩固状态随聊天持久化
+                // [v3.109] 召回产物随聊天持久化（跨会话复用依据；默认关时为空数组，序列化开销可忽略）
+                recallArtifacts: this._recallArtifacts || [],
                 packedAt: new Date().toISOString()
             };
         }
@@ -8977,6 +9075,7 @@ ${recentTurns}`;
                     if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); }   // [v3.3] 加载即对账（补 fp/自愈/清理）
                     if (typeof data.narrativeEntropy === 'number') engine._narrativeEntropy = data.narrativeEntropy;
                     if (data.stmLtm && engine.stmLtm) engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm);   // [v3.96] STM/LTM 状态恢复
+                    if (Array.isArray(data.recallArtifacts)) engine._recallArtifacts = data.recallArtifacts.slice(-32);   // [v3.109] 召回产物恢复
                 }
                 return data;
             } catch (err) { return null; }
@@ -9208,6 +9307,8 @@ ${recentTurns}`;
                 if (types.CHAT_CHANGED) {
                     const _h2 = async () => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
+                        // [v3.109] 换对话清空产物的内存副本（持久副本随新对话各自 recover，不跨对话串用）
+                        try { this.engine._recallArtifacts = []; } catch (e) { errLog(e, 'events.CHAT_CHANGED产物清理'); }
                         // [v3.23.1] 换对话同步清空 dedup 指纹（防旧对话文本误标新对话）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.CHAT_CHANGED去重清空'); }
                         // [v3.25.1] 换对话同步清空归档状态（防旧对话楼层 index 误操作新对话）
@@ -9287,6 +9388,8 @@ ${recentTurns}`;
                 if (types.MESSAGE_DELETED) {
                     const _h5 = async (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
+                        // [v3.109] 删楼同时清掉全部召回产物（历史结构变了，跨会话复用的依据不再成立）
+                        try { this.engine._recallArtifacts = []; } catch (e) { errLog(e, 'events.MESSAGE_DELETED产物清理'); }
                         // [v3.23.1] 删楼同步清空 dedup 指纹（防删楼后残留指纹误标后续召回）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_DELETED去重清空'); }
                         // [v3.25.1] 删楼清空归档状态（楼层 index 前移，旧归档 index 语义失效）

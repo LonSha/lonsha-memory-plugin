@@ -1,6 +1,6 @@
 {
     "name": "lonsha-memory-plugin",
-    "version": "3.108.0",
+    "version": "3.109.0",
     "private": true,
     "description": "SillyTavern 记忆引擎插件（图谱/向量/时间线），CJS/IIFE 结构，请勿添加 type:module",
     "scripts": {
