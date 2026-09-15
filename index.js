@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.125.0';
+    const VERSION = '3.126.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -2941,8 +2941,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (this._timelineCursorChatId !== null && this._timelineCursorChatId !== _cursorChat) {
                     this._timelineInjectFloor = null;
                     this._timelineCursorFingerprint = '';
+                    this._diaryInjectFloor = null;   // [v3.126] 聊天切换同时重置日记游标（与时间线游标同语义）
                 } else if (this._timelineCursorFingerprint && _cursorFp && this._timelineCursorFingerprint !== _cursorFp) {
                     this._timelineInjectFloor = Math.max(-1, _cursorFloor - 1);
+                    this._diaryInjectFloor = this._diaryInjectFloor == null ? null : Math.max(-1, _cursorFloor - 1);   // [v3.126] 同楼 swipe/编辑指纹变化同步回退日记游标
                 }
                 this._timelineCursorChatId = _cursorChat;
                 this._timelineCursorFingerprint = _cursorFp;
@@ -5083,6 +5085,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 // [v3.54] op-log: 回滚事件（审计链）
                 this.opLog?.log('rollback', 'remove', `floor ${floor}`, floor, 'edit/delete');
 try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._timelineInjectFloor) >= Number(floor)) this._timelineInjectFloor = Math.max(-1, Number(floor) - 1); this._timelineCursorFingerprint = ''; } catch (e) { errLog(e, 'rollbackFloor.时间线游标回滚'); }
+                try { if (Number.isFinite(Number(this._diaryInjectFloor)) && Number(this._diaryInjectFloor) >= Number(floor)) this._diaryInjectFloor = Math.max(-1, Number(floor) - 1); } catch (e) { errLog(e, 'rollbackFloor.日记游标回滚'); }   // [v3.126] 删楼/swipe/编辑回滚同步回退日记游标（与时间线游标同语义：游标之上的楼层重生成后其新日记需重新注入）
                 try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
                 try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
                 try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
@@ -9779,6 +9782,8 @@ ${recentTurns}`;
                 if (types.CHAT_CHANGED) {
                     const _h2 = async () => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
+                        // [v3.126] 换对话重置日记/时间线变化游标与身份（onBeforeGeneration 兜底处理之外的事件路径也保持一致）
+                        try { this.engine._diaryInjectFloor = null; this.engine._timelineInjectFloor = null; this.engine._timelineCursorChatId = null; this.engine._timelineCursorFingerprint = ''; } catch (e) { errLog(e, 'events.CHAT_CHANGED变化游标重置'); }
                         // [v3.109] 换对话清空产物的内存副本（持久副本随新对话各自 recover，不跨对话串用）
                         try { this.engine._recallArtifacts = []; } catch (e) { errLog(e, 'events.CHAT_CHANGED产物清理'); }
                         // [v3.23.1] 换对话同步清空 dedup 指纹（防旧对话文本误标新对话）
