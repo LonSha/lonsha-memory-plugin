@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.113.0';
+    const VERSION = '3.114.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -4524,7 +4524,22 @@ function relativeTimeLabel(eventTime, nowTime) {
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）
+            // [v3.114] 路由决策移入可测纯函数 injection-router.partitionRecalled（模块缺失时回落本体内联 if-else）
             const summaries = [], relations = [], diaries = [], phoneMem = [], timelines = [], povs = [], volumes = [], bm25Hits = [], statuses = [], holidays = [], suspenses = [], itemRecs = [], itemStoredRecs = [], reflectRecs = [], neuralChains = [], worldProgs = [], dedupNotes = [], treeNotes = [];
+            const _irPart = (typeof window !== 'undefined' ? window.LonShaInjectionRouter : null)
+                || (typeof require !== 'undefined' ? (() => { try { return require('./injection-router.js'); } catch { return null; } })() : null);
+            if (_irPart) {
+                const _bk = _irPart.partitionRecalled(recalled, { maxItems: this.config.config.vectorTopK * 2 });
+                worldProgs.push(..._bk.worldProgs); neuralChains.push(..._bk.neuralChains);
+                itemRecs.push(..._bk.itemRecs); itemStoredRecs.push(..._bk.itemStoredRecs);
+                reflectRecs.push(..._bk.reflectRecs); statuses.push(..._bk.statuses);
+                suspenses.push(..._bk.suspenses); holidays.push(..._bk.holidays);
+                volumes.push(..._bk.volumes); bm25Hits.push(..._bk.bm25Hits);
+                povs.push(..._bk.povs); timelines.push(..._bk.timelines);
+                phoneMem.push(..._bk.phoneMem); diaries.push(..._bk.diaries);
+                relations.push(..._bk.relations); treeNotes.push(..._bk.treeNotes);
+                dedupNotes.push(..._bk.dedupNotes); summaries.push(..._bk.summaries);
+            } else {
             for (const item of recalled.slice(0, this.config.config.vectorTopK * 2)) {
                 if (item.source === 'worldprogress') worldProgs.push(item);
                 else if (item.source === 'neuralChain') neuralChains.push(item);
@@ -4545,6 +4560,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 else if (item.source === 'dedup') dedupNotes.push(item);
                 else summaries.push(item);
             }
+            }   // [v3.114] 闭合 else 分支
             
             const blocks = [];
             // ===== A. 静态锚定前缀区 (Static Cache Anchor Zone - Prompt Cache Guard) =====
@@ -4833,26 +4849,40 @@ function relativeTimeLabel(eventTime, nowTime) {
             const residentBlocks = _tierOn ? blocks.filter(b => RESIDENT_MARKERS.some(m => b.startsWith(m))) : [];
             const triggerBlocks = _tierOn ? blocks.filter(b => !RESIDENT_MARKERS.some(m => b.startsWith(m))) : blocks.slice();
             // [v2.1] P3: 注入预算裁剪（抄 stbme context-window：超预算优先保近期/相关）
+            // [v3.114] 缝合：裁剪决策移入可测纯函数 injection-router（模块缺失时回落本体内联实现）
             let budget = this.config.config.injectionBudget || 3000;
             // [v3.25] token 预算双层：memoryTokenBudget（记忆注入 token 上限）扣减 keepRecentTokenReserve（最近正文预留）
             const reserve = Number(this.config.config.keepRecentTokenReserve) || 0;
             const tokenBudget = Number(this.config.config.memoryTokenBudget) || 0;
-            if (tokenBudget > 0) budget = Math.max(200, Math.min(budget, Math.floor(tokenBudget * 4)));  // token→字符粗换算(~0.25 token/字符)
-            if (reserve > 0) budget = Math.max(200, budget - Math.floor(reserve * 4));
-            // [v3.50] 第三层：上下文感知自适应——聊天楼层少（上下文占用低）时自动扩容预算（早期多喂记忆加速建立世界感），
-            // 楼层多时按基准收紧（保护最近正文空间）。扩张系数随楼层衰减，clamp 0.6x~1.8x 基准。
-            if (this.config.config.adaptiveBudget !== false) {
-                try {
-                    const _chatLen = window.SillyTavern?.getContext?.()?.chat?.length || 0;
-                    if (_chatLen > 0) {
-                        const decayRef = Number(this.config.config.adaptiveBudgetDecayFloors) || 80;
-                        const factor = Math.max(0.6, Math.min(1.8, 1.8 - (_chatLen / decayRef) * 1.2));
-                        budget = Math.max(200, Math.floor(budget * factor));
-                    }
-                } catch (e) { /* 上下文不可用时用基准预算 */ }
+            const _chatLen = (typeof window !== 'undefined' ? window.SillyTavern?.getContext?.()?.chat?.length : 0) || 0;
+            const _ir = (typeof window !== 'undefined' ? window.LonShaInjectionRouter : null)
+                || (typeof require !== 'undefined' ? (() => { try { return require('./injection-router.js'); } catch { return null; } })() : null);
+            if (_ir) {
+                budget = _ir.deriveBudget(budget, tokenBudget, reserve, _chatLen, {
+                    adaptive: this.config.config.adaptiveBudget,
+                    decayFloors: this.config.config.adaptiveBudgetDecayFloors,
+                });
+            } else {
+                if (tokenBudget > 0) budget = Math.max(200, Math.min(budget, Math.floor(tokenBudget * 4)));  // token→字符粗换算(~0.25 token/字符)
+                if (reserve > 0) budget = Math.max(200, budget - Math.floor(reserve * 4));
+                // [v3.50] 第三层：上下文感知自适应——聊天楼层少（上下文占用低）时自动扩容预算（早期多喂记忆加速建立世界感），
+                // 楼层多时按基准收紧（保护最近正文空间）。扩张系数随楼层衰减，clamp 0.6x~1.8x 基准。
+                if (this.config.config.adaptiveBudget !== false) {
+                    try {
+                        if (_chatLen > 0) {
+                            const decayRef = Number(this.config.config.adaptiveBudgetDecayFloors) || 80;
+                            const factor = Math.max(0.6, Math.min(1.8, 1.8 - (_chatLen / decayRef) * 1.2));
+                            budget = Math.max(200, Math.floor(budget * factor));
+                        }
+                    } catch (e) { /* 上下文不可用时用基准预算 */ }
+                }
             }
             const keepCount = this.config.config.budgetStrategy || 'balanced';
             if (full.length > budget) {
+                if (_ir) {
+                    // [v3.114] 裁剪决策走可测纯函数（与内联实现等价；recallTierEnabled 关闭时 blocks 全为触发区）
+                    full = _ir.trimToBudget(full, budget, _tierOn ? [...residentBlocks, ...triggerBlocks] : blocks, keepCount);
+                } else {
                 const strategy = keepCount;
                 if (strategy === 'relevance') {
                     // 常驻全保留 + 触发保留 RRF 前 60%
@@ -4877,6 +4907,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                     full = `${residentText}${triggerKept.length ? '\n' + triggerKept.join('\n') : ''}\n${END}\n`;
                 }
+                }   // [v3.114] 闭合 else 分支
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 注入预算裁剪: ${budget} 字符 (常驻${residentBlocks.length}块保留)`);
             }
             return full;
