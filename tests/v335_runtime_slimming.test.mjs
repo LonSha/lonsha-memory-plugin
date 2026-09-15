@@ -31,6 +31,10 @@ const removedPhantoms = [
     'auto-tuning.js'
 ];
 assert('幽灵模块均已不在 extra_js 加载队列中', removedPhantoms.every(f => !mft.extra_js.includes(f)));
+// [v3.116] 死代码物理清除：v3.35 只是把这些模块移出加载队列，源文件仍留在仓库
+//          （约 5.9k 行从未被 require/import 的孤立代码）。v3.116 将其全部删除，
+//          断言随之升级为「文件已不存在」，杜绝任何形式的复活。
+assert('幽灵模块源文件已全部物理删除', removedPhantoms.every(f => !fs.existsSync(new URL('../' + f, import.meta.url))));
 
 // ===== 3. BM25 索引保护与联动 =====
 assert('删除 summary 时联动 rebuild BM25', suiSrc.includes('eng.bm25.rebuild(eng.summary.getActiveSummaries().map'));
