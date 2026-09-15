@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.124.0';
+    const VERSION = '3.125.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -3038,9 +3038,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                             ? Math.max(-1, _currentTimeFloor - 6)
                             : Number(this._timelineInjectFloor);
                         const _anchorDate = this.clock?.date || this.getLatestStoryDate?.() || '';
+                        const _timeChangeLimit = Number(this.config.config.timeChangeMaxCandidates);
                         const _tlChanges = this.timeline?.getChangesSince?.(
                             _timeCursor, _anchorDate,
-                            this.config.config.timeChangeMaxCandidates || 5,
+                            Number.isFinite(_timeChangeLimit) && _timeChangeLimit > 0 ? Math.floor(_timeChangeLimit) : 5,
                             this.config.config.timelineWindowDays || 3,
                             this.captureCast()
                         ) || [];

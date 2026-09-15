@@ -46,3 +46,17 @@ test('v3.124 echo 合并必须保留变化驱动候选池而非只保留普通�
   assert.match(block, /for \(const r of candidateItems\) merged\.set/);
   assert.doesNotMatch(block, /for \(const r of recalled\) merged\.set/);
 });
+
+test('v3.125 变化候选精选后进入追踪与注入构建', () => {
+  const selectAt = src.indexOf('const selRes = await this.aiSelect.route');
+  const trackAt = src.indexOf('this._lastSelectedIds = Array.from', selectAt);
+  const buildAt = src.indexOf('this.buildInjection(candidateItems)', trackAt);
+  assert.ok(selectAt >= 0 && trackAt > selectAt && buildAt > trackAt);
+});
+
+test('v3.125 变化候选在精选后保留进入追踪和注入构建', () => {
+  const selectAt = src.indexOf('const selRes = await this.aiSelect.route');
+  const trackAt = src.indexOf('this._lastSelectedIds = Array.from', selectAt);
+  const buildAt = src.indexOf('this.buildInjection(candidateItems)', trackAt);
+  assert.ok(selectAt >= 0 && trackAt > selectAt && buildAt > trackAt);
+});
