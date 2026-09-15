@@ -924,6 +924,87 @@
                     <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（带去新对话）</button>
                     <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新对话开局用）</button>
                 </div>
+                <div class="ls-group">
+                    <details id="ls-advanced" style="padding:0 8px;">
+                        <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;">🧪 高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
+                        <div class="ls-hint" style="padding:6px 0 2px;">⚠️ 这些参数影响资源消耗与召回精度。默认值经过长期验证，非必要不调；改出问题直接点「恢复默认」。</div>
+                        <div class="ls-slider-label"><span>注入 token 预算</span><span class="ls-slider-val" id="ls-v-mtb">${c.memoryTokenBudget ?? 900}</span></div>
+                        <input type="range" class="ls-slider" min="200" max="3000" step="100" value="${c.memoryTokenBudget ?? 900}" data-cfg-num="memoryTokenBudget">
+                        <div class="ls-slider-label"><span>最近正文 token 预留</span><span class="ls-slider-val" id="ls-v-krtr">${c.keepRecentTokenReserve ?? 0}</span></div>
+                        <input type="range" class="ls-slider" min="0" max="1000" step="50" value="${c.keepRecentTokenReserve ?? 0}" data-cfg-num="keepRecentTokenReserve">
+                        <div class="ls-slider-label"><span>向量条数上限</span><span class="ls-slider-val" id="ls-v-vmc">${c.vectorMaxCount ?? 500}</span></div>
+                        <input type="range" class="ls-slider" min="50" max="2000" step="50" value="${c.vectorMaxCount ?? 500}" data-cfg-num="vectorMaxCount">
+                        <div class="ls-slider-label"><span>摘要条数上限</span><span class="ls-slider-val" id="ls-v-smc">${c.summaryMaxCount ?? 400}</span></div>
+                        <input type="range" class="ls-slider" min="50" max="1500" step="50" value="${c.summaryMaxCount ?? 400}" data-cfg-num="summaryMaxCount">
+                        <div class="ls-slider-label"><span>BM25 topK</span><span class="ls-slider-val" id="ls-v-bk">${c.bm25TopK ?? 5}</span></div>
+                        <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.bm25TopK ?? 5}" data-cfg-num="bm25TopK">
+                        <div class="ls-slider-label"><span>向量分块阈值（字符）</span><span class="ls-slider-val" id="ls-v-vct">${c.vectorChunkThreshold ?? 1200}</span></div>
+                        <input type="range" class="ls-slider" min="400" max="4000" step="100" value="${c.vectorChunkThreshold ?? 1200}" data-cfg-num="vectorChunkThreshold">
+                        <div class="ls-slider-label"><span>向量分块大小</span><span class="ls-slider-val" id="ls-v-vcs">${c.vectorChunkSize ?? 800}</span></div>
+                        <input type="range" class="ls-slider" min="200" max="2000" step="100" value="${c.vectorChunkSize ?? 800}" data-cfg-num="vectorChunkSize">
+                        <div class="ls-slider-label"><span>向量分块重叠</span><span class="ls-slider-val" id="ls-v-vco">${c.vectorChunkOverlap ?? 10}</span></div>
+                        <input type="range" class="ls-slider" min="0" max="200" step="10" value="${c.vectorChunkOverlap ?? 10}" data-cfg-num="vectorChunkOverlap">
+                        <div class="ls-slider-label"><span>历史折叠阈值（楼）</span><span class="ls-slider-val" id="ls-v-hft">${c.historicalFoldThreshold ?? 12}</span></div>
+                        <input type="range" class="ls-slider" min="4" max="60" step="2" value="${c.historicalFoldThreshold ?? 12}" data-cfg-num="historicalFoldThreshold">
+                        <div class="ls-slider-label"><span>优化周期（楼）</span><span class="ls-slider-val" id="ls-v-oef">${c.optimizeEveryFloors ?? 50}</span></div>
+                        <input type="range" class="ls-slider" min="10" max="200" step="10" value="${c.optimizeEveryFloors ?? 50}" data-cfg-num="optimizeEveryFloors">
+                        <div class="ls-slider-label"><span>惊奇度累积阈值</span><span class="ls-slider-val" id="ls-v-et">${c.entropyThreshold ?? 15}</span></div>
+                        <input type="range" class="ls-slider" min="3" max="60" step="1" value="${c.entropyThreshold ?? 15}" data-cfg-num="entropyThreshold">
+                        <div class="ls-slider-label"><span>回响池上限</span><span class="ls-slider-val" id="ls-v-emc">${c.echoMaxCount ?? 10}</span></div>
+                        <input type="range" class="ls-slider" min="0" max="40" step="1" value="${c.echoMaxCount ?? 10}" data-cfg-num="echoMaxCount">
+                        <div class="ls-slider-label"><span>在场候选上限</span><span class="ls-slider-val" id="ls-v-pmc">${c.presenceMaxCandidates ?? 8}</span></div>
+                        <input type="range" class="ls-slider" min="2" max="20" step="1" value="${c.presenceMaxCandidates ?? 8}" data-cfg-num="presenceMaxCandidates">
+                        <div class="ls-slider-label"><span>补召回条数上限</span><span class="ls-slider-val" id="ls-v-vtrl">${c.vectorTailRecoveryLimit ?? 8}</span></div>
+                        <input type="range" class="ls-slider" min="0" max="40" step="1" value="${c.vectorTailRecoveryLimit ?? 8}" data-cfg-num="vectorTailRecoveryLimit">
+                        <div class="ls-slider-label"><span>时间线窗口（天）</span><span class="ls-slider-val" id="ls-v-twd">${c.timelineWindowDays ?? 3}</span></div>
+                        <input type="range" class="ls-slider" min="1" max="30" step="1" value="${c.timelineWindowDays ?? 3}" data-cfg-num="timelineWindowDays">
+                        <div class="ls-slider-label"><span>每楼 AI 操作上限</span><span class="ls-slider-val" id="ls-v-aom">${c.aiRecallOpsMaxPerFloor ?? 12}</span></div>
+                        <input type="range" class="ls-slider" min="0" max="40" step="1" value="${c.aiRecallOpsMaxPerFloor ?? 12}" data-cfg-num="aiRecallOpsMaxPerFloor">
+                        <div class="ls-slider-label"><span>锁定事实字符上限</span><span class="ls-slider-val" id="ls-v-lfmc">${c.lockedFactMaxChars ?? 4000}</span></div>
+                        <input type="range" class="ls-slider" min="500" max="20000" step="500" value="${c.lockedFactMaxChars ?? 4000}" data-cfg-num="lockedFactMaxChars">
+                        <div class="ls-slider-label"><span>大纲计划冷却（楼）</span><span class="ls-slider-val" id="ls-v-opcf">${c.outlinePlanCooldownFloors ?? 10}</span></div>
+                        <input type="range" class="ls-slider" min="2" max="60" step="1" value="${c.outlinePlanCooldownFloors ?? 10}" data-cfg-num="outlinePlanCooldownFloors">
+                        <div class="ls-slider-label"><span>角色提取上限</span><span class="ls-slider-val" id="ls-v-erl">${c.extractRolesLimit ?? 50}</span></div>
+                        <input type="range" class="ls-slider" min="5" max="200" step="5" value="${c.extractRolesLimit ?? 50}" data-cfg-num="extractRolesLimit">
+                        <div class="ls-slider-label"><span>待办过期（分钟）</span><span class="ls-slider-val" id="ls-v-tem">${c.todoExpiryMinutes ?? 60}</span></div>
+                        <input type="range" class="ls-slider" min="5" max="720" step="5" value="${c.todoExpiryMinutes ?? 60}" data-cfg-num="todoExpiryMinutes">
+                        <div class="ls-slider-label"><span>世界推进间隔（楼）</span><span class="ls-slider-val" id="ls-v-wpef">${c.worldProgressEveryFloors ?? 2}</span></div>
+                        <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.worldProgressEveryFloors ?? 2}" data-cfg-num="worldProgressEveryFloors">
+                        <div class="ls-slider-label"><span>世界推进候选上限</span><span class="ls-slider-val" id="ls-v-wpmc">${c.worldProgressMaxCandidates ?? 2}</span></div>
+                        <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.worldProgressMaxCandidates ?? 2}" data-cfg-num="worldProgressMaxCandidates">
+                        <div class="ls-slider-label"><span>POV 每轮上限</span><span class="ls-slider-val" id="ls-v-pmpt">${c.povMaxPerTurn ?? 3}</span></div>
+                        <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.povMaxPerTurn ?? 3}" data-cfg-num="povMaxPerTurn">
+                        <div class="ls-slider-label"><span>摘要折叠批量</span><span class="ls-slider-val" id="ls-v-sfb">${c.summaryFoldBatchSize ?? 20}</span></div>
+                        <input type="range" class="ls-slider" min="5" max="100" step="5" value="${c.summaryFoldBatchSize ?? 20}" data-cfg-num="summaryFoldBatchSize">
+                        <div class="ls-slider-label"><span>取代理由扫描池</span><span class="ls-slider-val" id="ls-v-ssp">${c.supersedeScanPool ?? 30}</span></div>
+                        <input type="range" class="ls-slider" min="5" max="100" step="5" value="${c.supersedeScanPool ?? 30}" data-cfg-num="supersedeScanPool">
+                        <div class="ls-slider-label"><span>归档保留最近楼</span><span class="ls-slider-val" id="ls-v-apr">${c.archivePreserveRecent ?? 6}</span></div>
+                        <input type="range" class="ls-slider" min="0" max="30" step="1" value="${c.archivePreserveRecent ?? 6}" data-cfg-num="archivePreserveRecent">
+                    </details>
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">🧩 功能开关（默认开但此前无法关闭的功能）</div>
+                    ${ck('protagonistTracking', '主角档案追踪', 'baibai 主角客观档案与生活习惯癖好追踪')}
+                    ${ck('dualTimeAnchorEnabled', '正文时间锚点', 'baibai 正文起止时间锚点（故事内时间推演）')}
+                    ${ck('charMemEnabled', '角色记忆银行', '两层记忆（短期/长期）按角色隔离')}
+                    ${ck('neuralChainEnabled', '神经链召回', '链1+链2 关联链式召回')}
+                    ${ck('npcTierInjection', 'NPC 分档注入', '按重要度分档注入 NPC 信息')}
+                    ${ck('npcTiesInjection', 'NPC 关系注入', '注入 NPC 间关系网络')}
+                    ${ck('recallCacheEnabled', '召回缓存', '同查询短期复用召回结果（省 API）')}
+                    ${ck('heatOnRecallEnabled', '召回加热', '被召回的记忆提升活跃度（防冷启动丢失）')}
+                    ${ck('recallTierEnabled', '分层召回', '按记忆层分级召回')}
+                    ${ck('synopsisFastPath', '摘要快速通道', '短消息跳过完整 LLM 摘要')}
+                    ${ck('aiRecallOps', 'AI 召回操作', '允许 AI 在回复中发起召回操作指令')}
+                    ${ck('pyramidAutoExtend', '金字塔自动扩展', '活跃度溢出时自动加层')}
+                    ${ck('supersedeEnabled', '记忆取代', '新事实与旧事实矛盾时登记取代关系')}
+                    ${ck('lockedFactsEnabled', '锁定事实', '用户锁定的剧情事实逐字保留')}
+                    ${ck('outlineDirectorEnabled', '大纲导演', '解析 AI 回复中的大纲标签')}
+                    ${ck('outlineAutoPlan', '大纲自动规划', '无大纲时自动生成剧情规划')}
+                    ${ck('trailMonitor', '召回轨迹监控', '记录最近一次召回来源供状态面板展示')}
+                    ${ck('autoArchiveCovered', '归档隐藏旧楼层', '被卷摘要覆盖的旧楼层自动隐藏（v3.25，默认关）')}
+                    ${ck('worldProgressEnabled', '世界推进', '世界状态随剧情推进（默认关，需观察效果后开）')}
+                    ${ck('vectorChunkEnabled', '长文本分块向量化', '超阈值字符的长文本切块后再向量化（默认关，短文本不受影响）')}
+                </div>
                 <button class="ls-btn" id="ls-snap-restore">🗄️ 快照恢复</button>
                 <button class="ls-btn" id="ls-backfill">🔧 补提取缺失楼层</button>
             <button class="ls-btn" id="ls-extract-roles">📚 从世界书提取角色</button>
@@ -948,11 +1029,19 @@
                 toast(`✅ 补提取完成: ${done.ok} 成功 / ${done.fail} 失败 / ${done.skipped} 跳过`);
             });
 
-            // 滑块实时显示
+            // 滑块实时显示（[v3.113] 改为通用就近查找：滑条的显示标签必然在其上方紧邻的 .ls-slider-val 中，
+            //                       不再维护硬编码 id 映射表——新增滑条自动联动）
             overlay.querySelectorAll('input[type=range]').forEach(r => {
                 r.addEventListener('input', () => {
-                    const map = { vectorTopK: 'ls-v-topk', hybridAlpha: 'ls-v-alpha', maxSummaryLength: 'ls-v-sumlen', rerankCandidates: 'ls-v-rerank', suspenseMaxOpen: 'ls-v-susmax', echoBaseLife: 'ls-v-echo', diaryEveryFloors: 'ls-v-df', injectionDepth: 'ls-v-injdepth', reflectEveryFloors: 'ls-v-rf' };
-                    const el = document.getElementById(map[r.dataset.cfgNum]);
+                    let el = null;
+                    let n = r;
+                    // 向上查找最近的 .ls-slider-val（最多回溯 6 层）
+                    for (let i = 0; i < 6 && n && n.previousElementSibling !== null; i++) {
+                        n = n.previousElementSibling;
+                        el = n.querySelector && n.querySelector('.ls-slider-val');
+                        if (el) break;
+                        if (n.classList && n.classList.contains('ls-slider-val')) { el = n; break; }
+                    }
                     if (el) el.textContent = r.value;
                 });
             });
@@ -1115,8 +1204,10 @@
                     this.engine.config.config[el.dataset.cfg] = el.checked;
                 });
                 overlay.querySelectorAll('[data-cfg-num]').forEach(el => {
-                    const v = parseFloat(el.value);
-                    this.engine.config.config[el.dataset.cfgNum] = Number.isInteger(v) && el.max !== '1' ? v : v;
+                    const raw = parseFloat(el.value);
+                    const step = parseFloat(el.step) || 1;
+                    const v = Number.isInteger(step) ? Math.round(raw) : raw;
+                    this.engine.config.config[el.dataset.cfgNum] = v;
                     if (el.dataset.cfgNum === 'vectorTopK' || el.dataset.cfgNum === 'maxSummaryLength') {
                         this.engine.config.config[el.dataset.cfgNum] = parseInt(el.value);
                     }
