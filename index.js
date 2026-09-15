@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.101.0';
+    const VERSION = '3.102.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -888,7 +888,30 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             });
             if (!res.ok) throw new Error(`API ${res.status}: ${await res.text().catch(() => '')}`);
             const data = await res.json();
-            return data.choices?.[0]?.message?.content || '';
+            // [v3.102] 缝合 bionic-memory model-protocol：响应形状归一化。
+            // 部分网关把 message.content 返回为分片数组（[{text}] / [{content}]），
+            // 旧写法 `content || ''` 会静默拿到 ''；同时 finish_reason=length
+            // 说明输出被 max_tokens 截断，需显式告警（下游走宽松 JSON 恢复）。
+            const msg = data?.choices?.[0]?.message || {};
+            const rawResp = {
+                content: msg.content,
+                tool_calls: msg.tool_calls,
+                finish_reason: data?.choices?.[0]?.finish_reason,
+                usage: data?.usage,
+            };
+            const mr = (typeof window !== 'undefined' && window.LonShaModelResponse)
+                || (typeof require !== 'undefined' ? (() => { try { return require('./model-response.js'); } catch { return null; } })() : null);
+            if (mr) {
+                try {
+                    const norm = mr.normalizeModelResponse(rawResp);
+                    if (mr.wasTruncated(norm)) {
+                        console.warn(`[${PLUGIN_NAME}] LLM 输出被 max_tokens 截断（finish_reason=${norm.finishReason}），下游将走宽松解析`);
+                    }
+                    return norm.content || '';
+                } catch (e) { /* 归一化异常时退回兼容写法 */ }
+            }
+            const legacyContent = msg.content;
+            return typeof legacyContent === 'string' ? legacyContent : '';
         }
         async callGeneric(prompt, server) {
             const res = await fetchWithTimeoutRetry(`${server}/api/v1/generate`, {
