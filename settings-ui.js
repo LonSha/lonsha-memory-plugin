@@ -831,11 +831,14 @@
                     ${ck('echoEnabled', '回响池（抄anima）', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
                     ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
                     ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
+                    ${ck('timeChangeDrivenInjection', '时间锚点变化注入', '复用现有剧情时间线，只将上次游标之后且与当前剧情时间相关的新事件加入本轮上下文')}
                     ${ck('reflectionEnabled', '反思节点（抄stbme，需API）', '定期从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，默认关')}
                     <div class="ls-slider-label"><span>回响停留轮数</span><span class="ls-slider-val" id="ls-v-echo">${c.echoBaseLife || 2}</span></div>
                     <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.echoBaseLife || 2}" data-cfg-num="echoBaseLife">
                     <div class="ls-slider-label"><span>每N楼写一次日记</span><span class="ls-slider-val" id="ls-v-df">${c.diaryEveryFloors || 3}</span></div>
                     <input type="range" class="ls-slider" min="0" max="10" step="1" value="${c.diaryEveryFloors || 3}" data-cfg-num="diaryEveryFloors">
+                    <div class="ls-slider-label"><span>时间线变化注入条数</span><span class="ls-slider-val">${c.timeChangeMaxCandidates || 5}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.timeChangeMaxCandidates || 5}" data-cfg-num="timeChangeMaxCandidates">
                     <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（0=每楼），省API额度；生成失败自动跳过不影响主流程。</div>
                 </div>
                 <div class="ls-group">

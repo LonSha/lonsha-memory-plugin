@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.120.0';
+    const VERSION = '3.121.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -686,6 +686,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 livingDiary: true,             // 活人感日记（抄hcdiary：第一人称+secret+记忆回环）
                 diaryEveryFloors: 3,           // 每N楼写一次日记（0=每楼）
                 diaryChangeDrivenInjection: true, // [v3.120] 只向当前回合注入游标之后的新日记
+                timeChangeDrivenInjection: true, // [v3.121] 按时间锚点注入游标之后的新时间线事件
+                timeChangeMaxCandidates: 5,
                 reflectionEnabled: false,      // 反思节点（抄stbme：洞察提炼，需API，默认关）
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
@@ -1418,6 +1420,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastStoryDate = null;                 // [v2.9] RU-A 主动时间推进的锚点
             this._recallCache = null;                   // [v2.9] RU-D swipe 召回缓存 {floor, queryKey, injection}
             this._diaryInjectFloor = null;          // [v3.120] 变化驱动日记注入游标（首次按最近窗口初始化）
+            this._timelineInjectFloor = null;     // [v3.121] 时间线变化注入游标
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
@@ -3004,6 +3007,28 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const recalled = await this.recallMemory(query);
                 // [v2.5/v3.40] RF: 回响池——本轮召回的进池续命，池中仍在停留期的合并注入（与下游世界推进与去重无缝合流，杜绝早退截断）
                 let candidateItems = [...recalled];
+                // [v3.121] Horae 时间锚点变化注入：只追加游标之后、与当前剧情日期相关的新时间线事件。
+                // 复用 PlotTimeline，不创建平行时间线；普通 timeline 召回保持不变。
+                let _timelineChangeFloor = null;
+                if (this.config.config.timeChangeDrivenInjection !== false) {
+                    try {
+                        const _chatForTime = window.SillyTavern?.getContext?.()?.chat || [];
+                        const _currentTimeFloor = _chatForTime.length - 1;
+                        const _timeCursor = this._timelineInjectFloor == null
+                            ? Math.max(-1, _currentTimeFloor - 6)
+                            : Number(this._timelineInjectFloor);
+                        const _anchorDate = this.clock?.date || this.getLatestStoryDate?.() || '';
+                        const _tlChanges = this.timeline?.getChangesSince?.(_timeCursor, _anchorDate, this.config.config.timeChangeMaxCandidates || 5) || [];
+                        const _seenTimeline = new Set(candidateItems.filter(x => String(x?.source || '').includes('timeline')).map(x => String(x.id || x.text || '')));
+                        for (const _t of _tlChanges) {
+                            const _key = String(_t.id || _t.text || '');
+                            if (_seenTimeline.has(_key)) continue;
+                            _seenTimeline.add(_key);
+                            candidateItems.push({ ..._t, source: 'timeline:change', text: `[时间锚点·${_t.date || _anchorDate}] ${_t.text || ''}` });
+                        }
+                        _timelineChangeFloor = _currentTimeFloor;
+                    } catch (e) { errLog(e, 'onBeforeGeneration.时间锚点变化注入'); }
+                }
                 // [v3.120] HCDiary 变化驱动注入：当前回合只追加游标之后、当前登场角色的新日记。
                 // 旧召回链仍保留，开关关闭时完全回到 v3.119 行为。
                 let _diaryChangeFloor = null;
@@ -3129,6 +3154,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 } catch (e) { errLog(e, 'onBeforeGeneration.入选id记录'); }
                 let inj2 = this.buildInjection(candidateItems);
                 if (_diaryChangeFloor != null) this._diaryInjectFloor = _diaryChangeFloor;
+                if (_timelineChangeFloor != null) this._timelineInjectFloor = _timelineChangeFloor;
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
                 if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
                 if (inj2) this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff
@@ -5022,7 +5048,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
                                 // [v3.54] op-log: 回滚事件（审计链）
                 this.opLog?.log('rollback', 'remove', `floor ${floor}`, floor, 'edit/delete');
-try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
+try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._timelineInjectFloor) >= Number(floor)) this._timelineInjectFloor = Math.max(-1, Number(floor) - 1); } catch (e) { errLog(e, 'rollbackFloor.时间线游标回滚'); }
+                try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
                 try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
                 try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
@@ -5623,6 +5650,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 // [v3.109] 召回产物随聊天持久化（跨会话复用依据；默认关时为空数组，序列化开销可忽略）
                 recallArtifacts: this._recallArtifacts || [],
                 diaryInjectFloor: Number.isFinite(Number(this._diaryInjectFloor)) ? Number(this._diaryInjectFloor) : null,
+                timelineInjectFloor: Number.isFinite(Number(this._timelineInjectFloor)) ? Number(this._timelineInjectFloor) : null,
                 packedAt: new Date().toISOString()
             };
         }
@@ -7680,6 +7708,14 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             return scored.slice(0, limit).map(s => s.e);
         }
         _norm(d) { return String(d || '').replace(/\s+/g, '').replace(/[年月日]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); }
+        // [v3.121] 变化驱动读取：按楼层游标读取与当前时间锚点相近的事件，返回副本。
+        getChangesSince(floor = -1, anchorDate = '', limit = 5) {
+            const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
+            const cap = Math.min(20, Math.max(0, Number(limit) || 0));
+            const key = this._norm(anchorDate);
+            const rows = this.entries.filter(e => Number(e?.floor) > cursor && (!key || this._norm(e?.date).slice(0, 4) === key.slice(0, 4)));
+            return rows.sort((a, b) => Number(a.floor) - Number(b.floor) || Number(a.timestamp || 0) - Number(b.timestamp || 0)).slice(-cap).map(e => ({ ...e, characters: Array.isArray(e.characters) ? [...e.characters] : e.characters }));
+        }
         export() { return this.entries; }
         import(data) { this.entries = Array.isArray(data) ? data : []; }
     }
@@ -9420,6 +9456,7 @@ ${recentTurns}`;
                     if (data.stmLtm && engine.stmLtm) engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm);   // [v3.96] STM/LTM 状态恢复
                     if (Array.isArray(data.recallArtifacts)) engine._recallArtifacts = data.recallArtifacts.slice(-32);   // [v3.109] 召回产物恢复
                     if (Number.isFinite(Number(data.diaryInjectFloor))) engine._diaryInjectFloor = Number(data.diaryInjectFloor);
+                    if (Number.isFinite(Number(data.timelineInjectFloor))) engine._timelineInjectFloor = Number(data.timelineInjectFloor);
                 }
                 return data;
             } catch (err) { return null; }
