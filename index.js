@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.110.0';
+    const VERSION = '3.111.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -692,6 +692,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 smartTriggerEnabled: false,    // 默认关：开启后仅「有事件性」的楼层走 LLM 提取，其余降级本地摘要
                 smartTriggerThreshold: 2,      // 触发阈值（bionic 缺省 2；越低越容易触发）
                 smartTriggerPatterns: '',      // 自定义触发规则（换行/逗号分隔的正则；命中即加权）
+                // [v3.111] 掉队候选补召回（缝合 bionic collectVectorTailCandidates）
+                vectorTailRecoveryEnabled: false,  // 默认关：开启后把「无向量/零向量/维度不符」的条目低分补进候选池
+                vectorTailRecoveryLimit: 8,        // 每轮最多补召回条数（防脏库灌爆候选池）
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
@@ -3881,6 +3884,33 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
             }
 
+            // [v3.111] 掉队候选补召回（缝合 bionic collectVectorTailCandidates）：
+            //   向量库里有相当一部分条目因「无向量 / 零向量 / 维度不符」永远进不了向量检索的候选池
+            //   ——它们不是不重要，只是检索通道坏了。默认关；开启后把这些掉队条目以低分补进候选池，
+            //   让 BM25/图谱与预算裁剪照常决定留不留，避免「记忆在库里却怎么都召不回」。
+            if (this.config.config.vectorTailRecoveryEnabled === true && this.vector?.vectors?.length) {
+                try {
+                    const ra = (typeof window !== 'undefined' ? window.LonShaRetrievalAudit : null)
+                        || (typeof require !== 'undefined' ? (() => { try { return require('./retrieval-audit.js'); } catch { return null; } })() : null);
+                    if (ra && Array.isArray(results.vector)) {
+                        const tail = ra.planVectorTail(this.vector.vectors, {
+                            expectedDimension: Number(this.vector.dimension) || 0,
+                            limit: Number(this.config.config.vectorTailRecoveryLimit) || 8,
+                            includeReasons: ['missing-embedding', 'zero-vector', 'dimension-mismatch'],
+                        });
+                        let added = 0;
+                        const existing = new Set(results.vector.map(v => String(v.text || '').trim()));
+                        for (const cand of tail.candidates) {
+                            const text = String(cand.text || '').trim();
+                            if (!text || existing.has(text)) continue;
+                            existing.add(text);
+                            results.vector.push({ text, score: 0.3, source: 'vector:tail', metadata: { floor: cand.floor, reasons: cand.reasons } });
+                            added++;
+                        }
+                        if (added && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [v3.111] 掉队候选补召回 ${added} 条（累计 ${tail.flaggedTotal} 条有问题）`);
+                    }
+                } catch (e) { errLog(e, 'recallMemory.掉队候选补召回'); }
+            }
             // [v1.9] P1: 卷摘要召回（已折叠的高层概括）
             if (this.config.config.summaryFoldEnabled && this.summary.volumes.length) {
                 results.volume = this.summary.searchVolumes(2)
@@ -5356,6 +5386,33 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                     if (s.topReasons.length) push(`- 高频理由：${s.topReasons.map(r => `${r.reason}×${r.count}`).join('、')}`);
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.事件性门控'); }
+            // [v3.111] 召回体检（缝合 bionic recall-candidate-packet + task-graph-stats）：
+            //   回答「为什么这条记忆没被想起来」——索引覆盖率 / 问题分布 / 掉队候选数。
+            //   纯读诊断，不参与召回决策（无配置键、默认生效）。
+            try {
+                const ra = (typeof window !== 'undefined' ? window.LonShaRetrievalAudit : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./retrieval-audit.js'); } catch { return null; } })() : null);
+                if (ra && this.vector && Array.isArray(this.vector.vectors) && this.vector.vectors.length) {
+                    const audit = ra.auditVectorStore(this.vector.vectors, {
+                        expectedDimension: Number(this.vector.dimension) || 0,
+                    });
+                    const sum = ra.summarizeAudit(audit);
+                    const tail = ra.planVectorTail(this.vector.vectors, {
+                        expectedDimension: Number(this.vector.dimension) || 0,
+                        limit: 5,
+                    });
+                    push('');
+                    push(`**召回体检：** ${sum.total} 条（健康 ${sum.healthy}，覆盖率 ${(sum.coverage * 100).toFixed(1)}%）`);
+                    if (sum.topIssues.length) push(`- 问题分布：${sum.topIssues.map(i => `${i.reason}×${i.count}`).join('、')}`);
+                    if (sum.blockingRecall > 0) push(`- ️ ${sum.blockingRecall} 条因向量缺陷基本不可召回（可修复）`);
+                    if (tail.flaggedTotal > 0) push(`- 掉队候选 ${tail.flaggedTotal} 条（含最近 ${tail.candidates.length} 条示例）`);
+                    const nodes = this.graph?.nodes ? Array.from(this.graph.nodes.values()) : [];
+                    if (nodes.length) {
+                        const rows = ra.summarizeTypeCounts(nodes, null, {});
+                        if (rows.length) push(`- 图谱节点：${rows.map(r => `${r.label}${r.count}`).join('、')}`);
+                    }
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.召回体检'); }
             return L.join('\n');
         }
 
