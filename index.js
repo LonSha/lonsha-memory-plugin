@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.126.0';
+    const VERSION = '3.127.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -1406,6 +1406,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v3.27] 命中轨迹记录（MemoryPilot monitor）: 最近一次召回详情供面板诊断
             this._lastRecallTrace = null;   // { query, sources, hitCount, durationMs, ts, triggerHit }
             this._recallSourceStats = { total: 0, bySource: {} };  // [v3.52] P12: 各召回源累计命中率（诊断面板：哪路召回在干活）
+            this._lastChangeTrace = null;   // [v3.127] 本轮变化注入产量/游标（诊断可见性：坏了有人知道吗）
             // [v3.37] 叙事惊奇度/熵累加器（MemGPT 动态反思理念）
             this._narrativeEntropy = 0;
             this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
@@ -3055,12 +3056,41 @@ function relativeTimeLabel(eventTime, nowTime) {
                             candidateItems.push({ ..._t, source: 'timeline:change', text: `[时间锚点·${_t.date || _anchorDate}] ${_t.text || ''}` });
                         }
                         // [v3.123] 角色状态、关系对和物品也沿用同一时间/楼层游标进入候选池。
+                        // [v3.127] 统一去重：常规召回可能已带同一状态/关系/物品事实，变化候选按 id+文本二次键
+                        //   过滤，避免同一事实占两份注入预算（时间线/日记两路此前已各自去重，此处补齐）。
                         const _castForChanges = this.captureCast();
-                        for (const _c of (this.status?.getChangesSince?.(_timeCursor, _castForChanges, 8) || [])) candidateItems.push(_c);
-                        for (const _c of (this.pairMem?.getChangesSince?.(_timeCursor, _castForChanges, 6) || [])) candidateItems.push(_c);
-                        const _itemChanges = (this.itemOps || []).filter(o => Number(o?.floor) > _timeCursor && (!o?.holder || !_castForChanges.length || _castForChanges.includes(String(o.holder)))).slice(-8);
-                        for (const _i of _itemChanges) candidateItems.push({ id: `item_change_${_i.floor}_${_i.name || ''}`, floor: _i.floor, text: `【物品变化】${_i.name || '物品'}${_i.holder ? `（持有者：${_i.holder}）` : ''}${_i.state ? `：${_i.state}` : ''}`, source: 'items:change' });
+                        const _seenAny = new Set(candidateItems.flatMap(x => [String(x?.id || ''), String(x?.text || '')]).filter(Boolean));
+                        const _pushChange = (arr) => {
+                            let added = 0;
+                            for (const c of (arr || [])) {
+                                const idk = String(c?.id || '');
+                                const txk = String(c?.text || '');
+                                if ((idk && _seenAny.has(idk)) || (txk && _seenAny.has(txk))) continue;
+                                if (idk) _seenAny.add(idk);
+                                if (txk) _seenAny.add(txk);
+                                candidateItems.push(c);
+                                added++;
+                            }
+                            return added;
+                        };
+                        const _statusChanges = this.status?.getChangesSince?.(_timeCursor, _castForChanges, 8) || [];
+                        const _pairChanges = this.pairMem?.getChangesSince?.(_timeCursor, _castForChanges, 6) || [];
+                        const _itemChanges = (this.itemOps || []).filter(o => Number(o?.floor) > _timeCursor && (!o?.holder || !_castForChanges.length || _castForChanges.includes(String(o.holder)))).slice(-8)
+                            .map(_i => ({ id: `item_change_${_i.floor}_${_i.name || ''}`, floor: _i.floor, text: `【物品变化】${_i.name || '物品'}${_i.holder ? `（持有者：${_i.holder}）` : ''}${_i.state ? `：${_i.state}` : ''}`, source: 'items:change' }));
+                        const _addedStatus = _pushChange(_statusChanges);
+                        const _addedPair = _pushChange(_pairChanges);
+                        const _addedItem = _pushChange(_itemChanges);
                         _timelineChangeFloor = _currentTimeFloor;
+                        // [v3.127] 变化注入可见性：记录本轮游标与各路候选产量（状态面板诊断，不注入模型）
+                        this._lastChangeTrace = {
+                            floor: _currentTimeFloor, cursor: _timeCursor,
+                            anchorDate: String(_anchorDate || ''),
+                            timeline: { found: _tlChanges.length },
+                            status: { found: _statusChanges.length, added: _addedStatus },
+                            pair: { found: _pairChanges.length, added: _addedPair },
+                            items: { found: _itemChanges.length, added: _addedItem },
+                            ts: new Date().toISOString()
+                        };
                     } catch (e) { errLog(e, 'onBeforeGeneration.时间锚点变化注入'); }
                 }
                 // [v3.120] HCDiary 变化驱动注入：当前回合只追加游标之后、当前登场角色的新日记。
@@ -3076,13 +3106,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                             : Number(this._diaryInjectFloor);
                         const _changes = this.diary?.getChangesSince?.(_cursor, _diaryCast, 30) || [];
                         const _seenDiary = new Set(candidateItems.filter(x => String(x?.source || '').includes('diary')).map(x => `${x.name || x.character || ''}\x1f${x.text || x.entry || ''}`));
+                        let _addedDiary = 0;
                         for (const _d of _changes) {
                             const _key = `${_d.name || ''}\x1f${_d.text || _d.entry || ''}`;
                             if (_seenDiary.has(_key)) continue;
                             _seenDiary.add(_key);
                             candidateItems.push({ ..._d, source: 'diary:change' });
+                            _addedDiary++;
                         }
                         _diaryChangeFloor = _currentDiaryFloor;
+                        // [v3.127] 日记产量并入变化注入诊断轨迹
+                        try { this._lastChangeTrace = { ...(this._lastChangeTrace || {}), diary: { found: _changes.length, added: _addedDiary, cursor: _cursor } }; } catch (e) { errLog(e, 'nonfatal') }
                     } catch (e) { errLog(e, 'onBeforeGeneration.日记变化注入'); }
                 }
                 try {

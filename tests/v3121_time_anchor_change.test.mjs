@@ -54,9 +54,26 @@ test('v3.125 变化候选精选后进入追踪与注入构建', () => {
   assert.ok(selectAt >= 0 && trackAt > selectAt && buildAt > trackAt);
 });
 
-test('v3.125 变化候选在精选后保留进入追踪和注入构建', () => {
-  const selectAt = src.indexOf('const selRes = await this.aiSelect.route');
-  const trackAt = src.indexOf('this._lastSelectedIds = Array.from', selectAt);
-  const buildAt = src.indexOf('this.buildInjection(candidateItems)', trackAt);
-  assert.ok(selectAt >= 0 && trackAt > selectAt && buildAt > trackAt);
+test('v3.127 状态/关系/物品变化候选进入候选池前统一去重', () => {
+  assert.match(src, /const _seenAny = new Set\(candidateItems\.flatMap/);
+  assert.match(src, /const _pushChange = \(arr\) => \{/);
+  // 三路都必须经过去重器，不得再直推候选池
+  assert.match(src, /const _addedStatus = _pushChange\(_statusChanges\)/);
+  assert.match(src, /const _addedPair = _pushChange\(_pairChanges\)/);
+  assert.match(src, /const _addedItem = _pushChange\(_itemChanges\)/);
+  assert.doesNotMatch(src, /for \(const _c of \(this\.status\?\.getChangesSince\?\.\(_timeCursor, _castForChanges, 8\) \|\| \[\]\)\) candidateItems\.push\(_c\)/);
+  assert.doesNotMatch(src, /for \(const _c of \(this\.pairMem\?\.getChangesSince\?\.\(_timeCursor, _castForChanges, 6\) \|\| \[\]\)\) candidateItems\.push\(_c\)/);
+});
+
+test('v3.127 变化注入产量与游标对诊断可见', () => {
+  assert.match(src, /this\._lastChangeTrace = \{/);
+  assert.match(src, /_lastChangeTrace = null/);
+  // 日记产量并入同一轨迹
+  assert.match(src, /diary: \{ found: _changes\.length, added: _addedDiary, cursor: _cursor \}/);
+  // 设置面板暴露变化注入诊断（含游标与时间倒跳）
+  const ui = readFileSync('/home/user/lonsha-memory-plugin/settings-ui.js', 'utf8');
+  assert.match(ui, /_lastChangeTrace/);
+  assert.match(ui, /变化注入（Horae\/HCDiary 诊断）/);
+  assert.match(ui, /_timelineInjectFloor/);
+  assert.match(ui, /_timeWentBack/);
 });
