@@ -80,11 +80,20 @@ test('v3.130 时间标签→时钟校准接线与协议健康统计', () => {
     assert.match(ui, /时间标签协议/);
 });
 
+test('v3.136 设置面板导出/导入收口单真源', () => {
+    const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
+    assert.match(ui, /const data = await this\.engine\.collectExport\(\)/, '导出走 collectExport');
+    assert.ok(!ui.includes('summaries: this.engine.summary.export()'), '手写导出清单已废除');
+    for (const k of ['deltaBook', 'cse', 'pulse', 'outline', 'pairMem', 'moneyLedger', 'cards', 'conflicts', 'opLog', 'clock']) {
+        assert.match(ui, new RegExp(`data\.${k} && this\.engine`), `导入恢复 ${k}`);
+    }
+});
+
 test('v3.130 版本三处同步', () => {
     const m = /const VERSION = '([^']+)'/.exec(src);
-    assert.equal(m[1], '3.135.0');
+    assert.equal(m[1], '3.136.0');
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '3.135.0');
-    assert.equal(pkg.version, '3.135.0');
+    assert.equal(manifest.version, '3.136.0');
+    assert.equal(pkg.version, '3.136.0');
 });

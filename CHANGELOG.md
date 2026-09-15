@@ -1,3 +1,6 @@
+## v3.136.0
+- **设置面板导出/导入收口单真源（CP 最后旁路）**：导出按钮原手写 4 键清单（graph/summaries/diaries/vectors）改走 collectExport——补齐 clock/timeline/status/moneyLedger 等 30 余键；导入恢复面补 deltaBook/cse/pulse/outline/pairMem/moneyLedger/cards/conflicts/opLog/clock（此前导出的新键在导入时被丢弃）。
+
 ## v3.135.0
 - **memoryTokenBudget 默认值重校准（v3.133 的必要收口）**：默认 900→2700——旧值是 *4 装饰口径倒推的装饰值（从不生效），CJK 口径真实生效后 900 token 只放行 1000 字符，默认注入会无故缩水 3 倍；2700 token≈3000 中文字符与 injectionBudget 默认等价，行为不变而上限真实。
 - **前情路径 CJK 口径统一**：PrequelSystem.buildInjection 内联 `tokenBudget*4` 同族换算改 `*10/9`，tokenBase 回落值随默认同步。

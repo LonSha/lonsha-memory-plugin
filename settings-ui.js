@@ -1137,14 +1137,10 @@
             });
 
             // 导出
-            overlay.querySelector('#ls-export').addEventListener('click', () => {
-                const data = {
-                    graph: this.engine.graph.export(),
-                    summaries: this.engine.summary.export(),
-                    diaries: this.engine.diary.export(),
-                    vectors: this.engine.vector.export(),
-                    exportedAt: new Date().toISOString()
-                };
+            overlay.querySelector('#ls-export').addEventListener('click', async () => {
+                // [v3.136] CP: 导出走 collectExport 单真源（原手写 4 键清单缺 clock/timeline/status/moneyLedger 等 30 余键，与 OMR 同病）
+                const data = await this.engine.collectExport();
+                data.exportedAt = new Date().toISOString();
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
@@ -1180,6 +1176,17 @@
                             if (data.prequel && this.engine.prequel) this.engine.prequel.import(data.prequel);   // [v3.87] 前情资料
                             if (data.reflection && this.engine.reflection) this.engine.reflection.import(data.reflection);
                             if (Array.isArray(data.itemOps)) { this.engine.itemOps = data.itemOps; (this.engine.reconcileItemOps || this.engine.rebuildItems).call(this.engine); }
+                            // [v3.136] CP: 导入恢复面对齐 storage.load（此前导出的 v3.130 新键在导入时被丢弃）
+                            if (data.deltaBook && this.engine.deltaBook) this.engine.deltaBook.import(data.deltaBook);
+                            if (data.cse && this.engine.cse) this.engine.cse.import?.(data.cse);
+                            if (data.pulse && this.engine.pulse) this.engine.pulse.import?.(data.pulse);
+                            if (data.outline && this.engine.outline) this.engine.outline.import?.(data.outline);
+                            if (data.pairMem && this.engine.pairMem) this.engine.pairMem.import?.(data.pairMem);
+                            if (data.moneyLedger && this.engine.moneyLedger) this.engine.moneyLedger.import?.(data.moneyLedger);
+                            if (data.cards && this.engine.cards) this.engine.cards.import?.(data.cards);
+                            if (data.conflicts && this.engine.conflicts) this.engine.conflicts.import?.(data.conflicts);
+                            if (data.opLog && this.engine.opLog) this.engine.opLog.import?.(data.opLog);
+                            if (data.clock && this.engine.clock) this.engine.clock.import(data.clock);
                             const chatId = this.engine.getCurrentChatId();
                             // [v3.11] 存盘统一走 collectExport（原 version '1.3.0' 块只存 4 字段——导入后新子系统记忆全丢）
                             if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
