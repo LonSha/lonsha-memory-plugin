@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.132.0';
+    const VERSION = '3.133.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -5050,8 +5050,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                     decayFloors: this.config.config.adaptiveBudgetDecayFloors,
                 });
             } else {
-                if (tokenBudget > 0) budget = Math.max(200, Math.min(budget, Math.floor(tokenBudget * 4)));  // token→字符粗换算(~0.25 token/字符)
-                if (reserve > 0) budget = Math.max(200, budget - Math.floor(reserve * 4));
+                if (tokenBudget > 0) budget = Math.max(200, Math.min(budget, Math.floor(tokenBudget * 10 / 9)));  // [v3.133] CJK 口径（≈1.11 字符/token，与 estimateTextTokens 逆变换一致）
+                if (reserve > 0) budget = Math.max(200, budget - Math.floor(reserve * 10 / 9));
                 // [v3.50] 第三层：上下文感知自适应——聊天楼层少（上下文占用低）时自动扩容预算（早期多喂记忆加速建立世界感），
                 // 楼层多时按基准收紧（保护最近正文空间）。扩张系数随楼层衰减，clamp 0.6x~1.8x 基准。
                 if (this.config.config.adaptiveBudget !== false) {

@@ -117,11 +117,11 @@ test('【3】classifyBlocks / isResidentBlock（12 标记对齐）', () => {
 test('【4】deriveBudget：换算 / 扣减 / 自适应衰减', () => {
   // 基准：无 token 预算、无预留、无自适应
   assert.strictEqual(IR.deriveBudget(3000, 0, 0, 0, { adaptive: false }), 3000);
-  // token 预算压制（token*4 与基准取小）
-  assert.strictEqual(IR.deriveBudget(3000, 900, 0, 0, { adaptive: false }), 3000, 'token*4=3600 与基准 3000 取小 → 3000');
-  assert.strictEqual(IR.deriveBudget(5000, 900, 0, 0, { adaptive: false }), 3600, '基准 5000 与 token*4=3600 取小 → 3600');
+  // token 预算压制（[v3.133] CJK 口径：1 token≈1.11 字符，与 estimateTextTokens 逆变换一致）
+  assert.strictEqual(IR.deriveBudget(3000, 900, 0, 0, { adaptive: false }), 1000, 'token*10/9=1000 与基准 3000 取小 → 1000（token 预算真实压制）');
+  assert.strictEqual(IR.deriveBudget(5000, 900, 0, 0, { adaptive: false }), 1000, '基准 5000 与 token*10/9=1000 取小 → 1000（旧口径 3600 对中文超发 3.5 倍）');
   // 预留扣减
-  assert.strictEqual(IR.deriveBudget(3000, 0, 100, 0, { adaptive: false }), 2600, '扣 400 字符');
+  assert.strictEqual(IR.deriveBudget(3000, 0, 100, 0, { adaptive: false }), 2889, '扣 111 字符（100*10/9，CJK 口径）' );
   assert.strictEqual(IR.deriveBudget(300, 0, 1000, 0, { adaptive: false }), 200, '下限保护 200');
   // 自适应：楼层少则扩容、多则收紧
   const early = IR.deriveBudget(3000, 0, 0, 10, {});

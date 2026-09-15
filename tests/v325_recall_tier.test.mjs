@@ -42,9 +42,9 @@ const ok = (m) => { pass++; console.log('ok: ' + m); };
     if (src.includes('keepRecentTokenReserve: 0')) ok('T2: keepRecentTokenReserve 开关存在');
     else fail('T2: keepRecentTokenReserve 缺失');
     // budget 计算逻辑（token→字符换算）
-    if (src.includes("Math.floor(tokenBudget * 4)")) ok('T2: token→字符预算换算存在');
+    if (src.includes("Math.floor(tokenBudget * 10 / 9)")) ok('T2: token→字符预算换算存在（v3.133 CJK 口径）');
     else fail('T2: token 换算缺失');
-    if (src.includes("budget - Math.floor(reserve * 4)")) ok('T2: 最近正文预留扣减存在');
+    if (src.includes("budget - Math.floor(reserve * 10 / 9)")) ok('T2: 最近正文预留扣减存在（v3.133 CJK 口径）');
     else fail('T2: 预留扣减缺失');
 }
 

@@ -1,3 +1,6 @@
+## v3.133.0
+- **注入预算 token→字符换算 CJK 口径统一（v3.128 的逆转换同族修复）**：deriveBudget 与内联回落实现中 memoryTokenBudget/keepRecentTokenReserve 的 *4 换算（0.25 token/字符，纯 ASCII 口径）改为 *10/9（≈1.11 字符/token，与 estimateTextTokens 的汉字≈0.9 token/字逆变换一致）。旧口径对中文正文超发约 3.5 倍——900 token 预算放行 3600 字符（实际≈4000 token），memoryTokenBudget 形同虚设。
+
 ## v3.132.0
 - **时间协议一致性收口**：正文标签校准时钟后同样纳入 checkTimeMonotonic 倒跳检测（此前只有 LLM 提取路径走校验，标签驱动的倒跳不可见）。
 - **注释回读证据持久化**：GameClock.lastNarrativeAnchor（MyriadKnots 注释回读的时间锚点证据）纳入 getSnapshot/import，随存档跨会话保留。

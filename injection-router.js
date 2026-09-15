@@ -99,8 +99,10 @@
         let budget = Math.max(200, Math.floor(Number(base) || 0));
         const tb = Number(tokenBudget) || 0;
         const rs = Number(reserve) || 0;
-        if (tb > 0) budget = Math.max(200, Math.min(budget, Math.floor(tb * 4)));   // token→字符粗换算
-        if (rs > 0) budget = Math.max(200, budget - Math.floor(rs * 4));
+        // [v3.133] token→字符换算改用 CJK 口径（estimateTextTokens 逆变换）：汉字≈0.9 token/字 → 1 token≈1.11 字符。
+        // 旧口径 *4（0.25 token/字符，纯 ASCII）对中文正文超发约 3.5 倍——900 token 放行 3600 字符（实际≈4000 token）。
+        if (tb > 0) budget = Math.max(200, Math.min(budget, Math.floor(tb * 10 / 9)));
+        if (rs > 0) budget = Math.max(200, budget - Math.floor(rs * 10 / 9));
         if (o.adaptive !== false) {
             const cl = Number(chatLength) || 0;
             if (cl > 0) {
