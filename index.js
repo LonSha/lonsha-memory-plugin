@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.100.0';
+    const VERSION = '3.101.0';
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -2424,7 +2424,19 @@ function relativeTimeLabel(eventTime, nowTime) {
             let arr = [];
             const m = String(raw || '').match(/```json\s*([\s\S]*?)```/);
             const json = m ? m[1] : String(raw || '').replace(/[\s\S]*?(\[.*\])[\s\S]*/s, '$1');
-            try { arr = JSON.parse(sanitizeJson(json)); } catch (_) { arr = []; }
+            try { arr = JSON.parse(sanitizeJson(json)); } catch (_) {
+                // [v3.101] 截断容错：严格解析失败（如输出被 max_tokens 截断为半截 JSON）
+                // 时用宽松恢复保住已完整的条目，而非整体丢弃全部角色。
+                const loose = (typeof window !== 'undefined' && window.LonShaLooseJson)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./loose-json.js'); } catch { return null; } })() : null);
+                if (loose) {
+                    try {
+                        arr = loose.parseLooseArray(sanitizeJson(json) || json, { fields: ['name'], max: 200 }).items;
+                    } catch (_e) { arr = []; }
+                } else {
+                    arr = [];
+                }
+            }
             if (!Array.isArray(arr)) arr = [];
             return arr
                 .filter(x => x && typeof x.name === 'string' && x.name.trim())

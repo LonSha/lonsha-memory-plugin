@@ -10,8 +10,8 @@ const assert = (n, c) => { if (c) { pass++; console.log('✓ ' + n); } else { fa
 
 // ===== 1. 版本一致性 =====
 const mft = JSON.parse(mftSrc);
-assert('manifest 版本有效 (>= 3.37.0)', /^3\.(3[7-9]|[4-9]\d+)\./.test(mft.version));
-assert('index.js 版本有效 (>= 3.37.0)', /const VERSION = '3\.(3[7-9]|[4-9]\d+)\./.test(idxSrc));
+assert('manifest 版本有效 (>= 3.37.0)', /^3\.(3[7-9]|[4-9]\d+|[1-9]\d{2,})\./.test(mft.version));
+assert('index.js 版本有效 (>= 3.37.0)', /const VERSION = '3\.(3[7-9]|[4-9]\d+|[1-9]\d{2,})\./.test(idxSrc));
 
 // ===== 2. 静态锚点检查 =====
 // 支柱 1: HippoRAG

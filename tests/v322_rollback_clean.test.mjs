@@ -1,6 +1,12 @@
 // tests/v322_rollback_clean.test.mjs
 // v3.22 第七轮审计修复（rollbackFloor 未清 charMem/_thinkingSignals）
 import { readFileSync } from 'fs';
+// [fix] 语义化版本比较：vnum('3.100.0') === 3.1 会破坏 >=3.2x 断言
+function vnum(s) {
+  const m = /^([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?/.exec(String(s));
+  return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
+}
+
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
@@ -64,6 +70,6 @@ function clearSigByFloor(signals, floor) {
 // ST3: 方法定义存在
 { if (!src.includes('removeByFloor(floor) {\n            const f = Math.max')) fail('ST3 charMem方法'); if (!src.includes('clearThinkingSignalsByFloor(floor) {')) fail('ST3 信号方法'); ok('ST3: 两个清理方法已定义'); }
 // ST4: 版本号（容灾：>= 3.23）
-{ const vm4 = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/); if (vm4 && parseFloat(vm4[1]) >= 3.23) ok('ST4: 版本号 ' + vm4[1]); else fail('ST4: 版本 >= 3.23'); }
+{ const vm4 = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/); if (vm4 && vnum(vm4[1]) >= vnum('3.23')) ok('ST4: 版本号 ' + vm4[1]); else fail('ST4: 版本 >= 3.23'); }
 
 console.log(`\n✓ v3.22 rollback 清理修复测试全过 (${pass} 项)`);

@@ -6,14 +6,20 @@ import { fileURLToPath } from 'url';
 import { test } from 'node:test';
 import assert from 'node:assert';
 
+// [fix] 语义化版本比较：vnum('3.100.0') === 3.1 会破坏 >=3.2x 断言
+function vnum(s) {
+  const m = /^([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?/.exec(String(s));
+  return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
 
 // 版本断言
 const vMatch = src.match(/const VERSION = '([^']+)'/);
 assert.ok(vMatch, 'VERSION 未找到');
-const verNum = parseFloat(vMatch[1]);
-assert.ok(verNum >= 3.86, `版本 ${vMatch[1]} < 3.86`);
+const verNum = vnum(vMatch[1]);
+assert.ok(verNum >= vnum('3.86'), `版本 ${vMatch[1]} < 3.86`);
 
 // 抽取 BM25 类（保留缩进结构，去掉类体前导 8 空格换 2 空格）
 function extractClass() {

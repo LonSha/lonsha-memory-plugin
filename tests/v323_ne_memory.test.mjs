@@ -4,6 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// [fix] 语义化版本比较：vnum('3.100.0') === 3.1 会破坏 >=3.2x 断言
+function vnum(s) {
+  const m = /^([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?/.exec(String(s));
+  return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
 
@@ -11,8 +17,8 @@ const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
 const vMatch = src.match(/const VERSION = '([^']+)'/);
 if (!vMatch) { console.error('FAIL: VERSION 未找到'); process.exit(1); }
 const v = vMatch[1];
-const verNum = parseFloat(v);
-if (verNum < 3.23) { console.error(`FAIL: 版本 ${v} < 3.23`); process.exit(1); }
+const verNum = vnum(v);
+if (verNum < vnum('3.23')) { console.error(`FAIL: 版本 ${v} < 3.23`); process.exit(1); }
 console.log(`ok: 版本 ${v}`);
 
 let pass = 0;

@@ -4,13 +4,19 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// [fix] 语义化版本比较：vnum('3.100.0') === 3.1 会破坏 >=3.2x 断言
+function vnum(s) {
+  const m = /^([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?/.exec(String(s));
+  return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
 
 // 版本断言（>= v3.25 容灾）
 const vm = src.match(/const VERSION = '([^']+)'/);
 if (!vm) { console.error('FAIL: VERSION 未找到'); process.exit(1); }
-if (parseFloat(vm[1]) < 3.25) { console.error(`FAIL: 版本 ${vm[1]} < 3.25`); process.exit(1); }
+if (vnum(vm[1]) < vnum('3.25')) { console.error(`FAIL: 版本 ${vm[1]} < 3.25`); process.exit(1); }
 console.log(`ok: 版本 ${vm[1]}`);
 
 let pass = 0;
@@ -89,7 +95,7 @@ const ok = (m) => { pass++; console.log('ok: ' + m); };
 // ── T6: 版本 + 全量回归保障 ──
 {
     const vm6 = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);
-    if (vm6 && parseFloat(vm6[1]) >= 3.25) ok('T6: VERSION ' + vm6[1]);
+    if (vm6 && vnum(vm6[1]) >= vnum('3.25')) ok('T6: VERSION ' + vm6[1]);
     else fail('T6: VERSION >= 3.25');
     if (src.includes('recallTierEnabled') && src.includes('memoryTokenBudget') && src.includes('autoArchiveCovered')) ok('T6: v3.25 config 全开关在位');
     else fail('T6: config 开关缺失');
