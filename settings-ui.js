@@ -946,8 +946,8 @@
                     <details id="ls-advanced" style="padding:0 8px;">
                         <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;">🧪 高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
                         <div class="ls-hint" style="padding:6px 0 2px;">⚠️ 这些参数影响资源消耗与召回精度。默认值经过长期验证，非必要不调；改出问题直接点「恢复默认」。</div>
-                        <div class="ls-slider-label"><span>注入 token 预算</span><span class="ls-slider-val" id="ls-v-mtb">${c.memoryTokenBudget ?? 900}</span></div>
-                        <input type="range" class="ls-slider" min="200" max="3000" step="100" value="${c.memoryTokenBudget ?? 900}" data-cfg-num="memoryTokenBudget">
+                        <div class="ls-slider-label"><span>注入 token 预算</span><span class="ls-slider-val" id="ls-v-mtb">${c.memoryTokenBudget ?? 2700}</span></div>
+                        <input type="range" class="ls-slider" min="200" max="6000" step="100" value="${c.memoryTokenBudget ?? 2700}" data-cfg-num="memoryTokenBudget">
                         <div class="ls-slider-label"><span>最近正文 token 预留</span><span class="ls-slider-val" id="ls-v-krtr">${c.keepRecentTokenReserve ?? 0}</span></div>
                         <input type="range" class="ls-slider" min="0" max="1000" step="50" value="${c.keepRecentTokenReserve ?? 0}" data-cfg-num="keepRecentTokenReserve">
                         <div class="ls-slider-label"><span>向量条数上限</span><span class="ls-slider-val" id="ls-v-vmc">${c.vectorMaxCount ?? 500}</span></div>

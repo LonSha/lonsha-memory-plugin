@@ -1,3 +1,6 @@
+## v3.137.0
+- **UI 显示层随 CJK 口径对齐**：设置面板「注入 token 预算」滑块回显默认 900→2700，量程 3000→6000（旧 max 下新默认无法回显）；此前 v3.135 只改了引擎默认值，UI `?? 900` 回显与新默认不一致。
+
 ## v3.136.0
 - **设置面板导出/导入收口单真源（CP 最后旁路）**：导出按钮原手写 4 键清单（graph/summaries/diaries/vectors）改走 collectExport——补齐 clock/timeline/status/moneyLedger 等 30 余键；导入恢复面补 deltaBook/cse/pulse/outline/pairMem/moneyLedger/cards/conflicts/opLog/clock（此前导出的新键在导入时被丢弃）。
 
