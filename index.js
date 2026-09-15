@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.123.0';
+    const VERSION = '3.124.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -3085,7 +3085,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                 try {
                     if (this.config.config.echoEnabled) {
                         const merged = new Map();
-                        for (const r of recalled) merged.set(r.id || r.text || JSON.stringify(r).slice(0, 60), r);
+                        // [v3.124] 保留此前汇入统一候选池的变化驱动条目（日记/时间线/状态/关系/物品）；
+                        // 仅从 recalled 初始化会在 echoEnabled 时静默丢弃这些候选。
+                        for (const r of candidateItems) merged.set(r.id || r.text || JSON.stringify(r).slice(0, 60), r);
                         for (const e of this.echo.tick()) {
                             if (e.text && !merged.has(e.key)) merged.set(e.key, { id: e.key, text: e.text, source: e.source, echo: true });
                         }
