@@ -97,7 +97,8 @@ test('=== 3. PairMemory 接入链路完整性测试 ===', () => {
     assert.ok(src.includes('this.pairMem = new PairMemory();'), 'MemoryEngine 实例化 pairMem');
     assert.ok(src.includes('this.pairMem.addFromExtracted(extracted.relationships'), '提取路由接入');
     assert.ok(src.includes('this.pairMem.toPrompt('), 'buildInjection 注入');
-    assert.equal(src.split('pairMem: this.pairMem.export()').length - 1, 2, 'collectExport 两处');
+    // [v3.130] 单真源：OMR 手写清单废除，键在 collectExport 登记一处
+    assert.equal(src.split('pairMem: this.pairMem.export()').length - 1, 1, 'collectExport 含 pairMem（单真源）');
     assert.ok(src.includes('pack.pairMem && this.pairMem'), 'storage.load 恢复');
     assert.ok(src.includes('rollbackFloor.群像回滚'), 'rollbackFloor 联动');
     assert.ok(src.includes('for (const p of (this.pairMem?.pairs || [])) for (const e of p.entries) e.floor = dec(e.floor);'), 'shiftFloorsFrom 位移');

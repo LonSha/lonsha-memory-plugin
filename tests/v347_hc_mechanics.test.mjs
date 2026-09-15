@@ -205,8 +205,9 @@ test('=== 6. 心理暗流日记增强测试（attitude/keyEvents/subjRelations�
 
 test('=== 7. 持久化与回滚链路完整性测试 ===', () => {
     // collectExport 两处
-    assert.equal(src.split('moneyLedger: this.moneyLedger.export()').length - 1, 2, 'collectExport 两处均含 moneyLedger');
-    assert.equal(src.split('conflicts: this.conflicts.export()').length - 1, 2, 'collectExport 两处均含 conflicts');
+    // [v3.130] 单真源化后 OMR 手写清单废除，键在 collectExport 登记一处即全链路生效
+    assert.equal(src.split('moneyLedger: this.moneyLedger.export()').length - 1, 1, 'collectExport 含 moneyLedger（单真源）');
+    assert.equal(src.split('conflicts: this.conflicts.export()').length - 1, 1, 'collectExport 含 conflicts（单真源）');
     // storage.load
     assert.ok(src.includes('pack.moneyLedger && this.moneyLedger'), 'load 恢复 moneyLedger');
     assert.ok(src.includes('pack.cards && this.cards'), 'load 恢复 cards');

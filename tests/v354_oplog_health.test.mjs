@@ -79,7 +79,8 @@ test('=== 2. 埋点覆盖验证（六条主路径）===', () => {
 
 test('=== 3. OpLog 持久化链路验证 ===', () => {
     assert.ok(src.includes('this.opLog = new OpLog();'), 'engine 实例化');
-    assert.equal(src.split('opLog: this.opLog?.export?.() || null,').length - 1, 2, 'collectExport 两处');
+    // [v3.130] 单真源：OMR 手写清单废除，键在 collectExport 登记一处
+    assert.equal(src.split('opLog: this.opLog?.export?.() || null,').length - 1, 1, 'collectExport 含 opLog（单真源）'),
     assert.ok(src.includes('if (pack.opLog && this.opLog) this.opLog.import(pack.opLog);'), 'storage.load 恢复');
     assert.ok(src.includes('for (const e of (this.opLog?.entries || [])) if (typeof e.floor === \'number\') e.floor = dec(e.floor);'), 'shiftFloorsFrom 楼层位移');
     console.log('✓ OpLog 持久化链路验证通过');

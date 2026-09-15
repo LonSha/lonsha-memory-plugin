@@ -47,7 +47,7 @@ test('【逆向2】lockedFacts 全部调用点守卫', () => {
         ['摘要提取 prompt', src.includes("(this.config.config.lockedFactsEnabled !== false) ? this.summary.lockedFactsForPrompt() : ''")],
         // [v3.91] 断言意图为「调用点有可选链守卫」，不锁死参数列表（该调用点已接入 lockedFactMaxChars 预算裁剪）
         ['注入流', /this\.summary\?\.lockedFactsForPrompt\?\.\(/.test(src)],
-        ['快照持久化', src.includes('lockedFacts: this.summary.getLockedFacts(),')],
+        ['快照持久化', src.includes('lockedFacts: this.summary.getLockedFacts?.() || []')],   // [v3.130] 单真源安全可选调用
         ['payload 携带', src.includes('lockedFacts: (this.config.config.lockedFactsEnabled !== false) ? this.summary.getLockedFacts() : []')],
         ['UI 卡片', su.includes('s.summary?.getLockedFacts?.().length || 0')],
         ['UI 视图', su.includes('s.summary?.getLockedFacts?.() || []')],

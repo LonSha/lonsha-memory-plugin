@@ -1,3 +1,9 @@
+## v3.130.0
+- **持久化单真源（stbme 控制平面分离第一层）**：onMessageReceived 每楼自动保存的手写键清单废除，统一走 `collectExport()`——新键只在 collectExport 登记一处，全链路自动生效。
+- **collectExport/load 对称性补齐**：collectExport 补 deltaBook/cse/pulse/outline/pairMem/lockedFacts/recallSourceStats（此前 OMR 手写清单有而单真源没有）；load 补恢复 deltaBook/cse/pulse/outline/pairMem/moneyLedger/cards/conflicts/lockedFacts/recallSourceStats/timeWentBack（此前存而不读，换会话归零）；游标身份（chatId/指纹）与保存地面真源（`lastSave`）随存档走。
+- **正文时间标签协议闭环（baibai 时间锚点协议吸收）**：`bbs_start/bbs_end` 标签此前只喂时间线与向量元数据，现 OMR 提取侧用结束时间校准 GameClock（正文最高事实源优先生效，与 MyriadKnots 注释回读同位序）；`extractDualTimeTags` 增加 parseError 解析诊断（half-pair/unparseable），坏标签只统计不污染时钟。
+- **协议健康可见性**：GameClock 新增 `timeTagStats`（total/paired/unparseable/calibrated，随存档持久化），状态总览面板新增时间标签协议健康行（成对率与校准率为零时警告）。
+
 ## v3.129.0
 - **角色卡配置三级合并（anima 配置三级合并吸收）**：`loadConfig` 在全局 localStorage 层合并后应用角色卡 `data.extensions.LonShaMemory` 覆盖层，`CHAT_CHANGED` 切换角色卡时重放。
   - 卡级覆盖仅允许白名单键（22 个策略/数值类：vectorTopK/injectionBudget/timeChangeMaxCandidates/maxMoneyDelta 等）；提示词与 API 密钥等全局资产不随卡携带，恶意卡无法改写 apiUrl/apiKey。

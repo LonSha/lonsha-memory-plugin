@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.129.0';
+    const VERSION = '3.130.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -1459,6 +1459,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastRecallTrace = null;   // { query, sources, hitCount, durationMs, ts, triggerHit }
             this._recallSourceStats = { total: 0, bySource: {} };  // [v3.52] P12: 各召回源累计命中率（诊断面板：哪路召回在干活）
             this._lastChangeTrace = null;   // [v3.127] 本轮变化注入产量/游标（诊断可见性：坏了有人知道吗）
+            this._lastSaveGroundTruth = { ts: 0, floor: -1, sources: {} };   // [v3.130] 保存地面真源：最近一次保存的时间/楼层/来源计数
             // [v3.37] 叙事惊奇度/熵累加器（MemGPT 动态反思理念）
             this._narrativeEntropy = 0;
             this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
@@ -1951,6 +1952,31 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const rawMes = (typeof _rawForSynopsis !== 'undefined' && _rawForSynopsis) ? _rawForSynopsis : (message.mes || '');
                         if (rawMes) this.clock.syncFromNarrative(rawMes, { floor: curFloor });
                     } catch (e) { errLog(e, 'onMessageReceived.syncFromNarrative'); }
+                    // [v3.130] baibai 正文时间标签协议闭环：bbs_start/bbs_end → GameClock 校准。
+                    // 此前标签只喂时间线与向量元数据，时钟本体只被 LLM 推断的 story_clock 校准——
+                    // 正文最高事实源反而不影响时钟。结束时间为本楼后的当前时钟；坏标签降级只统计不污染。
+                    try {
+                        const _tts = this.clock.timeTagStats || (this.clock.timeTagStats = { total: 0, paired: 0, unparseable: 0, calibrated: 0 });
+                        _tts.total++;
+                        const _dtt = new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');
+                        if (_dtt?.parseError === 'half-pair') {
+                            // 半对：另一侧缺失——记录但不校准
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 时间标签半对(缺${_dtt.start ? 'end' : 'start'})，跳过时钟校准 (楼层 ${curFloor})`);
+                        } else if (_dtt?.hasDual) {
+                            _tts.paired++;
+                            if (_dtt.parseError) {
+                                _tts.unparseable++;
+                                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 时间标签无法解析(${_dtt.parseError})，跳过时钟校准 (楼层 ${curFloor})`);
+                            } else {
+                                const _endD = String(_dtt.end).split(/\s+/)[0];
+                                if (_endD && /[\d年月/.]/.test(_endD)) {
+                                    this.clock.setTime({ date: _endD, label: String(_dtt.end).split(/\s+/).slice(1).join(' '), floor: curFloor });
+                                    _tts.calibrated++;
+                                    if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🕐 正文时间标签校准时钟: ${_endD} (楼层 ${curFloor})`);
+                                }
+                            }
+                        }
+                    } catch (e) { errLog(e, 'onMessageReceived.timeTagClock'); }
                 } catch (e) { errLog(e, 'onMessageReceived.GameClock'); }
 
                 // [v1.8] P0: 写入剧情时间线
@@ -2414,39 +2440,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                             this.embedVaultToChatMeta?.();
                         }
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 嵌入元数据失败:`, e); }
-                    await this.storage.save(chatId, {
-                                                graph: this.graph.export(),
-                        charMem: this.charMem ? this.charMem.export() : {},
-                        worldProg: this.worldProg ? this.worldProg.export() : {}, summaries: this.summary.export(),
-                        lockedFacts: this.summary.getLockedFacts(),  // [v3.62] 锁定事实随快照持久化
-                        diaries: this.diary.export(),
-                        reflection: this.reflection?.export?.(),
-                        itemOps: this.itemOps,
-                        vectors: this.vector.export(),
-                        povs: this.pov.export(),
-                        timeline: this.timeline.export(),
-                        status: this.status.export(),
-                        ledger: this.ledger.export(),
-                        suspense: this.suspense.export(),
-                        moneyLedger: this.moneyLedger.export(),
-                        cards: this.cards.export(),
-                        conflicts: this.conflicts.export(),
-                        deltaBook: this.deltaBook.export(),  // [v3.66] 正史增量持久化
-                        cse: this.cse?.export?.() || { chars: {} },  // [v3.94] CSE 人物状态持久化
-                        pulse: this.pulse?.export?.() || { beats: [], arcs: {} },  // [v3.95] 叙事心电图持久化
-                outline: this.outline.export(),
-                pairMem: this.pairMem.export(),
-                opLog: this.opLog?.export?.() || null,
-                        outline: this.outline.export(),
-                        pairMem: this.pairMem.export(),
-                        recallSourceStats: this._recallSourceStats || null,
-                        opLog: this.opLog?.export?.() || null,
-                        scene: this.scene.export(),
-                        echo: this.echo.export(),
-                        supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
-                        narrativeEntropy: this._narrativeEntropy || 0,
-                        version: VERSION
-                    });
+                    // [v3.130] CP: 主保存路径统一走 collectExport() 单真源（stbme 控制平面分离第一层）。
+                    // 此前此处是手写键清单，已与 collectExport 漂移：缺 clock（时钟每楼不落盘）、缺游标/STM/prequel/锁定事实；
+                    // 且 load 又不恢复其中若干键。此后新键只在 collectExport 登记一处，全链路自动生效。
+                    // 保存地面真源：最近一次保存的时间/楼层/来源计数（诊断面板展示，随存档持久化）。
+                    const _svPrev = this._lastSaveGroundTruth || { ts: 0, sources: {} };
+                    this._lastSaveGroundTruth = { ts: Date.now(), floor: message.index || 0, sources: { ...(_svPrev.sources || {}), realtime: ((_svPrev.sources || {}).realtime || 0) + 1 } };
+                    await this.storage.save(chatId, await this.collectExport());
                 }
                 
                 console.log(`[${PLUGIN_NAME}] ✓ 完成 (${extracted?.characters?.length || 0}角色, ${extracted?.events?.length || 0}事件, 向量=${this.vector.vectors.length})`);
@@ -5784,9 +5784,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 recallArtifacts: this._recallArtifacts || [],
                 diaryInjectFloor: Number.isFinite(Number(this._diaryInjectFloor)) ? Number(this._diaryInjectFloor) : null,
                 timelineInjectFloor: Number.isFinite(Number(this._timelineInjectFloor)) ? Number(this._timelineInjectFloor) : null,
+                deltaBook: this.deltaBook.export(),  // [v3.130] CP: 此前 collectExport 漏载本键（OMR 手写清单有、单真源没有的漂移键）
+                cse: this.cse?.export?.() || { chars: {} },   // [v3.130] CP
+                pulse: this.pulse?.export?.() || { beats: [], arcs: {} },   // [v3.130] CP
+                opLog: this.opLog?.export?.() || null,   // [v3.130] CP: 事件溯源日志此前只在 OMR 手写清单里，正式导出/快照路径一直丢失
+                outline: this.outline.export(),   // [v3.130] CP
+                pairMem: this.pairMem.export(),   // [v3.130] CP
+                lockedFacts: this.summary.getLockedFacts?.() || [],   // [v3.130] CP
+                recallSourceStats: this._recallSourceStats || null,   // [v3.130] CP
+                // [v3.130] CP: 游标身份（chatId/指纹）随存档走——CHANGED 自愈重置后，同楼层重入也能判定"同楼重放"而非误初始化
                 timelineCursorChatId: this._timelineCursorChatId,
                 timelineCursorFingerprint: this._timelineCursorFingerprint,
                 timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
+                lastSave: this._lastSaveGroundTruth ? { ...this._lastSaveGroundTruth, sources: { ...(this._lastSaveGroundTruth.sources || {}) } } : null,   // [v3.130] 保存地面真源
                 packedAt: new Date().toISOString()
             };
         }
@@ -7490,6 +7500,13 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             const s = String(text || '');
             const startM = /<bbs_start>([\s\S]*?)<\/bbs_start>/i.exec(s);
             const endM = /<bbs_end>([\s\S]*?)<\/bbs_end>/i.exec(s);
+            // [v3.130] 解析诊断：标签在场但日期部分无法解析时带 parseError 返回（喂给时间校准的降级决策与诊断面板）
+            const parseErr = (raw) => {
+                const d = String(raw || '').trim().split(/\s+/)[0];
+                if (!d) return 'empty';
+                if (/[\d年月/.]/.test(d)) return null;
+                return `unparseable:${d.slice(0, 12)}`;
+            };
             if (startM && endM) {
                 const start = startM[1].trim();
                 const end = endM[1].trim();
@@ -7501,9 +7518,12 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                         durationMinutes = Math.max(0, Math.round((t2 - t1) / 60000));
                     }
                 } catch (e) { errLog(e, 'nonfatal') }
-                return { hasDual: true, start, end, durationMinutes };
+                const parseError = parseErr(start) || parseErr(end) || null;
+                return { hasDual: true, start, end, durationMinutes, parseError };
             }
-            return { hasDual: false, start: null, end: null, durationMinutes: 0 };
+            // 标签不齐（只有一半或都缺）时记录缺哪半，供协议健康度统计
+            if (startM || endM) return { hasDual: false, start: startM?.[1]?.trim() || null, end: endM?.[1]?.trim() || null, durationMinutes: 0, parseError: 'half-pair' };
+            return { hasDual: false, start: null, end: null, durationMinutes: 0, parseError: null };
         }
 
         // [v3.73] D: 时间段压缩（柏宝书 compactPair 理念）——"2023/9/10 06:45 - 2023/9/10 06:55" → "2023/9/10 06:45 - 06:55"
@@ -7700,6 +7720,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.precision = 'unknown'; // 'day' | 'approximate' | 'unknown'
             this.lastFlashback = null;  // { date, label, floor, recordedAt }
             this.turn = 0;              // 当前所处轮次/楼层
+            this.timeTagStats = { total: 0, paired: 0, unparseable: 0, calibrated: 0 };   // [v3.130] 正文时间标签协议健康统计（诊断面板展示）
         }
 
         // 设置/推进剧情时间
@@ -7759,7 +7780,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 label: this.label,
                 precision: this.precision,
                 lastFlashback: this.lastFlashback ? { ...this.lastFlashback } : null,
-                turn: this.turn
+                turn: this.turn,
+                timeTagStats: { ...(this.timeTagStats || { total: 0, paired: 0, unparseable: 0, calibrated: 0 }) }   // [v3.130]
             };
         }
 
@@ -7814,6 +7836,13 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.precision = String(data.precision || 'unknown');
             this.lastFlashback = data.lastFlashback && typeof data.lastFlashback === 'object' ? { ...data.lastFlashback } : null;
             this.turn = Number.isFinite(Number(data.turn)) ? Math.max(0, Math.round(Number(data.turn))) : 0;
+            if (data.timeTagStats && typeof data.timeTagStats === 'object') {   // [v3.130] 协议健康统计随存档恢复
+                const s = data.timeTagStats;
+                this.timeTagStats = {
+                    total: Number(s.total) || 0, paired: Number(s.paired) || 0,
+                    unparseable: Number(s.unparseable) || 0, calibrated: Number(s.calibrated) || 0
+                };
+            }
         }
     }
 
@@ -9637,6 +9666,25 @@ ${recentTurns}`;
                     if (Number.isFinite(Number(data.timelineInjectFloor))) engine._timelineInjectFloor = Number(data.timelineInjectFloor);
                     if (data.timelineCursorChatId != null) engine._timelineCursorChatId = String(data.timelineCursorChatId);
                     if (data.timelineCursorFingerprint != null) engine._timelineCursorFingerprint = String(data.timelineCursorFingerprint);
+                    // [v3.130] CP: 补齐恢复面——此前 OMR 手写清单在存、load 从不读的键，换会话全部归零（stbme 持久化确认状态机缺口）。
+                    if (data.deltaBook && engine.deltaBook) engine.deltaBook.import(data.deltaBook);
+                    if (data.cse && engine.cse) engine.cse.import?.(data.cse);
+                    if (data.pulse && engine.pulse) engine.pulse.import?.(data.pulse);
+                    if (data.outline && engine.outline) engine.outline.import?.(data.outline);
+                    if (data.pairMem && engine.pairMem) engine.pairMem.import?.(data.pairMem);
+                    if (data.moneyLedger && engine.moneyLedger) engine.moneyLedger.import?.(data.moneyLedger);
+                    if (data.cards && engine.cards) engine.cards.import?.(data.cards);
+                    if (data.conflicts && engine.conflicts) engine.conflicts.import?.(data.conflicts);
+                    if (data.opLog && engine.opLog) engine.opLog.import?.(data.opLog);   // [v3.130] CP: 事件溯源日志恢复
+                    if (Array.isArray(data.lockedFacts)) { try { engine.summary.lockedFacts = data.lockedFacts.slice(); } catch (e) { errLog(e, 'storage.load.lockedFacts'); } }   // 直赋：summary.import 会重置其他字段，不可复用
+                    if (data.recallSourceStats && typeof data.recallSourceStats === 'object') engine._recallSourceStats = data.recallSourceStats;
+                    if (data.timeWentBack && typeof data.timeWentBack === 'object') engine._timeWentBack = { ...data.timeWentBack };
+                    if (data.lastSave && typeof data.lastSave === 'object') {   // [v3.130] 地面真源恢复：只回填不回退（本地更新者保持自己的计数）
+                        const _g = engine._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {} };
+                        if (Number(data.lastSave.ts) > Number(_g.ts || 0)) {
+                            engine._lastSaveGroundTruth = { ts: Number(data.lastSave.ts) || 0, floor: Number(data.lastSave.floor ?? -1), sources: { ...(data.lastSave.sources || {}) } };
+                        }
+                    }
                 }
                 return data;
             } catch (err) { return null; }

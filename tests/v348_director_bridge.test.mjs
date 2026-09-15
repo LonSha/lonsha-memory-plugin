@@ -185,7 +185,8 @@ test('=== 3. 关系五分类与伦理冲突检测测试 ===', () => {
 test('=== 4. 大纲接入链路完整性测试 ===', () => {
     assert.ok(src.includes('this.outline = new OutlineDirector();'), 'MemoryEngine 实例化 outline');
     assert.ok(src.includes('const outlinePrompt = this.outline.toPrompt();'), 'buildInjection 注入大纲');
-    assert.equal(src.split('outline: this.outline.export()').length - 1, 2, 'collectExport 两处');
+    // [v3.130] 单真源：OMR 手写清单废除，键在 collectExport 登记一处
+    assert.equal(src.split('outline: this.outline.export()').length - 1, 1, 'collectExport 含 outline（单真源）');
     assert.ok(src.includes('pack.outline && this.outline'), 'storage.load 恢复 outline');
     assert.ok(src.includes('this.outline.parseOutline(_rawForSynopsis'), 'AI 回复解析钩子');
     assert.ok(src.includes('this.outline.advanceTurn(message.index || 0)'), '每楼轮次推进');
