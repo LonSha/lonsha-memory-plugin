@@ -135,7 +135,7 @@ test('【5】默认值不被 UI 改变（向后兼容）', () => {
     const m = re.exec(idxSrc);
     assert.ok(m, '默认值仍在: ' + k);
   }
-  assert.ok(/memoryTokenBudget:\s*900/.test(idxSrc), 'memoryTokenBudget 默认 900 未动');
+  assert.ok(/memoryTokenBudget:\s*2700/.test(idxSrc), 'memoryTokenBudget 默认 2700（v3.135 CJK 口径重校准）');
   assert.ok(/vectorMaxCount:\s*500/.test(idxSrc), 'vectorMaxCount 默认 500 未动');
   ok('默认值零变更');
 });

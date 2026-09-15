@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.134.0';
+    const VERSION = '3.135.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -725,7 +725,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
                 recallTierEnabled: true,       // 召回类型分级（常驻 constant / 触发 trigger，注入预算裁剪优先保常驻）
-                memoryTokenBudget: 900,        // 记忆注入 token 预算（替代单层字符预算，按 token 剪裁）
+                memoryTokenBudget: 2700,       // [v3.135] 记忆注入 token 预算（按 token 剪裁）——默认从 900 重校准：旧值为 *4 装饰口径倒推值，CJK 口径真实生效后 2700 token≈3000 中文字符，与 injectionBudget 默认等价，行为不变而上限真实
                 keepRecentTokenReserve: 0,     // 保留给最近正文的 token 预留（0=不预留；>0 时注入预算自动扣减）
                 autoArchiveCovered: false,     // 归档隐藏已被卷摘要覆盖的旧楼层（默认关，防灾）
                 // [v3.112] 覆盖账本重算（缝合 AnchorNote）：归档状态由有效覆盖者推导而非增量记账
@@ -4675,7 +4675,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (!this.prequel) return '';
                 return this.prequel.buildInjection(query, {
                     baseChars: Number(this.config.config.injectionBudget) || 3000,
-                    tokenBase: Number(this.config.config.memoryTokenBudget) || 900,
+                    tokenBase: Number(this.config.config.memoryTokenBudget) || 2700,   // [v3.135] 随默认重校准
                     enabled: this.config.config.prequelEnabled !== false
                 });
             } catch (e) { errLog(e, 'buildPrequelInjection'); return ''; }
@@ -6472,11 +6472,11 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (opts.enabled === false) return '';
             if (!String(this.text || '').trim()) return '';
             const baseChars = Math.max(600, Number(opts.baseChars) || 3000);
-            const tokenBase = Math.max(200, Number(opts.tokenBase) || 900);
+            const tokenBase = Math.max(200, Number(opts.tokenBase) || 2700);   // [v3.135] 随默认重校准
             // 前情预算占比 30%（千千结 PREQUEL_BUDGET_SHARE），字符/token 双口径取严
             const charBudget = Math.max(200, Math.floor(baseChars * this.BUDGET_SHARE));
             const tokenBudget = Math.min(this.MAX_TOKENS, Math.max(150, Math.floor(tokenBase * this.BUDGET_SHARE)));
-            const effCharBudget = Math.min(charBudget, tokenBudget * 4);
+            const effCharBudget = Math.min(charBudget, tokenBudget * 10 / 9);   // [v3.135] CJK 口径统一（v3.133 同族）
             const fragMax = Math.max(32, Math.min(this.FRAGMENT_CHARS, effCharBudget - 120));
             const fragments = this._frags(fragMax);
             if (!fragments.length) return '';

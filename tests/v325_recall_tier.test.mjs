@@ -37,7 +37,7 @@ const ok = (m) => { pass++; console.log('ok: ' + m); };
 
 // ── T2: token 预算双层 ──
 {
-    if (src.includes('memoryTokenBudget: 900')) ok('T2: memoryTokenBudget 开关存在');
+    if (src.includes('memoryTokenBudget: 2700')) ok('T2: memoryTokenBudget 开关存在');
     else fail('T2: memoryTokenBudget 缺失');
     if (src.includes('keepRecentTokenReserve: 0')) ok('T2: keepRecentTokenReserve 开关存在');
     else fail('T2: keepRecentTokenReserve 缺失');
