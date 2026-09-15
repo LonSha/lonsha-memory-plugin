@@ -1,7 +1,9 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.103.0';
+    const VERSION = '3.104.0';
+    // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
+    const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
     async function fetchWithTimeoutRetry(url, init, opts) {
@@ -8699,6 +8701,21 @@ ${recentTurns}`;
                 console.warn(`[${PLUGIN_NAME}] 存储写入被拒绝：检测到修订版本冲突 (当前 rev: ${this._revision}, 请求 rev: ${opts.expectedRevision})，防止旧快照覆盖最新状态`);
                 return false;
             }
+            // [v3.104] 缝合 bionic-memory changeset/ledger：状态指纹陈旧防护。
+            // 修订号只能发现「顺序落后」；若内容被就地改过（导入存档/外部写入/回档），
+            // 修订号可能相同而内容已换。调用方若带 expectedStateFingerprint，
+            // 则与当前内存状态指纹比对，不符即拒绝（防止旧结论盖在新状态上）。
+            try {
+                const sgx = (typeof window !== 'undefined' && window.LonShaStaleGuard)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./stale-guard.js'); } catch { return null; } })() : null);
+                if (sgx && opts.expectedStateFingerprint) {
+                    const cur = sgx.computeStateFingerprint(data, STORAGE_FP_FIELDS);
+                    if (String(opts.expectedStateFingerprint) !== cur) {
+                        console.warn(`[${PLUGIN_NAME}] 存储写入被拒绝：状态指纹不符（调用方 ${sgx.fingerprintDiff(opts.expectedStateFingerprint, cur)}），防止基于陈旧状态覆盖`);
+                        return false;
+                    }
+                }
+            } catch (e) { errLog(e, 'DB.指纹防护'); }
             this._revision += 1;
             const currentRev = this._revision;
             if (this._isWriting) {

@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.103.0",
+  "version": "3.104.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -30,7 +30,8 @@
  "canonical-stringify.js",
  "loose-json.js",
  "model-response.js",
- "dependency-closure.js"
+ "dependency-closure.js",
+ "stale-guard.js"
 ],
   "extra_css": [
     "lonsha-design.css",
