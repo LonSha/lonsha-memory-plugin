@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.109.0';
+    const VERSION = '3.110.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -688,6 +688,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 recallCacheEnabled: true,      // [v2.9] RU-D: swipe同楼重roll复用召回缓存
                 // [v3.109] 召回产物持久化（缝合 bionic turn-artifact）：跨会话复用 + 历史指纹判据
                 recallArtifactEnabled: false,  // 默认关：仅显式开启后才落产物并按历史指纹判复用
+                // [v3.110] 事件性门控（缝合 bionic smart-trigger）：平淡楼层跳过昂贵 LLM 提取
+                smartTriggerEnabled: false,    // 默认关：开启后仅「有事件性」的楼层走 LLM 提取，其余降级本地摘要
+                smartTriggerThreshold: 2,      // 触发阈值（bionic 缺省 2；越低越容易触发）
+                smartTriggerPatterns: '',      // 自定义触发规则（换行/逗号分隔的正则；命中即加权）
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
@@ -1639,7 +1643,44 @@ function relativeTimeLabel(eventTime, nowTime) {
                         if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] <synopsis>快速路径: 楼层 ${message.index}`);
                     }
                 }
-                if (!extracted) extracted = await this.extractMemoryWithLLM(message);
+                // [v3.110] 事件性门控（缝合 bionic smart-trigger）：决定「这一楼值不值得花一次 LLM 提取」。
+                //   默认关（smartTriggerEnabled:false）→ 与既有行为完全一致。
+                //   开启后：平淡楼（日常过渡/寒暄/环境描写）跳过 LLM，降级为本地廉价摘要——
+                //   绝不丢弃楼层，宁抽得糙，不留记忆空洞（fail-open）。
+                let _triggerDecision = null;
+                if (this.config.config.smartTriggerEnabled === true) {
+                    try {
+                        const st = (typeof window !== 'undefined' ? window.LonShaSmartTrigger : null)
+                            || (typeof require !== 'undefined' ? (() => { try { return require('./smart-trigger.js'); } catch { return null; } })() : null);
+                        if (st) {
+                            const _chat = window.SillyTavern?.getContext?.()?.chat || [];
+                            const _pending = st.normalizePending(_chat, {
+                                lastProcessed: (message.index || 0) - 1,
+                                endFloor: message.index || 0,
+                                isOmitted: (m) => this.isOmittedFloor(m),
+                            });
+                            _triggerDecision = st.evaluateTrigger(_pending, {
+                                patterns: this.config.config.smartTriggerPatterns,
+                                threshold: this.config.config.smartTriggerThreshold,
+                            });
+                            this._triggerStats = Array.isArray(this._triggerStats) ? this._triggerStats : [];
+                            this._triggerStats.push({ score: _triggerDecision.score, triggered: _triggerDecision.triggered, reasons: _triggerDecision.reasons });
+                            if (this._triggerStats.length > 300) this._triggerStats.shift();
+                            if (this.config.config.debugMode) {
+                                console.log(`[${PLUGIN_NAME}] [v3.110] 事件性门控: score=${_triggerDecision.score}/${_triggerDecision.threshold} triggered=${_triggerDecision.triggered}` + (_triggerDecision.reasons.length ? ` (${_triggerDecision.reasons.join('; ')})` : ''));
+                            }
+                        }
+                    } catch (e) { errLog(e, 'onMessageReceived.事件性门控'); }
+                }
+                if (!extracted) {
+                    if (_triggerDecision && _triggerDecision.triggered === false) {
+                        // 平淡楼：跳过 LLM 提取，走本地廉价摘要
+                        extracted = this.extractMemorySimple(message);
+                        if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [v3.110] 平淡楼跳过 LLM 提取（楼层 ${message.index}），已降级本地摘要`);
+                    } else {
+                        extracted = await this.extractMemoryWithLLM(message);
+                    }
+                }
                 // [v3.33] AI 主动记忆操作 merged into extracted: high-confidence writes override/augment passive LLM extraction
                 if (aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) {
                     extracted = extracted || { characters: [], events: [], relationships: [], summary: "" };
@@ -2829,6 +2870,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 inputFingerprint: aa.createInputFingerprint({
                                     turnId: 'turn_' + curFloor2,
                                     userMessage: String(query.text || ''),
+                                    recentMessages: [hash32(String(query.recentText || ''))],
                                     historyFingerprint: histFp,
                                 }),
                                 historyFingerprint: histFp,
@@ -2971,6 +3013,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                         } catch (e) { errLog(e, 'onBeforeGeneration.AI精选'); }
                     }
                 } catch (e) { errLog(e, 'onBeforeGeneration.v396缝合'); }
+                // [v3.109] 记录本轮实际入选条目 id（供召回产物记录「依据」；被引用记忆消失时可据此判定产物失效）
+                try {
+                    const _srcKinds = new Set();
+                    this._lastSelectedIds = Array.from(new Set((candidateItems || [])
+                        .map((it, i) => {
+                            const sk = String(it?.source || 'other').split('+')[0];
+                            if (sk) _srcKinds.add(sk);
+                            return String(it?.id ?? it?.key ?? ('idx_' + i));
+                        })
+                        .filter(Boolean))).slice(0, 200);
+                    this._lastCandidateCount = (candidateItems || []).length;
+                    this._lastSourceKinds = Array.from(_srcKinds).sort();
+                } catch (e) { errLog(e, 'onBeforeGeneration.入选id记录'); }
                 let inj2 = this.buildInjection(candidateItems);
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
                 if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
@@ -3037,10 +3092,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     artifactKind: 'recall',
                                     floor: cc.length - 1,
                                     userMessage: String(query.text || ''),
+                                    recentMessages: [hash32(String(query.recentText || ''))],
                                     historyFingerprint: histFp,
                                     stateFingerprint: String(msgFpOf(_cm) || ''),
                                     injectionText: inj2,
-                                    selectedMemoryIds: (typeof recalledIds === 'object' && Array.isArray(recalledIds)) ? recalledIds : [],
+                                    selectedMemoryIds: (Array.isArray(this._lastSelectedIds)) ? this._lastSelectedIds : [],
+                                    sourceKinds: (Array.isArray(this._lastSourceKinds)) ? this._lastSourceKinds : [],
                                     candidateCount: Number(this._lastCandidateCount || 0),
                                     source: 'onBeforeGeneration',
                                 });
@@ -5287,6 +5344,18 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                     push(`- 平均注入 ${s.avgInjectionChars} 字 / 空产物 ${s.empties} 条`);
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.召回产物'); }
+            // [v3.110] 事件性门控诊断（缝合 bionic smart-trigger）：省下的提取调用数 / 判定分布
+            try {
+                const st = (typeof window !== 'undefined' ? window.LonShaSmartTrigger : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./smart-trigger.js'); } catch { return null; } })() : null);
+                if (st && Array.isArray(this._triggerStats) && this._triggerStats.length) {
+                    const s = st.summarizeTriggers(this._triggerStats);
+                    push('');
+                    push(`**事件性门控：** 评估 ${s.evaluated} 楼（触发 ${s.fired} / 跳过 ${s.skipped}，命中率 ${(s.fireRate * 100).toFixed(1)}%）`);
+                    push(`- 估计省下 LLM 提取 ${s.savedCalls} 次 / 平均得分 ${s.avgScore}`);
+                    if (s.topReasons.length) push(`- 高频理由：${s.topReasons.map(r => `${r.reason}×${r.count}`).join('、')}`);
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.事件性门控'); }
             return L.join('\n');
         }
 

@@ -117,6 +117,7 @@
             empty: injectionText.trim().length === 0,
             injectionText,
             selectedMemoryIds: [...new Set(selected)],
+            sourceKinds: Array.isArray(s.sourceKinds) ? [...new Set(s.sourceKinds.map(normStr).filter(Boolean))] : [],
             candidateCount: Number.isFinite(Number(s.candidateCount)) ? Math.max(0, Math.floor(Number(s.candidateCount))) : 0,
             source: normStr(s.source) || 'recall',
             createdAt: normTime(s.createdAt, Date.now()),
@@ -228,6 +229,25 @@
         return { store: kept, removedByAge, removedByCap: list.length - kept.length };
     }
 
+    /** 依据有效性校验（产物引用的记忆若已消失，则产物不应继续复用） */
+    function isArtifactStale(artifact, liveIds, options) {
+        const o = options || {};
+        const art = artifact || {};
+        const ids = Array.isArray(art.selectedMemoryIds) ? art.selectedMemoryIds.filter(Boolean) : [];
+        if (!ids.length) return { stale: false, checked: 0, missing: [], ratio: 0 };
+        const live = liveIds instanceof Set ? liveIds
+            : new Set((Array.isArray(liveIds) ? liveIds : []).map(normStr).filter(Boolean));
+        const missing = ids.filter(id => !live.has(normStr(id)));
+        const ratio = Number((missing.length / ids.length).toFixed(4));
+        const threshold = Number.isFinite(Number(o.staleRatio)) ? Number(o.staleRatio) : 0.5;
+        return {
+            stale: missing.length > 0 && ratio >= threshold,
+            checked: ids.length,
+            missing: missing.slice(0, 64),
+            ratio,
+        };
+    }
+
     /** 产物 → 召回结果形状（外层消费方契约） */
     function toRecallResult(artifact) {
         if (!artifact) return null;
@@ -242,6 +262,7 @@
             floor: artifact.floor,
             empty: artifact.empty,
             selectedMemoryIds: (artifact.selectedMemoryIds || []).slice(),
+            sourceKinds: (artifact.sourceKinds || []).slice(),
             candidateCount: artifact.candidateCount,
             injectionText: artifact.injectionText,
             source: artifact.source,
@@ -280,6 +301,7 @@
         planCommitArtifact,
         invalidateTurn,
         pruneArtifacts,
+        isArtifactStale,
         toRecallResult,
         summarizeArtifacts,
     };

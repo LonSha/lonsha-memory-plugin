@@ -35,6 +35,7 @@ const turn = (over) => Object.assign({
   stateFingerprint: 's1',
   injectionText: '【记忆】他们于第3楼约定在码头见面。',
   selectedMemoryIds: ['mem_3', 'mem_5'],
+  sourceKinds: ['vector'],
   candidateCount: 12,
   createdAt: 1000,
 }, over || {});
@@ -214,6 +215,7 @@ test('【8】toRecallResult / summarizeArtifacts', () => {
   assert.strictEqual(r.reused, true, '复用产物标记');
   assert.strictEqual(r.injectionText, c.artifact.injectionText, '注入文本透传');
   assert.deepStrictEqual(r.selectedMemoryIds, ['mem_3', 'mem_5']);
+  assert.deepStrictEqual(r.sourceKinds, ['vector'], '来源类型透传');
   assert.ok(!('selectedMemoryIds' in (RA.toRecallResult(null) || {})), 'null 产物返回 null');
   // 诊断
   let store = [];
@@ -241,6 +243,8 @@ test('【9】index.js 接线：召回产物已挂上主链路', () => {
   assert.ok(idxSrc.includes('aa.planCommitArtifact'), '落盘真调用');
   assert.ok(idxSrc.includes('aa.pruneArtifacts'), '容量控制真调用');
   assert.ok(/this\._recallArtifacts = \[\]/.test(idxSrc), '实例字段初始化');
+  assert.ok(idxSrc.includes('this._lastSelectedIds'), '产物「依据」（入选条目 id）真记录');
+  assert.ok(/sourceKinds:\s*\(Array\.isArray\(this\._lastSourceKinds\)\)/.test(idxSrc), '来源类型随产物落盘');
   assert.ok(idxSrc.includes('_historyFingerprint()'), '历史指纹方法存在');
   assert.ok(idxSrc.includes('recallArtifacts: this._recallArtifacts || []'), '随聊天持久化');
   assert.ok(idxSrc.includes('Array.isArray(data.recallArtifacts)'), '加载时恢复');
