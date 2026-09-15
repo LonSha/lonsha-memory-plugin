@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.106.0';
+    const VERSION = '3.107.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -5139,6 +5139,16 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 push(`**重试队列：** ${rq.length} 个待重试任务`);
                 for (const j of rq.slice(-3)) push(`- ${j.kind}/tier${j.tier}：已试 ${j.attempts} 次`);
             }
+            // [v3.107] 任务收件箱状态（缝合 bionic memory-inbox）：卡在哪个阶段 / 最旧待办等了多久
+            try {
+                const inbox = this.getTaskInboxReport?.();
+                if (inbox && inbox.total) {
+                    push('');
+                    push(`**任务收件箱：** 共 ${inbox.total} 条（可执行 ${inbox.runnable}）`);
+                    push(`- 待办 ${inbox.counts.pending || 0} / 已领取 ${inbox.counts.claimed || 0} / 已完成 ${inbox.counts.completed || 0} / 已推迟 ${inbox.counts.deferred || 0} / 已放弃 ${inbox.counts.cancelled || 0}`);
+                    if (inbox.waitingMs > 0) push(`- 最旧待办等待：${Math.round(inbox.waitingMs / 60000)} 分钟`);
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.任务收件箱'); }
             return L.join('\n');
         }
 
@@ -6239,7 +6249,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             const exist = this.retryQueue.find(j => j.kind === kind && j.tier === tier);
             if (exist) { exist.payload = payload; return exist.id; }
             const id = 'rj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-            this.retryQueue.push({ id, kind, tier, attempts: 0, nextAttemptAt: 0, payload });
+            // [v3.107] enqueuedAt：供收件箱视图回答「这个任务等了多久」（新增字段，不改既有消费逻辑）
+            this.retryQueue.push({ id, kind, tier, attempts: 0, nextAttemptAt: 0, enqueuedAt: Date.now(), payload });
             if (this.retryQueue.length > 5) this.retryQueue.shift();
             return id;
         }
@@ -6272,6 +6283,47 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             } catch (e) { /* 保留任务等待下次 */ }
             return 1;
         }
+
+        // [v3.107] 任务收件箱视图（缝合 bionic memory-inbox 的状态机理念）
+        //   既有 retryQueue 用「数组增删」表达任务阶段：一个任务是否已领取、已推迟、已放弃
+        //   全靠它在不在数组里推断，出问题时无法回答「它卡在哪一阶段、等了多久」。
+        //   本方法把 retryQueue 投影为一个带显式状态的收件箱：把「正在等待退避窗口」的任务
+        //   标为 deferred（可见时间 = nextAttemptAt），其余标为 pending，并给出最旧待办等待时长。
+        //   纯读视图，不改动 retryQueue 本身（零行为变更）。
+        getTaskInbox() {
+            try {
+                const inboxLib = (typeof window !== 'undefined' ? window.LonShaTaskInbox : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./task-inbox.js'); } catch { return null; } })() : null);
+                if (!inboxLib) return [];
+                const now = Date.now();
+                return (this.summary?.retryQueue || []).map(j => {
+                    const waiting = Number(j.nextAttemptAt || 0) > now;
+                    return {
+                        itemId: String(j.id || ('rj_' + j.kind + '_' + j.tier)),
+                        kind: String(j.kind || 'unknown'),
+                        dedupeKey: String(j.kind || '') + '/' + String(j.tier ?? ''),
+                        status: waiting ? inboxLib.INBOX_STATUS.DEFERRED : inboxLib.INBOX_STATUS.PENDING,
+                        revision: Number(j.attempts || 0),
+                        sequence: Number(j.attempts || 0),
+                        attempt: Number(j.attempts || 0),
+                        availableAt: Number(j.nextAttemptAt || 0),
+                        payload: j.payload || {},
+                        createdAt: Number(j.enqueuedAt || 0) || now,
+                    };
+                });
+            } catch (e) { errLog(e, 'getTaskInbox'); return []; }
+        }
+
+        /** 收件箱诊断摘要（计数 / 可执行数 / 最旧待办等待时长） */
+        getTaskInboxReport() {
+            try {
+                const inboxLib = (typeof window !== 'undefined' ? window.LonShaTaskInbox : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./task-inbox.js'); } catch { return null; } })() : null);
+                if (!inboxLib || typeof inboxLib.summarizeInbox !== 'function') return null;
+                return inboxLib.summarizeInbox(this.getTaskInbox(), { now: Date.now() });
+            } catch (e) { errLog(e, 'getTaskInboxReport'); return null; }
+        }
+
         // 卷摘要召回（最近 N 卷，低权重）
         // [v3.28] 三级金字塔最高层: 卷摘要（周记）积累超阈值 → 折叠成史记（最高层，跨阶段总览）
         // [v3.29] 修复僵尸链路: 原用 this.folding 防重入——但本方法在 maybeFold 的 try 块内被调（folding=true），

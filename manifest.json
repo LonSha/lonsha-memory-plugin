@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "LonSha",
-    "version": "3.106.0",
+    "version": "3.107.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -33,7 +33,8 @@
         "dependency-closure.js",
         "stale-guard.js",
         "turn-reconciler.js",
-        "step-pipeline.js"
+        "step-pipeline.js",
+        "task-inbox.js"
     ],
     "extra_css": [
         "lonsha-design.css",
