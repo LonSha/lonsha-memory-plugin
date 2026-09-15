@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.118.0';
+    const VERSION = '3.119.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -8604,8 +8604,30 @@ ${win}`;
         }
         search(characters) {
             const results = [];
-            for (const char of (characters || [])) if (this.diaries[char]) results.push(...this.diaries[char].slice(-3));
+            const allowed = new Set((characters || []).map(c => String(c || '').trim()).filter(Boolean));
+            for (const char of allowed) if (this.diaries[char]) results.push(...this.diaries[char].slice(-3));
             return results;
+        }
+        /** HCDiary 变化驱动适配：读取游标之后、指定角色的日记，返回副本。 */
+        getChangesSince(floor = -1, characters = [], limit = 30) {
+            const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
+            const cap = Math.min(30, Math.max(0, Number(limit) || 0));
+            const allowed = new Set((characters || []).map(c => String(c || '').trim()).filter(Boolean));
+            const out = [];
+            for (const [name, entries] of Object.entries(this.diaries || {})) {
+                if (allowed.size && !allowed.has(name)) continue;
+                for (const entry of (Array.isArray(entries) ? entries : [])) {
+                    if (Number(entry?.floor) > cursor) out.push({ name, ...entry });
+                }
+            }
+            return out
+                .sort((a, b) => Number(a.floor) - Number(b.floor) || String(a.name).localeCompare(String(b.name), 'zh-CN'))
+                .slice(-cap)
+                .map(x => ({
+                    ...x,
+                    keyEvents: Array.isArray(x.keyEvents) ? [...x.keyEvents] : x.keyEvents,
+                    subjRelations: Array.isArray(x.subjRelations) ? [...x.subjRelations] : x.subjRelations,
+                }));
         }
         // [v2.7] RS: 按楼层删除日记（rollbackFloor 联动，幂等）
         removeByFloor(floor) {
