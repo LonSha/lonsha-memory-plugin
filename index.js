@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.133.0';
+    const VERSION = '3.134.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -822,7 +822,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {
                     const v = cardCfg[k];
-                    if (v === undefined || v === null) continue;
+                    // [v3.134] 空字符串同样跳过："" 会把布尔开关翻成误开（"" !== false）、数值键被 Number("") 归零，卡作者漏填的空值不应生效
+                    if (v === undefined || v === null || v === '') continue;
                     if (typeof this.config[k] === 'object' && this.config[k] !== null && typeof v === 'object' && !Array.isArray(v)) {
                         this.config[k] = { ...this.config[k], ...v };
                     } else {

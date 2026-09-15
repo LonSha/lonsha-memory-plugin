@@ -71,3 +71,20 @@ test('v3.129 载入与切换角色接线', () => {
     // CHAT_CHANGED 事件重放
     assert.match(src, /this\.engine\.config\?\._applyCardOverrides\?\.\(\)/);
 });
+// [v3.134] 空字符串覆盖企图同样被拦截（"" 会把布尔开关翻成误开、数值键归零）
+test('v3.134 空字符串跳过，不覆盖布尔/数值默认值', () => {
+    const window = { SillyTavern: { getContext: () => ({
+        character: { data: { extensions: { LonShaMemory: {
+            echoEnabled: '',            // 空串 → 跳过（否则 "" !== false 会误开）
+            vectorTopK: '',             // 空串 → 跳过（否则被 Number 归零）
+            timeChangeMaxCandidates: 5, // 正常覆盖仍生效
+        } } } }
+    }) } };
+    const cfg = { config: { echoEnabled: false, vectorTopK: 5, timeChangeMaxCandidates: 3 } };
+    const apply = makeApply(window);
+    const applied = apply.call(cfg);
+    assert.equal(applied, 1, '只有 1 个非空白名单键生效');
+    assert.equal(cfg.config.echoEnabled, false, '布尔开关不被空串翻转');
+    assert.equal(cfg.config.vectorTopK, 5, '数值键不被空串归零');
+    assert.equal(cfg.config.timeChangeMaxCandidates, 5);
+});

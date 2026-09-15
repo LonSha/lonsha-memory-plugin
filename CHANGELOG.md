@@ -1,3 +1,6 @@
+## v3.134.0
+- **卡级配置空值防线**：`_applyCardOverrides` 空字符串跳过补齐（此前仅跳 undefined/null）——"" 会把布尔开关翻成误开（"" !== false）、数值键被 Number("") 归零；与注释/CHANGELOG 声称的语义对齐，补行为测试。
+
 ## v3.133.0
 - **注入预算 token→字符换算 CJK 口径统一（v3.128 的逆转换同族修复）**：deriveBudget 与内联回落实现中 memoryTokenBudget/keepRecentTokenReserve 的 *4 换算（0.25 token/字符，纯 ASCII 口径）改为 *10/9（≈1.11 字符/token，与 estimateTextTokens 的汉字≈0.9 token/字逆变换一致）。旧口径对中文正文超发约 3.5 倍——900 token 预算放行 3600 字符（实际≈4000 token），memoryTokenBudget 形同虚设。
 
