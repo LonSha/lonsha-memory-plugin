@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.117.0';
+    const VERSION = '3.118.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -8808,11 +8808,19 @@ ${win}`;
             }
             return n;
         }
-        /** 注入提示词：增量事实分状态展示 */
-        toPrompt() {
-            if (!this.deltas.length) return '';
-            const est = this.deltas.filter(d => d.status === 'established').slice(-4);
-            const unc = this.deltas.filter(d => d.status === 'uncertain').slice(-4);
+        /** 变化驱动读取：只返回游标之后产生的增量事实，不修改账本。 */
+        getChangesSince(floor = -1, limit = 50) {
+            const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
+            const cap = Math.min(50, Math.max(0, Number(limit) || 0));
+            return this.deltas.filter(d => Number(d?.evidenceFloor) > cursor).slice(-cap).map(d => ({ ...d }));
+        }
+        /** 注入提示词：增量事实分状态展示；传 sinceFloor 时仅输出变化 */
+        toPrompt({ sinceFloor = null, limit = 4 } = {}) {
+            const source = sinceFloor === null || sinceFloor === undefined ? this.deltas : this.getChangesSince(sinceFloor, 50);
+            if (!source.length) return '';
+            const cap = Math.min(20, Math.max(1, Number(limit) || 4));
+            const est = source.filter(d => d.status === 'established').slice(-cap);
+            const unc = source.filter(d => d.status === 'uncertain').slice(-cap);
             const rows = [];
             for (const d of est) rows.push(`- [已确证] ${d.summary}`);
             for (const d of unc) rows.push(`- [待定] ${d.summary}（后续剧情可能佐证或推翻）`);
