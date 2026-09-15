@@ -1,3 +1,9 @@
+## v3.129.0
+- **角色卡配置三级合并（anima 配置三级合并吸收）**：`loadConfig` 在全局 localStorage 层合并后应用角色卡 `data.extensions.LonShaMemory` 覆盖层，`CHAT_CHANGED` 切换角色卡时重放。
+  - 卡级覆盖仅允许白名单键（22 个策略/数值类：vectorTopK/injectionBudget/timeChangeMaxCandidates/maxMoneyDelta 等）；提示词与 API 密钥等全局资产不随卡携带，恶意卡无法改写 apiUrl/apiKey。
+  - 卡上配置只读：设置面板保存仍写回全局层，不回写角色卡；对象深合并、数组直接覆盖、null/undefined 跳过。
+  - 新增 `_applyCardOverrides()` 独立方法（无卡配置/结构损坏安全返回 0），`tests/v3129_card_config_merge.test.mjs` 行为级验证白名单拦截（apiUrl/apiKey 覆盖企图被忽略）、null 跳过与边界安全。
+
 ## v3.128.0
 - 研究清单对齐后落地「防御包」三项小改高收益补强（源自 baibai/anima 探索终稿的下一步借鉴优先级）：
   - **注入槽位清单化（baibai LEGACY 清空模式）**：`clearInjectSlots` 改由 `INJECT_SLOTS` 清单驱动，未来槽位改名/废弃时追加旧 key 即可防跨版本残留注入。

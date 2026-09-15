@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.128.0';
+    const VERSION = '3.129.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -777,6 +777,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             try {
                 const saved = localStorage.getItem('lonsha_memory_config');
                 if (saved) this.config = {...this.config, ...JSON.parse(saved)};
+                // [v3.129] anima 配置三级合并：角色卡 data.extensions.LonShaMemory > 全局 localStorage > 默认。
+                //   角色级覆盖只允许白名单键（策略/数值类），提示词与 API 密钥等全局资产不随卡携带；
+                //   卡上配置只读（保存面板时写回全局层，不回写角色卡），对象深合并、数组直接覆盖。
+                this._applyCardOverrides();
                 // [v1.6] 迁移摘要规则到笔录风格（治照抄）
                 if (this.config.extractionPrompt?.includes('30-60字概括本轮剧情')) {
                     const defaults = new (this.constructor)().config;
@@ -801,6 +805,34 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已自动升级 (summary 要求真概括)`);
                 }
             } catch (e) { errLog(e, 'ConfigManager.loadConfig'); }
+        }
+        // [v3.129] 角色卡配置覆盖（anima 三级合并的卡级层）：独立方法便于单测与切换角色时重放
+        _applyCardOverrides() {
+            try {
+                const ctx = (typeof window !== 'undefined' && window.SillyTavern?.getContext?.()) || null;
+                const cardCfg = ctx?.character?.data?.extensions?.LonShaMemory;
+                if (!cardCfg || typeof cardCfg !== 'object') return 0;
+                const CARD_CFG_KEYS = [
+                    'vectorTopK', 'hybridAlpha', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
+                    'summaryFoldThreshold', 'diaryEveryFloors', 'reflectEveryFloors', 'echoBaseLife', 'echoMaxCount',
+                    'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
+                    'suspenseMaxOpen', 'extractionCadence', 'recallCacheEnabled', 'diaryChangeDrivenInjection',
+                    'timeChangeDrivenInjection', 'itemLedgerEnabled', 'moneyLedgerEnabled', 'echoEnabled',
+                ];
+                let applied = 0;
+                for (const k of CARD_CFG_KEYS) {
+                    const v = cardCfg[k];
+                    if (v === undefined || v === null) continue;
+                    if (typeof this.config[k] === 'object' && this.config[k] !== null && typeof v === 'object' && !Array.isArray(v)) {
+                        this.config[k] = { ...this.config[k], ...v };
+                    } else {
+                        this.config[k] = v;
+                    }
+                    applied++;
+                }
+                if (applied) console.log(`[${PLUGIN_NAME}] ✓ 已应用角色卡配置覆盖（${applied}/${Object.keys(cardCfg).length} 个键，白名单交集生效）`);
+                return applied;
+            } catch (e) { errLog(e, 'ConfigManager._applyCardOverrides'); return 0; }
         }
         saveConfig() {
             try {
@@ -9846,6 +9878,8 @@ ${recentTurns}`;
                 if (types.CHAT_CHANGED) {
                     const _h2 = async () => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
+                        // [v3.129] 切换角色卡时重放卡级配置覆盖（anima 三级合并：新卡的配置立即生效）
+                        try { this.engine.config?._applyCardOverrides?.(); } catch (e) { errLog(e, 'events.CHAT_CHANGED卡配置重放'); }
                         // [v3.126] 换对话重置日记/时间线变化游标与身份（onBeforeGeneration 兜底处理之外的事件路径也保持一致）
                         try { this.engine._diaryInjectFloor = null; this.engine._timelineInjectFloor = null; this.engine._timelineCursorChatId = null; this.engine._timelineCursorFingerprint = ''; } catch (e) { errLog(e, 'events.CHAT_CHANGED变化游标重置'); }
                         // [v3.109] 换对话清空产物的内存副本（持久副本随新对话各自 recover，不跨对话串用）
