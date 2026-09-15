@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.105.0';
+    const VERSION = '3.106.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -711,6 +711,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
                 summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
                 optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
+                // [v3.106] 维护流水线（engram WorkflowEngine 缝合）：归档→优化→分诊编排为单次可诊断流水线
+                maintenancePipelineEnabled: false,   // 默认关：不改动既有逐条维护路径（两路不同时执行）
+                maintenanceOverdueWarnDays: 45,      // 距上次维护超过 N 天 → 跳转回优化步骤补做一次
                 // [v3.30] PV: 记忆矛盾换代（supersede）——新记忆与旧记忆高置信冲突时旧条退出召回
                 supersedeEnabled: true,          // 总开关
                 supersedeScanPool: 30,           // 每次扫描池大小
@@ -2134,13 +2137,26 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const oEvery = this.config.config.optimizeEveryFloors || 50;
                     if (!this._lastOptimizeFloor || (message.index || 0) - this._lastOptimizeFloor >= oEvery) {
                         this._lastOptimizeFloor = message.index || 0;
-                        this.optimizeMemory();
-                        // [v3.47] 睡眠周期：每 sleepEveryN 次提取触发一次归档遗忘
-                        try {
-                            this._sleepCount = (this._sleepCount || 0) + 1;
-                            const sleepN = Number(this.config.config.sleepEveryN) || 10;
-                            if (this._sleepCount % sleepN === 0) this.sleepCycle();
-                        } catch (e) { errLog(e, 'sleepCycle.触发'); }
+                        if (this.config.config.maintenancePipelineEnabled === true) {
+                            // [v3.106] 维护流水线模式（engram 缝合）：归档+优化+分诊编排为单次可诊断流水线
+                            this._lastOptimizeAt = Date.now();
+                            try {
+                                const led = await this._maintenancePipeline();
+                                if (led && !led.ok && this.config.config.debugMode) {
+                                    console.warn(`[${PLUGIN_NAME}] ⚠️ 维护流水线未完成:`, led.error?.message || '(未知)');
+                                }
+                            } catch (e) { errLog(e, 'onMessageReceived.维护流水线'); }
+                        } else {
+                            // 既有逐条维护路径（默认）——行为与 v3.106 之前完全一致
+                            this.optimizeMemory();
+                            this._lastOptimizeAt = Date.now();
+                            // [v3.47] 睡眠周期：每 sleepEveryN 次提取触发一次归档遗忘
+                            try {
+                                this._sleepCount = (this._sleepCount || 0) + 1;
+                                const sleepN = Number(this.config.config.sleepEveryN) || 10;
+                                if (this._sleepCount % sleepN === 0) this.sleepCycle();
+                            } catch (e) { errLog(e, 'sleepCycle.触发'); }
+                        }
                     }
                 } catch (e) { errLog(e, 'onMessageReceived.优化器'); }
                 
@@ -3233,6 +3249,67 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (archived && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 😴 睡眠周期: 归档 ${archived} 条低价值记忆`);
             } catch (e) { errLog(e, 'sleepCycle'); }
             return { archived };
+        }
+
+        // [v3.106] 维护流水线（engram WorkflowEngine 缝合）：把「归档休眠 → 优化去重 → 分诊收尾」
+        //   编排为一次可诊断的多步流水线，借助 step-pipeline 的重试/跳转控制流表达两件既有
+        //   retryQueue 表达不了的诉求：
+        //   ① 任一步骤失败可单独重试（而非整条维护弃跑，等下个 50 楼周期）；
+        //   ② 长期未维护（距上次优化超 maintenanceOverdueWarnDays 天）时，跳回优化步骤补做一次
+        //      ——「回退补做」正是 jump 控制流的用途。
+        //   结果返回结构化账本（executed / attempts / jumps），出问题能定位到「哪一步、第几次、跳了几次」。
+        //   降级：缺 window.LonShaStepPipeline 与 require 通道时返回 null（不影响主链路）。
+        async _maintenancePipeline(stepPipeline) {
+            const SP = stepPipeline || (typeof window !== 'undefined' ? window.LonShaStepPipeline : null)
+                || (typeof require !== 'undefined' ? (() => { try { return require('./step-pipeline.js'); } catch { return null; } })() : null);
+            if (!SP || typeof SP.definePipeline !== 'function' || typeof SP.run !== 'function') return null;
+            const cfg = this.config.config;
+            const warnDays = Number(cfg.maintenanceOverdueWarnDays) || 45;
+            const eng = this;
+            const state = { archived: 0, optimizeRuns: 0, overdue: false, rework: 0 };
+            const staleMs = Date.now() - Number(this._lastOptimizeAt || 0);
+            state.overdue = warnDays > 0 && staleMs > warnDays * 86400000;
+
+            const pipeline = SP.definePipeline('memory-maintenance', [
+                {
+                    name: 'sleep-archive',
+                    retry: { maxAttempts: 2, delay: 0 },   // 归档抛错重试一次；再失败则中止本轮（不吞）
+                    run: async () => { state.archived = (eng.sleepCycle() || {}).archived || 0; },
+                },
+                {
+                    name: 'optimize',
+                    retry: { maxAttempts: 2, delay: 0 },
+                    run: async () => {
+                        eng.optimizeMemory();
+                        state.optimizeRuns += 1;
+                        // 超期未维护：仅补做一次（防止 jump 自旋，保险丝之外再上一道业务闸门）
+                        if (state.overdue && state.rework < 1) {
+                            state.rework += 1;
+                            return { action: 'jump', targetStep: 'optimize', reason: 'overdue-maintenance-rework' };
+                        }
+                        return undefined;
+                    },
+                },
+                {
+                    name: 'cadence-triage',
+                    ignoreFailure: true,   // 可选增强步骤：分诊失败不应阻断整条维护
+                    run: async () => {
+                        const every = Number(cfg.optimizeEveryFloors) || 50;
+                        eng._lastMaintenanceSummary = {
+                            archived: state.archived,
+                            optimizeRuns: state.optimizeRuns,
+                            overdue: state.overdue,
+                            every,
+                            at: Date.now(),
+                        };
+                        return { action: 'finish' };   // 分诊即收尾：提前成功结束
+                    },
+                },
+            ]);
+
+            const ledger = await SP.run(pipeline, { chatId: this.getCurrentChatId?.() || null }, {});
+            ledger.rework = state.rework;
+            return ledger;
         }
 
         // [v2.9] RU-B: 记忆优化器（抄 shujuku optimization——防长对话记忆无限膨胀）
