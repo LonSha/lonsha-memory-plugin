@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.107.0';
+    const VERSION = '3.108.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -711,6 +711,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 vectorMaxCount: 500,           // [v2.9] RU-B: 向量硬上限
                 summaryMaxCount: 400,          // [v2.9] RU-B: 摘要硬上限
                 optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
+                // [v3.108] LLM 调用事件链审计（缝合 bionic agent 事件迁移表）
+                llmEventChainEnabled: false,   // 默认关：为每次 LLM 调用记录并校验事件链（只记警告，不中断主链路）
                 // [v3.106] 维护流水线（engram WorkflowEngine 缝合）：归档→优化→分诊编排为单次可诊断流水线
                 maintenancePipelineEnabled: false,   // 默认关：不改动既有逐条维护路径（两路不同时执行）
                 maintenanceOverdueWarnDays: 45,      // 距上次维护超过 N 天 → 跳转回优化步骤补做一次
@@ -771,8 +773,48 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
     }
     
     class LLMCaller {
-        constructor(config) { this.config = config; }
+        constructor(config) { this.config = config; this._lastEventChain = null; }
+        // [v3.108] 事件链库（缝合 bionic memory-contract 的 agent 事件迁移表）：双通道加载 + 降级
+        _eventChainLib() {
+            try {
+                return (typeof window !== 'undefined' ? window.LonShaEventChain : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./event-chain.js'); } catch { return null; } })() : null);
+            } catch (e) { return null; }
+        }
+        /**
+         * [v3.108] callAPI 外层审计包装（默认关）：为每次 LLM 调用维护一条事件链
+         *   run_started → model_requested → assistant_message | run_failed
+         * 校验用的是缝合自 bionic 的迁移不变量——非法迁移不会中断主链路（只记警告），
+         * 但能在「请求已失败却又返回了内容」「重试后事件顺序错乱」这类真实故障上留下证据。
+         * 关闭时（默认）直接走 _callAPIInner，行为与本版本之前完全一致。
+         */
         async callAPI(prompt) {
+            if (this.config.config.llmEventChainEnabled !== true) return this._callAPIInner(prompt);
+            const EC = this._eventChainLib();
+            if (!EC) return this._callAPIInner(prompt);
+            let chain = [];
+            chain = EC.append(chain, { type: EC.EVENT_TYPES.RUN_STARTED, source: 'callAPI' }).chain;
+            chain = EC.append(chain, { type: EC.EVENT_TYPES.MODEL_REQUESTED }).chain;
+            try {
+                const out = await this._callAPIInner(prompt);
+                const next = out
+                    ? { type: EC.EVENT_TYPES.ASSISTANT_MESSAGE, chars: String(out).length }
+                    : { type: EC.EVENT_TYPES.RUN_FAILED, reason: 'no-response' };
+                const r = EC.append(chain, next);
+                this._lastEventChain = r.chain;
+                if (!r.ok && this.config.config.debugMode) {
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ LLM 事件链违规: ${r.reason}（期望后续事件: ${(r.expected || []).join('/') || '无'}）`);
+                }
+                return out;
+            } catch (e) {
+                const r = EC.append(chain, { type: EC.EVENT_TYPES.RUN_FAILED, reason: String((e && e.message) || e) });
+                this._lastEventChain = r.chain;
+                throw e;
+            }
+        }
+        /** [v3.108] 最近一次 LLM 调用的事件链（诊断用；未启用时返回 null） */
+        getLastEventChain() { return this._lastEventChain ? this._lastEventChain.slice() : null; }
+        async _callAPIInner(prompt) {
             try {
                 const cfg = this.config.config;
                 // [v1.4] 优先：独立 API（设置面板配置）
