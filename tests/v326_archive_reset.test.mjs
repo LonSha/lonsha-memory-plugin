@@ -33,9 +33,12 @@ for (const [name, tag] of checks) {
     if (src.includes(`errLog(e, '${tag}')`)) ok(`ST1-${name}: 归档状态清理已接入`);
     else fail(`ST1-${name}: 归档清理缺失（${tag}）`);
 }
-// rollbackFloor 清理点
-if (src.includes("errLog(e, 'rollbackFloor.归档状态清理')")) ok('ST1-rollback: rollbackFloor 归档清理已接入');
+// rollbackFloor 清理点（[v3.115] 升级：原全清 .clear() → 精确剪枝，只丢弃被回滚楼层及之后的归档，
+//                            保留更早的有效归档。断言改为检测新的精确清理标签 + 旧标签已移除）
+if (src.includes("errLog(e, 'rollbackFloor.归档状态精确清理')")) ok('ST1-rollback: rollbackFloor 归档精确清理已接入');
 else fail('ST1-rollback: rollbackFloor 归档清理缺失');
+if (src.includes("errLog(e, 'rollbackFloor.归档状态清理')")) fail('ST1-rollback: 旧的全清标签仍残留（应已升级为精确清理）');
+else ok('ST1-rollback: 旧全清标签已移除');
 
 // ST2: v3.25 功能仍在（回归保障）
 if (src.includes('_archivedFloorIds')) ok('ST2: 归档状态跟踪仍在');

@@ -55,10 +55,15 @@ test('=== 3. B: shiftLifeDetailFloors 逻辑复刻 ===', () => {
 });
 
 test('=== 4. A2/B2: 生命周期挂接（结构验证） ===', () => {
-    // rollbackFloor 挂接
+    // rollbackFloor 挂接（[v3.115] 注意：index.js 有两处同名方法——引擎本体与
+    //   charMem 的委托 rollbackFloor(floor) { return this.removeByFloor(floor); }。
+    //   用 floorLedgerEnabled 门控定位引擎本体，否则会匹配到委托方法导致窗口错位）
     assert.ok(src.includes("errLog(e, 'rollbackFloor.生活小档案回滚')"), '回滚挂接');
-    const rb = src.indexOf('rollbackFloor(floor) {');
-    const rbSeg = src.slice(rb, rb + 6000);
+    const gate = src.indexOf("if (!this.config.config.floorLedgerEnabled) return 0;");
+    assert.ok(gate > 0, '引擎 rollbackFloor 本体存在');
+    const rb = src.lastIndexOf('rollbackFloor(floor) {', gate);
+    assert.ok(rb > 0 && rb < gate, '定位引擎 rollbackFloor');
+    const rbSeg = src.slice(rb, rb + 9000);
     const ldIdx = rbSeg.indexOf('removeLifeDetailByFloor');
     const dbIdx = rbSeg.indexOf('deltaBook?.removeByFloor');
     assert.ok(ldIdx > 0 && dbIdx > 0 && ldIdx > dbIdx, '回滚挂接在 deltaBook 之后');

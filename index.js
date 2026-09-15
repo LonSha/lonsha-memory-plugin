@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.114.0';
+    const VERSION = '3.115.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -4952,8 +4952,27 @@ function relativeTimeLabel(eventTime, nowTime) {
                 // [v3.22] 角色记忆银行 + 场外信号 楼层清理（rollback 未清 → 旧记忆残留）
                 try { if (this.charMem?.removeByFloor) this.charMem.removeByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.charMem清理'); }
                 try { this.clearThinkingSignalsByFloor(floor); } catch (e) { errLog(e, 'rollbackFloor.场外信号清理'); }
-                // [v3.25.1] rollbackFloor 清空归档状态（楼层 index 前移，旧归档失效）
-                try { this._archivedFloorIds?.clear(); } catch (e) { errLog(e, 'rollbackFloor.归档状态清理'); }
+                // [v3.25.1] rollbackFloor 归档状态处理（[v3.115] 修复：原为全清 .clear()，
+                //             但被回滚楼层之前的归档仍有效——全清会导致它们永远无法被恢复。
+                //             现改为精确校正：只丢弃 >= floor 的归档（这些楼层的记忆已被回滚撤销），
+                //             保留 < floor 的归档（仍被有效卷摘要覆盖）。
+                try {
+                    const _as = (typeof window !== 'undefined' ? window.LonShaArchiveShift : null)
+                        || (typeof require !== 'undefined' ? (() => { try { return require('./archive-shift.js'); } catch { return null; } })() : null);
+                    if (_as && this._archivedFloorIds && this._archivedFloorIds.size) {
+                        this._archivedFloorIds = _as.pruneArchivedIds(this._archivedFloorIds, floor);
+                    } else if (this._archivedFloorIds) {
+                        const f = Number(floor);
+                        if (Number.isFinite(f)) {
+                            const next = new Set();
+                            for (const idx of this._archivedFloorIds) {
+                                const n = Number(idx);
+                                if (Number.isFinite(n) && n < f) next.add(n);
+                            }
+                            this._archivedFloorIds = next;
+                        }
+                    }
+                } catch (e) { errLog(e, 'rollbackFloor.归档状态精确清理'); }
                 if (keepIds.size && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 回滚: 保留 ${keepIds.size} 个长寿命角色节点`);
                 // 回滚 POV
                 const povIdSet = new Set(entry.povIds || []);
@@ -5093,6 +5112,24 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                 // [v3.84] C: 人设基线锁定楼层 + 地理上下文楼层位移
                 try { this.status?.shiftBaselineFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设基线位移'); }
                 try { this.status?.shiftGeoFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.地理上下文位移'); }
+                // [v3.115] 修复：归档隐藏楼层集合也必须位移——删楼后 index 前移，
+                //           未校正会导致旧归档指向错楼层（恢复时显示/隐藏错对象）。
+                try {
+                    const _as = (typeof window !== 'undefined' ? window.LonShaArchiveShift : null)
+                        || (typeof require !== 'undefined' ? (() => { try { return require('./archive-shift.js'); } catch { return null; } })() : null);
+                    if (_as && this._archivedFloorIds && this._archivedFloorIds.size) {
+                        this._archivedFloorIds = _as.shiftArchivedIds(this._archivedFloorIds, deleted);
+                    } else if (this._archivedFloorIds && this._archivedFloorIds.size) {
+                        const next = new Set();
+                        for (const idx of this._archivedFloorIds) {
+                            const n = Number(idx);
+                            if (!Number.isFinite(n)) continue;
+                            if (n === deleted) continue;               // 被删楼本身：丢弃（楼层已不存在）
+                            next.add(dec(n));                          // 其余按规则前移
+                        }
+                        this._archivedFloorIds = next;
+                    }
+                } catch (e) { errLog(e, 'shiftFloorsFrom.归档楼层位移'); }
                 for (const e of (this.opLog?.entries || [])) if (typeof e.floor === 'number') e.floor = dec(e.floor);
                 // 反思
                 for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
