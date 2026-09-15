@@ -1,3 +1,11 @@
+## v3.128.0
+- 研究清单对齐后落地「防御包」三项小改高收益补强（源自 baibai/anima 探索终稿的下一步借鉴优先级）：
+  - **注入槽位清单化（baibai LEGACY 清空模式）**：`clearInjectSlots` 改由 `INJECT_SLOTS` 清单驱动，未来槽位改名/废弃时追加旧 key 即可防跨版本残留注入。
+  - **注入 token 量级估算（baibai bytes/3.35 口径改良）**：新增模块级纯函数 `estimateTextTokens`（CJK 感知：汉字≈0.9 token/字，ASCII≈4 字符/token）。此前引擎仅 PrequelSystem 内用 `chars/4` 的乐观口径，对中文正文低估约 3.5 倍；主路径与降级路径的 `_lastInjection` 均记 `tokens` 字段，并在「注入内容预览」面板展示，预算调整有据可依。
+  - **钱财账本 zod 式幅度校验（anima z.coerce/delta clamp）**：`maxMoneyDelta`（默认 0=关闭）对覆盖式改值按 旧值±上限 clamp 并记诊断日志，防 LLM 幻觉一键清零/暴富家产；delta 式增减不受限。补 `moneyLedgerEnabled` 显式默认值，使设置面板开关状态与实际行为一致。
+### Tests
+- 新增 `tests/v3128_defense_pack.test.mjs`（3 项，含 `estimateTextTokens` 行为级验证：CJK/ASCII/混合文本口径与旧口径对比）。
+
 ## v3.127.0
 - 变化候选统一去重：角色状态、关系对、物品三路候选此前直推候选池，与常规召回重复时同一事实占两份注入预算；现按 id + 文本双键过滤后入池（与时间线/日记两路的既有去重纪律对齐）。
 - 变化注入可见性：新增 `_lastChangeTrace`，记录本轮楼层、游标、时间锚点与各路「找到/新增」产量；状态总览面板新增「⏳ 变化注入」诊断块，同时展示游标持久化位置与时间倒跳告警。

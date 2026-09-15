@@ -32,7 +32,8 @@ assert.ok(src.includes('function clearInjectSlots('), 'clearInjectSlots 定义�
 assert.ok(src.includes('const INJECT_POSITION_IN_CHAT = 1;'), 'IN_CHAT 常量存在');
 pass += 3;
 const wc = [...src.matchAll(/writeInjectSlot\s*\(/g)].length;
-assert.ok(wc >= 7, `writeInjectSlot 出现次数 >= 7 (定义1+清空2+主注入2+interceptor2, 实际 ${wc})`);
+assert.ok(wc >= 6, `writeInjectSlot 出现次数 >= 6 (定义1+清单化清空1+主注入2+interceptor2, 实际 ${wc})`);
+// [v3.128] 清空逻辑清单化后调用点数由 2 → 1，但行为等价（两槽仍各自清空，见下方行为断言）
 pass++;
 console.log(`ok: 通道定义齐全, writeInjectSlot 出现 ${wc} 次`);
 
@@ -45,12 +46,20 @@ function extractFn(name) {
     if (end < 0) throw new Error('unterminated ' + name);
     return src.slice(start, end + 6);
 }
+// [v3.128] 槽位清单同样从源码抠出真实定义（避免测试自带一份与实现脱节的副本）
+function extractSlots() {
+    const start = src.indexOf('const INJECT_SLOTS = [');
+    assert.ok(start >= 0, 'INJECT_SLOTS 清单存在');
+    const end = src.indexOf('];', start);
+    return src.slice(start, end + 2);
+}
 const harness = `
 const INJECT_POSITION_IN_CHAT = 1;
 const INJECT_ROLE_SYSTEM = 0;
+${extractSlots()}
 ${extractFn('writeInjectSlot')}
 ${extractFn('clearInjectSlots')}
-return { writeInjectSlot, clearInjectSlots };
+return { writeInjectSlot, clearInjectSlots, INJECT_SLOTS };
 `;
 const recorded = [];
 const mockWindow = { SillyTavern: { getContext: () => ({ setExtensionPrompt: (...args) => { recorded.push(args); } }) } };

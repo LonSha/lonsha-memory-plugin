@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.127.0';
+    const VERSION = '3.128.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -58,6 +58,12 @@
     // "D0/D1/D2 深度配置"从未真正生效（position 收到 0/1/2，D2 时为非法值）。收敛到本通道后，格式错位在结构上不可能再发生。
     const INJECT_POSITION_IN_CHAT = 1;
     const INJECT_ROLE_SYSTEM = 0;
+    // [v3.128] 槽位清单化（baibai LEGACY 清空模式）：所有曾被写过的 prompt_id 都留在清单里，
+    // 未来槽位改名/废弃时把旧 key 追加进来即可——clearInjectSlots 对旧 key 注空串，防跨版本残留注入。
+    const INJECT_SLOTS = [
+        { key: 'lonsha_memory', clearDepth: 0 },
+        { key: 'lonsha_memory_history', clearDepth: 9999 },
+    ];
     function writeInjectSlot(key, content, depth) {
         try {
             const c = window.SillyTavern?.getContext?.();
@@ -67,10 +73,22 @@
         } catch (e) { errLog(e, 'DF5.writeInjectSlot'); return false; }
     }
     function clearInjectSlots() {
-        writeInjectSlot('lonsha_memory', '', 0);
-        writeInjectSlot('lonsha_memory_history', '', 9999);
+        for (const slot of INJECT_SLOTS) writeInjectSlot(slot.key, '', slot.clearDepth);
     }
 
+    // [v3.128] token 量级估算（baibai bytes/3.35 口径 + CJK 感知）：中文 UTF-8 每字 3 字节 ≈ 0.9 token，
+    // ASCII/数字约 4 字符 1 token。此前引擎仅在 PrequelSystem 内用 chars/4 的乐观口径，对中文正文低估约 3.5 倍。
+    function estimateTextTokens(text) {
+        const s = String(text || '');
+        if (!s) return 0;
+        let cjk = 0;
+        for (let i = 0; i < s.length; i++) {
+            const c = s.codePointAt(i);
+            if ((c >= 0x3040 && c <= 0x30ff) || (c >= 0x3400 && c <= 0x4dbf) || (c >= 0x4e00 && c <= 0x9fff) || (c >= 0xac00 && c <= 0xd7af) || (c >= 0xf900 && c <= 0xfaff)) cjk++;
+        }
+        const rest = s.length - cjk;
+        return Math.max(1, Math.ceil(cjk * 0.9 + rest / 4));
+    }
     // [v3.3] 台账重放化：楼层指纹（位置无关的消息身份）——编辑/swipe/删楼后对账用。
     // 范式: baibai 叶子 leafValid（失效≠删除）+ yuzuki getMessageSignature（role|swipe|hash|gen）。
     // 与楼层号解耦: 删楼后消息前移，指纹仍能重新定位（自愈）；翻 swipe 时 swipe 段变化（失活/复活）。
@@ -688,6 +706,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 diaryChangeDrivenInjection: true, // [v3.120] 只向当前回合注入游标之后的新日记
                 timeChangeDrivenInjection: true, // [v3.121] 按时间锚点注入游标之后的新时间线事件
                 timeChangeMaxCandidates: 5,
+                maxMoneyDelta: 0,               // [v3.128] 钱财账本覆盖式改值的单笔最大幅度（anima zod delta clamp；0=关闭校验，建议如 10000）
+                moneyLedgerEnabled: true,        // [v3.47] 钱财账本（hcdiary）；[v3.128] 补默认值使 UI 开关状态与实际行为一致
                 reflectionEnabled: false,      // 反思节点（抄stbme：洞察提炼，需API，默认关）
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
@@ -2131,7 +2151,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                             const nm = String(mc?.character || '').trim();
                             if (!nm) continue;
                             if (mc.value !== null && mc.value !== undefined && mc.value !== '') {
-                                this.moneyLedger.setMoney(nm, Number(mc.value) || 0, mc.reason || '', floor, sd);
+                                // [v3.128] anima zod 式台账校验：覆盖式改值幅度超上限则 clamp 到 旧值±上限（防 LLM 幻觉一键暴富/清零家产）
+                                let next = Number(mc.value) || 0;
+                                const maxDelta = Number(this.config.config.maxMoneyDelta) || 0;
+                                if (maxDelta > 0) {
+                                    const prev = Number(this.moneyLedger.getMoney(nm)?.amount) || 0;
+                                    if (Math.abs(next - prev) > maxDelta) {
+                                        next = prev + Math.sign(next - prev) * maxDelta;
+                                        errLog(new Error(`钱财覆盖式改值幅度超限，已 clamp: ${nm} ${prev}→${next}（申报 ${mc.value}）`), 'ledger.clamp');
+                                    }
+                                }
+                                this.moneyLedger.setMoney(nm, next, mc.reason || '', floor, sd);
                             } else if (mc.delta) {
                                 this.moneyLedger.addDelta(nm, Number(mc.delta) || 0, mc.reason || '', floor, sd);
                             }
@@ -3227,7 +3257,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (_timelineChangeFloor != null) this._timelineInjectFloor = _timelineChangeFloor;
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
                 if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
-                if (inj2) this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff
+                if (inj2) this._lastInjection = { html: inj2, tokens: estimateTextTokens(inj2), ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff + [v3.128] CJK 口径 token 估算
                 try { if (this.config.config.bridgeEnabled !== false) window.lonsha_memory_bridge_v1?.refresh?.(); } catch (e) { errLog(e, 'nonfatal') }   // [v3.88] 快照桥随生成刷新
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
@@ -5437,7 +5467,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         const t0 = Date.now();
                         const recalled = await this.recallMemory(query);
                         const inj = this.buildInjection(recalled);
-                        if (inj) this._lastInjection = { html: inj, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D
+                        if (inj) this._lastInjection = { html: inj, tokens: estimateTextTokens(inj), ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D + [v3.128] token 估算
                         const merged = recalled.filter(Boolean).reduce((a, b) => a + (Array.isArray(b) ? b.length : 0), 0);
                         report.pipeline = { ok: true, queryLen: qText.length, routes: Object.entries(recalled).filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => `${k}:${v.length}`), merged, injLen: (inj || '').length, ms: Date.now() - t0 };
                     }

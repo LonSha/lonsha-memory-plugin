@@ -10,8 +10,10 @@ const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
 const suSrc = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8');
 
 test('=== 1. 注入缓存双路径验证 ===', () => {
-    assert.ok(src.includes("this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null }"), '主路径缓存（含 prev 快照）');
-    assert.ok(src.includes("this._lastInjection = { html: inj, ts: Date.now(), prev: this._lastInjection?.html || null }"), '降级路径缓存（含 prev 快照）');
+    // [v3.128] 注入缓存结构新增 tokens 字段——原精确字符串断言改为语义正则（仍要求 html/ts/prev 三要素在位）
+const injCacheRe = (v) => new RegExp(`this\\._lastInjection = \\{ html: ${v}, tokens: estimateTextTokens\\(${v}\\), ts: Date\\.now\\(\\), prev: this\\._lastInjection\\?\\.html \\|\\| null \\}`);
+    assert.ok(injCacheRe('inj2').test(src), '主路径缓存（含 prev 快照与 token 估算）');
+    assert.ok(injCacheRe('inj').test(src), '降级路径缓存（含 prev 快照与 token 估算）');
     // 缓存的是裁剪后最终形态（buildInjection 返回值）——[v3.87] 起 inj2 为 let（追加前情注入）
     assert.ok(src.includes('let inj2 = this.buildInjection(candidateItems);'), '主路径调用在位');
     console.log('✓ 注入缓存双路径验证通过');
