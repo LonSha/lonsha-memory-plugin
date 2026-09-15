@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.116.0';
+    const VERSION = '3.117.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -17,7 +17,7 @@
             let timedOut = false;
             const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, Math.max(1000, timeoutSec * 1000));
             if (externalSignal) {
-                try { externalSignal.addEventListener('abort', () => { if (!timedOut) ctrl.abort(); }, { once: true }); } catch (e) {}
+                try { externalSignal.addEventListener('abort', () => { if (!timedOut) ctrl.abort(); }, { once: true }); } catch (e) { errLog(e, 'nonfatal') }
             }
             try {
                 const resp = await fetch(url, { ...init, signal: ctrl.signal });
@@ -518,7 +518,10 @@
             });
             if (_errBuf.length > 50) _errBuf.shift();
             if (window.LonShaMemory?.engine?.config?.config?.debugMode) console.warn(`[${PLUGIN_NAME}][${tag}]`, err);
-        } catch (e2) {}
+        } catch (e2) {
+            // 错误记录器自身不可再递归调用自己；否则存储/格式化异常会形成无限递归。
+            try { console.warn(`[${PLUGIN_NAME}][errLog]`, e2); } catch (_) { /* 最后一道容灾 */ }
+        }
     }
     
     class ConfigManager {
@@ -1334,7 +1337,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             const s = this._store();
             if (!s || !Number.isFinite(ordinal) || ordinal <= 0) return;
             s[key] = ordinal;
-            try { window.SillyTavern?.getContext?.()?.saveMetadataDebounced?.(); } catch (e) {}
+            try { window.SillyTavern?.getContext?.()?.saveMetadataDebounced?.(); } catch (e) { errLog(e, 'nonfatal') }
         }
         reset(key) { const s = this._store(); if (s) delete s[key]; }
         all() { const s = this._store(); return s ? { ...s } : {}; }
@@ -1352,7 +1355,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (next !== b) { s[k] = next; changed.push(`${k} ${b}→${next}`); }
             }
             if (changed.length && window.SillyTavern?.getContext?.()?.saveMetadataDebounced) {
-                try { window.SillyTavern.getContext().saveMetadataDebounced(); } catch (e) {}
+                try { window.SillyTavern.getContext().saveMetadataDebounced(); } catch (e) { errLog(e, 'nonfatal') }
             }
             return changed;
         }
@@ -1380,12 +1383,12 @@ function relativeTimeLabel(eventTime, nowTime) {
         try {
             if (!Array.isArray(recalled) || !recalled.length) return;
             _recallDedupState.lastTexts = recalled.map(r => String(r.text || r.summary || r.name || '')).filter(Boolean).slice(0, 12);
-        } catch (e) {}
+        } catch (e) { errLog(e, 'nonfatal') }
     }
     // [v3.23.1] 跨调用去重指纹重置（NE-Memory 补救）: 事件清理 _recallCache 时同步清空 dedup 指纹，
     // 防编辑/swipe/删楼后旧楼层文本残留导致新内容被误标"已覆盖"
     function resetRecallDedup() {
-        try { _recallDedupState.lastTexts = null; _recallDedupState.lastQuery = ''; _recallDedupState.lastChatId = ''; } catch (e) {}
+        try { _recallDedupState.lastTexts = null; _recallDedupState.lastQuery = ''; _recallDedupState.lastChatId = ''; } catch (e) { errLog(e, 'nonfatal') }
     }
     class MemoryEngine {
         constructor(config) {
@@ -2296,10 +2299,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 if (this.config.config.summaryFoldEnabled) {
                     try { await this.summary.maybeFold(this.config.config, this.llm);
-                            try { await this.summary.processRetryQueue?.(this.config.config, this.llm); } catch (e) {} } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
+                            try { await this.summary.processRetryQueue?.(this.config.config, this.llm); } catch (e) { errLog(e, 'nonfatal') } } catch (e) { errLog(e, 'onMessageReceived.摘要折叠'); }
                 }
                 // [v3.38] 语义级休眠检测（TriviumDB 理念，防长篇跑团上下文与内存膨胀）
-                try { if (this.summary?.markDormant) this.summary.markDormant(message.index || 0, 30); } catch (e) {}
+                try { if (this.summary?.markDormant) this.summary.markDormant(message.index || 0, 30); } catch (e) { errLog(e, 'nonfatal') }
                 // [v3.25] 归档隐藏已覆盖楼层（Bakemono 共识，默认关）: 折叠成功后把 folded 旧楼设 is_hidden
                 if (this.config.config.autoArchiveCovered) {
                     try { this.archiveCoveredFloors(); } catch (e) { errLog(e, 'onMessageReceived.归档隐藏'); }
@@ -2732,7 +2735,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const plan = cl.planArchiveActions({ coverers, floors, hiddenIds: ownHidden, protectFloor });
                 let acted = 0;
                 for (const idx of plan.toHide) {
-                    try { c.hideChatMessageRange(idx, idx, false); this._archivedFloorIds.add(idx); acted++; } catch (e) {}
+                    try { c.hideChatMessageRange(idx, idx, false); this._archivedFloorIds.add(idx); acted++; } catch (e) { errLog(e, 'nonfatal') }
                 }
                 for (const idx of plan.toRestore) {
                     try {
@@ -2740,7 +2743,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         else c.hideChatMessageRange(idx, idx, true);
                         this._archivedFloorIds.delete(idx);
                         acted++;
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'nonfatal') }
                 }
                 this._lastCoverageSummary = cl.summarizeCoverage(plan);
                 if (acted && this.config.config.debugMode) {
@@ -2784,7 +2787,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 // 执行隐藏（逐个，可逆）
                 let hid = 0;
                 for (const idx of toHide) {
-                    try { c.hideChatMessageRange(idx, idx, false); this._archivedFloorIds.add(idx); hid++; } catch (e) {}
+                    try { c.hideChatMessageRange(idx, idx, false); this._archivedFloorIds.add(idx); hid++; } catch (e) { errLog(e, 'nonfatal') }
                 }
                 if (hid && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 归档隐藏: ${hid} 楼 (保留最近 ${keep} AI楼)`);
                 return hid;
@@ -2800,7 +2803,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 for (const idx of this._archivedFloorIds) {
                     const m = chat[idx];
                     if (m && typeof c?.setIsHidden === 'function') {
-                        try { c.setIsHidden(idx, false); restored++; } catch (e) {}
+                        try { c.setIsHidden(idx, false); restored++; } catch (e) { errLog(e, 'nonfatal') }
                     }
                 }
                 this._archivedFloorIds.clear();
@@ -2824,7 +2827,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 try {
                     // [v3.23] 用 collectExport 读本地版本（纯方法探测，无副作用）
                     local = (typeof this.collectExport === 'function') ? this.collectExport() : null;
-                } catch (e) {}
+                } catch (e) { errLog(e, 'nonfatal') }
                 const localVer = typeof local?.version === 'string' ? parseFloat(local.version) || 0 : (local?.version || 0);
                 const embVer = typeof emb.version === 'string' ? parseFloat(emb.version) || 0 : (emb.version || 0);
                 if (localVer >= embVer && localVer > 0) {
@@ -2837,7 +2840,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (toastr?.info) {
                         toastr.info(`检测到聊天元数据中嵌入的记忆存档（版本 ${emb.version || '?'}）。本地暂无更新版本。可手动到设置→导入恢复。`, 'LonSha记忆引擎', { timeOut: 6000, closeButton: true });
                     }
-                } catch (e2) {}
+                } catch (e2) { errLog(e2, 'nonfatal'); }
                 // 可恢复数据留在 embeddedVault 供 settings-ui 导入按钮读取
                 const cfg = this.config.config;
                 cfg._embeddedVaultReady = true;
@@ -2992,7 +2995,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         if (_sc) { const _ch = this.scene.chainOf?.(_sc) || []; if (_ch.length) _parts.push('场景:' + _ch.map(n => n.path?.[n.path.length - 1] || '').filter(Boolean).join('›')); }
                         if (this.clock?.date) _parts.push('时间:' + this.clock.date);
                         _rwSnap = _parts.join(' | ');
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'nonfatal') }
                     const qs = await this.llm.rewriteQuery(query.text, _rwSnap);
                     if (qs && qs.length) query.queries = qs;
                 } catch (e) { errLog(e, 'cleanMessageText'); }
@@ -3104,7 +3107,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
                 if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
                 if (inj2) this._lastInjection = { html: inj2, ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff
-                try { if (this.config.config.bridgeEnabled !== false) window.lonsha_memory_bridge_v1?.refresh?.(); } catch (e) {}   // [v3.88] 快照桥随生成刷新
+                try { if (this.config.config.bridgeEnabled !== false) window.lonsha_memory_bridge_v1?.refresh?.(); } catch (e) { errLog(e, 'nonfatal') }   // [v3.88] 快照桥随生成刷新
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
                     if (this.config.config.trailMonitor) {
@@ -3245,7 +3248,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             // 编辑/swipe 自动失活、翻回复活、删楼自愈；carried（携带自旧档）/无 fp（旧数据）不过滤）
             // [v3.36] 确定性 ID 索引 + 三态补丁语义（未提供不更新、明确置空清空、有效值覆盖）+ remove 剔除
             let chat = null;
-            try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) {}
+            try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) { errLog(e, 'nonfatal') }
             const liveFp = chat ? new Set(chat.map(m => msgFpOf(m))) : null;
             const map = new Map();
             let skipped = 0;
@@ -3319,7 +3322,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             let removed = 0, healed = 0, adopted = 0;
             try {
                 let chat = null;
-                try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) {}
+                try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) { errLog(e, 'nonfatal') }
                 if (!chat) { this.rebuildItems(); return 0; }
                 const byFp = new Map();   // fp → [floor...]（保序）
                 chat.forEach((m, i) => { const fp = msgFpOf(m); if (!fp) return; const arr = byFp.get(fp); if (arr) arr.push(i); else byFp.set(fp, [i]); });
@@ -3355,7 +3358,7 @@ function relativeTimeLabel(eventTime, nowTime) {
         // [v3.3] 当前有效 ops 列表（打包/导出用）：carried 或指纹匹配当前聊天；无 fp 旧档保留（下游标 carried 兜底）
         activeItemOps() {
             let chat = null;
-            try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) {}
+            try { const c = window.SillyTavern?.getContext?.()?.chat; chat = Array.isArray(c) ? c : null; } catch (e) { errLog(e, 'nonfatal') }
             if (!chat) return [...(this.itemOps || [])];
             const liveFp = new Set(chat.map(m => msgFpOf(m)));
             return (this.itemOps || []).filter(o => {
@@ -3453,19 +3456,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     }
                                     if (Array.isArray(extracted.life_details) && extracted.life_details.length) {
                                         for (const ld of extracted.life_details.slice(0, 5)) {
-                                            if (ld && (typeof ld === 'string' || ld.text)) { try { this.status.addLifeDetail(ld, idx); } catch (e) {} }
+                                            if (ld && (typeof ld === 'string' || ld.text)) { try { this.status.addLifeDetail(ld, idx); } catch (e) { errLog(e, 'nonfatal') } }
                                         }
                                     }
                                 }
                             } catch (e) { errLog(e, 'BF.backfill.主角档案'); }
                             done.ok++;
-                            if (typeof onProgress === 'function') { try { onProgress(idx, done); } catch (e) {} }
+                            if (typeof onProgress === 'function') { try { onProgress(idx, done); } catch (e) { errLog(e, 'nonfatal') } }
                         } catch (e) { errLog(e, `BF.backfill.floor${idx}`); done.fail++; }
                     }
                 } finally { if (this.config.config.extractionLockEnabled) this.mutex.release(); }
                     } catch (e) { errLog(e, 'BF.backfillFloors'); }
                     // [v3.19] 补提取完成后推进书签
-                    try { if (this.bookmarks && floors?.length) this.bookmarks.save('scan', Math.max(...floors) + 1); } catch (e) {}
+                    try { if (this.bookmarks && floors?.length) this.bookmarks.save('scan', Math.max(...floors) + 1); } catch (e) { errLog(e, 'nonfatal') }
             if (done.ok || done.fail) {
                 try { await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
             }
@@ -3798,7 +3801,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     results.bm25 = this.bm25.searchBranches(branchSet, bmTopK, {cliffCut: true, minResults: 2, aliasMap: query.aliases})
                         .map(d => ({id: d.id, text: d.text, floor: d.floor, score: d.score, branchScores: d.branchScores, source: 'bm25'}));
                     if (this.config.config.heatOnRecallEnabled) {
-                        for (const b of results.bm25) { try { this.vector.heatByText(b.text); } catch (e) {} }
+                        for (const b of results.bm25) { try { this.vector.heatByText(b.text); } catch (e) { errLog(e, 'nonfatal') } }
                     }
                     if (Array.isArray(query.queries) && query.queries.length) {
                         const seenB = new Set(results.bm25.map(x => x.id));
@@ -3823,7 +3826,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const geo = charState.getGeoLocation();
                         currentGeo = `${geo.majorArea || ''} ${geo.minorArea || ''} ${geo.detailLocation || ''}`.trim().toLowerCase();
                     }
-                } catch (e) {}
+                } catch (e) { errLog(e, 'nonfatal') }
 
                 const relevant = this.items.records.filter(r => {
                     const isRemoved = r.state && (r.state === '丢失' || r.state === '损毁' || r.state === '已消耗' || r.state === '丢弃');
@@ -4931,7 +4934,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                             const laterTexts = (this.summary?.summaries || []).filter(s => (s.floor || 0) > floor).map(s => s.text || '').join('\n');
                             const nameHit = node.name && laterTexts.includes(node.name);
                             if (nameHit) { keepIds.add(id); continue; }   // 后续剧情仍提及 → 保留（长寿命实体）
-                        } catch (e) {}
+                        } catch (e) { errLog(e, 'nonfatal') }
                     }
                     this.graph.nodes.delete(id);
                     for (const [eid, e] of Array.from(this.graph.edges)) {
@@ -6276,6 +6279,15 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
     
     class SummarySystem {
         constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.genericTiers = []; this.folding = false; this.foldingHistorical = false; }
+        // 诊断适配层：允许 SummarySystem 在宿主闭包和独立单类测试中都安全记录错误。
+        _reportError(error, tag) {
+            try {
+                if (typeof errLog === 'function') return errLog(error, tag);
+            } catch (_) {}
+            try {
+                globalThis.LonShaMemory?.reportError?.(error, tag);
+            } catch (_) {}
+        }
         // [v3.62] 用户锁定剧情事实（dsh-nexttavern lockedFacts 理念）：逐字保护，永不因摘要压缩丢失
         addLockedFact(text, floor) {
             const t = String(text || '').trim();
@@ -6321,7 +6333,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             s.edited = true;
             s.editedAt = Date.now();
             // [v3.75] A: OpLog 埋点（summary/update）
-            try { this.opLog?.log?.('summary', 'update', 'sum_' + floor, floor, String(t).slice(0, 40)); } catch (e) {}
+            try { this.opLog?.log?.('summary', 'update', 'sum_' + floor, floor, String(t).slice(0, 40)); } catch (e) { this._reportError(e, 'nonfatal') }
             return true;
         }
         /** 手动补摘（柏宝书：任意楼层单独补摘）——为缺失楼层的旧剧情补一条摘要
@@ -6345,7 +6357,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             this.summaries.push(s);
             this.summaries.sort((a, b) => a.floor - b.floor);
             // [v3.75] A: OpLog 埋点（summary/manual）
-            try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, String(t).slice(0, 40)); } catch (e) {}
+            try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, String(t).slice(0, 40)); } catch (e) { this._reportError(e, 'nonfatal') }
             return s;
         }
         /** 缺失楼层清单（柏宝书：一键把落下的楼层批量补齐的前置）
@@ -6354,7 +6366,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
             const have = new Set(this.summaries.map(s => s.floor));
             const missing = [];
             let chat = null;
-            try { chat = window.SillyTavern?.getContext?.()?.chat || null; } catch (e) {}
+            try { chat = window.SillyTavern?.getContext?.()?.chat || null; } catch (e) { this._reportError(e, 'nonfatal') }
             for (let f = 0; f <= (Number(maxFloor) || 0); f++) {
                 if (have.has(f)) continue;
                 // 番外楼 / 用户楼 / 系统楼不列入缺失（不是「落下的」而是「不该记的」）
@@ -6365,7 +6377,7 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                         if (m.is_user === true) continue;
                         if (m.is_system === true && m.extra?.type) continue;
                     }
-                } catch (e) {}
+                } catch (e) { this._reportError(e, 'nonfatal') }
                 missing.push(f);
             }
             return missing;
@@ -6394,11 +6406,11 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                                 const dta = new RelativeTimeHelper().extractDualTimeTags(text);
                                 if (dta?.hasDual && dta.end) stTag = String(dta.end).split(/\s+/)[0];
                                 else if (dta?.start) stTag = String(dta.start).split(/\s+/)[0];
-                            } catch (e) {}
+                            } catch (e) { this._reportError(e, 'nonfatal') }
                             const s = this.addManualSummary(f, clean, stTag);
                             if (s) {
                                 done++;
-                                try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, '批量补齐'); } catch (e) {}
+                                try { this.opLog?.log?.('summary', 'manual', 'sum_' + f, f, '批量补齐'); } catch (e) { this._reportError(e, 'nonfatal') }
                             }
                         }
                     } catch (e) { /* 单楼失败跳过 */ }
@@ -6603,7 +6615,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             } catch (e) {
                 if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 摘要折叠失败:`, e);
                 // [v3.70] B: 折叠失败入重试队列（结构化重试，指数退避）
-                try { this.enqueueRetry('volume', 1, { batchLen: batch?.length }, config); } catch (e2) {}
+                try { this.enqueueRetry('volume', 1, { batchLen: batch?.length }, config); } catch (e2) { this._reportError(e2, 'nonfatal'); }
             } finally {
                 this.folding = false;
             }
@@ -6726,7 +6738,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                         createdAt: Number(j.enqueuedAt || 0) || now,
                     };
                 });
-            } catch (e) { errLog(e, 'getTaskInbox'); return []; }
+            } catch (e) { this._reportError(e, 'getTaskInbox'); return []; }
         }
 
         /** 收件箱诊断摘要（计数 / 可执行数 / 最旧待办等待时长） */
@@ -6736,7 +6748,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     || (typeof require !== 'undefined' ? (() => { try { return require('./task-inbox.js'); } catch { return null; } })() : null);
                 if (!inboxLib || typeof inboxLib.summarizeInbox !== 'function') return null;
                 return inboxLib.summarizeInbox(this.getTaskInbox(), { now: Date.now() });
-            } catch (e) { errLog(e, 'getTaskInboxReport'); return null; }
+            } catch (e) { this._reportError(e, 'getTaskInboxReport'); return null; }
         }
 
         // 卷摘要召回（最近 N 卷，低权重）
@@ -7298,7 +7310,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     if (!isNaN(t1) && !isNaN(t2)) {
                         durationMinutes = Math.max(0, Math.round((t2 - t1) / 60000));
                     }
-                } catch (e) {}
+                } catch (e) { errLog(e, 'nonfatal') }
                 return { hasDual: true, start, end, durationMinutes };
             }
             return { hasDual: false, start: null, end: null, durationMinutes: 0 };
@@ -7336,7 +7348,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     }
                     return Math.max(0, age);
                 }
-            } catch (e) {}
+            } catch (e) { errLog(e, 'nonfatal') }
             return 0;
         }
 
@@ -7348,7 +7360,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 if (!isNaN(d1) && !isNaN(d2)) {
                     return Math.max(0, Math.floor((d2 - d1) / this.DAY_MS));
                 }
-            } catch (e) {}
+            } catch (e) { errLog(e, 'nonfatal') }
             return 0;
         }
         constructor() {
@@ -7545,7 +7557,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                             this.date = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
                             changed = true;
                         }
-                    } catch (e) {}
+                    } catch (e) { errLog(e, 'nonfatal') }
                 }
             }
             this.turn = floor;
@@ -9380,7 +9392,7 @@ ${recentTurns}`;
                 if (data.summaries && JSON.stringify(data.summaries).length < 900000) {
                     localStorage.setItem(this.LS_KEY + ':' + String(chatId || 'default'), JSON.stringify({ reason: entry.reason, counts: entry.counts, timestamp: entry.timestamp, data: { summaries: data.summaries, diaries: data.diaries, graph: data.graph, itemOps: data.itemOps } }));
                 }
-            } catch (e) {}
+            } catch (e) { errLog(e, 'nonfatal') }
             try {
                 const db = await this._open();
                 const id = 'emergency:' + String(chatId || 'default');
@@ -9447,8 +9459,18 @@ ${recentTurns}`;
                 };
             } catch (e) { return null; }
         }
+        /** [v3.117] 公开错误诊断门面：设置 UI 与外部诊断工具只可追加记录/读取副本，不能修改内部缓冲。 */
+        reportError(error, tag = 'external') {
+            errLog(error, tag);
+            return true;
+        }
+        getErrorLog(limit = 15) {
+            const n = Math.max(0, Math.min(50, Number(limit) || 15));
+            return _errBuf.slice(-n).map(item => ({ ...item }));
+        }
         /** [v3.93.0] 官方写入门面: 向图谱追加高价值记忆节点 (官方 addNode/addEdge 通道)。
-         *  供 RubyPhone pushPhoneMemories 等外部写入, 替代直连 engine.graph。
+
+         * 供 RubyPhone pushPhoneMemories 等外部写入, 替代直连 engine.graph。
          * @returns {{graph: null|Object}} 图谱句柄 (仅含 addNode/addEdge/nodes), 插件不可用时为 null */
         getGraphWriter() {
             try {
@@ -9591,7 +9613,7 @@ ${recentTurns}`;
                         // [v3.2] DF1/DF5: 清空注入槽位（setExtensionPrompt 持久化，旧聊天注入会残留到新聊天；GENERATION_STARTED 若仍活跃会立即重新注入）
                         try { clearInjectSlots(); } catch (e) { errLog(e, 'events.CHAT_CHANGED槽位清空'); }
                         // [v3.9] SF2: 基线重置（换聊天后用新聊天的长度，防旧基线误报批量删除）
-                        try { this.engine._lastKnownChatLen = window.SillyTavern?.getContext?.()?.chat?.length || 0; } catch (e) {}
+                        try { this.engine._lastKnownChatLen = window.SillyTavern?.getContext?.()?.chat?.length || 0; } catch (e) { errLog(e, 'nonfatal') }
                         // [v3.12] 清自愈定时器/待愈集合（跨聊天污染防护——旧聊天的待愈楼层对新聊天无意义）
                         try {
                             if (this._editHealTimer) { clearTimeout(this._editHealTimer); this._editHealTimer = null; }
@@ -9654,7 +9676,7 @@ ${recentTurns}`;
                                     if (cSave?.chat?.length) this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport());
                                 } catch (e) { errLog(e, 'events.swipe即时存盘'); }
                             }
-                        } catch (err) {}
+                        } catch (err) { errLog(err, 'nonfatal') }
                     };
                     eventSource.on(types.MESSAGE_SWIPED, _h4);
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_SWIPED, handler: _h4 });

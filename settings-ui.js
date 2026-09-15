@@ -9,6 +9,14 @@
         if (!plugin) { setTimeout(mount, 200); return; }
 
         const PLUGIN_NAME = 'LonSha记忆引擎';
+        const reportUiError = (error, tag = 'nonfatal') => {
+            try {
+                const logger = window.LonShaMemory?.reportError;
+                if (typeof logger === 'function') logger(error, `settings-ui.${tag}`);
+                else if (window.LonShaMemory?.config?.config?.debugMode) console.warn(`[${PLUGIN_NAME}][${tag}]`, error);
+            } catch (reportError) { console.warn('[LonShaMemory][settings-ui.report]', reportError); }
+        };
+
         const VERSION = plugin.VERSION || '3.77.0';   // [v3.77] A: 版本真值（原硬编码 '1.3.0' 假版本，自检/展示全用真值）
 
         // ========== 共享样式 ==========
@@ -99,7 +107,7 @@
                     phoneStatus = (bridge.enabled ? '✅ 已连接' : '⛔ 已关闭') + ` (回填${bs.backfillCount || 0}·BM25 ${bs.bm25Docs || 0}${bridge.isCoordinated ? '·协调注入' : ''})`;
                 }
                 else if (window.VirtualPhone?.memoryCore) phoneStatus = '⚠️ 桥未挂载';
-            } catch (e) {}
+            } catch (e) { reportUiError(e, 'nonfatal') }
             const body = `
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="graph"><div class="ls-stat-num">${s.graph.nodes.size}</div><div class="ls-stat-label">图谱节点 👁</div></div>
@@ -219,7 +227,7 @@
                     compBtn.addEventListener('click', async () => {
                         if (!s.summary?.completeMissingFloors) { toast('引擎版本过旧'); return; }
                         let missingN = 0;
-                        try { missingN = s.summary.missingFloors((window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1).length; } catch (e) {}
+                        try { missingN = s.summary.missingFloors((window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1).length; } catch (e) { reportUiError(e, 'nonfatal') }
                         if (!missingN) { toast('✅ 无缺失楼层'); return; }
                         if (!confirm('发现 ' + missingN + ' 个缺失楼层（不含番外/用户楼）。\n将调用 LLM 批量补齐（每批最多 5 楼，本批补完后可再次点击续补）。\n继续？')) return;
                         compBtn.disabled = true; compBtn.textContent = '⏳ 补齐中…';
@@ -252,7 +260,7 @@
                             m.extra = m.extra || {};
                             m.extra.lonsha_omit = mark;
                             toast(mark ? '🎬 第 ' + f + ' 楼已标记为番外（引擎将彻底忽略）' : '↩️ 第 ' + f + ' 楼已取消番外标记');
-                            if (mark && s.summary?.removeByFloor) { try { s.summary.removeByFloor(f); } catch (e) {} }
+                            if (mark && s.summary?.removeByFloor) { try { s.summary.removeByFloor(f); } catch (e) { reportUiError(e, 'nonfatal') } }
                         } catch (e) { toast('操作失败：' + (e.message || e)); }
                     };
                     omitMark.addEventListener('click', () => setOmit(true));
@@ -1076,7 +1084,7 @@
                     const c = pack.counts || {};
                     const prevMsg = '🚚 携带包预览\n\n摘要 ' + (c.summaries ?? pack.summaries?.length ?? 0) + ' 条\n悬念 ' + (c.suspense ?? pack.suspense?.length ?? 0) + ' 条\n图谱节点 ' + (c.graphNodes ?? 0) + '\n日记 ' + (c.diaries ?? 0) + '\n向量 ' + (c.vectors ?? 0) + '\n\n确认打包？（打包后新对话点「导入携带包」无缝续写）';
                     if (!confirm(prevMsg)) { toast('已取消打包'); return; }
-                } catch (e) {}
+                } catch (e) { reportUiError(e, 'nonfatal') }
                 try {
                     localStorage.setItem('lonsha_carryover_pack', JSON.stringify(pack));
                     const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
@@ -1089,7 +1097,7 @@
             });
             overlay.querySelector('#ls-carry-apply').addEventListener('click', () => {
                 let pack = null;
-                try { pack = JSON.parse(localStorage.getItem('lonsha_carryover_pack') || 'null'); } catch (e) {}
+                try { pack = JSON.parse(localStorage.getItem('lonsha_carryover_pack') || 'null'); } catch (e) { reportUiError(e, 'nonfatal') }
                 const apply = async (p) => {
                     if (this.engine.applyCarryover(p)) {
                         const chatId = this.engine.getCurrentChatId();
@@ -1542,7 +1550,7 @@
                 actions = [
                     { t: "👤 变更持有者", fn: () => {
                         let nh = null;
-                        try { nh = prompt("新持有者名称（置空填 '地上'）:", String(rec.holder || "")); } catch (e) {}
+                        try { nh = prompt("新持有者名称（置空填 '地上'）:", String(rec.holder || "")); } catch (e) { reportUiError(e, 'nonfatal') }
                         if (nh === null) return null;
                         const holder = nh.trim() || "地上";
                         eng.itemOps = eng.itemOps || [];
@@ -1561,7 +1569,7 @@
                     } },
                     { t: "📦 变更状态", fn: () => {
                         let ns = null;
-                        try { ns = prompt("新状态（完好 / 损坏 / 消耗完毕 / 丢失）:", String(rec.state || "完好")); } catch (e) {}
+                        try { ns = prompt("新状态（完好 / 损坏 / 消耗完毕 / 丢失）:", String(rec.state || "完好")); } catch (e) { reportUiError(e, 'nonfatal') }
                         if (ns === null) return null;
                         const state = ns.trim() || "完好";
                         eng.itemOps = eng.itemOps || [];

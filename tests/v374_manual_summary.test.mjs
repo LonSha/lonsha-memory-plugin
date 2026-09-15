@@ -83,6 +83,7 @@ test('=== 4. missingFloors 功能测试 ===', () => {
     const cls = extractClass(src, 'class SummarySystem');
     const SummarySystem = new Function('return (' + cls + ')')();
     const s = new SummarySystem();
+    assert.doesNotThrow(() => s.missingFloors(5), '独立抽取的 SummarySystem 不应依赖宿主 errLog');
     s.summaries.push({ floor: 1, text: 'a' }, { floor: 3, text: 'c' });
     assert.deepStrictEqual(s.missingFloors(5), [0, 2, 4, 5], '缺失楼层清单');
     assert.deepStrictEqual(s.missingFloors(2), [0, 2], '小范围');

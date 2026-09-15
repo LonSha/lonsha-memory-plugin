@@ -1,3 +1,11 @@
+## [3.117.0] - 2026-09-15
+### Added / Fixed
+- **错误可见性治理**：补齐最后 3 处静默 `catch` 的错误记录；修复 `errLog` 自身失败时递归调用自身的容灾缺陷，改为最后一道 `console.warn` 兜底。
+- **公开诊断门面**：新增 `LonShaMemory.reportError()` 与只读副本接口 `getErrorLog(limit)`，供设置 UI 与外部诊断工具使用，不暴露内部错误缓冲写入引用。
+- **设置 UI 接线**：设置面板非致命异常统一尝试进入插件诊断缓冲，debug 模式下仍保留控制台提示。
+### Tests
+- 新增 `tests/v3117_diagnostics.test.mjs`，覆盖版本三处同步、错误记录器非递归、诊断门面边界与设置 UI 接线。
+
 ## [3.93.0] - 2026-09-14
 ### Added（跨系统协同：官方门面收敛 RubyPhone 对本插件的私有耦合）
 - **`LonShaMemoryPlugin.getPublicData()` 官方只读门面**：对外（RubyPhone `graph-bridge`）暴露结构域数据（graph.nodes/edges、summaries、diaries、povs、timeline、status、ledger、vectors），替代对 `engine.graph.nodes.values()` 等深层内部结构的硬编码直访。只读契约——返回 plain object（Map 已转数组），不含 `addNode`/`addEdge` 等写入引用，与既有 `lonsha_memory_bridge_v1` 快照桥的只读风格一致。
