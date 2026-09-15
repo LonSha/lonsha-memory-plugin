@@ -30,7 +30,7 @@ test('v3.130 OMR 主保存统一走 collectExport 单真源', () => {
     const n = [...src.matchAll(/summaries: this\.summary\.export\(\)/g)].length;
     assert.equal(n, 1, `手写保存清单应已废除（现出现 ${n} 次）`);
     // 保存地面真源在 OMR 路径登记
-    assert.match(src, /this\._lastSaveGroundTruth = \{ ts: Date\.now\(\), floor: message\.index/);
+    assert.match(src, /this\.recordSaveSource\('realtime', message\.index/);   // [v3.131] 保存来源登记方法化
 });
 
 test('v3.130 collectExport 补齐漂移键，load 补齐恢复面', () => {
@@ -82,9 +82,9 @@ test('v3.130 时间标签→时钟校准接线与协议健康统计', () => {
 
 test('v3.130 版本三处同步', () => {
     const m = /const VERSION = '([^']+)'/.exec(src);
-    assert.equal(m[1], '3.130.0');
+    assert.equal(m[1], '3.131.0');
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '3.130.0');
-    assert.equal(pkg.version, '3.130.0');
+    assert.equal(manifest.version, '3.131.0');
+    assert.equal(pkg.version, '3.131.0');
 });

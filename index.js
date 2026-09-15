@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.130.0';
+    const VERSION = '3.131.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -1624,7 +1624,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             const r = await this.stmLtm.consolidate(this._stmLtmState, { summarize, force });
             this._stmLtmState = r.state;
             // 落盘（复用主持久化通道）
-            try { if (r.consolidated > 0) await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'stmLtm.save'); }
+            try { if (r.consolidated > 0) { this.recordSaveSource('stmLtm'); await this.storage.save(this.getCurrentChatId(), this.collectExport()); } } catch (e) { errLog(e, 'stmLtm.save'); }
             if (this.config.config.debugMode && r.consolidated > 0) console.log(`[${PLUGIN_NAME}] STM巩固: ${r.consolidated}片段→stm (usedAI=${r.usedAI})`);
             return r;
         }
@@ -2444,8 +2444,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // 此前此处是手写键清单，已与 collectExport 漂移：缺 clock（时钟每楼不落盘）、缺游标/STM/prequel/锁定事实；
                     // 且 load 又不恢复其中若干键。此后新键只在 collectExport 登记一处，全链路自动生效。
                     // 保存地面真源：最近一次保存的时间/楼层/来源计数（诊断面板展示，随存档持久化）。
-                    const _svPrev = this._lastSaveGroundTruth || { ts: 0, sources: {} };
-                    this._lastSaveGroundTruth = { ts: Date.now(), floor: message.index || 0, sources: { ...(_svPrev.sources || {}), realtime: ((_svPrev.sources || {}).realtime || 0) + 1 } };
+                    this.recordSaveSource('realtime', message.index || 0);
                     await this.storage.save(chatId, await this.collectExport());
                 }
                 
@@ -3653,7 +3652,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // [v3.19] 补提取完成后推进书签
                     try { if (this.bookmarks && floors?.length) this.bookmarks.save('scan', Math.max(...floors) + 1); } catch (e) { errLog(e, 'nonfatal') }
             if (done.ok || done.fail) {
-                try { await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
+                try { this.recordSaveSource('backfill'); await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
             }
             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 补提取完成: ${done.ok}成/${done.fail}败/${done.skipped}跳`);
             return done;
@@ -5806,6 +5805,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 const c = window.SillyTavern?.getContext?.();
                 return c?.chatId || c?.chatMetadata?.file_name || null;
             } catch { return null; }
+        }
+        // [v3.131] CP: 保存来源登记——所有 storage.save 调用点经此登记地面真源（来源计数随存档持久化，诊断面板展示"谁在保存"）
+        recordSaveSource(source, floor = -1) {
+            try {
+                const prev = this._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {} };
+                const f = Number.isFinite(Number(floor)) ? Number(floor) : prev.floor;
+                this._lastSaveGroundTruth = { ts: Date.now(), floor: f, sources: { ...(prev.sources || {}), [source]: ((prev.sources || {})[source] || 0) + 1 } };
+            } catch (e) { errLog(e, 'recordSaveSource'); }
         }
     }
     
@@ -9977,7 +9984,7 @@ ${recentTurns}`;
                             // [v3.12] 立即持久化（原只改内存——刷新页面丢 v3.9 shift/回滚成果）
                             try {
                                 const cSave = window.SillyTavern?.getContext?.();
-                                if (cSave?.chat?.length) this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport());
+                                if (cSave?.chat?.length) { this.engine.recordSaveSource('edit'); this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport()); }
                             } catch (e) { errLog(e, 'events.编辑即时存盘'); }
                         } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
                     };
@@ -9999,7 +10006,7 @@ ${recentTurns}`;
                                 // [v3.12] 立即持久化（刷新页面防丢）
                                 try {
                                     const cSave = window.SillyTavern?.getContext?.();
-                                    if (cSave?.chat?.length) this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport());
+                                    if (cSave?.chat?.length) { this.engine.recordSaveSource('swipe'); this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport()); }
                                 } catch (e) { errLog(e, 'events.swipe即时存盘'); }
                             }
                         } catch (err) { errLog(err, 'nonfatal') }
@@ -10040,7 +10047,7 @@ ${recentTurns}`;
                             // [v3.12] 立即持久化（删楼+shift 成果防刷新丢失）
                             try {
                                 const cidSave = plugin.engine.getCurrentChatId();
-                                if (cidSave) await plugin.engine.storage.save(cidSave, plugin.engine.collectExport());
+                                if (cidSave) { plugin.engine.recordSaveSource('delete'); await plugin.engine.storage.save(cidSave, plugin.engine.collectExport()); }
                             } catch (e) { errLog(e, 'events.删楼即时存盘'); }
                         } catch (err) {
                             if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);

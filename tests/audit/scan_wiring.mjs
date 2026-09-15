@@ -72,4 +72,24 @@ console.log('=== A5 方法定义总数:', defined.size);
 console.log('=== A6 同名方法多处定义 (' + dup.length + '):');
 console.log(dup.length ? '  ' + dup.join('\n  ') : '  （无）');
 console.log('=== A7 定义但检索不到调用点 (' + orphan.length + '):');
-console.log(orphan.length ? '  ' + orphan.join('\n  ') : '  （无）');
+console.log(orphan.length ? '  ' + orphan.join('\n  ') : '  （无）');// ---------- 6. [v3.131] 持久化对称性审计（stbme 单真源）：collectExport 导出键 vs storage.load 恢复键 ----------
+const ceStart = idx.indexOf('collectExport() {');
+const ceEnd = idx.indexOf('getCurrentChatId() {', ceStart);
+const ceBlock = idx.slice(ceStart, ceEnd);
+const ldStart = idx.indexOf('async load(chatId, opts = {}) {');
+const ldEnd = idx.indexOf('class EmergencyBackup', ldStart);
+const ldBlock = idx.slice(ldStart, ldEnd);
+const exportKeys = new Set();
+for (const km of ceBlock.matchAll(/^\s*(\w+):\s*this\./gm)) exportKeys.add(km[1]);
+// 导出键的恢复写法有两种：engine.xxx.import(data.key) / data.key 直赋；放宽为 data.key 在 load 块出现即可
+const exportOnly = [...exportKeys].filter(k => !new RegExp(`data\\.${k}\\b`).test(ldBlock));
+// 反向：load 读取但 collectExport 不导出的键（排除游标等由其他路径写入的键）
+const cursorKeys = new Set(['diaryInjectFloor', 'timelineInjectFloor']);
+const loadOnly = [...ldBlock.matchAll(/data\.(\w+)/g)].map(m => m[1])
+    .filter(k => !exportKeys.has(k) && !cursorKeys.has(k) && !ceBlock.includes(`${k}:`))
+    .filter((k, i, a) => a.indexOf(k) === i);
+console.log('=== A8 持久化对称性: collectExport 导出键', exportKeys.size, '/ load 恢复引用键', (ldBlock.match(/data\.\w+/g) || []).length, '===');
+console.log('=== A8.1 存而不读（导出但 load 无 data.<key> 恢复） (' + exportOnly.length + '):');
+console.log(exportOnly.length ? '  ' + exportOnly.join(', ') + '\n  ⚠ 这些键换会话会归零' : '  （无）');
+console.log('=== A8.2 读而无存（load 读取但 collectExport 不导出） (' + loadOnly.length + '):');
+console.log(loadOnly.length ? '  ' + loadOnly.join(', ') + '\n  ⚠ 这些键恢复永远为空' : '  （无）');

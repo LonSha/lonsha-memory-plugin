@@ -1,3 +1,7 @@
+## v3.131.0
+- **保存地面真源方法化**：新增 recordSaveSource(source, floor)，realtime/stmLtm/backfill/edit/swipe/delete 六个保存点全部登记来源计数，随存档持久化，诊断面板展示「谁在保存」。
+- **持久化对称性审计（A8）**：scan_wiring 新增 collectExport 导出键 vs storage.load 恢复键双向比对（存而不读/读而无存），当前零缺口，防止单真源再漂移。
+
 ## v3.130.0
 - **持久化单真源（stbme 控制平面分离第一层）**：onMessageReceived 每楼自动保存的手写键清单废除，统一走 `collectExport()`——新键只在 collectExport 登记一处，全链路自动生效。
 - **collectExport/load 对称性补齐**：collectExport 补 deltaBook/cse/pulse/outline/pairMem/lockedFacts/recallSourceStats（此前 OMR 手写清单有而单真源没有）；load 补恢复 deltaBook/cse/pulse/outline/pairMem/moneyLedger/cards/conflicts/lockedFacts/recallSourceStats/timeWentBack（此前存而不读，换会话归零）；游标身份（chatId/指纹）与保存地面真源（`lastSave`）随存档走。
