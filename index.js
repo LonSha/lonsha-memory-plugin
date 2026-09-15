@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.111.0';
+    const VERSION = '3.112.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -702,6 +702,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 memoryTokenBudget: 900,        // 记忆注入 token 预算（替代单层字符预算，按 token 剪裁）
                 keepRecentTokenReserve: 0,     // 保留给最近正文的 token 预留（0=不预留；>0 时注入预算自动扣减）
                 autoArchiveCovered: false,     // 归档隐藏已被卷摘要覆盖的旧楼层（默认关，防灾）
+                // [v3.112] 覆盖账本重算（缝合 AnchorNote）：归档状态由有效覆盖者推导而非增量记账
+                coverageLedgerEnabled: false,  // 默认关：开启后覆盖者失效时自动恢复对应楼层可见（不再靠清空集合重推）
                 archivePreserveRecent: 6,      // 归档时保留最近 N 个 AI 楼层不隐藏
                 // [v3.27] 命中监控 + synopsis 轻量提取 + 触发词按需注入（MemoryPilot + AnchorNote）
                 trailMonitor: true,             // 记录最近一次召回轨迹（settings-ui 状态面板展示）
@@ -2685,14 +2687,83 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return n.id || n.name || n.key || null;
             } catch (e) { return null; }
         }
+        // [v3.112] 覆盖账本重算（缝合 AnchorNote refreshSummaryArchiveStateFromAnchors）：
+        //   把「哪些楼层该隐藏」从增量记账改成由当前有效覆盖者推导，因此
+        //   覆盖者失效（折叠被撤销 / 卷被删 / 摘要被排除）时，被它覆盖的楼层自动恢复可见，
+        //   不会再留下「插件藏了但没人认领」的孤儿隐藏楼。
+        //   返回实际执行的动作数；模块不可用/宿主能力缺失时返回 null（调用方回落旧路径）。
+        _recomputeCoverage(preserveRecent) {
+            try {
+                const cl = (typeof window !== 'undefined' ? window.LonShaCoverageLedger : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./coverage-ledger.js'); } catch { return null; } })() : null);
+                if (!cl) return null;
+                const c = window.SillyTavern?.getContext?.();
+                const chat = c?.chat || [];
+                if (!chat.length || typeof c?.hideChatMessageRange !== 'function') return null;
+                const keep = Math.max(0, Number(preserveRecent) || 0);
+                // 覆盖者：已折叠摘要（单楼覆盖）+ 卷摘要（区间覆盖）。被排除的不参与推导。
+                const coverers = [];
+                for (const s of (this.summary?.summaries || [])) {
+                    if (!s || !s.folded || !Number.isFinite(s.floor)) continue;
+                    coverers.push({ id: 'sum_' + s.floor, kind: 'summary', fromFloor: s.floor, toFloor: s.floor, version: 1, excluded: s.excluded === true });
+                }
+                for (const v of (this.summary?.volumes || [])) {
+                    const a = Number(v?.floorStart), b = Number(v?.floorEnd);
+                    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+                    coverers.push({ id: 'vol_' + a + '_' + b, kind: 'volume', fromFloor: Math.min(a, b), toFloor: Math.max(a, b), version: 2, excluded: v?.excluded === true });
+                }
+                // 候选楼层 = 非用户/非系统/当前未被手动隐藏的 AI 楼，或我们自己藏过的楼（需评估是否恢复）
+                const ownHidden = [...(this._archivedFloorIds || [])];
+                const ownSet = new Set(ownHidden);
+                const floors = [];
+                let protectFloor = null;
+                const aiFloors = [];
+                for (let i = 0; i < chat.length; i++) {
+                    const m = chat[i];
+                    if (!m || m.is_user || m.is_system) continue;
+                    if (m.is_hidden && !ownSet.has(i)) continue;   // 用户手动隐藏：绝不接管
+                    aiFloors.push(i);
+                    floors.push(i);
+                }
+                if (keep > 0 && aiFloors.length) {
+                    const cut = aiFloors[Math.max(0, aiFloors.length - keep)];
+                    protectFloor = Number.isFinite(cut) ? cut - 1 : null;   // 最近 keep 个 AI 楼保护
+                }
+                const plan = cl.planArchiveActions({ coverers, floors, hiddenIds: ownHidden, protectFloor });
+                let acted = 0;
+                for (const idx of plan.toHide) {
+                    try { c.hideChatMessageRange(idx, idx, false); this._archivedFloorIds.add(idx); acted++; } catch (e) {}
+                }
+                for (const idx of plan.toRestore) {
+                    try {
+                        if (typeof c.setIsHidden === 'function') c.setIsHidden(idx, false);
+                        else c.hideChatMessageRange(idx, idx, true);
+                        this._archivedFloorIds.delete(idx);
+                        acted++;
+                    } catch (e) {}
+                }
+                this._lastCoverageSummary = cl.summarizeCoverage(plan);
+                if (acted && this.config.config.debugMode) {
+                    console.log(`[${PLUGIN_NAME}] [v3.112] 覆盖账本重算: 隐藏 +${plan.toHide.length} / 恢复 ${plan.toRestore.length}（保持 ${plan.unchanged}）`);
+                }
+                return acted;
+            } catch (e) { errLog(e, '覆盖账本.recomputeCoverage'); return null; }
+        }
         // [v3.25] 归档隐藏已被卷摘要覆盖的旧楼层（Bakemono archive-controller 移植，默认关）:
         // 可逆（is_hidden 可恢复）、保留最近 N 个 AI 楼、手动确认由 settings-ui 触发
+        // [v3.112] 缝合 AnchorNote 覆盖账本：coverageLedgerEnabled 打开后改为「推导式」——
+        //   隐藏状态由当前有效覆盖者推导，覆盖者失效（折叠撤销/卷被删）时自动恢复对应楼层，
+        //   不再依赖「结构一变就清空集合、只能全量重推」。默认关时行为与 v3.25 完全一致。
         archiveCoveredFloors(preserveRecent) {
             try {
                 const c = window.SillyTavern?.getContext?.();
                 const chat = c?.chat || [];
                 if (!chat.length || typeof c?.hideChatMessageRange !== 'function') return 0;
                 const keep = Math.max(0, Number(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent) || 0);
+                if (this.config.config.coverageLedgerEnabled === true) {
+                    const applied = this._recomputeCoverage(keep);
+                    if (applied !== null) return applied;
+                }
                 // 被卷摘要覆盖的楼层 = 折叠标记（folded=true）对应的摘要楼层
                 const foldedFloors = new Set(
                     (this.summary?.summaries || [])
@@ -5413,6 +5484,16 @@ try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0
                     }
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.召回体检'); }
+            // [v3.112] 覆盖账本诊断（缝合 AnchorNote）：归档隐藏的推导结果 / 待恢复数 / 孤儿覆盖者
+            try {
+                const cs = this._lastCoverageSummary;
+                if (cs && cs.candidateFloors) {
+                    push('');
+                    push(`**覆盖账本：** 候选 ${cs.candidateFloors} 楼（被覆盖 ${cs.coveredFloors}，覆盖率 ${(cs.coverageRate * 100).toFixed(1)}%）`);
+                    push(`- 当前归档隐藏 ${cs.hiddenFloors} 楼（上次重算：新增 ${cs.toHide} / 恢复 ${cs.toRestore} / 保持 ${cs.unchanged}）`);
+                    if (cs.orphans.length) push(`- 孤儿覆盖者 ${cs.orphans.length} 个（覆盖区间内已无可归档楼层）`);
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.覆盖账本'); }
             return L.join('\n');
         }
 

@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "LonSha",
-    "version": "3.111.0",
+    "version": "3.112.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -38,7 +38,8 @@
         "event-chain.js",
         "recall-artifact.js",
         "smart-trigger.js",
-        "retrieval-audit.js"
+        "retrieval-audit.js",
+        "coverage-ledger.js"
     ],
     "extra_css": [
         "lonsha-design.css",

@@ -812,6 +812,7 @@
                     ${ck('recallArtifactEnabled', '召回产物持久化（抄bionic）', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 → 自动拒绝复用陈旧注入。默认关')}
                     ${ck('smartTriggerEnabled', '事件性门控（抄bionic）', '先判断本楼有没有事件性（关键词/自定义正则/多轮往返/情绪波动/疑似新实体），达不到阈值就跳过 LLM 提取、降级为本地廉价摘要——省下大量平淡楼的 API 调用，绝不丢楼层。默认关')}
                     ${ck('vectorTailRecoveryEnabled', '掉队候选补召回（抄bionic）', '把因「无向量/零向量/维度不符」而永远进不了向量检索的条目，低分补进候选池交由正常评分与预算裁剪决定去留（防「记忆在库里却召不回」）。默认关')}
+                    ${ck('coverageLedgerEnabled', '覆盖账本重算（抄AnchorNote）', '归档隐藏改为「由当前有效覆盖者推导」：卷摘要/折叠被撤销或删除时，被它覆盖的楼层自动恢复可见，不再留下没人认领的孤儿隐藏楼；用户手动隐藏的楼层绝不接管。默认关')}
                     <div class="ls-slider-label"><span>门控阈值</span><span class="ls-slider-val" id="ls-v-stg">${c.smartTriggerThreshold ?? 2}</span></div>
                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.smartTriggerThreshold ?? 2}" data-cfg-num="smartTriggerThreshold">
                     <div class="ls-hint" style="padding:0 8px;">达到该分才判为值得抽取 LLM；bionic 缺省 2。调低更容易触发（省得少），调高更省（可能漏事件）。</div>
