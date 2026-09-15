@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.121.0';
+    const VERSION = '3.123.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -1421,6 +1421,8 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._recallCache = null;                   // [v2.9] RU-D swipe 召回缓存 {floor, queryKey, injection}
             this._diaryInjectFloor = null;          // [v3.120] 变化驱动日记注入游标（首次按最近窗口初始化）
             this._timelineInjectFloor = null;     // [v3.121] 时间线变化注入游标
+            this._timelineCursorChatId = null;   // [v3.123] 游标所属聊天
+            this._timelineCursorFingerprint = ''; // [v3.123] 同楼 swipe/编辑指纹
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
@@ -2884,6 +2886,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // 粗略判断倒跳（用 storyDayDiff，负值=往前跳）
                     const diff = (this.storyDayDiff || storyDayDiff)(dateStr, cur);
                     if (diff !== null && diff !== undefined && diff < 0) {
+                        this._timeWentBack = { from: cur, to: String(dateStr), floor: Number(floor) || 0, at: Date.now() };
                         if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] ⚠ 剧情时间倒跳: ${cur} → ${dateStr} (第${floor}楼) — 可能是重roll/编辑导致，记忆已按新时间锚点`);
                     }
                 }
@@ -2923,10 +2926,27 @@ function relativeTimeLabel(eventTime, nowTime) {
                 .trim();
         }
         
-        async onBeforeGeneration(context) {
+        async onBeforeGeneration(context) { // preserveRuntime: true 生成路径只读加载
             if (!this.config.config.enabled) return '';
             const chatId = this.getCurrentChatId();
             if (!chatId) return '';
+            // [v3.123] 聊天切换与同楼 swipe/编辑隔离游标，避免把上一聊天的时间线边界带入当前聊天。
+            try {
+                const _cursorChat = String(chatId);
+                const _cursorCtx = window.SillyTavern?.getContext?.();
+                const _cursorChatRows = _cursorCtx?.chat || [];
+                const _cursorFloor = _cursorChatRows.length - 1;
+                const _cursorMsg = _cursorChatRows[_cursorFloor];
+                const _cursorFp = _cursorMsg ? msgFpOf(_cursorMsg) : '';
+                if (this._timelineCursorChatId !== null && this._timelineCursorChatId !== _cursorChat) {
+                    this._timelineInjectFloor = null;
+                    this._timelineCursorFingerprint = '';
+                } else if (this._timelineCursorFingerprint && _cursorFp && this._timelineCursorFingerprint !== _cursorFp) {
+                    this._timelineInjectFloor = Math.max(-1, _cursorFloor - 1);
+                }
+                this._timelineCursorChatId = _cursorChat;
+                this._timelineCursorFingerprint = _cursorFp;
+            } catch (e) { errLog(e, 'onBeforeGeneration.时间线游标边界'); }
             try {
                 // [v3.27] 命中轨迹计时起点（MemoryPilot monitor）
                 this._traceStartTime = Date.now();
@@ -3018,7 +3038,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                             ? Math.max(-1, _currentTimeFloor - 6)
                             : Number(this._timelineInjectFloor);
                         const _anchorDate = this.clock?.date || this.getLatestStoryDate?.() || '';
-                        const _tlChanges = this.timeline?.getChangesSince?.(_timeCursor, _anchorDate, this.config.config.timeChangeMaxCandidates || 5) || [];
+                        const _tlChanges = this.timeline?.getChangesSince?.(
+                            _timeCursor, _anchorDate,
+                            this.config.config.timeChangeMaxCandidates || 5,
+                            this.config.config.timelineWindowDays || 3,
+                            this.captureCast()
+                        ) || [];
                         const _seenTimeline = new Set(candidateItems.filter(x => String(x?.source || '').includes('timeline')).map(x => String(x.id || x.text || '')));
                         for (const _t of _tlChanges) {
                             const _key = String(_t.id || _t.text || '');
@@ -3026,6 +3051,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                             _seenTimeline.add(_key);
                             candidateItems.push({ ..._t, source: 'timeline:change', text: `[时间锚点·${_t.date || _anchorDate}] ${_t.text || ''}` });
                         }
+                        // [v3.123] 角色状态、关系对和物品也沿用同一时间/楼层游标进入候选池。
+                        const _castForChanges = this.captureCast();
+                        for (const _c of (this.status?.getChangesSince?.(_timeCursor, _castForChanges, 8) || [])) candidateItems.push(_c);
+                        for (const _c of (this.pairMem?.getChangesSince?.(_timeCursor, _castForChanges, 6) || [])) candidateItems.push(_c);
+                        const _itemChanges = (this.itemOps || []).filter(o => Number(o?.floor) > _timeCursor && (!o?.holder || !_castForChanges.length || _castForChanges.includes(String(o.holder)))).slice(-8);
+                        for (const _i of _itemChanges) candidateItems.push({ id: `item_change_${_i.floor}_${_i.name || ''}`, floor: _i.floor, text: `【物品变化】${_i.name || '物品'}${_i.holder ? `（持有者：${_i.holder}）` : ''}${_i.state ? `：${_i.state}` : ''}`, source: 'items:change' });
                         _timelineChangeFloor = _currentTimeFloor;
                     } catch (e) { errLog(e, 'onBeforeGeneration.时间锚点变化注入'); }
                 }
@@ -5048,7 +5079,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
                                 // [v3.54] op-log: 回滚事件（审计链）
                 this.opLog?.log('rollback', 'remove', `floor ${floor}`, floor, 'edit/delete');
-try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._timelineInjectFloor) >= Number(floor)) this._timelineInjectFloor = Math.max(-1, Number(floor) - 1); } catch (e) { errLog(e, 'rollbackFloor.时间线游标回滚'); }
+try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._timelineInjectFloor) >= Number(floor)) this._timelineInjectFloor = Math.max(-1, Number(floor) - 1); this._timelineCursorFingerprint = ''; } catch (e) { errLog(e, 'rollbackFloor.时间线游标回滚'); }
                 try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
                 try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
                 try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
@@ -5651,6 +5682,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 recallArtifacts: this._recallArtifacts || [],
                 diaryInjectFloor: Number.isFinite(Number(this._diaryInjectFloor)) ? Number(this._diaryInjectFloor) : null,
                 timelineInjectFloor: Number.isFinite(Number(this._timelineInjectFloor)) ? Number(this._timelineInjectFloor) : null,
+                timelineCursorChatId: this._timelineCursorChatId,
+                timelineCursorFingerprint: this._timelineCursorFingerprint,
+                timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
                 packedAt: new Date().toISOString()
             };
         }
@@ -7709,11 +7743,25 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         }
         _norm(d) { return String(d || '').replace(/\s+/g, '').replace(/[年月日]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); }
         // [v3.121] 变化驱动读取：按楼层游标读取与当前时间锚点相近的事件，返回副本。
-        getChangesSince(floor = -1, anchorDate = '', limit = 5) {
+        getChangesSince(floor = -1, anchorDate = '', limit = 5, windowDays = 3, characters = []) {
             const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
             const cap = Math.min(20, Math.max(0, Number(limit) || 0));
-            const key = this._norm(anchorDate);
-            const rows = this.entries.filter(e => Number(e?.floor) > cursor && (!key || this._norm(e?.date).slice(0, 4) === key.slice(0, 4)));
+            const anchor = parseStoryDateLoose(anchorDate);
+            const allowed = new Set((characters || []).map(x => String(x || '').trim()).filter(Boolean));
+            const rows = this.entries.filter(e => {
+                if (Number(e?.floor) <= cursor) return false;
+                // 有角色筛选时，允许事件声明的角色与当前登场角色相交；无声明角色的事件保留。
+                const ecs = Array.isArray(e?.characters) ? e.characters.map(x => String(x || '').trim()) : [];
+                if (allowed.size && ecs.length && !ecs.some(x => allowed.has(x))) return false;
+                if (!anchor || !e?.date) return true;
+                const ev = parseStoryDateLoose(e.date);
+                if (!ev || ev.type !== anchor.type) return false;
+                if (ev.type === 'fantasy') return ev.monthId === anchor.monthId && Math.abs((ev.day || 0) - (anchor.day || 0)) <= Math.max(0, Number(windowDays) || 0);
+                if (ev.year == null || anchor.year == null) return false;
+                const a = Date.UTC(anchor.year, (anchor.month || 1) - 1, anchor.day || 1);
+                const b = Date.UTC(ev.year, (ev.month || 1) - 1, ev.day || 1);
+                return Math.abs(Math.round((b - a) / 86400000)) <= Math.max(0, Number(windowDays) || 0);
+            });
             return rows.sort((a, b) => Number(a.floor) - Number(b.floor) || Number(a.timestamp || 0) - Number(b.timestamp || 0)).slice(-cap).map(e => ({ ...e, characters: Array.isArray(e.characters) ? [...e.characters] : e.characters }));
         }
         export() { return this.entries; }
@@ -8323,7 +8371,23 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
             return removed;
         }
-        _parseDate(d) {
+        // [v3.123] Horae 风格状态变化增量读取：复用既有 ops，按楼层和在场角色过滤，返回副本。
+        getChangesSince(floor = -1, characters = [], limit = 8) {
+            const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
+            const cap = Math.min(20, Math.max(0, Number(limit) || 0));
+            const allowed = new Set((characters || []).map(x => String(x || '').trim()).filter(Boolean));
+            const rows = [];
+            for (const op of (this.ops || [])) {
+                if (Number(op?.floor) <= cursor) continue;
+                for (const c of (op.changes || [])) {
+                    const name = String(c?.character || c?.name || '').trim();
+                    if (!name || (allowed.size && !allowed.has(name))) continue;
+                    rows.push({ id: `status_change_${op.floor}_${name}_${c.field || ''}`, floor: op.floor, name, text: `【状态变化】${name}：${c.field || '状态'} → ${c.value ?? (c.delta !== undefined ? c.delta : '')}${c.reason ? `（${c.reason}）` : ''}`, source: 'status:change' });
+                }
+            }
+            return rows.slice(-cap).map(x => ({ ...x }));
+        }
+                _parseDate(d) {
             const m = String(d || '').match(/(\d{1,4})\s*[年\/-]\s*(\d{1,2})\s*[月\/-]\s*(\d{1,2})/);
             if (!m) return null;
             let y = Number(m[1]); if (y < 100) y += 2000;
@@ -9199,6 +9263,18 @@ ${recentTurns}`;
             }
             return rows.length ? `[群像共同记忆·归因式]（关系对的共同经历，归因清晰；⚠️标注项仅单方知晓，另一方绝不知情）：\n${rows.join('\n')}` : '';
         }
+        // [v3.123] 关系变化增量读取：只返回游标后的关系对事件，并按当前角色关联。
+        getChangesSince(floor = -1, characters = [], limit = 6) {
+            const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
+            const cap = Math.min(20, Math.max(0, Number(limit) || 0));
+            const allowed = new Set((characters || []).map(x => normalizeCharName(x)).filter(Boolean));
+            const rows = [];
+            for (const pair of (this.pairs || [])) {
+                if (allowed.size && !allowed.has(normalizeCharName(pair.a)) && !allowed.has(normalizeCharName(pair.b))) continue;
+                for (const e of (pair.entries || [])) if (Number(e.floor) > cursor) rows.push({ id: `pair_change_${pair.key}_${e.floor}`, floor: e.floor, text: `【关系变化】${pair.a} × ${pair.b}：${e.event}`, source: 'pair:change' });
+            }
+            return rows.sort((a,b) => Number(a.floor)-Number(b.floor)).slice(-cap).map(x => ({ ...x }));
+        }
         removeByFloor(floor) {
             let n = 0;
             for (const pair of this.pairs) {
@@ -9457,6 +9533,8 @@ ${recentTurns}`;
                     if (Array.isArray(data.recallArtifacts)) engine._recallArtifacts = data.recallArtifacts.slice(-32);   // [v3.109] 召回产物恢复
                     if (Number.isFinite(Number(data.diaryInjectFloor))) engine._diaryInjectFloor = Number(data.diaryInjectFloor);
                     if (Number.isFinite(Number(data.timelineInjectFloor))) engine._timelineInjectFloor = Number(data.timelineInjectFloor);
+                    if (data.timelineCursorChatId != null) engine._timelineCursorChatId = String(data.timelineCursorChatId);
+                    if (data.timelineCursorFingerprint != null) engine._timelineCursorFingerprint = String(data.timelineCursorFingerprint);
                 }
                 return data;
             } catch (err) { return null; }
