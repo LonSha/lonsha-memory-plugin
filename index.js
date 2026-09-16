@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.146.0';
+        const VERSION = '3.147.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -68,10 +68,38 @@
 
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
+    // [v3.147] API 凭据 401/403 冷却表 (credKey -> timestamp)
+    const _credCooldowns = new Map();
+    function _getCredKey(url, init, opts) {
+        const key = opts?.apiKey || (init?.headers?.Authorization || init?.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+        return key ? hash32(String(url || '') + '|' + String(key)) : (url ? hash32(String(url)) : null);
+    }
+    function clearApiCooldowns() {
+        _credCooldowns.clear();
+    }
+    function getApiCooldownStats() {
+        const now = Date.now();
+        const active = [];
+        for (const [k, until] of _credCooldowns.entries()) {
+            if (until > now) active.push({ key: k, remainingSec: Math.ceil((until - now) / 1000) });
+        }
+        return { totalCount: _credCooldowns.size, activeCount: active.length, active };
+    }
+
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
-    // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方
+    // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方；401/403 触发冷却
     async function fetchWithTimeoutRetry(url, init, opts) {
-        const { timeoutSec = 30, retries = 2, label = 'API', externalSignal = null } = opts || {};
+        const { timeoutSec = 30, retries = 2, label = 'API', externalSignal = null, cooldownSec = 1800 } = opts || {};
+        const credKey = typeof _getCredKey === 'function' ? _getCredKey(url, init, opts) : null;
+        if (credKey && _credCooldowns.has(credKey)) {
+            const until = _credCooldowns.get(credKey);
+            if (Date.now() < until) {
+                const rem = Math.ceil((until - Date.now()) / 1000);
+                throw new Error(`${label} 凭据在 401/403 冷却中 (剩余 ${rem}s)`);
+            } else {
+                _credCooldowns.delete(credKey);
+            }
+        }
         const maxAttempts = Math.max(1, 1 + Math.max(0, retries));
         let lastErr = null;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -86,6 +114,12 @@
             try {
                 const resp = await fetch(url, { ...init, signal: ctrl.signal });
                 clearTimeout(timer);
+                if (resp.status === 401 || resp.status === 403) {
+                    if (credKey) {
+                        _credCooldowns.set(credKey, Date.now() + cooldownSec * 1000);
+                        console.warn(`[${PLUGIN_NAME}] 捕获 ${label} API ${resp.status} 鉴权/权限错误，已对该凭据启动 ${cooldownSec}s 冷却防护`);
+                    }
+                }
                 if ((resp.status >= 500 || resp.status === 429) && attempt < maxAttempts - 1) {
                     lastErr = new Error(`${label} API ${resp.status}`);
                     await new Promise(r => setTimeout(r, 800));
@@ -106,6 +140,8 @@
         }
         throw (lastErr || new Error(`${label} 重试耗尽`));
     }
+    fetchWithTimeoutRetry.clearCooldowns = clearApiCooldowns;
+    fetchWithTimeoutRetry.getCooldownStats = getApiCooldownStats;
 
     // [v3.1] SF4: 角色名归一化（抄 yuzuki character-name-matcher——NFKC+空白折叠，防跨楼身份分裂）
     function normalizeCharName(name) {
@@ -904,6 +940,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
         saveConfig() {
             try {
                 localStorage.setItem('lonsha_memory_config', JSON.stringify(this.config));
+                clearApiCooldowns();
             } catch (e) { errLog(e, 'ConfigManager.saveConfig'); }
         }
     }
@@ -1112,10 +1149,24 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             this.config = config;
             this.vectors = [];
             this.dimension = 1536;
+            this.embedCache = new Map(); // [v3.147] 向量层双 hash 分层对账 cache
+        }
+        
+        // [v3.147] 双 hash 计算（docHash: 文本内容 hash; payloadHash: 状态/元数据 hash）
+        _calcHashes(text, metadata) {
+            const str = String(text ?? '');
+            const docHash = 'doc_' + hash32(str);
+            const payloadHash = 'pay_' + hash32(JSON.stringify(metadata || {}));
+            return { docHash, payloadHash };
         }
         
         async getEmbedding(text) {
             try {
+                const str = String(text ?? '');
+                const docHash = 'doc_' + hash32(str);
+                if (this.embedCache.has(docHash)) {
+                    return this.embedCache.get(docHash);
+                }
                 // [v1.4] 独立 Embedding 配置优先，Key 可回退到提取 Key
                 const cfg = this.config.config;
                 const api_key = cfg.embeddingKey || cfg.apiKey || localStorage.getItem('api_key_openai') || '';
@@ -1123,26 +1174,36 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 
                 if (!api_key) {
                     console.warn(`[${PLUGIN_NAME}] 无Embedding密钥，使用简化向量（可在设置中配置）`);
-                    return this.simpleEmbedding(text);
+                    const vec = this.simpleEmbedding(str);
+                    this.embedCache.set(docHash, vec);
+                    return vec;
                 }
                 
                 const url = api_base.endsWith('/v1') ? `${api_base}/embeddings` : `${api_base}/v1/embeddings`;
                 const res = await fetchWithTimeoutRetry(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${api_key}`},
-                    body: JSON.stringify({model: this.config.config.embeddingModel, input: text})
-                });
+                    body: JSON.stringify({model: this.config.config.embeddingModel, input: str})
+                }, { label: 'Embedding', apiKey: api_key });
                 
                 const data = await res.json();
                 if (data.error) {
                     console.warn(`[${PLUGIN_NAME}] Embedding API错误，降级`, data.error);
-                    return this.simpleEmbedding(text);
+                    const vec = this.simpleEmbedding(str);
+                    this.embedCache.set(docHash, vec);
+                    return vec;
                 }
                 
-                return data.data?.[0]?.embedding || this.simpleEmbedding(text);
+                const vec = data.data?.[0]?.embedding || this.simpleEmbedding(str);
+                this.embedCache.set(docHash, vec);
+                return vec;
             } catch (err) {
                 console.warn(`[${PLUGIN_NAME}] Embedding失败，降级:`, err);
-                return this.simpleEmbedding(text);
+                const str = String(text ?? '');
+                const docHash = 'doc_' + hash32(str);
+                const vec = this.simpleEmbedding(str);
+                this.embedCache.set(docHash, vec);
+                return vec;
             }
         }
         
@@ -1156,9 +1217,26 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
         }
         
         async addVector(text, metadata) {
+            const { docHash, payloadHash } = this._calcHashes(text, metadata);
             const embedding = await this.getEmbedding(text);
             const id = `vec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            this.vectors.push({id, text, embedding, metadata, timestamp: Date.now(), accessCount: 0, importance: metadata?.importance || 5});
+            const metaWithHashes = {
+                ...(metadata || {}),
+                docHash,
+                payloadHash,
+                importance: metadata?.importance || 5
+            };
+            this.vectors.push({
+                id,
+                text,
+                embedding,
+                metadata: metaWithHashes,
+                docHash,
+                payloadHash,
+                timestamp: Date.now(),
+                accessCount: 0,
+                importance: metaWithHashes.importance
+            });
             return id;
         }
 
@@ -1249,9 +1327,33 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             return heated;
         }
         
-        export() { return this.vectors.map(v => ({...v, embedding: Array.from(v.embedding)})); }
+        getCacheStats() {
+            return { cacheSize: this.embedCache.size, vectorCount: this.vectors.length };
+        }
+        export() {
+            return this.vectors.map(v => ({
+                ...v,
+                docHash: v.docHash || (v.text ? 'doc_' + hash32(String(v.text)) : undefined),
+                payloadHash: v.payloadHash || (v.metadata ? 'pay_' + hash32(JSON.stringify(v.metadata)) : undefined),
+                embedding: Array.from(v.embedding)
+            }));
+        }
         import(data) {
-            this.vectors = (data || []).map(v => ({...v, embedding: new Float32Array(v.embedding || [])}));
+            this.embedCache.clear();
+            this.vectors = (data || []).map(v => {
+                const docHash = v.docHash || (v.text ? 'doc_' + hash32(String(v.text)) : null);
+                const payloadHash = v.payloadHash || (v.metadata ? 'pay_' + hash32(JSON.stringify(v.metadata)) : null);
+                const embedding = new Float32Array(v.embedding || []);
+                if (docHash && embedding.length > 0) {
+                    this.embedCache.set(docHash, embedding);
+                }
+                return {
+                    ...v,
+                    docHash,
+                    payloadHash,
+                    embedding
+                };
+            });
         }
     }
     
@@ -1618,6 +1720,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             // ④ 副API通道表（api-channels.js）：任务路由
             this.apiChannels = window.LonShaApiChannels || null;
         }
+
+        // [v3.147] API 凭据 401/403 冷却管控（Engine 代理入口）
+        clearApiCooldowns() { clearApiCooldowns(); }
+        getApiCooldownStats() { return getApiCooldownStats(); }
         
         // [v3.1] SF5: 番外楼判定（抄 baibai bbs_omit——标记楼对引擎彻底不存在）
         // [v3.109] 历史指纹（缝合 bionic turn-artifact 的 historyFingerprint）：

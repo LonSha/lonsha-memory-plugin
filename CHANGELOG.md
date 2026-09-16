@@ -1,3 +1,14 @@
+## v3.147.0
+- **向量层双 hash 分层对账与 embedCache 缓存命中**：
+  - **`docHash` vs `payloadHash`**：区分文本内容 hash（`docHash`）与状态/元数据 hash（`payloadHash`）。同一文本再次添加或修改元数据时，`docHash` 保持一致，`payloadHash` 独立区分。
+  - **`embedCache` 热预热与零 API 浪费**：`VectorStore` 维护 `embedCache`。在 `getEmbedding` 发起 API 请求前，若 `docHash` 命中缓存，直接返回已向量化结果；`addVector` / `addVectorAuto` / `import` 自动以 `docHash` 填充并初始化缓存。存档装载后所有已知文本向量查询瞬时命中，API 调用降至 0 次。
+- **API 凭据 401/403 冷却机制 (Credential Cooldown)**：
+  - **401/403 自动冷却**：`fetchWithTimeoutRetry` 捕获 401（未授权/Key无效）与 403（无权限/封禁）响应后，自动对该 API 凭据启动 30 分钟（1800 秒）冷却保护。
+  - **风暴拦截**：在冷却时间内发起的后续 API 请求直接拦截并抛出明确的冷却异常，绝不重复发出网络请求，彻底消除 401/403 错误引发的请求风暴与控制台刷屏。
+  - **即时恢复**：用户修改设置并保存（`saveConfig()`）或调用 `clearApiCooldowns()` 时自动重置冷却表，无需等待冷却过期即可测试新密钥。
+  - **诊断统计**：`MemoryEngine` 与 `fetchWithTimeoutRetry` 暴露 `getApiCooldownStats()` / `clearApiCooldowns()`。
+- **Tests**：新增 `tests/v3147_cooldown_and_dual_hash.test.mjs`（3 项，行为级：401 拦截与重置恢复、VectorStore 双 hash 对账与 embedCache 预热命中）。全量 141 测试文件、694 断言全通过。
+
 ## v3.146.0
 - **stbme 控制平面分离 L7——恢复原子提交边界（v4.0 前置项之二，收官）**：`restoreFromPayload` 此前只做到「失败可见 + 可手动回滚」（v3.140 结构化上报 / v3.142 落盘前紧急备份），运行时仍停留在**半套状态**（导入档部分生效、原档其余残留）。现在部分失败自动回滚到恢复前快照，让「失败」成为唯一可发生的结果。
   - **快照复用对称原语**：改前状态用 `collectExport()` 抓取——它与 `restoreFromPayload` 共用同一套契约键，不另建快照系统（对齐「避免平行系统」纪律）。回滚也走同一单真源管线，`source` 标为 `auto-rollback:<原来源>` 供追溯。
