@@ -1017,6 +1017,8 @@
                     ${ck('npcTiesInjection', 'NPC 关系注入', '注入 NPC 间关系网络')}
                     ${ck('recallCacheEnabled', '召回缓存', '同查询短期复用召回结果（省 API）')}
                     ${ck('heatOnRecallEnabled', '召回加热', '被召回的记忆提升活跃度（防冷启动丢失）')}
+                    ${ck('recallAuditEnabled', '召回命中自检', '每轮召回后记录 查询/命中分布/空结果 到环形账本，诊断面板「召回效果自检」可见——召回是唯一无自检防线的核心机制（v3.150）')}
+                    ${ck('floorRecallLedgerEnabled', '楼层召回账本', '把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度，让楼层账本从记写入扩展到记召回（v3.150）')}
                     ${ck('recallTierEnabled', '分层召回', '按记忆层分级召回')}
                     ${ck('synopsisFastPath', '摘要快速通道', '短消息跳过完整 LLM 摘要')}
                     ${ck('aiRecallOps', 'AI 召回操作', '允许 AI 在回复中发起召回操作指令')}

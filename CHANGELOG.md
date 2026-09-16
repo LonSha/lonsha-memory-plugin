@@ -1,3 +1,10 @@
+## v3.150.0
+- **召回命中自检（A·补强）+ 楼层召回账本（B·独有新功能）**：补的是全局测试比 172% 却唯一没有「召回效果自检」防线的核心机制盲区，并让楼层账本从「记写入」扩展到「记召回」。
+  - **A 召回命中自检**（`recallAuditEnabled`，默认开）：每轮召回后经 `_auditRecall` 把「查了什么 / 各来源命中数 / 空结果 / 楼层命中分布」写进环形账本 `_recallAudit`（50 轮），诊断面板 `selfCheck` 渲染「召回自检」段（近 N 轮平均命中 / 空结果次数 ⚠️ / 末轮来源分布 / 向量续热数）。空结果 = 本轮注入零前情，是真召回故障的最直接信号。纯观测层，零风险不改写召回逻辑。
+  - **B 楼层召回账本**（`floorRecallLedgerEnabled`，默认开）：命中带 floor 的条目回记 `FloorLedger.record(floor, {recallIds, recallHits})`，楼层账本新增 `recallIds`/`recallHits` 字段（`beginFloor` 初始化 + `record` 聚合计数分支 + 导出/导入对称透传）。向量命中经 `VectorStore._heatEntry` 续热度（decayScore 激活臂 +1、lastActive 重置），让伏笔召回从「一次性」变成「可追溯 + 可续热」。
+  - **接线**：`_auditRecall`/`_recordFloorRecall` 挂在 `recallMemory` 唯一收口（`intentRerank` 之后），两个开关均登记 settings-ui 面板。
+  - **测试**：`tests/v3150_recall_audit.test.mjs`（3 项）——结构接线 / FloorLedger 召回记账累积 + 导出对称 / 命中分布与空结果楼层聚合。修 v348 意图重排断言兼容新结构；v3113 配置白名单经 settings-ui 登记消解。
+
 ## v3.149.0
 - **卷摘要 intact 判定（柏宝书 #13 缝入，第五档收官项）**：折叠区下楼层被 swipe/编辑后，卷摘要文本仍嵌着失效叙事却被注入——这是对折叠区完整性的静默违约。移植 v3.3 `rebuildItems` 的 leafValid 语义到卷层：
   - **写入侧**：`maybeFold` 折叠成功时记录源楼层指纹快照 `srcFps`（`floor:fp` 对）+ 给源摘要打 `volumeId`（精确归卷），新卷初始 `degraded:false`。

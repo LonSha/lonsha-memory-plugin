@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.149.0';
+        const VERSION = '3.150.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -825,6 +825,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 sessionLeaseGuardEnabled: true,     // [v3.141] CP: 异步任务会话租约校验（切换聊天后旧任务作废）
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 volumeIntegrityGuard: true,  // [v3.149] 卷摘要 intact 判定（柏宝书 #13）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事→检测降级展开；对账时机=生成前+编辑/swipe/删楼事件后
+                recallAuditEnabled: true,   // [v3.150] A 召回命中自检：每轮召回后记录 查询/命中分布/空结果 到环形账本
+                floorRecallLedgerEnabled: true,   // [v3.150] B 楼层召回账本：把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
                 recallTierEnabled: true,       // 召回类型分级（常驻 constant / 触发 trigger，注入预算裁剪优先保常驻）
@@ -1681,6 +1683,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastEpochBump = null;         // [v3.145] CP-L6: 最近一次变更栅栏推进
             this._staleTaskDropped = 0;   // [v3.141] CP: 会话租约过期被丢弃的异步任务数（跨聊天污染防线）
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
+            this._recallAudit = [];                     // [v3.150] A 召回命中自检账本（环形 50 轮：query/各来源命中数/空结果）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
             this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
@@ -4178,6 +4181,72 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { return true; }
         }
         
+        // [v3.150] A: 召回命中自检——把「查了什么/命中几条/各来源分布/有没有空结果」写进环形账本（_recallAudit），
+        //   诊断面板 selfCheck 渲染「召回效果自检」段。这是全局测试比 172% 却唯一没有自检防线的核心机制（召回）的补盲。
+        //   只观测不改写召回逻辑（零风险观测层）。空结果 = 本轮注入零前情，是真召回故障的最直接信号。
+        _auditRecall(query, results, injected) {
+            try {
+                const SRC = ['summary','graph','diary','vector','diffusion','pov','timeline','bm25','volume','status','holiday','suspense','presence','neuralChain','worldProg'];
+                const perSource = {};
+                let totalHits = 0;
+                for (const s of SRC) {
+                    const arr = Array.isArray(results?.[s]) ? results[s] : [];
+                    const n = arr.length;
+                    if (n) perSource[s] = n;
+                    totalHits += n;
+                }
+                const floorHits = {};
+                const vecHeat = [];
+                for (const s of SRC) {
+                    const arr = Array.isArray(results?.[s]) ? results[s] : [];
+                    for (const item of arr) {
+                        const f = Number(item?.floor ?? item?.metadata?.floor);
+                        if (Number.isFinite(f) && f >= 0) floorHits[f] = (floorHits[f] || 0) + 1;
+                        if (s === 'vector' && item?.id) vecHeat.push(String(item.id));
+                    }
+                }
+                const rec = {
+                    floor: Number(query?.floor ?? -1),
+                    queryText: String(query?.text || '').slice(0, 80),
+                    intent: (this.llm?.getLastIntent?.() || '').slice(0, 60),
+                    totalHits,
+                    perSource,
+                    injectedCount: Array.isArray(injected) ? injected.length : 0,
+                    empty: totalHits === 0,
+                    floorHits,
+                    vecHeatCount: vecHeat.length,
+                    ts: Date.now(),
+                };
+                const log = this._recallAudit || (this._recallAudit = []);
+                log.push(rec);
+                if (log.length > 50) log.shift();
+                return rec;
+            } catch (e) { errLog(e, 'recall.audit'); return null; }
+        }
+        // [v3.150] B: 楼层召回账本——把「哪楼剧情被本轮召回」回记进 FloorLedger（recallIds），
+        //   让楼层账本从「记写入」扩展到「记召回」；向量命中经 _heatEntry 续热度（decayScore 激活臂 +1、lastActive 重置）。
+        //   FloorLedger.beginFloor 已带 recallIds 字段，本方法只负责聚合 + 记账 + 续热。
+        _recordFloorRecall(floorHits, vecHeat) {
+            try {
+                if (!this.config.config.floorRecallLedgerEnabled) return 0;
+                if (!floorHits || !Object.keys(floorHits).length) return 0;
+                let n = 0;
+                for (const f of Object.keys(floorHits)) {
+                    const floor = Number(f);
+                    if (!Number.isFinite(floor) || floor < 0) continue;
+                    const hits = floorHits[floor];
+                    try { this.ledger.record(floor, { recallIds: ['rec_' + Date.now() + '_' + (n++)], recallHits: hits }); } catch (e) {}
+                }
+                // 向量命中续热度（heatOnRecall 轴）
+                if (vecHeat?.length && this.vector?._heatEntry) {
+                    for (const vid of vecHeat) {
+                        const srcEntry = this.vector.vectors?.find(x => x && x.id === vid);
+                        if (srcEntry) { try { this.vector._heatEntry(srcEntry); } catch (e) {} }
+                    }
+                }
+                return n;
+            } catch (e) { errLog(e, 'recall.floorLedger'); return 0; }
+        }
         async recallMemory(query) {
             const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: [], neuralChain: [], worldProg: []};
             // [v3.149] 卷摘要 intact 对账（柏宝书 #13 缝入）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前先校验并降级展开（零 LLM 调用纯机制自愈）
@@ -4638,7 +4707,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                 } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] rerank失败(降级):`, e); }
             }
             // [v3.48] P3: 本地意图分流重排（零 API 中间层，历史/物品/关系三路意图统一收敛）
-            return this.intentRerank(merged, queryText);
+            const finalMerged = this.intentRerank(merged, queryText);
+            // [v3.150] A+B 观测层：召回命中自检 + 楼层召回账本（零风险，只观测/记账/续热不改写召回结果）
+            if (this.config.config.recallAuditEnabled) {
+                try {
+                    const rec = this._auditRecall(query, results, finalMerged);
+                    if (rec && rec.floorHits) this._recordFloorRecall(rec.floorHits, rec.vecHeatCount ? (results.vector || []).map(v => v && v.id).filter(Boolean) : null);
+                } catch (e) { errLog(e, 'recall.auditWire'); }
+            }
+            return finalMerged;
         }
 
         // [v3.48] P3: 本地意图分流重排管线（triviumdb on_rerank 理念，零 API）
@@ -5818,6 +5895,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ['回响池', `${this.echo.pool ? this.echo.pool.size : (this.echo.items ? this.echo.items.length : '?')}`],
                     ['楼层账本', `${Object.keys(this.ledger.floors || {}).length} 楼`],
                 ];
+                // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
+                try {
+                    const ra = (this._recallAudit || []).slice(-8).reverse();
+                    if (ra.length) {
+                        const emptyN = ra.filter(r => r.empty).length;
+                        const totHit = ra.reduce((a, r) => a + (r.totalHits || 0), 0);
+                        const avgHit = (totHit / ra.length).toFixed(1);
+                        const last = ra[0];
+                        const dist = Object.entries(last.perSource || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k}:${v}`).join(' ');
+                        rows.push(['召回自检', `近${ra.length}轮 平均命中${avgHit} 空结果${emptyN}次${emptyN ? ' ⚠️' : ''}｜末轮 ${last.totalHits}命中{${dist || '无'}}${last.vecHeatCount ? ' 续热' + last.vecHeatCount : ''}`]);
+                        if (emptyN) rows.push(['召回自检·警示', `${emptyN}/${ra.length} 轮空结果——上游编辑/删楼或召回键漂移，建议核对`]);
+                    } else {
+                        rows.push(['召回自检', '暂无数据（首轮生成后填充）']);
+                    }
+                } catch (e) { errLog(e, 'selfCheck.recallAudit'); }
                 report.stats = rows.map(([k, v]) => ({k, v}));
                 // 2. 召回管线 dry-run（不注入，只验证链路通）
                 try {
@@ -9141,6 +9233,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 summaryFloors: [],
                 povIds: [],
                 timelineIds: [],
+                recallIds: [],        // [v3.150] B 楼层召回账本：该楼剧情被后续哪轮召回过（recallHits 聚合计数）
                 statusSnapshot: statusSnapshot || null,
                 createdAt: Date.now()
             };
@@ -9156,6 +9249,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             if (patch.summaryFloors) e.summaryFloors.push(...patch.summaryFloors);
             if (patch.povIds) e.povIds.push(...patch.povIds);
             if (patch.timelineIds) e.timelineIds.push(...patch.timelineIds);
+            // [v3.150] B 楼层召回账本：本轮召回命中该楼的条目数（反向记账，非写入条目 id）
+            if (patch.recallHits) { e.recallIds = e.recallIds || []; const _marks = Array.isArray(patch.recallIds) && patch.recallIds.length ? patch.recallIds : ['rec_' + Date.now()]; for (const _m of _marks) e.recallIds.push(_m); e.recallHits = (e.recallHits || 0) + (Number(patch.recallHits) || 0); }
             return e;
         }
         get(floor) { return this.floors[floor] || null; }
