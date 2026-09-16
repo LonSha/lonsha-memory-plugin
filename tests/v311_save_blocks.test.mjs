@@ -34,7 +34,7 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
     assert.ok(importIdx > 0, 'onload 已改 async');
     const importBlock = srcS.slice(importIdx, importIdx + 2200);
     // [v3.138] CP-L2: 导入管线收编 restoreFromPayload 单真源——子系统覆盖由单真源结构性保证，不再逐一枚举
-    assert.ok(importBlock.includes('restoreFromPayload(data)'), '导入管线应走 restoreFromPayload 单真源');
+    assert.ok(importBlock.includes('restoreFromPayload(data'), '导入管线应走 restoreFromPayload 单真源');
     const rpIdx = srcI.indexOf('restoreFromPayload(data) {');
     assert.ok(rpIdx > 0, 'restoreFromPayload 定义于 index.js');
     const rpBlock = srcI.slice(rpIdx, srcI.indexOf('getCurrentChatId() {', rpIdx));

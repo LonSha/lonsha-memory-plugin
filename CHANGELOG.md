@@ -1,3 +1,13 @@
+## v3.140.0
+- **P0 控制平面正确性复核（stbme 纲领收口，不改功能只改对错）**：v3.138/v3.139 落地的四层实现经逐行复核发现四处语义缺陷，全部修正并以行为级测试锁死。
+  - **确认状态机推进点后移**：`storage.save` 原在递增修订号后、真实落盘前就推进 `_confirmed`——写失败/宿主不可用时内存已自称「已保存」。现在按落盘证据（扩展位写入 + saveChat 完成计数）推进，无证据则记 `failed` 并**返回 false**（旧实现恒 true，调用方无从得知没写进去）。新增 `_lastWrite = {status: queued|confirmed|failed, error}`。
+  - **OMR 护栏判据重写**：v3.138 判据方向是反的——`_confirmed` 为 null（恰是最危险的未装载态）时反而放行；且 `_revision` 比较在写入合流下恒真、会误拒正常保存。改用可观测身份（磁盘存档所属聊天 vs 内存装载身份 `_loadedChatId`），并加连续拒绝上限（超 5 次降级放行，stbme：陈旧挂起必须自动解除，不许永久卡死写入）。
+  - **嵌入存档判旧修复（v3.138 只修了半边）**：`_dataVersion` 存的是版本字符串而 `Number('3.138.0')` 恒 NaN→0，判旧恒假 → 恢复分支从「结构性不可达」翻成「恒可达」（每次开聊都提示恢复）；`parseFloat('3.10')===3.1` 与 `'3.9'` 大小颠倒。现拆为 `schemaVersion`（整数结构代际）+ `producerVersion`（插件版本），判旧用 schema 优先、同代际走新增 `compareVersion` 分段数值比较。
+  - **嵌入存档键名污染修复**：`checkEmbeddedMigration`/`embedVaultToChatMeta`/`clearEmbeddedVaultMeta` 与恢复按钮均用 `engine.STORAGE_KEY`——该属性只存在于 StorageManager，engine 上恒 undefined → 嵌入存档实际落在 `chatMetadata.extensions['undefined']`。改用 `storage.STORAGE_KEY` 真键，读取兼容旧 `undefined` 键、写入/清理时收编残留。
+- **`restoreFromPayload` 结构化结果（消除「部分失败却报成功」）**：v3.138 版整体 try/catch + 返回计数——任一子系统抛错则后续字段全部不再恢复，而 UI 仍播报「导入成功」。现逐字段独立捕获，返回 `{ok, restored, skipped, failed:[{key,error}], count, source, loadedProducer, schemaWarning}`；失败字段可定位、计数只算成功项、空恢复不再清理嵌入副本；三个调用方（storage.load / 文件导入 / 嵌入恢复）播报区分「成功/部分恢复/失败」。
+- **熵增清理**：删除判旧改道后只写不读的 `_dataVersion` 引擎字段，与 `producerVersion` 同值冗余的 payload `dataVersion` 键一并合并废除（冻结契约清单随之 41→43→42 键：新增 schemaVersion/producerVersion、废除 dataVersion，由三方一致性测试守护）。
+- **失败可见性（对齐「坏了有人知道吗」）**：状态总览新增 💾 写入状态（含失败原因）与 ♻️ 最近恢复（来源通道 + 装载版本 + 失败字段）两行；写入失败或恢复失败时诊断块无条件显示。
+- **Tests**：新增 `tests/v3140_control_plane_fixes.test.mjs`（7 项，含 `compareVersion` 与 `storage.save` 确认时机、`restoreFromPayload` 单字段失败不吞后续三项**行为级**验证 + 契约三方一致性 + 判旧静态守卫）；全量 134/134 文件、656 断言，语法门 171 文件，A8.1/A8.2 均零缺口。
 ## v3.139.0
 - **stbme 控制平面分离 L3——身份单通道收口**：跨调用去重指纹的私有身份通道（ctx.chatId || characterId）收编 getCurrentChatId 单一真源——原通道与单真源（chatId → file_name）优先级不一致，同角色多会话场景下指纹命名空间交叉串扰。
 - **快照冻结键契约（GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）**：`ARCHIVE_TOP_LEVEL_KEYS` Object.freeze（41 键，从 collectExport 实际键提取生成）+ storage.save 写侧卫兵（顶层键漂移即刻告警）；守卫测试 v3139 强制 collectExport 键集 == 契约清单，防未知键静默 round-trip 丢失或命名空间无序膨胀。

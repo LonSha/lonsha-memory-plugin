@@ -152,7 +152,7 @@ test('=== 6. 生成路径/持久化/导入/UI 接线静态检查 ===', () => {
     assert.ok(ui.includes("ls-pq-save"), 'UI 保存按钮绑定');
     assert.ok(ui.includes("ck('prequelEnabled'"), 'UI 设置开关');
     // [v3.138] CP-L2: UI 恢复收编 restoreFromPayload 单真源（内含 prequel 分支）+ 显式重建路径
-    assert.ok(ui.includes('this.engine.restoreFromPayload(data)'), 'UI 导入走单真源');
+    assert.ok(ui.includes('this.engine.restoreFromPayload(data'), 'UI 导入走单真源');
     assert.ok(ui.match(/engine\.prequel\.import\(data\.prequel\)/g)?.length >= 1, 'UI 显式 prequel 导入路径');
     // manifest 版本
     const mani = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf-8'));

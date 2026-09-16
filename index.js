@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.139.0';
+        const VERSION = '3.140.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -45,9 +45,25 @@
     'timeWentBack',
     'lastSave',
     'packedAt',
-    'dataVersion',
+    'schemaVersion',
+    'producerVersion',
     ]);
     const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);
+    // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
+    // 存在理由：v3.138 的 _dataVersion 用 Number() 比较插件版本字符串恒得 NaN→0（判旧恒假），
+    // 且 parseFloat('3.10')===3.1 与 '3.9' 无法区分大小。判旧改用 schemaVersion 整数 + compareVersion。
+    const ARCHIVE_SCHEMA_VERSION = 1;
+    function compareVersion(a, b) {
+        const pa = String(a == null ? '' : a).split('.').map(x => parseInt(x, 10));
+        const pb = String(b == null ? '' : b).split('.').map(x => parseInt(x, 10));
+        const n = Math.max(pa.length, pb.length);
+        for (let i = 0; i < n; i++) {
+            const x = Number.isFinite(pa[i]) ? pa[i] : 0;
+            const y = Number.isFinite(pb[i]) ? pb[i] : 0;
+            if (x !== y) return x < y ? -1 : 1;
+        }
+        return 0;
+    }
 
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
@@ -1525,6 +1541,8 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._timelineInjectFloor = null;     // [v3.121] 时间线变化注入游标
             this._timelineCursorChatId = null;   // [v3.123] 游标所属聊天
             this._timelineCursorFingerprint = ''; // [v3.123] 同楼 swipe/编辑指纹
+            this._loadedChatId = null;   // [v3.140] CP: 内存已装载的存档身份（确认状态机判据）
+            this._saveDeniedCount = 0;  // [v3.140] CP: 连续被拒次数（超阈降级放行，防永久卡死）
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
@@ -2498,10 +2516,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // 且 revision 未落后）才允许覆写。恢复管线正在半途导入时、或确认状态被并发破坏时拒绝覆盖，
                     // 防止半初始化的内存态把已落地的完整记忆洗掉（stbme: 让"pending 卡住写入"结构上不可能）。
                     const _omrPayload = await this.collectExport();
-                    const _conf = this.storage._confirmed;
-                    if (_conf && _conf.chatId === chatId && this.storage._revision > _conf.revision) {
-                        console.warn(`[${PLUGIN_NAME}] OMR 保存被确认状态机拒绝：rev ${this.storage._revision} > 已确认 ${_conf.revision}（疑似恢复中/状态回退），跳过本次覆写`);
+                    // [v3.140] CP 确认状态机（重写 v3.138 版）：v3.138 判据方向是错的——_confirmed 为 null
+                    // （恰恰是最危险的未装载态）时反而放行，且 _revision 比较在写入合流下恒真会误拒正常保存。
+                    // 新判据用可观测身份：磁盘存档属于当前聊天且内存确实装载过它才允许覆写；
+                    // 连续拒绝超阈则降级放行（stbme：陈旧挂起必须自动解除，不许永久卡死写入）。
+                    const _disk = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions?.[this.storage.STORAGE_KEY];
+                    const _diskOk = !_disk?.data || _disk.chatId == null || String(_disk.chatId) === String(chatId);
+                    const _loadedOk = this._loadedChatId === chatId || !_disk?.data;
+                    if ((!_diskOk || !_loadedOk) && this._saveDeniedCount < 5) {
+                        this._saveDeniedCount++;
+                        console.warn(`[${PLUGIN_NAME}] OMR 保存被确认状态机拒绝（第${this._saveDeniedCount}次）：磁盘存档=${_disk?.chatId ?? '无'} / 内存装载=${this._loadedChatId ?? '未装载'}，身份不一致不得覆写`);
                     } else {
+                        if (this._saveDeniedCount >= 5) console.warn(`[${PLUGIN_NAME}] 确认状态机降级放行（已连续拒绝 ${this._saveDeniedCount} 次，允许落盘避免记忆完全不保存）`);
+                        this._saveDeniedCount = 0;
                         this.recordSaveSource('realtime', message.index || 0);
                         await this.storage.save(chatId, _omrPayload);
                     }
@@ -2948,15 +2975,21 @@ function relativeTimeLabel(eventTime, nowTime) {
                 this._migrateRestored = true;
                 const c = window.SillyTavern?.getContext?.();
                 const meta = c?.chatMetadata;
-                const emb = meta?.extensions?.[this.STORAGE_KEY]?.embeddedVault;
+                const _sk = this.storage.STORAGE_KEY;   // [v3.140] engine 无此属性（旧值 undefined → 存档落在 extensions['undefined']），改用真键并兼容旧键
+                const emb = meta?.extensions?.[_sk]?.embeddedVault || meta?.extensions?.undefined?.embeddedVault;
                 if (!emb || typeof emb !== 'object') return;
-                // 本地已有记忆库且版本不旧 → 清理嵌入并跳过
-                // [v3.138] CP-L2 版本戳修复：collectExport 恒打当前插件版本戳，在 storage.load 之前调用它探测
-                // 「本地数据版本」恒得 当前版本 >= embVer → 嵌入存档恢复分支结构性不可达（v3.23 起的潜伏缺陷）。
-                // 改用引擎真实数据版本戳 _dataVersion（随每次成功存档推进，随存档恢复回填）。
-                let localVer = Number(this._dataVersion) || 0;
-                const embVer = typeof emb.version === 'string' ? parseFloat(emb.version) || 0 : (emb.version || 0);
-                if (localVer >= embVer && localVer > 0) {
+                // 本地已有记忆库且不旧于嵌入存档 → 清理嵌入并跳过
+                // [v3.140] CP 判旧修复：v3.138 把 _dataVersion 强转数值后比较，但它存的是版本字符串
+                // （形如 3.138.0）→ 强转恒得 NaN→0 → 判旧恒假（恢复分支从不可达翻成恒可达，
+                // 每次开聊都提示恢复）；且按浮点比较 3.10 会小于 3.9，语义颠倒。
+                // 现在判旧只看整数 schemaVersion（结构代际），插件版本比较走 compareVersion 分段数值。
+                const localSchema = ARCHIVE_SCHEMA_VERSION;
+                const embSchema = Number(emb.schemaVersion) || 0;
+                const embProducer = emb.producerVersion || emb.version || '0';
+                const localHasData = !!this._loadedChatId || !!window.SillyTavern?.getContext?.()?.chatMetadata?.extensions?.[this.storage.STORAGE_KEY]?.data;
+                const localNotOlder = embSchema < localSchema
+                    || (embSchema === localSchema && compareVersion(VERSION, embProducer) >= 0);
+                if (localHasData && localNotOlder) {
                     this.clearEmbeddedVaultMeta();
                     return;
                 }
@@ -2964,7 +2997,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 try {
                     const toastr = window.toastr;
                     if (toastr?.info) {
-                        toastr.info(`检测到聊天元数据中嵌入的记忆存档（版本 ${emb.version || '?'}）。本地暂无更新版本。可手动到设置→导入恢复。`, 'LonSha记忆引擎', { timeOut: 6000, closeButton: true });
+                        toastr.info(`检测到聊天元数据中嵌入的记忆存档（插件 ${embProducer}，结构 v${embSchema}）。本地数据为空或更旧，请到设置→数据管理→恢复嵌入存档。`, 'LonSha记忆引擎', { timeOut: 6000, closeButton: true });
                     }
                 } catch (e2) { errLog(e2, 'nonfatal'); }
                 // 可恢复数据留在 embeddedVault 供 settings-ui 导入按钮读取
@@ -2980,8 +3013,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             try {
                 const c = window.SillyTavern?.getContext?.();
                 const meta = c?.chatMetadata;
-                if (!meta?.extensions?.[this.STORAGE_KEY]) return;
-                delete meta.extensions[this.STORAGE_KEY].embeddedVault;
+                const _sk = this.storage.STORAGE_KEY;   // [v3.140] 真键 + 旧 undefined 键一并清理
+                if (meta?.extensions?.[_sk]?.embeddedVault) delete meta.extensions[_sk].embeddedVault;
+                if (meta?.extensions?.undefined?.embeddedVault) delete meta.extensions.undefined.embeddedVault;
+                if (!meta?.extensions?.[_sk] && !meta?.extensions?.undefined) return;
                 this._migrateRestored = true;
             } catch (e) { errLog(e, '迁移恢复.clearEmbeddedVaultMeta'); }
         }
@@ -2995,8 +3030,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const meta = c?.chatMetadata;
                 if (!meta) return false;
                 if (!meta.extensions) meta.extensions = {};
-                if (!meta.extensions[this.STORAGE_KEY]) meta.extensions[this.STORAGE_KEY] = {};
-                meta.extensions[this.STORAGE_KEY].embeddedVault = payload;
+                const _sk = this.storage.STORAGE_KEY;   // [v3.140] 用真键写入（原落 extensions['undefined']）
+                if (meta.extensions?.undefined?.embeddedVault) delete meta.extensions.undefined.embeddedVault;   // 收编旧键残留
+                if (!meta.extensions[_sk]) meta.extensions[_sk] = {};
+                meta.extensions[_sk].embeddedVault = payload;
                 return true;
             } catch (e) { errLog(e, '迁移恢复.embedVaultToChatMeta'); return false; }
         }
@@ -5861,7 +5898,8 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
                 lastSave: this._lastSaveGroundTruth ? { ...this._lastSaveGroundTruth, sources: { ...(this._lastSaveGroundTruth.sources || {}) } } : null,   // [v3.130] 保存地面真源
                 packedAt: new Date().toISOString(),
-                dataVersion: this._dataVersion || null   // [v3.138] CP-L2: 真实数据版本戳（存档时推进）
+                schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
+                producerVersion: VERSION                 // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
             };
         }
 
@@ -5870,68 +5908,72 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         // v3.23 的嵌入恢复按钮缺失、v3.136 前 UI 导入丢新键都是这个结构性缺口的历史实例。
         // 此后新恢复键只在此登记一处，三个入口自动同步。
         restoreFromPayload(data) {
-            if (!data || typeof data !== 'object') return 0;
-            let n = 0;
-            // [v3.138] CP-L2: 恢复管线使本地内存进入「未确认」状态——恢复完成前 OMR 自动保存被确认状态机拦下，
-            // 防止半初始化内存态覆写已落地的完整存档（恢复完成后的首次 storage.save 重新确认）。
+            // [v3.140] CP: 结构化恢复结果（v3.138 整体 try/catch + 返回计数：一个子系统抛错则后续字段
+            // 全部不再恢复，调用方却仍收到数字并被 UI 报成“导入成功”）。
+            // 现在逐字段独立捕获，返回 {ok, restored, skipped, failed, count, source}，部分失败可定位。
+            const opts = arguments[1] || {};
+            const res = { ok: true, restored: [], skipped: [], failed: [], count: 0, source: String(opts.source || 'unknown'), at: Date.now() };
+            if (!data || typeof data !== 'object') { res.ok = false; res.error = 'invalid payload'; return res; }
+            // 恢复期间清除确认（真实落盘后由 storage.save 重新推进）
             this.storage._confirmed = null;
-            const _dv = Number(data.dataVersion);
-            if (Number.isFinite(_dv) && _dv > 0) { this._dataVersion = _dv; }
-            else if (typeof data.version === 'string' || typeof data.version === 'number') {
-                // 存档无 dataVersion（旧版导出）时以 payload.version 为准（存档产生时的插件版本）
-                const _pv = typeof data.version === 'string' ? parseFloat(data.version) : data.version;
-                if (Number.isFinite(_pv) && _pv > 0) this._dataVersion = _pv;
+            const _sv = Number(data.schemaVersion) || 0;
+            if (_sv > ARCHIVE_SCHEMA_VERSION) {
+                res.schemaWarning = `存档结构版本 ${_sv} 新于当前 ${ARCHIVE_SCHEMA_VERSION}（可能丢失未知字段语义）`;
             }
-            try {
-                const engine = this;
-                if (data.graph) { engine.graph.import(data.graph); n++; }
-                if (data.summaries) { engine.summary.import(data.summaries); n++; }
-                if (data.diaries) { engine.diary.import(data.diaries); n++; }
-                if (data.vectors) { engine.vector.import(data.vectors); n++; }
-                if (data.povs && engine.pov) { engine.pov.import(data.povs); n++; }
-                if (data.timeline && engine.timeline) { engine.timeline.import(data.timeline); n++; }
-                if (data.status && engine.status) { engine.status.import(data.status); n++; }
-                if (data.clock && engine.clock) { engine.clock.import(data.clock); n++; }
-                if (data.ledger && engine.ledger) { engine.ledger.import(data.ledger); n++; }
-                if (data.suspense && engine.suspense) { engine.suspense.import(data.suspense); n++; }
-                if (data.scene && engine.scene) { engine.scene.import(data.scene); n++; }
-                if (data.echo && engine.echo) { engine.echo.import(data.echo); n++; }
-                if (data.prequel && engine.prequel) { engine.prequel.import(data.prequel); n++; }   // [v3.87] 前情资料
-                if (data.supersede && engine.supersede) { engine.supersede.import(data.supersede); n++; }
-                if (data.reflection && engine.reflection) { engine.reflection.import(data.reflection); n++; }
-                // [v3.16] 角色记忆银行 + 世界推进恢复
-                if (data.charMem && engine.charMem) { engine.charMem.import(data.charMem); n++; }
-                if (data.worldProg && engine.worldProg) { engine.worldProg.import(data.worldProg); n++; }
-                if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); n++; }   // [v3.3] 加载即对账（补 fp/自愈/清理）
-                if (typeof data.narrativeEntropy === 'number') { engine._narrativeEntropy = data.narrativeEntropy; n++; }
-                if (data.stmLtm && engine.stmLtm) { engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm); n++; }   // [v3.96] STM/LTM 状态恢复
-                if (Array.isArray(data.recallArtifacts)) { engine._recallArtifacts = data.recallArtifacts.slice(-32); n++; }   // [v3.109] 召回产物恢复
-                if (Number.isFinite(Number(data.diaryInjectFloor))) { engine._diaryInjectFloor = Number(data.diaryInjectFloor); n++; }
-                if (Number.isFinite(Number(data.timelineInjectFloor))) { engine._timelineInjectFloor = Number(data.timelineInjectFloor); n++; }
-                if (data.timelineCursorChatId != null) { engine._timelineCursorChatId = String(data.timelineCursorChatId); n++; }
-                if (data.timelineCursorFingerprint != null) { engine._timelineCursorFingerprint = String(data.timelineCursorFingerprint); n++; }
-                // [v3.130] CP: 恢复面（此前 OMR 手写清单在存、load 从不读的键，换会话全部归零）。
-                if (data.deltaBook && engine.deltaBook) { engine.deltaBook.import(data.deltaBook); n++; }
-                if (data.cse && engine.cse) { engine.cse.import?.(data.cse); n++; }
-                if (data.pulse && engine.pulse) { engine.pulse.import?.(data.pulse); n++; }
-                if (data.outline && engine.outline) { engine.outline.import?.(data.outline); n++; }
-                if (data.pairMem && engine.pairMem) { engine.pairMem.import?.(data.pairMem); n++; }
-                if (data.moneyLedger && engine.moneyLedger) { engine.moneyLedger.import?.(data.moneyLedger); n++; }
-                if (data.cards && engine.cards) { engine.cards.import?.(data.cards); n++; }
-                if (data.conflicts && engine.conflicts) { engine.conflicts.import?.(data.conflicts); n++; }
-                if (data.opLog && engine.opLog) { engine.opLog.import?.(data.opLog); n++; }   // 事件溯源日志恢复
-                if (Array.isArray(data.lockedFacts)) { try { engine.summary.lockedFacts = data.lockedFacts.slice(); n++; } catch (e) { errLog(e, 'restoreFromPayload.lockedFacts'); } }   // 直赋：summary.import 会重置其他字段，不可复用
-                if (data.recallSourceStats && typeof data.recallSourceStats === 'object') { engine._recallSourceStats = data.recallSourceStats; n++; }
-                if (data.timeWentBack && typeof data.timeWentBack === 'object') { engine._timeWentBack = { ...data.timeWentBack }; n++; }
-                if (data.lastSave && typeof data.lastSave === 'object') {   // [v3.130] 地面真源恢复：只回填不回退（本地更新者保持自己的计数）
-                    const _g = engine._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {} };
-                    if (Number(data.lastSave.ts) > Number(_g.ts || 0)) {
-                        engine._lastSaveGroundTruth = { ts: Number(data.lastSave.ts) || 0, floor: Number(data.lastSave.floor ?? -1), sources: { ...(data.lastSave.sources || {}) } };
-                        n++;
-                    }
-                }
-            } catch (e) { errLog(e, 'restoreFromPayload'); }
-            return n;
+            // [v3.140] CP: 装载来源版本随恢复结果上报（v3.138 的 _dataVersion 字段判旧改道后只写不读，已删）
+            res.loadedProducer = (typeof data.producerVersion === 'string' || typeof data.version === 'string') ? String(data.producerVersion || data.version) : null;
+            const _imp = (key, need, fn) => {
+                if (data[key] == null) { res.skipped.push(key); return; }
+                if (!need) { res.skipped.push(key); return; }
+                try { fn(); res.restored.push(key); res.count++; }
+                catch (e) { res.failed.push({ key, error: String(e?.message || e) }); errLog(e, 'restoreFromPayload.' + key); }
+            };
+            const engine = this;
+            _imp('graph', !!engine.graph, () => engine.graph.import(data.graph));
+            _imp('summaries', !!engine.summary, () => engine.summary.import(data.summaries));
+            _imp('diaries', !!engine.diary, () => engine.diary.import(data.diaries));
+            _imp('vectors', !!engine.vector, () => engine.vector.import(data.vectors));
+            _imp('povs', !!engine.pov, () => engine.pov.import(data.povs));
+            _imp('timeline', !!engine.timeline, () => engine.timeline.import(data.timeline));
+            _imp('status', !!engine.status, () => engine.status.import(data.status));
+            _imp('clock', !!engine.clock, () => engine.clock.import(data.clock));
+            _imp('ledger', !!engine.ledger, () => engine.ledger.import(data.ledger));
+            _imp('suspense', !!engine.suspense, () => engine.suspense.import(data.suspense));
+            _imp('scene', !!engine.scene, () => engine.scene.import(data.scene));
+            _imp('echo', !!engine.echo, () => engine.echo.import(data.echo));
+            _imp('prequel', !!engine.prequel, () => engine.prequel.import(data.prequel));
+            _imp('supersede', !!engine.supersede, () => engine.supersede.import(data.supersede));
+            _imp('reflection', !!engine.reflection, () => engine.reflection.import(data.reflection));
+            _imp('charMem', !!engine.charMem, () => engine.charMem.import(data.charMem));
+            _imp('worldProg', !!engine.worldProg, () => engine.worldProg.import(data.worldProg));
+            _imp('itemOps', true, () => { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); });
+            _imp('narrativeEntropy', typeof data.narrativeEntropy === 'number', () => { engine._narrativeEntropy = data.narrativeEntropy; });
+            _imp('stmLtm', !!engine.stmLtm, () => { engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm); });
+            _imp('recallArtifacts', Array.isArray(data.recallArtifacts), () => { engine._recallArtifacts = data.recallArtifacts.slice(-32); });
+            _imp('diaryInjectFloor', Number.isFinite(Number(data.diaryInjectFloor)), () => { engine._diaryInjectFloor = Number(data.diaryInjectFloor); });   // [v3.140] 保留 v3.138 的数值守卫，脏值不写成 NaN
+            _imp('timelineInjectFloor', Number.isFinite(Number(data.timelineInjectFloor)), () => { engine._timelineInjectFloor = Number(data.timelineInjectFloor); });
+            _imp('timelineCursorChatId', true, () => { engine._timelineCursorChatId = String(data.timelineCursorChatId); });
+            _imp('timelineCursorFingerprint', true, () => { engine._timelineCursorFingerprint = String(data.timelineCursorFingerprint); });
+            _imp('deltaBook', !!engine.deltaBook, () => engine.deltaBook.import(data.deltaBook));
+            _imp('cse', !!engine.cse, () => engine.cse.import?.(data.cse));
+            _imp('pulse', !!engine.pulse, () => engine.pulse.import?.(data.pulse));
+            _imp('outline', !!engine.outline, () => engine.outline.import?.(data.outline));
+            _imp('pairMem', !!engine.pairMem, () => engine.pairMem.import?.(data.pairMem));
+            _imp('moneyLedger', !!engine.moneyLedger, () => engine.moneyLedger.import?.(data.moneyLedger));
+            _imp('cards', !!engine.cards, () => engine.cards.import?.(data.cards));
+            _imp('conflicts', !!engine.conflicts, () => engine.conflicts.import?.(data.conflicts));
+            _imp('opLog', !!engine.opLog, () => engine.opLog.import?.(data.opLog));
+            // 直赋：summary.import 会重置其他字段，不可复用
+            _imp('lockedFacts', Array.isArray(data.lockedFacts), () => { engine.summary.lockedFacts = data.lockedFacts.slice(); });
+            _imp('recallSourceStats', typeof data.recallSourceStats === 'object', () => { engine._recallSourceStats = data.recallSourceStats; });
+            _imp('timeWentBack', typeof data.timeWentBack === 'object', () => { engine._timeWentBack = { ...data.timeWentBack }; });
+            // 地面真源：只回填不回退（本地更新者保持自己的计数）
+            _imp('lastSave', data.lastSave && typeof data.lastSave === 'object' && Number(data.lastSave.ts) > Number((engine._lastSaveGroundTruth || {}).ts || 0), () => {
+                engine._lastSaveGroundTruth = { ts: Number(data.lastSave.ts) || 0, floor: Number(data.lastSave.floor ?? -1), sources: { ...(data.lastSave.sources || {}) } };
+            });
+            res.ok = res.failed.length === 0;
+            this._lastRestore = res;
+            return res;
         }
         getCurrentChatId() {
             try {
@@ -9728,13 +9770,15 @@ ${recentTurns}`;
             } catch (e) { errLog(e, 'DB.指纹防护'); }
             this._revision += 1;
             const currentRev = this._revision;
-            // [v3.138] CP-L2: 成功写入即「已确认版本」推进（stbme 持久化确认状态机：数据已安全落地只能由规范主源证明）。
-            try { this._confirmed = { chatId: String(chatId), revision: currentRev, ts: Date.now(), size: JSON.stringify(data).length }; } catch (e) { /* 尺寸统计失败不影响写入 */ }
-            this._dataVersion = VERSION;   // [v3.138] CP-L2: 数据版本戳随每次成功存档推进
+            // [v3.140] CP: 确认推进点后移。v3.138 在递增修订号后、真实落盘前就推进 _confirmed，
+            // 与「数据已安全落地只能由规范主源证明」矛盾——写失败/宿主不可用时内存已自称已保存。
+            // 现在此处只登记 queued，落盘循环结束后按证据推进 confirmed / 记录 failed。
+            this._lastWrite = { status: 'queued', chatId: String(chatId), revision: currentRev, ts: Date.now() };
             if (this._isWriting) {
                 this._pendingWrite = { chatId, data, revision: currentRev };
                 return true;
             }
+            let _persisted = 0, _writeErr = null;
             this._isWriting = true;
             try {
                 let curChatId = chatId;
@@ -9770,8 +9814,9 @@ ${recentTurns}`;
                                 timestamp: Date.now()
                             };
                             if (ctx.saveChat) await ctx.saveChat(); else if (window.saveChat) await window.saveChat();
+                            _persisted += 1;   // [v3.140] 真实落盘证据（写扩展位 + saveChat 均完成）
                         }
-                    } catch (err) { console.error('保存失败:', err); }
+                    } catch (err) { _writeErr = String(err?.message || err); console.error('保存失败:', err); }
                     if (this._pendingWrite) {
                         curChatId = this._pendingWrite.chatId;
                         curData = this._pendingWrite.data;
@@ -9783,7 +9828,16 @@ ${recentTurns}`;
             } finally {
                 this._isWriting = false;
             }
-            return true;
+            // [v3.140] CP: 真实写入完成后才推进持久化确认（stbme 确认状态机）。无落盘证据不推进，
+            // 并把失败显式化——旧实现恒 return true，调用方与诊断面板都无从得知「没写进去」。
+            if (_persisted > 0) {
+                this._confirmed = { chatId: String(chatId), revision: currentRev, ts: Date.now() };
+                this._lastWrite = { status: 'confirmed', chatId: String(chatId), revision: currentRev, ts: Date.now(), persisted: _persisted };
+                return true;
+            }
+            this._lastWrite = { status: 'failed', chatId: String(chatId), revision: currentRev, ts: Date.now(), error: _writeErr || 'no persistence target (chatMetadata 不可用)' };
+            console.warn(`[${PLUGIN_NAME}] ⚠ 保存未落地 (rev ${currentRev})：${this._lastWrite.error}`);
+            return false;
         }
         async load(chatId, opts = {}) {
             try {
@@ -9798,7 +9852,8 @@ ${recentTurns}`;
                 if (opts.preserveRuntime) return data || null;
                 if (data && window.LonShaMemory?.engine) {
                     // [v3.138] CP-L2: 恢复管线收编单真源 restoreFromPayload（原 40 余行手写清单，三处副本之一）
-                    window.LonShaMemory.engine.restoreFromPayload(data);
+                    window.LonShaMemory.engine.restoreFromPayload(data, { source: 'storage-load' });
+                    window.LonShaMemory.engine._loadedChatId = chatId;   // [v3.140] CP: 装载身份登记
                 }
                 return data;
             } catch (err) { return null; }
@@ -9933,7 +9988,7 @@ ${recentTurns}`;
             } catch (err) {
                 console.warn(`[${PLUGIN_NAME}] 历史记忆加载失败:`, err);
             }
-            // [v3.138] CP-L2 时序修复：迁移检测必须在本地存档加载并回填 _dataVersion 之后，
+            // [v3.138] CP-L2 时序修复：迁移检测必须在本地存档加载（登记装载身份）之后，
             // 否则判旧读到的是未加载前的默认值（原位置在 load 之前，v3.23 起判旧失真）。
             try { this.checkEmbeddedMigration(); } catch (e) { errLog(e, '迁移恢复.init'); }
             this.initialized = true;

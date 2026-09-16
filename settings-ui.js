@@ -139,7 +139,7 @@
                 </div>
                 <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
                 ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title">🎯 最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:var(--ls-warn,#d29922)">⚠️ 触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint">🎯 最近召回监控：生成过一次后显示命中来源分布。</div>'}
-                ${s._lastChangeTrace || s._timelineInjectFloor != null || s._diaryInjectFloor != null ? (() => { const ct = s._lastChangeTrace || {}; const seg = (o) => o ? `${o.found ?? 0} 找到${o.added != null ? ` / ${o.added} 新增` : ''}` : '—'; return `<div class="ls-group"><div class="ls-group-title">⏳ 变化注入（Horae/HCDiary 诊断）</div><div class="ls-item"><div class="ls-item-meta">楼层 ${ct.floor ?? '—'} · 游标 ${ct.cursor ?? '—'} · 锚点「${ct.anchorDate || '—'}」${ct.ts ? ' · ' + new Date(ct.ts).toLocaleTimeString('zh-CN') : ''}${s._timeWentBack ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 时间倒跳 ${s._timeWentBack.from}→${s._timeWentBack.to}(第${s._timeWentBack.floor}楼)</span>` : ''}</div><div class="ls-item-text">时间线 ${seg(ct.timeline)} · 状态 ${seg(ct.status)} · 关系 ${seg(ct.pair)} · 物品 ${seg(ct.items)} · 日记 ${seg(ct.diary)}</div><div class="ls-item-meta">游标持久化: timeline=${s._timelineInjectFloor ?? '未初始化'} diary=${s._diaryInjectFloor ?? '未初始化'} · chat=${s._timelineCursorChatId ?? '—'}${(() => { const c = s.clock || s._clock; const t = c?.timeTagStats; if (!t) return ''; const warn = t.total > 0 && t.calibrated === 0 ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 标签从未成功校准，检查正文格式</span>` : ''; return `</div><div class="ls-item-meta">🕐 时间标签协议: 共${t.total}楼 · 成对${t.paired} · 校准${t.calibrated}${t.unparseable ? ` · 无法解析${t.unparseable}` : ''}${warn}`; })()}</div><div class="ls-item-meta">💾 保存地面真源: ${(() => { const g = s._lastSaveGroundTruth; if (!g || !g.ts) return '尚未保存'; return `${new Date(g.ts).toLocaleString('zh-CN')} · 楼层 ${g.floor} · 来源 ${Object.entries(g.sources || {}).map(([k, v]) => `${k}×${v}`).join(' /') || '—'}`; })()}</div></div></div>`; })() : ''}
+                ${s._lastChangeTrace || s._timelineInjectFloor != null || s._diaryInjectFloor != null || s.storage?._lastWrite?.status === 'failed' || s._lastRestore?.failed?.length ? (() => { /* [v3.140] 写入失败/恢复失败必须无条件可见（坏了有人知道吗） */  const ct = s._lastChangeTrace || {}; const seg = (o) => o ? `${o.found ?? 0} 找到${o.added != null ? ` / ${o.added} 新增` : ''}` : '—'; return `<div class="ls-group"><div class="ls-group-title">⏳ 变化注入（Horae/HCDiary 诊断）</div><div class="ls-item"><div class="ls-item-meta">楼层 ${ct.floor ?? '—'} · 游标 ${ct.cursor ?? '—'} · 锚点「${ct.anchorDate || '—'}」${ct.ts ? ' · ' + new Date(ct.ts).toLocaleTimeString('zh-CN') : ''}${s._timeWentBack ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 时间倒跳 ${s._timeWentBack.from}→${s._timeWentBack.to}(第${s._timeWentBack.floor}楼)</span>` : ''}</div><div class="ls-item-text">时间线 ${seg(ct.timeline)} · 状态 ${seg(ct.status)} · 关系 ${seg(ct.pair)} · 物品 ${seg(ct.items)} · 日记 ${seg(ct.diary)}</div><div class="ls-item-meta">游标持久化: timeline=${s._timelineInjectFloor ?? '未初始化'} diary=${s._diaryInjectFloor ?? '未初始化'} · chat=${s._timelineCursorChatId ?? '—'}${(() => { const c = s.clock || s._clock; const t = c?.timeTagStats; if (!t) return ''; const warn = t.total > 0 && t.calibrated === 0 ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 标签从未成功校准，检查正文格式</span>` : ''; return `</div><div class="ls-item-meta">🕐 时间标签协议: 共${t.total}楼 · 成对${t.paired} · 校准${t.calibrated}${t.unparseable ? ` · 无法解析${t.unparseable}` : ''}${warn}`; })()}</div><div class="ls-item-meta">💾 保存地面真源: ${(() => { const g = s._lastSaveGroundTruth; if (!g || !g.ts) return '尚未保存'; return `${new Date(g.ts).toLocaleString('zh-CN')} · 楼层 ${g.floor} · 来源 ${Object.entries(g.sources || {}).map(([k, v]) => `${k}×${v}`).join(' /') || '—'}`; })()}</div>${(() => { const w = s.storage?._lastWrite, r = s._lastRestore; const parts = []; if (w && w.ts) { const bad = w.status !== 'confirmed'; parts.push(`💾 写入 ${w.status}${bad ? ' <span style="color:var(--ls-warn,#d29922)">' + (w.error || '未落地') + '</span>' : ''} · rev ${w.revision} · ${new Date(w.ts).toLocaleTimeString('zh-CN')}`); } if (r && r.at) { const f = (r.failed || []).length; parts.push(`♻️ 最近恢复(${r.source}${r.loadedProducer ? ' ← v' + r.loadedProducer : ''}) ${new Date(r.at).toLocaleTimeString('zh-CN')} · ${r.count} 字段${f ? ' <span style="color:var(--ls-warn,#d29922)">失败 ' + r.failed.map(x => x.key).join('/') + '</span>' : ''}`); } return parts.length ? '<div class="ls-item-meta">' + parts.join(' · ') + '</div>' : ''; })()}</div></div>`; })() : ''}
                 ${(s._recallSourceStats && s._recallSourceStats.total > 0) ? `<div class="ls-group"><div class="ls-group-title">📈 召回源命中率（最近 ${s._recallSourceStats.total} 轮）</div><div class="ls-item">${Object.entries(s._recallSourceStats.bySource || {}).sort((a, b) => b[1].hits - a[1].hits).map(([k, v]) => { const pct = Math.min(100, Math.round((v.hits / Math.max(1, v.rounds)) * 100)); const bar = '█'.repeat(Math.max(1, Math.round(pct / 10))); return `<div class="ls-item-text" style="margin:2px 0"><b>${k}</b> ${bar} ${pct}%（${v.hits} 次/${v.rounds} 轮）</div>`; }).join('')}</div><div class="ls-hint">💡 长期 0% 的召回源可在设置中关闭以省资源；命中率数据 200 轮半衰，反映近期状态。</div></div>` : ''}
             `;
             const ov = makeSheet('lonsha-stats-overlay', '📊 状态总览', body);
@@ -1133,14 +1133,19 @@
             overlay.querySelector('#ls-embedded-restore').addEventListener('click', async () => {
                 try {
                     const eng = self.engine;
-                    const emb = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions?.[eng.STORAGE_KEY]?.embeddedVault;
+                    const _sk = eng.storage.STORAGE_KEY;   // [v3.140] 真键（engine 实例上无此属性 → 旧实现读到 undefined 键）
+                    const _ext = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions;
+                    const emb = _ext?.[_sk]?.embeddedVault || _ext?.undefined?.embeddedVault;
                     if (!emb || typeof emb !== 'object') { toast('未发现嵌入存档'); return; }
-                    const n = eng.restoreFromPayload(emb);
+                    const _rr = eng.restoreFromPayload(emb, { source: 'embedded-vault' });
+                    if (!_rr.count) { toast('\u274c 嵌入存档无可恢复内容，保持原状（未清理副本）'); return; }   // [v3.140] 空恢复不得清理嵌入副本
                     const chatId = eng.getCurrentChatId();
                     if (chatId) await eng.storage.save(chatId, eng.collectExport());
                     try { eng.clearEmbeddedVaultMeta(); } catch (e) { reportUiError(e, 'nonfatal') }
                     try { delete eng.config.config._embeddedVaultReady; eng.config.saveConfig(); } catch (e) { reportUiError(e, 'nonfatal') }
-                    toast(`✅ 嵌入存档已恢复（${n} 个字段），嵌入副本已清理`);
+                    const _pf = _rr.failed.length ? `（失败 ${_rr.failed.map(f => f.key).join('/')}）` : '';
+                    toast((_rr.ok ? '✅ ' : '⚠️ 部分恢复: ') + `已恢复 ${_rr.count} 个字段${_pf}`);
+                    if (!_rr.count) { toast('❌ 嵌入存档无可恢复内容，保持原状'); return; }
                 } catch (e) { reportUiError(e, 'ls-embedded-restore'); toast('恢复失败: ' + e.message); }
             });
             // 恢复默认提示词
@@ -1178,11 +1183,11 @@
                         try {
                             const data = JSON.parse(reader.result);
                             // [v3.138] CP-L2: 恢复管线收编单真源 restoreFromPayload（原 40 余行手写清单，三处副本之一）
-                            const _rn = this.engine.restoreFromPayload(data);
+                            const _rn = this.engine.restoreFromPayload(data, { source: 'file-import' });
                             const chatId = this.engine.getCurrentChatId();
                             // [v3.11] 存盘统一走 collectExport（原 version '1.3.0' 块只存 4 字段——导入后新子系统记忆全丢）
                             if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
-                            toast(`✅ 导入成功（${_rn} 个字段）`);
+                            toast((_rn.ok ? '✅ ' : '⚠️ 部分导入: ') + `已恢复 ${_rn.count} 个字段` + (_rn.failed.length ? `（失败 ${_rn.failed.map(f => f.key).join('/')}）` : ''));
                         } catch (e) { toast('❌ 导入失败: ' + e.message); }
                     };
                     reader.readAsText(file);

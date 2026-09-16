@@ -87,7 +87,7 @@ test('v3.136 设置面板导出/导入收口单真源', () => {
     assert.match(ui, /const data = await this\.engine\.collectExport\(\)/, '导出走 collectExport');
     assert.ok(!ui.includes('summaries: this.engine.summary.export()'), '手写导出清单已废除');
     // [v3.138] CP-L2: UI 导入收编 restoreFromPayload 单真源（键覆盖由单真源保证）
-    assert.match(ui, /this\.engine\.restoreFromPayload\(data\)/, 'UI 导入走单真源');
+    assert.match(ui, /this\.engine\.restoreFromPayload\(data[,)]/, 'UI 导入走单真源');
     const rps = extractBraced('restoreFromPayload(data) {');
     for (const k of ['deltaBook', 'cse', 'pulse', 'outline', 'pairMem', 'moneyLedger', 'cards', 'conflicts', 'opLog', 'clock']) {
         assert.ok(rps.includes(`data.${k}`), `恢复单真源含 ${k}`);
@@ -96,9 +96,9 @@ test('v3.136 设置面板导出/导入收口单真源', () => {
 
 test('v3.130 版本三处同步', () => {
     const m = /const VERSION = '([^']+)'/.exec(src);
-    assert.equal(m[1], '3.139.0');
+    assert.equal(m[1], '3.140.0');
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '3.139.0');
-    assert.equal(pkg.version, '3.139.0');
+    assert.equal(manifest.version, '3.140.0');
+    assert.equal(pkg.version, '3.140.0');
 });
