@@ -1,3 +1,10 @@
+## v3.141.0
+- **stbme 控制平面分离 L4——会话租约（session lease）**：全仓此前**零** chatId 一致性守卫（`!== getCurrentChatId()` 无任何命中），即 stbme 研究所指「未进入聊天 / reroll 乱召回」类 bug 的温床。三条跨 await 的异步路径各自补齐发起时身份捕获 + 返回时校验：
+  - **OMR 实时提取**：`await` LLM 期间用户切换聊天 → 结果整栋丢弃（不写 graph/vector/summary，运行时零污染）。旧实现会把 A 楼记忆写进已装载的 B 运行时，B 随后自存即成永久污染。
+  - **backfillFloors 补提取**：逐楼 await 的长任务，每楼校验，失效即中止整轮并**跳过保存**；同时修正保存目标事后求值缺陷（`storage.save(this.getCurrentChatId(), ...)` → 用租约捕获的 `_bfLease0`，防把旧任务结果写进当前聊天）。
+  - **_stmLtmConsolidate**：巩固产物是游标状态，身份变更后不再回写 `this._stmLtmState`（旧实现 A 的 stm/ltm 游标会污染 B 并随 B 存档落盘）。
+- **开关与可见性**：新增 `sessionLeaseGuardEnabled`（默认开，设置面板「会话租约校验」）；作废计数 `_staleTaskDropped` 与最近详情 `_lastStaleDrop`（来源/去向/楼层/任务）进状态总览，且作废态纳入诊断块强制显示条件。
+- **测试基建加固**：`v380_backfill_hardening` 的 `bIdx + 4000/5000` 硬编码窗口改为方法边界截取——代码增长不再静默破断言（本轮实测被咬）。新增 `tests/v3141_session_lease.test.mjs`（5 项：开关走配置层、三路径「捕获→await→校验→写回」顺序、租约变量声明作用域、作废可见性）。
 ## v3.140.0
 - **P0 控制平面正确性复核（stbme 纲领收口，不改功能只改对错）**：v3.138/v3.139 落地的四层实现经逐行复核发现四处语义缺陷，全部修正并以行为级测试锁死。
   - **确认状态机推进点后移**：`storage.save` 原在递增修订号后、真实落盘前就推进 `_confirmed`——写失败/宿主不可用时内存已自称「已保存」。现在按落盘证据（扩展位写入 + saveChat 完成计数）推进，无证据则记 `failed` 并**返回 false**（旧实现恒 true，调用方无从得知没写进去）。新增 `_lastWrite = {status: queued|confirmed|failed, error}`。

@@ -10,7 +10,7 @@ test('=== 1. A: backfillFloors 番外楼防护 ===', () => {
     assert.ok(src.includes('if (this.isOmittedFloor(m)) { done.skipped++; continue; }'), '防护逻辑');
     // 防护在提取之前（结构验证：skip 位置早于 extractMemoryWithLLM）
     const bIdx = src.indexOf('async backfillFloors');
-    const seg = src.slice(bIdx, bIdx + 4000);
+    const seg = src.slice(bIdx, src.indexOf('\n        // [v3.47]', bIdx));   // 方法边界代替固定窗口
     const omitIdx = seg.indexOf('isOmittedFloor(m)');
     const extractIdx = seg.indexOf('await this.extractMemoryWithLLM(msg)');
     assert.ok(omitIdx > 0 && extractIdx > 0 && omitIdx < extractIdx, '防护在提取之前');
@@ -20,7 +20,7 @@ test('=== 2. B: backfillFloors 补 protagonist/lifeDetails（与主管线对齐�
     assert.ok(src.includes("errLog(e, 'BF.backfill.主角档案')"), '补提取主角档案');
     // 结构：在 backfillFloors 段内
     const bIdx = src.indexOf('async backfillFloors');
-    const seg = src.slice(bIdx, bIdx + 5000);
+    const seg = src.slice(bIdx, src.indexOf('\n        // [v3.47]', bIdx));   // 方法边界代替固定窗口（代码增长不再破断言）
     assert.ok(seg.includes('this.status.setProtagonist(extracted.protagonist, idx)'), 'setProtagonist 补提取');
     assert.ok(seg.includes('this.status.addLifeDetail(ld, idx)'), 'addLifeDetail 补提取');
     // 与主管线的字段守卫一致

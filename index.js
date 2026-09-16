@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.140.0';
+        const VERSION = '3.141.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -784,6 +784,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v3.111] 掉队候选补召回（缝合 bionic collectVectorTailCandidates）
                 vectorTailRecoveryEnabled: false,  // 默认关：开启后把「无向量/零向量/维度不符」的条目低分补进候选池
                 vectorTailRecoveryLimit: 8,        // 每轮最多补召回条数（防脏库灌爆候选池）
+                sessionLeaseGuardEnabled: true,     // [v3.141] CP: 异步任务会话租约校验（切换聊天后旧任务作废）
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
@@ -1543,6 +1544,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._timelineCursorFingerprint = ''; // [v3.123] 同楼 swipe/编辑指纹
             this._loadedChatId = null;   // [v3.140] CP: 内存已装载的存档身份（确认状态机判据）
             this._saveDeniedCount = 0;  // [v3.140] CP: 连续被拒次数（超阈降级放行，防永久卡死）
+            this._staleTaskDropped = 0;   // [v3.141] CP: 会话租约过期被丢弃的异步任务数（跨聊天污染防线）
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
@@ -1687,7 +1689,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                     return await this.llm.callAPI(prompt);
                 } catch (e) { return null; }
             };
+            const _stlLease = this.getCurrentChatId();   // [v3.141] CP-L4: 巩固跨 await（LLM 摘要调用），须捕获会话租约
             const r = await this.stmLtm.consolidate(this._stmLtmState, { summarize, force });
+            // [v3.141] CP-L4: 巩固产物是游标状态——身份已切换时若仍写回 engine，A 的 stm/ltm 游标会污染 B 的运行时并随 B 存档落盘。
+            if (this.config.config.sessionLeaseGuardEnabled !== false && _stlLease && this.getCurrentChatId() !== _stlLease) {
+                this._staleTaskDropped++;
+                this._lastStaleDrop = { from: _stlLease, to: String(this.getCurrentChatId()), floor: -1, at: Date.now(), task: 'stmLtm' };
+                console.warn(`[${PLUGIN_NAME}] ⚠ STM 巩固结果作废：发起于聊天 ${_stlLease}，当前已在 ${this.getCurrentChatId()}，游标状态不回写`);
+                return r;
+            }
             this._stmLtmState = r.state;
             // 落盘（复用主持久化通道）
             try { if (r.consolidated > 0) { this.recordSaveSource('stmLtm'); await this.storage.save(this.getCurrentChatId(), this.collectExport()); } } catch (e) { errLog(e, 'stmLtm.save'); }
@@ -1815,6 +1825,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                     } else {
                         extracted = await this.extractMemoryWithLLM(message);
                     }
+                }
+                // [v3.141] CP-L4 会话租约（stbme session lease）：提取的 await 期间用户可能已切换聊天，
+                // 此时内存运行时属于新聊天——把 A 楼的结果写进 B 的 graph/vector/summary 是永久污染
+                // （B 随后自存即落盘）。发起时捕获的 chatId 是唯一权威，回来时身份已变则整栋丢弃。
+                if (this.config.config.sessionLeaseGuardEnabled !== false && this.getCurrentChatId() !== chatId) {
+                    this._staleTaskDropped++;
+                    this._lastStaleDrop = { from: chatId, to: String(this.getCurrentChatId()), floor: message.index || 0, at: Date.now() };
+                    console.warn(`[${PLUGIN_NAME}] ⚠ 异步提取结果作废：发起于聊天 ${chatId}（第${message.index}楼），当前已在 ${this.getCurrentChatId()}，丢弃以防跨聊天污染`);
+                    return;
                 }
                 // [v3.33] AI 主动记忆操作 merged into extracted: high-confidence writes override/augment passive LLM extraction
                 if (aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) {
@@ -3678,9 +3697,13 @@ function relativeTimeLabel(eventTime, nowTime) {
         // 上限保护：单次最多 30 楼（防一次扫全车）；带互斥锁防与实时提取并发
         async backfillFloors(floors, onProgress) {
             const done = { ok: 0, fail: 0, skipped: 0 };
+            // [v3.141] CP-L4: 租约身份声明在函数体顶层——保存点在 try 块之外，声明进内层会成未定义变量
+            const _bfLease0 = this.getCurrentChatId();   // [v3.141] 会话租约身份
+            let _bfStale0 = false;
             try {
                 const acquired = await this.mutex.acquire();
                 if (!acquired) { console.warn(`[${PLUGIN_NAME}] 补提取排队超时（实时提取进行中）`); return done; }
+                // [v3.141] CP-L4: 补提取是逐楼 await 的长任务，会话租约在开始处捕获（每楼 await 后校验）。
                 try {
                     const chat = window.SillyTavern?.getContext?.()?.chat || [];
                     const list = (Array.isArray(floors) ? floors : []).slice(0, 30);
@@ -3695,6 +3718,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                             msg.mes = this.cleanMessageText(msg.mes || '');
                             if (!msg.mes) { done.skipped++; continue; }
                             const extracted = await this.extractMemoryWithLLM(msg);
+                            // [v3.141] CP-L4: 租约失效（用户已切换聊天）则中止整轮，且不得落盘——
+                            // 此刻内存运行时属于新聊天，collectExport 会把新聊天的内容写进旧存档。
+                            if (this.config.config.sessionLeaseGuardEnabled !== false && _bfLease0 && this.getCurrentChatId() !== _bfLease0) {
+                                _bfStale0 = true;
+                                this._staleTaskDropped++;
+                                this._lastStaleDrop = { from: _bfLease0, to: String(this.getCurrentChatId()), floor: idx, at: Date.now() };
+                                console.warn(`[${PLUGIN_NAME}] ⚠ 补提取中止：发起于聊天 ${_bfLease0}，当前已在 ${this.getCurrentChatId()}（第${idx}楼），丢弃且跳过保存以防污染`);
+                                break;
+                            }
                             // 只补「图谱节点/关系 + 摘要」核心两类（保召回可用）；细粒度子系统（状态/悬念/物品）交后续实时楼带动
                             // 去重纪律：addNode 不去重（每次新 id）——补提取对角色节点先查后建，防历史重灌放大重复
                             if (extracted?.characters) {
@@ -3750,8 +3782,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                     } catch (e) { errLog(e, 'BF.backfillFloors'); }
                     // [v3.19] 补提取完成后推进书签
                     try { if (this.bookmarks && floors?.length) this.bookmarks.save('scan', Math.max(...floors) + 1); } catch (e) { errLog(e, 'nonfatal') }
-            if (done.ok || done.fail) {
-                try { this.recordSaveSource('backfill'); await this.storage.save(this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
+            if (_bfStale0) { done.skipped += 1; }   // [v3.141] 中止计数可见
+            if ((done.ok || done.fail) && !_bfStale0) {
+                // [v3.141] CP: 保存目标用租约捕获的 chatId（原事后求值 getCurrentChatId 会把旧任务结果写进当前聊天）
+                try { this.recordSaveSource('backfill'); await this.storage.save(_bfLease0 || this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
             }
             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 补提取完成: ${done.ok}成/${done.fail}败/${done.skipped}跳`);
             return done;
