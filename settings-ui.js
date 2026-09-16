@@ -794,6 +794,7 @@
                     ${ck('sessionLeaseGuardEnabled', '会话租约校验', '异步提取/补提取/STM 巩固跨 await 后若已切换聊天，旧任务结果作废，防跨聊天记忆污染')}
                     ${ck('atomicRestoreEnabled', '恢复原子提交', '导入/嵌入恢复部分失败时自动回滚到恢复前状态，不留半套记忆（快照仅对用户发起的恢复抓取）')}
                     ${ck('swipeFingerprintGuard', 'swipe 指纹校验', '召回缓存命中前验证末楼消息指纹：翻变体自动失效重算，翻回旧变体则到变体级复用')}
+                    \${ck('volumeIntegrityGuard', '卷摘要 intact 判定', '折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前对账源楼层指纹，失效整卷降级并展开源摘要回活跃池（柏宝书 #13）')}
                     ${ck('aliasQueryExpansion', '别名查询扩展', '查询命中角色别名/昵称时自动附加主名词条参与 BM25 检索：喊昵称也能召回主名记忆（吸收 MyriadKnots entity-identity）')}
                     ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}
                     ${ck('bridgeEnabled', '公开快照桥', '在 window.lonsha_memory_bridge_v1 暴露只读状态快照（主角/NPC账本/大纲/世界推进），供外部脚本读取')}

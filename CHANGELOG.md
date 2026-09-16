@@ -1,3 +1,13 @@
+## v3.149.0
+- **卷摘要 intact 判定（柏宝书 #13 缝入，第五档收官项）**：折叠区下楼层被 swipe/编辑后，卷摘要文本仍嵌着失效叙事却被注入——这是对折叠区完整性的静默违约。移植 v3.3 `rebuildItems` 的 leafValid 语义到卷层：
+  - **写入侧**：`maybeFold` 折叠成功时记录源楼层指纹快照 `srcFps`（`floor:fp` 对）+ 给源摘要打 `volumeId`（精确归卷），新卷初始 `degraded:false`。
+  - **校验侧**：新增 `verifyVolumesIntact()`——召回前对账当前 chat 指纹，任一源指纹失效 → 整卷 `degraded`（不再注入/不入史记）+ 对应源摘要解折叠回活跃池。活跃摘要是 `maybeFold` 天然素材源，回池后由既有阈值逻辑自动重折叠（**零新增 LLM 调用，纯机制自愈**）。
+  - **指纹注入位**：`SummarySystem.fpOf` 由 engine 构造时注入 `msgFpOf`（对齐 v3.89 三元组定位符），独立单类测试无 SillyTavern 依赖时可覆盖。
+  - **消费收口**：`getIntactVolumes()` 统一过滤降级卷，`getActiveVolumes()`/`searchVolumes()`（卷摘要召回）/`maybeFoldHistorical`（上游史记折叠素材）三处全部收口，降级卷不注入、不再折叠进史记。
+  - **对账时机**：`recallMemory` 每次召回前（主防线，覆盖 swipe/编辑后新消息触发召回的路径）+ 编辑/删楼事件后经下一条消息召回兜底。删楼场景 `_h5` 先 `shiftFloorsFrom` 偏移键再校验，防误降级。
+  - **开关**：`volumeIntegrityGuard`（默认开），settings-ui 面板已登记。
+  - **测试**：`tests/v3149_volume_integrity.test.mjs`（3 项）——结构断言 / 端到端降级语义（30 摘要→折叠→快照→swipe→降级→源摘要回活跃池→幂等）/ 引擎接线。更新 v3117/v3130/v3147 三处版本号锚点至 3.149.0。
+
 ## v3.148.0
 - **检索质量管线四件套（baibai #26 / shujuku #26 #12 收官）**：侦察发现 bigram 分词（v3.86）、RRF 融合（v3.50）、NPC 四档（v3.43）、物品两组（v3.44）、错误规则库 17 条（v3.36）早已落地，本轮据实只补真缺口四项：
   - **BM25 语料缓存**：三处 `rebuild` 调用点（OMR 提取 / 回滚 / carryover 导入）全部收编为「素材指纹变了才重建」——指纹 = 各摘要 id+文本 hash32 拼接，断崖截断/折叠后的高频无效重建全免（shujuku BM25-corpus-cache 纪律）。

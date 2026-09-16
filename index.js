@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.148.0';
+        const VERSION = '3.149.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -824,6 +824,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 atomicRestoreEnabled: true,         // [v3.146] CP: 恢复原子提交边界（部分失败自动回滚到恢复前快照）
                 sessionLeaseGuardEnabled: true,     // [v3.141] CP: 异步任务会话租约校验（切换聊天后旧任务作废）
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
+                volumeIntegrityGuard: true,  // [v3.149] 卷摘要 intact 判定（柏宝书 #13）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事→检测降级展开；对账时机=生成前+编辑/swipe/删楼事件后
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
                 recallTierEnabled: true,       // 召回类型分级（常驻 constant / 触发 trigger，注入预算裁剪优先保常驻）
@@ -1660,6 +1661,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.config = config;
             this.graph = new MemoryGraph();
             this.summary = new SummarySystem();
+            this.summary.fpOf = (m) => { try { return msgFpOf(m); } catch (e) { return ''; } };   // [v3.149] 卷摘要 intact：指纹函数注入位（独立单类测试无 SillyTavern 依赖时可覆盖）
             this.diary = new DiarySystem();
             this.charMem = new CharacterMemoryBank();   // [v3.16] 角色记忆银行（核心/近期两层）
             this.worldProg = new WorldProgress();        // [v3.16] 世界推进（不在场角色）
@@ -4178,6 +4180,8 @@ function relativeTimeLabel(eventTime, nowTime) {
         
         async recallMemory(query) {
             const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: [], neuralChain: [], worldProg: []};
+            // [v3.149] 卷摘要 intact 对账（柏宝书 #13 缝入）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前先校验并降级展开（零 LLM 调用纯机制自愈）
+            try { if (this.config.config.volumeIntegrityGuard !== false && this.summary?.verifyVolumesIntact) this.summary.verifyVolumesIntact(this.config.config); } catch (e) { errLog(e, 'recallMemory.卷摘要对账'); }
             
             results.summary = this.summary.search(query.text);
             
@@ -7243,16 +7247,29 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                         }
                     }
                     const floors = batch.map(s => s.floor).filter(f => f !== undefined && f !== null);
+                    const _volId = 'vol_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+                    // [v3.149] 源楼层指纹快照（柏宝书 #13 intact 判定素材）：折叠时对账当前指纹，任一失效→整卷降级+源摘要回活跃池
+                    let _srcFps = null;
+                    try {
+                        const _chat = (typeof window !== 'undefined' && window.SillyTavern?.getContext?.()?.chat) || [];
+                        _srcFps = batch.map(s => {
+                            const _m = _chat[s.floor];
+                            const _fp = (this.fpOf ? this.fpOf(_m) : '');
+                            return s.floor + ':' + _fp;
+                        }).filter(x => !x.endsWith(':'));
+                    } catch (e) { _srcFps = null; }
                     this.volumes.push({
-                        id: 'vol_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                        id: _volId,
                         text: clean,
                         floorStart: floors.length ? Math.min(...floors) : 0,
                         floorEnd: floors.length ? Math.max(...floors) : 0,
                         count: batch.length,
                         timestamp: Date.now(),
-                        level: 2   // [v3.28] 卷摘要 = 周记层（中层）
+                        level: 2,   // [v3.28] 卷摘要 = 周记层（中层）
+                        srcFps: (_srcFps && _srcFps.length) ? _srcFps : undefined,   // [v3.149] 缺省 undefined（引擎类内 window undefined → 快照为 null）
+                        degraded: false
                     });
-                    batch.forEach(s => { s.folded = true; });
+                    batch.forEach(s => { s.folded = true; s.volumeId = _volId; });
                     if (this.volumes.length > 20) this.volumes.shift();
                     // [v3.28] 三级金字塔: 卷摘要（周记）积累超阈值 → 继续折叠成史记（最高层）
                     if (this.volumes.length >= (config.historicalFoldThreshold || 12)) {
@@ -7439,8 +7456,52 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             return null;
         }
         // 活跃周记（未入史记）
-        getActiveVolumes() { return this.volumes.filter(v => !v.archived); }
-        searchVolumes(limit = 2) { return this.volumes.slice(-limit).reverse(); }
+        // [v3.149] 卷摘要 intact 判定（柏宝书 #13 缝入，移植 v3.3 rebuildItems 的 leafValid 语义到卷层）:
+        //   折叠区下楼层被 swipe/编辑后，卷摘要文本仍嵌着失效叙事却被注入——这是对折叠区完整性的静默违约。
+        //   verifyVolumesIntact 对账当前 chat 指纹，任一源指纹失效 → 整卷降级（不再注入）+ 对应源摘要解折叠回活跃池。
+        //   活跃摘要是 maybeFold 的天然素材源，回活跃池后由既有阈值逻辑自动重折叠（零新增 LLM 调用，纯机制自愈）。
+        verifyVolumesIntact(config = {}) {
+            try {
+                const vols = this.volumes;
+                if (!Array.isArray(vols) || !vols.length) return 0;
+                const chat = (typeof window !== 'undefined' && window.SillyTavern?.getContext?.()?.chat) || null;
+                if (!chat) return 0;   // 无运行环境（独立测试）：跳过，不误降级
+                let degraded = 0;
+                for (const v of vols) {
+                    if (!v || v.degraded || !Array.isArray(v.srcFps) || !v.srcFps.length) continue;
+                    let broken = false;
+                    for (const ent of v.srcFps) {
+                        const sep = String(ent).indexOf(':');
+                        if (sep < 0) continue;
+                        const f = Number(String(ent).slice(0, sep));
+                        const fp = String(ent).slice(sep + 1);
+                        const m = chat[f];
+                        const cur = this.fpOf ? this.fpOf(m) : '';
+                        if (cur !== fp) { broken = true; break; }
+                    }
+                    if (broken) {
+                        v.degraded = true;
+                        v.degradedAt = Date.now();
+                        degraded++;
+                        let revived = 0;
+                        for (const s of (this.summaries || [])) {
+                            if (s && s.folded && s.volumeId === v.id) { s.folded = false; s.volumeId = undefined; revived++; }
+                        }
+                        // 降级卷未来不再有资格折叠进史记
+                        try { v.archived = true; } catch (e) {}
+                        try { this.opLog?.log?.('summary', 'degrade', v.id, v.floorStart, `卷摘要失效降级: 展开 ${revived} 条摘要`); } catch (e) {}
+                        if (config.debugMode) console.warn(`[LonSha] 卷摘要 intact 判定: 第${v.floorStart}-${v.floorEnd}楼源指纹失效 → 卷降级展开 ${revived} 条`);
+                    }
+                }
+                return degraded;
+            } catch (e) { this._reportError(e, 'verifyVolumesIntact'); return 0; }
+        }
+        // [v3.149] 健全卷查询：卷摘要召回/注入/上游折叠一律只消费 intact 卷（降级卷不注入、不入史记）
+        getIntactVolumes() {
+            return (this.volumes || []).filter(v => v && !v.degraded);
+        }
+        getActiveVolumes() { return this.getIntactVolumes().filter(v => !v.archived); }
+        searchVolumes(limit = 2) { return this.getIntactVolumes().slice(-limit).reverse(); }   // [v3.149] 只召回健全卷（降级卷嵌失效叙事不得注入）
         // [v3.46] 吸收 Bakemono / MemoryWizard: 宏观史记与编年金字塔 (Grand Chronicle)
         addGrandChronicle(text, opts = {}) {
             const clean = String(text || '').replace(/^[-•\s]+/, '').trim();
