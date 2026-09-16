@@ -68,7 +68,7 @@ test('v3.140 restoreFromPayload 返回结构化结果，单字段失败不吞后
             status: { import: () => calls.push('status') },
             opLog: { import: () => calls.push('opLog') },
         };
-        const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', `return function (data) { ${body} }`)(() => {}, 1);
+        const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET', `return function (data) { ${body} }`)(() => {}, 1, new Set(['version', 'graph', 'summaries', 'clock', 'schemaVersion', 'producerVersion', 'extensions', 'exportedAt']));
         return { eng, fn, calls };
     };
     const ok = mkEngine();
@@ -103,7 +103,7 @@ test('v3.140 契约三方一致性：collectExport 键 == ARCHIVE_TOP_LEVEL_KEYS
     assert.equal(contract.size, exported.size, '契约与导出键数一致');
     for (const k of exported) {
         if (restorable.has(k)) continue;
-        assert.ok(['version', 'schemaVersion', 'producerVersion', 'packedAt'].includes(k), `导出键 ${k} 既不可恢复也非版本元数据（A8 单真源破口）`);
+        assert.ok(['version', 'schemaVersion', 'producerVersion', 'packedAt'].includes(k) || rp.includes(`data.${k}`), `导出键 ${k} 既不可恢复也非版本元数据（A8 单真源破口）`);
     }
     assert.ok(restorable.has('schemaVersion') || rp.includes('Number(data.schemaVersion)'), 'schemaVersion 参与恢复期判读');
 });

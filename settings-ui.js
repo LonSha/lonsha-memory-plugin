@@ -1138,8 +1138,11 @@
                     const _ext = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions;
                     const emb = _ext?.[_sk]?.embeddedVault || _ext?.undefined?.embeddedVault;
                     if (!emb || typeof emb !== 'object') { toast('未发现嵌入存档'); return; }
+                    // [v3.142] CP 两阶段：先只读预检（零副作用），确认有可恢复内容且结构代际可接受，才真正应用
+                    const _pre = eng.restoreFromPayload(emb, { source: 'embedded-vault', dryRun: true });
+                    if (!_pre.count) { toast('\u274c 嵌入存档无可恢复内容，保持原状（未清理副本）'); return; }
+                    if (_pre.schemaWarning) { toast('\u26a0\ufe0f ' + _pre.schemaWarning + '——已中止恢复'); return; }
                     const _rr = eng.restoreFromPayload(emb, { source: 'embedded-vault' });
-                    if (!_rr.count) { toast('\u274c 嵌入存档无可恢复内容，保持原状（未清理副本）'); return; }   // [v3.140] 空恢复不得清理嵌入副本
                     const chatId = eng.getCurrentChatId();
                     if (chatId) await eng.storage.save(chatId, eng.collectExport());
                     try { eng.clearEmbeddedVaultMeta(); } catch (e) { reportUiError(e, 'nonfatal') }
@@ -1184,11 +1187,18 @@
                         try {
                             const data = JSON.parse(reader.result);
                             // [v3.138] CP-L2: 恢复管线收编单真源 restoreFromPayload（原 40 余行手写清单，三处副本之一）
-                            const _rn = this.engine.restoreFromPayload(data, { source: 'file-import' });
                             const chatId = this.engine.getCurrentChatId();
+                            // [v3.142] CP 原子性：恢复前先只读取回原存档（preserveRuntime 不写运行时），供部分失败时紧急备份留退路
+                            const _prev = chatId ? await this.engine.storage.load(chatId, { preserveRuntime: true }) : null;
+                            const _rn = this.engine.restoreFromPayload(data, { source: 'file-import' });
+                            if (!_rn.count) { toast('❌ 存档无可恢复内容，原记忆保持不变（未落盘）'); return; }   // [v3.142] 空恢复不得覆盖原存档
+                            if (_rn.failed.length) {
+                                // [v3.142] 部分失败：运行时已半改，落盘前先把改前的完整存档送进紧急备份（面板可回滚）
+                                try { if (_prev) await window.LonShaMemory?.emergency?.save(chatId, `部分导入前原存档（失败 ${_rn.failed.map(f => f.key).join('/')}）`, _prev, { restored: _rn.count, failed: _rn.failed.length }); } catch (e) { reportUiError(e, 'nonfatal') }
+                            }
                             // [v3.11] 存盘统一走 collectExport（原 version '1.3.0' 块只存 4 字段——导入后新子系统记忆全丢）
                             if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
-                            toast((_rn.ok ? '✅ ' : '⚠️ 部分导入: ') + `已恢复 ${_rn.count} 个字段` + (_rn.failed.length ? `（失败 ${_rn.failed.map(f => f.key).join('/')}）` : ''));
+                            toast((_rn.ok ? '✅ ' : '⚠️ 部分导入: ') + `已恢复 ${_rn.count} 个字段` + (_rn.failed.length ? `（失败 ${_rn.failed.map(f => f.key).join('/')}，原存档已存紧急备份）` : '') + (_rn.unknown?.length ? `（未知键 ${_rn.unknown.length} 个已保留）` : '') + (_rn.missing?.length ? `（引擎缺模块 ${_rn.missing.length}）` : ''));
                         } catch (e) { toast('❌ 导入失败: ' + e.message); }
                     };
                     reader.readAsText(file);

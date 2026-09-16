@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.141.0';
+        const VERSION = '3.142.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -47,6 +47,7 @@
     'packedAt',
     'schemaVersion',
     'producerVersion',
+    'extensions',
     ]);
     const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);
     // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
@@ -1544,6 +1545,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._timelineCursorFingerprint = ''; // [v3.123] 同楼 swipe/编辑指纹
             this._loadedChatId = null;   // [v3.140] CP: 内存已装载的存档身份（确认状态机判据）
             this._saveDeniedCount = 0;  // [v3.140] CP: 连续被拒次数（超阈降级放行，防永久卡死）
+            this._archiveExtensions = {};   // [v3.142] CP: 未知顶层键收容所（round-trip 保留）
             this._staleTaskDropped = 0;   // [v3.141] CP: 会话租约过期被丢弃的异步任务数（跨聊天污染防线）
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
@@ -5933,7 +5935,8 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 lastSave: this._lastSaveGroundTruth ? { ...this._lastSaveGroundTruth, sources: { ...(this._lastSaveGroundTruth.sources || {}) } } : null,   // [v3.130] 保存地面真源
                 packedAt: new Date().toISOString(),
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
-                producerVersion: VERSION                 // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
+                producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
+                extensions: this._archiveExtensions || {},   // [v3.142] CP: 宽容解析出口——导入时遇到的未知顶层键随存档回写，不丢不炸
             };
         }
 
@@ -5946,19 +5949,31 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             // 全部不再恢复，调用方却仍收到数字并被 UI 报成“导入成功”）。
             // 现在逐字段独立捕获，返回 {ok, restored, skipped, failed, count, source}，部分失败可定位。
             const opts = arguments[1] || {};
-            const res = { ok: true, restored: [], skipped: [], failed: [], count: 0, source: String(opts.source || 'unknown'), at: Date.now() };
+            const res = { ok: true, dryRun: opts.dryRun === true, restored: [], skipped: [], missing: [], failed: [], count: 0, source: String(opts.source || 'unknown'), at: Date.now() };
             if (!data || typeof data !== 'object') { res.ok = false; res.error = 'invalid payload'; return res; }
-            // 恢复期间清除确认（真实落盘后由 storage.save 重新推进）
-            this.storage._confirmed = null;
+            // [v3.142] CP: 预检（dryRun）不得动确认状态——只读校验不该有任何副作用
+            if (opts.dryRun !== true) this.storage._confirmed = null;   // 恢复期间清除确认（真实落盘后由 storage.save 重新推进）
             const _sv = Number(data.schemaVersion) || 0;
             if (_sv > ARCHIVE_SCHEMA_VERSION) {
                 res.schemaWarning = `存档结构版本 ${_sv} 新于当前 ${ARCHIVE_SCHEMA_VERSION}（可能丢失未知字段语义）`;
             }
             // [v3.140] CP: 装载来源版本随恢复结果上报（v3.138 的 _dataVersion 字段判旧改道后只写不读，已删）
             res.loadedProducer = (typeof data.producerVersion === 'string' || typeof data.version === 'string') ? String(data.producerVersion || data.version) : null;
+            const dry = opts.dryRun === true;   // [v3.142] CP: 两阶段恢复——先预检（不写运行时），再落盘
+            // [v3.142] CP 宽容解析（stbme round-trip 纪律）：未知顶层键不丢不炸，收进 extensions 命名空间随存档回写。
+            const _ext = data.extensions && typeof data.extensions === 'object' ? data.extensions : null;
+            if (!dry && _ext) { this._archiveExtensions = Object.assign({}, this._archiveExtensions || {}, _ext); }
+            const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');
+            res.unknown = _unknown;
+            if (!dry && _unknown.length) {
+                const bag = this._archiveExtensions || (this._archiveExtensions = {});
+                for (const k of _unknown) bag[k] = data[k];
+                res.unknownPreserved = _unknown.length;
+            }
             const _imp = (key, need, fn) => {
-                if (data[key] == null) { res.skipped.push(key); return; }
-                if (!need) { res.skipped.push(key); return; }
+                if (data[key] == null) { res.skipped.push(key); return; }        // payload 无此字段
+                if (!need) { res.missing.push(key); return; }                    // [v3.142] 有数据但引擎无对应模块：单列，不与「无数据」混为一谈
+                if (dry) { res.restored.push(key); res.count++; return; }        // [v3.142] 预检只出计划，绝不写运行时
                 try { fn(); res.restored.push(key); res.count++; }
                 catch (e) { res.failed.push({ key, error: String(e?.message || e) }); errLog(e, 'restoreFromPayload.' + key); }
             };
