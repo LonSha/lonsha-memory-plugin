@@ -25,7 +25,9 @@ function extractBraced(marker) {
 }
 
 test('v3.130 OMR 主保存统一走 collectExport 单真源', () => {
-    assert.match(src, /await this\.storage\.save\(chatId, await this\.collectExport\(\)\)/, 'OMR 主保存调用 collectExport');
+    // [v3.138] CP-L2: 主保存先收集 payload，经持久化确认状态机校验后写入
+    assert.match(src, /const _omrPayload = await this\.collectExport\(\)/, 'OMR 主保存调用 collectExport');
+    assert.match(src, /await this\.storage\.save\(chatId, _omrPayload\)/, 'OMR 保存 payload');
     // 手写清单废除：`summaries: this.summary.export()` 此前出现 2 次（collectExport + OMR 各一），现应只剩 1
     const n = [...src.matchAll(/summaries: this\.summary\.export\(\)/g)].length;
     assert.equal(n, 1, `手写保存清单应已废除（现出现 ${n} 次）`);
@@ -38,7 +40,7 @@ test('v3.130 collectExport 补齐漂移键，load 补齐恢复面', () => {
     for (const k of ['deltaBook:', 'cse:', 'pulse:', 'outline:', 'pairMem:', 'lockedFacts:', 'recallSourceStats:', 'timelineCursorChatId:', 'timelineCursorFingerprint:', 'lastSave:']) {
         assert.ok(ce.includes(k), `collectExport 应含 ${k}`);
     }
-    const ld = extractBraced('async load(chatId, opts = {}) {');
+    const ld = extractBraced('restoreFromPayload(data) {');   // [v3.138] CP-L2: 恢复面单真源
     for (const k of ['deltaBook', 'cse', 'pulse', 'outline', 'pairMem', 'moneyLedger', 'cards', 'conflicts', 'lockedFacts', 'recallSourceStats', 'lastSave']) {
         assert.ok(ld.includes(`data.${k}`), `load 应恢复 data.${k}`);
     }
@@ -84,16 +86,19 @@ test('v3.136 设置面板导出/导入收口单真源', () => {
     const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
     assert.match(ui, /const data = await this\.engine\.collectExport\(\)/, '导出走 collectExport');
     assert.ok(!ui.includes('summaries: this.engine.summary.export()'), '手写导出清单已废除');
+    // [v3.138] CP-L2: UI 导入收编 restoreFromPayload 单真源（键覆盖由单真源保证）
+    assert.match(ui, /this\.engine\.restoreFromPayload\(data\)/, 'UI 导入走单真源');
+    const rps = extractBraced('restoreFromPayload(data) {');
     for (const k of ['deltaBook', 'cse', 'pulse', 'outline', 'pairMem', 'moneyLedger', 'cards', 'conflicts', 'opLog', 'clock']) {
-        assert.match(ui, new RegExp(`data\.${k} && this\.engine`), `导入恢复 ${k}`);
+        assert.ok(rps.includes(`data.${k}`), `恢复单真源含 ${k}`);
     }
 });
 
 test('v3.130 版本三处同步', () => {
     const m = /const VERSION = '([^']+)'/.exec(src);
-    assert.equal(m[1], '3.137.0');
+    assert.equal(m[1], '3.138.0');
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '3.137.0');
-    assert.equal(pkg.version, '3.137.0');
+    assert.equal(manifest.version, '3.138.0');
+    assert.equal(pkg.version, '3.138.0');
 });

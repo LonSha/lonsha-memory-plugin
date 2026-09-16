@@ -78,7 +78,11 @@ const ceEnd = idx.indexOf('getCurrentChatId() {', ceStart);
 const ceBlock = idx.slice(ceStart, ceEnd);
 const ldStart = idx.indexOf('async load(chatId, opts = {}) {');
 const ldEnd = idx.indexOf('class EmergencyBackup', ldStart);
-const ldBlock = idx.slice(ldStart, ldEnd);
+let ldBlock = idx.slice(ldStart, ldEnd);
+// [v3.138] CP-L2: 恢复管线单真源 restoreFromPayload 也是恢复面的一部分（load 收编后 data.<key> 引用在此处）
+const rpStart = idx.indexOf('restoreFromPayload(data) {');
+const rpEnd = idx.indexOf('getCurrentChatId() {', rpStart);
+if (rpStart >= 0 && rpEnd > rpStart) ldBlock += idx.slice(rpStart, rpEnd);
 const exportKeys = new Set();
 for (const km of ceBlock.matchAll(/^\s*(\w+):\s*this\./gm)) exportKeys.add(km[1]);
 // 导出键的恢复写法有两种：engine.xxx.import(data.key) / data.key 直赋；放宽为 data.key 在 load 块出现即可

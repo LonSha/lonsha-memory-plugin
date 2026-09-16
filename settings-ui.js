@@ -937,6 +937,7 @@
                     <div class="ls-group-title">数据管理</div>
                     <button class="ls-btn" id="ls-export">📤 导出记忆数据 (JSON)</button>
                     <button class="ls-btn" id="ls-import">📥 导入记忆数据</button>
+                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;'}>♻️ 恢复嵌入存档（跨设备迁移）</button>
                     <button class="ls-btn ls-btn-danger" id="ls-clear">🗑️ 清空当前对话记忆</button>
                     <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载（抄 baibai carryover）。</div>
                     <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（带去新对话）</button>
@@ -1127,6 +1128,21 @@
                 };
                 input.click();
             });
+            // [v3.138] CP-L2: 嵌入存档恢复闭环——v3.23 起只写 _embeddedVaultReady 标志、toast 指路“设置→导入恢复”，
+            // 但按钮从未存在，跨设备迁移恢复路径断裂。按钮由 checkEmbeddedMigration 按检测结果显示。
+            overlay.querySelector('#ls-embedded-restore').addEventListener('click', async () => {
+                try {
+                    const eng = self.engine;
+                    const emb = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions?.[eng.STORAGE_KEY]?.embeddedVault;
+                    if (!emb || typeof emb !== 'object') { toast('未发现嵌入存档'); return; }
+                    const n = eng.restoreFromPayload(emb);
+                    const chatId = eng.getCurrentChatId();
+                    if (chatId) await eng.storage.save(chatId, eng.collectExport());
+                    try { eng.clearEmbeddedVaultMeta(); } catch (e) { reportUiError(e, 'nonfatal') }
+                    try { delete eng.config.config._embeddedVaultReady; eng.config.saveConfig(); } catch (e) { reportUiError(e, 'nonfatal') }
+                    toast(`✅ 嵌入存档已恢复（${n} 个字段），嵌入副本已清理`);
+                } catch (e) { reportUiError(e, 'ls-embedded-restore'); toast('恢复失败: ' + e.message); }
+            });
             // 恢复默认提示词
             overlay.querySelector('#ls-prompt-reset').addEventListener('click', () => {
                 overlay.querySelector('#ls-prompt').value = `分析以下对话，提取JSON格式：
@@ -1161,36 +1177,12 @@
                     reader.onload = async () => {
                         try {
                             const data = JSON.parse(reader.result);
-                            // [v3.11] 完整导入管线（原实现只导 4 个字段，reflection/itemOps/povs/timeline/status/ledger/suspense/scene/echo 全丢）
-                            if (data.graph) this.engine.graph.import(data.graph);
-                            if (data.summaries) this.engine.summary.import(data.summaries);
-                            if (data.diaries) this.engine.diary.import(data.diaries);
-                            if (data.vectors) this.engine.vector.import(data.vectors);
-                            if (data.povs && this.engine.pov) this.engine.pov.import(data.povs);
-                            if (data.timeline && this.engine.timeline) this.engine.timeline.import(data.timeline);
-                            if (data.status && this.engine.status) this.engine.status.import(data.status);
-                            if (data.ledger && this.engine.ledger) this.engine.ledger.import(data.ledger);
-                            if (data.suspense && this.engine.suspense) this.engine.suspense.import(data.suspense);
-                            if (data.scene && this.engine.scene) this.engine.scene.import(data.scene);
-                            if (data.echo && this.engine.echo) this.engine.echo.import(data.echo);
-                            if (data.prequel && this.engine.prequel) this.engine.prequel.import(data.prequel);   // [v3.87] 前情资料
-                            if (data.reflection && this.engine.reflection) this.engine.reflection.import(data.reflection);
-                            if (Array.isArray(data.itemOps)) { this.engine.itemOps = data.itemOps; (this.engine.reconcileItemOps || this.engine.rebuildItems).call(this.engine); }
-                            // [v3.136] CP: 导入恢复面对齐 storage.load（此前导出的 v3.130 新键在导入时被丢弃）
-                            if (data.deltaBook && this.engine.deltaBook) this.engine.deltaBook.import(data.deltaBook);
-                            if (data.cse && this.engine.cse) this.engine.cse.import?.(data.cse);
-                            if (data.pulse && this.engine.pulse) this.engine.pulse.import?.(data.pulse);
-                            if (data.outline && this.engine.outline) this.engine.outline.import?.(data.outline);
-                            if (data.pairMem && this.engine.pairMem) this.engine.pairMem.import?.(data.pairMem);
-                            if (data.moneyLedger && this.engine.moneyLedger) this.engine.moneyLedger.import?.(data.moneyLedger);
-                            if (data.cards && this.engine.cards) this.engine.cards.import?.(data.cards);
-                            if (data.conflicts && this.engine.conflicts) this.engine.conflicts.import?.(data.conflicts);
-                            if (data.opLog && this.engine.opLog) this.engine.opLog.import?.(data.opLog);
-                            if (data.clock && this.engine.clock) this.engine.clock.import(data.clock);
+                            // [v3.138] CP-L2: 恢复管线收编单真源 restoreFromPayload（原 40 余行手写清单，三处副本之一）
+                            const _rn = this.engine.restoreFromPayload(data);
                             const chatId = this.engine.getCurrentChatId();
                             // [v3.11] 存盘统一走 collectExport（原 version '1.3.0' 块只存 4 字段——导入后新子系统记忆全丢）
                             if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
-                            toast('✅ 导入成功');
+                            toast(`✅ 导入成功（${_rn} 个字段）`);
                         } catch (e) { toast('❌ 导入失败: ' + e.message); }
                     };
                     reader.readAsText(file);

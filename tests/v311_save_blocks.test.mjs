@@ -33,10 +33,15 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
     const importIdx = srcS.indexOf('reader.onload = async () => {');
     assert.ok(importIdx > 0, 'onload 已改 async');
     const importBlock = srcS.slice(importIdx, importIdx + 2200);
+    // [v3.138] CP-L2: 导入管线收编 restoreFromPayload 单真源——子系统覆盖由单真源结构性保证，不再逐一枚举
+    assert.ok(importBlock.includes('restoreFromPayload(data)'), '导入管线应走 restoreFromPayload 单真源');
+    const rpIdx = srcI.indexOf('restoreFromPayload(data) {');
+    assert.ok(rpIdx > 0, 'restoreFromPayload 定义于 index.js');
+    const rpBlock = srcI.slice(rpIdx, srcI.indexOf('getCurrentChatId() {', rpIdx));
     for (const sub of ['pov.import', 'timeline.import', 'status.import', 'ledger.import', 'suspense.import', 'scene.import', 'echo.import', 'reflection.import', 'itemOps']) {
-        assert.ok(importBlock.includes(sub), `导入管线缺 ${sub}`);
+        assert.ok(rpBlock.includes(sub), `恢复单真源缺 ${sub}`);
     }
-    ok('静态3: 文件导入管线覆盖全部子系统（原只导 4 个）');
+    ok('静态3: 文件导入管线走 restoreFromPayload 单真源，覆盖全部子系统');
 }
 
 /* ══════════ 4. 清空操作字段补齐（静态） ══════════ */

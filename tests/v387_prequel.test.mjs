@@ -141,7 +141,7 @@ test('=== 6. 生成路径/持久化/导入/UI 接线静态检查 ===', () => {
     assert.ok(src.includes("if (prequelInj) inj2 = inj2 ? (inj2 + '\\n' + prequelInj) : prequelInj;"), 'inj2 合并前情');
     // 持久化
     assert.ok(src.includes('prequel: this.prequel ? this.prequel.export() : { text: \'\' }'), 'collectExport 持久化');
-    assert.ok(src.includes('if (data.prequel && engine.prequel) engine.prequel.import(data.prequel)'), 'storage.load 导入');
+    assert.ok(src.includes('engine.prequel.import(data.prequel)'), 'storage.load 导入（v3.138 起在 restoreFromPayload 单真源内）');
     // 助手方法读取配置
     assert.ok(src.includes('enabled: this.config.config.prequelEnabled !== false'), 'prequelEnabled 门控');
     assert.ok(src.includes('baseChars: Number(this.config.config.injectionBudget) || 3000'), 'injectionBudget 联动');
@@ -151,7 +151,9 @@ test('=== 6. 生成路径/持久化/导入/UI 接线静态检查 ===', () => {
     assert.ok(ui.includes("viewType === 'prequel'"), 'UI prequel 视图');
     assert.ok(ui.includes("ls-pq-save"), 'UI 保存按钮绑定');
     assert.ok(ui.includes("ck('prequelEnabled'"), 'UI 设置开关');
-    assert.ok(ui.match(/engine\.prequel\.import\(data\.prequel\)/g)?.length >= 2, 'UI 两处导入路径');
+    // [v3.138] CP-L2: UI 恢复收编 restoreFromPayload 单真源（内含 prequel 分支）+ 显式重建路径
+    assert.ok(ui.includes('this.engine.restoreFromPayload(data)'), 'UI 导入走单真源');
+    assert.ok(ui.match(/engine\.prequel\.import\(data\.prequel\)/g)?.length >= 1, 'UI 显式 prequel 导入路径');
     // manifest 版本
     const mani = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf-8'));
     // [v3.92] 真不变量是「index.js VERSION == manifest.version」，而非等于某个字面量

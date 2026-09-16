@@ -1,3 +1,8 @@
+## v3.138.0
+- **stbme 控制平面分离 L2——恢复管线单真源**：新方法 `engine.restoreFromPayload(data)` 收编 storage.load / 设置面板导入 / 嵌入存档恢复三处手写恢复清单（40 余行 × 3 副本），新增恢复键只登记一处全入口自动生效；UI 导入与 storage.load 的清单差异（load 有 supersede/charMem/worldProg/stmLtm 等，UI 导入一直丢）就此终结。
+- **嵌入存档恢复闭环修复（v3.23 潜伏缺陷）**：`_embeddedVaultReady` 只写不读、toast 指路的「设置→导入恢复」按钮从未存在；且 `checkEmbeddedMigration` 用 collectExport 探测本地版本恒得当前插件版本（恒 ≥ embVer）→ 恢复分支结构性不可达。修复三件套：设置面板新增「恢复嵌入存档」按钮（渲染期+检测期双通道显隐）、判旧改用 `_dataVersion` 真实数据版本戳、检测时序挪到 `storage.load` 之后。
+- **持久化确认状态机（stbme 纲领落地）**：`storage._confirmed`（chatId/revision/ts）由成功写入推进、由恢复管线清空；OMR 每楼自动保存写前校验，恢复进行中/状态回退时拒绝覆写——「恢复半途的半初始化内存态洗掉已落地完整存档」结构上不可能。
+- **数据版本戳 `_dataVersion`**：collectExport 新增 `dataVersion` 字段（存档产生时的插件版本），与恒为当前版本的 `version` 字段解耦，随每次成功存档推进、随恢复回填。
 ## v3.137.0
 - **UI 显示层随 CJK 口径对齐**：设置面板「注入 token 预算」滑块回显默认 900→2700，量程 3000→6000（旧 max 下新默认无法回显）；此前 v3.135 只改了引擎默认值，UI `?? 900` 回显与新默认不一致。
 

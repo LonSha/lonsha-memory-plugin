@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.137.0';
+    const VERSION = '3.138.0';
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -2447,8 +2447,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // 此前此处是手写键清单，已与 collectExport 漂移：缺 clock（时钟每楼不落盘）、缺游标/STM/prequel/锁定事实；
                     // 且 load 又不恢复其中若干键。此后新键只在 collectExport 登记一处，全链路自动生效。
                     // 保存地面真源：最近一次保存的时间/楼层/来源计数（诊断面板展示，随存档持久化）。
-                    this.recordSaveSource('realtime', message.index || 0);
-                    await this.storage.save(chatId, await this.collectExport());
+                    // [v3.138] CP-L2 持久化确认状态机：本地内存状态有已确认存档（同一 chatId 的 _confirmed 存在
+                    // 且 revision 未落后）才允许覆写。恢复管线正在半途导入时、或确认状态被并发破坏时拒绝覆盖，
+                    // 防止半初始化的内存态把已落地的完整记忆洗掉（stbme: 让"pending 卡住写入"结构上不可能）。
+                    const _omrPayload = await this.collectExport();
+                    const _conf = this.storage._confirmed;
+                    if (_conf && _conf.chatId === chatId && this.storage._revision > _conf.revision) {
+                        console.warn(`[${PLUGIN_NAME}] OMR 保存被确认状态机拒绝：rev ${this.storage._revision} > 已确认 ${_conf.revision}（疑似恢复中/状态回退），跳过本次覆写`);
+                    } else {
+                        this.recordSaveSource('realtime', message.index || 0);
+                        await this.storage.save(chatId, _omrPayload);
+                    }
                 }
                 
                 console.log(`[${PLUGIN_NAME}] ✓ 完成 (${extracted?.characters?.length || 0}角色, ${extracted?.events?.length || 0}事件, 向量=${this.vector.vectors.length})`);
@@ -2895,12 +2904,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const emb = meta?.extensions?.[this.STORAGE_KEY]?.embeddedVault;
                 if (!emb || typeof emb !== 'object') return;
                 // 本地已有记忆库且版本不旧 → 清理嵌入并跳过
-                let local = null;
-                try {
-                    // [v3.23] 用 collectExport 读本地版本（纯方法探测，无副作用）
-                    local = (typeof this.collectExport === 'function') ? this.collectExport() : null;
-                } catch (e) { errLog(e, 'nonfatal') }
-                const localVer = typeof local?.version === 'string' ? parseFloat(local.version) || 0 : (local?.version || 0);
+                // [v3.138] CP-L2 版本戳修复：collectExport 恒打当前插件版本戳，在 storage.load 之前调用它探测
+                // 「本地数据版本」恒得 当前版本 >= embVer → 嵌入存档恢复分支结构性不可达（v3.23 起的潜伏缺陷）。
+                // 改用引擎真实数据版本戳 _dataVersion（随每次成功存档推进，随存档恢复回填）。
+                let localVer = Number(this._dataVersion) || 0;
                 const embVer = typeof emb.version === 'string' ? parseFloat(emb.version) || 0 : (emb.version || 0);
                 if (localVer >= embVer && localVer > 0) {
                     this.clearEmbeddedVaultMeta();
@@ -2917,6 +2924,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const cfg = this.config.config;
                 cfg._embeddedVaultReady = true;
                 this.config.saveConfig();
+                // [v3.138] CP-L2: 恢复入口实化——设置面板的「恢复嵌入存档」按钮此前不存在（标志只写不读），
+                // 面板已挂载时立即显示按钮；未挂载时面板渲染期按 _embeddedVaultReady 显示。
+                try { document.querySelector('#ls-embedded-restore')?.removeAttribute('style'); } catch (e2) { /* 面板未开 */ }
             } catch (e) { errLog(e, '迁移恢复.checkEmbeddedMigration'); }
         }
         clearEmbeddedVaultMeta() {
@@ -5757,6 +5767,8 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
 
 
         collectExport() {
+            // [v3.138] CP-L2: 数据版本戳 = 最近一次成功存档时的插件版本（区别于恒为当前版本的 payload.version）。
+            // 嵌入存档恢复判旧用它，不再被「collectExport 恒打当前版本戳」污染。
             return {
                 version: VERSION,
                 clock: this.clock?.export?.() || null,
@@ -5799,10 +5811,79 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 timelineCursorFingerprint: this._timelineCursorFingerprint,
                 timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
                 lastSave: this._lastSaveGroundTruth ? { ...this._lastSaveGroundTruth, sources: { ...(this._lastSaveGroundTruth.sources || {}) } } : null,   // [v3.130] 保存地面真源
-                packedAt: new Date().toISOString()
+                packedAt: new Date().toISOString(),
+                dataVersion: this._dataVersion || null   // [v3.138] CP-L2: 真实数据版本戳（存档时推进）
             };
         }
 
+        // [v3.138] CP-L2: 恢复管线单真源（stbme「身份/持久化/配置收敛单一真源」第二层）。
+        // storage.load / 设置面板导入 / 嵌入存档恢复三处手写清单此前必然漂移——
+        // v3.23 的嵌入恢复按钮缺失、v3.136 前 UI 导入丢新键都是这个结构性缺口的历史实例。
+        // 此后新恢复键只在此登记一处，三个入口自动同步。
+        restoreFromPayload(data) {
+            if (!data || typeof data !== 'object') return 0;
+            let n = 0;
+            // [v3.138] CP-L2: 恢复管线使本地内存进入「未确认」状态——恢复完成前 OMR 自动保存被确认状态机拦下，
+            // 防止半初始化内存态覆写已落地的完整存档（恢复完成后的首次 storage.save 重新确认）。
+            this.storage._confirmed = null;
+            const _dv = Number(data.dataVersion);
+            if (Number.isFinite(_dv) && _dv > 0) { this._dataVersion = _dv; }
+            else if (typeof data.version === 'string' || typeof data.version === 'number') {
+                // 存档无 dataVersion（旧版导出）时以 payload.version 为准（存档产生时的插件版本）
+                const _pv = typeof data.version === 'string' ? parseFloat(data.version) : data.version;
+                if (Number.isFinite(_pv) && _pv > 0) this._dataVersion = _pv;
+            }
+            try {
+                const engine = this;
+                if (data.graph) { engine.graph.import(data.graph); n++; }
+                if (data.summaries) { engine.summary.import(data.summaries); n++; }
+                if (data.diaries) { engine.diary.import(data.diaries); n++; }
+                if (data.vectors) { engine.vector.import(data.vectors); n++; }
+                if (data.povs && engine.pov) { engine.pov.import(data.povs); n++; }
+                if (data.timeline && engine.timeline) { engine.timeline.import(data.timeline); n++; }
+                if (data.status && engine.status) { engine.status.import(data.status); n++; }
+                if (data.clock && engine.clock) { engine.clock.import(data.clock); n++; }
+                if (data.ledger && engine.ledger) { engine.ledger.import(data.ledger); n++; }
+                if (data.suspense && engine.suspense) { engine.suspense.import(data.suspense); n++; }
+                if (data.scene && engine.scene) { engine.scene.import(data.scene); n++; }
+                if (data.echo && engine.echo) { engine.echo.import(data.echo); n++; }
+                if (data.prequel && engine.prequel) { engine.prequel.import(data.prequel); n++; }   // [v3.87] 前情资料
+                if (data.supersede && engine.supersede) { engine.supersede.import(data.supersede); n++; }
+                if (data.reflection && engine.reflection) { engine.reflection.import(data.reflection); n++; }
+                // [v3.16] 角色记忆银行 + 世界推进恢复
+                if (data.charMem && engine.charMem) { engine.charMem.import(data.charMem); n++; }
+                if (data.worldProg && engine.worldProg) { engine.worldProg.import(data.worldProg); n++; }
+                if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); n++; }   // [v3.3] 加载即对账（补 fp/自愈/清理）
+                if (typeof data.narrativeEntropy === 'number') { engine._narrativeEntropy = data.narrativeEntropy; n++; }
+                if (data.stmLtm && engine.stmLtm) { engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm); n++; }   // [v3.96] STM/LTM 状态恢复
+                if (Array.isArray(data.recallArtifacts)) { engine._recallArtifacts = data.recallArtifacts.slice(-32); n++; }   // [v3.109] 召回产物恢复
+                if (Number.isFinite(Number(data.diaryInjectFloor))) { engine._diaryInjectFloor = Number(data.diaryInjectFloor); n++; }
+                if (Number.isFinite(Number(data.timelineInjectFloor))) { engine._timelineInjectFloor = Number(data.timelineInjectFloor); n++; }
+                if (data.timelineCursorChatId != null) { engine._timelineCursorChatId = String(data.timelineCursorChatId); n++; }
+                if (data.timelineCursorFingerprint != null) { engine._timelineCursorFingerprint = String(data.timelineCursorFingerprint); n++; }
+                // [v3.130] CP: 恢复面（此前 OMR 手写清单在存、load 从不读的键，换会话全部归零）。
+                if (data.deltaBook && engine.deltaBook) { engine.deltaBook.import(data.deltaBook); n++; }
+                if (data.cse && engine.cse) { engine.cse.import?.(data.cse); n++; }
+                if (data.pulse && engine.pulse) { engine.pulse.import?.(data.pulse); n++; }
+                if (data.outline && engine.outline) { engine.outline.import?.(data.outline); n++; }
+                if (data.pairMem && engine.pairMem) { engine.pairMem.import?.(data.pairMem); n++; }
+                if (data.moneyLedger && engine.moneyLedger) { engine.moneyLedger.import?.(data.moneyLedger); n++; }
+                if (data.cards && engine.cards) { engine.cards.import?.(data.cards); n++; }
+                if (data.conflicts && engine.conflicts) { engine.conflicts.import?.(data.conflicts); n++; }
+                if (data.opLog && engine.opLog) { engine.opLog.import?.(data.opLog); n++; }   // 事件溯源日志恢复
+                if (Array.isArray(data.lockedFacts)) { try { engine.summary.lockedFacts = data.lockedFacts.slice(); n++; } catch (e) { errLog(e, 'restoreFromPayload.lockedFacts'); } }   // 直赋：summary.import 会重置其他字段，不可复用
+                if (data.recallSourceStats && typeof data.recallSourceStats === 'object') { engine._recallSourceStats = data.recallSourceStats; n++; }
+                if (data.timeWentBack && typeof data.timeWentBack === 'object') { engine._timeWentBack = { ...data.timeWentBack }; n++; }
+                if (data.lastSave && typeof data.lastSave === 'object') {   // [v3.130] 地面真源恢复：只回填不回退（本地更新者保持自己的计数）
+                    const _g = engine._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {} };
+                    if (Number(data.lastSave.ts) > Number(_g.ts || 0)) {
+                        engine._lastSaveGroundTruth = { ts: Number(data.lastSave.ts) || 0, floor: Number(data.lastSave.floor ?? -1), sources: { ...(data.lastSave.sources || {}) } };
+                        n++;
+                    }
+                }
+            } catch (e) { errLog(e, 'restoreFromPayload'); }
+            return n;
+        }
         getCurrentChatId() {
             try {
                 const c = window.SillyTavern?.getContext?.();
@@ -9549,6 +9630,7 @@ ${recentTurns}`;
             this._isWriting = false;
             this._pendingWrite = null;
             this._revision = 0; // [v3.44] 乐观并发单调修订号 (Revision-based Optimistic Locking)
+            this._confirmed = null;   // [v3.138] CP-L2: 持久化确认状态机（最近一次成功写入的 chatId/revision）
         }
         getRevision() {
             return this._revision;
@@ -9587,6 +9669,9 @@ ${recentTurns}`;
             } catch (e) { errLog(e, 'DB.指纹防护'); }
             this._revision += 1;
             const currentRev = this._revision;
+            // [v3.138] CP-L2: 成功写入即「已确认版本」推进（stbme 持久化确认状态机：数据已安全落地只能由规范主源证明）。
+            try { this._confirmed = { chatId: String(chatId), revision: currentRev, ts: Date.now(), size: JSON.stringify(data).length }; } catch (e) { /* 尺寸统计失败不影响写入 */ }
+            this._dataVersion = VERSION;   // [v3.138] CP-L2: 数据版本戳随每次成功存档推进
             if (this._isWriting) {
                 this._pendingWrite = { chatId, data, revision: currentRev };
                 return true;
@@ -9653,52 +9738,8 @@ ${recentTurns}`;
                 //   运行时内存里的自愈/shift/编辑修改是最新状态，被旧存档盖回=回退（v3.7~v3.9 修复成果全被冲掉的经典 bug）
                 if (opts.preserveRuntime) return data || null;
                 if (data && window.LonShaMemory?.engine) {
-                    const engine = window.LonShaMemory.engine;
-                    if (data.graph) engine.graph.import(data.graph);
-                    if (data.summaries) engine.summary.import(data.summaries);
-                    if (data.diaries) engine.diary.import(data.diaries);
-                    if (data.vectors) engine.vector.import(data.vectors);
-                    if (data.povs && engine.pov) engine.pov.import(data.povs);
-                    if (data.timeline && engine.timeline) engine.timeline.import(data.timeline);
-                    if (data.status && engine.status) engine.status.import(data.status);
-                    if (data.clock && engine.clock) engine.clock.import(data.clock);
-                    if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
-                    if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
-                    if (data.scene && engine.scene) engine.scene.import(data.scene);
-                    if (data.echo && engine.echo) engine.echo.import(data.echo);
-                    if (data.prequel && engine.prequel) engine.prequel.import(data.prequel);   // [v3.87] 前情资料
-                    if (data.supersede && engine.supersede) engine.supersede.import(data.supersede);
-                    if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
-                    // [v3.16] 角色记忆银行 + 世界推进恢复
-                    if (data.charMem && engine.charMem) engine.charMem.import(data.charMem);
-                    if (data.worldProg && engine.worldProg) engine.worldProg.import(data.worldProg);
-                    if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); }   // [v3.3] 加载即对账（补 fp/自愈/清理）
-                    if (typeof data.narrativeEntropy === 'number') engine._narrativeEntropy = data.narrativeEntropy;
-                    if (data.stmLtm && engine.stmLtm) engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm);   // [v3.96] STM/LTM 状态恢复
-                    if (Array.isArray(data.recallArtifacts)) engine._recallArtifacts = data.recallArtifacts.slice(-32);   // [v3.109] 召回产物恢复
-                    if (Number.isFinite(Number(data.diaryInjectFloor))) engine._diaryInjectFloor = Number(data.diaryInjectFloor);
-                    if (Number.isFinite(Number(data.timelineInjectFloor))) engine._timelineInjectFloor = Number(data.timelineInjectFloor);
-                    if (data.timelineCursorChatId != null) engine._timelineCursorChatId = String(data.timelineCursorChatId);
-                    if (data.timelineCursorFingerprint != null) engine._timelineCursorFingerprint = String(data.timelineCursorFingerprint);
-                    // [v3.130] CP: 补齐恢复面——此前 OMR 手写清单在存、load 从不读的键，换会话全部归零（stbme 持久化确认状态机缺口）。
-                    if (data.deltaBook && engine.deltaBook) engine.deltaBook.import(data.deltaBook);
-                    if (data.cse && engine.cse) engine.cse.import?.(data.cse);
-                    if (data.pulse && engine.pulse) engine.pulse.import?.(data.pulse);
-                    if (data.outline && engine.outline) engine.outline.import?.(data.outline);
-                    if (data.pairMem && engine.pairMem) engine.pairMem.import?.(data.pairMem);
-                    if (data.moneyLedger && engine.moneyLedger) engine.moneyLedger.import?.(data.moneyLedger);
-                    if (data.cards && engine.cards) engine.cards.import?.(data.cards);
-                    if (data.conflicts && engine.conflicts) engine.conflicts.import?.(data.conflicts);
-                    if (data.opLog && engine.opLog) engine.opLog.import?.(data.opLog);   // [v3.130] CP: 事件溯源日志恢复
-                    if (Array.isArray(data.lockedFacts)) { try { engine.summary.lockedFacts = data.lockedFacts.slice(); } catch (e) { errLog(e, 'storage.load.lockedFacts'); } }   // 直赋：summary.import 会重置其他字段，不可复用
-                    if (data.recallSourceStats && typeof data.recallSourceStats === 'object') engine._recallSourceStats = data.recallSourceStats;
-                    if (data.timeWentBack && typeof data.timeWentBack === 'object') engine._timeWentBack = { ...data.timeWentBack };
-                    if (data.lastSave && typeof data.lastSave === 'object') {   // [v3.130] 地面真源恢复：只回填不回退（本地更新者保持自己的计数）
-                        const _g = engine._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {} };
-                        if (Number(data.lastSave.ts) > Number(_g.ts || 0)) {
-                            engine._lastSaveGroundTruth = { ts: Number(data.lastSave.ts) || 0, floor: Number(data.lastSave.floor ?? -1), sources: { ...(data.lastSave.sources || {}) } };
-                        }
-                    }
+                    // [v3.138] CP-L2: 恢复管线收编单真源 restoreFromPayload（原 40 余行手写清单，三处副本之一）
+                    window.LonShaMemory.engine.restoreFromPayload(data);
                 }
                 return data;
             } catch (err) { return null; }
@@ -9821,8 +9862,6 @@ ${recentTurns}`;
             await this.waitForST();
             this.loadModules();
             this.registerEvents();
-            // [v3.23] chatMetadata 迁移恢复检测（NE auto-restore）
-            try { this.checkEmbeddedMigration(); } catch (e) { errLog(e, '迁移恢复.init'); }
             this.createUI();
             await this.ensureSettingsUI();
             // [v1.2] 初始化时加载当前对话的已有记忆数据
@@ -9835,6 +9874,9 @@ ${recentTurns}`;
             } catch (err) {
                 console.warn(`[${PLUGIN_NAME}] 历史记忆加载失败:`, err);
             }
+            // [v3.138] CP-L2 时序修复：迁移检测必须在本地存档加载并回填 _dataVersion 之后，
+            // 否则判旧读到的是未加载前的默认值（原位置在 load 之前，v3.23 起判旧失真）。
+            try { this.checkEmbeddedMigration(); } catch (e) { errLog(e, '迁移恢复.init'); }
             this.initialized = true;
             console.log(`[${PLUGIN_NAME}] ✓ 初始化完成 (LLM+向量检索+图扩散+可视化已启用)`);
         }

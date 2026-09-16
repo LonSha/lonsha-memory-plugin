@@ -48,7 +48,7 @@ test('v3.131 全部 storage.save 调用点登记来源', () => {
     }
     // OMR 主保存应先登记再保存（登记调用在 collectExport 之前）
     const i = src.indexOf("recordSaveSource('realtime'");
-    const j = src.indexOf('await this.storage.save(chatId, await this.collectExport())');
+    const j = src.indexOf('await this.storage.save(chatId, _omrPayload)');   // [v3.138] CP-L2: payload 先收集后保存
     assert.ok(i > 0 && j > i, 'OMR: 登记先于保存');
 });
 
