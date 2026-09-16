@@ -49,14 +49,42 @@ const makeEngine = () => {
     money: { money: { 主角: 500 } },
     outline: { stage: { title: '初章' } },
     world: { promises: [] },
-    clock: { day: 7 }
+    clock: { day: 7 },
+    audit: [
+      { empty: false, totalHits: 3, floorHits: { 3: 2, 9: 1 }, queryText: '旧事', ts: 111 },
+      { empty: true,  totalHits: 0, floorHits: {},              queryText: '无关', ts: 222 }
+    ]
   };
   const engine = {
     status: { getProtagonist: () => state.protagonist, lifeDetails: state.lifeDetails, characters: state.characters },
     moneyLedger: { export: () => state.money },
     outline: { export: () => state.outline },
     worldProg: { export: () => state.world },
-    clock: { export: () => state.clock }
+    clock: { export: () => state.clock },
+    // [v3.151] 召回自检摘要依赖（快照新增 recallAudit 字段的宿主方法）
+    _recallAudit: state.audit,
+    _summarizeRecallAudit: function () {
+      const ra = Array.isArray(this._recallAudit) ? this._recallAudit : [];
+      if (!ra.length) return { rounds: 0, emptyRounds: 0, avgHits: 0, hotFloors: [], lastQuery: '', lastTs: 0 };
+      const hot = new Map();
+      let empty = 0, hits = 0;
+      for (const r of ra) {
+        if (!r) continue;
+        if (r.empty) empty++;
+        hits += Number(r.totalHits) || 0;
+        for (const k of Object.keys(r.floorHits || {})) {
+          const f = Number(k);
+          if (!Number.isFinite(f) || f < 0) continue;
+          hot.set(f, (hot.get(f) || 0) + (Number(r.floorHits[k]) || 0));
+        }
+      }
+      const last = ra[ra.length - 1] || {};
+      return {
+        rounds: ra.length, emptyRounds: empty, avgHits: Number((hits / ra.length).toFixed(2)),
+        hotFloors: [...hot.entries()].map(([floor, count]) => ({ floor, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+        lastQuery: String(last.queryText || '').slice(0, 80), lastTs: Number(last.ts) || 0
+      };
+    }
   };
   return { engine, state, proto };
 };
@@ -75,6 +103,10 @@ const makeEngine = () => {
   assert.deepStrictEqual(snap.worldProg, { promises: [] });
   assert.deepStrictEqual(snap.clock, { day: 7 });
   assert.ok(Array.isArray(snap.lifeDetails) && snap.lifeDetails.length === 1, 'archive 生活细节已过滤');
+  // [v3.151] 召回自检摘要随快照外供（织光机数据源）
+  assert.strictEqual(snap.recallAudit.rounds, 2, '召回自检摘要轮数');
+  assert.strictEqual(snap.recallAudit.emptyRounds, 1, '空结果轮数');
+  assert.deepStrictEqual(snap.recallAudit.hotFloors, [{ floor: 3, count: 2 }, { floor: 9, count: 1 }], '热点楼层');
   console.log('✓ 快照字段齐全 + floor 计算 + archive 过滤');
 }
 
@@ -85,9 +117,11 @@ const makeEngine = () => {
   snap.protagonist.identity = '被篡改';
   snap.characters.新角色 = '注入';
   snap.moneyLedger.money.主角 = 999999;
+  snap.recallAudit.hotFloors.push({ floor: 99, count: 99 });
   assert.strictEqual(state.protagonist.identity, '侦探', '主角档案未被回灌');
   assert.ok(!('新角色' in state.characters), 'NPC 状态未被回灌');
   assert.strictEqual(state.money.money.主角, 500, '钱财账本未被回灌');
+  assert.strictEqual(state.audit.length, 2, '召回自检账本未被回灌（快照深拷贝）');
   console.log('✓ 深拷贝只读性验证通过');
 }
 
@@ -103,6 +137,7 @@ const makeEngine = () => {
   assert.deepStrictEqual(snap.moneyLedger, {});
   assert.strictEqual(snap.clock, null);
   assert.strictEqual(snap.floor, 0);
+  assert.strictEqual(snap.recallAudit, null, '宿主方法缺失时 recallAudit 降级 null（不连坐快照）');
   console.log('✓ 容灾降级验证通过');
 }
 

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.150.0';
+        const VERSION = '3.151.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -5086,9 +5086,51 @@ function relativeTimeLabel(eventTime, nowTime) {
                     moneyLedger: deep(this.moneyLedger?.export?.() || {}),
                     outline: deep(this.outline?.export?.() || {}),
                     worldProg: deep(this.worldProg?.export?.() || {}),
-                    clock: deep(this.clock?.export?.() || null)
+                    clock: deep(this.clock?.export?.() || null),
+                    // [v3.151] 召回自检摘要（外供手机端织光机「最常回望的时光」维度；只读、深拷贝）
+                    //   typeof 守卫：本方法被单测「提取执行」模式（v388 bridge 专项）复用时无 this 宿主，
+                    //   缺失该方法不得连坐整张快照（降级为 null，其余字段照常外供）。
+                    recallAudit: (typeof this._summarizeRecallAudit === 'function') ? deep(this._summarizeRecallAudit()) : null
                 };
             } catch (e) { errLog(e, 'buildBridgeSnapshot'); return null; }
+        }
+        /* [v3.151] 召回自检摘要（v3.150 A 账本的对外只读投影）。
+         * 把 _recallAudit 环形账本（每轮 查询/命中分布/空结果/楼层命中）压成
+         * 轻量摘要：轮数 / 空结果轮数 / 平均命中 / 最常被回望的楼层 Top10 / 末轮查询。
+         * 纯读，不改写账本；供 window.lonsha_memory_bridge_v1.snapshot.recallAudit 外供。 */
+        _summarizeRecallAudit() {
+            const EMPTY = { rounds: 0, emptyRounds: 0, avgHits: 0, hotFloors: [], lastQuery: '', lastTs: 0 };
+            try {
+                const ra = Array.isArray(this._recallAudit) ? this._recallAudit : [];
+                const n = ra.length;
+                if (!n) return EMPTY;
+                let emptyRounds = 0, hits = 0;
+                const hot = new Map();
+                for (const r of ra) {
+                    if (!r) continue;
+                    if (r.empty) emptyRounds++;
+                    hits += Number(r.totalHits) || 0;
+                    const fh = r.floorHits || {};
+                    for (const k of Object.keys(fh)) {
+                        const f = Number(k);
+                        if (!Number.isFinite(f) || f < 0) continue;
+                        hot.set(f, (hot.get(f) || 0) + (Number(fh[k]) || 0));
+                    }
+                }
+                const hotFloors = [...hot.entries()]
+                    .map(([floor, count]) => ({ floor, count }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 10);
+                const last = ra[n - 1] || {};
+                return {
+                    rounds: n,
+                    emptyRounds,
+                    avgHits: Number((hits / n).toFixed(2)),
+                    hotFloors,
+                    lastQuery: String(last.queryText || '').slice(0, 80),
+                    lastTs: Number(last.ts) || 0
+                };
+            } catch (e) { errLog(e, 'summarizeRecallAudit'); return EMPTY; }
         }
         // [v1.5] 注入格式（抄 baibai 私密简报包裹 + HCDiary 分区结构）
         buildInjection(recalled) {

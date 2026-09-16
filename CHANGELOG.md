@@ -1,3 +1,8 @@
+## v3.151.0
+- **召回自检摘要外供（跨项目：手机端织光机消费）**：v3.150 的 A 账本 `_recallAudit` 此前只服务诊断面板（插件内自用）。本轮把它做成对外只读投影——公开快照桥 `window.lonsha_memory_bridge_v1.snapshot.recallAudit` 新增摘要字段，让手机端「织光机」能读到「你最常回望的时光」这一维度，两端观测数据互喂。
+  - **`_summarizeRecallAudit()`**：把环形账本（每轮 查询/各来源命中数/空结果/楼层命中分布）压成轻量摘要 `{rounds, emptyRounds, avgHits, hotFloors[{floor,count}×Top10], lastQuery, lastTs}`。纯读，不改写账本；账本空/脏值一律降级为中性空态。
+  - **快照桥接线**：`buildBridgeSnapshot()` 尾部加 `recallAudit: deep(...)`，与既有 `protagonist/lifeDetails/characters/moneyLedger/outline/worldProg/clock` 同构走深拷贝，外部写入不影响引擎内部状态（只读契约不破）。零新增顶层存档键，`ARCHIVE_TOP_LEVEL_KEYS` 契约与 collectExport 键清单均不变。
+  - **测试**：`tests/v3151_recall_audit_bridge.test.mjs`（6 项）——静态接线（桥字段/方法在位/A 账本字段对齐/只读契约）+ 行为级（空态降级 / 聚合正确性 / 热点 Top10 截断排序 / 脏数据容灾）。
 ## v3.150.0
 - **召回命中自检（A·补强）+ 楼层召回账本（B·独有新功能）**：补的是全局测试比 172% 却唯一没有「召回效果自检」防线的核心机制盲区，并让楼层账本从「记写入」扩展到「记召回」。
   - **A 召回命中自检**（`recallAuditEnabled`，默认开）：每轮召回后经 `_auditRecall` 把「查了什么 / 各来源命中数 / 空结果 / 楼层命中分布」写进环形账本 `_recallAudit`（50 轮），诊断面板 `selfCheck` 渲染「召回自检」段（近 N 轮平均命中 / 空结果次数 ⚠️ / 末轮来源分布 / 向量续热数）。空结果 = 本轮注入零前情，是真召回故障的最直接信号。纯观测层，零风险不改写召回逻辑。
