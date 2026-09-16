@@ -1,3 +1,11 @@
+## v3.146.0
+- **stbme 控制平面分离 L7——恢复原子提交边界（v4.0 前置项之二，收官）**：`restoreFromPayload` 此前只做到「失败可见 + 可手动回滚」（v3.140 结构化上报 / v3.142 落盘前紧急备份），运行时仍停留在**半套状态**（导入档部分生效、原档其余残留）。现在部分失败自动回滚到恢复前快照，让「失败」成为唯一可发生的结果。
+  - **快照复用对称原语**：改前状态用 `collectExport()` 抓取——它与 `restoreFromPayload` 共用同一套契约键，不另建快照系统（对齐「避免平行系统」纪律）。回滚也走同一单真源管线，`source` 标为 `auto-rollback:<原来源>` 供追溯。
+  - **按需抓取（关键安全决策）**：仅当调用方显式 `opts.snapshot: true` 时才抓。`storage.load` **刻意不请求**——它的运行时可能残留上一聊天数据，回滚等于把旧聊天记忆装进新聊天，比半套状态更危险（跨档污染）。UI 文件导入与嵌入存档恢复两处用户发起的路径请求快照。
+  - **不递归污染**：回滚的内层结果只取 `count`/`failed.length` 折入 `res.rollback`，外层 `res` 的 `failed`/`loadedProducer`/`schemaWarning` 全部保留，`_lastRestore` 记录的仍是原始失败（面板可见真实原因）。
+  - **失败如实上报**：`ok=false` 不因回滚成功而翻成 true；`rolledBack`/`rollbackWarning`（回滚也没恢复出字段时）/`rollbackError` 三态分开。开关 `atomicRestoreEnabled` 默认开、进设置面板，关闭即退回 v3.145 行为。
+  - **配置覆盖守卫自证有效**：新键最初未接面板，被 `v3113【6】残余不可配键白名单`当场拦下（`意外不可配的键: atomicRestoreEnabled`），按 `ck()` 模式接入后通过——未用白名单绕过。
+- **Tests**：新增 `tests/v3146_atomic_commit.test.mjs`（6 项，行为级：真实 `restoreFromPayload` 递归运行，验证 graph/summaries/clock 在失败后被旧值重新装入、无 snapshot 不抓不滚、开关关闭退回、dryRun 零副作用、全成功不触发、UI/面板接线）。
 ## v3.145.0
 - **stbme 控制平面分离 L6——锁所有权令牌 + 变更栅栏（Restore Lock，v4.0 前置项之一）**：
   - **所有权令牌**：`Mutex.acquire(ownerHint)` 现返回签发凭证（truthy 对象，既有 `if (!acquired)` 降级判定与 mock 兼容），`release(cred)` 只认当前持有者。此前任何持有引用的任务在 finally 里都能放锁——排队超时降级路径、聊天切换后晚到的 finally、回滚期间的旧任务都可能把别人（甚至新会话）的锁放开造成并发写。非签发者释放被拒并计入 `mutex._foreignRelease`（无凭证调用保留兼容语义）。

@@ -1,3 +1,9 @@
 *.bak
 node_modules/
 *.log
+
+# [v3.146] 一次性改库脚本（sNN/uN/vN/wN/fixN.py）与调试产物，禁止随 git add -A 入库
+/[suvwf][0-9]*.py
+/[a-z]*fix[0-9]*.py
+/dbg*.js
+/tmp_*.js

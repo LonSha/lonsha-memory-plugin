@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.145.0';
+        const VERSION = '3.146.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -785,6 +785,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v3.111] 掉队候选补召回（缝合 bionic collectVectorTailCandidates）
                 vectorTailRecoveryEnabled: false,  // 默认关：开启后把「无向量/零向量/维度不符」的条目低分补进候选池
                 vectorTailRecoveryLimit: 8,        // 每轮最多补召回条数（防脏库灌爆候选池）
+                atomicRestoreEnabled: true,         // [v3.146] CP: 恢复原子提交边界（部分失败自动回滚到恢复前快照）
                 sessionLeaseGuardEnabled: true,     // [v3.141] CP: 异步任务会话租约校验（切换聊天后旧任务作废）
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
@@ -6012,6 +6013,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             // [v3.140] CP: 装载来源版本随恢复结果上报（v3.138 的 _dataVersion 字段判旧改道后只写不读，已删）
             res.loadedProducer = (typeof data.producerVersion === 'string' || typeof data.version === 'string') ? String(data.producerVersion || data.version) : null;
             const dry = opts.dryRun === true;   // [v3.142] CP: 两阶段恢复——先预检（不写运行时），再落盘
+            // [v3.146] CP 原子提交边界：真实恢复前抓一份「改前全量快照」（collectExport 与
+            // restoreFromPayload 是同一套契约键的对称原语，不另建快照系统）。仅在调用方
+            // 显式 opts.snapshot 且开关开启时抓取。storage.load 刻意不抓：其失败回滚目标是「上一聊天
+            // 残留的运行时」，把旧聊天数据装回新聊天比半套状态更危险（跨档污染）。
+            let _pre = null;
+            if (!dry && opts.snapshot === true && this.config.config.atomicRestoreEnabled !== false) {
+                try { _pre = this.collectExport(); }
+                catch (e) { errLog(e, 'restoreFromPayload.snapshot'); _pre = null; }
+            }
             // [v3.142] CP 宽容解析（stbme round-trip 纪律）：未知顶层键不丢不炸，收进 extensions 命名空间随存档回写。
             const _ext = data.extensions && typeof data.extensions === 'object' ? data.extensions : null;
             if (!dry && _ext) { this._archiveExtensions = Object.assign({}, this._archiveExtensions || {}, _ext); }
@@ -6073,6 +6083,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 engine._lastSaveGroundTruth = { ts: Number(data.lastSave.ts) || 0, floor: Number(data.lastSave.floor ?? -1), sources: { ...(data.lastSave.sources || {}) } };
             });
             res.ok = res.failed.length === 0;
+            // [v3.146] CP 原子提交边界：部分失败 = 运行时处于「半套状态」（导入档部分生效、
+            // 原档其余残留），此前只上报不补救。现在自动回滚到恢复前快照，让失败成为
+            // 唯一可发生的结果。回滚自身走同一单真源管线且不带 snapshot/原子标志，杜绝递归。
+            if (!res.ok && _pre && this.config.config.atomicRestoreEnabled !== false) {
+                try {
+                    const rb = this.restoreFromPayload(_pre, { source: 'auto-rollback:' + res.source });
+                    res.rolledBack = rb.count > 0;
+                    res.rollback = { restored: rb.count, failed: rb.failed.length };
+                    if (rb.count === 0) res.rollbackWarning = '自动回滚未恢复任何字段，运行时可能仍为半套状态';
+                    console.warn(`[${PLUGIN_NAME}] ⚠ 恢复部分失败（${res.failed.map(f => f.key).join('/')}），已自动回滚至恢复前快照（${rb.count} 字段）`);
+                } catch (e) {
+                    res.rolledBack = false;
+                    res.rollbackError = String(e?.message || e);
+                    errLog(e, 'restoreFromPayload.rollback');
+                }
+            }
             this._lastRestore = res;
             return res;
         }
