@@ -1,3 +1,11 @@
+## v3.148.0
+- **检索质量管线四件套（baibai #26 / shujuku #26 #12 收官）**：侦察发现 bigram 分词（v3.86）、RRF 融合（v3.50）、NPC 四档（v3.43）、物品两组（v3.44）、错误规则库 17 条（v3.36）早已落地，本轮据实只补真缺口四项：
+  - **BM25 语料缓存**：三处 `rebuild` 调用点（OMR 提取 / 回滚 / carryover 导入）全部收编为「素材指纹变了才重建」——指纹 = 各摘要 id+文本 hash32 拼接，断崖截断/折叠后的高频无效重建全免（shujuku BM25-corpus-cache 纪律）。
+  - **rerank 分批评分**：候选池超 300 条时按批切片递归复用本方法，子批索引折算回全量索引——超大候选池不再撑爆评分上下文（shujuku 300/批纪律）。
+  - **INTENT 查询意图**：`rewriteQuery` 升级为首行 `INTENT:` 一句话意图 + ≤6 条检索 Q（各 ≤220 字符，baibai 口径）；INTENT 存 `_lastIntent` 经 `getLastIntent()` 暴露，rerank 精排优先用 INTENT 作评分 query（意图一句话比原始剧情文本更贴评分语义）。多路 Q 各自独立检索，自然汇入既有 16 路 RRF 融合。
+  - **age 锚点机制**：`setProtagonist` 第三参收当楼剧情日期，显式提供 age 时盖 `ageAnchorTime` 锚点；`getEffectiveAge` 双口径推算——age 形如生日日期走 `calcAge(生日,当前)`，数字年龄走「锚点年龄+锚点年→当前年差」；时间跳跃自动长岁，AI 永不算错年龄（baibai age-anchor）。注入侧 `getProtagonistPrompt` 传当前剧情日期，两处提取点全部接线。
+- **Tests**：新增 `tests/v3148_retrieval_pipeline.test.mjs`（5 项）。同步更新 3 个既有测试锚点（v3147 版本号、v378/v380 的 setProtagonist 签名）。全量 142 文件、699 断言、A8 双向零缺口。
+
 ## v3.147.0
 - **向量层双 hash 分层对账与 embedCache 缓存命中**：
   - **`docHash` vs `payloadHash`**：区分文本内容 hash（`docHash`）与状态/元数据 hash（`payloadHash`）。同一文本再次添加或修改元数据时，`docHash` 保持一致，`payloadHash` 独立区分。

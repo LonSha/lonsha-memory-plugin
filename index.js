@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.147.0';
+        const VERSION = '3.148.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -1019,7 +1019,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const cfg = this.config.config;
                 // [v3.77] C: 上下文增强（抄 baibai rewrite 上下文构造——状态快照注入，让改写查询指向滚出窗口的实体）
                 const snapLine = ctxSnapshot ? `\n[当前状态快照（供指代消解，查询可引用其中人名/地点/物件）]\n${String(ctxSnapshot).substring(0, 400)}\n` : '';
-                const prompt = `把下面的剧情进展改写成 1-3 条适合检索历史记忆的短查询（每条一行，只写关键人名/地点/物件/事件词，去掉口语与修饰）。只输出查询行，不要解释。${snapLine}\n${String(recentText || '').substring(0, 600)}`;
+                // [v3.148] INTENT 意图升级（baibai rewrite-query）：首行 INTENT 一句话意图（兼作 rerank query），随后 ≤6 条检索 Q（各 ≤220 字符）
+                const prompt = `把下面的剧情进展改写成检索历史记忆的查询。第一行以 INTENT: 开头，用一句话概括当前剧情意图（如"主角寻找寄存武器的方法"）；随后每行一条独立检索查询（只写关键人名/地点/物件/事件词，去掉口语与修饰），最多 6 条。只输出这些行，不要解释。${snapLine}\n${String(recentText || '').substring(0, 600)}`;
                 let raw = null;
                 if (cfg.apiProviderCustom && cfg.apiUrl && cfg.apiKey) {
                     raw = await this.callOpenAI(prompt, cfg.apiUrl, cfg.apiKey, cfg.apiModel);
@@ -1031,10 +1032,23 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     if (!raw) raw = await quiet(prompt, false, false);
                 }
                 if (!raw) return null;
-                const lines = String(raw).split('\n').map(s => s.replace(/^[-•\d.、\s]+/, '').trim()).filter(s => s.length >= 2 && s.length <= 40).slice(0, 3);
-                return lines.length ? lines : null;
+                                // [v3.148] INTENT 解析：INTENT 行单独摘出存 _lastIntent（供 rerank/诊断），其余行 ≤220 字符、≤6 条（baibai 口径）
+                const allLines = String(raw).split('\n').map(s => s.trim()).filter(Boolean);
+                let _intent = null;
+                const lines = [];
+                for (const ln of allLines) {
+                    const im = ln.match(/^INTENT[:：]\s*(.+)$/i);
+                    if (im) { _intent = im[1].trim().slice(0, 220); continue; }
+                    const clean = ln.replace(/^[-•\d.、\s]+/, '').trim();
+                    if (clean.length >= 2 && clean.length <= 220) lines.push(clean);
+                }
+                this._lastIntent = _intent;
+                const out = lines.length ? lines.slice(0, 6) : null;
+                return out;
             } catch (e) { return null; }
         }
+        /** [v3.148] 最近一次查询重写的 INTENT（供 rerank 精排与诊断；无则为 null） */
+        getLastIntent() { return this._lastIntent || null; }
         // [v2.3] RD: rerank 精排——小模型把候选按与查询的相关度重排。失败返回 null (调用方静默降级)
         async rerank(query, docs) {
             try {
@@ -1043,7 +1057,18 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const key = cfg.rerankApiKey || cfg.apiKey;
                 const model = cfg.rerankModel || cfg.apiModel;
                 if (!cfg.rerankEnabled || !url || !key) return null;
-                const list = docs.map((d, i) => `[${i + 1}] ${(d.text || d.summary || d.name || '').substring(0, 150)}`).join('\n');
+                // [v3.148] 分批评分（shujuku rerank 分批纪律）：300 条/批逐批复用本方法，防超大候选池撑爆上下文
+            const _BATCH = 300;
+            if (docs.length > _BATCH) {
+                const orderParts = [];
+                for (let bi = 0; bi < docs.length; bi += _BATCH) {
+                    const sub = docs.slice(bi, bi + _BATCH);
+                    const subOrder = await this.rerank(query, sub);
+                    if (Array.isArray(subOrder)) for (const si of subOrder) if (sub[si]) orderParts.push(bi + si);
+                }
+                return orderParts.length ? orderParts : null;
+            }
+            const list = docs.map((d, i) => `[${i + 1}] ${(d.text || d.summary || d.name || '').substring(0, 150)}`).join('\n');
                 // [v3.50] 评分式精排：每条 0-10 分（无关 0 分），比排序式更稳——单条失败不影响全局，且可按阈值过滤
                 const prompt = `你是检索评分器。给定【查询】和编号候选列表，为每条候选打相关度分（0-10 整数：0=完全无关，1-3=弱相关，4-6=有用，7-8=高度相关，9-10=直接回答查询）。只输出JSON对象（如 {"1":8,"3":4,"7":0}），键为候选编号字符串、值为分数，无关候选可省略（视为0分）。不要解释。
 【查询】${String(query || '').substring(0, 300)}
@@ -2365,7 +2390,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                             const keys = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
                             const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '');
                             if (hasAny) {
-                                this.status.setProtagonist(extracted.protagonist, floor);
+                                this.status.setProtagonist(extracted.protagonist, floor, this.clock?.date || this.getLatestStoryDate?.() || '');
                                 this.opLog?.log('status', 'update', 'protagonist', floor, keys.filter(k => extracted.protagonist[k] !== undefined).join(','));
                             }
                         }
@@ -2587,9 +2612,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 
                 // [v1.9] P1: BM25 索引重建 + 层级摘要折叠
+                // [v3.148] 语料缓存（shujuku BM25-corpus-cache）：素材指纹一致时跳过重建（断崖截断/折叠后的高频重建全免）
                 if (this.config.config.bm25Enabled) {
                     try {
-                        this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                        const _docs = this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'}));
+                        const _fp = _docs.map(d => d.id + ':' + hash32(d.text)).join('|');
+                        if (_fp !== this.bm25._corpusFp) {
+                            this.bm25.rebuild(_docs);
+                            this.bm25._corpusFp = _fp;
+                        }
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] BM25重建失败:`, e); }
                 }
                 if (this.config.config.summaryFoldEnabled) {
@@ -3904,7 +3935,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     if (extracted.protagonist && typeof extracted.protagonist === 'object') {
                                         const keys = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
                                         const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '');
-                                        if (hasAny) this.status.setProtagonist(extracted.protagonist, idx);
+                                        if (hasAny) this.status.setProtagonist(extracted.protagonist, idx, this.clock?.date || this.getLatestStoryDate?.() || '');
                                     }
                                     if (Array.isArray(extracted.life_details) && extracted.life_details.length) {
                                         for (const ld of extracted.life_details.slice(0, 5)) {
@@ -4592,7 +4623,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const candN = this.config.config.rerankCandidates || 12;
                     const candidates = merged.slice(0, candN);
                     const rest = merged.slice(candN);
-                    const order = await this.llm.rerank(query.text, candidates);
+                    // [v3.148] INTENT 优先作 rerank query（baibai: 意图一句话比原始剧情文本更贴评分语义）
+                    const _rq = (this.llm.getLastIntent?.() || query.text);
+                    const order = await this.llm.rerank(_rq, candidates);
                     if (order && order.length) {
                         const picked = order.map(i => candidates[i]).filter(Boolean);
                         const restSet = new Set(candidates.filter((_, i) => !order.includes(i)));
@@ -5035,7 +5068,8 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             // [v3.45] 吸收 baibai: 主角客观档案与生活习惯癖好追踪
             if (this.config.config.protagonistTracking !== false) {
-                const proPrompt = this.status?.getProtagonistPrompt?.();
+                // [v3.148] 传入当前剧情日期（age 锚点推算用；时间跳跃自动长岁）
+                const proPrompt = this.status?.getProtagonistPrompt?.(this.clock?.date || this.getLatestStoryDate?.() || '');
                 const lifePrompt = this.status?.getLifeDetailsPrompt?.(5) || [];
                 if (proPrompt || lifePrompt.length) {
                     blocks.push('[主角当前客观状态与生活习惯]');
@@ -5518,7 +5552,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 // 重建 BM25 索引
                 try {
                     if (this.config.config.bm25Enabled) {
-                        this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                        { const _docs = this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})); const _fp = _docs.map(d => d.id + ':' + hash32(d.text)).join('|'); if (_fp !== this.bm25._corpusFp) { this.bm25.rebuild(_docs); this.bm25._corpusFp = _fp; } }
                     }
                 } catch (e) { errLog(e, 'rollbackFloor.BM25重建'); }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${floor} 记忆已回滚`);
@@ -5735,7 +5769,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) { errLog(e, 'applyCarryover.scene'); }
                 try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
-                    this.bm25.rebuild(this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
+                    { const _docs = this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})); const _fp = _docs.map(d => d.id + ':' + hash32(d.text)).join('|'); if (_fp !== this.bm25._corpusFp) { this.bm25.rebuild(_docs); this.bm25._corpusFp = _fp; } }
                 }
                 if (this.config.config.debugMode && pack.counts) {
                     console.log(`[${PLUGIN_NAME}] 携带包导入: 图谱${this.graph.nodes.size}/${pack.counts.graphNodes} 日记${Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0)}/${pack.counts.diaries} 向量${this.vector.vectors.length}/${pack.counts.vectors}`);
@@ -8600,26 +8634,62 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         }
 
         // ===== [v3.45] 吸收 baibai: 主角客观档案 (Protagonist) =====
-        setProtagonist(patch = {}, floor = 0) {
+        // [v3.148] age 锚点机制（baibai age-anchor）：AI 提取时只填 age 数值（或出生日期），
+        // 系统同时盖 ageAnchorTime = 提取当时的剧情日期锚点；展示时按「锚点→当前」推算，
+        // 时间跳跃自动长岁，AI 永不算错年龄。
+        setProtagonist(patch = {}, floor = 0, storyDateStr = '') {
             if (!patch || typeof patch !== 'object') return this.protagonist;
             for (const key of ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition']) {
                 if (patch[key] !== undefined) {
                     this.protagonist[key] = String(patch[key] ?? '').trim();
                 }
             }
+            // age 锚点：仅当本轮显式提供了 age 且有剧情日期时盖章
+            if (patch.age !== undefined && String(patch.age ?? '').trim() && storyDateStr) {
+                this.protagonist.ageAnchorTime = String(storyDateStr);
+                this.protagonist.ageAnchorFloor = Number(floor) || 0;
+            }
             this.protagonist.floor = Number(floor) || this.protagonist.floor || 0;
             this.protagonist.updatedAt = Date.now();
             return this.protagonist;
         }
+        /** [v3.148] 锚点推算年龄：有锚点且时钟可解析时按差值推算，否则回退 AI 填的静态值。
+         *  两种口径：① age 字段是出生日期 → calcAge(生日, 当前)；② age 是数字 → 锚点年龄 + 年份差。 */
+        getEffectiveAge(currentStoryDateStr = '') {
+            const p = this.protagonist;
+            if (!p) return '';
+            try {
+                if (p.ageAnchorTime && currentStoryDateStr && this.clock) {
+                    // ① age 形如日期（含年份数字串长 ≥3 或含 / - . 分隔）→ 按出生日期推算
+                    const ageStr = String(p.age || '');
+                    if (/\d{3,}/.test(ageStr) || /[\/\-\.年]/.test(ageStr)) {
+                        const calc = this.clock.calcAge?.(ageStr, currentStoryDateStr);
+                        if (calc > 0 && calc < 150) return String(calc);
+                    } else {
+                        // ② 数字年龄：锚点年龄 + 锚点年→当前年的年份差
+                        const n = Number(ageStr);
+                        const anchor = this.clock.parseStoryDate?.(p.ageAnchorTime);
+                        const now = this.clock.parseStoryDate?.(currentStoryDateStr);
+                        if (Number.isFinite(n) && anchor?.year && now?.year) {
+                            const eff = n + (now.year - anchor.year);
+                            if (eff > 0 && eff < 150) return String(eff);
+                        }
+                    }
+                }
+            } catch (e) { /* 回退静态值 */ }
+            return p.age || '';
+        }
         getProtagonist() {
             return { ...this.protagonist };
         }
-        getProtagonistPrompt() {
+        getProtagonistPrompt(currentStoryDateStr = '') {
             const p = this.protagonist;
             if (!p) return '';
             const parts = [];
             if (p.gender) parts.push(`[性别:${p.gender}]`);
-            if (p.age) parts.push(`年龄:${p.age}`);
+            // [v3.148] 优先锚点推算（时间跳跃自动长岁），无锚点回退静态值
+            const effAge = this.getEffectiveAge(currentStoryDateStr);
+            if (effAge) parts.push(`年龄:${effAge}`);
             if (p.identity) parts.push(`身份:${p.identity}`);
             if (p.appearance) parts.push(`体貌:${p.appearance}`);
             if (p.outfit) parts.push(`当前着装:${p.outfit}`);

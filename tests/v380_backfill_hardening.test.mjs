@@ -21,7 +21,7 @@ test('=== 2. B: backfillFloors 补 protagonist/lifeDetails（与主管线对齐�
     // 结构：在 backfillFloors 段内
     const bIdx = src.indexOf('async backfillFloors');
     const seg = src.slice(bIdx, src.indexOf('\n        // [v3.47]', bIdx));   // 方法边界代替固定窗口（代码增长不再破断言）
-    assert.ok(seg.includes('this.status.setProtagonist(extracted.protagonist, idx)'), 'setProtagonist 补提取');
+    assert.ok(seg.includes('this.status.setProtagonist(extracted.protagonist, idx, '), 'setProtagonist 补提取');
     assert.ok(seg.includes('this.status.addLifeDetail(ld, idx)'), 'addLifeDetail 补提取');
     // 与主管线的字段守卫一致
     assert.ok(seg.includes('const hasAny = keys.some(k =>'), 'hasAny 守卫');

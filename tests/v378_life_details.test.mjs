@@ -19,7 +19,7 @@ test('=== 1. A: 提取 prompt 水源补全（9f/9g 规则） ===', () => {
 test('=== 2. A: 提取应用区写入（水源接线） ===', () => {
     // 应用区写入 protagonist
     assert.ok(src.includes('onMessageReceived.主角档案'), '主角档案应用区');
-    assert.ok(src.includes('this.status.setProtagonist(extracted.protagonist, floor)'), 'setProtagonist 写入');
+    assert.ok(src.includes('this.status.setProtagonist(extracted.protagonist, floor, '), 'setProtagonist 写入');
     // 应用区写入 lifeDetails
     assert.ok(src.includes('extracted.life_details.slice(0, 5)'), 'life_details 批量上限 5');
     assert.ok(src.includes('this.status.addLifeDetail(ld, floor)'), 'addLifeDetail 写入');
