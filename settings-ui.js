@@ -643,7 +643,10 @@
                 if (!inj?.html) {
                     body = '<div class="ls-hint">暂无注入记录。生成一次回复后，此处显示 AI 实际看到的完整记忆注入块（含预算裁剪后的最终形态）。</div>';
                 } else {
-                    const head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）</div>`;
+                    let head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）</div>`;
+                    // [v3.144] CP: 预算实测条（丢弃可见性）——超预算时丢了什么此前完全静默
+                    const _bs = s._lastBudgetStats;
+                    if (_bs && _bs.ts) head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta">📊 预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars} → 实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${Math.max(0, _bs.totalBlocks - _bs.keptBlocks)} 块</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_bs.keptBlocks}${_bs.droppedChars > 0 ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div></div>`;
                     // 分块渲染：按区块标题拆分便于阅读
                     const blocks = inj.html.split('\n').filter(l => l.trim());
                     // [v3.59] D2: diff 高亮——对比上一轮注入，新增行标绿色边框

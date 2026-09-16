@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.143.0';
+        const VERSION = '3.144.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -5197,6 +5197,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     } catch (e) { /* 上下文不可用时用基准预算 */ }
                 }
             }
+            const _preTrimLen = full.length;   // [v3.144] CP: 预算实测基线（裁剪前字符数）
             const keepCount = this.config.config.budgetStrategy || 'balanced';
             if (full.length > budget) {
                 if (_ir) {
@@ -5230,6 +5231,23 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }   // [v3.114] 闭合 else 分支
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 注入预算裁剪: ${budget} 字符 (常驻${residentBlocks.length}块保留)`);
             }
+            // [v3.144] CP: 预算实测（丢弃可见性）——此前超预算时 trimToBudget 静默 break，
+            // 丢了几块/丢多少字符/命中哪个策略全部无处可查，调预算只能靠猜。
+            try {
+                const _allB = _tierOn ? [...residentBlocks, ...triggerBlocks] : blocks;
+                let _keptN = 0; const _droppedSamples = [];
+                for (const b of _allB) {
+                    if (full.includes(b)) _keptN++;
+                    else if (_droppedSamples.length < 3) _droppedSamples.push(String(b).slice(0, 36));
+                }
+                this._lastBudgetStats = {
+                    requested: budget, beforeChars: _preTrimLen, afterChars: full.length,
+                    droppedChars: Math.max(0, _preTrimLen - full.length),
+                    keptBlocks: _keptN, totalBlocks: _allB.length, droppedSamples: _droppedSamples,
+                    strategy: keepCount, tokens: estimateTextTokens(full),
+                    tokenBudget: tokenBudget || null, ts: Date.now(),
+                };
+            } catch (e) { errLog(e, 'buildInjection.预算实测'); }
             return full;
         }
         
