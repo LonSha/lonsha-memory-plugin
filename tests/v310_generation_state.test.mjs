@@ -127,7 +127,7 @@ function extractMethod(name) {
     assert.ok(src.includes('_lockDegradePending'), '降级待补集合存在');
     assert.ok(src.includes('this._lockDegradePending.add(message.index'), '降级时记录楼层');
     // 锁释放点后挂补提取
-    const relIdx = src.indexOf('this.mutex.release();');
+    const relIdx = src.indexOf('this.mutex.release(');
     const relBlock = src.slice(relIdx, relIdx + 900);
     assert.ok(relBlock.includes('_lockDegradePending'), '锁释放后检查待补集合');
     assert.ok(relBlock.includes('backfillFloors'), '补提取调用');

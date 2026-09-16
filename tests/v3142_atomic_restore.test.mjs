@@ -20,6 +20,7 @@ const KEYS = ['version', 'graph', 'summaries', 'clock', 'schemaVersion', 'produc
 function mkFn() {
     const calls = [];
     const eng = {
+        _bumpEpoch() {},   // [v3.145] CP-L6: 恢复推进栅栏（mock 无需真计数）
         storage: { _confirmed: { chatId: 'c', revision: 9 } },
         _archiveExtensions: {},
         graph: { import: (d) => { calls.push('graph'); if (d?.boom) throw new Error('x'); } },
@@ -61,6 +62,7 @@ test('v3.142 未知顶层键 round-trip：收进 extensions 且随 collectExport
 test('v3.142 missing 与 skipped 分离：有数据但引擎无模块不再被误报为「无数据」', () => {
     const calls = [];
     const eng = {
+        _bumpEpoch() {},   // [v3.145] CP-L6: 恢复推进栅栏（mock 无需真计数）
         storage: { _confirmed: null }, _archiveExtensions: {},
         graph: { import: () => calls.push('graph') },
         summary: { import: () => calls.push('summary'), lockedFacts: [] },

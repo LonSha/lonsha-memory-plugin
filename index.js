@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.144.0';
+        const VERSION = '3.145.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -1546,6 +1546,9 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._loadedChatId = null;   // [v3.140] CP: 内存已装载的存档身份（确认状态机判据）
             this._saveDeniedCount = 0;  // [v3.140] CP: 连续被拒次数（超阈降级放行，防永久卡死）
             this._archiveExtensions = {};   // [v3.142] CP: 未知顶层键收容所（round-trip 保留）
+            this._mutationEpoch = 0;          // [v3.145] CP-L6: 状态变更栅栏号（回滚/恢复/切聊递增，作废在飞提取）
+            this._epochDropped = 0;           // [v3.145] CP-L6: 因变更栅栏而过期被丢弃的任务数
+            this._lastEpochBump = null;         // [v3.145] CP-L6: 最近一次变更栅栏推进
             this._staleTaskDropped = 0;   // [v3.141] CP: 会话租约过期被丢弃的异步任务数（跨聊天污染防线）
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
@@ -1691,13 +1694,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                     return await this.llm.callAPI(prompt);
                 } catch (e) { return null; }
             };
-            const _stlLease = this.getCurrentChatId();   // [v3.141] CP-L4: 巩固跨 await（LLM 摘要调用），须捕获会话租约
+            const _stlLease = { chatId: this.getCurrentChatId(), epoch: this._mutationEpoch };   // [v3.145] CP-L6: 并入变更栅栏
             const r = await this.stmLtm.consolidate(this._stmLtmState, { summarize, force });
             // [v3.141] CP-L4: 巩固产物是游标状态——身份已切换时若仍写回 engine，A 的 stm/ltm 游标会污染 B 的运行时并随 B 存档落盘。
-            if (this.config.config.sessionLeaseGuardEnabled !== false && _stlLease && this.getCurrentChatId() !== _stlLease) {
-                this._staleTaskDropped++;
-                this._lastStaleDrop = { from: _stlLease, to: String(this.getCurrentChatId()), floor: -1, at: Date.now(), task: 'stmLtm' };
-                console.warn(`[${PLUGIN_NAME}] ⚠ STM 巩固结果作废：发起于聊天 ${_stlLease}，当前已在 ${this.getCurrentChatId()}，游标状态不回写`);
+            if (!this._leaseValid(_stlLease)) {
+                this._leaseDrop(_stlLease, 'stmLtm', -1);   // [v3.145] CP-L6: 统一 drop 诊断（游标状态不回写）
                 return r;
             }
             this._stmLtmState = r.state;
@@ -1763,8 +1764,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             const chatId = this.getCurrentChatId();
             if (!chatId) return;
             // [v2.1] P3: 提取互斥（抄 hcdiary cdBusy——防并发提取写坏数据）
+            let _lkCred = null;                                  // [v3.145] CP-L6: 锁所有权凭证（仅签发者可释放）
+            const _omrLease = { chatId, epoch: this._mutationEpoch };   // [v3.145] CP-L6: 会话 + 变更栅栏双身份
             if (this.config.config.extractionLockEnabled) {
-                const acquired = await this.mutex.acquire();
+                const acquired = await this.mutex.acquire(`omr:floor${message.index || 0}`);
                 if (!acquired) {
                     // [v2.5] 修复: 原实现直接 return 丢消息；改为至少做摘要兜底，防该楼彻底无记忆
                     try {
@@ -1778,6 +1781,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     } catch (e) { errLog(e, 'onMessageReceived.提取锁降级'); }
                     return;
                 }
+                _lkCred = acquired;                              // [v3.145] 记录凭证，供 finally 定向释放
             }
             try {
                 // [v3.27] <synopsis> 轻量提取快速路径（AnchorNote）: AI 自带 <synopsis> 标签时正则直取做 summary，省一次 LLM 调用
@@ -1831,9 +1835,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                 // [v3.141] CP-L4 会话租约（stbme session lease）：提取的 await 期间用户可能已切换聊天，
                 // 此时内存运行时属于新聊天——把 A 楼的结果写进 B 的 graph/vector/summary 是永久污染
                 // （B 随后自存即落盘）。发起时捕获的 chatId 是唯一权威，回来时身份已变则整栋丢弃。
-                if (this.config.config.sessionLeaseGuardEnabled !== false && this.getCurrentChatId() !== chatId) {
-                    this._staleTaskDropped++;
-                    this._lastStaleDrop = { from: chatId, to: String(this.getCurrentChatId()), floor: message.index || 0, at: Date.now() };
+                if (!this._leaseValid(_omrLease)) {
+                    this._leaseDrop(_omrLease, 'omr', message.index || 0);
                     console.warn(`[${PLUGIN_NAME}] ⚠ 异步提取结果作废：发起于聊天 ${chatId}（第${message.index}楼），当前已在 ${this.getCurrentChatId()}，丢弃以防跨聊天污染`);
                     return;
                 }
@@ -2559,7 +2562,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (err) {
                 console.error(`[${PLUGIN_NAME}] ✗ 失败:`, err);
             } finally {
-                if (this.config.config.extractionLockEnabled) this.mutex.release();
+                if (this.config.config.extractionLockEnabled) this.mutex.release(_lkCred);   // [v3.145] CP-L6: 带凭证释放，晚到的 finally 不得放开新持有者的锁
                 // [v3.10] 锁释放后补提取降级楼层（一次最多 10 楼，防堆积）
                 try {
                     if (this._lockDegradePending?.size && this.config.config.extractionEnabled) {
@@ -3695,15 +3698,44 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { errLog(e, 'BF.scanMissingFloors'); }
             return missing;
         }
+        // [v3.145] CP-L6: 租约有效性统一判据（stbme Restore Lock + session lease 合流）。
+        // v3.141 只校验 chatId，挡不住「同一聊天内的结构性变更」：回滚/恢复/清空期间
+        // chatId 未变，在飞提取会基于已删除的楼层写回数据并随自存落盘。现以变更栅栏号
+        // _mutationEpoch 补齐第二类失效；四处异步路径统一走本方法，避免判据漂移。
+        _leaseValid(lease) {
+            if (this.config.config.sessionLeaseGuardEnabled === false) return true;   // 总开关关闭→退回 v3.140 前的宽松行为（可回退）
+            if (!lease) return true;
+            const now = this.getCurrentChatId();
+            if (lease.chatId && now && now !== lease.chatId) { lease.reason = 'chat-switch'; lease.to = String(now); return false; }
+            if (lease.epoch != null && lease.epoch !== this._mutationEpoch) { lease.reason = 'mutation'; lease.to = `${this._mutationEpoch}@${now}`; return false; }
+            return true;
+        }
+        _leaseDrop(lease, task, floor) {
+            this._staleTaskDropped++;
+            this._lastStaleDrop = { from: lease.chatId || '?', to: lease.to || String(this.getCurrentChatId()), floor: floor ?? -1, at: Date.now(), task, reason: lease.reason || 'unknown' };
+            if (lease.reason === 'mutation') this._epochDropped++;
+            console.warn(`[${PLUGIN_NAME}] ⚠ 任务作废（${task}，原因 ${lease.reason}，栅栏 ${lease.epoch}→${this._mutationEpoch}）：状态已变更，产物丢弃`);
+        }
+        // [v3.145] CP-L6: 变更栅栏自增——结构性变更（回滚/恢复）使此刻在飞的异步提取/补提取
+        // 全部作废（它们的产物基于变更前状态，写回即污染）。同步执行故原子：JS 单线程，
+        // bump 后到 await 让出前不会有其它任务插入。reason 记入可见性字段供面板追溯。
+        _bumpEpoch(reason) {
+            this._mutationEpoch = (this._mutationEpoch || 0) + 1;
+            this._lastEpochBump = { epoch: this._mutationEpoch, reason: String(reason || 'manual'), at: Date.now() };
+            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 变更栅栏推进 → ${this._mutationEpoch}（${reason}）`);
+        }
         // [v3.5] 补提取指定楼层（复跑提取管线——复用 onMessageReceived 的提取段，但跳过摘要回滚等）
         // 上限保护：单次最多 30 楼（防一次扫全车）；带互斥锁防与实时提取并发
         async backfillFloors(floors, onProgress) {
             const done = { ok: 0, fail: 0, skipped: 0 };
             // [v3.141] CP-L4: 租约身份声明在函数体顶层——保存点在 try 块之外，声明进内层会成未定义变量
-            const _bfLease0 = this.getCurrentChatId();   // [v3.141] 会话租约身份
+            let _bfCred = null;   // [v3.145] CP-L6: 锁所有权凭证（函数体顶层：finally 在 try 外）
+            const _bfLease = { chatId: this.getCurrentChatId(), epoch: this._mutationEpoch };   // [v3.145] CP-L6: 并入变更栅栏
+            const _bfLease0 = _bfLease.chatId;   // [v3.141] 会话租约身份（保存目标沿用捕获值，事后求值会串档）
             let _bfStale0 = false;
             try {
-                const acquired = await this.mutex.acquire();
+                const acquired = await this.mutex.acquire('backfill');   // [v3.145] CP-L6: 申请所有权
+                if (acquired) _bfCred = acquired;            // [v3.145] 记录凭证供 finally 释放
                 if (!acquired) { console.warn(`[${PLUGIN_NAME}] 补提取排队超时（实时提取进行中）`); return done; }
                 // [v3.141] CP-L4: 补提取是逐楼 await 的长任务，会话租约在开始处捕获（每楼 await 后校验）。
                 try {
@@ -3722,11 +3754,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                             const extracted = await this.extractMemoryWithLLM(msg);
                             // [v3.141] CP-L4: 租约失效（用户已切换聊天）则中止整轮，且不得落盘——
                             // 此刻内存运行时属于新聊天，collectExport 会把新聊天的内容写进旧存档。
-                            if (this.config.config.sessionLeaseGuardEnabled !== false && _bfLease0 && this.getCurrentChatId() !== _bfLease0) {
+                            if (!this._leaseValid(_bfLease)) {
                                 _bfStale0 = true;
-                                this._staleTaskDropped++;
-                                this._lastStaleDrop = { from: _bfLease0, to: String(this.getCurrentChatId()), floor: idx, at: Date.now() };
-                                console.warn(`[${PLUGIN_NAME}] ⚠ 补提取中止：发起于聊天 ${_bfLease0}，当前已在 ${this.getCurrentChatId()}（第${idx}楼），丢弃且跳过保存以防污染`);
+                                this._leaseDrop(_bfLease, 'backfill', idx);   // [v3.145] CP-L6: 统一 drop 诊断（合并冗余计数/日志）
                                 break;
                             }
                             // 只补「图谱节点/关系 + 摘要」核心两类（保召回可用）；细粒度子系统（状态/悬念/物品）交后续实时楼带动
@@ -3780,8 +3810,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                             if (typeof onProgress === 'function') { try { onProgress(idx, done); } catch (e) { errLog(e, 'nonfatal') } }
                         } catch (e) { errLog(e, `BF.backfill.floor${idx}`); done.fail++; }
                     }
-                } finally { if (this.config.config.extractionLockEnabled) this.mutex.release(); }
-                    } catch (e) { errLog(e, 'BF.backfillFloors'); }
+                } finally {
+                    if (this.config.config.extractionLockEnabled) this.mutex.release(_bfCred);   // [v3.145] CP-L6: 带凭证释放，晚到的 finally 不得放开新持有者的锁
+                }
+            } catch (e) { errLog(e, 'BF.backfillFloors'); }
                     // [v3.19] 补提取完成后推进书签
                     try { if (this.bookmarks && floors?.length) this.bookmarks.save('scan', Math.max(...floors) + 1); } catch (e) { errLog(e, 'nonfatal') }
             if (_bfStale0) { done.skipped += 1; }   // [v3.141] 中止计数可见
@@ -5257,6 +5289,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (!this.config.config.floorLedgerEnabled) return 0;
                 const entry = this.ledger.get(floor);
                 if (!entry) return 0;
+                this._bumpEpoch('rollback-floor-' + floor);   // [v3.145] CP-L6: 回滚即变更，作废在飞提取
                 // 回滚节点（该楼新增的图谱节点）
                 // [v3.6] 升级: ① character 节点长寿命——删前检查后续摘要是否仍提及该角色，提及则保留；
                 //          ② 删完统一 rebuildNameIndex（原实现只 clear 不重建，名称查询全失效）
@@ -5971,6 +6004,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (!data || typeof data !== 'object') { res.ok = false; res.error = 'invalid payload'; return res; }
             // [v3.142] CP: 预检（dryRun）不得动确认状态——只读校验不该有任何副作用
             if (opts.dryRun !== true) this.storage._confirmed = null;   // 恢复期间清除确认（真实落盘后由 storage.save 重新推进）
+            if (opts.dryRun !== true) this._bumpEpoch('restore:' + res.source);   // [v3.145] CP-L6: 整体替换运行时，作废在飞任务
             const _sv = Number(data.schemaVersion) || 0;
             if (_sv > ARCHIVE_SCHEMA_VERSION) {
                 res.schemaWarning = `存档结构版本 ${_sv} 新于当前 ${ARCHIVE_SCHEMA_VERSION}（可能丢失未知字段语义）`;
@@ -8879,9 +8913,15 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
     
     // [v2.1] P3: 提取互斥锁（抄 hcdiary：cdBusy/cdPending 防并发写坏数据）
     class Mutex {
-        constructor() { this.busy = false; this.pending = false; this.waiters = []; }
-        async acquire() {
-            if (!this.busy) { this.busy = true; return true; }
+        // [v3.145] CP-L6: 所有权令牌（stbme Restore Lock 语义）——此前 release() 无凭证，
+        // 任何持有引用的任务在 finally 里都能放锁：排队超时降级路径、聊天切换后晚到的
+        // finally、回滚期间的旧任务都可能把别人（甚至新会话）的锁放开，导致并发写。
+        // acquire() 现在返回签发凭证（truthy，既有 `if (!acquired)` 判定不受影响），
+        // release(cred) 只认签发者；无凭证/非签发者一律拒绝并计入 _foreignRelease 可见化。
+        constructor() { this.busy = false; this.pending = false; this.waiters = []; this._holder = null; this._tokenSeq = 0; this._foreignRelease = 0; }
+        async acquire(ownerHint) {
+            const issue = () => ({ id: ++this._tokenSeq, owner: String(ownerHint || 'anon'), at: Date.now() });
+            if (!this.busy) { this.busy = true; this._holder = issue(); return this._holder; }
             // 已有任务在跑：排队等待（最多等 30s，避免死等）
             return new Promise((resolve) => {
                 let done = false;
@@ -8890,27 +8930,38 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     done = true;
                     const i = this.waiters.indexOf(entry);
                     if (i >= 0) this.waiters.splice(i, 1);
-                    resolve(false);
+                    resolve(false);   // 超时→假值（调用方走降级路径，语义不变）
                 }, 30000);
-                const entry = (ok) => {
+                const entry = (cred) => {
                     if (done) return;
                     done = true;
                     clearTimeout(timer);
-                    if (ok) this.busy = true;
-                    resolve(ok);
+                    if (cred) this.busy = true;
+                    resolve(cred);
                 };
                 this.waiters.push(entry);
             });
         }
-        release() {
+        release(cred) {
+            if (!this.busy) return true;                     // 未持锁：空放，不算越权
+            if (cred && cred === this._holder) { /* 正当释放 */ }
+            else if (cred && typeof cred === 'object') {
+                this._foreignRelease++;                       // [v3.145] 越权释放：晚到的 finally 不得放开新持有者的锁
+                try { console.warn(`[Mutex] 拒绝越权释放：令牌 #${cred?.id}(${cred?.owner}) 非当前持有者 #${this._holder?.id}(${this._holder?.owner})`); } catch (e) {}
+                return false;
+            }                                                 // 无凭证→兼容既有/测试调用，按当前持有者释放
             if (this.waiters.length) {
                 const next = this.waiters.shift();
-                next(true);   // 直接把锁交给下一个等待者
+                const cred2 = { id: ++this._tokenSeq, owner: next._ownerHint || 'queued', at: Date.now() };
+                this._holder = cred2;
+                next(cred2);   // 直接把锁（含新签发凭证）交给下一个等待者
             } else {
-                this.busy = false;
+                this.busy = false; this._holder = null;
             }
+            return true;
         }
         get locked() { return this.busy; }
+        get holderToken() { return this._holder; }
         get queueLength() { return this.waiters.length; }
     }
     

@@ -61,6 +61,7 @@ test('v3.140 restoreFromPayload 返回结构化结果，单字段失败不吞后
         const eng = {
             storage: { _confirmed: { chatId: 'x', revision: 3 } },
             _loadedChatId: null,
+            _bumpEpoch() {},   // [v3.145] CP-L6: 恢复推进变更栅栏（mock 无需真计数）
             graph: { import: (d) => { calls.push('graph'); if (d?.boom) throw new Error('graph import exploded'); } },
             summary: { import: () => calls.push('summary'), lockedFacts: [] },
             clock: { import: () => calls.push('clock') },

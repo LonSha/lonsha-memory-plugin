@@ -1,3 +1,9 @@
+## v3.145.0
+- **stbme 控制平面分离 L6——锁所有权令牌 + 变更栅栏（Restore Lock，v4.0 前置项之一）**：
+  - **所有权令牌**：`Mutex.acquire(ownerHint)` 现返回签发凭证（truthy 对象，既有 `if (!acquired)` 降级判定与 mock 兼容），`release(cred)` 只认当前持有者。此前任何持有引用的任务在 finally 里都能放锁——排队超时降级路径、聊天切换后晚到的 finally、回滚期间的旧任务都可能把别人（甚至新会话）的锁放开造成并发写。非签发者释放被拒并计入 `mutex._foreignRelease`（无凭证调用保留兼容语义）。
+  - **变更栅栏 `_mutationEpoch`**：v3.141 的会话租约只校验 chatId，**挡不住同一聊天内的结构性变更**——`rollbackFloor`/`restoreFromPayload` 期间 chatId 未变，在飞提取会基于已删除的楼层写回并随自存落盘。现在回滚与真实恢复都推进栅栏号，发起时捕获、await 后不一致即整份作废（bump 单调且 NaN 安全；dryRun 预检不推进）。`_leaseValid` 统一双类失效判据（chat-switch / mutation），`_leaseDrop` 统一丢弃诊断，三条路径共用（原四处重复条件+手写诊断对象收敛为单真源）。
+  - **故障可见性**：`_epochDropped`（栅栏作废数）/ `_lastEpochBump`（最近推进原因）/ `mutex._foreignRelease`（越权释放数）进诊断面板并纳入诊断块强制显示条件。
+  - **测试基建**：`v3141` 锚点随单真源收敛更新（守卫意图不变）；`v350` 补 `_leaseValid` mock（缺 mock 时 TypeError 被 catch 吞掉——本轮全量跑才暴露，正是「坏了没人知道」的实例）；`v310` 的 release 锚点改为不含参前缀（防签名演进再断裂）。新增 `tests/v3145_restore_lock.test.mjs`（6 项，含 Mutex 令牌真实行为：越权拒绝、排队交接后旧凭证失效）。
 ## v3.144.0
 - **规划前提核对**：v3.144 规划的「唯一预算计算器」已在 v3.114 落地（`injection-router.deriveBudget` 纯函数 + 内联等价回落，v3.133/135 已统一 CJK 口径），`_lastInjection.tokens` 已在 v3.128 落地。本轮据实只做**真实缺口：丢弃不可见**。
 - **预算实测（`_lastBudgetStats`）**：超预算裁剪此前是静默丢弃——`trimToBudget` 的 for 循环 break 后，没人知道丢了几块、丢多少字符、命中哪个策略，调 `injectionBudget`/`memoryTokenBudget` 只能靠猜。现在 `buildInjection` 在裁剪前捕获基线、裁剪后实测：请求上限 / 裁剪前后字符数 / 丢弃字符数 / 候选块数 / 保留块数 / 丢弃样本（前 3 条）/ 生效策略 / token 实测。统计包在 try/catch 内并 errLog，测量失败绝不影响注入本身。
