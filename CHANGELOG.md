@@ -1,3 +1,6 @@
+## v3.139.0
+- **stbme 控制平面分离 L3——身份单通道收口**：跨调用去重指纹的私有身份通道（ctx.chatId || characterId）收编 getCurrentChatId 单一真源——原通道与单真源（chatId → file_name）优先级不一致，同角色多会话场景下指纹命名空间交叉串扰。
+- **快照冻结键契约（GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）**：`ARCHIVE_TOP_LEVEL_KEYS` Object.freeze（41 键，从 collectExport 实际键提取生成）+ storage.save 写侧卫兵（顶层键漂移即刻告警）；守卫测试 v3139 强制 collectExport 键集 == 契约清单，防未知键静默 round-trip 丢失或命名空间无序膨胀。
 ## v3.138.0
 - **stbme 控制平面分离 L2——恢复管线单真源**：新方法 `engine.restoreFromPayload(data)` 收编 storage.load / 设置面板导入 / 嵌入存档恢复三处手写恢复清单（40 余行 × 3 副本），新增恢复键只登记一处全入口自动生效；UI 导入与 storage.load 的清单差异（load 有 supersede/charMem/worldProg/stmLtm 等，UI 导入一直丢）就此终结。
 - **嵌入存档恢复闭环修复（v3.23 潜伏缺陷）**：`_embeddedVaultReady` 只写不读、toast 指路的「设置→导入恢复」按钮从未存在；且 `checkEmbeddedMigration` 用 collectExport 探测本地版本恒得当前插件版本（恒 ≥ embVer）→ 恢复分支结构性不可达。修复三件套：设置面板新增「恢复嵌入存档」按钮（渲染期+检测期双通道显隐）、判旧改用 `_dataVersion` 真实数据版本戳、检测时序挪到 `storage.load` 之后。

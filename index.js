@@ -1,7 +1,54 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.138.0';
+        const VERSION = '3.139.0';
+    // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
+    // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
+    const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
+    'version',
+    'clock',
+    'graph',
+    'charMem',
+    'worldProg',
+    'summaries',
+    'diaries',
+    'reflection',
+    'itemOps',
+    'vectors',
+    'povs',
+    'timeline',
+    'status',
+    'ledger',
+    'suspense',
+    'moneyLedger',
+    'cards',
+    'conflicts',
+    'scene',
+    'echo',
+    'prequel',
+    'supersede',
+    'narrativeEntropy',
+    'stmLtm',
+    'recallArtifacts',
+    'diaryInjectFloor',
+    'timelineInjectFloor',
+    'deltaBook',
+    'cse',
+    'pulse',
+    'opLog',
+    'outline',
+    'pairMem',
+    'lockedFacts',
+    'recallSourceStats',
+    'timelineCursorChatId',
+    'timelineCursorFingerprint',
+    'timeWentBack',
+    'lastSave',
+    'packedAt',
+    'dataVersion',
+    ]);
+    const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);
+
     // [v3.104] 存储状态指纹关注的字段（过滤 updatedAt/时间戳等噪声，只对语义内容敏感）
     const STORAGE_FP_FIELDS = ['graph', 'summaries', 'characters', 'items', 'status', 'timeline'];
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
@@ -3230,8 +3277,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         }
                         // [v3.23] 跨调用去重: 本轮回溯结果记指纹（NE-Memory）。同一话题连续追问时下轮识别已覆盖项
                         try {
-                            const ctxCc = window.SillyTavern?.getContext?.();
-                            const chatIdCc = ctxCc?.chatId || ctxCc?.characterId || '';
+                            // [v3.139] CP-L3 身份单通道：去重命名空间身份收编 getCurrentChatId 单一真源。
+                            // 原私有通道 ctx?.chatId || characterId 与单真源（chatId → file_name）优先级不一致，
+                            // 同角色多会话场景下指纹命名空间交叉串扰。
+                            const chatIdCc = window.LonShaMemory?.engine?.getCurrentChatId?.() || '';
                             // 先记指纹（基于原始 recalled，不含 DEDUP 标记前缀，防自污染）
                             recallDedupRemember(candidateItems);
                             const dedupMarked = recallDedupMark(candidateItems, chatIdCc, String(query.text || ''));
@@ -9648,6 +9697,16 @@ ${recentTurns}`;
         async save(chatId, data) {
             const opts = arguments[2] || {};
             if (!chatId || !data) return false;
+            // [v3.139] CP-L3: 冻结键契约检查——顶层键漂移（新增/改名未同步契约清单）即刻告警，
+            // 防止未知键静默 round-trip 丢失或键命名空间无序膨胀（stbme 宽容解析纪律的写侧卫兵）。
+            try {
+                for (const _k of Object.keys(data)) {
+                    if (!ARCHIVE_TOP_LEVEL_KEY_SET.has(_k)) {
+                        console.warn(`[${PLUGIN_NAME}] ⚠ 存档顶层键契约违约: "${_k}" 不在 ARCHIVE_TOP_LEVEL_KEYS（将不被 restoreFromPayload 恢复）`);
+                        break;
+                    }
+                }
+            } catch (e) { /* 非致命 */ }
             if (opts.expectedRevision != null && opts.expectedRevision < this._revision) {
                 console.warn(`[${PLUGIN_NAME}] 存储写入被拒绝：检测到修订版本冲突 (当前 rev: ${this._revision}, 请求 rev: ${opts.expectedRevision})，防止旧快照覆盖最新状态`);
                 return false;
