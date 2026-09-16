@@ -19,7 +19,11 @@
 2. **身份四通道分离**：active（只来自宿主上下文）/ graph-owner / queued / marker——**只有 active 通道能产出"当前聊天"，其余一律只进校验/恢复，绝不能偷偷升格为活动身份**。"未进入聊天"类 bug 的根治方案。lonsha 的 chatId 归属校验（v2.x field__chatId 同源思想）可升级为此模型。
 3. **持久化确认状态机**：`已确认版本 >= 排队版本 且 同身份 且 规范tier ⟹ pending 必须为 false`。recovery-only 层（shadow/metadata）永远不能推进确认状态——"数据已安全落地"只能由规范主源证明。陈旧 pending 自动清除，"pending 卡住提取"结构上不可能。
 4. **原子回合发布**：一切修改发生在 detached working graph；待提交快照（图谱+楼层指针+hash+journal+计数）一次性发布，pending/失败/切聊天都不部分推进 live 数据。
+   - ✅ **恢复路径已达成该语义（v3.146）**：`restoreFromPayload` 部分失败时自动回滚到 `collectExport()` 抓取的恢复前快照（复用同一套契约键对称原语，不另建快照系统），运行时不再停留"半套状态"；快照按 `opts.snapshot` 显式请求——`storage.load` 刻意不请求（其回滚目标可能是上一聊天残留运行时，装回等于跨档污染）。三态可见：已回滚 / 失败未回滚 / 回滚未见效告警。
+   - ⏳ **图谱级 detached working graph 未做**：现有实现的原子性靠"回滚补偿"（失败后装回快照）而非"提交前不触碰 live"。单线程 JS 下同步执行段已无撕裂风险，跨 await 的异步污染已由 v3.145 变更栅栏作废；改为真 detached 需重写 graph/summary 写入面，收益不抵成本，暂缓。
 5. **历史安全三件套**：①楼层指针+消息 hash 与数据一起提交；②删楼/编辑/swipe → 反向应用 batch journal 回滚（journal 不足则停+dirty checkpoint，绝不自动全量重建）；③Restore Lock 所有权令牌——回滚期间阻断变更，旧聊天晚到的 finally 不能释放新聊天的锁。
+   - ✅ **③已落地（v3.145）**：`Mutex.acquire(ownerHint)` 签发所有权凭证、`release(cred)` 只认当前持有者，非签发者释放被拒并计入 `mutex._foreignRelease`（面板可见）——晚到的 finally 放不掉新持有者的锁。"回滚期间阻断变更"改由**变更栅栏** `_mutationEpoch` 实现：回滚/真实恢复推进栅栏，三条异步路径（OMR 提取、补提取、STM 巩固）发起时捕获、await 后不一致即整份作废。选它而非硬阻断是因为 `rollbackFloor` 同步执行（JS 单线程天然原子），真正危险的是"变更前就已 in-flight 的任务"，栅栏精准作废它们且不引入等待/死锁。
+   - ⏳ ②的 batch journal 反向应用未做（现为 `removeByFloor` 前向清理 + 台账 fp 重放自愈）；①已由 `reconcileItemOps` 与 v3.126 游标回滚覆盖主要场景。
 6. **reroll 不变量**：召回注入可复用（父 user 楼层 bme_recall 确定性重放），但图谱回滚必须保留——两者不能混。"计算与注入解耦，信任宿主生成 type，不用输入源猜 reroll"。
 7. **会话租约**：跨 await/timer 的任务开始时捕获 session lease + 内容 fingerprint，发布前再校验；lease 失效不得修改后来活动的聊天。
 
@@ -100,4 +104,4 @@ RAG+BM25+状态栏+GC 的记忆插件，逻辑/界面分离（*_logic.js / *.js�
 **lonsha 迭代路线建议（综合四项目）**：
 1. **v3.2（防御包）**：shujuku 错误规则库裁剪 10-15 条 + baibai LEGACY 槽位清空 + fetch 外部取消不重试 + 物品台账 zod 式校验（数量 clamp）。全是小改动高收益。
 2. **v3.3（台账重放化）**：物品台账从独立存储改为楼层 delta + 确定性 id 重放（baibai 路线），翻 swipe 一致性免费获得。
-3. **v4.0（架构升级）→ ✅ 已于 v3.130~v3.139 落地**：控制平面分离（stbme 纲领）四层全部完成——持久化单真源 collectExport（v3.130）、恢复管线单真源 restoreFromPayload + 持久化确认状态机 + 嵌入存档恢复闭环（v3.138）、身份单通道 + 快照冻结键契约 ARCHIVE_TOP_LEVEL_KEYS（v3.139）；正文时间锚点协议（baibai）已于 v3.130 闭环（提取侧 GameClock 校准 + timeTagStats 健康统计 + v3.132 单调性收口）。
+3. **v4.0（架构升级）→ ✅ 已于 v3.130~v3.146 落地（控制平面分离 L1~L7 全部完成）**：持久化单真源 collectExport（v3.130）、恢复管线单真源 restoreFromPayload + 持久化确认状态机 + 嵌入存档恢复闭环（v3.138）、身份单通道 + 快照冻结键契约 ARCHIVE_TOP_LEVEL_KEYS（v3.139）；随后 v3.140~v3.146 按外部规划复核并补完最后几层——**L4 会话租约**（三条 await 路径发起时捕获身份、返回时校验，跨聊天污染结构上不可能，v3.141）、**L5 恢复原子性 + 契约宽容解析**（dryRun 两阶段预检零副作用、未知顶层键经 extensions round-trip 不丢不炸、missing/skipped 分桶、导入侧空恢复不落盘，v3.142）、**L6 锁所有权令牌 + 变更栅栏**（晚到的 finally 放不掉新持有者的锁；回滚/恢复推进 `_mutationEpoch`，作废「同一聊天内结构性变更」期间在飞任务——这是 chatId 租约挡不住的另一类失效，v3.145）、**L7 恢复原子提交边界**（部分失败自动回滚到恢复前快照，运行时不留半套状态，v3.146）。另经实测核销两项：物品台账重放化（v3.143 确认 v3.3/v3.36 已落地，补 7 操作矩阵端到端验收）、预算唯一计算器（v3.144 确认 v3.114/128 已落地，补丢弃可见性 `_lastBudgetStats`）。正文时间锚点协议（baibai）已于 v3.130 闭环（提取侧 GameClock 校准 + timeTagStats 健康统计 + v3.132 单调性收口）。**贯穿原则**：先让失败可见（v3.140/141/144 诊断字段 + 面板强制显示），再让错误不可发生（v3.142/145/146 结构性守卫），最后才优化算法复杂度。
