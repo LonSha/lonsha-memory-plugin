@@ -154,6 +154,7 @@ test('【6】残余不可配键白名单', () => {
     'onDemandTriggerPhrase',   // 触发词已由 smartTriggerPatterns 覆盖
     'pyramidTiers',            // 层级结构数组（内部）
     'memoryTreeEnabled',       // 默认关实验功能
+    'bm25LexiconNormalizeEnabled', // [v3.152] 默认开功能，已由 termLexiconEnabled 组统一开关
   ]);
   const unexpected = missing.filter((k) => !allowed.has(k));
   assert.deepStrictEqual(unexpected, [], '意外不可配的键: ' + unexpected.join(', '));

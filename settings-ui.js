@@ -796,6 +796,11 @@
                     ${ck('swipeFingerprintGuard', 'swipe 指纹校验', '召回缓存命中前验证末楼消息指纹：翻变体自动失效重算，翻回旧变体则到变体级复用')}
                     \${ck('volumeIntegrityGuard', '卷摘要 intact 判定', '折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前对账源楼层指纹，失效整卷降级并展开源摘要回活跃池（柏宝书 #13）')}
                     ${ck('aliasQueryExpansion', '别名查询扩展', '查询命中角色别名/昵称时自动附加主名词条参与 BM25 检索：喊昵称也能召回主名记忆（吸收 MyriadKnots entity-identity）')}
+                    ${ck('termLexiconEnabled', '术语词典', '聊天内非角色实体术语（物品/地名/招式/组织等）沉淀成词典；查询命中术语时自动附加规范名参与检索（吸收 anima 词典方案）')}
+                    ${ck('bm25LexiconNormalizeEnabled', 'BM25 词典归一', '文档端把术语别名统一为规范名、查询端附加规范名+释义短语，两侧同词典对齐')}
+                    ${ck('statusAwareQuotaEnabled', '感知检索配额', '剧情状态调制检索条数：高压期(surge)多喂记忆、余波期降噪、未决矛盾/开放悬念密集期加量（默认关）')}
+                    <div class="ls-slider-label"><span>词典条目上限</span><span class="ls-slider-val" id="ls-v-lexmax">${c.termLexiconMax || 40}</span></div>
+                    <input type="range" class="ls-slider" min="10" max="120" step="10" value="${c.termLexiconMax || 40}" data-cfg-num="termLexiconMax">
                     ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}
                     ${ck('bridgeEnabled', '公开快照桥', '在 window.lonsha_memory_bridge_v1 暴露只读状态快照（主角/NPC账本/大纲/世界推进），供外部脚本读取')}
                     <div class="ls-slider-label"><span>折叠阈值（条）</span><span class="ls-slider-val" id="ls-v-fold">${c.summaryFoldThreshold || 30}</span></div>

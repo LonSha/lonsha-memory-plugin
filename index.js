@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.151.0';
+        const VERSION = '3.152.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -40,6 +40,7 @@
     'pairMem',
     'lockedFacts',
     'recallSourceStats',
+    'lexicon',
     'timelineCursorChatId',
     'timelineCursorFingerprint',
     'timeWentBack',
@@ -769,6 +770,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 rerankApiKey: '',
                 rerankModel: '',
                 rerankCandidates: 12,          // 进入精排的候选数
+                // [v3.152] ANIMA 词典线 A/B：术语词典（默认开）+ BM25 词典归一（默认开）+ 感知检索配额（默认关实验）
+                termLexiconEnabled: true,        // 术语词典：聊天内非角色实体术语沉淀入典（成就/物品/地名等）
+                termLexiconMax: 40,              // 词典条目上限（超出按 count/lastFloor 淘汰）
+                bm25LexiconNormalizeEnabled: true, // BM25 双端词典归一：文档端别名→规范名，查询端附规范名+释义
+                statusAwareQuotaEnabled: false,  // 感知检索配额：剧情状态（大纲 tempo/未决矛盾/开放悬念）调制检索条数
                 // [v3.96] 缝合四模块：前置AI精选 + STM/LTM游标巩固 + 统一召回 + 副API通道
                 aiSelectEnabled: false,        // 前置 AI 精选（粗召回候选→AI JSON精选本轮相关，省token提精度；需AI通道）
                 aiSelectMaxCandidates: 20,     // 进入精选的粗召回候选上限
@@ -923,6 +929,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
                     'suspenseMaxOpen', 'extractionCadence', 'recallCacheEnabled', 'diaryChangeDrivenInjection',
                     'timeChangeDrivenInjection', 'itemLedgerEnabled', 'moneyLedgerEnabled', 'echoEnabled',
+                    'termLexiconEnabled', 'termLexiconMax', 'bm25LexiconNormalizeEnabled', 'statusAwareQuotaEnabled',
                 ];
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {
@@ -1699,6 +1706,8 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.clock = new GameClock();
             // [v1.9] P1
             this.bm25 = new BM25();
+            // [v3.152] ANIMA 词典线：术语词典实例（默认开；构造零依赖，存档键 lexicon）
+            this.lexicon = new (window.LonShaEntityLexicon?.EntityLexicon || function () { this.items = []; this.resolve = () => null; this.export = () => []; this.import = () => {}; this.promptRules = () => ''; this.match = () => []; })();
             this.prequel = new PrequelSystem();   // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入前情资料
             // [v2.0] P2
             this.status = new CharacterState();
@@ -2750,13 +2759,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const historyFull = [volText, history].filter(Boolean).join('\n');
                 // [v3.62] 锁定事实：用户显式锁定，摘要必须逐字保留
                 const lockedText = (this.config.config.lockedFactsEnabled !== false) ? this.summary.lockedFactsForPrompt() : '';
-                const prompt = this.config.config.extractionPrompt
+                // [v3.152] ANIMA 词典线 A3：术语词典规则动态追加（9l 新术语 / 9m 角色新称呼）。
+                // 词典为空时 promptRules() 返回引导版（冷启动即开始沉淀）；关闭开关则零追加。
+                let prompt = this.config.config.extractionPrompt
                     .replace('{{KNOWN_CHARS}}', knownChars.join('、') || '（暂无，从本轮开始积累）')
                     .replace('{{HISTORY}}', historyFull || '（暂无）')
                     .replace('{{SUSPENSE}}', (this.config.config.suspenseEnabled && this.suspense.openItems().length) ? this.suspense.briefForPrompt() : '（暂无未了结的悬念）')
                     .replace('{{LOCKED_FACTS}}', lockedText || '（无）')
                     .replace('{{SCENES}}', (this.config.config.sceneEnabled && this.scene.nodes.size) ? this.scene.brief() : '（暂无已登记场景）')
                     .replace('{{CONTENT}}', content);
+                if (this.config.config.termLexiconEnabled !== false && this.lexicon?.promptRules) {
+                    try { prompt += '\n' + this.lexicon.promptRules(); } catch (e) { errLog(e, 'lexicon.promptRules'); }
+                }
                 const response = await this.llm.callAPI(prompt);
                 if (!response) {
                     console.warn(`[${PLUGIN_NAME}] LLM无响应，用简单提取`);
@@ -2783,6 +2797,38 @@ function relativeTimeLabel(eventTime, nowTime) {
                             } catch (e2) { /* 重试失败用原结果 */ }
                             this._lockedRetryDone = false;
                         }
+                    }
+                    // [v3.152] ANIMA 词典线 A3 消费端：① terms 新术语入典（dedup 后登记）；
+                    //   ② char_aliases 角色新称呼写入图谱节点 aliases（查询侧 buildAliasMap 单真源）。
+                    if (this.config.config.termLexiconEnabled !== false && this.lexicon) {
+                        try {
+                            const _floorNow = message?.index || 0;
+                            let _reg = 0;
+                            for (const t of (Array.isArray(parsed.terms) ? parsed.terms : [])) {
+                                const name = String(t?.name || '').trim();
+                                if (!name || name.length < 2) continue;
+                                const r = this.lexicon.resolve(name, _floorNow);
+                                if (r && !r.existed) _reg++;
+                                if (r && t?.desc && !r.item.desc) r.item.desc = String(t.desc).slice(0, 60);
+                                // 新称呼别名合入词条（查询端 attach 规范名）
+                                const alias = String(t?.alias || '').trim();
+                                if (r && alias && alias.length >= 2 && !r.item.terms.includes(alias) && r.item.terms.length < 8) r.item.terms.push(alias);
+                            }
+                            for (const ca of (Array.isArray(parsed.char_aliases) ? parsed.char_aliases : [])) {
+                                const main = this.resolveCharacterName(String(ca?.name || '').trim());
+                                const alias = String(ca?.alias || '').trim();
+                                if (!main || !alias || alias.length < 2) continue;
+                                try {
+                                    const node = [...this.graph.nodes.values()].find(n => n.type === 'character' && n.name === main);
+                                    if (node) {
+                                        const cur = new Set(node.data?.aliases || []);
+                                        if (!cur.has(alias)) { cur.add(alias); node.data = { ...(node.data || {}), aliases: Array.from(cur).slice(0, 8) }; }
+                                    }
+                                } catch (e) { errLog(e, 'lexicon.charAlias'); }
+                            }
+                            if ((_reg || parsed.terms?.length) && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📖 术语词典 +${_reg}（共 ${this.lexicon.items.length}）`);
+                            if (_reg) this._invalidateBm25Corpus();
+                        } catch (e) { errLog(e, 'lexicon.resolve'); }
                     }
                     // [v1.4] 角色名合法性校验：1-8字、无标点数字，过滤"钥匙在锁"类误提取
                     if (Array.isArray(parsed.characters)) {
@@ -4247,6 +4293,28 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return n;
             } catch (e) { errLog(e, 'recall.floorLedger'); return 0; }
         }
+        // [v3.152] ANIMA 词典线 B：感知检索配额——「当前剧情状态影响检索什么」的机制化轻量版。
+        // 数据源全部为现成剧情状态（零额外 API）：大纲 tempo（surge=高压期多检索）/ 未决矛盾 / 开放悬念。
+        // 基线 1.0，clamp [0.7, 1.6]；config 基数键 vectorTopK/bm25TopK 不动（向后兼容），只做乘法调制。
+        computeRecallQuota() {
+            try {
+                if (this.config.config.statusAwareQuotaEnabled !== true) return 1;
+                let quota = 1;
+                const tempo = this.outline?.stage?.tempo;
+                if (tempo === 'surge') quota += 0.3;           // 高压期：多喂记忆
+                else if (tempo === 'aftermath') quota -= 0.3;  // 余波期：降噪
+                const conflicts = (this.conflicts?.conflicts || []).length;
+                if (conflicts >= 3) quota += 0.15;             // 矛盾密集期：佐证材料要多
+                const openSusp = (this.suspense?.openItems?.() || []).length;
+                if (openSusp >= 5) quota += 0.15;              // 悬念密集期：线索召回加量
+                return Math.min(1.6, Math.max(0.7, quota));
+            } catch (e) { return 1; }
+        }
+        /** [v3.152] 词典变更后失效 BM25 语料指纹（下次召回自然重建，文档端按新词典重归一）。
+         *  词典状态不参与 _corpusFp 计算（三处语料指纹断言 v3148 保持不动），改走失效-重建通路。 */
+        _invalidateBm25Corpus() {
+            try { if (this.bm25) this.bm25._corpusFp = ''; } catch (e) { /* 非致命 */ }
+        }
         async recallMemory(query) {
             const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: [], neuralChain: [], worldProg: []};
             // [v3.149] 卷摘要 intact 对账（柏宝书 #13 缝入）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前先校验并降级展开（零 LLM 调用纯机制自愈）
@@ -4353,7 +4421,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             // 防长背景文本绝对分淹没最新用户输入；无分支时主查询 weight=1 行为等价旧版
             if (this.config.config.bm25Enabled && this.bm25.N && query.text) {
                 try {
-                    const bmTopK = this.config.config.bm25TopK || 5;
+                    const bmTopK = Math.round((this.config.config.bm25TopK || 5) * this.computeRecallQuota());
                     const branchSet = [{ key: 'main', text: query.text, weight: 0.3 }];
                     if (Array.isArray(query.branches) && query.branches.length) {
                         for (const b of query.branches) branchSet.push({ key: b.key, text: b.text, weight: Number(b.weight) || 0 });
@@ -4501,7 +4569,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             
             // [v2.4] RE: 多查询召回——主查询 + rewriteQuery 改写的查询分别检索
             if (this.config.config.vectorEnabled && query.text) {
-                const vectorResults = await this.vector.search(query.text, this.config.config.vectorTopK);
+                const vectorResults = await this.vector.search(query.text, Math.round(this.config.config.vectorTopK * this.computeRecallQuota()));
                 results.vector = vectorResults.map(v => ({
                     text: v.text,
                     score: v.score,
@@ -6258,6 +6326,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 pairMem: this.pairMem.export(),   // [v3.130] CP
                 lockedFacts: this.summary.getLockedFacts?.() || [],   // [v3.130] CP
                 recallSourceStats: this._recallSourceStats || null,   // [v3.130] CP
+                lexicon: this.lexicon.export(),   // [v3.152] 术语词典随聊天持久化
                 // [v3.130] CP: 游标身份（chatId/指纹）随存档走——CHANGED 自愈重置后，同楼层重入也能判定"同楼重放"而非误初始化
                 timelineCursorChatId: this._timelineCursorChatId,
                 timelineCursorFingerprint: this._timelineCursorFingerprint,
@@ -6355,6 +6424,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             // 直赋：summary.import 会重置其他字段，不可复用
             _imp('lockedFacts', Array.isArray(data.lockedFacts), () => { engine.summary.lockedFacts = data.lockedFacts.slice(); });
             _imp('recallSourceStats', typeof data.recallSourceStats === 'object', () => { engine._recallSourceStats = data.recallSourceStats; });
+            _imp('lexicon', !!engine.lexicon, () => { engine.lexicon.import?.(data.lexicon); engine._invalidateBm25Corpus?.(); });
             _imp('timeWentBack', typeof data.timeWentBack === 'object', () => { engine._timeWentBack = { ...data.timeWentBack }; });
             // 地面真源：只回填不回退（本地更新者保持自己的计数）
             _imp('lastSave', data.lastSave && typeof data.lastSave === 'object' && Number(data.lastSave.ts) > Number((engine._lastSaveGroundTruth || {}).ts || 0), () => {
@@ -8547,6 +8617,91 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         import(data) { this.entries = Array.isArray(data) ? data : []; }
     }
     
+    // [v3.152] ANIMA 词典线 A1：术语词典（聊天内非角色实体术语的 surface 化沉淀）。
+    // 检索端既有 buildAliasMap（角色昵称）也有本词典（物品/地名/概念/招式/组织等），
+    // 查询命中术语时把规范名 + 释义短语附加进查询文本，BM25 与向量同享。
+    // 存档键 'lexicon'（CP 冻结键契约登记见 collectExport/restoreFromPayload），
+    // 构造零依赖（无 window/ST 时安静降级为纯数据类，可被 Node 单测直接实例化）。
+    class EntityLexicon {
+        constructor(opts = {}) {
+            this.max = Math.max(10, Math.round(Number(opts?.max) || 40));
+            this.items = [];   // [{ canon, terms:[], desc, count, firstFloor, lastFloor }]
+        }
+        normalizeText(s) {
+            return String(s ?? '').normalize('NFKC').trim().toLocaleLowerCase('zh-CN');
+        }
+        _hitBoundary(hay, needle) {
+            // 拉丁 3+ 字表面要求词边界（防 BLADEWORKS 误命中 BLADE）；其余（汉字/短词）substring
+            if (!/^[a-z0-9]{3,}$/.test(needle)) return hay.includes(needle);
+            try { return new RegExp('(?<![a-z0-9])' + needle + '(?![a-z0-9])').test(hay); }
+            catch (e) { return hay.includes(needle); }
+        }
+        /** 在文本中找已登记术语（NFKC 归一匹配；命中项按最长术语降序，防短词抢配额）。
+         *  @returns {Array} 命中项 [{item, terms:[surface]}] */
+        match(text) {
+            const hay = this.normalizeText(text);
+            if (!hay) return [];
+            const hits = [];
+            for (const it of this.items) {
+                const surfaces = it.terms.filter(t => this._hitBoundary(hay, this.normalizeText(t)));
+                if (surfaces.length) hits.push({ item: it, terms: surfaces });
+            }
+            hits.sort((a, b) => b.item.terms.reduce((m, t) => Math.max(m, t.length), 0)
+                - a.item.terms.reduce((m, t) => Math.max(m, t.length), 0));
+            return hits;
+        }
+        /** 从文本登记/累积术语。@returns {{item, terms, existed}|null} 无有效新术语为 null */
+        resolve(text, floor = 0) {
+            const fl = Math.max(0, Math.round(Number(floor) || 0));
+            const known = this.match(text);
+            for (const h of known) { h.item.count += h.terms.length; h.item.lastFloor = Math.max(h.item.lastFloor, fl); }
+            if (known.length) return { item: known[0].item, terms: known[0].terms, existed: true };
+            const item = this._register(text, fl);
+            return item ? { item, terms: [String(text ?? '').trim()], existed: false } : null;
+        }
+        _register(text, floor) {
+            const canon = this.normalizeText(text);
+            if (!canon || canon.length < 2 || canon.length > 40) return null;   // 单字拒绝（bigram 已天然覆盖）
+            if (/^[\d\p{P}\p{S}]+$/u.test(canon)) return null;   // 纯数字/标点/符号不入典
+            const hit = this.items.find(x => x.canon === canon);
+            if (hit) { hit.count += 1; hit.lastFloor = Math.max(hit.lastFloor, floor); return hit; }
+            const item = { canon, terms: [String(text ?? '').trim().slice(0, 40)], desc: '', count: 1, firstFloor: floor, lastFloor: floor };
+            this.items.push(item);
+            if (this.items.length > this.max) {
+                // 超限淘汰：count 最少 → lastFloor 最旧
+                this.items.sort((a, b) => a.count - b.count || a.lastFloor - b.lastFloor);
+                this.items = this.items.slice(-this.max);
+            }
+            return item;
+        }
+        /** ANIMA「LLM 自动更新词典」的核心：给提取管线追加 9l（terms 新术语）+ 9m（char_aliases
+         *  角色新昵称）两条规则，词典非空时附已知术语清单（新称呼写 alias 字段回灌）。
+         *  词典为空时返回引导版（冷启动也能开始沉淀）。 */
+        promptRules() {
+            const known = this.items.length
+                ? '已知术语（正文揭示新称呼时写入 alias 字段）：\n' + this.items.slice(-12).map(it => '- ' + it.terms[0] + (it.desc ? '：' + it.desc : '')).join('\n')
+                : '（暂无已知术语）';
+            return '9l. terms：本轮对话中新出现的【专有术语】——物品名/地名/招式/组织/概念/称号等（角色名走 characters 不重复登记）。每条 {"name":"术语","desc":"一句话说明","alias":"该术语本轮出现的新称呼（仅当正文用了新叫法时填写，无则省略）"}。'
+                + '9m. char_aliases：本轮对话中角色的【新称呼】——昵称/绰号/代称/头衔（已知角色名单之外的新叫法，name 填已知名单中的主名）。每条 {"name":"角色主名","alias":"新称呼"}。没有则填空数组。' + known;
+        }
+        export() { return JSON.parse(JSON.stringify(this.items)); }
+        import(data) {
+            if (!Array.isArray(data)) return;
+            this.items = data
+                .filter(x => x && typeof x === 'object' && x.canon)
+                .map(x => ({
+                    canon: String(x.canon).slice(0, 40),
+                    terms: Array.isArray(x.terms) ? x.terms.map(t => String(t).slice(0, 40)).filter(Boolean).slice(0, 8) : [String(x.canon)],
+                    desc: String(x.desc || '').slice(0, 120),
+                    count: Math.max(1, Math.round(Number(x.count) || 1)),
+                    firstFloor: Math.max(0, Math.round(Number(x.firstFloor) || 0)),
+                    lastFloor: Math.max(0, Math.round(Number(x.lastFloor) || 0)),
+                })).slice(-this.max);
+        }
+    }
+    // [v3.152] ANIMA 词典线 A1：对外挂载（与 LonShaEventChain 等库挂载同构；本类内联 index.js 无外部依赖）
+    window.LonShaEntityLexicon = { EntityLexicon };
+
     // [v1.9] P1: BM25 稀疏检索（抄 anima bm25：词频×逆文档频率×长度归一化）
     class BM25 {
         constructor() { this.docs = []; this.docTerms = []; this.df = new Map(); this.N = 0; this.avgLen = 0; }
@@ -8563,11 +8718,39 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
             return tokens;
         }
-        rebuild(docs) {
+        // [v3.152] A2 词典归一单真源：文档端统一别名表面→规范名；查询端附加规范名+释义。
+        // 数据源优先 rebuild 注入的引擎词典（_lexRef），回落 window.LonShaMemory.engine.lexicon；
+        // 两处都不可用（Node 单测/无词典）时原样返回，行为与 v3.151 完全一致。
+        _lexExpand(text, lxOverride, withDesc) {
+            try {
+                const lx = lxOverride || this._lexRef
+                    || (typeof window !== 'undefined' && window.LonShaMemory?.engine?.lexicon) || null;
+                if (!lx || !lx.items?.length) return String(text ?? '');
+                const hits = lx.match(text);
+                if (!hits.length) return String(text ?? '');
+                let out = String(text ?? '');
+                for (const h of hits) {
+                    const canon = h.item.terms[0];
+                    for (const s of h.terms) if (s !== canon) out += ' ' + canon;
+                    if (withDesc && h.item.desc) out += ' ' + String(h.item.desc).slice(0, 60);
+                }
+                return out;
+            } catch (e) { return String(text ?? ''); }
+        }
+        /** 文档端归一（rebuild 的 docTerms 构建内调用） */
+        _lexNormalize(text) { return this._lexExpand(text, null, false); }
+        /** 查询端归一（searchBranches 的分支构建处调用）：附加规范名 + 释义短语 */
+        normalizeQueryByLexicon(text, lx) { return this._lexExpand(text, lx, true); }
+        rebuild(docs, lexicon = null) {
             this.docs = docs || [];
             this.N = this.docs.length;
+            // [v3.152] 词典引用与归一指纹（诊断用；词典变更后引擎经 _invalidateBm25Corpus 置空 _corpusFp 触发重建）
+            this._lexRef = lexicon || this._lexRef || null;
+            try {
+                this._lexFp = (this._lexRef?.items || []).map(x => x.canon + ':' + x.count + ':' + (x.terms || []).length + ':' + (x.desc ? 1 : 0)).join('|');
+            } catch (e) { this._lexFp = ''; }
             this.docTerms = this.docs.map(d => {
-                const terms = this._tokenize(d.text);
+                const terms = this._tokenize(this._lexNormalize(d.text));
                 const map = new Map();
                 terms.forEach(t => map.set(t, (map.get(t) || 0) + 1));
                 return map;
@@ -8621,8 +8804,15 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         // 分支独立归一化后，短查询在自己分支内也能拿满 1.0，锚定最新诉求。
         searchBranches(branches, topK = 5, opts = {}) {
             if (!this.N) return [];
+            // [v3.152] A2 查询端词典归一：查询命中术语时附加规范名 + 释义短语（与文档端同一词典）
+            const _lxOn = (typeof window !== 'undefined' && window.LonShaMemory?.engine?.config?.config?.bm25LexiconNormalizeEnabled !== false);
+            const _lx = _lxOn ? (this._lexRef || (typeof window !== 'undefined' && window.LonShaMemory?.engine?.lexicon) || null) : null;
             const active = (Array.isArray(branches) ? branches : [])
-.map((b, i) => ({ key: String(b?.key ?? i), weight: Number(b?.weight) || 0, terms: [...new Set(this._tokenize(opts.aliasMap ? this._expandAliases(b?.text, opts.aliasMap) : b?.text))] }))
+.map((b, i) => {
+                    let _t = (opts.aliasMap ? this._expandAliases(b?.text, opts.aliasMap) : b?.text);
+                    if (_lx && _lx.items?.length) _t = this.normalizeQueryByLexicon(_t, _lx);
+                    return { key: String(b?.key ?? i), weight: Number(b?.weight) || 0, terms: [...new Set(this._tokenize(_t))] };
+                })
                 .filter(b => b.weight > 0 && b.terms.length);
             if (!active.length) return [];
             const weightTotal = active.reduce((s, b) => s + b.weight, 0);

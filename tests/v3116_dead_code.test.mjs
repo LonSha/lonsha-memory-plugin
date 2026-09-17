@@ -103,9 +103,9 @@ test('【4】活跃代码总量下降', () => {
   const allJs = readdirSync(ROOT).filter(f => f.endsWith('.js'));
   let total = 0;
   for (const f of allJs) total += readFileSync(path.join(ROOT, f), 'utf8').split('\n').length;
-  // 删除前 46 文件 / 25,323 行；删除 14 个死文件后应显著下降
+  // 删除后应显著下降；上界随功能增长同步（v3.152 词典线 +197 行 → 21000，仅允许活跃功能增长）
   assert.ok(allJs.length === 32, `根 .js 文件数 46 → ${allJs.length}（预期 32）`);
-  assert.ok(total < 20000, `总行数 ${total} < 20000（死代码已清除）`);
+  assert.ok(total < 21000, `总行数 ${total} < 21000（死代码已清除；上界随活跃功能同步，v3.152 放宽）`);
   assert.ok(total > 15000, `总行数 ${total} > 15000（未误删活跃代码）`);
   ok(`活跃代码 ${allJs.length} 文件 / ${total} 行`);
 });

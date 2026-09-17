@@ -1,3 +1,11 @@
+## v3.152.0
+- **ANIMA 词典线闭环（术语词典 + BM25 双端归一 + 感知配额 + 持久化契约）**：探索纪要 #26/#28 两项「直接可用」候选此前零落地——非角色实体术语（物品/地名/招式/组织）没有沉淀通道，查询侧别名映射只覆盖图谱角色节点而空转；检索配额（`vectorTopK`/`bm25TopK`）全静态，剧情高压期与平淡期同配额。本轮一次补齐。
+  - **A1 术语词典（`EntityLexicon`，内联 index.js 零加载依赖，挂 `window.LonShaEntityLexicon`）**：词条 `{canon, terms[], desc, count, firstFloor, lastFloor}`；NFKC 归一（全角/半角拉丁合并）、拉丁 3+ 字走词边界断言（`BLADE` 不命中 `BLADEWORKS` 内部）、单字与纯数字拒绝、`max` 上限（默认 40）按 `count`+`lastFloor` 升序淘汰低频。持久化走存档键 `lexicon`（契约登记 + collectExport + `_imp('lexicon')` 分派），随聊天冻结/恢复对称。
+  - **A2 BM25 双端归一**：`_lexExpand(text, lxOverride, withDesc)` 单真源——文档端 `_lexNormalize(d.text)` 接在 `rebuild` 的 docTerms 构建内，查询端 `normalizeQueryByLexicon(text, lx)`（withDesc=true，附带词条释义）接在 `searchBranches` 的 active 分支构建处，两处均受 `bm25LexiconNormalizeEnabled` 门控。词典变更经 `_invalidateBm25Corpus()` 置空 `_corpusFp` 触发重建；**词典状态刻意不并入 `_corpusFp` 计算**（守 v3148 三处语料指纹硬断言），独立 `_lexFp` 仅作诊断。
+  - **A3 提取产物回灌**：`extractMemoryWithLLM` 解析后新增消费端——`parsed.terms` 经 `lexicon.resolve` 登记（desc 合入、alias 并入 terms），`parsed.char_aliases` 写图谱 `character` 节点 `data.aliases`（查询侧 `buildAliasMap` 单真源，省一轮 LLM 调用）。提示词侧新增 9l（新术语）/9m（角色新称呼）两条动态规则，附最近 12 条已知术语清单，受 `termLexiconEnabled` 门控。
+  - **B 状态感知检索配额（`computeRecallQuota`，默认关）**：基线 1.0；`outline.stage.tempo === 'surge'` +0.3、`=== 'aftermath'` −0.3；`conflicts.conflicts.length >= 3` +0.15；`suspense.openItems().length >= 5` +0.15；clamp `[0.7, 1.6]`。开关 `statusAwareQuotaEnabled !== true` 时恒返回 1（默认关，行为与 v3.151 完全一致）。消费点两处：`bmTopK` 与 `vector.search` 的 topK 各乘配额。
+  - **配置**：新增 4 键 `termLexiconEnabled`(true) / `termLexiconMax`(40) / `bm25LexiconNormalizeEnabled`(true) / `statusAwareQuotaEnabled`(false)；3 个开关经 settings-ui `ck()` 登记 + `termLexiconMax` 数值滑杆；`bm25LexiconNormalizeEnabled` 无独立 UI（随主开关），登记进 v3113 白名单。
+  - **测试**：新增 `tests/v3152_entity_lexicon.test.mjs`（9 项）——结构接线 / EntityLexicon 纯类行为（resolve 登记/NFKC 合并/词边界/上限淘汰/导入对称）/ 持久化契约 / BM25 双端归一接线 / 感知配额数据源与消费点 / 提取产物回灌 / UI 与白名单 / 版本四处同步 / 类块配平。更新 v3117/v3130/v3147 三处版本号锚点至 3.152.0。
 ## v3.151.0
 - **召回自检摘要外供（跨项目：手机端织光机消费）**：v3.150 的 A 账本 `_recallAudit` 此前只服务诊断面板（插件内自用）。本轮把它做成对外只读投影——公开快照桥 `window.lonsha_memory_bridge_v1.snapshot.recallAudit` 新增摘要字段，让手机端「织光机」能读到「你最常回望的时光」这一维度，两端观测数据互喂。
   - **`_summarizeRecallAudit()`**：把环形账本（每轮 查询/各来源命中数/空结果/楼层命中分布）压成轻量摘要 `{rounds, emptyRounds, avgHits, hotFloors[{floor,count}×Top10], lastQuery, lastTs}`。纯读，不改写账本；账本空/脏值一律降级为中性空态。

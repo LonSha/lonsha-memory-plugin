@@ -40,7 +40,7 @@ function extractClass(name) {
 }
 
 test('【v3.147.0】结构与契约基线断言', () => {
-  assert.ok(src.includes("const VERSION = '3.151.0';"), '版本号为 3.151.0');
+  assert.ok(src.includes("const VERSION = '3.152.0';"), '版本号为 3.152.0');
   assert.ok(src.includes('_credCooldowns = new Map()'), '存在 _credCooldowns 冷却表');
   assert.ok(src.includes('clearApiCooldowns'), '存在 clearApiCooldowns 方法');
   assert.ok(src.includes('getApiCooldownStats'), '存在 getApiCooldownStats 方法');
