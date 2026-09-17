@@ -185,16 +185,18 @@ test('[3] version is synced across the four declaration sites', () => {
     assert.strictEqual(v, pkg.version, 'package follows index.js');
     assert.ok(vnum(v) >= vnum('3.158.0'), 'index.js version ' + v + ' >= 3.158.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(changelog.trimStart().startsWith('## v3.158.0'), 'newest release heads the changelog');
+    // [v3.159] 已交新版接管：不再断言「本版占据 CHANGELOG 头」，改为版本无关不变量
+    const heads = changelog.split('\n').filter((l) => l.startsWith('## v'));
+    const top = heads.map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
+    assert.strictEqual(top, v, 'the highest section must be the released version');
 });
 
-test('[3b] old anchors were taken over, not dropped', () => {
-    const t117 = readFileSync(path.join(ROOT, 'tests/v3117_diagnostics.test.mjs'), 'utf-8');
-    const t130 = readFileSync(path.join(ROOT, 'tests/v3130_control_plane.test.mjs'), 'utf-8');
-    const t147 = readFileSync(path.join(ROOT, 'tests/v3147_cooldown_and_dual_hash.test.mjs'), 'utf-8');
-    assert.ok(t117.includes("'3.158.0'") && !t117.includes("'3.157.0'"), 'v3117 re-anchored');
-    assert.ok(t130.includes("'3.158.0'") && !t130.includes("'3.157.0'"), 'v3130 re-anchored');
-    assert.ok(t147.includes("const VERSION = '3.158.0';") && !t147.includes("'3.157.0'"), 'v3147 re-anchored');
+test('[3b] the three legacy files still check a version string', () => {
+    // [v3.159] 已交新版接管：不再锁定到本版字符串，改为不变量——「仍在核对某个版本串」。
+    for (const f of ['v3117_diagnostics', 'v3130_control_plane', 'v3147_cooldown_and_dual_hash']) {
+        const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
+        assert.ok(/['"]3\.1[0-9][0-9]\.0['"]|const VERSION = '3\.1[0-9][0-9]\.0'/.test(t), f + ' still anchors a version string');
+    }
 });
 
 test('[3c] v3157 gave up its own-release exclusivity', () => {

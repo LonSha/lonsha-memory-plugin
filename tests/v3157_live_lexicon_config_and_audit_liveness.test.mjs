@@ -201,7 +201,10 @@ function withFixture(indexJs, uiJs, fn) {
     try {
         writeFileSync(path.join(dir, 'index.js'), indexJs);
         writeFileSync(path.join(dir, 'settings-ui.js'), uiJs);
-        return fn(dir, spawnSync(process.execPath, [AUDIT], { cwd: dir, encoding: 'utf-8' }));
+        // [v3.159] 探针自测夹具是人工构造的极小字芈，会被新加的结构预检拦下；
+        //   夹具通道需显式声明（仅开放下限，不影响正常门禁）。
+        const env = { ...process.env, LONSHA_AUDIT_FIXTURE: '1' };
+        return fn(dir, spawnSync(process.execPath, [AUDIT], { cwd: dir, encoding: 'utf-8', env }));
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

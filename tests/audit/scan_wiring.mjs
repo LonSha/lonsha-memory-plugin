@@ -4,6 +4,25 @@ import fs from 'fs';
 const idx = fs.readFileSync('index.js', 'utf8');
 const ui = fs.readFileSync('settings-ui.js', 'utf8');
 const lines = idx.split('\n');
+/* ---------- 0. 结构预检（v3.159 补） ---------- */
+// 本脚本旧版没有任何 exit 语句：所有指标都是计数，不管数字多不合理，进程都以 0 退出。
+//   一旦 index.js / settings-ui.js 退化（空文件、结构改名），它会报「配置键 0 / 方法 0 / 孤儿 0」并「通过」。
+//   所以这里同样先验输入，再把已知为零的硬缺陷变成阻断条件。
+const MIN_IDX_BYTES = 100000;
+const MIN_UI_BYTES = 20000;
+const MIN_CFG_KEYS = 100;
+if (idx.length < MIN_IDX_BYTES || ui.length < MIN_UI_BYTES) {
+    console.error('[wiring] 输入退化（index.js ' + idx.length + ' 字节 / settings-ui.js ' + ui.length + ' 字节），审计脚本需同步结构变化');
+    process.exit(2);
+}
+// 体量还不够：ui_trunc 场景（截断到前 200 行）字节数仍可能超过下限，但配置控件已经不在了。
+//   故再验一个与结构直接相关、与文件大小无关的量：UI 侧 data-cfg* 控件数。
+const MIN_UI_CFG_CTRLS = 30;   // 当前实测 data-cfg* 出现 67 次；截断到前 200 行时为 0
+const uiCfgCtrls = (ui.match(/data-cfg/g) || []).length;
+if (uiCfgCtrls < MIN_UI_CFG_CTRLS) {
+    console.error('[wiring] settings-ui.js 仅含 ' + uiCfgCtrls + ' 个 data-cfg* 控件（低于下限 ' + MIN_UI_CFG_CTRLS + '），UI 抽取面已退化，审计脚本需同步结构变化');
+    process.exit(2);
+}
 
 function braceBlock(text, fromIdx) {
     let i = text.indexOf('{', fromIdx), depth = 0;
@@ -20,6 +39,10 @@ const cfgStart = idx.indexOf('this.config = {');
 const cfgBlock = braceBlock(idx, cfgStart);
 const cfgKeys = new Set();
 for (const km of cfgBlock.matchAll(/^\s{12,20}([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm)) cfgKeys.add(km[1]);
+if (cfgKeys.size < MIN_CFG_KEYS) {
+    console.error('[wiring] 仅抽到 ' + cfgKeys.size + ' 个配置键（低于下限 ' + MIN_CFG_KEYS + '），配置块抽取器已失效，本次结果不具证明力');
+    process.exit(2);
+}
 
 // ---------- 2. UI 键 ----------
 const uiKeys = new Set();
@@ -97,3 +120,18 @@ console.log('=== A8.1 存而不读（导出但 load 无 data.<key> 恢复） (' 
 console.log(exportOnly.length ? '  ' + exportOnly.join(', ') + '\n  ⚠ 这些键换会话会归零' : '  （无）');
 console.log('=== A8.2 读而无存（load 读取但 collectExport 不导出） (' + loadOnly.length + '):');
 console.log(loadOnly.length ? '  ' + loadOnly.join(', ') + '\n  ⚠ 这些键恢复永远为空' : '  （无）');
+/* ---------- 7. 终局判定（v3.159 补）：把已知为零的硬缺陷变成阻断条件 ---------- */
+// A8.1/A8.2 是实质缺陷（存而不读 = 换会话归零；读而无存 = 恢复永远为空），不是参考信息。
+//   当前两项均为 0，故可以直接升为红线：以后新增字段忘写恢复侧时，这里会截断而不是埋在输出里。
+const hardFails = [];
+if (exportOnly.length) hardFails.push('A8.1 存而不读 ' + exportOnly.length + ' 个: ' + exportOnly.join(', '));
+if (loadOnly.length) hardFails.push('A8.2 读而无存 ' + loadOnly.length + ' 个: ' + loadOnly.join(', '));
+if (hardFails.length) {
+    console.error('');
+    console.error('[wiring] 发现 ' + hardFails.length + ' 类硬缺陷：');
+    for (const h of hardFails) console.error('  x ' + h);
+    process.exit(1);
+}
+console.log('');
+console.log('[wiring] 通过：配置键、方法调用与持久化对称性均无硬缺陷。');
+process.exit(0);

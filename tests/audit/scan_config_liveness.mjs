@@ -18,6 +18,23 @@ import fs from 'fs';
 
 const idx = fs.readFileSync('index.js', 'utf8');
 const ui = fs.readFileSync('settings-ui.js', 'utf8');
+/* ---------- 0. 结构预检（v3.159 补：此前 UI 侧退化成空文件会报「UI 呈现键 0 / 死配置 0」并 exit 0） ---------- */
+// 为什么要有这一段：本脚本的下游全部推理都以「从 UI 里抽到了键」为输入。
+//   若 UI 文件退化（空文件 / 结构改名 / 抽取正则失配），键集为空 -> 无键可查 -> 死配置 0 -> 「通过」。
+//   这是最危险的失败模式：审计失效的方式是「报告一切正常」。故先验证输入自身在合理区间内，否则 exit 2。
+// 例外通道：回归测试会用「人工构造的极小字节”作为探针自测夹具，那些夹具本身就应该越过下限。
+//   故只在显式声明「我知道这是夹具」时放行，默认仍严格。
+const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
+const MIN_UI_KEYS = FIXTURE_MODE ? 1 : 100;   // 当前实测 144；退化阈值取一半以下，避免正常增删误报
+const MIN_UI_BYTES = 20000;
+if (!FIXTURE_MODE && (ui.length < MIN_UI_BYTES || !ui.includes('data-cfg'))) {
+    console.error('[config-liveness] settings-ui.js 退化（' + ui.length + ' 字节，含 data-cfg=' + ui.includes('data-cfg') + '），无法抽取 UI 配置键，审计脚本需同步结构变化');
+    process.exit(2);
+}
+if (!FIXTURE_MODE && idx.length < 100000) {
+    console.error('[config-liveness] index.js 退化（' + idx.length + ' 字节），无法进行可达性分析，审计脚本需同步结构变化');
+    process.exit(2);
+}
 
 /* ---------- 1. 默认配置块 ---------- */
 const cfgStart = idx.indexOf('this.config = {');
@@ -109,6 +126,10 @@ for (const key of [...uiKeys].sort()) {
     else dead.push({ key, why: "仅被无调用者的方法消费: " + [...owners].join(", ") });
 }
 
+if (uiKeys.size < MIN_UI_KEYS) {
+    console.error("[config-liveness] 仅抽到 " + uiKeys.size + " 个 UI 配置键（低于下限 " + MIN_UI_KEYS + "），提取器已失效，本次「无死配置」不具证明力");
+    process.exit(2);
+}
 console.log("=== D1 配置活性: UI 呈现键 " + uiKeys.size + " / 可到达 " + reachable.length + " / 死配置 " + dead.length + " ===");
 if (dead.length) {
     for (const d of dead) console.log("  x DEAD: " + d.key + "  (" + d.why + ")");

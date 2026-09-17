@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.158.0';
+        const VERSION = '3.159.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -3368,7 +3368,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const c = window.SillyTavern?.getContext?.();
                 const chat = c?.chat || [];
                 if (!chat.length || typeof c?.hideChatMessageRange !== 'function') return 0;
-                const keep = Math.max(0, numOr(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent, 0));   // [v3.156] 0=不保留也在范围内
+                const keep = Math.max(0, numOr(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent, 6));   // [v3.159] 回退值改为与默认配置一致（原为 0：配置键缺失时会把所有楼层吐掉）
                 if (this.config.config.coverageLedgerEnabled === true) {
                     const applied = this._recomputeCoverage(keep);
                     if (applied !== null) return applied;

@@ -175,7 +175,8 @@ test('[1d] numOr consumption sites reach expected count', () => {
     const PROBES = [
         'numOr(cfg.vectorChunkOverlap, 10)',
         'numOr(this.config.config.aiRecallOpsMaxPerFloor, 12)',
-        'numOr(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent, 0)',
+        // [v3.159] 回退值由 0 改为 6：与默认配置声明一致（原 0 会在配置缺失时把所有楼层吐掉）
+        'numOr(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent, 6)',
         'numOr(this.config.config.diaryEveryFloors, 3)',
         'numOr(config.diaryEveryFloors, 3)',
         'numOr(this.config.config.echoMaxCount, 10)',
