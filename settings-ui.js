@@ -790,6 +790,12 @@
                 <div class="ls-group">
                     <div class="ls-group-title">📚 层级摘要折叠 + BM25 稀疏检索</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
+                    <div class="ls-slider-label"><span>卷摘要保留上限（anima #31）</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
+                    <input type="range" class="ls-slider" min="4" max="200" step="2" value="${c.volumeRetention || 40}" data-cfg-num="volumeRetention" oninput="document.getElementById('ls-v-volret').textContent=this.value">
+                    <div class="ls-hint" style="padding:0 8px;">超上限时不再静默丢卷，而是把被淘汰卷折叠的源摘要解折叠回活跃池（叙事可重新参与召回），并记入 op-log。</div>
+                    <div class="ls-slider-label"><span>史记保留上限（anima #31）</span><span class="ls-slider-val" id="ls-v-hisret">${c.historicalRetention || 24}</span></div>
+                    <input type="range" class="ls-slider" min="2" max="100" step="1" value="${c.historicalRetention || 24}" data-cfg-num="historicalRetention" oninput="document.getElementById('ls-v-hisret').textContent=this.value">
+                    <div class="ls-hint" style="padding:0 8px;">最高层纪史上限；淘汰同样显式记日志，不再静默 shift。</div>
                     ${ck('bm25Enabled', 'BM25 关键词检索', '词频×逆文档频率稀疏检索，比纯包含匹配更准')}
                     ${ck('sessionLeaseGuardEnabled', '会话租约校验', '异步提取/补提取/STM 巩固跨 await 后若已切换聊天，旧任务结果作废，防跨聊天记忆污染')}
                     ${ck('atomicRestoreEnabled', '恢复原子提交', '导入/嵌入恢复部分失败时自动回滚到恢复前状态，不留半套记忆（快照仅对用户发起的恢复抓取）')}
@@ -821,6 +827,8 @@
                     <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
                     ${ck('itemLedgerEnabled', '物品台账（抄yuzuki）', '提取物品获得/转移/损坏流转，注入"谁持有什么、什么状态"，防物品凭空消失又出现')}
+                    ${ck('ledgerWriteValidationEnabled', '台账写入校验（anima #30）', '入账前对 LLM 提取/携带包的物品 op 逐项宽容校验：action 枚举、name/desc/holder/state/location 长度上限、floor 非负整数、holder 占位归「地上/遗落」、carried 与 location 互斥自愈。能修就修、修不了才丢，绝不因一项脏丢整批；关闭则逐位回退旧行为')}
+                    ${ck('ledgerWriteValidationDebug', '台账校验调试日志', '开启后每次写入校验有违规时在控制台 warn 输出逐项原因（默认关）')}
                     ${ck('moneyLedgerEnabled', '钱财账本（hcdiary）', '跟踪角色金额与变动流水，注入防凭空暴富；配合下方单笔幅度上限可 clamp 异常改值')}
                     <div class="ls-slider-label"><span>💰 钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="100000" step="1000" value="${c.maxMoneyDelta || 0}" data-cfg-num="maxMoneyDelta" oninput="document.getElementById('ls-v-mmd').textContent=this.value">

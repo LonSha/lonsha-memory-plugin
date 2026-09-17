@@ -1,3 +1,15 @@
+## v3.154.0
+- **台账写入侧 zod 式校验（anima #30）**：v3.128 的 `maxMoneyDelta` clamp 只堵住了钱财账本，物品台账的**写入侧**一直裸奔——`_sanitizeItemOp` 仅在 `rebuildItems` 的派生视图路径被调用，而真源 `itemOps`（要落盘、要进携带包、要被导出导入）在两条路径上完全不设防：① `importCarryoverSeed` 把外部携带包的原始对象直接 `push` 进真源；② LLM 提取结果也只做了 `if (!it?.name) continue` 就入账。本轮在写入前插入零依赖纯函数校验内核（`validateLedgerItemOp` / `validateLedgerItemOps` / `validateCarriedItems`），字段约束对齐既有 `_sanitizeItemOp` 口径：action 白名单（含 `del/delete/drop`→remove、`gain/take/get`→add 宽容别名）、name/desc/holder/state/location 长度上限（40/80/20/10/40）、floor 非负整数、holder 占位词归「地上/遗落」、carried 与 location 互斥自愈、单批上限 60。
+  - **宽容转换，非拒绝**：能修就修（截长、归枚举、拆互斥），修不了才丢；绝不因一项脏就丢整批（对齐 loose-json「逐项独立校验」纪律）。唯一硬拒绝路径是 action 非法或 name 缺失/为空。
+  - **默认开、可关**：`ledgerWriteValidationEnabled` 默认 `true`；关闭时逐位回退旧行为（携带包仍走原 `it.name` 直 push 语义）。
+  - **违规可观测**：每项违规带 `kind`/`reason(s)`/`source`/`floor`/`ts` 进环形账本 `_ledgerViolations`（`ledgerViolationLogMax` 默认 200，超出丢最旧），`ledgerWriteValidationDebug` 可开控制台逐项 warn，同时写 op-log（`item/validate`）。诊断面板新增「台账校验」行（`_ledgerViolationSummary` 按 kind 计数 + top 2 主因），先让失败可见。
+- **摘要金字塔显式淘汰与 GC 校准（anima #31）**：金字塔的每层上限一直是硬编码的 `if (len > N) shift()` ——卷摘要 `>20`、史记 `>6`。这有两个问题：① 上限不可调，长线连载与短篇共用同一刀口；② **静默丢卷**：被 `shift()` 掉的卷摘要里锁着一段完整叙事，丢了就再也回不来，且没有任何日志或账本记录。
+  - **卷上限 `volumeRetention`（默认 40）**：超限时逐个 `while` 淘汰，并在淘汰前把该卷折叠的源摘要**解折叠回活跃池**（`folded=false` + `volumeId` 解绑），与 `verifyVolumesIntact` 降级同语义——卷没了，源摘要必须能重新参与召回，而不是随卷一起蒸发。每次淘汰写 op-log（`summary/evict`）并附「解折叠 N 条源摘要」。
+  - **史记上限 `historicalRetention`（默认 24）**：`foldHistorical` 与 `addGrandChronicle` 两条路径统一读同一配置源，逐个淘汰 + 显式 op-log，不再静默。
+  - 上限默认值相比旧硬编码（20 / 6）上调，是**有意为之的扩容**：旧值在长线连载下过紧，且旧行为是「静默销毁」；新行为下即便触顶也先解折叠再淘汰，叙事不丢。
+- **设置面板**：新增「台账写入校验」「台账校验调试日志」两开关，以及「卷摘要保留上限」「史记保留上限」两数值滑杆（各带数值回显与说明）。五项新配置均进卡覆盖白名单（`CARD_CFG_KEYS`）。
+- **范围界定**：`_sanitizeItemOp` 仍作为派生层兜底保留（旧档兼容，真源不动）；本轮不动 BM25 词典与配置三级合并（另版）。
+
 ## v3.153.0
 - **ANIMA 感知线补全（swipe 感知 #33 + 物品台账感知臂 #28 轻量版）**：v3.152 已把感知配额骨架（`computeRecallQuota`，默认关）搭好，但只有大纲 tempo / 矛盾 / 悬念三臂，探索纪要里剩下的两个「检索前置」信号——swipe 重绘态、物品台账变动——本轮补进同一配额计算器，仍默认关、行为与 v3.152 逐位一致。
   - **swipe 感知臂（`swipeAwareRecallEnabled`，默认关）**：对齐 anima `_isSwipeMode` 原生语义——`onBeforeGeneration` 复用既有游标块读末楼 `swipe_id`，`>0` 即「正在重绘 assistant 回复」置 `this._swipeRegen`（无条件维护，消费受总门控）。重绘态下 `computeRecallQuota` +0.2，给模型更宽的候选，避免换一版又抽风。与 v2.9/v3.89 的 swipe 召回缓存复用正交：缓存命中直接返回、不进配额；缓存失效重算时本臂生效。

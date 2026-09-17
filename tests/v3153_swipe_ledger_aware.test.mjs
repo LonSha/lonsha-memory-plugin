@@ -73,18 +73,12 @@ test('【5】settings-ui 登记两开关 + 卡覆盖白名单', () => {
     // v3113 白名单不新增（两开关均有 UI，不需要白名单豁免）
 });
 
-// ================= 6. 版本四处同步 + 旧锚点 =================
-test('【6】版本四处同步 3.153.0', () => {
+// ================= 6. 版本下限（当版独占断言已交 v3154 接管）=================
+test('【6】版本下限 3.153.0（CHANGELOG 头与旧锚点交后续版本接管）', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.ok(vnum(v) >= vnum('3.153.0'), `index.js 版本 ${v} >= 3.153.0`);
     assert.ok(vnum(manifest.version) >= vnum('3.153.0'), 'manifest 版本');
     assert.ok(vnum(pkg.version) >= vnum('3.153.0'), 'package 版本');
-    const cl = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(cl.trimStart().startsWith('## v3.153.0'), 'CHANGELOG 头部 3.153.0');
-    for (const t of ['tests/v3117_diagnostics.test.mjs', 'tests/v3130_control_plane.test.mjs', 'tests/v3147_cooldown_and_dual_hash.test.mjs']) {
-        const ts = readFileSync(path.join(ROOT, t), 'utf-8');
-        assert.ok(ts.includes("'3.153.0'"), `${t} 版本锚点同步 3.153.0`);
-    }
 });
 
 // ================= 7. 旧版 v3152 测试去当版独占断言 =================

@@ -155,6 +155,7 @@ test('【6】残余不可配键白名单', () => {
     'pyramidTiers',            // 层级结构数组（内部）
     'memoryTreeEnabled',       // 默认关实验功能
     'bm25LexiconNormalizeEnabled', // [v3.152] 默认开功能，已由 termLexiconEnabled 组统一开关
+    'ledgerViolationLogMax',      // [v3.154] 违规环形账本容量（内部常量，面板已有「台账校验」行可观测）
   ]);
   const unexpected = missing.filter((k) => !allowed.has(k));
   assert.deepStrictEqual(unexpected, [], '意外不可配的键: ' + unexpected.join(', '));

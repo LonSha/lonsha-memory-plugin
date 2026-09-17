@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.153.0';
+        const VERSION = '3.154.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -816,6 +816,12 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 timeChangeMaxCandidates: 5,
                 maxMoneyDelta: 0,               // [v3.128] 钱财账本覆盖式改值的单笔最大幅度（anima zod delta clamp；0=关闭校验，建议如 10000）
                 moneyLedgerEnabled: true,        // [v3.47] 钱财账本（hcdiary）；[v3.128] 补默认值使 UI 开关状态与实际行为一致
+                // [v3.154] 台账写入侧校验（anima zod 式）：LLM 提取项 / 携带包条目入账前逐项校验+归一
+                ledgerWriteValidationEnabled: true,
+                ledgerWriteValidationDebug: false,   // 拦截/归一明细进 console（排障用）
+                ledgerViolationLogMax: 200,          // 违规环形账本容量（诊断面板读取）
+                volumeRetention: 40,                 // [v3.154] 卷摘要硬上限（原硬编码 20 且静默丢卷；上调并改显式淘汰）
+                historicalRetention: 24,             // [v3.154] 史记硬上限（原硬编码 6 且静默丢卷）
                 reflectionEnabled: false,      // 反思节点（抄stbme：洞察提炼，需API，默认关）
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
@@ -933,6 +939,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     'timeChangeDrivenInjection', 'itemLedgerEnabled', 'moneyLedgerEnabled', 'echoEnabled',
                     'termLexiconEnabled', 'termLexiconMax', 'bm25LexiconNormalizeEnabled', 'statusAwareQuotaEnabled',
                     'swipeAwareRecallEnabled', 'ledgerAwareQuotaEnabled',
+                    'ledgerWriteValidationEnabled', 'ledgerWriteValidationDebug', 'ledgerViolationLogMax',
+                    'volumeRetention', 'historicalRetention',
                 ];
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {
@@ -1652,6 +1660,188 @@ function relativeTimeLabel(eventTime, nowTime) {
     function resetRecallDedup() {
         try { _recallDedupState.lastTexts = null; _recallDedupState.lastQuery = ''; _recallDedupState.lastChatId = ''; } catch (e) { errLog(e, 'nonfatal') }
     }
+    /* ========================================================
+     * [v3.154.0] 台账写入侧校验内核（anima「zod 式台账校验」）
+     * --------------------------------------------------------
+     * 动机（v3.2 DF3 的半成品）：DF3 只做了**渲染前清洗**——`_sanitizeItemOp`
+     *   在 rebuildItems 里清洗派生视图，真源 itemOps 仍然脏。而真源是要落盘、
+     *   要进携带包、要被导出/导入的；脏值于是永久留在存档里，且携带包路径
+     *   （importCarryoverSeed）连渲染前清洗都绕不过——它把外部对象直接 push
+     *   进真源，字段无长度、无枚举、无类型约束。
+     *
+     * 本内核把校验前移到**写入侧**（与 anima zod 台账同位置），三处收口：
+     *   ① LLM 提取 items 入账前；② 携带包 carriedItems 入账前；③ 派生层仍留
+     *   _sanitizeItemOp 兜底（旧档兼容，真源不动）。
+     *
+     * 设计纪律（对齐仓库既有风格）：
+     *   - **宽容转换，非拒绝**：能修就修（裁长度、归枚举、拆互斥），修不了才丢；
+     *     绝不因一项脏就丢整批（loose-json「逐项独立校验」同源纪律）。
+     *   - **零依赖纯函数**：不碰 this、不碰 window，可独立单测。
+     *   - **违规可观测**：每项违规带 reason，由调用侧记入环形账本并进诊断面板
+     *     （先让失败可见，再让错误不可发生——v3.140 起的贯穿原则）。
+     * ======================================================== */
+    const LEDGER_ITEM_ACTIONS = ['add', 'update', 'remove'];
+    const LEDGER_REMOVE_STATES = ['丢失', '损毁', '已消耗', '消耗完毕', '丢弃', '已丢弃', '遗落'];
+    const LEDGER_ITEM_LIMITS = Object.freeze({
+        name: 40, desc: 80, holder: 20, state: 10, location: 40,
+        batch: 60            // 单批入账上限（防一次提取灌入数百条撑爆真源）
+    });
+    const LEDGER_HOLDER_PLACEHOLDERS = ['无', '地上', 'null', 'none', 'undefined'];
+
+    /** 键名归一（与 MemoryEngine.normalizeItemKey / _sanitizeItemOp 同源规则） */
+    function ledgerItemKey(name) {
+        try {
+            return String(name || '')
+                .normalize('NFKC')
+                .replace(/[\u300a\u300b\u3010\u3011\[\]\uff08\uff09\(\)\u0022\u0027\u201c\u201d\u2018\u2019\u3008\u3009]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+        } catch (e) { return String(name || '').trim().toLowerCase(); }
+    }
+
+    function ledgerClip(v, max) {
+        if (v === undefined || v === null) return undefined;
+        const s = String(v).replace(/\s+/g, ' ').trim();
+        return s.length > max ? s.slice(0, max) : s;
+    }
+
+    /**
+     * 单个物品 op 的宽容校验。返回 {ok, op?, reason?}。
+     * @param {*} raw 原始项（可能来自 LLM / 携带包 / 旧存档）
+     * @param {object} ctx { fallbackFloor } 缺省楼层
+     */
+    function validateLedgerItemOp(raw, ctx) {
+        const c = ctx && typeof ctx === 'object' ? ctx : {};
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'not_object' };
+
+        // --- action：缺省视为 add（LLM 提示词要求显式 action，但旧档/携带包常见缺失）
+        const rawAct = String(raw.action ?? '').trim().toLowerCase();
+        let action = rawAct;
+        if (!action) action = 'add';
+        if (action === 'del' || action === 'delete' || action === 'drop') action = 'remove';
+        if (action === 'gain' || action === 'take' || action === 'get') action = 'add';
+        if (LEDGER_ITEM_ACTIONS.indexOf(action) < 0) return { ok: false, reason: 'bad_action:' + rawAct };
+
+        // --- name：必填，截断，归一键
+        const name = ledgerClip(raw.name, LEDGER_ITEM_LIMITS.name);
+        if (!name) return { ok: false, reason: 'missing_name' };
+        const key = ledgerItemKey(name);
+        if (!key) return { ok: false, reason: 'empty_key' };
+
+        const op = { action: action, name: name, key: key };
+
+        // --- floor：非负整数，缺省用 ctx
+        const fRaw = raw.floor !== undefined && raw.floor !== null ? raw.floor : c.fallbackFloor;
+        const fNum = Number(fRaw);
+        op.floor = Number.isFinite(fNum) ? Math.max(0, Math.round(fNum)) : 0;
+
+        const reasons = [];
+
+        // --- desc
+        const desc = ledgerClip(raw.desc, LEDGER_ITEM_LIMITS.desc);
+        if (desc !== undefined) op.desc = desc;
+        if (raw.desc !== undefined && raw.desc !== null && String(raw.desc).trim().length > LEDGER_ITEM_LIMITS.desc) reasons.push('desc_clipped');
+
+        // --- holder：占位值归到「地上/遗落」（与 _sanitizeItemOp 同规则）
+        if (raw.holder !== undefined && raw.holder !== null) {
+            const h = String(raw.holder).trim();
+            if (h === '' || LEDGER_HOLDER_PLACEHOLDERS.indexOf(h.toLowerCase()) >= 0) {
+                op.holder = '地上/遗落';
+                reasons.push('holder_placeholder');
+            } else {
+                op.holder = h.length > LEDGER_ITEM_LIMITS.holder ? h.slice(0, LEDGER_ITEM_LIMITS.holder) : h;
+                if (h.length > LEDGER_ITEM_LIMITS.holder) reasons.push('holder_clipped');
+            }
+        }
+
+        // --- state：空串/占位归「完好」（remove 动作不补）
+        if (raw.state !== undefined && raw.state !== null) {
+            const st = ledgerClip(raw.state, LEDGER_ITEM_LIMITS.state);
+            if (st === '') { if (action !== 'remove') op.state = '完好'; }
+            else op.state = st;
+        } else if (action === 'add') {
+            op.state = '完好';
+        }
+
+        // --- carried / location：布尔归 + 互斥自愈（v3.44 铁律）
+        if (raw.carried !== undefined && raw.carried !== null) {
+            const cv = raw.carried;
+            op.carried = (cv === true || cv === 'true' || cv === 1 || cv === '1' || cv === 'yes');
+            if (typeof cv === 'string' && !op.carried && cv !== 'false' && cv !== '0' && cv !== 'no') reasons.push('carried_coerced');
+        }
+        if (raw.location !== undefined && raw.location !== null) {
+            const loc = ledgerClip(raw.location, LEDGER_ITEM_LIMITS.location);
+            op.location = (loc === undefined || loc === 'null' || loc === 'none' || loc === '无') ? '' : loc;
+        }
+        if (op.carried === true) {
+            if (op.location) reasons.push('mutex_carried_wins');
+            op.location = '';
+        } else if (op.location) {
+            if (op.carried === true) reasons.push('mutex_location_wins');
+            op.carried = false;
+        }
+
+        return { ok: true, op: op, reasons: reasons };
+    }
+
+    /**
+     * 批量校验（逐项独立，不因一项坏而丢全批）。
+     * @returns {{items:Array, dropped:Array, violations:Array, clipped:number, batchTruncated:number}}
+     */
+    function validateLedgerItemOps(list, ctx) {
+        const out = { items: [], dropped: [], violations: [], clipped: 0, batchTruncated: 0 };
+        if (!Array.isArray(list) || !list.length) return out;
+        const cap = (ctx && Number(ctx.batchLimit)) || LEDGER_ITEM_LIMITS.batch;
+        const arr = list.length > cap ? list.slice(0, cap) : list;
+        if (list.length > cap) out.batchTruncated = list.length - cap;
+        for (let i = 0; i < arr.length; i++) {
+            const r = validateLedgerItemOp(arr[i], ctx);
+            if (r.ok) {
+                out.items.push(r.op);
+                if (r.reasons && r.reasons.length) {
+                    out.clipped += 1;
+                    out.violations.push({ kind: 'item_clipped', idx: i, name: r.op.name, reasons: r.reasons });
+                }
+            } else {
+                out.dropped.push({ idx: i, reason: r.reason });
+                out.violations.push({ kind: 'item_dropped', idx: i, reason: r.reason });
+            }
+        }
+        return out;
+    }
+
+    /** 携带包条目校验（carriedItems：默认 add + 主角持有） */
+    function validateCarriedItems(list, ctx) {
+        const out = { items: [], dropped: [], violations: [], clipped: 0, batchTruncated: 0 };
+        if (!Array.isArray(list) || !list.length) return out;
+        const cap = (ctx && Number(ctx.batchLimit)) || LEDGER_ITEM_LIMITS.batch;
+        const arr = list.length > cap ? list.slice(0, cap) : list;
+        if (list.length > cap) out.batchTruncated = list.length - cap;
+        for (let i = 0; i < arr.length; i++) {
+            const it = arr[i];
+            const merged = (it && typeof it === 'object') ? Object.assign({}, it, {
+                action: 'add',
+                holder: it.holder || '主角',
+                carried: true,
+                location: '',
+                floor: 0
+            }) : it;
+            const r = validateLedgerItemOp(merged, Object.assign({}, ctx, { fallbackFloor: 0 }));
+            if (r.ok) {
+                out.items.push(r.op);
+                if (r.reasons && r.reasons.length) {
+                    out.clipped += 1;
+                    out.violations.push({ kind: 'carried_clipped', idx: i, name: r.op.name, reasons: r.reasons });
+                }
+            } else {
+                out.dropped.push({ idx: i, reason: r.reason });
+                out.violations.push({ kind: 'carried_dropped', idx: i, reason: r.reason });
+            }
+        }
+        return out;
+    }
+
     class MemoryEngine {
         constructor(config) {
             // [v3.23] chatMetadata 迁移恢复防重入（NE auto-restore）
@@ -1699,6 +1889,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
             this._lastOptimizeFloor = 0;                // [v2.9] RU-B 优化周期锚点
             this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
+            this._ledgerViolations = [];                 // [v3.154] 台账写入校验违规环形账本（诊断可观测）
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
             this.llm = new LLMCaller(config);
@@ -2378,10 +2569,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                             const fpNow = msgFpOf(message);
                             const floorNow = message.index || 0;
                             if (fpNow) this.itemOps = (this.itemOps || []).filter(o => !(o && o.floor === floorNow && o.fp === fpNow));
-                            for (const it of extracted.items) {
-                                if (!it?.name) continue;
+                            // [v3.154] 写入侧校验（anima #30）：真源 itemOps 要落盘/进携带包/被导出，
+                            //   旧写法把 LLM 原始对象直接 push 进真源，字段无长度、无枚举、无类型约束。
+                            //   改为入账前逐项宽容校验（能修就修，修不了才丢，不因一项脏丢整批）。
+                            const _lv = (this.config.config.ledgerWriteValidationEnabled === false)
+                                ? { items: extracted.items.filter(it => it && it.name), violations: [] }
+                                : validateLedgerItemOps(extracted.items, { fallbackFloor: floorNow });
+                            for (const it of _lv.items) {
                                 this.itemOps.push({ floor: floorNow, fp: fpNow, ...it });
                             }
+                            if (_lv.violations.length) this._recordLedgerViolations(_lv.violations, 'extract', floorNow);
                             this.rebuildItems();
                             // [v3.54] op-log: 物品台账变更事件
                             if (this.itemOps?.length) this.opLog?.log('item', 'update', `${this.itemOps.length} items`, floorNow, '');
@@ -3695,6 +3892,43 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
         // [v2.4] RE: 是否值得跑召回——最近5楼就在全部对话里(无更早历史)则没有可召回的旧事
         // [v2.8] RT-C: 物品台账重建（ops 真源重放——事件溯源范式，与 status/scene 一致）
+        /** [v3.154] 台账写入校验违规记录（环形账本，供诊断面板与调试日志可观测）
+         *  @param {Array} violations validateLedgerItemOp(s) 产出的违规项
+         *  @param {string} source 'extract' | 'carryover' | ...
+         *  @param {number} floor 楼层 */
+        _recordLedgerViolations(violations, source, floor) {
+            try {
+                if (!Array.isArray(violations) || !violations.length) return 0;
+                const cap = Math.max(10, Number(this.config && this.config.config && this.config.config.ledgerViolationLogMax) || 200);
+                if (!Array.isArray(this._ledgerViolations)) this._ledgerViolations = [];
+                const ts = Date.now();
+                for (const v of violations) {
+                    this._ledgerViolations.push(Object.assign({ ts: ts, source: String(source || '?'), floor: Number(floor) || 0 }, v));
+                }
+                if (this._ledgerViolations.length > cap) this._ledgerViolations.splice(0, this._ledgerViolations.length - cap);
+                try { this.opLog?.log?.('item', 'validate', source, floor, `${violations.length} violations`); } catch (e) {}
+                if (this.config && this.config.config && this.config.config.ledgerWriteValidationDebug) {
+                    console.warn(`[${PLUGIN_NAME}] 台账写入校验(${source}) 第${floor}楼:`, violations.map(v => (v.kind || '?') + ':' + (v.reason || (v.reasons || []).join('+'))).join('; '));
+                }
+                return violations.length;
+            } catch (e) { errLog(e, 'ledgerViolations.record'); return 0; }
+        }
+        /** [v3.154] 违规聚合摘要（诊断面板行：按 kind 计数 + top 原因） */
+        _ledgerViolationSummary() {
+            const arr = Array.isArray(this._ledgerViolations) ? this._ledgerViolations : [];
+            if (!arr.length) return '0';
+            const byKind = {};
+            const byReason = {};
+            for (const v of arr) {
+                const k = v && v.kind ? v.kind : 'unknown';
+                byKind[k] = (byKind[k] || 0) + 1;
+                const rs = (v && v.reason) ? [v.reason] : ((v && v.reasons) || []);
+                for (const r of rs) { if (r) byReason[r] = (byReason[r] || 0) + 1; }
+            }
+            const top = Object.keys(byReason).sort((a, b) => byReason[b] - byReason[a]).slice(0, 2);
+            const kindStr = Object.keys(byKind).map(k => `${k}×${byKind[k]}`).join('/');
+            return `${arr.length} 累计（${kindStr}）${top.length ? ' 主因: ' + top.map(r => r + '×' + byReason[r]).join(', ') : ''}`;
+        }
         // [v3.36] 确定性物品键名归一（抄 baibai 确定性 id 理念）：
         // 剥离包裹的书名号《》、方括号【】[]、小括号（）()、引号等，NFKC 归一化并转小写
         static normalizeItemKey(name) {
@@ -3747,7 +3981,6 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { errLog(e, 'DF3.sanitizeItemOp'); return null; }
         }
         rebuildItems() {
-            // [v3.3] 台账重放化：只应用「指纹匹配当前聊天」的 ops（baibai leafValid 语义——
             // 编辑/swipe 自动失活、翻回复活、删楼自愈；carried（携带自旧档）/无 fp（旧数据）不过滤）
             // [v3.36] 确定性 ID 索引 + 三态补丁语义（未提供不更新、明确置空清空、有效值覆盖）+ remove 剔除
             let chat = null;
@@ -5062,19 +5295,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                     for (const d of seed.lifeDetails) this.status.addLifeDetail(d, 0);
                 }
                 if (Array.isArray(seed.carriedItems)) {
-                    for (const it of seed.carriedItems) {
-                        this.itemOps.push({
-                            floor: 0,
-                            action: 'add',
-                            name: it.name,
-                            desc: it.desc || '',
-                            holder: it.holder || '主角',
-                            carried: true,
-                            location: '',
-                            state: it.state || '完好',
-                            updatedAt: Date.now()
-                        });
+                    // [v3.154] 携带包是外部输入（可能来自另一会话/另一版本的导出），旧写法直接
+                    //   push 外部对象进真源，连渲染前清洗都绕不过——字段无长度、无枚举、无类型约束。
+                    const _cv = (this.config.config.ledgerWriteValidationEnabled === false)
+                        ? { items: seed.carriedItems.filter(it => it && it.name).map(it => ({
+                            floor: 0, action: 'add', name: it.name, desc: it.desc || '',
+                            holder: it.holder || '主角', carried: true, location: '',
+                            state: it.state || '完好'
+                        })), violations: [] }
+                        : validateCarriedItems(seed.carriedItems);
+                    for (const it of _cv.items) {
+                        this.itemOps.push({ ...it, updatedAt: Date.now() });
                     }
+                    if (_cv.violations.length) this._recordLedgerViolations(_cv.violations, 'carryover', 0);
                     (this.reconcileItemOps || this.rebuildItems)?.call(this);
                 }
                 if (Array.isArray(seed.openSuspenses) && this.suspense?.add) {
@@ -6015,6 +6248,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ['悬念簿', `${this.suspense.items.filter(x => x.status === 'open').length} 开放 / ${this.suspense.items.length} 总`],
                     ['场景树', `${this.scene.nodes.size} 节点 / ops ${this.scene.opsLog.length}`],
                     ['物品台账', `${this.items.records.length} 件 / ops ${this.itemOps.length}${this.items._stale ? `（失活 ${this.items._stale}）` : ''}`],
+                    ['台账校验', this._ledgerViolationSummary ? this._ledgerViolationSummary() : '—'],
                     ['补提取', `${this.scanMissingFloors().length} 个楼层无记忆（可在设置面板补提取）`],
                     ['反思', `${this.reflection.items.length} 条`],
                     ['POV', `${this.pov.povs.length} 条`],
@@ -7491,7 +7725,21 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                         degraded: false
                     });
                     batch.forEach(s => { s.folded = true; s.volumeId = _volId; });
-                    if (this.volumes.length > 20) this.volumes.shift();
+                    // [v3.154] 卷上限显式化（anima #31）：旧写法 `> 20 → shift()` 静默丢卷，
+                    //   被丢的叙事再也回不来。改为可配置 + 淘汰前把该卷折叠的源摘要解折叠回活跃池
+                    //   （与 verifyVolumesIntact 降级同语义：卷没了，源摘要必须能重新参与召回）。
+                    const _volCap = Math.max(2, Number(config.volumeRetention) || 40);
+                    while (this.volumes.length > _volCap) {
+                        const _evicted = this.volumes.shift();
+                        let _revived = 0;
+                        if (_evicted) {
+                            for (const _s of (this.summaries || [])) {
+                                if (_s && _s.folded && _s.volumeId === _evicted.id) { _s.folded = false; _s.volumeId = undefined; _revived++; }
+                            }
+                            try { this.opLog?.log?.('summary', 'evict', _evicted.id, _evicted.floorStart, `卷上限(${_volCap})淘汰: 解折叠 ${_revived} 条源摘要`); } catch (e) {}
+                            if (config.debugMode) console.warn(`[${PLUGIN_NAME}] 卷摘要淘汰: 第${_evicted.floorStart}-${_evicted.floorEnd}楼（解折叠 ${_revived} 条源摘要回活跃池）`);
+                        }
+                    }
                     // [v3.28] 三级金字塔: 卷摘要（周记）积累超阈值 → 继续折叠成史记（最高层）
                     if (this.volumes.length >= (config.historicalFoldThreshold || 12)) {
                         try { this.maybeFoldHistorical(config, llm); } catch (e2) { if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 史记折叠失败:`, e2); }
@@ -7667,7 +7915,13 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     });
                     // 已入史记的周记标记归档（不再作为中层单独注入）
                     batch.forEach(v => { v.archived = true; });
-                    if (this.historical.length > 6) this.historical.shift();
+                    // [v3.154] 史记上限显式化（anima #31）：同上，静默 shift 改为可配置 + 显式淘汰日志
+                    const _hisCap = Math.max(1, Number(config.historicalRetention) || 24);
+                    while (this.historical.length > _hisCap) {
+                        const _hev = this.historical.shift();
+                        try { this.opLog?.log?.('summary', 'evict', _hev && _hev.id, _hev && _hev.floorStart, `史记上限(${_hisCap})淘汰`); } catch (e) {}
+                        if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 史记淘汰: 第${_hev && _hev.floorStart}-${_hev && _hev.floorEnd}楼（上限 ${_hisCap}）`);
+                    }
                     if (config?.debugMode) console.log(`[${PLUGIN_NAME}] 史记折叠: ${batch.length}个周记 → 史记#${this.historical.length}`);
                     // [v3.70] A4: 折叠链衔接——史记入账后立即检查更高层（书/传奇）是否可折叠
                     try { await this.foldHigherTiers(config, llm); } catch (e3) { if (config?.debugMode) console.warn(`[${PLUGIN_NAME}] 高层折叠失败:`, e3); }
@@ -7738,7 +7992,12 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 source: opts.source || 'manual'
             };
             this.historical.push(entry);
-            if (this.historical.length > 6) this.historical.shift();
+            // [v3.154] 史记上限显式化（anima #31）：与 foldHistorical 同一口径
+            const _hisCapM = Math.max(1, Number((this.config && this.config.config && this.config.config.historicalRetention)) || 24);
+            while (this.historical.length > _hisCapM) {
+                const _hevM = this.historical.shift();
+                try { this.opLog?.log?.('summary', 'evict', _hevM && _hevM.id, _hevM && _hevM.floorStart, `史记上限(${_hisCapM})淘汰`); } catch (e) {}
+            }
             return entry;
         }
         getGrandChroniclePrompt() {
