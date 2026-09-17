@@ -799,6 +799,8 @@
                     ${ck('termLexiconEnabled', '术语词典', '聊天内非角色实体术语（物品/地名/招式/组织等）沉淀成词典；查询命中术语时自动附加规范名参与检索（吸收 anima 词典方案）')}
                     ${ck('bm25LexiconNormalizeEnabled', 'BM25 词典归一', '文档端把术语别名统一为规范名、查询端附加规范名+释义短语，两侧同词典对齐')}
                     ${ck('statusAwareQuotaEnabled', '感知检索配额', '剧情状态调制检索条数：高压期(surge)多喂记忆、余波期降噪、未决矛盾/开放悬念密集期加量（默认关）')}
+                    ${ck('swipeAwareRecallEnabled', 'swipe 重绘感知', '当前回复处于重绘(swipe)态时上调召回配额，给模型更宽候选（需先开启感知检索配额总开关，默认关）')}
+                    ${ck('ledgerAwareQuotaEnabled', '物品台账感知臂', '近 6 楼内物品台账发生变动时上调召回配额（anima 智能感知轻量版，需先开启感知检索配额总开关，默认关）')}
                     <div class="ls-slider-label"><span>词典条目上限</span><span class="ls-slider-val" id="ls-v-lexmax">${c.termLexiconMax || 40}</span></div>
                     <input type="range" class="ls-slider" min="10" max="120" step="10" value="${c.termLexiconMax || 40}" data-cfg-num="termLexiconMax">
                     ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}

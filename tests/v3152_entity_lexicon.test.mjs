@@ -171,20 +171,12 @@ test('【7】settings-ui 登记 + v3113 白名单消解', () => {
     assert.ok(wlSeg.includes('bm25LexiconNormalizeEnabled'), '白名单豁免 bm25LexiconNormalizeEnabled（随主开关，无独立 UI）');
 });
 
-// ================= 8. 版本四处同步 =================
-test('【8】版本四处同步', () => {
+// ================= 8. 版本下限（当版独占的 CHANGELOG/旧锚点断言交后续版本测试接管）=================
+test('【8】版本下限 >= 3.152.0', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.ok(vnum(v) >= vnum('3.152.0'), `index.js 版本 ${v} >= 3.152.0`);
     assert.ok(vnum(manifest.version) >= vnum('3.152.0'), 'manifest 版本');
     assert.ok(vnum(pkg.version) >= vnum('3.152.0'), 'package 版本');
-    // CHANGELOG 头部
-    const cl = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(cl.trimStart().startsWith('## v3.152.0'), 'CHANGELOG 头部 3.152.0');
-    // 旧锚点测试同步
-    for (const t of ['tests/v3117_diagnostics.test.mjs', 'tests/v3130_control_plane.test.mjs', 'tests/v3147_cooldown_and_dual_hash.test.mjs']) {
-        const ts = readFileSync(path.join(ROOT, t), 'utf-8');
-        assert.ok(ts.includes("'3.152.0'"), `${t} 版本锚点同步`);
-    }
 });
 
 // ================= 9. 语法护栏（词典类花括号配平） =================

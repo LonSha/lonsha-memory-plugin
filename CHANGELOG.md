@@ -1,3 +1,10 @@
+## v3.153.0
+- **ANIMA 感知线补全（swipe 感知 #33 + 物品台账感知臂 #28 轻量版）**：v3.152 已把感知配额骨架（`computeRecallQuota`，默认关）搭好，但只有大纲 tempo / 矛盾 / 悬念三臂，探索纪要里剩下的两个「检索前置」信号——swipe 重绘态、物品台账变动——本轮补进同一配额计算器，仍默认关、行为与 v3.152 逐位一致。
+  - **swipe 感知臂（`swipeAwareRecallEnabled`，默认关）**：对齐 anima `_isSwipeMode` 原生语义——`onBeforeGeneration` 复用既有游标块读末楼 `swipe_id`，`>0` 即「正在重绘 assistant 回复」置 `this._swipeRegen`（无条件维护，消费受总门控）。重绘态下 `computeRecallQuota` +0.2，给模型更宽的候选，避免换一版又抽风。与 v2.9/v3.89 的 swipe 召回缓存复用正交：缓存命中直接返回、不进配额；缓存失效重算时本臂生效。
+  - **物品台账感知臂（`ledgerAwareQuotaEnabled`，默认关）**：anima #28「各命中类型给不同检索配额」的轻量落地——`itemOps` 中若存在与 `_currentFloor` 相距 ≤6 楼的近期变动，`computeRecallQuota` +0.2，让「刚捡到/丢了关键道具」这类剧情节点多召回相关前情。零 LLM 调用、零新存档键，纯读既有 `itemOps`。
+  - **配额上界微调**：三臂叠加（surge+0.3 / swipe+0.2 / 台账+0.2 / 矛盾+0.15 / 悬念+0.15）后 clamp 上界由 1.6 提到 1.9（下界 0.7 不变）。两新开关登记进卡覆盖白名单（`CARD_CFG_KEYS`）+ settings-ui `ck()`（均有独立 UI，无需 v3113 白名单豁免）。
+  - **版本独占断言搬迁**：v3.152 测试移除 CHANGELOG 头部/旧锚点两处当版独占断言（保留结构/行为/版本下限），交本版测试接管——沿用 v3.149 起的既有惯例（历史版本测试不断言 CHANGELOG 头）。
+  - **测试**：新增 `tests/v3153_swipe_ledger_aware.test.mjs`（7 项）——结构接线 / swipe 检测落点 / computeRecallQuota 双新臂各自门控 / 默认关短路 / UI+卡覆盖登记 / 版本四处同步 / v3152 去独占校验。更新 v3117/v3130/v3147 三处版本号锚点至 3.153.0。
 ## v3.152.0
 - **ANIMA 词典线闭环（术语词典 + BM25 双端归一 + 感知配额 + 持久化契约）**：探索纪要 #26/#28 两项「直接可用」候选此前零落地——非角色实体术语（物品/地名/招式/组织）没有沉淀通道，查询侧别名映射只覆盖图谱角色节点而空转；检索配额（`vectorTopK`/`bm25TopK`）全静态，剧情高压期与平淡期同配额。本轮一次补齐。
   - **A1 术语词典（`EntityLexicon`，内联 index.js 零加载依赖，挂 `window.LonShaEntityLexicon`）**：词条 `{canon, terms[], desc, count, firstFloor, lastFloor}`；NFKC 归一（全角/半角拉丁合并）、拉丁 3+ 字走词边界断言（`BLADE` 不命中 `BLADEWORKS` 内部）、单字与纯数字拒绝、`max` 上限（默认 40）按 `count`+`lastFloor` 升序淘汰低频。持久化走存档键 `lexicon`（契约登记 + collectExport + `_imp('lexicon')` 分派），随聊天冻结/恢复对称。

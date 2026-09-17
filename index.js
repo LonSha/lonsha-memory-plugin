@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.152.0';
+        const VERSION = '3.153.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -775,6 +775,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 termLexiconMax: 40,              // 词典条目上限（超出按 count/lastFloor 淘汰）
                 bm25LexiconNormalizeEnabled: true, // BM25 双端词典归一：文档端别名→规范名，查询端附规范名+释义
                 statusAwareQuotaEnabled: false,  // 感知检索配额：剧情状态（大纲 tempo/未决矛盾/开放悬念）调制检索条数
+                swipeAwareRecallEnabled: false,  // [v3.153] swipe 感知臂：当前楼处于重绘态(swipe_id>0)时上调召回配额（受 statusAwareQuotaEnabled 总门控）
+                ledgerAwareQuotaEnabled: false,  // [v3.153] 台账臂：近期物品台账发生变动时上调召回配额（anima #28 智能感知轻量版，受总门控）
                 // [v3.96] 缝合四模块：前置AI精选 + STM/LTM游标巩固 + 统一召回 + 副API通道
                 aiSelectEnabled: false,        // 前置 AI 精选（粗召回候选→AI JSON精选本轮相关，省token提精度；需AI通道）
                 aiSelectMaxCandidates: 20,     // 进入精选的粗召回候选上限
@@ -930,6 +932,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     'suspenseMaxOpen', 'extractionCadence', 'recallCacheEnabled', 'diaryChangeDrivenInjection',
                     'timeChangeDrivenInjection', 'itemLedgerEnabled', 'moneyLedgerEnabled', 'echoEnabled',
                     'termLexiconEnabled', 'termLexiconMax', 'bm25LexiconNormalizeEnabled', 'statusAwareQuotaEnabled',
+                    'swipeAwareRecallEnabled', 'ledgerAwareQuotaEnabled',
                 ];
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {
@@ -1715,6 +1718,9 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v2.1] P3
             this.mutex = new Mutex();
             this.holiday = new HolidayAware();
+            // [v3.153] ANIMA 感知线：swipe 重绘态 + 当前楼层标记（无条件维护，消费在 computeRecallQuota 且受总门控）
+            this._swipeRegen = false;   // 末楼 swipe_id>0（正在重绘 assistant 回复）
+            this._currentFloor = -1;    // 当前楼层（台账臂窗口锚点）
             // [v2.2] RC
             this.suspense = new SuspenseBook();
             // [v2.4] RE
@@ -3320,6 +3326,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 this._timelineCursorChatId = _cursorChat;
                 this._timelineCursorFingerprint = _cursorFp;
+                // [v3.153] swipe 感知（anima #33 _isSwipeMode 原生对应）：末楼 swipe_id>0 = 正在重绘 assistant 回复
+                this._swipeRegen = ((Number(_cursorMsg?.swipe_id) || 0) > 0);
+                this._currentFloor = _cursorFloor;
             } catch (e) { errLog(e, 'onBeforeGeneration.时间线游标边界'); }
             try {
                 // [v3.27] 命中轨迹计时起点（MemoryPilot monitor）
@@ -4307,7 +4316,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (conflicts >= 3) quota += 0.15;             // 矛盾密集期：佐证材料要多
                 const openSusp = (this.suspense?.openItems?.() || []).length;
                 if (openSusp >= 5) quota += 0.15;              // 悬念密集期：线索召回加量
-                return Math.min(1.6, Math.max(0.7, quota));
+                // [v3.153] swipe 感知臂（anima #33）：重绘态多召回，给模型更宽的候选避免再抽风
+                if (this.config.config.swipeAwareRecallEnabled === true && this._swipeRegen) quota += 0.2;
+                // [v3.153] 台账臂（anima #28 轻量版）：近 6 楼内物品台账有变动→相关记忆值得多召回
+                if (this.config.config.ledgerAwareQuotaEnabled === true && this.itemOps?.length) {
+                    const _cf = this._currentFloor;
+                    const _recent = this.itemOps.some(o => Number.isFinite(_cf) && _cf >= 0 && Math.abs((Number(o?.floor) || 0) - _cf) <= 6);
+                    if (_recent) quota += 0.2;
+                }
+                return Math.min(1.9, Math.max(0.7, quota));
             } catch (e) { return 1; }
         }
         /** [v3.152] 词典变更后失效 BM25 语料指纹（下次召回自然重建，文档端按新词典重归一）。
