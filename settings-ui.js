@@ -763,12 +763,13 @@
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">召回与注入</div>
-                    <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK}</span></div>
-                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK}" data-cfg-num="vectorTopK">
-                    <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha}</span></div>
-                    <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha}" data-cfg-num="hybridAlpha">
-                    <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength}</span></div>
-                    <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength}" data-cfg-num="maxSummaryLength">
+                    <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
+                    <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha ?? 0.7}" data-cfg-num="hybridAlpha">
+                    ${ck('hybridMergeWeighted', 'α 加权融合（v3.156）', '打开后上面的 α 滑块才真正生效（α=1 偏向量 / α=0 偏图谱）；关闭=RRF 融合，α 仅记录不参与排序。默认关。')}
+                    <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
+                    <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">🛡️ 稳定性 + 预算 + 节日</div>
@@ -870,7 +871,7 @@
                     <input type="range" class="ls-slider" min="0" max="10" step="1" value="${c.diaryEveryFloors || 3}" data-cfg-num="diaryEveryFloors">
                     <div class="ls-slider-label"><span>时间线变化注入条数</span><span class="ls-slider-val">${c.timeChangeMaxCandidates || 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.timeChangeMaxCandidates || 5}" data-cfg-num="timeChangeMaxCandidates">
-                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（0=每楼），省API额度；生成失败自动跳过不影响主流程。</div>
+                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">🗺️ 场景树 + 在场分档</div>
@@ -893,8 +894,8 @@
                     <div class="ls-group-title">📱 RubyPhone 联动</div>
                     ${ck('rubyPhoneBridge', '回填手机记忆', 'LLM 提取结果（摘要/事件/关系）写入 RubyPhone 手机"记忆"App')}
                     ${ck('rubyPhoneRecall', '手机记忆参与召回', 'RubyPhone 记忆库（感官/空间/时间池）作为一路召回源注入简报')}
-                    <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN}</span></div>
-                    <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN}" data-cfg-num="rubyPhoneRecallTopN">
+                    <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN ?? 3}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN ?? 3}" data-cfg-num="rubyPhoneRecallTopN">
                     <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
                 </div>
                 <div class="ls-group">
@@ -994,7 +995,7 @@
                         <input type="range" class="ls-slider" min="10" max="200" step="10" value="${c.optimizeEveryFloors ?? 50}" data-cfg-num="optimizeEveryFloors">
                         <div class="ls-slider-label"><span>惊奇度累积阈值</span><span class="ls-slider-val" id="ls-v-et">${c.entropyThreshold ?? 15}</span></div>
                         <input type="range" class="ls-slider" min="3" max="60" step="1" value="${c.entropyThreshold ?? 15}" data-cfg-num="entropyThreshold">
-                        <div class="ls-slider-label"><span>回响池上限</span><span class="ls-slider-val" id="ls-v-emc">${c.echoMaxCount ?? 10}</span></div>
+                        <div class="ls-slider-label"><span>回响池上限（0=关闭）</span><span class="ls-slider-val" id="ls-v-emc">${c.echoMaxCount ?? 10}</span></div>
                         <input type="range" class="ls-slider" min="0" max="40" step="1" value="${c.echoMaxCount ?? 10}" data-cfg-num="echoMaxCount">
                         <div class="ls-slider-label"><span>在场候选上限</span><span class="ls-slider-val" id="ls-v-pmc">${c.presenceMaxCandidates ?? 8}</span></div>
                         <input type="range" class="ls-slider" min="2" max="20" step="1" value="${c.presenceMaxCandidates ?? 8}" data-cfg-num="presenceMaxCandidates">

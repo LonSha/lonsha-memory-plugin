@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.155.0';
+        const VERSION = '3.156.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -643,6 +643,16 @@
         }
     }
     
+    // [v3.156] 零值语义安全回退。
+    //   存在理由：settings-ui.js 中 10 个数值键的滑杆 min="0"，即「0」是用户可选的合法意图
+    //   （0=每楼写日记 / 0=关闭回响池 / 0=不限制每楼操作 / 0=纯图谱...）。
+    //   旧写法 `Number(x) || fallback` 用 falsy 判定缺失，会把 0 静默当成「没配置」回退到默认值，
+    //   于是「设 0」在 UI 上可见、在引擎里永不可达。本函数只对真正的缺失值(undefined/null/''/NaN/布尔)回退。
+    function numOr(v, fallback) {
+        if (v === undefined || v === null || v === '' || typeof v === 'boolean') return fallback;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : fallback;
+    }
     class ConfigManager {
         constructor() {
             this.config = {
@@ -725,6 +735,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 embeddingModel: 'text-embedding-ada-002',
                 vectorTopK: 5,
                 hybridAlpha: 0.7,
+                // [v3.156] 融合模式开关。存在理由：hybridAlpha 此前只在 _legacyHybridMerge 里被读，
+                //   而该方法自 [v3.50] 起无任何调用者（主路径 hybridMerge 走 RRF 排序、不读 α）
+                //   ——UI 滑块可见、引擎永不消费的「死配置」。
+                //   默认 false = 继续走 RRF（零行为变化）；打开后改走加权融合，α 才真正生效。
+                hybridMergeWeighted: false,
                 pageRankDamping: 0.85,
                 dppLambda: 0.5,
                 debugMode: false,
@@ -934,7 +949,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const cardCfg = ctx?.character?.data?.extensions?.LonShaMemory;
                 if (!cardCfg || typeof cardCfg !== 'object') return 0;
                 const CARD_CFG_KEYS = [
-                    'vectorTopK', 'hybridAlpha', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
+                    'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
                     'summaryFoldThreshold', 'diaryEveryFloors', 'reflectEveryFloors', 'echoBaseLife', 'echoMaxCount',
                     'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
                     'suspenseMaxOpen', 'extractionCadence', 'recallCacheEnabled', 'diaryChangeDrivenInjection',
@@ -1300,7 +1315,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     return await this.addVector(t, metadata);
                 }
                 const TC = enabled;
-                const chunks = TC.chunkText(t, Number(cfg.vectorChunkSize) || 800, Number(cfg.vectorChunkOverlap) || 10);
+                const chunks = TC.chunkText(t, Number(cfg.vectorChunkSize) || 800, numOr(cfg.vectorChunkOverlap, 10));   // [v3.156] overlap=0 合法
                 if (!chunks.length || chunks.length === 1) return await this.addVector(t, metadata);
                 const group = `cg_${Date.now()}_${Math.random().toString(36).substr(2, 7)}`;
                 let firstId = null;
@@ -1886,6 +1901,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastEpochBump = null;         // [v3.145] CP-L6: 最近一次变更栅栏推进
             this._staleTaskDropped = 0;   // [v3.141] CP: 会话租约过期被丢弃的异步任务数（跨聊天污染防线）
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
+            this._recallArtifactEvictions = { byAge: 0, byCap: 0, lastFloor: null, lastRemoved: 0, lastAt: 0 };   // [v3.156] 产物淘汰累计账（老化 vs 超容量分账，诊断可解释）
             this._recallAudit = [];                     // [v3.150] A 召回命中自检账本（环形 50 轮：query/各来源命中数/空结果）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
@@ -2201,10 +2217,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                     extracted.todos = [...(extracted.todos || []), ...aiRecallOps.todos];
                     extracted.items = [...(extracted.items || []), ...aiRecallOps.items];
                     // [v3.33] 每楼主动操作数上限（防 AI 滥用标签洪流）
-                    const _cap = Number(this.config.config.aiRecallOpsMaxPerFloor) || 12;
-                    if (extracted.status_changes.length > _cap) extracted.status_changes = extracted.status_changes.slice(-_cap);
-                    if (extracted.todos.length > _cap) extracted.todos = extracted.todos.slice(-_cap);
-                    if (extracted.items.length > _cap) extracted.items = extracted.items.slice(-_cap);
+                    // [v3.156] 0 = 不限制（UI min=0 的合法意图）。旧 `|| 12` 把 0 静默变回 12；
+                    //   即便放开，`x.slice(-0)` === `x.slice(0)` === 原数组，会变成「不截断」而非「全丢」，
+                    //   故这里必须显式区分「无上限」（跳过截断）与「上限为正」（按新近度保留尾部）。
+                    const _cap = numOr(this.config.config.aiRecallOpsMaxPerFloor, 12);
+                    const _capped = _cap > 0;
+                    if (_capped && extracted.status_changes.length > _cap) extracted.status_changes = extracted.status_changes.slice(-_cap);
+                    if (_capped && extracted.todos.length > _cap) extracted.todos = extracted.todos.slice(-_cap);
+                    if (_capped && extracted.items.length > _cap) extracted.items = extracted.items.slice(-_cap);
                 }
                 // [v3.37] 物理时间标签优先赋权盖章（baibai 权威时间同步）
                 if (timeTagFound) {
@@ -2663,7 +2683,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                             if (mc.value !== null && mc.value !== undefined && mc.value !== '') {
                                 // [v3.128] anima zod 式台账校验：覆盖式改值幅度超上限则 clamp 到 旧值±上限（防 LLM 幻觉一键暴富/清零家产）
                                 let next = Number(mc.value) || 0;
-                                const maxDelta = Number(this.config.config.maxMoneyDelta) || 0;
+                                const maxDelta = numOr(this.config.config.maxMoneyDelta, 0);   // [v3.156] 0=关闭校验，语义等价，统一形态
                                 if (maxDelta > 0) {
                                     const prev = Number(this.moneyLedger.getMoney(nm)?.amount) || 0;
                                     if (Math.abs(next - prev) > maxDelta) {
@@ -3344,7 +3364,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const c = window.SillyTavern?.getContext?.();
                 const chat = c?.chat || [];
                 if (!chat.length || typeof c?.hideChatMessageRange !== 'function') return 0;
-                const keep = Math.max(0, Number(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent) || 0);
+                const keep = Math.max(0, numOr(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent, 0));   // [v3.156] 0=不保留也在范围内
                 if (this.config.config.coverageLedgerEnabled === true) {
                     const applied = this._recomputeCoverage(keep);
                     if (applied !== null) return applied;
@@ -3690,7 +3710,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const _currentDiaryFloor = _chatForDiary.length - 1;
                         const _diaryCast = this.captureCast();
                         const _cursor = this._diaryInjectFloor == null
-                            ? Math.max(-1, _currentDiaryFloor - Math.max(6, Number(this.config.config.diaryEveryFloors || 3) * 2))
+                            ? Math.max(-1, _currentDiaryFloor - Math.max(6, numOr(this.config.config.diaryEveryFloors, 3) * 2))   // [v3.156] 0=每楼
                             : Number(this._diaryInjectFloor);
                         const _changes = this.diary?.getChangesSince?.(_cursor, _diaryCast, 30) || [];
                         const _seenDiary = new Set(candidateItems.filter(x => String(x?.source || '').includes('diary')).map(x => `${x.name || x.character || ''}\x1f${x.text || x.entry || ''}`));
@@ -3717,7 +3737,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                             if (e.text && !merged.has(e.key)) merged.set(e.key, { id: e.key, text: e.text, source: e.source, echo: true });
                         }
                         this.echo.onRecalled(recalled);
-                        candidateItems = Array.from(merged.values()).slice(0, this.config.config.vectorTopK * 2 + (this.config.config.echoMaxCount || 10));
+                        candidateItems = Array.from(merged.values()).slice(0, this.config.config.vectorTopK * 2 + numOr(this.config.config.echoMaxCount, 10));   // [v3.156] 0=不加回响
                     }
                 } catch (e) { errLog(e, 'onBeforeGeneration.回响池'); }
                 // [v3.16] 世界推进: 生成路径注入前把待推进的不在场角色动态并入（zhino: 玩家发消息不在生成时挤 API，后台推演产物注入）
@@ -3892,6 +3912,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 this._recallArtifacts = plan.store;
                                 const pruned = aa.pruneArtifacts(this._recallArtifacts, { maxEntries: 32 });
                                 this._recallArtifacts = pruned.store;
+                                // [v3.156] 淘汰可观测。pruneArtifacts 一直返回 removedByAge/removedByCap，
+                                //   调用方却直接丢弃——产物被静默删除，诊断面板只看到「条数变少了」
+                                //   却无法区分「老化过期」与「超容量裁剪」，长期运行后无法解释召回命中率下降。
+                                const _rmAge = Number(pruned.removedByAge) || 0;
+                                const _rmCap = Number(pruned.removedByCap) || 0;
+                                this._recallArtifactEvictions = {
+                                    byAge: Number(this._recallArtifactEvictions?.byAge || 0) + _rmAge,
+                                    byCap: Number(this._recallArtifactEvictions?.byCap || 0) + _rmCap,
+                                    lastFloor: cc.length - 1,
+                                    lastRemoved: _rmAge + _rmCap,
+                                    lastAt: Date.now(),
+                                };
                             }
                         } catch (e) { errLog(e, 'onBeforeGeneration.召回产物落盘'); }
                     }
@@ -4858,7 +4890,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (ra && Array.isArray(results.vector)) {
                         const tail = ra.planVectorTail(this.vector.vectors, {
                             expectedDimension: Number(this.vector.dimension) || 0,
-                            limit: Number(this.config.config.vectorTailRecoveryLimit) || 8,
+                            limit: numOr(this.config.config.vectorTailRecoveryLimit, 8),   // [v3.156] 0=不补召回（planVectorTail 内部对 0 走 normInt 下限，语义为「不通知候选」）
                             includeReasons: ['missing-embedding', 'zero-vector', 'dimension-mismatch'],
                         });
                         let added = 0;
@@ -4945,7 +4977,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (this.config.config.rubyPhoneRecall && window.VirtualPhone?.lonshaBridge) {
                 try {
                     const _phoneQuery = window.VirtualPhone.lonshaBridge.queryPhoneMemory || window.VirtualPhone.lonshaBridge.recall.bind(window.VirtualPhone.lonshaBridge);
-                    const phoneHits = await _phoneQuery(query.text, this.config.config.rubyPhoneRecallTopN || 3);
+                    const phoneHits = await _phoneQuery(query.text, numOr(this.config.config.rubyPhoneRecallTopN, 3));   // [v3.156] 0=不向手机库取记忆
                     if (phoneHits?.length) {
                         results.rubyphone = phoneHits.map((h, i) => ({
                             // [v3.48] P0 字段对齐: bridge.recall 返回 {content, score, layer, floor}，旧映射期望 h.id/h.type  恒 undefined
@@ -5073,6 +5105,12 @@ function relativeTimeLabel(eventTime, nowTime) {
 
         hybridMerge(results) {
             const K = 60; // RRF 标准常数
+            // [v3.156] α 真正生效。此前 hybridAlpha 只在 _legacyHybridMerge（自 v3.50 起无调用者的遗留实现）里被读，
+            //   而主路径 RRF 从不读它——UI 滑块可见、引擎永不消费。
+            //   这里用同一开关把 α 接到 RRF 名次上，保持 RRF 为主排序算法（默认开关关 = 零行为变化）：
+            //   α=1 纯向量（向量路名次压缩、其余路拉长），α=0 纯图谱（反向），单调可解释。
+            const _weighted = this.config.config.hybridMergeWeighted === true;
+            const _alpha = numOr(this.config.config.hybridAlpha, 0.7);
             const lists = [
                 results.vector || [],
                 results.diffusion || [],
@@ -5095,7 +5133,12 @@ function relativeTimeLabel(eventTime, nowTime) {
             lists.forEach((list, listIdx) => {
                 list.forEach((item, rank) => {
                     const key = item.id || item.text || item.name || JSON.stringify(item).substring(0, 80);
-                    const rrfScore = 1 / (K + rank + 1);
+                    // [v3.156] 加权模式：向量/扩散路按 α 压缩名次，其余路按 1-α 压缩（互斥，α 越大越偏向量）
+                    const _vecSide = (listIdx === 0 || listIdx === 1);
+                    const _effRank = _weighted
+                        ? rank / Math.max(0.2, (_vecSide ? _alpha : (1 - _alpha)) * 2)
+                        : rank;
+                    const rrfScore = 1 / (K + _effRank + 1);
                     // [v3.50] 精排分加成：LLM 评分式 rerank 的高分项（>=6）给 RRF 加权（评分/10 × 0.05）
                     const rerankBonus = item._rerankScore >= 6 ? (item._rerankScore / 10) * 0.05 : 0;
                     const prev = byKey.get(key);
@@ -5111,7 +5154,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             merged.sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
             const top = merged.slice(0, this.config.config.vectorTopK * 2);
             if (this.config.config.debugMode) {
-                console.log(`[${PLUGIN_NAME}] RRF融合: ${merged.length} 项, 多路命中: ${top.filter(t => t.hits > 1).length} 项`);
+                console.log(`[${PLUGIN_NAME}] RRF融合: ${merged.length} 项, 多路命中: ${top.filter(t => t.hits > 1).length} 项${_weighted ? `; 加权模式 α=${_alpha}` : ''}`);
             // [v3.16] 神经链 + 世界推进 汇入召回结果
             if (results.neuralChain?.length) for (const nc of results.neuralChain) { if (!top.some(t => (t.text||'') === nc.text)) top.push(nc); }
             if (results.worldProg?.length) for (const wp of results.worldProg) { if (!top.some(t => (t.text||'') === wp.text)) top.push(wp); }
@@ -5120,7 +5163,7 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
 
         _legacyHybridMerge(results) {
-            const alpha = this.config.config.hybridAlpha;
+            const alpha = numOr(this.config.config.hybridAlpha, 0.7);   // [v3.156] 0=纯图谱合法；此前无回退，缺失会得 NaN 使全部向量得分归零
             const merged = [];
             const seen = new Set();
             
@@ -5546,7 +5589,12 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v3.95] 叙事心电图注入（原创：节奏自反提示，仅在连续高压/平淡时输出，避免每轮噪音）
             if (this.config.config.narrativePulseEnabled !== false) {
                 try {
-                    const pulseText = this.pulse?.toPrompt?.({ characters: [] });
+                    // [v3.156] 角色弧光接真源。此前恒传 []：toPrompt 的弧光板块要求
+                    //   opts.characters 非空且该角色已积累 >=3 拍极性轨迹，空数组使
+                    //   「[角色弧光·阶段参考]」永不产出——beat() 侧记录了轨迹却没人读。
+                    //   真源与 beat() 同源：captureCast()（最近 8 楼窗口，上限 5 人）。
+                    const _pulseCast = this.captureCast();
+                    const pulseText = this.pulse?.toPrompt?.({ characters: _pulseCast });
                     if (pulseText) blocks.push(pulseText);
                 } catch (e) { errLog(e, 'buildInjection.叙事心电图'); }
             }
@@ -5797,7 +5845,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v3.114] 缝合：裁剪决策移入可测纯函数 injection-router（模块缺失时回落本体内联实现）
             let budget = this.config.config.injectionBudget || 3000;
             // [v3.25] token 预算双层：memoryTokenBudget（记忆注入 token 上限）扣减 keepRecentTokenReserve（最近正文预留）
-            const reserve = Number(this.config.config.keepRecentTokenReserve) || 0;
+            const reserve = numOr(this.config.config.keepRecentTokenReserve, 0);   // [v3.156] 语义等价，统一为 numOr 使「min=0 键无 || 回退」可被扫描断言
             const tokenBudget = Number(this.config.config.memoryTokenBudget) || 0;
             const _chatLen = (typeof window !== 'undefined' ? window.SillyTavern?.getContext?.()?.chat?.length : 0) || 0;
             const _ir = (typeof window !== 'undefined' ? window.LonShaInjectionRouter : null)
@@ -6525,6 +6573,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     push('');
                     push(`**召回产物：** ${s.total} 条（复用 ${s.reuses} 次，命中率 ${(s.hitRate * 100).toFixed(1)}%）`);
                     push(`- 平均注入 ${s.avgInjectionChars} 字 / 空产物 ${s.empties} 条`);
+                    // [v3.156] 淘汰分账（老化 vs 超容量），解释「条数为何变少」
+                    const _ev = this._recallArtifactEvictions || {};
+                    const _evAge = Number(_ev.byAge) || 0;
+                    const _evCap = Number(_ev.byCap) || 0;
+                    if (_evAge || _evCap) {
+                        push(`- 本会话淘汰 ${_evAge + _evCap} 条（老化 ${_evAge} / 超容量 ${_evCap}）${Number.isFinite(Number(_ev.lastFloor)) ? `，最近一次在第 ${_ev.lastFloor} 楼淘汰 ${_ev.lastRemoved} 条` : ''}（会话内计数，换会话归零）`);
+                    }
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.召回产物'); }
             // [v3.110] 事件性门控诊断（缝合 bionic smart-trigger）：省下的提取调用数 / 判定分布
@@ -6783,8 +6838,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             return Number.isFinite(v) && v >= 1 ? Math.round(v) : 2;
         }
         _maxCount() {
+            // [v3.156] 0 = 关闭回响池（UI min=0 的合法意图）；仅 NaN/负数回落默认 10
             const v = Number(this._cfg?.()?.echoMaxCount);
-            return Number.isFinite(v) && v >= 1 ? Math.round(v) : 10;
+            return Number.isFinite(v) && v >= 0 ? Math.round(v) : 10;
         }
         onRecalled(recalled) {
             try {
@@ -6797,7 +6853,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     else this.items.push({ key, text: item.text || item.content || item.summary || '', source: item.source, life: baseLife, lastSeen: now });
                 }
                 const cap = this._maxCount();
-                if (this.items.length > cap) this.items = this.items.slice(-cap);
+                // [v3.156] cap=0 时 `slice(-0)` === `slice(0)` === 原数组（不会清空），
+                //   必须显式清空才符合「关闭回响池」语义；负数已在 _maxCount 回退。
+                if (cap <= 0) this.items = [];
+                else if (this.items.length > cap) this.items = this.items.slice(-cap);
             } catch (e) { errLog(e, 'EchoPool.onRecalled'); }
         }
         /** 每轮衰减；返回仍存活的（life>0） */
@@ -6806,7 +6865,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             return this.items;
         }
         export() { return this.items; }
-        import(data) { this.items = Array.isArray(data) ? data.slice(-this._maxCount()) : []; }
+        import(data) { const cap = this._maxCount(); this.items = Array.isArray(data) ? (cap <= 0 ? [] : data.slice(-cap)) : []; }   // [v3.156] 关闭态不导入存量
     }
 
     // [v2.4] RE: 场景地图树（抄 baibai MemScene：由大到小路径层级 + 当前位置追踪 + ops重放）
@@ -10042,7 +10101,7 @@ ${contradictions}`;
          * @returns {number} 写入条数
          */
         async generateLiving(config, llm, knownChars, floor) {
-            const every = Math.max(0, Number(config.diaryEveryFloors || 3));
+            const every = Math.max(0, numOr(config.diaryEveryFloors, 3));   // [v3.156] 0=每楼（下一行 every>0 已正确处理）
             if (!config.livingDiary || !llm) return 0;
             if (every > 0 && (floor - this._lastDiaryFloor) < every) return 0;
             if (this._writing) { this._pending = floor; return 0; }
@@ -11152,7 +11211,7 @@ ${recentTurns}`;
                         // [v3.126] 换对话重置日记/时间线变化游标与身份（onBeforeGeneration 兜底处理之外的事件路径也保持一致）
                         try { this.engine._diaryInjectFloor = null; this.engine._timelineInjectFloor = null; this.engine._timelineCursorChatId = null; this.engine._timelineCursorFingerprint = ''; } catch (e) { errLog(e, 'events.CHAT_CHANGED变化游标重置'); }
                         // [v3.109] 换对话清空产物的内存副本（持久副本随新对话各自 recover，不跨对话串用）
-                        try { this.engine._recallArtifacts = []; } catch (e) { errLog(e, 'events.CHAT_CHANGED产物清理'); }
+                        try { this.engine._recallArtifacts = []; this.engine._recallArtifactEvictions = { byAge: 0, byCap: 0, lastFloor: null, lastRemoved: 0, lastAt: 0 }; } catch (e) { errLog(e, 'events.CHAT_CHANGED产物清理'); }   // [v3.156] 淘汰账同清
                         // [v3.23.1] 换对话同步清空 dedup 指纹（防旧对话文本误标新对话）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.CHAT_CHANGED去重清空'); }
                         // [v3.25.1] 换对话同步清空归档状态（防旧对话楼层 index 误操作新对话）
@@ -11233,7 +11292,7 @@ ${recentTurns}`;
                     const _h5 = async (messageId) => {
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.MESSAGE_DELETED缓存清理'); }  // [v2.9] RU-D: 上下文变了，缓存失效
                         // [v3.109] 删楼同时清掉全部召回产物（历史结构变了，跨会话复用的依据不再成立）
-                        try { this.engine._recallArtifacts = []; } catch (e) { errLog(e, 'events.MESSAGE_DELETED产物清理'); }
+                        try { this.engine._recallArtifacts = []; this.engine._recallArtifactEvictions = { byAge: 0, byCap: 0, lastFloor: null, lastRemoved: 0, lastAt: 0 }; } catch (e) { errLog(e, 'events.MESSAGE_DELETED产物清理'); }   // [v3.156] 淘汰账同清
                         // [v3.23.1] 删楼同步清空 dedup 指纹（防删楼后残留指纹误标后续召回）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.MESSAGE_DELETED去重清空'); }
                         // [v3.25.1] 删楼清空归档状态（楼层 index 前移，旧归档 index 语义失效）
@@ -11295,7 +11354,7 @@ ${recentTurns}`;
                             // [v3.12] 代际检查: await 期间若已有更新的一次 STARTED（myGen 过期），放弃本次慢结果（防旧注入覆盖新注入）
                             if (myGen !== this._genSeq) { console.log(`[${PLUGIN_NAME}] 注入代际过期，放弃本次结果`); return; }
                             // [v3.2] DF6: 空召回=显式清除（baibai 语义"注入空串等于清除"——召回价值判断跳过时旧槽位残留会注入上一轮记忆）
-                            const depth = Math.min(2, Math.max(0, Number(this.engine.config.config.injectionDepth) || 0));
+                            const depth = Math.min(2, Math.max(0, numOr(this.engine.config.config.injectionDepth, 0)));   // [v3.156] D0=0 合法
                             writeInjectSlot('lonsha_memory', injection || '', depth);
                             // [v3.2] DF6: 卷摘要槽独立刷新（与召回无关；空卷=清除旧卷）
                             try { writeInjectSlot('lonsha_memory_history', this.engine.buildVolumeInjection() || '', 9999); } catch (e) { errLog(e, 'DF6.卷摘要刷新'); }
@@ -11406,7 +11465,7 @@ ${recentTurns}`;
             if (_cfgI.enabled === false || (_cfgI.extractionEnabled === false && _cfgI.vectorEnabled === false)) return chat;
             const injection = await plugin.engine.onBeforeGeneration();
             // [v3.2] DF6: 空召回=显式清除；卷摘要独立刷新
-            const okInj = writeInjectSlot('lonsha_memory', injection || '', Math.min(2, Math.max(0, Number(plugin.engine.config.config.injectionDepth) || 0)));
+            const okInj = writeInjectSlot('lonsha_memory', injection || '', Math.min(2, Math.max(0, numOr(plugin.engine.config.config.injectionDepth, 0))));   // [v3.156] D0=0 合法
             if (okInj) {
                 try { writeInjectSlot('lonsha_memory_history', plugin.engine.buildVolumeInjection() || '', 9999); } catch (e) { errLog(e, 'DF6.interceptor卷摘要'); }
             } else if (injection && Array.isArray(chat) && chat.length > 0 && chat[0]) {

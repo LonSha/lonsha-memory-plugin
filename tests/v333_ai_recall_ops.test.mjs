@@ -16,7 +16,10 @@ assert('结果合并进 extracted.todos', src.includes('extracted.todos = [...(e
 assert('结果合并进 extracted.items', src.includes('extracted.items = [...(extracted.items || []), ...aiRecallOps.items]'));
 assert('VERSION 存在且有效', /const VERSION = '[3-9]\.[0-9]+\.[0-9]+'/.test(src));
 assert('无重复合并块', (src.match(/merged into extracted/g) || []).length === 1);
-assert('每楼主动操作数上限存在', src.includes('const _cap = Number(this.config.config.aiRecallOpsMaxPerFloor)'));
+// [v3.156] 旧锚点交接：上限的取值方式改为零值安全内核 numOr（0 是合法意图，不再被 || 吞掉），
+//   断言载体随之从旧实现细节迁移到新不变量，意图（上限存在且生效）不变。
+assert('每楼主动操作数上限存在', src.includes('const _cap = numOr(this.config.config.aiRecallOpsMaxPerFloor, 12)'));
+assert('上限不再被 || 吞 0（v3.156）', !src.includes('aiRecallOpsMaxPerFloor) || 12'));
 assert('cap 应用于 status_changes', src.includes('extracted.status_changes.length > _cap'));
 assert('cap 应用于 todos', src.includes('extracted.todos.length > _cap'));
 assert('cap 应用于 items', src.includes('extracted.items.length > _cap'));

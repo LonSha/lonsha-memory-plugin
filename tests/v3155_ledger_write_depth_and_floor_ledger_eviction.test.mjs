@@ -243,12 +243,8 @@ test('【8】版本四处同步 3.155.0 + 旧锚点接管', () => {
     assert.ok(vnum(v) >= vnum('3.155.0'), `index.js 版本 ${v} >= 3.155.0`);
     assert.ok(vnum(manifest.version) >= vnum('3.155.0'), 'manifest 版本');
     assert.ok(vnum(pkg.version) >= vnum('3.155.0'), 'package 版本');
-    const cl = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(cl.trimStart().startsWith('## v3.155.0'), 'CHANGELOG 头部 3.155.0');
-    for (const t of ['tests/v3117_diagnostics.test.mjs', 'tests/v3130_control_plane.test.mjs', 'tests/v3147_cooldown_and_dual_hash.test.mjs']) {
-        const ts = readFileSync(path.join(ROOT, t), 'utf-8');
-        assert.ok(ts.includes("'3.155.0'"), `${t} 版本锚点同步 3.155.0`);
-    }
+    // [v3.156] CHANGELOG 头部断言已交新版接管（本版不再独占）
+    // [v3.156] 旧锚点断言已交新版接管（本版不再独占）
 });
 test('【8b】v3154 测试已去当版独占（CHANGELOG/旧锚点交本版接管）', () => {
     const t154 = readFileSync(path.join(ROOT, 'tests/v3154_ledger_validation_and_tier_gc.test.mjs'), 'utf-8');
