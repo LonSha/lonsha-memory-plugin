@@ -182,16 +182,16 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.161.0')), f + ' anchors are not stale');
+        assert.ok(hits.every((h) => vnum(h) >= vnum('3.162.0')), f + ' anchors are not stale');
     }
 });
 test('[4c] v3160 checks anchors as a lower bound, not as an equality', () => {
     // [4b] 那种「恰好等于本版字符串」的写法会让测试在下一版接管的瞬间翻红。
     //   v3160 从一开始就写成了下界形式，此处把它钉住，防止后来者改回去。
     const t = readFileSync(path.join(ROOT, 'tests/v3160_config_declaration_gap.test.mjs'), 'utf-8');
-    assert.ok(/vnum\(h\) >=\s*vnum\('3\.160\.0'\)/.test(t),
+    assert.ok(/vnum\(h\) >=\s*vnum\('3[.][0-9]+[.][0-9]+'\)/.test(t),
         'the anchor check is a version-agnostic lower bound');
-    assert.ok(!/assert[.]equal\([^,]+,\s*'3[.]160[.]0'\)/.test(t),
+    assert.ok(!/assert[.]equal\([^,]+,\s*'3[.][0-9]+[.][0-9]+'\)/.test(t),
         'no equality pinning to its own release number');
 });
 test('[4d] the changelog section documents this release', () => {

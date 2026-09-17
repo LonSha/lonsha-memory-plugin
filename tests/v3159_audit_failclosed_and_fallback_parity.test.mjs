@@ -4,7 +4,7 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, mkdirSync, readdirSync } from 'fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,13 +20,11 @@ function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
     return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
 }
-const auditScripts = [
-    'scan_config_liveness.mjs',
-    'scan_resilience.mjs',
-    'scan_slider_coherence.mjs',
-    'scan_syntax.mjs',
-    'scan_wiring.mjs',
-];
+// [v3.162] 交出硬编码清单：v3.161 之前这里是 5 个文件名字面量；v3.162 新增第 6 个
+//   审计脚本（scan_ui_binding）后，本文件的负控制会静默地把新脚本排除在外
+//   ——「[2] 每个审计脚本都能阻断」变成了「这 5 个能阻断」。改为从目录动态
+//   发现，判据与 tests/run.mjs 的 auditScripts() 保持一致。
+const auditScripts = readdirSync(AUDIT_DIR).filter((f) => f.endsWith('.mjs')).sort();
 const readAudit = (f) => readFileSync(path.join(AUDIT_DIR, f), 'utf-8');
 
 /** run one audit script inside a scratch tree shaped by `mutate` */

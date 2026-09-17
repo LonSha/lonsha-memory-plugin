@@ -838,9 +838,6 @@
                     <div class="ls-slider-label"><span>💰 钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="100000" step="1000" value="${c.maxMoneyDelta || 0}" data-cfg-num="maxMoneyDelta" oninput="document.getElementById('ls-v-mmd').textContent=this.value">
                     <div class="ls-hint" style="padding:0 8px;">覆盖式改值与旧金额差超过该上限时按 旧值±上限 clamp（anima zod 式校验，防 LLM 幻觉一键清零/暴富家产）；delta 式增减不受限。</div>
-                    <div class="ls-slider-label"><span>注入深度 D0/D1/D2</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
-                    <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
-                    <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
                     <div class="ls-hint" style="padding:0 8px; margin-top:6px;">🎬 番外楼：控制台执行 <code>SillyTavern.getContext().chat[N].extra.lonsha_omit = true</code> 可将该楼排除出记忆系统（小剧场/玩梗楼用）。</div>
                     <div class="ls-hint" style="padding:0 8px; margin-top:6px;">📦 记忆优化：每 ${c.optimizeEveryFloors || 50} 楼自动去重+淘汰最旧（向量上限 ${c.vectorMaxCount || 500} / 摘要上限 ${c.summaryMaxCount || 400}）；🗄️ 每 ${c.snapshotEveryFloors || 50} 楼自动快照（保留最近5份，IndexedDB）。</div>
                     ${ck('maintenancePipelineEnabled', '维护流水线（抄engram）', '把归档休眠→优化去重→节奏分诊编排为一次可诊断流水线：单步失败可重试，长期未维护自动跳回优化补做。默认关（关时走既有逐条维护路径，行为不变）')}
@@ -864,7 +861,6 @@
                     ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
                     ${ck('timeChangeDrivenInjection', '时间锚点变化注入', '复用现有剧情时间线，只将上次游标之后且与当前剧情时间相关的新事件加入本轮上下文')}
                     <div class="ls-hint" style="padding:0 8px;">时间变化注入同时覆盖时间线、在场角色状态、关系对及物品变化。</div>
-                    ${ck('reflectionEnabled', '反思节点（抄stbme，需API）', '定期从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，默认关')}
                     <div class="ls-slider-label"><span>回响停留轮数</span><span class="ls-slider-val" id="ls-v-echo">${c.echoBaseLife || 2}</span></div>
                     <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.echoBaseLife || 2}" data-cfg-num="echoBaseLife">
                     <div class="ls-slider-label"><span>每N楼写一次日记</span><span class="ls-slider-val" id="ls-v-df">${c.diaryEveryFloors ?? 3}</span></div>
@@ -885,7 +881,7 @@
                     ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；[v2.6] 支持架空日历（霜月3日）与全角分隔符，解析失败自动降级不标')}
                     <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
-                    <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入（默认，当前生效）；D1/D2=插入更早位置缓解近因偏误（需 ST 核心级 hook，预留位暂不生效）。</div>
+                    <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入（默认）；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
                     <div class="ls-slider-label"><span>悬念追踪上限（条）</span><span class="ls-slider-val" id="ls-v-susmax">${c.suspenseMaxOpen || 20}</span></div>
                     <input type="range" class="ls-slider" min="5" max="40" step="5" value="${c.suspenseMaxOpen || 20}" data-cfg-num="suspenseMaxOpen">
                     <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
