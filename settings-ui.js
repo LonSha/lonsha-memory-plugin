@@ -812,8 +812,8 @@
                     ${ck('statusAwareQuotaEnabled', '感知检索配额', '剧情状态调制检索条数：高压期(surge)多喂记忆、余波期降噪、未决矛盾/开放悬念密集期加量（默认关）')}
                     ${ck('swipeAwareRecallEnabled', 'swipe 重绘感知', '当前回复处于重绘(swipe)态时上调召回配额，给模型更宽候选（需先开启感知检索配额总开关，默认关）')}
                     ${ck('ledgerAwareQuotaEnabled', '物品台账感知臂', '近 6 楼内物品台账发生变动时上调召回配额（anima 智能感知轻量版，需先开启感知检索配额总开关，默认关）')}
-                    <div class="ls-slider-label"><span>词典条目上限</span><span class="ls-slider-val" id="ls-v-lexmax">${c.termLexiconMax || 40}</span></div>
-                    <input type="range" class="ls-slider" min="10" max="120" step="10" value="${c.termLexiconMax || 40}" data-cfg-num="termLexiconMax">
+                    <div class="ls-slider-label"><span>词典条目上限</span><span class="ls-slider-val" id="ls-v-lexmax">${c.termLexiconMax ?? 40}</span></div>
+                    <input type="range" class="ls-slider" min="10" max="120" step="10" value="${c.termLexiconMax ?? 40}" data-cfg-num="termLexiconMax">
                     ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}
                     ${ck('bridgeEnabled', '公开快照桥', '在 window.lonsha_memory_bridge_v1 暴露只读状态快照（主角/NPC账本/大纲/世界推进），供外部脚本读取')}
                     <div class="ls-slider-label"><span>折叠阈值（条）</span><span class="ls-slider-val" id="ls-v-fold">${c.summaryFoldThreshold || 30}</span></div>

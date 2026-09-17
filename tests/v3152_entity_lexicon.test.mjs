@@ -21,6 +21,21 @@ function extractClass(source, startMarker) {
     }
     return null;
 }
+/* [v3.157] extract the zero-value kernel from the source so the class under test
+   gets the real implementation, not a stale local copy. */
+function extractKernel(source) {
+    const at = source.indexOf('function numOr(');
+    if (at < 0) throw new Error('numOr kernel not found in index.js');
+    let depth = 0, started = false;
+    for (let i = at; i < source.length; i++) {
+        const ch = source[i];
+        if (ch === '{') { depth++; started = true; }
+        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(at, i + 1); }
+    }
+    throw new Error('numOr kernel is not brace balanced');
+}
+const numOrFromSource = new Function('return (' + extractKernel(src) + ')')();
+
 function vnum(s) {
     const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(s || '').trim());
     return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
@@ -42,7 +57,9 @@ test('【1】结构接线：词典类/双端归一/持久化/感知配额', () =
 
 // ================= 2. EntityLexicon 纯类行为 =================
 test('【2】EntityLexicon：resolve 匹配/词边界/NFKC/条数上限/超限淘汰', () => {
-    const Lex = new Function('return (' + extractClass(src, 'class EntityLexicon') + ')')();
+    // [v3.157] EntityLexicon 构造器取值已走零值安全内核 numOr（实体类不再自包含取值逻辑）。
+    //   载体随源迁移：内核从源码里提取后注入，而不是本地复制一份（防语义漂移）。
+    const Lex = new Function('numOr', 'return (' + extractClass(src, 'class EntityLexicon') + ')')(numOrFromSource);
     const lx = new Lex();
     // 构造期不依赖宿主
     assert.ok(lx && typeof lx.resolve === 'function', '构造零依赖');

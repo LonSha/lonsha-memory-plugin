@@ -1,3 +1,22 @@
+## v3.157.0
+- **死配置治理（第二轮）：`termLexiconMax` —— 接线断开，滑块与卡覆盖全部空转**：v3.156 把 `hybridAlpha` 从「只建不用」救活后，把这类检查做成了常驻审计（见下）。审计立扫出第二个同类缺陷：`settings-ui.js` 有「词典条目上限」滑块（`data-cfg-num="termLexiconMax"`，`min=10 max=120`），卡覆盖白名单里也有它，但引擎侧**从不消费**。
+  - 根因：实例化 `EntityLexicon` 时**调用括号是空的** —— `new (window.LonShaEntityLexicon?.EntityLexicon || function () {…})()`，而构造器签名是 `constructor(opts = {})`，内部 `this.max = Math.max(10, Math.round(Number(opts?.max) || 40))`，于是 `this.max` **恒为 40**，无论配置写什么、滑块拖到哪。
+  - 对照样板：紧邻的 `FloorLedger` 调用是**会传参**的（`new FloorLedger({ maxFloors: …, … })`）——同一个文件里两种写法并存，正好说明这不是有意设计。
+  - 修复：实例化改为 `new (…)({ max: numOr(this.config.config.termLexiconMax, 40) })`；构造器取值从 `Number(opts?.max) || 40` 改走零值安全内核 `numOr(opts?.max, 40)`（与全仓取值语义一致，`Math.max(10, …)` 的托底保留）。
+  - 顺带修掉 UI 侧两处 `${c.termLexiconMax || 40}`：`||` 会让「配置显式为 0」时渲染出 40，改用 `?? 40`（`0` 保留，仅 `null`/`undefined` 回退）。
+  - **可观测性**：诊断面板「召回产物」段后新增一行「**术语词典：** 当前条数/上限 条」，达到上限时追加「已达上限，新术语将按 count/lastFloor 淘汰旧条目」提示 —— 上限到底是多少，一眼可查（此前配置改了没反应，也没有任何地方能看出来）。
+- **审计基建 D：死配置扫描常驻化（`tests/audit/scan_config_liveness.mjs`）**：v3.156 的 `hybridAlpha` 是人工挖出来的，这类「键被引用了、但消费它的方法没有调用者」的缺陷逃得过常规「键是否被引用」扫描。本版把它变成第 4 个审计脚本，随 `npm run test:audit` 一起跑。
+  - 判据是**两跳可达性**：键 → 提及它的方法 → 该方法是否有调用者。
+  - **「消费」必须严格是成员读取形态 `obj.key`**：这是本轮最关键的校准。初版只要求「键名在 index.js 中出现」，结果**抓不到 `hybridAlpha`** —— 因为它在 `CARD_CFG_KEYS` 白名单里以裸字符串 `'hybridAlpha'` 出现，那处位于方法体外的类体级，被判为「可到达」。requiring `obj.key` 之后，白名单裸字面量不再算消费。
+  - 消费位置落在默认配置块内的一律排除（默认值本身不是消费）。
+  - 提及位置落在方法体外的类体/顶层 → 视为可到达（它在真实代码路径上）；落在方法体内 → 看该方法有无调用者；**所有提及都落在「无调用者」方法内 → 死配置，退出码 1 阻断**。
+  - **探针有效性已用「修复前树」回归验证**：把脚本拷到 `4122c44` 版本的 `index.js`/`settings-ui.js` 目录里跑，正确报出 `x DEAD: hybridAlpha (仅被无调用者的方法消费: _legacyHybridMerge)` 并退出 1；在当前树跑则 `hybridAlpha` 已消失。**能抓旧缺陷，才证明它今天不是假绿。**
+  - **门禁数字（v3.157 终局）**：`node tests/run.mjs --audit` → **151 个测试文件、803 断言、0 失败**，4 个审计脚本（`scan_config_liveness` / `scan_resilience` / `scan_syntax` / `scan_wiring`）全部 ✓。
+  - 当前基线：UI 呈现键 **144 个 / 可达 144 / 死配置 0**；中间量「无调用者方法」71 个（多为对外门面 / UI 入口，如 `getPublicData` / `getGraphWriter` / `vacuum`，本身不是错误，脚本把它单独打印出来仅供追溯）。
+- 测试与门禁：新增 `tests/v3157_live_lexicon_config_and_audit_liveness.test.mjs`（25 条）。
+  - **审计探针自带自测**：拿合成夹具写临时目录、跑真脚本、看退出码，而不是只断言脚本文本——其中两条夹具专门复刻了“白名单裸字面量”与“被调用方法里的裸字面量”，正是当初让探针 v1 漏掉 `hybridAlpha` 的两种形态。
+  - **防假绿注入验证：8/8 全部被捕获**。逐个真改源文件真跑测试：实例化丢参（22/3）、构造器回退 falsy（23/2）、UI 回退 `||`（24/1）、诊断行消失（24/1）、审计降级为裸 key 匹配（23/2）、审计不再阻断（21/4）、v3156 重新硬编码版本（24/1）、CHANGELOG 预置未发布节（23/2），全部 RED，`finally` 恢复、事后核验零残留。
+`tests/v3156_...test.mjs` 的当版独占断言（四处版本硬编码 + 三行旧锚点）交出，改为「四处一致 + 下限」断言与 `## v3.156.0` 节存在性断言；`tests/v3117_diagnostics.test.mjs` / `tests/v3130_control_plane.test.mjs` / `tests/v3147_cooldown_and_dual_hash.test.mjs` 三处旧锚点同步到 `3.157.0`。
 ## v3.156.0
 - **零值语义修复（10 个 `min="0"` 滑杆里被 `||` 吞掉的那几个）**：`settings-ui.js` 有 10 个数值键的滑杆 `min="0"`，即「0」是用户可选的**合法意图**。但引擎侧统一用 `Number(x) || fallback` 判定缺失——`0` 是 falsy，于是「设 0」在 UI 上可见、在引擎里**永不可达**。
   - 新增零依赖内核 `numOr(v, fallback)`：只对真正的缺失值（`undefined` / `null` / `''` / 非有限数 / 布尔）回退，`0` 与 `-0` 一律保留。**13 处消费点**全部改走该内核（`vectorChunkOverlap` / `aiRecallOpsMaxPerFloor` / `archivePreserveRecent` / `diaryEveryFloors`×2 / `echoMaxCount`×1 / `vectorTailRecoveryLimit` / `rubyPhoneRecallTopN` / `hybridAlpha` / `keepRecentTokenReserve` / `maxMoneyDelta` / `injectionDepth`×2 / `EchoPool._maxCount`）。

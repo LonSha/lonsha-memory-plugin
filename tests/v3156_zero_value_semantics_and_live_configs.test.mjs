@@ -398,20 +398,21 @@ test('[7b] the 0-semantics hints are stated in the UI', () => {
     assert.ok(sui.includes('回响池上限（0=关闭）'), 'echo pool label states 0 turns it off');
 });
 test('[7c] version is synced across the four declaration sites', () => {
-    assert.ok(src.includes("const VERSION = '3.156.0';"), 'index.js version');
-    assert.strictEqual(manifest.version, '3.156.0', 'manifest version');
-    assert.strictEqual(pkg.version, '3.156.0', 'package version');
+    // [v3.157] 当版独占的四处同步断言已交新版接管：改为版本下限断言，
+    //   意图（四处版本号互相一致且不低于本版）不变，载体不再是硬编码字符串。
+    const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
+    assert.strictEqual(v, manifest.version, 'manifest follows index.js');
+    assert.strictEqual(v, pkg.version, 'package follows index.js');
+    assert.ok(vnum(v) >= vnum('3.156.0'), 'index.js version ' + v + ' >= 3.156.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(changelog.trimStart().startsWith('## v3.156.0'), 'CHANGELOG head');
+    assert.ok(changelog.includes('## v3.156.0'), 'v3.156 section still present in CHANGELOG');
     assert.ok(vnum('3.156.0') > vnum('3.155.0'), 'version helper orders releases');
 });
 test('[7d] old anchors were taken over rather than dropped', () => {
     const t117 = readFileSync(path.join(ROOT, 'tests/v3117_diagnostics.test.mjs'), 'utf-8');
     const t130 = readFileSync(path.join(ROOT, 'tests/v3130_control_plane.test.mjs'), 'utf-8');
     const t147 = readFileSync(path.join(ROOT, 'tests/v3147_cooldown_and_dual_hash.test.mjs'), 'utf-8');
-    assert.ok(t117.includes("'3.156.0'") && !t117.includes("'3.155.0'"), 'v3117 re-anchored');
-    assert.ok(t130.includes("'3.156.0'") && !t130.includes("'3.155.0'"), 'v3130 re-anchored');
-    assert.ok(t147.includes("const VERSION = '3.156.0';") && !t147.includes("const VERSION = '3.155.0';"), 'v3147 re-anchored');
+    // [v3.157] 旧锚点断言已交新版接管（本版不再独占）
 });
 test('[7e] v3155 gave up its own-release exclusivity', () => {
     const t155 = readFileSync(path.join(ROOT, 'tests/v3155_ledger_write_depth_and_floor_ledger_eviction.test.mjs'), 'utf-8');

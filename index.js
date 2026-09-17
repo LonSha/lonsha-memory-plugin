@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.156.0';
+        const VERSION = '3.157.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -1921,7 +1921,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v1.9] P1
             this.bm25 = new BM25();
             // [v3.152] ANIMA 词典线：术语词典实例（默认开；构造零依赖，存档键 lexicon）
-            this.lexicon = new (window.LonShaEntityLexicon?.EntityLexicon || function () { this.items = []; this.resolve = () => null; this.export = () => []; this.import = () => {}; this.promptRules = () => ''; this.match = () => []; })();
+            // [v3.157] 配置接线：此前这里不传参，EntityLexicon 恒用内建默认 40，
+            //   `termLexiconMax` 的 UI 滑块与卡覆盖均为死配置（改了没反应）。
+            this.lexicon = new (window.LonShaEntityLexicon?.EntityLexicon || function () { this.items = []; this.resolve = () => null; this.export = () => []; this.import = () => {}; this.promptRules = () => ''; this.match = () => []; })({
+                max: numOr(this.config.config.termLexiconMax, 40)
+            });
             this.prequel = new PrequelSystem();   // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入前情资料
             // [v2.0] P2
             this.status = new CharacterState();
@@ -6573,6 +6577,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     push('');
                     push(`**召回产物：** ${s.total} 条（复用 ${s.reuses} 次，命中率 ${(s.hitRate * 100).toFixed(1)}%）`);
                     push(`- 平均注入 ${s.avgInjectionChars} 字 / 空产物 ${s.empties} 条`);
+                    // [v3.157] 术语词典可观测：上限是多少、当前多少条，一眼可查
+                    try {
+                        const _lx = this.lexicon;
+                        if (_lx && Array.isArray(_lx.items)) {
+                            const _lxMax = Number.isFinite(Number(_lx.max)) ? Number(_lx.max) : 40;
+                            push(`**术语词典：** ${_lx.items.length}/${_lxMax} 条${_lx.items.length >= _lxMax ? '（已达上限，新术语将按 count/lastFloor 淘汰旧条目）' : ''}`);
+                        }
+                    } catch (e) { errLog(e, 'exportMemoryReport.术语词典'); }
                     // [v3.156] 淘汰分账（老化 vs 超容量），解释「条数为何变少」
                     const _ev = this._recallArtifactEvictions || {};
                     const _evAge = Number(_ev.byAge) || 0;
@@ -9012,7 +9024,9 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
     // 构造零依赖（无 window/ST 时安静降级为纯数据类，可被 Node 单测直接实例化）。
     class EntityLexicon {
         constructor(opts = {}) {
-            this.max = Math.max(10, Math.round(Number(opts?.max) || 40));
+            // [v3.157] 用零值安全内核取值：旧写法 `Number(x) || 40` 会把显式的 0 当缺失
+            //   （虽然下方 Math.max(10,..) 仍会托底，但取值语义必须与全仓一致）。
+            this.max = Math.max(10, Math.round(numOr(opts?.max, 40)));
             this.items = [];   // [{ canon, terms:[], desc, count, firstFloor, lastFloor }]
         }
         normalizeText(s) {
