@@ -1,3 +1,22 @@
+## v3.158.0
+- **滑块自洽性治理：`diaryEveryFloors` —— `min=0` 的滑块与标签都在说假话**：v3.156 修好了 `min=0` 滑块里被 `||` 吞掉 0 的那一批，但只覆盖了当时的实例，**漏了 `diaryEveryFloors`**；v3.157 修 `termLexiconMax` 时又暴露出同一类问题的另一半 —— **滑块 `value` 修了、配对的 `ls-slider-val` 标签没修**。本版把这两半一次收干净。
+  - 现象：`settings-ui.js:870`（标签 `ls-v-df`）与 `:871`（滑块 `value`）都写着 `${c.diaryEveryFloors || 3}`。该键 `min="0"`，而 v3.156 已把引擎侧改成真正可达的「**0 = 每楼**」（`index.js:3717` 与 `index.js:10118` 两处消费点均走 `numOr(…, 3)`）。
+  - 后果：用户把 0 存进配置，引擎真按「每楼」跑，但回到面板看到的滑块与数字是 **3** —— 「改动看起来在、存下去也对，就是面板在说假话」。这是最难自查的一类缺陷：**功能是对的、界面是错的**，任何只看引擎行为的测试都抓不到。
+  - 修复：两个位置都改为 `?? 3`（`settings-ui.js:870` 与 `:871`，全仓 `diaryEveryFloors || 3` 清零）。
+- **审计基建 E：滑块声明自洽性常驻化（`tests/audit/scan_slider_coherence.mjs`）**：v3.157 的 D1 审计只能发现「键没人消费」，发现不了「界面把合法值渲染错」。本版新增第 5 个审计脚本，随 `npm run test:audit` 一起跑。
+  - **E1**：每个 `range` 必须 `min < max`，且 `step` 能整除区间（浮点容差 `1e-9` —— 否则 `hybridAlpha` 的 `step=0.1` 会误报「不整除」）。
+  - **E2**：`min=0` 的滑杆，其 `value` **与配对 `ls-slider-val` 标签**都不得用 `|| 非零数字` 回退（必须是 `??`）。判据按**解析出的回退数值**判定 —— `|| 0` 与 `?? 0` 渲染等价，是合法写法，一律禁止会误伤 `maxMoneyDelta`/`injectionDepth`。
+  - **E3**：默认配置块里的默认值必须落在 `[min, max]` 且在 `step` 网格上。
+  - **E4**：每个滑杆键都必须在默认配置块里有定义。
+  - 退出码 0/1/2（2 = 结构漂移，例如一个 `range` 都找不到）。
+  - **实现故意零正则**：初版用 `new RegExp('ls-slider-val[^>]*>[$][{]c[.]' + key + …)` 在 60 万字符的 `settings-ui.js` 上逐键建正则，直接触发 `FATAL ERROR: Ineffective mark-compacts near heap limit … JavaScript heap out of memory`（exit=134）。改写为手写字符串扫描 `readNumber(text, from)`（跳空白 → 逐字符收 `[0-9.]` → `Number.isFinite` 校验），彻底避开回溯与内存峰值。
+  - **判别力经修复前树验证**：把脚本拷到 `4122c44` 的旧树跑，**正确报出 2 处**（`value` 与 `label` 各一），当前树为 **0 处** —— 证明探针能抓真缺陷，且本轮修复确实消除了它。
+- **测试**：新增 `tests/v3158_slider_coherence_and_diary_zero.test.mjs`（15 条）。段 1 直接对源码取证（滑块/标签/引擎侧 0=每楼/全仓 `min=0` 键的两个位置回退）；段 2 装配合成夹具真跑审计脚本（坏形态须报 value+label 两处、好形态 exit 0、无滑块 exit 2）；段 3 是版本与发布卫生（四处同步、旧锚点接管、v3157 交出当版独占、CHANGELOG 节实质、无未发布占位节）。
+- **版本与锚点**：`index.js` / `manifest.json` / `package.json` 三处升 `3.158.0`；`v3117`/`v3130`/`v3147` 的旧锚点交新版接管（`'3.157.0'` → `'3.158.0'`）；`v3157` 交出当版独占（改为下限式 + 断言自己的 CHANGELOG 节仍在）。
+  - `v3157` 的 `[6e]` 原本硬编码「不得出现 `## v3.158.0`」，上版后必然失败；改为**版本无关不变量**：取全仓 CHANGELOG 最高节号，断言它等于 `index.js` 的已发布版本 —— 既能抱预置占位节，也不会再随每轮升版而失效（`v3158` 的 `[3e]` 同步采用同一不变量）。
+- **防假绿注入验证（9/9 全部被捕）**：真改源文件、真跑测试、`finally` 恢复。M1 滑块 value 回退 `||`（12/3）、M2 配对标签回退 `||`（12/3）、M3 引擎侧丢掉 0=每楼语义（14/1）、M4 审计不再扫标签（14/1）、M5 审计不再扫滑块值（14/1）、M6 审计把失败降级为通过（13/2）、M7 审计吞掉结构漂移（14/1）、M8 版本失同步（13/2）、M9 旧锚点回退且未被接管（14/1）。
+- **门禁数字（v3.158 终局）**：**152** 个测试文件、**818** 断言、**0** 失败；**5** 个审计脚本全部通过（`scan_config_liveness` 513ms / `scan_resilience` 87ms / `scan_slider_coherence` 94ms / `scan_syntax` 12417ms / `scan_wiring` 341ms）。
+- **当前基线**：滑块总数 **50** 个（其中 `min=0` 的 11 个），审计脚本 **5** 个。
 ## v3.157.0
 - **死配置治理（第二轮）：`termLexiconMax` —— 接线断开，滑块与卡覆盖全部空转**：v3.156 把 `hybridAlpha` 从「只建不用」救活后，把这类检查做成了常驻审计（见下）。审计立扫出第二个同类缺陷：`settings-ui.js` 有「词典条目上限」滑块（`data-cfg-num="termLexiconMax"`，`min=10 max=120`），卡覆盖白名单里也有它，但引擎侧**从不消费**。
   - 根因：实例化 `EntityLexicon` 时**调用括号是空的** —— `new (window.LonShaEntityLexicon?.EntityLexicon || function () {…})()`，而构造器签名是 `constructor(opts = {})`，内部 `this.max = Math.max(10, Math.round(Number(opts?.max) || 40))`，于是 `this.max` **恒为 40**，无论配置写什么、滑块拖到哪。

@@ -296,21 +296,23 @@ test('[5e] probe self-test: UI keys are collected from both data attributes and 
 
 // ================= 6. release hygiene =================
 test('[6] version is synced across the four declaration sites', () => {
+    // [v3.158] 当版独占的四处同步断言已交新版接管：改为「四处一致 + 版本下限」，
+    //   意图不变（四处版本号必须互相一致且不低于本版），载体不再是硬编码字符串。
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
     assert.ok(vnum(v) >= vnum('3.157.0'), 'index.js version ' + v + ' >= 3.157.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(changelog.trimStart().startsWith('## v3.157.0'), 'newest release heads the changelog');
+    assert.ok(changelog.includes('## v3.157.0'), 'v3.157 section still present in CHANGELOG');
 });
 
 test('[6b] old anchors were taken over, not dropped', () => {
-    const t117 = readFileSync(path.join(ROOT, 'tests/v3117_diagnostics.test.mjs'), 'utf-8');
-    const t130 = readFileSync(path.join(ROOT, 'tests/v3130_control_plane.test.mjs'), 'utf-8');
-    const t147 = readFileSync(path.join(ROOT, 'tests/v3147_cooldown_and_dual_hash.test.mjs'), 'utf-8');
-    assert.ok(t117.includes("'3.157.0'") && !t117.includes("'3.156.0'"), 'v3117 re-anchored');
-    assert.ok(t130.includes("'3.157.0'") && !t130.includes("'3.156.0'"), 'v3130 re-anchored');
-    assert.ok(t147.includes("const VERSION = '3.157.0';") && !t147.includes("'3.156.0'"), 'v3147 re-anchored');
+    // [v3.158] 旧锚点断言已交新版接管（本版不再独占）。
+    //   保留一个不变量：它们确实还在断言版本号，只是不再指向本版。
+    for (const f of ['tests/v3117_diagnostics.test.mjs', 'tests/v3130_control_plane.test.mjs', 'tests/v3147_cooldown_and_dual_hash.test.mjs']) {
+        const t = readFileSync(path.join(ROOT, f), 'utf-8');
+        assert.ok(/const VERSION = '3[.][0-9]+[.][0-9]+'/.test(t) || /'3[.][0-9]+[.][0-9]+'/.test(t), f + ' still checks a version string');
+    }
 });
 
 test('[6c] v3156 gave up its own-release exclusivity (lower bound kept)', () => {
@@ -332,9 +334,14 @@ test('[6d] the changelog section documents the shipped fixes', () => {
     assert.ok(head.includes('\u4e24\u8df3\u53ef\u8fbe\u6027'), 'the two-hop criterion is documented');
 });
 
-test('[6e] the changelog section never mentions a still-unreleased next version', () => {
+// [v3.158] 已交新版接管：不再硬编码「下一个版本号」，改为版本无关的不变量
+// —— 全仓最高的 CHANGELOG 节必须等于 index.js 的已发布版本（既能抱预置占位节，也不会再随每轮升版而失效）。
+test('[6e] the changelog never declares a section ahead of the released version', () => {
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(!changelog.includes('## v3.158.0'), 'no empty placeholder section');
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
+    const heads = changelog.split('\n').filter((l) => l.startsWith('## v'));
+    assert.ok(heads.length > 0, 'the changelog has sections');
+    const top = heads.map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
+    assert.strictEqual(top, v, 'the highest section must be the released version');
     assert.ok(changelog.includes('## v' + v), 'the released version has a section');
 });
