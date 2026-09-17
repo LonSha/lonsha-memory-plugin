@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.160.0';
+        const VERSION = '3.161.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -976,6 +976,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     'floorLedgerRetention', 'floorLedgerEvictionDebug',
                     // [v3.160] 归档节奏三键：此前只被引擎内部回退值兜着，卡作者无法按卡调节奏
                     'sleepEveryN', 'snapshotEveryFloors', 'adaptiveBudgetDecayFloors',
+                    // [v3.161] 召回调优五键（仅策略/数值/命名；提示词 extractRolesPrompt 与含密钥的
+                    //   secondaryApis 刻意不进卡——前者是全局资产，后者会随卡泄露 API Key）
+                    'budgetStrategy', 'pageRankDamping', 'dppLambda', 'memoryTreeEnabled', 'pyramidTiers',
                 ];
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {

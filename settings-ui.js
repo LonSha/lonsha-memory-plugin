@@ -915,6 +915,32 @@
                     <input type="range" class="ls-slider" min="10" max="500" step="10" value="${c.snapshotEveryFloors ?? 50}" data-cfg-num="snapshotEveryFloors">
                 </div>
                 <div class="ls-group">
+                    <div class="ls-group-title">🧭 推理调优（v3.161 补齐）</div>
+                    <div class="ls-row">
+                        <div><div>预算裁剪策略</div><div class="ls-hint">balanced=常驻全保留+触发截断到剩余预算；relevance=触发只保留 RRF 前 60%；recency=触发只保留时间/状态类分区</div></div>
+                        <select class="ls-input" data-cfg-text="budgetStrategy">
+                            <option value="balanced" ${c.budgetStrategy === 'balanced' ? 'selected' : ''}>balanced（均衡）</option>
+                            <option value="relevance" ${c.budgetStrategy === 'relevance' ? 'selected' : ''}>relevance（按相关度）</option>
+                            <option value="recency" ${c.budgetStrategy === 'recency' ? 'selected' : ''}>recency（按新近）</option>
+                        </select>
+                    </div>
+                    ${ck('memoryTreeEnabled', '记忆树路由召回', '按角色沿图谱生成树状路径做召回；默认关，观察期功能')}
+                    ${ck('aiRecallOpsDebug', 'AI 主动操作调试日志', '把 AI 用标签写记忆的每一条操作打进 console（排障用）')}
+                    <div class="ls-slider-label"><span>PageRank 扩散阻尼</span><span class="ls-slider-val" id="ls-v-pagerank">${c.pageRankDamping ?? 0.85}</span></div>
+                    <input type="range" class="ls-slider" min="0.1" max="0.95" step="0.05" value="${c.pageRankDamping ?? 0.85}" data-cfg-num="pageRankDamping">
+                    <div class="ls-slider-label"><span>DPP 多样性 λ（0=最相关，1=最多样）</span><span class="ls-slider-val" id="ls-v-dpp">${c.dppLambda ?? 0.5}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="1" step="0.05" value="${c.dppLambda ?? 0.5}" data-cfg-num="dppLambda">
+                    <div class="ls-slider-label"><span>金字塔层级名（逗号分隔，至少 3 层，tier0 起）</span></div>
+                    <textarea class="ls-textarea" id="ls-pyramid-tiers" style="min-height:64px;">${esc((Array.isArray(c.pyramidTiers) ? c.pyramidTiers : ['日记', '周记', '史记', '书', '传奇']).join('，'))}</textarea>
+                    <div class="ls-slider-label"><span>角色名提取提示词</span></div>
+                    <textarea class="ls-textarea" id="ls-roles-prompt" style="min-height:120px;">${esc(c.extractRolesPrompt || '')}</textarea>
+                    <div class="ls-slider-label"><span>触发词按需注入（留空=关闭该功能）</span></div>
+                    <textarea class="ls-textarea" data-cfg-text="onDemandTriggerPhrase" placeholder="例：请生成锚点日记">${esc(c.onDemandTriggerPhrase || '')}</textarea>
+                    <div class="ls-slider-label"><span>副API通道（JSON，按任务配独立端点）</span></div>
+                    <textarea class="ls-textarea" id="ls-secondary-apis" style="min-height:150px;" placeholder='{"summarize":{"endpoint":"https://...","apiKey":"sk-...","model":"gpt-4o-mini"},"rerank":{...}}'>${esc(JSON.stringify(c.secondaryApis || {}, null, 2))}</textarea>
+                    <div class="ls-hint">可选任务键：extract / summarize / embed / select / rerank / rewrite / state。未配的任务回落主通道；JSON 解析失败时保留原值并提示。</div>
+                </div>
+                <div class="ls-group">
                     <div class="ls-group-title">🏛️ 工业级体系化增强（前沿架构演进）</div>
                     ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
@@ -1294,6 +1320,23 @@
                 const promptEl = overlay.querySelector('#ls-prompt');
                 if (promptEl && promptEl.value.trim()) {
                     this.engine.config.config.extractionPrompt = promptEl.value;
+                }
+                // [v3.161] 专用控件的保存路径：结构型 / 长文本类配置不能走通用 data-cfg 收集
+                const tiersEl = overlay.querySelector('#ls-pyramid-tiers');
+                if (tiersEl) {
+                    const arr = tiersEl.value.split(/[，,\n]/).map(x => x.trim()).filter(Boolean);
+                    if (arr.length >= 3) this.engine.config.config.pyramidTiers = arr;
+                    else toast('⚠️ 金字塔层级至少 3 层，已保留原值');
+                }
+                const rolesEl = overlay.querySelector('#ls-roles-prompt');
+                if (rolesEl && rolesEl.value.trim()) this.engine.config.config.extractRolesPrompt = rolesEl.value;
+                const chanEl = overlay.querySelector('#ls-secondary-apis');
+                if (chanEl) {
+                    try {
+                        const v = JSON.parse(chanEl.value.trim() || '{}');
+                        if (v && typeof v === 'object' && !Array.isArray(v)) this.engine.config.config.secondaryApis = v;
+                        else toast('⚠️ 副API通道需为 JSON 对象，已保留原值');
+                    } catch (e) { toast('⚠️ 副API通道 JSON 解析失败，已保留原值'); }
                 }
                 this.engine.config.saveConfig();
                 toast('✅ 设置已保存');

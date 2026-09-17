@@ -1,3 +1,26 @@
+## v3.161.0
+- **配置可达性缺口：已声明、被引擎读取，却没人能设**。v3.160 关掉了「被读取却从未声明」这一侧；本版关掉另一侧——同一类缺陷的镜像。判据是三条清单的差集：默认配置块（`declared`）−（设置面板可写键 ∪ 角色卡白名单键）= 残差。本版开工时残差为 **9**。
+  - **9 个「声明了但无旋钮」的键**（全部补上控件或白名单，读取点一行未改）：
+    - `budgetStrategy`（默认 `'balanced'`）——注入裁剪策略，引擎分三支：`relevance`（常驻全保留 + 触发保留 RRF 前 60%）、`recency`（保留常驻 + 近期分区）、其余落 `balanced`。此前面板上没有任何入口，用户永远拿不到另外两支。
+    - `pageRankDamping`（默认 `0.85`）——图谱扩散阻尼。源码里躺着一条历史注释：「[v3.91] 审计修复：此前该配置全项目零引用，扩散阻尼恒为库内硬编码 0.85」。也就是说这个键曾经被「救活」过一次，但救活之后仍然没人能改它。
+    - `dppLambda`（默认 `0.5`）——DPP 多样性 λ。**取值域含 0**（0 = 最相关），故面板与保存路径一律用 `??` 而非 `||`。
+    - `memoryTreeEnabled`（默认 `false`）、`aiRecallOpsDebug`（默认 `false`）。
+    - `pyramidTiers`（默认 `['日记','周记','史记','书','传奇']`）——记忆金字塔层级名，结构型（数组）。
+    - `extractRolesPrompt`、`secondaryApis`（默认 `{}`）、`onDemandTriggerPhrase`（默认 `''`）。
+  - **新增「🧭 推理调优」设置分组**（26 行）：`budgetStrategy` 下拉（三个 option 与引擎三支严格一一对应）、`memoryTreeEnabled` / `aiRecallOpsDebug` 复选框、`pageRankDamping`（0.1–0.95，步 0.05）与 `dppLambda`（0–1，步 0.05）两条滑块、`#ls-pyramid-tiers` / `#ls-roles-prompt` / `#ls-secondary-apis` 三个专用 textarea、`onDemandTriggerPhrase` 文本框。`#ls-secondary-apis` 的占位符直接给出通道结构样例，并附一行提示「可选任务键：extract / summarize / embed / select / rerank / rewrite / state」。
+  - **结构型配置必须有专用保存路径**：通用 `data-cfg` 收集只认 `el.checked` / `parseFloat` / `trim()`——数组会被 trim 成逗号串、对象会变成 `"[object Object]"`。故新增三条写回：`pyramidTiers` 按 `[，,\n]` 三态分隔拆数组并要求 **≥3 层**、`extractRolesPrompt` 走非空文本、`secondaryApis` 走 `JSON.parse` + 对象判定。**三条失败路径一律 toast 提示并保留原值**，绝不写入半成品。
+  - **白名单扩 5 键、刻意排除 2 键**：`CARD_CFG_KEYS` 追加 `budgetStrategy` / `pageRankDamping` / `dppLambda` / `memoryTreeEnabled` / `pyramidTiers`（38 → **43** 键）。**不收录** `extractRolesPrompt`（全局提示词资产，不该被单张角色卡改写）与 `secondaryApis`（内含 `endpoint` / `apiKey`，随卡分发会泄露 API Key）——两者只经设置面板设置，排除理由写在白名单注释里。
+  - **残差归零（本版验收口径）**：`declared = 165`、面板可写 = 164、白名单 = 43；`STRICT not declared: []`、`whitelist ghosts: []`、**`residual (neither): []`**。即 165 个已声明键**全部**可达：164 个有面板控件，1 个（`extractionPrompt`，走 `#ls-prompt`）由专用保存路径写回。
+- **测试**：新增 `tests/v3161_config_reachability.test.mjs`（15 条）。段 1 是可达性不变量——`declared ⊆ (面板可写 ∪ 卡白名单)`，用「四种可写形态」的并集判定（`data-cfg*` / `ck('K'` / 保存路径 `config.config.K =` / 专用控件 `id="ls-*"` 配合保存路径）；**特意不把 `c.K` 直读算作可写**，因为渲染一个值不等于能把值写回去（`extractionPrompt` 就是这样被 v3.160 的启发式清单误判过，所幸当时没写成断言）。段 2 验证新分组逐个控件渲染、`budgetStrategy` 选项集合必须与引擎分支集合一致、含 0 的滑块必须用 `??`、三个结构型控件必须有专用保存路径且三条失败路径都保留原值，并真跑 `scan_config_liveness` / `scan_wiring` / `scan_slider_coherence`；段 3 白名单卫生（扩的 5 键在册、无幽灵、无重复）；段 4 发布卫生。
+- **版本与锚点**：`index.js` / `manifest.json` / `package.json` 三处升 `3.161.0`；`v3117`/`v3130`/`v3147` 的旧锚点交新版接管（`'3.160.0'` → `'3.161.0'`）；`v3160` 交出当版独占——其 `[4b]` 的锚点下界改为版本无关形态。
+- **防假绿注入验证（14/14 全部被捕获）**：真改源文件、真跑 `node --test`、无条件回滚并逐字节校验还原。变异覆盖四类：
+  - 白名单类：新收的 5 键被摘掉（M1）、含 API Key 的 `secondaryApis` 回流（M2）、全局提示词 `extractRolesPrompt` 回流（M3）。
+  - 面板类：`dppLambda` 滑块消失（M4）、min=0 滑块被改成 `|| 0.5` 回退（M5）、`relevance` 选项被摘掉（M6）、多出一个引擎不认识的值 `random`（M7）、金字塔层数下限从 3 放宽到 1（M8）、解析失败被静默吞掉（M9）、失败提示不再承诺保留原值（M10）。
+  - 可达性回归：`onDemandTriggerPhrase` 的控件属性被打错成 `data-cfg-x`（M14）——这正是本版要根治的形态。
+  - 发布卫生：`index.js` 版本回落（M11）、CHANGELOG 顶节写成从未发布的 `3.161.1`（M12）、`v3160` 的锚点下界退回「恰好等于 3.160.0」的等式钉法（M13）。
+- **门禁数字（v3.161 终局）**：**155 文件、860 断言、0 失败、5 个审计脚本全 ✓**（`scan_config_liveness 549ms` / `scan_resilience 91ms` / `scan_slider_coherence 89ms` / `scan_syntax 12630ms` / `scan_wiring 345ms`）。
+- **一处工程教训（本轮实测）**：门禁首跑暴露了 `tests/v3161_config_reachability_completion.test.mjs` —— 上一轮中断时留下的**平行草稿**，与正式文件同名同题：其 `[4c]` 的正则转义被终端的 heredoc 吞坏（`/vnum\(h\)/` 多了一层反斜杠，永远匹配不上），且 `[4b]` 里带着「锚点必须恰好等于本版号」的过期陷阱。已删除并把其中更好的一条判据**吸收**进正式文件：`[2b]` 改为**从源码推导**引擎分支集合（`strategy === '...'`）再与面板 option 集合比对，而不是把三支写死在测试里——写死的话，将来引擎加/删一支，面板与测试会一起停在旧答案上而无人察觉。
+- **当前基线**：默认配置键 **165** 个，其中面板可写 164 个、卡白名单 43 个，**残差 0**（每个已声明键都至少有一条可达路径）；UI 呈现键 **160** 个，可到达 160、死配置 0；滑块 **55** 条；审计脚本 5 个。
 ## v3.160.0
 - **配置声明缺口：引擎读得到的键，用户不一定设得了**。本版把「配置块 / UI 控件 / 角色卡白名单」三份清单互相交叉比对，找出三类缺口。
   - **缺口的形状**：一个功能在引擎里实现完整，读取点写着 `config.config.KEY !== false`（默认开）或 `|| 默认值`（有兜底），但默认配置块里**从来没有 `KEY:` 这一行**。后果有两层：用户既不能在设置面板里关掉它，角色卡也不能按卡调它的节奏；而「配置被清空 / 新装插件」时它会静默回落到源码里那个硬编码值，谁都不知道这个值的来源。
