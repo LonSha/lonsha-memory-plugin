@@ -1,3 +1,16 @@
+## v3.155.0
+- **台账写入校验纵深（补 v3.154 遗漏的两条整体替换路径）**：v3.154 的提交说明写的是「两条写入路径绕过清洗」，但全量枚举 `itemOps` 写入口后实际是 **4 条外部输入路径中的 2 条**——还剩两条比已修的那两条更严重，因为它们不是「逐项 push」，而是**外部输入对真源的整体替换**（连长度、枚举、类型都不过）：
+  - **`applyCarryover.itemOps`（携带包应用）**：旧写法 `this.itemOps = pack.itemOps.map(o => ({...o, carried:true}))`。危害有二：① 携带包不经任何校验直落真源；② **整体替换会静默丢弃本会话已入账的全部 ops**——玩家在本对话捡到/丢掉的物品，只要应用一次携带包就凭空消失。本轮改为「校验（复用 v3.154 的 `validateCarriedItems`）+ 与现有真源**合并**而非替换」：按归一键 `key` 去重，仅追加真源中不存在的新项，有实际合并才 `rebuildItems()`，debug 时 warn 出「校验后合并 N 条（跳过重复 M）」。**这是语义增强而非等价保持**——旧语义本身就是缺陷。
+  - **`import.itemOps`（存档导入）**：旧写法 `engine.itemOps = data.itemOps`。外部存档可把任意形态的数组直接写进真源。本轮改为 `validateLedgerItemOps(_raw, { fallbackFloor: 0 })` 校验后落盘（非数组兜底空数组），违规以 `source='import'` 记入环形账本，与既有的 `'extract'` / `'carryover'` 形成三源标记。
+  - 两条路径均受 `ledgerWriteValidationEnabled` 门控，关闭时逐位回退旧行为。至此「外部输入永不直落真源」这条不变量在 4 条路径上全部闭合。
+- **楼层账本静默淘汰治理（长线连载的回滚能力黑洞）**：`FloorLedger` 的每层上限一直是硬编码 `MAX_FLOORS = 400`，`beginFloor` 超限时 `delete` 最旧楼层记录；而 `rollbackFloor` 开头是 `if (!entry) return 0;`——**缺失记录一律静默返回**。两者叠加的后果在长线连载（>400 楼）中必然触发：被淘汰楼层的**回滚能力静默失效**，该楼产生的图谱节点/POV/时间线条目再也无法按楼撤销，永远留在记忆里成为「幽灵记忆」，而用户与日志都毫无提示。
+  - **上限可配**：新增 `floorLedgerRetention`（默认 400，`Math.max(20, ...)` 下限保护防清空），角色卡可覆盖。
+  - **淘汰显式化 + 逐个化**：原实现超限时只 `delete` 一条，批量导入（如恢复 600 楼存档）后会残留超限状态；改为 `while` 逐个淘汰，每次淘汰累加 `evicted` 计数、记录**淘汰水位** `evictedFloorMax`、并触发 `onEvict` 回调（写 op-log `ledger/evict`）。
+  - **回滚失效可见**：`rollbackFloor` 的缺失分支现在区分两种情形——「该楼从未提取」（正常，静默）与「记录已被上限淘汰」（**回滚能力失效**，累加 `_ledgerMissingRollbacks` + 写 op-log `ledger/rollback-miss` + 可选控制台 warn）。判定用淘汰水位而非当前键集合，避免把未提取的楼层误报为已淘汰。
+  - **诊断面板**：「楼层账本」行尾附「（已淘汰 N）」，并新增「回滚失效」行。`floorLedgerEvictionDebug` 可开控制台逐次 warn。
+- **设置面板**：新增「楼层账本保留上限」数值滑杆（50–2000，步长 50，带数值回显与说明）与「楼层账本淘汰调试日志」开关；两项新配置均进卡覆盖白名单（`CARD_CFG_KEYS`）。
+- **范围界定**：本轮不动 BM25 词典与配置三级合并（另版）；`_sanitizeItemOp` 仍作为派生层兜底保留（旧档兼容，真源不动）。
+- **测试**：新增 `tests/v3155_ledger_write_depth_and_floor_ledger_eviction.test.mjs`（10 项）——A1/A2 两条整体替换路径的源码切块真执行（合并去重 / 关卡回退 / 违规入账 / 旧写法清零）+ `FloorLedger` 真执行（可配上限 / 下限保护 / 逐个淘汰 / 水位 / 回调异常吞掉 / record-get-remove 契约）+ `rollbackFloor` 缺失分支真执行（已淘汰才计数、未提取不误计、水位边界、无历史零误报）+ 接线与配置与白名单 + 诊断面板两行 + UI 登记 + 版本四处同步 + v3154 去当版独占。更新 v3117/v3130/v3147 三处版本号锚点至 3.155.0。
 ## v3.154.0
 - **台账写入侧 zod 式校验（anima #30）**：v3.128 的 `maxMoneyDelta` clamp 只堵住了钱财账本，物品台账的**写入侧**一直裸奔——`_sanitizeItemOp` 仅在 `rebuildItems` 的派生视图路径被调用，而真源 `itemOps`（要落盘、要进携带包、要被导出导入）在两条路径上完全不设防：① `importCarryoverSeed` 把外部携带包的原始对象直接 `push` 进真源；② LLM 提取结果也只做了 `if (!it?.name) continue` 就入账。本轮在写入前插入零依赖纯函数校验内核（`validateLedgerItemOp` / `validateLedgerItemOps` / `validateCarriedItems`），字段约束对齐既有 `_sanitizeItemOp` 口径：action 白名单（含 `del/delete/drop`→remove、`gain/take/get`→add 宽容别名）、name/desc/holder/state/location 长度上限（40/80/20/10/40）、floor 非负整数、holder 占位词归「地上/遗落」、carried 与 location 互斥自愈、单批上限 60。
   - **宽容转换，非拒绝**：能修就修（截长、归枚举、拆互斥），修不了才丢；绝不因一项脏就丢整批（对齐 loose-json「逐项独立校验」纪律）。唯一硬拒绝路径是 action 非法或 name 缺失/为空。

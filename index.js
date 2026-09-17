@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.154.0';
+        const VERSION = '3.155.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -822,6 +822,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 ledgerViolationLogMax: 200,          // 违规环形账本容量（诊断面板读取）
                 volumeRetention: 40,                 // [v3.154] 卷摘要硬上限（原硬编码 20 且静默丢卷；上调并改显式淘汰）
                 historicalRetention: 24,             // [v3.154] 史记硬上限（原硬编码 6 且静默丢卷）
+                floorLedgerRetention: 400,           // [v3.155] 楼层账本上限（原硬编码 400 且静默 delete 最旧；改为可配+显式淘汰）
+                floorLedgerEvictionDebug: false,     // [v3.155] 楼层账本淘汰调试日志
                 reflectionEnabled: false,      // 反思节点（抄stbme：洞察提炼，需API，默认关）
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
@@ -941,6 +943,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     'swipeAwareRecallEnabled', 'ledgerAwareQuotaEnabled',
                     'ledgerWriteValidationEnabled', 'ledgerWriteValidationDebug', 'ledgerViolationLogMax',
                     'volumeRetention', 'historicalRetention',
+                    'floorLedgerRetention', 'floorLedgerEvictionDebug',
                 ];
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {
@@ -1890,6 +1893,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastOptimizeFloor = 0;                // [v2.9] RU-B 优化周期锚点
             this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
             this._ledgerViolations = [];                 // [v3.154] 台账写入校验违规环形账本（诊断可观测）
+            this._ledgerMissingRollbacks = 0;             // [v3.155] 因账本淘汰而无法回滚的楼层请求数（诊断可观测）
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
             this.llm = new LLMCaller(config);
@@ -1905,7 +1909,14 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.prequel = new PrequelSystem();   // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入前情资料
             // [v2.0] P2
             this.status = new CharacterState();
-            this.ledger = new FloorLedger();
+            // [v3.155] 楼层账本：上限可配 + 淘汰可见（淘汰即「回滚能力失效」，必须让人知道）
+            this.ledger = new FloorLedger({
+                maxFloors: Number(this.config.config.floorLedgerRetention) || 400,
+                onEvict: (floor, total) => {
+                    try { this.opLog?.log?.('ledger', 'evict', String(floor), Number(floor), `楼层账本上限淘汰（累计 ${total}）: 第${floor}楼回滚能力失效`); } catch (e) {}
+                    if (this.config.config.floorLedgerEvictionDebug) console.warn(`[${PLUGIN_NAME}] 楼层账本淘汰: 第${floor}楼（累计 ${total}）——该楼回滚能力失效，其图谱/POV/时间线条目将无法按楼撤销`);
+                }
+            });
             // [v2.1] P3
             this.mutex = new Mutex();
             this.holiday = new HolidayAware();
@@ -5870,7 +5881,17 @@ function relativeTimeLabel(eventTime, nowTime) {
             try {
                 if (!this.config.config.floorLedgerEnabled) return 0;
                 const entry = this.ledger.get(floor);
-                if (!entry) return 0;
+                if (!entry) {
+                    // [v3.155] 缺失分两种：① 该楼从未提取（正常）；② 账本记录已被上限淘汰（**回滚能力失效**）。
+                    //   旧写法一律静默 return 0，第二种情况用户永远不知道自己的旧楼无法回滚了。
+                    const _evictedOut = Number(floor) < (this.ledger.evictedFloorMax || -1);
+                    if (_evictedOut) {
+                        this._ledgerMissingRollbacks = (this._ledgerMissingRollbacks || 0) + 1;
+                        try { this.opLog?.log?.('ledger', 'rollback-miss', String(floor), Number(floor), '账本记录已淘汰，无法按楼回滚'); } catch (e) {}
+                        if (this.config.config.floorLedgerEvictionDebug) console.warn(`[${PLUGIN_NAME}] 回滚失效: 第${floor}楼账本记录已被上限淘汰（累计失效 ${this._ledgerMissingRollbacks} 次）`);
+                    }
+                    return 0;
+                }
                 this._bumpEpoch('rollback-floor-' + floor);   // [v3.145] CP-L6: 回滚即变更，作废在飞提取
                 // 回滚节点（该楼新增的图谱节点）
                 // [v3.6] 升级: ① character 节点长寿命——删前检查后续摘要是否仍提及该角色，提及则保留；
@@ -6206,7 +6227,28 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 try { if (Array.isArray(pack.povs) && pack.povs.length && this.pov?.import) this.pov.import(pack.povs); } catch (e) { errLog(e, 'applyCarryover.graph'); }
                 try { if (pack.diary && this.diary?.import) this.diary.import(pack.diary); } catch (e) { errLog(e, 'applyCarryover.pov'); }
                 try { if (pack.reflection && this.reflection?.import) this.reflection.import(pack.reflection); } catch (e) { errLog(e, 'applyCarryover.diary'); }
-                try { if (Array.isArray(pack.itemOps)) { this.itemOps = pack.itemOps.map(o => ({ ...o, carried: true })); this.rebuildItems(); } } catch (e) { errLog(e, 'applyCarryover.itemOps'); }   // [v3.3] 携带包：无对应楼层，标 carried 永久有效
+                try {
+                    if (Array.isArray(pack.itemOps)) {
+                        // [v3.155] 纵深：旧写法 `= pack.itemOps.map(o => ({...o, carried:true}))` 是外部输入
+                        //   对真源的整体替换——v3.154 只堵了「逐项 push」路径，这里连长度/枚举/类型都不过。
+                        //   改为：校验（复用 v3.154 内核）+ 与现有真源**合并**而非替换（替换会静默丢弃本会话已入账的 ops）。
+                        const _cv = (this.config.config.ledgerWriteValidationEnabled === false)
+                            ? pack.itemOps.filter(o => o && o.name).map(o => ({ ...o, carried: true }))
+                            : validateCarriedItems(pack.itemOps).items;
+                        const _seen = new Set((this.itemOps || []).map(o => (o && o.key) ? o.key : '').filter(Boolean));
+                        let _merged = 0;
+                        for (const it of _cv) {
+                            const _k = it.key || '';
+                            if (_k && _seen.has(_k)) continue;
+                            this.itemOps.push(Object.assign({ carried: true }, it));
+                            if (_k) _seen.add(_k);
+                            _merged++;
+                        }
+                        if (_merged) this.rebuildItems();
+                        if (this.config.config.ledgerWriteValidationDebug) console.warn(`[${PLUGIN_NAME}] 携带包 itemOps: 校验后合并 ${_merged} 条（跳过重复 ${_cv.length - _merged}）`);
+                    }
+                } catch (e) { errLog(e, 'applyCarryover.itemOps'); }
+
                 try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) { errLog(e, 'applyCarryover.scene'); }
                 try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
@@ -6254,7 +6296,8 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ['POV', `${this.pov.povs.length} 条`],
                     ['角色状态', `${Object.keys(this.status.characters || {}).length} 人`],
                     ['回响池', `${this.echo.pool ? this.echo.pool.size : (this.echo.items ? this.echo.items.length : '?')}`],
-                    ['楼层账本', `${Object.keys(this.ledger.floors || {}).length} 楼`],
+                    ['楼层账本', `${Object.keys(this.ledger.floors || {}).length} 楼${this.ledger.evicted ? `（已淘汰 ${this.ledger.evicted}）` : ''}`],
+                    ['回滚失效', this._ledgerMissingRollbacks ? `${this._ledgerMissingRollbacks} 次（账本已淘汰）` : '0'],
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -6655,7 +6698,17 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             _imp('reflection', !!engine.reflection, () => engine.reflection.import(data.reflection));
             _imp('charMem', !!engine.charMem, () => engine.charMem.import(data.charMem));
             _imp('worldProg', !!engine.worldProg, () => engine.worldProg.import(data.worldProg));
-            _imp('itemOps', true, () => { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems)?.call(engine); });
+            _imp('itemOps', true, () => {
+                // [v3.155] 纵深：旧写法把外部存档的 data.itemOps 整体赋给真源（连长度/枚举/类型都不过）。
+                //   改为校验后落盘；校验内核逐项宽容转换（能修就修），关卡关闭时逐位回退旧行为。
+                const _raw = Array.isArray(data.itemOps) ? data.itemOps : [];
+                const _vres = (engine.config && engine.config.config && engine.config.config.ledgerWriteValidationEnabled === false)
+                    ? _raw.filter(o => o && o.name)
+                    : validateLedgerItemOps(_raw, { fallbackFloor: 0 });
+                engine.itemOps = _vres.items || _vres;
+                if (_vres.violations && _vres.violations.length) engine._recordLedgerViolations?.(_vres.violations, 'import', 0);
+                (engine.reconcileItemOps || engine.rebuildItems)?.call(engine);
+            });
             _imp('narrativeEntropy', typeof data.narrativeEntropy === 'number', () => { engine._narrativeEntropy = data.narrativeEntropy; });
             _imp('stmLtm', !!engine.stmLtm, () => { engine._stmLtmState = engine.stmLtm.normalizeState(data.stmLtm); });
             _imp('recallArtifacts', Array.isArray(data.recallArtifacts), () => { engine._recallArtifacts = data.recallArtifacts.slice(-32); });
@@ -9730,9 +9783,14 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
     
     // [v2.0] P2: 楼层账本（抄 yuzuki floor-ledger：记忆变更绑定楼层，删楼/重生成自动回滚）
     class FloorLedger {
-        constructor() {
+        constructor(opts) {
             this.floors = {};   // { floor: { nodeIds:[], summaryFloors:[], povIds:[], timelineIds:[], statusSnapshot:{} } }
-            this.MAX_FLOORS = 400;
+            // [v3.155] 旧写法 MAX_FLOORS=400 硬编码 + 超限 `delete` 最旧楼层：删除后 rollbackFloor 遇
+            //   `!entry` 直接 return 0，**回滚能力静默失效**（该楼产生的图谱节点/POV/时间线永远留在记忆里，
+            //   成为幽灵记忆）。长线连载（>400 楼）必然触发。改为可配 + 淘汰可见（evicted 计数 + 回调 + op-log）。
+            this.MAX_FLOORS = Math.max(20, Number(opts && opts.maxFloors) || 400);
+            this.evicted = 0;                      // 累计淘汰楼层数（诊断可观测）
+            this.onEvict = (opts && typeof opts.onEvict === 'function') ? opts.onEvict : null;
         }
         beginFloor(floor, statusSnapshot) {
             this.floors[floor] = {
@@ -9747,7 +9805,16 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             };
             const keys = Object.keys(this.floors);
             if (keys.length > this.MAX_FLOORS) {
-                delete this.floors[keys.sort((a, b) => a - b)[0]];
+                // [v3.155] 逐个淘汰（原实现只 delete 一条，批量导入超限时会残留超限状态）+ 显式记账
+                const _sorted = keys.sort((a, b) => a - b);
+                while (_sorted.length > this.MAX_FLOORS) {
+                    const _victim = _sorted.shift();
+                    delete this.floors[_victim];
+                    this.evicted++;
+                    const _vn = Number(_victim);
+                    if (Number.isFinite(_vn)) this.evictedFloorMax = Math.max(Number(this.evictedFloorMax) || -1, _vn);
+                    if (this.onEvict) { try { this.onEvict(_victim, this.evicted); } catch (e) {} }
+                }
             }
             return this.floors[floor];
         }

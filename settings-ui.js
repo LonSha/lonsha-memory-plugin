@@ -785,6 +785,10 @@
                      ${ck('narrativePulseEnabled', '叙事心电图（完全原创）', '情感极性曲线 + 张力节奏 + 角色弧光阶段 + 自反性节奏建议（连续高压提醒放缓呼吸拍，连续平淡提醒掀起波澜），纯文本启发式零额外 API')}
                      ${ck('todoTrackingEnabled', '待办追踪', '提取角色待办事项，剧情时间过期自动清理')}
                      ${ck('floorLedgerEnabled', '楼层账本', '删楼/重生成时自动回滚该楼层产生的记忆')}
+                    <div class="ls-slider-label"><span>楼层账本保留上限（anima #31）</span><span class="ls-slider-val" id="ls-v-flret">${c.floorLedgerRetention || 400}</span></div>
+                    <input type="range" class="ls-slider" min="50" max="2000" step="50" value="${c.floorLedgerRetention || 400}" data-cfg-num="floorLedgerRetention" oninput="document.getElementById('ls-v-flret').textContent=this.value">
+                    <div class="ls-hint" style="padding:0 8px;">原硬编码 400 且超限静默删除最旧楼层——被删楼层的回滚能力就此静默失效（该楼产生的图谱/POV/时间线条目再也无法按楼撤销）。超限淘汰现在记入 op-log 与诊断面板「已淘汰」计数，长线连载可上调。</div>
+                    ${ck('floorLedgerEvictionDebug', '楼层账本淘汰调试日志', '开启后楼层账本淘汰、以及「回滚请求命中已淘汰楼层」时在控制台 warn（默认关）')}
                      <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
                  </div>
                 <div class="ls-group">

@@ -85,8 +85,11 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
         diary: { import: () => {} }, reflection: { import: () => {} }, scene: { import: () => {} },
         vector: { import: () => {} }, itemOps: [],
         bm25: { rebuild: () => {} }, config: { config: { bm25Enabled: false, debugMode: false, sceneEnabled: true, vectorEnabled: true } },
+        rebuildItems: () => {},   // [v3.155] A1 合并后重建派生层
     };
-    const fn = new Function('errLog', `return ${fnSrc}`)(() => {});
+    // [v3.155] applyCarryover.itemOps 已接入写入侧校验内核（校验+合并），此处注入同语义实现
+    const _vcStub = (list) => ({ items: (Array.isArray(list) ? list : []).filter(o => o && o.name).map(o => ({ ...o, carried: true })), violations: [] });
+    const fn = new Function('errLog', 'validateCarriedItems', `return ${fnSrc}`)(() => {}, _vcStub);
     fn.call(engine, {
         summaries: [{ floor: 1, text: 's1' }],
         itemOps: [{ floor: 1, fp: 'x', action: 'add', name: '剑' }],
