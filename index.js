@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.159.0';
+        const VERSION = '3.160.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -863,6 +863,21 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 recallTierEnabled: true,       // 召回类型分级（常驻 constant / 触发 trigger，注入预算裁剪优先保常驻）
                 memoryTokenBudget: 2700,       // [v3.135] 记忆注入 token 预算（按 token 剪裁）——默认从 900 重校准：旧值为 *4 装饰口径倒推值，CJK 口径真实生效后 2700 token≈3000 中文字符，与 injectionBudget 默认等价，行为不变而上限真实
                 keepRecentTokenReserve: 0,     // 保留给最近正文的 token 预留（0=不预留；>0 时注入预算自动扣减）
+                // [v3.160] 以下 10 个键此前只被读取点的容灾式守卫引用（`!== false` / `|| 默认值`），
+                //   从未在默认配置块里声明过 —— 即「引擎有功能、用户无法关闭」。此处补齐声明；
+                //   读取点一律不改（值恒为 true / 与引擎内回退同值时短路，行为与本版之前完全一致）。
+                //   布尔 7 个：
+                diaryBridgeEnabled: true,        // [v3.48] 日记桥：本轮提取的日记同步写进手机日记
+                clockSyncEnabled: true,          // [v3.50] 剧情时钟权威同步：正文时间锚点回填手机时钟
+                pairMemoryEnabled: true,         // [v3.48] 配对记忆：从 relationships 提取双人关系记忆
+                conflictBookEnabled: true,       // [v3.48] 冲突簿：从 conflicts 提取并维护矛盾关系
+                cardCollectionEnabled: true,     // [v3.48] 事件收藏册：从 events 提取剧情事件卡片
+                ethicsConflictEnabled: true,     // [v3.48] 伦理冲突检测：family × intimate 关系冲突标记
+                adaptiveBudget: true,            // [v3.50] 注入预算第三层自适应：楼层少时扩容、多时收紧（clamp 0.6x~1.8x）
+                // 数值 3 个（默认值取自引擎内回退，改声明不改行为）：
+                adaptiveBudgetDecayFloors: 80,   // [v3.50] 自适应衰减参考楼层
+                sleepEveryN: 10,                 // [v3.47] 睡眠周期：每 N 次提取触发一次归档遗忘
+                snapshotEveryFloors: 50,         // [v2.9] 定期快照：每 N 楼一份 IndexedDB 独立快照
                 autoArchiveCovered: false,     // 归档隐藏已被卷摘要覆盖的旧楼层（默认关，防灾）
                 // [v3.112] 覆盖账本重算（缝合 AnchorNote）：归档状态由有效覆盖者推导而非增量记账
                 coverageLedgerEnabled: false,  // 默认关：开启后覆盖者失效时自动恢复对应楼层可见（不再靠清空集合重推）
@@ -952,13 +967,15 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
                     'summaryFoldThreshold', 'diaryEveryFloors', 'reflectEveryFloors', 'echoBaseLife', 'echoMaxCount',
                     'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
-                    'suspenseMaxOpen', 'extractionCadence', 'recallCacheEnabled', 'diaryChangeDrivenInjection',
+                    'suspenseMaxOpen', 'recallCacheEnabled', 'diaryChangeDrivenInjection',
                     'timeChangeDrivenInjection', 'itemLedgerEnabled', 'moneyLedgerEnabled', 'echoEnabled',
                     'termLexiconEnabled', 'termLexiconMax', 'bm25LexiconNormalizeEnabled', 'statusAwareQuotaEnabled',
                     'swipeAwareRecallEnabled', 'ledgerAwareQuotaEnabled',
                     'ledgerWriteValidationEnabled', 'ledgerWriteValidationDebug', 'ledgerViolationLogMax',
                     'volumeRetention', 'historicalRetention',
                     'floorLedgerRetention', 'floorLedgerEvictionDebug',
+                    // [v3.160] 归档节奏三键：此前只被引擎内部回退值兜着，卡作者无法按卡调节奏
+                    'sleepEveryN', 'snapshotEveryFloors', 'adaptiveBudgetDecayFloors',
                 ];
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {

@@ -163,9 +163,19 @@ test('[3b] old anchors were taken over, not dropped', () => {
     const t117 = readFileSync(path.join(ROOT, 'tests/v3117_diagnostics.test.mjs'), 'utf-8');
     const t130 = readFileSync(path.join(ROOT, 'tests/v3130_control_plane.test.mjs'), 'utf-8');
     const t147 = readFileSync(path.join(ROOT, 'tests/v3147_cooldown_and_dual_hash.test.mjs'), 'utf-8');
-    assert.ok(t117.includes("'3.159.0'") && !t117.includes("'3.158.0'"), 'v3117 re-anchored');
-    assert.ok(t130.includes("'3.159.0'") && !t130.includes("'3.158.0'"), 'v3130 re-anchored');
-    assert.ok(t147.includes("const VERSION = '3.159.0';") && !t147.includes("'3.158.0'"), 'v3147 re-anchored');
+    // [v3.160] 已交新版接管：不再锁定到本版字符串，改为版本无关不变量——
+    //   「旧锚点仍在、且都指向同一个 >= 3.159.0 的版本」。
+    const anchorOf = (t) => {
+        const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
+        return hits;
+    };
+    for (const [tag, t] of [['v3117', t117], ['v3130', t130], ['v3147', t147]]) {
+        const hits = anchorOf(t);
+        assert.ok(hits.length > 0, tag + ' still anchors a version string');
+        assert.ok(hits.every((h) => vnum(h) >= vnum('3.159.0')), tag + ' anchors are not stale');
+        assert.ok(!t.includes("'3.158.0'"), tag + ' dropped its pre-takeover anchor');
+    }
+    assert.ok(t147.includes("const VERSION = '"), 'v3147 still pins the const form');
 });
 test('[3c] v3158 gave up its own-release exclusivity', () => {
     const t = readFileSync(path.join(ROOT, 'tests/v3158_slider_coherence_and_diary_zero.test.mjs'), 'utf-8');
@@ -181,6 +191,11 @@ test('[3d] the changelog section documents the shipped fix', () => {
     assert.ok(/scan_(wiring|resilience|config_liveness)/.test(head), 'the hardened probes are named');
 });
 test('[3e] no unreleased placeholder section is pre-declared', () => {
+    // [v3.160] 已交新版接管：不写死「下一版号」，改为版本无关不变量——
+    //   CHANGELOG 里不得存在任何**高于**已发布版本的节（那才是「预置占位节」）。
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
-    assert.ok(!changelog.includes('## v3.160.0'), 'no empty placeholder section');
+    const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
+    const ahead = changelog.split('\n').filter((l) => l.startsWith('## v'))
+        .map((l) => l.slice(4).trim()).filter((h) => vnum(h) > vnum(v));
+    assert.deepStrictEqual(ahead, [], 'no section for a version above the released one');
 });

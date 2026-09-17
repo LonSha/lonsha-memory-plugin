@@ -899,6 +899,22 @@
                     <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
                 </div>
                 <div class="ls-group">
+                    <div class="ls-group-title">🧩 记忆域开关（v3.160 补齐）</div>
+                    ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
+                    ${ck('clockSyncEnabled', '剧情时钟权威同步', '正文时间锚点回填手机时钟；关闭后手机时钟不被剧情时间改写')}
+                    ${ck('pairMemoryEnabled', '配对记忆', '从 relationships 提取双人关系记忆；关闭后只保留单角色记忆')}
+                    ${ck('conflictBookEnabled', '冲突簿', '从 conflicts 提取并维护人物矛盾关系；关闭后不建冲突条目')}
+                    ${ck('cardCollectionEnabled', '事件收藏册', '从 events 提取剧情事件卡片；关闭后不收集事件卡')}
+                    ${ck('ethicsConflictEnabled', '伦理冲突检测', 'family × intimate 关系冲突标记；关闭后不做该类校验')}
+                    ${ck('adaptiveBudget', '注入预算自适应', '楼层少时自动扩容注入预算、楼层多时收紧（0.6x~1.8x）；关闭则恒用基准预算')}
+                    <div class="ls-slider-label"><span>自适应衰减参考楼层</span><span class="ls-slider-val" id="ls-v-adaptdecay">${c.adaptiveBudgetDecayFloors ?? 80}</span></div>
+                    <input type="range" class="ls-slider" min="10" max="400" step="10" value="${c.adaptiveBudgetDecayFloors ?? 80}" data-cfg-num="adaptiveBudgetDecayFloors">
+                    <div class="ls-slider-label"><span>睡眠归档周期（每 N 次提取）</span><span class="ls-slider-val" id="ls-v-sleepn">${c.sleepEveryN ?? 10}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="100" step="1" value="${c.sleepEveryN ?? 10}" data-cfg-num="sleepEveryN">
+                    <div class="ls-slider-label"><span>定期快照间隔（楼）</span><span class="ls-slider-val" id="ls-v-snapevery">${c.snapshotEveryFloors ?? 50}</span></div>
+                    <input type="range" class="ls-slider" min="10" max="500" step="10" value="${c.snapshotEveryFloors ?? 50}" data-cfg-num="snapshotEveryFloors">
+                </div>
+                <div class="ls-group">
                     <div class="ls-group-title">🏛️ 工业级体系化增强（前沿架构演进）</div>
                     ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
