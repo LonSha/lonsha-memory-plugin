@@ -58,8 +58,18 @@
      * @param {Array<{start:number,end:number}>} ranges
      * @returns {Array<{start:number,end:number}>}
      */
-    function mergeRanges(ranges) {
-        const valid = (ranges || []).map(normRange).filter(Boolean);
+    function mergeRanges(ranges, carry = null) {
+        const _raw = ranges || [];
+        const valid = _raw.map(normRange).filter(Boolean);
+        // [v3.173] 接线：本模块缝合后 72 个版本无人调用（v3.163 账本零消费）。
+        //   楼层区间合并会把「非法区间」与「被并入邻段」两类消失一起吃掉：
+        //   前者是数据脏（丢掉后水位就少算了），后者是正常压缩。两者必须分账。
+        if (carry && typeof carry === 'object') {
+            carry.rangeMerge = {
+                input: _raw.length, valid: valid.length, dropped: _raw.length - valid.length,
+                merged: 0, collapsed: 0, span: 0,
+            };
+        }
         if (valid.length === 0) return [];
         valid.sort((a, b) => a.start - b.start || a.end - b.end);
         const merged = [{ ...valid[0] }];
@@ -68,10 +78,16 @@
             const last = merged[merged.length - 1];
             // 重叠或相邻（cur.start <= last.end + 1）则合并
             if (cur.start <= last.end + 1) {
+                if (last.end === cur.end) { if (carry && carry.rangeMerge) carry.rangeMerge.collapsed++; }
                 last.end = Math.max(last.end, cur.end);
             } else {
                 merged.push({ ...cur });
             }
+        }
+        if (carry && carry.rangeMerge) {
+            carry.rangeMerge.merged = merged.length;
+            carry.rangeMerge.collapsed += valid.length - merged.length;
+            carry.rangeMerge.span = merged.reduce((n, r) => n + (r.end - r.start + 1), 0);
         }
         return merged;
     }
@@ -100,10 +116,20 @@
      * @param {number} latestFloor 当前最新楼层（1 起）
      * @returns {Array<{start:number,end:number}>} 待处理区间（可能为空）
      */
-    function computePendingRange(covered, latestFloor) {
+    function computePendingRange(covered, latestFloor, carry = null) {
         const latest = Math.floor(Number(latestFloor));
+        // [v3.173] 读数：本函数决定「这一轮还要不要折叠」。三类失效在旧实现里都长成
+        //   「没有待处理」这一个形状：latestFloor 本身非法（早期 return []）、
+        //   已覆盖区间有空洞（删楼后水位与段之间断开）、以及真的一楼不漏。
+        //   第四类更隐蔽：最新楼层比已覆盖水位还低（回滚后重新折叠的入口）。
+        const _read = { latest, validLatest: Number.isFinite(latest) && latest >= 1,
+            coveredIn: (covered || []).length, holes: 0, pending: 0, coveredTo: 0,
+            behind: false, upToDate: false };
+        if (carry && typeof carry === 'object') carry.pendingRange = _read;
         if (!Number.isFinite(latest) || latest < 1) return [];
         const merged = mergeRanges(covered);
+        _read.coveredTo = merged.length ? merged[merged.length - 1].end : 0;
+        _read.behind = _read.coveredTo > latest;
         const pending = [];
         let cursor = 1;
         for (const seg of merged) {
@@ -111,6 +137,7 @@
             if (seg.start > latest) break;            // 段超出最新楼层
             if (seg.start > cursor) {
                 // 水位与该段之间的空洞 = 待处理
+                _read.holes++;
                 pending.push({ start: cursor, end: Math.min(seg.start - 1, latest) });
             }
             cursor = Math.max(cursor, seg.end + 1);
@@ -119,7 +146,10 @@
         if (cursor <= latest) {
             pending.push({ start: cursor, end: latest });
         }
-        return pending.filter(r => r.start <= r.end);
+        const _out = pending.filter(r => r.start <= r.end);
+        _read.pending = _out.length;
+        _read.upToDate = _out.length === 0;
+        return _out;
     }
 
     /**
@@ -147,14 +177,23 @@
      * 创建楼层追踪器（封装一组覆盖区间，提供增量工作流）
      * @param {Array<{start:number,end:number}>} [initial=[]] 初始已覆盖区间
      */
-    function createTracker(initial = []) {
+    function createTracker(initial = [], carry = null) {
         let covered = mergeRanges(initial);
+        // [v3.173] 接线：把「创建/标记/回退」的每一次区间变动记进台账，
+        //   否则 tracker 的覆盖变化只能在 exportRanges 时才看得出结果、看不出过程。
+        const _t = { created: covered.length, marks: 0, drops: 0, resets: 0, dropsOverlap: 0,
+            lastMark: null, lastDrop: null };
+        if (carry && typeof carry === 'object') carry.floorTracker = _t;
 
         return {
             /** 标记一段区间已处理 */
             markProcessed(start, end) {
                 const r = normRange({ start, end });
-                if (r) covered = mergeRanges([...covered, r]);
+                if (r) {
+                    _t.marks++;
+                    _t.lastMark = { start: r.start, end: r.end };
+                    covered = mergeRanges([...covered, r]);
+                }
                 return r;
             },
             /** 当前已覆盖的最大楼层 */
@@ -162,13 +201,23 @@
             /** 计算到 latestFloor 的待处理区间 */
             pending(latestFloor) { return computePendingRange(covered, latestFloor); },
             /** 扣除失效区间（删楼） */
-            remove(start, end) { covered = subtractRange(covered, { start, end }); },
+            remove(start, end) {
+                const _before = covered.length;
+                const _r = normRange({ start, end });
+                if (_r && !covered.some(s => rangesOverlap(s, _r))) _t.dropsOverlap++;   // 删的区间本来就没覆盖：空洞制造者
+                covered = subtractRange(covered, { start, end });
+                _t.drops++;
+                _t.lastDrop = _r ? { start: _r.start, end: _r.end } : null;
+                void _before;
+            },
             /** 是否完全无需处理（已覆盖到 latestFloor） */
             isUpToDate(latestFloor) { return computePendingRange(covered, latestFloor).length === 0; },
             /** 导出可持久化状态 */
             exportRanges() { return covered.map(r => ({ ...r })); },
             /** 重置 */
-            reset() { covered = []; },
+            reset() { covered = []; _t.resets++; },
+            /** [v3.173] 台账快照（只读） */
+            read() { return Object.assign({}, _t, { current: covered.map(r => ({ ...r })) }); },
         };
     }
 

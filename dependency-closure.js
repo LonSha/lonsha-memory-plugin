@@ -70,9 +70,18 @@
      *   order: Array<string>, invalid: Array<*>, unrestricted: boolean
      * }}
      */
-    function computeCascade(input) {
+    function computeCascade(input, carry = null) {
         const opts = input || {};
         const { list, invalid } = normalizeItems(opts.items);
+        // [v3.173] 接线：本模块缝合后 70 个版本无人调用（v3.163 账本零消费）。
+        //   级联裁剪的丢弃归因（droppedBy）一直只存在返回值里，无调用方时等于不存在。
+        //   现在把「根因分类」写进可选 carry：外部依据缺失 / 悬空依赖 / 级联传播 /
+        //   环。四类处置完全不同（补依据 / 补条目 / 顺带失效 / 人工决策），
+        //   而调用方看到的本来只有一个 droppedIds 长度。
+        const _read = { itemsIn: (opts.items || []).length, normalized: list.length,
+            invalid: invalid.length, dropped: 0, kept: 0, byReason: {},
+            cycles: 0, cyclicItems: 0, unrestricted: false, danglingDeps: 0 };
+        if (carry && typeof carry === 'object') carry.cascade = _read;
         const unrestricted = opts.allowedRefs === undefined || opts.allowedRefs === null;
         const allowed = unrestricted ? null : (opts.allowedRefs instanceof Set ? opts.allowedRefs : toSet(opts.allowedRefs));
         const keepCycles = opts.keepCycles !== false;
@@ -151,6 +160,16 @@
         const droppedItems = list.filter(i => dropped.has(i.id));
         const order = topoSort(kept).map(i => i.id);
 
+        _read.dropped = droppedItems.length;
+        _read.kept = kept.length;
+        _read.cycles = cycles.length;
+        _read.cyclicItems = cycles.reduce((n, c) => n + c.length, 0);
+        _read.unrestricted = unrestricted;
+        for (const why of Object.values(droppedBy)) {
+            const kind = String(why).split(':')[0];
+            _read.byReason[kind] = (_read.byReason[kind] || 0) + 1;
+            if (kind === 'missing-dep') _read.danglingDeps++;
+        }
         return {
             kept,
             dropped: droppedItems,
@@ -222,8 +241,8 @@
      * 便捷封装：直接给出「可安全搬迁/保留的 id 列表」+ 丢弃归因摘要。
      * @returns {{ keep: Array<string>, drop: Array<string>, summary: string }}
      */
-    function planCascade(items, allowedRefs, options) {
-        const r = computeCascade(Object.assign({ items, allowedRefs }, options || {}));
+    function planCascade(items, allowedRefs, options, carry = null) {
+        const r = computeCascade(Object.assign({ items, allowedRefs }, options || {}), carry);
         const reasons = Object.entries(r.droppedBy)
             .map(([id, why]) => `  - ${id}: ${why}`)
             .join('\n');

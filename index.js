@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.172.0';
+    const VERSION = '3.173.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -9,6 +9,23 @@
     //   它与 _controlInfo.expected 不是一回事：后者由宿主可见性条件在运行时派生
     //   （event_types 缺项时对应注册点本就不执行），本常量用于结构校验与下限判据。
     const EXPECTED_EVENT_TYPES = 7;
+    // [v3.173] 缝合模块接线面：缝合模块的统一取库口。
+    //   契约：浏览器优先取 window.<符号>（缝合模块 IIFE 双导出到全局），
+    //   取不到再回落 CommonJS require('./<file>')，两者都取不到返回 null。
+    //   **不能在构造函数里缓存**：extra_js 在入口脚本之后加载，构造时全局还没挂上。
+    //   调用点一律写成 _moduleLib(() => window.<模块全局>, 'xxx.js') —— 传的是**真读表达式**
+    //   而不是字符串符号名，理由有二：①「宿主确实读了该全局」在源码里可见（模块接线审计
+    //   的消费判据正是扫 LonSha 前缀的全局引用），②符号名拼错时不至于静默取空。
+    function _moduleLib(getGlobal, fileName) {
+        try {
+            const viaGlobal = (typeof getGlobal === 'function') ? getGlobal() : null;
+            if (viaGlobal) return viaGlobal;
+        } catch (e) { /* 读全局失败按未取到处理，继续回落 */ }
+        if (typeof require !== 'undefined') {
+            try { return require('./' + fileName); } catch (e) { return null; }
+        }
+        return null;
+    }
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -1970,6 +1987,19 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._diffusionFatigueTimeout = 3;    // 疲劳标记保留轮数（防永久封印）
             // [v3.25] 归档隐藏状态（Bakemono archive-controller）
             this._archivedFloorIds = new Set();   // 已被插件归档隐藏的楼层（可恢复）
+            // [v3.173] 缝合模块接线面：7 个「已挂载但零消费」模块（v3.163 账本）的读数台账。
+            //   接线纪律是「每个模块必须获得真实消费点，且接线不得改变既有行为」——
+            //   凡接线只做归因的，读数落在这里，诊断面板可查（坏了有人知道吗）。
+            this._histFpRead = null;            // canonical-stringify.js：历史指纹走模块 FNV 还是本地回落
+            this._npcTiesRead = null;           // npc-ties.js：模块版与内联版渲染对账
+            this._npcTiesSource = 'inline';     // 'inline' | 'module+inline'
+            this._entityRegistry = null;        // entity-semantic.js：世界书角色的语义登记表（跨轮持久）
+            this._entityIdByName = null;        // 登记表名字 → 实体 id（upsertEntity 幂等所需）
+            this._entityRegistryRead = null;    // 登记被拒 / 解析未命中的三态归因
+            this._graphDedupCascade = null;     // dependency-closure.js：图谱幽灵边闭包归因
+            this._cadenceTriage = null;         // extraction-cadence.js：维护轮次的按类型抽取节奏
+            this._artifactTurnReconcile = null; // turn-reconciler.js：产物库轮次身份对账（只读数）
+            this._floorRangeLedger = null;      // floor-range.js：覆盖水位 / 空洞 / 待处理段
             // [v3.27] 命中轨迹记录（MemoryPilot monitor）: 最近一次召回详情供面板诊断
             this._lastRecallTrace = null;   // { query, sources, hitCount, durationMs, ts, triggerHit }
             this._recallSourceStats = { total: 0, bySource: {} };  // [v3.52] P12: 各召回源累计命中率（诊断面板：哪路召回在干活）
@@ -2110,19 +2140,41 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const chat = ctx?.chat || [];
                 if (!chat.length) return '';
                 const tail = chat.slice(0, Math.max(0, chat.length - 1)).slice(-40);
-                let h = 0x811c9dc5;
+                // [v3.173] 缝合模块接线面：canonical-stringify.js 缝入后 73 个版本无人调用
+                //   （v3.163 账本「已挂载但零消费」），而本处手写了一份 FNV-1a 折叠——
+                //   同一算法两处实现就是漂移源。现改为**优先**取用模块 fnv1a，取不到回落本地。
+                //   等价性论证（改造必须逐字节零漂移）：旧实现是「逐条折叠 + 每条后追加 0x2c
+                //   再折叠」，而 0x2c 就是 ','，FNV-1a 又逐字符推进无长度前缀，故等价于
+                //   「各条以 ',' 拼接（含尾随）后整体折叠」。两处乘法也同余：模块用
+                //   h + (h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)，系数和恰为 0x01000193。
+                const _cl = _moduleLib(() => window.LonShaCanonical, 'canonical-stringify.js');
+                const _parts = [];
                 for (const m of tail) {
-                    const s = (m?.is_user ? 'u:' : 'a:') + String(m?.mes || '').replace(/\r\n/g, '\n').trim();
-                    for (let i = 0; i < s.length; i++) {
-                        h ^= s.charCodeAt(i);
-                        h = Math.imul(h, 0x01000193);
-                    }
-                    h ^= 0x2c; h = Math.imul(h, 0x01000193);   // 条目分隔符
+                    _parts.push((m?.is_user ? 'u:' : 'a:') + String(m?.mes || '').replace(/\r\n/g, '\n').trim());
                 }
-                return ((h >>> 0).toString(16).padStart(8, '0')) + '_' + tail.length;
+                const _read = { tail: tail.length, folded: 0, via: 'local' };
+                let hex;
+                if (_cl && typeof _cl.fnv1a === 'function') {
+                    const _joined = _parts.join(',') + (tail.length ? ',' : '');
+                    _read.folded = _joined.length;
+                    _read.via = 'canonical';
+                    hex = _cl.fnv1a(_joined);
+                } else {
+                    let h = 0x811c9dc5;
+                    for (const p of _parts) {
+                        for (let k = 0; k < p.length; k++) {
+                            h ^= p.charCodeAt(k);
+                            h = Math.imul(h, 0x01000193);
+                        }
+                        h ^= 0x2c; h = Math.imul(h, 0x01000193);   // 条目分隔符
+                    }
+                    _read.folded = _parts.join('').length;
+                    hex = (h >>> 0).toString(16).padStart(8, '0');
+                }
+                this._histFpRead = _read;
+                return hex + '_' + tail.length;
             } catch (e) { return ''; }
         }
-
         isOmittedFloor(message) {
             try {
                 return message?.extra?.lonsha_omit === true;
@@ -3395,6 +3447,48 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
             } catch (e) { errLog(e, 'V314.applyExtractedRoles'); }
         }
+        // [v3.173] 缝合模块接线面：entity-semantic.js 缝入后 69 个版本无人调用
+        //   （v3.163 账本「已挂载但零消费」）。这里**只登记、只归因，不拦任何行为**：
+        //   返回值形状（{added, aliasPatched}）与图谱写入路径一字不动 —— 本版的接线
+        //   纪律是「不得改变既有行为」，故模块的产出只进读数台账。
+        //   登记表的价值在于「同一个角色在不同楼里被写成不同名字」这件事有了统一身份，
+        //   而登记失败（类型不符 / 名字过长）此前是不可见的。
+        try {
+            const _es = _moduleLib(() => window.LonShaEntitySemantic, 'entity-semantic.js');
+            if (_es && typeof _es.createRegistry === 'function') {
+                if (!this._entityRegistry) {
+                    this._entityRegistry = _es.createRegistry({ normalizeMatch: true });
+                    this._entityIdByName = new Map();
+                }
+                const _read = { input: roles.length, upserted: 0, rejected: 0, aliasesAdded: 0, resolveMiss: 0, sample: [] };
+                for (const r of roles) {
+                    try {
+                        const _nm = String(r && r.name || '').trim();
+                        if (!_nm) continue;
+                        const _id = this._entityIdByName.get(_nm) || '';
+                        const _ent = this._entityRegistry.upsertEntity({
+                            id: _id, kind: 'person', name: _nm,
+                            aliases: Array.isArray(r.aliases) ? r.aliases : [],
+                        });
+                        if (!_id) this._entityIdByName.set(_nm, _ent.id);
+                        _read.upserted++;
+                        _read.aliasesAdded += (_ent.aliases || []).length;
+                        // 反查一遍：解析不出唯一实体的名字，正是「重名未合并」的现场
+                        const _carry = {};
+                        const _hit = this._entityRegistry.resolveEntity('person', _nm, '', _carry);
+                        if (!_hit) {
+                            _read.resolveMiss++;
+                            if (_read.sample.length < 5) _read.sample.push(_nm + ':' + String(_carry.entityResolve && _carry.entityResolve.miss || ''));
+                        }
+                    } catch (e) {
+                        _read.rejected++;
+                        if (_read.sample.length < 5) _read.sample.push(String(r && r.name || '?') + ':rejected');
+                    }
+                }
+                _read.registered = this._entityRegistry.size;
+                this._entityRegistryRead = _read;
+            }
+        } catch (e) { errLog(e, 'V3173.entitySemantic'); }
         return { added, aliasPatched };
     }
 
@@ -3556,6 +3650,31 @@ function relativeTimeLabel(eventTime, nowTime) {
                     try { c.hideChatMessageRange(idx, idx, false); this._archivedFloorIds.add(idx); hid++; } catch (e) { errLog(e, 'nonfatal') }
                 }
                 if (hid && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 归档隐藏: ${hid} 楼 (保留最近 ${keep} AI楼)`);
+                // [v3.173] 缝合模块接线面：floor-range.js 缝入后 72 个版本无人调用
+                //   （v3.163 账本「已挂载但零消费」）。接线点选在**折叠覆盖集已知**的这里：
+                //   把已折叠楼层当覆盖区间，问一句「水位到哪、中间有没有空洞、下一段待处理是什么」。
+                //   空洞正是删楼/撤销折叠留下的形状，而旧实现只报一个 hid 计数，看不见断口。
+                //   纯读，不改 toHide 的构造，也不改本方法的返回值。
+                try {
+                    const _fr = _moduleLib(() => window.LonShaFloorRange, 'floor-range.js');
+                    if (_fr && typeof _fr.mergeRanges === 'function') {
+                        const _cov = [];
+                        for (const _f of foldedFloors) _cov.push({ start: _f, end: _f });
+                        const _cm = {};
+                        const _merged = _fr.mergeRanges(_cov, _cm);
+                        const _latest = chat.length - 1;
+                        const _cp = {};
+                        const _pending = _fr.computePendingRange(_merged, _latest, _cp);
+                        const _rm = _cm.rangeMerge || {}, _pr = _cp.pendingRange || {};
+                        this._floorRangeLedger = {
+                            coveredIn: _rm.input || 0, coveredValid: _rm.valid || 0,
+                            dropped: _rm.dropped || 0, segments: _rm.merged || 0,
+                            span: _rm.span || 0, holes: _pr.holes || 0,
+                            pending: _pr.pending || 0, coveredTo: _pr.coveredTo || 0,
+                            latest: _latest, behind: _pr.behind === true, hid,
+                        };
+                    }
+                } catch (e) { errLog(e, 'V3173.floorRange'); }
                 return hid;
             } catch (e) { errLog(e, '归档隐藏.archiveCoveredFloors'); return 0; }
         }
@@ -4113,6 +4232,38 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     source: 'onBeforeGeneration',
                                 });
                                 this._recallArtifacts = plan.store;
+                                // [v3.173] 缝合模块接线面：turn-reconciler.js 缝入后 68 个版本无人调用
+                                //   （v3.163 账本「已挂载但零消费」）。本处原先用 'turn_' + 楼层当轮次身份，
+                                //   位置一变（删楼/插楼/回填）身份就漂 —— 产物库因此会把「同一轮」认成新的。
+                                //   本版**只做对账读数**：让模块按五个匹配键把「库里既有的产物」与
+                                //   「当前这一轮」对一遍，把「靠哪一级配上的 / 一个都没配上」落台账。
+                                //   写库用的 turnId 一字不动（改身份会作废既有产物，属行为变更）。
+                                try {
+                                    const _tr = _moduleLib(() => window.LonShaTurnReconciler, 'turn-reconciler.js');
+                                    if (_tr && typeof _tr.assignTurnIds === 'function') {
+                                        const _cur = [{
+                                            userText: String(query.text || ''),
+                                            assistantText: String(inj2 || ''),
+                                            userFloor: cc.length - 1,
+                                            assistantFloor: cc.length - 1,
+                                        }];
+                                        const _ex = (this._recallArtifacts || []).map(a => ({
+                                            id: String(a && a.turnId || ''),
+                                            turnId: String(a && a.turnId || ''),
+                                            contentHash: String(a && a.contentHash || ''),
+                                            normalizedUserText: String(a && a.content && a.content.normalizedUser || ''),
+                                        })).filter(a => a.id);
+                                        const _c2 = {};
+                                        const _res = _tr.assignTurnIds(_cur, _ex, { chatId: String(this._loadedChatId || '') }, _c2);
+                                        const _r2 = _c2.turnMatch || {};
+                                        this._artifactTurnReconcile = {
+                                            existing: _ex.length, unmatched: _r2.unmatched || 0,
+                                            claimed: _r2.claimed || 0, byMatchKey: _r2.byMatchKey || {},
+                                            writtenTurnId: 'turn_' + (cc.length - 1),
+                                            reconciledId: (_res.assigned && _res.assigned[0] && _res.assigned[0].turnId) || '',
+                                        };
+                                    }
+                                } catch (e) { errLog(e, 'V3173.turnReconciler'); }
                                 const pruned = aa.pruneArtifacts(this._recallArtifacts, { maxEntries: 32 });
                                 this._recallArtifacts = pruned.store;
                                 // [v3.156] 淘汰可观测。pruneArtifacts 一直返回 removedByAge/removedByCap，
@@ -4619,6 +4770,35 @@ function relativeTimeLabel(eventTime, nowTime) {
                     ignoreFailure: true,   // 可选增强步骤：分诊失败不应阻断整条维护
                     run: async () => {
                         const every = Number(cfg.optimizeEveryFloors) || 50;
+                        // [v3.173] 缝合模块接线面：extraction-cadence.js 缝入后 68 个版本无人调用
+                        //   （v3.163 账本「已挂载但零消费」）。本插件有六个各自独立的「每 N 楼」
+                        //   周期旋钮（世界推进/日记/反思/睡眠/快照/优化），此前没有任何地方能回答
+                        //   「这一轮到底谁该跑」；更要紧的是旋钮填 0/负数时各自静默回落，无人记账。
+                        //   本处只算节奏、只记读数，不改变任何子系统自己的触发判据。
+                        try {
+                            const _ec = _moduleLib(() => window.LonShaExtractionCadence, 'extraction-cadence.js');
+                            if (_ec && typeof _ec.computeActiveTypes === 'function') {
+                                const _schema = [
+                                    { id: 'world-progress', extractEveryN: cfg.worldProgressEveryFloors },
+                                    { id: 'diary', extractEveryN: cfg.diaryEveryFloors },
+                                    { id: 'reflect', extractEveryN: cfg.reflectEveryFloors },
+                                    { id: 'sleep', extractEveryN: cfg.sleepEveryN },
+                                    { id: 'snapshot', extractEveryN: cfg.snapshotEveryFloors },
+                                    { id: 'optimize', extractEveryN: cfg.optimizeEveryFloors },
+                                ];
+                                const _chat2 = window.SillyTavern?.getContext?.()?.chat || [];
+                                const _seq = Math.max(0, _chat2.filter(m => m && !m.is_user).length);
+                                const _c1 = {};
+                                const _active = _ec.computeActiveTypes(_schema, _seq, _c1);
+                                const _r1 = _c1.cadence || {};
+                                eng._cadenceTriage = {
+                                    seq: _seq, active: [..._active].sort(),
+                                    tuned: _r1.accepted || 0, inactive: _r1.inactive || 0,
+                                    normalizedFallback: _r1.normalizedFallback || [],
+                                    skippedNoId: _r1.skippedNoId || [], every,
+                                };
+                            }
+                        } catch (e) { eng._cadenceTriage = null; }
                         eng._lastMaintenanceSummary = {
                             archived: state.archived,
                             optimizeRuns: state.optimizeRuns,
@@ -4749,6 +4929,34 @@ function relativeTimeLabel(eventTime, nowTime) {
                 _gcLedger.graphDup = dupIds.length;
                 if (dupIds.length) this.graph.rebuildNameIndex();
                 if (dupIds.length && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 图谱去重: 合并 ${dupIds.length} 个重复角色节点`);
+                // [v3.173] 缝合模块接线面：dependency-closure.js 缝入后 70 个版本无人调用
+                //   （v3.163 账本「已挂载但零消费」）。接线点选在**图谱去重之后**：
+                //   去重会删节点、迁移边，而「边指向一个已不存在的节点」正是幽灵边的来源。
+                //   本处只做闭包归因（丢弃根因分类），不删不改任何边 —— 行为零变化。
+                try {
+                    const _dc = _moduleLib(() => window.LonShaDependencyClosure, 'dependency-closure.js');
+                    if (_dc && typeof _dc.computeCascade === 'function') {
+                        const _ids = new Set();
+                        for (const _nid of this.graph.nodes.keys()) _ids.add(String(_nid));
+                        const _adj = new Map();
+                        for (const _nid of _ids) _adj.set(_nid, new Set());
+                        for (const _e of this.graph.edges.values()) {
+                            const _f = String(_e && _e.from || ''), _t = String(_e && _e.to || '');
+                            if (!_ids.has(_f)) continue;
+                            _adj.get(_f).add(_t);
+                        }
+                        const _items = [];
+                        for (const _nid of _ids) _items.push({ id: _nid, refs: [], deps: [..._adj.get(_nid)] });
+                        const _carry = {};
+                        const _res = _dc.computeCascade({ items: _items, allowedRefs: null }, _carry);
+                        const _r = _carry.cascade || {};
+                        this._graphDedupCascade = {
+                            nodes: _ids.size, edges: this.graph.edges.size,
+                            ghostNodes: _r.dropped || 0, danglingDeps: _r.danglingDeps || 0,
+                            byReason: _r.byReason || {}, merged: dupIds.length, kept: _res.keptIds.length,
+                        };
+                    }
+                } catch (e) { errLog(e, 'V3173.dependencyClosure'); }
             } catch (e) { errLog(e, 'GD.图谱去重'); }
             // [v3.168] GC 账本落 opLog（可追溯）+ 脏链路（物品真源变更后派生层重建）
             try {
@@ -4868,6 +5076,27 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 if (Number(this._recallFunnelReadEmpty) > 0) push('漏斗空读轮次', Number(this._recallFunnelReadEmpty),
                     '本轮四个模块一条读数都没计到（≠ 无收缩）');
+                // [v3.173] 缝合模块接线面：7 个零消费模块的接线读数并入总账（I5/I6 同族）。
+                //   凡「有损」或「读失败」都必须在这里露面——否则接线等于没接。
+                try {
+                    const _eR = this._entityRegistryRead;
+                    if (_eR && (_eR.rejected || _eR.resolveMiss)) push('实体登记面', _eR.rejected + _eR.resolveMiss,
+                        `登记被拒 ${_eR.rejected} · 解析不唯一 ${_eR.resolveMiss}`
+                        + (_eR.sample && _eR.sample.length ? ' （' + _eR.sample.slice(0, 3).join(' / ') + '）' : ''));
+                    const _dcR = this._graphDedupCascade;
+                    if (_dcR && (_dcR.ghostNodes || _dcR.danglingDeps)) push('图谱幽灵边', _dcR.ghostNodes + _dcR.danglingDeps,
+                        `断链节点 ${_dcR.ghostNodes} · 悬空依赖 ${_dcR.danglingDeps}`
+                        + (_dcR.merged ? ` · 本轮去重合并 ${_dcR.merged}` : ''));
+                    const _cd = this._cadenceTriage;
+                    if (_cd && _cd.normalizedFallback && _cd.normalizedFallback.length) push('节奏旋钮回落', _cd.normalizedFallback.length,
+                        '周期旋钮填了非法值被静默改写：' + _cd.normalizedFallback.join(' / '));
+                    const _fl = this._floorRangeLedger;
+                    if (_fl && _fl.holes) push('覆盖水位空洞', _fl.holes,
+                        `已覆盖到 ${_fl.coveredTo} 楼，中间 ${_fl.holes} 处断口（待处理 ${_fl.pending} 段）`);
+                    const _at = this._artifactTurnReconcile;
+                    if (_at && _at.unmatched) push('产物轮次对账', _at.unmatched,
+                        `库内 ${_at.existing} 条产物中 ${_at.unmatched} 条与当前轮次对不上（身份随位置漂移）`);
+                } catch (e) { errLog(e, 'getDegradationLedger.接线读数'); }
                 r.ok = r.degraded === 0;
             } catch (e) { errLog(e, 'getDegradationLedger'); r.error = String(e?.message || e); }
             return r;
@@ -5663,6 +5892,31 @@ function relativeTimeLabel(eventTime, nowTime) {
         getNpcTiesPrompt() {
             try {
                 const recs = this.getNpcTiesRecords();
+                // [v3.173] 缝合模块接线面：内联渲染**仍是输出真源**——
+                //   RESIDENT_MARKERS / injection-router 靠 '[角色长期关系网]' 标记识别常驻注入，
+                //   而模块版 header 与分隔符与内联版已分歧（v3.163 账本已记），直接换输出
+                //   会静默废掉常驻识别。故把 npc-ties 接成**对账器**：同一批记录独立渲染一次，
+                //   两版的组数/去重数/丢项数差异入读数——分歧可见，行为不变。
+                const _nt = _moduleLib(() => window.LonShaNpcTies, 'npc-ties.js');
+                if (_nt && typeof _nt.fmtNpcTiesContext === 'function') {
+                    const _carry = {};
+                    const _modText = _nt.fmtNpcTiesContext(recs, {}, _carry);
+                    const _lineText = fmtNpcTiesContext(recs);
+                    const _rowsMod = _modText ? _modText.split('\n').length - 1 : 0;
+                    const _rowsInline = _lineText ? _lineText.split('\n').length - 1 : 0;
+                    const _r = _carry.npcTiesRead || {};
+                    this._npcTiesRead = {
+                        moduleRows: _rowsMod, inlineRows: _rowsInline,
+                        rowsAgree: _rowsMod === _rowsInline,
+                        groups: _r.groups || 0, tiesIn: _r.tiesIn || 0,
+                        tiesOut: _r.tiesOut || 0, tiesDeduped: _r.tiesDeduped || 0,
+                        skippedNoName: _r.skippedNoName || 0, skippedNoTies: _r.skippedNoTies || 0,
+                        empty: _r.empty === true, input: _r.input || 0,
+                    };
+                    this._npcTiesSource = 'module+inline';
+                    return _lineText;
+                }
+                this._npcTiesSource = 'inline';
                 return fmtNpcTiesContext(recs);
             } catch (e) { return ''; }
         }
@@ -7006,6 +7260,42 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['召回漏斗', row2 + (gap2 ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.recallFunnel'); return ['召回漏斗', '—（诊断异常）']; }
                     })(),
+                    // [v3.173] 缝合模块接线面自述：7 个零消费模块接线后各自的活性。
+                    //   与召回漏斗同族（I5/I6）：接上了但读不到、与没接上，必须可分。
+                    (() => {
+                        try {
+                            const _libs = [
+                                ['canonical-stringify.js', () => window.LonShaCanonical],
+                                ['dependency-closure.js', () => window.LonShaDependencyClosure],
+                                ['entity-semantic.js', () => window.LonShaEntitySemantic],
+                                ['extraction-cadence.js', () => window.LonShaExtractionCadence],
+                                ['floor-range.js', () => window.LonShaFloorRange],
+                                ['npc-ties.js', () => window.LonShaNpcTies],
+                                ['turn-reconciler.js', () => window.LonShaTurnReconciler],
+                            ];
+                            let _up = 0;
+                            const _down = [];
+                            for (const [f, g] of _libs) {
+                                let ok = false;
+                                try { ok = !!g(); } catch (e) { ok = false; }
+                                if (!ok && typeof require !== 'undefined') {
+                                    try { ok = !!require('./' + f); } catch (e) { ok = false; }
+                                }
+                                if (ok) _up++; else _down.push(f);
+                            }
+                            const _act = [];
+                            if (this._histFpRead && this._histFpRead.via === 'canonical') _act.push('指纹·模块');
+                            if (this._npcTiesSource === 'module+inline') _act.push('关系网·对账');
+                            if (this._entityRegistryRead) _act.push(`实体 ${this._entityRegistryRead.upserted}`);
+                            if (this._graphDedupCascade) _act.push(`幽灵边 ${this._graphDedupCascade.ghostNodes}`);
+                            if (this._cadenceTriage) _act.push(`节奏 ${(this._cadenceTriage.active || []).length}`);
+                            if (this._floorRangeLedger) _act.push(`水位 ${this._floorRangeLedger.coveredTo}`);
+                            if (this._artifactTurnReconcile) _act.push(`轮次对账 ${this._artifactTurnReconcile.claimed}`);
+                            const _row = `模块 ${_up}/7 可用` + (_act.length ? ` · 已产出 ${_act.join(' / ')}` : ' · 尚无读数')
+                                + (_down.length ? ` · 不可用 ${_down.length}（${_down.join(' ')}）` : '');
+                            return ['模块接线', _row + (_down.length ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.moduleWiring'); return ['模块接线', '—（诊断异常）']; }
+                    })(),
                     // [v3.168] I3 携带契约：写侧产出必须覆盖契约清单。
                     //   与「静默降级」同族：导入侧有分支、写侧不产出时，跨对话续写会静默丢掉子系统，而 toast 仍写着「无缝衔接」。
                     (() => {
@@ -7358,6 +7648,32 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     if (Number(this._recallFunnelReadEmpty) > 0) push(`- 空读轮次 ${this._recallFunnelReadEmpty}（一轮下来一条读数都没计到）`);
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.召回漏斗'); }
+            // [v3.173] 模块接线面板（v3.163 账本 7 个零消费模块的接线产出）
+            try {
+                const _ax = [];
+                if (this._entityRegistryRead) _ax.push(`实体登记 ${this._entityRegistryRead.upserted} 条`
+                    + (this._entityRegistryRead.rejected ? ` / 被拒 ${this._entityRegistryRead.rejected}` : '')
+                    + (this._entityRegistryRead.resolveMiss ? ` / 身份不唯一 ${this._entityRegistryRead.resolveMiss}` : ''));
+                if (this._graphDedupCascade) _ax.push(`图谱 ${this._graphDedupCascade.nodes} 节点 / ${this._graphDedupCascade.edges} 边`
+                    + ` / 幽灵边 ${this._graphDedupCascade.ghostNodes} / 悬空依赖 ${this._graphDedupCascade.danglingDeps}`);
+                if (this._cadenceTriage) _ax.push(`抽取节奏 seq=${this._cadenceTriage.seq}`
+                    + ` 本轮激活 ${(this._cadenceTriage.active || []).length}/${this._cadenceTriage.tuned}`
+                    + (this._cadenceTriage.normalizedFallback && this._cadenceTriage.normalizedFallback.length
+                        ? ` / 旋钮回落 ${this._cadenceTriage.normalizedFallback.join(' ')}` : ''));
+                if (this._floorRangeLedger) _ax.push(`覆盖水位 ${this._floorRangeLedger.coveredTo} 楼`
+                    + ` / ${this._floorRangeLedger.segments} 段 / 空洞 ${this._floorRangeLedger.holes}`
+                    + ` / 待处理 ${this._floorRangeLedger.pending} 段`);
+                if (this._artifactTurnReconcile) _ax.push(`产物轮次对账 认领 ${this._artifactTurnReconcile.claimed}`
+                    + ` / 对不上 ${this._artifactTurnReconcile.unmatched}（库内 ${this._artifactTurnReconcile.existing}）`);
+                if (this._histFpRead) _ax.push(`历史指纹走${this._histFpRead.via === 'canonical' ? '模块 FNV' : '本地回落'}`);
+                if (this._npcTiesRead) _ax.push(`关系网对账 模块 ${this._npcTiesRead.moduleRows} 行 / 内联 ${this._npcTiesRead.inlineRows} 行`
+                    + `（${this._npcTiesRead.rowsAgree ? '一致' : '格式已分歧'}）`);
+                if (_ax.length) {
+                    push('');
+                    push('**模块接线：** v3.163 账本 7 个零消费模块的接线产出');
+                    for (const _line of _ax) push('- ' + _line);
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.模块接线'); }
             // [v3.112] 覆盖账本诊断（缝合 AnchorNote）：归档隐藏的推导结果 / 待恢复数 / 孤儿覆盖者
             try {
                 const cs = this._lastCoverageSummary;

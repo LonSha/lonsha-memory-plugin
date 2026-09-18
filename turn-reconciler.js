@@ -92,13 +92,52 @@
         };
     }
 
-    /** 轮次内容指纹（用于 contentHash 级匹配；位置无关） */
-    function turnContentHash(turn) {
+    /* ---------- [v3.173] 接线：规范化序列化交给 canonical-stringify 模块 ----------
+       本模块缝合后 68 个版本无人调用（v3.163 账本「已挂载但零消费」）。轮次身份
+       全部建立在「同一内容 → 同一 hash」之上（contentHash 级匹配、turnId 派生），
+       而本文件自带一份 stableStringify （自家实现）——同一语义两处实现，正是
+       漂移的源。现改为**优先**取用 window.LonShaCanonical / require 结果，
+       并把「取到了没、字节多长、丢了几个 undefined 字段」写进可选 carry。
+       注意：两实现的输出在本函数的入参形状上逐字节一致（都是排序键、都是字符串值），
+       故 hash 值不变——这不能用断言代替验证，测试里会做逐字节比对。 */
+    function _canonicalLib() {
+        let C = (global && global.LonShaCanonical) || null;
+        if (!C && typeof require !== 'undefined') {
+            try { C = require('./canonical-stringify.js'); } catch (e) { C = null; }
+        }
+        return (C && typeof C.canonicalStringify === 'function') ? C : null;
+    }
+    /** 轮次内容指纹（用于 contentHash 级匹配；位置无关）
+     * @param {object} turn
+     * @param {object} [carry] 可选末位参数：读数出口（I5/I6 同族）
+     */
+    function turnContentHash(turn, carry = null) {
         const t = normalizeTurn(turn, 0) || {};
-        return fnv1a(stableStringify({
+        const body = {
             user: t.normalizedUserText || '',
             assistant: t.normalizedAssistantText || '',
-        }));
+        };
+        const C = _canonicalLib();
+        let text = null;
+        const read = { source: 'local', canonicalFailed: false, bytes: 0, undefinedDropped: 0 };
+        if (C) {
+            const _c = {};
+            try {
+                text = C.canonicalStringify(body, _c);
+                read.source = 'canonical';
+                read.bytes = Number(_c.canonical && _c.canonical.bytes) || 0;
+                read.undefinedDropped = Number(_c.canonical && _c.canonical.undefinedDropped) || 0;
+            } catch (e) {
+                text = null;
+                read.canonicalFailed = true;   // 失败不是「读到了空」（I6）：独立状态位
+            }
+        }
+        if (text === null) {
+            text = stableStringify(body);
+            if (!read.bytes) read.bytes = text.length;
+        }
+        if (carry && typeof carry === 'object') carry.turnHash = read;
+        return fnv1a(text);
     }
 
     // ---------- 2) 多级匹配 + 认领 ----------
@@ -140,8 +179,13 @@
      * @returns {{ assigned:Array<object>, unmatched:number, claimedIds:string[], duplicateUsers:number }}
      *          assigned 每项：{...turn, turnId, matchedId, matchBy, occurrence}
      */
-    function assignTurnIds(turns, existing, options) {
+    function assignTurnIds(turns, existing, options, carry = null) {
         const opts = options || {};
+        // [v3.173] 读数：多级匹配逐级降级本身是「有损」的——靠 contentHash/userKey
+        //   配上的轮次，其身份会随文本微调而漂移。旧实现只报 unmatched 一个总数，
+        //   「靠哪一级配上的」完全不可见（matchBy 只存在每条记录里，无人汇总）。
+        const _read = { byMatchKey: {}, unmatched: 0, claimed: 0, duplicateUsers: 0, total: 0, assigned: 0 };
+        if (carry && typeof carry === 'object') carry.turnMatch = _read;
         const keys = (Array.isArray(opts.matchKeys) && opts.matchKeys.length ? opts.matchKeys : DEFAULT_MATCH_KEYS)
             .filter(k => DEFAULT_MATCH_KEYS.includes(k));
         const pool = (Array.isArray(existing) ? existing : []).filter(r => r && String(r.id || '').trim());
@@ -194,11 +238,21 @@
                 contentHash: turnContentHash(t),
             }));
         }
+        _read.total = list.length;
+        _read.assigned = assigned.length;
+        _read.unmatched = unmatched;
+        _read.claimed = claimed.size;
+        _read.duplicateUsers = duplicateUsers;
+        for (const a of assigned) {
+            const k = a.matchBy || '(new)';
+            _read.byMatchKey[k] = (_read.byMatchKey[k] || 0) + 1;
+        }
         return {
             assigned,
             unmatched,
             claimedIds: [...claimed],
             duplicateUsers,
+            read: _read,
         };
     }
 
@@ -251,9 +305,9 @@
      * @returns {{ records:Array<object>, diff:object, assigned:Array<object>,
      *             fingerprint:string, mutationId:string, changed:boolean, summary:string }}
      */
-    function planReconciliation(input) {
+    function planReconciliation(input, carry = null) {
         const o = input || {};
-        const assigned = assignTurnIds(o.turns, o.existing, { chatId: o.chatId });
+        const assigned = assignTurnIds(o.turns, o.existing, { chatId: o.chatId }, carry);
         const desiredIds = assigned.assigned.map(t => t.turnId);
         const existingList = Array.isArray(o.existing) ? o.existing : [];
         const activeIds = Array.isArray(o.activeIds)
@@ -321,6 +375,8 @@
         normalizeTurn,
         normalizeText,
         turnContentHash,
+        canonicalLib: _canonicalLib,
+        stableStringify,
         assignTurnIds,
         diffTurnSets,
         planReconciliation,

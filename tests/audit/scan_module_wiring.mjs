@@ -220,13 +220,18 @@ const unresolved = [...referenced].filter(s => !actuallyProvided.has(s) && !self
 // 要么尚未接线）。它们不是死文件（已被注册、有独立单测），但属于「静默腐烂」区，
 // 必须显式记账而不是放任增长。
 const UNCONSUMED_LEDGER = [
-    'LonShaCanonical',        // canonical-stringify.js：index.js 的 _historyFingerprint 手写 FNV，未取值
-    'LonShaDependencyClosure',// dependency-closure.js：级联裁剪无调用点
-    'LonShaEntitySemantic',   // entity-semantic.js：实体登记表未接入（index.js 另有 EntityLexicon）
-    'LonShaExtractionCadence',// extraction-cadence.js：按类型抽取节奏未接线
-    'LonShaFloorRange',       // floor-range.js：楼层范围增量追踪未接线
-    'LonShaNpcTies',          // npc-ties.js：index.js:378 有同机制内联副本，输出格式已分歧
-    'LonShaTurnReconciler',   // turn-reconciler.js：轮次身份仍用 'turn_' + floor
+    // [v3.173] 缝合模块接线面：**账本已清空**。
+    //   v3.163 建账时这里冻结了 7 个「已挂载但零消费」的模块（canonical / dependency-closure /
+    //   entity-semantic / extraction-cadence / floor-range / npc-ties / turn-reconciler）。
+    //   v3.173 把 7 个全部接上真实消费点，故账本清空 —— 从此本判据变成**零容忍**：
+    //   任何新挂载却无人消费的模块立即报 B4，不再有「先记账再慢慢接」的缓冲。
+];
+// [v3.173] 清空必须是有凭据的清空：下列 7 个模块是**本版声明已接线**的，必须逐个确认
+//   index.js 里真有对它全局符号的引用。否则「删掉引用 + 删掉账本记录」也能让 B4 全绿 ——
+//   那正是本审计要堵的假绿形态（账本自证）。
+const WIRED_AT_3173 = [
+    'LonShaCanonical', 'LonShaDependencyClosure', 'LonShaEntitySemantic',
+    'LonShaExtractionCadence', 'LonShaFloorRange', 'LonShaNpcTies', 'LonShaTurnReconciler',
 ];
 const unconsumed = [];
 for (const sym of actuallyProvided) {
@@ -244,6 +249,9 @@ if (actuallyProvided.has('MemoryVisualizer')) {
     classConsumed.MemoryVisualizer = /typeof\s+MemoryVisualizer|window\.MemoryVisualizer/.test(entryCode);
 }
 const newUnconsumed = unconsumed.filter(s => !UNCONSUMED_LEDGER.includes(s));
+// v3.173 接线凭据：声明已接线的模块必须在 index.js 里真的被引用（防「删引用+删账本」假绿）
+//   夹具模式下 index.js 是合成小文件，不含真实接线，故本判据只在真仓库生效。
+const wiredNotConsumed = FIXTURE_MODE ? [] : WIRED_AT_3173.filter(s => !referenced.has(s));
 
 /* ---------- 判定 ---------- */
 const defects = [];
@@ -264,6 +272,9 @@ for (const [sym, ok] of Object.entries(classConsumed)) {
 for (const s of newUnconsumed) {
     defects.push('B4 新出现「已挂载但零消费」的模块全局 ' + s + '（机制未接线也未记账，会静默腐烂）');
 }
+for (const s of wiredNotConsumed) {
+    defects.push('B4 v3.173 声明已接线的模块全局 ' + s + ' 在 index.js 中已不可见引用（接线被静默摘除，模块退回零消费）');
+}
 
 /* ---------- 报告 ---------- */
 console.log('=== B 面 模块接线 ===');
@@ -272,6 +283,8 @@ console.log('加载顺序 ' + loadOrder.length + ' 个脚本（入口 + extra_js
     + ' | 顶层声明 ' + declOwner.size + ' 个 | 对外全局 ' + actuallyProvided.size + ' 个');
 console.log('index.js 引用 window.* 符号 ' + referenced.size + ' 个（自身产出 ' + selfProvided.size + ' 个）| 已挂载未消费 '
     + unconsumed.length + ' 个（账本 ' + UNCONSUMED_LEDGER.length + ' 个）');
+console.log('v3.173 接线凭据：声明已接线 ' + WIRED_AT_3173.length + ' 个，其中真被引用 '
+    + (WIRED_AT_3173.length - wiredNotConsumed.length) + ' 个');
 console.log('B5 结构健康：' + (defects.length ? '发现 ' + defects.length + ' 项缺陷' : 'ok'));
 if (unconsumed.length) {
     console.log('  未消费账本：' + unconsumed.join(', '));

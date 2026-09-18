@@ -1,3 +1,102 @@
+## v3.173.0
+**缝合模块接线面（v3.163 账本 7 个「已挂载但零消费」模块一次性接完）**
+**主题**：v3.163 的模块接线审计立下 B4「对外挂载的全局必须被消费」，但没有消费的模块
+一律记进冻结账本 —— 账本当时冻结了 **7 个**：canonical-stringify / dependency-closure /
+entity-semantic / extraction-cadence / floor-range / npc-ties / turn-reconciler。它们全都
+**不是死文件**（已注册、有独立单测、被 manifest 加载），但**一个调用点都没有**：机制在库里躺着，
+宿主各自内联了简化版、或者干脆没接线。冻结账本防住了「静默腐烂」，但腐烂本身还在。
+v3.173 把这 7 个**一次性全部接上真实消费点**，并把账本**清空为 0** —— 判据从此零容忍。
+
+### 一、接线纪律（本版的唯一铁律）
+**每个模块必须获得真实消费点，且接线不得改变既有行为。** 7 个模块分三类处置：
+| 处置 | 模块 | 为何这么做 |
+|------|------|------------|
+| **换真源**（等价重写） | canonical-stringify | `_historyFingerprint` 的手写 FNV 改用模块 `fnv1a`，逐字节零漂移已证 |
+| **接成对账器** | npc-ties | 模块版 header 与内联版**已分歧**，而 `RESIDENT_MARKERS`/`injection-router` 靠内联版标记识别常驻注入 → 直接换输出会静默废掉常驻识别 |
+| **只统计不拦行为** | entity-semantic / dependency-closure / extraction-cadence / floor-range / turn-reconciler | 这五个的机制要么已有内联实现、要么会改动既有副作用顺序 → 接线只做**归因**，产出进读数台账 |
+
+### 二、模块层读数补齐（7 个模块，一律可选末位参数 `carry`）
+读数**只走可选末位参数或返回体新增字段，绝不改既有返回值形状**（裸数组/裸字符串契约一字不动）：
+- `canonicalStringify(value, carry)` / `stableHash(value, carry)`：补 `valueTypes/undefinedDropped/
+  sparseFilled/depthCut/cycles/maxDepth/bytes/emptyInput/error/active`。**区分「显式 undefined 元素」
+  与「稀疏空洞」**（前者计数后者也计数，但语义不同）；环**上抛**而非静默产出空串（I6）。
+- `turnContentHash(turn, carry)`：补 `{source:'canonical'|'local', canonicalFailed, bytes, undefinedDropped}`
+  —— **拿不到模块**与**模块调用失败**是两个状态位。`assignTurnIds(turns, existing, options, carry)`：
+  补 `{byMatchKey, unmatched, claimed, duplicateUsers, total, assigned}`（**靠哪一级匹配键配上的**此前
+  只存在每条记录里，无人汇总）。
+- `resolveEntity(kind, value, explicitId, carry)`：补 `{hit, via, candidates, miss, resolvedId, named}`，
+  `miss` 五态 `explicit-not-found|binding-dangling|ambiguous|no-match|blank-value`——旧实现全返回 null。
+  `importState(state, carry)`：补 `{input, kept, droppedBadKind, droppedNoId, bindingsIn, bindingsKept,
+  bindingsDangling, sample, malformed}`（**悬空绑定被清理了几个**必须可见）。
+- `computeActiveTypes(schema, seq, carry)`：补 `normalizedFallback`（旋钮填 0/负数被静默改成 1 的现场）
+  与 `skippedNoId`；`buildPerTypeRulesBlock(schema, activeTypes, carry)`：补 `skippedNoInstructions/
+  skippedInactive/missingInSchema`。
+- `mergeRanges(ranges, carry)`：补 `{input, valid, dropped, merged, collapsed, span}`——**「非法区间被丢」
+  与「被并入邻段」必须分账**。`computePendingRange(covered, latestFloor, carry)`：补 `{validLatest, holes,
+  pending, coveredTo, behind, upToDate}`——`behind` 专指「水位高于最新楼层」（回滚后重折叠入口），
+  `validLatest:false` 专指「入参读不了」，两者都与「真的没有待处理」不同形。
+- `computeCascade(input, carry)`：补 `byReason` 按根因前缀 `missing-ref|missing-dep|dep-dropped|cycle`
+  四分账 + `danglingDeps`。
+- `fmtNpcTiesContext(npcs, options, carry)`：补 `{input, skippedNoName, skippedNoTies, groups, tiesIn,
+  tiesDeduped, tiesOut, empty, malformed}`——`empty:true` 与「数据全被丢弃」靠 `input/skipped*` 区分。
+
+### 三、宿主接线（11 处，`index.js`）
+- **统一取库口** `_moduleLib(getGlobal, fileName)`：window 优先 → `require('./'+fileName)` 回落 → null。
+  调用点写成 `_moduleLib(() => window.LonShaXxx, 'xxx.js')`（传**真读表达式**而非字符串符号名）：
+  ①「宿主确实读了该全局」在源码里可见（审计的消费判据正是扫该前缀的全局引用）；②符号名拼错不会静默取空。
+  **绝不在构造函数里缓存**：extra_js 在入口之后加载，构造时全局尚未挂上。
+- **读数台账九字段**：`_histFpRead / _npcTiesRead / _npcTiesSource / _entityRegistry / _entityIdByName /
+  _entityRegistryRead / _graphDedupCascade / _cadenceTriage / _artifactTurnReconcile / _floorRangeLedger`。
+- **canonical → `_historyFingerprint`**：手写 FNV 折叠改为模块 `fnv1a`。**等价性论证**：旧实现「逐条折叠 +
+  每条后 `^0x2c` 再折叠」，而 `0x2c` 就是 `','`、FNV-1a 逐字符推进无长度前缀，故等价于「以 `,` 拼接（含尾随）
+  后整体折叠」；两处乘法的系数和同余于 `0x01000193`。**实测 400 组随机样本 × 2 条路径（模块 / 回落）零差异**。
+- **entity-semantic → `applyExtractedRoles`**：登记世界书角色（`upsertEntity` 幂等靠 `_entityIdByName` 映射），
+  并反查 `resolveEntity` 记 `resolveMiss`。返回值形状与图谱写入路径一字不动。
+- **dependency-closure → 图谱去重尾部**：把 `graph.edges` 转成依赖项喂 `computeCascade`，归因「边指向已删节点」
+  的幽灵节点与悬空依赖。**不删不改任何边**。
+- **extraction-cadence → 维护流水线 `cadence-triage` 步**：把六个「每 N 楼」旋钮组成 schema，算本轮谁该跑，
+  并暴露「旋钮填了非法值被静默改写」的现场。不改任何子系统自己的触发判据。
+- **floor-range → 归档隐藏回落路径**：把已折叠楼层当覆盖区间，算水位/段数/空洞/待处理。**纯读**。
+- **turn-reconciler → 产物库提交点**：让模块按五级匹配键把「库内既有产物」与「当前这一轮」对一遍，
+  记 `claimed/unmatched/byMatchKey`。**写库用的 `turnId` 一字不动**（改身份会作废既有产物，属行为变更）。
+- **npc-ties → `getNpcTiesPrompt` 接成对账器**：内联版仍是输出真源，模块版独立渲染一次比行数，
+  分歧入 `_npcTiesRead.rowsAgree`。守住了 v345 第 57 行的 header 断言与 `RESIDENT_MARKERS` 的常驻识别。
+- **诊断三面**：`getDegradationLedger` 补五行（实体登记面 / 图谱幽灵边 / 节奏旋钮回落 / 覆盖水位空洞 /
+  产物轮次对账）；`selfCheck` 补「模块接线」行（**7 个模块的可用性逐个探 + 已产出哪些读数**）；
+  `exportMemoryReport` 补「**模块接线：**」面板段。
+
+### 四、审计账本清空（B4 判据收紧为准零容忍）
+`tests/audit/scan_module_wiring.mjs` 的 `UNCONSUMED_LEDGER` 由 7 项**清空为 0 项**，并新增
+**接线凭据** `WIRED_AT_3173`（7 个声明已接线的模块必须在 `index.js` 里真被引用）——
+否则「删掉引用 + 删掉账本记录」也能让 B4 全绿，那是账本自证式的假绿。凭据判据只在真仓库生效
+（夹具模式下 `index.js` 是合成小文件，不含真实接线）。
+`tests/v3163_module_wiring.test.mjs` 的「账本内模块不报错」用例**语义反转**为「账本已清空 → 未消费一律报错」（exit 1），
+并新增真仓库两断言：`已挂载未消费 0 个（账本 0 个）` 与 `声明已接线 7 个，其中真被引用 7 个`。
+
+### 五、新增测试（`tests/v3173_module_wiring_surface.test.mjs`，17 组）
+A 七模块读数语义（canonical 丢键/空洞/深度/环/空输入；cascade 四分账；entity 五态 + 悬空绑定清理；
+ cadence 旋钮回落 + 规则块缺口；floor-range 水位/空洞/回滚入口；npc-ties 丢弃与空集可分；
+ turn-reconciler 逐级匹配）/ B I6 状态完备（7 模块都区分「失败」与「零」）/
+C 宿主接线（取库口三态契约 + 台账九字段 + **指纹零漂移 120 组 × 2 路径** + npc-ties 对账器）/
+D 审计（真跑扫描器：账本空 + 凭据 7/7；合成夹具自证零容忍）/ E 负控制 + F 汇总自证。
+**负控制**沿用 v3.172 的四元组锚点表 `[文件, 锚点原文, 显式破坏文本, 标签]`，6 个锚点**全部从真源码破坏、
+加载破坏副本、在副本上重跑同款真判据**；F 段改为**数自己文件声明了几个 `test()`** 来核对报到数（不自报魔数）。
+
+### 六、发布卫生
+- **四处版本声明**：index.js `VERSION` / package.json / manifest.json 3.172.0 → **3.173.0**；
+- **硬钉交棒**：v3117×3 / v3130×3 / v3147×2；**动态下界接管**（v3162 `[4d]` 协议）9 个文件
+  共 13 处 + v3163/v3164/v3165/v3172 的形态判据，合计 17 个文件 33 处 `3.172.0` → `3.173.0`；
+- **活跃代码上界**：`tests/v3116_dead_code.test.mjs` 上限 22750 **无需放宽** —— 本版接线面 +约 300 行后
+  实测 22690，仍在界内（上界是既有明文协议，不到必要不抬）。
+### 七、终局门禁
+```
+node tests/run.mjs
+→ 167 个测试文件 | 通过断言 1162 | 失败 0
+node tests/audit/scan_module_wiring.mjs
+→ 真加载成功 32/32 | 已挂载未消费 0 个（账本 0 个）| 声明已接线 7 个，其中真被引用 7 个
+→ [module-wiring] 通过
+```
+
 ## v3.172.0
 **召回漏斗读数面（v3.95/v3.96 缝合四模块的收缩阶段）**
 **主题**：v3.169 立下 I5（有损必有计数）与 I6（读失败 ≠ 读到了 0），判定面落在账本

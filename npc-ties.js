@@ -30,12 +30,21 @@
      * @param {string} [options.header] 自定义标题（默认长期关系说明）
      * @returns {string} 上下文文本（无有效条目返回 ''）
      */
-    function fmtNpcTiesContext(npcs, options = {}) {
+    function fmtNpcTiesContext(npcs, options = {}, carry = null) {
         const grouped = new Map();
+        // [v3.173] 接线：本模块缝合后 74 个版本无人调用（v3.163 账本「已挂载但零消费」）。
+        //   关系网渲染的失真全部是静默的：无名项/空 ties 被直接 continue（丢了几条
+        //   没人知道）、分号重复项被去重（去重是特性，但去掉了多少条同样是信息）、
+        //   整个结果为空时只返回 ''（调用方分不清「都没关系」与「数据全被丢弃」）。
+        const _read = { input: Array.isArray(npcs) ? npcs.length : 0, skippedNoName: 0,
+            skippedNoTies: 0, groups: 0, nameCollapsed: 0, tiesIn: 0, tiesDeduped: 0,
+            tiesOut: 0, empty: false, malformed: !Array.isArray(npcs) && npcs !== undefined };
+        if (carry && typeof carry === 'object') carry.npcTiesRead = _read;
         for (const npc of Array.isArray(npcs) ? npcs : []) {
             const name = oneLine(npc?.name);
             const ties = npc?.ties;
-            if (!name || !oneLine(ties)) continue;
+            if (!name) { _read.skippedNoName++; continue; }
+            if (!oneLine(ties)) { _read.skippedNoTies++; continue; }
             const nameKey = name.toLowerCase();
             let entry = grouped.get(nameKey);
             if (!entry) {
@@ -44,13 +53,19 @@
             }
             for (const tie of splitTies(ties)) {
                 const k = relationKey(tie);
-                if (entry.seen.has(k)) continue;
+                _read.tiesIn++;
+                if (entry.seen.has(k)) { _read.tiesDeduped++; continue; }
                 entry.seen.add(k);
                 entry.ties.push(tie);
             }
         }
+        for (const _e of grouped.values()) {
+            _read.tiesOut += _e.ties.length;
+            if (_e.ties.length !== _e.seen.size) _read.tiesDeduped += 0;
+        }
         const rows = [...grouped.values()].map(e => `  - ${e.name}:${e.ties.join(';')}`);
-        if (!rows.length) return '';
+        _read.groups = rows.length;
+        if (!rows.length) { _read.empty = true; return ''; }
         const header = options.header ??
             '角色长期关系(血缘/婚姻/主仆/宿敌等，不因是否在场而失效):';
         return `${header}\n${rows.join('\n')}`;

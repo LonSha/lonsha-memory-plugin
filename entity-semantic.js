@@ -87,18 +87,37 @@
          * 解析值为实体（explicitId 优先 → 显式绑定 → 唯一名字/别名匹配）
          * @returns {object|null} 唯一匹配才返回实体，否则 null
          */
-        function resolveEntity(kind, value, explicitId = '') {
+        function resolveEntity(kind, value, explicitId = '', carry = null) {
+            // [v3.173] 读数：本模块缝合后 69 个版本无人调用（v3.163 账本零消费）。
+            //   resolveEntity 的失败有三态，而旧实现把它们全部返回 null：
+            //     missing（登记表里根本没有这个名字）/ ambiguous（重名，故不敢合并）/
+            //     kind-mismatch（名字命中但类型不对）。三者需要的处置完全不同，
+            //     而在调用方看来都是「没解析出来」。读数走可选末位参数。
+            const _read = { kind, hit: false, via: '', candidates: 0, miss: '', resolvedId: '', named: false };
+            if (carry && typeof carry === 'object') carry.entityResolve = _read;
+            const _fin = (entity, via) => {
+                if (entity) { _read.hit = true; _read.via = via; _read.resolvedId = entity.id; }
+                return entity;
+            };
+            _read.named = !!String(value ?? '').trim();
             if (explicitId) {
-                return entities.find(e => e.id === explicitId && e.kind === kind) || null;
+                const e = entities.find(x => x.id === explicitId && x.kind === kind) || null;
+                if (!e) _read.miss = 'explicit-not-found';
+                return _fin(e, 'explicit');
             }
             // 显式值绑定优先（人工校正）
             const bound = valueBindings.get(bindKey(kind, value));
             if (bound) {
                 const e = entities.find(x => x.id === bound && x.kind === kind);
-                if (e) return e;
+                if (e) return _fin(e, 'binding');
+                _read.miss = 'binding-dangling';   // 绑定指向已删实体：悬空绑定必须看得见
             }
             const matches = resolveAll(kind, value);
-            return matches.length === 1 ? matches[0] : null;
+            _read.candidates = matches.length;
+            if (matches.length === 1) return _fin(matches[0], 'name');
+            if (matches.length > 1) { _read.miss = 'ambiguous'; return null; }
+            if (!_read.miss) _read.miss = _read.named ? 'no-match' : 'blank-value';
+            return null;
         }
 
         /** 返回匹配某值的全部候选实体（供重名歧义展示） */
@@ -152,12 +171,32 @@
         }
 
         /** 从持久化状态恢复 */
-        function importState(state = {}) {
-            entities = (state.entities || []).map(e => ({
-                id: e.id, kind: e.kind, name: e.name,
-                aliases: [...(e.aliases || [])],
-            })).filter(e => ENTITY_KINDS.includes(e.kind));
-            valueBindings = new Map(state.valueBindings || []);
+        function importState(state = {}, carry = null) {
+            const _raw = Array.isArray(state.entities) ? state.entities : [];
+            const _kept = [];
+            const _read = { input: _raw.length, kept: 0, droppedBadKind: 0, droppedNoId: 0,
+                bindingsIn: 0, bindingsKept: 0, bindingsDangling: 0, sample: [], malformed: false };
+            for (const e of _raw) {
+                if (!e || typeof e !== 'object' || !ENTITY_KINDS.includes(e.kind) || !String(e.id || '').trim()) {
+                    if (!e || typeof e !== 'object' || !ENTITY_KINDS.includes(e?.kind)) _read.droppedBadKind++;
+                    else _read.droppedNoId++;
+                    if (_read.sample.length < 5) _read.sample.push(String(e?.kind ?? typeof e));
+                    continue;
+                }
+                _kept.push({ id: e.id, kind: e.kind, name: e.name, aliases: [...(e.aliases || [])] });
+            }
+            entities = _kept;
+            _read.kept = _kept.length;
+            _read.malformed = !Array.isArray(state.entities) && state.entities !== undefined;
+            const _binds = new Map(Array.isArray(state.valueBindings) ? state.valueBindings : []);
+            _read.bindingsIn = _binds.size;
+            const _ids = new Set(_kept.map(e => e.id));
+            for (const k of [..._binds.keys()]) {
+                if (!_ids.has(_binds.get(k))) { _binds.delete(k); _read.bindingsDangling++; }
+            }
+            valueBindings = _binds;
+            _read.bindingsKept = _binds.size;
+            if (carry && typeof carry === 'object') carry.entityImport = _read;
         }
 
         return {

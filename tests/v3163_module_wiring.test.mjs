@@ -96,8 +96,8 @@ function withTmp(name, fn) {
 /* ---------- 0 ---------- */
 test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
-    assert.ok(vnum(v) >= vnum('3.172.0'), `index.js 版本 ${v} < 3.165.0`);
-    assert.ok(vnum(manifest.version) >= vnum('3.172.0'), `manifest ${manifest.version} < 3.165.0`);
+    assert.ok(vnum(v) >= vnum('3.173.0'), `index.js 版本 ${v} < 3.165.0`);
+    assert.ok(vnum(manifest.version) >= vnum('3.173.0'), `manifest ${manifest.version} < 3.165.0`);
     const audits = readdirSync(path.join(HERE, 'audit')).filter(f => f.endsWith('.mjs')).sort();
     assert.ok(audits.length >= 7, `审计脚本应 >= 7 个，实际 ${audits.length}`);
     assert.ok(audits.includes('scan_module_wiring.mjs'), 'scan_module_wiring.mjs 未注册进审计目录');
@@ -187,16 +187,22 @@ test('【2】合成夹具真跑扫描器：新未消费模块 → B4（账本外
     });
 });
 
-test('【2】合成夹具真跑扫描器：账本内未消费模块不报错', () => {
+// [v3.173] 账本清空后，本判据变成零容忍。
+//   旧语义：在冻结账本里的模块（如 LonShaNpcTies）即使未消费也放行。
+//   新语义：接线完成后账本为空，同一夹具必须报 B4。这是更强的保证：
+//   从"先记账再慢慢接"收紧为"不接就报"。
+//   旧断言（exit 0）会失效，这正是本测试要记录的契约变更。
+test('【2】合成夹具真跑扫描器：账本已清空 → 未消费模块一律报错（零容忍）', () => {
     withTmp('ledgered', (dir) => {
         makeRepo(dir, {
             'manifest.json': MANIFEST('index.js', ['mod-old.js']),
             'index.js': 'console.log(1);\n',
-            // LonShaNpcTies 在冻结账本里：属已知静默腐烂区，不应阻断
+            // 旧账本里的模块：现在没有免罪牌了
             'mod-old.js': '(function (g) { g.LonShaNpcTies = {}; })(window);\n',
         });
         const r = runScanner(dir);
-        assert.strictEqual(r.code, 0, `账本内模块应放行，实际 ${r.code}\n${r.out}`);
+        assert.strictEqual(r.code, 1, `账本清空后应报 B4，实际 ${r.code}\n${r.out}`);
+        assert.ok(/B4 新出现「已挂载但零消费」的模块全局 LonShaNpcTies/.test(r.out), '应报 B4 未消费');
     });
 });
 
@@ -275,6 +281,10 @@ test('【3】修复证据：冲突已消除且增强版成为唯一实现', () =
     const r = spawnSync(process.execPath, [SCANNER], { cwd: ROOT, encoding: 'utf8' });
     assert.strictEqual(r.status, 0, `真实仓库审计应通过\n${r.stdout}\n${r.stderr}`);
     assert.ok(/真加载成功 32\/32/.test(r.stdout || ''), `应报告全部脚本加载成功\n${r.stdout}`);
+    // [v3.173] 账本已清空：真仓库必须报 0 个未消费，且 7 个声明已接线的模块
+    //   必须逐个真被引用（防「删引用 + 删账本」假绿）。
+    assert.ok(/已挂载未消费 0 个（账本 0 个）/.test(r.stdout || ''), `账本应为空\n${r.stdout}`);
+    assert.ok(/声明已接线 7 个，其中真被引用 7 个/.test(r.stdout || ''), `7 个模块应逐个真被引用\n${r.stdout}`);
 });
 
 /* ---------- 4 ---------- */

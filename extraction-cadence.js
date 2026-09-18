@@ -51,14 +51,27 @@
      * @param {number} currentSeq 当前楼层序号
      * @returns {Set<string>} 本轮激活的类型 id 集合
      */
-    function computeActiveTypes(schema, currentSeq) {
+    function computeActiveTypes(schema, currentSeq, carry = null) {
         const active = new Set();
         const seq = normSeq(currentSeq);
-        for (const entry of Array.isArray(schema) ? schema : []) {
+        // [v3.173] 读数：本模块缝合后 68 个版本无人调用（v3.163 账本零消费）。
+        //   节奏机制的全部风险是「某一类这一轮该抽却没抽」——而旧实现的两种失效
+        //   都表达为集合里没有这个 id，与「这一类本轮本就不该抽」同形：
+        //     ① 非法 everyN（NaN/0/负数 → 静默回落 1，即被改成『每轮都抽』）；
+        //     ② 无 id 的类型（整条被跳过，连『被跳过』都没记）。
+        const _read = { schema: 0, accepted: 0, active: 0, inactive: 0, normalizedFallback: [], skippedNoId: [], seq };
+        if (carry && typeof carry === 'object') carry.cadence = _read;
+        const list = Array.isArray(schema) ? schema : [];
+        _read.schema = list.length;
+        if (!Array.isArray(schema) && schema !== undefined) _read.schemaMalformed = true;
+        for (const entry of list) {
             const typeId = normTypeId(entry?.id);
-            if (!typeId) continue;
-            const everyN = normEveryN(entry?.extractEveryN ?? 1);
-            if (seq % everyN === 0) active.add(typeId);
+            if (!typeId) { _read.skippedNoId.push(String(entry?.id ?? typeof entry)); continue; }
+            const raw = entry?.extractEveryN ?? 1;
+            const everyN = normEveryN(raw);
+            if (Number(raw) !== everyN) _read.normalizedFallback.push(typeId + ':' + String(raw) + '->' + everyN);
+            _read.accepted++;
+            if (seq % everyN === 0) { active.add(typeId); _read.active++; } else { _read.inactive++; }
         }
         return active;
     }
@@ -83,16 +96,26 @@
      * @param {Set<string>} activeTypes 本轮激活类型
      * @returns {string} 规则块文本（无激活规则返回 ''）
      */
-    function buildPerTypeRulesBlock(schema, activeTypes) {
+    function buildPerTypeRulesBlock(schema, activeTypes, carry = null) {
         const activeSet = activeTypes instanceof Set ? activeTypes : new Set(activeTypes || []);
         const sections = [];
+        // [v3.173] 读数：本轮激活却无指令的类型会被静默从 prompt 里漏掉——
+        //   prompt 少一段与「本轮确实没什么要抽」在成品上完全同形（I6）。
+        const _read = { activeTypes: activeSet.size, emitted: 0, skippedNoInstructions: [], skippedInactive: [], missingInSchema: [] };
+        if (carry && typeof carry === 'object') carry.cadenceRules = _read;
+        const _seen = new Set();
         for (const entry of Array.isArray(schema) ? schema : []) {
             const typeId = normTypeId(entry?.id);
             if (!typeId || !activeSet.has(typeId)) continue;
+            _seen.add(typeId);
             const instructions = String(entry?.extractionInstructions ?? '').trim();
-            if (!instructions) continue;
+            if (!instructions) { _read.skippedNoInstructions.push(typeId); continue; }
             sections.push(`[${typeId}]\n${instructions}`);
+            _read.emitted++;
         }
+        for (const t of activeSet) if (!_seen.has(t)) _read.missingInSchema.push(t);
+        _read.skippedInactive = (Array.isArray(schema) ? schema : [])
+            .map(e => normTypeId(e?.id)).filter(id => id && !activeSet.has(id));
         if (sections.length === 0) return '';
         return `=== Per-type extraction rules (active this round) ===\n\n${sections.join('\n\n')}`;
     }
