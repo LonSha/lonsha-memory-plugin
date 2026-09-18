@@ -1,5 +1,5 @@
 // tests/v3164_event_lifecycle.test.mjs
-// LonSha 记忆引擎 v3.164.0 —— 事件生命周期面治理（注册收口 / 台账 / 卸载消费者 / 可见性）
+// LonSha 记忆引擎 v3.165.0 —— 事件生命周期面治理（注册收口 / 台账 / 卸载消费者 / 可见性）
 //
 // 覆盖：
 //   0  版本与审计脚本注册
@@ -54,9 +54,11 @@ function objOf(methodSrc, deps = {}) {
 /* ---------- 0 ---------- */
 test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
-    assert.strictEqual(v, '3.164.0', 'index.js 版本');
-    assert.strictEqual(manifest.version, '3.164.0', 'manifest 版本');
-    assert.strictEqual(pkg.version, '3.164.0', 'package 版本');
+    // [v3.165] 交棒：不再钉死本版发行号，改为「三源一致 + 不低于本版」。
+    //   钉死自己的发行号会让下一个版本接管时以「版本不同」翻红，而那是变更，不是缺陷。
+    assert.strictEqual(v, manifest.version, 'manifest follows index.js');
+    assert.strictEqual(v, pkg.version, 'package follows index.js');
+    assert.ok(vnum(v) >= vnum('3.165.0'), `index.js 版本 ${v} >= 3.165.0`);
     // 第 8 个审计脚本已在目录里（tests/run.mjs 与 v3159 都按目录动态发现，无需单独登记）
     const audits = readdirSync(path.join(ROOT, 'tests', 'audit')).filter(f => f.endsWith('.mjs'));
     assert.ok(audits.includes('scan_event_lifecycle.mjs'), '第 8 个审计脚本存在');
@@ -87,7 +89,7 @@ test('【1】静态判据：剥注释必须保留偏移，且不得把正则字�
     // 1c 不得误吞：真实 index.js 剥注释后，关键计数必须与全文件一致
     const bare = stripComments(idx);
     const c = (s, re) => (s.match(re) || []).length;
-    assert.strictEqual(c(bare, /this[.]bindEvent[(]/g), c(idx, /this[.]bindEvent[(]/g) - 0,
+    assert.strictEqual(c(bare, /this[.]bindEvent[(]/g), c(idx, /this[.]bindEvent[(]/g),
         'stripComments 不得吞掉 this.bindEvent( 调用（初版会从 7 变 0）');
     assert.ok(c(bare, /this[.]bindEvent[(]/g) >= 7, '收口调用数 >= 7');
     assert.strictEqual(c(bare, /eventSource[.]on[(]/g), 1, '剥注释后只剩包装器内部那一次 on');
@@ -123,17 +125,26 @@ function withTmp(name, fn) {
  */
 function fixtureIndex(opts = {}) {
     const o = Object.assign({
-        regs: 6, wrap: true, push: true, handlerRefs: true,
+        regs: 6, wrap: true, push: true, pushInWrapper: true, handlerRefs: true,
         mismatch: false, unregCall: true, diag: true, provider: true,
     }, opts);
     const L = [];
     L.push('const PLUGIN_NAME = "T";');
+    // [v3.165] 注册点总数的单一真源（E5 会核对它等于实际注册点数）
+    L.push('const EXPECTED_EVENT_TYPES = ' + o.regs + ';');
     L.push('class P {');
     L.push('    _controlInfo = { events: 0 };');
     L.push('    bindEvent(eventSource, type, handler) {');
     L.push('        eventSource.on(type, handler);');
     L.push('        this._controlInfo.events++;');
     L.push('        this._controlInfo.lastEvent = type;');
+    // [v3.165] 登记与注册同处：登记必须写在包装**内部**（这正是本版修的东西）。
+    //   旧形状（登记散落在调用点）由 pushInWrapper:false 复现，作为负控制。
+    if (o.push && o.pushInWrapper) {
+        if (!o.handlerRefs) L.push('        this.eventHandlers.push({ eventSource, type });');
+        else if (o.mismatch) L.push('        this.eventHandlers.push({ eventSource, type: type, handler: _hx });');
+        else L.push('        this.eventHandlers.push({ eventSource, type, handler });');
+    }
     L.push('        return true;');
     L.push('    }');
     L.push('    registerEvents(eventSource) {');
@@ -145,14 +156,18 @@ function fixtureIndex(opts = {}) {
         L.push(o.wrap
             ? '        if (!this.bindEvent(eventSource, types.T' + i + ', _h' + i + ')) { console.warn("fail"); }'
             : '        eventSource.on(types.T' + i + ', _h' + i + ');');
-        if (o.push) {
-            if (!o.handlerRefs) L.push('        this.eventHandlers.push({ eventSource, type: types.T' + i + ' });');
-            else if (o.mismatch) L.push('        this.eventHandlers.push({ eventSource, type: types.T' + i + ', handler: _hx });');
-            else L.push('        this.eventHandlers.push({ eventSource, type: types.T' + i + ', handler: _h' + i + ' });');
+        if (o.push && !o.pushInWrapper) {
+            //   包装外登记：handlerRefs:false 时必须去掉 handler 引用，否则这条负控制
+            //   只能测到「登记不在包装内」，测不到「无 handler 引用」（两条判据的负样本不同）。
+            L.push(o.handlerRefs
+                ? '        this.eventHandlers.push({ eventSource, type: types.T' + i + ', handler: _h' + i + ' });'
+                : '        this.eventHandlers.push({ eventSource, type: types.T' + i + ' });');
         }
     }
-    // 期望值必须等于夹具的真实注册点数，否则会被 E5「哨兵自洽」判据误伤（那是真判据在干活）
-    L.push('        this._controlInfo.expected = ' + o.regs + ';');
+    // 期望值必须由**标识符**赋值：写死字面量是上一版的形状，会随宿主 event_types
+    //   能力差异误报（拿恒定的 7 去比，把「宿主缺项」当成「接线不完整」）。
+    L.push('        const _expectedCount = ' + o.regs + ';');
+    L.push('        this._controlInfo.expected = _expectedCount;');
     L.push('    }');
     if (o.unregCall) {
         L.push('    unregisterEvents() { this._controlInfo.unregisterAttempts++; this.eventHandlers = []; }');
@@ -187,17 +202,28 @@ test('【2】合成夹具真跑扫描器：裸注册点 → E1', () => {
         assert.ok(/E1 存在 6 处绕过统一包装/.test(r.out), `应报 E1 未收口，实际：${r.out}`);
     });
 });
-test('【2】合成夹具真跑扫描器：注册与台账不成对 → E2', () => {
+test('【2】合成夹具真跑扫描器：登记不在包装内 → E2（旧形状负控制）', () => {
+    // [v3.165] 判据从「push 数 == 注册点数」（当时的形状）改为「登记必须发生在包装内部」
+    //   （真正的不变量：只有写在包装里，登记才与注册同生共死）。旧形状由此负控制复现。
     withTmp('unpaired', (dir) => {
+        makeTree(dir, { 'index.js': fixtureIndex({ pushInWrapper: false }) });
+        const r = runScanner(dir);
+        assert.strictEqual(r.code, 1, `应 exit 1，实际 ${r.code}\n${r.out}`);
+        assert.ok(/E2 台账登记不在统一包装/.test(r.out), `应报 E2 登记不在包装内，实际：${r.out}`);
+    });
+});
+
+test('【2】合成夹具真跑扫描器：完全没有台账 → E2', () => {
+    withTmp('nopush', (dir) => {
         makeTree(dir, { 'index.js': fixtureIndex({ push: false }) });
         const r = runScanner(dir);
         assert.strictEqual(r.code, 1, `应 exit 1，实际 ${r.code}\n${r.out}`);
-        assert.ok(/E2 注册点 6 个，但台账记录 0 条/.test(r.out), `应报 E2 不成对，实际：${r.out}`);
+        assert.ok(/E2 台账登记不在统一包装/.test(r.out), `应报 E2 无台账，实际：${r.out}`);
     });
 });
 test('【2】合成夹具真跑扫描器：台账记录缺 handler 引用 → E2', () => {
     withTmp('nohandler', (dir) => {
-        makeTree(dir, { 'index.js': fixtureIndex({ handlerRefs: false }) });
+        makeTree(dir, { 'index.js': fixtureIndex({ pushInWrapper: false, handlerRefs: false }) });
         const r = runScanner(dir);
         assert.strictEqual(r.code, 1, `应 exit 1，实际 ${r.code}\n${r.out}`);
         assert.ok(/E2 台账记录中有 6 条不含 handler 引用/.test(r.out), `应报 E2 缺 handler，实际：${r.out}`);
@@ -263,15 +289,39 @@ test('【3】修复证据：7 个注册点全部收口，且不含裸调用', ()
     // 3b 剥注释后裸 on 只剩包装器内部 1 次
     const bareOns = (idx.replace(/^\s*\/\/.*$/gm, '').match(/eventSource\.on\(/g) || []).length;
     assert.strictEqual(bareOns, 1, `剥注释后 eventSource.on( 应只剩 1 次（包装器自身），实际 ${bareOns}`);
-    // 3c 注册与台账仍成对，且台账带 handler 引用（v3.91 的不变量必须继续成立）
-    const pushAll = (idx.match(/this\.eventHandlers\.push\(\{/g) || []).length;
-    const pushWithHandler = (idx.match(/this\.eventHandlers\.push\(\{\s*eventSource,\s*type:[^,]+,\s*handler:\s*_h\d+\s*\}\)/g) || []).length;
-    assert.strictEqual(pushAll, 7, `台账记录 7 条，实际 ${pushAll}`);
-    assert.strictEqual(pushWithHandler, 7, '7 条记录全部带 handler 引用');
+    // 3c [v3.165] 台账登记必须在**统一包装内部**（登记与注册同生共死）。
+    //   旧不变量「push 数 == 注册点数」是当时的形状，不是不变量：一种实现用 7 条散落
+    //   push 满足它，另一种实现用包装内 1 条 push 也满足「每条记录都对应真注册」。
+    //   真正的不变量有两条：① 登记只出现在包装内；② 台账条数不得超过注册点数。
+    const wrapperAt = idx.indexOf('bindEvent(eventSource, type, handler) {');
+    assert.ok(wrapperAt > 0, '统一包装存在');
+    let wi = idx.indexOf('{', wrapperAt), wd = 0, wEnd = wi;
+    for (; wEnd < idx.length; wEnd++) {
+        if (idx[wEnd] === '{') wd++;
+        else if (idx[wEnd] === '}') { wd--; if (wd === 0) break; }
+    }
+    const wrapperSrc = idx.slice(wrapperAt, wEnd + 1);
+    const pushAll = (idx.match(/this\.eventHandlers\.push\(/g) || []).length;
+    const pushInWrapper = (wrapperSrc.match(/this\.eventHandlers\.push\(/g) || []).length;
+    assert.ok(pushInWrapper >= 1, '登记出现在统一包装内（与注册同处）');
+    assert.strictEqual(pushAll, pushInWrapper, `不存在散落包装外的登记点（总 ${pushAll} / 包装内 ${pushInWrapper}）`);
+    assert.ok(pushAll <= viaWrapper, `台账条数 ${pushAll} 不得超过注册点数 ${viaWrapper}`);
+    // 包装内那条登记必须带 handler 引用（真实代码是 shorthand，因为包装内只有一个 handler 变量）
+    assert.ok(/this\.eventHandlers\.push\(\{\s*eventSource\s*,\s*type\s*,\s*handler\s*\}\)/.test(wrapperSrc),
+        '包装内的登记带 handler 引用（shorthand 即「同一个变量」）');
+    // 7 个调用点上不得再有 push（v3.165 已删除）
+    assert.strictEqual((idx.match(/this\.eventHandlers\.push\(\{\s*eventSource\s*,\s*type:\s*types\./g) || []).length, 0,
+        '调用点上不再有冗余登记');
     // 3d 失败哨兵的期望值必须等于实际注册点数：写错则「接线不完整」永不触发 ——
     //    哨兵在，但从不说真话（比没有哨兵更坏：它给人「已经检查过了」的错觉）。
-    const expectedN = Number((/this\._controlInfo\.expected\s*=\s*(\d+)\s*;/.exec(idx) || [])[1] || 0);
-    assert.strictEqual(expectedN, viaWrapper, `失败哨兵期望值 ${expectedN} 必须等于注册点数 ${viaWrapper}`);
+    //   [v3.165] 期望值改为由宿主可见性条件**派生**（`this._controlInfo.expected = <标识符>`）：
+    //   写死会随 event_types 能力差异把「宿主缺项」误报成「接线不完整」。单一真源改为
+    //   常量 EXPECTED_EVENT_TYPES，由它与实际注册点数对齐（3d2）。
+    assert.ok(/this\._controlInfo\.expected\s*=\s*[A-Za-z_$][\w$]*\s*;/.test(idx),
+        '失败哨兵期望值必须由标识符派生（不得写死字面量）');
+    // 3d2 单一真源：EXPECTED_EVENT_TYPES 必须等于实际注册点数
+    const expectConst = Number((/const\s+EXPECTED_EVENT_TYPES\s*=\s*(\d+)\s*;/.exec(idx) || [])[1] || 0);
+    assert.strictEqual(expectConst, viaWrapper, `EXPECTED_EVENT_TYPES(${expectConst}) 必须等于注册点数 ${viaWrapper}`);
 });
 
 test('【3】行为验证：bindEvent 真注册 + 真计数，且未就绪时拒绝注册', () => {
@@ -369,12 +419,16 @@ test('【3】真实仓库审计：注册脚本加载面与事件面同时卫生'
 
 /* ---------- 4 ---------- */
 test('【4】发布卫生：CHANGELOG 顶节是本版，且旧锚点已交棒', () => {
-    assert.ok(changelog.startsWith('## v3.164.0'), 'CHANGELOG 顶节应为 v3.164.0');
-    assert.ok(changelog.includes('事件生命周期'), 'CHANGELOG 应说明本版主题');
-    // 旧版锚点不得再钉死在已过期版本上
+    //   [v3.165] 交棒：顶节断言改为「顶节 == index.js 现版」的动态形式，不再钉死发行号。
+    const curV = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
+    assert.ok(changelog.startsWith('## v' + curV), `CHANGELOG 顶节应为 v${curV}`);
+    assert.ok(changelog.includes('事件生命周期'), 'CHANGELOG 应记录事件生命周期面这条主线');
+    //   旧锚点只要求「仍锚着不低于 3.165.0 的版本」，不钉死等值（等值会让下一版接管时翻红）。
     for (const f of ['tests/v3117_diagnostics.test.mjs', 'tests/v3130_control_plane.test.mjs']) {
         const src = readFileSync(path.join(ROOT, f), 'utf8');
-        assert.ok(src.includes("'3.164.0'"), `${f} 的版本锚点应已交棒到 3.164.0`);
+        const hits = [...src.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map(m => m[1]);
+        assert.ok(hits.length > 0, `${f} 仍锚着版本字符串`);
+        assert.ok(hits.every(h => vnum(h) >= vnum('3.165.0')), `${f} 的版本锚点未过期`);
     }
     // 当版独占必须交出：上一版文件里的下界必须 >= 本版（动态判据，不写死具体版本）
     const cur = vnum(/const VERSION = '([\d.]+)'/.exec(idx)[1]);
@@ -409,15 +463,16 @@ test('【5】判据面自防护：断言数量 / 关键判据指纹 / 结构下�
         ['行为验证：卸载后无残留', 'assert.strictEq' + 'ual(afterUnreg, 0,'],
         ['行为验证：bindEvent 真计数', 'assert.strictEq' + 'ual(obj._controlInfo.events, 1,'],
         ['行为验证：未就绪拒绝注册', 'assert.strictEq' + 'ual(calls2.length, 0,'],
-        ['发布卫生：CHANGELOG 顶节', "changelog.startsWith('## v3.164." + "0')"],
-        ['发布卫生：旧锚点已交棒', "src.includes(\"'3.164." + "0'\")"],
+        ['发布卫生：CHANGELOG 顶节', "changelog.startsWith('## v' + curV)"],
+        ['发布卫生：旧锚点已交棒', 'hits.every(h => vnum(h) >= vnum(' + "'3.165.0')"],
         ['发布卫生：当版独占交出', 'hits.every(h => h >= cur)'],
         ['扫描器：正样本 exit 0', 'assert.strictEq' + 'ual(r.code, 0,'],
         ['扫描器：真缺陷 exit 1', 'assert.strictEq' + 'ual(r.code, 1,'],
         ['扫描器：下限 exit 2', 'assert.strictEq' + 'ual(r.code, 2,'],
         ['剥注释：逐字符等长', 'assert.strictEq' + 'ual(out.length, sample.length,'],
         ['真实仓库：注册收口 7 处', '经统一包装收口 7 个'],
-        ['修复证据：哨兵期望值自洽', 'expectedN, viaWrapper'],
+        ['修复证据：哨兵期望值必须派生', 'expected 必须由标识符派生'],
+        ['修复证据：单一真源自洽', 'EXPECTED_EVENT_TYPES'],
         ['修复证据：诊断真返回事件接线行', "['事件接线', txt]"],
     ];
     for (const [name, sig] of fp) {

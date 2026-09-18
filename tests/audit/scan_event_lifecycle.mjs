@@ -132,12 +132,28 @@ if (bareNonWrapper > 0) {
 /* ---------- 2. E2：注册与台账成对，且台账带 handler 引用 ---------- */
 const regCount = totalRegistrations;
 const pushAll = (stripComments(idx).match(/this\.eventHandlers\.push\s*\(/g) || []).length;
+// [v3.165] 登记位置的不变量：台账登记必须发生在统一包装**内部**。
+//   v3.164 的判据是「push 数 == 注册点数」—— 那描述的是当时的形状（push 写在 7 个
+//   调用点上），不是不变量。一旦把登记收进 bindEvent（本版就是因为「失败也登记」
+//   而这么做），判据立刻报「注册 7 个但台账 1 条」，把**更正确的实现**判成缺陷。
+//   真正的不变量是两条：① 登记只发生在包装内（于是它必然与注册同生共死）；
+//   ② 登记条数不得超过实际注册数（散落的 push 会记下从未 on 过的 handler）。
+const pushInWrapper = (stripComments(wrapperBody).match(/this\.eventHandlers\.push\s*\(/g) || []).length;
 // 台账条目的两种等价写法都要认：shorthand `{ eventSource, type, … }` 与显式
 //   `{ eventSource: es, type, … }`。判据不能窄到只认一种 —— 初版只认 shorthand，
 //   夹具沿用旧写法就被算成「不含 handler 引用」，于是**正样本自己报缺陷**。
-const pushWithHandler = (stripComments(idx).match(/this\.eventHandlers\.push\(\{\s*eventSource(?:\s*:\s*[A-Za-z_$][\w$]*)?\s*,\s*type:[^,]+,\s*handler:\s*[A-Za-z_$][\w$]*\s*\}\)/g) || []).length;
-if (pushAll !== regCount) {
-    defects.push('E2 注册点 ' + regCount + ' 个，但台账记录 ' + pushAll + ' 条：注册与记录不成对，卸载时会漏掉未记录的监听（残留泄漏）');
+// [v3.165] 同时认两种 handler 写法：具名 `handler: _h1` 与 shorthand `handler`（后者
+//   出现在包装内部，因为那里只有一个 handler 变量）。v3.164 只认具名，于是把登记收进
+//   包装后它报「1 条不含 handler 引用」—— 而那条恰好是最准确的写法（同一个变量）。
+const pushWithHandler = (stripComments(idx).match(/this\.eventHandlers\.push\(\{\s*eventSource(?:\s*:\s*[A-Za-z_$][\w$]*)?\s*,\s*type(?:\s*:\s*[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)?\s*,\s*handler(?:\s*:\s*[A-Za-z_$][\w$]*)?\s*\}\)/g) || []).length;
+if (pushInWrapper === 0) {
+    defects.push('E2 台账登记不在统一包装 bindEvent 内：登记与注册不同处，bindEvent 返回 false' +
+        '（未就绪 / 类型无效 / eventSource.on 抛错）时仍会记下一条「已注册」，' +
+        '卸载时会去 off 一个从未 on 过的函数（真监听卸不掉，还可能误删其他扩展的同类型监听）');
+}
+if (pushAll > regCount) {
+    defects.push('E2 台账记录 ' + pushAll + ' 条多于注册点 ' + regCount + ' 个：存在散落的登记点，' +
+        '会记下从未真正挂载的 handler（与上一条同源：登记不受注册成败驱动）');
 }
 if (pushWithHandler !== pushAll) {
     defects.push('E2 台账记录中有 ' + (pushAll - pushWithHandler) + ' 条不含 handler 引用：卸载时只能无参移除' +
@@ -204,10 +220,22 @@ if (!/stateProvider/.test(bare)) {
 // E5 加强：失败哨兵的期望值必须等于**实际注册点数**。写错（或加了第 8 个注册点却忘了改）
 //   的话，「接线不完整」这条检测永远不会触发 —— 哨兵在，但它从不说真话。
 //   这比没有哨兵更坏：它给人「已经检查过了」的错觉。
-const expectedM = /this\._controlInfo\.expected\s*=\s*(\d+)\s*;/.exec(bare);
-if (expectedM && Number(expectedM[1]) !== totalRegistrations) {
-    defects.push('E5 失败哨兵的期望值（' + expectedM[1] + '）与实际注册点数（' + totalRegistrations +
+// [v3.165] 期望值现在有两个层次，判据必须分别看待：
+//   ① 常量 EXPECTED_EVENT_TYPES（注册点总数，单一真源）必须等于实际注册点数；
+//   ② selfCheck / 哨兵侧的 expected = <标识符> 赋值必须存在（写死字面量是上一版形状；
+//      现在期望值由宿主可见性条件派生，写死反而会把「宿主缺项」误报成「接线不完整」）。
+//   旧判据只认「字面量 == 注册点数」，于是本版一改实现就报「期望值 0」——又是形状绑定。
+const constM = /const\s+EXPECTED_EVENT_TYPES\s*=\s*(\d+)\s*;/.exec(bare);
+if (!constM) {
+    defects.push('E5 找不到期望注册点常量 EXPECTED_EVENT_TYPES：注册点总数没有单一真源，' +
+        '势必出现多份硬编码各自漂移（哨兵以为该有几个、实际注册了几个，无人对账）');
+} else if (Number(constM[1]) !== totalRegistrations) {
+    defects.push('E5 期望注册点常量（' + constM[1] + '）与实际注册点数（' + totalRegistrations +
         '）不一致：接线不完整检测会静默失效（哨兵在，但永不说真话）');
+}
+if (!/this\._controlInfo\.expected\s*=\s*[A-Za-z_$][\w$]*\s*;/.test(bare)) {
+    defects.push('E5 失败哨兵的期望值未被赋值（或写死了字面量）：' +
+        '写死会随宿主 event_types 能力差异误报，不赋值则哨兵恒为 0、永远说「不完整」');
 }
 if (regCount < MIN_REGISTRATIONS) {
     console.error('[event-lifecycle] 注册点数量 ' + regCount + ' 低于下限 ' + MIN_REGISTRATIONS + '，结构漂移');
@@ -216,7 +244,7 @@ if (regCount < MIN_REGISTRATIONS) {
 
 /* ---------- 报告 ---------- */
 console.log('[event-lifecycle] 事件注册点 ' + regCount + ' 个（经统一包装收口 ' + viaWrapper + ' 个 / 裸调用 ' + bareNonWrapper + ' 处）');
-console.log('[event-lifecycle] 台账记录 ' + pushAll + ' 条（带 handler 引用 ' + pushWithHandler + ' 条）| 卸载消费者 ' + unregisterCalls + ' 处 | 台账 handler 与注册一致 ' + (handlerRefsAligned ? '是' : '否'));
+console.log('[event-lifecycle] 台账记录 ' + pushAll + ' 条（带 handler 引用 ' + pushWithHandler + ' 条 / 位于包装内 ' + pushInWrapper + ' 条）| 卸载消费者 ' + unregisterCalls + ' 处 | 台账 handler 与注册一致 ' + (handlerRefsAligned ? '是' : '否'));
 console.log('[event-lifecycle] 控制平面台账 写 ' + infoWrites + ' / 读 ' + infoReads + ' | 诊断面事件接线行 ' + (idx.includes('事件接线') ? '有' : '无') + ' | 只读通道 ' + (/stateProvider/.test(bare) ? '有' : '无'));
 console.log('[event-lifecycle] 结构健康（注册点 ' + regCount + ' >= 下限 ' + MIN_REGISTRATIONS + '）：ok');
 if (defects.length) {

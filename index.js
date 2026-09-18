@@ -1,7 +1,14 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.164.0';
+    const VERSION = '3.165.0';
+    // [v3.165] 事件接线的注册点总数（单一真源）。
+    //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
+    //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
+    //   的静默不一致 —— 而这类不一致不报错，只会让哨兵说假话。
+    //   它与 _controlInfo.expected 不是一回事：后者由宿主可见性条件在运行时派生
+    //   （event_types 缺项时对应注册点本就不执行），本常量用于结构校验与下限判据。
+    const EXPECTED_EVENT_TYPES = 7;
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -2955,6 +2962,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // （恰恰是最危险的未装载态）时反而放行，且 _revision 比较在写入合流下恒真会误拒正常保存。
                     // 新判据用可观测身份：磁盘存档属于当前聊天且内存确实装载过它才允许覆写；
                     // 连续拒绝超阈则降级放行（stbme：陈旧挂起必须自动解除，不许永久卡死写入）。
+                    let _savePersisted = false;   // [v3.165] 成功声称的事实来源（见下方 if/else 之后）
                     const _disk = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions?.[this.storage.STORAGE_KEY];
                     const _diskOk = !_disk?.data || _disk.chatId == null || String(_disk.chatId) === String(chatId);
                     const _loadedOk = this._loadedChatId === chatId || !_disk?.data;
@@ -2966,10 +2974,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                         this._saveDeniedCount = 0;
                         this.recordSaveSource('realtime', message.index || 0);
                         await this.storage.save(chatId, _omrPayload);
+                        // [v3.165] 保存是否真落地：下面的成功声明必须由这个事实驱动。
+                        //   此前它落在 if/else 之外，连「被确认状态机拒绝、根本没写盘」也照样报「✓ 完成」。
+                        _savePersisted = true;
                     }
                 }
                 
-                console.log(`[${PLUGIN_NAME}] ✓ 完成 (${extracted?.characters?.length || 0}角色, ${extracted?.events?.length || 0}事件, 向量=${this.vector.vectors.length})`);
+                // [v3.165] 成功声称由事实驱动：提取成功与保存落地是两件事。此前这行只报「完成」+ 提取到的
+                //   角色/事件数（连向量数都是读全局，不是本楼产物），从不提保存被拒 —— 用户看到
+                //   「✓ 完成」而记忆根本没落盘，重启即失。
+                console.log(`[${PLUGIN_NAME}] ${_savePersisted ? '✓ 完成' : '⚠️ 提取完成但未落盘'} `
+                    + `(${extracted?.characters?.length || 0}角色, ${extracted?.events?.length || 0}事件, 向量=${this.vector.vectors.length}`
+                    + `${_savePersisted ? '' : '，保存被确认状态机拒绝'}）`);
             } catch (err) {
                 console.error(`[${PLUGIN_NAME}] ✗ 失败:`, err);
             } finally {
@@ -5407,7 +5423,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (seed.geoContext && this.status?.setGeoLocation) {
                     this.status.setGeoLocation(seed.geoContext);
                 }
-                console.log(`[${PLUGIN_NAME}] ✓ 跨会话 Carryover 种子导入成功 (来源版本: ${seed.version || 'unknown'})`);
+                // [v3.165] 成功声称面：原写法无论种子实际带来多少数据都报「导入成功」。
+                //   实测：只带 {type:'lonsha_carryover_seed'} 的空种子会让下面所有 if 全部跳过，
+                //   函数照样打印「✓ 导入成功」并返回 true —— 用户以为承接了前情，实际什么都没导入。
+                //   凡以成功结尾的路径都必须有失败出口：此处以「实际生效的字段数」为事实来源。
+                const _applied = ['summaryRecap', 'clock', 'protagonist', 'lifeDetails', 'carriedItems',
+                    'openSuspenses', 'npcTies', 'baselines', 'geoContext']
+                    .filter(k => seed[k] != null && (typeof seed[k] !== 'object' || Object.keys(seed[k]).length || Array.isArray(seed[k])));
+                this._lastCarryoverImport = { applied: _applied.length, fields: _applied, at: Date.now() };
+                if (!_applied.length) {
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ Carryover 种子不含任何有效字段（空种子）：未导入任何前情承接`);
+                    return false;
+                }
+                console.log(`[${PLUGIN_NAME}] ✓ 跨会话 Carryover 种子导入成功 (来源版本: ${seed.version || 'unknown'}，生效字段 ${_applied.length}: ${_applied.join('/')})`);
                 return true;
             } catch (e) {
                 errLog(e, 'importCarryoverSeed');
@@ -6381,6 +6409,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         if (ci.lastEvent) txt += `（最后由 ${String(ci.lastEvent).replace(/^(MESSAGE_|GENERATION_)/, '')} 触发）`;
                         if (ci.registeredAt) txt += ' · ' + new Date(ci.registeredAt).toLocaleTimeString('zh-CN');
                         if (ci.unregisterAttempts) txt += ` · 卸载 ${ci.unregisterAttempts} 次`;
+                        // [v3.165] 被拒绝的注册也要可见：类型无效时 bindEvent 拒绝挂载而非静默
+                        //   on(undefined)，拒绝数是「宿主事件表与插件预期不一致」的唯一用户侧线索。
+                        if (ci.rejected) txt += ` · 拒绝 ${ci.rejected} 次（${ci.lastReject || '类型无效'}）`;
                         if (ci.lastFailure || ci.events === 0) txt += ' ⚠️ ' + (ci.lastFailure || '尚无任何事件触发——若已聊天请检查 eventSource');
                         return ['事件接线', txt];
                     })(),
@@ -11155,7 +11186,14 @@ ${recentTurns}`;
             // 否则判旧读到的是未加载前的默认值（原位置在 load 之前，v3.23 起判旧失真）。
             try { this.checkEmbeddedMigration(); } catch (e) { errLog(e, '迁移恢复.init'); }
             this.initialized = true;
-            console.log(`[${PLUGIN_NAME}] ✓ 初始化完成 (LLM+向量检索+图扩散+可视化已启用)`);
+            // [v3.165] 复合能力声称不能写死：此前这行把 LLM/向量检索/图扩散/可视化四个能力
+            //   压成一个常量字符串，于是模块缺失时依旧报「已启用」——声称与事实无关。
+            //   改为由 _moduleStatus（loadModules 的实测结果）派生，缺失项单独点名。
+            const _caps = ['LLM', '向量检索'];
+            const _missing = [];
+            if (this._moduleStatus && this._moduleStatus.diffusion) _caps.push('图扩散'); else _missing.push('图扩散');
+            if (this._moduleStatus && this._moduleStatus.visualizer) _caps.push('可视化'); else _missing.push('可视化');
+            console.log(`[${PLUGIN_NAME}] ${_missing.length ? '⚠️ 初始化完成' : '✓ 初始化完成'} (${_caps.join('+')}已启用${_missing.length ? '；未启用 ' + _missing.join('/') : ''})`);
         }
         
         // [v1.3] 设置面板加载兜底：宿主若不加载 extra_js，则动态注入 settings-ui.js
@@ -11181,18 +11219,43 @@ ${recentTurns}`;
                 console.log(`[${PLUGIN_NAME}] ${this._settingsUIMounted ? '✓ 设置面板已加载 (动态注入)' : '⚠️ 设置面板加载超时'}`);
             } catch (err) {
                 console.warn(`[${PLUGIN_NAME}] settings-ui.js 动态加载失败:`, err);
+                // [v3.165] 失败也要留下**可读状态**：原来只有一行 warn，调用方无从判断
+                //   「面板没加载」还是「还在加载中」—— 设置面板是用户唯一能看到自检的地方。
+                this._settingsUIMounted = false;
+                this._settingsUILoadError = (err && err.message) || String(err);
             }
         }
         loadModules() {
+            // [v3.165] 成功声称面：原写法 `if (typeof X !== 'undefined') { 加载 + 报成功 }`
+            //   在模块缺失时**什么都不做** —— 日志里只有成功，没有失败。而「模块没加载」
+            //   恰好是最需要看见的那件事（特征静默降级：图扩散/可视化静默变兜底路径，
+            //   功能变差但没有任何迹象）。凡以成功结尾的路径都必须有失败出口。
+            this._moduleStatus = { diffusion: false, visualizer: false };
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {
-                this.diffusion = new GraphDiffusion(this.engine.graph);
-                console.log(`[${PLUGIN_NAME}] ✓ 图扩散模块已加载`);
+                try {
+                    this.diffusion = new GraphDiffusion(this.engine.graph);
+                    this._moduleStatus.diffusion = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 图扩散模块已加载`);
+                } catch (e) {
+                    errLog(e, 'loadModules.GraphDiffusion');
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ 图扩散模块实例化失败：${(e && e.message) || e}（图扩散将退回朴素路径）`);
+                }
+            } else {
+                console.warn(`[${PLUGIN_NAME}] ⚠️ 图扩散模块未加载（GraphDiffusion 未定义）：扩散检索将退回朴素路径`);
             }
             // 加载可视化模块
             if (typeof MemoryVisualizer !== 'undefined') {
-                this.visualizer = new MemoryVisualizer(this.engine);
-                console.log(`[${PLUGIN_NAME}] ✓ 可视化模块已加载`);
+                try {
+                    this.visualizer = new MemoryVisualizer(this.engine);
+                    this._moduleStatus.visualizer = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 可视化模块已加载`);
+                } catch (e) {
+                    errLog(e, 'loadModules.MemoryVisualizer');
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ 可视化模块实例化失败：${(e && e.message) || e}（图谱可视化将不可用）`);
+                }
+            } else {
+                console.warn(`[${PLUGIN_NAME}] ⚠️ 可视化模块未加载（MemoryVisualizer 未定义）：图谱可视化将不可用`);
             }
         }
         async waitForST() { return new Promise(resolve => { const check = () => { if (window.SillyTavern?.getContext) resolve(); else setTimeout(check, 100); }; check(); }); }
@@ -11204,6 +11267,9 @@ ${recentTurns}`;
         _controlInfo = {
             events: 0, lastEvent: null, registeredAt: null,
             expected: 0, failed: [], lastFailure: null, unregisterAttempts: 0,
+            // [v3.165] 被拒绝的注册：类型无效时 bindEvent 拒绝挂载而不是静默 on(undefined)。
+            //   拒绝数是「宿主事件表与插件预期不一致」的唯一运行时线索，必须可读。
+            rejected: 0, lastReject: null,
             source: null,
         };
         ensureControlReady() {
@@ -11213,13 +11279,37 @@ ${recentTurns}`;
             this._controlInfo.registeredAt = Date.now();
             return true;
         }
-        // 统一事件注册包装：记录 + 注册 + 防重
+        // 统一事件注册包装：类型校验 + 记录 + 注册 + 登记（v3.165 起登记也在本处发生）
+        //
+        // [v3.165] 类型契约：type 为空（宿主 event_types 未声明该项）或 handler 不是函数时
+        //   必须拒绝，不得进入 eventSource.on。实测 eventemitter3 风格的 eventSource 对
+        //   on(undefined, h) 不抛异常（它只是往内部 map 塞一个 undefined 键），于是：
+        //     监听器数目 +1、台账 events +1、失败哨兵认为接线完整 ——
+        //   而该 handler 永远不会被触发（事件名不存在）。这是假绿最典型的形态：
+        //   所有计数器都变好了，功能却是坏的。校验放在这里，而不是各调用点。
         bindEvent(eventSource, type, handler) {
             try {
                 if (!this.ensureControlReady()) return false;
+                if (typeof type !== 'string' || !type) {
+                    this._controlInfo.rejected++;
+                    this._controlInfo.lastReject = '事件名缺失（宿主 event_types 未声明该项）';
+                    return false;
+                }
+                if (typeof handler !== 'function') {
+                    this._controlInfo.rejected++;
+                    this._controlInfo.lastReject = 'handler 不是函数';
+                    return false;
+                }
                 eventSource.on(type, handler);
                 this._controlInfo.events++;
                 this._controlInfo.lastEvent = type;
+                // [v3.165] 台账登记与实际注册在同一处发生：此前 push 写在 7 个调用点上、
+                //   与 bindEvent 的成败无关，于是 bindEvent 返回 false（未就绪 / 类型无效 /
+                //   eventSource.on 抛错）时仍会登记一条「已注册」记录 —— 卸载时会去 off 一个
+                //   从未 on 过的函数：真监听卸不掉（泄漏），还可能顺手卸掉别的扩展的同类型监听。
+                if (Array.isArray(this.eventHandlers)) {
+                    this.eventHandlers.push({ eventSource, type, handler });
+                }
                 return true;
             } catch (e) { errLog(e, '控制平面.bindEvent'); return false; }
         }
@@ -11237,16 +11327,39 @@ ${recentTurns}`;
             // 标准 SillyTavern 中不存在该事件，导致提取链路从不触发。
             // 正确方式：通过 SillyTavern 的 eventSource + event_types 注册。
             this.eventHandlers = []; // 记录已注册事件，供卸载清理
+            // [v3.165] 重装前重置接线台账：events 的语义是「当前挂载数」，不是「历史累计数」。
+            //   幂等路径会先 unregisterEvents() 再重装，但计数不归零 —— 第二次调用后台账显示
+            //   14 个监听、实际只有 7 个。selfCheck 的可见性于是朝着「看起来更好」的方向撒谎，
+            //   比不显示更危险。
+            this._controlInfo.events = 0;
+            this._controlInfo.lastEvent = null;
 
             try {
                 const ctx = window.SillyTavern?.getContext?.();
+                // [v3.165] TDZ 自引用修复：原写法 `|| (typeof eventSource !== 'undefined' ? eventSource : null)`
+                //   里的 typeof 引用的是**本行正在声明的那个 const**（块内同名声明遮蔽了全局），
+                //   而 typeof 不能保护 TDZ —— 于是 ctx 缺 eventSource 时这里直接抛
+                //   ReferenceError: Cannot access 'eventSource' before initialization，
+                //   抢在下面的早退分支之前进了 catch。后果有三个：
+                //     1) 兜底分支（读全局 eventSource）永远不可达——写了兜底不等于兜底会用上；
+                //     2) 「eventSource 不可用」这句明确的失败文案从不出现，用户看到的是异常堆栈；
+                //     3) 失败被归因成「注册过程抛异常」，排查方向被引向错误的地方。
+                //   改为显式读 globalThis（浏览器里 window.eventSource === globalThis.eventSource）。
                 const eventSource = ctx?.eventSource
-                    || (typeof eventSource !== 'undefined' ? eventSource : null);
+                    || (typeof globalThis !== 'undefined' && globalThis.eventSource ? globalThis.eventSource : null);
                 const types = ctx?.event_types
-                    || (typeof event_types !== 'undefined' ? event_types : null);
+                    || (typeof globalThis !== 'undefined' && globalThis.event_types ? globalThis.event_types : null);
 
                 if (!eventSource || !types?.MESSAGE_RECEIVED) {
                     console.warn(`[${PLUGIN_NAME}] eventSource 不可用，事件监听未注册（仅手动模式可用）`);
+                    // [v3.165] 这条 return 是最常见的「插件活着但没有记忆」入口（TDZ 自引用修复后它才真的可达，
+                    //   之前 ctx 缺 eventSource 时会被 ReferenceError 抢走），此前只打一行
+                    //   console.warn 就返回：台账、诊断行、失败清单全部空白，用户侧无处可查。
+                    this._controlInfo.lastFailure = 'eventSource / event_types 不可用，未注册任何监听';
+                    if (!this._controlInfo.failed.includes(this._controlInfo.lastFailure)) {
+                        this._controlInfo.failed.push(this._controlInfo.lastFailure);
+                    }
+                    this._controlInfo.expected = 0;
                     return;
                 }
 
@@ -11270,7 +11383,7 @@ ${recentTurns}`;
                 if (!this.bindEvent(eventSource, types.MESSAGE_RECEIVED, _h1)) {
                     console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_RECEIVED 注册失败（控制平面未就绪或 eventSource 异常）`);
                 }
-                this.eventHandlers.push({ eventSource, type: types.MESSAGE_RECEIVED, handler: _h1 });
+                // [v3.165] 台账登记已移入 bindEvent（登记与注册同处，避免失败也登记）
 
                 // CHAT_CHANGED：切换对话时重新加载对应数据
                 if (types.CHAT_CHANGED) {
@@ -11309,7 +11422,7 @@ ${recentTurns}`;
                     if (!this.bindEvent(eventSource, types.CHAT_CHANGED, _h2)) {
                         console.warn(`[${PLUGIN_NAME}] 事件 CHAT_CHANGED 注册失败（控制平面未就绪或 eventSource 异常）`);
                     }
-                    this.eventHandlers.push({ eventSource, type: types.CHAT_CHANGED, handler: _h2 });
+                    // [v3.165] 台账登记已移入 bindEvent（登记与注册同处，避免失败也登记）
                 }
 
                 // [v3.7] 楼层编辑——升级为「精准回滚 + 防抖自愈」:
@@ -11340,7 +11453,7 @@ ${recentTurns}`;
                     if (!this.bindEvent(eventSource, types.MESSAGE_EDITED, _h3)) {
                         console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_EDITED 注册失败（控制平面未就绪或 eventSource 异常）`);
                     }
-                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED, handler: _h3 });
+                    // [v3.165] 台账登记已移入 bindEvent（登记与注册同处，避免失败也登记）
                 }
                 if (types.MESSAGE_SWIPED) {
                     const _h4 = (messageId) => {
@@ -11367,7 +11480,7 @@ ${recentTurns}`;
                     if (!this.bindEvent(eventSource, types.MESSAGE_SWIPED, _h4)) {
                         console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_SWIPED 注册失败（控制平面未就绪或 eventSource 异常）`);
                     }
-                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_SWIPED, handler: _h4 });
+                    // [v3.165] 台账登记已移入 bindEvent（登记与注册同处，避免失败也登记）
                 }
 // [v2.0] P2: 删楼回滚（楼层账本）
                 if (types.MESSAGE_DELETED) {
@@ -11413,7 +11526,7 @@ ${recentTurns}`;
                     if (!this.bindEvent(eventSource, types.MESSAGE_DELETED, _h5)) {
                         console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_DELETED 注册失败（控制平面未就绪或 eventSource 异常）`);
                     }
-                    this.eventHandlers.push({ eventSource, type: types.MESSAGE_DELETED, handler: _h5 });
+                    // [v3.165] 台账登记已移入 bindEvent（登记与注册同处，避免失败也登记）
                 }
                 // [v1.2] GENERATION_STARTED：生成前注入记忆（主注入路径）
                 // [v3.12] GENERATION_ENDED 兜底: 用户 Esc 中止生成时 MESSAGE_RECEIVED 不触发，标志卡死 true → 自愈永久延后
@@ -11426,7 +11539,7 @@ ${recentTurns}`;
                     if (!this.bindEvent(eventSource, types.GENERATION_ENDED, _h6)) {
                         console.warn(`[${PLUGIN_NAME}] 事件 GENERATION_ENDED 注册失败（控制平面未就绪或 eventSource 异常）`);
                     }
-                    this.eventHandlers.push({ eventSource, type: types.GENERATION_ENDED, handler: _h6 });
+                    // [v3.165] 台账登记已移入 bindEvent（登记与注册同处，避免失败也登记）
                 }
                 if (types.GENERATION_STARTED) {
                     const _h7 = async () => {
@@ -11457,23 +11570,46 @@ ${recentTurns}`;
                     if (!this.bindEvent(eventSource, types.GENERATION_STARTED, _h7)) {
                         console.warn(`[${PLUGIN_NAME}] 事件 GENERATION_STARTED 注册失败（控制平面未就绪或 eventSource 异常）`);
                     }
-                    this.eventHandlers.push({ eventSource, type: types.GENERATION_STARTED, handler: _h7 });
+                    // [v3.165] 台账登记已移入 bindEvent（登记与注册同处，避免失败也登记）
                 }
 
-                console.log(`[${PLUGIN_NAME}] ✓ 事件监听已注册 (MESSAGE_RECEIVED${types.CHAT_CHANGED ? ' + CHAT_CHANGED' : ''}${types.GENERATION_STARTED ? ' + GENERATION_STARTED' : ''})`);
+                // [v3.165] 期望数由与注册点**相同的可见性条件**派生，不写死常量：
+                //   宿主 event_types 缺项（不同 SillyTavern 版本）时，对应的条件注册点本就不执行；
+                //   拿恒定的 7 去比会把「宿主能力缺失」误报成「接线不完整」—— 噪声告警的代价
+                //   是真告警被忽略。MESSAGE_RECEIVED 是硬前提（缺失时上面已 return），故从 1 起算。
+                let expectedEvents = 1;
+                if (types.CHAT_CHANGED) expectedEvents++;
+                if (types.MESSAGE_EDITED) expectedEvents++;
+                if (types.MESSAGE_SWIPED) expectedEvents++;
+                if (types.MESSAGE_DELETED) expectedEvents++;
+                if (types.GENERATION_ENDED) expectedEvents++;
+                if (types.GENERATION_STARTED) expectedEvents++;
+                this._controlInfo.expected = expectedEvents;
+                // [v3.165] 成功声明必须由**事实**驱动：此前这行无条件打印「已注册」，
+                //   即便 7 个 bindEvent 全部返回 false（eventSource 异常 / 未就绪）也照样打印成功。
+                //   日志与真实接线状态相反，比没有日志更坏 —— 它把排查方向指向
+                //   「已注册但没触发」，而真因是「根本没注册」。
+                const wired = this._controlInfo.events >= expectedEvents;
+                console.log(`[${PLUGIN_NAME}] ${wired ? '✓ 事件监听已注册' : '⚠️ 事件监听注册不完整'}`
+                    + `（${this._controlInfo.events}/${expectedEvents} 个：MESSAGE_RECEIVED`
+                    + `${types.CHAT_CHANGED ? ' + CHAT_CHANGED' : ''}${types.GENERATION_STARTED ? ' + GENERATION_STARTED' : ''}）`);
+                // [v3.165] 失败哨兵（v3.164 引入）：把失败状态留在台账里，由 selfCheck / 诊断面板
+                //   暴露——「坏了有人知道吗」。本版把它从 try 外移进来，因为期望值要读 types。
+                if (!wired) {
+                    this._controlInfo.lastFailure = `期望注册 ${expectedEvents} 个事件监听，实际仅成功 ${this._controlInfo.events} 个`;
+                    if (!this._controlInfo.failed.includes(this._controlInfo.lastFailure)) {
+                        this._controlInfo.failed.push(this._controlInfo.lastFailure);
+                    }
+                    console.error(`[${PLUGIN_NAME}] ⚠️ 事件接线不完整：${this._controlInfo.lastFailure}（记忆提取可能不触发，请检查 eventSource/event_types）`);
+                }
             } catch (err) {
                 console.error(`[${PLUGIN_NAME}] 事件注册异常:`, err);
-            }
-            // [v3.164] 失败哨兵：注册若抛异常，此前只打印一行错误，_controlInfo.events 照旧为 0，
-            //   插件继续「看起来正常」运行（记忆永不被提取）。此处把失败状态留在台账里，
-            //   由 selfCheck / 诊断面板暴露——「坏了有人知道吗」。
-            this._controlInfo.expected = 7;
-            if (this._controlInfo.events < 7) {
-                this._controlInfo.lastFailure = `期望注册 7 个事件监听，实际仅成功 ${this._controlInfo.events} 个`;
+                // [v3.165] 异常也必须留痕：此前 catch 只打印一行错误，台账照旧是一片「正常」，
+                //   selfCheck 的诊断行于是无话可说 —— 失败态只存在于控制台里，刷新即失。
+                this._controlInfo.lastFailure = '注册过程抛异常：' + ((err && err.message) || String(err));
                 if (!this._controlInfo.failed.includes(this._controlInfo.lastFailure)) {
                     this._controlInfo.failed.push(this._controlInfo.lastFailure);
                 }
-                console.error(`[${PLUGIN_NAME}] ⚠️ 事件接线不完整：${this._controlInfo.lastFailure}（记忆提取可能不触发，请检查 eventSource/event_types）`);
             }
         }
         // [v3.8] 统一楼层自愈调度器（编辑/swipe 共用）:

@@ -220,11 +220,18 @@ test('【9】回归门：不得再出现「有默认值但全项目零引用」�
 
 // ═══════════ 11. 事件监听卸载：handler 引用缺失 修复 ═══════════
 test('【11】unregisterEvents 保存并按 handler 引用精确卸载', () => {
-    // 静态：7 个注册点全部保存 handler 引用
-    const withHandler = (src.match(/this\.eventHandlers\.push\(\{ eventSource, type: types\.[A-Z_]+, handler: _h\d+ \}\);/g) || []).length;
-    const totalPush = (src.match(/this\.eventHandlers\.push\(\{/g) || []).length;
-    assert.strictEqual(withHandler, totalPush, `全部 ${totalPush} 个注册点都带 handler 引用（实际 ${withHandler}）`);
-    assert.ok(withHandler >= 7, `注册点数量符合预期（${withHandler} >= 7）`);
+    // 静态：注册点与台账登记必须成对，且登记带 handler 引用。
+    // [v3.165] 登记已收进统一包装 bindEvent（登记与注册同生共死）：调用点不再有 push，
+    //   包装内那条用 shorthand `{ eventSource, type, handler }`（同一个变量，天然带引用）。
+    //   判据随之改为「不变量」而非「当时的形状」：
+    //     ① 不存在散落在包装外的登记点；② 台账条数不得超过注册点数；
+    //     ③ 每条登记都带 handler 引用（两种等价写法都认）。
+    const totalPush = (src.match(/this\.eventHandlers\.push\(/g) || []).length;
+    assert.ok(totalPush >= 1, `台账登记存在（${totalPush} 条）`);
+    const withHandler = (src.match(/this\.eventHandlers\.push\(\{\s*eventSource(?:\s*:\s*[A-Za-z_$][\w$]*)?\s*,\s*type(?:\s*:\s*[^,]+)?\s*,\s*handler(?:\s*:\s*[A-Za-z_$][\w$]*)?\s*\}\)/g) || []).length;
+    assert.strictEqual(withHandler, totalPush, `全部 ${totalPush} 条登记都带 handler 引用（实际 ${withHandler}）`);
+    const callSitePush = (src.match(/this\.eventHandlers\.push\(\{\s*eventSource\s*,\s*type:\s*types\./g) || []).length;
+    assert.strictEqual(callSitePush, 0, '调用点上不得再有冗余登记（登记已收进包装）');
     // 注册用的是具名变量而非内联匿名函数（否则引用无法保存）
     // [v3.164] 注册改经统一包装 bindEvent 收口（v3.164 修的是「没经它」）。
     //   判据不再绑死 eventSource.on 这一种写法：不变量是「注册用的 handler 与台账记的
@@ -232,7 +239,10 @@ test('【11】unregisterEvents 保存并按 handler 引用精确卸载', () => {
     const namedOn = (src.match(/eventSource\.on\(types\.[A-Z_]+, _h\d+\);/g) || []).length;
     const namedVia = (src.match(/this\.bindEvent\(eventSource, types\.[A-Z_]+, _h\d+\)/g) || []).length;
     const named = namedOn + namedVia;
-    assert.strictEqual(named, withHandler, `注册与 push 用同一 handler 引用（on ${namedOn} + bindEvent ${namedVia} = ${named}，push ${withHandler}）`);
+    // [v3.165] 台账只有 1 条（在包装内），故不变量改为「每条登记都对应一次具名注册」，
+    //   即登记条数 <= 具名注册数（旧判据要求两者相等，那是把当时的形状当成了不变量）。
+    assert.ok(named >= totalPush, `注册与登记用同一 handler 引用（on ${namedOn} + bindEvent ${namedVia} = ${named}，台账 ${totalPush}）`);
+    assert.ok(named >= 7, `具名注册点数量符合预期（${named} >= 7）`);
 
     // 行为：卸载按引用移除，且无引用时不做无参移除（防误删他人监听）
     const m = extractNamed(src, 'unregisterEvents() {');
