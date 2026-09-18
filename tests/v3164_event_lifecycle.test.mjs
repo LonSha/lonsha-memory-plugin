@@ -58,7 +58,7 @@ test('【0】版本与审计脚本注册', () => {
     //   钉死自己的发行号会让下一个版本接管时以「版本不同」翻红，而那是变更，不是缺陷。
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.166.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.167.0'), `index.js 版本 ${v} >= 3.166.0`);
     // 第 8 个审计脚本已在目录里（tests/run.mjs 与 v3159 都按目录动态发现，无需单独登记）
     const audits = readdirSync(path.join(ROOT, 'tests', 'audit')).filter(f => f.endsWith('.mjs'));
     assert.ok(audits.includes('scan_event_lifecycle.mjs'), '第 8 个审计脚本存在');
@@ -428,7 +428,7 @@ test('【4】发布卫生：CHANGELOG 顶节是本版，且旧锚点已交棒', 
         const src = readFileSync(path.join(ROOT, f), 'utf8');
         const hits = [...src.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map(m => m[1]);
         assert.ok(hits.length > 0, `${f} 仍锚着版本字符串`);
-        assert.ok(hits.every(h => vnum(h) >= vnum('3.166.0')), `${f} 的版本锚点未过期`);
+        assert.ok(hits.every(h => vnum(h) >= vnum('3.167.0')), `${f} 的版本锚点未过期`);
     }
     // 当版独占必须交出：上一版文件里的下界必须 >= 本版（动态判据，不写死具体版本）
     const cur = vnum(/const VERSION = '([\d.]+)'/.exec(idx)[1]);
@@ -465,7 +465,7 @@ test('【5】判据面自防护：断言数量 / 关键判据指纹 / 结构下�
         ['行为验证：bindEvent 真计数', 'assert.strictEq' + 'ual(obj._controlInfo.events, 1,'],
         ['行为验证：未就绪拒绝注册', 'assert.strictEq' + 'ual(calls2.length, 0,'],
         ['发布卫生：CHANGELOG 顶节', "changelog.startsWith('## v' + curV)"],
-        ['发布卫生：旧锚点已交棒', 'hits.every(h => vnum(h) >= vnum(' + "'3.166.0')"],
+        ['发布卫生：旧锚点已交棒', 'hits.every(h => vnum(h) >= vnum(' + "'3.167.0')"],
         ['发布卫生：当版独占交出', 'hits.every(h => h >= cur)'],
         ['扫描器：正样本 exit 0', 'assert.strictEq' + 'ual(r.code, 0,'],
         ['扫描器：真缺陷 exit 1', 'assert.strictEq' + 'ual(r.code, 1,'],

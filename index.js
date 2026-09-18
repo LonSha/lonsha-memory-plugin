@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.166.0';
+    const VERSION = '3.167.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2802,6 +2802,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const n = this.cse.addFromExtracted(extracted.cse_states, floor);
                         if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧠 CSE 登记人物状态 ${n} 条`);
                         if (n) this.opLog?.log('cse', 'set', `${n} states`, floor, (extracted.cse_states || []).map(s => s?.character + '.' + s?.field).join(',').slice(0, 60));
+                        // [v3.167] 容量账目必须与写入量并列可见。修前这一段的记账口径是
+                        //   「addFromExtracted 返回了几个非 null」，而 CSE 是全插件唯一会
+                        //   **主动丢弃已写入数据**的子系统（MAX_STATES_PER_CHAR 淘汰）
+                        //   且此前还会把有向状态**静默降级**为无向（toward 上限）。
+                        //   两种处置都不进任何日志：丢了多少、拒了多少，用户侧零线索。
+                        const _cr = this.cse.lastExtractReport;
+                        if (_cr && (_cr.evicted || _cr.rejected)) {
+                            this.opLog?.log('cse', 'cap', `evict ${_cr.evicted}/${_cr.attempted} reject ${_cr.rejected}`, floor,
+                                `上限淘汰 ${_cr.evicted} 条 · 身份约束拒绝 ${_cr.rejected} 条${_cr.rejectedSamples?.length ? '（如 ' + _cr.rejectedSamples.join(' / ') + '）' : ''}`);
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧠 CSE 容量：淘汰 ${_cr.evicted} / 拒绝 ${_cr.rejected}（共尝试 ${_cr.attempted}）`);
+                        }
                     } catch (e) { errLog(e, 'onMessageReceived.cse'); }
                 }
                 // [v3.95] 叙事心电图（完全原创：情感极性+张力节奏+角色弧光+自反性节奏建议，零额外 API）
@@ -6457,6 +6468,30 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ['反思', `${this.reflection.items.length} 条`],
                     ['POV', `${this.pov.povs.length} 条`],
                     ['角色状态', `${Object.keys(this.status.characters || {}).length} 人`],
+                    // [v3.167] 人物状态（CSE）诊断行。此前近 20 行子系统统计里 CSE
+                    //   **一行都没有**——于是「有状态在看不见的地方被丢弃 / 身份被改写」
+                    //   没有任何用户可见出口。修后本行同时回答四个问题：
+                    //   体量（几人几条）、容量压力（几人已顶格）、账本（丢/拒/自愈各几次）、
+                    //   以及**索引是否与 store 同源**（幽灵键一旦非 0 即说明收口被绕过）。
+                    (() => {
+                        try {
+                            const d = this.cse?.diagnose?.();
+                            if (!d) return ['人物状态', '—（引擎未挂载）'];
+                            let txt = `${d.chars} 人 / ${d.states} 条`;
+                            if (d.towardKeys) txt += ` · 关系向 ${d.towardKeys}`;
+                            txt += `（上限 ${d.caps.states}）`;
+                            if (d.nearCapChars) txt += ` ⚠️${d.nearCapChars}人顶格`;
+                            const lg = d.ledger || {};
+                            if (lg.evicted || lg.rejected || lg.ghostReclaimed) {
+                                txt += ` · 淘汰 ${lg.evicted || 0} / 拒绝 ${lg.rejected || 0}`;
+                                if (lg.ghostReclaimed) txt += ` / 索引自愈 ${lg.ghostReclaimed}`;
+                            }
+                            // 幽灵键是实时体检（不依赖账本）：非 0 说明某条路径绕过了 _reindexTargets 收口
+                            if (d.ghosts) txt += ` ⚠️索引幽灵 ${d.ghosts}（与 store 不同源）`;
+                            if (d.lastReject) txt += ` · 末次拒绝 ${d.lastReject.character}·${d.lastReject.field}→${d.lastReject.toward}（关系向上限）`;
+                            return ['人物状态', txt];
+                        } catch (e) { errLog(e, 'selfCheck.cse'); return ['人物状态', '—（诊断异常）']; }
+                    })(),
                     ['回响池', `${this.echo.pool ? this.echo.pool.size : (this.echo.items ? this.echo.items.length : '?')}`],
                     ['楼层账本', `${Object.keys(this.ledger.floors || {}).length} 楼${this.ledger.evicted ? `（已淘汰 ${this.ledger.evicted}）` : ''}`],
                     ['回滚失效', this._ledgerMissingRollbacks ? `${this._ledgerMissingRollbacks} 次（账本已淘汰）` : '0'],
