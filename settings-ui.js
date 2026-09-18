@@ -125,7 +125,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="protagonist"><div class="ls-stat-num">${['gender','age','identity','appearance','outfit','condition'].filter(k => s.status?.protagonist?.[k]).length}</div><div class="ls-stat-label">主角档案 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="oplog"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}</div><div class="ls-stat-label">事件审计 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="oplog" title="${(s.opLog?._truncated || s.opLog?._trimFields) ? '账本已发生淘汰或字段裁剪，点击查看自述' : '事件审计链（窗口/累计/损失）'}"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}${(s.opLog?._truncated || s.opLog?._trimFields) ? '<span title="账本有损失" style="font-size:12px;color:var(--ls-warn,#e3b341)">※</span>' : ''}</div><div class="ls-stat-label">事件审计 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">🔒 锁定事实 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="prequel"><div class="ls-stat-num">${s.prequel?.text ? '👁' : '—'}</div><div class="ls-stat-label">📜 前情导入 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">⚔️ 未决矛盾 👁</div></div>
@@ -510,8 +510,13 @@
                     body = '<div class="ls-hint">暂无事件记录。进行几轮对话后，此处显示所有记忆变更的完整审计链。</div>';
                 } else {
                     const st = opLog.stats();
-                    const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚' };
-                    const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`;
+                    // [v3.169] 账本自述面：此表曾只有 13 项，而真实埋点类型有 19 种——
+                    //   locked_fact / worldprogress / cse / delta / gc / ledger 六类变更
+                    //   在「事件审计链」里显示为英文原始 key。呈现层与账本的**类型集合**
+                    //   不同步，等于账本自己没被完整读出来。补齐后由测试锁定集合关系。
+                    const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚', locked_fact: '🔒锁定事实', worldprogress: '🌍世界进度', cse: '🧠人物状态', delta: '📒正史增量', gc: '🧹回收账本', ledger: '📚楼层账本' };
+                    const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`
+                        + `<div class="ls-hint" style="${(st.truncated || st.trimFields) ? 'color:var(--ls-warn,#e3b341)' : ''}">📒 账本自述：${esc(opLog.auditSummary?.() || ('窗口 ' + st.total))}${(st.truncated || st.trimFields) ? '　（下方类型统计只覆盖当前窗口；已淘汰事件不计入，且其类型会从统计中整体消失）' : ''}</div>`;
                     // [v3.59] B: 楼层过滤输入框（输入楼层号只显示该楼事件；空=全部）
                     const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
                     const rows = opLog.recent(80).slice().reverse().map(e => `

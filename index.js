@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.168.0';
+    const VERSION = '3.169.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -4687,9 +4687,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //   本版初稿曾误写成不存在的 push()，会让回收账本无声丢失——
                 //   正是本版要声讨的那种失败。此处按现行埋点惯例（type/op/ref/floor/meta）落账。
                 if (removed) {
-                    const _gcm = 'vecDup=' + _gcLedger.vecDup + ' vecCap=' + _gcLedger.vecCap +
-                        ' sumCap=' + _gcLedger.sumCap + ' orphanOps=' + _gcLedger.orphanOps +
-                        ' graphDup=' + _gcLedger.graphDup;
+                    // [v3.169] 账本自述面：meta 上限 80 字符，而这里拼的是「键=值」串。
+                    //   累计量长到一定位数后尾巴会被切成半截键（`graphD` / `orphanO`），
+                    //   字符串从此不可解析——账本记下了回收量，却把回收量的**结构**污染了。
+                    //   超限时改用紧凑键：宁可少几个字节，也不产出半截键。
+                    const _gcFull = ['vecDup=' + _gcLedger.vecDup, 'vecCap=' + _gcLedger.vecCap,
+                        'sumCap=' + _gcLedger.sumCap, 'orphanOps=' + _gcLedger.orphanOps,
+                        'graphDup=' + _gcLedger.graphDup].join(' ');
+                    const _gcm = _gcFull.length <= 80 ? _gcFull
+                        : ['vd=' + _gcLedger.vecDup, 'vc=' + _gcLedger.vecCap, 'sc=' + _gcLedger.sumCap,
+                            'oo=' + _gcLedger.orphanOps, 'gd=' + _gcLedger.graphDup].join(' ');
                     this.opLog?.log('gc', 'remove', removed + ' items', this._currentFloor ?? null, _gcm);
                 }
             } catch (e) { errLog(e, 'nonfatal') }
@@ -4730,10 +4737,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (typeof lv === 'string' && lv && lv !== '—') push('台账写入违规', 1, lv);
                 const mig = this.config?._lastMigrationReport;
                 push('配置迁移跳过', mig?.skipped?.length || 0, mig?.skipped?.join('/') || '');
+                // [v3.169] 账本自述面：审计账本本身也得进这张表——它是全部诊断的载体，
+                //   它被裁剪/淘汰/丢弃而无人知，会让「全部正常」变成一句没有依据的话。
+                const _ol = this.opLog;
+                if (_ol && typeof _ol === 'object') {
+                    const _lost = (_ol._truncated || 0) + (_ol._trimFields || 0) + (_ol._importDropped || 0);
+                    if (_lost) push('审计账本有损', _lost,
+                        `淘汰 ${_ol._truncated || 0}/字段裁剪 ${_ol._trimFields || 0}/导入丢弃 ${_ol._importDropped || 0}`);
+                }
                 // [v3.168] 盲区检测：一个降级来源都读不到时，「全部正常」是假的安心。
                 //   审计失效的方式恰恰就是「报告一切正常」，故宁可说「看不见」也不能说「没事」。
                 const _srcs = [this.vector, this._lastGcLedger, this._lastRetentionCalibration,
-                    this._lastCarryoverReport, this.cse, this.config];
+                    this._lastCarryoverReport, this.cse, this.config, this.opLog];
                 if (!_srcs.some(x => x)) push('账本盲区', 1, '未采集到任何降级来源（尚未运行过，或宿主接口未注入）')
                 r.ok = r.degraded === 0;
             } catch (e) { errLog(e, 'getDegradationLedger'); r.error = String(e?.message || e); }
@@ -6793,6 +6808,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['静默降级', txt + ' ⚠️'];
                         } catch (e) { errLog(e, 'selfCheck.degradation'); return ['静默降级', '—（诊断异常）']; }
                     })(),
+                    // [v3.169] 审计账本自述：账本是全部诊断的载体，它自己必须报出
+                    //   「窗口 / 累计 / 损失」。只报 entries.length 会让「淘汰过」与
+                    //   「从未超限」在面板上完全同形——而两者的诊断价值截然不同。
+                    (() => {
+                        try {
+                            const ol = this.opLog;
+                            if (!ol) return ['审计账本', '—（未初始化）'];
+                            const st = opLogStatsCompat(this);
+                            if (st.error) return ['审计账本', `⚠️ 读取失败（${st.error}）——计数不可信`];
+                            if (st.absent) return ['审计账本', '—（无 stats 接口）'];
+                            const sum = ol.auditSummary?.() || `窗口 ${ol.entries?.length || 0}`;
+                            const lossy = !!(st.truncated || st.trimFields || st.importDropped);
+                            let txt = `累计 ${ol.observedTotal?.() ?? st.total} · ${sum}`;
+                            if (ol.lastTruncation) txt += ` · 末次裁剪 seq#${ol.lastTruncation.seq}(${ol.lastTruncation.op})`;
+                            return ['审计账本', txt + (lossy ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.oplog'); return ['审计账本', '—（诊断异常）']; }
+                    })(),
                     // [v3.168] I3 携带契约：写侧产出必须覆盖契约清单。
                     //   与「静默降级」同族：导入侧有分支、写侧不产出时，跨对话续写会静默丢掉子系统，而 toast 仍写着「无缝衔接」。
                     (() => {
@@ -6870,7 +6902,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             push(`- 图谱：${this.graph?.nodes?.size || 0} 节点 · ${this.graph?.edges?.size || 0} 边`);
             push(`- 物品台账：${(this.itemOps || []).length}`);
             push(`- 悬念簿：${(this.suspense?.openItems?.() || []).length} 未结`);
-            push(`- 审计事件：${opLogStatsCompat(this)} 条`);
+            // [v3.169] 账本自述面：此处原为 `${opLogStatsCompat(this)} 条`，而该 helper 返回的
+            //   是对象——概览行从 v3.61 起一直输出「[object Object] 条」，用户拿不到审计事件数。
+            //   同文件的「审计统计」板块却正确解构了 byType，说明这纯粹是一处没人看过的显示路径。
+            push(`- 审计事件：${opLogStatsCompat(this).total} 条（${this.opLog?.auditSummary?.() || '无账本'}）`);
             push(`- 锁定事实：${(this.summary?.getLockedFacts?.() || []).length} 条`);
             push('');
             // [v3.64] 锁定事实板块（用户主权的铁律档案）
@@ -6999,6 +7034,17 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             // 事件统计
             push('## 🔍 审计统计');
             push('');
+            // [v3.169] 账本自述：byType 只统计「还在窗口里的」事件——已淘汰的事件连类型一起
+            //   消失，读者会据此断定「那类变更从未发生」。窗口与累计必须并排写出。
+            {
+                const _ost = opLogStatsCompat(this);
+                if (_ost.error || _ost.absent) {
+                    push(`-   ⚠️ ${_ost.error ? '账本读取失败：' + _ost.error : '账本不存在'}——下列计数不可信（不是 0，是看不见）`);
+                } else {
+                    push(`-   窗口 ${_ost.total}/${_ost.cap || 500} 条 · 累计事件 ${this.opLog?.observedTotal?.() ?? _ost.total} · ${this.opLog?.auditSummary?.() || ''}`);
+                    if (_ost.truncated) push(`-   ⚠️ 其中 ${_ost.truncated} 条事件已因环形上限淘汰，按类型统计已不完整`);
+                }
+            }
             for (const [k, v] of Object.entries(opLogStatsCompat(this).byType || {})) {
                 push(`- ${k}：${v} 次`);
             }
@@ -11252,36 +11298,103 @@ ${recentTurns}`;
     // [v3.54] 吸收 shujuku replay: 全量事件溯源日志（append-only op-log）
     // 记录所有记忆子系统的结构化变更事件：审计（这条记忆何时/为何产生）、诊断（异常回放查因）、
     // 与各子系统自身回滚机制互为验证。环形缓冲 500 条防膨胀。
+    // [v3.169] 账本自述面：本类此前有三处**有损却不留痕**的行为，使「账本自述」与「账本内容」
+    //   不一致——(a) 字段裁剪偷改身份：`op` 截 10 把 'rollback-miss' 存成 'rollback-m'
+    //   （看起来像一处拼写错误），`ref` 截 60 让 queryByRef 对同一个 id 返回 0 命中，
+    //   `meta` 截 80 把「键=值」串切成半截键；(b) 环形淘汰无计数：掉出窗口的事件连 byType
+    //   一起消失，读者据此断定「那类变更从未发生过」；(c) import 静默丢弃：900 条存进来
+    //   只剩 500，无 dropped、无告警。三者共同后果是**从这里读到的结论是错的，且错得没有痕迹**。
     class OpLog {
-        constructor() { this.entries = []; this._seq = 0; }
+        constructor() { this.entries = []; this._seq = 0; this._truncated = 0; this._trimFields = 0; this._importDropped = 0; this.lastTruncation = null; }
         /** 记录一条变更事件 */
         log(type, op, ref, floor, meta) {
+            // [v3.169] 裁剪不得改写身份：截断是可接受的取舍，但必须留痕。
+            //   旧实现把 'rollback-miss'(13) 静默存成 'rollback-m'(10)，于是「按 op 检索」这条
+            //   诊断路径对同一 op 永远返回 0 命中——诊断工具先改了证据的名字。
+            const _cap = OpLog._retention();
+            const _type = String(type ?? '').slice(0, _cap.type);
+            const _op = String(op ?? '').slice(0, _cap.op);
+            const _ref = String(ref ?? '').slice(0, _cap.ref);
+            const _meta = meta ? String(meta).slice(0, _cap.meta) : '';
+            const _opLen = String(op ?? '').length, _refLen = String(ref ?? '').length, _metaLen = meta ? String(meta).length : 0;
+            if (_opLen > _cap.op || _refLen > _cap.ref || _metaLen > _cap.meta) {
+                this._trimFields = (this._trimFields || 0) + 1;
+                this.lastTruncation = { at: Date.now(), op: _op, seq: (this._seq || 0) + 1, opFrom: _opLen, refFrom: _refLen, metaFrom: _metaLen };
+            }
             this.entries.push({
                 seq: ++this._seq,
                 ts: Date.now(),
-                type: String(type || '').slice(0, 20),      // summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair|locked_fact
-                op: String(op || '').slice(0, 10),          // add|update|remove|resolve|forge|shift
-                ref: String(ref || '').slice(0, 60),        // 目标 id/键/摘要签名
+                type: _type,          // summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair|locked_fact
+                op: _op,              // add|update|remove|resolve|forge|shift
+                ref: _ref,            // 目标 id/键/摘要签名
                 floor: floor ?? null,
-                meta: meta ? String(meta).slice(0, 80) : ''
+                meta: _meta
             });
-            if (this.entries.length > 500) this.entries.splice(0, this.entries.length - 500);
+            if (this.entries.length > 500) {
+                const _over = this.entries.length - 500;
+                this.entries.splice(0, _over);
+                this._truncated = (this._truncated || 0) + _over;   // [v3.169] 淘汰即记账：数字不涨 = 没有淘汰过
+            }
         }
+        // [v3.169] 身份保真：**读侧必须用与写侧同一套规范化**。
+        //   修前写侧截 60、读侧拿完整 id 直接比 —— 于是「自己写进去的 id 查不到自己」，
+        //   这是同一条记录在两侧各有一套换算规则。现把规范化提为唯一真源（_retention），
+        //   写入与三类检索全部经它，任何以后调整上限都只改一处、两侧自动同源。
+        static _retention() { return { type: 20, op: 10, ref: 60, meta: 80 }; }
+        static normRef(v) { return String(v ?? '').slice(0, OpLog._retention().ref); }
+        static normOp(v) { return String(v ?? '').slice(0, OpLog._retention().op); }
         queryByFloor(floor) { return this.entries.filter(e => e.floor === floor); }
-        queryByType(type) { return this.entries.filter(e => e.type === type); }
-        queryByRef(refId) { return this.entries.filter(e => e.ref === refId); }
+        queryByType(type) { return this.entries.filter(e => e.type === String(type ?? '').slice(0, OpLog._retention().type)); }
+        queryByRef(refId) { return this.entries.filter(e => e.ref === OpLog.normRef(refId)); }
         recent(n) { return this.entries.slice(-Math.max(1, Number(n) || 20)); }
-        /** 审计摘要：各类型事件计数 */
+        /** [v3.169] 账本实际覆盖的事件总数（含已淘汰）——读者不该把展示条数当成事件总数。 */
+        observedTotal() { return Math.max(this._seq || 0, this.entries.length); }
+        /** [v3.169] 一行自述：窗口 / 累计 / 三类损失。 */
+        auditSummary() {
+            const st = this.stats();
+            const bits = ['窗口 ' + st.total + '/' + st.cap];
+            const ever = this.observedTotal();
+            if (ever > st.total) bits.push('累计 ' + ever);
+            if (st.truncated) bits.push('已淘汰 ' + st.truncated);
+            if (st.trimFields) bits.push('字段裁剪 ' + st.trimFields);
+            if (st.importDropped) bits.push('导入丢弃 ' + st.importDropped);
+            if (!st.truncated && !st.trimFields && !st.importDropped) bits.push('无损失');
+            return bits.join(' · ');
+        }
+        /** 审计摘要：各类型事件计数 + 账本自述（窗口/容量/三类损失） */
         stats() {
             const byType = {};
             for (const e of this.entries) byType[e.type] = (byType[e.type] || 0) + 1;
-            return { total: this.entries.length, byType };
+            // [v3.169] 旧实现只回 {total, byType}：淘汰过 200 条的账本与从未超限的账本返回
+            //   同一个形状，而 byType 里那 200 条的类型计数连同事件一起消失。
+            return {
+                total: this.entries.length,
+                byType,
+                cap: 500,
+                seq: this._seq || 0,
+                truncated: this._truncated || 0,
+                trimFields: this._trimFields || 0,
+                importDropped: this._importDropped || 0,
+            };
         }
-        export() { return { entries: this.entries, seq: this._seq }; }
+        export() { return { entries: this.entries, seq: this._seq, truncated: this._truncated || 0, trimFields: this._trimFields || 0 }; }
         import(data) {
             if (data && typeof data === 'object') {
-                this.entries = Array.isArray(data.entries) ? data.entries.slice(-500) : [];
+                // [v3.169] 旧实现 `data.entries.slice(-500)` 静默丢弃超窗部分：900 条存进来只剩
+                //   500，无计数、无告警。丢弃必须落账，否则「账本少了 400 条」只存在于
+                //   「有人去数过原文件」这个前提里。
+                const _all = Array.isArray(data.entries) ? data.entries : [];
+                const _kept = _all.length > 500 ? _all.slice(-500) : _all;
+                if (_all.length > 500) {
+                    const _drop = _all.length - _kept.length;
+                    this._importDropped = (this._importDropped || 0) + _drop;
+                    this._truncated = (this._truncated || 0) + _drop;
+                }
+                this.entries = _kept;
                 this._seq = Number(data.seq) || this.entries.length;
+                // 存档自带的历史淘汰量：相加而非覆盖（宁可多算，不可漏算）
+                this._truncated = (this._truncated || 0) + (Number(data.truncated) || 0);
+                this._trimFields = (this._trimFields || 0) + (Number(data.trimFields) || 0);
             }
         }
     }
@@ -12274,7 +12387,19 @@ ${recentTurns}`;
         }
     };
     function opLogStatsCompat(engine) {
-        try { return engine.opLog?.stats?.() || { total: 0, byType: {} }; } catch (e) { return { total: 0, byType: {} }; }
+        // [v3.169] 账本自述面：旧实现把「没有账本」「stats 缺失」与「统计抛错」三种处境
+        //   一律返回 {total:0, byType:{}}——与「真的 0 条事件」完全同形。读者拿到的那个 0
+        //   可能来自三种完全不同的处境，而它看起来一模一样：这是「静默降级」在读取侧的形态。
+        //   「有无读取接口」与「读得出来吗」是两件事，故分两态：
+        //     absent —— 账本对象或其 stats 接口不存在（从读取方看就是没有账本）
+        //     error  —— 接口在但要不出结果（抛错）
+        const readable = !!engine?.opLog && typeof engine.opLog.stats === 'function';
+        if (!readable) return { total: 0, byType: {}, absent: true };
+        try {
+            const st = engine.opLog.stats();
+            if (!st || typeof st !== 'object') return { total: 0, byType: {}, absent: true };
+            return st;
+        } catch (e) { return { total: 0, byType: {}, error: String(e?.message || e) }; }
     }
 
 
