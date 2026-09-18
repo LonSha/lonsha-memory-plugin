@@ -21,23 +21,51 @@ function extractMethod(marker) {
 
 test('v3.131 recordSaveSource 行为：来源计数累加、楼层保留', () => {
     const errLog = () => {};
-    const body = extractMethod('recordSaveSource(source, floor = -1) {');
-    const fn = new Function('errLog', `return function (source, floor = -1) { ${body} }`)(errLog);
-    const eng = { _lastSaveGroundTruth: { ts: 0, floor: 5, sources: {} } };
-    fn.call(eng, 'realtime', 6);
-    assert.equal(eng._lastSaveGroundTruth.floor, 6);
-    assert.equal(eng._lastSaveGroundTruth.sources.realtime, 1);
-    fn.call(eng, 'realtime', 7);
-    assert.equal(eng._lastSaveGroundTruth.sources.realtime, 2);
-    fn.call(eng, 'swipe', 7);
-    assert.deepEqual(eng._lastSaveGroundTruth.sources, { realtime: 2, swipe: 1 });
+    // [v3.166] 语义修正：登记只记**意图**，真实落盘由 recordSaveFailed(ok=true) 推进。
+    //   旧判据在登记后直接断言 sources.realtime === 1，绑的是「登记 = 保存成功」这一
+    //   被本版证伪的假设。改绑不变量：
+    //     ★ 尝试必被记账（attempts）
+    //     ★ 只有结果成功的保存才计入 sources
+    //     ★ 失败的保存进入 denied，且可归因到具体来源与原因
+    //     ★ 非法楼层回退到上一次有效楼层（v3.131 原意，保持不变）
+    const bodyA = extractMethod('recordSaveSource(source, floor = -1) {');
+    const bodyB = extractMethod("recordSaveFailed(source, ok, reason = '') {");
+    const fnA = new Function('errLog', `return function (source, floor = -1) { ${bodyA} }`)(errLog);
+    const fnB = new Function('errLog', `return function (source, ok, reason = '') { ${bodyB} }`)(errLog);
+    const eng = { _lastSaveGroundTruth: { ts: 0, floor: 5, sources: {}, attempts: {}, denied: {}, lastDenied: null } };
+
+    // 登记 = 记意图：楼层更新、尝试计数 +1、但尚不计入 sources
+    fnA.call(eng, 'realtime', 6);
+    assert.equal(eng._lastSaveGroundTruth.floor, 6, '合法楼层被记录');
+    assert.equal(eng._lastSaveGroundTruth.attempts.realtime, 1, '尝试必被记账');
+    assert.equal(eng._lastSaveGroundTruth.sources.realtime, undefined, '未落盘前不计入 sources');
+
+    // 落盘成功 → sources 推进
+    fnB.call(eng, 'realtime', true, '');
+    assert.equal(eng._lastSaveGroundTruth.sources.realtime, 1, '落盘成功后 sources +1');
+
+    // 再尝试一次并再次成功：两个计数器各自独立累加
+    fnA.call(eng, 'realtime', 7);
+    fnB.call(eng, 'realtime', true, '');
+    assert.equal(eng._lastSaveGroundTruth.sources.realtime, 2, '来源计数按结果累加');
+    assert.equal(eng._lastSaveGroundTruth.attempts.realtime, 2, '尝试计数与结果计数各自独立');
+
+    // 另一个来源失败 → 进 denied，不进 sources
+    fnA.call(eng, 'swipe', 7);
+    fnB.call(eng, 'swipe', false, 'disk full');
+    assert.equal(eng._lastSaveGroundTruth.sources.swipe, undefined, '失败来源不得计入 sources');
+    assert.equal(eng._lastSaveGroundTruth.denied.swipe, 1, '失败来源计入 denied');
+    assert.equal(eng._lastSaveGroundTruth.lastDenied.source, 'swipe', '最后一次拒绝可归因到来源');
+    assert.match(eng._lastSaveGroundTruth.lastDenied.reason, /disk full/, '拒绝原因被保留');
+
     // 非法楼层回退到 prev.floor
-    fn.call(eng, 'edit', NaN);
-    assert.equal(eng._lastSaveGroundTruth.floor, 7);
+    fnA.call(eng, 'edit', NaN);
+    assert.equal(eng._lastSaveGroundTruth.floor, 7, '非法楼层回退到上次有效楼层');
+
     // ts 单调推进
     const t1 = eng._lastSaveGroundTruth.ts;
-    fn.call(eng, 'delete', 8);
-    assert.ok(eng._lastSaveGroundTruth.ts >= t1);
+    fnA.call(eng, 'delete', 8);
+    assert.ok(eng._lastSaveGroundTruth.ts >= t1, 'ts 单调推进');
 });
 
 test('v3.131 全部 storage.save 调用点登记来源', () => {

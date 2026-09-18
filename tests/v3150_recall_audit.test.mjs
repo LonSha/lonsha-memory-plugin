@@ -32,10 +32,44 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
     // A 渲染进 selfCheck
     const scIdx = src.indexOf("['楼层账本',");
     const renderIdx = src.indexOf("['召回自检',", scIdx);
-    // [v3.164] 两者之间新增了「事件接线」诊断行，窗口写死会误伤。不变量是「召回自检
-    //   这一行确实落在 selfCheck 的子系统列表里、且在楼层账本之后」——窗口大小取决于
-    //   期间插了多少行诊断，不该写死。给足 4000，并额外要求它仍是列表项形态。
-    assert.ok(scIdx > 0 && renderIdx > scIdx && renderIdx < scIdx + 4000, 'A 召回自检渲染进 selfCheck');
+    // [v3.166] 坐桩距离是形状、不是不变量：只要期间新增任何诊断行（本版就新增了
+    //   「配置迁移 / 写盘合流 / 保存来源」三行），写死的窗口就会误报。真正要守的是
+    //   「召回自检这一行确实长在 selfCheck 的子系统列表里、且在楼层账本之后」。
+    //   改为结构化判定：定位 selfCheck → 取它对 rows 的列表字面量 → 解析列表项键名。
+    const scStart = src.indexOf('async selfCheck() {');
+    assert.ok(scStart > 0, 'selfCheck 方法存在');
+    let _d = 0, _scEnd = -1;
+    for (let _i = src.indexOf('{', scStart); _i >= 0 && _i < src.length; _i++) {
+        if (src[_i] === '{') _d++;
+        else if (src[_i] === '}') { _d--; if (_d === 0) { _scEnd = _i; break; } }
+    }
+    assert.ok(_scEnd > scStart, 'selfCheck 方法体闭合');
+    const scBody = src.slice(scStart, _scEnd);
+    const rowsIdx = scBody.indexOf('const rows = [');
+    assert.ok(rowsIdx >= 0, 'selfCheck 构建子系统列表 rows');
+    const lb = scBody.indexOf('[', rowsIdx);
+    let _bd = 0, _rb = -1;
+    for (let _i = lb; _i < scBody.length; _i++) {
+        if (scBody[_i] === '[') _bd++;
+        else if (scBody[_i] === ']') { _bd--; if (_bd === 0) { _rb = _i; break; } }
+    }
+    assert.ok(_rb > lb, 'rows 列表字面量闭合');
+    // selfCheck 的子系统列表有两种注入形态：rows 字面量里的 ['键', ...]，
+    //   以及事后 rows.push(['键', ...]) 追加。两者都是列表成员，须一并采集，
+    //   否则会漏掉 push 型（「召回自检」正是 push 型）。
+    const items = [];
+    const lit = scBody.slice(lb, _rb + 1);
+    for (const m of lit.matchAll(/\['([^']+)',/g)) items.push({ key: m[1], at: lb + m.index });
+    for (const m of scBody.matchAll(/rows\.push\(\[/g)) {
+        const km = /^rows\.push\(\[\s*'([^']+)'/.exec(scBody.slice(m.index, m.index + 160));
+        if (km) items.push({ key: km[1], at: m.index });
+    }
+    items.sort((a, b) => a.at - b.at);
+    const itemKeys = items.map(x => x.key);
+    assert.ok(itemKeys.includes('楼层账本'), 'selfCheck 子系统列表包含楼层账本');
+    assert.ok(itemKeys.includes('召回自检'), 'A 召回自检渲染进 selfCheck');
+    assert.ok(itemKeys.indexOf('召回自检') > itemKeys.indexOf('楼层账本'), 'A 召回自检在楼层账本之后');
+    assert.ok(['配置迁移', '写盘合流', '保存来源'].every(k => itemKeys.includes(k)), 'v3.166 三行新诊断进入 selfCheck');
     assert.ok(/\['召回自检',/.test(src.slice(renderIdx, renderIdx + 12)), 'A 召回自检是 selfCheck 列表项');
     // B 向量续热走 _heatEntry
     assert.ok(src.includes('this.vector._heatEntry'), 'B 向量续热');

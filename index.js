@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.165.0';
+    const VERSION = '3.166.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -660,6 +660,12 @@
         const n = Number(v);
         return Number.isFinite(n) ? n : fallback;
     }
+    // [v3.166] 配置默认值模板 —— 迁移分支的唯一真源。
+    //   存在理由：loadConfig 的三个迁移分支原写 `new (this.constructor)()` 取默认值，
+    //   而构造函数自己会调 loadConfig。迁移条件一旦成立就自我递归，靠栈溢出（RangeError）
+    //   才收敛（实测同一实例被构造 2503 次 / 37ms）。把默认值快照提到类外后，
+    //   迁移只读模板、绝不再构造实例，收敛依据从「异常兜底」变回「值改对了」。
+    let _configDefaultsTemplate = null;
     class ConfigManager {
         constructor() {
             this.config = {
@@ -929,9 +935,20 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 timeTagAnchorEnabled: true,      // 正文时间标签物理锚点快速提取
                 cacheFriendlyInjection: true,    // Prompt Cache 友好型冷热槽位分流
             };
+            // [v3.166] 配置迁移台账（loadConfig 填充；诊断面读取）
+            this._lastMigrationReport = null;
+            this._configLoadError = null;
+            // [v3.166] 在合并 localStorage 之前冻结默认值模板（深拷贝，防后续改动污染）。
+            if (!_configDefaultsTemplate) {
+                try { _configDefaultsTemplate = JSON.parse(JSON.stringify(this.config)); }
+                catch (e) { errLog(e, 'ConfigManager.默认值模板'); _configDefaultsTemplate = {}; }
+            }
             this.loadConfig();
         }
         loadConfig() {
+            // [v3.166] 迁移台账：回答「这次载入迁了什么、有没有跳过」。
+            //   原实现迁移成功只打一行 console.log，失败（目标值无效）连日志都没有。
+            const _mig = { at: Date.now(), checks: 0, applied: [], skipped: [], failed: [] };
             try {
                 const saved = localStorage.getItem('lonsha_memory_config');
                 if (saved) this.config = {...this.config, ...JSON.parse(saved)};
@@ -940,29 +957,58 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 //   卡上配置只读（保存面板时写回全局层，不回写角色卡），对象深合并、数组直接覆盖。
                 this._applyCardOverrides();
                 // [v1.6] 迁移摘要规则到笔录风格（治照抄）
+                //   [v3.166] 默认值取自 _configDefaultsTemplate（原为 new (this.constructor)()，
+                //   那会在迁移条件成立时自我递归，靠栈溢出收敛——见类外模板变量处的说明）。
+                _mig.checks += 1;
                 if (this.config.extractionPrompt?.includes('30-60字概括本轮剧情')) {
-                    const defaults = new (this.constructor)().config;
-                    this.config.extractionPrompt = defaults.extractionPrompt;
-                    this.saveConfig();
-                    console.log(`[${PLUGIN_NAME}] ✓ 摘要规则已升级到 v1.6 (笔录风格·治照抄)`);
+                    const defaults = _configDefaultsTemplate || {};
+                    if (typeof defaults.extractionPrompt === 'string' && defaults.extractionPrompt) {
+                        this.config.extractionPrompt = defaults.extractionPrompt;
+                        this.saveConfig();
+                        _mig.applied.push('v1.6-摘要规则');
+                        console.log(`[${PLUGIN_NAME}] ✓ 摘要规则已升级到 v1.6 (笔录风格·治照抄)`);
+                    } else {
+                        _mig.skipped.push('v1.6-摘要规则(默认值缺失)');
+                    }
                 }
                 // [v1.5] 迁移到三家融合版提示词（已知角色名单+前情提要+客观纪要规范）
+                _mig.checks += 1;
                 if (this.config.extractionPrompt && !this.config.extractionPrompt.includes('{{KNOWN_CHARS}}')) {
-                    const defaults = new (this.constructor)().config;
-                    this.config.extractionPrompt = defaults.extractionPrompt;
-                    this.saveConfig();
-                    console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已升级到 v1.5 (已知角色名单+记忆回环+客观纪要)`);
+                    const defaults = _configDefaultsTemplate || {};
+                    if (typeof defaults.extractionPrompt === 'string' && defaults.extractionPrompt) {
+                        this.config.extractionPrompt = defaults.extractionPrompt;
+                        this.saveConfig();
+                        _mig.applied.push('v1.5-提示词');
+                        console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已升级到 v1.5 (已知角色名单+记忆回环+客观纪要)`);
+                    } else {
+                        _mig.skipped.push('v1.5-提示词(默认值缺失)');
+                    }
                 }
                 // [v1.4.2] 迁移旧版提示词：summary 字段描述太弱导致 LLM 返回空摘要
+                _mig.checks += 1;
                 if (this.config.extractionPrompt?.includes('"summary": "摘要"')) {
-                    this.config.extractionPrompt = this.config.extractionPrompt.replace(
+                    const _before = String(this.config.extractionPrompt);
+                    this.config.extractionPrompt = _before.replace(
                         '"summary": "摘要"',
                         '"summary": "用一句话概括这段对话发生了什么、角色间关系有何进展（30-60字，必须是你自己的概括，禁止照抄原文）"'
                     );
-                    this.saveConfig();
-                    console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已自动升级 (summary 要求真概括)`);
+                    // [v3.166] 迁移必须真的改动了值才算迁移：replace 未命中时
+                    //   旧实现照样 saveConfig + 报「已升级」，是一次「什么都没做的成功声明」。
+                    if (this.config.extractionPrompt !== _before) {
+                        this.saveConfig();
+                        _mig.applied.push('v1.4.2-summary描述');
+                        console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已自动升级 (summary 要求真概括)`);
+                    } else {
+                        _mig.skipped.push('v1.4.2-summary描述(替换未命中)');
+                    }
                 }
-            } catch (e) { errLog(e, 'ConfigManager.loadConfig'); }
+            } catch (e) {
+                errLog(e, 'ConfigManager.loadConfig');
+                _mig.failed.push('loadConfig:' + String(e?.message || e));
+                this._configLoadError = String(e?.message || e);
+            }
+            // [v3.166] 台账落实例：诊断面据此回答「这次启动迁了什么 / 跳过了什么 / 失败在哪」。
+            this._lastMigrationReport = _mig;
         }
         // [v3.129] 角色卡配置覆盖（anima 三级合并的卡级层）：独立方法便于单测与切换角色时重放
         _applyCardOverrides() {
@@ -2105,7 +2151,14 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             this._stmLtmState = r.state;
             // 落盘（复用主持久化通道）
-            try { if (r.consolidated > 0) { this.recordSaveSource('stmLtm'); await this.storage.save(this.getCurrentChatId(), this.collectExport()); } } catch (e) { errLog(e, 'stmLtm.save'); }
+            try {
+                if (r.consolidated > 0) {
+                    this.recordSaveSource('stmLtm');
+                    // [v3.166] 按结果记账：save 返回 false（防护拒绝 / 无落盘目标）时不得计为已保存
+                    const _ok = await this.storage.save(this.getCurrentChatId(), this.collectExport());
+                    this.recordSaveFailed('stmLtm', _ok === true, this.storage?._lastWrite?.error || '未落盘');
+                }
+            } catch (e) { errLog(e, 'stmLtm.save'); }
             if (this.config.config.debugMode && r.consolidated > 0) console.log(`[${PLUGIN_NAME}] STM巩固: ${r.consolidated}片段→stm (usedAI=${r.usedAI})`);
             return r;
         }
@@ -2973,7 +3026,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         if (this._saveDeniedCount >= 5) console.warn(`[${PLUGIN_NAME}] 确认状态机降级放行（已连续拒绝 ${this._saveDeniedCount} 次，允许落盘避免记忆完全不保存）`);
                         this._saveDeniedCount = 0;
                         this.recordSaveSource('realtime', message.index || 0);
-                        await this.storage.save(chatId, _omrPayload);
+                        const _rtOk = await this.storage.save(chatId, _omrPayload);
+                        // [v3.166] 按结果记账：这条路径原先登记与 save 相邻但返回值被忽略，
+                        //   结果上仍是「意图」而非「事实」。
+                        this.recordSaveFailed('realtime', _rtOk === true, this.storage?._lastWrite?.error || '未落盘');
                         // [v3.165] 保存是否真落地：下面的成功声明必须由这个事实驱动。
                         //   此前它落在 if/else 之外，连「被确认状态机拒绝、根本没写盘」也照样报「✓ 完成」。
                         _savePersisted = true;
@@ -4334,7 +4390,12 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (_bfStale0) { done.skipped += 1; }   // [v3.141] 中止计数可见
             if ((done.ok || done.fail) && !_bfStale0) {
                 // [v3.141] CP: 保存目标用租约捕获的 chatId（原事后求值 getCurrentChatId 会把旧任务结果写进当前聊天）
-                try { this.recordSaveSource('backfill'); await this.storage.save(_bfLease0 || this.getCurrentChatId(), this.collectExport()); } catch (e) { errLog(e, 'BF.backfill.save'); }
+                try {
+                    this.recordSaveSource('backfill');
+                    // [v3.166] 结果驱动（原先无论 save 成败都记一次「backfill 保存过」）
+                    const _ok = await this.storage.save(_bfLease0 || this.getCurrentChatId(), this.collectExport());
+                    this.recordSaveFailed('backfill', _ok === true, this.storage?._lastWrite?.error || '未落盘');
+                } catch (e) { errLog(e, 'BF.backfill.save'); }
             }
             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 补提取完成: ${done.ok}成/${done.fail}败/${done.skipped}跳`);
             return done;
@@ -6415,6 +6476,49 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         if (ci.lastFailure || ci.events === 0) txt += ' ⚠️ ' + (ci.lastFailure || '尚无任何事件触发——若已聊天请检查 eventSource');
                         return ['事件接线', txt];
                     })(),
+                    // [v3.166] 配置迁移：回答「本次载入迁了什么 / 跳过了什么 / 失败在哪」。
+                    //   修前这三个迁移分支靠自引用构造 + 栈溢出收敛，迁移结果除了
+                    //   一行成功 console.log 之外无任何记录（跳过与失败完全不可见）。
+                    (() => {
+                        const cm = this.config;
+                        const m = cm?._lastMigrationReport;
+                        if (cm?._configLoadError) {
+                            return ['配置迁移', `⚠️ 载入失败：${cm._configLoadError}`];
+                        }
+                        if (!m) return ['配置迁移', '—（未执行载入）'];
+                        let txt = `检查 ${m.checks} 项`;
+                        if (m.applied?.length) txt += ` · 已迁移 ${m.applied.join('、')}`;
+                        else txt += ' · 无迁移需要';
+                        if (m.skipped?.length) txt += ` · 跳过 ${m.skipped.length}（${m.skipped.join('、')}）`;
+                        if (m.failed?.length) txt += ` ⚠️ 失败 ${m.failed.length}（${m.failed.join('、')}）`;
+                        return ['配置迁移', txt];
+                    })(),
+                    // [v3.166] 写盘合流：回答「这一轮写盘吞了几批、有没有丢过、确认修订号走到哪」。
+                    //   修前单槽覆盖是静默的——丢批不计数、不告警、不可查。
+                    (() => {
+                        const st = this.storage;
+                        if (!st) return ['写盘合流', '—（存储层未初始化）'];
+                        const pend = st._pendingWrites instanceof Map ? st._pendingWrites.size : 0;
+                        const merged = Number(st._mergedBatches) || 0;
+                        const lw = st._lastWrite || {};
+                        let txt = `同 chat 合并 ${merged} 批 · 挂起 ${pend}`;
+                        if (lw.status) txt += ` · 末次 ${lw.status}${lw.revision != null ? '(rev' + lw.revision + ')' : ''}`;
+                        if (st._confirmed?.revision != null) txt += ` · 已确认 rev${st._confirmed.revision}`;
+                        if (lw.status === 'failed') txt += ` ⚠️ ${lw.error || '未落盘'}`;
+                        return ['写盘合流', txt];
+                    })(),
+                    // [v3.166] 保存来源：把「谁想保存」与「谁真保存了」并列。
+                    //   修前 sources 只由调用意图驱动，无法察觉某个来源一直在被拒绝。
+                    (() => {
+                        const r = this.getSaveSourceReport?.();
+                        if (!r || !r.rows?.length) return ['保存来源', '暂无记录'];
+                        const parts = r.rows.slice(0, 6).map(x =>
+                            `${x.source}:${x.persisted}/${x.attempted}${x.denied ? `(拒${x.denied})` : ''}`);
+                        let txt = parts.join(' ');
+                        if (r.rows.length > 6) txt += ` …共${r.rows.length}源`;
+                        if (r.lastDenied) txt += ` ⚠️ 末次拒绝 ${r.lastDenied.source}：${r.lastDenied.reason}`;
+                        return ['保存来源', txt];
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -6893,12 +6997,74 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch { return null; }
         }
         // [v3.131] CP: 保存来源登记——所有 storage.save 调用点经此登记地面真源（来源计数随存档持久化，诊断面板展示"谁在保存"）
+        //
+        // [v3.166] 语义修正：登记的时机会决定它登记的是什么。
+        //   六个调用点里五个写成 `recordSaveSource('X'); await storage.save(...)` ——
+        //   登记在 save **之前**。而 storage.save 有两条不落盘路径（修订/指纹防护拒绝、
+        //   真实写入失败），两条都只是 return false 而不抛错。于是这份「谁在保存」
+        //   会把一次根本没发生的保存记进去，还会随存档持久化到其它设备。
+        //   现在 sources 只由**结果**驱动；separate 出 attempts / denied 两个计数器，
+        //   让「谁在尝试、谁在丢」分别可见，拒绝可归因到具体来源。
         recordSaveSource(source, floor = -1) {
             try {
-                const prev = this._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {} };
+                const prev = this._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {}, attempts: {}, denied: {}, lastDenied: null };
                 const f = Number.isFinite(Number(floor)) ? Number(floor) : prev.floor;
-                this._lastSaveGroundTruth = { ts: Date.now(), floor: f, sources: { ...(prev.sources || {}), [source]: ((prev.sources || {})[source] || 0) + 1 } };
+                const attempts = { ...(prev.attempts || {}) };
+                attempts[source] = (attempts[source] || 0) + 1;
+                // sources 保持 v3.131 的既有字段名（下游测试与诊断面板读它），
+                //   但语义收紧为「确认落地过的保存」——由 recordSaveFailed 推进。
+                this._lastSaveGroundTruth = {
+                    ts: Date.now(), floor: f,
+                    sources: { ...(prev.sources || {}) },
+                    attempts,
+                    denied: { ...(prev.denied || {}) },
+                    lastDenied: prev.lastDenied || null,
+                };
             } catch (e) { errLog(e, 'recordSaveSource'); }
+        }
+        /**
+         * [v3.166] 按 storage.save 的**结果**记账。
+         * @param {string} source 保存来源标识
+         * @param {boolean} ok storage.save 的返回值（true=真实落盘证据已成立）
+         * @param {string} [reason] 失败原因（ok=false 时用于归因）
+         */
+        recordSaveFailed(source, ok, reason = '') {
+            try {
+                const prev = this._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {}, attempts: {}, denied: {}, lastDenied: null };
+                if (ok) {
+                    const sources = { ...(prev.sources || {}) };
+                    sources[source] = (sources[source] || 0) + 1;
+                    this._lastSaveGroundTruth = {
+                        ts: Date.now(), floor: prev.floor,
+                        sources, attempts: { ...(prev.attempts || {}) },
+                        denied: { ...(prev.denied || {}) }, lastDenied: prev.lastDenied || null,
+                    };
+                    return true;
+                }
+                const denied = { ...(prev.denied || {}) };
+                denied[source] = (denied[source] || 0) + 1;
+                this._lastSaveGroundTruth = {
+                    ts: prev.ts, floor: prev.floor,
+                    sources: { ...(prev.sources || {}) }, attempts: { ...(prev.attempts || {}) },
+                    denied,
+                    lastDenied: { source: String(source), reason: String(reason || '未落盘'), at: Date.now() },
+                };
+                return false;
+            } catch (e) { errLog(e, 'recordSaveFailed'); return false; }
+        }
+        /**
+         * [v3.166] 保存地面真源报告：把「想保存」与「真保存」并列，
+         *   回答「哪个来源在尝试、哪个来源在丢、最后一次丢是谁丢的」。
+         */
+        getSaveSourceReport() {
+            const g = this._lastSaveGroundTruth || { ts: 0, floor: -1, sources: {}, attempts: {}, denied: {}, lastDenied: null };
+            const sources = g.sources || {}, attempts = g.attempts || {}, denied = g.denied || {};
+            const names = new Set([...Object.keys(sources), ...Object.keys(attempts), ...Object.keys(denied)]);
+            const rows = [];
+            for (const n of [...names].sort()) {
+                rows.push({ source: n, attempted: attempts[n] || 0, persisted: sources[n] || 0, denied: denied[n] || 0 });
+            }
+            return { lastFloor: g.floor, lastAt: g.ts, lastDenied: g.lastDenied || null, rows };
         }
     }
     
@@ -10908,7 +11074,19 @@ ${recentTurns}`;
         constructor() {
             this.STORAGE_KEY = 'lonsha_memory';
             this._isWriting = false;
-            this._pendingWrite = null;
+            // [v3.166] 写入合流缓冲：单槽 → **按 chatId 合并**。
+            //   旧写法 this._pendingWrite = {...} 是一个全局单槽：下一批无论属于哪个 chat
+            //   都会把上一批盖掉。同 chat 的连续快照相互覆盖是**刻意**的合并
+            //   （v3.40 Write Coalescing：后一份是前一份的超集，只写最新一份即可），
+            //   但补提取（租约捕获的旧 chatId）与删楼（被删 chatId）会带来**不同 chat**
+            //   的批次 —— 那才是真丢失：被盖掉的那个 chatId 的数据永久消失，
+            //   而调用方收到的是 true。
+            //   改为 Map<chatId, batch>：同 chat 合并、异 chat 并存，两个语义各自正确。
+            this._pendingWrites = new Map();
+            this._mergedBatches = 0;        // 累计因同 chat 合并而被取代的批次数（良性）
+            this._coalescedByChat = {};     // 分 chat 的合并次数（诊断用）
+            this._lastMergedRevis = 0;
+            this._crossChatCoexists = 0;    // 曾同时挂起多个不同 chat 的次数（旧实现会丢一个）
             this._revision = 0; // [v3.44] 乐观并发单调修订号 (Revision-based Optimistic Locking)
             this._confirmed = null;   // [v3.138] CP-L2: 持久化确认状态机（最近一次成功写入的 chatId/revision）
         }
@@ -10963,15 +11141,41 @@ ${recentTurns}`;
             // 与「数据已安全落地只能由规范主源证明」矛盾——写失败/宿主不可用时内存已自称已保存。
             // 现在此处只登记 queued，落盘循环结束后按证据推进 confirmed / 记录 failed。
             this._lastWrite = { status: 'queued', chatId: String(chatId), revision: currentRev, ts: Date.now() };
+            // [v3.166] 待写集合惰性兜底：save 可能被独立于构造函数调用（测试桩/外部脚本/
+            //   热更新残留实例只提供部分字段）。缺失时若直接在合流分支或循环尾部访问，
+            //   会抛 TypeError —— 把「保存失败」变成「保存崩溃」，调用方连 false 都拿不到，
+            //   异常还会穿过事件回调。缺啥补啥，正常路径行为不变。
+            if (!(this._pendingWrites instanceof Map)) this._pendingWrites = new Map();
+            if (!Number.isFinite(Number(this._mergedBatches))) this._mergedBatches = 0;
+            if (!this._coalescedByChat || typeof this._coalescedByChat !== 'object') this._coalescedByChat = {};
+            if (!Number.isFinite(Number(this._crossChatCoexists))) this._crossChatCoexists = 0;
             if (this._isWriting) {
-                this._pendingWrite = { chatId, data, revision: currentRev };
+                // [v3.166] 按 chatId 合流：同 chat 取最新（=v3.40 的 Write Coalescing 语义），
+                //   异 chat 并存（旧单槽在这里会静默丢掉其中一个）。
+                const _k = String(chatId);
+                const _prev = this._pendingWrites.get(_k);
+                if (_prev) {
+                    this._mergedBatches += 1;
+                    this._coalescedByChat[_k] = (this._coalescedByChat[_k] || 0) + 1;
+                }
+                this._pendingWrites.set(_k, { chatId, data, revision: currentRev });
+                this._lastMergedRevis = Math.max(this._lastMergedRevis, currentRev);
+                if (this._pendingWrites.size > 1) this._crossChatCoexists += 1;
                 return true;
             }
             let _persisted = 0, _writeErr = null;
+            // [v3.166] 确认推进必须用「实际最后落盘批次」的修订号：合流批次的 rev 高于
+            //   首次调用时的 currentRev，用旧的写进 _confirmed 会让确认状态与真实
+            //   落盘内容不对应（_confirmed 正是判断「内存是否已有对应存档」的依据）。
+            let _lastPersistedRev = currentRev;
+            // [v3.166] 落盘身份必须成对：revision 取实际落盘批次，chatId 也必须取
+            //   同一批次。只改 revision 会让 _confirmed 描述一个从未同时存在的「对」。
+            let _lastPersistedChatId = String(chatId);
             this._isWriting = true;
             try {
                 let curChatId = chatId;
                 let curData = data;
+                let curRev = currentRev;
                 while (curData) {
                     try {
                         const ctx = window.SillyTavern?.getContext?.();
@@ -11002,14 +11206,34 @@ ${recentTurns}`;
                                 data: curData,
                                 timestamp: Date.now()
                             };
-                            if (ctx.saveChat) await ctx.saveChat(); else if (window.saveChat) await window.saveChat();
-                            _persisted += 1;   // [v3.140] 真实落盘证据（写扩展位 + saveChat 均完成）
+                            // [v3.166] 宿主否认（明确 false）= 「我没存」。此时不得计入落盘证据：
+                            //   旧实现无条件 _persisted += 1，等于替宿主宣布成功并推进确认。
+                            let _ret;
+                            if (ctx.saveChat) _ret = await ctx.saveChat();
+                            else if (window.saveChat) _ret = await window.saveChat();
+                            else _ret = true;   // 无 saveChat 钩子：扩展位写入本身即落地（原行为）
+                            if (_ret === false) {
+                                // 失败原因必须归因到「宿主否认」，否则会落到兜底文案
+                                //   「chatMetadata 不可用」——把真实原因掩盖成环境问题。
+                                _writeErr = '宿主 saveChat 返回 false（未落地）';
+                                errLog(new Error(_writeErr), 'DB.落盘证据');
+                            } else {
+                                _persisted += 1;   // [v3.140] 真实落盘证据（写扩展位 + saveChat 均完成）
+                                _lastPersistedRev = curRev;            // [v3.166] 实际落盘批次的修订号
+                                _lastPersistedChatId = String(curChatId);   // [v3.166] 与之配对的 chat
+                            }
                         }
                     } catch (err) { _writeErr = String(err?.message || err); console.error('保存失败:', err); }
-                    if (this._pendingWrite) {
-                        curChatId = this._pendingWrite.chatId;
-                        curData = this._pendingWrite.data;
-                        this._pendingWrite = null;
+                    // [v3.166] 从各 chat 的挂起批次里取下一个（Map 迭代顺序 = 插入顺序）
+                    //   判空是集合访问的前置条件：未知状态下「没有下一批」比抛错更接近真相。
+                    const _pk = (this._pendingWrites instanceof Map) ? this._pendingWrites : null;
+                    const _nxtKey = _pk ? _pk.keys().next() : { done: true };
+                    if (!_nxtKey.done) {
+                        const _nxt = _pk.get(_nxtKey.value);
+                        _pk.delete(_nxtKey.value);
+                        curChatId = _nxt.chatId;
+                        curData = _nxt.data;
+                        curRev = _nxt.revision;   // [v3.166] 该批次自己的修订号（确认推进要用它）
                     } else {
                         curData = null;
                     }
@@ -11020,8 +11244,16 @@ ${recentTurns}`;
             // [v3.140] CP: 真实写入完成后才推进持久化确认（stbme 确认状态机）。无落盘证据不推进，
             // 并把失败显式化——旧实现恒 return true，调用方与诊断面板都无从得知「没写进去」。
             if (_persisted > 0) {
-                this._confirmed = { chatId: String(chatId), revision: currentRev, ts: Date.now() };
-                this._lastWrite = { status: 'confirmed', chatId: String(chatId), revision: currentRev, ts: Date.now(), persisted: _persisted };
+                // [v3.166] 用实际最后落盘批次的修订号（原用首次调用的 currentRev，合流后滞后）
+                this._confirmed = { chatId: _lastPersistedChatId, revision: _lastPersistedRev, ts: Date.now() };
+                this._lastWrite = {
+                    status: 'confirmed', chatId: _lastPersistedChatId, revision: _lastPersistedRev, ts: Date.now(),
+                    persisted: _persisted,
+                    // [v3.166] 可观测性：这一轮写盘合并了几批（同 chat）、是否出现过异 chat 并存
+                    mergedBatches: Number(this._mergedBatches) || 0,
+                    coalescedByChat: { ...(this._coalescedByChat || {}) },
+                    crossChatCoexists: Number(this._crossChatCoexists) || 0
+                };
                 return true;
             }
             this._lastWrite = { status: 'failed', chatId: String(chatId), revision: currentRev, ts: Date.now(), error: _writeErr || 'no persistence target (chatMetadata 不可用)' };
@@ -11444,7 +11676,13 @@ ${recentTurns}`;
                             // [v3.12] 立即持久化（原只改内存——刷新页面丢 v3.9 shift/回滚成果）
                             try {
                                 const cSave = window.SillyTavern?.getContext?.();
-                                if (cSave?.chat?.length) { this.engine.recordSaveSource('edit'); this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport()); }
+                                if (cSave?.chat?.length) {
+                                    this.engine.recordSaveSource('edit');
+                                    // [v3.166] 事件回调里 save 的返回值此前被丢弃，现在按结果记账
+                                    this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport())
+                                        .then((_ok) => this.engine.recordSaveFailed('edit', _ok === true, this.engine.storage?._lastWrite?.error || '未落盘'))
+                                        .catch((e2) => { this.engine.recordSaveFailed('edit', false, String(e2?.message || e2)); errLog(e2, 'events.编辑即时存盘'); });
+                                }
                             } catch (e) { errLog(e, 'events.编辑即时存盘'); }
                         } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
                     };
@@ -11470,7 +11708,13 @@ ${recentTurns}`;
                                 // [v3.12] 立即持久化（刷新页面防丢）
                                 try {
                                     const cSave = window.SillyTavern?.getContext?.();
-                                    if (cSave?.chat?.length) { this.engine.recordSaveSource('swipe'); this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport()); }
+                                    if (cSave?.chat?.length) {
+                                        this.engine.recordSaveSource('swipe');
+                                        // [v3.166] 结果驱动（同上）
+                                        this.engine.storage.save(this.engine.getCurrentChatId(), this.engine.collectExport())
+                                            .then((_ok) => this.engine.recordSaveFailed('swipe', _ok === true, this.engine.storage?._lastWrite?.error || '未落盘'))
+                                            .catch((e2) => { this.engine.recordSaveFailed('swipe', false, String(e2?.message || e2)); errLog(e2, 'events.swipe即时存盘'); });
+                                    }
                                 } catch (e) { errLog(e, 'events.swipe即时存盘'); }
                             }
                         } catch (err) { errLog(err, 'nonfatal') }
@@ -11515,7 +11759,12 @@ ${recentTurns}`;
                             // [v3.12] 立即持久化（删楼+shift 成果防刷新丢失）
                             try {
                                 const cidSave = plugin.engine.getCurrentChatId();
-                                if (cidSave) { plugin.engine.recordSaveSource('delete'); await plugin.engine.storage.save(cidSave, plugin.engine.collectExport()); }
+                                if (cidSave) {
+                                    plugin.engine.recordSaveSource('delete');
+                                    // [v3.166] 结果驱动（同上）
+                                    const _ok = await plugin.engine.storage.save(cidSave, plugin.engine.collectExport());
+                                    plugin.engine.recordSaveFailed('delete', _ok === true, plugin.engine.storage?._lastWrite?.error || '未落盘');
+                                }
                             } catch (e) { errLog(e, 'events.删楼即时存盘'); }
                         } catch (err) {
                             if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);
