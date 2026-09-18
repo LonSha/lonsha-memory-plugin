@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.169.0';
+    const VERSION = '3.170.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -4745,6 +4745,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (_lost) push('审计账本有损', _lost,
                         `淘汰 ${_ol._truncated || 0}/字段裁剪 ${_ol._trimFields || 0}/导入丢弃 ${_ol._importDropped || 0}`);
                 }
+                // [v3.170] 巩固面：stm-ltm 的 loss 账本并入总账（I5/I6 的第一个跨界检查对象）。
+                //   只报 entries.length 会让「丢过」与「从未超限」同形；这里的 value 是
+                //   真丢失类计数之和（滚进 LTM 的 stmEvicted 属容量动作，不混入「有损」），
+                //   读数自洽检查（incoherent）非空时也必须可见——矛盾比丢失更危险。
+                const _sl = this.stmLtm?.selfReport?.(this._stmLtmState);
+                if (_sl && typeof _sl === 'object') {
+                    const _lossOnly = ['ltmEvicted', 'ltmTrimmed', 'spanDropped', 'spanEmptied',
+                        'rawDropped', 'floorDropped', 'emptyEntriesDropped',
+                        'rawIdCollisions', 'legacyTrimOnSave', 'inputDropped'];
+                    const _lost = _lossOnly.reduce((a, k) => a + (Number(_sl.counters?.[k]) || 0), 0);
+                    const _incoh = (Array.isArray(_sl.incoherent) && _sl.incoherent.length) ? _sl.incoherent.length : 0;
+                    if (_lost || _incoh) push('巩固账本有损', _lost + _incoh, (_sl.row || '') + (_incoh ? ' ⚠️读数矛盾' : ''));
+                }
                 // [v3.168] 盲区检测：一个降级来源都读不到时，「全部正常」是假的安心。
                 //   审计失效的方式恰恰就是「报告一切正常」，故宁可说「看不见」也不能说「没事」。
                 const _srcs = [this.vector, this._lastGcLedger, this._lastRetentionCalibration,
@@ -6824,6 +6837,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             if (ol.lastTruncation) txt += ` · 末次裁剪 seq#${ol.lastTruncation.seq}(${ol.lastTruncation.op})`;
                             return ['审计账本', txt + (lossy ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.oplog'); return ['审计账本', '—（诊断异常）']; }
+                    })(),
+                    // [v3.170] 巩固账本自述：stm-ltm（v3.96 缝入后 74 个版本无人审计的子系统）
+                    //   现在有一行 selfReport——「待巩固 / 已巩固 / 窗口 / 有损明细」。
+                    //   只报「窗口里还有几条」而不报「丢过几条」，会让学生子系统在面板上
+                    //   永远显得健康；lossSummary 与 selfReport 同源，不各写一套。
+                    (() => {
+                        try {
+                            const sl = this.stmLtm;
+                            if (!sl || typeof sl.lossSummary !== 'function') return ['巩固账本', '—（未启用）'];
+                            if (!this.config.config.stmLtmEnabled) return ['巩固账本', '—（未启用）'];
+                            const sr = sl.selfReport(this._stmLtmState);
+                            return ['巩固账本', (sr.row || '—') + (sr.ok ? '' : ' ⚠️')];
+                        } catch (e) { errLog(e, 'selfCheck.stmLtm'); return ['巩固账本', '—（诊断异常）']; }
                     })(),
                     // [v3.168] I3 携带契约：写侧产出必须覆盖契约清单。
                     //   与「静默降级」同族：导入侧有分支、写侧不产出时，跨对话续写会静默丢掉子系统，而 toast 仍写着「无缝衔接」。

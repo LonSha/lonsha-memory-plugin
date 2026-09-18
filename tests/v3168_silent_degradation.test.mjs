@@ -372,7 +372,7 @@ test('v3.168 G 版本四处同步 + 顶节是本版', () => {
     assert.equal(manifest.version, curV, 'manifest 同版');
     assert.equal(pkg.version, curV, 'package 同版');
     assert.ok(changelog.startsWith('## v' + curV), 'CHANGELOG 顶节须是本版');
-    assert.ok(vnum(curV) >= vnum('3.169.0'), '本版不得低于 3.168.0');
+    assert.ok(vnum(curV) >= vnum('3.170.0'), '本版不得低于 3.168.0');
 });
 
 test('v3.168 G CHANGELOG 须说清本版主线与承接关系', () => {
