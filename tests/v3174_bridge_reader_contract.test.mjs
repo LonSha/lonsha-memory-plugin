@@ -47,7 +47,7 @@ function makeEngine({ host = {}, floorLen = 3 } = {}) {
         SillyTavern: { getContext: () => ({ chat: { length: floorLen } }) }
     };
     const errLog = () => {};
-    const VERSION = '3.174.0';
+    const VERSION = '3.175.0';
     const factory = new Function('VERSION', 'errLog', 'window', `
         return ({
             ${snapMethod},
@@ -301,7 +301,7 @@ test('【D2】负控制：三处破坏各自的判据必须现形（逐项，不
         const localFactory = (plug) => new Function('plugin', `return (${literal});`)(plug);
         const mkEng = (host = {}) => {
             const win = { SillyTavern: { getContext: () => ({ chat: { length: 3 } }) } };
-            const eng = new Function('VERSION', 'errLog', 'window', `return ({ ${snapM}, ${jsonM} });`)('3.174.0', () => {}, win);
+            const eng = new Function('VERSION', 'errLog', 'window', `return ({ ${snapM}, ${jsonM} });`)('3.175.0', () => {}, win);
             const base = {
                 status: { getProtagonist: () => ({ name: 'A' }), lifeDetails: [], characters: {} },
                 moneyLedger: { export: () => ({}) }, outline: { export: () => ({}) },
@@ -359,10 +359,10 @@ test('【D3】工具自证：锚点不存在或不唯一时必须抛（防「破
 });
 
 // ══════════ E 发布卫生 ══════════
-test('【E1】版本三源一致且不低于 v3.174.0', () => {
+test('【E1】版本三源一致且不低于 v3.175.0', () => {
     const v = (idxSrc.match(/const VERSION = '([^']+)'/) || [])[1];
     assert.ok(v, 'index.js VERSION 存在');
-    assert.ok(vnum(v) >= vnum('3.174.0'), `index.js 版本 ${v} >= 3.174.0`);
+    assert.ok(vnum(v) >= vnum('3.175.0'), `index.js 版本 ${v} >= 3.175.0`);
     assert.equal(manifest.version, v, `manifest(${manifest.version}) 与 index.js(${v}) 漂移`);
     assert.equal(pkg.version, v, `package.json(${pkg.version}) 与 index.js(${v}) 漂移`);
 });
@@ -370,7 +370,7 @@ test('【E1】版本三源一致且不低于 v3.174.0', () => {
 test('【E2】CHANGELOG 顶节为本版，且记录了读者侧三处缺陷', () => {
     const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
     assert.ok(top, 'CHANGELOG 有版本段');
-    assert.ok(vnum(top.replace('v', '')) >= vnum('3.174.0'), `CHANGELOG 顶节 ${top} 须 >= v3.174.0`);
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.175.0'), `CHANGELOG 顶节 ${top} 须 >= v3.175.0`);
     assert.ok(/来源不可判/.test(changelog), '记录了 R1 来源不可判');
     assert.ok(/null 三义同形|字段类型三态/.test(changelog), '记录了 R2 null 三义');
     assert.ok(/序列化|JSON 出口|strictJsonOk/.test(changelog), '记录了 R3 序列化能力');

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.174.0';
+    const VERSION = '3.175.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2608,6 +2608,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                     try {
                         const rawMes = (typeof _rawForSynopsis !== 'undefined' && _rawForSynopsis) ? _rawForSynopsis : (message.mes || '');
                         if (rawMes) this.clock.syncFromNarrative(rawMes, { floor: curFloor });
+                        // [v3.175] 世界钟对账（只读）：读 WorldAxis 世界桥，记下「另一个插件认为现在是几号」。
+                        //   本插件此前对 WorldAxis **零消费**——两个钟各走各的，谁都不知道谁不一致。
+                        //   此处只对账、不改时钟：正文仍是最高事实源（见 readWorldAxisClock 注释）。
+                        try { this.clock.readWorldAxisClock(null, { reason: 'after-message' }); } catch (_e0) { errLog(_e0, 'nonfatal'); }
                     } catch (e) { errLog(e, 'onMessageReceived.syncFromNarrative'); }
                     // [v3.130] baibai 正文时间标签协议闭环：bbs_start/bbs_end → GameClock 校准。
                     // 此前标签只喂时间线与向量元数据，时钟本体只被 LLM 推断的 story_clock 校准——
@@ -7391,6 +7395,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                                 + (_ok ? ' ✓' : ' ⚠️ 缺 ' + (rep.missingWrite || []).join('/'))];
                         } catch (e) { errLog(e, 'selfCheck.carryover'); return ['携带契约', '—（诊断异常）']; }
                     })(),
+                    // [v3.175] 世界钟读者面：本插件此前对 WorldAxis 零消费，「两个世界对不上」在本插件侧
+                    //   完全不可观测。本行把「另一个插件认为现在是几号、与本插件差几天」念出来。
+                    //   口径：未读（本会话尚未对账）只报「未读」不报警；不可用报归因（桥没装/没开都要能分辨）；
+                    //   真对不上（世界钟在前/在后）才标 ⚠️——「有缺陷时告警、没缺陷时安静」。
+                    (() => {
+                        try {
+                            const cl = this.clock;
+                            if (!cl) return ['世界钟', '—（时钟不可用）'];
+                            const r = (cl._worldClockRead && typeof cl._worldClockRead === 'object') ? cl._worldClockRead : null;
+                            if (!r) return ['世界钟', '未读'];
+                            if (!r.ok) return ['世界钟', '不可用 · ' + r.reason + (r.describe ? '（' + r.describe + '）' : '')];
+                            const line = (typeof cl.worldClockLine === 'function') ? cl.worldClockLine() : '';
+                            const d = r.diff || {};
+                            const bad = d.verdict === 'world-ahead' || d.verdict === 'world-behind';
+                            return ['世界钟', (line || '已读') + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.worldClock'); return ['世界钟', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -10019,6 +10040,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.lastFlashback = null;  // { date, label, floor, recordedAt }
             this.turn = 0;              // 当前所处轮次/楼层
             this.timeTagStats = { total: 0, paired: 0, unparseable: 0, calibrated: 0 };   // [v3.130] 正文时间标签协议健康统计（诊断面板展示）
+            this._worldClockRead = null;   // [v3.175] 世界钟读者面读数（读 WorldAxis 桥，只读不掉头）
         }
 
         // 设置/推进剧情时间
@@ -10080,7 +10102,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 lastFlashback: this.lastFlashback ? { ...this.lastFlashback } : null,
                 turn: this.turn,
                 timeTagStats: { ...(this.timeTagStats || { total: 0, paired: 0, unparseable: 0, calibrated: 0 }) },   // [v3.130]
-                lastNarrativeAnchor: this.lastNarrativeAnchor ? { ...this.lastNarrativeAnchor } : null   // [v3.132] 注释回读证据随存档走
+                lastNarrativeAnchor: this.lastNarrativeAnchor ? { ...this.lastNarrativeAnchor } : null,   // [v3.132] 注释回读证据随存档走
+                worldClockRead: this._worldClockRead ? { ...this._worldClockRead } : null   // [v3.175] 世界钟读者面读数（两个钟对不对得上）
             };
         }
 
@@ -10128,6 +10151,55 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         }
 
         export() { return this.getSnapshot(); }
+        /**
+         * [v3.175] 世界钟读者面：读 WorldAxis 的只读世界桥，取它的世界钟并与本插件时钟对账。
+         * 纯读、不抛、不猜——桥未装/未启用/无快照一律如实报 reason（与 RubyPhone v2.35 同规格的 reader 口径）。
+         * **本方法不写 this.date**：本插件的既有主张是「正文为最高事实源」（v3.72 标签协议 / v3.94 注释回读 /
+         * v3.130 标签闭环），世界钟是**推演**而非正文事实。故这里只交付读数与对账，覆盖与否由调用方决定。
+         * @param {object} reader 可注入 reader（测试用）；不传即取 window.LonShaWorldClockReader
+         */
+        readWorldAxisClock(reader, opts = {}) {
+            try {
+                const R = reader || (typeof window !== 'undefined' ? window.LonShaWorldClockReader : null);
+                if (!R || typeof R.readWorldAxisSnapshot !== 'function') {
+                    this._worldClockRead = { ok: false, reason: 'reader-unavailable', describe: '', worldClock: null, diff: null, at: Date.now() };
+                    return this._worldClockRead;
+                }
+                const read = R.readWorldAxisSnapshot({ reason: opts.reason || 'lonsha-clock', win: opts.win });
+                const wc = (read && read.ok && typeof R.readWorldClock === 'function') ? R.readWorldClock(read.snapshot) : null;
+                const diff = (wc && typeof R.diffClocks === 'function') ? R.diffClocks(wc.date, this.date) : null;
+                this._worldClockRead = {
+                    ok: !!(read && read.ok),
+                    reason: (read && read.reason) || 'unknown',
+                    describe: (typeof R.describeRead === 'function') ? R.describeRead(read) : '',
+                    worldClock: wc || null,
+                    diff: diff || null,
+                    at: Date.now()
+                };
+                return this._worldClockRead;
+            } catch (e) {
+                this._worldClockRead = { ok: false, reason: 'thrown', describe: '', worldClock: null, diff: null, at: Date.now() };
+                errLog(e, 'GameClock.readWorldAxisClock');
+                return this._worldClockRead;
+            }
+        }
+        /** [v3.175] 世界钟对账的一句话读数（供诊断面/报告；纯读，未读返回 null） */
+        worldClockLine() {
+            const r = this._worldClockRead;
+            if (!r) return null;
+            if (!r.ok) return '不可用（' + r.reason + '）' + (r.describe ? ' · ' + r.describe : '');
+            const wc = r.worldClock;
+            if (!wc) return '桥就绪但快照无世界钟';
+            const d = r.diff || { verdict: 'unparsable' };
+            const VT = {
+                same: '与本插件时钟同日',
+                'world-ahead': '世界钟在前 ' + Math.abs(Number(d.days) || 0) + ' 天',
+                'world-behind': '世界钟在后 ' + Math.abs(Number(d.days) || 0) + ' 天',
+                'incompatible-era': '历法不相容（本插件侧 ' + (d.storyEra || 'unknown') + '）',
+                unparsable: '无可比日期'
+            };
+            return wc.date + ' · ' + (wc.time || '') + ' · ' + (VT[d.verdict] || d.verdict);
+        }
         import(data) {
             if (!data || typeof data !== 'object') return;
             this.date = String(data.date || '').trim();
@@ -10144,6 +10216,9 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
             if (data.lastNarrativeAnchor && typeof data.lastNarrativeAnchor === 'object') {   // [v3.132]
                 this.lastNarrativeAnchor = { ...data.lastNarrativeAnchor };
+            }
+            if (data.worldClockRead && typeof data.worldClockRead === 'object') {   // [v3.175] 世界钟对账读数随存档恢复
+                this._worldClockRead = { ...data.worldClockRead };
             }
         }
     }

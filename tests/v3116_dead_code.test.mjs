@@ -104,13 +104,17 @@ test('【4】活跃代码总量下降', () => {
   let total = 0;
   for (const f of allJs) total += readFileSync(path.join(ROOT, f), 'utf8').split('\n').length;
   // 删除后应显著下降；上界随功能增长同步（v3.152 词典线 +197 行 → 21000，仅允许活跃功能增长）
-  assert.ok(allJs.length === 32, `根 .js 文件数 46 → ${allJs.length}（预期 32）`);
+  // [v3.175] 判据不绑可变形状：根 .js 数 = 入口(index.js) + manifest 声明的 extra_js。
+  //   写死数字每加一个模块就翻红，而它真正要守的是「根目录没有游离的 .js」这条不变式。
+  const declaredMods = 1 + ((manifest.extra_js || []).length);
+  assert.ok(allJs.length === declaredMods, `根 .js 文件数应等于入口+声明模块 ${declaredMods}，实 ${allJs.length}（游离 ${allJs.length - declaredMods} 个）`);
   // 上界随活跃功能增长同步：v3.152 词典线 +197 → 21000；v3.168 携带契约/静默降级线 +235 → 21300；
   // v3.170 巩固面（stm-ltm 内核审计账本 + 三态 + selfReport） → 21700；
   // v3.171 门控读数面（smart-trigger 读侧计数 + 双态面板 + 总账/自检两行） → 22100
   // v3.172 召回漏斗读数面（v3.95/v3.96 缝合四模块的收缩阶段计数 + 面板 + 宿主五处接线） → 22750
   // v3.174 桥的读者契约面（来源五态 + 类型三态 + JSON 出口 + 快照自述 + 审计脚本） → 23000
-  assert.ok(total < 23000, `总行数 ${total} < 23000（死代码已清除；上界随活跃功能同步，v3.152/v3.168/v3.170/v3.171/v3.172/v3.174 放宽）`);
+  // v3.175 世界钟读者面（world-clock-reader.js + GameClock 对账/诊断行/manifest） → 23400
+  assert.ok(total < 23400, `总行数 ${total} < 23400（死代码已清除；上界随活跃功能同步，v3.152/v3.168/v3.170/v3.171/v3.172/v3.174/v3.175 放宽）`);
   assert.ok(total > 15000, `总行数 ${total} > 15000（未误删活跃代码）`);
   ok(`活跃代码 ${allJs.length} 文件 / ${total} 行`);
 });

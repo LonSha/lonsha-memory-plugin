@@ -1,3 +1,60 @@
+## v3.175.0
+**世界钟读者面（三插件体系里「通路只通了半条」的那一条：本插件对 WorldAxis **零消费**）**
+**主题**：这套体系里有**两个同规格的只读世界桥**，本插件（lonsha）与手机端（RubyPhone）都挂在同一张
+网里：`window.lonsha_memory_bridge_v1`（本插件的记忆/召回账本快照）与 `window.worldaxis_bridge_v1`
+（WorldAxis 的世界状态快照：世界钟 / 权威事实 / 暗流 / 舆情）。v2.35.0 那一版，手机端已经补上了
+「消费 WorldAxis 桥」这一面，但另外两条边仍是断的：**lonsha 对 WorldAxis 零消费、WorldAxis 对 lonsha
+零消费**——也就是整套互操作**只通了半条**。本版把「lonsha 读 WorldAxis」这半条补齐。
+### 一、实测缺口（不是推断，是全库 grep）
+| 面 | 观测 | 后果 |
+|---|------|------|
+| lonsha → WorldAxis | 产品代码 grep `worldaxis` / `worldaxis_bridge_v1` / `WorldAxis` **零命中** | 「同一场剧情里坐着两个『现在』」在本插件侧**完全不可观测** |
+| WorldAxis → lonsha | WorldAxis 全库 grep `lonsha_memory_bridge_v1` **零命中** | 另一半仍缺（另版推进） |
+两个「现在」是真实存在的结构差异，不是一个 bug：`GameClock.date` 由**正文**校准（v3.72 时间标签协议 /
+v3.94 注释回读 / v3.130 标签闭环），而 WorldAxis 的世界钟是**推演结果**（决策时间，进存档、参与判定）。
+两个钟各走各的，谁也发现不了谁不一致——而本插件是这套体系里**唯一记账的那一个**。
+### 二、新增 `world-clock-reader.js`（只读 / 不抛 / 不猜）
+与手机端 `config/world-bridge.js`（v2.35.0）**同规格**：同一套 reason 枚举、同一条只读纪律、
+同一个「纪元不相容就让路」判定——**两个宿主对同一个桥的读法一致**，才不会出现「手机认为桥没开、
+记忆认为桥没装」这种跨端互斥的归因。
+**A. 桥来源五态归因**（`not-mounted` / `disabled` / `refused` / `no-snapshot` / `ready`）：
+WorldAxis v2.16 的桥**默认休眠**（`settings.enabled === false` ⇒ `snapshot()` 返回 null，
+由 `stat().refused` / `lastRefusal` 归因），故「装了但没开」必须**单独成态**——用户要能知道该去开
+哪个开关，而不是以为功能坏了。五态在 `bridgeSource()` 里由**不拉快照**的只读探针给出。
+**B. 世界钟解析**：`readWorldClock()` 只认公历 ISO。日期**范围校验是唯一防线**
+（`\d{1,2}` 本就允许「13 月 40 日」，不校验就放行），越界时分**夹取**（23:99 → 23:59，不拒绝整条），
+非 ISO（古历 / 架空历如「天顺三年春」）如实返回 `null`——`clockEra()` 给出 `gregorian` / `unknown`，
+`unknown` 不是错，是**让路的依据**。
+**C. 对账（`diffClocks`）五判定**：`same` / `world-ahead` / `world-behind` / `incompatible-era` /
+`unparsable`。**「历法不相容」优先于「解析不了」**：一侧古历一侧公历不是数据缺失，是**两个坐标系**，
+必须报 `incompatible-era` 而非 `unparsable`。天数符号易读反，故同时给出两个原始纪元日
+（`worldEpochDay` / `storyEpochDay`）——调用方永远可以自己减，不必猜符号口径。
+**D. 边界（本模块**不做**什么）**：**不做「用世界钟覆盖本插件时钟」**。本插件的既有主张是
+**正文为最高事实源**，世界钟是推演而非正文事实。故只交付**读数与对账**——不一致要可见、要能归因，
+覆盖与否由调用方决定。本插件在这套体系里的角色是**记账的那一个**，不是拍板的那一个。
+### 三、index.js 六处接线（防「声明了却零消费」）
+构造新增 `_worldClockRead` → `getSnapshot()` 携带 `worldClockRead` → `import()` 恢复读数
+（producer 重建后仍可归因，不靠内存）→ 新增 `readWorldAxisClock(reader, opts)` 与 `worldClockLine()` →
+消息管线在 `syncFromNarrative` 之后调用对账 → `selfCheck` 新增「世界钟」诊断行。
+诊断行口径：**未读只报「未读」不报警**（没读过不是故障）、不可用报归因、真对不上才标 ⚠️。
+### 四、门禁与审计
+- 新增 `tests/v3175_world_clock_reader.test.mjs`（A 桥来源五态「未装与未启用必须不同形」／B 世界钟解析
+  含边界与夹取／C 对账含「历法不相容不是数据缺失」／D 接线含 **★★世界钟绝不改写本插件时钟** 双向断言
+  与只读 Proxy spy／E 不抛／F 负控制：真源码破坏 → 破坏副本 → 同款真判据，四处破坏各自现形且不连坐／
+  G 发布卫生）。
+- 新增审计基建 L `tests/audit/scan_world_clock_reader.mjs`（被 run.mjs 自动发现）：跨插件读者面必须
+  **真接在消费点上**（死声明也是缺陷）、来源五态**逐个可达**、导出方法**无写桥路径**且**不抛**、
+  桥名与上游**逐字一致**（改一处即两端失联）。
+- **三处既有门禁从「绑可变形状」改为「结构性推导」**：`v3116_dead_code`【4】根 `.js` 数不再写死 32，
+  改为 `1 + manifest.extra_js.length`（它真正要守的是「根目录没有游离的 .js」这条不变式）；
+  `v3163_module_wiring`【3】与 `v3173_module_wiring_surface`【D1】的「脚本加载数」改为与
+  `_declared` 动态比对。**每加一个模块就翻红，是判据写错了，不是行为退化了。**
+- 行数上界 23000 → 23400（随活跃功能同步的棘轮，非死值）。
+- 版本锚点 index.js / manifest.json / package.json 3.174.0 → 3.175.0（14 个测试文件交棒）。
+### 五、为什么这一版重要
+本插件此前 86 个版本把「自己这一侧」的观测面做得很密（读者契约、召回漏斗、静默降级、账本自述……），
+但**跨插件的那条边一条都没有**。缺的恰恰是这套体系存在的理由：三个插件共同描述同一个世界。
+**一个只看得见自己的记账者，记不出「我们两个记的不是同一天」。**
 ## v3.174.0
 **桥的读者契约面（公开只读快照桥：它一直在供货，但从没有人审计过「它交付的东西读者到底怎么读」）**
 **主题**：`window.lonsha_memory_bridge_v1`（v3.88 建立、v3.151 扩容）是全插件**唯一的对外出口**——

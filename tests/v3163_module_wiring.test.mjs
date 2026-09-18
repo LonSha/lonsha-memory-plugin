@@ -96,8 +96,8 @@ function withTmp(name, fn) {
 /* ---------- 0 ---------- */
 test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
-    assert.ok(vnum(v) >= vnum('3.174.0'), `index.js 版本 ${v} < 3.165.0`);
-    assert.ok(vnum(manifest.version) >= vnum('3.174.0'), `manifest ${manifest.version} < 3.165.0`);
+    assert.ok(vnum(v) >= vnum('3.175.0'), `index.js 版本 ${v} < 3.165.0`);
+    assert.ok(vnum(manifest.version) >= vnum('3.175.0'), `manifest ${manifest.version} < 3.165.0`);
     const audits = readdirSync(path.join(HERE, 'audit')).filter(f => f.endsWith('.mjs')).sort();
     assert.ok(audits.length >= 7, `审计脚本应 >= 7 个，实际 ${audits.length}`);
     assert.ok(audits.includes('scan_module_wiring.mjs'), 'scan_module_wiring.mjs 未注册进审计目录');
@@ -280,7 +280,11 @@ test('【3】修复证据：冲突已消除且增强版成为唯一实现', () =
     // 3g 真实审计（非夹具）必须通过
     const r = spawnSync(process.execPath, [SCANNER], { cwd: ROOT, encoding: 'utf8' });
     assert.strictEqual(r.status, 0, `真实仓库审计应通过\n${r.stdout}\n${r.stderr}`);
-    assert.ok(/真加载成功 32\/32/.test(r.stdout || ''), `应报告全部脚本加载成功\n${r.stdout}`);
+    // [v3.175] 不绑死数字：扫描器报的数必须等于「入口 + 声明的 extra_js」，且无失败。
+    const _declared = 1 + ((manifest.extra_js || []).length);
+    const _m = /真加载成功 (\d+)\/(\d+)/.exec(r.stdout || '');
+    assert.ok(_m && Number(_m[1]) === _declared && Number(_m[2]) === _declared,
+      `应报告全部 ${_declared} 个脚本加载成功（实 ${_m ? _m[0] : '未报'}）\n${r.stdout}`);
     // [v3.173] 账本已清空：真仓库必须报 0 个未消费，且 7 个声明已接线的模块
     //   必须逐个真被引用（防「删引用 + 删账本」假绿）。
     assert.ok(/已挂载未消费 0 个（账本 0 个）/.test(r.stdout || ''), `账本应为空\n${r.stdout}`);

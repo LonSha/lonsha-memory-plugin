@@ -440,7 +440,11 @@ test('【D1】审计：账本已清空且 7 个模块逐个真被引用（真跑
     const r = spawnSync(process.execPath, [SCANNER], { cwd: REPO, encoding: 'utf8' });
     const out = (r.stdout || '') + (r.stderr || '');
     assert.equal(r.status, 0, '真实仓库审计应通过\n' + out);
-    assert.ok(/真加载成功 32\/32/.test(out), '应报告全部脚本加载成功\n' + out);
+    // [v3.175] 不绑死数字：扫描器的加载计数必须等于「入口 + 声明的 extra_js」
+    const _declared = 1 + ((manifest.extra_js || []).length);
+    const _m = /真加载成功 (\d+)\/(\d+)/.exec(out);
+    assert.ok(_m && Number(_m[1]) === _declared && Number(_m[2]) === _declared,
+      '应报告全部 ' + _declared + ' 个脚本加载成功（实 ' + (_m ? _m[0] : '未报') + '）\n' + out);
     assert.ok(/已挂载未消费 0 个（账本 0 个）/.test(out), '账本必须为空\n' + out);
     assert.ok(/声明已接线 7 个，其中真被引用 7 个/.test(out), '7 个接线凭据必须全绿\n' + out);
     ok('审计账本清空 + 接线凭据 7/7');
