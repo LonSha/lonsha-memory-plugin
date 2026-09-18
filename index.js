@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.170.0';
+    const VERSION = '3.171.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2286,18 +2286,34 @@ function relativeTimeLabel(eventTime, nowTime) {
                             || (typeof require !== 'undefined' ? (() => { try { return require('./smart-trigger.js'); } catch { return null; } })() : null);
                         if (st) {
                             const _chat = window.SillyTavern?.getContext?.()?.chat || [];
+                            const _carry = {};   // [v3.171] 读数面：带出「省略判定失败 / 被丢弃」计数
                             const _pending = st.normalizePending(_chat, {
                                 lastProcessed: (message.index || 0) - 1,
                                 endFloor: message.index || 0,
                                 isOmitted: (m) => this.isOmittedFloor(m),
-                            });
+                            }, _carry);
                             _triggerDecision = st.evaluateTrigger(_pending, {
                                 patterns: this.config.config.smartTriggerPatterns,
                                 threshold: this.config.config.smartTriggerThreshold,
                             });
                             this._triggerStats = Array.isArray(this._triggerStats) ? this._triggerStats : [];
-                            this._triggerStats.push({ score: _triggerDecision.score, triggered: _triggerDecision.triggered, reasons: _triggerDecision.reasons });
-                            if (this._triggerStats.length > 300) this._triggerStats.shift();
+                            this._triggerStats.push({
+                                score: _triggerDecision.score,
+                                triggered: _triggerDecision.triggered,
+                                reasons: _triggerDecision.reasons,
+                                // [v3.171] 读数面：把「判不了 / 没读到 / 被丢弃」随记录一起留存。
+                                //   否则空读与平淡楼在台账里逐字节同形（I6：读失败 ≠ 读到了 0）。
+                                report: {
+                                    empty: !!(_triggerDecision.stats && _triggerDecision.stats.empty === true),
+                                    invalidPatterns: ((_triggerDecision.stats && _triggerDecision.stats.invalidPatterns) || []).length,
+                                    dropped: Number(_carry.dropped) || 0,
+                                    omitErrors: Number(_carry.omitErrors) || 0,
+                                },
+                            });
+                            if (this._triggerStats.length > 300) {
+                                this._triggerStats.shift();
+                                this._triggerDropped = (Number(this._triggerDropped) || 0) + 1;   // [v3.171] 环形淘汰可计数
+                            }
                             if (this.config.config.debugMode) {
                                 console.log(`[${PLUGIN_NAME}] [v3.110] 事件性门控: score=${_triggerDecision.score}/${_triggerDecision.threshold} triggered=${_triggerDecision.triggered}` + (_triggerDecision.reasons.length ? ` (${_triggerDecision.reasons.join('; ')})` : ''));
                             }
@@ -2306,9 +2322,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 if (!extracted) {
                     if (_triggerDecision && _triggerDecision.triggered === false) {
-                        // 平淡楼：跳过 LLM 提取，走本地廉价摘要
-                        extracted = this.extractMemorySimple(message);
-                        if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [v3.110] 平淡楼跳过 LLM 提取（楼层 ${message.index}），已降级本地摘要`);
+                        // [v3.171] 空读 ≠ 平淡楼：前者是「根本没读到内容」，此时既不该花 LLM，
+                        //   也不该走本地摘要（那会凭空造一条记忆）。只有真平淡楼才降级摘要。
+                        const _readEmpty = !!(_triggerDecision.stats && _triggerDecision.stats.empty === true);
+                        if (_readEmpty) {
+                            // 空读：无料可提，跳过（不是「省下调用」，而是「无内容」）
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [v3.171] 门控读到空待判定集（楼层 ${message.index}），跳过提取（非降级摘要）`);
+                        } else {
+                            // 平淡楼：跳过 LLM 提取，走本地廉价摘要
+                            extracted = this.extractMemorySimple(message);
+                            if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [v3.110] 平淡楼跳过 LLM 提取（楼层 ${message.index}），已降级本地摘要`);
+                        }
                     } else {
                         extracted = await this.extractMemoryWithLLM(message);
                     }
@@ -4758,6 +4782,23 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const _incoh = (Array.isArray(_sl.incoherent) && _sl.incoherent.length) ? _sl.incoherent.length : 0;
                     if (_lost || _incoh) push('巩固账本有损', _lost + _incoh, (_sl.row || '') + (_incoh ? ' ⚠️读数矛盾' : ''));
                 }
+                // [v3.171] 门控读数面：smart-trigger 的读侧缺口并入总账。与巩固账本同族
+                //   （I5/I6）——「判不了（非法规则）/ 没读到（空读）/ 被丢弃（上限 + 环形淘汰）」
+                //   都必须可计数。只报「评估 N 楼、省下 M 次」会让这三类缺口全部隐身。
+                if (Array.isArray(this._triggerStats) && this._triggerStats.length) {
+                    const _tp = (typeof window !== 'undefined' ? window.LonShaSmartTrigger : null);
+                    if (_tp && typeof _tp.normalizeTriggerReport === 'function') {
+                        const _rep = _tp.normalizeTriggerReport(this._triggerStats, {
+                            cap: 300,
+                            dropped: Number(this._triggerDropped) || 0,
+                        });
+                        const _invBad = this._triggerStats.reduce((n, r) => n + Number((r && r.report && r.report.invalidPatterns) || 0), 0);
+                        const _omitErr = this._triggerStats.reduce((n, r) => n + Number((r && r.report && r.report.omitErrors) || 0), 0);
+                        const _gap = (_rep.empty || 0) + (_rep.dropped || 0) + _invBad + _omitErr;
+                        if (_gap) push('门控读数缺口', _gap,
+                            `空读 ${_rep.empty || 0}/环形淘汰 ${_rep.dropped || 0}/规则判不了 ${_invBad}/番外判定失败 ${_omitErr}`);
+                    }
+                }
                 // [v3.168] 盲区检测：一个降级来源都读不到时，「全部正常」是假的安心。
                 //   审计失效的方式恰恰就是「报告一切正常」，故宁可说「看不见」也不能说「没事」。
                 const _srcs = [this.vector, this._lastGcLedger, this._lastRetentionCalibration,
@@ -6851,6 +6892,28 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['巩固账本', (sr.row || '—') + (sr.ok ? '' : ' ⚠️')];
                         } catch (e) { errLog(e, 'selfCheck.stmLtm'); return ['巩固账本', '—（诊断异常）']; }
                     })(),
+                    // [v3.171] 门控读数自述：与巩固账本同族（I5/I6），看读侧缺口是否可见。
+                    //   「判不了 / 没读到 / 被丢弃」若不上面板，会与「真平淡」完全同形。
+                    (() => {
+                        try {
+                            if (!Array.isArray(this._triggerStats) || !this._triggerStats.length) return ['门控读数', '—（未启用）'];
+                            if (this.config.config.smartTriggerEnabled !== true) return ['门控读数', '—（未启用）'];
+                            const tp = (typeof window !== 'undefined' ? window.LonShaSmartTrigger : null);
+                            if (!tp || typeof tp.normalizeTriggerReport !== 'function') return ['门控读数', '—（模块不可用）'];
+                            const rep2 = tp.normalizeTriggerReport(this._triggerStats, {
+                                cap: 300,
+                                dropped: Number(this._triggerDropped) || 0,
+                            });
+                            const invBad = this._triggerStats.reduce((n, r) => n + Number((r && r.report && r.report.invalidPatterns) || 0), 0);
+                            const omitErr = this._triggerStats.reduce((n, r) => n + Number((r && r.report && r.report.omitErrors) || 0), 0);
+                            const gap = (rep2.empty || 0) + (rep2.dropped || 0) + invBad + omitErr;
+                            const row = `评估 ${rep2.records} · 正常读数 ${rep2.plain} · 空读 ${rep2.empty || 0}`
+                                + (rep2.dropped ? ` · 淘汰 ${rep2.dropped}` : '')
+                                + (invBad ? ` · 判不了 ${invBad}` : '')
+                                + (omitErr ? ` · 判定失败 ${omitErr}` : '');
+                            return ['门控读数', row + (gap ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.smartTrigger'); return ['门控读数', '—（诊断异常）']; }
+                    })(),
                     // [v3.168] I3 携带契约：写侧产出必须覆盖契约清单。
                     //   与「静默降级」同族：导入侧有分支、写侧不产出时，跨对话续写会静默丢掉子系统，而 toast 仍写着「无缝衔接」。
                     (() => {
@@ -7133,6 +7196,30 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     push(`**事件性门控：** 评估 ${s.evaluated} 楼（触发 ${s.fired} / 跳过 ${s.skipped}，命中率 ${(s.fireRate * 100).toFixed(1)}%）`);
                     push(`- 估计省下 LLM 提取 ${s.savedCalls} 次 / 平均得分 ${s.avgScore}`);
                     if (s.topReasons.length) push(`- 高频理由：${s.topReasons.map(r => `${r.reason}×${r.count}`).join('、')}`);
+                    // [v3.171] 读数面：读数缺口必须入面板，否则「判不了 / 没读到 / 被丢弃」
+                    //   会与「真平淡」在面板上同形（I6）。
+                    if (typeof st.normalizeTriggerReport === 'function') {
+                        const panel = st.normalizeTriggerReport(this._triggerStats, {
+                            cap: 300,
+                            dropped: Number(this._triggerDropped) || 0,
+                        });
+                        if (panel.hasReadGap) {
+                            const bits = [];
+                            if (panel.empty) bits.push(`空读 ${panel.empty} 楼`);
+                            if (panel.missing) bits.push(`缺失 ${panel.missing} 条`);
+                            if (panel.dropped) bits.push(`环形淘汰 ${panel.dropped} 条`);
+                            push(`- ⚠️ 读数缺口：${bits.join(' / ')}（正常读数 ${panel.plain} 楼）`);
+                        }
+                        const _invBad = this._triggerStats.reduce((n, r) => n + Number((r && r.report && r.report.invalidPatterns) || 0), 0);
+                        const _omitErr = this._triggerStats.reduce((n, r) => n + Number((r && r.report && r.report.omitErrors) || 0), 0);
+                        if (_invBad || _omitErr) {
+                            // 用字符串拼接而非数组 .push（v3111 体检段窗口内只允许 push 文本行）
+                            let _bad = '';
+                            if (_invBad) _bad += `自定义规则无法编译 ${_invBad} 次`;
+                            if (_omitErr) _bad += (_bad ? ' / ' : '') + `番外判定抛错 ${_omitErr} 次`;
+                            push(`- ⚠️ 判定失败：${_bad}（已 fail-open，未影响提取）`);
+                        }
+                    }
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.事件性门控'); }
             // [v3.111] 召回体检（缝合 bionic recall-candidate-packet + task-graph-stats）：

@@ -1,3 +1,113 @@
+## v3.171.0
+
+**门控读数面（smart-trigger 读侧审计）**
+
+**主题**：v3.169 立下 I5（有损必有计数）与 I6（读失败 ≠ 读到了 0），判定面全落在账本
+自己的 OpLog 上；v3.170 把两条拿出账本本体，做了第一次跨界检查（stm-ltm，v3.96 缝入后
+74 个版本无人审计）。v3.171 把**同一族不变量**递给同仓第三个承载「判断」的子系统
+`smart-trigger.js`（v3.110 缝合 BME 的 `maintenance/smart-trigger.js`）的**读侧**——
+这次审的不是「丢没丢记忆」，而是「这个模块读到的世界，读取方能不能信」。
+
+### 一、六项实测缺陷（`/tmp/probe_st.mjs` 真跑，修前逐条成立）
+
+| # | 缺陷 | 修前观测 |
+|---|------|----------|
+| D1 | 非法正则被静默当作「未命中」 | `stats.customPatternHit === ''`，`stats` 无任何 invalid 字段；读取方无从区分「没匹配」与「判不了」 |
+| D2 | 空读与平淡楼在**宿主台账**塌缩同形 | 宿主只 push `{score, triggered, reasons}`（丢弃 `stats`），两条记录逐字节相同；`savedCalls=2` 无法分辨其中一次是空读 |
+| D3 | `maxMessages` 静默丢弃**最旧**且无计数 | 6 条取 3 得 `m3,m4,m5`，返回裸数组无丢弃量字段（宿主的 `index.js` 目前不传该参数 = **休眠炸弹**） |
+| D4 | `isOmitted` 抛错被吞成「未被省略」 | 异常零留痕，读取方以为「判定正常」 |
+| D5 | `keywordHits` 命中 40 个只留 32 个 | `slice(0,32)` 且无「已截断」标记，读者以为只命中 32 个 |
+| D6 | 宿主 300 条环形台账淘汰量无自述 | 无「评估数 vs 记录数」对账、无环形上限/淘汰量自述 |
+
+### 二、修法（只增不删，既有调用形状一律不动）
+
+**内核 `smart-trigger.js`**
+- `normalizePending(chat, options, carry)`：**返回值仍是裸数组**（v3110 的 `capped.map(m => m.index)`
+  与宿主数组操作都不受影响），丢弃量与「省略判定失败」数经**第三可选参数 `carry`** 带出
+  （`carry.dropped` / `carry.omitErrors` / `carry.available` / `carry.kept`）。
+  返回形状**不做破坏性变更** —— 这是补丁第一稿的错，第二稿才修对。
+- 新增 `compilePatterns(raw)` → `{ok, invalid}`：把「能编译」与「不能编译」拆开。
+- `evaluateTrigger` 的 `stats` 追加 `customPatterns` / `invalidPatterns`（D1）、
+  `empty`（空集标记，D2）、`keywordHitsTotal` / `keywordHitsTruncated`（D5）；
+  `keywordHits` 列表仍限 32 条（向后兼容）。
+- `summarizeTriggers` 台账段追加 `recorded` / `missing` / `emptyCount`（D6），并保留
+  `cap` / `dropped` 作为宿主注入位；既有 `evaluated/fired/skipped/savedCalls/fireRate/avgScore/topReasons` 口径逐项不变。
+- 新增 `normalizeTriggerReport(records, opts)`：**双态读数面板**，
+  认得三种实际会出现的 `empty` 形状（直出 `stats.empty` / 台账摘出的 `report.empty` / 简写 `empty`），
+  输出 `{records, empty, plain, cap, dropped, missing, hasReadGap}`。
+- 新增 `pendingList(r)` / `pendingReport(r)` 适配助手；导出**只增不换**（既有八个键一个不动）。
+
+**宿主 `index.js`（三处接线）**
+1. 调用链接入读数面：创建 `_carry` 并作第三参传入；台账条目补 `report`
+   （`empty` / `invalidPatterns` / `dropped` / `omitErrors`）；300 条环形淘汰计数
+   `this._triggerDropped`（原先是 `shift()` 静默丢）。
+2. 降级路径区分**空读**与**平淡楼**：空读既不该花 LLM **也不该走本地摘要**
+   （那会凭空造一条记忆），只有真平淡楼才降级摘要。
+3. 报告展示段接 `normalizeTriggerReport`：读数缺口（空读 / 缺失 / 环形淘汰）与判定失败
+   （规则判不了 / 番外判定抛错）各出一行 ⚠️；`getDegradationLedger` 补「门控读数缺口」行、
+   selfCheck 补「门控读数」行（未启用时报「—（未启用）」，不假装健康）。
+
+### 三、兼容约束（v3110 既有 10 组断言逐条保持绿）
+
+- `normalizePending` 必须返回**可 map 的数组**（`[3]` / `[0,3]` / `[0,1]` / `[]` 四组形状断言）。
+- `stats.customPatternHit === ''` 的既有口径不变（补 `invalidPatterns` 字段不冲突 —— 它把
+  「判不了」从「没命中」里**额外**拆出来，而非改写旧字段）。
+- `evaluateTrigger([], {})` 仍是 `{triggered:false, score:0, reasons:[]}`。
+- `summarizeTriggers` 的七项旧口径逐项不变。
+- 宿主 `index.js` 中 v3110【9】钉住的两段原文本形态（`if (_triggerDecision && _triggerDecision.triggered === false)`
+  与 `} else { … extractMemoryWithLLM }`）**保持原样**——空读判定嵌在内层，不改变外层结构。
+
+### 四、测试与审计（新增 46 项配套测试 / 全量 165 文件 1123 断言）
+
+`tests/v3171_trigger_read_surface.test.mjs`（A–I 九层）：
+- **A** 非法正则两态可分（D1，4 项）　**B** 空读 vs 平淡两态可分（D2，3 项）
+- **C** 丢弃/失败计数（D3/D4，6 项）　**D** 截断标记（D5，2 项）
+- **E** 台账对账与双态面板（D6，7 项）　**F** 适配助手与形状兼容（4 项）
+- **G** 宿主接线（7 项，含「v3110【9】原文本形态未被破坏」）
+- **H** 源码层不变量（4 项）+ 工具自证（2 项，含判据纯度检查）
+- **I** 负控制 7 项：**真破坏 → 加载破坏副本 → 在其上重跑 A–G 同款真判据**
+
+**负控制形态（本仓第三次遇上同族假绿，但这次堵法升级）**：在 v3.170 之前，负控制有三种
+假绿形态 —— ①对原文件断言（破坏没发生也绿）；②对**模拟常量**断言（真判据压根没被调用）；
+③破坏把判据自己删了（自我指涉）。本轮 I 层七条全部采用**真源码破坏**：
+锚点必须**恰中一次**否则抛（`锚点命中 N 次`），破坏副本经临时文件加载，**半真值形状直接抛**，
+并在副本上跑与 A–G 层**逐字同款**的真判据。H5 另有判据纯度检查：破坏串一律用 `A(n)` 复用，
+若把锚点字面量抄进替换串，计数会 > 1 —— 那正是自我指涉假绿的入口。
+
+**外部注入负控制（磁盘级，比套件内置更硬）**：`/tmp/ll_neg_disk171.py` 对**真实磁盘文件**
+做 7 组注入 → 每组真跑套件 → `finally` 还原 + md5 核对。结果 **7/7 全部 TRIGGERED**
+（NEG1 翻红 2 条 / NEG2 3 / NEG3 3 / NEG4 6 / NEG5 4 / NEG6 3 / NEG7 2），
+基线 md5 `6d5f106d7988131bc4db9a78bf4af147` 注入前与还原后一致。
+
+### 五、两处期望值修正（如实记录，非实现缺陷）
+
+1. **H5 期望值写错**：初稿按 v3.170 的经验写「锚点应出现 2 次」（声明 + 破坏串内嵌），
+   但本套件破坏串一律用 `A(n)` 复用，锚点字面量在 I 层只出现 **1** 次；且扫描范围须限定
+   I 层区域（H1/H3 里的同名字符串是独立的源码判据，不属于破坏串）。
+2. **E4 判据漏了一种真实形状**：直出结果把空读放在 `r.stats.empty`，而面板初稿只认
+   `r.empty` / `r.report.empty`。这不是「实现错」，是**面板少认了一种实际会出现的形状** ——
+   修法是扩展内核（三态都认），并同步 H2 与 I_ANCHORS[4]。
+
+### 六、发布卫生
+
+- **审计上界按既有明文协议放宽**：`tests/v3116_dead_code.test.mjs` 活跃代码总量
+  21700 → **22100**（v3.152 词典线 +197 → 21000；v3.168 携带契约/静默降级线 +235 → 21300；
+  v3.170 巩固面 → 21700；本版门控读数面 +约 92 行）。这是审计脚本自身口径，非缺陷。
+- **v3111 体检段窗口约束**：v3111【9】在「召回体检」标记前 400 字符处有「报告内只 push
+  文本行」判据，本版新增的数组 `.push()` 一度落进该窗口 —— 改为字符串拼接，语义不变。
+- **旧锚点接管**：硬钉交棒 4 个文件（v3117×3 / v3130×3 / v3147×2 / v3169×1）；
+  动态下界（v3162 `[4d]` 协议）9 个文件共 13 处 `vnum('3.170.0')` → `vnum('3.171.0')`，
+  另 v3164/v3165 的「判据指纹」里拼接形态的发行版号同步交棒。
+
+### 七、终局门禁
+
+```
+node tests/run.mjs --audit
+→ 165 个测试文件 | 通过断言 1123 | 失败 0 | 42.1s
+→ 9 个审计脚本全部 ✓（claim_truthfulness / config_liveness / event_lifecycle /
+   module_wiring / resilience / slider_coherence / syntax / ui_binding / wiring）
+```
+
 ## v3.170.0
 - **巩固面：把 I5/I6 拿出账本本体，做第一次跨界检查**。v3.168 立了 I4「降级必有计数」、v3.169 立了 I5「有损必有计数」与 I6「读失败 ≠ 读到了 0」——但它们的判定面全都落在**账本自己**（OpLog）上。本版把这两条不变量递给同仓另一个承载叙事记忆的子系统：`stm-ltm.js`（v3.96 从 NE-Memory v8.1 缝合进本仓的 STM/LTM 游标巩固引擎，此后 **74 个版本无人审计过它的内部口径**）。探针真跑（`/tmp/probe_ll.mjs`，非静态推断），实测**六处违反**，且每一处都不报错、不留痕。
   - **实测缺陷 D1（I6）：id 基数取自一个摄入路径从不推进的计数器**。`ingest()` 的 raw 片段 id 前缀用 `stm_counter`——而它只在巩固时前进。于是 `consolidate` 清空 raw 区后 counter 原地不动，**下一批 id 与上一批完全重复**：实测两批各 2 条 → `['raw_1_0','raw_2_1','raw_1_0','raw_2_1']`。「每条片段一个可寻址身份」塌缩成「每批一个编号」，而 raw 区是**断点续跑的唯一凭据**——两个同名片段，崩溃恢复时只能一起复活或一起消失。修复：新增 `raw_counter` 独立基数（随存档归一化、逐条推进），id 里保留原 `msg_id/floor` 不破坏可读性；另设去重兜底（`#N` 后缀）应对外部污染基数，兜底触发落 `rawIdCollisions` 计数（I5：兜底发生过这件事本身也要可查）。

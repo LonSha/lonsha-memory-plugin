@@ -25,7 +25,19 @@
  *     拆成独立纯函数 normalizePending（is_user/mes、omitted 标记、lastProcessed 起点、
  *     endFloor 终点都可控），便于测试与复用。
  *   - 增加 summarizeTriggers：门控决策台账诊断（评估数 / 命中率 / 省下的调用数 /
- *     高频理由），供设置面板与审计报告展示——源码无此能力。
+     高频理由），供设置面板与审计报告展示——源码无此能力。
+ *
+ * 【v3.171 门控读数面】本模块在 v3.170「巩固面」之后做读侧审计，与 I5/I6 同族：
+ *   读数缺失 / 读数失败 / 静默丢弃必须可计数、可对账、可入面板——五项实测：
+ *   D1 非法正则被静默当作「未命中」（读取方无从区分「没匹配」与「判不了」）；
+ *   D2 空待判定集与平淡楼在宿主台账塌缩同形（空读被计为「省下一次 LLM 调用」）；
+ *   D3 maxMessages 静默丢弃最旧、无计数；
+ *   D4 isOmitted 抛错被吞成「没被省略」（omit 判定失败零留痕）；
+ *   D5 keywordHits 只留 32 条截断无标记；
+ *   D6 宿主 300 条环形台账淘汰量无自述。
+     修法：所有读数路径进 stats 计数 + summarizeTriggers 补三段对账 + 新增
+     normalizeTriggerReport（两态：missing=空读 / normal=正常）。只增不删，
+     既有 v3110 断言逐条保持绿。
  *   - 语义取向：本模块只回答「值不值得抽」，从不丢弃楼层；调用方判 false 时应降级为
  *     本地廉价摘要（fail-open，宁可抽得糙，不可留记忆空洞）。
  */
@@ -94,6 +106,16 @@
             .map((s) => s.trim())
             .filter(Boolean);
     }
+    /** 拆出「能编译」与「不能编译」两份（正则合法性是读侧判定，非法必现形） */
+    function compilePatterns(raw) {
+        const list = normalizePatterns(raw);
+        const ok = [], invalid = [];
+        for (const p of list) {
+            try { new RegExp(p, 'i'); ok.push(p); }
+            catch (e) { invalid.push(p); }
+        }
+        return { ok, invalid };
+    }
 
     /**
      * 取待判定消息（纯函数）：
@@ -101,8 +123,9 @@
      *   options: { lastProcessed, endFloor, isOmitted, maxMessages, clean }
      * @returns {Array<{role:'user'|'assistant', content:string, index:number}>}
      */
-    function normalizePending(chat, options) {
+    function normalizePending(chat, options, carry) {
         const o = options || {};
+        const sink = (carry && typeof carry === 'object') ? carry : null;
         const list = Array.isArray(chat) ? chat : [];
         const start = Math.max(0, normInt(o.lastProcessed, -1) + 1);
         const rawEnd = (o.endFloor == null || o.endFloor === '')
@@ -112,18 +135,43 @@
         const isOmitted = typeof o.isOmitted === 'function' ? o.isOmitted : () => false;
         const maxMessages = normInt(o.maxMessages, 0);
         const out = [];
+        let omitErrors = 0;
         for (let i = start; i <= end && i < list.length; i += 1) {
             const msg = list[i];
             let skip = false;
-            try { skip = isOmitted(msg, i) === true; } catch (e) { skip = false; }
+            try { skip = isOmitted(msg, i) === true; } catch (e) { skip = false; omitErrors += 1; }
             if (skip) continue;
             const role = (msg && (msg.is_user === true || msg.role === 'user')) ? 'user' : 'assistant';
             const content = normStr(msg && (msg.mes != null ? msg.mes : msg.content));
             if (!content) continue;
             out.push({ role, content, index: i });
         }
-        if (maxMessages > 0 && out.length > maxMessages) return out.slice(-maxMessages);
-        return out;
+        // [v3.171] 静默裁剪必须有计数（I5）。返回值仍是裸数组（既有调用形状不变），
+        //   丢弃量与「省略判定失败」数经第三可选参数 carry 带出，绝不静默。
+        let dropped = 0;
+        let result = out;
+        if (maxMessages > 0 && out.length > maxMessages) {
+            dropped = out.length - maxMessages;
+            result = out.slice(-maxMessages);
+        }
+        if (sink) {
+            sink.omitErrors = omitErrors;
+            sink.dropped = dropped;
+            sink.readFail = 0;
+            sink.available = out.length;
+            sink.kept = result.length;
+        }
+        return result;
+    }
+    /** [v3.171] 取数组段：兼容裸数组（新）与 {pending} 形状（若外部传了旧形状） */
+    function pendingList(r) {
+        if (Array.isArray(r)) return r;
+        return (r && Array.isArray(r.pending)) ? r.pending : [];
+    }
+    /** [v3.171] 取计数段：裸数组无从带计数，返回零值并标 readFail=0 */
+    function pendingReport(r) {
+        if (Array.isArray(r)) return { omitErrors: 0, dropped: 0, readFail: 0 };
+        return (r && r.report) ? r.report : { omitErrors: 0, dropped: 0, readFail: 0 };
     }
 
     // ---------- 评分 ----------
@@ -181,6 +229,7 @@
             entityHits: 0,
         };
         if (!list.length) {
+            stats.empty = true;   // [v3.171] 空读必须可区分（I6：读失败 ≠ 读到了 0）
             return { triggered: false, score: 0, threshold, reasons: [], stats };
         }
 
@@ -197,10 +246,17 @@
             score += Math.min(keywordCap, keywordHits.length * weights.keywordPerHit);
             reasons.push('关键词: ' + keywordHits.slice(0, 3).join(', '));
         }
+        stats.keywordHitsTotal = keywordHits.length;
         stats.keywordHits = keywordHits.slice(0, 32);
+        if (keywordHits.length > 32) stats.keywordHitsTruncated = keywordHits.length - 32;
 
-        // ② 自定义触发规则（命中一条即止，避免用户堆规则后分数爆炸）
-        for (const pattern of normalizePatterns(o.patterns)) {
+        // ② 自定义触发规则（命中一条即止，避免用户堆规则后分数爆炸）。
+        //   [v3.171] 非法正则必须可见：进 invalidPatterns（读取方从此能区分「没命中」与「判不了」），
+        //   合法规则列表进 customPatterns；二者独立计数，不影响主流程。
+        const _compiled = compilePatterns(o.patterns);
+        stats.customPatterns = _compiled.ok;
+        stats.invalidPatterns = _compiled.invalid;
+        for (const pattern of _compiled.ok) {
             let hit = false;
             try { hit = new RegExp(pattern, 'i').test(combined); } catch (e) { hit = false; }
             if (hit) {
@@ -261,8 +317,18 @@
             .sort((a, b) => (b.count - a.count) || a.reason.localeCompare(b.reason, 'en'))
             .slice(0, 6);
         const total = list.length;
+        // [v3.171] 台账对账：records 数组给定多少、缺失多少、上限多少、被环形淘汰多少。
+        //   只报 skipped 会让「真平淡」与「根本没读到」在面板上同形。
+        const recorded = Array.isArray(records) ? records.length : 0;
+        const missing = Math.max(0, total - recorded);
+        const emptyCount = list.filter(r => r && r.empty === true).length;
         return {
             evaluated: total,
+            recorded,
+            missing,
+            emptyCount,
+            cap: null,          // 宿主侧由 normalizeTriggerReport 注入（引擎不知道宿主环形上限）
+            dropped: null,      // 同上
             fired,
             skipped: total - fired,
             savedCalls: total - fired,
@@ -272,6 +338,40 @@
         };
     }
 
+    /**
+     * [v3.171] 双态读数面板：把「读数失败」从「平淡楼」里拆出来（I6）。
+     * @param {Array} records 宿主环形台账（每条可带 report）
+     * @param {object} opts { cap: 环形上限, dropped: 已知淘汰量, given: 评估总数 }
+     * @returns {{records, empty, plain, cap, dropped, missing, hasReadGap}}
+     */
+    function normalizeTriggerReport(records, opts) {
+        const list = (Array.isArray(records) ? records : []).filter(Boolean);
+        const o = opts || {};
+        let empty = 0;
+        let plain = 0;
+        for (const r of list) {
+            // 三态可读：直出结果带 stats.empty；宿主台账摘出后带 report.empty；
+            //   简写形状带 empty。三种都认得，否则空读退化为平淡楼（I6）。
+            const isReadGap = !!(r && (r.empty === true
+                || (r.report && r.report.empty === true)
+                || (r.stats && r.stats.empty === true)));
+            if (isReadGap) empty += 1;
+            else plain += 1;
+        }
+        const cap = Number(o.cap) || 0;
+        const dropped = Number(o.dropped) || 0;
+        const given = Number(o.given);
+        const missing = Number.isFinite(given) ? Math.max(0, given - list.length) : 0;
+        return {
+            records: list.length,
+            empty,
+            plain,
+            cap: cap > 0 ? cap : null,
+            dropped: dropped > 0 ? dropped : null,
+            missing,
+            hasReadGap: (cap > 0 && (list.length > cap || dropped > 0)) || empty > 0 || missing > 0,
+        };
+    }
     const api = {
         DEFAULT_TRIGGER_KEYWORDS,
         DEFAULT_THRESHOLD,
@@ -279,9 +379,15 @@
         DEFAULT_ENTITY_SUFFIXES,
         normalizePending,
         normalizePatterns,
-        evaluateTrigger,
-        summarizeTriggers,
-    };
+    compilePatterns,
+    evaluateTrigger,
+    summarizeTriggers,
+    normalizeTriggerReport,
+    pendingList,
+    pendingReport,
+    // [v3.171] 兼容旧调用形状：normalizePending 仍返回裸数组，计数经第二可选
+    //   参数 carry 带出；pendingList(r)/pendingReport(r) 为取数组段/计数段的适配助手。
+};
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     global.LonShaSmartTrigger = api;
