@@ -226,8 +226,13 @@ test('【11】unregisterEvents 保存并按 handler 引用精确卸载', () => {
     assert.strictEqual(withHandler, totalPush, `全部 ${totalPush} 个注册点都带 handler 引用（实际 ${withHandler}）`);
     assert.ok(withHandler >= 7, `注册点数量符合预期（${withHandler} >= 7）`);
     // 注册用的是具名变量而非内联匿名函数（否则引用无法保存）
-    const named = (src.match(/eventSource\.on\(types\.[A-Z_]+, _h\d+\);/g) || []).length;
-    assert.strictEqual(named, withHandler, '注册与 push 用同一 handler 引用');
+    // [v3.164] 注册改经统一包装 bindEvent 收口（v3.164 修的是「没经它」）。
+    //   判据不再绑死 eventSource.on 这一种写法：不变量是「注册用的 handler 与台账记的
+    //   是同一个具名引用」，与经不经包装无关；只认一种写法会让收口反而变成回归失败。
+    const namedOn = (src.match(/eventSource\.on\(types\.[A-Z_]+, _h\d+\);/g) || []).length;
+    const namedVia = (src.match(/this\.bindEvent\(eventSource, types\.[A-Z_]+, _h\d+\)/g) || []).length;
+    const named = namedOn + namedVia;
+    assert.strictEqual(named, withHandler, `注册与 push 用同一 handler 引用（on ${namedOn} + bindEvent ${namedVia} = ${named}，push ${withHandler}）`);
 
     // 行为：卸载按引用移除，且无引用时不做无参移除（防误删他人监听）
     const m = extractNamed(src, 'unregisterEvents() {');

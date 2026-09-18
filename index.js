@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-        const VERSION = '3.163.0';
+        const VERSION = '3.164.0';
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
     const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
@@ -1881,6 +1881,7 @@ function relativeTimeLabel(eventTime, nowTime) {
     }
 
     class MemoryEngine {
+        stateProvider = null;   // [v3.164] 由 plugin 注入的只读状态提供者（见 LonShaMemoryPlugin 构造）
         constructor(config) {
             // [v3.23] chatMetadata 迁移恢复防重入（NE auto-restore）
             this._migrateRestored = false;
@@ -6370,6 +6371,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ['回响池', `${this.echo.pool ? this.echo.pool.size : (this.echo.items ? this.echo.items.length : '?')}`],
                     ['楼层账本', `${Object.keys(this.ledger.floors || {}).length} 楼${this.ledger.evicted ? `（已淘汰 ${this.ledger.evicted}）` : ''}`],
                     ['回滚失效', this._ledgerMissingRollbacks ? `${this._ledgerMissingRollbacks} 次（账本已淘汰）` : '0'],
+                    // [v3.164] 事件接线：回答「记忆提取到底有没有被接上」。此前 17 行子系统统计里
+                    //   没有任何一行覆盖事件注册状态——注册失败时插件仍「看起来正常」，用户侧表现为
+                    //   「聊了很久没有记忆」，却没有任何地方能看出原因（坏了没人知道）。
+                    (() => {
+                        const ci = (typeof this.stateProvider === 'function' ? this.stateProvider() : null);
+                        if (!ci) return ['事件接线', '—（控制平面未初始化）'];
+                        let txt = `${ci.events} 个监听`;
+                        if (ci.lastEvent) txt += `（最后由 ${String(ci.lastEvent).replace(/^(MESSAGE_|GENERATION_)/, '')} 触发）`;
+                        if (ci.registeredAt) txt += ' · ' + new Date(ci.registeredAt).toLocaleTimeString('zh-CN');
+                        if (ci.unregisterAttempts) txt += ` · 卸载 ${ci.unregisterAttempts} 次`;
+                        if (ci.lastFailure || ci.events === 0) txt += ' ⚠️ ' + (ci.lastFailure || '尚无任何事件触发——若已聊天请检查 eventSource');
+                        return ['事件接线', txt];
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -11070,6 +11084,11 @@ ${recentTurns}`;
             this.diffusion = null;
             this.visualizer = null;
             this.initialized = false; 
+            // [v3.164] 诊断桥：selfCheck 属于 engine，而控制平面台账在 plugin 上。
+            //   工程中 engine.plugin 从未被赋值（engine 不知道自己属于哪个 plugin），
+            //   故由 plugin 主动注入一个**只读状态提供者**——engine 侧只读不改，
+            //   避免为了「显示一行诊断」而引入 engine -> plugin 的反向依赖。
+            try { this.engine.stateProvider = () => this._controlInfo; } catch (e) { /* 非致命 */ }
         }
         /** [v3.93.0] 官方只读门面: 供外部脚本(如 RubyPhone graph-bridge)读取结构域数据,
          *  替代对 engine 内部深层结构 (graph.nodes.values()/summary.summaries/...) 的硬编码访问。
@@ -11180,7 +11199,13 @@ ${recentTurns}`;
         // [v3.18] 控制平面（stbme 最小版）: 事件注册统一收口 + 就绪状态机
         // 所有事件处理器注册前先检查控制平面就绪，避免半初始化注册
         _controlReady = false;
-        _controlInfo = { events: 0, lastEvent: null, registeredAt: null };
+        // [v3.164] 扩为可暴露的接线台账：events 之外记录期望/失败/卸载计数，
+        //   selfCheck 与诊断面板据此回答「事件接线是否真的生效」（此前这组状态零消费者）。
+        _controlInfo = {
+            events: 0, lastEvent: null, registeredAt: null,
+            expected: 0, failed: [], lastFailure: null, unregisterAttempts: 0,
+            source: null,
+        };
         ensureControlReady() {
             if (this._controlReady) return true;
             if (!window.SillyTavern?.getContext?.()) return false;
@@ -11199,6 +11224,13 @@ ${recentTurns}`;
             } catch (e) { errLog(e, '控制平面.bindEvent'); return false; }
         }
         registerEvents() {
+            // [v3.164] 幂等：重复调用先卸载已注册监听。否则 eventSource.on 会把同一批 handler
+            //   再挂一遍（同一事件双触发），而台账里两份记录都会「卸载成功」——泄漏不体现在计数上。
+            //   init() 有 initialized 守卫，但注册与置位之间存在 await 窗口，宿主重复调用即命中。
+            if (this.eventHandlers?.length) {
+                console.warn(`[${PLUGIN_NAME}] registerEvents 重复调用（已注册 ${this.eventHandlers.length} 个监听），先卸载再重装`);
+                try { this.unregisterEvents(); } catch (e) { errLog(e, 'events.registerEvents防重入'); }
+            }
             // [v3.18] 控制平面就绪检查（stbme 最小版）
             if (!this.ensureControlReady()) { console.warn(`[${PLUGIN_NAME}] 控制平面未就绪，跳过事件注册`); return; }
             // [v1.2 真机适配修复] 原实现监听 'message_received' 自定义事件，
@@ -11233,7 +11265,11 @@ ${recentTurns}`;
                         console.error(`[${PLUGIN_NAME}] 消息处理失败:`, err);
                     }
                 };
-                eventSource.on(types.MESSAGE_RECEIVED, _h1);
+                                // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
+                //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。
+                if (!this.bindEvent(eventSource, types.MESSAGE_RECEIVED, _h1)) {
+                    console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_RECEIVED 注册失败（控制平面未就绪或 eventSource 异常）`);
+                }
                 this.eventHandlers.push({ eventSource, type: types.MESSAGE_RECEIVED, handler: _h1 });
 
                 // CHAT_CHANGED：切换对话时重新加载对应数据
@@ -11268,7 +11304,11 @@ ${recentTurns}`;
                             console.error(`[${PLUGIN_NAME}] 对话切换加载失败:`, err);
                         }
                     };
-                    eventSource.on(types.CHAT_CHANGED, _h2);
+                                        // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
+                    //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。
+                    if (!this.bindEvent(eventSource, types.CHAT_CHANGED, _h2)) {
+                        console.warn(`[${PLUGIN_NAME}] 事件 CHAT_CHANGED 注册失败（控制平面未就绪或 eventSource 异常）`);
+                    }
                     this.eventHandlers.push({ eventSource, type: types.CHAT_CHANGED, handler: _h2 });
                 }
 
@@ -11295,7 +11335,11 @@ ${recentTurns}`;
                             } catch (e) { errLog(e, 'events.编辑即时存盘'); }
                         } catch (err) { console.warn(`[${PLUGIN_NAME}] 编辑回滚失败:`, err); }
                     };
-                    eventSource.on(types.MESSAGE_EDITED, _h3);
+                                        // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
+                    //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。
+                    if (!this.bindEvent(eventSource, types.MESSAGE_EDITED, _h3)) {
+                        console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_EDITED 注册失败（控制平面未就绪或 eventSource 异常）`);
+                    }
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_EDITED, handler: _h3 });
                 }
                 if (types.MESSAGE_SWIPED) {
@@ -11318,7 +11362,11 @@ ${recentTurns}`;
                             }
                         } catch (err) { errLog(err, 'nonfatal') }
                     };
-                    eventSource.on(types.MESSAGE_SWIPED, _h4);
+                                        // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
+                    //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。
+                    if (!this.bindEvent(eventSource, types.MESSAGE_SWIPED, _h4)) {
+                        console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_SWIPED 注册失败（控制平面未就绪或 eventSource 异常）`);
+                    }
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_SWIPED, handler: _h4 });
                 }
 // [v2.0] P2: 删楼回滚（楼层账本）
@@ -11360,7 +11408,11 @@ ${recentTurns}`;
                             if (plugin.engine.config.config.debugMode) console.error(`[${PLUGIN_NAME}] 删楼回滚失败:`, err);
                         }
                     };
-                    eventSource.on(types.MESSAGE_DELETED, _h5);
+                                        // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
+                    //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。
+                    if (!this.bindEvent(eventSource, types.MESSAGE_DELETED, _h5)) {
+                        console.warn(`[${PLUGIN_NAME}] 事件 MESSAGE_DELETED 注册失败（控制平面未就绪或 eventSource 异常）`);
+                    }
                     this.eventHandlers.push({ eventSource, type: types.MESSAGE_DELETED, handler: _h5 });
                 }
                 // [v1.2] GENERATION_STARTED：生成前注入记忆（主注入路径）
@@ -11369,7 +11421,11 @@ ${recentTurns}`;
                     const _h6 = () => {
                         try { this.engine._generationActive = false; } catch (e) { errLog(e, 'events.GENERATION_ENDED复位'); }
                     };
-                    eventSource.on(types.GENERATION_ENDED, _h6);
+                                        // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
+                    //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。
+                    if (!this.bindEvent(eventSource, types.GENERATION_ENDED, _h6)) {
+                        console.warn(`[${PLUGIN_NAME}] 事件 GENERATION_ENDED 注册失败（控制平面未就绪或 eventSource 异常）`);
+                    }
                     this.eventHandlers.push({ eventSource, type: types.GENERATION_ENDED, handler: _h6 });
                 }
                 if (types.GENERATION_STARTED) {
@@ -11396,7 +11452,11 @@ ${recentTurns}`;
                             console.error(`[${PLUGIN_NAME}] 生成前注入失败:`, err);
                         }
                     };
-                    eventSource.on(types.GENERATION_STARTED, _h7);
+                                        // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
+                    //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。
+                    if (!this.bindEvent(eventSource, types.GENERATION_STARTED, _h7)) {
+                        console.warn(`[${PLUGIN_NAME}] 事件 GENERATION_STARTED 注册失败（控制平面未就绪或 eventSource 异常）`);
+                    }
                     this.eventHandlers.push({ eventSource, type: types.GENERATION_STARTED, handler: _h7 });
                 }
 
@@ -11404,8 +11464,18 @@ ${recentTurns}`;
             } catch (err) {
                 console.error(`[${PLUGIN_NAME}] 事件注册异常:`, err);
             }
+            // [v3.164] 失败哨兵：注册若抛异常，此前只打印一行错误，_controlInfo.events 照旧为 0，
+            //   插件继续「看起来正常」运行（记忆永不被提取）。此处把失败状态留在台账里，
+            //   由 selfCheck / 诊断面板暴露——「坏了有人知道吗」。
+            this._controlInfo.expected = 7;
+            if (this._controlInfo.events < 7) {
+                this._controlInfo.lastFailure = `期望注册 7 个事件监听，实际仅成功 ${this._controlInfo.events} 个`;
+                if (!this._controlInfo.failed.includes(this._controlInfo.lastFailure)) {
+                    this._controlInfo.failed.push(this._controlInfo.lastFailure);
+                }
+                console.error(`[${PLUGIN_NAME}] ⚠️ 事件接线不完整：${this._controlInfo.lastFailure}（记忆提取可能不触发，请检查 eventSource/event_types）`);
+            }
         }
-
         // [v3.8] 统一楼层自愈调度器（编辑/swipe 共用）:
         //   防抖 3s 后对「待愈楼层集合」逐楼重提取（集合去重 + 连编多楼支持）
         _scheduleFloorHeal(f) {
@@ -11456,6 +11526,7 @@ ${recentTurns}`;
         //         的 removeListener/off 需要 handler 才能精确移除——原卸载路径实际无效（且不带 handler 调用
         //         有误删其他扩展同类型监听的风险）。改为保存 handler 引用并按引用移除。
         unregisterEvents() {
+            if (this._controlInfo) this._controlInfo.unregisterAttempts++;   // [v3.164] 台账：回答「卸载路径可有消费者」
             if (!this.eventHandlers) return;
             let removed = 0;
             for (const rec of this.eventHandlers) {

@@ -105,7 +105,9 @@ function extractClass(name) {
     // [v3.91] handler 已抽为具名常量（保存引用供精确卸载），断言改为验证 async 语义而非内联写法
     assert.ok(
         src.includes('types.MESSAGE_DELETED, async (messageId) => {')
-        || /const _h\d+ = async \(messageId\) => \{[\s\S]{0,4000}?eventSource\.on\(types\.MESSAGE_DELETED, _h\d+\);/.test(src),
+        // [v3.164] 注册改经 bindEvent 收口，判据不再绑死裸 on 这一种写法：不变量是
+        //   「删楼回调确为 async 且确实被注册」，与经不经包装无关。
+        || /const _h\d+ = async \(messageId\) => \{[\s\S]{0,6000}?(?:eventSource\.on\(types\.MESSAGE_DELETED, _h\d+\);|this\.bindEvent\(eventSource, types\.MESSAGE_DELETED, _h\d+\))/.test(src),
         '删楼回调 async 化'
     );
     ok('BugD: 编辑/swipe/删楼 三处即时持久化');

@@ -32,7 +32,11 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
     // A 渲染进 selfCheck
     const scIdx = src.indexOf("['楼层账本',");
     const renderIdx = src.indexOf("['召回自检',", scIdx);
-    assert.ok(scIdx > 0 && renderIdx > scIdx && renderIdx < scIdx + 1500, 'A 召回自检渲染进 selfCheck');
+    // [v3.164] 两者之间新增了「事件接线」诊断行，窗口写死会误伤。不变量是「召回自检
+    //   这一行确实落在 selfCheck 的子系统列表里、且在楼层账本之后」——窗口大小取决于
+    //   期间插了多少行诊断，不该写死。给足 4000，并额外要求它仍是列表项形态。
+    assert.ok(scIdx > 0 && renderIdx > scIdx && renderIdx < scIdx + 4000, 'A 召回自检渲染进 selfCheck');
+    assert.ok(/\['召回自检',/.test(src.slice(renderIdx, renderIdx + 12)), 'A 召回自检是 selfCheck 列表项');
     // B 向量续热走 _heatEntry
     assert.ok(src.includes('this.vector._heatEntry'), 'B 向量续热');
 });

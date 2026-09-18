@@ -249,7 +249,7 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.163.0')), f + ' anchors are not stale');
+        assert.ok(hits.every((h) => vnum(h) >= vnum('3.164.0')), f + ' anchors are not stale');
     }
 });
 test('[4c] v3159 no longer hardcodes its audit-script list', () => {
@@ -270,7 +270,7 @@ test('[4d] v3160 and v3161 gave up their own-release exclusivity', () => {
         // [v3.163] 判据改为**动态**：这些文件里的版本下界必须随 index.js 现版推进，
         //   不得停在它们自己的发行版号上。写死任何字面量的正则都不得行——
         //   上一版改成 `!/vnum\('3[.](160|161)[.]0'\)/` 只覆盖了两个版本，
-        //   下一版接管后下界变成 3.163.0，这条正则便形同虚设（false-green）；
+        //   下一版接管后下界就会变成那个新版本号，这条正则便形同虚设（false-green）；
         //   我一度改成 `3[.]\d+[.]0`，又会把**合法的**当版下界一并误杀。
         const v = /const VERSION = '([0-9.]+)'/.exec(readFileSync(path.join(ROOT, 'index.js'), 'utf-8'))[1];
         const bounds = [...t.matchAll(/vnum\('(3[.][0-9]+[.][0-9]+)'\)/g)].map((m) => m[1]);
