@@ -1,3 +1,20 @@
+## v3.168.0
+- **静默降级面：不是报错，是悄悄换了一条更差的路**。v3.167 盯的是「回报与 store 不一致」，本版盯它的孪生形态——**代码没有出错、没有抛异常、日志里甚至写着 "降级处理"，但系统已经在一条更差的路上了**，而没有任何地方能把「有几处正在退化」并列出来。本版把这类失效做成可计数、可对账、可入面板的一层，并沿路修掉三个实证缺陷。
+  - **实测缺陷 1：跨会话携带契约从未对齐（写侧 15 键 / 读侧 22 键）**。`packCarryover()`（写侧）与 `applyCarryover()`（读侧）各自维护一份键清单，**从来没有任何测试或审计核对二者是否相等**（实测：`grep packCarryover tests/*.mjs` 零命中）。于是读侧写好、写侧从不产出的键共有 **10 个**：`moneyLedger`（货币账本）/ `cards`（CG 卡）/ `conflicts`（矛盾簿）/ `deltaBook`（正史增量）/ `cse`（人物状态）/ `pulse`（叙事心电图）/ `opLog`（事件溯源日志）/ `outline`（大纲导演）/ `pairMem`（配对记忆）/ `statusFlat`（角色状态表——此键在 `packCarryover` 里**构造了 statusFlat 数组却忘了放进 return**，也就是说角色状态表连「写过」都没写过）。用户侧表现：点「打包→新对话导入」后 toast 写着「✅ 携带包已导入，剧情无缝衔接」，而实际只有摘要/图谱/向量/物品过去了，其余全部留在旧对话——**这是一次成功的失败声明**。修复：新增 `CARRYOVER_CONTRACT_KEYS` 作为两侧唯一真源，写侧补齐 10 键、新增 `verifyCarryoverPack()` 对账，读侧对旧格式包显式报缺键而非静默跳过。
+  - **实测缺陷 2：种子路径同病（`generateCarryoverSeed` 从不产出这 9 个子系统）**。v3.45 引入的「跨会话状态种子」与 v2.3 的「携带背包」是两条并行的承接通道，而种子路径的产出清单**更短**：`importCarryoverSeed` 除状态字段外没有这 9 个子系统的导入分支，`generateCarryoverSeed` 也从不产出它们。两处一起补：生成侧补 10 键（含 `statusFlat` 的结构化还原），导入侧新增子系统消费循环（逐项独立 try，一个子系统接口不符不撤销整个种子），`_applied` 生效字段清单同步扩到 19 项——v3.165 刚建立的「不许谎报成功」判据，正好照出了这条通道的实际生效面。
+  - **实测缺陷 3：嵌入层四条降级路径合计零计数**。`getEmbedding()` 有四个出口会退回 `simpleEmbedding`（按字符码位的伪向量，与真嵌入的语义空间毫不相干）：**无密钥 / API 返 error / 返回体缺 embedding / 抛异常**——四条都只 `console.warn` 一行，**没有任何计数器、没有诊断行**。用户侧表现为「向量召回效果奇差」却完全不知道向量层早已整层降级。修复：新增 `_embedDegrade = {noKey, apiError, missingVector, exception}`，四路分别计数并串入静默降级总账。
+  - **修复 4：`optimizeMemory()` 永久删数据却丢弃返回值**。本方法会删除：向量文本去重 · 向量硬上限 · 摘要硬上限 · 孤儿物品 ops · 重复图谱节点。实测：**两处调用点都是裸调**（`this.optimizeMemory();`），返回值一律丢弃——「鲸鱼了哪些东西、删了多少」完全不可查。修复：分路账本 `_lastGcLedger = {vecDup, vecCap, sumCap, orphanOps, graphDup}` + 落 `opLog` 的 `gc` 条目。
+  - **修复 5：睡眠周期只标记不回收，积压量无数**。`sleepCycle()` 给低保留价值条目打 `archivedForSleep`，但从不回收；长线运行下「已睡仍在库」持续积压（仍参与召回遍历，只是被过滤）。新增 `calibrateRetention()` **纯清点**校准器（只读不写、不碰 `archivedForSleep`、不删任何条目），输出 `{dormant, ancientHighValue, lowValueStale, total}`——其中 `ancientHighValue`（超过 30 天且重要度>=8）专门回答「有没有历史锚点正在逼近回收线」。
+  - **修复 6：静默降级总账（本版中心机制）**。新增 `getDegradationLedger()`：把散落各处的退化计数聚合为一张表（嵌入降级 / 记忆回收 / 睡眠积压 / 携带契约缺键 / 人物状态上限压力 / 台账写入违规 / 配置迁移跳过），返回 `{rows, degraded, ok}`。它**只聚合已存在的计数器**，不新增状态、不修任何数据、永不抛出。selfCheck 新增「静默降级」行：全洁时报「全部正常（检查 N 项）」，有退化时列出前 4 项并标 ⚠️。
+- **本版确立的不变量**：
+  - **I3**「写侧产出键」⊇「读侧消费键」——`packCarryover()` 的产出必须覆盖 `CARRYOVER_CONTRACT_KEYS` 全量，两侧不为子集即报警。
+  - **I4**「降级必有计数」——每一次退到次优路径都要在总账里留数，不得只有 console.warn。
+- **本版自身被审计抓中的三处（审计层正常工作的证据）**：
+  - **读了配置却没声明**：`carryoverContractStrict` 初稿只在读取处出现，被 v3160 （“声明”侧）当场抓中；补声明后又被 v3161（“可达性”侧）拉住——无 UI 控件又无卡白名单 = 旋钮不存在。两侧不变量都在跑，最后补上面板开关才算真可设。
+  - **“有对账机制”本身也是一种声称**：`verifyCarryoverPack()` 初稿写好后无任何调用者，`_lastCarryoverReport` 永远是空。修为 `packCarryover()` 在 **真实产出对象上**调用对账，并在 selfCheck 新增「携带契约」行展示 `N/22 键` 与缺键清单。
+  - **账本里的空洞与异常末尾**：`orphanOps` 分路上一直没有赋值（字段是空壳）；`getDegradationLedger()` 初稿的 `ok` 只在尾部赋值，异常时会以 `undefined` 结尾。修为分路归集 + `ok` 初值 false（fail-closed），并新增「账本盲区」行：一个降级来源都读不到时，宁可报「看不见」也不报「全部正常」。
+- **配套测试**：`tests/v3168_silent_degradation.test.mjs`（30 项）—— A 契约对账（写侧/读侧键集合由代码推导，不钉字面量）· B 种子同源· C 四条嵌入降级路径行为真执行· D 睡眠校准仅读（对照快照逐字节相等）· E 总账与诊断· F **负控制**（每条判据都配一次故意破坏，验证它真的会响）· G 发布卫生。
+- **兼容约束**：`packCarryover()` 仍返回对象或 null（旧调用方与 UI 预览不受影响，新增键只增不减）；`applyCarryover()` 仍返回 boolean（旧格式包照常导入，只是不再沉默）；`optimizeMemory()` 仍返回 number，`sleepCycle()` 仍返回 `{archived}`。
 ## v3.167.0
 - **容量/截断面：上限不该改写「存进去的东西的身份」**。v3.166 收口了「回报 `true` 但磁盘上没有」，本版盯同一根线在**内存层**的表现——CSE 人物状态引擎是全插件唯一会**主动丢弃已写入数据**的子系统（`MAX_STATES_PER_CHAR=40` 淘汰 / `MAX_TOWARD=24` 关系向上限），而这两处上限此前都会在**看不见的地方改写条目身份**：一处把条目悄悄扔掉，一处把「A 对 B 有明确指向」改写成「A 的状态」。三处缺陷共享同一后果：**调用方收到的回报与 store 的真实内容不一致**。实测探针：`/tmp/lonsha_probe_cse.js`（修前）/ `/tmp/lonsha_probe_cse_after.js`（修后对照）。
   - **实测缺陷 1：容量淘汰发生在回报之后**。`set()` 的顺序是 `c.states.push(st)` → 按 `weight = (core?3:adaptive?2:1) * confidence` 排序 → `c.states.length = 40` 截断 → `return st`。于是**刚写进去的低置信度 situational 条目（0.3 × 1 = 0.3）会被自己挤掉**，而 `set()` 仍返回该对象、调用方（`addFromExtracted` 的计数 → `opLog` → 用户侧「登记 N 条」）按返回值记账。实测：先塞满 40 条 core，再写 1 条 `一时情绪`（confidence 0.3），`set()` 返回非 null，store 里查不到该条目，条数仍是 40。修复：**回报必须与 store 一致**——写入后先确认条目仍在 store，被自己挤掉就回报 `evicted` + `state:null`，不再谎报成功。

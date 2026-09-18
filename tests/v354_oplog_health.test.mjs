@@ -80,7 +80,15 @@ test('=== 2. 埋点覆盖验证（六条主路径）===', () => {
 test('=== 3. OpLog 持久化链路验证 ===', () => {
     assert.ok(src.includes('this.opLog = new OpLog();'), 'engine 实例化');
     // [v3.130] 单真源：OMR 手写清单废除，键在 collectExport 登记一处
-    assert.equal(src.split('opLog: this.opLog?.export?.() || null,').length - 1, 1, 'collectExport 含 opLog（单真源）'),
+    // [v3.168] 单真源判据收紧为「存档导出路径（collectExport 内）该写法只能一次」：
+    //   v3.168 的跨会话种子 generateCarryoverSeed 是合法出口（它本就要带 opLog），
+    //   用全文件计数会把两个真源误判成漂移。
+    {
+        const _ce = src.indexOf('collectExport() {');
+        const _rsp = src.indexOf('restoreFromPayload(', _ce);
+        const _block = src.slice(_ce, _rsp > 0 ? _rsp : src.length);
+        assert.equal(_block.split('opLog: this.opLog?.export?.() || null,').length - 1, 1, 'collectExport 含 opLog（单真源）');
+    }
     assert.ok(src.includes('if (pack.opLog && this.opLog) this.opLog.import(pack.opLog);'), 'storage.load 恢复');
     assert.ok(src.includes('for (const e of (this.opLog?.entries || [])) if (typeof e.floor === \'number\') e.floor = dec(e.floor);'), 'shiftFloorsFrom 楼层位移');
     console.log('✓ OpLog 持久化链路验证通过');

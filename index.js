@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.167.0';
+    const VERSION = '3.168.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -58,6 +58,19 @@
     'extensions',
     ]);
     const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);
+    // [v3.168] 跨会话携带契约键清单（单一真源）。
+    //   存在理由：packCarryover（写侧）与 applyCarryover（读侧）此前各写各的键清单，
+    //   无人核对二者是否相等。实测（修前）：写侧产出 15 键、读侧消费 22 键，差集 9 个
+    //   （moneyLedger / cards / conflicts / deltaBook / cse / pulse / opLog / outline / pairMem）
+    //   —— 读侧分支全部写好、写侧从不产出，于是它们是**死分支**：跨对话「无缝续写」
+    //   实际只承接了摘要/图谱/向量/物品，角色状态表与货币账本等一并不带走，且不打任何提示。
+    //   本清单让两侧键集合可机检，漂移即报警；报告走 selfCheck 与 opLog。
+    const CARRYOVER_CONTRACT_KEYS = Object.freeze([
+        'version', 'summaries', 'volumes', 'suspense', 'timeline', 'statusFlat',
+        'graph', 'povs', 'diary', 'reflection', 'itemOps', 'scene', 'vectors',
+        'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'cse', 'pulse',
+        'opLog', 'outline', 'pairMem',
+    ]);
     // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
     // 存在理由：v3.138 的 _dataVersion 用 Number() 比较插件版本字符串恒得 NaN→0（判旧恒假），
     // 且 parseFloat('3.10')===3.1 与 '3.9' 无法区分大小。判旧改用 schemaVersion 整数 + compareVersion。
@@ -852,6 +865,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 historicalRetention: 24,             // [v3.154] 史记硬上限（原硬编码 6 且静默丢卷）
                 floorLedgerRetention: 400,           // [v3.155] 楼层账本上限（原硬编码 400 且静默 delete 最旧；改为可配+显式淘汰）
                 floorLedgerEvictionDebug: false,     // [v3.155] 楼层账本淘汰调试日志
+                // [v3.168] 携带契约严格模式：旧格式携带包缺键时打告警（默认开）。
+                //   声明由 v3160 审计强制（读取而未声明会让引擎静默回退硬编码值，用户无从设置）；
+                //   可达性由 v3161 审计强制（无 UI 控件又无卡白名单 = 旋钮不存在）。本版初稿被前者抓中一次。
+                carryoverContractStrict: true,
                 reflectionEnabled: false,      // 反思节点（抄stbme：洞察提炼，需API，默认关）
                 reflectEveryFloors: 10,        // [v2.8] RT-B: 反思每N楼触发
                 itemLedgerEnabled: true,       // [v2.8] RT-C: 物品台账（提取物品流转，抄yuzuki物品表）
@@ -1298,6 +1315,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
         }
         
         async getEmbedding(text) {
+            // [v3.168] 嵌入降级账本：本方法有四条降级路径（无密钥 / API 报错 / 返回体缺 embedding / 异常），
+            //   四条都退回 simpleEmbedding（按字符码位的伪向量，与真嵌入的语义空间毫不相干）。
+            //   旧实现只 console.warn 一行，而诊断面板看不到任何东西：用户侧表现为
+            //   「向量召回效果奇差」却完全不知道向量层早已整层降级——四条路径合计零计数。
+            this._embedDegrade = this._embedDegrade || { noKey: 0, apiError: 0, missingVector: 0, exception: 0 };
             try {
                 const str = String(text ?? '');
                 const docHash = 'doc_' + hash32(str);
@@ -1311,6 +1333,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 
                 if (!api_key) {
                     console.warn(`[${PLUGIN_NAME}] 无Embedding密钥，使用简化向量（可在设置中配置）`);
+                    this._embedDegrade.noKey++;
                     const vec = this.simpleEmbedding(str);
                     this.embedCache.set(docHash, vec);
                     return vec;
@@ -1326,16 +1349,19 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 const data = await res.json();
                 if (data.error) {
                     console.warn(`[${PLUGIN_NAME}] Embedding API错误，降级`, data.error);
+                    this._embedDegrade.apiError++;
                     const vec = this.simpleEmbedding(str);
                     this.embedCache.set(docHash, vec);
                     return vec;
                 }
                 
+                if (!data.data?.[0]?.embedding) this._embedDegrade.missingVector++;
                 const vec = data.data?.[0]?.embedding || this.simpleEmbedding(str);
                 this.embedCache.set(docHash, vec);
                 return vec;
             } catch (err) {
                 console.warn(`[${PLUGIN_NAME}] Embedding失败，降级:`, err);
+                if (this._embedDegrade) this._embedDegrade.exception++;
                 const str = String(text ?? '');
                 const docHash = 'doc_' + hash32(str);
                 const vec = this.simpleEmbedding(str);
@@ -4444,8 +4470,40 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 }
                 if (archived && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 😴 睡眠周期: 归档 ${archived} 条低价值记忆`);
+                // [v3.168] 睡眠校准臂（清点非破坏）：睡眠周期只**标记** archivedForSleep，
+                //   从不回收。长线运行下「已睡但仍在库」的条目会持续积压，而旧实现无任何
+                //   出口看得出积压程度（它们仍参与召回遍历，只是被过滤）。校准器只统计不删除。
+                try { this.calibrateRetention(); } catch (e) { errLog(e, 'sleepCycle.calibrate'); }
             } catch (e) { errLog(e, 'sleepCycle'); }
             return { archived };
+        }
+        /** [v3.168] 睡眠校准器（纯清点）。返回 {dormant, ancientHighValue, lowValueStale, total}。
+         *  - dormant：已标记睡眠、仍留在库的条目（遗忘积压量）
+         *  - ancientHighValue：超 30 天且重要度>=8（
+         *    不该被任何上限误杀的历史锚点）
+         *  - lowValueStale：超 30 天且重要度<4（下次硬上限回收的首选）
+         *  只读不写：不碰 archivedForSleep，也不删任何条目。 */
+        calibrateRetention(maxScan = 2000) {
+            const _zero = { dormant: 0, ancientHighValue: 0, lowValueStale: 0, total: 0 };
+            try {
+                const now = Date.now();
+                const cap = Math.max(100, Math.min(10000, Number(maxScan) || 2000));
+                const out = { dormant: 0, ancientHighValue: 0, lowValueStale: 0, total: 0 };
+                const sums = (this.summary?.summaries || []).slice(0, cap);
+                for (const s of sums) {
+                    out.total++;
+                    if (s?.archivedForSleep) out.dormant++;
+                    const created = Number(s?.createdAt || s?.timestamp || 0);
+                    if (!created) continue;
+                    const ageDays = (now - created) / 86400000;
+                    const imp = Number(s?.importance);
+                    const importance = Number.isFinite(imp) ? imp : 5;
+                    if (ageDays > 30 && importance >= 8) out.ancientHighValue++;
+                    else if (ageDays > 30 && importance < 4) out.lowValueStale++;
+                }
+                this._lastRetentionCalibration = Object.assign({ at: now }, out);
+                return out;
+            } catch (e) { errLog(e, 'calibrateRetention'); return _zero; }
         }
 
         // [v3.106] 维护流水线（engram WorkflowEngine 缝合）：把「归档休眠 → 优化去重 → 分诊收尾」
@@ -4511,6 +4569,12 @@ function relativeTimeLabel(eventTime, nowTime) {
 
         // [v2.9] RU-B: 记忆优化器（抄 shujuku optimization——防长对话记忆无限膨胀）
         optimizeMemory() {
+            // [v3.168] GC 帐本：本方法会**永久删除**数据（向量去重 / 向量硬上限 /
+            //   摘要硬上限 / 孤儿物品 ops / 图谱去重），而旧实现只返回一个总数 removed，
+            //   调用方一律丢弃它（两处调用点都是裸调）——「鲸鱼了哪些东西」完全不可查。
+            //   本版把分路删除数归入账本与 opLog。
+            const _gcLedger = { vecDup: 0, vecCap: 0, sumCap: 0, orphanOps: 0, graphDup: 0 };
+            this._lastGcLedger = _gcLedger;
             let removed = 0;
             // 1. 向量文本级去重（完全相同文本只留最新）
             const seen = new Map();
@@ -4525,6 +4589,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             const beforeDup = this.vector.vectors.length;
             this.vector.vectors = this.vector.vectors.filter(v => !v._dup);
             removed += beforeDup - this.vector.vectors.length;
+            _gcLedger.vecDup = beforeDup - this.vector.vectors.length;
             // 2. 向量硬上限（超限按遗忘价值淘汰）
             const vMax = this.config.config.vectorMaxCount || 500;
             if (this.vector.vectors.length > vMax) {
@@ -4540,6 +4605,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const cut = this.vector.vectors.length - vMax;
                 this.vector.vectors = this.vector.vectors.slice(cut);
                 removed += cut;
+                _gcLedger.vecCap = cut;
             }
             // 3. 摘要硬上限（已折叠的最旧条目物理删除；maybeFold 负责合并，这里兜底）
             const sMax = this.config.config.summaryMaxCount || 400;
@@ -4551,6 +4617,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const removeIds = new Set(foldedOld.slice(0, foldable).map(s => s.floor));
                     this.summary.summaries = sums.filter(s => !removeIds.has(s.floor));
                     removed += foldable;
+                    _gcLedger.sumCap = foldable;
                 }
             }
             // 3b. [v3.8] 孤儿物资 ops 清理（v3.8 多变体保留后的必要对账：fp 不在该楼任何 swipe 取值中的 ops 是彻底废除的变体）
@@ -4579,7 +4646,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         return set.has(o.fp);
                     });
                     const opGone = beforeOps - this.itemOps.length;
-                    if (opGone > 0) { removed += opGone; this.rebuildItems(); }
+                    if (opGone > 0) { removed += opGone; _gcLedger.orphanOps = opGone; this.rebuildItems(); }
+
                 }
             } catch (e) { errLog(e, 'HS.孤儿ops清理'); }
             // 4. [v3.6] 图谱重复角色节点合并（兜底：对历史已膨胀的图谱——同归一化名只留最早一个，迁移边）
@@ -4609,13 +4677,68 @@ function relativeTimeLabel(eventTime, nowTime) {
                     this.graph.nodes.delete(dropId);
                     removed++;
                 }
+                _gcLedger.graphDup = dupIds.length;
                 if (dupIds.length) this.graph.rebuildNameIndex();
                 if (dupIds.length && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 图谱去重: 合并 ${dupIds.length} 个重复角色节点`);
             } catch (e) { errLog(e, 'GD.图谱去重'); }
+            // [v3.168] GC 账本落 opLog（可追溯）+ 脏链路（物品真源变更后派生层重建）
+            try {
+                // [v3.168] OpLog 的真实 API 是 log(type, op, ref, floor, meta)；
+                //   本版初稿曾误写成不存在的 push()，会让回收账本无声丢失——
+                //   正是本版要声讨的那种失败。此处按现行埋点惯例（type/op/ref/floor/meta）落账。
+                if (removed) {
+                    const _gcm = 'vecDup=' + _gcLedger.vecDup + ' vecCap=' + _gcLedger.vecCap +
+                        ' sumCap=' + _gcLedger.sumCap + ' orphanOps=' + _gcLedger.orphanOps +
+                        ' graphDup=' + _gcLedger.graphDup;
+                    this.opLog?.log('gc', 'remove', removed + ' items', this._currentFloor ?? null, _gcm);
+                }
+            } catch (e) { errLog(e, 'nonfatal') }
             if (removed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 记忆优化: 清理 ${removed} 条冗余`);
             return removed;
         }
 
+        /** [v3.168] 静默降级总账：把散落各处的「退到次优路径」计数聚成一张表。
+         *  存在理由：本项目有一整类失效形态——**不是报错，而是悄悄换了一条更差的路**：
+         *  嵌入层退回伪向量、记忆上限回收删数据、睡眠归档积压、携带契约缺键、
+         *  人物状态碰上限、台账写入违规。每条单独都有日志，但没有地方能把它们并列
+         *  回答「我这套记忆到底有多少部分在退化运行」。本方法只聚合已存在的计数器，
+         *  不新增状态、不修任何数据，永不抛出。 */
+        getDegradationLedger() {
+            // [v3.168] ok 初值为 false（fail-closed）：旧写法只在尾部赋值，异常时
+            //   报告里的 ok 会是 undefined——诊断自己不能以「未知」结尾。
+            const r = { rows: [], degraded: 0, ok: false, at: Date.now() };
+            try {
+                const push = (name, val, detail) => {
+                    const v = Number(val) || 0;
+                    r.rows.push({ name, value: v, detail: detail || '' });
+                    if (v) r.degraded++;
+                };
+                const ed = this.vector?._embedDegrade || {};
+                const embedTotal = (ed.noKey || 0) + (ed.apiError || 0) + (ed.missingVector || 0) + (ed.exception || 0);
+                push('嵌入降级', embedTotal, embedTotal ? `无密钥${ed.noKey || 0}/接口报错${ed.apiError || 0}/缺向量${ed.missingVector || 0}/异常${ed.exception || 0}` : '');
+                const gc = this._lastGcLedger;
+                push('记忆回收', gc ? (gc.vecDup || 0) + (gc.vecCap || 0) + (gc.sumCap || 0) + (gc.graphDup || 0) : 0,
+                    gc ? `向量去重${gc.vecDup || 0}/向量上限${gc.vecCap || 0}/摘要上限${gc.sumCap || 0}/图谱合并${gc.graphDup || 0}` : '');
+                const cal = this._lastRetentionCalibration;
+                push('睡眠积压', cal?.dormant || 0,
+                    cal ? `高价值陈件${cal.ancientHighValue || 0}/低价值陈件${cal.lowValueStale || 0}` : '');
+                const cc = this._lastCarryoverReport;
+                push('携带契约缺键', cc?.missingWrite?.length || 0, cc?.missingWrite?.join('/') || '');
+                const cse = this.cse?.diagnose?.();
+                push('人物状态上限压力', cse?.nearCapChars || 0, cse?.nearCapChars ? `${cse.nearCapChars} 人顶格` : '');
+                const lv = this._ledgerViolationSummary?.();
+                if (typeof lv === 'string' && lv && lv !== '—') push('台账写入违规', 1, lv);
+                const mig = this.config?._lastMigrationReport;
+                push('配置迁移跳过', mig?.skipped?.length || 0, mig?.skipped?.join('/') || '');
+                // [v3.168] 盲区检测：一个降级来源都读不到时，「全部正常」是假的安心。
+                //   审计失效的方式恰恰就是「报告一切正常」，故宁可说「看不见」也不能说「没事」。
+                const _srcs = [this.vector, this._lastGcLedger, this._lastRetentionCalibration,
+                    this._lastCarryoverReport, this.cse, this.config];
+                if (!_srcs.some(x => x)) push('账本盲区', 1, '未采集到任何降级来源（尚未运行过，或宿主接口未注入）')
+                r.ok = r.degraded === 0;
+            } catch (e) { errLog(e, 'getDegradationLedger'); r.error = String(e?.message || e); }
+            return r;
+        }
         recallWorthRunning() {
             try {
                 const chat = window.SillyTavern?.getContext?.()?.chat || [];
@@ -5438,7 +5561,30 @@ function relativeTimeLabel(eventTime, nowTime) {
                     openSuspenses: this.suspense?.openItems?.() || [],
                     npcTies: this.status?.getAllNpcTies?.() || {},
                     baselines: this.status?.baselines || {},
-                    geoContext: this.status?.getGeoLocation?.() || {}
+                    geoContext: this.status?.getGeoLocation?.() || {},
+                    // [v3.168] 种子路径同源（与 packCarryover 同问题）：下列字段在
+                    //   importCarryoverSeed 里早有导入分支或应承接的结构化状态，
+                    //   而种子生成侧从未产出——新对话“承接前情”只接到摘要/时钟/物品/悬念/NPC 羼绊，
+                    //   角色状态表（statusFlat 的结构化原形）/货币/卡/矛盾/正史增量/
+                    //   人物状态（CSE）/叙事心电图/事件日志/大纲导演/配对记忆全部丢失。
+                    statusFlat: (() => {
+                        const out = [];
+                        for (const [name, rec] of Object.entries(this.status?.characters || {})) {
+                            for (const [field, value] of Object.entries(rec.fields || {})) {
+                                out.push({ character: name, field, value, reason: '携带自旧对话' });
+                            }
+                        }
+                        return out;
+                    })(),
+                    moneyLedger: this.moneyLedger?.export?.() || null,
+                    cards: this.cards?.export?.() || null,
+                    conflicts: this.conflicts?.export?.() || null,
+                    deltaBook: this.deltaBook?.export?.() || null,
+                    cse: this.cse?.export?.() || null,
+                    pulse: this.pulse?.export?.() || null,
+                    opLog: this.opLog?.export?.() || null,
+                    outline: this.outline?.export?.() || null,
+                    pairMem: this.pairMem?.export?.() || null
                 };
             } catch (e) {
                 errLog(e, 'generateCarryoverSeed');
@@ -5495,12 +5641,38 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (seed.geoContext && this.status?.setGeoLocation) {
                     this.status.setGeoLocation(seed.geoContext);
                 }
+                // [v3.168] 种子侧结构化状态承接（与 applyCarryover 同问题、同修法）：
+                //   修前无任何导入分支，validateCarriedItems 的 violations 永远为空。
+                //   每项单独 try：一个子系统接口抬头不对不应导致整个种子撤销。
+                const _subSystems = [
+                    ['moneyLedger', () => this.moneyLedger],
+                    ['cards', () => this.cards],
+                    ['conflicts', () => this.conflicts],
+                    ['deltaBook', () => this.deltaBook],
+                    ['cse', () => this.cse],
+                    ['pulse', () => this.pulse],
+                    ['opLog', () => this.opLog],
+                    ['outline', () => this.outline],
+                    ['pairMem', () => this.pairMem],
+                ];
+                for (const [key, getter] of _subSystems) {
+                    if (seed[key] == null) continue;
+                    try {
+                        const inst = getter();
+                        if (inst && typeof inst.import === 'function') inst.import(seed[key]);
+                    } catch (e) { errLog(e, 'importCarryoverSeed.' + key); }
+                }
+                if (Array.isArray(seed.statusFlat) && seed.statusFlat.length) {
+                    try { this.status.applyChanges(seed.statusFlat, 0, true); } catch (e) { errLog(e, 'importCarryoverSeed.statusFlat'); }
+                }
                 // [v3.165] 成功声称面：原写法无论种子实际带来多少数据都报「导入成功」。
                 //   实测：只带 {type:'lonsha_carryover_seed'} 的空种子会让下面所有 if 全部跳过，
                 //   函数照样打印「✓ 导入成功」并返回 true —— 用户以为承接了前情，实际什么都没导入。
                 //   凡以成功结尾的路径都必须有失败出口：此处以「实际生效的字段数」为事实来源。
                 const _applied = ['summaryRecap', 'clock', 'protagonist', 'lifeDetails', 'carriedItems',
-                    'openSuspenses', 'npcTies', 'baselines', 'geoContext']
+                    'openSuspenses', 'npcTies', 'baselines', 'geoContext',
+                    'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'cse', 'pulse', 'opLog',
+                    'outline', 'pairMem', 'statusFlat']
                     .filter(k => seed[k] != null && (typeof seed[k] !== 'object' || Object.keys(seed[k]).length || Array.isArray(seed[k])));
                 this._lastCarryoverImport = { applied: _applied.length, fields: _applied, at: Date.now() };
                 if (!_applied.length) {
@@ -6341,6 +6513,8 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
 
         // [v2.3] RD: 携带背包（抄 baibai carryover——把记忆打包带走，新对话无缝续写）
         packCarryover() {
+            // [v3.168] 契约报告单（写侧）：本方法末尾回填实际产出对账。
+            this._lastCarryoverReport = { at: Date.now(), produced: [], missingWrite: [], ok: false };
             try {
                 const active = this.summary.getActiveSummaries().slice(-40);
                 const statusFlat = [];
@@ -6350,7 +6524,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     }
                 }
                 // [v2.7] RS: 全量携带——补 graph/diary/scene/vector/pov（v2.3 版只带摘要+悬念+时间线+状态）
-                return {
+                const _pack = {
                     version: VERSION,   // [v3.11] 硬编码 '2.7.0' → 动态版本
                     summaries: active.map(s => ({ floor: s.floor, text: s.text, level: 1, timestamp: s.timestamp, folded: false })),
                     volumes: [...(this.summary.volumes || [])],
@@ -6364,6 +6538,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     itemOps: this.activeItemOps(),   // [v3.3] 只携带当前有效的 ops（失活项不得以 carried 形式永久化到新对话）
                     scene: this.config.config.sceneEnabled ? this.scene.export() : null,
                     vectors: this.config.config.vectorEnabled ? this.vector.export() : null,
+                    // [v3.168] 契约补全：以下 9 键此前**读侧有导入分支、写侧从不产出**。
+                    //   v2.3 建立携带包时只有 summaries/volumes/suspense/timeline/statusFlat，
+                    //   v2.7「全量携带」补了 graph/povs/diary/reflection/itemOps/scene/vectors——
+                    //   而 applyCarryover 的导入分支在后续版本里又陆续加了 9 个子系统，
+                    //   却始终没人回头补写侧。于是跨对话续写时：角色状态表（statusFlat 之外
+                    //   的结构化字段）/ 货币账本 / CG 卡 / 矛盾簿 / 正史增量 / 人物状态 / 叙事心电图 /
+                    //   事件溯源日志 / 大纲导演 / 配对记忆——全部留在旧对话。
+                    moneyLedger: this.moneyLedger?.export?.() || { money: {}, moneyLog: [] },
+                    cards: this.cards?.export?.() || { cards: [] },
+                    conflicts: this.conflicts?.export?.() || { conflicts: [] },
+                    deltaBook: this.deltaBook?.export?.() || { deltas: [] },
+                    cse: this.cse?.export?.() || { chars: {} },
+                    pulse: this.pulse?.export?.() || { beats: [], arcs: {} },
+                    opLog: this.opLog?.export?.() || { entries: [], seq: 0 },
+                    outline: this.outline?.export?.() || { stage: null, turnIndex: 0, turnFloor: 0, history: [] },
+                    pairMem: this.pairMem?.export?.() || { pairs: [] },
                     counts: {
                         summaries: active.length, suspense: this.suspense.items.filter(x => x.status === 'open').length,
                         graphNodes: this.graph.nodes.size, diaries: Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0),
@@ -6371,7 +6561,27 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     },
                     packedAt: new Date().toISOString()
                 };
-            } catch (e) { return null; }
+                // [v3.168] I3 不变量：写侧产出 ⊇ 契约清单。
+                //   必须在**真实产出对象上**核对，而不是让校验方法在真源之外空跑；
+                //   本版初稿的 _lastCarryoverReport 从未被填过（校验方法无人调）——
+                //   「有对账机制」本身也是一种声称。
+                this.verifyCarryoverPack(_pack);
+                return _pack;
+            } catch (e) { errLog(e, 'packCarryover'); return null; }
+        }
+        /** [v3.168] 携带契约对账（写侧）：核对实际产出的键是否覆盖契约清单。
+         *  返回 {produced, missingWrite, ok}；永不抛出（打包链上的诊断不得反噬主流程）。 */
+        verifyCarryoverPack(pack) {
+            try {
+                const produced = (pack && typeof pack === 'object') ? Object.keys(pack) : [];
+                const missingWrite = CARRYOVER_CONTRACT_KEYS.filter(k => !produced.includes(k));
+                const report = { at: Date.now(), produced, missingWrite, ok: missingWrite.length === 0 };
+                this._lastCarryoverReport = report;
+                if (missingWrite.length) {
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ 携带包契约缺键 ${missingWrite.length} 个：${missingWrite.join('/')}——这些子系统不会跨对话带走`);
+                }
+                return report;
+            } catch (e) { errLog(e, 'verifyCarryoverPack'); return { at: Date.now(), produced: [], missingWrite: [], ok: false }; }
         }
         // 应用携带包 (新对话开局调用: 摘要/卷/时间线/悬念导入 + 状态重建)
         applyCarryover(pack) {
@@ -6430,6 +6640,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (this.config.config.debugMode && pack.counts) {
                     console.log(`[${PLUGIN_NAME}] 携带包导入: 图谱${this.graph.nodes.size}/${pack.counts.graphNodes} 日记${Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0)}/${pack.counts.diaries} 向量${this.vector.vectors.length}/${pack.counts.vectors}`);
                 }
+                // [v3.168] 携带契约对账（读侧）：把「契约要求带的键」与「这个包里实际有的键」
+                //   并列。旧包（v2.3/v2.7 格式）会在这里显示缺了哪几个子系统——而不是像修前
+                //   那样静默跳过全部 9 个分支、照样 toast「剧情无缝衔接」。
+                try {
+                    const _have = new Set(Object.keys(pack || {}));
+                    const _missingRead = CARRYOVER_CONTRACT_KEYS.filter(k => !_have.has(k));
+                    this._lastCarryoverImport = {
+                        at: Date.now(), mode: 'legacy-pack',
+                        consumed: CARRYOVER_CONTRACT_KEYS.length - _missingRead.length,
+                        missingRead: _missingRead, ok: _missingRead.length === 0,
+                    };
+                    if (_missingRead.length && this.config.config.carryoverContractStrict !== false) {
+                        console.warn(`[${PLUGIN_NAME}] ⚠️ 携带包缺少 ${_missingRead.length} 个子系统（${_missingRead.join('/')}）——这些记忆本次无法承接`);
+                    }
+                } catch (e) { errLog(e, 'applyCarryover.contract'); }
                 return true;
             } catch (e) { return false; }
         }
@@ -6553,6 +6778,34 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         if (r.rows.length > 6) txt += ` …共${r.rows.length}源`;
                         if (r.lastDenied) txt += ` ⚠️ 末次拒绝 ${r.lastDenied.source}：${r.lastDenied.reason}`;
                         return ['保存来源', txt];
+                    })(),
+                    // [v3.168] 静默降级总账（本版中心机制）：把「不是报错、而是悄悄换了更差的路」
+                    //   这类失效并列成一张表。修前每一类只能各自看日志，没有地方回答
+                    //   「我这套记忆有多少部分在退化运行」。
+                    (() => {
+                        try {
+                            const g = this.getDegradationLedger?.();
+                            if (!g || !Array.isArray(g.rows)) return ['静默降级', '—（无账本）'];
+                            const hot = g.rows.filter(x => x.value > 0);
+                            if (!hot.length) return ['静默降级', `全部正常（检查 ${g.rows.length} 项）`];
+                            let txt = hot.slice(0, 4).map(x => `${x.name} ${x.value}`).join(' · ');
+                            if (hot.length > 4) txt += ` …共 ${hot.length} 项退化`;
+                            return ['静默降级', txt + ' ⚠️'];
+                        } catch (e) { errLog(e, 'selfCheck.degradation'); return ['静默降级', '—（诊断异常）']; }
+                    })(),
+                    // [v3.168] I3 携带契约：写侧产出必须覆盖契约清单。
+                    //   与「静默降级」同族：导入侧有分支、写侧不产出时，跨对话续写会静默丢掉子系统，而 toast 仍写着「无缝衔接」。
+                    (() => {
+                        try {
+                            const strict = this.config.config.carryoverContractStrict !== false;
+                            const rep = this._lastCarryoverReport;
+                            if (!rep || !(rep.produced || []).length) return ['携带契约', strict ? '尚未打包（严格模式开）' : '尚未打包（严格模式关）'];
+                            const tot = CARRYOVER_CONTRACT_KEYS.length;
+                            const _n = rep.produced.length;
+                            const _ok = rep.ok === true;
+                            return ['携带契约', _n + '/' + tot + ' 键'
+                                + (_ok ? ' ✓' : ' ⚠️ 缺 ' + (rep.missingWrite || []).join('/'))];
+                        } catch (e) { errLog(e, 'selfCheck.carryover'); return ['携带契约', '—（诊断异常）']; }
                     })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）

@@ -833,6 +833,7 @@
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
                     ${ck('itemLedgerEnabled', '物品台账（抄yuzuki）', '提取物品获得/转移/损坏流转，注入"谁持有什么、什么状态"，防物品凭空消失又出现')}
                     ${ck('ledgerWriteValidationEnabled', '台账写入校验（anima #30）', '入账前对 LLM 提取/携带包的物品 op 逐项宽容校验：action 枚举、name/desc/holder/state/location 长度上限、floor 非负整数、holder 占位归「地上/遗落」、carried 与 location 互斥自愈。能修就修、修不了才丢，绝不因一项脏丢整批；关闭则逐位回退旧行为')}
+                    ${ck('carryoverContractStrict', '携带契约严格模式', '导入旧格式携带包时校验契约键是否齐全，缺键则打告警并计入「静默降级」总账（不阻断导入）；关闭则不校验。由 v3.160/v3.161 两条配置不变量强制必须可达')}
                     ${ck('ledgerWriteValidationDebug', '台账校验调试日志', '开启后每次写入校验有违规时在控制台 warn 输出逐项原因（默认关）')}
                     ${ck('moneyLedgerEnabled', '钱财账本（hcdiary）', '跟踪角色金额与变动流水，注入防凭空暴富；配合下方单笔幅度上限可 clamp 异常改值')}
                     <div class="ls-slider-label"><span>💰 钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
