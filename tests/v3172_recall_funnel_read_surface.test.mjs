@@ -39,9 +39,9 @@ const mkCand = (i) => ({ id: 'e' + i, content: '内容' + i, keys: { primary: ['
 // ══════════ 0 版本与 manifest ══════════
 test('【0】版本与注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idxSrc)[1];
-    assert.ok(vnum(v) >= vnum('3.173.0'), `index.js 版本 ${v} < 3.173.0`);
-    assert.ok(vnum(manifest.version) >= vnum('3.173.0'), `manifest ${manifest.version} < 3.173.0`);
-    assert.ok(vnum(pkg.version) >= vnum('3.173.0'), `package.json ${pkg.version} < 3.173.0`);
+    assert.ok(vnum(v) >= vnum('3.174.0'), `index.js 版本 ${v} < 3.174.0`);
+    assert.ok(vnum(manifest.version) >= vnum('3.174.0'), `manifest ${manifest.version} < 3.174.0`);
+    assert.ok(vnum(pkg.version) >= vnum('3.174.0'), `package.json ${pkg.version} < 3.174.0`);
     for (const f of ['ai-select.js', 'unified-recall.js', 'api-channels.js', 'text-chunk.js']) {
         assert.ok(manifest.extra_js.includes(f), `${f} 已注册 extra_js`);
     }

@@ -126,19 +126,32 @@ const makeEngine = () => {
 }
 
 // 测试 3: 容灾——子系统缺失时降级不炸
+// [v3.174 契约变更，显式留痕] 此前快照对每个字段做 `|| {}` / `|| null` 兜底，于是
+//   「引擎没有这项」与「有这项、值是空」在快照里同形（读者无法归因，present 恒为 true）。
+//   v3.174 起改为**如实报在场**：源里没有的字段在快照里缺席（undefined），
+//   「有这项、值是空」本体仍是 null/{}；两者由 snapshot.meta.fieldTypes 的 present/kind 分辨。
+//   容灾要求不变——某字段缺失只让该字段缺席，不得连坐 floor / bridge / version 等自述字段。
 {
   const proto = new Function('VERSION', 'errLog', 'window', `return ({ ${methodSrc} });`)(
     '3.88.0-test', () => {}, { SillyTavern: { getContext: () => ({ chat: [] }) } }
   );
   const bare = {};
   const snap = proto.buildBridgeSnapshot.call(bare);
-  assert.deepStrictEqual(snap.protagonist, {});
-  assert.deepStrictEqual(snap.characters, {});
-  assert.deepStrictEqual(snap.moneyLedger, {});
-  assert.strictEqual(snap.clock, null);
+  assert.strictEqual(snap.bridge, 'lonsha_memory_bridge_v1', '桥标识照常外供（不连坐）');
+  assert.strictEqual(snap.version, 1);
+  assert.strictEqual(snap.pluginVersion, '3.88.0-test', '版本自述照常外供');
+  assert.strictEqual(snap.protagonist, undefined, '子系统缺失 ⇒ 字段缺席（不再伪装成空对象）');
+  assert.strictEqual(snap.characters, undefined);
+  assert.strictEqual(snap.moneyLedger, undefined);
+  assert.strictEqual(snap.clock, undefined, 'clock 源缺失 ⇒ 缺席（旧版兜底成 null 是三义同形的根）');
   assert.strictEqual(snap.floor, 0);
-  assert.strictEqual(snap.recallAudit, null, '宿主方法缺失时 recallAudit 降级 null（不连坐快照）');
-  console.log('✓ 容灾降级验证通过');
+  assert.strictEqual(snap.recallAudit, undefined, '宿主方法缺失时 recallAudit 缺席（不连坐快照）');
+  // 三种处境必须能被读者分辨：源里没有的字段 report present=false
+  assert.equal(snap.meta.fieldTypes.clock.present, false);
+  assert.equal(snap.meta.fieldTypes.recallAudit.present, false);
+  assert.equal(snap.meta.fieldTypes.protagonist.present, false);
+  assert.equal(snap.meta.fieldTypes.floor.present, true, '真在场字段照旧 present=true');
+  console.log('✓ 容灾降级验证通过（缺失即缺席 + 类型读数可归因）');
 }
 
 // ---------- bridge 全局对象契约 ----------

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.173.0';
+    const VERSION = '3.174.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -6125,30 +6125,111 @@ function relativeTimeLabel(eventTime, nowTime) {
         // 供外部脚本（手机前端/调试台/衍生卡）读取引擎当前状态快照。全部深拷贝，外部写入不影响引擎内部状态。
         buildBridgeSnapshot() {
             try {
+                // [v3.174 B] **undefined 必须被保住**，不得走 JSON 回退把它变成 null：
+                //   `JSON.stringify(undefined) === undefined`，round-trip 后成 null，
+                //   于是「源里没有这项」又被伪装成「有这项、值是空」——三态塌回两态，
+                //   读者仍然无从归因（这正是 R2「null 三义同形」的根）。
+                //   结构化克隆可用时原样保留；不可用时也如实回 undefined（字段缺席）。
                 const deep = (v) => {
-                    try { return (typeof structuredClone === 'function') ? structuredClone(v) : JSON.parse(JSON.stringify(v ?? null)); }
-                    catch (e) { try { return JSON.parse(JSON.stringify(v ?? null)); } catch (e2) { return null; } }
+                    if (v === undefined) return undefined;
+                    try { return (typeof structuredClone === 'function') ? structuredClone(v) : JSON.parse(JSON.stringify(v)); }
+                    catch (e) { try { return JSON.parse(JSON.stringify(v)); } catch (e2) { return null; } }
                 };
                 const floor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
-                return {
+                // [v3.174] 桥的读者契约面 B：**字段类型三态**。此前 `deep()` 的 JSON 回退路径
+                //   会把 undefined 变成 null（`JSON.stringify(undefined) === undefined`，
+                //   round-trip 后成 null）。读者拿到的 null 于是有两个来源——源字段本来就是
+                //   null，或源字段是 undefined/不可序列化被吞成 null——**两者同形，无从分辨**。
+                //   现在每个顶层字段带 {present, kind} 进 snapshot.meta.fieldTypes：
+                //     present=false ⇒ 源字段不存在/undefined（读者应视作「没有这项」）
+                //     kind='null'   ⇒ 源字段显式是 null（读者应视作「有这项、值是空」）
+                //   值本体照旧（渲染契约零破坏，读数只加字段）。
+                const typeOf = (v) => {
+                    if (v === undefined) return 'undefined';
+                    if (v === null) return 'null';
+                    if (Array.isArray(v)) return 'array';
+                    return typeof v;
+                };
+                const fieldTypes = (obj) => {
+                    const out = {};
+                    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return out;
+                    for (const k of Object.keys(obj)) {
+                        const t = typeOf(obj[k]);
+                        out[k] = { present: t !== 'undefined', kind: t };
+                    }
+                    return out;
+                };
+                // [v3.174 B] **如实报在场**：旧写法每个字段都带 `|| {}` / `|| null` 兜底，
+                //   于是「引擎压根没有这项」与「有这项、值是空」在快照里完全同形——
+                //   fieldTypes.present 永远为 true，三态里两态是空的，这份「类型读数」就是摆设。
+                //   现在先取**原样值**（宿主没这项即 undefined），deep 之后直接落进快照：
+                //     present=false ⇒ 源里没有这项（读者应视作「没有」，而不是「空」）
+                //     present=true  ⇒ 源里给了这项（kind='null' 才表示「给了，但是空」）
+                //   容灾要求不变：字段缺失只让该字段缺席，不得连坐 floor / bridge / version 等自述字段。
+                const rawProt = (this.status && typeof this.status.getProtagonist === 'function') ? this.status.getProtagonist() : undefined;
+                const rawLife = (this.status && Array.isArray(this.status.lifeDetails)) ? this.status.lifeDetails.filter(d => d && d.tier !== 'archive') : undefined;
+                const rawChars = (this.status && this.status.characters && typeof this.status.characters === 'object') ? this.status.characters : undefined;
+                const rawMoney = (this.moneyLedger && typeof this.moneyLedger.export === 'function') ? this.moneyLedger.export() : undefined;
+                const rawOutline = (this.outline && typeof this.outline.export === 'function') ? this.outline.export() : undefined;
+                const rawWorld = (this.worldProg && typeof this.worldProg.export === 'function') ? this.worldProg.export() : undefined;
+                const rawClock = (this.clock && typeof this.clock.export === 'function') ? this.clock.export() : undefined;
+                // [v3.151] 召回自检摘要（外供手机端织光机「最常回望的时光」维度；只读、深拷贝）
+                //   typeof 守卫：本方法被单测「提取执行」模式（v388 bridge 专项）复用时无 this 宿主，
+                //   缺失该方法不得连坐整张快照（缺失即 present=false，其余字段照常外供）。
+                const rawRecall = (typeof this._summarizeRecallAudit === 'function') ? this._summarizeRecallAudit() : undefined;
+                const snap = {
                     version: 1,
                     bridge: 'lonsha_memory_bridge_v1',
                     pluginVersion: VERSION,
                     floor,
                     exportedAt: Date.now(),
-                    protagonist: deep(this.status?.getProtagonist?.() || {}),
-                    lifeDetails: deep((this.status?.lifeDetails || []).filter(d => d.tier !== 'archive')),
-                    characters: deep(this.status?.characters || {}),
-                    moneyLedger: deep(this.moneyLedger?.export?.() || {}),
-                    outline: deep(this.outline?.export?.() || {}),
-                    worldProg: deep(this.worldProg?.export?.() || {}),
-                    clock: deep(this.clock?.export?.() || null),
-                    // [v3.151] 召回自检摘要（外供手机端织光机「最常回望的时光」维度；只读、深拷贝）
-                    //   typeof 守卫：本方法被单测「提取执行」模式（v388 bridge 专项）复用时无 this 宿主，
-                    //   缺失该方法不得连坐整张快照（降级为 null，其余字段照常外供）。
-                    recallAudit: (typeof this._summarizeRecallAudit === 'function') ? deep(this._summarizeRecallAudit()) : null
+                    protagonist: deep(rawProt),
+                    lifeDetails: deep(rawLife),
+                    characters: deep(rawChars),
+                    moneyLedger: deep(rawMoney),
+                    outline: deep(rawOutline),
+                    worldProg: deep(rawWorld),
+                    clock: deep(rawClock),
+                    recallAudit: deep(rawRecall)
                 };
+                // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
+                //   此前读者只能自己试着 stringify 一遍、再从失败里反推——而字符串化失败与
+                //   「快照本来就是空对象」同形。故把两个判定前置成字段：
+                //     selfBytes    —— **负载**字节数＝JSON.stringify(不含 meta 的快照).length
+                //                    （刻意不含 meta 自身：自述里若含自己的字节数就会自指漂移——
+                //                     填进去后长度又变，读者永远读到一个偏小的值。
+                //                     0 表示负载根本无法序列化。）
+                //     strictJsonOk —— 是否可被 JSON.stringify（false 时给出 strictJsonError）
+                //     contract     —— 本快照由哪版契约产出（读者可据此判新旧）
+                try {
+                    const json = JSON.stringify(snap);
+                    snap.meta = {
+                        fieldTypes: fieldTypes(snap),
+                        selfBytes: typeof json === 'string' ? json.length : 0,
+                        strictJsonOk: typeof json === 'string',
+                        contract: 'v3.174'
+                    };
+                } catch (e2) {
+                    snap.meta = { fieldTypes: {}, selfBytes: 0, strictJsonOk: false, strictJsonError: String((e2 && e2.message) || e2), contract: 'v3.174' };
+                }
+                return snap;
             } catch (e) { errLog(e, 'buildBridgeSnapshot'); return null; }
+        }
+        /** [v3.174] 严格 JSON 出口：宿主把快照存盘/跨端传输时用。
+         *  与 snapshot 本体分开——本体保持对象（渲染契约），出口给字符串（序列化契约）。
+         *  契约：**要么给出可 JSON.parse 的字符串，要么给出 {ok:false, error}**，
+         *  绝不返回空串（空串会让读者以为「存成功了，只是内容是空的」）。
+         *  也不抛（入口契约与 snapshot 同规格）。 */
+        buildBridgeSnapshotJson() {
+            try {
+                const snap = this.buildBridgeSnapshot();
+                if (!snap) return { ok: false, error: 'no-snapshot', json: null, bytes: 0 };
+                const json = JSON.stringify(snap);
+                if (typeof json !== 'string' || !json) return { ok: false, error: 'serialize-empty', json: null, bytes: 0 };
+                return { ok: true, error: null, json, bytes: json.length };
+            } catch (e) {
+                return { ok: false, error: String((e && e.message) || e), json: null, bytes: 0 };
+            }
         }
         /* [v3.151] 召回自检摘要（v3.150 A 账本的对外只读投影）。
          * 把 _recallAudit 环形账本（每轮 查询/命中分布/空结果/楼层命中）压成
@@ -12918,10 +12999,38 @@ ${recentTurns}`;
         version: 1,
         bridge: 'lonsha_memory_bridge_v1',
         snapshot: null,
+        // [v3.174] 桥的读者契约面 A：**来源可见性**。此前读者分不清三种处境：
+        //   「桥没挂载」（window 上取不到对象）／「桥在、引擎还没 init 完」（snapshot 恒 null）／
+        //   「取快照时抛错」（旧实现 catch 里把错误**吞掉**，只留 snapshot=null）。
+        //   后两者在宿主侧完全同形：一个 null，没有任何可归因的痕迹。
+        //   现在来源是一台显式状态机，且**错误不吞**（留给 lastError）：
+        //     'idle'          —— 尚未 refresh 过
+        //     'ready'         —— 引擎在位且取到了快照
+        //     'engine-absent' —— 引擎未就位（插件未 init / 引擎未构造）
+        //     'engine-empty'  —— 引擎在位但明确返回空（与「引擎不在位」不是同一件事）
+        //     'thrown'        —— 取快照抛错（lastError 给出原因）
+        sourceState: 'idle',
+        lastError: null,
         refresh() {
-            try { this.snapshot = plugin.engine?.buildBridgeSnapshot?.() || null; }
-            catch (e) { this.snapshot = null; }
-            return this.snapshot;
+            try {
+                const eng = plugin.engine;
+                if (!eng || typeof eng.buildBridgeSnapshot !== 'function') {
+                    this.sourceState = 'engine-absent'; this.lastError = null; this.snapshot = null;
+                    return null;
+                }
+                const snap = eng.buildBridgeSnapshot();
+                if (!snap) {
+                    this.sourceState = 'engine-empty'; this.lastError = null; this.snapshot = null;
+                    return null;
+                }
+                this.sourceState = 'ready'; this.lastError = null; this.snapshot = snap;
+                return snap;
+            } catch (e) {
+                this.sourceState = 'thrown';
+                this.lastError = String((e && e.message) || e);
+                this.snapshot = null;
+                return null;
+            }
         }
     };
     function opLogStatsCompat(engine) {

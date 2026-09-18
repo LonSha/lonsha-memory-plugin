@@ -8,7 +8,12 @@ const EMPTY = { rounds: 0, emptyRounds: 0, avgHits: 0, hotFloors: [], lastQuery:
 
 // ---------- 1. 静态接线检查 ----------
 {
-  assert.ok(src.includes("recallAudit: (typeof this._summarizeRecallAudit === 'function') ? deep(this._summarizeRecallAudit()) : null"), '快照桥 recallAudit 字段在位（带宿主守卫）');
+  // [v3.174 契约变更，显式留痕] 宿主守卫从字段字面量移到了 rawRecall 上，字段本体改为
+  //   deep(rawRecall)（不再 : null 兜底——否则「宿主没这方法」与「摘要是空」同形）。
+  //   意图不变：守卫必须在位、recallAudit 必须在快照里、缺失不得连坐其它字段。
+  assert.ok(src.includes("const rawRecall = (typeof this._summarizeRecallAudit === 'function') ? this._summarizeRecallAudit() : undefined;"),
+    '快照桥 recallAudit 宿主守卫在位（缺失即 undefined，不伪装成 null）');
+  assert.ok(src.includes('recallAudit: deep(rawRecall)'), '快照桥 recallAudit 字段在位');
   assert.ok(/^\s*_summarizeRecallAudit\(\) \{/m.test(src), '_summarizeRecallAudit 方法定义在位');
   // 与 v3.150 写侧账本字段对齐：消费的就是 A 账本真实字段
   for (const f of ['empty', 'totalHits', 'floorHits', 'queryText', 'ts']) {
