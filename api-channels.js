@@ -85,29 +85,40 @@ function resolveChannel(channels, task) {
 async function route(opts = {}) {
   const { task, prompt, channels, callMain, callSecondary } = opts;
   if (typeof callMain !== 'function') {
-    return { text: '', source: 'main', task: task || 'unknown', error: 'no callMain' };
+    return { text: '', source: 'main', task: task || 'unknown', error: 'no callMain', attempts: 0 };
   }
   const r = resolveChannel(channels, task);
   // 副通道可用且注入了副通道调用器 → 先试副通道
   if (r.useSecondary && typeof callSecondary === 'function') {
+    let secondaryError = null, secondaryEmpty = false;
     try {
       const text = String(await callSecondary(prompt, r.channel) || '').trim();
-      if (text) return { text, source: 'secondary', task };
-    } catch (e) { /* 副通道失败 → 回落主通道 */ }
-    // 副通道失败回落
+      if (text) return { text, source: 'secondary', task, attempts: 1 };
+      // [v3.172] 副通道「通了但回空」≠ 副通道「没通」。前者此前也走回落，
+      //   但连它发生过一次都读不到。
+      secondaryEmpty = true;
+    } catch (e) {
+      // [v3.172] 副通道失败此前连原因都被吞掉——配了便宜通道却一直悄悄走主通道，
+      //   账单差异零提示、401 零留痕。失败必须随结果一起交付。
+      secondaryError = e?.message || String(e);
+    }
+    // 副通道失败/空回 → 回落主通道
     try {
       const text = String(await callMain(prompt) || '').trim();
-      return { text, source: 'main-fallback', task };
+      return { text, source: 'main-fallback', task, attempts: 2,
+        secondaryError: secondaryError || undefined, secondaryEmpty: secondaryEmpty || undefined,
+        channelEndpoint: r.channel?.endpoint || '' };
     } catch (e2) {
-      return { text: '', source: 'main-fallback', task, error: e2?.message };
+      return { text: '', source: 'main-fallback', task, error: e2?.message, attempts: 2,
+        secondaryError: secondaryError || undefined, secondaryEmpty: secondaryEmpty || undefined };
     }
   }
   // 走主通道
   try {
     const text = String(await callMain(prompt) || '').trim();
-    return { text, source: 'main', task };
+    return { text, source: 'main', task, attempts: 1 };
   } catch (e) {
-    return { text: '', source: 'main', task, error: e?.message };
+    return { text: '', source: 'main', task, error: e?.message, attempts: 1 };
   }
 }
 

@@ -1,3 +1,74 @@
+## v3.172.0
+**召回漏斗读数面（v3.95/v3.96 缝合四模块的收缩阶段）**
+**主题**：v3.169 立下 I5（有损必有计数）与 I6（读失败 ≠ 读到了 0），判定面落在账本
+自己的 OpLog 上；v3.170 做第一次跨界检查（stm-ltm，v3.96 缝入后 74 个版本无人审计）；
+v3.171 递给 `smart-trigger.js` 的**读侧**。v3.172 按「扩大深度与广度」把面从单模块放大到
+**整条召回漏斗**：`text-chunk.js`（智能分块）/ `ai-select.js`（前置 AI 精选）/
+`unified-recall.js`（统一召回）/ `api-channels.js`（副 API 通道）——这四个模块是 v3.95/v3.96
+同一批缝合进来的，**缝入后 76 个版本里只有「功能是否生效」被审计过，没有一处「漏斗变窄」被计数**。
+
+### 一、七项实测缺陷（`/tmp/probe_recall_funnel.mjs` 真跑，修前逐条成立 7/7）
+| # | 缺陷 | 修前观测 |
+|---|------|----------|
+| R1 | 粗召回 `maxCandidates` 静默截断 | 25 条进 `maxCandidates=20` 出 20 条，返回值裸数组无丢弃量，读取方不知道少了 5 条 |
+| R2 | `parseAIResponse` 五态塌缩同形 | 「明确空集」「键名不认识」「非 JSON」「类型不对」「完全没返回」**全部返回 `[]`**，且前两者走同一个 `ai-empty-fallback` 分支（**判不了被当作判定了空**）|
+| R3 | `mapKeysToCandidates` 未命中静默跳过 | AI 给 5 个 key 只命中 2 个，3 个零计数；宿主用返回值**整池替换**候选池 |
+| R4 | `mergeWithGuaranteed` 全库零调用 + 语义分歧 | 模块版保底上限 `ceil(maxTotal/2)`（10 个保底节点取 8）；宿主内联版无上限（取 10）|
+| R5 | `graphToCandidates` 在**评分之前**按 `updatedAt` 截断 | 30 节点截到 24，**最旧但语义最相关的 n29 被丢弃**，`MAX_CANDIDATES=24` 硬编码无配置项、无覆盖参数、无计数 |
+| R6 | `api-channels.route` 副通道失败完全静默 | 副通道抛 401，返回体 `{text, source:'main-fallback', task}` —— **error 字段缺失、失败原因完全丢失**，无法区分「没通」与「通了但回空」|
+| R7 | `text-chunk` 硬切兜底零标记 | 3000 字无边界中文切成 `[800,800,800,800,120]`，**硬切 4 次零自述**——而这正是该模块存在的理由 |
+
+### 二、修法（只增不删，既有裸数组契约与签名前若干参一律不动）
+读数一律走**可选末位参数 `carry`（默认 null）**或**返回体新增字段**，绝不改既有返回值形状：
+- `ai-select.js`：`recallCandidates(entries,q,opts,carry)` 补 `total/scored/kept/dropped/noContent/
+  constantFiltered/inputNotArray/cap`；`parseAIResponse(raw,carry)` 升级为**九态**
+  （`no-raw`/`blank`/`no-json`/`bad-json`/`not-object`/`wrong-shape`+`gotKeys`/
+  `all-items-invalid`+`rawItems`/`empty`/`ok`），**返回值仍是裸数组**；
+  `mapKeysToCandidates(keys,candidates,carry)` 补 `requested/mapped/unmatched/unmatchedSample`；
+  `route()` 分流改为**只有 `state === 'empty'` 才走保底 top1**，其余一律 `local-parsefail`；
+  **新增 `normalizeRecallFunnel(records,opts)`** 面板函数（认得三种录入形状，空集是结论
+  不计入缺口，输出 `records/recorded/missing/cap/dropped/evaluated/empty/unreadable/unmatched/
+  truncated/graphDropped/hardCut/channelFallback/stages/hasReadGap`）。
+- `unified-recall.js`：`graphToCandidates(nodes,opts,carry)` 支持 `opts.maxCandidates` 覆盖硬编码，
+  补 `nodesTotal/candsTotal/unmappable/kept/dropped/guaranteedKept/cap`；
+  `mergeWithGuaranteed(scoredCandidates,opts,carry)` 补 `guaranteedPicked/guaranteedCap/
+  scoredPicked/maxTotal/kept/dropped`。
+- `api-channels.js`：`route()` 补 `attempts`（0/1/2）/`secondaryError`/`secondaryEmpty`
+  （区分「没通」与「通了但回空」）/`channelEndpoint`；**三态 source 语义一字不动**。
+- `text-chunk.js`：`chunkWithoutDelimiter`/`chunkText`/`estimateChunkCount` 加 `carry`，
+  补 `chunks/hardCuts/boundaryHits/cuts/loops/emptyChunks/guardTrips/chunkSize/overlapPercent/
+  maxLen/minLen/lastBoundaryKind` 与四分支（`single`/`byDelimiter`/主分支）。
+  **双向对账**：`cuts === hardCuts + boundaryHits`（每一刀都有归类）、
+  `loops === chunks + emptyChunks`（每一段都有去向）。
+
+### 三、两处真实现缺陷（由修后探针与首跑套件当场抓出）
+1. **`_findBoundary` 边界误判**：语义边界恰好落在窗口末端时 `best+1 === end`，调用方以
+   `adjusted === end` 判「硬切」——**把一次成功的语义边界误记为硬切**（漏报为 `hardCuts=17,
+   boundaryHits=0`）。修法：`_findBoundary(text,start,end,chunkSize,flags)` 用 `hit(v,kind)`/
+   `miss(v)` 帮手**由被调方自报** `flags.boundary` + `flags.kind`，调用方按 `flags.boundary` 判定。
+2. **`parseAIResponse` 空串吞并**：`if (!raw)` 使空串 `''` 落进 `no-raw`，
+   「返回了空串」与「根本没返回」**不可分——这本身违背 I6**。修法：
+   `if (raw === null || raw === undefined)`。
+
+### 四、宿主接线（`/tmp/ll_p172_host.py`）
+- **A** 台账字段 `_recallFunnel` / `_recallFunnelDropped` / `_recallFunnelReadEmpty`（与
+  `_triggerStats`/`_triggerDropped` 同规格）；
+- **B** 调用链读数采集（统一召回 / AI 精选 / 粗召回三段，**一轮下来一条读数都没有时
+  `_recallFunnelReadEmpty++`** —— 空读轮次与零读数轮次可分）；
+- **C** `getDegradationLedger` 加「召回漏斗读数缺口」与「漏斗空读轮次」两行；
+- **D** `selfCheck` 加「召回漏斗」行（未启用 / 已启用但尚无读数 各有独立文案）；
+- **E** `exportMemoryReport` 加「**召回漏斗：**」面板段。
+
+### 五、新增测试（`tests/v3172_recall_funnel_read_surface.test.mjs`，22 组）
+A 粗召回截断 / B 五态可分 + 判不了≠判定了空 / C key 映射 / D 图谱截断 + 名额分账 /
+E 副通道留痕 / F 硬切可计数 + 双向对账 / G 面板三形状 + 确定性 / H 契约零破坏 /
+I 宿主接线 + 旧读数面零破坏 / J 可选参数形态 + I6 状态完备 + 工具自证 /
+K 进程内负控制 + 异步负控制 + 工具自证。
+**负控制要求「真源码破坏 → 加载破坏副本 → 在副本上重跑同款真判据」，并拦三种假绿形态**：
+① 破坏打在空气上（锚点不命中）②破坏文本等于原锚点（没改到）③锚点字面量自我指涉
+（判据引用被破坏的那一行）。锚点表为**四元组** `[文件, 锚点原文, 显式破坏文本, 标签]`，
+J3/K1/K2/K3 一律**从该表派生**，同文件内锚点字面量只准出现 1 次（判据纯度）。
+
 ## v3.171.0
 
 **门控读数面（smart-trigger 读侧审计）**

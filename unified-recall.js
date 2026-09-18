@@ -102,16 +102,30 @@ function nodeToCandidate(node) {
  * @param {Array|Map} nodes MemoryGraph.nodes（Map）或其值数组
  * @returns {Array} 候选条目
  */
-function graphToCandidates(nodes) {
+function graphToCandidates(nodes, opts = {}, carry = null) {
+  const cap = Math.max(1, Number(opts.maxCandidates) || MAX_CANDIDATES);
   const arr = nodes instanceof Map ? [...nodes.values()] : (Array.isArray(nodes) ? nodes : []);
   const out = [];
+  let unmappable = 0;
   for (const n of arr) {
     const c = nodeToCandidate(n);
-    if (c) out.push(c);
+    if (c) out.push(c); else unmappable++;
   }
   // 按更新时间降序（router: updatedAt 降序 tiebreak），新节点优先
   out.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.order - a.order));
-  return out.slice(0, MAX_CANDIDATES);
+  const kept = out.slice(0, cap);
+  // [v3.172] 这个截断发生在相关性评分之前——被它丢掉的是「最旧的节点」，
+  //   而「最旧」与「最不相关」是两件事。上限此前硬编码且零计数。
+  if (carry && typeof carry === 'object') {
+    carry.nodesTotal = arr.length;
+    carry.candsTotal = out.length;
+    carry.unmappable = unmappable;
+    carry.kept = kept.length;
+    carry.dropped = Math.max(0, out.length - kept.length);
+    carry.guaranteedKept = kept.filter(c => c._guaranteed).length;
+    carry.cap = cap;
+  }
+  return kept;
 }
 
 // ── 保底合并：确保类型白名单节点即使评分低也进入最终候选 ─────────────
@@ -122,7 +136,7 @@ function graphToCandidates(nodes) {
  * @param {object} opts { maxTotal=8 }
  * @returns {Array} 合并后的最终入选候选
  */
-function mergeWithGuaranteed(scoredCandidates, opts = {}) {
+function mergeWithGuaranteed(scoredCandidates, opts = {}, carry = null) {
   const maxTotal = Math.max(1, Number(opts.maxTotal) || 8);
   const list = (Array.isArray(scoredCandidates) ? scoredCandidates : []).slice();
   // 先按分数降序
@@ -145,6 +159,18 @@ function mergeWithGuaranteed(scoredCandidates, opts = {}) {
   for (const c of list) {
     if (picked.length >= maxTotal) break;
     if (!seen.has(c.id)) { picked.push(c); seen.add(c.id); }
+  }
+  // [v3.172] 三个名额来源各自计数：保底占了多少 / 打分入围多少 / 补齐多少。
+  //   否则「保底把高分条目挤出去了」这种事在结果长度里看不出来。
+  if (carry && typeof carry === 'object') {
+    const gPicked = picked.filter(c => c._guaranteed).length;
+    carry.total = list.length;
+    carry.kept = picked.length;
+    carry.dropped = Math.max(0, list.length - picked.length);
+    carry.guaranteedPicked = gPicked;
+    carry.guaranteedCap = guaranteedCap;
+    carry.scoredPicked = Math.max(0, picked.length - gPicked);
+    carry.maxTotal = maxTotal;
   }
   return picked;
 }

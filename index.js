@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.171.0';
+    const VERSION = '3.172.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2003,6 +2003,12 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._recallArtifacts = [];                 // [v3.109] 逐轮召回产物（缝合 bionic turn-artifact，跨会话复用依据）
             this._recallArtifactEvictions = { byAge: 0, byCap: 0, lastFloor: null, lastRemoved: 0, lastAt: 0 };   // [v3.156] 产物淘汰累计账（老化 vs 超容量分账，诊断可解释）
             this._recallAudit = [];                     // [v3.150] A 召回命中自检账本（环形 50 轮：query/各来源命中数/空结果）
+            // [v3.172] 召回漏斗读数面：v3.95/v3.96 缝入的四个模块（智能分块 / 前置 AI 精选 /
+            //   统一召回 / 副 API 通道）在 76 个版本里无人审计它们的「收缩阶段」。
+            //   漏斗每一处变窄都是静默的——截断、判不了、映射不上、硬切、副通道失败。
+            this._recallFunnel = [];                    // 逐轮漏斗读数（环形 500，与门控台账同规格）
+            this._recallFunnelDropped = 0;              // 环形淘汰量（与 _triggerDropped 同规格，可对账）
+            this._recallFunnelReadEmpty = 0;            // 累计轮数：本轮漏斗一次都没读到（I6）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
             this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
@@ -3940,10 +3946,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                 // [v3.96] 缝合：前置 AI 精选 + 统一召回管线（在 buildInjection 前对 candidateItems 做语义精选）
                 try {
                     const _cfg = this.config.config;
+                    // [v3.172] 每轮漏斗读数：四个模块的收缩量各自入账，缺读数也入账（I6）
+                    const _funnel = { round: 1 };
+                    try {
                     // ③ 统一召回：把图谱节点候选化并入候选池（走同一套评分，类型保底）
                     if (_cfg.unifiedRecallEnabled && this.unifiedRecall && this.graph && this.graph.nodes) {
                         try {
-                            const graphCands = this.unifiedRecall.graphToCandidates(this.graph.nodes);
+                            const _urCarry = {};
+                            const graphCands = this.unifiedRecall.graphToCandidates(this.graph.nodes, {}, _urCarry);
+                            _funnel.graphDropped = Number(_urCarry.dropped) || 0;
+                            _funnel.graphGuaranteed = Number(_urCarry.guaranteedKept) || 0;
                             const _lut = String(query.text || '');
                             const _lrt = String(query.recentText || query.text || '');
                             for (const gc of graphCands) {
@@ -3974,8 +3986,41 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 candidateItems = picked;
                                 if (_cfg.debugMode) console.log(`[${PLUGIN_NAME}] AI精选: ${wrapped.length}候选→${picked.length}条 (source=${selRes.source})`);
                             }
+                            // [v3.172] 读数面：把「判不了 / 映射不上 / 粗召回截断」随本轮留存。
+                            //   只记 source 与候选数会让「AI 读失败」和「AI 判定了空」在账本里同形（I6）。
+                            _funnel.aiSource = String(selRes.source || '');
+                            _funnel.aiReadState = String((selRes.readState && selRes.readState.state) || '');
+                            _funnel.aiKeys = Number(selRes.readState && selRes.readState.keys) || 0;
+                            _funnel.keyUnmatched = Number(selRes.keyMap && selRes.keyMap.unmatched) || 0;
+                            _funnel.aiIn = Number(selRes.candidates) || 0;
+                            _funnel.aiOut = picked.length;
                         } catch (e) { errLog(e, 'onBeforeGeneration.AI精选'); }
                     }
+                    // [v3.172] 粗召回读数：直接读 route() 里那一次真粗召回的 carry
+                    //   （另起一次假输入调用会得到 0 条输入 —— 那正是假读数）
+                    if (_cfg.aiSelectEnabled && this.aiSelect && this.aiSelect.lastCoarseRead) {
+                        try {
+                            const _rcCarry = this.aiSelect.lastCoarseRead;
+                            _funnel.coarseDropped = Number(_rcCarry.dropped) || 0;
+                            _funnel.coarseTotal = Number(_rcCarry.total) || 0;
+                            _funnel.coarseNotArray = _rcCarry.inputNotArray === true;
+                        } catch (e) { errLog(e, 'onBeforeGeneration.粗召回读数'); }
+                    }
+                    } catch (e) { errLog(e, 'onBeforeGeneration.漏斗读数采集'); }
+                    // [v3.172] I6：一轮下来一条读数都没有时，也必须留下痕迹——
+                    //   「本轮没计到数」与「本轮没有收缩」不能同形。
+                    try {
+                        const _hasAny = Object.keys(_funnel).filter(k => k !== 'round').length > 0;
+                        if (!_hasAny) this._recallFunnelReadEmpty = (Number(this._recallFunnelReadEmpty) || 0) + 1;
+                        else {
+                            this._recallFunnel = Array.isArray(this._recallFunnel) ? this._recallFunnel : [];
+                            this._recallFunnel.push({ stages: _funnel, floor: Number(query.floor ?? -1) });
+                            if (this._recallFunnel.length > 500) {
+                                this._recallFunnel.shift();
+                                this._recallFunnelDropped = (Number(this._recallFunnelDropped) || 0) + 1;
+                            }
+                        }
+                    } catch (e) { errLog(e, 'onBeforeGeneration.漏斗入账'); }
                 } catch (e) { errLog(e, 'onBeforeGeneration.v396缝合'); }
                 // [v3.109] 记录本轮实际入选条目 id（供召回产物记录「依据」；被引用记忆消失时可据此判定产物失效）
                 try {
@@ -4804,6 +4849,25 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const _srcs = [this.vector, this._lastGcLedger, this._lastRetentionCalibration,
                     this._lastCarryoverReport, this.cse, this.config, this.opLog];
                 if (!_srcs.some(x => x)) push('账本盲区', 1, '未采集到任何降级来源（尚未运行过，或宿主接口未注入）')
+                // [v3.172] 召回漏斗读数面：v3.95/v3.96 缝合四模块的收缩量并入总账。
+                //   与门控/巩固同族（I5/I6）：截断、判不了、映射不上、硬切、副通道失败
+                //   若不各自计数，漏斗变窄在面板上完全看不出来。
+                if (Array.isArray(this._recallFunnel) && this._recallFunnel.length) {
+                    const _ai = (typeof window !== 'undefined' ? window.LonShaAISelect : null);
+                    if (_ai && typeof _ai.normalizeRecallFunnel === 'function') {
+                        const _fp = _ai.normalizeRecallFunnel(this._recallFunnel, {
+                            cap: 500, dropped: Number(this._recallFunnelDropped) || 0,
+                        });
+                        const _fgap = _fp.unreadable + _fp.unmatched + _fp.truncated + _fp.graphDropped
+                            + _fp.hardCut + _fp.channelFallback + _fp.dropped + _fp.missing;
+                        if (_fgap) push('召回漏斗读数缺口', _fgap,
+                            `AI判不了 ${_fp.unreadable}/key映射不上 ${_fp.unmatched}/粗召回截断 ${_fp.truncated}`
+                            + `/图谱截断 ${_fp.graphDropped}/分块硬切 ${_fp.hardCut}/副通道回落 ${_fp.channelFallback}`
+                            + `/环形淘汰 ${_fp.dropped}/缺失读数 ${_fp.missing}`);
+                    }
+                }
+                if (Number(this._recallFunnelReadEmpty) > 0) push('漏斗空读轮次', Number(this._recallFunnelReadEmpty),
+                    '本轮四个模块一条读数都没计到（≠ 无收缩）');
                 r.ok = r.degraded === 0;
             } catch (e) { errLog(e, 'getDegradationLedger'); r.error = String(e?.message || e); }
             return r;
@@ -6914,6 +6978,34 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['门控读数', row + (gap ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.smartTrigger'); return ['门控读数', '—（诊断异常）']; }
                     })(),
+                    // [v3.172] 召回漏斗自述：v3.95/v3.96 缝合四模块的收缩量。
+                    //   与门控/巩固同族（I5/I6），漏斗变窄必须可见。
+                    (() => {
+                        try {
+                            const _on = ['aiSelectEnabled', 'unifiedRecallEnabled', 'vectorChunkEnabled']
+                                .some(k => this.config.config[k] === true);
+                            if (!Array.isArray(this._recallFunnel) || !this._recallFunnel.length) {
+                                return ['召回漏斗', _on ? '—（已开启但尚无读数）' : '—（未启用）'];
+                            }
+                            const _ai2 = (typeof window !== 'undefined' ? window.LonShaAISelect : null);
+                            if (!_ai2 || typeof _ai2.normalizeRecallFunnel !== 'function') return ['召回漏斗', '—（模块不可用）'];
+                            const fp2 = _ai2.normalizeRecallFunnel(this._recallFunnel, {
+                                cap: 500, dropped: Number(this._recallFunnelDropped) || 0,
+                            });
+                            const gap2 = fp2.unreadable + fp2.unmatched + fp2.truncated + fp2.graphDropped
+                                + fp2.hardCut + fp2.channelFallback + fp2.dropped + fp2.missing
+                                + (Number(this._recallFunnelReadEmpty) || 0);
+                            const row2 = `读数 ${fp2.records} 轮 · 空集 ${fp2.empty}`
+                                + (fp2.unreadable ? ` · 判不了 ${fp2.unreadable}` : '')
+                                + (fp2.unmatched ? ` · 映射不上 ${fp2.unmatched}` : '')
+                                + (fp2.truncated ? ` · 粗召回截断 ${fp2.truncated}` : '')
+                                + (fp2.graphDropped ? ` · 图谱截断 ${fp2.graphDropped}` : '')
+                                + (fp2.hardCut ? ` · 硬切 ${fp2.hardCut}` : '')
+                                + (fp2.channelFallback ? ` · 副通道回落 ${fp2.channelFallback}` : '')
+                                + (Number(this._recallFunnelReadEmpty) ? ` · 空读轮 ${this._recallFunnelReadEmpty}` : '');
+                            return ['召回漏斗', row2 + (gap2 ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.recallFunnel'); return ['召回漏斗', '—（诊断异常）']; }
+                    })(),
                     // [v3.168] I3 携带契约：写侧产出必须覆盖契约清单。
                     //   与「静默降级」同族：导入侧有分支、写侧不产出时，跨对话续写会静默丢掉子系统，而 toast 仍写着「无缝衔接」。
                     (() => {
@@ -7249,6 +7341,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     }
                 }
             } catch (e) { errLog(e, 'exportMemoryReport.召回体检'); }
+            // [v3.172] 召回漏斗面板（缝合四模块的收缩阶段）：漏斗在哪一段变窄、窄了多少
+            try {
+                const _aiP = (typeof window !== 'undefined' ? window.LonShaAISelect : null);
+                if (_aiP && typeof _aiP.normalizeRecallFunnel === 'function'
+                    && Array.isArray(this._recallFunnel) && this._recallFunnel.length) {
+                    const _fpR = _aiP.normalizeRecallFunnel(this._recallFunnel, {
+                        cap: 500, dropped: Number(this._recallFunnelDropped) || 0,
+                    });
+                    push('');
+                    push(`**召回漏斗：** 读数 ${_fpR.records} 轮（AI 空集 ${_fpR.empty}，正常读数 ${_fpR.recorded}）`);
+                    if (_fpR.hasReadGap) push(`- 收缩读数：${_fpR.unreadable} 判不了 / ${_fpR.unmatched} 映射不上 / `
+                        + `${_fpR.truncated} 粗召回截断 / ${_fpR.graphDropped} 图谱截断 / ${_fpR.hardCut} 硬切 / `
+                        + `${_fpR.channelFallback} 副通道回落 / ${_fpR.dropped} 环形淘汰 / ${_fpR.missing} 缺失读数`);
+                    else push(`- 本轮窗口内未观测到收缩（≠ 从未收缩：环形淘汰 ${_fpR.dropped} 条）`);
+                    if (Number(this._recallFunnelReadEmpty) > 0) push(`- 空读轮次 ${this._recallFunnelReadEmpty}（一轮下来一条读数都没计到）`);
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.召回漏斗'); }
             // [v3.112] 覆盖账本诊断（缝合 AnchorNote）：归档隐藏的推导结果 / 待恢复数 / 孤儿覆盖者
             try {
                 const cs = this._lastCoverageSummary;

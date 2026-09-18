@@ -121,22 +121,40 @@ function scoreEntry(entry, matchText, lastUserText, recentText) {
  * @param {object} q { lastUserText, recentText, stateSummary }
  * @param {object} opts { maxCandidates, allowConstant }
  */
-function recallCandidates(entries, q, opts = {}) {
+function recallCandidates(entries, q, opts = {}, carry = null) {
   const maxCandidates = Math.max(1, Number(opts.maxCandidates) || 20);
   const allowConstant = !!opts.allowConstant;
-  const matchText = [q.lastUserText, q.recentText, q.stateSummary].filter(Boolean).join('\n\n');
-  return (Array.isArray(entries) ? entries : [])
-    .filter(e => e && e.content && !e.disable)
-    .filter(e => allowConstant || !e.constant)
-    .map(e => {
-      const { score, matchedKeys, matchedSignals } = scoreEntry(e, matchText, q.lastUserText, q.recentText);
-      return { ...e, score, matchedKeys, matchedSignals };
-    })
-    .sort((a, b) => {
-      const am = a.score > 0 ? 1 : 0, bm = b.score > 0 ? 1 : 0;
-      return (bm - am) || (b.score - a.score) || ((b.order || 0) - (a.order || 0));
-    })
-    .slice(0, maxCandidates);
+  const _q = (q && typeof q === 'object') ? q : {};
+  const matchText = [_q.lastUserText, _q.recentText, _q.stateSummary].filter(Boolean).join('\n\n');
+  // [v3.172] I6：入参不是数组 ≠ 入参是空数组。这两者此前共用同一个 [] 出口，
+  //   读取方无从分辨「本次没有候选」与「调用方给错了东西」。
+  const inputNotArray = !Array.isArray(entries);
+  const _arr = Array.isArray(entries) ? entries : [];
+  const stage1 = _arr.filter(e => e && e.content && !e.disable);
+  const noContent = _arr.length - stage1.length;
+  const stage2 = stage1.filter(e => allowConstant || !e.constant);
+  const constantFiltered = stage1.length - stage2.length;
+  const scored = stage2.map(e => {
+    const { score, matchedKeys, matchedSignals } = scoreEntry(e, matchText, _q.lastUserText, _q.recentText);
+    return { ...e, score, matchedKeys, matchedSignals };
+  }).sort((a, b) => {
+    const am = a.score > 0 ? 1 : 0, bm = b.score > 0 ? 1 : 0;
+    return (bm - am) || (b.score - a.score) || ((b.order || 0) - (a.order || 0));
+  });
+  const out = scored.slice(0, maxCandidates);
+  // [v3.172] I5：有损必有计数。截断量必须离体可读——裸数组的 length 只能证明
+  //   「剩了多少」，永远证明不了「丢了多少」。
+  if (carry && typeof carry === 'object') {
+    carry.total = _arr.length;
+    carry.scored = scored.length;
+    carry.kept = out.length;
+    carry.dropped = Math.max(0, scored.length - out.length);
+    carry.noContent = noContent;
+    carry.constantFiltered = constantFiltered;
+    carry.inputNotArray = inputNotArray;
+    carry.cap = maxCandidates;
+  }
+  return out;
 }
 
 // ── buildSelectPrompt：前置 AI 精选契约（router buildAiPrompt 重写）───
@@ -190,38 +208,65 @@ ${candText || '(无)'}
  * 容错：剥 Markdown 代码块、抓第一个 {...} JSON、兼容字符串数组。
  * @returns {string[]} 命中的 key 列表（保持 AI 给定顺序）
  */
-function parseAIResponse(raw) {
-  if (!raw) return [];
-  let s = String(raw).replace(/```(?:json)?/gi, '').trim();
+function parseAIResponse(raw, carry = null) {
+  // [v3.172] I6：这里的返回值仍然是裸数组（既有契约），但「为什么是空的」
+  //   从此可分——五种此前同形的空，现在各有一态。
+  const _set = (state, keys, extra) => {
+    if (carry && typeof carry === 'object') {
+      carry.state = state;
+      carry.keys = (keys || []).length;
+      if (extra) Object.assign(carry, extra);
+    }
+    return keys;
+  };
+  // [v3.172] 空串不是「没返回」：前者是返回了但内容为空（blank），
+  //   后者是调用方压根没拿到返回值（no-raw）。两者此前被 !raw 合并同形。
+  if (raw === null || raw === undefined) return _set('no-raw', []);
+  const s = String(raw).replace(/```(?:json)?/gi, '').trim();
+  if (!s) return _set('blank', []);
   const m = s.match(/\{[\s\S]*\}/);
-  if (!m) return [];
+  if (!m) return _set('no-json', []);                       // 判不了：返回体里根本没有 JSON
   let obj = null;
   try { obj = JSON.parse(m[0]); } catch (_e) {
     // 尝试修复尾逗号
-    try { obj = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1')); } catch (_e2) { return []; }
+    try { obj = JSON.parse(m[0].replace(/,\s*([}\]])/g, '$1')); } catch (_e2) { return _set('bad-json', []); }
   }
-  const sel = obj?.selected;
-  if (!Array.isArray(sel)) return [];
+  if (!obj || typeof obj !== 'object') return _set('not-object', []);
+  const sel = obj.selected;
+  if (!Array.isArray(sel)) {
+    return _set('wrong-shape', [], { gotKeys: Object.keys(obj).join(',') });   // 键名不认识 / 类型不对
+  }
   const keys = [];
   for (const item of sel) {
     if (typeof item === 'string' && item.trim()) keys.push(item.trim());
     else if (item && typeof item.key === 'string' && item.key.trim()) keys.push(item.key.trim());
   }
-  return keys;
+  // 明确空集 vs 有元素但全是脏元素（此前同形）
+  return _set(keys.length ? 'ok' : (sel.length ? 'all-items-invalid' : 'empty'), keys, { rawItems: sel.length });
 }
 
 /**
  * 把 AI 选中的 key 映射回候选条目（按 keys.all / _label 匹配，保持 AI 顺序）。
  */
-function mapKeysToCandidates(keys, candidates) {
+function mapKeysToCandidates(keys, candidates, carry = null) {
   const byKey = new Map();
   for (const c of (Array.isArray(candidates) ? candidates : [])) {
     const allKeys = [ ...(c.keys?.all || []), ...(c.keys?.primary || []), ...(c.keys?.secondary || []), c._label, c.comment ].filter(Boolean);
     for (const k of allKeys) if (!byKey.has(k)) byKey.set(k, c);
   }
   const out = [];
+  const unmatched = [];
   for (const k of (Array.isArray(keys) ? keys : [])) {
     if (byKey.has(k)) out.push({ ...byKey.get(k), _selectReason: 'AI精选', _aiKey: k });
+    else unmatched.push(String(k));
+  }
+  // [v3.172] I5：AI 说了 5 条、候选表只认得 2 条——那 3 条不是「没被选中」，
+  //   是「选中的东西不存在」。这条差异此前随返回值长度一起消失。
+  if (carry && typeof carry === 'object') {
+    carry.requested = Array.isArray(keys) ? keys.length : 0;
+    carry.mapped = out.length;
+    carry.unmatched = unmatched.length;
+    carry.unmatchedSample = unmatched.slice(0, 5);
   }
   return out;
 }
@@ -254,10 +299,14 @@ class AISelect {
    * @returns {Promise<{selected:Array, source:string, candidates:number, aiRaw:string|null}>}
    */
   async route(entries, q, opts = {}) {
+    // [v3.172] 本次粗召回的读数（截断量等）留在实例上，供宿主读数面取用——
+    //   返回值形状是既有契约（裸数组/固定字段），不加新键也能把读数带出去。
+    const coarseCarry = {};
     const candidates = recallCandidates(entries, q, {
       maxCandidates: opts.maxCandidates || this.maxCandidates,
       allowConstant: opts.allowConstant
-    });
+    }, coarseCarry);
+    this.lastCoarseRead = coarseCarry;
     const maxSelect = Math.max(1, Number(opts.maxSelect) || this.maxSelect);
     const useAI = opts.useAI !== false && !!this.callAI;
 
@@ -271,24 +320,29 @@ class AISelect {
     try {
       const prompt = buildSelectPrompt(q, candidates, maxSelect);
       const raw = await this.callAI(prompt);
-      const keys = parseAIResponse(raw);
+      const readState = {};
+      const keys = parseAIResponse(raw, readState);
       if (keys.length) {
-        const selected = mapKeysToCandidates(keys, candidates);
+        const keyMap = {};
+        const selected = mapKeysToCandidates(keys, candidates, keyMap);
         if (selected.length) {
-          this.lastTrace = { candidates: candidates.length, selected: selected.length, source: 'ai', aiRaw: raw };
-          return { selected, source: 'ai', candidates: candidates.length, aiRaw: raw };
+          this.lastTrace = { candidates: candidates.length, selected: selected.length, source: 'ai', aiRaw: raw, readState, keyMap };
+          return { selected, source: 'ai', candidates: candidates.length, aiRaw: raw, readState, keyMap };
         }
       }
-      // AI 返回空集：语义上本轮无相关（尊重 AI 判断，但保底给本地 top1 防止空注入）
-      if (keys.length === 0 && raw) {
+      // [v3.172] I6：只有 AI「明确判定了空集」才配得到 top1 保底。
+      //   「判不了」（无返回 / 无 JSON / 坏 JSON / 键名不认识 / 类型不对）此前
+      //   与空集同形，会把一次读取失败静默改写成一个结论：「本轮无相关内容」。
+      //   读失败 ≠ 读到了 0。
+      if (readState.state === 'empty') {
         const selected = selectWithFallback(candidates.slice(0, 1), 1);
-        this.lastTrace = { candidates: candidates.length, selected: selected.length, source: 'ai-empty-fallback', aiRaw: raw };
-        return { selected, source: 'ai-empty-fallback', candidates: candidates.length, aiRaw: raw };
+        this.lastTrace = { candidates: candidates.length, selected: selected.length, source: 'ai-empty-fallback', aiRaw: raw, readState };
+        return { selected, source: 'ai-empty-fallback', candidates: candidates.length, aiRaw: raw, readState };
       }
-      // raw 为空或解析失败 → 本地 fallback
+      // 其余一律判不了 / 未作答 → 本地 fallback（不得冒充空集结论）
       const selected = selectWithFallback(candidates, maxSelect);
-      this.lastTrace = { candidates: candidates.length, selected: selected.length, source: 'local-parsefail', aiRaw: raw || null };
-      return { selected, source: 'local-parsefail', candidates: candidates.length, aiRaw: raw || null };
+      this.lastTrace = { candidates: candidates.length, selected: selected.length, source: 'local-parsefail', aiRaw: raw || null, readState };
+      return { selected, source: 'local-parsefail', candidates: candidates.length, aiRaw: raw || null, readState };
     } catch (e) {
       const selected = selectWithFallback(candidates, maxSelect);
       this.lastTrace = { candidates: candidates.length, selected: selected.length, source: 'local-error', aiRaw: null, error: e?.message };
@@ -297,9 +351,60 @@ class AISelect {
   }
 }
 
+// ── [v3.172] 召回漏斗面板 ─────────────────────────────────────────────
+/**
+ * 把「召回漏斗每一次收缩」读出来。漏斗的收缩点全部是无计数静默丢弃：
+ *   粗召回按分数截断 / AI 判不了被当作判定了空 / AI 给的 key 映射不上 /
+ *   图谱候选按更新时间先截断再评分。
+ * 每条记录统一形状：{ stages: {...} }（台账摘出的 { report: {...} } 与平铺简写也认）。
+ * @param {Array} records 台账条目
+ * @param {object} opts { cap, dropped }
+ * @returns {{records,misc,cap,dropped,missing,empty,truncated,unmatched,unreadable,
+ *            hardCut,channelFallback,graphDropped,stages,hasReadGap}}
+ */
+function normalizeRecallFunnel(records, opts = {}) {
+  const cap = Math.max(1, Number(opts.cap) || 500);
+  const list = Array.isArray(records) ? records : [];
+  const sum = {};
+  let missing = 0, recorded = 0, evaluated = 0;
+  for (const rec of list) {
+    const src = (rec && typeof rec === 'object')
+      ? ((rec.stages && typeof rec.stages === 'object') ? rec.stages
+        : ((rec.report && rec.report.stages && typeof rec.report.stages === 'object') ? rec.report.stages
+          : ((rec.report && typeof rec.report === 'object') ? rec.report : rec)))
+      : null;
+    if (!src || typeof src !== 'object') { missing++; continue; }
+    recorded++;
+    if (Number.isFinite(Number(rec && rec.evaluated))) evaluated += Number(rec.evaluated);
+    else evaluated++;
+    for (const k of Object.keys(src)) {
+      const v = Number(src[k]);
+      if (Number.isFinite(v) && v) sum[k] = (sum[k] || 0) + v;
+    }
+  }
+  const dropped = Math.max(0, Number(opts.dropped) || 0);
+  const pan = {
+    records: list.length, recorded, missing, cap, dropped,
+    evaluated,
+    empty: sum.aiEmpty || 0,              // AI 明确判定了空集
+    unreadable: sum.aiUnreadable || 0,    // AI 判不了（无返回/无 JSON/坏 JSON/键名不认识/类型不对）
+    unmatched: sum.keyUnmatched || 0,     // AI 选中但候选表里不存在
+    truncated: sum.coarseDropped || 0,    // 粗召回按上限截断
+    graphDropped: sum.graphDropped || 0,  // 图谱候选按更新时间截断
+    hardCut: sum.hardCut || 0,            // 分块硬切（该模块存在的理由：避免它）
+    channelFallback: sum.channelFallback || 0,   // 副通道失败回落
+    stages: sum,
+    hasReadGap: false,
+  };
+  pan.hasReadGap = !!(pan.unreadable || pan.unmatched || pan.truncated || pan.graphDropped
+    || pan.dropped || pan.missing || pan.hardCut || pan.channelFallback);
+  return pan;
+}
+
 const api = {
   AISelect, scoreEntry, recallCandidates, buildSelectPrompt,
-  parseAIResponse, mapKeysToCandidates, selectWithFallback, extractQueryTerms, normalizeText
+  parseAIResponse, mapKeysToCandidates, selectWithFallback, extractQueryTerms, normalizeText,
+  normalizeRecallFunnel
 };
 if (typeof window !== 'undefined') window.LonShaAISelect = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
