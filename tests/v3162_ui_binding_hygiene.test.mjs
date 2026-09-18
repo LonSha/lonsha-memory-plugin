@@ -249,14 +249,16 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.162.0')), f + ' anchors are not stale');
+        assert.ok(hits.every((h) => vnum(h) >= vnum('3.163.0')), f + ' anchors are not stale');
     }
 });
 test('[4c] v3159 no longer hardcodes its audit-script list', () => {
     // 硬编码清单会让新增的第 6 个审计脚本静默逃过「每个脚本都能阻断」这条负控制。
     const t = readFileSync(path.join(ROOT, 'tests/v3159_audit_failclosed_and_fallback_parity.test.mjs'), 'utf-8');
     assert.ok(/readdirSync\(AUDIT_DIR\)/.test(t), 'the list is discovered from the directory');
-    assert.ok(!/const auditScripts = \[\s*'scan_config_liveness/.test(t), 'the literal list is gone');
+    // [v3.163] 原本写死 'scan_config_liveness 这条字面量：v3.163 在 v3159 里为动态清单
+    //   补注释时提到该文件名，负控制会对着注释误报。判据改为「不出现任何字面量数组形式」。
+    assert.ok(!/const auditScripts = \[\s*['"`]/.test(t), 'the literal list is gone');
     // 动态清单必须真的覆盖每个 .mjs，且包含本版新增的那一个。
     const onDisk = readFileSync(path.join(ROOT, 'tests', 'run.mjs'), 'utf-8');
     assert.ok(/readdirSync\(AUDIT_DIR\)\.filter\(f => f\.endsWith\('\.mjs'\)\)/.test(onDisk),
@@ -265,7 +267,16 @@ test('[4c] v3159 no longer hardcodes its audit-script list', () => {
 test('[4d] v3160 and v3161 gave up their own-release exclusivity', () => {
     for (const f of ['v3160_config_declaration_gap', 'v3161_config_reachability']) {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
-        assert.ok(!/vnum\('3[.](160|161)[.]0'\)/.test(t), f + ' no longer pins an older lower bound');
+        // [v3.163] 判据改为**动态**：这些文件里的版本下界必须随 index.js 现版推进，
+        //   不得停在它们自己的发行版号上。写死任何字面量的正则都不得行——
+        //   上一版改成 `!/vnum\('3[.](160|161)[.]0'\)/` 只覆盖了两个版本，
+        //   下一版接管后下界变成 3.163.0，这条正则便形同虚设（false-green）；
+        //   我一度改成 `3[.]\d+[.]0`，又会把**合法的**当版下界一并误杀。
+        const v = /const VERSION = '([0-9.]+)'/.exec(readFileSync(path.join(ROOT, 'index.js'), 'utf-8'))[1];
+        const bounds = [...t.matchAll(/vnum\('(3[.][0-9]+[.][0-9]+)'\)/g)].map((m) => m[1]);
+        assert.ok(bounds.length > 0, f + ' still anchors a lower bound');
+        const stale = bounds.filter((b) => vnum(b) < vnum(v));
+        assert.deepStrictEqual(stale, [], f + ' 的下界已落后于现版 ' + v + '：' + JSON.stringify(stale));
     }
 });
 test('[4e] the changelog section documents this release', () => {

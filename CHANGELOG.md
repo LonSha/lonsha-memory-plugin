@@ -1,3 +1,30 @@
+## v3.163.0
+- **模块接线面：注册了、也写了，但从没加载过**。此前三条不变量分别管「键有没有声明」（v3.160）、「声明了能不能设」（v3.161）、「能设的控件是不是唯一」（v3.162）。它们都建立在同一个未言明的假设上：**被注册的模块确实在跑**。本版把这个假设本身变成判据，当场抓到一处开工以来一直存在的静默失效。
+  - **实测缺陷（真加载复现，非文本推断）**：`modules_combined.js` 与 `graph_algorithms.js` 各自在**顶层**声明 `class GraphDiffusion`。这两个文件都经 `manifest.extra_js` 以**经典脚本**（非模块）注入，共享同一个全局词法作用域，因此后加载的那个直接抛 `SyntaxError: Identifier 'GraphDiffusion' has already been declared` 并**整文件不执行**。按 manifest 顺序 `modules_combined.js` 在前 → 宿主实际拿到的是**朴素版**图算法，而 `graph_algorithms.js` 的**增强版**（稀疏矩阵 PageRank 自适应收敛、DPP 增量采样、多级社区检测、性能埋点）**从未运行**。
+  - **用户可见后果**：`index.js` 调用 `personalizedPageRank(seeds, hops, topK, this.config.config.pageRankDamping)` 时，第 4 个实参被朴素版的**三参签名**直接丢弃——阻尼恒为库内硬编码 `0.85`。也就是说 v3.91 那条「审计修复：此前该配置全项目零引用」只是把配置**写进了调用点**，运行时并没生效。既有测试只读源码字符串（`/personalizedPageRank\(seedNodes, hops = 3, topK = 10, dampingFactor = 0\.85\)/`），所以此处一路全绿。
+  - **为什么此前没被发现**：插件自己打印的还是「✓ 图扩散模块已加载」「✓ 初始化完成（LLM+向量检索+图扩散+可视化已启用）」，`typeof GraphDiffusion !== 'undefined'` 也照旧为真（朴素版在）。缺陷只表现为「增强能力不存在」，不影响功能可用性，因此既没有报错也没有反直觉行为。
+  - **修复方式（把「唯一实现」定下来）**：
+    - `graph_algorithms.js` 整体 IIFE 包裹 —— `(function (global) { 'use strict'; … })(typeof window !== 'undefined' ? window : globalThis);`，消除顶层词法绑定冲突，同时保留它作为**唯一**图算法实现。仓库其余 28 个模块本来就是这么写的，只有这一个（和 `modules_combined.js`）是裸顶层声明。
+    - `modules_combined.js` 删掉冲突的 `class GraphDiffusion` 与其 `module.exports`/`window.GraphDiffusion` 导出块（785 → 509 行），只保留 `MemoryVisualizer`；内部两处 `new GraphDiffusion(...)`（社区视图、PageRank 面板）改为 `new window.GraphDiffusion(...)`，与其上方已有的 `if (!window.GraphDiffusion)` 守卫同源。
+- **修复后暴露的第二处缺陷：个性化 PageRank 命中通用缓存**。增强版 `pageRank()` 带 60 秒结果缓存（`CACHE_TTL = 60000`），而 `personalizedPageRank()` 调它时**没传** `useCache` —— 缓存的键是 `this.cache.pageRank`，**不含 `startNodes`**。于是 60 秒窗口内第二次以不同种子调用，会原样返回第一次的排名：每轮扩散召回沿用上一轮的种子结果。这是「增强版从没跑过」掩盖下来的第二层缺陷——激活它才会变成活缺陷。修法是给该调用显式加 `useCache: false`（个性化结果依赖种子集，本就不该走通用缓存），并写成注释说明原因。
+- **新增审计脚本 `scan_module_wiring.mjs`（第 7 个）**：判定面 B1–B5。
+  - **B1** 任何两个注册脚本不得在顶层声明同名绑定。**判据必须按花括号深度判定**，不能按「行首列 0」——本仓库的 IIFE 模块内部代码常常不缩进（`const api = {...}` 直接落在第 0 列），用列号判断会把每个模块的内部声明都算成顶层，凭空造出 `api`/`text` 这类大批假冲突（首版即踩此坑）。深度 0 才是真顶层。
+  - **B2** 按 manifest 顺序把全部脚本灌进同一个 `vm` 隔离上下文，必须**零失败**（权威判据，不依赖任何文本推断）。
+  - **B3** `index.js` 引用的每个 `window.LonSha*` 符号都必须由某个注册脚本真实供给，或由 `index.js` 自身产出（防拼错符号名导致功能永久降级到兜底实现）。
+  - **B4** 注册脚本对外挂载的全局符号必须被消费；属已知「静默腐烂区」的记入**冻结账本**，新出现的直接阻断。
+  - **B5** 结构健康标记 + 每个判定面的非零下限（防探测器失效后以全绿通过）。
+  - **负控制**：在**修复前的备份**上重跑，精确报出 `B1 GraphDiffusion 被多个注册脚本在顶层声明（modules_combined.js:4 / graph_algorithms.js:8）` + `B2 graph_algorithms.js 加载失败 → SyntaxError: Identifier 'GraphDiffusion' has already been declared`，`exit=1`；修复后 `exit=0`。
+  - 两条结构下限（脚本数 / 全局数）**必须各自可独立验证**。这本身就是本版防假绿注入当场抓到的判据弱点：原先只用一个「有 `index.js`、零 `extra_js`」的退化树，它命中的其实是**全局数**下限，而注入打的却是**脚本数**下限，于是该注入全部漏网（详见下方防假绿一节）。现拆成两条独立用例：零脚本树（连入口都不注册）→ 报「脚本数低于下限」且 `exit=2`；无全局脚本树 → 报「仅观测到 0 个模块全局（低于下限）」且 `exit=2`。
+- **「已挂载但零消费」的 7 个模块显式入账**（不是死文件——已注册、有独立单测，但当前无调用点）：`LonShaCanonical`、`LonShaDependencyClosure`、`LonShaEntitySemantic`、`LonShaExtractionCadence`、`LonShaFloorRange`、`LonShaNpcTies`、`LonShaTurnReconciler`。其中 **`LonShaNpcTies` 值得单记一笔**：`index.js:378` 有一份手写的同机制内联副本，与 `npc-ties.js` 的输出格式**已经分歧**（内联版排序 + 全角冒号 + `[角色长期关系网]` 标题，模块版无排序 + 半角冒号 + 缩进行）。两版都各自受测（`v345_deep_bastion` 断言内联版格式、`v399_npc_ties` 断言模块版），因此本版**不擅自统一**——把分歧如实记入账本，留作独立议题，避免以「修一处」为名同时改动两个受测实现。
+- **测试**：新增 `tests/v3163_module_wiring.test.mjs`（12 条）。段 1 把「深度判据」本身立成不变量（`cse-engine.js` 内部确有第 0 列的 `const api`，而深度判定必须给出空集），段 2 用合成夹具真跑扫描器（正样本、重复顶层类 → B1+B2、缺失符号 → B3、未记账模块 → B4、账本内模块放行、注册文件缺失、零脚本树 → 2、无全局脚本树 → 2），段 3 是修复的消失证据（冲突类移除、IIFE 包裹、增强版特征保留、4 参签名、`useCache:false`、加载顺序、真实仓库审计 32/32），段 4 发布卫生。
+- **版本与锚点**：三处升 `3.163.0`；`v3117`(3) / `v3130`(3) / `v3147`(1) 的旧锚点交新版接管；`v3160`(2) / `v3161`(1) / `v3162`(1) 的版本下界交出当版独占。另修掉 `v3162` 两条**会随版本推进而失效**的负控制：`[4c]` 原本写死 `'scan_config_liveness` 字面量（本版在 v3159 补注释时提到该文件名，会对着注释误报），改为「不出现任何字面量数组形式」；`[4d]` 原本用 `!/vnum\('3[.](160|161)[.]0'\)/` 只覆盖两个版本，改为**动态**判据——读取 `index.js` 现版，断言被检查文件里的每个版本下界都 `>=` 现版（既不误杀合法的当版下界，也不会在下一次接管后形同虚设）。
+- **防假绿注入验证（16 个变异，全部真改文件、真跑 `node --test`、无条件逐字节回滚）**：`TOTAL 16 | CAUGHT 16 | MISSED 0`。
+  - 变异覆盖三类：**缺陷回流**（M1 冲突类回流、M2 IIFE 包裹移除、M3 裸引用回流、M4 `useCache:false` 移除、M5 四参签名退化、M6 增强版方法改名）、**扫描器自身退化**（M7 B1 失效、M8 B2 不记录加载失败、M9 B3 失效、M10 B4 失效、M11 真缺陷不再阻断 `exit 1→0`、M12 结构下限失效）、**负控制与发布卫生**（M13 v3159 scratch 不再物化注册脚本、M14 版本回落、M15 CHANGELOG 顶节写成未发布版本、M16 v3160 版本下界退回旧版）。
+  - **首跑 `14/16`，两处漏网均为测试判据自身的真实弱点，已当场修掉**（这正是防假绿要抓的东西，不是实现缺陷）：
+    - **M6**（增强版方法改名）：判据原为 `ga.includes('getPerformanceStats')`，改成 `getPerformanceStatsRenamed() {` 后仍含该子串 → 判据过弱。改为断言**方法定义形状**（`\b<名>\s*\(\s*\)\s*\{`），并补 `this.perfStats = {` 埋点初始化与 `performance.now()` 计时埋点两条断言。
+    - **M12**（结构下限失效）：见上文「两条下限必须各自可独立验证」。
+- **终局门禁**：`node tests/run.mjs --audit` → **157 个测试文件 / 894 条通过断言 / 0 失败 / 157 文件全通过**（耗时 52.9s），7 个审计脚本全 `✓`（`scan_config_liveness` / `scan_module_wiring` / `scan_resilience` / `scan_slider_coherence` / `scan_syntax` / `scan_ui_binding` / `scan_wiring`）。
+- **当前基线**：默认配置键 165 个（面板可写 164、白名单 43，残差 0）；UI 呈现键 160 个（可到达 160、死配置 0）；同一键多控件 0 处、重复 DOM id 0 处、幽灵控件 0 个、类型失配 0 处；滑块 54 条；审计脚本 **7** 个；注册脚本 **32/32** 真加载成功、顶层同名声明 **0** 处、已挂载未消费 **7** 个（全部在账本内）。
 ## v3.162.0
 - **UI 绑定面卫生：可达性的「存在」不等于「唯一」**。v3.161 立的不变量是「每个已声明键至少有一条可达路径」。那只证明了面板里**有**一个控件，没有证明**只有**一个。本版把这句话补完：同一个配置键在面板的不同分组里各渲染一份控件时，两处都会经 `data-cfg*` 收集写回同一个字段，`querySelectorAll` 按文档顺序遍历、赋值即覆盖，**保存时靠后的那个赢**。用户改 A 处、以为生效了，实际生效的是同样可见的 B 处；两处文案还往往不同，用户可以各按自己的理解读。
   - **实测 3 项缺陷**（面板 1900 行里只有这 3 处，全部修掉）：

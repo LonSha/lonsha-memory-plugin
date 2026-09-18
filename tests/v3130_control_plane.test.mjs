@@ -96,9 +96,9 @@ test('v3.136 设置面板导出/导入收口单真源', () => {
 
 test('v3.130 版本三处同步', () => {
     const m = /const VERSION = '([^']+)'/.exec(src);
-    assert.equal(m[1], '3.162.0');
+    assert.equal(m[1], '3.163.0');
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '3.162.0');
-    assert.equal(pkg.version, '3.162.0');
+    assert.equal(manifest.version, '3.163.0');
+    assert.equal(pkg.version, '3.163.0');
 });

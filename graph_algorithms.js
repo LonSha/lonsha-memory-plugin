@@ -5,6 +5,9 @@
 // 3. 社区检测多级聚合
 // 4. 性能监控埋点
 
+(function (global) {
+    'use strict';
+
 class GraphDiffusion {
     constructor(graph) {
         this.graph = graph;
@@ -128,7 +131,11 @@ class GraphDiffusion {
         const ranks = this.pageRank({
             dampingFactor: (Number.isFinite(d) && d > 0 && d < 1) ? d : 0.85,
             maxIterations: 20,
-            startNodes: seedIds
+            startNodes: seedIds,
+            // [v3.163] 个性化 PageRank 结果依赖种子集，必须绕过 pageRank 的通用结果缓存：
+            //   该缓存的键不含 startNodes，60s 内第二次不同种子的调用会原样返回首次结果，
+            //   导致每轮扩散召回沿用上一轮的种子排名（跨轮错误）。此前增强版整文件未加载而未被暴露。
+            useCache: false
         });
         
         // 排序并返回Top-K
@@ -409,3 +416,5 @@ if (typeof module !== 'undefined' && module.exports) {
 } else {
     window.GraphDiffusion = GraphDiffusion;
 }
+
+})(typeof window !== 'undefined' ? window : globalThis);

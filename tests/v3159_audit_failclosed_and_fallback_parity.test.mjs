@@ -4,7 +4,7 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, mkdirSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, mkdirSync, readdirSync, existsSync } from 'fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -31,6 +31,22 @@ const readAudit = (f) => readFileSync(path.join(AUDIT_DIR, f), 'utf-8');
 function runInScratch(mutate) {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3159-'));
     try {
+        // [v3.163] 此前只物化 index.js / settings-ui.js 两个文件。v3.163 新增的
+        //   scan_module_wiring 要读 manifest.json 并逐个真加载注册脚本，在这种
+        //   「只有两个文件」的树上会以 exit 2 阻断——负控制失败的原因与被测缺陷无关。
+        //   改为按 manifest 把**全部注册脚本**物化进 scratch，判据变成「每个审计脚本
+        //   都能在健康树上通过、且在退化输入上阻断」，对新增脚本自动成立，版本无关。
+        const mft = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
+        writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(mft, null, 2) + '\n');
+        const scripts = [mft.js, ...(mft.extra_js || [])].filter(Boolean);
+        for (const f of scripts) {
+            writeFileSync(path.join(dir, f), readFileSync(path.join(ROOT, f), 'utf-8'));
+        }
+        for (const f of [...(mft.extra_css || [])]) {
+            const p = path.join(ROOT, f);
+            if (existsSync(p)) writeFileSync(path.join(dir, f), readFileSync(p, 'utf-8'));
+        }
+        // 入口与面板由调用方按需覆盖（退化用例会写入 '// gone'）
         writeFileSync(path.join(dir, 'index.js'), src);
         writeFileSync(path.join(dir, 'settings-ui.js'), sui);
         const ad = path.join(dir, 'tests', 'audit');
