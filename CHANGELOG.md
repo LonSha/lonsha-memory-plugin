@@ -1,3 +1,101 @@
+## v3.176.0
+**世界账本读者面：从「两个钟」到「五本账」（通路不是没通，是只通了一根线）**
+**主题**：v3.175.0 把「lonsha 读 WorldAxis」这条边接通了——但**只读了一个字段**
+（`snapshot.worldClock`）。而推演侧外供的是**十二条面**。本版把这条边从「一根线」扩成「一本账」，
+补的是三类**结构性缺口**，其中最要紧的一类是**不可观测的缺口**。
+
+### 一、实测缺口（逐字段清点，不是推断）
+| 面 | 上游外供（对 `engines/bridge.js` buildSnapshot 逐字核过） | v3.175 实读 |
+|---|------|------|
+| 时间 | `worldClock{label,iso,dayIndex,source}` | ✅ 只读这一个 |
+| 暗流 | `currents[]{id,title,summary,visibility,stage,participants[],at}` | ✗ |
+| 涟漪 | `echoes[]{id,refCurrent,result,exposure,at}` | ✗ |
+| 权威事实 | `facts[]{key,value,scope,at}` | ✗ |
+| 人物 | `people[]{id,name,location,action,lastSeenAt}` | ✗ |
+| 舆情三分 | `opinion{canon[],forum[],sandbox[],updatedAt}` | ✗ |
+| 脉搏/摘要 | `pulse{}` / `digest{}` | ✗ |
+| **过滤归因** | `filter{presumeUnknown,includeHidden,exportedCurrents,notMarkedCount,notMarked[],hiddenCount,truncated}` | ✗ |
+| 计数 | `counts{...}` | ✗ |
+
+于是：**本插件连「有多少东西没给我」都读不到**——它面对的是一个「恰好只有这些」的完美世界，
+而不是「被过滤过、缺了 N 条」的世界。两种世界线的剧情推演完全不同。
+
+### 二、新增 `world-ledger-reader.js`（只读 / 不抛 / 不猜）
+**① 不可观测的缺口（`visibilityGap`）——本版最要紧的一处**
+推演侧暗流分 hidden / trace / public 三档，默认只外供显式标记的那批，其余落进 `filter.notMarked[]`。
+本模块把「缺席」变成**有数、有名、有因**的读数，verdict 四态：
+`no-filter`（上游无 filter 块 ⇒ 缺口**不可知**）/ `complete`（上游明确说没缺口）/ `gapped`（有未外供）/
+`full`（`includeHidden` 全量放行）。
+**`no-filter` 必须与 `complete` 分开**：「上游没告诉我有没有缺口」与「上游告诉我没缺口」是完全不同的
+信息量，压成一态就等于**伪造了一个「没有缺口」的结论**——这正是本版修掉的那类静默降级。
+缺口率 `gapRatio` 的分母用「外供 + 未标记」而非 `hiddenCount`：后者是过滤前口径，混用会算出 >100%。
+
+**② 人物位置对读（`diffPeople`）**
+时钟差几天只是数字；「本插件记崔莺莺在邮局、推演侧记她在城南车站」才是**剧情立刻会崩**的地方。
+逐一对读并做**位置归一化**（去空白、取末级场所名，使「临江市/城南车站」与「城南车站」归一），
+且严格区分 `kind:'conflict'`（**两侧都记了但不同**）与 `kind:'one-sided'`（**一边没记**）——
+后者的处置是**等它**，前者的处置是**报冲突**，混成一类会让调用方对着「没数据」去纠错。
+
+**③ 事实强度三分（`opinionStrength`）**
+canon（已核实新闻）/ forum（论坛传闻）/ sandbox（NON-CANON 闲逛）三档分开报，每条 `claim` 判
+`verified`（匹配「已核实｜已确认｜确认属实｜verified｜canonical」）/ `rumor` / `unknown`。
+**空 claim 归 `unknown`（不知道强度），不得并入 `rumor`（知道是传闻）**——两者能否当事实引用相反。
+一锅端会让调用方拿传闻当权威事实写进剧情。
+
+**④ 其余读数**：`sectionState` 账本节在场三态（`value`/`empty`/`absent`——「推演侧没外供这项」与
+「推演侧明确说没有」处置相反）/ `summarizeLedger` 全账本形状摘要（不搬运内容）/
+`diffFacts` 权威事实键集差集 / `readLedger` 总入口 / `describeLedger` 一句话归因（**缺口必须念出来**）。
+**⑤ 边界**：与 v3.175 世界钟读者面**同规格**——只读、不抛、不猜；**不做「用推演侧覆盖本插件账本」**。
+本插件是这套体系里**记账的那一个**，推演侧是**推演的那一个**，双方只交付读数与对账。
+桥访问**复用** v3.175 的世界钟读者面（单一真源，口径一致），保留 `fallbackGetBridge` 软依赖回退。
+
+### 三、index.js 七处接线 + 三处真缺陷修复
+构造 `_worldLedgerRead` → `getSnapshot()` 携带 `worldLedgerRead` → `import()` 恢复读数 →
+`_localPeopleLocations()` / `_localFactKeys()` 宿主侧投影收集 → 新增 `readWorldLedger` / `worldLedgerLine` →
+消息管线在 `syncFromNarrative` 之后调用 → `selfCheck` 新增「世界账本」诊断行 →
+`buildBridgeSnapshot` 外供 `worldLedgerRead`（手机端据此读到「记忆插件眼里的世界长什么样」）。
+- **缺陷一（静默降级）**：本地投影最初挂在 `GameClock` 上——但时钟只有 `date/label/turn`，
+  **没有 `status/outline/worldProg`**，取到的一律是 `undefined`，**对读会永远静默返回空且不报错**。
+  已移到插件本体 `MemoryEngine`，`readWorldLedger` 改为「宿主侧收集本地投影 → 传 opts → 委托时钟读者面」。
+- **缺陷二（无界膨胀）**：对读明细会进快照/存档，实测会无界增长。已给 `diffPeople`/`diffFacts` 加
+  **有界切片**（明细各 12 条）+ 保留总数（`mismatchedTotal` / `worldOnlyTotal` / `localOnlyTotal`），
+  原则是「**总数不失真、明细不膨胀**」。
+- **缺陷三（读数不落档）**：`GameClock.import()` 恢复了 `worldClockRead` 却漏了 `worldLedgerRead`，
+  重开对话后生产者重建，诊断面会把「上一轮发现过缺口」报成「未读」——**「从没缺过」与「缺口读不到了」
+  再次同形**。已补。
+
+诊断行口径：**未读不报警**（没读过不是故障）、不可用报归因、**有未外供缺口或位置冲突才标 ⚠️**。
+
+### 四、门禁与审计
+- 新增 `tests/v3176_world_ledger_reader.test.mjs`（A 缺口四态 ★no-filter 与 complete 不同形／
+  B 在场三态／C 位置对读 ★一侧没记不是冲突／D 事实强度三分 ★空 claim 不是传闻／E 差集有界／
+  F 总入口与归因话术／G 接线含存档恢复·快照携带·只读·不改时钟／H 不抛／
+  **I 负控制：真源码破坏 → 破坏副本 → 同款真判据**，reader 六处 + 接线两处各自现形且不连坐，
+  含工具两向自证与判据纯度／J 发布卫生）。
+- 新增审计基建 M `tests/audit/scan_world_ledger_reader.mjs`：M1 七处消费点真落地（并**显式禁止**
+  本地投影挂在 GameClock 上）／M2 缺口四态与在场三态可分（no-filter 与 complete 必须不同字面量）／
+  M3 只读无写路径／M4 导出入口 9/9 有降级保护／M5 桥名逐字一致 + 单一真源复用 + 软依赖回退在位／
+   M6 有界性（≥4 处切片 + 总数保留）／M7 结构健康下限（`faces >= 16`，防探测器塌缩后全绿通过）。
+   退出码沿用约定：0=卫生 / 1=真缺陷 / 2=结构漂移。
+- 新增**审计负控制** `tests/audit/scan_world_ledger_reader_negctl.mjs`：一条判据「跑绿了」只说明它没报警，
+  不说明它**会**报警。恒绿有三种伪装——①对原文件断言（破坏没发生也绿）②破坏写死成模拟常量
+  （真判据根本没被调用）③破坏把判据自己删了（自我指涉）。本档统一用「**真源码破坏 → 破坏副本 →
+  在副本上重跑同一套真判据**」排除三者：V0 原版对照必须 exit 0；V1 快照不携带读数／V2 缺口两态塌缩／
+  V3 明细不切片／V4 桥访问不复用单一真源／V5 模块消失／V6 本地投影误挂时钟，六组各自命中期望退出码
+  （1·1·1·2·1）且互不连坐。三条纪律：破坏只在**独立 fixture 目录**（只搬判据真读的 3 个文件，
+  `LONSHA_AUDIT_ROOT` 指过去，源仓库零污染）／锚点必须**恰中期望次数**（不符即该组作废，
+  防锚点漂移后把「没破坏成功」误读成「判据无反应」）／破坏后先 `node --check`（非零退出必须来自判据，
+  而不是解析崩溃——否则归因不成立）。
+- 门禁随行：`v3159【2】`要求**每个**审计脚本都具备 exit 2 阻断能力，故负控制脚本的「缺文件」态
+  取 2（结构漂移）而非 1；`v3116【4】`活跃代码总量上界 23400 → 24000（本版新增 419 行读者模块
+  + 宿主接线 + 审计）；v3160~v3168 九文件 13 处 `vnum` 下界交棒 3.175.0 → 3.176.0；
+  `v3164【5】`/`v3165【5】` 判据面自防护指纹改为只留**判据形态**（此前把版本号钉进指纹表，
+  每交一版必假红——**判据不得绑可变形状**）。
+
+### 五、待办（另仓推进）
+同一轮里另两仓的对应面：`world-axis` v2.18.0（反向消费面扩到**五本账**）、
+`ruby-phone` v2.37.0（手机端对读面）。三仓各自独立门禁、独立提交。
+
 ## v3.175.0
 **世界钟读者面（三插件体系里「通路只通了半条」的那一条：本插件对 WorldAxis **零消费**）**
 **主题**：这套体系里有**两个同规格的只读世界桥**，本插件（lonsha）与手机端（RubyPhone）都挂在同一张

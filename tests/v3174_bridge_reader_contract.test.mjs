@@ -47,7 +47,7 @@ function makeEngine({ host = {}, floorLen = 3 } = {}) {
         SillyTavern: { getContext: () => ({ chat: { length: floorLen } }) }
     };
     const errLog = () => {};
-    const VERSION = '3.175.0';
+    const VERSION = '3.176.0';
     const factory = new Function('VERSION', 'errLog', 'window', `
         return ({
             ${snapMethod},
@@ -301,7 +301,7 @@ test('【D2】负控制：三处破坏各自的判据必须现形（逐项，不
         const localFactory = (plug) => new Function('plugin', `return (${literal});`)(plug);
         const mkEng = (host = {}) => {
             const win = { SillyTavern: { getContext: () => ({ chat: { length: 3 } }) } };
-            const eng = new Function('VERSION', 'errLog', 'window', `return ({ ${snapM}, ${jsonM} });`)('3.175.0', () => {}, win);
+            const eng = new Function('VERSION', 'errLog', 'window', `return ({ ${snapM}, ${jsonM} });`)('3.176.0', () => {}, win);
             const base = {
                 status: { getProtagonist: () => ({ name: 'A' }), lifeDetails: [], characters: {} },
                 moneyLedger: { export: () => ({}) }, outline: { export: () => ({}) },

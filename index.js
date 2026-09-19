@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.175.0';
+    const VERSION = '3.176.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2612,6 +2612,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                         //   本插件此前对 WorldAxis **零消费**——两个钟各走各的，谁都不知道谁不一致。
                         //   此处只对账、不改时钟：正文仍是最高事实源（见 readWorldAxisClock 注释）。
                         try { this.clock.readWorldAxisClock(null, { reason: 'after-message' }); } catch (_e0) { errLog(_e0, 'nonfatal'); }
+                        // [v3.176] 世界账本对读（只读）：不只读钟，把推演侧的全账本（暗流/事实/人物/舆情）
+                        //   以及对本地账本的对读（人物位置、权威事实差集）一并取回。**含未外供缺口**——
+                        //   修前本插件连「有多少东西没给我」都读不到。
+                        //   宿主侧入口：本地投影由插件收集后传入（时钟上取不到 status/outline）。
+                        try { this.readWorldLedger({ reason: 'after-message' }); } catch (_e0b) { errLog(_e0b, 'nonfatal'); }
                     } catch (e) { errLog(e, 'onMessageReceived.syncFromNarrative'); }
                     // [v3.130] baibai 正文时间标签协议闭环：bbs_start/bbs_end → GameClock 校准。
                     // 此前标签只喂时间线与向量元数据，时钟本体只被 LLM 推断的 story_clock 校准——
@@ -6127,6 +6132,62 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
         // [v3.88] 公开只读快照桥（globalThis.lonsha_memory_bridge_v1）：
         // 供外部脚本（手机前端/调试台/衍生卡）读取引擎当前状态快照。全部深拷贝，外部写入不影响引擎内部状态。
+        /* [v3.176] 本插件侧账本的**投影**（供世界账本对读消费；纯读、不抛、不猜）。
+         * 为什么放在插件本体而不是 GameClock：GameClock 只有时钟，没有 status/outline/worldProg，
+         * 在它上面取本地账本会静默取到 undefined，对读就永远返回空且不报错。
+         * 故本地投影由插件本体收集，随 opts 传给 clock.readWorldLedger。 */
+        /** 角色名 → 位置（取角色状态表的位置/所在地字段；取不到即空表） */
+        _localPeopleLocations() {
+            const out = {};
+            try {
+                const chars = (this.status && this.status.characters && typeof this.status.characters === 'object') ? this.status.characters : null;
+                if (!chars) return out;
+                for (const name of Object.keys(chars)) {
+                    const c = chars[name];
+                    const f = (c && c.fields && typeof c.fields === 'object') ? c.fields : null;
+                    if (!f) continue;
+                    // 位置字段的可能键：位置 / 所在地（历史数据两种都写过，都认）
+                    const loc = String(f['位置'] || f['所在地'] || '').trim();
+                    if (loc) out[name] = loc;
+                }
+            } catch (_e) { /* 纯读：任何畸形都退化为空表 */ }
+            return out;
+        }
+        /** 本插件侧的事实键集（大纲节拍名 + 世界推进事件名；纯读） */
+        _localFactKeys() {
+            const keys = [];
+            try {
+                const ol = (this.outline && typeof this.outline.export === 'function') ? this.outline.export() : null;
+                if (ol && Array.isArray(ol.beats)) {
+                    for (const b of ol.beats) {
+                        const t = String((b && (b.title || b.text)) || '').trim();
+                        if (t) keys.push(t.slice(0, 40));
+                    }
+                }
+            } catch (_e) { /* 降级 */ }
+            try {
+                const wp = (this.worldProg && typeof this.worldProg.export === 'function') ? this.worldProg.export() : null;
+                if (wp && wp.events && typeof wp.events === 'object') {
+                    for (const k of Object.keys(wp.events)) {
+                        const t = String(k || '').trim();
+                        if (t) keys.push(t.slice(0, 40));
+                    }
+                }
+            } catch (_e) { /* 降级 */ }
+            return keys;
+        }
+        /** [v3.176] 读世界账本（宿主侧入口：收集本地投影 + 委托时钟读者面） */
+        readWorldLedger(opts = {}) {
+            try {
+                if (!this.clock || typeof this.clock.readWorldLedger !== 'function') return null;
+                return this.clock.readWorldLedger(null, {
+                    reason: opts.reason || 'host-ledger',
+                    win: opts.win,
+                    localPeople: this._localPeopleLocations(),
+                    localFacts: this._localFactKeys()
+                });
+            } catch (e) { errLog(e, 'plugin.readWorldLedger'); return null; }
+        }
         buildBridgeSnapshot() {
             try {
                 // [v3.174 B] **undefined 必须被保住**，不得走 JSON 回退把它变成 null：
@@ -6181,6 +6242,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //   typeof 守卫：本方法被单测「提取执行」模式（v388 bridge 专项）复用时无 this 宿主，
                 //   缺失该方法不得连坐整张快照（缺失即 present=false，其余字段照常外供）。
                 const rawRecall = (typeof this._summarizeRecallAudit === 'function') ? this._summarizeRecallAudit() : undefined;
+                // [v3.176] 世界账本对读读数（本插件**读到的推演侧世界**，含未外供缺口 + 人物位置对读结果）。
+                //   外供出去的意义：手机端能读到「记忆插件眼里的世界长什么样」，形成三方对读闭环——
+                //   而 defect 形态（缺口/位置冲突）不再只存在于记忆插件的诊断面里。
+                const rawLedgerRead = (this.clock && this.clock._worldLedgerRead && typeof this.clock._worldLedgerRead === 'object')
+                    ? this.clock._worldLedgerRead : undefined;
                 const snap = {
                     version: 1,
                     bridge: 'lonsha_memory_bridge_v1',
@@ -6194,7 +6260,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                     outline: deep(rawOutline),
                     worldProg: deep(rawWorld),
                     clock: deep(rawClock),
-                    recallAudit: deep(rawRecall)
+                    recallAudit: deep(rawRecall),
+                    worldLedgerRead: deep(rawLedgerRead)
                 };
                 // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
                 //   此前读者只能自己试着 stringify 一遍、再从失败里反推——而字符串化失败与
@@ -7411,6 +7478,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = d.verdict === 'world-ahead' || d.verdict === 'world-behind';
                             return ['世界钟', (line || '已读') + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.worldClock'); return ['世界钟', '—（诊断异常）']; }
+                    })(),
+                    // [v3.176] 世界账本对读面：不只读钟，把推演侧的**全账本**（暗流/权威事实/人物位置/舆情）
+                    //   与「有多少东西没外供我」一并念出来。修前那一整个世界在本插件侧不可观测。
+                    //   口径：未读不报警；不可用报归因；有未外供缺口或位置冲突才标 ⚠️。
+                    (() => {
+                        try {
+                            const r = this._worldLedgerRead;
+                            if (!r) return ['世界账本', '未读'];
+                            if (!r.ok) return ['世界账本', '不可用 · ' + r.reason + (r.describe ? '（' + r.describe + '）' : '')];
+                            const cl = this.clock;
+                            const line = (cl && typeof cl.worldLedgerLine === 'function') ? cl.worldLedgerLine() : '';
+                            const gap = r.gap || {};
+                            const pd = r.peopleDiff || {};
+                            const bad = (gap.verdict === 'gapped') || (pd.mismatched && pd.mismatched.length > 0);
+                            return ['世界账本', (line || '已读') + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.worldLedger'); return ['世界账本', '—（诊断异常）']; }
                     })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
@@ -10041,6 +10124,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.turn = 0;              // 当前所处轮次/楼层
             this.timeTagStats = { total: 0, paired: 0, unparseable: 0, calibrated: 0 };   // [v3.130] 正文时间标签协议健康统计（诊断面板展示）
             this._worldClockRead = null;   // [v3.175] 世界钟读者面读数（读 WorldAxis 桥，只读不掉头）
+            this._worldLedgerRead = null;  // [v3.176] 世界账本读者面读数（暗流/事实/人物/舆情/缺口，只读）
         }
 
         // 设置/推进剧情时间
@@ -10103,7 +10187,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 turn: this.turn,
                 timeTagStats: { ...(this.timeTagStats || { total: 0, paired: 0, unparseable: 0, calibrated: 0 }) },   // [v3.130]
                 lastNarrativeAnchor: this.lastNarrativeAnchor ? { ...this.lastNarrativeAnchor } : null,   // [v3.132] 注释回读证据随存档走
-                worldClockRead: this._worldClockRead ? { ...this._worldClockRead } : null   // [v3.175] 世界钟读者面读数（两个钟对不对得上）
+                worldClockRead: this._worldClockRead ? { ...this._worldClockRead } : null,   // [v3.175] 世界钟读者面读数（两个钟对不对得上）
+                worldLedgerRead: this._worldLedgerRead ? { ...this._worldLedgerRead } : null  // [v3.176] 世界账本读者面读数（含未外供缺口）
             };
         }
 
@@ -10200,6 +10285,84 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             };
             return wc.date + ' · ' + (wc.time || '') + ' · ' + (VT[d.verdict] || d.verdict);
         }
+        /**
+         * [v3.176] 世界账本读者面：读 WorldAxis 世界桥的**全部**账本节并与本插件账本对读。
+         *
+         * v3.175 只读了 `worldClock` 一个字段——而推演侧外供十二条面（暗流/涟漪/权威事实/
+         * 人物位置/舆情三分/counts/filter）。本方法补齐，重点在三件事：
+         *   ① **不可观测缺口**（gap）：推演侧默认只外供显式 public 标记的暗流，其余落进
+         *      `filter.notMarked[]`。此前本插件连「有多少东西没给我」都读不到——它见到的是一个
+         *      「恰好只有这些」的世界。这里把缺口变成有数、有名、有因的读数。
+         *   ② **人物位置对读**（peopleDiff）：拿本插件角色表的位置字段与推演侧 people[] 逐一对读。
+         *      时钟差几天只是数字；位置对不上是剧情立刻会崩的地方。
+         *   ③ **事实强度三分**（opinion）：canon/forum/sandbox 三档 + 每条 claim_status。
+         *      「已核实」与「纯传闻」在能否当事实引用上完全相反，绝不混成一锅。
+         *
+         * 纯读、不抛、不猜（与 v3.175 世界钟读者面同规格）。**不写本插件任何账本**：
+         * 本插件是记账的那一个，推演侧是推演的那一个，双方只交付读数与对账。
+         * @param {object} reader 可注入 reader（测试用）；不传即取 window.LonShaWorldLedgerReader
+         * @param {{reason?:string, win?:object, localPeople?:object, localFacts?:string[]}} opts
+         *        localPeople / localFacts —— **本插件侧账本的投影**，由宿主（插件本体）收集后传入。
+         *        为什么不由本方法自己去取：本方法挂在 GameClock 上，`this` 是时钟不是插件，
+         *        时钟上没有 status/outline/worldProg——在那上面取本地账本只会静默取到 undefined，
+         *        于是对读**永远返回空**，且不报错（本项目最忌讳的静默降级形态）。
+         */
+        readWorldLedger(reader, opts = {}) {
+            try {
+                const R = reader || (typeof window !== 'undefined' ? window.LonShaWorldLedgerReader : null);
+                if (!R || typeof R.readLedger !== 'function') {
+                    this._worldLedgerRead = { ok: false, reason: 'reader-unavailable', describe: '', shape: null, gap: null, opinion: null, peopleDiff: null, factsDiff: null, counts: null, at: Date.now() };
+                    return this._worldLedgerRead;
+                }
+                const led = R.readLedger({ reason: opts.reason || 'lonsha-ledger', win: opts.win });
+                // 人物位置对读：宿主给的 { 角色名: 位置 } 映射，交 reader 归一化比对。
+                let peopleDiff = null;
+                try {
+                    if (led && led.ok && typeof R.diffPeople === 'function') {
+                        peopleDiff = R.diffPeople(led.snapshot, opts.localPeople || {});
+                    }
+                } catch (_e1) { peopleDiff = null; }
+                // 权威事实对读：宿主给的事实键集（大纲/世界推进条目名）。
+                let factsDiff = null;
+                try {
+                    if (led && led.ok && typeof R.diffFacts === 'function') {
+                        factsDiff = R.diffFacts(led.snapshot, opts.localFacts || []);
+                    }
+                } catch (_e2) { factsDiff = null; }
+                this._worldLedgerRead = {
+                    ok: !!(led && led.ok),
+                    reason: (led && led.reason) || 'unknown',
+                    describe: (typeof R.describeLedger === 'function') ? R.describeLedger(led) : '',
+                    shape: (led && led.shape) || null,
+                    gap: (led && led.gap) || null,
+                    opinion: (led && led.opinion) || null,
+                    counts: (led && led.counts) || null,
+                    peopleDiff, factsDiff,
+                    at: Date.now()
+                };
+                return this._worldLedgerRead;
+            } catch (e) {
+                this._worldLedgerRead = { ok: false, reason: 'thrown', describe: '', shape: null, gap: null, opinion: null, peopleDiff: null, factsDiff: null, counts: null, at: Date.now() };
+                errLog(e, 'GameClock.readWorldLedger');
+                return this._worldLedgerRead;
+            }
+        }
+        /** [v3.176] 世界账本对读的一句话读数（供诊断面/报告；纯读，未读返回 null） */
+        worldLedgerLine() {
+            const r = this._worldLedgerRead;
+            if (!r) return null;
+            if (!r.ok) return '不可用（' + r.reason + '）' + (r.describe ? ' · ' + r.describe : '');
+            const c = r.counts || {};
+            const parts = ['暗流 ' + (Number(c.currents) || 0), '事实 ' + (Number(c.facts) || 0),
+                '人物 ' + (Number(c.people) || 0), '舆情 ' + ((Number(c.opinionCanon) || 0) + (Number(c.opinionForum) || 0))];
+            let line = parts.join(' / ');
+            const gap = r.gap || {};
+            if (gap.verdict === 'gapped') line += '｜**未外供 ' + (Number(gap.notMarkedCount) || 0) + ' 条**';
+            else if (gap.verdict === 'no-filter') line += '｜缺口不可知';
+            const pd = r.peopleDiff || {};
+            if (pd.mismatched && pd.mismatched.length) line += '｜位置冲突 ' + pd.mismatched.length;
+            return line;
+        }
         import(data) {
             if (!data || typeof data !== 'object') return;
             this.date = String(data.date || '').trim();
@@ -10219,6 +10382,13 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
             if (data.worldClockRead && typeof data.worldClockRead === 'object') {   // [v3.175] 世界钟对账读数随存档恢复
                 this._worldClockRead = { ...data.worldClockRead };
+            }
+            // [v3.176] 世界账本对读读数随存档恢复：**不只是「重建后还能看」**——
+            //   缺口（未外供 N 条暗流）与人物位置冲突是**本轮现场证据**，若不落存档，
+            //   重开对话后生产者重建，诊断面会把「上一轮发现过缺口」报成「未读」，
+            //   读者再也分不清「从没缺过」与「缺口读不到了」。这与 v3.175 世界钟读数同规格。
+            if (data.worldLedgerRead && typeof data.worldLedgerRead === 'object') {   // [v3.176]
+                this._worldLedgerRead = { ...data.worldLedgerRead };
             }
         }
     }
