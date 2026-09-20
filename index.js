@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.179.0';
+    const VERSION = '3.180.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -86,7 +86,7 @@
         'version', 'summaries', 'volumes', 'suspense', 'timeline', 'statusFlat',
         'graph', 'povs', 'diary', 'reflection', 'itemOps', 'scene', 'vectors',
         'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'cse', 'pulse',
-        'opLog', 'outline', 'pairMem',
+        'opLog', 'outline', 'pairMem', 'ageAnchors',
     ]);
     // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
     // 存在理由：v3.138 的 _dataVersion 用 Number() 比较插件版本字符串恒得 NaN→0（判旧恒假），
@@ -2065,6 +2065,9 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.prequel = new PrequelSystem();   // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入前情资料
             // [v2.0] P2
             this.status = new CharacterState();
+            this.status.clock = this.clock;   // [v3.180] 年龄读数的日期解析助手来源（引擎侧注入优先；
+            //   状态层副本里没有这个引用时自建 RelativeTimeHelper —— 修前 this.clock 恒 undefined，
+            //   于是 age-anchor 的 parseFn 静默返回 undefined，估算态永不达成）
             // [v3.155] 楼层账本：上限可配 + 淘汰可见（淘汰即「回滚能力失效」，必须让人知道）
             this.ledger = new FloorLedger({
                 maxFloors: Number(this.config.config.floorLedgerRetention) || 400,
@@ -2247,6 +2250,91 @@ function relativeTimeLabel(eventTime, nowTime) {
             return r;
         }
 
+        /**
+         * [v3.180] 楼层真源落笔（floor-ledger.js 的宿主入口）：把「这一楼产生了什么」写成
+         * 该楼自己的附注（msg.extra.lonsha_ledger），使账随楼走（楼删账删、翻页随页走）。
+         * **只加归属性，不改汇总口**：itemOps / summaries / 预算 / 注入 / 跨会话携带一字不动。
+         *
+         * 归因三态（本项目硬纪律：失败出口可归因，不静默吞）：
+         *   status 'ok'                 —— 已落笔（返回附注对象）
+         *   status 'module-unavailable' —— floor-ledger.js 未加载（extra_js 缺失 / 加载失败）
+         *   status 'rejected'           —— 落笔被拒，reason ∈ stale（指纹已过期）/ extra-unwritable /
+         *                                 unreadable-floor（指纹取不到）/ not-written
+         * 不抛：提取管线里任何一处抛都会连坐整楼的写入。
+         */
+        _stampFloorLedger(message, record, opts = {}) {
+            try {
+                const L = _moduleLib(() => window.LonShaFloorLedger, 'floor-ledger.js');
+                const _floor = Number(message && message.index) || 0;
+                if (!L || typeof L.stamp !== 'function') {
+                    this._floorLedgerStamp = { status: 'module-unavailable', floor: _floor, at: Date.now() };
+                    return null;
+                }
+                // fresh 模式：指纹必须与**落笔当时**的楼一致。message 在提取排队期间被编辑/翻页时，
+                //   这格账属于旧页——宁可让覆盖度把它报成缺口（逐楼可见、可重提取补齐），
+                //   也不把账记到楼上让它从此自称「我这页有账」。
+                if (record && (record.fresh || opts.fresh)) {
+                    const fp = (typeof L.fpOf === 'function') ? L.fpOf(message) : null;
+                    if (!fp || msgFpOf(message) !== fp) {
+                        this._floorLedgerStamp = { status: 'rejected', reason: 'stale', floor: _floor, at: Date.now() };
+                        return null;
+                    }
+                }
+                const pay = L.stamp(message, record || {});
+                if (!pay) {
+                    const ex = (message && typeof message === 'object' && message.extra && typeof message.extra === 'object') ? message.extra : null;
+                    this._floorLedgerStamp = {
+                        status: 'rejected',
+                        reason: !ex ? 'extra-unwritable' : ((typeof L.fpOf === 'function' && !L.fpOf(message)) ? 'unreadable-floor' : 'not-written'),
+                        floor: _floor, at: Date.now()
+                    };
+                    return null;
+                }
+                this._floorLedgerStamp = { status: 'ok', floor: Number(pay.floor) || 0, at: Date.now() };
+                return pay;
+            } catch (e) {
+                this._floorLedgerStamp = { status: 'thrown', floor: Number(message && message.index) || 0, reason: String((e && e.message) || e), at: Date.now() };
+                errLog(e, 'engine._stampFloorLedger');
+                return null;
+            }
+        }
+        /**
+         * [v3.180] 楼层账本覆盖度（**现算**读数，不入快照存盘）：把「哪些楼还没落笔」变成
+         * 有名有数的读数——逐楼列号 + 失效原因分布（缺口要能归因，不是一句「没有」）。
+         * 口径与 floor-ledger.coverage 一致：只数 AI 楼，番外楼（lonsha_omit）与空楼不计。
+         */
+        _floorLedgerCoverage() {
+            try {
+                const L = _moduleLib(() => window.LonShaFloorLedger, 'floor-ledger.js');
+                if (!L || typeof L.coverage !== 'function') return { enabled: false, reason: 'module-unavailable' };
+                const chat = (window.SillyTavern && window.SillyTavern.getContext && window.SillyTavern.getContext() || {}).chat || [];
+                const cov = L.coverage(chat, {
+                    upTo: chat.length - 1,
+                    assistantOnly: true,
+                    omitFunction: (m) => !!(m && m.extra && m.extra.lonsha_omit === true),
+                    skipFunction: (m) => !m || typeof m.mes !== 'string' || !m.mes.trim()
+                });
+                cov.enabled = true;
+                return cov;
+            } catch (e) {
+                errLog(e, 'engine._floorLedgerCoverage');
+                return { enabled: false, reason: String((e && e.message) || e) };
+            }
+        }
+        /** [v3.180] 覆盖度一句话读数（诊断面/报告用；纯读、不抛） */
+        _floorLedgerLine() {
+            try {
+                const L = _moduleLib(() => window.LonShaFloorLedger, 'floor-ledger.js');
+                if (!L) return '模块未加载（floor-ledger.js）';
+                const c = this._floorLedgerCoverage();
+                if (!c || c.enabled !== true) return '不可用 · ' + String((c && c.reason) || 'unknown');
+                const last = this._floorLedgerStamp ? ` · 最近落笔 ${this._floorLedgerStamp.status}${this._floorLedgerStamp.reason ? '(' + this._floorLedgerStamp.reason + ')' : ''}` : '';
+                if (c.complete) return `${c.stamped}/${c.total} 楼已落笔（无缺口）` + last;
+                const why = Object.keys(c.byWhy || {}).map(k => `${k}×${c.byWhy[k]}`).join(' ');
+                const head = c.missing.slice(0, 6).join(',');
+                return `${c.stamped}/${c.total} 楼已落笔 · 缺 ${c.missing.length}（第${head}${c.missing.length > 6 ? '…' : ''}楼）${why ? ' · ' + why : ''}` + last;
+            } catch (e) { errLog(e, 'engine._floorLedgerLine'); return '—（诊断异常）'; }
+        }
         async onMessageReceived(message, messageId = null) {
             // [v3.10] 生成结束（新回复落层=本轮生成闭环），复位生成标志
             this._generationActive = false;
@@ -2837,6 +2925,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                             this.rebuildItems();
                             // [v3.54] op-log: 物品台账变更事件
                             if (this.itemOps?.length) this.opLog?.log('item', 'update', `${this.itemOps.length} items`, floorNow, '');
+                            // [v3.180] 真源下沉：同一次提取命中的物品**同时**写成该楼自己的附注。
+                            //   汇总口（itemOps → rebuildItems → 预算/注入/携带）一字不动，
+                            //   新增的是**归属性**：这一格账属于哪一楼哪一页，由楼层自己证明。
+                            //   与摘要落笔共用合并语义（同页二次落笔互不覆盖），故谁先谁后都对。
+                            this._stampFloorLedger(message, { floor: floorNow, items: _lv.items });
                         }
                         if ((scN || extracted.location) && this.config.config.debugMode) {
                             console.log(`[${PLUGIN_NAME}] 场景树: +${scN} 地点, 位置=${SceneBook.keyOf(extracted.location) || '未变'}`);
@@ -2849,7 +2942,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const nodesBefore = this.graph.nodes.size;
                 if (this.config.config.characterStateEnabled && extracted?.status_changes) {
                     try {
-                        const n = this.status.applyChanges(extracted.status_changes, floor);
+                        const n = this.status.applyChanges(extracted.status_changes, floor, false, this.clock?.date || this.getLatestStoryDate?.() || '');
                         if (n && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 状态更新 ${n} 项`);
                         // [v3.54] op-log: 状态变更事件
                         if (n) this.opLog?.log('status', 'update', `${n} changes`, floor, (extracted.status_changes || []).map(c => c?.character + '.' + c?.field).join(',').slice(0, 60));
@@ -2989,6 +3082,20 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
 
                 const summary = await this.summary.createSummary(message, extracted?.summary, { maxLen: this.config.config.maxSummaryLength });
+                // [v3.180] 第二次落笔：同一楼先落物品、后落摘要，**共用合并语义**（floor-ledger.stamp 读
+                //   现有附注判定「是否仍属本页」，属于则继承字段）。顺序不可交换的意义在于：后到的那次
+                //   读到的是「本页已有物品账」，于是补上 summary 字段而不是整格换新；两次落笔谁先谁后都对，
+                //   但**同一次提取内先物品后摘要**是唯一能把两边都写全的顺序。
+                //   fresh 模式：指纹必须与落笔当时的楼一致——提取排队期间被翻页/编辑时，这格账属于旧页，
+                //   宁可让覆盖度把它报成缺口（逐楼可见、可重提取补齐），也不把账记到新页上。
+                if (summary) {
+                    try {
+                        this._stampFloorLedger(message, {
+                            floor: floor || 0,
+                            summary: { floor: floor || 0, text: summary.text }
+                        }, { fresh: true });
+                    } catch (e) { errLog(e, 'onMessageReceived.楼层落笔.摘要'); }
+                }
                         this.opLog?.log('summary', 'add', `sum_${message?.index || 0}`, message?.index || 0, (extracted?.summary || '').slice(0, 40));  // [v3.54] op-log
                 
                 // [v3.30] PV: 记忆矛盾换代 —— 新摘要与既有活跃摘要做高置信冲突检测, 旧条 superseded 退出召回
@@ -5565,8 +5672,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const presentCast = this.captureCast();
                 const owners = presentCast.length ? presentCast : (window.SillyTavern?.getContext?.()?.name2 ? [window.SillyTavern.getContext().name2] : []);
                 if (owners.length) {
+                    const _ageOpts = {
+                        now: this.clock?.date || this.getLatestStoryDate?.() || '',
+                        calcAge: (a, b) => this.clock?.calcAge?.(a, b),
+                        parseFn: (s) => this.clock?.parseStoryDate?.(s)
+                    };
                     results.status = this.status.searchByNames(owners, 5).map(r => ({
-                        name: r.name, fields: r.fields, todos: r.todos, source: 'status'
+                        name: r.name, fields: r.fields, todos: r.todos,
+                        // [v3.180] 年龄随状态条目一起外供（三态读数）；未记年龄的角色为空串，不占位。
+                        age: this.status.ageReading(r.name, _ageOpts),
+                        source: 'status'
                     }));
                 }
             }
@@ -6503,7 +6618,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 statuses.forEach(s => {
                     const fieldText = (s.fields || []).map(([k, v]) => `${k}:${v}`).join(' | ');
                     const todoText = (s.todos || []).length ? `；待办: ${s.todos.map(t => (t.date ? `${t.date} ` : '') + t.text).join('、')}` : '';
-                    blocks.push(`- ${s.name}${fieldText ? ' — ' + fieldText : ''}${todoText}`);
+                    // [v3.180] 年龄三态读数（与主角同规格）：算得出给数字/约数，算不出给「原文(锚点时)」，
+                    //   而不是像修前那样只把它当普通状态字段原样透出（读者分不清「准」与「猜」）。
+                    const ageText = s.age ? ` | 年龄:${s.age}` : '';
+                    blocks.push(`- ${s.name}${fieldText ? ' — ' + fieldText : ''}${ageText}${todoText}`);
                 });
             }
             if (relations.length) {
@@ -7115,6 +7233,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     opLog: this.opLog?.export?.() || { entries: [], seq: 0 },
                     outline: this.outline?.export?.() || { stage: null, turnIndex: 0, turnFloor: 0, history: [] },
                     pairMem: this.pairMem?.export?.() || { pairs: [] },
+                    // [v3.180] 年龄锚点（主角 + NPC，只带锚点不带年龄）：读侧分支在 v3.180 之前
+                    //   一处都没有，本键与 applyCarryover 的承接分支必须成对出现——一侧有分支、
+                    //   一侧不产出就是 v3.168 治理过的「死分支」（跨对话静默丢子系统）。
+                    ageAnchors: this.status?.exportAgeAnchors?.() || {},
                     counts: {
                         summaries: active.length, suspense: this.suspense.items.filter(x => x.status === 'open').length,
                         graphNodes: this.graph.nodes.size, diaries: Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0),
@@ -7165,6 +7287,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (Array.isArray(pack.timeline) && pack.timeline.length) this.timeline.entries = [...pack.timeline];
                 if (Array.isArray(pack.statusFlat) && pack.statusFlat.length) {
                     this.status.applyChanges(pack.statusFlat, 0, true);
+                }
+                // [v3.180] 年龄锚点单独承接：**只带锚点、不带年龄**（与写侧 exportAgeAnchors 同一条纪律）。
+                //   只写锚点则原子对不变式不破——目标对象上没有 age 就没有孤儿锚点的展示面：
+                //   ageReading 在年龄为空时直接返回空串，锚点只在年龄回来时才参与展示。
+                if (pack.ageAnchors && typeof pack.ageAnchors === 'object' && this.status) {
+                    try {
+                        for (const [nm, av] of Object.entries(pack.ageAnchors)) {
+                            const tv = String(av || '').trim();
+                            if (!nm || !tv) continue;
+                            if (nm === '__protagonist__') this.status.protagonist.ageAnchorTime = tv;
+                            else this.status._ensure(nm).ageAnchorTime = tv;
+                        }
+                    } catch (e) { errLog(e, 'applyCarryover.ageAnchors'); }
                 }
                 // [v2.7] RS: 全量导入（graph/pov/diary/scene/vector，兼容 v2.3 旧包——字段缺失静默跳过）
                 try { if (pack.graph?.nodes) this.graph.import(pack.graph); } catch (e) { console.warn('[LonSha] graph导入失败:', e); }
@@ -7516,6 +7651,42 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = (gap.verdict === 'gapped') || (pd.mismatched && pd.mismatched.length > 0);
                             return ['世界账本', (line || '已读') + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.worldLedger'); return ['世界账本', '—（诊断异常）']; }
+                    })(),
+                    // [v3.180] 楼层真源落笔面：覆盖度是**现算**读数（不入快照存盘），把「哪些楼还没落笔」
+                    //   连同失效原因一并念出来。口径：模块未加载如实报（不装成「无缺口」）；无缺口安静；
+                    //   有缺口标 ⚠️——「有缺陷时告警、没缺陷时安静」与前述各行同规格。
+                    (() => {
+                        try {
+                            const line = (typeof this._floorLedgerLine === 'function') ? this._floorLedgerLine() : '—';
+                            const cov = (typeof this._floorLedgerCoverage === 'function') ? this._floorLedgerCoverage() : null;
+                            const bad = !!(cov && cov.enabled === true && cov.complete === false);
+                            const dead = !!(cov && cov.enabled !== true);
+                            return ['楼层落笔', line + ((bad || dead) ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.floorLedger'); return ['楼层落笔', '—（诊断异常）']; }
+                    })(),
+                    // [v3.180] 年龄锚点读数面：三态必须可分辨（exact=原值 / estimated=推算 /
+                    //   anchor-only=算不出，只给原文与锚点）。修前「算不出」被静默回落成静态原值，
+                    //   与「原值即准」同形——三态塌成两态，用户无从知道那个数字是不是猜的。
+                    (() => {
+                        try {
+                            const st = this.status;
+                            if (!st) return ['年龄锚点', '—（状态层不可用）'];
+                            const A = (typeof st._ageAnchor === 'function') ? st._ageAnchor() : null;
+                            if (!A || typeof A.ageDisplay !== 'function') return ['年龄锚点', '模块未加载（age-anchor.js）⚠️'];
+                            const p = st.protagonist || {};
+                            if (!p.age && !p.ageAnchorTime) return ['年龄锚点', '无档案'];
+                            const now = this.clock?.date || this.getLatestStoryDate?.() || '';
+                            const d = A.ageDisplay(p.age, p.ageAnchorTime, now, {
+                                calcAge: (a, b) => this.clock?.calcAge?.(a, b),
+                                parseFn: (s) => this.clock?.parseStoryDate?.(s)
+                            });
+                            const state = (d && d.state) || 'exact';
+                            const shown = (d && d.text) || p.age || '—';
+                            // anchor-only 是**主动报警态**：不给数字，且必须让人看见「为什么没数字」。
+                            const flag = (state === 'anchor-only') ? ' ⚠️ 算不出（只给原文与锚点）' : '';
+                            const bad = (typeof A.checkInvariants === 'function') ? A.checkInvariants(p) : [];
+                            return ['年龄锚点', `${state}(${shown})${p.ageAnchorTime ? ' @' + p.ageAnchorTime : ''}${flag}${bad.length ? ' · 违规 ' + bad.join(',') : ''}`];
+                        } catch (e) { errLog(e, 'selfCheck.ageAnchor'); return ['年龄锚点', '—（诊断异常）']; }
                     })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
@@ -10168,6 +10339,22 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this._worldLedgerRead = null;  // [v3.176] 世界账本读者面读数（暗流/事实/人物/舆情/缺口，只读）
         }
 
+        /**
+         * [v3.180] 剧情日期解析助手委托（parseStoryDate / calcAge 的真正实现在
+         *   RelativeTimeHelper 上）。修前这两条能力**只在相对时间助手里**存在，而
+         *   调用方（age-anchor 的 parseFn/calcAge）一律写成 `this.clock?.parseStoryDate?.(...)`
+         *   —— 时钟上没有这个方法，Optional Chaining 于是静默返回 undefined：
+         *   年龄读数的 estimated 态（唯一会回数字的那一态）在生产路径上永不达成，
+         *   且不报错、不进错误日志，只有一片 anchor-only 看不出原因。
+         *   委托本身绝不抛：隔离抽取（测试把 GameClock 整段抠进 new Function）时
+         *   RelativeTimeHelper 不在作用域，这里要降级成 null/0 而不是连坐。
+         */
+        parseStoryDate(dateStr) {
+            try { return new RelativeTimeHelper().parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }
+        }
+        calcAge(birthDateStr, currentStoryDateStr) {
+            try { return new RelativeTimeHelper().calcAge(birthDateStr, currentStoryDateStr); } catch (e) { errLog(e, 'GameClock.calcAge'); return 0; }
+        }
         // 设置/推进剧情时间
         // opts: { date, label, flashback, floor, relativeDays }
         setTime(opts = {}) {
@@ -10896,15 +11083,26 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         // 时间跳跃自动长岁，AI 永不算错年龄。
         setProtagonist(patch = {}, floor = 0, storyDateStr = '') {
             if (!patch || typeof patch !== 'object') return this.protagonist;
+            // [v3.180] 锚点守恒（age-anchor.carryAge）：**年龄没变就连旧锚点一起带走**。
+            //   修前只要本轮又给了 age（哪怕值与上次一字不差、哪怕只是编辑触发的重提取）就无条件把
+            //   锚点刷成「本次的故事时间」——两年前那次提取的年龄于是被钉到今天的锚点上，时间再跳也不长岁。
+            const A = this._ageAnchor();
+            const _carry = (A && typeof A.carryAge === 'function' && patch.age !== undefined)
+                ? A.carryAge(patch, this.protagonist) : null;
             for (const key of ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition']) {
                 if (patch[key] !== undefined) {
                     this.protagonist[key] = String(patch[key] ?? '').trim();
                 }
             }
             // age 锚点：仅当本轮显式提供了 age 且有剧情日期时盖章
-            if (patch.age !== undefined && String(patch.age ?? '').trim() && storyDateStr) {
+            //   （_carry.isNewAge === false 即「年龄与旧值相同」：锚点保持原值，不刷新）
+            if (patch.age !== undefined && String(patch.age ?? '').trim() && storyDateStr && !(_carry && _carry.isNewAge === false)) {
                 this.protagonist.ageAnchorTime = String(storyDateStr);
                 this.protagonist.ageAnchorFloor = Number(floor) || 0;
+            }
+            // 显式清空年龄 ⇒ 年龄与锚点**成对清掉**（修前只清 age、留下孤儿锚点 = age-anchor I2 致命形态）
+            if (patch.age !== undefined && !String(patch.age ?? '').trim() && A && typeof A.stampAge === 'function') {
+                A.stampAge(this.protagonist, null, '');
             }
             this.protagonist.floor = Number(floor) || this.protagonist.floor || 0;
             this.protagonist.updatedAt = Date.now();
@@ -10915,6 +11113,23 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         getEffectiveAge(currentStoryDateStr = '') {
             const p = this.protagonist;
             if (!p) return '';
+            // [v3.180] 优先走 age-anchor 三态读数：**只有 estimated 才交数字**。
+            //   anchor-only（时间倒流 / 日期解析不出 / 算不出）不给数字——修前这里一律回落 `p.age`
+            //   静态原值，与「原值即准」同形，于是「算不出」被伪装成「原值本来就是准的」。
+            //   调用方要文本时走 ageReadingPrompt（带锚点括注），要数字（如注入模板）时走本方法。
+            const A = this._ageAnchor();
+            if (A && typeof A.ageDisplay === 'function') {
+                try {
+                    const _ch = (typeof this._clockHelpers === 'function') ? this._clockHelpers() : null;
+                    const d = A.ageDisplay(p.age, p.ageAnchorTime, currentStoryDateStr, {
+                        calcAge: _ch ? _ch.calcAge : (a, b) => this.clock?.calcAge?.(a, b),
+                        parseFn: _ch ? _ch.parseStoryDate : (s) => this.clock?.parseStoryDate?.(s)
+                    });
+                    if (d && d.state === 'estimated' && d.age) return String(d.age);
+                    if (d && d.state === 'exact') return String(d.text || '');
+                    return '';
+                } catch (e) { errLog(e, 'CharacterState.getEffectiveAge.anchor'); }
+            }
             try {
                 if (p.ageAnchorTime && currentStoryDateStr && this.clock) {
                     // ① age 形如日期（含年份数字串长 ≥3 或含 / - . 分隔）→ 按出生日期推算
@@ -10936,6 +11151,52 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             } catch (e) { /* 回退静态值 */ }
             return p.age || '';
         }
+        /**
+         * [v3.180] age-anchor.js 取库口。与 _moduleLib 同契约：传**真读表达式**、**不缓存**
+         * （extra_js 后于入口脚本加载，构造期缓存会永久取到 null）。
+         * 主角与 NPC 共用同一对字段名（age / ageAnchorTime），锚点盖章/守恒/展示全部走该模块。
+         */
+        /**
+         * [v3.180] 时钟助手取用口（与 _ageAnchor 同契约：**不抛**、不缓存、取不到返回 null）。
+         *   优先用调用方/引擎注入的 this.clock（行为不变），缺失时自建一份
+         *   RelativeTimeHelper —— 否则 age-anchor 的 parseFn 恒返回 undefined，
+         *   年龄三态里的 estimated 永不达成（修前实测就是这一形态）。
+         *   CharacterState 的隔离副本里两个符号都不在作用域 ⇒ 返回 null，
+         *   调用方各自回落到原表达式（老行为）。
+         */
+        _clockHelpers() {
+            try {
+                if (this.clock && typeof this.clock.parseStoryDate === 'function' && typeof this.clock.calcAge === 'function') {
+                    return { parseStoryDate: (s) => this.clock.parseStoryDate(s), calcAge: (a, b) => this.clock.calcAge(a, b) };
+                }
+            } catch (e) { /* 注入的时钟不可用 ⇒ 走自建 */ }
+            try {
+                if (typeof RelativeTimeHelper === 'function') {
+                    const rth = new RelativeTimeHelper();
+                    if (rth && typeof rth.parseStoryDate === 'function' && typeof rth.calcAge === 'function') {
+                        return { parseStoryDate: (s) => rth.parseStoryDate(s), calcAge: (a, b) => rth.calcAge(a, b) };
+                    }
+                }
+            } catch (e) { /* 隔离环境：类不在作用域 ⇒ 返回 null */ }
+            return null;
+        }
+        _ageAnchor() {
+            // [v3.180] 隔离安全：本方法可能运行在**被抽离的类副本**里（测试把 CharacterState 整段
+            //   抠进 new Function 求值，IIFE 闭包里的 _moduleLib 不在其作用域），故闭包取库口只作
+            //   首选路径，取不到时按同一契约自包含回落（真读表达式 → 全局符号 → require），
+            //   绝不因缺闭包而抛 —— 年龄读数不该让整条管线连坐。
+            try {
+                if (typeof _moduleLib === 'function') return _moduleLib(() => window.LonShaAgeAnchor, 'age-anchor.js');
+            } catch (e) { /* 隔离环境：闭包不在作用域，走回落 */ }
+            try {
+                const viaGlobal = (typeof window !== 'undefined') ? window.LonShaAgeAnchor : null;
+                if (viaGlobal) return viaGlobal;
+            } catch (e) { /* 忽略：全局不可读按未取到处理 */ }
+            try {
+                if (typeof require !== 'undefined') return require('./age-anchor.js');
+            } catch (e) { /* 忽略：require 不可用 / 文件缺失 */ }
+            return null;
+        }
         getProtagonist() {
             return { ...this.protagonist };
         }
@@ -10945,8 +11206,10 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             const parts = [];
             if (p.gender) parts.push(`[性别:${p.gender}]`);
             // [v3.148] 优先锚点推算（时间跳跃自动长岁），无锚点回退静态值
-            const effAge = this.getEffectiveAge(currentStoryDateStr);
-            if (effAge) parts.push(`年龄:${effAge}`);
+            // [v3.180] 改为三态文本读数：exact=原值 / estimated=约X岁(锚点时Y岁) / anchor-only=原文(锚点时)。
+            //   注入面是 AI 唯一能看到的年龄，把「算不出」也写成数字会让 AI 把一个猜值当事实用。
+            const _ageText = this.ageReadingPrompt(currentStoryDateStr) || this.getEffectiveAge(currentStoryDateStr);
+            if (_ageText) parts.push(`年龄:${_ageText}`);
             if (p.identity) parts.push(`身份:${p.identity}`);
             if (p.appearance) parts.push(`体貌:${p.appearance}`);
             if (p.outfit) parts.push(`当前着装:${p.outfit}`);
@@ -11173,8 +11436,65 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
             return this.characters[name];
         }
+        /**
+         * [v3.180] 主角年龄展示读数（三态文本：原值 / 约X岁(锚点时Y岁) / 原文(锚点时)）。
+         *   模块缺失或抛错时回落 getEffectiveAge（v3.148 老实现），调用方无需判空。
+         */
+        ageReadingPrompt(currentStoryDateStr = '') {
+            const p = this.protagonist || {};
+            const A = this._ageAnchor();
+            if (A && typeof A.ageDisplay === 'function') {
+                try {
+                    const _ch = (typeof this._clockHelpers === 'function') ? this._clockHelpers() : null;
+                    const d = A.ageDisplay(p.age, p.ageAnchorTime, currentStoryDateStr, {
+                        calcAge: _ch ? _ch.calcAge : (a, b) => this.clock?.calcAge?.(a, b),
+                        parseFn: _ch ? _ch.parseStoryDate : (s) => this.clock?.parseStoryDate?.(s)
+                    });
+                    if (d && d.text) return String(d.text);
+                    return '';
+                } catch (e) { errLog(e, 'CharacterState.ageReadingPrompt'); }
+            }
+            return this.getEffectiveAge(currentStoryDateStr) || '';
+        }
+        /**
+         * [v3.180] NPC 年龄读数（与主角**同一对字段名** age / ageAnchorTime，三态同规格）。
+         *   opts = { now, calcAge, parseFn }——CharacterState 手上没有时钟，故由调用方注入；
+         *   不给时钟时不猜（ageDisplay 在缺当前时间时如实返回 exact 原值）。
+         */
+        ageReading(name, opts = {}) {
+            const rec = this.characters[name] || {};
+            const ageVal = rec.age || (rec.fields && rec.fields.age) || '';
+            if (!ageVal && !rec.ageAnchorTime) return '';
+            const A = this._ageAnchor();
+            if (!A || typeof A.ageDisplay !== 'function') return String(ageVal || '');
+            try {
+                const _ch2 = (typeof this._clockHelpers === 'function') ? this._clockHelpers() : null;
+                const d = A.ageDisplay(ageVal, rec.ageAnchorTime, opts.now || '', {
+                    calcAge: opts.calcAge || (_ch2 ? _ch2.calcAge : undefined),
+                    parseFn: opts.parseFn || (_ch2 ? _ch2.parseStoryDate : undefined)
+                });
+                return (d && d.text) || '';
+            } catch (e) { errLog(e, 'CharacterState.ageReading'); return String(ageVal || ''); }
+        }
+        /**
+         * [v3.180] 年龄锚点导出（携带包专用）：**只导有锚点的**角色，没记过锚点的角色不占位。
+         *   刻意**不带年龄**：带过去的年龄配上「新对话当轮的故事时间」就成了「新年龄 + 新锚点」，
+         *   ageDisplay 会算出 estimated 而不是 anchor-only——第三态（算不出就不猜）永远不可达。
+         *   只带锚点则跨度对得上，读数如实显示「原文(锚点时)」。
+         */
+        exportAgeAnchors() {
+            const out = {};
+            try {
+                const p = this.protagonist || {};
+                if (p.ageAnchorTime) out.__protagonist__ = String(p.ageAnchorTime);
+                for (const [name, rec] of Object.entries(this.characters || {})) {
+                    if (rec && rec.ageAnchorTime) out[name] = String(rec.ageAnchorTime);
+                }
+            } catch (e) { errLog(e, 'CharacterState.exportAgeAnchors'); }
+            return out;
+        }
         // 设置/增量修改状态字段 ([v2.3] _replaying=true 表示正在重放, 不再记 op)
-        applyChanges(changes, floor, _replaying = false) {
+        applyChanges(changes, floor, _replaying = false, storyDateStr = '') {
             if (!Array.isArray(changes)) return 0;
             let n = 0;
             const effective = [];
@@ -11193,6 +11513,20 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 if (c.reason) rec.lastReason = String(c.reason).trim();
                 rec.updatedAt = Date.now();
                 rec.floor = floor || 0;
+                // [v3.180] age 字段走锚点原子对（与主角同一对字段名 age / ageAnchorTime）：
+                //   写值的同时盖「本轮故事时间」锚点。重放（_replaying）不刷新锚点——补提旧楼时把
+                //   两年前的年龄钉到今天的锚点上就是冻龄；但重放也**不得留孤儿锚点**（I2 致命形态），
+                //   故年龄为空时成对清除。模块缺失时退回「只写值」的旧行为。
+                if (field === 'age') {
+                    const _A = this._ageAnchor();
+                    if (_A && typeof _A.stampAge === 'function') {
+                        try {
+                            const _v = String(rec.fields[field] ?? '').trim();
+                            if (_replaying) { if (!_v && rec.ageAnchorTime) _A.stampAge(rec, null, ''); }
+                            else _A.stampAge(rec, _v, storyDateStr);
+                        } catch (e) { errLog(e, 'CharacterState.applyChanges.stampAge'); }
+                    }
+                }
                 // 字段数上限保护
                 const keys = Object.keys(rec.fields);
                 if (keys.length > this.MAX_FIELDS) delete rec.fields[keys[0]];
@@ -12710,6 +13044,11 @@ ${recentTurns}`;
             this.registerEvents();
             this.createUI();
             await this.ensureSettingsUI();
+            // [v3.180] 公开接口三入口（全局/斜杠/宏）。注册点必须在 init 内，但不能同步调用：
+            //   register() 会探测 window.lonsha_memory_bridge_v1 是否已挂，而桥对象在 plugin.init()
+            //   返回**之后**才赋值——同步注册会让 global 入口恒报 absent（一次成功的失败声明）。
+            //   故延后一拍执行，且绝不阻塞 init（失败只留痕，不影响记忆管线）。
+            try { this._registerPublicInterface(); } catch (e) { errLog(e, 'init.publicInterface'); }
             // [v1.2] 初始化时加载当前对话的已有记忆数据
             try {
                 const chatId = this.engine.getCurrentChatId();
@@ -12762,6 +13101,50 @@ ${recentTurns}`;
                 this._settingsUIMounted = false;
                 this._settingsUILoadError = (err && err.message) || String(err);
             }
+        }
+        /**
+         * [v3.180] 公开接口三入口接线（幂等、绝不抛、失败可归因）。
+         *   本插件此前对外只有 window.lonsha_memory_bridge_v1 一个入口——用户想在聊天里查一眼
+         *   主角档案做不到，卡作者想在 prompt 里引用剧情时钟也做不到（全库 grep
+         *   registerSlashCommand/registerMacro/SlashCommandParser 在产品代码里零命中）。
+         *   注册结果**如实留痕**到 this._publicInterfaceReport：三个入口各自成败，互不连坐。
+         */
+        _registerPublicInterface() {
+            const run = async () => {
+                try {
+                    const PI = _moduleLib(() => window.LonShaPublicInterface, 'public-interface.js');
+                    if (!PI || typeof PI.register !== 'function') {
+                        this._publicInterfaceReport = {
+                            at: Date.now(),
+                            global: { state: 'absent', reason: 'public-interface.js 未加载' },
+                            slash: { state: 'absent', reason: 'public-interface.js 未加载' },
+                            macro: { state: 'absent', reason: 'public-interface.js 未加载' }
+                        };
+                        console.warn(`[${PLUGIN_NAME}] ⚠️ 公开接口未注册：public-interface.js 未加载（斜杠命令与宏均不可用）`);
+                        return null;
+                    }
+                    const eng = this.engine;
+                    const rep = await PI.register({
+                        // 快照与覆盖度都取**当下真源**：coverage 是现算读数（不入快照存盘），
+                        //   存进快照就成了历史——这条边界由 public-interface 侧统一处理。
+                        snapshot: () => {
+                            try { return (window.lonsha_memory_bridge_v1 && window.lonsha_memory_bridge_v1.snapshot) || null; }
+                            catch (e) { return null; }
+                        },
+                        coverage: () => {
+                            try { return (eng && typeof eng._floorLedgerCoverage === 'function') ? eng._floorLedgerCoverage() : null; }
+                            catch (e) { return null; }
+                        },
+                        // 宿主版本差异：斜杠命令两条路径、宏两条路径，由 public-interface 按可用性探测。
+                        //   这里只提供 dynamicImport 原语（宿主模块经 URL 动态载入）。
+                        dynamicImport: (p) => import(/* webpackIgnore: true */ p)
+                    });
+                    this._publicInterfaceReport = rep;
+                    console.log(`[${PLUGIN_NAME}] 公开接口: 斜杠=${rep?.slash?.state || '—'}(${rep?.slash?.path || '—'}) 宏=${rep?.macro?.state || '—'}(${rep?.macro?.path || '—'}) 全局=${rep?.global?.state || '—'}`);
+                    return rep;
+                } catch (e) { errLog(e, 'publicInterface.register'); return null; }
+            };
+            setTimeout(() => { run(); }, 0);
         }
         loadModules() {
             // [v3.165] 成功声称面：原写法 `if (typeof X !== 'undefined') { 加载 + 报成功 }`

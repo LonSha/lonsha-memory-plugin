@@ -1,3 +1,59 @@
+## v3.180.0
+**三面收口：账随楼层走（floor-ledger）/ 年龄算不出就不猜（age-anchor）/ 对外开一个只读查账口（public-interface）**
+**主题**：v3.176 把「读推演侧世界的五本账」接通之后，本插件在**自身**这一侧还剩三个同族缺口——
+账本的**归属性**没有真源（改了账，但账记在哪一层楼说不清）、年龄的**可观测性**没有纪律（算不出就顺手编一个数）、
+以及对外的**可查性**只有一根写死的桥（外部想看只能自己啃快照形状）。三者都是「账记了，但读不出它属于谁、值不值信、从哪问」。
+### 一、缺陷：账落笔之后没有归属，重放/翻页时问不出「这是哪一楼的账」
+`FloorLedger`（v2.0 的楼层账本）管的是**逻辑**分层的账；而写入 ST 消息的**物理**落点没有任何真源：
+同一段文本被 swipe 换掉、被重新生成、被摘要替换之后，落在同一格里的内容到底属于哪一楼、是否还是同一楼的旧影子，
+运行期无从判定。表现是「账看起来在，但校验不了」——只能整格信或整格不信，没有中间态。
+**落法**：`floor-ledger.js` 以**完整指纹**（`[isUser, swipe_id, hash32(text), send_date]`）标记每格归属，
+`stamp()` 走「同页则继承字段、翻页则整格换新」的合并语义；`read()` 给三态 `{present, valid, why}`，
+`why` 取值 `version-mismatch / fingerprint-mismatch / malformed / absent / thrown`；`coverage()` 逐楼列号并给 `byWhy` 分布。
+**关键**：指纹校验**不带 ignoreFp**——「页号对了、内容被换过」必须能被判成 falsified，否则账随楼层走就成了一句话。
+### 二、缺陷：年龄算不出就回退成一个数字，三种「不确定」被压成一种「确定」
+主角客观档案有 `age`、有 `ageAnchorTime`/`ageAnchorFloor`，读的时候却只有一条路：**能算就回数字，算不出也用旧值兜**。
+于是「钟没走」（无故事日期）与「锚点丢了」（有日期无锚点）与「锚点在但推算为负/荒谬」三种完全不同的现场，
+在界面上是同一种字样：一个具体岁数。读者的每一次自我怀疑都被一个假数字安抚掉。
+**落法**：`age-anchor.js` 把年龄变成**原子对**——`stampAge` 有值写入并盖锚点 / 显式置空则成对清除 / 未提供则不动；
+`carryAge` 守恒（`isNewAge` 标记决定是否刷锚点，携带与重放不产生孤儿锚点）；`ageDisplay` 三态
+`exact`（有锚点有日期）/ `estimated`（末位约数）/ `anchor-only`（只有锚点、日期缺失 ⇒ 回空串，不猜）；
+`checkInvariants` 报 `I1:missing-anchor` / `I2:orphan-anchor`（致命）/ `I3:anchor-not-string`。
+注入侧、召回条目、`[角色状态]` 块、自检行全部改走三态文本；**只有 `estimated` 才回数字**。
+### 三、缺陷：对外的口只有一根写死的桥，桥里有什么、按什么路径注册，调用方自己猜
+`window.lonsha_memory_bridge_v1` 在 `plugin.init()` **之后**才赋值，而注册在同步段里做，`probeGlobal` 恒报 `global.state='absent'`；
+即便挂上去了，也只给了「取什么」，没给「怎么宣告自己存在」——斜杠命令与宏两套宿主 API 各自有两条路径
+（`addCommandObject`/`addCommand`、`macro-system`/`macros.js`），注册成功与**注册到哪条路径**是两件事，后者决定调用方能不能用参数。
+**落法**：`public-interface.js` 冻结 12 项只读资源（`snapshot/protagonist/lifeDetails/characters/moneyLedger/outline/worldProg/clock/recallAudit/worldLedgerRead/coverage/floor`），
+`queryResource` 单一实现（`NS='lonsha'`、`API_VERSION=1`），`register(deps)` 幂等且**绝不抛**；
+宿主侧 `_registerPublicInterface()` 用 `setTimeout(..., 0)` 延后一拍避开桥未赋值的时序陷阱，
+失败只留痕到 `this._publicInterfaceReport`（不炸管线）。宏支持参数化 `{{lonshaGet::clock}}`（成功与退化两条路径都留痕）。
+### 四、接线与纪律
+- 携带契约新增 `ageAnchors` 键（第 24 键）：**写侧必产出、读侧才承接**，否则 v3.168 的「死分支」判据直接翻红。
+- `applyChanges` 新增第 4 参 `storyDateStr`，`age` 字段走 `stampAge` 原子对：重放不留孤儿锚点、也不刷新锚点。
+- 自检 `rows` 数组内新增两行常驻诊断（「楼层落笔」+「年龄锚点」），`anchor-only` 与模块缺失均标 ⚠️，`checkInvariants` 违规一并念出。
+### 五、上线前实测抓到的三处真缺陷（三面各自都有一处，且都是**静默**的）
+> 这三处不是设计遗漏，是「声明在位、行为空转」——本仓库治理了十几轮的同一族形态。
+1. **陈旧拒笔纪律从未生效（`fresh` 死参）**：`onMessageReceived` 的摘要落笔写的是
+   `this._stampFloorLedger(message, {...}, { fresh: true })`，而方法签名只声明了两个形参 ——
+   第三实参被静默丢弃，`record.fresh` 恒为 `undefined`。
+   后果：提取排队期间被翻页/编辑时，旧页的账照样被记到新页上，并从此自称「我这页有账」，
+   **覆盖度再也看不见这个缺口**（缺口自愈的假象）。修法：签名补 `opts = {}`，判据同时认 `record.fresh || opts.fresh`。
+2. **年龄估算态在生产路径上永不达成（三态塌两态）**：`ageDisplay` 要 `estimated` 就要求
+   `parseFn(anchor)` / `parseFn(now)` 解析成功，而生产路径上的 `parseFn` 来自
+   `this.clock?.parseStoryDate?.(s)` —— 这两个方法**都不在 GameClock 上**（属于 `RelativeTimeHelper`），
+   且 `this.clock` 只在 `MemoryEngine` 上被赋值、状态层从未拿到过。
+   于是 Optional Chaining 静默返回 `undefined` ⇒ `days === null` ⇒ **state 恒为 `anchor-only`**：
+   「时间一跳自动长岁」成了一句永不自证的话，诊断面只有一片 `anchor-only`，看不出是「算不出」还是「根本没喂时钟」。
+   修法：`GameClock` 增补 `parseStoryDate`/`calcAge` 委托（隔离环境不抛，降级 `null`/`0`）；
+   `CharacterState` 增补 `_clockHelpers()`（注入优先 → 自建 `RelativeTimeHelper` → `null`，与 `_ageAnchor` 同契约）；
+   引擎构造处 `this.status.clock = this.clock` 把时钟交给状态层。
+3. **审计判据本身的两处形态**（由负控制抓出，非产品缺陷）：M2 原来用全文件 `includes('anchor-only')`
+   ——注释里出现该字面量即恒绿（V2 组破坏没能翻红）；M5 原来只看「有没有同名方法」而**不看是否真委托**
+   ——「签名在位、方法体空转」照样通过（V6 组破坏没能翻红）。两处判据均已改为只认真赋值点 / 真委托调用，
+   并在负控制里各自成组固定（7 组真源码破坏 + 1 组结构漂移删除）。
+**边界**：三入口全部只读（与桥同规格）——能查、能引用，不能改账。本插件在这套体系里的角色是**记账的那一个**：
+查账口可以多开，改账口不开。
 ## v3.179.0
 **悬念簿了结的模糊回退：从「取首个命中」到「唯一命中才结」**
 **主题**：v3.178.0 给承诺账本补上「宁可漏结，不可错结」的纪律时，留下了同一主线上的另一半未收口——
