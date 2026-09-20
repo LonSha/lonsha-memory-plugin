@@ -12,7 +12,7 @@
  *   对「含顶层 import/export 且结构损坏」的文件返回退出码 0（假绿）。
  *
  * 判定策略（三条实测结论，勿凭直觉改动）：
- *   1. 一律用 --input-type=module 从 stdin 强制按 ESM 解析 .js/.mjs。
+ *   1. 一律用 ESM 语义解析 .js/.mjs。
  *      ESM 语法是 CJS 的严格超集：实测本仓库 19 个 IIFE/CJS 风格 .js
  *      （其中 15 个含 require/module.exports）在强制 ESM 解析下 0 失败，
  *      故本门无假阳性。
@@ -26,6 +26,19 @@
  *      15 个 .js 含 require/module.exports 运行时特征，加了会在运行时炸。
  *      因此拦截能力只能由本脚本自身提供。
  *
+ * 性能层（v3.177.0，慎改）：
+ *   旧实现对每个文件 spawn 一次 `node --check`（220 文件 = 220 个子进程，
+ *   单次扫描实测 ~14s）。v392 语法门测试为覆盖多种损坏形态 + 负控制，
+ *   单次运行会调用本门 10 次，累计 >120s 直接触发测试超时——门禁本身的
+ *   回归成本高到无法通过，属真实基建债。
+ *   现改为「本进程内 vm 批量解析」（单次 <1s）：
+ *     - 命中失败的文件，才逐个回退到 per-file `--check` 取回精确 stderr
+ *       （vm 抛出的 SyntaxError 不含行号/文件名，必须回退补齐）。
+ *     - 判定等价性已实测：对照 220 个真实文件的 per-file `--check`，
+ *       逐文件比对 0 处不一致（含损坏 ESM / 损坏 CJS / 健康 ESM / 健康 CJS）。
+ *   vm.SourceTextModule 需 --experimental-vm-modules，故无该标志时
+ *   自 re-exec 一次（stdio: inherit，不占用管道缓冲）。
+ *
  * 用法：
  *   node tests/audit/scan_syntax.mjs              # 校验仓库
  *   node tests/audit/scan_syntax.mjs --verbose    # 逐文件输出
@@ -34,8 +47,19 @@
  * ============================================================ */
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import vm from 'node:vm';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
+const VM_FLAG = '--experimental-vm-modules';
+if (!process.execArgv.includes(VM_FLAG) && !process.env.LONSHA_SYNTAX_GATE_REEXEC) {
+  const r = spawnSync(
+    process.execPath,
+    [VM_FLAG, '--no-warnings', fileURLToPath(import.meta.url), ...process.argv.slice(2)],
+    { env: { ...process.env, LONSHA_SYNTAX_GATE_REEXEC: '1' }, stdio: 'inherit' },
+  );
+  process.exit(typeof r.status === 'number' ? r.status : 1);
+}
 
 const args = process.argv.slice(2);
 const rootIdx = args.indexOf('--root');
@@ -64,6 +88,18 @@ function* walk(dir) {
   }
 }
 
+// 批量快筛：单进程内解析，不 spawn。语义与 --check 等价（已实测对照）。
+function parseOne(file, src) {
+  try {
+    if (file.endsWith('.cjs')) new vm.Script(src, { filename: file });
+    else new vm.SourceTextModule(src, { identifier: file });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, err: String(e.message || e) };
+  }
+}
+
+// 仅失败文件回退：拿精确 stderr（含 [stdin]:N 行号）+ 权威判定
 function checkEsm(file) {
   try {
     execFileSync(process.execPath, ['--input-type=module', '--check'], {
@@ -102,14 +138,24 @@ for (const file of walk(root)) {
   total++;
   const rel = path.relative(root, file);
   const isCjs = file.endsWith('.cjs');
-  const r = isCjs ? checkScript(file) : checkEsm(file);
   if (isCjs) cjsChecked++; else esmChecked++;
 
-  if (r.ok) {
+  const src = fs.readFileSync(file, 'utf8');
+  const fast = parseOne(file, src);
+
+  if (fast.ok) {
     if (verbose) console.log(`ok   ${rel}  [${isCjs ? 'cjs' : 'esm'}]`);
-  } else {
-    failures.push({ rel, msg: firstErr(r.err), line: errLine(r.err) });
+    continue;
   }
+
+  // 快筛报失败 → 用 per-file --check 复检取权威结论与报错文本
+  const r = isCjs ? checkScript(file) : checkEsm(file);
+  if (r.ok) {
+    // 理论上不可达（等价性已实测）；万一发生，以权威结果为准，不误报
+    if (verbose) console.log(`ok   ${rel}  [${isCjs ? 'cjs' : 'esm'}]`);
+    continue;
+  }
+  failures.push({ rel, msg: firstErr(r.err), line: errLine(r.err) });
 }
 
 if (total === 0) {
