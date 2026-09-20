@@ -195,7 +195,7 @@ try {
   });
 
   // ========== E. 发布卫生 ==========
-  ok('E1 版本三源一致且不低于 v3.178.0', () => {
+  ok('E1 版本三源一致且不低于 v3.179.0', () => {
     const vnum = (s) => {
       const m = /^([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?/.exec(String(s));
       return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
@@ -206,7 +206,7 @@ try {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     assert.equal(v, manifest.version);
     assert.equal(v, pkg.version);
-    assert.ok(vnum(v) >= vnum('3.178.0'), `版本 ${v} 不得低于 3.178.0`);
+    assert.ok(vnum(v) >= vnum('3.179.0'), `版本 ${v} 不得低于 3.179.0`);
   });
 } finally {
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* 清理失败不影响结论 */ }

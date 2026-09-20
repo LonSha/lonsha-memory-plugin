@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.178.0';
+    const VERSION = '3.179.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -8332,7 +8332,12 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (!it) it = this.items.find(x => x.sid === idOrContent && x.status === 'open');
             if (!it) {
                 const key = String(idOrContent || '').trim();
-                it = this.items.find(x => x.status === 'open' && (x.content.includes(key) || key.includes(x.content)));
+                // [v3.179] 唯一命中才结：多条并存一律不动（与承诺账本 resolvePromise 的同族纪律对齐）。
+                //   旧实现是 find 取【首个】模糊命中：AI 回引里写了半句/泛词（如「约定」「出去」）时，
+                //   会把一条不相干的悬项当成目标结掉，且全程无痕——悬念簿自报「了结」，正文其实没发生。
+                //   宁可漏结（保持 open，下一轮可再次精确引用），不可错结。
+                const cands = key ? this.items.filter(x => x.status === 'open' && (x.content.includes(key) || key.includes(x.content))) : [];
+                if (cands.length === 1) it = cands[0];
             }
             if (!it) return null;
             it.status = 'resolved';
