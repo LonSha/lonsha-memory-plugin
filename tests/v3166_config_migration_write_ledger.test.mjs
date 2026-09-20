@@ -21,7 +21,7 @@ test('v3.166 版本下界与四处同步', () => {
         return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
     };
     const v = /const VERSION = '([\d.]+)'/.exec(src)?.[1];
-    assert.ok(vnum(v) >= vnum('3.177.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.178.0'), `index.js 版本 ${v} >= 3.166.0`);
     // 下一版的「当版独占交出」会扫描本文件里的 vnum 下界，链条必须能接上
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));

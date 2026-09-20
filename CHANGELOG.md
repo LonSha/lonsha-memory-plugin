@@ -1,3 +1,40 @@
+## v3.178.0
+**承诺回路的暗端：提取端声明了「履行/违约」，产品端从不存在**
+**主题**：`WorldProgress` 约定账本（v3.41 吸收 Stitches）的**闭环缺口**——账本记得住、注入得出、到期会告警，
+但它**从不了结**。
+### 一、两层断裂叠加（提取声明了 → 注入不给钥匙 → 消费端不存在）
+提取 prompt（`index.js:761`）明确要求 AI 每轮输出：
+`9k. promises_resolve：本轮明确履行或违约的既有承诺。填 {"id":"承诺账本中的 prom_ 编号","status":"fulfilled|broken"}；
+没有则填空数组。只能处理【未竟约定与承诺】中已有的编号。`
+JSON schema 示例也带了 `promises_resolve`。但两端同时断裂：
+1. **消费端不存在**：应用块（`[v3.85] WorldProgress 数据源接线`）只读 `promises` / `plot_arcs` / `knowledge_changes`，
+   **从不读 `extracted.promises_resolve`**。全仓 `grep promises_resolve` 仅命中提取 prompt 自身——零消费。
+   `fulfillPromise` / `breakPromise` 虽在 v3.41 就写好，但**只有测试直接调用**，产品运行路径零调用。
+2. **注入端不给钥匙**：注入文本格式为 `` `- [约定|${character}|截止第${deadlineFloor}楼]` ``，**不含 `prom_id`**。
+   即便 AI 想按 prompt 要求填 id，它在上下文里**根本看不到任何 prom_id**——回引无从下手。
+叠加后果：**承诺一旦登记便永久滞留在【未竟约定与承诺】注入区**，`overdue` 只会越积越多，
+所谓「完成/违约三态追踪」实际只有「新增」一种状态真正发生过。
+### 二、修法：把钥匙交给 AI，再把钥匙接回账本
+- **钥匙端**（`toInjection`）：注入行改为 `` `- [${p.id}|约定|${p.character}|截止第${p.deadlineFloor}楼]` ``，
+  首字段即 `prom_…` 编号，AI 可直接回填。
+- **消费端**（应用块）：新增 `promises_resolve` 解析（每轮上限 5 条）——
+  - 有 `id`：按 id 精确匹配；匹配不到则**不动**（宁可漏结，不可错结）；
+  - 无 `id` 但有 `content`：按「未了结 且 内容双向包含」求候选，**唯一命中才结**，多条并存一律不动；
+  - 落到 `WorldProgress.resolvePromise(id, status, floor)`。
+- **方法端**：新增 `resolvePromise(id, status='fulfilled', floor)` —— 按 id 了结，带 `resolvedFloor` / `resolvedAt`，
+  且**幂等**：已 `fulfilled` / `broken` 的承诺二次调用返回 `null`、不改状态（防 AI 反复改口把已履行翻成违约）。
+- **记账端**：`resolvedCount` 纳入 `opLog` 与 debug 日志（`… knowledge/N resolved`）。
+### 三、测试
+`tests/v3178_promises_closure.test.mjs`（9 项断言）：
+- 静态锚点：消费口 `extracted.promises_resolve` / 调用点 `worldProg.resolvePromise(` / 钥匙 `` `- [${p.id}|约定|` `` /
+  方法签名 / 记账 `resolvedCount` 五处齐备；
+- 动态：按 id 履行（状态+`resolvedFloor`+时间戳+注入区移除）、按 id 违约、**幂等**（二次返回 null 且不改写状态）、
+  未知/空 id 返回 null 不抛、缺省参数默认履行；
+- 注入格式：块内必含 `prom_id` + 人名 + 语义标签；
+- **负控制**：破坏锚点（幂等守卫行）恰中 1 次 → 移除后二次调用**必能**翻转状态（证明幂等判据非恒真）→
+  原版同址必须拒绝。
+全量 `npm test`：**172 文件 / 1256 断言 / 0 失败**。版本三源与 16 个测试文件的 32 处锚点同步交棒。
+
 ## v3.177.0
 **语法门性能层：门禁自身不能把测试跑挂（性能也是正确性）**
 **主题**：v3.92 建的语法门（`tests/audit/scan_syntax.mjs`）与 ruby-phone 同构的盲区治理

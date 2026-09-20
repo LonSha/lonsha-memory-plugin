@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.177.0';
+    const VERSION = '3.178.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2768,6 +2768,28 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 if (arc) arcCount++;
                             }
                         }
+                        // [v3.178] promises_resolve 消费口（此前提取了但产品零消费 ⇒ 承诺永不了结）。
+                        //   注入区已带 prom_id，AI 按 id 回引；id 缺失时按「未了结且内容唯一匹配」回退，
+                        //   匹配到多条则不动（宁可不结，不可错结）。
+                        let resolvedCount = 0;
+                        const resolveReqs = Array.isArray(extracted.promises_resolve) ? extracted.promises_resolve : [];
+                        for (const raw of resolveReqs.slice(0, 5)) {
+                            if (!raw || typeof raw !== 'object') continue;
+                            let target = null;
+                            const rid = String(raw.id || '').trim();
+                            if (rid) {
+                                target = this.worldProg.promises.find(x => x.id === rid) || null;
+                            } else {
+                                const rc = String(raw.content || raw.text || '').trim();
+                                if (rc) {
+                                    const cands = this.worldProg.promises.filter(x =>
+                                        (x.status === 'pending' || x.status === 'imminent' || x.status === 'overdue') &&
+                                        (x.content === rc || x.content.includes(rc) || rc.includes(x.content)));
+                                    if (cands.length === 1) target = cands[0];
+                                }
+                            }
+                            if (target && this.worldProg.resolvePromise(target.id, raw.status, wpFloor)) resolvedCount++;
+                        }
                         const changes = Array.isArray(extracted.knowledge_changes) ? extracted.knowledge_changes : [];
                         for (const raw of changes.slice(0, 8)) {
                             if (!raw || typeof raw !== 'object') continue;
@@ -2782,9 +2804,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         // 即时推进检查：不等到下一次生成才刷新 imminent/overdue 与支线沉降。
                         this.worldProg.checkPromises(wpFloor);
                         this.worldProg.decayArcs(wpFloor, 15);
-                        if (promiseCount || arcCount || knowledgeCount) {
-                            this.opLog?.log('worldprogress', 'update', promiseCount + ' promises/' + arcCount + ' arcs/' + knowledgeCount + ' knowledge', wpFloor, '');
-                            if (this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] 🌐 世界推进接线: 承诺' + promiseCount + '·支线' + arcCount + '·认知' + knowledgeCount);
+                        if (promiseCount || arcCount || knowledgeCount || resolvedCount) {
+                            this.opLog?.log('worldprogress', 'update', promiseCount + ' promises/' + arcCount + ' arcs/' + knowledgeCount + ' knowledge/' + resolvedCount + ' resolved', wpFloor, '');
+                            if (this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] 🌐 世界推进接线: 承诺' + promiseCount + '·支线' + arcCount + '·认知' + knowledgeCount + '·了结' + resolvedCount);
                         }
                     } catch (e) { errLog(e, 'onMessageReceived.WorldProgress接线'); }
                 }
@@ -9638,6 +9660,18 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             if (p) p.status = 'broken';
             return p;
         }
+        /** [v3.178] 按 id 履行/违约——提取 prompt 中 promises_resolve 的消费口。
+         *  此前只有测试直接调 fulfillPromise/breakPromise，产品运行路径零消费，
+         *  导致承诺一旦登记便永不了结（长期滞留在【未竟约定】注入区）。 */
+        resolvePromise(id, status = 'fulfilled', floor = 0) {
+            const p = this.promises.find(x => x.id === id);
+            if (!p) return null;
+            if (p.status === 'fulfilled' || p.status === 'broken') return null; // 幂等：已了结不重复
+            p.status = (String(status).toLowerCase() === 'broken') ? 'broken' : 'fulfilled';
+            p.resolvedFloor = Number(floor) || 0;
+            p.resolvedAt = Date.now();
+            return p;
+        }
 
         // ===== 认知隔离 (Cognitive Horizon) =====
         markUnaware(charName, fact) {
@@ -9845,7 +9879,9 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             if (activePromises.length) {
                 const promLines = activePromises.map(p => {
                     const statusDesc = p.status === 'overdue' ? '【已逾期】' : (p.status === 'imminent' ? '【即将到期】' : '【进行中】');
-                    return `- [约定|${p.character}|截止第${p.deadlineFloor}楼] ${statusDesc} ${p.content}`;
+                    // [v3.178] 携带 prom_id：AI 才能在 promises_resolve 里按 id 回引了结。
+                    //   此前格式不含 id，整个「履行/违约」回路无法闭合。
+                    return `- [${p.id}|约定|${p.character}|截止第${p.deadlineFloor}楼] ${statusDesc} ${p.content}`;
                 }).join('\n');
                 results.push({
                     id: 'wp_promises',

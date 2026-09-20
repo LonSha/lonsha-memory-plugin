@@ -615,10 +615,10 @@ test('【I4】工具两向自证：锚点不存在或不唯一必须抛；判据
 });
 
 // ══════════ J 发布卫生 ══════════
-test('【J1】版本三源一致且不低于 v3.177.0', () => {
+test('【J1】版本三源一致且不低于 v3.178.0', () => {
     const v = (idxSrc.match(/const VERSION = '([^']+)'/) || [])[1];
     assert.ok(v, 'index.js VERSION 在场');
-    assert.ok(vnum(v) >= vnum('3.177.0'), `index.js 版本 ${v} >= 3.177.0`);
+    assert.ok(vnum(v) >= vnum('3.178.0'), `index.js 版本 ${v} >= 3.178.0`);
     assert.equal(manifest.version, v, `manifest(${manifest.version}) 与 index.js(${v}) 漂移`);
     assert.equal(pkg.version, v, `package.json(${pkg.version}) 与 index.js(${v}) 漂移`);
 });
@@ -652,7 +652,7 @@ test('【J4】只读边界：读者面不出现任何写侧入口', () => {
 test('【J5】CHANGELOG 顶节为本版并记录「只通了一根线」这一现场', () => {
     const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
     assert.ok(top, 'CHANGELOG 有版本段');
-    assert.ok(vnum(top.replace('v', '')) >= vnum('3.177.0'), `顶节 ${top} 须 >= v3.177.0`);
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.178.0'), `顶节 ${top} 须 >= v3.178.0`);
     assert.ok(/缺口/.test(changelog), '记录了「不可观测的缺口」这一核心');
     assert.ok(/一根线|一个字段/.test(changelog), '记录了 v3.175 只读一个字段这一现场');
     assert.ok(/对读/.test(changelog), '记录了对读（不覆盖）的边界口径');
