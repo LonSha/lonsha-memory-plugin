@@ -1,3 +1,45 @@
+## v3.181.0
+**场所图景（Spatial Grounding）：把「地点」从一句注记做成可查询的面（scene-book.js）**
+**主题**：v3.180 把「账属于哪一楼」「年龄算不算得出」「对外从哪问」三面收口之后，插件里**最薄的那一个子系统**露了出来——
+场景树 `SceneBook` 全库只有 **89 行**，对外读法只有三个（`currentKey` / `chainOf` / `brief`）。
+于是四个日常问题在运行期全是死路：「主角上一次去『老城›钟楼›顶层』是什么时候」「这一段剧情发生时人在哪儿」
+「谁在这个地方」「这个街区下还藏着多少处场所、描述写到了第几层」。地点侧只有一句注记，没有面。
+### 一、缺陷：位置轨迹在三目运算符优先级上塌成哑雷（看起来正常，一被赋值就静默清空）
+`rebuildFromOps()` 里的过滤写成 `t.floor < (this._cutoff || 0) || this._cutoff === undefined ? true : false`：
+条件运算符优先级最低，实际解析为 `(A || B) ? true : false`；`_cutoff` 一旦有值，两项皆假 ⇒ **恒假**，位置轨迹被无声清空。
+而 `_cutoff` 在本版之前**全库零写点**——它是一枚「哪天被赋值就会静默抹掉轨迹」的哑雷。
+**落法**：轨迹过滤改为显式入参（`rebuildFromOps(cutoff)` / `rollbackFrom(floor, cutoff)`），不再依赖实例上的隐式状态。
+### 二、缺陷：同楼二次定位覆盖前一次，到访史从未存在（「去过几次」永久丢失）
+`setLocation` 只写 `track`，且以 `pathKey` 同楼覆盖——被覆盖的那一次永久消失。
+「上一次」「第一次」「去过几次」这三个最常问的读法，在结构上就没有落脚点。
+**落法**：新增到访史 `visits`（首次到访 / 最近到访 / 到访次数 / 近期楼层），
+计数口径 = **到访过的不同楼层数**（同楼覆盖不重复计，避免重访率虚增）。
+### 三、缺陷：清了却没人重建（删楼回滚的半截状态）
+`_rebuild()` 只重放 `opsLog`，**不重建** `track`/`visits`；而 `rollbackFloorOnly` 清掉 `track` 之后无人重建。
+于是删一楼之后的轨迹与到访读数是「旧账留下的影子」，与它声称的「已回滚」并不一致。
+**落法**：`_rebuild()` 同时重放 `opsLog` 与 `track`（按楼层升序去重，保证重建前后读数可复现）；
+删楼回滚只保留「该楼的在场清理」（在场由宿主按在场性写入、不由 `track` 派生）——**到场史只能有一个真源**。
+### 四、本版交付的六面（从「一句注记」到「可查询的面」）
+1. **场景树**：保留并补祖先自建——登记 `老城›钟楼›顶层` 会自动补齐上级；
+2. **到访史** `visits` / `track`：首次、最近、次数、近期楼层，可切片回看；
+3. **在场索引** `presence`：`setPresence` / `removePresence` / `clearPresence` / `presenceAt` / `whereIs` /
+   `findByLeaf` / `samePlace`，含**层级包含**语义（`samePlace` 同时认「同处一室」与「同一街区下的两处」）；
+4. **地点挂账** `outlineOf`：广度（子树里有描述的场所数）/ 深度（最深层级）/ 自述句
+   「钟楼：2 处场所，其中 1 处已细写，最深 1 层」；
+5. **覆盖度** `coverage`：逐楼列号 + 缺口 + 未登记到访，与账本侧同一口径（列号可对账）；
+6. **不变量** `checkInvariants`：三态 `ok | warn | broken`，八种 kind
+   （`bad-node` / `key-path-mismatch` / `bad-desc` / `broken-chain` / `visit-unregistered` /
+   `track-unregistered` / `presence-bad` / `invariant-threw`），绝不静默。
+**边界**：`findByLeaf` **不做模糊匹配**，重名取最近登记者——「猜出来的路径比没有路径更有害」。
+### 五、接线与纪律
+- 模块抽取：`SceneBook` 从 `index.js`（89 行）移出为 `scene-book.js`（724 行），宿主走 `_moduleLib` 的
+  **真读表达式**取库；构造处 `this.scene = _newSceneBook()`（实例字段声明区只放字面量，接线落构造器内）。
+- **模块缺席不留旧类当退路**：`SceneBookFallback` 为同形空实现（`_absent=true`，读数一律如实回报「没有」）——
+  两份实现必然漂移，退路会比缺席更贵。
+- 携带契约新增 `scenePresence` 键：谁在何处是**剧情状态**，不是缓存。
+- 自检诊断行升级：`N 节点（细写 X / 最深 Y 层）/ ops M / 到访 V / 在场 P`，模块缺席与 `broken/warn` 一并报警。
+- 快照外供新增 `scene`（`summary()` 纯数据面）；对外只读口 `public-interface.js` 资源清单由 12 项扩到 13 项（新增 `scene`）。
+- 配套测试 `tests/v3181_spatial_grounding.test.mjs` 与审计 `tests/audit/scan_v3181_spatial_grounding.mjs`（含负控制）。
 ## v3.180.0
 **三面收口：账随楼层走（floor-ledger）/ 年龄算不出就不猜（age-anchor）/ 对外开一个只读查账口（public-interface）**
 **主题**：v3.176 把「读推演侧世界的五本账」接通之后，本插件在**自身**这一侧还剩三个同族缺口——

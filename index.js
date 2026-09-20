@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.180.0';
+    const VERSION = '3.181.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -86,7 +86,7 @@
         'version', 'summaries', 'volumes', 'suspense', 'timeline', 'statusFlat',
         'graph', 'povs', 'diary', 'reflection', 'itemOps', 'scene', 'vectors',
         'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'cse', 'pulse',
-        'opLog', 'outline', 'pairMem', 'ageAnchors',
+        'opLog', 'outline', 'pairMem', 'ageAnchors', 'scenePresence',
     ]);
     // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
     // 存在理由：v3.138 的 _dataVersion 用 Number() 比较插件版本字符串恒得 NaN→0（判旧恒假），
@@ -2084,8 +2084,8 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._currentFloor = -1;    // 当前楼层（台账臂窗口锚点）
             // [v2.2] RC
             this.suspense = new SuspenseBook();
-            // [v2.4] RE
-            this.scene = new SceneBook();
+            // [v3.181] SG: 场所图景（构造期只取函数调用结果，不缓存模块对象）
+            this.scene = _newSceneBook();
             // [v2.5] RF
             this.echo = new EchoPool(() => this.config?.config || null);
             // [v3.30] PV: 记忆矛盾换代（window.LonShaSupersede）
@@ -2903,7 +2903,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (this.config.config.sceneEnabled && extracted) {
                     try {
                         const scN = this.scene.apply(extracted.scenes, message.index || 0);
-                        if (extracted.location) this.scene.setLocation(message.index || 0, extracted.location);
+                        if (extracted.location) {
+                            const _moved = this.scene.setLocation(message.index || 0, extracted.location);
+                            // [v3.181] SG：位置一变，把**本轮在场角色**写进在场索引（谁在何处）。
+                            //   来源是同一轮提取的 characters（本轮实际登场者），不额外猜。
+                            //   这是「地点侧第一次能回答空间共处的谁」——此前角色在哪只以
+                            //   status_changes 的 field:'位置'（末级名）散落在状态表里。
+                            if (_moved && Array.isArray(extracted.characters)) {
+                                for (const _nm of extracted.characters) {
+                                    if (_nm && typeof _nm === 'string') this.scene.setPresence(_nm, extracted.location, message.index || 0);
+                                }
+                            }
+                        }
                         // [v2.8] RT-C: 物品台账应用（ops 真源记录，回滚可重放）
                         // [v3.8] 修复 v3.3「先清」自相矛盾：改为「同状态(fp)清、多变体保留」——
                         //   同一文本状态重复提取时清旧防堆积；不同 swipe 变体（不同 fp）保留，
@@ -6384,6 +6395,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //   而 defect 形态（缺口/位置冲突）不再只存在于记忆插件的诊断面里。
                 const rawLedgerRead = (this.clock && this.clock._worldLedgerRead && typeof this.clock._worldLedgerRead === 'object')
                     ? this.clock._worldLedgerRead : undefined;
+                // [v3.181] SG：场所图景对读读数（本插件**看到的场所世界**：当前位置链/在场名单/
+                //   到访读数/覆盖度/不变量状态）。外供的意义与 worldLedgerRead 同构——手机端与
+                //   推演侧能读到「记忆插件眼里的场所长什么样」，形成三方对读，而「树断了/谁在哪
+                //   对不上」不再只存在于本插件的诊断面里。
+                //   只读 + 有界：summary() 已是纯数据（Map 已转数组），deep() 只做克隆。
+                const rawScene = (this.scene && typeof this.scene.summary === 'function')
+                    ? this.scene.summary() : undefined;
                 const snap = {
                     version: 1,
                     bridge: 'lonsha_memory_bridge_v1',
@@ -6398,7 +6416,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                     worldProg: deep(rawWorld),
                     clock: deep(rawClock),
                     recallAudit: deep(rawRecall),
-                    worldLedgerRead: deep(rawLedgerRead)
+                    worldLedgerRead: deep(rawLedgerRead),
+                    scene: deep(rawScene)
                 };
                 // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
                 //   此前读者只能自己试着 stringify 一遍、再从失败里反推——而字符串化失败与
@@ -6987,7 +7006,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                 } catch (e) { errLog(e, 'rollbackFloor.节点清理'); }
                 // [v2.4] RE: 场景树回滚——[v3.9] 改单楼语义（同上，原 rollbackFrom 级联过滤）
                 try {
-                    if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) this.scene.rollbackFloorOnly(floor);
+                    if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) {
+                        this.scene.rollbackFloorOnly(floor);
+                        // [v3.181] SG：删楼后在场索引里停在「已删楼层」的人必须出局
+                        //   （否则「谁在何处」会指向一个已经不存在的时刻）。
+                        this.scene.clearPresence?.();
+                    }
                 } catch (e) { errLog(e, 'rollbackFloor.status回滚'); }
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
                                 // [v3.54] op-log: 回滚事件（审计链）
@@ -7156,9 +7180,11 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 }
                 if (this.ledger) this.ledger.floors = next;
                 // 场景派生重建（track/opsLog 的 floor 已变）
+                // [v3.181] SG：重建收敛到模块的单出口 `rebuildFromOps()`（真源 = opsLog + track）。
+                //   原写法在此手抄一遍「清 nodes → 重放 ops」，与模块内的重建逻辑是**两份实现**——
+                //   模块一旦加深（到访史/在场/容量台账），手抄的那份必然漂移。
                 if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) {
-                    this.scene.nodes.clear();
-                    for (const e of [...this.scene.opsLog].sort((a, b) => a.floor - b.floor)) this.scene.apply(e.ops, e.floor, true);
+                    this.scene.rebuildFromOps();
                 }
                 this.rebuildItems?.();
                 // [v3.38] 图谱时态边（validFrom/validTo/floor）与快照前移
@@ -7237,6 +7263,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     //   一处都没有，本键与 applyCarryover 的承接分支必须成对出现——一侧有分支、
                     //   一侧不产出就是 v3.168 治理过的「死分支」（跨对话静默丢子系统）。
                     ageAnchors: this.status?.exportAgeAnchors?.() || {},
+                    // [v3.181] SG：在场索引随跨对话承接（谁在何处是**剧情状态**，不是缓存——
+                    //   新对话里主角还没动过，「谁在哪」只能靠上一段接过来）。
+                    scenePresence: (this.scene && typeof this.scene.export === 'function')
+                        ? (this.scene.export().presence || []) : [],
                     counts: {
                         summaries: active.length, suspense: this.suspense.items.filter(x => x.status === 'open').length,
                         graphNodes: this.graph.nodes.size, diaries: Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0),
@@ -7301,6 +7331,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         }
                     } catch (e) { errLog(e, 'applyCarryover.ageAnchors'); }
                 }
+                // [v3.181] SG：在场索引承接（**版本字段不得连坐**——这一条是本仓库的既有纪律：
+                //   版本号缺失/不匹配只跳过该字段，不得让 status/scene 等实体字段一并丢失）。
+                try {
+                    if (Array.isArray(pack.scenePresence) && pack.scenePresence.length && this.scene?.setPresence) {
+                        for (const row of pack.scenePresence) {
+                            if (!Array.isArray(row) || row.length < 2) continue;
+                            const _nm = row[0], _rec = row[1];
+                            if (!_nm || !_rec || typeof _rec !== 'object') continue;
+                            const _path = Array.isArray(_rec.path) && _rec.path.length ? _rec.path : _rec.key;
+                            this.scene.setPresence(_nm, _path, _rec.atFloor);
+                        }
+                    }
+                } catch (e) { errLog(e, 'applyCarryover.scenePresence'); }
                 // [v2.7] RS: 全量导入（graph/pov/diary/scene/vector，兼容 v2.3 旧包——字段缺失静默跳过）
                 try { if (pack.graph?.nodes) this.graph.import(pack.graph); } catch (e) { console.warn('[LonSha] graph导入失败:', e); }
                 try { if (Array.isArray(pack.povs) && pack.povs.length && this.pov?.import) this.pov.import(pack.povs); } catch (e) { errLog(e, 'applyCarryover.graph'); }
@@ -7382,7 +7425,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ['日记', `${Object.keys(this.diary.diaries).length} 角色 / ${Object.values(this.diary.diaries).reduce((a, b) => a + b.length, 0)} 篇`],
                     ['时间线', `${this.timeline.entries.length} 条`],
                     ['悬念簿', `${this.suspense.items.filter(x => x.status === 'open').length} 开放 / ${this.suspense.items.length} 总`],
-                    ['场景树', `${this.scene.nodes.size} 节点 / ops ${this.scene.opsLog.length}`],
+                    ['场景树', (() => {
+                        try {
+                            const sc = this.scene.scale ? this.scene.scale() : { nodes: this.scene.nodes.size, detailed: 0, depth: 0, visits: 0, presence: 0 };
+                            const iv = this.scene.checkInvariants ? this.scene.checkInvariants() : { state: '—' };
+                            return `${sc.nodes} 节点（细写 ${sc.detailed} / 最深 ${sc.depth} 层）/ ops ${this.scene.opsLog.length} / 到访 ${sc.visits} / 在场 ${sc.presence}${this.scene._absent ? ' ⚠️模块缺席' : ''}${iv.state === 'broken' ? ' ⚠️树断裂' : (iv.state === 'warn' ? ' ⚠️读数可疑' : '')}`;
+                        } catch (e) { return '—'; }
+                    })()],
                     ['物品台账', `${this.items.records.length} 件 / ops ${this.itemOps.length}${this.items._stale ? `（失活 ${this.items._stale}）` : ''}`],
                     ['台账校验', this._ledgerViolationSummary ? this._ledgerViolationSummary() : '—'],
                     ['补提取', `${this.scanMissingFloors().length} 个楼层无记忆（可在设置面板补提取）`],
@@ -8361,95 +8410,64 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         import(data) { const cap = this._maxCount(); this.items = Array.isArray(data) ? (cap <= 0 ? [] : data.slice(-cap)) : []; }   // [v3.156] 关闭态不导入存量
     }
 
-    // [v2.4] RE: 场景地图树（抄 baibai MemScene：由大到小路径层级 + 当前位置追踪 + ops重放）
-    class SceneBook {
+    // [v3.181] SG: 场所图景（Spatial Grounding）——SceneBook 已抽为独立模块 scene-book.js。
+    //   抽取前的现场（本版修掉的）：整个类 89 行，读法只有 currentKey/chainOf/brief 三个；
+    //   「谁在何处 / 到访史 / 某地多大多深 / 树完不完整」全部读不出来，且 rollbackFloorOnly
+    //   清了 track 却没人重建、rebuildFromOps 的 track 过滤因三目优先级错位是一枚哑雷。
+    //   取库口按本仓库契约写（真读表达式 + 文件名），**不在构造期缓存**：
+    //   extra_js 在入口脚本之后加载，构造时全局还没挂上——故这里只取函数，每次调用现取。
+    function _sceneBookLib() {
+        return _moduleLib(() => window.LonShaSceneBook, 'scene-book.js');
+    }
+    function _newSceneBook(seed) {
+        const SB = _sceneBookLib();
+        const book = (SB && typeof SB.SceneBook === 'function')
+            ? new SB.SceneBook(seed)
+            : new SceneBookFallback(seed);     // 模块缺席：退到内置实现，**不静默化成空对象**
+        return book;
+    }
+    // 模块缺席时的内置退路：与 scene-book.js 的公开面**同形**（少功能但绝不抛、绝不静默）。
+    //   为什么不留着旧类当退路：两份实现会漂移（本仓库治理过十几轮的缺陷形态）。故退路是
+    //   一层**常量空实现**：读数全部如实回报「没有」，而不是伪造一个能写不能读的世界。
+    class SceneBookFallback {
         constructor() {
-            this.nodes = new Map();   // key: 'a/b/c' → {path[], desc, floor, updatedAt} (派生缓存)
-            this.track = [];          // [{floor, pathKey}] 位置轨迹 (取末位=当前)
-            this.opsLog = [];         // [{floor, ops}] 真源 (重放重建用, 抄 baibai delta-replay)
+            this.nodes = new Map(); this.track = []; this.opsLog = [];
+            this.visits = new Map(); this.presence = new Map();
+            this.lastApply = null; this.capacity = { nodes: 0, dropped: 0, visitsDropped: 0, trackDropped: 0 };
+            this._absent = true;
         }
         static keyOf(path) { return (path || []).map(s => String(s).trim()).filter(Boolean).join('/'); }
-        /** 应用场景 ops。op: {action:'add'|'update', path:[由大到小], desc} */
-        apply(ops, floor, _replaying = false) {
-            let n = 0;
-            for (const op of (ops || [])) {
-                const path = (op?.path || []).map(s => String(s).trim()).filter(Boolean).slice(0, 4);
-                if (!path.length) continue;
-                const k = SceneBook.keyOf(path);
-                const exist = this.nodes.get(k);
-                if (op.action === 'update' && !exist) continue;   // update 只改已存在的
-                if (!exist) {
-                    for (let i = 1; i < path.length; i++) {
-                        const pk = SceneBook.keyOf(path.slice(0, i));
-                        if (!this.nodes.has(pk)) this.nodes.set(pk, { path: path.slice(0, i), desc: '', floor, updatedAt: Date.now() });
-                    }
-                    this.nodes.set(k, { path, desc: String(op.desc || '').slice(0, 80), floor, updatedAt: Date.now() });
-                } else if (op.desc && op.desc !== exist.desc) {
-                    exist.desc = String(op.desc).slice(0, 80); exist.updatedAt = Date.now(); exist.floor = floor;
-                } else continue;
-                n++;
-            }
-            if (!_replaying && n) {
-                const i = this.opsLog.findIndex(o => o.floor === floor);
-                if (i >= 0) this.opsLog[i] = { floor, ops };
-                else this.opsLog.push({ floor, ops });
-                if (this.opsLog.length > 400) this.opsLog.shift();
-            }
-            return n;
-        }
-        /** 记录位置轨迹（同楼覆盖） */
-        setLocation(floor, path) {
-            const k = SceneBook.keyOf(path);
-            if (!k) return;
-            const i = this.track.findIndex(t => t.floor === floor);
-            if (i >= 0) this.track[i] = { floor, pathKey: k };
-            else this.track.push({ floor, pathKey: k });
-            if (this.track.length > 200) this.track.shift();
-        }
-        currentKey() { return this.track.length ? this.track[this.track.length - 1].pathKey : null; }
-        /** 某位置的由大到小链（含描述） */
-        chainOf(key) {
-            const parts = String(key || '').split('/').filter(Boolean);
-            const out = [];
-            for (let i = 1; i <= parts.length; i++) {
-                const n = this.nodes.get(parts.slice(0, i).join('/'));
-                if (n) out.push(n);
-            }
-            return out;
-        }
-        /** 重建（删楼回滚后: 过滤真源 → 重放） */
-        rebuildFromOps() {
-            this.nodes.clear();
-            this.track = this.track.filter(t => t.floor < (this._cutoff || 0) || this._cutoff === undefined ? true : false);
-            const log = [...this.opsLog].sort((a, b) => a.floor - b.floor);
-            for (const e of log) { this.apply(e.ops, e.floor, true); }
-        }
-        rollbackFrom(floor) {
-            this.opsLog = this.opsLog.filter(o => o.floor < floor);
-            this.track = this.track.filter(t => t.floor < floor);
-            this.nodes.clear();
-            for (const e of [...this.opsLog].sort((a, b) => a.floor - b.floor)) this.apply(e.ops, e.floor, true);
-        }
-        // [v3.9] 单楼回滚（只清该楼的 opsLog/track 并重放——不级联摧毁后续楼层；编辑路径用）
-        rollbackFloorOnly(floor) {
-            this.opsLog = this.opsLog.filter(o => o.floor !== floor);
-            this.track = this.track.filter(t => t.floor !== floor);
-            this.nodes.clear();
-            for (const e of [...this.opsLog].sort((a, b) => a.floor - b.floor)) this.apply(e.ops, e.floor, true);
-        }
-        /** 给提取 prompt 的场景清单（最多15行） */
-        brief() {
-            const arr = [...this.nodes.values()].filter(n => n.desc || n.path.length >= 2).slice(-15);
-            if (!arr.length) return '（暂无已登记场景）';
-            return arr.map(n => `${n.path.join('/')} — ${n.desc || ''}`).join('\n');
-        }
-        export() { return { nodes: Array.from(this.nodes.values()), track: this.track, opsLog: this.opsLog }; }
-        import(data) {
-            if (!data || typeof data !== 'object') return;
-            this.nodes = new Map((data.nodes || []).map(n => [SceneBook.keyOf(n.path), n]));
-            this.track = Array.isArray(data.track) ? data.track : [];
-            this.opsLog = Array.isArray(data.opsLog) ? data.opsLog : [];
-        }
+        static leafOf(path) { const p = (path || []).map(s => String(s).trim()).filter(Boolean); return p.length ? p[p.length - 1] : ''; }
+        apply() { return 0; }
+        setLocation() { return false; }
+        setPresence() { return false; }
+        removePresence() { return false; }
+        clearPresence() { return 0; }
+        presenceAt() { return []; }
+        whereIs() { return null; }
+        samePlace() { return false; }
+        findByLeaf() { return null; }
+        currentKey() { return null; }
+        currentChain() { return []; }
+        chainOf() { return []; }
+        history() { return []; }
+        trackByPlace() { return []; }
+        visitsOf() { return null; }
+        visitsList() { return []; }
+        outlineOf() { return null; }
+        scale() { return { nodes: 0, detailed: 0, depth: 0, visits: 0, presence: 0 }; }
+        currentLine() { return null; }
+        brief() { return '（暂无已登记场景）'; }
+        briefAt() { return null; }
+        coverage() { return { floors: [], floorCount: 0, steps: [], trackFloors: [], nodes: 0, detailed: 0, visits: 0, presence: 0, unregistered: [], unregisteredCount: 0, state: 'absent', broken: [], warnings: [] }; }
+        checkInvariants() { return { state: 'absent', broken: [], warnings: [] }; }
+        rollbackFrom() { return 0; }
+        rollbackFloorOnly() { return 0; }
+        rebuildFromOps() { return 0; }
+        clear() { return 0; }
+        export() { return { version: 0, nodes: [], track: [], opsLog: [], visits: [], presence: [], capacity: this.capacity, absent: true }; }
+        import() { /* 无真源可导入：如实保持空 */ }
+        summary() { return { version: 0, scale: this.scale(), current: null, currentLine: null, presence: [], coverage: this.coverage(), empty: true, absent: true }; }
     }
 
     // [v2.2] RC: 悬念簿（抄 baibai MemPlan：约定/伏笔/未解之谜 + done/cancelled/failed 三态了结）

@@ -53,6 +53,7 @@ const RESOURCES = Object.freeze([
     'recallAudit',     // 召回自检摘要
     'worldLedgerRead', // 对推演侧世界的读数（含未外供缺口）
     'coverage',        // 覆盖度（楼层缺口/未提取楼层）
+    'scene',           // [v3.181] 场所图景（当前位置链/在场名单/到访读数/覆盖度/不变量）
     'floor'            // 当前楼层号
 ]);
 
@@ -71,6 +72,7 @@ function queryResource(snap, resource) {
         recallaudit: () => snap && snap.recallAudit,
         worldledgerread: () => snap && snap.worldLedgerRead,
         coverage: () => snap && snap.coverage,
+        scene: () => snap && snap.scene,
         floor: () => (snap ? snap.floor : undefined)
     };
     const fn = map[key];

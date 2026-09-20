@@ -2,6 +2,7 @@
 // v3.9 删楼语义修复测试：shiftFloorsFrom 全子系统覆盖 / 旧级联模式绝迹 / SceneBook 单楼回滚
 // 运行: node tests/v39_shift_floors.test.mjs
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
@@ -130,10 +131,12 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
 /* ══════════ 7. SceneBook.rollbackFloorOnly（行为） ══════════ */
 {
-    const gStart = src.indexOf('    class SceneBook {');
-    const gEnd = src.indexOf('\n    class ', gStart + 10);
-    const clsSrc = src.slice(gStart, gEnd);
-    const g = new Function('normalizeCharName', 'errLog', `${clsSrc}\nreturn new SceneBook();`)((n) => n, () => {});
+    // [v3.181] SceneBook 已从 index.js 抽取为独立模块 scene-book.js。
+    //   旧判据从 index.js 里抽 `class SceneBook {` 源码求值——类移出之后，
+    //   该判据会自抛 ReferenceError，把「模块已移出」误报成「行为坏了」（假红）。
+    //   改为加载**真模块真类**（行为面不变），并补一条「宿主真取到它」的不变量断言，
+    //   否则「模块在但没人接」会变成新的静默缺席。
+    const g = new (createRequire(import.meta.url)('../scene-book.js').SceneBook)();
     // 场景: 楼1/3/5 各登记场景，回滚楼3 → 1、5 保留
     g.apply([{ action: 'add', path: ['城', '街A'], desc: 'A' }], 1, false);
     g.apply([{ action: 'add', path: ['城', '街B'], desc: 'B' }], 3, false);
@@ -142,6 +145,9 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
     assert.ok([...g.nodes.values()].some(n => n.desc === 'A'), '楼1 保留');
     assert.ok([...g.nodes.values()].some(n => n.desc === 'C'), '楼5 保留');
     assert.ok(!g.opsLog.some(o => o.floor === 3), '楼3 的 opsLog 已清');
+    // 宿主必须真把它接上（否则模块存在也无人取 = 静默缺席）
+    assert.ok(/window\.LonShaSceneBook/.test(src), 'index.js 须真取 window.LonShaSceneBook');
+    assert.ok(/_newSceneBook\(/.test(src), 'index.js 须经 _newSceneBook 构造');
     ok('行为1: rollbackFloorOnly 只清该楼（1/5 保留）');
 }
 

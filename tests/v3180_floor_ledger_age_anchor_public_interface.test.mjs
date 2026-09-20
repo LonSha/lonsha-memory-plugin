@@ -558,13 +558,14 @@ test('【G5】注入优先：调用方/引擎给了时钟就不再自建（既�
 });
 
 // ══════════ H 对外三入口 ══════════
-test('【H1】12 项资源冻结 + 单一实现（斜杠/宏/全局共用 queryResource）', () => {
+test('【H1】13 项资源冻结 + 单一实现（斜杠/宏/全局共用 queryResource）', () => {
     assert.equal(PI.NS, 'lonsha');
     assert.equal(PI.API_VERSION, 1);
-    assert.equal(PI.RESOURCES.length, 12, '资源清单 12 项');
+    // [v3.181] 场所图景扩到 13 项：新增 'scene'（当前位置链/在场名单/到访读数/覆盖度/不变量）。
+    assert.equal(PI.RESOURCES.length, 13, '资源清单 13 项');
     assert.ok(Object.isFrozen(PI.RESOURCES), '清单必须冻结（运行期不得被追加）');
     for (const r of ['snapshot', 'protagonist', 'lifeDetails', 'characters', 'moneyLedger', 'outline',
-        'worldProg', 'clock', 'recallAudit', 'worldLedgerRead', 'coverage', 'floor']) {
+        'worldProg', 'clock', 'recallAudit', 'worldLedgerRead', 'coverage', 'floor', 'scene']) {
         assert.ok(PI.RESOURCES.includes(r), '缺资源 ' + r);
     }
     // 大小写不敏感 + 未知名如实 undefined
@@ -1086,10 +1087,10 @@ test('【I4】工具两向自证：锚点不存在或不唯一必须抛；判据
 });
 
 // ══════════ J 发布卫生 ══════════
-test('【J1】版本三源一致且不低于 v3.180.0', () => {
+test('【J1】版本三源一致且不低于 v3.181.0', () => {
     const v = (idxSrc.match(/const VERSION = '([^']+)'/) || [])[1];
     assert.ok(v, 'index.js VERSION 在场');
-    assert.ok(vnum(v) >= vnum('3.180.0'), `index.js 版本 ${v} >= 3.180.0`);
+    assert.ok(vnum(v) >= vnum('3.181.0'), `index.js 版本 ${v} >= 3.181.0`);
     assert.equal(manifest.version, v, `manifest(${manifest.version}) 与 index.js(${v}) 漂移`);
     assert.equal(pkg.version, v, `package.json(${pkg.version}) 与 index.js(${v}) 漂移`);
 });
@@ -1130,7 +1131,7 @@ test('【J4】只读边界：三个新模块不出现任何写侧入口', () => 
 test('【J5】CHANGELOG 顶节为本版，且记录三面缺陷现场', () => {
     const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
     assert.ok(top, 'CHANGELOG 有版本段');
-    assert.ok(vnum(top.replace('v', '')) >= vnum('3.180.0'), `顶节 ${top} 须 >= v3.180.0`);
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.181.0'), `顶节 ${top} 须 >= v3.181.0`);
     assert.ok(/归属性|归属/.test(changelog), '记录了「账落笔之后没有归属」这一现场');
     assert.ok(/算不出/.test(changelog), '记录了「年龄算不出就回退成一个数字」这一现场');
     assert.ok(/只读/.test(changelog), '记录了只读边界口径');

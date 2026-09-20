@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.180.0",
+  "version": "3.181.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -46,7 +46,8 @@
     "archive-shift.js",
     "floor-ledger.js",
     "age-anchor.js",
-    "public-interface.js"
+    "public-interface.js",
+    "scene-book.js"
   ],
   "extra_css": [
     "lonsha-design.css",

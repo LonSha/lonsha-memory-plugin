@@ -182,7 +182,7 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.180.0')), f + ' anchors are not stale');
+        assert.ok(hits.every((h) => vnum(h) >= vnum('3.181.0')), f + ' anchors are not stale');
     }
 });
 test('[4c] v3160 checks anchors as a lower bound, not as an equality', () => {
