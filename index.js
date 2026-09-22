@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.187.0';
+    const VERSION = '3.188.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3128,6 +3128,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 actor: character,
                                 content,
                                 due: Number.isFinite(deadline) && deadline > 0 ? String(deadline) : null,
+                                storyDate: extracted.story_date || null,
                                 floor: wpFloor,
                                 source: 'promises',
                                 eventKey: 'open:' + character + ':' + content
@@ -3187,6 +3188,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     actor: target.character,
                                     content: target.content,
                                     action: broken ? 'break' : 'fulfill',
+                                    storyDate: extracted.story_date || null,
                                     floor: wpFloor,
                                     source: 'promises_resolve',
                                     eventKey: (broken ? 'break:' : 'fulfill:') + target.id + ':' + wpFloor
@@ -7004,7 +7006,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                 : action === 'amend' ? api.amend
                 : api.open;
             const out = call(current, input);
-            if (out?.ok && out.changed) this.worldProg.commitmentLedger = out.state;
+            if (out?.ok && out.changed) {
+                this.worldProg.commitmentLedger = out.state;
+                const when = input.storyDate;
+                const item = out.item;
+                if (when && item && this.config?.config?.plotTimeline && this.timeline?.add) {
+                    const verb = { open: '约定', amend: '改期', fulfill: '履行', break: '违约', cancel: '撤销' }[action] || '约定';
+                    const who = item.counterpart ? item.actor + '对' + item.counterpart : item.actor;
+                    this.timeline.add(String(when), verb + '：' + who + ' ' + item.content, input.floor || 0, [item.actor, item.counterpart].filter(Boolean), 6, {
+                        kind: 'commitment', id: item.id, action
+                    });
+                }
+            }
             return out;
         }
         readWorldLedger(opts = {}) {
@@ -11650,9 +11663,16 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         constructor() { this.entries = []; }
         add(date, text, floor, characters = [], importance = 5) {
             if (!date || !text) return null;
+            const source = arguments.length > 5 ? arguments[5] : null;
+            const sourceKey = source && source.id ? String(source.kind || '') + ':' + String(source.id) + ':' + String(source.action || '') : '';
+            if (sourceKey) {
+                const same = this.entries.find(e => e.sourceKey === sourceKey);
+                if (same) return same;
+            }
             const exist = this.entries.find(e => e.date === date && e.text === text);
             if (exist) { exist.floor = floor; exist.timestamp = Date.now(); if (importance > (exist.importance || 5)) exist.importance = importance; return exist; }
             const e = {id: 'tl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), date, text, floor, characters, importance: (importance >= 1 && importance <= 10) ? importance : 5, timestamp: Date.now()};
+            if (sourceKey) { e.sourceKey = sourceKey; e.source = { kind: String(source.kind || ''), id: String(source.id), action: String(source.action || '') }; }
             this.entries.push(e);
             if (this.entries.length > 500) this.entries.shift();
             return e;

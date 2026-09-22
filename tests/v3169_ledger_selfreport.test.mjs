@@ -568,7 +568,7 @@ test('A6 读侧与写侧必须共用同一套字段上限（唯一真源）', ()
 // ============================================================
 test('G1 版本四处同步', () => {
     const v = idx.match(/const VERSION = '([\d.]+)'/)[1];
-    assert.equal(v, '3.187.0');
+    assert.equal(v, '3.188.0');
     assert.equal(JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf-8')).version, v);
     assert.equal(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version, v);
     assert.ok(readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf-8').startsWith('## v' + v));
