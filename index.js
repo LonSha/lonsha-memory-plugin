@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.182.0';
+    const VERSION = '3.183.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -904,6 +904,12 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 swipeFingerprintGuard: true,   // [v3.89] 三元组定位符校验：召回缓存命中前验证末楼消息指纹（翻变体失效/翻回复用）
                 volumeIntegrityGuard: true,  // [v3.149] 卷摘要 intact 判定（柏宝书 #13）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事→检测降级展开；对账时机=生成前+编辑/swipe/删楼事件后
                 recallAuditEnabled: true,   // [v3.150] A 召回命中自检：每轮召回后记录 查询/命中分布/空结果 到环形账本
+                // [v3.183] 分支感知召回过滤：摘要来源楼显示页已被翻掉（source_changed）时不注入。
+                //   只剔这一态，其余（缺源/旧档/正文改写）一律放行——判不了就放行，宁多勿少。
+                recallProvenanceFilter: true,
+                // [v3.183] 条目关联停用词表（逗号分隔）。通用词（主角/系统/旁白…）命中会把所有条目串成一团，
+                //   故默认给一份保守表，用户可增删。读取点：crosslink.createIndex({ stopwords })。
+                crosslinkStopwords: '主角,系统,旁白,此时,于是,然而,之后,之前',
                 floorRecallLedgerEnabled: true,   // [v3.150] B 楼层召回账本：把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
@@ -2336,6 +2342,61 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return `${c.stamped}/${c.total} 楼已落笔 · 缺 ${c.missing.length}（第${head}${c.missing.length > 6 ? '…' : ''}楼）${why ? ' · ' + why : ''}` + last;
             } catch (e) { errLog(e, 'engine._floorLedgerLine'); return '—（诊断异常）'; }
         }
+        /**
+         * [v3.183] 摘要来源溯源体检读数（诊断面用；纯读、不抛、不入快照存盘）。
+         * 与 _floorLedgerLine 同族：一句话回答「摘要来源现在有多少对不上、分别为什么」。
+         * 六态里 **no_provenance 单独报**——它是旧档（升级前落的摘要本来就没来源字段），
+         * 不是失效；把它和 source_changed 混成一句「N 条无效」就是升级即清空存量。
+         */
+        _summaryProvenanceLine() {
+            try {
+                const PV = _summaryProvenanceLib();
+                if (!PV || typeof PV.line !== 'function') return '模块未加载（summary-provenance.js）';
+                const chat = (window.SillyTavern && window.SillyTavern.getContext && window.SillyTavern.getContext() || {}).chat || [];
+                const sums = (this.summary && typeof this.summary.getActiveSummaries === 'function')
+                    ? this.summary.getActiveSummaries() : [];
+                const body = PV.line(sums, chat);
+                const last = this._summaryProvenanceStamp
+                    ? ` · 最近留证 ${this._summaryProvenanceStamp.status}${this._summaryProvenanceStamp.reason ? '(' + this._summaryProvenanceStamp.reason + ')' : ''}`
+                    : '';
+                // [v3.183] 召回侧过滤读数：判不了而放行的条数必须一并报出——
+                // 否则「本轮过滤掉 N 条」与「本轮什么都没判」在读数上同形（I6）。
+                const fl = this._provRecallFilter;
+                const filt = (fl && fl.rounds)
+                    ? ` · 召回过滤 ${fl.dropped}/${fl.checked}（放行 判不了${fl.keptLegacy} 缺源${fl.keptMissing} 正文改${fl.keptDrift}${fl.moduleMissing ? ' · 模块缺席' + fl.moduleMissing : ''}）`
+                    : '';
+                return body + last + filt;
+            } catch (e) { errLog(e, 'engine._summaryProvenanceLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.183] 分支守护读数（诊断面用；纯读、不抛）。
+         * 回答「此刻有几楼待回滚、最近有没有被拦」——被拦是**正常**的（说明保护生效），
+         * 真正要警惕的是 pending 长期不清（翻页后没人来认领）。
+         */
+        _branchGuardLine() {
+            try {
+                if (!this._branchGuard) return '分支守护未启用（尚无翻页/重生成）';
+                const body = this._branchGuard.line();
+                const last = this._branchGuardLast
+                    ? ` · 最近拦截 ${this._branchGuardLast.reason}（第${this._branchGuardLast.floor}楼）`
+                    : '';
+                return body + last;
+            } catch (e) { errLog(e, 'engine._branchGuardLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.183] 条目关联读数（诊断面用；纯读、不抛）。
+         * 与 _branchGuardLine / _summaryProvenanceLine 同族：一句话说清关联词表规模与最近一次扫描结果。
+         */
+        _crosslinkLine() {
+            try {
+                if (!this._crosslinkIndex || typeof this._crosslinkIndex.line !== 'function') return '关联未启用（尚无摘要落笔）';
+                const body = this._crosslinkIndex.line();
+                const last = this._crosslinkLast
+                    ? ` · 最近第${this._crosslinkLast.floor}楼${this._crosslinkLast.linked.length}条候选${this._crosslinkLast.truncated ? '(已截断)' : ''}`
+                    : '';
+                return body + last;
+            } catch (e) { errLog(e, 'engine._crosslinkLine'); return '—（诊断异常）'; }
+        }
         async onMessageReceived(message, messageId = null) {
             // [v3.10] 生成结束（新回复落层=本轮生成闭环），复位生成标志
             this._generationActive = false;
@@ -3107,8 +3168,106 @@ function relativeTimeLabel(eventTime, nowTime) {
                             summary: { floor: floor || 0, text: summary.text }
                         }, { fresh: true });
                     } catch (e) { errLog(e, 'onMessageReceived.楼层落笔.摘要'); }
+                    // [v3.183] 分支守护（事前拦）：这轮的摘要该不该写到这一楼。
+                    //   翻页 / 重生成之后，本轮提取算的是**另一个分支**的账，落上去就是
+                    //   「摘要里躺着上一个分支的事实」——用户翻回去才发现内容对不上。
+                    //   判定用**签名**（角色+页码+正文hash+代次+时间戳），不用楼层号：
+                    //   楼层号在翻页时不变化，签名才有辨别力。
+                    let _branchOk = true;
+                    try {
+                        const BG = _branchGuardLib();
+                        if (BG && typeof BG.createGuard === 'function') {
+                            if (!this._branchGuard) this._branchGuard = BG.createGuard();
+                            const sess = this.getCurrentChatId ? this.getCurrentChatId() : '';
+                            const f = Number(message && message.index);
+                            const g = this._branchGuard.guardApply(message, this._branchGuard.getProcessedSignature(f, sess), sess);
+                            if (!g.accept) {
+                                _branchOk = false;
+                                this._branchGuardLast = { floor: f, reason: g.reason, at: Date.now() };
+                                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] ⛔ 分支守护拦截第${f}楼摘要落笔（${g.reason}）`);
+                                try { this.opLog?.log?.('branch', 'apply-skip', String(g.reason), f, ''); } catch (e) { errLog(e, 'onMessageReceived.分支守卫审计'); }
+                            }
+                        }
+                    } catch (e) { errLog(e, 'onMessageReceived.分支守护'); }
+                    // [v3.183] 来源留证：把「这条摘要来自哪一页」写进摘要自己（summary.prov）。
+                    //   与 floor-ledger 分工：ledger 记的是**楼上有过什么**，这里记的是
+                    //   **这条摘要的来源还对不对得上**。楼删了、翻页了、摘要被就地改了，
+                    //   三件事都能在验真时分开归因（source_missing / source_changed / text_drift）。
+                    //   留证失败不影响摘要本身：capture 契约是「要么写全，要么什么都不改」。
+                    if (_branchOk) try {
+                        const PV = _summaryProvenanceLib();
+                        if (PV && typeof PV.capture === 'function') {
+                            const prov = PV.capture(summary, message);
+                            this._summaryProvenanceStamp = prov
+                                ? { status: 'ok', floor: floor || 0, at: Date.now() }
+                                : { status: 'rejected', reason: 'not-captured', floor: floor || 0, at: Date.now() };
+                        } else {
+                            this._summaryProvenanceStamp = { status: 'module-unavailable', floor: floor || 0, at: Date.now() };
+                        }
+                    } catch (e) {
+                        this._summaryProvenanceStamp = { status: 'thrown', floor: floor || 0, reason: String((e && e.message) || e), at: Date.now() };
+                        errLog(e, 'onMessageReceived.摘要留证');
+                    }
+                    // [v3.183] 落笔成功后记下**这一代的签名**——下次同楼再提取时才有比对基准，
+                    //   否则守卫每次都判不了（no-signature），保护形同虚设。
+                    //   记在留证成功之后：没留证的摘要本来就不受溯源保护。
+                    if (_branchOk && this._summaryProvenanceStamp && this._summaryProvenanceStamp.status === 'ok') {
+                        try {
+                            const BG = _branchGuardLib();
+                            if (BG && this._branchGuard && typeof BG.signatureOf === 'function') {
+                                this._branchGuard.setProcessedSignature(
+                                    Number(message && message.index),
+                                    BG.signatureOf(message),
+                                    this.getCurrentChatId ? this.getCurrentChatId() : ''
+                                );
+                            }
+                        } catch (e) { errLog(e, 'onMessageReceived.分支签名记录'); }
+                    }
                 }
                         this.opLog?.log('summary', 'add', `sum_${message?.index || 0}`, message?.index || 0, (extracted?.summary || '').slice(0, 40));  // [v3.54] op-log
+                
+                // [v3.183] 条目关联（Crosslink）：给刚落的摘要扫一遍已有关联词表，记下它和哪些
+                //   既有条目共享关键词。**只报告、不写图**——写图是提取管线的职责，这里给的是弱关系候选。
+                //   为什么要这一步：召回纯按查询相关性取条目，A 条目正文提到 B 条目的人/地/事时系统完全不知道，
+                //   同一概念散在不同楼的记忆永远连不起来（nocturne 的 Glossary 解决的正是这个）。
+                try {
+                    const XL = _crosslinkLib();
+                    if (XL && typeof XL.createIndex === 'function') {
+                        // 停用词配置是逗号分隔字符串（设置面板给的是 textarea），必须先 split 再传数组：
+                        // crosslink 内部按 Array.from 取项，直接喂字符串会被拆成一个个**字符**，
+                        // 于是「主角」这类词永远进不了停用表（静默失效，不报错）。
+                        const _stopRaw = this.config.config.crosslinkStopwords;
+                        const _stop = Array.isArray(_stopRaw)
+                            ? _stopRaw
+                            : String(_stopRaw || '').split(/[,，\n]/).map(s => s.trim()).filter(Boolean);
+                        if (!this._crosslinkIndex) this._crosslinkIndex = XL.createIndex({ stopwords: _stop });
+                        const idx = this._crosslinkIndex;
+                        // 词表来源：图谱节点名（人物/地点/事件）。节点是「可被指称的东西」，
+                        // 摘要正文里提到的正是它们。
+                        if (this._crosslinkLoadedFloor !== true) {
+                            try {
+                                const nodes = Array.from(this.graph?.nodes?.values?.() || []);
+                                idx.loadFromNodes(nodes, (n) => n.id || n.name);
+                                this._crosslinkLoadedFloor = true;
+                            } catch (e) { errLog(e, 'onMessageReceived.crosslink载入'); }
+                        }
+                        if (summary && summary.text) {
+                            const res = idx.scan(summary.text);
+                            const selfRef = 'sum_' + (floor || 0);
+                            const linked = [];
+                            for (const h of res.hits) {
+                                for (const ref of h.refs) {
+                                    if (ref === selfRef) continue;
+                                    if (!linked.some(l => l.ref === ref)) linked.push({ ref, keyword: h.keyword });
+                                }
+                            }
+                            this._crosslinkLast = { floor: floor || 0, total: res.total, truncated: res.truncated, linked: linked.slice(0, 20) };
+                            if (linked.length && this.config.config.debugMode) {
+                                console.log(`[${PLUGIN_NAME}] 🔗 关联候选 ${linked.length} 条（第${floor}楼摘要）`);
+                            }
+                        }
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.crosslink'); }
                 
                 // [v3.30] PV: 记忆矛盾换代 —— 新摘要与既有活跃摘要做高置信冲突检测, 旧条 superseded 退出召回
                 if (window.LonShaSupersede && this.config.config.supersedeEnabled) {
@@ -5360,8 +5519,44 @@ function relativeTimeLabel(eventTime, nowTime) {
             const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: [], neuralChain: [], worldProg: []};
             // [v3.149] 卷摘要 intact 对账（柏宝书 #13 缝入）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前先校验并降级展开（零 LLM 调用纯机制自愈）
             try { if (this.config.config.volumeIntegrityGuard !== false && this.summary?.verifyVolumesIntact) this.summary.verifyVolumesIntact(this.config.config); } catch (e) { errLog(e, 'recallMemory.卷摘要对账'); }
-            
             results.summary = this.summary.search(query.text);
+            // [v3.183] 分支感知召回过滤（Branch-aware recall filter，Liyuan onCurrentBranch 的 LonSha 映射）：
+            //   LonSha 没有会话树，「废弃分支」在这里表现为**摘要的来源楼层显示页已被翻掉**——
+            //   摘要仍在索引里（它是按文本进的库），于是旧分支叙事会和当前分支一起被注入。
+            //   Liyuan 源码注释记载了这个代价：13 次重 roll 中第 5、10 拍入库，第 11 拍起开始写「承接上一拍」。
+            //   **只剔除 source_changed**（来源楼还在、但显示页已非当初那一页），其余一律保留：
+            //     · no_provenance / malformed —— 判不了（旧档、结构异常）→ 放行，宁可多注入也别丢记忆；
+            //     · source_missing —— 删楼与楼层前移不可区分，前移时丢掉就是真丢；
+            //     · text_drift     —— 正文被就地改过，那是有意为之。
+            //   纪律：过滤漏一点，好过让用户的记忆整体消失（与 branch-guard「判不了就放行」同源）。
+            try {
+                if (this.config.config.recallProvenanceFilter !== false) {
+                    const PV = _summaryProvenanceLib();
+                    if (PV && typeof PV.filterForRecall === 'function' && Array.isArray(results.summary) && results.summary.length) {
+                        const _chat = (window.SillyTavern && window.SillyTavern.getContext && window.SillyTavern.getContext() || {}).chat || [];
+                        // 判据本体在 summary-provenance.js（纯函数、可单测）；此处只负责取数与留痕。
+                        const r = PV.filterForRecall(results.summary, _chat);
+                        results.summary = r.kept;
+                        const _st = this._provRecallFilter = this._provRecallFilter || {
+                            rounds: 0, checked: 0, dropped: 0, keptLegacy: 0, keptMissing: 0, keptDrift: 0, moduleMissing: 0, lastDropped: [],
+                        };
+                        _st.rounds++;
+                        _st.checked += Number(r.counts.checked) || 0;
+                        _st.dropped += Number(r.counts.dropped) || 0;
+                        _st.keptLegacy += Number(r.counts.keptLegacy) || 0;
+                        _st.keptMissing += Number(r.counts.keptMissing) || 0;
+                        _st.keptDrift += Number(r.counts.keptDrift) || 0;
+                        _st.lastDropped = (r.dropped || []).slice(0, 20);
+                        if (r.dropped && r.dropped.length && this.config.config.debugMode) {
+                            console.log(`[${PLUGIN_NAME}] 来源过滤: ${r.dropped.length} 条旧分支摘要未注入（第${r.dropped.map(d => d.floor).join('、')}楼）`);
+                        }
+                    } else if (!PV) {
+                        this._provRecallFilter = this._provRecallFilter || { rounds: 0, checked: 0, dropped: 0, keptLegacy: 0, keptMissing: 0, keptDrift: 0, moduleMissing: 0, lastDropped: [] };
+                        this._provRecallFilter.moduleMissing++;
+                    }
+                }
+            } catch (e) { errLog(e, 'recallMemory.来源过滤'); }
+
             
             // [v1.5] 登场角色捕获（抄 HCDiary）：从最近楼层窗口判断谁登场，只召回这些角色的记忆
             const castCaptured = this.captureCast();
@@ -7768,6 +7963,40 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['年龄锚点', `${state}(${shown})${p.ageAnchorTime ? ' @' + p.ageAnchorTime : ''}${flag}${bad.length ? ' · 违规 ' + bad.join(',') : ''}`];
                         } catch (e) { errLog(e, 'selfCheck.ageAnchor'); return ['年龄锚点', '—（诊断异常）']; }
                     })(),
+                    // [v3.183] 摘要来源体检面：本版把「摘要在落笔时来自哪一页」变成可查字段，
+                    //   诊断面就必须能读出「现在有多少条对不上、分别为什么」。口径与前述各行同规格：
+                    //   模块未加载如实报（不装成「无缺口」）、无缺口安静、真对不上才 ⚠️。
+                    (() => {
+                        try {
+                            const line = (typeof this._summaryProvenanceLine === 'function') ? this._summaryProvenanceLine() : '—';
+                            const st = this._summaryProvenanceStamp;
+                            // module-unavailable（未接线）与 ok（无缺口）都不报警；stale/thrown 才报。
+                            const bad = !!(st && st.status !== 'ok' && st.status !== 'module-unavailable');
+                            return ['摘要来源', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.summaryProvenance'); return ['摘要来源', '—（诊断异常）']; }
+                    })(),
+                    // [v3.183] 分支守护体检面：**被拦是正常的**（说明保护生效，不该报警），
+                    //   真正要警惕的是三张队列长期不清——翻页/重生成后没人来认领，积压即症状。
+                    (() => {
+                        try {
+                            const line = (typeof this._branchGuardLine === 'function') ? this._branchGuardLine() : '—';
+                            const s = (this._branchGuard && typeof this._branchGuard.stats === 'function') ? this._branchGuard.stats() : null;
+                            const backlog = s ? (s.request + s.apply + s.swipe) : 0;
+                            return ['分支守护', line + (backlog > 0 ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.branchGuard'); return ['分支守护', '—（诊断异常）']; }
+                    })(),
+                    // [v3.183] 条目关联体检面：关联**只报告不写图**，所以这里不回答「连了几条边」，
+                    //   只回答「词表多大、有多少词被拒收」。拒收必须是可见的——否则
+                    //   「词表压根没建起来」与「建了但全是短词被拒」在读数上同形。
+                    (() => {
+                        try {
+                            const line = (typeof this._crosslinkLine === 'function') ? this._crosslinkLine() : '—';
+                            const idx = this._crosslinkIndex;
+                            const s = (idx && typeof idx.stats === 'function') ? idx.stats() : null;
+                            const bad = !!(s && s.keywords > 0 && s.rejected > 0);
+                            return ['条目关联', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.crosslink'); return ['条目关联', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -8456,6 +8685,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     }
     function _sceneBookLib() {
         return _moduleLib(() => window.LonShaSceneBook, 'scene-book.js');
+    }
+    // [v3.183] 摘要来源溯源（Summary Provenance）：摘要在落笔时记下它来自哪一页，
+    //   之后每次验真都能回答「这条摘要的来源还在不在、还是不是那一页」。
+    //   为什么需要：SummarySystem.summaries 只存 {floor, text, level, timestamp, folded}，
+    //   没有任何来源字段——翻 swipe / 删楼 / 楼层前移之后，摘要仍指着旧文本，
+    //   下一次 GC 扫到 fp 不在任何 swipe 取值里才清掉（floor-ledger 注释记载的旧行为）。
+    //   现在把「来源」本身变成可查的字段，六态判定把「旧档」与「真失效」分开。
+    function _summaryProvenanceLib() {
+        return _moduleLib(() => window.LonShaSummaryProvenance, 'summary-provenance.js');
+    }
+    // [v3.183] 分支守护（Branch Guard）：把「翻页 / 重生成之后这一楼归谁」变成可查的三态队列。
+    //   与 summary-provenance 的分工：prov 回答「这条摘要的来源现在还对不对」，
+    //   branch-guard 回答「现在这一轮该不该往这一楼写」。前者是事后验真，后者是事前拦。
+    function _branchGuardLib() {
+        return _moduleLib(() => window.LonShaBranchGuard, 'branch-guard.js');
+    }
+    // [v3.183] 条目关联（Crosslink）：手写 Aho-Corasick 扫正文，找出共享关键词的其他条目。
+    //   给的是**弱关系候选**（只报告不写图）——写图由提取管线负责，自动写边会累积幻觉边。
+    function _crosslinkLib() {
+        return _moduleLib(() => window.LonShaCrosslink, 'crosslink.js');
     }
     function _newSceneBook(seed) {
         const SB = _sceneBookLib();
@@ -13463,6 +13712,20 @@ ${recentTurns}`;
                                 } catch (e) { errLog(e, 'events.swipe即时存盘'); }
                             }
                         } catch (err) { errLog(err, 'nonfatal') }
+                        // [v3.183] 分支守护：翻页到此楼，该楼归新页——记下三态待回滚，
+                        //   此后该楼的落笔一律要过签名校验（防「摘要里躺着上一个分支的事实」）。
+                        //   放在 `_scheduleFloorHeal` 之后：v380_swipe_heal 用固定 1200 字符窗口
+                        //   断言「swipe 处理器接入了调度器」，插在它前面会把窗口挤走（假红）。
+                        try {
+                            const BG = _branchGuardLib();
+                            if (BG && typeof BG.createGuard === 'function') {
+                                if (!this.engine._branchGuard) this.engine._branchGuard = BG.createGuard();
+                                const r = this.engine._branchGuard.prepareSwipe(Number(messageId), this.engine.getCurrentChatId?.() || '');
+                                if (!r.prepared) {
+                                    try { this.engine.opLog?.log?.('branch', 'swipe-skip', String(r.reason || ''), Number(messageId), ''); } catch (e) { errLog(e, 'events.MESSAGE_SWIPED分支审计'); }
+                                }
+                            }
+                        } catch (e) { errLog(e, 'events.MESSAGE_SWIPED分支守护'); }
                     };
                                         // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
                     //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。

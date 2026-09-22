@@ -1082,6 +1082,10 @@
                     ${ck('recallCacheEnabled', '召回缓存', '同查询短期复用召回结果（省 API）')}
                     ${ck('heatOnRecallEnabled', '召回加热', '被召回的记忆提升活跃度（防冷启动丢失）')}
                     ${ck('recallAuditEnabled', '召回命中自检', '每轮召回后记录 查询/命中分布/空结果 到环形账本，诊断面板「召回效果自检」可见——召回是唯一无自检防线的核心机制（v3.150）')}
+                     ${ck('recallProvenanceFilter', '分支感知召回过滤', '摘要来源楼被翻页(source_changed)后不再注入——防旧分支叙事与当前分支一起进模型。只剔这一态：判不了、缺源（删楼与前移不可区分）、正文改写的都放行（v3.183）')}
+                     <div class="ls-slider-label"><span>条目关联停用词</span></div>
+                     <textarea class="ls-textarea" data-cfg-text="crosslinkStopwords" placeholder="逗号分隔，如：主角,系统,旁白">${c.crosslinkStopwords || ''}</textarea>
+                     <div class="ls-hint" style="padding:0 8px;">条目关联（Aho-Corasick）扫正文找共享关键词时忽略这些通用词——否则「主角」「系统」这类词会把所有条目串成一团（v3.183）。</div>
                     ${ck('floorRecallLedgerEnabled', '楼层召回账本', '把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度，让楼层账本从记写入扩展到记召回（v3.150）')}
                     ${ck('recallTierEnabled', '分层召回', '按记忆层分级召回')}
                     ${ck('synopsisFastPath', '摘要快速通道', '短消息跳过完整 LLM 摘要')}

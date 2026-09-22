@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.182.0",
+  "version": "3.183.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -48,7 +48,10 @@
     "age-anchor.js",
     "public-interface.js",
     "ledger-replay.js",
-    "scene-book.js"
+    "scene-book.js",
+    "summary-provenance.js",
+    "branch-guard.js",
+    "crosslink.js"
   ],
   "extra_css": [
     "lonsha-design.css",
