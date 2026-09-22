@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.183.0';
+    const VERSION = '3.184.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -25,6 +25,27 @@
             try { return require('./' + fileName); } catch (e) { return null; }
         }
         return null;
+    }
+    // [v3.184] 行级变更集（changeset.js，移植 nocturne ChangesetStore 的行级 before/after 累积）。
+    //   为什么需要：本仓三种「回看改了什么」的设施**都没有前后值**——
+    //   SnapshotManager 是整楼层粒度（只知道第 N 楼改过、不知道改了哪一格），
+    //   OpLog 与 CharacterState.ops 记的是**意图**（{character, field, delta:5}），
+    //   而不是「这一格原来是 3、现在是 8」。于是「第 12 楼把谁的好感从多少改到多少」
+    //   无处可查：由 delta 反推需要当时的值，而那个值已经不存在了。
+    //   惰性单例（模块在 extra_js 里后加载，构造期取不到）；不抛。
+    //   **刻意不加配置键**：池有 400 行硬上限、只在既有写入点旁路记录、不改任何既有数据路径的
+    //   返回值——加键就要配一个设置面板控件与一条可达性路径（v3.160 纪律），
+    //   而这里没有「必须由用户决定」的取舍。**刻意不导出**：导出的顶层键集是契约冻结的
+    //   （v3139 测试强制 collectExport 键 == ARCHIVE_TOP_LEVEL_KEYS），行级变更集是会话内诊断资产。
+    let _changesetStore = null;
+    function _changeset() {
+        try {
+            if (_changesetStore) return _changesetStore;
+            const CS = _moduleLib(() => window.LonShaChangeset, 'changeset.js');
+            if (!CS || typeof CS.ChangesetStore !== 'function') return null;
+            _changesetStore = new CS.ChangesetStore({});
+            return _changesetStore;
+        } catch (e) { return null; }
     }
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
@@ -736,6 +757,7 @@
 1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
 2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。每个事件标注 scope："objective"（公开事实，所有在场角色都知道）或 "pov"（仅某角色亲眼看到/独自知道的事实，此时必须给出 owner=该角色主名）。每个事件还要标注 importance（1-10，数字越大越重要：1-3日常琐事、4-6值得注意、7-8重大事件、9-10故事定义级）。
 3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
+3.1 relationships.disclosure：该关系**本轮该不该披露**的触发条件（可选，人类可读）。填法同正则片段，多个条件用逗号或换行分隔，表示「或」；前缀 ! 表示排除项。例：{"from":"A","to":"B","type":"暗恋","attitude":"positive","disclosure":"告白|结婚|约会,!开玩笑"}，意为「对话里出现告白/结婚/约会时这条关系才给模型看，但若同时说到开玩笑则不给」。仅当这条关系【只在特定情形下才成立或才有意义】时才填；普遍有效的关系一律留空字符串，留空即每轮都注入。不要为了填而填。
 3b. conflicts：本轮对话中出现【同一事实的两个版本对不上】时登记（如某角色在甲事件声称X、本轮又声称Y）。
 先判断是更正还是真矛盾：更正（时间线自然演进，如搬家/换工作）不登记，由正常提取覆盖；
 真矛盾（说不通的版本冲突，如自相矛盾的口供、立场摇摆）填 {"subject":"角色名或事实","versionA":"版本A描述","versionB":"版本B描述","note":"矛盾性质一句话","severity":"low/medium/high（按矛盾严重度）"}。没有则填空数组。
@@ -762,7 +784,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
 
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive"}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "promises": [{"character": "承诺者主名", "content": "归还典籍", "deadlineFloor": 15}], "promises_resolve": [{"id": "prom_示例", "status": "fulfilled"}], "plot_arcs": [{"action": "add", "title": "调查异变", "clue": "湖水出现不明水怪", "interestedBy": "角色主名"}], "knowledge_changes": [{"action": "unaware", "character": "角色主名", "fact": "某事实"}],  "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null, "cse_states": [{"character": "角色名", "layer": "situational", "field": "情绪", "value": "紧张", "toward": null, "visibility": "observable"}]}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive", "disclosure": ""}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "promises": [{"character": "承诺者主名", "content": "归还典籍", "deadlineFloor": 15}], "promises_resolve": [{"id": "prom_示例", "status": "fulfilled"}], "plot_arcs": [{"action": "add", "title": "调查异变", "clue": "湖水出现不明水怪", "interestedBy": "角色主名"}], "knowledge_changes": [{"action": "unaware", "character": "角色主名", "fact": "某事实"}],  "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null, "cse_states": [{"character": "角色名", "layer": "situational", "field": "情绪", "value": "紧张", "toward": null, "visibility": "observable"}]}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v3.94] cse_states=CSE 级人物状态（自研引擎，可选）：layer: core=稳定核心人设/adaptive=逐渐适应固化/situational=当下一时状态；toward=明确指向对象（有剧情证据才填，core 层不填，A→B 不自动镜像 B→A）；visibility: observable=可观察/private=该角色私密/authorial=幕后（仅 AI 知）。无则空数组。
@@ -910,6 +932,24 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v3.183] 条目关联停用词表（逗号分隔）。通用词（主角/系统/旁白…）命中会把所有条目串成一团，
                 //   故默认给一份保守表，用户可增删。读取点：crosslink.createIndex({ stopwords })。
                 crosslinkStopwords: '主角,系统,旁白,此时,于是,然而,之后,之前',
+                // [v3.184] 语义汇总（Node Rollup，吸收 Luker compactNodes / createRollupWithChildren）：
+                //   把「同类型、还没被认领」的散节点每 N 个压成一层父节点 + semantic_contains 边，
+                //   父节点**不删除任何子节点**。此前 MemoryGraph.vacuum() 全库零调用点——
+                //   图只增不减；本版把它连同 vacuum 一起接进周期维护管线（graph-rollup 步骤）。
+                graphRollupEnabled: true,      // 默认开：只加一层父节点，不删任何子节点，风险面小
+                graphRollupMinChildren: 4,     // 每几个节点压一层（<2 会被夹到 2；三节点压一层得不偿失）
+                // [v3.184] 关系披露条件（nocturne_memory 的 edge disclosure）。
+                //   存在理由：关系边一旦写入就永久无条件参与注入，长线里每轮固定带上若干
+                //   当期毫无用处的关系，挤占 token 且稀释真正相关的那几行。
+                //   默认开：只影响「带 disclosure 字段的边」（作者没写条件的关系一律照常注入），
+                //   即默认开对存量存档是零行为变化；关掉则回到「全部无条件注入」。
+                relationDisclosureEnabled: true,
+                // [v3.184] 归一化补丁匹配（nocturne text_patch 的机制）。
+                //   存在理由：8 处「把值填进用户可编辑模板」的字面 replace，在用户把
+                //   {{KNOWN_CHARS}} 编辑成全角/带空格形态后一次都不命中，占位符原样发给模型且无日志。
+                //   默认开：精确命中路径与修前逐字节相同（零行为变化），只在字面未命中时才启用回退。
+                //   关掉则回到「只认字面命中」，用于排查「是不是回退改错了地方」。
+                fuzzyPatchEnabled: true,
                 floorRecallLedgerEnabled: true,   // [v3.150] B 楼层召回账本：把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度
                 heatOnRecallEnabled: true,     // [v3.31] 召回加热：被想起→activationCount+/lastActive 刷新（kiwi-mem 热度理念，接 decayScore 续命轴）
                 // [v3.25] 召回类型分级（MemoryPilot）+ token 预算双层（记忆库v5）+ 归档隐藏（Bakemono共识）
@@ -1025,21 +1065,39 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     }
                 }
                 // [v1.4.2] 迁移旧版提示词：summary 字段描述太弱导致 LLM 返回空摘要
+                //   [v3.184] 字面 replace 换成归一化宽松匹配（fuzzy-patch.js，移植 nocturne text_patch 机制）。
+                //   修前实测后果：extractionPrompt 由用户在设置面板自由编辑（settings-ui 的 ls-prompt
+                //   文本框），粘贴/输入后字段描述里的英文引号极易变成弯引号或全角，字面 replace 一次都不命中
+                //   ——v3.166 的台账把这种情况记为「替换未命中」并跳过，于是**迁移永远不会发生**，
+                //   用户停在一个永不升级的旧提示词上（静默）。现在：精确命中优先，未命中走归一化回退
+                //   （弯引号/破折号/多空格/行尾空白），唯一命中才落。歧义不猜——改错地方比不改更糟。
                 _mig.checks += 1;
                 if (this.config.extractionPrompt?.includes('"summary": "摘要"')) {
                     const _before = String(this.config.extractionPrompt);
-                    this.config.extractionPrompt = _before.replace(
-                        '"summary": "摘要"',
-                        '"summary": "用一句话概括这段对话发生了什么、角色间关系有何进展（30-60字，必须是你自己的概括，禁止照抄原文）"'
-                    );
-                    // [v3.166] 迁移必须真的改动了值才算迁移：replace 未命中时
-                    //   旧实现照样 saveConfig + 报「已升级」，是一次「什么都没做的成功声明」。
-                    if (this.config.extractionPrompt !== _before) {
+                    const _FP = _moduleLib(() => window.LonShaFuzzyPatch, 'fuzzy-patch.js');
+                    const _NEWDESC = '"summary": "用一句话概括这段对话发生了什么、角色间关系有何进展（30-60字，必须是你自己的概括，禁止照抄原文）"';
+                    let _after = null, _mode = 'module-missing';
+                    if (_FP && typeof _FP.applyPatch === 'function') {
+                        const _r = _FP.applyPatch(_before, '"summary": "摘要"', _NEWDESC, { normalize: this.config.config.fuzzyPatchEnabled !== false });
+                        _mode = _r.mode;
+                        if (_r.ok) _after = _r.text;
+                    } else {
+                        // 模块缺席：退到原字面行为（不静默跳过——那会让迁移在模块缺失时也「看起来跑过」）
+                        const _lit = _before.replace('"summary": "摘要"', _NEWDESC);
+                        if (_lit !== _before) { _after = _lit; _mode = 'literal-fallback'; }
+                    }
+                    // [v3.166] 迁移必须真的改动了值才算迁移：未命中时旧实现照样 saveConfig + 报「已升级」，
+                    //   是一次「什么都没做的成功声明」。
+                    if (_after !== null && _after !== _before) {
+                        this.config.extractionPrompt = _after;
                         this.saveConfig();
                         _mig.applied.push('v1.4.2-summary描述');
-                        console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已自动升级 (summary 要求真概括)`);
+                        // [v3.184] 本站读数（诊断面据 _fuzzyPatchRead 报「迁移用了哪条路径」）
+                        this._fuzzyPatchRead = { site: 'config-migration', mode: _mode, total: 1, applied: 1, modes: { summary描述: _mode }, missed: [], leftover: [] };
+                        console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已自动升级 (summary 要求真概括, ${_mode})`);
                     } else {
-                        _mig.skipped.push('v1.4.2-summary描述(替换未命中)');
+                        _mig.skipped.push('v1.4.2-summary描述(' + (_mode === 'module-missing' ? '模块未加载' : '替换未命中') + ')');
+                        this._fuzzyPatchRead = { site: 'config-migration', mode: _mode, total: 1, applied: 0, modes: {}, missed: ['summary描述(' + _mode + ')'], leftover: [] };
                     }
                 }
             } catch (e) {
@@ -2397,6 +2455,81 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return body + last;
             } catch (e) { errLog(e, 'engine._crosslinkLine'); return '—（诊断异常）'; }
         }
+        /**
+         * [v3.184] 图谱汇总读数（诊断面用；纯读、不抛）。
+         * 与 _crosslinkLine 同族：回答「图里现在有几层汇总、盖住多少子节点、最近一轮维护干了什么」。
+         * 三件事必须分开报，否则同形：
+         *   · 累计 created=0 且 rejected 有值 → 接上了但**一次没压成**（判据在拒），
+         *   · 模块缺席 / 维护管线压根没跑   → `_graphRollupRead` 为空（不是「压了 0 层」），
+         *   · 压成了但边界字段全缺           → line() 里的「有边界 X/N」。
+         */
+        _graphRollupLine() {
+            try {
+                const g = this.graph;
+                if (!g) return '图未启用';
+                const RU = _moduleLib(() => window.LonShaNodeRollup, 'node-rollup.js');
+                const body = (RU && typeof RU.line === 'function') ? RU.line(g.nodes) : '模块未加载（node-rollup.js）';
+                const rr = g._rollupRead;
+                const cum = rr
+                    ? ` · 累计压成 ${rr.created} 层${rr.rejected ? ' / 拒 ' + rr.rejected : ''}`
+                    : '';
+                const last = rr && rr.lastReason && rr.lastReason !== 'ok' ? `（最近拒因 ${rr.lastReason}）` : '';
+                const m = this._graphRollupRead;
+                const run = m
+                    ? ` · 最近维护 第${m.at ? new Date(m.at).toTimeString().slice(0, 5) : '—'} 压成${m.created}层 跳${m.skipped} 回收${m.prunedNodes}点/${m.prunedEdges}边（图 ${m.nodes} 点）`
+                    : ' · 维护管线未跑过';
+                return body + cum + last + run;
+            } catch (e) { errLog(e, 'engine._graphRollupLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.184] 关系披露读数（诊断面用；纯读、不抛）。
+         * 与 _graphRollupLine 同族：回答「本轮几条关系、几条写了条件、跳过了几条、有没有病句」。
+         * 为什么必须把「无条件」单列：「无条件 20 条」与「条件全命中 20 条」在只看注入条数时同形，
+         *   前者说明谁都没写 disclosure（功能空转），后者说明筛选真在工作。
+         */
+        _relationDisclosureLine() {
+            try {
+                const RD = _moduleLib(() => window.LonShaRelationDisclosure, 'relation-disclosure.js');
+                const read = this._relationDisclosureRead;
+                if (!read) return '本轮未注入关系块';
+                if (!RD || typeof RD.line !== 'function') return '模块未加载（relation-disclosure.js）';
+                const gated = (this._relationGated || []).length ? ` · 跳过：${this._relationGated.join('，')}` : '';
+                return RD.line(read) + gated;
+            } catch (e) { errLog(e, 'engine._relationDisclosureLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.184] 提示词填充读数（诊断面用；纯读、不抛）。
+         * 回答「模板里的占位符填进去了几条、有几条靠宽容回退才填上、有没有填完还残留的」。
+         * 为什么必须报「残留」：残留 = 用户把占位符写成了别的形态（全角/空格/单括号），
+         *   该处**这次没填上**，发给模型的是模板语法。旧实现对此完全静默（无日志、不抛）。
+         */
+        _promptFillLine() {
+            try {
+                const FP = _moduleLib(() => window.LonShaFuzzyPatch, 'fuzzy-patch.js');
+                const a = this._promptFillRead, b = this._promptFillReadRoles;
+                if (!a && !b) return '尚未跑过提取';
+                if (!FP || typeof FP.line !== 'function') return '模块未加载（fuzzy-patch.js）';
+                const parts = [];
+                if (a) parts.push('提取[' + FP.line(a) + ']');
+                if (b) parts.push('角色[' + FP.line(b) + ']');
+                const cfg = this.config?._fuzzyPatchRead;
+                if (cfg) parts.push('迁移[' + cfg.mode + (cfg.applied ? '·已迁' : '·未命中') + ']');
+                return parts.join(' · ');
+            } catch (e) { errLog(e, 'engine._promptFillLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.184] 行级变更集读数（诊断面用；纯读、不抛）。
+         * 回答「这一轮/最近把哪些格改成了什么」。为什么要有它：
+         *   OpLog 回答「系统做了哪些动作」、SnapshotManager 回答「哪一楼的整份快照」，
+         *   都不回答「这一格原来是几」。撤销一次误改需要的正是这个数。
+         */
+        _changesetLine() {
+            try {
+                const cs = _changeset();
+                if (!cs) return '模块未加载（changeset.js）';
+                return cs.summarize(true);
+            } catch (e) { errLog(e, 'engine._changesetLine'); return '—（诊断异常）'; }
+        }
         async onMessageReceived(message, messageId = null) {
             // [v3.10] 生成结束（新回复落层=本轮生成闭环），复位生成标志
             this._generationActive = false;
@@ -2643,12 +2776,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const relTo = this.resolveCharacterName(rel.to);
                         // [v1.5] 单向主观关系：主名归并 + attitude 三值入边数据
                         // [v3.37] 传入时态楼层 floor（时态图谱 Zep 理念）
+                        // [v3.184] disclosure：关系的「何时该披露」条件（nocturne_memory 的 edge disclosure）。
+                        //   只在作者真写了条件时才落库——无条件的关系不写这个字段，
+                        //   否则每条边都带一个空串，存档体积白涨且「谁写了条件」不可辨（全是空）。
+                        const _disc = String(rel.disclosure == null ? '' : rel.disclosure).trim();
                         this.graph.addEdge({
                             from: relFrom,
                             to: relTo,
                             label: rel.type, weight: 1.0,
                             floor: message.index || 0,
-                            data: {attitude: rel.attitude || 'neutral', note: rel.note || '', relClass: classifyRelationshipType(rel.type)}
+                            data: Object.assign(
+                                {attitude: rel.attitude || 'neutral', note: rel.note || '', relClass: classifyRelationshipType(rel.type)},
+                                _disc ? {disclosure: _disc} : null
+                            )
                         });
                         // [v3.43] 图谱关系已由 addEdge 记录为楼层 delta，供 swipe/删楼重放
                         // [v3.48] P2: 伦理冲突检测（family × intimate 交叉即告警，配合 v3.45 羁绊网防乱伦）
@@ -3520,13 +3660,40 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const lockedText = (this.config.config.lockedFactsEnabled !== false) ? this.summary.lockedFactsForPrompt() : '';
                 // [v3.152] ANIMA 词典线 A3：术语词典规则动态追加（9l 新术语 / 9m 角色新称呼）。
                 // 词典为空时 promptRules() 返回引导版（冷启动即开始沉淀）；关闭开关则零追加。
-                let prompt = this.config.config.extractionPrompt
-                    .replace('{{KNOWN_CHARS}}', knownChars.join('、') || '（暂无，从本轮开始积累）')
-                    .replace('{{HISTORY}}', historyFull || '（暂无）')
-                    .replace('{{SUSPENSE}}', (this.config.config.suspenseEnabled && this.suspense.openItems().length) ? this.suspense.briefForPrompt() : '（暂无未了结的悬念）')
-                    .replace('{{LOCKED_FACTS}}', lockedText || '（无）')
-                    .replace('{{SCENES}}', (this.config.config.sceneEnabled && this.scene.nodes.size) ? this.scene.brief() : '（暂无已登记场景）')
-                    .replace('{{CONTENT}}', content);
+                // [v3.184] 占位符填充改走 fuzzy-patch（移植 nocturne text_patch.py 的归一化匹配）。
+                //   修前是 6 条裸字面 .replace：用户在设置面板（settings-ui 的 ls-prompt 文本框）
+                //   把 {{KNOWN_CHARS}} 编辑成全角括号或带空格的 {{ KNOWN_CHARS }} 之后，
+                //   字面 replace 一次都不命中——占位符原样发给 LLM（模型看到的是模板语法而不是角色名单），
+                //   且**全程无日志**（返回值非空、不抛、零提示），功能「接上了但永远空转」。
+                //   现在：精确优先 → 未命中走归一化回退（弯引号/破折号/多空格/行尾空白）→ 唯一命中才落；
+                //   填完仍残留的占位符会被扫描出来计进读数，不再静默。歧义不猜（改错地方比不改更糟）。
+                const _fpLib = _moduleLib(() => window.LonShaFuzzyPatch, 'fuzzy-patch.js');
+                // 取值失败不留空串：空串会让「本就没有」与「取不到」同形（I6），故一律给可见占位文案。
+                const _tokVal = (fn, fallback) => { try { const v = fn(); return (v === '' || v == null) ? fallback : String(v); } catch (e) { errLog(e, 'extract.promptToken'); return fallback; } };
+                const _tokens = {
+                    KNOWN_CHARS: _tokVal(() => knownChars.join('、'), '（暂无，从本轮开始积累）'),
+                    HISTORY: _tokVal(() => historyFull, '（暂无）'),
+                    SUSPENSE: _tokVal(() => (this.config.config.suspenseEnabled && this.suspense.openItems().length) ? this.suspense.briefForPrompt() : '', '（暂无未了结的悬念）'),
+                    LOCKED_FACTS: _tokVal(() => lockedText, '（无）'),
+                    SCENES: _tokVal(() => (this.config.config.sceneEnabled && this.scene.nodes.size) ? this.scene.brief() : '', '（暂无已登记场景）'),
+                    CONTENT: _tokVal(() => content, '（本轮无正文）'),
+                };
+                let prompt;
+                if (_fpLib && typeof _fpLib.patchTokens === 'function') {
+                    const _fill = _fpLib.patchTokens(this.config.config.extractionPrompt || '', _tokens);
+                    prompt = _fill.text;
+                    this._promptFillRead = { site: 'extraction', total: _fill.total, applied: _fill.applied.length, modes: _fill.modes, missed: _fill.missed, leftover: _fill.leftover, leftoverMore: _fill.leftoverMore };
+                } else {
+                    // 模块缺席：退到原字面行为，读数如实记缺席（不装成「填好了」）
+                    prompt = String(this.config.config.extractionPrompt || '')
+                        .replace('{{KNOWN_CHARS}}', _tokens.KNOWN_CHARS)
+                        .replace('{{HISTORY}}', _tokens.HISTORY)
+                        .replace('{{SUSPENSE}}', _tokens.SUSPENSE)
+                        .replace('{{LOCKED_FACTS}}', _tokens.LOCKED_FACTS)
+                        .replace('{{SCENES}}', _tokens.SCENES)
+                        .replace('{{CONTENT}}', _tokens.CONTENT);
+                    this._promptFillRead = { site: 'extraction', moduleMissing: true, total: Object.keys(_tokens).length, applied: 0, modes: {}, missed: [], leftover: [] };
+                }
                 if (this.config.config.termLexiconEnabled !== false && this.lexicon?.promptRules) {
                     try { prompt += '\n' + this.lexicon.promptRules(); } catch (e) { errLog(e, 'lexicon.promptRules'); }
                 }
@@ -3702,9 +3869,23 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return { key, title, body };
             }).filter(s => s.key || s.title || s.body);
             if (!samples.length) return [];
-            const prompt = this.config.config.extractRolesPrompt
-                .replace('{{LORE}}', samples.map(s => `【${s.title || s.key}】key=${s.key}\n${s.body}`).join('\n---\n'))
-                .replace('{{ROLE_COUNT}}', String(Math.min(samples.length, 80)));
+            // [v3.184] 同上一处：字面 replace 换 fuzzy-patch（两处占位符，同样的全角/空格变体静默失效）
+            const _fpLibR = _moduleLib(() => window.LonShaFuzzyPatch, 'fuzzy-patch.js');
+            const _roleTokens = {
+                LORE: samples.map(s => `【${s.title || s.key}】key=${s.key}\n${s.body}`).join('\n---\n'),
+                ROLE_COUNT: String(Math.min(samples.length, 80)),
+            };
+            let prompt;
+            if (_fpLibR && typeof _fpLibR.patchTokens === 'function') {
+                const _fillR = _fpLibR.patchTokens(this.config.config.extractRolesPrompt || '', _roleTokens);
+                prompt = _fillR.text;
+                this._promptFillReadRoles = { site: 'roles', total: _fillR.total, applied: _fillR.applied.length, modes: _fillR.modes, missed: _fillR.missed, leftover: _fillR.leftover, leftoverMore: _fillR.leftoverMore };
+            } else {
+                prompt = String(this.config.config.extractRolesPrompt || '')
+                    .replace('{{LORE}}', _roleTokens.LORE)
+                    .replace('{{ROLE_COUNT}}', _roleTokens.ROLE_COUNT);
+                this._promptFillReadRoles = { site: 'roles', moduleMissing: true, total: 2, applied: 0, modes: {}, missed: [], leftover: [] };
+            }
             const raw = await this.llm.callAPI(prompt);
             // 宽松 JSON 解析（兼容 ```json 围栏）
             let arr = [];
@@ -5075,6 +5256,33 @@ function relativeTimeLabel(eventTime, nowTime) {
                     },
                 },
                 {
+                    name: 'graph-rollup',
+                    ignoreFailure: true,   // 图维护是增强步骤：失败不阻断记忆落笔与归档
+                    run: async () => {
+                        // [v3.184] 语义汇总（Node Rollup，Luker compactNodes）：
+                        //   此前 MemoryGraph.vacuum() 全库**零调用点**——写了压缩、没人跑，
+                        //   长线对话下图谱节点只增不减。本步骤把「先汇总、再压缩」接进既有维护管线
+                        //   （不新造周期旋钮，复用 optimizeEveryFloors 的节奏），并把读数留痕供诊断面读。
+                        try {
+                            if (cfg.graphRollupEnabled !== false && eng.graph && typeof eng.graph.maintainGraph === 'function') {
+                                const minChildren = Math.max(2, Number(cfg.graphRollupMinChildren) || 4);
+                                const r = eng.graph.maintainGraph({ minChildren, types: ['event'] });
+                                eng._graphRollupRead = {
+                                    created: r?.rollup?.created || 0,
+                                    skipped: r?.rollup?.skipped || 0,
+                                    prunedEdges: r?.vacuum?.prunedEdges || 0,
+                                    prunedNodes: r?.vacuum?.prunedNodes || 0,
+                                    nodes: eng.graph.nodes.size,
+                                    at: Date.now(),
+                                };
+                                if ((r?.rollup?.created || r?.vacuum?.prunedNodes) && cfg.debugMode) {
+                                    console.log(`[${PLUGIN_NAME}] 图维护: 汇总 ${r.rollup.created} 层 · 回收 ${r.vacuum.prunedNodes} 孤儿节点`);
+                                }
+                            }
+                        } catch (e) { errLog(e, 'maintenance.graphRollup'); }
+                    },
+                },
+                {
                     name: 'cadence-triage',
                     ignoreFailure: true,   // 可选增强步骤：分诊失败不应阻断整条维护
                     run: async () => {
@@ -6106,10 +6314,16 @@ function relativeTimeLabel(eventTime, nowTime) {
             const top = merged.slice(0, this.config.config.vectorTopK * 2);
             if (this.config.config.debugMode) {
                 console.log(`[${PLUGIN_NAME}] RRF融合: ${merged.length} 项, 多路命中: ${top.filter(t => t.hits > 1).length} 项${_weighted ? `; 加权模式 α=${_alpha}` : ''}`);
+            }
             // [v3.16] 神经链 + 世界推进 汇入召回结果
+            // [v3.184] 修复：这两行原本被误包在**上面那个 debugMode 分支的大括号里**——
+            //   于是「神经链与世界推进的汇入」**只在调试模式下才发生**，
+            //   默认配置（debugMode=false）下两条召回通道永远不汇入：模块写得完整、单测可能全绿、
+            //   运行时从不走——与「零调用点」同族的失效形态。
+            //   修前的测试（v316_three_core 的 ST3）只查字符串在不在场（src.includes('results.neuralChain')），
+            //   字符串在场所以全绿——一条“假绿”通道。
             if (results.neuralChain?.length) for (const nc of results.neuralChain) { if (!top.some(t => (t.text||'') === nc.text)) top.push(nc); }
             if (results.worldProg?.length) for (const wp of results.worldProg) { if (!top.some(t => (t.text||'') === wp.text)) top.push(wp); }
-            }
             return top;
         }
 
@@ -6172,6 +6386,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             try {
                 if (this.config?.config?.aliasQueryExpansion !== false) aliases = this.buildAliasMap();
             } catch (e) { errLog(e, 'buildQuery.aliasMap'); }
+            // [v3.184] 记录本轮情境文本（关系披露条件的判定依据）。
+            //   为何记在这里而不是各调用点各记一次：生成路径与 selfCheck dry-run 都经 buildQuery，
+            //   记在这里口径唯一；两处分别记会漂移（一处改了另一处忘），且「谁记得对」无从验证。
+            //   取的是召回同一口径的 text（最近 5 条正文拼接），不是另起一套取值。
+            this._lastCtxText = String(text || '');
             return {text, characters: this.extractCharactersFromContext(text), queries: null, branches, aliases};
         }
         
@@ -6840,9 +7059,30 @@ function relativeTimeLabel(eventTime, nowTime) {
                 });
             }
             if (relations.length) {
+                // [v3.184] 关系披露收口（relation-disclosure.js，移植 nocturne_memory 的 edge disclosure）。
+                //   修前：关系边一旦写入就**永久无条件**参与注入——不看当前剧情走到哪里。
+                //   长线里的实测后果：每轮固定带上若干当期毫无用处的关系（某条「暗恋」在两条线
+                //   各走各的二十楼里仍然每轮出现），挤占 token 且稀释真正相关的那几行。
+                //   现在：带 disclosure 的边按当前情境判条件，未触发的本轮不进注入。
+                //   **仍在图里、仍在召回池里**——情境对了下一轮照常出现（转瞬过滤，不是永久降级）。
+                const _RD = _moduleLib(() => window.LonShaRelationDisclosure, 'relation-disclosure.js');
+                let _relKept = relations, _rdRead = null;
+                if (_RD && typeof _RD.partition === 'function') {
+                    const _pt = _RD.partition(relations, this._lastCtxText || '', { enabled: this.config.config.relationDisclosureEnabled !== false });
+                    _relKept = _pt.kept;
+                    _rdRead = { enabled: _pt.enabled, counts: _pt.counts, ctxEmpty: _pt.ctxEmpty };
+                    // 被跳过的那几条也要可查（有界 5 条）：否则「这条关系为什么没出现」无从回答。
+                    this._relationGated = _pt.gated.slice(0, 5).map(g => `${g.from}→${g.to}(${g.label || '相关'})`);
+                } else {
+                    // 模块缺席：不静默化成「全部跳过」（那是数据损失），如实记为缺席并原样放行。
+                    this._relationGated = [];
+                    _rdRead = { moduleMissing: true };
+                }
+                this._relationDisclosureRead = _rdRead;
+                if (_relKept.length) {
                 blocks.push('[角色关系]');
                 const CLS_CN = { family: '血缘', intimate: '亲密', hostile: '敌对', social: '社交', other: '其他' };
-                relations.forEach(i => {
+                _relKept.forEach(i => {
                     const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : '中立';
                     const fromName = this.graph.nodes.get(i.from)?.name || i.from || i.name;
                     const toName = this.graph.nodes.get(i.to)?.name || i.to || '';
@@ -6850,6 +7090,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const cls = i.data?.relClass || classifyRelationshipType(i.label);
                     blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}·${CLS_CN[cls] || '其他'}]${histNote}`);
                 });
+                }
             }
             // [v3.45] 吸收 baibai: 近期已了结/已作废事项防复读注入
             const recentDone = this.suspense?.getRecentlyResolvedPrompt?.(3) || [];
@@ -7217,6 +7458,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 try { const nd = this.diary?.removeByFloor ? this.diary.removeByFloor(floor) : 0; if (nd && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 日记回滚: ${nd}条`); } catch (e) { errLog(e, 'rollbackFloor.日记回滚'); }
                 try { const nm2 = this.moneyLedger?.removeByFloor ? this.moneyLedger.removeByFloor(floor) : 0; if (nm2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 钱财流水回滚: ${nm2}条`); } catch (e) { errLog(e, 'rollbackFloor.钱财回滚'); }
                 try { const nc = this.cards?.removeByFloor ? this.cards.removeByFloor(floor) : 0; if (nc && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 卡牌回滚: ${nc}张`); } catch (e) { errLog(e, 'rollbackFloor.卡牌回滚'); }
+                // [v3.184] 变更集楼层联动：该楼的行级 before/after 一并作废。
+                //   不摘的后果不是报错，是**读数撒谎**：删楼之后自检仍会报「第 12 楼把好感 3→8」，
+                //   而那个楼层已经不存在了——诊断面指着一段被撤销的历史，比没有读数更糟。
+                try { const ncs2 = _changeset()?.removeByFloor?.(floor) || 0; if (ncs2 && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 变更集回滚: ${ncs2}行`); } catch (e) { errLog(e, 'rollbackFloor.变更集回滚'); }
                 try { const ncf = this.conflicts?.removeByFloor ? this.conflicts.removeByFloor(floor) : 0; if (ncf && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 矛盾回滚: ${ncf}条`); } catch (e) { errLog(e, 'rollbackFloor.矛盾回滚'); }
                 // [v3.67] A: 正史增量回滚（删楼/重生成后该楼层的增量事实撤掉，防幽灵事实）
                 try { const ndb = this.deltaBook?.removeByFloor ? this.deltaBook.removeByFloor(floor) : 0; if (ndb && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📒 正史增量回滚: ${ndb}条`); } catch (e) { errLog(e, 'rollbackFloor.正史增量回滚'); }
@@ -7996,6 +8241,54 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = !!(s && s.keywords > 0 && s.rejected > 0);
                             return ['条目关联', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.crosslink'); return ['条目关联', '—（诊断异常）']; }
+                    })(),
+                    // [v3.184] 图谱汇总体检面：回答「图里现在有几层汇总、盖住多少子节点、
+                    //   最近一轮维护压成了几层 / 回收了几个孤儿」。要警惕的不是「压成 0 层」
+                    //   （节点本来就不够一批，属正常），而是**维护管线从没跑过**——
+                    //   那说明 graph-rollup 步骤压根没被触发（此前 vacuum 零调用点即此形态）。
+                    (() => {
+                        try {
+                            const line = (typeof this._graphRollupLine === 'function') ? this._graphRollupLine() : '—';
+                            const ran = !!this._graphRollupRead;
+                            const rr = this.graph && this.graph._rollupRead;
+                            const stuck = !!(rr && rr.rejected > 0 && !rr.created);
+                            return ['图谱汇总', line + (stuck ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.graphRollup'); return ['图谱汇总', '—（诊断异常）']; }
+                    })(),
+                    // [v3.184] 关系披露体检面：**跳过是正常的**（说明筛选在工作，不该报警），
+                    //   真正要警惕的是 invalid > 0 —— 作者写了条件却一个都编译不出来，
+                    //   该关系被静默放行、筛选对它就等于没接。积压式失效必须可见。
+                    (() => {
+                        try {
+                            const line = (typeof this._relationDisclosureLine === 'function') ? this._relationDisclosureLine() : '—';
+                            const c = this._relationDisclosureRead && this._relationDisclosureRead.counts;
+                            const bad = !!(c && (c.invalid > 0 || c.truncated > 0));
+                            return ['关系披露', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.relationDisclosure'); return ['关系披露', '—（诊断异常）']; }
+                    })(),
+                    // [v3.184] 提示词填充体检面：**未填**与**残留**都要现形。
+                    //   残留（占位符写成了全角/带空格形态）意味着这一处根本没填进去，
+                    //   而模型收到的是一句模板语法——修前这件事零日志、零提示。
+                    (() => {
+                        try {
+                            const line = (typeof this._promptFillLine === 'function') ? this._promptFillLine() : '—';
+                            const a = this._promptFillRead, b = this._promptFillReadRoles;
+                            const bad = !!((a && a.leftover && a.leftover.length) || (b && b.leftover && b.leftover.length));
+                            return ['提示词填充', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.promptFill'); return ['提示词填充', '—（诊断异常）']; }
+                    })(),
+                    // [v3.184] 行级变更体检面：回答「这一格从前是多少、现在是多少」——
+                    //   OpLog 只答「做了什么动作」、SnapshotManager 只答「哪楼存了整份快照」，
+                    //   撤销一次误改需要的那个数（原值）此前无处可查。
+                    //   不报警的场景：「无变更」是正常的；真该警惕的是非法输入（写入点传了空键）。
+                    (() => {
+                        try {
+                            const cs = _changeset();
+                            if (!cs) return ['行级变更', '模块未加载（changeset.js）'];
+                            const line = (typeof this._changesetLine === 'function') ? this._changesetLine() : '—';
+                            const bad = !!cs.badInput;
+                            return ['行级变更', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.changeset'); return ['行级变更', '—（诊断异常）']; }
                     })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
@@ -9166,6 +9459,110 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 this.rebuildNameIndex();
             }
             return { prunedEdges, prunedNodes, remainingNodes: this.nodes.size, remainingEdges: this.edges.size };
+        }
+        // [v3.184] 语义汇总（Node Rollup，Luker compactNodes 的 LonSha 映射）：
+        //   vacuum 只做减法（历史边压缩 / 孤儿回收），节点数本身没有收敛通道——
+        //   长线跑下来同批角色/事件会以几百个平铺节点存在，findNodesMentionedIn 的
+        //   返回集越来越大、在召回里互相挤占。本方法做加法：给一批「太散但还有用」的
+        //   节点建共同父级 + semantic_contains 边，**不删任何子节点**。
+        //   判据本体在 node-rollup.js（纯函数、可单测）；此处只负责写入与记账。
+        rollupGroup(childIds, summary, opts = {}) {
+            try {
+                const RU = _moduleLib(() => window.LonShaNodeRollup, 'node-rollup.js');
+                if (!RU || typeof RU.planRollup !== 'function') {
+                    this._rollupRead = this._rollupRead || { created: 0, rejected: 0, lastReason: 'module-unavailable' };
+                    this._rollupRead.rejected++;
+                    this._rollupRead.lastReason = 'module-unavailable';
+                    return { ok: false, reason: 'module-unavailable' };
+                }
+                const plan = RU.planRollup(this.nodes, childIds, summary, opts);
+                if (!plan.ok) {
+                    this._rollupRead = this._rollupRead || { created: 0, rejected: 0, lastReason: '' };
+                    this._rollupRead.rejected++;
+                    this._rollupRead.lastReason = plan.reason;
+                    return plan;
+                }
+                // 写入走 addNode/addEdge 原路径（不走后门）：这样 graphOps 事件溯源、
+                //   nameIndex 重建、快照三条记账都自然生效。
+                const parentId = this.addNode(plan.parent);
+                const children = plan.childIds.map(id => this.nodes.get(id)).filter(Boolean);
+                const seqTo = children.reduce((m, c) => Math.max(m, Number(c?.seqTo ?? 0) || 0), 0);
+                if (Number.isFinite(seqTo) && seqTo > 0) {
+                    const pn = this.nodes.get(parentId);
+                    if (pn) pn.seqTo = seqTo;
+                }
+                for (const cid of plan.childIds) {
+                    // 认领标记写在子节点上：一层只能有一个父，重复压缩会互相覆盖。
+                    const child = this.nodes.get(cid);
+                    if (child) {
+                        child.data = child.data || {};
+                        child.data.rollupParent = String(parentId);
+                    }
+                    this.addEdge({ from: parentId, to: cid, type: 'semantic_contains', label: 'semantic_contains' });
+                }
+                this.rebuildNameIndex();
+                this._rollupRead = this._rollupRead || { created: 0, rejected: 0, lastReason: '' };
+                this._rollupRead.created++;
+                this._rollupRead.lastReason = 'ok';
+                this._rollupRead.lastCovered = plan.childIds.length;
+                return { ok: true, reason: 'ok', parentId, childIds: plan.childIds };
+            } catch (e) {
+                errLog(e, 'MemoryGraph.rollupGroup');
+                return { ok: false, reason: 'threw' };
+            }
+        }
+        // [v3.184] 图维护总入口：先把碎片收进层，再做真空压缩。
+        //   为什么两者要一起调：vacuum 的孤儿回收会把「刚被汇总父认领、但原本无父」的节点
+        //   误判成孤儿（它只看边不看语义归属），反过来先 vacuum 再 rollup 则会漏掉
+        //   本可成组的一批。顺序固定为 rollup → vacuum，且 vacuum 需知道汇总父的存在。
+        maintainGraph(options = {}) {
+            const out = { rollup: null, vacuum: null };
+            try {
+                if (options.rollup !== false) {
+                    out.rollup = this.autoRollup(options);
+                }
+            } catch (e) { errLog(e, 'MemoryGraph.maintainGraph.rollup'); }
+            try {
+                if (options.vacuum !== false) {
+                    out.vacuum = this.vacuum({ maxHistoricalPerPair: options.maxHistoricalPerPair, pruneOrphans: options.pruneOrphans });
+                }
+            } catch (e) { errLog(e, 'MemoryGraph.maintainGraph.vacuum'); }
+            return out;
+        }
+        // [v3.184] 自动成组：把「同类型、尚未被认领」的节点每 minChildren 个压成一层。
+        //   不做任何 LLM 调用：summary 用确定性拼接（节点名 + 楼层），保证同一批输入产出同一结果
+        //   （否则每次维护都生成不同的父节点名，图反而更乱）。
+        //   排序依据与边界依据**分开**：本仓的事件节点 floor 挂在边上、节点自己没有，
+        //   若要求必须有 node.floor 则事件节点全被跳过（接上了但永远空转）。
+        //   故：排序用 floor ?? data.floor ?? timestamp（总有值）；边界仍只认真 floor，
+        //   缺了就只是这批不写 rollupFloorStart——两件事不能混成一条闸门。
+        autoRollup(options = {}) {
+            const minChildren = Math.max(2, Number(options.minChildren) || 4);
+            const types = Array.isArray(options.types) && options.types.length ? options.types : ['event'];
+            const created = [];
+            const skipped = [];
+            for (const type of types) {
+                const pool = [];
+                for (const n of this.nodes.values()) {
+                    if (!n || n.type !== type) continue;
+                    if (n.data && (n.data.rollupParent || n.data.rollupKind)) continue;   // 已认领 / 自己就是汇总层
+                    const f = Number.isFinite(Number(n.floor)) ? Number(n.floor)
+                        : (n.data && Number.isFinite(Number(n.data.floor)) ? Number(n.data.floor) : null);
+                    const ts = Number(n.timestamp) || 0;
+                    if (f === null && !ts) { skipped.push(String(n.id)); continue; }      // 真判不了（无楼层也无时间戳）
+                    pool.push({ node: n, sortKey: f === null ? ts : f, floor: f });
+                }
+                pool.sort((a, b) => a.sortKey - b.sortKey);
+                for (let i = 0; i + minChildren <= pool.length; i += minChildren) {
+                    const batch = pool.slice(i, i + minChildren);
+                    const summary = batch.map(x => x.node.name + (x.floor === null ? '' : '（第' + x.floor + '楼）')).join('；');
+                    const r = this.rollupGroup(batch.map(x => String(x.node.id)), summary, {
+                        type, minChildren, label: type,
+                    });
+                    if (r.ok) created.push(r.parentId);
+                }
+            }
+            return { created: created.length, parentIds: created, skipped: skipped.length };
         }
         export() { return {nodes: Array.from(this.nodes.values()), edges: Array.from(this.edges.values()), snapshots: Array.isArray(this._snapshots) ? this._snapshots : [], graphOps: Array.isArray(this.graphOps) ? this.graphOps : []}; }
         import(data) {
@@ -11808,6 +12205,10 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 const field = String(c?.field || '').trim();
                 if (!name || !field) continue;
                 const rec = this._ensure(name);
+                // [v3.184] 行级前后值：**改前先取**（改完再取只能拿到结果，前后值退化成「结果」一个数）。
+                //   旧实现只把入参意图（{character, field, delta}）记进 ops 与 OpLog，
+                //   于是「这一格从什么变成什么」无处可查——由 delta 反推需要当时的值，而它已不存在。
+                const _csPrev = (rec.fields && Object.prototype.hasOwnProperty.call(rec.fields, field)) ? rec.fields[field] : null;
                 // 数值增量 / 绝对值 / 文本
                 if (c.delta !== undefined && c.delta !== null && !isNaN(Number(c.delta))) {
                     const base = Number(rec.fields[field]) || 0;
@@ -11815,6 +12216,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 } else if (c.value !== undefined && c.value !== null) {
                     rec.fields[field] = (typeof c.value === 'number') ? c.value : String(c.value).trim();
                 }
+                // 记入变更集：净零（改了个跟没改一样）与非法输入都进计数、不当变更展示（changeset.js 内部处理）
+                try { _changeset()?.record({ table: 'status', pk: [name, field], before: _csPrev, after: rec.fields[field], floor: floor || 0 }); } catch (e) { errLog(e, 'CharacterState.changeset'); }
                 if (c.reason) rec.lastReason = String(c.reason).trim();
                 rec.updatedAt = Date.now();
                 rec.floor = floor || 0;

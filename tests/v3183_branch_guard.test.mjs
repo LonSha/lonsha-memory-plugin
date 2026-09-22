@@ -1,5 +1,5 @@
 /**
- * tests/v3183_branch_guard.test.mjs — v3.183.0 分支守护
+ * tests/v3183_branch_guard.test.mjs — v3.184.0 分支守护
  *
  * 覆盖：
  *   1. 三态队列互不混同（request / apply / swipe）

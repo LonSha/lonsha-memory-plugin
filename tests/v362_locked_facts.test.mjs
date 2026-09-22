@@ -156,7 +156,11 @@ test('=== 7. 配置默认值与守卫检查 ===', () => {
     assert.ok(src.includes('lockedFactsEnabled !== false'), '注入守卫');
     // extractMemoryWithLLM 的锁定文本守卫
     const emIdx = src.indexOf('async extractMemoryWithLLM');
-    const emSrc = src.slice(emIdx, emIdx + 2500);
+    // [v3.184] 窗口由 2500 提到 3600：占位符填充改走 fuzzy-patch（多了取库、token 表与读数落点）；
+    //   {{LOCKED_FACTS}} 实测落在方法起始 +3351 处（此前紧邻起点）。
+    const emSrc = src.slice(emIdx, emIdx + 3600);
     assert.ok(emSrc.includes('lockedFactsForPrompt'), '提取管线接锁定事实');
     assert.ok(emSrc.includes("{{LOCKED_FACTS}}"), '提取 prompt 占位符');
+    // 占位符名必须仍是 LOCKED_FACTS（换填充机制不得顺手改键名——那会静默废掉用户的模板）
+    assert.ok(emSrc.includes('LOCKED_FACTS:'), 'token 表键名保真');
 });

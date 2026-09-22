@@ -1,5 +1,5 @@
 /**
- * tests/v3183_summary_provenance.test.mjs — v3.183.0 摘要来源溯源
+ * tests/v3183_summary_provenance.test.mjs — v3.184.0 摘要来源溯源
  *
  * 覆盖：
  *   1. 留证闭环（capture 写入 + verify 通过）

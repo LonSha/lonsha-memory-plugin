@@ -1,4 +1,4 @@
-// branch-guard.js — 分支守护（Branch Guard），v3.183.0
+// branch-guard.js — 分支守护（Branch Guard），v3.184.0
 // ------------------------------------------------------------
 // 为什么存在：
 //   本仓库的 swipeFingerprintGuard（v3.89）只保护**召回缓存**——命中前校验末楼指纹，

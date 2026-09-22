@@ -1086,6 +1086,12 @@
                      <div class="ls-slider-label"><span>条目关联停用词</span></div>
                      <textarea class="ls-textarea" data-cfg-text="crosslinkStopwords" placeholder="逗号分隔，如：主角,系统,旁白">${c.crosslinkStopwords || ''}</textarea>
                      <div class="ls-hint" style="padding:0 8px;">条目关联（Aho-Corasick）扫正文找共享关键词时忽略这些通用词——否则「主角」「系统」这类词会把所有条目串成一团（v3.183）。</div>
+                     ${ck('graphRollupEnabled', '图谱语义汇总', '长线对话下把「同类型、未被认领」的散节点每 N 个压成一层父节点（+ semantic_contains 边），父节点不删除任何子节点；同时把此前零调用点的图压缩（vacuum）接进周期维护（v3.184）')}
+                     <div class="ls-slider-label"><span>汇总每层节点数</span><span class="ls-slider-val" id="ls-v-grmc">${c.graphRollupMinChildren ?? 4}</span></div>
+                     <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.graphRollupMinChildren ?? 4}" data-cfg-num="graphRollupMinChildren">
+                     <div class="ls-hint" style="padding:0 8px;">每几个散节点压成一层（默认 4）。调小压得更狠、层更多；调大则只压大簇。</div>
+                     ${ck('relationDisclosureEnabled', '关系披露条件', '关系边可带「何时才给模型看」的触发条件（提取时按当前剧情形如「告白|结婚」）。未触发的关系本轮不进注入，但仍留在图与召回池里，情境对了下轮照常出现。没写条件的关系一律照常注入（v3.184）')}
+                    ${ck('fuzzyPatchEnabled', '提示词宽容填充', '模板占位符（如 {{KNOWN_CHARS}}）被编辑成全角括号/多空格形态后仍能被认出并填上；未命中时退回精确匹配，填完仍残留的占位符进自检告警。无占位符残留时逐字节等同旧行为（v3.184）')}
                     ${ck('floorRecallLedgerEnabled', '楼层召回账本', '把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度，让楼层账本从记写入扩展到记召回（v3.150）')}
                     ${ck('recallTierEnabled', '分层召回', '按记忆层分级召回')}
                     ${ck('synopsisFastPath', '摘要快速通道', '短消息跳过完整 LLM 摘要')}

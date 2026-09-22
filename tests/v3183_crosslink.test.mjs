@@ -1,5 +1,5 @@
 /**
- * tests/v3183_crosslink.test.mjs — v3.183.0 条目关联（Aho-Corasick 多模式匹配）
+ * tests/v3183_crosslink.test.mjs — v3.184.0 条目关联（Aho-Corasick 多模式匹配）
  *
  * 覆盖：
  *   1. 基础命中：位置正确（code point 下标，中文不按 UTF-16 错位）

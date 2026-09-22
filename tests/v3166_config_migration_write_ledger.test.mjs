@@ -21,7 +21,7 @@ test('v3.166 版本下界与四处同步', () => {
         return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
     };
     const v = /const VERSION = '([\d.]+)'/.exec(src)?.[1];
-    assert.ok(vnum(v) >= vnum('3.183.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.184.0'), `index.js 版本 ${v} >= 3.166.0`);
     // 下一版的「当版独占交出」会扫描本文件里的 vnum 下界，链条必须能接上
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -114,9 +114,14 @@ test('v3.166 A 配置迁移不靠自引用构造 + 栈溢出收敛', () => {
     // 不变量 4：迁移写入前必须校验默认值类型（缺失时记 skipped，不许写入 undefined）
     const appends = migRegion.match(/_mig\.skipped\.push\(/g) || [];
     assert.ok(appends.length >= 3, `三个迁移分支都应能声明「跳过」，实际 ${appends.length}`);
-    // 不变量 5：第三处迁移必须验证 replace 真的改动了值才算迁移
-    assert.ok(/if\s*\(this\.config\.extractionPrompt !== _before\)/.test(migRegion),
-        'replace 未命中不得声明迁移成功');
+    // 不变量 5：第三处迁移必须验证替换真的改动了值才算迁移。
+    //   [v3.184] 该处由裸字面 replace 改为 fuzzy-patch（applyPatch 精确优先 + 归一化回退），
+    //   形状从「比较 extractionPrompt 与 _before」变成「先算 _after、再比 _after 与 _before」
+    //   —— 判据原意不变（未命中不得声明迁移成功），两侧都断言，防有人只改一半。
+    assert.ok(/if\s*\(_after !== null && _after !== _before\)/.test(migRegion),
+        'replace 未命中不得声明迁移成功（当前形状：_after 与 _before 比对）');
+    assert.ok(/_mig\.skipped\.push\('v1\.4\.2-summary描述\(/.test(migRegion),
+        '未命中必须落 skipped 台账（不得静默当成已升级）');
 });
 
 /* ══════════════ B2. 写入合流：同 chat 合并、异 chat 并存 ══════════════ */

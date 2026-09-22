@@ -165,11 +165,16 @@ test('【5】感知配额：computeRecallQuota 接线与数据源', () => {
 test('【6】提取产物登记词典（surface 化，查询端单真源）', () => {
     const ex = src.indexOf('async extractMemoryWithLLM(message) {');
     assert.ok(ex > 0, '提取方法存在');
-    const seg = src.slice(ex, ex + 6400);
+    // [v3.184] 窗口由 6400 提到 8000：提示词填充改走 fuzzy-patch（patchTokens）后方法体变长，
+    //   原窗口恰好切在条款边界内（下方 patchTokens 断言因此曾取不到）。
+    const seg = src.slice(ex, ex + 8000);
     assert.ok(seg.includes('this.lexicon.resolve('), '提取产物 resolve 登记');
     // 别名通道同步喂图（省一轮 LLM）
     assert.ok(seg.includes('const node = [...this.graph.nodes.values()].find'), '别名喂图按节点查找');
     assert.ok(seg.includes("(node.data?.aliases || [])"), '图节点别名集合');
+    // [v3.184] 占位符填充改走 fuzzy-patch：{{LORE}}/{{ROLE_COUNT}} 必须经 patchTokens 落
+    //   （字面 replace 在占位符被写成全角/带空格形态时零命中，且无日志）。
+    assert.ok(seg.includes('patchTokens'), '占位符经宽容匹配填充');
 });
 
 // ================= 7. 开关登记 settings-ui + 配置白名单消解 =================
