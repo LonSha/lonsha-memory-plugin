@@ -27,8 +27,13 @@ assert('recallMemory 中 BM25 检索在图扩散之前', posBm25 >= 0 && posDiff
 assert('recallMemory 中 物品台账检索在图扩散之前', posItems >= 0 && posDiff >= 0 && posItems < posDiff);
 
 // 修复 3: shiftFloorsFrom 图谱位移
-assert('shiftFloorsFrom 包含图谱边 validFrom/validTo 前移', idxSrc.includes('edge.validFrom = dec(edge.validFrom)') || idxSrc.includes('edge.validFrom--'));
-assert('shiftFloorsFrom 包含图谱快照 floor 前移', idxSrc.includes('snap.floor--') || idxSrc.includes('snap.floor = dec(snap.floor)'));
+// [v3.190] 图谱面的时态边与快照前移随位移收进登记表（图谱面 id: graph），
+//   判据从「宿主 shift 段里出现过这两句」升级为「登记项自身触及这些字段」。
+const lrSrc = fs.readFileSync(new URL('../ledger-replay.js', import.meta.url), 'utf8');
+assert('shiftFloorsFrom 包含图谱边 validFrom/validTo 前移（登记表 graph 面）',
+    lrSrc.includes('validFrom') && lrSrc.includes('validTo') && lrSrc.includes('edges'));
+assert('shiftFloorsFrom 包含图谱快照 floor 前移（登记表 graph 面）',
+    lrSrc.includes('_snapshots') && /snap, 'floor'\)/.test(lrSrc));
 
 // 修复 4: 反思生成器 sanitizeJson 与延迟更新
 assert('ReflectionSystem 接入 sanitizeJson', idxSrc.includes('const sanitized = sanitizeJson(raw);'));

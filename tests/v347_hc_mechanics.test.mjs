@@ -8,6 +8,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+import { createRequire as __mkReq } from 'node:module';
+const __require = __mkReq(import.meta.url);
+const __fsReq = __require('fs');   // require 函数本身不带 readFileSync，先取 fs 模块
+const __LR = __require('../ledger-replay.js');
+const __ownerShift = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.shift === 'function') ? o.shift : null; };
+const __ownerDrop = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.drop === 'function') ? o.drop : null; };
+const __libSrc = (() => { try { return __fsReq.readFileSync(new URL('../ledger-replay.js', import.meta.url), 'utf8'); } catch (e) { return ''; } })();
+
 
 function braceEnd(s, open) {
     let depth = 0;
@@ -217,9 +225,11 @@ test('=== 7. 持久化与回滚链路完整性测试 ===', () => {
     assert.ok(src.includes('rollbackFloor.卡牌回滚'), 'rollback 联动卡牌');
     assert.ok(src.includes('rollbackFloor.矛盾回滚'), 'rollback 联动矛盾');
     // shiftFloorsFrom（删楼楼层位移）
-    assert.ok(src.includes('for (const l of (this.moneyLedger?.moneyLog || [])) l.floor = dec(l.floor);'), 'shift 联动钱财流水');
-    assert.ok(src.includes('for (const c of (this.cards?.cards || [])) c.floor = dec(c.floor);'), 'shift 联动卡牌');
-    assert.ok(src.includes('for (const c of (this.conflicts?.conflicts || [])) c.floor = dec(c.floor);'), 'shift 联动矛盾');
+    // [v3.190] 位移收进登记表：改为问登记项自身「这一面在不在、动作有没有触及该字段」
+    for (const [id, field, label] of [['money', 'moneyLog', '钱财流水'], ['cards', 'cards', '卡牌'], ['conflicts', 'conflicts', '矛盾']]) {
+        const fn = __ownerShift(id);
+        assert.ok(fn && String(fn).includes(field), 'shift 联动' + label + '（登记表 ' + id + '）');
+    }
     // 注入接入
     assert.ok(src.includes('const moneyPrompt = this.moneyLedger.toPrompt();'), 'buildInjection 注入钱财');
     assert.ok(src.includes('const cardsPrompt = this.cards.toPrompt();'), 'buildInjection 注入卡牌');

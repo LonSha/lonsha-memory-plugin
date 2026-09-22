@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.189.0';
+    const VERSION = '3.190.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -9,6 +9,28 @@
     //   它与 _controlInfo.expected 不是一回事：后者由宿主可见性条件在运行时派生
     //   （event_types 缺项时对应注册点本就不执行），本常量用于结构校验与下限判据。
     const EXPECTED_EVENT_TYPES = 7;
+    // [v3.190] 删楼位移的逐面诊断标签：登记表 id → 该面历史上使用的错误标签。
+    //   位移收进 ledger-replay.js 的登记表之后，逐面失败仍按这些名字进日志——
+    //   旧名字就是检索键，改名即断掉诊断面的按名回溯能力。
+    const SHIFT_FACE_LABELS = Object.freeze({
+        summary: 'shiftFloorsFrom.摘要位移', volumes: 'shiftFloorsFrom.卷位移',
+        vector: 'shiftFloorsFrom.向量位移', diary: 'shiftFloorsFrom.日记位移',
+        pov: 'shiftFloorsFrom.POV位移', timeline: 'shiftFloorsFrom.时间线位移',
+        suspense: 'shiftFloorsFrom.悬念位移', items: 'shiftFloorsFrom.物品位移',
+        money: 'shiftFloorsFrom.钱财位移', cards: 'shiftFloorsFrom.卡牌位移',
+        conflicts: 'shiftFloorsFrom.矛盾位移', pair: 'shiftFloorsFrom.群像位移',
+        delta: 'shiftFloorsFrom.正史增量位移', 'life-detail': 'shiftFloorsFrom.生活小档案位移',
+        protagonist: 'shiftFloorsFrom.主角档案位移', 'world-prog': 'shiftFloorsFrom.WorldProgress位移',
+        outline: 'shiftFloorsFrom.OutlineDirector位移', 'char-mem': 'shiftFloorsFrom.角色记忆位移',
+        drift: 'shiftFloorsFrom.人设偏移位移', cse: 'shiftFloorsFrom.cse位移',
+        pulse: 'shiftFloorsFrom.叙事心电图位移', baseline: 'shiftFloorsFrom.人设基线位移',
+        geo: 'shiftFloorsFrom.地理上下文位移', archived: 'shiftFloorsFrom.归档楼层位移',
+        oplog: 'shiftFloorsFrom.opLog位移', reflection: 'shiftFloorsFrom.反思位移',
+        'status-ops': 'shiftFloorsFrom.状态ops位移', 'floor-ledger': 'shiftFloorsFrom.楼层账本位移',
+        scene: 'shiftFloorsFrom.场景位移', graph: 'shiftFloorsFrom.图谱位移',
+        changeset: 'shiftFloorsFrom.变更集位移', 'inject-cursor': 'shiftFloorsFrom.注入游标位移',
+        'stm-ltm': 'shiftFloorsFrom.短期长期记忆位移'
+    });
     // [v3.173] 缝合模块接线面：缝合模块的统一取库口。
     //   契约：浏览器优先取 window.<符号>（缝合模块 IIFE 双导出到全局），
     //   取不到再回落 CommonJS require('./<file>')，两者都取不到返回 null。
@@ -7647,7 +7669,25 @@ function relativeTimeLabel(eventTime, nowTime) {
         // [v2.0] P2: 楼层账本回滚（删楼/重生成后把该楼层产生的记忆撤掉）
         rollbackFloor(floor) {
             try {
-                if (!this.config.config.floorLedgerEnabled) return 0;
+                if (!this.config.config.floorLedgerEnabled) {
+                    // [v3.190] 关掉账本 ⇒ 不自动回滚，但**要留痕**：否则「关掉了」与「跑了没账可撤」
+                    //   同形，诊断面会以为回滚执行过。回放报告带 skipped 分态。
+                    this._lastReplayReport = { version: 1, side: 'drop', floor: Number(floor), items: [], dropped: 0, shifted: 0, threw: 0, absent: 0, skipped: 'floor-ledger-disabled' };
+                    return 0;
+                }
+                // [v3.190] 登记表回放提到「有无账本记录」这个门控**之前**。
+                //   此前账本记录缺失（该楼从未提取 / 记录已被上限淘汰）会在下面直接 return 0，
+                //   把 v3.182 加在函数尾部的回放收口一起跳过——登记表恰恰在最需要它的那条路径上
+                //   成了死声明，而回放报告仍说「29 本账走完了回放」。回放自身分态
+                //   （absent / threw / no-op），它并不依赖账本记录是否存在。
+                try {
+                    const _lr = _ledgerReplayLib();
+                    const _rep = (_lr && typeof _lr.replayDrop === 'function')
+                        ? _lr.replayDrop(this, floor)
+                        : { version: 0, side: 'drop', floor: Number(floor), items: [], dropped: 0, shifted: 0, threw: 0, absent: 0 };
+                    this._lastReplayReport = _rep;
+                    if (_rep.threw && this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 账本回放：${_rep.threw} 本账撤楼失败`);
+                } catch (e) { errLog(e, 'rollbackFloor.账本回放'); }
                 const entry = this.ledger.get(floor);
                 if (!entry) {
                     // [v3.155] 缺失分两种：① 该楼从未提取（正常）；② 账本记录已被上限淘汰（**回滚能力失效**）。
@@ -7698,22 +7738,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //             但被回滚楼层之前的归档仍有效——全清会导致它们永远无法被恢复。
                 //             现改为精确校正：只丢弃 >= floor 的归档（这些楼层的记忆已被回滚撤销），
                 //             保留 < floor 的归档（仍被有效卷摘要覆盖）。
+                // [v3.190] 改由登记表执行（登记项 id: archived，借库或内联两条路径行为等价）。
+                //   判据不再盯宿主源码里的字面调用，而是盯登记表本身——宿主只负责把库交出去。
                 try {
-                    const _as = (typeof window !== 'undefined' ? window.LonShaArchiveShift : null)
-                        || (typeof require !== 'undefined' ? (() => { try { return require('./archive-shift.js'); } catch { return null; } })() : null);
-                    if (_as && this._archivedFloorIds && this._archivedFloorIds.size) {
-                        this._archivedFloorIds = _as.pruneArchivedIds(this._archivedFloorIds, floor);
-                    } else if (this._archivedFloorIds) {
-                        const f = Number(floor);
-                        if (Number.isFinite(f)) {
-                            const next = new Set();
-                            for (const idx of this._archivedFloorIds) {
-                                const n = Number(idx);
-                                if (Number.isFinite(n) && n < f) next.add(n);
-                            }
-                            this._archivedFloorIds = next;
-                        }
-                    }
+                    const _archOwn = _ledgerReplayLib()?.FLOOR_OWNERS?.find?.(o => o.id === 'archived');
+                    if (_archOwn && typeof _archOwn.drop === 'function') _archOwn.drop(this, floor);
                 } catch (e) { errLog(e, 'rollbackFloor.归档状态精确清理'); }
                 if (keepIds.size && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 回滚: 保留 ${keepIds.size} 个长寿命角色节点`);
                 // 回滚 POV
@@ -7795,17 +7824,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     }
                 } catch (e) { errLog(e, 'rollbackFloor.BM25重建'); }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${floor} 记忆已回滚`);
-                // [v3.182] LR: 删楼回放收口。登记表里的每一本账都在这里撤一次该楼的归属，
-                //   报告落进最近一次回放报告字段：哪本账撤了多少、哪本缺席、哪本抛了，一眼可见。
-                //   模块缺席时退到空报告（side 标 drop、items 为空），绝不让删楼整段失败。
-                try {
-                    const _lr = _ledgerReplayLib();
-                    const _rep = (_lr && typeof _lr.replayDrop === 'function')
-                        ? _lr.replayDrop(this, floor)
-                        : { version: 0, side: 'drop', floor: Number(floor), items: [], dropped: 0, shifted: 0, threw: 0, absent: 0 };
-                    this._lastReplayReport = _rep;
-                    if (_rep.threw && this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 账本回放：${_rep.threw} 本账撤楼失败`);
-                } catch (e) { errLog(e, 'rollbackFloor.账本回放'); }
+                // [v3.182 → v3.190] LR: 删楼回放已上移到「有无账本记录」门控之前（见函数开头）。
+                //   留在这里的版本只在门控通过时才跑，账本记录缺失的路径上整段跳过——
+                //   同一个动作两处调用，就必然有一处是死的。这里只留说明，不留第二次调用。
                 // [v3.19] 删楼后书签重同步（ruby resyncAfterDeletion）: 楼层序数前移，书签补偿
                 try {
                     if (this.bookmarks) {
@@ -7823,136 +7844,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
 
         // [v3.9] 删楼后楼层前移重定位：所有子系统中 floor > deleted 的键 -1（数据零丢失——
         // 旧实现把被删楼之后的记忆全部销毁，但这些楼只是位置前移，记忆内容仍对应前移后的文本）
+        // [v3.9] 删楼后楼层前移重定位：所有子系统中 floor > deleted 的键 -1（数据零丢失——
+        // 旧实现把被删楼之后的记忆全部销毁，但这些楼只是位置前移，记忆内容仍对应前移后的文本）
+        //
+        // [v3.190] 收口：位移从此**只发生一次**。
+        //   此前本方法手抄了一份等价的位移清单（摘要/卷/向量/日记/POV/时间线/悬念/物品/钱财/卡牌/
+        //   矛盾/群像/正史增量/生活小档案/主角档案/世界推进/大纲/角色记忆/人设偏移/CSE/心电图/
+        //   人设基线/地理/归档/opLog/反思/状态 ops/台账/场景/图谱，约 120 行），v3.182 又在文末接上
+        //   登记表回放——**同一批记录被减两次**：删掉第 15 楼后，原本的第 16 楼会变成第 14 楼，
+        //   而且不报错、不告警，读数只会安静地指向错楼层。这是「两份事实必然漂移」最坏的那种形态。
+        //   现在位移的唯一真源是 ledger-replay.js 的 FLOOR_OWNERS：新增子系统只需登记一次，
+        //   漏登记不会静默通过（scan_v3190_lifecycle_collapse.mjs 会点名）。
+        //   本方法只保留：① 逐面失败的诊断标签（沿用各面此前的名字，诊断面按名检索仍可命中）；
+        //   ② 回放报告的留痕；③ 位移条数的返回。
         shiftFloorsFrom(deleted) {
+            const _face = SHIFT_FACE_LABELS;
             let shifted = 0;
-            const dec = (v) => { if (v > deleted) { shifted++; return v - 1; } return v; };
-            try {
-                // 摘要
-                for (const s of (this.summary.summaries || [])) s.floor = dec(s.floor);
-                // 卷（范围缩1：起止同减；跨被删楼则 end-1）
-                for (const v of (this.summary.volumes || [])) {
-                    if (v.floorStart > deleted) v.floorStart--;
-                    if (v.floorEnd >= deleted) v.floorEnd = Math.max(v.floorStart, v.floorEnd - 1);
-                }
-                // 向量（metadata.floor）
-                for (const v of (this.vector.vectors || [])) {
-                    if (v.metadata && typeof v.metadata.floor === 'number' && v.metadata.floor > deleted) v.metadata.floor--;
-                }
-                // 日记
-                for (const name of Object.keys(this.diary?.diaries || {})) {
-                    for (const d of this.diary.diaries[name]) d.floor = dec(d.floor);
-                }
-                // POV
-                for (const p of (this.pov?.povs || [])) p.floor = dec(p.floor);
-                // 时间线
-                for (const e of (this.timeline?.entries || [])) e.floor = dec(e.floor);
-                // 悬念簿（floor 与 resolvedFloor 分别处理）
-                for (const x of (this.suspense?.items || [])) {
-                    if (x.floor !== null && x.floor !== undefined) x.floor = dec(x.floor);
-                    if (x.resolvedFloor !== null && x.resolvedFloor !== undefined) x.resolvedFloor = dec(x.resolvedFloor);
-                }
-                // 物品台账
-                for (const o of (this.itemOps || [])) o.floor = dec(o.floor);
-                // [v3.47] 钱财账本流水 + 剧情卡牌 + 矛盾账本
-                for (const l of (this.moneyLedger?.moneyLog || [])) l.floor = dec(l.floor);
-                for (const c of (this.cards?.cards || [])) c.floor = dec(c.floor);
-                for (const c of (this.conflicts?.conflicts || [])) c.floor = dec(c.floor);
-                for (const p of (this.pairMem?.pairs || [])) for (const e of p.entries) e.floor = dec(e.floor);
-                // [v3.67] B: 正史增量楼层位移（删楼前移，增量指针跟随文本）
-                for (const d of (this.deltaBook?.deltas || [])) d.evidenceFloor = dec(d.evidenceFloor);
-                // [v3.82] B: 生活小档案楼层位移（删楼前移，floor 指针跟随）
-                try { this.status?.shiftLifeDetailFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.生活小档案位移'); }
-                // [v3.83] B: 主角档案楼层指针位移（删楼前移，floor 指针跟随）
-                try { this.status?.shiftProtagonistFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.主角档案位移'); }
-                // [v3.85] WorldProgress/OutlineDirector 位移（删楼后续楼层指针前移）。
-                try { this.worldProg?.shiftFloorRefs?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.WorldProgress位移'); }
-                try { this.outline?.shiftFloorRefs?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.OutlineDirector位移'); }
-                // [v3.84] A: 角色记忆银行楼层位移（删楼前移，floor 指针跟随）
-                try { if (this.charMem?.shiftFloorRefs) this.charMem.shiftFloorRefs(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.角色记忆位移'); }
-                // [v3.84] B: 人设偏移楼层位移（删楼前移，15 楼衰减窗口不错位）
-                try { this.status?.shiftDriftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设偏移位移'); }
-                try { this.cse?.shiftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.cse位移'); }
-                try { this.pulse?.shiftFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.叙事心电图位移'); }
-                // [v3.84] C: 人设基线锁定楼层 + 地理上下文楼层位移
-                try { this.status?.shiftBaselineFloors?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.人设基线位移'); }
-                try { this.status?.shiftGeoFloor?.(deleted); } catch (e) { errLog(e, 'shiftFloorsFrom.地理上下文位移'); }
-                // [v3.115] 修复：归档隐藏楼层集合也必须位移——删楼后 index 前移，
-                //           未校正会导致旧归档指向错楼层（恢复时显示/隐藏错对象）。
-                try {
-                    const _as = (typeof window !== 'undefined' ? window.LonShaArchiveShift : null)
-                        || (typeof require !== 'undefined' ? (() => { try { return require('./archive-shift.js'); } catch { return null; } })() : null);
-                    if (_as && this._archivedFloorIds && this._archivedFloorIds.size) {
-                        this._archivedFloorIds = _as.shiftArchivedIds(this._archivedFloorIds, deleted);
-                    } else if (this._archivedFloorIds && this._archivedFloorIds.size) {
-                        const next = new Set();
-                        for (const idx of this._archivedFloorIds) {
-                            const n = Number(idx);
-                            if (!Number.isFinite(n)) continue;
-                            if (n === deleted) continue;               // 被删楼本身：丢弃（楼层已不存在）
-                            next.add(dec(n));                          // 其余按规则前移
-                        }
-                        this._archivedFloorIds = next;
-                    }
-                } catch (e) { errLog(e, 'shiftFloorsFrom.归档楼层位移'); }
-                for (const e of (this.opLog?.entries || [])) if (typeof e.floor === 'number') e.floor = dec(e.floor);
-                // 反思
-                for (const r of (this.reflection?.items || [])) r.floor = dec(r.floor);
-                // 角色状态 ops + todos.floor
-                for (const op of (this.status?.ops || [])) {
-                    op.floor = dec(op.floor);
-                    for (const t of (op.todos || [])) t.floor = dec(t.floor);
-                }
-                for (const name of Object.keys(this.status?.characters || {})) {
-                    for (const t of (this.status.characters[name]?.todos || [])) t.floor = dec(t.floor);
-                }
-                // 场景 track + opsLog
-                for (const t of (this.scene?.track || [])) t.floor = dec(t.floor);
-                for (const o of (this.scene?.opsLog || [])) o.floor = dec(o.floor);
-                // 楼层账本（键与内容同移）
-                const fl = this.ledger?.floors || {};
-                const entries = Object.entries(fl).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]);
-                const next = {};
-                for (const [f, v] of entries) {
-                    if (f === deleted) continue;          // 被删楼已回滚
-                    const nf = f > deleted ? f - 1 : f;
-                    v.floor = nf;
-                    next[nf] = v;
-                }
-                if (this.ledger) this.ledger.floors = next;
-                // 场景派生重建（track/opsLog 的 floor 已变）
-                // [v3.181] SG：重建收敛到模块的单出口 `rebuildFromOps()`（真源 = opsLog + track）。
-                //   原写法在此手抄一遍「清 nodes → 重放 ops」，与模块内的重建逻辑是**两份实现**——
-                //   模块一旦加深（到访史/在场/容量台账），手抄的那份必然漂移。
-                if (this.config.config.sceneEnabled && this.scene?.opsLog?.length) {
-                    this.scene.rebuildFromOps();
-                }
-                this.rebuildItems?.();
-                // [v3.38] 图谱时态边（validFrom/validTo/floor）与快照前移
-                if (this.graph?.edges) {
-                    for (const edge of this.graph.edges.values()) {
-                        if (typeof edge.validFrom === 'number' && edge.validFrom > deleted) edge.validFrom--;
-                        if (typeof edge.validTo === 'number' && edge.validTo > deleted) edge.validTo--;
-                        if (typeof edge.floor === 'number' && edge.floor > deleted) edge.floor--;
-                    }
-                }
-                if (Array.isArray(this.graph?._snapshots)) {
-                    for (const snap of this.graph._snapshots) {
-                        if (typeof snap.floor === 'number' && snap.floor > deleted) snap.floor--;
-                    }
-                }
-                if (Array.isArray(this.graph?.graphOps)) {
-                    this.graph.graphOps = this.graph.graphOps.filter(op => op.floor !== deleted);
-                    for (const op of this.graph.graphOps) {
-                        if (typeof op.floor === 'number' && op.floor > deleted) op.floor--;
-                        if (op.edge) {
-                            if (typeof op.edge.validFrom === 'number' && op.edge.validFrom > deleted) op.edge.validFrom--;
-                            if (typeof op.edge.validTo === 'number' && op.edge.validTo > deleted) op.edge.validTo--;
-                            if (typeof op.edge.floor === 'number' && op.edge.floor > deleted) op.edge.floor--;
-                        }
-                    }
-                }
-            } catch (e) { errLog(e, 'SH.shiftFloorsFrom'); }
-            if (shifted && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 楼层前移: ${shifted} 条记忆重定位 (deleted=${deleted})`);
             // [v3.182] LR: 楼层前移回放收口。与删楼回放同一张登记表、同一个留痕字段。
             try {
                 const _lr = _ledgerReplayLib();
@@ -7960,8 +7867,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ? _lr.replayShift(this, deleted)
                     : { version: 0, side: 'shift', floor: Number(deleted), items: [], dropped: 0, shifted: 0, threw: 0, absent: 0 };
                 this._lastReplayReport = _rep;
+                shifted = Number(_rep.shifted) || 0;
+                // 逐面报失败：回放不中断，但每一面的名字都留在日志里（旧手抄清单的标签由此延续）。
+                for (const _it of (_rep.items || [])) {
+                    if (_it && _it.state === 'threw') {
+                        try { errLog(new Error(String(_it.error || _it.id)), _face[_it.id] || ('shiftFloorsFrom.' + _it.id)); } catch (e) { /* 记账失败不影响前移 */ }
+                    }
+                }
                 if (_rep.absent && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 账本回放：${_rep.absent} 本账未挂载`);
             } catch (e) { errLog(e, 'shiftFloorsFrom.账本回放'); }
+            if (shifted && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 楼层前移: ${shifted} 条记忆重定位 (deleted=${deleted})`);
             return shifted;
         }
 
@@ -9291,6 +9206,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   现在清单收进 ledger-replay.js 的登记表，宿主只负责调用与留痕。
     function _ledgerReplayLib() {
         return _moduleLib(() => window.LonShaLedgerReplay, 'ledger-replay.js');
+    }
+    // [v3.190] 归档楼层校正库的取库口。
+    //   此前两处调用点（rollbackFloor / shiftFloorsFrom）各自手抄一段
+    //   「优先取全局 → 退到 require → 两条都拿不到时内联循环」的双通道块；
+    //   同一件事写两遍就必然会漂移（v3.115 修的正是其中一处漏改）。
+    //   现在宿主只把库交出去，登记项内部自行决定「借库还是内联」。
+    function _archiveShiftLib() {
+        return _moduleLib(() => window.LonShaArchiveShift, 'archive-shift.js');
     }
     function _sceneBookLib() {
         return _moduleLib(() => window.LonShaSceneBook, 'scene-book.js');

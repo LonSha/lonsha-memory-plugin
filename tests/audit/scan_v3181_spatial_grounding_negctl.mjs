@@ -33,7 +33,11 @@ const SCAN = path.join(HERE, 'scan_v3181_spatial_grounding.mjs');
 const SB = 'scene-book.js';
 const IDX = 'index.js';
 const PUB = 'public-interface.js';
-const GAUGED = [SB, IDX, PUB];
+// [v3.190] 位移收口后，场景面的单出口重建在登记表模块里：
+//   N1 会读 ledger-replay.js，故 fixture 必须连它一起搬，
+//   否则「原版对照」会因缺文件而误报（判据本身没问题，是夹具没跟上判据）。
+const REP = 'ledger-replay.js';
+const GAUGED = [SB, IDX, PUB, REP];
 // (名字, 目标文件 | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 说明)
 const CASES = [
     ['W0-原版对照', null, null, null, null, 0,

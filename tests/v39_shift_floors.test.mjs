@@ -6,6 +6,14 @@ import { createRequire } from 'node:module';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+import { createRequire as __mkReq } from 'node:module';
+const __require = __mkReq(import.meta.url);
+const __fsReq = __require('fs');   // require 函数本身不带 readFileSync，先取 fs 模块
+const __LR = __require('../ledger-replay.js');
+const __ownerShift = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.shift === 'function') ? o.shift : null; };
+const __ownerDrop = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.drop === 'function') ? o.drop : null; };
+const __libSrc = (() => { try { return __fsReq.readFileSync(new URL('../ledger-replay.js', import.meta.url), 'utf8'); } catch (e) { return ''; } })();
+
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
@@ -23,30 +31,35 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
 /* ══════════ 2. shiftFloorsFrom 全子系统覆盖（静态） ══════════ */
 {
+    // [v3.190] 位移清单已从 index.js 搬到 ledger-replay.js 的登记表：
+    //   本组从「宿主源码里出现过这些字段名」升级为「登记表有这些面，
+    //   且该面的 shift 动作真在改那些字段」——判据从字面改为真源 + 行为。
     const mustShift = [
-        ['summary.summaries', '摘要'],
-        ['summary.volumes', '卷'],
-        ['vector.vectors', '向量'],
-        ['diary?.diaries', '日记'],
-        ['pov?.povs', 'POV'],
-        ['timeline?.entries', '时间线'],
-        ['suspense?.items', '悬念簿'],
-        ['itemOps', '物品台账'],
-        ['reflection?.items', '反思'],
-        ['status?.ops', '状态ops'],
-        ['scene?.track', '场景track'],
-        ['scene?.opsLog', '场景opsLog'],
-        ['ledger?.floors', '楼层账本'],
+        ['summary', ['summaries'], '摘要'],
+        ['volumes', ['volumes'], '卷'],
+        ['vector', ['vectors'], '向量'],
+        ['diary', ['diaries'], '日记'],
+        ['pov', ['povs'], 'POV'],
+        ['timeline', ['entries'], '时间线'],
+        ['suspense', ['items'], '悬念簿'],
+        ['items', ['itemOps'], '物品台账'],
+        ['reflection', ['items'], '反思'],
+        ['status-ops', ['ops'], '状态ops'],
+        ['scene', ['track', 'opsLog'], '场景（track/opsLog）'],
+        ['floor-ledger', ['floors'], '楼层账本'],
     ];
     let missing = [];
-    for (const [pattern, label] of mustShift) {
-        const idx = src.indexOf('shiftFloorsFrom(deleted)');
-        const end = src.indexOf('return shifted;', idx);
-        const seg = src.slice(idx, end + 20);
-        if (!seg.includes(pattern)) missing.push(label);
+    for (const [id, fields, label] of mustShift) {
+        const fn = __ownerShift(id);
+        if (!fn) { missing.push(label + '(无登记项)'); continue; }
+        const body = String(fn);
+        if (!fields.every(f => body.includes(f))) missing.push(label + '(动作未触及该字段)');
     }
-    assert.ok(missing.length === 0, `shift 覆盖缺失: ${missing.join(',')}`);
-    ok('静态2: shift 覆盖全部 13 个子系统');
+    assert.ok(missing.length === 0, `shift 覆盖缺失: ${missing.join('，')}`);
+    // 宿主不得再留第二份位移清单：两份事实必然漂移，且会各减一次
+    assert.ok(!src.includes('const dec = (v) => { if (v > deleted) { shifted++; return v - 1; } return v; };'),
+        '宿主手抄位移清单已收编（不得复活）');
+    ok('静态2: shift 覆盖全部 12 面（登记表真源）+ 宿主无第二份清单');
 }
 
 /* ══════════ 3. shift 语义（重现算法验证） ══════════ */

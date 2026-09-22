@@ -148,7 +148,7 @@ test('[4] version is synced across the declaration sites', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.189.0'), 'index.js version ' + v + ' >= 3.160.0');
+    assert.ok(vnum(v) >= vnum('3.190.0'), 'index.js version ' + v + ' >= 3.160.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
     const top = changelog.split('\n').filter((l) => l.startsWith('## v'))
         .map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
@@ -159,7 +159,7 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.189.0')), f + ' anchors are not stale');
+        assert.ok(hits.every((h) => vnum(h) >= vnum('3.190.0')), f + ' anchors are not stale');
         assert.ok(!t.includes("'3.159.0'"), f + ' dropped its pre-takeover anchor');
     }
 });

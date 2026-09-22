@@ -32,6 +32,8 @@ const SB = require(SB_PATH);
 const sbSrc = fs.readFileSync(SB_PATH, 'utf8');
 const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
 const piSrc = fs.readFileSync(path.join(REPO, 'public-interface.js'), 'utf8');
+// [v3.190] 场景面的「重建走单出口」已随位移收口进 ledger-replay.js，判据需要连它一起看
+const lrSrc = fs.readFileSync(path.join(REPO, 'ledger-replay.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
@@ -309,7 +311,7 @@ test('【D3】描述与路径深度切片：超长描述与超深路径被截断
 });
 // ══════════ E 接线真被消费 ══════════
 test('【E1】★ 宿主 14 处接线逐条在位（声明了却零消费 = 死声明）', () => {
-    const both = idxSrc + '\n' + piSrc;
+    const both = idxSrc + '\n' + piSrc + '\n' + lrSrc;
     const wires = [
         ['取库口（真读表达式）', /_moduleLib\(\(\) => window\.LonShaSceneBook, 'scene-book\.js'\)/],
         ['构造封装 _newSceneBook', /function _newSceneBook\(seed\)\s*\{/],
@@ -319,7 +321,8 @@ test('【E1】★ 宿主 14 处接线逐条在位（声明了却零消费 = 死�
         ['在场写入 setPresence', /this\.scene\.setPresence\(_nm, extracted\.location, message\.index \|\| 0\)/],
         ['注入清单 {{SCENES}}', /\{\{SCENES\}\}/],
         ['注入取 brief', /this\.scene\.brief\(\)/],
-        ['编辑回滚走单出口', /this\.scene\.rebuildFromOps\(\);/],
+        // [v3.190] 该调用随位移收进登记表（scene 面的 shift 到顶后重建），锚点跟着搬
+        ['单出口重建（登记表 scene 面）', /h\.scene\.rebuildFromOps\(\)/],
         ['删楼回滚', /this\.scene\.rollbackFloorOnly\(floor\);/],
         ['携带写侧 scenePresence', /scenePresence: \(this\.scene && typeof this\.scene\.export === 'function'\)/],
         ['携带读侧 scenePresence', /pack\.scenePresence/],
@@ -662,7 +665,7 @@ test('【J1】版本三源一致且不低于 v3.186.0', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idxSrc)[1];
     assert.equal(v, manifest.version, 'manifest follows index.js');
     assert.equal(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.189.0'), 'index.js 版本 ' + v + ' >= 3.186.0');
+    assert.ok(vnum(v) >= vnum('3.190.0'), 'index.js 版本 ' + v + ' >= 3.186.0');
     const top = changelog.split('\n').filter(l => l.startsWith('## v'))
         .map(l => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
     assert.equal(top, v, '★ CHANGELOG 顶节是本版（highest section is the released version）');

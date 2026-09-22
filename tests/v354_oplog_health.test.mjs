@@ -7,6 +7,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+import { createRequire as __mkReq } from 'node:module';
+const __require = __mkReq(import.meta.url);
+const __fsReq = __require('fs');   // require 函数本身不带 readFileSync，先取 fs 模块
+const __LR = __require('../ledger-replay.js');
+const __ownerShift = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.shift === 'function') ? o.shift : null; };
+const __ownerDrop = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.drop === 'function') ? o.drop : null; };
+const __libSrc = (() => { try { return __fsReq.readFileSync(new URL('../ledger-replay.js', import.meta.url), 'utf8'); } catch (e) { return ''; } })();
+
 const bridgeSrc = readFileSync(new URL('../../ruby-phone-work/apps/memory/lonsha-bridge.js', import.meta.url), 'utf-8');
 
 function braceEnd(s, open) {
@@ -90,7 +98,8 @@ test('=== 3. OpLog 持久化链路验证 ===', () => {
         assert.equal(_block.split('opLog: this.opLog?.export?.() || null,').length - 1, 1, 'collectExport 含 opLog（单真源）');
     }
     assert.ok(src.includes('if (pack.opLog && this.opLog) this.opLog.import(pack.opLog);'), 'storage.load 恢复');
-    assert.ok(src.includes('for (const e of (this.opLog?.entries || [])) if (typeof e.floor === \'number\') e.floor = dec(e.floor);'), 'shiftFloorsFrom 楼层位移');
+    // [v3.190] 位移收进登记表：操作日志面（id: oplog）必须在表里且触及条目的 floor
+    assert.ok(__ownerShift('oplog') && String(__ownerShift('oplog')).includes('entries'), 'shiftFloorsFrom 楼层位移（登记表 oplog 面）');
     console.log('✓ OpLog 持久化链路验证通过');
 });
 

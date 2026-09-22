@@ -37,6 +37,9 @@ for (const [p, what] of [[SB, 'scene-book.js'], [IDX, 'index.js'], [PUB, 'public
 const sb = fs.readFileSync(SB, 'utf8');
 const idx = fs.readFileSync(IDX, 'utf8');
 const pub = fs.readFileSync(PUB, 'utf8');
+// [v3.190] 位移收口后，场景面的单出口重建在登记表模块里——N1 需要连它一起看
+const lrp = path.join(ROOT, 'ledger-replay.js');
+const lr = fs.existsSync(lrp) ? fs.readFileSync(lrp, 'utf8') : '';
 /**
  * 去掉注释与字符串字面量后的源码（判据纯度工具）。
  * 【为什么必须这么做】本仓库反复踩过同一形态：
@@ -95,7 +98,7 @@ const consumers = [
     ['提取落位 setLocation', /this\.scene\.setLocation\(message\.index \|\| 0, extracted\.location\)/],
     ['在场写入 setPresence', /this\.scene\.setPresence\(_nm, extracted\.location, message\.index \|\| 0\)/],
     ['注入清单 {{SCENES}}', /\{\{SCENES\}\}/],
-    ['编辑回滚走单出口', /this\.scene\.rebuildFromOps\(\);/, 'index.js'],
+    ['单出口重建（登记表 scene 面）', /h\.scene\.rebuildFromOps\(\)/, 'ledger'],
     ['删楼回滚', /this\.scene\.rollbackFloorOnly\(floor\);/, 'index.js'],
     ['携带写侧 scenePresence', /scenePresence: \(this\.scene && typeof this\.scene\.export === 'function'\)/],
     ['携带读侧 scenePresence', /pack\.scenePresence/, 'index.js'],
@@ -104,7 +107,7 @@ const consumers = [
     ['快照外供 scene（落 snap）', /scene: deep\(rawScene\)/],
 ];
 for (const [what, re, only] of consumers) {
-    const src = only === 'index.js' ? idx : (idx + '\n' + pub);
+    const src = only === 'index.js' ? idx : (only === 'ledger' ? (idx + '\n' + lr) : (idx + '\n' + pub));
     if (!re.test(src)) problems.push('N1 「' + what + '」未接线（声明了却零消费 = 死声明）');
     else notes.push('N1 接线在位：' + what);
 }

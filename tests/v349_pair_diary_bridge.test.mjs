@@ -7,6 +7,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+import { createRequire as __mkReq } from 'node:module';
+const __require = __mkReq(import.meta.url);
+const __fsReq = __require('fs');   // require 函数本身不带 readFileSync，先取 fs 模块
+const __LR = __require('../ledger-replay.js');
+const __ownerShift = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.shift === 'function') ? o.shift : null; };
+const __ownerDrop = (id) => { const o = (__LR.FLOOR_OWNERS || []).find(x => x.id === id); return (o && typeof o.drop === 'function') ? o.drop : null; };
+const __libSrc = (() => { try { return __fsReq.readFileSync(new URL('../ledger-replay.js', import.meta.url), 'utf8'); } catch (e) { return ''; } })();
+
 const bridgeSrc = readFileSync(new URL('../../ruby-phone-work/apps/memory/lonsha-bridge.js', import.meta.url), 'utf-8');
 
 function braceEnd(s, open) {
@@ -101,7 +109,8 @@ test('=== 3. PairMemory 接入链路完整性测试 ===', () => {
     assert.equal(src.split('pairMem: this.pairMem.export()').length - 1, 1, 'collectExport 含 pairMem（单真源）');
     assert.ok(src.includes('pack.pairMem && this.pairMem'), 'storage.load 恢复');
     assert.ok(src.includes('rollbackFloor.群像回滚'), 'rollbackFloor 联动');
-    assert.ok(src.includes('for (const p of (this.pairMem?.pairs || [])) for (const e of p.entries) e.floor = dec(e.floor);'), 'shiftFloorsFrom 位移');
+    // [v3.190] 位移收进登记表：群像面（id: pair）必须在表里且触及条目 floor
+    assert.ok(__ownerShift('pair') && String(__ownerShift('pair')).includes('entries'), 'shiftFloorsFrom 位移（登记表 pair 面）');
     assert.ok(src.includes('pairMemoryEnabled'), '配置开关');
     console.log('✓ PairMemory 接入链路完整性测试验证通过');
 });

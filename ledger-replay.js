@@ -211,9 +211,38 @@
             get: (h) => h.ledger || null,
             drop: (h, f) => { if (h.ledger && typeof h.ledger.remove === 'function') { h.ledger.remove(f); return 1; } return 0; },
             shift: (h, d) => { const fl = h.ledger?.floors; if (!fl || typeof fl !== 'object') return 0; const entries = Object.entries(fl).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]); const next = {}; let n = 0; for (const [f, v] of entries) { if (f === d) { n++; continue; } const nf = f > d ? f - 1 : f; if (v && typeof v === 'object') v.floor = nf; next[nf] = v; if (nf !== f) n++; } h.ledger.floors = next; return n; }
+        },
+// [v3.190] 补齐四个「有楼层归属却不在登记表里」的面。
+        //   此前它们只活在 index.js 的手工清单里：回放报告说「29 本账走完了回放」，
+        //   而这四面根本没被回放过——读者会把不完整的清单当成完整的。
+        {
+            id: 'changeset', label: '行级变更集', holds: 'records',
+            get: (h) => (typeof h._changeset === 'function') ? (h._changeset() || null) : null,
+            drop: (h, f) => { const cs = (typeof h._changeset === 'function') ? h._changeset() : null; return (cs && typeof cs.removeByFloor === 'function') ? (cs.removeByFloor(f) || 0) : 0; },
+            shift: (h, d) => { const cs = (typeof h._changeset === 'function') ? h._changeset() : null; const rows = cs && cs.rows; if (!rows || typeof rows.values !== 'function') return 0; let n = 0; for (const r of rows.values()) if (r && typeof r.floor === 'number' && r.floor > d) { r.floor--; n++; } return n; }
+        },
+        {
+            id: 'archived', label: '归档隐藏集合', holds: 'records',
+            get: (h) => (h && h._archivedFloorIds) ? h._archivedFloorIds : null,
+            drop: (h, f) => { const ids = h._archivedFloorIds; if (!ids) return 0; const f0 = Number(f); if (!Number.isFinite(f0)) return 0; const before = []; for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.push(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.pruneArchivedIds === 'function') { try { out = _as.pruneArchivedIds(before, f0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const n of before) if (n < f0) out.add(n); } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; return n; },
+            shift: (h, d) => { const ids = h._archivedFloorIds; if (!ids) return 0; const d0 = Number(d); if (!Number.isFinite(d0)) return 0; const before = new Set(); for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.add(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.shiftArchivedIds === 'function') { try { out = _as.shiftArchivedIds(before, d0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const v of before) { if (v === d0) continue; out.add(v > d0 ? v - 1 : v); } } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; for (const v of out) if (!before.has(v)) n++; return n; }
+        },
+        {
+            // 变化驱动注入的读取游标。删楼侧此前有回退、前移侧完全没有——
+            // 编辑中途删一楼，游标停在旧位置上，游标之上重生成的新日记/新时间线不再注入。
+            id: 'inject-cursor', label: '注入游标', holds: 'pointer',
+            get: (h) => (h && (h._diaryInjectFloor !== undefined || h._timelineInjectFloor !== undefined)) ? h : null,
+            drop: (h, f) => { const f0 = Number(f); if (!Number.isFinite(f0)) return 0; let n = 0; if (h._timelineInjectFloor != null && Number.isFinite(Number(h._timelineInjectFloor)) && Number(h._timelineInjectFloor) >= f0) { h._timelineInjectFloor = Math.max(-1, f0 - 1); n++; } if (h._diaryInjectFloor != null && Number.isFinite(Number(h._diaryInjectFloor)) && Number(h._diaryInjectFloor) >= f0) { h._diaryInjectFloor = Math.max(-1, f0 - 1); n++; } return n; },
+            shift: (h, d) => { const d0 = Number(d); if (!Number.isFinite(d0)) return 0; let n = 0; if (h._diaryInjectFloor != null && Number.isFinite(Number(h._diaryInjectFloor)) && Number(h._diaryInjectFloor) > d0) { h._diaryInjectFloor = Number(h._diaryInjectFloor) - 1; n++; } if (h._timelineInjectFloor != null && Number.isFinite(Number(h._timelineInjectFloor)) && Number(h._timelineInjectFloor) > d0) { h._timelineInjectFloor = Number(h._timelineInjectFloor) - 1; n++; } return n; }
+        },
+        {
+            // 卷范围：起止同减，跨被删楼时收尾缩一（与手工清单同义，收编进来后才可被审计）。
+            id: 'volumes', label: '卷范围', holds: 'records',
+            get: (h) => h.summary || null,
+            drop: () => 0,
+            shift: (h, d) => { let n = 0; for (const v of (h.summary?.volumes || [])) { if (typeof v.floorStart === 'number' && v.floorStart > d) { v.floorStart--; n++; } if (typeof v.floorEnd === 'number' && v.floorEnd >= d) { const next = Math.max(v.floorStart, v.floorEnd - 1); if (next !== v.floorEnd) { v.floorEnd = next; n++; } } } return n; }
         }
     ]);
-
     // 登记表的结构校验：id 唯一、必填字段齐全、动作是函数。失败返回原因数组（空 = 健康）。
     function checkRegistry(registry) {
         const problems = [];

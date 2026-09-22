@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf-8');
 
@@ -59,23 +61,32 @@ test('=== 4. A2/B2: 生命周期挂接（结构验证） ===', () => {
     //   charMem 的委托 rollbackFloor(floor) { return this.removeByFloor(floor); }。
     //   用 floorLedgerEnabled 门控定位引擎本体，否则会匹配到委托方法导致窗口错位）
     assert.ok(src.includes("errLog(e, 'rollbackFloor.生活小档案回滚')"), '回滚挂接');
-    const gate = src.indexOf("if (!this.config.config.floorLedgerEnabled) return 0;");
+    // [v3.190] 门控由单行早退改为花括号形态（回放被提到门控之前），定位锚点同步更新
+    const gate = src.indexOf('if (!this.config.config.floorLedgerEnabled) {');
     assert.ok(gate > 0, '引擎 rollbackFloor 本体存在');
     const rb = src.lastIndexOf('rollbackFloor(floor) {', gate);
     assert.ok(rb > 0 && rb < gate, '定位引擎 rollbackFloor');
-    const rbSeg = src.slice(rb, rb + 9000);
+    // [v3.190] 窗口放宽：收口时函数开头补了说明性注释，原 9000 字符窗口
+    //   已取不到函数后半段的 removeLifeDetailByFloor（不是顺序变了，是被截断）。
+    const rbSeg = src.slice(rb, rb + 14000);
     const ldIdx = rbSeg.indexOf('removeLifeDetailByFloor');
     const dbIdx = rbSeg.indexOf('deltaBook?.removeByFloor');
     assert.ok(ldIdx > 0 && dbIdx > 0 && ldIdx > dbIdx, '回滚挂接在 deltaBook 之后');
     // shiftFloorsFrom 挂接
-    assert.ok(src.includes("errLog(e, 'shiftFloorsFrom.生活小档案位移')"), '位移挂接');
-    const sf = src.indexOf('shiftFloorsFrom(deleted)');
-    const sfSeg = src.slice(sf, sf + 4000);
-    const sldIdx = sfSeg.indexOf('shiftLifeDetailFloors');
-    assert.ok(sldIdx > 0, '位移挂接在 shift 段内');
+    // [v3.190] 位移收进登记表后，逐面失败标签从 errLog 字面改为登记表里的数据值：
+    //   标签仍是同一个名字（诊断面按名检索不受影响），落点从调用点搬到标签常量。
+    assert.ok(src.includes("'shiftFloorsFrom.生活小档案位移'"), '位移挂接（标签保留）');
+    assert.ok(src.includes('SHIFT_FACE_LABELS'), '标签表存在且被前移回放消费');
+    // [v3.190] 位移已收进登记表（宿主不再手抄各面位移语句），
+    //   判据从「宿主 shift 段里出现过这个方法名」改为「登记项真在调它」。
+    const libSrc2 = readFileSync('/home/user/lonsha-memory-plugin/ledger-replay.js', 'utf-8');
+    assert.ok(libSrc2.includes('shiftLifeDetailFloors'), '位移挂接在登记表内（生活小档案面）');
     // 守卫（可选链防旧版）
     assert.ok(src.includes("this.status?.removeLifeDetailByFloor ? this.status.removeLifeDetailByFloor(floor) : 0"), '回滚守卫');
-    assert.ok(src.includes('this.status?.shiftLifeDetailFloors?.(deleted)'), '位移守卫');
+    // [v3.190] 位移的唯一真源是登记表：生活小档案这一面必须在表里且参与位移
+    const LR = require('../ledger-replay.js');
+    const ldOwn = LR.FLOOR_OWNERS.find(o => o.id === 'life-detail');
+    assert.ok(ldOwn && typeof ldOwn.shift === 'function', '生活小档案在登记表里且参与位移');
 });
 
 test('=== 5. 回归防护 ===', () => {
@@ -84,5 +95,7 @@ test('=== 5. 回归防护 ===', () => {
     assert.ok(src.includes('removeLifeDetail(idOrText)'), 'removeLifeDetail 保留');
     // deltaBook 联动保留（v3.67）
     assert.ok(src.includes('deltaBook.removeByFloor(floor)'), 'v3.67 保留');
-    assert.ok(src.includes('d.evidenceFloor = dec(d.evidenceFloor)'), 'v3.67 B 保留');
+    // [v3.190] v3.67 B 的位移规则已收进登记表（delta 面的 shift），判据改指真源
+    const libSrc = readFileSync('/home/user/lonsha-memory-plugin/ledger-replay.js', 'utf-8');
+    assert.ok(libSrc.includes('e.evidenceFloor'), 'v3.67 B 位移规则保留在登记表内');
 });

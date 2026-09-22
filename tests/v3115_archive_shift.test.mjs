@@ -3,6 +3,11 @@
  *
  * 背景：shiftFloorsFrom 给 10 个子系统做了楼层 index 位移校正，唯独漏了
  *   _archivedFloorIds；rollbackFloor 则对它一律 .clear()。
+ *
+ *   [v3.190] 该面已收进 ledger-replay.js 的登记表（登记项 id: archived）。
+ *   位移的唯一真源是登记表；宿主不再手抄「双通道 + else 回落」。
+ *   本文件 6/7/8 三组的判据随之升级为
+ *   「登记表收录了这一面，且借库/回落两条路径行为等价；回放不被门控吞掉」。
  *   后果一：删楼后旧归档指向错楼层（恢复时显示/隐藏错对象）。
  *   后果二：rollbackFloor 全清导致更早的有效归档永远无法恢复（插件藏了但没人认领）。
  *
@@ -133,23 +138,38 @@ test('【5】非法输入安全降级', () => {
 });
 
 // ---------- 6 ----------
-test('【6】index.js 正向接线', () => {
-  assert.ok(idxSrc.includes('window.LonShaArchiveShift'), 'window 通道');
-  assert.ok(idxSrc.includes("require('./archive-shift.js')"), 'require 降级通道');
-  assert.ok(idxSrc.includes('_as.shiftArchivedIds'), 'shiftFloorsFrom 真调用');
-  assert.ok(idxSrc.includes('_as.pruneArchivedIds'), 'rollbackFloor 真调用');
-  assert.ok(idxSrc.includes("errLog(e, 'shiftFloorsFrom.归档楼层位移')"), '位移错误兜底');
-  assert.ok(idxSrc.includes("errLog(e, 'rollbackFloor.归档状态精确清理')"), '剪枝错误兜底');
-  // 回落路径存在（从接线点向后找 else）
-  const shAt = idxSrc.indexOf('_as.shiftArchivedIds');
-  assert.ok(shAt > 0, '位移真调用存在');
-  const shElse = idxSrc.indexOf('} else if (this._archivedFloorIds', shAt);
-  assert.ok(shElse > shAt && shElse < shAt + 400, '位移有 else 回落');
-  const prAt = idxSrc.indexOf('_as.pruneArchivedIds');
-  assert.ok(prAt > 0, '剪枝真调用存在');
-  const prElse = idxSrc.indexOf('} else if (this._archivedFloorIds', prAt);
-  assert.ok(prElse > prAt && prElse < prAt + 400, '剪枝有 else 回落');
-  ok('接线（双通道 / 真调用 / 回落）');
+test('【6】接线：归档面在登记表里，且在借库与回落两条路径上行为等价', () => {
+  // [v3.190] 归档位移已收进 ledger-replay.js 的登记表（此前由宿主手抄双通道 + else 回落）。
+  //   判据随之升级：不再扫宿主源码里的字面调用，而是问登记表本身——
+  //   「这一面在不在表里、它是不是真在调归档模块的纯函数」。
+  const LR = require('../ledger-replay.js');
+  const archive = LR.FLOOR_OWNERS.find(o => o.id === 'archived');
+  assert.ok(archive, '登记表必须收录归档隐藏集合（此前是四面漏网之一）');
+  assert.strictEqual(typeof archive.shift, 'function', '位移有实现');
+  assert.strictEqual(typeof archive.drop, 'function', '剪枝有实现');
+  const libSrc = readFileSync(path.join(ROOT, 'ledger-replay.js'), 'utf8');
+  assert.ok(libSrc.includes('shiftArchivedIds'), '位移真调归档模块纯函数');
+  assert.ok(libSrc.includes('pruneArchivedIds'), '剪枝真调归档模块纯函数');
+  // 借库路径：与 archive-shift.js 同结果
+  // deleted=3 时：1 不动、3 被丢弃（该楼已不存在）、5 前移到 4
+  const withLib = { _archivedFloorIds: new Set([1, 3, 5]), _archiveShiftLib: () => AS };
+  archive.shift(withLib, 3);
+  assert.deepStrictEqual([...withLib._archivedFloorIds].sort((a, b) => a - b), [1, 4], '借库位移');
+  const pru = { _archivedFloorIds: new Set([1, 3, 5]), _archiveShiftLib: () => AS };
+  archive.drop(pru, 3);
+  assert.deepStrictEqual([...pru._archivedFloorIds].sort((a, b) => a - b), [1], '借库剪枝');
+  // 回落路径（模块缺席）：内置实现必须与纯函数同义
+  const noLib = { _archivedFloorIds: new Set([1, 3, 5]) };
+  archive.shift(noLib, 3);
+  assert.deepStrictEqual([...noLib._archivedFloorIds].sort((a, b) => a - b), [1, 4], '内置回落同义');
+  const noLib2 = { _archivedFloorIds: new Set([1, 3, 5]) };
+  archive.drop(noLib2, 3);
+  assert.deepStrictEqual([...noLib2._archivedFloorIds].sort((a, b) => a - b), [1], '内置剪枝同义');
+  // 宿主仍把库交到登记项手里——否则「借库」这条路径永远走不到，成了死代码
+  assert.ok(idxSrc.includes('window.LonShaArchiveShift'), '宿主仍取归档模块全局');
+  assert.ok(/\(\), 'archive-shift\.js'\)/.test(idxSrc) || idxSrc.includes("'archive-shift.js'"), '宿主仍有降级通道（统一取库口形式）');
+  assert.ok(idxSrc.includes('_archiveShiftLib'), '宿主把库交给登记项');
+  ok('接线（登记表收录 / 真调用 / 两条路径行为等价）');
 });
 
 // ---------- 7 ----------
@@ -157,34 +177,39 @@ test('【7】逆向审计：旧的全清已被替换', () => {
   // 旧的 rollbackFloor 全清已删除
   assert.ok(!/_archivedFloorIds\?\.clear\(\); \} catch \(e\) \{ errLog\(e, 'rollbackFloor\.归档状态清理'\)/.test(idxSrc), '旧全清已替换');
   assert.ok(!idxSrc.includes("errLog(e, 'rollbackFloor.归档状态清理')"), '旧错误标签已删除');
-  // shiftFloorsFrom 内现在有归档位移（此前 10 个子系统唯独缺它）
-  const sfAt = idxSrc.indexOf('shiftFloorsFrom(deleted)');
-  const block = idxSrc.slice(sfAt, sfAt + 9000);
-  assert.ok(block.includes('归档楼层位移'), 'shiftFloorsFrom 内含归档位移修复');
-  // 位移修正必须在 dec 定义之后（否则闭包未定义）
-  const decAt = idxSrc.indexOf('const dec = (v) =>', sfAt);
-  const fixAt = block.indexOf('归档楼层位移');
-  assert.ok(decAt > sfAt && fixAt > 0, '位移修复在函数体内');
-  ok('旧全清已替换 / 位移修复已植入');
+  // [v3.190] 位移已收进登记表：宿主源码里不得再有手抄的位移/剪枝语句
+  assert.ok(!idxSrc.includes('_as.shiftArchivedIds'), '手抄位移已收编进登记表');
+  assert.ok(!idxSrc.includes('_as.pruneArchivedIds'), '手抄剪枝已收编进登记表');
+  // 归档面确实在登记表里（它此前不在表里，是四面漏网之一）
+  const LR = require('../ledger-replay.js');
+  assert.ok(LR.FLOOR_OWNERS.some(o => o.id === 'archived'), '归档面在登记表内');
+  ok('旧全清不复活 / 位移收敛到登记表');
 });
 
 // ---------- 8 ----------
-test('【8】回归：rollbackFloor 红线未破坏', () => {
-  // 红线：引擎 rollbackFloor 内 removeLifeDetailByFloor 必须紧随 deltaBook（中间不能插代码）
-  // 注意 index.js 有两处同名方法（引擎 + charMem 委托），用 floorLedgerEnabled 门控定位引擎本体
-  const at = idxSrc.indexOf("if (!this.config.config.floorLedgerEnabled) return 0;");
-  assert.ok(at > 0, '引擎 rollbackFloor 本体存在');
-  const start = idxSrc.lastIndexOf('rollbackFloor(floor) {', at);
-  assert.ok(start > 0 && start < at, '定位引擎方法');
+test('【8】回归：rollbackFloor 不再吞掉回放，红线未破坏', () => {
+  // [v3.190] 门控从单行早退改成花括号形态，且回放被提到门控之前：
+  //   此前账本记录缺失（该楼从未提取 / 记录已被上限淘汰）会直接 return 0，
+  //   把函数尾部的回放收口整段跳过——登记表恰恰最需要它的那条路径上成了死声明。
+  const gateAt = idxSrc.indexOf('if (!this.config.config.floorLedgerEnabled) {');
+  assert.ok(gateAt > 0, '引擎 rollbackFloor 本体存在（花括号门控）');
+  const start = idxSrc.lastIndexOf('rollbackFloor(floor) {', gateAt);
+  assert.ok(start > 0 && start < gateAt, '定位引擎方法');
+  const replayAt = idxSrc.indexOf('_lr.replayDrop(this, floor)', start);
+  assert.ok(replayAt > 0, '删楼回放在函数体内');
+  // 顺序：账本总开关 → 登记表回放 → 「有无该楼记录」判断。
+  //   关掉总开关时不自动回滚（这一支明确留痕 skipped），但**记录缺失**这一支必须已经回放过。
+  assert.ok(gateAt < replayAt, '回放在总开关之内（关掉账本时不自动回滚）');
+  const entryMiss = idxSrc.indexOf('if (!entry) {', start);
+  assert.ok(entryMiss > replayAt, '回放必须在「记录缺失」判断之前（否则缺失路径整段跳过）');
+  assert.ok(idxSrc.includes("skipped: 'floor-ledger-disabled'"), '关掉账本时留痕，不与「跑了没账可撤」同形');
+  assert.ok(!idxSrc.includes('if (!this.config.config.floorLedgerEnabled) return 0;'), '旧单行早退不得复活');
+  // 红线：removeLifeDetailByFloor 必须紧随 deltaBook（中间不能插代码）
   const db = idxSrc.indexOf('deltaBook', start);
   const ld = idxSrc.indexOf('removeLifeDetailByFloor', start);
   assert.ok(db > start, 'deltaBook 在函数内存在');
   assert.ok(ld > db, 'removeLifeDetailByFloor 仍在 deltaBook 之后（红线未破坏）');
-  // 本版归档修复的插入位置必须不在 deltaBook 与 lifeDetail 之间
-  const fixAt = idxSrc.indexOf('归档状态精确清理', start);
-  assert.ok(fixAt > start, '归档修复在函数内');
-  assert.ok(fixAt < db, '归档修复在 deltaBook 之前（不落入红线区间）');
-  ok('rollbackFloor 红线安全（修复在 deltaBook 之前）');
+  ok('回放不再被门控吞掉 / 红线安全');
 });
 
 console.log(`\n[v3.115] 归档楼层位移与剪枝修复：${pass} 组断言通过`);
