@@ -658,11 +658,11 @@ test('【I4】★ 判据纯度两向自证：注释里的旧写法不得误报�
     assert.equal(tags.size, 8, '破坏组数（8 组）');
 });
 // ══════════ J 发布卫生 ══════════
-test('【J1】版本三源一致且不低于 v3.181.0', () => {
+test('【J1】版本三源一致且不低于 v3.182.0', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idxSrc)[1];
     assert.equal(v, manifest.version, 'manifest follows index.js');
     assert.equal(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.181.0'), 'index.js 版本 ' + v + ' >= 3.181.0');
+    assert.ok(vnum(v) >= vnum('3.182.0'), 'index.js 版本 ' + v + ' >= 3.182.0');
     const top = changelog.split('\n').filter(l => l.startsWith('## v'))
         .map(l => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
     assert.equal(top, v, '★ CHANGELOG 顶节是本版（highest section is the released version）');

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.181.0';
+    const VERSION = '3.182.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2046,6 +2046,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
             this._ledgerViolations = [];                 // [v3.154] 台账写入校验违规环形账本（诊断可观测）
             this._ledgerMissingRollbacks = 0;             // [v3.155] 因账本淘汰而无法回滚的楼层请求数（诊断可观测）
+            this._lastReplayReport = null;                // [v3.182] 最近一次账本回放报告（删楼/前移的分态留痕，诊断可观测）
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
             this.llm = new LLMCaller(config);
@@ -7066,6 +7067,17 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     }
                 } catch (e) { errLog(e, 'rollbackFloor.BM25重建'); }
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${floor} 记忆已回滚`);
+                // [v3.182] LR: 删楼回放收口。登记表里的每一本账都在这里撤一次该楼的归属，
+                //   报告落进最近一次回放报告字段：哪本账撤了多少、哪本缺席、哪本抛了，一眼可见。
+                //   模块缺席时退到空报告（side 标 drop、items 为空），绝不让删楼整段失败。
+                try {
+                    const _lr = _ledgerReplayLib();
+                    const _rep = (_lr && typeof _lr.replayDrop === 'function')
+                        ? _lr.replayDrop(this, floor)
+                        : { version: 0, side: 'drop', floor: Number(floor), items: [], dropped: 0, shifted: 0, threw: 0, absent: 0 };
+                    this._lastReplayReport = _rep;
+                    if (_rep.threw && this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 账本回放：${_rep.threw} 本账撤楼失败`);
+                } catch (e) { errLog(e, 'rollbackFloor.账本回放'); }
                 // [v3.19] 删楼后书签重同步（ruby resyncAfterDeletion）: 楼层序数前移，书签补偿
                 try {
                     if (this.bookmarks) {
@@ -7213,6 +7225,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 }
             } catch (e) { errLog(e, 'SH.shiftFloorsFrom'); }
             if (shifted && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 楼层前移: ${shifted} 条记忆重定位 (deleted=${deleted})`);
+            // [v3.182] LR: 楼层前移回放收口。与删楼回放同一张登记表、同一个留痕字段。
+            try {
+                const _lr = _ledgerReplayLib();
+                const _rep = (_lr && typeof _lr.replayShift === 'function')
+                    ? _lr.replayShift(this, deleted)
+                    : { version: 0, side: 'shift', floor: Number(deleted), items: [], dropped: 0, shifted: 0, threw: 0, absent: 0 };
+                this._lastReplayReport = _rep;
+                if (_rep.absent && this.config?.config?.debugMode) console.log(`[${PLUGIN_NAME}] 账本回放：${_rep.absent} 本账未挂载`);
+            } catch (e) { errLog(e, 'shiftFloorsFrom.账本回放'); }
             return shifted;
         }
 
@@ -7465,6 +7486,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ['回响池', `${this.echo.pool ? this.echo.pool.size : (this.echo.items ? this.echo.items.length : '?')}`],
                     ['楼层账本', `${Object.keys(this.ledger.floors || {}).length} 楼${this.ledger.evicted ? `（已淘汰 ${this.ledger.evicted}）` : ''}`],
                     ['回滚失效', this._ledgerMissingRollbacks ? `${this._ledgerMissingRollbacks} 次（账本已淘汰）` : '0'],
+                    // [v3.182] 账本回放：回答「删楼/前移时，每一本账到底撤了没有」。
+                    //   此前回滚是 40 余处各自 try/catch，任何一处失败只进错误日志，
+                    //   诊断面上一片正常。现在最近一次回放的分态直接念出来。
+                    ['账本回放', (() => {
+                        try {
+                            const _lr = _ledgerReplayLib();
+                            if (!_lr) return '—（模块缺席）';
+                            return _lr.diagnoseLine(this._lastReplayReport);
+                        } catch (e) { return '—（诊断异常）'; }
+                    })()],
                     // [v3.164] 事件接线：回答「记忆提取到底有没有被接上」。此前 17 行子系统统计里
                     //   没有任何一行覆盖事件注册状态——注册失败时插件仍「看起来正常」，用户侧表现为
                     //   「聊了很久没有记忆」，却没有任何地方能看出原因（坏了没人知道）。
@@ -8416,6 +8447,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   清了 track 却没人重建、rebuildFromOps 的 track 过滤因三目优先级错位是一枚哑雷。
     //   取库口按本仓库契约写（真读表达式 + 文件名），**不在构造期缓存**：
     //   extra_js 在入口脚本之后加载，构造时全局还没挂上——故这里只取函数，每次调用现取。
+    // [v3.182] LR: 账本回放（Ledger Replay）——删楼与楼层前移的统一入口。
+    //   此前这两件事各是一份手工清单（rollbackFloor / shiftFloorsFrom），
+    //   新增带楼层归属的子系统必须同时改两处，漏一处不报错。
+    //   现在清单收进 ledger-replay.js 的登记表，宿主只负责调用与留痕。
+    function _ledgerReplayLib() {
+        return _moduleLib(() => window.LonShaLedgerReplay, 'ledger-replay.js');
+    }
     function _sceneBookLib() {
         return _moduleLib(() => window.LonShaSceneBook, 'scene-book.js');
     }

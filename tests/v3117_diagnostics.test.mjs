@@ -24,9 +24,9 @@ function extractMethod(name) {
 test('v3.117 版本三处同步', () => {
     const m = /const VERSION = '([^']+)'/.exec(src);
     assert.ok(m);
-    assert.equal(m[1], '3.181.0');
-    assert.equal(manifest.version, '3.181.0');
-    assert.equal(pkg.version, '3.181.0');
+    assert.equal(m[1], '3.182.0');
+    assert.equal(manifest.version, '3.182.0');
+    assert.equal(pkg.version, '3.182.0');
 });
 
 test('错误记录器不会递归调用自身', () => {
