@@ -26,7 +26,7 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
     assert.ok(src.includes("if (patch.recallHits)"), 'B FloorLedger.record 命中分支');
     assert.ok(src.includes('recallIds: [],'), 'B beginFloor 带 recallIds 字段');
     // A 观测层接在 recallMemory 唯一收口（intentRerank 之后）
-    const irIdx = src.indexOf('const finalMerged = this.intentRerank(merged, queryText);');
+    const irIdx = src.indexOf('const finalMerged = this.intentRerank(merged, query.text);');
     const auditIdx = src.indexOf('this._auditRecall(query, results, finalMerged)', irIdx);
     assert.ok(irIdx > 0 && auditIdx > irIdx && auditIdx < irIdx + 400, 'A 审计接在 intentRerank 后');
     // A 渲染进 selfCheck

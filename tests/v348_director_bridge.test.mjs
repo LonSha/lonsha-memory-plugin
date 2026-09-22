@@ -194,7 +194,7 @@ test('=== 4. 大纲接入链路完整性测试 ===', () => {
     assert.ok(src.includes('outlineDirectorEnabled'), '配置开关');
     // P2/P3 静态
     assert.ok(src.includes('relClass: classifyRelationshipType(rel.type)'), '关系边携带分类');
-    assert.ok(src.includes('const finalMerged = this.intentRerank(merged, queryText);') || src.includes('return this.intentRerank(merged, queryText);'), '意图重排接入召回返回');
+    assert.ok(src.includes('const finalMerged = this.intentRerank(merged, query.text);') || src.includes('return this.intentRerank(merged, query.text);'), '意图重排接入召回返回');
     assert.ok(src.includes('intentRerank(merged, queryText) {'), 'intentRerank 方法存在');
     console.log('✓ 大纲接入链路完整性测试验证通过');
 });

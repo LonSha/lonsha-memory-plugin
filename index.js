@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.184.0';
+    const VERSION = '3.185.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -932,6 +932,12 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v3.183] 条目关联停用词表（逗号分隔）。通用词（主角/系统/旁白…）命中会把所有条目串成一团，
                 //   故默认给一份保守表，用户可增删。读取点：crosslink.createIndex({ stopwords })。
                 crosslinkStopwords: '主角,系统,旁白,此时,于是,然而,之后,之前',
+                // [v3.185] 条目关联的**召回侧消费**（默认关 = 零行为变化，用户可开）。
+                //   存在理由：v3.183/v3.184 的「条目关联」算出了 `linked` 候选，但全仓没有任何
+                //   下游消费者——存进字段、在 debugMode 下打一行、诊断行显示个数，对注入的实际影响为 0。
+                //   开与关都只做「名次微调」：命中摘要键只加一个固定小分（0.006），
+                //   不写图、不删条目、不改任何过滤（召回池不变，只是排序更靠前）。
+                crosslinkRecallBoost: false,
                 // [v3.184] 语义汇总（Node Rollup，吸收 Luker compactNodes / createRollupWithChildren）：
                 //   把「同类型、还没被认领」的散节点每 N 个压成一层父节点 + semantic_contains 边，
                 //   父节点**不删除任何子节点**。此前 MemoryGraph.vacuum() 全库零调用点——
@@ -2456,6 +2462,58 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { errLog(e, 'engine._crosslinkLine'); return '—（诊断异常）'; }
         }
         /**
+         * [v3.185] 条目关联的消费判定（纯读、不抛）：从「已确认过的关系」里挑出一条本轮正文显式支持的。
+         * 为什么只挑带 disclosure 的边：本仓里只有这类边是「作者写过触发条件的关系」——
+         *   最可能真的被剧情用上的那一批；再用「两端点名同时出现在本楼正文」做一次收口，
+         *   避免把无关关系每轮提给模型。返回 null = 本轮没有可提项（正常态，不等于失效）。
+         */
+        _crosslinkConsumePair(text) {
+            try {
+                const g = this.graph;
+                const t = String(text || '');
+                if (!g || !g.edges || !t) return null;
+                for (const e of g.edges.values()) {
+                    if (!e || e.active === false) continue;
+                    if (!e.data || !e.data.disclosure) continue;          // 只提「确认过且写过触发条件」的关系
+                    const fromName = String(g.nodes?.get?.(e.from)?.name || e.from || '');
+                    const toName = String(g.nodes?.get?.(e.to)?.name || e.to || '');
+                    if (fromName.length < 2 || toName.length < 2) continue;   // 单字名命中率无意义（与 crosslink 同一口径）
+                    if (!t.includes(fromName) || !t.includes(toName)) continue;
+                    return { from: fromName, to: toName, label: String(e.label || '相关'), alive: true };
+                }
+                return null;
+            } catch (_e) { return null; }
+        }
+        /** [v3.185] 上一条提项是否仍有效（端点边未被回滚/未失效）——过期提示必须退场。 */
+        _crosslinkConsumeAlive(item) {
+            try {
+                const g = this.graph;
+                if (!g || !g.edges || !item) return false;
+                for (const e of g.edges.values()) {
+                    if (!e) continue;
+                    const fromName = String(g.nodes?.get?.(e.from)?.name || e.from || '');
+                    const toName = String(g.nodes?.get?.(e.to)?.name || e.to || '');
+                    if (fromName === item.from && toName === item.to) return e.active !== false;
+                }
+                return false;
+            } catch (_e) { return false; }
+        }
+        /**
+         * [v3.185] 条目关联**消费面**读数（诊断面用；纯读、不抛）。
+         * 为什么必须单独一行：v3.184 的「条目关联」行只报「词表多大、候选几条」——
+         *   候选算出来却没有任何消费者时，那一行照样好看（本轮修的就是这个）。
+         *   本行回答的是「这些产出到底有没有被用掉」：提了几条、累计几次、查询侧被动复用几次。
+         */
+        _crosslinkConsumeLine() {
+            try {
+                if (this._xrefIdx == null) return '关联未启用（尚无摘要落笔）';
+                const it = this._crosslinkConsume;
+                const head = it ? `${it.from} → ${it.to}（${it.label}）可提` : '本轮无可提关联';
+                return head + `｜累计提 ${this._crosslinkConsumed || 0} 次 · 未命中 ${this._crosslinkConsumeMissN || 0} 次`
+                    + `｜摘要入表 ${this._crosslinkXrefN == null ? '—' : this._crosslinkXrefN} 条 · 召回提权 ${this._crosslinkRefRanked || 0} 次`;
+            } catch (e) { errLog(e, 'engine._crosslinkConsumeLine'); return '—（诊断异常）'; }
+        }
+        /**
          * [v3.184] 图谱汇总读数（诊断面用；纯读、不抛）。
          * 与 _crosslinkLine 同族：回答「图里现在有几层汇总、盖住多少子节点、最近一轮维护干了什么」。
          * 三件事必须分开报，否则同形：
@@ -3382,6 +3440,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                             : String(_stopRaw || '').split(/[,，\n]/).map(s => s.trim()).filter(Boolean);
                         if (!this._crosslinkIndex) this._crosslinkIndex = XL.createIndex({ stopwords: _stop });
                         const idx = this._crosslinkIndex;
+                        this._xrefIdx = idx;      // [v3.185] 供「条目复用」诊断行区分「模块缺席 / 尚未建索引 / 正常」
+                        // [v3.185] 摘要键 → 它提到过的词（幂等登记用）。必须在此初始化：
+                        //   若漏了它，下面「摘要入表」段每轮都会在 `.get` 上抛进 catch——
+                        //   功能看着接上了、读数却恒空，正是本仓最忌的那种「坏了没人知道」。
+                        if (!this._crosslinkXrefs) this._crosslinkXrefs = new Map();
                         // 词表来源：图谱节点名（人物/地点/事件）。节点是「可被指称的东西」，
                         // 摘要正文里提到的正是它们。
                         if (this._crosslinkLoadedFloor !== true) {
@@ -3405,9 +3468,56 @@ function relativeTimeLabel(eventTime, nowTime) {
                             if (linked.length && this.config.config.debugMode) {
                                 console.log(`[${PLUGIN_NAME}] 🔗 关联候选 ${linked.length} 条（第${floor}楼摘要）`);
                             }
+                            // [v3.185] 摘要入表：给每条活跃摘要算出「它提到了哪些已知名」，并把这些名
+                            //   以「摘要图键（sum_<floor>）」为引用登记进词表 —— 这样 recallMemory 按 query.text
+                            //   扫同一份词表时，命中的 ref 就是**可回指到具体摘要**的键，才有了真正可消费的产出。
+                            //   为什么直接扫摘要正文而不是走 loadFromNodes：图的 refOf 回落取的是
+                            //   `node.id || node.name`，而这些名字登记进去的 ref 是**节点 id**，
+                            //   落到 merged 条目上根本对不上（条目带的键是 sum_<floor>），
+                            //   于是「命中算得出、却匹配不到任何条目」——看着接上了，实际仍然零影响。
+                            try {
+                                const _sums = (this.summary && typeof this.summary.getActiveSummaries === 'function')
+                                    ? this.summary.getActiveSummaries() : [];
+                                let _regN = 0;
+                                for (const _s of _sums) {
+                                    if (!_s) continue;
+                                    const _sk = _s.key || _s.id || ('sum_' + (_s.floor == null ? '' : _s.floor));
+                                    const _tx = String(_s.text || '');
+                                    if (!_sk || !_tx) continue;
+                                    const _hit = idx.scan(_tx);
+                                    if (!_hit.hits.length) continue;
+                                    const _set = new Set();
+                                    for (const _h of _hit.hits) { const _w = String(_h.keyword || '').trim(); if (_w) _set.add(_w); }
+                                    if (!_set.size) continue;
+                                    const _prev = this._crosslinkXrefs.get(_sk);
+                                    const _changed = !_prev || _prev.size !== _set.size;
+                                    this._crosslinkXrefs.set(_sk, _set);
+                                    if (_changed) { for (const _w of _set) idx.add(_w, _sk); }   // add 幂等：重复登记不改指纹
+                                    _regN++;
+                                }
+                                this._crosslinkXrefN = _regN;      // 诊断行读：「摘要入表几条」（0 而摘要存在 ⇒ 对召回侧等于没接）
+                            } catch (e) { errLog(e, 'onMessageReceived.crosslink摘要入表'); }
                         }
                     }
                 } catch (e) { errLog(e, 'onMessageReceived.crosslink'); }
+                // [v3.185] 条目关联的**消费点**：v3.184 之前这里只有生产、没有消费（产出进字段即终止）。
+                //   本处按「本楼正文同时出现了某条已确认关系的两端名」收口出一条可提项，交给注入侧消费
+                //   （见 buildInjection 的〔本轮可提关联…〕行）。不做自动写边：自动写边会在长线里累积幻觉边
+                //   且不可逆（与 v3.183 的立论一致）；这里只**提条**，由图谱语义与模型自己决定是否据实落边。
+                //   命中即交棒；未命中则让上一条提项退场（边已被回滚/失效时立刻退，防每轮带过期关系进注入）。
+                try {
+                    const _pair = (typeof this._crosslinkConsumePair === 'function')
+                        ? this._crosslinkConsumePair(summary && summary.text) : null;
+                    if (_pair) {
+                        this._crosslinkConsume = _pair;
+                        this._crosslinkConsumed = Number(this._crosslinkConsumed || 0) + 1;
+                    } else {
+                        const _held = this._crosslinkConsume;
+                        if (_held && typeof this._crosslinkConsumeAlive === 'function'
+                            && !this._crosslinkConsumeAlive(_held)) this._crosslinkConsume = null;
+                        this._crosslinkConsumeMissN = Number(this._crosslinkConsumeMissN || 0) + 1;
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.crosslink消费'); }
                 
                 // [v3.30] PV: 记忆矛盾换代 —— 新摘要与既有活跃摘要做高置信冲突检测, 旧条 superseded 退出召回
                 if (window.LonShaSupersede && this.config.config.supersedeEnabled) {
@@ -6209,8 +6319,42 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
             } catch (e) { errLog(e, 'recallMemory.休眠唤醒'); }
             
+            // [v3.185] 条目关联的召回侧消费：按 query.text 扫同一份关联词表，命中的引用（摘要图键）
+            //   在本轮落实召回时提权；开关关时**连扫描都不做**（零开销、零行为变化）。
+            //   这里给的是「分值加成」而不是「换掉条目」——池子仍是原来那些条，只是名次可能前移。
+            let _crosslinkBoostKeys = null;
+            if (this.config.config.crosslinkRecallBoost === true && this._crosslinkIndex) {
+                try {
+                    if (typeof this._crosslinkIndex.refsFor === 'function' && query.text) {
+                        const _refs = this._crosslinkIndex.refsFor(query.text);
+                        const _keys = [];
+                        for (const _r of _refs) { const _k = String(_r || ''); if (/^sum_\d+$/.test(_k)) _keys.push(_k); }
+                        if (_keys.length) {
+                            _crosslinkBoostKeys = new Set(_keys);
+                            this._crosslinkRefRanked = Number(this._crosslinkRefRanked || 0) + 1;
+                        }
+                    }
+                } catch (e) { errLog(e, 'recallMemory.crosslink提权'); }
+            }
             // [v2.3] RD: 两阶段精排
             const merged = this.hybridMerge(results);
+            // [v3.185] 提权落点：hybridMerge 是「分数 + 排序」的唯一收口，故在它之后、rerank 之前追加小分。
+            //   0.006 是「只动名次边界」的量级：不足以把一条低相关的条目抬进前排，
+            //   但足以在同分/相邻名次上做出稳定区分。命中不到任何关联键时逐字节等同旧行为。
+            if (_crosslinkBoostKeys && _crosslinkBoostKeys.size) {
+                try {
+                    for (const _it of merged) {
+                        if (!_it) continue;
+                        // 摘要条目的图键可能是 id / key，也可能只有 floor（任一命中即算命中）。
+                        const _k1 = String(_it.id || _it.key || '');
+                        const _k2 = (_it.floor == null) ? '' : ('sum_' + _it.floor);
+                        if (_crosslinkBoostKeys.has(_k1) || (_k2 && _crosslinkBoostKeys.has(_k2))) {
+                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;
+                        }
+                    }
+                    merged.sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
+                } catch (e) { errLog(e, 'recallMemory.crosslink提权落位'); }
+            }
             if (this.config.config.rerankEnabled && merged.length > 3 && query.text) {
                 try {
                     const candN = this.config.config.rerankCandidates || 12;
@@ -6227,7 +6371,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                 } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] rerank失败(降级):`, e); }
             }
             // [v3.48] P3: 本地意图分流重排（零 API 中间层，历史/物品/关系三路意图统一收敛）
-            const finalMerged = this.intentRerank(merged, queryText);
+            // [v3.185] 修：`queryText` 在此**从未声明**（它是下面 intentRerank 自己的形参名，不在本作用域）——
+            //   本行此前恒抛 `ReferenceError: queryText is not defined`，被 onBeforeGeneration 外层的
+            //   `catch (err) { return ''; }`（静默、零日志、无归因）吞掉 ⇒ **整轮记忆注入为空**：
+            //   召回算了、图与摘要也读了，最后一步抛掉，模型收到的是空注入，而诊断面只显示「没注入」。
+            //   实测（本轮）：把 recallMemory 原样取出、只注入 errLog/numOr 等自由名后真跑一次，
+            //   debugMode 下稳定抛该错；把 `queryText` 也作为外部名注入桩值则不再抛。
+            //   意图重排的入参就是查询文本，与 buildQuery 的既有口径一致（query.text）。
+            const finalMerged = this.intentRerank(merged, query.text);
             // [v3.150] A+B 观测层：召回命中自检 + 楼层召回账本（零风险，只观测/记账/续热不改写召回结果）
             if (this.config.config.recallAuditEnabled) {
                 try {
@@ -7091,6 +7242,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                     blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}·${CLS_CN[cls] || '其他'}]${histNote}`);
                 });
                 }
+            }
+            // [v3.185] 条目关联的注入侧消费：本楼正文同时提到了某条已确认关系的两端 ⇒ 并列一行可提项。
+            //   为什么不直接写边：见 _crosslinkConsumePair 的立论。这一行是**对关系块的再收窄**
+            //   （关系块按披露条件过滤，这里再筛出「本轮正文真的用到了」的那一条）；
+            //   没有可提项时整行不出现——不占 token、也不给模型任何暗示。
+            if (this._crosslinkConsume) {
+                const _xc = this._crosslinkConsume;
+                blocks.push(`〔本轮可提关联｜本楼正文同时出现了「${_xc.from}」与「${_xc.to}」：若剧情确实推进了这层关系，可按（${_xc.label}）据实更新；不要凭空新增别的关系〕`);
             }
             // [v3.45] 吸收 baibai: 近期已了结/已作废事项防复读注入
             const recentDone = this.suspense?.getRecentlyResolvedPrompt?.(3) || [];
@@ -8289,6 +8448,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = !!cs.badInput;
                             return ['行级变更', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.changeset'); return ['行级变更', '—（诊断异常）']; }
+                    })(),
+                    // [v3.185] 条目关联**消费面**体检：上面那行报的是「词表多大、候选几条」——
+                    //   候选算出来却没人用时它照样好看（本版修的就是这个形态）。本行回答「产出有没有被用掉」。
+                    //   要警惕的不是「本轮无可提关联」（正文没同时提到某条已确认关系的两端，属正常），
+                    //   而是**摘要一条都没进表**：那意味着关联对召回侧等于没接（生产跑着、消费恒空）。
+                    (() => {
+                        try {
+                            const line = (typeof this._crosslinkConsumeLine === 'function') ? this._crosslinkConsumeLine() : '—';
+                            const hasSums = !!(this.summary && typeof this.summary.getActiveSummaries === 'function'
+                                && this.summary.getActiveSummaries().length);
+                            const idle = !!(hasSums && this._xrefIdx != null && !Number(this._crosslinkXrefN || 0));
+                            return ['条目复用', line + (idle ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.crosslinkConsume'); return ['条目复用', '—（诊断异常）']; }
                     })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
