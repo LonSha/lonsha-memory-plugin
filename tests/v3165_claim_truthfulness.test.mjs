@@ -88,7 +88,7 @@ test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.185.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.186.0'), `index.js 版本 ${v} >= 3.166.0`);
     const audits = readdirSync(path.join(ROOT, 'tests', 'audit')).filter(f => f.endsWith('.mjs')).sort();
     assert.ok(audits.includes('scan_claim_truthfulness.mjs'), '第 9 个审计脚本存在');
     assert.ok(audits.length >= 9, `审计脚本数 ${audits.length} >= 9`);
@@ -507,7 +507,7 @@ test('【4】发布卫生：CHANGELOG 顶节与旧锚点交棒', () => {
         const src = readFileSync(path.join(ROOT, f), 'utf8');
         const hits = [...src.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map(m => m[1]);
         assert.ok(hits.length > 0, `${f} 仍锚着版本字符串`);
-        assert.ok(hits.every(h => vnum(h) >= vnum('3.185.0')), `${f} 的版本锚点未过期`);
+        assert.ok(hits.every(h => vnum(h) >= vnum('3.186.0')), `${f} 的版本锚点未过期`);
     }
     // 当版独占必须交出：上一版文件里的下界必须 >= 本版
     const cur = vnum(curV);

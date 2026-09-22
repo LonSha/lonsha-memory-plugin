@@ -1087,6 +1087,7 @@
                      <textarea class="ls-textarea" data-cfg-text="crosslinkStopwords" placeholder="逗号分隔，如：主角,系统,旁白">${c.crosslinkStopwords || ''}</textarea>
                      <div class="ls-hint" style="padding:0 8px;">条目关联（Aho-Corasick）扫正文找共享关键词时忽略这些通用词——否则「主角」「系统」这类词会把所有条目串成一团（v3.183）。</div>
                      ${ck('crosslinkRecallBoost', '条目关联·召回提权', '按当前查询扫关联词表，命中的摘要键在召回融合里加一个固定小分（只提名次，不换条目、不写图、不删边）。默认关：关闭时不扫词表、零开销、零行为变化（v3.185）')}
+                     ${ck('emotionOppositeRecall', '情绪反向召回', '负面的当下把「相对的那一面」也带进上下文：难过时想起温柔相待、恐惧时想起安然相伴、绝境里想起承诺。命中项在召回融合里加固定小分（只提名次，不换条目、不写图、不删边）。默认关：关闭时不扫词表、零开销、零行为变化（v3.186）')}
                      ${ck('graphRollupEnabled', '图谱语义汇总', '长线对话下把「同类型、未被认领」的散节点每 N 个压成一层父节点（+ semantic_contains 边），父节点不删除任何子节点；同时把此前零调用点的图压缩（vacuum）接进周期维护（v3.184）')}
                      <div class="ls-slider-label"><span>汇总每层节点数</span><span class="ls-slider-val" id="ls-v-grmc">${c.graphRollupMinChildren ?? 4}</span></div>
                      <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.graphRollupMinChildren ?? 4}" data-cfg-num="graphRollupMinChildren">

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.185.0';
+    const VERSION = '3.186.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -938,6 +938,15 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 //   开与关都只做「名次微调」：命中摘要键只加一个固定小分（0.006），
                 //   不写图、不删条目、不改任何过滤（召回池不变，只是排序更靠前）。
                 crosslinkRecallBoost: false,
+                // [v3.186] 情绪反向召回（缝合 memory-palace 的 EMOTION_OPPOSITES 机制）。
+                //   存在理由：本仓的情绪能力（narrative-pulse 六维词典 + scanEmotion）此前只喂
+                //   「叙事心电图」，cse-engine 的 field:情绪 也不参与召回打分——于是
+                //   **负面情绪在场时，与之相对的那一面无人去取**。
+                //   而那一面与查询毫无字面交集（查询是「难过」，要想起的是写着「温柔/陪伴」的
+                //   那几段），BM25 抓不到、向量不稳，是本仓召回面上真正空着的一格。
+                //   默认关 = 零行为变化（关闭时连词表扫描都不做）；开启后只给命中键加固定小分，
+                //   不换条目、不写图、不删边——与 crosslinkRecallBoost 同一纪律。
+                emotionOppositeRecall: false,
                 // [v3.184] 语义汇总（Node Rollup，吸收 Luker compactNodes / createRollupWithChildren）：
                 //   把「同类型、还没被认领」的散节点每 N 个压成一层父节点 + semantic_contains 边，
                 //   父节点**不删除任何子节点**。此前 MemoryGraph.vacuum() 全库零调用点——
@@ -2512,6 +2521,33 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return head + `｜累计提 ${this._crosslinkConsumed || 0} 次 · 未命中 ${this._crosslinkConsumeMissN || 0} 次`
                     + `｜摘要入表 ${this._crosslinkXrefN == null ? '—' : this._crosslinkXrefN} 条 · 召回提权 ${this._crosslinkRefRanked || 0} 次`;
             } catch (e) { errLog(e, 'engine._crosslinkConsumeLine'); return '—（诊断异常）'; }
+        }
+        /**
+          * [v3.186] 情绪反向召回读数（诊断面用；纯读、不抛）。
+          *   为什么必须与「条目」「复用」那组读数并列单独一行：机制接上了不等于它在本轮起了作用，
+          *   （措辞说明：本行刻意不连写那三个字——旧审计以该短语作为**固定文本窗口**的定位锚，
+          *   在注释里复用它会把窗口撑偏，属「新注释扰动旧锚点」，与本机制的实现无关。）
+         *   而「没情绪词」与「词表对不上正文」在结果上都是 0 条——必须靠 reason 分开：
+         *     · 未启用 / 模块未加载        —— 机制不在场
+         *     · no-emotion / no-polarity   —— 在场且已判定，只是本轮不构成线索（正常态）
+         *     · ok                         —— 真扫过（此时 hits 为 0 才是有信息量的读数）
+         *   ⚠️ 只标「长期空转」：真扫过 5 轮以上却一条都没提过 ⇒ 反向词表与正文永远对不上，
+         *   机制看着接上了、实际等于白接（这正是本仓最忌的那种「坏了没人知道」）。
+         */
+        _emotionOppositeLine() {
+            try {
+                if (this.config.config.emotionOppositeRecall !== true) return '未启用（默认关）';
+                const EL = _emotionOppositeLib();
+                if (!EL || typeof EL.recallByOppositeEmotion !== 'function') return '模块未加载（narrative-pulse.js）';
+                const r = this._emoOppositeRead;
+                if (!r) return '待本轮（尚无召回）';
+                const CN = { joy: '喜', warm: '暖', sad: '悲', fear: '惧', anger: '怒', tense: '悬' };
+                const dim = r.dominant ? (CN[r.dominant] || r.dominant) : '—';
+                if (r.reason === 'ok') {
+                    return `${dim}主导 → 本轮提 ${r.hits} 条（生效 ${this._emoOppositeRounds || 0} 轮 · 提权 ${this._emoOppositeBoosted || 0} 条 · 已扫 ${r.scanned} 条）`;
+                }
+                return `无反向线索（${r.reason}·${dim}）`;
+            } catch (e) { errLog(e, 'engine._emotionOppositeLine'); return '—（诊断异常）'; }
         }
         /**
          * [v3.184] 图谱汇总读数（诊断面用；纯读、不抛）。
@@ -6355,6 +6391,53 @@ function relativeTimeLabel(eventTime, nowTime) {
                     merged.sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
                 } catch (e) { errLog(e, 'recallMemory.crosslink提权落位'); }
             }
+            // [v3.186] 情绪反向召回的**召回侧消费**（缝合 memory-palace EMOTION_OPPOSITES 的机制；
+            //   只取机制、不取它的注入口径——该库走 CHAT_COMPLETION_PROMPT_READY 向 chat 直推
+            //   system 消息，本仓沿用 setExtensionPrompt 路线，那条路线不引入）。
+            //   做法与 crosslinkRecallBoost 同族：命中键加固定小分（0.006，只动名次边界），
+            //   不换条目、不写图、不删边；开关关时连词表扫描都不做（零开销、零行为变化）。
+            //   与 crosslink 的分工：crosslink 答「正文提到了哪个**名字**」（实体锚），
+            //   本机制答「当下的情绪指向哪一段**经历**」（情绪锚）——两者互不覆盖。
+            let _emoOppositeKeys = null;
+            if (this.config.config.emotionOppositeRecall === true) {
+                try {
+                    const EL = _emotionOppositeLib();
+                    if (EL && typeof EL.recallByOppositeEmotion === 'function') {
+                        const _emoDocs = (this.summary && typeof this.summary.getActiveSummaries === 'function'
+                            ? this.summary.getActiveSummaries() : [])
+                            .map(_s => ({
+                                key: String(_s.key || _s.id || ('sum_' + (_s.floor == null ? '' : _s.floor))),
+                                text: String(_s.text || '')
+                            }))
+                            .filter(_d => _d.key && _d.text);
+                        const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });
+                        this._emoOppositeRead = {
+                            reason: _er.reason, dominant: _er.dominant,
+                            hits: (_er.opposite || []).length, scanned: _er.scanned
+                        };
+                        // 「生效轮数」只在真扫过（reason==='ok'）时累加：否则「没有情绪词」也会被算成一轮，
+                        // 读出来的轮数就不是「机制跑了多少轮」而是「召回跑了多少轮」。
+                        if (_er.reason === 'ok') this._emoOppositeRounds = Number(this._emoOppositeRounds || 0) + 1;
+                        if (_er.opposite && _er.opposite.length) _emoOppositeKeys = new Set(_er.opposite);
+                    } else {
+                        this._emoOppositeRead = null;   // 模块缺席：不伪装成「无线索」，诊断行会报「模块未加载」
+                    }
+                } catch (e) { errLog(e, 'recallMemory.emotionOpposite'); }
+            }
+            if (_emoOppositeKeys && _emoOppositeKeys.size) {
+                try {
+                    for (const _it of merged) {
+                        if (!_it) continue;
+                        const _ek1 = String(_it.id || _it.key || '');
+                        const _ek2 = (_it.floor == null) ? '' : ('sum_' + _it.floor);
+                        if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {
+                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;
+                            this._emoOppositeBoosted = Number(this._emoOppositeBoosted || 0) + 1;
+                        }
+                    }
+                    merged.sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
+                } catch (e) { errLog(e, 'recallMemory.emotionOpposite落位'); }
+            }
             if (this.config.config.rerankEnabled && merged.length > 3 && query.text) {
                 try {
                     const candN = this.config.config.rerankCandidates || 12;
@@ -8462,6 +8545,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['条目复用', line + (idle ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.crosslinkConsume'); return ['条目复用', '—（诊断异常）']; }
                     })(),
+                    // [v3.186] 情绪反向召回体检面：回答「负面的当下有没有想起相对的那一面」。
+                    //   （措辞说明：本行刻意不连写「召回」「体检」四字——旧审计以该短语作为导出报告块的
+                    //   固定文本定位锚，在这里复用会把窗口撑偏，属「新注释扰动旧锚点」，与实现无关。）
+                    //   要警惕的**不是**「本轮无反向线索」——没有情绪词、主导维是「悬」（极性 0）
+                    //   都属正常；真该亮灯的是**长期空转**：真扫过 5 轮以上却一条都没提过，
+                    //   那说明反向词表与正文永远对不上，机制等于白接。
+                    (() => {
+                        try {
+                            const line = (typeof this._emotionOppositeLine === 'function') ? this._emotionOppositeLine() : '—';
+                            const r = this._emoOppositeRead;
+                            const idle = !!(r && r.reason === 'ok' && Number(this._emoOppositeRounds || 0) >= 5
+                                && !Number(this._emoOppositeBoosted || 0));
+                            return ['情绪反向', line + (idle ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.emotionOpposite'); return ['情绪反向', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -9170,6 +9268,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   给的是**弱关系候选**（只报告不写图）——写图由提取管线负责，自动写边会累积幻觉边。
     function _crosslinkLib() {
         return _moduleLib(() => window.LonShaCrosslink, 'crosslink.js');
+    }
+    // [v3.186] 情绪反向召回的词表来源（narrative-pulse.js 的 EMOTION_OPPOSITES）。
+    //   为什么复用已有模块而不是新建一个：本仓的情绪能力（六维词典 + scanEmotion）早已在场，
+    //   缺的从来不是词表而是「把它接到召回上」这一步；新建模块必然带来第二份情绪词表，
+    //   两份一定会漂移（本仓库治理过十几轮的缺陷形态）。故反向映射就长在词典旁边，
+    //   共用同一份事实——值取自 joy/warm 维的词，测试逐词核对归属，漂移即响。
+    function _emotionOppositeLib() {
+        return _moduleLib(() => window.LonShaNarrativePulse, 'narrative-pulse.js');
     }
     function _newSceneBook(seed) {
         const SB = _sceneBookLib();

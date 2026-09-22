@@ -298,8 +298,16 @@ for (const [label, needle] of [['未启用态', '关联未启用'], ['累计提�
     if (!lineBody.includes(needle)) bad('R5 读数不可分辨', '诊断行缺「' + label + '」');
     else ok('R5 ' + label);
 }
-if (!/idle\s*\?\s*' ⚠️'\s*:\s*''/.test(idx) || !/hasSums\s*&&\s*this\._xrefIdx\s*!=\s*null/.test(idx)) {
-    bad('R5 idle 警示不可分辨', '⚠️ 未与 idle（有摘要且入表 0）条件绑定——「没接」与「接了但本轮无事」会同形');
+// idle 警示必须是**本机制自己那一行**的绑定，不能是别的机制的同类形态（v3.186 接管时收窄）。
+//   背景：v3.186 为另一机制（情绪反向召回）新增了同款 `idle ? ' ⚠️' : ''` 形态，
+//   于是裸形态判据会让「删掉本机制的 ⚠️」因「别人还有一份」而仍绿——判别力被旁路。
+//   故锚到归属行上，并把 idle 条件也锚到本机制的锚点字段。
+//   注意：归属行名必须用本文件已有的 NEEDLE_A 变量拼出——直接写整串会破坏本文件的判据纯度
+//   （R0 会报「needle 未拆开拼接」，那正是本文件守自己的形态）。
+const XL_IDLE_LINE = new RegExp("return \\['" + NEEDLE_A + "', line \\+ \\(idle \\? ' ⚠️' : ''\\)\\];");
+const XL_IDLE_COND = /const idle = !!\(hasSums && this\._xrefIdx != null && !Number\(this\._crosslinkXrefN \|\| 0\)\)/;
+if (!XL_IDLE_LINE.test(idx) || !XL_IDLE_COND.test(idx)) {
+    bad('R5 idle 警示不可分辨', '⚠️ 未与 idle（有摘要且入表 0）条件绑定，或未锚在本机制自己的那一行上——「没接」与「接了但本轮无事」会同形');
 } else ok('R5 idle 警示绑定');
 if (new RegExp(NEEDLE_A).test(lineBody)) bad('R5 判据自我指涉', '诊断行实现内出现了行名本身');
 

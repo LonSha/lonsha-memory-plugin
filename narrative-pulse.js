@@ -37,6 +37,62 @@ const EMO_LEXICON = {
 // 六维 → 极性分值（正=上扬，负=下沉）与张力贡献
 const EMO_POLARITY = { joy: 1, warm: 0.8, sad: -0.6, fear: -0.7, anger: -0.5, tense: 0 };
 const EMO_TENSION  = { joy: 0, warm: 0, sad: 0.5, fear: 0.9, anger: 0.8, tense: 1 };
+/* ── 情绪反向召回映射（负面情绪 → 与之相对的那一面）─────────────────────
+ * 机制来源：memory-palace（badcode1024-tech/sillytavern-long-term-memory）的
+ *   EMOTION_OPPOSITES + matchEmotion 反向分支。
+ *   **只取机制，不取注入口径**：该库靠 CHAT_COMPLETION_PROMPT_READY 直接向 chat
+ *   推 system 消息做注入，与本仓 setExtensionPrompt 的路线不同，本仓不引入那条路线。
+ *
+ * 词表本土化（关键）：原库是 17 个「情绪形容词 → 相对正面词」映射，其词汇面与本仓
+ *   EMO_LEXICON 不重合——照搬会得到一批 scanEmotion 永远扫不到的词，反向线索恒空，
+ *   看着接上了、实际零命中。故这里**按本仓词表重写**：键取 sad/fear/anger/tense
+ *   四维的负面词，值取 joy/warm 两维的词；每个值都能被 scanEmotion 扫到，
+ *   反向线索与词典共用同一份事实（测试逐词核对归属，漂移即响）。
+ *
+ * 语义：负面情绪在场时，与之相对的那一面也该被想起来——
+ *   难过时想起温柔相待，恐惧时想起安然相伴，愤怒时想起珍惜与眷恋，绝境里想起承诺。
+ *   与 memory-palace 的立意一致：冲突当下把「对方的好」一并带进上下文。
+ * 保守取舍：只列语义明确的词；未列入者不贡献反向线索（宁可不触发，也不乱触发）。
+ */
+const EMOTION_OPPOSITES = {
+  // sad 维 → 相对正面
+  悲伤: ['笑', '欢', '温柔', '幸福', '开心', '快乐', '欣慰', '安心', '温暖', '甜', '拥抱', '撒娇'],
+  难过: ['温柔', '安心', '陪伴', '温暖', '笑', '幸福', '拥抱'],
+  心痛: ['温柔', '幸福', '陪伴', '安心', '珍惜', '温暖'],
+  绝望: ['信任', '承诺', '守护', '陪伴', '归处', '温暖'],
+  失落: ['欣慰', '开心', '陪伴', '安心', '甜'],
+  孤独: ['陪伴', '拥抱', '依靠', '港湾', '归处', '温暖'],
+  寂寞: ['陪伴', '眷恋', '牵挂', '心安', '依靠'],
+  遗憾: ['珍惜', '眷恋', '牵挂', '承诺', '温暖'],
+  愧疚: ['安心', '信任', '温柔', '欣慰', '依靠'],
+  心碎: ['温柔', '守护', '陪伴', '珍惜', '心安'],
+  离别: ['眷恋', '牵挂', '承诺', '珍惜', '陪伴'],
+  牺牲: ['守护', '承诺', '珍惜', '信任', '眷恋'],
+  // fear 维 → 相对正面
+  恐惧: ['安心', '心安', '守护', '陪伴', '信任', '依靠', '归处', '温暖'],
+  不安: ['安心', '心安', '信任', '依靠', '陪伴', '温暖'],
+  畏惧: ['守护', '信任', '依靠', '陪伴', '心安'],
+  胆寒: ['温暖', '陪伴', '心安', '守护'],
+  寒意: ['温暖', '拥抱', '陪伴'],
+  梦魇: ['安心', '心安', '温柔', '陪伴'],
+  阴影: ['温暖', '守护', '信任', '陪伴'],
+  // anger 维 → 相对正面
+  憎恨: ['温柔', '莞尔', '宠溺', '珍惜', '笑'],
+  怨恨: ['温柔', '莞尔', '安心', '珍惜', '眷恋'],
+  暴怒: ['温柔', '莞尔', '宠溺', '安心'],
+  恼火: ['温柔', '莞尔', '宠溺', '撒娇', '笑'],
+  愤恨: ['温柔', '珍惜', '安心', '宠溺'],
+  怒火: ['温柔', '莞尔', '安心', '宠溺'],
+  震怒: ['温柔', '莞尔', '安心', '依靠'],
+  // tense 维 → 相对正面
+  危机: ['陪伴', '信任', '承诺', '守护', '依靠', '心安'],
+  背叛: ['信任', '守护', '承诺', '珍惜'],
+  绝境: ['承诺', '守护', '信任', '陪伴', '归处'],
+  窒息: ['温暖', '安心', '陪伴', '心安'],
+  压迫: ['温暖', '守护', '陪伴', '依靠'],
+  杀意: ['守护', '温柔', '信任', '安心'],
+  死斗: ['守护', '承诺', '陪伴', '信任'],
+};
 
 const text = v => typeof v === 'string' ? v : '';
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n) || 0));
@@ -68,6 +124,75 @@ function scanEmotion(txt) {
   let dominant = null, best = 0;
   for (const dim of Object.keys(scores)) if (scores[dim] > best) { best = scores[dim]; dominant = dim; }
   return { scores, polarity, tension, dominant };
+}
+/* ================================================================
+ * 某一情绪维的「相对的那一面」词表并集：由该维的负面词经 EMOTION_OPPOSITES 汇出。
+ *   空数组 = 该维没有反向词（如 joy/warm 本身是正面维，不作为线索来源）。
+ * ================================================================ */
+function opposedWordsFor(dim) {
+  const out = new Set();
+  for (const w of Object.keys(EMO_LEXICON[dim] || {})) {
+    for (const p of (EMOTION_OPPOSITES[w] || [])) out.add(p);
+  }
+  return [...out];
+}
+/* ================================================================
+ * 情绪反向召回：本轮负面情绪在场 ⇒ 挑出「与之相对的那一面」的文档
+ *
+ * 为什么**只做反向、不做正向**（与本仓既有 BM25 的分工纪律）：
+ *   正向线索（本轮难过 ⇒ 挑含「难过」的摘要）与 BM25 完全重叠——查询文本自带
+ *   「难过」，BM25 本来就会命中含该词的摘要，再加一条提权只是把同一件事做两遍，
+ *   没有独立增量。真正**没有任何通道覆盖**的是反向：查询里是「难过」，
+ *   而该想起的是写着「温柔/陪伴」的那几段——它们与查询毫无字面交集，
+ *   BM25 抓不到（向量能抓一部分，但依赖 Embedding 且不稳定）。
+ *   故本机制只产反向线索：量小、增量明确、可解释。
+ *
+ * 为什么主导维为 tense/正面时不出线索：EMO_POLARITY[tense] === 0，
+ *   它表示「氛围紧」而不是「情绪倾向」；紧张戏里几乎所有事都算数，挑出来等于没挑。
+ * 为什么只取主导维：多维多张词表会把命中面撑得过大（一次带几十条提权名单，
+ *   等于把候选池重排一遍，收益不明而风险实在）。主导维只取一条，可解释、可读。
+ * 为什么不复用 _crosslinkIndex.refsFor：那把键只答「该 ref 是否被登记过」，
+ *   与文本扫词无关（登记 ref ≠ 该摘要命中该词）；此处文档即候选全集，
+ *   词表扫描可当场得出，另建索引只会多一份状态要同步。
+ *
+ * 读数纪律（三态必须可分，否则「没接上」与「接上了但本轮无事」同形）：
+ *   reason = 'empty'    没有查询文本或没有候选文档——函数根本没开始判断
+ *          = 'no-emotion' 扫不到任何情绪词（词典未覆盖或文本确实无情绪）
+ *          = 'no-polarity' 有主导维（如 tense）但极性为 0——是氛围不是情绪倾向
+ *          = 'no-opposites' 词典里该维没配反向词（配置缺失，不是世界没情绪）
+ *          = 'ok'       真做了反向扫描（此时 scanned 才有意义）
+ *   实测教训：初版在「tense 主导」时于赋值 dominant 之前就返回，读数呈现
+ *   `dominant: null` ——与「一个词都没扫到」完全同形，等于把这条判据做哑了。
+ * 纯函数：不碰全局、不写状态，输入输出皆可单测。
+ * @param opts { queryText 查询文本, docs [{key, text}], max 最多收几条 }
+ * @returns { active, reason, dominant, polarity, opposite[], scanned }
+ * ================================================================ */
+function recallByOppositeEmotion(opts = {}) {
+  const out = { active: false, reason: 'empty', dominant: null, polarity: 0, opposite: [], scanned: 0 };
+  const q = text(opts.queryText);
+  const docs = Array.isArray(opts.docs) ? opts.docs : [];
+  if (!q || !docs.length) return out;
+  const emo = scanEmotion(q);
+  const dom = emo.dominant;
+  if (!dom) { out.reason = 'no-emotion'; return out; }
+  const pol = Number(EMO_POLARITY[dom]) || 0;
+  if (pol >= 0) { out.reason = 'no-polarity'; out.dominant = dom; return out; }   // 有主导维但无极性
+  const words = opposedWordsFor(dom);
+  if (!words.length) { out.reason = 'no-opposites'; out.dominant = dom; return out; }
+  out.active = true;
+  out.reason = 'ok';
+  out.dominant = dom;
+  out.polarity = pol;
+  const maxN = Math.max(1, Number(opts.max) || 5);
+  for (const d of docs) {
+    const k = String((d && d.key) || '');
+    const t = text(d && d.text);
+    if (!k || !t) continue;
+    out.scanned++;
+    if (out.opposite.length >= maxN) continue;     // 已满仍继续走 scanned，读数才反映「看了多少条」
+    if (words.some(w => t.includes(w))) out.opposite.push(k);
+  }
+  return out;
 }
 
 /* ================================================================
@@ -246,7 +371,7 @@ class NarrativePulse {
 }
 
 // ── 导出 ─────────────────────────────────────────────
-const api = { NarrativePulse, scanEmotion, ARC_PHASES, EMO_LEXICON };
+const api = { NarrativePulse, scanEmotion, recallByOppositeEmotion, opposedWordsFor, ARC_PHASES, EMO_LEXICON, EMOTION_OPPOSITES };
 if (typeof window !== 'undefined') window.LonShaNarrativePulse = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
