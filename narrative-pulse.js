@@ -103,13 +103,18 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n) || 0));
 function scanEmotion(txt) {
   txt = text(txt);
   const scores = { joy: 0, sad: 0, fear: 0, anger: 0, warm: 0, tense: 0 };
-  if (!txt) return { scores, polarity: 0, tension: 0, dominant: null };
+  const evidence = [];
+  if (!txt) return { scores, polarity: 0, tension: 0, dominant: null, evidence };
   for (const dim of Object.keys(EMO_LEXICON)) {
     for (const [word, w] of Object.entries(EMO_LEXICON[dim])) {
       // 简单包含计数（词频累加），中文无分词依赖
       let idx = 0, cnt = 0;
       while ((idx = txt.indexOf(word, idx)) !== -1) { cnt++; idx += word.length; }
-      if (cnt) scores[dim] += w * Math.min(cnt, 4); // 单词最多计 4 次防爆
+      if (cnt) {
+        const capped = Math.min(cnt, 4);
+        scores[dim] += w * capped; // 单词最多计 4 次防爆
+        evidence.push({ dim, word, count: capped, weight: w });
+      }
     }
   }
   let pol = 0, ten = 0, total = 0;
@@ -123,12 +128,41 @@ function scanEmotion(txt) {
   // 主导情绪
   let dominant = null, best = 0;
   for (const dim of Object.keys(scores)) if (scores[dim] > best) { best = scores[dim]; dominant = dim; }
-  return { scores, polarity, tension, dominant };
+  evidence.sort((a, b) => (b.weight * b.count) - (a.weight * a.count) || a.word.localeCompare(b.word, 'zh'));
+  return { scores, polarity, tension, dominant, evidence };
 }
 /* ================================================================
  * 某一情绪维的「相对的那一面」词表并集：由该维的负面词经 EMOTION_OPPOSITES 汇出。
  *   空数组 = 该维没有反向词（如 joy/warm 本身是正面维，不作为线索来源）。
  * ================================================================ */
+
+/* ================================================================
+ * 情绪证据分层：把一拍的分数还原成「哪些词、哪一维、命中几次」
+ *   旧拍只存 polarity / tension / dominant。同一个分数可以来自完全不同的词，
+ *   读数看不出分数的依据。这里不重扫正文、不新建词表：只读拍上已经记下的命中。
+ *   旧存档没有 evidence 字段时按空层读，不把缺失伪装成「这一拍没有情绪」。
+ *   layer = 'scored' 有命中词；'missing' 是旧拍；'none' 是新拍但词典零命中。
+ * ================================================================ */
+function emotionEvidence(beat) {
+  const empty = { layer: 'none', hits: [], byDim: {}, strongest: null };
+  if (!beat || typeof beat !== 'object') return empty;
+  if (!Array.isArray(beat.evidence)) return { layer: 'missing', hits: [], byDim: {}, strongest: null };
+  const hits = [];
+  const byDim = {};
+  for (const raw of beat.evidence) {
+    const dim = text(raw && raw.dim);
+    const word = text(raw && raw.word);
+    const weight = Number(EMO_LEXICON[dim] && EMO_LEXICON[dim][word]) || 0;
+    const count = Math.max(0, Math.min(4, Math.round(Number(raw && raw.count) || 0)));
+    if (!weight || !count) continue;
+    const score = weight * count;
+    const hit = { dim, word, count, weight, score };
+    hits.push(hit);
+    (byDim[dim] || (byDim[dim] = [])).push(hit);
+  }
+  hits.sort((a, b) => b.score - a.score || a.word.localeCompare(b.word, 'zh'));
+  return { layer: hits.length ? 'scored' : 'none', hits, byDim, strongest: hits[0] || null };
+}
 function opposedWordsFor(dim) {
   const out = new Set();
   for (const w of Object.keys(EMO_LEXICON[dim] || {})) {
@@ -235,6 +269,7 @@ class NarrativePulse {
       tension,
       dominant: emo.dominant,
       importance: maxImp,
+      evidence: emo.evidence,
       ts: Date.now()
     };
     // 幂等：同楼覆盖
@@ -371,7 +406,7 @@ class NarrativePulse {
 }
 
 // ── 导出 ─────────────────────────────────────────────
-const api = { NarrativePulse, scanEmotion, recallByOppositeEmotion, opposedWordsFor, ARC_PHASES, EMO_LEXICON, EMOTION_OPPOSITES };
+const api = { NarrativePulse, scanEmotion, emotionEvidence, recallByOppositeEmotion, opposedWordsFor, ARC_PHASES, EMO_LEXICON, EMOTION_OPPOSITES };
 if (typeof window !== 'undefined') window.LonShaNarrativePulse = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
