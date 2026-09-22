@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.186.0';
+    const VERSION = '3.187.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3124,6 +3124,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 floor: wpFloor
                             });
                             if (p) promiseCount++;
+                            this.recordCommitmentFact({
+                                actor: character,
+                                content,
+                                due: Number.isFinite(deadline) && deadline > 0 ? String(deadline) : null,
+                                floor: wpFloor,
+                                source: 'promises',
+                                eventKey: 'open:' + character + ':' + content
+                            });
                         }
                         const arcs = Array.isArray(extracted.plot_arcs) ? extracted.plot_arcs : [];
                         for (const raw of arcs.slice(0, 3)) {
@@ -3172,7 +3180,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     if (cands.length === 1) target = cands[0];
                                 }
                             }
-                            if (target && this.worldProg.resolvePromise(target.id, raw.status, wpFloor)) resolvedCount++;
+                            if (target && this.worldProg.resolvePromise(target.id, raw.status, wpFloor)) {
+                                resolvedCount++;
+                                const broken = String(raw.status || '').toLowerCase() === 'broken';
+                                this.recordCommitmentFact({
+                                    actor: target.character,
+                                    content: target.content,
+                                    action: broken ? 'break' : 'fulfill',
+                                    floor: wpFloor,
+                                    source: 'promises_resolve',
+                                    eventKey: (broken ? 'break:' : 'fulfill:') + target.id + ':' + wpFloor
+                                });
+                            }
                         }
                         const changes = Array.isArray(extracted.knowledge_changes) ? extracted.knowledge_changes : [];
                         for (const raw of changes.slice(0, 8)) {
@@ -6974,6 +6993,20 @@ function relativeTimeLabel(eventTime, nowTime) {
             return keys;
         }
         /** [v3.176] 读世界账本（宿主侧入口：收集本地投影 + 委托时钟读者面） */
+        recordCommitmentFact(input = {}) {
+            const api = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+            if (!api || !this.worldProg) return null;
+            const action = String(input.action || 'open');
+            const current = this.worldProg.commitmentLedger;
+            const call = action === 'fulfill' ? api.fulfill
+                : action === 'break' ? api.break
+                : action === 'cancel' ? api.cancel
+                : action === 'amend' ? api.amend
+                : api.open;
+            const out = call(current, input);
+            if (out?.ok && out.changed) this.worldProg.commitmentLedger = out.state;
+            return out;
+        }
         readWorldLedger(opts = {}) {
             try {
                 if (!this.clock || typeof this.clock.readWorldLedger !== 'function') return null;
@@ -10762,6 +10795,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
 
             // [v3.41] 吸收 Stitches: 约定账本 (Promises Ledger)
             this.promises = []; // [{ id, character, deadlineFloor, content, status: 'pending'|'imminent'|'overdue'|'fulfilled'|'broken', floor }]
+            this.commitmentLedger = null; // [v3.187] 约定变更/撤销/截止历史，不替代 promises
             // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
             this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
             // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
@@ -11045,6 +11079,15 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     source: 'worldprogress+promises'
                 });
             }
+            const commitmentApi = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+            const commitmentText = commitmentApi?.render?.(this.commitmentLedger, 6) || '';
+            if (commitmentText) {
+                results.push({
+                    id: 'wp_commitment_ledger',
+                    text: commitmentText,
+                    source: 'worldprogress+commitment-ledger'
+                });
+            }
 
             // 2. 活跃剧情支线注入
             const activeArcs = (this.plotArcs || []).filter(a => a.status === 'active');
@@ -11073,6 +11116,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 active: this.active,
                 pending: this.pending,
                 promises: this.promises || [],
+                commitmentLedger: this.commitmentLedger || null,
                 knowledge: this.knowledge || {},
                 plotArcs: this.plotArcs || []
             };
@@ -11082,6 +11126,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 this.active = data.active || {};
                 this.pending = !!data.pending;
                 this.promises = Array.isArray(data.promises) ? data.promises : [];
+                this.commitmentLedger = data.commitmentLedger || null;
                 this.knowledge = (typeof data.knowledge === 'object' && data.knowledge) ? data.knowledge : {};
                 this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
             }
