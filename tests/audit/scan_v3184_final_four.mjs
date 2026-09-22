@@ -25,8 +25,11 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
+// 本文件源码（R0 自证用：上报点数与读数行都从源码实测，避免「判据被删改而结论不变」）
+const P = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
 const FILES = {
     rd: 'relation-disclosure.js',
     nr: 'node-rollup.js',
@@ -273,8 +276,31 @@ try {
     if (!idxRaw.includes('刻意不导出')) defects.push('R6 变更集不导出的理由未留档');
 }
 
+// ── R0 审计自身可分辨（补） ──
+//   修前形态：本脚本在**通过路径上零输出**（其他审计脚本都会打一行卫生读数）。
+//   要紧的不是排版，是 I6：「真跑过且全过」与「因判据被删/早退而什么都没查」退出码同为 0，
+//   读者拿不到任何可分辨的读数——审计的通过结论本身必须打印，否则它的失效不可归因。
+//   两条自证：① 上报点数从源码实测（判据被截断成空壳必须在读数里现形）；
+//             ② 读数行自身必须存在（删掉它 ⇒ 通过时静默 ⇒ 与「没跑」同形）。
+// 两条 needle 都**拆开拼接**：否则判据文本自己就含整串，
+//   P.includes(needle) 恒真——判据自我满足的空转（本轮踩到：把读数行改名后仍报绿）。
+const _READOUT = 'console.log(\'[final-four] ' + '卫生：';
+const _SUBMIT = 'defects' + '.push(';
+const _sub = P.split(/\r?\n/).filter(l => l.includes(_SUBMIT)).length;
+if (_sub < 8) defects.push('R0 自证：上报点只有 ' + _sub + ' 个（判据疑被截断/删改）');
+if (!P.includes(_READOUT)) defects.push('R0 自证：通过路径读数行缺失（跑过与没跑同形）');
+
 if (defects.length) {
     console.error('[final-four] ' + defects.length + ' 个缺陷:');
     for (const d of defects) console.error('  - ' + d);
     process.exit(1);
 }
+// 通过结论必须打印（I6）：模块行数/取库口数/上报点数一律实测，不写死。
+const _lines = (f) => fs.readFileSync(path.join(ROOT, FILES[f]), 'utf8').trim().split('\n').length;
+// 读数行里的 R 编号一律紧跟全角 '｜'，**不得出现「R编号 + 半角空格」**：
+//   负控制的卫生态守卫正是按该模式扫「卫生态不得泄漏归因串」，健康行不能把自己算成泄漏。
+console.log('[final-four] 卫生：R1｜四模块存活（rd ' + _lines('rd') + ' / nr ' + _lines('nr')
+    + ' / fp ' + _lines('fp') + ' / cs ' + _lines('cs') + ' 行）'
+    + '｜R2｜宿主真消费（取库口 ' + libs.length + ' + 调用点 ' + calls.length + '）'
+    + '｜R3｜位置纪律 3 项｜R4｜行为纪律 4 组｜R5｜诊断行 4 条｜R6｜配置面 3 键'
+    + '｜上报点 ' + _sub + ' 个，本次零触发');

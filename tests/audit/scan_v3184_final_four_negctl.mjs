@@ -49,6 +49,15 @@ function runScan(dir) {
         return { code: e.status == null ? -1 : e.status, text: String(e.stdout || '') + String(e.stderr || '') };
     }
 }
+/** 在指定路径跑扫描器（破坏扫描器自身时用副本路径）。 */
+function runScanAt(scanPath, dir) {
+    try {
+        const out = execFileSync('node', [scanPath], { env: { ...process.env, LONSHA_AUDIT_ROOT: dir }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        return { code: 0, text: out };
+    } catch (e) {
+        return { code: e.status == null ? -1 : e.status, text: String(e.stdout || '') + String(e.stderr || '') };
+    }
+}
 /** 破坏一个文件里恰中 1 次的锚点；返回是否成功。 */
 function mutate(dir, file, anchor, repl) {
     const p = path.join(dir, file);
@@ -199,6 +208,47 @@ group('R6-UI 控件被摘',
     fs.rmSync(dir, { recursive: true, force: true });
 }
 
+// ── N-R0 审计自身可分辨：破坏扫描器自身的两条自证 ──
+//   为什么必须破**扫描器自己**：前 21 组破的都是被测文件，证明不了「扫描器的通过结论本身可信」。
+//   做法：把扫描器拷进 fixture，在副本上破坏，再用副本路径跑（同一套真判据，真源码破坏）。
+{
+    // N-R0a：把通过路径的读数行**改名** ⇒ 卫生态必须翻红（与 N6c 行键改名同口径）。
+    //   不能只加 `void 0 &&` 前缀：被断言的子串仍在源码里，判据不会变——不可观测的假负控制（本轮踩到）。
+    const dir = snapshotDir();
+    const sp = path.join(dir, 'scan_v3184_final_four.mjs');
+    fs.copyFileSync(SCAN, sp);
+    const s0 = fs.readFileSync(sp, 'utf8');
+    // 前导\n 不可省：自证行 `P.includes("console.log('[final-four] 卫生：")` 里也有同名子串，不加则锚点命中 2 次。
+    const anchor = "\nconsole.log('[final-four] 卫生：";
+    const n0 = s0.split(anchor).length - 1;
+    if (n0 !== 1) bad('N-R0a 锚点必须恰中 1 次，实为 ' + n0);
+    else {
+        fs.writeFileSync(sp, s0.replace(anchor, "\nconsole.log('[final-four] 卫生态："));
+        const r = runScanAt(sp, dir);
+        if (r.code !== 1) bad('N-R0a 读数行改名应 exit=1，实为 ' + r.code + '：' + r.text.slice(0, 200));
+        else if (!r.text.includes('R0 自证：通过路径读数行缺失')) bad('N-R0a 翻红但归因不对：' + r.text.slice(0, 200));
+        else ok('N-R0a 读数行改名 exit=1 且归因命中「R0 自证：通过路径读数行缺失」');
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+}
+{
+    // N-R0b：拆掉自计数的过滤器 ⇒ 上报点实测值塌成 1 ⇒ 必须翻红。
+    const dir = snapshotDir();
+    const sp = path.join(dir, 'scan_v3184_final_four.mjs');
+    fs.copyFileSync(SCAN, sp);
+    const s0 = fs.readFileSync(sp, 'utf8');
+    const anchor = "l.includes(_SUBMIT)";
+    const n0 = s0.split(anchor).length - 1;
+    if (n0 !== 1) bad('N-R0b 锚点必须恰中 1 次，实为 ' + n0);
+    else {
+        fs.writeFileSync(sp, s0.replace(anchor, "l.includes('NEVER_MATCH_AT_ALL')"));
+        const r = runScanAt(sp, dir);
+        if (r.code !== 1) bad('N-R0b 拆自计数应 exit=1，实为 ' + r.code + '：' + r.text.slice(0, 200));
+        else if (!r.text.includes('R0 自证：上报点只有')) bad('N-R0b 翻红但归因不对：' + r.text.slice(0, 200));
+        else ok('N-R0b 拆自计数 exit=1 且归因命中「R0 自证：上报点只有」');
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+}
 // ── 工具两向自证：锚点不存在时必须拒绝破坏（不静默） ──
 //   注意：这里不能用外层的 mutate()——它失败时会调 bad() 计入失败组，
 //   而「拒绝破坏」正是**期望行为**。故用局部探测函数，避免把自证判成缺陷。
