@@ -14,6 +14,11 @@
 //   ③ 辅助文件若混在扫描面上，会被 run.mjs 的目录发现规则（排除下划线前缀之前）
 //      当成审计脚本直接执行，纯定义文件零调用即通过（实测 exit 0 / 11 字节被判绿）。
 //      「审计失效 = 报告一切正常」，正是本仓最贵的形态。
+//   ④（v3.192.0）本文件自己也犯过同一族：判据写了、没接出口。
+//      扫描面 / 接线面 / 发现面共 4 条 drift 只 push 进 structural，而结构出口
+//      只在 E0 段，因此它们永远不改变结局（实测：把 MIN_AUDIT_SCRIPTS 改成 999，
+//      仍 exit 0 并打印「通过」）。现在三道保障：逐条接出口、exit 事件兜底
+//      （structural 非空就拒绝给结论）、以及把这个形态本身做成永久负控制 N5。
 //
 // 判据分五层：
 //   E1 结构面：不得再本地重写这些助手（delegating 包装合法；例外须在 EXEMPT 登记并说明）
@@ -32,6 +37,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const BS = String.fromCharCode(92);
 const NL = String.fromCharCode(10);
@@ -53,6 +59,16 @@ function reportDrift() {
     for (const x of structural) console.error('  x ' + x);
     process.exit(2);
 }
+// fail-closed 兜底（v3.192.0）：靠「每条 drift 后面自己记得接出口」是纪律，不是结构。
+//   本版实测的就是这一族：扫描面/接线面/发现面共 4 条 drift 曾经永远不改变结局（把常量改成 999 仍 exit 0 并打印「通过」）。
+//   现在只要走到 0 出口时 structural 非空，一律拒绝给结论——对未来新增的守卫同样生效。
+process.on('exit', (code) => {
+    if (code === 0 && structural.length) {
+        console.error('[audit-lib] ' + structural.length + ' 项结构漂移未接出口（fail-closed 兜底，拒绝给结论）：');
+        for (const x of structural) console.error('  x ' + x);
+        process.exit(2);
+    }
+});
 
 // ── E0 结构预检（fail-closed：探不到东西也算失效） ──
 const libAbs = path.join(SRC, LIB_REL);
@@ -60,7 +76,8 @@ if (!fs.existsSync(libAbs)) drift('唯一真源缺失：' + LIB_REL);
 if (!fs.existsSync(path.join(SRC, AUDIT_REL))) drift('扫描面缺失：' + AUDIT_REL);
 if (!fs.existsSync(path.join(SRC, RUN_REL))) drift('runner 缺失：' + RUN_REL);
 if (structural.length) reportDrift();
-const libSrc = fs.readFileSync(libAbs, 'utf8');
+// 自含常量：真源退化/缺失时必须先判结构漂移，不得先崩在读取上
+const libSrc = fs.statSync(libAbs).size >= MIN_LIB_BYTES ? fs.readFileSync(libAbs, 'utf8') : '';
 const LIB_MD5 = createHash('md5').update(libSrc).digest('hex');
 if (libSrc.length < MIN_LIB_BYTES) drift('唯一真源退化（' + libSrc.length + ' 字节 < ' + MIN_LIB_BYTES + '）');
 if (LIB_MD5 !== EXPECT_LIB_MD5) {
@@ -173,6 +190,33 @@ try {
     toolOk = /拒绝破坏/.test(e.message);
 }
 if (!toolOk) NC.push({ name: 'N0 工具两向自证', ok: false, why: '锚点不存在时未拒绝破坏（破坏工具恒绿）' });
+// N5 漏接出口的 drift 必须被兜底拦下（把「未来新增守卫忘记接出口」做成可证伪形态）
+//   手法：镜像 tests/ 到临时目录 -> 向镜像里的本文件末尾真源码注入一条「没有出口」的 drift
+//   -> 子进程跑镜像扫描器 -> 必须 exit 2 且点名未接出口。
+if (process.env.LONSHA_AUDITLIB_NO_SELFCHECK !== '1') {
+    const t = fs.mkdtempSync(path.join(os.tmpdir(), 'lonsha-auditlib-exit-'));
+    try {
+        fs.cpSync(path.join(SRC, 'tests'), path.join(t, 'tests'), { recursive: true });
+        const selfRel = path.join('tests', 'audit', 'scan_audit_lib_consolidation.mjs');
+        const selfAbs = path.join(t, selfRel);
+        const orig = fs.readFileSync(selfAbs, 'utf8');
+        fs.writeFileSync(selfAbs, orig + NL + "drift('N5 自证：这条 drift 刻意不接出口');" + NL);
+        const r5 = spawnSync(process.execPath, [selfRel], {
+            cwd: t, encoding: 'utf8', timeout: 120000,
+            env: Object.assign({}, process.env, { LONSHA_AUDITLIB_NO_SELFCHECK: '1' }),
+        });
+        const out5 = (r5.stdout || '') + (r5.stderr || '');
+        if (r5.status !== 2 || !out5.includes('未接出口')) {
+            NC.push({ name: 'N5 漏接出口的 drift', ok: false, why: '兜底未拦下（status=' + r5.status + '）：未来新增守卫仍可能写了判据不改变结局' });
+        } else {
+            NC.push({ name: 'N5 漏接出口的 drift', ok: true, why: '兜底拦下并 exit 2（漏接出口不再能静默通过）' });
+        }
+    } catch (e) {
+        NC.push({ name: 'N5 漏接出口的 drift', ok: false, why: '夹具异常：' + e.message });
+    } finally {
+        fs.rmSync(t, { recursive: true, force: true });
+    }
+}
 const negFailed = NC.filter((n) => !n.ok);
 
 // ── E1 结构面 / E2 接线面 ──
@@ -190,7 +234,10 @@ const filesToScan = [];
 for (const f of fs.readdirSync(path.join(SRC, AUDIT_REL)).filter((x) => x.endsWith('.mjs'))) filesToScan.push(AUDIT_REL + '/' + f);
 for (const f of fs.readdirSync(path.join(SRC, 'tests')).filter((x) => x.endsWith('.mjs'))) filesToScan.push('tests/' + f);
 const auditScripts = filesToScan.filter((x) => x.startsWith(AUDIT_REL));
-if (auditScripts.length < MIN_AUDIT_SCRIPTS) drift('扫描面过小（' + auditScripts.length + ' < ' + MIN_AUDIT_SCRIPTS + '），探测器失效');
+if (auditScripts.length < MIN_AUDIT_SCRIPTS) {
+    drift('扫描面过小（' + auditScripts.length + ' < ' + MIN_AUDIT_SCRIPTS + '），探测器失效：这是结构漂移，必须立刻拒绝给结论');
+    reportDrift();
+}
 const helperRe = (h) => new RegExp('(?:function|const|let|var)' + BS + 's+' + h + '[0-9A-Za-z_$]*' + BS + 's*[=(]');
 // import 行：[^}]* 到 }，反斜杠用 BS 拼装
 const IMPORT_RE = new RegExp('from' + BS + 's+[' + Q1 + Q2 + '][^' + Q1 + Q2 + ']*_audit_lib' + BS + '.mjs[' + Q1 + Q2 + ']');
@@ -230,7 +277,10 @@ for (const rel of filesToScan) {
     }
     if (IMPORT_RE.test(code)) importedFiles++;
 }
-if (importedFiles < MIN_IMPORTERS) drift('接线面过小（只有 ' + importedFiles + ' 个文件 import 真源 < ' + MIN_IMPORTERS + '），探测器失效');
+if (importedFiles < MIN_IMPORTERS) {
+    drift('接线面过小（只有 ' + importedFiles + ' 个文件 import 真源 < ' + MIN_IMPORTERS + '），探测器失效');
+    reportDrift();
+}
 for (const rel of auditScripts) {
     const code = LIB.stripComments(fs.readFileSync(path.join(SRC, rel), 'utf8'));
     const hasImport = IMPORT_RE.test(code);
@@ -246,13 +296,14 @@ for (const rel of auditScripts) {
 const runCode = LIB.stripComments(fs.readFileSync(path.join(SRC, RUN_REL), 'utf8'));
 if (!/AUDIT_DIR/.test(runCode)) drift('run.mjs 不再按目录发现审计脚本（本扫描的 E5 失去意义）');
 if (!new RegExp('readdirSync' + BS + 's*' + BS + '(' + BS + 's*AUDIT_DIR' + BS + 's*' + BS + ')').test(runCode)) drift('run.mjs 的审计发现不再走 readdirSync(AUDIT_DIR)');
+if (structural.length) reportDrift();
 const reUnd = new RegExp('startsWith' + BS + 's*' + BS + '(' + BS + 's*[' + Q1 + Q2 + ']_[' + Q1 + Q2 + ']' + BS + 's*' + BS + ')');
 if (!reUnd.test(runCode)) {
     bad('run.mjs 未排除下划线前缀文件：辅助文件会被当扫描器执行，纯定义零调用即判绿（实测过 11 字节假绿）');
 }
 
-console.log('[audit-lib] 唯一真源 ' + LIB_REL + ' md5=' + LIB_MD5 + ' bytes=' + libSrc.length);
-console.log('[audit-lib] 扫描面 ' + filesToScan.length + ' 文件（audit ' + auditScripts.length + ' 个）/ import 真源 ' + importedFiles + ' 个 / 本地重写 ' + copiedFiles + ' 处');
+console.log('[audit-lib] 唯一真源 ' + LIB_REL + ' md5=' + LIB_MD5 + ' chars=' + libSrc.length);
+console.log('[audit-lib] 扫描面 ' + filesToScan.length + ' 文件（audit ' + auditScripts.length + ' 个）/ import 真源 ' + importedFiles + ' 个（文件）/ 本地重写 ' + copiedFiles + ' 个（每文件最多计 1）');
 console.log('[audit-lib] 行为判据 ' + CASES.length + ' 形态 + bodyOf/braceMatch/codeLines 三口径全通过');
 for (const n of NC) console.log('  ' + (n.ok ? 'ok ' : 'x  ') + n.name + '：' + n.why);
 if (negFailed.length) {

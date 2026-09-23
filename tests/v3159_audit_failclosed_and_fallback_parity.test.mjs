@@ -24,7 +24,11 @@ function vnum(s) {
 //   审计脚本（scan_ui_binding）后，本文件的负控制会静默地把新脚本排除在外
 //   ——「[2] 每个审计脚本都能阻断」变成了「这 5 个能阻断」。改为从目录动态
 //   发现，判据与 tests/run.mjs 的 auditScripts() 保持一致。
-const auditScripts = readdirSync(AUDIT_DIR).filter((f) => f.endsWith('.mjs')).sort();
+const auditScripts = readdirSync(AUDIT_DIR).filter((f) => f.endsWith('.mjs') && !f.startsWith('_')).sort();
+// [v3.192.0] 与 tests/run.mjs 的 auditScripts() 逐字对齐（含下划线前缀排除）。
+//   此前声明「保持一致」但实际分叉：run.mjs 排除了 `_` 前缀辅助文件，本夹具没有。
+//   分叉的代价是同一族缺陷——辅助文件被当审计脚本执行，纯定义零调用即判绿。
+//   凡是写「与 X 保持一致」的地方，都是将来会悄悄分叉的地方；这里改为逐字同形。
 const readAudit = (f) => readFileSync(path.join(AUDIT_DIR, f), 'utf-8');
 
 /** run one audit script inside a scratch tree shaped by `mutate` */
