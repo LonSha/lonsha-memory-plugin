@@ -101,9 +101,14 @@ function makeSandbox() {
     };
     return vm.createContext(ctx);
 }
-// 真跑一次回放：load 两文件 → plugin.engine.rollbackFloor(floor) → 返回 {ok, report, engine, why}
+// 真跑一次回放：load 两文件 → 走 side 对应的宿主入口 → 返回 {ok, report, engine, why}
+// [v3.199] 两面都要真跑：
+//   side='drop'  → engine.rollbackFloor(floor)   （跑 replayDrop）
+//   side='shift' → engine.shiftFloorsFrom(floor) （跑 replayShift）
+// 此前只有 drop 面被行为判据覆盖，shift 面仅靠 R2a 的文本正则兜着——
+// 把前移侧的回放调用挪进死分支，R2a 全绿而前移记忆全部不再重定位（实测漏检）。
 function runReplayOnce(opts) {
-    const o = Object.assign({ ledgerEnabled: true, floor: 3 }, opts || {});
+    const o = Object.assign({ ledgerEnabled: true, floor: 3, side: 'drop' }, opts || {});
     const sandbox = makeSandbox();
     const lrFile = path.join(ROOT, 'ledger-replay.js');
     if (!fs.existsSync(lrFile)) return { ok: false, why: 'ledger-replay.js 不在位' };
@@ -116,43 +121,56 @@ function runReplayOnce(opts) {
     const plugin = sandbox.window && sandbox.window.LonShaMemory;
     const engine = plugin && plugin.engine;
     if (!engine) return { ok: false, why: '沙箱里拿不到 plugin.engine（插件未实例化）' };
-    if (typeof engine.rollbackFloor !== 'function') return { ok: false, why: 'engine.rollbackFloor 不是函数' };
+    const entry = o.side === 'shift' ? 'shiftFloorsFrom' : 'rollbackFloor';
+    if (typeof engine[entry] !== 'function') return { ok: false, why: 'engine.' + entry + ' 不是函数' };
     if (engine.config && engine.config.config) engine.config.config.floorLedgerEnabled = !!o.ledgerEnabled;
     let threw = null;
-    try { engine.rollbackFloor(o.floor); } catch (e) { threw = e; }
+    try { engine[entry](o.floor); } catch (e) { threw = e; }
     return { ok: true, report: engine._lastReplayReport, engine, threw };
+}
+// 单面行为断言：跑一次 side 的回放，验该面的签名（报告写入 + side + version + items + ok>=1 + 分态）。
+// 两面共用，避免「只测了 drop 面」的盲区（v3.199 新增 shift 面覆盖）。
+function assertReplaySide(out, side, entryLabel) {
+    const r = runReplayOnce({ ledgerEnabled: true, side });
+    if (!r.ok) { out.defects.push('回放行为探针（' + side + ' 面）无法运行：' + r.why); return; }
+    if (r.threw) out.defects.push(entryLabel + ' 抛错（' + r.threw.message + '），回放未收口');
+    const rep = r.report;
+    if (!rep || typeof rep !== 'object') {
+        out.defects.push('回放报告未被写入（_lastReplayReport 缺失，' + side + ' 面）—— 回放入口未被真消费（声明了零调用 = 死声明）');
+        return;
+    }
+    if (rep.side !== side) out.defects.push('回放报告 side=' + rep.side + ' ≠ ' + side + '（' + entryLabel + ' 未走 ' + side + ' 面）');
+    if (Number(rep.version) !== 1) {
+        out.defects.push('回放报告 version=' + rep.version + ' ≠ 1（' + side + ' 面）—— 真模块没在跑（version 0 = 缺席退路，回放没扫登记表）');
+    }
+    const items = Array.isArray(rep.items) ? rep.items : [];
+    if (items.length < MIN_OWNERS) {
+        out.defects.push('回放报告 items 只有 ' + items.length + ' 项（下限 ' + MIN_OWNERS + '，' + side + ' 面）—— 回放没真扫登记表');
+    }
+    // 至少一本账真的被读到（ok）。传对宿主才有此证据：
+    //   宿主被传成空对象时，引擎仍给结构完整的报告（version 1 / items 33），
+    //   只是全部 absent —— 只看数量抓不到「宿主传错了」。
+    const okCount = items.filter((it) => it && it.state === 'ok').length;
+    if (okCount < 1) {
+        const absent = items.filter((it) => it && it.state === 'absent').length;
+        out.defects.push('回放报告里没有一本账 state===ok（absent ' + absent + '/' + items.length + '，' + side + ' 面）—— 宿主没被真正交给回放（传错宿主时全部 absent）');
+    }
+    // 报告必须带 threw/absent 分态字段（承认「有些账拿不到」而不是只看成功）
+    if (!('threw' in rep) || !('absent' in rep)) out.defects.push('回放报告缺 threw/absent 分态字段（失败会被当成成功吞掉，' + side + ' 面）');
 }
 function replayBehaviorProbe() {
     const out = { defects: [] };
-    // ── 开账本：回放必须真的跑过 ──
-    const on = runReplayOnce({ ledgerEnabled: true });
-    if (!on.ok) { out.defects.push('回放行为探针无法运行：' + on.why); return out; }
-    if (on.threw) out.defects.push('rollbackFloor 抛错（' + on.threw.message + '），回放未收口');
-    const rep = on.report;
-    if (!rep || typeof rep !== 'object') {
-        out.defects.push('回放报告未被写入（_lastReplayReport 缺失）—— 回放入口未被真消费（声明了零调用 = 死声明）');
-    } else {
-        if (rep.side !== 'drop') out.defects.push('回放报告 side=' + rep.side + ' ≠ drop（删楼回放未走 drop 面）');
-        if (Number(rep.version) !== 1) {
-            out.defects.push('回放报告 version=' + rep.version + ' ≠ 1 —— 真模块没在跑（version 0 = 缺席退路，回放没扫登记表）');
-        }
-        const items = Array.isArray(rep.items) ? rep.items : [];
-        if (items.length < MIN_OWNERS) {
-            out.defects.push('回放报告 items 只有 ' + items.length + ' 项（下限 ' + MIN_OWNERS + '）—— 回放没真扫登记表');
-        }
-        // 至少一本账真的被读到（ok）。传对宿主才有此证据：
-        //   宿主被传成空对象时，引擎仍给结构完整的报告（version 1 / items 33），
-        //   只是全部 absent —— 只看数量抓不到「宿主传错了」。
-        const okCount = items.filter((it) => it && it.state === 'ok').length;
-        if (okCount < 1) {
-            const absent = items.filter((it) => it && it.state === 'absent').length;
-            out.defects.push('回放报告里没有一本账 state===ok（absent ' + absent + '/' + items.length + '）—— 宿主没被真正交给回放（传错宿主时全部 absent）');
-        }
-        // 报告必须带 threw/absent 分态字段（承认「有些账拿不到」而不是只看成功）
-        if (!('threw' in rep) || !('absent' in rep)) out.defects.push('回放报告缺 threw/absent 分态字段（失败会被当成成功吞掉）');
-    }
+    // ── 开账本：两面回放都必须真的跑过 ──
+    //   drop 面：rollbackFloor → replayDrop（删楼撤账）
+    //   shift 面：shiftFloorsFrom → replayShift（楼层前移重定位）
+    //   两面此前只有 drop 有行为判据；shift 只靠 R2a 的文本正则，
+    //   把前移回放调用挪进死分支时 R2a 全绿而前移记忆静默不重定位（实测漏检）。
+    assertReplaySide(out, 'drop', 'rollbackFloor');
+    assertReplaySide(out, 'shift', 'shiftFloorsFrom');
     // ── 关账本：必须显式 skipped，而不是与「跑了没账可撤」同形 ──
-    const off = runReplayOnce({ ledgerEnabled: false });
+    //   只对 rollbackFloor（drop 面）验：shiftFloorsFrom 不读 floorLedgerEnabled
+    //   （前移是位置校正，与「账本开没开」无关），故关账本语义只在 drop 面成立。
+    const off = runReplayOnce({ ledgerEnabled: false, side: 'drop' });
     if (!off.ok) { out.defects.push('关账本场景无法运行：' + off.why); return out; }
     const repOff = off.report;
     if (!repOff || repOff.skipped !== 'floor-ledger-disabled') {

@@ -1,3 +1,42 @@
+## v3.199.0
+**R2 行为判据从「只测 drop 面」扩到「drop + shift 两面」：handover 的 callReachable 以行为式落地**
+- 背景：v3.198.0 把 R2 从形态判据升级为行为判据，但只走了 `rollbackFloor`（drop 面）。
+  前移面 `shiftFloorsFrom → replayShift` 仍旧只有 R2a 的文本正则兜着。
+  这正是 CHANGELOG 自 v3.191.0 起反复交接的 `callReachable`（可达性判据）：
+  它曾用静态「只认顶层 return」判定，
+  但真实守卫写在 `if {}` 里（相对方法体嵌套深度 2），此法会把死分支判成可达；
+  半可信的 API 比没有更危险，故 v3.191.0 将其摘除、列作交接项。
+- **本版的落地方式：不从静态解析重建 callReachable，而是用行为判据直接回答
+  「前移回放到底跑了没有」**——跑了就写报告，没跑就没报告。
+  静态判据判不准的，行为判据天然解决。
+- **实测证伪（probe）**：`tests/audit/_probe_v3199_r2shift.mjs` 造三种 shift 面真退化，
+  跑原 R2a 三条正则，**全部漏检（全绿）**：
+  ① 前移回放调用挪进死分支（`? (false && _lr.replayShift(...))`，文本形态仍在但永不执行）；
+  ② 前移回放改传空宿主 `{}`（报告结构完整却全 absent）；
+  ③ 前移回放返回值被丢弃、报告不落字段。
+  三者都是真功能回归：删楼后楼层前移不再重定位（数据零丢失的承诺破掉，且不报错）。
+- **升级为两面行为判据**：抽出 `assertReplaySide(out, side, entryLabel)`，对 drop / shift 各跑一次：
+  · drop 面：`engine.rollbackFloor(floor)` → 验报告 `side===\`drop\`` / `version===1` /
+    `items.length >= 20` / 至少一本账 `state==='ok'` / 带 `threw`·`absent` 分态。
+  · shift 面：`engine.shiftFloorsFrom(deleted)` → 验报告 `side===\`shift\`` 及其余同款签名。
+  · 关账本 `skipped==='floor-ledger-disabled'` 依旧只对 drop 面验（`shiftFloorsFrom` 不读
+    `floorLedgerEnabled`：前移是位置校正，与「账本开没开」无关）。
+- **判别力的唯一证据仍是 `ok>=1`**：前移面传错宿主时引擎仍给结构完整的报告
+  （`version 1 / items 33`），只有「至少一本账被读到」能证明宿主真交了回放。
+- **负控制扩到 12 组**：新增 N9/N10/N11 三条**只有 shift 面行为判据才抓得到**的真退化
+  （A 调用永不执行 / B 传空宿主 / C 报告不落字段），各自「锚点恰中 1 次 → 真源码破坏
+  → `node --check` 通过（保证非解析崩溃）→ 按声称归因翻红」。原 N2（删掉前移调用）
+  属「整条调用被删」，连形态判据都能抓，证明不了 shift 行为判据的判别力，故必须补这三条。
+- **判别力探针以 `_` 前缀收进仓库**：`tests/audit/_probe_v3199_r2shift.mjs`（下划线开头
+  不被 `run.mjs` 的 `auditScripts()` 当扫描器执行。它现场重现「三种 shift 退化下 R2a 全绿」，
+  与 `scan_v3182_ledger_replay_negctl.mjs` 的 N9-N11 互为双向证据。
+- 新增套件 `tests/v3199_ledger_replay_r2_shift_behavioral.test.mjs`（8 项）：版本锚点 /
+  两面接线 / R2a 前置仍在 / N9-N11 在位且锚点唯一 / 真跑 shift 面回放（独立复验 + 空宿主
+  区分度）/ 三种 shift 退化在 R2a 下全绿 / 探针在位且不进扫描面 / `_audit_lib.mjs` 零改动。
+- 版本收口：四源升 3.199.0；上一版带引号的断言锚点整体抬到 3.199.0
+  （tests 内 23 文件：`vnum()` 下界 26 处 + 裸引号 44 处）；注释里的历史版本标记与
+  CHANGELOG 既存节标题原样保留。
+- 唯一真源 `tests/_audit_lib.mjs` 本版**零改动**（md5 `2d7413e5839f8fe3fbd62d1c5063cd2f`）。
 ## v3.198.0
 
 **R2 从「形态判据」升级为「行为判据」：回放入口真被执行才算数（handover 点名项）**

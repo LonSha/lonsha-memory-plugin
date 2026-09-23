@@ -39,9 +39,9 @@ const echoLedger = require(path.join(ROOT, 'echo-ledger.js'));
 test('【0】版本与 manifest 抬升到 3.197.0', () => {
   const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const v = /const VERSION = '([^']+)'/.exec(idxSrc)[1];
-  assert.ok(vnum(v) >= vnum('3.198.0'), `index.js 版本 ${v} < 3.197.0`);
-  assert.ok(vnum(manifest.version) >= vnum('3.198.0'), `manifest 版本 ${manifest.version} < 3.197.0`);
-  assert.ok(vnum(pkg.version) >= vnum('3.198.0'), `package 版本 ${pkg.version} < 3.197.0`);
+  assert.ok(vnum(v) >= vnum('3.199.0'), `index.js 版本 ${v} < 3.197.0`);
+  assert.ok(vnum(manifest.version) >= vnum('3.199.0'), `manifest 版本 ${manifest.version} < 3.197.0`);
+  assert.ok(vnum(pkg.version) >= vnum('3.199.0'), `package 版本 ${pkg.version} < 3.197.0`);
   ok('版本 / manifest / package ≥ 3.197.0');
 });
 

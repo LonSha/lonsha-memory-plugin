@@ -73,6 +73,25 @@ const CASES = [
         '? (_lr.replayDrop(this, floor), null)',
         1, 1,
         '报告不落 _lastReplayReport → R2b 必须翻红（回放发生了但没人看得见）'],
+    // ── [v3.199] shift 面行为判据专属三组（此前 shift 仅靠 R2a 文本正则兜着）──
+    //   这三条的共同特征：文本形态**仍在**（R2a 全绿），但前移回放**不会真跑/真收**。
+    //   实测：N9 的破坏注入原版后 R2a 三条正则全命中（漏检），
+    //   只有升级后的 shift 面行为判据抓得到（见 tests/audit/probe_v3199_r2shift.mjs）。
+    ['N9-shift 回放调用永不执行（守卫改 false，文本形态仍在）', IDX,
+        '? _lr.replayShift(this, deleted)',
+        '? (false && _lr.replayShift(this, deleted))',
+        1, 1,
+        '前移回放调用形态仍在但永不执行 → shift 面 R2b 必须翻红（R2a 形态判据看不见）'],
+    ['N10-shift 回放改传空宿主 {}（拿不到本账）', IDX,
+        '_lr.replayShift(this, deleted)',
+        '_lr.replayShift({}, deleted)',
+        1, 1,
+        '前移宿主传错 → 报告全 absent → shift 面 R2b 的 ok 判据翻红'],
+    ['N11-shift 回放返回值被丢弃、报告不落字段', IDX,
+        '? _lr.replayShift(this, deleted)',
+        '? (_lr.replayShift(this, deleted), null)',
+        1, 1,
+        'shift 报告不落 _lastReplayReport → shift 面 R2b 必须翻红（前移发生了但没人看得见）'],
 ];
 
 function runCase(c) {
