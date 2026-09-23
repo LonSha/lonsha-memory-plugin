@@ -22,9 +22,9 @@ test('v3190 1. 三源同源，且不低于本版', () => {
     const m = /const VERSION = '([0-9.]+)'/.exec(raw);
     const manifest = JSON.parse(read('manifest.json'));
     const pkg = JSON.parse(read('package.json'));
-    assert.equal(m[1], '3.195.0', 'index.js 版本号为 3.193.0');
-    assert.equal(manifest.version, '3.195.0', 'manifest 跟随 index.js');
-    assert.equal(pkg.version, '3.195.0', 'package 跟随 index.js');
+    assert.equal(m[1], '3.196.0', 'index.js 版本号为 3.193.0');
+    assert.equal(manifest.version, '3.196.0', 'manifest 跟随 index.js');
+    assert.equal(pkg.version, '3.196.0', 'package 跟随 index.js');
 });
 
 test('v3190 2. 位移只发生一次：shiftFloorsFrom 不再携带手抄清单', () => {

@@ -1,3 +1,11 @@
+## v3.196.0
+**两本新账本：平行事实（别处正在发生）与秘密（此刻不该被知晓）**
+- 素材来源：SillyTavern 预设「【日月西】Gemini & Claude v0.41 @电波系」的机制面（🗝️平行事件 / 💌秘密来信 / 🔮绝密档案）。只搬机制，不搬人设散文。
+- 新增 `parallel-ledger.js`（挂 `window.LonShaParallelLedger`）：「别处正在发生的事」，动作 `note/touch/settle/drop`，状态 `open → touched → settled/dropped`，上限 4 条。`audience` 区分 `hidden`（在场角色不得知晓，缺省）/ `overheard`（已传开）；`note` 强制带 `place`；`present` 命中 `who` 拒 `present-knows`；`sweep(floor)` 只清 `settledFloor < floor` 的已了结条。渲染分两面：`renderVisible`（已传开，给全量事实）与 `renderHidden`（暗线，标注在场角色不得知晓）。**本版当场抓出一个真缺陷**：`list` 的过滤回调把 `openish` 写成提前 `return`，`audience` 判断永远不可达，两面渲染同形（隐藏面泄露给公开面）——改为叠加判断后由回归用例锁死。
+- 新增 `secret-ledger.js`（挂 `window.LonShaSecretLedger`）：「某角色此刻不该被知晓的事」，动作 `seal/advance/reveal/drop`，状态 `sealed → advancing → revealed/dropped`，上限 5 条。`seal` 强制点名 `keeper`（持有者）；`keeper` 在场拒推进/揭露（`keeper-present`）；`progress` 只收显式 0–100 整数且单调不回退（`progress-back`）；`reveal` 把进度补到 100，已揭露条不再出现在 `render`；`sweep(floor)` 只清 `revealedFloor < floor` 的已揭露条。
+- 设计边界：两账本均为**显式写入**（不进 AI 提取 schema），宿主入口 `recordParallelFact` / `recordSecretFact`（照 `recordSeedFact` 模式），状态存 `worldProg.parallelLedger` / `worldProg.secretLedger`，随 export/import 往返。注入口 `wp_parallel_visible` / `wp_parallel_hidden` / `wp_secret_ledger`，只注入未了结条（settled/revealed/dropped 不进正文）。小手机（2.86.0）保持**只读投影**：面板「别处正在发生」卡对暗线只显地点与标题、秘密卡只显持有者与进度——事实与秘密内容本体只进生成侧一致性块，防剧透口径由 `tests/system-v286.test.mjs` 锁死。
+- 版本收口：四源升 3.196.0；上一版 36 处断言锚点整体抬到 3.196.0（18 处硬等号 + 18 处 `vnum()` 下界）；注释里的历史版本标记与 CHANGELOG 既存节标题原样保留。
+- 上界放宽：两账本 505 行 → 活跃代码上界 31500 → 32100。
 ## v3.195.0
 **五条机制里属于本仓的三条：伏笔生命周期 / 召回只读边界 / 场景头**
 - 新增 `seed-ledger.js`。状态机 `open → advance/recover → recovered`，另有 `cancel`。未回收禁止删除（`open-locked`）；未回收上限 5 条，超额拒绝新埋，不丢旧条；`sweep(floor)` 只清 `recoveredFloor < floor` 的已回收条，本回合刚回收的留到下一回合。近场 `near` / 远场 `far` 分列。挂 `window.LonShaSeedLedger`，宿主 `recordSeedFact` 写入 `worldProg.seedLedger`，注入口 `wp_seed_ledger`。不替代 promises 与 commitmentLedger。

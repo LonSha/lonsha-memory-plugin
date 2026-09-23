@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.195.0';
+    const VERSION = '3.196.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7113,6 +7113,38 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (out && out.ok && out.changed) this.worldProg.seedLedger = out.state;
             return out;
         }
+        // [v3.196] 平行事实账本：宿主写入入口，状态存 worldProg.parallelLedger
+        recordParallelFact(input = {}) {
+            const api = (typeof window !== 'undefined' && window.LonShaParallelLedger) || null;
+            if (!api || !this.worldProg) return null;
+            const action = String(input.action || 'note');
+            const current = this.worldProg.parallelLedger;
+            const call = action === 'touch' ? api.touch
+                : action === 'settle' ? api.settle
+                : action === 'drop' ? api.drop
+                : action === 'sweep' ? api.sweep
+                : action === 'remove' ? api.remove
+                : api.note;
+            const out = action === 'sweep' ? call(current, input.floor) : call(current, input);
+            if (out && out.ok && out.changed) this.worldProg.parallelLedger = out.state;
+            return out;
+        }
+        // [v3.196] 秘密账本：宿主写入入口，状态存 worldProg.secretLedger
+        recordSecretFact(input = {}) {
+            const api = (typeof window !== 'undefined' && window.LonShaSecretLedger) || null;
+            if (!api || !this.worldProg) return null;
+            const action = String(input.action || 'seal');
+            const current = this.worldProg.secretLedger;
+            const call = action === 'advance' ? api.advance
+                : action === 'reveal' ? api.reveal
+                : action === 'drop' ? api.drop
+                : action === 'sweep' ? api.sweep
+                : action === 'remove' ? api.remove
+                : api.seal;
+            const out = action === 'sweep' ? call(current, input.floor) : call(current, input);
+            if (out && out.ok && out.changed) this.worldProg.secretLedger = out.state;
+            return out;
+        }
         readWorldLedger(opts = {}) {
             try {
                 if (!this.clock || typeof this.clock.readWorldLedger !== 'function') return null;
@@ -11099,6 +11131,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.promises = []; // [{ id, character, deadlineFloor, content, status: 'pending'|'imminent'|'overdue'|'fulfilled'|'broken', floor }]
             this.commitmentLedger = null; // [v3.187] 约定变更/撤销/截止历史，不替代 promises
             this.seedLedger = null; // [v3.195] 伏笔生命周期，不替代 promises / commitmentLedger
+            this.parallelLedger = null; // [v3.196] 平行事实账本：别处正在发生的事，audience 区分公开/在场不得知晓
+            this.secretLedger = null; // [v3.196] 秘密账本：某角色此刻不该被知晓的事，keeper 点名持有
             // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
             this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
             // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
@@ -11400,6 +11434,36 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     source: 'worldprogress+seed-ledger'
                 });
             }
+            // [v3.196] 平行事实账本：公开面与隐藏面分开注入，隐藏面标注在场角色不得知晓
+            const parallelApi = (typeof window !== 'undefined' && window.LonShaParallelLedger) || null;
+            if (parallelApi) {
+                const parallelVisible = parallelApi.renderVisible?.(this.parallelLedger, 4) || '';
+                if (parallelVisible) {
+                    results.push({
+                        id: 'wp_parallel_visible',
+                        text: parallelVisible,
+                        source: 'worldprogress+parallel-ledger'
+                    });
+                }
+                const parallelHidden = parallelApi.renderHidden?.(this.parallelLedger, 4) || '';
+                if (parallelHidden) {
+                    results.push({
+                        id: 'wp_parallel_hidden',
+                        text: parallelHidden,
+                        source: 'worldprogress+parallel-ledger'
+                    });
+                }
+            }
+            // [v3.196] 秘密账本：只注入未揭露的（sealed/advancing），已揭露的进历史不再占注入
+            const secretApi = (typeof window !== 'undefined' && window.LonShaSecretLedger) || null;
+            const secretText = secretApi?.render?.(this.secretLedger, 5) || '';
+            if (secretText) {
+                results.push({
+                    id: 'wp_secret_ledger',
+                    text: secretText,
+                    source: 'worldprogress+secret-ledger'
+                });
+            }
 
             // 2. 活跃剧情支线注入
             const activeArcs = (this.plotArcs || []).filter(a => a.status === 'active');
@@ -11430,6 +11494,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 promises: this.promises || [],
                 commitmentLedger: this.commitmentLedger || null,
                 seedLedger: this.seedLedger || null,
+                parallelLedger: this.parallelLedger || null,
+                secretLedger: this.secretLedger || null,
                 knowledge: this.knowledge || {},
                 plotArcs: this.plotArcs || []
             };
@@ -11441,6 +11507,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 this.promises = Array.isArray(data.promises) ? data.promises : [];
                 this.commitmentLedger = data.commitmentLedger || null;
                 this.seedLedger = data.seedLedger || null;
+                this.parallelLedger = data.parallelLedger || null;
+                this.secretLedger = data.secretLedger || null;
                 this.knowledge = (typeof data.knowledge === 'object' && data.knowledge) ? data.knowledge : {};
                 this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
             }
