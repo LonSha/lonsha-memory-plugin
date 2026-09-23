@@ -152,6 +152,8 @@ class SceneBook {
         this.visits = new Map();
         /** 在场索引：角色主名 → {path, key, atFloor}（由宿主按在场性写入） */
         this.presence = new Map();
+        /** [v3.195] 场景头：floor → {date, period, weather}。只记调用方给的快照，不从正文猜。 */
+        this.headers = new Map();
         /** 最近一次 apply 的读数（供诊断行/自检读，不参与重建） */
         this.lastApply = null;
         /** 有界性台账：本对象生命周期内裁剪过的节点数（自述用，不进存档） */
@@ -319,6 +321,45 @@ class SceneBook {
 
     /** 清空在场索引（换聊天/清空场景时用）。返回清掉的条数。 */
     clearPresence() { const n = this.presence.size; this.presence.clear(); return n; }
+
+    /**
+     * [v3.195] 写入本楼场景头。日期 / 时段 / 天气三者至少给一个，否则拒绝。
+     * 同楼覆盖。调用方没给的字段留空，不回退到别的楼，也不从正文推断。
+     */
+    setHeader(floor, header) {
+        const f = num(floor);
+        if (f == null || !header || typeof header !== 'object') return false;
+        const date = oneLine(header.date).slice(0, 40);
+        const period = oneLine(header.period).slice(0, 20);
+        const weather = oneLine(header.weather).slice(0, 40);
+        if (!date && !period && !weather) return false;
+        this.headers.set(f, { date, period, weather, at: Date.now() });
+        if (this.headers.size > 400) {
+            const oldest = [...this.headers.keys()].sort((a, b) => a - b)[0];
+            if (oldest !== undefined && oldest !== f) this.headers.delete(oldest);
+        }
+        return true;
+    }
+
+    /** 读本楼场景头。没有就 null，不回退到别的楼。 */
+    headerAt(floor) {
+        const f = num(floor);
+        if (f == null) return null;
+        const rec = this.headers.get(f);
+        if (!rec) return null;
+        return { floor: f, date: rec.date, period: rec.period, weather: rec.weather };
+    }
+
+    /** 注入用一行。三字段都空返回空串。 */
+    headerLine(floor) {
+        const h = this.headerAt(floor);
+        if (!h) return '';
+        const parts = [];
+        if (h.date) parts.push(h.date);
+        if (h.period) parts.push(h.period);
+        if (h.weather) parts.push(h.weather);
+        return parts.length ? '【场景头】' + parts.join(' · ') : '';
+    }
 
     /** 谁在 key（含**其下级**：在『钟楼›顶层』的人，也在『钟楼』这一层）。 */
     presenceAt(key) {
@@ -621,7 +662,7 @@ class SceneBook {
     /** 全清（清空场景树）：节点/轨迹/到访/在场一并清，返回清掉的关键数。 */
     clear() {
         const n = this.nodes.size;
-        this.nodes.clear(); this.track = []; this.opsLog = []; this.visits.clear(); this.presence.clear();
+        this.nodes.clear(); this.track = []; this.opsLog = []; this.visits.clear(); this.presence.clear(); this.headers.clear();
         this.lastApply = null; this._broken = [];
         this.capacity = { nodes: 0, dropped: 0, visitsDropped: 0, trackDropped: 0 };
         return n;
@@ -637,6 +678,7 @@ class SceneBook {
             opsLog: this.opsLog,
             visits: Array.from(this.visits.entries()),
             presence: Array.from(this.presence.entries()),
+            headers: Array.from(this.headers.entries()),
             capacity: { ...this.capacity }
         };
     }
@@ -686,6 +728,20 @@ class SceneBook {
                 if (!key) continue;
                 this.presence.set(k, { key, path: partsOfKey(key), atFloor: num(v.atFloor) ?? 0, at: num(v.at) ?? 0 });
                 if (this.presence.size >= MAX_PRESENCE) break;
+            }
+        }
+        this.headers = new Map();
+        if (isArr(data.headers)) {
+            for (const pair of data.headers) {
+                if (!isArr(pair) || pair.length < 2) continue;
+                const f = num(pair[0]);
+                const v = pair[1];
+                if (f == null || !v || typeof v !== 'object') continue;
+                const date = oneLine(v.date).slice(0, 40);
+                const period = oneLine(v.period).slice(0, 20);
+                const weather = oneLine(v.weather).slice(0, 40);
+                if (!date && !period && !weather) continue;
+                this.headers.set(f, { date, period, weather, at: num(v.at) ?? 0 });
             }
         }
         const cap = data.capacity && typeof data.capacity === 'object' ? data.capacity : {};

@@ -1,3 +1,11 @@
+## v3.195.0
+**五条机制里属于本仓的三条：伏笔生命周期 / 召回只读边界 / 场景头**
+- 新增 `seed-ledger.js`。状态机 `open → advance/recover → recovered`，另有 `cancel`。未回收禁止删除（`open-locked`）；未回收上限 5 条，超额拒绝新埋，不丢旧条；`sweep(floor)` 只清 `recoveredFloor < floor` 的已回收条，本回合刚回收的留到下一回合。近场 `near` / 远场 `far` 分列。挂 `window.LonShaSeedLedger`，宿主 `recordSeedFact` 写入 `worldProg.seedLedger`，注入口 `wp_seed_ledger`。不替代 promises 与 commitmentLedger。
+- 召回只读边界落在 `injection-router.sealRecall`：旧记录不覆盖更新的事实（只标 `shadowed`）；召回条一律 `readonly`；没有 `maintain===true` 就不产生写回（`refusedWrite`）。
+- 场景头落在 `scene-book`：`setHeader(floor, {date, period, weather})` 只记本楼，三者皆空拒绝，不回退到别的楼，不从正文推断。随 export/import 往返，`clear()` 一并清掉。
+- 明确不缝：文风库、禁词、人称、NSFW 词库、预设长脚本。平行事件分层与好感/信任分列落在小手机 2.85.0。
+- 版本四源升 3.195.0。`tests/_audit_lib.mjs` 本版零改动。
+
 ## v3.194.0
 **长期记忆可信化：时间与事实版本 / 事件完整性 / 修复闭环**
 - 计划第三部分点名「最值得优先做」的三件事一次做完（原文：「它们决定长期记忆是否可信，也为后续能力提供基础」）。

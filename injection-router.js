@@ -114,6 +114,51 @@
         return budget;
     }
 
+    /**
+     * 召回只读边界 [v3.195]。
+     * 召回文本是「已经发生过的记录」，不是本轮正在发生的事，也不是本轮指令。
+     * 三条硬边界，缺一就不是边界：
+     *   1) recalled 不得覆盖 newer（更新的事实优先，旧记录只作背景）
+     *   2) 召回块一律标 readonly，调用方不得把它当成本轮动作
+     *   3) 没有显式维护指令（maintain=true）就不产生任何写回
+     * 不改写原文，只给每条加上来源标记与是否可写。
+     */
+    function sealRecall(recalled, newer, opts) {
+        const o = opts || {};
+        const oldList = Array.isArray(recalled) ? recalled : [];
+        const newList = Array.isArray(newer) ? newer : [];
+        const maintain = o.maintain === true;
+        const newerKeys = new Set(newList.map((item) => String(item && (item.key || item.id || item.text) || '')).filter(Boolean));
+        const sealed = [];
+        let shadowed = 0;
+        for (const item of oldList) {
+            const key = String(item && (item.key || item.id || item.text) || '');
+            const covered = key && newerKeys.has(key);
+            if (covered) shadowed++;
+            sealed.push({
+                text: String(item && (item.text || item.content) || ''),
+                key,
+                source: 'recalled',
+                readonly: true,
+                shadowed: covered,
+                writable: false
+            });
+        }
+        return {
+            sealed,
+            writable: maintain ? newList.map((item) => ({
+                text: String(item && (item.text || item.content) || ''),
+                key: String(item && (item.key || item.id) || ''),
+                source: 'current',
+                readonly: false,
+                writable: true
+            })) : [],
+            maintain,
+            shadowed,
+            refusedWrite: !maintain && oldList.length > 0
+        };
+    }
+
     function trimToBudget(full, budget, blocks, strategy) {
         const len = String(full || '').length;
         if (len <= budget) return full;
@@ -149,6 +194,7 @@
         isResidentBlock,
         deriveBudget,
         trimToBudget,
+        sealRecall,
     };
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.194.0';
+    const VERSION = '3.195.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3247,6 +3247,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         // 即时推进检查：不等到下一次生成才刷新 imminent/overdue 与支线沉降。
                         this.worldProg.checkPromises(wpFloor);
                         this.worldProg.decayArcs(wpFloor, 15);
+                        // [v3.195] 已回收伏笔只留到下一回合。sweep 清 recoveredFloor < 本楼 的条。
+                        //   本回合刚回收的留下；没有账本时 recordSeedFact 自己返回 null。
+                        try { this.recordSeedFact({ action: 'sweep', floor: wpFloor }); }
+                        catch (e) { errLog(e, 'onMessageReceived.伏笔清扫'); }
                         if (promiseCount || arcCount || knowledgeCount || resolvedCount) {
                             this.opLog?.log('worldprogress', 'update', promiseCount + ' promises/' + arcCount + ' arcs/' + knowledgeCount + ' knowledge/' + resolvedCount + ' resolved', wpFloor, '');
                             if (this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] 🌐 世界推进接线: 承诺' + promiseCount + '·支线' + arcCount + '·认知' + knowledgeCount + '·了结' + resolvedCount);
@@ -3258,6 +3262,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (this.config.config.sceneEnabled && extracted) {
                     try {
                         const scN = this.scene.apply(extracted.scenes, message.index || 0);
+                        // [v3.195] 场景头只吃提取明确给出的日期 / 时段 / 天气。三者皆空 setHeader 自己拒绝。
+                        //   不从正文推断，不回退到上一楼。story_date 是已有字段，不是新造的抽取口。
+                        try {
+                            const _hdr = {
+                                date: extracted.story_date || extracted.scene_date || '',
+                                period: extracted.period || extracted.time_of_day || '',
+                                weather: extracted.weather || ''
+                            };
+                            if (this.scene.setHeader) this.scene.setHeader(message.index || 0, _hdr);
+                        } catch (e) { errLog(e, 'onMessageReceived.场景头'); }
                         if (extracted.location) {
                             const _moved = this.scene.setLocation(message.index || 0, extracted.location);
                             // [v3.181] SG：位置一变，把**本轮在场角色**写进在场索引（谁在何处）。
@@ -7084,6 +7098,21 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             return out;
         }
+        recordSeedFact(input = {}) {
+            const api = (typeof window !== 'undefined' && window.LonShaSeedLedger) || null;
+            if (!api || !this.worldProg) return null;
+            const action = String(input.action || 'plant');
+            const current = this.worldProg.seedLedger;
+            const call = action === 'advance' ? api.advance
+                : action === 'recover' ? api.recover
+                : action === 'cancel' ? api.cancel
+                : action === 'sweep' ? api.sweep
+                : action === 'remove' ? api.remove
+                : api.plant;
+            const out = action === 'sweep' ? call(current, input.floor) : call(current, input);
+            if (out && out.ok && out.changed) this.worldProg.seedLedger = out.state;
+            return out;
+        }
         readWorldLedger(opts = {}) {
             try {
                 if (!this.clock || typeof this.clock.readWorldLedger !== 'function') return null;
@@ -7574,6 +7603,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                             blocks.push(`- ${line}`);
                         }
                     }
+                    // [v3.195] 场景头只读本楼。没有就不出行，不回退到别的楼。
+                    const _hdrFloor = (typeof window !== 'undefined' ? window.SillyTavern?.getContext?.()?.chat?.length : 0) || 0;
+                    const _hdr = _hdrFloor > 0 && this.scene.headerLine ? this.scene.headerLine(_hdrFloor - 1) : '';
+                    if (_hdr) blocks.push(_hdr);
                 } catch (e) { errLog(e, 'buildInjection.场景链'); }
             }
             if (scenesList.length) {
@@ -7656,6 +7689,21 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             const _preTrimLen = full.length;   // [v3.144] CP: 预算实测基线（裁剪前字符数）
             const keepCount = this.config.config.budgetStrategy || 'balanced';
+            // [v3.195] 召回只读边界。recalled 是已经发生过的记录，不是本轮指令。
+            //   没有显式维护指令就不产生写回；与更新事实同键的旧记录只标 shadowed，不覆盖。
+            //   这里只记账，不改 full 的正文——边界是「不得当成本轮动作」，不是再改一遍已拼好的块。
+            try {
+                if (_ir && typeof _ir.sealRecall === 'function') {
+                    const _sealed = _ir.sealRecall(recalled, [], {});
+                    this._lastRecallSeal = {
+                        recalled: Array.isArray(recalled) ? recalled.length : 0,
+                        shadowed: _sealed.shadowed || 0,
+                        writable: Array.isArray(_sealed.writable) ? _sealed.writable.length : 0,
+                        refusedWrite: _sealed.refusedWrite === true,
+                        ts: Date.now()
+                    };
+                }
+            } catch (e) { errLog(e, 'buildInjection.召回只读边界'); }
             if (full.length > budget) {
                 if (_ir) {
                     // [v3.114] 裁剪决策走可测纯函数（与内联实现等价；recallTierEnabled 关闭时 blocks 全为触发区）
@@ -11050,6 +11098,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             // [v3.41] 吸收 Stitches: 约定账本 (Promises Ledger)
             this.promises = []; // [{ id, character, deadlineFloor, content, status: 'pending'|'imminent'|'overdue'|'fulfilled'|'broken', floor }]
             this.commitmentLedger = null; // [v3.187] 约定变更/撤销/截止历史，不替代 promises
+            this.seedLedger = null; // [v3.195] 伏笔生命周期，不替代 promises / commitmentLedger
             // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
             this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
             // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
@@ -11342,6 +11391,15 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     source: 'worldprogress+commitment-ledger'
                 });
             }
+            const seedApi = (typeof window !== 'undefined' && window.LonShaSeedLedger) || null;
+            const seedText = seedApi?.render?.(this.seedLedger, 5) || '';
+            if (seedText) {
+                results.push({
+                    id: 'wp_seed_ledger',
+                    text: seedText,
+                    source: 'worldprogress+seed-ledger'
+                });
+            }
 
             // 2. 活跃剧情支线注入
             const activeArcs = (this.plotArcs || []).filter(a => a.status === 'active');
@@ -11371,6 +11429,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 pending: this.pending,
                 promises: this.promises || [],
                 commitmentLedger: this.commitmentLedger || null,
+                seedLedger: this.seedLedger || null,
                 knowledge: this.knowledge || {},
                 plotArcs: this.plotArcs || []
             };
@@ -11381,6 +11440,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 this.pending = !!data.pending;
                 this.promises = Array.isArray(data.promises) ? data.promises : [];
                 this.commitmentLedger = data.commitmentLedger || null;
+                this.seedLedger = data.seedLedger || null;
                 this.knowledge = (typeof data.knowledge === 'object' && data.knowledge) ? data.knowledge : {};
                 this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
             }
