@@ -142,13 +142,24 @@
     }
 
     // 反向召回：分离「被提权」与「真进了注入」。
-    // 提权按摘要 key，注入块按渲染文本，两者无一一映射，故按「注入文本是否含该 key」
-    // 估算，并显式标注 estimated —— 估算就写估算，不冒充实测。
+    // [v3.200.0] 探针实证：promoted 的 key 是摘要图键（sum_<floor>），注入文本只渲染
+    //   摘要正文（`- ${text}`），不含图键。旧实现用 injected.includes(key) 匹配，
+    //   对摘要条目恒为假 —— 提权 2 条、1 条真进注入，账本报 0/2、rankOnlyGap=2。
+    //   修法：调用侧带上「注入里真会出现的片段」（snippet），账本按片段匹配；
+    //   一个片段都没有时记 measurable=false，不再把 0 写成「一条都没进」。
     const eo = o.emotionOpposite || {};
     const promoted = (o.promoted && typeof o.promoted === 'object') ? o.promoted : {};
     const promotedKeys = Object.keys(promoted);
-    let injectedEstimate = 0;
-    if (injected.length > 0) for (const k of promotedKeys) if (k && injected.includes(k)) injectedEstimate++;
+    const snippets = (o.promotedSnippets && typeof o.promotedSnippets === 'object') ? o.promotedSnippets : {};
+    let injectedEstimate = 0, snippetCount = 0, matchedBySnippet = false;
+    if (injected.length > 0) {
+      for (const k of promotedKeys) {
+        const snip = String(snippets[k] || '').trim();
+        if (snip && snip.length >= 4) { snippetCount++; if (injected.includes(snip)) { injectedEstimate++; matchedBySnippet = true; } }
+        else if (k && injected.includes(k)) injectedEstimate++;
+      }
+    }
+    const measurable = snippetCount > 0 || injectedEstimate > 0;
     const oppTagged = tagged.filter((x) => x.tag === 'opposite');
     const opposite = {
       reason: eo.reason || null,
@@ -161,12 +172,15 @@
       costForm: 'rank-only',
       promotedCount: promotedKeys.length,
       hits: Number(eo.hits) || 0,
+      // [v3.200.0] 片段匹配：measurable=false 时 injectedEstimate/rankOnlyGap 为 null（不可测），
+      //   不再把「匹配不到」写成「一条都没进注入」。
+      measurable: measurable,
+      injectedEstimate: measurable ? injectedEstimate : null,
+      rankOnlyGap: measurable ? Math.max(0, promotedKeys.length - injectedEstimate) : null,
       expanded: Number(eo.expanded) || 0,
       merged: Number(eo.merged) || 0,
       credibleWords: Number(eo.credibleWords) || 0,
       dimHits: (eo.dimHits && typeof eo.dimHits === 'object') ? eo.dimHits : {},
-      injectedEstimate,
-      rankOnlyGap: Math.max(0, promotedKeys.length - injectedEstimate),
       estimated: true,
     };
 
@@ -227,7 +241,7 @@
       const parts = [
         `常驻 ${g('resident')}`,
         `触发 ${g('direct')}`,
-        `反向 ${o.injectedEstimate || 0}/${o.promotedCount || 0} 条`,
+        `反向 ${o.measurable === false ? '不可测' : ((o.injectedEstimate || 0) + '/' + (o.promotedCount || 0) + ' 条')}`,
         `合计 ${ledger.totals.injectedChars} 字符`,
       ];
       if (g('other')) parts.push(`未归类 ${g('other')}`);

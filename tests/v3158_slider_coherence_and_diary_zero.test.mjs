@@ -195,7 +195,7 @@ test('[3b] the three legacy files still check a version string', () => {
     // [v3.159] 已交新版接管：不再锁定到本版字符串，改为不变量——「仍在核对某个版本串」。
     for (const f of ['v3117_diagnostics', 'v3130_control_plane', 'v3147_cooldown_and_dual_hash']) {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
-        assert.ok(/['"]3\.1[0-9][0-9]\.0['"]|const VERSION = '3\.1[0-9][0-9]\.0'/.test(t), f + ' still anchors a version string');
+        assert.ok(/['"]3\.[12][0-9][0-9]\.0['"]|const VERSION = '3\.[12][0-9][0-9]\.0'/.test(t), f + ' still anchors a version string');
     }
 });
 

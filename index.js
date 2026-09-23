@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.199.0';
+    const VERSION = '3.200.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -6502,6 +6502,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                             }))
                             .filter(_d => _d.key && _d.text);
                         const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });
+                        // [v3.200.0] 成本账本要回答「提权的那条进没进注入」。
+                        //   promoted 的 key 是图键（sum_<floor>），注入文本只渲染摘要正文，
+                        //   图键永不出现。这里把每条被提权摘要的正文片段带给账本，按片段匹配。
+                        const _emoSnippets = {};
+                        for (const _d of _emoDocs) if (_er.matched && _er.matched[_d.key]) {
+                            const _snip = String(_d.text || '').trim().slice(0, 24);
+                            if (_snip.length >= 4) _emoSnippets[_d.key] = _snip;
+                        }
+                        this._emoOppositeSnippets = _emoSnippets;
                         this._emoOppositeRead = {
                             reason: _er.reason, dominant: _er.dominant,
                             hits: (_er.opposite || []).length, scanned: _er.scanned,
@@ -7823,6 +7832,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         residentMarkers: RESIDENT_MARKERS,   // 常驻口径的单一真源在本文件，不另立一套
                         emotionOpposite: this._emoOppositeRead,
                         promoted: this._emoOppositeMatched,
+                        promotedSnippets: this._emoOppositeSnippets || {},
                         recallSources: (this._recallAudit && this._recallAudit.length
                             ? (this._recallAudit[this._recallAudit.length - 1].perSource || {}) : {}),
                         enabledSources: {

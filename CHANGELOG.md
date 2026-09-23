@@ -1,3 +1,28 @@
+## v3.200.0
+**成本账本反向召回读数：从「恒 0 假读数」改为「片段匹配 + 不可测分态」**
+- 背景（v3.193.0 交接的 `_emoOppositeMatched` 三态语义继续兑现）：成本账本靠
+  `injectedText.includes(promotedKey)` 判断「提权的摘要进没进注入」。
+  但 promoted 的 key 是摘要图键（`sum_<floor>`），注入文本只渲染摘要正文
+  （`- ${text}`），图键永不出现——对摘要条目这个判断**恒为假**。
+- **探针实证**：提权 2 条、其中 1 条真进了注入，账本报 `injectedEstimate=0`、
+  `rankOnlyGap=2`、诊断行「反向 0/2 条」。不报错、不崩溃、只给错读数
+  （本仓最贵的形态），而「被挤掉几条」的取舍依据就建立在这个假 0 上。
+- **修法**：
+  · 调用侧（`recallMemory`）把每条被提权摘要的正文片段（≥4 字，防短词误匹配）
+    带给账本（`promotedSnippets`）；
+  · 账本按片段匹配，匹配到才计 `injectedEstimate`；
+  · 一个可用片段都没有（或未提供）时记 `measurable=false`，
+    `injectedEstimate` / `rankOnlyGap` 为 `null`，诊断行写「反向 不可测」，
+    不再把「匹配不到」写成「一条都没进」——与「不可测的量写不可测，不编 0」
+    （v3.193 12）同一纪律；
+  · `promotedCount` 与 `hits` 仍如实记录（提权发生是事实，进没进注入是另一件事）。
+- **测试**：新增 `tests/v3200_cost_ledger_snippet_match.test.mjs`（8 项）：
+  无片段⇒不可测（诊断行不得再写 0/2）/ 片段命中⇒真读数 1/2 / 片段都没进⇒真 0 / 
+  空注入⇒不可测 / 短片段⇒不算可测依据 / 接线三处 / 负控制（抽掉片段匹配分支
+  →「有片段却测不出」判据转红）/ 版本锚点。
+- 版本收口：四源升 3.200.0（index.js / manifest / package / CHANGELOG）；
+  上一版精确等值锚点与 `vnum()` 下界整体抬到 3.200.0（tests 内 8 文件）。
+- 唯一真源 `tests/_audit_lib.mjs` 本版**零改动**。
 ## v3.199.0
 **R2 行为判据从「只测 drop 面」扩到「drop + shift 两面」：handover 的 callReachable 以行为式落地**
 - 背景：v3.198.0 把 R2 从形态判据升级为行为判据，但只走了 `rollbackFloor`（drop 面）。

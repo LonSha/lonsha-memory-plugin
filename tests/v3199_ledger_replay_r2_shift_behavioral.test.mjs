@@ -36,9 +36,9 @@ test('v3199【0】版本 / manifest / package ≥ 3.199.0', () => {
   const pkg = JSON.parse(read('package.json'));
   const manifest = JSON.parse(read('manifest.json'));
   const v = /const VERSION = '([^']+)'/.exec(IDX)[1];
-  assert.ok(vnum(v) >= vnum('3.199.0'), `index.js 版本 ${v} < 3.199.0`);
-  assert.ok(vnum(manifest.version) >= vnum('3.199.0'), `manifest ${manifest.version} < 3.199.0`);
-  assert.ok(vnum(pkg.version) >= vnum('3.199.0'), `package ${pkg.version} < 3.199.0`);
+  assert.ok(vnum(v) >= vnum('3.200.0'), `index.js 版本 ${v} < 3.199.0`);
+  assert.ok(vnum(manifest.version) >= vnum('3.200.0'), `manifest ${manifest.version} < 3.199.0`);
+  assert.ok(vnum(pkg.version) >= vnum('3.200.0'), `package ${pkg.version} < 3.199.0`);
 });
 /* 【1】源码面：两面行为判据接线 */
 test('v3199【1】R2b 行为判据已扩展到 shift 面（assertReplaySide 两面共用）', () => {
