@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.193.0';
+    const VERSION = '3.194.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -108,6 +108,9 @@
     'lockedFacts',
     'recallSourceStats',
     'lexicon',
+    'factVersions',      // [v3.194] 时间与事实版本
+    'eventThreads',      // [v3.194] 事件完整性
+    'repairLog',         // [v3.194] 修复闭环
     'timelineCursorChatId',
     'timelineCursorFingerprint',
     'timeWentBack',
@@ -130,6 +133,7 @@
         'graph', 'povs', 'diary', 'reflection', 'itemOps', 'scene', 'vectors',
         'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'cse', 'pulse',
         'opLog', 'outline', 'pairMem', 'ageAnchors', 'scenePresence',
+        'factVersions', 'eventThreads',
     ]);
     // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
     // 存在理由：v3.138 的 _dataVersion 用 Number() 比较插件版本字符串恒得 NaN→0（判旧恒假），
@@ -3390,6 +3394,22 @@ function relativeTimeLabel(eventTime, nowTime) {
                         if (n) this.opLog?.log('conflict', 'add', `${n} conflicts`, floor, '');
                     } catch (e) { errLog(e, 'onMessageReceived.矛盾账本'); }
                 }
+                // [v3.194] 时间与事实版本 / 事件完整性落笔（**独立于矛盾账**）。
+                //   为什么必须独立：挂在矛盾账条件里会让「本楼的事实与事件段是否入账」取决于
+                //   「本楼恰好提取出了矛盾」——没有矛盾的楼层全部不入账且零报错，查询
+                //   「现在去哪里找她」只命中恰好有矛盾的那几楼（静默丢账，读数上也看不出来）。
+                //   两面各自独立 try：一面坏不连坐另一面。
+                try {
+                    const sd = this.getLatestStoryDate();
+                    try {
+                        const _fvn = this._absorbFactVersions(extracted, floor, sd);
+                        if (_fvn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 📌 事实版本 +${_fvn}`);
+                    } catch (e) { errLog(e, 'extraction.v3194.factVersions'); }
+                    try {
+                        const _ecn = this._absorbEventSegments(extracted, floor, sd);
+                        if (_ecn && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧵 事件段 +${_ecn}`);
+                    } catch (e) { errLog(e, 'extraction.v3194.eventThreads'); }
+                } catch (e) { errLog(e, 'extraction.v3194'); }
                 // [v3.94] CSE 级人物状态引擎（自研融合增强：分层+toward+visibility+证据链+置信度）
                 if (this.config.config.cseEnabled !== false && Array.isArray(extracted?.cse_states) && extracted.cse_states.length) {
                     try {
@@ -7991,6 +8011,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     //   新对话里主角还没动过，「谁在哪」只能靠上一段接过来）。
                     scenePresence: (this.scene && typeof this.scene.export === 'function')
                         ? (this.scene.export().presence || []) : [],
+                    // [v3.194] 事实版本与事件线是**剧情事实**，不是缓存——新对话要接着用。
+                    factVersions: this._factVersionState || null,
+                    eventThreads: this._eventThreadState || null,
                     counts: {
                         summaries: active.length, suspense: this.suspense.items.filter(x => x.status === 'open').length,
                         graphNodes: this.graph.nodes.size, diaries: Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0),
@@ -8096,6 +8119,12 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 } catch (e) { errLog(e, 'applyCarryover.itemOps'); }
 
                 try { if (pack.scene && this.scene?.import) this.scene.import(pack.scene); } catch (e) { errLog(e, 'applyCarryover.scene'); }
+                try {
+                    const _fv = _factVersionLib();
+                    if (pack.factVersions && _fv?.normalize) this._factVersionState = _fv.normalize(pack.factVersions);
+                    const _ec = _eventCompletenessLib();
+                    if (pack.eventThreads && _ec?.normalize) this._eventThreadState = _ec.normalize(pack.eventThreads);
+                } catch (e) { errLog(e, 'applyCarryover.v3.194'); }
                 try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
                     { const _docs = this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})); const _fp = _docs.map(d => d.id + ':' + hash32(d.text)).join('|'); if (_fp !== this.bm25._corpusFp) { this.bm25.rebuild(_docs); this.bm25._corpusFp = _fp; } }
@@ -8596,6 +8625,39 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['注入成本', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.costLedger'); return ['注入成本', '—（诊断异常）']; }
                     })(),
+                    // [v3.194] 时间与事实版本：回答「同一格事实账上有几个版本、多少已闭合、多少只是推测」。
+                    //   三态可分：模块未加载 / 尚无事实 / 有账（含未决冲突 ⚠️）。
+                    (() => {
+                        try {
+                            const FV = _factVersionLib();
+                            if (!FV || typeof FV.line !== 'function') return ['事实版本', '模块未加载（fact-version.js）'];
+                            if (!this._factVersionState) return ['事实版本', '待本轮（尚无事实账）'];
+                            return ['事实版本', FV.line(this._factVersionState)];
+                        } catch (e) { errLog(e, 'selfCheck.factVersion'); return ['事实版本', '—（诊断异常）'];
+                        }
+                    })(),
+                    // [v3.194] 事件完整性：回答「有几条线，几条还缺结果/后续」。
+                    //   未完成事项是**交付物**不是缺陷，故 'open' 不亮 ⚠️；越序（result 早于 action）才亮。
+                    (() => {
+                        try {
+                            const EC = _eventCompletenessLib();
+                            if (!EC || typeof EC.line !== 'function') return ['事件完整', '模块未加载（event-completeness.js）'];
+                            if (!this._eventThreadState) return ['事件完整', '待本轮（尚无事件线）'];
+                            return ['事件完整', EC.line(this._eventThreadState)];
+                        } catch (e) { errLog(e, 'selfCheck.eventCompleteness'); return ['事件完整', '—（诊断异常）'];
+                        }
+                    })(),
+                    // [v3.194] 修复闭环：回答「修过几次、几次还没落定」。
+                    //   「修了但有一处没跟上」必须看得见（line 里未落定/部分完成自带 ⚠️）。
+                    (() => {
+                        try {
+                            const RL = _repairLoopLib();
+                            if (!RL || typeof RL.line !== 'function') return ['记忆修复', '模块未加载（repair-loop.js）'];
+                            if (!this._repairState) return ['记忆修复', '待本轮（尚无修复记录）'];
+                            return ['记忆修复', RL.line(this._repairState)];
+                        } catch (e) { errLog(e, 'selfCheck.repairLoop'); return ['记忆修复', '—（诊断异常）'];
+                        }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -9015,6 +9077,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 lockedFacts: this.summary.getLockedFacts?.() || [],   // [v3.130] CP
                 recallSourceStats: this._recallSourceStats || null,   // [v3.130] CP
                 lexicon: this.lexicon.export(),   // [v3.152] 术语词典随聊天持久化
+                factVersions: this._factVersionState || null,   // [v3.194] 时间与事实版本账
+                eventThreads: this._eventThreadState || null,   // [v3.194] 事件线账（含未完成事项）
+                repairLog: this._repairState || null,           // [v3.194] 修复闭环台账
                 // [v3.130] CP: 游标身份（chatId/指纹）随存档走——CHANGED 自愈重置后，同楼层重入也能判定"同楼重放"而非误初始化
                 timelineCursorChatId: this._timelineCursorChatId,
                 timelineCursorFingerprint: this._timelineCursorFingerprint,
@@ -9123,6 +9188,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             _imp('lockedFacts', Array.isArray(data.lockedFacts), () => { engine.summary.lockedFacts = data.lockedFacts.slice(); });
             _imp('recallSourceStats', typeof data.recallSourceStats === 'object', () => { engine._recallSourceStats = data.recallSourceStats; });
             _imp('lexicon', !!engine.lexicon, () => { engine.lexicon.import?.(data.lexicon); engine._invalidateBm25Corpus?.(); });
+            // [v3.194] 三面新账：各自独立捕获（单面坏不连坐其余两面）
+            _imp('factVersions', data.factVersions != null, () => { engine._factVersionState = _factVersionLib()?.normalize?.(data.factVersions) || null; });
+            _imp('eventThreads', data.eventThreads != null, () => { engine._eventThreadState = _eventCompletenessLib()?.normalize?.(data.eventThreads) || null; });
+            _imp('repairLog', data.repairLog != null, () => { engine._repairState = _repairLoopLib()?.normalize?.(data.repairLog) || null; });
             _imp('timeWentBack', typeof data.timeWentBack === 'object', () => { engine._timeWentBack = { ...data.timeWentBack }; });
             // 地面真源：只回填不回退（本地更新者保持自己的计数）
             _imp('lastSave', data.lastSave && typeof data.lastSave === 'object' && Number(data.lastSave.ts) > Number((engine._lastSaveGroundTruth || {}).ts || 0), () => {
@@ -9223,6 +9292,154 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 rows.push({ source: n, attempted: attempts[n] || 0, persisted: sources[n] || 0, denied: denied[n] || 0 });
             }
             return { lastFloor: g.floor, lastAt: g.ts, lastDenied: g.lastDenied || null, rows };
+        }
+        // [v3.194] 事实版本落笔：把本楼抽出的**带时间的事实**写进区间账。
+        //   输入吃两种形状（提取 schema 的既有字段，不新造抽取字段）：
+        //     ① extracted.facts[]：{subject, predicate, value, origin, from, to}
+        //     ② extracted.location / geo_location：主人物的「所在」事实（谓词='所在'）
+        //   来源默认 stated（正文陈述），除非显式标注 inferred —— 计划点名「模型推测的住址
+        //   必须与正文明确确认的住址分开」，故 origin 一路带到账上、由信任门槛区分。
+        //   from 缺省取本楼：楼层就是本仓的时间轴单位。同值同区间重复到达走幂等（不重复入账）。
+        _absorbFactVersions(extracted, floor, storyTime) {
+            try {
+                const FV = _factVersionLib();
+                if (!FV || typeof FV.assertFact !== 'function') return 0;
+                let st = this._factVersionState ? FV.normalize(this._factVersionState) : { version: 1, seq: 0, facts: [] };
+                let n = 0;
+                const push = (subject, predicate, value, origin) => {
+                    if (!subject || !predicate || !value) return;
+                    const r = FV.assertFact(st, {
+                        subject: subject, predicate: predicate, value: value,
+                        origin: origin || 'stated', from: floor, floor: floor,
+                        source: 'extract', evidence: storyTime || '', at: Date.now(),
+                    });
+                    st = r.state;
+                    if (r.changed) n++;
+                };
+                for (const f of (Array.isArray(extracted?.facts) ? extracted.facts : [])) {
+                    if (!f) continue;
+                    push(f.subject || f.character, f.predicate || f.field || f.kind, f.value || f.text, f.origin);
+                }
+                // 地点：主人物的「所在」——这是计划里「现在去哪里找她」那条查询的原料。
+                //   主语来源三级回退：protagonist.name（本仓 protagonist 无此字段，留作前向兼容）
+                //   → ctx.name1（SillyTavern 用户侧主名）→ extracted.characters[0]。
+                const geo = extracted?.location || extracted?.geo_location || extracted?.location_context;
+                const geoText = Array.isArray(geo) ? geo.filter(Boolean).join('/') : String(geo == null ? '' : geo).trim();
+                if (geoText) {
+                    let who = String(this.protagonist?.name || '').trim();
+                    if (!who) { try { who = String(window.SillyTavern?.getContext?.()?.name1 || '').trim(); } catch (e) { who = ''; } }
+                    if (!who) who = String((Array.isArray(extracted?.characters) ? extracted.characters[0] : '') || '').trim();
+                    if (who) push(who, '所在', geoText, extracted?.location_origin);
+                }
+                this._factVersionState = st;
+                return n;
+            } catch (e) { errLog(e, 'engine._absorbFactVersions'); return 0; }
+        }
+        // [v3.194] 事件段落笔：把本楼的**事件段**接到对应事件线上。
+        //   输入吃 extracted.events[]（既有字段，不新造）：{type, description, scope, owner, importance}。
+        //   role 由事件类型映射（ROLE_OF 表，未知类型落 action 而不是丢掉——丢了就等于
+        //   把「提取给了东西」变成「账上什么都没有」，这是本项目反复治理的静默降级）。
+        //   未完成事项由 event-completeness 的 outstanding() 现算，不在这里另存一份状态。
+        _absorbEventSegments(extracted, floor, storyTime) {
+            try {
+                const EC = _eventCompletenessLib();
+                if (!EC || typeof EC.addSegment !== 'function') return 0;
+                const list = Array.isArray(extracted?.events) ? extracted.events : [];
+                if (!list.length) return 0;
+                let st = this._eventThreadState ? EC.normalize(this._eventThreadState) : { version: 1, seq: 0, events: [] };
+                let n = 0;
+                const ROLE_OF = {
+                    cause: 'cause', reason: 'cause', trigger: 'cause', premise: 'cause',
+                    action: 'action', act: 'action', decision: 'action', attempt: 'action', conflict: 'action',
+                    result: 'result', outcome: 'result', discovery: 'result', reveal: 'result', consequence: 'result',
+                    followup: 'followup', aftermath: 'followup', plan: 'followup', promise: 'followup',
+                };
+                for (const ev of list) {
+                    if (!ev) continue;
+                    const body = String(ev.description || ev.text || ev.content || '').trim();
+                    if (!body) continue;
+                    const role = ROLE_OF[String(ev.type || '').toLowerCase()] || 'action';
+                    const owner = String(ev.owner || (Array.isArray(extracted?.characters) ? extracted.characters[0] : '') || '').trim();
+                    // 事件线标题：优先提取给出的命名，否则用「参与者 + 首段正文」兜底——
+                    //   兜底标题**不假装**是正文里的事件名（带 ⚠ 前缀便于人工辨认与后续改名）。
+                    const title = String(ev.title || ev.name || '').trim() || ('⚠' + (owner || '未署名') + '·' + body.slice(0, 12));
+                    const r = EC.addSegment(st, {
+                        title: title, role: role, text: body, floor: floor,
+                        source: 'extract', origin: 'stated', actors: owner ? [owner] : [],
+                        eventKey: 'f' + floor + ':' + role + ':' + body.slice(0, 24),
+                        at: Date.now(),
+                    });
+                    st = r.state;
+                    if (r.changed) n++;
+                }
+                this._eventThreadState = st;
+                return n;
+            } catch (e) { errLog(e, 'engine._absorbEventSegments'); return 0; }
+        }
+        /**
+         * [v3.194] 记忆修复入口（公开面：修复闭环的宿主持有者）。
+         *   action: 'retarget'（纠正归属）/ 'split'（拆分误合并）/ 'revoke'（撤销错误事实）
+         *   流程：算受影响派生件 → 落台账 → 调用方逐项 settle → 全部落定才算修完。
+         * 返回 { ok, repair, affected, total } 或 { ok:false, reason }（不抛）。
+         *   刻意不在本方法内**自动改**派生件：改哪一处是产品决定，自动改会累积幻觉删改。
+         */
+        requestRepair(input) {
+            try {
+                const RL = _repairLoopLib();
+                if (!RL || typeof RL.request !== 'function') return { ok: false, reason: 'module-unavailable' };
+                const st = this._repairState ? RL.normalize(this._repairState) : { version: 1, seq: 0, repairs: [] };
+                // 派生件池从当前运行时现收（**不另存副本**：另存就是第二份真源）。
+                //   六个池各自独立 try —— 任一池缺席不影响其余池参与判定。
+                let summaries = [];
+                try { summaries = (this.summary?.getActiveSummaries?.() || []).map(s => ({ key: 'sum_' + s.floor, text: s.text, floor: s.floor })); } catch (e) { /* 池可缺 */ }
+                let events = [];
+                try { events = (this._eventThreadState?.events || []).map(e => ({ key: e.id, title: e.title })); } catch (e) { /* 池可缺 */ }
+                let relations = [];
+                try { relations = [...(this.graph?.edges?.values?.() || [])].slice(0, 200).map(e => ({ key: e.from + '->' + e.to, text: e.label || '' })); } catch (e) { /* 池可缺 */ }
+                let promises = [];
+                try {
+                    const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+                    promises = (CL?.list?.(this.worldProg?.commitmentLedger, {}) || []).map(c => ({ key: c.id, content: c.content }));
+                } catch (e) { /* 池可缺 */ }
+                const facts = ((this._factVersionState?.facts) || []).map(f => ({ key: f.id, text: f.subject + f.predicate + f.value }));
+                let timeline = [];
+                try { timeline = (this.timeline?.entries || []).slice(-100).map(t => ({ key: t.id || ('tl_' + t.floor), text: t.text })); } catch (e) { /* 池可缺 */ }
+                const pool = { summaries: summaries, events: events, relations: relations, promises: promises, facts: facts, timeline: timeline };
+                const r = RL.request(st, Object.assign({}, input, { pool: pool }));
+                if (!r.ok) return { ok: false, reason: r.reason };
+                this._repairState = r.state;
+                this._lastRepair = { at: Date.now(), action: r.repair.action, total: r.total, id: r.repair.id };
+                if (r.total && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 修复请求 ${r.repair.id}（${r.repair.action}）：受影响派生件 ${r.total} 项待落定`);
+                return { ok: true, repair: r.repair, affected: r.affected, total: r.total };
+            } catch (e) { errLog(e, 'engine.requestRepair'); return { ok: false, reason: 'thrown' }; }
+        }
+        /** [v3.194] 落定一条派生件的修复（宿主逐项回报 done/failed/missing）。不抛。 */
+        settleRepair(input) {
+            try {
+                const RL = _repairLoopLib();
+                if (!RL || typeof RL.settle !== 'function') return { ok: false, reason: 'module-unavailable' };
+                const st = this._repairState ? RL.normalize(this._repairState) : { version: 1, seq: 0, repairs: [] };
+                const r = RL.settle(st, input);
+                if (!r.ok) return { ok: false, reason: r.reason };
+                this._repairState = r.state;
+                return { ok: true, repair: r.repair, item: r.item, pending: r.pending, failed: r.failed, settled: r.settled };
+            } catch (e) { errLog(e, 'engine.settleRepair'); return { ok: false, reason: 'thrown' }; }
+        }
+        /** [v3.194] 当前未完成事项（事件线里缺结果/后续的）——计划点名「保留未完成事项」的读取面。不抛。 */
+        outstandingThreads(filter) {
+            try {
+                const EC = _eventCompletenessLib();
+                if (!EC || typeof EC.outstanding !== 'function' || !this._eventThreadState) return [];
+                return EC.outstanding(this._eventThreadState, filter);
+            } catch (e) { errLog(e, 'engine.outstandingThreads'); return []; }
+        }
+        /** [v3.194] 事实按时间点查询（「现在去哪里找她」/「回忆大学时生活」）。不抛。 */
+        lookupFact(ref) {
+            try {
+                const FV = _factVersionLib();
+                if (!FV || typeof FV.lookup !== 'function' || !this._factVersionState) return { ok: false, reason: 'module-unavailable' };
+                return FV.lookup(this._factVersionState, ref);
+            } catch (e) { errLog(e, 'engine.lookupFact'); return { ok: false, reason: 'thrown' }; }
         }
     }
     
@@ -9326,6 +9543,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   两个量级差十倍的来源混在一个数字里，调预算只能猜。
     function _costLedgerLib() {
         return _moduleLib(() => window.LonShaCostLedger, 'cost-ledger.js');
+    }
+    // [v3.194] 时间与事实版本（fact-version.js）。为什么需要：
+    //   本仓能记「事实」的四处（ConflictBook / DeltaBook / lockedFacts / age-anchor）
+    //   全都没有**有效区间**。于是「她以前住在北京，后来搬到上海」在账上只剩两条对立记录，
+    //   查询「现在去哪里找她」与「回忆大学时生活」拿到的是同一堆东西。
+    //   本模块给事实加 from/to 区间与五态来源，让「当时如此 / 现在如此 / 后来被推翻」可分。
+    function _factVersionLib() {
+        return _moduleLib(() => window.LonShaFactVersion, 'fact-version.js');
+    }
+    // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
+    //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的
+    //   起因—行动—结果—后续。缺结果或后续即「未完成事项」，必须能被单独列出来。
+    function _eventCompletenessLib() {
+        return _moduleLib(() => window.LonShaEventCompleteness, 'event-completeness.js');
+    }
+    // [v3.194] 修复闭环（repair-loop.js）。撤销一条错误事实后，从它派生的摘要/关系/
+    //   时间线还在引用旧值——本仓治理过多轮的「源头改了、下游没跟着改」。本模块把一次修复
+    //   变成一份**受影响的派生件清单**，逐项落定（done/failed/missing）才算修完。
+    function _repairLoopLib() {
+        return _moduleLib(() => window.LonShaRepairLoop, 'repair-loop.js');
     }
     function _newSceneBook(seed) {
         const SB = _sceneBookLib();

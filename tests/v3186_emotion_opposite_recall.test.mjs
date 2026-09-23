@@ -253,12 +253,12 @@ test('v3186 21. 版本三源同源，且不低于本版', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.equal(v, mf.version, 'manifest 必须跟随 index.js');
     assert.equal(v, pkg.version, 'package.json 必须跟随 index.js');
-    assert.ok(vnum(v) >= vnum('3.193.0'), '版本 ' + v + ' 须 >= 3.186.0');
+    assert.ok(vnum(v) >= vnum('3.194.0'), '版本 ' + v + ' 须 >= 3.186.0');
 });
 test('v3186 22. CHANGELOG 顶节为本版，且记录了本版的关键取舍现场', () => {
     const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
     assert.ok(top, 'CHANGELOG 必须有序节');
-    assert.ok(vnum(top.replace('v', '')) >= vnum('3.193.0'), '顶节 ' + top + ' 须 >= v3.186.0');
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.194.0'), '顶节 ' + top + ' 须 >= v3.186.0');
     assert.ok(/情绪反向/.test(changelog), '须记录情绪反向召回本体');
     assert.ok(/只取机制/.test(changelog), '须记录「只取机制、不取注入口径」这一取舍');
     assert.ok(/既有更强实现|更强/.test(changelog), '须记录「点选三项里两项本仓已有更强实现」这一据实修正');

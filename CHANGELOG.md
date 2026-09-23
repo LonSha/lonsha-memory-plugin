@@ -1,3 +1,15 @@
+## v3.194.0
+**长期记忆可信化：时间与事实版本 / 事件完整性 / 修复闭环**
+- 计划第三部分点名「最值得优先做」的三件事一次做完（原文：「它们决定长期记忆是否可信，也为后续能力提供基础」）。
+- 时间与事实版本（新增 `fact-version.js`）：给事实加 `from/to` **有效区间**与五态来源 `ORIGINS = [confirmed, stated, reported, inferred, system]`。此前本仓能记事实的四处（ConflictBook / DeltaBook / lockedFacts / age-anchor）全都没有区间，于是「她以前住在北京，后来搬到上海」在账上只剩两条对立记录。现在：同对未闭合且值不同、且两侧都有 `from` 而新 `from` 更大 ⇒ 判**时序推进**并自动闭合旧条；判不了先后 ⇒ 并存并标 `conflict`（`lookup` 给 `ambiguous`，**不随便挑一个当答案**）。计划的三句验收因此可断言：「大学时」⇒ 北京、「现在」⇒ 上海、两次查询结果不同。
+- 来源信任是**门槛**不是标签：`ORIGIN_TRUST` 严格递减、`DEFAULT_MIN_TRUST = reported`，`lookup` 默认把 `inferred/system` 挡在现状查询之外（`reason='none-trusted'`、`fact=null`、`excludedByTrust` 可读数）。计划点名「模型推测出的住址必须与正文明确确认的住址分开」——分开的机制是消费门槛，不是打个标记继续混用。
+- 事件完整性（新增 `event-completeness.js`）：把分散楼层组织为**起因—行动—结果—后续**四段，`outstanding()` 单列未完成事项。与既有 `event-chain.js` 同名不同物（后者管 agent run 生命周期 `run_started→run_completed`），注释里显式写明不能互相顶替。判定细则：只有起因 ⇒ `dangling`（**不算未完成事项**，还谈不上未完成）；有行动缺结果/后续 ⇒ `open`（进未完成名单）；两段齐 ⇒ `complete`。缺哪一段进 `missing` 显式列出，不沉默。空文本 ⇒ `rejected:empty-segment`（「来了但为空」要看得见，不是静默丢弃）。
+- 记忆修复闭环（新增 `repair-loop.js`）：一次修复 = 一份**受影响派生件清单**（`retarget/split/revoke` 三类动作扫的针各不相同：`retarget` 按旧主体名、`split/revoke` 按被撤销目标文本），逐项 `settle(done/failed/missing)` 全部落定才推 `applied`，有失败项推 `partial`——**修了一半不许报修好**。宿主侧 `requestRepair` 的派生件池从当前运行时**现收**（不另存副本：另存就是第二份真源），六个池各自独立 try，池可缺。
+- 落笔接线：`_absorbFactVersions` / `_absorbEventSegments` 吃提取 schema 的**既有字段**（`extracted.facts[]`、`extracted.events[]`、`extracted.location`），不新造抽取字段；未知事件类型落 `action` 而不是丢掉（丢了等于把「提取给了东西」变成「账上什么都没有」）；兜底标题带 `⚠` 前缀，**不假装**是正文里的事件名。三面账进 `ARCHIVE_TOP_LEVEL_KEYS` / `CARRYOVER_CONTRACT_KEYS`，`collectExport` 与 `restoreFromPayload` 三面各自独立登记（单面坏不连坐），诊断面各一行三态读数（模块未加载 / 待本轮 / 有账）。
+- **本版当场抓出并修掉三个真缺陷**：① 接线脚本锚点落在**模块作用域**的取库口上（`class MemoryEngine` 早在 9286 行闭合），把类方法语法插到那里必然语法错——实测 `node --check` 报 `Unexpected token '{'`，改用类体内锚点并加结构断言；② `event-completeness.js` 的 `addSegment`/`openEvent` 走 `result()` 默认 `changed:false`，宿主的 `if (r.changed) n++` 永远计 0（落笔量读数恒为 0 而账其实在涨）——与同族两模块口径对齐；③ 落笔调用误嵌在**矛盾账条件**里（`if (conflictBookEnabled !== false && extracted.conflicts.length)`），使「本楼事实/事件段是否入账」取决于「本楼恰好提取出矛盾」，没有矛盾的楼层全部不入账且零报错——搬到矛盾账块之外、两面各自独立捕获。三条都有回归性判据（含「落笔必须排在矛盾账块之外」的位置断言）。
+- 版本收口：四源升 3.194.0；上一版 **31 处带引号断言锚点**整体抬到 3.194.0（含 `vnum()` 下界断言与硬等号）；注释里的历史版本标记与 CHANGELOG 既存节标题原样保留（裸文本历史标记如词表基线的「v3.193.0 起」同属保留项）。
+- 唯一真源 `tests/_audit_lib.mjs` 本版**零改动**：md5 常量与指纹不变（`2d7413e5839f8fe3fbd62d1c5063cd2f`）。
+- 交接项不变：可达性判据 `callReachable` 仍待重新设计；`scan_v3182_ledger_replay.mjs` 的 R2 仍是形态判据；`_emoOppositeMatched` 三态语义交后续版本继续沿用。
 ## v3.193.0
 **召回质量与成本可证明：从「机制接上了」到「效果与代价都量得出来」**
 - 情绪计分正确性：词表命中改为**最长词优先 + 字符区间消费**。此前「暴怒」同时命中 `暴怒`(3) 与 `怒`(2) 记 5.0、「恼火至极」记 6.0——子串被重复计分，主导维会被长词里的短字抢走。现按 `EMO_WORD_INDEX` 长度降序扫描、命中即吃掉 `[i, i+len)` 区间，`暴怒` 稳定为 3.0，且每条命中带 `at` 位置（归因的唯一原料）。
