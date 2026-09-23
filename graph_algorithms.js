@@ -7,6 +7,11 @@
 
 (function (global) {
     'use strict';
+    // [v3.193.0] 幂等守卫：宿主重复加载 extra_js 时，二次执行会抛
+    //   SyntaxError: Identifier 'GraphDiffusion' has already been declared（整个文件失效）。
+    //   本文件其余部分已是 IIFE 形态，只缺这一层守卫。
+    if (global && global.__LonShaGraphDiffusionLoaded) return;
+    if (global) global.__LonShaGraphDiffusionLoaded = true;
 
 class GraphDiffusion {
     constructor(graph) {

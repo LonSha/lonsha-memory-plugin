@@ -100,21 +100,128 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n) || 0));
 /* ================================================================
  * 情感极性扫描器：对一段文本算六维情绪得分 → 综合极性 + 张力
  * ================================================================ */
-function scanEmotion(txt) {
-  txt = text(txt);
-  const scores = { joy: 0, sad: 0, fear: 0, anger: 0, warm: 0, tense: 0 };
-  const evidence = [];
-  if (!txt) return { scores, polarity: 0, tension: 0, dominant: null, evidence };
-  for (const dim of Object.keys(EMO_LEXICON)) {
-    for (const [word, w] of Object.entries(EMO_LEXICON[dim])) {
-      // 简单包含计数（词频累加），中文无分词依赖
-      let idx = 0, cnt = 0;
-      while ((idx = txt.indexOf(word, idx)) !== -1) { cnt++; idx += word.length; }
-      if (cnt) {
-        const capped = Math.min(cnt, 4);
-        scores[dim] += w * capped; // 单词最多计 4 次防爆
-        evidence.push({ dim, word, count: capped, weight: w });
+/* ── [v3.193.0] 情绪证据的「作用域」与可信度 ────────────────────────────
+ * 为什么需要：同一句话出现在不同位置，意义完全不同——
+ *   「她不难过」里的难过不是难过；「他曾经很怕」是回忆不是当下；
+ *   A 说「我恨他」不该让 B 的记忆被反向提权；用户引用一段文本更不该触发。
+ * 本层只做一件事：给每条命中标注它出现在什么位置，并给出可信度。
+ *   不重写引擎、不新建词表——词表仍是原来那一份。
+ *
+ * 引号配对只认成对的中文/全角引号：「」『』“”‘’。直角引号与英文引号不参与配对：
+ *   英文引号在正文里大量作撇号/所有格出现，误配对会把整段正文判成引用区间。
+ */
+const EMO_SCOPE_TRUST = { direct: 1, recalled: 0.3, other: 0.2, quoted: 0.2, system: 0, negated: 0 };
+// 反向召回只消费 >= 该阈值的证据。阈值 0.5 是刻意的：
+//   只有 direct（当前人物直接表达）够格。回忆(0.3)/他述(0.2)/引用(0.2) 都在线下——
+//   计划点名的失败模式正是「他曾经恐惧」被当成现在恐惧、「A 的悲伤影响 B」。
+const EMO_SCOPE_MIN_TRUST = 0.5;
+// 否定词：命中词前 2 字内含其一即不计分（「她不难过」「没在害怕」「不再孤独」）
+const EMO_NEGATION = ['不', '没', '别', '未', '无', '非', '莫', '甭', '勿'];
+// 时间/回忆标记与句末标点（用于文本级「回忆」识别）
+const EMO_RECALL_MARKERS = ['曾经', '当年', '那时', '那时候', '记得', '回忆起', '回想', '以前', '从前', '过去', '小时候', '想起'];
+const EMO_SENTENCE_END = ['。', '！', '？', '；', '\n'];
+function _isRecalled(txt, at) {
+  const from = Math.max(0, at - 12);
+  const win = txt.slice(from, at);
+  const cut = Math.max(...EMO_SENTENCE_END.map((c) => win.lastIndexOf(c)));
+  const seg = cut >= 0 ? win.slice(cut + 1) : win;
+  return EMO_RECALL_MARKERS.some((m) => seg.includes(m));
+}
+function _isNegated(txt, at) {
+  for (let k = Math.max(0, at - 2); k < at; k++) {
+    if (EMO_NEGATION.includes(txt[k])) return true;
+  }
+  return false;
+}
+const EMO_QUOTE_PAIRS = [['「', '」'], ['『', '』'], ['“', '”'], ['‘', '’']];
+
+function _quoteMask(txt) {
+  const n = txt.length;
+  const mask = new Uint8Array(n);
+  for (const [lo, hi] of EMO_QUOTE_PAIRS) {
+    let open = -1;
+    for (let i = 0; i < n; i++) {
+      const ch = txt[i];
+      if (ch === lo) { if (open < 0) open = i; }
+      else if (ch === hi) {
+        if (open >= 0) { for (let k = open; k <= i; k++) mask[k] = 1; open = -1; }
       }
+    }
+    // 未闭合的引号：不把整段尾部吞成引用（宁可不标，也不误杀正文）
+  }
+  return mask;
+}
+// 词表按长度降序：长词优先消费，短子串不再重复计分（v3.193.0 修）
+function _buildWordIndex() {
+  const out = [];
+  for (const dim of Object.keys(EMO_LEXICON)) {
+    for (const [word, w] of Object.entries(EMO_LEXICON[dim])) out.push({ dim, word, w, len: word.length });
+  }
+  out.sort((a, b) => b.len - a.len || a.word.localeCompare(b.word, 'zh'));
+  return out;
+}
+const EMO_WORD_INDEX = _buildWordIndex();
+
+function scanEmotion(txt, opts = {}) {
+  txt = text(txt);
+  opts = opts || {};
+  const scores = { joy: 0, sad: 0, fear: 0, anger: 0, warm: 0, tense: 0 };
+  const trustedScores = { joy: 0, sad: 0, fear: 0, anger: 0, warm: 0, tense: 0 };
+  const evidence = [];
+  const byScope = {};
+  const hits = [];   // 每命中一条：{ dim, word, at, scope, trusted }（位置是归因的唯一原料）
+  const empty = () => ({
+    scores, trustedScores, polarity: 0, tension: 0, dominant: null,
+    trustedDominant: null, trustedPolarity: 0, evidence, byScope, credibleWords: 0, hits,
+  });
+  if (!txt) return empty();
+  // 引用区间（成对引号内的内容）
+  const quoted = _quoteMask(txt);
+  // 上下文区间：opts.contexts = [{ text, kind }]，kind 默认 recalled（回忆/他述）
+  const ctxKind = new Array(txt.length).fill('');
+  for (const c of (Array.isArray(opts.contexts) ? opts.contexts : [])) {
+    const t = text(c && c.text);
+    const kind = text(c && c.kind) || 'recalled';
+    if (!t) continue;
+    let i = 0;
+    while ((i = txt.indexOf(t, i)) !== -1) {
+      for (let k = i; k < i + t.length && k < txt.length; k++) ctxKind[k] = kind;
+      i += t.length;
+    }
+  }
+  const consumed = new Uint8Array(txt.length);
+  let credibleWords = 0;
+  for (const c of EMO_WORD_INDEX) {
+    let i = 0, cnt = 0, tcnt = 0;
+    const scopes = {};
+    while ((i = txt.indexOf(c.word, i)) !== -1) {
+      const end = i + c.len;
+      let free = true;
+      for (let k = i; k < end; k++) if (consumed[k]) { free = false; break; }
+      if (free) {
+        for (let k = i; k < end; k++) consumed[k] = 1;
+        cnt++;
+        // 判档顺序：否定 > 引用 > 上下文（回忆/他述）> 直接表达
+        // 判档顺序：否定 > 引用 > 上下文（回忆/他述）> 文本级回忆标记 > 直接表达
+        const sc = _isNegated(txt, i) ? 'negated'
+          : (quoted[i] ? 'quoted'
+            : (ctxKind[i] || (_isRecalled(txt, i) ? 'recalled' : 'direct')));
+        scopes[sc] = (scopes[sc] || 0) + 1;
+        byScope[sc] = (byScope[sc] || 0) + 1;
+        const _trusted = (EMO_SCOPE_TRUST[sc] || 0) >= EMO_SCOPE_MIN_TRUST;
+        if (_trusted) { tcnt++; credibleWords++; }
+        if (hits.length < 400) hits.push({ dim: c.dim, word: c.word, at: i, scope: sc, trusted: _trusted });
+      }
+      // 关键（v3.193.0）：无论是否计入，都跳过整个词宽——
+      //   否则「暴怒」里的「怒」会被再计一次，anger 虚高并可能抢走主导维
+      i = end;
+    }
+    if (cnt) {
+      const capped = Math.min(cnt, 4);
+      const tcapped = Math.min(tcnt, 4);
+      scores[c.dim] += c.w * capped;              // 单词最多计 4 次防爆
+      trustedScores[c.dim] += c.w * tcapped;
+      evidence.push({ dim: c.dim, word: c.word, count: capped, weight: c.w, trustedCount: tcapped, scopes });
     }
   }
   let pol = 0, ten = 0, total = 0;
@@ -129,7 +236,20 @@ function scanEmotion(txt) {
   let dominant = null, best = 0;
   for (const dim of Object.keys(scores)) if (scores[dim] > best) { best = scores[dim]; dominant = dim; }
   evidence.sort((a, b) => (b.weight * b.count) - (a.weight * a.count) || a.word.localeCompare(b.word, 'zh'));
-  return { scores, polarity, tension, dominant, evidence };
+  // 可信维：只用 >= EMO_SCOPE_MIN_TRUST 的证据重算主导维与极性
+  let tPol = 0, tTen = 0, tTotal = 0, tDom = null, tBest = 0;
+  for (const dim of Object.keys(trustedScores)) {
+    const sc = trustedScores[dim];
+    tPol += sc * EMO_POLARITY[dim];
+    tTen += sc * EMO_TENSION[dim];
+    tTotal += sc;
+    if (sc > tBest) { tBest = sc; tDom = dim; }
+  }
+  const trustedPolarity = tTotal ? clamp(tPol / tTotal, -1, 1) : 0;
+  return {
+    scores, trustedScores, polarity, tension, dominant, evidence, byScope, credibleWords, hits,
+    trustedDominant: tTotal ? tDom : null, trustedPolarity,
+  };
 }
 /* ================================================================
  * 某一情绪维的「相对的那一面」词表并集：由该维的负面词经 EMOTION_OPPOSITES 汇出。
@@ -201,30 +321,131 @@ function opposedWordsFor(dim) {
  * @param opts { queryText 查询文本, docs [{key, text}], max 最多收几条 }
  * @returns { active, reason, dominant, polarity, opposite[], scanned }
  * ================================================================ */
+/* ================================================================
+ * 多角色情绪归属（v3.193.0）
+ * ----------------------------------------------------------------
+ * 为什么需要：scanEmotion 回答的是「这段文本整体什么情绪」。剧情里一句话常有两个人
+ * 的情绪（A 打翻水杯后 B 在笑、A 在哭），整体主导维由词数决定，于是反向召回取哪张
+ * 词表就跟「谁在难过」脱钩——A 的悲伤被拿去给 B 配「陪伴/温暖」的线索。
+ *
+ * 归因规则（保守优先，宁可承认查不出来）：
+ *   ① 只用**可信**命中（回忆/引用/否定/他述里的情绪词不归任何人，见 EMO_SCOPE_TRUST）
+ *   ② 在同一句内（不跨 EMO_SENTENCE_END）向前找最近的已登记角色名，距离不超过 window
+ *   ③ 找不到 ⇒ 计入 unattributed。**绝不默认归给第一个角色**——
+ *      默认归属会把「查不出来」伪装成「查出来了」，比不归因更坏。
+ * 纯函数：不写状态、不抛。
+ * @param txt 文本
+ * @param opts { characters 已登记角色名[], window 向前最大字符距离(默认 30) }
+ * @returns { perChar: {名: {dims,count,dominant,trustedWords}}, unattributed, order }
+ * ================================================================ */
+function attributeEmotion(txt, opts = {}) {
+  const t = text(txt);
+  const chars = (Array.isArray(opts.characters) ? opts.characters : [])
+    .map((c) => text(c)).filter(Boolean);
+  const win = Math.max(1, Number(opts.window) || 30);
+  const perChar = {};
+  const unattributed = { count: 0, dims: {}, dominant: null, trustedWords: 0 };
+  if (!t || !chars.length) {
+    const emo0 = scanEmotion(t);
+    return { perChar, unattributed, order: [], noCharacters: chars.length === 0, total: emo0.hits.length };
+  }
+  const emo = scanEmotion(t);
+  const bump = (box, h) => {
+    box.dims[h.dim] = (box.dims[h.dim] || 0) + 1;
+    box.count++;
+    box.trustedWords++;
+  };
+  const sentence = (a, b) => {
+    const seg = t.slice(a, b);
+    for (const end of EMO_SENTENCE_END) if (seg.includes(end)) return false;
+    return true;
+  };
+  const order = [];
+  for (const h of emo.hits) {
+    if (!h.trusted) continue;                       // 规则①：不可信的不归任何人
+    let owner = null, bestAt = -1, bestName = '';
+    for (const c of chars) {                        // 规则②：同句内最近的前置角色名
+      const at = t.lastIndexOf(c, Math.max(0, h.at - 1));
+      if (at < 0) continue;
+      if (h.at - (at + c.length) > win) continue;
+      if (!sentence(at + c.length, h.at)) continue;
+      if (at > bestAt || (at === bestAt && c.length > bestName.length)) { bestAt = at; owner = c; bestName = c; }
+    }
+    if (!owner) { bump(unattributed, h); continue; } // 规则③：查不出来就承认
+    if (!perChar[owner]) { perChar[owner] = { dims: {}, count: 0, dominant: null, trustedWords: 0 }; order.push(owner); }
+    bump(perChar[owner], h);
+  }
+  for (const k of Object.keys(perChar)) {
+    let b = 0, d = null;
+    for (const dim of Object.keys(perChar[k].dims)) if (perChar[k].dims[dim] > b) { b = perChar[k].dims[dim]; d = dim; }
+    perChar[k].dominant = d;
+  }
+  {
+    let b = 0, d = null;
+    for (const dim of Object.keys(unattributed.dims)) if (unattributed.dims[dim] > b) { b = unattributed.dims[dim]; d = dim; }
+    unattributed.dominant = d;
+  }
+  return { perChar, unattributed, order, noCharacters: false, total: emo.hits.length };
+}
 function recallByOppositeEmotion(opts = {}) {
-  const out = { active: false, reason: 'empty', dominant: null, polarity: 0, opposite: [], scanned: 0 };
+  const out = {
+    active: false, reason: 'empty', dominant: null, polarity: 0, opposite: [], scanned: 0,
+    dimHits: {}, matched: {}, matchedSeen: 0, expanded: 0, merged: 0, maxPerDim: 0, credibleWords: 0, scopes: {},
+  };
   const q = text(opts.queryText);
   const docs = Array.isArray(opts.docs) ? opts.docs : [];
   if (!q || !docs.length) return out;
   const emo = scanEmotion(q);
-  const dom = emo.dominant;
-  if (!dom) { out.reason = 'no-emotion'; return out; }
+  out.scopes = emo.byScope || {};
+  out.credibleWords = emo.credibleWords || 0;
+  const dom = emo.trustedDominant;                       // [v3.193.0] 只认可信维，不认全量维
+  if (!emo.dominant) { out.reason = 'no-emotion'; return out; }
+  if (!dom) {
+    // 有情绪词、但全在回忆/引用/否定/他述里——不能出线索（计划点名的四类误触发）
+    out.reason = 'no-trusted';
+    out.dominant = emo.dominant;
+    return out;
+  }
   const pol = Number(EMO_POLARITY[dom]) || 0;
-  if (pol >= 0) { out.reason = 'no-polarity'; out.dominant = dom; return out; }   // 有主导维但无极性
-  const words = opposedWordsFor(dom);
-  if (!words.length) { out.reason = 'no-opposites'; out.dominant = dom; return out; }
+  if (pol >= 0) { out.reason = 'no-polarity'; out.dominant = dom; return out; }
+  // 多负面维合并：可信负面维按可信分排序，全部参与（命中两维的文档只出现一次）
+  const negDims = Object.keys(emo.trustedScores)
+    .filter((d2) => (Number(EMO_POLARITY[d2]) || 0) < 0 && emo.trustedScores[d2] > 0)
+    .sort((a, b) => emo.trustedScores[b] - emo.trustedScores[a]);
+  const dimWords = negDims.map((d2) => ({ dim: d2, words: opposedWordsFor(d2) })).filter((x) => x.words.length);
+  if (!dimWords.length) { out.reason = 'no-opposites'; out.dominant = dom; return out; }
   out.active = true;
   out.reason = 'ok';
   out.dominant = dom;
   out.polarity = pol;
   const maxN = Math.max(1, Number(opts.max) || 5);
-  for (const d of docs) {
+  const maxPerDim = Math.max(1, Number(opts.maxPerDim) || maxN);
+  out.maxPerDim = maxPerDim;
+  const seen = new Set();
+  for (const { dim, words } of dimWords) {
+    let taken = 0;
+    for (const d of docs) {
+      const k = String((d && d.key) || '');
+      const t = text(d && d.text);
+      if (!k || !t) continue;
+      if (!words.some((w) => t.includes(w))) continue;
+      out.dimHits[dim] = (out.dimHits[dim] || 0) + 1;    // 命中即记（含被预算挡下、含已由别维收下）
+      if (seen.has(k)) {                                 // 已由别的维收下：合并，不重复占额
+        if (out.matched[k] && !out.matched[k].includes(dim)) out.matched[k].push(dim);
+        out.merged++;                                    // 账目闭合：跨维重复命中（候选膨胀的分母）
+        continue;
+      }
+      if (taken >= maxPerDim || out.opposite.length >= maxN) { out.expanded++; continue; }
+      seen.add(k);
+      out.opposite.push(k);
+      out.matched[k] = [dim];
+      out.matchedSeen++;
+      taken++;
+    }
+  }
+  for (const d of docs) {                                // scanned 仍是「看了多少条」，与预算无关
     const k = String((d && d.key) || '');
-    const t = text(d && d.text);
-    if (!k || !t) continue;
-    out.scanned++;
-    if (out.opposite.length >= maxN) continue;     // 已满仍继续走 scanned，读数才反映「看了多少条」
-    if (words.some(w => t.includes(w))) out.opposite.push(k);
+    if (k && text(d && d.text)) out.scanned++;
   }
   return out;
 }
@@ -406,7 +627,7 @@ class NarrativePulse {
 }
 
 // ── 导出 ─────────────────────────────────────────────
-const api = { NarrativePulse, scanEmotion, emotionEvidence, recallByOppositeEmotion, opposedWordsFor, ARC_PHASES, EMO_LEXICON, EMOTION_OPPOSITES };
+const api = { NarrativePulse, scanEmotion, emotionEvidence, attributeEmotion, recallByOppositeEmotion, opposedWordsFor, ARC_PHASES, EMO_LEXICON, EMOTION_OPPOSITES };
 if (typeof window !== 'undefined') window.LonShaNarrativePulse = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

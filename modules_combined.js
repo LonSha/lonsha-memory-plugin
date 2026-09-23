@@ -6,6 +6,16 @@
 // Phase 4: 可视化模块
 // 参考: Anima的D3.js图谱 + 时间线视图
 
+//
+// [v3.193.0] 包进 IIFE + 幂等守卫。此前这里是**顶层 class 声明**：宿主把 extra_js
+//   脚本加载两次（重复注入扩展、开发期热重载、宿主对同一文件二次 eval）时，
+//   第二次会抛 SyntaxError: Identifier 'MemoryVisualizer' has already been declared ——
+//   失败发生在**加载期**，窗口就在类声明本身，文件里任何 try/catch 都拦不住。
+//   同批的 graph_algorithms.js 已是 IIFE + 守卫形态（基线健康），本文件对齐它。
+(function (global) {
+    'use strict';
+    if (global && global.__LonShaVisualizerLoaded) return;   // 幂等：二次加载直接返回
+    if (global) global.__LonShaVisualizerLoaded = true;
 class MemoryVisualizer {
     constructor(engine) {
         this.engine = engine;
@@ -504,6 +514,7 @@ class MemoryVisualizer {
 // 导出
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { MemoryVisualizer };
-} else {
-    window.MemoryVisualizer = MemoryVisualizer;
+} else if (global) {
+    global.MemoryVisualizer = MemoryVisualizer;
 }
+})(typeof window !== 'undefined' ? window : globalThis);

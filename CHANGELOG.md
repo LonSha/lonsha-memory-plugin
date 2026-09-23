@@ -1,3 +1,20 @@
+## v3.193.0
+**召回质量与成本可证明：从「机制接上了」到「效果与代价都量得出来」**
+- 情绪计分正确性：词表命中改为**最长词优先 + 字符区间消费**。此前「暴怒」同时命中 `暴怒`(3) 与 `怒`(2) 记 5.0、「恼火至极」记 6.0——子串被重复计分，主导维会被长词里的短字抢走。现按 `EMO_WORD_INDEX` 长度降序扫描、命中即吃掉 `[i, i+len)` 区间，`暴怒` 稳定为 3.0，且每条命中带 `at` 位置（归因的唯一原料）。
+- 证据作用域与可信度（计划第二部分 2）：新增 `EMO_SCOPE_TRUST = { direct:1, recalled:0.3, other:0.2, quoted:0.2, system:0, negated:0 }` 与 `EMO_SCOPE_MIN_TRUST = 0.5`，只有**直接表达**够格进入反向召回。判档顺序固定为「否定 > 引用 > 上下文 > 文本级回忆 > 直接表达」；引号配对只认成对的中文/全角引号（英文引号在正文里大量作撇号，误配对会把整段正文判成引用区间）。计划点名的四类误触发（「她不难过」/「他曾经很怕」/A 的悲伤影响 B/引用文本）现在与真表达**可分**。
+- 只消费可信证据（计划第二部分 2 收口）：`recallByOppositeEmotion` 的主导维改读 `trustedDominant`，并新增第五态 `reason='no-trusted'`——「有情绪词但全在回忆/引用/否定/他述里」与「根本没有情绪词」必须可分辨，否则前者会伪装成后者。
+- 候选预算与账目闭合（计划第二部分 3）：每维限流 `maxPerDim` + 全局 `max` + 跨维合并 `seen`；读数面补 `dimHits`（**命中即记**，含被预算挡下、含已由别维收下）、`matchedSeen`、`expanded`、`merged`，恒等式 `ΣdimHits == matchedSeen + expanded + merged` 可断言。命名去冲突：原 `byDim` 与既有 `emotionEvidence().byDim`（维度→命中对象数组）同名不同义，改名 `dimHits`（维度→候选条数）。
+- 成本账本（计划第二部分 5）：新增 `cost-ledger.js`，按**来源**归因 prompt 成本（常驻/触发/反向/去重/截断/禁用），块流按「标题开新节、`- ` 明细继承」分节继承（逐块独立分类会让明细行整片落进 other）。反向线索**从不渲染为独立块**，故如实建模 `addsBlocks:false / costForm:'rank-only'` 并给出真实代价 `rankOnlyGap`——把 0 说成「成本为零」与把成本说成 0 同样误导。去重节省标 `measurable:false`（反事实不可得就不编 0）。`identity.ok` 自洽断言 + 诊断面 `['注入成本', ...]` 一行读数。
+- 固定评测集（计划第二部分 1）：新增 `eval-corpus.js`——计划点名的**八类主样本**（悲伤→温暖/恐惧→安全/愤怒→缓和/紧张→放松/多负面并存/引用误触发/否定与回忆/多角色归属）+ 六指标（反向命中率/无关召回率/负面同类误提权/候选膨胀/注入 token 增量/识别耗时）。已知缺口**不混入主指标**：`gap-natural-wording`（「陪在」「别怕」未入表）、`gap-action-comfort`（动作性安慰无入口）、`gap-aggregate-emotion`（主体指代靠调用方）单独台账跟踪，want/hit 每版重算——主指标回答「机制在该响时响了吗」，gap 回答「词表覆盖到哪一步」，混在一起任一方都失真。本版基线：命中率 1.0、无关 0、误提权 0、膨胀 0.133、reason/dim/归因符合率均 1.0。
+- 多角色情绪归属（计划第二部分 1 第 8 类）：新增 `attributeEmotion(txt, { characters, window })`，只用可信命中、同句内向前找最近且在窗口内的角色名，**找不到就计入 `unattributed`，绝不默认归给第一个角色**（默认归属会把「查不出来」伪装成「查出来了」）。
+- 词表漂移报告（计划第二部分 4）：新增 `tests/audit/scan_v3193_lexicon_drift.mjs` + 基线 `tests/fixtures/lexicon_baseline.json`。把三条隐含约束显式化：反向键必属负面维、反向后缀必属 joy/warm 且可在词表内解析、同一词不得跨正负维。任何扩词/改映射都与基线逐项 diff，并回归六条影响样本读数（主导维与维度分）。报告项单列：**tense 维 7 键 / 11 词 / 31 条映射不可达**（`EMO_POLARITY.tense === 0`，消费者按极性拒绝）——有意取舍，看得见就不算不知道。
+- 真实宿主加载矩阵（计划第二部分 6）：新增 `tests/audit/scan_v3193_host_matrix.mjs`，把此前留在 /tmp 的 host simulation 收进仓库，真执行 `manifest → 脚本加载 → 全局挂载 → API 调用` 七项（正常加载/缺可选脚本/重复加载/脚本抛异常/window 与 global 挂载差异/document·定时器·Storage 能力缺失/重载重复注册）。
+- **本矩阵当场抓出两处真缺陷并修掉**：① `modules_combined.js` 的 `class MemoryVisualizer` 是**顶层声明**，宿主重复加载 extra_js 时第二次抛 `SyntaxError: Identifier 'MemoryVisualizer' has already been declared`，失败发生在加载期、文件里任何 try/catch 都拦不住 → 包进 IIFE + 幂等守卫；② 同批 `graph_algorithms.js` 已是 IIFE，但缺幂等守卫，重复加载同样整文件失效 → 补齐。两处都有回归性负控制（把形态改回去，矩阵必须重新翻红）。
+- 宿主契约被量化（而不是猜）：M7 用**活监听计数**（on 加、off 减）验 `registerEvents` 的卸载-重装——首次注册 7 条、重复调用后活监听仍 7、off 累计 7，幂等成立；M5 实测 window 独立宿主下 41 个模块全局可见于 window、5 个只在 globalThis，宿主若另造 window 壳则消费方按 `window.X` 取会漏掉后者（本仓 window === globalThis 故等价）。
+- 负控制：三条新扫描器各配一条负控制（`scan_v3193_lexicon_drift_negctl.mjs` 13 组、`scan_v3193_host_matrix_negctl.mjs` 8 组），全部「锚点恰中 1 次 → 真源码破坏 → 按声称归因翻红 → 副本用完即删」。段数自证改**双向**（`!==` 而非 `<`）：只判下界会让「把枚举改小」这种破坏静默通过（本轮实测踩到）。
+- 版本收口：四源升 3.193.0；上一版断言锚点整体抬到 3.193.0（含 `vnum()` 下界断言与硬等号）；注释里的历史版本标记与 CHANGELOG 既存节标题原样保留。
+- 唯一真源 `tests/_audit_lib.mjs` 本版**零改动**：md5 常量与指纹不变（`2d7413e5839f8fe3fbd62d1c5063cd2f`）。
+- 交接项不变：可达性判据 `callReachable` 仍待重新设计；`scan_v3182_ledger_replay.mjs` 的 R2 仍是形态判据；`_emoOppositeMatched` 三态语义（null=机制没跑 / {}=跑了零提权 / {key:[dim]}=真提权）交 v3.194.0 诊断面继续沿用。
 ## v3.192.0
 **审计内部纪律：判据守得住，还得改得动结局**
 - 修一个「判据写了、不改变结局」级缺陷：v3.191.0 新增的扫描器里，四条守卫（扫描面 / 接线面 / 发现面 ×2）只把失败 push 进 `structural`，而结构出口只在 E0 段——它们**永远不改变退出码**。实测：把 `MIN_AUDIT_SCRIPTS` 从 25 改成 999，扫描面塌缩形同不存在，扫描器仍 exit 0 并打印「通过」。这正是本版主题那一族缺陷在审计基建自己身上的复现。

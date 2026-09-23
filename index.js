@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.192.0';
+    const VERSION = '3.193.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2565,10 +2565,22 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (!r) return '待本轮（尚无召回）';
                 const CN = { joy: '喜', warm: '暖', sad: '悲', fear: '惧', anger: '怒', tense: '悬' };
                 const dim = r.dominant ? (CN[r.dominant] || r.dominant) : '—';
+                // [v3.193.0] 「无线索」有四种完全不同的成因，糊成一个等于把这条判据做哑：
+                //   没情绪词（词典没覆盖或正文确实平）／情绪词全在回忆·引用·否定·他述里（不可信）／
+                //   主导维是氛围型（极性 0，挑不出方向）／该维压根没配反向词（配置缺失，不是世界没情绪）。
+                const RSN = {
+                    'empty': '无查询文本或无候选',
+                    'no-emotion': '无情绪词',
+                    'no-trusted': '情绪词不可信（回忆/引用/否定/他述）',
+                    'no-polarity': '主导维无极性（氛围型）',
+                    'no-opposites': '该维未配反向词（配置缺失）'
+                };
                 if (r.reason === 'ok') {
-                    return `${dim}主导 → 本轮提 ${r.hits} 条（生效 ${this._emoOppositeRounds || 0} 轮 · 提权 ${this._emoOppositeBoosted || 0} 条 · 已扫 ${r.scanned} 条）`;
+                    const _ex = r.expanded ? ` · 预算挡下 ${r.expanded} 条` : '';
+                    const _cr = r.credibleWords ? ` · 可信词 ${r.credibleWords}` : '';
+                    return `${dim}主导 → 本轮提 ${r.hits} 条（生效 ${this._emoOppositeRounds || 0} 轮 · 提权 ${this._emoOppositeBoosted || 0} 条 · 已扫 ${r.scanned} 条${_ex}${_cr}）`;
                 }
-                return `无反向线索（${r.reason}·${dim}）`;
+                return `无反向线索（${RSN[r.reason] || r.reason}·${dim}）`;
             } catch (e) { errLog(e, 'engine._emotionOppositeLine'); return '—（诊断异常）'; }
         }
         /**
@@ -6442,6 +6454,8 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   与 crosslink 的分工：crosslink 答「正文提到了哪个**名字**」（实体锚），
             //   本机制答「当下的情绪指向哪一段**经历**」（情绪锚）——两者互不覆盖。
             let _emoOppositeKeys = null;
+            // 每轮重置：否则上一轮名单粘住，账本会把「本轮没提权」算成「提权了上轮那几条」
+            this._emoOppositeMatched = null;   // null=机制没跑｜{}=跑了零提权｜{key:[dim]}=真提权
             if (this.config.config.emotionOppositeRecall === true) {
                 try {
                     const EL = _emotionOppositeLib();
@@ -6456,11 +6470,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                         const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });
                         this._emoOppositeRead = {
                             reason: _er.reason, dominant: _er.dominant,
-                            hits: (_er.opposite || []).length, scanned: _er.scanned
+                            hits: (_er.opposite || []).length, scanned: _er.scanned,
+                            // [v3.193.0] 成本与预算读数：本轮真提出的线索条数（hits）只是结果，
+                            //   还要能回答「本来能提多少、被预算挡下多少」——否则候选膨胀看不见。
+                            expanded: _er.expanded || 0, merged: _er.merged || 0, dimHits: _er.dimHits || {},
+                            credibleWords: _er.credibleWords || 0, scopes: _er.scopes || {},
+                            // 命中维名单（key → [dim,...]）：回答「这条为什么被提」。
+                            // 成本账本靠它区分「提权了」与「提权后真进了注入」，缺了它只能报总条数。
+                            matched: _er.matched || {}
                         };
                         // 「生效轮数」只在真扫过（reason==='ok'）时累加：否则「没有情绪词」也会被算成一轮，
                         // 读出来的轮数就不是「机制跑了多少轮」而是「召回跑了多少轮」。
                         if (_er.reason === 'ok') this._emoOppositeRounds = Number(this._emoOppositeRounds || 0) + 1;
+                        this._emoOppositeMatched = _er.matched || {};
                         if (_er.opposite && _er.opposite.length) _emoOppositeKeys = new Set(_er.opposite);
                     } else {
                         this._emoOppositeRead = null;   // 模块缺席：不伪装成「无线索」，诊断行会报「模块未加载」
@@ -7662,6 +7684,44 @@ function relativeTimeLabel(eventTime, nowTime) {
                     strategy: keepCount, tokens: estimateTextTokens(full),
                     tokenBudget: tokenBudget || null, ts: Date.now(),
                 };
+                // [v3.193.0] 成本账本：把「总量丢弃」拆成「谁的丢弃」。
+                //   常驻（每轮都在）与触发（命中才有）成本量级差十倍，混在一个数字里没法取舍；
+                //   反向召回的真实代价也在此显形（它不新增块，只改排序 ⇒ 挤掉别人）。
+                const _CL = _costLedgerLib();
+                if (_CL && typeof _CL.buildCostLedger === 'function') {
+                    this._lastCostLedger = _CL.buildCostLedger({
+                        allBlocks: _allB,
+                        injectedText: full,
+                        preTrimChars: _preTrimLen,
+                        budget: budget,
+                        strategy: keepCount,
+                        residentMarkers: RESIDENT_MARKERS,   // 常驻口径的单一真源在本文件，不另立一套
+                        emotionOpposite: this._emoOppositeRead,
+                        promoted: this._emoOppositeMatched,
+                        recallSources: (this._recallAudit && this._recallAudit.length
+                            ? (this._recallAudit[this._recallAudit.length - 1].perSource || {}) : {}),
+                        enabledSources: {
+                            emotionOppositeRecall: this.config.config.emotionOppositeRecall === true,
+                            vector: this.config.config.vectorEnabled !== false,
+                            cse: this.config.config.cseEnabled !== false,
+                            scene: this.config.config.sceneEnabled !== false,
+                            suspense: this.config.config.suspenseEnabled !== false,
+                            worldProgress: this.config.config.worldProgressEnabled !== false,
+                            lockedFacts: this.config.config.lockedFactsEnabled !== false,
+                            timeTagAnchor: this.config.config.timeTagAnchorEnabled !== false,
+                            itemLedger: this.config.config.itemLedgerEnabled !== false,
+                            narrativePulse: this.config.config.narrativePulseEnabled !== false,
+                        },
+                        tokensOf: estimateTextTokens,
+                        now: this._lastBudgetStats.ts,
+                    });
+                    this._lastBudgetStats.ledger = this._lastCostLedger;
+                    this._lastBudgetStats.ledgerLine = (_CL.costLine ? _CL.costLine(this._lastCostLedger) : '');
+                } else {
+                    // 模块缺席不伪装成「成本为零」：留 null + 诊断面报「模块未加载」
+                    this._lastCostLedger = null;
+                    this._lastBudgetStats.ledger = null;
+                }
             } catch (e) { errLog(e, 'buildInjection.预算实测'); }
             return full;
         }
@@ -8521,6 +8581,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['情绪反向', line + (idle ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.emotionOpposite'); return ['情绪反向', '—（诊断异常）']; }
                     })(),
+                    // [v3.193.0] 注入成本体检面：回答「这一轮 prompt 里谁占了多少」。
+                    //   三态必须可分，否则「模块没接上」与「这轮注入为空」同形：
+                    //     · 模块未加载 / 尚无注入 → _lastCostLedger 为 null（不是「成本为 0」）
+                    //     · 账目不自洽（identity.ok=false）→ 亮 ⚠️，账本自己报自己算错了
+                    (() => {
+                        try {
+                            const CL = _costLedgerLib();
+                            if (!CL || typeof CL.costLine !== 'function') return ['注入成本', '模块未加载（cost-ledger.js）'];
+                            const lg = this._lastCostLedger;
+                            if (!lg) return ['注入成本', '待本轮（尚无注入）'];
+                            const line = CL.costLine(lg);
+                            const bad = lg.identity && lg.identity.ok === false;
+                            return ['注入成本', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.costLedger'); return ['注入成本', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -9245,6 +9320,12 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   共用同一份事实——值取自 joy/warm 维的词，测试逐词核对归属，漂移即响。
     function _emotionOppositeLib() {
         return _moduleLib(() => window.LonShaNarrativePulse, 'narrative-pulse.js');
+    }
+    // [v3.193.0] 注入成本账本（cost-ledger.js）。回答「这一轮 prompt 里，常驻/触发/反向
+    //   各占多少字符、谁被截断了」——此前只有 v3.144 的总量读数，丢的是谁的查不出来，
+    //   两个量级差十倍的来源混在一个数字里，调预算只能猜。
+    function _costLedgerLib() {
+        return _moduleLib(() => window.LonShaCostLedger, 'cost-ledger.js');
     }
     function _newSceneBook(seed) {
         const SB = _sceneBookLib();

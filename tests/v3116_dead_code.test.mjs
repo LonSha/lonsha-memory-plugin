@@ -124,6 +124,8 @@ test('【4】活跃代码总量下降', () => {
   // v3.184 调研清单收尾四件套（node-rollup.js 189 行 + relation-disclosure.js 222 行 + fuzzy-patch.js 342 行
   //   + changeset.js 270 行 + 宿主接线：三处取库口/三处诊断行/关系块收口/20 处占位符填充改道/变更集联动）
   //   —— 同时**净减**了旧字面 replace 与旧内联判据，故放宽额度小于四模块行数之和 → 31300
+  // [v3.193.0] 上界不动（本版**净减**：modules_combined/graph_algorithms 只加守卫与 IIFE 包裹，
+  //   新增的 cost-ledger.js 计入声明模块数；死代码面真正守的是下面那条「根 .js 数 = 入口 + 声明模块」）。
   assert.ok(total < 31300, `总行数 ${total} < 31300（死代码已清除；上界随活跃功能同步，v3.152/v3.168/v3.170/v3.171/v3.172/v3.174/v3.175/v3.176/v3.180/v3.181/v3.183/v3.184 放宽）`);
   assert.ok(total > 15000, `总行数 ${total} > 15000（未误删活跃代码）`);
   ok(`活跃代码 ${allJs.length} 文件 / ${total} 行`);

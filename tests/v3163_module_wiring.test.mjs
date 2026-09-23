@@ -96,8 +96,8 @@ function withTmp(name, fn) {
 /* ---------- 0 ---------- */
 test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
-    assert.ok(vnum(v) >= vnum('3.192.0'), `index.js 版本 ${v} < 3.165.0`);
-    assert.ok(vnum(manifest.version) >= vnum('3.192.0'), `manifest ${manifest.version} < 3.165.0`);
+    assert.ok(vnum(v) >= vnum('3.193.0'), `index.js 版本 ${v} < 3.165.0`);
+    assert.ok(vnum(manifest.version) >= vnum('3.193.0'), `manifest ${manifest.version} < 3.165.0`);
     const audits = readdirSync(path.join(HERE, 'audit')).filter(f => f.endsWith('.mjs')).sort();
     assert.ok(audits.length >= 7, `审计脚本应 >= 7 个，实际 ${audits.length}`);
     assert.ok(audits.includes('scan_module_wiring.mjs'), 'scan_module_wiring.mjs 未注册进审计目录');
@@ -105,9 +105,11 @@ test('【0】版本与审计脚本注册', () => {
 
 /* ---------- 1 ---------- */
 test('【1】静态判据：顶层声明必须按花括号深度判定', () => {
-    // modules_combined.js 顶层只剩 MemoryVisualizer（冲突的 GraphDiffusion 已移除）
+    // [v3.193.0] modules_combined.js 已按 graph_algorithms.js 的形态包进 IIFE + 幂等守卫
+    //   （顶层 class 声明在宿主重复加载 extra_js 时会抛 "Identifier already declared"，
+    //   失败发生在加载期、文件内 try/catch 拦不住）。故本文件顶层现在同样零声明。
     const mcTop = topLevelDecls(mc).map(d => d.name);
-    assert.deepStrictEqual(mcTop, ['MemoryVisualizer'], `modules_combined 顶层声明应只剩 MemoryVisualizer，实际 ${JSON.stringify(mcTop)}`);
+    assert.deepStrictEqual(mcTop, [], 'modules_combined 顶层必须零声明（已 IIFE 包裹），实际 ' + JSON.stringify(mcTop));
 
     // graph_algorithms.js 已 IIFE 包裹 → 顶层零声明
     assert.deepStrictEqual(topLevelDecls(ga).map(d => d.name), [], 'graph_algorithms.js 顶层必须零声明（已 IIFE 包裹）');

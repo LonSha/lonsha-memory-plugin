@@ -1090,7 +1090,7 @@ test('【I4】工具两向自证：锚点不存在或不唯一必须抛；判据
 test('【J1】版本三源一致且不低于 v3.186.0', () => {
     const v = (idxSrc.match(/const VERSION = '([^']+)'/) || [])[1];
     assert.ok(v, 'index.js VERSION 在场');
-    assert.ok(vnum(v) >= vnum('3.192.0'), `index.js 版本 ${v} >= 3.186.0`);
+    assert.ok(vnum(v) >= vnum('3.193.0'), `index.js 版本 ${v} >= 3.186.0`);
     assert.equal(manifest.version, v, `manifest(${manifest.version}) 与 index.js(${v}) 漂移`);
     assert.equal(pkg.version, v, `package.json(${pkg.version}) 与 index.js(${v}) 漂移`);
 });
@@ -1131,7 +1131,7 @@ test('【J4】只读边界：三个新模块不出现任何写侧入口', () => 
 test('【J5】CHANGELOG 顶节为本版，且记录三面缺陷现场', () => {
     const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
     assert.ok(top, 'CHANGELOG 有版本段');
-    assert.ok(vnum(top.replace('v', '')) >= vnum('3.192.0'), `顶节 ${top} 须 >= v3.186.0`);
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.193.0'), `顶节 ${top} 须 >= v3.186.0`);
     assert.ok(/归属性|归属/.test(changelog), '记录了「账落笔之后没有归属」这一现场');
     assert.ok(/算不出/.test(changelog), '记录了「年龄算不出就回退成一个数字」这一现场');
     assert.ok(/只读/.test(changelog), '记录了只读边界口径');
