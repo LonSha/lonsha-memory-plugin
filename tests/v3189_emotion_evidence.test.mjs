@@ -94,7 +94,7 @@ test('v3189 9. 版本三源同源', () => {
   const manifest = JSON.parse(readFileSync(new URL('manifest.json', root), 'utf8'));
   const pkg = JSON.parse(readFileSync(new URL('package.json', root), 'utf8'));
   const v = /const VERSION = '([^']+)'/.exec(src)[1];
-  assert.equal(v, '3.196.0');
+  assert.equal(v, '3.197.0');
   assert.equal(manifest.version, v);
   assert.equal(pkg.version, v);
 });

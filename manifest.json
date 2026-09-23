@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.196.0",
+  "version": "3.197.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -63,7 +63,9 @@
     "cost-ledger.js",
     "fact-version.js",
     "event-completeness.js",
-    "repair-loop.js"
+    "repair-loop.js",
+    "recall-echo.js",
+    "echo-ledger.js"
   ],
   "extra_css": [
     "lonsha-design.css",

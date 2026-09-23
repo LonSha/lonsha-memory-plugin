@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.196.0';
+    const VERSION = '3.197.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7145,6 +7145,31 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (out && out.ok && out.changed) this.worldProg.secretLedger = out.state;
             return out;
         }
+        // [v3.197] 前文回扣账本：宿主写入入口，状态存 worldProg.recallEcho
+        recordRecallEcho(input = {}) {
+            const api = (typeof window !== 'undefined' && window.LonShaRecallEcho) || null;
+            if (!api || !this.worldProg) return null;
+            const action = String(input.action || 'mark');
+            const current = this.worldProg.recallEcho;
+            const call = action === 'echo' ? api.echo
+                : action === 'skip' ? api.skip
+                : action === 'sweep' ? api.sweep
+                : api.mark;
+            const out = action === 'sweep' ? call(current, input.floor) : call(current, input);
+            if (out && out.ok && out.changed) this.worldProg.recallEcho = out.state;
+            return out;
+        }
+        // [v3.197] 回声账本：宿主写入入口，状态存 worldProg.echoLedger
+        recordEchoLife(input = {}) {
+            const api = (typeof window !== 'undefined' && window.LonShaEchoLedger) || null;
+            if (!api || !this.worldProg) return null;
+            const action = String(input.action || 'produce');
+            const current = this.worldProg.echoLedger;
+            const out = action === 'reset' ? api.reset(current)
+                : api.produce(current, input);
+            if (out && out.ok && out.changed) this.worldProg.echoLedger = out.state;
+            return out;
+        }
         readWorldLedger(opts = {}) {
             try {
                 if (!this.clock || typeof this.clock.readWorldLedger !== 'function') return null;
@@ -11133,6 +11158,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.seedLedger = null; // [v3.195] 伏笔生命周期，不替代 promises / commitmentLedger
             this.parallelLedger = null; // [v3.196] 平行事实账本：别处正在发生的事，audience 区分公开/在场不得知晓
             this.secretLedger = null; // [v3.196] 秘密账本：某角色此刻不该被知晓的事，keeper 点名持有
+            this.recallEcho = null; // [v3.197] 前文回扣账本：五回合前的高价值细节候选
+            this.echoLedger = null; // [v3.197] 回声账本：角色生活微场景的最近产出
             // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
             this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
             // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
@@ -11464,6 +11491,41 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                     source: 'worldprogress+secret-ledger'
                 });
             }
+            // [v3.197] 前文回扣账本：只给 pending 高价值候选，生成侧自行决定是否重现
+            const echoApi = (typeof window !== 'undefined' && window.LonShaRecallEcho) || null;
+            const echoText = echoApi?.render?.(this.recallEcho, 3) || '';
+            if (echoText) {
+                results.push({
+                    id: 'wp_recall_echo',
+                    text: echoText,
+                    source: 'worldprogress+recall-echo'
+                });
+            }
+            // [v3.197] 回声账本：按在场角色给最近回声，仅氛围补全不改写事实
+            const lifeApi = (typeof window !== 'undefined' && window.LonShaEchoLedger) || null;
+            if (lifeApi) {
+                // 在场角色真源是 scene.presence（Map：name → {atFloor}），取最近登场的前 3 个
+                let recentChars = [];
+                try {
+                    const presence = this.scene && this.scene.presence;
+                    if (presence instanceof Map && presence.size) {
+                        recentChars = [...presence.entries()]
+                            .sort((a, b) => (b[1].atFloor || 0) - (a[1].atFloor || 0))
+                            .slice(0, 3)
+                            .map(([nm]) => nm);
+                    }
+                } catch (e) { recentChars = []; }
+                for (const charName of recentChars) {
+                    const lifeText = lifeApi.render?.(this.echoLedger, charName, 2) || '';
+                    if (lifeText) {
+                        results.push({
+                            id: 'wp_echo_ledger_' + charName,
+                            text: lifeText,
+                            source: 'worldprogress+echo-ledger'
+                        });
+                    }
+                }
+            }
 
             // 2. 活跃剧情支线注入
             const activeArcs = (this.plotArcs || []).filter(a => a.status === 'active');
@@ -11496,6 +11558,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 seedLedger: this.seedLedger || null,
                 parallelLedger: this.parallelLedger || null,
                 secretLedger: this.secretLedger || null,
+                recallEcho: this.recallEcho || null,
+                echoLedger: this.echoLedger || null,
                 knowledge: this.knowledge || {},
                 plotArcs: this.plotArcs || []
             };
@@ -11509,6 +11573,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 this.seedLedger = data.seedLedger || null;
                 this.parallelLedger = data.parallelLedger || null;
                 this.secretLedger = data.secretLedger || null;
+                this.recallEcho = data.recallEcho || null;
+                this.echoLedger = data.echoLedger || null;
                 this.knowledge = (typeof data.knowledge === 'object' && data.knowledge) ? data.knowledge : {};
                 this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
             }

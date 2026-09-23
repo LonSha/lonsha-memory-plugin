@@ -1,3 +1,23 @@
+## v3.197.0
+
+前文回扣账本与回声账本（日月西预设第三批机制移植）。
+
+- 新增 `recall-echo.js`：前文回扣账本（挂 `window.LonShaRecallEcho`）。
+  候选登记 `mark`（强制 floor，五回合冷却 ECHO_GAP=5，pending 上限 8，归一化指纹防重）、
+  回扣 `echo`（强制 echoNote，同楼一记 echo-per-floor，太新拒绝 too-fresh）、
+  跳过 `skip`（强制 skipNote，不强行解释为伏笔）、
+  清扫 `sweep`（过期回扣与全部 skipped 摘除，pending 不动）。
+  注入面只给 pending 高价值候选，标注「自然契合才重现，不篡改原意」。
+- 新增 `echo-ledger.js`：回声账本（挂 `window.LonShaEchoLedger`），11 种生活微场景
+  （提问箱/口袋小物/冰箱留言/快递包裹/未发草稿/乱科普/迷情剪辑/谣言小报/名场面回放/今日误会/垃圾桶残留）。
+  产出 `produce`（必填 char/floor/fields/os，同回合一记 echo-per-floor，
+  连续同模式拒绝 repeat-mode，同 char+mode 只留最新），清空 `reset`。
+  注入面按在场角色（scene.presence 最近登场前 3 位）给最近回声，
+  标注「仅氛围补全，不得改写为剧情既定事实」。
+- WorldProgress 四处接线：构造初始化 `recallEcho`/`echoLedger`；
+  toInjection 新增 `wp_recall_echo` 与 `wp_echo_ledger_<char>` 注入块；
+  export/import 各加两字段；宿主入口 `recordRecallEcho`/`recordEchoLife`。
+
 ## v3.196.0
 **两本新账本：平行事实（别处正在发生）与秘密（此刻不该被知晓）**
 - 素材来源：SillyTavern 预设「【日月西】Gemini & Claude v0.41 @电波系」的机制面（🗝️平行事件 / 💌秘密来信 / 🔮绝密档案）。只搬机制，不搬人设散文。
