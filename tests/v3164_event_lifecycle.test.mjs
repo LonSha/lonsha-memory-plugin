@@ -20,6 +20,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
+import { stripComments as libStrip } from './_audit_lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -58,7 +59,7 @@ test('【0】版本与审计脚本注册', () => {
     //   钉死自己的发行号会让下一个版本接管时以「版本不同」翻红，而那是变更，不是缺陷。
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.190.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.191.0'), `index.js 版本 ${v} >= 3.166.0`);
     // 第 8 个审计脚本已在目录里（tests/run.mjs 与 v3159 都按目录动态发现，无需单独登记）
     const audits = readdirSync(path.join(ROOT, 'tests', 'audit')).filter(f => f.endsWith('.mjs'));
     assert.ok(audits.includes('scan_event_lifecycle.mjs'), '第 8 个审计脚本存在');
@@ -73,12 +74,12 @@ test('【1】静态判据：剥注释必须保留偏移，且不得把正则字�
     const scannerSrc = readFileSync(SCANNER, 'utf8');
     assert.ok(scannerSrc.includes('注释里提到 `eventSource.on('),
         '扫描器应保留「注释里提到 eventSource.on(」的立论说明（剥注释判据的输入）');
-    assert.ok(scannerSrc.includes('stripComments'), '扫描器应有 stripComments');
+    assert.ok(scannerSrc.includes("from '../_audit_lib.mjs'"), '扫描器须 import 唯一真源 ../_audit_lib.mjs');
+    assert.ok(!/function\s+stripComments\s*\(/.test(scannerSrc), '扫描器不得再自带 stripComments 实现（v3.191 收敛）');
+    // [v3.191] 剥注释已收敛到唯一真源，行为判据改在库上跑（抽取式判据在收敛后抽不到函数体）
+    const stripComments = libStrip;
 
     // 1b 真跑被测逻辑：从扫描器源码里取出 stripComments 并验证两条性质
-    const scanner = scannerSrc;
-    const fnSrc = extractNamed(scanner, 'function stripComments(code) {');
-    const stripComments = new Function('return ' + fnSrc + ';')();
     const sample = 'aaa // eventSource.on(x)\nbbb /* eventSource.on(y)\nzzz */ ccc';
     const out = stripComments(sample);
     assert.strictEqual(out.split('\n').length, sample.split('\n').length, '剥注释必须保留换行数（行号才可定位）');
@@ -428,7 +429,7 @@ test('【4】发布卫生：CHANGELOG 顶节是本版，且旧锚点已交棒', 
         const src = readFileSync(path.join(ROOT, f), 'utf8');
         const hits = [...src.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map(m => m[1]);
         assert.ok(hits.length > 0, `${f} 仍锚着版本字符串`);
-        assert.ok(hits.every(h => vnum(h) >= vnum('3.190.0')), `${f} 的版本锚点未过期`);
+        assert.ok(hits.every(h => vnum(h) >= vnum('3.191.0')), `${f} 的版本锚点未过期`);
     }
     // 当版独占必须交出：上一版文件里的下界必须 >= 本版（动态判据，不写死具体版本）
     const cur = vnum(/const VERSION = '([\d.]+)'/.exec(idx)[1]);

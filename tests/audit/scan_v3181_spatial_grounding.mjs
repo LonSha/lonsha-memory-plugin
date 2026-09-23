@@ -22,6 +22,7 @@
 import fs from 'fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { stripComments } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
@@ -47,29 +48,6 @@ const lr = fs.existsSync(lrp) ? fs.readFileSync(lrp, 'utf8') : '';
  *   判据就恒红/恒绿，与真代码无关。凡是**源码形态**判据（不是行为判据），
  *   一律走本函数，并配「判据纯度」自证（见配套测试）。
  */
-function stripComments(src) {
-    let out = '';
-    let i = 0;
-    const n = src.length;
-    let mode = 0;   // 0=code 1=line-comment 2=block-comment 3=single 4=double 5=template
-    while (i < n) {
-        const c = src[i], d = src[i + 1];
-        if (mode === 0) {
-            if (c === '/' && d === '/') { mode = 1; i += 2; continue; }
-            if (c === '/' && d === '*') { mode = 2; i += 2; continue; }
-            if (c === "'") { mode = 3; out += c; i++; continue; }
-            if (c === '"') { mode = 4; out += c; i++; continue; }
-            if (c === '`') { mode = 5; out += c; i++; continue; }
-            out += c; i++; continue;
-        }
-        if (mode === 1) { if (c === '\n') { mode = 0; out += c; } i++; continue; }
-        if (mode === 2) { if (c === '*' && d === '/') { mode = 0; i += 2; } else i++; continue; }
-        if (mode === 3) { if (c === '\\') { i += 2; continue; } if (c === "'") mode = 0; out += c; i++; continue; }
-        if (mode === 4) { if (c === '\\') { i += 2; continue; } if (c === '"') mode = 0; out += c; i++; continue; }
-        if (mode === 5) { if (c === '\\') { i += 2; continue; } if (c === '`') mode = 0; out += (c === '`' ? '`' : ''); i++; continue; }
-    }
-    return out;
-}
 // 形态判据一律走去注释/去字面量后的源码（行为判据仍走真模块）
 const sbCode = stripComments(sb);
 const idxCode = stripComments(idx);

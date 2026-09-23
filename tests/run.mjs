@@ -109,7 +109,7 @@ function summarize(r) {
 
 function auditScripts() {
   if (!existsSync(AUDIT_DIR)) return [];
-  return readdirSync(AUDIT_DIR).filter(f => f.endsWith('.mjs')).sort().map(f => join(AUDIT_DIR, f));
+  return readdirSync(AUDIT_DIR).filter(f => f.endsWith('.mjs') && !f.startsWith('_')).sort().map(f => join(AUDIT_DIR, f));
 }
 
 async function main() {

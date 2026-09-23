@@ -27,6 +27,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { codeLines } from './_audit_lib.mjs';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,29 +41,7 @@ const idxSrc = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 
 /** 剥注释（与 v3170 套件同一语义），用于源码层文本判据 */
-function codeLines(src) {
-  const out = [];
-  let inBlock = false;
-  for (const rawLine of String(src).split('\n')) {
-    let line = rawLine;
-    if (inBlock) {
-      const e = line.indexOf('*/');
-      if (e === -1) continue;
-      line = line.slice(e + 2); inBlock = false;
-    }
-    for (;;) {
-      const s = line.indexOf('/*');
-      if (s === -1) break;
-      const e = line.indexOf('*/', s + 2);
-      if (e === -1) { line = line.slice(0, s); inBlock = true; break; }
-      line = line.slice(0, s) + line.slice(e + 2);
-    }
-    const lc = line.indexOf('//');
-    if (lc !== -1) line = line.slice(0, lc);
-    if (line.trim()) out.push(line);
-  }
-  return out;
-}
+// [v3.191] codeLines 已收敛到唯一真源 tests/_audit_lib.mjs（此处不再本地重写）
 const code = codeLines(SRC).join('\n');
 
 const u = (mes, index) => ({ is_user: true, mes, index });

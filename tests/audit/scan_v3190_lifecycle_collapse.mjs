@@ -23,6 +23,8 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
+import { stripComments } from '../_audit_lib.mjs';
+import { bodyOf } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
@@ -49,37 +51,10 @@ if (owners.length < MIN_OWNERS) {
 }
 const defects = [];
 // 剥注释（保留换行），形态判据一律在剥注释后的文本上下结论。
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') { while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; } continue; }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) { if (code[i] !== '\n') out[i] = ' '; i++; }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
 const idxStripped = stripComments(idx);
 // 取方法体：从 marker 后的第一个 { 起做花括号配对。
-function bodyOf(src, marker) {
-    const i = src.indexOf(marker);
-    if (i < 0) return null;
-    const o = src.indexOf('{', i);
-    if (o < 0) return null;
-    let d = 0;
-    for (let j = o; j < src.length; j++) {
-        const c = src[j];
-        if (c === '{') d++;
-        else if (c === '}') { d--; if (d === 0) return src.slice(o, j + 1); }
-    }
-    return null;
-}
+// [v3.191] bodyOf 已收敛到唯一真源 tests/_audit_lib.mjs（两份旧签名合一，语义等价）
+
 // ── P1 位移只发生一次 ──
 const shiftBody = bodyOf(idxStripped, 'shiftFloorsFrom(deleted) {');
 if (!shiftBody) {

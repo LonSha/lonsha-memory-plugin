@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { stripComments, bodyOf as bodyIn } from './_audit_lib.mjs';
 
 const require_ = createRequire(import.meta.url);
 const LR = require_('../ledger-replay.js');
@@ -13,44 +14,17 @@ const ROOT = new URL('..', import.meta.url);
 const read = (p) => readFileSync(new URL(p, ROOT), 'utf-8');
 const raw = read('index.js');
 
-// 剥注释（保留换行）：形态判据必须看代码，不能把注释里的描述当成代码。
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') { while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; } continue; }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) { if (code[i] !== '\n') out[i] = ' '; i++; }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
 const src = stripComments(raw);
-function bodyOf(marker) {
-    const i = src.indexOf(marker);
-    if (i < 0) return null;
-    const o = src.indexOf('{', i);
-    let d = 0;
-    for (let j = o; j < src.length; j++) {
-        const c = src[j];
-        if (c === '{') d++;
-        else if (c === '}') { d--; if (d === 0) return src.slice(o, j + 1); }
-    }
-    return null;
-}
+// [v3.191] bodyOf 收敛到唯一真源，此处固定第一参（已剥注释的 src）
+const bodyOf = (marker) => bodyIn(src, marker);
 
 test('v3190 1. 三源同源，且不低于本版', () => {
     const m = /const VERSION = '([0-9.]+)'/.exec(raw);
     const manifest = JSON.parse(read('manifest.json'));
     const pkg = JSON.parse(read('package.json'));
-    assert.equal(m[1], '3.190.0', 'index.js 版本号为 3.190.0');
-    assert.equal(manifest.version, '3.190.0', 'manifest 跟随 index.js');
-    assert.equal(pkg.version, '3.190.0', 'package 跟随 index.js');
+    assert.equal(m[1], '3.191.0', 'index.js 版本号为 3.191.0');
+    assert.equal(manifest.version, '3.191.0', 'manifest 跟随 index.js');
+    assert.equal(pkg.version, '3.191.0', 'package 跟随 index.js');
 });
 
 test('v3190 2. 位移只发生一次：shiftFloorsFrom 不再携带手抄清单', () => {

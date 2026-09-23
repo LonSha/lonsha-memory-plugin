@@ -26,6 +26,7 @@
 // 夹具通道：LONSHA_AUDIT_FIXTURE=1 放宽下限，供单测塞合成仓库。
 import fs from 'fs';
 import path from 'node:path';
+import { bodyOf } from '../_audit_lib.mjs';
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 const FLOOR = path.join(ROOT, 'floor-ledger.js');
@@ -148,24 +149,8 @@ if (/\.(mes|swipes)\s*=[^=]/.test(floor)) {
 /** 抽函数体：**先配平圆括号**再找 `{`。
  *  不这么做的话 `stamp(msg, record, opts = {})` 的参数默认值 `{}` 会被当成函数体
  *  （抽到 2 个字符 ⇒ 判据假红）。这个坑在 v3.176 的同类扫描器里踩过一次，此处固化。 */
-function bodyOf(src, name) {
-    const start = src.search(new RegExp('function\\s+' + name + '\\s*\\('));
-    if (start < 0) return null;
-    let i = src.indexOf('(', start), depth = 0, close = -1;
-    for (; i < src.length; i++) {
-        if (src[i] === '(') depth++;
-        else if (src[i] === ')') { depth--; if (depth === 0) { close = i; break; } }
-    }
-    if (close < 0) return null;
-    const brace = src.indexOf('{', close);
-    if (brace < 0) return null;
-    let d2 = 0, end = -1;
-    for (let j = brace; j < src.length; j++) {
-        if (src[j] === '{') d2++;
-        else if (src[j] === '}') { d2--; if (d2 === 0) { end = j; break; } }
-    }
-    return end > 0 ? src.slice(brace, end + 1) : null;
-}
+// [v3.191] bodyOf 已收敛到唯一真源 tests/_audit_lib.mjs（两份旧签名合一，语义等价）
+
 for (const [what, src, names] of [
     ['floor-ledger', floor, ['stamp', 'read', 'clear', 'coverage', 'fpOf', 'textOf', 'hash32']],
     ['age-anchor', age, ['stampAge', 'carryAge', 'ageDisplay', 'checkInvariants', 'anchorLabel', 'dayDiff']],

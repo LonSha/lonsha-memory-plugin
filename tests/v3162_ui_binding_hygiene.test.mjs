@@ -249,7 +249,7 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.190.0')), f + ' anchors are not stale');
+        assert.ok(hits.every((h) => vnum(h) >= vnum('3.191.0')), f + ' anchors are not stale');
     }
 });
 test('[4c] v3159 no longer hardcodes its audit-script list', () => {
@@ -261,7 +261,7 @@ test('[4c] v3159 no longer hardcodes its audit-script list', () => {
     assert.ok(!/const auditScripts = \[\s*['"`]/.test(t), 'the literal list is gone');
     // 动态清单必须真的覆盖每个 .mjs，且包含本版新增的那一个。
     const onDisk = readFileSync(path.join(ROOT, 'tests', 'run.mjs'), 'utf-8');
-    assert.ok(/readdirSync\(AUDIT_DIR\)\.filter\(f => f\.endsWith\('\.mjs'\)\)/.test(onDisk),
+    assert.ok(/readdirSync\(AUDIT_DIR\)\.filter\(f => f\.endsWith\('\.mjs'\) && !f\.startsWith\('_'\)\)/.test(onDisk),
         'run.mjs uses the same discovery rule');
 });
 test('[4d] v3160 and v3161 gave up their own-release exclusivity', () => {

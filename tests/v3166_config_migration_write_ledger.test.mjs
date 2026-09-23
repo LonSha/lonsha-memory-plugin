@@ -11,6 +11,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { stripComments as libStrip } from './_audit_lib.mjs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const STORAGE_KEY = 'lonsha_memory';
 
@@ -21,7 +22,7 @@ test('v3.166 版本下界与四处同步', () => {
         return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
     };
     const v = /const VERSION = '([\d.]+)'/.exec(src)?.[1];
-    assert.ok(vnum(v) >= vnum('3.190.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.191.0'), `index.js 版本 ${v} >= 3.166.0`);
     // 下一版的「当版独占交出」会扫描本文件里的 vnum 下界，链条必须能接上
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -93,7 +94,8 @@ test('v3.166 A 配置迁移不靠自引用构造 + 栈溢出收敛', () => {
     const migRegion = src.slice(src.indexOf('loadConfig() {'), src.indexOf('_applyCardOverrides() {'));
     // 先剥注释再判：这段代码紧邻的说明文字本身就写着 new (this.constructor)()，
     //   裸正则命中注释会假失败（判据被自己的说明注释骗过）。
-    const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+    // [v3.191] 剥注释收敛到唯一真源（原第四份副本：不保偏移的正则版，含字符串/正则误伤风险）
+    const stripComments = libStrip;
     const migCode = stripComments(migRegion);
     assert.ok(!/new\s*\(\s*this\.constructor\s*\)/.test(migCode), '迁移分支不得自引用构造');
 

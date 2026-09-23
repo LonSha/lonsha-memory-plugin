@@ -13,6 +13,7 @@ import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { stripComments } from './_audit_lib.mjs';
 const ROOT = new URL('..', import.meta.url).pathname;
 const require_ = createRequire(import.meta.url);
 const src = readFileSync(ROOT + 'index.js', 'utf-8');
@@ -23,23 +24,7 @@ const changelog = readFileSync(ROOT + 'CHANGELOG.md', 'utf-8');
 const NP = require_('../narrative-pulse.js');
 const vnum = (v) => Number(String(v).split('.').map((x) => x.padStart(3, '0')).join(''));
 const KEY = 'emotionOppositeRecall';
-/** 剥注释：形态判据一律在代码上下结论（注释里写「已接消费者」不算接上）。 */
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') { while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; } continue; }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) { if (code[i] !== '\n') out[i] = ' '; i++; }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
+
 const cleanSrc = stripComments(src);
 
 /* ══════════════ 1. 模块行为（真跑函数，不看文本） ══════════════ */
@@ -268,12 +253,12 @@ test('v3186 21. 版本三源同源，且不低于本版', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.equal(v, mf.version, 'manifest 必须跟随 index.js');
     assert.equal(v, pkg.version, 'package.json 必须跟随 index.js');
-    assert.ok(vnum(v) >= vnum('3.190.0'), '版本 ' + v + ' 须 >= 3.186.0');
+    assert.ok(vnum(v) >= vnum('3.191.0'), '版本 ' + v + ' 须 >= 3.186.0');
 });
 test('v3186 22. CHANGELOG 顶节为本版，且记录了本版的关键取舍现场', () => {
     const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
     assert.ok(top, 'CHANGELOG 必须有序节');
-    assert.ok(vnum(top.replace('v', '')) >= vnum('3.190.0'), '顶节 ' + top + ' 须 >= v3.186.0');
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.191.0'), '顶节 ' + top + ' 须 >= v3.186.0');
     assert.ok(/情绪反向/.test(changelog), '须记录情绪反向召回本体');
     assert.ok(/只取机制/.test(changelog), '须记录「只取机制、不取注入口径」这一取舍');
     assert.ok(/既有更强实现|更强/.test(changelog), '须记录「点选三项里两项本仓已有更强实现」这一据实修正');

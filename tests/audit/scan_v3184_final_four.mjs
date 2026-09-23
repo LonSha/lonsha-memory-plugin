@@ -26,6 +26,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 // 本文件源码（R0 自证用：上报点数与读数行都从源码实测，避免「判据被删改而结论不变」）
@@ -48,22 +49,6 @@ for (const k of ['rd', 'nr', 'fp', 'cs', 'idx', 'sui', 'mf']) {
 const idxRaw = fs.readFileSync(path.join(ROOT, FILES.idx), 'utf8');
 const sui = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已收口」不算收口）。
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') { while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; } continue; }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) { if (code[i] !== '\n') out[i] = ' '; i++; }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
 const idx = stripComments(idxRaw);
 if (idxRaw.length < 500000) {
     console.error('[final-four] index.js 退化（' + idxRaw.length + ' 字节），审计需同步结构变化');

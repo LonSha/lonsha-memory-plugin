@@ -42,35 +42,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as U from './_negative_util.mjs';
+import { codeLines } from './_audit_lib.mjs';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const S = require('../stm-ltm.js');
 const SRC = fs.readFileSync(path.join(root, 'stm-ltm.js'), 'utf8');
 /** 剥注释：文本判据一律做在代码行上，避免被注释字样满足（v3.169 的两处假绿教训） */
-function codeLines(src) {
-  const out = [];
-  let inBlock = false;
-  for (const raw of String(src).split('\n')) {
-    let line = raw;
-    if (inBlock) {
-      const e = line.indexOf('*/');
-      if (e === -1) continue;
-      line = line.slice(e + 2); inBlock = false;
-    }
-    for (;;) {
-      const s = line.indexOf('/*');
-      if (s === -1) break;
-      const e = line.indexOf('*/', s + 2);
-      if (e === -1) { line = line.slice(0, s); inBlock = true; break; }
-      line = line.slice(0, s) + line.slice(e + 2);
-    }
-    const lc = line.indexOf('//');
-    if (lc !== -1) line = line.slice(0, lc);
-    if (line.trim()) out.push(line);
-  }
-  return out;
-}
+// [v3.191] codeLines 已收敛到唯一真源 tests/_audit_lib.mjs（此处不再本地重写）
 const code = codeLines(SRC).join('\n');
 
 /* 工具：真把 STM 顶到溢出（多次巩固直到触顶），可选预置 LTM */

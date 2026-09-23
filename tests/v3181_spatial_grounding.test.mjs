@@ -22,6 +22,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { stripComments as libStrip } from './_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
@@ -55,8 +56,8 @@ function extractNamed(src, header) {
     return src.slice(start, end);
 }
 // ── 判据纯度工具：从审计脚本里取同一份实现来真跑（本测试自己的形态判据也走它） ──
-const stripSrc = extractNamed(fs.readFileSync(AUDIT, 'utf8'), 'function stripComments(src) {');
-const stripComments = new Function('return (' + stripSrc + ');')();
+// [v3.191] 剥注释已收敛到唯一真源，直接 import（抽取式判据在收敛后抽不到函数体）
+const stripComments = libStrip;
 /** 破坏副本装载器：与真判据同源（判据接受 SceneBook 类，破坏副本也走这里载入）。 */
 function loadSBFrom(src) {
     const mod = { exports: {} };
@@ -665,7 +666,7 @@ test('【J1】版本三源一致且不低于 v3.186.0', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idxSrc)[1];
     assert.equal(v, manifest.version, 'manifest follows index.js');
     assert.equal(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.190.0'), 'index.js 版本 ' + v + ' >= 3.186.0');
+    assert.ok(vnum(v) >= vnum('3.191.0'), 'index.js 版本 ' + v + ' >= 3.186.0');
     const top = changelog.split('\n').filter(l => l.startsWith('## v'))
         .map(l => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
     assert.equal(top, v, '★ CHANGELOG 顶节是本版（highest section is the released version）');
@@ -687,7 +688,7 @@ test('【J3】★ 配套审计与负控制脚本在位，且审计在健康树�
     assert.equal(r.status, 0, '审计在健康树上 exit 0（stderr: ' + String(r.stderr || '').slice(0, 300) + '）');
     assert.ok(/六面可读/.test(r.stdout), '审计出一句可读的结论');
     const runner = fs.readFileSync(path.join(REPO, 'tests', 'run.mjs'), 'utf8');
-    assert.ok(/readdirSync\(AUDIT_DIR\)\.filter\(f => f\.endsWith\('\.mjs'\)\)/.test(runner),
+    assert.ok(/readdirSync\(AUDIT_DIR\)\.filter\(f => f\.endsWith\('\.mjs'\) && !f\.startsWith\('_'\)\)/.test(runner),
         '★ 审计按目录自动发现（新脚本无需登记）');
 });
 test('【J4】scene-book.js 结构自洽：导出面 12 项 + 类可构造 + 常量齐备', () => {

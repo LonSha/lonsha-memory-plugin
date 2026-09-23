@@ -23,6 +23,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
+import { stripComments } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 
@@ -40,22 +41,6 @@ for (const k of ['sp', 'bg', 'xl', 'idx']) {
 }
 const idx = fs.readFileSync(path.join(ROOT, FILES.idx), 'utf8');
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已过滤」不算过滤）。
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') { while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; } continue; }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) { if (code[i] !== '\n') out[i] = ' '; i++; }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
 const idxCode = stripComments(idx);
 if (idx.length < 500000) {
     console.error('[branch-consistency] index.js 退化（' + idx.length + ' 字节），审计需同步结构变化');

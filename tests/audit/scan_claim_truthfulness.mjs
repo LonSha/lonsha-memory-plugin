@@ -35,6 +35,7 @@
 // 夹具通道：LONSHA_AUDIT_FIXTURE=1 放宽下限，供单测塞合成仓库。
 import fs from 'fs';
 import path from 'path';
+import { stripComments } from '../_audit_lib.mjs';
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 const idxPath = path.join(ROOT, 'index.js');
@@ -64,28 +65,6 @@ const CAPABILITIES = ['LLM', '\u5411\u91cf\u68c0\u7d22', '\u56fe\u6269\u6563', '
 // 剥注释（保留换行与偏移，行号才可定位）：注释里提到 ✓ 是说明文字，不是声称点。
 //   与 scan_event_lifecycle 同一策略与同一理由：不连字符串字面量一起剥（手写剥离器
 //   一旦把正则字面量误判为字符串就会从某处开始吞掉大段代码，比不剥更危险）。
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') {
-            while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; }
-            continue;
-        }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) {
-                if (code[i] !== '\n') out[i] = ' ';
-                i++;
-            }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
 const bare = stripComments(idx);
 /* ---------- 方法区间表 ---------- */
 // 声称点的「所属方法」必须真的抽出来：不看区间就只能看到「文件里有 ⚠️」，

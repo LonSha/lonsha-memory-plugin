@@ -25,6 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
+import { stripComments as libStrip } from './_audit_lib.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const SCANNER = path.join(HERE, 'audit', 'scan_claim_truthfulness.mjs');
@@ -88,7 +89,7 @@ test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.190.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.191.0'), `index.js 版本 ${v} >= 3.166.0`);
     const audits = readdirSync(path.join(ROOT, 'tests', 'audit')).filter(f => f.endsWith('.mjs')).sort();
     assert.ok(audits.includes('scan_claim_truthfulness.mjs'), '第 9 个审计脚本存在');
     assert.ok(audits.length >= 9, `审计脚本数 ${audits.length} >= 9`);
@@ -96,9 +97,9 @@ test('【0】版本与审计脚本注册', () => {
 /* ---------- 1 ---------- */
 test('【1】静态判据：剥注释保留偏移，EXPECTED_EVENT_TYPES 是单一真源', () => {
     const scannerSrc = readFileSync(SCANNER, 'utf8');
-    assert.ok(scannerSrc.includes('stripComments'), '扫描器应有 stripComments');
-    const fnSrc = extractNamed(scannerSrc, 'function stripComments(code) {');
-    const stripComments = new Function('return ' + fnSrc + ';')();
+    assert.ok(scannerSrc.includes("from '../_audit_lib.mjs'"), '扫描器须 import 唯一真源 ../_audit_lib.mjs');
+    assert.ok(!/function\s+stripComments\s*\(/.test(scannerSrc), '扫描器不得再自带 stripComments 实现（v3.191 收敛）');
+    const stripComments = libStrip;
     const sample = 'aaa // \u2713 fake\nbbb /* \u2713 fake\nzzz */ ccc';
     const out = stripComments(sample);
     assert.strictEqual(out.split('\n').length, sample.split('\n').length, '剥注释必须保留换行数（行号才可定位）');
@@ -467,8 +468,7 @@ test('【3】行为验证：早退分支真的可达（TDZ 自引用不得回潮
     // 关键：必须**先剥注释再判**。这条判据写完就在本文件里踩了同一个坑 ——
     //   解释「为什么不这么写」的注释里必然会出现被禁止的那个写法，不剥注释的话
     //   判据会被自己的说明文字骗成永久红（注释不是代码，判据却把它当成了代码）。
-    const scannerSrc2 = readFileSync(SCANNER, 'utf8');
-    const stripComments2 = new Function('return ' + extractNamed(scannerSrc2, 'function stripComments(code) {') + ';')();
+    const stripComments2 = libStrip;
     const bareReg = stripComments2(regSrc);
     assert.ok(!/typeof\s+eventSource\s*!==\s*'undefined'\s*\?\s*eventSource/.test(bareReg),
         '不得对同名 const 自引用做 typeof 探测（TDZ 会直接抛，兜底分支永远不可达）');
@@ -507,7 +507,7 @@ test('【4】发布卫生：CHANGELOG 顶节与旧锚点交棒', () => {
         const src = readFileSync(path.join(ROOT, f), 'utf8');
         const hits = [...src.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map(m => m[1]);
         assert.ok(hits.length > 0, `${f} 仍锚着版本字符串`);
-        assert.ok(hits.every(h => vnum(h) >= vnum('3.190.0')), `${f} 的版本锚点未过期`);
+        assert.ok(hits.every(h => vnum(h) >= vnum('3.191.0')), `${f} 的版本锚点未过期`);
     }
     // 当版独占必须交出：上一版文件里的下界必须 >= 本版
     const cur = vnum(curV);

@@ -38,6 +38,9 @@ for (const f of FILES) {
 
 function snapshotDir() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lonsha-v3184-'));
+    // [v3.191] 夹具必须镜像仓库布局：扫描器副本在 tests/audit/ 下，其 '../_audit_lib.mjs' 才能解析。
+    fs.mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
+    fs.copyFileSync(path.join(SRC, 'tests', '_audit_lib.mjs'), path.join(dir, 'tests', '_audit_lib.mjs'));
     for (const f of FILES) fs.copyFileSync(path.join(SRC, f), path.join(dir, f));
     return dir;
 }
@@ -215,7 +218,7 @@ group('R6-UI 控件被摘',
     // N-R0a：把通过路径的读数行**改名** ⇒ 卫生态必须翻红（与 N6c 行键改名同口径）。
     //   不能只加 `void 0 &&` 前缀：被断言的子串仍在源码里，判据不会变——不可观测的假负控制（本轮踩到）。
     const dir = snapshotDir();
-    const sp = path.join(dir, 'scan_v3184_final_four.mjs');
+    const sp = path.join(dir, 'tests', 'audit', 'scan_v3184_final_four.mjs');
     fs.copyFileSync(SCAN, sp);
     const s0 = fs.readFileSync(sp, 'utf8');
     // 前导\n 不可省：自证行 `P.includes("console.log('[final-four] 卫生：")` 里也有同名子串，不加则锚点命中 2 次。
@@ -234,7 +237,7 @@ group('R6-UI 控件被摘',
 {
     // N-R0b：拆掉自计数的过滤器 ⇒ 上报点实测值塌成 1 ⇒ 必须翻红。
     const dir = snapshotDir();
-    const sp = path.join(dir, 'scan_v3184_final_four.mjs');
+    const sp = path.join(dir, 'tests', 'audit', 'scan_v3184_final_four.mjs');
     fs.copyFileSync(SCAN, sp);
     const s0 = fs.readFileSync(sp, 'utf8');
     const anchor = "l.includes(_SUBMIT)";

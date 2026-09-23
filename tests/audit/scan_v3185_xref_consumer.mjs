@@ -33,6 +33,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 const P = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
@@ -49,22 +50,6 @@ const suiRaw = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 const mf = JSON.parse(fs.readFileSync(path.join(ROOT, FILES.mf), 'utf8'));
 
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已接消费者」不算接上）。
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') { while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; } continue; }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) { if (code[i] !== '\n') out[i] = ' '; i++; }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
 const idx = stripComments(idxRaw);
 const sui = stripComments(suiRaw);
 if (idxRaw.length < 500000) {

@@ -30,6 +30,7 @@
 // 夹具通道：LONSHA_AUDIT_FIXTURE=1 放宽下限，供单测塞合成仓库。
 import fs from 'fs';
 import path from 'path';
+import { stripComments } from '../_audit_lib.mjs';
 
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
@@ -57,28 +58,6 @@ const defects = [];
 // 剥注释时**保留换行与偏移**（注释字符换成空格），这样剥完的行号与原始文件一致，
 //   报告里的「行 xxx」才可以直接跳转定位。若像初版那样直接吞掉注释内容，
 //   后续所有位置的偏移都会前移，行号会指向无关代码（实测 7 处裸调用报出 8 个行号）。
-function stripComments(code) {
-    const out = code.split('');
-    let i = 0;
-    while (i < code.length) {
-        const c = code[i];
-        if (c === '/' && code[i + 1] === '/') {
-            while (i < code.length && code[i] !== '\n') { out[i] = ' '; i++; }
-            continue;
-        }
-        if (c === '/' && code[i + 1] === '*') {
-            out[i] = ' '; out[i + 1] = ' '; i += 2;
-            while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) {
-                if (code[i] !== '\n') out[i] = ' ';
-                i++;
-            }
-            if (i < code.length) { out[i] = ' '; out[i + 1] = ' '; i += 2; }
-            continue;
-        }
-        i++;
-    }
-    return out.join('');
-}
 const bare = stripComments(idx);
 
 /* ---------- 1. E1：注册点必须收口 ---------- */

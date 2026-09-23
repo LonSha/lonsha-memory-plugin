@@ -40,9 +40,12 @@ for (const f of FILES) {
 }
 function snapshotDir() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lonsha-v3186-'));
+    // [v3.191] 夹具必须镜像仓库布局：扫描器副本在 tests/audit/ 下，其 '../_audit_lib.mjs' 才能解析。
+    fs.mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
+    fs.copyFileSync(path.join(SRC, 'tests', '_audit_lib.mjs'), path.join(dir, 'tests', '_audit_lib.mjs'));
     for (const f of FILES) fs.copyFileSync(path.join(SRC, f), path.join(dir, f));
     // 扫描器自身也要拷进同一夹具目录，供「破坏扫描器」组使用。
-    fs.copyFileSync(SCAN, path.join(dir, 'scanner_copy.mjs'));
+    fs.copyFileSync(SCAN, path.join(dir, 'tests', 'audit', 'scanner_copy.mjs'));
     return dir;
 }
 function runScanAt(scanPath, dir) {
@@ -53,7 +56,7 @@ function runScanAt(scanPath, dir) {
         return { code: e.status == null ? -1 : e.status, text: String(e.stdout || '') + String(e.stderr || '') };
     }
 }
-const runScan = (dir) => runScanAt(path.join(dir, 'scanner_copy.mjs'), dir);
+const runScan = (dir) => runScanAt(path.join(dir, 'tests', 'audit', 'scanner_copy.mjs'), dir);
 /** 在临时副本里做一次真源码破坏，并断言扫描器按归因翻红。 */
 function mutate(file, anchor, repl, label, expectAttr) {
     const dir = snapshotDir();
@@ -172,7 +175,7 @@ mutate('narrative-pulse.js', 'let dominant = null, best = 0;', 'let dominant = n
 //   注意：本文件里也**不**写整串 needle，见下方 needleParts 拼接。
 {
     const dir = snapshotDir();
-    const sp = path.join(dir, 'scanner_copy.mjs');
+    const sp = path.join(dir, 'tests', 'audit', 'scanner_copy.mjs');
     const s0 = fs.readFileSync(sp, 'utf8');
     // 锚点由片段拼出：这样本文件自身不含整串，不会成为新的纯度污染源。
     //   教训：初版用 `'\u7ef8'` 这类转义写「绪」，写成了「绸」（U+7EF8 ≠ U+7EEA），
@@ -200,7 +203,7 @@ mutate('narrative-pulse.js', 'let dominant = null, best = 0;', 'let dominant = n
 //       等于「这条判别力悄悄消失」。归因串契约正是守这个。
 {
     const dir = snapshotDir();
-    const sp = path.join(dir, 'scanner_copy.mjs');
+    const sp = path.join(dir, 'tests', 'audit', 'scanner_copy.mjs');
     const s0 = fs.readFileSync(sp, 'utf8');
     const callAnchor = "bad('R2 反向词越界'";
     const n0 = s0.split(callAnchor).length - 1;
@@ -220,7 +223,7 @@ mutate('narrative-pulse.js', 'let dominant = null, best = 0;', 'let dominant = n
 // ── N-R0c 判据段缺失：枚举少一段 ⇒ 应 exit=2（自证失败）──
 {
     const dir = snapshotDir();
-    const sp = path.join(dir, 'scanner_copy.mjs');
+    const sp = path.join(dir, 'tests', 'audit', 'scanner_copy.mjs');
     const s0 = fs.readFileSync(sp, 'utf8');
     const anchor = "const EXPECT_SECTION_COUNT = 6;";
     const n0 = s0.split(anchor).length - 1;

@@ -4,7 +4,7 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, mkdirSync, readdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, cpSync, mkdtempSync, rmSync, mkdirSync, readdirSync, existsSync } from 'fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -49,9 +49,10 @@ function runInScratch(mutate) {
         // 入口与面板由调用方按需覆盖（退化用例会写入 '// gone'）
         writeFileSync(path.join(dir, 'index.js'), src);
         writeFileSync(path.join(dir, 'settings-ui.js'), sui);
-        const ad = path.join(dir, 'tests', 'audit');
-        mkdirSync(ad, { recursive: true });
-        for (const f of auditScripts) writeFileSync(path.join(ad, f), readAudit(f));
+        // [v3.191] 整份镜像 tests/：库用例（scan_audit_lib_consolidation）核对唯一真源
+        //   tests/_audit_lib.mjs 与 tests/run.mjs 是否在场——缺了就 fail-closed 判结构漂移。
+        //   健康树夹具必须真的像健康树；判据不因此放宽。
+        cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true });
         const which = mutate(dir);
         const results = {};
         for (const f of (which || auditScripts)) {

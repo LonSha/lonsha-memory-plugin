@@ -35,6 +35,9 @@ for (const f of FILES) {
 }
 function snapshotDir() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lonsha-v3185-'));
+    // [v3.191] 夹具必须镜像仓库布局：扫描器副本在 tests/audit/ 下，其 '../_audit_lib.mjs' 才能解析。
+    fs.mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
+    fs.copyFileSync(path.join(SRC, 'tests', '_audit_lib.mjs'), path.join(dir, 'tests', '_audit_lib.mjs'));
     for (const f of FILES) fs.copyFileSync(path.join(SRC, f), path.join(dir, f));
     return dir;
 }
@@ -132,7 +135,7 @@ mutate('settings-ui.js', "ck('crosslinkRecallBoost'", "ck('crosslinkRecallBoostX
 // ── N-R0 判据纯度：破坏扫描器自身的 needle 拆写 ⇒ 应 exit=2（纯度失败）──
 {
     const dir = snapshotDir();
-    const sp = path.join(dir, 'scanner_copy.mjs');
+    const sp = path.join(dir, 'tests', 'audit', 'scanner_copy.mjs');
     fs.copyFileSync(SCAN, sp);
     const s0 = fs.readFileSync(sp, 'utf8');
     const anchor = "const NEEDLE_A = '条' + '目复用';";
@@ -157,7 +160,7 @@ mutate('settings-ui.js', "ck('crosslinkRecallBoost'", "ck('crosslinkRecallBoostX
 //   破坏方式：把 R2 的归因串改成别的字（调用点数量不变，判别力消失）。
 {
     const dir = snapshotDir();
-    const sp = path.join(dir, 'scanner_copy.mjs');
+    const sp = path.join(dir, 'tests', 'audit', 'scanner_copy.mjs');
     fs.copyFileSync(SCAN, sp);
     const s0 = fs.readFileSync(sp, 'utf8');
     const callAnchor = "bad('R2 召回侧未消费'";
