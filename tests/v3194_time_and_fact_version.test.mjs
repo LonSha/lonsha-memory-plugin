@@ -354,9 +354,9 @@ test('v3194 18. 三面账跨存档往返不丢（导入导出闭环）', () => {
 /* ── ⑤ 发布卫生 ─────────────────────────────────── */
 test('v3194 19. 三源同源，且不低于本版', () => {
   const v = /const VERSION = '([0-9.]+)'/.exec(raw)[1];
-  assert.equal(v, '3.200.0', 'index.js 版本号为 3.194.0');
-  assert.equal(manifest.version, '3.200.0', 'manifest 跟随 index.js');
-  assert.equal(pkg.version, '3.200.0', 'package 跟随 index.js');
+  assert.equal(v, '3.201.0', 'index.js 版本号为 3.194.0');
+  assert.equal(manifest.version, '3.201.0', 'manifest 跟随 index.js');
+  assert.equal(pkg.version, '3.201.0', 'package 跟随 index.js');
 });
 
 test('v3194 20. 本版 test 文件自身进了 tests/ 目录', () => {

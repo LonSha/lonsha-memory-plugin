@@ -1,3 +1,34 @@
+## v3.201.0
+**三方向并行收口：D1 诊断面消费成本账本「真进注入」三态 / D2 摘要 storyTime 落账 + 注入相对时间前缀 / D3 queryText 复核**
+- 背景：v3.200.0 把成本账本的「提权条进没进注入」从恒 0 假读数改为片段匹配，
+  但那个真读数还只躺在账本对象里——诊断面（selfCheck「情绪反向」行）仍只报
+  「提权 N 条」。提了但被预算挤掉的条目，读起来和「机制生效了」一模一样。
+- **D1 诊断面消费账本三态**：`_emotionOppositeLine()` 的 ok 分支新增消费
+  `_lastCostLedger.opposite`：
+  · 账本尚未生成 → 「真进注入 待账本」（不编 0）；
+  · `measurable=false` → 「真进注入 不可测」（不把「测不出」写成「一条都没进」）；
+  · 可测 → 「真进注入 X/Y 条」真读数。
+  三态与既有五态（未启用/模块未加载/待本轮/无反向线索/生效读数）并存，
+  且不破坏 v3186 审计的文本锚点（新注释同理不连写「情绪反向」判据串）。
+- **D2 时间感知最小切片**（FABLE 三大代差之时间感知的可落地切片）：
+  · `createSummary` 两路径落 `storyTime`（新楼 + 同楼替换；空白值不写字段，
+    文本未变化的替换不补写——不动既有去重语义）；
+  · 调用侧**独立提取** storyTime（正文时间标签 end 优先），
+    不引用 `if (plotTimeline)` 块内声明的 `sd`——跨块 ReferenceError 会被外层
+    静默吞掉（与 v3.185 `queryText` 同类坑，本次修正前实测一次）；
+  · `buildInjection` 摘要行加相对时间前缀（与 timeline 注入同规格：
+    `relativeTime !== false` 开关、clock 日期优先 / `getLatestStoryDate` 兜底、
+    宁可不标绝不标错——空值/跨月架空历一律不加）。
+- **D3 `queryText` 复核**：v3.185 已修（`this.intentRerank(merged, query.text)`），
+  坏字面量零残留，本版零改动；v3201 测试 16 复验并钉住。
+- **测试**：新增 `tests/v3201_summary_reltime_and_diag_ledger.test.mjs`（21 项）：
+  D1 三态真跑 + 既有读数不缩水 + 五态守门 + 负控制（抽掉 measurable 分支 ⇒
+  假 0 暴露）；D2 摘要前缀真跑（含「宁可不标」四态与架空历同日历）+ 负控制
+  （移除前缀拼装 ⇒ 转红）+ createSummary 真跑双路径 + 空值语义；
+  D3 复验；发布卫生 + 判据面自防护。
+- 版本收口：四源升 3.201.0（index.js / manifest / package / CHANGELOG）；
+  上一版 vnum() 下界 32 处 + 精确字面 18 处整体抬到 3.201.0（tests 内 25 文件）。
+- 唯一真源 `tests/_audit_lib.mjs` 本版**零改动**。
 ## v3.200.0
 **成本账本反向召回读数：从「恒 0 假读数」改为「片段匹配 + 不可测分态」**
 - 背景（v3.193.0 交接的 `_emoOppositeMatched` 三态语义继续兑现）：成本账本靠

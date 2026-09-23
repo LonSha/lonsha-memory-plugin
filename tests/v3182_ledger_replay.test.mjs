@@ -238,7 +238,7 @@ test('【I1】版本三源一致且不低于 v3.186.0', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idxSrc)[1];
     assert.equal(v, manifest.version, 'manifest follows index.js');
     assert.equal(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.200.0'), 'index.js 版本 ' + v + ' >= 3.186.0');
+    assert.ok(vnum(v) >= vnum('3.201.0'), 'index.js 版本 ' + v + ' >= 3.186.0');
     const top = changelog.split('\n').filter(l => l.startsWith('## v')).map(l => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
     assert.equal(top, v, 'CHANGELOG 顶节是本版');
     assert.match(changelog.split('## v3.181.0')[0], /账本回放/, '顶节记录本版主题');

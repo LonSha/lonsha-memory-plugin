@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.200.0';
+    const VERSION = '3.201.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2582,7 +2582,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (r.reason === 'ok') {
                     const _ex = r.expanded ? ` · 预算挡下 ${r.expanded} 条` : '';
                     const _cr = r.credibleWords ? ` · 可信词 ${r.credibleWords}` : '';
-                    return `${dim}主导 → 本轮提 ${r.hits} 条（生效 ${this._emoOppositeRounds || 0} 轮 · 提权 ${this._emoOppositeBoosted || 0} 条 · 已扫 ${r.scanned} 条${_ex}${_cr}）`;
+                    // [v3.201] D1: 「提权」与「真进注入」是两件事——提权只改排序、不增块，
+                    //   被提的条目完全可能仍被预算挤掉。只报「提权 N 条」会把「提了但没进」
+                    //   读成「机制起了作用」。账本（v3.200）已按摘要正文片段测出真读数，
+                    //   本行必须消费它：待账本 / 不可测 / X/Y 条，三态不可糊成一态。
+                    //   （账本缺席的归属不复述：模块是否加载由「注入成本」行另行报出。）
+                    const _iop = (this._lastCostLedger && this._lastCostLedger.opposite) ? this._lastCostLedger.opposite : null;
+                    const _inj = _iop
+                        ? (_iop.measurable === false ? '不可测' : `${Number(_iop.injectedEstimate) || 0}/${Number(_iop.promotedCount) || 0} 条`)
+                        : '待账本';
+                    return `${dim}主导 → 本轮提 ${r.hits} 条（生效 ${this._emoOppositeRounds || 0} 轮 · 提权 ${this._emoOppositeBoosted || 0} 条 · 真进注入 ${_inj} · 已扫 ${r.scanned} 条${_ex}${_cr}）`;
                 }
                 return `无反向线索（${RSN[r.reason] || r.reason}·${dim}）`;
             } catch (e) { errLog(e, 'engine._emotionOppositeLine'); return '—（诊断异常）'; }
@@ -3477,7 +3486,20 @@ function relativeTimeLabel(eventTime, nowTime) {
                     } catch (e) { errLog(e, 'onMessageReceived.楼层账本'); }
                 }
 
-                const summary = await this.summary.createSummary(message, extracted?.summary, { maxLen: this.config.config.maxSummaryLength });
+                // [v3.201] D2: 摘要 storyTime 独立提取（与时间线条目同口径：正文标签 end 优先），
+                //   不依赖 plotTimeline 开关——相对时间前缀是摘要注入的显示属性。
+                //   ⚠️ 不得引用 3074 行的 `sd`：它在 if 块内声明、块已闭合，跳块引用会抛
+                //   ReferenceError 被外层静默吞掉（与 v3.185 queryText 同类坑，本次修正前实测一次）。
+                let _summaryStoryTime = '';
+                try {
+                    _summaryStoryTime = String(this.extractStoryDate(message.mes || '', extracted?.story_date) || '').trim();
+                    const _dta2 = new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');
+                    if (_dta2?.hasDual && _dta2.end) {
+                        const _endDate2 = String(_dta2.end).split(/\s+/)[0];
+                        if (_endDate2 && /[\d年月/.]/.test(_endDate2)) _summaryStoryTime = _endDate2;
+                    }
+                } catch (e) { errLog(e, 'createSummary.storyTime'); }
+                const summary = await this.summary.createSummary(message, extracted?.summary, { maxLen: this.config.config.maxSummaryLength, storyTime: _summaryStoryTime });
                 // [v3.180] 第二次落笔：同一楼先落物品、后落摘要，**共用合并语义**（floor-ledger.stamp 读
                 //   现有附注判定「是否仍属本页」，属于则继承字段）。顺序不可交换的意义在于：后到的那次
                 //   读到的是「本页已有物品账」，于是补上 summary 字段而不是整格换新；两次落笔谁先谁后都对，
@@ -7476,7 +7498,14 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             if (summaries.length) {
                 blocks.push('[前情摘要]');
-                summaries.forEach(i => blocks.push(`- ${i.text || i.summary || i.name || ''}`));
+                // [v3.201] D2: 摘要注入加相对时间前缀（与 timeline 注入同规格：宁可不标，绝不标错）
+                const _relOn = this.config.config.relativeTime !== false;
+                const _anchorDate = this.clock?.date || this.getLatestStoryDate?.() || '';
+                summaries.forEach(i => {
+                    const _rel = (_relOn && i.storyTime && _anchorDate)
+                        ? relativeTimeLabel(i.storyTime, _anchorDate) : '';
+                    blocks.push(`- ${i.text || i.summary || i.name || ''}${_rel ? '（' + _rel + '）' : ''}`);
+                });
             }
             if (bm25Hits.length) {
                 const seenB = new Set((summaries.length ? summaries : []).map(x => x.text));
@@ -10583,11 +10612,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (opts.degraded && !opts.force) return old;
                 // 仅当新文本不同才替换（保 id/timestamp 连续性）
                 if (old.text !== text) {
-                    this.summaries[existIdx] = { ...old, text, timestamp: Date.now(), degradedText: !!opts.degraded || undefined };
+                    const _st2 = String(opts.storyTime || '').trim();
+                    this.summaries[existIdx] = { ...old, text, timestamp: Date.now(), degradedText: !!opts.degraded || undefined, ...(_st2 ? { storyTime: _st2 } : {}) };
                 }
                 return this.summaries[existIdx];
             }
             const summary = {floor, text, level: 1, timestamp: Date.now(), folded: false};
+            // [v3.201] D2: 摘要条目带 storyTime，供 buildInjection 相对时间前缀消费
+            const _st = String(opts.storyTime || '').trim();
+            if (_st) summary.storyTime = _st;
             this.summaries.push(summary);
             return summary;
         }
