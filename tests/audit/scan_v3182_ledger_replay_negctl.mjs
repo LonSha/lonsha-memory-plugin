@@ -8,6 +8,11 @@
 //   · 锚点必须恰中期望次数（或 'all' = 至少一次），不符即该组作废
 //   · 破坏后先 node --check：非零退出必须来自判据，而不是解析崩溃
 // 退出码：0=负控制成立  1=负控制失效  2=结构漂移
+//
+// [v3.198] R2 由形态判据升级为行为判据（R2a 形态 + R2b 行为），故新增 N6/N7/N8 三条
+//   只有 R2b 才抓得到的真退化：A 调用永不执行（守卫改 false）/ B 宿主传空对象 /
+//   C 返回值被丢弃报告不落字段。这三条在原形态判据下**全绿**（实测见
+//   tests/audit/probe_v3198_r2.mjs），是「判据必须真测到机制」的直接证据。
 import fs from 'fs';
 import os from 'os';
 import path from 'node:path';
@@ -52,6 +57,22 @@ const CASES = [
         'drop: 0,',
         1, 1,
         '登记项动作类型非法，R1 必须翻红'],
+    // ── [v3.198] 行为判据专属三组（形态判据实测漏检）──
+    ['N6-回放调用永不执行（守卫改 false，文本形态仍在）', IDX,
+        "const _rep = (_lr && typeof _lr.replayDrop === 'function')",
+        "const _rep = (false && _lr && typeof _lr.replayDrop === 'function')",
+        1, 1,
+        '调用形态仍在但永不执行 → R2b 必须翻红（R2a 形态判据看不见）'],
+    ['N7-回放改传空宿主 {}（拿不到本账）', IDX,
+        '_lr.replayDrop(this, floor)',
+        '_lr.replayDrop({}, floor)',
+        1, 1,
+        '宿主传错 → 报告全 absent → R2b 的 ok 判据翻红（报告结构仍完整，数量判据看不见）'],
+    ['N8-回放返回值被丢弃、报告不落字段', IDX,
+        '? _lr.replayDrop(this, floor)',
+        '? (_lr.replayDrop(this, floor), null)',
+        1, 1,
+        '报告不落 _lastReplayReport → R2b 必须翻红（回放发生了但没人看得见）'],
 ];
 
 function runCase(c) {

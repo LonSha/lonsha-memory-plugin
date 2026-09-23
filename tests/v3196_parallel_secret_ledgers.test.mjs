@@ -42,8 +42,8 @@ const secret = require(path.join(ROOT, 'secret-ledger.js'));
 // ---------- 0 ----------
 test('【0】版本与 manifest', () => {
   const v = /const VERSION = '([0-9.]+)'/.exec(idxSrc)[1];
-  assert.ok(vnum(v) >= vnum('3.197.0'), `index.js 版本 ${v} < 3.197.0`);
-  assert.ok(vnum(manifest.version) >= vnum('3.197.0'), `manifest 版本 ${manifest.version} < 3.197.0`);
+  assert.ok(vnum(v) >= vnum('3.198.0'), `index.js 版本 ${v} < 3.197.0`);
+  assert.ok(vnum(manifest.version) >= vnum('3.198.0'), `manifest 版本 ${manifest.version} < 3.197.0`);
   ok('版本 / manifest ≥ 3.197.0');
 });
 
