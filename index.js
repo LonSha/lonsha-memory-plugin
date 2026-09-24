@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.201.0';
+    const VERSION = '3.202.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -134,6 +134,35 @@
         'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'cse', 'pulse',
         'opLog', 'outline', 'pairMem', 'ageAnchors', 'scenePresence',
         'factVersions', 'eventThreads',
+        // [v3.202] 拓宽面：以下 13 键此前「存档面有、携带面无」——跨对话续写时它们留在旧对话。
+        //   其中 worldProg 最重：其 export() 含 active/promises/六账/knowledge/plotArcs 十个子面，
+        //   即约定、伏笔、平行事实、秘密、回扣、回声、认知隔离、剧情弧全部不带走。
+        //   repairLog 是 v3.194 CHANGELOG 已声称进契约、实测未进的那个键（声称与落地漂移）。
+        'worldProg', 'clock', 'charMem', 'lockedFacts', 'lexicon', 'prequel',
+        'supersede', 'stmLtm', 'recallArtifacts', 'narrativeEntropy', 'timeWentBack',
+        'repairLog',
+    ]);
+    // [v3.202] 存档面有、携带面**刻意不带**的键（显式登记，非静默豁免）。
+    //   判据：D3 扫描器要求 ARCHIVE_TOP_LEVEL_KEYS ⊆ CARRYOVER_CONTRACT_KEYS ∪ 本表，
+    //   每个豁免项都必须写明理由——「没带」与「不该带」必须可分。
+    const CARRYOVER_EXEMPT_KEYS = Object.freeze([
+        'lastSave',           // 保存地面真源（本机时间戳），跨对话无意义
+        'packedAt',           // 打包时刻元数据
+        'schemaVersion',      // 存档结构版本（恢复时由本机现算）
+        'producerVersion',    // 生成本存档的插件版本（元数据）
+        'extensions',         // 未知顶层键宽容回写出口（容器，非业务面）
+        'diaryInjectFloor',   // 注入游标：新对话楼层重算，游标归零
+        'timelineInjectFloor',// 时间线注入游标：新对话楼层重算，游标归零
+        'timelineCursorChatId',       // 游标身份：绑定具体 chat，跨对话无效
+        'timelineCursorFingerprint',  // 游标指纹：与 chatId 成对生效，跨对话一并失效
+        'recallSourceStats',  // 召回源命中统计：会话内诊断资产
+        'ledger',             // 楼层账本：索引「该楼提取了什么」，新对话楼层重来
+        'echo',               // 回响池：life 计数是会话内衰减器，跨对话不应延续衰减
+        // 下列两键与携带面的既有键**同源异名**，重复携带会在承接时双写互相覆盖：
+        // [v3.202] 下列两键与携带面既有键**同源异名**：既不进契约，也不新增承接分支——
+        //   同时挂两条路会在同一真源上双写互相覆盖（v3.168 的种子同源判据把它抓了出来）。
+        'diaries',            // = 携带面既有 'diary'（diary.export() 的结果同形）
+        'status',             // 结构化全量；携带面既有 'statusFlat' 是 v2.3 定的携带形态
     ]);
     // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
     // 存在理由：v3.138 的 _dataVersion 用 Number() 比较插件版本字符串恒得 NaN→0（判旧恒假），
@@ -6907,7 +6936,21 @@ function relativeTimeLabel(eventTime, nowTime) {
                     pulse: this.pulse?.export?.() || null,
                     opLog: this.opLog?.export?.() || null,
                     outline: this.outline?.export?.() || null,
-                    pairMem: this.pairMem?.export?.() || null
+                    pairMem: this.pairMem?.export?.() || null,
+                    // [v3.202] 拓宽面种子侧同源（与 packCarryover 同问题、同修法）：
+                    //   修前种子只带摘要/时钟/物品/悬念/NPC 羁绊，剧情状态账（worldProg 十面、
+                    //   角色记忆、锁定事实、术语、前情、替代、STMLTM、修复）全部留在旧对话。
+                    worldProg: this.worldProg?.export?.() || null,
+                    charMem: this.charMem?.export?.() || null,
+                    lockedFacts: this.summary?.getLockedFacts?.() || [],
+                    lexicon: this.lexicon?.export?.() || null,
+                    prequel: this.prequel?.export?.() || { text: '' },
+                    supersede: this.supersede?.export?.() || { supersededMap: {} },
+                    stmLtm: this._stmLtmState || null,
+                    recallArtifacts: Array.isArray(this._recallArtifacts) ? this._recallArtifacts.slice(-32) : [],
+                    narrativeEntropy: Number.isFinite(Number(this._narrativeEntropy)) ? Number(this._narrativeEntropy) : 0,
+                    timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
+                    repairLog: this._repairState || null
                 };
             } catch (e) {
                 errLog(e, 'generateCarryoverSeed');
@@ -6977,6 +7020,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                     ['opLog', () => this.opLog],
                     ['outline', () => this.outline],
                     ['pairMem', () => this.pairMem],
+                    // [v3.202] 拓宽面种子侧承接（走各自 import 接口）
+                    ['worldProg', () => this.worldProg],
+                    ['charMem', () => this.charMem],
+                    ['lexicon', () => this.lexicon],
+                    ['prequel', () => this.prequel],
+                    ['supersede', () => this.supersede],
                 ];
                 for (const [key, getter] of _subSystems) {
                     if (seed[key] == null) continue;
@@ -6988,6 +7037,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (Array.isArray(seed.statusFlat) && seed.statusFlat.length) {
                     try { this.status.applyChanges(seed.statusFlat, 0, true); } catch (e) { errLog(e, 'importCarryoverSeed.statusFlat'); }
                 }
+                // [v3.202] 拓宽面种子侧：非 import 接口的键逐项独立捕获。
+                try { if (Array.isArray(seed.lockedFacts) && seed.lockedFacts.length) this.summary.lockedFacts = seed.lockedFacts.slice(); } catch (e) { errLog(e, 'importCarryoverSeed.lockedFacts'); }
+                try { if (seed.stmLtm != null && this.stmLtm?.normalizeState) this._stmLtmState = this.stmLtm.normalizeState(seed.stmLtm); } catch (e) { errLog(e, 'importCarryoverSeed.stmLtm'); }
+                try { if (Array.isArray(seed.recallArtifacts) && seed.recallArtifacts.length) this._recallArtifacts = seed.recallArtifacts.slice(-32); } catch (e) { errLog(e, 'importCarryoverSeed.recallArtifacts'); }
+                try { if (seed.narrativeEntropy != null && Number.isFinite(Number(seed.narrativeEntropy))) this._narrativeEntropy = Number(seed.narrativeEntropy); } catch (e) { errLog(e, 'importCarryoverSeed.narrativeEntropy'); }
+                try { if (seed.timeWentBack && typeof seed.timeWentBack === 'object') this._timeWentBack = { ...seed.timeWentBack }; } catch (e) { errLog(e, 'importCarryoverSeed.timeWentBack'); }
+                try { const _rl2 = _repairLoopLib(); if (seed.repairLog != null && _rl2?.normalize) this._repairState = _rl2.normalize(seed.repairLog); } catch (e) { errLog(e, 'importCarryoverSeed.repairLog'); }
                 // [v3.165] 成功声称面：原写法无论种子实际带来多少数据都报「导入成功」。
                 //   实测：只带 {type:'lonsha_carryover_seed'} 的空种子会让下面所有 if 全部跳过，
                 //   函数照样打印「✓ 导入成功」并返回 true —— 用户以为承接了前情，实际什么都没导入。
@@ -6995,7 +7051,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const _applied = ['summaryRecap', 'clock', 'protagonist', 'lifeDetails', 'carriedItems',
                     'openSuspenses', 'npcTies', 'baselines', 'geoContext',
                     'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'cse', 'pulse', 'opLog',
-                    'outline', 'pairMem', 'statusFlat']
+                    'outline', 'pairMem', 'statusFlat',
+                    // [v3.202] 拓宽面：生效字段事实来源必须覆盖新增面，否则「导入了多少」
+                    //   会在读数上漏计（成功声称面与真实生效面不符）。
+                    'worldProg', 'charMem', 'lockedFacts', 'lexicon', 'prequel', 'supersede',
+                    'stmLtm', 'recallArtifacts', 'narrativeEntropy', 'timeWentBack', 'repairLog']
                     .filter(k => seed[k] != null && (typeof seed[k] !== 'object' || Object.keys(seed[k]).length || Array.isArray(seed[k])));
                 this._lastCarryoverImport = { applied: _applied.length, fields: _applied, at: Date.now() };
                 if (!_applied.length) {
@@ -8158,6 +8218,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     // [v3.194] 事实版本与事件线是**剧情事实**，不是缓存——新对话要接着用。
                     factVersions: this._factVersionState || null,
                     eventThreads: this._eventThreadState || null,
+                    // [v3.202] 拓宽面写侧：与契约清单逐键对应（一侧有分支、一侧不产出即死分支）。
+                    //   worldProg 一次带走十个子面（active/promises/六账/knowledge/plotArcs）；
+                    //   clock 此前只有种子路径带、携带包路径不带——同一机制两条出口口径不同，本版统一。
+                    worldProg: this.worldProg?.export?.() || null,
+                    clock: this.clock?.export?.() || null,
+                    charMem: this.charMem?.export?.() || null,
+                    lockedFacts: this.summary?.getLockedFacts?.() || [],
+                    lexicon: this.lexicon?.export?.() || null,
+                    prequel: this.prequel?.export?.() || { text: '' },
+                    supersede: this.supersede?.export?.() || { supersededMap: {} },
+                    stmLtm: this._stmLtmState || null,
+                    recallArtifacts: Array.isArray(this._recallArtifacts) ? this._recallArtifacts.slice(-32) : [],
+                    narrativeEntropy: Number.isFinite(Number(this._narrativeEntropy)) ? Number(this._narrativeEntropy) : 0,
+                    timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
+                    repairLog: this._repairState || null,
                     counts: {
                         summaries: active.length, suspense: this.suspense.items.filter(x => x.status === 'open').length,
                         graphNodes: this.graph.nodes.size, diaries: Object.values(this.diary?.diaries || {}).reduce((a, b) => a + b.length, 0),
@@ -8269,6 +8344,20 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     const _ec = _eventCompletenessLib();
                     if (pack.eventThreads && _ec?.normalize) this._eventThreadState = _ec.normalize(pack.eventThreads);
                 } catch (e) { errLog(e, 'applyCarryover.v3.194'); }
+                // [v3.202] 拓宽面读侧：每项独立 try（一个子系统接口抬头不对不得导致整包撤销）。
+                //   版本字段（schemaVersion/producerVersion）缺失只跳过该字段，不连坐实体面——本仓既有纪律。
+                try { if (pack.worldProg && this.worldProg?.import) this.worldProg.import(pack.worldProg); } catch (e) { errLog(e, 'applyCarryover.worldProg'); }
+                try { if (pack.clock && this.clock?.import) this.clock.import(pack.clock); } catch (e) { errLog(e, 'applyCarryover.clock'); }
+                try { if (pack.charMem && this.charMem?.import) this.charMem.import(pack.charMem); } catch (e) { errLog(e, 'applyCarryover.charMem'); }
+                try { if (Array.isArray(pack.lockedFacts) && pack.lockedFacts.length) { this.summary.lockedFacts = pack.lockedFacts.slice(); } } catch (e) { errLog(e, 'applyCarryover.lockedFacts'); }
+                try { if (pack.lexicon && this.lexicon?.import) { this.lexicon.import(pack.lexicon); this._invalidateBm25Corpus?.(); } } catch (e) { errLog(e, 'applyCarryover.lexicon'); }
+                try { if (pack.prequel && this.prequel?.import) this.prequel.import(pack.prequel); } catch (e) { errLog(e, 'applyCarryover.prequel'); }
+                try { if (pack.supersede && this.supersede?.import) this.supersede.import(pack.supersede); } catch (e) { errLog(e, 'applyCarryover.supersede'); }
+                try { if (pack.stmLtm != null && this.stmLtm?.normalizeState) this._stmLtmState = this.stmLtm.normalizeState(pack.stmLtm); } catch (e) { errLog(e, 'applyCarryover.stmLtm'); }
+                try { if (Array.isArray(pack.recallArtifacts) && pack.recallArtifacts.length) this._recallArtifacts = pack.recallArtifacts.slice(-32); } catch (e) { errLog(e, 'applyCarryover.recallArtifacts'); }
+                try { if (pack.narrativeEntropy != null && Number.isFinite(Number(pack.narrativeEntropy))) this._narrativeEntropy = Number(pack.narrativeEntropy); } catch (e) { errLog(e, 'applyCarryover.narrativeEntropy'); }
+                try { if (pack.timeWentBack && typeof pack.timeWentBack === 'object') this._timeWentBack = { ...pack.timeWentBack }; } catch (e) { errLog(e, 'applyCarryover.timeWentBack'); }
+                try { const _rl = _repairLoopLib(); if (pack.repairLog != null && _rl?.normalize) this._repairState = _rl.normalize(pack.repairLog); } catch (e) { errLog(e, 'applyCarryover.repairLog'); }
                 try { if (Array.isArray(pack.vectors) && pack.vectors.length) this.vector.import(pack.vectors); } catch (e) { console.warn('[LonSha] 向量导入失败:', e); }
                 if (this.config.config.bm25Enabled) {
                     { const _docs = this.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})); const _fp = _docs.map(d => d.id + ':' + hash32(d.text)).join('|'); if (_fp !== this.bm25._corpusFp) { this.bm25.rebuild(_docs); this.bm25._corpusFp = _fp; } }

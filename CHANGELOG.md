@@ -1,3 +1,65 @@
+## v3.202.0
+**三方向并行收口（第三次、第四次复发同族缺陷）：D1 回滚面拓深（九账并入登记表 33→42）/ D2 携带面拓宽（契约 26→38 键 + 14 键显式豁免）/ D3 差集守门扫描器**
+
+本版修的是**同一个家族形态的复发**：本仓已两次治理过「新增子系统忘了接线」
+（v3.168 写侧不产出=读侧死分支；v3.182 新增子系统忘了接回滚），而 v3.194~v3.197
+新增的九本账又把这两条路同时踩了一遍 —— 两次都是「新机制上了，收口面没跟上，
+报告照样全绿」。
+
+### D1 拓深·回滚面：九账并入 FLOOR_OWNERS（33 → 42 本账）
+- 缺陷：`seed-ledger` / `commitment-ledger` / `parallel-ledger` / `secret-ledger` /
+  `recall-echo` / `echo-ledger`（六账，挂 `worldProg` 下）与 v3.194 的
+  `_factVersionState` / `_eventThreadState` / `_repairState`（三面账）都带楼层字段
+  （`floor` / `updatedFloor` / `recoveredFloor` / `settledFloor` / `revealedFloor` /
+  `echoFloor` / `from` / `to` / `history[].floor` / `segments[].floor`），
+  却**一本都没接进回滚面**：删楼后条目仍持有被删楼层、前移后指针不动，
+  而回放报告只报那 33 本账 —— 对它们连一行都不报，缺陷完全静默。
+- 落法：在 `ledger-replay.js` 内新写统一 helper（`LEDGER_ITEM_FLOOR_FIELDS` 字段清单 /
+  `LEDGER_STATE_POINTERS` 顶层指针 / `dropLedgerItemFloors` / `shiftLedgerItemFloors` /
+  `ledgerOwner` 工厂），并以九条 `ledgerOwner(...)` 登记项并入 `FLOOR_OWNERS`。
+  **零改各账模块**——它们本体只有 `sweep(floor)`（终态条目过期清理）与 `reset()`，
+  与「楼层归属回滚」不是一回事，不能互相替代（测试 7 把这条架构判断钉住了）。
+- 细节取舍：helper 同时覆盖四种容器键名（六账 `items` + 三面账 `facts`/`events`/`repairs`）
+  —— 按一个键名写死会漏掉三本书；指向被删楼层的 `lastEchoFloor` / `lastFloor`
+  一并复位（否则 `echo-per-floor` 之类「同楼拒绝」判据会把后续写入全部挡掉）。
+
+### D2 拓宽·携带面：CARRYOVER_CONTRACT_KEYS 26 → 38 键 + CARRYOVER_EXEMPT_KEYS 14 键
+- 缺陷一：`worldProg` 整键在携带面**两侧完全缺席**。其 `export()` 含
+  `active`/`promises`/六账/`knowledge`/`plotArcs` **十个子面** ——
+  跨对话续写时约定、伏笔、平行事实、秘密、回扣、回声、认知隔离、剧情弧全部留在旧对话。
+  另 11 键（`clock`/`charMem`/`lockedFacts`/`lexicon`/`prequel`/`supersede`/`stmLtm`/
+  `recallArtifacts`/`narrativeEntropy`/`timeWentBack`/`repairLog`）同为「存档面有、携带面无」。
+- 缺陷二：`clock` 此前**只有种子路径带、携带包路径不带** —— 同一机制两条出口口径不同。
+- 缺陷三（最贵的一个）：**v3.194 CHANGELOG 声称 `repairLog` 进了契约，实测未进**，
+  且 `tests/v3194` 只断言了 `factVersions`/`eventThreads` 两面进契约 ——
+  「声称已做、测试未覆盖、实际未做」三重形态同时在场。
+- 落法：四侧同补（`packCarryover` 产出 / `applyCarryover` 承接 / `generateCarryoverSeed`
+  种子产出 / `importCarryoverSeed` 种子承接），否则重演 v3.168 治理过的死分支。
+- 显式豁免：新增 `CARRYOVER_EXEMPT_KEYS` 14 键，**每键带行内理由**，
+  杜绝「一律豁免」式的自我豁免。其中 `diaries` / `status` 与携带面既有 `diary` /
+  `statusFlat` 是**同源异名**（同时纳入会在承接时双写互相覆盖），故按豁免处理并注明缘由。
+
+### D3 守门·差集扫描器 + 9 组负控制
+- 缺口：v3.168 的契约对账只回答「契约要求的键，写侧产出了吗 / 读侧消费了吗」，
+  它**不问**「存档面还有哪些键根本就没进契约」。于是新增子系统只要忘了登记，
+  对账照样全绿 —— D2 的三个缺陷全都能在这条盲区里静默存活。
+- 新增 `tests/audit/scan_v3202_carryover_archive_diff.mjs`：四判据 ——
+  P1 三个常量数组可定位且规模合理（探测器失效即 exit 2）/ P2
+  `ARCHIVE_TOP_LEVEL_KEYS ⊆ CARRYOVER_CONTRACT_KEYS ∪ CARRYOVER_EXEMPT_KEYS`（差集必须为空）/
+  P3 豁免表非空且每项带 >= 4 字符行内理由 / P4 豁免与契约不得重叠。
+- 新增 `..._negctl.mjs`：9 组负控制（真源码破坏 → 独立 fixture 目录 → 在副本上重跑同一套真判据），
+  覆盖 P2 漏键 / P2 新增未登记 / P3 理由缺失 / P4 重叠 / P1 探测器失效（exit 2）各专测，
+  并含**一组保绿对照**（只换措辞不改结论）与工具两向自证（锚点不存在须抛、破坏后先 `node --check`
+  保证退出码可归因于判据）。
+- 判据纯度自检踩坑留痕：禁止串必须由片段拼出（`NAME_PARTS`），
+  否则判据读自己时命中自身 —— 自证陷阱。
+
+### 测试
+- 新增 `tests/v3202_carryover_rollback_breadth.test.mjs`（22 组）：
+  D1 用真模块 require + 假宿主真跑 drop/shift（含幂等、三态不撒谎、四种容器键名、
+  嵌套 history/segments）；D2 抽真方法体真跑写侧对账（缺 `repairLog` 必须报缺键）；
+  D3 真跑扫描器与负控并断言四判据各有专测。
+
 ## v3.201.0
 **三方向并行收口：D1 诊断面消费成本账本「真进注入」三态 / D2 摘要 storyTime 落账 + 注入相对时间前缀 / D3 queryText 复核**
 - 背景：v3.200.0 把成本账本的「提权条进没进注入」从恒 0 假读数改为片段匹配，

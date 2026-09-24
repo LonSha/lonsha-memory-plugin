@@ -37,6 +37,88 @@
     //   drop(host, floor)    删楼时撤掉该楼的归属，返回撤掉的条数
     //   shift(host, deleted) 楼层前移时跟随，返回跟随的条数；null = 该面不参与前移
     // drop/shift 必须幂等：编辑重放、补提取都会再次触发，重复执行的结果必须与执行一次相同。
+    // [v3.202] 账本类子系统（六账 + v3.194 三面账）的楼层归属清理。
+    //   为什么需要：v3.195~v3.197 新增的六账（伏笔/约定/平行事实/秘密/回扣/回声）与 v3.194 的
+    //   三面账（事实版本/事件完整性/修复闭环）都带楼层字段（floor / updatedFloor / recoveredFloor /
+    //   settledFloor / revealedFloor / echoFloor / history[].floor），却没有任何一个接进回滚面：
+    //   删楼后条目仍持有被删楼层、前移后指针不动，而回放报告只对 world-prog 报「跑了没抛错」——
+    //   缺陷完全静默。这与 v3.182「新增子系统忘了接回滚」同形。本 helper 即其统一收口。
+    const LEDGER_ITEM_FLOOR_FIELDS = Object.freeze([
+        'floor', 'updatedFloor', 'recoveredFloor', 'settledFloor', 'revealedFloor',
+        'echoFloor', 'from', 'to'
+    ]);
+    // 顶层指针字段（recall-echo 的 lastEchoFloor / echo-ledger 的 lastFloor）：删楼后若停在
+    //   被删楼层，会触发 echo-per-floor 之类「同楼拒绝」判据把后续写入全部挡掉——必须一并复位。
+    const LEDGER_STATE_POINTERS = Object.freeze(['lastEchoFloor', 'lastFloor']);
+    // 删楼：该楼**登记**下来的条目（item.floor === f）整条摘除；该楼仅推进/回收/了结的
+    //   （其余 floor 字段 === f）置 null（那件事随楼层一起不存在了）；history 里该楼的事件摘除。
+    function dropLedgerItemFloors(state, f) {
+        if (!state || typeof state !== 'object') return 0;
+        let n = 0;
+        const boxes = ['items', 'facts', 'events', 'repairs'];
+        for (const box of boxes) {
+            const arr = Array.isArray(state[box]) ? state[box] : null;
+            if (!arr) continue;
+            const kept = [];
+            for (const it of arr) {
+                if (!it || typeof it !== 'object') { kept.push(it); continue; }
+                if (Number(it.floor) === f) { n++; continue; }
+                let touched = false;
+                for (const k of LEDGER_ITEM_FLOOR_FIELDS) {
+                    if (k === 'floor') continue;
+                    if (it[k] != null && Number(it[k]) === f) { it[k] = null; touched = true; }
+                }
+                if (Array.isArray(it.history)) {
+                    const hb = it.history.length;
+                    it.history = it.history.filter(ev => Number(ev && ev.floor) !== f);
+                    if (it.history.length !== hb) touched = true;
+                }
+                if (Array.isArray(it.segments)) {
+                    const sb = it.segments.length;
+                    it.segments = it.segments.filter(sg => Number(sg && sg.floor) !== f);
+                    if (it.segments.length !== sb) touched = true;
+                }
+                if (touched) n++;
+                kept.push(it);
+            }
+            state[box] = kept;
+        }
+        for (const p of LEDGER_STATE_POINTERS) {
+            if (state[p] != null && Number(state[p]) === f) { state[p] = null; n++; }
+        }
+        return n;
+    }
+    // 前移：所有 > d 的楼层字段（含 history/segments 内）减一。**不做终态判据豁免**——
+    //   被删楼之后的条目只是位置前移，内容仍对应前移后的文本（与 v2.3 数据零丢失口径一致）。
+    function shiftLedgerItemFloors(state, d) {
+        if (!state || typeof state !== 'object') return 0;
+        const del = Number(d);
+        if (!Number.isFinite(del)) return 0;
+        let n = 0;
+        const dec = (o, k) => {
+            if (o && typeof o[k] === 'number' && o[k] > del) { o[k] = o[k] - 1; n++; }
+        };
+        const walkItem = (it) => {
+            if (!it || typeof it !== 'object') return;
+            for (const k of LEDGER_ITEM_FLOOR_FIELDS) dec(it, k);
+            if (Array.isArray(it.history)) for (const ev of it.history) dec(ev, 'floor');
+            if (Array.isArray(it.segments)) for (const sg of it.segments) dec(sg, 'floor');
+        };
+        for (const box of ['items', 'facts', 'events', 'repairs']) {
+            if (Array.isArray(state[box])) for (const it of state[box]) walkItem(it);
+        }
+        for (const p of LEDGER_STATE_POINTERS) dec(state, p);
+        return n;
+    }
+    // 账本子系统的登记项工厂：统一从宿主取库、同族判据、同族写回。
+    function ledgerOwner(id, label, getState) {
+        return {
+            id, label, holds: 'records',
+            get: (h) => { try { const st = getState(h); return (st && typeof st === 'object') ? st : null; } catch (e) { return null; } },
+            drop: (h, f) => { const st = getState(h); return st ? dropLedgerItemFloors(st, Number(f)) : 0; },
+            shift: (h, d) => { const st = getState(h); return st ? shiftLedgerItemFloors(st, Number(d)) : 0; }
+        };
+    }
     const FLOOR_OWNERS = Object.freeze([
         {
             id: 'diary', label: '日记', holds: 'records',
@@ -242,6 +324,19 @@
             drop: () => 0,
             shift: (h, d) => { let n = 0; for (const v of (h.summary?.volumes || [])) { if (typeof v.floorStart === 'number' && v.floorStart > d) { v.floorStart--; n++; } if (typeof v.floorEnd === 'number' && v.floorEnd >= d) { const next = Math.max(v.floorStart, v.floorEnd - 1); if (next !== v.floorEnd) { v.floorEnd = next; n++; } } } return n; }
         }
+        ,
+        // [v3.202] 六账（挂 worldProg 下）+ v3.194 三面账（挂宿主导层属性）并入回滚/前移面。
+        //   此前它们都有楼层字段却全在登记表之外——v3.182 治理过的「新增子系统忘了接回滚」
+        //   在 v3.194~v3.197 四版里又新增了九个直系实例，且因回放报告不点名而完全静默。
+        ledgerOwner('seed-ledger', '伏笔账本', (h) => (h.worldProg && h.worldProg.seedLedger) || null),
+        ledgerOwner('commitment-ledger', '约定变更账本', (h) => (h.worldProg && h.worldProg.commitmentLedger) || null),
+        ledgerOwner('parallel-ledger', '平行事实账本', (h) => (h.worldProg && h.worldProg.parallelLedger) || null),
+        ledgerOwner('secret-ledger', '秘密账本', (h) => (h.worldProg && h.worldProg.secretLedger) || null),
+        ledgerOwner('recall-echo', '前文回扣账本', (h) => (h.worldProg && h.worldProg.recallEcho) || null),
+        ledgerOwner('echo-life', '回声账本', (h) => (h.worldProg && h.worldProg.echoLedger) || null),
+        ledgerOwner('fact-version', '时间与事实版本', (h) => h._factVersionState || null),
+        ledgerOwner('event-completeness', '事件完整性', (h) => h._eventThreadState || null),
+        ledgerOwner('repair-loop', '修复闭环', (h) => h._repairState || null)
     ]);
     // 登记表的结构校验：id 唯一、必填字段齐全、动作是函数。失败返回原因数组（空 = 健康）。
     function checkRegistry(registry) {

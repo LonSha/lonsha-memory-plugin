@@ -228,12 +228,16 @@ test('v3201 16. D3 queryText 残留复核：坏字面量零出现、好调用恰
 /* ══════════════ 5. 发布卫生 ══════════════ */
 test('v3201 17. 版本三源同源且为 3.201.0', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(raw)[1];
-    assert.equal(v, '3.201.0', 'index.js 版本');
+    assert.equal(v, '3.202.0', 'index.js 版本');
     assert.equal(mf.version, v, 'manifest 跟随');
     assert.equal(pkg.version, v, 'package 跟随');
 });
-test('v3201 18. CHANGELOG 顶节为 v3.201.0 且记录本版三方向', () => {
-    assert.ok(changelog.startsWith('## v3.201.0'), '顶节须为本版');
+test('v3201 18. CHANGELOG 顶节不低于本版，且记录本版三方向', () => {
+    // 口径与 v3186 测试 22 一致：只要求「顶节 >= 本版」——
+    //   下一版接管时把新节加在顶上，本版记录仍须在文件中可查。
+    const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
+    assert.ok(top, 'CHANGELOG 必须有序节');
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.202.0'), '顶节 ' + top + ' 须不低于本版');
     assert.ok(changelog.includes('真进注入'), 'D1 须记录');
     assert.ok(changelog.includes('storyTime') || changelog.includes('相对时间'), 'D2 须记录');
     assert.ok(changelog.includes('queryText'), 'D3 复核须记录');
@@ -241,8 +245,8 @@ test('v3201 18. CHANGELOG 顶节为 v3.201.0 且记录本版三方向', () => {
 test('v3201 19. 本文件已入 tests/ 且锚着本版（下一版接管时抬它）', () => {
     const selfHits = [...SELF.matchAll(/vnum\('([0-9.]+)'\)/g)].map((m) => vnum(m[1]));
     assert.ok(selfHits.length > 0, '本文件须有版本下界断言');
-    assert.ok(selfHits.some((h) => h === vnum('3.201.0')), 'frontier 交棒：下界须含本版');
-    assert.ok(selfHits.every((h) => h <= vnum('3.201.0')), '不得越界承诺未来');
+    assert.ok(selfHits.some((h) => h === vnum('3.202.0')), 'frontier 交棒：下界须含本版');
+    assert.ok(selfHits.every((h) => h <= vnum('3.202.0')), '不得越界承诺未来');
 });
 test('v3201 20. 判据面自防护：断言数 / 代码行 / 关键指纹不得缩水', () => {
     const nAssert = (SELF.match(/assert[.]/g) || []).length;
