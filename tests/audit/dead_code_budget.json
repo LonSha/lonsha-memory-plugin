@@ -1,0 +1,70 @@
+{
+  "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
+  "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
+  "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
+  "ceiling": 32700,
+  "maxSlack": 400,
+  "note": "v3.202.0 回滚面收口（ledger-replay.js 九账统一 helper + 宿主携带面拓宽 + 显式豁免表）→ 32700。",
+  "history": [
+    {
+      "ceiling": 21000,
+      "reason": "v3.152 词典线 +197"
+    },
+    {
+      "ceiling": 21300,
+      "reason": "v3.168 携带契约/静默降级线 +235"
+    },
+    {
+      "ceiling": 21700,
+      "reason": "v3.170 巩固面（stm-ltm 内核审计账本 + 三态 + selfReport）"
+    },
+    {
+      "ceiling": 22100,
+      "reason": "v3.171 门控读数面（smart-trigger 读侧计数 + 双态面板 + 总账/自检两行）"
+    },
+    {
+      "ceiling": 22750,
+      "reason": "v3.172 召回漏斗读数面（缝合四模块收缩阶段计数 + 面板 + 宿主五处接线）"
+    },
+    {
+      "ceiling": 23000,
+      "reason": "v3.174 桥的读者契约面（来源五态 + 类型三态 + JSON 出口 + 快照自述 + 审计脚本）"
+    },
+    {
+      "ceiling": 23400,
+      "reason": "v3.175 世界钟读者面（world-clock-reader.js + GameClock 对账/诊断行/manifest）"
+    },
+    {
+      "ceiling": 24000,
+      "reason": "v3.176 世界账本读者面（world-ledger-reader.js 全账本对读 + 宿主投影收集 + 快照携带 + 桥外供 + 审计脚本）"
+    },
+    {
+      "ceiling": 25000,
+      "reason": "v3.180 归属性/年龄三态/对外只读口（floor-ledger.js + age-anchor.js + public-interface.js，含宿主接线 224 行）"
+    },
+    {
+      "ceiling": 26200,
+      "reason": "v3.181 场所图景（SceneBook 抽为 scene-book.js 724 行 + 六面能力 + 宿主 12 处接线 + 携带契约第 24 键 scenePresence）"
+    },
+    {
+      "ceiling": 29000,
+      "reason": "v3.183 分支一致性三件套（summary-provenance.js 302 + branch-guard.js 405 + crosslink.js 285 + 宿主接线）"
+    },
+    {
+      "ceiling": 31300,
+      "reason": "v3.184 调研清单收尾四件套（净增小于四模块之和：同时净减了旧字面 replace 与旧内联判据）"
+    },
+    {
+      "ceiling": 31500,
+      "reason": "v3.195.0 伏笔账本 seed-ledger.js（218 行）+ 宿主四处接线（清扫/场景头落笔/注入行/召回封印）"
+    },
+    {
+      "ceiling": 32100,
+      "reason": "v3.196.0 平行事实账本 parallel-ledger.js + 秘密账本 secret-ledger.js（合计 505 行）+ 宿主四处接线与两个宿主入口"
+    },
+    {
+      "ceiling": 32700,
+      "reason": "v3.202.0 回滚面收口（ledger-replay.js 九账统一 helper + 宿主携带面拓宽 + 显式豁免表）"
+    }
+  ]
+}

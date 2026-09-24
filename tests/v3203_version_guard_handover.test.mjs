@@ -84,7 +84,7 @@ test('v3203 3. 真仓库上 exit 0：当前版本 / 历史测试 / 当版 fronti
     assert.strictEqual(r.status, 0, '健康树上必须 exit 0：' + out.slice(-300));
     assert.ok(out.includes('当前 ' + CUR), '口径须念出当前版本：' + out.slice(0, 200));
     assert.ok(/历史测试 \d+/.test(out), '须念出历史测试数（扫描面退化时可察）');
-    assert.ok(/当版 frontier 1/.test(out), 'frontier 应恰为 1 个（当前的一版；细则见 CHANGELOG v3.204.0）');
+    assert.ok(/当版 frontier [1-9]/.test(out), 'frontier 至少 1 个（同版可含多个 frontier；细则见 CHANGELOG v3.204.0）');
     assert.ok(/当版锚点 [1-9]/.test(out), '当版锚点必须在场（否则 V4 失去基准）');
     assert.ok(/问题 0/.test(out), '须报「问题 0」');
 });
@@ -226,8 +226,15 @@ test('v3203 10b. 回归：给历史文件头部加含当版号的注记，不得
         writeFileSync(p, lines.join('\n'));
     });
     assert.strictEqual(r.status, 0, '注记不得影响结论：' + r.out.slice(-400));
-    assert.ok(/当版 frontier 1/.test(r.out),
-        '注记被蹭成 frontier 时 V2/V3 会静默失效：' + (r.out.split('\n')[0] || ''));
+    // [v3.205.0] 版号无关化且**不许放宽**：本条要证的是「注记不改变 frontier 数量」。
+    //   改成「>= 1」会让判据静默失效（注记真的被蹭成 frontier 时数量仍在 1 以上）。
+    //   故取未注入时的基线，要求逐位相等：多了=被蹭宽，少了=豁免失效。
+    const baseN = Number((/当版 frontier ([0-9]+)/.exec(runScan(ROOT).stdout || '') || [0, 0])[1] || 0);
+    const gotN = Number((/当版 frontier ([0-9]+)/.exec(r.out) || [0, 0])[1] || 0);
+    assert.ok(baseN >= 1, '夹具前提：当版须至少一个 frontier');
+    assert.strictEqual(gotN, baseN,
+        '注记不得改变 frontier 数量（基线 ' + baseN + '，实得 ' + gotN + '）；'
+        + '被蹭成 frontier 时 V2/V3 会静默失效：' + (r.out.split('\n')[0] || ''));
 });
 
 /* ══════════ 4. 交棒链已拆：历史文件锁回各自的出生版本 ══════════ */
@@ -294,7 +301,7 @@ test('v3203 13. 交棒链断言已改为「不得高于现版」，不再要求�
 
 test('v3203 14. 口径收敛在守卫脚本里，runner 按目录发现（新增脚本无需登记）', () => {
     const r = runScan(ROOT);
-    assert.ok(/当版 frontier 1/.test(r.stdout), 'frontier 判定由脚本统一给出');
+    assert.ok(/当版 frontier [1-9]/.test(r.stdout), 'frontier 判定由脚本统一给出（当版至少一个）');
     const onDisk = readFileSync(path.join(ROOT, 'tests', 'run.mjs'), 'utf-8');
     assert.ok(/readdirSync\(AUDIT_DIR\)\.filter\(f => f\.endsWith\('\.mjs'\) && !f\.startsWith\('_'\)\)/.test(onDisk),
         'run.mjs 按目录自动发现审计脚本');
@@ -305,7 +312,9 @@ test('v3203 14. 口径收敛在守卫脚本里，runner 按目录发现（新增
 test('v3203 15. TODO T1 已销账：修掉即从 TODO 删除，留痕在 CHANGELOG', () => {
     const todo = readFileSync(path.join(ROOT, 'TODO.md'), 'utf-8');
     assert.ok(!/^## T1 版本守卫硬编码/m.test(todo), 'T1 已在本版修掉，须从 TODO 删除');
-    assert.ok(todo.includes('v3.204.0'), 'TODO 的「最近更新」须指向本版');
+    // [v3.205.0] 版号无关化：原文是 todo.includes('v3.204.0')，那是「锁上一版」——
+    //   正是本文件要治的反模式换了个位置（下一次抬版就必红）。改为指向 CUR。
+    assert.ok(todo.includes('v' + CUR), 'TODO 的「最近更新」须指向本版');
     assert.ok(/scan_version_guard/.test(changelog), 'CHANGELOG 须点名新审计脚本（留痕）');
     assert.ok(/交棒链|出生版本/.test(changelog), 'CHANGELOG 须说清拆掉的是什么');
 });

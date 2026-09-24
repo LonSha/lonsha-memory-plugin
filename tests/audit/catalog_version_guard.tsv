@@ -1,23 +1,28 @@
-# catalog_version_guard.tsv — v3.204.0
+# catalog_version_guard.tsv — v3.205.0
 # 退役面登记表：tests/archived/*.test.mjs（不参与门禁，保留 git 历史与退役理据）。
-# 形如「文件名<TAB>内容 sha1 前8位」：**退役即冻结**，改退役文件 = 悄悄改历史，守卫会响。
-# 用途：退役基线——退回顶层会在 P4 上点名；被追改会在 P5 上点名。
-# 维护：只在退役/赎回文件时动。
-full_audit_forward.test.mjs	9afb96b7
-full_audit_reverse.test.mjs	8768ed72
-v3116_bloom.test.mjs	0c53faef
-v348_director_bridge.test.mjs	7ff315ec
-v349_pair_diary_bridge.test.mjs	890be1ba
-v350_adaptive_tuning.test.mjs	20b23649
-v352_incremental_stats.test.mjs	7b5bea1e
-v354_oplog_health.test.mjs	a08f54b9
-v359_pair_backfill_diff.test.mjs	271b5cd4
-v360_phone_stats.test.mjs	d2898fc4
-v363_locked_facts_ui.test.mjs	91c81dd6
-v364_severity_report.test.mjs	d7651c0a
-v365_oplog_lockfact.test.mjs	181ecf97
-v368_delta_ui_backfill_audit.test.mjs	026d049e
-v369_report_delta_oplog.test.mjs	00c9f3c4
-v375_summary_sync.test.mjs	d2fd1ff3
-v376_batch_complete.test.mjs	fa520181
-v381_bridge_protagonist.test.mjs	553d63c5
+# 列：文件名 <TAB> 内容 sha1 前8位 <TAB> covered_by
+#   sha1：**退役即冻结**，改退役文件 = 悄悄改历史，守卫会响（P5b）。
+#   covered_by：谁在守「它当年守的东西」（T6 落法）——
+#     形如 `a.test.mjs,b.test.mjs`（在役文件，逗号分隔）表示等价覆盖在这些文件里；
+#     形如 `-:理由` 表示无同等覆盖，**理由必填**。
+#   守卫判据（P6）：每行必须有 covered_by；被引文件必须在役且真的被该退役文件点名（防空引用）；
+#     `-` 形式必须带非空理由。不得写「待补」这类无判据的空条目。
+# 维护：只在退役/赎回文件时动；改 covered_by 即改判据，须同步说明。
+full_audit_forward.test.mjs	9afb96b7	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+full_audit_reverse.test.mjs	8768ed72	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v3116_bloom.test.mjs	0c53faef	-:测试基建/遗留枚举面，无同等功能覆盖（v3116_dead_code.test.mjs 守的根 .js 不变式；本文件是 Bloom 空函数补全的当年记录）
+v348_director_bridge.test.mjs	7ff315ec	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v349_pair_diary_bridge.test.mjs	890be1ba	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v350_adaptive_tuning.test.mjs	20b23649	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v352_incremental_stats.test.mjs	7b5bea1e	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v354_oplog_health.test.mjs	a08f54b9	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v359_pair_backfill_diff.test.mjs	271b5cd4	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v360_phone_stats.test.mjs	d2898fc4	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v363_locked_facts_ui.test.mjs	91c81dd6	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v364_severity_report.test.mjs	d7651c0a	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v365_oplog_lockfact.test.mjs	181ecf97	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v368_delta_ui_backfill_audit.test.mjs	026d049e	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v369_report_delta_oplog.test.mjs	00c9f3c4	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v375_summary_sync.test.mjs	d2fd1ff3	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v376_batch_complete.test.mjs	fa520181	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs
+v381_bridge_protagonist.test.mjs	553d63c5	v356_outline_autoplan.test.mjs,v353_panel_ethics_fix.test.mjs,v325_recall_tier.test.mjs,v386_bm25_branches.test.mjs

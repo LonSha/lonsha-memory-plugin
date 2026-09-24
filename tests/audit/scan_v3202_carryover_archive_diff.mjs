@@ -14,6 +14,14 @@
 //   P2 差集必须为空：ARCHIVE_TOP_LEVEL_KEYS ⊆ CARRYOVER_CONTRACT_KEYS ∪ CARRYOVER_EXEMPT_KEYS
 //   P3 豁免表非空且每项带行内理由（注释），杜绝「一律豁免」式的自我豁免
 //   P4 豁免表与契约表不得重叠（同一键不能既带走又豁免）
+//   P5 独立面甄别（T5 复核）：`ledger` / `echo` 曾被怀疑与 `worldProg.echoLedger` /
+//      `worldProg.recallEcho` 语义重叠。复核结论：**四方不同源** ——
+//        · `ledger` = 宿主 `this.ledger`（FloorLedger，楼层账本「该楼提取了什么」）；
+//        · `echo`   = 宿主 `this.echo`（回响池，life 计数是会话内衰减器）；
+//        · `echoLedger` / `recallEcho` = worldProg 子面（回声账本 / 前文回扣模块），
+//          宿主字段是 `this.echoLedger` / `this.recallEcho`（宿主**字段**，非子模块）。
+//      「同源异名」只适用于 diaries↔diary、status↔statusFlat 那对。本条把复核固化成
+//      可证伪形式：独立面的真源必须能在宿主里验证到，且豁免理由不得把它们说成同源。
 //
 // 退出码：0=卫生  1=存在真缺陷  2=结构漂移（探测器失效）
 // 夹具通道：LONSHA_AUDIT_FIXTURE=1（放宽下限）/ LONSHA_AUDIT_ROOT（合成仓库）
@@ -107,6 +115,33 @@ for (const k of exempt) {
 const overlap = exempt.filter(k => contract.includes(k));
 if (overlap.length) {
     defects.push('P4 同一键既进契约又被豁免（自相矛盾）：' + overlap.join('/'));
+}
+
+// ── P5 独立面甄别（T5）：被怀疑重叠的两个豁免键，其真源必须可验证且不得被说成同源 ──
+//   `ledger` / `echo` 的宿主是 this.ledger（FloorLedger）/ this.echo（回响池）；
+//   `echoLedger` / `recallEcho` 是 worldProg 子面、宿主字段 this.echoLedger / this.recallEcho。
+//   注：抽取面用**剥注释后**的 clean，避免命中的是解释性注释。
+const INDEPENDENT = [
+    { key: 'ledger', hostRe: /this\.ledger\s*=\s*new\s+FloorLedger/, why: '宿主 this.ledger = new FloorLedger' },
+    { key: 'echo', hostRe: /echo:\s*this\.echo\?\.export/, why: '存档面的 echo 来自 this.echo.export()' },
+];
+const archAndContract = new Set([...archive, ...contract]);
+for (const it of INDEPENDENT) {
+    if (!exempt.includes(it.key)) continue; // 不再豁免就不适用
+    if (archAndContract.has(it.key)) continue; // 已进携带面则不再适用（P2/P4 会管）
+    if (!it.hostRe.test(clean)) {
+        defects.push('P5 豁免键 ' + it.key + ' 的独立真源在宿主里验证不到（' + it.why
+            + '）—— 「与 worldProg 子面不同源」的复核结论已失效，须重新甄别');
+    }
+}
+//   理由不得把独立面说成同源：豁免表里 ledger/echo 的行不得出现「同源」字样。
+for (const k of ['ledger', 'echo']) {
+    if (!exempt.includes(k)) continue;
+    const rawLine = exBlock.find(l => new RegExp("^\\s*'" + k + "'\\s*[,]").test(l)) || '';
+    if (/同源/.test(rawLine)) {
+        defects.push('P5 豁免项 ' + k + ' 的理由把它说成「同源异名」，但复核结论是独立面（真源见上）——'
+            + '同源异名只适用于 diaries↔diary、status↔statusFlat');
+    }
 }
 
 // ── 判据纯度自检：本文件不得重新声明被审的两个常量（判据只读真源，不自带副本）──

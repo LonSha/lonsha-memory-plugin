@@ -121,3 +121,59 @@
 3. `bodyOf` 对 `xxx(options = {}) {` 只截到形参花括号（得回 `{}`），
    种子两方法体的抽取因此为空 —— 本版测试自持 `methodBody` 收口（该坑写进了测试注释）。
 4. 简写对象键（`statusFlat,`）被 `key:` 口径的抽取器漏掉 —— 与 v3.168 记录的同一个坑，本轮重现。
+
+## 2026-09-24 · v3.205.0（基建不得假装通过 · 五项积压一次收口）
+
+**做了什么**
+- T3 行数上界唯一真源化：新增 `tests/audit/dead_code_budget.json`（15 条 history）+ 导出口
+  `dead_code_budget.mjs`（`--bump` 必须带 `--reason`、只抬不降）；`v3116` 改为 import 真源，
+  并额外守「余量 ≤ maxSlack」（余量过大本身即判据失效）。
+- T4 容器字段派生化：`ledger-replay.js` 新增两份**派生**集合（shift 侧含 floor / drop 侧排除 floor），
+  两处容器循环共用容器名清单；修掉中途自伤回归（v3202 测试 4）。
+- T5 复核并固化：`ledger`(=this.ledger/FloorLedger)、`echo`(=this.echo)、`echoLedger`、`recallEcho`
+  **四方不同源**；固化为 `scan_v3202_carryover_archive_diff.mjs` 的 P5（真源须在宿主验证到 +
+  理由不得称「同源」）。
+- T6 覆盖率转移判据化：`catalog_version_guard.tsv` 加第三列 `covered_by`；`scan_cross_repo_binding.mjs`
+  新增 P6（缺列 / 空洞引用 / 空理由 / 地板）；`v3204` 加 4 组负控制 + 1 组保绿对照。
+- T7 真根因两条：① 孙进程泄漏（`detached` + 按进程组杀）；② 环境资源耗尽冒充判据失败
+  （窄指纹 + 明示重试 + 汇总点名）。配套新增 `TEST_FAIL_DUMP` 失败现场落盘。
+  另把 `v3159` 的 44 次串行 spawn 改受控并发池（49.5s → 17.4s），**未动任何阈值**。
+- 发布：三源抬到 3.205.0；新增 frontier `tests/v3205_infrastructure_truthfulness.test.mjs`（18 组，
+  含 3 组 T7 负控制）；`catalog_reference_consumers.tsv` 补登记；TODO 五项销账。
+
+**为什么**
+- 这五项的共同形态是**判据失灵时门禁照报绿**。它们不是「某个数字没写对」，而是
+  「怎么知道它还没修」这个问题本身没有机器答案 —— 于是 v3.202 记下的四项拖了两版，
+  T7 更是记了三个月没定住。
+- T7 的教训最贵：**取证方法本身没被取证**。原记录（和我自己的第一轮探针）测的
+  `tests/syntax-gate.mjs` 根本不存在，于是「47–62ms，远低于 6000ms 阈值」这个结论
+  建立在 404 上。修正被测对象后，真根因浮出水面，且两条都与阈值无关 ——
+  TODO 自己写的「不要先改阈值 —— 阈值不是病根」是对的，但它连「病根在哪」都还没定位。
+- 因此本版把 T7 的验收协议从「连跑 ≥10 轮」补成「连跑 ≥10 轮 **+ 失败现场落盘**」：
+  没有现场的长跑只能产出「又红了」，不能产出结论。
+
+**影响范围**
+`ledger-replay.js`、`tests/run.mjs`、`tests/v3116_dead_code.test.mjs`、
+`tests/v3159_audit_failclosed_and_fallback_parity.test.mjs`、
+`tests/v3203_version_guard_handover.test.mjs`、`tests/v3177_syntax_gate_perf.test.mjs`、
+`tests/audit/scan_cross_repo_binding.mjs`、`tests/audit/scan_v3202_carryover_archive_diff.mjs`、
+`tests/v3204_no_cross_repo_binding.test.mjs`、新增 `tests/audit/dead_code_budget.{json,mjs}`、
+新增 `tests/v3205_infrastructure_truthfulness.test.mjs`、两张登记表、`CHANGELOG.md`、`TODO.md`。
+
+**门禁**：184 文件 / 1591 断言 / 39 审计脚本 / **EXIT=0**（上一版 183 / 1568 / 38）。
+T7 验收：修后干净连跑 12/12 全绿（31.9–51.8s）。
+
+**本轮踩到的坑（已留痕）**
+1. **被测对象不存在**：`tests/syntax-gate.mjs` 是幻觉路径，真实门在 `tests/audit/scan_syntax.mjs`。
+   报告任何读数前先 `ls` 一下被测对象。
+2. 沙箱进程数上限导致后台长跑批中途崩（`fork: Function not implemented`）；验收须受控分批。
+3. `pkill -f '<repo>'` 抓不到 argv 为相对路径的 audit 孙进程 → 漏杀 → 后续轮次被抢 CPU
+   （同构建 31.9s ↔ 94.5s）。
+4. 跑批中途改文件会自伤（临时夹具被 P3 登记判据抓到，v3159/v3204 双红）——跑批期间只读。
+5. 判据放宽与收紧要分别论证：`v3203` 的 frontier 断言在「真仓库面」放宽为「≥1」，
+   但在**负控制**里反而收紧为「与基线逐位相等」（`=== 1` 在注记被蹭宽时会静默失效）。
+6. **负控制被测试环境传染**：`v3205` 由 `run.mjs` 以 `node --test` 拉起，环境里带着
+   `NODE_TEST_CONTEXT`，传承给夹具后使它整段哑掉（一行没跑，却报「文件 1/1 通过」）。
+   该负控制因此测的是「什么都没跑」。修法：剥环境变量 + 以夹具状态文件做强断言（真跑两次）。
+7. 夹具不许住在本仓 `tests/` 下：既会自伤（被 P3 登记判据抓到），又会让同一文件
+   「单独跑绿、并发跑红」—— 正是本版要根治的不稳定形态。改放临时仓，本仓只读。

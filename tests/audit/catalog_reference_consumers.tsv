@@ -187,3 +187,4 @@ v398_extraction_cadence.test.mjs
 v399_npc_ties.test.mjs
 v39_shift_floors.test.mjs
 v3204_no_cross_repo_binding.test.mjs
+v3205_infrastructure_truthfulness.test.mjs

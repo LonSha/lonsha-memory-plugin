@@ -43,10 +43,20 @@
     //   settledFloor / revealedFloor / echoFloor / history[].floor），却没有任何一个接进回滚面：
     //   删楼后条目仍持有被删楼层、前移后指针不动，而回放报告只对 world-prog 报「跑了没抛错」——
     //   缺陷完全静默。这与 v3.182「新增子系统忘了接回滚」同形。本 helper 即其统一收口。
+    //   两处硬编码（history 只认 floor / segments 只认 floor）就是「嵌套容器不跟清单走」的形态：
+    //   实测（v3.205.0 探针）fact-version 的 fact.from 会随前移跟到 8，而同一本账 history 事件的
+    //   from/to 仍是 9 —— 账本内部自相矛盾，且删除面会留下指向被删楼层的区间端点。
     const LEDGER_ITEM_FLOOR_FIELDS = Object.freeze([
         'floor', 'updatedFloor', 'recoveredFloor', 'settledFloor', 'revealedFloor',
         'echoFloor', 'from', 'to'
     ]);
+    // 容器内事件的楼层字段：与条目**同一份**清单（history 事件在 fact-version 里带 from/to
+    //   区间端点，同时也带 floor；segments 带 floor）。由清单派生而非另写一份 —— 另写一份
+    //   就是 T4 记的那个「新增忘了接线」。
+    const LEDGER_CHILD_FLOOR_FIELDS = Object.freeze(LEDGER_ITEM_FLOOR_FIELDS);
+    // 删楼侧专用：容器事件里除了身份位 floor 之外的字段集。floor===f 时整条摘除，
+    //   所以「置 null」的循环不得再碰 floor（否则摘除失败或重复计数）。
+    const LEDGER_CHILD_NON_IDENTITY_FIELDS = Object.freeze(LEDGER_ITEM_FLOOR_FIELDS.filter(k => k !== 'floor'));
     // 顶层指针字段（recall-echo 的 lastEchoFloor / echo-ledger 的 lastFloor）：删楼后若停在
     //   被删楼层，会触发 echo-per-floor 之类「同楼拒绝」判据把后续写入全部挡掉——必须一并复位。
     const LEDGER_STATE_POINTERS = Object.freeze(['lastEchoFloor', 'lastFloor']);
@@ -68,15 +78,21 @@
                     if (k === 'floor') continue;
                     if (it[k] != null && Number(it[k]) === f) { it[k] = null; touched = true; }
                 }
-                if (Array.isArray(it.history)) {
-                    const hb = it.history.length;
-                    it.history = it.history.filter(ev => Number(ev && ev.floor) !== f);
-                    if (it.history.length !== hb) touched = true;
-                }
-                if (Array.isArray(it.segments)) {
-                    const sb = it.segments.length;
-                    it.segments = it.segments.filter(sg => Number(sg && sg.floor) !== f);
-                    if (it.segments.length !== sb) touched = true;
+                // 容器内事件（fact-version 的 history 带 from/to 区间端点；event-completeness 的
+                //   segments 带 floor）：与条目字段同规则处理，字段集由清单派生。
+                for (const boxName of ['history', 'segments']) {
+                    const kids = Array.isArray(it[boxName]) ? it[boxName] : null;
+                    if (!kids) continue;
+                    const keptKids = [];
+                    for (const kid of kids) {
+                        if (!kid || typeof kid !== 'object') { keptKids.push(kid); continue; }
+                        if (Number(kid.floor) === f) { touched = true; continue; }
+                        for (const k of LEDGER_CHILD_NON_IDENTITY_FIELDS) {
+                            if (kid[k] != null && Number(kid[k]) === f) { kid[k] = null; touched = true; }
+                        }
+                        keptKids.push(kid);
+                    }
+                    it[boxName] = keptKids;
                 }
                 if (touched) n++;
                 kept.push(it);
@@ -101,8 +117,15 @@
         const walkItem = (it) => {
             if (!it || typeof it !== 'object') return;
             for (const k of LEDGER_ITEM_FLOOR_FIELDS) dec(it, k);
-            if (Array.isArray(it.history)) for (const ev of it.history) dec(ev, 'floor');
-            if (Array.isArray(it.segments)) for (const sg of it.segments) dec(sg, 'floor');
+            // 容器内事件走**同一份**派生字段集（此前只认 floor：history 里的 from/to 区间端点
+            //   会留在旧楼层，与条目自身的 from 对不上 —— 实测见 drop 侧注释）。
+            for (const boxName of ['history', 'segments']) {
+                if (!Array.isArray(it[boxName])) continue;
+                for (const kid of it[boxName]) {
+                    if (!kid || typeof kid !== 'object') continue;
+                    for (const k of LEDGER_CHILD_FLOOR_FIELDS) dec(kid, k);
+                }
+            }
         };
         for (const box of ['items', 'facts', 'events', 'repairs']) {
             if (Array.isArray(state[box])) for (const it of state[box]) walkItem(it);

@@ -22,6 +22,10 @@
  *      缺口（新增文件未登记）与残留（登记了不存在的文件）都报。
  *   P4 退役面（catalog_version_guard.tsv）的每个文件不得重新出现在顶层。
  *   P5 退役文件本身只在 tests/archived/ 下，且目录不得为空。
+ *   P6 退役面的**覆盖率转移有判据**（v3.205.0 起）：每行必须声明 covered_by ——
+ *      或是「在役见证文件」（必须在役、且真的被该退役文件点名，防空洞引用），
+ *      或是 `-:理由`（无同等覆盖时理由必填）。把所有退役都标 `-` 相当于没判据，
+ *      故另设地板：`-` 行数不得超过退役面的一半。
  *
  * 退出码：0 无问题；1 有缺陷（附逐条明细）；2 fail-closed（前置读不到）。
  *
@@ -138,6 +142,44 @@ for (const cols of staleAll) {
     if (!onArchive.includes(f)) continue; // 缺席由 P5 报
     const got = createHash('sha1').update(read(path.join(ARCHIVED, f)) || '', 'utf-8').digest('hex').slice(0, 8);
     if (got !== want) problems.push('P5b 退役文件被追改（退役即冻结；改历史会让退役基线失去意义）：' + f + ' 期望 ' + want + ' 实得 ' + got);
+}
+
+/* ── P6：覆盖率转移必须有判据（T6） ──
+ * 背景：v3.204.0 退役 17 个死桥测试时，「它们守的概念在本仓侧已有等价覆盖」这一步
+ *   是**人工核对写进文件头注释**的，没有机器判据 —— 于是「再退役一个文件、谁还在守它」
+ *   这个问题答不上来，退役就会静默变成「删掉就完了」。
+ * 判据形态：
+ *   · 每行必须有 covered_by（缺即报）；
+ *   · covered_by 若是在役见证清单（逗号分隔）：每个文件必须在役（磁盘上存在），
+ *     且**该退役文件真的点名过它**（文件名出现在退役文件正文里）——防「随手填一个名字」；
+ *   · `-`（无同等覆盖）：必须带非空理由。
+ * 地板：全标 `-` = 没判据，故 `-` 行不得超过退役面一半。 */
+const liveSet = new Set(onDisk);
+let dashOnly = 0;
+for (const cols of staleAll) {
+    const [f, , cov] = cols;
+    if (!cov) { problems.push('P6 退役登记缺 covered_by（覆盖率转移无判据）：' + f); continue; }
+    if (cov.startsWith('-')) {
+        dashOnly++;
+        const why = cov.slice(1).replace(/^[:：]/, '').trim();
+        if (!why) problems.push('P6 无同等覆盖时必须写明理由（空 `-` 等于没判据）：' + f);
+        continue;
+    }
+    const wits = cov.split(',').map((s) => s.trim()).filter(Boolean);
+    if (wits.length === 0) { problems.push('P6 covered_by 为空（视为缺判据）：' + f); continue; }
+    const archText = read(path.join(ARCHIVED, f)) || '';
+    for (const w of wits) {
+        if (!liveSet.has(w)) problems.push('P6 covered_by 引用的见证文件不在役（空洞引用；改名/退役后须同步）：' + f + ' → ' + w);
+        // 退役文件的点名约定是**版本标签 + 概念**（如「v356（outline）」），而非完整文件名；
+        //   两种形态都认，否则判据会强求一种仓库从未使用过的写法。
+        else if (!archText.includes(w) && !archText.includes(w.split('_')[0])) {
+            problems.push('P6 covered_by 声明了该见证，但退役文件正文从未点名它（判据不成立）：' + f + ' → ' + w);
+        }
+    }
+}
+if (staleAll.length > 0 && dashOnly > staleAll.length / 2) {
+    problems.push('P6 覆盖率转移判据地板失守：' + dashOnly + '/' + staleAll.length
+        + ' 行标为「无同等覆盖」—— 全标 `-` 等于没有判据，退役必须先回答「谁还在守它」');
 }
 
 console.log('=== 跨仓/绝对路径守卫：在役 ' + onDisk.length + ' / 退役 ' + onArchive.length

@@ -21,6 +21,8 @@ import assert from 'node:assert';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
+// [v3.205.0] T3：死代码行数上界的唯一真源（见下方【4】的落法注释）
+import { readBudget } from './audit/dead_code_budget.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
@@ -99,43 +101,29 @@ test('【3】现存所有根 .js 文件均「已注册或被引用」', () => {
 });
 
 // ---------- 4 ----------
+/* [v3.205.0] T3 落法：上界不再手写在本文件里。
+ *   此前是字面量，每次活跃模块增长都要人工改（v3.202.0 手抬 32450 → 32700），
+ *   漏改的风险是「余量用尽即翻红，而翻红只说明数字不够大」。
+ *   现在上界的**唯一真源**是 tests/audit/dead_code_budget.json，由
+ *   tests/audit/dead_code_budget.mjs 读取与抬升（抬升必须给 --reason，写进 JSON）。
+ *   本判据仍守住「不给死代码留余量」：上界必须 >= 实测，且余量不得超过 maxSlack ——
+ *   上界与实测脱节（余量过大）本身就是判据失效，故一并报。 */
 test('【4】活跃代码总量下降', () => {
   const allJs = readdirSync(ROOT).filter(f => f.endsWith('.js'));
   let total = 0;
   for (const f of allJs) total += readFileSync(path.join(ROOT, f), 'utf8').split('\n').length;
-  // 删除后应显著下降；上界随功能增长同步（v3.152 词典线 +197 行 → 21000，仅允许活跃功能增长）
   // [v3.175] 判据不绑可变形状：根 .js 数 = 入口(index.js) + manifest 声明的 extra_js。
   //   写死数字每加一个模块就翻红，而它真正要守的是「根目录没有游离的 .js」这条不变式。
   const declaredMods = 1 + ((manifest.extra_js || []).length);
   assert.ok(allJs.length === declaredMods, `根 .js 文件数应等于入口+声明模块 ${declaredMods}，实 ${allJs.length}（游离 ${allJs.length - declaredMods} 个）`);
-  // 上界随活跃功能增长同步：v3.152 词典线 +197 → 21000；v3.168 携带契约/静默降级线 +235 → 21300；
-  // v3.170 巩固面（stm-ltm 内核审计账本 + 三态 + selfReport） → 21700；
-  // v3.171 门控读数面（smart-trigger 读侧计数 + 双态面板 + 总账/自检两行） → 22100
-  // v3.172 召回漏斗读数面（v3.95/v3.96 缝合四模块的收缩阶段计数 + 面板 + 宿主五处接线） → 22750
-  // v3.174 桥的读者契约面（来源五态 + 类型三态 + JSON 出口 + 快照自述 + 审计脚本） → 23000
-  // v3.175 世界钟读者面（world-clock-reader.js + GameClock 对账/诊断行/manifest） → 23400
-  // v3.176 世界账本读者面（world-ledger-reader.js 全账本对读 + 宿主投影收集 + 快照携带 + 桥外供 + 审计脚本） → 24000
-  // v3.180 归属性/年龄三态/对外只读口（floor-ledger.js 楼层账 + age-anchor.js 锚点守恒 + public-interface.js 三入口，
-  //   含宿主接线 224 行） → 25000
-  // v3.181 场所图景（SceneBook 从 index.js 89 行抽取为 scene-book.js 724 行 + 六面能力 + 宿主 12 处接线，
-  //   含诊断行升级与携带契约第 24 键 scenePresence） → 26200
-  // v3.183 分支一致性三件套（summary-provenance.js 302 行 + branch-guard.js 405 行 + crosslink.js 285 行
-  //   + 宿主接线：三处取库口/三处诊断行/召回侧过滤/落笔守卫与签名/swipe 守卫/设置面板两控件） → 29000
-  // v3.184 调研清单收尾四件套（node-rollup.js 189 行 + relation-disclosure.js 222 行 + fuzzy-patch.js 342 行
-  //   + changeset.js 270 行 + 宿主接线：三处取库口/三处诊断行/关系块收口/20 处占位符填充改道/变更集联动）
-  //   —— 同时**净减**了旧字面 replace 与旧内联判据，故放宽额度小于四模块行数之和 → 31300
-  // [v3.193.0] 上界不动（本版**净减**：modules_combined/graph_algorithms 只加守卫与 IIFE 包裹，
-  //   新增的 cost-ledger.js 计入声明模块数；死代码面真正守的是下面那条「根 .js 数 = 入口 + 声明模块」）。
-  // [v3.195.0] 伏笔账本 seed-ledger.js（218 行）+ 宿主四处接线（清扫 / 场景头落笔 / 注入行 / 召回封印）
-  //   → 31500。上界只跟活跃模块走，不给死代码留余量。
-  // [v3.196.0] 平行事实账本 parallel-ledger.js + 秘密账本 secret-ledger.js（合计 505 行）
-  //   + 宿主四处接线与两个宿主入口 → 32100。上界只跟活跃模块走，不给死代码留余量。  // [v3.197.0] 前文回扣 recall-echo.js（194 行）+ 回声账本 echo-ledger.js（133 行）
-// [v3.202.0] 回滚面收口：ledger-replay.js 新增九账统一 helper（字段清单 / 顶层指针 / drop / shift / 登记工厂）
-//   + 宿主携带面拓宽与显式豁免表 → 32700。上界只跟活跃模块走，不给死代码留余量。
-  //   + 宿主四处接线与两个宿主入口 → 32450。上界只跟活跃模块走，不给死代码留余量。
-  assert.ok(total < 32700, `总行数 ${total} < 32700（死代码已清除；上界随活跃功能同步，v3.152/v3.168/v3.170/v3.171/v3.172/v3.174/v3.175/v3.176/v3.180/v3.181/v3.183/v3.184/v3.195/v3.196/v3.197/v3.202 放宽）`);
+  // [v3.205.0] 上界与余量都从唯一真源读（见上方注释：T3）。
+  const { ceiling, maxSlack } = readBudget();
+  assert.ok(total < ceiling, `总行数 ${total} < 上界 ${ceiling}（上界见 tests/audit/dead_code_budget.json；`
+    + `若是活跃功能增长：node tests/audit/dead_code_budget.mjs --bump --reason='...'；若是死代码回流：删掉它）`);
+  assert.ok(ceiling - total <= maxSlack, `上界余量 ${ceiling - total} 不得超过 maxSlack ${maxSlack}`
+    + `（余量过大 = 上界与实测脱节，等于没守；抬升请带理由走 --bump）`);
   assert.ok(total > 15000, `总行数 ${total} > 15000（未误删活跃代码）`);
-  ok(`活跃代码 ${allJs.length} 文件 / ${total} 行`);
+  ok(`活跃代码 ${allJs.length} 文件 / ${total} 行（上界 ${ceiling}）`);
 });
 
 // ---------- 5 ----------

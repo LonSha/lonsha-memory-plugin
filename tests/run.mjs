@@ -18,7 +18,7 @@
  *   TEST_JOBS     同 --jobs（命令行优先）
  *   TEST_TIMEOUT  单文件超时毫秒（默认 120000）
  */
-import { readdirSync, existsSync } from 'node:fs';
+import { readdirSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -56,29 +56,127 @@ function collectTests() {
 
 // ---------- 单文件子进程执行 ----------
 // useTestRunner=true  走 node --test（测试套件）；false 直接 node 执行（audit 扫描器）
-function runOne(file, useTestRunner = true) {
+/* [v3.205.0] T7 真根因：**孙进程泄漏**。
+ *   node --test 默认 --test-isolation=process，会把每个用例放进自己的子进程；
+ *   audit 扫描器也会派 `node --check` 子进程。原先超时只 `child.kill('SIGKILL')`——
+ *   杀掉的是直接子进程，**孙进程被孤儿化**（PPID 变 1）继续吃 CPU。
+ *   实测污染链：某轮偶发超时 → 残留 8~12 个孤儿 node → 后续每一轮都被抢 CPU →
+ *   更多文件超时（实测 v3159 由 50s 劣化到 339s、v3181 由 1.3s 到 66s）→ 更多孤儿。
+ *   即「并行偶发假红」是**自劣化正反馈**，不是随机的。
+ *   修法：子进程放独立进程组（detached），超时与正常收尾都按 **进程组** 杀
+ *   （kill(-pid)），从根上不产生孤儿。阈值一律不动 —— 阈值不是病根。 */
+function killGroup(child) {
+  try { process.kill(-child.pid, 'SIGKILL'); } catch { /* 组可能已不存在 */ }
+  try { child.kill('SIGKILL'); } catch { /* 直接子进程兜底 */ }
+}
+function runOne(file, useTestRunner = true, attempt = 0) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     const argv = useTestRunner ? ['--test', file] : [file];
-    const child = spawn(process.execPath, argv, {
-      cwd: REPO,
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    let child;
+    try {
+      child = spawn(process.execPath, argv, {
+        cwd: REPO,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: true, // 独立进程组：孙进程随组一起收，避免孤儿残留
+      });
+    } catch (e) {
+      return resolve(retryOrFail(e, file, useTestRunner, attempt, t0));
+    }
     let out = '', err = '', killed = false;
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { err += d; });
-    const timer = setTimeout(() => { killed = true; child.kill('SIGKILL'); }, TIMEOUT);
+    const timer = setTimeout(() => { killed = true; killGroup(child); }, TIMEOUT);
     child.on('close', (code) => {
       clearTimeout(timer);
+      // 正常退出也可能留下未收尾的孙进程（父进程先于子进程结束）：一并收割
+      killGroup(child);
       const ms = Date.now() - t0;
       resolve({ file, code: killed ? -1 : (code ?? 1), killed, ms, out, err });
     });
     child.on('error', (e) => {
       clearTimeout(timer);
+      killGroup(child);
+      /* [v3.205.0] T7 残余成因：**spawn 本身失败**（非判据失败）。
+       *   实测（7 路真实并发、v3177 单跑 9 次）里的红是这样来的：
+       *   断言 A3 报 `node:fs:441` —— 那是 execFileSync/spawn 连子进程都没起得来
+       *   （EAGAIN「资源暂时不可用」，本沙箱还有 `fork: Function not implemented`
+       *   同族），与「被测的门坏了」毫无关系。旧实现把它当 exit=1，于是整个文件
+       *   被记成假红；而它恰恰**不是**计时阈值能解释的（A1 在同一轮是 ✓）。
+       *   修法：只对**资源类**错误码重试（真缺陷会跨重试持续存在，判据不因此放宽；
+       *   非资源类错误维持原行为）。退避 300ms 让进程槽位释放。 */
+      const code = e && (e.code || e.errno);
+      const RESOURCE = new Set(['EAGAIN', 'ENOMEM', 'EMFILE', 'ENFILE', 'EWOULDBLOCK']);
+      if (RESOURCE.has(code) && attempt < 3) {
+        setTimeout(() => resolve(runOne(file, useTestRunner, attempt + 1)), 300);
+        return;
+      }
       resolve({ file, code: 1, killed: false, ms: Date.now() - t0, out, err: String(e) });
     });
   });
+}
+/** spawn 抛异常（同步路径）时的同一策略：资源类错误重试，否则立即失败 */
+function retryOrFail(e, file, useTestRunner, attempt, t0) {
+  const code = e && (e.code || e.errno);
+  const RESOURCE = new Set(['EAGAIN', 'ENOMEM', 'EMFILE', 'ENFILE', 'EWOULDBLOCK']);
+  if (RESOURCE.has(code) && attempt < 3) {
+    return new Promise((resolve) => setTimeout(
+      () => resolve(runOne(file, useTestRunner, attempt + 1)), 300));
+  }
+  return { file, code: 1, killed: false, ms: Date.now() - t0, out: '', err: String(e) };
+}
+
+/* [v3.205.0] T7 验收基建：失败现场落盘。
+ *   TODO T7 的验收协议写着「先把偶发定住（把该文件在负载下的实际报错落盘）」，
+ *   但旧 runner 只在结尾打印一行文件名 —— 失败现场（哪个断言、耗时读多少）随
+ *   进程消失，于是「偶发」记了三个月也定不住。
+ *   TEST_FAIL_DUMP=<dir> 时把每个失败文件的完整 stdout/stderr 写成
+ *   <dir>/<文件名>.log，供事后逐条对现场。默认关闭（不改变既有输出与退出码）。 */
+function dumpFailure(r, name) {
+  const dir = process.env.TEST_FAIL_DUMP;
+  if (!dir) return;
+  try {
+    mkdirSync(dir, { recursive: true });
+    const out = join(dir, name.replace(/[\\/]/g, '_') + '.log');
+    writeFileSync(out, 'file: ' + r.file + '\n'
+      + 'code: ' + r.code + ' | killed: ' + r.killed + ' | ms: ' + r.ms + '\n'
+      + '===== stdout =====\n' + r.out + '\n===== stderr =====\n' + r.err + '\n');
+    console.log('    ↳ 失败现场已落盘: ' + out);
+  } catch (e) {
+    console.log('    ↳ 失败现场落盘失败: ' + (e && e.message));
+  }
+}
+
+/* [v3.205.0] T7 残余成因：**环境资源耗尽冒充判据失败**。
+ *   实测（7 路真实并发下把 v3177 单跑 9 次）抓到失败现场：
+ *     断言 A1 = ✓，而 A3 报 `node:fs:441` —— 那是被测文件**自己**用 execFileSync
+ *     起子进程时没起得来（EAGAIN「资源暂时不可用」；本沙箱另有同族的
+ *     `fork: Function not implemented`）。它和「被测的门坏了」毫无关系，
+ *     也和 6000ms 计时阈值毫无关系（A1 在同一轮是 ✓）。
+ *   旧 runner 只见 exit=1，于是整个文件被记成假红 —— 这正是 T7 记了三个月没定住的原因。
+ *   修法：对**带环境资源耗尽指纹**的失败做有限重试（最多 3 次、递增退避），
+ *     且**每次重试都打印出来**（绿不许来自被静默吞掉的重跑）。真缺陷会跨重试持续，
+ *     判据不因此放宽；重试过的文件在汇总里单独点名。 */
+const RESOURCE_SIG = /EAGAIN|EMFILE|ENFILE|ENOMEM|Resource temporarily unavailable|fork: Function not implemented|node:fs:\d+/;
+const RETRY_MAX = 3;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function runWithRetry(file, useTestRunner) {
+  const label = file.replace(REPO + '/', '');
+  let r = await runOne(file, useTestRunner);
+  if (r.code === 0 || r.killed) return r;
+  if (!RESOURCE_SIG.test(r.out + '\n' + r.err)) return r;
+  for (let i = 1; i <= RETRY_MAX; i++) {
+    const sig = (r.out + '\n' + r.err).split('\n')
+      .find((l) => RESOURCE_SIG.test(l)) || '(资源耗尽指纹)';
+    console.log(`  ⟳ ${label} 疑似环境资源耗尽（非判据失败），第 ${i} 次重试：${sig.trim().slice(0, 110)}`);
+    await sleep(500 * i);
+    r = await runOne(file, useTestRunner);
+    if (r.code === 0) { r.retried = i; r.envRetry = true; return r; }
+    if (r.killed) return r;
+  }
+  return r;
 }
 
 // ---------- 并发池 ----------
@@ -120,7 +218,7 @@ async function main() {
   }
   console.log(`[run] ${tests.length} 个测试文件 | 并发 ${OPT.jobs} | 单文件超时 ${TIMEOUT}ms\n`);
   const t0 = Date.now();
-  const results = await pool(tests, OPT.jobs, runOne);
+  const results = await pool(tests, OPT.jobs, runWithRetry);
 
   let totalPass = 0, totalFail = 0, anyFail = false;
   const failed = [];
@@ -135,11 +233,19 @@ async function main() {
       failed.push(r);
       const tag = r.killed ? 'TIMEOUT' : `exit=${r.code}`;
       console.log(`  ✗ ${name}  (${r.ms}ms, ${tag})`);
+      if (process.env.TEST_FAIL_DUMP) dumpFailure(r, name);
     }
   }
   const wall = ((Date.now() - t0) / 1000).toFixed(1);
   console.log('');
   console.log(`[run] 通过断言 ${totalPass} | 失败断言 ${totalFail} | 文件 ${tests.length - failed.length}/${tests.length} 通过 | 耗时 ${wall}s`);
+
+  // 环境重试过的文件单独点名：绿不许来自「悄悄重跑」，但也别淹没真红
+  const retried = results.filter((r) => r && r.envRetry);
+  if (retried.length) {
+    console.log(`[run] 其中 ${retried.length} 个文件经环境资源耗尽重试后转绿（重试次数已打印在上方，逐条可查）:`);
+    for (const r of retried) console.log(`  ⟳ ${r.file.replace(REPO + '/', '')} ×${r.retried}`);
+  }
 
   if (failed.length) {
     console.log('\n[run] 失败文件明细（重跑定位）:');

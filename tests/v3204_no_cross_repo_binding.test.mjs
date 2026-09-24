@@ -81,6 +81,10 @@ test('v3204 1. 跨仓守卫在位：五条判据 / 三档退出码 / 唯一真�
         ['P3 参考基准登记了不存在的测试', 'P3 残留判据'],
         ['P4 已退役测试重新出现在在役面', 'P4 退役复活判据'],
         ['P5b 退役文件被追改', 'P5b 冻结判据'],
+        ['P6 退役登记缺 covered_by', 'P6 覆盖率转移判据（T6）'],
+        ['P6 covered_by 引用的见证文件不在役', 'P6 空洞引用判据'],
+        ['P6 无同等覆盖时必须写明理由', 'P6 无覆盖理由判据'],
+        ['P6 覆盖率转移判据地板失守', 'P6 地板判据（全标 `-` = 没判据）'],
         ['failClosed', 'fail-closed 出口'],
         ['process.exit(2)', '退出码 2'],
         ['process.exit(1)', '退出码 1'],
@@ -216,6 +220,55 @@ test('v3204 12. 负控制 N5b：退役文件被追改 → 必须 exit 1（P5b）
     });
     assert.strictEqual(r.status, 1, '追改退役面必须阻断：' + r.out.slice(-300));
     assert.ok(/P5b 退役文件被追改/.test(r.out), '应点名退役面被追改：' + r.out.slice(-400));
+});
+
+/* ══════════ 3b. T6：覆盖率转移的负控制（v3.205.0） ══════════ */
+// 辅助：把退役登记里某行/全部行的第三列（covered_by）改成给定值。
+//   退役面受 sha1 冻结，改 TSV 不影响文件哈希，故这些负控制不会被 P5b 抢答。
+const STALE_P = (d) => path.join(d, STALE_REL);
+function setCovered(d, mutate) {
+    const p = STALE_P(d);
+    const lines = readFileSync(p, 'utf-8').split('\n');
+    const out = lines.map((l) => {
+        if (!l.trim() || l.startsWith('#')) return l;
+        const cols = l.split('\t');
+        while (cols.length < 3) cols.push('');
+        const r = mutate(cols);
+        return r === null ? null : r.join('\t');
+    }).filter((l) => l !== null);
+    writeFileSync(p, out.join('\n') + '\n');
+}
+
+test('v3204 12b. 负控制 N7：退役行缺 covered_by → 必须 exit 1（P6）', () => {
+    const victim = rows(STALE)[0][0];
+    const r = withTree((d) => setCovered(d, (c) => (c[0] === victim ? [c[0], c[1], ''] : c)));
+    assert.strictEqual(r.status, 1, '缺覆盖率判据必须阻断：' + r.out.slice(-300));
+    assert.ok(/P6 退役登记缺 covered_by/.test(r.out), '应点名缺 covered_by：' + r.out.slice(-400));
+    assert.ok(r.out.includes(victim), '应点名具体退役文件');
+});
+
+test('v3204 12c. 负控制 N7b：covered_by 指向不存在的见证 → 必须 exit 1（P6 空洞引用）', () => {
+    const rowsAll = rows(STALE);
+    const bridge = rowsAll.find((c) => (c[2] || '').includes(',')) ;
+    assert.ok(bridge, '前提：退役面存在带见证清单的行（桥一代族）');
+    const victim = bridge[0];
+    const r = withTree((d) => setCovered(d, (c) => (c[0] === victim ? [c[0], c[1], 'ghost_witness.test.mjs'] : c)));
+    assert.strictEqual(r.status, 1, '空洞引用必须阻断：' + r.out.slice(-300));
+    assert.ok(/P6 covered_by 引用的见证文件不在役/.test(r.out), '应点名空洞引用：' + r.out.slice(-400));
+});
+
+test('v3204 12d. 负控制 N7c：全标「无同等覆盖」→ 地板必须失守（P6）', () => {
+    const r = withTree((d) => setCovered(d, (c) => [c[0], c[1], '-:本轮一律标无覆盖']));
+    assert.strictEqual(r.status, 1, '全标 `-` 等于没判据，必须阻断：' + r.out.slice(-300));
+    assert.ok(/P6 覆盖率转移判据地板失守/.test(r.out), '应点名地板失守：' + r.out.slice(-400));
+});
+
+test('v3204 12e. 保绿对照 N7d：合法的 covered_by 改动（含合法 `-:理由`）→ 必须 exit 0', () => {
+    // 只把「桥一代」第一行的见证换成另一个**同族且被点名**的见证，且不触碰 `-` 行比例地板逻辑
+    const victim = rows(STALE).find((c) => (c[2] || '').includes(','))[0];
+    const r = withTree((d) => setCovered(d, (c) => (c[0] === victim ? [c[0], c[1], 'v325_recall_tier.test.mjs'] : c)));
+    assert.strictEqual(r.status, 0,
+        '合法的覆盖率转移声明不得被误杀（判据要能红能绿）：' + r.out.slice(-400));
 });
 
 test('v3204 13. fail-closed：登记表缺失 → 必须 exit 2（不是 0，也不是 1）', () => {

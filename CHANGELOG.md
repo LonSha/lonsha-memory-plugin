@@ -1,3 +1,159 @@
+## v3.205.0
+
+**主题：基础设施不得「假装通过」—— 把四类「绿不是真绿」的情形变成判据。**
+
+本版销掉 TODO 里积压的四项（T3/T4/T5/T6）与一项实测新发现（T7），全部是**基建**而非业务：
+它们共同的形态是「判据本身失灵时，门禁照报绿」。
+
+### T7 并行偶发假红 —— 真根因两条，均与「计时阈值」无关
+
+TODO 原文把病根记在 `v3177` 的 A1「单次全仓扫描 < 6s」上。**实测证伪，并挖出两个真根因。**
+
+**取证方法先被修正。** 原记录（以及我自己的第一轮探针）测的门路径 `tests/syntax-gate.mjs`
+**根本不存在** —— 真实语法门是 `tests/audit/scan_syntax.mjs`。所以那个「47–62ms」的读数
+是「node 启动后 ENOENT 退出」的时间，**语法门的真实耗时从未被测过**。重测：
+
+| 对象 | 空闲 | 7 路真实负载 |
+|---|---|---|
+| `tests/audit/scan_syntax.mjs`（单次全仓 301 文件） | 418–457ms | 1.97–3.22s |
+| `v3177` 整文件（含 14 项断言、内部多次 spawn） | 4.4–4.8s | 6.1–8.6s |
+
+A1 在 7 路负载下**从未失败**（连跑 9 次全 ✓）。阈值有 ~2x 余量，**不是病根**。
+
+**真根因 ①（自劣化正反馈）：孙进程泄漏。**
+`node --test` 默认 `--test-isolation=process`（每个用例一个子进程），audit 扫描器还会派
+`node --check` 孙进程。旧实现超时只 `child.kill('SIGKILL')` —— 杀的是直接子进程，
+**孙进程被孤儿化**（PPID→1）继续吃 CPU。污染链：偶发超时 → 残留 8~12 个孤儿 →
+后续每轮被抢 CPU → 更多文件超时（实测 `v3159` 50s→339s、`v3181` 1.3s→66s）→ 更多孤儿。
+**它不是随机的，是会自己长大的。**
+修法：子进程放独立进程组（`detached: true`），超时/正常收尾/error 三条路径都按
+**进程组** 杀（`process.kill(-pid)`）。验收：健康跑完 0 孤儿；强制 `TEST_TIMEOUT=4000`
+制造 6 次超时后仍 0 孤儿（旧实现下这是 6~8 个孤儿）。
+
+**真根因 ②（环境资源耗尽冒充判据失败）：** 在 7 路真实并发下把 `v3177` 单跑 9 次，
+抓到失败现场（新增的失败现场落盘机制，见下）：
+```
+✓ A1 单次全仓扫描 < 6s
+✓ A2 门内保留 vm 批量解析路径
+✗ A3 vm 需实验标志：门自带 re-exec 兜底 :: node:fs:441
+```
+`node:fs:441` 是**被测文件自己** `execFileSync` 起子进程时没起得来（EAGAIN「资源暂时不可用」；
+本沙箱另有同族的 `fork: Function not implemented`）。它和「门坏了」无关，更和阈值无关 ——
+同一轮里 A1 是 ✓。旧 runner 只见 exit=1，于是整个文件被记成假红。
+修法：对**带环境资源耗尽指纹**的失败做有限重试（≤3 次、递增退避），
+**每次重试都打印**，转绿的文件在汇总里单独点名 —— 绿不许来自被静默吞掉的重跑。
+真缺陷跨重试持续存在，判据不因此放宽。
+
+**配套：失败现场落盘（`TEST_FAIL_DUMP`）。** TODO 的验收协议写着「先把偶发定住
+（把该文件在负载下的实际报错落盘）」，但旧 runner 只打印一行文件名 —— 失败现场随进程
+消失，这就是「偶发」记了三个月定不住的原因。现在开关打开即逐文件落 stdout/stderr/退出码。
+
+**顺带：`v3159` 从 49.5s 降到 17.4s（不含抬高任何阈值）。** 成本分解：43 个 audit 脚本
+**串行** spawn 占 49.3s（每次 node 冷启动 ~1.15s），镜像 `tests/` 只占 4.8s。改为受控并发池
+（默认 4，`V3159_AUDIT_JOBS` 可覆写），结果仍按文件名索引、与串行逐位等价。
+并发安全性已核：audit 脚本只**读**仓库，写入一律落各自 `mkdtempSync` 私有目录。
+
+**验收（TODO 规定的协议：连跑 ≥10 轮 `node tests/run.mjs`）。** 累计跑 33 轮：
+- 修前（起跑环境已有旧孤儿）：8 轮完成 / 1 次失败（round 1 `v3177`，13.5s——与
+  「2s × 7 倍劣化」吻合，来源是既存孤儿抢 CPU）。
+- 修后（逐轮清场、干净起跑）：`acc3` **6/6 全绿**（31.9–37.5s）+ `acc5` **6/6 全绿**（36.8–51.8s）。
+- 另 12 轮因沙箱进程数上限（`fork: Function not implemented`）与「跑批中途改文件」污染而作废，
+  不作结论（已记入踩坑）。
+
+### T3 死代码行数上界靠手抬 → 唯一真源
+
+`tests/v3116_dead_code.test.mjs` 的上界原是字面量（v3.202.0 手抬 32450 → 32700）。
+新增 `tests/audit/dead_code_budget.json`（`ceiling` / `maxSlack` / `note` /
+15 条 `history`，把原先内联在测试里的历次抬升理由全部迁入留痕）与
+`tests/audit/dead_code_budget.mjs`（唯一真源导出口）。判据改为 `import { readBudget }`，
+并**额外守住「余量 ≤ maxSlack」** —— 上界与实测脱节（余量过大）本身就是判据失效，故一并报。
+`--bump` 必须带 `--reason`，且只抬不降（收紧要手改并说明）。
+
+### T4 九账楼层字段清单手工枚举 → 容器内事件由同一清单派生
+
+`ledger-replay.js` 的容器内事件此前**只认 `floor`**（`history` 只减/摘 `floor`），
+于是 `fact-version` 的区间端点 `from`/`to` 留在旧楼层，与条目自身的 `from` 对不上 ——
+账本内部自相矛盾。改为两份**派生**集合：
+`LEDGER_CHILD_FLOOR_FIELDS = LEDGER_ITEM_FLOOR_FIELDS`（shift 侧，身份位也要跟着减）、
+`LEDGER_CHILD_NON_IDENTITY_FIELDS = LEDGER_ITEM_FLOOR_FIELDS.filter(k => k !== 'floor')`
+（drop 侧置 null 用；`floor === f` 时整条摘除）。
+注意：本轮**同时修掉了一次自伤回归** —— 中途把 drop/shift 两侧都指向「不含 floor」的集合，
+使 `v3202` 测试 4 从 round 10 起连续红（`history.map(e=>e.floor)` 期望 `[4,2]` 实得 `[5,3]`）。
+拆成两份派生集合后 `v3202` 22/22。
+
+### T5 豁免表 `ledger`/`echo` 语义重叠 → 复核为「四方不同源」并固化
+
+复核结论：`ledger` = 宿主 `this.ledger`（`new FloorLedger`，楼层账本「该楼提取了什么」）；
+`echo` = 宿主 `this.echo`（回响池，life 计数是会话内衰减器）；
+`echoLedger` / `recallEcho` = worldProg 子面，宿主**字段**是 `this.echoLedger` / `this.recallEcho`。
+**四方不同源，豁免判断正确。**「同源异名」只适用于 `diaries↔diary`、`status↔statusFlat`。
+固化为 `scan_v3202_carryover_archive_diff.mjs` 的 **P5**：被豁免且不在 archive⊎contract 中的
+`ledger`/`echo`，其独立真源必须在宿主正则上验证到（`this.ledger = new FloorLedger` /
+`echo: this.echo?.export`），且豁免行理由**不得出现「同源」字样**。
+
+### T6 退役面覆盖率转移只有人工核对 → 登记列 + 判据 + 地板
+
+退役 17 个死桥测试时的「本仓侧已有等价覆盖」是人工核对、写在文件头散文里的，没有判据 ——
+于是「再退役一个、谁还在守它」答不上来。`catalog_version_guard.tsv` 升级为三列
+`文件<TAB>sha1<TAB>covered_by`（17 行指向 `v356_outline_autoplan` /
+`v353_panel_ethics_fix` / `v325_recall_tier` / `v386_bm25_branches`；
+`v3116_bloom` 用 `-:理由`）。`scan_cross_repo_binding.mjs` 新增 **P6**：
+每行必须有 `covered_by`；见证必须在役**且该退役文件正文真的点名过它**（兼容「版本标签」写法，
+先按整名匹配、再按 `v356` 前缀匹配，避免强求仓库从未用过的写法）；`-` 必须带非空理由；
+并设**地板** —— `-` 行不得超过退役面一半（「全标 `-`」等于没有判据）。
+
+### 发布面（抬版仪式零手改）
+
+三源抬到 3.205.0；新增 `tests/v3205_infrastructure_truthfulness.test.mjs`（frontier，18 组）
+把上述五项落法全部钉住，含三组 T7 负控制（资源指纹→明示重试转绿 / 真缺陷→不重试直接红 /
+落盘开关缺省关闭）与「阈值不许被抬」判据。
+`catalog_reference_consumers.tsv` 补登记新文件。
+
+**顺带清掉的同类反模式（两处，都在 `v3203`）：**
+1. `v3203` 15 断言 `todo.includes('v3.204.0')` —— 把**可变文档的版号**写死进测试，
+   下一次抬版必红。这正是 v3.203.0 自己消灭的 T1 反模式换了个位置。改为 `todo.includes('v' + CUR)`。
+2. `v3203` 的「frontier 恰为 1」是同版多 frontier 时不成立的**过度收窄**。真仓库行为面与
+   runner 口径面放宽为「至少 1」；但**负控制 10b 反而收紧了**：它要证的是「注记不改变
+   frontier 数量」，原判据 `=== 1` 在「注记真被蹭宽时数量仍 ≥1」下会静默失效，
+   故改为与未注入基线**逐位相等**。**判据放宽与收紧必须分别论证，不能一律放宽。**
+3. `v3177` 的 E1 报错文案与代码不一致（版本串是 `3.177.0`，文案写「不得低于 3.179.0」）。
+
+### 影响范围
+
+`ledger-replay.js`（T4 两份派生清单 + 两处容器循环）、`tests/run.mjs`（T7 进程组收割 /
+失败现场落盘 / 资源指纹重试）、`tests/v3116_dead_code.test.mjs`（T3 读真源）、
+`tests/v3159_...test.mjs`（受控并发池）、`tests/v3203_...test.mjs`（三处 frontier + 15 版号无关化）、
+`tests/v3177_...test.mjs`（E1 文案）、`tests/audit/scan_cross_repo_binding.mjs`（P6）、
+`tests/audit/scan_v3202_carryover_archive_diff.mjs`（P5）、`tests/v3204_...test.mjs`（T6 四组负控制）、
+新增 `tests/audit/dead_code_budget.{json,mjs}`、新增 `tests/v3205_...test.mjs`、
+`catalog_version_guard.tsv`、`catalog_reference_consumers.tsv`、`CHANGELOG.md`、`TODO.md`、`ITERATION_LOG.md`。
+
+**门禁**：184 文件 / 1591 断言 / 39 审计脚本 / **EXIT=0**（上一版 183 / 1568 / 38）。
+（同轮实测：清场后 31.9–51.8s；污染态曾劣化到 63–94s，根因见 T7①。）
+
+**本轮踩到的坑（已留痕）**
+1. **测试门路径从未被验证**：TODO 与我自己的探针都在测 `tests/syntax-gate.mjs`（不存在）。
+   代价是「证伪阈值」这个结论本身建立在 404 上 —— 如果我没去 `ls` 一下，T7 会以「阈值无辜」
+   结案而两个真根因全部漏掉。**报告任何读数前，先确认被测对象真的存在。**
+2. 沙箱进程数上限会让长跑批中途 `fork: Function not implemented`；后台连跑 8 轮的脚本
+   实测只跑到 round 1 就崩。验收必须**受控分批**，不能指望一次后台长跑。
+3. 清理孤儿时 `pkill -f 'lonsha-memory-plugin'` **匹配不到** —— commit 后的 audit 孙进程
+   argv 是相对路径（`tests/audit/x.mjs`）。漏杀的直接后果是后续轮次被抢 CPU
+   （实测同一构建 31.9s ↔ 94.5s）。
+4. **跑批中途改文件会自伤**：我在 `acc4` round 5 期间创建了两个临时夹具
+   `tests/_rt_*.test.mjs`，被 v3204 的 P3 登记判据抓个正着，`v3159` 与 `v3204` 双双翻红。
+   跑批期间要么只读、要么接受该轮作废。
+5. v3202 回归是**我引入的**（T4 中途版把两侧指向同一份「不含 floor」集合）。
+   教训：shift 与 drop 对 `floor` 的需求**相反**（前者要减、后者要摘），派生集合必须分两份。
+6. **负控制被测试环境传染**：`v3205` 自己是被 `run.mjs` 以 `node --test` 拉起的，
+   环境里带着 `NODE_TEST_CONTEXT`；该变量传承给夹具的 `node --test` 后，夹具认定自己是
+   「别人的测试子进程」而**整段哑掉** —— 一行没跑，run.mjs 报「文件 1/1 通过、通过断言 0」。
+   于是「资源指纹失败 → 重试转绿」这条负控制测的根本不是重试，而是「什么都没跑」。
+   这正是本版要治的「绿不是真绿」，只不过这次出在**判据自己**身上。
+   修法：给夹具剥离该变量；并加**强断言** —— 以夹具自己的状态文件为准，要求它**真的跑过两次**。
+   （同类假绿还有一层：夹具原本写在仓库的 `tests/` 里，会让「同一文件单独跑绿、并发跑红」，
+   正是本版要根治的不稳定形态。故夹具与 runner 副本改放临时仓，本仓跑批全程只读。）
+
 ## v3.204.0
 
 **主题：门禁的「绿」不许来自本机环境 —— 拆掉本仓绝对路径与死兄弟树依赖。**

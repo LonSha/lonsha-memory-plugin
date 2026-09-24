@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync, writeFileSync, cpSync, mkdtempSync, rmSync, mkdirSync, readdirSync, existsSync } from 'fs';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,7 +37,59 @@ const auditScripts = readdirSync(AUDIT_DIR).filter((f) => f.endsWith('.mjs') && 
 const readAudit = (f) => readFileSync(path.join(AUDIT_DIR, f), 'utf-8');
 
 /** run one audit script inside a scratch tree shaped by `mutate` */
-function runInScratch(mutate) {
+// [v3.205.0] T7：44 次**串行** spawn 在 7 路并发门禁下把本文件从 50s 抬到 339s 撞
+//   单文件超时（120s）。实测成本分解：43 个 audit 脚本串行 spawn = 49.3s（每次 node
+//   冷启动 ~1.15s），镜像 tests/ 只占 4.8s —— 即耗时几乎全是「进程启动」而非判据。
+//   改法：受控并发池（默认 4），禁止用「抬高超时」掩盖（阈值不是病根）。
+//   并发安全性已核：所有 audit 脚本只**读**仓库，写入一律落各自 mkdtempSync 私有目录
+//   （16 个负控脚本「复制后改副本」，目标目录互不相同）；本 scratch 树在单个用例内
+//   独占，用例之间无共享可变状态。
+const AUDIT_CONCURRENCY = (() => {
+    const n = parseInt(process.env.V3159_AUDIT_JOBS || '', 10);
+    return Number.isFinite(n) && n > 0 ? n : 4;
+})();
+const AUDIT_TIMEOUT = (() => {
+    const n = parseInt(process.env.V3159_AUDIT_TIMEOUT || '', 10);
+    return Number.isFinite(n) && n > 0 ? n : 120000;
+})();
+
+function spawnOne(cwd, f) {
+    return new Promise((resolve) => {
+        const child = spawn(process.execPath, [path.join('tests', 'audit', f)], {
+            cwd, stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let out = '', err = '', killed = false;
+        child.stdout.on('data', (d) => { out += d; });
+        child.stderr.on('data', (d) => { err += d; });
+        const timer = setTimeout(() => { killed = true; child.kill('SIGKILL'); }, AUDIT_TIMEOUT);
+        child.on('close', (code) => {
+            clearTimeout(timer);
+            resolve({ status: killed ? null : (code ?? 1), killed, out: out + err });
+        });
+        child.on('error', (e) => {
+            clearTimeout(timer);
+            resolve({ status: 1, killed: false, out: String(e) });
+        });
+    });
+}
+
+/** 受控并发：结果按传入顺序返回，与串行语义逐位等价 */
+async function runAuditBatch(cwd, files, jobs = AUDIT_CONCURRENCY) {
+    const results = new Array(files.length);
+    let idx = 0;
+    const lanes = Array.from({ length: Math.max(1, Math.min(jobs, files.length)) }, async () => {
+        while (idx < files.length) {
+            const i = idx++;
+            results[i] = await spawnOne(cwd, files[i]);
+        }
+    });
+    await Promise.all(lanes);
+    const byFile = {};
+    files.forEach((f, i) => { byFile[f] = results[i]; });
+    return byFile;
+}
+
+async function runInScratch(mutate) {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3159-'));
     try {
         // [v3.163] 此前只物化 index.js / settings-ui.js 两个文件。v3.163 新增的
@@ -63,12 +115,8 @@ function runInScratch(mutate) {
         //   健康树夹具必须真的像健康树；判据不因此放宽。
         cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true });
         const which = mutate(dir);
-        const results = {};
-        for (const f of (which || auditScripts)) {
-            const r = spawnSync('node', [path.join('tests', 'audit', f)], { cwd: dir, encoding: 'utf-8', timeout: 120000 });
-            results[f] = { status: r.status, out: (r.stdout || '') + (r.stderr || '') };
-        }
-        return results;
+        // [v3.205.0] 受控并发（见 runAuditBatch 注释）。语义与串行逐位等价：结果仍按文件名索引。
+        return await runAuditBatch(dir, (which || auditScripts));
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
@@ -130,8 +178,8 @@ test('[2] every audit script can block (exit 2), and defect-scanners can fail ha
         assert.ok(/process\.exit\s*\(\s*1\s*\)/.test(readAudit(f)), f + ' fails hard on a real defect (exit 1)');
     }
 });
-test('[2b] the two formerly exit-less scanners now block on a degenerate tree', () => {
-    const r = runInScratch((dir) => {
+test('[2b] the two formerly exit-less scanners now block on a degenerate tree', async () => {
+    const r = await runInScratch((dir) => {
         writeFileSync(path.join(dir, 'index.js'), '// gone\n');
         writeFileSync(path.join(dir, 'settings-ui.js'), '// gone\n');
         return ['scan_resilience.mjs', 'scan_wiring.mjs', 'scan_config_liveness.mjs'];
@@ -140,20 +188,20 @@ test('[2b] the two formerly exit-less scanners now block on a degenerate tree', 
         assert.strictEqual(r2.status, 2, f + ' must exit 2 on an empty tree, got ' + r2.status + ' / ' + r2.out.slice(0, 160));
     }
 });
-test('[2c] a truncated UI file is caught even though its size is over the floor', () => {
-    const r = runInScratch((dir) => {
+test('[2c] a truncated UI file is caught even though its size is over the floor', async () => {
+    const r = await runInScratch((dir) => {
         writeFileSync(path.join(dir, 'settings-ui.js'), sui.split('\n').slice(0, 200).join('\n'));
         return ['scan_wiring.mjs'];
     });
     assert.strictEqual(r['scan_wiring.mjs'].status, 2, 'wiring must notice the vanished controls');
 });
-test('[2d] a healthy tree still passes every audit script', () => {
-    const r = runInScratch(() => auditScripts);
+test('[2d] a healthy tree still passes every audit script', async () => {
+    const r = await runInScratch(() => auditScripts);
     for (const [f, r2] of Object.entries(r)) {
         assert.strictEqual(r2.status, 0, f + ' must pass on a healthy tree, got ' + r2.status + ' / ' + r2.out.slice(-200));
     }
 });
-test('[2e] the liveness probe refuses to certify "0 dead configs" from a collapsed key set', () => {
+test('[2e] the liveness probe refuses to certify "0 dead configs" from a collapsed key set', async () => {
     const t = readAudit('scan_config_liveness.mjs');
     assert.ok(/MIN_UI_KEYS/.test(t), 'the floor exists');
     assert.ok(/uiKeys\.size\s*<\s*MIN_UI_KEYS/.test(t), 'the floor is actually enforced');
@@ -164,7 +212,7 @@ test('[2e] the liveness probe refuses to certify "0 dead configs" from a collaps
     const thinUi = '<!-- thin ui: over the byte floor, but only three distinct keys -->\n'
         + Array.from({ length: 600 }, (_, i) => '<div class="row" data-cfg="orphanKey' + (i % 3) + '"></div>').join('\n');
     assert.ok(thinUi.length >= 20000, 'the fixture does clear the byte floor');
-    const r = runInScratch((dir) => {
+    const r = await runInScratch((dir) => {
         writeFileSync(path.join(dir, 'settings-ui.js'), thinUi);
         return ['scan_config_liveness.mjs'];
     });
