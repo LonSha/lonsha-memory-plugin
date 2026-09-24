@@ -17,13 +17,17 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, cpSync } from 'fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, cpSync, readdirSync } from 'fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = '/home/user/lonsha-memory-plugin';
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+const ROOT = REPO_ROOT;
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
 const idx = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
@@ -39,6 +43,7 @@ function vnum(s) {
 /** 剥行注释后的文本：形态判据一律在它上面做，防注释里的示例文字自我满足 */
 const strip = (t) => t.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
 const CUR = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
+const NGF = JSON.parse(readFileSync(path.join(ROOT, 'tests/audit/fixtures_vg_negative.json'), 'utf-8'));
 
 /* ══════════ 1. 结构面 ══════════ */
 test('v3203 1. 版本守卫审计脚本在位，五条判据与三档退出码齐备', () => {
@@ -79,7 +84,7 @@ test('v3203 3. 真仓库上 exit 0：当前版本 / 历史测试 / 当版 fronti
     assert.strictEqual(r.status, 0, '健康树上必须 exit 0：' + out.slice(-300));
     assert.ok(out.includes('当前 ' + CUR), '口径须念出当前版本：' + out.slice(0, 200));
     assert.ok(/历史测试 \d+/.test(out), '须念出历史测试数（扫描面退化时可察）');
-    assert.ok(/当版 frontier 1/.test(out), '本版 frontier 应恰为 1 个（v3203 自己）');
+    assert.ok(/当版 frontier 1/.test(out), 'frontier 应恰为 1 个（当前的一版；细则见 CHANGELOG v3.204.0）');
     assert.ok(/当版锚点 [1-9]/.test(out), '当版锚点必须在场（否则 V4 失去基准）');
     assert.ok(/问题 0/.test(out), '须报「问题 0」');
 });
@@ -88,7 +93,7 @@ test('v3203 4. 三源同源 + CHANGELOG 顶节为本版（发布面）', () => {
     assert.strictEqual(CUR, manifest.version, 'manifest 须跟随 index.js');
     assert.strictEqual(CUR, pkg.version, 'package.json 须跟随 index.js');
     assert.ok(changelog.startsWith('## v' + CUR), 'CHANGELOG 顶节须为本版');
-    assert.ok(vnum(CUR) >= vnum('3.203.0'), '本版不得低于 3.203.0');
+    assert.ok(vnum(CUR) >= vnum('3.203.0'), '本版不得低于 3.203.0（本文件出生版本，不随抬版上抬）');
 });
 
 /* ══════════ 3. 负控制：真源码破坏 → 独立树 → 同款真判据 ══════════ */
@@ -118,7 +123,7 @@ function withTree(mutate) {
         rmSync(dir, { recursive: true, force: true });
     }
 }
-const HIST_INJECT = '\ntest("负控制注入：硬等号重新长回", () => { assert.strictEqual(v, "' + CUR + '"); });\n';
+const HIST_INJECT = NGF.n1HardEqual.replace('__CUR__', CUR);
 
 test('v3203 5. 负控制 N1：硬等号重新长回 → 必须 exit 1（V2）', () => {
     const r = withTree((d) => {
@@ -133,7 +138,7 @@ test('v3203 5. 负控制 N1：硬等号重新长回 → 必须 exit 1（V2）', 
 test('v3203 6. 负控制 N2：历史下界抬到未来 → 必须 exit 1（V3）', () => {
     const r = withTree((d) => {
         const p = path.join(d, HIST);
-        writeFileSync(p, readFileSync(p, 'utf-8') + "\nconst VG_FUTURE = vnum('9.999.0');\n");
+        writeFileSync(p, readFileSync(p, 'utf-8') + NGF.n2FutureBound.replace('__FUTURE__', '9.999.0'));
     });
     assert.strictEqual(r.status, 1, 'V3 必须翻红，实得 ' + r.status + ' / ' + r.out.slice(-200));
     assert.ok(/V3 /.test(r.out), '归因串须指向 V3');
@@ -152,11 +157,19 @@ test('v3203 7. 负控制 N3：三源不同源 → 必须 exit 1（V1）', () => 
 
 test('v3203 8. 负控制 N4：当版锚点被删空 → 必须 exit 1（V4）', () => {
     const r = withTree((d) => {
-        const p = path.join(d, FRONT);
-        const s = readFileSync(p, 'utf-8');
+        // 当版锚点可能散在多个文件里（frontier 自己 + 交棒后的后继）：全部删空才算真的没有基准。
+        const dir = path.join(d, 'tests');
         const needle = "vnum('" + CUR + "')";
-        assert.ok(s.split(needle).length - 1 >= 1, '夹具前提：本文件须含当版锚点');
-        writeFileSync(p, s.split(needle).join("vnun('" + CUR + "')"));
+        let hit = 0;
+        for (const f of readdirSync(dir).filter((x) => x.endsWith('.test.mjs'))) {
+            const p = path.join(dir, f);
+            const s = readFileSync(p, 'utf-8');
+            const n = s.split(needle).length - 1;
+            if (!n) continue;
+            hit += n;
+            writeFileSync(p, s.split(needle).join("vnun('" + CUR + "')"));
+        }
+        assert.ok(hit >= 1, '夹具前提：树里须含当版锚点');
     });
     assert.strictEqual(r.status, 1, 'V4 必须翻红，实得 ' + r.status + ' / ' + r.out.slice(-200));
     assert.ok(/V4 /.test(r.out), '归因串须指向 V4');
@@ -164,9 +177,24 @@ test('v3203 8. 负控制 N4：当版锚点被删空 → 必须 exit 1（V4）', 
 
 test('v3203 9. 负控制 N5：frontier 文件头版本被改 → 必须 exit 1（V5）', () => {
     const r = withTree((d) => {
-        const p = path.join(d, FRONT);
-        const s = readFileSync(p, 'utf-8');
-        writeFileSync(p, breakText(s, FRONT + ' — v' + CUR, FRONT + ' — v9.999.0'));
+        // 「少一个 frontier」也可能是另一个文件顶上来（本轮实测：v3204 加入后 v3203 不再是 frontier）。
+        // 要证明 V5 会响，必须把**所有** frontier 头都打破 —— 即同一行同时含本文件名与当版号的行。
+        const dir = path.join(d, 'tests');
+        let hit = 0;
+        for (const f of readdirSync(dir).filter((x) => x.endsWith('.test.mjs'))) {
+            const p = path.join(dir, f);
+            const lines = readFileSync(p, 'utf-8').split('\n');
+            const base = f.replace(/[.]test[.]mjs$/, '');
+            let changed = false;
+            for (let i = 0; i < Math.min(12, lines.length); i++) {
+                if (lines[i].includes(base) && lines[i].includes('v' + CUR)) {
+                    lines[i] = lines[i].split('v' + CUR).join('v9.999.0');
+                    hit++; changed = true;
+                }
+            }
+            if (changed) writeFileSync(p, lines.join('\n'));
+        }
+        assert.ok(hit >= 1, '夹具前提：树里存在 frontier 头');
     });
     assert.strictEqual(r.status, 1, 'V5 必须翻红，实得 ' + r.status + ' / ' + r.out.slice(-200));
     assert.ok(/V5 /.test(r.out), '归因串须指向 V5');
@@ -185,6 +213,21 @@ test('v3203 11. 负控制工具两向自证：锚点不存在或不唯一必须�
         '锚点不存在必须抛（否则「破坏」是假的）');
     assert.throws(() => breakText(idx, 'const ', ''), /拒绝破坏/, '多命中必须抛');
     assert.ok(idx.includes('const VERSION'), '真源码里锚点前提成立（否则整组负控制是空的）');
+});
+
+test('v3203 10b. 回归：给历史文件头部加含当版号的注记，不得被蹭成 frontier', () => {
+    // 本轮实测（3.204.0）：36 个文件的去绝对化注记里写了「[v3.204.0] …」，落在前 12 行，
+    //   旧判据 head.includes('v' + current) 把它们全当成 frontier，**V2/V3 对 32 个文件静默失效**。
+    //   这条回归钉住「frontier 必须是结构性的」：同一行同时出现本文件名与当版号。
+    const r = withTree((d) => {
+        const p = path.join(d, HIST);
+        const lines = readFileSync(p, 'utf-8').split('\n');
+        lines.splice(2, 0, '// [v' + CUR + '] 只是去绝对化注记，不代表本文件是当版');
+        writeFileSync(p, lines.join('\n'));
+    });
+    assert.strictEqual(r.status, 0, '注记不得影响结论：' + r.out.slice(-400));
+    assert.ok(/当版 frontier 1/.test(r.out),
+        '注记被蹭成 frontier 时 V2/V3 会静默失效：' + (r.out.split('\n')[0] || ''));
 });
 
 /* ══════════ 4. 交棒链已拆：历史文件锁回各自的出生版本 ══════════ */
@@ -262,7 +305,7 @@ test('v3203 14. 口径收敛在守卫脚本里，runner 按目录发现（新增
 test('v3203 15. TODO T1 已销账：修掉即从 TODO 删除，留痕在 CHANGELOG', () => {
     const todo = readFileSync(path.join(ROOT, 'TODO.md'), 'utf-8');
     assert.ok(!/^## T1 版本守卫硬编码/m.test(todo), 'T1 已在本版修掉，须从 TODO 删除');
-    assert.ok(todo.includes('v3.203.0'), 'TODO 的「最近更新」须指向本版');
+    assert.ok(todo.includes('v3.204.0'), 'TODO 的「最近更新」须指向本版');
     assert.ok(/scan_version_guard/.test(changelog), 'CHANGELOG 须点名新审计脚本（留痕）');
     assert.ok(/交棒链|出生版本/.test(changelog), 'CHANGELOG 须说清拆掉的是什么');
 });
@@ -281,6 +324,7 @@ test('v3203 16. 判据面自防护：断言数 / 代码行 / 关键指纹不得�
         ['负控制：硬等号重新长回', '硬等号重新长回'],
         ['负控制：保绿对照', '保绿对照'],
         ['交棒链：出生版本表', 'BIRTH'],
+        ['frontier 不得被注记蹭宽', '被蹭成 frontier'],
         ['工具两向自证', '拒绝破坏'],
         ['负控制：frontier 被改', 'frontier 文件头版本被改'],
     ]) assert.ok(SELF.includes(needle), '关键指纹缺失：' + label);

@@ -1,0 +1,23 @@
+# catalog_version_guard.tsv — v3.204.0
+# 退役面登记表：tests/archived/*.test.mjs（不参与门禁，保留 git 历史与退役理据）。
+# 形如「文件名<TAB>内容 sha1 前8位」：**退役即冻结**，改退役文件 = 悄悄改历史，守卫会响。
+# 用途：退役基线——退回顶层会在 P4 上点名；被追改会在 P5 上点名。
+# 维护：只在退役/赎回文件时动。
+full_audit_forward.test.mjs	9afb96b7
+full_audit_reverse.test.mjs	8768ed72
+v3116_bloom.test.mjs	0c53faef
+v348_director_bridge.test.mjs	7ff315ec
+v349_pair_diary_bridge.test.mjs	890be1ba
+v350_adaptive_tuning.test.mjs	20b23649
+v352_incremental_stats.test.mjs	7b5bea1e
+v354_oplog_health.test.mjs	a08f54b9
+v359_pair_backfill_diff.test.mjs	271b5cd4
+v360_phone_stats.test.mjs	d2898fc4
+v363_locked_facts_ui.test.mjs	91c81dd6
+v364_severity_report.test.mjs	d7651c0a
+v365_oplog_lockfact.test.mjs	181ecf97
+v368_delta_ui_backfill_audit.test.mjs	026d049e
+v369_report_delta_oplog.test.mjs	00c9f3c4
+v375_summary_sync.test.mjs	d2fd1ff3
+v376_batch_complete.test.mjs	fa520181
+v381_bridge_protagonist.test.mjs	553d63c5

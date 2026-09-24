@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
-import { stripComments } from '/home/user/lonsha-memory-plugin/tests/_audit_lib.mjs';
-const ROOT = '/home/user/lonsha-memory-plugin';
+import { fileURLToPath } from 'node:url';
+import { stripComments } from '../_audit_lib.mjs';
+
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const src = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8');
 
 // R2a 形态判据（原版两条正则 + 取库口）：与扫描器逐字同义

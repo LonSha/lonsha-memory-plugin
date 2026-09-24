@@ -1,8 +1,13 @@
 import { readFileSync } from 'fs';
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { fileURLToPath } from 'node:url';
 
-const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf-8');
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 
 test('=== 1. A: 提取 prompt 新增 WorldProgress 字段 ===', () => {
     assert.ok(src.includes('9h. promises：'), 'promises 字段规则');
@@ -219,7 +224,7 @@ test('=== 7. 回归防护 ===', () => {
     assert.ok(src.includes('shiftBaselineFloors(deleted)'), 'v3.84 baseline');
     assert.ok(src.includes('shiftGeoFloor(deleted)'), 'v3.84 geo');
     // 版本一致性
-    const manifest = JSON.parse(readFileSync('/home/user/lonsha-memory-plugin/manifest.json', 'utf-8'));
+    const manifest = JSON.parse(readFileSync(`${REPO_ROOT}/manifest.json`, 'utf-8'));
     const ver = src.match(/const VERSION = '([^']+)'/)[1];
     assert.strictEqual(manifest.version, ver, '版本一致');
     assert.match(ver, /^3\.\d{2,}\.\d+$/, '版本格式');

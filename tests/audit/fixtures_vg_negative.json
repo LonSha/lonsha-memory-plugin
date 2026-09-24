@@ -1,0 +1,5 @@
+{
+  "_note": "[v3.204.0] scan_version_guard 的负控制针料。放在 .json 而非 .mjs：守卫按 vnum('X.Y.Z') 扫代码，把 '9.999.0' 这类针料写在 .mjs 里，抬版让它不再是 frontier 时会被守卫当成「承诺未来」自命中（实测 v3203 在 3.204.0 首跑就因此翻红 V3，并连带 v3159 的健康树用例）。",
+  "n1HardEqual": "\ntest(\"负控制注入：硬等号重新长回\", () => { assert.strictEqual(v, \"__CUR__\"); });\n",
+  "n2FutureBound": "\nconst VG_FUTURE = vnum('__FUTURE__');\n"
+}

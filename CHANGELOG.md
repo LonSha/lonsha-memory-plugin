@@ -1,3 +1,59 @@
+## v3.204.0
+
+**主题：门禁的「绿」不许来自本机环境 —— 拆掉本仓绝对路径与死兄弟树依赖。**
+
+### 缺陷（本轮实测，非推测）
+
+把整个仓库复制到 `/tmp/portable/lonsha` 后跑门禁：**EXIT 1**。原因是测试面绑在本机布局上，分两族：
+
+1. **本仓绝对路径**：36 个文件写死 `/home/user/lonsha-memory-plugin/…`（index.js 37 处 / settings-ui.js 14 处 / manifest.json 7 处 / ledger-replay.js 2 处 / 目录本身 13 处）。换个 checkout 位置立刻 ENOENT。
+2. **死兄弟树**：17 个文件把断言指向 `/home/user/ruby-phone-work/…`。实测该树**无 git、停在 ruby-phone 2.6.0-modular**；它断言的整代桥方法（`queryPhoneMemory` / `backfillDiaries` / `syncClock` / `lockFact` / `syncSummaryEdit` / `lockedFactsIngested` / `protagonistIngested` / `_sleepTick` …）在活体项目 `/home/user/ruby-phone`（2.92.0）里已整体移除 —— 活体桥只剩 `backfill` / `recall` / `recallBlock` / `applyCoordinatedInjection` / `onFloor*` / `getStats`。**把路径换成活体树后，这 17 个文件 17/17 全红**：门禁一直对一份已死掉的快照报绿。
+
+即：此前「全绿」的判据有一半来自本机 + 一份死快照；任何干净 clone 必红。
+
+### 落法
+
+- **36 个文件**：本仓绝对路径 → 按文件位置推导 `REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))`，语义等价、位置无关。含两个特例：静态 `import` 说明符里的路径不能走模板（探针改相对导入）；一处 `const src` 在 `import` 之前（TDZ），随声明块一并上移。
+- **17 个死桥测试**：整体退役到 `tests/archived/`（git mv，保留历史），每个加退役说明头，写清「它断言的那一代方法在活体项目里已不存在」与「本仓侧等价覆盖在 v356/v353/v325/v386」。`run.mjs` 按目录发现且不递归，故退役即出扫描面：199 → 182。
+- **新增守卫** `tests/audit/scan_cross_repo_binding.mjs`（判据 P1–P5b，全部位置无关、版本无关）：
+  - **P1** 在役测试面不得出现绝对路径字面量（`/home/…`、`/tmp/…`、盘符）；
+  - **P2** 不得引用兄弟仓（`ruby-phone` / `ruby-phone-work`）与 `../../<非 tests>/` 相对逃逸；
+  - **P3** 参考基准（`catalog_reference_consumers.tsv`，**只登记文件名、不记内容哈希**）与磁盘一致：覆盖率缺口与残留登记都报；
+  - **P4** 退役面（`catalog_version_guard.tsv`）的每个文件不得重回在役面；
+  - **P5b** 退役文件按 sha1 冻结，追改 = 悄悄改历史，必须响。
+  - 判据只在**代码**上做（`stripComments` 走唯一真源 `tests/_audit_lib.mjs`），注释里的历史散文不算跨仓绑定 —— 否则守卫会变成「不准提历史」。
+  - 退出码 0/1/2，前置读不到任一登记表即 fail-closed。
+- **守卫自身的收紧（本轮实测抓到的真缺陷）**：抬版后 `scan_version_guard` 报 `当版 frontier 32` ——
+  因为 36 个文件的去绝对化注记里写了「[v3.204.0] …」，落在前 12 行，于是被 `head.includes('v' + current)`
+  误判成 frontier，**V2/V3 对 32 个文件静默失效**。判据改为「**同一行**同时出现本文件名与当版号」
+  （规范头 `* tests/<name>.test.mjs — v<ver>`），frontier 恢复为 1。这是「守卫太松 = 报告一切正常」的又一例。
+- 同源教训的第二次：`v3203` 的负控制载荷（`vnum('9.999.0')`、当版锚点字面量）写在自己源码里，
+  抬版后它不再是 frontier → 版本守卫把它的载荷当成「承诺未来」判 V3（连带 v3159 健康树用例翻红）。
+  修法同 v3204：载荷移入 `tests/audit/fixtures_vg_negative.json`；`v3203` 自己的锚点按 T1 纪律回退到出生版本 3.203.0；
+  N4/N5 两组负控制改为「删空**所有**文件的当版锚点 / 打破**所有** frontier 头」（锚点会因新增文件而变冗余，
+  只改一个文件时负控制会静默变成「已经在红」）。
+- 顺带清掉 `v3165` 一条**无效占位断言**（`/tmp/index.js.b165` 路径固定，无判据价值），换成对 `rejected` / `_moduleStatus` / `_savePersisted` 三个声称面字段的直接钉住。
+
+### 为什么
+
+- 门禁的价值等于「它在别人机器上也能红能绿」。绑本机路径 + 死快照 = 绿是假绿、红是假红，比没有门禁更贵：它让人相信一个不成立的结论。
+- 退役不是删除：`tests/archived/` 保留 git 历史与退役理据，且退役面对外**哈希冻结**，防止「退役」变成「悄悄改判据」。
+
+### 测试
+
+- 新增 `tests/v3204_no_cross_repo_binding.test.mjs`（18 组）：结构面 16 个 needle、守卫自身版本无关、真仓库 exit 0 且读数可察；
+- **十组负控制**：N1 本仓绝对路径 → P1；N2 兄弟仓绝对路径 → P2；N2b `../../` 逃逸 → P2；N2c 代码里裸引兄弟仓名 → P2；N6 **保绿对照**（只加注释 + 已登记 → 仍 exit 0）；N3 基准缺行 → P3；N3b 残留登记 → P3；N4 退役复活 → P4；N5b 退役面追改 → P5b；登记表缺失 → fail-closed exit 2。
+- **可移植性证明**（本版核心回归）：把整仓复制到仓库之外，采样参考基准前 12 个用例跑门禁，必须 `文件 12/12 通过`（位置无关性）。
+- 负控制针料放 `tests/audit/fixtures_xr_negative.json` 而非 `.mjs`：**首跑实测**——把违规字面量写在 `.mjs` 里，守卫会把自己的词表当缺陷（P1/P2 命中 8 处）。
+- 判据面自防护：断言数 ≥ 30 / 有效代码行 ≥ 60 / 10 个关键指纹。
+
+### 门禁
+
+- `node tests/run.mjs`：**183 文件 / 1568 断言 / 0 失败 / EXIT 0**（57.0s）。（182 → 183：退役 17、新增 v3204。）
+- `scan_cross_repo_binding.mjs`：**在役 183 / 退役 18 / 参考基准 183 / 问题 0**。
+- 可移植性：`/tmp/portable/lonsha` **EXIT 1**（改动前）/ **EXIT 0**（改动后）。
+
+---
 ## v3.203.0
 **版本守卫交接：拆掉「历史测试锁当前版」的抬版仪式（9 处硬等号 + 21 处下界），改由版本无关的 scan_version_guard.mjs 守门**
 

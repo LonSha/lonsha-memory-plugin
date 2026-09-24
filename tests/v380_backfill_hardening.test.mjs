@@ -1,8 +1,13 @@
 import { readFileSync } from 'fs';
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { fileURLToPath } from 'node:url';
 
-const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf-8');
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 
 test('=== 1. A: backfillFloors 番外楼防护 ===', () => {
     // 循环内防护
@@ -69,7 +74,7 @@ test('=== 4. C: addManualSummary 逻辑复刻（storyTime 可选） ===', () => 
 test('=== 5. 回归防护 ===', () => {
     assert.ok(src.includes('[v3.80]'), 'v3.80 标记');
     // 旧调用兼容（UI 的 addManualSummary(f, t) 两参调用仍可用——在 settings-ui.js）
-    const su = readFileSync('/home/user/lonsha-memory-plugin/settings-ui.js', 'utf-8');
+    const su = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf-8');
     assert.ok(su.includes('addManualSummary(f, t)'), '旧两参调用保留');
     // completeMissingFloors 签名保留
     assert.ok(src.includes('async completeMissingFloors(config, llm, chatLookup, maxBatch = 5)'), '管线签名保留');

@@ -2,9 +2,14 @@ import { readFileSync } from 'fs';
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 
-const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf-8');
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 
 test('=== 1. A: CharacterState 新方法（静态特征） ===', () => {
     assert.ok(src.includes('removeLifeDetailByFloor(floor)'), '删楼方法');
@@ -79,7 +84,7 @@ test('=== 4. A2/B2: 生命周期挂接（结构验证） ===', () => {
     assert.ok(src.includes('SHIFT_FACE_LABELS'), '标签表存在且被前移回放消费');
     // [v3.190] 位移已收进登记表（宿主不再手抄各面位移语句），
     //   判据从「宿主 shift 段里出现过这个方法名」改为「登记项真在调它」。
-    const libSrc2 = readFileSync('/home/user/lonsha-memory-plugin/ledger-replay.js', 'utf-8');
+    const libSrc2 = readFileSync(`${REPO_ROOT}/ledger-replay.js`, 'utf-8');
     assert.ok(libSrc2.includes('shiftLifeDetailFloors'), '位移挂接在登记表内（生活小档案面）');
     // 守卫（可选链防旧版）
     assert.ok(src.includes("this.status?.removeLifeDetailByFloor ? this.status.removeLifeDetailByFloor(floor) : 0"), '回滚守卫');
@@ -96,6 +101,6 @@ test('=== 5. 回归防护 ===', () => {
     // deltaBook 联动保留（v3.67）
     assert.ok(src.includes('deltaBook.removeByFloor(floor)'), 'v3.67 保留');
     // [v3.190] v3.67 B 的位移规则已收进登记表（delta 面的 shift），判据改指真源
-    const libSrc = readFileSync('/home/user/lonsha-memory-plugin/ledger-replay.js', 'utf-8');
+    const libSrc = readFileSync(`${REPO_ROOT}/ledger-replay.js`, 'utf-8');
     assert.ok(libSrc.includes('e.evidenceFloor'), 'v3.67 B 位移规则保留在登记表内');
 });

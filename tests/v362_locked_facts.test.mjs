@@ -4,8 +4,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 
-const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf-8');
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 
 // 提取 SummarySystem 类（裸括号平衡法，跳过引号干扰风险：类体内无引号陷阱字符串时可靠）
 function extractClass(source, startMarker) {

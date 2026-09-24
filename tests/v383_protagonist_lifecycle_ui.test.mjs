@@ -1,9 +1,14 @@
 import { readFileSync } from 'fs';
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { fileURLToPath } from 'node:url';
 
-const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf-8');
-const su = readFileSync('/home/user/lonsha-memory-plugin/settings-ui.js', 'utf-8');
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+const su = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf-8');
 
 test('=== 1. A: protagonist 生命周期方法（静态特征） ===', () => {
     assert.ok(src.includes('removeProtagonistByFloor(floor)'), '删楼指针归零方法');
@@ -140,7 +145,7 @@ test('=== 7. C: 报告板块输出逻辑复刻 ===', () => {
 });
 
 test('=== 8. 版本与完整性 ===', () => {
-    const manifest = JSON.parse(readFileSync('/home/user/lonsha-memory-plugin/manifest.json', 'utf-8'));
+    const manifest = JSON.parse(readFileSync(`${REPO_ROOT}/manifest.json`, 'utf-8'));
     const ver = src.match(/const VERSION = '([^']+)'/)[1];
     assert.strictEqual(manifest.version, ver, 'manifest 与 index.js 版本一致');
     assert.match(ver, /^3\.\d{2,}\.\d+$/, '版本号格式宽域');

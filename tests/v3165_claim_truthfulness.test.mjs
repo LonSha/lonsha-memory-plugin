@@ -521,8 +521,11 @@ test('【4】发布卫生：CHANGELOG 顶节与旧锚点交棒', () => {
         assert.ok(hits.every(h => h <= cur), `${f} 的版本下界不得高于现版（${cur}）`);
     }
     // 旧版声称真实性面不存在：本版之前 index.js 里没有 rejected / _moduleStatus / _savePersisted
-    const backup = '/tmp/index.js.b165';
-    assert.ok(backup && true, '负控制备份路径已固定（/tmp/index.js.b165）');
+    // [v3.204.0] 原此处用本机绝对路径（'/tmp/index.js.b165'）做「路径已固定」的占位断言，
+    //   没有任何判据价值，却把本文件绑死在开发机上。改为直接钉住三个声称面字段。
+    for (const field of ['rejected', '_moduleStatus', '_savePersisted']) {
+        assert.ok(idx.includes(field), `真实性面字段仍须在位：${field}`);
+    }
 });
 /* ---------- 5 ---------- */
 // 【5】判据面自防护

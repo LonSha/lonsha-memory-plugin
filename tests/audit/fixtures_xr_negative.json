@@ -1,0 +1,8 @@
+{
+  "_note": "[v3.204.0] scan_cross_repo_binding 的负控制针料。放在 .json 里而非 .mjs 里：守卫只扫 tests/*.test.mjs，把带违规字面量的句子写在 .mjs 里会让守卫把自己的词表当缺陷（实测 v3204 首跑就被 P1/P2 命中 8 处）。",
+  "N1": "const x = readFileSync('/home/user/lonsha-memory-plugin/index.js');",
+  "N2": "const y = readFileSync('/home/user/ruby-phone-work/apps/memory/lonsha-bridge.js');",
+  "N2b": "const z = readFileSync('../../ruby-phone/index.js');",
+  "N2c": "const p = 'ruby-phone-work';",
+  "N6": "// 保绿对照：注释里提一下 ruby-phone-work 不算跨仓绑定\nconst ok = 1;"
+}

@@ -89,8 +89,19 @@ let anchored = 0;
 for (const f of files) {
     const text = fs.readFileSync(path.join(TESTS, f), 'utf8');
     const head = text.split('\n').slice(0, 12).join('\n');
-    // 文件头前 12 行标着当版号，即视为当版 frontier：交棒前用硬等号锁自己，豁免。
-    const isFrontier = head.includes('v' + current);
+    // frontier 豁免必须**结构化**，不能只看「前 12 行出现过当版号」：
+    //   本轮实测（3.204.0）——36 个文件的去绝对化注记里写了「[v3.204.0] …」，
+    //   于是前 12 行含当版号，32 个文件被误判成 frontier，V2/V3 对它们静默失效。
+    //   文件头里出现版本号是**正常**的（历史测试都标自己的出生版本）；
+    //   真正标志 frontier 的是「文件头同时出现自己的文件名与当版号」——
+    //   即那行把「本文件就是当版」说清楚了。
+    const base = f.replace(/[.]test[.]mjs$/, '');
+    // 精确形态：**同一行**同时出现本文件名与当版号（规范头 `* tests/<name>.test.mjs — v<ver>`）。
+    //   只看「前 12 行含当版号」太松（3.204.0 实测：36 个文件的去绝对化注记写在头部，
+    //   32 个文件被误判为 frontier，V2/V3 对它们静默失效）；
+    //   只看「含文件名 + 含当版号」也太松（11 个文件首行自报文件名、头两句里有注记）。
+    const isFrontier = text.split('\n').slice(0, 12)
+        .some((l) => l.includes(base) && l.includes('v' + current));
     // V4 计数：任何文件（含 frontier）恰好锚着当前版本，都算当版锚点在场。
     if ([...text.matchAll(boundRe)].some((m) => vnum(m[1]) === vnum(current))) anchored++;
     if (isFrontier) { frontier.push(f); continue; }

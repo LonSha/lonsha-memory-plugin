@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf8');
+import { fileURLToPath } from 'node:url';
+
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf8');
 test('v3.121 时间线提供游标变化读取', () => {
   assert.match(src, /getChangesSince\(floor = -1, anchorDate = ''/);
   assert.match(src, /timeChangeDrivenInjection: true/);
@@ -71,7 +76,7 @@ test('v3.127 变化注入产量与游标对诊断可见', () => {
   // 日记产量并入同一轨迹
   assert.match(src, /diary: \{ found: _changes\.length, added: _addedDiary, cursor: _cursor \}/);
   // 设置面板暴露变化注入诊断（含游标与时间倒跳）
-  const ui = readFileSync('/home/user/lonsha-memory-plugin/settings-ui.js', 'utf8');
+  const ui = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf8');
   assert.match(ui, /_lastChangeTrace/);
   assert.match(ui, /变化注入（Horae\/HCDiary 诊断）/);
   assert.match(ui, /_timelineInjectFloor/);

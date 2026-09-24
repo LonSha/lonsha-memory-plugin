@@ -1,3 +1,15 @@
+/* [v3.204.0 退役] 本文件断言的是 ruby-phone 的旧 lonsha-bridge 一代：
+ *   queryPhoneMemory / backfillDiaries / syncClock / lockFact / syncSummaryEdit /
+ *   lockedFactsIngested / protagonistIngested / _sleepTick … 这些方法在 ruby-phone
+ *   2.6.0 -> 2.92.0 的重构中已整体移除（活体桥只剩 backfill / recall / recallBlock /
+ *   applyCoordinatedInjection / onFloor* / getStats），且原引用的
+ *   /home/user/ruby-phone-work 快照树无 git、停在 2.6.0-modular。
+ *   实测：换成活体树 /home/user/ruby-phone 后，本批 17 个文件 17/17 全红。
+ *   即它锁的是一份**已死掉的集成**，任何干净 clone 都必红。
+ *   本仓侧的等价覆盖由 v356（outline）/ v353（_recallSourceStats）/ v325（keepRecentTokenReserve）
+ *   / v386（_bm25）持有；桥契约的活体判据在 ruby-phone 侧 tests/lonsha-bridge-contract.test.mjs。
+ *   退役依据与负控制见 CHANGELOG v3.204.0 与 tests/v3204_no_cross_repo_binding.test.mjs。
+ */
 // tests/full_audit_forward.test.mjs
 // LonSha 记忆引擎 v3.75.0 全面审计 —— 正向审计（模拟运行时验证）
 // 覆盖：核心类全方法功能 / 全模块 export-import 对称 / 折叠链 / 时间体系 / 桥通道 / 报告结构

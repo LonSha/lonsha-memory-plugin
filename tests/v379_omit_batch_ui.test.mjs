@@ -1,9 +1,14 @@
 import { readFileSync } from 'fs';
 import { test } from 'node:test';
 import assert from 'node:assert';
+import { fileURLToPath } from 'node:url';
 
-const src = readFileSync('/home/user/lonsha-memory-plugin/index.js', 'utf-8');
-const su = readFileSync('/home/user/lonsha-memory-plugin/settings-ui.js', 'utf-8');
+/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
+ *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+const su = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf-8');
 
 test('=== 1. A: 批量补齐 UI 入口（v3.76 管线首次可触达） ===', () => {
     // 按钮
@@ -77,7 +82,7 @@ test('=== 3. C: 番外楼标记 UI（bbs_omit 的 UI 入口） ===', () => {
 });
 
 test('=== 4. NUL 字节清除回归 ===', () => {
-    const buf = readFileSync('/home/user/lonsha-memory-plugin/index.js');
+    const buf = readFileSync(`${REPO_ROOT}/index.js`);
     let n = 0;
     for (const b of buf) if (b === 0) n++;
     assert.strictEqual(n, 0, 'index.js 无 NUL 字节');
