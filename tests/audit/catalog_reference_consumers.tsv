@@ -194,3 +194,4 @@ v3208_projection_forecast.test.mjs
 v3209_migration_registry.test.mjs
 v3210_memory_type.test.mjs
 v3211_type_to_injection.test.mjs
+v3212_projection_contract.test.mjs

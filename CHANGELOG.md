@@ -1,3 +1,50 @@
+## v3.212.0
+
+**主题：投影契约的「出口」这一半 —— 把 v3.208.0 建好的投影管线从内部对读接到对外读面（L-F5）。**
+
+v3.208.0 建了 `projection-pipeline.js`（6 项投影、三态读数、缺席清单），但**只服务内部对读**：
+`_runProjections()` 的产物随 `readWorldLedger()` 的 `opts.projection` 下传一次后退化成
+`this._lastProjection`，**没有任何外供出口**。修前实测（真跑取证，不是读源码推算）：
+
+- **A. 出口整条不存在**：产品代码里 `LonShaProjectionPipeline` 仅 1 命中（模块挂载点自己）、
+  `PROJECTION` 零命中、`apiVersion` 零命中；桥快照 15 字段无投影；桥对象只有
+  `{version, bridge, snapshot, sourceState, lastError, refresh}`。
+- **B. 后果**：跨仓纪律要求的「下游只消费投影、不依赖账本内部字段」在事实上不可能 ——
+  下游要么读不到，要么只能去解析账本内部结构（而那是契约明令禁止的）。
+
+### 出口侧（`projection-pipeline.js`）
+
+- `PROJECTION_API_VERSION = 1`：**与 `PROJECTION_VERSION` 刻意分开** —— 前者管「认不认得这份结构」，
+  后者管「读数语义是否变」。合并会让「结构没变但语义变了」与「语义没变但结构变了」同形。
+- `ENVELOPE_FIELDS` 11 项（`projectionApiVersion / projectionVersion / generatedAt /
+  conversationId / sceneId / worldId / items / visibility / sourceLedger / revision / expiresAt`）
+  为**单一真源**：构建与裁定共用；改字段必须同时抬结构版。
+- `buildEnvelope()`：`items` 只放**值本体**（读数元数据全进 `sourceLedger`）；三态 → `visibility`
+  （真值与源空都算 `given` —— 源空是**明确的空**，不是扣下；只有 absent 才 `withheld` 且带原因）；
+  `sourceLedger.available=false` 专用于**管线缺席**，绝不伪造成「投影都是空」。
+- `contractOf()`：五态可分（`ok` / `missing` / `malformed` / `ahead` / `behind`），
+  让下游能判「我认不认得这份结构」，而不是把新字段读成 `undefined` 当成「没有这项」。
+- `envelopeOf()`：跑管线 + 装 envelope；任一步失败都给**结构完整**的 envelope（不抛）。
+
+### 宿主侧（`index.js`）
+
+- `_buildProjectionEnvelope()`：身份三键**只取真实来源**（`getCurrentChatId()` /
+  `scene.currentKey()` / `'world-ledger'` 当且仅当 `clock.readWorldLedger` 在场），缺一律 `null`；
+  `revision` 落在既有变更栅栏 `_mutationEpoch` 上（实测 10 处引用的真源，不新造装饰性字段）。
+- 快照新增 `projection` 字段；**刻意不在 `buildBridgeSnapshot` 内现跑管线** ——
+  该方法会被「提取执行」模式加载的独立实例调用，现跑会静默得到全空投影，
+  把「没跑」伪装成「都是空」。未装成时用 `undefined`（自述报 `present=false`），不拿 `null` 冒充。
+- 读面与下游看到**同一份读数**：`readWorldLedger()` 在 `_runProjections()` 之后刷新 envelope。
+
+### 判据
+
+新增 `tests/v3212_projection_contract.test.mjs`（10 条）：字段清单单一真源、三态映射、
+管线缺席不伪装、契约五态可分、真方法体驱动的宿主接线、快照三态自述自动覆盖，
+外加**三条真源码破坏型负控制**（缺席判定被拆 / 缺席守卫被拆 / 缺字段检查被摘，三条都必须转红）；
+负控制走「真源码破坏 → 写临时副本 → 在副本上重跑同款真判据」，破坏前断言锚点恰中 1 次。
+
+本版不新增未修项。
+
 ## v3.211.0
 
 **主题：事实类型从「登记」接到「注入」—— 把上一版建好的类型系统从诊断行接到模型上下文。**

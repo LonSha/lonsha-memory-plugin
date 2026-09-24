@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 34690,
+  "ceiling": 35173,
   "maxSlack": 400,
-  "note": "v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）",
+  "note": "v3.212.0 投影契约出口（L-F5）：projection-pipeline.js 新增 envelope 出口（结构版常量 + 11 项字段单一真源 + buildEnvelope/contractOf/envelopeOf，9067→15850 字符）+ 宿主接线（_buildProjectionEnvelope + 快照 projection 字段 + readWorldLedger 内刷新）",
   "history": [
     {
       "ceiling": 21000,
@@ -85,7 +85,11 @@
     {
       "ceiling": 34690,
       "reason": "v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）"
+    },
+    {
+      "ceiling": 35173,
+      "reason": "v3.212.0 投影契约出口（L-F5）：projection-pipeline.js 新增 envelope 出口（结构版常量 + 11 项字段单一真源 + buildEnvelope/contractOf/envelopeOf，9067→15850 字符）+ 宿主接线（_buildProjectionEnvelope + 快照 projection 字段 + readWorldLedger 内刷新）"
     }
   ],
-  "_history_last": "ceiling 34336 → 34690（实测 34290 + slack 400）：v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）"
+  "_history_last": "ceiling 34690 → 35173（实测 34773 + slack 400）：v3.212.0 投影契约出口（L-F5）：projection-pipeline.js 新增 envelope 出口（结构版常量 + 11 项字段单一真源 + buildEnvelope/contractOf/envelopeOf，9067→15850 字符）+ 宿主接线（_buildProjectionEnvelope + 快照 projection 字段 + readWorldLedger 内刷新）"
 }

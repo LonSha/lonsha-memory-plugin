@@ -2,7 +2,14 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.211.0
+> 最近更新：v3.212.0
+> 本版不新增未修项；L-F5 前半（投影契约的出口）已落地并留痕于 CHANGELOG v3.212.0：
+> `projection-pipeline.js` 新增 envelope 出口（结构版 `PROJECTION_API_VERSION` 与语义版分离、11 项字段单一真源、缺席不伪装、契约五态裁定），
+> `index.js` 新增 `_buildProjectionEnvelope()` 与快照 `projection` 字段（身份取真源、缺即 null、不在快照内现跑管线）。
+> 本版新登记的**观察项 T14**（不构成 TODO：是刻意的边界，改动会把「没跑」读成「都是空」）：
+> - 快照不带 `projection` 时必须是 `undefined`（自述 `present=false`），**不许用 `null` 占位**；
+>   且**不许在 `buildBridgeSnapshot` 内现跑管线**（该方法会被「提取执行」模式的独立实例调用，
+>   现跑会静默得到全空投影）。怎么知道它还没变：`tests/v3212` 组 5b 会翻红。
 > 本版不新增未修项；L-F1 后半（事实类型从登记到注入）已落地并留痕于 CHANGELOG v3.211.0：
 > 台账 10 态分离（`unknown-type` 与 `none` 不同形）、`conflictPolicy` 落条、`lookup` 的
 > `multiple`/`ambiguous` 两态可分、提取提示词新增 `facts[]` 显式类型通道（含对旧配置的迁移）、

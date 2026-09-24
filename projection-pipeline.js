@@ -54,6 +54,36 @@
         { id: 'knowledgeOwners', face: 'facts', empty: 'object', why: '「谁知道这条事实」（角色→事实键），用于发现「我知道了但角色不知道」的认知错位' },
     ]);
 
+    /* [v3.212.0] L-F5：面向下游（RubyPhone）的**稳定投影契约**。
+     *
+     * 为什么需要（修前实测）：本模块此前产出的管线读数只服务**内部对读**——
+     *   `_runProjections()` 的结果随 `readWorldLedger` 的 opts 下传，退化成
+     *   `this._lastProjection` 之后**没有任何外供出口**（索引器实测：模块挂载点之外
+     *   `LonShaProjectionPipeline` 零引用；快照 15 字段里无投影）。
+     *   后果与 v3.176 的「通路只通两根线」同形，只是换了一层：投影有读数、可归因，
+     *   但**下游拿不到** —— 契约的另一半（出口）不存在。
+     *
+     * 契约两版本**必须分开**（合一会让消费者为了读结构去追每个投影的增删）：
+     *   · PROJECTION_VERSION      —— 管线**读数语义**版本（加/删一个投影就抬）；
+     *   · PROJECTION_API_VERSION  —— envelope **结构**版本（字段增删才抬）。
+     *   消费者按 api 版判「认不认得这份结构」，按管线版判「读数语义有没有换代」。
+     */
+    const PROJECTION_API_VERSION = 1;
+
+    /** envelope 必填字段（单一真源；构建与裁定都从这里取，不许各写一份）。 */
+    const ENVELOPE_FIELDS = Object.freeze([
+        'projectionApiVersion', 'projectionVersion', 'generatedAt',
+        'conversationId', 'sceneId', 'worldId',
+        'items', 'visibility', 'sourceLedger', 'revision', 'expiresAt',
+    ]);
+
+    /** 默认有效期（毫秒）。过期**不等于**失效 —— 下游据 expiresAt 自行决定是否重取。 */
+    const DEFAULT_TTL_MS = 60000;
+
+    function isPlainObject(v) {
+        return !!v && typeof v === 'object' && !Array.isArray(v);
+    }
+
     /** 三态判定（按声明形状）。与 world-ledger-reader.sectionState 同规格，但不共享实现（跨模块耦合成本高于重复 6 行）。 */
     function stateOf(value, emptyShape) {
         if (value === undefined || value === null) return { present: false, kind: (value === null ? 'empty' : 'absent'), count: 0 };
@@ -146,6 +176,121 @@
     }
 
     /**
+     * [v3.212.0] 把一次管线读数装成**对外投影 envelope**（纯函数、不抛）。
+     *
+     * 三条纪律（与本仓其余读出口同规格）：
+     *   · 只搬值：`items` 只放投影**值本体**，读数元数据（三态/原因/耗时）全部进
+     *     `sourceLedger` —— 下游不该为了读一个位置表而解析一层读数结构；
+     *   · 不猜：管线缺席（null）时**不伪造成「一切为空」**，而是给出 sourceLedger.available=false
+     *     与 reason，因为「投影没跑」与「投影跑了但都为空」处置相反；
+     *   · 不抛：任何畸形入参都收敛成一份结构完整的 envelope。
+     *
+     * @param {object|null} pipeline runPipeline() 的返回值（null = 管线缺席/未跑）
+     * @param {object} opts { scope?:{conversationId,sceneId,worldId}, revision?:number,
+     *                        ttlMs?:number, nowProvider?:()=>number, reason?:string }
+     * @returns {object} envelope（字段见 ENVELOPE_FIELDS）
+     */
+    function buildEnvelope(pipeline, opts) {
+        const o = isPlainObject(opts) ? opts : {};
+        const scope = isPlainObject(o.scope) ? o.scope : {};
+        let now = 0;
+        try { now = Number(typeof o.nowProvider === 'function' ? o.nowProvider() : Date.now()) || 0; } catch (_e) { now = 0; }
+        const ttl = (Number(o.ttlMs) > 0) ? Number(o.ttlMs) : DEFAULT_TTL_MS;
+
+        const items = {};
+        const visibility = {};
+        const absent = [];
+        let available = false;
+        let pipelineVersion = null;
+        let summary = null;
+        let identity = null;
+
+        try {
+            if (isPlainObject(pipeline) && isPlainObject(pipeline.projections)) {
+                available = true;
+                pipelineVersion = Number(pipeline.version) || 0;
+                summary = isPlainObject(pipeline.summary) ? pipeline.summary : null;
+                identity = isPlainObject(pipeline.identity) ? pipeline.identity : null;
+                for (const id of Object.keys(pipeline.projections)) {
+                    const e = pipeline.projections[id];
+                    if (!isPlainObject(e)) continue;
+                    // 三态 → 可见性：真值/源空都算「已给出」（源空是**明确的空**，不是扣下）；
+                    //   absent（无提供器 / 抛错 / 配置关掉）才算 withheld —— 且原因进 sourceLedger。
+                    if (e.kind === 'absent') {
+                        visibility[id] = 'withheld';
+                        absent.push({ id, reason: String(e.reason || 'absent') });
+                    } else {
+                        visibility[id] = 'given';
+                        items[id] = e.value;
+                    }
+                }
+            }
+        } catch (_e) {
+            // 读数结构畸形：如实降级成「不可用」，但不丢结构
+            available = false;
+            absent.length = 0;
+        }
+
+        const bound = !!(scope && (scope.conversationId !== undefined || scope.sceneId !== undefined || scope.worldId !== undefined));
+        return {
+            projectionApiVersion: PROJECTION_API_VERSION,
+            projectionVersion: pipelineVersion,
+            generatedAt: now,
+            conversationId: (scope.conversationId === undefined) ? null : scope.conversationId,
+            sceneId: (scope.sceneId === undefined) ? null : scope.sceneId,
+            worldId: (scope.worldId === undefined) ? null : scope.worldId,
+            items,
+            visibility,
+            sourceLedger: {
+                available,
+                bound,
+                reason: String(o.reason || (available ? (absent.length ? 'partial' : 'ok') : 'pipeline-absent')),
+                absent,
+                summary,
+                identity,
+                projections: (available && isPlainObject(pipeline.projections)) ? pipeline.projections : {},
+            },
+            revision: Number(o.revision) || 0,
+            expiresAt: now + ttl,
+        };
+    }
+
+    /**
+     * [v3.212.0] 契约裁定：这份 envelope 消费者读不读得懂（纯函数、不抛）。
+     *
+     * 为什么单列：契约的「有出口」与「下游能判自己认不认得」是两件事。
+     *   只给字段清单、不给裁定，旧下游遇到新结构只能「读出来是 undefined 就当真没有」——
+     *   那正是本仓最贵的形态（不报错、只错结果）。故把裁定做成函数，随 envelope 一起给。
+     *
+     * @returns {{ ok:boolean, reason:string, missing:string[], apiVersion:number|null, versionAhead:boolean }}
+     *   reason ∈ { ok, behind, ahead, malformed, missing }
+     */
+    function contractOf(env) {
+        const miss = { ok: false, reason: 'malformed', missing: [], apiVersion: null, versionAhead: false };
+        try {
+            if (!isPlainObject(env)) return miss;
+            const missing = ENVELOPE_FIELDS.filter((k) => !Object.prototype.hasOwnProperty.call(env, k));
+            if (missing.length) return { ok: false, reason: 'missing', missing, apiVersion: null, versionAhead: false };
+            const api = Number(env.projectionApiVersion);
+            if (!Number.isFinite(api)) return { ok: false, reason: 'malformed', missing: [], apiVersion: null, versionAhead: false };
+            if (api > PROJECTION_API_VERSION) return { ok: false, reason: 'ahead', missing: [], apiVersion: api, versionAhead: true };
+            if (api < PROJECTION_API_VERSION) return { ok: false, reason: 'behind', missing: [], apiVersion: api, versionAhead: false };
+            if (!isPlainObject(env.items) || !isPlainObject(env.visibility) || !isPlainObject(env.sourceLedger)) {
+                return { ok: false, reason: 'malformed', missing: [], apiVersion: api, versionAhead: false };
+            }
+            return { ok: true, reason: 'ok', missing: [], apiVersion: api, versionAhead: false };
+        } catch (_e) { return miss; }
+    }
+
+    /** 一步取齐：跑管线 + 装 envelope（供宿主与测试用；任一步失败都给出结构完整的 envelope）。 */
+    function envelopeOf(providers, opts) {
+        const o = isPlainObject(opts) ? opts : {};
+        let pipe = null;
+        try { pipe = runPipeline(providers, o); } catch (_e) { pipe = null; }
+        return buildEnvelope(pipe, o);
+    }
+
+    /**
      * 供给对读面的投影值（把 read 表按 face 归拢成 world-ledger-reader 认的 opts 形状）。
      * 只搬 `value`，不搬读数元数据——对读面不该因为多了一层管线而改变契约。
      */
@@ -188,12 +333,17 @@
 
     const api = {
         PROJECTIONS,
+        ENVELOPE_FIELDS,
         runPipeline,
         stateOf,
         faceValues,
         pipelineLine,
         absentList,
+        buildEnvelope,
+        contractOf,
+        envelopeOf,
         PROJECTION_VERSION,
+        PROJECTION_API_VERSION,
     };
 
     if (typeof window !== 'undefined') window.LonShaProjectionPipeline = api;

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.211.0';
+    const VERSION = '3.212.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7358,6 +7358,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //   为什么非改不可：手工两次调用时「漏接了一个投影」与「那个投影本轮为空」
                 //   在读数上完全同形——下游 diffPeople 于是把「查不出来」当成「两边一致」。
                 const pipe = this._runProjections();
+                // [v3.212.0] L-F5：管线读数同时装成**对外投影**（读侧同时刻刷新，下游与对读面
+                //   看到的是同一份读数，不会出现「对读面说 6/6、下游拿到 5 项」这种两份真相）。
+                this._buildProjectionEnvelope();
                 return this.clock.readWorldLedger(null, {
                     reason: opts.reason || 'host-ledger',
                     win: opts.win,
@@ -7427,6 +7430,48 @@ function relativeTimeLabel(eventTime, nowTime) {
                 this._lastProjection = pipe;
                 return pipe;
             } catch (e) { errLog(e, 'plugin._runProjections'); this._lastProjection = null; return null; }
+        }
+        /**
+         * [v3.212.0] L-F5：本插件侧账本的**对外投影**（供 RubyPhone 消费的稳定契约）。
+         *
+         * 修前实测：`_runProjections()` 的读数只随 `readWorldLedger()` 的 opts 下传一次，
+         *   之后**零外供** —— 下游只能去解析桥快照里的账本内部字段（而契约明确要求
+         *   下游「只消费投影、不依赖账本内部字段」）。本方法补上出口。
+         *
+         * 三条纪律：
+         *   · 只搬值 + 归因：items 是值本体，三态/缺席原因/耗时全部进 sourceLedger；
+         *   · 不猜身份：scope 三键**只从真实来源取**，取不到即 null（不硬编「conversation-1」）；
+         *   · 不抛：envelope 构建失败时返回 null 并留痕，绝不让它连坐快照刷新。
+         *
+         * @returns {object|null} envelope；模块缺席 / 构建失败时为 null（＝「没跑」，不是「投影全空」）
+         */
+        _buildProjectionEnvelope() {
+            try {
+                const P = _projectionLib();
+                if (!P || typeof P.buildEnvelope !== 'function') return null;
+                // 身份来源（真实，缺即 null）：
+                //   conversationId —— 宿主当前会话（取不到说明还没进对话）
+                //   worldId        —— 世界账本由上游世界桥定义，本插件侧只认桥名（自述，不冒充）
+                //   sceneId        —— 场景树当前位置键（未登记任何场所时为 null）
+                let chatId = null;
+                try { chatId = (typeof this.getCurrentChatId === 'function') ? (this.getCurrentChatId() || null) : null; } catch (_e1) { chatId = null; }
+                let sceneKey = null;
+                try { sceneKey = (this.scene && typeof this.scene.currentKey === 'function') ? (this.scene.currentKey() || null) : null; } catch (_e2) { sceneKey = null; }
+                const scope = {
+                    conversationId: chatId,
+                    sceneId: sceneKey,
+                    worldId: (this.clock && typeof this.clock.readWorldLedger === 'function') ? 'world-ledger' : null
+                };
+                // revision 取**变更栅栏号**（_mutationEpoch，回滚/恢复/切聊递增，全仓 10 处引用）
+                //   —— 它是本仓既有的「状态变更代数」真源；不新造计数（那会与栅栏各记一套）。
+                const env = P.buildEnvelope(this._lastProjection, {
+                    scope,
+                    revision: Number(this._mutationEpoch) || 0,
+                    reason: 'bridge-snapshot'
+                });
+                this._lastProjectionEnvelope = env;
+                return env;
+            } catch (e) { errLog(e, 'plugin._buildProjectionEnvelope'); this._lastProjectionEnvelope = null; return null; }
         }
         buildBridgeSnapshot() {
             try {
@@ -7509,7 +7554,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                     clock: deep(rawClock),
                     recallAudit: deep(rawRecall),
                     worldLedgerRead: deep(rawLedgerRead),
-                    scene: deep(rawScene)
+                    scene: deep(rawScene),
+                    // [v3.212.0] L-F5：本插件侧账本的**对外投影**（stable projection API）。
+                    //   为什么进快照：它与 worldLedgerRead / scene 同族——都是「本插件眼里的
+                    //   某样东西」，下游要能读到；且进快照就自动获得 meta.fieldTypes 三态
+                    //   （present=false ⇒ 本版没这面；present=true + kind='null' ⇒ 跑过但没装成），
+                    //   不需要另开一套自述通道。
+                    //   取值器：取本轮已由 readWorldLedger() 刷新的缓存；**不在这里现跑管线**
+                    //   —— buildBridgeSnapshot 会被经 `.default` 取出的独立实例调用（无 this 账本），
+                    //   现跑会静默拿到全空投影并把「没跑」伪装成「都是空」。
+                    //   取不到即 undefined ⇒ present=false（如实报「本版没这面」）。
+                    projection: deep(this._lastProjectionEnvelope || undefined)
                 };
                 // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
                 //   此前读者只能自己试着 stringify 一遍、再从失败里反推——而字符串化失败与
