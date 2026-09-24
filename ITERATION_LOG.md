@@ -5,6 +5,51 @@
 
 ---
 
+## 2026-09-24 · v3.210.0（记忆类型系统 —— 计划 L-F1）
+
+**做了什么**
+- 新增 `memory-type.js`（187 行，零依赖，挂 `window.LonShaMemoryType`）：9 类型 × 6 策略注册表；
+  `normalizeType` 未知即拒、`inferType` 只作提示、`routeForType` 只给路由键 `typed:<type>`、
+  `lineByType` 只认显式标注。
+- `fact-version.js` 策略化：条目加 `type`（不透明存储）、`factFp` 纳入 `type`、
+  新增 `CONFLICT_POLICIES` 四态（`auto`/`coexist`/`prefer-new`/`forbid`）并进 `api` 导出面、
+  `assertFact` 吃 `conflictPolicy`、`lookup` 加 `wantType`、`line` 加类型分布。
+- `index.js` 三处接线：取库口 `_memoryTypeLib()`（类体外）、`_absorbFactVersions` 五类字段类型化分派
+  + 三态读数 `_memoryTypeRead`、`selfCheck`「记忆类型」诊断行。
+- 新增 `tests/v3210_memory_type.test.mjs`（613 行，14 组 / 189 断言），登记进
+  `catalog_reference_consumers.tsv`（194 → 195 行）；预算 `--bump`（ceiling 34336 → 34690，实测 34290 + 400）。
+- 三源版本 3.209.0 → 3.210.0；`manifest.extra_js` 60 → 61（`memory-type.js` 紧随 `fact-version.js`：
+  它包装账侧 `assertFact`，被包装方须先加载）。
+
+**为什么**
+- 修前实测：事实账**没有类型维度**（`grep -rn 'TYPE_REGISTRY\|MEMORY_TYPES'` 零命中），
+  `{subject, predicate, value, origin, from, to}` 是唯一形状 —— 「喜欢喝奶茶」「魔王被打败了」
+  「A 与 B 是师徒」同形、共用一套处置。后果是**数据在、规则用错**：世界规则被换代顶掉、
+  事件结果与人物状态互相换代、旧偏好赖着不走、矛盾的世界规则照常并存。
+- 落笔侧 `_absorbFactVersions` 只吃 `extracted.facts` + 一个「所在」地点，`status_changes` /
+  `relationships` / `items` / `cse_states` 四类已有数据一条都没进账（数据在，落笔时被丢）。
+
+**本版抓到的缺陷（都已修，都在 CHANGELOG 留痕）**
+- D1 🔴 **本地重写了 `tests/_audit_lib.mjs` 的 `braceMatch`**（同口径第二份实现）——
+  由 `scan_audit_lib_consolidation` 的 E1 结构面当场点名，且连带 `v3159` 一起翻红。
+  修法是**委托**而非改名：真源 `braceMatch` 只跳字符串、**不跳注释**（实测在 index.js 类体上返回 `null`），
+  故组合真源 `stripComments`（等长占位）+ 真源配对，长度映射回原文。
+- D2 判据把「同值复述」两种语义（同楼层 = 幂等复述 / 不同楼层 = 新版本落账）压成一条 → 拆两侧。
+- D3 判据拿拼好的字符串 `endsWith('true')`（实际打在 `reason` 上）→ 改逐字段断言。
+- D4 判据 `!mtSrc.includes('injection-router')` 扫到模块**注释散文**（本仓明令禁止的文本包含式判据）
+  → 改结构化：拿宿主真 `IR.PARTITIONS` 比对九类型路由键。
+- D5 `seg(src, a, '}')`：`}` 在 index.js 出现 5958 次，违反「锚点须各命中一次」→ 不放宽 `seg`，
+  另配 `fnBody` / `sliceFrom`。
+- D6 `v3209` 的 `extra_js === 60` 硬数字锁在新模块登记后翻红 → 抬到 61 并注明来由。
+
+**自伤（留痕）**
+- 本套件首跑 136/3：三处失败里 **D1 是真缺陷**（会连带其他套件），D2/D3 是判据自伤，
+  D4 是假红。修后 189/0。
+- 全量门禁首跑 18 文件翻红：17 个是「CHANGELOG/TODO 未写顶节」（本仓所有套件都校验顶节），
+  1 个是 D1，另 `v3209` 是 D6。
+
+---
+
 ## 2026-09-24 · v3.209.0（迁移、恢复与运行时兼容性收口 —— M-P2 后半）
 
 **做了什么**

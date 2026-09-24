@@ -61,6 +61,15 @@
    */
   const REASONS = Object.freeze(['ok', 'invalid', 'none', 'none-current', 'none-trusted', 'none-revoked', 'ambiguous', 'unversioned']);
 
+  /**
+   * [v3.210] 冲突处置策略四态（由 memory-type.js 按类型选择；本账只执行，不决定谁用哪个）。
+   *   auto       按时间序换代（本账原有行为，缺省值——保证向后兼容）
+   *   coexist    永不换代，值不同即并存
+   *   prefer-new 新值无条件闭合旧值
+   *   forbid     矛盾拒绝写入（返回 ok:false / reason:'conflict-forbidden'）
+   */
+  const CONFLICT_POLICIES = Object.freeze(['auto', 'coexist', 'prefer-new', 'forbid']);
+
   // [v3.207] text / finite 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
   const text = LE.text;
   const finite = LE.finite;
@@ -90,6 +99,11 @@
       subject: text(f.subject, 40),
       predicate: text(f.predicate, 40),
       value: text(f.value, 120),
+      // [v3.210] 记忆类型标注（memory-type.js 的类型名）。本账**不校验**类型合法性——
+      //   校验是 memory-type 的职责（单一真源）；这里只当**不透明字符串**存，
+      //   否则类型清单会有两份拷贝（本仓治理过多轮的「改一处漏五处」）。
+      //   空/缺省一律读回 null（不写空串：空串会让「没标注」与「标注为空」同形）。
+      type: (f.type == null || f.type === '') ? null : text(f.type, 32),
       origin: originOf(f.origin),
       trust: trustOf(f.origin),
       from: f.from == null ? null : finite(f.from),
@@ -128,10 +142,11 @@
   function pairKey(subject, predicate) {
     return text(subject, 40).toLowerCase() + '\u0000' + text(predicate, 40).toLowerCase();
   }
-  /** 内容指纹：同一事实重复提取不应重复登记（幂等键）。 */
+  /** 内容指纹：同一事实重复提取不应重复登记（幂等键）。[v3.210] 类型参与指纹——同内容但类型不同是两条不同事实。 */
   function factFp(f) {
     return [text(f.subject).toLowerCase(), text(f.predicate).toLowerCase(), text(f.value).toLowerCase(),
-      originOf(f.origin), f.from == null ? '*' : finite(f.from), f.to == null ? '*' : finite(f.to)].join('\u0001');
+      originOf(f.origin), f.from == null ? '*' : finite(f.from), f.to == null ? '*' : finite(f.to),
+      (f.type == null || f.type === '') ? '*' : text(f.type, 32).toLowerCase()].join('\u0001');
   }
   function nextId(state) {
     state.seq += 1;
@@ -161,11 +176,16 @@
   }
   /**
    * 登记（或复述）一条事实版本。
-   * input = { subject, predicate, value, origin, from, to, floor, source, evidence, eventKey }
+   * input = { subject, predicate, value, origin, from, to, floor, source, evidence, eventKey, type, conflictPolicy }
    *   · from/to 是**剧情楼层号**（可空）。空 from = 无法定位起点。
-   *   · 冲突处置：同 (subject,predicate) 已有**未闭合**且值不同的条目时——
-   *       两侧都有 from 且新 from 更大 ⇒ 判定为「状态更新」，自动闭合并换代（sequenced:true）；
-   *       否则并存放行、标记 unsequenced（不替用户裁决谁对，查询时报 ambiguous）。
+   *   · type 是**不透明类型标注**（由 memory-type.js 校验合法性；本账只存不判）。
+   *   · conflictPolicy [v3.210] 冲突处置策略，四态（缺省 'auto' = 本账原有行为，向后兼容）：
+   *       auto       两侧都有 from 且新 from 更大 ⇒ 判「状态更新」，闭合并换代；否则并存标 unsequenced。
+   *       coexist    永不换代：值不同即并存（事件结果/叙事线索/场景事实——它们**不该互相压**）。
+   *       prefer-new 新值**无条件**闭合旧值（玩家偏好：新偏好压旧偏好，不需要时间序）。
+   *       forbid     矛盾**拒绝写入**（世界规则：矛盾=提取错了，不得静默并存成两条「都有效」）。
+   *     关键纪律：四种策略的**返回形状必须可分**——forbid 拒绝返回 ok:false + reason:'conflict-forbidden'，
+   *     与 coexist 的「并存且 ok:true」绝不能同形，否则调用方无法分辨「没写进去」与「写进去并存了」。
    */
   function assertFact(rawState, input) {
     const state = normalize(rawState);
@@ -174,7 +194,9 @@
     const predicate = text(i.predicate, 40);
     const value = text(i.value, 120);
     if (!subject || !predicate || !value) return reject(state, 'missing-fact');
-    const fp = factFp({ subject: subject, predicate: predicate, value: value, origin: i.origin, from: i.from, to: i.to });
+    const type = (i.type == null || i.type === '') ? null : text(i.type, 32);
+    const policy = CONFLICT_POLICIES.includes(i.conflictPolicy) ? i.conflictPolicy : 'auto';
+    const fp = factFp({ subject: subject, predicate: predicate, value: value, origin: i.origin, from: i.from, to: i.to, type: type });
     const dup = state.facts.find(function (f) { return factFp(f) === fp; });
     if (dup) {
       const replayed = true;
@@ -186,10 +208,24 @@
     });
     const differing = open.filter(function (f) { return text(f.value).toLowerCase() !== value.toLowerCase(); });
     const newFrom = i.from == null ? null : finite(i.from);
-    const allSequenced = differing.length > 0 && newFrom != null
-      && differing.every(function (f) { return f.from != null && newFrom > f.from; });
+    // [v3.210] 按策略决定换代/并存/拒绝。auto 保持原逻辑（仅当两侧都有 from 且新 from 更大才换代）。
+    if (policy === 'forbid' && differing.length > 0) {
+      // 世界规则矛盾 = 提取错了。**拒绝写入**并把对侧点名，绝不并存成两条「都有效」。
+      return {
+        ok: false, changed: false, reason: 'conflict-forbidden', policy: policy,
+        conflictWith: differing.map(function (f) { return f.id; }),
+        state: normalize(state)
+      };
+    }
+    let allSequenced = false;
+    if (policy === 'auto') {
+      allSequenced = differing.length > 0 && newFrom != null
+        && differing.every(function (f) { return f.from != null && newFrom > f.from; });
+    } else if (policy === 'prefer-new') {
+      allSequenced = differing.length > 0;                 // 新值无条件压旧值
+    }                                                    // coexist ⇒ allSequenced 恒 false（只并存）
     const fact = copyFact({
-      id: nextId(state), subject: subject, predicate: predicate, value: value,
+      id: nextId(state), subject: subject, predicate: predicate, value: value, type: type,
       origin: i.origin, from: i.from, to: i.to, floor: i.floor, source: i.source,
       evidence: i.evidence, revision: LE.REVISION.CREATE, history: []
     });
@@ -207,7 +243,7 @@
     }
     state.facts.push(fact);
     return result(state, {
-      fact: copyFact(fact), replayed: false, changed: true,
+      fact: copyFact(fact), replayed: false, changed: true, policy: policy,
       superseded: superseded,
       conflict: differing.length > 0 && !allSequenced,
       sequenced: differing.length === 0 || allSequenced,
@@ -262,7 +298,13 @@
     const subject = text(query.subject, 40);
     if (!subject) return { ok: false, reason: 'invalid', fact: null, facts: [], versions: [], excludedByTrust: 0, excludedByRevoked: 0, state: state };
     const minTrust = Number.isFinite(Number(query.minTrust)) ? Number(query.minTrust) : DEFAULT_MIN_TRUST;
-    const all = versionsOf(state, subject, query.predicate);
+    // [v3.210] 可选类型过滤：给了 type 就只在该类型内查（同 (subject,predicate) 可挂不同类型，
+    //   例如「A 对 B 的信任」既是人物状态也可能是关系状态——按类型分开查才不串）。
+    const wantType = (query.type == null || query.type === '') ? null : text(query.type, 32);
+    const all = versionsOf(state, subject, query.predicate).filter(function (f) {
+      if (wantType == null) return true;
+      return ((f.type == null || f.type === '') ? null : f.type) === wantType;
+    });
     if (!all.length) {
       return { ok: true, reason: 'none', fact: null, facts: [], versions: [], excludedByTrust: 0, excludedByRevoked: 0, state: state };
     }
@@ -347,12 +389,20 @@
       if (inferredN) parts2.push('推测 ' + inferredN + '（不进现状查询）');
       if (revokedN) parts2.push('已撤销 ' + revokedN);
       if (ambiguous) parts2.push('未决 ' + ambiguous + ' ⚠️');
+      // [v3.210] 类型分布：回答「账上事实都标了类型没有」。未归类条目报数（不静默）。
+      const typedN = facts.filter(function (f) { return !f.revoked && f.type; }).length;
+      const untypedN = facts.filter(function (f) { return !f.revoked && !f.type; }).length;
+      if (typedN) parts2.push('已标类型 ' + typedN);
+      if (untypedN) parts2.push('未标类型 ' + untypedN);
       return parts2.join(' · ');
     } catch (e) { return '—（事实账异常）'; }
   }
   const api = Object.freeze({
     normalize, assertFact, revokeFact, setOrigin, lookup, timeline, versionsOf, line,
     ORIGINS, ORIGIN_TRUST, DEFAULT_MIN_TRUST, REASONS, FACT_VERSION,
+    // [v3.210] 冲突策略清单随账导出：断言方（memory-type.assertTyped / index.js 接线）
+    //   从账侧取常量，避免在外部再抄一份四态清单（本仓治理：单一真源）。
+    CONFLICT_POLICIES,
     originTrustOf: trustOf, factFp, pairKey
   });
   root.LonShaFactVersion = api;

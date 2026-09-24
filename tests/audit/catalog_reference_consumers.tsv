@@ -192,3 +192,4 @@ v3206_process_reaping.test.mjs
 v3207_ledger_entity_contract.test.mjs
 v3208_projection_forecast.test.mjs
 v3209_migration_registry.test.mjs
+v3210_memory_type.test.mjs

@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 34336,
+  "ceiling": 34690,
   "maxSlack": 400,
-  "note": "v3.209.0 迁移与运行时兼容性收口：新增 schema-migration.js（200 行）+ module-registry.js（137 行）与宿主接线（含取库失败登记表、两取库口、恢复旧档方向、两行诊断），另修取库口空白 catch 与两处测试汇总死读数",
+  "note": "v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）",
   "history": [
     {
       "ceiling": 21000,
@@ -81,7 +81,11 @@
     {
       "ceiling": 34336,
       "reason": "v3.209.0 迁移与运行时兼容性收口：新增 schema-migration.js（200 行）+ module-registry.js（137 行）与宿主接线（含取库失败登记表、两取库口、恢复旧档方向、两行诊断），另修取库口空白 catch 与两处测试汇总死读数"
+    },
+    {
+      "ceiling": 34690,
+      "reason": "v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）"
     }
   ],
-  "_history_last": "ceiling 34331 → 34336（实测 33936 + slack 400）：v3.209.0 迁移与运行时兼容性收口：新增 schema-migration.js（200 行）+ module-registry.js（137 行）与宿主接线（含取库失败登记表、两取库口、恢复旧档方向、两行诊断），另修取库口空白 catch 与两处测试汇总死读数"
+  "_history_last": "ceiling 34336 → 34690（实测 34290 + slack 400）：v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）"
 }

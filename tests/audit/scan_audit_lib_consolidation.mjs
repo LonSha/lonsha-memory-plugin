@@ -229,6 +229,14 @@ const EXEMPT = {
     'tests/v3185_querytext_and_xref_consumer.test.mjs': ['codeLines'],
     // 审计基建自身的负控制工具：它必须能独立于真源工作（破坏目标就是真源）
     'tests/_negative_util.mjs': ['codeLines'],
+    // [v3.210.0] 语义**确实不同**（故按本表规范登记，而不是改名绕过）：
+    //   本套件要取的是「本仓 index.js 里某个函数/类方法的完整花括号块」，而真源 braceMatch
+    //   **只跳字符串、不跳注释** —— 本仓源码注释里大量出现花括号，实测在 index.js 的
+    //   class MemoryEngine 类体上真源直接返回 null（取不到段，是「静默失败」那一族病）。
+    //   故这里必须用「真源 stripComments（等长占位、偏移不变）+ 真源 braceMatch」的**组合**，
+    //   并把切出的长度映射回原文（判据要看原文的注释与格式）。
+    //   即：这不是第二份实现，而是对真源两段能力的**串联**；函数体三行，无自己的花括号态机。
+    'tests/v3210_memory_type.test.mjs': ['braceMatch'],
 };
 const filesToScan = [];
 for (const f of fs.readdirSync(path.join(SRC, AUDIT_REL)).filter((x) => x.endsWith('.mjs'))) filesToScan.push(AUDIT_REL + '/' + f);

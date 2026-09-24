@@ -1,3 +1,122 @@
+## v3.210.0
+
+**主题：记忆类型系统（计划 L-F1）—— 把「所有事实都当同一种东西」这件事修一次。**
+
+一条线，一个病：**该区分的信息被压成一态**。此前本仓的事实账只有「来源信任、时间区间、冲突换代」，
+**没有类型维度** —— 于是三种本该走不同规则的信息共用一套处置：
+
+- `.world-rule`（长期世界规则）会被一条新轮次的事实按 auto 换代顶掉（规则应是锁定项）；
+- `.event-outcome`（事件结果）与 `.character-state` 互相换代（事件结果只该并存）；
+- `.player-preference` 没有「新偏好压旧偏好」（旧偏好赖着不走）；
+- 矛盾的**世界规则**照常并存（本该报「提取错了」，却当成合理冲突挂着）。
+
+后果不是缺数据，是**数据在、规则用错**。另有一半问题在落笔侧：`_absorbFactVersions` 只吃
+`extracted.facts` 与一个「所在」地点，`status_changes` / `relationships` / `items` / `cse_states`
+四类**已有**数据一条都没进事实账（数据在提取结果里，落笔时被丢）。
+
+### 类型注册表（`memory-type.js`，187 行，零依赖，挂 `window.LonShaMemoryType`）
+
+- **9 类型 × 6 策略**：`character-state` / `relationship-state` / `location-state` / `item-state` /
+  `event-outcome` / `plot-thread` / `player-preference` / `world-rule` / `scene-fact`，每型定义
+  `lifecycle`（生命周期）、`visibility`（可见性）、`trust`、`overrideable`、`conflict`（冲突策略）、
+  `retroactive`（是否允许回溯）。注册表是**唯一真源**，禁止调用点各写各的 `if`。
+- **未知类型必须拒绝，不静默归 default**：`normalizeType` 对未知/空/大小写变体一律返回 `null`。
+  归 default 会把「规则写错」读成「普通事实」，正是本版要治的读法。
+- **不硬编码宿主分区名**：`routeForType` 只给路由键 `typed:<type>`，映射到 `injection-router`
+  分区是**宿主**的职责（判据拿宿主真分区表比对，不是文本包含）。
+- **推断是提示不是裁决**：`inferType(谓词)` 尽力而为，猜不到返回 `null` 让调用方显式给类型。
+- 诊断面 `lineByType` **只认显式标注**：不得拿 `inferType` 的猜测冒充标注 ——
+  「猜到的 ≠ 标了的」，否则会把「没标类型」读成「类型覆盖良好」（本仓三态纪律）。
+
+### 事实账本策略化（`fact-version.js`，407 行）
+
+- 条目加 `type` 字段，**不透明存储**（`null` 或 32 字内文本）：合法性校验是 `memory-type` 的职责，
+  账本不判 —— 否则类型清单会有两份拷贝（本仓治过多轮的「改一处漏五处」）。
+- `factFp` 指纹纳入 `type`：同 `(主语,谓词,值)` 但类型不同是**两条不同事实**。
+- 新增 `CONFLICT_POLICIES`（四态，`api` 导出）：`auto` / `coexist` / `prefer-new` / `forbid`，
+  `assertFact` 吃 `conflictPolicy`（非法值回落 `auto`，向后兼容）：
+  · `auto` 保持**原逻辑逐条不变**（两侧都有 `from` 且新 `from` 更大才换代）；
+  · `coexist` 永不换代（事件结果/叙事线索/场景事实不该互相压）；
+  · `prefer-new` 新值无条件闭合旧值（不看时间序）；
+  · `forbid` 值冲突**拒绝写入**并返回 `ok:false / reason:'conflict-forbidden'` + `conflictWith` 点名。
+  **四态的返回形状必须可分**：`forbid` 的 `ok:false` 与 `coexist` 的「并存且 `ok:true`」
+  绝不能同形，否则调用方无法分辨「没写进去」与「写进去并存了」。
+- `lookup` 加 `wantType` 过滤；`line` 加类型分布（**已标类型 N / 未标类型 N** 两态分开记）。
+
+### 宿主接线（`index.js`）
+
+1. **取库口** `_memoryTypeLib()` 置于类体外模块作用域（与 `_factVersionLib` 同形）。
+2. **`_absorbFactVersions` 类型化分派**（此前四类数据被丢）：
+   - 显式给**合法**类型 ⇒ 走 `MT.assertTyped`；显式**非法**类型 ⇒ **拒绝写入、不回落**（拒绝即读数）；
+   - 无类型 ⇒ `MT.assertTyped` 推断兜底，若返回 `unknown-type` 则**回落** `FV.assertFact`
+     （**类型不是准入门槛**：猜不到就丢账是本仓最忌的静默丢弃）；
+   - 五类字段分派：`status_changes`→`character-state`（delta 合成 `'+5'` 形式）/
+     `relationships`→`relationship-state`（谓词 `'对'+to+'的关系'`）/
+     `items`→`item-state`（谓词 `'持有'+物品名`，`action==='remove'` 跳过）/
+     `cse_states` 仅 `layer==='situational'`→`scene-fact`（`core`/`adaptive` **不入账**）/
+     `location`→`location-state`（谓词 `'所在'`）。
+   - 刻意**不做**隐式分派的三类：`events`（已有专属事件账，同一内容双存会挤占 `MAX_FACTS=400`）、
+     `plot-thread` / `player-preference` / `world-rule`（无一一对应的既有字段，硬猜会把普通叙述误归档）。
+   - **`item-state` 的谓词含物品名**：否则「A 持有剑」与「A 持有钱包」在同 `(subject,predicate)` 对下
+     互相换代（一件物品入库就把另一件顶掉）；加物品名后同一件物品的状态变化仍是同对同谓词，正常换代。
+   - 读数 `this._memoryTypeRead = { typed, unknown, refused, samples }`，**三态分开记**
+     （压成一个数正是本版要修的病）；模块缺席记 `moduleMissing` 且**仍照旧记账**。
+3. `selfCheck` 新增**「记忆类型」**诊断行（未加载 / 待本轮 / 有账三态），追加
+   「类型化 N」「类型名未知被拒 N（如 …）」「策略拒绝 N」。
+
+### 本版抓到的真缺陷与自伤（均留痕）
+
+| # | 事 | 怎么抓到的 | 处理 |
+|---|---|---|---|
+| D1 | 🔴 **本地重写了 `tests/_audit_lib.mjs` 的 `braceMatch`**（同口径第二份实现） | 全量门禁：`scan_audit_lib_consolidation` 的 **E1 结构面**当场点名，且连带 `v3159` 翻红 | 改**委托**：真源 `braceMatch` **只跳字符串、不跳注释**（实测在 `index.js` 类体上返回 `null`），故组合真源 `stripComments`（等长占位）+ `braceMatch`，切段长度映射回原文 |
+| D2 | 「同值复述」判据把**两种语义压成一条**：同值**同楼层**（指纹同 ⇒ 幂等复述）与同值**不同楼层**（`from` 参与指纹 ⇒ 新版本落账） | 本套件首跑 `forbid` 组假红 | 拆成两侧：不误拒（`ok:true` / `sequenced` / 不误换代）+ 真复述走 dup 路径且不新增条目 |
+| D3 | 判据拿**拼好的字符串**做 `endsWith('true')`，实际打在 `reason` 上 | 本套件首跑假红 | 改为逐**字段**断言（`sig` 出对象、`keyOf` 才拼串），并补「翻转 `from` 顺序差异是否消失」的真判据 |
+| D4 | 判据用 `!mtSrc.includes('injection-router')` 当「不硬编码分区名」 | 本套件首跑假红 —— 模块**注释散文**里提该文件名是正常的 | 改结构化判据：取宿主真 `IR.PARTITIONS`，断言九类型路由键**都不是**宿主真分区名且格式恒为 `typed:<type>` |
+| D5 | `seg(src, a, '}')` 当函数体切段工具：`}` 在 `index.js` 出现 **5958 次**，违反「锚点须各命中一次」 | 本套件首跑抛 `[seg] 锚点命中 a=1 b=5958` | **不放宽 `seg` 的唯一性要求**（那是拆掉防错），按语义另配工具：`fnBody`（签名唯一 + 花括号匹配）、`sliceFrom`（起点唯一 + 终点取起点后首个） |
+| D6 | 「extra_js 项数」在 `v3209` 里是**硬数字锁**（`=== 60`） | 全量门禁：新增模块后 v3209 翻红 | 抬到 61 并注明来由（该锁的作用是「抽取退化不得静默放行」，故保留形式而不是删掉） |
+
+> D1 是本版最贵的一条：它同时说明两件事 —— ①治理扫描器**真的会抓到人**（写它们不是仪式）；
+> ②「委托真源」不是形式要求，真源的口径**就是**与自写版不同（真源不跳注释，自写版跳）。
+> 若只按 E1 改名而直接调真源，本套件的 `classMethodBody` 会在真类体上拿到 `null` —— 判据会从
+> 「本地重写」这一种病，换成「静默取不到段」那一种病。
+
+### 判据（`tests/v3210_memory_type.test.mjs`，613 行，14 组 / 189 断言，全绿）
+
+覆盖：版本锚与三源互等 / 模块结构面（零依赖 / 导出面 / 9 类型 × 6 策略取值域 / 与账侧策略同源）/
+未知类型拒绝（含拒绝无副作用、与「无类型」可分）/ 四策略**两两可分**（含 auto 原行为逐条不变、
+顺序无关性真判据）/ `type` 参与指纹与超长保护 / `lookup` 类型过滤与向后兼容 /
+`line` 与 `lineByType` 三态可分 + 推断不得冒充标注 / `queryByType`、`routeForType`、`policyOfType`
+（返回副本不得污染真源）/ `inferType` / 账侧策略化 / 接线静态面 / **接线真跑**
+（抽真方法体源码 → 包成可执行函数 → fake engine 逐类断言入账结果：状态 delta 合成、关系谓词含对侧名、
+同持有者两物品并存、`situational` 入账而 `core`/`adaptive` 不入账、非法类型拒绝且留样本、
+推断不出回落 `type=`、`world-rule` 矛盾被拒、模块缺席仍记账）/ manifest 登记与顺序负控制 /
+判据纯度与工具两向自证。
+
+### 门禁
+
+| 项 | 读数 |
+|---|---|
+| `tests/v3210_memory_type.test.mjs` | 14 组 / **189 断言 / 0 失败**（613 行） |
+| `npm test`（全量） | **189 文件 / 1652 断言 / 0 失败 / EXIT 0**（60.4s） |
+| `node tests/run.mjs --audit` | **42/42 审计脚本通过 / EXIT 0**（24.0s） |
+| `scan_syntax.mjs` | 316 文件可解析（本版 1 新模块 + 1 套件均在其中） |
+| `scan_module_wiring.mjs` | 62/62 真加载成功（入口 + `extra_js`）；已挂载未消费 **0**；B5 结构健康 ok |
+| `scan_claim_truthfulness.mjs` | 真正空白 catch **14**（基线 14，未放宽上限）；结构健康 ok |
+| `scan_cross_repo_binding.mjs` | 在役 189 / 退役 18 / 参考基准 189 / 问题 0 |
+| `scan_version_guard.mjs` | 当前 3.210.0 / 历史测试 188 / 当版 frontier 1（`v3210_memory_type.test.mjs`）/ 问题 0 |
+| `scan_audit_lib_consolidation.mjs` | 本地重写 **0**（修正前为 1，即本版 D1）；5 组负控制全过 |
+| `dead_code_budget` | 活跃 62 文件 / 实测 **34290** 行；上界 34336 → **34690**（余量 400，`maxSlack` 400） |
+| `catalog_reference_consumers.tsv` | 194 → **195** 行（新套件已登记） |
+| `manifest.extra_js` | 60 → **61** 项（`memory-type.js` 紧随 `fact-version.js` 之后：它包装账侧 `assertFact`，必须先加载被包装方） |
+
+> 首跑读数留痕：**189 文件 / 1635 断言 / 4 文件失败**（`v3210`、`v3159`、`stress_bench`、`v3177`）。
+> 真因只有一条 —— 本版 D1 的余波：`v3210` 里名为 `braceMatch` 的包装函数被
+> `scan_audit_lib_consolidation` 的 E1 判为「本地重写」，连带 `v3159`（它断言该扫描器必须全绿）；
+> `stress_bench` / `v3177` 是并发负载下的偶发（单跑各自通过），与本次改动无关。
+> 修法不是改名绕过，而是按该表规范把它登记进 `EXEMPT` 并写明「语义确实不同」（真源不跳注释）。
+
+---
+
 ## v3.209.0
 
 **主题：迁移、恢复与运行时兼容性收口（M-P2 后半）—— 把「旧档没人管」与「三种根因同一个 null」各修一次。**

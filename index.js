@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.209.0';
+    const VERSION = '3.210.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -9058,6 +9058,29 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.factVersion'); return ['事实版本', '—（诊断异常）'];
                         }
                     })(),
+                    // [v3.210] 记忆类型：回答「账上事实按类型怎么分布、有多少条还没归类、有没有类型名被拒」。
+                    //   三态可分：模块未加载 / 尚无事实账 / 有账（未归类亮 ⚠️）。
+                    //   为什么不并进上一行：上一行答的是「多少个版本、多少未决」，这一行答的是
+                    //   「这些事实**各自守什么规则**」——压成一行会让「类型没接上」与「类型都接上了但都没标」
+                    //   看起来一样（正是本版要修的那种「该可分的读数被压成一态」）。
+                    (() => {
+                        try {
+                            const MT = _memoryTypeLib();
+                            if (!MT || typeof MT.lineByType !== 'function') return ['记忆类型', '模块未加载（memory-type.js）'];
+                            if (!this._factVersionState) return ['记忆类型', '待本轮（尚无事实账）'];
+                            const base = MT.lineByType(this._factVersionState);
+                            const rd = this._memoryTypeRead;
+                            // 读取数只报**有信息量**的部分：全部走旧路径（无类型）时 base 已经用「未归类 N」说了，
+                            //   再补一句「类型化 0」是重复；只有真的走了类型化、或真的拒了非法类型名才追加。
+                            const extra = [];
+                            if (rd && !rd.moduleMissing) {
+                                if (rd.typed) extra.push('类型化 ' + rd.typed);
+                                if (rd.unknown) extra.push('类型名未知被拒 ' + rd.unknown + (rd.samples?.length ? '（如 ' + rd.samples.join(' / ') + '）' : ''));
+                                if (rd.refused) extra.push('策略拒绝 ' + rd.refused);
+                            }
+                            return ['记忆类型', extra.length ? (base + ' · ' + extra.join(' · ')) : base];
+                        } catch (e) { errLog(e, 'selfCheck.memoryType'); return ['记忆类型', '—（诊断异常）']; }
+                    })(),
                     // [v3.194] 事件完整性：回答「有几条线，几条还缺结果/后续」。
                     //   未完成事项是**交付物**不是缺陷，故 'open' 不亮 ⚠️；越序（result 早于 action）才亮。
                     (() => {
@@ -9829,19 +9852,98 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (!FV || typeof FV.assertFact !== 'function') return 0;
                 let st = this._factVersionState ? FV.normalize(this._factVersionState) : { version: 1, seq: 0, facts: [] };
                 let n = 0;
-                const push = (subject, predicate, value, origin) => {
+                // [v3.210] 类型化：同一条事实若带得出类型，就按该类型的冲突策略入账（世界规则矛盾
+                //   直接拒绝、事件结果只并存、玩家偏好新压旧）；**带不出类型就走原逻辑**——
+                //   类型是附加维度而不是准入门槛，否则「猜不到类型」会退化成「不入账」（本仓最忌的静默丢弃）。
+                //   三态可分：给了合法类型 = 走类型化；没给/猜不到 = 走旧路径（type 留 null，
+                //   line 里报「未标类型」）；给了非法类型名 = **拒绝**并计数（绝不静默归 default，
+                //   归 default 会把「提取层写错类型名」读成「这就是一条普通事实」，规则错被吞掉）。
+                const MT = _memoryTypeLib();
+                const typed = { on: !!(MT && typeof MT.assertTyped === 'function'), typedN: 0, unknownN: 0, refusedN: 0, unknownSamples: [] };
+                const push = (subject, predicate, value, origin, typeHint) => {
                     if (!subject || !predicate || !value) return;
-                    const r = FV.assertFact(st, {
+                    const input = {
                         subject: subject, predicate: predicate, value: value,
                         origin: origin || 'stated', from: floor, floor: floor,
                         source: 'extract', evidence: storyTime || '', at: Date.now(),
-                    });
+                    };
+                    let r;
+                    if (typed.on && typeHint != null && typeHint !== '') {
+                        // 显式给了类型 ⇒ 走类型化入口（未知类型在那里被拒绝）
+                        if (!MT.normalizeType(typeHint)) {
+                            typed.unknownN++;
+                            if (typed.unknownSamples.length < 5) typed.unknownSamples.push(String(typeHint).slice(0, 24));
+                            return;                                  // 拒绝写入，且**不**回落旧路径
+                        }
+                        r = MT.assertTyped(FV, st, Object.assign({}, input, { type: typeHint }));
+                        if (r && r.ok) typed.typedN++;
+                    } else {
+                        if (typed.on) {
+                            // 无显式类型 ⇒ 让推断兜底（推断失败则 assertTyped 返回 unknown-type，
+                            //   此时**回落**到不带类型的原路径：宁可当普通事实记下，也不要丢账）。
+                            const auto = MT.assertTyped(FV, st, input);
+                            if (auto && auto.ok) { r = auto; typed.typedN++; }
+                            else if (auto && auto.reason === 'unknown-type') r = FV.assertFact(st, input);
+                            else r = auto;
+                        } else {
+                            r = FV.assertFact(st, input);
+                        }
+                    }
+                    if (!r) return;
+                    if (r.ok === false) { typed.refusedN++; return; }   // forbid 拒绝等：不推进 state
                     st = r.state;
                     if (r.changed) n++;
                 };
                 for (const f of (Array.isArray(extracted?.facts) ? extracted.facts : [])) {
                     if (!f) continue;
-                    push(f.subject || f.character, f.predicate || f.field || f.kind, f.value || f.text, f.origin);
+                    push(f.subject || f.character, f.predicate || f.field || f.kind, f.value || f.text, f.origin, f.type);
+                }
+                // [v3.210] 类型化分派：提取 schema 里**已经存在**的字段按语义归到 L-F1 的九种类型，
+                //   不新造抽取字段（与 v3.194 同一纪律：吃既有形状）。这样类型系统一上线就有真实来源，
+                //   而不是「等用户手填类型」的空机制。
+                //   归属依据是各字段的**语义**而非名字相近：status_changes 是人物状态；
+                //   relationships 是关系状态；items 是物品状态；location 是地点状态；
+                //   cse_states 的 situational 层是暂时场景事实。
+                //   只取能构成 (主语, 谓词, 值) 三元组的项——凑不出三元组的宁可不记，也不塞垃圾进账。
+                //   ⚠️ events **不**在这里隐式分派成 event-outcome：events 已有专属账
+                //   （event-completeness 的事件线，管起因—行动—结果—后续），同一内容再塞进事实账
+                //   等于两处存储，且 MAX_FACTS=400 会被单类挤占。提取层若要按 event-outcome 记，
+                //   应在 facts[] 里**显式**标 type —— 显式通道对九种类型一律开放。
+                //   同理 plot-thread / player-preference / world-rule 走显式通道（facts[].type）：
+                //   这三类没有一一对应的既有字段，硬猜会把普通叙述误归档（类型错配比不记更糟）。
+                for (const c of (Array.isArray(extracted?.status_changes) ? extracted.status_changes : [])) {
+                    if (!c || !c.character || !c.field) continue;
+                    const v = (c.value != null && c.value !== '') ? c.value
+                        : (Number.isFinite(Number(c.delta)) ? String(c.delta >= 0 ? '+' : '') + Number(c.delta) : '');
+                    if (v === '') continue;
+                    push(String(c.character), String(c.field), String(v), c.origin || 'stated', 'character-state');
+                }
+                for (const rel of (Array.isArray(extracted?.relationships) ? extracted.relationships : [])) {
+                    if (!rel || !rel.from || !rel.to) continue;
+                    const v = String(rel.type || rel.attitude || '').trim();
+                    if (!v) continue;
+                    // 关系是**单向主观**的（A 看 B），故谓词带上对侧名：`对B的关系`。
+                    //   对侧名必须进谓词：否则 (A, 关系) 这个对会把「A 与 B 的关系」和「A 与 C 的关系」
+                    //   判成同一条事实的不同值，auto 策略下互相换代（压掉另一个关系）。
+                    push(String(rel.from), '对' + String(rel.to) + '的关系', v, rel.origin || 'stated', 'relationship-state');
+                }
+                for (const it of (Array.isArray(extracted?.items) ? extracted.items : [])) {
+                    if (!it || !it.name || String(it.action || 'add') === 'remove') continue;
+                    const v = String(it.state || it.desc || it.holder || '').trim();
+                    if (!v) continue;
+                    // 同上：物品名必须进谓词。否则「A 持有剑」与「A 持有钱包」会是同一个
+                    //   (subject='A', predicate='持有') 对下的两个不同值 —— 一件物品入库就把另一件换掉。
+                    //   物品名进谓词后，同一件物品的状态变化（完好→损坏）仍是同对同谓词，正常换代。
+                    push(String(it.holder || '未知持有'), '持有' + String(it.name), v, it.origin || 'stated', 'item-state');
+                }
+                for (const cs of (Array.isArray(extracted?.cse_states) ? extracted.cse_states : [])) {
+                    // 只有 situational（当下一时状态）才算「暂时场景事实」；core/adaptive 是稳定人设，
+                    //   落进场景事实反而会因 coexist/短生命周期被当成一次性内容（类型错配比不记更糟）。
+                    if (!cs || !cs.character || !cs.field || String(cs.layer || '') !== 'situational') continue;
+                    const v = String(cs.value == null ? '' : cs.value).trim();
+                    if (!v) continue;
+                    const pred = cs.toward ? ('对' + String(cs.toward) + '的' + String(cs.field)) : String(cs.field);
+                    push(String(cs.character), pred, v, cs.origin || 'stated', 'scene-fact');
                 }
                 // 地点：主人物的「所在」——这是计划里「现在去哪里找她」那条查询的原料。
                 //   主语来源三级回退：protagonist.name（本仓 protagonist 无此字段，留作前向兼容）
@@ -9852,9 +9954,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     let who = String(this.protagonist?.name || '').trim();
                     if (!who) { try { who = String(window.SillyTavern?.getContext?.()?.name1 || '').trim(); } catch (e) { who = ''; } }
                     if (!who) who = String((Array.isArray(extracted?.characters) ? extracted.characters[0] : '') || '').trim();
-                    if (who) push(who, '所在', geoText, extracted?.location_origin);
+                    if (who) push(who, '所在', geoText, extracted?.location_origin, 'location-state');
                 }
                 this._factVersionState = st;
+                // 读数留证：类型化到底有没有生效、有多少条没标上类型、有没有非法类型名被拒。
+                //   三者必须分开报（本仓纪律：不做成「一个 typedN」把三态压成一态）。
+                this._memoryTypeRead = typed.on
+                    ? { typed: typed.typedN, unknown: typed.unknownN, refused: typed.refusedN, samples: typed.unknownSamples }
+                    : { moduleMissing: true, typed: 0, unknown: 0, refused: 0, samples: [] };
                 return n;
             } catch (e) { errLog(e, 'engine._absorbFactVersions'); return 0; }
         }
@@ -10090,6 +10197,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   本模块给事实加 from/to 区间与五态来源，让「当时如此 / 现在如此 / 后来被推翻」可分。
     function _factVersionLib() {
         return _moduleLib(() => window.LonShaFactVersion, 'fact-version.js');
+    }
+    // [v3.210] 记忆类型系统（memory-type.js，计划 L-F1）。为什么需要：
+    //   事实账此前**没有类型维度** —— 「主角喜欢喝奶茶」「魔王被打败了」「A 与 B 是师徒」
+    //   在账上是同一形状，共用同一套覆盖/冲突规则。后果是**数据在、规则用错**：
+    //   长期世界规则被一句随口话顶掉、事件结果与人物状态互相换代、玩家旧偏好赖着不走、
+    //   矛盾的世界规则照常并存（本该报警「提取错了」）。
+    //   本模块是类型的**唯一真源**（9 类型 × 6 策略），并把类型映射成 fact-version
+    //   能执行的冲突策略。注意分工：本模块不存储、不校验存储侧；类型落在事实条目上。
+    function _memoryTypeLib() {
+        return _moduleLib(() => window.LonShaMemoryType, 'memory-type.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的
