@@ -7,11 +7,12 @@
  *   按可用并发度并行执行，失败可精确定位到单个文件。
  *
  * 用法：
- *   node tests/run.mjs [--audit] [--serial] [--jobs N] [pattern ...]
- *     --audit   跑完测试后追加执行 tests/audit/ 下的扫描脚本
- *     --serial  强制串行（等价 --jobs 1）
- *     --jobs N  指定并发子进程数（默认 CPU 核数-1，上限 8）
- *     pattern   只跑文件名包含该 pattern 的测试（可多个，OR 语义）
+ *   node tests/run.mjs [--audit] [--serial] [--jobs N] [--audit-jobs N] [pattern ...]
+ *     --audit        跑完测试后追加执行 tests/audit/ 下的扫描脚本
+ *     --serial       强制串行（等价 --jobs 1；审计段仍按 --audit-jobs）
+ *     --jobs N       指定测试段并发子进程数（默认 CPU 核数-1，上限 8）
+ *     --audit-jobs N 指定审计段并发度（默认 min(4, 测试段并发)）[v3.206.0]
+ *     pattern        只跑文件名包含该 pattern 的测试（可多个，OR 语义）
  *
  * 退出码：全部通过 0；任一失败 1。
  * 环境变量：
@@ -30,12 +31,15 @@ const AUDIT_DIR = join(HERE, 'audit');
 
 // ---------- 参数解析 ----------
 const args = process.argv.slice(2);
-const OPT = { audit: false, jobs: 0, patterns: [] };
+const OPT = { audit: false, jobs: 0, auditJobs: 0, patterns: [] };
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--audit') OPT.audit = true;
   else if (a === '--serial') OPT.jobs = 1;
   else if (a === '--jobs') OPT.jobs = parseInt(args[++i], 10) || 0;
+  /* [v3.206.0] 审计段并发度独立于测试段：审计脚本内部还会自己 spawn 子进程
+   *   （node --check / 镜像树子进程），与测试段同并发会撞沙箱进程上限（EAGAIN）。 */
+  else if (a === '--audit-jobs') OPT.auditJobs = parseInt(args[++i], 10) || 0;
   else OPT.patterns.push(a);
 }
 if (!OPT.jobs) {
@@ -43,6 +47,14 @@ if (!OPT.jobs) {
   OPT.jobs = Number.isFinite(env) && env > 0 ? env : Math.min(8, Math.max(2, os.cpus().length - 1));
 }
 const TIMEOUT = parseInt(process.env.TEST_TIMEOUT || '', 10) || 120000;
+/* [v3.206.0] 审计段并发度：默认 min(4, 测试段并发)。
+ *   实测审计段串行占 --audit 总耗时 64%（39 脚本 47.5s / 总 74.1s），故并行有实收；
+ *   但审计脚本里有 15 个会自建 mkdtemp 镜像树、若干会再 spawn 子进程，
+ *   上限压到 4 是为了不与测试段抢同一批进程槽位（v3.205.0 的 EAGAIN 教训）。 */
+if (!OPT.auditJobs) {
+  const env = parseInt(process.env.AUDIT_JOBS || '', 10);
+  OPT.auditJobs = Number.isFinite(env) && env > 0 ? env : Math.min(4, OPT.jobs);
+}
 
 // ---------- 收集测试 ----------
 function collectTests() {
@@ -84,16 +96,20 @@ function runOne(file, useTestRunner = true, attempt = 0) {
     } catch (e) {
       return resolve(retryOrFail(e, file, useTestRunner, attempt, t0));
     }
-    let out = '', err = '', killed = false;
-    child.stdout.on('data', d => { out += d; });
-    child.stderr.on('data', d => { err += d; });
+    let out = '', err = '', killed = false, truncated = false;
+    /* [v3.206.0] 单进程输出上限：审计脚本偶有 FAIL 时会把整棵树打出来。
+     *   这里只截**累积**（判据仍看退出码与已收内容），并在汇总里点名，
+     *   避免「一个大输出把整轮内存吃光」这种与判据无关的失败形态。 */
+    const MAX_OUT = 4 * 1024 * 1024;
+    child.stdout.on('data', d => { if (out.length < MAX_OUT) out += d; else truncated = true; });
+    child.stderr.on('data', d => { if (err.length < MAX_OUT) err += d; else truncated = true; });
     const timer = setTimeout(() => { killed = true; killGroup(child); }, TIMEOUT);
     child.on('close', (code) => {
       clearTimeout(timer);
       // 正常退出也可能留下未收尾的孙进程（父进程先于子进程结束）：一并收割
       killGroup(child);
       const ms = Date.now() - t0;
-      resolve({ file, code: killed ? -1 : (code ?? 1), killed, ms, out, err });
+      resolve({ file, code: killed ? -1 : (code ?? 1), killed, ms, out, err, truncated });
     });
     child.on('error', (e) => {
       clearTimeout(timer);
@@ -255,17 +271,41 @@ async function main() {
   }
 
   // ---------- 审计档 ----------
+  /* [v3.206.0] 审计段并发化 + 成本可定位。
+   *   实测：39 个审计脚本串行合计 47.5s，占 --audit 总耗时 74.1s 的 64%；
+   *   最慢单个 5.97s（scan_v3193_host_matrix_negctl）。
+   *   并行安全性已逐项核对（不是「看起来没冲突」）：
+   *     · 40 个脚本里无固定 /tmp 路径（唯一 /tmp 字面量在跨仓扫描器的正则里）；
+   *     · 共享库只有一个 tests/_audit_lib.mjs 且只被读；
+   *     · 唯一会写仓库内的 dead_code_budget.mjs 只在 --bump 分支写，
+   *       而本段一律以**无参**方式执行（不会进 bump 分支）；
+   *     · 15 个脚本自建 mkdtemp 镜像并 finally 清理 → 互不重叠。
+   *   仍然有界：并发度由 --audit-jobs 控制（默认 min(4, 测试段并发)），
+   *   并沿用 runOne 的进程组收割（killGroup）与资源类错误重试。 */
   if (OPT.audit && !anyFail) {
     const scripts = auditScripts();
     if (scripts.length) {
-      console.log(`\n[audit] 执行 ${scripts.length} 个审计脚本`);
-      for (const s of scripts) {
-        const r = await runOne(s, false); // audit 脚本是独立扫描器，直接 node 执行，不走 --test
-        // audit 脚本是独立扫描器，直接以退出码判定
-        const ok = r.code === 0;
-        console.log(`  ${ok ? '✓' : '✗'} ${s.replace(REPO + '/', '')} (${r.ms}ms)`);
-        if (!ok) { anyFail = true; if (r.err) console.log(r.err.slice(0, 500)); }
+      const a0 = Date.now();
+      console.log(`\n[audit] 执行 ${scripts.length} 个审计脚本（并发 ${Math.min(OPT.auditJobs, scripts.length)}）`);
+      const results = await pool(scripts, OPT.auditJobs, (s) => runOne(s, false));
+      for (const r of results) {
+        const ok = r.code === 0; // audit 脚本是独立扫描器，直接以退出码判定
+        console.log(`  ${ok ? '✓' : '✗'} ${r.file.replace(REPO + '/', '')} (${r.ms}ms)`
+          + (r.truncated ? ' [输出已截断]' : ''));
+        if (!ok) {
+          anyFail = true;
+          /* 失败必须能定位到**脚本与阶段**：先给可直接重跑的定位命令，
+           *   再给 stderr/stdout 摘要（v3.205.0 验收协议要求的「定住现场」）。 */
+          console.log(`    ↳ 重跑定位: node ${r.file.replace(REPO + '/', '')}`);
+          const detail = (r.err || '').trim() || (r.out || '').trim();
+          console.log('    ↳ 现场摘要: ' + (detail ? detail.slice(-800) : '(无输出)'));
+        }
       }
+      const aWall = ((Date.now() - a0) / 1000).toFixed(1);
+      const passed = results.filter((r) => r.code === 0).length;
+      const slowest = [...results].sort((a, b) => b.ms - a.ms).slice(0, 3)
+        .map((r) => `${r.file.replace(REPO + '/', '')}(${r.ms}ms)`).join(' · ');
+      console.log(`[audit] 通过 ${passed}/${results.length} | 耗时 ${aWall}s | 最慢 3：${slowest}`);
     }
   }
 

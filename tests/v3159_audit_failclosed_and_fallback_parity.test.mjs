@@ -53,21 +53,36 @@ const AUDIT_TIMEOUT = (() => {
     return Number.isFinite(n) && n > 0 ? n : 120000;
 })();
 
+/* [v3.206.0] 与 tests/run.mjs 同一条真根因：**孙进程泄漏**。
+ *   audit 扫描器自己还会派 `node --check` 一类的孙进程；旧实现在超时时只
+ *   `child.kill('SIGKILL')` —— 杀的是直接子进程，**孙进程被孤儿化**（PPID→1）
+ *   继续吃 CPU。v3.205.0 已在 tests/run.mjs 修好这条（detached + 进程组收割），
+ *   但测试侧这份 spawnOne 是同一形态的第二处，当时漏掉。
+ *   实测（本仓沙箱，人为制造超时）：旧形态留下 1 个存活孙进程（PPID=1）；
+ *   改成 detached + 按进程组杀之后为 0 个。
+ *   修法与 run.mjs 逐字同形：超时 / 正常收尾 / error 三条路径都收割进程组。 */
+function killGroupOne(child) {
+    try { process.kill(-child.pid, 'SIGKILL'); } catch { /* 组可能已不存在 */ }
+    try { child.kill('SIGKILL'); } catch { /* 直接子进程兜底 */ }
+}
 function spawnOne(cwd, f) {
     return new Promise((resolve) => {
         const child = spawn(process.execPath, [path.join('tests', 'audit', f)], {
             cwd, stdio: ['ignore', 'pipe', 'pipe'],
+            detached: true, // 独立进程组：孙进程随组一起收，避免孤儿残留
         });
         let out = '', err = '', killed = false;
         child.stdout.on('data', (d) => { out += d; });
         child.stderr.on('data', (d) => { err += d; });
-        const timer = setTimeout(() => { killed = true; child.kill('SIGKILL'); }, AUDIT_TIMEOUT);
+        const timer = setTimeout(() => { killed = true; killGroupOne(child); }, AUDIT_TIMEOUT);
         child.on('close', (code) => {
             clearTimeout(timer);
+            killGroupOne(child); // 父先于孙结束的场合也要收
             resolve({ status: killed ? null : (code ?? 1), killed, out: out + err });
         });
         child.on('error', (e) => {
             clearTimeout(timer);
+            killGroupOne(child);
             resolve({ status: 1, killed: false, out: String(e) });
         });
     });
