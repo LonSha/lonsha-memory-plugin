@@ -96,6 +96,16 @@ const ANCHORS = [
 mutate('index.js', "                try { this.unregisterEvents(); } catch (e) { errLog(e, 'events.registerEvents防重入'); }",
     '                void 0;',
     'N-M7a 拆掉卸载-重装（重载即翻倍）', 'M7 重载监听器翻倍');
+// ── 回归性破坏 3（v3.207.0）：把「声明的硬依赖」改回「不可归因的耦合」⇒ M2 必须仍然翻红 ──
+//   为什么必须有它：v3.207.0 把 M2 从「缺一个脚本就不得有任何别的脚本加载失败」收紧成
+//   「**不可归因**的失败才算缺陷」（缺 X 时若消费者抛的错误里点名了 X，那是可观测的硬依赖，
+//   进 notes 而不算缺陷）。放宽判据必须**有反证**，否则就是削弱：
+//   这里把 seed-ledger.js 的缺依赖错误改成不提任何文件名的形态 —— 同样的场景、
+//   同样的加载顺序，只是因为**归因信息没了**，M2 就必须重新报缺陷。
+mutate('seed-ledger.js',
+    "throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');",
+    "throw new Error('[lonsha] 缺少依赖');",
+    'N-M2a 缺依赖错误不再点名（归因信息丢失）', 'M2 缺脚本不降级');
 // ── 结构漂移：注册脚本缺失 / extra_js 抽取退化 ⇒ 必须 exit=2 ──
 {
     const dir = snapshot();
@@ -155,10 +165,12 @@ mutate('index.js', "                try { this.unregisterEvents(); } catch (e) {
     const m = fs.readFileSync(path.join(SRC, 'modules_combined.js'), 'utf8');
     const g = fs.readFileSync(path.join(SRC, 'graph_algorithms.js'), 'utf8');
     const i = fs.readFileSync(path.join(SRC, 'index.js'), 'utf8');
+    const sl = fs.readFileSync(path.join(SRC, 'seed-ledger.js'), 'utf8');
     if (!m.includes('__LonShaVisualizerLoaded')) bad('原版 modules_combined.js 被污染（幂等守卫不见了）');
     else if (!g.includes('__LonShaGraphDiffusionLoaded')) bad('原版 graph_algorithms.js 被污染');
     else if (!i.includes("events.registerEvents防重入")) bad('原版 index.js 被污染（卸载-重装被拆）');
-    else ok('原版工作区未被触碰（两处幂等守卫与注册防重入都完好）');
+    else if (!sl.includes('账本实体契约缺真源')) bad('原版 seed-ledger.js 被污染（缺依赖的点名信息被抹）');
+    else ok('原版工作区未被触碰（两处幂等守卫、注册防重入与缺依赖点名都完好）');
 }
 console.log('\n[v3.193 host 负控制] ' + pass + ' 组成立 / ' + fail + ' 组失败');
 process.exit(fail ? 1 : 0);

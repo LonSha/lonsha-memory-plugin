@@ -208,21 +208,42 @@ for (const f of extras) {
     else noGlobal.push(f);
 }
 // ── M2 缺少可选脚本 ──
+// [v3.207.0] 判据收紧到「**不可归因的**耦合」：
+//   旧口径「缺一个脚本就不得有任何别的脚本加载失败」在遇到**声明的硬依赖**时给出假红 ——
+//   本版新增账本实体契约（ledger-entity.js）后，六本账在缺它时抛出**点名该文件**的错误：
+//   `Error: [lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）`。
+//   那不是隐藏耦合，恰恰是「失败可观测」的教科书形态（本段注释开头就要求它）。
+//   真缺陷是**不可归因**的失败：缺 X 而 Y 崩在一个与 X 无关的地方（别人看不出来该去补哪个文件）。
+//   故：错误文本里点出被抽掉的文件名 ⇒ 记为「声明的硬依赖」（进 notes，可见）；否则 ⇒ 缺陷。
+//   这条收紧只认文件名本身，不做「像是依赖」的模糊判断 —— 口径必须可机检、可负控。
 {
     const breaks = [];
+    const declared = [];
     for (const skip of extras) {
         const env = makeSandbox();
         const fails = [];
+        const named = [];
         for (const f of loadOrder) {
             if (f === skip) continue;
             const r = loadInto(env, f);
             // 只关心「因为少了一个脚本而导致别的脚本挂掉」——即加载期崩溃
-            if (!r.ok) fails.push(f + '（' + r.err + '）');
+            if (!r.ok) {
+                fails.push(f + '（' + r.err + '）');
+                if (String(r.err).includes(skip)) named.push(f);
+            }
         }
-        if (fails.length) breaks.push('缺 ' + skip + ' 导致 ' + fails.length + ' 个脚本加载失败：' + fails[0]);
+        // 归因：崩的那几个脚本是不是**都**在错误里点名了被抽掉的文件
+        const unattributed = fails.filter((m) => !named.some((n) => m.startsWith(n + '（')));
+        if (unattributed.length) {
+            breaks.push('缺 ' + skip + ' 导致 ' + unattributed.length + ' 个脚本不可归因地失败：' + unattributed[0]);
+        } else if (named.length) {
+            declared.push(skip + '→' + named.length + ' 个（点名）');
+        }
     }
     if (breaks.length) bad('M2 缺脚本不降级', breaks.length + ' 例：' + breaks.slice(0, 3).join('；'));
     else okc();
+    if (declared.length) note('声明的硬依赖（缺它时消费者抛点名错误）：' + declared.slice(0, 4).join('、')
+        + (declared.length > 4 ? ' 等 ' + declared.length + ' 个' : ''));
     // 静默吞异常：被抽掉的脚本若不是加载期依赖，就不该有任何脚本崩——但也不得「假装加载过」
     const env2 = makeSandbox();
     const skipped = extras[Math.floor(extras.length / 2)];

@@ -33,6 +33,12 @@
  * ======================================================== */
 'use strict';
 (function (root) {
+  // [v3.207] 账本实体契约单一真源（ledger-entity.js）。取库双通道与 index.js 的 _moduleLib 同形：
+  //   浏览器走全局（extra_js 在入口之后加载，故在 IIFE 内**惰性**取，不能构造期缓存）、Node 走 require。
+  //   两处写法在六本账里逐字同形，便于常驻门禁按字面量扫描（tests/audit/scan_ledger_contract.mjs）。
+  const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity
+    : ((typeof module !== 'undefined' && module.exports) ? require('./ledger-entity.js') : (root.LonShaLedgerEntity || null));
+  if (!LE) throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');
   const FACT_VERSION = 1;
   const MAX_FACTS = 400;
   const MAX_HISTORY = 12;
@@ -55,14 +61,9 @@
    */
   const REASONS = Object.freeze(['ok', 'invalid', 'none', 'none-current', 'none-trusted', 'none-revoked', 'ambiguous', 'unversioned']);
 
-  function text(v, max) {
-    const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
-    return max ? s.slice(0, max) : s;
-  }
-  function finite(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? Math.floor(n) : null;
-  }
+  // [v3.207] text / finite 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
+  const text = LE.text;
+  const finite = LE.finite;
   function originOf(o) {
     return ORIGINS.includes(o) ? o : 'stated';
   }
@@ -99,8 +100,10 @@
       supersededBy: text(f.supersededBy, 48) || null,
       revoked: f.revoked === true,
       revokeReason: text(f.revokeReason, 80),
-      revision: finite(f.revision) || 1,
-      history: Array.isArray(f.history) ? f.history.slice(-MAX_HISTORY).map(copyEvent) : []
+      // [v3.207] 修订号读回走契约。
+      revision: LE.revisionOf(f),
+      // [v3.207] 历史读回走契约（末 MAX_HISTORY 条 + 逐条 copyEvent）。
+      history: LE.copyHistory(f, MAX_HISTORY, copyEvent)
     };
   }
   function clone(state) {
@@ -134,13 +137,12 @@
     state.seq += 1;
     return 'fct_' + state.seq;
   }
+  // [v3.207] 记一次变更走契约（本账**不**戳 updatedFloor：它没有该字段，故不传 stampFloor）。
   function record(f, event) {
     const k = text(event.eventKey, 120);
-    if (k && f.history.some(function (h) { return h.eventKey && h.eventKey === k; })) return false;
-    f.history.push(copyEvent(Object.assign({ eventKey: k }, event)));
-    if (f.history.length > MAX_HISTORY) f.history = f.history.slice(-MAX_HISTORY);
-    f.revision += 1;
-    return true;
+    return LE.recordEvent(f, k ? Object.assign({ eventKey: k }, event) : event, {
+      maxHistory: MAX_HISTORY, prepare: copyEvent
+    });
   }
   function result(state, extra) {
     return Object.assign({ ok: true, changed: false, state: normalize(state) }, extra || {});
@@ -189,7 +191,7 @@
     const fact = copyFact({
       id: nextId(state), subject: subject, predicate: predicate, value: value,
       origin: i.origin, from: i.from, to: i.to, floor: i.floor, source: i.source,
-      evidence: i.evidence, revision: 0, history: []
+      evidence: i.evidence, revision: LE.REVISION.CREATE, history: []
     });
     record(fact, { action: 'assert', eventKey: i.eventKey, floor: i.floor, source: i.source, origin: fact.origin, reason: '', from: fact.from, to: fact.to, at: i.at });
     const superseded = [];

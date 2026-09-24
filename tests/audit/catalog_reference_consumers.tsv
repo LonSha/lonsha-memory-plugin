@@ -189,3 +189,4 @@ v39_shift_floors.test.mjs
 v3204_no_cross_repo_binding.test.mjs
 v3205_infrastructure_truthfulness.test.mjs
 v3206_process_reaping.test.mjs
+v3207_ledger_entity_contract.test.mjs

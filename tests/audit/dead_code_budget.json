@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 32700,
+  "ceiling": 33251,
   "maxSlack": 400,
-  "note": "v3.202.0 回滚面收口（ledger-replay.js 九账统一 helper + 宿主携带面拓宽 + 显式豁免表）→ 32700。",
+  "note": "v3.207.0 账本实体契约：新增 ledger-entity.js（172 行），六本账委派收编后各账净减（纯重构、逐字节等价）；活跃总量实测 32652 → 32851（+199）",
   "history": [
     {
       "ceiling": 21000,
@@ -65,6 +65,11 @@
     {
       "ceiling": 32700,
       "reason": "v3.202.0 回滚面收口（ledger-replay.js 九账统一 helper + 宿主携带面拓宽 + 显式豁免表）"
+    },
+    {
+      "ceiling": 33251,
+      "reason": "v3.207.0 账本实体契约：新增 ledger-entity.js（172 行），六本账委派收编后各账净减（纯重构、逐字节等价）；活跃总量实测 32652 → 32851（+199）"
     }
-  ]
+  ],
+  "_history_last": "ceiling 32700 → 33251（实测 32851 + slack 400）：v3.207.0 账本实体契约：新增 ledger-entity.js（172 行），六本账委派收编后各账净减（纯重构、逐字节等价）；活跃总量实测 32652 → 32851（+199）"
 }

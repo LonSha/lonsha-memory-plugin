@@ -16,6 +16,12 @@
  * ======================================================== */
 'use strict';
 (function (root) {
+  // [v3.207] 账本实体契约单一真源（ledger-entity.js）。取库双通道与 index.js 的 _moduleLib 同形：
+  //   浏览器走全局（extra_js 在入口之后加载，故在 IIFE 内**惰性**取，不能构造期缓存）、Node 走 require。
+  //   两处写法在六本账里逐字同形，便于常驻门禁按字面量扫描（tests/audit/scan_ledger_contract.mjs）。
+  const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity
+    : ((typeof module !== 'undefined' && module.exports) ? require('./ledger-entity.js') : (root.LonShaLedgerEntity || null));
+  if (!LE) throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');
   const AUDIENCE = Object.freeze(['hidden', 'overheard']);
   const ACTIONS = Object.freeze(['note', 'touch', 'settle', 'drop']);
   const OPEN = Object.freeze({ open: true, touched: true });
@@ -23,28 +29,10 @@
   const MAX_OPEN = 4;
   const MAX_HISTORY = 6;
 
-  function text(value, max) {
-    const s = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
-    return max ? s.slice(0, max) : s;
-  }
-  function finite(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? Math.floor(n) : null;
-  }
-  function names(value, maxEach, maxCount) {
-    const src = Array.isArray(value) ? value : String(value == null ? '' : value).split(/[、,，]/);
-    const out = [];
-    const seen = new Set();
-    for (const raw of src) {
-      const name = text(raw, maxEach || 40);
-      const key = name.toLowerCase();
-      if (!name || seen.has(key)) continue;
-      seen.add(key);
-      out.push(name);
-      if (out.length >= (maxCount || 8)) break;
-    }
-    return out;
-  }
+  // [v3.207] text / finite / names 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
+  const text = LE.text;
+  const finite = LE.finite;
+  const names = (value, maxEach, maxCount) => LE.names(value, maxEach, maxCount);
   function copyEvent(event) {
     return {
       action: ACTIONS.includes(event.action) ? event.action : 'touch',
@@ -67,12 +55,14 @@
       who: names(item.who, 40, 8),
       audience,
       status,
-      revision: finite(item.revision) || 1,
+      // [v3.207] 修订号读回走契约（`finite(item.revision) || 1` 原为六本账逐字重复）。
+      revision: LE.revisionOf(item),
       floor: finite(item.floor),
       updatedFloor: finite(item.updatedFloor),
       settledFloor: finite(item.settledFloor),
       source: text(item.source, 40),
-      history: Array.isArray(item.history) ? item.history.slice(-MAX_HISTORY).map(copyEvent) : []
+      // [v3.207] 历史读回走契约（末 MAX_HISTORY 条 + 逐条 copyEvent）。
+      history: LE.copyHistory(item, MAX_HISTORY, copyEvent)
     };
   }
   function clone(state) {
@@ -102,13 +92,10 @@
   function reject(state, reason) {
     return { ok: false, reason, changed: false, state: normalize(state) };
   }
+  // [v3.207] 记一次变更走契约：幂等比对 + push + 截断 + 版本自增 + 戳 updatedFloor。
+  //   stampFloor 原样戳 event.floor（**不得**过 finite：null 会被压成 0）。
   function record(item, event) {
-    if (item.history.some((old) => old.eventKey && old.eventKey === event.eventKey)) return false;
-    item.history.push(event);
-    if (item.history.length > MAX_HISTORY) item.history = item.history.slice(-MAX_HISTORY);
-    item.revision += 1;
-    item.updatedFloor = event.floor;
-    return true;
+    return LE.recordEvent(item, event, { maxHistory: MAX_HISTORY, stampFloor: true });
   }
   function openCount(state) {
     return state.items.filter((item) => OPEN[item.status]).length;
@@ -148,7 +135,7 @@
     if (openCount(state) >= MAX_OPEN) return reject(state, 'open-cap');
     const item = copyItem({
       id: nextId(state), title, fact, place, when: input && input.when, who, audience,
-      status: 'open', revision: 0, floor: input && input.floor, updatedFloor: input && input.floor,
+      status: 'open', revision: LE.REVISION.CREATE, floor: input && input.floor, updatedFloor: input && input.floor,
       settledFloor: null, source: input && input.source, history: []
     });
     record(item, { action: 'note', eventKey, floor: item.floor, source: item.source, note: '' });

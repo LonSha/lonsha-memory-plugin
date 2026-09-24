@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.206.0';
+    const VERSION = '3.207.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -8891,6 +8891,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.repairLoop'); return ['记忆修复', '—（诊断异常）'];
                         }
                     })(),
+                    // [v3.207] 账本实体契约：回答「六本账有多少条目、多少被替代过、有没有读不出修订号的」。
+                    //   这行同时是 `item.revision` 的**首个真实读侧** —— 此前它写进去但全仓无人读。
+                    //   三态可分：模块未加载 / 尚无条目 / 有账（未定型条目数 > 0 才亮 ⚠️）。
+                    (() => {
+                        try {
+                            const LE = _ledgerEntityLib();
+                            if (!LE || typeof LE.line !== 'function') return ['账本实体', '模块未加载（ledger-entity.js）'];
+                            const books = _ledgerBooks.call(this);
+                            const live = books.filter((b) => {
+                                const box = b.box || 'items';
+                                return !!(b.state && Array.isArray(b.state[box]) && b.state[box].length);
+                            }).length;
+                            if (!live) return ['账本实体', '待本轮（尚无账本条目）'];
+                            return ['账本实体', LE.line(books)];
+                        } catch (e) { errLog(e, 'selfCheck.ledgerEntity'); return ['账本实体', '—（诊断异常）'];
+                        }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -9796,6 +9813,29 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   变成一份**受影响的派生件清单**，逐项落定（done/failed/missing）才算修完。
     function _repairLoopLib() {
         return _moduleLib(() => window.LonShaRepairLoop, 'repair-loop.js');
+    }
+    // [v3.207] 账本实体契约（ledger-entity.js，单一真源）。为什么需要：
+    //   本仓六本「逐条实体 + 变更历史」的账（伏笔/秘密/平行事实/约定/事实版本/事件线）
+    //   此前各抄一份实体读取契约（`finite(x) || 1` 六处、`item.revision += 1` 六处、
+    //   history 幂等+截断五处、text/finite 六处）—— 改一处漏五处正是本仓治理过多轮的漏。
+    //   契约收进本模块后，六本账只传各自的 MAX_HISTORY 与归一化器。
+    // 同时补上一个**功能级失效**：`item.revision` 此前写进去但全仓零消费
+    //   （没有任何调用点读它、没有测试锁它），是典型的「有字段没人读」。
+    //   下面 selfCheck 的「账本实体」一行把它变成真实读侧：条目数 / 修订合计 / 未定型数。
+    function _ledgerEntityLib() {
+        return _moduleLib(() => window.LonShaLedgerEntity, 'ledger-entity.js');
+    }
+    // 六本账的（标签 + 状态 + 容器名）清单 —— 自检面的**唯一真源**，与各账的 box 名成对。
+    //   写成函数而非常量：状态字段全部是 this.*，构造期还没有值。
+    function _ledgerBooks() {
+        return [
+            { label: '约定', state: this.worldProg && this.worldProg.commitmentLedger, box: 'items' },
+            { label: '伏笔', state: this.worldProg && this.worldProg.seedLedger, box: 'items' },
+            { label: '平行', state: this.worldProg && this.worldProg.parallelLedger, box: 'items' },
+            { label: '秘密', state: this.worldProg && this.worldProg.secretLedger, box: 'items' },
+            { label: '事实', state: this._factVersionState, box: 'facts' },
+            { label: '事件', state: this._eventThreadState, box: 'events' }
+        ];
     }
     function _newSceneBook(seed) {
         const SB = _sceneBookLib();

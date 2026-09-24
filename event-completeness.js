@@ -33,6 +33,12 @@
  * ======================================================== */
 'use strict';
 (function (root) {
+  // [v3.207] 账本实体契约单一真源（ledger-entity.js）。取库双通道与 index.js 的 _moduleLib 同形：
+  //   浏览器走全局（extra_js 在入口之后加载，故在 IIFE 内**惰性**取，不能构造期缓存）、Node 走 require。
+  //   两处写法在六本账里逐字同形，便于常驻门禁按字面量扫描（tests/audit/scan_ledger_contract.mjs）。
+  const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity
+    : ((typeof module !== 'undefined' && module.exports) ? require('./ledger-entity.js') : (root.LonShaLedgerEntity || null));
+  if (!LE) throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');
   const EC_VERSION = 1;
   const MAX_EVENTS = 200;
   const MAX_SEGMENTS = 8;
@@ -44,14 +50,9 @@
   const ORIGINS = Object.freeze(['confirmed', 'stated', 'inferred', 'system']);
   const ORIGIN_TRUST = Object.freeze({ confirmed: 1, stated: 0.8, inferred: 0.3, system: 0 });
 
-  function text(v, max) {
-    const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
-    return max ? s.slice(0, max) : s;
-  }
-  function finite(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? Math.floor(n) : null;
-  }
+  // [v3.207] text / finite 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
+  const text = LE.text;
+  const finite = LE.finite;
   function originOf(o) {
     return ORIGINS.includes(o) ? o : 'stated';
   }
@@ -74,7 +75,8 @@
       segments: Array.isArray(e.segments) ? e.segments.map(copySegment).slice(-MAX_SEGMENTS) : [],
       abandoned: e.abandoned === true,
       abandonReason: text(e.abandonReason, 80),
-      revision: finite(e.revision) || 1
+      // [v3.207] 修订号读回走契约。
+      revision: LE.revisionOf(e)
     };
   }
   function clone(state) {
@@ -167,7 +169,7 @@
     if (existing) return result(state, { event: copyEvent(existing), replayed: true, created: false });
     const evt = copyEvent({
       id: text(i.id, 48) || nextId(state), title: title, actors: i.actors,
-      segments: [], revision: 0
+      segments: [], revision: LE.REVISION.CREATE
     });
     state.events.push(evt);
     return result(state, { event: copyEvent(evt), replayed: false, created: true, changed: true });
@@ -197,7 +199,7 @@
       else {
         evt = { id: text(i.id, 48) || nextId(state), title: t2,
           actors: (Array.isArray(i.actors) ? i.actors : []).map(function (x) { return text(x, 40); }).filter(Boolean).slice(0, 6),
-          segments: [], abandoned: false, abandonReason: '', revision: 0 };
+          segments: [], abandoned: false, abandonReason: '', revision: LE.REVISION.CREATE };
         state.events.push(evt);
         autoOpened = true;
       }
@@ -211,7 +213,7 @@
       }
     }
     evt.segments.push(copySegment({ role: role, text: body, floor: i.floor, source: i.source, origin: i.origin, eventKey: eventKey, at: i.at }));
-    evt.revision += 1;
+    LE.bumpRevision(evt);
     const snap = copyEvent(evt);
     return result(state, { event: snap, segment: snap.segments[snap.segments.length - 1], replayed: false, duplicated: false, autoOpened: autoOpened, changed: true, completeness: completeness(snap) });
   }
@@ -224,7 +226,7 @@
     if (evt.abandoned) return result(state, { event: copyEvent(evt), replayed: true, changed: false });
     evt.abandoned = true;
     evt.abandonReason = text(i.reason, 80);
-    evt.revision += 1;
+    LE.bumpRevision(evt);
     return result(state, { event: copyEvent(evt), replayed: false, changed: true });
   }
   /** 未完成事项名单（缺结果或后续、且未放弃）——计划点名「保留未完成事项」的直接交付物。 */
