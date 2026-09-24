@@ -5,7 +5,46 @@
 
 ---
 
-## 2026-09-24 · v3.210.0（记忆类型系统 —— 计划 L-F1）
+## 2026-09-24 · v3.211.0（事实类型从登记到注入 —— 计划 L-F1 后半）
+
+**做了什么**
+- `fact-version.js`：`REASONS` 十态（新增 `unknown-type`，与 `none` 可分、带 `unknownType` 归因）；
+  条目字段 `conflictPolicy` 落盘（旧条目读回 `auto`）；`lookup` 新增 `multiple`（带 `multi: n`、
+  `from` 升序 + `id` 字典序稳定排序）/ `ambiguous` 两态可分；撤回 `pairKeyFor`（值并入对键实测有害）。
+- `index.js`：extractionPrompt 新增 `9l. facts` 规则段与 schema 的 `facts[]` 字段；配套配置迁移
+  `v3.211-facts通道`（对面版本之前的持久化提示词真跑 fuzzy-patch，exact 命中 1 次 + 幂等 + 负控制 notfound）；
+  新增 `typedFactsBlocks()` 消费 `MT.typedBuckets` / `MT.routeForType` / `MT.policyOfType` 三个零调用出口，
+  稳定块/波动块**分开 push** 进 `buildInjection`。
+- 常驻标记三处真源同步 12 → 13（index.js `RESIDENT_MARKERS` / injection-router.js `RESIDENT_PREFIXES` /
+  cost-ledger.js `RESIDENT_FALLBACK`），波动块标记**不入**常驻表。
+- 新增 `tests/v3211_type_to_injection.test.mjs`（11 组 / 134 断言），登记进 `catalog_reference_consumers.tsv`（195 → 196 行）；
+  死代码预算无需 `--bump`（余量 122 / 上限 400）。
+- 三源版本 3.210.0 → 3.211.0。
+
+**为什么**
+- 真跑实测（不是读源码推算）：三个出口在宿主侧**零调用点**（`routeForType` / `typedBuckets` / `policyOfType`），
+  `buildInjection` 里类型系统一个字都没有 ⇒ 九类事实**从不进模型上下文**，只活在 `selfCheck` 诊断行。
+- 落笔侧第一通道读 `extracted.facts[]`，但 schema 里没有 `facts` 字段 ⇒ 该通道**真实运行中不可达**。
+- 拼错类型名返回 `{ok:true, reason:'none'}`，与「真没有」**完全同形**（查询侧的「规则错读成普通事实」）。
+- 两条 coexist 并存被读成 `ambiguous`（矛盾未决）⇒ 语义上它们是**并列**事实。
+
+**本版抓到的缺陷（都已修，都在 CHANGELOG 留痕）**
+- D1 🔴 **键名一致性**：`assertFact` 写入侧原写 `conflict`（返回体上的布尔），而 `copyFact` 已按
+  `conflictPolicy` 读回 ⇒ 策略在落盘后**丢失**、coexist 写入退回 auto、`lookup` 报 `ambiguous` 而非 `multiple`。
+  修法是让写入侧用与入参同名同义的 `conflictPolicy`，并在注释里钉住「不得叫 conflict」的理由。
+- D2 🔴 **迁移块落点错位**：facts 迁移块原被插进 summary 迁移 `if` 的 **else 分支内部**，
+  其 `_fuzzyPatchRead` 尾部成孤行。用行号手术整块（33 行）摘除并移到同级兄弟位置。
+- D3 🔴 **含花括号字面量内联破坏配平**：迁移块里内联的 JSON 锚点串让 `scan_claim_truthfulness`
+  的裸花括号配平算歪，`loadConfig` 区间被算短 ⇒ F1 误报 4 处「方法无失败出口」⇒ `v3159` 翻红。
+  修法是把锚点提到类外，方法体内只留标识符引用。
+
+**门禁结果**
+- 全量 `npm test`：**190 文件 / 1643 断言 / 0 失败文件**（含新套件）。
+- 关键审计六项全绿（module_wiring / version_guard / audit_lib_consolidation / config_liveness /
+  syntax / cross_repo_binding）；`scan_audit_lib_consolidation` 的 E1 例外表新增
+  `tests/v3211_type_to_injection.test.mjs`（同 v3210 形态：真源 stripComments + 真源 braceMatch 的串联）。
+
+（记忆类型系统 —— 计划 L-F1）
 
 **做了什么**
 - 新增 `memory-type.js`（187 行，零依赖，挂 `window.LonShaMemoryType`）：9 类型 × 6 策略注册表；

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.210.0';
+    const VERSION = '3.211.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -815,6 +815,16 @@
     //   才收敛（实测同一实例被构造 2503 次 / 37ms）。把默认值快照提到类外后，
     //   迁移只读模板、绝不再构造实例，收敛依据从「异常兜底」变回「值改对了」。
     let _configDefaultsTemplate = null;
+    // [v3.211] 迁移用锚点串（**必须放在类体外**）。
+    //   存在理由：迁移分支里若内联写一段含花括号的 JSON 字面量（如 `"x":[...]}`），
+    //   审计脚本 scan_claim_truthfulness 的 methodSpans 用裸花括号配平（见其注释：
+    //   「不用正则猜函数体」），**不会**跳过字符串里的花括号 —— 于是类方法区间被算歪：
+    //   真实翻红：loadConfig 的区间算成 1142-1248（正确为 1142-约1259），
+    //   F1「成功声称点所在方法没有任何失败出口」误报 loadConfig 4 处（catch 在区间外被切掉）。
+    //   提到类外后，方法体内只剩标识符引用，配平不受影响。
+    const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
+    const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
+    const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
     class ConfigManager {
         constructor() {
             this.config = {
@@ -879,10 +889,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
 9i. plot_arcs：本轮新建立或明确推进的长期剧情支线。新增填 {"action":"add","title":"支线标题","clue":"当前线索","interestedBy":"关注角色主名"}；本轮触碰既有支线填 {"action":"touch","title":"既有支线标题"}；明确解决填 {"action":"resolve","title":"既有支线标题","reason":"解决方式"}。没有则填空数组。不要凭空创建支线。
 9j. knowledge_changes：角色对事实的认知边界变化。角色在场外期间明确不知道某事实填 {"action":"unaware","character":"角色主名","fact":"事实"}；本轮明确获知填 {"action":"reveal","character":"角色主名","fact":"事实"}。没有则填空数组。只记录正文明确表达的认知，不根据沉默推断。
 9k. promises_resolve：本轮明确履行或违约的既有承诺。填 {"id":"承诺账本中的 prom_ 编号","status":"fulfilled|broken"}；没有则填空数组。只能处理【未竟约定与承诺】中已有的编号。
+9l. facts：可选【显式类型事实】通道——九种类型里**属于**本轮的才填。每条 {"subject":"主语（角色主名/物品名/地点名）","predicate":"简短谓词（如 所在/好感/持有/结果）","value":"取值或结果","type":"九种类型名之一"}。九个 type 逐字取：character-state（人物状态）/ relationship-state（关系状态，谓词写成「对某人的关系」）/ location-state（人物所在）/ item-state（物品状态，谓词写成「持有的物品名」）/ event-outcome（已发生事件的结果，多条只并列不互相覆盖）/ plot-thread（伏笔线索）/ player-preference（用户本人的偏好）/ world-rule（长期世界规则，锁定项）/ scene-fact（只在当下场景一时成立）。type 必须逐字用上述九个名字之一【写错这条会被拒绝入账】；拿不准类型就**整条不填**，绝不猜。宁少不滥：只填正文明确写出、且上面 9b/9c/9d/9e 等专项字段没有覆盖的事实（那些字段已有的内容不要在这里重复填一份）。没有则填空数组。
 
 11. 只输出一个 JSON 对象，不得输出解释或代码块围栏。字符串内含英文双引号时转义为 \\\"，中文引号直接用。
 【输出格式】
-{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive", "disclosure": ""}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "promises": [{"character": "承诺者主名", "content": "归还典籍", "deadlineFloor": 15}], "promises_resolve": [{"id": "prom_示例", "status": "fulfilled"}], "plot_arcs": [{"action": "add", "title": "调查异变", "clue": "湖水出现不明水怪", "interestedBy": "角色主名"}], "knowledge_changes": [{"action": "unaware", "character": "角色主名", "fact": "某事实"}],  "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null, "cse_states": [{"character": "角色名", "layer": "situational", "field": "情绪", "value": "紧张", "toward": null, "visibility": "observable"}]}`,
+{"characters": ["角色名"], "events": [{"type": "事件类型", "description": "描述", "scope": "objective", "owner": "", "importance": 5}], "relationships": [{"from": "A", "to": "B", "type": "关系", "attitude": "positive", "disclosure": ""}], "conflicts": [{"subject": "角色或事实", "versionA": "版本A", "versionB": "版本B", "note": "矛盾性质"}], "summary": "概括", "story_date": null, "pov_memories": [{"owner": "角色A", "content": "只有A知道的秘密"}], "status_changes": [{"character": "角色名", "field": "好感", "delta": 5, "value": null, "reason": "原因"}], "todos": [{"character": "角色名", "text": "待办事项", "date": "3月15日"}], "plans": [{"kind": "plan", "content": "新立下的约定或目标", "contentIsNew": true}], "promises": [{"character": "承诺者主名", "content": "归还典籍", "deadlineFloor": 15}], "promises_resolve": [{"id": "prom_示例", "status": "fulfilled"}], "plot_arcs": [{"action": "add", "title": "调查异变", "clue": "湖水出现不明水怪", "interestedBy": "角色主名"}], "knowledge_changes": [{"action": "unaware", "character": "角色主名", "fact": "某事实"}],  "plans_resolve": [{"id": "s3", "outcome": "done", "reason": "如何了结的"}], "scenes": [{"action": "add", "path": ["城市", "街区", "店铺"], "desc": "一句话描述"}], "time_advance_days": null, "items": [{"action": "add", "name": "物品名", "desc": "描述", "holder": "持有者", "state": ""}], "money_changes": [{"character": "角色名", "delta": -100, "value": null, "reason": "买了什么"}], "location": null, "cse_states": [{"character": "角色名", "layer": "situational", "field": "情绪", "value": "紧张", "toward": null, "visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}`,
                 // [v2.2] RC: plans=本轮新出现的约定/伏笔/谜团（kind: plan|suspense），plans_resolve=了结悬念簿悬项（id用悬念簿编号，outcome: done|cancelled|failed）。无则空数组。
                 // [v2.4] RE: scenes=新出现/变化地点（action add|update，path 由大到小数组）；location=本轮结束主角所在场景路径（未动填 null）；status_changes 里角色位置变化用 field:"位置"（value=场景末级名）。
                 // [v3.94] cse_states=CSE 级人物状态（自研引擎，可选）：layer: core=稳定核心人设/adaptive=逐渐适应固化/situational=当下一时状态；toward=明确指向对象（有剧情证据才填，core 层不填，A→B 不自动镜像 B→A）；visibility: observable=可观察/private=该角色私密/authorial=幕后（仅 AI 知）。无则空数组。
@@ -1211,6 +1222,41 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     } else {
                         _mig.skipped.push('v1.4.2-summary描述(' + (_mode === 'module-missing' ? '模块未加载' : '替换未命中') + ')');
                         this._fuzzyPatchRead = { site: 'config-migration', mode: _mode, total: 1, applied: 0, modes: {}, missed: ['summary描述(' + _mode + ')'], leftover: [] };
+                    }
+                }
+                // [v3.211] 迁移旧版提取提示词：补上 facts[]（显式类型事实）通道。
+                //   为什么要迁移而不只改默认值：extractionPrompt 由用户自由编辑且**持久化在配置里**，
+                //   已装用户永远拿不到新默认值。而 v3.211 的落笔侧第一通道读的正是 extracted.facts[] ——
+                //   不迁移则那条通道对老用户**永远为空**（v3.210 既有病：注释声称吃两种输入，
+                //   实际 schema 里根本没有 facts 字段，第一通道从未有输入）。
+                //   改法是**注入通道片段**（不是整段覆盖用户提示词）：保留用户的措辞与自定义，
+                //   只把输出 JSON 末尾补上 facts 数组。幂等键是 facts 片段本身（重复运行不会补两次）。
+                _mig.checks += 1;
+                if (this.config.extractionPrompt && !this.config.extractionPrompt.includes(_FACTS_PROMPT_IDEMPOTENT)) {
+                    const _beforeF = String(this.config.extractionPrompt);
+                    const _FPF = _moduleLib(() => window.LonShaFuzzyPatch, 'fuzzy-patch.js');
+                    // 锚点串提到类外（见 _FACTS_PROMPT_ANCHOR_* 处的说明）：含花括号的字面量写在
+                    //   方法体内，会被 scan_claim_truthfulness 的裸花括号配平算歪，连带方法区间错位。
+                    const _OLD_F = _FACTS_PROMPT_ANCHOR_OLD;
+                    const _NEW_F = _FACTS_PROMPT_ANCHOR_NEW;
+                    let _afterF = null, _modeF = 'module-missing';
+                    if (_FPF && typeof _FPF.applyPatch === 'function') {
+                        const _rf = _FPF.applyPatch(_beforeF, _OLD_F, _NEW_F, { normalize: this.config.config.fuzzyPatchEnabled !== false });
+                        _modeF = _rf.mode;
+                        if (_rf.ok) _afterF = _rf.text;
+                    } else {
+                        const _litF = _beforeF.replace(_OLD_F, _NEW_F);
+                        if (_litF !== _beforeF) { _afterF = _litF; _modeF = 'literal-fallback'; }
+                    }
+                    if (_afterF !== null && _afterF !== _beforeF) {
+                        this.config.extractionPrompt = _afterF;
+                        this.saveConfig();
+                        _mig.applied.push('v3.211-facts通道');
+                        this._fuzzyPatchRead = { site: 'config-migration', mode: _modeF, total: 1, applied: 1, modes: { facts通道: _modeF }, missed: [], leftover: [] };
+                        console.log(`[${PLUGIN_NAME}] ✓ 提取提示词已补 facts[] 通道 (${_modeF})`);
+                    } else {
+                        _mig.skipped.push('v3.211-facts通道(' + (_modeF === 'module-missing' ? '模块未加载' : '替换未命中') + ')');
+                        this._fuzzyPatchRead = { site: 'config-migration', mode: _modeF, total: 1, applied: 0, modes: {}, missed: ['facts通道(' + _modeF + ')'], leftover: [] };
                     }
                 }
             } catch (e) {
@@ -7645,6 +7691,19 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
 
             // ===== B. 动态易变尾部区 (Volatile Dynamic Zone) =====
+            // [v3.211] 类型化事实入注入：消费 memory-type.js 的 routeForType / typedBuckets / policyOfType。
+            //   修前实测：这三个出口在全仓**零调用点** —— 类型系统把事实分了九类、每类定了可见性与
+            //   生命周期，但注入管线里一个类型化块都没有，于是「世界规则」「事件结果」「叙事线索」
+            //   这些类型只活在 selfCheck 诊断行里，**从不进模型上下文**（功能级失效的典型）。
+            //   稳定块（permanent/long）首行是 RESIDENT_MARKERS 的 `[类型化事实·长期]` ⇒ 落常驻分区、
+            //   每轮必注；波动块（medium/short/dynamic）走触发分区、随预算裁剪。
+            //   两块**分开 push**、不合并：合成一块后要么短生命周期的场景事实被当成常驻每轮灌进去，
+            //   要么长期世界规则跟一次性的场景事实一起被裁掉（正是本仓三态纪律禁止的那种压缩）。
+            try {
+                const _tf = (typeof this.typedFactsBlocks === 'function') ? this.typedFactsBlocks() : null;
+                if (_tf && _tf.stable) blocks.push(_tf.stable);
+                if (_tf && _tf.volatile) blocks.push(_tf.volatile);
+            } catch (e) { errLog(e, 'buildInjection.typedFacts'); }
             // [v3.91] 审计修复：setGeoLocation 从 LLM geo_location 抽取并写入，getGeoLocation 被召回路径消费，
             //         但 getGeoPrompt 从未进入注入（数据空转）。位置会随剧情变化，故放动态区而非静态锚定。
             try {
@@ -7917,7 +7976,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             let full = `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
             // [v3.25] 召回类型分级 + token 预算双层（MemoryPilot + 记忆库v5）:
             // 常驻分区（role=constant，每轮必注）优先保留；触发分区按预算裁剪
-            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]', '[角色长期关系网]', '[主角当前客观状态与生活习惯]', '[近期已了结事项', '[宏观世界线·纪元史记]', '[当前剧情时间]'];
+            const RESIDENT_MARKERS = ['[前情摘要]', '[角色状态]', '[角色关系]', '[关键事件·影响当前]', '[剧情时间线]', '[卷]', '[早前剧情概括]', '[角色长期关系网]', '[主角当前客观状态与生活习惯]', '[近期已了结事项', '[宏观世界线·纪元史记]', '[当前剧情时间]', '[类型化事实·长期]'];
             // [v3.91] 审计修复：config.recallTierEnabled 此前全项目零引用（分级恒开，开关形同虚设）。
             //         关闭时不做常驻/触发分区，全部块走统一预算裁剪。
             const _tierOn = this.config.config.recallTierEnabled !== false;
@@ -10070,6 +10129,65 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (!FV || typeof FV.lookup !== 'function' || !this._factVersionState) return { ok: false, reason: 'module-unavailable' };
                 return FV.lookup(this._factVersionState, ref);
             } catch (e) { errLog(e, 'engine.lookupFact'); return { ok: false, reason: 'thrown' }; }
+        }
+        /**
+         * [v3.211] 类型化事实的**注入面**（把「登记」接到「注入」）。
+         *   修前实测：memory-type.js 的 routeForType / typedBuckets / policyOfType 三个出口
+         *   在宿主侧**零调用点** —— 类型系统把事实分了九类、每类定了策略与可见性，
+         *   但注入管线（buildInjection）里 `factVersions` / `LonShaMemoryType` 一个字都没有，
+         *   于是「世界规则」「事件结果」这些类型只活在诊断行里，**从不进模型上下文**。
+         *   本方法按 routeForType 的 stable 口径把类型事实**分成两块**：
+         *     · 稳定块（permanent / long：人物状态、关系、事件结果、玩家偏好、世界规则）
+         *       —— 每轮必注（进 RESIDENT_MARKERS 的常驻分区）；
+         *     · 波动块（medium / short / dynamic：地点、物品、线索、场景事实）
+         *       —— 走触发分区，按预算裁剪（这些值本来就「当轮才重要」）。
+         *   两块**必须分开**、不得合成一块：合成后要么短生命周期内容被当成常驻每轮灌进去，
+         *   要么长期规则跟场景事实一起被裁掉（本仓三态纪律：该可分的读数不得压成一态）。
+         *   只报**显式标注**过的类型（typedBuckets 不猜）；每型最多 MAX_TYPED_LINES 条，
+         *   防止单一类型（事件结果最容易堆积）把 MAX_FACTS 与注入预算一起吃掉。
+         * 返回 { stable, volatile }（无内容时为 ''）。不抛。
+         */
+        typedFactsBlocks() {
+            const empty = { stable: '', volatile: '' };
+            try {
+                const MT = _memoryTypeLib();
+                if (!MT || typeof MT.typedBuckets !== 'function') return empty;
+                if (!this._factVersionState) return empty;
+                const MAX_TYPED_LINES = 3;
+                const buckets = MT.typedBuckets(this._factVersionState);
+                const stableGroups = [];
+                const volatileGroups = [];
+                for (const key of Object.keys(buckets)) {
+                    const list = buckets[key];
+                    if (!Array.isArray(list) || !list.length) continue;
+                    const t = String(key).replace(/^typed:/, '');
+                    // 路由与策略都从类型系统取（**不在宿主再写一份类型清单**——那是第二份真源）。
+                    const route = (typeof MT.routeForType === 'function') ? MT.routeForType(t) : null;
+                    const info = (typeof MT.policyOfType === 'function') ? MT.policyOfType(t) : null;
+                    const group = {
+                        type: t,
+                        label: (info && info.label) ? info.label : t,
+                        lines: list.slice(-MAX_TYPED_LINES).map(f =>
+                            '- ' + String(f.subject || '') + String(f.predicate || '') + '：' + String(f.value || '')
+                            + (f.from != null ? '（第' + f.from + '楼起）' : '')),
+                    };
+                    (route && route.stable ? stableGroups : volatileGroups).push(group);
+                }
+                const render = (title, groups) => {
+                    if (!groups.length) return '';
+                    const out = [title];
+                    for (const g of groups) {
+                        out.push('〔' + g.label + '〕');
+                        out.push(...g.lines);
+                    }
+                    return out.join('\n');
+                };
+                return {
+                    // 块首行必须是 RESIDENT_MARKERS 里的标记（startsWith 判定常驻），故稳定块标题与标记逐字一致。
+                    stable: render('[类型化事实·长期]', stableGroups),
+                    volatile: render('[类型化事实·当下]', volatileGroups),
+                };
+            } catch (e) { errLog(e, 'engine.typedFactsBlocks'); return { stable: '', volatile: '' }; }
         }
     }
     

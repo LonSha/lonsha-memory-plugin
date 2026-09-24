@@ -180,8 +180,52 @@
 
   const api = Object.freeze({
     TYPES, policyOf, normalizeType, inferType, assertTyped,
-    queryByType, routeForType, policyOfType, lineByType
+    queryByType, routeForType, policyOfType, lineByType,
+    // [v3.211] 注入账侧类型校验器 + 让宿主能按分区取类型账（见下）
+    bindLedger, typedBuckets, typedLine
   });
+  /**
+   * [v3.211] 把本模块的**类型校验器**注入事实账（fact-version）。
+   *   为什么必须注入而不是让账本自己写清单：清单真源在本模块（TYPES）。
+   *   修前实测：`lookup({type:'chracter-state'})`（拼错）返回 `reason:'none'` —— 与
+   *   「账上没有该属性的事实」同形；调用方读到的结论是「没这条事实」，而不是「类型名写错了」。
+   *   注入后账本走 `typeStateOf` 三态，未识别一律 `unknown-type` 拒绝。
+   *   **幂等**：重复注入同一函数不产生副作用；返回是否注入成功（账本缺导出面即 false，不抛）。
+   */
+  function bindLedger(FV) {
+    if (!FV || typeof FV.setTypeValidator !== 'function') return false;
+    return FV.setTypeValidator(function (t) { return normalizeType(t) != null; }) === true;
+  }
+  /**
+   * [v3.211] 类型 → 注入分区键（**这是宿主该看的那一层**）。
+   *   与 routeForType 的分工：routeForType 给「这一条该按哪种可见性/稳定性注入」的单条决策；
+   *   本函数给「整本账按类型分几个桶」的聚合视图，桶键用 `typed:<type>`（与 routeForType 同口径）。
+   *   仍然**不硬编码宿主分区名** —— `typed:*` 是本模块自己的命名空间，映射到真实分区是宿主的事。
+   */
+  function typedBuckets(state, opts) {
+    const o = opts || {};
+    const out = {};
+    for (const t of Object.keys(TYPES)) out['typed:' + t] = [];
+    const facts = Array.isArray(state && state.facts) ? state.facts : [];
+    for (const f of facts) {
+      if (!o.includeRevoked && f && f.revoked === true) continue;
+      const t = policyOf(f && f.type) ? f.type : null;
+      if (!t) continue;                                   // 未标类型不进任何类型桶（**不猜**）
+      out['typed:' + t].push(f);
+    }
+    return out;
+  }
+  /** [v3.211] 诊断一行（注入面）：报「校验器是否已接上 + 几个类型桶有货」。 */
+  function typedLine(FV) {
+    const bound = !!(FV && typeof FV.setTypeValidator === 'function');
+    return bound ? '类型校验器已注入事实账' : '类型校验器未注入（账本无 setTypeValidator 导出面）';
+  }
   root.LonShaMemoryType = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // [v3.211] 加载即自注入（浏览器）：extra_js 按 manifest 顺序加载，fact-version 在前、本模块在后，
+  //   故此处 fact-version 必已挂好。注入失败**不抛**（账本不在场时仍要能用类型表本身）。
+  try {
+    const _FV = (typeof window !== 'undefined' && window.LonShaFactVersion) ? window.LonShaFactVersion : null;
+    if (_FV) bindLedger(_FV);
+  } catch (e) { /* 自注入失败不影响本模块自身可用 */ }
 })(typeof globalThis !== 'undefined' ? globalThis : window);

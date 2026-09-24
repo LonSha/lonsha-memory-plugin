@@ -1,3 +1,74 @@
+## v3.211.0
+
+**主题：事实类型从「登记」接到「注入」—— 把上一版建好的类型系统从诊断行接到模型上下文。**
+
+v3.210.0 建了 9 类型 × 6 策略的注册表、把事实账策略化，但**只到登记为止**。本版修的是
+「登记了却没人用」这一族：三个出口在宿主侧**零调用点**，一条通道在真实运行中**不可达**，
+一处错拼会让已存在的事实**静默消失**，一态把「并列事实」读成「矛盾未决」。
+
+修前实测（真跑取证，不是读源码推算）：
+
+- **A. 落笔侧「显式类型通道」是死的**：`_absorbFactVersions` 的第一通道读 `extracted.facts[]`，
+  但 extractionPrompt 的 schema 里**根本没有 facts 字段** —— 注释声称吃两种输入，通道①从未有输入。
+- **B. 注入侧三个出口零消费**：`routeForType` / `typedBuckets` / `policyOfType` 在宿主侧零调用点；
+  `buildInjection` 里 `factVersions` / `LonShaMemoryType` 一个字都没有。后果：类型系统把事实分了九类、
+  每类定了可见性与生命周期，但**从不进模型上下文**，只活在 `selfCheck` 诊断行里。
+- **C. 拼错类型名会让一条存在的事实静默消失**：`lookup(..., type:'chracter-state')`（拼错）返回
+  `{ok:true, reason:'none', facts:[]}`，与「这个主语从没有过该属性的事实」**完全同形** ——
+  正是上一版拒绝掉的那种读法（把「规则写错」读成「普通事实」）在查询侧的翻版。
+- **D. 「并列事实」被读成「矛盾未决」**：两条 coexist 的「结果=A 赢了」「结果=B 赢了」并存后，
+  现状查询拿到 `ambiguous`（无法裁决）—— 而语义上它们是两条**并列**事实，不该报未决。
+
+### 台账侧（`fact-version.js`）
+
+- `REASONS` 十态：新增 `unknown-type`；`none` 与 `unknown-type` **必须可分**
+  （前者「账上确实没有」，后者「你问错了东西」），拒绝时带 `unknownType` 归因，且不回任何事实。
+- `CONFLICT_POLICIES` 四态（`auto` / `coexist` / `prefer-new` / `forbid`）落进条目字段 `conflictPolicy`；
+  缺失或非法读回 `auto`（旧条目向后兼容）。
+- **字段名不得叫 `conflict`**：返回体已有同名布尔（本次写入是否与既有取值分歧）。
+  同名不同义会让读者拿策略名当布尔判 —— 探针实测过：写入侧仍写 `conflict` 时，
+  `copyFact` 读不回该字段，策略在落盘后**丢失**，coexist 写入退回 auto、`lookup` 报 `ambiguous` 而非 `multiple`。
+- `lookup` 新增 `multiple` / `ambiguous` **两态可分**：该类型全部取值都带多值策略时是 `multiple`（带 `multi: n`，
+  按 `from` 升序 + `id` 字典序稳定排序）；**混合写入则仍报 `ambiguous`，不许猜**。
+  诊断行 `line()` 分开报「并列 N 组（多值类型）」与「未决 N」。
+- **对键不按策略分流（曾试行「值并入对键」实测有害，已撤，勿回退）**：`pairKeyFor` 会让
+  `versionsOf` 漏掉另一条（时间线视图残缺）、依赖 `pairKey` 的一致性路径（幂等判重、换代定位、诊断）整体错位。
+  正确做法是**语义在查询侧分**：存储侧对键保持既有口径，`open` 过滤器仍是 `pairKey(s,p) === pkey && !revoked && to == null`。
+
+### 落笔侧（`index.js` 提取提示词）
+
+- extractionPrompt 新增 `9l. facts` 规则段（九个类型名逐字清单 + 「type 必须逐字用上述九个名字之一，
+  写错这条会被拒绝入账；拿不准类型就整条不填，绝不猜」+「宁少不滥：只填正文明确写出、且 9b/9c/9d/9e
+  等专项字段没有覆盖的事实」），schema 末尾补 `"facts": [{"subject", "predicate", "value", "type"}]`。
+- 配套配置迁移（`v3.211-facts通道`）：老用户的提示词是**持久化在配置里**的，光改默认值救不了他们。
+  迁移对 HEAD（v3.210）旧提示词真跑 fuzzy-patch：`exact` 命中 1 次、补后 JSON 可解析、
+  幂等键生效（补后恰好 1 次）、负控制 notfound。
+- 含花括号的锚点字面量**必须提到类外**（`_FACTS_PROMPT_ANCHOR_OLD` / `_NEW` / `_IDEMPOTENT`）：
+  内联在方法体里会让 `scan_claim_truthfulness` 的裸花括号配平算歪（它不跳字符串），
+  实测把 `loadConfig` 的区间算短、catch 被切到区间外，F1 误报「4 个成功声称点所在方法没有失败出口」。
+
+### 注入侧（`typedFactsBlocks`）
+
+- 新增 `typedFactsBlocks()`（定义于 `lookupFact` 之后），消费 `MT.typedBuckets` / `MT.routeForType` /
+  `MT.policyOfType` 三个此前零调用的出口：按 `route.stable` 把类型事实分成**两块** ——
+  稳定块首行 `[类型化事实·长期]` 进常驻分区每轮必注；波动块首行 `[类型化事实·当下]` 走触发分区随预算裁剪。
+  每型最多 `MAX_TYPED_LINES = 3` 行。`buildInjection` 拿到两块后**分开 push**（合成一块会把短生命周期内容
+  当常驻，或把长期规则裁掉 —— 后者正是本版要防的）。
+- 常驻标记三处真源同步新增 `[类型化事实·长期]`（**不含**波动块标记）：index.js `RESIDENT_MARKERS`、
+  injection-router.js `RESIDENT_PREFIXES`、cost-ledger.js `RESIDENT_FALLBACK`（12 → 13）。
+
+### 判据与门禁
+
+- 新增 `tests/v3211_type_to_injection.test.mjs`（11 组 / 134 断言），登记进 `catalog_reference_consumers.tsv`。
+  含两条**真源码破坏**负控制：把 `routeForType` 调用改成 `null` ⇒ 世界规则被误降级进波动块（判据翻红）；
+  删掉 `buildInjection` 的调用 ⇒ 注入面判据可观测失效。
+- 本版抓到的两处真缺陷（都因本轮真跑才现形，不是整洁性问题）：
+  - **键名一致性**：`assertFact` 写入侧原写 `conflict`，与读回侧 `conflictPolicy` 脱节 ⇒ 策略落盘即丢。
+  - **迁移块落点**：facts 迁移块原被误插进 summary 迁移 `if` 的 **else 分支内部**，
+    其 `_fuzzyPatchRead` 尾部成了孤行；已整块（33 行）摘除并移到同级兄弟位置。
+
+---
+
 ## v3.210.0
 
 **主题：记忆类型系统（计划 L-F1）—— 把「所有事实都当同一种东西」这件事修一次。**

@@ -237,6 +237,11 @@ const EXEMPT = {
     //   并把切出的长度映射回原文（判据要看原文的注释与格式）。
     //   即：这不是第二份实现，而是对真源两段能力的**串联**；函数体三行，无自己的花括号态机。
     'tests/v3210_memory_type.test.mjs': ['braceMatch'],
+    // [v3.211.0] 同一形态（同款理由、同一登记规范）：注入面判据要拿「本仓 index.js 里某个类方法的
+    //   完整花括号块」，而真源 braceMatch 只跳字符串、不跳注释，本仓源码注释里花括号密集，
+    //   单独用在类体上取不到段。故同样是「真源 stripComments（等长占位、偏移不变）+ 真源 braceMatch」
+    //   的串联，并把切出的长度映射回原文（判据要看原文的注释与格式）。
+    'tests/v3211_type_to_injection.test.mjs': ['braceMatch'],
 };
 const filesToScan = [];
 for (const f of fs.readdirSync(path.join(SRC, AUDIT_REL)).filter((x) => x.endsWith('.mjs'))) filesToScan.push(AUDIT_REL + '/' + f);
