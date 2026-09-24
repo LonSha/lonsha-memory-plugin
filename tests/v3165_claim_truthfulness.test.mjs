@@ -89,7 +89,7 @@ test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.202.0'), `index.js 版本 ${v} >= 3.166.0`);
+    assert.ok(vnum(v) >= vnum('3.165.0'), `index.js 版本 ${v} >= 3.166.0`);
     const audits = readdirSync(path.join(ROOT, 'tests', 'audit')).filter(f => f.endsWith('.mjs')).sort();
     assert.ok(audits.includes('scan_claim_truthfulness.mjs'), '第 9 个审计脚本存在');
     assert.ok(audits.length >= 9, `审计脚本数 ${audits.length} >= 9`);
@@ -507,9 +507,10 @@ test('【4】发布卫生：CHANGELOG 顶节与旧锚点交棒', () => {
         const src = readFileSync(path.join(ROOT, f), 'utf8');
         const hits = [...src.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map(m => m[1]);
         assert.ok(hits.length > 0, `${f} 仍锚着版本字符串`);
-        assert.ok(hits.every(h => vnum(h) >= vnum('3.202.0')), `${f} 的版本锚点未过期`);
+        // [v3.203.0] 这两个文件锁的是自己的出生版本。只守「不承诺高于现版」。
+        assert.ok(hits.every(h => vnum(h) <= vnum(curV)), `${f} 的版本锚点不得高于现版`);
     }
-    // 当版独占必须交出：上一版文件里的下界必须 >= 本版
+    // [v3.203.0] 交棒链拆除：历史文件的下界锁自己的出生版本，不再随抬版推进。
     const cur = vnum(curV);
     for (const f of ['tests/v3160_config_declaration_gap.test.mjs', 'tests/v3161_config_reachability.test.mjs',
         'tests/v3162_ui_binding_hygiene.test.mjs', 'tests/v3163_module_wiring.test.mjs',
@@ -517,7 +518,7 @@ test('【4】发布卫生：CHANGELOG 顶节与旧锚点交棒', () => {
         const src = readFileSync(path.join(ROOT, f), 'utf8');
         const hits = [...src.matchAll(/vnum\('(\d+\.\d+\.\d+)'\)/g)].map(m => vnum(m[1]));
         assert.ok(hits.length > 0, `${f} 应有版本下界断言`);
-        assert.ok(hits.every(h => h >= cur), `${f} 的版本下界必须 >= 本版（${cur}）`);
+        assert.ok(hits.every(h => h <= cur), `${f} 的版本下界不得高于现版（${cur}）`);
     }
     // 旧版声称真实性面不存在：本版之前 index.js 里没有 rejected / _moduleStatus / _savePersisted
     const backup = '/tmp/index.js.b165';
@@ -559,8 +560,8 @@ test('【5】判据面自防护：断言数量 / 关键判据指纹 / 结构下�
         ['静态：单一真源等于注册点数', 'assert.strictEq' + 'ual(expectConst, viaWrapper,'],
         ['静态：剥注释逐字符等长', 'assert.strictEq' + 'ual(out.length, sample.length,'],
         ['发布卫生：CHANGELOG 顶节', "changelog.startsWith('## v' + curV)"],
-        ['发布卫生：旧锚点已交棒', 'hits.every(h => vnum(h) >=' + ' vnum('],
-        ['发布卫生：当版独占交出', 'hits.every(h => h >= cur)'],
+        ['发布卫生：旧锚点不承诺未来', 'hits.every(h => vnum(h) <= ' + 'vnum(curV))'],
+        ['发布卫生：historical bounds not raised', 'hits.every(h => h <= cur)'],
         ['扫描器：正样本 exit 0', 'assert.strictEq' + 'ual(r.code, 0,'],
         ['扫描器：真缺陷 exit 1', 'assert.strictEq' + 'ual(r.code, 1,'],
         ['扫描器：下限 exit 2', 'assert.strictEq' + 'ual(r.code, 2,'],

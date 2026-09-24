@@ -117,7 +117,7 @@ test('v3200【0】版本 / manifest / package ≥ 3.200.0', () => {
   const pkg = JSON.parse(read('package.json'));
   const manifest = JSON.parse(read('manifest.json'));
   const v = /const VERSION = '([^']+)'/.exec(IDX)[1];
-  assert.ok(vnum(v) >= vnum('3.201.0'), `index.js 版本 ${v} < 3.200.0`);
-  assert.ok(vnum(manifest.version) >= vnum('3.201.0'), `manifest ${manifest.version} < 3.200.0`);
-  assert.ok(vnum(pkg.version) >= vnum('3.201.0'), `package ${pkg.version} < 3.200.0`);
+  assert.ok(vnum(v) >= vnum('3.200.0'), `index.js 版本 ${v} < 3.200.0`);
+  assert.ok(vnum(manifest.version) >= vnum('3.200.0'), `manifest ${manifest.version} < 3.200.0`);
+  assert.ok(vnum(pkg.version) >= vnum('3.200.0'), `package ${pkg.version} < 3.200.0`);
 });

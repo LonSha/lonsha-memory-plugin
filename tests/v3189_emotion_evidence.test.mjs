@@ -93,8 +93,11 @@ test('v3189 9. 版本三源同源', () => {
   const src = readFileSync(new URL('index.js', root), 'utf8');
   const manifest = JSON.parse(readFileSync(new URL('manifest.json', root), 'utf8'));
   const pkg = JSON.parse(readFileSync(new URL('package.json', root), 'utf8'));
+  // [v3.203.0] 硬等号交本版接管。三源互等保留；下界锁回本测试所属版本。
   const v = /const VERSION = '([^']+)'/.exec(src)[1];
-  assert.equal(v, '3.202.0');
   assert.equal(manifest.version, v);
   assert.equal(pkg.version, v);
+  const parts = String(v).split('.').map((n) => Number(n) || 0);
+  assert.ok(parts[0] > 3 || (parts[0] === 3 && (parts[1] > 189 || (parts[1] === 189 && parts[2] >= 0))),
+    '版本 ' + v + ' >= 3.189.0');
 });

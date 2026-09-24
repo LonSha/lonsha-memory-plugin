@@ -4,6 +4,11 @@ import fs from 'node:fs';
 
 const src = fs.readFileSync('index.js', 'utf8');
 
+function vnum(s) {
+    const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
+    return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
+}
+
 function braceEnd(str, openBraceIdx) {
     let depth = 0;
     for (let i = openBraceIdx; i < str.length; i++) {
@@ -40,7 +45,11 @@ function extractClass(name) {
 }
 
 test('【v3.147.0】结构与契约基线断言', () => {
-  assert.ok(src.includes("const VERSION = '3.202.0';"), '版本号为 3.186.0');
+  // [v3.203.0] 不再把当前版本号写死在 includes 里。
+  // 此处只守声明存在且不低于本测试所属版本。
+  const vm = /const VERSION = '([0-9.]+)'/.exec(src);
+  assert.ok(vm, '版本声明存在');
+  assert.ok(vnum(vm[1]) >= vnum('3.147.0'), '版本号 ' + vm[1] + ' >= 3.147.0');
   assert.ok(src.includes('_credCooldowns = new Map()'), '存在 _credCooldowns 冷却表');
   assert.ok(src.includes('clearApiCooldowns'), '存在 clearApiCooldowns 方法');
   assert.ok(src.includes('getApiCooldownStats'), '存在 getApiCooldownStats 方法');

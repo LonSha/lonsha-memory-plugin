@@ -8,6 +8,11 @@ const src = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
+function vnum(s) {
+    const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
+    return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
+}
+
 function extractMethod(name) {
     const marker = `${name}(`;
     const start = src.indexOf(marker);
@@ -22,11 +27,13 @@ function extractMethod(name) {
 }
 
 test('v3.117 版本三处同步', () => {
+    // [v3.203.0] 硬等号交本版接管。此处只守「三源互等 + 不低于本测试所属版本」，
+    // 否则每次抬版都要回来改这三个字面量。
     const m = /const VERSION = '([^']+)'/.exec(src);
     assert.ok(m);
-    assert.equal(m[1], '3.202.0');
-    assert.equal(manifest.version, '3.202.0');
-    assert.equal(pkg.version, '3.202.0');
+    assert.equal(m[1], manifest.version);
+    assert.equal(manifest.version, pkg.version);
+    assert.ok(vnum(m[1]) >= vnum('3.117.0'), 'index.js 版本 ' + m[1] + ' >= 3.117.0');
 });
 
 test('错误记录器不会递归调用自身', () => {

@@ -546,11 +546,14 @@ test('A6 读侧与写侧必须共用同一套字段上限（唯一真源）', ()
 // G. 发布卫生
 // ============================================================
 test('G1 版本四处同步', () => {
+    // [v3.203.0] 硬等号交本版接管。四处互等保留；下界锁回本测试所属版本。
     const v = idx.match(/const VERSION = '([\d.]+)'/)[1];
-    assert.equal(v, '3.202.0');
     assert.equal(JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf-8')).version, v);
     assert.equal(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version, v);
     assert.ok(readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf-8').startsWith('## v' + v));
+    const parts = String(v).split('.').map((n) => Number(n) || 0);
+    assert.ok(parts[0] > 3 || (parts[0] === 3 && (parts[1] > 169 || (parts[1] === 169 && parts[2] >= 0))),
+        '版本 ' + v + ' >= 3.169.0');
 });
 
 test('G2 CHANGELOG 必须记录本版主题与两项不变量', () => {

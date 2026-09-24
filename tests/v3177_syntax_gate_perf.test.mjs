@@ -206,7 +206,7 @@ try {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     assert.equal(v, manifest.version);
     assert.equal(v, pkg.version);
-    assert.ok(vnum(v) >= vnum('3.179.0'), `版本 ${v} 不得低于 3.179.0`);
+    assert.ok(vnum(v) >= vnum('3.177.0'), `版本 ${v} 不得低于 3.179.0`);
   });
 } finally {
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* 清理失败不影响结论 */ }

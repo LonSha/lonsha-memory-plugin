@@ -96,8 +96,8 @@ function withTmp(name, fn) {
 /* ---------- 0 ---------- */
 test('【0】版本与审计脚本注册', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
-    assert.ok(vnum(v) >= vnum('3.202.0'), `index.js 版本 ${v} < 3.165.0`);
-    assert.ok(vnum(manifest.version) >= vnum('3.202.0'), `manifest ${manifest.version} < 3.165.0`);
+    assert.ok(vnum(v) >= vnum('3.163.0'), `index.js 版本 ${v} < 3.165.0`);
+    assert.ok(vnum(manifest.version) >= vnum('3.163.0'), `manifest ${manifest.version} < 3.165.0`);
     const audits = readdirSync(path.join(HERE, 'audit')).filter(f => f.endsWith('.mjs')).sort();
     assert.ok(audits.length >= 7, `审计脚本应 >= 7 个，实际 ${audits.length}`);
     assert.ok(audits.includes('scan_module_wiring.mjs'), 'scan_module_wiring.mjs 未注册进审计目录');

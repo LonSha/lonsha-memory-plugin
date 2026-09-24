@@ -2,18 +2,9 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.202.0
-
-## T1 版本守卫硬编码（反复咬人）
-至少 9 个历史测试把上一版版本号写进**断言期望值**（不是 `vnum()` 滚动下界）：
-`v3117_diagnostics` / `v3130_control_plane` / `v3147_cooldown_and_dual_hash` /
-`v3169_ledger_selfreport` / `v3189_emotion_evidence` / `v3190_lifecycle_collapse` /
-`v3193_recall_quality_and_cost` / `v3194_time_and_fact_version` /
-`v3201_summary_reltime_and_diag_ledger`。
-每次抬版都要人工批量替换（v3.202.0 实测替换 21 处，漏一处即门禁翻红）。
-**怎么知道它还没修**：`grep -rn "'3\.202\.0'" tests/` 仍能命中非本版专属文件。
-方向：统一改成「三源互等 + 不低于本版」的滚动口径（v3186 测试 21 / v3201 测试 18 已是该口径的样板），
-或加一个审计脚本把硬编码版本号列为红灯。
+> 最近更新：v3.203.0
+> 本版销账：T1 版本守卫硬编码 —— 拆掉「历史测试锁当前版」的抬版仪式（9 处硬等号 + 21 处下界），
+> 改由 `tests/audit/scan_version_guard.mjs`（V1–V5）守门；详见 CHANGELOG v3.203.0。
 
 ## T2 并行跑假红（基线即存在）
 `node tests/run.mjs` 并行执行时，`v348`~`v360` 等 8 个文件报红，

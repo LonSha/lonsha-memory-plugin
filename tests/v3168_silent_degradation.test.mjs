@@ -372,7 +372,7 @@ test('v3.168 G 版本四处同步 + 顶节是本版', () => {
     assert.equal(manifest.version, curV, 'manifest 同版');
     assert.equal(pkg.version, curV, 'package 同版');
     assert.ok(changelog.startsWith('## v' + curV), 'CHANGELOG 顶节须是本版');
-    assert.ok(vnum(curV) >= vnum('3.179.0'), '本版不得低于 3.168.0');
+    assert.ok(vnum(curV) >= vnum('3.168.0'), '本版不得低于 3.168.0');
 });
 
 test('v3.168 G CHANGELOG 须说清本版主线与承接关系', () => {
@@ -387,18 +387,21 @@ test('v3.168 G 旧锚点已交棒（不得停在上一版字符串上）', () =>
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map(m => m[1]);
         assert.ok(hits.length > 0, f + ' 仍应锚着版本字符串');
-        assert.ok(hits.every(h => vnum(h) >= cur), f + ' 的锚点未交棒（' + hits.join(',') + '）');
+        // [v3.203.0] 这三个文件锁的是自己的出生版本。只守「不承诺高于现版」。
+        assert.ok(hits.every(h => vnum(h) <= cur), f + ' 的锚点不得高于现版（' + hits.join(',') + '）');
     }
 });
 
-test('v3.168 G 当版独占交出：上一版文件的下界必须 >= 本版', () => {
+test('v3.168 G 历史文件的下界不得高于现版（交棒链已拆除）', () => {
+    // [v3.203.0] 旧判据要求这些文件的下界「已升到现版」，即每次发版都要人工改一遍。
+    //   现在它们锁自己的出生版本；此处只守「不承诺未来」。
     for (const f of ['v3160_config_declaration_gap', 'v3161_config_reachability', 'v3162_ui_binding_hygiene',
         'v3163_module_wiring', 'v3164_event_lifecycle', 'v3165_claim_truthfulness',
         'v3166_config_migration_write_ledger', 'v3167_cse_capacity_identity']) {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf8');
         const hits = [...t.matchAll(/vnum\('(\d+[.]\d+[.]\d+)'\)/g)].map(m => vnum(m[1]));
         assert.ok(hits.length > 0, f + ' 应有版本下界断言');
-        assert.ok(hits.every(h => h >= cur), f + ' 的版本下界落后于现版 ' + curV);
+        assert.ok(hits.every(h => h <= cur), f + ' 的版本下界高于现版 ' + curV);
     }
 });
 

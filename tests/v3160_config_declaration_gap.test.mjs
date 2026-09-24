@@ -148,7 +148,7 @@ test('[4] version is synced across the declaration sites', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
-    assert.ok(vnum(v) >= vnum('3.202.0'), 'index.js version ' + v + ' >= 3.160.0');
+    assert.ok(vnum(v) >= vnum('3.160.0'), 'index.js version ' + v + ' >= 3.160.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
     const top = changelog.split('\n').filter((l) => l.startsWith('## v'))
         .map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
@@ -159,7 +159,10 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.202.0')), f + ' anchors are not stale');
+        // [v3.203.0] 这三个文件锁的是自己的出生版本，不再跟着当前版抬。
+        // 此处只守「仍在锚、且不承诺高于现版的未来」；「不得用硬等号锁当前版」交给审计脚本。
+        const cur = vnum(/const VERSION = '([0-9.]+)'/.exec(src)[1]);
+        assert.ok(hits.every((h) => vnum(h) <= cur), f + ' anchors must not promise a future version');
         assert.ok(!t.includes("'3.159.0'"), f + ' dropped its pre-takeover anchor');
     }
 });
@@ -168,7 +171,10 @@ test('[4c] v3159 gave up its own-release exclusivity', () => {
     // 交出的是「三处旧锚点恰好等于本版字符串」这条硬断言，代之以版本无关的下界。
     assert.ok(!t.includes("assert.ok(t117.includes(\"'3."), 'the pinned per-file anchor block is gone');
     assert.ok(t.includes('已交新版接管'), 'the handover is documented in place');
-    assert.ok(/vnum\(h\) >=\s*vnum\('3\.159\.0'\)/.test(t), 'replaced by a version-agnostic lower bound');
+    // [v3.203.0] v3159 [3b] 进一步收口：由「下界 >= 3.159.0」改为版本无关的「不承诺未来」，
+    //   指纹随之更新（旧形态 `vnum(h) >= vnum('3.159.0')` 已不存在）。
+    assert.ok(/vnum\(h\) <= cur/.test(t), 'replaced by a version-agnostic non-promise check');
+    assert.ok(!/vnum\(h\) >=\s*vnum\(/.test(t), 'the old lower-bound form is gone');
 });
 test('[4d] the changelog section documents this release', () => {
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');

@@ -239,6 +239,8 @@ test('[4] version is synced across the declaration sites', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
+    // [v3.203.0] 交棒链拆除后，本文件锁自己的出生版本，不随抬版上抬。
+    assert.ok(vnum(v) >= vnum('3.162.0'), 'index.js version ' + v + ' >= 3.162.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
     const top = changelog.split('\n').filter((l) => l.startsWith('## v'))
         .map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
@@ -249,7 +251,9 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.202.0')), f + ' anchors are not stale');
+        // [v3.203.0] 同上：只守「不承诺高于现版」，不再要求锚点跟着当前版抬。
+        const cur = vnum(/const VERSION = '([0-9.]+)'/.exec(src)[1]);
+        assert.ok(hits.every((h) => vnum(h) <= cur), f + ' anchors must not promise a future version');
     }
 });
 test('[4c] v3159 no longer hardcodes its audit-script list', () => {
@@ -267,16 +271,14 @@ test('[4c] v3159 no longer hardcodes its audit-script list', () => {
 test('[4d] v3160 and v3161 gave up their own-release exclusivity', () => {
     for (const f of ['v3160_config_declaration_gap', 'v3161_config_reachability']) {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
-        // [v3.163] 判据改为**动态**：这些文件里的版本下界必须随 index.js 现版推进，
-        //   不得停在它们自己的发行版号上。写死任何字面量的正则都不得行——
-        //   上一版改成 `!/vnum\('3[.](160|161)[.]0'\)/` 只覆盖了两个版本，
-        //   下一版接管后下界就会变成那个新版本号，这条正则便形同虚设（false-green）；
-        //   我一度改成 `3[.]\d+[.]0`，又会把**合法的**当版下界一并误杀。
+        // [v3.203.0] 交棒链拆除：历史文件的下界锁自己的出生版本，**不再**随抬版推进。
+        //   （旧判据要求「下界必须已升到现版」——那正是每次发版要人工改 21 处的根因。）
+        //   现在只守版本无关的不变量：仍有下界、且不承诺高于现版。
         const v = /const VERSION = '([0-9.]+)'/.exec(readFileSync(path.join(ROOT, 'index.js'), 'utf-8'))[1];
         const bounds = [...t.matchAll(/vnum\('(3[.][0-9]+[.][0-9]+)'\)/g)].map((m) => m[1]);
         assert.ok(bounds.length > 0, f + ' still anchors a lower bound');
-        const stale = bounds.filter((b) => vnum(b) < vnum(v));
-        assert.deepStrictEqual(stale, [], f + ' 的下界已落后于现版 ' + v + '：' + JSON.stringify(stale));
+        const ahead = bounds.filter((b) => vnum(b) > vnum(v));
+        assert.deepStrictEqual(ahead, [], f + ' 的下界不得高于现版 ' + v + '：' + JSON.stringify(ahead));
     }
 });
 test('[4e] the changelog section documents this release', () => {

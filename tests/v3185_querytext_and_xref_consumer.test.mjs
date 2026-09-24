@@ -179,16 +179,19 @@ test('v3185 18. 版本四处同源且 CHANGELOG 顶节是本版', () => {
     assert.strictEqual(v, pkg.version, 'package.json 须跟随 index.js');
     assert.ok(changelog.startsWith('## v' + v), 'CHANGELOG 顶节须为本版');
 });
-test('v3185 19. 链条起点（v3117/v3130/v3147）仍锚着不低于上一版的字符串', () => {
+test('v3185 19. 链条起点（v3117/v3130/v3147）仍锚着版本字符串，且不承诺未来', () => {
+    // [v3.203.0] 旧判据要求锚点「不低于上一版」，即每隔几版就要人工上抬。
+    //   现在它们只锁自己的出生版本；此处守版本无关的不变量。
+    const cur = vnum(/const VERSION = '([0-9.]+)'/.exec(src)[1]);
     for (const f of ['v3117_diagnostics', 'v3130_control_plane', 'v3147_cooldown_and_dual_hash']) {
         const t = readFileSync(ROOT + 'tests/' + f + '.test.mjs', 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' 仍须锚着版本字符串');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.184.0')), f + ' 的锚点不得过期');
+        assert.ok(hits.every((h) => vnum(h) <= cur), f + ' 的锚点不得高于现版');
     }
 });
-test('v3185 20. 当版独占交出：上一批 frontier 下界必须已升到本版', () => {
-    // 判据是**动态**的（不写死 3.185.0）：下一版接管时它自动要求更高的下界。
+test('v3185 20. 历史 frontier 的下界不得高于现版（交棒链已拆除）', () => {
+    // [v3.203.0] 旧判据要求这些下界「已升到本版」，即每次发版都要人工改一遍。
     const curV = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     const cur = vnum(curV);
     const frontier = ['v3160_config_declaration_gap', 'v3161_config_reachability', 'v3162_ui_binding_hygiene',
@@ -199,7 +202,7 @@ test('v3185 20. 当版独占交出：上一批 frontier 下界必须已升到本
         const t = readFileSync(ROOT + 'tests/' + f + '.test.mjs', 'utf-8');
         const hits = [...t.matchAll(/vnum\('(\d+[.]\d+[.]\d+)'\)/g)].map((m) => vnum(m[1]));
         assert.ok(hits.length > 0, f + ' 应有版本下界断言');
-        assert.ok(hits.every((h) => h >= cur), f + ' 的版本下界落后于现版（' + hits.join(',') + ' < ' + cur + '）');
+        assert.ok(hits.every((h) => h <= cur), f + ' 的版本下界高于现版（' + hits.join(',') + ' > ' + cur + '）');
     }
 });
 test('v3185 21. 本版 test 文件自身进了 tests/ 目录（发布面可见）', () => {
@@ -224,7 +227,7 @@ test('v3185 22. 判据面自防护：断言数与关键指纹不得缩水', () =
         ['坏字面量零出现', "src.split('intentRerank(merged, queryText);')"],
         ['提权位置', 'assert.ok(iBoost < iRerank'],
         ['默认关', 'crosslinkRecallBoost:'],
-        ['交棒链', 'assert.ok(hits.every((h) => h >= cur)'],
+        ['交棒链', 'assert.ok(hits.every((h) => h <= cur)'],
     ];
     for (const [label, needle] of fp) {
         assert.ok(self.includes(needle), '关键指纹缺失：' + label);

@@ -172,6 +172,8 @@ test('[4] version is synced across the declaration sites', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.strictEqual(v, manifest.version, 'manifest follows index.js');
     assert.strictEqual(v, pkg.version, 'package follows index.js');
+    // [v3.203.0] 交棒链拆除后，本文件锁自己的出生版本，不随抬版上抬。
+    assert.ok(vnum(v) >= vnum('3.161.0'), 'index.js version ' + v + ' >= 3.161.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
     const top = changelog.split('\n').filter((l) => l.startsWith('## v'))
         .map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
@@ -182,15 +184,18 @@ test('[4b] old anchors were taken over, not dropped', () => {
         const t = readFileSync(path.join(ROOT, 'tests', f + '.test.mjs'), 'utf-8');
         const hits = [...t.matchAll(/'(3[.][0-9]+[.][0-9]+)'/g)].map((m) => m[1]);
         assert.ok(hits.length > 0, f + ' still anchors a version string');
-        assert.ok(hits.every((h) => vnum(h) >= vnum('3.202.0')), f + ' anchors are not stale');
+        // [v3.203.0] 同上：只守「不承诺高于现版」，不再要求锚点跟着当前版抬。
+        const cur = vnum(/const VERSION = '([0-9.]+)'/.exec(src)[1]);
+        assert.ok(hits.every((h) => vnum(h) <= cur), f + ' anchors must not promise a future version');
     }
 });
 test('[4c] v3160 checks anchors as a lower bound, not as an equality', () => {
     // [4b] 那种「恰好等于本版字符串」的写法会让测试在下一版接管的瞬间翻红。
     //   v3160 从一开始就写成了下界形式，此处把它钉住，防止后来者改回去。
     const t = readFileSync(path.join(ROOT, 'tests/v3160_config_declaration_gap.test.mjs'), 'utf-8');
-    assert.ok(/vnum\(h\) >=\s*vnum\('3[.][0-9]+[.][0-9]+'\)/.test(t),
-        'the anchor check is a version-agnostic lower bound');
+    // [v3.203.0] v3160 的锚点判据已从「下界」改为「不承诺未来」，此处跟着更新指纹。
+    assert.ok(/vnum\(h\) <= cur/.test(t),
+        'the anchor check no longer promises a future version');
     assert.ok(!/assert[.]equal\([^,]+,\s*'3[.][0-9]+[.][0-9]+'\)/.test(t),
         'no equality pinning to its own release number');
 });

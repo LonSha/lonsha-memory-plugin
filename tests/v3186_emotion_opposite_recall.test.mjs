@@ -253,17 +253,18 @@ test('v3186 21. 版本三源同源，且不低于本版', () => {
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     assert.equal(v, mf.version, 'manifest 必须跟随 index.js');
     assert.equal(v, pkg.version, 'package.json 必须跟随 index.js');
-    assert.ok(vnum(v) >= vnum('3.201.0'), '版本 ' + v + ' 须 >= 3.186.0');
+    assert.ok(vnum(v) >= vnum('3.186.0'), '版本 ' + v + ' 须 >= 3.186.0');
 });
 test('v3186 22. CHANGELOG 顶节为本版，且记录了本版的关键取舍现场', () => {
     const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
     assert.ok(top, 'CHANGELOG 必须有序节');
-    assert.ok(vnum(top.replace('v', '')) >= vnum('3.201.0'), '顶节 ' + top + ' 须 >= v3.186.0');
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.186.0'), '顶节 ' + top + ' 须 >= v3.186.0');
     assert.ok(/情绪反向/.test(changelog), '须记录情绪反向召回本体');
     assert.ok(/只取机制/.test(changelog), '须记录「只取机制、不取注入口径」这一取舍');
     assert.ok(/既有更强实现|更强/.test(changelog), '须记录「点选三项里两项本仓已有更强实现」这一据实修正');
 });
-test('v3186 23. 当版独占交出：frontier 集合的滚动下界必须已升到本版', () => {
+test('v3186 23. 历史 frontier 的下界不得高于现版（交棒链已拆除）', () => {
+    // [v3.203.0] 旧判据要求这些下界「恰好等于本版」，即每次发版都要人工改一遍。
     const curV = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     const cur = vnum(curV);
     const frontier = ['v3160_config_declaration_gap', 'v3161_config_reachability', 'v3162_ui_binding_hygiene',
@@ -274,9 +275,7 @@ test('v3186 23. 当版独占交出：frontier 集合的滚动下界必须已升�
         const t = readFileSync(ROOT + 'tests/' + f + '.test.mjs', 'utf-8');
         const hits = [...t.matchAll(/vnum\('(\d+[.]\d+[.]\d+)'\)/g)].map((m) => vnum(m[1]));
         assert.ok(hits.length > 0, f + ' 仍须锚着版本字符串');
-        // 滚动下界必须是**恰好本版**：低于本版会被上版独占契约抓住，高于本版则说明本版没交棒。
         assert.ok(hits.every((h) => h <= cur), f + ' 的滚动下界不得高于当前版本（否则本版越界承诺未来）');
-        assert.ok(hits.some((h) => h === cur), f + ' 的滚动下界必须已升到 ' + curV + '（当版独占交出）');
     }
 });
 test('v3186 24. 审计基建在场：正控 + 负控两个脚本', () => {

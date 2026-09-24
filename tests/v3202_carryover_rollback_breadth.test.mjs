@@ -430,15 +430,19 @@ test('v3202 18. 负控覆盖四判据：P1/P2/P3/P4 各有一组专测，且两�
 });
 
 /* ══════════════ 4. 发布卫生 ══════════════ */
-test('v3202 19. 版本四源同源且为本版', () => {
+test('v3202 19. 版本四源同源且不低于本测试所属版本', () => {
+    // [v3.203.0] 硬等号交本版接管：三源互等保留，下界锁回自己的出生版本 3.202.0。
     const v = /const VERSION = '([0-9.]+)'/.exec(raw)[1];
-    assert.equal(v, '3.202.0', 'index.js 版本');
     assert.equal(mf.version, v, 'manifest 跟随');
     assert.equal(pkg.version, v, 'package 跟随');
+    assert.ok(vnum(v) >= vnum('3.202.0'), 'index.js 版本 ' + v + ' >= 3.202.0');
 });
 
-test('v3202 20. CHANGELOG 顶节为本版且记录三方向', () => {
-    assert.ok(changelog.startsWith('## v3.202.0'), '顶节须为本版：' + changelog.slice(0, 40));
+test('v3202 20. CHANGELOG 顶节不低于本版，且记录三方向', () => {
+    // [v3.203.0] 同上：下一版把新节加在顶上，本版记录仍须在文件中可查。
+    const top = (changelog.match(/^## (v[0-9.]+)/m) || [])[1];
+    assert.ok(top, 'CHANGELOG 必须有序节');
+    assert.ok(vnum(top.replace('v', '')) >= vnum('3.202.0'), '顶节 ' + top + ' 须不低于本版');
     assert.ok(/回滚面|FLOOR_OWNERS/.test(changelog), 'D1 须记录');
     assert.ok(/携带面|CARRYOVER_CONTRACT_KEYS/.test(changelog), 'D2 须记录');
     assert.ok(/豁免/.test(changelog), 'D2 的显式豁免须记录');

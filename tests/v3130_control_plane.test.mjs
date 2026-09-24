@@ -9,6 +9,11 @@ import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 
+function vnum(s) {
+    const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
+    return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
+}
+
 function extractBraced(marker) {
     const start = src.indexOf(marker);
     assert.ok(start >= 0, `${marker} 存在`);
@@ -95,10 +100,11 @@ test('v3.136 设置面板导出/导入收口单真源', () => {
 });
 
 test('v3.130 版本三处同步', () => {
+    // [v3.203.0] 硬等号交本版接管。此处只守三源互等 + 不低于本测试所属版本。
     const m = /const VERSION = '([^']+)'/.exec(src);
-    assert.equal(m[1], '3.202.0');
     const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    assert.equal(manifest.version, '3.202.0');
-    assert.equal(pkg.version, '3.202.0');
+    assert.equal(m[1], manifest.version);
+    assert.equal(manifest.version, pkg.version);
+    assert.ok(vnum(m[1]) >= vnum('3.130.0'), 'index.js 版本 ' + m[1] + ' >= 3.130.0');
 });

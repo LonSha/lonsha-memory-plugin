@@ -282,9 +282,12 @@ test('v3193 19. 成本账本已接线：模块登记 + 宿主真消费 + 诊断�
 test('v3193 20. 三源同源，且不低于本版', () => {
   const v = /const VERSION = '([0-9.]+)'/.exec(raw)[1];
   const pkg = JSON.parse(readFileSync(ROOT + 'package.json', 'utf-8'));
-  assert.equal(v, '3.202.0', 'index.js 版本号为 3.193.0');
-  assert.equal(manifest.version, '3.202.0', 'manifest 跟随 index.js');
-  assert.equal(pkg.version, '3.202.0', 'package 跟随 index.js');
+  // [v3.203.0] 硬等号交本版接管。三源互等保留；下界锁回本测试所属版本。
+  assert.equal(v, manifest.version, 'manifest 跟随 index.js');
+  assert.equal(manifest.version, pkg.version, 'package 跟随 index.js');
+  const parts = String(v).split('.').map((n) => Number(n) || 0);
+  assert.ok(parts[0] > 3 || (parts[0] === 3 && (parts[1] > 193 || (parts[1] === 193 && parts[2] >= 0))),
+    '版本 ' + v + ' >= 3.193.0');
 });
 test('v3193 21. 本版 test 文件自身进了 tests/ 目录', () => {
   const self = readFileSync(new URL(import.meta.url), 'utf-8');
