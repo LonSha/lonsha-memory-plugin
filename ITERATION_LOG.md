@@ -5,7 +5,59 @@
 
 ---
 
-## 2026-09-24 · v3.204.0（门禁去本机化 —— 拆掉 36 个绝对路径 + 退役 17 个死兄弟树测试）
+## 2026-09-24 · v3.209.0（迁移、恢复与运行时兼容性收口 —— M-P2 后半）
+
+**做了什么**
+- 新增 `schema-migration.js`（200 行，零依赖）+ `module-registry.js`（137 行，零依赖），并登记进 `manifest.extra_js`（58 → 60）。
+- `index.js` 四处接线：取库失败登记表（`_moduleFailures` / `_noteModuleFailure` / `_moduleFailureSnapshot`）、
+  两个取库口（`_schemaMigrationLib` / `_moduleRegistryLib`）、`restoreFromPayload` 的**旧档方向**、`selfCheck` 两行。
+- 新增 `tests/v3209_migration_registry.test.mjs`（480 行，14 组 / 175 断言），登记进
+  `catalog_reference_consumers.tsv`（193 → 194 行）；预算 `--bump`（ceiling 33870 → 34331，实测 33931 + 400）。
+- 三源版本 3.208.0 → 3.209.0（`index.js` VERSION / `manifest.json` / `package.json`）。
+
+**为什么**
+- 修前实测：`restoreFromPayload` 对 `schemaVersion` **只处理一个方向**（`_sv > 当前` 才报警），
+  「存档比插件旧」完全无人处理 —— 旧档被逐字段塞进新运行时，而全仓**零迁移函数**（59 个根模块里
+  `migrat` 只命中 14 处且全属「检查/上报」）。计划 M-P2「数据迁移与恢复能力」点名的就是这个。
+- 探针实测（`/tmp/probe209a.mjs`）：`_moduleLib` 把一个**存在但语法错**的模块吞成与「没这个文件」
+  **完全同形**的 `null`；6 个账本模块真依赖 `ledger-entity.js`，顺序正确但**没有任何判据守着**
+  （探针 209b 把 `ledger-entity.js` 挪末位，抛错模块 5 → 7）。计划 M-P2「脚本加载与运行时兼容性收口」点名的就是这个。
+
+**本版抓到的三处真缺陷（都已修，都在 CHANGELOG 留痕）**
+- D1 `orderCheck` 对「依赖表里出现不在清单中的使用方」返回 `ok:true`（探针实测）。
+- D2 `plan()` 的 `no-payload` 分支被 `absent` 遮蔽（不可达），非对象载荷被误诊成「旧载荷」。
+- D3 `_moduleLib` 里 `_noteModuleFailure(...)` 未判可达 → 在「登记者不可达」的环境（`tests/v3173`【C1】
+  用 `new Function` 单独重放该函数）抛 `ReferenceError`，**降级当场变崩溃** —— 恰好违反它自己上一行注释的纪律。
+- D4 `tests/v3209` 自己的末尾汇总用裸 `console.log`（用例异步跑、该行同步执行）⇒ **恒打印「通过 0 / 失败 0」**；
+  由「175 断言」与打印值不符核对出来，改为 `process.on('exit', …)`，并加组 14 扫全目录。
+- D5 同款死读数在 `tests/v3208`（**上一版留下的既有缺陷**），被组 14 的扫描一跑就点出来，一并修正。
+
+**自伤（留痕）**
+- 首版 `line()` 把 `unknown` 的两类成因压成同一个读数（冒烟 22/23 当场抓到）。
+- 迁移块首版写在 `const dry` 声明之前 ⇒ TDZ `ReferenceError` 被外层 `catch` 吞成日志（静默不生效）；
+  **首次「修正」只改了注释、没搬位置**，本版实测复现后才真正搬移。
+- 同一搬移里补丁切点落在 `catch` 行内部，把 `errLog(...)` 劈成 `errL` / `og`，而 **`node --check` 返回 0**。
+  教训：语法通过不等于没被劈开；切段一律按行 + 每步断言行内容。
+- 套件自调试四处口径错误（`schemaOf([])` 应为 `absent` 非 `no-payload`、探针数组当读数串、
+  折叠阈值只有单向断言、留痕注释被 `catch` 判据当活代码扫成假红）+ 主动删掉一条自己留下的恒真假断言。
+- D3 的修法又引出一次审计翻红：内层空 `catch` 把 `scan_claim_truthfulness` 的「真正空白 catch」从 14 顶到 15。
+  **没有放宽上限**（那是把棘轮拆掉），而是按该扫描的原意补「为什么吞」的注释。
+- 首次 `dead_code_budget --bump` 的 `note` 里把 `schema-migration.js` 写成「189 行」（实为 200），
+  重跑 `--bump` 按真测值改正 —— 写文档时的行数一律现测。
+
+**影响范围**
+- `index.js` 的 `_moduleLib` 行为**不变**（失败仍返回 `null`，只是不再丢证据）；
+  `restoreFromPayload` **默认不改数据结构**（须 `opts.migrate === true`），既有调用方行为不变。
+- `manifest.extra_js` 尾部多两项；`dead_code_budget` 上界随活跃量上抬。
+
+**门禁结果**（真跑落盘：`/tmp/last.log`、`/tmp/lasta.log`、最终确认 `/tmp/fin.log`、`/tmp/fina.log`）
+- `npm test`（全量）：**188 文件 / 1638 断言 / 0 失败 / EXIT 0**（最终确认 69.3s）。
+- `node tests/run.mjs --audit`：**42/42 审计脚本通过 / EXIT 0**（最终确认 23.1s）。
+- `v3209`：15 组 / 183 断言 / 0 失败（534 行）；`scan_syntax` 314 文件可解析；
+  `scan_module_wiring` 61/61 真加载、已挂载未消费 0；`scan_claim_truthfulness` 真正空白 catch 14（上限 14）；
+  `scan_cross_repo_binding` 在役 188 / 问题 0；`scan_version_guard` 当前 3.209.0 / 问题 0；
+  `dead_code_budget` ceiling 33870 → **34336**（实测 33936）。
+- 首跑曾 18 文件红：17 个是「CHANGELOG 顶节须为本版」（当时还没写），1 个是真缺陷 D3；两者处理后复跑全绿。
 
 **做了什么**
 - 36 个文件的本仓绝对路径（`/home/user/lonsha-memory-plugin/…`，共 60 处）→ `REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))`，语义等价、位置无关。

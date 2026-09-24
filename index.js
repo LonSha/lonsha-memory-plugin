@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.208.0';
+    const VERSION = '3.209.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -44,9 +44,52 @@
             if (viaGlobal) return viaGlobal;
         } catch (e) { /* 读全局失败按未取到处理，继续回落 */ }
         if (typeof require !== 'undefined') {
-            try { return require('./' + fileName); } catch (e) { return null; }
+            try { return require('./' + fileName); } catch (e) {
+                // [v3.209.0] 缺席归因（修前实测的静默吞错）：
+                //   此处原为 `catch (e) { return null; }` —— 于是「无此文件」「文件在但语法错」
+                //   「全局名写错」三种根因**完全同形**，调用方一律降级为兜底实现，诊断面只能报
+                //   「模块未加载」，排查必须手工 require 一遍才知道是哪种。
+                //   现在把错误收进登记表（不抛、不改调用方契约：仍返回 null），由诊断面点名根因。
+                //   为什么不在取库口抛：取库是热路径且各调用点自有降级逻辑，抛会把降级变成崩溃；
+                //   归因的责任交给 module-registry，取库口只负责**不丢证据**。
+                //   ★ 登记调用自身必须**判可达 + 自兜**（本版自伤留痕）：首版直接写
+                //   `_noteModuleFailure(fileName, e);`，结果在「登记者不可达」的环境里
+                //   （v3173·C1 把本函数抽出来用 new Function 单独重放）抛 ReferenceError——
+                //   **降级当场变成崩溃**，恰好违反本条注释上一句的纪律，被该套件当场抓住。
+                //   「登记的失败不得成为新的失败」：故外层判函数存在、内层 try 兜住。
+                try { if (typeof _noteModuleFailure === 'function') _noteModuleFailure(fileName, e); } catch (_) { /* 登记本身失败就作罢：不记、也不抛——取库口的契约是「失败返回 null」，登记是附带的 */ }
+                return null;
+            }
         }
         return null;
+    }
+    // [v3.209.0] 模块取库失败登记（供「模块加载」诊断行点名根因）。
+    //   刻意用 Map 而非数组：同一轮里同一模块可能被取多次，只记首次根因（后续覆盖无信息量）。
+    let _moduleFailures = null;
+    function _noteModuleFailure(fileName, err) {
+        try {
+            if (!_moduleFailures) _moduleFailures = new Map();
+            const k = String(fileName || '(未命名)');
+            if (!_moduleFailures.has(k)) _moduleFailures.set(k, String((err && err.message) || err || 'unknown'));
+        } catch (e) { /* 登记失败不得影响取库路径 */ }
+    }
+    function _moduleFailureSnapshot() {
+        try {
+            if (!_moduleFailures) return [];
+            return [..._moduleFailures.entries()].map(([file, error]) => ({ file, error }));
+        } catch (e) { return []; }
+    }
+
+    // [v3.209.0] 结构迁移（schema-migration.js）取库口。与 _costLedgerLib 同形（全局优先 + require 回落）。
+    //   为什么必须有这一面：v3.209 侦察实测 restoreFromPayload 对 schemaVersion **只处理一个方向**
+    //   （`if (_sv > ARCHIVE_SCHEMA_VERSION)` 才报警）——「存档比插件旧」完全无人处理。
+    //   本取库口让「旧档要走哪几步、有没有路径」变成可判读数。
+    function _schemaMigrationLib() {
+        return _moduleLib(() => window.LonShaSchemaMigration, 'schema-migration.js');
+    }
+    // [v3.209.0] 模块加载登记表（module-registry.js）取库口。
+    function _moduleRegistryLib() {
+        return _moduleLib(() => window.LonShaModuleRegistry, 'module-registry.js');
     }
     // [v3.184] 行级变更集（changeset.js，移植 nocturne ChangesetStore 的行级 before/after 累积）。
     //   为什么需要：本仓三种「回看改了什么」的设施**都没有前后值**——
@@ -9054,6 +9097,38 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.ledgerEntity'); return ['账本实体', '—（诊断异常）'];
                         }
                     })(),
+                    // [v3.209.0] 结构迁移：回答「导入的这个档是什么代际、要不要走迁移、有没有路径」。
+                    //   三态可分：模块未加载 / 尚未导入（无留档）/ 有留档（按 verdict 自述 + 步骤）。
+                    //   真源是恢复现场留档（那时才有真载荷可算），**不在此处合成载荷重算**。
+                    (() => {
+                        try {
+                            const SM = _schemaMigrationLib();
+                            if (!SM || typeof SM.plan !== 'function') return ['结构迁移', '模块未加载（schema-migration.js）'];
+                            const m = this._lastSchemaMigration;
+                            if (!m) return ['结构迁移', '待导入（尚无恢复记录 · 注册 ' + SM.MIGRATIONS.length + ' 条）'];
+                            const steps = Array.isArray(m.steps) && m.steps.length ? ' · 步骤 ' + m.steps.join('→') : '';
+                            const extra = m.needsAction ? '（需授权迁移）' : (m.applied ? '（已迁 ' + m.applied + ' 步）' : '');
+                            const warn = (m.verdict === 'unknown' || m.verdict === 'too-new') ? ' ⚠️' : '';
+                            return ['结构迁移', '载荷 v' + (m.from === null ? '无代际' : m.from) + ' → 目标 v' + m.to + ' · ' + m.verdict + steps + extra + warn];
+                        } catch (e) { errLog(e, 'selfCheck.schemaMigration'); return ['结构迁移', '—（诊断异常）'];
+                        }
+                    })(),
+                    // [v3.209.0] 模块加载归因：回答「本会话取库失败过哪些模块、根因是什么」。
+                    //   读 engine 侧登记表 —— **唯一能区分**「无此文件 / 文件在但坏了 / 全局名写错」的地方
+                    //   （取库口把三者压成同一个 null，这正是本版修掉的静默吞错）。
+                    //   三态可分：模块未加载 / 本会话零失败（登记表为空 = 查过、没有）/ 有失败（点名 + 根因）。
+                    //   刻意不在此比对 extra_js 清单：那是 scan_module_wiring 的静态面，重复会造第二真源。
+                    (() => {
+                        try {
+                            const MR = _moduleRegistryLib();
+                            if (!MR || typeof MR.probe !== 'function') return ['模块加载', '模块未加载（module-registry.js）'];
+                            const fails = _moduleFailureSnapshot();
+                            if (!fails.length) return ['模块加载', '本会话取库 0 次失败（登记表空）'];
+                            const rs = fails.map((f) => MR.probe({ attempted: true, file: f.file, error: new Error(f.error) }));
+                            return ['模块加载', MR.line(rs) + ' ⚠️'];
+                        } catch (e) { errLog(e, 'selfCheck.moduleRegistry'); return ['模块加载', '—（诊断异常）'];
+                        }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -9506,9 +9581,61 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (_sv > ARCHIVE_SCHEMA_VERSION) {
                 res.schemaWarning = `存档结构版本 ${_sv} 新于当前 ${ARCHIVE_SCHEMA_VERSION}（可能丢失未知字段语义）`;
             }
+            const dry = opts.dryRun === true;   // [v3.142] CP: 两阶段恢复——先预检（不写运行时），再落盘
+            // [v3.209.0] 结构迁移面（缺口的**另一个方向**）。
+            //   修前实测：此前只有上面那一条 `_sv > 当前` 的分支 —— 「存档比插件**旧**」
+            //   完全无人处理，旧档被逐字段塞进新运行时（缺字段静默缺失、语义变化静默沿用）。
+            //   结构代际一旦升到 2，旧档会以「看起来恢复成功」的姿态落盘，实际语义错位。
+            //   位置纪律（本版两度踩坑、二次才真修对）：块内引用 `const dry`，
+            //   故**必须**落在 `dry` 声明之后 —— 写在之前 TDZ 会抛 ReferenceError，
+            //   外层 try/catch 把它吞成一句 errLog，症状是「迁移面静默不生效」（不报错、不生效）。
+            //   首版即写在前面，首次「修正」只改了本注释的文字、没搬位置（自伤留痕）；
+            //   本版实测复现（`else if (!dry)` 先于声明）后才真正搬移。
+            try {
+                const _SM = _schemaMigrationLib();
+                if (_SM && typeof _SM.plan === 'function') {
+                    const _mp = _SM.plan(data, ARCHIVE_SCHEMA_VERSION);
+                    res.migration = { verdict: _mp.verdict, from: _mp.from, to: _mp.to, steps: _mp.steps.map((s) => s.id), why: _mp.why };
+                    // [v3.209.0] 一行读数**在恢复现场就地算**：此处 data 还是真载荷，
+                    //   `line()` 的消费点因此有真源。刻意不在 selfCheck 里合成 `{schemaVersion: from}`
+                    //   重算 —— 合成载荷会把「载荷无代际」与「代际不可解析」两类成因抹平，
+                    //   而这两类处置完全不同（前者要人工确认结构，后者要修字段）。
+                    res.migration.line = _SM.line(data, ARCHIVE_SCHEMA_VERSION);
+                    if (_mp.verdict === 'plan') {
+                        if (opts.migrate === true && typeof _SM.run === 'function') {
+                            const _mr = _SM.run(data, { target: ARCHIVE_SCHEMA_VERSION, apply: true, plan: _mp });
+                            res.migration.applied = _mr.applied;
+                            res.migration.ok = _mr.ok;
+                            res.migration.why = _mr.why;
+                            // 迁移后的载荷继续走同一条恢复管线（单真源：不为迁移另开一条导入路径）
+                            if (_mr.ok && _mr.payload) {
+                                data = _mr.payload;
+                                res.migrated = true;
+                            } else {
+                                // 迁移失败：**不继续恢复**（半套结构比不恢复更危险），把快照留给调用方决定
+                                res.migration.snapshotAvailable = !!_mr.snapshot;
+                                res.ok = false;
+                                res.failed.push({ key: 'schemaMigration', error: _mr.why });
+                                return res;
+                            }
+                        } else if (!dry) {
+                            // 真实恢复但未授权迁移：必须让调用方看见「这个档是旧结构、需要迁移」
+                            res.migration.needsAction = true;
+                        }
+                    }
+                } else {
+                    // 模块缺席**不伪装成「无需迁移」**：留 null + 诊断面报未加载
+                    res.migration = null;
+                }
+            } catch (e) { errLog(e, 'restoreFromPayload.schemaMigration'); res.migration = { verdict: 'unknown', why: '迁移面异常：' + String(e?.message || e) }; }
+            // [v3.209.0] 留档最后一次**结构代际**迁移读数：selfCheck「结构迁移」行的真源。
+            //   命名纪律：刻意不叫 _lastMigrationReport —— 那个名字已被 v3.166 的**配置迁移**
+            //   台账占用（ConfigManager.loadConfig 填充，回答「这次启动迁了哪些配置键」）。
+            //   同名必须同义：配置键迁移与存档结构代际迁移是两件事，不得共用一个名字。
+            //   模块缺席或载荷不可判时存 null（**不编默认值**：「没查过」与「查过没问题」必须可分）。
+            this._lastSchemaMigration = res.migration ? Object.assign({ at: Date.now() }, res.migration) : null;
             // [v3.140] CP: 装载来源版本随恢复结果上报（v3.138 的 _dataVersion 字段判旧改道后只写不读，已删）
             res.loadedProducer = (typeof data.producerVersion === 'string' || typeof data.version === 'string') ? String(data.producerVersion || data.version) : null;
-            const dry = opts.dryRun === true;   // [v3.142] CP: 两阶段恢复——先预检（不写运行时），再落盘
             // [v3.146] CP 原子提交边界：真实恢复前抓一份「改前全量快照」（collectExport 与
             // restoreFromPayload 是同一套契约键的对称原语，不另建快照系统）。仅在调用方
             // 显式 opts.snapshot 且开关开启时抓取。storage.load 刻意不抓：其失败回滚目标是「上一聊天

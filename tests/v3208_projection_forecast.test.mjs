@@ -438,5 +438,10 @@ test('v3208 9. manifest 声明 + 判据面自防护', () => {
     ok('断言 ' + asserts + ' 条 / ' + lines + ' 行，指纹齐全，manifest 声明正确');
 });
 
-console.log('\n[v3.208 投影管线 + 成本预测] 通过 ' + pass + ' / 失败 ' + fail);
-if (fail > 0) process.exitCode = 1;
+// [v3.209.0 修正] 此处原为裸 `console.log(...)` —— 顶层同步执行、而 node:test 的用例是异步跑的，
+//   于是**恒打印「通过 0 / 失败 0」**：退出码是对的，但这行人类可见的汇总与「一行都没跑」同形。
+//   它是本版主题的镜像（该可分的读数被压成一态），由本版新增的同款扫描（tests/v3209 组 14）抓到。
+process.on('exit', () => {
+    console.log('\n[v3.208 投影管线 + 成本预测] 通过 ' + pass + ' / 失败 ' + fail);
+    if (fail > 0) process.exitCode = 1;
+});
