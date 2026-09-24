@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.207.0';
+    const VERSION = '3.208.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7264,13 +7264,80 @@ function relativeTimeLabel(eventTime, nowTime) {
         readWorldLedger(opts = {}) {
             try {
                 if (!this.clock || typeof this.clock.readWorldLedger !== 'function') return null;
+                // [v3.208.0] 本地投影改走**声明式管线**（projection-pipeline.js）：
+                //   两个投影进登记表，三者一次收齐读数（ok / 源空 / 缺 + 原因）。
+                //   为什么非改不可：手工两次调用时「漏接了一个投影」与「那个投影本轮为空」
+                //   在读数上完全同形——下游 diffPeople 于是把「查不出来」当成「两边一致」。
+                const pipe = this._runProjections();
                 return this.clock.readWorldLedger(null, {
                     reason: opts.reason || 'host-ledger',
                     win: opts.win,
                     localPeople: this._localPeopleLocations(),
-                    localFacts: this._localFactKeys()
+                    localFacts: this._localFactKeys(),
+                    // 管线读数随 opts 下传（纯读数，对读面可忽略；诊断面/测试用它归因）
+                    projection: pipe
                 });
             } catch (e) { errLog(e, 'plugin.readWorldLedger'); return null; }
+        }
+        /**
+         * [v3.208.0] 跑一次投影管线（声明式登记 + 三态读数 + 缺席原因）。
+         * 提供器只负责「怎么取值」，登记表负责「有哪些投影、服务哪个对读面、空值形状」。
+         * 管线缺席（模块未加载）时返回 null —— 不伪造成「投影全空」，两者处置相反。
+         */
+        _runProjections(opts = {}) {
+            try {
+                const P = _projectionLib();
+                if (!P || typeof P.runPipeline !== 'function') { this._lastProjection = null; return null; }
+                const pipe = P.runPipeline({
+                    peopleLocations: () => this._localPeopleLocations(),
+                    factKeys: () => this._localFactKeys(),
+                    characterNames: () => {
+                        const chars = (this.status && this.status.characters && typeof this.status.characters === 'object')
+                            ? this.status.characters : null;
+                        return chars ? Object.keys(chars) : [];
+                    },
+                    clockDay: () => {
+                        // 本插件侧剧情日（世界钟对读的另一半）。取不到返回 null ⇒ 记 empty（源明确说「没有」），
+                        // 不是 absent —— 因为「时钟接了但今天没记」与「时钟压根没接」处置不同。
+                        const c = this.clock;
+                        if (!c || typeof c.export !== 'function') return null;
+                        const ex = c.export() || {};
+                        const day = (ex.day !== undefined && ex.day !== null) ? ex.day : (ex.storyDay || null);
+                        return (day === undefined) ? null : day;
+                    },
+                    promiseKeys: () => {
+                        const wp = (this.worldProg && typeof this.worldProg.export === 'function') ? this.worldProg.export() : null;
+                        const out = [];
+                        if (wp && Array.isArray(wp.promises)) {
+                            for (const p of wp.promises) {
+                                const t = String((p && (p.title || p.key || p.id)) || '').trim();
+                                if (t) out.push(t.slice(0, 40));
+                            }
+                        }
+                        if (wp && wp.seedLedger && Array.isArray(wp.seedLedger.items)) {
+                            for (const it of wp.seedLedger.items) {
+                                const t = String((it && (it.hook || it.eventKey)) || '').trim();
+                                if (t) out.push(t.slice(0, 40));
+                            }
+                        }
+                        return out;
+                    },
+                    knowledgeOwners: () => {
+                        const chars = (this.charMem && typeof this.charMem.export === 'function') ? this.charMem.export() : null;
+                        if (!chars || typeof chars !== 'object') return {};
+                        const out = {};
+                        for (const name of Object.keys(chars)) {
+                            const rec = chars[name];
+                            const known = (rec && Array.isArray(rec.knows)) ? rec.knows
+                                : ((rec && Array.isArray(rec.facts)) ? rec.facts : []);
+                            if (known.length) out[name] = known.map((x) => String(x && (x.key || x.text || x) || '').slice(0, 40)).filter(Boolean);
+                        }
+                        return out;
+                    },
+                }, { nowProvider: () => Date.now() });
+                this._lastProjection = pipe;
+                return pipe;
+            } catch (e) { errLog(e, 'plugin._runProjections'); this._lastProjection = null; return null; }
         }
         buildBridgeSnapshot() {
             try {
@@ -7828,6 +7895,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                     decayFloors: this.config.config.adaptiveBudgetDecayFloors,
                 });
             } else {
+                // [v3.208.0] 与 injection-router.deriveBudget **逐项对齐**（此前不等价，实测 1152 组里 58 组分歧）：
+                //   · 缺 `Math.max(200, Math.floor(base))` ⇒ base<200 时内联不做 200 地板（100 vs 200）；
+                //   · 缺 `Math.floor` ⇒ 非整数 base 内联不取整（3000.7 vs 3000）。
+                //   同一事实两份真源，且**预测侧走的是模块**（cost-forecast 复用 deriveBudget）——
+                //   不修就会导致「模块在时预测 200、模块不在时真跑 100」这类只在降级路径上出现的漂移。
+                //   等价性由 tests/v3208 的 parity 用例枚举断言守住（漂移即红）。
+                budget = Math.max(200, Math.floor(Number(budget) || 0));
                 if (tokenBudget > 0) budget = Math.max(200, Math.min(budget, Math.floor(tokenBudget * 10 / 9)));  // [v3.133] CJK 口径（≈1.11 字符/token，与 estimateTextTokens 逆变换一致）
                 if (reserve > 0) budget = Math.max(200, budget - Math.floor(reserve * 10 / 9));
                 // [v3.50] 第三层：上下文感知自适应——聊天楼层少（上下文占用低）时自动扩容预算（早期多喂记忆加速建立世界感），
@@ -7946,6 +8020,40 @@ function relativeTimeLabel(eventTime, nowTime) {
                     this._lastCostLedger = null;
                     this._lastBudgetStats.ledger = null;
                 }
+                // [v3.208.0] 成本**预测** + 预测/实测对账。
+                //   预测用的是与真路径**同一批纯函数**（injection-router 的 deriveBudget/trimToBudget），
+                //   故「预测值」不是近似公式，而是「同样输入下真路径会算出什么」的复算——
+                //   两者一旦漂移，说明真路径被改了而预测没跟上（或反之），对账会当场报 drift。
+                try {
+                    const _CF = _costForecastLib();
+                    if (_CF && typeof _CF.forecast === 'function') {
+                        this._lastForecast = _CF.forecast({
+                            allBlocks: _allB,
+                            residentMarkers: RESIDENT_MARKERS,
+                            baseBudget: this.config.config.injectionBudget || 3000,
+                            tokenBudget: tokenBudget,
+                            reserve: reserve,
+                            chatLength: _chatLen,
+                            adaptive: this.config.config.adaptiveBudget,
+                            decayFloors: this.config.config.adaptiveBudgetDecayFloors,
+                            strategy: keepCount,
+                            router: _ir,
+                            promotedSnippets: this._emoOppositeSnippets || {},
+                            tokensOf: estimateTextTokens,
+                            now: this._lastBudgetStats.ts,
+                        });
+                        this._lastReconcile = (typeof _CF.reconcile === 'function')
+                            ? _CF.reconcile(this._lastForecast, this._lastCostLedger)
+                            : null;
+                        this._lastBudgetStats.forecast = this._lastForecast;
+                        this._lastBudgetStats.reconcile = this._lastReconcile;
+                        this._lastBudgetStats.forecastLine = (_CF.forecastLine ? _CF.forecastLine(this._lastForecast) : '');
+                    } else {
+                        this._lastForecast = null; this._lastReconcile = null;
+                        this._lastBudgetStats.forecast = null;
+                        this._lastBudgetStats.reconcile = null;
+                    }
+                } catch (e) { errLog(e, 'buildInjection.成本预测'); }
             } catch (e) { errLog(e, 'buildInjection.预算实测'); }
             return full;
         }
@@ -8697,6 +8805,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['世界账本', (line || '已读') + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.worldLedger'); return ['世界账本', '—（诊断异常）']; }
                     })(),
+                    // [v3.208.0] 本地投影管线体检面：回答「这一轮我给了推演侧几个投影、漏接了几个」。
+                    //   三态必须可分：模块未加载 / 尚未跑过 / 有读数（缺席才列 id 与原因）。
+                    //   为什么这行非有不可：缺席此前不可观测——「漏接一个投影」与「那个投影本轮为空」
+                    //   在旧读数上完全同形，对读于是把「查不出来」当成「两边一致」。
+                    (() => {
+                        try {
+                            const P = _projectionLib();
+                            if (!P || typeof P.pipelineLine !== 'function') return ['投影管线', '模块未加载（projection-pipeline.js）'];
+                            const pg = this._lastProjection;
+                            if (!pg) return ['投影管线', '待本轮（尚未收集）'];
+                            const line = P.pipelineLine(pg);
+                            const miss = (typeof P.absentList === 'function') ? P.absentList(pg) : [];
+                            const bad = (pg.identity && pg.identity.ok === false) || miss.length > 0;
+                            // 缺席**点名**（不只是报个数）：漏接了哪个、为什么，一眼看到。
+                            const detail = miss.length ? ('｜缺 ' + miss.map((m) => m.id + '(' + m.reason + ')').join('、')) : '';
+                            return ['投影管线', line + detail + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.projectionPipeline'); return ['投影管线', '—（诊断异常）']; }
+                    })(),
                     // [v3.180] 楼层真源落笔面：覆盖度是**现算**读数（不入快照存盘），把「哪些楼还没落笔」
                     //   连同失效原因一并念出来。口径：模块未加载如实报（不装成「无缺口」）；无缺口安静；
                     //   有缺口标 ⚠️——「有缺陷时告警、没缺陷时安静」与前述各行同规格。
@@ -8857,6 +8983,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = lg.identity && lg.identity.ok === false;
                             return ['注入成本', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.costLedger'); return ['注入成本', '—（诊断异常）']; }
+                    })(),
+                    // [v3.208.0] 成本**预测**体检面：回答「这一轮预计注入多少、有没有按预期走」。
+                    //   与上一行的分工是**时态**：上行事后（已注入的），这行事前（本该注入的）+对账。
+                    //   三态可分：模块未加载 / 尚未预测 / 有预测（drift 或不可测才标 ⚠️）。
+                    //   ⚠️ 的三义必须区分（否则「测不了」会被读成「一致」）：
+                    //     · not-measurable —— 预测或实测任一侧缺料，**不得**降级成「一致」
+                    //     · drift          —— 逐项偏差，且 why 里点名是哪个量偏了多少
+                    (() => {
+                        try {
+                            const CF = _costForecastLib();
+                            if (!CF || typeof CF.forecastLine !== 'function') return ['成本预测', '模块未加载（cost-forecast.js）'];
+                            const fc = this._lastForecast;
+                            if (!fc) return ['成本预测', '待本轮（尚未预测）'];
+                            const line = CF.forecastLine(fc);
+                            const rc = this._lastReconcile;
+                            const note = rc ? (rc.verdict === 'match' ? '｜对账一致'
+                                : (rc.verdict === 'drift' ? '｜对账漂移：' + rc.why : '｜对账不可测：' + rc.why)) : '｜对账未做';
+                            const bad = !!(rc && rc.verdict !== 'match');
+                            return ['成本预测', line + note + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.costForecast'); return ['成本预测', '—（诊断异常）']; }
                     })(),
                     // [v3.194] 时间与事实版本：回答「同一格事实账上有几个版本、多少已闭合、多少只是推测」。
                     //   三态可分：模块未加载 / 尚无事实 / 有账（含未决冲突 ⚠️）。
@@ -9793,6 +9939,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   两个量级差十倍的来源混在一个数字里，调预算只能猜。
     function _costLedgerLib() {
         return _moduleLib(() => window.LonShaCostLedger, 'cost-ledger.js');
+    }
+    // [v3.208.0] 成本**预测**（cost-forecast.js）。与 cost-ledger 的分工是**时态**：
+    //   ledger 是事后账（读已拼好的注入文本反推归属），forecast 是事前算（用同一批纯函数
+    //   复算「这一轮会发生什么」）。为什么必须有事前那一半：用户把 injectionBudget 从 3000
+    //   改到 1800、楼层涨到 120 楼——账本只能等他改完再看一轮，「改配置之前能不能知道」无人回答。
+    //   并给 reconcile 做「预测 vs 实测」对账：预算行为变了不该只靠感觉发现。
+    function _costForecastLib() {
+        return _moduleLib(() => window.LonShaCostForecast, 'cost-forecast.js');
+    }
+    // [v3.208.0] 投影管线（projection-pipeline.js）。为什么需要：
+    //   v3.176 的本地投影只有两次手工调用（人物位置 / 事实键），加一个投影就要再改一遍宿主
+    //   函数体，且「加没加」无从判定；更糟的是缺席不可归因（收集失败与「源里本就没有」同形，
+    //   都返回 {}，下游对读于是把「查不出来」当成「两边一致」）。
+    //   现改为声明式登记表 + 三态读数（ok/empty/absent）+ 缺席原因。
+    function _projectionLib() {
+        return _moduleLib(() => window.LonShaProjectionPipeline, 'projection-pipeline.js');
     }
     // [v3.194] 时间与事实版本（fact-version.js）。为什么需要：
     //   本仓能记「事实」的四处（ConflictBook / DeltaBook / lockedFacts / age-anchor）

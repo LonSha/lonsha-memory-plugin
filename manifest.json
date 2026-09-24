@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.207.0",
+  "version": "3.208.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -66,7 +66,9 @@
     "event-completeness.js",
     "repair-loop.js",
     "recall-echo.js",
-    "echo-ledger.js"
+    "echo-ledger.js",
+    "cost-forecast.js",
+    "projection-pipeline.js"
   ],
   "extra_css": [
     "lonsha-design.css",

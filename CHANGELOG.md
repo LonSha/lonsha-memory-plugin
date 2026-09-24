@@ -1,3 +1,110 @@
+## v3.208.0
+
+**主题：投影管线 + 成本预测（M-P2）—— 把「漏接了没」与「改配置之前会怎样」从不可答变成可答。**
+
+两块彼此独立的面，但毛病同源：**缺席不可见**。
+
+- **投影面**：「本插件侧账本 → 世界账本对读」只有两次**手工调用**（v3.176 的
+  `_localPeopleLocations()` / `_localFactKeys()`），而 WorldAxis 对外有 12 条面。
+  通路只通了两根线，且漏接一根时读数与「那根本轮为空」**完全同形**。
+- **成本面**：v3.193 的 `cost-ledger.js` 是**事后账**——读已拼好的注入文本反推归属，
+  全文件 `forecast` / `predict` 相关键计数为 **0**。它答不了「把 `injectionBudget` 从
+  3000 改到 1800 会怎样」「楼层涨到 120 楼还剩多少」：**预期不在系统里**。
+
+### 侦察：三处结构性缺口（不是抽样，是逐点核对）
+
+| 面 | 缺口 | 后果 |
+|---|---|---|
+| 投影 | 加一个投影要改宿主函数体 | 扩展成本与风险都落在 913KB 的 `index.js` 里 |
+| 投影 | 「加没加」无从判定 | 零调用 = 静默缺席 |
+| 投影 | 缺席不可归因（收集失败与源为空都返回 `{}`） | 下游 `diffPeople` 把「查不出来」当成「两边一致」 |
+| 成本 | 只有事后账 | 「改配置之前能不能知道」无人回答 |
+| 成本 | 无预测/实测对账 | 预算行为变了只能靠感觉发现 |
+
+### 投影管线（`projection-pipeline.js`，202 行，零依赖，挂 `window.LonShaProjectionPipeline`）
+
+声明式 `PROJECTIONS` 登记表（6 项，每项 `{id, face, empty, why}`），宿主只提供「怎么取值」：
+
+`peopleLocations` / `factKeys` / `characterNames` / `clockDay` / `promiseKeys` / `knowledgeOwners`
+
+三态读数 `stateOf`，三态必须两两可分：
+
+- `value` —— 取到了且非空（`0` 是合法标量值，**不得**当空）
+- `empty` —— 源**明确说没有**（`{}` / `[]` / `null`）
+- `absent` —— 压根没取到，且**带原因**：`no-provider` / `thrown: <msg>` / `skipped-by-config`
+
+`identity` 自洽断言（`declared` = 三态 + skipped 恰盖满登记表）；`faceValues(pipeline, face)`
+按 face 归拢且**只搬 `value`**，保持对读面契约不变；`pipelineLine` **必须报出缺席数**——
+只报「有 N 项」会把缺席藏掉，那是把三态压成一态。
+
+### 成本预测（`cost-forecast.js`，255 行，挂 `window.LonShaCostForecast`）
+
+`forecast(opts)` **复用真路径同一批纯函数**（`injection-router` 的 `deriveBudget` /
+`trimToBudget`）做复算，不另写近似公式：预测值 = 「同样输入下真路径会算出什么」。
+不可测三态 `no-router` / `derive-threw` / `trim-threw` 一律 `measurable:false` + `why`，
+**不编 0**。`empty:true` 与「预测为 0」可分；`oppositeInjected` 无可匹配片段时写 ``
+而非 `0`。
+`reconcile(fc, ledger)` 三态 `match` / `drift` / `not-measurable`，drift 必须**点名是哪个量偏了多少**，
+且 `not-measurable` **不得降级为 `match`**（「测不了」被读成「一致」是本仓最忌的假绿）。
+
+### 顺带修掉一个真缺陷：两条预算路径不等价
+
+探针枚举实测（12 × 8 × 6 × 6 × 2 × 2 = **1152 组**）：`index.js` 内联回落预算路径与
+`injection-router.deriveBudget` **58 组分歧**（20 种独立形态）：
+
+- `base < 200` 时内联缺 `Math.max(200, …)` 地板（100 vs 200）
+- 非整数 `base` 时内联缺 `Math.floor`（3000.7 vs 3000）
+
+因**预测侧走的是模块**，不修就会产生「模块在时预测 200、模块不在时真跑 100」这类
+只在降级路径出现的漂移。修法：内联补地板与取整，并写注释说明两处守卫。
+等价性不再靠文本断言守，改为 **真源码枚举 parity**（见测试套件 8e）。
+
+### 本版两处「我自己的误判」（都留痕）
+
+1. **同名不同义导致假 drift**：模块级冒烟首跑 C 组对账假报偏 +11。根因是我把
+   `dropped.chars`（被丢弃的**块字符数之和**）拿去对账本 `totals.droppedChars`
+   （裁剪前全文 − 注入，**含 NOTE / END / 分隔符**）——两者根本不等价。
+   修法：预测侧新增等价口径 `overBudgetChars = full.length - projected.length`
+   与 `preTrimChars = full.length`，对账只用等价量。这是「**同名必须同义**」纪律的又一处实证。
+2. **判据按猜的文本形态写**：`tests/v3208` 首跑 2 组红，逐条定位后全部是判据问题、不是实现问题：
+   - 组 3 把源空数写成 `1`（实为 `2`：`{}` 与 `[]` 各一），又额外断言了读数里**并不存在**的
+     「有 N」字样（取值数由 `0/6` 表达）；两处都是「我没先读实现就写判据」。
+   - 组 8e 锚了一个我猜的收尾 token，窗口设 900 字符，而内联段实为 21 行 > 900 ⇒ 报「未定位」。
+     改为真源码切段 + 枚举后，判定为 **13824 组 0 分歧**，并配**负控制**（拿掉地板行 ⇒
+     536/13824 组翻红）证明判据不是恒绿。
+
+### 接线（`index.js`）
+
+- 两个取库口 `_costForecastLib()` / `_projectionLib()`（与 `_costLedgerLib` 同形：全局优先 + require 回落）
+- `_runProjections()`：6 个提供器齐备；`readWorldLedger` 走管线并把 `projection: pipe` 随 opts 下传
+- 注入现场接「预测 → 实测 → 对账」，`this._lastForecast` / `this._lastReconcile` 随预算实测落账
+- 诊断面两行：「投影管线」（缺席**点名** id + 原因，三态可分：模块未加载 / 尚未跑过 / 有读数）
+  与「成本预测」（`match` / `drift` / `not-measurable` 三义分开，⚠️ 只在非 match 时亮）
+- `manifest.json`：`extra_js` 尾巴追加 `cost-forecast.js` / `projection-pipeline.js`（56 → 58），
+  `ledger-entity.js` 仍居首（v3.207 不变量）
+
+### 门禁读数（本版实测）
+
+| 项 | 读数 |
+|---|---|
+| `tests/v3208_projection_forecast.test.mjs` | 10 组全绿 / 123 断言 / 434 行 |
+| parity 枚举 | 13824 组 0 分歧（负控制 536 组翻红） |
+| `npm test` | 187 文件 / 1623 断言 / 0 失败（EXIT=0；上一版 186 / 1613） |
+| `node tests/run.mjs --audit` | 42/42 审计脚本通过（EXIT=0） |
+| `scan_syntax.mjs` | 311 文件可解析（本版新增的 2 模块 + 1 套件均在其中，`git status` 实测） |
+| `scan_module_wiring.mjs` | 59/59 真加载成功，已挂载未消费 0，B5 结构健康 ok |
+| `scan_cross_repo_binding.mjs` | 在役 187 / 退役 18 / 参考基准 187 / 问题 0 |
+| `dead_code_budget` | ceiling 33251 → 33870（实测 33470 + slack 400） |
+| `scan_version_guard.mjs` | 当前 3.208.0 / 问题 0 |
+
+### 本版连带维护（不是新功能，但不能不记）
+
+- `tests/audit/catalog_reference_consumers.tsv` 登记 `v3208_projection_forecast.test.mjs`：
+  跨仓守卫 P3 会点名「新增测试未登记进参考基准」，覆盖率缺口不得静默。
+- `tests/audit/dead_code_budget.json` 走 `--bump` 抬上界并写理由（活跃功能增长，非死代码回流）。
+- `tests/v3208` 首跑时版本守卫报 V4「当版锚点被删空」——新套件必须同时构成当版锚点
+  （`vnum(...) >= vnum('3.208.0')`），已补。
+
 ## v3.207.0
 
 **主题：统一账本实体模型 / revision 契约（M-P1）—— 一份契约 6 份拷贝，收成一份真源。**

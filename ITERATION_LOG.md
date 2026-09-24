@@ -177,3 +177,45 @@ T7 验收：修后干净连跑 12/12 全绿（31.9–51.8s）。
    该负控制因此测的是「什么都没跑」。修法：剥环境变量 + 以夹具状态文件做强断言（真跑两次）。
 7. 夹具不许住在本仓 `tests/` 下：既会自伤（被 P3 登记判据抓到），又会让同一文件
    「单独跑绿、并发跑红」—— 正是本版要根治的不稳定形态。改放临时仓，本仓只读。
+
+## 2026-09-24 · v3.208.0（投影管线 + 成本预测 —— 把「缺席不可见」从两个面各修一次）
+
+**做了什么**
+- 新增 `projection-pipeline.js`（202 行，零依赖，挂 `window.LonShaProjectionPipeline`）：声明式
+  `PROJECTIONS` 登记表（6 项）+ 三态读数（`value` / `empty` / `absent`）+ 缺席原因
+  （`no-provider` / `thrown: <msg>` / `skipped-by-config`）+ `identity` 自洽 + `faceValues` 归拢
+  + `pipelineLine`（**必须报缺席数**）。
+- 新增 `cost-forecast.js`（255 行，挂 `window.LonShaCostForecast`）：`forecast` **复用真路径同一批
+  纯函数**（`deriveBudget` / `trimToBudget`）复算；不可测三态 `no-router` / `derive-threw` /
+  `trim-threw` 一律 `measurable:false` + `why`，不编 0；
+  `reconcile` 三态 `match` / `drift` / `not-measurable`，drift 点名偏差量。
+- `index.js`：两个取库口（`_costForecastLib` / `_projectionLib`）+ `_runProjections()`（6 提供器）
+  + `readWorldLedger` 走管线（`projection: pipe` 下传）+ 注入现场「预测 → 实测 → 对账」
+  + 两行诊断（投影管线 / 成本预测）+ 修内联回落预算路径缺陷。
+- `manifest.json`：`extra_js` 56 → 58（`ledger-entity.js` 仍居首）。
+- 新增 `tests/v3208_projection_forecast.test.mjs`（10 组 / 123 断言 / 434 行，含 13824 组 parity 枚举 + 负控制）。
+
+**为什么**
+- 投影面实测「通路只通了两根线」：v3.176 只有两次手工调用，WorldAxis 对外 12 条面；且缺席
+  与源空同形（都返回 `{}`），下游 `diffPeople` 把「查不出来」当成「两边一致」。
+- 成本面实测「只有事后账」：`cost-ledger.js` 全文件 `forecast` / `predict` 键计数为 **0**，
+  「改配置之前会怎样」无人回答。
+
+**门禁结果**
+- `tests/v3208`：10/10 全绿；parity 枚举 13824 组 0 分歧（负控制 536 组翻红）。
+- `npm test`：187 文件 / 0 失败（前序基线 186 / 1613 断言）。
+- `node tests/run.mjs --audit`：全绿。
+- 三源版本 3.208.0；`scan_version_guard` 问题 0；`scan_cross_repo_binding` 问题 0；
+  `dead_code_budget` ceiling 33251 → 33870（实测 33470 + slack 400）。
+
+**本轮踩到的坑（已留痕）**
+1. **同名不同义 ⇒ 假 drift**：`dropped.chars`（被丢弃块字符和）≠ 账本 `totals.droppedChars`
+   （含 NOTE / END / 分隔符），冒烟 C 组假报偏 +11。修法：新增等价口径 `overBudgetChars` / `preTrimChars`。
+2. **判据按猜的文本形态写**（三处，全在 `tests/v3208` 首跑暴露）：源空数误写 1（实为 2）；
+   断言读数里并不存在的「有 N」字样；8e 锚点窗口 900 字符而内联段实为 21 行 ⇒ 报「未定位」。
+   三处都是**判据问题而非实现问题**——须先读实现再写断言。8e 改为真源码切段枚举后硬化。
+3. **新套件必须同时构成当版锚点**：`scan_version_guard` V4 报「当版锚点被删空」，补
+   `vnum(...) >= vnum('3.208.0')` 后归零。
+4. **新增测试文件要登记参考基准**：`scan_cross_repo_binding` P3 点名 `v3208_…` 未登记，已补 TSV。
+5. **合法功能增长要走 `--bump` 并写理由**：`dead_code_budget` 直接红（33470 > 33251），
+   走 `--bump --reason=…` 抬到 33870。
