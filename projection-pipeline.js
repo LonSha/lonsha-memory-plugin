@@ -98,7 +98,7 @@
 
     /** 归一：把空形状与声明对齐（提供器返回错形状时按声明纠正，不静默放行）。 */
     function shapeAs(value, emptyShape) {
-        if (value === undefined || value === null) return emptyShape === 'array' ? [] : (emptyShape === 'object' ? {} : null);
+        if (value === null) return emptyShape === 'array' ? [] : (emptyShape === 'object' ? {} : null);
         return value;
     }
 
