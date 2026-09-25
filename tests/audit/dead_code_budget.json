@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 36025,
+  "ceiling": 36313,
   "maxSlack": 400,
-  "note": "v3.214.0 R1-F 修复预览与受控写入面（repair-loop.js preview/validate + dedupeKey 幂等；index.js abandonRepair/repairRevision + 桥 repair 命名空间与恒定回执）",
+  "note": "v3.215.0 R2-A 注入读数真实性（index.js _injectionRecord/_injectionBlocksOf/_injectionRefOf/_injectionDiscardStale/_buildDiagnosticsInjection/buildInjectionReadout + 桥 injection 快照面与 injectionRefOf；settings-ui 注入面板逐块读数与诊断分格）",
   "history": [
     {
       "ceiling": 21000,
@@ -97,7 +97,11 @@
     {
       "ceiling": 36025,
       "reason": "v3.214.0 R1-F 修复预览与受控写入面（repair-loop.js preview/validate + dedupeKey 幂等；index.js abandonRepair/repairRevision + 桥 repair 命名空间与恒定回执）"
+    },
+    {
+      "ceiling": 36313,
+      "reason": "v3.215.0 R2-A 注入读数真实性（index.js _injectionRecord/_injectionBlocksOf/_injectionRefOf/_injectionDiscardStale/_buildDiagnosticsInjection/buildInjectionReadout + 桥 injection 快照面与 injectionRefOf；settings-ui 注入面板逐块读数与诊断分格）"
     }
   ],
-  "_history_last": "ceiling 35749 → 36025（实测 35625 + slack 400）：v3.214.0 R1-F 修复预览与受控写入面（repair-loop.js preview/validate + dedupeKey 幂等；index.js abandonRepair/repairRevision + 桥 repair 命名空间与恒定回执）"
+  "_history_last": "ceiling 36025 → 36313（实测 35913 + slack 400）：v3.215.0 R2-A 注入读数真实性（index.js _injectionRecord/_injectionBlocksOf/_injectionRefOf/_injectionDiscardStale/_buildDiagnosticsInjection/buildInjectionReadout + 桥 injection 快照面与 injectionRefOf；settings-ui 注入面板逐块读数与诊断分格）"
 }

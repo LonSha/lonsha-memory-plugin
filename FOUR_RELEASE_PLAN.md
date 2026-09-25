@@ -82,7 +82,34 @@
 - 边界：**不自动改派生件**（改哪一处是产品决定，自动改会累积幻觉删改 —— repair-loop 原注释已立）。
   人工点「纠正归属」≠ 正文已发生；回执只记「账上落定了什么」，不推断剧情已经发生。
 
+## Gate R2-A：注入读数真实性（**已完成**，v3.215.0）
+
+主题：**最终实际注入**的读数只能由生成路径写；诊断必须另存；代际过期必须留痕；
+零块必须有读数；注入面必须外供。
+
+- 修前实测四条真缺陷：①**归属塌陷**（`_lastInjection` 被真注入与 selfCheck 的
+  「召回管线 dry-run（**不注入**，只验证链路通）」同时写，而面板文案是「即 AI 真实所见」）；
+  ②**迟到污染**（代际守卫在 await 之后判定，写入点在 await 内部无条件执行，过期只打一行日志）；
+  ③**零块未定义**（`if (inj2)` 短路使「本轮 0 块」与「还没跑」同形）；
+  ④**注入面不外供**（快照 15 字段里没有注入面）。
+- 收口：唯一构造点 `_injectionRecord`（恒定 10 键）/ 诊断 `_diagnostics.dryRun` /
+  零块落地（`blocks:[] total:0` 且 `round` 照常推进）/ 逐块读数 `_injectionBlocksOf`
+  （`kept` vs `dropped-budget`）/ 块引用键 `_injectionRefOf` / 过期留痕 `_injectionDiscardStale`
+  （**不碰读数**）/ 外供面 `buildInjectionReadout()` 进快照 + 桥 `injectionRefOf`。
+- 验证：v3216（T1-T10 + N1-N4，先红后绿；负控制一律真源码破坏 → 载入破坏副本 → 重跑同款判据）；
+  全量 196/196 文件、1721 断言、42/42 审计 RC=0。
+- 边界：**不声称**消除「过期代在 await 期间已写脏」——那要把记录延迟到 await 之后，属 R2-B；
+  本 Gate 只保证「过期必留读数」与「读数只有一个构造点」成立且可分。
+- 回滚：仅逆转本补丁；门禁失败只回滚不放宽。
+
 ## 状态检查点
+- **R2-A：已完成**（v3.215.0）；注入读数收口到唯一构造点 `_injectionRecord`（恒定 10 键），
+  诊断另存 `_diagnostics.dryRun`（不写也不覆盖读数），零块也落地（`blocks:[]/total:0/round+1`），
+  逐块读数 `_injectionBlocksOf`（kept/dropped-budget 两态）、代际过期留痕 `_injectionDiscardStale`
+  （累计计数、刻意不碰读数）、外供面 `buildInjectionReadout()` 进快照 + 桥 `injectionRefOf(i)`；
+  面板为真生成读数作证并单独一格展示诊断（明写「没有进入 AI 上下文」）；v3216（14 项，先红后绿）；
+  全量 196/196 文件 / 1721 断言 0 失败、42/42 审计 RC=0（新测试已登记进参考基准）。
+  边界：**不声称**消除「过期代在 await 期间已写脏」（记录延迟到 await 之后属 R2-B）。
 - R1-E：**已完成**；新增 evidence-workbench.js（413 行）+ 宿主接线 + v3214（11 项，先红后绿）；
   全量 194/194 文件、42/42 审计 RC=0（新测试已登记进参考基准）。
 - R1-F：**已完成**；repair-loop preview/validate + dedupeKey 幂等；index.js abandonRepair /

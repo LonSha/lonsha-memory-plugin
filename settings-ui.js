@@ -643,12 +643,26 @@
             }
             else if (viewType === 'injection') {
                 // [v3.57] P19: 注入内容预览（AI 实际看到的完整上下文）
+                // [v3.215.0] R2-A：本面板**只**为真生成读数作证（`_lastInjection`）。
+                //   修前 `_lastInjection` 被 selfCheck 的「召回管线 dry-run（**不注入**，只验证链路通）」
+                //   也写过一次 —— 一次诊断会把「最近一次实际注入」覆盖掉，
+                //   而本面板文案写的是「即 AI 真实所见」：面板在替一次**没发生过的注入**作证。
+                //   现在两条路分开：真生成 → `_lastInjection`；诊断 → `_diagnostics.dryRun`，
+                //   下面单独一格展示并明写「不计入实际注入」。
                 title = '👁 注入内容预览';
                 const inj = s._lastInjection;
+                const _dryRun = s._diagnostics?.dryRun;
                 if (!inj?.html) {
-                    body = '<div class="ls-hint">暂无注入记录。生成一次回复后，此处显示 AI 实际看到的完整记忆注入块（含预算裁剪后的最终形态）。</div>';
+                    body = '<div class="ls-hint">暂无注入记录。生成一次回复后，此处显示 AI 实际看到的完整记忆注入块（含预算裁剪后的最终形态）。</div>'
+                        + (inj ? `<div class="ls-hint" style="color:var(--ls-warn,#d29922);">最近一轮（第 ${inj.round} 轮）真生成，实际注入 0 块：读了召回、但没有任何块送进上下文 —— 这与「还没跑过」是两件事，不要混读。</div>` : '');
                 } else {
-                    let head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）</div>`;
+                    let head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · 第 ${inj.round} 轮 · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）</div>`;
+                    // [v3.215.0] R2-A 逐块读数：回答「进的是哪几块 / 裁的是哪几块」——
+                    //   修前只有聚合数（丢了几块 / 多少字符），回答不了「丢的是哪一块」。
+                    if (Array.isArray(inj.blocks) && inj.blocks.length) {
+                        const _dropped = inj.blocks.filter(b => !b.kept);
+                        head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta">🧩 逐块读数 · 候选 ${inj.total} 块 · 保留 ${inj.kept}${_dropped.length ? ` · <span style="color:var(--ls-warn,#d29922)">裁掉 ${_dropped.length}</span>` : ''}</div>${_dropped.length ? `<div class="ls-item-text" style="font-size:12px">被裁块：${_dropped.slice(0, 6).map(b => esc(b.label) + '（' + b.chars + ' 字符 · ' + b.reason + '）').join(' / ')}${_dropped.length > 6 ? ' …' : ''}</div>` : ''}</div>`;
+                    }
                     // [v3.144] CP: 预算实测条（丢弃可见性）——超预算时丢了什么此前完全静默
                     const _bs = s._lastBudgetStats;
                     if (_bs && _bs.ts) head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta">📊 预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars} → 实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${Math.max(0, _bs.totalBlocks - _bs.keptBlocks)} 块</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_bs.keptBlocks}${_bs.droppedChars > 0 ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div></div>`;
@@ -670,6 +684,13 @@
                     }).join('');
                     const diffNote = prevLines ? `<div class="ls-hint" style="color:var(--ls-success,#3fb950);">🆕 本轮新增 ${newCount} 行（绿色标注）</div>` : '';
                     body = head + diffNote + `<div class="ls-item">${bodyHtml}</div>`;
+                }
+                // [v3.215.0] R2-A：诊断读数**单独一格**，并明写它没有进上下文。
+                //   修前它与真注入共用 `_lastInjection`，面板读不出「这是哪一路」；
+                //   现在即便 `origin === 'dry-run'` 的读数出现在同一屏，也不会被误读成 AI 真实所见。
+                if (_dryRun && (_dryRun.origin === 'dry-run' || _dryRun.id === 'diagnostics')) {
+                    const _dryOn = _dryRun.chars > 0;
+                    body += `<div class="ls-item" style="margin-top:8px;border-left:2px solid var(--ls-info,#58a6ff);"><div class="ls-item-meta">🧪 诊断 dry-run（不注入，只验证链路通）· ${_dryOn ? `${_dryRun.chars} 字符 / ${_dryRun.bytes} 字节` : '未产出载荷（召回为空或链路未通）'}</div><div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3,#6e7681);">这段内容**没有**进入 AI 上下文，不能当作「AI 真实所见」；它只回答「召回→注入这条链路通不通」。实际注入见上方。</div></div>`;
                 }
             }
 

@@ -30,8 +30,11 @@ test('v3.128 token 估算 CJK 口径且用于注入记录与面板', () => {
   assert.ok(fn(zh + en) > fn(en), '混合文本应大于纯 ASCII');
   assert.ok(fn(zh) > Math.ceil(zh.length / 4) * 2, '对中文应显著高于旧 chars/4 口径');
   // 引擎双路径写入 tokens 字段 + UI 展示
-  assert.match(src, /tokens: estimateTextTokens\(inj2\)/);
-  assert.match(src, /tokens: estimateTextTokens\(inj\)/);
+  // [v3.215.0] R2-A：读数收口到唯一构造点 `_injectionRecord`（原两条路径各写一份
+  //   `_lastInjection` 的形态正是本版修掉的归属塌陷）。断言改为：
+  //   构造点内 tokens 走同一 CJK 口径 + 真生成路径确实经构造点落地 + UI 展示仍在。
+  assert.match(src, /tokens: Number\.isFinite\(e\.tokens\) \? e\.tokens : estimateTextTokens\(html\),/);
+  assert.match(src, /this\._injectionRecord\(\{\s*\n\s*html: inj2 \|\| '', origin: 'generation',/);
   assert.match(ui, /约 \$\{inj\.tokens\} token（CJK 口径估算）/);
 });
 

@@ -1,3 +1,58 @@
+## v3.215.0
+
+**主题：R2-A 注入读数真实性 —— 把「AI 这一轮到底看到了什么」从一句自述变成可对读的唯一构造点。**
+
+修前实测（真源码读取 + 真行为驱动，四条缺陷）：
+
+① **归属塌陷**：`_lastInjection` 有两个写入点 —— `onBeforeGeneration`（真注入）与 `selfCheck()` 里的
+"召回管线 dry-run（**不注入**，只验证链路通）"。而面板文案写的是"最近一次实际注入 … 即 AI 真实所见"。
+于是"跑了一次诊断"与"跑了一次真生成"在下游**处置相反**，读数却同形。
+
+② **迟到污染**：`GENERATION_STARTED` 的代际守卫在 `await onBeforeGeneration()` **之后**才判定，
+而写入点在 await 内部**无条件**执行 —— 守卫拦住了注入槽位，拦不住它已经写脏的读数；
+且过期**只打一行日志**，读数上"过期被丢弃"与"从未跑过"同形。
+
+③ **零块未定义**：写入点是 `if (inj2) this._lastInjection = …`。本轮 0 块时读数**停在上一轮**
+——"这轮什么都没注入"与"这轮还没跑"同形，而两者的处置相反。
+
+④ **注入面不外供**：约定/伏笔/回扣/回声各有 `render()`，但 `buildBridgeSnapshot()` 的字段里
+**没有任何注入面** —— 下游拿不到"这一轮实际送了哪几块、哪几块被预算裁掉了、为什么"。
+
+### 收口
+
+- **唯一构造点 `_injectionRecord(extra)`**：真生成一律经此写；恒定 **10 键**
+  （`html/tokens/ts/prev/origin/round/blocks/total/kept/gen`）一个不少 —— 少写一个键就是
+  失败分支与成功分支不同形（本仓在 `repairReceipt` 上刚治理过同一形态）。
+  `origin` 缺省即 `'generation'`：**诊断必须显式另走一路**，不得靠"没传"蒙混。
+- **诊断另存 `_diagnostics.dryRun`**（`id:'diagnostics'` / `origin:'dry-run'`），**连键名都不共用**，
+  从根上不可能再塌陷。它只回答"召回→注入这条链路通不通"与载荷字节数。
+- **零块必须留读数**：`blocks:[] / total:0 / kept:0`，且**轮次照常推进** ——
+  `round` 是"第几轮"的单一真源，于是"这轮 0 块"与"这轮还没跑"在读数上是两个不同的 round。
+- **逐块读数 `_injectionBlocksOf`**：在预算裁剪段以 `_allB`（裁剪输入全集）与 `full`（裁剪后载荷）求差，
+  每块 7 键 `{ref,id,label,kept,chars,reason,at}`；`reason` 分态 `'kept' / 'dropped-budget'`。
+  修前只有聚合数（丢了几块 / 多少字符），回答不了"丢的是**哪一块**"。
+- **块引用键 `_injectionRefOf(i)`**：`'inj_' + round + '_' + i`，轮内唯一且与读数同口径。
+- **代际过期留痕 `_injectionDiscardStale(myGen)`**：累计 `_injectionStale` + 写 `_lastInjectionDiscard`
+  （`kind:'generation-superseded'`），**刻意不碰 `_lastInjection`** ——
+  迟到清理若回写读数，就会把上一次真注入的读数擦掉。
+- **外供面 `buildInjectionReadout()`**：9 键恒定 `{origin,round,ts,tokens,chars,html,total,kept,blocks}`，
+  逐块 6 键；**未跑过如实 `null`**（不是空壳对象 —— "没跑过"与"跑过但为空"必须可分）。
+- **桥**：`injection` 进快照（`buildInjectionReadout()` 是唯一来源）+ `injectionRefOf(i)` 转发
+  （自由函数形态，与 `repairRevisionOf` 同一动机：方法被摘下来单用时 `this` 不是桥会抛）。
+- **面板与诊断行**：注入预览面板只**为真生成读数作证**；0 块时明写"读了召回但没有块送进上下文"；
+  诊断读数单独一格并明写"**没有**进入 AI 上下文"。`selfCheck` 增"注入读数"行。
+
+### 边界如实声明
+
+本 Gate **不声称**消除了"过期代在 await 期间已写脏"（那要把记录延迟到 await 之后，属 R2-B 范围）。
+本 Gate 只保证"过期必留读数"与"读数的唯一构造点"这两件事成立且可分。
+
+### 仪式
+
+- 新增专项测试 `tests/v3216_injection_reading_truth.test.mjs`（T1-T10 + N1-N4，14 条，先红后绿）。
+  负控制一律**真源码破坏（锚点恰中 1 次）→ 载入破坏副本 → 在副本上重跑同款判据**。
+- 版本四源同步（`index.js` / `manifest.json` / `package.json` / CHANGELOG 顶节 = 3.215.0）。
+
 ## v3.214.0
 
 **主题：九账只读对账面（R1-E）+ 修复预览与受控写入面（R1-F）—— 把九本账从「一排孤立文本行」收成

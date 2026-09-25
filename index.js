@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.214.0';
+    const VERSION = '3.215.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2262,6 +2262,18 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._recallFunnel = [];                    // 逐轮漏斗读数（环形 500，与门控台账同规格）
             this._recallFunnelDropped = 0;              // 环形淘汰量（与 _triggerDropped 同规格，可对账）
             this._recallFunnelReadEmpty = 0;            // 累计轮数：本轮漏斗一次都没读到（I6）
+            // [v3.215.0] R2-A 注入读数：`_lastInjection`（AI 真看到的）与它的**外供面**
+            //   `buildInjectionReadout()` 的原生三键。显式置 null 而不是靠 undefined ——
+            //   「未跑过」（null）与「跑过、但值为空」必须可分，这是本仓治理过多轮的形态。
+            //   `_injectionRound` 是轮次的**单一真源**：真生成每轮 +1（含 0 块的一轮），
+            //   块引用键 `_injectionRefOf` 也取它 —— 于是「这轮 0 块」与「这轮还没跑」
+            //   在读数上是两个不同的 round。
+            this._lastInjection = null;                 // 最近一次**真生成**的注入读数（唯一构造点 _injectionRecord）
+            this._lastInjectionDraft = null;            // 本轮逐块读数草稿（buildInjection 现算，零块路径留空）
+            this._lastInjectionDiscard = null;          // 最近一次代际过期留痕（_injectionDiscardStale）
+            this._injectionRound = 0;                   // 真生成轮次（0 块的一轮也推进）
+            this._injectionStale = 0;                   // 代际过期累计次数（≥0 即「有过迟到结果」）
+            this._diagnostics = null;                   // [v3.215.0] 诊断读数面（selfCheck dry-run 等，**不进** _lastInjection）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
             this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
@@ -5024,7 +5036,21 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (_timelineChangeFloor != null) this._timelineInjectFloor = _timelineChangeFloor;
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
                 if (prequelInj) inj2 = inj2 ? (inj2 + '\n' + prequelInj) : prequelInj;
-                if (inj2) this._lastInjection = { html: inj2, tokens: estimateTextTokens(inj2), ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D: prev 快照供 diff + [v3.128] CJK 口径 token 估算
+                // [v3.215.0] R2-A 注入读数唯一构造点：**无条件**落地（含 0 块的一轮）。
+                //   修前这里是 `if (inj2) this._lastInjection = {...}`：本轮 0 块时读数停在
+                //   上一轮 ——「这轮什么都没注入」与「这轮还没跑」同形，两者处置相反。
+                //   现在轮次照常推进、块数如实归零，并且**逐块读数**一并落地
+                //   （谁进了 / 谁被裁 / 各多少字符）——这是下游唯一能回答
+                //   「AI 这一轮到底看到了什么」的地方。
+                this._injectionRound = (Number(this._injectionRound) || 0) + 1;
+                try {
+                    const _blocks = Array.isArray(this._lastInjectionDraft) ? this._lastInjectionDraft : [];
+                    this._injectionRecord({
+                        html: inj2 || '', origin: 'generation', blocks: _blocks,
+                        total: _blocks.length, kept: _blocks.filter(b => b && b.kept).length,
+                        round: this._injectionRound, gen: Number(this._genSeq) || 0,
+                    });
+                } catch (e) { errLog(e, 'onBeforeGeneration.注入读数'); }
                 try { if (this.config.config.bridgeEnabled !== false) window.lonsha_memory_bridge_v1?.refresh?.(); } catch (e) { errLog(e, 'nonfatal') }   // [v3.88] 快照桥随生成刷新
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
@@ -7608,6 +7634,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                     //   typeof 守卫：本方法会被单测「提取执行」模式的独立实例复用，缺失即
                     //   present=false（如实报「没这面」），不得连坐 floor / bridge / version 等自述字段。
                     //   三态在内核里已分（ok / empty / absent + reason），快照只负责搬运。
+                    // [v3.215.0] R2-A：**最终实际注入**读数（只读）。
+                    //   为什么进快照：它是「AI 这一轮究竟看到了什么」的唯一对外答案。
+                    //   修前：约定/伏笔/回扣/回声各有 render()，但快照字段里**注入面一个都没有**
+                    //   —— 下游只能看到「账本里有什么」，看不到「这一轮真的送进去的是哪几块」，
+                    //   也看不到「哪几块被预算裁掉了」。两者是相反的问题，压成一态就会
+                    //   把「被裁了」误读成「本来就没有」。
+                    //   取值器：buildInjectionReadout()（纯读，不写账）；typeof 守卫：本方法被
+                    //   单测「提取执行」模式的独立实例复用时，缺失即 present=false（如实报「没这面」），
+                    //   不连坐 floor / bridge / version 等自述字段。
+                    injection: deep((typeof this.buildInjectionReadout === 'function') ? this.buildInjectionReadout() : undefined),
                     evidence: deep((typeof this._evidenceWorkbench === 'function') ? this._evidenceWorkbench() : undefined)
                 };
                 // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
@@ -7699,6 +7735,13 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
         // [v1.5] 注入格式（抄 baibai 私密简报包裹 + HCDiary 分区结构）
         buildInjection(recalled) {
+            // [v3.215.0] R2-A：本轮逐块读数草稿**无条件归零**（含空召回早返回路径）。
+            //   修前：读数由调用方在 `if (inj2)` 里写，于是「本轮 0 块」与「本轮还没跑」
+            //   在读数上同形（`total` 停在上一轮）。现在每次进入 buildInjection 先清空，
+            //   出块时再填 —— 零块路径天然留下「空草稿」，而不是上一轮的残留。
+            //   ★ 必须在早返回**之前**清：「本轮召回为空」正是 0 块的主要来源，
+            //     若清空写在早返回后面，这条路径反而成了唯一漏网的那条。
+            this._lastInjectionDraft = null;
             if (!recalled?.length) return '';
             const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
@@ -8180,6 +8223,13 @@ function relativeTimeLabel(eventTime, nowTime) {
             // 丢了几块/丢多少字符/命中哪个策略全部无处可查，调预算只能靠猜。
             try {
                 const _allB = _tierOn ? [...residentBlocks, ...triggerBlocks] : blocks;
+                // [v3.215.0] R2-A：逐块读数草稿 —— 「谁进了 / 谁被裁」的**唯一来源**。
+                //   放在这里的原因：`_allB` 正是本次裁剪的输入全集（常驻 + 触发），
+                //   而 `full` 是裁剪后的最终载荷。两者的差集就是被裁掉的那些块。
+                //   修前这两件事都无处可查：`_lastBudgetStats` 只报聚合数
+                //   （丢了几块 / 多少字符），回答不了「丢的是哪一块」。
+                //   非致命：失败时不写草稿（读数会如实报 0 块），不连坐注入本身。
+                try { this._lastInjectionDraft = this._injectionBlocksOf(_allB, full); } catch (e) { errLog(e, 'buildInjection.逐块读数'); }
                 let _keptN = 0; const _droppedSamples = [];
                 for (const b of _allB) {
                     if (full.includes(b)) _keptN++;
@@ -8269,6 +8319,156 @@ function relativeTimeLabel(eventTime, nowTime) {
             return full;
         }
         
+        /**
+         * [v3.215.0] R2-A：注入读数的**唯一构造点**。
+         *   修前实测（真源码两条写入点）：`_lastInjection` 同时被
+         *     · `onBeforeGeneration`（真注入），
+         *     · `selfCheck()` 的「召回管线 dry-run（**不注入**，只验证链路通）」
+         *   写入，而面板文案写的是「最近一次实际注入 … 即 AI 真实所见」。
+         *   于是「跑了一次诊断」与「跑了一次真生成」在下游**处置相反**，读数上却同形。
+         *
+         *   现在这里收口：真生成路径一律经本方法写；诊断另走 `_diagnostics.dryRun`，
+         *   连键名都不共用（不叫 `_lastInjection`），从根上不可能再塌陷。
+         *
+         *   恒定 10 键，一个不少 —— 「少写一个键」就是失败分支与成功分支不同形，
+         *   本仓在 `repairReceipt` 上刚治理过同一形态（下游按 shape 编程）。
+         *   `origin` 缺省即 `'generation'`：**诊断必须显式另走一路**，不得靠「没传」蒙混。
+         *
+         *   `round` 是「第几轮」的单一真源（调用方不该自己数）：
+         *     0 块的一轮也照常推进轮次 —— 这正是「这轮 0 块」与「这轮还没跑」的分界。
+         *   `prev` 照旧串上一轮 html（面板 diff 高亮用），首轮为 null。
+         */
+        _injectionRecord(extra) {
+            const e = extra || {};
+            const html = String(e.html == null ? '' : e.html);
+            const blocks = Array.isArray(e.blocks) ? e.blocks : [];
+            const round = Number.isFinite(e.round) ? e.round : (Number(this._injectionRound) || 0);
+            const rec = {
+                html,
+                tokens: Number.isFinite(e.tokens) ? e.tokens : estimateTextTokens(html),
+                ts: Number.isFinite(e.ts) ? e.ts : Date.now(),
+                prev: (this._lastInjection && this._lastInjection.html) || null,
+                origin: String(e.origin || 'generation'),
+                round,
+                blocks,
+                total: Number.isFinite(e.total) ? e.total : blocks.length,
+                kept: Number.isFinite(e.kept) ? e.kept : blocks.filter(b => b && b.kept).length,
+                gen: Number.isFinite(e.gen) ? e.gen : (Number(this._genSeq) || 0),
+            };
+            this._lastInjection = rec;   // ← 全源码**唯一**赋值点（结构判据 v3216 T2 守着）
+            return rec;
+        }
+        /**
+         * [v3.215.0] R2-A：本轮逐块读数的**重算**（从块清单与最终载荷现算）。
+         *   为什么重算而不是在拼装时一路收集：拼装函数有 20+ 个 `blocks.push`
+         *   分散在静态区 / 动态区 / 预算裁剪三处，逐处收集等于把「谁进了」这个事实
+         *   抄成二十份真源。这里只做一次判定：**块文本在最终载荷里出现过 ⇒ kept**。
+         *   `indexOf` 的位置差就是排序键 —— 与载荷的真实顺序一致，不另立顺序。
+         *
+         *   逐块键面恒定 7 项：`ref / id / label / kept / chars / reason / at`。
+         *   被裁的块也必须可辨认（`label` 取块首行，截断到 40 字），
+         *   否则「丢了什么」在面板上仍然是一团空白。
+         */
+        _injectionBlocksOf(allBlocks, fullText) {
+            const list = Array.isArray(allBlocks) ? allBlocks : [];
+            const full = String(fullText == null ? '' : fullText);
+            const out = [];
+            for (let i = 0; i < list.length; i++) {
+                const text = String(list[i] == null ? '' : list[i]);
+                if (!text) continue;
+                const at = full.indexOf(text);
+                const kept = at >= 0;
+                const head = text.split('\n')[0].trim();
+                out.push({
+                    ref: this._injectionRefOf(i),
+                    id: i,
+                    label: head.length > 40 ? head.slice(0, 40) + '…' : head,
+                    kept,
+                    chars: text.length,
+                    reason: kept ? 'kept' : 'dropped-budget',
+                    at: kept ? at : null,
+                });
+            }
+            return out;
+        }
+        /** [v3.215.0] R2-A：块引用键。本轮内唯一（含轮次号），跨轮不混淆。 */
+        _injectionRefOf(i) {
+            const round = Number(this._injectionRound) || 0;
+            return 'inj_' + round + '_' + (Number.isFinite(i) ? i : 0);
+        }
+        /**
+         * [v3.215.0] R2-A：代际过期的**留痕口**（`GENERATION_STARTED` 的代际守卫调用）。
+         *   修前：过期只打一行 console.log —— 读数上「过期被丢弃」与「从未跑过」同形。
+         *   修后：累计计数 + 记下是哪一代过期、当下是哪一代。
+         *
+         *   ★ **刻意不碰 `_lastInjection`**：迟到清理若回写读数，就会把上一次真注入的
+         *     读数擦掉 —— 那等于用一个看得见的错误换一个看不见的错误。
+         *     本方法不抛：它被事件处理器调用，抛出会让守卫本身变成故障源。
+         */
+        _injectionDiscardStale(myGen) {
+            const staleGen = Number.isFinite(myGen) ? myGen : -1;
+            const currentGen = Number(this._genSeq) || 0;
+            this._injectionStale = (Number(this._injectionStale) || 0) + 1;
+            const rec = {
+                staleGen,
+                currentGen,
+                kind: 'generation-superseded',
+                at: Date.now(),
+                stale: this._injectionStale,
+            };
+            this._lastInjectionDiscard = rec;
+            return rec;
+        }
+        /**
+         * [v3.215.0] R2-A：诊断路径（selfCheck 的召回 dry-run）的注入读数。
+         *   **不写 `_lastInjection`** —— 它只回答「链路通不通、载荷多大」，
+         *   不回答「AI 看到了什么」。两者混在一个字段里就是本版修掉的归属塌陷。
+         *   落点 `_diagnostics.dryRun`，`id:'diagnostics'` 可归因。
+         */
+        _buildDiagnosticsInjection(recalled) {
+            let html = '';
+            try { html = String(this.buildInjection(recalled) || ''); } catch (e) { html = ''; }
+            const rec = {
+                id: 'diagnostics',
+                origin: 'dry-run',
+                chars: html.length,
+                bytes: html.length,
+                html,
+                ts: Date.now(),
+            };
+            this._diagnostics = Object.assign({}, this._diagnostics, { dryRun: rec });
+            return rec;
+        }
+        /**
+         * [v3.215.0] R2-A：注入面的**对外读数**（`buildBridgeSnapshot().injection` 的唯一来源）。
+         *   修前：约定 / 伏笔 / 回扣 / 回声各有 `render()`，但快照 15 字段里**注入面一个都没有**，
+         *   下游拿不到「AI 这一轮实际看到的是哪几块」。
+         *   本方法纯读：未跑过一律 `null`（**不是空壳对象** —— 空壳会与「跑过、真的 0 块」同形）。
+         */
+        buildInjectionReadout() {
+            const inj = this._lastInjection;
+            if (!inj || typeof inj !== 'object') return null;
+            const blocks = Array.isArray(inj.blocks) ? inj.blocks : [];
+            return {
+                origin: String(inj.origin || 'generation'),
+                round: Number(inj.round) || 0,
+                ts: Number(inj.ts) || 0,
+                tokens: Number(inj.tokens) || 0,
+                chars: String(inj.html || '').length,
+                html: String(inj.html || ''),
+                total: Number.isFinite(inj.total) ? inj.total : blocks.length,
+                kept: Number.isFinite(inj.kept) ? inj.kept : blocks.filter(b => b && b.kept).length,
+                blocks: blocks.map(b => ({
+                    ref: String((b && b.ref) || ''),
+                    id: Number.isFinite(b && b.id) ? b.id : 0,
+                    label: String((b && b.label) || ''),
+                    kept: !!(b && b.kept),
+                    chars: Number.isFinite(b && b.chars) ? b.chars : 0,
+                    reason: String((b && b.reason) || ''),
+                })),
+            };
+        }
+
         // [v2.0] P2: 楼层账本回滚（删楼/重生成后把该楼层产生的记忆撤掉）
         rollbackFloor(floor) {
             try {
@@ -9336,6 +9536,20 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         rows.push(['召回自检', '暂无数据（首轮生成后填充）']);
                     }
                 } catch (e) { errLog(e, 'selfCheck.recallAudit'); }
+                // [v3.215.0] R2-A 注入读数行：回答「本会话最近一次真生成，AI 实际看到几块 / 被裁几块」。
+                //   与上面的「召回自检」是两个不同的问题：召回自检说「召回了什么」，
+                //   本行说「**最终送进上下文的是什么**」——中间隔着预算裁剪与去重。
+                //   修前这一段的读数被下面 dry-run 覆盖，且 0 块与「没跑过」同形。
+                try {
+                    const _ir = (typeof this.buildInjectionReadout === 'function') ? this.buildInjectionReadout() : null;
+                    const _dryR = this._diagnostics && this._diagnostics.dryRun;
+                    if (!_ir) {
+                        rows.push(['注入读数', `暂无数据（尚未真生成过）${_dryR ? '；诊断 dry-run 载荷 ' + _dryR.chars + ' 字符（不计入实际注入）' : ''}`]);
+                    } else {
+                        const _stale = Number(this._injectionStale) || 0;
+                        rows.push(['注入读数', `第${_ir.round}轮 ${_ir.total}块 保留${_ir.kept} 裁掉${Math.max(0, _ir.total - _ir.kept)}｜${_ir.chars}字符 约${_ir.tokens}token${_stale ? `｜代际过期${_stale}次` : ''}`]);
+                    }
+                } catch (e) { errLog(e, 'selfCheck.注入读数'); }
                 report.stats = rows.map(([k, v]) => ({k, v}));
                 // 2. 召回管线 dry-run（不注入，只验证链路通）
                 try {
@@ -9346,8 +9560,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     } else {
                         const t0 = Date.now();
                         const recalled = await this.recallMemory(query);
-                        const inj = this.buildInjection(recalled);
-                        if (inj) this._lastInjection = { html: inj, tokens: estimateTextTokens(inj), ts: Date.now(), prev: this._lastInjection?.html || null };  // [v3.57] P19 + [v3.59] D + [v3.128] token 估算
+                        // [v3.215.0] R2-A：诊断路径**不再写 `_lastInjection`**。
+                        //   修前：这里与真生成共用同一个字段，于是「跑了一次自检」会把面板上
+                        //   「最近一次实际注入…即 AI 真实所见」改写成一个**从未进过模型上下文**的
+                        //   字符串。诊断读数是另一个问题（链路通不通 / 载荷多大），故另存
+                        //   `_diagnostics.dryRun`（id:'diagnostics'）——连键名都不共用。
+                        const _dry = this._buildDiagnosticsInjection(recalled);
+                        const inj = _dry.html;
                         const merged = recalled.filter(Boolean).reduce((a, b) => a + (Array.isArray(b) ? b.length : 0), 0);
                         report.pipeline = { ok: true, queryLen: qText.length, routes: Object.entries(recalled).filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => `${k}:${v.length}`), merged, injLen: (inj || '').length, ms: Date.now() - t0 };
                     }
@@ -15951,7 +16170,17 @@ ${recentTurns}`;
                             this.engine._generationActive = true;   // [v3.10] 标记生成中（自愈调度器读）
                             const injection = await this.engine.onBeforeGeneration();
                             // [v3.12] 代际检查: await 期间若已有更新的一次 STARTED（myGen 过期），放弃本次慢结果（防旧注入覆盖新注入）
-                            if (myGen !== this._genSeq) { console.log(`[${PLUGIN_NAME}] 注入代际过期，放弃本次结果`); return; }
+                            if (myGen !== this._genSeq) {
+                                console.log(`[${PLUGIN_NAME}] 注入代际过期，放弃本次结果`);
+                                // [v3.215.0] R2-A：过期这件事**必须留读数**。
+                                //   修前只打一行日志：读数上「过期被丢弃」与「从未跑过」同形，
+                                //   而两者的处置相反（前者该重试，后者该等下一轮）。
+                                //   ★ 刻意**不碰 `_lastInjection`**：迟到清理若回写读数，会把上一次
+                                //     真注入的读数擦掉 —— 用一个看得见的错换一个看不见的错。
+                                try { this.engine._injectionDiscardStale(myGen); }
+                                catch (e) { errLog(e, 'GENERATION_STARTED.过期留痕'); }
+                                return;
+                            }
                             // [v3.2] DF6: 空召回=显式清除（baibai 语义"注入空串等于清除"——召回价值判断跳过时旧槽位残留会注入上一轮记忆）
                             const depth = Math.min(2, Math.max(0, numOr(this.engine.config.config.injectionDepth, 0)));   // [v3.156] D0=0 合法
                             writeInjectSlot('lonsha_memory', injection || '', depth);
@@ -16154,6 +16383,21 @@ ${recentTurns}`;
             return Number(eng.repairRevision()) || 0;
         } catch (e) { return 0; }
     }
+    /**
+     * [v3.215.0] R2-A：块引用键的**转发口**（桥侧）。
+     *   与 `repairRevisionOf` 同一个理由：调用方一旦把方法摘下来单用
+     *   （`const f = bridge.injectionRefOf`），`this` 就不是桥了。故薄包装转发到引擎。
+     *   引用键本身由引擎 `_injectionRefOf` 定义（含轮次，本轮内唯一）——
+     *   下游用 `injectionRefOf(engine, i)` 取的键，必须与
+     *   `snapshot.injection.blocks[].ref` 逐字相同，否则「点一条块 → 跳到位」会错位。
+     */
+    function injectionRefOf(engine, i) {
+        try {
+            const eng = engine || plugin.engine;
+            if (!eng || typeof eng._injectionRefOf !== 'function') return '';
+            return String(eng._injectionRefOf(i));
+        } catch (e) { return ''; }
+    }
     // [v3.88] 公开快照桥：外部脚本经 window.lonsha_memory_bridge_v1.snapshot 读取最近一次生成时的状态快照。
     // 只读契约——`version` / `bridge` / `snapshot` / `sourceState` / `lastError` / `refresh()` 这一组**只读**，
     //   本对象不在其内提供任何写入引擎的方法；快照仅由引擎在生成管线内 refresh。
@@ -16182,6 +16426,13 @@ ${recentTurns}`;
         //     'thrown'        —— 取快照抛错（lastError 给出原因）
         sourceState: 'idle',
         lastError: null,
+        /**
+         * [v3.215.0] R2-A：块引用键的取值口（只读）。
+         *   下游拿到 `snapshot.injection.blocks[].ref` 后要能**自行复算**同一个键
+         *   （例如列表刷新后重新定位到某一块）。键的真源在引擎 `_injectionRefOf`，
+         *   这里只转发 —— 两处各写一套格式就会「点一条块、跳到另一块」。
+         */
+        injectionRefOf(i) { return injectionRefOf(plugin.engine, i); },
         refresh() {
             try {
                 const eng = plugin.engine;
