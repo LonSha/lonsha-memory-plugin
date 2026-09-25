@@ -16276,12 +16276,22 @@ ${recentTurns}`;
                 } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
             },
             settle(input) {
+                const i = input || {};
+                // [v3.214.0] 逆向审计补口：`settle` / `abandon` 同样是**写动作**，一样要过修订门。
+                //   为什么不能只给 apply 加：记录 id 是**每条 state 自己的 seq**（`rp_1`），
+                //   切聊 / 回滚后新会话的 `rp_1` 与旧会话的 `rp_1` 同号——一条陈旧 settle 会落到
+                //   新会话那条同号记录上，把它标成 done。表现是「落定成功了」，但落定的是别人的修复。
+                //   这类错位与「正文改了、下游没跟着改」同源，宁可拒，不可错位写入。
+                const nowRev = repairRevisionOf();
+                if (i.expectRevision == null || Number(i.expectRevision) !== nowRev) {
+                    return repairReceipt({ ok: false, reason: 'revision-mismatch', revision: nowRev });
+                }
                 try {
                     const eng = plugin.engine;
                     if (!eng || typeof eng.settleRepair !== 'function') {
-                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: repairRevisionOf() });
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: nowRev });
                     }
-                    const r = eng.settleRepair(input) || {};
+                    const r = eng.settleRepair(i) || {};
                     if (!r.ok) return repairReceipt({ ok: false, reason: r.reason || 'rejected', revision: repairRevisionOf() });
                     return repairReceipt({
                         ok: true, repairId: r.repair && r.repair.id, action: r.repair && r.repair.action,
@@ -16293,12 +16303,18 @@ ${recentTurns}`;
                 } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
             },
             abandon(input) {
+                const i = input || {};
+                // 同 settle：放弃也是写（会把剩余 pending 一并标 missing），同样过修订门。
+                const nowRev = repairRevisionOf();
+                if (i.expectRevision == null || Number(i.expectRevision) !== nowRev) {
+                    return repairReceipt({ ok: false, reason: 'revision-mismatch', revision: nowRev });
+                }
                 try {
                     const eng = plugin.engine;
                     if (!eng || typeof eng.abandonRepair !== 'function') {
-                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: repairRevisionOf() });
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: nowRev });
                     }
-                    const r = eng.abandonRepair(input) || {};
+                    const r = eng.abandonRepair(i) || {};
                     if (!r.ok) return repairReceipt({ ok: false, reason: r.reason || 'rejected', revision: repairRevisionOf() });
                     return repairReceipt({
                         ok: true, repairId: r.repair && r.repair.id, action: r.repair && r.repair.action,

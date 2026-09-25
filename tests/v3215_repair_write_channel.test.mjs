@@ -187,7 +187,7 @@ test('v3215 5. 放弃过的那次重试是**新意图**：必须能重新登记'
     const c = ctx();
     const inp = { action: 'revoke', subject: '苏晴', target: '住老城' };
     const r1 = c.bridge.repair.apply(Object.assign({ idempotencyKey: 'k2', expectRevision: 0 }, inp));
-    const ab = c.bridge.repair.abandon({ id: r1.repairId });
+    const ab = c.bridge.repair.abandon({ id: r1.repairId, expectRevision: 0 });
     assert.equal(ab.ok, true);
     assertReceiptShape(ab, 'abandon');
     const r3 = c.bridge.repair.apply(Object.assign({ idempotencyKey: 'k2', expectRevision: 0 }, inp));
@@ -195,6 +195,33 @@ test('v3215 5. 放弃过的那次重试是**新意图**：必须能重新登记'
     assert.equal(r3.replayed, false, '放弃后重试不得被旧记录挡住（否则「改主意」被永久锁死）');
     assert.notEqual(r3.repairId, r1.repairId, '是一条新记录');
     assert.equal(c.host._repairState.repairs.length, 2);
+});
+
+test('v3215 5b. 陈旧的 settle 不得落到新会话的同号记录上（切聊后 rp_1 与 rp_1 同号）', () => {
+    // 场景：会话 A 里 rp_1 的落定请求在路上；切聊 / 回滚推进变更栅栏 → 会话 B 载入**自己那份账**
+    //   （`_repairState` 来自该会话的存档），于是 B 那边也有一条 rp_1。
+    //   若写面不校验修订，那条陈旧 settle 会把 B 的 rp_1 标成 done ——「落定成功了，落定的是别人的修复」。
+    const c = ctx();
+    const a = c.bridge.repair.apply({ action: 'revoke', subject: '苏晴', target: '住老城', idempotencyKey: 'ka', expectRevision: 0 });
+    assert.equal(a.ok, true);
+    const keysB = c.bridge.repair.preview({ action: 'retarget', subject: '苏晴', target: '林砚', to: '林砚' });
+    assert.ok(keysB.total >= 1, '新代数的预览有命中项');
+    // 切聊：栅栏推进 + 载入会话 B 自己的账（尚无记录）
+    c.host._mutationEpoch = 1;
+    c.host._repairState = null;
+    const b = c.bridge.repair.apply({ action: 'retarget', subject: '苏晴', target: '林砚', to: '林砚', idempotencyKey: 'kb', expectRevision: 1 });
+    assert.equal(b.ok, true, '新代数里照常可写（门上的是旧代数的请求，不是写入本身）');
+    assert.equal(b.repairId, a.repairId, '★ 两条会话的同号是现实（各账自己的 seq）——正因如此才必须靠修订区分');
+    // 旧代数发来的落定：必须被拒（否则它落到的是 B 那条同号记录）
+    const stale = c.bridge.repair.settle({ id: a.repairId, key: keysB.affected[0].key, kind: keysB.affected[0].kind, status: 'done', expectRevision: 0 });
+    assert.equal(stale.ok, false);
+    assert.equal(stale.reason, 'revision-mismatch');
+    assert.equal(stale.revision, 1, '回执回的是**当下**修订号');
+    const rec = c.host._repairState.repairs.find(x => x.id === b.repairId);
+    assert.equal(rec.status, 'open', '新会话那条记录必须仍是未落定（陈旧 settle 不得改它）');
+    // 修正在修订号上的落定照常生效
+    const fresh = c.bridge.repair.settle({ id: b.repairId, key: keysB.affected[0].key, kind: keysB.affected[0].kind, status: 'done', expectRevision: 1 });
+    assert.equal(fresh.ok, true, '修订对表后照常落定');
 });
 
 /* ─────────────────────────── ③ 两道门（拒即不改账） ─────────────────────────── */
@@ -242,12 +269,21 @@ test('v3215 8. 成功/失败分支回执同形；模块缺席如实归因，不�
     const badPrev = c.bridge.repair.preview({ action: 'teleport', subject: '苏晴' });
     assertReceiptShape(badPrev, 'preview/拒绝');
     assert.equal(badPrev.reason, 'unknown-action');
-    const badSettle = c.bridge.repair.settle({ id: 'rp_none' });
+    const badSettle = c.bridge.repair.settle({ id: 'rp_none', expectRevision: 0 });
     assertReceiptShape(badSettle, 'settle/找不到');
     assert.equal(badSettle.reason, 'not-found');
-    const okSettle = c.bridge.repair.settle({ id: okReceipt.repairId, key: okReceipt.affected[0].key, kind: okReceipt.affected[0].kind, status: 'done' });
+    const okSettle = c.bridge.repair.settle({ id: okReceipt.repairId, key: okReceipt.affected[0].key, kind: okReceipt.affected[0].kind, status: 'done', expectRevision: 0 });
     assertReceiptShape(okSettle, 'settle/成功');
     assert.equal(okSettle.total, okReceipt.total, 'total 在各方法里语义一致（= 本条修复的派生件总数）');
+    // settle / abandon 同样是写动作，同样必须过修订门（切聊后 rp_1 同号会落到别人的记录上）
+    for (const m of ['settle', 'abandon']) {
+        const noRev = c.bridge.repair[m]({ id: okReceipt.repairId });
+        assert.equal(noRev.reason, 'revision-mismatch', m + ' 缺 expectRevision 必须拒');
+        assertReceiptShape(noRev, m + '/缺修订');
+        const staleRev = c.bridge.repair[m]({ id: okReceipt.repairId, expectRevision: 99 });
+        assert.equal(staleRev.reason, 'revision-mismatch', m + ' 修订对不上表必须拒');
+    }
+    assert.equal(c.host._repairState.repairs[0].status, 'applied', '三次被拒不得改变账上状态');
 
     // 引擎不在位：如实说 engine-absent（而不是「ok:true, total:0」那种"看起来一切正常"）
     const noEng = bridgeFrom(idxSrc, {});
@@ -313,7 +349,7 @@ const JUDGE = {
         const c = ctxWith(src, rl);
         const inp = { action: 'revoke', subject: '苏晴', target: '住老城', idempotencyKey: 'kx', expectRevision: 0 };
         const r1 = c.bridge.repair.apply(inp);
-        c.bridge.repair.abandon({ id: r1.repairId });
+        c.bridge.repair.abandon({ id: r1.repairId, expectRevision: 0 });
         const r3 = c.bridge.repair.apply(inp);
         return r3.ok === true && r3.replayed === false && r3.repairId !== r1.repairId;
     },
@@ -324,10 +360,25 @@ const JUDGE = {
         const bad = c.bridge.repair.apply({ action: 'revoke', subject: '苏晴', target: '住老城', expectRevision: 0 });
         const shape = (r) => Object.keys(r).slice().sort().join(',') === RECEIPT_KEYS.slice().sort().join(',');
         return shape(ok) && shape(bad) && bad.ok === false;
+    },
+    /** 陈旧 settle（旧代数）必须被拒，且不得改到新代数那条同号记录 */
+    staleSettleBlocked(src, rl) {
+        const c = ctxWith(src, rl);
+        const a = c.bridge.repair.apply({ action: 'revoke', subject: '苏晴', target: '住老城', idempotencyKey: 'ka', expectRevision: 0 });
+        if (a.ok !== true) return false;
+        const kb = c.bridge.repair.preview({ action: 'retarget', subject: '苏晴', target: '林砚', to: '林砚' });
+        if (!kb.affected.length) return false;
+        c.host._mutationEpoch = 1;
+        c.host._repairState = null;   // 会话 B 载入自己的账
+        const b = c.bridge.repair.apply({ action: 'retarget', subject: '苏晴', target: '林砚', to: '林砚', idempotencyKey: 'kb', expectRevision: 1 });
+        if (b.ok !== true || b.repairId !== a.repairId) return false;
+        const stale = c.bridge.repair.settle({ id: a.repairId, key: kb.affected[0].key, kind: kb.affected[0].kind, status: 'done', expectRevision: 0 });
+        const rec = c.host._repairState.repairs.find(x => x.id === b.repairId);
+        return stale.ok === false && stale.reason === 'revision-mismatch' && !!rec && rec.status === 'open';
     }
 };
 
-test('v3215 10. 负控制：三处真破坏必须在同一套判据上各自现形（不许互相掩护）', () => {
+test('v3215 10. 负控制：四处真破坏必须在同一套判据上各自现形（不许互相掩护）', () => {
     // 原版上三条判据必须全部为真，否则下面的"变红"说明不了任何事
     for (const name of Object.keys(JUDGE)) {
         assert.equal(JUDGE[name](idxSrc, RL), true, `原版：判据 ${name} 必须为真`);
@@ -350,6 +401,14 @@ test('v3215 10. 负控制：三处真破坏必须在同一套判据上各自现�
         'revision: Number.isFinite(e.revision) ? e.revision : 0,',
         '', 'N3');
     assert.equal(JUDGE.receiptShape(n3, RL), false, 'N3：回执漏键后形状判据必须现形');
+
+    // N4 破坏：settle 的修订门被短路 ⇒ 旧代数的落定会落到新代数的同号记录上。
+    //   锚点必须带上 settle 独有的上一行注释：`if (i.expectRevision == null || ...)` 这一行
+    //   在 settle 与 abandon 各出现一次，裸行锚点不唯一（拆一处而另一处还在，判定就被掩护住了）。
+    const n4 = breakSource(idxSrc,
+        "宁可拒，不可错位写入。\n                const nowRev = repairRevisionOf();\n                if (i.expectRevision == null || Number(i.expectRevision) !== nowRev) {",
+        '宁可拒，不可错位写入。\n                const nowRev = repairRevisionOf();\n                if (false) {', 'N4');
+    assert.equal(JUDGE.staleSettleBlocked(n4, RL), false, 'N4：settle 修订门被拆后必须现形');
 
     // 破坏副本自证：破坏确实改了行为（不是"改了源码但读的还是旧值"）。
     //   N1 拆掉门①之后，这一下缺键写入**真的落账了**（门②此刻恰好通过：expectRevision 0 === 修订 0）
