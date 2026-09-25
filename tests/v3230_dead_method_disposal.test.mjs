@@ -142,9 +142,12 @@ test('v3230 N2. ★★ 基线里塞活方法名 ⇒ 扫描器必须点名「已�
 /* ══════════ D 版本锚 ══════════ */
 const vnum = (s) => Number(String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0));
 
-test('v3230 D1. ★ 版本锚（当版字面量）+ 三源同源', () => {
+test('v3230 D1. ★ 版本锚（下限形，当版精确判定交当版 frontier 套件）+ 三源同源', () => {
     const codeVer = (/const VERSION = '([^']+)'/.exec(idxSrc) || [])[1];
-    assert.equal(codeVer, '3.229.0', '当版必须精确锚 3.229.0，实得 ' + codeVer);
+    /* [v3.230.0] 当版锚交棒：本套件出生版本 3.229.0，抬版后改为下限锚（仓内口径，
+     *   见 tests/audit/scan_version_guard.mjs 的 V2/V4 判定），
+     *   当版精确判定交给当版 frontier 套件（本版即 v3231 F1）。 */
+    assert.ok(vnum(codeVer) >= vnum('3.229.0'), '本套件只在 3.229.0 及以后成立；当前 ' + codeVer);
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')));
     const mf = JSON.parse(read(path.join(ROOT, 'manifest.json')));
     assert.equal(pkg.version, codeVer, 'package.json 同源');

@@ -1,0 +1,81 @@
+{
+  "file": "tests/audit/snapshot_baseline.json",
+  "note": "P-3 快照外供面规模取证基线。**合成数据 + 真方法体**（无浏览器 / 无 SillyTavern 宿主参与）—— 这些数字不代表实机性能，只用于「量级是否漂移」的回归对照（与 tests/audit/perf_baseline.json 同一条口径纪律）。",
+  "measured_at": "v3.230.0",
+  "node_version": "v24.18.0",
+  "probe": "tests/audit/snapshot_probe.cjs",
+  "subject": "index.js 的 buildBridgeSnapshot()（全仓唯一对外读数出口，13 个数据面 + meta）",
+  "readings": {
+    "empty_host_bytes": 117,
+    "bytes_n100_l50_s50": 14047,
+    "bytes_n400_l50_s50": 35917,
+    "bytes_n1600_l50_s50": 124597,
+    "bytes_n100_l200_s50": 22347,
+    "bytes_n100_l800_s50": 55947,
+    "bytes_n100_l50_s200": 21898,
+    "bytes_n100_l50_s800": 53698,
+    "ms_n100_l50_s50": 0.602,
+    "ms_n400_l50_s50": 1.253,
+    "ms_n1600_l50_s50": 5.158,
+    "ms_n100_l200_s50": 0.509,
+    "ms_n100_l800_s50": 0.955,
+    "ms_n100_l50_s200": 0.49,
+    "ms_n100_l50_s800": 1.169,
+    "ms_empty_host": 0.005,
+    "clone_ms_n400": 0.585,
+    "stringify_ms_n400": 0.213,
+    "e2e_ms_n400": 0.902
+  },
+  "shape": {
+    "note": "三条缩放曲线各自近似线性（1600 角色 124597 字节 / 5.158ms；800 条生活详情 55947 字节 / 0.955ms；800 行场景 53698 字节 / 1.169ms）。",
+    "verdict": "未观察到超线性；**每行成本有下限**：载体字段名（约 36 字节/行）+ 值 + 每面固定语法头（约 25 字节）。",
+    "floor": "空宿主（13 面全部 present=false）117 字节 / 0.005ms —— 这是「传输」而非「读取」的下限：无内容可传。"
+  },
+  "face_bytes": {
+    "note": "N=400 角色档（35917 字节负载）的逐面字节账。",
+    "characters": { "bytes": 28941, "pct": 80.6 },
+    "lifeDetails": { "bytes": 2681, "pct": 7.5 },
+    "scene": { "bytes": 2592, "pct": 7.2 },
+    "moneyLedger": { "bytes": 413, "pct": 1.1 },
+    "evidence": { "bytes": 292, "pct": 0.8 },
+    "outline": { "bytes": 250, "pct": 0.7 },
+    "injection": { "bytes": 232, "pct": 0.6 },
+    "worldProg": { "bytes": 101, "pct": 0.3 },
+    "recallAudit": { "bytes": 64, "pct": 0.2 },
+    "protagonist": { "bytes": 39, "pct": 0.1 },
+    "worldLedgerRead": { "bytes": 26, "pct": 0.1 },
+    "clock": { "bytes": 9, "pct": 0.0 },
+    "projection": { "bytes": 0, "pct": 0.0 },
+    "meta": { "bytes": 915, "pct": null },
+    "fixed_floor_bridge_version_exported_at": { "bytes": 277, "pct": null },
+    "headline": "**characters 一面占 80.6%** —— 「快照大」这件事在读数上等于「角色面大」，其余 12 面合起来不到 20%。"
+  },
+  "cost_split": {
+    "note": "「若真要优化，该动哪一段」的读数（N=400 档，同档对照）。",
+    "clone_ms": 0.585,
+    "stringify_ms": 0.213,
+    "e2e_ms": 0.902,
+    "verdict": "构造成本的 **65% 在深克隆段**（structuredClone × 13 面），24% 在自述段（JSON.stringify 负载）。**成本与字节成正比，不随面数**（每面一个常数调用，127 字节与 28941 字节走同一条路径）⇒ 「砍面数」换不到耗时，「减字节」才换得到。"
+  },
+  "slimming_verdict": {
+    "question": "外供面能不能瘦？",
+    "answer": "**不成立（按读数否掉）**。",
+    "reasons": [
+      "**没有一面是纯挂账**：13 面在手机端（ruby-phone）各有读者 —— 实测 `snap.<面>` 直接访问点：scene 7 · lifeDetails 7 · worldProg 6 · protagonist 6 · outline 6 · worldLedgerRead 4 · moneyLedger 4 · clock 4 · characters 4 · recallAudit 1 · projection 1 · injection 1（evidence 经取证面读取）。无一面零消费。",
+      "**砍读侧不给收益**：快照是**出口**不是缓存 —— 每次构造都是新对象（探针实测同实例连调 10/20 次，耗时稳定在均值的 1.44~1.5 倍，且每次 selfBytes 相同）⇒ 「不缓存」本身就是「读者永远拿到当下」的保证，**去掉它等于用陈旧读数换速度**。",
+      "**恒定承载面已经很薄**：bridge/version/floor/exportedAt/projectPluginVersion 合计 277 字节；meta（含 fieldTypes 三态自述）915 字节 —— 两者合计 3.3%（1192/35917），砍掉它们也换不回一个 percent。",
+      "**唯一有读数支持的瘦身轴不是「去面」而是「每面预算」**：characters 80.6% ⇒ 该轴是「为 characters 这类按规模放大的面上限 + **如实截断读数**」，而不是静默砍。这一轴本版**只取证、不动手**。"
+    ]
+  },
+  "corrections": [
+    "探针自第一版即遵守本仓已立的两条口径纪律（setup 不计时 / 每组独立实例，见 O-5 的 290 倍教训）—— 本轮**未复现**那类口径错误，故这里没有「修前/修后差 N 倍」的条目可记。",
+    "**projection 面读数 0 字节是口径结果、不是结论**：合成宿主没有装 `_lastProjectionEnvelope` ⇒ 该面 present=false ⇒ 0 字节。真实会话若跑过管线，这一面会按 envelope 实际大小计入。**不得**把这里的 0 读成「这一面没用」。",
+    "「不缓存」的口径：`buildBridgeSnapshot()` **刻意不缓存**（每次调用都重建），这不是缺陷 —— 快照是出口，缓存会把下游读数钉死在旧代。故本基线**不报「缓存命中率」**这类会被误用成「该加缓存」的读数。"
+  ],
+  "not_done": [
+    "**未做任何瘦身 / 未改任何契约**：本版只取证与立基线。P-3 的定位是「量它多大、随什么缩放」，形态决策（每面预算 / 截断口径 / 是否给下游增量面）**刻意留给取证之后的版本**，不预支。",
+    "未验证实机：无浏览器、无 SillyTavern 宿主、无真实聊天记录；合成数据只覆盖「面内条数」这一维，不覆盖真实数据结构的长尾（真实 characters 条目字段数各异、真实场景路径深度不一）。",
+    "未覆盖快照的**下游消费成本**：只量了「产出的字节与耗时」，没有量手机端解析/渲染这份快照的成本（那属于下游仓的门禁面）。",
+    "未覆盖严格 JSON 出口（`buildBridgeSnapshotJson()`）的字符串化总成本 —— 它比 snapshot 多一次 JSON.stringify，本基线量的是 snapshot 那一段。"
+  ]
+}
