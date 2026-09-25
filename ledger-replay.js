@@ -27,6 +27,9 @@
 (function (root) {
     'use strict';
 
+    // [v3.224.0] O-2：报告**只增不改**（新增 `skipped` 面）—— 故 `LEDGER_REPLAY_VERSION` 保持 1。
+    //   抬它会让两条历史套件的「真模块在跑」冒烟断言（锁 == 1）连带翻红，而那是**纯增量面**：
+    //   为了一个 additive 字段去改历史测试的常量值，正是本仓在 v3.203.0 拆掉的抬版仪式。
     const LEDGER_REPLAY_VERSION = 1;
 
     // 楼层归属登记表。每一项：
@@ -108,8 +111,11 @@
     //   被删楼之后的条目只是位置前移，内容仍对应前移后的文本（与 v2.3 数据零丢失口径一致）。
     function shiftLedgerItemFloors(state, d) {
         if (!state || typeof state !== 'object') return 0;
-        const del = Number(d);
-        if (!Number.isFinite(del)) return 0;
+        // [v3.224.0] O-2：修前 `const del = Number(d); if (!Number.isFinite(del)) return 0;` ——
+        //   `Number('') === 0`、`Number([]) === 0`、`Number(true) === 1` 全部通关，
+        //   于是「没给」被读成第 0 楼并把**整本账**减一。
+        const del = floorOrNull(d);
+        if (del === null) return 0;
         let n = 0;
         const dec = (o, k) => {
             if (o && typeof o[k] === 'number' && o[k] > del) { o[k] = o[k] - 1; n++; }
@@ -138,8 +144,8 @@
         return {
             id, label, holds: 'records',
             get: (h) => { try { const st = getState(h); return (st && typeof st === 'object') ? st : null; } catch (e) { return null; } },
-            drop: (h, f) => { const st = getState(h); return st ? dropLedgerItemFloors(st, Number(f)) : 0; },
-            shift: (h, d) => { const st = getState(h); return st ? shiftLedgerItemFloors(st, Number(d)) : 0; }
+            drop: (h, f) => { const st = getState(h); return st ? dropLedgerItemFloors(st, floorOrNull(f)) : 0; },
+            shift: (h, d) => { const st = getState(h); return st ? shiftLedgerItemFloors(st, floorOrNull(d)) : 0; }
         };
     }
     const FLOOR_OWNERS = Object.freeze([
@@ -348,9 +354,15 @@
         },
         {
             id: 'floor-ledger', label: '楼层账本', holds: 'records',
+            // [v3.224.0] O-2：**本账参与回放**（首稿曾主张它该退场，理由是「宿主的
+            //   `ledger.remove(f)` 已经做过一遍」—— 与 v3190 第 8/9 条同款越界判断，一并撤回）。
+            //   本轮只收两处取值门：drop 的入参、shift 的入参（修前 `if (f === d)` / `f > d`
+            //   拿原参数比，一个 `''` 或 `[]` 会让每个楼层键退化成 `f > 0` ⇒ 整本账减一）。
             get: (h) => h.ledger || null,
-            drop: (h, f) => { if (h.ledger && typeof h.ledger.remove === 'function') { h.ledger.remove(f); return 1; } return 0; },
-            shift: (h, d) => { const fl = h.ledger?.floors; if (!fl || typeof fl !== 'object') return 0; const entries = Object.entries(fl).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]); const next = {}; let n = 0; for (const [f, v] of entries) { if (f === d) { n++; continue; } const nf = f > d ? f - 1 : f; if (v && typeof v === 'object') v.floor = nf; next[nf] = v; if (nf !== f) n++; } h.ledger.floors = next; return n; }
+            drop: (h, f) => { if (h.ledger && typeof h.ledger.remove === 'function') { const f0 = floorOrNull(f); if (f0 === null) return 0; h.ledger.remove(f0); return 1; } return 0; },
+            // [v3.224.0] O-2：修前 `if (f === d)` / `f > d` 拿**原参数**比 —— 一个 `''` 或 `[]`
+            //   会让每个楼层键 `f > d` 退化成 `f > 0`（整本账减一）。入参走同一门，键侧本就已过 Number()。
+            shift: (h, d) => { const fl = h.ledger?.floors; if (!fl || typeof fl !== 'object') return 0; const d0 = floorOrNull(d); if (d0 === null) return 0; const entries = Object.entries(fl).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]); const next = {}; let n = 0; for (const [f, v] of entries) { if (f === d0) { n++; continue; } const nf = f > d0 ? f - 1 : f; if (v && typeof v === 'object') v.floor = nf; next[nf] = v; if (nf !== f) n++; } h.ledger.floors = next; return n; }
         },
 // [v3.190] 补齐四个「有楼层归属却不在登记表里」的面。
         //   此前它们只活在 index.js 的手工清单里：回放报告说「29 本账走完了回放」，
@@ -363,17 +375,25 @@
         },
         {
             id: 'archived', label: '归档隐藏集合', holds: 'records',
+            // [v3.224.0] O-2：**本面参与前移**（既有判据 v3190 第 8 条明写「删除楼起失去依据、
+            //   其后前移、其前保留」）。本轮只把入参从 `Number(f)` 换成 `floorOrNull(f)`：
+            //   修前 `replayShift(host, null)` 会因 `Number(null) === 0` 把它整集合搬掉一格。
+            //   （首稿曾把它标成 participates:false，被 v3190 第 8 条当场判死，已撤回。）
             get: (h) => (h && h._archivedFloorIds) ? h._archivedFloorIds : null,
-            drop: (h, f) => { const ids = h._archivedFloorIds; if (!ids) return 0; const f0 = Number(f); if (!Number.isFinite(f0)) return 0; const before = []; for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.push(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.pruneArchivedIds === 'function') { try { out = _as.pruneArchivedIds(before, f0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const n of before) if (n < f0) out.add(n); } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; return n; },
-            shift: (h, d) => { const ids = h._archivedFloorIds; if (!ids) return 0; const d0 = Number(d); if (!Number.isFinite(d0)) return 0; const before = new Set(); for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.add(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.shiftArchivedIds === 'function') { try { out = _as.shiftArchivedIds(before, d0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const v of before) { if (v === d0) continue; out.add(v > d0 ? v - 1 : v); } } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; for (const v of out) if (!before.has(v)) n++; return n; }
+            drop: (h, f) => { const ids = h._archivedFloorIds; if (!ids) return 0; const f0 = floorOrNull(f); if (f0 === null) return 0; const before = []; for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.push(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.pruneArchivedIds === 'function') { try { out = _as.pruneArchivedIds(before, f0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const n of before) if (n < f0) out.add(n); } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; return n; },
+            shift: (h, d) => { const ids = h._archivedFloorIds; if (!ids) return 0; const d0 = floorOrNull(d); if (d0 === null) return 0; const before = new Set(); for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.add(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.shiftArchivedIds === 'function') { try { out = _as.shiftArchivedIds(before, d0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const v of before) { if (v === d0) continue; out.add(v > d0 ? v - 1 : v); } } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; for (const v of out) if (!before.has(v)) n++; return n; }
         },
         {
             // 变化驱动注入的读取游标。删楼侧此前有回退、前移侧完全没有——
             // 编辑中途删一楼，游标停在旧位置上，游标之上重生成的新日记/新时间线不再注入。
             id: 'inject-cursor', label: '注入游标', holds: 'pointer',
+            // [v3.224.0] O-2：**本面参与前移**（既有判据 v3190 第 9 条明写「删楼回退到被删楼前
+            //   一楼、前移跟随」）。本轮只把入参从 `Number(f)` 换成 `floorOrNull(f)`：修前
+            //   `replayShift(host, null)` 把两个游标各减一（`Number(null) === 0` ⇒ 读成「删了第 0 楼」）。
+            //   （首稿曾把它标成 participates:false，被 v3190 第 9 条当场判死，已撤回。）
             get: (h) => (h && (h._diaryInjectFloor !== undefined || h._timelineInjectFloor !== undefined)) ? h : null,
-            drop: (h, f) => { const f0 = Number(f); if (!Number.isFinite(f0)) return 0; let n = 0; if (h._timelineInjectFloor != null && Number.isFinite(Number(h._timelineInjectFloor)) && Number(h._timelineInjectFloor) >= f0) { h._timelineInjectFloor = Math.max(-1, f0 - 1); n++; } if (h._diaryInjectFloor != null && Number.isFinite(Number(h._diaryInjectFloor)) && Number(h._diaryInjectFloor) >= f0) { h._diaryInjectFloor = Math.max(-1, f0 - 1); n++; } return n; },
-            shift: (h, d) => { const d0 = Number(d); if (!Number.isFinite(d0)) return 0; let n = 0; if (h._diaryInjectFloor != null && Number.isFinite(Number(h._diaryInjectFloor)) && Number(h._diaryInjectFloor) > d0) { h._diaryInjectFloor = Number(h._diaryInjectFloor) - 1; n++; } if (h._timelineInjectFloor != null && Number.isFinite(Number(h._timelineInjectFloor)) && Number(h._timelineInjectFloor) > d0) { h._timelineInjectFloor = Number(h._timelineInjectFloor) - 1; n++; } return n; }
+            drop: (h, f) => { const f0 = floorOrNull(f); if (f0 === null) return 0; let n = 0; if (h._timelineInjectFloor != null && Number.isFinite(Number(h._timelineInjectFloor)) && Number(h._timelineInjectFloor) >= f0) { h._timelineInjectFloor = Math.max(-1, f0 - 1); n++; } if (h._diaryInjectFloor != null && Number.isFinite(Number(h._diaryInjectFloor)) && Number(h._diaryInjectFloor) >= f0) { h._diaryInjectFloor = Math.max(-1, f0 - 1); n++; } return n; },
+            shift: (h, d) => { const d0 = floorOrNull(d); if (d0 === null) return 0; let n = 0; if (h._diaryInjectFloor != null && Number.isFinite(Number(h._diaryInjectFloor)) && Number(h._diaryInjectFloor) > d0) { h._diaryInjectFloor = Number(h._diaryInjectFloor) - 1; n++; } if (h._timelineInjectFloor != null && Number.isFinite(Number(h._timelineInjectFloor)) && Number(h._timelineInjectFloor) > d0) { h._timelineInjectFloor = Number(h._timelineInjectFloor) - 1; n++; } return n; }
         },
         {
             // 卷范围：起止同减，跨被删楼时收尾缩一（与手工清单同义，收编进来后才可被审计）。
@@ -414,21 +434,70 @@
         return problems;
     }
 
+    /* [v3.224.0] O-2：本模块的**唯一取值门**。
+     *   存在理由（与 scene-book.js v3.223.0 同一条根因，本轮在**回放/前移这条路径上**实测到）：
+     *     `Number(null) === Number('') === Number([]) === 0`、`Number(true) === 1`，
+     *     而 **0 在本仓是合法楼层**（宿主 `message.index` 是 0 基）。凡以 `Number()` 结果当门的
+     *     取值点，「没给」与「就在第 0 楼」必然塌成同形。
+     *   修前实测（真模块，不是推演）：`replayShift(host, null)` 把 volumes 的 1..9 整段减到 0..8、
+     *     归档集合 `[0,1,2,5]` 变成 `[0,1,4]`、两个注入游标各减一 —— **整树前移一格**，
+     *     而且返回 9（看着像「搬了 9 条」）。R3-E（v3.222.0）新写的 `const d0 = Number(d);
+     *     if (!Number.isFinite(d0)) return 0;` 只挡住了 `undefined`/NaN，对 `''` / `'  '` / `[]` / `true`
+     *     一律放行 —— 「半收口」比没收口更难发现：读者会以为这里有门。
+     *   口径与仓内先例逐字同族：`scene-book.js` 的 `numOrNull`（v3.223.0）、`stm-ltm.js`
+     *     的 `shiftFloorRefs`（v3.222.0）、`evidence-workbench.js` 的 `finiteNumStrict`（v3.214.0）。
+     *   只认**数字**与**非空数字字符串**；其余一律 null（「没给」）。给 0 照常是 0。 */
+    function floorOrNull(v) {
+        if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+        if (typeof v === 'string') {
+            const t = v.trim();
+            if (!t) return null;
+            const n = Number(t);
+            return Number.isFinite(n) ? n : null;
+        }
+        return null;
+    }
+
     // 回放一侧（drop 或 shift）。
-    // 返回 { version, side, floor, items: [{id,label,state,count,error}], dropped, shifted, threw, absent }
+    // 返回 { version, side, floor, items: [{id,label,state,count,error}], dropped, shifted, threw, absent, skipped }
     // state 取值 ok | absent | threw | no-op
+    // [v3.224.0] O-2：入参「没给」⇒ 一格子都不动，报告写 skipped（**与真回放不同形**：
+    //   修前它会照常走完全表并把整树搬掉一格，报告说 shifted>0 —— 读数反过来为缺陷作证）。
     function replaySide(host, floor, side, registry) {
         const list = Array.isArray(registry) ? registry : FLOOR_OWNERS;
+        const target = floorOrNull(floor);
+        if (target === null) {
+            return {
+                version: LEDGER_REPLAY_VERSION, side, floor: null, items: [],
+                dropped: 0, shifted: 0, threw: 0, absent: 0, skipped: 'floor-not-given'
+            };
+        }
         const items = [];
+        let participated = 0;
         let dropped = 0, shifted = 0, threw = 0, absent = 0;
         for (const owner of list) {
             const action = side === 'drop' ? owner.drop : owner.shift;
-            if (action === null) { items.push({ id: owner.id, label: owner.label, state: 'no-op', count: 0, error: '' }); continue; }
-            let target = null;
-            try { target = owner.get(host); } catch (e) { target = null; }
-            if (target == null) { absent++; items.push({ id: owner.id, label: owner.label, state: 'absent', count: 0, error: '' }); continue; }
+            // [v3.224.0] O-2：声明「本账不参与这一侧」的项**不得**报 ok。
+            //   修前只要 owner.drop/shift 是函数就报 ok —— 而那函数对没给楼层的入口是
+            //   `Number(f) || 0` ⇒ 读成第 0 楼、照常动手，报告上还是一条 ok。
+            if (action === null || owner.participates === false) {
+                items.push({ id: owner.id, label: owner.label, state: 'no-op', count: 0, error: '' }); continue;
+            }
+            participated++;
+            // [v3.224.0] O-2 自纠：循环变量**不得**叫 target —— 它会遮蔽上面门后的楼层值，
+            //   把 `action(host, target)` 的第二参偷偷换成宿主状态对象（owner.shift 再走一次
+            //   floorOrNull ⇒ null ⇒ 均匀 return 0）。形态是「门开过头」：没给面全绿、真回放全废。
+            let cur = null;
+            try { cur = owner.get(host); } catch (e) { cur = null; }
+            if (cur == null) { absent++; items.push({ id: owner.id, label: owner.label, state: 'absent', count: 0, error: '' }); continue; }
             try {
-                const count = Number(action(host, floor)) || 0;
+                // [v3.224.0] O-2：交给 owner 的是**门后的值**（target），不是原参数。
+                //   这样**回放这条路径上**「门」只有一道、位置固定；未来新增登记项即使用
+                //   `Number(f) || 0` 也收不到怪值。
+                //   [自纠] 首稿这里写的是「门只有一道」，与事实不符：`FLOOR_OWNERS` 是导出面，
+                //   owner 也会被**直接调用**（各 face 内部因此各有取值门）—— 两道门，各挡一条路径。
+                //   注释说得比实现更满，就是下一轮读注释的人被耽误的原因。
+                const count = Number(action(host, target)) || 0;
                 if (side === 'drop') dropped += count; else shifted += count;
                 items.push({ id: owner.id, label: owner.label, state: 'ok', count, error: '' });
             } catch (e) {
@@ -436,7 +505,13 @@
                 items.push({ id: owner.id, label: owner.label, state: 'threw', count: 0, error: (e && e.message) ? e.message : String(e) });
             }
         }
-        return { version: LEDGER_REPLAY_VERSION, side, floor: Number(floor), items, dropped, shifted, threw, absent };
+        if (!participated) {
+            return {
+                version: LEDGER_REPLAY_VERSION, side, floor: target, items,
+                dropped: 0, shifted: 0, threw: 0, absent, skipped: 'no-participant'
+            };
+        }
+        return { version: LEDGER_REPLAY_VERSION, side, floor: target, items, dropped, shifted, threw, absent, skipped: null };
     }
 
     // 删楼回放：撤掉该楼在所有登记子系统里的归属。

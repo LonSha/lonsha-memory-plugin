@@ -1,3 +1,90 @@
+## v3.224.0
+
+**主题：O-2 同族普查 —— 回放/前移层上「没给」与「给了 0」的第二次发病；这次它长在 R3-E（v3.222.0）**新写的代码**里，而且首稿修复自己又引入了一处更隐蔽的缺陷。**
+
+### 修前实测（在真模块上跑出来的，不是推演）
+
+1. **半收口**：`ledger-replay.js` 里 R3-E 新写的守卫是
+   `const d0 = Number(d); if (!Number.isFinite(d0)) return 0;` —— 它只挡 `undefined` / `NaN`，
+   对 `` / `'  '` / `[]` / `true` **一律放行**。而 `Number(null) === Number('') === Number([]) === 0`、
+   `Number(true) === 1`，**0 在本仓是合法楼层**（宿主 `message.index` 是 0 基）。
+2. **整树前移一格且读数反过来作证**：`replayShift(host, null)` 把 `summary.volumes` 的 1..9 整段
+   减到 0..8、归档集合 `[0,1,2,5]` → `[0,1,4]`、两个注入游标各减一，**返回 9**（看着像「搬了 9 条」）。
+   与 O-1（v3.223.0）修掉的 `scene-book.shiftFloorRefs(null)` **同一失效形态**，但发生在**新代码**上。
+3. **宿主侧同款**：`index.js` 的 `MESSAGE_DELETED` 处理器写着
+   `const floor = Number(messageId); if (!Number.isFinite(floor)) return;` —— 同一半收口。
+4. **面内门在导出面上真实可达**：`FLOOR_OWNERS` 是本模块的**导出面**，
+   `owner.shift(host, v)` 是正当调用方式；直接调用时 `Number('') === 0` 会把 `floor: 9` 的条目搬成 8。
+   （入口门只挡回放这条路径，面内门挡的是另一条 —— 两道门各管一条路，见下「判据自身」第 2 条。）
+
+### 本版做了什么
+
+- **`ledger-replay.js` 新增唯一取值门 `floorOrNull(v)`**：只认**数字**（并 `isFinite`）与
+  **非空数字字符串**（`trim` 后 `Number`），其余一律 `null`。口径与仓内先例逐字同族：
+  `scene-book.js` 的 `numOrNull`（v3.223.0）、`stm-ltm.js` 的 `shiftFloorRefs`（v3.222.0）、
+  `evidence-workbench.js` 的 `finiteNumStrict`（v3.214.0）。
+- **回放入口落在「没给」上 ⇒ 一格子都不动**：`replaySide` 返回
+  `{ floor: null, items: [], skipped: 'floor-not-given' }` —— 与真回放**不同形**（真回放 `skipped: null`、
+  `items` 有逐账明细）。修前它照常走完全表、报告还说 `shifted > 0`。
+- **交给 owner 的是门后的值**（`target`），不是原参数：本回放路径上「门只有一道、位置固定」，
+  未来新增登记项即使用 `Number(f) || 0` 也收不到怪值。
+- **同族六面一并收干净**（`ledger-replay.js` 13 处）：`ledgerOwner` 工厂的 `drop` / `shift`；
+  `shiftLedgerItemFloors` 本体；`floor-ledger` 的 drop/shift 入参；`archived` 的 drop/shift 入参；
+  `inject-cursor` 的 drop/shift 入参。
+- **宿主侧三处入口门**（`index.js` 4 处）：`numOr(v, fallback)` 增加 `typeof v === 'object'` 回退
+  （防 `Number([]) === 0`）；`rollbackFloor(floor)` 与 `shiftFloorsFrom(deleted)` 开头走 `numOr(_, null)`
+  并如实报 `skipped: 'floor-not-given'`；`MESSAGE_DELETED` 处理器改走 `numOr(messageId, null)`。
+- **正例必须照常**（否则就是把门关成「谁都不许搬」）：真给 `0` / `'0'` / `5` / `'5'` / `' 5 '` / `3.5`
+  一律照常回放，且**第 0 楼自身保留为 0**（`archived` 的 `f === d0` 那一支）。
+
+### 同轮抓到并修掉的**判据自身**缺陷（比实现缺陷更值得记）
+
+1. **首稿的修复引入了新缺陷，被反坐实组当场抓住**：`replaySide` 的主循环里写了
+   `let target = null; target = owner.get(host);` —— 它**遮蔽**了函数顶层的
+   `const target = floorOrNull(floor)`（门后的楼层值），于是 `action(host, target)` 交给 owner 的是
+   **宿主状态对象**而非楼层，每个 owner 再走一次门都得到 `null`、均匀 `return 0`。
+   形态是「**门开过头**」：B 组（「没给」）全绿、真回放全废 —— 比门不严更难发现。
+   修法：循环变量改名 `cur`。这正是本版新增 C/D/N5 组（反坐实 + 互不掩护）存在的理由：
+   只验「没给不许动」的判据对**任何**过严的门都是绿的。
+2. **判据挂错了路径（首稿 N3 假红）**：把 `shiftLedgerItemFloors` 的内层门退回 `Number(d)` 之后，
+   从 `replayShift` 路径**观测不到**任何差异 —— 入口门先一步拦成 `skipped`。
+   实测确认内层门挡的是**另一条真实路径**（`FLOOR_OWNERS` 是导出面、`owner.shift` 可被直接调用），
+   故把判据改打该路径（新增常驻判据 J5 `ownerJudge`），并在组内如实写下
+   「回放路径上这处破坏不可观测」——**判据要挂在有差异的那条路径上**，
+   挂错了会同时给出假绿与假红两种错。
+3. **注释说得比实现更满**：首稿在 `replaySide` 里写「这样『门』只有一道」，而事实上
+   `FLOOR_OWNERS` 这个导出面上 owner 会被直接调用、各有自己的门 —— 已改为
+   「**回放这条路径上**门只有一道」，并补记两道门各挡哪条路。
+4. **「真给面全不动手」使 B 组全绿成为假象**：B 组只断言 `shifted === 0`，
+   第 1 条缺陷下它一路绿灯。教训：**只验「不许动」的判据必须有配对的正向判据**。
+
+### 同轮接管的既有判据（未放宽，也未收紧）
+
+- 首稿曾主张 `archived` / `inject-cursor` / `floor-ledger` 三个面**不该参与前移**，被既有判据当场判死并撤回：
+  `tests/v3190` 第 8 条明写「删除楼起失去依据、**其后前移**、其前保留」、第 9 条明写「前移跟随」。
+  **既有测试的意图优先于本轮作者的推演** —— 判定是缺陷还是刻意优化，必须先读既有判据。
+- 首稿还曾把 `LEDGER_REPLAY_VERSION` 由 1 抬到 2，一并撤回：本版新增的 `skipped` 是**纯增量面**，
+  为它去改历史测试的常量值，正是 v3.203.0 拆掉的抬版仪式。
+
+### 验证
+
+- 定向：`v3225` 新套件 **20/20 通过**（A–G 共 7 组 + N0–N5 六条真源码负控制，含镜像树
+  「门本体退化」「半收口形态复现」「面内门」「宿主数组门」「互不掩护」）。
+- 全量：**205 文件 / 1901 断言 0 失败、42/42 审计 RC=0、版本守卫 0 问题**。
+- `dead_code_budget`：实测 37235 行 / 上界 37538 / 余量 303（上限 maxSlack=400 ⇒ 无需 `--bump`）。
+- 跨仓：新增测试已按纪律登记进 `tests/audit/catalog_reference_consumers.tsv`
+  （跨仓守卫由「在役 205 / 参考基准 204 / 问题 1」转为 **0 问题**）。
+
+### 边界如实声明
+
+① 只改**取值口径**与入口门，不改「谁参与回放」的既有语义（见上「同轮接管」）；
+② `presence.at` / `headers[].at` 时间戳（缺给 0）不在本版范围 —— 与 O-1 同口径，不把「时间未知」
+   变成下游要新处理的一态；③ `ledger-replay.js` 面内门保留「返回 null ⇒ 调用点收敛为 0」的静默风格
+   （与 `scene-book.js` 的 `numOrNull` 先例一致），**未**改成抛异常 —— 不拿实现给判据让路；
+④ 真实 SillyTavern 宿主实机未验，无头门禁只证明模块间契约；⑤ 下游 `ruby-phone` **不抬版**：
+   本轮上游新增的外供面只有 `skipped` 字段（纯增量），下游无消费点，按跨仓纪律逐条判定后不随轮抬版。
+- 回滚：仅逆转本补丁；门禁失败只回滚不放宽。
+
 ## v3.223.0
 
 **主题：O-1 「没给」与「给了 0」在**场所面**上的判开是假的 —— R3-D 那八处是改名，不是修复；且一处判据在保护缺陷。**

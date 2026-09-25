@@ -2,7 +2,7 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.223.0
+> 最近更新：v3.224.0
 > 本版不新增未修项；O-1（**「没给」与「给了 0」在场所面上的判开是假的**）已落地并留痕于 CHANGELOG v3.223.0：
 > **R3-D（v3.221.0）声称把 `import()` 七格改走 `numOrNull`、判开「没给」与「给了 0」，
 > 而实现是 `numOrNull(x) ?? 0` —— 对 `` / `null` / `[]` / 非数字串，它与修前的 `num(x) ?? 0` 结果完全相同：
@@ -16,6 +16,19 @@
 > 下游 `ruby-phone` 的 `place-data.js` 对 `atFloor` / `firstFloor` / `lastFloor` 用的正是 `numOrNull`，
 > 视图把 `null` 渲染成空、把 `0` 渲染成「第0楼」——**下游早已备好 null 这条路，上游从未喂过它**。
 > 怎么知道它还没变：`tests/v3222` 组 A1 的七格 `null` 断言 + A2b 的写侧拒绝断言（任一退回 0 即红）。
+> O-2（**同族普查：回放/前移层上「没给」与「给了 0」的第二次发病，且这次长在 R3-E v3.222.0 新写的代码里**）
+> 已落地并留痕于 CHANGELOG v3.224.0：修前 `replayShift(host, null)` 把 volumes 1..9 整段减到 0..8、
+> 归档集合 `[0,1,2,5]` → `[0,1,4]`、两个注入游标各减一（**整树前移一格**）并返回 9；
+> `ledger-replay.js` 新增唯一取值门 `floorOrNull`，「没给」⇒ 一格子不动且报告写 `skipped: 'floor-not-given'`；
+> 同族六面（ledgerOwner 工厂 / shiftLedgerItemFloors 本体 / floor-ledger / archived / inject-cursor 的入参）
+> 一并收干净；宿主侧 `numOr` 补数组门、`rollbackFloor` / `shiftFloorsFrom` / `MESSAGE_DELETED` 三处入口门。
+> 同轮修掉三处**判据自身**问题（首稿修复引入的变量遮蔽被反坐实组抓住；N3 判据挂错路径；注释说得比实现更满），
+> 并撤回两处**越界主张**（三个面不该参与前移 / 抬 `LEDGER_REPLAY_VERSION`）—— 既有判据 v3190 第 8/9 条优先于推演。
+> 怎么知道它还没变：`tests/v3225` 的 B 组（「没给」⇒ skipped 且逐字节不动）+ C 组（真给 0/'5'/' 5 ' 照常回放）
+> + N1/N2/N3/N4/N5 五条真源码负控制（任一门退化 ⇒ 同款判据转红）。
+> 边界：不改「谁参与回放」的既有语义；面内门保留静默 0 风格（与 `scene-book.js` 先例一致）；实机未验；
+> 下游 ruby-phone 不抬版（新增外供面只有 `skipped` 字段，下游无消费点）。
+
 > **第二批（首稿只改调用点，门本体没动）**：`numOrNull` / `num` 改为「先看类型」
 > （修前 `typeof` 门缺失 ⇒ `[] → 0`、`true → 1`、`'  ' → 0` 同样与「没给」同形），
 > 并收干净同族残留六面：`coverage().floors` / `trackFloors`（凭空多出第 0 楼）、

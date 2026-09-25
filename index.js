@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.223.0';
+    const VERSION = '3.224.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -805,7 +805,10 @@
     //   旧写法 `Number(x) || fallback` 用 falsy 判定缺失，会把 0 静默当成「没配置」回退到默认值，
     //   于是「设 0」在 UI 上可见、在引擎里永不可达。本函数只对真正的缺失值(undefined/null/''/NaN/布尔)回退。
     function numOr(v, fallback) {
-        if (v === undefined || v === null || v === '' || typeof v === 'boolean') return fallback;
+        // [v3.224.0] O-2：`typeof v === 'object'` 一并回退。修前只挡布尔/空串/null/undefined，
+        //   而 `Number([]) === 0`、`Number([5]) === 5` —— 宿主删楼事件把 `messageId` 传成数组时，
+        //   本函数会把「没给」读成第 0 楼（而 0 是合法楼层，两者处置相反）。
+        if (v === undefined || v === null || v === '' || typeof v === 'boolean' || typeof v === 'object') return fallback;
         const n = Number(v);
         return Number.isFinite(n) ? n : fallback;
     }
@@ -8678,6 +8681,13 @@ function relativeTimeLabel(eventTime, nowTime) {
 
         // [v2.0] P2: 楼层账本回滚（删楼/重生成后把该楼层产生的记忆撤掉）
         rollbackFloor(floor) {
+            // [v3.224.0] O-2：**入口先判「给没给」**。修前这里没有门，`rollbackFloor(null)` 会被
+            //   下游约 38 处 `Number(floor) || 0` / `Math.round(Number(floor) || 0)` 读成第 0 楼，
+            //   于是「宿主没给楼层」变成「把第 0 楼及其派生记录撤掉」——一次静默的错误回滚，
+            //   而返回值照常是条数（看着像成功）。这是 O-1 在场所面修掉的同一形态在宿主面的实例。
+            const _f0 = numOr(floor, null);
+            if (_f0 === null) return 0;
+            floor = _f0;
             try {
                 if (!this.config.config.floorLedgerEnabled) {
                     // [v3.190] 关掉账本 ⇒ 不自动回滚，但**要留痕**：否则「关掉了」与「跑了没账可撤」
@@ -8875,6 +8885,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         shiftFloorsFrom(deleted) {
             const _face = SHIFT_FACE_LABELS;
             let shifted = 0;
+            // [v3.224.0] O-2：**入口先判「给没给」**。修前实测 `shiftFloorsFrom(null)` 会经
+            //   回放的 `Number(null) === 0` 门把**整树**前移一格（返回 9）。「没给」不是
+            //   「删了第 0 楼」：如实跳过并留 skipped 报告（与真回放不同形）。
+            const _d0 = numOr(deleted, null);
+            if (_d0 === null) {
+                this._lastReplayReport = { version: 1, side: 'shift', floor: null, items: [], dropped: 0, shifted: 0, threw: 0, absent: 0, skipped: 'floor-not-given' };
+                return 0;
+            }
+            deleted = _d0;
             // [v3.182] LR: 楼层前移回放收口。与删楼回放同一张登记表、同一个留痕字段。
             try {
                 const _lr = _ledgerReplayLib();
@@ -16448,8 +16467,11 @@ ${recentTurns}`;
                         try {
                             const c = window.SillyTavern?.getContext?.();
                             // ST 删楼后 chat 已变化，直接尝试回滚该楼及其后的记忆
-                            const floor = Number(messageId);
-                            if (!Number.isFinite(floor)) return;
+                            // [v3.224.0] O-2：修前 `Number(messageId)` + isFinite ——
+                            //   `''` / `[]` / `'  '` 经 Number() 得 0 且有限，于是「宿主没给楼层」
+                            //   会被读成「删了第 0 楼」，进而 rollbackFloor(0) + 整树前移。
+                            const floor = numOr(messageId, null);
+                            if (floor === null) return;
                             plugin.engine.rollbackFloor(floor);
                             // [v3.9] 废除级联销毁：被删楼之后的记忆不再删除，改为楼层前移重定位（数据零丢失）
                             try { plugin.engine.shiftFloorsFrom?.(floor); } catch (e) { errLog(e, 'SH.删楼前移'); }
