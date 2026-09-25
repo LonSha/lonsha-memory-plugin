@@ -2,7 +2,7 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.215.0
+> 最近更新：v3.216.0
 > 本版不新增未修项；L-F5 前半（投影契约的出口）已落地并留痕于 CHANGELOG v3.212.0：
 > `projection-pipeline.js` 新增 envelope 出口（结构版 `PROJECTION_API_VERSION` 与语义版分离、11 项字段单一真源、缺席不伪装、契约五态裁定），
 > `index.js` 新增 `_buildProjectionEnvelope()` 与快照 `projection` 字段（身份取真源、缺即 null、不在快照内现跑管线）。

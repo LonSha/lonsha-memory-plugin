@@ -354,14 +354,14 @@ test('v3216 10. 面板与诊断行：诊断读数与真注入读数不得同形'
     const sc = blockOf(idxSrc, 'async selfCheck() {');
     assert.ok(sc.includes('注入读数'), 'selfCheck 增加注入读数行');
     const ver = (idxSrc.match(/const VERSION = '([^']+)'/) || [])[1];
-    assert.strictEqual(ver, '3.215.0', '本 Gate 属于 v3.215.0');
-    // 当版锚点（version-guard V4）：本套件恰好锚着 3.215.0。
-    //   frontier 文件按既有交棒口径用硬等号锁自己，下一版接管时改这一行即可。
+    // 交棒（v3.216.0 起由 v3217 接管当版锚点）：本套件只锁**自己的出生版本**，
+    //   不再硬等当前版本 —— 硬等号会让每次抬版都要回来改一行，且判据本身
+    //   想表达的只是「本版之后的所有版本都该满足这些契约」。
     const vnum = (s) => {
         const m = /^([0-9]+)\.([0-9]+)\.([0-9]+)/.exec(String(s || '').trim());
         return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
     };
-    assert.ok(vnum(ver) >= vnum('3.215.0'), '版本不得低于本套件出生版本 3.215.0');
+    assert.ok(vnum(ver) >= vnum('3.215.0'), '版本不得低于本套件出生版本 3.215.0（实 ' + ver + '）');
 });
 
 /* ══════════ N1-N4 负控制：真源码破坏 → 载入副本 → 同款判据必须现形 ══════════ */
@@ -396,13 +396,15 @@ test('v3216 N2. 破坏：读数少写一个键 ⇒ 键面判据必须现形', ()
 });
 
 test('v3216 N3. 破坏：零块回归短路落地 ⇒ 「零块也落地」判据必须现形', () => {
-    // 判据：生成路径的落地调用必须**无条件**（`this._injectionRecord({` 独立成行），
+    // 判据：生成路径的落地/暂存调用必须**无条件**（`this._injectionStage({` 独立成行），
     //   一旦被 `if (inj2)` 包起来，零块就被跳过 —— 那正是修前的缺陷形态。
-    const cond = (src) => /^\s*this\._injectionRecord\(\{\s*$/m.test(src) && !src.includes('if (inj2) this._injectionRecord(');
-    assert.strictEqual(cond(idxSrc), true, '原版上判据为真（无条件落地，零块也留读数）');
-    const anchor = '                this._injectionRecord({';
-    const broken = breakSource(idxSrc, anchor, '                if (inj2) this._injectionRecord({  // 破坏：短路\n');
-    assert.ok(broken.includes('if (inj2) this._injectionRecord({'), '破坏生效（恰中 1 次）');
+    //   [v3.216.0] R2-B 起生成路径改调 `_injectionStage`（读数由代际确认后的提交落地），
+    //   本判据跟着搬到暂存口上：无条件性在暂存这一步同样必须成立。
+    const cond = (src) => /^\s*this\._injectionStage\(\{\s*$/m.test(src) && !src.includes('if (inj2) this._injectionStage(');
+    assert.strictEqual(cond(idxSrc), true, '原版上判据为真（无条件暂存，零块也留读数）');
+    const anchor = '                    this._injectionStage({';
+    const broken = breakSource(idxSrc, anchor, '                    if (inj2) this._injectionStage({  // 破坏：短路\n');
+    assert.ok(broken.includes('if (inj2) this._injectionStage({'), '破坏生效（恰中 1 次）');
     assert.strictEqual(cond(broken), false, '★ 破坏副本上判据必须现形为假');
 });
 

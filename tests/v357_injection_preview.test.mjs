@@ -19,7 +19,10 @@ test('=== 1. 注入缓存双路径验证 ===', () => {
     assert.ok(/prev: \(this\._lastInjection && this\._lastInjection\.html\) \|\| null,/.test(src), 'prev 快照要素在位');
     assert.ok(/tokens: Number\.isFinite\(e\.tokens\) \? e\.tokens : estimateTextTokens\(html\),/.test(src), 'token 估算要素在位');
     assert.ok(/origin: String\(e\.origin \|\| 'generation'\),/.test(src), '真生成路径 origin 明确（诊断必须另走一路）');
-    assert.ok(/this\._injectionRecord\(\{\s*\n\s*html: inj2 \|\| '', origin: 'generation',/.test(src), '主路径无条件落地（零块也留读数）');
+    // [v3.216.0] R2-B：生成路径改调 `_injectionStage`（无条件暂存，零块也留读数），
+    //   读数由代际确认后的 `_injectionCommit` 落成。
+    assert.ok(/this\._injectionStage\(\{\s*\n\s*html: inj2 \|\| '',/.test(src), '主路径无条件暂存（零块也留读数）');
+    assert.ok(/this\.engine\._injectionCommit\(/.test(src), '读数由提交落成（不得在 await 内落地）');
     assert.ok(!/this\._lastInjection = \{ html: inj/.test(src), '降级路径不再单独写 `_lastInjection`（诊断另存 `_diagnostics.dryRun`）');
     // 缓存的是裁剪后最终形态（buildInjection 返回值）——[v3.87] 起 inj2 为 let（追加前情注入）
     assert.ok(src.includes('let inj2 = this.buildInjection(candidateItems);'), '主路径调用在位');

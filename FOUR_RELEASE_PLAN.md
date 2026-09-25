@@ -102,9 +102,30 @@
   本 Gate 只保证「过期必留读数」与「读数只有一个构造点」成立且可分。
 - 回滚：仅逆转本补丁；门禁失败只回滚不放宽。
 
+## Gate R2-B：迟到隔离（读数落地不早于代际确认）（**已完成**，v3.216.0）
+
+主题：R2-A 已如实声明的那条边界的收口 —— 迟到的结果不得写脏读数。
+
+- 修前实测：`onBeforeGeneration()` 在 `await` **内部**无条件落地 `_injectionRecord`，
+  而代际守卫在 await **之后**才判定。快速连发时先发那一轮已写脏读数，守卫只拦住
+  `writeInjectSlot`，拦不住读数；面板上「最近一次实际注入」可能是**一次从未生效的注入**，
+  而旁边写槽位的结果恰说明这轮没生效 —— 两行读数互相矛盾。
+- 收口：`_injectionStage`（await 内只**暂存** `_injectionPending`，绝不动 `_lastInjection`）
+  + `_injectionCommit(myGen)`（守卫**之后**的唯一落地点，内部再做一道代际核对，
+  不符即返回 null 不静默落别的代的载荷）；**轮次号只由提交推进**（被丢弃那代不占号，
+  于是「第 N 轮」恒等于「真正生效过的第 N 次注入」）；过期分支**必须清暂存**
+  （不清则下一轮捡起旧载荷落成读数 —— 张冠李戴比不落地更坏），并把被丢弃载荷读数
+  （`pendingDiscarded`/`payloadChars`/`payloadBlocks`）记进 `_lastInjectionDiscard`。
+- 验证：v3217（11 条，先红后绿）；全量 197/197 文件、1732 断言、42/42 审计 RC=0。
+- 边界：只保证「读数落地不早于代际确认」与「过期载荷不得被下一轮捡起」；
+  **不声称**消除注入槽位之外的其它迟到写（charMem / 各账本），属后续 Gate。
+- 回滚：仅逆转本补丁；门禁失败只回滚不放宽。
+
 ## 状态检查点
+- **R2-B：已完成**（v3.216.0）；`_injectionStage` / `_injectionCommit` 两段式（暂存 → 代际确认后提交），
+  轮次只由提交推进，过期清暂存并记载荷读数；v3217（11 条，先红后绿）；
+  全量 197/197 文件 / 1732 断言 0 失败、42/42 审计 RC=0。
 - **R2-A：已完成**（v3.215.0）；注入读数收口到唯一构造点 `_injectionRecord`（恒定 10 键），
-  诊断另存 `_diagnostics.dryRun`（不写也不覆盖读数），零块也落地（`blocks:[]/total:0/round+1`），
   逐块读数 `_injectionBlocksOf`（kept/dropped-budget 两态）、代际过期留痕 `_injectionDiscardStale`
   （累计计数、刻意不碰读数）、外供面 `buildInjectionReadout()` 进快照 + 桥 `injectionRefOf(i)`；
   面板为真生成读数作证并单独一格展示诊断（明写「没有进入 AI 上下文」）；v3216（14 项，先红后绿）；

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.215.0';
+    const VERSION = '3.216.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2272,6 +2272,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastInjectionDraft = null;            // 本轮逐块读数草稿（buildInjection 现算，零块路径留空）
             this._lastInjectionDiscard = null;          // 最近一次代际过期留痕（_injectionDiscardStale）
             this._injectionRound = 0;                   // 真生成轮次（0 块的一轮也推进）
+            // [v3.216.0] R2-B 暂存面：生成路径在 await 内部只**暂存**载荷，
+            //   载荷在代际确认之后由 _injectionCommit 落成读数。
+            //   不设这一层，读数会在 await 期间被写脏（后到的 STARTED 会把它超过）。
+            this._injectionPending = null;
             this._injectionStale = 0;                   // 代际过期累计次数（≥0 即「有过迟到结果」）
             this._diagnostics = null;                   // [v3.215.0] 诊断读数面（selfCheck dry-run 等，**不进** _lastInjection）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
@@ -5042,15 +5046,26 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //   现在轮次照常推进、块数如实归零，并且**逐块读数**一并落地
                 //   （谁进了 / 谁被裁 / 各多少字符）——这是下游唯一能回答
                 //   「AI 这一轮到底看到了什么」的地方。
-                this._injectionRound = (Number(this._injectionRound) || 0) + 1;
+                // [v3.216.0] R2-B 迟到隔离：本处只**暂存**，不写读数。
+                //   修前（R2-A 当时）这里是**无条件**落地 `_injectionRecord`，而本函数是在
+                //   `GENERATION_STARTED` 处理器的 `await` **内部**跑的；代际守卫
+                //   `myGen !== this._genSeq` 却在 await **之后**才判定。于是快速连发两次生成时，
+                //   先发那一轮在 await 期间已经把读数写进去了；守卫随后只拦住了注入槽位
+                //   （writeInjectSlot），拦不住它早已写脏的读数 —— 面板上「最近一次实际注入」
+                //   于是可能是**一次从未生效的注入**，而正好旁边那行写槽位的结果
+                //   说明它没生效 —— 两行读数互相矛盾。
+                //   现在载荷落在 `_injectionPending`，由处理器在守卫**之后**调
+                //   `_injectionCommit(myGen)` 落成读数 —— 记录发生在 await 之后是**结构性**保证。
+                //   轮次不在这里推进：被丢弃的那一代不占号，于是「第 N 轮」
+                //   恒等于「真正生效过的第 N 次注入」。
                 try {
                     const _blocks = Array.isArray(this._lastInjectionDraft) ? this._lastInjectionDraft : [];
-                    this._injectionRecord({
-                        html: inj2 || '', origin: 'generation', blocks: _blocks,
+                    this._injectionStage({
+                        html: inj2 || '', blocks: _blocks,
                         total: _blocks.length, kept: _blocks.filter(b => b && b.kept).length,
-                        round: this._injectionRound, gen: Number(this._genSeq) || 0,
+                        gen: Number(this._genSeq) || 0,
                     });
-                } catch (e) { errLog(e, 'onBeforeGeneration.注入读数'); }
+                } catch (e) { errLog(e, 'onBeforeGeneration.注入暂存'); }
                 try { if (this.config.config.bridgeEnabled !== false) window.lonsha_memory_bridge_v1?.refresh?.(); } catch (e) { errLog(e, 'nonfatal') }   // [v3.88] 快照桥随生成刷新
                 // [v3.27] 命中轨迹记录（MemoryPilot monitor）+ 触发词按需注入（AnchorNote anchorOnDemand）
                 try {
@@ -8391,6 +8406,52 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             return out;
         }
+        /**
+         * [v3.216.0] R2-B：本轮注入读数的**暂存口**（生成路径在 await 内部调）。
+         *   只写 `_injectionPending`，**绝不动 `_lastInjection`** ——
+         *   那是「AI 真实所见」的唯一读数，它只能由**代际确认过的提交**写。
+         *   为什么不能在这里直接落地：本方法跑在 `await onBeforeGeneration()` 里，
+         *   而代际守卫在 await **之后**才判定（快速连发时先发那一轮必定过期）。
+         *   提前落地 = 把一次**从未生效**的注入写成「最近一次实际注入」。
+         */
+        _injectionStage(payload) {
+            const p = payload || {};
+            const blocks = Array.isArray(p.blocks) ? p.blocks : [];
+            const rec = {
+                html: String(p.html == null ? '' : p.html),
+                blocks,
+                total: Number.isFinite(p.total) ? p.total : blocks.length,
+                kept: Number.isFinite(p.kept) ? p.kept : blocks.filter(b => b && b.kept).length,
+                gen: Number.isFinite(p.gen) ? p.gen : (Number(this._genSeq) || 0),
+                stagedAt: Date.now(),
+            };
+            this._injectionPending = rec;
+            return rec;
+        }
+        /**
+         * [v3.216.0] R2-B：读数的**唯一落地点**（代际确认之后调）。
+         *
+         *   ① 轮次号只在**这里**推进：被丢弃的那一代不占号，于是「第 N 轮」
+         *     恒等于「真正生效过的第 N 次注入」。若轮次在暂存时就推进，读数上会多出一些
+         *     从未生效的空号，而下游把 round 当作「有效注入次数」用。
+         *   ② 内部再做一道代际核对：即便被误调（外层守卫被绕过 / 被当作工具单用），
+         *     也**不会默默落一个别的代的载荷** —— 不符即返回 null，由留痕口处置。
+         *   ③ 提交后清空暂存：不清则下一轮若没暂存，会被误认为「本轮的载荷」。
+         */
+        _injectionCommit(myGen) {
+            const p = this._injectionPending;
+            const gen = Number.isFinite(myGen) ? myGen : (Number(this._genSeq) || 0);
+            if (!p) return null;
+            if (gen !== (Number(this._genSeq) || 0)) return null;   // ② 代际不符：不落地、不消耗暂存（由留痕口处置）
+            this._injectionRound = (Number(this._injectionRound) || 0) + 1;
+            const rec = this._injectionRecord({
+                html: p.html, origin: 'generation', blocks: p.blocks,
+                total: p.total, kept: p.kept,
+                round: this._injectionRound, gen: p.gen,
+            });
+            this._injectionPending = null;   // ③
+            return rec;
+        }
         /** [v3.215.0] R2-A：块引用键。本轮内唯一（含轮次号），跨轮不混淆。 */
         _injectionRefOf(i) {
             const round = Number(this._injectionRound) || 0;
@@ -8409,12 +8470,25 @@ function relativeTimeLabel(eventTime, nowTime) {
             const staleGen = Number.isFinite(myGen) ? myGen : -1;
             const currentGen = Number(this._genSeq) || 0;
             this._injectionStale = (Number(this._injectionStale) || 0) + 1;
+            // [v3.216.0] R2-B：过期必须**清掉暂存**。
+            //   不清则下一次新鲜提交会捡起这一轮的载荷落成读数 —— 比「不落地」更坏：
+            //   那是一份**张冠李戴**的读数，而读数上看不出来。
+            //   与此同时把被丢弃载荷的读数也记下（chars / blocks），于是
+            //   「过期丢了多大一块」在诊断面上可读，而不是只有一个计数。
+            const _pd = this._injectionPending;
+            const _payloadChars = (_pd && typeof _pd.html === 'string') ? _pd.html.length : 0;
+            const _payloadBlocks = (_pd && Array.isArray(_pd.blocks)) ? _pd.blocks.length : 0;
+            const _hadPending = !!_pd;
+            this._injectionPending = null;   // ★ 必须清：不清则下一次新鲜提交会捡起旧载荷
             const rec = {
                 staleGen,
                 currentGen,
                 kind: 'generation-superseded',
                 at: Date.now(),
                 stale: this._injectionStale,
+                pendingDiscarded: _hadPending,
+                payloadChars: _payloadChars,
+                payloadBlocks: _payloadBlocks,
             };
             this._lastInjectionDiscard = rec;
             return rec;
@@ -16182,6 +16256,12 @@ ${recentTurns}`;
                                 return;
                             }
                             // [v3.2] DF6: 空召回=显式清除（baibai 语义"注入空串等于清除"——召回价值判断跳过时旧槽位残留会注入上一轮记忆）
+                            // [v3.216.0] R2-B 读数落地点：必须在**代际确认之后**。
+                            //   上面那个 `if (myGen !== this._genSeq) return;` 已经把过期代拦在外面，
+                            //   所以能走到这里的必定是当下代。`_injectionCommit` 内部还有一道
+                            //   代际核对（防守卫被绕过）：不符即不落地，由留痕口处置。
+                            try { this.engine._injectionCommit(myGen); }
+                            catch (e) { errLog(e, 'GENERATION_STARTED.注入提交'); }
                             const depth = Math.min(2, Math.max(0, numOr(this.engine.config.config.injectionDepth, 0)));   // [v3.156] D0=0 合法
                             writeInjectSlot('lonsha_memory', injection || '', depth);
                             // [v3.2] DF6: 卷摘要槽独立刷新（与召回无关；空卷=清除旧卷）
