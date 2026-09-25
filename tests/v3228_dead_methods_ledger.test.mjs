@@ -161,6 +161,8 @@ test('v3228 D1. ★ 版本锚（当版字面量）', () => {
     const idx = read(path.join(ROOT, 'index.js'));
     const codeVer = (/const VERSION = '([^']+)'/.exec(idx) || [])[1];
     assert.ok(codeVer, '入口版本常量在场');
-    assert.equal(vnum(codeVer), vnum('3.227.0'), '本套件只针 3.227.0 这一版；当前 ' + codeVer);
+    /* [v3.228.0] 当版锚交棒：本套件出生版本 3.227.0，抬版后改为下限锚（仓内口径），
+     *   当版精确判定交给当版 frontier 套件（本版即 v3229 D1）。 */
+    assert.ok(vnum(codeVer) >= vnum('3.227.0'), '本套件只在 3.227.0 及以后成立；当前 ' + codeVer);
     assert.equal(pkg.version, codeVer);
 });

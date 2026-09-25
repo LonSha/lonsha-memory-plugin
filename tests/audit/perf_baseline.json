@@ -1,0 +1,29 @@
+{
+  "file": "tests/audit/perf_baseline.json",
+  "note": "O-5 性能取证基线。**合成数据 + 真模块**（无浏览器 / SillyTavern 宿主参与）—— 这些数字不代表实机性能，只用于回归时看量级是否漂移（同 tests/audit/gate_timing_baseline.json 的口径纪律）。",
+  "measured_at": "v3.228.0",
+  "node_version": "v24.18.0",
+  "probe": "tests/audit/perf_probe.cjs",
+  "readings": {
+    "scene_book_build_1000_floors_ms": 51.55,
+    "scene_book_summary_1000_floors_ms": 1.53,
+    "replay_shift_1000_floors_ms": 0.34,
+    "replay_drop_1000_floors_ms": 1.06,
+    "coverage_1000_floors_ms": 0.11,
+    "replay_shift_200_floors_ms": 0.04,
+    "coverage_200_floors_ms": 0.04
+  },
+  "scaling": {
+    "note": "replayShift 0.04ms（200 楼）→ 0.34ms（1000 楼）：约线性（5 倍楼层 ~8.5 倍耗时，含一次性建账成本）。",
+    "verdict": "未观察到超线性（无 O(n^2) 迹象）"
+  },
+  "corrections": [
+    "首版探针把 mkHost(N)（建 1000 楼场景树 ≈ 51.55ms）算进了被测调用 ⇒ 报出 replayShift 98.6ms/次、replayDrop 111.5ms/次，那 ~99ms 全是夹具成本；改为「setup 不计时、每 rep 独立 host」后为 0.34 / 1.06ms。",
+    "两次读数差 290 倍 —— 「先量」这一步本身也需要口径正确。"
+  ],
+  "not_done": [
+    "未做实机取证：无浏览器、无 SillyTavern 宿主、无真实 1000 楼聊天记录；合成数据只覆盖场所/账本两类结构。",
+    "未做优化：本版只取证与立基线（任何优化都要先有可比基线，否则改完不知道是快了还是碰巧）。",
+    "未覆盖向量检索 / LLM 调用 / 注入预算裁剪等 I/O 与网络路径 —— 那些受宿主与外部服务影响，合成探针测不出意义。"
+  ]
+}
