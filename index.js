@@ -7539,6 +7539,41 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //   只读 + 有界：summary() 已是纯数据（Map 已转数组），deep() 只做克隆。
                 const rawScene = (this.scene && typeof this.scene.summary === 'function')
                     ? this.scene.summary() : undefined;
+                // [v3.213.0] R1-C：投影 envelope 的**导出期新鲜度守卫**（「归属」而不是「时刻」）。
+                //   修前实测：`_lastProjectionEnvelope` 的归属（conversationId + revision）只在
+                //   `readWorldLedger()` 写它的那一刻成立。切聊只换 chatId、回滚/恢复只递增
+                //   `_mutationEpoch`，两条路径都**不清缓存** ⇒ 快照于是把**旧会话/旧代数**的投影
+                //   当作当下的读数导出。下游拿到的是一份看起来正常、归属却错了的状态（本仓最贵
+                //   的那类错读数：不报错、只错结果）。
+                //   为什么不是「顺手更新一下时间戳」：`generatedAt` 记的是**封装生成时刻**，不携带
+                //   归属。宿主没重跑管线时，旧缓存依然是「最新生成」的那一份 —— 改时间戳等于把陈旧
+                //   内容**伪装**成新鲜（掩盖而非消除）；且时间戳与 `_mutationEpoch` 无耦合，识别不出
+                //   回滚/切聊造成的状态跳变。只有比对「会话 + 代数」才能保证导出与当前状态同代。
+                //   三态处置：同代 ⇒ 照常导出；不符 ⇒ 不导出（`projection` 缺席 ⇒ 自述 present=false），
+                //   原因留在 `this._projectionDropped` 与 `snap.meta.projectionFreshness`（扔掉了要说出来，
+                //   「扔掉了」与「本来就没这面」必须可分）；取不到 chatId（宿主无该方法 / 「提取执行」
+                //   模式的独立实例）⇒ **放行**：拿不到判据不等于证伪，原契约（照常导出）不变。
+                const freshProjectionFace = (() => {
+                    const env = this._lastProjectionEnvelope;
+                    if (!env) { this._projectionDropped = null; return undefined; }
+                    let nowChatId;
+                    try { nowChatId = (typeof this.getCurrentChatId === 'function') ? (this.getCurrentChatId() ?? undefined) : undefined; }
+                    catch (_e3) { nowChatId = undefined; }
+                    if (nowChatId === undefined) { this._projectionDropped = null; return env; }
+                    const envChat = (env.conversationId === undefined || env.conversationId === null) ? '' : String(env.conversationId);
+                    const envRev = Number(env.revision) || 0;
+                    const nowRev = Number(this._mutationEpoch) || 0;
+                    if (String(envChat || '') !== String(nowChatId || '')) {
+                        this._projectionDropped = { reason: 'stale-conversation', from: envChat || null, to: String(nowChatId || ''), at: Date.now() };
+                        return undefined;
+                    }
+                    if (envRev !== nowRev) {
+                        this._projectionDropped = { reason: 'stale-revision', from: envRev, to: nowRev, at: Date.now() };
+                        return undefined;
+                    }
+                    this._projectionDropped = null;
+                    return env;
+                })();
                 const snap = {
                     version: 1,
                     bridge: 'lonsha_memory_bridge_v1',
@@ -7564,7 +7599,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     //   —— buildBridgeSnapshot 会被经 `.default` 取出的独立实例调用（无 this 账本），
                     //   现跑会静默拿到全空投影并把「没跑」伪装成「都是空」。
                     //   取不到即 undefined ⇒ present=false（如实报「本版没这面」）。
-                    projection: deep(this._lastProjectionEnvelope || undefined)
+                    projection: deep(freshProjectionFace || undefined)
                 };
                 // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
                 //   此前读者只能自己试着 stringify 一遍、再从失败里反推——而字符串化失败与
@@ -7581,10 +7616,20 @@ function relativeTimeLabel(eventTime, nowTime) {
                         fieldTypes: fieldTypes(snap),
                         selfBytes: typeof json === 'string' ? json.length : 0,
                         strictJsonOk: typeof json === 'string',
-                        contract: 'v3.174'
+                        contract: 'v3.174',
+                        // [v3.213.0] R1-C：被新鲜度守卫扣下的投影必须**可归因**。
+                        //   `projection` 缺席（present=false）有两种来源：本版没这面 / 有面但归属不同代。
+                        //   两者处置相反（前者等上游升级，后者等宿主重跑），压成一态就是错读数。
+                        projectionFreshness: (() => {
+                            try {
+                                const d = this._projectionDropped;
+                                if (!d || typeof d !== 'object') return null;
+                                return { dropped: true, reason: String(d.reason || 'unknown'), from: (d.from === undefined ? null : d.from), to: (d.to === undefined ? null : d.to) };
+                            } catch (_e4) { return null; }
+                        })()
                     };
                 } catch (e2) {
-                    snap.meta = { fieldTypes: {}, selfBytes: 0, strictJsonOk: false, strictJsonError: String((e2 && e2.message) || e2), contract: 'v3.174' };
+                    snap.meta = { fieldTypes: {}, selfBytes: 0, strictJsonOk: false, strictJsonError: String((e2 && e2.message) || e2), contract: 'v3.174', projectionFreshness: null };
                 }
                 return snap;
             } catch (e) { errLog(e, 'buildBridgeSnapshot'); return null; }
