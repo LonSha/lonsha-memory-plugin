@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.212.0';
+    const VERSION = '3.214.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7599,7 +7599,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                     //   —— buildBridgeSnapshot 会被经 `.default` 取出的独立实例调用（无 this 账本），
                     //   现跑会静默拿到全空投影并把「没跑」伪装成「都是空」。
                     //   取不到即 undefined ⇒ present=false（如实报「本版没这面」）。
-                    projection: deep(freshProjectionFace || undefined)
+                    projection: deep(freshProjectionFace || undefined),
+                    // [v3.214.0] R1-E：九账证据工作台读数（只读对账面）。
+                    //   为什么进快照：它与 worldLedgerRead / scene / projection 同族——都是
+                    //   「本插件眼里的某样东西」，下游要能读到；且进快照就自动获得
+                    //   meta.fieldTypes 三态（present=false ⇒ 本版没这面）。
+                    //   取值器：`_evidenceWorkbench()` 从**九账既有状态**现投影（纯读，不写账）。
+                    //   typeof 守卫：本方法会被单测「提取执行」模式的独立实例复用，缺失即
+                    //   present=false（如实报「没这面」），不得连坐 floor / bridge / version 等自述字段。
+                    //   三态在内核里已分（ok / empty / absent + reason），快照只负责搬运。
+                    evidence: deep((typeof this._evidenceWorkbench === 'function') ? this._evidenceWorkbench() : undefined)
                 };
                 // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
                 //   此前读者只能自己试着 stringify 一遍、再从失败里反推——而字符串化失败与
@@ -10177,29 +10186,17 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 const RL = _repairLoopLib();
                 if (!RL || typeof RL.request !== 'function') return { ok: false, reason: 'module-unavailable' };
                 const st = this._repairState ? RL.normalize(this._repairState) : { version: 1, seq: 0, repairs: [] };
-                // 派生件池从当前运行时现收（**不另存副本**：另存就是第二份真源）。
-                //   六个池各自独立 try —— 任一池缺席不影响其余池参与判定。
-                let summaries = [];
-                try { summaries = (this.summary?.getActiveSummaries?.() || []).map(s => ({ key: 'sum_' + s.floor, text: s.text, floor: s.floor })); } catch (e) { /* 池可缺 */ }
-                let events = [];
-                try { events = (this._eventThreadState?.events || []).map(e => ({ key: e.id, title: e.title })); } catch (e) { /* 池可缺 */ }
-                let relations = [];
-                try { relations = [...(this.graph?.edges?.values?.() || [])].slice(0, 200).map(e => ({ key: e.from + '->' + e.to, text: e.label || '' })); } catch (e) { /* 池可缺 */ }
-                let promises = [];
-                try {
-                    const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
-                    promises = (CL?.list?.(this.worldProg?.commitmentLedger, {}) || []).map(c => ({ key: c.id, content: c.content }));
-                } catch (e) { /* 池可缺 */ }
-                const facts = ((this._factVersionState?.facts) || []).map(f => ({ key: f.id, text: f.subject + f.predicate + f.value }));
-                let timeline = [];
-                try { timeline = (this.timeline?.entries || []).slice(-100).map(t => ({ key: t.id || ('tl_' + t.floor), text: t.text })); } catch (e) { /* 池可缺 */ }
-                const pool = { summaries: summaries, events: events, relations: relations, promises: promises, facts: facts, timeline: timeline };
-                const r = RL.request(st, Object.assign({}, input, { pool: pool }));
+                // 派生件池收在 _repairPool()（单一真源；本方法此前内联一份，previewRepair 一加就会分叉）
+                const r = RL.request(st, Object.assign({}, input, { pool: this._repairPool() }));
                 if (!r.ok) return { ok: false, reason: r.reason };
                 this._repairState = r.state;
                 this._lastRepair = { at: Date.now(), action: r.repair.action, total: r.total, id: r.repair.id };
                 if (r.total && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 修复请求 ${r.repair.id}（${r.repair.action}）：受影响派生件 ${r.total} 项待落定`);
-                return { ok: true, repair: r.repair, affected: r.affected, total: r.total };
+                // [v3.214.0] R1-F：`replayed`/`changed` **必须透出**。幂等重放与真登记在下游
+                //   看起来一模一样（都是 ok:true + 同一条 id、同一个 total），吞掉这两个字段
+                //   等于把「这次什么都没写」伪装成「这次写了」——桥的 apply 回执直接取用它们。
+                return { ok: true, repair: r.repair, affected: r.affected, total: r.total,
+                    replayed: !!r.replayed, changed: r.changed !== false };
             } catch (e) { errLog(e, 'engine.requestRepair'); return { ok: false, reason: 'thrown' }; }
         }
         /** [v3.194] 落定一条派生件的修复（宿主逐项回报 done/failed/missing）。不抛。 */
@@ -10213,6 +10210,133 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 this._repairState = r.state;
                 return { ok: true, repair: r.repair, item: r.item, pending: r.pending, failed: r.failed, settled: r.settled };
             } catch (e) { errLog(e, 'engine.settleRepair'); return { ok: false, reason: 'thrown' }; }
+        }
+        /**
+         * [v3.214.0] R1-F：**放弃一次修复**（用户改主意）。
+         *   与 requestRepair/settleRepair 同规格：模块缺席如实回 'module-unavailable'（不抛、
+         *   不伪装成「没有这条修复」）；`replayed` 照实透出（已放弃的再放弃是重放，不是新动作）。
+         */
+        abandonRepair(input) {
+            try {
+                const RL = _repairLoopLib();
+                if (!RL || typeof RL.abandon !== 'function') return { ok: false, reason: 'module-unavailable' };
+                const st = this._repairState ? RL.normalize(this._repairState) : { version: 1, seq: 0, repairs: [] };
+                const r = RL.abandon(st, input);
+                if (!r.ok) return { ok: false, reason: r.reason };
+                this._repairState = r.state;
+                return { ok: true, repair: r.repair, replayed: !!r.replayed, changed: r.changed !== false };
+            } catch (e) { errLog(e, 'engine.abandonRepair'); return { ok: false, reason: 'thrown' }; }
+        }
+        /**
+         * [v3.214.0] R1-F：修复面的**修订读数**（`_mutationEpoch` 的唯一对读口）。
+         *
+         * 【为什么要有这一面】
+         *   写方的 `expectRevision` 要拿变更栅栏号对表（回滚/恢复/切聊都会递增它），
+         *   若让桥直接读 `engine._mutationEpoch`，一个**私有字段**就成了对外契约的一部分
+         *   ——改名即悄悄失配，而失配的表现是「写入被拒」，没人会想到是改名。
+         *   故在此收一个方法口：读不到就是 0，绝不抛。
+         */
+        repairRevision() {
+            try { return Number(this._mutationEpoch) || 0; } catch (e) { return 0; }
+        }
+        /**
+         * [v3.214.0] R1-F：**修复预览**（只算受影响派生件，不写台账）。
+         *
+         * 【为什么需要它 / 修前实测后果】
+         *   修复链路此前只有 `requestRepair()`：它既算清单又写账，且**不幂等**——
+         *   于是「先看看这次修复会牵连哪些派生件」只能靠真登记一次再放弃，
+         *   而重试一次就多一条记录，`pending()` 里混进一批从未打算执行的修复。
+         *   本方法复用与 requestRepair **同一批派生物池**（现收、不另存），
+         *   只调纯函数 `RL.preview()`（签名里没有状态，写不进去），故预览与登记
+         *   在 affected 上逐条一致——预览过 ⇒ 登记也会过同一个清单。
+         *   不抛；模块缺席时如实回 reason='module-unavailable'（不得伪装成「没有受影响项」）。
+         */
+        previewRepair(input) {
+            try {
+                const RL = _repairLoopLib();
+                if (!RL || typeof RL.preview !== 'function') return { ok: false, reason: 'module-unavailable', affected: [], total: 0 };
+                const r = RL.preview(Object.assign({}, input, { pool: this._repairPool() }));
+                if (!r.ok) return { ok: false, reason: r.reason, affected: [], total: 0 };
+                return { ok: true, action: r.action, subject: r.subject, target: r.target, affected: r.affected, total: r.total, wrote: false };
+            } catch (e) { errLog(e, 'engine.previewRepair'); return { ok: false, reason: 'thrown', affected: [], total: 0 }; }
+        }
+        /**
+         * 派生件池（`requestRepair` 与 `previewRepair` 的**单一真源**）。
+         * 从当前运行时现收，**不另存副本**（另存就是第二份真源）。
+         * 六个池各自独立 try —— 任一池缺席不影响其余池参与判定。
+         */
+        _repairPool() {
+            let summaries = [];
+            try { summaries = (this.summary?.getActiveSummaries?.() || []).map(s => ({ key: 'sum_' + s.floor, text: s.text, floor: s.floor })); } catch (e) { /* 池可缺 */ }
+            let events = [];
+            try { events = (this._eventThreadState?.events || []).map(e => ({ key: e.id, title: e.title })); } catch (e) { /* 池可缺 */ }
+            let relations = [];
+            try { relations = [...(this.graph?.edges?.values?.() || [])].slice(0, 200).map(e => ({ key: e.from + '->' + e.to, text: e.label || '' })); } catch (e) { /* 池可缺 */ }
+            let promises = [];
+            try {
+                const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+                promises = (CL?.list?.(this.worldProg?.commitmentLedger, {}) || []).map(c => ({ key: c.id, content: c.content }));
+            } catch (e) { /* 池可缺 */ }
+            const facts = ((this._factVersionState?.facts) || []).map(f => ({ key: f.id, text: f.subject + f.predicate + f.value }));
+            let timeline = [];
+            try { timeline = (this.timeline?.entries || []).slice(-100).map(t => ({ key: t.id || ('tl_' + t.floor), text: t.text })); } catch (e) { /* 池可缺 */ }
+            return { summaries: summaries, events: events, relations: relations, promises: promises, facts: facts, timeline: timeline };
+        }
+        /**
+         * [v3.214.0] R1-E：九账证据工作台读数（只读，不写任何账）。
+         *
+         * 【为什么需要这一面 / 修前实测后果】
+         *   本仓九本账（伏笔/约定/平行事实/秘密/前文回扣/回声/事实版本/事件完整性/修复闭环）
+         *   各自有 list/summarize/render，但快照 `buildBridgeSnapshot()` **一本账都不带**
+         *   （`worldProg` 只带四本账的原始状态，三面账连状态都没进）。下游于是答不出
+         *   「这个承诺是哪一楼说的」——出处（floor + 来源账 + 引用键）从未被汇成同一张表。
+         *
+         * 【九账 API 的取法：与其余模块同规格的「全局优先 + require 回落」】
+         *   本方法是宿主侧接线，**不把 window 访问放进纯函数内核**
+         *   （evidence-workbench.js 只吃 `opts.apis`，便于单测与移植）。
+         *   渠道取法与 ledger-replay 的 FLOOR_OWNERS 同源：账本 API 经 _moduleLib 取，
+         *   取不到即缺席（`module-unavailable`），**不静默当作空账**。
+         *
+         * 【三态处置（本面的核心纪律）】
+         *   · 模块没挂   ⇒ absent + reason='module-unavailable'（等上游/宿主，不是「没有」）
+         *   · 宿主没这本账 ⇒ absent + reason='state-missing'（这本账从没写过）
+         *   · 账在位且空 ⇒ empty（**真读数**，不是错误）
+         *   三者处置相反，压成一态就是错读数。
+         */
+        _evidenceWorkbench() {
+            try {
+                const W = _evidenceWorkbenchLib();
+                if (!W || typeof W.buildWorkbench !== 'function') {
+                    return {
+                        version: 0, at: Date.now(), ledgers: {},
+                        summary: { total: 0, counts: { ok: 0, empty: 0, absent: 0 }, items: 0 },
+                        selfConsistent: false, reason: 'module-unavailable'
+                    };
+                }
+                // apis 表：id → 账本模块（**取不到给 null 而不是省略键**：
+                //   省略会让「模块没装」与「登记表写漏了」同形）。
+                //   九键的取法收在 _ledgerApis()（单一真源，见该函数注释：内联版曾因
+                //   六个不存在的 `_xxxLedgerLib()` 而永远抛错、被吞成 'thrown'）。
+                const apis = _ledgerApis();
+                return W.buildWorkbench(this, { apis: apis });
+            } catch (e) {
+                errLog(e, 'plugin._evidenceWorkbench');
+                return {
+                    version: 0, at: Date.now(), ledgers: {},
+                    summary: { total: 0, counts: { ok: 0, empty: 0, absent: 0 }, items: 0 },
+                    selfConsistent: false, reason: 'thrown'
+                };
+            }
+        }
+        /** [v3.214.0] R1-E：证据面内检索（纯转发到内核；取不到内核即给结构完整的空结果，不抛）。 */
+        searchEvidence(query, opts) {
+            try {
+                const W = _evidenceWorkbenchLib();
+                if (!W || typeof W.search !== 'function') {
+                    return { query: String(query == null ? '' : query), hits: [], missLedgers: [], emptyLedgers: [], absentLedgers: [], scanned: 0, limit: 0, truncated: false, reason: 'module-unavailable' };
+                }
+                return W.search(this._evidenceWorkbench(), query, opts);
+            } catch (e) { errLog(e, 'plugin.searchEvidence'); return { query: '', hits: [], missLedgers: [], emptyLedgers: [], absentLedgers: [], scanned: 0, limit: 0, truncated: false, reason: 'thrown' }; }
         }
         /** [v3.194] 当前未完成事项（事件线里缺结果/后续的）——计划点名「保留未完成事项」的读取面。不抛。 */
         outstandingThreads(filter) {
@@ -10431,6 +10555,44 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   起因—行动—结果—后续。缺结果或后续即「未完成事项」，必须能被单独列出来。
     function _eventCompletenessLib() {
         return _moduleLib(() => window.LonShaEventCompleteness, 'event-completeness.js');
+    }
+    // [v3.214.0] R1-E：九账证据工作台（evidence-workbench.js）。为什么需要：
+    //   本仓九本账各自有 list/summarize，但对外是一排孤立文本行——快照一本账都不带，
+    //   于是下游（手机端工作台）答不出「这个承诺是哪一楼说的」。本模块把九账收成一张
+    //   可查对账面（三态 + 出处 ref/floor），是「工作台与证据查询」的上游出口。
+    function _evidenceWorkbenchLib() {
+        return _moduleLib(() => window.LonShaEvidenceWorkbench, 'evidence-workbench.js');
+    }
+    /**
+     * [v3.214.0] R1-E：九账 API 表（**单一真源**，工作台接线只从这里取）。
+     *
+     * 【为什么单列成一个函数，而不是在工作方法里逐项内联】
+     *   本函数第一版就是内联的，且**当场自伤**：写成了 `_seedLedgerLib()` 这类
+     *   「看起来符合本仓命名习惯、实际并不存在」的助手调用 —— 六个未定义引用
+     *   （seed / commitment / parallel / secret / recall-echo / echo）会让
+     *   `_evidenceWorkbench()` 每次都抛 ReferenceError，被外层 catch 吞成
+     *   `reason:'thrown'`，于是工作台**永远显示「不可用」而不报错**，
+     *   正是本仓一直在治的那类静默失效（不报错、只错结果）。同一形态在
+     *   「签名猜错 → 死代码」上出现过多次，故此处把取库收成一处、逐项与全局名对齐。
+     *
+     * 【契约】
+     *   · 九键**必须齐全**（缺键即 `module-unavailable`，与「这本账是空的」可分）；
+     *   · 取库一律走 `_moduleLib`（全局优先 + require 回落，与 index.js 其余取库同规格）；
+     *   · 本函数**不抛**：任何一项取库失败都落成 null，由内核判 absent。
+     */
+    function _ledgerApis() {
+        const safe = (getGlobal, fileName) => { try { return _moduleLib(getGlobal, fileName); } catch (_e) { return null; } };
+        return {
+            'seed': safe(() => window.LonShaSeedLedger, 'seed-ledger.js'),
+            'commitment': safe(() => window.LonShaCommitmentLedger, 'commitment-ledger.js'),
+            'parallel': safe(() => window.LonShaParallelLedger, 'parallel-ledger.js'),
+            'secret': safe(() => window.LonShaSecretLedger, 'secret-ledger.js'),
+            'recall-echo': safe(() => window.LonShaRecallEcho, 'recall-echo.js'),
+            'echo': safe(() => window.LonShaEchoLedger, 'echo-ledger.js'),
+            'fact-version': _factVersionLib(),
+            'event-completeness': _eventCompletenessLib(),
+            'repair': _repairLoopLib()
+        };
     }
     // [v3.194] 修复闭环（repair-loop.js）。撤销一条错误事实后，从它派生的摘要/关系/
     //   时间线还在引用旧值——本仓治理过多轮的「源头改了、下游没跟着改」。本模块把一次修复
@@ -15958,8 +16120,52 @@ ${recentTurns}`;
     plugin.VERSION = VERSION;   // [v3.77] A: 版本真值暴露（settings-ui 原硬编码 '1.3.0' 假版本）
     plugin.init().catch(err => console.error(`[${PLUGIN_NAME}] 初始化失败:`, err));
     window.LonShaMemory = plugin;
-    // [v3.88] 公开只读快照桥：外部脚本经 window.lonsha_memory_bridge_v1.snapshot 读取最近一次生成时的状态快照。
-    // 只读契约——本对象不提供任何写入引擎的方法；快照仅由引擎在生成管线内 refresh。
+    /**
+     * [v3.214.0] R1-F：受控写入面的**恒定回执**（唯一构造点）。
+     *   下游按 shape 编程（先看 `ok`，再按 `reason` 分诊）。若某个分支少写三个键，
+     *   那份回执就与其它回执**形状不同** ——「字段缺失」于是再次与「字段是空」同形
+     *   （本仓九账证据面刚治理过的正是这一形态）。故所有分支一律经此构造。
+     *   9 个键一个不少，失败分支与成功分支同形，只有「没给」才取默认值。
+     */
+    function repairReceipt(extra) {
+        const e = extra || {};
+        return {
+            ok: !!e.ok,
+            reason: e.reason || '',
+            repairId: e.repairId != null ? e.repairId : null,
+            action: e.action || '',
+            affected: Array.isArray(e.affected) ? e.affected : [],
+            total: Number.isFinite(e.total) ? e.total : 0,
+            revision: Number.isFinite(e.revision) ? e.revision : 0,
+            replayed: !!e.replayed,
+            at: Date.now(),
+        };
+    }
+    /**
+     * [v3.214.0] R1-F：修订读数的**唯一取值口**（`engine.repairRevision()` 的薄包装）。
+     *   刻意不在写入面里用 `this.revision()`：调用方一旦把方法摘下来单用
+     *   （`const f = bridge.repair.apply`），`this` 就不是桥了，那一下会**抛出**，
+     *   而抛出的表现是「写入失败」——没人会想到根因是方法被摘下来了。
+     */
+    function repairRevisionOf() {
+        try {
+            const eng = plugin.engine;
+            if (!eng || typeof eng.repairRevision !== 'function') return 0;
+            return Number(eng.repairRevision()) || 0;
+        } catch (e) { return 0; }
+    }
+    // [v3.88] 公开快照桥：外部脚本经 window.lonsha_memory_bridge_v1.snapshot 读取最近一次生成时的状态快照。
+    // 只读契约——`version` / `bridge` / `snapshot` / `sourceState` / `lastError` / `refresh()` 这一组**只读**，
+    //   本对象不在其内提供任何写入引擎的方法；快照仅由引擎在生成管线内 refresh。
+    // [v3.214.0] R1-F 起，本桥**分两面**：
+    //   · 只读面（上面那一组，契约不变、逐字未动）；
+    //   · 受控写入面 —— 只收在**唯一命名空间** `repair` 之下（预览 / 落账 / 落定 / 放弃），
+    //     且写入必须过「幂等键必填 + 预览修订必须对表」两道门。
+    //     为什么不肯塞进顶层（如 `bridge.requestRepair`）：那会让「读一份快照」与「改一本账」
+    //     共用同一个扁平命名空间，调用方从名字上分不出哪一下有副作用 —— 本仓治理过多轮的
+    //     「同一形状两个相反读数」，在**接口面**上就是这个样子。
+    //     仓库内既有的只读键面判据（tests/v388_bridge.test.mjs）已同步**收窄**为
+    //     「除 `repair` 外，顶层零写语义键」，不是被放宽，而是被指向唯一写命名空间。
     window.lonsha_memory_bridge_v1 = {
         version: 1,
         bridge: 'lonsha_memory_bridge_v1',
@@ -15995,6 +16201,110 @@ ${recentTurns}`;
                 this.lastError = String((e && e.message) || e);
                 this.snapshot = null;
                 return null;
+            }
+        },
+        /**
+         * [v3.214.0] R1-F：**受控写入面**（预览 / 落账 / 落定 / 放弃）。
+         *
+         * 【为什么需要它 / 修前实测后果】
+         *   修复闭环（`repair-loop.js`）在 v3.194 就实现了三类动作与四条终态，但**全库零真实
+         *   调用点**：产品代码没有一处调 `requestRepair`，桥也**没有任何写入口**。于是
+         *   「撤销一条错误事实」——本仓治理过多轮的「源头改了、下游没跟着改」的唯一收口——
+         *   在用户面前根本不存在入口；而下游（手机端）即使想发起也无路可走。
+         *   补上入口时最危险的不是「写不进去」，而是**写进去了却看不出写的是什么**：
+         *   重放与真写同形、修订错位后照写、缺幂等键照写。故本面按「受控」二字收三道口。
+         *
+         * 【契约（四个方法，回执形状恒定，全部不抛）】
+         *   · `preview(input)`  —— 只读预览，走 engine.previewRepair（**不碰状态**）；
+         *      `ok:false, reason:'module-unavailable'` 表示修复模块没挂 —— 不得伪装成「没有受影响项」。
+         *   · `apply(input)`    —— 落账。**两道门，任一不过即拒且不改账**：
+         *       ① `idempotencyKey` 必填，缺即 `'missing-idempotency-key'`。
+         *          为什么必填：`dedupeKey` 缺省时 `request()` 不做任何判重（旧行为，刻意为兼容保留），
+         *          于是下游一次重试就多一条账 —— 写入口必须比内部 API 严一档。
+         *       ② `expectRevision` 必填且必须**等于**当下修订号（`engine.repairRevision()`），
+         *          不等即 `'revision-mismatch'`。为什么要这样对表：回滚 / 恢复 / 切聊都会推进
+         *          变更栅栏号，此刻手上算好的 affected 清单来自**旧代数**——照写就是往新会话里
+         *          塞一条按旧状态算出来的修复。宁可拒，不可错位写入。
+         *   · `settle(input)`   —— 逐项落定（done / failed / missing）。
+         *   · `abandon(input)`  —— 放弃。
+         *   回执 9 键恒定：{ok, reason, repairId, action, affected, total, revision, replayed, at}。
+         *   `revision` 一律回**写后**修订号（被拒时即写前当下值）。
+         * 【边界】本面**不自动改派生件**：回执只说「账上落定了什么」，不推断剧情已经发生
+         *   （改哪一处是产品决定，自动改会累积幻觉删改 —— repair-loop 原注释已立）。
+         */
+        repair: {
+            preview(input) {
+                try {
+                    const eng = plugin.engine;
+                    if (!eng || typeof eng.previewRepair !== 'function') {
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: repairRevisionOf() });
+                    }
+                    const r = eng.previewRepair(input) || {};
+                    if (!r.ok) return repairReceipt({ ok: false, reason: r.reason || 'rejected', action: r.action, revision: repairRevisionOf() });
+                    return repairReceipt({
+                        ok: true, action: r.action, affected: r.affected, total: r.total,
+                        revision: repairRevisionOf()
+                    });
+                } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
+            },
+            apply(input) {
+                const i = input || {};
+                const nowRev = repairRevisionOf();
+                // 门①：幂等键必填（空串 / 缺省都算没给）
+                if (!String(i.idempotencyKey == null ? '' : i.idempotencyKey).trim()) {
+                    return repairReceipt({ ok: false, reason: 'missing-idempotency-key', revision: nowRev });
+                }
+                // 门②：预览修订必须对表（`expectRevision` 未给 ⇒ 不该被当成 0 而"恰好"通过）
+                if (i.expectRevision == null) {
+                    return repairReceipt({ ok: false, reason: 'revision-mismatch', revision: nowRev });
+                }
+                if (Number(i.expectRevision) !== nowRev) {
+                    return repairReceipt({ ok: false, reason: 'revision-mismatch', revision: nowRev });
+                }
+                try {
+                    const eng = plugin.engine;
+                    if (!eng || typeof eng.requestRepair !== 'function') {
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: nowRev });
+                    }
+                    const r = eng.requestRepair(Object.assign({}, i, { dedupeKey: String(i.idempotencyKey).trim() })) || {};
+                    if (!r.ok) return repairReceipt({ ok: false, reason: r.reason || 'rejected', revision: repairRevisionOf() });
+                    return repairReceipt({
+                        ok: true, repairId: r.repair && r.repair.id, action: r.repair && r.repair.action,
+                        affected: r.affected, total: r.total,
+                        replayed: !!r.replayed, revision: repairRevisionOf()
+                    });
+                } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
+            },
+            settle(input) {
+                try {
+                    const eng = plugin.engine;
+                    if (!eng || typeof eng.settleRepair !== 'function') {
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: repairRevisionOf() });
+                    }
+                    const r = eng.settleRepair(input) || {};
+                    if (!r.ok) return repairReceipt({ ok: false, reason: r.reason || 'rejected', revision: repairRevisionOf() });
+                    return repairReceipt({
+                        ok: true, repairId: r.repair && r.repair.id, action: r.repair && r.repair.action,
+                        // total 一律 = 本条修复的受影响派生件**总数**（与 preview/apply 同一语义）；
+                        //   「还剩几项未落定」是另一个读数，不挤进同一个键——同名两义正是本仓反复治理的塌陷。
+                        total: (r.repair && Array.isArray(r.repair.affected)) ? r.repair.affected.length : 0,
+                        replayed: !!r.replayed, revision: repairRevisionOf()
+                    });
+                } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
+            },
+            abandon(input) {
+                try {
+                    const eng = plugin.engine;
+                    if (!eng || typeof eng.abandonRepair !== 'function') {
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: repairRevisionOf() });
+                    }
+                    const r = eng.abandonRepair(input) || {};
+                    if (!r.ok) return repairReceipt({ ok: false, reason: r.reason || 'rejected', revision: repairRevisionOf() });
+                    return repairReceipt({
+                        ok: true, repairId: r.repair && r.repair.id, action: r.repair && r.repair.action,
+                        replayed: !!r.replayed, revision: repairRevisionOf()
+                    });
+                } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
             }
         }
     };

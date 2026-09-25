@@ -421,10 +421,11 @@ test('【G2】★ 缺席退路不得伪造「能写不能读」的世界（读�
     assert.ok(/apply\(\) \{ return 0; \}/.test(seg), 'apply 退路返回 0（不假装写了）');
 });
 // ══════════ H 对外只读口 ══════════
-test('【H1】★ 资源清单 13 项冻结 + 单一实现（scene 已入清单）', () => {
+test('【H1】★ 资源清单 14 项冻结 + 单一实现（scene / evidence 已入清单）', () => {
     assert.ok(Object.isFrozen(PI.RESOURCES), '资源清单被冻结（不可被外部改写）');
-    assert.equal(PI.RESOURCES.length, 13, '★ 资源清单 13 项（v3.181 新增 scene）');
+    assert.equal(PI.RESOURCES.length, 14, '★ 资源清单 14 项（v3.181 新增 scene / v3.214.0 新增 evidence）');
     assert.ok(PI.RESOURCES.includes('scene'), '新资源 scene 在清单里');
+    assert.ok(PI.RESOURCES.includes('evidence'), '新资源 evidence 在清单里');
     assert.equal(new Set(PI.RESOURCES).size, PI.RESOURCES.length, '无重复项');
     const uses = (piSrc.match(/RESOURCES/g) || []).length;
     assert.ok(uses >= 3, '★ 单一实现：斜杠 enumList / 宏表 / queryResource 共用同一份清单（不复述）');

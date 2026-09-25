@@ -54,6 +54,7 @@ const RESOURCES = Object.freeze([
     'worldLedgerRead', // 对推演侧世界的读数（含未外供缺口）
     'coverage',        // 覆盖度（楼层缺口/未提取楼层）
     'scene',           // [v3.181] 场所图景（当前位置链/在场名单/到访读数/覆盖度/不变量）
+    'evidence',        // [v3.214.0] 九账证据工作台（伏笔/约定/平行事实/秘密/回扣/回声/事实版本/事件完整性/修复）
     'floor'            // 当前楼层号
 ]);
 
@@ -73,6 +74,7 @@ function queryResource(snap, resource) {
         worldledgerread: () => snap && snap.worldLedgerRead,
         coverage: () => snap && snap.coverage,
         scene: () => snap && snap.scene,
+        evidence: () => snap && snap.evidence,
         floor: () => (snap ? snap.floor : undefined)
     };
     const fn = map[key];

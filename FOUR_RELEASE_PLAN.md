@@ -36,12 +36,63 @@
 - 子agent：DeepSeek R1-C 提供候选（主张**读取期校验**而非新增清理点：`_mutationEpoch` 递增点十处以上，逐点清缓存必漏；用 undefined 表「不可用」以与「无会话」区分），我方逐行复核并在真实模块上复现。API Key 不写入仓库。
 - 「扔掉了」与「本来就没这面」分开：前者等宿主重跑、后者等上游升级，处置相反，压成一态即错读数。
 
+## Gate R1-E：九账只读对账面（工作台与证据查询的上游出口）
+- Structural: Local Fix；Execution: Local Fix Only；授权：approved local fix（四批授权内）。
+- 证据：本仓九本账（伏笔 seed / 约定 commitment / 平行事实 parallel / 秘密 secret / 回扣 recall-echo /
+  回声 echo / 事实版本 fact-version / 事件完整性 event-completeness / 修复闭环 repair）各自有
+  `list()` / `summarize()`，但**对外是一排孤立文本行**：`ledger-replay.js` 的 `FLOOR_OWNERS` 只登记
+  「谁有楼层归属」，不含条目正文、状态与引用键；快照 15 字段里**无一本账**（`worldProg` 只带四本账的
+  原始状态，且不含 `_factVersionState` / `_eventThreadState` / `_repairState`）。下游要回答
+  「她现在住哪里 / 这个承诺是哪一楼说的」只能逐 App 翻，且**拿不到出处**（无楼层、无来源账、无修订）。
+- 契约：新增 `evidence-workbench.js`（纯函数、零依赖、双导出），把九账收成**一份可查对账面**：
+  · `LEDGERS` 登记表是单一真源（id / label / 取状态 / 取账本 API / 列表过滤 / 引用前缀）；
+  · 每账三态 `ok` / `empty` / `absent`（模块未挂载、状态取不到、条目为空**三者不得同形**）；
+  · 每条条目带 `ref`（稳定引用键，如 `seed:sp_3`）+ `ledger`（来自哪本账）+ `floor`（出处楼层，
+    取不到即 `null`，**不写 0** —— 0 是「第 0 楼」这个真实读数）；
+  · `search()` 纯函数在面内检索，返回命中**与未命中的账**（「这本账里没有」≠「这本账不存在」）。
+  不改既有账本 API、不改 `ledger-replay` 登记表、不写任何账本状态。
+- 允许：evidence-workbench.js（新增）、index.js（`_evidenceWorkbench()` + 快照 `evidence` 字段）、
+  manifest.json（extra_js 一行）、tests/v3214_evidence_workbench.test.mjs、
+  tests/audit/catalog_reference_consumers.tsv 一行、dead_code_budget.json 抬 ceiling、本计划文档。预算 4 文件 / 260 行。
+- 验证：新回归先红后绿；v3212/v3213/projection-absence 联合通过；全量 test:audit RC=0；不删除功能。
+- 回滚：仅逆转该新增模块与快照接线；出现历史契约冲突回 AUDIT，不放宽门禁。
+
+## Gate R1-F：修复预览与受控写入回执
+- Structural: Local Fix；Execution: Local Fix Only；授权：approved local fix（四批授权内）。
+- 证据：`repair-loop.js` 三类修复动作（retarget / split / revoke）与宿主 `requestRepair` / `settleRepair`
+  已实现（v3.194），但**零真实调用点**：全库 grep `requestRepair` 只有两处定义与一条测试扫签名
+  （`tests/v3194` 的字符串断言），产品代码**没有任何一处调用**。于是「撤销一条错误事实」在用户面前
+  不存在入口，而它正是本仓治理过多轮的「源头改了、下游没跟着改」的唯一收口。
+  另：`request()` **不幂等**（同一次修复重试会新增一条记录），且桥无写入口，下游无从发起。
+- 契约：
+  · `preview(rawState, input)`（新增纯函数）：只算 `affectedBy` 命中面，**不落账**、不改 state；
+  · `request()` 增 `dedupeKey` 幂等（同键且未 abandoned ⇒ `replayed:true`，不新增记录；缺键时行为逐字同旧版）；
+  · 桥新增**受控写入面** `window.lonsha_memory_bridge_v1.repair`（与只读 `snapshot` 分离）：
+    `preview(input)` 只读预览；`apply(input, {idempotencyKey, expectRevision})` 落账并返回回执；
+    `settle(input)` / `abandon(input)` 逐项落定与放弃。
+  · 回执形状恒定：`{ok, reason, repairId, action, affected, total, revision, replayed, at}`；
+    `expectRevision` 不符即拒（`reason='revision-mismatch'`）且**不改账**；缺 `idempotencyKey` 即拒
+    （`reason='missing-idempotency-key'`）。
+  · 只读面不变：`snapshot` 仍是只读，不含任何写入方法（既有注释纪律保持）。
+- 允许：repair-loop.js（preview + dedupeKey）、index.js（previewRepair + 桥 repair 命名空间）、
+  tests/v3215_repair_write_channel.test.mjs、catalog_reference_consumers.tsv 一行、dead_code_budget.json、本计划文档。
+  预算 3 文件 / 220 行。
+- 验证：新回归先红后绿（先证 request 不幂等、preview 不改账、修订不符拒写）；v3194/v3202 回归；全量 test:audit RC=0。
+- 回滚：仅逆转本补丁；出现历史契约冲突回 AUDIT，不放宽门禁。
+- 边界：**不自动改派生件**（改哪一处是产品决定，自动改会累积幻觉删改 —— repair-loop 原注释已立）。
+  人工点「纠正归属」≠ 正文已发生；回执只记「账上落定了什么」，不推断剧情已经发生。
+
 ## 状态检查点
+- R1-E：**已完成**；新增 evidence-workbench.js（413 行）+ 宿主接线 + v3214（11 项，先红后绿）；
+  全量 194/194 文件、42/42 审计 RC=0（新测试已登记进参考基准）。
+- R1-F：**已完成**；repair-loop preview/validate + dedupeKey 幂等；index.js abandonRepair /
+  repairRevision / 桥 `repair` 受控写入面（恒定回执 9 键 + 两道门）；v3215（12 项，先红后绿）；
+  全量 195/195 文件 / 1705 断言 0 失败、42/42 审计 RC=0。
 - R1-A：已修复；先红后绿22项定向通过；全量1675断言、42审计通过（补齐测试登记后RC=0）。
 - R1-B：已修复；先红后绿32项定向通过；手机838项测试及九门RC=0。
 - R1-C：已修复；先红后绿35项定向通过；全量193文件/1682断言/0失败、42审计RC=0（新测试已登记进参考基准）。
-- R1业务投影/工作台/证据修复：未完成。
+- R1业务投影/工作台/证据修复：**读面（R1-A/C/E）与写面（R1-F）均已落地**。
 - R2/R3/R4：待实施。
-- 真实SillyTavern宿主验证：未验。
+- 真实SillyTavern宿主验证：未验（写入面的两道门与回执形状已在无头环境逐条验证，宿主侧实机未验）。
 
 - R1-A追加GATE：全量失败根因为新增测试未按仓内纪律登记，允许catalog_reference_consumers.tsv追加一行；不放宽守卫。上游预算4文件/150行。

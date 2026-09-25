@@ -66,6 +66,10 @@
       to: text(r.to, 120),
       target: text(r.target, 80),
       reason: text(r.reason, 120),
+      // [v3.214.0] R1-F 幂等键（可选）。**不抬 RL_VERSION**：本字段是纯增量——
+      //   旧存档没有它、读回即空串（与「没给」同义），旧代码读到多出的字段也照旧忽略，
+      //   两侧都不改变既有语义，故不构成结构代际变化（抬版会逼所有存档走迁移，那是另一件事）。
+      dedupeKey: text(r.dedupeKey, 80),
       floor: finite(r.floor),
       status: STATES.includes(r.status) ? r.status : 'open',
       affected: Array.isArray(r.affected) ? r.affected.map(copyItem).slice(-24) : [],
@@ -159,25 +163,88 @@
     return [...seen.values()];
   }
   /**
+   * 入参校验的**单一真源**（request / preview 共用同一份规则）。
+   * 为什么必须共用：若预览能过、登记却拒（或反之），界面就会「预览通过 → 点了没反应」，
+   *   而用户看到的原因与真实原因不同——两个判据漂移是本仓治理过多轮的形态。
+   * @returns {string} '' = 合法；否则是拒绝原因（与 request 的 reason 同词表）
+   */
+  function validate(input) {
+    const i = input || {};
+    const action = text(i.action, 16);
+    if (!ACTIONS.includes(action)) return 'unknown-action';
+    if (!text(i.subject, 40)) return 'missing-subject';
+    const target = text(i.target, 80);
+    if (action === 'revoke' && !target) return 'missing-target';
+    if (action === 'retarget' && !text(i.to, 120)) return 'missing-to';
+    if (action === 'split' && !target) return 'missing-target';
+    return '';
+  }
+  /**
+   * [v3.214.0] R1-F：**只算不改**的修复预览。
+   *
+   * 【为什么需要它 / 修前实测后果】
+   *   `request()` 是全仓唯一入口，它**同时**做两件事：算受影响派生件 + 写台账。
+   *   于是「我只想看看这次修复会牵连哪些派生件」这个再正常不过的诉求，
+   *   在旧面上只能靠「真的登记一次、再让人放弃」来实现——而 `request()` **不幂等**，
+   *   重试一次就多一条记录，台账被「看一眼」的动作污染，`pending()` 里于是混进
+   *   一批从未打算执行的修复。
+   *
+   * 【契约】
+   *   · 纯函数：不接收状态、不返回状态、不写任何东西（签名里没有 rawState 是刻意的，
+   *     谁想塞状态进来也塞不进来）；
+   *   · 与 request 共用 `validate` + `affectedBy`，故两边算出的 affected 逐条一致；
+   *   · 不合法时 `{ ok:false, reason }`，理由与 request 相同（预览过 ⇒ 登记也会过）。
+   */
+  function preview(input) {
+    const i = input || {};
+    const action = text(i.action, 16);
+    const bad = validate(i);
+    if (bad) return { ok: false, reason: bad, affected: [], total: 0 };
+    const affected = affectedBy(action, text(i.target, 80), text(i.subject, 40), i.pool);
+    return {
+      ok: true, action: action, subject: text(i.subject, 40), target: text(i.target, 80),
+      affected: affected.slice(), total: affected.length,
+      // 明确回一句「什么都没写」，让调用方不必读源码就知道这是只读面
+      wrote: false
+    };
+  }
+  /**
    * 登记一次修复请求：算出受影响派生件清单，写进 open 台账。
-   * input = { action, subject, from?, to?, target?, reason?, floor?, pool?, at? }
+   * input = { action, subject, from?, to?, target?, reason?, floor?, pool?, at?, dedupeKey? }
+   *
+   * [v3.214.0] R1-F 两处收紧，缺键时行为逐字同旧版：
+   *   ① **前置校验收进 validate()**（与 preview 共用）：此前四段 if 内联在此，
+   *      预览面一加就会立刻分叉出第二份判据。
+   *   ② `dedupeKey` 幂等：同一个键若已有**未放弃**的修复，本次不新增记录，
+   *      原样交回既有那条并标 `replayed:true`（changed:false）。
+   *      —— 为什么只按「未放弃」判重：用户放弃过的那次重试是**新意图**，必须能重新登记；
+   *      按全部历史判重会把「改主意后又想做」永久锁死。
+   *      不给 dedupeKey 时不做任何判重（旧调用逐字不变）。
    */
   function request(rawState, input) {
     const state = normalize(rawState);
     const i = input || {};
     const action = text(i.action, 16);
-    if (!ACTIONS.includes(action)) return reject(state, 'unknown-action');
+    // 校验走 validate()（与 preview 共用同一份判据；此前是内联四段 if）
+    const bad = validate(i);
+    if (bad) return reject(state, bad);
     const subject = text(i.subject, 40);
-    if (!subject) return reject(state, 'missing-subject');
     const target = text(i.target, 80);
-    if (action === 'revoke' && !target) return reject(state, 'missing-target');
-    if (action === 'retarget' && !text(i.to, 120)) return reject(state, 'missing-to');
-    if (action === 'split' && !target) return reject(state, 'missing-target');
+    // [v3.214.0] 幂等（仅当调用方给了 dedupeKey）：同键且**未放弃**的既有记录 ⇒ 原样交回，
+    //   不新增、不改动（changed:false + replayed:true）。缺键时本段整体不生效。
+    const dedupeKey = text(i.dedupeKey, 80);
+    if (dedupeKey) {
+      const old = state.repairs.find(function (r) { return r.dedupeKey === dedupeKey && r.status !== 'abandoned'; });
+      if (old) return result(state, {
+        repair: copyRepair(old), replayed: true, changed: false,
+        affected: old.affected.slice(), total: old.affected.length
+      });
+    }
     const affected = affectedBy(action, target, subject, i.pool);
     const rec = copyRepair({
       id: nextId(state), action: action, subject: subject,
       from: i.from, to: i.to, target: target, reason: i.reason, floor: i.floor,
-      status: 'open', affected: affected, at: i.at
+      dedupeKey: dedupeKey, status: 'open', affected: affected, at: i.at
     });
     state.repairs.push(rec);
     return result(state, {
@@ -256,6 +323,8 @@
   }
   const api = Object.freeze({
     normalize, request, settle, abandon, pending, line, affectedBy, poolList,
+    // [v3.214.0] R1-F：预览与校验（preview 只算不改；validate 是 request/preview 的共用判据）
+    preview, validate,
     ACTIONS, STATES, KINDS, POOL_KEYS, RL_VERSION
   });
   root.LonShaRepairLoop = api;

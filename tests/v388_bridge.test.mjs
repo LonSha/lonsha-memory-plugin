@@ -182,10 +182,21 @@ const makeEngine = () => {
   assert.strictEqual(bridge.snapshot.floor, 1, 'refresh 后 snapshot 更新');
   bridge.refresh();
   assert.strictEqual(bridge.snapshot.floor, 2, '重复 refresh 拿到新快照');
-  // 只读契约：bridge 对象上不得有写路径
+  // 只读契约：除**唯一**受控写入命名空间 `repair` 外，桥顶层不得有写路径
+  //   [v3.214.0] R1-F：此判据被**收窄**而非放宽——写面收进单一命名空间后，
+  //   顶层键面必须**一个写语义键都不留**（`repair` 本身是命名空间不是动作，
+  //   名字里也没有 set/write/push/import/clear 这类动词）。
   const keys = Object.keys(bridge);
-  for (const k of keys) assert.ok(!/set|write|push|import|clear/i.test(k), `bridge 键 ${k} 无写语义`);
-  console.log('✓ bridge 契约验证通过（初始 null / refresh / 只读键面）');
+  for (const k of keys) {
+    if (k === 'repair') continue;
+    assert.ok(!/set|write|push|import|clear/i.test(k), `bridge 键 ${k} 无写语义`);
+  }
+  // 写入面必须在位且只收在这一个命名空间下（否则「读了会写」又能从名字上看不出来）
+  assert.ok(bridge.repair && typeof bridge.repair === 'object', '受控写入面在唯一命名空间 repair 之下');
+  for (const m of ['preview', 'apply', 'settle', 'abandon']) {
+    assert.ok(typeof bridge.repair[m] === 'function', `repair.${m} 在位`);
+  }
+  console.log('✓ bridge 契约验证通过（初始 null / refresh / 只读键面 + 唯一写命名空间）');
 }
 
 console.log('\n✓ v3.88 快照桥专项测试全部通过');

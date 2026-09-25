@@ -196,4 +196,6 @@ v3210_memory_type.test.mjs
 v3211_type_to_injection.test.mjs
 v3212_projection_contract.test.mjs
 v3213_projection_cache_freshness.test.mjs
+v3214_evidence_workbench.test.mjs
 projection-absence.test.mjs	projection-pipeline.js	缺席/空/零及真源码负控制
+v3215_repair_write_channel.test.mjs		修复预览/受控写入面回执与两道门（真源码负控制）

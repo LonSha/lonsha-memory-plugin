@@ -558,14 +558,17 @@ test('【G5】注入优先：调用方/引擎给了时钟就不再自建（既�
 });
 
 // ══════════ H 对外三入口 ══════════
-test('【H1】13 项资源冻结 + 单一实现（斜杠/宏/全局共用 queryResource）', () => {
+test('【H1】14 项资源冻结 + 单一实现（斜杠/宏/全局共用 queryResource）', () => {
     assert.equal(PI.NS, 'lonsha');
     assert.equal(PI.API_VERSION, 1);
     // [v3.181] 场所图景扩到 13 项：新增 'scene'（当前位置链/在场名单/到访读数/覆盖度/不变量）。
-    assert.equal(PI.RESOURCES.length, 13, '资源清单 13 项');
+    // [v3.214.0] 证据工作台扩到 14 项：新增 'evidence'（九账只读对账面）。
+    //   抬计数是**契约变化**（对外可查的资源名多了一个），故本条与清单同步改；
+    //   历史注记保留（谁在什么时候扩的、为什么）——不改判据、只加项。
+    assert.equal(PI.RESOURCES.length, 14, '资源清单 14 项');
     assert.ok(Object.isFrozen(PI.RESOURCES), '清单必须冻结（运行期不得被追加）');
     for (const r of ['snapshot', 'protagonist', 'lifeDetails', 'characters', 'moneyLedger', 'outline',
-        'worldProg', 'clock', 'recallAudit', 'worldLedgerRead', 'coverage', 'floor', 'scene']) {
+        'worldProg', 'clock', 'recallAudit', 'worldLedgerRead', 'coverage', 'floor', 'scene', 'evidence']) {
         assert.ok(PI.RESOURCES.includes(r), '缺资源 ' + r);
     }
     // 大小写不敏感 + 未知名如实 undefined
