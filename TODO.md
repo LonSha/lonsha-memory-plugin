@@ -2,7 +2,7 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.220.0
+> 最近更新：v3.221.0
 > 本版不新增未修项；R3-A（场所三面外供：层级树 / 到访史 / 本楼场景头）已落地并留痕于 CHANGELOG v3.220.0：
 > `scene-book.js` 新增 `tree()` / `visitHistory()` / `headerFace()` 三方法与上限常量 `MAX_TREE_ROWS=240`，
 > `summary()` 外供面 7 → 11 键（增 `currentChain` / `tree` / `visits` / `header`，旧键一个未动），
@@ -12,6 +12,21 @@
 >   （同楼重复访问不累加）。两者都是既有内部语义的**如实外供**，本版不改口径；
 >   若下游想要「按楼层累加的次数」，那是另一个读数、必须另开一格，不许就地改这一个。
 >   怎么知道它还没变：`tests/v3221` 的 A/D 组会把 `depth` 与 `count` 的语义钉住（改口径即红）。
+> 本版不新增未修项；R3-D（场所三面在**回读与回滚**面上的收口）已落地并留痕于 CHANGELOG v3.221.0：
+> `scene-book.js` 新增 `clearHeader(floor)` 与 `shiftFloorRefs(deleted)`（先清被删楼自身残留，
+> 再平移 `track` / `opsLog` / `headers` / `presence` 四面），`rollbackFloorOnly` / `rollbackFrom`
+> 按同一语义撤场景头（单楼 / 级联），`_rebuild(removedFloor)` 在**无 `opsLog` 真源**时不再清空式重建；
+> `setHeader` / `headerAt` / `import` 全路径改走 `numOrNull`（「没给」不再被编成第 0 楼），
+> 新增上限常量 `MAX_HEADERS`（载入侧此前无上限）并进导出面，`coverage()` 增 `headerFloors` / `headerCount`；
+> 宿主 `index.js` 删掉 `clearPresence?.()` 全清一句（按楼层清的职责归模块），
+> `ledger-replay.js` 的 `scene` 登记项 drop 走 `rollbackFloorOnly`、shift 走 `shiftFloorRefs`（不再手抄循环）。
+> `summary()` 外供键面与 R3-A 逐字一致（本轮改的是回滚路径上的读数，不是外供面），故**下游本轮不抬版**。
+> 本版新登记的**观察项 T17**（不构成 TODO：是刻意的语义边界，改动会把「再删一次」读成「没删」）：
+> - 重复调用 `shiftFloorRefs(d)` 会**再次平移**（第二次等于「再删一次第 d 楼」）。这是**平移语义**，
+>   不是缺陷 —— 登记项自述的幂等契约只在 **drop 侧**成立，shift 侧从未承诺幂等，`scan_v3190` 也明确
+>   「不断言 shift 幂等」。若要改成幂等，须先让调用方带上「这次的基准是哪个版本」，属另一个读数。
+>   怎么知道它还没变：`tests/v3222` 组 B 的 `shiftFollowsFaces` 会把「四面同时前移 + 清残留」钉住，
+>   而 `scan_v3190` 的 P1b 会守住「位移恰好一次」（变 4 即双重位移）。
 > 本版不新增未修项；R2-F（双向关系对账 + 知情网络）已落地并留痕于 CHANGELOG v3.219.0：
 > `relation-mutual.js` 四态对账（mutual / mutualGated / mutualExpired / oneSided，只有末态该补记）、
 > `knowledge-network.js` 三级同一性判据 + 疑似档（判不开只报候选、不合并）、

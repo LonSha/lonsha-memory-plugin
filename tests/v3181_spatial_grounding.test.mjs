@@ -238,7 +238,10 @@ test('【C2】★ 到场史只有一个真源：记账口一处，另一处只�
 });
 test('【C3】★ 清了必须有人重建：_rebuild 同时重放 opsLog 与 track', () => {
     const code = stripComments(sbSrc);
-    const rb = code.slice(code.indexOf('_rebuild() {'), code.indexOf('clear() {'));
+    // [v3.221.0] R3-D：_rebuild 收了可选参（removedFloor），段锚不得再写死无参字面。
+    const rbAt = code.indexOf('_rebuild(');
+    assert.ok(rbAt >= 0, '_rebuild 段可定位');
+    const rb = code.slice(rbAt, code.indexOf('clear() {', rbAt));
     assert.ok(/this\.nodes\.clear\(\)/.test(rb), '_rebuild 清节点派生缓存');
     assert.ok(/this\.visits\.clear\(\)/.test(rb), '★ _rebuild 清到访史（不是清了不管）');
     assert.ok(/for \(const t of \[\.\.\.this\.track\]/.test(rb), '★ 按 track 回填到访史');
@@ -322,8 +325,9 @@ test('【E1】★ 宿主 14 处接线逐条在位（声明了却零消费 = 死�
         ['在场写入 setPresence', /this\.scene\.setPresence\(_nm, extracted\.location, message\.index \|\| 0\)/],
         ['注入清单 {{SCENES}}', /\{\{SCENES\}\}/],
         ['注入取 brief', /this\.scene\.brief\(\)/],
-        // [v3.190] 该调用随位移收进登记表（scene 面的 shift 到顶后重建），锚点跟着搬
-        ['单出口重建（登记表 scene 面）', /h\.scene\.rebuildFromOps\(\)/],
+        // [v3.190] 该调用随位移收进登记表；[v3.221.0] R3-D 又把手抄循环收进模块（shiftFloorRefs），
+        //   锚点跟着语义搬 —— 守的仍是「登记表真的接了场所图景这一面」。
+        ['登记表 scene 面：前移交给模块', /h\.scene\.shiftFloorRefs\(d\)/],
         ['删楼回滚', /this\.scene\.rollbackFloorOnly\(floor\);/],
         ['携带写侧 scenePresence', /scenePresence: \(this\.scene && typeof this\.scene\.export === 'function'\)/],
         ['携带读侧 scenePresence', /pack\.scenePresence/],
@@ -337,7 +341,13 @@ test('【E1】★ 宿主 14 处接线逐条在位（声明了却零消费 = 死�
 test('【E2】★ 走单出口：删楼/编辑回滚都不得再调级联老接口', () => {
     assert.ok(!/this\.scene\.rollbackFrom\(/.test(idxSrc), '★ 级联回滚调用绝迹（改走 rollbackFloorOnly）');
     assert.ok(/this\.scene\.rollbackFloorOnly\(floor\);/.test(idxSrc), '单楼回滚落位');
-    assert.ok(/this\.scene\.clearPresence\?\.\(\);/.test(idxSrc), '在场由宿主清理（不由 track/opsLog 派生）');
+    // [v3.221.0] R3-D：★ 判据收紧（不是放宽）。修前这里断言的是「在场由宿主 clearPresence() 全清」，
+    //   而那句全清把单楼语义扩成了「整表抹掉」：删第 7 楼连第 9 楼那批人的所在一起清掉。
+    //   现在改为两条更强的判据：宿主**不得**再全清，且按楼层清由模块自己承担（回滚面真的碰场景头）。
+    assert.ok(!/this\.scene\.clearPresence\?\.\(\);/.test(idxSrc),
+        '★ 宿主不得整表全清在场（单楼语义不得被悄悄扩成全清）');
+    assert.ok(/this\.headers\.delete\(f\);/.test(sbSrc),
+        '★ 按楼层清由模块承担（回滚面真的碰场景头，不再有「删了楼层读数还撒谎」）');
 });
 test('【E3】★ 诊断行必须消费六面读数（缺席与树断裂一并报警）', () => {
     assert.ok(/到访 \$\{sc\.visits\} \/ 在场 \$\{sc\.presence\}/.test(idxSrc), '诊段行报 到访/在场');

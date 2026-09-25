@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.220.0';
+    const VERSION = '3.221.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -8774,7 +8774,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                         this.scene.rollbackFloorOnly(floor);
                         // [v3.181] SG：删楼后在场索引里停在「已删楼层」的人必须出局
                         //   （否则「谁在何处」会指向一个已经不存在的时刻）。
-                        this.scene.clearPresence?.();
+                        // [v3.221.0] R3-D：**粒度收回到模块内按楼层清**。修前这里是一句
+                        //   `clearPresence?.()`（整表全清）：删掉第 7 楼，连第 9 楼那批人的
+                        //   所在一起抹掉了 —— 单楼语义被悄悄扩成全清，而回放报告只说「走完了」。
+                        //   现在按楼层清的职责在 scene 的 rollbackFloorOnly 内（谁停在已删楼层谁出局），
+                        //   宿主不再拥有「清多少人」的决定权。
+
                     }
                 } catch (e) { errLog(e, 'rollbackFloor.status回滚'); }
                 // [v2.7] RS: 日记/向量回滚（补最后两个缺口，至此全部子系统楼层可回滚）
@@ -11122,7 +11127,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         tree() { return []; }
         visitHistory() { return []; }
         headerFace() { return null; }
-        coverage() { return { floors: [], floorCount: 0, steps: [], trackFloors: [], nodes: 0, detailed: 0, visits: 0, presence: 0, unregistered: [], unregisteredCount: 0, state: 'absent', broken: [], warnings: [] }; }
+        // [v3.221.0] R3-D：回滚/前移面的同形退路（模块缺席时调用方不得外抛）。
+        clearHeader() { return false; }
+        shiftFloorRefs() { return 0; }
+        // [v3.221.0] R3-D：退路覆盖度必须与真实现**逐键同形**。
+        //   修前实测：真实现已补 headerFloors / headerCount，退路仍是 13 键 —— 于是模块缺席时
+        //   调用方读这两格得到 undefined，塌成「有这面但没数」第三态（既非「这版没这面」
+        //   也非「这面是空的」）。缺席读数的形状是本仓反复治理过的那类塌陷，一律给同形空值。
+        coverage() { return { floors: [], floorCount: 0, steps: [], trackFloors: [], headerFloors: [], headerCount: 0, nodes: 0, detailed: 0, visits: 0, presence: 0, unregistered: [], unregisteredCount: 0, state: 'absent', broken: [], warnings: [] }; }
         checkInvariants() { return { state: 'absent', broken: [], warnings: [] }; }
         rollbackFrom() { return 0; }
         rollbackFloorOnly() { return 0; }

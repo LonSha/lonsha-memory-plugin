@@ -76,8 +76,17 @@ const consumers = [
     ['提取落位 setLocation', /this\.scene\.setLocation\(message\.index \|\| 0, extracted\.location\)/],
     ['在场写入 setPresence', /this\.scene\.setPresence\(_nm, extracted\.location, message\.index \|\| 0\)/],
     ['注入清单 {{SCENES}}', /\{\{SCENES\}\}/],
-    ['单出口重建（登记表 scene 面）', /h\.scene\.rebuildFromOps\(\)/, 'ledger'],
+    // [v3.221.0] R3-D：scene 面的前移动作从登记项手抄循环收进模块（shiftFloorRefs），
+    //   锚点随语义搬家；守的仍是同一件事「登记表真的接了场所图景这一面」。
+    ['登记表 scene 面：前移交给模块（scene-book）', /h\.scene\.shiftFloorRefs\(d\)/, 'ledger'],
+    // [v3.221.0] R3-D：退路覆盖度也得含场景头两键（真实现补了、退路没补 ⇒ 缺席时塌成第三态）
+    ['退路覆盖度同形（场景头两键）', /headerFloors: \[\], headerCount: 0,/, 'idx'],
     ['删楼回滚', /this\.scene\.rollbackFloorOnly\(floor\);/, 'index.js'],
+    // [v3.221.0] R3-D：回滚面必须真的碰场景头（此前 headers 在删楼/前移两条路径上都不跟，
+    //   且没有任何判据面 —— 改坏了也看不出来）。
+    ['回滚面按楼层撤场景头', /this\.headers\.delete\(f\);/, 'scene'],
+    // 宿主不得再整表全清在场：单楼语义的重回滚不得扩成全清（清多少人由模块按楼层定）。
+    ['回滚不再由宿主全清在场', /this\.scene\.rollbackFloorOnly\(floor\);\n\s*\/\/ \[v3.181\]/, 'index.js'],
     ['携带写侧 scenePresence', /scenePresence: \(this\.scene && typeof this\.scene\.export === 'function'\)/],
     ['携带读侧 scenePresence', /pack\.scenePresence/, 'index.js'],
     ['契约键 scenePresence', /'scenePresence',/],
@@ -85,7 +94,7 @@ const consumers = [
     ['快照外供 scene（落 snap）', /scene: deep\(rawScene\)/],
 ];
 for (const [what, re, only] of consumers) {
-    const src = only === 'index.js' ? idx : (only === 'ledger' ? (idx + '\n' + lr) : (idx + '\n' + pub));
+    const src = only === 'index.js' ? idx : (only === 'ledger' ? (idx + '\n' + lr) : (only === 'scene' ? sb : (idx + '\n' + pub)));
     if (!re.test(src)) problems.push('N1 「' + what + '」未接线（声明了却零消费 = 死声明）');
     else notes.push('N1 接线在位：' + what);
 }
@@ -191,7 +200,10 @@ if (!/this\.visits = new Map\(\)/.test(sbCode)) problems.push('N4 ② 到访史�
 }
 // ③ _rebuild 必须同时重建 opsLog 与 track
 {
-    const rb = sbCode.slice(sbCode.indexOf('_rebuild() {'), sbCode.indexOf('clear() {'));
+    // [v3.221.0] R3-D：_rebuild 收了可选参（removedFloor）后不再匹配无参字面，
+    //   段锚改为「标识符起、到 clear() 之前」—— 与判据语义（重建段内部）一致。
+    const _rbAt = sbCode.indexOf('_rebuild(');
+    const rb = sbCode.slice(_rbAt, sbCode.indexOf('clear() {', _rbAt));
     if (!/this\.visits\.clear\(\)/.test(rb)) problems.push('N4 ③ _rebuild 未重建到访史（删楼后到访读数是旧账影子）');
     if (!/for \(const t of \[\.\.\.this\.track\]/.test(rb)) problems.push('N4 ③ _rebuild 未按 track 回填到访史');
     if (!/this\.nodes\.clear\(\)/.test(rb)) problems.push('N4 ③ _rebuild 未清派生缓存');

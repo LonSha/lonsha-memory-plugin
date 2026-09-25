@@ -52,10 +52,26 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
     for (const [id, fields, label] of mustShift) {
         const fn = __ownerShift(id);
         if (!fn) { missing.push(label + '(无登记项)'); continue; }
+        // [v3.221.0] R3-D：scene 面的动作已收进模块（shiftFloorRefs），登记项体内不再出现
+        //   字段名 ⇒ 这一面改为**真行为验证**（比「字面提到字段名」更强），见下方 2b。
+        if (id === 'scene') continue;
         const body = String(fn);
         if (!fields.every(f => body.includes(f))) missing.push(label + '(动作未触及该字段)');
     }
     assert.ok(missing.length === 0, `shift 覆盖缺失: ${missing.join('，')}`);
+    // 2b：scene 面真行为 —— 真跑一次前移，验 track / opsLog 真被搬动（含被删楼残留的摘除）。
+    {
+        const __SB = __require('../scene-book.js');
+        const b = new __SB.SceneBook();
+        b.apply([{ action: 'add', path: ['甲'] }], 3);
+        b.apply([{ action: 'add', path: ['乙'] }], 9);
+        b.setLocation(3, ['甲']);
+        b.setLocation(9, ['乙']);
+        const fn = __ownerShift('scene');
+        fn({ scene: b }, 7);
+        assert.deepEqual(b.track.map(t => t.floor), [3, 8], 'scene 面 shift 真搬动 track');
+        assert.deepEqual(b.opsLog.map(o => o.floor), [3, 8], 'scene 面 shift 真搬动 opsLog');
+    }
     // 宿主不得再留第二份位移清单：两份事实必然漂移，且会各减一次
     assert.ok(!src.includes('const dec = (v) => { if (v > deleted) { shifted++; return v - 1; } return v; };'),
         '宿主手抄位移清单已收编（不得复活）');

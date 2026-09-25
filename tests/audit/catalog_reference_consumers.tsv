@@ -205,3 +205,4 @@ v3218_cross_path_staging.test.mjs		跨路径暂存隔离：载荷自身代核对
 v3219_outcome_truth.test.mjs		取消留痕：结局三态可分且幂等 / 两处事件接线 / 外供与展示（真源码负控制）
 v3220_relation_mutual_knowledge.test.mjs		双向关系对账四态 + 知情网络同一件事判定与疑似档（真源码负控制）
 v3221_scene_face_migration.test.mjs		场所三面外供：层级树/到访史/本楼场景头 + numOrNull + 退路同形（真源码负控制）
+v3222_scene_rollback_closure.test.mjs		场所三面回滚收口：没给不再编 0 / 删楼撤本楼场景头 / 前移跟三面 / 导入存档不被清空 / 覆盖度含场景头（真源码负控制）

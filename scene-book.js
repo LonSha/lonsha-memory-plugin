@@ -80,6 +80,11 @@ const MAX_PRESENCE = 400;
 const MAX_BRIEF_LINES = 15;
 /** [v3.220.0] R3-A：层级树外供行数上限（防一次吐整棵树把快照撑爆）。 */
 const MAX_TREE_ROWS = 240;
+/** [v3.221.0] R3-D：场景头条数上限。
+ *   修前形态：上限 400 写在 setHeader 体内（字面量），而 import 路径**没有任何上限** ——
+ *   一份手工构造/被改过的存档能把场景头撑到任意规模，且诊断面看不见。
+ *   提为常量后，写侧与载入侧消费同一个数。 */
+const MAX_HEADERS = 400;
 /** [v3.220.0] R3-A：只把**真的是数**的读成数。
  *   为什么不能直接 Number(x)：Number(null) === 0、Number('') === 0 —— 于是
  *   「这一格没给」会被读成「第 0 楼」，正是本仓反复治理的那类塌陷
@@ -336,29 +341,50 @@ class SceneBook {
     /**
      * [v3.195] 写入本楼场景头。日期 / 时段 / 天气三者至少给一个，否则拒绝。
      * 同楼覆盖。调用方没给的字段留空，不回退到别的楼，也不从正文推断。
+     * [v3.221.0] R3-D：楼层「没给」不得被读成**第 0 楼**。
+     *   修前实测：`num(null) === 0`、`num('') === 0`（`Number(null)` 与 `Number('')` 都是 0），
+     *   于是 `setHeader(null, {date:'X月X日'})` 返回 true、把场景头写进第 0 楼，
+     *   而 0 是**合法楼层** —— 与「没给」同形最贵。取不到一律拒绝写入（返回 false）。
      */
     setHeader(floor, header) {
-        const f = num(floor);
+        const f = numOrNull(floor);
         if (f == null || !header || typeof header !== 'object') return false;
         const date = oneLine(header.date).slice(0, 40);
         const period = oneLine(header.period).slice(0, 20);
         const weather = oneLine(header.weather).slice(0, 40);
         if (!date && !period && !weather) return false;
         this.headers.set(f, { date, period, weather, at: Date.now() });
-        if (this.headers.size > 400) {
+        if (this.headers.size > MAX_HEADERS) {
             const oldest = [...this.headers.keys()].sort((a, b) => a - b)[0];
             if (oldest !== undefined && oldest !== f) this.headers.delete(oldest);
         }
         return true;
     }
 
-    /** 读本楼场景头。没有就 null，不回退到别的楼。 */
+    /**
+     * 读本楼场景头。没有就 null，不回退到别的楼。
+     * [v3.221.0] R3-D：`` / `''` / `null` 同样算「没给」——修前实测 `headerAt('')` 会读到
+     *   第 0 楼的场景头（与本方法「没有就 null」的自述直接矛盾）。
+     */
     headerAt(floor) {
-        const f = num(floor);
+        const f = numOrNull(floor);
         if (f == null) return null;
         const rec = this.headers.get(f);
         if (!rec) return null;
         return { floor: f, date: rec.date, period: rec.period, weather: rec.weather };
+    }
+
+    /**
+     * [v3.221.0] R3-D：撤掉本楼的场景头，返回是否确有条目。
+     * 为什么必须有：回滚面（删楼 / 前移）此前只动 opsLog / track / visits / presence，
+     *   而 headers 是按楼存的**快照真源**，不在 track/opsLog 的派生范围内 —— 于是删掉第 7 楼后
+     *   `headerAt(7)` 照样答得出「8月2日 · 暴雨」：读数指向一个已经不存在的时刻。
+     *   那不叫缺读数，叫**读数撒谎**（比没有更糟）。
+     */
+    clearHeader(floor) {
+        const f = numOrNull(floor);
+        if (f == null) return false;
+        return this.headers.delete(f);
     }
 
     /** 注入用一行。三字段都空返回空串。 */
@@ -548,6 +574,12 @@ class SceneBook {
             floorCount: floors.length,
             steps: this._gaps(floors),                // 逐楼缺口（相邻变更楼之间跳过的楼层）
             trackFloors,
+            // [v3.221.0] R3-D：本楼场景头的楼层列号 + 条数。
+            //   此前覆盖度只列「有变更的楼层」「有位置轨迹的楼层」两类，而删楼/前移对 headers
+            //   的处理**没有任何判据面**：改坏了也看不出来，于是「那天什么天气」可以停在一个
+            //   已被删掉的楼层上而诊断面报一切正常。列号照既有口径可逐楼对账。
+            headerFloors: [...this.headers.keys()].map(f => Number(f)).filter(Number.isFinite).sort((a, b) => a - b),
+            headerCount: this.headers.size,
             nodes: this.nodes.size,
             detailed: [...this.nodes.values()].filter(n => n.desc).length,
             visits: this.visits.size,
@@ -619,7 +651,9 @@ class SceneBook {
         const cut = Number.isFinite(Number(cutoff)) ? Number(cutoff) : Number(floor);
         this.opsLog = this.opsLog.filter(o => o.floor < floor);
         this.track = this.track.filter(t => t.floor < cut);
-        return this._rebuild();
+        // [v3.221.0] R3-D：级联回滚是「该楼及以上全弃」，场景头同语义（>= floor 一并撤）。
+        for (const hf of [...this.headers.keys()]) if (Number(hf) >= Number(floor)) this.headers.delete(hf);
+        return this._rebuild(floor);
     }
 
     /**
@@ -633,10 +667,56 @@ class SceneBook {
         // visits 不在此手动扣减：本节末尾的 _rebuild() 会整体清空并按 track 重算
         //   （手动扣减会被随后覆盖 ⇒ 那是「写了等于没写」的空转；到场史只能有一个真源）。
         // presence 是宿主写入的、不由 track/opsLog 派生 ⇒ 必须手动清理该楼的在场记录。
+        //   注意「清理」的粒度：**只清停在这一楼的人**，不得扩成 clearPresence() 全清 ——
+        //   那会把第 9 楼那批人的所在一起抹掉（修前宿主就是这么干的，见 index.js 的 rollbackFloor）。
         for (const [nm, rec] of [...this.presence]) {
             if (Number(rec.atFloor) === f) this.presence.delete(nm);
         }
-        return this._rebuild();
+        // [v3.221.0] R3-D：场景头是按楼存的快照真源，不在 show/track 的派生范围内 ⇒ 同删。
+        this.headers.delete(f);
+        return this._rebuild(f);
+    }
+
+    /**
+     * [v3.221.0] R3-D：楼层前移时跟随（登记表只声明意图，动作收在模块内）。
+     * 与 drop 侧同一原则，顺序也一样：**先清被删楼的残留，再平移大于它的归属**。
+     *   修前实测（登记表 scene 面只手抄 track/opsLog 两条循环）：
+     *     ① 被删第 7 楼的 track/opsLog 条目仍在原地 ⇒ 第 8 楼被前移成 7 楼后与残留**撞成两条 7 楼**
+     *        （连做两次得 track=[3,7,7]）；
+     *     ② `headers` 一格不动 ⇒ 前移后「那天什么天气」继续挂在旧楼层号上；
+     *     ③ `presence` 一格不动 ⇒ 「谁在何处」指向前移前的时刻（`atFloor` 是旧号）。
+     * 三面都跟，返回跟随/清理的条数。**不抛**（登记项调用方按回放引擎的纪律处理失败）。
+     */
+    shiftFloorRefs(deleted) {
+        const d = Number(deleted);
+        if (!Number.isFinite(d)) return 0;
+        let n = 0;
+        // ① 被删楼自身的残留（前移后该楼已不存在；留着它下一次重放还会把它当「真源」搬回来）
+        const bt = this.track.length, bo = this.opsLog.length;
+        this.track = this.track.filter(t => Number(t && t.floor) !== d);
+        this.opsLog = this.opsLog.filter(o => Number(o && o.floor) !== d);
+        n += (bt - this.track.length) + (bo - this.opsLog.length);
+        // ② 平移：位置真源
+        for (const t of this.track) if (typeof t.floor === 'number' && t.floor > d) { t.floor = t.floor - 1; n++; }
+        for (const o of this.opsLog) if (typeof o.floor === 'number' && o.floor > d) { o.floor = o.floor - 1; n++; }
+        // ③ 平移：本楼场景头（按楼存的快照，不跟就是「天气挂在错楼层」）
+        const nh = new Map();
+        for (const [hf, rec] of this.headers) {
+            if (hf === d) { n++; continue; }
+            const nf = hf > d ? hf - 1 : hf;
+            nh.set(nf, rec);
+            if (nf !== hf) n++;
+        }
+        this.headers = nh;
+        // ④ 平移：在场（谁在何处）；停在被删那一刻的人出局 —— 与 drop 侧同一粒度（绝不整表全清）
+        for (const [nm, rec] of [...this.presence]) {
+            if (!rec) continue;
+            const af = Number(rec.atFloor);
+            if (!Number.isFinite(af)) continue;
+            if (af === d) { this.presence.delete(nm); n++; }
+            else if (af > d) { rec.atFloor = af - 1; n++; }
+        }
+        return n;
     }
 
     /**
@@ -652,8 +732,31 @@ class SceneBook {
         return this._rebuild();
     }
 
-    /** 内部：清派生缓存 → 按 opsLog 重放 → 按 track 回填到访史 → 重算容量台账。 */
-    _rebuild() {
+    /** 内部：清派生缓存 → 按 opsLog 重放 → 按 track 回填到访史 → 重算容量台账。
+     *  @param {number} [removedFloor] 本次回滚撤掉的楼层（无 opsLog 真源时用于如实摘除该楼登记）。
+     */
+    _rebuild(removedFloor) {
+        // [v3.221.0] R3-D：**没有 opsLog 真源时不得清空式重建**。
+        //   修前实测：导入旧格式存档（v3.180 及以前只有 nodes/track、无 opsLog）之后，
+        //   第一次单楼编辑就把整棵树清成 0 个节点 —— 先 `this.nodes.clear()`，再「按 opsLog 重放」，
+        //   而 opsLog 是空的，于是**没有人重建**。导入存档恰恰是最需要保住数据的地方。
+        //   无真源时如实降级：只摘掉被删那楼的登记节点，其余保留（**不假装重建过**）。
+        if (!this.opsLog.length) {
+            if (Number.isFinite(Number(removedFloor))) {
+                for (const [k, rec] of [...this.nodes]) {
+                    if (Number(rec && rec.floor) === Number(removedFloor)) this.nodes.delete(k);
+                }
+            }
+            this.visits = new Map();
+            const seen0 = new Set();
+            for (const t of [...this.track].sort((a, b) => a.floor - b.floor)) {
+                if (!t || !t.pathKey || seen0.has(t.floor)) continue;
+                seen0.add(t.floor);
+                this._recordVisit(t.pathKey, t.floor);
+            }
+            this.capacity.nodes = this.nodes.size;
+            return this.nodes.size;
+        }
         this.nodes.clear();
         this.visits.clear();
         const log = [...this.opsLog].sort((a, b) => a.floor - b.floor);
@@ -704,24 +807,24 @@ class SceneBook {
         this.nodes = new Map(
             (isArr(data.nodes) ? data.nodes : [])
                 .filter(n => n && isArr(n.path) && n.path.length)
-                .map(n => [keyOf(n.path), { path: partsOfKey(keyOf(n.path)), desc: oneLine(n.desc).slice(0, MAX_DESC), floor: num(n.floor) ?? 0, updatedAt: num(n.updatedAt) ?? 0 }])
+                .map(n => [keyOf(n.path), { path: partsOfKey(keyOf(n.path)), desc: oneLine(n.desc).slice(0, MAX_DESC), floor: numOrNull(n.floor) ?? 0, updatedAt: numOrNull(n.updatedAt) ?? 0 }])
         );
         this.track = (isArr(data.track) ? data.track : [])
             .filter(t => t && typeof t.pathKey === 'string' && t.pathKey)
-            .map(t => ({ floor: num(t.floor) ?? 0, pathKey: t.pathKey }))
+            .map(t => ({ floor: numOrNull(t.floor) ?? 0, pathKey: t.pathKey }))
             .slice(-MAX_TRACK);
         this.opsLog = (isArr(data.opsLog) ? data.opsLog : [])
             .filter(o => o && isArr(o.ops))
-            .map(o => ({ floor: num(o.floor) ?? 0, ops: o.ops }))
+            .map(o => ({ floor: numOrNull(o.floor) ?? 0, ops: o.ops }))
             .slice(-MAX_OPS);
         this.visits = new Map();
         if (isArr(data.visits) && data.visits.length) {
             for (const [k, v] of data.visits) {
                 if (typeof k !== 'string' || !k || !v || typeof v !== 'object') continue;
                 this.visits.set(k, {
-                    count: Math.max(0, num(v.count) ?? 0),
-                    firstFloor: num(v.firstFloor) ?? 0,
-                    lastFloor: num(v.lastFloor) ?? 0,
+                    count: Math.max(0, numOrNull(v.count) ?? 0),
+                    firstFloor: numOrNull(v.firstFloor) ?? 0,
+                    lastFloor: numOrNull(v.lastFloor) ?? 0,
                     floors: (isArr(v.floors) ? v.floors : []).map(x => num(x)).filter(x => x !== null).slice(-MAX_VISIT_FLOORS)
                 });
                 if (this.visits.size >= MAX_VISIT_KEYS) break;
@@ -737,7 +840,7 @@ class SceneBook {
                 if (typeof k !== 'string' || !k || !v || typeof v !== 'object') continue;
                 const key = trim(v.key) || keyOf(v.path);
                 if (!key) continue;
-                this.presence.set(k, { key, path: partsOfKey(key), atFloor: num(v.atFloor) ?? 0, at: num(v.at) ?? 0 });
+                this.presence.set(k, { key, path: partsOfKey(key), atFloor: numOrNull(v.atFloor) ?? 0, at: numOrNull(v.at) ?? 0 });
                 if (this.presence.size >= MAX_PRESENCE) break;
             }
         }
@@ -745,14 +848,19 @@ class SceneBook {
         if (isArr(data.headers)) {
             for (const pair of data.headers) {
                 if (!isArr(pair) || pair.length < 2) continue;
-                const f = num(pair[0]);
+                // [v3.221.0] R3-D：键也要 numOrNull —— 修前 `num(null)` / `num('')` 都读成 0，
+                //   于是导出的 `[null, {...}]` / `['', {...}]` 会**静默落成第 0 楼**的场景头
+                //   （export 原样写出，往返一次就多出一条谁也没登记过的「第 0 楼天气」）。
+                const f = numOrNull(pair[0]);
                 const v = pair[1];
                 if (f == null || !v || typeof v !== 'object') continue;
                 const date = oneLine(v.date).slice(0, 40);
                 const period = oneLine(v.period).slice(0, 20);
                 const weather = oneLine(v.weather).slice(0, 40);
                 if (!date && !period && !weather) continue;
-                this.headers.set(f, { date, period, weather, at: num(v.at) ?? 0 });
+                if (this.headers.has(f)) continue;                 // 同楼重复：先到先得，不静默覆盖已有快照
+                if (this.headers.size >= MAX_HEADERS) break;       // 载入侧同受写侧的上限（此前这条路径无上限）
+                this.headers.set(f, { date, period, weather, at: numOrNull(v.at) ?? 0 });
             }
         }
         const cap = data.capacity && typeof data.capacity === 'object' ? data.capacity : {};
@@ -879,7 +987,7 @@ class SceneBook {
 }
 
 const api = {
-    SCENE_KEY, SCENE_VERSION, MAX_PATH_DEPTH, MAX_NODES, MAX_BRIEF_LINES, MAX_TREE_ROWS,
+    SCENE_KEY, SCENE_VERSION, MAX_PATH_DEPTH, MAX_NODES, MAX_BRIEF_LINES, MAX_TREE_ROWS, MAX_HEADERS,
     SceneBook, keyOf, partsOfKey, partsOf, leafOf, ancestorsOf, describeShape
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

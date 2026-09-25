@@ -282,10 +282,31 @@
             shift: null
         },
         {
+            // [v3.221.0] R3-D：**动作收进模块内**，登记项只声明「这一面参与回滚/前移」。
+            //   修前形态是登记项自己手抄两段循环（track / opsLog），于是场所图景后来新增的
+            //   带楼层归属的两面 —— v3.195 的场景头 `headers`、v3.181 的在场索引 `presence`
+            //   —— **一格都不会跟**：删掉第 7 楼后 `headerAt(7)` 照样答得出「8月2日 · 暴雨」
+            //   （读数指向一个已不存在的时刻），前移后「谁在何处」停在旧楼层号上。
+            //   更糟的是同一段循环不认「被删楼自身的残留」：第 8 楼被前移成 7 楼后与残留撞成
+            //   两条 7 楼（连做两次得 track=[3,7,7]）—— 本项自述的「drop/shift 必须幂等」
+            //   在 shift 侧从未成立。
+            //   现在 drop 走 rollbackFloorOnly（模块内按楼层清在场与场景头，**只清该楼**），
+            //   shift 走 shiftFloorRefs（模块内先清被删楼残留、再平移 track/opsLog/headers/presence）。
+            //   两处边界都不静默：drop 对「不认新方法的旧模块」保留 clearPresence 退路，
+            //   shift 在缺 shiftFloorRefs 时如实返回 0（留痕在回放报告里，而不是假装搬过）。
             id: 'scene', label: '场所图景', holds: 'derived',
             get: (h) => h.scene || null,
-            drop: (h, f) => { if (!(h.scene && typeof h.scene.rollbackFloorOnly === 'function')) return 0; h.scene.rollbackFloorOnly(f); if (typeof h.scene.clearPresence === 'function') h.scene.clearPresence(); return 1; },
-            shift: (h, d) => { let n = 0; for (const t of (h.scene?.track || [])) if (typeof t.floor === 'number' && t.floor > d) { t.floor--; n++; } for (const o of (h.scene?.opsLog || [])) if (typeof o.floor === 'number' && o.floor > d) { o.floor--; n++; } if (h.scene && typeof h.scene.rebuildFromOps === 'function' && (h.scene.opsLog || []).length) h.scene.rebuildFromOps(); return n; }
+            drop: (h, f) => {
+                if (!(h.scene && typeof h.scene.rollbackFloorOnly === 'function')) return 0;
+                h.scene.rollbackFloorOnly(f);
+                // 旧模块（无按楼层清）才退到整表清；新模块已在 rollbackFloorOnly 内按楼层清过。
+                if (typeof h.scene.clearHeader !== 'function' && typeof h.scene.clearPresence === 'function') h.scene.clearPresence();
+                return 1;
+            },
+            shift: (h, d) => {
+                if (!(h.scene && typeof h.scene.shiftFloorRefs === 'function')) return 0;
+                return Number(h.scene.shiftFloorRefs(d)) || 0;
+            }
         },
         {
             id: 'items', label: '物品台账', holds: 'derived',
