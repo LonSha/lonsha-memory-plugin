@@ -309,7 +309,13 @@ test('[4f] the new switch is reachable from config, whitelist and settings UI', 
     assert.ok(src.includes('hybridMergeWeighted: false'), 'default registered in the engine config');
     assert.ok(src.includes("'hybridMergeWeighted'"), 'present in CARD_CFG_KEYS whitelist');
     assert.ok(sui.includes("ck('hybridMergeWeighted'"), 'rendered as a checkbox in settings UI');
-    assert.strictEqual(countOf(src, 'numOr(this.config.config.hybridAlpha, 0.7)'), 2, 'both the RRF path and the legacy path read alpha defensively');
+    /* [v3.229.0] 本条原断言 **2 处**（「RRF 路径与遗留路径都做防御式读 α」）。
+     *   遗留路径 _legacyHybridMerge 已作为零引用死代码删除（P-1 死方法处置），
+     *   故现在恰 **1 处** —— 判据此前钉住的是「两条路径并存」这个已被设计淘汰的状态，
+     *   这不是放松要求（那条路径自 v3.50 起一次都没执行过），而是把读数改成事实。
+     *   遗留路径若被误恢复，本条会因变成 2 处而转红。 */
+    assert.strictEqual(countOf(src, 'numOr(this.config.config.hybridAlpha, 0.7)'), 1,
+        'only the live hybridMerge path reads alpha defensively (legacy path deleted in v3.229.0)');
 });
 /* ============ 5. narrative-pulse arc source wiring (real execution) ============ */
 const pulseMod = require(path.join(ROOT, 'narrative-pulse.js'));

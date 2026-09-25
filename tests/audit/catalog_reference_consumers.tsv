@@ -213,3 +213,4 @@ v3226_audit_sensitivity.test.mjs		审计扫描器灵敏度体检（O-3）：29 �
 v3227_gate_isolation_and_timing.test.mjs		门禁隔离与耗时（O-4）：跑批零改仓（快照 + git status 双向对照）、仓根禁写（mkdtemp/临时文件一律 os.tmpdir）、两组子集墙钟上界 + 基线四面的「没做什么」逐条可读
 v3228_dead_methods_ledger.test.mjs		方法级死代码台账（O-6）：A7 口径双向（可选调用/引号名/键名算引用）+ 扫描面含全部根级模块（settings-ui.js）+ 冻结基线双向一致 + 三条真源码负控制
 v3229_perf_evidence.test.mjs		性能取证与量级基线（O-5）：基线四件（读数/口径/缩放/没做什么）+ 「合成数据非实机」口径强制 + 探针 setup 不计时（夹具计入会被 290 倍差暴露）+ 三条负控制
+v3230_dead_method_disposal.test.mjs		死方法处置（P-1）：四条零引用方法定义删除 + 保留面逐条在场 + 处置台账 [已删·分类] 逐条可读 + 冻结基线空集不退化（防空对空）+ 两条整仓镜像负控制（新增零引用即红 / 基线污染点名）

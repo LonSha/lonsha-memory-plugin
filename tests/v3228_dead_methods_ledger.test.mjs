@@ -14,6 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -77,6 +78,13 @@ function baselineNames() {
     return read(BASE).split('\n').map((l) => l.trim())
         .filter((l) => l && !l.startsWith('#')).sort();
 }
+/** [v3.229.0] 读处置台账：TSV 里 `# [已删·分类] 方法名 — 理由` 段。 */
+function disposalNames() {
+    return read(BASE).split('\n')
+        .filter((l) => /^#\s*\[已删·/.test(l.trim()))
+        .map((l) => (/^#\s*\[已删·[^\]]+\]\s*([A-Za-z_][A-Za-z0-9_]*)/.exec(l.trim()) || [])[1])
+        .filter(Boolean);
+}
 /** 跑扫描器，拿到 A7.1 零引用清单。 */
 function measuredZeroRefs() {
     const r = spawnSync(process.execPath, [SCAN], { cwd: ROOT, encoding: 'utf8', timeout: 180000 });
@@ -88,28 +96,28 @@ function measuredZeroRefs() {
         .filter((l) => l && !l.startsWith('===') && !l.startsWith('（') ).sort();
 }
 
-test('v3228 B1. ★★★ 冻结基线双向一致：新增零引用即红；清掉也要同步改表', () => {
+test('v3228 B1. ★★★ 冻结基线双向一致；处置台账须如实记账', () => {
     const base = baselineNames();
-    assert.ok(base.length >= 4, '基线至少 4 条（本轮实测），实得 ' + base.length);
     const measured = measuredZeroRefs();
     assert.deepEqual(measured, base,
         'A7.1 实测与冻结基线必须逐条一致（左=实测 / 右=基线）' + '\n  实测: ' + measured.join(', ') + '\n  基线: ' + base.join(', '));
+    /* [v3.229.0] 本版把冻结的 4 条**全部删掉定义**（P-1 死方法处置），零引用集合归零。
+     *   于是 B1 的「双向一致」退化成**空对空** —— 空对空的判据是会骗人的（它永远绿）。
+     *   故补两件：① 集合确实为空（期望状态，不是被谁清空了没人管）；
+     *             ② 处置台账逐条记着这 4 条（少一条 = 有人偷偷清了基线却没记账）。 */
+    assert.equal(base.length, 0, '当前零引用集合应为空（4 条已在 v3.229.0 处置），实得 ' + base.length);
+    assert.deepEqual(disposalNames().sort(), ['_legacyHybridMerge', 'breakPromise', 'callGeneric', 'queryByFloor'],
+        '处置台账必须逐条记着 v3.229.0 删掉的四条（TSV 的 [已删·…] 段）');
 });
 
-test('v3228 B2. ★★ 基线每条都有分类理由（不许只丢一个名字进去）', () => {
-    const txt = read(BASE);
-    const lines = txt.split('\n');
-    const names = baselineNames();
-    let reasons = 0;
-    for (const n of names) {
-        const idx = lines.findIndex((l) => l.trim() === n);
-        assert.ok(idx > 0, n + ' 必须独占一行（便于逐条看理由）');
-        // 名字上方 3 行内必须有分类注释
-        const ctx = lines.slice(Math.max(0, idx - 3), idx).join('\n');
-        assert.ok(/\[.+?\]/.test(ctx), n + ' 上方必须有分类注释（如 [真死·旧生成路径]）');
-        reasons++;
+test('v3228 B2. ★★ 处置台账每条都有分类与理由（不许只丢一个名字进去）', () => {
+    const lines = read(BASE).split('\n').filter((l) => /^#\s*\[已删·/.test(l.trim()));
+    assert.ok(lines.length >= 4, '处置台账至少 4 条（v3.229.0 实测），实得 ' + lines.length);
+    for (const l of lines) {
+        assert.match(l.trim(), /^#\s*\[已删·[^\]]{2,}\]\s*[A-Za-z_][A-Za-z0-9_]*\s*—\s*\S/,
+            '每条须形如「# [已删·分类] 方法名 — 理由」: ' + l.slice(0, 70));
+        assert.ok(l.split('—')[1].trim().length >= 10, '理由不得是空话: ' + l.slice(0, 70));
     }
-    assert.equal(reasons, names.length);
 });
 
 test('v3228 B3. ★ 扫描器把基线缺失当硬失败（exit 2），不得静默放过', () => {
@@ -145,12 +153,22 @@ test('v3228 N2. ★★ 破坏口径（可选调用写成名字前置）⇒ A1 �
         '旧口径（只认 name(）确实漏判可选调用 —— 这就是 93 条误报的成因之一');
 });
 
-test('v3228 N3. ★★ 基线漂移必须可观测：往基线里塞一个活方法名 ⇒ B1 必须转红', () => {
-    const base = baselineNames();
-    const measured = measuredZeroRefs();
-    const polluted = [...base, 'buildInjection'].sort();   // buildInjection 是有调用的活方法
-    assert.notDeepEqual(polluted, measured, '污染后的列表不得与实测相等（否则 B1 是空跑）');
-    assert.deepEqual(measured, base, '对照：原件上必须相等');
+test('v3228 N3. ★★★ 基线漂移必须可观测：往基线里塞一个活方法名 ⇒ 扫描器必须转红', async () => {
+    /* 本版零引用集合为空，「污染后不得与实测相等」这类对照会在空集合上退化成**空跑**，
+     *   故改为端到端负控制：整仓镜像（v310/v311/v3225 同款基建 ——
+     *   **夹具必须把被测对象也搬进镜像**：scan_wiring 按 cwd 读 index.js，拿真仓当夹具量到的还是真仓）
+     *   + 在镜像里给基线塞一个活方法名 ⇒ 扫描器必须 exit 1 并点名「基线里的方法已不再零引用」。 */
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3228-mir-'));
+    try {
+        fs.cpSync(ROOT, dir, { recursive: true, filter: (s2) => !s2.split(path.sep).includes('.git') });
+        const tsv = path.join(dir, 'tests', 'audit', 'scan_wiring_dead_methods.tsv');
+        fs.writeFileSync(tsv, read(BASE) + '\nbuildInjection\n');   // buildInjection 是有调用的活方法
+        const r = spawnSync(process.execPath, [path.join('tests', 'audit', 'scan_wiring.mjs')],
+            { cwd: dir, encoding: 'utf8', timeout: 180000 });
+        assert.equal(r.status, 1, '塞进活方法名后必须转红（否则冻结基线是摆设）；实际 exit=' + r.status);
+        assert.match((r.stdout || '') + (r.stderr || ''), /基线里的方法已不再零引用/,
+            '必须点名「基线长霉」，而不是静默通过');
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 /* ══════════ D 版本锚 ══════════ */

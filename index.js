@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.228.0';
+    const VERSION = '3.229.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -913,6 +913,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 vectorTopK: 5,
                 hybridAlpha: 0.7,
                 // [v3.156] 融合模式开关。存在理由：hybridAlpha 此前只在 _legacyHybridMerge 里被读，
+                //   [v3.229.0] 该方法本体已删除（P-1 死方法处置；配置键与它无绑定关系，实测为活配置）。
                 //   而该方法自 [v3.50] 起无任何调用者（主路径 hybridMerge 走 RRF 排序、不读 α）
                 //   ——UI 滑块可见、引擎永不消费的「死配置」。
                 //   默认 false = 继续走 RRF（零行为变化）；打开后改走加权融合，α 才真正生效。
@@ -1529,15 +1530,6 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             }
             const legacyContent = msg.content;
             return typeof legacyContent === 'string' ? legacyContent : '';
-        }
-        async callGeneric(prompt, server) {
-            const res = await fetchWithTimeoutRetry(`${server}/api/v1/generate`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({prompt, max_length: 500, temperature: 0.3})
-            });
-            const data = await res.json();
-            return data.results?.[0]?.text || '';
         }
     }
     
@@ -6825,6 +6817,7 @@ function relativeTimeLabel(eventTime, nowTime) {
         hybridMerge(results) {
             const K = 60; // RRF 标准常数
             // [v3.156] α 真正生效。此前 hybridAlpha 只在 _legacyHybridMerge（自 v3.50 起无调用者的遗留实现）里被读，
+            //   [v3.229.0] 那条遗留实现已删除；本方法（hybridMerge）才是 α 至今唯一的活消费点。
             //   而主路径 RRF 从不读它——UI 滑块可见、引擎永不消费。
             //   这里用同一开关把 α 接到 RRF 名次上，保持 RRF 为主排序算法（默认开关关 = 零行为变化）：
             //   α=1 纯向量（向量路名次压缩、其余路拉长），α=0 纯图谱（反向），单调可解释。
@@ -6887,44 +6880,6 @@ function relativeTimeLabel(eventTime, nowTime) {
             return top;
         }
 
-        _legacyHybridMerge(results) {
-            const alpha = numOr(this.config.config.hybridAlpha, 0.7);   // [v3.156] 0=纯图谱合法；此前无回退，缺失会得 NaN 使全部向量得分归零
-            const merged = [];
-            const seen = new Set();
-            
-            // 向量检索结果 (权重 α)
-            for (const v of results.vector || []) {
-                const key = v.text || JSON.stringify(v.metadata);
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    merged.push({...v, finalScore: v.score * alpha, source: 'vector'});
-                }
-            }
-            
-            // 图扩散结果 (权重 α * 0.8)
-            for (const d of results.diffusion || []) {
-                const key = d.id || d.name || JSON.stringify(d);
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    merged.push({...d, finalScore: d.score * alpha * 0.8, source: 'diffusion'});
-                }
-            }
-            
-            // 其他结果均分剩余权重
-            const remainingWeight = (1 - alpha) / 3;
-            for (const source of [results.graph, results.summary, results.diary]) {
-                for (const item of source || []) {
-                    const key = item.id || item.text || item.name || JSON.stringify(item);
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        merged.push({...item, finalScore: remainingWeight, source: 'graph/summary/diary'});
-                    }
-                }
-            }
-            
-            merged.sort((a, b) => (b.finalScore || 0) - (a.finalScore || 0));
-            return merged.slice(0, this.config.config.vectorTopK * 2);
-        }
         
         buildQuery(context) {
             const chat = window.SillyTavern?.getContext?.()?.chat || [];
@@ -12664,13 +12619,8 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             if (p) p.status = 'fulfilled';
             return p;
         }
-        breakPromise(id) {
-            const p = this.promises.find(x => x.id === id);
-            if (p) p.status = 'broken';
-            return p;
-        }
         /** [v3.178] 按 id 履行/违约——提取 prompt 中 promises_resolve 的消费口。
-         *  此前只有测试直接调 fulfillPromise/breakPromise，产品运行路径零消费，
+         *  此前只有测试直接调 fulfillPromise（另一条违约入口 breakPromise 已于 v3.229.0 删除），产品运行路径零消费，
          *  导致承诺一旦登记便永不了结（长期滞留在【未竟约定】注入区）。 */
         resolvePromise(id, status = 'fulfilled', floor = 0) {
             const p = this.promises.find(x => x.id === id);
@@ -15589,7 +15539,6 @@ ${recentTurns}`;
         static _retention() { return { type: 20, op: 10, ref: 60, meta: 80 }; }
         static normRef(v) { return String(v ?? '').slice(0, OpLog._retention().ref); }
         static normOp(v) { return String(v ?? '').slice(0, OpLog._retention().op); }
-        queryByFloor(floor) { return this.entries.filter(e => e.floor === floor); }
         queryByType(type) { return this.entries.filter(e => e.type === String(type ?? '').slice(0, OpLog._retention().type)); }
         queryByRef(refId) { return this.entries.filter(e => e.ref === OpLog.normRef(refId)); }
         recent(n) { return this.entries.slice(-Math.max(1, Number(n) || 20)); }
