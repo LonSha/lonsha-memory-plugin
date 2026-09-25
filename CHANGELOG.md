@@ -1,3 +1,51 @@
+## v3.220.0
+
+**主题：R3-A 场所三面外供（层级树 / 到访史 / 本楼场景头）—— 「这店在市里哪一区」「去过几次」「那天什么天气」此前在读数上根本不存在。**
+
+这是 R3（长线生活与社交生态）第一批次的第一项：把场所图景从「一句摘要」补成**可查询的三面**，并把下游手机端从「有表无实」变成能答这三问。
+
+### 修前实测（读真源码，不是设计洁癖）
+
+- `scene-book.js` **内部**早有这三面能力：层级树在 `outlineOf`/`chainOf`，到访史在
+  `visitsOf`/`visitsList`（含次数、首末楼层、重访标记），本楼场景头在 `headerAt`/`headerLine`
+  （日期 / 时段 / 天气）。但 `summary()` 只外供 `current`（**末级键的字符串**）与规模四数
+  （nodes / detailed / depth / visits）。
+- 后果：只读快照桥 `snapshot.scene` 里**没有任何一格**能回答
+  「这地方属于哪一区（层级是什么样）」「去过哪些地方、各去过几次」「那天是什么天气」。
+  下游手机端「地点图景」只能显示一整串当前链与「已登记 N 处」——
+  **数据全在手边，却没有任何出口**。这不是没做，是**做了不外供**（本仓反复点名的同族形态）。
+- 附带一处旧账：`Number(null) === 0`、`Number('') === 0`，任何「没给 ⇒ 0」的取数写法都会把
+  「上游没给这格」读成「这就是 0」（本仓 v3.212 线已在投影读数上踩过同一形态）。
+
+### 收口
+
+- `scene-book.js` 新增三方法（只读、不抛、有界、不改内部语义）：
+  - `tree(limit)`：按 pre-order 展平的层级树，逐行 `{key, path, name, depth, desc, floor, visited, visits}`
+    —— `depth` 取真实层级（不是让下游自己按路径长度猜），`floor` 是该场所**注册的出处楼层**。
+  - `visitHistory(limit)`：到访史，逐条 `{key, path, count, firstFloor, lastFloor, revisit, registered, desc}`
+    —— `count` 是**去过的不同楼层数**（同楼重复访问不累加），`registered=false` 即「去过但场所树里没登记」
+    的孤儿到访（真缺陷，必须可见）。
+  - `headerFace(floor)`：本楼场景头 `{floor, date, period, weather}`；无该楼场景头返回 `null`。
+  - 新增 `MAX_TREE_ROWS = 240`：三面输出有界（同 `MAX_BRIEF_LINES` 一类，防单次读数无界）。
+- `summary()` 外供面增四格（键面 7 → 11）：`currentChain`（**结构化数组**，逐级带
+  `{key, path, name, desc, floor}`，不再是末级字符串）、`tree`、`visits`、`header`。
+  旧字段一个未动 —— 旧消费方读数不变（下游旧版仍只读 `current`/`scale` 也能跑）。
+- 新增 `numOrNull(v)`：`null` / `undefined` / `''` 三态直返 `null`，**不写成 0**。
+  `tree()` 的 `floor`、`visitHistory()` 的 `count` / `firstFloor` / `lastFloor` 全部改走它，
+  并据此排序（`lastFloor === null` 排在最后），**不把「没给」当成「第 0 楼」**。
+- 宿主 `index.js` 的 `SceneBookFallback` 补 `tree()` / `visitHistory()` / `headerFace()`
+  三个**同形空方法**，`summary()` 返回对象同步补齐四格 ——
+  模块缺席时必须与真实现**同形**，否则「上游这版没这面」与「这面是空的」在下游又塌成一态。
+
+### 测试
+
+- 新增 `tests/v3221_scene_face_migration.test.mjs`（17 条）：
+  A 行为面（三面各自真读、上限生效、畸形输入不抛）；B 分域面（三面各与旧面分域、`tree` 与
+  `currentChain` 不互相顶替）；C 自洽（`tree` 节点 key 与 `keyOf(path)` 一致、`visits.registered`
+  与 `nodes.has` 一致）；D 有界（`MAX_TREE_ROWS` 真生效）；E 只读与不抛（畸形/空/缺席三态）；
+  N 负控制三条（真源码破坏 → 载入破坏副本 → 在同款判据上转红）；G 接线与退路同形 + 版本锚。
+- 既有 `v3181`（空间基础）与 `v3208`（投影读数）全绿：新面是旧面的**扩面**，旧读数一字未改。
+
 ## v3.219.0
 **主题：R2-F 双向关系对账 + 知情网络 —— 「没给」与「给了别的」不得同形，「同一件事的另一种说法」不得被读成「另一件事」。**
 这是 R2 原始范围里「双向关系 / 知情网络」的落地。

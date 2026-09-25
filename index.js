@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.219.0';
+    const VERSION = '3.220.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11117,6 +11117,11 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         currentLine() { return null; }
         brief() { return '（暂无已登记场景）'; }
         briefAt() { return null; }
+        // [v3.220.0] R3-A：三个新外供面的同形退路（模块缺席时必须与真实现同形，
+        //   否则调用方读这三面会在缺席时外抛）。缺席如实报空，绝不伪造「有层级/有到访」。
+        tree() { return []; }
+        visitHistory() { return []; }
+        headerFace() { return null; }
         coverage() { return { floors: [], floorCount: 0, steps: [], trackFloors: [], nodes: 0, detailed: 0, visits: 0, presence: 0, unregistered: [], unregisteredCount: 0, state: 'absent', broken: [], warnings: [] }; }
         checkInvariants() { return { state: 'absent', broken: [], warnings: [] }; }
         rollbackFrom() { return 0; }
@@ -11125,7 +11130,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         clear() { return 0; }
         export() { return { version: 0, nodes: [], track: [], opsLog: [], visits: [], presence: [], capacity: this.capacity, absent: true }; }
         import() { /* 无真源可导入：如实保持空 */ }
-        summary() { return { version: 0, scale: this.scale(), current: null, currentLine: null, presence: [], coverage: this.coverage(), empty: true, absent: true }; }
+        summary() { return { version: 0, scale: this.scale(), current: null, currentLine: null, currentChain: [], presence: [], coverage: this.coverage(), tree: this.tree(), visits: this.visitHistory(), header: this.headerFace(), empty: true, absent: true }; }
     }
 
     // [v2.2] RC: 悬念簿（抄 baibai MemPlan：约定/伏笔/未解之谜 + done/cancelled/failed 三态了结）

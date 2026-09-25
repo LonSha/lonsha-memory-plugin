@@ -78,6 +78,17 @@ const MAX_OPS = 400;
 const MAX_PRESENCE = 400;
 /** brief 的行数上限（提取 prompt 的 {{SCENES}} 占用预算）。 */
 const MAX_BRIEF_LINES = 15;
+/** [v3.220.0] R3-A：层级树外供行数上限（防一次吐整棵树把快照撑爆）。 */
+const MAX_TREE_ROWS = 240;
+/** [v3.220.0] R3-A：只把**真的是数**的读成数。
+ *   为什么不能直接 Number(x)：Number(null) === 0、Number('') === 0 —— 于是
+ *   「这一格没给」会被读成「第 0 楼」，正是本仓反复治理的那类塌陷
+ *   （0 是合法楼层，与「没给」同形最贵）。取不到一律 null。 */
+function numOrNull(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+}
 
 const trim = (v) => String(v == null ? '' : v).trim();
 const oneLine = (v) => trim(v).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ');
@@ -755,6 +766,88 @@ class SceneBook {
         this._broken = [];
     }
 
+    /**
+     * 场所层级树（只读；供下游「地点图鉴」渲染）。
+     * 与 brief() 那种「给提取提示词的清单」不同：这里给的是**结构化树**，
+     * 每级带 key / 名称 / 描述 / 出处楼层 / 下级，且**严格按登记顺序稳定排序**。
+     * 只读、有界（MAX_TREE_ROWS）、绝不抛；取不到就是空数组（不编造）。
+     */
+    tree(limit = MAX_TREE_ROWS) {
+        const cap = Math.max(1, Math.min(Number(limit) || MAX_TREE_ROWS, MAX_TREE_ROWS));
+        const byParent = new Map();
+        for (const [k, n] of this.nodes) {
+            const path = n.path || [];
+            if (!path.length) continue;
+            const parent = path.length > 1 ? path.slice(0, -1).join('/') : '';
+            if (!byParent.has(parent)) byParent.set(parent, []);
+            byParent.get(parent).push({ key: k, path, node: n });
+        }
+        for (const arr of byParent.values()) arr.sort((a, b) => a.key.localeCompare(b.key));
+        const out = [];
+        const walk = (parentKey, depth) => {
+            if (out.length >= cap) return;
+            const kids = byParent.get(parentKey) || [];
+            for (const it of kids) {
+                if (out.length >= cap) return;
+                const v = this.visits.get(it.key);
+                out.push({
+                    key: it.key,
+                    path: it.path,
+                    name: leafOf(it.path),
+                    depth,
+                    desc: it.node.desc || '',
+                    floor: Number.isFinite(Number(it.node.floor)) ? Number(it.node.floor) : null,
+                    visited: !!v,
+                    visits: v ? v.count : 0
+                });
+                walk(it.key, depth + 1);
+            }
+        };
+        walk('', 1);
+        return out;
+    }
+
+    /**
+     * 到访史（只读；供下游「到访史」列表）。
+     * 与 visitsList() 同源同口径，但**只吐可 JSON 的纯数据**并带预算。
+     * 从未到访 ⇒ 空数组（「没去过」不是「去过 0 次」，故不生成条目）。
+     */
+    visitHistory(limit = MAX_VISIT_KEYS) {
+        const cap = Math.max(1, Math.min(Number(limit) || MAX_VISIT_KEYS, MAX_VISIT_KEYS));
+        const out = [];
+        for (const [key, v] of this.visits) {
+            if (!v || typeof v !== 'object') continue;
+            out.push({
+                key,
+                path: partsOfKey(key),
+                count: numOrNull(v.count),
+                firstFloor: numOrNull(v.firstFloor),
+                lastFloor: numOrNull(v.lastFloor),
+                revisit: Number(v.count) > 1,
+                registered: this.nodes.has(key),
+                desc: (this.nodes.get(key) || {}).desc || ''
+            });
+        }
+        // 排序口径与 visitsList 一致（最近到访在前）；null 排最后，不当作 0。
+        out.sort((a, b) => {
+            const af = a.lastFloor === null ? -Infinity : a.lastFloor;
+            const bf = b.lastFloor === null ? -Infinity : b.lastFloor;
+            return bf - af;
+        });
+        return out.slice(0, cap);
+    }
+
+    /**
+     * 本楼场景头（日期 / 时段 / 天气）。
+     * 与 headerLine() 的差别：这里**分字段**给（下游要按字段渲染，不是一行文本），
+     * 且没登记就是 null —— 不回退到别的楼，也不从正文推断。
+     */
+    headerFace(floor) {
+        const h = this.headerAt(floor);
+        if (!h) return null;
+        return { floor: h.floor, date: h.date || '', period: h.period || '', weather: h.weather || '' };
+    }
+
     /** 只读快照（外供/诊断用；不含 Map/函数，可直接 JSON.stringify）。 */
     summary() {
         return {
@@ -762,15 +855,31 @@ class SceneBook {
             scale: this.scale(),
             current: this.currentKey(),
             currentLine: this.currentLine(),
+            currentChain: this.currentChain().map(n => ({
+                key: keyOf(n.path), path: n.path, name: leafOf(n.path), desc: n.desc || '',
+                floor: Number.isFinite(Number(n.floor)) ? Number(n.floor) : null
+            })),
             presence: [...this.presence.entries()].map(([name, rec]) => ({ name, key: rec.key, atFloor: rec.atFloor })),
             coverage: this.coverage(),
+            // [v3.220.0] R3-A：场所层级 / 到访史 / 场景头三面（下游地点图鉴的输入）。
+            //   修前实测：summary() 只吐 current（**末级键的字符串**）与规模四数，
+            //   于是手机端「地点」只能显示「当前位置 + N 处场所」，说不出「这地方在市里哪一区」、
+            //   「去过哪些、去过几次」、「那天什么天气」——而这三样账本内部**早就有**
+            //   （tree/visitsList/headerAt），只是从没出过仓。
+            //   三者与 current 同一读取时刻、同一实例，故同修订下必然自洽。
+            tree: this.tree(),
+            visits: this.visitHistory(),
+            header: (() => {
+                const f = this.track.length ? this.track[this.track.length - 1].floor : null;
+                return this.headerFace(f);
+            })(),
             empty: this.nodes.size === 0 && this.track.length === 0
         };
     }
 }
 
 const api = {
-    SCENE_KEY, SCENE_VERSION, MAX_PATH_DEPTH, MAX_NODES, MAX_BRIEF_LINES,
+    SCENE_KEY, SCENE_VERSION, MAX_PATH_DEPTH, MAX_NODES, MAX_BRIEF_LINES, MAX_TREE_ROWS,
     SceneBook, keyOf, partsOfKey, partsOf, leafOf, ancestorsOf, describeShape
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

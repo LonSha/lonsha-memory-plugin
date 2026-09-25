@@ -204,3 +204,4 @@ v3217_stale_isolation.test.mjs		迟到隔离：读数落地晚于代际确认 / 
 v3218_cross_path_staging.test.mjs		跨路径暂存隔离：载荷自身代核对 / 收尾唯一入口 / 两条发布路径共用（真源码负控制）
 v3219_outcome_truth.test.mjs		取消留痕：结局三态可分且幂等 / 两处事件接线 / 外供与展示（真源码负控制）
 v3220_relation_mutual_knowledge.test.mjs		双向关系对账四态 + 知情网络同一件事判定与疑似档（真源码负控制）
+v3221_scene_face_migration.test.mjs		场所三面外供：层级树/到访史/本楼场景头 + numOrNull + 退路同形（真源码负控制）
