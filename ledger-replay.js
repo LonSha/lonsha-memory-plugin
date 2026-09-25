@@ -276,10 +276,24 @@
             shift: (h, d) => (h.outline && typeof h.outline.shiftFloorRefs === 'function') ? (h.outline.shiftFloorRefs(d) || 0) : 0
         },
         {
+            // [v3.222.0] R3-E：**shift 由 null 改为真调用**。
+            //   修前形态：删楼侧有真清理（removeByFloors），前移侧写死 null —— 于是删掉第 5 楼
+            //   再前移，`stm_entries[].floors` 里的 8 仍是 8（应为 7）、`ltm_entries[].span`、
+            //   `unconsolidated_stm[].floor` 一格不动，回放报告报 no-op 且**不留痕**。
+            //   更坏的是自述冲突：宿主 `index.js` 的 SHIFT_FACE_LABELS 里明写着
+            //   `'stm-ltm': 'shiftFloorsFrom.短期长期记忆位移'` —— 诊断面的标签表声称它参与前移，
+            //   而登记表说它不参与；两处都在源码里，读者会各信一份。
+            //   本仓 v3.170 在**同一个模块**上治过同族形态（注释声称摘 span、实现从未碰 span），
+            //   那是「自述与实现不一致」这一类，本条是它的**登记表版本**。
+            //   注意语义差别：removeByFloors **返回新 state**（要 filter 数组本身）而
+            //   shiftFloorRefs **原地改元素字段、返回计数** —— 故此处只取计数、不回写。
+            //   边界如实：旧模块（无 shiftFloorRefs）退到返回 0，留痕在回放报告里，不假装搬过。
             id: 'stm-ltm', label: '短期长期记忆', holds: 'records',
             get: (h) => h.stmLtm || null,
             drop: (h, f) => { if (!(h.stmLtm && h._stmLtmState && typeof h.stmLtm.removeByFloors === 'function')) return 0; h._stmLtmState = h.stmLtm.removeByFloors(h._stmLtmState, [f]); return 1; },
-            shift: null
+            shift: (h, d) => (h.stmLtm && h._stmLtmState && typeof h.stmLtm.shiftFloorRefs === 'function')
+                ? (Number(h.stmLtm.shiftFloorRefs(h._stmLtmState, d)) || 0)
+                : 0
         },
         {
             // [v3.221.0] R3-D：**动作收进模块内**，登记项只声明「这一面参与回滚/前移」。

@@ -107,10 +107,14 @@ for (const id of REQUIRED) {
     if (!o) defects.push('P3 登记表缺少「' + id + '」面（有楼层归属却不在表内 = 回放报告说的「走完了」不算数）');
     else if (typeof o.shift !== 'function') defects.push('P3 登记项「' + id + '」的 shift 不是函数（该面在删楼前移时不会跟随）');
 }
-// 除 stm-ltm（按楼层集合整体摘除，无单点位移语义）外，所有面都应参与前移。
+// [v3.222.0] R3-E：**白名单撤销**。此前此处把 stm-ltm 列为「无单点位移语义」的正当例外 ——
+//   实测（探针）该理由不成立：它的 `unconsolidated_stm[].floor` 就是单点楼层号，
+//   `stm_entries[].floors` 与 `ltm_entries[].span` 同样是楼层引用，删楼侧早已级联清理，
+//   前移侧却写死 null，且宿主 index.js 的 SHIFT_FACE_LABELS 声称它会前移（自述冲突）。
+//   现在它真参与前移，例外一并撤销：**不应有任何一个面拒绝前移**。
 for (const o of owners) {
-    if (o.shift === null && o.id !== 'stm-ltm') {
-        defects.push('P3 登记项「' + o.id + '」不参与前移，但它不是 stm-ltm（是否为漏登记？）');
+    if (o.shift === null) {
+        defects.push('P3 登记项「' + o.id + '」不参与前移（有楼层归属的面必须能跟随前移）');
     }
 }
 // ── P1b 行为判据：位移恰好一次（直接对真模块跑） ──

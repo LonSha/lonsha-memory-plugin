@@ -1,3 +1,80 @@
+## v3.222.0
+
+**主题：R3-E 短期长期记忆（`stm-ltm`）在**前移**面上的脱钩 —— 删楼那一侧早就级联清了，前移那一侧从来没有。**
+新增 `stm-ltm.shiftFloorRefs(state, deleted)`；把 `ledger-replay.js` 登记表里 `stm-ltm` 那格写死的
+`shift: null` 换成真调用；撤掉三处把这个例外**白名单化**的既有判据。
+
+### 修前实测（在真模块上跑出来的，不是设计洁癖）
+
+1. **删楼生效、前移完全无效**：删掉第 5 楼后 `removeByFloors` 把 `[[3],[5],[8]]` 清成 `[[3],[],[8]]`
+   （drop 返回 1），而紧接着执行「前移 5」，三处楼层引用**前后逐字节相同** ——
+   `unconsolidated_stm[].floor` 里的 8 仍是 8（应为 7）、`stm_entries[].floors` 里的 9 仍是 9、
+   `ltm_entries[].span` 一格不动；回放报告报 `state=no-op / count=0 / 整表 shifted=0`，
+   **不报错也不留痕**。
+2. **诊断面自己声称它会前移**：宿主 `index.js` 的 `SHIFT_FACE_LABELS`（33 个面的逐面诊断标签表）
+   明写 `'stm-ltm': 'shiftFloorsFrom.短期长期记忆位移'`，而同一仓的登记表写着 `shift: null`。
+   两处都在源码里，读者会各信一份 —— 这是 v3.170 在**同一个文件**上治过的同族形态
+   （注释声称摘 span、实现从未碰 span）的**登记表版本**。
+3. **三处既有判据把这个例外白名单化**：`scan_v3190` 写 `if (o.id !== 'stm-ltm')`、
+   `v3190` 写 `filter(o => o.shift === null && o.id !== 'stm-ltm')`、`v3182` 拿 `stm-ltm`
+   当「声明为 null」的样本。豁免理由写的是「按楼层集合整体摘除，无单点位移语义」——
+   **这个理由不成立**：`unconsolidated_stm[].floor` 就是单点楼层号。
+4. **后果是持久化的读数错位**：`floors` / `span` 落在
+   `chatMetadata.extensions.LonShaMemory.stmLtm`（`index.js` 的载入侧与快照携带都直读它），
+   楼层错位既不报错也不留痕（`recallView` 只被测试消费、`selfReport` 只聚合 loss 计数）。
+
+### 本版做了什么
+
+- **新增 `shiftFloorRefs(state, deleted)`**（`stm-ltm.js`）：三类楼层引用各走同一判据
+  （`f > deleted` 时减一，否则原样）；累计被重定位的处数并**返回计数**。
+  与 `removeByFloors`（filter 数组本身、返回新 state 由调用方回写）不同，本函数只改**元素内部字段**、
+  与传入 state 共享元素引用，**改动当场生效、无需回写** —— 这一条同时是它最容易踩的坑
+  （把 state 塞进返回值会让调用方以为必须回写），故在 JSDoc 与函数内注释里都写死。
+- **取值口径判开「没给」与「给了 0」**（同族于 v3.221.0 的 `numOrNull`）：只认数字与**非空数字字符串**，
+  其余（`null` / `undefined` / `''` / `[]` / `{}` / `NaN` / 布尔）一律「没给」⇒ 如实 0 且一格不动。
+  本版首跑的新套件**当场抓出**此处修前的真缺陷：`const d0 = Number(deleted)` 把「没给」读成**第 0 楼**
+  （`Number(null) === 0`），于是 `shiftFloorRefs(state, null)` 把**整表楼层号全部减一**（连 0 楼之前的都不放过），
+  返回值还是一个看着「成功」的正数。0 是**合法楼层**，与「没给」同形最贵。
+- **登记表接线**：`ledger-replay.js` 的 `stm-ltm` 登记项 `shift` 由 `null` 改为真调用
+  `(h, d) => (h.stmLtm && h._stmLtmState && typeof h.stmLtm.shiftFloorRefs === 'function') ? (Number(...) || 0) : 0` ——
+  **只取计数、不回写**；旧模块（无该方法）如实返回 0（走「取了目标、动作如实返回 0」的 `ok` 路，
+  与「模块本身缺席」的 `absent` 不同形）。
+- **刻意不落 loss 计数**：`selfReport` 把 loss 非零一律读成「降级」，位移记进去会让诊断面长期假报警。
+  位移**不是有损动作**，故 `LOSS_KEYS` 全零、`lastDrop` 保持 null（D2 组用「真删楼必须报损」做两向自证）。
+
+### 同轮接管的既有判据（收紧，未放宽）
+
+- `tests/audit/scan_v3190_lifecycle_collapse.mjs`：撤掉 P3 白名单，改为**任一** `shift === null` 即报缺陷
+  （注释明写「不应有任何一个面拒绝前移」）。
+- `tests/v3190_lifecycle_collapse.test.mjs`：断言收紧为 `FLOOR_OWNERS.filter(o => o.shift === null)` 必须为空数组
+  （注释：「这不是放宽，是把例外收掉」）。
+- `tests/v3182_ledger_replay.test.mjs`：【C3】改用**显式构造**的 `{id:'x-noop', …}` 走
+  `replayShift(..., [passthrough])` 仍守「no-op 与 absent 不同形」；并新增两条正向断言
+  `★ stm-ltm 必须真参与前移（R3-E）`（`typeof stmOwner.shift === 'function'`）与
+  `★ 覆盖度面须如实报「这一面会前移」`（`covRow.shifts === true`）。
+
+### 验证
+
+- 新增 `tests/v3223_stm_ltm_shift_refs.test.mjs`（34 项：A 数据层三类引用 / B 前移跟随与解耦 /
+  C 登记表接线四向 / D 不落 loss 不写回计数摘要不清 / E 边界（非有限数、旧模块退路、宿主不手抄第二份、乱输入）/
+  F 原版对照 / G 标签表与登记表自述一致 + 版本锚 / N 负控制 11 组）。
+  负控制一律走「真源码破坏 → 仓内 `.tmp_v3223_*` 镜像副本 → 同款真判据必须转红」，
+  形态判据先剥注释，**锚点字面量全文只准出现在 `ANCHORS` 声明处**（N0 自守）。
+  首跑基线 29/34（五红：E1 真缺陷、G2 抬版前预期红、N5/N6/N7 负控制自身写法误），修后 34/34。
+- 全量门禁与审计见下方交棒记录。
+
+### 边界如实声明
+
+- 本版只补**前移**这一半（删楼侧早有 `removeByFloors`），**不改** `ltm_entries` 的 `gaps` / `kept` 口径 ——
+  整体平移不改变区间的疏密结构。
+- 本版改的是 `ledger-replay.js` 与 `stm-ltm.js` 的**内部**：`summary()` 与快照外供键面未见变化；
+  下游 `ruby-phone` 全仓对 `ledger-replay` / `replayShift` / `stmLtm` / `短期长期` 零命中
+  （其 `coverage()` 消费的是另一本账 `floor-ledger.js` 的 `LonShaFloorLedger.coverage`，
+  与 `ledger-replay.js` 的 `coverage(host, registry)` 不是同一面）⇒ **下游本轮不抬版**（同 R3-D 口径）。
+- 重复调用 `shiftFloorRefs(d)` 仍会**再次平移**（平移语义，非 drop 侧幂等契约；`scan_v3190` 明确
+  「不断言 shift 幂等」）—— 与 `scene-book.js` 的同名方法同一语义（观察项 T17）。
+- 真实 SillyTavern 宿主实机未验：无头门禁只证明模块间契约。
+
 ## v3.221.0
 
 **主题：R3-D 场所三面在**回读与回滚**面上的收口 —— R3-A 只把三面「写出去」了，而它们在 import / 删楼 / 前移 / 重建四条路径上全部脱钩。**

@@ -2,7 +2,23 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.221.0
+> 最近更新：v3.222.0
+> 本版不新增未修项；R3-E（短期长期记忆在**前移**面上的脱钩）已落地并留痕于 CHANGELOG v3.222.0：
+> `stm-ltm.js` 新增 `shiftFloorRefs(state, deleted)`（三类楼层引用同跟一个判据：`unconsolidated_stm[].floor`
+> 单点 / `stm_entries[].floors` 集合 / `ltm_entries[].span` 区间；**只改元素内部字段、返回计数不回写**），
+> 取值口径与 v3.221.0 的 `numOrNull` 同族（只认数字与非空数字字符串，其余一律「没给」⇒ 如实 0 且一格不动）；
+> `ledger-replay.js` 的 `stm-ltm` 登记项 `shift: null` 改为真调用模块入口（只取计数）；
+> 撤掉三处把这个例外白名单化的既有判据（`scan_v3190` 的 `o.id !== 'stm-ltm'`、`v3190` 的同款 filter、
+> `v3182` 拿它当「声明为 null」样本），改为**任一** `shift === null` 即报缺陷。
+> 本版**刻意不落 loss 计数**（位移不是有损动作，记进去会让 `selfReport` 长期假报警），
+> 并**不改** `ltm_entries` 的 `gaps` / `kept` 口径（整体平移不改变区间疏密）。
+> `summary()` 与快照外供键面未见变化 ⇒ **下游本轮不抬版**（下游全仓对 `ledger-replay` / `replayShift` /
+> `stmLtm` / `短期长期` 零命中；其 `coverage()` 消费的是另一本账 `floor-ledger.js`）。
+> 本版复述既有**观察项 T17**（同名不同模块，勿与被本版新增的 `stm-ltm.shiftFloorRefs` 混同）：
+> - `scene-book.js` 的 `shiftFloorRefs(d)` 重复调用会**再次平移**（第二次等于「再删一次第 d 楼」）。
+>   本版新增的 `stm-ltm.shiftFloorRefs` 沿用同一平移语义（同样不是 drop 侧幂等契约）。
+>   怎么知道它还没变：`tests/v3222` 组 B 与 `tests/v3223` 组 B 各自把「前移跟随」钉住，
+>   而 `scan_v3190` 的 P1b 守「位移恰好一次」（变 4 即双重位移）。
 > 本版不新增未修项；R3-A（场所三面外供：层级树 / 到访史 / 本楼场景头）已落地并留痕于 CHANGELOG v3.220.0：
 > `scene-book.js` 新增 `tree()` / `visitHistory()` / `headerFace()` 三方法与上限常量 `MAX_TREE_ROWS=240`，
 > `summary()` 外供面 7 → 11 键（增 `currentChain` / `tree` / `visits` / `header`，旧键一个未动），

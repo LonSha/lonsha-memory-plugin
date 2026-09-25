@@ -408,6 +408,83 @@ function removeByFloors(state, floors) {
   return s;
 }
 
+// ── 5b) 楼层前移：删掉第 d 楼后，把 > d 的楼层引用整体减一 ─────────────
+/**
+ * [v3.222.0] R3-E：补 `removeByFloors` 的**另一半**。
+ *
+ * 修前实测（探针，非静态推断）：删楼侧早就有级联清理（`removeByFloors`，v3.170 还修过它的
+ *   「真摘 span」与两个谎），而**前移侧从来没有** —— `ledger-replay.js` 登记表里这一项的
+ *   `shift` 写死为 `null`，于是删掉第 5 楼后执行「前移 5」，`stm_entries[].floors` 里的 8
+ *   仍是 8（应为 7）、`ltm_entries[].span`、`unconsolidated_stm[].floor` 一格不动，回放报告
+ *   报 `no-op / shifted 0`，**不报错也不留痕**。
+ *
+ * 更坏的是它连自述都不一致：宿主 `index.js` 的 `SHIFT_FACE_LABELS` 里明写着
+ *   `'stm-ltm': 'shiftFloorsFrom.短期长期记忆位移'` —— 诊断面的标签表**声称这一面会前移**，
+ *   而登记表里它根本不参与。这正是本仓 v3.170 在**同一个文件**上治理过的同族形态
+ *   （「注释/自述与实现不一致，而读者会把自述当事实接受」）。
+ *
+ * 三类引用都要跟（漏一类就留下幽灵楼层号）：
+ *   · `unconsolidated_stm[].floor` —— 单点楼层号（待巩固片段）；
+ *   · `stm_entries[].floors`      —— 楼层集合（已提炼短期条目）；
+ *   · `ltm_entries[].span`        —— **区间** `{from, to}`，按 v2.2 悬念簿
+ *     `resolvedFloor` 的同款口径处理：`from` / `to` 各自 > d 才减一（区间整体平移，
+ *     不重算 gaps/kept —— 前移不改变区间的疏密结构）。
+ *
+ * 与删楼的口径差别（刻意）：删楼是**有损**动作，落 `loss.*` 计数；前移是**位移**，不丢条目，
+ *   故**不落 loss 计数**（`selfReport` 把 loss 非零一律读成降级，把位移记进去会让诊断面
+ *   长期假报警），只把「这次重定位了多少处引用」如实返回给登记表的回放报告。
+ *
+ * **原地语义（与 `removeByFloors` 刻意不同，调用方必须知道）**：
+ *   `removeByFloors` 要 `filter` 出**数组本身**，故返回新 state、由调用方回写；
+ *   本函数只改**元素内部的字段**（`e.floor` / `e.floors` / `e.span.from|to`），
+ *   而归一化后的 `unconsolidated_stm` / `stm_entries` / `ltm_entries` 与传入 state
+ *   共享同一批元素引用，故**改动当场生效、无需回写**。返回值是**计数**而非 state。
+ *   （不把 state 塞进返回值：那会让调用方以为必须回写，而回写一个计数是错的 ——
+ *   本条注释就是为防这个坑而写。）
+ *
+ * **「没给」的判据（同族于 v3.221.0 的 `numOrNull`）**：只认数字与非空数字字符串，
+ *   其余一律「没给」⇒ 如实 0、一格不动。理由是 `Number(null) / Number('') / Number([])`
+ *   **都等于 0**，而 0 是合法楼层 —— 读成第 0 楼会把整表减一遍，还报出一个正数。
+ *
+ * @param {object} state 归一化前的持久化 state（**原地修改其数组元素**）
+ * @param {number} deleted 被删掉的楼层号
+ * @returns {number} 被重定位的引用处数（非有限数如实 0，不猜）
+ */
+function shiftFloorRefs(state, deleted) {
+  const s = normalizeState(state);
+  // [v3.222.0] R3-E：取值口径与 v3.221.0 的 `numOrNull` 同族 —— **「没给」不得被读成第 0 楼**。
+  //   修前是 `Number(deleted)`，而 `Number(null) === 0`、`Number('') === 0`、`Number([]) === 0`：
+  //   于是 `shiftFloorRefs(state, null)` 把**整表楼层号全部减一**（连 0 楼之前的都不放过），
+  //   返回值还是一个看着「成功」的正数 —— 0 是**合法楼层**，与「没给」同形最贵，
+  //   这正是 R3-D（v3.221.0）在场景头 / 在场上治过的同一族形态。
+  //   口径：只认数字与**非空数字字符串**；其余（null / undefined / '' / [] / {} / NaN / 布尔）
+  //   一律「没给」⇒ 如实 0 且一格不动。
+  const d0 = (typeof deleted === 'number') ? deleted
+    : (typeof deleted === 'string' && deleted.trim() !== '') ? Number(deleted)
+    : NaN;
+  if (!Number.isFinite(d0)) return 0;
+  let n = 0;
+  const dec = (f) => {
+    const v = Number(f);
+    return (Number.isFinite(v) && v > d0) ? v - 1 : null;
+  };
+  for (const e of s.unconsolidated_stm) {
+    const v = dec(e.floor);
+    if (v !== null) { e.floor = v; n += 1; }
+  }
+  for (const e of s.stm_entries) {
+    if (!Array.isArray(e.floors)) continue;
+    e.floors = e.floors.map((f) => { const v = dec(f); if (v !== null) { n += 1; return v; } return f; });
+  }
+  for (const e of s.ltm_entries) {
+    if (!e || !e.span) continue;
+    const from = dec(e.span.from), to = dec(e.span.to);
+    if (from !== null) { e.span.from = from; n += 1; }
+    if (to !== null) { e.span.to = to; n += 1; }
+  }
+  return n;
+}
+
 // ── 6) 条目级重抽：对单条 STM 重新提炼，不动游标与其它条目 ───────────
 /**
  * @param {object} state
@@ -538,7 +615,7 @@ function lossSummary(state) {
 const api = {
   DEFAULT_THRESHOLD, MAX_STM_ENTRIES, MAX_LTM_ENTRIES,
   normalizeState, defaultCursor,
-  ingest, consolidate, pendingRaw, removeByFloors, reextract, recallView,
+  ingest, consolidate, pendingRaw, removeByFloors, shiftFloorRefs, reextract, recallView,
   // [v3.170] 追加（不改既有键，按 v3.169 兼容约定「只增不换」）
   LTM_SUMMARY_CAP, LOSS_KEYS,
   normalizeDetail, stateProvenance, selfReport, lossSummary

@@ -206,3 +206,4 @@ v3219_outcome_truth.test.mjs		取消留痕：结局三态可分且幂等 / 两�
 v3220_relation_mutual_knowledge.test.mjs		双向关系对账四态 + 知情网络同一件事判定与疑似档（真源码负控制）
 v3221_scene_face_migration.test.mjs		场所三面外供：层级树/到访史/本楼场景头 + numOrNull + 退路同形（真源码负控制）
 v3222_scene_rollback_closure.test.mjs		场所三面回滚收口：没给不再编 0 / 删楼撤本楼场景头 / 前移跟三面 / 导入存档不被清空 / 覆盖度含场景头（真源码负控制）
+v3223_stm_ltm_shift_refs.test.mjs		短期长期记忆位移：楼层三类引用同跟 / 登记表真参与前移 / 不落 loss 不假报警 / 标签表与登记表自述一致（真源码负控制）

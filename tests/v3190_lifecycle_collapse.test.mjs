@@ -80,8 +80,12 @@ test('v3190 6. 四个漏网面归队，且都参与前移', () => {
         assert.equal(typeof o.shift, 'function', id + ' 必须参与前移');
         assert.ok(o.label && o.label.length > 0, id + ' 必须带中文名（诊断面按名可查）');
     }
-    const silent = LR.FLOOR_OWNERS.filter((o) => o.shift === null && o.id !== 'stm-ltm');
-    assert.deepEqual(silent.map((o) => o.id), [], '除 stm-ltm 外不应有面拒绝前移');
+    /* [v3.222.0] R3-E：白名单撤销 —— 原判据放行 stm-ltm，理由是「按楼层集合整体摘除，
+     *   无单点位移语义」。实测该理由不成立（它的 unconsolidated_stm[].floor 就是单点楼层号），
+     *   现已补上 shiftFloorRefs 并接进登记表，故此处收紧为**全表硬断言**：
+     *   一个面都不许拒绝前移。（这不是放宽，是把例外收掉。） */
+    const silent = LR.FLOOR_OWNERS.filter((o) => o.shift === null);
+    assert.deepEqual(silent.map((o) => o.id), [], '不应有面拒绝前移（含 stm-ltm）');
 });
 
 test('v3190 7. 行级变更集：删楼摘除、前移跟随', () => {

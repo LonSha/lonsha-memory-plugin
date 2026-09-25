@@ -136,11 +136,24 @@ test('【C2】动作抛错报 threw 且带错误信息，回放不中断', () =>
 });
 
 test('【C3】不参与前移的账本报 no-op，与 absent 不同形', () => {
-    const host = { stmLtm: { marker: true } };
-    const r = LR.replayShift(host, 3);
-    const stm = r.items.find(it => it.id === 'stm-ltm');
-    assert.equal(stm.state, 'no-op', 'stm-ltm 的 shift 声明为 null，必须报 no-op 而不是 absent');
-    assert.notEqual(stm.state, 'absent');
+    /* [v3.222.0] R3-E **改锚**：原判据拿 stm-ltm 当「声明为 null 的账本」样本。
+     *   本版给它补了真 shift（删楼侧早有 removeByFloors，前移侧此前缺失，而宿主
+     *   SHIFT_FACE_LABELS 又声称它会前移），它不再是 no-op 样本。
+     *   「no-op 与 absent 不同形」这件事实本身仍要守，故改用**显式构造的 null 登记项**：
+     *   判据盯的是 replaySide 的分支语义，不应依赖某本特定账此刻的状态。 */
+    const passthrough = {
+        id: 'x-noop', label: '占位（shift=null）', holds: 'records',
+        get: () => ({ marker: true }), drop: () => 0, shift: null
+    };
+    const rep = LR.replayShift({ anything: { marker: true } }, 3, [passthrough]);
+    const it = rep.items.find(x => x.id === 'x-noop');
+    assert.equal(it.state, 'no-op', 'shift 声明为 null 时必须报 no-op 而不是 absent');
+    assert.notEqual(it.state, 'absent');
+    /* 同轮守住新事实：stm-ltm 现在**真**参与前移，且覆盖度面如实报 */
+    const stmOwner = LR.FLOOR_OWNERS.find(o => o.id === 'stm-ltm');
+    assert.equal(typeof stmOwner.shift, 'function', '★ stm-ltm 必须真参与前移（R3-E）');
+    const covRow = LR.coverage({ stmLtm: { marker: true } }).rows.find(x => x.id === 'stm-ltm');
+    assert.equal(covRow.shifts, true, '★ 覆盖度面须如实报「这一面会前移」');
 });
 
 // ══════════ D 幂等 ══════════
