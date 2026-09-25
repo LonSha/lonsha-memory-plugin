@@ -201,3 +201,4 @@ projection-absence.test.mjs	projection-pipeline.js	缺席/空/零及真源码负
 v3215_repair_write_channel.test.mjs		修复预览/受控写入面回执与两道门（真源码负控制）
 v3216_injection_reading_truth.test.mjs		注入读数唯一构造点/逐块读数/代际留痕/外供面（真源码负控制）
 v3217_stale_isolation.test.mjs		迟到隔离：读数落地晚于代际确认 / 过期清暂存 / 不串轮（真源码负控制）
+v3218_cross_path_staging.test.mjs		跨路径暂存隔离：载荷自身代核对 / 收尾唯一入口 / 两条发布路径共用（真源码负控制）

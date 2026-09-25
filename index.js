@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.216.0';
+    const VERSION = '3.217.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2277,6 +2277,9 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   不设这一层，读数会在 await 期间被写脏（后到的 STARTED 会把它超过）。
             this._injectionPending = null;
             this._injectionStale = 0;                   // 代际过期累计次数（≥0 即「有过迟到结果」）
+            // [v3.217.0] R2-D：暂存里**带自己的代**（`_injectionStage` 落 `gen`），提交时核对；
+            //   两条发布路径（GENERATION_STARTED 事件 / interceptor 兼容入口）各占一代并各自收尾
+            //   （`_injectionClose`），于是「谁的载荷谁提交」，无主载荷既不落成读数也不静默消失。
             this._diagnostics = null;                   // [v3.215.0] 诊断读数面（selfCheck dry-run 等，**不进** _lastInjection）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
             this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
@@ -8443,6 +8446,16 @@ function relativeTimeLabel(eventTime, nowTime) {
             const gen = Number.isFinite(myGen) ? myGen : (Number(this._genSeq) || 0);
             if (!p) return null;
             if (gen !== (Number(this._genSeq) || 0)) return null;   // ② 代际不符：不落地、不消耗暂存（由留痕口处置）
+            /* [v3.217.0] R2-D ②b **载荷自身代**核对：上面那一道只看「调用者传进来的代」，
+             *   拦不住「载荷由 A 路径留下、被 B 路径提交」。R2-B 立下的「过期清暂存」只覆盖
+             *   「过期分支跑了」那种情形；而**根本没人提交它**的载荷会一直悬在暂存里，
+             *   被下一轮的提交当成自己的载荷落成读数（round 照常前进，gen 却停在旧代）。
+             *   这正是 R2-B 注释点名过的「张冠李戴比不落地更坏」，只是来自另一侧。
+             *   不符即**不落地**并按过期收尾：清暂存 + 留痕 —— 既不落成读数，也不静默消失。 */
+            if (Number.isFinite(p.gen) && p.gen !== gen) {
+                try { this._injectionDiscardStale(p.gen); } catch (e) { errLog(e, '注入提交.无主载荷收尾'); }
+                return null;
+            }
             this._injectionRound = (Number(this._injectionRound) || 0) + 1;
             const rec = this._injectionRecord({
                 html: p.html, origin: 'generation', blocks: p.blocks,
@@ -8451,6 +8464,33 @@ function relativeTimeLabel(eventTime, nowTime) {
             });
             this._injectionPending = null;   // ③
             return rec;
+        }
+        /**
+         * [v3.217.0] R2-D：一条发布路径本次生成的**收尾唯一入口**。
+         *
+         *   为什么必须有：R2-B 之后，「读数落地」与「过期收尾」是两件事，由调用方按序拼；
+         *   而本仓有**两条**发布路径（`GENERATION_STARTED` 事件 / `window.lonsha_memory_interceptor`
+         *   兼容入口）。修前 interceptor 那条**根本不收尾** ⇒ 它的暂存永久悬空，
+         *   成了「被别的代捡起」的现成供体。让每条路径各抄一遍「先提交、不成再丢弃」，
+         *   就是本仓 v2.97 之前「同一口径被抄 7 份」的老形态 —— 收尾的正确性
+         *   （不重复留痕、不留下无主暂存）属于**引擎不变量**，只能有一份。
+         *
+         *   语义（三条，互斥且穷尽）：
+         *     · 暂存属于本次代 ⇒ 提交落地（轮次推进、读数更新）；
+         *     · 暂存属于别的代 ⇒ `_injectionCommit` 内部已按过期收尾并返回 null ⇒ 这里**不再**留痕（防重复计数）；
+         *     · 压根没有暂存（本轮什么都没留下）⇒ 返回 null 且**不**记过期（那不是「迟到」，是「无内容」）。
+         *   `had` 必须在提交**之前**读：提交成功会把 `_injectionPending` 清空，
+         *   事后读就分不清「本来就没有」与「刚刚提交掉了」—— 那正是本仓最忌的两义同形。
+         */
+        _injectionClose(myGen) {
+            const had = !!this._injectionPending;
+            const rec = this._injectionCommit(myGen);
+            if (rec) return rec;
+            // 提交不成且暂存仍在 ⇒ 按过期收尾；已被提交内部清掉的不重复留痕。
+            if (had && this._injectionPending) {
+                try { this._injectionDiscardStale(myGen); } catch (e) { errLog(e, '注入收尾.过期留痕'); }
+            }
+            return null;
         }
         /** [v3.215.0] R2-A：块引用键。本轮内唯一（含轮次号），跨轮不混淆。 */
         _injectionRefOf(i) {
@@ -16260,7 +16300,9 @@ ${recentTurns}`;
                             //   上面那个 `if (myGen !== this._genSeq) return;` 已经把过期代拦在外面，
                             //   所以能走到这里的必定是当下代。`_injectionCommit` 内部还有一道
                             //   代际核对（防守卫被绕过）：不符即不落地，由留痕口处置。
-                            try { this.engine._injectionCommit(myGen); }
+                            // [v3.217.0] R2-D：收尾改走 `_injectionClose`（提交 + 按需过期收尾的唯一入口），
+                            //   与 interceptor 路径共用同一份语义 —— 两条路径各抄一遍就是「同一口径被抄 N 份」。
+                            try { this.engine._injectionClose(myGen); }
                             catch (e) { errLog(e, 'GENERATION_STARTED.注入提交'); }
                             const depth = Math.min(2, Math.max(0, numOr(this.engine.config.config.injectionDepth, 0)));   // [v3.156] D0=0 合法
                             writeInjectSlot('lonsha_memory', injection || '', depth);
@@ -16409,7 +16451,14 @@ ${recentTurns}`;
             // [v3.2] DF1: 停用时不注入（与 GENERATION_STARTED 主路径同语义）
             const _cfgI = plugin.engine.config.config;
             if (_cfgI.enabled === false || (_cfgI.extractionEnabled === false && _cfgI.vectorEnabled === false)) return chat;
+            /* [v3.217.0] R2-D：本路径与事件路径一样**自占一代**，并**自己收尾**。
+             *   修前本路径调完 onBeforeGeneration 只写槽位、从不提交/丢弃 ⇒ 它的暂存永久悬空，
+             *   成为「被别的代捡起」的现成供体（本文件注释原话：「部分 ST 版本通过
+             *   manifest generate_interceptor 调用」—— 即该路径在真宿主上确实会被走到）。
+             *   收尾走 `_injectionClose`（引擎侧唯一入口），不在这里重写「先提交、不成再丢弃」。 */
+            const myGen = (plugin.engine._genSeq = (plugin.engine._genSeq || 0) + 1);
             const injection = await plugin.engine.onBeforeGeneration();
+            try { plugin.engine._injectionClose(myGen); } catch (e) { errLog(e, 'DF5.interceptor注入收尾'); }
             // [v3.2] DF6: 空召回=显式清除；卷摘要独立刷新
             const okInj = writeInjectSlot('lonsha_memory', injection || '', Math.min(2, Math.max(0, numOr(plugin.engine.config.config.injectionDepth, 0))));   // [v3.156] D0=0 合法
             if (okInj) {

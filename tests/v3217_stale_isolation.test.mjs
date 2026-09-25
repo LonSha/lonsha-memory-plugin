@@ -138,7 +138,9 @@ test('v3217 2. `_injectionRecord` 的调用点只有提交一处（生成路径�
     const h7 = stripComments(blockOf(idxSrc, 'const _h7 = async () => {'));
     assert.ok(h7.includes('await this.engine.onBeforeGeneration()'), '处理器仍 await 生成前注入');
     const iGuard = h7.indexOf('myGen !== this._genSeq');
-    const iCommit = h7.indexOf('this.engine._injectionCommit(');
+    /* [v3.217.0] R2-D：路径改调收尾唯一入口 `_injectionClose(`（内部才调提交）。
+     *   守的性质不变：**收尾必须晚于代际守卫**。 */
+    const iCommit = h7.indexOf('this.engine._injectionClose(');
     assert.ok(iGuard >= 0, '代际守卫在位');
     assert.ok(iCommit > iGuard, '★ 读数落地必须晚于代际守卫（否则迟到代照样写脏读数）');
 });
@@ -206,12 +208,13 @@ test('v3217 6. 过期之后的新鲜提交：落的必须是新载荷（不得�
 test('v3217 7. 提交点必须在守卫之后，且过期分支不得有提交调用', () => {
     const h7 = stripComments(blockOf(idxSrc, 'const _h7 = async () => {'));
     const iGuard = h7.indexOf('myGen !== this._genSeq');
-    const iCommit = h7.indexOf('this.engine._injectionCommit(');
-    assert.ok(iCommit > iGuard, '提交晚于守卫');
+    const iCommit = h7.indexOf('this.engine._injectionClose(');
+    assert.ok(iCommit > iGuard, '收尾晚于守卫');
     // 守卫 if 块体内（到下一个 return 为止）不得出现提交调用
     const guardBlock = blockAt(h7, iGuard);
     assert.ok(guardBlock, '守卫块可提取');
-    assert.ok(!guardBlock.includes('_injectionCommit('), '★ 过期分支内不得提交（那正是修前的写脏形态）');
+    assert.ok(!guardBlock.includes('_injectionCommit(') && !guardBlock.includes('_injectionClose('),
+        '★ 过期分支内不得提交/收尾（那正是修前的写脏形态）');
     assert.ok(guardBlock.includes('_injectionDiscardStale('), '过期分支只留痕');
 });
 
