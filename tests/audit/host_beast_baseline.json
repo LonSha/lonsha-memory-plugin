@@ -1,0 +1,492 @@
+{
+  "file": "tests/audit/host_beast_baseline.json",
+  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
+  "measured_at": "v3.231.0",
+  "node_version": "v24.18.0",
+  "probe": "tests/audit/host_beast_probe.cjs",
+  "caliber": [
+    "行数按**物理行**（含注释与空行）—— 「文件多大」是编辑器/加载器的体验，不是逻辑量。",
+    "成员切分按**8 空格缩进的成员签名**（类体 4 + 成员 8）。★ 首版按 4 空格切，只切出 4 个方法、89.5% 落进「未归类」——那是在切 `if (` 与 `const X = …`，不是切方法（见 corrections[0]）。",
+    "域分组按「名字前缀 + 10 条显式登记表」——显式表可复算、可与作者意图对齐；聚类算法在「能不能搬走」这个问题上不可用。",
+    "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
+  ],
+  "readings": {
+    "total_lines": 16922,
+    "member_count": 559,
+    "top5_lines": 3668,
+    "top5_pct": 21.7,
+    "top40_lines": 8684,
+    "top40_pct": 51.3,
+    "prefix_rule_coverage_lines": 4177,
+    "prefix_rule_coverage_pct": 24.7,
+    "unclassified_lines": 11914,
+    "seam_distinct_modules": 34,
+    "seam_reference_sites": 45,
+    "seam_call_shape_sites": 48,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 10
+  },
+  "domains": [
+    {
+      "domain": "（未归类）",
+      "members": 504,
+      "lines": 11914,
+      "lines_pct": 70.4,
+      "outside_refs": 3750,
+      "internal_refs": 4696,
+      "outside_ref_share_pct": 44.4
+    },
+    {
+      "domain": "宿主事件接线",
+      "members": 3,
+      "lines": 1738,
+      "lines_pct": 10.3,
+      "outside_refs": 1,
+      "internal_refs": 73,
+      "outside_ref_share_pct": 1.4
+    },
+    {
+      "domain": "诊断与导出",
+      "members": 27,
+      "lines": 1105,
+      "lines_pct": 6.5,
+      "outside_refs": 442,
+      "internal_refs": 2381,
+      "outside_ref_share_pct": 15.7
+    },
+    {
+      "domain": "召回与注入",
+      "members": 11,
+      "lines": 854,
+      "lines_pct": 5,
+      "outside_refs": 1,
+      "internal_refs": 57,
+      "outside_ref_share_pct": 1.7
+    },
+    {
+      "domain": "桥/快照出口",
+      "members": 2,
+      "lines": 200,
+      "lines_pct": 1.2,
+      "outside_refs": 1,
+      "internal_refs": 6,
+      "outside_ref_share_pct": 14.3
+    },
+    {
+      "domain": "配置与持久化",
+      "members": 3,
+      "lines": 138,
+      "lines_pct": 0.8,
+      "outside_refs": 2,
+      "internal_refs": 14,
+      "outside_ref_share_pct": 12.5
+    },
+    {
+      "domain": "世界账本读取",
+      "members": 2,
+      "lines": 67,
+      "lines_pct": 0.4,
+      "outside_refs": 4,
+      "internal_refs": 18,
+      "outside_ref_share_pct": 18.2
+    },
+    {
+      "domain": "承诺账本",
+      "members": 5,
+      "lines": 61,
+      "lines_pct": 0.4,
+      "outside_refs": 4,
+      "internal_refs": 96,
+      "outside_ref_share_pct": 4
+    },
+    {
+      "domain": "事件链/完整性",
+      "members": 1,
+      "lines": 13,
+      "lines_pct": 0.1,
+      "outside_refs": 0,
+      "internal_refs": 1,
+      "outside_ref_share_pct": 0
+    },
+    {
+      "domain": "业务状态面",
+      "members": 1,
+      "lines": 1,
+      "lines_pct": 0,
+      "outside_refs": 3,
+      "internal_refs": 0,
+      "outside_ref_share_pct": 100
+    }
+  ],
+  "biggest_members_top40": [
+    {
+      "name": "onMessageReceived",
+      "lines": 1217,
+      "outside_refs": 1
+    },
+    {
+      "name": "selfCheck",
+      "lines": 694,
+      "outside_refs": 9
+    },
+    {
+      "name": "buildInjection",
+      "lines": 629,
+      "outside_refs": 9
+    },
+    {
+      "name": "recallMemory",
+      "lines": 625,
+      "outside_refs": 1
+    },
+    {
+      "name": "onBeforeGeneration",
+      "lines": 503,
+      "outside_refs": 0
+    },
+    {
+      "name": "registerEvents",
+      "lines": 368,
+      "outside_refs": 0
+    },
+    {
+      "name": "exportMemoryReport",
+      "lines": 332,
+      "outside_refs": 1
+    },
+    {
+      "name": "constructor",
+      "lines": 324,
+      "outside_refs": 8
+    },
+    {
+      "name": "resyncAfterDeletion",
+      "lines": 231,
+      "outside_refs": 0
+    },
+    {
+      "name": "import",
+      "lines": 206,
+      "outside_refs": 27
+    },
+    {
+      "name": "rollbackFloor",
+      "lines": 202,
+      "outside_refs": 7
+    },
+    {
+      "name": "buildBridgeSnapshot",
+      "lines": 185,
+      "outside_refs": 1
+    },
+    {
+      "name": "import",
+      "lines": 179,
+      "outside_refs": 27
+    },
+    {
+      "name": "constructor",
+      "lines": 174,
+      "outside_refs": 8
+    },
+    {
+      "name": "restoreFromPayload",
+      "lines": 173,
+      "outside_refs": 5
+    },
+    {
+      "name": "optimizeMemory",
+      "lines": 170,
+      "outside_refs": 0
+    },
+    {
+      "name": "refresh",
+      "lines": 161,
+      "outside_refs": 9
+    },
+    {
+      "name": "save",
+      "lines": 157,
+      "outside_refs": 14
+    },
+    {
+      "name": "feedThinking",
+      "lines": 144,
+      "outside_refs": 0
+    },
+    {
+      "name": "extractMemoryWithLLM",
+      "lines": 142,
+      "outside_refs": 0
+    },
+    {
+      "name": "toInjection",
+      "lines": 132,
+      "outside_refs": 0
+    },
+    {
+      "name": "showPanel",
+      "lines": 127,
+      "outside_refs": 0
+    },
+    {
+      "name": "_absorbFactVersions",
+      "lines": 124,
+      "outside_refs": 0
+    },
+    {
+      "name": "applyCarryover",
+      "lines": 123,
+      "outside_refs": 1
+    },
+    {
+      "name": "loadConfig",
+      "lines": 119,
+      "outside_refs": 0
+    },
+    {
+      "name": "getDegradationLedger",
+      "lines": 114,
+      "outside_refs": 0
+    },
+    {
+      "name": "importCarryoverSeed",
+      "lines": 113,
+      "outside_refs": 0
+    },
+    {
+      "name": "maybeFold",
+      "lines": 111,
+      "outside_refs": 0
+    },
+    {
+      "name": "_maintenancePipeline",
+      "lines": 110,
+      "outside_refs": 0
+    },
+    {
+      "name": "backfillFloors",
+      "lines": 107,
+      "outside_refs": 1
+    },
+    {
+      "name": "packCarryover",
+      "lines": 85,
+      "outside_refs": 1
+    },
+    {
+      "name": "import",
+      "lines": 82,
+      "outside_refs": 27
+    },
+    {
+      "name": "rebuildItems",
+      "lines": 71,
+      "outside_refs": 9
+    },
+    {
+      "name": "generateCarryoverSeed",
+      "lines": 70,
+      "outside_refs": 0
+    },
+    {
+      "name": "_runProjections",
+      "lines": 69,
+      "outside_refs": 1
+    },
+    {
+      "name": "hybridMerge",
+      "lines": 67,
+      "outside_refs": 0
+    },
+    {
+      "name": "_recomputeCoverage",
+      "lines": 62,
+      "outside_refs": 0
+    },
+    {
+      "name": "archiveCoveredFloors",
+      "lines": 62,
+      "outside_refs": 0
+    },
+    {
+      "name": "rerank",
+      "lines": 60,
+      "outside_refs": 5
+    },
+    {
+      "name": "collectExport",
+      "lines": 60,
+      "outside_refs": 13
+    }
+  ],
+  "split_candidates": {
+    "threshold_lines": 80,
+    "total_over_threshold": 32,
+    "low_coupling_non_lifecycle": 18,
+    "high_coupling_non_lifecycle": 10,
+    "low_coupling_examples": [
+      {
+        "name": "recallMemory",
+        "lines": 625,
+        "outside_refs": 1,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "exportMemoryReport",
+        "lines": 332,
+        "outside_refs": 1,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "resyncAfterDeletion",
+        "lines": 231,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "buildBridgeSnapshot",
+        "lines": 185,
+        "outside_refs": 1,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "optimizeMemory",
+        "lines": 170,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "feedThinking",
+        "lines": 144,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "extractMemoryWithLLM",
+        "lines": 142,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "toInjection",
+        "lines": 132,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "showPanel",
+        "lines": 127,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "_absorbFactVersions",
+        "lines": 124,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "applyCarryover",
+        "lines": 123,
+        "outside_refs": 1,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "loadConfig",
+        "lines": 119,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      }
+    ],
+    "high_coupling_examples": [
+      {
+        "name": "selfCheck",
+        "lines": 694,
+        "outside_refs": 9,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "buildInjection",
+        "lines": 629,
+        "outside_refs": 9,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "constructor",
+        "lines": 324,
+        "outside_refs": 8,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "import",
+        "lines": 206,
+        "outside_refs": 27,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "rollbackFloor",
+        "lines": 202,
+        "outside_refs": 7,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "import",
+        "lines": 179,
+        "outside_refs": 27,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "constructor",
+        "lines": 174,
+        "outside_refs": 8,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "refresh",
+        "lines": 161,
+        "outside_refs": 9,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "save",
+        "lines": 157,
+        "outside_refs": 14,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "import",
+        "lines": 82,
+        "outside_refs": 27,
+        "is_host_lifecycle": false
+      }
+    ]
+  },
+  "shape": {
+    "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.7%、TOP40 占 51.3%；10 条前缀域规则只覆盖 24.7%，剩下 75.3% 落在规则之外。",
+    "verdict": "未观察到「可以按域整体搬走」的形态：超大成员多数是生命周期接线本身，长尾成员则互相稠密互调。"
+  },
+  "split_verdict": {
+    "question": "index.js 能不能按域拆走一块？",
+    "answer": "**本版判定：不拆（按读数否掉，不是按感觉）**。交付分诊与判据，形态决策留给后续版本。",
+    "reasons": [
+      "**最大的几个成员是「生命周期接线本身」，不是可搬的功能块**：`onMessageReceived` 1217 行 / `onBeforeGeneration` 503 行 / `registerEvents` 368 行。搬它们＝把入口从宿主事件上摘下来；而它们的**外部引用数极低**（onMessageReceived 仅 1 次）—— 这正是「低外部引用 ≠ 低耦合」的典型误读面：引用数只看别人叫不叫它，看不见它是谁的**唯一入口**。故分诊表专设 `is_host_lifecycle` 一列把这类排除。",
+      "**引用读数只能当上界，不能当判据**：同名方法在不同类上出现多次（`import` 4 处 / `constructor` 3 处），按名字聚合会把它们混在一起（`import` 合计 27 次外部引用，那不是某一个方法被叫 27 次）。要精确必须做 AST 级归属，而本仓死代码口径**明确是文本形态、不解析 AST**（O-6/P-1 已立）。",
+      "**内部互调稠密**：规则外成员（未归类域 11914 行）内部互调 **4696** 处 —— 拆一个域要同时改它与其余全部调用点；而本仓 9 道门禁里**没有任何一道**检查「跨模块的成员可见性」，拆错的形态是**运行期 this 丢失**（只有实机能看出来，无头门禁看不见）。",
+      "**有读数支持的第一刀不是「按域拆」，而是「先立规模与成员预算判据」**：与 O-5（性能先立基线）/ P-3（快照先量再定）同一条口径纪律 —— 任何拆分都要先有「拆之前多大、拆之后多大、哪个成员超预算」的可比读数，否则拆完不知道是变清楚了，还是只是把 16922 行挪成了三个文件。本版把这件事立成判据（含每个大成员的逐条在场点名）。"
+    ],
+    "only_axis_with_evidence": "成员级预算（over-80 行 32 个成员逐条点名）+ 文件规模上界；本版**只立判据不动手**。"
+  },
+  "corrections": [
+    "**探针首版把缩进层级搞错了**：按 4 空格切分成员，结果只切出 4 个方法、89.5% 落进「未归类」——那是把 4 空格层级的 `if (…) {` 与 `const X = …` 当成了方法签名。改为 8 空格（类体 4 + 成员 8）并显式排除控制流关键字后，切出 559 个成员。**读数错的时候，它看起来也像读数**（一张漂亮的 89.5% 占比表），故套件 B1 专设「成员数须落在合理量级」的自证判据。",
+    "**缝合模块接线面首版算出 0**：用 `_moduleLib\\([^)]*?'([^']+\\.js)'\\)` 匹配，「遇右括号即止」——而真实调用是 `_moduleLib(() => window.LonShaXxx, 'scene-book.js')`，第一参箭头函数里就有 `)`。改成匹配完整调用形状后为 34 个模块 / 45 个引用点。**假零比假高更危险**：它安静、且看起来像「没有耦合」。",
+    "`clock` 域在逐面读数里为 9 字节/present=false（合成宿主没装 `clock.export`）—— 与快照基线里 `projection` 面 0 字节同一口径，**不得**读成「这一面没用」。"
+  ],
+  "not_done": [
+    "**未拆任何东西**：本版只做分诊与立判据。`index.js` 一行未动（16922 行保持不变），产品行为零变化。",
+    "**未做 AST 级归属**：外部引用数按名字统计，同名方法会混（见 corrections[1]）；本仓死代码口径是文本形态，本版沿用同一口径而不是偷偷换更强的工具 —— 换工具应当单独立一版。",
+    "**未覆盖运行期可见性**：拆分的真正风险是「跨模块 this 丢失」，那属于实机面，无头门禁看不见（已登记在 docs 的运行时边界）。",
+    "**未排拆分优先级**：分诊表给出「行数 / 外部引用 / 是否生命周期」三个读数，不排优先级 —— 排优先级要一并看功能风险，那不在读数里。"
+  ]
+}

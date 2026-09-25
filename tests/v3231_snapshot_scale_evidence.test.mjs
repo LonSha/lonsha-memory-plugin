@@ -211,6 +211,7 @@ test('v3231 N3. ★★★ 破坏「结论的读数据点」（把占比改到 20
 const vnum = (s) => Number(String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0));
 
 test('v3231 F1. ★ 版本锚（下限形，当版精确判定交当版 frontier 套件）', () => {
+    /* [v3.231.0] 抬版即交棒：本套件保持下限锚（出生版本 3.230.0），当版精确判定交 v3232 F1。 */
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')));
     const manifest = JSON.parse(read(path.join(ROOT, 'manifest.json')));
     const codeVer = (/const VERSION = '([^']+)'/.exec(read(path.join(ROOT, 'index.js'))) || [])[1];
