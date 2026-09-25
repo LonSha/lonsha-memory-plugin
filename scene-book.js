@@ -80,6 +80,8 @@ const MAX_PRESENCE = 400;
 const MAX_BRIEF_LINES = 15;
 /** [v3.220.0] R3-A：层级树外供行数上限（防一次吐整棵树把快照撑爆）。 */
 const MAX_TREE_ROWS = 240;
+/* [v3.232.0] F-3：同楼同刻读数上限（与 tree 同族：外供面一律有界，防一次外供把宿主拖死）。 */
+const MAX_CO_PRESENCE_ROWS = 120;
 /** [v3.221.0] R3-D：场景头条数上限。
  *   修前形态：上限 400 写在 setHeader 体内（字面量），而 import 路径**没有任何上限** ——
  *   一份手工构造/被改过的存档能把场景头撑到任意规模，且诊断面看不见。
@@ -577,6 +579,128 @@ class SceneBook {
         return lines.slice(0, n).join('\n');
     }
 
+    /* ─────────────── [v3.232.0] F-3：同楼同刻 ≥2 在场（到访冲突的事实面） ─────────────── */
+
+    /**
+     * [v3.232.0] F-3：**同楼同刻 ≥2 在场**的事实读数。
+     *
+     * 为什么需要它：`presence` 已经逐人记了「谁在哪一楼」（`{key, atFloor, at}`），
+     *   但**没有任何出口回答「同一层楼里此刻是不是有两个以上的人」** ——
+     *   而这件事恰恰是剧情冲突的**事实前提**。下游（手机端「地点」App）想做「同楼相遇」的读数，
+     *   只能自己去遍历 presence 再按 key 分组 —— 那就是「同一口径被抄 N 份」的种子
+     *   （本仓 v2.97.0 收敛过一次同形缺陷）。
+     *
+     * ★ 边界（本方法的口径纪律，写在这里也写进套件）：
+     *   **只给「同时同地」这个事实，绝不猜冲突的激烈程度、关系、意图或后果。**
+     *   「两个人此刻都在钟楼」是账本里的事实；「他们会不会打起来」不是账本能回答的，
+     *   把后者塞进读数就是拿猜测冒充事实（本仓最贵的那类错读数）。
+     *   故返回面里只有：楼层 / 地点键 / 在场名单 / 人数 —— 没有任何「冲突等级」字段。
+     *
+     * 口径细节：
+     *   · `atFloor` 为「没给」的人**不进任何一层楼**（不会与别的「没给」凑成一组）——
+     *     「说不出在第几楼」不等于「和另一个说不出的人在同一楼」；
+     *   · 每层的名单按姓名稳定排序（读数可复现，不随插入顺序抖动）；
+     *   · 只读、有界（MAX_CO_PRESENCE_ROWS）、绝不抛；没有 ≥2 的层就是空数组（不编造）。
+     *
+     * @param {number} [floor] 只算该层；缺省算**全部**有 ≥2 在场的层
+     * @returns {{rows: Array<{floor:number,key:string,path:string[],names:string[],count:number}>, count:number, totalPresent:number, skippedUnknownFloor:number}}
+     */
+    coPresence(floor) {
+        try {
+            /* ★ 三态（本版探针当场抓到的缺陷，值得单写一段）：
+             *   「参数没给」「参数给了但解不出楼层」「参数给了合法楼层」是三件事，
+             *   首版写 `const want = (floor === undefined) ? null : numOrNull(floor)`，
+             *   于是 `coPresence('没给')` 与 `coPresence()` **同义**（都算全部）——
+             *   给了个解不出的值，反而被当成「你没问」，读数从「空」变成「全量」，
+             *   而调用方看不出差别。这与 O-1（`rollbackFrom(null)` 不得当第 0 楼）是同族，
+             *   新形态是：**给了但解不出 ≠ 没给**。
+             *   修法：用入参个数判「没给」；给了但解不出 ⇒ 如实**返回空**（拒绝，而不是当作没问）。 */
+            const provided = arguments.length > 0;
+            const want = provided ? numOrNull(floor) : null;
+            if (provided && want === null) {
+                return { rows: [], count: 0, totalPresent: 0, skippedUnknownFloor: 0, rejected: 'floor-unparsable' };
+            }
+            const byFloor = new Map();
+            let totalPresent = 0, skipped = 0;
+            for (const [name, rec] of this.presence) {
+                if (!rec || !rec.key) continue;
+                const f = numOrNull(rec.atFloor);
+                if (f === null) { skipped += 1; continue; }      // 「没给」不进任何一层楼
+                if (want !== null && f !== want) continue;
+                totalPresent += 1;
+                if (!byFloor.has(f)) byFloor.set(f, new Map());
+                const byKey = byFloor.get(f);
+                if (!byKey.has(rec.key)) byKey.set(rec.key, []);
+                byKey.get(rec.key).push(String(name));
+            }
+            const rows = [];
+            for (const f of [...byFloor.keys()].sort((a, b) => a - b)) {
+                const byKey = byFloor.get(f);
+                /* 地点键同一口径（拼音序）：此前这里写裸 `.sort()`（码点序），
+                 *   而名单用拼音序 ⇒ **同一份读数里两套排序口径**。两者都稳定，
+                 *   但一致才有意义（读者按同一顺序读键与名单）。 */
+                for (const key of [...byKey.keys()].sort((a, b) => a.localeCompare(b, 'zh'))) {
+                    /* 按**拼音**排序（`localeCompare('zh')`）：默认 `.sort()` 是 UTF-16 码点序，
+                     *   对中文名字会给出「乙 < 甲」这类稳定但不可读的顺序 —— 稳定是必要条件，不自足。 */
+                    const names = byKey.get(key).slice().sort((a, b) => a.localeCompare(b, 'zh'));
+                    if (names.length < 2) continue;              // 「同楼同刻」的本义：至少两人
+                    rows.push({ floor: f, key, path: partsOfKey(key), names, count: names.length });
+                }
+            }
+            return {
+                rows: rows.slice(0, MAX_CO_PRESENCE_ROWS),
+                count: rows.length,                              // 截断前如实计数
+                totalPresent,
+                skippedUnknownFloor: skipped
+            };
+        } catch (_e) { return { rows: [], count: 0, totalPresent: 0, skippedUnknownFloor: 0 }; }
+    }
+
+    /* ─────────────── [v3.232.0] F-6：两条观察项的**口径自述** ─────────────── */
+
+    /**
+     * [v3.232.0] F-6：两条观察项的**口径自述**（只外供「我们怎么算的」，不改口径本身）。
+     *
+     * 两条观察项（R3-D / R2-E 收口时如实登记的边界，一直只写在注释与文档里）：
+     *   · T17 `shiftFloorRefs` **重复调用会再次平移** —— 它按「删了一楼」的语义平移一次；
+     *     若调用方在重复回放中调它两次，第二次会把已经平移过的读数**再减一**。
+     *     **不在模块内加去重**：那需要记住「哪些楼层已平移过」，而这份记忆本身会成为
+     *     第二个真源（回滚/重建后与 opsLog 不一致 ⇒ 比重复平移更坏的错读数）。
+     *     故如实外供这条口径，由调用方保证「一次删楼只调一次」。
+     *   · T16 宿主未发 `GENERATION_ENDED` 时注入读数**如实停在 pending** ——
+     *     不猜结局（不把「没有结局消息」当成「已完成」，也不当成「被中止」）。
+     *
+     * 为什么做成**机器可读**的自述而不是只写在注释里：注释读者是人，而下游要能
+     *   「在自己的诊断页上把这条口径显示出来」——那才是「如实声明」真正生效的地方。
+     * 本方法**纯读、无副作用**：不改任何计数、不改任何行为，只是把已知边界说清楚。
+     */
+    observationNotes() {
+        return {
+            version: SCENE_VERSION,
+            notes: [
+                {
+                    id: 'T17',
+                    subject: 'shiftFloorRefs',
+                    kind: 'double-shift',
+                    statement: '重复调用会再次平移：本方法按「删了一楼」平移一次，调用方重复回放时调两次会把已平移的读数再减一。',
+                    reason: '不在模块内加去重 —— 那需要记住「哪些楼层已平移过」，而这份记忆会成为第二个真源（回滚/重建后与 opsLog 不一致，比重复平移更坏）。',
+                    caller_duty: '一次删楼只调一次。',
+                    severity: 'observation'
+                },
+                {
+                    id: 'T16',
+                    subject: 'injection.outcome',
+                    kind: 'pending-without-end-event',
+                    statement: '宿主未发 GENERATION_ENDED 时，注入读数如实停在 pending。',
+                    reason: '不猜结局：「没有结局消息」既不是「已完成」，也不是「被中止」。',
+                    caller_duty: '需要结局时自行判超时，不要把它读成完成。',
+                    severity: 'observation'
+                }
+            ],
+            count: 2
+        };
+    }
+
     /* ─────────────── 覆盖度与不变量 ─────────────── */
 
     /**
@@ -1022,6 +1146,11 @@ class SceneBook {
             //   三者与 current 同一读取时刻、同一实例，故同修订下必然自洽。
             tree: this.tree(),
             visits: this.visitHistory(),
+            // [v3.232.0] F-3：同楼同刻 ≥2 在场（事实面；不含冲突激烈程度）。
+            //   与 tree/visits/header 同一读取时刻、同一实例 ⇒ 同修订下必然自洽。
+            coPresence: this.coPresence(),
+            // [v3.232.0] F-6：两条观察项的口径自述（下游可在自己的诊断页如实转述）。
+            observationNotes: this.observationNotes(),
             header: (() => {
                 const f = this.track.length ? this.track[this.track.length - 1].floor : null;
                 return this.headerFace(f);
@@ -1033,6 +1162,7 @@ class SceneBook {
 
 const api = {
     SCENE_KEY, SCENE_VERSION, MAX_PATH_DEPTH, MAX_NODES, MAX_BRIEF_LINES, MAX_TREE_ROWS, MAX_HEADERS,
+    MAX_CO_PRESENCE_ROWS,
     SceneBook, keyOf, partsOfKey, partsOf, leafOf, ancestorsOf, describeShape
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

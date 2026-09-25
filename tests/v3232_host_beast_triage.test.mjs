@@ -280,6 +280,7 @@ test('v3232 F1. ★ 版本锚（下限形）+ 三源同源 + 基线测量版本�
     assert.ok(codeVer, '入口版本常量在场');
     assert.equal(pkg.version, codeVer, 'package 同源');
     assert.equal(mf.version, codeVer, 'manifest 同源');
+    /* [v3.232.0] 抬版即交棒：本套件保持下限锚（出生版本 3.231.0），当版精确判定交 v3233 F1。 */
     assert.ok(vnum(codeVer) >= vnum('3.231.0'), '本套件只在 3.231.0 及以后成立；当前 ' + codeVer);
     assert.equal(base.measured_at, 'v3.231.0', '基线须标出测量版本');
 });
