@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 36514,
+  "ceiling": 37147,
   "maxSlack": 400,
-  "note": "v3.218.0 R2-E 取消留痕（index.js _injectionEnd 结局标注 + outcome 外供 + 自检行；settings-ui 面板结局徽标）",
+  "note": "v3.219.0 R2-F 双向关系对账 + 知情网络（relation-mutual.js + knowledge-network.js 两个新模块 + 宿主接线：注入侧标注/认知侧登记与解除/两行诊断）",
   "history": [
     {
       "ceiling": 21000,
@@ -113,7 +113,11 @@
     {
       "ceiling": 36514,
       "reason": "v3.218.0 R2-E 取消留痕（index.js _injectionEnd 结局标注 + outcome 外供 + 自检行；settings-ui 面板结局徽标）"
+    },
+    {
+      "ceiling": 37147,
+      "reason": "v3.219.0 R2-F 双向关系对账 + 知情网络（relation-mutual.js + knowledge-network.js 两个新模块 + 宿主接线：注入侧标注/认知侧登记与解除/两行诊断）"
     }
   ],
-  "_history_last": "ceiling 36442 → 36514（实测 36114 + slack 400）：v3.218.0 R2-E 取消留痕（index.js _injectionEnd 结局标注 + outcome 外供 + 自检行；settings-ui 面板结局徽标）"
+  "_history_last": "ceiling 36514 → 37147（实测 36747 + slack 400）：v3.219.0 R2-F 双向关系对账 + 知情网络（relation-mutual.js + knowledge-network.js 两个新模块 + 宿主接线：注入侧标注/认知侧登记与解除/两行诊断）"
 }

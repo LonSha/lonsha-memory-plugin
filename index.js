@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.218.0';
+    const VERSION = '3.219.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2778,6 +2778,33 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const gated = (this._relationGated || []).length ? ` · 跳过：${this._relationGated.join('，')}` : '';
                 return RD.line(read) + gated;
             } catch (e) { errLog(e, 'engine._relationDisclosureLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.219.0] R2-F 双向关系对账读数（诊断面用；纯读、不抛）。
+         * 四态必须分开说：「对侧未登记」是唯一该补记的一态，
+         *   把它与「对侧本轮被挡」「对侧已失效」并成一格会让读者去补一条不该补的关系。
+         */
+        _relationMutualLine() {
+            try {
+                const RM = _moduleLib(() => window.LonShaRelationMutual, 'relation-mutual.js');
+                const read = this._relationMutualRead;
+                if (!read) return '本轮未对账';
+                if (!RM || typeof RM.line !== 'function') return '模块未加载（relation-mutual.js）';
+                return RM.line(read);
+            } catch (e) { errLog(e, 'engine._relationMutualLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.219.0] R2-F 知情网络读数（诊断面用；纯读、不抛）。
+         * 「疑似未合并」必须单独报：它是唯一说不出结论的那一档，并进任何一格都会让读者以为判过了。
+         */
+        _knowledgeNetworkLine() {
+            try {
+                const KN = _moduleLib(() => window.LonShaKnowledgeNetwork, 'knowledge-network.js');
+                const read = this.worldProg && this.worldProg._knowledgeRead;
+                if (!read) return '尚无认知记录';
+                if (!KN || typeof KN.line !== 'function') return '模块未加载（knowledge-network.js）';
+                return KN.line(read);
+            } catch (e) { errLog(e, 'engine._knowledgeNetworkLine'); return '—（诊断异常）'; }
         }
         /**
          * [v3.184] 提示词填充读数（诊断面用；纯读、不抛）。
@@ -7950,16 +7977,41 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _rdRead = { moduleMissing: true };
                 }
                 this._relationDisclosureRead = _rdRead;
+                /* [v3.219.0] R2-F：**双向关系对账**（relation-mutual.js）。
+                 *   关系边是单向主观的（提示词第 3 条：A看B 与 B看A 分别各记一条），
+                 *   而注入侧修前只把每条边原样列出来 —— 没有任何一格说「对侧那条在不在」。
+                 *   于是「乙对甲是警惕」与「乙对甲从未登记」在注入面上**同形**，
+                 *   而后者是提取漏了一条（该补记）。模型读到单向的「甲对乙是挚友」
+                 *   会默认它是对称的，那正是本仓最贵的塌陷形态。
+                 *   对账必须收**两份**输入：图里的全量边（判「对侧在不在」）与本轮实际
+                 *   进注入的那批（判「对侧是不是被披露条件挡下了」）—— 只看召回集合，
+                 *   这两态必然同形。只读、不抛、不改边。 */
+                let _mutualRead = null;
+                try {
+                    const _RM = _moduleLib(() => window.LonShaRelationMutual, 'relation-mutual.js');
+                    if (_RM && typeof _RM.reconcile === 'function') {
+                        const _allEdges = [...(this.graph?.edges?.values?.() || [])].slice(0, 200);
+                        _mutualRead = _RM.reconcile(_allEdges, _relKept, { maxList: 5 });
+                    } else {
+                        // 模块缺席：如实记为缺席（不静默当成「都对上了」——那是假读数）。
+                        _mutualRead = { moduleMissing: true };
+                    }
+                } catch (e) { errLog(e, 'buildInjection.双向对账'); _mutualRead = { degraded: true }; }
+                this._relationMutualRead = _mutualRead;
                 if (_relKept.length) {
                 blocks.push('[角色关系]');
                 const CLS_CN = { family: '血缘', intimate: '亲密', hostile: '敌对', social: '社交', other: '其他' };
+                const _RM2 = _moduleLib(() => window.LonShaRelationMutual, 'relation-mutual.js');
                 _relKept.forEach(i => {
                     const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : '中立';
                     const fromName = this.graph.nodes.get(i.from)?.name || i.from || i.name;
                     const toName = this.graph.nodes.get(i.to)?.name || i.to || '';
                     const histNote = (i.active === false && i.validTo != null) ? `（曾于第${i.validTo}楼前）` : '';
                     const cls = i.data?.relClass || classifyRelationshipType(i.label);
-                    blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}·${CLS_CN[cls] || '其他'}]${histNote}`);
+                    /* 只对「对侧压根不在图里」标注：被挡下/已失效两态标了反而误导
+                     *   （前者是此刻不该给模型看，标注等于把它又说了出来）。 */
+                    const _mu = (_RM2 && typeof _RM2.annotate === 'function') ? _RM2.annotate(i, _mutualRead) : '';
+                    blocks.push(`- ${fromName} → ${toName}：${i.label || '相关'}[${att}·${CLS_CN[cls] || '其他'}]${histNote}${_mu}`);
                 });
                 }
             }
@@ -9482,6 +9534,29 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = !!(c && (c.invalid > 0 || c.truncated > 0));
                             return ['关系披露', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.relationDisclosure'); return ['关系披露', '—（诊断异常）']; }
+                    })(),
+                    // [v3.219.0] R2-F 双向关系对账体检面：**对侧未登记才是该补记的**。
+                    //   「对侧本轮被挡」「对侧已失效」是正常态（前者等情境、后者是历史），
+                    //   与「对侧压根不在图里」压成一格会让读者去补一条不该补的关系。
+                    //   报警只认 oneSided > 0（真损失）与 degraded（算炸了）。
+                    (() => {
+                        try {
+                            const line = (typeof this._relationMutualLine === 'function') ? this._relationMutualLine() : '—';
+                            const r = this._relationMutualRead;
+                            const bad = !!(r && (r.oneSided > 0 || r.degraded));
+                            return ['双向对账', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.relationMutual'); return ['双向对账', '—（诊断异常）']; }
+                    })(),
+                    // [v3.219.0] R2-F 知情网络体检面：**疑似未合并必须可见**。
+                    //   它是唯一说不出结论的那一档（告知式措辞判不开），并进任何一格都会让读者
+                    //   以为「判过了」—— 那正是修前「认知隔离永不解除」看起来像「本来就没有」的原因。
+                    (() => {
+                        try {
+                            const line = (typeof this._knowledgeNetworkLine === 'function') ? this._knowledgeNetworkLine() : '—';
+                            const r = this.worldProg && this.worldProg._knowledgeRead;
+                            const bad = !!(r && r.suspect > 0);
+                            return ['知情网络', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.knowledgeNetwork'); return ['知情网络', '—（诊断异常）']; }
                     })(),
                     // [v3.184] 提示词填充体检面：**未填**与**残留**都要现形。
                     //   残留（占位符写成了全角/带空格形态）意味着这一处根本没填进去，
@@ -12499,6 +12574,13 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             this.echoLedger = null; // [v3.197] 回声账本：角色生活微场景的最近产出
             // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
             this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
+            /* [v3.219.0] R2-F 知情网络累计读数（knowledge-network.js 的判定计数）。
+             *   为什么是**累计**而不是「本轮」：单轮的「解除 0」与「这一轮本来就没有揭示」同形，
+             *   只有跨轮累计才能看出「判据是否长期空转」（merged/released 长期为 0
+             *   = 措辞从未命中，阈值过严或提取侧措辞从未对齐）。
+             *   suspect 单独成格：「判不开但疑似同一件事」是本模块唯一说不出结论的一档，
+             *   并进任何一格都会让读者以为「判过了」。 */
+            this._knowledgeRead = { marked: 0, merged: 0, released: 0, alreadyKnown: 0, suspect: 0, malformed: 0, owners: 0 };
             // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
             this.plotArcs = []; // [{ id, title, clue, lastActiveFloor, status: 'active'|'shelved'|'resolved', interestedBy }]
         }
@@ -12565,20 +12647,86 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         }
 
         // ===== 认知隔离 (Cognitive Horizon) =====
+        /* [v3.219.0] R2-F：知情网络取库口。
+         *   模块缺席/取库抛错一律回 null —— 调用方按「逐字比较」的旧口径降级（数据不丢），
+         *   并把缺席记进读数（moduleMissing），不把「没装」伪装成「没有可合并的」。 */
+        _knowledgeNet() {
+            try {
+                const KN = _moduleLib(() => window.LonShaKnowledgeNetwork, 'knowledge-network.js');
+                return (KN && typeof KN.reconcile === 'function') ? KN : null;
+            } catch (e) { errLog(e, 'worldProg._knowledgeNet'); return null; }
+        }
+        /* 累计读数的一格计数（不抛）。owners 按「该角色第一次产生读数」计一次。 */
+        _knowledgeTally(charName, key) {
+            const r = this._knowledgeRead || (this._knowledgeRead = { marked: 0, merged: 0, released: 0, alreadyKnown: 0, suspect: 0, malformed: 0, owners: 0 });
+            r[key] = (Number(r[key]) || 0) + 1;
+            if (charName && !r._seen) r._seen = {};
+            if (charName && r._seen && !r._seen[charName]) { r._seen[charName] = true; r.owners = (Number(r.owners) || 0) + 1; }
+        }
         markUnaware(charName, fact) {
             if (!charName || !fact) return;
             if (!this.knowledge[charName]) this.knowledge[charName] = { known: [], unaware: [] };
             const k = this.knowledge[charName];
-            if (!k.unaware.includes(fact) && !k.known.includes(fact)) {
-                k.unaware.push(fact);
+            /* [v3.219.0] R2-F：登记前先问「这是不是已经记过的同一件事」。
+             *   修前 `includes` 逐字比较：同一件事的另一种措辞会再 push 一条，
+             *   而 getReEntryNotice 只取前 3 条 —— 前 3 格被旧措辞占死，真实新增的认知边界
+             *   **永远挤不进去**，机制表面在工作、实际已失效。
+             *   三态处置各不相同：
+             *     dup（同事实已登记）⇒ 不 push，计入 merged；
+             *     already（已知侧已有同事实）⇒ **不登记为「不知道」**（修前「已经知道」与
+             *       「不知道」可以同时存在，提示区会同时给出两条相反指令），计入 alreadyKnown；
+             *     suspect（疑似但判不开）⇒ 照常登记（宁可留冗余），但计入 suspect ——
+             *       「判不开」必须可见，否则与「全新的一件事」同形。
+             *   模块缺席 ⇒ 回落逐字口径（数据不丢），缺席记进读数。 */
+            const KN = this._knowledgeNet();
+            if (!KN) {
+                this._knowledgeTally(charName, 'malformed');
+                if (!k.unaware.includes(fact) && !k.known.includes(fact)) k.unaware.push(fact);
+                return;
             }
+            const rec = KN.reconcile(k, fact, 'unaware');
+            if (rec.degraded) { this._knowledgeTally(charName, 'malformed'); return; }
+            if (rec.dup) { this._knowledgeTally(charName, 'merged'); return; }
+            if (rec.already) { this._knowledgeTally(charName, 'alreadyKnown'); return; }
+            k.unaware.push(fact);
+            this._knowledgeTally(charName, 'marked');
+            if (rec.suspect) this._knowledgeTally(charName, 'suspect');
         }
         revealKnowledge(charName, fact, source = '') {
             if (!charName || !fact) return;
             if (!this.knowledge[charName]) this.knowledge[charName] = { known: [], unaware: [] };
             const k = this.knowledge[charName];
-            k.unaware = k.unaware.filter(x => x !== fact);
+            /* [v3.219.0] R2-F：解除按**同一件事**而不是按措辞。
+             *   修前 `filter(x => x !== fact)` 逐字比较：实测用「博丽灵梦告知了水晶被盗的事」
+             *   去解除「地下室魔法水晶被神秘黑影盗走」，**一条都清不掉** —— 认知隔离永不解除，
+             *   系统每轮继续注入「切勿未卜先知」，把已经知道的事当成绝不能说的事。
+             *   同事实（reconcile 判 same）⇒ 按下标删掉那一条（**用下标不用值**：值不等于措辞）；
+             *   疑似（判不开但共享措辞片段）⇒ **不删**（误删 = 角色提前知道他不该知道的事，
+             *     且在读数上完全看不见），只计入 suspect，由注入面把候选原文说出来；
+             *   模块缺席 ⇒ 回落逐字口径。
+             *   known 侧的幂等仍按同事实判（措辞漂移不得在已知里再堆一条）。 */
+            const KN = this._knowledgeNet();
+            let removed = false;
+            if (!KN) {
+                this._knowledgeTally(charName, 'malformed');
+                const before = k.unaware.length;
+                k.unaware = k.unaware.filter(x => x !== fact);
+                removed = k.unaware.length < before;
+            } else {
+                const rec = KN.reconcile(k, fact, 'reveal');
+                if (rec.degraded) { this._knowledgeTally(charName, 'malformed'); }
+                else {
+                    if (rec.same && rec.same.side === 'unaware' && Number.isFinite(rec.same.index)) {
+                        k.unaware.splice(rec.same.index, 1);
+                        removed = true;
+                        this._knowledgeTally(charName, 'released');
+                    } else if (rec.suspect) {
+                        this._knowledgeTally(charName, 'suspect');
+                    }
+                }
+            }
             if (!k.known.includes(fact)) k.known.push(fact);
+            return removed;
         }
         getReEntryNotice(charName) {
             const k = this.knowledge?.[charName];
