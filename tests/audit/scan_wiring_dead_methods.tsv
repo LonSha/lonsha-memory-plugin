@@ -1,0 +1,24 @@
+# tests/audit/scan_wiring_dead_methods.tsv —— A7.1「零引用方法」冻结基线 [v3.227.0]
+#
+# 口径（scan_wiring.mjs 的 A7 段）：index.js 里定义了方法，而在**全部根级 .js 模块**
+#   （含 index.js 自身除定义行外、以及 settings-ui.js 等同目录模块）与 tests/ 全量在役 .mjs 里，
+#   既无 `name(` / `name?.(` 调用形态，也无 `name:` 键形态，也无引号内的名字形态。
+# 维护：新增一条 => scan_wiring 硬失败（A7.1 新增零引用）；清掉一条 => 也须同步改本表
+#   （否则报「基线里的方法已不再零引用」，防止基线长霉）。
+#
+# 为什么值得一条硬失败：这类方法是「写完就没有人调」—— 它连一次都不会执行。
+#   与「读了但没用」不同（后者由 A8.1 治），也与「模块零加载」不同（scan_module_wiring 治）。
+#
+# ── 冻结的 4 条（每条都经人工复核，带分类） ──
+# [已知遗留·待决策] 自 v3.50 引入 RRF 后无调用者（index.js:6827 注释自述），
+#   而 hybridAlpha 配置键只在它里面被读 —— scan_config_liveness 的存在理由就是它。
+#   本仓默认配置块里的 hybridTiers 与它成对；删它需连配置键一起处置（待 O-8/后续批）。
+_legacyHybridMerge
+# [真死·承诺账本] 「违约」入口；产品路径统一走 resolvePromise(id, status)（v3.178 起）。
+#   仅测试 fulfillPromise 被调用过（tests/v341），breakPromise 连测试也没调。
+breakPromise
+# [真死·旧生成路径] 面向旧 /api/v1/generate 端点；产品路径走 chat/completions（fetchLLM）。
+#   全仓仅此一处出现（定义行）。
+callGeneric
+# [真死·退役测试] 唯一消费者是 tests/archived/v354_oplog_health.test.mjs；archived 不参与跑批。
+queryByFloor

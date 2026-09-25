@@ -94,8 +94,93 @@ console.log(noUi.length ? '  ' + noUi.join(', ') : '  （无）');
 console.log('=== A5 方法定义总数:', defined.size);
 console.log('=== A6 同名方法多处定义 (' + dup.length + '):');
 console.log(dup.length ? '  ' + dup.join('\n  ') : '  （无）');
-console.log('=== A7 定义但检索不到调用点 (' + orphan.length + '):');
-console.log(orphan.length ? '  ' + orphan.join('\n  ') : '  （无）');// ---------- 6. [v3.131] 持久化对称性审计（stbme 单真源）：collectExport 导出键 vs storage.load 恢复键 ----------
+/* ---------- A7 方法级死代码台账（v3.227.0 重写：由「形态漏报」升级为「分域 + 冻结基线」） ----------
+ * 旧口径只认「裸名字 + 可选空格 + (`，且**扫不到两种真实写法** —— 实测：
+ *   · `this.getNpcTiesPrompt?.()`（可选调用；旧口径记为 orphan，实际是活代码）；
+ *   · `'getPublicData'`（引号里的公共出口名，由桥按名调用；旧口径同样记为 orphan）。
+ * 误报 93 条 ≈ 全是这两类，读者最终会**不再看这个数** —— 那比没有这个数更坏。
+ * 新口径按出现**形态**分域，并把「零引用」冻结成基线（新增即红，改动要留理由）：
+ *   call  name( / name?.(            （真调用）
+ *   opt   ?.name?.(                     （可选链调用，旧口径漏的形态之一）
+ *   prop  name:                         （对象键 / 标签表）
+ *   q     引号中的名字                   （公共出口 / 桥按名取，旧口径漏的形态之二）
+ *   test  仅测试引用                     （对外契约面：供测试直调；由测试自己守着）
+ *   zero  以上全无                       ⇒ 真零引用（**硬失败**）
+ * 冻结基线：tests/audit/<files>.tsv —— zero 集合必须与之逐条一致（多一条即红）。
+ */
+const DEF_RE = /^(\s*)(?:async\s+)?(?!if|for|while|switch|catch|return|function\b)([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*\{/;
+const defLines = new Map();   // name -> Set(line)
+for (let i = 0; i < lines.length; i++) {
+    const m = DEF_RE.exec(lines[i]);
+    if (!m) continue;
+    if (!defLines.has(m[2])) defLines.set(m[2], new Set());
+    defLines.get(m[2]).add(i + 1);
+}
+const WORD = "A-Za-z0-9_$";
+const QCH = String.fromCharCode(39, 34, 96);   // 引号三形态：' " `
+const FORM = {
+    call: (n) => new RegExp('(?<![' + WORD + '])' + n + '[\\s]*[(]'),
+    // 可选调用是 `name?.(`（?. 在名字**之后**）；首稿写成 `?.name?.(` ⇒ 真写法全被漏判。
+    opt: (n) => new RegExp('(?<![' + WORD + '])' + n + '[\\s]*[?][.][\\s]*[(]'),
+    prop: (n) => new RegExp('(?<![' + WORD + '])' + n + '[\\s]*:'),
+    q: (n) => new RegExp('[' + QCH + ']' + n + '[' + QCH + ']'),
+};
+const methodHits = {};
+for (const name of defLines.keys()) methodHits[name] = { call: 0, opt: 0, prop: 0, q: 0, test: 0 };
+const KNOWN_TESTS = fs.existsSync('tests') ? fs.readdirSync('tests').filter((f) => f.endsWith('.mjs')) : [];
+/* [v3.227.0] A7 的扫描面必须含**全部根级模块**：首稿只扫 index.js，于是 `fetchModels` 与
+ *   `unlockFact` 被判成零引用 —— 它们的调用点在 **settings-ui.js**（同一根目录的另一模块，
+ *   `this.engine.llm.fetchModels(...)` / `s.unlockFact(...)`）。判据的面漏了一个文件，
+ *   结论就完全反了（真死代码 vs 活代码）。 */
+const ROOT_MODULES = fs.existsSync('.') ? fs.readdirSync('.').filter((f) => f.endsWith('.js') && !f.endsWith('.bak')).sort() : [];
+const MOD_BLOB = {};
+for (const mf of ROOT_MODULES) { try { MOD_BLOB[mf] = mf === 'index.js' ? idx : fs.readFileSync(mf, 'utf8'); } catch (e) { /* 读不到跳过 */ } }
+// 测试面 blob：**先读一次**再逐个方法查（首稿在方法循环里逐文件读 ⇒ 434 x 269 = 116k 次读盘）。
+const TEST_BLOB = {};
+for (const tf of KNOWN_TESTS) { try { TEST_BLOB[tf] = fs.readFileSync('tests/' + tf, 'utf8'); } catch (e) { /* 读不到跳过 */ } }
+for (const name of defLines.keys()) {
+    const forms = {};
+    for (const k of ['call', 'opt', 'prop', 'q']) forms[k] = FORM[k](name.replace(/[$]/g, '\$'));
+    for (const mf of Object.keys(MOD_BLOB)) {
+        const mLines = mf === 'index.js' ? lines : MOD_BLOB[mf].split('\n');
+        for (let i = 0; i < mLines.length; i++) {
+            const ln = i + 1;
+            if (mf === 'index.js' && defLines.get(name).has(ln)) continue;   // 只跳过定义行（只在本文件里有意义）
+            const l = mLines[i];
+            if (!l.includes(name)) continue;
+            if (forms.opt.test(l)) methodHits[name].opt++;
+            else if (forms.call.test(l)) methodHits[name].call++;
+            else if (forms.prop.test(l)) methodHits[name].prop++;
+            else if (forms.q.test(l)) methodHits[name].q++;
+        }
+    }
+    for (const tf of Object.keys(TEST_BLOB)) {
+        if (TEST_BLOB[tf].includes(name)) methodHits[name].test++;
+    }
+}
+const zeroRefs = [], testOnly = [];
+for (const [name, h] of Object.entries(methodHits)) {
+    if (h.call || h.opt || h.prop || h.q) continue;
+    if (h.test) testOnly.push(name); else zeroRefs.push(name);
+}
+zeroRefs.sort(); testOnly.sort();
+console.log('=== A7 方法级死代码台账（v3.227.0 分域）: 方法 ' + defLines.size + ' / 有真引用 ' + (defLines.size - zeroRefs.length - testOnly.length) + ' / 仅测试 ' + testOnly.length + ' / 零引用 ' + zeroRefs.length + ' ===');
+console.log('=== A7.1 零引用（真死代码，硬失败） (' + zeroRefs.length + '):');
+console.log(zeroRefs.length ? '  ' + zeroRefs.join(String.fromCharCode(10) + '  ') : '  （无）');
+console.log('=== A7.2 仅测试引用（对外契约面，由测试守着） (' + testOnly.length + '):');
+console.log(testOnly.length ? '  ' + testOnly.join(', ') : '  （无）');
+const DEAD_BASELINE = 'tests/audit/scan_wiring_dead_methods.tsv';
+let baselineList = null;
+if (fs.existsSync(DEAD_BASELINE)) {
+    baselineList = fs.readFileSync(DEAD_BASELINE, 'utf8').split(String.fromCharCode(10))
+        .map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).sort();
+}
+if (baselineList === null) {
+    console.error('');
+    console.error('[wiring] A7 冻结基线缺失：' + DEAD_BASELINE + '（新口径必须有基线，否则「零引用」无法分「已知」与「新增」）');
+    process.exit(2);
+}
+/* ---------- 6. [v3.131] 持久化对称性审计（stbme 单真源）：collectExport 导出键 vs storage.load 恢复引用键 ---------- */
 const ceStart = idx.indexOf('collectExport() {');
 const ceEnd = idx.indexOf('getCurrentChatId() {', ceStart);
 const ceBlock = idx.slice(ceStart, ceEnd);
@@ -126,6 +211,11 @@ console.log(loadOnly.length ? '  ' + loadOnly.join(', ') + '\n  ⚠ 这些键恢
 const hardFails = [];
 if (exportOnly.length) hardFails.push('A8.1 存而不读 ' + exportOnly.length + ' 个: ' + exportOnly.join(', '));
 if (loadOnly.length) hardFails.push('A8.2 读而无存 ' + loadOnly.length + ' 个: ' + loadOnly.join(', '));
+// [v3.227.0] A7.1 零引用同样是实质缺陷（注册了但没人调 ⇒ 永不执行）；用冻结基线分「已知」与「新增」，新增即硬失败。
+const newDead = zeroRefs.filter((n) => !baselineList.includes(n));
+const goneDead = baselineList.filter((n) => !zeroRefs.includes(n));
+if (newDead.length) hardFails.push('A7.1 新增零引用方法 ' + newDead.length + ' 个: ' + newDead.join(', '));
+if (goneDead.length) hardFails.push('A7.1 基线里的方法已不再零引用（请更新基线）: ' + goneDead.join(', '));
 if (hardFails.length) {
     console.error('');
     console.error('[wiring] 发现 ' + hardFails.length + ' 类硬缺陷：');
