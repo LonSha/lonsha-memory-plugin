@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.217.0';
+    const VERSION = '3.218.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2277,6 +2277,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   不设这一层，读数会在 await 期间被写脏（后到的 STARTED 会把它超过）。
             this._injectionPending = null;
             this._injectionStale = 0;                   // 代际过期累计次数（≥0 即「有过迟到结果」）
+            // [v3.218.0] R2-E：结局计数账（completed / aborted / noReadout / afterReadout）。
+            //   为什么要分四个数：正常完成、被用户中止、本轮没跑注入、已判定后又来一次信号 ——
+            //   四者处置各不相同，合成一个计数就等于把「中止」读成「完成」。
+            this._injectionEnded = { completed: 0, aborted: 0, noReadout: 0, afterReadout: 0 };
             // [v3.217.0] R2-D：暂存里**带自己的代**（`_injectionStage` 落 `gen`），提交时核对；
             //   两条发布路径（GENERATION_STARTED 事件 / interceptor 兼容入口）各占一代并各自收尾
             //   （`_injectionClose`），于是「谁的载荷谁提交」，无主载荷既不落成读数也不静默消失。
@@ -8367,6 +8371,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 ts: Number.isFinite(e.ts) ? e.ts : Date.now(),
                 prev: (this._lastInjection && this._lastInjection.html) || null,
                 origin: String(e.origin || 'generation'),
+                /* [v3.218.0] R2-E：这一轮的**结局**。修前中止与完成同形（都停在注入那一刻），
+                 *   而两者处置相反 —— 前者该重发、后者该看回复。
+                 *   缺省 'pending'（已注入、结局未完），由 `_injectionEnd` 从两个事件落定。 */
+                outcome: String(e.outcome || 'pending'),
                 round,
                 blocks,
                 total: Number.isFinite(e.total) ? e.total : blocks.length,
@@ -8492,6 +8500,35 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             return null;
         }
+        /**
+         * [v3.218.0] R2-E：给**当前读数**标注这一轮的结局（唯一标注入口）。
+         *
+         *   为什么必须有：修前 `GENERATION_ENDED`（用户 Esc 中止）只复位 `_generationActive`，
+         *   于是读数上「被中止」与「正常完成」**同形** —— 两者处置相反（前者该重发、
+         *   后者该看回复），压成一态就是本仓最贵的那类错读数。
+         *
+         *   三条语义（互斥且穷尽）：
+         *     · `kind === 'received'`（MESSAGE_RECEIVED，本轮闭环）⇒ `'completed'`；
+         *     · 其余（`GENERATION_ENDED`）⇒ `'aborted'`；
+         *     · **只从 `'pending'` 迁出**：已判定的不重写。因为 ST 的正常次序是
+         *       `MESSAGE_RECEIVED` **先于** `GENERATION_ENDED`，若无此门，一次正常完成
+         *       会被随后的 ENDED 改写成「中止」——那正是「用一个看得见的错换一个看得见的错」。
+         *   无读数时（本轮没跑过注入）计入 `noReadout`：**「没有可标注的注入」与
+         *   「标注成功」是两件事**，不能都表现为「函数跑过了」。
+         */
+        _injectionEnd(kind) {
+            try {
+                const st = this._injectionEnded || (this._injectionEnded = { completed: 0, aborted: 0, noReadout: 0, afterReadout: 0 });
+                const inj = this._lastInjection;
+                if (!inj || typeof inj !== 'object') { st.noReadout += 1; return null; }
+                if (inj.outcome !== 'pending') { st.afterReadout += 1; return inj.outcome; }   // 已判定：不重写（幂等）
+                const next = (kind === 'received') ? 'completed' : 'aborted';
+                inj.outcome = next;
+                inj.outcomeAt = Date.now();
+                st[next] += 1;
+                return next;
+            } catch (e) { errLog(e, '注入读数.结局标注'); return null; }
+        }
         /** [v3.215.0] R2-A：块引用键。本轮内唯一（含轮次号），跨轮不混淆。 */
         _injectionRefOf(i) {
             const round = Number(this._injectionRound) || 0;
@@ -8565,6 +8602,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             const blocks = Array.isArray(inj.blocks) ? inj.blocks : [];
             return {
                 origin: String(inj.origin || 'generation'),
+                // [v3.218.0] R2-E：结局外供（9 → 10 键）。下游据此把「被中止」与「正常完成」分开报 ——
+                //   本仓把它加进出面时，下游 `config/injection-contract.js` 必须**同一轮**接上，
+                //   否则又是一次「上游给了没人读」。
+                outcome: String(inj.outcome || 'pending'),
                 round: Number(inj.round) || 0,
                 ts: Number(inj.ts) || 0,
                 tokens: Number(inj.tokens) || 0,
@@ -9661,7 +9702,12 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         rows.push(['注入读数', `暂无数据（尚未真生成过）${_dryR ? '；诊断 dry-run 载荷 ' + _dryR.chars + ' 字符（不计入实际注入）' : ''}`]);
                     } else {
                         const _stale = Number(this._injectionStale) || 0;
-                        rows.push(['注入读数', `第${_ir.round}轮 ${_ir.total}块 保留${_ir.kept} 裁掉${Math.max(0, _ir.total - _ir.kept)}｜${_ir.chars}字符 约${_ir.tokens}token${_stale ? `｜代际过期${_stale}次` : ''}`]);
+                        // [v3.218.0] R2-E：结局必须进这一行 —— 「被中止」与「正常完成」处置相反
+                        //   （前者该重发、后者该看回复），读数上不分开就等于把两者读成同一件事。
+                        const _oc = String(_ir.outcome || 'pending');
+                        const _ocTxt = _oc === 'completed' ? '已完成' : (_oc === 'aborted' ? '被中止 ⚠️' : '结局未定');
+                        const _end = this._injectionEnded || {};
+                        rows.push(['注入读数', `第${_ir.round}轮 ${_ir.total}块 保留${_ir.kept} 裁掉${Math.max(0, _ir.total - _ir.kept)}｜${_ir.chars}字符 约${_ir.tokens}token｜结局${_ocTxt}（完成${Number(_end.completed) || 0}·中止${Number(_end.aborted) || 0}）${_stale ? `｜代际过期${_stale}次` : ''}`]);
                     }
                 } catch (e) { errLog(e, 'selfCheck.注入读数'); }
                 report.stats = rows.map(([k, v]) => ({k, v}));
@@ -16071,7 +16117,15 @@ ${recentTurns}`;
                             if (this.engine.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 楼层 ${messageId} 为番外楼，跳过记忆提取`);
                             return;
                         }
-                        if (message) this.engine.onMessageReceived(message, messageId);
+                        if (message) {
+                            /* [v3.218.0] R2-E：回复落层 ⇒ 本轮闭环（结局 = completed）。
+                             *   位置必须在 `onMessageReceived` **之前**：它内部会把
+                             *   `_generationActive` 复位，而结局标注要赶在随后的
+                             *   `GENERATION_ENDED`（同一次生成也会走）把它误判成中止之前落定
+                             *   （`_injectionEnd` 只从 'pending' 迁出，故这里落定后不会被改写）。 */
+                            try { this.engine._injectionEnd('received'); } catch (e) { errLog(e, 'events.MESSAGE_RECEIVED结局'); }
+                            this.engine.onMessageReceived(message, messageId);
+                        }
                     } catch (err) {
                         console.error(`[${PLUGIN_NAME}] 消息处理失败:`, err);
                     }
@@ -16262,6 +16316,13 @@ ${recentTurns}`;
                 if (types.GENERATION_ENDED) {
                     const _h6 = () => {
                         try { this.engine._generationActive = false; } catch (e) { errLog(e, 'events.GENERATION_ENDED复位'); }
+                        /* [v3.218.0] R2-E：结局标注。正常完成与用户中止在 ST 里**都走本事件**，
+                         *   区分靠「MESSAGE_RECEIVED 是否来过」——`_injectionEnd` 内部只从 'pending'
+                         *   迁出，已判定为 completed 的不会被这次 ENDED 改写成 aborted。
+                         *   修前这里只复位标志 ⇒ 读数上中止与完成同形（处置相反却读成同一件事）。
+                         *   与复位标志**互不依赖**（标注读的是读数，不读 `_generationActive`），
+                         *   故放在其后 —— 影响面最小。 */
+                        try { this.engine._injectionEnd('ended'); } catch (e) { errLog(e, 'events.GENERATION_ENDED结局'); }
                     };
                                         // [v3.164] 收口到 bindEvent：7 个注册点此前各自直接 eventSource.on，绕过了
                     //   bindEvent 的就绪检查 / 事件计数 / 注册记录（控制平面成了装饰件）。

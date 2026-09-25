@@ -174,6 +174,7 @@ function engineFrom(src, cfg) {
         }, cfg || {}) },
         _lastInjection: null, _lastInjectionDraft: null, _lastInjectionDiscard: null,
         _injectionStale: 0, _injectionRound: 0, _diagnostics: null,
+        _injectionPending: null,_injectionEnded: { completed: 0, aborted: 0, noReadout: 0, afterReadout: 0 },
         _lastBudgetStats: null, _lastCostLedger: null, _lastForecast: null,
         _lastReconcile: null, _lastRecallSeal: null, _genSeq: 0, _recallAudit: [],
         summary: { getGrandChroniclePrompt: () => '', lockedFactsForPrompt: () => '' },
@@ -190,7 +191,9 @@ function engineFrom(src, cfg) {
         anyStub(), (eng, i) => (eng && typeof eng._injectionRefOf === 'function' ? eng._injectionRefOf(i) : '')));
 }
 
-const RECORD_KEYS = ['html', 'tokens', 'ts', 'prev', 'origin', 'round', 'blocks', 'total', 'kept', 'gen'];
+/* [v3.218.0] R2-E：读数键面 10 → 11（增 `outcome` —— 中止与完成必须可分）。
+ *   键面是**跨版本契约**，本次确有扩展，故本套件的锁同步抬一档。 */
+const RECORD_KEYS = ['html', 'tokens', 'ts', 'prev', 'origin', 'outcome', 'round', 'blocks', 'total', 'kept', 'gen'];
 
 /** 真生成一轮（走真 buildInjection + 真唯一构造点），返回读数。 */
 function generate(eng, recalled) {
@@ -235,12 +238,13 @@ test('v3216 2. 读数真写入只有构造点一处；构造点外只剩字段�
 });
 
 /* ══════════ T3 恒定键面（10 键，多种调用形态同形） ══════════ */
-test('v3216 3. 读数恒定 10 键：默认值只填「没给」的，不省键', () => {
+test('v3216 3. 读数恒定 11 键：默认值只填「没给」的，不省键', () => {
     const eng = engineFrom(idxSrc);
     const a = eng._injectionRecord();
-    assert.deepStrictEqual(Object.keys(a).sort(), RECORD_KEYS.slice().sort(), '空调用也必须 10 键');
+    assert.deepStrictEqual(Object.keys(a).sort(), RECORD_KEYS.slice().sort(), '空调用也必须 11 键');
     const b = eng._injectionRecord({ html: 'X' });
-    assert.deepStrictEqual(Object.keys(b).sort(), RECORD_KEYS.slice().sort(), '单项调用也必须 10 键');
+    assert.deepStrictEqual(Object.keys(b).sort(), RECORD_KEYS.slice().sort(), '单项调用也必须 11 键');
+    assert.strictEqual(b.outcome, 'pending', '缺省结局为 pending（已注入、结局未完）');
     assert.strictEqual(b.origin, 'generation', '缺省 origin 即真生成（诊断必须显式另走一路）');
     assert.strictEqual(b.total, 0, '没给 blocks ⇒ total 0（不是 undefined）');
     assert.ok(Number.isFinite(b.tokens) && b.tokens > 0, 'tokens 由 CJK 口径估算补足');
@@ -340,8 +344,8 @@ test('v3216 9. `buildInjectionReadout`：无读数如实 null，有读数形状�
     const r = generate(c, [{ source: 'summary', text: '一块记忆' }]);
     const out = c.buildInjectionReadout();
     assert.deepStrictEqual(Object.keys(out).sort(),
-        ['blocks', 'chars', 'html', 'kept', 'origin', 'round', 'tokens', 'total', 'ts'].sort(),
-        '外供面键面恒定 9 项');
+        ['blocks', 'chars', 'html', 'kept', 'origin', 'outcome', 'round', 'tokens', 'total', 'ts'].sort(),
+        '外供面键面恒定 10 项（v3.218.0 R2-E 起含 outcome）');
     assert.strictEqual(out.chars, r.html.length, 'chars 与 html 同源');
     assert.deepStrictEqual(Object.keys(out.blocks[0]).sort(),
         ['chars', 'id', 'kept', 'label', 'reason', 'ref'].sort(), '逐块键面恒定 6 项');

@@ -654,9 +654,20 @@
                 const _dryRun = s._diagnostics?.dryRun;
                 if (!inj?.html) {
                     body = '<div class="ls-hint">暂无注入记录。生成一次回复后，此处显示 AI 实际看到的完整记忆注入块（含预算裁剪后的最终形态）。</div>'
-                        + (inj ? `<div class="ls-hint" style="color:var(--ls-warn,#d29922);">最近一轮（第 ${inj.round} 轮）真生成，实际注入 0 块：读了召回、但没有任何块送进上下文 —— 这与「还没跑过」是两件事，不要混读。</div>` : '');
+                        // [v3.218.0] R2-E：零块分支同样要带结局（零块 + 被中止 vs 零块 + 已完成，处置不同）
+                        + (inj ? `<div class="ls-hint" style="color:var(--ls-warn,#d29922);">最近一轮（第 ${inj.round} 轮）真生成，实际注入 0 块：读了召回、但没有任何块送进上下文 —— 这与「还没跑过」是两件事，不要混读。${String(inj.outcome || 'pending') === 'aborted' ? '（该轮已被中止）' : (String(inj.outcome || 'pending') === 'completed' ? '（该轮已完成）' : '')}</div>` : '');
                 } else {
-                    let head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · 第 ${inj.round} 轮 · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）</div>`;
+                    /* [v3.218.0] R2-E：面板必须说清这一轮的**结局**。
+                     *   修前中止与完成同形 —— 用户看到「最近一次实际注入」以为回复在路上，
+                     *   其实那一轮已被 Esc 中止（或反之：以为没跑，其实早已出稿）。
+                     *   两者处置相反：前者该重发、后者该看回复。 */
+                    const _oc = String(inj.outcome || 'pending');
+                    const _ocBadge = _oc === 'completed'
+                        ? ' <span style="color:var(--ls-success,#3fb950);">✓ 已完成（回复已落层）</span>'
+                        : (_oc === 'aborted'
+                            ? ' <span style="color:var(--ls-warn,#d29922);">⚠️ 被中止（本轮无回复，可重发）</span>'
+                            : ' <span style="color:var(--ls-text-3,#6e7681);">· 结局未定（生成进行中或宿主未发结束事件）</span>');
+                    let head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · 第 ${inj.round} 轮 · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）${_ocBadge}</div>`;
                     // [v3.215.0] R2-A 逐块读数：回答「进的是哪几块 / 裁的是哪几块」——
                     //   修前只有聚合数（丢了几块 / 多少字符），回答不了「丢的是哪一块」。
                     if (Array.isArray(inj.blocks) && inj.blocks.length) {
