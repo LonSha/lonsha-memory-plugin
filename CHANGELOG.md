@@ -1,3 +1,81 @@
+## v3.223.0
+
+**主题：O-1 「没给」与「给了 0」在**场所面**上的判开是假的 —— R3-D 那八处是改名，不是修复；且一处判据在保护缺陷。**
+
+### 修前实测（在真模块上跑出来的，不是设计洁癖）
+
+1. **R3-D 的「已判开」在实现上从未生效**：v3.221.0 把 `import()` 的
+   `num(x) ?? 0` 改成 `numOrNull(x) ?? 0` —— 而对 `''` / `null` / `undefined` / `[]` / 非数字串，
+   这两条路径的**结果完全相同**：`numOrNull(null) === null` ⇒ `null ?? 0 === 0`；
+   而 `num(null) === 0`（`Number(null) === 0` 且有限）⇒ `0 ?? 0 === 0`。改了个名字，值一位没变。
+   十格探针实测全部为 **0**：`nodes.floor` / `nodes.updatedAt` / `track[].floor` / `opsLog[].floor` /
+   `visits.firstFloor` / `visits.lastFloor` / `presence.atFloor`（import 侧），
+   以及 `apply(null)` / `setLocation(null/'')` / `setPresence(..., null/'')`（写侧）。
+2. **写侧的编 0 更直接**：三处都是 `Number.isFinite(Number(floor)) ? Number(floor) : 0`，
+   而 `Number(null) === 0`、`Number('') === 0`、`Number([]) === 0` ⇒ 「没给」被读成**第 0 楼**。
+   0 在本仓是**合法楼层**（宿主 `message.index` 就是 0 基，`apply` 的既有口径也把 0 当楼层），
+   与「没给」同形最贵。
+3. **判据在保护缺陷**：`tests/v3222_scene_rollback_closure.test.mjs` 的 A1 组测试名写着
+   「八格「没给」**不得落成第 0 楼**」，六条断言却把 `0` **钉死**（"缺省仍是 0（apply 侧的既有口径，未动）"）。
+   即：判据不但没抓到这个缺陷，反而承诺它必须继续存在。
+4. **下游早就在等这个读数，却永远等不到**：`ruby-phone` 的 `apps/place/place-data.js`
+   对在场用的正是 `numOrNull(rec.atFloor)`，视图侧把 `null` 渲染成空、把 `0` 渲染成「第0楼」；
+   到访行的 `firstFloor` / `lastFloor` 同样走 `numOrNull`。上游从未吐出过 `null`，
+   于是「不知道在哪一楼」与「在第 0 楼」在下游**永远长得一样**。
+
+### 本版做了什么
+
+- **场所面全路径判开「没给」与「给了 0」**（与 `numOrNull` / `setHeader` / `headerAt` / `clearHeader` 同口径）：
+  · import 七格：`nodes.floor` / `nodes.updatedAt` / `track[].floor` / `opsLog[].floor` /
+    `visits.firstFloor` / `visits.lastFloor` / `presence.atFloor` —— 「没给」如实 `null`；
+  · 写侧三处：`apply(ops, floor)` / `setLocation(floor, path)` / `setPresence(name, path, floor)`
+    —— 楼层取不到一律**拒绝**（`apply` 返回 0、两个 setter 返回 `false`），不落成第 0 楼。
+- **正例必须照常工作**（否则就是把门关成「谁都不许写」）：`apply(..., 0)` / `setLocation(0, ...)` /
+  `setPresence(..., 0)` 与 import 里显式的 `floor: 0` 一律**保住 0**。
+
+### 同轮接管的既有判据（收紧，未放宽）
+
+- `tests/v3222_scene_rollback_closure.test.mjs` 的 A1：由「六格钉死 0」收紧为
+  「七格一律如实 `null`」+ 新增**正例半组**（显式 `0` 必须落成 `0`），并在组内注释写明
+  这一组此前钉住的正是缺陷（R3-D 的改名、判据保护缺陷）。
+- 同文件新增 **A2b**：把写侧同族（`setLocation` / `setPresence` / `apply`）的「拒绝 + 正例」一并钉住
+  —— 此前 v3222 的 A 组只覆盖了 `setHeader`，写侧三处**没有任何判据面**。
+
+### 验证
+
+- 定向：`v3181` / `v3221` / `v3222` / `v3223` 四套件 **112/112 通过**（改动前 `v3222` A1 红，
+  收紧后转绿）。
+- 全量：**203/203 文件、1849 断言 0 失败、42/42 审计 RC=0**（`dead_code_budget` 在余量内）。
+
+### 同轮抓到并修掉的**判据自身**缺陷（比实现缺陷更值得记）
+
+1. **判据与主题不匹配**：`v3224` 首稿的 N4 用 `readJudgeFails()` 去证 `visits` 面被破坏 ——
+   而那一条判据只查 `nodes` / `track` / `presence`，**不含 `visits`**。于是 visits 坏了它照样成立，
+   该组等于没测。已另立 `visitJudgeFails()`，并补「互不掩护」断言（读侧判据必须仍成立）。
+2. **负控制锚点漂移被当场抓住**：`v3181` 与审计 `negctl` 用的是旧源码字面，
+   收口后 `mk()` / 命中数检查直接报「锚点须恰中 1 次（实 0）」。这**不是**噪音：
+   若它们静默跳过，本轮的负控制就全体失效而无人知晓 —— 两处脚本都选择了报错，故须把锚点搬到新字面。
+
+### 边界如实声明
+
+- 本版只改**楼层取值的口径**，不改场所面的结构、键面与对外语义（`summary()` 键面未动）。
+- `presence.at` / `headers[].at` 仍是时间戳（缺就给 0），**不参与**楼层判读 —— 时间戳的 0
+  与「没给」在读数上没有区分需求（`at` 从不被当楼层比较），故本版不动它，避免把「时间未知」
+  变成下游需要新处理的一态。
+- 「没给」落成 `null` 后，`coverage().floors` / `trackFloors` 的 `Number.isFinite` 过滤会自动把它们
+  排除（此前 0 会被当第 0 楼计入列号）—— 这是**读数变准**而非列号丢失。
+- 下游是否需要同轮抬版：本轮**未新增外供键**，但**改变了既有键的取值域**
+  （`presence[].atFloor` / `visits[].firstFloor|lastFloor` 从「总是 number」变成「number | null」）。
+  按跨仓纪律这属于「上游给了新东西就必须有人读」的更严情形：下游**已经**在读
+  （`place-data.js` 的 `numOrNull` + 视图的 `null ⇒ 空`），故本轮下游**不需要改代码**，
+  但须在计划文件里登记「本次取值域变化已被下游既有读法覆盖」的判定依据。
+- 真实 SillyTavern 宿主实机未验：无头门禁只证明模块间契约。
+- **未动**（如实说明，避免读者以为已经全收干净）：`presence.at` / `headers[].at` 仍是时间戳（缺给 0）；
+  `rollbackFrom` 的 `cutoff` 显式传 `null` 时按 `floor` 处理（`cutoff === undefined` 与 `null` 两个「没给」
+  在这里语义等价，故合并）；`index.js` 宿主侧各子系统自己的 `removeByFloor(floor)` 系列
+  （`charMem` / `diary` / `cards` / `status` / …）仍是各自的 `Number()` 门，
+  它们由宿主在 `message.index`（**永远是真数字**）处调用，本版**未**一并改动 —— 那是宿主面另一族，
+  需要各自的行为判据才敢动，不在 O-1 范围内。
 ## v3.222.0
 
 **主题：R3-E 短期长期记忆（`stm-ltm`）在**前移**面上的脱钩 —— 删楼那一侧早就级联清了，前移那一侧从来没有。**

@@ -526,14 +526,14 @@ function brokenCopies() {
         {
             tag: 'F1-dud-boolean', what: '哑雷回归：显式入参退回三目优先级错位的布尔折叠',
             src: mk(sbSrc,
-                '        if (Number.isFinite(Number(cutoff))) this.track = this.track.filter(t => t.floor < Number(cutoff));',
+                '        const cu = numOrNull(cutoff);\n        if (cu != null) this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cu; });',
                 '        this.track = this.track.filter(t => t.floor < (cutoff || 0) || cutoff === undefined ? true : false);',
                 'F1')
         },
         {
             tag: 'F2-implicit-cutoff', what: '隐式状态回归：轨迹切片重新依赖实例上的 _cutoff',
             src: mk(sbSrc,
-                '        if (Number.isFinite(Number(cutoff))) this.track = this.track.filter(t => t.floor < Number(cutoff));',
+                '        const cu = numOrNull(cutoff);\n        if (cu != null) this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cu; });',
                 '        if (this._cutoff === undefined) this._cutoff = cutoff;',
                 'F2')
         },
@@ -547,8 +547,8 @@ function brokenCopies() {
         {
             tag: 'F4-manual-decrement', what: '删楼回滚手动扣减到访史（与 _rebuild 双写源）',
             src: mk(sbSrc,
-                '        this.track = this.track.filter(t => t.floor !== f);',
-                "        this.track = this.track.filter(t => t.floor !== f); this.visits.delete('x');",
+                '        this.track = this.track.filter(t => numOrNull(t && t.floor) !== f);',
+                "        this.track = this.track.filter(t => numOrNull(t && t.floor) !== f); this.visits.delete('x');",
                 'F4')
         },
         {
@@ -620,13 +620,13 @@ test('【I3】★ 负控制·源码形态判据：真破坏必报（形态面与
     assert.equal((code(sbSrc).match(/this\.visits\.set\(/g) || []).length, 2, '原版：记账单 1 + 载入路径 1');
     // ① 三目错位必须被形态判据抓到
     const c1 = code(mk(sbSrc,
-        '        if (Number.isFinite(Number(cutoff))) this.track = this.track.filter(t => t.floor < Number(cutoff));',
+        '        const cu = numOrNull(cutoff);\n        if (cu != null) this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cu; });',
         '        this.track = this.track.filter(t => t.floor < (cutoff || 0) || cutoff === undefined ? true : false);',
         'I3-1'));
     assert.ok(/\?\s*true\s*:\s*false/.test(c1), '★ 破坏后形态判据必须报出三目错位');
     // ② 隐式 _cutoff 必须被抓到
     const c2 = code(mk(sbSrc,
-        '        if (Number.isFinite(Number(cutoff))) this.track = this.track.filter(t => t.floor < Number(cutoff));',
+        '        const cu = numOrNull(cutoff);\n        if (cu != null) this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cu; });',
         '        if (this._cutoff === undefined) this._cutoff = cutoff;',
         'I3-2'));
     assert.ok(/\b_cutoff\b/.test(c2), '★ 破坏后形态判据必须报出隐式状态');
@@ -656,7 +656,7 @@ test('【I4】★ 判据纯度两向自证：注释里的旧写法不得误报�
     assert.notEqual(commentOnly, sbSrc, '破坏确实改了源码（只是改在注释里）');
     // ③ 反向：真代码坏、注释干净 ⇒ 必须报（两向夹逼）
     const realBad = stripComments(mk(sbSrc,
-        '        if (Number.isFinite(Number(cutoff))) this.track = this.track.filter(t => t.floor < Number(cutoff));',
+        '        const cu = numOrNull(cutoff);\n        if (cu != null) this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cu; });',
         '        if (this._cutoff === undefined) this._cutoff = cutoff;',
         'I4-3'));
     assert.ok(/\b_cutoff\b/.test(realBad), '★ 真代码里的隐式状态必报');

@@ -2,7 +2,35 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.222.0
+> 最近更新：v3.223.0
+> 本版不新增未修项；O-1（**「没给」与「给了 0」在场所面上的判开是假的**）已落地并留痕于 CHANGELOG v3.223.0：
+> **R3-D（v3.221.0）声称把 `import()` 七格改走 `numOrNull`、判开「没给」与「给了 0」，
+> 而实现是 `numOrNull(x) ?? 0` —— 对 `` / `null` / `[]` / 非数字串，它与修前的 `num(x) ?? 0` 结果完全相同：
+> 那是改名不是修复**（十格探针实测全为 0）。本版把 import 七格如实判成 `null`，
+> 并把写侧 `apply` / `setLocation` / `setPresence` 三处的 `Number(...) ? ... : 0` 改成「取不到即拒绝」；
+> 两处 setter 的**签名与返回语义未变**（仍是 false 表示没写成），`apply` 仍返回登记条数（拒绝即 0）。
+> 同轮收紧 `tests/v3222` 的 A1 —— **它此前把未修状态写成断言、测试名却写「不得落成第 0 楼」，
+> 即判据在保护缺陷**（这一条比缺陷本身更值得记：判据撒谎比实现撒谎更难发现），
+> 并新增 A2b 覆盖写侧三处（此前写侧没有任何判据面）。
+> 为什么第 0 楼必须与「没给」判开：宿主 `message.index` 是 **0 基**，0 是合法楼层；
+> 下游 `ruby-phone` 的 `place-data.js` 对 `atFloor` / `firstFloor` / `lastFloor` 用的正是 `numOrNull`，
+> 视图把 `null` 渲染成空、把 `0` 渲染成「第0楼」——**下游早已备好 null 这条路，上游从未喂过它**。
+> 怎么知道它还没变：`tests/v3222` 组 A1 的七格 `null` 断言 + A2b 的写侧拒绝断言（任一退回 0 即红）。
+> **第二批（首稿只改调用点，门本体没动）**：`numOrNull` / `num` 改为「先看类型」
+> （修前 `typeof` 门缺失 ⇒ `[] → 0`、`true → 1`、`'  ' → 0` 同样与「没给」同形），
+> 并收干净同族残留六面：`coverage().floors` / `trackFloors`（凭空多出第 0 楼）、
+> `coverage().headerFloors` 与 `setPresence` 裁剪序、外供面 `tree()[].floor` / `summary().currentChain[].floor`、
+> **回滚三法**（`rollbackFrom(null)` 实测清空整本账并返回正数 / `rollbackFloorOnly(null)` 误删合法第 0 楼 /
+> `shiftFloorRefs(null)` 整表减一）、`visits[].floors`（R3-D 漏的那格）。
+> 怎么知道它还没变：`tests/v3224` 的 H 组（六面正向 + 反向）+ N11（**门本体退化 ⇒ 怪值/floors/列号/外供
+> 四面判据必须集体转红，而常规面与真 0 面仍成立** —— 这一条不成立就说明判据没挂在门上）。
+> 同轮修掉两处**判据自身**缺陷：`v3224` 首稿 N4 用错判据（`readJudgeFails` 不含 `visits`）、
+> `v3181` 与审计 `scan_v3181_..._negctl.mjs` 的破坏锚点漂移（两处都报错而非静默跳过，故已把锚点搬到新字面）。
+> 本版不新增未修项；仍复述既有**观察项 T17**（同名不同模块，勿与本版改动混同）：
+> - `scene-book.js` 的 `shiftFloorRefs(d)` 重复调用会**再次平移**（第二次等于「再删一次第 d 楼」）；
+>   `stm-ltm.js` 的同名方法（v3.222.0 新增）沿用同一平移语义。
+>   怎么知道它还没变：`tests/v3222` 组 B 与 `tests/v3223` 组 B 各自钉住「前移跟随」，
+>   `scan_v3190` 的 P1b 守「位移恰好一次」。
 > 本版不新增未修项；R3-E（短期长期记忆在**前移**面上的脱钩）已落地并留痕于 CHANGELOG v3.222.0：
 > `stm-ltm.js` 新增 `shiftFloorRefs(state, deleted)`（三类楼层引用同跟一个判据：`unconsolidated_stm[].floor`
 > 单点 / `stm_entries[].floors` 集合 / `ltm_entries[].span` 区间；**只改元素内部字段、返回计数不回写**），

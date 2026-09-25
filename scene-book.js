@@ -90,15 +90,29 @@ const MAX_HEADERS = 400;
  *   「这一格没给」会被读成「第 0 楼」，正是本仓反复治理的那类塌陷
  *   （0 是合法楼层，与「没给」同形最贵）。取不到一律 null。 */
 function numOrNull(v) {
-    if (v === null || v === undefined || v === '') return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+    // [v3.223.0] O-1：门必须**先看类型**，不能只看 `Number()` 的结果 ——
+    //   `Number(null)` / `Number('')` / `Number([])` / `Number(false)` **全是 0**
+    //   （`Number(true)` 是 1），而 0 是本仓**合法楼层**（宿主 `message.index` 0 基）。
+    //   用 `Number.isFinite(Number(v))` 当门 ⇒「不知道在第几楼」与「就在第 0 楼」
+    //   塌成同形。只认数字与非空数字字符串，其余一律「没给」⇒ null。
+    //   同族同口径先例：stm-ltm.js 的 R3-E（v3.222.0）、
+    //   evidence-workbench.js 的 finiteNumStrict（v3.214.0）。
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    if (typeof v === 'string') {
+        if (v.trim() === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    }
+    return null;
 }
 
 const trim = (v) => String(v == null ? '' : v).trim();
 const oneLine = (v) => trim(v).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ');
 const isArr = (v) => Array.isArray(v);
-const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+/** 与 `numOrNull` **同口径**（同一个「没给」判据，免得两套门各说各话）。
+ *  修前是 `Number.isFinite(Number(v)) ? Number(v) : null`：用来过滤 `visits[].floors`
+ *  时，`[]` / `true` / `''` 会被读成 0 / 1 / 0 —— 「楼层未知」被记成「第 0 楼」。 */
+const num = numOrNull;
 
 /** 路径规范化：数组或字符串 → 去空、截断到 MAX_PATH_DEPTH。 */
 function partsOf(path) {
@@ -198,7 +212,9 @@ class SceneBook {
      */
     apply(ops, floor, _replaying = false) {
         const list = isArr(ops) ? ops : (ops ? [ops] : []);
-        const f = Number.isFinite(Number(floor)) ? Number(floor) : 0;
+        // [v3.223.0] O-1：楼层「没给」不得被读成第 0 楼（0 是合法楼层，与没给同形最贵）。
+        const f = numOrNull(floor);
+        if (f == null) return 0;
         let n = 0, rejected = 0;
         const touched = [];
         for (const op of list) {
@@ -246,7 +262,9 @@ class SceneBook {
     setLocation(floor, path) {
         const key = keyOf(path);
         if (!key) return false;
-        const f = Number.isFinite(Number(floor)) ? Number(floor) : 0;
+        // [v3.223.0] O-1：同 apply —— 「没给」如实拒绝，不落成第 0 楼。
+        const f = numOrNull(floor);
+        if (f == null) return false;
         const i = this.track.findIndex(t => t.floor === f);
         const prev = this.currentKey();
         const entry = { floor: f, pathKey: key };
@@ -318,12 +336,14 @@ class SceneBook {
         const nm = trim(name);
         const key = keyOf(path);
         if (!nm || !key) return false;
-        const f = Number.isFinite(Number(floor)) ? Number(floor) : 0;
+        // [v3.223.0] O-1：同 apply —— 「没给」如实拒绝，不落成第 0 楼。
+        const f = numOrNull(floor);
+        if (f == null) return false;
         if (!this.presence.has(nm) && this.presence.size >= MAX_PRESENCE) {
             // 裁剪：丢 atFloor 最小的（最早离场）
             let worst = null, worstFloor = Infinity;
             for (const [k, rec] of this.presence) {
-                const af = Number.isFinite(Number(rec.atFloor)) ? Number(rec.atFloor) : -1;
+                const af = numOrNull(rec.atFloor) ?? -1;      // 「没给」按最早离场处理（-1），不冒充第 0 楼
                 if (af < worstFloor) { worstFloor = af; worst = k; }
             }
             if (worst !== null) this.presence.delete(worst);
@@ -564,8 +584,11 @@ class SceneBook {
      * 与账本侧 coverage() 同口径（楼层列号可对账），纯读、绝不抛。
      */
     coverage() {
-        const floors = [...new Set(this.opsLog.map(o => Number(o.floor)).filter(Number.isFinite))].sort((a, b) => a - b);
-        const trackFloors = [...new Set(this.track.map(t => Number(t.floor)).filter(Number.isFinite))].sort((a, b) => a - b);
+        // [v3.223.0] O-1：列号同样「没给不算第 0 楼」——修前这里是 `Number(o.floor)`，
+        //   而 `Number(null) === 0`，于是刚导入（或刚回滚完）的账本会在覆盖度里
+        //   **凭空多出一列「第 0 楼」**：账本自己根本没登记过它。
+        const floors = [...new Set(this.opsLog.map(o => numOrNull(o && o.floor)).filter(f => f !== null))].sort((a, b) => a - b);
+        const trackFloors = [...new Set(this.track.map(t => numOrNull(t && t.floor)).filter(f => f !== null))].sort((a, b) => a - b);
         // 到访过、但从未登记的键（说明该地点的 scenes 一直没被提取到）
         const unregistered = [...this.visits.keys()].filter(k => k && !this.nodes.has(k));
         const iv = this.checkInvariants();
@@ -578,7 +601,7 @@ class SceneBook {
             //   此前覆盖度只列「有变更的楼层」「有位置轨迹的楼层」两类，而删楼/前移对 headers
             //   的处理**没有任何判据面**：改坏了也看不出来，于是「那天什么天气」可以停在一个
             //   已被删掉的楼层上而诊断面报一切正常。列号照既有口径可逐楼对账。
-            headerFloors: [...this.headers.keys()].map(f => Number(f)).filter(Number.isFinite).sort((a, b) => a - b),
+            headerFloors: [...this.headers.keys()].map(f => numOrNull(f)).filter(f => f !== null).sort((a, b) => a - b),
             headerCount: this.headers.size,
             nodes: this.nodes.size,
             detailed: [...this.nodes.values()].filter(n => n.desc).length,
@@ -648,12 +671,21 @@ class SceneBook {
      * 返回重建后的节点数。
      */
     rollbackFrom(floor, cutoff) {
-        const cut = Number.isFinite(Number(cutoff)) ? Number(cutoff) : Number(floor);
-        this.opsLog = this.opsLog.filter(o => o.floor < floor);
-        this.track = this.track.filter(t => t.floor < cut);
+        // [v3.223.0] O-1：入参是**楼层号**，同样先过「没给」判据 ——
+        //   修前 `Number(null) === 0`，于是 `rollbackFrom(null)`（宿主没给本楼号，或导入的
+        //   旧存档里就没有楼层）会被读成「删第 0 楼**及以上**」，把整本账
+        //   （opsLog / track / headers）一次清空，**还返回一个看着成功的正数**。
+        //   0 是合法楼层：真给 0 才该删光；「没给」如实拒绝、一格不动。
+        const fl = numOrNull(floor);
+        if (fl == null) return 0;
+        const cu = cutoff === undefined ? fl : numOrNull(cutoff);
+        const cut = cu == null ? fl : cu;
+        // 「说不出在第几楼」的条目一律保留：不知 ≠ 在第 0 楼，更不能当被删楼丢掉。
+        this.opsLog = this.opsLog.filter(o => { const f = numOrNull(o && o.floor); return f == null || f < fl; });
+        this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cut; });
         // [v3.221.0] R3-D：级联回滚是「该楼及以上全弃」，场景头同语义（>= floor 一并撤）。
-        for (const hf of [...this.headers.keys()]) if (Number(hf) >= Number(floor)) this.headers.delete(hf);
-        return this._rebuild(floor);
+        for (const hf of [...this.headers.keys()]) { const f = numOrNull(hf); if (f != null && f >= fl) this.headers.delete(hf); }
+        return this._rebuild(fl);
     }
 
     /**
@@ -661,16 +693,19 @@ class SceneBook {
      * 返回重建后的节点数。
      */
     rollbackFloorOnly(floor) {
-        const f = Number(floor);
-        this.opsLog = this.opsLog.filter(o => o.floor !== f);
-        this.track = this.track.filter(t => t.floor !== f);
+        // [v3.223.0] O-1：同上 —— 「没给」不得被读成「清第 0 楼」（那会误删**合法**的第 0 楼，
+        //   而真正要清的那一楼一格不动：读数与动作双双指错）。
+        const f = numOrNull(floor);
+        if (f == null) return this.nodes.size;            // 拒绝：不动真源，如实返回当前节点数
+        this.opsLog = this.opsLog.filter(o => numOrNull(o && o.floor) !== f);
+        this.track = this.track.filter(t => numOrNull(t && t.floor) !== f);
         // visits 不在此手动扣减：本节末尾的 _rebuild() 会整体清空并按 track 重算
         //   （手动扣减会被随后覆盖 ⇒ 那是「写了等于没写」的空转；到场史只能有一个真源）。
         // presence 是宿主写入的、不由 track/opsLog 派生 ⇒ 必须手动清理该楼的在场记录。
         //   注意「清理」的粒度：**只清停在这一楼的人**，不得扩成 clearPresence() 全清 ——
         //   那会把第 9 楼那批人的所在一起抹掉（修前宿主就是这么干的，见 index.js 的 rollbackFloor）。
         for (const [nm, rec] of [...this.presence]) {
-            if (Number(rec.atFloor) === f) this.presence.delete(nm);
+            if (numOrNull(rec.atFloor) === f) this.presence.delete(nm);   // f 非 null ⇒ 「没给」不会被误配
         }
         // [v3.221.0] R3-D：场景头是按楼存的快照真源，不在 show/track 的派生范围内 ⇒ 同删。
         this.headers.delete(f);
@@ -688,13 +723,17 @@ class SceneBook {
      * 三面都跟，返回跟随/清理的条数。**不抛**（登记项调用方按回放引擎的纪律处理失败）。
      */
     shiftFloorRefs(deleted) {
-        const d = Number(deleted);
-        if (!Number.isFinite(d)) return 0;
+        // [v3.223.0] O-1：与 stm-ltm.js 的 R3-E（v3.222.0）**同族同口径** ——
+        //   修前 `Number(null) === 0`，于是 `shiftFloorRefs(null)` 把**整表楼层号减一**
+        //   （连第 0 楼之前的都不放过），返回值还是个看着成功的正数。
+        const d = numOrNull(deleted);
+        if (d == null) return 0;
         let n = 0;
         // ① 被删楼自身的残留（前移后该楼已不存在；留着它下一次重放还会把它当「真源」搬回来）
         const bt = this.track.length, bo = this.opsLog.length;
-        this.track = this.track.filter(t => Number(t && t.floor) !== d);
-        this.opsLog = this.opsLog.filter(o => Number(o && o.floor) !== d);
+        // [v3.223.0] O-1：`d === 0` 时旧写法 `Number(null) === 0` 会把**没给的条目误删**。
+        this.track = this.track.filter(t => numOrNull(t && t.floor) !== d);
+        this.opsLog = this.opsLog.filter(o => numOrNull(o && o.floor) !== d);
         n += (bt - this.track.length) + (bo - this.opsLog.length);
         // ② 平移：位置真源
         for (const t of this.track) if (typeof t.floor === 'number' && t.floor > d) { t.floor = t.floor - 1; n++; }
@@ -711,8 +750,8 @@ class SceneBook {
         // ④ 平移：在场（谁在何处）；停在被删那一刻的人出局 —— 与 drop 侧同一粒度（绝不整表全清）
         for (const [nm, rec] of [...this.presence]) {
             if (!rec) continue;
-            const af = Number(rec.atFloor);
-            if (!Number.isFinite(af)) continue;
+            const af = numOrNull(rec.atFloor);
+            if (af == null) continue;
             if (af === d) { this.presence.delete(nm); n++; }
             else if (af > d) { rec.atFloor = af - 1; n++; }
         }
@@ -728,7 +767,8 @@ class SceneBook {
      * @param {number} [cutoff] 只保留 floor < cutoff 的轨迹记录（缺省 = 全保留）
      */
     rebuildFromOps(cutoff) {
-        if (Number.isFinite(Number(cutoff))) this.track = this.track.filter(t => t.floor < Number(cutoff));
+        const cu = numOrNull(cutoff);
+        if (cu != null) this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cu; });
         return this._rebuild();
     }
 
@@ -742,9 +782,14 @@ class SceneBook {
         //   而 opsLog 是空的，于是**没有人重建**。导入存档恰恰是最需要保住数据的地方。
         //   无真源时如实降级：只摘掉被删那楼的登记节点，其余保留（**不假装重建过**）。
         if (!this.opsLog.length) {
-            if (Number.isFinite(Number(removedFloor))) {
+            // [v3.223.0] O-1：两边都过 numOrNull，且「都没给」不等于「同一楼」——
+            //   旧写法两边同走 `Number()` 时，`_rebuild(null)` 会把所有「没给」的节点
+            //   当成第 0 楼摘掉，同时**放过真正的第 0 楼**。
+            const rf = numOrNull(removedFloor);
+            if (rf != null) {
                 for (const [k, rec] of [...this.nodes]) {
-                    if (Number(rec && rec.floor) === Number(removedFloor)) this.nodes.delete(k);
+                    const nf = numOrNull(rec && rec.floor);
+                    if (nf != null && nf === rf) this.nodes.delete(k);
                 }
             }
             this.visits = new Map();
@@ -807,15 +852,15 @@ class SceneBook {
         this.nodes = new Map(
             (isArr(data.nodes) ? data.nodes : [])
                 .filter(n => n && isArr(n.path) && n.path.length)
-                .map(n => [keyOf(n.path), { path: partsOfKey(keyOf(n.path)), desc: oneLine(n.desc).slice(0, MAX_DESC), floor: numOrNull(n.floor) ?? 0, updatedAt: numOrNull(n.updatedAt) ?? 0 }])
+                .map(n => [keyOf(n.path), { path: partsOfKey(keyOf(n.path)), desc: oneLine(n.desc).slice(0, MAX_DESC), floor: numOrNull(n.floor), updatedAt: numOrNull(n.updatedAt) }])
         );
         this.track = (isArr(data.track) ? data.track : [])
             .filter(t => t && typeof t.pathKey === 'string' && t.pathKey)
-            .map(t => ({ floor: numOrNull(t.floor) ?? 0, pathKey: t.pathKey }))
+            .map(t => ({ floor: numOrNull(t.floor), pathKey: t.pathKey }))
             .slice(-MAX_TRACK);
         this.opsLog = (isArr(data.opsLog) ? data.opsLog : [])
             .filter(o => o && isArr(o.ops))
-            .map(o => ({ floor: numOrNull(o.floor) ?? 0, ops: o.ops }))
+            .map(o => ({ floor: numOrNull(o.floor), ops: o.ops }))
             .slice(-MAX_OPS);
         this.visits = new Map();
         if (isArr(data.visits) && data.visits.length) {
@@ -823,8 +868,8 @@ class SceneBook {
                 if (typeof k !== 'string' || !k || !v || typeof v !== 'object') continue;
                 this.visits.set(k, {
                     count: Math.max(0, numOrNull(v.count) ?? 0),
-                    firstFloor: numOrNull(v.firstFloor) ?? 0,
-                    lastFloor: numOrNull(v.lastFloor) ?? 0,
+                    firstFloor: numOrNull(v.firstFloor),
+                    lastFloor: numOrNull(v.lastFloor),
                     floors: (isArr(v.floors) ? v.floors : []).map(x => num(x)).filter(x => x !== null).slice(-MAX_VISIT_FLOORS)
                 });
                 if (this.visits.size >= MAX_VISIT_KEYS) break;
@@ -840,7 +885,7 @@ class SceneBook {
                 if (typeof k !== 'string' || !k || !v || typeof v !== 'object') continue;
                 const key = trim(v.key) || keyOf(v.path);
                 if (!key) continue;
-                this.presence.set(k, { key, path: partsOfKey(key), atFloor: numOrNull(v.atFloor) ?? 0, at: numOrNull(v.at) ?? 0 });
+                this.presence.set(k, { key, path: partsOfKey(key), atFloor: numOrNull(v.atFloor), at: numOrNull(v.at) ?? 0 });
                 if (this.presence.size >= MAX_PRESENCE) break;
             }
         }
@@ -904,7 +949,7 @@ class SceneBook {
                     name: leafOf(it.path),
                     depth,
                     desc: it.node.desc || '',
-                    floor: Number.isFinite(Number(it.node.floor)) ? Number(it.node.floor) : null,
+                    floor: numOrNull(it.node.floor),       // [v3.223.0] O-1：外供面同口径（不知道 ⇒ null）
                     visited: !!v,
                     visits: v ? v.count : 0
                 });
@@ -965,7 +1010,7 @@ class SceneBook {
             currentLine: this.currentLine(),
             currentChain: this.currentChain().map(n => ({
                 key: keyOf(n.path), path: n.path, name: leafOf(n.path), desc: n.desc || '',
-                floor: Number.isFinite(Number(n.floor)) ? Number(n.floor) : null
+                floor: numOrNull(n.floor)              // [v3.223.0] O-1：同上
             })),
             presence: [...this.presence.entries()].map(([name, rec]) => ({ name, key: rec.key, atFloor: rec.atFloor })),
             coverage: this.coverage(),

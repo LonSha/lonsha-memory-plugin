@@ -69,7 +69,7 @@ function fixture() {
 }
 
 // ══════════ A 「没给」不再被编成 0 / 不再读成第 0 楼 ══════════
-test('【A1】★ import：八格「没给」不得落成第 0 楼（0 是合法楼层，与没给同形最贵）', () => {
+test('【A1】★★ import：七格「没给」一律如实 null（0 是合法楼层，与没给同形最贵）', () => {
     const b = new SB.SceneBook();
     b.import({
         nodes: [{ path: ['甲城'], desc: 'd' }],
@@ -79,13 +79,30 @@ test('【A1】★ import：八格「没给」不得落成第 0 楼（0 是合法
         presence: [['林晚', { key: '甲城' }]],
         headers: [['', { date: 'x月x日' }]]
     });
-    assert.equal(b.nodes.get('甲城').floor, 0, '节点 floor 缺省仍是 0（apply 侧的既有口径，未动）');
-    assert.equal(b.nodes.get('甲城').updatedAt, 0, 'updatedAt 缺省 0（同上）');
-    assert.equal(b.track[0].floor, 0, 'track 缺省 0（同上）');
-    assert.equal(b.opsLog[0].floor, 0, 'opsLog 缺省 0（同上）');
-    assert.equal(b.visits.get('甲城').firstFloor, 0, '到访 firstFloor 缺省 0（同上）');
-    assert.equal(b.presence.get('林晚').atFloor, 0, '在场 atFloor 缺省 0（同上）');
+    // [v3.223.0] O-1：本组**此前钉住的正是缺陷**——
+    //   R3-D（v3.221.0）把这里的 `num(x) ?? 0` 改成 `numOrNull(x) ?? 0`，而对 '' / null / []
+    //   两者结果完全相同（都落 0）：那是**改名**不是判开，CHANGELOG 的「已判开」在实现上从未生效，
+    //   而测试名写着「不得落成第 0 楼」、断言却把 0 钉死 ⇒ **判据在保护缺陷**。
+    assert.equal(b.nodes.get('甲城').floor, null, '★ 节点 floor 缺省如实 null（不是第 0 楼）');
+    assert.equal(b.nodes.get('甲城').updatedAt, null, '★ updatedAt 缺省如实 null（时间戳的「没给」同样不是 0）');
+    assert.equal(b.track[0].floor, null, '★ track 缺省如实 null');
+    assert.equal(b.opsLog[0].floor, null, '★ opsLog 缺省如实 null');
+    assert.equal(b.visits.get('甲城').firstFloor, null, '★ 到访 firstFloor 缺省如实 null');
+    assert.equal(b.visits.get('甲城').lastFloor, null, '★ 到访 lastFloor 缺省如实 null');
+    assert.equal(b.presence.get('林晚').atFloor, null, '★ 在场 atFloor 缺省如实 null');
     assert.deepEqual([...b.headers.keys()], [], '★ 空字符串键的**场景头**被拒（不落成第 0 楼的那条假天气）');
+    // 正例：**给了 0** 仍必须落成 0（0 是合法楼层，不得连它也一起当「没给」丢掉）
+    const c = new SB.SceneBook();
+    c.import({
+        nodes: [{ path: ['乙城'], desc: 'd', floor: 0, updatedAt: 0 }],
+        track: [{ pathKey: '乙城', floor: 0 }],
+        visits: [['乙城', { count: 1, firstFloor: 0, lastFloor: 0, floors: [0] }]],
+        presence: [['苏晴', { key: '乙城', atFloor: 0 }]]
+    });
+    assert.equal(c.nodes.get('乙城').floor, 0, '★ 给了 0 就是 0（与「没给」不同形）');
+    assert.equal(c.track[0].floor, 0, '★ track 的 0 保住');
+    assert.equal(c.visits.get('乙城').firstFloor, 0, '★ 到访 0 保住');
+    assert.equal(c.presence.get('苏晴').atFloor, 0, '★ 在场地 0 保住');
 });
 
 test('【A2】★ setHeader / headerAt：`null` 与 `\'\'` 都算「没给」，必须拒绝而不是写进第 0 楼', () => {
@@ -101,6 +118,32 @@ test('【A2】★ setHeader / headerAt：`null` 与 `\'\'` 都算「没给」，
     assert.equal(b.setHeader(3, { date: '3日' }), true, '有楼层照样写得进');
     assert.equal(b.headerAt(3).date, '3日', '有楼层照样读得出');
     assert.equal(b.headerAt(0), null, '第 0 楼没有场景头就是 null（0 是合法楼层，不等同于「没给」）');
+});
+
+test('【A2b】★★ 写侧同族收口：setLocation / setPresence / apply 的楼层「没给」一律拒绝，不落第 0 楼', () => {
+    // 修前实测（本组是 [v3.223.0] O-1 新增）：三处写侧都用
+    //   `Number.isFinite(Number(floor)) ? Number(floor) : 0` —— `Number(null) === 0`、`Number('') === 0`，
+    //   于是「没给」被编成第 0 楼；而第 0 楼在本仓是**合法楼层**（宿主 `message.index` 就是 0 基），
+    //   下游 `place-data.js` 对 `atFloor` 用的正是 numOrNull 并把 null 渲染成空、把 0 渲染成「第0楼」。
+    const a = new SB.SceneBook();
+    assert.equal(a.setLocation(null, ['城', '店']), false, '★ setLocation(null) 拒绝（不落第 0 楼）');
+    assert.equal(a.setLocation('', ['城', '店']), false, '★ setLocation(\'\') 拒绝');
+    assert.equal(a.setLocation(undefined, ['城', '店']), false, '★ setLocation(undefined) 拒绝');
+    assert.deepEqual(a.track, [], '★ 一格轨迹都没落进来');
+    const b = new SB.SceneBook();
+    assert.equal(b.setPresence('甲', ['城', '店'], null), false, '★ setPresence(null) 拒绝');
+    assert.equal(b.setPresence('乙', ['城', '店']), false, '★ setPresence 缺第三参同样拒绝（不是默认第 0 楼）');
+    assert.equal(b.presence.size, 0, '★ 在场一条都没落进来');
+    const c = new SB.SceneBook();
+    assert.equal(c.apply([{ action: 'add', path: ['丙城'] }], null), 0, '★ apply(null floor) 如实返回 0（不登记）');
+    assert.equal(c.nodes.size, 0, '★ 一格节点都没落进来');
+    // 正例：**给了 0** 仍必须正常工作（0 是合法楼层，不得把门关成「谁都不许写」）
+    assert.equal(c.apply([{ action: 'add', path: ['丙城'] }], 0), 1, '★ apply(0) 照常登记');
+    assert.equal(c.nodes.get('丙城').floor, 0, '★ 登记的楼层就是 0');
+    const d = new SB.SceneBook();
+    assert.equal(d.setLocation(0, ['城', '零楼']), true, '★ setLocation(0) 照常落位');
+    assert.equal(d.track[0].floor, 0, '★ 第 0 楼轨迹在册');
+    assert.equal(d.setPresence('丙', ['城', '零楼'], 0), true, '★ setPresence(0) 照常写入');
 });
 
 test('【A3】★ import 的场景头键：`` / `null` 一律跳过，不静默落成第 0 楼', () => {
