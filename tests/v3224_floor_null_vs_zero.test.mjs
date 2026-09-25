@@ -35,6 +35,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';   // [v3.226.0] 镜像落 os.tmpdir()，不落仓根（落仓根会与整仓镜像类测试的 cpSync 互撞）
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -79,9 +80,10 @@ function zeroPack() {
         presence: [['苏晴', { key: '乙城', atFloor: 0 }]]
     };
 }
-/** 镜像破坏副本：仓内 `.tmp_v3224_*` 目录 + 只搬根目录 .js（两个模块都是零依赖 IIFE）。 */
+/** 镜像破坏副本：`os.tmpdir()` 下的临时目录 + 只搬根目录 .js（两个模块都是零依赖 IIFE）。
+ *  [v3.226.0] 落点由仓根改为 tmpdir —— 落仓根会与「整仓镜像」类测试（v3206 / v3225 / v3159）的 cpSync 互撞。 */
 function loadMirror(over, name) {
-    const dir = fs.mkdtempSync(path.join(REPO, '.tmp_v3224_' + name + '_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3224-' + name + '_'));
     for (const f of fs.readdirSync(REPO)) {
         if (!f.endsWith('.js')) continue;
         fs.copyFileSync(path.join(REPO, f), path.join(dir, f));

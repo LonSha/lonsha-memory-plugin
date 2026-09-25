@@ -31,6 +31,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';   // [v3.226.0] 镜像落 os.tmpdir()，不落仓根（落仓根会与整仓镜像类测试的 cpSync 互撞）
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -364,7 +365,7 @@ function importSurvivesOnceRolled(SBx) {
     return b.nodes.has('甲');
 }
 function loadFrom(srcText, name, base) {
-    const dir = fs.mkdtempSync(path.join(REPO, '.tmp_v3222_' + name + '_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3222-' + name + '_'));
     const f = path.join(dir, base);
     fs.writeFileSync(f, srcText);
     delete require.cache[require.resolve(f)];

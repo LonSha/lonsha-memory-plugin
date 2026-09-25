@@ -197,7 +197,10 @@ test('v3226 E1. ★ 版本锚（当版字面量，不随抬版漂移）', () => 
     const idx = read(path.join(ROOT, 'index.js'));
     const codeVer = (/const VERSION = '([^']+)'/.exec(idx) || [])[1];
     assert.ok(codeVer, '入口版本常量在场');
-    assert.equal(vnum(codeVer), vnum('3.225.0'), '本套件只针 3.225.0 这一版；当前 ' + codeVer);
+    /* [v3.226.0] 当版锚交棒：本套件出生版本 3.225.0，抬版后不再锁「恰好等于」——
+     *   改为「下限锚」（同仓内口径：v285 / v286 / v287 三套件早已这么做过），
+     *   当版精确判定交给当版 frontier 套件（本版即 v3227 D1）。 */
+    assert.ok(vnum(codeVer) >= vnum('3.225.0'), '本套件只在 3.225.0 及以后成立；当前 ' + codeVer);
     assert.equal(pkg.version, codeVer);
 });
 

@@ -26,7 +26,10 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const os = require('os');
 const REPO = path.join(__dirname, '..');
+/* [v3.226.0] 镜像/破坏副本一律落 os.tmpdir()：落仓根会在跑批期间往仓里丢目录，
+ *   与「整仓镜像」类测试（v3206 / v3225 / v3159）的 cpSync 互撞 —— 实测 ENOENT 假红。 */
 const SB_PATH = path.join(REPO, 'scene-book.js');
 const SB = require(SB_PATH);
 const sbSrc = fs.readFileSync(SB_PATH, 'utf8');
@@ -174,7 +177,7 @@ test('【N1】★ 负控制：把 tree 从 summary 摘掉，判据必须翻红',
     const anchor = '            tree: this.tree(),';
     assert.equal(sbSrc.split(anchor).length - 1, 1, '★ 锚点恰中 1 次');
     const broken = sbSrc.replace(anchor, '            tree: [],');
-    const dir = fs.mkdtempSync(path.join(REPO, '.tmp_v3221_n1_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3221-n1-'));
     const f = path.join(dir, 'scene-book.broken.js');
     fs.writeFileSync(f, broken);
     try {
@@ -194,7 +197,7 @@ test('【N2】★ 负控制：到访史摘掉 count，判据必须翻红', () =>
     const anchor = '                count: numOrNull(v.count),';
     assert.equal(sbSrc.split(anchor).length - 1, 1, '★ 锚点恰中 1 次');
     const broken = sbSrc.replace(anchor, '                count: null,');
-    const dir = fs.mkdtempSync(path.join(REPO, '.tmp_v3221_n2_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3221-n2-'));
     const f = path.join(dir, 'scene-book.broken.js');
     fs.writeFileSync(f, broken);
     try {
@@ -217,7 +220,7 @@ test('【N3】★ 负控制：上限被摘掉后，超量树不再被裁', () =>
     const anchor = '        const cap = Math.max(1, Math.min(Number(limit) || MAX_TREE_ROWS, MAX_TREE_ROWS));';
     assert.equal(sbSrc.split(anchor).length - 1, 1, '★ 锚点恰中 1 次');
     const broken = sbSrc.replace(anchor, '        const cap = 100000;');
-    const dir = fs.mkdtempSync(path.join(REPO, '.tmp_v3221_n3_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3221-n3-'));
     const f = path.join(dir, 'scene-book.broken.js');
     fs.writeFileSync(f, broken);
     try {

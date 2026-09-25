@@ -1,0 +1,56 @@
+{
+  "file": "tests/audit/gate_timing_baseline.json",
+  "note": "O-4 门禁耗时与隔离基线。full 为全量实测读数；subsets 三组为 tests/v3227 的稳定回归锚（子集计时比全量抗拖拽，且每组都带「真跑过」的 marker）。",
+  "measured_at": "v3.226.0",
+  "node_version": "v24.18.0",
+  "full": {
+    "tests_files": 206,
+    "tests_wall_s": 34.3,
+    "audit_items": 42,
+    "audit_wall_s": 19.3,
+    "total_wall_s": 37.6,
+    "child_cpu_s": 149.2,
+    "parallel_degree": 3.96,
+    "maxrss_mb": 262,
+    "tests_jobs": 7,
+    "audit_jobs": 4
+  },
+  "subsets": {
+    "tests": {
+      "files": [
+        "tests/v392_syntax_gate.test.mjs",
+        "tests/v3226_audit_sensitivity.test.mjs"
+      ],
+      "wall_s": 4.78,
+      "upper_bound_s": 29.3
+    },
+    "audit": {
+      "items": [
+        "tests/audit/scan_version_guard.mjs",
+        "tests/audit/scan_syntax.mjs",
+        "tests/audit/scan_config_liveness.mjs"
+      ],
+      "wall_s": 2.1,
+      "upper_bound_s": 21.3
+    },
+    "isolation": {
+      "files": [
+        "tests/v3225_replay_floor_gate.test.mjs",
+        "tests/v3203_version_guard_handover.test.mjs"
+      ],
+      "wall_s": 6.71,
+      "upper_bound_s": 35.1
+    }
+  },
+  "isolation": {
+    "method": "跑子集前后对仓快照（文件集合 + size + mtime）逐项比对，并要求 git status 干净",
+    "measured_drift": 0,
+    "note": "v3.226.0 实测：6 个含镜像/写入通道的测试跑完后 0 差异、git status 空；v3227 用其中 2 个常驻复验"
+  },
+  "not_done": [
+    "未做耗时优化：实测「整仓镜像排除 .bak」只省 0.2s（0.76 → 0.56）、体积 9.00 → 6.33 MB —— 镜像不是瓶颈；",
+    "未做段间并行（tests 段与 audit 段同时跑）：负控制会大量 spawn 子进程，与 7 路测试并发叠加只会加剧资源竞争（v3.205.0 的 T7 已记录该现象）；",
+    "audit 段最慢 8 项全是 negctl 族（负控制）—— 那是「证明力」的成本，不砍；",
+    "全量并行度实测 3.96x（child cpu 149.2s / wall 37.6s）—— 未做进一步提升的调研。"
+  ]
+}

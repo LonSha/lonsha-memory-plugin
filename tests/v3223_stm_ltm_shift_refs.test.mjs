@@ -320,7 +320,7 @@ function mutate(srcText, anchor, repl, tag) {
  *   但纪律仍是「不许裸临时目录」：相对依赖在裸目录里会解析失败，那会变成假红）。
  */
 function loadMirror(over, name) {
-    const dir = fs.mkdtempSync(path.join(REPO, '.tmp_v3223_' + name + '_'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3223-' + name + '_'));
     for (const f of fs.readdirSync(REPO)) {
         if (!f.endsWith('.js')) continue;
         fs.copyFileSync(path.join(REPO, f), path.join(dir, f));

@@ -20,6 +20,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { createRequire } from 'node:module';
 
 const R = process.cwd();
@@ -331,9 +332,21 @@ function breakSource(src, from, to, tag) {
 }
 /** 把破坏后的 repair-loop 落到临时文件并载入（走真 require，不用替身）。 */
 function loadRLFrom(src, tag) {
-    const p = path.join(R, `.tmp_v3215_${tag}_${Date.now()}_${Math.random().toString(36).slice(2)}.js`);
+    /* [v3.226.0] 临时副本一律落 os.tmpdir()，**不许落仓根**：
+     *   落仓根会在跑批期间往仓里丢文件，而本仓有多个「整仓镜像」测试（v3206 / v3225 / v3159…）
+     *   正在 cpSync 整仓 —— 实测撞出 ENOENT（lstat 到一半、目录已被对方清掉），
+     *   表现为「疑似环境资源耗尽（非判据失败）」并触发重试，其实是**自家测试互相踩**。
+     *   另：文件挪到 tmpdir 后 require 仍走绝对路径（内部已 resolve），并显式删 cache key ——
+     *   否则同一路径复用时拿到的是上一轮的模块。 */
+    const p = path.join(os.tmpdir(), `.tmp_v3215_${tag}_${Date.now()}_${Math.random().toString(36).slice(2)}.js`);
     fs.writeFileSync(p, src, 'utf8');
-    try { return require_(p); } finally { try { fs.unlinkSync(p); } catch (e) { /* 清理失败不影响判定 */ } }
+    try {
+        try { delete require.cache[require.resolve(p)]; } catch (e) { /* 首次无该项 */ }
+        return require_(p);
+    } finally {
+        try { delete require.cache[require.resolve(p)]; } catch (e) { /* 已被清掉 */ }
+        try { fs.unlinkSync(p); } catch (e) { /* 清理失败不影响判定 */ }
+    }
 }
 
 /* 判据：正负控制**共用同一份**（不在负控制里另写一套断言） */
