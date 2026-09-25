@@ -73,6 +73,36 @@ if (rootIdx >= 0 && !fs.existsSync(root)) {
   process.exit(2);
 }
 
+/* ---------- 输入在场性守卫（v3.225.0 补） ----------
+ * 实测缺口（整仓镜像，两种退化）：
+ *   · 根目录 .js 全删 ⇒ 本门仍 exit 0，报「270 个文件均可解析」；
+ *   · 根目录 .js 全掏空（只剩一行注释）⇒ 仍 exit 0，报「335 个文件均可解析」。
+ *   「0 个源文件的世界里所有文件都能解析」为真，但对本门的用途毫无意义 ——
+ *   本门存在的唯一理由就是入口文件（见文件头：index.js 被改出结构性错误时，
+ *   回归全绿而插件在浏览器里根本不加载）。
+ *   旧代码只有 `total === 0` 一道，而掏空/删除根 .js 后 tests/ 树里仍有 200+ 个 .mjs，
+ *   total 远大于 0，这道兜不住。
+ *
+ * 只作用于**默认根**（未显式给 --root）：显式 --root 是负控制 / 等价性对照 / 小树夹具的
+ * 通道，按「目录里可解析文件数」判定，语义逐字不动（v3177 的 C4/C5/C6 依赖它）。
+ * 退出码 2（结构漂移）与 1（真语法失败）分开：前者是「没得判」，后者是「判出坏了」。 */
+const DEFAULT_ROOT_ENTRY = 'index.js';
+const MIN_ENTRY_BYTES = 1000;
+if (rootIdx < 0) {
+  const entryPath = path.join(root, DEFAULT_ROOT_ENTRY);
+  if (!fs.existsSync(path.join(root, 'manifest.json')) || !fs.existsSync(entryPath)) {
+    console.error(`✗ 结构漂移：默认根缺 manifest.json 或 ${DEFAULT_ROOT_ENTRY}（root=${root}）`);
+    console.error('  本门只为入口文件而存在；入口不在场时「N 个文件均可解析」不具证明力。');
+    process.exit(2);
+  }
+  const entrySize = fs.statSync(entryPath).size;
+  if (entrySize < MIN_ENTRY_BYTES) {
+    console.error(`✗ 输入退化：${DEFAULT_ROOT_ENTRY} 仅 ${entrySize} 字节（下限 ${MIN_ENTRY_BYTES}），本门无法据此断言插件可加载`);
+    console.error('  若确有需要（如夹具），请显式传 --root <dir> 走目录级判定。');
+    process.exit(2);
+  }
+}
+
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.wrangler']);
 // .js/.mjs 走 ESM 强校验；.cjs 显式 CommonJS，用脚本模式校验（仍会暴露结构损坏）
 const TARGET_EXT = /\.(js|mjs|cjs)$/;

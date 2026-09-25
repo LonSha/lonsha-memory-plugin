@@ -209,3 +209,4 @@ v3222_scene_rollback_closure.test.mjs		场所三面回滚收口：没给不再�
 v3223_stm_ltm_shift_refs.test.mjs		短期长期记忆位移：楼层三类引用同跟 / 登记表真参与前移 / 不落 loss 不假报警 / 标签表与登记表自述一致（真源码负控制）
 v3224_floor_null_vs_zero.test.mjs		场所面「没给」与「给了 0」判开收口：读侧七格/写侧三处/列号/外供面/回滚面/floors 同口径 + 门本体退化负控制（真源码负控制）
 v3225_replay_floor_gate.test.mjs		回放/前移层取值门：入参「没给」⇒ skipped 且整树一格不动 / 真给 0 与 5 照常回放 / 面内门（直接打 FLOOR_OWNERS）/ 宿主三处入口门 + 门本体与面内门真源码负控制
+v3226_audit_sensitivity.test.mjs		审计扫描器灵敏度体检（O-3）：29 个扫描器 × 三档退化形态（H/G/T）矩阵登记表双向齐全、H 列全 0、无恒绿探测器 + 语法门默认根入口在场性守卫（含最小镜像行为化与三条真表破坏负控制）

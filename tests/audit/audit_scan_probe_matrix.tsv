@@ -1,0 +1,40 @@
+# 审计扫描器灵敏度登记表（tests/audit/audit_scan_probe_matrix.tsv）
+# 由 tests/v3226_audit_sensitivity.test.mjs 常驻校验：表内每一行的期望码必须与实测一致，
+#   且「在役扫描器」与「表内登记项」必须双向齐全（新增扫描器不登记 => 该套件转红）。
+#
+# 列：scanner | H(正常树) | G(根.js全删) | T(tests/掏空) | 判读
+#   H 必须为 0：扫描器在健康树上不得误红。
+#   G/T 至少一列非 0：否则该扫描器对两类输入面都不敏感 —— 恒绿探测器。
+#   实测退出码：0=通过 1=判出真缺陷 2=结构漂移/不具证明力
+# 形态定义（可复现）：镜像整仓（排除 .git/node_modules），
+#   G = 删掉镜像根目录全部 .js；T = 镜像 tests/ 下（除 audit/ 与 _audit_lib.mjs）所有 .mjs 置为「// gutted」；
+#   H = 不改动。每个扫描器从**镜像内**路径执行，且带 LONSHA_AUDIT_ROOT=镜像。
+dead_code_budget.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+scan_audit_lib_consolidation.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）
+scan_bridge_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_claim_truthfulness.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_config_liveness.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+scan_cross_repo_binding.mjs	0	0	1	读 tests/ 面（测试面退化即阻断）
+scan_event_lifecycle.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_ledger_contract.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_module_wiring.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+scan_process_reaping.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）
+scan_resilience.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+scan_slider_coherence.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+scan_syntax.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_ui_binding.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+scan_v3180_three_faces.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3181_spatial_grounding.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3182_ledger_replay.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3183_branch_consistency.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3184_final_four.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3185_xref_consumer.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3186_emotion_recall.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3190_lifecycle_collapse.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3193_host_matrix.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3193_lexicon_drift.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3202_carryover_archive_diff.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_version_guard.mjs	0	2	1	两类输入面都敏感
+scan_wiring.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+scan_world_clock_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_world_ledger_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
