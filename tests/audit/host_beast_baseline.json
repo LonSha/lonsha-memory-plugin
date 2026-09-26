@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
-  "measured_at": "v3.233.0",
+  "measured_at": "v3.234.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -28,6 +28,32 @@
         "分诊面 32 / 18 / 10 三者逐字不变"
       ],
       "not_done": "本版不动 index.js 的结构（只多一个与既有 _evidenceWorkbench() 同形的读数方法）；「按域拆」的结论不受影响：TOP1 仍是生命周期接线 onMessageReceived 1217 行 / 外部引用 1 次"
+    },
+    "v3.234.0": {
+      "reason": "v3.234.0 睡眠语义唤醒落在 sleep-awaken.js + index.js 接线（取库口 _sleepAwakenLib、recallMemory 内语义唤醒块、config 默认值键、settings-ui 开关）：index.js 新增 41 行 ⇒ 行数 16980→17021、成员数 560→560（接线写在既有成员内部，不新增成员）、接缝模块 34→35 / 引用点 45→46 / 调用形态 48→49",
+      "readings": {
+        "total_lines": 17021,
+        "member_count": 560,
+        "top5_lines": 3715,
+        "top5_pct": 21.8,
+        "top40_lines": 8752,
+        "top40_pct": 51.4,
+        "prefix_rule_coverage_lines": 4254,
+        "prefix_rule_coverage_pct": 25.0,
+        "unclassified_lines": 11936,
+        "seam_distinct_modules": 35,
+        "seam_reference_sites": 46,
+        "seam_call_shape_sites": 49,
+        "members_over_80_lines": 32,
+        "low_coupling_members": 18,
+        "high_coupling_members": 10
+      },
+      "unchanged": [
+        "分诊面 32 / 18 / 10 三者逐字不变（接线不新增超大成员，也未改变耦合分布）",
+        "方法级成员切分口径与成员总数同源（8 空格缩进 + 控制流关键字排除），实测 560 成员",
+        "域账 10 条逐条在场（仅随总量平移）"
+      ],
+      "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。形态决策（能不能按域拆）沿用 v3.233.0 的按读数否掉。"
     }
   },
   "node_version": "v24.18.0",
@@ -39,18 +65,18 @@
     "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
   ],
   "readings": {
-    "total_lines": 16980,
+    "total_lines": 17021,
     "member_count": 560,
-    "top5_lines": 3684,
-    "top5_pct": 21.7,
-    "top40_lines": 8711,
-    "top40_pct": 51.3,
-    "prefix_rule_coverage_lines": 4223,
-    "prefix_rule_coverage_pct": 24.9,
-    "unclassified_lines": 11926,
-    "seam_distinct_modules": 34,
-    "seam_reference_sites": 45,
-    "seam_call_shape_sites": 48,
+    "top5_lines": 3715,
+    "top5_pct": 21.8,
+    "top40_lines": 8752,
+    "top40_pct": 51.4,
+    "prefix_rule_coverage_lines": 4254,
+    "prefix_rule_coverage_pct": 25.0,
+    "unclassified_lines": 11936,
+    "seam_distinct_modules": 35,
+    "seam_reference_sites": 46,
+    "seam_call_shape_sites": 49,
     "members_over_80_lines": 32,
     "low_coupling_members": 18,
     "high_coupling_members": 10
@@ -59,11 +85,11 @@
     {
       "domain": "（未归类）",
       "members": 504,
-      "lines": 11926,
-      "lines_pct": 70.2,
-      "outside_refs": 3780,
-      "internal_refs": 4697,
-      "outside_ref_share_pct": 44.6
+      "lines": 11936,
+      "lines_pct": 70.1,
+      "outside_refs": 3798,
+      "internal_refs": 4699,
+      "outside_ref_share_pct": 44.7
     },
     {
       "domain": "宿主事件接线",
@@ -86,10 +112,10 @@
     {
       "domain": "召回与注入",
       "members": 11,
-      "lines": 854,
-      "lines_pct": 5,
+      "lines": 885,
+      "lines_pct": 5.2,
       "outside_refs": 1,
-      "internal_refs": 57,
+      "internal_refs": 58,
       "outside_ref_share_pct": 1.7
     },
     {
@@ -159,14 +185,14 @@
       "outside_refs": 9
     },
     {
+      "name": "recallMemory",
+      "lines": 656,
+      "outside_refs": 1
+    },
+    {
       "name": "buildInjection",
       "lines": 629,
       "outside_refs": 9
-    },
-    {
-      "name": "recallMemory",
-      "lines": 625,
-      "outside_refs": 1
     },
     {
       "name": "onBeforeGeneration",
@@ -185,7 +211,7 @@
     },
     {
       "name": "constructor",
-      "lines": 324,
+      "lines": 325,
       "outside_refs": 8
     },
     {
@@ -210,7 +236,7 @@
     },
     {
       "name": "import",
-      "lines": 179,
+      "lines": 188,
       "outside_refs": 27
     },
     {
@@ -357,7 +383,7 @@
     "low_coupling_examples": [
       {
         "name": "recallMemory",
-        "lines": 625,
+        "lines": 656,
         "outside_refs": 1,
         "is_host_lifecycle": false
       },
@@ -375,7 +401,7 @@
       },
       {
         "name": "buildBridgeSnapshot",
-        "lines": 185,
+        "lines": 196,
         "outside_refs": 1,
         "is_host_lifecycle": false
       },
@@ -431,7 +457,7 @@
     "high_coupling_examples": [
       {
         "name": "selfCheck",
-        "lines": 694,
+        "lines": 710,
         "outside_refs": 9,
         "is_host_lifecycle": false
       },
@@ -443,7 +469,7 @@
       },
       {
         "name": "constructor",
-        "lines": 324,
+        "lines": 325,
         "outside_refs": 8,
         "is_host_lifecycle": false
       },
@@ -461,7 +487,7 @@
       },
       {
         "name": "import",
-        "lines": 179,
+        "lines": 188,
         "outside_refs": 27,
         "is_host_lifecycle": false
       },
@@ -515,6 +541,7 @@
     "**未拆任何东西**：本版只做分诊与立判据。`index.js` 产品行为零变化（**本读数已于 v3.233.0 按当版 index.js 重建**：16922 → 16980 行、成员 559 → 560、覆盖率 24.7% → 24.9%，两次读数逐条记在 `rebuilds` 面；「文件到底改没改」不在本基线的证据面内，交给 git 面）。",
     "**未做 AST 级归属**：外部引用数按名字统计，同名方法会混（见 corrections[1]）；本仓死代码口径是文本形态，本版沿用同一口径而不是偷偷换更强的工具 —— 换工具应当单独立一版。",
     "**未覆盖运行期可见性**：拆分的真正风险是「跨模块 this 丢失」，那属于实机面，无头门禁看不见（已登记在 docs 的运行时边界）。",
-    "**未排拆分优先级**：分诊表给出「行数 / 外部引用 / 是否生命周期」三个读数，不排优先级 —— 排优先级要一并看功能风险，那不在读数里。"
+    "**未排拆分优先级**：分诊表给出「行数 / 外部引用 / 是否生命周期」三个读数，不排优先级 —— 排优先级要一并看功能风险，那不在读数里。",
+    "（v3.234.0）睡眠语义唤醒接线后按当版 index.js 重建读数：16980 → 17021 行；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
   ]
 }

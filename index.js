@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.233.0';
+    const VERSION = '3.234.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1042,6 +1042,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 // [v3.183] 分支感知召回过滤：摘要来源楼显示页已被翻掉（source_changed）时不注入。
                 //   只剔这一态，其余（缺源/旧档/正文改写）一律放行——判不了就放行，宁多勿少。
                 recallProvenanceFilter: true,
+                sleepAwakenEnabled: true,      // [v3.234.0] 睡眠语义唤醒：低保留价值已归档的摘要，在相似情景再现时回程（archivedForSleep 此前是单向门）
                 // [v3.183] 条目关联停用词表（逗号分隔）。通用词（主角/系统/旁白…）命中会把所有条目串成一团，
                 //   故默认给一份保守表，用户可增删。读取点：crosslink.createIndex({ stopwords })。
                 crosslinkStopwords: '主角,系统,旁白,此时,于是,然而,之后,之前',
@@ -6653,6 +6654,37 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 }
             } catch (e) { errLog(e, 'recallMemory.休眠唤醒'); }
+            // [v3.234.0] 语义唤醒（与上一段实体名唤醒分工：那条管 dormant 标记、按名字逐字命中；
+            //   本段管 archivedForSleep、按语义——有向量走余弦，无向量退字面共现）。两者互不顶替。
+            //   纪律：plan 只算不写、apply 才翻标记；不删不重排；每条带 reason 与 score；
+            //   缺库/畸形容器一律降级放行（不阻断召回主链路）。
+            try {
+                if (this.config.config.sleepAwakenEnabled === true) {
+                    const SA = _sleepAwakenLib();
+                    if (SA && typeof SA.plan === 'function' && typeof SA.apply === 'function') {
+                        const _pool = (this.summary && this.summary.summaries) ? this.summary.summaries : [];
+                        const _q = String(query && query.text ? query.text : '').trim();
+                        let _r = null;
+                        if (_pool.length && _q) {
+                            _r = SA.plan({ summaries: _pool, queryText: _q });
+                            if (_r && _r.ok === true && Array.isArray(_r.awakened) && _r.awakened.length) {
+                                const _ap = SA.apply(_r, _pool);
+                                if (_ap && _ap.applied) {
+                                    for (const _id of (_ap.ids || [])) {
+                                        const _s = _pool.find((x) => (x && (x.id || ('sum_' + x.floor))) === _id);
+                                        if (_s && !results.summary.some((y) => y && y.floor === _s.floor && y.source === 'summary')) {
+                                            results.summary.push({ id: 'sum_' + _s.floor, text: '【情景重现】' + _s.text, floor: _s.floor, source: 'summary', awakened: true });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        this._sleepAwakenSt = { at: Date.now(), result: _r, described: (typeof SA.describe === 'function' ? SA.describe(_r) : '') };
+                    } else {
+                        this._sleepAwakenSt = { at: Date.now(), result: null, described: '模块缺席（降级放行）' };
+                    }
+                }
+            } catch (e) { errLog(e, 'recallMemory.语义唤醒'); }
             
             // [v3.185] 条目关联的召回侧消费：按 query.text 扫同一份关联词表，命中的引用（摘要图键）
             //   在本轮落实召回时提权；开关关时**连扫描都不做**（零开销、零行为变化）。
@@ -10969,6 +11001,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   现在宿主只把库交出去，登记项内部自行决定「借库还是内联」。
     function _archiveShiftLib() {
         return _moduleLib(() => window.LonShaArchiveShift, 'archive-shift.js');
+    }
+    // [v3.234.0] 睡眠唤醒库的取库口。为什么需要（实测依据）：
+    //   `archivedForSleep` 全仓 9 处引用、**归零点 0 处** —— 睡眠周期只标记不回收，
+    //   注释承诺的「需要时可唤醒」从来没有实现（`archivedMemories` 池只存在于那行注释里）。
+    //   与 `awakenByEntities` 的分工：那条按**实体名逐字命中**唤醒 dormant 标记；
+    //   本条按**语义相似**唤醒 archivedForSleep —— 情景相近而用词不同时也能回来。
+    //   两者互不顶替、各自上报（判据分别钉住）。
+    function _sleepAwakenLib() {
+        return _moduleLib(() => window.LonShaSleepAwaken, 'sleep-awaken.js');
     }
     function _sceneBookLib() {
         return _moduleLib(() => window.LonShaSceneBook, 'scene-book.js');

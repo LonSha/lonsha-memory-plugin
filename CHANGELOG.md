@@ -1,3 +1,87 @@
+## v3.234.0
+
+**主题：睡眠语义唤醒 —— 补上 `archivedForSleep` 那扇单向门的回程。**
+一句话纪律：**降级必须留名，冒充语义命中比不命中更坏。**
+
+### 为什么要给这扇门补回程（不是「再做一个已有面」）
+
+`index.js` 的睡眠周期 `sleepCycle()` 把低保留价值摘要标成 `archivedForSleep = true`，
+源码注释白纸黑字写着「不物理删除，滚入冷存档 `archivedMemories`，**需要时可唤醒**」。
+
+开工前实测：
+
+- `archivedForSleep` 全仓 **9 处引用、归零点 0 处** —— 只有归档（去程）与召回过滤，从不回程；
+- `archivedMemories` 这个「冷存档池」在全仓**只存在于那一行注释里**（grep 只命中注释本身）；
+- 既有唤醒通道 `awakenByEntities` 只管 `dormant` 标记，**不碰** archivedForSleep；
+- 既有测试（`v347_hc_mechanics` 钉归档公式与召回过滤、`v3168_silent_degradation` 钉校准器只读）
+  **没有任何一条判据钉过唤醒面**。
+
+长线跑团下这意味着：一句「当时没人在意」的细节，哪怕后来成为关键伏笔，也永远想不起来 ——
+而它恰好是「低价值才被睡」的那一批。**注释承诺了一项从未实现的机制**，本版把它补上。
+
+### 机制来源：只搬机制，不搬代码
+
+机制思想来自 XLDB-sillytavern 自述的「本该被遗忘的记忆在相似情景中的**语义匹配再激活**」。
+其许可为自定义许可证（明文禁止修改 / 改编 / 衍生 / 再发布），故本模块**不参考其任何源码**，
+只按该机制描述独立实现；且本仓已有等价基础（余弦 / summary 池 / 实体唤醒），
+本模块只补上缺失的那一段，**不引入任何新依赖**。
+
+### 新增 `sleep-awaken.js`（挂 `window.LonShaSleepAwaken`）
+
+导出 `REASONS` / `DEFAULTS` / `tokens` / `literalScore` / `cosine` / `poolOf` / `plan` / `apply` / `describe`。
+
+- `tokens(s, minLen)`：中文按字滑窗 + 西文按词，**不依赖外部分词器**。
+- `literalScore` / `cosine`：两套**纯函数**打分。刻意**不复用** `vector.search` ——
+  它带 `_heatEntry` 副作用，而唤醒判定必须零副作用（判定与写回分离）。
+- `poolOf(summaries)`：只收「已睡且未醒」的候选；**非数组返回 `null` 而非 `[]`**
+  ——「没给」与「给了 0 条」必须不同形（本仓老账）。
+- `plan(o)`：**只算不写**。无池 / 无线索 / 畸形各成一态；有向量走余弦，无向量退字面共现；
+  按分排序、`maxAwaken` 截断、每条带 `reason` 与 `score`。返回里同时回显
+  `mode` / `degrade` / `threshold` / `requestedThreshold`。
+- `apply(planResult, summaries, at)`：**唯一写点**。只翻 `archivedForSleep = false` 并置
+  `awakened` / `awakenReason` / `awakenScore` / `awakenedAt`；**不删、不重排**；
+  找不到 id 或已被唤醒的一律落 `skipped`（点名，不静默吞）。
+- `describe(r)`：四态各自成形（未跑过 / 读不到 / 候选 0 条 / 命中几条）。
+
+五条纪律写在模块头：① 只读判定、显式写回；② 不越权（不碰 `summaries` 数组本身）；
+③ 可解释（每条带 reason + score）；④ 不抛（畸形落 `{ok:false, reason}`）；
+⑤ 阈值必须显式（不设「魔法默认值即静默生效」，结果里回显用得是哪一个）。
+
+### 与既有 `awakenByEntities` 的分工（两者互不顶替）
+
+| 通道 | 对象 | 判据 |
+| --- | --- | --- |
+| `awakenByEntities`（v3.38） | `dormant` 标记 | **实体名逐字命中**（人 / 地名出现在正文里） |
+| `sleep-awaken.js`（本版） | `archivedForSleep` 标记 | **语义相似**（情景相近但用词不同也能回来） |
+
+本版**不改** `awakenByEntities` 的行为，两者各自上报（判据分别钉住，见 v3235 第 12 条）。
+
+### 宿主接线（真消费点，防「导出但零调用」）
+
+- 配置键 `sleepAwakenEnabled`（默认 `true`）+ settings-ui 开关控件（v3113 配置覆盖度）；
+- 取库口 `_sleepAwakenLib()` —— 按本仓契约写（真读表达式 + 文件名，不在构造期缓存）；
+- `recallMemory` 内接在既有「语义级休眠伏笔唤醒检测」之后：开关**严格 `=== true`** 才开
+  （缺字段的旧档 = 与既有行为完全一致）；整块包 `try/catch`，**不阻断召回主链路**；
+- 取库失败落 `模块缺席（降级放行）` 留名；结果落 `_sleepAwakenSt` 供诊断面直转。
+
+### 本版同时修掉首稿自带的两处真缺陷（被本套件当场测出，不是事后补记）
+
+1. **降级冒充语义命中**：`literalMode` 首稿由 `scored[0].by` 推断 —— 一条向量都没匹配上时
+   `scored` 为空，于是 `mode` 报 `semantic` 而实际一分都没算过。改为按 `vecScored === 0` 判定。
+2. **`literalScore(null, null)` 真抛**（违反「不抛」纪律）：入参未做 `Array.isArray` 兜底。
+
+两处都是**先写判据、再被判据打红**的形态 —— 这正是判据存在的意义。
+
+### 判据：`tests/v3235_sleep_awaken.test.mjs`（17 条 + 3 条负控制）
+
+覆盖分词真生效（中文双字滑窗）、计分有界、`plan` 只算不写（池子逐字节未变）、
+`apply` 只翻标记 / 幂等 / 落 `skipped`、四态分形、语义面与字面面分开、`describe` 四态、
+零抛出、宿主接线、两条通道互不顶替。
+
+负控制一律为**真源码破坏 → 独立树 → 跑同一份判据必须转红**（N1 摘掉翻标记、
+N2 摘掉分词里的中文区间、N3 把「读不到」改写成「没有可审的摘要池」压成两态），
+外加元判据 N4：锚点不唯一 / 不存在时必须**拒绝破坏**（防判据被稀释）。
+
 ## v3.233.0
 
 **主题：F-2 跨平台事件 —— 把「这条是谁记的」变成可分级、可计数的受控读数。**
