@@ -45,7 +45,7 @@
 (function (root) {
     'use strict';
 
-    const EVIDENCE_VERSION = 1;
+    const EVIDENCE_VERSION = 2;   // [v3.233.0] F-2：出处列按段真值 + detail 带来源构成（面键不变，取值更准）
     /** 单本账投影的条目上限（防一本账把面板拖死；超出如实记 truncated）。 */
     const MAX_ITEMS_PER_LEDGER = 200;
     /** 单条正文裁剪上限（与 search 的摘要宽度同量级）。 */
@@ -198,17 +198,44 @@
             id: 'event-completeness', label: '事件完整性', apiGlobal: 'LonShaEventCompleteness',
             state: (h) => (h ? h._eventThreadState : undefined),
             pick: (api, st) => (Array.isArray(st && st.events) ? st.events : []),
-            project: (it) => ({
+            project: (it, api) => {
+                // [v3.233.0] F-2：**出处列取条目真有的字段**。
+                //   修前实测缺陷：本账 `copyEvent()` 产出的条目顶层**没有** floor
+                //   （只有 { id,title,actors,segments,abandoned,abandonReason,revision }），
+                //   而这里照抄别账写 `finiteFloor(it.floor)` ⇒ 恒 null。
+                //   同一条线在事件账里明明有段楼层（如 10/11/12），面板「出处」列却永远空着 ——
+                //   与同块注记里 `it.status` 恒空是**同一形态**（照抄别账的字段名），
+                //   那处已被修过、这处漏了。现按段真值取**首个有楼层的段的楼层**；
+                //   全段都没楼层 ⇒ 如实 null（**不写 0** —— 0 是「第 0 楼」这个真楼层）。
+                const segs = Array.isArray(it.segments) ? it.segments : [];
+                let firstFloor = null;
+                for (const s of segs) { if (s && s.floor != null) { firstFloor = finiteFloor(s.floor); break; } }
+                // [v3.233.0] F-2：来源构成进 detail（复用上游 platformFace 的同一口径，纯读）。
+                //   段级 source 从没被折算过；这里只按上游词表**分级计数**，不做文本猜测（T11）。
+                let comp = '';
+                try {
+                    const pf = (api && typeof api.platformFace === 'function') ? api.platformFace({ events: [it] }, {}) : null;
+                    if (pf && pf.levels) {
+                        const bits = [];
+                        if (pf.levels.extract) bits.push('提取' + pf.levels.extract);
+                        for (const p of (pf.platforms || [])) bits.push(p.platform + p.segments);
+                        if (pf.levels.other) bits.push('其它' + pf.levels.other);
+                        if (pf.levels.none) bits.push('未标' + pf.levels.none);
+                        if (bits.length) comp = ' · ' + bits.join('/');
+                    }
+                } catch (_e) { comp = ''; }
+                return {
                 title: text(it.title, MAX_TEXT),
-                detail: '段 ' + (Array.isArray(it.segments) ? it.segments.length : 0) + (it.status ? ' · ' + text(it.status, 20) : ''),
+                detail: '段 ' + segs.length + comp,
                 /* 状态读数取**条目真有的字段**：本账的 `copyEvent` 只给
                  *   { id, title, actors, segments, abandoned, abandonReason, revision }，
                  *   没有 `status`。初稿照抄别账写 `it.status` ⇒ 恒为空串（`text(undefined)`），
                  *   面板上这一列永远是空的——而「空」与「没弃」在这里处置相反
                  *   （弃掉的事件不该再当未完成事项追）。故按 `abandoned` 如实两态。 */
-                status: it.abandoned ? 'abandoned' : 'open', floor: finiteFloor(it.floor),
+                status: it.abandoned ? 'abandoned' : 'open', floor: firstFloor,
                 updatedFloor: finiteFloor(it.updatedFloor), source: 'eventCompleteness', revision: finiteNum(it.revision)
-            }),
+                };
+            },
             why: '缺结果或后续的「未完成事项」不能被当成已了结'
         },
         {
@@ -265,7 +292,11 @@
         for (const it of slice) {
             if (!it || typeof it !== 'object') continue;
             let p;
-            try { p = spec.project ? spec.project(it) : {}; } catch (_e) { p = {}; }
+            // [v3.233.0] F-2：把**账本自己的 api** 交给投影函数。
+            //   为什么：投影必须按该账自己的读口径折算（本模块若自行解一遍，
+            //   就成了同一口径的第二份实现 —— 本仓反复治理的漏）。
+            //   向后兼容：既有投影函数签名是 (it)，多一个参数对它们零影响。
+            try { p = spec.project ? spec.project(it, api) : {}; } catch (_e) { p = {}; }
             const key = text(it.id || it.key || (typeof spec.keyOf === 'function' ? spec.keyOf(it) : '') || p.title, 80);
             out.items.push({
                 ref: spec.id + ':' + (key || ('#' + out.items.length)),

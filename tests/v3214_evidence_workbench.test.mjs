@@ -308,7 +308,22 @@ test('8c 负控制 N3：宿主 _ledgerApis() 少一个键 ⇒ 那本账必须降
 test('9 工具自证：锚点不唯一/不存在必须抛，破坏不可沉默', () => {
     // 真·不唯一锚点：`Number.isFinite(n)` 在 finiteNumStrict 里恰出现 1 次，改用
     //   `return null;`（文件中出现多次）作为不唯一锚点
-    assert.throws(() => breakSource(realWbSrc, 'return null;', 'return 0;', '不唯一锚点'), /恰中 1 次/);
+    /* ★ v3.233.0 交棒：原来把不唯一锚点写死为 `'return null;'`。
+     *   这行是**锤点**：一旦本文件里只剩一处 `return null;`（完全合法的重构），
+     *   本判据会报「恰中 1 次」失败——它测的不再是「工具会对不唯一锚点抛」，
+     *   而是「锤点字面量还在不在」。改为**运行时找一个真的出现 >=2 次的候选**。 */
+    const dupAnchor = ['return null;', 'return 0;', 'return;', 'const ']
+        .find((c) => realWbSrc.split(c).length - 1 >= 2);
+    assert.ok(dupAnchor, '★ 必须能在真源码里找到一个出现 >=2 次的锚点（否则本项无从验证）');
+    assert.throws(() => breakSource(realWbSrc, dupAnchor, '#REPLACED#', '不唯一锚点'), /恰中 1 次/);
     assert.throws(() => breakSource(realWbSrc, '这段源码根本不存在', 'x', '不存在锚点'), /恰中 1 次/);
-    assert.throws(() => breakSource(realWbSrc, 'const EVIDENCE_VERSION = 1;', 'const EVIDENCE_VERSION = 1;', '同值替换'), /必须真的改变源码/);
+    /* ★ v3.233.0 交棒：原锚点写死 `const EVIDENCE_VERSION = 1;`。F-2 把证据面升到 2 后，
+     *   锚点凭空消失，本判据报的是「锚点不存在」而不是它要验的「同值替换必须抛」——
+     *   判据自己变成了陈旧记载（正是本仓反复治理的那类形态）。
+     *   改为从**真源码**里取出版本常量行（与实现同源，不写死数字）。 */
+    const verLine = (realWbSrc.match(/const EVIDENCE_VERSION = [0-9]+;/) || [])[0];
+    //  （常量在 IIFE 内，带缩进与行尾注释；故按「声明片段」取，不要求整行形态）
+    assert.equal(realWbSrc.split(verLine).length - 1, 1, '锚点自身必须恰中 1 次');
+    assert.ok(verLine, '证据面版本常量必须在场（本项锚点自证的前提）');
+    assert.throws(() => breakSource(realWbSrc, verLine, verLine, '同值替换'), /必须真的改变源码/);
 });

@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-09-26 · v3.233.0（F-2 跨平台事件来源构成）
+
+**做了什么**：`event-completeness.js` 新增 `SOURCE_PLATFORMS`（受控词表，冻结）、
+`SOURCE_LEVELS`（extract / platform / other / none）、`sourceFace(raw)`（字面量精确分级，
+`other` 保留原串）、`platformFace(state, opts)`（恒定九键构成面，计数恒为截断前真值）、
+`platformLine(state)`（自检行），`EC_VERSION` 1 → 2；`evidence-workbench.js` 的事件账出处列
+改为按**段真值**取首个有楼层的段（修前恒 null）+ detail 带来源构成，`EVIDENCE_VERSION` 1 → 2
+（面键不变、取值更准）；`index.js` 自检新增「事件来源」行 + 快照新增 `eventPlatforms` 面 +
+`_eventPlatformsFace()`（四态：module-unavailable / thrown / no-events / ok）；
+新增 `tests/v3234_event_platform_composition.test.mjs`（24 项）。
+
+**为什么**：段的 `source` 一直是 40 字自由文本，唯一赋值点是宿主写死的 `'extract'`，
+`'phone:diary'` 与 `'phone:weibo'` 压成一态 ⇒ 下游答不出「这条是插件提的还是手机侧发生的」。
+
+**本版探针当场抓到的两条真缺陷**：① 证据面事件账出处列恒 null（`copyEvent()` 产出顶层无 floor，
+登记表照抄别账写 `finiteFloor(it.floor)`；同块 `it.status` 恒空是同一形态且已被修过）；
+② `copySegment` 非幂等（共享契约 `finite(null) === 0` ⇒ 第二次归一化把「没给」塔成第 0 楼），
+与 O-1 / O-2 / T8 同族。
+
+**反坐实**：计划 F-2 把 `event-chain.js` 列为交付面，实测它是 agent run 生命周期校验
+（`/platform/i` 零命中），与事件平台无关 —— 已写进套件判据 A3，不照抄计划行文。
+
+**判据自身的缺陷（本版 1 处）**：`v3234 F1` 首版把「两个诊断标签必须分野」写成「标签命中恰 2 次」，
+实测 8 次（每个分支各一个 return）；改为对**结构**断言（两标签各自只能接自己的读数函数）。
+
+**抬版连带的接管**：`host_beast_baseline.json` 按当版 index.js 重建并新增 `rebuilds` 面；
+`v3232 C1` 的「成员数/总行数 == 基线」退成「本套件自洽 + 代理真读数」（原写法一抬版就必红，
+且会把「基线陈旧」错报成「实现漂移」）；`v3214` 两处把当版字面量当锤点的自证判据改为运行时取锚点；
+`dead_code_budget` 37538 → 37960（实测 37560，`--bump` 留理由）；
+`catalog_reference_consumers.tsv` 登记本版套件（跨仓守卫问题 1 → 0）。
+
+**影响范围**：三个 `.js`（事件完整性面 / 证据面 / 宿主），产品行为对既有读者零变化
+（新键只增不改；`evidence` 面键不变，只修取值）；旧档（`version: 1`）读出逐字不变。
+
+**门禁结果**：定向 24/24；全量见 FOUR_RELEASE_PLAN 的状态检查点。
+
+---
+
 ## 2026-09-26 · v3.232.0（F-3 同楼同刻读数 + F-6 口径自述）
 
 **做了什么**：`scene-book.js` 新增 `coPresence(floor)`（同楼同刻 ≥2 在场的事实读数，

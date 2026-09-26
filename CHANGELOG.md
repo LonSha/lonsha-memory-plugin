@@ -1,3 +1,78 @@
+## v3.233.0
+
+**主题：F-2 跨平台事件 —— 把「这条是谁记的」变成可分级、可计数的受控读数。**
+一句话纪律（第二版）：**只给事实，不给判断。**
+
+### 为什么要给「事件的平台维度」
+
+`event-completeness.js` 的段 `source` 一直是 **40 字自由文本**，全仓唯一赋值点是
+`index.js:_absorbEventSegments` 写死的 `'extract'`。于是 `'phone:diary'` 与 `'phone:weibo'`
+两种来源**压成一态**：下游答不出「这条是插件从正文提的，还是手机 App 里发生的事」，
+只能自己切字符串猜 —— 那就是「同一口径被抄 N 份」的种子（本仓 v2.97.0 收敛过一次同形缺陷）。
+
+新增：
+
+- `SOURCE_PLATFORMS`（冻结）：**受控词表**（`phone` / `plugin` / `world` / `chat`）。
+  平台标签由**登记方显式给出**，不做文本猜测归类（T11 口径）。
+- `SOURCE_LEVELS`（冻结）：分级四态 `extract` / `platform` / `other` / `none`。
+  `other` **保留原串**（不吞、不改写、不归 default）—— 与 `memory-type.js` 的
+  「未知类型拒绝而不是归 default」同一条口径。
+- `platformFace(state)`：恒定九键的构成面（每平台的段数 / 线数 + 四态计数 + 未标计数），
+  **计数恒为截断前真值**（否则读者分不清「平台只覆盖 2 条线」与「展示上限是 2」）。
+- `platformLine(state)`：自检诊断行；`EC_VERSION` 1 → 2。
+
+### 同轮探针抓到的两条真缺陷（不是推演出来的）
+
+① **证据面事件账的出处列恒 `null`**：`copyEvent()` 产出的条目顶层**没有** `floor`，
+而 `evidence-workbench.js` 的登记表照抄别账写 `finiteFloor(it.floor)`；事件线的段本就
+有楼层（10/11/12），面板却永远空着。同块注记里 `it.status` 恒空是**同一形态**且已被修过，这处漏了。
+
+② **`copySegment` 非幂等**：共享契约 `ledger-entity.js:finite(null)` 返回 **0**
+（`Number(null) === 0` 且有限），于是**第二次归一化**把「没给楼层」塔成**第 0 楼**。
+与 O-1 / O-2 / T8 属同族（「没给」与「给了 0」不得同形）。修法是显式先排 null/undefined，
+**真第 0 楼仍按第 0 楼算**。
+
+### 计划行文的反坐实
+
+计划 F-2 原话把 `event-chain.js` 也列为交付面。实测：它是 **agent run 生命周期**的迁移合法性校验
+（`run_started` → … → `run_completed`），与「剧情事件的平台」**无关**，源码里 `/platform/i` **零命中**。
+**陈旧/不准确记载比没有记载更危险**，故本版把这条反坐实写进判据，而不是照抄计划行文。
+
+### 影响范围
+
+`event-completeness.js`（+4 导出键、版本 1 → 2）、`evidence-workbench.js`
+（出处列按**段真值**取 + detail 带来源构成；版本 1 → 2，**面键不变、取值更准**）、
+`index.js`（自检新增「事件来源」行 + 快照新增 `eventPlatforms` 面 + `_eventPlatformsFace()`）。
+下游 `readLonshaSnapshot().eventPlatforms` 即刻可用。
+
+### 没做什么
+
+- **不改既有段字段面**：旧档（`version: 1`）读出的事件/段字段面**逐字不变**。
+- **不做文本归类**：`Phone:diary`（大写）与裸 `phone`（无冒号、无子源）一律落 `other`，
+  不模糊匹配、不自动补子源。
+- **不加判断字段**：在**序列化后的 JSON** 上逐个禁用词钉住
+  （`trust` / `weight` / `priority` / `important` / `confidence` / `severity` / `truth` 零出现）。
+- **没有实机验证**：宿主侧实机仍未验（见 docs 的运行时边界）。
+
+### 怎么知道它还没变
+
+`tests/v3234_event_platform_composition.test.mjs`（24 项）：
+A 出口与口径 / B 分级四态 / C 构成面 / D 出处修正 / E 幂等与三态 / F 诊断接线 /
+G 旧档兼容与纯读 / H **六条真源码破坏负控制** / I 版本锚。
+
+### 抬版连带的接管（同轮，非新增缺陷）
+
+- `host_beast_baseline.json` 按**本版 index.js 重建**（16922 → 16980 行 / 成员 559 → 560 /
+  前缀覆盖率 24.7% → 24.9%），并新增 `rebuilds` 面如实留着两次读数；`v3232` 里
+  「成员数/总行数须与基线一致」这类**锁当版读数**的断言退成「本套件自洽 + 代理真读数」
+  （那是「把陈旧记载错报成实现漂移」的种子）。
+- `v3214` 两处把**当版字面量当锤点**的自证判据改为运行时取锚点
+  （不唯一锚点改为候选择优，同值替换改为从真源码取版本常量行）。
+- `dead_code_budget` ceiling 37538 → 37960（实测 37560，走 `--bump` 并留理由）。
+- `catalog_reference_consumers.tsv` 登记本版新套件（跨仓守卫问题 1 → 0）。
+
+---
+
 ## v3.232.0
 
 **主题：F-3 同楼同刻 ≥2 在场读数 + F-6 两条观察项的口径自述。**

@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 37538,
+  "ceiling": 37960,
   "maxSlack": 400,
-  "note": "v3.223.0 O-1 场所面「没给」与「给了 0」判开收口（scene-book.js 15 处取值口径同族收干净：numOrNull 本体/num 别名/coverage 列号/外供面 tree+currentChain/回滚三法/floors；v3224 套件 32 条；v3181 与 negctl 锚点对齐）",
+  "note": "v3.233.0 F-2 跨平台事件来源构成（event-completeness.js 新增受控词表/分级四态/构成面/诊断行 + evidence-workbench.js 出处列修正与来源构成 + index.js 两处接线）+ 同轮抬版连带接管（v3232 基线按本版重建、v3214 两处锤点交棒）",
   "history": [
     {
       "ceiling": 21000,
@@ -121,7 +121,11 @@
     {
       "ceiling": 37538,
       "reason": "v3.223.0 O-1 场所面「没给」与「给了 0」判开收口（scene-book.js 15 处取值口径同族收干净：numOrNull 本体/num 别名/coverage 列号/外供面 tree+currentChain/回滚三法/floors；v3224 套件 32 条；v3181 与 negctl 锚点对齐）"
+    },
+    {
+      "ceiling": 37960,
+      "reason": "v3.233.0 F-2 跨平台事件来源构成（event-completeness.js 新增受控词表/分级四态/构成面/诊断行 + evidence-workbench.js 出处列修正与来源构成 + index.js 两处接线）+ 同轮抬版连带接管（v3232 基线按本版重建、v3214 两处锤点交棒）"
     }
   ],
-  "_history_last": "ceiling 37147 → 37538（实测 37138 + slack 400）：v3.223.0 O-1 场所面「没给」与「给了 0」判开收口（scene-book.js 15 处取值口径同族收干净：numOrNull 本体/num 别名/coverage 列号/外供面 tree+currentChain/回滚三法/floors；v3224 套件 32 条；v3181 与 negctl 锚点对齐）"
+  "_history_last": "ceiling 37538 → 37960（实测 37560 + slack 400）：v3.233.0 F-2 跨平台事件来源构成（event-completeness.js 新增受控词表/分级四态/构成面/诊断行 + evidence-workbench.js 出处列修正与来源构成 + index.js 两处接线）+ 同轮抬版连带接管（v3232 基线按本版重建、v3214 两处锤点交棒）"
 }

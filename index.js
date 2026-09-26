@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.232.0';
+    const VERSION = '3.233.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7651,7 +7651,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                     //   单测「提取执行」模式的独立实例复用时，缺失即 present=false（如实报「没这面」），
                     //   不连坐 floor / bridge / version 等自述字段。
                     injection: deep((typeof this.buildInjectionReadout === 'function') ? this.buildInjectionReadout() : undefined),
-                    evidence: deep((typeof this._evidenceWorkbench === 'function') ? this._evidenceWorkbench() : undefined)
+                    evidence: deep((typeof this._evidenceWorkbench === 'function') ? this._evidenceWorkbench() : undefined),
+                    // [v3.233.0] F-2：事件**来源构成**（跨平台对照的**结构化**读数）。
+                    //   为什么必须结构化、不能只给上面证据面里的那行 detail 文本：
+                    //   让下游去解析显示字符串，就是「同一口径抄 N 份」的种子（本仓治理过多轮）；
+                    //   下游要的是数字，不是一句人话。
+                    //   三态（本仓纪律，缺一态就是错读数）：
+                    //     meta.fieldTypes.eventPlatforms.present === false ⇒ 插件太旧（本版没这面）
+                    //     present + reason='no-events'                     ⇒ 这版有面、但还没有事件线（真读数）
+                    //     present + reason='ok'                            ⇒ 有构成可读
+                    //   reason 另可出 'module-unavailable' / 'thrown'（都不是「空」）。
+                    //   只给构成、不给判断：不含可信度 / 优先级 / 「哪个平台更重要」这类字段。
+                    eventPlatforms: deep((typeof this._eventPlatformsFace === 'function') ? this._eventPlatformsFace() : undefined)
                 };
                 // [v3.174] 快照自述：宿主存盘前要能先判「这份快照多大、能不能直接序列化」。
                 //   此前读者只能自己试着 stringify 一遍、再从失败里反推——而字符串化失败与
@@ -9669,6 +9680,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.eventCompleteness'); return ['事件完整', '—（诊断异常）'];
                         }
                     })(),
+                    // [v3.233.0] F-2：事件**来源构成**。与上一行是两个不同的问题：
+                    //   「事件完整」答的是这条线缺哪一段；本行答的是这条线里的段**从哪来**
+                    //   （插件从正文提的 / 手机 App 里发生的 / 其它 / 没标）。
+                    //   为什么要分开：段的 source 此前是从未被折算的自由文本，全仓唯一赋值点是
+                    //   `_absorbEventSegments` 写死的 'extract' —— 下游于是答不出「这条是插件提的、
+                    //   还是手机侧发生的」，而这正是 F-2（跨平台事件）要回答的第一件事。
+                    //   只按受控词表**分级计数**，不做文本猜测（同 plan 的 T11 纪律）。
+                    (() => {
+                        try {
+                            const EC = _eventCompletenessLib();
+                            if (!EC || typeof EC.platformLine !== 'function') return ['事件来源', '模块未加载（event-completeness.js）'];
+                            if (!this._eventThreadState) return ['事件来源', '待本轮（尚无事件线）'];
+                            return ['事件来源', EC.platformLine(this._eventThreadState)];
+                        } catch (e) { errLog(e, 'selfCheck.eventPlatform'); return ['事件来源', '—（诊断异常）'];
+                        }
+                    })(),
                     // [v3.194] 修复闭环：回答「修过几次、几次还没落定」。
                     //   「修了但有一处没跟上」必须看得见（line 里未落定/部分完成自带 ⚠️）。
                     (() => {
@@ -10759,6 +10786,37 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     summary: { total: 0, counts: { ok: 0, empty: 0, absent: 0 }, items: 0 },
                     selfConsistent: false, reason: 'thrown'
                 };
+            }
+        }
+        /**
+         * [v3.233.0] F-2：事件来源构成的**外供面**（结构化，只读，不抛）。
+         *
+         * 与 `_evidenceWorkbench()` 的关系：证据面把九账收成一张可查表（「这个承诺是哪一楼说的」），
+         * 本方法只答其中**一件**事：事件线里的段**从哪来**（插件提取 / 手机侧 / 其它 / 未标）。
+         * 为什么单独外供：构成要的是数字，不该让下游去切显示字符串。
+         *
+         * 三种「没有」必须可分（**不得**用 undefined 一把盖掉）：
+         *   · 模块没挂 ⇒ ok:false + reason='module-unavailable'（等环境修，不是「没有事件」）
+         *   · 抛错     ⇒ ok:false + reason='thrown'
+         *   · 还没线   ⇒ ok:true  + reason='no-events'（真读数：这版有面，只是还没发生）
+         * 返回面恒定（内核对空账也给全键），故下游按键断言即可、不必猜。
+         */
+        _eventPlatformsFace() {
+            const empty = {
+                ok: false, reason: 'module-unavailable', events: [], segments: 0,
+                platforms: [], levels: { extract: 0, platform: 0, other: 0, none: 0 },
+                unlabeled: 0, countedEvents: 0, truncated: false
+            };
+            try {
+                const EC = _eventCompletenessLib();
+                if (!EC || typeof EC.platformFace !== 'function') return empty;
+                // 状态为 null（还没写过任何线）**也照样出面**：
+                //   内核对空账返回 reason='no-events' —— 那是**真读数**，
+                //   与「本版没这面」（字段 present=false）处置相反。
+                return EC.platformFace(this._eventThreadState || null, {});
+            } catch (e) {
+                errLog(e, 'plugin._eventPlatformsFace');
+                return Object.assign({}, empty, { reason: 'thrown' });
             }
         }
         /** [v3.214.0] R1-E：证据面内检索（纯转发到内核；取不到内核即给结构完整的空结果，不抛）。 */

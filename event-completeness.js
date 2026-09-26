@@ -39,7 +39,7 @@
   const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity
     : ((typeof module !== 'undefined' && module.exports) ? require('./ledger-entity.js') : (root.LonShaLedgerEntity || null));
   if (!LE) throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');
-  const EC_VERSION = 1;
+  const EC_VERSION = 2;   // [v3.233.0] F-2：平台构成面（state.version 随之升；条目字段面不变，旧档读出逐字一致）
   const MAX_EVENTS = 200;
   const MAX_SEGMENTS = 8;
   /** 段类型四态。顺序即叙事顺序，完整性判断按它推进。 */
@@ -49,6 +49,32 @@
   /** 来源四态（与 fact-version 同族但独立命名空间，避免两模块互相绑死）。 */
   const ORIGINS = Object.freeze(['confirmed', 'stated', 'inferred', 'system']);
   const ORIGIN_TRUST = Object.freeze({ confirmed: 1, stated: 0.8, inferred: 0.3, system: 0 });
+  /**
+   * [v3.233.0] F-2 平台词表（**受控**，单一真源）。
+   *
+   * 【为什么需要这一面 / 修前实测后果】
+   *   计划 F-2 的原话是「上游 event-completeness.js / event-chain.js 外供平台维度读数」。
+   *   实测两件事：
+   *     ① `event-chain.js` 管的是 **agent run 生命周期**（run_started → … → run_completed
+   *        的迁移合法性），与「剧情事件的平台」无关——计划行文把两个同名不同物的模块
+   *        混成了一件事（陈旧/不准确记载，本版据实改写）。
+   *     ② 真正的缺口在事件段的 `source` 字段：它是 **40 字自由文本**，全仓唯一赋值点是
+   *        `index.js:_absorbEventSegments` 写死的 `'extract'`。把 `'phone:diary'` 与
+   *        `'phone:weibo'` 两种来源**压成一态**读不出来，下游织光机也就无法回答
+   *        「这条是插件从正文提的，还是手机 App 里发生的」。
+   *
+   * 【本词表做什么、不做什么】
+   *   · 做：给自由文本一个**分级归因**（同 plan 的 T11「不作文本猜测归类」纪律）：
+   *       extract ⇒ 上游提取；`<平台>:<子源>` ⇒ 登记方显式给了平台；
+   *       `other:<原串>` ⇒ 给了但不是本仓已知平台（**保留原串**，不丢弃、不猜成 extract）；
+   *       none ⇒ 压根没给。四态处置各不相同，压成一态就是错读数。
+   *   · 不做：不凭正文猜平台（同 T11；「规则错」不得被读成「普通事实」）。
+   *   · 不做：不改变 `addSegment` 的写入语义（`source` 仍原样存 40 字，旧档读出逐字不变）。
+   *   词表顺序即平台列表顺序（构成与归因共用同一份真源，不另处再写一遍）。
+   */
+  const SOURCE_PLATFORMS = Object.freeze(['phone', 'plugin', 'world', 'chat']);
+  /** 段来源归因四态。unknown 与 none 必须可分（同本仓反复治理的「三态塌成两态」）。 */
+  const SOURCE_LEVELS = Object.freeze(['extract', 'platform', 'other', 'none']);
 
   // [v3.207] text / finite 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
   const text = LE.text;
@@ -60,7 +86,16 @@
     return {
       role: ROLES.includes(s.role) ? s.role : 'action',
       text: text(s.text, 160),
-      floor: finite(s.floor),
+      // [v3.233.0] F-2：**楼层不得走 `finite()` 的 null 塔缩**。
+      //   实测缺陷：共享契约 `ledger-entity.js:finite(null)` 返回 **0**
+      //   （`Number(null) === 0` 且有限），而 `finite(undefined)` 返回 null。
+      //   后果是本函数**非幂等**：第一次 copy 把「没给」undefined 塔成 null，
+      //   第二次 copy（normalize 会再走一遍 copyEvent→copySegment）又把 null 塔成 0 ——
+      //   于是 `addSegment` 在调用方**从未说过第 0 楼**的情况下写出 `floor: 0`，
+      //   而 0 在本仓是「第 0 楼」这个**真楼层**（见 O-1/O-2、T8 同族治理）。
+      //   修法：显式分「没给/给了空」（两者对段楼层同义，一律 null）与真值（含真 0）。
+      //   仍走 finite 做数值归一，但先排掉 null/undefined —— 不得把两者送进去。
+      floor: (s.floor == null ? null : finite(s.floor)),
       source: text(s.source, 40),
       origin: originOf(s.origin),
       eventKey: text(s.eventKey, 120),
@@ -270,6 +305,127 @@
       : '（这条线还缺：' + (miss || '—') + (t.completeness.outOfOrder ? '；⚠️ 结果早于行动，疑似接线错' : '') + '）';
     return '【' + t.title + '】' + tail + '\n' + rows.join('\n');
   }
+  /**
+   * [v3.233.0] F-2 平台维度：把「段的 source 自由文本」折算成**分级归因**（纯函数，只读）。
+   *
+   * 为什么单独成函数而不写进 completeness()：那是**一条线**的叙事完整度；本面是
+   * **来源组成**——两个不同的问题，压成一个读数就会把「这条线缺结果」与「这条线全是手机侧事件」
+   * 混成一件事（本仓三态纪律）。
+   *
+   * 取值分级（顺序即判定顺序，全部字面量精确匹配，不做任何模糊猜测）：
+   *   'extract'            ⇒ 上游提取（本仓唯一写入值，逐字认）
+   *   `${p}:${rest}`       ⇒ p 在 SOURCE_PLATFORMS 内 ⇒ platform（rest 可空，不给则 label 用 p）
+   *   其它非空文本           ⇒ other（**原串保留**；「给了但本仓不认识」≠「没给」）
+   *   空 / 非字符串         ⇒ none
+   *
+   * @param {string} raw 段上的 source 原值
+   * @returns {{level:string, platform:string, label:string}}
+   */
+  function sourceFace(raw) {
+    const s = text(raw, 40);
+    if (!s) return { level: 'none', platform: '', label: '' };
+    if (s === 'extract') return { level: 'extract', platform: '', label: 'extract' };
+    const i = s.indexOf(':');
+    if (i > 0) {
+      const p = s.slice(0, i);
+      const rest = s.slice(i + 1);
+      if (SOURCE_PLATFORMS.indexOf(p) >= 0) {
+        return { level: 'platform', platform: p, label: rest ? (p + ':' + rest) : p };
+      }
+    }
+    return { level: 'other', platform: '', label: s };
+  }
+
+  /**
+   * [v3.233.0] F-2：事件线的**平台构成**读数（纯函数，只读，有界）。
+   *
+   * 返回面恒定（下游可按键断言，不必猜缺哪个键）：
+   *   { ok, reason, events, segments, platforms[], levels{}, unlabeled, truncated }
+   *   · platforms —— 受控词表顺序里**真出现过**的平台（含计数与段数），空则 []
+   *   · levels    —— {extract, platform, other, none} 四态计数（**四态齐**，缺一态也给 0）
+   *   · unlabeled —— 没给来源的段数（不是错误，是读数；同 coPresence 的「没给楼层」）
+   *   · events    —— 逐线：{id, title, floor, segments, levels, platforms[]}
+   *                 floor 取**首段的楼层**（事件顶层本无 floor 字段，见 v3.233 修的出处缺陷）
+   *   · truncated —— 有上限且**如实报**（计数始终是截断前的真实条数）
+   *
+   * 【边界：只给构成，不给判断】
+   *   本方法答得出「这条线里几个段来自手机侧」，答不出「手机侧的事件更可信/更重要」——
+   *   那是产品决定，不在这里做（与 F-3「只给事实」同纪律）。
+   */
+  function platformFace(rawState, opts) {
+    const o = opts || {};
+    const maxEvents = finite(o.maxEvents) || MAX_EVENTS;
+    const maxSegs = finite(o.maxSegmentsPerEvent) || MAX_SEGMENTS;
+    const state = normalize(rawState);
+    const levels = { extract: 0, platform: 0, other: 0, none: 0 };
+    const byPlatform = {};
+    const allEvents = [];
+    let segTotal = 0;
+    let unlabeled = 0;
+    let counted = 0;
+    for (const e of state.events) {
+      const segs = Array.isArray(e.segments) ? e.segments.slice(-maxSegs) : [];
+      const eLevels = { extract: 0, platform: 0, other: 0, none: 0 };
+      const ePlats = {};
+      for (const s of segs) {
+        const f = sourceFace(s.source);
+        levels[f.level] += 1;
+        eLevels[f.level] += 1;
+        segTotal += 1;
+        if (f.level === 'none') unlabeled += 1;
+        else if (f.level === 'platform') {
+          const k = f.platform;
+          byPlatform[k] = byPlatform[k] || { platform: k, segments: 0, events: 0 };
+          byPlatform[k].segments += 1;
+          ePlats[k] = (ePlats[k] || 0) + 1;
+        }
+      }
+      // 逐线：只有含段的线才计入构成（空线是「开过还没落段」，不进构成）
+      if (segs.length) {
+        const firstFloor = (function () {
+          for (const s of segs) { if (s.floor != null) return s.floor; }
+          return null;
+        })();
+        allEvents.push({
+          id: e.id, title: e.title, floor: firstFloor,
+          segments: segs.length, levels: eLevels,
+          platforms: SOURCE_PLATFORMS.filter(function (p) { return ePlats[p]; })
+            .map(function (p) { return { platform: p, segments: ePlats[p] }; })
+        });
+        // 每平台的**覆盖线数**在全量上统计（不得受 maxEvents 影响：
+        //   截断只缩展示面，计数必须是真值——否则同一返回面里 segments 是真实值、
+        //   events 是截断值，读者无法分辨「平台只覆盖 2 条线」与「展示上限是 2」）。
+        for (const p of Object.keys(ePlats)) {
+          if (byPlatform[p]) byPlatform[p].events += 1;
+        }
+        counted += 1;
+      }
+    }
+    const platforms = SOURCE_PLATFORMS.map(function (p) { return byPlatform[p]; }).filter(Boolean);
+    const events = allEvents.slice(0, maxEvents);
+    return {
+      ok: true, reason: state.events.length ? 'ok' : 'no-events',
+      events: events, segments: segTotal,
+      platforms: platforms, levels: levels,
+      unlabeled: unlabeled, countedEvents: counted,
+      truncated: counted > maxEvents
+    };
+  }
+
+  /** 平台构成的一行诊断（与 line() 同风格；无段时不假装有读数）。 */
+  function platformLine(rawState) {
+    try {
+      const f = platformFace(rawState, {});
+      if (!f.segments) return '暂无事件段';
+      const parts = ['段 ' + f.segments];
+      if (f.levels.extract) parts.push('上游提取 ' + f.levels.extract);
+      for (const p of f.platforms) parts.push(p.platform + ' ' + p.segments);
+      if (f.levels.other) parts.push('其它来源 ' + f.levels.other + ' ⚠');
+      if (f.levels.none) parts.push('未标来源 ' + f.levels.none);
+      return parts.join(' · ');
+    } catch (e) { return '—（平台构成异常）'; }
+  }
+
   /** 诊断一行。 */
   function line(rawState) {
     try {
@@ -293,7 +449,8 @@
   }
   const api = Object.freeze({
     normalize, openEvent, addSegment, abandonEvent, outstanding, thread, render, line, completeness,
-    ROLES, STATES, ORIGINS, ORIGIN_TRUST, EC_VERSION, orderedSegments
+    ROLES, STATES, ORIGINS, ORIGIN_TRUST, EC_VERSION, orderedSegments,
+    SOURCE_PLATFORMS, SOURCE_LEVELS, sourceFace, platformFace, platformLine
   });
   root.LonShaEventCompleteness = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
