@@ -187,12 +187,14 @@ test('v3234 D3. ★★★ 其余八账未被本次改动打破（投影签名向
 
 /* ══════════ E 幂等与三态（探针抓到的第 2 条真缺陷） ══════════ */
 test('v3234 E1. ★★★★ 段楼层：`copySegment` 必须**幂等**（null 不得被塔成第 0 楼）', () => {
-    /* 实测根因：共享契约 `finite(null)` 返回 0（`Number(null) === 0` 且有限），
-     *   而 `finite(undefined)` 返回 null  ⇒ 首稿 copySegment 非幂等：
-     *   一次 copy 把「没给」塔成 null，二次 copy 又把 null 塔成 0。 */
+    /* 实测根因（v3.233.0 当时的现场）：共享契约 `finite(null)` 返回 0（`Number(null) === 0` 且有限），
+     *   而 `finite(undefined)` 返回 null ⇒ 首稿 copySegment 非幂等：一次 copy 把「没给」塔成 null，
+     *   二次 copy 又把 null 塔成 0。
+     *   [v3.240.0 交棒] 契约本体已修：「没给」⇒ null，两态**同形** ——
+     *   本段（E1 下半段）的幂等判据一字未改，此后由它单独担着这条不变量。 */
     const LE = req(path.join(ROOT, 'ledger-entity.js'));
-    assert.equal(LE.finite(null), 0, '（根因在现场：共享契约把 null 塔成 0 —— 这是它自己的口径，本版不动它）');
-    assert.equal(LE.finite(undefined), null, '（undefined 塔成 null）');
+    assert.equal(LE.finite(null), null, '[v3.240.0] 契约分界口：null = 「没给」⇒ null');
+    assert.equal(LE.finite(undefined), null, '[v3.240.0] undefined 同判「没给」⇒ 两态同形（不再一 null 一 0）');
     let st = { version: EC.EC_VERSION, seq: 0, events: [] };
     const r1 = EC.addSegment(st, { title: '无线索', role: 'action', text: 'z', source: 'extract' });
     assert.equal(r1.segment.floor, null, '★ 没给楼层 ⇒ null（不得是 0）');
@@ -314,10 +316,16 @@ test('v3234 N2. ★★★ 破坏「other 保留原串」⇒ B1 同款判据必�
     });
 });
 
-test('v3234 N3. ★★★★ 破坏「段楼层先排 null」⇒ E1 幂等判据必须转红', () => {
-    const anchor = "      floor: (s.floor == null ? null : finite(s.floor)),";
+test('v3234 N3. ★★★★ 破坏「段楼层走契约取值口」⇒ E1 幂等判据必须转红', () => {
+    /* [v3.240.0] 锚点随真源码走：v3.233.0 那一版的写法是
+     *   `floor: (s.floor == null ? null : finite(s.floor)),`（自己先排 null 以绕开
+     *   契约在 null 上的旧形态）；v3.240.0 既然把契约本体修好了，这层绕过就撤了、
+     *   改为按名点名的 `floor: finiteFloor(s.floor),`。
+     *   负控制打的是「回到 Number-first 旧形态」—— 形态变了，破坏点跟着变
+     *   （本仓纪律：负控制必须打在**真源码**上，钉住一个已不存在的字符串等于没测）。 */
+    const anchor = "      floor: finiteFloor(s.floor),";
     assert.equal(EC_SRC.split(anchor).length - 1, 1, '锚点须恰中 1 次');
-    withBrokenEc((s) => s.replace(anchor, "      floor: finite(s.floor),"), (M) => {
+    withBrokenEc((s) => s.replace(anchor, "      floor: Number.isFinite(Number(s.floor)) ? Math.floor(Number(s.floor)) : null,"), (M) => {
         const st = M.addSegment({ version: M.EC_VERSION, seq: 0, events: [] }, { title: 'T', role: 'action', text: 'z', source: 'extract' }).state;
         assert.throws(() => assert.equal(st.events[0].segments[0].floor, null, '没给楼层必须是 null'),
             isAssertionFailure, 'E1 同款判据在破坏副本上必须抛');

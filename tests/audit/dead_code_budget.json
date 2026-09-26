@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 39502,
+  "ceiling": 39679,
   "maxSlack": 400,
-  "note": "v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口",
+  "note": "v3.240.0 账本实体契约「没给」判开收口（本版实测 39279 回落于预估 39400，故 ceiling 由 39800 收紧至 39279+400）：ledger-entity.js 重写 finite 本体（先挡「没给」与非数值）+ 新增 finiteFloor/numOrNull 两个一行转发别名 + 九本账 floor 一族全部改走 finiteFloor（含三本独立账收编，删其本地 finite/text 拷贝）",
   "history": [
     {
       "ceiling": 21000,
@@ -141,7 +141,11 @@
     {
       "ceiling": 39502,
       "reason": "v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口"
+    },
+    {
+      "ceiling": 39679,
+      "reason": "v3.240.0 账本实体契约「没给」判开收口：ledger-entity.js 重写 finite 本体（先挡「没给」与非数值）+ 新增 finiteFloor/numOrNull 两个一行转发别名 + 九本账 floor 一族全部改走 finiteFloor（含三本独立账收编，删其本地 finite/text 拷贝）"
     }
   ],
-  "_history_last": "ceiling 39284 → 39502（实测 39102 + slack 400）：v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口"
+  "_history_last": "ceiling 39502 → 39800 → 39679（实测 39279 + slack 400，收紧 121 行）：v3.240.0 账本实体契约「没给」判开收口：ledger-entity.js 重写 finite 本体 + 两个一行转发别名 + 九本账 floor 一族改走 finiteFloor"
 }

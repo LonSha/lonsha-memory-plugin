@@ -32,12 +32,13 @@
   // [v3.207] text / finite / names 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
   const text = LE.text;
   const finite = LE.finite;
+  const finiteFloor = LE.finiteFloor;   // [v3.240.0] floor 一族专用（与 finite 同判据，按名点名）
   const names = (value, maxEach, maxCount) => LE.names(value, maxEach, maxCount);
   function copyEvent(event) {
     return {
       action: ACTIONS.includes(event.action) ? event.action : 'touch',
       eventKey: text(event.eventKey, 120),
-      floor: finite(event.floor),
+      floor: finiteFloor(event.floor),
       source: text(event.source, 40),
       note: text(event.note, 120)
     };
@@ -57,9 +58,9 @@
       status,
       // [v3.207] 修订号读回走契约（`finite(item.revision) || 1` 原为六本账逐字重复）。
       revision: LE.revisionOf(item),
-      floor: finite(item.floor),
-      updatedFloor: finite(item.updatedFloor),
-      settledFloor: finite(item.settledFloor),
+      floor: finiteFloor(item.floor),
+      updatedFloor: finiteFloor(item.updatedFloor),
+      settledFloor: finiteFloor(item.settledFloor),
       source: text(item.source, 40),
       // [v3.207] 历史读回走契约（末 MAX_HISTORY 条 + 逐条 copyEvent）。
       history: LE.copyHistory(item, MAX_HISTORY, copyEvent)
@@ -129,7 +130,7 @@
     const existing = state.items.find((item) => OPEN[item.status] && item.title.toLowerCase() === title.toLowerCase());
     if (existing) {
       const replayed = !eventKey || existing.history.some((event) => event.eventKey === eventKey);
-      if (eventKey && !replayed) record(existing, { action: 'note', eventKey, floor: finite(input && input.floor), source: text(input && input.source, 40), note: '' });
+      if (eventKey && !replayed) record(existing, { action: 'note', eventKey, floor: finiteFloor(input && input.floor), source: text(input && input.source, 40), note: '' });
       return result(state, { item: copyItem(existing), replayed, changed: !replayed });
     }
     if (openCount(state) >= MAX_OPEN) return reject(state, 'open-cap');
@@ -151,7 +152,7 @@
     const noteText = text(input && input.note, 120);
     if (!noteText) return reject(state, 'empty-note');
     const event = {
-      action, eventKey: text(input && input.eventKey, 120), floor: finite(input && input.floor),
+      action, eventKey: text(input && input.eventKey, 120), floor: finiteFloor(input && input.floor),
       source: text(input && input.source, 40), note: noteText
     };
     if (!record(item, event)) return result(state, { item: copyItem(item), replayed: true, changed: false });
@@ -174,7 +175,7 @@
 
   function sweep(rawState, floor) {
     const state = normalize(rawState);
-    const f = finite(floor);
+    const f = finiteFloor(floor);
     if (f == null) return reject(state, 'missing-floor');
     const before = state.items.length;
     state.items = state.items.filter((item) => {

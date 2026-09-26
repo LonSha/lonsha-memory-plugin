@@ -1,3 +1,108 @@
+## v3.240.0
+
+**主题：账本实体契约 floor 一族 —— 「没给」不是「给了 0」，收口到判据本体。**
+
+一句话纪律：**上一版改的是判据本体的一半；另一半没改，就等于没改。**
+
+### 为什么必须补完这一半
+
+v3.239.0（R4-E）修的是 `snapshot-checkpoint.js` 模块侧的 `numOrNull`，
+而**九本账共享的契约** `ledger-entity.js` 的 `finite` 本体仍是老写法：
+
+```js
+return Number.isFinite(n) ? Math.floor(n) : null;   // n = Number(v)，且 Number(null) === 0
+```
+
+于是 `finite(null) === 0` —— 「我不知道这是第几楼」被静默记成**「第 0 楼」**，
+而 0 在本插件是**合法楼层**（v3.234.0 `copySegment` 就是这么踩的）。
+同一形态本仓已修过三次（O-1 / R3-D / R4-E），每次都只修出问题的那**一处**：
+`finite` 有九份拷贝，改一处漏八处，判据在不同账上语义漂移。
+
+本版**只改那一份真源**，九本账全部改走它。
+
+### 修法：先分「没给」，再分「给了但不是数」
+
+- **`finite(value)` 本体重写**（`ledger-entity.js`）：`null` / `undefined` / 空串 / 空白串 /
+  布尔 / 数组 / 函数 ⇒ `null`（「没给」）；有限数（含 `0`、负数、数字串 `'0'`）⇒ 该数取整；
+  其余（`NaN` / 对象 / 非数字串 / `±Infinity`）⇒ `null`（给了但**不是数**，不抛、不猜）。
+  **`finite(null) === 0` 这条路径从根上不存在了。**
+- **两个一行转发别名**：`finiteFloor(value)` / `numOrNull(value)` ——
+  `return finite(value);`，不是第二份实现。存在的理由是**按名点名**：
+  `floor` 这个字段名在各账之间同名不同域（承诺账的 `floor` 与秘密账的 `floor` 是两套数据），
+  读代码的人不必再比对「这里的 `finite` 是不是那个」。
+- **九本账收编**：除原有六本（seed / secret / parallel / commitment / fact-version / event-completeness）外，
+  把另三本「逐条实体」账也收进契约 ——
+  `recall-echo.js` / `echo-ledger.js` / `repair-loop.js`。
+  它们此前各自自带一份 `text` + `finite` 拷贝，而那份 `finite` 正是 `Number.isFinite(Number(v))` 形态。
+  三本账**没有** `history` 容器、也**没有** `revision` 面（回扣账是候选池、回声账按 `char+mode` 覆盖、
+  修复账是动作回执），故它们委派的是**取值原语**（`const text = LE.text` / `const finite = LE.finite` /
+  `const finiteFloor = LE.finiteFloor`），而不是 revision/history 三件套。
+
+### 门禁同步：下限抬了，夹具必须跟着抬
+
+`scan_ledger_contract.mjs`：
+
+- `BOOKS` 由 6 本扩到 9 本，`MIN_BOOKS` 由 6 抬到 9；
+- `NEEDS` 委派表按账显式登记（三本独立账登记取值原语三项），
+  这正是 R2 的写法 —— 不是「九本必须长得一样」，而是「每本说清自己委派了哪几处」；
+- **新增 R3b**：`floor` 一族不得再走 `finite(`，须走按名点名的 `finiteFloor(`
+  （判据刻意只认「字段名 : finite(」这一形态，不误伤 `finite(limit)` 这类分页读数的合法用法）；
+- **R3 扩一条**：本地 `function finite(` 声明也在禁止之列。
+
+### 判据自身的缺陷（本轮修掉，全在本版新套件里）
+
+本仓纪律：判据自身缺陷优先于实现缺陷 —— 否则会**逼实现去改不属于本版的地方**。
+新套件首跑 7 项红，逐条归因**全部是判据自己的毛病**，逐条留痕：
+
+1. **A1 把 `-0` 判成非零** —— `Object.is(-0, 0) === false`。修法：断言改 `assert.ok(v === 0)`。
+2. **A1/B2 样本取错**：把 `0.5` 放进「真给了数」那一列，而契约是**楼层口径**（向下取整）。修法：`0.5` 归入取整样本。
+3. **D2 少传一个参数**：`seed.sweep` 是**两参**签名 `(rawState, floor)`，首版只传了 state。修法：补 `floor` 并加空串样本。
+4. **E1 宿主形状写错**：证据面 `state` 取自 `h.worldProg.<xxx>Ledger`，首版写成 `_seedState` ⇒ 读到 `absent` 后 TypeError。修法：改 `{worldProg:{seedLedger:st}}`。
+5. **G1 负控制把 NEEDS 表切出语法错误**：首版整体删表。修法：只删**两条登记行**并校验长度变短。
+6. **A2 `includes` 恒真**：`[0].includes(0)` 型断言在错误实现上也可绿。修法：改成**数次数**。
+7. **H1 版本锚**：属预期（抬版前必红）。
+
+### 反向交棒：上一版的套件也得跟着走
+
+- **`tests/v3207_ledger_entity_contract.test.mjs`**：
+  - 第 2 组原把 `finite(null) === 0` 当「现行为忠实保留」——这与本文件第 3 组
+    「`floor` 必须原样戳」**自相矛盾**（判据在保护一个已被设计淘汰的状态）。改两态断言并留痕 `Number(null) === 0` 根因；
+  - 第 5 组 `updatedFloor` 期望由 `0` 改 `null`，并补「真第 0 楼仍读 `0`」（**两向自证**，
+    否则修法就成了「一刀切把 0 也吞了」，那是另一个错）；
+  - `BOOKS` / `NEEDS` 由 6 本扩到 9 本；新增 `NO_REVISION_BOOKS` 常量做分叉
+    （三本独立账没有 revision 面，逐个核对而不是一刀切）。
+- **`tests/v3234_event_platform_composition.test.mjs`**：`N3` 破坏锚点由
+  `floor: (s.floor == null ? null : finite(s.floor))` 交棒为 `floor: finiteFloor(s.floor)`，
+  破坏形态改为注入 `Number.isFinite(Number(s.floor)) ? Math.floor(Number(s.floor)) : null`
+  （即**回潮到老判据**，这正是本版要堵的那条路）。
+
+### 夹具自身的缺陷（负控制空对空）
+
+`scan_ledger_contract_negctl.mjs` 的夹具清单原是**手抄的 6 本账**字面量。
+门禁把下限抬到 9 本后，负控制**自己先**因「只找到 6 本账（下限 9）」exit 2，
+于是 V0–V5 全线报「破坏不可归因」——**红的不是判据，是夹具**，
+而且那个 exit 2 会被静默读成「结构漂移判据工作正常」，是典型的**空对空**。
+
+修法：夹具清单**不再手抄** —— 从门禁源码里提取 `BOOKS` 与 `MIN_BOOKS`，
+并自证「夹具必须喂满下限」（喂不满即 exit 2 并点名）。
+门禁抬一处，负控制跟着动，**没有第二处可漏**。
+配套把 `V7` 的点名由写死的「只找到 5 本账」改为随下限走。
+
+### 连带面
+
+- 新增套件 `tests/v3240_ledger_null_is_not_zero.test.mjs`（**8 组**：A 三态表与别名等价 /
+  B 两处同判据的**刻意差异**（`CP.numOrNull(0.5) === 0.5` vs `LE.finite(0.5) === 0`）/
+  C 九账收编（`finiteFloor(` 使用点 ≥20）/ D 四类错读数 / E 消费面 / F 两条真源码破坏负控制 /
+  G 门禁真跑含负控制 / H 版本锚 ≥ 3.240.0）；
+- **夹具补正**：`tests/v3215_repair_write_channel.test.mjs` 的破坏副本原落 tmpdir **单文件**，
+  而 `repair-loop.js` 已改为 `require('./ledger-entity.js')` ⇒ 相对解析落空
+  （`Cannot find module './ledger-entity.js'`）。修法：临时副本改成一个**目录 + 一并拷契约**，
+  require 仍走真通道、真文件，不用替身，也不改被测源码的取库写法；
+- 死代码上界：`39502 → 39679`（实测 39279 + slack 400；本版把三本账的本地拷贝删掉后
+  实测回落于预估 39400，故按 `_rule`「不给死代码留余量」**收紧**而非继续抬）；
+- 三源同源：`index.js` / `manifest.json` / `package.json` 同步为 3.240.0；TODO 最近更新同源；
+- 边界：真实 SillyTavern 宿主实机未验（判据面全是真模块真跑 + 真源码破坏副本复跑）。
+
 ## v3.239.0
 
 **主题：R4-E 「没给」不是「给了 0」—— 修判据本体，不再修单点。**

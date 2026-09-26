@@ -28,14 +28,18 @@
   const MAX_PENDING = 8;
   const ECHO_GAP = 5;      // 候选必须五回合以前
   const KEEP_FLOORS = 20;  // 已回扣条目保留的楼层数
-  function text(value, max) {
-    const s = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
-    return max ? s.slice(0, max) : s;
-  }
-  function finite(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? Math.floor(n) : null;
-  }
+  /* [v3.240.0] 账本实体契约单一真源（ledger-entity.js）——本模块此前自带一份 `text` / `finite` 拷贝。
+   *   拷贝的判据是 `Number.isFinite(Number(v))`：`Number(null) === 0` 且有限 ⇒ `finite(null)` 得 0，
+   *   于是「楼层未知」被静默写成「第 0 楼」（而 0 在本插件是**合法楼层**）。
+   *   本仓同一形态已修过三处（O-1 / R3-D / R4-E），v3.240.0 把 `finite` 本体改成「没给 ⇒ null」，
+   *   并把本模块（原三份未收编的拷贝之一）一并收进契约 —— 判据只此一份，改一处就全都改到。
+   *   取库双通道与六本委派账逐字同形（浏览器走全局、Node 走 require），便于门禁按字面量扫描。 */
+  const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity
+    : ((typeof module !== 'undefined' && module.exports) ? require('./ledger-entity.js') : (root.LonShaLedgerEntity || null));
+  if (!LE) throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');
+  const text = LE.text;
+  const finite = LE.finite;
+  const finiteFloor = LE.finiteFloor;   // [v3.240.0] floor 一族专用（与 finite 同判据，按名点名）
   function copyItem(item) {
     return {
       id: text(item.id, 80),
@@ -43,8 +47,8 @@
       kind: KINDS.includes(item.kind) ? item.kind : 'clue',
       weight: finite(item.weight) == null ? 50 : Math.max(0, Math.min(100, finite(item.weight))),
       status: STATES.includes(item.status) ? item.status : 'pending',
-      floor: finite(item.floor),
-      echoFloor: finite(item.echoFloor),
+      floor: finiteFloor(item.floor),
+      echoFloor: finiteFloor(item.echoFloor),
       echoNote: text(item.echoNote, 160),
       skipNote: text(item.skipNote, 160),
       source: text(item.source, 40)
@@ -54,7 +58,7 @@
     return {
       version: 1,
       seq: finite(state && state.seq) || 0,
-      lastEchoFloor: finite(state && state.lastEchoFloor),
+      lastEchoFloor: finiteFloor(state && state.lastEchoFloor),
       items: Array.isArray(state && state.items) ? state.items.map(copyItem) : []
     };
   }
@@ -88,7 +92,7 @@
     const state = normalize(rawState);
     const detail = text(input && input.detail, 200);
     if (!detail) return reject(state, 'missing-detail');
-    const floor = finite(input && input.floor);
+    const floor = finiteFloor(input && input.floor);
     if (floor == null) return reject(state, 'missing-floor');
     const dup = findByDetail(state, detail, ['pending', 'echoed']);
     if (dup) return result(state, { item: copyItem(dup), replayed: true, changed: false, reason: 'duplicate' });
@@ -117,7 +121,7 @@
     if (item.status === 'skipped') return reject(state, 'bad-state');
     const echoNote = text(input && input.echoNote, 160);
     if (!echoNote) return reject(state, 'empty-note');
-    const floor = finite(input && input.floor);
+    const floor = finiteFloor(input && input.floor);
     if (floor == null) return reject(state, 'missing-floor');
     if (item.floor != null && floor - item.floor < ECHO_GAP) return reject(state, 'too-fresh');
     if (state.lastEchoFloor != null && floor === state.lastEchoFloor) return reject(state, 'echo-per-floor');
@@ -146,7 +150,7 @@
   /** 清扫：摘过期回扣（echoFloor < floor - KEEP_FLOORS）与全部 skipped；pending 不动 */
   function sweep(rawState, floor) {
     const state = normalize(rawState);
-    const f = finite(floor);
+    const f = finiteFloor(floor);
     if (f == null) return reject(state, 'missing-floor');
     const before = state.items.length;
     state.items = state.items.filter((item) => {

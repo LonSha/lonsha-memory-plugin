@@ -5,6 +5,49 @@
 
 ---
 
+## 2026-09-26 · v3.240.0（账本实体契约 floor 一族：补完「没给 ≠ 给了 0」的另一半）
+
+**做了什么**：`ledger-entity.js` 的 `finite` 本体由「`Number.isFinite(Number(v)) ? Math.floor(Number(v)) : null`」
+改为**先挡「没给」与非数值**（`null`/`undefined`/空串/空白串/布尔/数组/函数 ⇒ `null`；
+有限数含 0 与数字串 ⇒ 该数取整；`NaN`/对象/非数字串/`±Infinity` ⇒ `null`）；
+新增两个**一行转发**别名 `finiteFloor` / `numOrNull`（同判据，按名点名用）；
+三本原本自带 `text`+`finite` 拷贝的独立账（`recall-echo.js` / `echo-ledger.js` / `repair-loop.js`）收编进契约；
+`scan_ledger_contract.mjs` 的 `BOOKS` 6→9、`MIN_BOOKS` 6→9、`NEEDS` 按账登记取值原语、新增 R3b
+（floor 一族不得走 `finite(`，须走 `finiteFloor(`）、R3 扩「本地 `function finite(` 也不许」；
+新增 `tests/v3240_ledger_null_is_not_zero.test.mjs`（8 组）。
+
+**为什么**：v3.239.0 只改了 `snapshot-checkpoint.js` 模块侧的那一半，而**九本账共享的契约**
+那一半没改 —— `finite(null) === 0` 仍把「楼层未知」写成「第 0 楼」，而 0 是合法楼层。
+同一形态本仓修过三次（O-1 / R3-D / R4-E），每次只修出问题的那一处。
+本版改的是**那份真源**：九本账全部改走它，判据只此一份，改一处就全都改到。
+
+**本版探针当场抓到的真缺陷**：`scan_ledger_contract_negctl.mjs` 的夹具清单是**手抄的 6 本账**；
+门禁下限抬到 9 后，负控制**自己先** exit 2，V0–V5 全线报「破坏不可归因」——
+**红的不是判据，是夹具**，且那个 exit 2 会被静默读成「结构漂移判据工作正常」（空对空）。
+修法：夹具清单改为**从门禁源码提取** `BOOKS` / `MIN_BOOKS` 并自证喂满下限，`V7` 点名随下限走。
+同族第二处：`v3215` 的破坏副本原落 tmpdir **单文件**，`repair-loop.js` 改为
+`require('./ledger-entity.js')` 后相对解析落空 —— 夹具改成一个**目录 + 一并拷契约**。
+
+**判据自身的缺陷（本版 7 处，全在新套件首跑）**：`-0` 被 `Object.is` 判成非零；
+`0.5` 被误放进「真给了数」样本（契约是楼层口径取整）；`seed.sweep` 是两参签名却只传一参；
+E1 宿主形状写成 `_seedState`（实际 `h.worldProg.seedLedger`）⇒ 读到 `absent` 后 TypeError；
+G1 负控制把 `NEEDS` 表切出 `SyntaxError`；A2 的 `includes` 恒真；
+H1 版本锚（抬版前必红，属预期）。
+
+**反向交棒**：`v3207` 第 2 组原把 `finite(null) === 0` 当「现行为忠实保留」，
+与本文件第 3 组「`floor` 必须原样戳」**自相矛盾** ⇒ 判据在保护一个已被设计淘汰的状态，
+改两态断言并留痕根因；第 5 组 `updatedFloor` 期望 0 → `null` 并补「真第 0 楼仍读 0」（两向自证）；
+新增 `NO_REVISION_BOOKS` 分叉（三本独立账没有 revision 面）。
+`v3234` 的 `N3` 破坏锚点交棒为 `floor: finiteFloor(s.floor)`，破坏形态改为**回潮到老判据**。
+
+**影响范围**：10 个 `.js`（契约本体 + 九本账 + 门禁）+ 3 个测试文件 + 预算登记；
+产品行为对既有读者**零变化**（floor 一族的取值只由「逢 `null` 得 0」改为 `null`，
+真给了数的一律原样），新增键只增不改。
+
+**门禁结果**：定向见本版收尾读数；全量 `npm test` + `node tests/run.mjs --audit` 逐段复跑。
+
+---
+
 ## 2026-09-26 · v3.233.0（F-2 跨平台事件来源构成）
 
 **做了什么**：`event-completeness.js` 新增 `SOURCE_PLATFORMS`（受控词表，冻结）、

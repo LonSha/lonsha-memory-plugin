@@ -25,19 +25,23 @@
     scene: '名场面回放', misunderstand: '今日误会', trash: '垃圾桶残留'
   });
   const MAX_ITEMS = MODES.length; // 11
-  function text(value, max) {
-    const s = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
-    return max ? s.slice(0, max) : s;
-  }
-  function finite(value) {
-    const n = Number(value);
-    return Number.isFinite(n) ? Math.floor(n) : null;
-  }
+  /* [v3.240.0] 账本实体契约单一真源（ledger-entity.js）——本模块此前自带一份 `text` / `finite` 拷贝。
+   *   拷贝的判据是 `Number.isFinite(Number(v))`：`Number(null) === 0` 且有限 ⇒ `finite(null)` 得 0，
+   *   于是「楼层未知」被静默写成「第 0 楼」（而 0 在本插件是**合法楼层**）。
+   *   本仓同一形态已修过三处（O-1 / R3-D / R4-E），v3.240.0 把 `finite` 本体改成「没给 ⇒ null」，
+   *   并把本模块（原三份未收编的拷贝之一）一并收进契约 —— 判据只此一份，改一处就全都改到。
+   *   取库双通道与六本委派账逐字同形（浏览器走全局、Node 走 require），便于门禁按字面量扫描。 */
+  const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity
+    : ((typeof module !== 'undefined' && module.exports) ? require('./ledger-entity.js') : (root.LonShaLedgerEntity || null));
+  if (!LE) throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');
+  const text = LE.text;
+  const finite = LE.finite;
+  const finiteFloor = LE.finiteFloor;   // [v3.240.0] floor 一族专用（与 finite 同判据，按名点名）
   function copyItem(item) {
     return {
       mode: MODES.includes(item.mode) ? item.mode : 'askbox',
       char: text(item.char, 40),
-      floor: finite(item.floor),
+      floor: finiteFloor(item.floor),
       fields: (item.fields && typeof item.fields === 'object' && !Array.isArray(item.fields))
         ? Object.fromEntries(Object.entries(item.fields).slice(0, 6).map(([k, v]) => [text(k, 20), text(v, 300)]))
         : {},
@@ -47,7 +51,7 @@
   function clone(state) {
     return {
       version: 1,
-      lastFloor: finite(state && state.lastFloor),
+      lastFloor: finiteFloor(state && state.lastFloor),
       lastMode: MODES.includes(state && state.lastMode) ? state.lastMode : null,
       items: Array.isArray(state && state.items) ? state.items.map(copyItem) : []
     };
@@ -75,7 +79,7 @@
     if (!mode) return reject(state, 'bad-mode');
     const char = text(input && input.char, 40);
     if (!char) return reject(state, 'missing-char');
-    const floor = finite(input && input.floor);
+    const floor = finiteFloor(input && input.floor);
     if (floor == null) return reject(state, 'missing-floor');
     const fields = copyItem({ fields: input && input.fields }).fields;
     const fieldKeys = Object.keys(fields);

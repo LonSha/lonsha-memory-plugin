@@ -79,6 +79,7 @@
   // [v3.207] text / finite 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
   const text = LE.text;
   const finite = LE.finite;
+  const finiteFloor = LE.finiteFloor;   // [v3.240.0] floor/时刻一族专用（与 finite 同判据）
   function originOf(o) {
     return ORIGINS.includes(o) ? o : 'stated';
   }
@@ -86,20 +87,20 @@
     return {
       role: ROLES.includes(s.role) ? s.role : 'action',
       text: text(s.text, 160),
-      // [v3.233.0] F-2：**楼层不得走 `finite()` 的 null 塔缩**。
-      //   实测缺陷：共享契约 `ledger-entity.js:finite(null)` 返回 **0**
-      //   （`Number(null) === 0` 且有限），而 `finite(undefined)` 返回 null。
-      //   后果是本函数**非幂等**：第一次 copy 把「没给」undefined 塔成 null，
-      //   第二次 copy（normalize 会再走一遍 copyEvent→copySegment）又把 null 塔成 0 ——
-      //   于是 `addSegment` 在调用方**从未说过第 0 楼**的情况下写出 `floor: 0`，
-      //   而 0 在本仓是「第 0 楼」这个**真楼层**（见 O-1/O-2、T8 同族治理）。
-      //   修法：显式分「没给/给了空」（两者对段楼层同义，一律 null）与真值（含真 0）。
-      //   仍走 finite 做数值归一，但先排掉 null/undefined —— 不得把两者送进去。
-      floor: (s.floor == null ? null : finite(s.floor)),
+      // [v3.233.0] F-2 → [v3.240.0] 根因已修：段楼层改走 `finiteFloor`。
+      //   修前形态（F-2 时点）：共享契约 `ledger-entity.js:finite(null)` 返回 **0**
+      //   （`Number(null) === 0` 且有限），而 `finite(undefined)` 返回 null ⇒ 本函数**非幂等**
+      //   （第一次 copy 把 undefined 归 null，第二次 copy 再把 null 塔成 0），
+      //   于是 `addSegment` 在调用方从未说过第 0 楼的情况下写出 `floor: 0`。
+      //   F-2 的处置是**在调用点绕过**（先排掉 null/undefined 再送进 finite）—— 那是正确的
+      //   局部止损，但根因仍在契约里。v3.240.0 把 `finite` 本体改成「没给 ⇒ null」，
+      //   并给出按名点名的 `finiteFloor`：本处因此可以回到**直读**写法，
+      //   且语义比绕过版更宽（空串 / 布尔 / 数组 也不再被塔成 0）。
+      floor: finiteFloor(s.floor),
       source: text(s.source, 40),
       origin: originOf(s.origin),
       eventKey: text(s.eventKey, 120),
-      at: finite(s.at)
+      at: finiteFloor(s.at)
     };
   }
   function copyEvent(e) {

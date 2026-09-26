@@ -8,7 +8,8 @@
 //   本档统一用「真源码破坏 → 独立 fixture 树 → 在副本上重跑同一套真判据」排除这三种。
 //
 // 纪律（四条都是本仓被踩过才写的）：
-//   · 每次破坏发生在**独立 fixture 目录**里，只搬判据真正读的文件（9 个）；
+//   · 每次破坏发生在**独立 fixture 目录**里，只搬判据真正读的文件
+//     （清单从门禁源码提取，见下方 BOOKS / MIN_BOOKS 段 —— 不手抄，手抄必漂移）；
 //     LONSHA_AUDIT_ROOT 指过去 ⇒ 源仓库零污染，且判据读的确实是「被破坏的那份真源码」。
 //   · 锚点必须**恰中期望次数**：命中数不符 ⇒ 该组作废并报错（防锚点漂移后静默跳过，
 //     把「没破坏成功」误读成「判据对破坏无反应」）。
@@ -28,9 +29,37 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const SCAN = path.join(HERE, 'scan_ledger_contract.mjs');
 const CONTRACT = 'ledger-entity.js';
-const BOOKS = ['seed-ledger.js', 'secret-ledger.js', 'parallel-ledger.js',
-    'commitment-ledger.js', 'fact-version.js', 'event-completeness.js'];
+
+/* [v3.240.0] 夹具清单**不再手抄**：从门禁源码里提取 BOOKS 与账本数下限。
+ *   手抄必然漂移 —— 本文件原先把 6 本账抄成字面量，门禁把下限抬到 9 本后，
+ *   负控制自己先因「只找到 6 本账（下限 9）」exit 2，于是 V0–V5 全线报
+ *   「破坏不可归因」：红的不是判据，是夹具。判据要能吃自己的药 ——
+ *   清单同源，门禁抬一处，负控制跟着动，没有第二处可漏。 */
+if (!fs.existsSync(SCAN)) {
+    console.error('[ledger-negctl] 缺门禁 scan_ledger_contract.mjs ——结构漂移（负控制无法建立）');
+    process.exit(2);
+}
+const scanSrc = fs.readFileSync(SCAN, 'utf-8');
+const booksMatch = scanSrc.match(/const BOOKS = \[([\s\S]*?)\];/);
+const floorMatch = scanSrc.match(/const MIN_BOOKS = FIXTURE_MODE \? 1 : (\d+);/);
+if (!booksMatch || !floorMatch) {
+    console.error('[ledger-negctl] 无法从门禁源码提取 BOOKS / MIN_BOOKS ——门禁结构已漂移（提取锚点过期）');
+    process.exit(2);
+}
+const BOOKS = [...booksMatch[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+const MIN_BOOKS = Number(floorMatch[1]);
+if (!BOOKS.length || !Number.isFinite(MIN_BOOKS)) {
+    console.error('[ledger-negctl] 提取结果为空 ——结构漂移');
+    process.exit(2);
+}
+/* 自证：夹具必须喂满门禁下限。少一本，门禁就在夹具里提前 bail，
+ *   而那个 exit 2 会被静默读成「结构漂移判据工作正常」—— 空对空。 */
 const GAUGED = ['manifest.json', 'index.js', CONTRACT, ...BOOKS];
+if (BOOKS.length < MIN_BOOKS) {
+    console.error('[ledger-negctl] 夹具只搬 ' + BOOKS.length + ' 本账，门禁下限 ' + MIN_BOOKS
+        + ' ——结构漂移（夹具喂不满，负控制将空对空）');
+    process.exit(2);
+}
 
 // (名字, 目标文件 | 'MOVE_LAST' | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 期望点名, 说明)
 const CASES = [
@@ -61,7 +90,7 @@ const CASES = [
         '找不到契约模块',
         '真源被删/改名 ⇒ 结构漂移（探测对象不在，不得当「没问题」）'],
     ['V7-账本被改名', 'DELETE', 'seed-ledger.js', null, null, 2,
-        '只找到 5 本账',
+        '只找到 ' + (BOOKS.length - 1) + ' 本账（下限 ' + MIN_BOOKS + '）',
         '账本数掉到下限以下 ⇒ 扫描面不可信，必须 exit 2 而不是「少一本也算过」']
 ];
 

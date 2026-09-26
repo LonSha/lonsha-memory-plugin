@@ -65,13 +65,15 @@
      *   这正是本仓 `numOrNull`（RubyPhone 侧 config/projection-contract.js）与
      *   TODO T8 观察项点名的同一形态。故此处显式先挡「没给」与「非数值」两类。
      *
-     * 【本函数的边界：它修不了上游已塌陷的值 —— 如实记下，不冒领】
-     *   上游各账 `copyItem` 里写的是 `finite(item.floor)`，而它们的 `finite` 同样是
-     *   `Number.isFinite(Number(v))`：**账本在 `list()` 出口之前就已把「楼层未知」写成 0**。
-     *   实测：`seed.plant(null,{hook:'z'})`（不传 floor）之后，本模块从账里读到的就是 0，
-     *   本函数无从还原（信息已丢）。这是 T8 记录的上游读侧语义问题，属**上游单独一版**的事；
-     *   本函数只在**上游真的给出 null/undefined/非数值**时如实挡住（防御性正确），
-     *   并把「缺失 → null」这条契约钉住，免得将来有人把本模块也改成 `|| 0` 再叠一层塌陷。*/
+     * 【上游那一半已由 v3.240.0 收口 —— 本条从「待办」改为「已闭环」】
+     *   v3.214.0 写下这一条时：上游各账 `copyItem` 写的是 `finite(item.floor)`，而它们的
+     *   `finite` 是 `Number.isFinite(Number(v))` —— **账本在 `list()` 出口之前就已把
+     *   「楼层未知」写成 0**，本函数无从还原（信息已丢）。实测：`seed.plant(null,{hook:'z'})`
+     *   （不传 floor）之后从账里读到 0。当时如实记为「属上游单独一版的事」。
+     *   [v3.240.0] 那一版已落地：共享契约 `ledger-entity.js:finite` 改为「没给 ⇒ null」，
+     *   九本账的 floor 一族全部改走按名点名的 `finiteFloor`。故现在**这条塌陷在出口之前
+     *   已不存在**，本函数的严格归一退化为纵深防御（仍保留：它挡的是非数值与怪输入）。
+     *   判据：`tests/v3240` E 组逐条证明「上游不传 floor ⇒ 本模块读到 null 而非 0」。*/
     function finiteNumStrict(v) {
         if (v === null || v === undefined || v === '') return null;
         const t = typeof v;

@@ -30,10 +30,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || path.resolve(HERE, '..', '..');
 const CONTRACT = 'ledger-entity.js';
-/** 消费者清单。**不写死上限**：六本是当前事实，R3 保证新账也必须委派。 */
+/** 消费者清单。**不写死上限**：九本是当前事实，R3 保证新账也必须委派。
+ *   [v3.240.0] 原为**六**本委派账；本版把另三本「逐条实体」账（回扣 recall-echo /
+ *   回声 echo / 修复 repair）也收进契约 —— 它们此前各自自带一份 `text` + `finite` 拷贝，
+ *   而那份 `finite` 正是 `Number.isFinite(Number(v))` 形态（`finite(null) === 0`）。
+ *   收编后全仓「外部来的数」判据只此一份。 */
 const BOOKS = ['seed-ledger.js', 'secret-ledger.js', 'parallel-ledger.js',
-    'commitment-ledger.js', 'fact-version.js', 'event-completeness.js'];
-const MIN_BOOKS = FIXTURE_MODE ? 1 : 6;
+    'commitment-ledger.js', 'fact-version.js', 'event-completeness.js',
+    'recall-echo.js', 'echo-ledger.js', 'repair-loop.js'];
+const MIN_BOOKS = FIXTURE_MODE ? 1 : 9;
 
 // 结构漂移一律走这里；退出码写**字面量**而不是变量 —— 静态守卫要能看出「本脚本会 fail-closed」
 //   （审计段约定：每个扫描器都必须具备 exit 2 的阻断能力，见 v3159 的 [2] 判据）。
@@ -90,6 +95,13 @@ const NEEDS = {
     'secret-ledger.js': [['LE.revisionOf(', '修订号读回'], ['LE.copyHistory(', '历史读回'], ['LE.recordEvent(', '变更入账']],
     'parallel-ledger.js': [['LE.revisionOf(', '修订号读回'], ['LE.copyHistory(', '历史读回'], ['LE.recordEvent(', '变更入账']],
     'commitment-ledger.js': [['LE.revisionOf(', '修订号读回'], ['LE.copyHistory(', '历史读回'], ['LE.recordEvent(', '变更入账']],
+    /* [v3.240.0] 三本独立账委派的是**取值原语**，不是 revision/history 三件套
+     *   —— 它们本来就没有 history 容器，也没有 revision 面（回扣账是候选池、
+     *   回声账按 char+mode 覆盖、修复账是动作回执）。按账显式登记，正是 R2 的写法：
+     *   不是「六本必须长得一样」，而是「每本说清自己委派了哪几处」。 */
+    'recall-echo.js': [['const text = LE.text', '文本归一'], ['const finite = LE.finite', '数值归一'], ['const finiteFloor = LE.finiteFloor', '楼层取值口']],
+    'echo-ledger.js': [['const text = LE.text', '文本归一'], ['const finite = LE.finite', '数值归一'], ['const finiteFloor = LE.finiteFloor', '楼层取值口']],
+    'repair-loop.js': [['const text = LE.text', '文本归一'], ['const finite = LE.finite', '数值归一'], ['const finiteFloor = LE.finiteFloor', '楼层取值口']],
     'fact-version.js': [['LE.revisionOf(', '修订号读回'], ['LE.copyHistory(', '历史读回'], ['LE.recordEvent(', '变更入账']],
     // 事件线：segments 即它的历史容器（本账的领域形状），版本自增就地 → 只要求两处。
     'event-completeness.js': [['LE.revisionOf(', '修订号读回'], ['LE.bumpRevision(', '版本自增']]
@@ -122,6 +134,26 @@ for (const f of books) {
     if (/function\s+text\s*\(/.test(src)) {
         defects.push('R3 ' + f + ' 又本地声明了 `function text(` —— text/finite 由契约提供');
     }
+    if (/function\s+finite\s*\(/.test(src)) {
+        defects.push('R3 ' + f + ' 又本地声明了 `function finite(` —— text/finite 由契约提供（v3.240.0 已收编九账）');
+    }
+}
+/* ---------- R3b [v3.240.0] 九账的 floor 一族必须走按名点名的有限数值口 ----------
+ * 为什么单列一条：floor 一族（floor / updatedFloor / revealedFloor / settledFloor /
+ *   recoveredFloor / 段的 floor）是全仓最容易被 `Number.isFinite(Number(v))` 塔成 0 的地方，
+ *   而 `floor` 这个字段名在**各账之间同名不同域**（承诺账的 floor 与秘密账的 floor 是两套数据）。
+ *   判据刻意只认「字段名 : finite(」这一形态（不误伤 `finite(limit)` 等分页读数的合法用法），
+ *   并且要求按名点名的 `finiteFloor` —— 名字相同，读代码的人不必再比对「这里的 finite 是不是那个」。 */
+for (const f of books) {
+    const src = readOrNull(path.join(ROOT, f)) || '';
+    const bad = [];
+    for (const m of src.matchAll(/\bfloor\s*:\s*(?!finiteFloor\b)finite\(/g)) {
+        bad.push(m[0]);
+    }
+    if (bad.length) {
+        defects.push('R3b ' + f + ' 的 floor 一族仍在走 `finite(`（' + bad.length + ' 处）—— '
+            + '应走 `finiteFloor(`（v3.240.0：finite(null) 曾得 0，把「楼层未知」写成第 0 楼）');
+    }
 }
 
 /* ---------- R4 index.js 消费面 ---------- */
@@ -134,7 +166,8 @@ if (!/LE\.line\(/.test(indexSrc)) {
 }
 
 /* ---------- R5 结构健康 ---------- */
-for (const key of ['revisionOf', 'bumpRevision', 'recordEvent', 'copyHistory', 'scanBook', 'line', 'REVISION']) {
+for (const key of ['revisionOf', 'bumpRevision', 'recordEvent', 'copyHistory', 'scanBook', 'line', 'REVISION',
+    'finite', 'finiteFloor', 'numOrNull']) {
     if (!new RegExp('\\b' + key + '\\b').test(contractSrc)) {
         defects.push('R5 契约模块缺导出面 `' + key + '`（被删/改名即判据失去真源）');
     }
@@ -155,5 +188,6 @@ if (defects.length) {
     console.error('[ledger-contract] 失败：账本实体契约面存在 ' + defects.length + ' 项缺陷。');
     process.exit(1);
 }
-console.log('[ledger-contract] 通过：契约声明在消费者之前、六本账全部委派、index.js 有真实读侧、无重复回潮。');
+console.log('[ledger-contract] 通过：契约声明在消费者之前、' + books.length
+    + ' 本账全部委派、floor 一族走 finiteFloor、index.js 有真实读侧、无重复回潮。');
 process.exit(0);

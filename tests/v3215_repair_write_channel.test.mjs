@@ -338,14 +338,20 @@ function loadRLFrom(src, tag) {
      *   表现为「疑似环境资源耗尽（非判据失败）」并触发重试，其实是**自家测试互相踩**。
      *   另：文件挪到 tmpdir 后 require 仍走绝对路径（内部已 resolve），并显式删 cache key ——
      *   否则同一路径复用时拿到的是上一轮的模块。 */
-    const p = path.join(os.tmpdir(), `.tmp_v3215_${tag}_${Date.now()}_${Math.random().toString(36).slice(2)}.js`);
+    /* [v3.240.0] repair-loop.js 起从 ledger-entity.js 取契约真源（require('./ledger-entity.js')）——
+     *   单文件落 tmpdir 后，相对解析会落空（Cannot find module './ledger-entity.js'），
+     *   而那是**夹具**在红，不是判据在红。故临时副本改成一个目录 + 一并拷契约：
+     *   require 仍走真通道、真文件，不用替身，也不改被测源码的取库写法。 */
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `.tmp_v3215_${tag}_`));
+    fs.copyFileSync(path.join(R, 'ledger-entity.js'), path.join(dir, 'ledger-entity.js'));
+    const p = path.join(dir, `rl_${Date.now()}_${Math.random().toString(36).slice(2)}.js`);
     fs.writeFileSync(p, src, 'utf8');
     try {
         try { delete require.cache[require.resolve(p)]; } catch (e) { /* 首次无该项 */ }
         return require_(p);
     } finally {
         try { delete require.cache[require.resolve(p)]; } catch (e) { /* 已被清掉 */ }
-        try { fs.unlinkSync(p); } catch (e) { /* 清理失败不影响判定 */ }
+        try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* 清理失败不影响判定 */ }
     }
 }
 

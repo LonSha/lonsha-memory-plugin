@@ -51,8 +51,12 @@ const idxSrc = read('index.js');
 const manifest = JSON.parse(read('manifest.json'));
 
 const CONTRACT = 'ledger-entity.js';
+/** [v3.240.0] 六 → 九：本版把另三本「逐条实体」账收进契约（它们此前各自自带一份
+ *   `text` + `finite` 拷贝，而那份 `finite` 正是 `Number.isFinite(Number(v))` 形态）。
+ *   清单与门禁 `scan_ledger_contract.mjs` 的 `BOOKS` **同源**：新增账本时两处一起改。 */
 const BOOKS = ['seed-ledger.js', 'secret-ledger.js', 'parallel-ledger.js',
-    'commitment-ledger.js', 'fact-version.js', 'event-completeness.js'];
+    'commitment-ledger.js', 'fact-version.js', 'event-completeness.js',
+    'recall-echo.js', 'echo-ledger.js', 'repair-loop.js'];
 /** 每本账该委派哪几处（与门禁 R2 的 NEEDS 同口径）。 */
 const NEEDS = {
     'seed-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
@@ -61,8 +65,16 @@ const NEEDS = {
     'commitment-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
     'fact-version.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
     // 事件线：segments 即它的历史容器（本账的领域形状），版本自增就地 → 只要求两处。
-    'event-completeness.js': ['LE.revisionOf(', 'LE.bumpRevision(']
+    'event-completeness.js': ['LE.revisionOf(', 'LE.bumpRevision('],
+    // [v3.240.0] 三本独立账委派的是**取值原语**（它们本就没有 history 容器与 revision 面）。
+    'recall-echo.js': ['const text = LE.text', 'const finite = LE.finite', 'const finiteFloor = LE.finiteFloor'],
+    'echo-ledger.js': ['const text = LE.text', 'const finite = LE.finite', 'const finiteFloor = LE.finiteFloor'],
+    'repair-loop.js': ['const text = LE.text', 'const finite = LE.finite', 'const finiteFloor = LE.finiteFloor']
 };
+/** [v3.240.0] 三本独立账：**没有** history 容器与 revision 面（回扣账是候选池、回声账按
+ *   char+mode 覆盖、修复账是动作回执）⇒ 它们委派的是取值原语，而非 revision/history 三件套。
+ *   判据据此分叉，而不是把它们当成「缺委派」（本仓纪律：不把判据收窄到失真）。 */
+const NO_REVISION_BOOKS = ['recall-echo.js', 'echo-ledger.js', 'repair-loop.js'];
 
 function vnum(s) {
     const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(s || '').trim());
@@ -123,7 +135,14 @@ test('v3207 2. text / finite / names / revisionOf / bumpRevision 行为', () => 
     assert.equal(LE.text('abcdef', 3), 'abc', '截断');
     assert.equal(LE.finite('12.7'), 12, '数值向下取整');
     assert.equal(LE.finite('x'), null, '非数值 → null');
-    assert.equal(LE.finite(null), 0, '现行为忠实保留：Number(null) === 0（不是「缺省」）；账本的缺省由 copyItem 自己兜');
+    /* [v3.240.0 交棒] 本行原文是 `assert.equal(LE.finite(null), 0, '现行为忠实保留…账本的缺省由
+     *   copyItem 自己兜')` —— 那是**判据在保护已被设计淘汰的状态**，而且就在同一份文件里
+     *   自相矛盾：下面第 3 组（本文件 173 行起）写着「floor 必须**原样**戳：finite(null) 得 0，
+     *   会把「楼层未知」静默变成「第 0 楼」」。一组防它、一组钉它，两者不可能同时为真。
+     *   v3.240.0 把契约分界口改成「没给 ⇒ null」后本行原样会翻红，按本仓交棒口径
+     *   改成**两态断言**（不是删掉判据）： */
+    assert.equal(LE.finite(null), null, '[v3.240.0] null = 「没给」⇒ null（与 undefined 同形）');
+    assert.equal(Number(null), 0, '（根因留痕：Number(null) === 0 —— 这是旧判据在 null 上恒真的原因）');
     assert.equal(LE.finite(undefined), null, 'undefined → NaN → null');
 
     assert.deepEqual(LE.names(['a', 'A', 'b'], 40, 8), ['a', 'b'], '大小写不敏感去重');
@@ -244,7 +263,13 @@ test('v3207 4. 六本账逐本委派契约，且被收走的写法不得回潮',
         assert.ok(!/function\s+text\s*\(/.test(src), f + ' 回潮了本地 `function text(`');
         assert.ok(!/function\s+finite\s*\(/.test(src), f + ' 回潮了本地 `function finite(`');
         // 创建占位统一走 REVISION.CREATE（不再是裸 0 字面量）。
-        assert.ok(src.includes('LE.REVISION.CREATE'), f + ' 的创建占位未走 LE.REVISION.CREATE');
+        //   [v3.240.0] 三本独立账没有 revision 面，本条不适用；反过来也不许它们出现
+        //   REVISION.CREATE（那说明有人给它们补了本来不存在的面 —— 同样要响）。
+        if (NO_REVISION_BOOKS.indexOf(f) < 0) {
+            assert.ok(src.includes('LE.REVISION.CREATE'), f + ' 的创建占位未走 LE.REVISION.CREATE');
+        } else {
+            assert.equal(/REVISION\.CREATE/.test(src), false, f + ' 本无 revision 面，不应出现 REVISION.CREATE');
+        }
     }
     ok('六本账全部委派契约，无一处回潮');
 });
@@ -262,10 +287,15 @@ test('v3207 5. 六本账真调一次：revision 落点与改前一致、幂等�
     assert.equal(s1.items[0].updatedFloor, 4, 'seed floor 原样');
     const s1b = seed.advance(s1, { id: s1.items[0].id, note: '她又看了一眼', floor: 6, eventKey: 'a1' }).state;
     assert.equal(s1b.items[0].revision, 3, '再改一次 → 3');
-    // floor 缺失必须原样保留成 0（改前 copyItem 的 `finite(item.updatedFloor)` 行为，
-    //   实测新旧一致）。不「顺手修掉」——改了就不是纯重构了。
+    /* [v3.240.0 交棒] 原文写「floor 缺失必须原样保留成 0（改前 copyItem 的
+     *   `finite(item.updatedFloor)` 行为，实测新旧一致）。不「顺手修掉」——改了就不是纯重构了」。
+     *   那段话在 v3.207.0 是**对的**：那一版是纯重构，逐字节等价就是它的验收标准。
+     *   但本版口径变了（R4-E 把「没给」判开），`copyItem` 里那处已改走按名点名的 `finiteFloor`
+     *   ⇒「没给」在账上就是 null。故本行按新口径交棒，并把「真第 0 楼仍读 0」一并钉住。 */
     const s1c = seed.plant(null, { hook: '无楼层', eventKey: 'p2' }).state;
-    assert.equal(s1c.items[0].updatedFloor, 0, '缺 floor 时 updatedFloor = 0（与改前逐字一致）');
+    assert.equal(s1c.items[0].updatedFloor, null, '[v3.240.0] 缺 floor ⇒ updatedFloor = null（修前 0）');
+    const s1d = seed.plant(null, { hook: '第 0 楼', floor: 0, eventKey: 'p2b' }).state;
+    assert.equal(s1d.items[0].updatedFloor, 0, '真给了第 0 楼仍读 0（两态不得同形）');
 
     const s2 = secret.seal(null, { secret: '养女实为仇家之后', keeper: '阿绣' }).state;
     assert.equal(s2.items[0].revision, 2, 'secret 新建条目 revision = 2');
@@ -349,13 +379,14 @@ test('v3207 8. 门禁在真仓库 exit 0，且负控制 exit 0（判据能红能
 
     const g = spawnSync('node', [gate], { encoding: 'utf-8', cwd: ROOT });
     assert.equal(g.status, 0, '门禁在真仓库应 exit 0，实得 ' + g.status + '\n' + (g.stdout || '') + (g.stderr || ''));
-    assert.ok((g.stdout || '').includes('消费者 6 本'), '门禁读数应报 6 本消费者：' + (g.stdout || ''));
+    assert.ok((g.stdout || '')./* [v3.240.0] 读数口径随版本走：门禁的 BOOKS/MIN_BOOKS 已由 6 抬到 9（三本独立账收编）。 */
+        includes('消费者 9 本'), '门禁读数应报 9 本消费者：' + (g.stdout || ''));
 
     const n = spawnSync('node', [neg], { encoding: 'utf-8', cwd: ROOT });
     assert.equal(n.status, 0, '负控制应 exit 0（否则判据恒绿或归因不成立），实得 ' + n.status
         + '\n' + (n.stdout || '') + (n.stderr || ''));
     assert.ok((n.stdout || '').includes('V0-原版对照'), '负控制应含 V0 原版对照：' + (n.stdout || ''));
-    ok('门禁 exit 0（6 本消费者）+ 负控制 exit 0（真源码破坏逐组翻红）');
+    ok('门禁 exit 0（9 本消费者）+ 负控制 exit 0（真源码破坏逐组翻红）');
 });
 
 /* ══════════ 9. 判据面自防护 ══════════ */
@@ -369,9 +400,11 @@ test('v3207 9. 判据面自防护：断言密度与关键指纹不得缩水', ()
         'scan_ledger_contract_negctl.mjs', 'updatedFloor']) {
         assert.ok(SELF.includes(fp), '关键指纹缺失：' + fp);
     }
-    // 六本账文件数与委派表条目数必须成对（新增账本时这里是显式登记点）。
-    assert.equal(BOOKS.length, 6, '账本清单应为本版事实的 6 本');
-    assert.equal(Object.keys(NEEDS).length, 6, '委派表必须与账本清单逐本对应');
+    // 账本文件数与委派表条目数必须成对（新增账本时这里是**显式登记点**）。
+    //   [v3.240.0] 旧口径写死「本版事实的 6 本」；本版收编三本独立账后是 9 本 ——
+    //   改口径而不是改数字：清单与门禁 BOOKS 同源，动一处必须两处一起动。
+    assert.equal(BOOKS.length, 9, '账本清单随本版登记点上抬（v3.240.0 收编三本独立账）');
+    assert.equal(Object.keys(NEEDS).length, 9, '委派表必须与账本清单逐本对应');
     for (const f of BOOKS) assert.ok(NEEDS[f] && NEEDS[f].length >= 2, '委派表缺 ' + f);
     ok('断言 ' + asserts + ' 条 / ' + lines + ' 行，指纹齐全');
 });

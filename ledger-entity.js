@@ -39,6 +39,11 @@
  *     平行事实带 place/who、秘密带 progress、约定带 due —— 这一层不该被统一。
  *   · 不抛：所有函数对畸形输入一律降级为契约内的默认值（与六本账既有行为逐位一致）。
  *
+  * [v3.240.0] 本契约的 `finite` 从「Number.isFinite(Number(v))」改为**先分「没给」**：
+ *   null / undefined / 空串 / 布尔 / 数组 ⇒ null；有限数（含 0）⇒ 该数。修前 `finite(null) === 0`
+ *   使「楼层未知」与「第 0 楼」塌成同形（九本账约 30 处 floor 调用点受影响）。同轮新增
+ *   `finiteFloor` / `numOrNull`（同判据别名，供 floor 一族按名点名）与三本独立账的委派收编。
+ *
  * 挂 window.LonShaLedgerEntity，供六本账与 index.js 自检面取用。
  * ======================================================== */
 'use strict';
@@ -54,9 +59,69 @@
     const s = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
     return max ? s.slice(0, max) : s;
   }
+  /**
+   * [v3.240.0] 数值归一：**「没给」与「给了 0」必须不同形**。
+   *
+   * 修前实测（本版逐模块坐实，不是推演）：
+   *   `Number.isFinite(Number(v)) ? Math.floor(Number(v)) : null` 这条判据在
+   *   `v === null` / `v === ''` / `v === []` / `v === false` 时**恒真**
+   *   （`Number(null) === 0`、`Number('') === 0`、`Number([]) === 0`、`Number(false) === 0`
+   *   且都是有限数），而 `v === undefined` 走 `Number(undefined) === NaN` 归 null。
+   *   于是同一个语义「楼层未知」有两个形态：`undefined` ⇒ null，`null`/`''` ⇒ **0**。
+   *   而 **0 在本插件是合法楼层**（第 0 楼真实存在），故后者是**错读数**。
+   *
+   * 本仓老账（第三次踩同一个坑）：O-1（v3.223.0）与 R3-D（v3.221.0）都只修了**单点**；
+   *   v3.239.0（R4-E）修到 `snapshot-checkpoint.js` 与 `index.js` 两侧分界口，
+   *   并**显式声明**范围收窄：「本仓其余模块（memory-entropy / evidence 等）的历史判据
+   *   不在本版口径内」。本模块 `finite` 正是那批「其余模块」里最上游的一处 ——
+   *   它是六本账（+ 三本独立账）的**共享契约**，floor 一族读写的根都在这里。
+   *
+   * 后果（修前实测，逐条有判据）：
+   *   ① 四本账的写入守卫 `const f = finite(floor); if (f == null) return reject(state,'missing-floor')`
+   *      —— `sweep(state)` / 不传 floor 时不再拒绝，反而拿「floor 0」去比较已回收条目的
+   *      `recoveredFloor`，**静默横扫**（只摘 recoveredFloor < 0 的条目，而它恒非负 ⇒ 一条都不摘，
+   *      且报 `swept:0, changed:false` —— 「已扫过、无事发生」的样子）；
+   *   ② 九本账 `copyItem` 的 `floor: finite(item.floor)` 把「楼层未知」写成 0
+   *      （`evidence-workbench.js` 的注释已如实记下这一条，并写明「属上游单独一版的事」）；
+   *   ③ `fact-version` 的 `copyEvent.at`（时间戳）同形：`at: null` 被写成 0（1970）。
+   *
+   * 本版修法（**修判据本体**，同 R4-E 的做法）：把「外部来的数」的语义钉在本函数上 ——
+   *   没给（null / undefined / 空串 / 空白串 / 布尔）⇒ `null`；
+   *   有限数（含 0、负数、数字串 '0'）⇒ 该数（**真给了 0 必须留 0**，不一刀切吞掉）；
+   *   其余（NaN / 对象 / 数组 / 非数字串 / ±Infinity）⇒ `null`（给了但不是数，不抛、不猜）。
+   *
+   * 为什么不直接把 `finite` 改成「非数组对象也 null」了事：`[]` 走 `Number([]) === 0`
+   *   与 `null` 同族，必须一起挡；而 `[1]` / `['0']` 是**给了但不是数**，同样归 null。
+   *   四类输入逐条可证（`tests/v3240` A 组），与 `snapshot-checkpoint.js:numOrNull`
+   *   和 `evidence-workbench.js:finiteNumStrict` **同判据**（三处逐输入等价，B 组钉住）。
+   *
+   * 【口径不可回退】谁把这条判据改回 `Number.isFinite(Number(v))`，floor 一族立刻
+   *   重新塌成「第 0 楼」（v3240 F 组负控制：真源码破坏 → 破坏副本 → 同款判据必须转红）。
+   */
   function finite(value) {
+    if (value === null || value === undefined) return null;
+    const t = typeof value;
+    if (t === 'boolean' || t === 'object' || t === 'function') return null;
+    if (t === 'string' && value.trim() === '') return null;
     const n = Number(value);
     return Number.isFinite(n) ? Math.floor(n) : null;
+  }
+  /**
+   * [v3.240.0] 楼层专用别名：与 `finite` **逐输入等价**（刻意不做第二份判据）。
+   *
+   * 为什么要有这个名字：floor 一族（`floor` / `updatedFloor` / `recoveredFloor` /
+   * `revealedFloor` / `settledFloor` / 段与事件的 `floor`）在**九本账**里共约 30 处调用点，
+   * 而 `evidence-workbench.js` 与 `snapshot-checkpoint.js` 各自已有一个具名的
+   * 「楼层取值口」（`finiteFloor` / `numOrNull`）。名字相同 ⇒ 读代码的人不必再去比对
+   * 「这里的 finite 是不是那个 finite」；判据也按名点名（v3240 C 组：floor 一族不得再走 `finite(`）。
+   * **它不是第二份实现**：函数体只有一行转发，破坏它等于破坏 `finite`（v3240 F 组两向自证）。
+   */
+  function finiteFloor(value) {
+    return finite(value);
+  }
+  /** [v3.240.0] 与 `finite` 同判据的另一个名字 —— 与 `snapshot-checkpoint.js:numOrNull` 对齐。 */
+  function numOrNull(value) {
+    return finite(value);
   }
   /** 名单归一：去空、去重（大小写不敏感）、截断；非数组按分隔符切串。 */
   function names(value, maxEach, maxCount, seps) {
@@ -95,8 +160,9 @@
    * @returns {boolean} true = 入账（版本已 +1）；false = 事件重放（一个字都没改）
    * opts.maxHistory 历史条数上限（各账不同，调用方传）；
    * opts.stampFloor  true 时把 `event.floor` **原样**写进 `item.updatedFloor`。
-   *   必须原样、**不得过 finite()**：`finite(null)` 得 0 而不是 null，
-   *   会把「楼层未知」静默变成「第 0 楼」—— 这是本契约里最容易写错的一格，
+   *   必须原样、**不得过 finite()**：本函数把 `event.floor` 原样写进 `item.updatedFloor`，
+   *   不经任何数值归一 —— 因为「楼层未知」必须保持它**原样**的形态（null 或 undefined），
+   *   一旦过归一就有塌成「第 0 楼」的风险（v3.240.0 之前 `finite(null) === 0` 正是如此）。
    *   故由 v3207 用例把两种写法分开钉住。
    * opts.prepare     push 前的归一化（如某账的 copyEvent）；不给则原样入账。
    */
@@ -171,7 +237,7 @@
 
   const api = Object.freeze({
     REVISION, DEFAULT_BOX,
-    text, finite, names,
+    text, finite, finiteFloor, numOrNull, names,
     revisionOf, bumpRevision, recordEvent, copyHistory,
     scanBook, line
   });

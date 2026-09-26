@@ -105,6 +105,7 @@
   // [v3.207] text / finite 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
   const text = LE.text;
   const finite = LE.finite;
+  const finiteFloor = LE.finiteFloor;   // [v3.240.0] floor/时刻一族专用（与 finite 同判据）
   function originOf(o) {
     return ORIGINS.includes(o) ? o : 'stated';
   }
@@ -116,13 +117,13 @@
     return {
       eventKey: text(e && e.eventKey, 120),
       action: text(e && e.action, 24),
-      floor: finite(e && e.floor),
+      floor: finiteFloor(e && e.floor),
       source: text(e && e.source, 40),
       origin: (e && e.origin == null) ? null : originOf(e.origin),
       reason: text(e && e.reason, 80),
-      from: (e && e.from == null) ? null : finite(e.from),
-      to: (e && e.to == null) ? null : finite(e.to),
-      at: finite(e && e.at)
+      from: (e && e.from == null) ? null : finiteFloor(e.from),
+      to: (e && e.to == null) ? null : finiteFloor(e.to),
+      at: finiteFloor(e && e.at)
     };
   }
   function copyFact(f) {
@@ -146,9 +147,9 @@
       conflictPolicy: CONFLICT_POLICIES.includes(f.conflictPolicy) ? f.conflictPolicy : 'auto',
       origin: originOf(f.origin),
       trust: trustOf(f.origin),
-      from: f.from == null ? null : finite(f.from),
-      to: f.to == null ? null : finite(f.to),
-      floor: finite(f.floor),
+      from: f.from == null ? null : finiteFloor(f.from),
+      to: f.to == null ? null : finiteFloor(f.to),
+      floor: finiteFloor(f.floor),
       source: text(f.source, 40),
       evidence: text(f.evidence, 120),
       supersededBy: text(f.supersededBy, 48) || null,
@@ -196,7 +197,7 @@
   /** 内容指纹：同一事实重复提取不应重复登记（幂等键）。[v3.210] 类型参与指纹——同内容但类型不同是两条不同事实。 */
   function factFp(f) {
     return [text(f.subject).toLowerCase(), text(f.predicate).toLowerCase(), text(f.value).toLowerCase(),
-      originOf(f.origin), f.from == null ? '*' : finite(f.from), f.to == null ? '*' : finite(f.to),
+      originOf(f.origin), f.from == null ? '*' : finiteFloor(f.from), f.to == null ? '*' : finiteFloor(f.to),
       (f.type == null || f.type === '') ? '*' : text(f.type, 32).toLowerCase()].join('\u0001');
   }
   function nextId(state) {
@@ -266,7 +267,7 @@
       return pairKey(f.subject, f.predicate) === pkey && !f.revoked && f.to == null;
     });
     const differing = open.filter(function (f) { return text(f.value).toLowerCase() !== value.toLowerCase(); });
-    const newFrom = i.from == null ? null : finite(i.from);
+    const newFrom = i.from == null ? null : finiteFloor(i.from);
     // [v3.211] 策略需要**写进条目**（字段名 `conflictPolicy`，与入参同名同义）：此前它只活在
     //   一次调用的局部变量里 —— 落盘后账上读不回「这条当初是按什么处置语义写进来的」，
     //   于是导出/跨会话/诊断面全看不见，只能靠返回体当场看（返回体不落盘）。
@@ -405,7 +406,7 @@
     };
     if (!alive.length) return Object.assign(base, { reason: 'none-revoked', fact: null, facts: [] });
     if (!trusted.length) return Object.assign(base, { reason: 'none-trusted', fact: null, facts: [] });
-    const at = query.at == null ? null : finite(query.at);
+    const at = query.at == null ? null : finiteFloor(query.at);
     let picked;
     if (at == null) {
       picked = trusted.filter(function (f) { return f.to == null; });
@@ -433,8 +434,8 @@
       const allMulti = picked.every(function (f) { return f.conflictPolicy === MULTI_VALUE_POLICY; });
       if (allMulti) {
         const ordered = uniq.slice().sort(function (a, b) {
-          const fa = a.from == null ? -1 : finite(a.from);
-          const fb = b.from == null ? -1 : finite(b.from);
+          const fa = a.from == null ? -1 : finiteFloor(a.from);
+          const fb = b.from == null ? -1 : finiteFloor(b.from);
           return fa - fb || String(a.id).localeCompare(String(b.id));
         });
         return Object.assign(base, { reason: 'multiple', fact: null, facts: ordered.map(copyFact), multi: ordered.length });

@@ -25,6 +25,7 @@
   // [v3.207] text / finite 由账本实体契约提供（原为六本账各自抄一份，逐字相同）。
   const text = LE.text;
   const finite = LE.finite;
+  const finiteFloor = LE.finiteFloor;   // [v3.240.0] floor 一族专用（与 finite 同判据，按名点名）
   function clone(state) {
     return {
       version: 1,
@@ -42,8 +43,8 @@
       status: STATES.includes(item.status) ? item.status : 'open',
       // [v3.207] 修订号读回走契约。
       revision: LE.revisionOf(item),
-      floor: finite(item.floor),
-      updatedFloor: finite(item.updatedFloor),
+      floor: finiteFloor(item.floor),
+      updatedFloor: finiteFloor(item.updatedFloor),
       source: text(item.source, 40),
       // [v3.207] 历史读回走契约（末 MAX_HISTORY 条 + 逐条 copyEvent）。
       history: LE.copyHistory(item, MAX_HISTORY, copyEvent)
@@ -53,7 +54,7 @@
     return {
       action: ACTIONS.includes(event.action) ? event.action : 'amend',
       eventKey: text(event.eventKey, 120),
-      floor: finite(event.floor),
+      floor: finiteFloor(event.floor),
       source: text(event.source, 40),
       reason: text(event.reason, 120),
       due: event.due == null ? null : text(event.due, 40)
@@ -106,7 +107,7 @@
     const eventKey = text(input?.eventKey, 120);
     if (existing) {
       const replayed = !eventKey || existing.history.some((event) => event.eventKey === eventKey);
-      if (eventKey && !replayed) record(existing, { action: 'open', eventKey, floor: finite(input?.floor), source: text(input?.source, 40), reason: '', due: existing.due });
+      if (eventKey && !replayed) record(existing, { action: 'open', eventKey, floor: finiteFloor(input?.floor), source: text(input?.source, 40), reason: '', due: existing.due });
       return result(state, { item: copyItem(existing), replayed, changed: !replayed });
     }
     const item = copyItem({
@@ -126,7 +127,7 @@
     if (!item) return reject(state, 'not-found');
     if (TERMINAL[item.status]) return result(state, { item: copyItem(item), replayed: true, changed: false, reason: 'terminal' });
     const event = {
-      action, eventKey: text(input?.eventKey, 120), floor: finite(input?.floor),
+      action, eventKey: text(input?.eventKey, 120), floor: finiteFloor(input?.floor),
       source: text(input?.source, 40), reason: text(input?.reason, 120), due: input?.due == null ? item.due : text(input.due, 40)
     };
     if (action === 'amend' && !event.reason && (input?.due == null || event.due === item.due) && !text(input?.content, 160)) {

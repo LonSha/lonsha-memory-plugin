@@ -40,14 +40,18 @@
   /** 派生件类型六态——每一类都是本仓真实的派生子系统。 */
   const KINDS = Object.freeze(['summary', 'event', 'relation', 'promise', 'fact', 'timeline']);
 
-  function text(v, max) {
-    const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
-    return max ? s.slice(0, max) : s;
-  }
-  function finite(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? Math.floor(n) : null;
-  }
+  /* [v3.240.0] 账本实体契约单一真源（ledger-entity.js）——本模块此前自带一份 `text` / `finite` 拷贝。
+   *   拷贝的判据是 `Number.isFinite(Number(v))`：`Number(null) === 0` 且有限 ⇒ `finite(null)` 得 0，
+   *   于是「楼层未知」被静默写成「第 0 楼」（而 0 在本插件是**合法楼层**）。
+   *   本仓同一形态已修过三处（O-1 / R3-D / R4-E），v3.240.0 把 `finite` 本体改成「没给 ⇒ null」，
+   *   并把本模块（原三份未收编的拷贝之一）一并收进契约 —— 判据只此一份，改一处就全都改到。
+   *   取库双通道与六本委派账逐字同形（浏览器走全局、Node 走 require），便于门禁按字面量扫描。 */
+  const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity
+    : ((typeof module !== 'undefined' && module.exports) ? require('./ledger-entity.js') : (root.LonShaLedgerEntity || null));
+  if (!LE) throw new Error('[lonsha] ledger-entity.js 未加载：账本实体契约缺真源（查 manifest.extra_js 加载顺序）');
+  const text = LE.text;
+  const finite = LE.finite;
+  const finiteFloor = LE.finiteFloor;   // [v3.240.0] floor 一族专用（与 finite 同判据，按名点名）
   function copyItem(it) {
     return {
       kind: KINDS.includes(it.kind) ? it.kind : 'summary',
@@ -70,10 +74,10 @@
       //   旧存档没有它、读回即空串（与「没给」同义），旧代码读到多出的字段也照旧忽略，
       //   两侧都不改变既有语义，故不构成结构代际变化（抬版会逼所有存档走迁移，那是另一件事）。
       dedupeKey: text(r.dedupeKey, 80),
-      floor: finite(r.floor),
+      floor: finiteFloor(r.floor),
       status: STATES.includes(r.status) ? r.status : 'open',
       affected: Array.isArray(r.affected) ? r.affected.map(copyItem).slice(-24) : [],
-      at: finite(r.at)
+      at: finiteFloor(r.at)
     };
   }
   function clone(state) {
