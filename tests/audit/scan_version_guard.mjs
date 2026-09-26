@@ -15,6 +15,12 @@
 //   V4 当版锚点必须在场：至少一个测试以 vnum 恰好锚着当前版本
 //      （锚点被静默删空时，版本守卫就失去基准，必须响）
 //   V5 结构面：frontier 存在、扫描面不少于 50 个测试文件
+//   V6 [v3.241.0] 四源同源补完：CHANGELOG 顶节必须就是当前版本 ——
+//      三源（index/manifest/package）同步了、发布面没抬版，用户看到的是上一版的说明。
+//      这就是「V1 只管机器读的三份、不管人读的那两份」留下的口子。
+//   V7 [v3.241.0] TODO「最近更新」必须就是当前版本（同一形态的第二处人读面）。
+//   V6/V7 容忍缺文件（夹具树里可以不在场，同 V1 对 package.json 的口径）：
+//      在场即必须一致 —— 容忍缺席不等于容忍不一致。
 // 退出码：0 通过 / 1 发现违规 / 2 结构漂移（读不到版本、测试目录为空）
 //
 // 当版 frontier 豁免：当版测试在被下一版接管前用硬等号锁自己，是既有交棒口径。
@@ -59,6 +65,26 @@ if (pkgRaw) {
     try { pkg = JSON.parse(pkgRaw); }
     catch (e) { failClosed('package.json 不是合法 JSON'); }
     if (pkg.version !== current) problems.push('V1 package.json version ' + pkg.version + ' != VERSION ' + current);
+}
+
+/* ---- V6/V7 四源同源补完：人读面两份（在场即必须一致）----
+ *   [v3.241.0] 为什么单列：V1 只查了「机器读的三份」（index / manifest / package）。
+ *   本仓的发布面还有两份**人读**的：CHANGELOG 顶节（用户看的那节说明）与
+ *   TODO「最近更新」（下一个人接手时先看的那一行）。实测抬版时这两份最常漏 ——
+ *   漏了不会有任何机器读数报警，只会在下一版被某个历史测试的 `startsWith('## v'+CUR)` 抓住，
+ *   而那时归因已经远了。故抬进守卫，且**缺席容忍、在场必一致**：
+ *   夹具树只搬三源 + tests/（v3203 的负控制树就是这样），不能因为夹具没搬就 fail-closed。 */
+const changelogRaw = read('CHANGELOG.md');
+if (changelogRaw != null) {
+    const m = /^## v([0-9]+[.][0-9]+[.][0-9]+)/m.exec(changelogRaw.split('\n').slice(0, 40).join('\n'));
+    if (!m) problems.push('V6 CHANGELOG.md 顶节找不到 `## vX.Y.Z` 标题（发布面缺当版说明）');
+    else if (m[1] !== current) problems.push('V6 CHANGELOG.md 顶节 v' + m[1] + ' != VERSION ' + current + '（三源抬了、发布面没抬）');
+}
+const todoRaw = read('TODO.md');
+if (todoRaw != null) {
+    const m = /最近更新：v([0-9]+[.][0-9]+[.][0-9]+)/.exec(todoRaw);
+    if (!m) problems.push('V7 TODO.md 缺「最近更新：vX.Y.Z」一行（接手面缺当版读数）');
+    else if (m[1] !== current) problems.push('V7 TODO.md 最近更新 v' + m[1] + ' != VERSION ' + current);
 }
 
 /* ---- 扫描面 ---- */
@@ -130,7 +156,12 @@ if (anchored === 0) {
     problems.push('V4 没有任何测试恰好锚着当版 ' + current + '（当版锚点被删空，版本守卫失去基准）');
 }
 
-console.log('=== 版本守卫：当前 ' + current + ' / 历史测试 ' + scanned
+console.log('=== 版本守卫：当前 ' + current + ' / 四源 ' + [
+    manifest.version === current ? 'manifest✓' : 'manifest✗',
+    pkgRaw ? (JSON.parse(pkgRaw).version === current ? 'package✓' : 'package✗') : 'package(缺席)',
+    changelogRaw == null ? 'CHANGELOG(缺席)' : (/^## v/.test(changelogRaw) ? 'CHANGELOG' : 'CHANGELOG✗'),
+    todoRaw == null ? 'TODO(缺席)' : (/最近更新：v/.test(todoRaw) ? 'TODO' : 'TODO✗'),
+].join(' ') + ' / 历史测试 ' + scanned
     + ' / 当版 frontier ' + frontier.length + ' / 当版锚点 ' + anchored + ' / 问题 ' + problems.length + ' ===');
 if (frontier.length) console.log('  frontier: ' + frontier.join(', '));
 if (problems.length) {

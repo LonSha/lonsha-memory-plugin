@@ -18,8 +18,9 @@
  * 环境变量：
  *   TEST_JOBS     同 --jobs（命令行优先）
  *   TEST_TIMEOUT  单文件超时毫秒（默认 120000）
+ *   TEST_SUMMARY_JSON  机器读摘要落盘路径（汇总表的结构化形态）[v3.241.0]
  */
-import { readdirSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readdirSync, existsSync, mkdirSync, writeFileSync, readFileSync as require$readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -209,6 +210,18 @@ async function pool(items, jobs, worker) {
   return results;
 }
 
+/* [v3.241.0] 失败归因抽取：只看退出码不够，要能一眼看到**第一条真错误行**。
+ *   「门禁时只看汇总表」的前提是汇总表里带得动归因 —— 否则还是得逐条翻输出。
+ *   这里的形态是「从子进程输出里挑第一条像错误的行」，**只用于摘要展示**，
+ *   判据一律仍以退出码为准（摘要不参与判定，避免把「像错误的行」当成判据）。 */
+const ERR_SIG = /AssertionError|Error:|SyntaxError|TypeError|ReferenceError|not ok|\[.*\] *失败|✗/;
+function firstError(r) {
+  const lines = ((r.err || '') + '\n' + (r.out || '')).split('\n')
+    .map((l) => l.trim()).filter(Boolean);
+  const hit = lines.find((l) => ERR_SIG.test(l));
+  return hit ? hit.slice(0, 160) : '(无输出)';
+}
+
 // ---------- TAP 摘要提取（尽力而为） ----------
 function summarize(r) {
   const text = r.out + '\n' + r.err;
@@ -226,6 +239,18 @@ function auditScripts() {
   return readdirSync(AUDIT_DIR).filter(f => f.endsWith('.mjs') && !f.startsWith('_')).sort().map(f => join(AUDIT_DIR, f));
 }
 
+/** 摘要里的版本读法：只读**真源** index.js，读不到就记 'unknown'（摘要不 fail-closed）。 */
+function VERSION_OF_REPO() {
+  try {
+    const m = /const VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/.exec(
+      readFileSyncSafe(join(REPO, 'index.js')));
+    return m ? m[1] : 'unknown';
+  } catch (e) { return 'unknown'; }
+}
+function readFileSyncSafe(p) {
+  try { return require$readFileSync(p); } catch (e) { return ''; }
+}
+
 async function main() {
   const tests = collectTests();
   if (tests.length === 0) {
@@ -237,6 +262,7 @@ async function main() {
   const results = await pool(tests, OPT.jobs, runWithRetry);
 
   let totalPass = 0, totalFail = 0, anyFail = false;
+  let auditSummary = null;
   const failed = [];
   for (const r of results) {
     const { pass, fail } = summarize(r);
@@ -246,6 +272,7 @@ async function main() {
     const ok = r.code === 0 && !r.killed;
     if (!ok) {
       anyFail = true;
+      r.firstError = firstError(r);   // [v3.241.0] 汇总表要带得动归因
       failed.push(r);
       const tag = r.killed ? 'TIMEOUT' : `exit=${r.code}`;
       console.log(`  ✗ ${name}  (${r.ms}ms, ${tag})`);
@@ -306,6 +333,57 @@ async function main() {
       const slowest = [...results].sort((a, b) => b.ms - a.ms).slice(0, 3)
         .map((r) => `${r.file.replace(REPO + '/', '')}(${r.ms}ms)`).join(' · ');
       console.log(`[audit] 通过 ${passed}/${results.length} | 耗时 ${aWall}s | 最慢 3：${slowest}`);
+      auditSummary = {
+        total: results.length, passed,
+        failed: results.filter((r) => r.code !== 0).map((r) => ({
+          script: r.file.replace(REPO + '/', ''), status: r.code,
+          duration: r.ms, firstError: firstError(r),
+        })),
+        slowest: [...results].sort((a, b) => b.ms - a.ms).slice(0, 3)
+          .map((r) => ({ script: r.file.replace(REPO + '/', ''), duration: r.ms })),
+        wall: Number(aWall),
+      };
+    }
+  }
+
+  /* [v3.241.0] 汇总表与机器读摘要。
+   *   为什么加：失败清单此前只在**输出流里**（人得往上翻），audit 段只给一行
+   *   `通过 N/M` —— 「门禁时只看汇总表」这句话当时没有可看的东西。
+   *   这里把两段收成同一张表（{阶段, 名, 退出码, 耗时, 第一条错误}），
+   *   并在 TEST_SUMMARY_JSON 有值时落盘结构化摘要（供后续脚本/看板消费）。
+   *   摘要**不参与判定**：退出码仍是唯一判据（摘要只负责把归因摆在眼前）。 */
+  const summary = {
+    version: VERSION_OF_REPO(),
+    at: new Date().toISOString(),
+    tests: {
+      total: tests.length, passed: tests.length - failed.length,
+      failed: failed.map((r) => ({
+        file: r.file.replace(REPO + '/', ''), status: r.killed ? 'timeout' : r.code,
+        duration: r.ms, firstError: r.firstError || firstError(r),
+      })),
+      wall: Number(wall),
+    },
+    audit: auditSummary,
+    ok: !anyFail,
+  };
+  if (failed.length || (auditSummary && auditSummary.failed.length)) {
+    console.log('');
+    console.log('[run] 失败汇总表（阶段 | 名 | 退出码 | 耗时 | 第一条错误）:');
+    for (const r of failed) {
+      console.log('  test  | ' + r.file.replace(REPO + '/', '') + ' | '
+        + (r.killed ? 'timeout' : r.code) + ' | ' + r.ms + 'ms | ' + (r.firstError || firstError(r)));
+    }
+    for (const a of (auditSummary ? auditSummary.failed : [])) {
+      console.log('  audit | ' + a.script + ' | ' + a.status + ' | ' + a.duration + 'ms | ' + a.firstError);
+    }
+  }
+  const dumpPath = process.env.TEST_SUMMARY_JSON;
+  if (dumpPath) {
+    try {
+      writeFileSync(dumpPath, JSON.stringify(summary, null, 2));
+      console.log('[run] 结构化摘要已落盘: ' + dumpPath);
+    } catch (e) {
+      console.log('[run] 摘要落盘失败（不影响判定）: ' + (e && e.message));
     }
   }
 
