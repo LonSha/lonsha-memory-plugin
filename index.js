@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.235.0';
+    const VERSION = '3.236.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1103,6 +1103,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 adaptiveBudgetDecayFloors: 80,   // [v3.50] 自适应衰减参考楼层
                 sleepEveryN: 10,                 // [v3.47] 睡眠周期：每 N 次提取触发一次归档遗忘
                 snapshotEveryFloors: 50,         // [v2.9] 定期快照：每 N 楼一份 IndexedDB 独立快照
+                // [v3.236.0] R4-B：快照恢复面板的预检开关。默认开——恢复是用户可见的破坏性操作，
+                //   预检只读、不改运行时，关掉它换不到任何收益，只是把「部分失败」重新变成事后才知道。
+                snapshotPrecheckEnabled: true,
                 autoArchiveCovered: false,     // 归档隐藏已被卷摘要覆盖的旧楼层（默认关，防灾）
                 // [v3.112] 覆盖账本重算（缝合 AnchorNote）：归档状态由有效覆盖者推导而非增量记账
                 coverageLedgerEnabled: false,  // 默认关：开启后覆盖者失效时自动恢复对应楼层可见（不再靠清空集合重推）
@@ -2293,6 +2296,18 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._ledgerMissingRollbacks = 0;             // [v3.155] 因账本淘汰而无法回滚的楼层请求数（诊断可观测）
             this._lastReplayReport = null;
             this._lastRollbackPreview = null;   // [v3.235.0] R4-A：最近一次破坏前的只读预告（与 _lastReplayReport 成对，可对账）                // [v3.182] 最近一次账本回放报告（删楼/前移的分态留痕，诊断可观测）
+            // [v3.236.0] R4-B 缺口 2：定期快照的节流锚点此前是**裸楼层数**（`_lastSnapshotFloor`），
+            //   它不认会话身份 —— 在 B 会话里，`curFloor - A的锚点` 恒为负数（首楼 index 为 0 时
+            //   `0 - 400 = -400` 为真值、判据不触发），于是 B 的快照**一份都不落盘**，且不报错。
+            //   修法不是「清空锚点」而是**把它**（以及它的账）**钉在会话身份上**：身份不符时
+            //   重置为 0，于是第一次判定走「首份快照」分支 —— 与从未快照过的会话逐字同形。
+            //   刻意不叫 `_lastSnapshotFloor`：同名同义要求它只表示「锚点楼层」，语义由
+            //   `_snapshotAnchorOf(chatId)` 承载（查询副作用为「按会话初始化」，读取语义为零）。
+            this._snapshotAnchorChatId = null;   // [v3.236.0] 锚点归属的会话（身份）
+            this._snapshotAnchorFloor = 0;       // [v3.236.0] 该会话内最近一次快照的楼层
+            this._snapshotByChat = [];           // [v3.236.0] 快照落盘台账 [{at, chatId, floor}]（最近 20 条，诊断可观测）
+            this._clearRuntimeReport = null;     // [v3.236.0] 最近一次「清空运行内存」的逐面结局（清空面板的破坏前预告读数）
+            this._restoredKeyHistory = new Set();  // [v3.236.0] 曾经被恢复进来的面（键历史）—— 清空覆盖核对的真源，随会话身份归零
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
             this.llm = new LLMCaller(config);
@@ -3980,10 +3995,21 @@ function relativeTimeLabel(eventTime, nowTime) {
                     try {
                         const snapEvery = this.config.config.snapshotEveryFloors || 50;
                         const curFloor = message.index || 0;
-                        if (!this._lastSnapshotFloor || curFloor - this._lastSnapshotFloor >= snapEvery) {
-                            this._lastSnapshotFloor = curFloor;
+                        // [v3.236.0] R4-B：闸门从「裸楼层数」改成「**按会话身份的锚点**」（缺口 2）。
+                        //   修前在 B 会话里 curFloor(0) - A的锚点(400) = -400，判据不触发 ⇒
+                        //   B 的快照一份都不落盘，且不报错（本仓最忌讳的静默降级形态）。
+                        //   ★ 这里 **不再调 getCurrentChatId()**：外层 `const chatId = this.getCurrentChatId()`
+                        //   的推导结果与它逐字相同，再取一次只会多出一个与 chatId 可能不一致的第二真源
+                        //   （本仓的「同名不同源」正是要靠单一读数来避免的）。
+                        const anchor = this._snapshotAnchorOf(chatId);
+                        if (anchor.fresh || curFloor - anchor.floor >= snapEvery) {
                             const snapData = await this.collectExport();
-                            await this.snapshots.save(chatId, curFloor, snapData);
+                            const kept = await this.snapshots.save(chatId, curFloor, snapData);
+                            if (kept) {
+                                this._snapshotAnchorFloor = curFloor;
+                                this._snapshotByChat.push({ at: Date.now(), chatId: chatId, floor: curFloor });
+                                if (this._snapshotByChat.length > 20) this._snapshotByChat.shift();
+                            }
                             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 快照已保存 (floor ${curFloor})`);
                         }
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 快照失败:`, e); }
@@ -9251,6 +9277,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return txt;
                         } catch (e) { return '—（诊断异常）'; }
                     })()],
+                    // [v3.236.0] R4-B：**定期快照观测**（缺口 2 的读数面）。
+                    //   此前「每 50 楼一份快照」这句话在诊断面上没有任何对应读数：
+                    //   落没落盘、落在哪个会话、锚点是谁的，一律不可见 —— 于是「切了会话
+                    //   以后再也不存快照」这件事只能靠人去翻 IndexedDB 才知道。
+                    //   本行刻意把三态分开写：未启用 / 本会话尚无锚点 / 锚点读数，
+                    //   并把落盘账里**属于别的会话**的份数单列（跨会话污染一眼可见）。
+                    ['定期快照', (() => {
+                        try {
+                            if (!this.config || !this.config.config || !this.config.config.autoSave) return '—（未启用）';
+                            const _every = Number((this.config.config || {}).snapshotEveryFloors) || 50;
+                            const _own = (this._snapshotByChat || []).length;
+                            const _mine = (this._snapshotByChat || []).filter(r => r.chatId === this._snapshotAnchorChatId).length;
+                            const _head = '每 ' + _every + ' 楼';
+                            const _tail = '｜落盘账 ' + _own + ' 份（本会话 ' + _mine + '，跨会话 ' + (_own - _mine) + '）';
+                            if (!this._snapshotAnchorChatId) return _head + '｜本会话尚无锚点' + _tail;
+                            return _head + '｜锚点 ' + (Number(this._snapshotAnchorFloor) || 0) + ' 楼' + _tail;
+                        } catch (e) { return '—（诊断异常）'; }
+                    })()],
                     ['账本回放', (() => {
                         try {
                             const _lr = _ledgerReplayLib();
@@ -10387,7 +10431,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 for (const k of _unknown) bag[k] = data[k];
                 res.unknownPreserved = _unknown.length;
             }
+            const _impKeys = [];   // [v3.236.0] R4-B：登记序号（只增不改序），与 _imp 的**调用序**逐位一致
             const _imp = (key, need, fn) => {
+                _impKeys.push(key);
                 if (data[key] == null) { res.skipped.push(key); return; }        // payload 无此字段
                 if (!need) { res.missing.push(key); return; }                    // [v3.142] 有数据但引擎无对应模块：单列，不与「无数据」混为一谈
                 if (dry) { res.restored.push(key); res.count++; return; }        // [v3.142] 预检只出计划，绝不写运行时
@@ -10469,14 +10515,276 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     errLog(e, 'restoreFromPayload.rollback');
                 }
             }
+            /* [v3.236.0] R4-B：**曾经被恢复进来的面**的累积账（键历史，跨载荷、跨快照）。
+             *   存在理由：`res.registered` 只回答「这一次登记了哪些面」，而清空面板要问的是
+             *   「历史上装进来过的面，清空面覆盖得住吗」—— 快照/导入可以只带字段子集，
+             *   只用本次载荷的键集合会漏判（这次没带的字段，历史上可能已经装进来过）。
+             *   归零点与会话身份同步（构造期 + CHAT_CHANGED），与 `_snapshotAnchorChatId` 同一纪律。 */
+            try {
+                if (!(this._restoredKeyHistory instanceof Set)) this._restoredKeyHistory = new Set();
+                for (const _k of _impKeys) this._restoredKeyHistory.add(_k);
+                res.everRestored = Array.from(this._restoredKeyHistory);
+            } catch (e) { errLog(e, 'restoreFromPayload.everRestored'); }
             this._lastRestore = res;
+            // [v3.236.0] R4-B：把**登记过的恢复键**随结果外供。
+            //   存在理由：v3.23 的嵌入恢复按钮缺失、v3.136 前 UI 导入丢新键，都是
+            //   「恢复/清空这类成套动作各自手抄一份清单」的产物。清空面板要收编，就必须
+            //   问得出一句「恢复面到底有哪几面」—— 让答案来自**登记点自身**，而不是再抄一遍。
+            //   `res.restored`/`failed`/`missing` 是**本次载荷的结局**（无此字段即 skipped），
+            //   与「登记了什么」不是一回事，故单列一个字段，不重用名单。
+            res.registered = _impKeys;
             return res;
+        }
+        /**
+         * [v3.236.0] R4-B 缺口 1 的修法本体：**从快照恢复（两阶段 + 闸门在引擎侧）**。
+         *
+         * 为什么必须住在引擎侧、而不是写成面板里的两行 `if`：本仓 v3160 [1b] 要求
+         *   「每个默认配置键必须在默认配置块之外有消费点」—— `snapshotPrecheckEnabled`
+         *   的读点若落在 settings-ui.js，这个键在 index.js 里就是**死配置**（门禁当场翻红，
+         *   而翻红是对的：UI 侧读点不参与引擎行为，测试替不掉它）。
+         *
+         * 两阶段的边界（与 v3.142 的 dryRun 契约逐字对齐）：
+         *   · 预检**只读**：`dryRun` 分支保证不清确认、不推栅栏、不动 _archiveExtensions、
+         *     不抓快照 —— 这里**不再自己实现一份**，否则就是第二真源；
+         *   · 预检发现「无可恢复内容」⇒ 在**任何写盘之前**返回 `applied:false`，
+         *     面板据此拦住、不落盘（修前会把「恢复了个空」写进存档）；
+         *   · 真恢复带 `snapshot:true` ⇒ v3.146 的部分失败自动回滚仍然生效（不留半套）；
+         *   · 闸门关闭时**跳过的只是预检，不是恢复**（关的是那一步只读校验）。
+         *
+         * 刻意不返回 `count` 这类裸数字给面板去猜：`applied` / `reason` 是可判定的三态，
+         *   面板只播报、不判断（判断都留在这一处）。
+         * @returns {{ok:boolean, applied:boolean, reason:string, precheck:(object|null), result:(object|null), chatId:(string|null)}}
+         */
+        restoreFromSnapshot(chatId, payload) {
+            const res = { ok: false, applied: false, reason: '', precheck: null, result: null, chatId: chatId || null };
+            if (!payload || typeof payload !== 'object') { res.reason = 'invalid-payload'; return res; }
+            const cfg = (this.config && this.config.config) ? this.config.config : {};
+            const gate = cfg.snapshotPrecheckEnabled !== false;   // 默认开可关（读点必须在引擎侧，见上）
+            if (gate) {
+                const pre = this.restoreFromPayload(payload, { source: 'snapshot-precheck', dryRun: true });
+                res.precheck = { count: pre.count, skipped: pre.skipped.length, missing: pre.missing.length, failed: pre.failed.length };
+                if (pre.count === 0) { res.reason = 'empty-snapshot'; return res; }
+            }
+            const rn = this.restoreFromPayload(payload, { source: 'snapshot-restore', snapshot: true });
+            res.result = rn;
+            if (!rn || rn.count === 0) { res.reason = 'empty-snapshot'; return res; }
+            res.applied = true;
+            res.ok = rn.ok !== false;
+            return res;
+        }
+        /**
+         * [v3.236.0] R4-B：**快照恢复的完整流程**（读快照 → 两阶段恢复 → 落盘）。
+         *
+         * 为什么连「读快照」与「落盘」也住在引擎侧、而不是留在面板里：
+         *   面板此前持有流程的三段（`snapshots.restore` / `restoreFromSnapshot` /
+         *   `storage.save`），每留一段就多一处「流程到底谁说了算」的暗面；更要紧的是
+         *   `snapshotPrecheckEnabled` 的消费点必须落在**真实调用链**上 ——
+         *   v3160 [1b] 要求「每个声明键在默认配置块之外有消费点」，D1 活性判据把它实现为
+         *   两跳可达性（键 → 提及键的方法 → 该方法**有调用者**）。流程不下沉时，
+         *   闸门读点所在的 `restoreFromSnapshot` 零调用者，声明键就成了死配置（实测红）。
+         *
+         * 三态（面板只播报、不判断）：
+         *   · `{ok:false, reason}`    —— 没做成（无对话 / 快照读不出），**不要落盘**；
+         *   · `{ok:true, applied:false}` —— 做成了但没动数据（空快照），**不要落盘**；
+         *   · `{ok:true, applied:true}`  —— 恢复完成，且**已经落盘**（落盘发生在返回之前）。
+         * @returns {Promise<{ok:boolean, applied:boolean, reason:string, precheck:(object|null), result:(object|null), chatId:(string|null)}>}
+         */
+        async restoreSnapshotFlow(chatId, floor) {
+            const cid = chatId || this.getCurrentChatId();
+            if (!cid) return { ok: false, applied: false, precheck: null, result: null, chatId: null, reason: '无可用对话' };
+            const data = await this.snapshots.restore(cid, floor);
+            if (!data) return { ok: false, applied: false, precheck: null, result: null, chatId: cid, reason: '快照数据为空' };
+            const rs = this.restoreFromSnapshot(cid, data);
+            if (!rs.applied) {
+                return {
+                    ok: true, applied: false, chatId: cid,
+                    precheck: rs.precheck || null, result: rs.result || null,
+                    reason: rs.reason === 'empty-snapshot'
+                        ? '该快照无可恢复内容，当前记忆保持不变（未落盘）'
+                        : '快照载荷无效，当前记忆保持不变（未落盘）'
+                };
+            }
+            /* 落盘时机刻意留在流程内：面板「先判断后落盘」的顺序曾经是本版要修的缺陷形状
+             *   （空快照被写进存档）。把它放在这里，顺序就不依赖调用方的自觉。 */
+            await this.storage.save(cid, this.collectExport());
+            return { ok: true, applied: true, reason: '', precheck: rs.precheck || null, result: rs.result || null, chatId: cid };
+        }
+        /**
+         * [v3.236.0] R4-B：快照恢复菜单的**行构造**（纯函数：无 DOM、无副作用、无引擎状态读取）。
+         *
+         * 为什么放引擎侧而不是留在面板：面板手里的 HTML 是「恢复菜单长什么样」这份知识，
+         *   而它与「哪些楼层能恢复」紧紧相邻（同一份 `snaps` 读数）。两份知识分开两处，
+         *   下一次改菜单就得同时记住面板与引擎 —— 这正是本版反复在治的漂移形状。
+         * @returns {string} 菜单行 HTML（空数组 ⇒ 空串）
+         */
+        snapshotRestoreMenu(snaps) {
+            return (Array.isArray(snaps) ? snaps : []).map(s => {
+                const time = new Date(s.timestamp).toLocaleString();
+                return '<div class="lsm-item" data-floor="' + s.floor + '" style="display:flex;justify-content:space-between;">'
+                    + '<span>楼层 ' + s.floor + '</span>'
+                    + '<span style="color:var(--ls-text-2,#9da7b3);font-size:12px;">' + time + '</span>'
+                    + '</div>';
+            }).join('');
+        }
+
+        /**
+         * [v3.236.0] R4-B 缺口 3：**清空运行内存（收编入口）** —— 把「清空当前对话全部记忆」
+         * 从设置面板的一段手抄赋值搬到这里，改成**逐面登记**。
+         *
+         * 修前的形状（实测，可复算）：面板 `#ls-clear` 处理器手抄清空 16 个模块，
+         * 而 `restoreFromPayload` 登记了 **42** 个恢复面 —— 其中**模块路径的 16 个面**
+         * 从未被清空触达（`cards / charMem / clock / conflicts / cse / deltaBook / lexicon /
+         * moneyLedger / opLog / outline / pairMem / prequel / pulse / stmLtm / supersede / worldProg`）。
+         * 它们的清空路径从来没有代码（grep 实证：这些类的 `items=[]` / `.clear()` 在其
+         * 类体内零代码命中），而清空末尾的 `collectExport()` 是**全量序列化** ——
+         * 于是用户看到「已清空」，这 16 个面却原样落盘，换个对话再回来又全在。
+         *
+         * 本方法只做**一件事**：把 B 段那些写动作执行一遍，逐面记录结局，返回读数。
+         * 为什么读数必须有名字（`perFace` 带 face/id/label/ok/error）：`this.engine.graph.nodes.clear()`
+         * 这种赋值语句**抛不出错也留不下痕**，一个面没清干净时调用方只能看到一个 toCatch；
+         * 本仓的既有写法是「失败必须点名、跳过必须计数」（见 restoreFromPayload 的
+         * failed/missing/unknown 三态）。这里把同一口径落到清空面：**每面非 ok 即具名**。
+         *
+         * 刻意**不在本方法里存盘**：存盘的调用点只有一个（面板处理器），让「清空」是
+         * 纯内存动作、可被测试逐字节比对（与 R4-A 的「预览是纯读」同一纪律的镜像面：
+         * 这里是「清空是纯内存，落盘是调用方的自觉且只有一处」）。
+         *
+         * 覆盖边界（如实声明，不假装穷尽）：本方法只清**运行时内存** —— 快照库（IndexedDB）、
+         * 嵌入存档（chatMetadata）、紧急备份是**恢复退路**，清空它们等于销毁用户唯一的回滚手段，
+         * 故不在此列（面板文案与 runFaceReport 的行文案都据此写）。
+         * @returns {{ok:boolean, cleared:string[], skipped:string[], failed:Array<{face:string,error:string}>, count:number, at:number}}
+         */
+        clearRuntimeMemory() {
+            const res = { ok: true, cleared: [], skipped: [], failed: [], count: 0, at: Date.now() };
+            const e = this;
+            const A = (face, id, label, need, fn) => {
+                if (!need) { res.skipped.push(face + ':' + id); return; }
+                try { fn(); res.cleared.push(face + ':' + id); res.count++; }
+                catch (err) { res.failed.push({ face: face, id: id, label: label, error: String(err && err.message || err) }); const er = e.errLog || (typeof errLog === 'function' ? errLog : null); if (er) er(err, 'clearRuntimeMemory.' + face + '.' + id); }
+            };
+            /* ── 模块面：与 restoreFromPayload 的模块面逐条同源（同序、同名、同判据）──
+             *   顺序刻意与 restoreFromPayload 的 `_imp(...)` 调用序一致：两处对照时不必心算映射。 */
+            A('module', 'graph', '图谱', !!e.graph, () => { e.graph.nodes.clear(); e.graph.edges.clear(); e.graph.nameIndex.clear(); });
+            A('module', 'summaries', '摘要', !!e.summary, () => { e.summary.import([]); e.summary.lockedFacts = []; });
+            A('module', 'diaries', '日记', !!e.diary, () => { e.diary.import({}); e.diary._lastDiaryFloor = -1; });
+            A('module', 'vectors', '向量', !!e.vector, () => { e.vector.import([]); });
+            A('module', 'povs', 'POV', !!e.pov, () => { e.pov.import([]); });
+            A('module', 'timeline', '时间线', !!e.timeline, () => { e.timeline.import([]); });
+            A('module', 'status', '人物状态', !!e.status, () => { e.status.import({ characters: {} }); });
+            A('module', 'clock', '时钟', !!e.clock, () => { e.clock.import({}); });
+            A('module', 'ledger', '楼层账本', !!e.ledger, () => { e.ledger.import({}); });
+            A('module', 'suspense', '悬念', !!e.suspense, () => { e.suspense.import([]); });
+            A('module', 'scene', '场景', !!e.scene, () => { if (typeof e.scene.clear === 'function') e.scene.clear(); else e.scene.import({}); });
+            A('module', 'echo', '回响池', !!e.echo, () => { e.echo.import([]); });
+            A('module', 'prequel', '前情资料', !!e.prequel, () => { if (typeof e.prequel.clearPrequel === 'function') e.prequel.clearPrequel(); else e.prequel.import({}); });
+            A('module', 'supersede', '记忆取代', !!e.supersede, () => { e.supersede.import({ supersededMap: {} }); });
+            A('module', 'reflection', '反思', !!e.reflection, () => { e.reflection.import([]); });
+            A('module', 'charMem', '角色记忆', !!e.charMem, () => { e.charMem.import({}); });
+            A('module', 'worldProg', '世界推进', !!e.worldProg, () => { e.worldProg.import({}); });
+            A('module', 'itemOps', '物品账', true, () => { e.itemOps = []; (e.reconcileItemOps || e.rebuildItems)?.call(e); });
+            A('module', 'deltaBook', '正史增量', !!e.deltaBook, () => { e.deltaBook.import({ deltas: [] }); });
+            A('module', 'cse', '人物状态引擎', !!e.cse, () => { e.cse.import({}); });
+            A('module', 'pulse', '叙事心电图', !!e.pulse, () => { e.pulse.import({}); });
+            A('module', 'outline', '大纲导演', !!e.outline, () => { e.outline.import({}); });
+            A('module', 'pairMem', '群像记忆', !!e.pairMem, () => { e.pairMem.import({ pairs: [] }); });
+            A('module', 'moneyLedger', '钱财账本', !!e.moneyLedger, () => { e.moneyLedger.import({}); });
+            A('module', 'cards', '卡牌', !!e.cards, () => { e.cards.import({ cards: [] }); });
+            A('module', 'conflicts', '矛盾账本', !!e.conflicts, () => { e.conflicts.import({ conflicts: [] }); });
+            A('module', 'opLog', '操作日志', !!e.opLog, () => { e.opLog.import({}); });
+            A('module', 'lexicon', '术语词典', !!e.lexicon, () => { e.lexicon.import([]); if (typeof e._invalidateBm25Corpus === 'function') e._invalidateBm25Corpus(); });
+            /* ── 直赋面：这些键没有独立模块，状态就在宿主字段上（与 restoreFromPayload 同源）──
+             *   与模块面的区别只在于写法的必然性，不改变「一面一登记」的纪律。 */
+            A('direct', 'narrativeEntropy', '叙事熵', true, () => { e._narrativeEntropy = 0; });
+            A('direct', 'stmLtm', '短期长期记忆', !!e.stmLtm, () => { e._stmLtmState = (e.stmLtm && typeof e.stmLtm.normalizeState === 'function') ? e.stmLtm.normalizeState(null) : null; });
+            A('direct', 'recallArtifacts', '召回产物', true, () => { e._recallArtifacts = []; });
+            A('direct', 'diaryInjectFloor', '日记注入游标', true, () => { e._diaryInjectFloor = null; });
+            A('direct', 'timelineInjectFloor', '时间线注入游标', true, () => { e._timelineInjectFloor = null; });
+            A('direct', 'timelineCursorChatId', '时间线游标身份', true, () => { e._timelineCursorChatId = null; });
+            A('direct', 'timelineCursorFingerprint', '时间线游标指纹', true, () => { e._timelineCursorFingerprint = ''; });
+            A('direct', 'lockedFacts', '锁定事实', !!(e.summary && Array.isArray(e.summary.lockedFacts)), () => { e.summary.lockedFacts = []; });
+            A('direct', 'recallSourceStats', '召回来源统计', true, () => { e._recallSourceStats = { total: 0, bySource: {} }; });
+            A('direct', 'factVersions', '事实版本账', true, () => { e._factVersionState = null; });
+            A('direct', 'eventThreads', '事件线账', true, () => { e._eventThreadState = null; });
+            A('direct', 'repairLog', '修复闭环台账', true, () => { e._repairState = null; });
+            A('direct', 'timeWentBack', '时间回退留痕', true, () => { e._timeWentBack = null; });
+            A('direct', 'lastSave', '保存地面真源', true, () => { e._lastSaveGroundTruth = null; });
+            res.ok = res.failed.length === 0;
+            this._clearRuntimeReport = res;
+            return res;
+        }
+        /**
+         * [v3.236.0] R4-B：**恢复面 ↔ 清空面**的覆盖核对（可机检，不必靠人读两份清单）。
+         *
+         * 为什么要有这一条：缺口 3 的形状是「两份手抄清单必然漂移」——面板清空时抄了 16 面，
+         * 而恢复面有 42 面。漂移本身不可怕，可怕的是它**无声**（用户看到「已清空」、落盘却是全量）。
+         * 本方法把「谁没被清空」变成一个有名字、有数、可被测试逐字断言的读数。
+         *
+         * 三态口径（与 restoreFromPayload 一致：**「没查过」≠「查过没问题」**）：
+         *   · 恢复面模块从未加载（`_imp` 把它们记进 `missing`）⇒ 清空侧记 `skipped`，**不算漏**；
+         *   · 载荷无此字段（`skipped`）⇒ 同上；
+         *   · 其余（本次真恢复过的 + 部分失败的）都必须能在清空面找到对应写动作。
+         * 已知边界（如实记录）：`lastSave` 的地面真源语义是「只进不退」，清空侧把它置 null；
+         *   `recallSourceStats` / `factVersions` / `eventThreads` / `repairLog` / `timeWentBack`
+         *   同样是宿主直赋字段。这五个在恢复侧是**直赋**而不是模块 `import`，两侧的
+         *   「同一面」判定按**键名**（而非路径）成立 —— 键名是契约（ARCHIVE_TOP_LEVEL_KEYS），
+         *   路径是实现；按路径比对会把「换了实现写法」误报成「漏了一面」。
+         *   · `everRestored` 是**三态的入口**：从来没有一次真恢复（`_lastRestore` 为 null）
+         *   ⇒ `everRestored:false`，此时 `ok` 不表示「对得上」，只表示「没有证据说对不上」。
+         * @returns {{everRestored:boolean, restoredKeys:string[], clearFaces:string[], missingInClear:string[], skippedInRestore:string[], ok:boolean}}
+         */
+        snapshotClearCoverage() {
+            const rest = this._lastRestore || null;
+            const registered = (rest && Array.isArray(rest.registered)) ? rest.registered.slice() : [];
+            /* ★ 三态的**第三态**（本轮补实现，注释早就承诺、实现一直缺）：`everRestored`。
+             *   修前形状：`_lastRestore` 为 null ⇒ restoredKeys 空 ⇒ missingInClear 空 ⇒ `ok:true`，
+             *   于是「**一次恢复都没做过**」与「恢复面全被清空面覆盖」在读数上**同形**。
+             *   判据写 `cov.everRestored` 时读到 undefined、断言静默跳过（v3236 C3 的测试名
+             *   早就在等这个字段）。这与 v3.166「sources 与 attempts 必须分家」是同一条纪律：
+             *   **「没查过」不等于「查过没问题」**。 */
+            const hist = (rest && Array.isArray(rest.everRestored) && rest.everRestored.length)
+                ? rest.everRestored.slice()
+                : ((this._restoredKeyHistory instanceof Set) ? Array.from(this._restoredKeyHistory) : []);
+            const everRestored = !!(hist && hist.length);
+            /* 键集合口径：有累积账时用**累积账**（快照/导入可只带字段子集，用本次载荷的键
+             *   会漏判「历史上装进来过、这次没带」的面）；无累积账时退回本次登记。 */
+            const restoredKeys = everRestored ? hist : registered;
+            const skippedKeys = (rest && Array.isArray(rest.skipped)) ? rest.skipped.slice() : [];
+            const rep = this._clearRuntimeReport || null;
+            const clearFaces = rep ? rep.cleared.concat(rep.skipped).map(x => String(x).split(':').slice(1).join(':')) : [];
+            const skippedSet = new Set(skippedKeys);
+            const faceSet = new Set(clearFaces);
+            const missingInClear = restoredKeys.filter(k => !faceSet.has(k) && !skippedSet.has(k));
+            return { everRestored: everRestored, restoredKeys: restoredKeys, clearFaces: clearFaces, missingInClear: missingInClear, skippedInRestore: skippedKeys, ok: missingInClear.length === 0 };
         }
         getCurrentChatId() {
             try {
                 const c = window.SillyTavern?.getContext?.();
                 return c?.chatId || c?.chatMetadata?.file_name || null;
             } catch { return null; }
+        }
+        /**
+         * [v3.236.0] R4-B 缺口 2 的修法本体：**按会话身份的定期快照锚点**。
+         *
+         * 契约（调用点是 `onMessageReceived` 的定期快照分支）：
+         *   · `chatId` 与调用点外层那个 `const chatId` 是**同一个读数**（调用点传参，不各自再取一次）；
+         *   · 身份不符（或还没有身份）⇒ 把锚点**重置为 0** 并返回 `fresh:true`；
+         *   · 身份相同 ⇒ 返回现锚点与 `fresh:false`；
+         *   · `chatId` 为空 ⇒ 不建身份、不重置，返回 `fresh:false`（拿不到会话就不该记「谁存的」）。
+         *
+         * 为什么「身份不符」要 reset 成 0、而不是保留旧楼层：保留旧楼层就是保留那个 bug。
+         *   reset 之后 `fresh:true` 让新会话先落**一份**快照（与从未快照过的会话逐字同形），
+         *   再按 `curFloor - 0` 正常节流 —— 于是「B 会话永无快照」这个形状在结构上不可能再出现。
+         * @returns {{fresh:boolean, floor:number, chatId:(string|null)}}
+         */
+        _snapshotAnchorOf(chatId) {
+            const id = (chatId === undefined || chatId === null) ? '' : String(chatId);
+            if (!id) return { fresh: false, floor: Number(this._snapshotAnchorFloor) || 0, chatId: this._snapshotAnchorChatId || null };
+            if (this._snapshotAnchorChatId !== id) {
+                this._snapshotAnchorChatId = id;
+                this._snapshotAnchorFloor = 0;
+                return { fresh: true, floor: 0, chatId: id };
+            }
+            return { fresh: false, floor: Number(this._snapshotAnchorFloor) || 0, chatId: id };
         }
         // [v3.131] CP: 保存来源登记——所有 storage.save 调用点经此登记地面真源（来源计数随存档持久化，诊断面板展示"谁在保存"）
         //
@@ -16424,6 +16732,14 @@ ${recentTurns}`;
                         try { this.engine._recallCache = null; } catch (e) { errLog(e, 'events.CHAT_CHANGED缓存清理'); }  // [v2.9] RU-D: 换对话，缓存失效
                         // [v3.129] 切换角色卡时重放卡级配置覆盖（anima 三级合并：新卡的配置立即生效）
                         try { this.engine.config?._applyCardOverrides?.(); } catch (e) { errLog(e, 'events.CHAT_CHANGED卡配置重放'); }
+                        // [v3.236.0] R4-B：定期快照的节流锚点**按会话身份复位**（缺口 2 的修法）。
+                        //   复位而不是保留：保留就等于让上一个会话的楼层数继续当闸门。
+                        //   这里只动**锚点**，不动快照库 —— 快照本身按 chatId 分 id 存，
+                        //   旧会话的快照不受影响、回去还能恢复（数据面与节流面必须分开）。
+                        try { this.engine._snapshotAnchorChatId = null; this.engine._snapshotAnchorFloor = 0; } catch (e) { errLog(e, 'events.CHAT_CHANGED快照锚点复位'); }
+                        /* [v3.236.0] R4-B：键历史随会话身份归零。快照与导入都是**按会话**装的，
+                         *   跨会话沿用等于拿 A 会话的恢复账去判 B 会话的清空面。 */
+                        try { this.engine._restoredKeyHistory = new Set(); } catch (e) { errLog(e, 'events.CHAT_CHANGED恢复键历史复位'); }
                         // [v3.126] 换对话重置日记/时间线变化游标与身份（onBeforeGeneration 兜底处理之外的事件路径也保持一致）
                         try { this.engine._diaryInjectFloor = null; this.engine._timelineInjectFloor = null; this.engine._timelineCursorChatId = null; this.engine._timelineCursorFingerprint = ''; } catch (e) { errLog(e, 'events.CHAT_CHANGED变化游标重置'); }
                         // [v3.109] 换对话清空产物的内存副本（持久副本随新对话各自 recover，不跨对话串用）

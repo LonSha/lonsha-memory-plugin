@@ -44,15 +44,25 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
     ok('静态3: 文件导入管线走 restoreFromPayload 单真源，覆盖全部子系统');
 }
 
-/* ══════════ 4. 清空操作字段补齐（静态） ══════════ */
+/* ══════════ 4. 清空操作收编单真源（静态） ══════════ */
 {
     const clearIdx = srcS.indexOf("#ls-clear').addEventListener('click', async () => {");
     assert.ok(clearIdx > 0, '清空回调已改 async');
-    const clearBlock = srcS.slice(clearIdx, clearIdx + 1800);
-    for (const sub of ['itemOps', 'reflection.items', 'suspense.items', 'opsLog', 'echo.items']) {
-        assert.ok(clearBlock.includes(sub), `清空缺 ${sub}`);
+    const clearBlock = srcS.slice(clearIdx, clearIdx + 2400);
+    /* [v3.236.0] R4-B：本段原枚举 5 个子系统字符串（itemOps / reflection.items / suspense.items /
+     *   opsLog / echo.items）—— 那是「清空面只有面板手抄的十几个模块」这件事的化石。
+     *   实测：那样清完仍漏 16 个模块面，而末尾 collectExport() 是全量序列化（用户看到「已清空」）。
+     *   现在清空面由引擎的 clearRuntimeMemory() **逐面登记**，面板只调用 + 播报结局。
+     *   面数不再写在这里：清单的完备性由 v3236 的 D1（清空面 ⊇ 恢复面）承担，
+     *   本条只守「面板没有绕开引擎自己抄一份」。 */
+    assert.ok(clearBlock.includes('clearRuntimeMemory()'), '清空必须走引擎侧单真源');
+    const crIdx = srcI.indexOf('clearRuntimeMemory() {');
+    assert.ok(crIdx > 0, 'clearRuntimeMemory 定义于 index.js');
+    const crBlock = srcI.slice(crIdx, srcI.indexOf('snapshotClearCoverage() {', crIdx));
+    for (const sub of ['itemOps', 'reflection', 'suspense', 'scene', 'echo']) {
+        assert.ok(crBlock.includes(sub), `清空单真源缺 ${sub}`);
     }
-    ok('静态4: 清空操作覆盖全部子系统（原 5 个子系统残留）');
+    ok('静态4: 清空操作走引擎单真源（逐面登记，原面板手抄 16 模块漏 16 面的形状已收编）');
 }
 
 /* ══════════ 5. version 动态化（静态） ══════════ */

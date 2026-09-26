@@ -1,3 +1,90 @@
+## v3.236.0
+
+**主题：R4-B 快照恢复收编单真源 —— 两份手抄清单必然漂移，而漂移是无声的。**
+一句话纪律：**清单必须从登记点自身产出，不能让第二处再抄一遍。**
+
+### 为什么要收这三处（同一个形状的三个缺口）
+
+`index.js` 的 `restoreFromPayload` 登记着 **42 面**恢复键，而另外两处各自抄了一份，抄出来的份数都比 42 小：
+
+- **缺口 1**：面板的「快照恢复」手抄 13 个 `engine.X.import(data.X)`，末尾却走 `collectExport()` 全量落盘
+  ⇒ 恢复出的是**半套状态**，而落盘那一刻看起来像成功；
+- **缺口 2**：定期快照的节流锚点是**裸楼层数**，不认会话身份 ⇒ 切到 B 会话后
+  `curFloor - A 的锚点` 恒为负、闸门不触发 ⇒ B 的快照**一份都不落且不报错**（静默）；
+- **缺口 3**：清空按钮手抄 16 个模块，恢复面有 42 面 ⇒ **16 个模块面从未被清空触达**，
+  用户看到「已清空」，数据原样还在。
+
+### 修法：让清单从登记点自身产出（不是「再抄一遍抄全」）
+
+- 恢复键由 `_imp` 登记（`res.registered`）、清空键由 `clearRuntimeMemory` 的 `A(face, id, label, need, fn)` 登记；
+- 两侧键集合的包含关系变成**可机检读数**（v3236 D1：清空面 ⊇ 恢复面），不再靠人读两份清单对齐；
+- 宿主侧只保留一处真源：`restoreFromPayload` 的 42 面登记表。
+
+### 缺口 1 / 缺口 3 的接线（`index.js` / `settings-ui.js`）
+
+- `restoreFromSnapshot(chatId, payload)`：**引擎侧两阶段** —— 预检走
+  `source:'snapshot-precheck', dryRun:true`（只读，不写运行时），`pre.count === 0` 即
+  `reason:'empty-snapshot'` 早退；真恢复走 `source:'snapshot-restore', snapshot:true`
+  （沿用 v3.146 部分失败自动回滚）；
+- **本版把整条恢复流程下沉引擎**：`async restoreSnapshotFlow(chatId, floor)`
+  = 读快照 → 两阶段恢复 → **拦截先于落盘** → `storage.save(cid, collectExport())`；
+  面板收编为「取列表 + 播报结局」（只读 `applied` / `reason` / `rolledBack`，不持有流程的任何一段）；
+- `snapshotRestoreMenu(snaps)`：纯函数产出菜单行 HTML（无 DOM、无副作用、不读引擎状态），面板不再手拼；
+- `clearRuntimeMemory()`：清空入口逐面登记，失败**具名**（`face/id/label`），结局留在 `_clearRuntimeReport` 供覆盖核对消费。
+
+### 本版当场补掉的一个真实现缺口（三态缺第三态）
+
+`snapshotClearCoverage` 的 JSDoc 早已承诺三态，实现却只回
+`restoredKeys / clearFaces / missingInClear / skippedInRestore / ok`，**没有 `everRestored`**：
+`_lastRestore` 为 null 时两个集合都空、`ok` 也是 `true` —— 与「查过且对得上」**同形**。
+补法与 v3.166「sources 与 attempts 必须分家」是同一条纪律：
+
+- `everRestored` 显式产出（不编默认值）；`restoredKeys` 改为**优先用累积账** `_restoredKeyHistory`
+  （快照/导入可以只带字段子集，只用本次载荷的键会漏判「历史上装进来过、这次没带」的面）；
+- 键历史随会话身份归零（与 `_snapshotAnchorChatId` 同一纪律：换会话就是换身份）；
+- 面板新增第三态播报（「本会话尚无任何面被恢复过，覆盖核对无从谈起」），否则新字段是死字段。
+
+### 本版被「配置活性」判据拦停的一次（修法不是改判据）
+
+`snapshotPrecheckEnabled` 的读点原落在 `restoreFromSnapshot`，而该方法**零调用者**
+（UI 的原调用点已收编，但 UI 调用点不参与引擎侧两跳可达性）⇒ `scan_config_liveness.mjs`
+当场判定它是**死配置**。修法**不是**把消费者改成测试文件（那会让判据自己消费自己），
+而是**让声明还回引擎**：整条流程下沉为有调用者的 `restoreSnapshotFlow`。
+落盘后复绿（UI 呈现键 172 / 可到达 172 / **死配置 0**）。
+
+### 本版当场抓到的判据自身缺陷（四条，全部写进被改文件留痕）
+
+1. **取样区间取到了别的面板**（踩了两次）：A1 的终点锚 `document.body.appendChild(menu);`
+   与起点锚「按钮绑定」都在本文件里**更早**出现过 ⇒ 区间测的是菜单面板 / 设置面板骨架，
+   而骨架内的 `engine.storage.save(` 比本处理器的拦截语句更早 ⇒「拦截必须先于落盘」在真源码上误判失败。
+   口径：**取样区间必须恰好是被测流程自身**（起点 `plugin.showSnapshotRestore` → 终点 `plugin._memPersist`）。
+2. **判据读了注释**：A1 用裸 `/snapshotPrecheckEnabled/` 判「面板不得自己读闸门」，
+   而本版在处理器里写了「为什么不能读闸门」的留痕 ⇒ 误判。修法与「手抄 import 只认代码」同款：
+   先剥注释再判（注释里提历史不是并行真源；把注释算进去，判据就变成「不许解释历史」）。
+3. **顺序判据挂在了已不保证顺序的地方**：流程一下沉，面板就不再落盘 ⇒ 顺序的唯一保证点
+   变成流程体内那次 `storage.save`。判据随之从面板侧移到**流程体**（性质不变、**保证者变了**）。
+4. **负控制锚点随架构更新**：N3 的破坏锚点从面板的 `restoreFromSnapshot` 调用改成
+   `restoreSnapshotFlow` 流程调用（破坏方式不变：让「走单一流程」变成「顺手手抄一次 import 再走流程」）。
+
+### 判据（`tests/v3236_snapshot_restore_and_clear.test.mjs`，18 项 / 全绿）
+
+A 单真源与两阶段（含「闸门读点在引擎侧」）· B 会话身份四态 + 旧字段退役 + CHAT_CHANGED 复位 + 诊断三态 ·
+C 清空载荷形态逐条真守卫 + 逐面登记 + 覆盖核对三态 · D 清空面 ⊇ 恢复面（可机检）·
+E 行为面（真跑宿主探针：最大成员仍是 `onMessageReceived` 且规模同量级）· F 负控制三条
+（真源码破坏 → 整仓镜像 → **同款判据**必须转红）· G 版本锚。
+
+### 同轮抬版连带面
+
+- `dead_code_budget`：活跃 38365 行，上界 38449 → **38765**（活跃功能增长，附理由）；
+- **宿主巨兽基线按当版 `index.js` 重建**（读数由 `host_beast_probe.cjs` 输出直接落盘，零手抄）：
+  17073 → **17389** 行、成员 561 → 567、TOP5 占比 21.9% → 21.6%、覆盖率 25.0% → 24.7%；
+  `rebuilds` **追加** `v3.236.0` 一条（不改写 v3.233.0 / v3.234.0 / v3.235.0 的历史读数）；
+- `tests/audit/catalog_reference_consumers.tsv` 追加本套件一行（跨仓 P3 覆盖率缺口）；
+- `TODO.md`「最近更新」→ v3.236.0；
+- 临时脚手架（补丁脚本 / 备份目录）全部清理，不留在活跃代码面里。
+
+---
+
 ## v3.235.0
 
 **主题：R4-A 回滚预览（dry-run）—— 破坏之前先看得见。**

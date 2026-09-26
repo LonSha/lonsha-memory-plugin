@@ -220,3 +220,4 @@ v3233_co_presence_and_notes.test.mjs		F-3 同楼同刻 ≥2 在场读数（事�
 v3234_event_platform_composition.test.mjs		F-2 跨平台事件来源构成：段的 source 由自由文本折算成**受控分级四态**（extract/platform/other/none，other 保留原串）+ 平台构成面（四态齐 + 每平台段/线计数，计数恒为截断前真值）+ 计划行文反坐实（event-chain.js 是 agent run 生命周期，与事件平台无关）+ 两条真缺陷（证据面事件账出处列恒 null：顶层本无 floor；copySegment 非幂等：finite(null) 塔成第 0 楼）+ 真第 0 楼仍读 0 + 旧档读出逐字一致 + 纯读 + 六条真源码破坏负控制
 v3235_sleep_awaken.test.mjs		睡眠语义唤醒（archivedForSleep 单向门的回程）：plan 只算不写 / apply 只翻标记不删不重排 / 五态分形 / 中文分词真生效 / 宿主接线与降级留名 / 与实体名唤醒两条通道互不顶替 / 阈值显式 / 真源码破坏负控制
 v3235_rollback_preview.test.mjs		R4-A 回滚预览（dry-run）：只读预览面 / DROP_NOTHING 具名身份 / 预告与实撤对账
+v3236_snapshot_restore_and_clear.test.mjs		R4-B 快照恢复收编单真源（两阶段 + 闸门在引擎侧 + 流程入口）/ 会话身份快照节流四态 / 清空面逐面登记与覆盖核对三态（含 everRestored）/ 三条整仓镜像负控制

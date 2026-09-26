@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
+const idxSrc = src;   // [v3.236.0] 同源别名：本套件的 src 即 index.js
 
 // 版本断言
 const vMatch = src.match(/const VERSION = '([^']+)'/);
@@ -153,7 +154,14 @@ test('=== 6. 生成路径/持久化/导入/UI 接线静态检查 ===', () => {
     assert.ok(ui.includes("ck('prequelEnabled'"), 'UI 设置开关');
     // [v3.138] CP-L2: UI 恢复收编 restoreFromPayload 单真源（内含 prequel 分支）+ 显式重建路径
     assert.ok(ui.includes('this.engine.restoreFromPayload(data'), 'UI 导入走单真源');
-    assert.ok(ui.match(/engine\.prequel\.import\(data\.prequel\)/g)?.length >= 1, 'UI 显式 prequel 导入路径');
+    /* [v3.236.0] R4-B：快照恢复面板的 14 行手抄 import 已收编（含 `engine.prequel.import(data.prequel)`）。
+     *   原断言「UI 里必须有显式 prequel import」在收编后成了**过时判据**（它在保护手抄清单）。
+     *   现在守两件更强的事：① 单真源内仍有 prequel 分支；② prequel 在**清空面**也被登记
+     *   （修前它属于 16 个「从未被清空触达」的面之一）。 */
+    assert.ok(idxSrc.includes('engine.prequel.import('), '单真源内仍须有 prequel 分支');
+    const crBlock = idxSrc.slice(idxSrc.indexOf('clearRuntimeMemory() {'), idxSrc.indexOf('snapshotClearCoverage() {'));
+    assert.ok(crBlock.includes("'prequel'"), '清空面必须登记 prequel（缺它 = 用户看到「已清空」而前情还在）');
+    assert.ok(crBlock.includes('clearPrequel'), 'prequel 有语义精确的真清空入口（clearPrequel），不得用裸赋值代替');
     // manifest 版本
     const mani = JSON.parse(fs.readFileSync(path.join(__dirname, '../manifest.json'), 'utf-8'));
     // [v3.92] 真不变量是「index.js VERSION == manifest.version」，而非等于某个字面量

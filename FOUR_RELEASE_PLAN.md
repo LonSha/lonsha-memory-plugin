@@ -861,6 +861,16 @@ N1 当场转红；改为共用 `ROOT_MKDTEMP` / `ROOT_TMPWRITE` 两个常量，*
   ⇒ 本版补一条**只读预览路径**：`previewDrop` / `previewShift` / `previewLine` / `DROP_NOTHING`
   （与 `replaySide` 同一道 `floorOrNull` 门、同一份 `FLOOR_OWNERS`、同一份 items 形状，**不调任何 `drop`/`shift`**），
   宿主侧 `previewFloorRollback()` + 删楼点**先预告后破坏** + 诊断行与既有 `账本回放` 成对。
+  **R4-B 快照恢复收编单真源已完成（v3.236.0）**：三处**同一形状**的缺口（**手抄清单必然漂移，而漂移是无声的**）——
+  ① 面板「快照恢复」手抄 13 个 `engine.X.import(data.X)` 而 `restoreFromPayload` 登记 **42 面**，
+  末尾却走 `collectExport()` 全量落盘（恢复出半套状态而看起来像成功）；
+  ② 定期快照节流锚点是**裸楼层数**、不认会话身份 ⇒ 切会话后 `curFloor - 旧锚点` 恒为负，
+  B 会话快照**一份不落且不报错**；③ 清空按钮手抄 16 个模块而恢复面 42 面 ⇒ **16 面从未被清空触达**。
+  修法**不是再抄一遍**，而是让清单从**登记点自身产出**（恢复键由 `_imp` 登记 `res.registered`、
+  清空键由 `clearRuntimeMemory` 的 `A(...)` 登记），并把「清空面 ⊇ 恢复面」变成可机检读数。
+  连带把快照恢复**整条流程下沉引擎**（`restoreSnapshotFlow`：读快照 → 两阶段恢复 → 拦截先于落盘 → 落盘），
+  面板收编为「取列表 + 播报结局」；同轮补掉一个真实现缺口（`snapshotClearCoverage` 承诺三态却缺 `everRestored`，
+  使「没查过」与「查过没问题」同形）。判据 `tests/v3236_snapshot_restore_and_clear.test.mjs`（18 项）。
   后续增量（未启动）：持久检查点 / 分支只读对照。
 - 真实SillyTavern宿主验证：未验（写入面的两道门与回执形状已在无头环境逐条验证，宿主侧实机未验）。
 

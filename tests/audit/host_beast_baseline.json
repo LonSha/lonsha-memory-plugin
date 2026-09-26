@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
-  "measured_at": "v3.235.0",
+  "measured_at": "v3.236.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -80,6 +80,32 @@
         "域账 10 条逐条在场（仅随总量平移）"
       ],
       "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉；本轮新增的只读预览面（R4-A）不改 index.js 的结构形状（新成员 1 个、位于既有类体内）。"
+    },
+    "v3.236.0": {
+      "reason": "v3.236.0 R4-B 快照恢复收编单真源（restoreFromSnapshot 引擎侧两阶段 + restoreSnapshotFlow 流程入口 + snapshotRestoreMenu 纯函数 + snapshotClearCoverage 三态 everRestored + clearRuntimeMemory 清空面逐面登记+ _snapshotAnchorOf 会话身份锚）落在 index.js：新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）⇒ 行数 17073 → 17389、成员 561 → 567、TOP5 占比 21.9% → 21.6%、覆盖率 25.0% → 24.7%",
+      "readings": {
+        "total_lines": 17389,
+        "member_count": 567,
+        "top5_lines": 3764,
+        "top5_pct": 21.6,
+        "top40_lines": 8888,
+        "top40_pct": 51.1,
+        "prefix_rule_coverage_lines": 4303,
+        "prefix_rule_coverage_pct": 24.7,
+        "unclassified_lines": 12255,
+        "seam_distinct_modules": 35,
+        "seam_reference_sites": 46,
+        "seam_call_shape_sites": 49,
+        "members_over_80_lines": 32,
+        "low_coupling_members": 18,
+        "high_coupling_members": 10
+      },
+      "unchanged": [
+        "缝合模块接线面 35 / 46 / 49 三者逐字不变（新增面住在既有引擎体内，不新增接缝模块）",
+        "分诊面 32 / 18 / 10 三者逐字不变（新增两个成员未跨过 80 行阈值，耦合分布不变）",
+        "域账 10 条逐条在场（仅随总量平移）"
+      ],
+      "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉；本轮把快照恢复整条流程从面板下沉进引擎（新增成员 2 个、位于既有类体内），不改 index.js 的结构形状。"
     }
   },
   "node_version": "v24.18.0",
@@ -91,15 +117,15 @@
     "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
   ],
   "readings": {
-    "total_lines": 17073,
-    "member_count": 561,
-    "top5_lines": 3735,
-    "top5_pct": 21.9,
-    "top40_lines": 8779,
-    "top40_pct": 51.4,
-    "prefix_rule_coverage_lines": 4274,
-    "prefix_rule_coverage_pct": 25.0,
-    "unclassified_lines": 11968,
+    "total_lines": 17389,
+    "member_count": 567,
+    "top5_lines": 3764,
+    "top5_pct": 21.6,
+    "top40_lines": 8888,
+    "top40_pct": 51.1,
+    "prefix_rule_coverage_lines": 4303,
+    "prefix_rule_coverage_pct": 24.7,
+    "unclassified_lines": 12255,
     "seam_distinct_modules": 35,
     "seam_reference_sites": 46,
     "seam_call_shape_sites": 49,
@@ -110,26 +136,26 @@
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 505,
-      "lines": 11968,
-      "lines_pct": 70.1,
-      "outside_refs": 3817,
-      "internal_refs": 4702,
-      "outside_ref_share_pct": 44.8
+      "members": 511,
+      "lines": 12255,
+      "lines_pct": 70.5,
+      "outside_refs": 3521,
+      "internal_refs": 5697,
+      "outside_ref_share_pct": 38.2
     },
     {
       "domain": "宿主事件接线",
       "members": 3,
-      "lines": 1738,
-      "lines_pct": 10.2,
+      "lines": 1749,
+      "lines_pct": 10.1,
       "outside_refs": 1,
-      "internal_refs": 73,
-      "outside_ref_share_pct": 1.4
+      "internal_refs": 74,
+      "outside_ref_share_pct": 1.3
     },
     {
       "domain": "诊断与导出",
       "members": 27,
-      "lines": 1141,
+      "lines": 1159,
       "lines_pct": 6.7,
       "outside_refs": 443,
       "internal_refs": 2381,
@@ -139,7 +165,7 @@
       "domain": "召回与注入",
       "members": 11,
       "lines": 885,
-      "lines_pct": 5.2,
+      "lines_pct": 5.1,
       "outside_refs": 1,
       "internal_refs": 58,
       "outside_ref_share_pct": 1.7
@@ -202,12 +228,12 @@
   "biggest_members_top40": [
     {
       "name": "onMessageReceived",
-      "lines": 1217,
+      "lines": 1228,
       "outside_refs": 1
     },
     {
       "name": "selfCheck",
-      "lines": 730,
+      "lines": 748,
       "outside_refs": 10
     },
     {
@@ -227,7 +253,7 @@
     },
     {
       "name": "registerEvents",
-      "lines": 371,
+      "lines": 379,
       "outside_refs": 0
     },
     {
@@ -237,7 +263,7 @@
     },
     {
       "name": "constructor",
-      "lines": 328,
+      "lines": 331,
       "outside_refs": 8
     },
     {
@@ -246,9 +272,14 @@
       "outside_refs": 0
     },
     {
+      "name": "restoreFromPayload",
+      "lines": 212,
+      "outside_refs": 6
+    },
+    {
       "name": "import",
       "lines": 206,
-      "outside_refs": 27
+      "outside_refs": 15
     },
     {
       "name": "rollbackFloor",
@@ -263,17 +294,12 @@
     {
       "name": "import",
       "lines": 188,
-      "outside_refs": 27
+      "outside_refs": 15
     },
     {
       "name": "constructor",
-      "lines": 175,
+      "lines": 187,
       "outside_refs": 8
-    },
-    {
-      "name": "restoreFromPayload",
-      "lines": 173,
-      "outside_refs": 5
     },
     {
       "name": "optimizeMemory",
@@ -288,7 +314,7 @@
     {
       "name": "save",
       "lines": 157,
-      "outside_refs": 14
+      "outside_refs": 13
     },
     {
       "name": "feedThinking",
@@ -358,12 +384,17 @@
     {
       "name": "import",
       "lines": 82,
-      "outside_refs": 27
+      "outside_refs": 15
+    },
+    {
+      "name": "clearRuntimeMemory",
+      "lines": 78,
+      "outside_refs": 1
     },
     {
       "name": "rebuildItems",
       "lines": 71,
-      "outside_refs": 9
+      "outside_refs": 8
     },
     {
       "name": "generateCarryoverSeed",
@@ -394,11 +425,6 @@
       "name": "rerank",
       "lines": 60,
       "outside_refs": 5
-    },
-    {
-      "name": "collectExport",
-      "lines": 60,
-      "outside_refs": 13
     }
   ],
   "split_candidates": {
@@ -483,7 +509,7 @@
     "high_coupling_examples": [
       {
         "name": "selfCheck",
-        "lines": 730,
+        "lines": 748,
         "outside_refs": 10,
         "is_host_lifecycle": false
       },
@@ -495,14 +521,14 @@
       },
       {
         "name": "constructor",
-        "lines": 328,
+        "lines": 331,
         "outside_refs": 8,
         "is_host_lifecycle": false
       },
       {
         "name": "import",
         "lines": 206,
-        "outside_refs": 27,
+        "outside_refs": 15,
         "is_host_lifecycle": false
       },
       {
@@ -514,12 +540,12 @@
       {
         "name": "import",
         "lines": 188,
-        "outside_refs": 27,
+        "outside_refs": 15,
         "is_host_lifecycle": false
       },
       {
         "name": "constructor",
-        "lines": 175,
+        "lines": 187,
         "outside_refs": 8,
         "is_host_lifecycle": false
       },
@@ -532,29 +558,29 @@
       {
         "name": "save",
         "lines": 157,
-        "outside_refs": 14,
+        "outside_refs": 13,
         "is_host_lifecycle": false
       },
       {
         "name": "import",
         "lines": 82,
-        "outside_refs": 27,
+        "outside_refs": 15,
         "is_host_lifecycle": false
       }
     ]
   },
   "shape": {
-    "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.9%、TOP40 占 51.4%；10 条前缀域规则只覆盖 25.0%，剩下 75.0% 落在规则之外。",
+    "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.6%、TOP40 占 51.1%；10 条前缀域规则只覆盖 24.7%，剩下 75.3% 落在规则之外。",
     "verdict": "未观察到「可以按域整体搬走」的形态：超大成员多数是生命周期接线本身，长尾成员则互相稠密互调。"
   },
   "split_verdict": {
     "question": "index.js 能不能按域拆走一块？",
     "answer": "**本版判定：不拆（按读数否掉，不是按感觉）**。交付分诊与判据，形态决策留给后续版本。",
     "reasons": [
-      "**最大的几个成员是「生命周期接线本身」，不是可搬的功能块**：`onMessageReceived` 1217 行 / `onBeforeGeneration` 503 行 / `registerEvents` 371 行（v3.235.0 重建后三者逐条在场）。搬它们＝把入口从宿主事件上摘下来；而它们的**外部引用数极低**（onMessageReceived 仅 1 次）—— 这正是「低外部引用 ≠ 低耦合」的典型误读面：引用数只看别人叫不叫它，看不见它是谁的**唯一入口**。故分诊表专设 `is_host_lifecycle` 一列把这类排除。",
-      "**引用读数只能当上界，不能当判据**：同名方法在不同类上出现多次（`import` 4 处 / `constructor` 3 处），按名字聚合会把它们混在一起（`import` 合计 27 次外部引用，那不是某一个方法被叫 27 次）。要精确必须做 AST 级归属，而本仓死代码口径**明确是文本形态、不解析 AST**（O-6/P-1 已立）。",
-      "**内部互调稠密**：规则外成员（未归类域 11968 行）内部互调 **4702** 处 —— 拆一个域要同时改它与其余全部调用点；而本仓 9 道门禁里**没有任何一道**检查「跨模块的成员可见性」，拆错的形态是**运行期 this 丢失**（只有实机能看出来，无头门禁看不见）。",
-      "**有读数支持的第一刀不是「按域拆」，而是「先立规模与成员预算判据」**：与 O-5（性能先立基线）/ P-3（快照先量再定）同一条口径纪律 —— 任何拆分都要先有「拆之前多大、拆之后多大、哪个成员超预算」的可比读数，否则拆完不知道是变清楚了，还是只是把 17073 行挪成了三个文件。本版把这件事立成判据（含每个大成员的逐条在场点名）。"
+      "**最大的几个成员是「生命周期接线本身」，不是可搬的功能块**：`onMessageReceived` 1228 行 / `onBeforeGeneration` 503 行 / `registerEvents` 379 行（v3.236.0 重建后三者逐条在场）。搬它们＝把入口从宿主事件上摘下来；而它们的**外部引用数极低**（onMessageReceived 仅 1 次）—— 这正是「低外部引用 ≠ 低耦合」的典型误读面：引用数只看别人叫不叫它，看不见它是谁的**唯一入口**。故分诊表专设 `is_host_lifecycle` 一列把这类排除。",
+      "**引用读数只能当上界，不能当判据**：同名方法在不同类上出现多次（`import` 24 处 / `constructor` 36 处），按名字聚合会把它们混在一起（`import` 合计 15 次外部引用，那不是某一个方法被叫 15 次）。要精确必须做 AST 级归属，而本仓死代码口径**明确是文本形态、不解析 AST**（O-6/P-1 已立）。",
+      "**内部互调稠密**：规则外成员（未归类域 12255 行）内部互调 **5697** 处 —— 拆一个域要同时改它与其余全部调用点；而本仓 41 道审计基建（`tests/audit/scan_*.mjs`，v3.236.0 实测 41 个）里**没有任何一道**检查「跨模块的成员可见性」（逐文件实测：提到「可见性」的三道分别是故障可见性 / 报告可见性 / 状态可见性，无一道看 `this` 归属），拆错的形态是**运行期 this 丢失**（只有实机能看出来，无头门禁看不见）。",
+      "**有读数支持的第一刀不是「按域拆」，而是「先立规模与成员预算判据」**：与 O-5（性能先立基线）/ P-3（快照先量再定）同一条口径纪律 —— 任何拆分都要先有「拆之前多大、拆之后多大、哪个成员超预算」的可比读数，否则拆完不知道是变清楚了，还是只是把 17389 行挪成了三个文件。本版把这件事立成判据（含每个大成员的逐条在场点名）。"
     ],
     "only_axis_with_evidence": "成员级预算（over-80 行 32 个成员逐条点名）+ 文件规模上界；本版**只立判据不动手**。"
   },
@@ -569,6 +595,7 @@
     "**未覆盖运行期可见性**：拆分的真正风险是「跨模块 this 丢失」，那属于实机面，无头门禁看不见（已登记在 docs 的运行时边界）。",
     "**未排拆分优先级**：分诊表给出「行数 / 外部引用 / 是否生命周期」三个读数，不排优先级 —— 排优先级要一并看功能风险，那不在读数里。",
     "（v3.234.0）睡眠语义唤醒接线后按当版 index.js 重建读数：16980 → 17021 行；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
-    "（v3.235.0）R4-A 回滚预览接线后按当版 index.js 重建读数：17021 → 17073 行、成员 560 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
+    "（v3.235.0）R4-A 回滚预览接线后按当版 index.js 重建读数：17021 → 17073 行、成员 560 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
+    "（v3.236.0）R4-B 快照恢复收编单真源接线后按当版 index.js 重建读数：17073 → 17389 行、成员 561 → 567；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
   ]
 }

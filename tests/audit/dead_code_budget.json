@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 38449,
+  "ceiling": 38765,
   "maxSlack": 400,
-  "note": "v3.235.0 R4-A 回滚预览（dry-run）：ledger-replay.js 新增只读预览面（previewDrop/previewShift/previewLine/DROP_NOTHING + 形状扫描）与 index.js 宿主接线（配置键/预览方法/删楼点预告/诊断行/初始化）",
+  "note": "v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记",
   "history": [
     {
       "ceiling": 21000,
@@ -129,7 +129,11 @@
     {
       "ceiling": 38449,
       "reason": "v3.235.0 R4-A 回滚预览（dry-run）：ledger-replay.js 新增只读预览面（previewDrop/previewShift/previewLine/DROP_NOTHING + 形状扫描）与 index.js 宿主接线（配置键/预览方法/删楼点预告/诊断行/初始化）"
+    },
+    {
+      "ceiling": 38765,
+      "reason": "v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记"
     }
   ],
-  "_history_last": "ceiling 37960 → 38449（实测 38049 + slack 400）：v3.235.0 R4-A 回滚预览（dry-run）：ledger-replay.js 新增只读预览面（previewDrop/previewShift/previewLine/DROP_NOTHING + 形状扫描）与 index.js 宿主接线（配置键/预览方法/删楼点预告/诊断行/初始化）"
+  "_history_last": "ceiling 38449 → 38765（实测 38365 + slack 400）：v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记"
 }

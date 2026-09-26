@@ -1117,6 +1117,7 @@
                      ${ck('recallProvenanceFilter', '分支感知召回过滤', '摘要来源楼被翻页(source_changed)后不再注入——防旧分支叙事与当前分支一起进模型。只剔这一态：判不了、缺源（删楼与前移不可区分）、正文改写的都放行（v3.183）')}
                      ${ck('sleepAwakenEnabled', '睡眠语义唤醒', '低保留价值被归档(archivedForSleep)的摘要，在相似情景再次出现时回程——此前归档是单向门：注释承诺「需要时可唤醒」而全仓归零点为 0。与「实体名唤醒」分工：那条按名字逐字命中，本条按语义相似。默认开（v3.234.0）')}
             ck('rollbackPreviewEnabled', '回滚预览（破坏前先算）', '删除楼层前先算出「会撤掉多少条 / 其后多少面随之重定位」，只读不落地；预告与实撤不符时在诊断面板留痕（默认开）。'),
+            ck('snapshotPrecheckEnabled', '快照恢复前预检', '从快照恢复前先做一次只读预检：快照无可恢复内容时直接拦住、不落盘，避免把「恢复了个空」写进存档（默认开）。'),
                      <div class="ls-slider-label"><span>条目关联停用词</span></div>
                      <textarea class="ls-textarea" data-cfg-text="crosslinkStopwords" placeholder="逗号分隔，如：主角,系统,旁白">${c.crosslinkStopwords || ''}</textarea>
                      <div class="ls-hint" style="padding:0 8px;">条目关联（Aho-Corasick）扫正文找共享关键词时忽略这些通用词——否则「主角」「系统」这类词会把所有条目串成一团（v3.183）。</div>
@@ -1143,6 +1144,7 @@
                     ${ck('vectorChunkEnabled', '长文本分块向量化', '超阈值字符的长文本切块后再向量化（默认关，短文本不受影响）')}
                 </div>
                 <button class="ls-btn" id="ls-snap-restore">🗄️ 快照恢复</button>
+                <!-- [v3.236.0] R4-B：清空只清运行时内存；快照/嵌入存档/紧急备份是恢复退路，刻意不动 -->
                 <button class="ls-btn" id="ls-backfill">🔧 补提取缺失楼层</button>
             <button class="ls-btn" id="ls-extract-roles">📚 从世界书提取角色</button>
                 <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
@@ -1324,28 +1326,33 @@
             });
 
             // 清空
+            // [v3.236.0] R4-B 缺口 3：本处理器此前是**一段手抄赋值**（16 个模块），
+            //   而恢复面登记着 42 面 —— 有 16 个模块面从未被清空触达，末尾却仍走
+            //   `collectExport()` 全量落盘。于是「已清空」这句话在数据上是假的。
+            //   现在只剩三件事：调引擎的清空入口、按结局播报、按结局落盘。
+            //   顺序上**先清后存**是刻意的：存的是清空之后的状态，一旦顺序颠倒，
+            //   用户在「清空失败」时会把清空前的数据再写一遍（该覆盖的没覆盖）。
             overlay.querySelector('#ls-clear').addEventListener('click', async () => {
                 if (!confirm('确定清空当前对话的所有记忆数据？此操作不可恢复。')) return;
-                this.engine.graph.nodes.clear();
-                this.engine.graph.edges.clear();
-                this.engine.graph.nameIndex.clear();
-                this.engine.summary.summaries = [];
-                this.engine.diary.diaries = {};
-                this.engine.vector.vectors = [];
-                if (this.engine.pov) this.engine.pov.povs = [];
-                if (this.engine.timeline) this.engine.timeline.entries = [];
-                if (this.engine.status) this.engine.status.characters = {};
-                if (this.engine.ledger) this.engine.ledger.floors = {};
-                if (this.engine.itemOps) this.engine.itemOps = [];   // [v3.11] 清空补齐：这些子系统此前清了内存但存档里残留
-                if (this.engine.reflection) this.engine.reflection.items = [];
-                if (this.engine.suspense) this.engine.suspense.items = [];
-                if (this.engine.scene) { this.engine.scene.nodes = new Map(); this.engine.scene.track = []; this.engine.scene.opsLog = []; }
-                if (this.engine.echo) this.engine.echo.items = [];
-                if (this.engine.pov) this.engine.pov.povs = this.engine.pov.povs || [];
+                const _cr = this.engine.clearRuntimeMemory();
                 const chatId = this.engine.getCurrentChatId();
                 // [v3.11] 存盘统一走 collectExport（原 '2.0.0' 块字段不全——itemOps/reflection/suspense/scene/echo 残留）
                 if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
-                toast('已清空');
+                // 播报三态：失败必须点名（否则「有面没清干净」与「全清干净」在 UI 上同形）
+                if (!_cr.ok) toast('⚠️ 已清空 ' + _cr.count + ' 面，' + _cr.failed.length + ' 面失败：' + _cr.failed.map(f => f.label || f.id).join('/'));
+                else if (_cr.skipped.length) toast('✅ 已清空 ' + _cr.count + ' 面（' + _cr.skipped.length + ' 面本机未加载，跳过错开）');
+                else toast('✅ 已清空 ' + _cr.count + ' 面');
+                /* [v3.236.0] R4-B：**清空面 ↔ 恢复面的覆盖核对**（可机检读数的消费点）。
+                 *   清空是「把运行时按面抹掉」，恢复是按面装上；两面清单必须互为闭包。
+                 *   修前这两份清单各自手抄、无人对账（缺口 3 的形状），所以这里不打印数字了事，
+                 *   而是把**漏掉的面逐个点名** —— 「已清空」这句话必须能被证伪。 */
+                const _cov = (typeof this.engine.snapshotClearCoverage === 'function') ? this.engine.snapshotClearCoverage() : null;
+                if (_cov && !_cov.ok) toast('⚠️ 清空覆盖未对齐，这些面没有清空动作：' + _cov.missingInClear.join('/'));
+                /* [v3.236.0] R4-B：**「没查过」必须与「查过没问题」分开说**（三态口径）。
+                 *   修前只播报失败态，于是「本会话一次都没恢复过 ⇒ 覆盖无从谈起」与
+                 *   「恢复面全被清空面覆盖」在用户侧同样**静默**（两者都是没有提示）。
+                 *   `everRestored` 的存在让这句话有第三个答案，而不是把两种情形挤进同一个「没提示」。 */
+                else if (_cov && !_cov.everRestored) toast('ℹ️ 本会话尚无任何面被恢复过，「清空覆盖」无从核对（清空本身已按面登记执行）');
             });
 
             // 保存
@@ -1473,14 +1480,10 @@
             const engine = plugin.engine;
             const chatId = engine.getCurrentChatId();
             if (!chatId) { toast('无可用对话'); return; }
-            const snaps = await engine.snapshots.list(chatId);
-            if (!snaps.length) { toast('暂无快照（每50楼自动保存一份）'); return; }
-            const body = snaps.map(s => {
-                const time = new Date(s.timestamp).toLocaleString();
-                return `<div class="lsm-item" data-floor="${s.floor}" style="display:flex;justify-content:space-between;">
-                    <span>楼层 ${s.floor}</span><span style="color:var(--ls-text-2,#9da7b3);font-size:12px;">${time}</span>
-                </div>`;
-            }).join('');
+            const _list = await engine.snapshots.list(chatId);
+            if (!_list.length) { toast('暂无快照（每50楼自动保存一份）'); return; }
+            /* [v3.236.0] R4-B：行的 HTML 由引擎产出（面板只负责把它塞进 popup）。 */
+            const body = engine.snapshotRestoreMenu(_list);
             const menu = document.createElement('div');
             menu.id = 'lonsha-snap-menu';
             menu.innerHTML = `
@@ -1490,29 +1493,26 @@
             menu.querySelectorAll('.lsm-item').forEach(item => {
                 item.addEventListener('click', async () => {
                     const floor = Number(item.dataset.floor);
-                    const data = await engine.snapshots.restore(chatId, floor);
-                    if (!data) { toast('快照数据为空'); return; }
-                    // 恢复：与 load 相同的导入管线
-                    try {
-                        if (data.graph) engine.graph.import(data.graph);
-                        if (data.summaries) engine.summary.import(data.summaries);
-                        if (data.diaries) engine.diary.import(data.diaries);
-                        if (data.vectors) engine.vector.import(data.vectors);
-                        if (data.povs && engine.pov) engine.pov.import(data.povs);
-                        if (data.timeline && engine.timeline) engine.timeline.import(data.timeline);
-                        if (data.status && engine.status) engine.status.import(data.status);
-                        if (data.ledger && engine.ledger) engine.ledger.import(data.ledger);
-                        if (data.suspense && engine.suspense) engine.suspense.import(data.suspense);
-                        if (data.scene && engine.scene) engine.scene.import(data.scene);
-                        if (data.echo && engine.echo) engine.echo.import(data.echo);
-                        if (data.prequel && engine.prequel) engine.prequel.import(data.prequel);   // [v3.87] 前情资料
-                        if (data.reflection && engine.reflection) engine.reflection.import(data.reflection);
-                        if (Array.isArray(data.itemOps)) { engine.itemOps = data.itemOps; (engine.reconcileItemOps || engine.rebuildItems).call(engine); }   // [v3.4] 恢复后走对账（补 fp/清理，去重复调用）
-                        const cid = engine.getCurrentChatId();
-                        if (cid) await engine.storage.save(cid, engine.collectExport());
-                        menu.remove();
-                        toast(`✅ 已恢复到快照（楼层 ${floor}）`);
-                    } catch (e) { toast('恢复失败: ' + e.message); }
+                    /* [v3.236.0] R4-B 缺口 1：**整条流程下沉到引擎**（读快照 → 两阶段恢复 → 落盘）。
+                     *   面板在这里只做两件事：把楼层交出去、把结局播报出来。
+                     *   修前形状（留痕，别改回去）：面板手抄 14 行 `engine.X.import(data.X)`，
+                     *   而 `restoreFromPayload` 登记着 42 面 ⇒ 用户点「快照恢复」后 13 面回到快照、
+                     *   其余 29 面维持现值，再经全量序列化落盘成一份「半套状态」。
+                     *   为什么连读与写也要一起下沉：留一段在面板，就留了一处「流程谁说了算」的暗面；
+                     *   而 `snapshotPrecheckEnabled` 的消费点必须落在**有调用者**的方法内
+                     *   （D1 两跳可达性），否则声明键在活性判据眼里就是死配置。 */
+                    let _fr;
+                    try { _fr = await engine.restoreSnapshotFlow(chatId, floor); }
+                    catch (e) { toast('恢复失败: ' + e.message); return; }
+                    if (!_fr.ok) { toast('❌ ' + _fr.reason); return; }
+                    if (!_fr.applied) { toast('❌ ' + _fr.reason); return; }
+                    const _rn = _fr.result;
+                    menu.remove();
+                    toast((_rn.ok ? '✅ ' : '⚠️ 部分恢复: ') + `已恢复到快照（楼层 ${floor}） · 恢复 ${_rn.count} 个字段`
+                        + (_rn.failed.length ? `（失败 ${_rn.failed.map(f => f.key).join('/')}` + (_rn.rolledBack ? '，已自动回滚原状态）' : '，未回滚（保留半套，可紧急备份恢复））') : '')
+                        + (_rn.unknown?.length ? `（未知键 ${_rn.unknown.length} 个已保留）` : '')
+                        + (_rn.missing?.length ? `（引擎缺模块 ${_rn.missing.length}）` : '')
+                        + ((_fr.precheck && _fr.precheck.count !== _rn.count) ? `（预检 ${_fr.precheck.count} 面 / 实恢复 ${_rn.count} 面）` : ''));
                 });
             });
             const closer = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', closer); } };
