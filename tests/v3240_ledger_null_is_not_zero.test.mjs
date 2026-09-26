@@ -121,12 +121,22 @@ test('A1. ★★★★ 契约分界口 finite：「没给」与「给了 0」必
 test('A2. ★★★ 判据面自证：真源源码里不再有「先 Number() 再判有限」的裸形态', () => {
     /* 防「空对空」：不是去数一个不存在的形态，而是先在**修前的真实文本**上确认这个形态
      *   真的出现过 —— 反过来证明本条扫描面有效（修前命中、修后归零）。 */
-    const lastLine = 'return Number.isFinite(n) ? Math.floor(n) : null;';
-    /* 首版写的是 `LE_SRC.includes(...) === true` —— 恒真（**判据自身的缺陷**，本仓对这种形态
-     *   会当场翻红）。改为数出现次数：有限性判定在契约里只应有一处。 */
-    assert.equal(LE_SRC.split(lastLine).length - 1, 1, '有限性判定只此一处（首版写成 includes 恒真）');
-    /* 真正的缺陷形态是「没有『没给』前置门」的版本：直接 Number(v) 就判有限。 */
-    assert.equal(/function\s+finite\s*\([^)]*\)\s*\{\s*const\s+n\s*=\s*Number\(/.test(LE_SRC), false,
+    /* 【v3.242.0 修订 · 同一个坑第二次】本条此前写成「数**上一版实现的那一行**字面量恰好 1 次」
+     *   （`return Number.isFinite(n) ? Math.floor(n) : null;`）—— 这是把判据钉在**实现的文本指纹**上。
+     *   v3.242.0 为 `-0` 归一重写了这一行（`return f === 0 ? 0 : f;`），本判据当场上红：
+     *   红的不是缺陷，是**判据钉错了面**（首版缺陷是 `includes` 恒真，第二次是文本指纹脆弱）。
+     *   修法：改钉**行为** —— 检测器两向自证（缺陷样本必须命中、真源码必须不命中），
+     *   从此不引用任何一行实现的字面文本。 */
+    const NAKED = [
+        'function finite(value) {',
+        '    const n = Number(value);',
+        '    return Number.isFinite(n) ? Math.floor(n) : null;',
+        '}',
+    ].join('\n');
+    const NAKED_RE = /function\s+finite\s*\([^)]*\)\s*\{\s*const\s+n\s*=\s*Number\(/;
+    assert.equal(NAKED_RE.test(NAKED), true,
+        '扫描面自证：裸形态样本必须被本正则命中（不命中 ⇒ 这一条是空对空）');
+    assert.equal(NAKED_RE.test(LE_SRC), false,
         '★ finite 不得再直接 Number(v) 起步（必须先挡「没给」与「非数值」）');
     assert.match(LE_SRC, /if \(value === null \|\| value === undefined\) return null;/, '「没给」前置门在场');
     assert.match(LE_SRC, /if \(t === 'boolean' \|\| t === 'object' \|\| t === 'function'\) return null;/, '非数值一类前置门在场');
@@ -216,7 +226,9 @@ test('C2. ★★★★ 九本账的 floor 一族必须走按名点名的 finiteF
 });
 
 test('C3. ★★ 契约新增面已登记进门禁（R5）与门禁账本清单（BOBS/MIN_BOOKS）', () => {
-    assert.match(SCAN_SRC, /'finite', 'finiteFloor', 'numOrNull'\]/, 'R5 导出面已含三个新名');
+    /* 尾巴上跟 `,` 而不是 `]`：白名单会长（v3.242.0 追加了 `FINITE_DOMAINS`），
+     *   判据钉在「三个新名在场」，不该随白名单增长而误伤。 */
+    assert.match(SCAN_SRC, /'finite', 'finiteFloor', 'numOrNull',/, 'R5 导出面已含三个新名');
     for (const f of BOOK_FILES) assert.ok(SCAN_SRC.includes("'" + f + "'"), '门禁清单含 ' + f);
     assert.match(SCAN_SRC, /const MIN_BOOKS = FIXTURE_MODE \? 1 : 9;/, '下限同步为 9');
 });
@@ -328,13 +340,21 @@ function mirror(mutate) {
 }
 
 test('F1. ★★★★ 把 finite 改回「Number(v) 起步」⇒ A1/D1 同款判据必须转红', () => {
-    const anchor = "    if (value === null || value === undefined) return null;\n"
-        + "    const t = typeof value;\n"
-        + "    if (t === 'boolean' || t === 'object' || t === 'function') return null;\n"
-        + "    if (t === 'string' && value.trim() === '') return null;\n"
-        + "    const n = Number(value);";
+    /* 【v3.242.0 修订】锚点改为**从真源码就地切出来**的整段（`function finite` 起、
+     *   到 `const n = Number(value);` 止），不再手抄实现里的几行文本 ——
+     *   v3.242.0 收窄了字符串判定（`value.trim() === ''` → `INVISIBLE_OR_WS_ALL.test`），
+     *   手抄的 5 行锚点当场上红：红的不是「破坏没生效」，是**锚点过期**。
+     *   切段还顺手加了形状断言：切出来的东西必须真的含「没给」前置门，
+     *   否则破坏掉的东西根本不是本判据要守的那个面。 */
+    const fAt = LE_SRC.indexOf('  function finite(value) {');
+    assert.ok(fAt > 0, '须能定位 `function finite(value) {`（否则本组是空跑）');
+    const nAt = LE_SRC.indexOf('    const n = Number(value);', fAt);
+    assert.ok(nAt > fAt, '须能定位 `const n = Number(value);`');
+    const anchor = LE_SRC.slice(fAt, nAt + '    const n = Number(value);'.length);
+    assert.ok(anchor.includes('if (value === null || value === undefined) return null;'),
+        '切出的锚点须含「没给」前置门（否则破坏的不是本判据要守的那个面）');
     assert.equal(LE_SRC.split(anchor).length - 1, 1, '锚点须恰中 1 次');
-    const dir = mirror((s) => s.replace(anchor, '    const n = Number(value);'));
+    const dir = mirror((s) => s.replace(anchor, '  function finite(value) {\n    const n = Number(value);'));
     try {
         const M = req(path.join(dir, 'ledger-entity.js'));
         /* A1 同款判据：null 必须是 null。 */

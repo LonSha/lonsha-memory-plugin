@@ -54,7 +54,12 @@ if (!BOOKS.length || !Number.isFinite(MIN_BOOKS)) {
 }
 /* 自证：夹具必须喂满门禁下限。少一本，门禁就在夹具里提前 bail，
  *   而那个 exit 2 会被静默读成「结构漂移判据工作正常」—— 空对空。 */
-const GAUGED = ['manifest.json', 'index.js', CONTRACT, ...BOOKS];
+/* [v3.242.0] 门禁新增 R7（在役登记表不得重复）后，夹具必须一并搬那张表 ——
+ *   否则 R7 在夹具里必然报「缺登记表」，而那个报错又会被读成「判据工作正常」（空对空，
+ *   与 v3.240.0 那次的「夹具喂不满下限」同形）。名册**不适用缺席容忍**：
+ *   它必须存在才谈得上「无重复」。 */
+const TSV_REL = 'tests/audit/catalog_reference_consumers.tsv';
+const GAUGED = ['manifest.json', 'index.js', CONTRACT, ...BOOKS, TSV_REL];
 if (BOOKS.length < MIN_BOOKS) {
     console.error('[ledger-negctl] 夹具只搬 ' + BOOKS.length + ' 本账，门禁下限 ' + MIN_BOOKS
         + ' ——结构漂移（夹具喂不满，负控制将空对空）');
@@ -109,7 +114,11 @@ const rows = [];
 for (const [name, target, anchor, repl, expectHits, expectCode, marker, why] of CASES) {
     const dir = path.join(root, name);
     fs.mkdirSync(dir, { recursive: true });
-    for (const f of GAUGED) fs.copyFileSync(path.join(REPO, f), path.join(dir, f));
+    for (const f of GAUGED) {
+        const dest = path.join(dir, f);
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.copyFileSync(path.join(REPO, f), dest);
+    }
 
     if (target === 'DELETE') {
         fs.rmSync(path.join(dir, anchor));

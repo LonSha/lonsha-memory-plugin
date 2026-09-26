@@ -55,8 +55,27 @@
   /** 默认条目容器名（六本账里有四本用 items，其余两本显式传 facts / events）。 */
   const DEFAULT_BOX = 'items';
 
+  /**
+   * [v3.242.0] 空白口径**显式化**：`\s` 不覆盖零宽一族与 NBSP，而它们是真实的「看不见的字符」。
+   *
+   * 修前实测（逐输入坐实，不是推演）：`text('\u200b')` 得 `'\u200b'`（**长度 1**，看着是空串），
+   *   而 `text(' ')` / `text('\u00a0')` / `text('\u3000')` 都得 `''`。
+   *   后果是本模块与九本账的文本字段会出现「**看起来空、其实非空**」的值：
+   *   `names('a\u200b,b')` 得 `['a\u200b','b']` —— 两个名字之间的零宽连接符让**去重键**
+   *   （`name.toLowerCase()`）不再相等，「A」与「A\u200b」会被记成**两个人**。
+   *
+   * 口径：以下五类一律先归成半角空格，再走 `\s+` 折叠与 `trim()` ——
+   *   ZWSP U+200B / ZWNJ U+200C / ZWJ U+200D / BOM U+FEFF / NBSP U+00A0。
+   * 不把全部 Unicode 空格类拉进来：其余几个（U+2000–U+200A、U+202F）在本仓实测**未被**写进过
+   *   任何账本/AI 输出，收窄到「真有犯罪现场」的五个，避免口径宽到把用户文本里的
+   *   逐字空格（如人名间距）也吃掉。
+   *
+   * 边界（不算缺陷、故不修）：`line/history` 的换行语义不受影响（`\r\n` 仍由 `\s+` 折叠）；
+   *   本口径只改**单个字段的文本归一**，不改账本的容器形状。
+   */
+  const INVISIBLE = /[\u200b\u200c\u200d\ufeff\u00a0]/g;
   function text(value, max) {
-    const s = String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+    const s = String(value == null ? '' : value).replace(INVISIBLE, ' ').replace(/\s+/g, ' ').trim();
     return max ? s.slice(0, max) : s;
   }
   /**
@@ -102,10 +121,46 @@
     if (value === null || value === undefined) return null;
     const t = typeof value;
     if (t === 'boolean' || t === 'object' || t === 'function') return null;
-    if (t === 'string' && value.trim() === '') return null;
+    if (t === 'string' && INVISIBLE_OR_WS_ALL.test(value)) return null;
     const n = Number(value);
-    return Number.isFinite(n) ? Math.floor(n) : null;
+    if (!Number.isFinite(n)) return null;
+    const f = Math.floor(n);
+    /* [v3.242.0] `-0` 归一到 `+0`：`Math.floor(-0) === -0`（IEEE 754），而本仓实测
+     *   `Object.is(finite(-0), -0) === true`。楼层口径下 `-0` 与 `0` 是同一个楼层，
+     *   但**读侧的形状判据**（`Object.is(x, 0)` / `x === 0 && !Object.is(x, -0)`）会把它分成两态：
+     *   同一份数据经不同路径取回（一条过 `finite(-0)`、一条过字面量 `0`）就会判成不同。
+     *   归一之后，`finite` 的输出集**恰好三个**：`null` / `+0` / 正整数或负整数，
+     *   判据因此可以写成「有限输入 × 有限输出」的表（见 `FINITE_DOMAINS`）。 */
+    return f === 0 ? 0 : f;
   }
+  /** 字符串「全是看不见的字符或空白」判定 —— 与 `text` 用同一套字符集（口径同源）。 */
+  const INVISIBLE_OR_WS_ALL = /^[\s\u200b\u200c\u200d\ufeff\u00a0]*$/;
+  /**
+   * [v3.242.0] 契约的**输入域 → 输出域声明表**（判据可判定性）。
+   *
+   * 为什么要在契约里放一张声明表：本契约的输出此前只能靠读实现来推断，
+   *   于是「判据写得对不对」本身没法判 —— 每加一个输入就必须再读一遍 `finite` 的函数体。
+   *   把域写在契约里（**与实现同文件、同版本**），下游判据就能写成**表驱动对拍**：
+   *   遍历 `cases`，拿真函数跑，逐条比对 `expect`。
+   *
+   * 表是**声明**不是实现：改了 `finite` 而没改这张表，`tests/v3242` 的表驱动对拍立刻翻红。
+   * `outputs` 只列三种形态（null / 'zero' / 'int'）：有限输入对应有限输出，
+   *   「可枚举」才是判据能收口的条件。
+   */
+  const FINITE_DOMAINS = Object.freeze({
+    outputs: Object.freeze(['null', 'zero', 'int']),
+    cases: Object.freeze([
+      ['null', 'null'], ['undefined', 'null'],
+      ['布尔 true', 'null'], ['布尔 false', 'null'],
+      ['空串', 'null'], ['空白串', 'null'], ['零宽串', 'null'],
+      ['数组 []', 'null'], ['数组 [1]', 'null'], ['对象 {}', 'null'],
+      ['函数', 'null'], ['NaN', 'null'], ['Infinity', 'null'], ['-Infinity', 'null'],
+      ['非数字串', 'null'],
+      ['数 0', 'zero'], ['数 -0', 'zero'], ['数字串 0', 'zero'],
+      ['数 3', 'int'], ['数 -3', 'int'], ['数 3.9', 'int'], ['数 -3.9', 'int'],
+      ['数字串 3', 'int'],
+    ]),
+  });
   /**
    * [v3.240.0] 楼层专用别名：与 `finite` **逐输入等价**（刻意不做第二份判据）。
    *
@@ -237,7 +292,7 @@
 
   const api = Object.freeze({
     REVISION, DEFAULT_BOX,
-    text, finite, finiteFloor, numOrNull, names,
+    text, finite, finiteFloor, numOrNull, names, FINITE_DOMAINS,
     revisionOf, bumpRevision, recordEvent, copyHistory,
     scanBook, line
   });

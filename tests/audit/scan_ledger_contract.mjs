@@ -167,7 +167,7 @@ if (!/LE\.line\(/.test(indexSrc)) {
 
 /* ---------- R5 结构健康 ---------- */
 for (const key of ['revisionOf', 'bumpRevision', 'recordEvent', 'copyHistory', 'scanBook', 'line', 'REVISION',
-    'finite', 'finiteFloor', 'numOrNull']) {
+    'finite', 'finiteFloor', 'numOrNull', 'FINITE_DOMAINS']) {
     if (!new RegExp('\\b' + key + '\\b').test(contractSrc)) {
         defects.push('R5 契约模块缺导出面 `' + key + '`（被删/改名即判据失去真源）');
     }
@@ -175,6 +175,59 @@ for (const key of ['revisionOf', 'bumpRevision', 'recordEvent', 'copyHistory', '
 // 契约自己不得反过来抄账本的局部常量（MAX_HISTORY 各账不同，收上来就把差异抹平了）
 if (/MAX_HISTORY\s*=/.test(contractSrc)) {
     defects.push('R5 契约模块里出现了 MAX_HISTORY 常量 —— 各账上限不同（6/8/8/12/12），必须留在各自模块');
+}
+
+/* ---------- R6 [v3.242.0] 契约的输入/输出域声明表必须成表 ----------
+ * 【为什么单列一条】本契约的输出此前只能靠读实现来推断，「判据写得对不对」本身没法判。
+ *   声明表把域写在**与实现同文件同版本**的地方，下游判据才能写成表驱动对拍。
+ *   这条判据只保证「表还在、而且是表」：真值对拍在 tests/v3242 里做（真函数 × 真表）。
+ *   形态锚点用括号配对取 `FINITE_DOMAINS = Object.freeze({` 的那一段 —— 不靠正则猜结构。 */
+const fdAt = contractSrc.indexOf('const FINITE_DOMAINS = Object.freeze({');
+if (fdAt < 0) {
+    defects.push('R6 契约缺输入/输出域声明表 FINITE_DOMAINS（判据失去可对拍的域）');
+} else {
+    const seg = contractSrc.slice(fdAt, fdAt + 2600);
+    if (!/outputs:\s*Object\.freeze\(\[/.test(seg)) {
+        defects.push('R6 FINITE_DOMAINS 缺 outputs 声明（输出不可枚举 ⇒ 判据无法收口）');
+    }
+    const casesAt = seg.indexOf('cases: Object.freeze([');
+    if (casesAt < 0) {
+        defects.push('R6 FINITE_DOMAINS 缺 cases 声明（没有对拍样本 ⇒ 表是装饰）');
+    } else {
+        const rows = [...seg.slice(casesAt).matchAll(/\['([^']+)',\s*'([^']+)'\]/g)];
+        if (rows.length < 10) {
+            defects.push('R6 FINITE_DOMAINS.cases 只有 ' + rows.length + ' 条（< 10）：样本被抽薄，表驱动对拍失去意义');
+        }
+        const outs = new Set([...seg.matchAll(/outputs:\s*Object\.freeze\(\[([^\]]*)\]/g)]
+            .flatMap((m) => [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])));
+        /* 下标 1 是**样本标签**、2 才是**期望值** —— 本判据首跑写成 `[, exp]`（取到标签），
+         *   于是 23 条样本全报「不在 outputs 里」。留痕：正则捕获组的下标不是「谁看起来像」。 */
+        for (const [, label, exp] of rows) {
+            if (!outs.has(exp)) defects.push('R6 FINITE_DOMAINS 样本「' + label + '」的期望 `' + exp + '` 不在 outputs 里（表自相矛盾）');
+        }
+        if (outs.size > 3) {
+            defects.push('R6 FINITE_DOMAINS.outputs 有 ' + outs.size + ' 种（> 3）：输出集不再是有限可枚举形态');
+        }
+    }
+}
+
+/* ---------- R7 [v3.242.0] 在役测试面登记表不得重复行 ----------
+ * 【为什么单列一条】TSV 是「谁在扫描面里」的唯一名册，也是跨仓守卫的基准。
+ *   重复登记会让「在役 221 / 参考基准 221」这种读数看着对、实际多算一行 ——
+ *   读数对不上时没人能从名字里看出重复。 */
+const tsvPath = path.join(ROOT, 'tests', 'audit', 'catalog_reference_consumers.tsv');
+const tsvRaw = readOrNull(tsvPath);
+if (tsvRaw == null) {
+    defects.push('R7 缺在役测试面登记表 catalog_reference_consumers.tsv');
+} else {
+    const names = tsvRaw.split('\n')
+        .map((l) => l.split('\t')[0].trim())
+        .filter((l) => l && !l.startsWith('#'));
+    const dup = names.filter((n, i) => names.indexOf(n) !== i && names.indexOf(n) < i);
+    if (dup.length) {
+        defects.push('R7 登记表有重复行：' + [...new Set(dup)].slice(0, 5).join(' / '));
+    }
+    if (!names.length) defects.push('R7 登记表里一行有效登记都没有（名册为空 = 跨仓守卫失去基准）');
 }
 
 /* ---------- 报告 ---------- */
@@ -189,5 +242,6 @@ if (defects.length) {
     process.exit(1);
 }
 console.log('[ledger-contract] 通过：契约声明在消费者之前、' + books.length
-    + ' 本账全部委派、floor 一族走 finiteFloor、index.js 有真实读侧、无重复回潮。');
+    + ' 本账全部委派、floor 一族走 finiteFloor、index.js 有真实读侧、无重复回潮、'
+    + '域声明表成表、登记表无重复行。');
 process.exit(0);
