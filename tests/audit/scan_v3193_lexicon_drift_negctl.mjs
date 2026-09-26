@@ -146,6 +146,37 @@ mutate('narrative-pulse.js', '泪:2,', '泪:0,',
     }
     fs.rmSync(dir, { recursive: true, force: true });
 }
+/* [v3.245.0] 归因串表**从被测扫描器源码提取** —— 不手抄（手抄必漂移：
+ *   扫描器改一处归因串，手抄的那份不会跟着动，卫生态对照就再也匹不到它）。
+ *   提取失败即结构漂移（exit 2），不当「没这回事」放过。 */
+const SCANNER_SRC = fs.readFileSync(SCAN, 'utf8');
+const EXPECT_ATTRIB = (() => {
+    const at = SCANNER_SRC.indexOf('const EXPECT_ATTRIB = [');
+    if (at < 0) return null;
+    const end = SCANNER_SRC.indexOf('];', at);
+    if (end < 0) return null;
+    return [...SCANNER_SRC.slice(at, end).matchAll(/'([^']+)'/g)].map((m) => m[1]);
+})();
+if (!EXPECT_ATTRIB || !EXPECT_ATTRIB.length) {
+    console.error('[v3.245.0 负控制] 无法从扫描器 scan_v3193_lexicon_drift.mjs 提取 EXPECT_ATTRIB ⇒ 无从建立卫生态对照，结构漂移');
+    process.exit(2);
+}
+/* ── 卫生态对照：**未破坏**时必须绿，且不得泄漏任何归因串 ──
+ *   两件事一起验：① 门禁在干净树上是绿的（否则后面的「翻红」不可归因）；
+ *   ② 它的归因串在干净输出里一个都不出现（恒报归因 = 这条判据没在区分）。 */
+{
+    const dir = snapshot();
+    const r = runScan(dir);
+    if (r.code !== 0) {
+        bad('原版对照：未破坏时必须 exit=0，实为 ' + r.code + '：' + r.text.slice(0, 300));
+    } else {
+        const leaked = EXPECT_ATTRIB.filter((a) => r.text.includes(a));
+        if (leaked.length) bad('原版对照：卫生态输出里不得出现归因串（' + leaked.join('、') + '）');
+        else ok('原版对照：exit=0 且零归因串泄漏（判据在卫生态下不恒报、不空转）');
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+}
+
 // ── 还原自证：破坏只在临时副本里发生 ──
 {
     const n = fs.readFileSync(NP, 'utf8');
