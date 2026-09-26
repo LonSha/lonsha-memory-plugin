@@ -42,7 +42,13 @@
   * [v3.240.0] 本契约的 `finite` 从「Number.isFinite(Number(v))」改为**先分「没给」**：
  *   null / undefined / 空串 / 布尔 / 数组 ⇒ null；有限数（含 0）⇒ 该数。修前 `finite(null) === 0`
  *   使「楼层未知」与「第 0 楼」塌成同形（九本账约 30 处 floor 调用点受影响）。同轮新增
- *   `finiteFloor` / `numOrNull`（同判据别名，供 floor 一族按名点名）与三本独立账的委派收编。
+ *   `finiteFloor` / `numOrNull`（供 floor 一族按名点名）与三本独立账的委派收编。
+ *
+ * [v3.243.0] 两个别名的**口径分野**收口（v3.240.0 把它们当「同判据的两个名字」，是错的）：
+ *   `finiteFloor` = **楼层**语义（取整，转发 `finite`）；`numOrNull` = **原样数**语义
+ *   （不取整，转发新增的 `finiteNum`，与全仓七处既有 `numOrNull` 逐输入一致）。
+ *   同名同义的代价实测过：`numOrNull(0.5)` 在契约侧是 `0`、在 `snapshot-checkpoint.js` 是 `0.5`
+ *   —— 同一次调用换个模块就换了答案，而两边注释都自称是**同一个**判据。
  *
  * 挂 window.LonShaLedgerEntity，供六本账与 index.js 自检面取用。
  * ======================================================== */
@@ -111,8 +117,11 @@
    *
    * 为什么不直接把 `finite` 改成「非数组对象也 null」了事：`[]` 走 `Number([]) === 0`
    *   与 `null` 同族，必须一起挡；而 `[1]` / `['0']` 是**给了但不是数**，同样归 null。
-   *   四类输入逐条可证（`tests/v3240` A 组），与 `snapshot-checkpoint.js:numOrNull`
-   *   和 `evidence-workbench.js:finiteNumStrict` **同判据**（三处逐输入等价，B 组钉住）。
+   *   四类输入逐条可证（`tests/v3240` A 组）。
+   *   【v3.243.0 更正】原文续写「与 `snapshot-checkpoint.js:numOrNull` 和
+   *   `evidence-workbench.js:finiteNumStrict` 同判据」—— **后两者都不取整、本函数取整**，
+   *   所以那句话在「没给」这一半上为真、在「给了小数」那一半上为假
+   *   （`finite(0.5) === 0` 而它们给 `0.5`）。与它们同判据的是新增的 `finiteNum`，不是 `finite`。
    *
    * 【口径不可回退】谁把这条判据改回 `Number.isFinite(Number(v))`，floor 一族立刻
    *   重新塌成「第 0 楼」（v3240 F 组负控制：真源码破坏 → 破坏副本 → 同款判据必须转红）。
@@ -147,6 +156,29 @@
    * `outputs` 只列三种形态（null / 'zero' / 'int'）：有限输入对应有限输出，
    *   「可枚举」才是判据能收口的条件。
    */
+  /**
+   * [v3.243.0] `numOrNull` / `finiteNum` 一族的**输入域 → 输出域声明表**。
+   *
+   * 与 `FINITE_DOMAINS` 并列、**形态不同**：这里只有两种输出（`null` / `num`），
+   *   因为「原样数」可以落回小数，没有「只出整数」这条承诺。
+   * 两表**分开**是刻意的：一张表说「楼层是整数」，另一张说「时间/字节/计数原样」——
+   *   塞进同一张表就等于又把两种语义混回去（本版修的就是这个混）。
+   */
+  const NUM_OR_NULL_DOMAINS = Object.freeze({
+    outputs: Object.freeze(['null', 'num']),
+    cases: Object.freeze([
+      ['null', 'null'], ['undefined', 'null'],
+      ['布尔 true', 'null'], ['布尔 false', 'null'],
+      ['空串', 'null'], ['空白串', 'null'], ['零宽串', 'null'],
+      ['数组 []', 'null'], ['数组 [1]', 'null'], ['对象 {}', 'null'],
+      ['函数', 'null'], ['NaN', 'null'], ['Infinity', 'null'], ['-Infinity', 'null'],
+      ['非数字串', 'null'],
+      ['数 0', 'num'], ['数 -0', 'num'], ['数字串 0', 'num'],
+      ['数 0.5', 'num'], ['数 -0.5', 'num'], ['数 3.9', 'num'],
+      ['数字串 0.5', 'num'],
+      ['数 3', 'num'], ['数 -3', 'num'], ['数字串 3', 'num'],
+    ]),
+  });
   const FINITE_DOMAINS = Object.freeze({
     outputs: Object.freeze(['null', 'zero', 'int']),
     cases: Object.freeze([
@@ -174,9 +206,44 @@
   function finiteFloor(value) {
     return finite(value);
   }
-  /** [v3.240.0] 与 `finite` 同判据的另一个名字 —— 与 `snapshot-checkpoint.js:numOrNull` 对齐。 */
+  /**
+   * [v3.243.0] 「**不取整**的数值分界口」：只回答「这里到底有没有给一个数」，给了就**原样**返回。
+   *
+   * 【为什么必须与 `finiteFloor` 分开】`finiteFloor` 语义是**楼层**（取整）；
+   *   而本仓另有一条更早、更宽的主线：`numOrNull` 姓氏 = **原样数**（时间戳、字节数、计数、版本号），
+   *   对这些量取整是**丢信息**，不是「规范化」。实测分歧样本 5/18：
+   *   `0.5` / `-0.5` / `3.9` / `'0.5'` / `-0`。
+   *
+   * 【与全仓七处同判据】本函数不是新口径，而是把仓内**既有**的七处「不取整」判据收上来：
+   *   `snapshot-checkpoint.js:numOrNull`、`index.js:_numOrNull`、`scene-book.js:numOrNull`、
+   *   `evidence-workbench.js:finiteNumStrict`、`ledger-replay.js`、`archive-shift.js`、
+   *   `age-anchor.js` —— 它们的**返回口径逐输入一致**（`Number.isFinite(n) ? n : null`）。
+   *   v3.242.0 的隐形空白口径一并继承（零宽串是「没给」）。
+   */
+  function finiteNum(value) {
+    if (value === null || value === undefined) return null;
+    const t = typeof value;
+    if (t === 'boolean' || t === 'object' || t === 'function') return null;
+    if (t === 'string' && INVISIBLE_OR_WS_ALL.test(value)) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  /**
+   * [v3.243.0] **原样数**名下的分界口 —— 与 `finiteFloor` **刻意不同判据**（同名同义的年代到此为止）。
+   *
+   * 【留痕：上一版这句话是错的】v3.240.0 这里写着「与 `finite` 同判据的另一个名字 ——
+   *   与 `snapshot-checkpoint.js:numOrNull` 对齐」，而当时它转发的是 `finite`（**取整**）：
+   *   同一段注释里前半句说「同 `finite`」、后半句说「与 snapshot-checkpoint 对齐」——
+   *   而这两件事本身就矛盾（前者取整、后者不取整）。于是注释为假、同名异义、无从判别。
+   *   判据面也没兜住：`tests/v3240` 只钉了 `finiteFloor` 的名，这个假别名一路绿到 v3.243.0。
+   *
+   * 【纪律（v3.243.0 起由门禁 R8 机器执行）】名字即口径：
+   *   · 名字里带 **Floor** 或就叫 `finite` ⇒ **取整**（楼层一族），返回集恰为 `null` / `+0` / 整数；
+   *   · 名字是 **numOrNull / finiteNum** ⇒ **原样**（时间 / 字节 / 计数一族），不进 `Math.floor`。
+   *   同族同名、异族异名 —— 读代码的人靠名字就能判「这里该不该是整数」。
+   */
   function numOrNull(value) {
-    return finite(value);
+    return finiteNum(value);
   }
   /** 名单归一：去空、去重（大小写不敏感）、截断；非数组按分隔符切串。 */
   function names(value, maxEach, maxCount, seps) {
@@ -292,7 +359,7 @@
 
   const api = Object.freeze({
     REVISION, DEFAULT_BOX,
-    text, finite, finiteFloor, numOrNull, names, FINITE_DOMAINS,
+    text, finite, finiteFloor, finiteNum, numOrNull, names, FINITE_DOMAINS, NUM_OR_NULL_DOMAINS,
     revisionOf, bumpRevision, recordEvent, copyHistory,
     scanBook, line
   });

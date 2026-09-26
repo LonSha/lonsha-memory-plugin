@@ -110,15 +110,24 @@ test('v3242 B1. 真函数 × 真表逐条对拍：23 条样本全部命中声明
     ok('表驱动对拍 ' + n + '/' + n);
 });
 
-test('v3242 B2. 别名与本体三态同判（finiteFloor / numOrNull 不得各走一套）', () => {
+test('v3242 B2. 同族同判、异族异判（finiteFloor 随 finite；numOrNull 随 finiteNum）', () => {
+    const shape = (x) => (x === null ? 'null' : (Object.is(x, 0) ? 'zero' : x));
     for (const [label] of LE.FINITE_DOMAINS.cases) {
         const v = INPUTS[label];
         const a = LE.finite(v), b = LE.finiteFloor(v), c = LE.numOrNull(v);
-        const shape = (x) => (x === null ? 'null' : (Object.is(x, 0) ? 'zero' : x));
-        assert.deepStrictEqual([shape(b), shape(c)], [shape(a), shape(a)],
-            '样本「' + label + '」三个入口须同判：' + JSON.stringify([a, b, c]));
+        /* 【v3.243.0 修订 · 本条原文默认了「别名同判据」】原句写
+         *   `deepStrictEqual([shape(b), shape(c)], [shape(a), shape(a)])` ——
+         *   即「三个入口必须同判」。那要求 numOrNull 与 finite 同族，
+         *   而 v3.243.0 起 numOrNull 归「原样数」族（小数不取整）。
+         *   本组改为**两族各自同判**：楼层族两名（finite / finiteFloor）同判；
+         *   原样族（numOrNull）与 finiteNum 同判。分开才是本版的目的。 */
+        assert.deepStrictEqual([shape(b)], [shape(a)], '楼层族两名须同判：' + label);
+        assert.ok(Object.is(c, LE.finiteNum(v)), '原样族须与 finiteNum 同判：' + label);
     }
-    ok('三入口逐样本同判');
+    /* 异族必须异判（对小数）—— 否则两族分开只是一句说法。 */
+    assert.notStrictEqual(LE.finite(3.9), LE.numOrNull(3.9), '楼层族取整、原样族不取整 ⇒ 对小数必不同');
+    assert.notStrictEqual(LE.finite(-0.5), LE.numOrNull(-0.5), '负小数同样必不同（-1 vs -0.5）');
+    ok('同族同判、异族异判');
 });
 
 /* ══════════ C. 空白口径：零宽一族与 NBSP ══════════ */
@@ -219,7 +228,12 @@ test('v3242 E2. 负控制 N1：声明表被抽薄（cases 掉到 3 条）→ 必
          *   本组首跑手抄了 5 条换掉 1 条 —— 23 条删完还剩 19 条（≥ 10），
          *   R6 的数量判据根本没被踩到，于是「破坏确实写进去了、结论却不变」，
          *   看着像判据失灵。留痕：破坏要踩的是**判据线**，不是碰到源码就算。 */
-        const at = src.indexOf('    cases: Object.freeze([');
+        /* 定位要**按声明标记**，不能按裸名字：`FINITE_DOMAINS` 首次出现是在
+         *   `finite` 的注释里（索引 6765），比声明（8260）更早 —— 按裸名字定位会
+         *   切到第二张表的 `cases`，破坏就变成了 ND 表的事（本组实测被这个坑拦下）。
+         *   留痕：**定位锚点要指向声明，不是名字的首次出现**。 */
+        const at = src.indexOf('    cases: Object.freeze([',
+            src.indexOf('  const FINITE_DOMAINS = Object.freeze({'));
         assert.ok(at > 0, '真源码里须有 cases 数组（否则本组是空跑）');
         const endMark = '    ]),';
         const end = src.indexOf(endMark, at);

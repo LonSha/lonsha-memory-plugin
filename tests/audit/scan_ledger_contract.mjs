@@ -167,7 +167,7 @@ if (!/LE\.line\(/.test(indexSrc)) {
 
 /* ---------- R5 结构健康 ---------- */
 for (const key of ['revisionOf', 'bumpRevision', 'recordEvent', 'copyHistory', 'scanBook', 'line', 'REVISION',
-    'finite', 'finiteFloor', 'numOrNull', 'FINITE_DOMAINS']) {
+    'finite', 'finiteFloor', 'finiteNum', 'numOrNull', 'FINITE_DOMAINS', 'NUM_OR_NULL_DOMAINS']) {
     if (!new RegExp('\\b' + key + '\\b').test(contractSrc)) {
         defects.push('R5 契约模块缺导出面 `' + key + '`（被删/改名即判据失去真源）');
     }
@@ -175,6 +175,21 @@ for (const key of ['revisionOf', 'bumpRevision', 'recordEvent', 'copyHistory', '
 // 契约自己不得反过来抄账本的局部常量（MAX_HISTORY 各账不同，收上来就把差异抹平了）
 if (/MAX_HISTORY\s*=/.test(contractSrc)) {
     defects.push('R5 契约模块里出现了 MAX_HISTORY 常量 —— 各账上限不同（6/8/8/12/12），必须留在各自模块');
+}
+
+/* 取某个 top-level 声明段：从 marker 起，到**下一个** `\n  const ` 为止。
+ * 【为什么不能用固定窗口】v3.242.0 写的是 `slice(at, at + 2600)`；v3.243.0 在
+ *   `NUM_OR_NULL_DOMAINS` 之后 657 字符处又加了一张 `FINITE_DOMAINS` ⇒
+ *   R6b 的窗口**跨进了下一张表**，读到 48 条样本（自己只有 25 条）、
+ *   还能匹到别人表里的期望值。这个缺陷是被 tests/v3243 D4 的负控制抓出来的：
+ *   把第二张表的 cases 抽到 2 条，R6b 却仍然绿 —— 因为它数的是**别人的**样本。
+ *   固定窗口 = 「按猜的长度取段」，本仓的老毛病；改成按声明边界取。 */
+function declSegAt(marker) {
+    const at = contractSrc.indexOf(marker);
+    if (at < 0) return null;
+    const rest = contractSrc.slice(at + marker.length);
+    const nx = /\n  const /.exec(rest);
+    return contractSrc.slice(at, at + marker.length + (nx ? nx.index : rest.length));
 }
 
 /* ---------- R6 [v3.242.0] 契约的输入/输出域声明表必须成表 ----------
@@ -186,7 +201,7 @@ const fdAt = contractSrc.indexOf('const FINITE_DOMAINS = Object.freeze({');
 if (fdAt < 0) {
     defects.push('R6 契约缺输入/输出域声明表 FINITE_DOMAINS（判据失去可对拍的域）');
 } else {
-    const seg = contractSrc.slice(fdAt, fdAt + 2600);
+    const seg = declSegAt('const FINITE_DOMAINS = Object.freeze({');
     if (!/outputs:\s*Object\.freeze\(\[/.test(seg)) {
         defects.push('R6 FINITE_DOMAINS 缺 outputs 声明（输出不可枚举 ⇒ 判据无法收口）');
     }
@@ -230,6 +245,99 @@ if (tsvRaw == null) {
     if (!names.length) defects.push('R7 登记表里一行有效登记都没有（名册为空 = 跨仓守卫失去基准）');
 }
 
+/* ---------- R6b [v3.243.0] 第二张声明表：numOrNull / finiteNum 一族 ----------
+ * 【为什么要有第二张】v3.242.0 给「楼层」族立了表（FINITE_DOMAINS），但同一份契约里
+ *   还住着「原样数」族（时间戳 / 字节 / 计数 / 版本号）—— 它的输出域里**必须有小数**，
+ *   与楼层族「只出整数」的承诺恰好相反。两族塞进一张表就等于又把语义混回去。
+ *   本判据只保证「表还在、而且是表」；真值对拍在 tests/v3243 里做（真函数 × 真表）。 */
+const ndAt = contractSrc.indexOf('const NUM_OR_NULL_DOMAINS = Object.freeze({');
+if (ndAt < 0) {
+    defects.push('R6b 契约缺「原样数」族的域声明表 NUM_OR_NULL_DOMAINS（该族输出域里必须有小数）');
+} else {
+    const seg2 = declSegAt('const NUM_OR_NULL_DOMAINS = Object.freeze({');
+    if (!/outputs:\s*Object\.freeze\(\[/.test(seg2)) {
+        defects.push('R6b NUM_OR_NULL_DOMAINS 缺 outputs 声明（输出不可枚举 ⇒ 判据无法收口）');
+    }
+    const casesAt2 = seg2.indexOf('cases: Object.freeze([');
+    if (casesAt2 < 0) {
+        defects.push('R6b NUM_OR_NULL_DOMAINS 缺 cases 声明（没有对拍样本 ⇒ 表是装饰）');
+    } else {
+        const rows2 = [...seg2.slice(casesAt2).matchAll(/\['([^']+)',\s*'([^']+)'\]/g)];
+        if (rows2.length < 10) {
+            defects.push('R6b NUM_OR_NULL_DOMAINS.cases 只有 ' + rows2.length + ' 条（< 10）：样本被抽薄');
+        }
+        const outs2 = new Set([...seg2.matchAll(/outputs:\s*Object\.freeze\(\[([^\]]*)\]/g)]
+            .flatMap((m) => [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])));
+        for (const [, label2, exp2] of rows2) {
+            if (!outs2.has(exp2)) defects.push('R6b NUM_OR_NULL_DOMAINS 样本「' + label2 + '」的期望不在 outputs 里（表自相矛盾）：' + exp2);
+        }
+        /* 与楼层族相反的口径：原样数族必须有小数的位置（否则与楼层族无法区分）。
+         * 【同一个坑第三次 · 留痕】本行首跑写成 `r[1] === 'num'` —— 而 `matchAll` 的结果里
+         *   下标 0 是完整匹配、1 才是**第一个捕获组（标签）**，期望值在下标 2。
+         *   上一行 `for (const [, label2, exp2] of rows2)` 刚解构对了，下一行又用回下标。
+         *   R6 首跑（v3.242.0）栽的是同一件事：**正则捕获组的下标不是「谁看起来像」**。 */
+        if (!rows2.some((r) => r[2] === 'num')) {
+            defects.push('R6b NUM_OR_NULL_DOMAINS.cases 里一条「num」样本都没有（表与楼层族无法区分）');
+        }
+    }
+}
+
+/* ---------- R8 [v3.243.0] 名字即口径：别名的取整/原样语义必须与名字同族 ----------
+ * 【为什么单列一条】v3.240.0 把 `finiteFloor` 与 `numOrNull` 当成「同判据的两个名字」，
+ *   于是 `numOrNull` 成了**取整版**；而全仓另外七处同名函数都不取整，
+ *   实测分歧 5/18 个样本（0.5 / -0.5 / 3.9 / 字符串 0.5 / -0）。
+ *   两个名字指向同一判据时，这类错误**没有任何判据能发现** —— 两边各自都「自洽」，
+ *   只有把它们**放在一起按名字核对口径**才判得出来。本判据就是那一下核对：
+ *     · 名字属「楼层」族（`finite` / 以 Floor 结尾）⇒ 函数体必须取整；
+ *     · 名字属「原样数」族（`numOrNull` / `finiteNum`）⇒ 函数体必须原样返回。
+ *   转发按目标递归判定（转发不是第二份实现，但**转发目标的口径就是它的口径**）。 */
+const FN_NAMES = ['finite', 'finiteFloor', 'numOrNull', 'finiteNum'];
+const RAW_FAMILY = /^numOrNull$|^finiteNum$/;
+const FLOOR_FAMILY = /^finite$|Floor$/;
+function fnBodyOf(name) {
+    const at2 = contractSrc.indexOf('function ' + name + '(');
+    if (at2 < 0) return null;
+    const open = contractSrc.indexOf('{', at2);
+    if (open < 0) return null;
+    let depth = 0;
+    for (let i = open; i < contractSrc.length; i++) {
+        const c = contractSrc[i];
+        if (c === '{') depth++;
+        else if (c === '}') { depth--; if (depth === 0) return contractSrc.slice(open, i + 1); }
+    }
+    return null;
+}
+function fnKindOf(name, seen) {
+    const b = fnBodyOf(name);
+    if (b == null) return 'absent';
+    const guard = seen || {};
+    if (guard[name]) return 'unknown';
+    guard[name] = true;
+    if (/Math\.floor\(/.test(b)) return 'rounded';
+    if (/\.isFinite\(n\)\s*\?\s*n\b/.test(b)) return 'raw';
+    const d = /return\s+(finiteFloor|finiteNum|finite|numOrNull)\(/.exec(b);
+    if (d) return fnKindOf(d[1], guard);
+    return 'unknown';
+}
+for (const name of FN_NAMES) {
+    const kind = fnKindOf(name, {});
+    if (kind === 'absent') {
+        defects.push('R8 契约缺 function ' + name + '（四门之一定义不见了：判据失去真源）');
+        continue;
+    }
+    if (kind === 'unknown') {
+        defects.push('R8 契约 ' + name + ' 的口径判不出来（既无 Math.floor、也无原样返回、也无可解析的转发）');
+        continue;
+    }
+    if (FLOOR_FAMILY.test(name) && kind !== 'rounded') {
+        defects.push('R8 契约 ' + name + ' 名字属「楼层」族却口径为 ' + kind + '（不取整）：名字与语义不同族 —— 同名不同义就是这么长出来的');
+    }
+    if (RAW_FAMILY.test(name) && kind !== 'raw') {
+        defects.push('R8 契约 ' + name + ' 名字属「原样数」族却口径为 ' + kind + '（取整）：时间/字节/计数会被悄悄抹掉小数');
+    }
+}
+
+
 /* ---------- 报告 ---------- */
 console.log('=== 账本实体契约面 ===');
 console.log('契约 ' + CONTRACT + ' @extra_js[' + at + '] | 消费者 ' + books.length + ' 本 | 契约 ' + contractSrc.length + ' 字符');
@@ -243,5 +351,5 @@ if (defects.length) {
 }
 console.log('[ledger-contract] 通过：契约声明在消费者之前、' + books.length
     + ' 本账全部委派、floor 一族走 finiteFloor、index.js 有真实读侧、无重复回潮、'
-    + '域声明表成表、登记表无重复行。');
+    + '两张域声明表成表、登记表无重复行、名字与口径同族。');
 process.exit(0);

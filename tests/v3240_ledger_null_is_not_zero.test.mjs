@@ -151,21 +151,31 @@ test('A3. ★★ 真给了 0 必须留 0（不得为了修这条把真楼层也�
 
 /* ══════════ B 同判据别名 ══════════ */
 
-test('B1. ★★★ finiteFloor / numOrNull 与 finite 逐输入等价（不是第二份实现）', () => {
+test('B1. ★★★ 两个别名与各自族的原语逐输入等价（不是第二份实现）', () => {
     assert.equal(typeof LE.finiteFloor, 'function', '契约导出 finiteFloor');
     assert.equal(typeof LE.numOrNull, 'function', '契约导出 numOrNull');
     const all = NOT_GIVEN.concat(IS_A_NUMBER_ALIAS.map((p) => p[0])).concat(NOT_A_NUMBER);
     for (const v of all) {
-        assert.equal(LE.finiteFloor(v), LE.finite(v), 'finiteFloor 等价（含小数 / -0）：' + String(v));
-        assert.equal(LE.numOrNull(v), LE.finite(v), 'numOrNull 等价（含小数 / -0）：' + String(v));
+        assert.equal(LE.finiteFloor(v), LE.finite(v), 'finiteFloor 等价（**楼层**族：小数与 -0 都取整）：' + String(v));
+        /* 【v3.243.0 修订 · 本条原文是错的】原句写 `LE.numOrNull(v) === LE.finite(v)`，
+         *   等价于断言「numOrNull 与 finite 同判据」。那正是 v3.240.0 的错：
+         *   numOrNull 管的是时间戳 / 字节 / 计数 / 版本号，**取整是丢信息**。
+         *   v3.243.0 把它归位「原样数」族（对齐新增的 finiteNum，与全仓七处既有
+         *   `Number.isFinite(n) ? n : null` 判据逐输入等价）。故本行改为对齐 finiteNum。 */
+        assert.equal(LE.numOrNull(v), LE.finiteNum(v), 'numOrNull 等价（**原样数**族：不取整）：' + String(v));
     }
+    /* 两族的分野必须**可观测** —— 否则「分开」只是一句说法（本组首跑就是被这条逼出来的）。 */
+    assert.equal(LE.finite(0.5), 0, '楼层族：0.5 ⇒ 第 0 楼');
+    assert.equal(LE.finiteNum(0.5), 0.5, '原样族：0.5 ⇒ 0.5（不取整）');
+    assert.notEqual(LE.finite(0.5), LE.finiteNum(0.5), '两族对小数必须给出不同答案');
     /* 三个名字不得各自为政：源码面钉住它们是**转发**，不是三份判据。 */
-    const body = (name) => {
-        const m = new RegExp('function\\s+' + name + '\\s*\\(value\\)\\s*\\{\\s*return\\s+finite\\(value\\);\\s*\\}').exec(LE_SRC);
+    const body = (name, target) => {
+        const m = new RegExp('function\\s+' + name + '\\s*\\(value\\)\\s*\\{\\s*return\\s+' + target
+            + '\\(value\\);\\s*\\}').exec(LE_SRC);
         return !!m;
     };
-    assert.ok(body('finiteFloor'), 'finiteFloor 必须一行转发 finite（不得复制判据）');
-    assert.ok(body('numOrNull'), 'numOrNull 必须一行转发 finite（不得复制判据）');
+    assert.ok(body('finiteFloor', 'finite'), 'finiteFloor 必须一行转发 finite（不得复制判据）');
+    assert.ok(body('numOrNull', 'finiteNum'), 'numOrNull 必须一行转发 finiteNum（v3.243.0：归位原样数族）');
 });
 
 test('B2. ★★★ 与 R4-E 的模块侧分界口逐输入同判据（两处不是两套口径）', () => {
