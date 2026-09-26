@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.234.0';
+    const VERSION = '3.235.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1043,6 +1043,9 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 //   只剔这一态，其余（缺源/旧档/正文改写）一律放行——判不了就放行，宁多勿少。
                 recallProvenanceFilter: true,
                 sleepAwakenEnabled: true,      // [v3.234.0] 睡眠语义唤醒：低保留价值已归档的摘要，在相似情景再现时回程（archivedForSleep 此前是单向门）
+                // [v3.235.0] R4-A：回滚预览（dry-run）。删楼前先算出「撤几面 / 量级多少」，只读不落地；
+                //   预告与实撤不符时在诊断面留痕。默认开（纯读、无副作用）。
+                rollbackPreviewEnabled: true,
                 // [v3.183] 条目关联停用词表（逗号分隔）。通用词（主角/系统/旁白…）命中会把所有条目串成一团，
                 //   故默认给一份保守表，用户可增删。读取点：crosslink.createIndex({ stopwords })。
                 crosslinkStopwords: '主角,系统,旁白,此时,于是,然而,之后,之前',
@@ -2288,7 +2291,8 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
             this._ledgerViolations = [];                 // [v3.154] 台账写入校验违规环形账本（诊断可观测）
             this._ledgerMissingRollbacks = 0;             // [v3.155] 因账本淘汰而无法回滚的楼层请求数（诊断可观测）
-            this._lastReplayReport = null;                // [v3.182] 最近一次账本回放报告（删楼/前移的分态留痕，诊断可观测）
+            this._lastReplayReport = null;
+            this._lastRollbackPreview = null;   // [v3.235.0] R4-A：最近一次破坏前的只读预告（与 _lastReplayReport 成对，可对账）                // [v3.182] 最近一次账本回放报告（删楼/前移的分态留痕，诊断可观测）
             this.vector = new VectorStore(config);
             this.storage = new StorageManager();
             this.llm = new LLMCaller(config);
@@ -8677,6 +8681,31 @@ function relativeTimeLabel(eventTime, nowTime) {
             };
         }
 
+        /* [v3.235.0] R4-A：**回滚预览（dry-run）** —— 破坏之前先看得见。
+         *   为什么需要：`rollbackFloor` 有三个真宿主调用点（MESSAGE_EDITED / MESSAGE_SWIPED /
+         *   删楼），全部**先删后报**：`_lastReplayReport` 只回答「刚才撤了多少」，而用户
+         *   在按下删除时无从预知。v3.9 废除级联销毁后删楼是两段式（撤该楼 + 其后整体前移），
+         *   旧有告警只在「一次少 5 楼以上」时才响，且只说「可能不完整」。
+         *   本方法**纯读**：不调任何 owner.drop / owner.shift（那两个会真删真改），
+         *   只走 owner.get + 形状扫描 + 面清单。返回：
+         *     { version, floor, module, skipped, drop, shift }
+         *   分态口径（本仓老账：「没给」与「给了第 0 楼」不同形）：
+         *     · 模块缺席      ⇒ module:'absent'，skipped 说明
+         *     · 没给楼层      ⇒ skipped:'floor-not-given'，**不动第 0 楼**
+         *     · 给了第 0 楼   ⇒ 正常预览（floor: 0 是真读数） */
+        previewFloorRollback(floor) {
+            const f0 = numOr(floor, null);
+            let _lr = null;
+            try { _lr = _ledgerReplayLib(); } catch (e) { _lr = null; }
+            if (!_lr) return { version: 0, floor: (f0 === null ? null : f0), module: 'absent', skipped: 'module-unavailable', drop: null, shift: null };
+            const _ver = Number(_lr.LEDGER_REPLAY_VERSION) || 1;
+            if (f0 === null) return { version: _ver, floor: null, module: 'present', skipped: 'floor-not-given', drop: null, shift: null };
+            const out = { version: _ver, floor: f0, module: 'present', skipped: null, drop: null, shift: null };
+            try { out.drop = (typeof _lr.previewDrop === 'function') ? _lr.previewDrop(this, f0) : null; } catch (e) { errLog(e, 'previewFloorRollback.drop'); }
+            try { out.shift = (typeof _lr.previewShift === 'function') ? _lr.previewShift(this, f0) : null; } catch (e) { errLog(e, 'previewFloorRollback.shift'); }
+            return out;
+        }
+
         // [v2.0] P2: 楼层账本回滚（删楼/重生成后把该楼层产生的记忆撤掉）
         rollbackFloor(floor) {
             // [v3.224.0] O-2：**入口先判「给没给」**。修前这里没有门，`rollbackFloor(null)` 会被
@@ -9202,6 +9231,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     // [v3.182] 账本回放：回答「删楼/前移时，每一本账到底撤了没有」。
                     //   此前回滚是 40 余处各自 try/catch，任何一处失败只进错误日志，
                     //   诊断面上一片正常。现在最近一次回放的分态直接念出来。
+                    // [v3.235.0] R4-A：回滚预览 —— 回答「上一次破坏之前预告了什么」，
+                    //   与下一行的「账本回放」（实际撤了多少）并列成对，预告落空一眼可见。
+                    ['回滚预览', (() => {
+                        try {
+                            const _lr = _ledgerReplayLib();
+                            if (!_lr || typeof _lr.previewLine !== 'function') return '—（模块缺席）';
+                            const pv = this._lastRollbackPreview;
+                            if (!pv) return '—（未预览）';
+                            if (pv.module === 'absent') return '—（模块缺席）';
+                            if (pv.skipped === 'floor-not-given') return '—（未给楼层）';
+                            let txt = _lr.previewLine(pv.drop, pv.shift);
+                            const act = this._lastReplayReport;
+                            if (act && typeof act.dropped === 'number' && pv.drop && pv.drop.projected !== null
+                                && act.floor === pv.floor) {
+                                txt += ' ｜ 实撤 ' + act.dropped + ' 条';
+                                if (act.dropped !== pv.drop.projected) txt += ' ⚠️与预告不符';
+                            }
+                            return txt;
+                        } catch (e) { return '—（诊断异常）'; }
+                    })()],
                     ['账本回放', (() => {
                         try {
                             const _lr = _ledgerReplayLib();
@@ -16520,6 +16569,9 @@ ${recentTurns}`;
                             //   会被读成「删了第 0 楼」，进而 rollbackFloor(0) + 整树前移。
                             const floor = numOr(messageId, null);
                             if (floor === null) return;
+                            // [v3.235.0] R4-A：**破坏之前先算预告**（纯读）。预告留在
+                            //   _lastRollbackPreview，诊断面把它与随后的实撤读数并列成对。
+                            try { if (plugin.engine.config?.config?.rollbackPreviewEnabled === true) plugin.engine._lastRollbackPreview = plugin.engine.previewFloorRollback(floor); } catch (e) { errLog(e, 'SH.回滚预览'); }
                             plugin.engine.rollbackFloor(floor);
                             // [v3.9] 废除级联销毁：被删楼之后的记忆不再删除，改为楼层前移重定位（数据零丢失）
                             try { plugin.engine.shiftFloorsFrom?.(floor); } catch (e) { errLog(e, 'SH.删楼前移'); }

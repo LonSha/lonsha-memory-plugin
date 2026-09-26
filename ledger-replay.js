@@ -28,8 +28,16 @@
     'use strict';
 
     // [v3.224.0] O-2：报告**只增不改**（新增 `skipped` 面）—— 故 `LEDGER_REPLAY_VERSION` 保持 1。
+    // [v3.235.0] R4-A：同上口径 —— 新增预览面不构成报告格式变更，版本仍为 1。
     //   抬它会让两条历史套件的「真模块在跑」冒烟断言（锁 == 1）连带翻红，而那是**纯增量面**：
     //   为了一个 additive 字段去改历史测试的常量值，正是本仓在 v3.203.0 拆掉的抬版仪式。
+    // [v3.235.0] R4-A：本版新增的是**独立导出面**（previewDrop / previewShift /
+    //   previewLine / DROP_NOTHING），对既有**回放报告**是「只增不改」——
+    //   `replaySide` 的 items 形状一字未动，no-op 的判定口径细化也属「增」。
+    //   故引擎版本**保持 1**：既有 R2b 判据（scan_v3182）用它区分「真模块跑了」
+    //   与「缺席退路」，那是报告格式信号，不是我新增导出面的信号 —— 两者不是一回事。
+    //   （首稿曾抬到 2，随即被 scan_v3182 的 R2b 当场指为「真模块没在跑」，判得对：
+    //   版本号是**报告**的契约，不该被我借来表达「本模块多了几个导出」。）
     const LEDGER_REPLAY_VERSION = 1;
 
     // 楼层归属登记表。每一项：
@@ -139,6 +147,15 @@
         for (const p of LEDGER_STATE_POINTERS) dec(state, p);
         return n;
     }
+    /* [v3.235.0] R4-A：**「这一面不参与删除」要有具名身份**。
+     *   修前形态：四个面把 drop 写成字面量 `() => 0`。它与「这一面此刻恰好没有该楼的记录」
+     *   返回的 0 **完全同形**，于是回放/预览报告里两种含义相反的读数都落成 `count: 0`：
+     *     · 真的检查过、真的撤了 0 条（无事发生 —— 健康）
+     *     · 这一面从来不参与删除（drop 只是占位实现 —— 从未被检查过）
+     *   本仓纪律：「没给」与「给了 0」必须不同形（同族先例：poolOf 的 `''` vs `[]`）。
+     *   故给占位实现一个**具名函数身份**，让报告能把它单独列成一组而不是混进「干净」。 */
+    function DROP_NOTHING() { return 0; }
+
     // 账本子系统的登记项工厂：统一从宿主取库、同族判据、同族写回。
     function ledgerOwner(id, label, getState) {
         return {
@@ -200,13 +217,13 @@
         {
             id: 'baseline', label: '人设基线', holds: 'pointer',
             get: (h) => h.status || null,
-            drop: () => 0,
+            drop: DROP_NOTHING,
             shift: (h, d) => (h.status && typeof h.status.shiftBaselineFloors === 'function') ? (h.status.shiftBaselineFloors(d) || 0) : 0
         },
         {
             id: 'geo', label: '地理上下文', holds: 'pointer',
             get: (h) => h.status || null,
-            drop: () => 0,
+            drop: DROP_NOTHING,
             shift: (h, d) => (h.status && typeof h.status.shiftGeoFloor === 'function') ? (h.status.shiftGeoFloor(d) || 0) : 0
         },
         {
@@ -349,7 +366,7 @@
         {
             id: 'oplog', label: '操作日志', holds: 'records',
             get: (h) => h.opLog || null,
-            drop: () => 0,
+            drop: DROP_NOTHING,
             shift: (h, d) => { let n = 0; for (const e of (h.opLog?.entries || [])) if (typeof e.floor === 'number' && e.floor > d) { e.floor--; n++; } return n; }
         },
         {
@@ -399,7 +416,7 @@
             // 卷范围：起止同减，跨被删楼时收尾缩一（与手工清单同义，收编进来后才可被审计）。
             id: 'volumes', label: '卷范围', holds: 'records',
             get: (h) => h.summary || null,
-            drop: () => 0,
+            drop: DROP_NOTHING,
             shift: (h, d) => { let n = 0; for (const v of (h.summary?.volumes || [])) { if (typeof v.floorStart === 'number' && v.floorStart > d) { v.floorStart--; n++; } if (typeof v.floorEnd === 'number' && v.floorEnd >= d) { const next = Math.max(v.floorStart, v.floorEnd - 1); if (next !== v.floorEnd) { v.floorEnd = next; n++; } } } return n; }
         }
         ,
@@ -556,6 +573,186 @@
         return { ok: problems.length === 0, problems };
     }
 
+    /* ================= [v3.235.0] R4-A：回滚预览（dry-run） =================
+     * 存在理由（本仓到 v3.234.0 的实测形态）：
+     *   ① `rollbackFloor` 是**破坏性入口**，宿主有 3 个真调用点（MESSAGE_EDITED /
+     *      MESSAGE_SWIPED / 删楼），全部先删后报：`_lastReplayReport` 是**事后**报告，
+     *      用户在按下删除时看不到「这一下会撤掉什么」。
+     *   ② v3.9 废除级联销毁后，删楼变成**两段式**：先撤该楼、再把其后所有楼层前移。
+     *      用户能预知的只有「回滚可能不完整」的告警（批量删除 > 5 时才响），
+     *      「撤几条 / 移几条」无处可问。
+     *   ③ 登记表里 `drop`/`shift` **都是写动作**（会真删真改），不能借它来预览 ——
+     *      预览必须有一条**只读**路径，而不是「调一次看看」。
+     *
+     * 本面**不做什么**（边界）：
+     *   · 不调任何 owner.drop / owner.shift —— 那两个有副作用，调了就不是预览；
+     *   · 不猜量级：形状扫不出来就如实 `measurable: false` 并点名，**绝不拿 0 冒充**；
+     *   · 不新增第二份真源：面清单仍只有 FLOOR_OWNERS 一张表。
+     *
+     * [自纠] 首稿另有一份「容器名白名单」当门，被本版冒烟判死（见 scanShape 内注释），
+     *   已删除 —— 保留一份「名字已知、却不再当门」的表，只会让下一个读者以为它还在管用。
+     *
+     * 口径（`count` 的两档）：
+     *   · `measurable: true`  —— 形状扫描认得这一面，`count` 是「持有该楼的条目数」（量级）；
+     *   · `measurable: false` —— 这一面的状态形状扫不出来，`count` 保持 0 但**不被计入总数**
+     *     （读者看 `projected` 与 `unmeasurable` 两栏，而不是看一个假装精确的 0）。
+     *   `projected` 一个面都量不出来时为 `null`（「没给」），不为 0。
+     *   drop 侧 `count` 的定义是**量级**不是**精确条数**：容器里被置 null 的字段
+     *   （drop 侧的真实语义，见 dropLedgerItemFloors）不计入 —— 预览回答的是
+     *   「这一下会牵动多少」，不是「会改几个字段」。 */
+    const SHAPE_FLOOR_FIELDS = Object.freeze([
+        'floor', 'evidenceFloor', 'resolvedFloor', 'floorStart', 'floorEnd',
+        'updatedFloor', 'revealedFloor', 'settledFloor', 'lastFloor', 'lastEchoFloor',
+        'validFrom', 'validTo'
+    ]);
+
+    /** 单条对象是否「与 floor 相关」：身份字段或容器内事件端点命中即真。
+     *  `x != null` 这道门必须留着 —— `Number(null) === 0`，而 0 是本仓合法楼层，
+     *  少了它第 0 楼的预览会把所有空字段都数进来（本仓 nativenumOrNull 治过的同款）。 */
+    function shapeHit(o, floor) {
+        if (o == null || typeof o !== 'object') return false;
+        for (const k of SHAPE_FLOOR_FIELDS) { const x = o[k]; if (x != null && Number(x) === floor) return true; }
+        for (const box of ['history', 'segments']) {
+            if (!Array.isArray(o[box])) continue;
+            for (const kid of o[box]) {
+                if (kid == null || typeof kid !== 'object') continue;
+                for (const k of SHAPE_FLOOR_FIELDS) { const x = kid[k]; if (x != null && Number(x) === floor) return true; }
+            }
+        }
+        return false;
+    }
+
+    /** 只读形状扫描。返回 { hits, recognized }。
+     *  recognized=false 表示「这一面的形状本面不认识」⇒ 调用方必须报 measurable:false，
+     *  **不得**把「没认出来」读成「没有该楼的记录」。 */
+    function scanShape(v, floor, depth) {
+        if (depth > 3 || v == null || typeof v !== 'object') return { hits: 0, recognized: false };
+        let hits = 0, recognized = false;
+        if (Array.isArray(v)) {
+            for (const it of v) if (shapeHit(it, floor)) hits++;
+            return { hits, recognized: true };
+        }
+        if (v instanceof Set) {
+            for (const x of v) if (x != null && Number(x) === floor) hits++;
+            return { hits, recognized: true };
+        }
+        if (v instanceof Map) {
+            for (const x of v.values()) {
+                if (shapeHit(x, floor)) hits++;
+                else if (Array.isArray(x)) for (const y of x) if (shapeHit(y, floor)) hits++;
+            }
+            return { hits, recognized: true };
+        }
+        if (shapeHit(v, floor)) { hits++; recognized = true; }
+        // [v3.235.0 R4-A 自纠] 首稿在这里遍历的是一份容器名白名单，于是
+        //   `diary.diaries`（{名字: [...]} 两层结构）、`graph.edges`（Map）、
+        //   `ledger.floors` 这些「容器名不在白名单里」的面一律被判 recognized:false
+        //   ⇒ 报告 unmeasurable。本版功能冒烟实测：42 面里 5 面扫不出，其中 3 面是
+        //   白名单**漏项**造成的假 unmeasurable —— 「扫不出」与「没扫」必须不同形，
+        //   这条对本面自身同样适用（诊断面自己撒谎，比不报更坏）。
+        //   现改为遍历全部可枚举对象值（深度受限）：宁多勿少 —— 预览多报一个
+        //   「可能被牵动」的面，好过静默漏掉一个真持有该楼的面。
+        //   深度上限保证不因宿主的自引用对象无限递归（本面零抛出是硬纪律）。
+        for (const k of Object.keys(v)) {
+            const child = v[k];
+            if (child == null || typeof child !== 'object') continue;
+            const r = scanShape(child, floor, depth + 1);
+            if (r.recognized) recognized = true;
+            hits += r.hits;
+        }
+        return { hits, recognized };
+    }
+
+    /** 单面只读取数：与 replaySide 同 get / 同一道门 / 同一份 items 形状，**唯一差别是不调 action**。 */
+    function countOwner(owner, host, floor, side) {
+        const out = { id: owner.id, label: owner.label, holds: owner.holds, state: 'ok', count: 0, measurable: false };
+        const action = side === 'drop' ? owner.drop : owner.shift;
+        if (action === null || owner.participates === false) { out.state = 'no-op'; return out; }
+        let cur = null;
+        try { cur = owner.get(host); } catch (e) { out.state = 'threw'; return out; }
+        if (cur == null) { out.state = 'absent'; return out; }
+        if (side === 'shift') {
+            // 前移的量级无法在「不改一个字段」的前提下量出来（要真减一才知道减几条），
+            // 故前移侧只声明「参与」，不报条数 —— 这一栏回答的是「其后哪些面会跟着重定位」，
+            // 不是「会移几条」。想量条数就只能调用 shift，而那已经是写动作了。
+            out.state = 'declared';
+            return out;
+        }
+        if (action === DROP_NOTHING) { out.state = 'no-op'; return out; }
+        try {
+            const r = scanShape(cur, floor, 0);
+            if (r.recognized) { out.count = r.hits; out.measurable = true; }
+        } catch (e) { out.state = 'threw'; }
+        return out;
+    }
+
+    function previewSide(host, floor, side, registry) {
+        const list = Array.isArray(registry) ? registry : FLOOR_OWNERS;
+        const target = floorOrNull(floor);
+        const head = { version: LEDGER_REPLAY_VERSION, side: side === 'drop' ? 'drop-preview' : 'shift-preview', floor: target };
+        if (target === null) {
+            return Object.assign(head, {
+                items: [], projected: null, holders: [], unmeasurable: [], notParticipating: [],
+                noOp: [], absent: [], threw: [], basis: 'shape-scan', skipped: 'floor-not-given'
+            });
+        }
+        const items = [];
+        const holders = [], unmeasurable = [], notParticipating = [], noOp = [], absent = [], threw = [];
+        let projected = 0, measured = 0;
+        for (const owner of list) {
+            const row = countOwner(owner, host, target, side);
+            items.push(row);
+            if (row.state === 'no-op') {
+                if (side === 'drop' && owner.drop === DROP_NOTHING) notParticipating.push(owner.id);
+                else noOp.push(owner.id);
+                continue;
+            }
+            if (row.state === 'absent') { absent.push(owner.id); continue; }
+            if (row.state === 'threw') { threw.push(owner.id); continue; }
+            if (side === 'shift') continue;
+            if (row.measurable) { measured++; projected += row.count; if (row.count > 0) holders.push(owner.id); }
+            else unmeasurable.push(owner.id);
+        }
+        return Object.assign(head, {
+            items, projected: measured ? projected : null, holders,
+            unmeasurable, notParticipating, noOp, absent, threw,
+            basis: 'shape-scan', skipped: null
+        });
+    }
+
+    /** 删楼预览：**只读**。回答「按下删除会撤掉什么」（哪些面持有该楼 / 量级多少 /
+     *  哪些面扫不出来 / 哪些面本来就不参与删除）。 */
+    function previewDrop(host, floor, registry) { return previewSide(host, floor, 'drop', registry); }
+
+    /** 前移预览：**只读**。回答「其后哪些面会跟着重定位」（删楼是两段式，这一半此前完全不可预知）。 */
+    function previewShift(host, floor, registry) { return previewSide(host, floor, 'shift', registry); }
+
+    /** 预览报告的一行人话（与 diagnoseLine 同规格，供 selfCheck 念出来）。
+     *  [v3.235.0 R4-A 自纠] 首稿只接受「包装对象」（`{floor, drop, shift}`），于是
+     *   `previewLine(previewDrop(h, 7))` —— 把**单侧报告**直接递进来的那种自然写法 ——
+     *   会被 `!report.drop` 静默读成「—（无预览）」。两种形态在调用点都自然，
+     *   读错其一就是本仓最忌讳的形态混淆（本版冒烟当场抓到：四个调用样例全返同一句）。
+     *   现在两种形态都认；**认不出的形态不静默**，返回带原因的说明。 */
+    function previewLine(report, shiftReport) {
+        let d = null, s = shiftReport || null;
+        if (report && typeof report === 'object') {
+            if (report.side === 'drop-preview') d = report;
+            else { d = report.drop || null; if (!s) s = report.shift || null; }
+        }
+        if (!d) return (report == null) ? '—（无预览）' : '—（预览形态不可识：既不是包装对象，也不是 drop-preview 报告）';
+        if (d.skipped === 'floor-not-given') return '—（未给楼层）';
+        let txt = '楼' + d.floor + '：' + ((d.holders || []).length) + ' 面持有';
+        txt += (d.projected === null) ? '，量级不可得' : ('，约 ' + d.projected + ' 条');
+        if ((d.unmeasurable || []).length) txt += '，' + d.unmeasurable.length + ' 面扫不出';
+        if ((d.notParticipating || []).length) txt += '，' + d.notParticipating.length + ' 面不参与删';
+        if ((d.absent || []).length) txt += '，' + d.absent.length + ' 面缺席';
+        if ((d.threw || []).length) txt += ' ⚠️' + d.threw.length + ' 面取数失败';
+        if (s && s.skipped !== 'floor-not-given') {
+            txt += ' · 其后 ' + (s.items || []).filter((r) => r.state === 'declared').length + ' 面随之重定位';
+        }
+        return txt;
+    }
+
     // 诊断行文本：给 selfCheck 用的一行人话。
     function diagnoseLine(report) {
         if (!report) return '—（未回放）';
@@ -575,7 +772,11 @@
         replayShift,
         coverage,
         checkReplayInvariants,
-        diagnoseLine
+        diagnoseLine,
+        previewDrop,
+        previewShift,
+        previewLine,
+        DROP_NOTHING
     };
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

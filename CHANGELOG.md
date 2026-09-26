@@ -1,3 +1,73 @@
+## v3.235.0
+
+**主题：R4-A 回滚预览（dry-run）—— 破坏之前先看得见。**
+一句话纪律：**预览必须是一条只读路径，不能借写动作来「试着算一算」。**
+
+### 为什么要给破坏性入口补预览（不是「再做一个诊断行」）
+
+`rollbackFloor` 是**破坏性入口**，宿主有 3 个真调用点（`MESSAGE_EDITED` / `MESSAGE_SWIPED` /
+删楼），开个实测：
+
+- 三个调用点全部**先删后报**：`_lastReplayReport` 只回答「刚才撤了多少」，用户在按下删除时
+  **无从预知**这一下会牵动什么；
+- v3.9 废除级联销毁后，删楼是**两段式**（先撤该楼、再把其后所有楼层前移），而这一半此前
+  完全不可预知 —— 唯一相关告警只在「一次少 5 楼以上」时才响，且只说「回滚可能不完整」；
+- 登记表里 `drop` / `shift` **都是写动作**（会真删真改），不能借它来预览；
+- `ledger-replay.js` 的 `coverage(host)` 虽是只读面却**在 index.js 零消费**（导出 API 全库
+  零调用），而它只答「哪些账在位」，不答「这一下牵动多少」。
+
+### 新增只读预览面（`ledger-replay.js`，导出 +4）
+
+- `previewDrop(host, floor[, registry])` / `previewShift(...)`：与 `replaySide` **同一道门、
+  同一份 `FLOOR_OWNERS`、同一份 items 形状**，唯一差别是**不调 `owner.drop` / `owner.shift`**；
+- 报告形状：`{ version, side: '*-preview', floor, items, projected, holders, unmeasurable,
+  notParticipating, noOp, absent, threw, basis: 'shape-scan', skipped }`；
+- **分态口径**（沿用本仓老账）：「没给」⇒ `skipped:'floor-not-given'` + `projected: null`；
+  **给了第 0 楼照常预览**（0 是合法楼层）；一个面都量不出来 ⇒ `projected: null`（「没给」，不写 0）；
+- `previewLine(report[, shiftReport])`：一行人话，**两种形态都认**（单侧报告 / 包装对象）；
+- `DROP_NOTHING`：把「这一面不参与删除」从字面量 `() => 0` 升为**具名函数身份** ——
+  它与「这一面此刻恰好没有该楼的记录」返回的 0 原先完全同形，报告里两种含义相反的读数
+  都落成 `count: 0`。
+
+### 本版当场抓到并修掉的三处问题（都由功能冒烟 / 审计在场指认）
+
+1. **`scanShape` 拿白名单当门 ⇒ 假 `unmeasurable`**：`diary.diaries`（两层结构）、
+   `graph.edges`（Map）、`ledger.floors` 被判「扫不出」，42 面里 5 面如此 —— 其中 3 面是
+   **漏项造成的假读数**。「扫不出」与「没扫」必须不同形，这条对本面自身同样适用。
+   修为全值遍历（深度受限）后 5 → 1，剩下的 `stm-ltm` 是**真**扫不出，如实点名。
+2. **`previewLine` 只认包装对象**：`previewLine(previewDrop(h,7))` 这种把单侧报告直接递进来
+   的自然写法被静默读成「—（无预览）」。修为两形态都认；**认不出的形态不静默**，带原因返回。
+3. **首稿曾把 `LEDGER_REPLAY_VERSION` 抬到 2**：被 `scan_v3182` 的 R2b 当场指为「真模块没在跑」，
+   判得对。该常量是**报告格式**契约（用于区分真回放与缺席退路），本版新增的是**独立导出面**，
+   对回放报告是「只增不改」—— 版本退回 1，不把版本号借来表达「模块多了几个导出」。
+
+### 宿主接线（`index.js` / `settings-ui.js`）
+
+- 配置键 `rollbackPreviewEnabled`（默认开，纯读无副作用）+ UI 开关；
+- `previewFloorRollback(floor)`：走既有 `numOr` 门与 `_ledgerReplayLib()` 取库口，
+  分态 `module:'absent'` / `skipped:'floor-not-given'` / 正常；
+- **删楼点先预告后破坏**：`_lastRollbackPreview` 在 `rollbackFloor(floor)` **之前**赋值
+  （开关严格 `=== true`）；
+- 诊断面新增一行 `['回滚预览']`，与既有 `['账本回放']` **并列成对**：预告量级 ≠ 实撤条数时
+  当场标 `⚠️与预告不符`。
+
+### 判据（`tests/v3235_rollback_preview.test.mjs`，26 项）
+
+A 预览纯读（逐字节快照 + 计数桩证明写动作零调用）· B 分态与反坐实 · C 具名身份 ·
+D 形状扫描真实性（自纠回归）· E `previewLine` 两形态 · F 宿主接线（含**顺序判据**：
+预告必须在破坏之前）· G 既有面不回退与零抛出 · H 版本锚 ·
+N 负控制 5 条 + 锚点自证（真源码破坏 → 整仓镜像 → 同款真判据必须转红）。
+
+### 同轮抬版连带面
+
+- `LEDGER_REPLAY_VERSION` 保持 1（见上第 3 条）；
+- `dead_code_budget`：活跃代码 38049 行，上界 37960 → **38449**（活跃功能增长，附理由）；
+- `TODO.md`「最近更新」→ v3.235.0；
+- `tests/audit/catalog_reference_consumers.tsv` 追加本套件一行；
+- 临时脚手架（冒烟脚本 / 补丁脚本 / 备份目录）全部清理，不留在活跃代码面里。
+
+---
+
 ## v3.234.0
 
 **主题：睡眠语义唤醒 —— 补上 `archivedForSleep` 那扇单向门的回程。**

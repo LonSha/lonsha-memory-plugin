@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
-  "measured_at": "v3.234.0",
+  "measured_at": "v3.235.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -54,6 +54,32 @@
         "域账 10 条逐条在场（仅随总量平移）"
       ],
       "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。形态决策（能不能按域拆）沿用 v3.233.0 的按读数否掉。"
+    },
+    "v3.235.0": {
+      "reason": "v3.235.0 R4-A 回滚预览（dry-run）落在 ledger-replay.js（只读预览面 previewDrop / previewShift / previewLine / DROP_NOTHING + 形状扫描，**不新增 index.js 的取库口**，复用既有 _ledgerReplayLib）+ index.js 宿主接线（config 默认键 rollbackPreviewEnabled、新方法 previewFloorRollback、删楼点先预告后破坏、诊断行、构造期初始化）：index.js 新增 52 行、新成员 1 个（previewFloorRollback）⇒ 行数 17021→17073、成员 560→561、TOP5 占比 21.8%→21.9%、覆盖率 25.0%→25.0%",
+      "readings": {
+        "total_lines": 17073,
+        "member_count": 561,
+        "top5_lines": 3735,
+        "top5_pct": 21.9,
+        "top40_lines": 8779,
+        "top40_pct": 51.4,
+        "prefix_rule_coverage_lines": 4274,
+        "prefix_rule_coverage_pct": 25.0,
+        "unclassified_lines": 11968,
+        "seam_distinct_modules": 35,
+        "seam_reference_sites": 46,
+        "seam_call_shape_sites": 49,
+        "members_over_80_lines": 32,
+        "low_coupling_members": 18,
+        "high_coupling_members": 10
+      },
+      "unchanged": [
+        "缝合模块接线面 35 / 46 / 49 三者逐字不变（新增预览面住在既有 ledger-replay.js 里，不新增接缝模块）",
+        "分诊面 32 / 18 / 10 三者逐字不变（新增 previewFloorRollback 未跨过 80 行阈值，耦合分布不变）",
+        "域账 10 条逐条在场（仅随总量平移）"
+      ],
+      "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉；本轮新增的只读预览面（R4-A）不改 index.js 的结构形状（新成员 1 个、位于既有类体内）。"
     }
   },
   "node_version": "v24.18.0",
@@ -65,15 +91,15 @@
     "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
   ],
   "readings": {
-    "total_lines": 17021,
-    "member_count": 560,
-    "top5_lines": 3715,
-    "top5_pct": 21.8,
-    "top40_lines": 8752,
+    "total_lines": 17073,
+    "member_count": 561,
+    "top5_lines": 3735,
+    "top5_pct": 21.9,
+    "top40_lines": 8779,
     "top40_pct": 51.4,
-    "prefix_rule_coverage_lines": 4254,
+    "prefix_rule_coverage_lines": 4274,
     "prefix_rule_coverage_pct": 25.0,
-    "unclassified_lines": 11936,
+    "unclassified_lines": 11968,
     "seam_distinct_modules": 35,
     "seam_reference_sites": 46,
     "seam_call_shape_sites": 49,
@@ -84,12 +110,12 @@
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 504,
-      "lines": 11936,
+      "members": 505,
+      "lines": 11968,
       "lines_pct": 70.1,
-      "outside_refs": 3798,
-      "internal_refs": 4699,
-      "outside_ref_share_pct": 44.7
+      "outside_refs": 3817,
+      "internal_refs": 4702,
+      "outside_ref_share_pct": 44.8
     },
     {
       "domain": "宿主事件接线",
@@ -103,10 +129,10 @@
     {
       "domain": "诊断与导出",
       "members": 27,
-      "lines": 1121,
-      "lines_pct": 6.6,
-      "outside_refs": 442,
-      "internal_refs": 2382,
+      "lines": 1141,
+      "lines_pct": 6.7,
+      "outside_refs": 443,
+      "internal_refs": 2381,
       "outside_ref_share_pct": 15.7
     },
     {
@@ -181,8 +207,8 @@
     },
     {
       "name": "selfCheck",
-      "lines": 710,
-      "outside_refs": 9
+      "lines": 730,
+      "outside_refs": 10
     },
     {
       "name": "recallMemory",
@@ -201,7 +227,7 @@
     },
     {
       "name": "registerEvents",
-      "lines": 368,
+      "lines": 371,
       "outside_refs": 0
     },
     {
@@ -211,7 +237,7 @@
     },
     {
       "name": "constructor",
-      "lines": 325,
+      "lines": 328,
       "outside_refs": 8
     },
     {
@@ -227,7 +253,7 @@
     {
       "name": "rollbackFloor",
       "lines": 202,
-      "outside_refs": 7
+      "outside_refs": 8
     },
     {
       "name": "buildBridgeSnapshot",
@@ -241,7 +267,7 @@
     },
     {
       "name": "constructor",
-      "lines": 174,
+      "lines": 175,
       "outside_refs": 8
     },
     {
@@ -457,8 +483,8 @@
     "high_coupling_examples": [
       {
         "name": "selfCheck",
-        "lines": 710,
-        "outside_refs": 9,
+        "lines": 730,
+        "outside_refs": 10,
         "is_host_lifecycle": false
       },
       {
@@ -469,7 +495,7 @@
       },
       {
         "name": "constructor",
-        "lines": 325,
+        "lines": 328,
         "outside_refs": 8,
         "is_host_lifecycle": false
       },
@@ -482,7 +508,7 @@
       {
         "name": "rollbackFloor",
         "lines": 202,
-        "outside_refs": 7,
+        "outside_refs": 8,
         "is_host_lifecycle": false
       },
       {
@@ -493,7 +519,7 @@
       },
       {
         "name": "constructor",
-        "lines": 174,
+        "lines": 175,
         "outside_refs": 8,
         "is_host_lifecycle": false
       },
@@ -518,17 +544,17 @@
     ]
   },
   "shape": {
-    "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.7%、TOP40 占 51.3%；10 条前缀域规则只覆盖 24.9%，剩下 75.3% 落在规则之外。",
+    "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.9%、TOP40 占 51.4%；10 条前缀域规则只覆盖 25.0%，剩下 75.0% 落在规则之外。",
     "verdict": "未观察到「可以按域整体搬走」的形态：超大成员多数是生命周期接线本身，长尾成员则互相稠密互调。"
   },
   "split_verdict": {
     "question": "index.js 能不能按域拆走一块？",
     "answer": "**本版判定：不拆（按读数否掉，不是按感觉）**。交付分诊与判据，形态决策留给后续版本。",
     "reasons": [
-      "**最大的几个成员是「生命周期接线本身」，不是可搬的功能块**：`onMessageReceived` 1217 行 / `onBeforeGeneration` 503 行 / `registerEvents` 368 行（v3.233.0 重建后三者逐条在场）。搬它们＝把入口从宿主事件上摘下来；而它们的**外部引用数极低**（onMessageReceived 仅 1 次）—— 这正是「低外部引用 ≠ 低耦合」的典型误读面：引用数只看别人叫不叫它，看不见它是谁的**唯一入口**。故分诊表专设 `is_host_lifecycle` 一列把这类排除。",
+      "**最大的几个成员是「生命周期接线本身」，不是可搬的功能块**：`onMessageReceived` 1217 行 / `onBeforeGeneration` 503 行 / `registerEvents` 371 行（v3.235.0 重建后三者逐条在场）。搬它们＝把入口从宿主事件上摘下来；而它们的**外部引用数极低**（onMessageReceived 仅 1 次）—— 这正是「低外部引用 ≠ 低耦合」的典型误读面：引用数只看别人叫不叫它，看不见它是谁的**唯一入口**。故分诊表专设 `is_host_lifecycle` 一列把这类排除。",
       "**引用读数只能当上界，不能当判据**：同名方法在不同类上出现多次（`import` 4 处 / `constructor` 3 处），按名字聚合会把它们混在一起（`import` 合计 27 次外部引用，那不是某一个方法被叫 27 次）。要精确必须做 AST 级归属，而本仓死代码口径**明确是文本形态、不解析 AST**（O-6/P-1 已立）。",
-      "**内部互调稠密**：规则外成员（未归类域 11926 行）内部互调 **4697** 处 —— 拆一个域要同时改它与其余全部调用点；而本仓 9 道门禁里**没有任何一道**检查「跨模块的成员可见性」，拆错的形态是**运行期 this 丢失**（只有实机能看出来，无头门禁看不见）。",
-      "**有读数支持的第一刀不是「按域拆」，而是「先立规模与成员预算判据」**：与 O-5（性能先立基线）/ P-3（快照先量再定）同一条口径纪律 —— 任何拆分都要先有「拆之前多大、拆之后多大、哪个成员超预算」的可比读数，否则拆完不知道是变清楚了，还是只是把 16980 行挪成了三个文件。本版把这件事立成判据（含每个大成员的逐条在场点名）。"
+      "**内部互调稠密**：规则外成员（未归类域 11968 行）内部互调 **4702** 处 —— 拆一个域要同时改它与其余全部调用点；而本仓 9 道门禁里**没有任何一道**检查「跨模块的成员可见性」，拆错的形态是**运行期 this 丢失**（只有实机能看出来，无头门禁看不见）。",
+      "**有读数支持的第一刀不是「按域拆」，而是「先立规模与成员预算判据」**：与 O-5（性能先立基线）/ P-3（快照先量再定）同一条口径纪律 —— 任何拆分都要先有「拆之前多大、拆之后多大、哪个成员超预算」的可比读数，否则拆完不知道是变清楚了，还是只是把 17073 行挪成了三个文件。本版把这件事立成判据（含每个大成员的逐条在场点名）。"
     ],
     "only_axis_with_evidence": "成员级预算（over-80 行 32 个成员逐条点名）+ 文件规模上界；本版**只立判据不动手**。"
   },
@@ -542,6 +568,7 @@
     "**未做 AST 级归属**：外部引用数按名字统计，同名方法会混（见 corrections[1]）；本仓死代码口径是文本形态，本版沿用同一口径而不是偷偷换更强的工具 —— 换工具应当单独立一版。",
     "**未覆盖运行期可见性**：拆分的真正风险是「跨模块 this 丢失」，那属于实机面，无头门禁看不见（已登记在 docs 的运行时边界）。",
     "**未排拆分优先级**：分诊表给出「行数 / 外部引用 / 是否生命周期」三个读数，不排优先级 —— 排优先级要一并看功能风险，那不在读数里。",
-    "（v3.234.0）睡眠语义唤醒接线后按当版 index.js 重建读数：16980 → 17021 行；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
+    "（v3.234.0）睡眠语义唤醒接线后按当版 index.js 重建读数：16980 → 17021 行；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
+    "（v3.235.0）R4-A 回滚预览接线后按当版 index.js 重建读数：17021 → 17073 行、成员 560 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
   ]
 }

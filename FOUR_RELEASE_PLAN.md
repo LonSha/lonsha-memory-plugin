@@ -845,11 +845,23 @@ N1 当场转红；改为共用 `ROOT_MKDTEMP` / `ROOT_TMPWRITE` 两个常量，*
 - **功能拓展（F 批）：进行中（上游 3/6，下游 0/6）** —— 计划 14 项里剩六项：
   F-1 分支与玩法（R4）、F-2 跨平台事件、F-4 projection 五态消费普查、
   F-7 九账出桥（依赖 P-3，已解阻）、F-8 存档健康面板（依赖 P-4，已解阻）、P-6 声明式生命周期可行性取证。
-  **已完成**：F-3（v3.232.0）、F-6（v3.232.0）、F-2 **上游侧**（v3.233.0；下游 worldpulse / timeweaver
-  对 `eventPlatforms` 的消费点**未接**）。
-  **下一项**：F-2 下游侧 —— 按 timeweaver collector 既有的「各答一个问题、不互相顶替」范式，
-  为「这条事件是谁记的」立一个独立消费点（worldpulse 侧同口径只读同一份快照面）。
-- R4：待实施。
+  **已完成**：F-3（v3.232.0）、F-6（v3.232.0）、F-2（上游侧 v3.233.0 + 下游侧 v3.9.0/v3.9.1）。
+  F-2 **下游侧接点核实**（v3.234.0 复校，纠正本文件此前的陈旧记载）：计划原文称下游
+  「对 `eventPlatforms` 的消费点**未接**」——实测**已接**。下游取证：
+  `config/world-bridge.js:287` 导出 `readLonshaEventPlatforms`；
+  `apps/timeweaver/timeweaver-collector.js:139` 与 `apps/worldpulse/worldpulse-app.js:341`
+  各一处真消费（**2 消费点 / 2 文件**）；常驻判据 `tests/system-v321.test.mjs` 已把
+  「面缺席 / 空 / 不可用」三态钉开（`face-absent` 与空面不同形）。⇒ 这是**计划文本陈旧**，
+  按读数修正；**不重做**。同理「下游 0/6」的计数也随 F-2 下游侧完成而上抬。
+  **当前项**：R4（分支与玩法，即 F-1）—— 见下方「R4 进行中」。
+- R4：**进行中**（优先于 F-4 / F-7 / F-8）。**R4-A 回滚预览（dry-run）已完成（v3.235.0）**：
+  取证读数三条 —— ① `rollbackFloor`（`index.js`）是破坏性入口且宿主有 **3 处真调用点**
+  （MESSAGE_EDITED / MESSAGE_SWIPED / 删楼）全部先删后报；② 唯一的既有报告 `_lastReplayReport`
+  是**事后**产物；③ `ledger-replay.js` 的 `coverage(host)` 是只读面却零消费。
+  ⇒ 本版补一条**只读预览路径**：`previewDrop` / `previewShift` / `previewLine` / `DROP_NOTHING`
+  （与 `replaySide` 同一道 `floorOrNull` 门、同一份 `FLOOR_OWNERS`、同一份 items 形状，**不调任何 `drop`/`shift`**），
+  宿主侧 `previewFloorRollback()` + 删楼点**先预告后破坏** + 诊断行与既有 `账本回放` 成对。
+  后续增量（未启动）：持久检查点 / 分支只读对照。
 - 真实SillyTavern宿主验证：未验（写入面的两道门与回执形状已在无头环境逐条验证，宿主侧实机未验）。
 
 - R1-A追加GATE：全量失败根因为新增测试未按仓内纪律登记，允许catalog_reference_consumers.tsv追加一行；不放宽守卫。上游预算4文件/150行。
