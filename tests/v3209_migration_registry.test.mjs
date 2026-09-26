@@ -399,7 +399,7 @@ test('v3209 11. manifest 登记 + 判据面自防护', () => {
         A(mf.extra_js.filter((x) => x === mod).length === 1, mod + ' 须在 extra_js 恰好声明一次');
     }
     A(mf.extra_js[0] === 'ledger-entity.js', '★ ledger-entity.js 仍须在 extra_js 首位（v3.207 不变量：六本账的真源先加载）');
-    A(mf.extra_js.length === 65, 'extra_js 须 65 项（v3.219.0 新增 relation-mutual.js / knowledge-network.js；v3.234.0 新增 sleep-awaken.js），实为 ' + mf.extra_js.length);
+    A(mf.extra_js.length === 66, 'extra_js 须 66 项（v3.219.0 新增 relation-mutual.js / knowledge-network.js；v3.234.0 新增 sleep-awaken.js；v3.237.0 新增 snapshot-checkpoint.js），实为 ' + mf.extra_js.length);
     A(mf.extra_js.includes('schema-migration.js') && mf.extra_js.includes('module-registry.js'), '两新模块须登记');
     // 判据面自防护：断言密度 + 关键指纹（防套件被悄悄掏空）
     A(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
@@ -412,7 +412,7 @@ test('v3209 11. manifest 登记 + 判据面自防护', () => {
 /* ══════════ 12. 真 manifest 顺序 parity + 负控制 ══════════ */
 test('v3209 12. 真 extra_js 顺序 parity：7 条真依赖必须全部正序；挪末位必须翻红', () => {
     const files = Array.isArray(mf.extra_js) ? mf.extra_js.slice() : [];
-    A(files.length === 65, 'extra_js 抽取器应得 65 项（v3.219.0 起；抽取退化会静默放行，故先钉住）');
+    A(files.length === 66, 'extra_js 抽取器应得 66 项（v3.219.0 起；v3.237.0 新增 snapshot-checkpoint.js；抽取退化会静默放行，故先钉住）');
     // 真源码切段：谁真的引用了 ledger-entity 的全局符号
     const users = [];
     for (const f of files) {

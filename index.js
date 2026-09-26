@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.236.0';
+    const VERSION = '3.239.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -10786,6 +10786,264 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             }
             return { fresh: false, floor: Number(this._snapshotAnchorFloor) || 0, chatId: id };
         }
+        /* ────────────────────────────────────────────────────────────────
+         * [v3.237.0] R4-C：**命名检查点 + 分支只读对照**（引擎侧接线）
+         *
+         * 为什么接线住在这里而不是面板里：R4-B 刚把「面板持一段流程」当作缺陷形状收过一次
+         *   （快照恢复的读/写两段下沉引擎）。检查点是同一形状的延伸 —— 若面板自己
+         *   `localStorage.getItem` + `JSON.parse`，就是第二处「检查点长什么样」的知识，
+         *   而 v3160 [1b] 的活性判据也会把这些方法判成零调用者。
+         *
+         * 边界（三条，逐条对齐模块头的声明）：
+         *   · 引擎**不自己算键面差异**：`compareBranchCheckpoints` / `previewCheckpointRestore`
+         *     把对照交给 `snapshot-checkpoint.js`（同一口径只许一份实现）；
+         *   · 引擎**不执行恢复**：预览只出计划，真落地仍走 `restoreFromPayload` 那一条管线；
+         *   · 引擎**不编会话身份**：`chatId` 缺省取 `getCurrentChatId()`，取不到即如实报。
+         * ──────────────────────────────────────────────────────────────── */
+        /**
+         * [v3.237.0] R4-C：检查点存储口（唯一）。
+         *   形状判定只许存在一处：直接调 `snapshot-checkpoint.js` 的 `fromLocalStorage()`，
+         *   **不在此重写** `length` + `key(i)` 判断（那个判断在模块里，且被 A5 判据看住）。
+         * @returns {object|null} 契约形状；宿主无 localStorage / 模块未加载 / 形态不合 ⇒ null
+         */
+        checkpointStore() {
+            try {
+                const CP = _moduleLib(() => window.LonShaSnapshotCheckpoint, 'snapshot-checkpoint.js');
+                if (!CP || typeof CP.fromLocalStorage !== 'function') return null;
+                if (typeof localStorage === 'undefined' || !localStorage) return null;
+                return CP.fromLocalStorage(localStorage);
+            } catch (e) { errLog(e, 'checkpointStore'); return null; }
+        }
+        /** [v3.237.0] R4-C：模块取库口（与其余模块同契约：真读表达式 + 文件名）。 */
+        _checkpointLib() {
+            return _moduleLib(() => window.LonShaSnapshotCheckpoint, 'snapshot-checkpoint.js');
+        }
+        /**
+         * [v3.239.0] 「没给」与「给了 0」的分界口（引擎侧，**不带符号过滤**）。
+         *
+         * 与 `snapshot-checkpoint.js` 的 `numOrNull` **同判据**，且刻意各留一份：
+         *   模块不加载时这一处仍要能工作（否则「模块未加载」会让楼层判据跟着失守）。
+         *   为什么值得单列：`Number(null) === 0`、`Number(undefined) === NaN` 之外的
+         *   一大票「没给」（空串 / 布尔 / 对象）都能骗过 `Number.isFinite(Number(x))`
+         *   —— 于是「我不知道这是第几楼」会被念成「第 0 楼」，本仓最贵的那类错读数。
+         *   本文件的**所有**「外部来的数」判据一律走它（展示层同族修复在 v3.239.0 一并落地：
+         *   4 个文案口此前也写成 `Number.isFinite(Number(x))`，会把 `null` 显示成 1970 / 第 0 楼）。
+         * @returns {number|null}
+         */
+        _numOrNull(v) {
+            if (v === null || v === undefined) return null;
+            if (typeof v === 'string' && v.trim() === '') return null;
+            /* 布尔刻意不接受（true 与 1 不是一回事）；对象/数组/函数一律 null ——
+             *   它们能骗过旧判据（Number([]) 恒为 0），正是本版要断的那条路。 */
+            if (typeof v === 'boolean' || typeof v === 'object' || typeof v === 'function') return null;
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        }
+        /**
+         * [v3.239.0] 楼层专用的分界口：在 `_numOrNull` 之上再拒负值。
+         *   负楼层不是合法位置（`_currentFloor` 的 **-1** 表示「还没进楼层」，
+         *   它被当成楼层念出去就是「第 -1 楼」）。
+         * @returns {number|null}
+         */
+        _floorOrNull(v) {
+            const n = this._numOrNull(v);
+            return (n !== null && n >= 0) ? n : null;
+        }
+        /**
+         * [v3.237.0] R4-C：存一份命名检查点。
+         *   载荷默认取 `collectExport()`（与恢复侧同一套契约键，不另建形状）。
+         * @returns {{ok:boolean, reason:string, name:(string|null), at:(number|null),
+         *   meta:(object|null), overwritten:boolean, previousAt:(number|null),
+         *   evicted:(string[]|null), count:(number|null)}}
+         */
+        saveCheckpoint(name, opts) {
+            const o = opts || {};
+            const CP = this._checkpointLib();
+            const store = this.checkpointStore();
+            const bad = (reason) => ({ ok: false, reason: reason, name: null, at: null, meta: null, overwritten: false, previousAt: null, evicted: null, count: null });
+            if (!CP || typeof CP.saveCheckpoint !== 'function') return bad('模块未加载');
+            if (!store) return bad('宿主无可用存储');
+            const cid = o.chatId || this.getCurrentChatId();
+            let payload = o.payload;
+            if (!payload) {
+                try { payload = this.collectExport(); }
+                catch (e) { errLog(e, 'saveCheckpoint.collectExport'); return bad('载荷生成失败：' + String(e && e.message || e)); }
+            }
+            /* [v3.239.0] 同族修：`o.floor` 显式 null / 空串算「没给」，回落当前楼层；
+             *   而 `_currentFloor` 初始化是 **-1**（「还没进任何楼层」），它不是合法楼层，
+             *   故此处只接受 **>= 0** 的读数 —— 否则面板会把「第 -1 楼」念给用户。 */
+            const _fo = (typeof this._floorOrNull === 'function') ? this._floorOrNull(o.floor) : o.floor;
+            const _cf = (typeof this._floorOrNull === 'function') ? this._floorOrNull(this._currentFloor) : this._currentFloor;
+            const floor = (_fo !== null && _fo !== undefined) ? _fo
+                : ((typeof _cf === 'number' && _cf >= 0) ? _cf : null);
+            const r = CP.saveCheckpoint(store, { chatId: cid, name: name, payload: payload, at: o.at, floor: floor, note: o.note });
+            return {
+                ok: r.ok, reason: CP.describe ? CP.describe(r.reason) : r.reason, name: r.name, at: r.at, meta: r.meta,
+                overwritten: r.overwritten, previousAt: r.previousAt, evicted: r.evicted, count: r.count
+            };
+        }
+        /** [v3.237.0] R4-C：列本会话检查点（只读）。`items === null` 与 `[]` 语义不同（见模块头）。 */
+        listCheckpoints(chatId) {
+            const CP = this._checkpointLib();
+            const store = this.checkpointStore();
+            if (!CP || typeof CP.listCheckpoints !== 'function') return { ok: false, reason: '模块未加载', items: null };
+            const r = CP.listCheckpoints(store, chatId || this.getCurrentChatId());
+            return { ok: r.ok, reason: CP.describe ? CP.describe(r.reason) : r.reason, items: r.items };
+        }
+        /** [v3.237.0] R4-C：读一份检查点（只读）。 */
+        readCheckpoint(name, chatId) {
+            const CP = this._checkpointLib();
+            const store = this.checkpointStore();
+            if (!CP || typeof CP.readCheckpoint !== 'function') return { ok: false, reason: '模块未加载', record: null };
+            const r = CP.readCheckpoint(store, chatId || this.getCurrentChatId(), name);
+            return { ok: r.ok, reason: CP.describe ? CP.describe(r.reason) : r.reason, record: r.record };
+        }
+        /** [v3.237.0] R4-C：删一份检查点（幂等；只删本插件命名空间下的键）。 */
+        dropCheckpoint(name, chatId) {
+            const CP = this._checkpointLib();
+            const store = this.checkpointStore();
+            if (!CP || typeof CP.dropCheckpoint !== 'function') return { ok: false, reason: '模块未加载', existed: false };
+            const r = CP.dropCheckpoint(store, chatId || this.getCurrentChatId(), name);
+            return { ok: r.ok, reason: CP.describe ? CP.describe(r.reason) : r.reason, existed: r.existed };
+        }
+        /**
+         * [v3.237.0] R4-C：**恢复预览**（只读）—— 检查点相对当前运行时会带来什么差异。
+         *   刻意只出计划：真落地仍走 `restoreFromPayload`（单真源，不为检查点开第二条导入路径）。
+         */
+        previewCheckpointRestore(name, chatId) {
+            const CP = this._checkpointLib();
+            const store = this.checkpointStore();
+            if (!CP || typeof CP.previewRestore !== 'function') return { ok: false, reason: '模块未加载', diff: null, plan: null };
+            let cur = null;
+            try { cur = this.collectExport(); } catch (e) { errLog(e, 'previewCheckpointRestore.collectExport'); }
+            const r = CP.previewRestore(store, chatId || this.getCurrentChatId(), name, cur);
+            return { ok: r.ok, reason: CP.describe ? CP.describe(r.reason) : r.reason, diff: r.diff, plan: r.plan };
+        }
+        /** [v3.237.0] R4-C：**分支只读对照**（两份检查点并排比，零写、不切分支、不合并）。 */
+        compareBranchCheckpoints(nameA, nameB, chatId) {
+            const CP = this._checkpointLib();
+            const store = this.checkpointStore();
+            if (!CP || typeof CP.compareCheckpoints !== 'function') return { ok: false, reason: '模块未加载', diff: null, a: null, b: null };
+            const r = CP.compareCheckpoints(store, chatId || this.getCurrentChatId(), nameA, nameB);
+            return { ok: r.ok, reason: CP.describe ? CP.describe(r.reason) : r.reason, diff: r.diff, a: r.a, b: r.b };
+        }
+        /**
+         * [v3.238.0] R4-D：检查点菜单行的**行构造**（纯函数：无 DOM、无副作用）。
+         *
+         * 为什么要有这一族：R4-C 把检查点做出来了，但**产品面零消费** —— 引擎里这一族
+         *   8 个方法在 `settings-ui.js` 里的命中数是 **0**（唯一命中落在测试与本文件自己的
+         *   注释里）。这正是本仓反复点名的「建好不消费 / 功能级失效」，也正是 CHANGELOG
+         *   v3.237.0 主题自陈的那句「登记出来的一份，用户拿不到手里」。
+         *
+         * 为什么行构造住引擎侧：与 `snapshotRestoreMenu` 同一形状（R4-B 已确立的纪律：
+         *   行长什么样是引擎的知识、面板只负责把它塞进 popup）。面板自己拼 HTML 就是
+         *   第二处「检查点长什么样」的知识，下一次改行就得同时记住两处。
+         *
+         * 三态必须不同形（沿用模块头的老账 ①）：
+         *   · `items === null`（存储没给 / 形态不合 / 读不到）⇒ 返回 `null` ——
+         *     面板必须说「读不到」，**不得**渲染成「还没有检查点」；
+         *   · `items === []` ⇒ 返回空串（真的是空的）；
+         *   · 有记录 ⇒ 每行带 `data-name`，供面板按名取预览与对照。
+         * @returns {string|null} 菜单行 HTML；`null` 表示清单读不到（不是「空」）
+         */
+        checkpointMenuItems() {
+            const r = this.listCheckpoints();
+            if (!r || r.items === null || r.items === undefined) return null;
+            return r.items.map((it) => {
+                const esc = (t) => String(t === undefined || t === null ? '' : t)
+                    /* [v3.239.0] 全改 split/join：含引号的正则字面量会让 v3169 的 classSpan
+                     *   （无正则态的词法扫描）失衡；实体一律经 String.fromCharCode 拼出。
+                     *   修前实测：双引号那一支被写成恒等替换（属性转义等于没做）。
+                     *   顺序纪律：AMP 必须最先，否则会把已生成的实体再转一次。 */
+                    .split(String.fromCharCode(38)).join(String.fromCharCode(38) + 'amp;')
+                    .split(String.fromCharCode(60)).join(String.fromCharCode(38) + 'lt;')
+                    .split(String.fromCharCode(62)).join(String.fromCharCode(38) + 'gt;')
+                    .split(String.fromCharCode(34)).join(String.fromCharCode(38) + 'quot;');
+                const when = this._numOrNull(it.at) !== null ? new Date(this._numOrNull(it.at)).toLocaleString() : '时间未知';
+                const floorTxt = this._numOrNull(it.floor) !== null ? ('第 ' + this._numOrNull(it.floor) + ' 楼') : '楼层未记';
+                const meta = (it.meta && this._numOrNull(it.meta.keyCount) !== null) ? (this._numOrNull(it.meta.keyCount) + ' 面') : '面数未知';
+                return '<div class="lsm-item" data-name="' + esc(it.name) + '" style="display:flex;justify-content:space-between;gap:10px;">'
+                    + '<span>' + esc(it.name) + '</span>'
+                    + '<span style="color:var(--ls-text-2,#9da7b3);font-size:12px;">' + esc(floorTxt + ' · ' + meta + ' · ' + when) + '</span>'
+                    + '</div>';
+            }).join('');
+        }
+        /**
+         * [v3.238.0] R4-D：**恢复预览**的多行文案（纯函数，只读）。
+         *
+         * 只出计划、**不执行恢复**（真落地仍走 `restoreFromPayload` 单真源）。
+         * 两侧差异的措辞是刻意对称的：`onlyInA` 是「当前有、检查点没有 ⇒ 恢复后会消失」，
+         * `onlyInB` 是「检查点有、当前没有 ⇒ 恢复后会回来」—— 两者都被点名，
+         * 不靠「差异 N 项」这种计数让用户自己猜方向。
+         * @returns {string|null} 多行文本；读不到即 `null`（调用方必须说出来，不得渲染成空字符串）
+         */
+        checkpointRestorePreviewLines(name, chatId) {
+            const r = this.previewCheckpointRestore(name, chatId);
+            if (!r || r.ok !== true || !r.plan) return null;
+            const d = r.diff || {};
+            const p = r.plan;
+            const list = (arr) => (Array.isArray(arr) && arr.length) ? arr.join('、') : '（无）';
+            return [
+                '恢复到：' + String(p.name) + '（' + (this._numOrNull(p.floor) !== null ? ('第 ' + this._numOrNull(p.floor) + ' 楼') : '楼层未记') + '）',
+                '将恢复 ' + (this._numOrNull(p.willRestoreCount) !== null ? this._numOrNull(p.willRestoreCount) : '?') + ' 个字段',
+                '恢复后会消失的字段：' + list(d.onlyInA),
+                '恢复后会回来的字段：' + list(d.onlyInB),
+                '存档代际：' + (p.schemaCross === 'same' ? '同代' : ('跨代 ' + String(p.fromSchema) + ' → ' + String(p.toSchema)))
+            ].join('\n');
+        }
+        /**
+         * [v3.238.0] R4-D：**单份检查点详情**的多行文案（纯函数，只读）。
+         *
+         * 与「恢复预览」的分工：预览回答「相对**现在**会差什么」，详情回答「这一份**本身**是什么」
+         *   （名字 / 时间 / 楼层 / 备注 / 面数 / 字节 / 存档代际）。两者都在产品面有入口。
+         * 读不到即 `null`（记录不存在 / 载荷损坏 / 存储读不到三者由 `reason` 区分，面板如实播报）。
+         * @returns {string|null}
+         */
+        checkpointDetailLines(name, chatId) {
+            const r = this.readCheckpoint(name, chatId);
+            if (!r || r.ok !== true || !r.record) return null;
+            const rec = r.record;
+            const mt = rec.meta || {};
+            const at = this._numOrNull(rec.at) !== null ? new Date(this._numOrNull(rec.at)).toLocaleString() : '时间未记';
+            const floor = this._numOrNull(rec.floor) !== null ? ('第 ' + this._numOrNull(rec.floor) + ' 楼') : '楼层未记';
+            const faces = this._numOrNull(mt.keyCount) !== null ? (this._numOrNull(mt.keyCount) + ' 面') : '面数未知';
+            const bytes = this._numOrNull(mt.bytes) !== null ? (this._numOrNull(mt.bytes) + ' 字节') : '字节未知';
+            const gen = (mt.producerVersion || mt.version) ? String(mt.producerVersion || mt.version) : '代际未记';
+            const schema = this._numOrNull(mt.schemaVersion) !== null ? String(this._numOrNull(mt.schemaVersion)) : '未记';
+            return [
+                '「' + String(rec.name) + '」',
+                '存于 ' + at + ' · ' + floor,
+                '规模 ' + faces + ' · ' + bytes + ' · 存档代际 ' + gen + '（schema ' + schema + '）',
+                (rec.note ? ('备注：' + String(rec.note)) : '备注：（无）')
+            ].join('\n');
+        }
+        /**
+         * [v3.238.0] R4-D：**分支只读对照**的多行文案（纯函数，只读、零写、不切分支、不合并）。
+         *
+         * 两侧独有字段都**逐个列名**（不截断、不折叠成计数）：对照的用途就是看名字，
+         * 折成数字等于把这件事还回给用户。
+         * 任一侧缺失时 `compareBranchCheckpoints` 报 `a-missing` / `b-missing`，
+         * 这里如实返回 `null` —— **不拿空载荷冒充「那边是空的」**。
+         * @returns {string|null}
+         */
+        checkpointBranchesDiffLines(nameA, nameB, chatId) {
+            const r = this.compareBranchCheckpoints(nameA, nameB, chatId);
+            if (!r || r.ok !== true || !r.diff) return null;
+            const d = r.diff;
+            const list = (arr) => (Array.isArray(arr) && arr.length) ? arr.join('、') : '（无）';
+            /* [v3.239.0] 差值走 _numOrNull：缺失即 '?'，不打印 NaN（本仓「不拿空冒充」的反面）。 */
+            return [
+                'A = ' + String(nameA) + ' ／ B = ' + String(nameB) + '（只对照，不改任何一份）',
+                '共同字段 ' + Number(d.sharedCount) + ' 个；A 独有 ' + ((d.onlyInA || []).length) + ' 个；B 独有 ' + ((d.onlyInB || []).length) + ' 个',
+                'A 独有：' + list(d.onlyInA),
+                'B 独有：' + list(d.onlyInB),
+                '字节：A ' + (this._numOrNull(d.bytesA) === null ? '?' : String(this._numOrNull(d.bytesA)))
+                    + ' ／ B ' + (this._numOrNull(d.bytesB) === null ? '?' : String(this._numOrNull(d.bytesB)))
+                    + '（差 ' + (this._numOrNull(d.bytesDelta) === null ? '?'
+                        : ((d.bytesDelta >= 0 ? '+' : '') + String(d.bytesDelta))) + '）',
+                '存档代际：' + (d.sameSchema ? '同代' : ('跨代 ' + String(d.schemaA) + ' → ' + String(d.schemaB)))
+            ].join('\n');
+        }
         // [v3.131] CP: 保存来源登记——所有 storage.save 调用点经此登记地面真源（来源计数随存档持久化，诊断面板展示"谁在保存"）
         //
         // [v3.166] 语义修正：登记的时机会决定它登记的是什么。
@@ -13040,7 +13298,9 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             const old = this.promises.find(x => x.character === character && x.content === content && x.status !== 'fulfilled' && x.status !== 'broken');
             if (old) {
                 if (Number.isFinite(Number(p.deadlineFloor)) && Number(p.deadlineFloor) > 0) old.deadlineFloor = Number(p.deadlineFloor);
-                if (Number.isFinite(Number(p.floor))) old.floor = Number(p.floor);
+                /* [v3.239.0] 同族：Number(null) 恒为 0 ⇒ 旧判据把「没给楼层」写成第 0 楼。 */
+                const _pf = this._numOrNull(p.floor);
+                if (_pf !== null) old.floor = _pf;
                 return old;
             }
             const id = 'prom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);

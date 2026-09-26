@@ -221,3 +221,6 @@ v3234_event_platform_composition.test.mjs		F-2 跨平台事件来源构成：段
 v3235_sleep_awaken.test.mjs		睡眠语义唤醒（archivedForSleep 单向门的回程）：plan 只算不写 / apply 只翻标记不删不重排 / 五态分形 / 中文分词真生效 / 宿主接线与降级留名 / 与实体名唤醒两条通道互不顶替 / 阈值显式 / 真源码破坏负控制
 v3235_rollback_preview.test.mjs		R4-A 回滚预览（dry-run）：只读预览面 / DROP_NOTHING 具名身份 / 预告与实撤对账
 v3236_snapshot_restore_and_clear.test.mjs		R4-B 快照恢复收编单真源（两阶段 + 闸门在引擎侧 + 流程入口）/ 会话身份快照节流四态 / 清空面逐面登记与覆盖核对三态（含 everRestored）/ 三条整仓镜像负控制
+v3237_checkpoint_and_branch_diff.test.mjs		R4-C 命名检查点 + 分支只读对照：localStorage 形态单真源（全仓唯一知情者）/ 四态分形（无 store≠空清单、修正淘汰 null≠[]）/ 覆盖可见带旧读数 / 只读面零写（写动作日志逐条证明）/ 预览只出计划不执行恢复 / 分支对照缺失侧如实报 / 怪 getter 与畸形 JSON 绝不抛 / 三条真源码破坏负控制（锚点恰中 1 次 + 同款判据重跑 + 原版两向自证）
+v3238_checkpoint_product_face.test.mjs		R4-D 检查点接产品面：8 个引擎成员两跳可达闭包（与 config_liveness D1 同口径）/ 4 个纯函数文案口真跑 / 三态不同形（读不到 null≠空串）/ 只读面零写 / 面板不自拼键名 / 三条真源码破坏负控制 + 整仓镜像
+v3239_null_is_not_zero.test.mjs		R4-E 「没给」不是「给了 0」：分界口本体四种输入逐条可证（模块 numOrNull 与引擎 _numOrNull 同判据）/ 三处错读数（floor null / at null / schemaVersion null 不得压成 0）/ 入口楼层拒负（_currentFloor 的 -1 不发出去）/ 展示层同族（文案口不再把 null 念成 1970 或第 0 楼）/ 三条真源码破坏负控制 + 原版两向自证

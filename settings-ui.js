@@ -1439,6 +1439,7 @@
                 <div class="lsm-item" data-act="viz">🕸️ 记忆图谱</div>
                 <div class="lsm-item" data-act="settings">⚙️ 设置</div>
                 <div class="lsm-item" data-act="diag">🩺 一键诊断</div>
+                <div class="lsm-item" data-act="ckpt">🔖 检查点</div>
                 <div class="lsm-item" data-act="update">🔄 检查更新</div>
                 <style>
                     #lonsha-fab-menu { position: fixed; bottom: 145px; right: 20px; background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 200px; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
@@ -1460,6 +1461,7 @@
                     else if (act === 'settings') plugin.showSettingsPanel();
                     else if (act === 'timeline') plugin.showBrowser('timeline');
                     else if (act === 'diag') plugin.showDiagnose();
+                    else if (act === 'ckpt') plugin.showCheckpoints();
                     else if (act === 'update') plugin.checkUpdate();
                 });
             });
@@ -1473,6 +1475,117 @@
                 };
                 document.addEventListener('click', closer);
             }, 50);
+        };
+
+        /**
+         * [v3.238.0] R4-D：**检查点面板**（产品面入口）。
+         *
+         * 为什么要有这一个函数：R4-C 的 8 个引擎方法此前在面板侧**零消费** ——
+         *   功能建好了，用户点不到。本函数是「让用户拿得到手里」的那一步，
+         *   且它**不自己拼 HTML**：菜单行、预览文案、对照文案三族都由引擎产出
+         *   （`checkpointMenuItems` / `checkpointRestorePreviewLines` / `checkpointBranchesDiffLines`），
+         *   面板只负责塞进 popup 与把结局播报出来。
+         *
+         * 三态**不同形**（本仓老账 ①，直接写进这个函数的形状里）：
+         *   · 清单读不到（引擎返回 `null`）⇒ 明说「读不到」，**不**说「还没有检查点」；
+         *   · 清单为空（返回空串）⇒ 说「还没有检查点」并给出存第一份的指引；
+         *   · 有记录 ⇒ 渲染行，每行两个动作（预览 / 删除），底部两个动作（存一份 / 并排对照）。
+         */
+        plugin.showCheckpoints = function() {
+            const engine = plugin.engine;
+            const chatId = engine.getCurrentChatId();
+            if (!chatId) { toast('无可用对话'); return; }
+
+            const open = (html, onClick) => {
+                const ov = makeSheet('lonsha-ckpt-overlay', '🔖 检查点', html);
+                onClick(ov);
+                return ov;
+            };
+            /* [v3.239.0] 三个互斥分支共用同一个「存一份」按钮字面量：
+             *   DOM id 在静态扫描里按出现次数判重（v3162 [1b]），写三遍会被判成
+             *   「同一 id 出现多次 ⇒ getElementById 只返回第一个」——虽然分支互斥、
+             *   运行期不会真的重复，但**判据看不到互斥**，且将来加入第四分支时
+             *   更容易真的重复。收成一处是唯一不会漂移的形状。 */
+            const SAVE_BTN = '<button class="ls-btn ls-btn-primary" id="ls-ckpt-save">🔖 存一份检查点</button>';
+            const bodyHTML = () => {
+                const menu = engine.checkpointMenuItems();
+                /* 读不到 ≠ 空：三种处境分别给三句话。 */
+                if (menu === null) {
+                    return '<div class="ls-hint">检查点清单**读不到**（宿主无可用存储 / 模块未加载 / 存储形态不合）——'
+                        + '这不是「还没有检查点」，是「看不到」。请确认插件已 init 且宿主提供 localStorage。</div>'
+                        + SAVE_BTN;
+                }
+                if (!menu) {
+                    return '<div class="ls-hint">还没有检查点。检查点是一份**取名的当下状态**（最多保留 5 份），'
+                        + '用来「动手之前先留一手」，也可以两份并排对照看差了什么。</div>'
+                        + SAVE_BTN;
+                }
+                return '<div style="padding:2px 8px 6px;color:var(--ls-text-2,#9da7b3);font-size:11px;">'
+                    + '本会话已存 ' + String((menu.match(/class="lsm-item"/g) || []).length) + ' 份（最多 5 份，超限淘汰最旧）</div>'
+                    + menu
+                    + '<div style="display:flex;gap:6px;margin:10px 0 0;">'
+                    + SAVE_BTN
+                    + '<button class="ls-btn" style="flex:1;" id="ls-ckpt-diff">⇄ 并排对照</button>'
+                    + '</div>'
+                    + '<button class="ls-btn ls-btn-danger" id="ls-ckpt-drop">🗑 删除某一份…</button>'
+                    + '<div style="padding:4px 8px;color:var(--ls-text-3,#6e7681);font-size:11px;">'
+                    + '点一行 = 看「恢复后会差什么」（只预览，不执行）；删除必须报出名字，不做批量清空。</div>';
+            };
+            const wire = (ov) => {
+                const saveBtn = ov.querySelector('#ls-ckpt-save');
+                if (saveBtn) saveBtn.addEventListener('click', () => {
+                    let nm;
+                    try { nm = prompt('给这份检查点取个名字（最长 32 字，同名会覆盖并如实报出）：', '备份'); }
+                    catch (e) { toast('当前环境不支持输入框'); return; }
+                    if (nm === null || nm === undefined) return;
+                    const r = engine.saveCheckpoint(nm);
+                    if (!r || r.ok !== true) { toast('❌ 存检查点失败：' + String((r && r.reason) || '未知')); return; }
+                    let msg = '✅ 已存「' + String(r.name) + '」' + (Number.isFinite(Number(r.at)) ? '' : '');
+                    msg += r.overwritten ? ('（覆盖了同名旧份' + (Number.isFinite(Number(r.previousAt)) ? '，旧份时间 ' + new Date(Number(r.previousAt)).toLocaleString() : '') + '）') : '';
+                    if (Array.isArray(r.evicted) && r.evicted.length) msg += '（超限淘汰：' + r.evicted.join('、') + '）';
+                    toast(msg);
+                    ov.remove();
+                    plugin.showCheckpoints();
+                });
+                const diffBtn = ov.querySelector('#ls-ckpt-diff');
+                if (diffBtn) diffBtn.addEventListener('click', () => {
+                    let a, b;
+                    try { a = prompt('对照：A 的名字', ''); b = prompt('对照：B 的名字', ''); }
+                    catch (e) { toast('当前环境不支持输入框'); return; }
+                    if (!a || !b) return;
+                    const lines = engine.checkpointBranchesDiffLines(a, b);
+                    /* 任一侧缺失 ⇒ 引擎返回 null（不拿空载荷冒充「那边是空的」），面板如实说。 */
+                    if (lines === null) { toast('❌ 对照失败：至少有一份不存在，或载荷已损坏（拿不到可选）'); return; }
+                    alert(lines);
+                });
+                const dropBtn = ov.querySelector('#ls-ckpt-drop');
+                if (dropBtn) dropBtn.addEventListener('click', () => {
+                    let nm;
+                    try { nm = prompt('要删除哪一份？（必须写全名；删除不可恢复）', ''); }
+                    catch (e) { toast('当前环境不支持输入框'); return; }
+                    if (!nm) return;
+                    const r = engine.dropCheckpoint(nm);
+                    if (!r || r.ok !== true) { toast('❌ 删除失败：' + String((r && r.reason) || '未知')); return; }
+                    /* 删除幂等：不存在也报 ok:true + existed:false —— 面板如实分形播报。 */
+                    toast(r.existed ? ('🗑 已删除「' + String(nm) + '」') : ('ℹ️ 没有叫「' + String(nm) + '」的检查点（未改动任何东西）'));
+                    ov.remove();
+                    plugin.showCheckpoints();
+                });
+                ov.querySelectorAll('.lsm-item[data-name]').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const nm = item.getAttribute('data-name');
+                        const detail = engine.checkpointDetailLines(nm);
+                        if (detail === null) { toast('❌ 这份检查点读不到或记录已损坏'); return; }
+                        const lines = engine.checkpointRestorePreviewLines(nm);
+                        if (lines === null) { toast('❌ 预览失败：这份检查点读不到或载荷已损坏'); return; }
+                        if (!confirm(detail + '\n\n── 恢复后会差什么 ──\n' + lines
+                            + '\n\n（这只是预览，不会改动当前记忆；真要恢复请用「设置 → 快照恢复」那一条管线）')) return;
+                        /* 预览归预览：这里**刻意不执行恢复** —— 真落地只走 restoreFromPayload 单真源。 */
+                        toast('ℹ️ 以上为预览；本面板不执行恢复');
+                    });
+                });
+            };
+            open(bodyHTML(), wire);
         };
 
         // [v2.9] RU-C: 快照恢复面板
@@ -1489,6 +1602,8 @@
             menu.innerHTML = `
                 <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">🗄️ 快照恢复（选择要恢复的楼层）</div>
                 ${body}
+                <!-- [v3.238.0] R4-D：恢复是**破坏性动作**，故在这里给「先留一手」的入口 —— 检查点面板 -->
+                <div class="lsm-item" id="ls-ckpt-from-snap" style="border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));">🔖 先存一份检查点再恢复…</div>
                 <style>#lonsha-snap-menu { position: fixed; bottom: 200px; right: 20px; background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 260px; max-height: 60vh; overflow-y: auto; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }</style>`;
             menu.querySelectorAll('.lsm-item').forEach(item => {
                 item.addEventListener('click', async () => {
@@ -1515,6 +1630,8 @@
                         + ((_fr.precheck && _fr.precheck.count !== _rn.count) ? `（预检 ${_fr.precheck.count} 面 / 实恢复 ${_rn.count} 面）` : ''));
                 });
             });
+            const _ck = menu.querySelector('#ls-ckpt-from-snap');
+            if (_ck) _ck.addEventListener('click', () => { menu.remove(); plugin.showCheckpoints(); });
             const closer = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', closer); } };
             setTimeout(() => document.addEventListener('click', closer), 50);
             document.body.appendChild(menu);

@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.236.0",
+  "version": "3.239.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -75,7 +75,8 @@
     "projection-pipeline.js",
     "schema-migration.js",
     "module-registry.js",
-    "sleep-awaken.js"
+    "sleep-awaken.js",
+    "snapshot-checkpoint.js"
   ],
   "extra_css": [
     "lonsha-design.css",

@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 38765,
+  "ceiling": 39502,
   "maxSlack": 400,
-  "note": "v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记",
+  "note": "v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口",
   "history": [
     {
       "ceiling": 21000,
@@ -133,7 +133,15 @@
     {
       "ceiling": 38765,
       "reason": "v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记"
+    },
+    {
+      "ceiling": 39284,
+      "reason": "v3.237.0 R4-C 命名检查点 + 分支只读对照：新增 snapshot-checkpoint.js（412 行）+ index.js 接线 8 个成员（含 checkpointStore 与模块取库口）"
+    },
+    {
+      "ceiling": 39502,
+      "reason": "v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口"
     }
   ],
-  "_history_last": "ceiling 38449 → 38765（实测 38365 + slack 400）：v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记"
+  "_history_last": "ceiling 39284 → 39502（实测 39102 + slack 400）：v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口"
 }

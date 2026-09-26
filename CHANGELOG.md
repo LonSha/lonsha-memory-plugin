@@ -1,3 +1,235 @@
+## v3.239.0
+
+**主题：R4-E 「没给」不是「给了 0」—— 修判据本体，不再修单点。**
+
+一句话纪律：**同一个坑第三次出现时，要修的不是那一处，是那条判据。**
+
+### 为什么要修「判据本体」（这是本仓老账的第三次）
+
+`Number.isFinite(Number(x)) ? Number(x) : null` 这条判据看着稳，实际在 `x === null` 时**恒真** ——
+`Number(null) === 0`，而 **0 在本插件是合法楼层**（第 0 楼真实存在，v3.234.0 `copySegment`
+那一次就是这么踩的）。于是「我不知道这是第几楼」被静默记成「第 0 楼」。
+
+- 第一次 O-1、第二次 R3-D 都是**修单点**：把出问题的那一处改手写判据；
+- 第三次（v3.239.0 本轮抓到）落点变了但形状没变：`snapshot-checkpoint.js` **整模块**
+  的数值判据都写成这一条，于是显式 `floor: null` / `at: null` / `schemaVersion: null`
+  三个「没给」全被压成 0；
+- 最贵的一处是第三个：`payloadMeta({schemaVersion: null}).schemaVersion === 0` ——
+  而 v3.238.0 的对照面正拿这个数出「同代 / 跨代」结论，等于**给用户一个错读数**。
+
+修法：不再修单点，改**修判据本体** —— 全仓只留一个「外部来的数」判据。
+
+### 修法：一处分界口，四种输入逐条可证
+
+- **模块侧 `numOrNull(v)`**（`snapshot-checkpoint.js`，导出供判据直测本体）：
+  `null` / `undefined` / 空串 / 空白串 / 布尔 ⇒ `null`（「没给」）；
+  有限数（含 `0`、负数、数字串 `'0'`）⇒ 该数（「给了 0」必须留 0）；
+  其余（NaN / 对象 / 数组 / 非数字串 / `Infinity`）⇒ `null`（给了但**不是数**，不抛、不猜）。
+  **刻意不接受布尔**：`true` 与 `1` 在这里不是一回事。
+- **模块内 14 个调用点全走它**：`payloadMeta.schemaVersion`、`saveCheckpoint.at/floor`、
+  `previousAt`、`listCheckpoints` 两项、`previewRestore` 透传两项、`compareCheckpoints` 透传四项。
+  `at` 的缺省**只在真没给时**取现在（时间戳可由本模块负责）；显式 `null` 算没给，不再落成 1970。
+- **引擎侧 `_numOrNull` / `_floorOrNull`**（`index.js`）：与模块侧**同判据**，且刻意各留一份
+  （模块不加载时这一处仍要能工作）。`_floorOrNull` 在 `_numOrNull` 之上再拒负值 ——
+  因为 `_currentFloor` 初始化是 **-1**（「还没进楼层」），它被当楼层念出去就是「第 -1 楼」。
+- **展示层同族修**：v3.238.0 新增的 4 个文案口此前也写 `Number.isFinite(Number(x))`，
+  模块层刚修好的 `null` 会在**显示层**又被念回「第 0 楼 · 1970/1/1」；
+  本版一并改成 `_numOrNull`（判据 D1 真跑：`floor: null` 的记录必须渲染成「楼层未记」，
+  且不得出现任何楼层数字）。
+
+### 三处错读数（每一处都有真判据钉住）
+
+| 面 | 旧读数（错） | 新读数 |
+|---|---|---|
+| `saveCheckpoint({floor: null})` | `floor: 0`（「第 0 楼」） | `null`（「楼层未记」） |
+| `saveCheckpoint({at: null})` | `at: 0`（1970-01-01） | 取现在（真没给）／显式值原样 |
+| `payloadMeta({schemaVersion: null})` | `0`（「第 0 代」） | `null`（「未给代际」） |
+
+「两向自证」是这套判据的重点：**真给 0 时必须留 0** ——
+`floor: 0` 留 0、`schemaVersion: 0` 留 0、`at: 1700000000000` 原样。
+否则修法就成了「一刀切把 0 也吞了」，那是另一个错。
+
+### 判据自身的缺陷（本轮修掉，五条）
+
+**为什么单列一节**：本版的主题就是「修判据本体」，而首版套件自己就带 5 处判据自身缺陷
+（本仓纪律：判据自身缺陷优先于实现缺陷 —— 否则会**逼实现去改不属于本版的地方**）。
+逐条留痕，防止下一个人重踩：
+
+1. **A1/A2 抓出一处真缺陷（这条是判据立功、不是判据出错）**：模块侧 `numOrNull` 只拦了布尔，
+   没拦**对象/数组/函数** —— 而 `Number([]) === 0`、`Number([1]) === 1`，
+   正是本版要断的那条路。引擎侧写了守卫、模块侧漏了，**A2「两处分界口逐输入等价」当场抓出分歧**。
+   修法：模块侧补齐同判据（A2 的形态也由此从「各自等于一张常量表」改为「**逐输入等价**」——
+   前者在两处同步改进时会失效，属 E6 形态）。
+2. **A3 首版写的是非法语法**：`'return { _numOrNull: ' + extractMethod(...) + ' }'` 展开后是
+   `{ _numOrNull: _numOrNull(v) {...} }` —— **冒号后不能跟方法简写**，解析期即抛
+   `Unexpected token '{'`。于是判据把「自己语法写错」报成了「实现有问题」。
+   修法：抽出的方法体前补 `function ` 关键字转成函数表达式（`this._numOrNull` 随之可解析）。
+3. **B4 首版把 `at` 与 `floor` 当同一种东西**：`floor` 的 `null` 要**原样透传**，
+   而 `at` 的「没给」由**本模块负责取现在** —— 两者取舍**刻意不同**（时间戳是本模块的知识，
+   楼层不是）。首版对 `compareCheckpoints().a.at` 断言 `null`，在正确实现上必红。
+   修法：`floor` 断言 `null`、`at` 断言「是数且 > 0」，并把这条差异写进注释。
+4. **F1 破坏锚点打在不可观测处**：首版锚点选布尔守卫那一行，而 `numOrNull(null)` 的结果由
+   **最前面的 `null` 分支**决定 —— 拿掉布尔守卫对 `null` 毫无影响 ⇒ 破坏不可观测，
+   报「Missing expected exception」。修法：锚点改到那条**真在拦 `[]`** 的对象/函数守卫上。
+   同一处还有第二个错：锚点缩进按**引擎侧类方法**（12 空格）写，而模块侧是**顶层函数**（4 空格）
+   ⇒ 命中 0 次。两条合起来正是本仓 H5「锚点须恰中 1 次且判据不得引用锚点串」的实战价值。
+5. **E1 正则越界**：首版扫 `p.floor` 这种宽泛模式，会命中**承诺账本** `addPromise` 的 `floor`
+   （另一套数据、与本版无关）—— 判据越界会逼实现去改不属于本版的地方。
+   修法：收窄为检查点面具名读数（`it.at` / `it.floor` / `it.meta` / `mt.(keyCount|bytes|schemaVersion)` /
+   `p.willRestoreCount` / `d.bytes` …）。
+   同族：B4/C1/F2 首版拿 `r.floor` 断言，而 `saveCheckpoint` 的返回体按接口形状**只带**
+   `name`/`at`/`meta`/`overwritten`/`previousAt`/`evicted`/`count`，**不含 `floor`** ——
+   期望 `null` 实际 `undefined`，正确实现也失败。修法：读数改从**真存储** `st.getItem(...)` 回读。
+
+### 连带真缺陷（R4-D 引入，本轮一并收干净）
+
+这一版主题是「没给 ≠ 给了 0」，但全量门禁暴露的失败里藏着 4 处**上一版（R4-D）引入的真缺陷**。
+取证与修复严格分开、逐条留痕：
+
+1. **`esc()` 的属性转义被写成恒等替换** —— `.replace(/"/g, '"')` 经 JSON 往返被打回 `"`，
+   于是转义**形同虚设**（HTML 属性注入面敞开）。更麻烦的是：这个**含引号的正则字面量**
+   打崩了 `tests/v3169_ledger_selfreport.test.mjs` 里**不带正则态**的词法扫描器 `classSpan`
+   （基线 `BASE: OK end=704471` → 新树 `NEW: UNCLOSED`，报「类未闭合: MemoryEngine」）。
+   修法：改 `split/join` + `String.fromCharCode()` 运行时生成实体（顺序纪律：`&` 必须最先，
+   否则会把已生成的实体再转一次）。复检 `NEW: OK end=719481`。
+   **注**：`classSpan` 是判据工具的已知边界（不解析正则态），修实现时不应踩它、也不应立刻改工具。
+2. **对照口字节读数直接 `Number()` 化** —— 缺失时会**打印 `NaN`**（本仓「不拿空冒充」的反面）。
+   修法：改走 `_numOrNull`，缺失即 `?`。
+3. **承诺账本 `addPromise` 的 `p.floor` 用旧判据** —— `Number(null) === 0` 把「没给楼层」
+   写成「第 0 楼」，与本版同一个病、同族修。
+4. **`settings-ui.js` 同一 DOM id 在三个互斥分支各写一遍**（`ls-ckpt-save` ×3）——
+   `v3162 [1b]` 的读数 `getElementById only ever returns the first match` 在此**读对了**：
+   判据看不到「分支互斥」，而且将来加第四分支更容易真的重复。
+   修法：收成单一 `SAVE_BTN` 常量（`id occurrences = 1` / `SAVE_BTN refs = 4`）。
+
+### 全量门禁实测（本版收尾读数）
+
+- 测试段：**220 个文件 / 全绿**（分片串行实测 470 + 568 + 565 + 530 = 2133 断言，失败 0）；
+- 审计段：**42/42 通过**（52.8s）；
+- `scan_cross_repo_binding.mjs` → 「在役 220 / 退役 18 / 参考基准 **220** / 问题 **0**」
+  （v3238 / v3239 两个新套件已登记进 `catalog_reference_consumers.tsv`）；
+- `dead_code_budget.mjs` → 「活跃代码 67 文件 / 实测 39193 行 / 登记上界 39502 行（余量 309，上限 400）」；
+- 运行方式（本环境实测约束）：`npm test` 并发派进程会被内核拒绝（`fork: Function not implemented`）、
+  串行全量超单次调用时限，故改**分片串行**（`node tests/run.mjs --serial <55 个文件>` × 4 片）。
+
+### 连带面
+
+- 新增套件 `tests/v3239_null_is_not_zero.test.mjs`（**15 项**：A 分界口本体逐输入 ×3 /
+  B 三处错读数 ×4 / C 入口楼层判据 / D 展示层同族 / E 单真源 ×2 /
+  F 三条真源码破坏负控制 + 原版两向自证 / G 版本锚）；
+- `index.js` 的数值分界口上移到**所有调用点之前**（否则测试抽方法体时会先抽到调用处）；
+- 三源同源：`index.js` / `manifest.json` / `package.json` 同步为 3.239.0；TODO 最近更新同源；
+- 边界：真实 SillyTavern 宿主实机未验（判据面全是真模块真跑 + 真源码破坏副本复跑）。
+
+## v3.238.0
+
+**主题：R4-D 检查点接产品面 —— 登记出来的一份，用户拿不到手里。**
+
+一句话纪律：**建好必须被消费；面板不自己拼 HTML，行长什么样是引擎的知识。**
+
+### 为什么要收这两件
+
+R4-C（v3.237.0）把「命名检查点 + 分支只读对照」做出来了（`snapshot-checkpoint.js` 414 行 +
+`index.js` 8 个成员），但**产品面零消费**：这 8 个成员在 `settings-ui.js` 里的命中数是 **0**，
+`previewCheckpointRestore` / `compareBranchCheckpoints` 在 `index.js` 内的唯一「引用」
+落在**它们自己的注释里**。这正是本仓反复点名的「建好不消费 / 功能级失效」，
+也正是 v3.237.0 CHANGELOG 主题自陈的那句「登记出来的一份，用户拿不到手里」。
+
+### 修法：引擎出文案口，面板只负责塞进 popup
+
+- **引擎侧新增 4 个纯函数文案口**（无 DOM、无副作用）：
+  `checkpointMenuItems()`（三态不同形：`null` 读不到 / `''` 真空 / 有行带 `data-name` + 楼层·面数·时间）、
+  `checkpointRestorePreviewLines(name, chatId)`（「恢复后会消失的字段」与
+  「恢复后会回来的字段」**分别点名**，不折成计数；再加「存档代际：同代 / 跨代 X → Y」）、
+  `checkpointDetailLines(name, chatId)`（回答「这一份本身是什么」：名字 / 时间 / 楼层 / 备注 / 面数 / 字节 / 代际）、
+  `checkpointBranchesDiffLines(nameA, nameB, chatId)`（两侧独有**逐个列名** + 字节差 + 代际，
+  任一侧缺失即 `null` —— 不拿空载荷冒充「那边是空的」）；
+- **面板侧**新增 `plugin.showCheckpoints` 检查点面板 + FAB `data-act="ckpt"` 入口与分派 +
+  快照恢复菜单内 `#ls-ckpt-from-snap` 入口（恢复是**破坏性动作**，入口离危险最近才有意义）+
+  面板内 `#ls-ckpt-save` / `#ls-ckpt-diff` / `#ls-ckpt-drop` 三动作；
+- 面板**不自己拼 HTML、不自拼键名、不自己读存储**（判据 A3 反向钉住：
+  面板里不得出现 `lonsha-snapshot-checkpoint` 这类命名空间拼接）。
+
+### 验收实测
+
+- `scan_config_liveness.mjs` → 「D1 配置活性: UI 呈现键 172 / 可到达 172 / **死配置 0**」；
+- `scan_wiring.mjs` → 「A7 方法 449 / 有真引用 416 / 仅测试 33 / **零引用 0**」；
+- 修复前的实测缺口（真读数）：`listCheckpoints 0 / readCheckpoint 0 / previewCheckpointRestore 0 /
+  compareBranchCheckpoints 0 / checkpointStore 0 / _checkpointLib 0`；
+  修复后 4 个文案口与 8 个成员的消费链闭合；
+- 新增套件 `tests/v3238_checkpoint_product_face.test.mjs`（15 项，含 3 条真源码破坏负控制 +
+  整仓镜像树复跑 + 锚点恰中 1 次）。
+
+## v3.237.0
+
+**主题：R4-C 命名检查点 + 分支只读对照 —— 登记出来的一份，用户拿不到手里。**
+
+一句话纪律：**留手必须能叫得出名字，对照必须一个字节都不写。**
+
+### 为什么要收这两件（同一个形状的两个缺口）
+
+R4-B（v3.236.0）刚把「快照恢复」的三份手抄清单收成单真源（42 面由 `_imp` 登记），
+但登记出来的仍然只是**一份**：用户手里没有「取个名字存下来」这件事可用。
+
+- **缺口 1**：想「破坏之前先留一手」，只能靠宿主自己的聊天存档 —— 那是整会话级的粒度，
+  改了配置想回退到「十分钟前那套」没有对象可回退；
+- **缺口 2**：想「看看改名前后到底差了什么」没有可对照的第二份载荷 ——
+  `restoreFromPayload` 只有 `opts.dryRun` 一条预检路径，**没有第二个载荷可以并排比**，
+  于是「哪一面变了」只能靠人读两份 JSON。
+
+### 修法：命名检查点 + 只读对照（新增 `snapshot-checkpoint.js`）
+
+- **检查点落在调用方给的 store 上**，载荷形状就是 `collectExport()` 的出口 ——
+  **不新建存储系统**（与 R4-B「不为迁移另开导入路径」同一纪律的镜像面）；
+- **两份手抄清单变单真源**：localStorage 的形态判定（`length` + `key(i)`）只许存在一处，
+  `fromLocalStorage()` 是唯一知情者，`probeStore()` 只认
+  `{getItem, setItem, removeItem, keys()}`。判据 A5 在全仓扫描面上钉住这一点；
+- **恢复只出预览**：`previewRestore()` 只算键面差异与代际跨代标记，**不执行恢复**；
+  真落地仍走 `restoreFromPayload` 那一条管线；
+- **分支对照零写**：`compareCheckpoints()` 全程不触发 `setItem` / `removeItem`
+  （判据 E1 用写动作日志逐条证明）。
+
+### 三态补缺（本仓老账，逐条写进判据）
+
+| 面 | 「没给」 | 「给了 0」 |
+|---|---|---|
+| 清单 | 无 store / 形态不合 / 读取抛 ⇒ `items === null` | store 在位且真没有记录 ⇒ `items === []` |
+| 淘汰 | 淘汰面没查成 ⇒ `evicted === null` | 查成了、淘汰 0 份 ⇒ `evicted === []` |
+| 载荷 | 记录在、载荷没了 ⇒ `corrupt` | 载荷在、键面为空 ⇒ `empty: true` |
+
+另两条**必须留名**的降级：名字非法 / 缺会话身份如实报 `name-invalid` / `no-chat-id`，
+**不静默截断、不编默认值**；覆盖**必须可见**（同名再存带 `overwritten:true` + 旧读数，
+否则「我以为存了两份」与「实际只剩一份」同形）。
+
+### 被拦停一次（留痕，别改回去）
+
+首轮实现里 `probeStore()` 写成 `typeof store[n] === 'function'` —— 取属性本身没走 safe，
+带抛错 getter 的宿主代理在**形态裁定这一步**就外抛，判据 G1 当场抓住（`doesNotThrow` 收到
+`Actual message: "trap"`）。修法与 `world-clock-reader` 同款：一律 `safe(() => store[n])`。
+这正是本仓反复治的那一类：「只读面绝不抛」不能只写在注释里，要有一处真的会抛的输入去证明它。
+
+### 判据自身的缺陷（同轮修掉，四条）
+
+1. **负控制写成「断言破坏行为」**：H1/H3 首版写 `assert.equal(st.log.length, 0)` ——
+   它断的是「破坏副本上确实发生了写」，那么**破坏没生效时反而通过**。修法：把真判据原样搬进
+   `assert.throws(..., /只读面零写/)`，配原版上的同款断言两向自证；
+2. **注释被当成代码**：A2 只剥行注释，文档块里的 `window.<成员>` 示例被算成裸直读。
+   修法：先剥块注释再剥行注释，并把「`typeof window` 只许出现在 IIFE 收尾」变成计数断言；
+3. **锚点断言恒真式**：`assert.equal(absent.items === null, false)` 把「不同形」的真判据
+   自己写成了恒真句。修法：直接 `assert.notEqual(items, null)`，让锚点字面量只声明一次；
+4. **测试侧写错期望值**：B1 把 `payloadOf()` 的键数学错了（6 实为 7），
+   当场被 `keyCount` 抓住 —— 期望值也是判据，也要有真源。
+
+### 连带面
+
+- `index.js` 新增 8 个成员（`checkpointStore` / `_checkpointLib` / `saveCheckpoint` /
+  `listCheckpoints` / `readCheckpoint` / `dropCheckpoint` / `previewCheckpointRestore` /
+  `compareBranchCheckpoints`），落点紧跟 `_snapshotAnchorOf`（同一族，读时不必心算映射）；
+- `manifest.json` 的 `extra_js` 登记 `snapshot-checkpoint.js`（第 66 项）；
+- 三源同源：`index.js` / `manifest.json` / `package.json` 同步为 3.237.0；TODO 最近更新同源；
+- 新增套件 `tests/v3237_checkpoint_and_branch_diff.test.mjs`（25 项，含 3 条真源码破坏负控制、
+  锚点恰中 1 次、同款判据在破坏副本上重跑、原版两向自证）。
+
 ## v3.236.0
 
 **主题：R4-B 快照恢复收编单真源 —— 两份手抄清单必然漂移，而漂移是无声的。**
