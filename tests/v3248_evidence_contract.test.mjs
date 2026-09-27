@@ -227,5 +227,8 @@ test('v3248 E1. ★ 版本锚（当版字面量，不随抬版漂移）', () => 
     const codeVer = (/const VERSION = '([^']+)'/.exec(idx) || [])[1];
     assert.ok(codeVer, '入口版本常量在场');
     assert.equal(pkg.version, codeVer, 'package.json 与 index.js 版本必须一致');
-    assert.equal(vnum(codeVer), vnum('3.248.0'), '本套件是当版锚，实得 ' + codeVer);
+    /* [v3.249.0 交棒] 本条原是当版锚（`assert.equal(vnum(codeVer), vnum('3.248.0'))`）。
+     *   历史测试只锁「自己的出生版本」（v3.203.0 的 scan_version_guard V2/V3 口径），
+     *   当版号由 V4/V6/V7 四源同源看守；抬版时把硬等号换成下界锚是既定交棒动作。 */
+    assert.ok(vnum(codeVer) >= vnum('3.248.0'), '本套件只在 3.248.0 及以后成立，实得 ' + codeVer);
 });

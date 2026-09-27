@@ -99,11 +99,20 @@ function nodeToCandidate(node) {
 
 // ── 图谱 → 候选数组 ─────────────────────────────────────────────────
 /**
+ * 候选资格 / 相关性粗排 / 最终限额**三层分开**：
+ *   ① 资格层：全部可候选化节点都参赛 —— 上限只截「返回给调用方的名单」，不截参赛名单；
+ *   ② 保留层：类型白名单节点保底留位（沿用 router 的保底语义，可关）；
+ *   ③ 限额层：仍有余位时按「时间强度」补满 —— 时间只当**排序信号**，不再单独决定参赛资格。
+ * `opts.includeDeferred = true` 时返回**全部**候选（供调用方自己做相关性粗排与限额）；
+ *   此时 `carry.deferred` 仍报「按默认上限本会被挡在评分之外的条数」（有损必有计数）。
  * @param {Array|Map} nodes MemoryGraph.nodes（Map）或其值数组
+ * @param {object} opts { maxCandidates, keepGuaranteed, includeDeferred }
  * @returns {Array} 候选条目
  */
 function graphToCandidates(nodes, opts = {}, carry = null) {
   const cap = Math.max(1, Number(opts.maxCandidates) || MAX_CANDIDATES);
+  const keepGuaranteed = opts.keepGuaranteed !== false;
+  const includeDeferred = opts.includeDeferred === true;
   const arr = nodes instanceof Map ? [...nodes.values()] : (Array.isArray(nodes) ? nodes : []);
   const out = [];
   let unmappable = 0;
@@ -113,9 +122,39 @@ function graphToCandidates(nodes, opts = {}, carry = null) {
   }
   // 按更新时间降序（router: updatedAt 降序 tiebreak），新节点优先
   out.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.order - a.order));
-  const kept = out.slice(0, cap);
   // [v3.172] 这个截断发生在相关性评分之前——被它丢掉的是「最旧的节点」，
   //   而「最旧」与「最不相关」是两件事。上限此前硬编码且零计数。
+  // [v3.249.0] M-O1：把「资格」与「限额」拆开。排序顺序不动（新节点优先，既有契约），
+  //   但被上限挡下的节点不再等于「没资格被评分」——调用方可以要全量（includeDeferred）
+  //   自己做相关性粗排与限额，本函数的默认返回（cap 条）一字不改。
+  const deferred = Math.max(0, out.length - cap);
+  let kept;
+  let capFill = 0;
+  if (includeDeferred) {
+    kept = out.slice();
+  } else {
+    kept = out.slice(0, cap);
+    const keptIds = new Set(kept.map(c => c.id));
+    // 保留层：类型白名单节点保底留位（仍受总预算约束 —— 只在限额内塞得下时生效）
+    if (keepGuaranteed) {
+      for (const c of out) {
+        if (kept.length >= cap) break;
+        if (c._guaranteed && !keptIds.has(c.id)) { kept.push(c); keptIds.add(c.id); capFill++; }
+      }
+    }
+    // 限额层：仍有余位 → 按「时间强度」补足（越旧越低但恒为正；同分同序 ⇒ 确定性）
+    if (kept.length < cap) {
+      const newest = out.reduce((m, c) => Math.max(m, Number(c.updatedAt) || 0), 0);
+      const HALF_LIFE_MS = 1000 * 60 * 60 * 24 * 30;   // 30 天半衰
+      const weight = (c) => 1 / (1 + Math.max(0, newest - (Number(c.updatedAt) || 0)) / HALF_LIFE_MS);
+      const rest = out.filter(c => !keptIds.has(c.id))
+        .sort((a, b) => (weight(b) - weight(a)) || (b.updatedAt - a.updatedAt) || (b.order - a.order));
+      for (const c of rest) {
+        if (kept.length >= cap) break;
+        kept.push(c); keptIds.add(c.id); capFill++;
+      }
+    }
+  }
   if (carry && typeof carry === 'object') {
     carry.nodesTotal = arr.length;
     carry.candsTotal = out.length;
@@ -124,6 +163,11 @@ function graphToCandidates(nodes, opts = {}, carry = null) {
     carry.dropped = Math.max(0, out.length - kept.length);
     carry.guaranteedKept = kept.filter(c => c._guaranteed).length;
     carry.cap = cap;
+    // [v3.249.0] 三层分账读数：deferred = 按默认上限本会被挡在评分之外的条数
+    //   （includeDeferred 时 dropped 为 0，而 deferred 仍报真值 ⇒「没丢」与「丢了多少」可分）
+    carry.deferred = deferred;
+    carry.capFill = capFill;
+    carry.includeDeferred = includeDeferred;
   }
   return kept;
 }

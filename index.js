@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.248.0';
+    const VERSION = '3.249.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -5009,13 +5009,21 @@ function relativeTimeLabel(eventTime, nowTime) {
                     // [v3.172] 每轮漏斗读数：四个模块的收缩量各自入账，缺读数也入账（I6）
                     const _funnel = { round: 1 };
                     try {
+                    // [v3.249.0] M-O1：精排路径归因。只在真走 LLM 精排时入账——
+                    //   无条件写入会让 _funnel 恒非空、「漏斗空读轮次」（I6）永远为 0。
+                    if (this._rerankPath === 'llm') _funnel.rerankPath = 'llm';
                     // ③ 统一召回：把图谱节点候选化并入候选池（走同一套评分，类型保底）
                     if (_cfg.unifiedRecallEnabled && this.unifiedRecall && this.graph && this.graph.nodes) {
                         try {
                             const _urCarry = {};
-                            const graphCands = this.unifiedRecall.graphToCandidates(this.graph.nodes, {}, _urCarry);
+                            // [v3.249.0] M-O1：候选资格与最终限额分离——这一路要**全量**候选
+                            //   （includeDeferred），上限只用于拿「按默认上限会被挡在评分之外的条数」读数；
+                            //   去重与最终注入预算仍由下方 candidateItems 与 buildInjection 把关。
+                            const graphCands = this.unifiedRecall.graphToCandidates(this.graph.nodes, { includeDeferred: true }, _urCarry);
                             _funnel.graphDropped = Number(_urCarry.dropped) || 0;
                             _funnel.graphGuaranteed = Number(_urCarry.guaranteedKept) || 0;
+                            _funnel.graphDeferred = Number(_urCarry.deferred) || 0;
+                            _funnel.graphCapFill = Number(_urCarry.capFill) || 0;
                             const _lut = String(query.text || '');
                             const _lrt = String(query.recentText || query.text || '');
                             for (const gc of graphCands) {
@@ -6903,21 +6911,6 @@ function relativeTimeLabel(eventTime, nowTime) {
                     merged.sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
                 } catch (e) { errLog(e, 'recallMemory.emotionOpposite落位'); }
             }
-            if (this.config.config.rerankEnabled && merged.length > 3 && query.text) {
-                try {
-                    const candN = this.config.config.rerankCandidates || 12;
-                    const candidates = merged.slice(0, candN);
-                    const rest = merged.slice(candN);
-                    // [v3.148] INTENT 优先作 rerank query（baibai: 意图一句话比原始剧情文本更贴评分语义）
-                    const _rq = (this.llm.getLastIntent?.() || query.text);
-                    const order = await this.llm.rerank(_rq, candidates);
-                    if (order && order.length) {
-                        const picked = order.map(i => candidates[i]).filter(Boolean);
-                        const restSet = new Set(candidates.filter((_, i) => !order.includes(i)));
-                        return [...picked, ...restSet, ...rest];
-                    }
-                } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] rerank失败(降级):`, e); }
-            }
             // [v3.48] P3: 本地意图分流重排（零 API 中间层，历史/物品/关系三路意图统一收敛）
             // [v3.185] 修：`queryText` 在此**从未声明**（它是下面 intentRerank 自己的形参名，不在本作用域）——
             //   本行此前恒抛 `ReferenceError: queryText is not defined`，被 onBeforeGeneration 外层的
@@ -6926,15 +6919,62 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   实测（本轮）：把 recallMemory 原样取出、只注入 errLog/numOr 等自由名后真跑一次，
             //   debugMode 下稳定抛该错；把 `queryText` 也作为外部名注入桩值则不再抛。
             //   意图重排的入参就是查询文本，与 buildQuery 的既有口径一致（query.text）。
+            // [v3.249.0] M-O1：重排结果**就地**落在 `finalMerged`（不另建数组），
+            //   于是「收尾顺序 = 上游最后一次重排的顺序」这条语义对四条路径是同一份。
             const finalMerged = this.intentRerank(merged, query.text);
-            // [v3.150] A+B 观测层：召回命中自检 + 楼层召回账本（零风险，只观测/记账/续热不改写召回结果）
-            if (this.config.config.recallAuditEnabled) {
+            // [v3.249.0] M-O1 唯一收尾出口：LLM 精排成功不再提前 return（原因见 CHANGELOG）
+            const _finalize = () => {
+                if (this.config.config.recallAuditEnabled) {
+                    try {
+                        const rec = this._auditRecall(query, results, finalMerged);
+                        if (rec) {
+                            // 坏归因时能分辨「顺序是本地重排给的」还是「LLM 精排给的」
+                            rec.rerankPath = String(this._rerankPath || 'local');
+                            rec.injectedIds = finalMerged.slice(0, 8).map(x => String((x && (x.id ?? x.key)) ?? '')).filter(Boolean);
+                        }
+                        if (rec && rec.floorHits) this._recordFloorRecall(rec.floorHits, rec.vecHeatCount ? (results.vector || []).map(v => v && v.id).filter(Boolean) : null);
+                    } catch (e) { errLog(e, 'recall.auditWire'); }
+                }
+                return finalMerged;
+            };
+            // [v3.48] P3: 本地意图分流重排已在上方完成——本块只负责可选的 LLM 精排。
+            // [v3.249.0] M-O1 缺口二：此前精排成功即 `return [...picked, ...restSet, ...rest]` 离场，
+            //   于是本地意图重排、召回审计、楼层记账三件事在那条路径上一次都没跑
+            //   （实测：精排关闭 audit=1 / record=1 / intent=1；精排成功 audit=0 / record=0 / intent=0）。
+            //   现在四条路径（成功 / 关闭 / 失败 / 回空值）都经 `_finalize()` 收口：只观测与记账，
+            //   不再用自己的排序覆盖精排结果（顺序由上游那一次重排定）。
+            if (this.config.config.rerankEnabled && merged.length > 3 && query.text) {
                 try {
-                    const rec = this._auditRecall(query, results, finalMerged);
-                    if (rec && rec.floorHits) this._recordFloorRecall(rec.floorHits, rec.vecHeatCount ? (results.vector || []).map(v => v && v.id).filter(Boolean) : null);
-                } catch (e) { errLog(e, 'recall.auditWire'); }
+                    const candN = this.config.config.rerankCandidates || 12;
+                    // 精排吃掉的是**已排好序**的名单，故前 candN 名 = 本地重排后的头部（语义与修前一致，
+                    //   只是顺序来源换了；修前那里吃的是未做本地重排的 hybridMerge 结果）。
+                    const candidates = finalMerged.slice(0, candN);
+                    const rest = finalMerged.slice(candN);
+                    // [v3.148] INTENT 优先作 rerank query（baibai: 意图一句话比原始剧情文本更贴评分语义）
+                    const _rq = (this.llm.getLastIntent?.() || query.text);
+                    const order = await this.llm.rerank(_rq, candidates);
+                    if (order && order.length) {
+                        const _pickedRaw = order.map(i => candidates[i]).filter(Boolean);
+                        // 去重：order 里出现重复下标时，同一个候选不得在名单里出现两次
+                        //   （本版首跑实测：order=[9,1,1] 会把名单撑成 5 条且 b 重复、d 掉队）。
+                        const _seen = new Set(); const picked = [];
+                        for (const c of _pickedRaw) if (!_seen.has(c)) { _seen.add(c); picked.push(c); }
+                        const restSet = candidates.filter((_, i) => !order.includes(i));
+                        const head = picked.concat(restSet);
+                        // 长度守恒：order 里若有越界/重复，缺失位按原序补齐 —— 精排只换次第、不丢条目。
+                        if (head.length < candidates.length) {
+                            const _in = new Set(head);
+                            for (const c of candidates) if (!_in.has(c)) head.push(c);
+                        }
+                        finalMerged.splice(0, candidates.length, ...head);
+                        void rest;   // 尾随段原地不动（不在 splice 范围内）
+                        this._rerankPath = 'llm';
+                        return _finalize();
+                    }
+                } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] rerank失败(降级):`, e); }
             }
-            return finalMerged;
+            this._rerankPath = 'local';
+            return _finalize();
         }
 
         // [v3.48] P3: 本地意图分流重排管线（triviumdb on_rerank 理念，零 API）

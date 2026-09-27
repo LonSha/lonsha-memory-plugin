@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.248.0",
+ "measured_at": "v3.249.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -133,6 +133,34 @@
     "域账 10 条逐条在场（仅随总量平移）"
    ],
    "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。★ 本版**唯一触到 TOP40 的行动**是把 `exportMemoryReport` 加了 17 行读侧接线（接 `_ledgerViolationMarkdown`）——这正是本基线 v3.233.0 那段话说的「下一次抬版只要碰过 index.js 就必红」：而「成员多了 17 行」本身不是缺陷，基线的四件面（读数 / 口径 / 形状 / 没做什么）都不因此改口径。"
+  },
+  "v3.249.0": {
+   "reason": "v3.249.0 M-O1（召回收尾唯一出口 + 候选资格分层）落在 index.js：召回收尾块由「精排成功即提前 return」改为**四条路径共用 `_finalize()`**（本地重排、审计与记账、可选精排三段，顺序由上游那次重排定），并给审计记录补 `rerankPath` / `injectedIds` 两个归因字段；图谱候选改取**全量**（`includeDeferred`）并补 `graphDeferred` 读数 —— 行数 17751 到 17791、成员 583 到 583（只在既有成员体内改写，成员数不变）、TOP5 占比 21.2% 到 21.4%、覆盖率 24.3% 到 24.5%",
+   "readings": {
+    "total_lines": 17791,
+    "member_count": 583,
+    "top5_lines": 3804,
+    "top5_pct": 21.4,
+    "top40_lines": 8945,
+    "top40_pct": 50.3,
+    "prefix_rule_coverage_lines": 4360,
+    "prefix_rule_coverage_pct": 24.5,
+    "unclassified_lines": 12600,
+    "seam_distinct_modules": 36,
+    "seam_reference_sites": 48,
+    "seam_call_shape_sites": 51,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`（1228 行 / 外部引用 1 次）—— 「低外部引用 ≠ 低耦合」这条读数据点未变",
+    "TOP40 里同名成员仍存在（`constructor` / `import`）—— 「引用读数只能当上界」这条读数据点未变",
+    "分诊面 `total_over_threshold` 仍为 32（本版未新增成员、未新增超 80 行的成员）",
+    "域账 10 条逐条在场（仅随总量平移）",
+    "★ 本版唯一触到 TOP40 的行动是 `recallMemory` 656 到 688 行与 `onBeforeGeneration` 503 到 511 行 —— 这正是 v3.233.0 那段话说的「下一次抬版只要碰过 index.js 就必红」；「成员涨了 32 行」本身不是缺陷，四件面不因此改口径"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。"
   }
  },
  "node_version": "v24.18.0",
@@ -144,14 +172,14 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 17751,
+  "total_lines": 17791,
   "member_count": 583,
-  "top5_lines": 3764,
-  "top5_pct": 21.2,
-  "top40_lines": 8905,
-  "top40_pct": 50.2,
-  "prefix_rule_coverage_lines": 4320,
-  "prefix_rule_coverage_pct": 24.3,
+  "top5_lines": 3804,
+  "top5_pct": 21.4,
+  "top40_lines": 8945,
+  "top40_pct": 50.3,
+  "prefix_rule_coverage_lines": 4360,
+  "prefix_rule_coverage_pct": 24.5,
   "unclassified_lines": 12600,
   "seam_distinct_modules": 36,
   "seam_reference_sites": 48,
@@ -165,15 +193,15 @@
    "domain": "（未归类）",
    "members": 527,
    "lines": 12600,
-   "lines_pct": 71,
-   "outside_refs": 3649,
-   "internal_refs": 5750,
-   "outside_ref_share_pct": 38.8
+   "lines_pct": 70.8,
+   "outside_refs": 3661,
+   "internal_refs": 5748,
+   "outside_ref_share_pct": 38.9
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
-   "lines": 1749,
+   "lines": 1757,
    "lines_pct": 9.9,
    "outside_refs": 1,
    "internal_refs": 74,
@@ -191,8 +219,8 @@
   {
    "domain": "召回与注入",
    "members": 11,
-   "lines": 885,
-   "lines_pct": 5,
+   "lines": 917,
+   "lines_pct": 5.2,
    "outside_refs": 1,
    "internal_refs": 58,
    "outside_ref_share_pct": 1.7
@@ -265,7 +293,7 @@
   },
   {
    "name": "recallMemory",
-   "lines": 656,
+   "lines": 688,
    "outside_refs": 1
   },
   {
@@ -275,7 +303,7 @@
   },
   {
    "name": "onBeforeGeneration",
-   "lines": 503,
+   "lines": 511,
    "outside_refs": 0
   },
   {
@@ -462,7 +490,7 @@
   "low_coupling_examples": [
    {
     "name": "recallMemory",
-    "lines": 656,
+    "lines": 688,
     "outside_refs": 1,
     "is_host_lifecycle": false
    },
@@ -603,7 +631,7 @@
   ]
  },
  "shape": {
-  "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.2%、TOP40 占 50.2%；10 条前缀域规则只覆盖 24.3%，剩下 75.7% 落在规则之外。",
+  "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.4%、TOP40 占 50.3%；10 条前缀域规则只覆盖 24.5%，剩下 75.5% 落在规则之外。",
   "verdict": "未观察到「可以按域整体搬走」的形态：超大成员多数是生命周期接线本身，长尾成员则互相稠密互调。"
  },
  "split_verdict": {

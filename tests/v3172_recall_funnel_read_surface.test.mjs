@@ -376,7 +376,13 @@ test('【I1】index.js 接线：台账 / 采集 / 总账 / 自检 / 面板', () 
     assert.ok(idxSrc.includes("['召回漏斗'"), 'selfCheck 行');
     assert.ok(/召回漏斗：\*\*/.test(idxSrc), '报告面板段');
     assert.ok(idxSrc.includes('this.aiSelect.lastCoarseRead'), '粗召回读数接真源（不用假输入另跑一次）');
-    assert.ok(idxSrc.includes('_urCarry') && idxSrc.includes('graphToCandidates(this.graph.nodes, {}, _urCarry)'), '图谱截断读数');
+    // [v3.249.0 接管] 旧面 `graphToCandidates(this.graph.nodes, {}, _urCarry)` 已被 M-O1 替换：
+    //   图谱路改取全量候选（调用方自己做相关性粗排与限额），截断读数由 `graphDeferred` /
+    //   `graphCapFill` 接住。旧字面量不再能在场——它回来即意味着本版修复被回退。
+    assert.ok(idxSrc.includes('_urCarry') && idxSrc.includes('graphToCandidates(this.graph.nodes, { includeDeferred: true }, _urCarry)'), '图谱截断读数（v3.249.0 起取全量候选）');
+    assert.ok(idxSrc.includes('_funnel.graphDeferred = Number(_urCarry.deferred) || 0'), '图谱「被上限挡下的条数」入漏斗（有损必有计数）');
+    assert.ok(idxSrc.includes('_funnel.graphCapFill = Number(_urCarry.capFill) || 0'), '图谱「余位补满条数」入漏斗');
+    assert.ok(!idxSrc.includes('graphToCandidates(this.graph.nodes, {}, _urCarry)'), '旧截断形态不得回潮');
     assert.ok(idxSrc.includes('_funnel.keyUnmatched'), 'key 映射读数');
     assert.ok(idxSrc.includes('_funnel.aiReadState'), 'AI 读态读数');
     ok('宿主接线（台账/采集/总账/自检/面板）');
