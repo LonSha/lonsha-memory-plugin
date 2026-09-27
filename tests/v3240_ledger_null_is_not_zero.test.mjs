@@ -65,6 +65,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { ledgerLevelConsumers, RUNTIME_DEPS } from './_fixture_sync.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -77,10 +78,10 @@ const EC = req(path.join(ROOT, 'event-completeness.js'));
 const LE_SRC = read('ledger-entity.js');
 const SCAN_SRC = read('tests/audit/scan_ledger_contract.mjs');
 
-/** 九本账（与 scan_ledger_contract.mjs 的 BOBS 同清单；本套件按 fileName: module 逐本真调）。 */
-const BOOK_FILES = ['seed-ledger.js', 'secret-ledger.js', 'parallel-ledger.js',
-    'commitment-ledger.js', 'fact-version.js', 'event-completeness.js',
-    'recall-echo.js', 'echo-ledger.js', 'repair-loop.js'];
+/** 九本账 —— [v3.246.0] 与 `scan_ledger_contract.mjs` / `v3207` **同源**：从唯一真源
+ *   `tests/_fixture_sync.mjs` 在磁盘面上派生（判据 = 取库块在不在），不再手抄。
+ *   本套件按 fileName: module 逐本真调，故这里要的是「仓根哪些 .js 真在跑契约」。 */
+const BOOK_FILES = ledgerLevelConsumers(ROOT, fs.readdirSync(ROOT).filter((f) => f.endsWith('.js')));
 
 /* ══════════ A 分界口本体 ══════════ */
 
@@ -214,7 +215,9 @@ test('C1. ★★★★ 九本账不得再有本地 finite / text 拷贝（单一
     }
     assert.deepEqual(bad, [], '九本账必须全部委派契约：\n' + bad.join('\n'));
     /* 自证扫描面真在扫（防空对空）：这九本都必须真的在场。 */
-    assert.equal(BOOK_FILES.length, 9, '清单是九本');
+    assert.equal(BOOK_FILES.length, 9, '清单是九本（派生自真源，非手抄）');
+    assert.ok(read('tests/_fixture_sync.mjs').includes('export function ledgerLevelConsumers'),
+        '名册须由唯一真源派生（不得退回手抄）');
     for (const f of BOOK_FILES) assert.equal(fs.existsSync(path.join(ROOT, f)), true, '账本在场：' + f);
 });
 
@@ -412,6 +415,15 @@ test('G1. ★★★ 账本实体契约门禁真跑通过（九账委派 + finite
     try {
         fs.mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
         fs.copyFileSync(path.join(ROOT, 'manifest.json'), path.join(dir, 'manifest.json'));
+        /* [v3.246.0] 门禁的**运行时依赖**必须一并搬进夹具：本版给它加了
+         *   `await import('../_fixture_sync.mjs')`（相对脚本自身解析），而这里是**逐文件**
+         *   选择性镜像（不是整树 cpSync）⇒ 少了真源，门禁在夹具里走 fail-closed 分支
+         *   **exit 2**，而那个 2 会被读成「判据红了」——归因错。实测本组首跑即栽在此。
+         *   清单从真源导出（RUNTIME_DEPS），不在这里手抄第二个名字。 */
+        for (const dep of RUNTIME_DEPS) {
+            fs.mkdirSync(path.dirname(path.join(dir, dep)), { recursive: true });
+            fs.copyFileSync(path.join(ROOT, dep), path.join(dir, dep));
+        }
         for (const f of ['ledger-entity.js', 'index.js'].concat(BOOK_FILES)) {
             fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
         }

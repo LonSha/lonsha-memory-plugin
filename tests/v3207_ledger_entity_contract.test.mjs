@@ -36,11 +36,12 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { ledgerLevelConsumers } from './_fixture_sync.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -54,22 +55,31 @@ const CONTRACT = 'ledger-entity.js';
 /** [v3.240.0] 六 → 九：本版把另三本「逐条实体」账收进契约（它们此前各自自带一份
  *   `text` + `finite` 拷贝，而那份 `finite` 正是 `Number.isFinite(Number(v))` 形态）。
  *   清单与门禁 `scan_ledger_contract.mjs` 的 `BOOKS` **同源**：新增账本时两处一起改。 */
-const BOOKS = ['seed-ledger.js', 'secret-ledger.js', 'parallel-ledger.js',
-    'commitment-ledger.js', 'fact-version.js', 'event-completeness.js',
-    'recall-echo.js', 'echo-ledger.js', 'repair-loop.js'];
+/* [v3.246.0] 名册**不再手抄**：由唯一真源 tests/_fixture_sync.mjs 在**磁盘面**上派生
+ *   ——「仓根哪些 .js 真的在跑账本实体契约」（判据是取库块，与门禁 R2 同一串指纹）。
+ *   收编前逐条核过：本表与 `scan_ledger_contract.mjs` 的 BOOKS、`v3240` 的 BOOK_FILES
+ *   是**同一份名册**（谁在契约扫描面里）；而 `v3242`/`v3243` 那个逐字相同的 GAUGED
+ *   **同名异义**（mirror 树要搬的文件集，含 manifest / index / TSV）⇒ 那个不按名册收编。
+ *   登记点因此只剩两处：`ledger-entity.js` 里建一本账 + `manifest.extra_js` 登记它。 */
+const BOOKS = ledgerLevelConsumers(ROOT, readdirSync(ROOT).filter((f) => f.endsWith('.js')));
 /** 每本账该委派哪几处（与门禁 R2 的 NEEDS 同口径）。 */
+/* [v3.246.0] 九账**一律**多一条「楼层取值口」：`const finiteFloor = LE.finiteFloor`。
+ *   为什么单列：R3b 是**形态判据**（只抓 `floor: finite(`），而 floor 的实际写法是按名点名的
+ *   `finiteFloor(...)` —— 摘掉委派行，floor 每一处调用在文本上仍然「像走了契约」，R3b 不响。
+ *   门禁侧同款登记（R2b），两处同口径，改一处必须两处一起改。 */
+const FLOOR_DELEGATED = 'const finiteFloor = LE.finiteFloor';
 const NEEDS = {
-    'seed-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
-    'secret-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
-    'parallel-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
-    'commitment-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
-    'fact-version.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent('],
-    // 事件线：segments 即它的历史容器（本账的领域形状），版本自增就地 → 只要求两处。
-    'event-completeness.js': ['LE.revisionOf(', 'LE.bumpRevision('],
+    'seed-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent(', FLOOR_DELEGATED],
+    'secret-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent(', FLOOR_DELEGATED],
+    'parallel-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent(', FLOOR_DELEGATED],
+    'commitment-ledger.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent(', FLOOR_DELEGATED],
+    'fact-version.js': ['LE.revisionOf(', 'LE.copyHistory(', 'LE.recordEvent(', FLOOR_DELEGATED],
+    // 事件线：segments 即它的历史容器（本账的领域形状），版本自增就地 → 只要求两处 + 楼层取值口。
+    'event-completeness.js': ['LE.revisionOf(', 'LE.bumpRevision(', FLOOR_DELEGATED],
     // [v3.240.0] 三本独立账委派的是**取值原语**（它们本就没有 history 容器与 revision 面）。
-    'recall-echo.js': ['const text = LE.text', 'const finite = LE.finite', 'const finiteFloor = LE.finiteFloor'],
-    'echo-ledger.js': ['const text = LE.text', 'const finite = LE.finite', 'const finiteFloor = LE.finiteFloor'],
-    'repair-loop.js': ['const text = LE.text', 'const finite = LE.finite', 'const finiteFloor = LE.finiteFloor']
+    'recall-echo.js': ['const text = LE.text', 'const finite = LE.finite', FLOOR_DELEGATED],
+    'echo-ledger.js': ['const text = LE.text', 'const finite = LE.finite', FLOOR_DELEGATED],
+    'repair-loop.js': ['const text = LE.text', 'const finite = LE.finite', FLOOR_DELEGATED]
 };
 /** [v3.240.0] 三本独立账：**没有** history 容器与 revision 面（回扣账是候选池、回声账按
  *   char+mode 覆盖、修复账是动作回执）⇒ 它们委派的是取值原语，而非 revision/history 三件套。
@@ -404,7 +414,18 @@ test('v3207 9. 判据面自防护：断言密度与关键指纹不得缩水', ()
     //   [v3.240.0] 旧口径写死「本版事实的 6 本」；本版收编三本独立账后是 9 本 ——
     //   改口径而不是改数字：清单与门禁 BOOKS 同源，动一处必须两处一起动。
     assert.equal(BOOKS.length, 9, '账本清单随本版登记点上抬（v3.240.0 收编三本独立账）');
+    /* [v3.246.0] 名册与门禁**同源**：两边都从唯一真源派生 ——
+     *   任一边退回手抄，下面两条立刻红。「同源」不靠人记，靠两边都点名真源入口。 */
+    assert.ok(SELF.includes('ledgerLevelConsumers(ROOT, readdirSync(ROOT)'),
+        '本套件的名册必须由唯一真源派生（不得退回手抄）');
+    assert.ok(read('tests/audit/scan_ledger_contract.mjs').includes('FX.ledgerLevelConsumers'),
+        '门禁的名册必须由唯一真源派生（不得退回手抄）');
     assert.equal(Object.keys(NEEDS).length, 9, '委派表必须与账本清单逐本对应');
     for (const f of BOOKS) assert.ok(NEEDS[f] && NEEDS[f].length >= 2, '委派表缺 ' + f);
+    // [v3.246.0] 九账一律含楼层取值口 —— 判据面与门禁 R2b 同口径。
+    for (const f of BOOKS) {
+        assert.ok(NEEDS[f].indexOf(FLOOR_DELEGATED) >= 0, f + ' 委派表缺楼层取值口');
+        assert.ok(read(f).includes(FLOOR_DELEGATED), f + ' 未委派楼层取值口（R3b 不会响）');
+    }
     ok('断言 ' + asserts + ' 条 / ' + lines + ' 行，指纹齐全');
 });

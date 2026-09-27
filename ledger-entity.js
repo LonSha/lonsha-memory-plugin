@@ -194,6 +194,40 @@
     ]),
   });
   /**
+   * [v3.246.0] **文本一族**的输入域 → 输出域声明表（第三张，与两张数值表并列）。
+   *
+   * 【为什么第三张是文本】`FINITE_DOMAINS` 说的是「楼层是整数」、`NUM_OR_NULL_DOMAINS`
+   *   说的是「时间/字节/计数原样」，而 `text` 的口径（**哪些字符算空白**）此前只活在
+   *   一段注释里 —— 注释不是判据：`\s` 不覆盖 ZWSP / NBSP / BOM 这件事，
+   *   是 v3.242.0 靠一次实测才发现的，而发现之后没有任何东西**守着**它。
+   *
+   * 【输出集为什么是这三态】文本归一的输出域比数值面宽，但**本契约的承诺是有限的**，
+   *   故按「归一后你还剩下什么」切成恰三态（可枚举才是判据能收口的条件）：
+   *     · `empty`  —— 归一无物（`''`）：空白串、零宽串、NBSP、BOM、全角空格都落这里；
+   *     · `spaces` —— 归一后**含内部单个半角空格**（`'a b'`）：折叠的可见证据；
+   *     · `text`   —— 归一后原样（无空白可折）。
+   *   **不承诺**「有多少个空格」或「是不是一句话」—— 那是调用方的语义，不是归一的口径。
+   *
+   * 【与两张数值表的分工】`text` 一族**不做** `null` 态：文本归一的缺席形态是空串
+   *   （调用方要「分不出给没给」时用 `value == null` 另判，本表不替它猜）。
+   *   这是三张表**刻意不同形**的地方：同形而不同义，比不同形更危险。
+   *
+   * 表是**声明**不是实现：改了 `INVISIBLE` 或 `text` 而没改这张表，`tests/v3246`
+   *   的表驱动对拍立刻翻红（真函数 × 真表，与 v3242/v3243 同款）。
+   */
+  const TEXT_DOMAINS = Object.freeze({
+    outputs: Object.freeze(['empty', 'spaces', 'text']),
+    cases: Object.freeze([
+      ['空串', 'empty'], ['半角空格', 'empty'], ['TAB', 'empty'], ['CR', 'empty'], ['LF', 'empty'],
+      ['CRLF', 'empty'], ['NBSP', 'empty'], ['ZWSP', 'empty'], ['ZWNJ', 'empty'], ['ZWJ', 'empty'],
+      ['BOM', 'empty'], ['全角空格', 'empty'], ['细空格', 'empty'], ['旁点', 'empty'],
+      ['TAB 串', 'empty'], ['全空白混合', 'empty'],
+      ['a+CRLF+b', 'spaces'], ['a+TAB+b', 'spaces'], ['a+NBSP+b', 'spaces'],
+      ['a+ZWSP+b', 'spaces'], ['a+半角空格+b', 'spaces'],
+      ['纯中文', 'text'], ['纯数字', 'text'], ['纯英文', 'text'],
+    ]),
+  });
+  /**
    * [v3.240.0] 楼层专用别名：与 `finite` **逐输入等价**（刻意不做第二份判据）。
    *
    * 为什么要有这个名字：floor 一族（`floor` / `updatedFloor` / `recoveredFloor` /
@@ -359,7 +393,8 @@
 
   const api = Object.freeze({
     REVISION, DEFAULT_BOX,
-    text, finite, finiteFloor, finiteNum, numOrNull, names, FINITE_DOMAINS, NUM_OR_NULL_DOMAINS,
+    text, finite, finiteFloor, finiteNum, numOrNull, names,
+    FINITE_DOMAINS, NUM_OR_NULL_DOMAINS, TEXT_DOMAINS,
     revisionOf, bumpRevision, recordEvent, copyHistory,
     scanBook, line
   });

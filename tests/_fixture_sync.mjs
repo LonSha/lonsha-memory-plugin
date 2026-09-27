@@ -191,4 +191,77 @@ export function listDir(dir, pred) {
     try { return fs.readdirSync(dir).filter(pred).sort(); } catch (_e) { return []; }
 }
 
+/* ============================================================
+ * [v3.246.0] 契约账本消费者身份 —— 唯一真源
+ * ------------------------------------------------------------
+ * 【为什么加在这里】TODO 的「未收敛面（v3.245.0 如实登记）」写的是：
+ *   「各门禁**自己的**账本名册仍是多处手抄」。收编前必须先回答一句：
+ *   那几份名册**是同一份名册，还是同名异义**？本轮逐条核过的答案（写下来防后人重判）：
+ *
+ *   | 落点 | 是什么 | 收编吗 |
+ *   |---|---|---|
+ *   | `scan_ledger_contract.mjs` 的 `BOOKS` / `MIN_BOOKS` | 账本名册（谁在契约扫描面里） | 收 |
+ *   | `v3207` 的 `BOOKS` / `NEEDS` / `NO_REVISION_BOOKS` | 同一份名册 + 逐本委派判据 | 收 |
+ *   | `v3240` 的 `BOOK_FILES` | 同一份名册（逐本真调） | 收 |
+ *   | `v3242` / `v3243` 的 `GAUGED` | **同名异义**：mirror 树要搬的文件集（含 manifest / index / TSV） | **不收** |
+ *
+ * 【为什么用一个函数而不是再导出一份常量名册】
+ *   本仓吃过这个形态：「清单两份 ⇒ 改一份漏一份」。若这里也硬编码一份九本账，
+ *   收编就只是把「四处手抄」变成「五处手抄」。故本文件导出的是**提取手段**：
+ *   从「这份源码里，哪些文件真的在跑账本级」当场算出来。名册因此**只有一个可写点**
+ *   （`ledger-entity.js` 旁的 `BOOKS` 登记 + manifest 的 extra_js），其余全是读数。
+ *   各门禁按名点名消费（`LIB.ledgerLevelConsumers`），掉一项即红 —— 不采用
+ *   固定路径 `import { BOOKS } from ...` 的隐式耦合。
+ *
+ * 【指纹与门禁 R2 同一串，不是新造的】
+ *   账本级的共同行是取库块（门禁 R2 本来就在逐本判它）。这里复用同一串常量，
+ *   于是「R2 判委派」与「R9 判名册」量的是同一件事，不会各自漂移。
+ * ============================================================ */
+export const LE_BLOCK = "const LE = (typeof window !== 'undefined' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity";
+/** 非账本的契约消费者：若某文件出现取库块指纹又不在 BOOKS 里，须在此登记并说明（空表 = 当前事实）。
+ *  留这个**显式登记点**的理由：判据万一将来误报，正确的处置是「登记 + 说清」，
+ *  而不是把判据放宽到什么都抓不到。 */
+export const NON_BOOK_CONSUMERS = [];
+/**
+ * 审计门禁的**运行时依赖**（不是「消费的文件集」，见下）。
+ *
+ * 【为什么单列】本版给 `scan_ledger_contract.mjs` 加了 `await import('../_fixture_sync.mjs')`，
+ *   于是「把门禁**脚本副本**复制进夹具树执行」的测试（如 v3240 G1）必须连这个文件一起搬 ——
+ *   否则门禁在夹具里走 fail-closed 分支 `exit 2`，而那个 2 会被读成「判据红了」（归因错）。
+ *   实测首跑就栽在这里（v3240 G1：期望 exit 1，实得 2）。
+ *
+ * 【为什么**不**并进 gateFiles】`gateFiles` 是「门禁可能会去读的仓内文件」，
+ *   用于逐对「门禁消费集 − 负控制可复制集」对差。而本清单只在**复制脚本体**时才需要：
+ *   多数负控制是「夹具树里放数据、执行的是**源仓**脚本」（脚本自身仍在源仓，
+ *   `../_fixture_sync.mjs` 自然解析得到）⇒ 并进去只会凭空报出缺口（假红）。
+ *   两类依赖需要的条件不同，故分列。
+ */
+export const RUNTIME_DEPS = ['tests/_audit_lib.mjs', 'tests/_fixture_sync.mjs'];
+/* 两项，不是一项：真源自己 `import { stripComments } from './_audit_lib.mjs'`。
+ *   [留痕] 首版只列了 `tests/_fixture_sync.mjs` —— 那是**按改动写清单**，
+ *   而不是**按加载图写清单**。在最小夹具上实测报的是
+ *   `Cannot find module '…/tests/_audit_lib.mjs' imported from …/_fixture_sync.mjs`。
+ *   判据面（「夹具里能不能把它跑起来」）才是清单该对齐的对象。 */
+/**
+ * 在场且**真的在跑**账本级的那些文件（含取库块）。
+ *
+ * `files` 由调用方给出，库不替它决定：门禁给 `manifest.extra_js`（它看到的是加载面），
+ *   测试给仓根 `*.js`（它看到的是磁盘面）—— 两者本就是各自的对象，
+ *   由库统一口径反而会量到「不是自己那个对象」的东西。
+ *
+ * 【纪律】只认代码：先剥注释（注释里写着「当年这里有取库块」不算消费）。
+ * @param {string} root 仓根
+ * @param {string[]} files 候选文件名（相对仓根）
+ * @returns {string[]} 含取库块的文件名（按入参顺序）
+ */
+export function ledgerLevelConsumers(root, files) {
+    const out = [];
+    for (const f of (Array.isArray(files) ? files : [])) {
+        let src = null;
+        try { src = fs.readFileSync(path.join(root, f), 'utf8'); } catch (_e) { continue; }
+        if (stripComments(src).includes(LE_BLOCK)) out.push(f);
+    }
+    return out;
+}
+
 export default { FILE_RE, fileLits, repoExists, failClosedOf, gateFiles, fixtureFiles, isExtracting, pairDiff, listDir };

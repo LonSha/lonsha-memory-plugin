@@ -17,7 +17,9 @@
 //   · 只断言「退出码对」**不够**：exit 1 也可能来自另一条判据 —— 那样归因是错的。
 //     故每组另断言**缺陷点名**（marker 必须出现在输出里），即「红得对，不是红得巧」。
 //
-// 判据：V0 原版对照必须 exit 0；V1–V5 逐组命中期望退出码且带期望点名；V6/V7 结构漂移须 exit 2。
+// 判据：V0 原版对照必须 exit 0；其余破坏组逐组命中期望退出码且带期望点名；V6/V7 结构漂移须 exit 2。
+//   [v3.246.0] 组数 12 → 14：新增 R9（名册与扫描面同源）的两向观测点 V13 / V14。
+//   V14 是**多文件改写**组（新建账本副本 + 在 manifest 里登记它），形态见 CASES 表内说明。
 // 退出码：0=负控制成立  1=负控制失效  2=结构漂移（负控制无法建立）
 import fs from 'fs';
 import os from 'os';
@@ -59,12 +61,42 @@ if (!BOOKS.length || !Number.isFinite(MIN_BOOKS)) {
  *   与 v3.240.0 那次的「夹具喂不满下限」同形）。名册**不适用缺席容忍**：
  *   它必须存在才谈得上「无重复」。 */
 const TSV_REL = 'tests/audit/catalog_reference_consumers.tsv';
-const GAUGED = ['manifest.json', 'index.js', CONTRACT, ...BOOKS, TSV_REL];
-if (BOOKS.length < MIN_BOOKS) {
-    console.error('[ledger-negctl] 夹具只搬 ' + BOOKS.length + ' 本账，门禁下限 ' + MIN_BOOKS
-        + ' ——结构漂移（夹具喂不满，负控制将空对空）');
+/* [v3.246.0] 夹具清单**不再逐项手抄**：从 manifest.extra_js 派生。
+ *   为什么：本档原先把 `index.js` 与九本账抄成字面量 —— 那份清单和门禁真正会读的文件集
+ *   是**两份**（本仓最贵的形态：清单两份，改一份漏一份）。派生之后，新增/改名账本只需改
+ *   manifest 一处，本档自动跟上；剩下唯一会漏的是**读取器本身**（见下面的自证）。
+ *   仍显式带上 manifest.json 与 TSV：它们不在 extra_js 里，但门禁 R0/R7 会读。 */
+const MF_REL = 'manifest.json';
+if (!fs.existsSync(path.join(REPO, MF_REL))) {
+    console.error('[ledger-negctl] 缺 manifest.json ——结构漂移（夹具清单无从派生）');
     process.exit(2);
 }
+const manifest = JSON.parse(fs.readFileSync(path.join(REPO, MF_REL), 'utf-8'));
+const EXTRA = Array.isArray(manifest.extra_js) ? manifest.extra_js.slice() : [];
+/* index.js 是**主入口**（manifest.js），不在 extra_js 里 —— 故它单独派生，不并入 EXTRA。
+ *   [留痕] 本行首版写成 `EXTRA.indexOf('index.js') >= 0` 的自证：实测 extra_js 里没有 index.js，
+ *   于是守卫把健康仓判成结构漂移。守卫抓的是它自己看错的对象，而错误方向是**假红**。（v3.246.0 第 3 处自身缺陷） */
+const ENTRY = typeof manifest.js === 'string' && manifest.js ? manifest.js : null;
+const GAUGED = [MF_REL, ...(ENTRY ? [ENTRY] : []), ...EXTRA, TSV_REL];
+/* 读取器自证：派生出的清单必须**真的喂满**门禁下限，且契约与账本都在里面。
+ *   少一本，门禁就在夹具里提前 bail，而那个 exit 2 会被静默读成「结构漂移判据工作正常」——
+ *   空对空。所以这里不是「应该没问题」，而是当场数一遍。 */
+const derivedBooks = BOOKS.filter((f) => EXTRA.indexOf(f) >= 0).length;
+if (BOOKS.length < MIN_BOOKS || derivedBooks < MIN_BOOKS) {
+    console.error('[ledger-negctl] 夹具喂不满：派生清单里账本 ' + derivedBooks + ' 本（下限 ' + MIN_BOOKS
+        + '）——结构漂移（负控制将空对空）');
+    process.exit(2);
+}
+if (EXTRA.indexOf(CONTRACT) < 0) {
+    console.error('[ledger-negctl] extra_js 里缺 ' + CONTRACT + ' ——结构漂移');
+    process.exit(2);
+}
+if (!ENTRY) {
+    console.error('[ledger-negctl] manifest.js（主入口）缺失或非字符串 ——结构漂移（R4 的消费面对象不在）');
+    process.exit(2);
+}
+console.log('[ledger-negctl] 夹具清单由 manifest.extra_js 派生：' + GAUGED.length + ' 项（其中账本 '
+    + derivedBooks + ' 本）');
 
 // (名字, 目标文件 | 'MOVE_LAST' | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 期望点名, 说明)
 const CASES = [
@@ -96,7 +128,49 @@ const CASES = [
         '真源被删/改名 ⇒ 结构漂移（探测对象不在，不得当「没问题」）'],
     ['V7-账本被改名', 'DELETE', 'seed-ledger.js', null, null, 2,
         '只找到 ' + (BOOKS.length - 1) + ' 本账（下限 ' + MIN_BOOKS + '）',
-        '账本数掉到下限以下 ⇒ 扫描面不可信，必须 exit 2 而不是「少一本也算过」']
+        '账本数掉到下限以下 ⇒ 扫描面不可信，必须 exit 2 而不是「少一本也算过」'],
+
+    /* ---------- [v3.246.0] 本版新判据的观测点 ----------
+     * 新增判据而没有观测点 = 判据可能恒绿而没人知道（本仓 v3.245.0 刚为这个形态建了常驻门禁：
+     * 「每个门禁要么有配对负控制，要么在测试套件里被真源码破坏引用」）。这五组就是新判据的药。 */
+    ['V8-文本一族回潮（本地实现）', 'parallel-ledger.js',
+        'const text = LE.text;', 'const text = function (v, m) { return String(v == null ? \'\' : v).trim().slice(0, m); };', 1, 1,
+        'R3c parallel-ledger.js 出现了本地 `const text =` 未走契约',
+        '被收编的 `function text` 又回来了 ⇒ R3c 必须点名（**唯一手段**：R3 只盯 `.revision += 1` 与 `revision: finite(`，数一族有判据、文本一族到此才有）'],
+    ['V9-就地 trim 绕开契约', 'secret-ledger.js',
+        'const finiteFloor = LE.finiteFloor;', 'const finiteFloor = LE.finiteFloor;\n  const localTrim = (v) => v.trim();', 1, 1,
+        'R3c secret-ledger.js 出现了就地 `.trim()`',
+        '就地 trim 会把 ZWSP / NBSP / BOM 留在串里（契约的隐形空白口径被绕过）—— 这不是风格问题，是本版 TEXT_DOMAINS 钉住的同一件事'],
+    ['V10-委派面被摘（floor 取值口）', 'seed-ledger.js',
+        'const finiteFloor = LE.finiteFloor;', '', 1, 1,
+        'R2b seed-ledger.js 的楼层取值口未走契约',
+        '**这是本版新判据抓到的真缺陷的复原**：摘掉这一行，R3b（形态判据 `floor: finite(`）一个字都不会说，因为 floor 用的大多是按名点名的 `finiteFloor(`；只有 R2 会响'],
+    ['V11-导出面被摘（TEXT_DOMAINS）', CONTRACT,
+        'NUM_OR_NULL_DOMAINS, TEXT_DOMAINS,', 'NUM_OR_NULL_DOMAINS,', 1, 1,
+        'R5b 契约导出 `TEXT_DOMAINS` 不是对象',
+        '把导出项从 `api` 里摘掉而**注释与真源里仍写着这个名字** ⇒ 旧 R5（纯文本存在性）照样绿；R5b 按真导出键集判 typeof 才响'],
+    ['V12-导出面被摘（names 函数）', CONTRACT,
+        '    text, finite, finiteFloor, finiteNum, numOrNull, names,\n', '', 1, 1,
+        'R5b 契约导出 `names` 不是函数',
+        '摘的是**函数**导出：消费方会静默取到 undefined（不抛、不报），正是本仓治理过多轮的「有字段没人读」的邻居'],
+    /* ---------- [v3.246.0] R9（名册与扫描面同源）的两向观测点 ----------
+     * 为什么必须有：R9 是本版新判据。本仓 v3.245.0 刚为「判据没有观测点」立了常驻门禁
+     *   （scan_fixture_sync E4：每个门禁要么有配对负控制，要么在套件里被真源码破坏引用）。
+     *   两向各一组 —— 只测一向（新增未登记）会把另一半（名册里的账根本没在跑契约）留成静默。 */
+    ['V13-账本没在跑契约（取库块被摘）', 'seed-ledger.js',
+        'const LE = (typeof window !== \'undefined\' && window.LonShaLedgerEntity) ? window.LonShaLedgerEntity\n'
+            + '    : ((typeof module !== \'undefined\' && module.exports) ? require(\'./ledger-entity.js\') : (root.LonShaLedgerEntity || null));',
+        'const LE = require(\'./ledger-entity.js\');', 1, 1,
+        'R9 名册里的 seed-ledger.js 当前并没有在跑账本实体契约',
+        '取库块被换成「直接 require」这种**在经典脚本里不可能生效**的写法：文件仍在册、仍能解析，但已不在跑契约 ⇒ R9 第二向必须点名（这一向同时是「名册与扫描面不同源」的判据本身）'],
+    /* 位置字段占齐：多文件组的 anchor / repl / expectHits 不使用，但**必须占位**
+     *   （否则 marker/why 会被读成 expectHits/expectCode —— 本组首跑实测过）。 */
+    ['V14-新增账本级消费者未登记', [['commitment-mirror-ledger.js', null, null, 0],
+        ['manifest.json', '    "commitment-ledger.js",\n',
+            '    "commitment-ledger.js",\n    "commitment-mirror-ledger.js",\n', 1]],
+        null, null, null, 1,
+        'R9 commitment-mirror-ledger.js 在跑账本实体契约（含取库块）却不在名册里',
+        '**新账本忘登记**的等价形态：把一本账复制出副本并登记进 manifest，却不在 BOOKS 补行 —— 副本在跑契约、字面比门禁手抄的那份名册更全 ⇒ R9 第一向点名（V13 测反向）。R2 另报「不在委派表里」，是同一事实的委派面']
 ];
 
 // 缺文件 = 结构漂移（exit 2）。
@@ -120,7 +194,45 @@ for (const [name, target, anchor, repl, expectHits, expectCode, marker, why] of 
         fs.copyFileSync(path.join(REPO, f), dest);
     }
 
-    if (target === 'DELETE') {
+    if (Array.isArray(target)) {
+        /* [v3.246.0] 多文件改写（V14 需要：新建副本 + 改 manifest 登记）。
+         *   形态是 `[[文件名, 锚点, 替换为, 期望命中数], ...]`；锚点为 null 表示「把源文件复制一份」。
+         *   纪律与单文件组逐条相同：每个锚点都要**恰中期望次数**，否则整组作废。 */
+        let ok = true;
+        for (const [file, anchor2, repl2, hits2] of target) {
+            const p = path.join(dir, file);
+            if (anchor2 === null) {
+                const srcFile = file.replace('-mirror-ledger.js', '-ledger.js');
+                const from = path.join(dir, srcFile);
+                if (!fs.existsSync(from)) {
+                    problems.push(name + '：镜像源 ' + srcFile + ' 不在夹具里（构造失败，本组作废）');
+                    rows.push([name, '-', '构造失败', why]);
+                    ok = false;
+                    break;
+                }
+                fs.copyFileSync(from, p);
+                continue;
+            }
+            let src2 = fs.readFileSync(p, 'utf-8');
+            const h2 = src2.split(anchor2).length - 1;
+            if (h2 !== hits2) {
+                problems.push(name + '：锚点在 ' + file + ' 命中 ' + h2 + ' 次（期望 ' + hits2 + '）—— 锚点已漂移，本组作废');
+                rows.push([name, '-', '锚点漂移 ' + h2 + '/' + hits2, why]);
+                ok = false;
+                break;
+            }
+            fs.writeFileSync(p, src2.split(anchor2).join(repl2));
+        }
+        if (!ok) continue;
+        const mf2 = path.join(dir, 'manifest.json');
+        let parsed2 = null;
+        try { parsed2 = JSON.parse(fs.readFileSync(mf2, 'utf-8')); } catch (e) { parsed2 = null; }
+        if (!parsed2 || !Array.isArray(parsed2.extra_js) || parsed2.extra_js.indexOf('commitment-mirror-ledger.js') < 0) {
+            problems.push(name + '：改后 manifest 不含镜像登记（构造失败，本组作废）');
+            rows.push([name, '-', '构造失败', why]);
+            continue;
+        }
+    } else if (target === 'DELETE') {
         fs.rmSync(path.join(dir, anchor));
     } else if (target === 'MOVE_LAST') {
         // 在**真源码**上做一次确定性重排：从 extra_js 摘掉该元素、追加到该数组末尾。

@@ -21,16 +21,18 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.245.0
+> 最近更新：v3.246.0
 >
-> **未收敛面（v3.245.0 如实登记）**：负控制的**夹具清单**已由 `tests/_fixture_sync.mjs` 统一提取，
-> 但各门禁**自己的**账本名册仍是多处手抄（`tests/audit/scan_ledger_contract.mjs` 的 `BOOKS`、
-> `tests/v3207_ledger_selfreport.test.mjs` 的 `BOOKS`/`NO_REVISION_BOOKS`/`NEEDS`、
-> `tests/v3240_ledger_null_is_not_zero.test.mjs` 的 `BOOK_FILES`、`tests/v3242`/`v3243` 逐字相同的 `GAUGED`）。
-> 本版**刻意不一次性收编**：那批名册是各门禁的**判据面**（消费口径各不相同），
-> 收编前须逐条核「它们是同一份名册还是同名异义」—— 那是一次独立的改动，不是本版的主题。
-> 怎么知道它还没修：`grep -c "commitment-ledger.js" tests/audit/scan_ledger_contract.mjs`
-> 与 `grep -c "commitment-ledger.js" tests/v3207_ledger_selfreport.test.mjs` 的命中数不变即未动。
+> **未收敛面（v3.245.0 登记）已于 v3.246.0 收编** —— 逐条核过「同一份名册还是同名异义」之后：
+> 三处（`scan_ledger_contract.mjs` 的 `BOOKS` / `v3207` 的 `BOOKS` / `v3240` 的 `BOOK_FILES`）
+> 是**同一份名册** ⇒ 已改为从唯一真源 `tests/_fixture_sync.mjs` 派生；
+> `v3242`/`v3243` 的 `GAUGED` 是**同名异义**（mirror 树要搬的文件集，含 manifest / index / TSV）
+> ⇒ 不按名册收编，只把其中「九本账」那一截换成派生。
+> 同轮新增门禁 **R9**：名册（手写一处）与「谁真的在跑契约」（派生读数）必须**同源** ——
+> 原先门禁断言的是「扫描面里有 N 本账」（判的是手抄清单），于是**新增一本账本级消费者**
+> 能同时绕开 R1 与 R2/R2b/R3/R3b/R3c，全门禁零响应。
+> 怎么知道它没变：`tests/v3246_roster_single_source.test.mjs`（A/B 同源面 + C 行为面 +
+> D 六组真源码破坏负控制 + E 版本锚），以及 `scan_ledger_contract_negctl` 的 V13/V14 两向观测点。
 >
 > **F-2（跨平台事件来源构成）已于 v3.233.0 落地** —— 事件段的 `source` 从 40 字自由文本
 > 折成**受控分级四态**（extract / platform / other / none，`other` 保留原串）；

@@ -31,6 +31,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ledgerLevelConsumers } from './_fixture_sync.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -182,9 +183,12 @@ test('v3243 C2. 契约须留下「更正留痕」而不是悄悄改掉', () => {
 });
 
 /* ══════════ D. 门禁 R6b/R8 真跑 + 负控制 ══════════ */
-const GAUGED = ['manifest.json', 'index.js', CONTRACT_REL, 'seed-ledger.js', 'secret-ledger.js',
-    'parallel-ledger.js', 'commitment-ledger.js', 'fact-version.js', 'event-completeness.js',
-    'recall-echo.js', 'echo-ledger.js', 'repair-loop.js',
+/* [v3.246.0] 本表**不是账本名册**（同名异义，别照名字对号）：它是 mirror 树要搬的文件集 ——
+ *   manifest / 主入口 / 契约 / 九本账 / 登记表，缺一个门禁就在夹具里提前 fail-closed。
+ *   但「九本账」那一截原先也是手抄 ⇒ 换成从唯一真源派生；
+ *   manifest / index / 契约 / TSV 仍显式列出（它们不是账本级消费者，派生不出来）。 */
+const GAUGED = ['manifest.json', 'index.js', CONTRACT_REL,
+    ...ledgerLevelConsumers(ROOT, JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8')).extra_js),
     'tests/audit/catalog_reference_consumers.tsv'];
 function mkTree() {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3243-gate-'));
