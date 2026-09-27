@@ -17,6 +17,7 @@ scan_claim_truthfulness.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
 scan_config_liveness.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
 scan_cross_repo_binding.mjs	0	0	1	读 tests/ 面（测试面退化即阻断）
 scan_event_lifecycle.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_evidence_binding.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
 scan_exit_codes.mjs	0	0	2	读 tests/audit 面（审计面退化即阻断）
 scan_fixture_sync.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）；本版实测修掉「静态 import 唯一真源 ⇒ 崩在加载栈（exit 1）」⇒ 归因现在是如实 exit 2
 scan_ledger_contract.mjs	0	2	0	读根 .js 面（入口不在场即阻断）

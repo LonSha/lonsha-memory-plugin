@@ -4,6 +4,73 @@
 > 版本级详情在 CHANGELOG.md，本文件只记迭代节奏与判据出处。
 
 ---
+## 2026-09-27 · v3.248.0（证据面契约门禁 + 违规结构化出口 —— 计划 #11 / #12 / #21）
+**做了什么**：① 三源抬版 3.247.0 → **3.248.0**（`index.js` / `manifest.json` / `package.json`）；
+② 新门禁 `tests/audit/scan_evidence_binding.mjs`（七条判据 R1~R7，退出码三态）；
+③ 负控制 `tests/audit/scan_evidence_binding_negctl.mjs`（**8 组**，含 V0 原版对照）；
+④ 套件 `tests/v3248_evidence_contract.test.mjs`（**16 项**）；
+⑤ 产品代码 `index.js`：新增 `_ledgerViolationReport` / `_ledgerViolationMarkdown`，
+`_ledgerViolationSummary` 改**派生读数**，`_recordLedgerViolations` 补裁剪留痕
+`_ledgerViolationsDropped`，`exportMemoryReport` 接读侧；⑥ 两处登记面补齐
+（`audit_scan_probe_matrix.tsv` 一行、`catalog_reference_consumers.tsv` 234→235 行）。
+
+**为什么**：本版实测 `grep -rln 'apiGlobal' tests/` **零命中** —— `evidence-workbench.js` 的
+九账登记表 `LEDGERS`（`id / label / apiGlobal / state / pick / project`）与宿主取库面 `_ledgerApis()`
+**各写一份名单**，而这张表此前**从来没有一道门守过**。改一个 `apiGlobal` 名 ⇒ 宿主仍取旧键 ⇒
+`readLedger` 落 `absent / module-unavailable` ⇒ **工作台永远显示「模块未挂」且全仓不响**。
+这与本仓治理过多轮的形态同源：v3.191 `stripComments` 分裂 4 变体、v3.246 账本名册四处手抄、
+v3.247 破坏形态 27 份各写一份 —— 都是**同一件事有多个可写点**。
+另两处：`project` 第 2 参退化**不抛只是读数少一截**（#12）；违规账本只有一行中文 `_ledgerViolationSummary()`
+⇒「违规发生了」「没发生」「发生了但记录被裁掉」三者对外**同形**（#21）。
+
+**影响范围**：`evidence-workbench.js` 与 `index.js` 的读侧新增出口（不改既有语义）；
+`tests/audit/` 新增两档；`tests/` 新增一档；两处 TSV；三处版本源。
+
+**门禁结果**：全量 `node tests/run.mjs --audit` 待跑；本版三档单项实测已绿 ——
+门禁健康树 `exit 0`（登记表 9 项 ↔ 宿主 9 键**零对差**，输出 `seed→LonShaSeedLedger … repair→LonShaRepairLoop`）；
+负控制 **8/8**；套件 **16/16**（980.8ms）；`scan_wiring` A7.1 零引用 **0**（改前抓到
+`_ledgerViolationMarkdown` 零引用 ⇒ 当场接进 `exportMemoryReport`，空账**整段不出现**，
+理由：无条件输出空板块会把「没有违规」与「违规没被记录」混成同形）；
+探针矩阵 H/G/T 实测 **0/2/0**（判读：读根 `.js` 面，入口不在场即阻断）。
+
+**口径裁决（#12）**：计划字面写「`project` 参数计数 ≥ 2」，但**实测 9 处定义中 8 处是 `(it)`、
+仅 1 处 `(it, api)`**（第 203 行 event-completeness，v3.233.0 F-2 引入）⇒ 按字面执行会**误伤 8 处**。
+故按 #12 的**原意**落判据：查**调用点**必须传 `api`（唯一调用点 301 行 `spec.project(it, api)`），
+不查定义签名一致性。**计划原文与实测不符时，按原意落判据，并把不符留痕。**
+
+**判据自身缺陷留痕（本版实测四处，这是最贵的一层）**：
+1. **`bodyOf` marker 落在调用点**：首跑健康树 fail-closed（`exit 2`，报「一个取库项都解析不出」）。
+   写 `/tmp/dbg_eb.mjs` 打印 `indexOf = 712774` 与前后字符 repr，确认
+   `bodyOf(idxCode, '_ledgerApis()')` 先命中的是 `_evidenceWorkbench()` 里的**调用点**
+   `const apis = _ledgerApis();`，取到的是 `{ apis: apis }` 这个对象字面量。
+   修法：marker 必须点名 `function _ledgerApis(`。
+   连带禁忌：类方法简写（`_evidenceWorkbench() {`）也**不被 `bodyOf` 的裸名形态识别**，
+   且用 `_evidenceWorkbench()` 作 marker 会先命中 7716 行调用点 ⇒ 必须写 `_evidenceWorkbench() {`。
+2. **`keyOf` 判得比契约严**：初版列为必需 ⇒ 健康树上 8 项被判缺字段。真值：登记表注释原文写的是
+   「`keyOf`（可选；条目没有 `id` 时用它）」——**判据比契约更严，就是判据错了**。
+   改为「出现时必须是函数形态」。
+3. **R7 作用域过宽**：初版用 `window.<global>` 在 **index.js 全文件**计数 ⇒ 8 项误红。
+   真值：那些命中是**别处业务面的合法直读**（`const seedApi = window.LonShaSeedLedger`，实测 3~4 处/键）。
+   R7 的原意是**工作台**不得内联（v3.214.0 那次内联**当场自伤**：六个未定义引用 ⇒ 每次抛
+   ReferenceError ⇒ 被外层吞成 `reason:'thrown'` ⇒ 工作台永远「不可用」且不报错）⇒ 收窄到
+   `_evidenceWorkbench()` 体内。
+4. **套件侧两处**（首跑即暴露）：① 缺陷明细走 **`stderr`**（`console.error`）而断言只读 `r.stdout`
+   ⇒ D3/A3 的点名永远看不到，加 `combined(r)` 合并两股流（退出码仍以进程为准）；
+   ② `new Function('return (' + 方法体 + ')')` **SyntaxError** —— 类方法简写**不是**函数表达式，
+   必须补 `function` 关键字再包（首版漏了，D1/C5 全崩在解析上，而「崩在解析」极易被误读成「判据失败」）。
+
+**负控制的教训（必须记）**：首跑 V1~V7 全 ✓、**仅 V0 红** —— 手抄的三件夹具清单**喂不满门禁**：
+R4 会逐个 `fs.existsSync` 九本账，夹具里没有它们 ⇒ V0 在夹具里 `exit 1`，**与真缺陷同形**。
+负控制差点「空对空地全绿」。修法：账本清单**从 `_ledgerApis()` 派生**（不手抄）；
+首版派生只抓到 6 本（三本走 helper，文件名写在 helper 体内）⇒ 再自纠：解析九键后对走 helper 的键
+**展开 helper 体**取文件名，与门禁 R4 同源。修后 **8/8 全绿**。这与 v3.240.0 记过的形态同源：
+**夹具少一本账 ⇒ 门禁在夹具里提前 bail ⇒ 红的不是判据。**
+
+**登记面**：`audit_scan_probe_matrix.tsv` 列格式 `scanner | H | G | T | 判读`，
+由 `tests/v3226_audit_sensitivity.test.mjs` 常驻校验（J1 双向齐全 / J2 H 全 0 / J3 G 或 T 非 0）；
+`catalog_reference_consumers.tsv` 由 `scan_cross_repo_binding.mjs` 的 P3 守（缺口与残留都报）。
+
+---
 ## 2026-09-27 · v3.247.0（退出码归因 + 破坏形态库 —— 同一件事只准一处可写，计划 #19 及配套）
 **做了什么**：① 三源抬版 3.246.0 → **3.247.0**（`index.js` / `manifest.json` / `package.json`）
 + CHANGELOG 顶节 + TODO「最近更新」；② 唯一真源 `tests/_break_kit.mjs` 收编 27 份破坏工具

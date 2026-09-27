@@ -199,6 +199,13 @@ test('【6】违规账本：环形封顶 + 按 kind/原因聚合（方法体真�
     };
     const _Mc = new Function('PLUGIN_NAME', 'errLog', 'return class {' + body.replace(/rebuildItems\(\) \{/, '') + '};')(...['LonSha', () => {}]);
     const M = new _Mc();
+    /* [v3.248.0 夹具同步] `_ledgerViolationSummary` 本版起是 `_ledgerViolationReport` 的
+     *   **派生读数**（原实现自己再遍历一遍数组 ⇒ 同一个数两处各算一份）。代价是它不再只依赖
+     *   一个字段，而依赖**同类方法**：夹具用裸对象当 `this` 时 `this._ledgerViolationReport`
+     *   取不到 ⇒ summary 落 catch 分支返回 `'—'`。故夹具改为把 `self` 挂到类原型上
+     *   （`Object.setPrototypeOf`）—— 测的仍是真方法，只是让它拿得到自己的同类。
+     *   注意：这里**不改判据期望值**，只补足夹具的运行时形状。 */
+    Object.setPrototypeOf(self, M);
     // 灌 10 条违规 → 环形封顶 12
     M._recordLedgerViolations.call(self, Array.from({ length: 10 }, () => ({ kind: 'item_dropped', reason: 'missing_name' })), 'extract', 3);
     assert.equal(self._ledgerViolations.length, 10);
@@ -213,8 +220,8 @@ test('【6】违规账本：环形封顶 + 按 kind/原因聚合（方法体真�
     assert.ok(/^12 累计/.test(sum), '累计计数: ' + sum);
     assert.ok(sum.includes('item_clipped') && sum.includes('item_dropped'), '按 kind 计数: ' + sum);
     assert.ok(sum.includes('主因'), 'top 原因: ' + sum);
-    // 空账本
-    assert.equal(M._ledgerViolationSummary.call({ _ledgerViolations: [] }), '0');
+    // 空账本（同样挂原型，理由同上）
+    assert.equal(M._ledgerViolationSummary.call(Object.setPrototypeOf({ _ledgerViolations: [] }, M)), '0');
     // 空违规不写账本
     assert.equal(M._recordLedgerViolations.call(self, [], 'x', 0), 0);
 });

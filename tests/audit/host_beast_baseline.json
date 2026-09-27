@@ -1,122 +1,89 @@
 {
-  "file": "tests/audit/host_beast_baseline.json",
-  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
-  "measured_at": "v3.236.0",
-  "rebuilds": {
-    "v3.233.0": {
-      "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
-      "readings": {
-        "total_lines": 16980,
-        "member_count": 560,
-        "top5_lines": 3684,
-        "top5_pct": 21.7,
-        "top40_lines": 8711,
-        "top40_pct": 51.3,
-        "prefix_rule_coverage_lines": 4223,
-        "prefix_rule_coverage_pct": 24.9,
-        "unclassified_lines": 11926,
-        "seam_distinct_modules": 34,
-        "seam_reference_sites": 45,
-        "seam_call_shape_sites": 48,
-        "members_over_80_lines": 32,
-        "low_coupling_members": 18,
-        "high_coupling_members": 10
-      },
-      "unchanged": [
-        "域账 10 条的成员数与行数分布同形（仅随总量平移）",
-        "缝合模块接线面 34 / 45 / 48 三者逐字不变",
-        "分诊面 32 / 18 / 10 三者逐字不变"
-      ],
-      "not_done": "本版不动 index.js 的结构（只多一个与既有 _evidenceWorkbench() 同形的读数方法）；「按域拆」的结论不受影响：TOP1 仍是生命周期接线 onMessageReceived 1217 行 / 外部引用 1 次"
-    },
-    "v3.234.0": {
-      "reason": "v3.234.0 睡眠语义唤醒落在 sleep-awaken.js + index.js 接线（取库口 _sleepAwakenLib、recallMemory 内语义唤醒块、config 默认值键、settings-ui 开关）：index.js 新增 41 行 ⇒ 行数 16980→17021、成员数 560→560（接线写在既有成员内部，不新增成员）、接缝模块 34→35 / 引用点 45→46 / 调用形态 48→49",
-      "readings": {
-        "total_lines": 17021,
-        "member_count": 560,
-        "top5_lines": 3715,
-        "top5_pct": 21.8,
-        "top40_lines": 8752,
-        "top40_pct": 51.4,
-        "prefix_rule_coverage_lines": 4254,
-        "prefix_rule_coverage_pct": 25.0,
-        "unclassified_lines": 11936,
-        "seam_distinct_modules": 35,
-        "seam_reference_sites": 46,
-        "seam_call_shape_sites": 49,
-        "members_over_80_lines": 32,
-        "low_coupling_members": 18,
-        "high_coupling_members": 10
-      },
-      "unchanged": [
-        "分诊面 32 / 18 / 10 三者逐字不变（接线不新增超大成员，也未改变耦合分布）",
-        "方法级成员切分口径与成员总数同源（8 空格缩进 + 控制流关键字排除），实测 560 成员",
-        "域账 10 条逐条在场（仅随总量平移）"
-      ],
-      "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。形态决策（能不能按域拆）沿用 v3.233.0 的按读数否掉。"
-    },
-    "v3.235.0": {
-      "reason": "v3.235.0 R4-A 回滚预览（dry-run）落在 ledger-replay.js（只读预览面 previewDrop / previewShift / previewLine / DROP_NOTHING + 形状扫描，**不新增 index.js 的取库口**，复用既有 _ledgerReplayLib）+ index.js 宿主接线（config 默认键 rollbackPreviewEnabled、新方法 previewFloorRollback、删楼点先预告后破坏、诊断行、构造期初始化）：index.js 新增 52 行、新成员 1 个（previewFloorRollback）⇒ 行数 17021→17073、成员 560→561、TOP5 占比 21.8%→21.9%、覆盖率 25.0%→25.0%",
-      "readings": {
-        "total_lines": 17073,
-        "member_count": 561,
-        "top5_lines": 3735,
-        "top5_pct": 21.9,
-        "top40_lines": 8779,
-        "top40_pct": 51.4,
-        "prefix_rule_coverage_lines": 4274,
-        "prefix_rule_coverage_pct": 25.0,
-        "unclassified_lines": 11968,
-        "seam_distinct_modules": 35,
-        "seam_reference_sites": 46,
-        "seam_call_shape_sites": 49,
-        "members_over_80_lines": 32,
-        "low_coupling_members": 18,
-        "high_coupling_members": 10
-      },
-      "unchanged": [
-        "缝合模块接线面 35 / 46 / 49 三者逐字不变（新增预览面住在既有 ledger-replay.js 里，不新增接缝模块）",
-        "分诊面 32 / 18 / 10 三者逐字不变（新增 previewFloorRollback 未跨过 80 行阈值，耦合分布不变）",
-        "域账 10 条逐条在场（仅随总量平移）"
-      ],
-      "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉；本轮新增的只读预览面（R4-A）不改 index.js 的结构形状（新成员 1 个、位于既有类体内）。"
-    },
-    "v3.236.0": {
-      "reason": "v3.236.0 R4-B 快照恢复收编单真源（restoreFromSnapshot 引擎侧两阶段 + restoreSnapshotFlow 流程入口 + snapshotRestoreMenu 纯函数 + snapshotClearCoverage 三态 everRestored + clearRuntimeMemory 清空面逐面登记+ _snapshotAnchorOf 会话身份锚）落在 index.js：新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）⇒ 行数 17073 → 17389、成员 561 → 567、TOP5 占比 21.9% → 21.6%、覆盖率 25.0% → 24.7%",
-      "readings": {
-        "total_lines": 17389,
-        "member_count": 567,
-        "top5_lines": 3764,
-        "top5_pct": 21.6,
-        "top40_lines": 8888,
-        "top40_pct": 51.1,
-        "prefix_rule_coverage_lines": 4303,
-        "prefix_rule_coverage_pct": 24.7,
-        "unclassified_lines": 12255,
-        "seam_distinct_modules": 35,
-        "seam_reference_sites": 46,
-        "seam_call_shape_sites": 49,
-        "members_over_80_lines": 32,
-        "low_coupling_members": 18,
-        "high_coupling_members": 10
-      },
-      "unchanged": [
-        "缝合模块接线面 35 / 46 / 49 三者逐字不变（新增面住在既有引擎体内，不新增接缝模块）",
-        "分诊面 32 / 18 / 10 三者逐字不变（新增两个成员未跨过 80 行阈值，耦合分布不变）",
-        "域账 10 条逐条在场（仅随总量平移）"
-      ],
-      "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉；本轮把快照恢复整条流程从面板下沉进引擎（新增成员 2 个、位于既有类体内），不改 index.js 的结构形状。"
-    }
+ "file": "tests/audit/host_beast_baseline.json",
+ "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
+ "measured_at": "v3.248.0",
+ "rebuilds": {
+  "v3.233.0": {
+   "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
+   "readings": {
+    "total_lines": 16980,
+    "member_count": 560,
+    "top5_lines": 3684,
+    "top5_pct": 21.7,
+    "top40_lines": 8711,
+    "top40_pct": 51.3,
+    "prefix_rule_coverage_lines": 4223,
+    "prefix_rule_coverage_pct": 24.9,
+    "unclassified_lines": 11926,
+    "seam_distinct_modules": 34,
+    "seam_reference_sites": 45,
+    "seam_call_shape_sites": 48,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 10
+   },
+   "unchanged": [
+    "域账 10 条的成员数与行数分布同形（仅随总量平移）",
+    "缝合模块接线面 34 / 45 / 48 三者逐字不变",
+    "分诊面 32 / 18 / 10 三者逐字不变"
+   ],
+   "not_done": "本版不动 index.js 的结构（只多一个与既有 _evidenceWorkbench() 同形的读数方法）；「按域拆」的结论不受影响：TOP1 仍是生命周期接线 onMessageReceived 1217 行 / 外部引用 1 次"
   },
-  "node_version": "v24.18.0",
-  "probe": "tests/audit/host_beast_probe.cjs",
-  "caliber": [
-    "行数按**物理行**（含注释与空行）—— 「文件多大」是编辑器/加载器的体验，不是逻辑量。",
-    "成员切分按**8 空格缩进的成员签名**（类体 4 + 成员 8）。★ 首版按 4 空格切，只切出 4 个方法、89.5% 落进「未归类」——那是在切 `if (` 与 `const X = …`，不是切方法（见 corrections[0]）。",
-    "域分组按「名字前缀 + 10 条显式登记表」——显式表可复算、可与作者意图对齐；聚类算法在「能不能搬走」这个问题上不可用。",
-    "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
-  ],
-  "readings": {
+  "v3.234.0": {
+   "reason": "v3.234.0 睡眠语义唤醒落在 sleep-awaken.js + index.js 接线（取库口 _sleepAwakenLib、recallMemory 内语义唤醒块、config 默认值键、settings-ui 开关）：index.js 新增 41 行 ⇒ 行数 16980→17021、成员数 560→560（接线写在既有成员内部，不新增成员）、接缝模块 34→35 / 引用点 45→46 / 调用形态 48→49",
+   "readings": {
+    "total_lines": 17021,
+    "member_count": 560,
+    "top5_lines": 3715,
+    "top5_pct": 21.8,
+    "top40_lines": 8752,
+    "top40_pct": 51.4,
+    "prefix_rule_coverage_lines": 4254,
+    "prefix_rule_coverage_pct": 25.0,
+    "unclassified_lines": 11936,
+    "seam_distinct_modules": 35,
+    "seam_reference_sites": 46,
+    "seam_call_shape_sites": 49,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 10
+   },
+   "unchanged": [
+    "分诊面 32 / 18 / 10 三者逐字不变（接线不新增超大成员，也未改变耦合分布）",
+    "方法级成员切分口径与成员总数同源（8 空格缩进 + 控制流关键字排除），实测 560 成员",
+    "域账 10 条逐条在场（仅随总量平移）"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。形态决策（能不能按域拆）沿用 v3.233.0 的按读数否掉。"
+  },
+  "v3.235.0": {
+   "reason": "v3.235.0 R4-A 回滚预览（dry-run）落在 ledger-replay.js（只读预览面 previewDrop / previewShift / previewLine / DROP_NOTHING + 形状扫描，**不新增 index.js 的取库口**，复用既有 _ledgerReplayLib）+ index.js 宿主接线（config 默认键 rollbackPreviewEnabled、新方法 previewFloorRollback、删楼点先预告后破坏、诊断行、构造期初始化）：index.js 新增 52 行、新成员 1 个（previewFloorRollback）⇒ 行数 17021→17073、成员 560→561、TOP5 占比 21.8%→21.9%、覆盖率 25.0%→25.0%",
+   "readings": {
+    "total_lines": 17073,
+    "member_count": 561,
+    "top5_lines": 3735,
+    "top5_pct": 21.9,
+    "top40_lines": 8779,
+    "top40_pct": 51.4,
+    "prefix_rule_coverage_lines": 4274,
+    "prefix_rule_coverage_pct": 25.0,
+    "unclassified_lines": 11968,
+    "seam_distinct_modules": 35,
+    "seam_reference_sites": 46,
+    "seam_call_shape_sites": 49,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 10
+   },
+   "unchanged": [
+    "缝合模块接线面 35 / 46 / 49 三者逐字不变（新增预览面住在既有 ledger-replay.js 里，不新增接缝模块）",
+    "分诊面 32 / 18 / 10 三者逐字不变（新增 previewFloorRollback 未跨过 80 行阈值，耦合分布不变）",
+    "域账 10 条逐条在场（仅随总量平移）"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉；本轮新增的只读预览面（R4-A）不改 index.js 的结构形状（新成员 1 个、位于既有类体内）。"
+  },
+  "v3.236.0": {
+   "reason": "v3.236.0 R4-B 快照恢复收编单真源（restoreFromSnapshot 引擎侧两阶段 + restoreSnapshotFlow 流程入口 + snapshotRestoreMenu 纯函数 + snapshotClearCoverage 三态 everRestored + clearRuntimeMemory 清空面逐面登记+ _snapshotAnchorOf 会话身份锚）落在 index.js：新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）⇒ 行数 17073 → 17389、成员 561 → 567、TOP5 占比 21.9% → 21.6%、覆盖率 25.0% → 24.7%",
+   "readings": {
     "total_lines": 17389,
     "member_count": 567,
     "top5_lines": 3764,
@@ -132,470 +99,537 @@
     "members_over_80_lines": 32,
     "low_coupling_members": 18,
     "high_coupling_members": 10
+   },
+   "unchanged": [
+    "缝合模块接线面 35 / 46 / 49 三者逐字不变（新增面住在既有引擎体内，不新增接缝模块）",
+    "分诊面 32 / 18 / 10 三者逐字不变（新增两个成员未跨过 80 行阈值，耦合分布不变）",
+    "域账 10 条逐条在场（仅随总量平移）"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉；本轮把快照恢复整条流程从面板下沉进引擎（新增成员 2 个、位于既有类体内），不改 index.js 的结构形状。"
   },
-  "domains": [
-    {
-      "domain": "（未归类）",
-      "members": 511,
-      "lines": 12255,
-      "lines_pct": 70.5,
-      "outside_refs": 3521,
-      "internal_refs": 5697,
-      "outside_ref_share_pct": 38.2
-    },
-    {
-      "domain": "宿主事件接线",
-      "members": 3,
-      "lines": 1749,
-      "lines_pct": 10.1,
-      "outside_refs": 1,
-      "internal_refs": 74,
-      "outside_ref_share_pct": 1.3
-    },
-    {
-      "domain": "诊断与导出",
-      "members": 27,
-      "lines": 1159,
-      "lines_pct": 6.7,
-      "outside_refs": 443,
-      "internal_refs": 2381,
-      "outside_ref_share_pct": 15.7
-    },
-    {
-      "domain": "召回与注入",
-      "members": 11,
-      "lines": 885,
-      "lines_pct": 5.1,
-      "outside_refs": 1,
-      "internal_refs": 58,
-      "outside_ref_share_pct": 1.7
-    },
-    {
-      "domain": "桥/快照出口",
-      "members": 2,
-      "lines": 211,
-      "lines_pct": 1.2,
-      "outside_refs": 1,
-      "internal_refs": 6,
-      "outside_ref_share_pct": 14.3
-    },
-    {
-      "domain": "配置与持久化",
-      "members": 3,
-      "lines": 138,
-      "lines_pct": 0.8,
-      "outside_refs": 2,
-      "internal_refs": 14,
-      "outside_ref_share_pct": 12.5
-    },
-    {
-      "domain": "世界账本读取",
-      "members": 2,
-      "lines": 67,
-      "lines_pct": 0.4,
-      "outside_refs": 4,
-      "internal_refs": 18,
-      "outside_ref_share_pct": 18.2
-    },
-    {
-      "domain": "承诺账本",
-      "members": 5,
-      "lines": 61,
-      "lines_pct": 0.4,
-      "outside_refs": 4,
-      "internal_refs": 96,
-      "outside_ref_share_pct": 4
-    },
-    {
-      "domain": "事件链/完整性",
-      "members": 2,
-      "lines": 32,
-      "lines_pct": 0.2,
-      "outside_refs": 0,
-      "internal_refs": 4,
-      "outside_ref_share_pct": 0
-    },
-    {
-      "domain": "业务状态面",
-      "members": 1,
-      "lines": 1,
-      "lines_pct": 0,
-      "outside_refs": 3,
-      "internal_refs": 0,
-      "outside_ref_share_pct": 100
-    }
+  "v3.248.0": {
+   "reason": "v3.248.0 证据面契约门禁 + 违规结构化出口（计划 #11 / #12 / #21）落在 index.js：`_recordLedgerViolations` 裁剪分支新增 `_ledgerViolationsDropped` 累记、新增 `_ledgerViolationReport` / `_ledgerViolationMarkdown` 两个成员、`_ledgerViolationSummary` 改为 report 的派生读数、`exportMemoryReport` 接读侧 ⇒ 行数 17389 → 17751、成员 567 → 583、TOP5 占比 21.6% → 21.2%、覆盖率 24.7% → 24.3%",
+   "readings": {
+    "total_lines": 17751,
+    "member_count": 583,
+    "top5_lines": 3764,
+    "top5_pct": 21.2,
+    "top40_lines": 8905,
+    "top40_pct": 50.2,
+    "prefix_rule_coverage_lines": 4320,
+    "prefix_rule_coverage_pct": 24.3,
+    "unclassified_lines": 12600,
+    "seam_distinct_modules": 36,
+    "seam_reference_sites": 48,
+    "seam_call_shape_sites": 51,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`（1228 行 / 外部引用 1 次）—— 「低外部引用 ≠ 低耦合」这条读数据点未变",
+    "TOP40 里同名成员仍存在（`constructor` / `import`）—— 「引用读数只能当上界」这条读数据点未变",
+    "分诊面 `total_over_threshold` 仍为 32（本版新增的三个成员都不足 80 行、不进分诊表；唯一触到 TOP40 的是 `exportMemoryReport`，由 332 涨到 349 行）",
+    "域账 10 条逐条在场（仅随总量平移）"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。★ 本版**唯一触到 TOP40 的行动**是把 `exportMemoryReport` 加了 17 行读侧接线（接 `_ledgerViolationMarkdown`）——这正是本基线 v3.233.0 那段话说的「下一次抬版只要碰过 index.js 就必红」：而「成员多了 17 行」本身不是缺陷，基线的四件面（读数 / 口径 / 形状 / 没做什么）都不因此改口径。"
+  }
+ },
+ "node_version": "v24.18.0",
+ "probe": "tests/audit/host_beast_probe.cjs",
+ "caliber": [
+  "行数按**物理行**（含注释与空行）—— 「文件多大」是编辑器/加载器的体验，不是逻辑量。",
+  "成员切分按**8 空格缩进的成员签名**（类体 4 + 成员 8）。★ 首版按 4 空格切，只切出 4 个方法、89.5% 落进「未归类」——那是在切 `if (` 与 `const X = …`，不是切方法（见 corrections[0]）。",
+  "域分组按「名字前缀 + 10 条显式登记表」——显式表可复算、可与作者意图对齐；聚类算法在「能不能搬走」这个问题上不可用。",
+  "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
+ ],
+ "readings": {
+  "total_lines": 17751,
+  "member_count": 583,
+  "top5_lines": 3764,
+  "top5_pct": 21.2,
+  "top40_lines": 8905,
+  "top40_pct": 50.2,
+  "prefix_rule_coverage_lines": 4320,
+  "prefix_rule_coverage_pct": 24.3,
+  "unclassified_lines": 12600,
+  "seam_distinct_modules": 36,
+  "seam_reference_sites": 48,
+  "seam_call_shape_sites": 51,
+  "members_over_80_lines": 32,
+  "low_coupling_members": 18,
+  "high_coupling_members": 11
+ },
+ "domains": [
+  {
+   "domain": "（未归类）",
+   "members": 527,
+   "lines": 12600,
+   "lines_pct": 71,
+   "outside_refs": 3649,
+   "internal_refs": 5750,
+   "outside_ref_share_pct": 38.8
+  },
+  {
+   "domain": "宿主事件接线",
+   "members": 3,
+   "lines": 1749,
+   "lines_pct": 9.9,
+   "outside_refs": 1,
+   "internal_refs": 74,
+   "outside_ref_share_pct": 1.3
+  },
+  {
+   "domain": "诊断与导出",
+   "members": 27,
+   "lines": 1176,
+   "lines_pct": 6.6,
+   "outside_refs": 443,
+   "internal_refs": 2382,
+   "outside_ref_share_pct": 15.7
+  },
+  {
+   "domain": "召回与注入",
+   "members": 11,
+   "lines": 885,
+   "lines_pct": 5,
+   "outside_refs": 1,
+   "internal_refs": 58,
+   "outside_ref_share_pct": 1.7
+  },
+  {
+   "domain": "桥/快照出口",
+   "members": 2,
+   "lines": 211,
+   "lines_pct": 1.2,
+   "outside_refs": 1,
+   "internal_refs": 6,
+   "outside_ref_share_pct": 14.3
+  },
+  {
+   "domain": "配置与持久化",
+   "members": 3,
+   "lines": 138,
+   "lines_pct": 0.8,
+   "outside_refs": 2,
+   "internal_refs": 14,
+   "outside_ref_share_pct": 12.5
+  },
+  {
+   "domain": "世界账本读取",
+   "members": 2,
+   "lines": 67,
+   "lines_pct": 0.4,
+   "outside_refs": 4,
+   "internal_refs": 18,
+   "outside_ref_share_pct": 18.2
+  },
+  {
+   "domain": "承诺账本",
+   "members": 5,
+   "lines": 61,
+   "lines_pct": 0.3,
+   "outside_refs": 4,
+   "internal_refs": 96,
+   "outside_ref_share_pct": 4
+  },
+  {
+   "domain": "事件链/完整性",
+   "members": 2,
+   "lines": 32,
+   "lines_pct": 0.2,
+   "outside_refs": 0,
+   "internal_refs": 4,
+   "outside_ref_share_pct": 0
+  },
+  {
+   "domain": "业务状态面",
+   "members": 1,
+   "lines": 1,
+   "lines_pct": 0,
+   "outside_refs": 3,
+   "internal_refs": 0,
+   "outside_ref_share_pct": 100
+  }
+ ],
+ "biggest_members_top40": [
+  {
+   "name": "onMessageReceived",
+   "lines": 1228,
+   "outside_refs": 1
+  },
+  {
+   "name": "selfCheck",
+   "lines": 748,
+   "outside_refs": 10
+  },
+  {
+   "name": "recallMemory",
+   "lines": 656,
+   "outside_refs": 1
+  },
+  {
+   "name": "buildInjection",
+   "lines": 629,
+   "outside_refs": 9
+  },
+  {
+   "name": "onBeforeGeneration",
+   "lines": 503,
+   "outside_refs": 0
+  },
+  {
+   "name": "registerEvents",
+   "lines": 379,
+   "outside_refs": 0
+  },
+  {
+   "name": "exportMemoryReport",
+   "lines": 349,
+   "outside_refs": 1
+  },
+  {
+   "name": "constructor",
+   "lines": 331,
+   "outside_refs": 8
+  },
+  {
+   "name": "resyncAfterDeletion",
+   "lines": 231,
+   "outside_refs": 0
+  },
+  {
+   "name": "restoreFromPayload",
+   "lines": 212,
+   "outside_refs": 11
+  },
+  {
+   "name": "import",
+   "lines": 206,
+   "outside_refs": 15
+  },
+  {
+   "name": "rollbackFloor",
+   "lines": 202,
+   "outside_refs": 8
+  },
+  {
+   "name": "buildBridgeSnapshot",
+   "lines": 196,
+   "outside_refs": 1
+  },
+  {
+   "name": "import",
+   "lines": 188,
+   "outside_refs": 15
+  },
+  {
+   "name": "constructor",
+   "lines": 187,
+   "outside_refs": 8
+  },
+  {
+   "name": "optimizeMemory",
+   "lines": 170,
+   "outside_refs": 0
+  },
+  {
+   "name": "refresh",
+   "lines": 161,
+   "outside_refs": 9
+  },
+  {
+   "name": "save",
+   "lines": 157,
+   "outside_refs": 15
+  },
+  {
+   "name": "feedThinking",
+   "lines": 144,
+   "outside_refs": 0
+  },
+  {
+   "name": "extractMemoryWithLLM",
+   "lines": 142,
+   "outside_refs": 0
+  },
+  {
+   "name": "toInjection",
+   "lines": 132,
+   "outside_refs": 0
+  },
+  {
+   "name": "showPanel",
+   "lines": 127,
+   "outside_refs": 0
+  },
+  {
+   "name": "_absorbFactVersions",
+   "lines": 124,
+   "outside_refs": 0
+  },
+  {
+   "name": "applyCarryover",
+   "lines": 123,
+   "outside_refs": 1
+  },
+  {
+   "name": "loadConfig",
+   "lines": 119,
+   "outside_refs": 0
+  },
+  {
+   "name": "getDegradationLedger",
+   "lines": 114,
+   "outside_refs": 0
+  },
+  {
+   "name": "importCarryoverSeed",
+   "lines": 113,
+   "outside_refs": 0
+  },
+  {
+   "name": "maybeFold",
+   "lines": 111,
+   "outside_refs": 0
+  },
+  {
+   "name": "_maintenancePipeline",
+   "lines": 110,
+   "outside_refs": 0
+  },
+  {
+   "name": "backfillFloors",
+   "lines": 107,
+   "outside_refs": 1
+  },
+  {
+   "name": "packCarryover",
+   "lines": 85,
+   "outside_refs": 1
+  },
+  {
+   "name": "import",
+   "lines": 82,
+   "outside_refs": 15
+  },
+  {
+   "name": "clearRuntimeMemory",
+   "lines": 78,
+   "outside_refs": 1
+  },
+  {
+   "name": "rebuildItems",
+   "lines": 71,
+   "outside_refs": 8
+  },
+  {
+   "name": "generateCarryoverSeed",
+   "lines": 70,
+   "outside_refs": 0
+  },
+  {
+   "name": "_runProjections",
+   "lines": 69,
+   "outside_refs": 1
+  },
+  {
+   "name": "hybridMerge",
+   "lines": 67,
+   "outside_refs": 0
+  },
+  {
+   "name": "_recomputeCoverage",
+   "lines": 62,
+   "outside_refs": 0
+  },
+  {
+   "name": "archiveCoveredFloors",
+   "lines": 62,
+   "outside_refs": 0
+  },
+  {
+   "name": "rerank",
+   "lines": 60,
+   "outside_refs": 5
+  }
+ ],
+ "split_candidates": {
+  "threshold_lines": 80,
+  "total_over_threshold": 32,
+  "low_coupling_non_lifecycle": 18,
+  "high_coupling_non_lifecycle": 11,
+  "low_coupling_examples": [
+   {
+    "name": "recallMemory",
+    "lines": 656,
+    "outside_refs": 1,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "exportMemoryReport",
+    "lines": 349,
+    "outside_refs": 1,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "resyncAfterDeletion",
+    "lines": 231,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "buildBridgeSnapshot",
+    "lines": 196,
+    "outside_refs": 1,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "optimizeMemory",
+    "lines": 170,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "feedThinking",
+    "lines": 144,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "extractMemoryWithLLM",
+    "lines": 142,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "toInjection",
+    "lines": 132,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "showPanel",
+    "lines": 127,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "_absorbFactVersions",
+    "lines": 124,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "applyCarryover",
+    "lines": 123,
+    "outside_refs": 1,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "loadConfig",
+    "lines": 119,
+    "outside_refs": 0,
+    "is_host_lifecycle": false
+   }
   ],
-  "biggest_members_top40": [
-    {
-      "name": "onMessageReceived",
-      "lines": 1228,
-      "outside_refs": 1
-    },
-    {
-      "name": "selfCheck",
-      "lines": 748,
-      "outside_refs": 10
-    },
-    {
-      "name": "recallMemory",
-      "lines": 656,
-      "outside_refs": 1
-    },
-    {
-      "name": "buildInjection",
-      "lines": 629,
-      "outside_refs": 9
-    },
-    {
-      "name": "onBeforeGeneration",
-      "lines": 503,
-      "outside_refs": 0
-    },
-    {
-      "name": "registerEvents",
-      "lines": 379,
-      "outside_refs": 0
-    },
-    {
-      "name": "exportMemoryReport",
-      "lines": 332,
-      "outside_refs": 1
-    },
-    {
-      "name": "constructor",
-      "lines": 331,
-      "outside_refs": 8
-    },
-    {
-      "name": "resyncAfterDeletion",
-      "lines": 231,
-      "outside_refs": 0
-    },
-    {
-      "name": "restoreFromPayload",
-      "lines": 212,
-      "outside_refs": 6
-    },
-    {
-      "name": "import",
-      "lines": 206,
-      "outside_refs": 15
-    },
-    {
-      "name": "rollbackFloor",
-      "lines": 202,
-      "outside_refs": 8
-    },
-    {
-      "name": "buildBridgeSnapshot",
-      "lines": 196,
-      "outside_refs": 1
-    },
-    {
-      "name": "import",
-      "lines": 188,
-      "outside_refs": 15
-    },
-    {
-      "name": "constructor",
-      "lines": 187,
-      "outside_refs": 8
-    },
-    {
-      "name": "optimizeMemory",
-      "lines": 170,
-      "outside_refs": 0
-    },
-    {
-      "name": "refresh",
-      "lines": 161,
-      "outside_refs": 9
-    },
-    {
-      "name": "save",
-      "lines": 157,
-      "outside_refs": 13
-    },
-    {
-      "name": "feedThinking",
-      "lines": 144,
-      "outside_refs": 0
-    },
-    {
-      "name": "extractMemoryWithLLM",
-      "lines": 142,
-      "outside_refs": 0
-    },
-    {
-      "name": "toInjection",
-      "lines": 132,
-      "outside_refs": 0
-    },
-    {
-      "name": "showPanel",
-      "lines": 127,
-      "outside_refs": 0
-    },
-    {
-      "name": "_absorbFactVersions",
-      "lines": 124,
-      "outside_refs": 0
-    },
-    {
-      "name": "applyCarryover",
-      "lines": 123,
-      "outside_refs": 1
-    },
-    {
-      "name": "loadConfig",
-      "lines": 119,
-      "outside_refs": 0
-    },
-    {
-      "name": "getDegradationLedger",
-      "lines": 114,
-      "outside_refs": 0
-    },
-    {
-      "name": "importCarryoverSeed",
-      "lines": 113,
-      "outside_refs": 0
-    },
-    {
-      "name": "maybeFold",
-      "lines": 111,
-      "outside_refs": 0
-    },
-    {
-      "name": "_maintenancePipeline",
-      "lines": 110,
-      "outside_refs": 0
-    },
-    {
-      "name": "backfillFloors",
-      "lines": 107,
-      "outside_refs": 1
-    },
-    {
-      "name": "packCarryover",
-      "lines": 85,
-      "outside_refs": 1
-    },
-    {
-      "name": "import",
-      "lines": 82,
-      "outside_refs": 15
-    },
-    {
-      "name": "clearRuntimeMemory",
-      "lines": 78,
-      "outside_refs": 1
-    },
-    {
-      "name": "rebuildItems",
-      "lines": 71,
-      "outside_refs": 8
-    },
-    {
-      "name": "generateCarryoverSeed",
-      "lines": 70,
-      "outside_refs": 0
-    },
-    {
-      "name": "_runProjections",
-      "lines": 69,
-      "outside_refs": 1
-    },
-    {
-      "name": "hybridMerge",
-      "lines": 67,
-      "outside_refs": 0
-    },
-    {
-      "name": "_recomputeCoverage",
-      "lines": 62,
-      "outside_refs": 0
-    },
-    {
-      "name": "archiveCoveredFloors",
-      "lines": 62,
-      "outside_refs": 0
-    },
-    {
-      "name": "rerank",
-      "lines": 60,
-      "outside_refs": 5
-    }
-  ],
-  "split_candidates": {
-    "threshold_lines": 80,
-    "total_over_threshold": 32,
-    "low_coupling_non_lifecycle": 18,
-    "high_coupling_non_lifecycle": 10,
-    "low_coupling_examples": [
-      {
-        "name": "recallMemory",
-        "lines": 656,
-        "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "exportMemoryReport",
-        "lines": 332,
-        "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "resyncAfterDeletion",
-        "lines": 231,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "buildBridgeSnapshot",
-        "lines": 196,
-        "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "optimizeMemory",
-        "lines": 170,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "feedThinking",
-        "lines": 144,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "extractMemoryWithLLM",
-        "lines": 142,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "toInjection",
-        "lines": 132,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "showPanel",
-        "lines": 127,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "_absorbFactVersions",
-        "lines": 124,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "applyCarryover",
-        "lines": 123,
-        "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "loadConfig",
-        "lines": 119,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      }
-    ],
-    "high_coupling_examples": [
-      {
-        "name": "selfCheck",
-        "lines": 748,
-        "outside_refs": 10,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "buildInjection",
-        "lines": 629,
-        "outside_refs": 9,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "constructor",
-        "lines": 331,
-        "outside_refs": 8,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "import",
-        "lines": 206,
-        "outside_refs": 15,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "rollbackFloor",
-        "lines": 202,
-        "outside_refs": 8,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "import",
-        "lines": 188,
-        "outside_refs": 15,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "constructor",
-        "lines": 187,
-        "outside_refs": 8,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "refresh",
-        "lines": 161,
-        "outside_refs": 9,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "save",
-        "lines": 157,
-        "outside_refs": 13,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "import",
-        "lines": 82,
-        "outside_refs": 15,
-        "is_host_lifecycle": false
-      }
-    ]
-  },
-  "shape": {
-    "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.6%、TOP40 占 51.1%；10 条前缀域规则只覆盖 24.7%，剩下 75.3% 落在规则之外。",
-    "verdict": "未观察到「可以按域整体搬走」的形态：超大成员多数是生命周期接线本身，长尾成员则互相稠密互调。"
-  },
-  "split_verdict": {
-    "question": "index.js 能不能按域拆走一块？",
-    "answer": "**本版判定：不拆（按读数否掉，不是按感觉）**。交付分诊与判据，形态决策留给后续版本。",
-    "reasons": [
-      "**最大的几个成员是「生命周期接线本身」，不是可搬的功能块**：`onMessageReceived` 1228 行 / `onBeforeGeneration` 503 行 / `registerEvents` 379 行（v3.236.0 重建后三者逐条在场）。搬它们＝把入口从宿主事件上摘下来；而它们的**外部引用数极低**（onMessageReceived 仅 1 次）—— 这正是「低外部引用 ≠ 低耦合」的典型误读面：引用数只看别人叫不叫它，看不见它是谁的**唯一入口**。故分诊表专设 `is_host_lifecycle` 一列把这类排除。",
-      "**引用读数只能当上界，不能当判据**：同名方法在不同类上出现多次（`import` 24 处 / `constructor` 36 处），按名字聚合会把它们混在一起（`import` 合计 15 次外部引用，那不是某一个方法被叫 15 次）。要精确必须做 AST 级归属，而本仓死代码口径**明确是文本形态、不解析 AST**（O-6/P-1 已立）。",
-      "**内部互调稠密**：规则外成员（未归类域 12255 行）内部互调 **5697** 处 —— 拆一个域要同时改它与其余全部调用点；而本仓 41 道审计基建（`tests/audit/scan_*.mjs`，v3.236.0 实测 41 个）里**没有任何一道**检查「跨模块的成员可见性」（逐文件实测：提到「可见性」的三道分别是故障可见性 / 报告可见性 / 状态可见性，无一道看 `this` 归属），拆错的形态是**运行期 this 丢失**（只有实机能看出来，无头门禁看不见）。",
-      "**有读数支持的第一刀不是「按域拆」，而是「先立规模与成员预算判据」**：与 O-5（性能先立基线）/ P-3（快照先量再定）同一条口径纪律 —— 任何拆分都要先有「拆之前多大、拆之后多大、哪个成员超预算」的可比读数，否则拆完不知道是变清楚了，还是只是把 17389 行挪成了三个文件。本版把这件事立成判据（含每个大成员的逐条在场点名）。"
-    ],
-    "only_axis_with_evidence": "成员级预算（over-80 行 32 个成员逐条点名）+ 文件规模上界；本版**只立判据不动手**。"
-  },
-  "corrections": [
-    "**探针首版把缩进层级搞错了**：按 4 空格切分成员，结果只切出 4 个方法、89.5% 落进「未归类」——那是把 4 空格层级的 `if (…) {` 与 `const X = …` 当成了方法签名。改为 8 空格（类体 4 + 成员 8）并显式排除控制流关键字后，切出 559 个成员。**读数错的时候，它看起来也像读数**（一张漂亮的 89.5% 占比表），故套件 B1 专设「成员数须落在合理量级」的自证判据。",
-    "**缝合模块接线面首版算出 0**：用 `_moduleLib\\([^)]*?'([^']+\\.js)'\\)` 匹配，「遇右括号即止」——而真实调用是 `_moduleLib(() => window.LonShaXxx, 'scene-book.js')`，第一参箭头函数里就有 `)`。改成匹配完整调用形状后为 34 个模块 / 45 个引用点。**假零比假高更危险**：它安静、且看起来像「没有耦合」。",
-    "`clock` 域在逐面读数里为 9 字节/present=false（合成宿主没装 `clock.export`）—— 与快照基线里 `projection` 面 0 字节同一口径，**不得**读成「这一面没用」。"
-  ],
-  "not_done": [
-    "**未拆任何东西**：本版只做分诊与立判据。`index.js` 产品行为零变化（**本读数已于 v3.233.0 按当版 index.js 重建**：16922 → 16980 行、成员 559 → 560、覆盖率 24.7% → 24.9%，两次读数逐条记在 `rebuilds` 面；「文件到底改没改」不在本基线的证据面内，交给 git 面）。",
-    "**未做 AST 级归属**：外部引用数按名字统计，同名方法会混（见 corrections[1]）；本仓死代码口径是文本形态，本版沿用同一口径而不是偷偷换更强的工具 —— 换工具应当单独立一版。",
-    "**未覆盖运行期可见性**：拆分的真正风险是「跨模块 this 丢失」，那属于实机面，无头门禁看不见（已登记在 docs 的运行时边界）。",
-    "**未排拆分优先级**：分诊表给出「行数 / 外部引用 / 是否生命周期」三个读数，不排优先级 —— 排优先级要一并看功能风险，那不在读数里。",
-    "（v3.234.0）睡眠语义唤醒接线后按当版 index.js 重建读数：16980 → 17021 行；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
-    "（v3.235.0）R4-A 回滚预览接线后按当版 index.js 重建读数：17021 → 17073 行、成员 560 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
-    "（v3.236.0）R4-B 快照恢复收编单真源接线后按当版 index.js 重建读数：17073 → 17389 行、成员 561 → 567；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
+  "high_coupling_examples": [
+   {
+    "name": "selfCheck",
+    "lines": 748,
+    "outside_refs": 10,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "buildInjection",
+    "lines": 629,
+    "outside_refs": 9,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "constructor",
+    "lines": 331,
+    "outside_refs": 8,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "restoreFromPayload",
+    "lines": 212,
+    "outside_refs": 11,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "import",
+    "lines": 206,
+    "outside_refs": 15,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "rollbackFloor",
+    "lines": 202,
+    "outside_refs": 8,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "import",
+    "lines": 188,
+    "outside_refs": 15,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "constructor",
+    "lines": 187,
+    "outside_refs": 8,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "refresh",
+    "lines": 161,
+    "outside_refs": 9,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "save",
+    "lines": 157,
+    "outside_refs": 15,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "import",
+    "lines": 82,
+    "outside_refs": 15,
+    "is_host_lifecycle": false
+   }
   ]
+ },
+ "shape": {
+  "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 21.2%、TOP40 占 50.2%；10 条前缀域规则只覆盖 24.3%，剩下 75.7% 落在规则之外。",
+  "verdict": "未观察到「可以按域整体搬走」的形态：超大成员多数是生命周期接线本身，长尾成员则互相稠密互调。"
+ },
+ "split_verdict": {
+  "question": "index.js 能不能按域拆走一块？",
+  "answer": "**本版判定：不拆（按读数否掉，不是按感觉）**。交付分诊与判据，形态决策留给后续版本。",
+  "reasons": [
+   "**最大的几个成员是「生命周期接线本身」，不是可搬的功能块**：`onMessageReceived` 1228 行 / `onBeforeGeneration` 503 行 / `registerEvents` 379 行（v3.236.0 重建后三者逐条在场）。搬它们＝把入口从宿主事件上摘下来；而它们的**外部引用数极低**（onMessageReceived 仅 1 次）—— 这正是「低外部引用 ≠ 低耦合」的典型误读面：引用数只看别人叫不叫它，看不见它是谁的**唯一入口**。故分诊表专设 `is_host_lifecycle` 一列把这类排除。",
+   "**引用读数只能当上界，不能当判据**：同名方法在不同类上出现多次（`import` 24 处 / `constructor` 36 处），按名字聚合会把它们混在一起（`import` 合计 15 次外部引用，那不是某一个方法被叫 15 次）。要精确必须做 AST 级归属，而本仓死代码口径**明确是文本形态、不解析 AST**（O-6/P-1 已立）。",
+   "**内部互调稠密**：规则外成员（未归类域 12255 行）内部互调 **5697** 处 —— 拆一个域要同时改它与其余全部调用点；而本仓 41 道审计基建（`tests/audit/scan_*.mjs`，v3.236.0 实测 41 个）里**没有任何一道**检查「跨模块的成员可见性」（逐文件实测：提到「可见性」的三道分别是故障可见性 / 报告可见性 / 状态可见性，无一道看 `this` 归属），拆错的形态是**运行期 this 丢失**（只有实机能看出来，无头门禁看不见）。",
+   "**有读数支持的第一刀不是「按域拆」，而是「先立规模与成员预算判据」**：与 O-5（性能先立基线）/ P-3（快照先量再定）同一条口径纪律 —— 任何拆分都要先有「拆之前多大、拆之后多大、哪个成员超预算」的可比读数，否则拆完不知道是变清楚了，还是只是把 17389 行挪成了三个文件。本版把这件事立成判据（含每个大成员的逐条在场点名）。"
+  ],
+  "only_axis_with_evidence": "成员级预算（over-80 行 32 个成员逐条点名）+ 文件规模上界；本版**只立判据不动手**。"
+ },
+ "corrections": [
+  "**探针首版把缩进层级搞错了**：按 4 空格切分成员，结果只切出 4 个方法、89.5% 落进「未归类」——那是把 4 空格层级的 `if (…) {` 与 `const X = …` 当成了方法签名。改为 8 空格（类体 4 + 成员 8）并显式排除控制流关键字后，切出 559 个成员。**读数错的时候，它看起来也像读数**（一张漂亮的 89.5% 占比表），故套件 B1 专设「成员数须落在合理量级」的自证判据。",
+  "**缝合模块接线面首版算出 0**：用 `_moduleLib\\([^)]*?'([^']+\\.js)'\\)` 匹配，「遇右括号即止」——而真实调用是 `_moduleLib(() => window.LonShaXxx, 'scene-book.js')`，第一参箭头函数里就有 `)`。改成匹配完整调用形状后为 34 个模块 / 45 个引用点。**假零比假高更危险**：它安静、且看起来像「没有耦合」。",
+  "`clock` 域在逐面读数里为 9 字节/present=false（合成宿主没装 `clock.export`）—— 与快照基线里 `projection` 面 0 字节同一口径，**不得**读成「这一面没用」。"
+ ],
+ "not_done": [
+  "**未拆任何东西**：本版只做分诊与立判据。`index.js` 产品行为零变化（**本读数已于 v3.233.0 按当版 index.js 重建**：16922 → 16980 行、成员 559 → 560、覆盖率 24.7% → 24.9%，两次读数逐条记在 `rebuilds` 面；「文件到底改没改」不在本基线的证据面内，交给 git 面）。",
+  "**未做 AST 级归属**：外部引用数按名字统计，同名方法会混（见 corrections[1]）；本仓死代码口径是文本形态，本版沿用同一口径而不是偷偷换更强的工具 —— 换工具应当单独立一版。",
+  "**未覆盖运行期可见性**：拆分的真正风险是「跨模块 this 丢失」，那属于实机面，无头门禁看不见（已登记在 docs 的运行时边界）。",
+  "**未排拆分优先级**：分诊表给出「行数 / 外部引用 / 是否生命周期」三个读数，不排优先级 —— 排优先级要一并看功能风险，那不在读数里。",
+  "（v3.234.0）睡眠语义唤醒接线后按当版 index.js 重建读数：16980 → 17021 行；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
+  "（v3.235.0）R4-A 回滚预览接线后按当版 index.js 重建读数：17021 → 17073 行、成员 560 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
+  "（v3.236.0）R4-B 快照恢复收编单真源接线后按当版 index.js 重建读数：17073 → 17389 行、成员 561 → 567；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
+  "（v3.248.0）证据面契约门禁 + 违规结构化出口接线后按当版 index.js 重建读数：17389 → 17751 行、成员 567 → 583；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
+ ]
 }

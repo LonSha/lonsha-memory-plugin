@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.247.0';
+    const VERSION = '3.248.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -5268,7 +5268,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                 for (const v of violations) {
                     this._ledgerViolations.push(Object.assign({ ts: ts, source: String(source || '?'), floor: Number(floor) || 0 }, v));
                 }
-                if (this._ledgerViolations.length > cap) this._ledgerViolations.splice(0, this._ledgerViolations.length - cap);
+                if (this._ledgerViolations.length > cap) {
+                    /* [v3.248.0 计划 #21] 裁剪必须**留痕**：环形账本此前只 `splice` 掉旧条目，
+                     *   外部读到的 total 永远 ≤ cap —— 「被裁掉多少」这一读数不存在，
+                     *   于是「面板显示 200 条」既可能是「一共就 200 条」也可能是「已经被裁了几千条」。
+                     *   两个含义相反的事实塌成同形，正是本仓治理过多轮的形态。故单记一个计数。 */
+                    const dropped = this._ledgerViolations.length - cap;
+                    this._ledgerViolations.splice(0, dropped);
+                    this._ledgerViolationsDropped = (Number(this._ledgerViolationsDropped) || 0) + dropped;
+                }
                 try { this.opLog?.log?.('item', 'validate', source, floor, `${violations.length} violations`); } catch (e) {}
                 if (this.config && this.config.config && this.config.config.ledgerWriteValidationDebug) {
                     console.warn(`[${PLUGIN_NAME}] 台账写入校验(${source}) 第${floor}楼:`, violations.map(v => (v.kind || '?') + ':' + (v.reason || (v.reasons || []).join('+'))).join('; '));
@@ -5276,21 +5284,98 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return violations.length;
             } catch (e) { errLog(e, 'ledgerViolations.record'); return 0; }
         }
-        /** [v3.154] 违规聚合摘要（诊断面板行：按 kind 计数 + top 原因） */
+        /** [v3.248.0 计划 #21] 违规**结构化出口**：门禁与外部消费者读这一份，不再各自去翻内部数组。
+         *
+         * 【为什么需要（本版实测）】到 v3.247.0 为止这条链上有三处**人读**读数
+         *   （`_ledgerViolations` 环形数组、`_ledgerViolationSummary()` 一行中文、debug 时的
+         *   console.warn），但**没有一个机器可读出口**：诊断面板只能贴一行中文，门禁无从判定
+         *   「有没有违规 / 是什么 kind」。于是「违规发生了」「没发生」「发生了但记录已被裁掉」
+         *   三者对外**同形** —— 正是本仓治理过多轮的形态。
+         * 【口径（与 config/silence-guard.js 同族纪律）】台账只记**计数与轮次身份**
+         *   （kind / reason / source / floor / 时间窗），**不记读数内容**（不复制条目正文、
+         *   不复制物品名）—— 记正文就会长出第二份真源，而它必然比原账先失真。
+         * 【dropped 为什么必须存在】环形账本裁剪后 `total` 恒 ≤ cap：若不记被裁数，
+         *   「正好 200 条」与「已经裁掉几千条」在外读数上完全同形。故 `_recordLedgerViolations`
+         *   每次裁剪累记 `_ledgerViolationsDropped`。
+         * @param {{top?:number}} [opts] top：reasons / sources / floors 各取前几名（默认 5）
+         * @returns {{version:number,total:number,capped:boolean,dropped:number,cap:number,
+         *   since:(number|null),until:(number|null),kinds:Array,reasons:Array,sources:Array,floors:Array}}
+         */
+        _ledgerViolationReport(opts) {
+            const topN = Math.max(1, Number(opts && opts.top) || 5);
+            const empty = { version: 1, total: 0, capped: false, dropped: 0, cap: 0, since: null, until: null, kinds: [], reasons: [], sources: [], floors: [] };
+            try {
+                const arr = Array.isArray(this._ledgerViolations) ? this._ledgerViolations : [];
+                const cfg = this.config && this.config.config;
+                const cap = Math.max(10, Number(cfg && cfg.ledgerViolationLogMax) || 200);
+                empty.cap = cap;
+                if (!arr.length) return empty;
+                const byKind = {}, byReason = {}, bySource = {}, byFloor = {};
+                let since = null, until = null;
+                for (const v of arr) {
+                    const k = (v && v.kind) ? String(v.kind) : 'unknown';
+                    byKind[k] = (byKind[k] || 0) + 1;
+                    const rs = (v && v.reason) ? [v.reason] : ((v && v.reasons) || []);
+                    for (const r of rs) { if (r) byReason[r] = (byReason[r] || 0) + 1; }
+                    const s = (v && v.source) ? String(v.source) : '?';
+                    bySource[s] = (bySource[s] || 0) + 1;
+                    const f = Number(v && v.floor);
+                    if (Number.isFinite(f)) byFloor[f] = (byFloor[f] || 0) + 1;
+                    const t = Number(v && v.ts);
+                    if (Number.isFinite(t)) {
+                        if (since === null || t < since) since = t;
+                        if (until === null || t > until) until = t;
+                    }
+                }
+                // 排序一律「计数降序 + 名字升序」：**稳定**，否则同一份账两次导出顺序不同，
+                //   下游做 diff（门禁/存档）会把「顺序变了」读成「内容变了」。
+                const rank = (m, keyName) => Object.keys(m)
+                    .map((key) => { const row = { n: m[key] }; row[keyName] = key; return row; })
+                    .sort((a, b) => (b.n - a.n) || String(a[keyName]).localeCompare(String(b[keyName]), 'en'))
+                    .slice(0, topN);
+                return {
+                    version: 1, total: arr.length, capped: arr.length >= cap,
+                    dropped: Number(this._ledgerViolationsDropped) || 0, cap: cap, since: since, until: until,
+                    kinds: rank(byKind, 'kind'), reasons: rank(byReason, 'reason'), sources: rank(bySource, 'source'),
+                    floors: Object.keys(byFloor)
+                        .map((f) => ({ floor: Number(f), n: byFloor[f] }))
+                        .sort((a, b) => (b.n - a.n) || (a.floor - b.floor)).slice(0, topN)
+                };
+            } catch (e) { errLog(e, 'ledgerViolations.report'); return empty; }
+        }
+        /** [v3.248.0] 违规汇总（Markdown，供人读 / 贴存档）。**只渲染，不另算** —— 数与 report 同源。 */
+        _ledgerViolationMarkdown(opts) {
+            try {
+                const r = this._ledgerViolationReport(opts);
+                const fmt = (rows, k) => (rows.length ? rows.map((x) => x[k] + '×' + x.n).join(' / ') : '—');
+                const span = (r.since && r.until) ? new Date(r.since).toISOString() + ' ~ ' + new Date(r.until).toISOString() : '—';
+                const cutNote = r.capped ? '（**已达上限 ' + r.cap + '**，历史已裁 ' + r.dropped + ' 条）' : (r.dropped ? '（历史已裁 ' + r.dropped + ' 条）' : '');
+                return [
+                    '### 台账写入违规（结构化导出）',
+                    '- 账内 ' + r.total + ' 条' + cutNote,
+                    '- kind：' + fmt(r.kinds, 'kind'),
+                    '- 主因：' + fmt(r.reasons, 'reason'),
+                    '- 来源：' + fmt(r.sources, 'source'),
+                    '- 楼层：' + (r.floors.length ? r.floors.map((x) => '#' + x.floor + '×' + x.n).join(' / ') : '—'),
+                    '- 时间窗：' + span,
+                    '',
+                    '> 口径：只记计数与轮次身份，不记读数内容（与 silence-guard 同族）。'
+                ].join('\n');
+            } catch (e) { errLog(e, 'ledgerViolations.markdown'); return ''; }
+        }
+        /** [v3.154] 违规聚合摘要（诊断面板一行）。
+         *  [v3.248.0] 改为 **report 的派生读数**：原实现自己再遍历一遍数组，
+         *   于是同一个数在「面板行」与「结构化出口」两处各算一份 —— 拆口径时必然漂移
+         *   （本仓 v3.246.0 收掉过同形的一份名册）。空账仍返回 `'0'`，与消费点契约一致。 */
         _ledgerViolationSummary() {
-            const arr = Array.isArray(this._ledgerViolations) ? this._ledgerViolations : [];
-            if (!arr.length) return '0';
-            const byKind = {};
-            const byReason = {};
-            for (const v of arr) {
-                const k = v && v.kind ? v.kind : 'unknown';
-                byKind[k] = (byKind[k] || 0) + 1;
-                const rs = (v && v.reason) ? [v.reason] : ((v && v.reasons) || []);
-                for (const r of rs) { if (r) byReason[r] = (byReason[r] || 0) + 1; }
-            }
-            const top = Object.keys(byReason).sort((a, b) => byReason[b] - byReason[a]).slice(0, 2);
-            const kindStr = Object.keys(byKind).map(k => `${k}×${byKind[k]}`).join('/');
-            return `${arr.length} 累计（${kindStr}）${top.length ? ' 主因: ' + top.map(r => r + '×' + byReason[r]).join(', ') : ''}`;
+            try {
+                const r = this._ledgerViolationReport({ top: 2 });
+                if (!r.total) return '0';
+                const kindStr = r.kinds.map((x) => x.kind + '×' + x.n).join('/');
+                const main = r.reasons.length ? ' 主因: ' + r.reasons.map((x) => x.reason + '×' + x.n).join(', ') : '';
+                const cut = r.capped ? ' 已裁' + r.dropped : '';
+                return r.total + ' 累计（' + kindStr + '）' + main + cut;
+            } catch (e) { return '—'; }
         }
         // [v3.36] 确定性物品键名归一（抄 baibai 确定性 id 理念）：
         // 剥离包裹的书名号《》、方括号【】[]、小括号（）()、引号等，NFKC 归一化并转小写
@@ -9974,6 +10059,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             push(`- 审计事件：${opLogStatsCompat(this).total} 条（${this.opLog?.auditSummary?.() || '无账本'}）`);
             push(`- 锁定事实：${(this.summary?.getLockedFacts?.() || []).length} 条`);
             push('');
+            /* [v3.248.0 计划 #21] 台账写入违规**结构化出口**的真实读侧。
+             *   【为什么放在这里】`_ledgerViolationReport/Markdown` 上线时是**零引用**方法
+             *   （被 scan_wiring 的 A7.1 当场抓到：方法 454 / 零引用 1）—— 本仓纪律：
+             *   写完没人调 = 等于没写。故本版同时把它接进「记忆全景报告」这个真实读侧，
+             *   而不是只留一个 API 等人来用。
+             *   【为什么只在有内容时输出】违规段对绝大多数用户永远是空 —— 无条件输出一个
+             *   空板块会让报告变长且把「没有违规」和「违规没被记录」混成同形（都是空白）。
+             *   故空账**整段不出现**，由诊断面板那一行的 `0` 承担「明确没有」的表述。 */
+            try {
+                const _lvArr = Array.isArray(this._ledgerViolations) ? this._ledgerViolations : [];
+                if (_lvArr.length) {
+                    push('## ⚠️ 台账写入违规');
+                    push('');
+                    push(this._ledgerViolationMarkdown({ top: 5 }));
+                    push('');
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.ledgerViolation'); }
             // [v3.64] 锁定事实板块（用户主权的铁律档案）
             const lfList = this.summary?.getLockedFacts?.() || [];
             if (lfList.length) {
