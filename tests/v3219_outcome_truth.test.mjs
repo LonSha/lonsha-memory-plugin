@@ -29,6 +29,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripComments } from './_audit_lib.mjs';
+import { breakSource } from './_break_kit.mjs';
 
 const R = process.cwd();
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
@@ -54,12 +55,6 @@ function blockOf(src, header) {
     assert.strictEqual(n, 1, '锚点必须唯一（恰中 1 次）：' + header + '（实 ' + n + ' 次）');
     return blockAt(src, at);
 }
-function breakSource(src, anchor, replacement) {
-    const n = src.split(anchor).length - 1;
-    assert.strictEqual(n, 1, '破坏锚点必须恰中 1 次：' + anchor.slice(0, 56) + '（实 ' + n + ' 次）');
-    return src.replace(anchor, replacement);
-}
-
 const HOST_METHODS = [
     '_injectionRecord(extra) {',
     '_injectionStage(payload) {',

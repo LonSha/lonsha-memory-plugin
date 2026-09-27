@@ -36,6 +36,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { breakSource } from './_break_kit.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -110,14 +111,6 @@ function jFreshness(mod) {
 }
 
 /** 破坏：真源码替换（锚点必须恰中 1 次，且必须真的改变源码） */
-function breakSource(from, to, tag) {
-    const hits = idxSrc.split(from).length - 1;
-    assert.equal(hits, 1, `锚点【${tag}】须在真源码中恰中 1 次（实 ${hits}）`);
-    const out = idxSrc.replace(from, to);
-    assert.notEqual(out, idxSrc, `破坏【${tag}】必须真的改变源码`);
-    return out;
-}
-
 /* ══════════ 1 真实例：同代导出 + 三态拦截 + 放行 ══════════ */
 test('1 导出期新鲜度：同代导出，切会话/回滚不导出，取不到判据时放行', () => {
     const j = jFreshness({ makeEngine });
@@ -174,7 +167,7 @@ test('3 兼容：独立实例直设缓存的路径仍导出（v3212 组 5b 的�
 
 /* ══════════ 4 负控制：真源码破坏 → 副本上同款真判据必须转红 ══════════ */
 test('4a 负控制：会话比对被摘掉 ⇒ 切会话后不再拦截（同款判据必须转红）', () => {
-    const broken = breakSource(
+    const broken = breakSource(idxSrc,
         "if (String(envChat || '') !== String(nowChatId || '')) {",
         "if (false) {",
         '会话比对');
@@ -185,7 +178,7 @@ test('4a 负控制：会话比对被摘掉 ⇒ 切会话后不再拦截（同款
 });
 
 test('4b 负控制：代数比对被摘掉 ⇒ 回滚后不再拦截（同款判据必须转红）', () => {
-    const broken = breakSource(
+    const broken = breakSource(idxSrc,
         'if (envRev !== nowRev) {',
         'if (false) {',
         '代数比对');
@@ -195,7 +188,7 @@ test('4b 负控制：代数比对被摘掉 ⇒ 回滚后不再拦截（同款判
 });
 
 test('4c 负控制：放行分支被改成「一律拦下」⇒ 独立实例路径被误伤（判据必须转红）', () => {
-    const broken = breakSource(
+    const broken = breakSource(idxSrc,
         "if (nowChatId === undefined) { this._projectionDropped = null; return env; }",
         "if (nowChatId === undefined) { this._projectionDropped = { reason: 'no-probe' }; return undefined; }",
         '放行分支');
@@ -205,6 +198,9 @@ test('4c 负控制：放行分支被改成「一律拦下」⇒ 独立实例路�
 
 /* ══════════ 5 工具自证：锚点必须唯一（防「破坏写了个假锚点」） ══════════ */
 test('5 工具自证：锚点不存在或不唯一时必须抛', () => {
+    /* [v3.247.0 留痕] 这一行的三参形态是**本意**：本组测的是「锚点打偏必须拒绝」，
+     *   故 src 故意不是 index.js（上面 4a/4b/4c 的三参形态则是「src 缺位」的残留）。
+     *   两者文本几乎一样、语义相反 —— 留痕防后人把这一处也一并「修」掉。 */
     assert.throws(() => breakSource('__不存在的锚点__', 'x', '假锚点'), assert.AssertionError);
     // 锚点重复（模拟源码里出现两次）时也必须抛
     const src2 = idxSrc + idxSrc;

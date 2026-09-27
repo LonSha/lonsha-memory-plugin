@@ -23,13 +23,16 @@
 //      否则它的判据恒绿与否**没有任何观测点**
 //   E5 活性面：审计脚本数必须由目录真值点出，且与调用方（run.mjs）的发现口径一致
 //   E6 自证：判据段数、归因串声明与调用点两向同名
-// 退出码：0=卫生  1=存在真缺陷（夹具缺口/无卫生态对照/门禁无观测点/活性面失真）
+// 退出码：0=卫生  1=存在真缺陷（夹具缺口/无卫生态对照/门禁无观测点/活性面失真）  2=结构漂移（唯一真源不可加载/导出面缺项/成对数不足/目录读数失真）
+// [v3.247.0 留痕] 上一版自述只写「0 / 1」，而代码里 `process.exit(2)` 是 fail-closed 路径 —— 自述漏了一整态。
 //        2=结构漂移（探测对象不在，负控制无从建立）
 // 夹具通道：LONSHA_FIXTURE_SYNC_ROOT 指向合成仓库（本门禁自身的单测用）。
 // 唯一真源按**动态加载 + 导出面逐项核对**取用：被掏空/缺失/改写成非函数时如实 exit 2，
 //   而不是崩在 ESM 加载栈上（v3226 的 T 档形态实测过这一条）。
 import fs from 'fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 /* 唯一真源**动态加载**（不是静态 import）—— 本版实测的理由：
  *   真源本身也在 `tests/*.mjs` 面里。v3226 的 T 档形态（把 tests/ 下的 .mjs 全部置为 `// gutted`）
@@ -43,14 +46,14 @@ catch (e) {
         + (e && e.message) + ' ——结构漂移');
     process.exit(2);
 }
-const LIB_API = ['gateFiles', 'fixtureFiles', 'effectiveCopies', 'isExtracting', 'failClosedOf', 'fileLits', 'listDir'];
+const LIB_API = ['gateFiles', 'fixtureFiles', 'effectiveCopies', 'isExtracting', 'failClosedOf', 'fileLits', 'listDir', 'pairDiff'];
 for (const k of LIB_API) {
     if (typeof LIB[k] !== 'function') {
         console.error('[fixture-sync] 唯一真源缺导出 ' + k + '（被掏空或改写成非函数）——结构漂移');
         process.exit(2);
     }
 }
-const { gateFiles, fixtureFiles, effectiveCopies, isExtracting, failClosedOf, fileLits, listDir, readManifest } = LIB;
+const { gateFiles, fixtureFiles, effectiveCopies, isExtracting, failClosedOf, fileLits, listDir, readManifest, pairDiff } = LIB;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = process.env.LONSHA_FIXTURE_SYNC_ROOT || path.resolve(HERE, '..', '..');
@@ -58,9 +61,50 @@ const ROOT = process.env.LONSHA_FIXTURE_SYNC_ROOT || path.resolve(HERE, '..', '.
 const MIN_PAIRS = 10;
 /** 审计脚本最小数：低于此值说明目录读数失真 */
 const MIN_AUDIT_SCRIPTS = 30;
+/* [v3.247.0] 整树复制夹具的门禁登记面（唯一可写点在真源 tests/_fixture_sync.mjs）。
+ *   为什么 E2 要分两形态：「按清单搬文件」的负控制可以用「清单 ⊇ 消费集」判；
+ *   但**整树复制**的负控制源码里只有目录名，字面量提取必然报缺（判据在量一个不是缺陷的东西）。
+ *   分形态之后不能只「多报即忽略」——那样整树复制若造出一棵让门禁 fail-closed 的树也没人看得见。
+ *   故登记形态改判**行为**：真跑一次探针，门禁必须 exit 0。 */
+const MIRROR_GATES = (() => {
+    try { return LIB.MIRROR_GATES && typeof LIB.MIRROR_GATES === 'object' ? LIB.MIRROR_GATES : {}; } catch (_e) { return {}; }
+})();
 
 const SELF = fileURLToPath(import.meta.url);
 
+/**
+ * 整树复制夹具的**行为探针**（v3.247.0）：真跑一次，门禁在镜像根上必须 exit 0。
+ *
+ * 为什么必须有它：登记之后若只把缺口清空，等于把判据关掉 —— 整树复制同样可能造出一棵
+ *   让门禁走 fail-closed 的树（少了 _break_kit.mjs / run.mjs / 审计面），而那个 exit 2
+ *   会被观测器读成「结构漂移判据工作正常」。探针把「结构缺口」换成「行为读数」。
+ * 成本：实测整仓复制 1.18s；本门禁每次执行只做一次探针（登记的整树门禁只有 1 个）。
+ */
+function mirrorProbe(gate) {
+    let dir = null;
+    try {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fxmirror-'));
+        fs.cpSync(ROOT, dir, {
+            recursive: true,
+            filter: (p) => !/(^|\/)(\.git|node_modules)(\/|$)/.test(p),
+        });
+        /* env 必须**清掉夹具通道**：本门禁自己可能正被另一个夹具驱动
+         *   （例如 v3245 用 LONSHA_FIXTURE_SYNC_ROOT 指向合成树），
+         *   若不摘掉，探针里的门禁会读那棵树而不是镜像 —— 探针就成了空对空。 */
+        const env = Object.assign({}, process.env);
+        delete env.LONSHA_FIXTURE_SYNC_ROOT;
+        delete env.LONSHA_BREAK_KIT_HOME;
+        delete env.LONSHA_EXITCODES_ROOT;
+        const r = spawnSync(process.execPath, [path.join('tests', 'audit', gate)], {
+            cwd: dir, encoding: 'utf-8', timeout: 600000, env,
+        });
+        return { ok: r.status === 0, status: r.status, out: (r.stdout || '') + (r.stderr || '') };
+    } catch (e) {
+        return { ok: false, status: '异常', out: String((e && e.message) || e) };
+    } finally {
+        if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
 function bail(msg) {
     console.error('[fixture-sync] ' + msg);
     process.exit(2);
@@ -127,8 +171,28 @@ for (const [gate, neg] of pairs) {
     const lits = fixtureFiles(ROOT, np) || [];
     const derived = isExtracting(np) ? '（清单从门禁源码提取）'
         : (/'manifest\.json'/.test(readOrNull(np) || '') && /extra_js/.test(readOrNull(np) || '') ? '（清单从 manifest 派生）' : '（手写清单）');
-    const d = { gate, neg, reads, missing: [], have, lits, derived };
-    d.missing = reads.filter((f) => !have.has(f));
+    /* 缺口读数取自**唯一真源**的 pairDiff（不在门禁侧重复一份口径）：
+     *   真源已内建「整树复制 + 已登记 ⇒ 无缺口」的语义，三处调用方因此同源。 */
+    const pd = pairDiff(ROOT, gp, np);
+    const d = { gate, neg, reads, missing: pd ? pd.missing : [], have, lits, derived, probe: null };
+    const isMirror = !!(pd && pd.isMirror);
+    if (MIRROR_GATES[gate]) {
+        /* 登记形态：判据**不停**，改判行为（探针）—— 清单口径对本形态恒误报，
+         *   但「整树复制是否喂满了门禁」仍是真问题（少了关键文件时门禁会 fail-closed，
+         *   而那个 exit 2 会被观测器读成「判据工作正常」，空对空）。 */
+        d.probe = mirrorProbe(gate);
+        d.missing = [];
+        notes.push('E2 ' + neg + ' 走**整树复制**（已登记）：改判探针 —— '
+            + (d.probe.ok ? '门禁在镜像上 exit 0（夹具喂满了它要读的东西）' : '门禁在镜像上 exit ' + d.probe.status + '（夹具机制对该门禁是坏的）'));
+        if (!d.probe.ok) {
+            defects.push('E2 ' + neg + ' 的整树复制夹具探针失败：门禁在镜像上 exit ' + d.probe.status
+                + '（期望 0）—— 这套夹具对该门禁是坏的，观测器读到的会是「fail-closed 判据工作正常」（空对空）'
+                + '\n    ' + (d.probe.out || '').slice(-300));
+        }
+    } else if (isMirror) {
+        defects.push('E2 ' + neg + ' 用了整树复制（cpSync recursive）却未在真源 MIRROR_GATES 登记：'
+            + '登记面是唯一可写点，理由是「为什么整树复制对这个门禁是必要的」；未登记即无从判断这套夹具是否喂满了门禁');
+    }
     if (d.missing.length) {
         defects.push('E2 ' + neg + ' 的夹具缺 ' + d.missing.length + ' 个门禁会读的文件：'
             + d.missing.join('、')

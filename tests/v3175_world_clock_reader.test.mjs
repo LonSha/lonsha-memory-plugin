@@ -16,6 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'node:url';
+import { breakOnce as breakText } from './_break_kit.mjs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
@@ -330,23 +331,16 @@ function judgeClock(source, api) {
 }
 /** 真源码破坏 → 破坏副本（锚点必须恰中 1 次，否则这不是破坏） */
 function brokenCopies() {
-    const mk = (src, re, to, tag) => {
-        const hits = (src.match(new RegExp(re.source, 'g')) || []).length;
-        assert.equal(hits, 1, `锚点【${tag}】须恰中 1 次（实 ${hits}）`);
-        const out = src.replace(re, to);
-        assert.notEqual(out, src, `破坏【${tag}】必须真的改变源码`);
-        return out;
-    };
     return [
         {
             tag: 'B1-disabled-collapse', what: '把「未启用」并进「未装」',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 /if \(src\.enabled === false\) return \{ ok: false, reason: 'disabled', source: src, snapshot: null \};/,
                 "if (false) return { ok: false, reason: 'disabled', source: src, snapshot: null };")
         },
         {
             tag: 'B2-date-range', what: '删掉日期范围校验（13 月/40 日将放行）',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 /if \(!\(year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= 31\)\) return null;/,
                 'if (false) return null;')
         },
@@ -356,23 +350,23 @@ function brokenCopies() {
             //   若把锚点打在更靠后的 `worldEra !== storyEra` 分支上，破坏打得再真也永远到不了判据
             //   ⇒ 负控制恒真（假绿的第三形态）。
             tag: 'B3-era-guard', what: '拆掉历法不相容门（古历被公历硬比）',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 /if \(wRaw && sRaw && \(worldEra === 'gregorian'\) !== \(storyEra === 'gregorian'\)\)/,
                 'if (false)')
         },
         {
             tag: 'B4-ok-honesty', what: '把 ok 写死（不可用也报「已读」）',
-            clock: mk(idxSrc, /ok: !!\(read && read\.ok\),/, 'ok: true,')
+            clock: breakText(idxSrc, /ok: !!\(read && read\.ok\),/, 'ok: true,')
         },
         {
             tag: 'B5-contract-collapse', what: '拆掉上游契约版本门（升版后静默按旧契约解读）',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 /Number\(snap\.version\) !== BRIDGE_VERSION/,
                 'false')
         },
         {
             tag: 'B6-swallow-thrown', what: '把整函数兜底换成直接重抛（读者面开始外抛）',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 /return \{ ok: false, reason: 'thrown', source: null, snapshot: null \};/,
                 'throw _e;')
         }

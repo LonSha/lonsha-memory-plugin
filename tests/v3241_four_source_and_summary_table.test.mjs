@@ -26,6 +26,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { breakText } from './_break_kit.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -96,13 +97,6 @@ test('v3241 B1. 真仓库上版本守卫 exit 0，四源全部在场且一致', 
 });
 
 /* ══════════ C. 负控制：真源码破坏 → 独立树 → 同款真判据 ══════════ */
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    const out = src.split(anchor).join(repl);
-    if (out === src) throw new Error('拒绝破坏：替换未改变源码');
-    return out;
-}
 /** 独立夹具树：三源 + tests/（**不搬** CHANGELOG/TODO，用于保绿对照与缺席分支）。 */
 function mkTree(withDocs) {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3241-vg-'));

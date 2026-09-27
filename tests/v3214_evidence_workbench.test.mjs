@@ -36,6 +36,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { breakText as breakSource } from './_break_kit.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -163,14 +164,6 @@ function jWorkbench(W, opts) {
 }
 
 /** 破坏：真源码替换（锚点必须恰中 1 次，且必须真的改变源码） */
-function breakSource(src, from, to, tag) {
-    const hits = src.split(from).length - 1;
-    assert.equal(hits, 1, `锚点【${tag}】须在真源码中恰中 1 次（实 ${hits}）`);
-    const out = src.replace(from, to);
-    assert.notEqual(out, src, `破坏【${tag}】必须真的改变源码`);
-    return out;
-}
-
 /* ══════════ 1 真实账本驱动：九账取齐 + 三态 + 出处 ══════════ */
 test('1 九账取齐：真账本写出的 host 上九账全 ok，三态计数盖满登记表', () => {
     const j = jWorkbench(realWorkbench);

@@ -1,5 +1,11 @@
 // 审计基建 B：容灾与故障可见性扫描（空 catch / 裸 await / 定时器泄漏 / 事件卸载）
+/* 退出码（[v3.247.0] 接三态唯一真源 tests/_exit_codes.mjs；本脚本此前没有自述行）：
+ * 退出码：0 = 卫生（判据跑完且无缺陷）  1 = 真缺陷（**检查对象**违反判据）  2 = 结构漂移（**探测器**失效，拒绝给结论）
+ *   1 与 2 的差别：探测器零命中是**真缺陷**（要修被检对象/探测器）；
+ *   index.js 退化到 MIN_SRC_BYTES 以下是**结构漂移**（探测对象不在，脚本需同步结构变化）。
+ *   两种处置**相反**，同码会让 run.mjs 汇总表的 status 列不可解释（本版实测缺陷）。 */
 import fs from 'fs';
+import { EXIT, shouldFail } from '../_exit_codes.mjs';
 const src = fs.readFileSync('index.js', 'utf8');
 const lines = src.split('\n');
 /* ---------- 0. 结构预检（v3.159 补） ---------- */
@@ -9,7 +15,7 @@ const lines = src.split('\n');
 const MIN_SRC_BYTES = 100000;
 if (src.length < MIN_SRC_BYTES) {
     console.error('[resilience] index.js 退化（' + src.length + ' 字节），无法进行容灾扫描，审计脚本需同步结构变化');
-    process.exit(2);
+    process.exit(shouldFail({ kind: 'drift' }));
 }
 // ---------- B1: 空吞噬 catch ----------
 const silentCatch = [];
@@ -83,8 +89,11 @@ if (dead.length) {
     console.error('');
     console.error('[resilience] ' + dead.length + ' 个探测器失效（零命中），本次结果不具证明力：');
     for (const x of dead) console.error('  x ' + x);
-    process.exit(2);
+    /* [v3.247.0] 归因分态：这是**真缺陷**（要修的是被检对象/探测器），不是结构漂移
+     *   （对象不在）。原为 exit 2，与上面那条 index.js 退化同码 ⇒ 汇总表读不出区别。 */
+    process.exit(shouldFail({ kind: 'defect' }));
 }
 console.log('');
 console.log('[resilience] 通过：6 个探测器均在工作（上方指标为参考值，静默 catch 不一律视为缺陷）。');
+process.exit(EXIT.CLEAN);
 process.exit(0);

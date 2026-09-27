@@ -27,6 +27,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'node:url';
+import { breakOnce as breakText } from './_break_kit.mjs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
@@ -463,60 +464,53 @@ function judgeClock(source, api) {
 }
 /** 真源码破坏 → 破坏副本（锚点必须恰中 1 次，否则这不是破坏） */
 function brokenCopies() {
-    const mk = (src, old, to, tag) => {
-        const hits = src.split(old).length - 1;
-        assert.equal(hits, 1, `锚点【${tag}】须恰中 1 次（实 ${hits}）`);
-        const out = src.replace(old, to);
-        assert.notEqual(out, src, `破坏【${tag}】必须真的改变源码`);
-        return out;
-    };
     return [
         {
             tag: 'B1-nofilter-collapse', what: '把「缺口不可知」并进「无缺口」',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 "if (!f) {\n        return { known: false, exported: 0, hiddenTotal: 0, notMarkedCount: 0, notMarked: [], truncated: false, presumeUnknown: '', includeHidden: false, gapRatio: 0, verdict: 'no-filter' };",
                 "if (!f) {\n        return { known: false, exported: 0, hiddenTotal: 0, notMarkedCount: 0, notMarked: [], truncated: false, presumeUnknown: '', includeHidden: false, gapRatio: 0, verdict: 'complete' };",
                 'B1')
         },
         {
             tag: 'B2-ratio-denominator', what: '缺口率分母换成过滤前口径（会算出 >100%）',
-            reader: mk(readerSrc, 'const denom = exported + notMarkedCount;', 'const denom = Number(f.hiddenCount) || 0;', 'B2')
+            reader: breakText(readerSrc, 'const denom = exported + notMarkedCount;', 'const denom = Number(f.hiddenCount) || 0;', 'B2')
         },
         {
             tag: 'B3-empty-collapse', what: '把「在场但空」并进「压根没这项」',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 "if (v === null || v === undefined) return { present: true, kind: 'empty', count: 0 };",
                 "if (v === null || v === undefined) return { present: false, kind: 'absent', count: 0 };",
                 'B3')
         },
         {
             tag: 'B4-onesided-as-conflict', what: '把「一侧没记」报成「位置冲突」',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 "if (!a || !b) { mismatched.push({ name, world: wl, local: ll, kind: 'one-sided' }); continue; }",
                 "if (!a || !b) { mismatched.push({ name, world: wl, local: ll, kind: 'conflict' }); continue; }",
                 'B4')
         },
         {
             tag: 'B5-unknown-as-rumor', what: '把「不知强度」并进「传闻」',
-            reader: mk(readerSrc, 'if (!c) unknown++;', 'if (!c) rumor++;', 'B5')
+            reader: breakText(readerSrc, 'if (!c) unknown++;', 'if (!c) rumor++;', 'B5')
         },
         {
             tag: 'B6-reuse-broken', what: '拆掉单一真源复用（桥访问各写一份的口子）',
-            reader: mk(readerSrc,
+            reader: breakText(readerSrc,
                 "if (k && typeof k.readWorldAxisSnapshot === 'function' && typeof k.getBridge === 'function') return k;",
                 'if (false) return k;',
                 'B6')
         },
         {
             tag: 'B7-archive-drop', what: '读数不随存档恢复（重开后缺口读数丢失）',
-            clock: mk(idxSrc,
+            clock: breakText(idxSrc,
                 "if (data.worldLedgerRead && typeof data.worldLedgerRead === 'object') {   // [v3.176]",
                 "if (false) {   // [v3.176]",
                 'B7')
         },
         {
             tag: 'B8-carried-drop', what: '读数不进快照（声明了却带不出去）',
-            clock: mk(idxSrc,
+            clock: breakText(idxSrc,
                 'worldLedgerRead: this._worldLedgerRead ? { ...this._worldLedgerRead } : null  // [v3.176]',
                 'worldLedgerRead: null  // [v3.176]',
                 'B8')

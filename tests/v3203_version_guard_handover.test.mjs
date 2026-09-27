@@ -22,6 +22,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { breakText } from './_break_kit.mjs';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -99,12 +100,6 @@ test('v3203 4. 三源同源 + CHANGELOG 顶节为本版（发布面）', () => {
 /* ══════════ 3. 负控制：真源码破坏 → 独立树 → 同款真判据 ══════════ */
 const HIST = 'tests/v3201_summary_reltime_and_diag_ledger.test.mjs';
 const FRONT = 'tests/v3203_version_guard_handover.test.mjs';
-
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    return src.split(anchor).join(repl);
-}
 function mkTree() {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3203-vg-'));
     for (const f of ['index.js', 'manifest.json', 'package.json']) {

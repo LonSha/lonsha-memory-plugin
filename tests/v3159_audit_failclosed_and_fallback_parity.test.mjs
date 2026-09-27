@@ -9,6 +9,10 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+/* [v3.247.0] 退出码读数的**唯一真源**（v3.247.0 的前半段 V2 建立）：
+ *   「哪些退出码真的能到」这件事此前靠正则猜源码结构，本轮收编后改走真源读数 ——
+ *   猜结构对「换了书写形态但语义没变」的脚本必然误判（本段下面就有一处实例）。 */
+import { reachableCodes } from './_exit_codes.mjs';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -184,13 +188,22 @@ test('[2] every audit script can block (exit 2), and defect-scanners can fail ha
     //   exit 2（结构漂移 / 探测器失效）是每个脚本都必须具备的底线。
     for (const f of auditScripts) {
         const t = readAudit(f);
-        assert.ok(/process\.exit\s*\(\s*[12]\s*\)/.test(t), f + ' can block (nonzero exit)');
-        assert.ok(/process\.exit\s*\(\s*2\s*\)/.test(t), f + ' blocks on structural drift (exit 2)');
+        /* [v3.247.0] 真源 `reachableCodes(src)` 返回的是 `{ codes, dynamic }`，不是 Set。
+         *   我上一处补丁按 Set 写了一版（`.has(...)`），全量实测当场报
+         *   `TypeError: reachableCodes(...).has is not a function` ——
+         *   **调用方要按真源的实际返回形状取值，不是按自己以为的形状**。
+         *   这条正是本轮 #19 的同一个病：出口形状若有多个假设，改一处漏一处是必然的。 */
+        assert.ok(reachableCodes(t).codes.has(1) || reachableCodes(t).codes.has(2), f + ' can block (nonzero exit)');
+        assert.ok(reachableCodes(t).codes.has(2), f + ' blocks on structural drift (exit 2)');
     }
     // 已知会判定「真缺陷」的四个脚本必须有 exit 1。
     //   scan_resilience 只报参考指标（静默 catch 不一律是缺陷），故只需 exit 2。
     for (const f of ['scan_config_liveness.mjs', 'scan_slider_coherence.mjs', 'scan_syntax.mjs', 'scan_wiring.mjs']) {
-        assert.ok(/process\.exit\s*\(\s*1\s*\)/.test(readAudit(f)), f + ' fails hard on a real defect (exit 1)');
+        /* [v3.247.0] 原为 `/process\.exit\s*\(\s*1\s*\)/` —— 正则猜结构。
+         *   V2 的补丁 A 已把 scan_resilience 的缺陷出口改成 `shouldFail({kind:'defect'})`
+         *   （真源归因），源码里不再字面出现 `process.exit(1)`，于是这条判据在**真读数**上是假的。
+         *   同一个文件里「能到哪些码」已有真源读数可用，就不该再留一处猜结构的旁路。 */
+        assert.ok(reachableCodes(readAudit(f)).codes.has(1), f + ' fails hard on a real defect (exit 1)');
     }
 });
 test('[2b] the two formerly exit-less scanners now block on a degenerate tree', async () => {

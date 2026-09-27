@@ -28,6 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { codeLines } from './_audit_lib.mjs';
+import { breakSource } from './_break_kit.mjs';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -61,11 +62,6 @@ function loadBroken(src, key) {
   }
 }
 /** 对源码做一次破坏；锚点必须恰中一次 */
-function breakSource(src, anchor, replacement) {
-  const n = String(src).split(anchor).length - 1;
-  if (n !== 1) throw new Error(`锚点命中 ${n} 次（要求恰好 1 次）`);
-  return src.split(anchor).join(replacement);
-}
 /** 负控制：判据必须翻红（抛错，或返回非布尔半真值） */
 function negative(fn, label) {
   let fired = false, how = '';

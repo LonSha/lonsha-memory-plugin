@@ -25,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { mutateOnce } from './_break_kit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -205,12 +206,6 @@ test('v3226 E1. ★ 版本锚（当版字面量，不随抬版漂移）', () => 
 });
 
 // ══════════ F 负控制（真表破坏 ⇒ 同款真判据必须转红） ══════════
-function mutateOnce(text, from, to) {
-    const n = text.split(from).length - 1;
-    assert.equal(n, 1, '锚点应恰好命中 1 次，实际 ' + n + '：' + String(from).slice(0, 60));
-    return text.replace(from, to);
-}
-
 // 三条判据在原件上必须全真 —— 否则后面的「转红」可能是判据自己坏了（假红）
 function allTrue(text, live) {
     return registryJudge(text, live) && healthyJudge(text) && sensitivityJudge(text);

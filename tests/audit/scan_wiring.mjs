@@ -1,5 +1,9 @@
 // 审计基建 A（v2）：接线完整性扫描 —— 修正为本项目实际结构
 // 结构事实：IIFE 内 4sp class，8sp 方法；配置块为 ConfigManager 内 `this.config = {`
+/*
+ * 退出码（[v3.247.0] 补自述；语义表见 tests/_exit_codes.mjs）：
+ * 退出码：0 = 卫生（判据跑完且无缺陷）  1 = 真缺陷（**检查对象**违反判据）  2 = 结构漂移（**探测器**失效，拒绝给结论）
+ */
 import fs from 'fs';
 const idx = fs.readFileSync('index.js', 'utf8');
 const ui = fs.readFileSync('settings-ui.js', 'utf8');

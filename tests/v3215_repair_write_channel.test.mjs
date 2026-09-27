@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
+import { breakText as breakSource } from './_break_kit.mjs';
 
 const R = process.cwd();
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
@@ -322,14 +323,6 @@ test('v3215 9. 写动作只收在唯一命名空间 repair 之下，且不扰动
 });
 
 /* ─────────────────────────── ⑤ 负控制（真破坏必须现形） ─────────────────────────── */
-
-function breakSource(src, from, to, tag) {
-    const hits = src.split(from).length - 1;
-    assert.equal(hits, 1, `[${tag}] 破坏锚点必须恰中 1 次（实 ${hits}）——中了 0 次或多次，破坏就不是定点的`);
-    const out = src.split(from).join(to);
-    assert.notEqual(out, src, `[${tag}] 破坏必须真的改变源码`);
-    return out;
-}
 /** 把破坏后的 repair-loop 落到临时文件并载入（走真 require，不用替身）。 */
 function loadRLFrom(src, tag) {
     /* [v3.226.0] 临时副本一律落 os.tmpdir()，**不许落仓根**：

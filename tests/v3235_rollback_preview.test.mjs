@@ -38,6 +38,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { mutateOnce } from './_break_kit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -385,12 +386,6 @@ test('【H1】★ 版本锚：本套件只在 3.235.0 及以后成立', () => {
  *   本仓 v2.99.0 起统一为 cpSync 整仓镜像，且 `withMirror` 必须 `await`。 */
 const ORIG = new Map();
 for (const f of [LR, IDX, SU]) ORIG.set(f, read(f));
-
-function mutateOnce(src, from, to) {
-    const n = src.split(from).length - 1;
-    assert.equal(n, 1, '锚点应恰好命中 1 次，实际 ' + n + '：' + String(from).slice(0, 80));
-    return src.replace(from, to);
-}
 function mirror(mut) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3235-mir-'));
     fs.cpSync(ROOT, dir, { recursive: true, filter: (src) => !src.split(path.sep).includes('.git') });

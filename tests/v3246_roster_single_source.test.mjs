@@ -32,6 +32,7 @@ import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'n
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { ledgerLevelConsumers, LE_BLOCK, NON_BOOK_CONSUMERS, RUNTIME_DEPS } from './_fixture_sync.mjs';
+import { breakText } from './_break_kit.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -158,13 +159,6 @@ function judgeGateDerives(src) {
 function judgeNoHandcopy(src) {
     return /ledgerLevelConsumers\(ROOT, readdirSync\(ROOT\)/.test(src)
         && !/'seed-ledger\.js', 'secret-ledger\.js'/.test(src);
-}
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    const out = src.split(anchor).join(repl);
-    if (out === src) throw new Error('拒绝破坏：替换未改变源码');
-    return out;
 }
 test('v3246 D1. ★★★★ 判据在原件上先正一次（否则后面的负控制是假红）', () => {
     assert.ok(judgeStripsComments(LIB_SRC), '真源须先剥注释');

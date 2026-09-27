@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pairDiff, gateFiles, fixtureFiles, effectiveCopies, failClosedOf, fileLits } from './_fixture_sync.mjs';
+import { mutateOnce } from './_break_kit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -85,6 +86,20 @@ function noGapJudge(root) {
 test('v3245 B1. ★★ 两条判据在**原件**上必须为真（否则下面的负控制是假红）', () => {
     assert.equal(pairFloorJudge(ROOT, 10), true, '原件上对数下限判据必须为真');
     assert.equal(noGapJudge(ROOT), true, '原件上「无缺口」判据必须为真');
+    /* [v3.247.0] 登记的**整树复制**对必须被判为无缺口 —— 这一条是行为断言，不是文本断言：
+     *   字面量口径在整树夹具上恒误报（源码里只有目录名），故真源 pairDiff 对
+     *   「整树复制 + 已登记」直接判无缺口；门禁侧改判**探针**（真跑，门禁必须 exit 0）。
+     *   两形态各自有据，不存在「多报即忽略」；未登记的整树复制由门禁侧单独报红。 */
+    for (const negName of fs.readdirSync(AUDIT).filter((f) => f.includes('negctl') && f.endsWith('.mjs'))) {
+        const gateName = negName.replace('_negctl.mjs', '.mjs');
+        if (!fs.existsSync(path.join(AUDIT, gateName))) continue;
+        const d = pairDiff(ROOT, path.join(AUDIT, gateName), path.join(AUDIT, negName));
+        assert.ok(d, 'pairDiff 必须给出读数：' + negName);
+        if (d.isMirror) {
+            assert.equal(d.registered, true, negName + ' 用了整树复制却未登记（登记面是唯一可写点）：' + gateName);
+            assert.deepEqual(d.missing, [], negName + ' 已登记的整树复制必须判无缺口（否则是判据在量一个不是缺陷的东西）');
+        }
+    }
     /* 本门禁自己的 fail-closed 面必须是**空**的：它探的是目录（tests/audit、tests/），
      *   不探具体文件 ⇒ 没有「故意不搬」的文件面 ⇒ 它消费的每一个字面量文件都必须被
      *   配对负控制覆盖（这正是 _fixture_sync.failClosedOf 的排除语义）。
@@ -96,12 +111,6 @@ test('v3245 B1. ★★ 两条判据在**原件**上必须为真（否则下面�
 
 
 /* ══════════ C 负控制：真表破坏 ⇒ 同款真判据必须转红 ══════════ */
-function mutateOnce(text, from, to) {
-    const n = text.split(from).length - 1;
-    assert.equal(n, 1, '锚点应恰好命中 1 次，实际 ' + n + '：' + String(from).slice(0, 60));
-    return text.split(from).join(to);
-}
-
 test('v3245 N1. ★★ 负控制·阈值被放大 ⇒ 对数下限判据转红（下限不是装饰）', () => {
     const broken = mutateOnce(gateSrc, 'const MIN_PAIRS = 10;', 'const MIN_PAIRS = 9999;');
     // 判据本体不读源码，故这里破坏的是**常量**：把下限抬到不可能满足的值，

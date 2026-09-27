@@ -12,6 +12,19 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
+import { breakOnce } from './_break_kit.mjs';
+/* 本地包装：本文件的工厂语义是 `(fromRe, to, tag)` —— src 由闭包给出、
+ *   没有 label 位。真源签名是 `(src, anchor, replacement, label)`，
+ *   两者参数序不同，故这层包装不是重复实现，而是**参数序适配**。
+ *   [留痕] 收编首轮把它当成了同签名形态直接改名，实测 `mk(regex, to)` 被
+ *   当成 `(src=regex, anchor=to)` ⇒ 命中数恒 0、破坏当场打偏。 */
+const mk = (fromRe, to) => breakOnce(idxSrc, fromRe, to);
+/* [v3.247.0 留痕] 「改写打偏」与「破坏打偏」是两件事，别混进一个 diff。
+ *   三处负控制必须走上面这层包装 `mk`：真源签名是 (src, anchor, replacement)，
+ *   而本文件的工厂语义是 (fromRe, to) —— src 由闭包给出。首轮收编只改了三处调用的
+ *   **名字**（breakOnce ⇒ 直调真源），实参因此整体错位一格：命中数报的是「替换串」
+ *   在 index.js 里的次数。实测读数就是凭这个认出来的 —— B1 报
+ *   「锚点命中 0 次：this.sourceState = 'engine-empty'…」，被数的东西是替换串，不是锚点。 */
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
 const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
@@ -257,13 +270,6 @@ function judgeReader(engFactory) {
 function brokenCopies() {
     const variants = [];
     // 破坏一：把 sourceState 抹平（absent/empty 合并成一个态）——用真源码替换
-    const mk = (fromRe, to, tag) => {
-        const hits = (idxSrc.match(new RegExp(fromRe.source, 'g')) || []).length;
-        assert.equal(hits, 1, `锚点【${tag}】须在真源码中恰中 1 次（实 ${hits}）`);
-        const out = idxSrc.replace(fromRe, to);
-        assert.notEqual(out, idxSrc, `破坏【${tag}】必须真的改变源码`);
-        return out;
-    };
     variants.push({ tag: 'B1-sourceState', src: mk(
         /this\.sourceState = 'engine-absent'; this\.lastError = null; this\.snapshot = null;/,
         "this.sourceState = 'engine-empty'; this.lastError = null; this.snapshot = null;") });

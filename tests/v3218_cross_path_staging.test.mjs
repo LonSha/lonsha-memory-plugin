@@ -37,6 +37,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripComments } from './_audit_lib.mjs';
+import { breakSource, breakOnce } from './_break_kit.mjs';
 
 const R = process.cwd();
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
@@ -63,11 +64,6 @@ function blockOf(src, header) {
     return blockAt(src, at);
 }
 /** 真源码破坏：锚点必须**恰中 1 次**，否则抛（防破坏打偏）。 */
-function breakSource(src, anchor, replacement) {
-    const n = src.split(anchor).length - 1;
-    assert.strictEqual(n, 1, '破坏锚点必须恰中 1 次：' + anchor.slice(0, 56) + '（实 ' + n + ' 次）');
-    return src.replace(anchor, replacement);
-}
 /**
  * 取「载荷自身代核对」**整块**（含 if 条件与块体）。
  *   为什么必须取整块而不是只取 `if (...)` 那一行：只删条件行会留下块体
@@ -308,8 +304,14 @@ test('v3218 N3. 破坏：自身代核对写成恒真 ⇒ 同款判据（源码�
     const blk = selfGuardBlock(idxSrc);
     // 「核对写成恒真」正是本仓假绿第②形（破坏写死成模拟常量）的形态：看着像核对，实际不判。
     //   故这里先把**同值替换**当作一次「不算破坏」的自证，再用整块替换做真破坏。
-    const same = breakSource(idxSrc, blk, blk);
-    assert.ok(same.includes(GUARD_HEAD), '同值替换不算破坏（防止把「没破坏」当绿灯）');
+    /* [v3.247.0 留痕·设计冲突已裁决] 本组原先借「同值替换」做一次**不算破坏**的自证，
+     *   并断言 `same.includes(GUARD_HEAD)`。收编后发现这与真源口径② 直接冲突：
+     *     口径②：同值替换**必须拒绝**（同值 == 没破坏，负控制会退化成对原文件断言）。
+     *   两条都想过：既想「同值静默返回」又想「负控制不退化」，二者不可并存。
+     *   裁决依据是「真源口径高于接收方的旧假设」—— 收编的全部意义就是口径只准一处可写。
+     *   故本组改回它自己的标题所说的那件事：**真破坏 + 源码面判据必须现形**。
+     *   （旧写法实测抛在 `breakOnce(idxSrc, blk, blk)` 上，读数「替换未改变源码」——
+     *    那不是接线错，是语义冲突，故不能靠补 import 或补参数来「修」。） */
     const broken2 = breakSource(idxSrc, blk, 'if (false) { /* 破坏：核对恒不触发 */ }');
     const commit2 = blockOf(stripComments(broken2), '_injectionCommit(myGen) {');
     assert.ok(!/p\.gen[^\n]*!==/.test(commit2), '★ 破坏副本上「载荷自身代核对」必须消失（源码面判据现形）');

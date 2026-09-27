@@ -25,6 +25,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'node:url';
+import { breakText } from './_break_kit.mjs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
@@ -858,94 +859,87 @@ async function judgePublic(src) {
 }
 /** 真源码破坏 → 破坏副本（锚点必须恰中 1 次，否则这不是破坏） */
 function brokenCopies() {
-    const mk = (src, old, to, tag) => {
-        const hits = src.split(old).length - 1;
-        assert.equal(hits, 1, `锚点【${tag}】须恰中 1 次（实 ${hits}）`);
-        const out = src.replace(old, to);
-        assert.notEqual(out, src, `破坏【${tag}】必须真的改变源码`);
-        return out;
-    };
     return [
         {
             tag: 'F1-absent-as-present', what: '把「没有这格账」并进「有但不属于这页」',
-            target: 'floor', src: mk(flSrc,
+            target: 'floor', src: breakText(flSrc,
                 "        if (!ex || !ex[EXTRA_KEY] || typeof ex[EXTRA_KEY] !== 'object') return { present: false, valid: false, record: null, why: 'absent' };",
                 "        if (!ex || !ex[EXTRA_KEY] || typeof ex[EXTRA_KEY] !== 'object') return { present: true, valid: false, record: null, why: 'fingerprint-mismatch' };",
                 'F1')
         },
         {
             tag: 'F2-ignorefp-in-merge', what: '合并基准用 ignoreFp 认旧账（旧页物品被继承到新页）',
-            target: 'floor', src: mk(flSrc,
+            target: 'floor', src: breakText(flSrc,
                 'const prev = read(msg);',
                 'const prev = read(msg, { ignoreFp: true });',
                 'F2')
         },
         {
             tag: 'F3-fp-ignored', what: '默认读取不再校验指纹（翻页后旧账仍被认账）',
-            target: 'floor', src: mk(flSrc,
+            target: 'floor', src: breakText(flSrc,
                 'if (opts.ignoreFp !== true && rec.fp !== fp)',
                 'if (false)',
                 'F3')
         },
         {
             tag: 'F4-complete-lies', what: '覆盖面把缺口报成完整（等 0 条缺）',
-            target: 'floor', src: mk(flSrc,
+            target: 'floor', src: breakText(flSrc,
                 'out.complete = out.missing.length === 0;',
                 'out.complete = true;',
                 'F4')
         },
         {
             tag: 'F5-version-caving', what: '版本不符的旧附注被当新结构读',
-            target: 'floor', src: mk(flSrc,
+            target: 'floor', src: breakText(flSrc,
                 'if (Number(rec.v) !== EXTRA_VERSION)',
                 'if (false)',
                 'F5')
         },
         {
             tag: 'E1-orphan-anchor', what: '显式置空只清年龄、留下孤儿锚点（I2 致命形态）',
-            target: 'age', src: mk(aaSrc,
+            target: 'age', src: breakText(aaSrc,
                 '            delete target[ANCHOR_FIELD];\n            out.changed = !!had;',
                 '            out.changed = !!had;',
                 'E1')
         },
         {
             tag: 'E2-fake-anchor', what: '取不到锚点时留着旧锚点（新年龄 + 旧锚点 = 假锚点）',
-            target: 'age', src: mk(aaSrc,
+            target: 'age', src: breakText(aaSrc,
                 '        else delete target[ANCHOR_FIELD];       // 取不到锚点：不写假的（也不留旧的）',
                 '        else { /* 破坏：留着旧锚点 */ }',
                 'E2')
         },
         {
             tag: 'E3-carry-broken', what: '守恒断掉（同值不再带走旧锚点 ⇒ 重放即冻龄）',
-            target: 'age', src: mk(aaSrc,
+            target: 'age', src: breakText(aaSrc,
                 '        if ((!hasPatch || sameAsPrev) && v[ANCHOR_FIELD]) {',
                 '        if (false) {',
                 'E3')
         },
         {
             tag: 'G1-clock-no-delegate', what: '拆掉时钟的日期解析委托（估算态回到不可达）',
-            target: 'index', src: mk(idxSrc,
+            target: 'index', src: breakText(idxSrc,
                 "            try { return new RelativeTimeHelper().parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
                 '            return null;',
                 'G1')
         },
         {
             tag: 'H1-slash-path-lie', what: '斜杠走了旧路径却自称走了新路径（调用方按命名参数写会失败）',
-            target: 'pi', src: mk(piSrc,
+            target: 'pi', src: breakText(piSrc,
                 "            report.slash.state = 'ready'; report.slash.path = 'addCommandObject';",
                 "            report.slash.state = 'ready'; report.slash.path = 'addCommand';",
                 'H1')
         },
         {
             tag: 'H2-no-idempotent', what: '拆掉幂等闸（重复 init 会二次注册）',
-            target: 'pi', src: mk(piSrc,
+            target: 'pi', src: breakText(piSrc,
                 'if (register._done) {',
                 'if (false) {',
                 'H2')
         },
         {
             tag: 'H3-param-lie', what: '参数化宏宣称可用但其实没注册（调用方按 {{lonshaGet::x}} 写会取空）',
-            target: 'pi', src: mk(piSrc,
+            target: 'pi', src: breakText(piSrc,
                 'report.macro.parameterized = true;',
                 'report.macro.parameterized = false;',
                 'H3')

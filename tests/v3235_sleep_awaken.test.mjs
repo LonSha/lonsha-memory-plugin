@@ -26,6 +26,7 @@ import { readFileSync, writeFileSync, mkdtempSync, cpSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { breakText } from './_break_kit.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const req = createRequire(import.meta.url);
@@ -254,11 +255,6 @@ test('v3235 12. 两条唤醒通道互不顶替：实体名唤醒仍只认 dorman
 });
 
 /* ══════════ 负控制：真源码破坏 → 独立树 → 同一份判据必须转红 ══════════ */
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    return src.split(anchor).join(repl);
-}
 function mirror(breakFn) {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3235-sa-'));
     const broken = breakFn(modSrc);

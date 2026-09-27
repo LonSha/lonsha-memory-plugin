@@ -35,6 +35,7 @@ import { suggestCeiling, THIN_SLACK_RATIO } from './audit/dead_code_budget.mjs';
  *   那个门禁正是为这一条存在的：同一条口径多份实现，修一处漏一处。
  *   故改为从 `tests/_audit_lib.mjs` import（本仓既有用法，见 v3164）。 */
 import { stripComments } from './_audit_lib.mjs';
+import { breakText } from './_break_kit.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -80,13 +81,6 @@ function runFixture(dir, args) {
         encoding: 'utf-8', timeout: 60000, cwd: ROOT,
     });
     return { status: r.status, out: (r.stdout || '') + (r.stderr || ''), stdout: r.stdout || '' };
-}
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    const out = src.split(anchor).join(repl);
-    if (out === src) throw new Error('拒绝破坏：替换未改变源码');
-    return out;
 }
 function withFixture(ceiling, fn, breakScript) {
     const dir = mkFixture(ceiling, breakScript);

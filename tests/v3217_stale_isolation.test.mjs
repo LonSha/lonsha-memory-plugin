@@ -33,6 +33,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripComments } from './_audit_lib.mjs';
+import { breakSource } from './_break_kit.mjs';
 
 const R = process.cwd();
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
@@ -69,12 +70,6 @@ function blockOf(src, header) {
     return blockAt(src, at);
 }
 /** 真源码破坏：锚点必须**恰中 1 次**，否则抛（防破坏打偏）。 */
-function breakSource(src, anchor, replacement) {
-    const n = src.split(anchor).length - 1;
-    assert.strictEqual(n, 1, '破坏锚点必须恰中 1 次：' + anchor.slice(0, 56) + '（实 ' + n + ' 次）');
-    return src.replace(anchor, replacement);
-}
-
 /* ───────────────── 被测方法清单 ───────────────── */
 
 const HOST_METHODS = [

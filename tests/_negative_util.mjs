@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { breakSource } from './_break_kit.mjs';
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -50,12 +51,10 @@ export function codeLines(src) {
 }
 
 /** 对源码做一次破坏；锚点必须命中恰好一次，否则抛（不许静默未破坏） */
-export function breakSource(src, anchor, replacement) {
-  const n = String(src).split(anchor).length - 1;
-  if (n !== 1) throw new Error(`锚点命中 ${n} 次（要求恰好 1 次）：${anchor}`);
-  return src.split(anchor).join(replacement);
-}
-
+/** 破坏源码：唯一真源在 tests/_break_kit.mjs（本文件只做转发，保持原导出面）。
+ *  [v3.247.0] 原先这里是全仓第二份实现：两处独立维护同一份纪律，
+ *  改一处漏一处是必然的（v3.191 收敛 stripComments 的同一族病）。 */
+export { breakSource } from './_break_kit.mjs';
 /**
  * 加载破坏副本（子进程），在它上跑真判据。
  * 半真值形状（判据返回 undefined/NaN 而非抛）一律抛 —— 「删了常量还返回 0」比删判据更隐蔽。

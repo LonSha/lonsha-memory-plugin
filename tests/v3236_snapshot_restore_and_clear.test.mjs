@@ -27,6 +27,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { breakFile } from './_break_kit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -313,19 +314,11 @@ function withMirror(mut, fn) {
         fs.rmSync(dir, { recursive: true, force: true });
     }
 }
-function mutateOnce(dir, rel, from, to) {
-    const p = path.join(dir, rel);
-    const s = read(p);
-    const n = s.split(from).length - 1;
-    assert.equal(n, 1, '负控制锚点必须恰中 1 次（' + rel + '）：' + from.slice(0, 70) + '（实得 ' + n + ' 次）');
-    fs.writeFileSync(p, s.replace(from, to));
-}
-
 test('v3236 N1. ★★★ 破坏清空载荷形态（人物状态回退成空对象）⇒ C1 同款判据必须转红', () => {
     /* 锚点串在**运行时拼接**：判据层内不得再声明一遍被破坏的字面量（自指假绿的一种）。 */
     const FROM = "e.status.import({ characters: {} })";
     const TO = 'e.status.import(' + '{}' + ')';
-    withMirror((dir) => { mutateOnce(dir, 'index.js', FROM, TO); }, (dir) => {
+    withMirror((dir) => { breakFile(dir, 'index.js', FROM, TO); }, (dir) => {
         const broken = read(path.join(dir, 'index.js'));
         assert.throws(() => assertClearPayloadShapes(broken), /人物状态/, '载荷形态判据必须抓到（否则 C1 是空跑）');
     });
@@ -334,7 +327,7 @@ test('v3236 N1. ★★★ 破坏清空载荷形态（人物状态回退成空对
 test('v3236 N2. ★★★ 破坏锚点重置（身份不符时保留旧楼层）⇒ B1 同款判据必须转红', () => {
     const FROM = 'return { fresh: true, floor: 0, chatId: id };';
     const TO = 'return { fresh: ' + 'false' + ', floor: Number(this._snapshotAnchorFloor) || 0, chatId: id };';
-    withMirror((dir) => { mutateOnce(dir, 'index.js', FROM, TO); }, (dir) => {
+    withMirror((dir) => { breakFile(dir, 'index.js', FROM, TO); }, (dir) => {
         const broken = read(path.join(dir, 'index.js'));
         assert.throws(() => assertSnapshotAnchorContract(broken), /fresh/, '锚点契约判据必须抓到（否则 B1 是空跑）');
     });
@@ -345,7 +338,7 @@ test('v3236 N3. ★★★ 破坏单真源（面板换回手抄 import）⇒ A1 �
      *   破坏方式不变：让「走单一流程」变成「顺手手抄一次 import 再走流程」。 */
     const FROM = '_fr = await engine.restoreSnapshotFlow(chatId, floor);';
     const TO = '_fr = ' + 'engine' + '.graph.import(data.graph) || await engine.restoreSnapshotFlow(chatId, floor);';
-    withMirror((dir) => { mutateOnce(dir, 'settings-ui.js', FROM, TO); }, (dir) => {
+    withMirror((dir) => { breakFile(dir, 'settings-ui.js', FROM, TO); }, (dir) => {
         const broken = read(path.join(dir, 'settings-ui.js'));
         assert.throws(() => assertSnapshotRestoreSingleSource(broken, read(path.join(dir, 'index.js'))),
             /不得再手抄/, '单真源判据必须抓到（否则 A1 是空跑）');

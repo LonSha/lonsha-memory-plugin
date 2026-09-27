@@ -37,6 +37,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { breakText } from './_break_kit.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
@@ -113,11 +114,6 @@ test('v3206 3. B 行为面：门在真仓库 exit 0，且念出扫描面 / spawn
 });
 
 /* ══════════ 4-9. 负控制：真源码破坏 → 独立树 → 同款真判据 ══════════ */
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    return src.split(anchor).join(repl);
-}
 /* 独立树：本仓只**读**，绝不就地改（v3.205.0 的 acc4 教训：跑批期间改仓库会自伤）。 */
 function mkTree() {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3206-reap-'));

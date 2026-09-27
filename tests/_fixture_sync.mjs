@@ -177,12 +177,27 @@ export function pairDiff(root, gatePath, negPath) {
     const copies = fixtureFiles(root, negPath);
     if (copies == null) return null;
     const have = effectiveCopies(root, negPath, gatePath);
+    const gate = path.basename(gatePath);
+    /* 整树复制形态：字面量口径**结构上必然误报**（源码里只有目录名，
+     *   看不见门禁真会读的那些文件），故登记过的直接判无缺口。
+     *   为什么这不是「把判据关掉」：
+     *     · 判据没有消失，只是换了形态 —— 门禁侧对登记形态改判**行为探针**
+     *       （真跑一次，门禁在镜像上必须 exit 0），那条判据比清单口径更强；
+     *     · 本函数是纯函数（只读、不抛、不 spawn），不能在里面跑子进程；
+     *     · 未登记的整树复制由门禁侧单独报红（登记面是唯一可写点）。
+     *   检测用**行为特征**：负控制确实调用了 `cpSync(..., {recursive: true})`。 */
+    let src = '';
+    try { src = stripComments(fs.readFileSync(negPath, 'utf8')); } catch (_e) { src = ''; }
+    const isMirror = /cpSync\s*\(/.test(src) && /recursive:\s*true/.test(src);
+    const registered = Object.prototype.hasOwnProperty.call(MIRROR_GATES, gate);
     return {
-        gate: path.basename(gatePath),
+        gate,
         neg: path.basename(negPath),
         reads,
         copies,
-        missing: reads.filter((f) => !have.has(f)),
+        isMirror,
+        registered,
+        missing: (isMirror && registered) ? [] : reads.filter((f) => !have.has(f)),
     };
 }
 
@@ -222,6 +237,36 @@ export const LE_BLOCK = "const LE = (typeof window !== 'undefined' && window.Lon
  *  留这个**显式登记点**的理由：判据万一将来误报，正确的处置是「登记 + 说清」，
  *  而不是把判据放宽到什么都抓不到。 */
 export const NON_BOOK_CONSUMERS = [];
+/**
+ * **整树复制夹具**的门禁登记面（v3.247.0 立）。
+ *
+ * 【为什么需要这张表】E2 的判据形态是「负控制会复制进夹具的文件 ⊇ 门禁的消费文件集」。
+ *   这条判据对「按清单搬文件」的负控制是对的，但对**整树复制**的负控制必然误报：
+ *   整树复制在源码里只出现一个目录名（tests/），不出现任何具体文件名，
+ *   于是字面量提取看不见门禁真正会读的那两个文件 ⇒ 报「夹具缺 2 项」，
+ *   而实际夹具比门禁要的更全。**判据在量一个不是缺陷的东西。**
+ *
+ * 【为什么不能简单地「多报就忽略」】关键不是「缺不缺」，而是「这套夹具机制对该门禁是不是好的」——
+ *   整树复制也可能造出一棵让门禁走 fail-closed 的树（那时 exit 2 会被观测器读成「判据工作正常」）。
+ *   故登记之后判据**不停**，改为**探针式**：真跑一次，门禁必须 exit 0。
+ *   这是「结构判据 → 行为判据」的同一路数（本仓 v3.191 起反复用过）。
+ *
+ * 【登记纪律】本表是**唯一可写点**：
+ *   · 新门禁若用整树复制夹具，必须登记（否则 E2 会按字面量口径报缺口，那是**有据**的红）；
+ *   · 未登记的整树复制会被门禁识别出来并单独报「未登记」（不许悄悄绕过）；
+ *   · 每条都要写「为什么整树复制是必要的」，不写理由的登记等于把判据关了。
+ */
+export const MIRROR_GATES = {
+    'scan_break_kit.mjs': '被观测门禁递归读整个 tests/ 面（接收方 29 / 判据点 28 都由目录真值点出）；'
+        + '只搬消费集的 2 个文件会让接收方面塌到下限以下 ⇒ 门禁 exit 2（结构漂移），'
+        + '而那个 2 会被观测器读成「fail-closed 判据工作正常」——空对空。实测整仓镜像 1.18s / 10.4MB。',
+    'scan_exit_codes.mjs': '被观测门禁逐个读 tests/audit 下的**全部** .mjs（活性面下限 40 由目录真值点出），'
+        + '它没有「清单」可言 —— 字面量口径对它必然报缺口（源码里只有目录名）。'
+        + '整树复制 tests/audit 是必要条件：只搬少数几份会让活性面提前 bail 成 exit 2，'
+        + '而那个 2 会被负控制读成「结构漂移判据工作正常」——空对空。'
+        + '【本条的来由】v3.247.0 新判据「整树复制未登记即红」上线后立刻在它身上命中 —— '
+        + '该负控制（V2 早前建立）此前从未被这条口径量过，是本轮顺带补上的真实漏登记。',
+};
 /**
  * 审计门禁的**运行时依赖**（不是「消费的文件集」，见下）。
  *

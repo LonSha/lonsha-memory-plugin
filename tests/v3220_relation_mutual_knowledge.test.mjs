@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { stripComments } from './_audit_lib.mjs';
+import { breakSource } from './_break_kit.mjs';
 const R = process.cwd();
 const require_ = createRequire(import.meta.url);
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
@@ -46,11 +47,6 @@ function blockOf(src, header) {
     const n = src.split(header).length - 1;
     assert.strictEqual(n, 1, '锚点必须唯一（恰中 1 次）：' + header + '（实 ' + n + ' 次）');
     return blockAt(src, at);
-}
-function breakSource(src, anchor, replacement) {
-    const n = src.split(anchor).length - 1;
-    assert.strictEqual(n, 1, '破坏锚点必须恰中 1 次：' + anchor.slice(0, 48) + '（实 ' + n + ' 次）');
-    return src.replace(anchor, replacement);
 }
 /** 加载被破坏的模块副本（副本会自挂全局，用完必须还原）。 */
 function loadBroken(src, mutate, globalName) {

@@ -38,6 +38,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { breakText } from '../_break_kit.mjs';
 
 const BS = String.fromCharCode(92);
 const NL = String.fromCharCode(10);
@@ -142,11 +143,6 @@ if (origFails.length) {
 //  纪律（v3.170 起本仓反复踩过）：破坏必须发生在真源码上（锚点恰中 1 次），
 //  判据必须在破坏副本上重跑；不得对原文件断言、不得把破坏写死成模拟常量。
 const NC = [];
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    return src.split(anchor).join(repl);
-}
 async function runNegative(name, anchor, repl, expectHint) {
     let broken;
     try {

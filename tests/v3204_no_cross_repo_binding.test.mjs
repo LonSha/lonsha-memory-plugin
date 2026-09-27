@@ -43,6 +43,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { breakText } from './_break_kit.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
@@ -125,11 +126,6 @@ test('v3204 3. 真仓库上 exit 0：在役 / 退役 / 参考基准 / 问题 0',
 });
 
 /* ══════════ 3. 负控制：真源码破坏 → 独立树 → 同款真判据 ══════════ */
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    return src.split(anchor).join(repl);
-}
 function mkTree() {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3204-xr-'));
     for (const f of ['index.js', 'manifest.json', 'package.json']) {

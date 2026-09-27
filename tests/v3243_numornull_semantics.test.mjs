@@ -32,6 +32,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ledgerLevelConsumers } from './_fixture_sync.mjs';
+import { breakText } from './_break_kit.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -213,13 +214,6 @@ function runGate(root) {
     return spawnSync(process.execPath, [path.join(ROOT, GATE_REL)], {
         encoding: 'utf-8', timeout: 120000, cwd: ROOT, env: cleanEnv(root),
     });
-}
-function breakText(src, anchor, repl) {
-    const n = src.split(anchor).length - 1;
-    if (n !== 1) throw new Error('拒绝破坏：锚点命中 ' + n + ' 次（要求恰好 1 次）');
-    const out = src.split(anchor).join(repl);
-    if (out === src) throw new Error('拒绝破坏：替换未改变源码');
-    return out;
 }
 function withTree(mutate) {
     const dir = mkTree();
