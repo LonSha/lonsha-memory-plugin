@@ -133,7 +133,7 @@
 
 | 条 | 计划要求 | 磁盘现状 | 本轮 |
 | --- | --- | --- | --- |
-| 2 | 跨仓功能登记：拥有者 / 生产者版本 / 契约形状 / 消费者 / 失效条件 / 单独安装行为；**缺席、旧版、不产出、空数据分别呈现** | **无统一登记表**。仅有逐功能形态：F-2 下游侧四态（`tests/system-v321.test.mjs` 把「面缺席 / 空 / 不可用」钉开）、下游基线 JSON 带「冻结证据 v3.233.0 / c97808c」。`scan_cross_repo_binding.mjs` 是**测试卫生**守卫（P1 禁绝对路径 / P2 禁绑兄弟仓），**不是登记表** | **未交付**。属新机制（登记表 + 常驻判据），本环境无 fork ⇒ 判据跑不了，**登记不开工** |
+| 2 | 跨仓功能登记：拥有者 / 生产者版本 / 契约形状 / 消费者 / 失效条件 / 单独安装行为；**缺席、旧版、不产出、空数据分别呈现** | **无统一登记表**。仅有逐功能形态：F-2 下游侧四态（`tests/system-v321.test.mjs` 把「面缺席 / 空 / 不可用」钉开）、下游基线 JSON 带「冻结证据 v3.233.0 / c97808c」。`scan_cross_repo_binding.mjs` 是**测试卫生**守卫（P1 禁绝对路径 / P2 禁绑兄弟仓），**不是登记表** | **未交付**。属新机制（登记表 + 常驻判据），本环境无 fork ⇒ 判据跑不了，**登记不开工**。<br>**【v3.253.0 轮更正 —— 已交付】** 本环境现有 node，`npm test` 可跑；登记表 `tests/audit/open_face_registry.tsv`（5 面 × 9 列）+ 常驻守卫 `tests/audit/scan_open_faces.mjs`（七判据，`rc=0`）+ 常驻判据 `tests/v3253_open_face_registry.test.mjs`（21 条）已交付。四态逐字落在 `invalid_conditions` 列，「缺席与空不同形」落在 `absent_vs_empty` 列且**须真列两种以上态词**（写「已分态」三个字不算，见 T6）。顺带收口 **F-4 投影五态消费普查**（结论：不是缺口，是已闭环但无人断言 —— 见 §4n）| 
 | 3 | 首批修复补关键行为回归；文档与低风险样式不机械添测试；旧形态断言按新行为有证据地接管 | 已在做（如 T8 更正是「改文案 + 加更正块」，未机械添测试）；`catalog_version_guard.tsv` 的 P6 已把「退役覆盖率转移必须有判据」钉住 | 纪律已在执行，**无待办** |
 | 4 | 发布跑 `npm test`，审计面改动补 `npm run test:audit`，手机跑 `npm run check` 十道检查；全量输出落文件 | 上游 `out_npm_test.log` 本轮只到 runner 启动行 | **`not_measured`**（fork 不可用），全量输出落文件这一步本身可复核 |
 
@@ -216,7 +216,7 @@
 | 项 | 状态 |
 | --- | --- |
 | F7 内容级只读对照（新建 `diffPayloadsDeep`） | **未做**：属新功能，须先立判据与负控制（环境障碍已排除） |
-| 共同配套第 2 条跨仓功能登记表 | **未做**：属新机制 |
+| 共同配套第 2 条跨仓功能登记表 | ~~**未做**：属新机制~~ ⇒ **v3.253.0 已交付**（见 §4n：登记表 + 守卫 + 常驻套件）|
 | 根 `README.md` 能力索引改写 | **未做**：用户门面产品取舍（改写价值与风险已在 §4a 登记） |
 | `p3_snapshot_bytes` 重跑 | **未做**（不再是「测不出」） |
 | 上游 `bindEvent` 是否仍为 7 | **未复核**（不再是「测不出」） |
@@ -234,3 +234,41 @@
 
 > 更正口径（防止后人误读基线）：`host_beast_baseline.json` 的 `measured_at` 是**当版**、`rebuilds[ver].delta_from` 是**上一时点**。
 > 本轮脚本第三处根因：`delta_from` 取的是**已被抬版后的** `measured_at` ⇒ 记录里的 `delta_from` 恒等于自己（实测 v3.252.0 最初写成 `delta_from: v3.252.0`）。已修（先存旧值）并就地修正两条。
+
+### (n) v3.253.0 轮：共同配套第 2 条已交付 + F-4 五态普查顺带收口（关掉 §4f / §4l 两条）
+
+| 项 | 前一轮状态 | 本轮读数 | 关法 |
+| --- | --- | --- | --- |
+| 计划一「共同配套」第 2 条：跨仓功能登记表 | 未交付（属新机制） | **已交付**：`tests/audit/open_face_registry.tsv`（5 面 × 9 列）+ 守卫 `tests/audit/scan_open_faces.mjs`（253 行 / 七判据）+ 常驻套件 `tests/v3253_open_face_registry.test.mjs`（21 条） | 守卫直跑 `rc=0`「5 面 / 问题 0」；套件 21/21（抬版后 E1 转绿）；灵敏度 H=0 / G=1 / T=0（G 面敏感，非恒绿探测器）|
+| 计划二 F-4 projection 五态消费普查 | 计划原文第 846 行列为「剩六项」之一，第 856 行明写「**本轮未核**，不在此处断言」 | **已普查并收口**：见下方结论 | 写进登记表 `projectionEnvelope.invalid_conditions` / `absent_vs_empty` 两列，由 T5 / T6 机械把守 |
+
+**F-4 结论（四段，可追溯）**：
+1. 五态定义在 `projection-pipeline.js::contractOf()`：`ok` / `missing` / `malformed` / `ahead` / `behind`（逐字见 `CHANGELOG.md:2675`）。
+2. **上游产品面消费 0 处** —— `index.js` 只调 `runPipeline`(7609) / `buildEnvelope`(7693) / `pipelineLine`(10024) / `absentList`(10025)。
+   **有意如此**：`projection-pipeline.js` 注释自证「契约的『有出口』与『下游能判自己认不认得』是两件事」，故把裁定做成函数随 envelope 一起给。
+3. **下游产品面消费 6 处 / 下限 4** —— `apps/chars`(29,81) / `clock`(13,48) / `place`(27,87) / `plotline`(27,79) / `diagnose-data`(41,216) / `diagnose-view`(17)，
+   经下游 `config/projection-contract.js`（v3.0.0 / 395 行 / 独立同语义实现 / `CONTRACT_STATES` 冻结五态），由下游 `scripts/bridge-contract-audit.mjs` 的 **J8**（`PROJECTION_READER_MIN_CONSUMERS = 4`）机械把守。
+4. ⇒ **不是缺口，是「已闭环但无人断言」**。本轮把它从散点变成可查（登记表一行）。
+
+**实测取证（直载 `projection-pipeline.js` 跑真探针，非静态读）**：
+- 正常值 → `{total:6, ok:6, empty:0, absent:0, skipped:0}` + `identity.ok=true` + `sl.reason=ok`；
+- 源空 → `empty=6` + `sl.reason=ok`；无提供器 → `absent=6`（`reason=no-provider`）+ `sl.reason=partial`；
+- 全抛异常 → `absent=6`（`reason=thrown: boom`）+ `sl.reason=partial`；配置关（`opts.only`）→ `ok=2 + skipped=4` + `sl.reason=partial`；
+- `contractOf` 五态**构造完整 envelope 后逐项扰动**：完好→`ok`｜缺字段→`missing`（`missing.length=1`）｜`items=42`→`malformed`｜`api=99`→`ahead`｜`api=0`→`behind`；
+- `buildEnvelope(null)` → `available=false / reason=pipeline-absent / items={}`。
+
+> ⚠️ **口径警告（防后人误读）**：「五态」在本仓是**多义词** —— 实测 67 处命中分属 `ORIGINS`（confirmed/stated/reported/inferred/system）、
+> 情感反向五态、桥来源五态（`not-mounted|disabled|refused|no-snapshot|ready`）、`findRef` 五态、`guardApply` 五态、诊断行五态、`contractOf` 五态。
+> **本轮只锁「projection 契约裁定五态」这一支**，不把同名词当同一面。
+
+**本轮两处自抓的「最贵形态」（保留作后人警戒，均属本仓既有纪律的现场复现）**：
+1. **探测器假绿**：第一版五态探针把抛异常的提供器包成 `() => v[id]` ⇒ 异常**从未被调用**，
+   「抛异常」档读数与「正常值」档完全一致（都是 `ok=6`）。修法：加自证断言「提供器实际被调用次数 = 6，否则探针自身假绿」。
+2. **测试字符串自指**：`assert(own.includes('function judgeTable') === false)` 的断言字符串**自己命中了文件里的自己**
+   （与 v3216 假红同根因）。修法：拼接字面量 `'function ' + 'judge'`。
+
+**连带登记（两处，缺一即红）**：`catalog_reference_consumers.tsv` 补 `v3253_open_face_registry.test.mjs`（数据行 233→234，不补则跨仓守卫 P3 报「新增测试未登记进参考基准」）；
+`audit_scan_probe_matrix.tsv` 补 `scan_open_faces.mjs`（数据行 33→34，不补则 `v3226` 的 B1 双向齐全判据转红 —— 该表表头逐字写着「新增扫描器不登记 ⇒ 该套件转红」）。
+**第三处（抬版后跑全量才抓到，单跑发现不了）**：`tests/v3247_break_kit_consolidation.test.mjs` 的 `REGISTRY` 补 `v3253_open_face_registry.test.mjs` —— 本套件 import 了 `_break_kit.mjs`（真·接收方）却未入接收方台账。
+读数：`233/234 文件通过 / 2 断言失败`，错误原文「磁盘上新增了接收方却没登记（下一步就是接入面与判据面不同源）」；补后 `v3247` 17/17。
+=> **教训：本仓连带登记面不止两处** —— 新增测试文件要同时问三张表「我在不在里面」（参考基准 / 扫描器矩阵 / 破坏工具接收方台账）。

@@ -843,7 +843,7 @@ N1 当场转红；改为共用 `ROOT_MKDTEMP` / `ROOT_TMPWRITE` 两个常量，*
   O-5（性能取证）**已完成**（v3.228.0，见上）：合成探针 + 六条热路径读数 + 缩放判断；
   **O 批（O-1 ~ O-6）至此全部完成**。
 - **功能拓展（F 批）：进行中（上游 3/6，下游 0/6）** —— 计划 14 项里剩六项：
-  F-1 分支与玩法（R4）、F-2 跨平台事件、F-4 projection 五态消费普查、
+  F-1 分支与玩法（R4）、F-2 跨平台事件、~~F-4 projection 五态消费普查~~（**v3.253.0 已完成**，见下段更正），
   F-7 九账出桥（依赖 P-3，已解阻）、F-8 存档健康面板（依赖 P-4，已解阻）、P-6 声明式生命周期可行性取证。
   **【v3.251.0 轮更正（过期状态）】** 上面这一句里有三处已过期，按磁盘读数逐条对齐（**只改文案，不重做 Gate**）：
   ① **F-2 不该再留在「剩六项」里** —— 同一段紧接着的「**已完成**」已把它列上，故本行计数与自身矛盾；
@@ -853,7 +853,14 @@ N1 当场转红；改为共用 `ROOT_MKDTEMP` / `ROOT_TMPWRITE` 两个常量，*
   唯余**内容级只读对照**未做（见本文件 874 行下更正块：`diffPayloads` 只到顶层键面）。
   ⇒ 本行的「剩六项」计数与「上游 3/6、下游 0/6」的比值**均已被取代**，
   逐项现行状态以 `tests/audit/open_items_reconcile.md` 为准（F-7 走 `evidence` 键出桥、F-8 下游 v3.5.1 各有其条）；
-  **F-4 本轮未核**，不在此处断言。
+  **【v3.253.0 轮更正】** **F-4 projection 五态消费普查已完成**（原文「本轮未核」保留作历史记录）：
+   F-4 的「五态」= `projection-pipeline.js::contractOf()` 的 `ok` / `missing` / `malformed` / `ahead` / `behind`（逐字见 `CHANGELOG.md:2675`；
+   本仓「五态」是多义词，实测 67 处命中分属 `ORIGINS` / 情感反向 / 桥来源 / `findRef` / `guardApply` / 诊断行等不同面，**只锁这一支**）。
+   普查结论：**不是缺口，是「已闭环但无人断言」** —— 上游产品面**有意 0 消费**（裁定函数随 envelope 交下游），
+   下游真消费 **6 处 / 下限 4**（`apps/chars` / `clock` / `place` / `plotline` / `diagnose-data` / `diagnose-view`），
+   经下游 `config/projection-contract.js`（独立同语义实现）并由下游 `scripts/bridge-contract-audit.mjs` 的 **J8** 机械把守。
+   本轮把它从散点变成**可查**：登记表 `tests/audit/open_face_registry.tsv` 的 `projectionEnvelope` 行 + 守卫 T5/T6 机械把守。
+   完整读数见 `tests/audit/open_items_reconcile.md` §4n。
   **已完成**：F-3（v3.232.0）、F-6（v3.232.0）、F-2（上游侧 v3.233.0 + 下游侧 v3.9.0/v3.9.1）。
   F-2 **下游侧接点核实**（v3.234.0 复校，纠正本文件此前的陈旧记载）：计划原文称下游
   「对 `eventPlatforms` 的消费点**未接**」——实测**已接**。下游取证：

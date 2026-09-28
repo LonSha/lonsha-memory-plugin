@@ -21,7 +21,7 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.252.0
+> 最近更新：v3.253.0
 > **两计划落地对账（v3.251.0 轮）**：`tests/audit/open_items_reconcile.md` 逐项列「计划仍写开 vs 磁盘已收口」，
 > **【本批更正】** 原文写「并对齐《优化提升计划》M-O1~M-O4 / R-O1~R-O4 与《拓展升级计划》F1~F9 的批次映射」——
 > 实测该映射**当时并未建立**（该文件零条 M-O*/R-O*），系**声称过头**；本批已按磁盘补齐实际映射：
@@ -34,6 +34,15 @@
 > 同轮另核（第三批）：**能力索引**（根 `README.md` 自报 v1.1.0 / Phase 9，点名的 9 个模块文件
 > —— `visualizer.js` / `graph-worker.js` / `worker-manager.js` / `virtual-renderer.js` / `wasm-bridge.js` /
 > `storage.js` / `gpu-renderer.js` / `realtime-sync.js` / `cloud-sync.js` —— 磁盘全无）**陈旧且零门禁覆盖**
+> **【v3.253.0 轮】** 计划一「共同配套」第 2 条（跨仓功能登记表）**已交付**：
+> `tests/audit/open_face_registry.tsv`（5 面 × 9 列）+ 守卫 `tests/audit/scan_open_faces.mjs`（七判据 / `rc=0`）
+> + 常驻套件 `tests/v3253_open_face_registry.test.mjs`（21 条）。四态逐字在 `invalid_conditions` 列，
+> 「缺席与空不同形」在 `absent_vs_empty` 列且须真列两种以上态词。
+> 同轮顺带收口 **F-4 projection 五态消费普查**：不是缺口，是「已闭环但无人断言」——
+> 上游产品面**有意 0 消费**（裁定函数随 envelope 交下游），下游真消费 **6 处 / 下限 4** 并由其 J8 把守；
+> 本轮把它从散点变成可查。完整读数见 `tests/audit/open_items_reconcile.md` §4n。
+> **连带登记面不止两处**：新增测试文件须同时问三张表（参考基准 `catalog_reference_consumers.tsv` /
+> 扫描器矩阵 `audit_scan_probe_matrix.tsv` / 破坏工具接收方台账 `v3247` 的 `REGISTRY`），第三处是抬版后跑全量才抓到的。
 > （`scan_version_guard` 不含 README、`scan_claim_truthfulness` 只吃 `index.js`）；因属用户门面改写，**只登记不改**。
 > 计划二 F7 首阶段「只读内容对照」经源级取证**未交付**：`diffPayloads` 实测只到**顶层键面**（`snapshot-checkpoint.js:343-364`），
 > 内容级对照仍无；上一轮对账里「内容级 `diffPayloads`」一句**已自审更正**（对账文件 §2 与 §4c、下游 F-1 块同步）。

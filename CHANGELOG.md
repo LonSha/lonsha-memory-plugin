@@ -1,3 +1,62 @@
+## v3.253.0
+**主题：计划一「共同配套」第 2 条 —— 跨仓功能登记表。**
+
+一句话纪律：**跨仓面不得只以散点形态存在** —— 「全仓一共有几面外供 / 每面的失效条件 / 单独装一个仓会怎样」
+必须有一处能答；且登记不得与磁盘滞离（表最容易的死法是模块退役后表里留着旧名，那时表绿门绿、而那面已经没了）。
+
+### 修前实测（不是推测）
+
+- `tests/audit/open_items_reconcile.md` 的未做表里逐字写着「无统一登记表」。
+- 跨仓面只有散点：F-2 的四态在一份 system 套件、F-3 的在另一份、下游基线 JSON 带冻结证据；
+  而**统一面**没有。
+
+### 交付面
+
+- `tests/audit/open_face_registry.tsv`：跨仓外供功能登记表（**5 面 × 9 列**）。
+  列（即计划原话的六项 + 三列补充）：`face` / `owner` / `producer_version` / `upstream_symbol` / `contract_shape` /
+  `consumer` / `invalid_conditions` / `standalone_behavior` / `absent_vs_empty`。
+- `tests/audit/scan_open_faces.mjs`：常驻守卫（七条判据）——
+  T1 表形态（面标识唯一 / 不流白 / 版本形态 / 归属仓）；
+  T2 **符号真在场**（退位项；判定做在**剥注释后**的代码上，且认四种定义形态含**类方法简写**）；
+  T3 **在分发面上**（`manifest.js` / `extra_js`；不在分发面上的面用户永不可见）；
+  T4 `consumer` 列只许 `name@N` 或 `none@0`（自由文本会让它退化成一句人话）；
+  T5 **四态逐字**（缺席 / 旧版 / 不产出 / 空数据，计划原话）；
+  T6 「缺席与空如何不同形」必须真列出**两种以上**态词（“已分态”三个字不算）；
+  T7 `runAll` 与主入口分开（`isMain`）——判据可被 import，守卫不在 import 时 `process.exit`。
+- `tests/v3253_open_face_registry.test.mjs`：A–F 21 条专锁。
+### 连带登记（**三处，缺一即红** —— 都是「新面未登记」而非「修了没生效」）
+
+- `tests/audit/catalog_reference_consumers.tsv` 补 `v3253_open_face_registry.test.mjs` 一行（数据行 233→234）。
+  不补则跨仓守卫 P3 报「新增测试未登记进参考基准」，并连累 v3159 / v3204 / v3205 / v3227。
+- `tests/audit/audit_scan_probe_matrix.tsv` 补 `scan_open_faces.mjs` 一行（数据行 33→34）。
+  不补则 `v3226` 的 B1 双向齐全判据转红 —— 该表表头逐字写着「新增扫描器不登记 ⇒ 该套件转红」。
+- `tests/v3247_break_kit_consolidation.test.mjs` 的 `REGISTRY` 补 `v3253_open_face_registry.test.mjs`。
+  本套件 import 了 `_break_kit.mjs`（真·接收方），但未入接收方台账。**这条是抬版后跑全量才抓到的**
+  （单跑 v3253 与守卫均绿，因为缺口在**别人的**台账里）—— 记账：`233/234 文件通过 / 2 断言失败`，
+  错误原文「磁盘上新增了接收方却没登记（下一步就是接入面与判据面不同源）」；补后 v3247 17/17。
+  ⇒ 教训：**本仓的连带登记面不止两处**，新增测试文件要同时问三张表「我在不在里面」。
+
+### F-4 投影五态消费普查（本轮顺带收口，计划尾原写「本轮未核」）
+
+普查读数（逐条真取证，不是推断）：
+
+| 侧 | 读数 |
+| --- | --- |
+| 五态定义 | `projection-pipeline.js` 的 `contractOf()`：`ok` / `missing` / `malformed` / `ahead` / `behind`（逐字见 CHANGELOG v3.212.0 节）|
+| 上游产品面消费 | **0 处**（`index.js` 只调 `runPipeline` / `buildEnvelope` / `pipelineLine` / `absentList`）—— 有意如此：`contractOf` 是**随 envelope 交给下游**的裁定函数，上游自用没必要 |
+| 下游产品面消费 | **6 处**（`apps/chars` / `clock` / `place` / `plotline` / `diagnose` 的读数出口 + 诊断内核），经下游 `config/projection-contract.js`（v3.0.0）的**独立同语义五态实现**；下限 **4** 由下游 J8 把守 |
+| 结论 | **不是缺口，是「已闭环但无人断言」** —— 本轮把它写进登记表（`absent_vs_empty` 列逐字列出五态名），使它从散点变成可查 |
+
+> 「五态」在本仓是**多义词**（实测 67 处命中分属不同面：`ORIGINS` 五态 / 情感回路五态 / 桥来源五态 / `findRef` 五态 / 守卫五态 …）。
+> 本轮只锁「projection 契约裁定五态」这一支，不把同名词当同一面（否则登记表自己就是错读数）。
+
+### 边界（显式声明，不装）
+
+- `consumer` 列是**声明**，上游守卫不跨仓核实（另有仓内纪律：`scan_cross_repo_binding.mjs` 的 P2
+  禁止在役测试面引用兄弟仓）。真核实挂在下游 `scripts/bridge-contract-audit.mjs` 的
+  J8 / J10 / J11 / J12（按面分别设产品侧消费点下限、按文件去重、fail-closed）。
+  这不比手抄一份下游清单弱 —— 抄本必然漂移，而下游自己的门禁跑在其 CI 上。
+- 未验实机；下游 5 面里 `checkpointCompare` 仍是 `none@0`（计划二 T4 已排 F7）。
 ## v3.252.0
 **主题：计划二 F7 首阶段 —— 内容级只读对照（「同键、同长度，只有值不同」的缺口）。**
 一句话纪律：**「看不出差异」不得与「没有差异」同形；比不动要如实报「比不成」——折成计数等于把这件事还回用户。**

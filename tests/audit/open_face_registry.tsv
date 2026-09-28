@@ -1,0 +1,37 @@
+# open_face_registry.tsv — 跨仓外供功能登记表（计划一「共同配套」第 2 条）[v3.253.0]
+#
+# 计划要求：每个跨仓功能登记「拥有者 / 生产者版本 / 契约形状 / 消费者 / 失效条件 /
+#   单独安装行为」，且「缺席 · 旧版 · 不产出 · 空数据」四种错法**分别呈现**。
+#
+# 本表只登记上游→下游方向的外供面（下游→上游方向当前 0 面，故无行）。
+# 两侧「各自自足」：上游 tests/audit/scan_cross_repo_binding.mjs 的 P2 把守「在役测试面
+#   不得引用兄弟仓」。因此 consumer 列是**声明**，核实挂在**下游自有门禁**上
+#   （ruby-phone scripts/bridge-contract-audit.mjs 的 J8/J10/J11/J12：按面分别设产品侧
+#   消费点下限、按文件去重、fail-closed）。
+#   上游守卫只判**本仓可核部分**：符号在场 / 契约形状 / 失效条件四态 / 单独安装行为。
+#   这不比手抄一份下游清单弱 —— 抄本必然漂移，而下游自己的门禁跑在其 CI 上。
+#
+# 存在理由（为什么不能只有逐功能形态）：修前仅有散点 —— F-2 的四态在
+#   tests/system-v321.test.mjs 里、F-3 的在 v328 里、下游基线 JSON 带冻结证据，
+#   而「全仓一共有几面外供、每面的失效条件是什么、单独装一个仓会怎样」
+#   **没有一处能回答**（计划一「共同配套」第 2 条点名的就是这个）。
+#
+# 列（制表符分隔，9 列）：
+#   face                面标识（全表唯一，与代码里的符号同族）
+#   owner               归属仓
+#   producer_version    生产该面的版本（下游据此判「旧版」）
+#   upstream_symbol     产出符号：<模块文件>::<sym>[,<sym>...]（模块须在 manifest.extra_js 分发面）
+#   contract_shape      契约形状（关键键 / 字段 / 态词表，供下游独立判「认不认得」）
+#   consumer            消费者声明：<下游读出口名>@<产品侧消费点下限> 或 none
+#   invalid_conditions  失效条件（缺席 / 旧版 / 不产出 / 空数据 四态须分别呈现）
+#   standalone_behavior 单独安装本仓（下游缺席）时的行为
+#   absent_vs_empty     缺席与空如何**不同形**（本仓最贵的老账：不得同形）
+#
+# 维护：新增外供面须补一行；退役一面须删行（tests/v3253 双向点名）。
+# 列（制表符分隔，九列，顺序即契约）：face / owner / producer_version / upstream_symbol / contract_shape /
+#   consumer / invalid_conditions / standalone_behavior / absent_vs_empty
+projectionEnvelope	lonsha-memory-plugin	v3.212.0	projection-pipeline.js::runPipeline,buildEnvelope,contractOf,PROJECTION_API_VERSION,ENVELOPE_FIELDS	envelope 11 必填字段 + contractOf 五态 ok|missing|malformed|ahead|behind + sourceLedger.available	readProjection@4	缺席(提供器未注册=no-provider)/旧版(快照无 projection 键=present:false)/不产出(管线缺席=pipeline-absent)/空数据(源明确说没有=source-empty)	快照无此面 ⇒ 下游报 no-projection-face（文案「需记忆插件 v3.212+」），不当作「都是空」	absent｜sourceLedger.available=false 即 pipeline-absent ｜empty｜源明说没有：ok:true + 全部 entry.kind=empty 且 items 恒有键（缺席不给值、给空值也算给了）
+injectionReadout	lonsha-memory-plugin	v3.215.0	index.js::buildInjectionReadout	10 键 origin|outcome|round|ts|tokens|chars|html|total|kept|blocks[]（每块 ref|id|label|kept|chars|reason）	readInjection@2	缺席(未跑过=_lastInjection null)/旧版(9 键无 outcome)/不产出(outcome pending=这一轮还没落定)/空数据(blocks 长度 0 但非 null)	未跑过一律 null（**不是空壳对象**）；下游 absent+bridge-absent，不当作「这轮没注入」	absent｜未跑过：buildInjectionReadout 返回 null（**不是空壳对象**）｜empty｜跑过且 0 块：非 null 且 blocks:[] ｜空壳对象（缺键的对象）一律不许，因为它与「跑过 0 块」同形
+eventPlatforms	lonsha-memory-plugin	v3.233.0	index.js::_eventPlatformsFace	恒定 11 键面 ok|reason|events|segments|platforms|levels{extract,platform,other,none}|unlabeled|countedEvents|truncated	readLonshaEventPlatforms@1	缺席(旧版快照无此键)/旧版(present:false=本版没这面)/不产出(module-unavailable|thrown)/空数据(reason=no-events)	内核对空账也给全键（面恒定）⇒ 下游按键断言即可、不必猜；下游 bridge-absent|face-absent|unusable|empty|ok 五态	bridge-absent|face-absent|unusable|empty|ok 五态；「有面但无平台标签」写「无平台标签」**不写「0 个平台」**
+evidenceWorkbench	lonsha-memory-plugin	v3.214.0	index.js::_evidenceWorkbench,searchEvidence	九账面 + ok|empty|absent 三态 + reason（内核已分，快照只负责搬运）	readLonshaEvidence@3	缺席(内核不在场=module-unavailable)/旧版(快照无 evidence 键)/不产出(内核在但未投影)/空数据(空账=ok:true 且零条目)	取不到内核即给结构完整的空结果、不抛；下游按 ok|empty|absent 分态，不压成一态	旧版快照（无 evidence 键）与「有面但空账」分报；下游 face-absent|face-empty|face-ok|unusable
+checkpointCompare	lonsha-memory-plugin	v3.237.0	snapshot-checkpoint.js::compareCheckpoints,diffPayloads,diffPayloadsDeep,probeStore	键面 onlyInA|onlyInB|shared + bytes|bytesDelta|代际 ｜ 内容级 changes[]|sets[]|capped[]|cycles[]|limits|deepContentCompared	none@0	缺席(store-absent|store-mismatch)/旧版(无 diffPayloadsDeep=deep-unavailable)/不产出(not-found=没有这份检查点)/空数据(shared 空且 changes 空)	store 缺席即 store-absent 归因，不当作「没有检查点」（store-absent 与 not-found 不同形）；下游尚未接入（计划二 T4 已排 F7）	store-absent|store-mismatch|no-chat-id|name-invalid|not-found|corrupt|ok；absent 与「查过没有」不同形
