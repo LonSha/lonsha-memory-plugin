@@ -2,7 +2,8 @@
 node_modules/
 *.log
 
-# [v3.146] 一次性改库脚本（sNN/uN/vN/wN/fixN.py）与调试产物，禁止随 git add -A 入库
+# [v3.146] One-off repo-edit scripts (sNN/uN/vN/wN/fixN.py) and debug dumps.
+# Kept out so a blanket `git add -A` can never stage them.
 /[suvwf][0-9]*.py
 /[a-z]*fix[0-9]*.py
 /dbg*.js

@@ -149,39 +149,68 @@ console.log(`检测到 ${communities.length} 个社区`);
 
 ## 📁 项目结构
 
+模块均位于根目录：它们由 `manifest.json` 的 `extra_js`（66 项）按**文件名**加载，
+迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**，
+否则宿主不会载入（由 `tests/audit/scan_module_wiring.mjs` 监控）。
+
 ```
 lonsha-memory-plugin/
-├── index.js                    # 主引擎（Phase 1-2）
-├── modules_combined.js         # 基础模块（图谱/摘要/向量/日记）
-├── graph_algorithms.js         # 图扩散算法（Phase 3）
-├── visualizer.js               # 可视化模块（Phase 4）
-├── visualizer.css              # 可视化样式
-├── graph-worker.js             # WebWorker 多线程（Phase 5）
-├── worker-manager.js           # Worker管理 + 增量更新 + 索引
-├── virtual-renderer.js         # 虚拟滚动渲染（Phase 5）
-├── pagerank.rs                 # Rust WASM PageRank（Phase 6）
-├── Cargo.toml                  # Rust 项目配置
-├── wasm-bridge.js              # WASM 桥接 + 自适应选择（Phase 6）
-├── storage.js                  # IndexedDB 持久化存储（Phase 6）
-├── gpu-renderer.js             # WebGL GPU 渲染引擎（Phase 7）
-├── realtime-sync.js            # WebSocket 实时协作（Phase 7）
-├── cloud-sync.js               # 云端同步模块（Phase 7）
-├── style.css                   # 基础样式
-├── manifest.json               # 插件清单
-├── README.md                   # 本文档
-├── CHANGELOG.md                # 变更日志
-├── PHASE5_REPORT.md            # Phase 5 报告
-├── PHASE6_GUIDE.md             # Phase 6 使用指南
-├── PHASE6_REPORT.md            # Phase 6 完成报告
-├── PHASE7_GUIDE.md             # Phase 7 使用指南
-├── PHASE7_REPORT.md            # Phase 7 完成报告
-└── PROJECT_SUMMARY.md          # 项目总结
+├── index.js                  # 主入口（VERSION 唯一锚点 / 事件接线 / 注入汇总）
+├── manifest.json             # 插件清单（js / css / extra_js / extra_css 加载面）
+├── package.json              # 版本三源之一（不参与运行时加载）
+├── style.css | lonsha-design.css | visualizer.css
+│
+├── ── 账本族（写入 → 回读 → 判据） ──
+├── commitment-ledger.js  cost-ledger.js    coverage-ledger.js  echo-ledger.js
+├── floor-ledger.js       ledger-entity.js  ledger-replay.js    parallel-ledger.js
+├── secret-ledger.js      seed-ledger.js
+│
+├── ── 召回与注入 ──
+├── injection-router.js   unified-recall.js recall-artifact.js  recall-echo.js
+├── ai-select.js          smart-trigger.js  retrieval-audit.js  text-chunk.js
+├── fuzzy-patch.js        scene-book.js
+│
+├── ── 图谱与关系 ──
+├── graph_algorithms.js   knowledge-network.js  crosslink.js      entity-semantic.js
+├── relation-disclosure.js relation-mutual.js   npc-ties.js
+│
+├── ── 时间与世界 ──
+├── world-clock-reader.js world-ledger-reader.js story-clock-parse.js event-chain.js
+├── event-completeness.js  narrative-pulse.js
+│
+├── ── 事实与版本 ──
+├── fact-version.js       memory-supersede.js memory-type.js      age-anchor.js
+├── changeset.js          canonical-stringify.js  summary-provenance.js
+│
+├── ── 快照与迁移 ──
+├── snapshot-checkpoint.js schema-migration.js module-registry.js  dependency-closure.js
+├── public-interface.js
+│
+├── ── 流水线 ──
+├── projection-pipeline.js step-pipeline.js   turn-reconciler.js  extraction-cadence.js
+├── sleep-awaken.js       archive-shift.js   branch-guard.js     stale-guard.js
+├── repair-loop.js        floor-range.js     cost-forecast.js
+│
+├── ── 存储与桥接 ──
+├── stm-ltm.js            api-channels.js    model-response.js   loose-json.js
+├── cse-engine.js         node-rollup.js     evidence-workbench.js task-inbox.js
+│
+├── ── UI 与打包 ──
+├── settings-ui.js        modules_combined.js
+│
+├── tests/                # 在役门禁（233 个测试文件 + 50 个审计脚本）
+├── tools/                # 一次性修崩助手（_ 前缀不进门禁扫描面）
+└── archive/              # 历史报告与考察存档（不参与运行时）
+   ├── *.md               # Phase 报告、交付清单、项目总结
+   ├── research/          # 参考项目考察存档（6 份）
+   ├── rust/              # pagerank.rs + Cargo.toml（未接入）
+   └── local-backups/     # 本地备份（未入库，.gitignore 已同步）
 ```
 
-**核心代码**: ~6041行  
-**文档**: ~4181行  
-**总文件数**: 31个
-
+**运行时模块**: 67 个（根目录 `.js`）  
+**载入面**: `index.js` + `extra_js` 66 项 + CSS 3 项  
+**在役门禁**: `tests/` 233 个测试文件 / `tests/audit/` 50 个审计脚本  
+**当前版本**: 见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
 ## 🎯 Roadmap
 
 ### Phase 1-7: ✅ 已完成
