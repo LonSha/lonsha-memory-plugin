@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.252.0",
+ "measured_at": "v3.253.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -223,6 +223,37 @@
     "member_count": 2,
     "top5_pct": -0.2
    }
+  },
+  "v3.253.0": {
+   "reason": "v3.253.0 重建：跨仓外供登记表（表 + 守卫 + 套件；产品代码只动 VERSION 常量）",
+   "readings": {
+    "total_lines": 18245,
+    "member_count": 585,
+    "top5_lines": 4096,
+    "top5_pct": 22.4,
+    "top40_lines": 9247,
+    "top40_pct": 50.7,
+    "prefix_rule_coverage_lines": 4410,
+    "prefix_rule_coverage_pct": 24.2,
+    "unclassified_lines": 13004,
+    "seam_distinct_modules": 36,
+    "seam_reference_sites": 48,
+    "seam_call_shape_sites": 51,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.252.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -256,9 +287,9 @@
    "members": 529,
    "lines": 13004,
    "lines_pct": 71.3,
-   "outside_refs": 3728,
-   "internal_refs": 5752,
-   "outside_ref_share_pct": 39.3
+   "outside_refs": 3689,
+   "internal_refs": 5759,
+   "outside_ref_share_pct": 39
   },
   {
    "domain": "宿主事件接线",

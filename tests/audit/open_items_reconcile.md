@@ -219,7 +219,7 @@
 | 共同配套第 2 条跨仓功能登记表 | ~~**未做**：属新机制~~ ⇒ **v3.253.0 已交付**（见 §4n：登记表 + 守卫 + 常驻套件）|
 | 根 `README.md` 能力索引改写 | **未做**：用户门面产品取舍（改写价值与风险已在 §4a 登记） |
 | `p3_snapshot_bytes` 重跑 | **未做**（不再是「测不出」） |
-| 上游 `bindEvent` 是否仍为 7 | **未复核**（不再是「测不出」） |
+| 上游 `bindEvent` 是否仍为 7 | **已复核（v3.253.0 轮）**：仍为 **7** —— `index.js` 里 7 处 `this.bindEvent(eventSource, types.*, _h1.._h7)`（产品侧真注册点，全部闭包），另 1 处是 `bindEvent(eventSource, type, handler)` **定义本身**（行 17479，不计入）；interceptor 为第 8 条注入路径、**不经** `bindEvent`（`index.js:17969`）。与 `tests/audit/p6_lifecycle_feasibility.md` 的 `bindEvent_call_sites = 7` 逐字一致 |
 
 ### (m) v3.252.0 轮：F7 首阶段已交付 + P-3 已闭环（关掉 §4b / §4l 两条）
 
