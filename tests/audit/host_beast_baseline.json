@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.253.0",
+ "measured_at": "v3.255.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -254,6 +254,68 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.254.0": {
+   "reason": "v3.254.0 M-O4：派生缓存身份统一（cache-identity.js）+ 长线规模/缓存负载量测（cache-workload.js）落在 index.js 接线（三个宿主口 _dataRevision/_cacheIdentityOf/_cacheIdentityStale、两个取库口 _cacheIdentityLib/_cacheWorkloadLib、召回缓存命中侧与写入侧改造、selfCheck 新增「缓存身份」诊断行 20 行）⇒ index.js 行数 18245→18378、成员 585→588",
+   "readings": {
+    "total_lines": 18378,
+    "member_count": 588,
+    "top5_lines": 4129,
+    "top5_pct": 22.5,
+    "top40_lines": 9284,
+    "top40_pct": 50.5,
+    "prefix_rule_coverage_lines": 4443,
+    "prefix_rule_coverage_pct": 24.2,
+    "unclassified_lines": 13086,
+    "seam_distinct_modules": 38,
+    "seam_reference_sites": 50,
+    "seam_call_shape_sites": 53,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把 M-O4 的宿主接线与新诊断行按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。未做 AST 级归属、未排优先级；缓存负载面只量不改（无证据热点 ⇒ 不动产品代码）。",
+   "delta_from": "v3.253.0",
+   "delta": {
+    "total_lines": 133,
+    "member_count": 3,
+    "top5_pct": 0.1
+   }
+  },
+  "v3.255.0": {
+   "reason": "v3.255.0 M-O4 兑现审计：_cacheIdentityOf() 的 revision 位不再读无条件自增的落盘计数器（改为 null），头注扩写为何不能接该来源；同步修正四位分工旧口径两行，新增 C9 身份来源判据与 v3255 当版 frontier",
+   "readings": {
+    "total_lines": 18401,
+    "member_count": 588,
+    "top5_lines": 4129,
+    "top5_pct": 22.4,
+    "top40_lines": 9303,
+    "top40_pct": 50.6,
+    "prefix_rule_coverage_lines": 4443,
+    "prefix_rule_coverage_pct": 24.1,
+    "unclassified_lines": 13109,
+    "seam_distinct_modules": 38,
+    "seam_reference_sites": 50,
+    "seam_call_shape_sites": 53,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 19,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "无实机验证（无浏览器）；本次未重抽各域行号（域边界未成契约）",
+   "delta_from": "v3.254.0",
+   "delta": {
+    "total_lines": 23,
+    "member_count": 0,
+    "top5_pct": -0.1
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -265,48 +327,48 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 18245,
-  "member_count": 585,
-  "top5_lines": 4096,
+  "total_lines": 18401,
+  "member_count": 588,
+  "top5_lines": 4129,
   "top5_pct": 22.4,
-  "top40_lines": 9247,
-  "top40_pct": 50.7,
-  "prefix_rule_coverage_lines": 4410,
-  "prefix_rule_coverage_pct": 24.2,
-  "unclassified_lines": 13004,
-  "seam_distinct_modules": 36,
-  "seam_reference_sites": 48,
-  "seam_call_shape_sites": 51,
-  "members_over_80_lines": 32,
-  "low_coupling_members": 18,
+  "top40_lines": 9303,
+  "top40_pct": 50.6,
+  "prefix_rule_coverage_lines": 4443,
+  "prefix_rule_coverage_pct": 24.1,
+  "unclassified_lines": 13109,
+  "seam_distinct_modules": 38,
+  "seam_reference_sites": 50,
+  "seam_call_shape_sites": 53,
+  "members_over_80_lines": 33,
+  "low_coupling_members": 19,
   "high_coupling_members": 11
  },
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 529,
-   "lines": 13004,
-   "lines_pct": 71.3,
-   "outside_refs": 3689,
-   "internal_refs": 5759,
-   "outside_ref_share_pct": 39
+   "members": 532,
+   "lines": 13109,
+   "lines_pct": 71.2,
+   "outside_refs": 3814,
+   "internal_refs": 5723,
+   "outside_ref_share_pct": 40
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
-   "lines": 1757,
+   "lines": 1770,
    "lines_pct": 9.6,
    "outside_refs": 1,
-   "internal_refs": 74,
+   "internal_refs": 75,
    "outside_ref_share_pct": 1.3
   },
   {
    "domain": "诊断与导出",
    "members": 27,
-   "lines": 1176,
-   "lines_pct": 6.4,
+   "lines": 1196,
+   "lines_pct": 6.5,
    "outside_refs": 443,
-   "internal_refs": 2382,
+   "internal_refs": 2383,
    "outside_ref_share_pct": 15.7
   },
   {
@@ -322,16 +384,16 @@
    "domain": "桥/快照出口",
    "members": 2,
    "lines": 211,
-   "lines_pct": 1.2,
-   "outside_refs": 1,
-   "internal_refs": 6,
-   "outside_ref_share_pct": 14.3
+   "lines_pct": 1.1,
+   "outside_refs": 2,
+   "internal_refs": 5,
+   "outside_ref_share_pct": 28.6
   },
   {
    "domain": "配置与持久化",
    "members": 3,
    "lines": 138,
-   "lines_pct": 0.8,
+   "lines_pct": 0.7,
    "outside_refs": 2,
    "internal_refs": 14,
    "outside_ref_share_pct": 12.5
@@ -386,7 +448,7 @@
   },
   {
    "name": "selfCheck",
-   "lines": 748,
+   "lines": 768,
    "outside_refs": 10
   },
   {
@@ -396,7 +458,7 @@
   },
   {
    "name": "onBeforeGeneration",
-   "lines": 511,
+   "lines": 524,
    "outside_refs": 0
   },
   {
@@ -427,7 +489,7 @@
   {
    "name": "import",
    "lines": 206,
-   "outside_refs": 15
+   "outside_refs": 19
   },
   {
    "name": "rollbackFloor",
@@ -437,12 +499,12 @@
   {
    "name": "buildBridgeSnapshot",
    "lines": 196,
-   "outside_refs": 1
+   "outside_refs": 2
   },
   {
    "name": "import",
    "lines": 188,
-   "outside_refs": 15
+   "outside_refs": 19
   },
   {
    "name": "constructor",
@@ -525,6 +587,11 @@
    "outside_refs": 1
   },
   {
+   "name": "_historyFingerprint",
+   "lines": 85,
+   "outside_refs": 2
+  },
+  {
    "name": "packCarryover",
    "lines": 85,
    "outside_refs": 1
@@ -532,7 +599,7 @@
   {
    "name": "import",
    "lines": 82,
-   "outside_refs": 15
+   "outside_refs": 19
   },
   {
    "name": "clearRuntimeMemory",
@@ -568,17 +635,12 @@
    "name": "_recomputeCoverage",
    "lines": 62,
    "outside_refs": 0
-  },
-  {
-   "name": "archiveCoveredFloors",
-   "lines": 62,
-   "outside_refs": 0
   }
  ],
  "split_candidates": {
   "threshold_lines": 80,
-  "total_over_threshold": 32,
-  "low_coupling_non_lifecycle": 18,
+  "total_over_threshold": 33,
+  "low_coupling_non_lifecycle": 19,
   "high_coupling_non_lifecycle": 11,
   "low_coupling_examples": [
    {
@@ -602,7 +664,7 @@
    {
     "name": "buildBridgeSnapshot",
     "lines": 196,
-    "outside_refs": 1,
+    "outside_refs": 2,
     "is_host_lifecycle": false
    },
    {
@@ -663,7 +725,7 @@
    },
    {
     "name": "selfCheck",
-    "lines": 748,
+    "lines": 768,
     "outside_refs": 10,
     "is_host_lifecycle": false
    },
@@ -682,7 +744,7 @@
    {
     "name": "import",
     "lines": 206,
-    "outside_refs": 15,
+    "outside_refs": 19,
     "is_host_lifecycle": false
    },
    {
@@ -694,7 +756,7 @@
    {
     "name": "import",
     "lines": 188,
-    "outside_refs": 15,
+    "outside_refs": 19,
     "is_host_lifecycle": false
    },
    {
@@ -718,7 +780,7 @@
    {
     "name": "import",
     "lines": 82,
-    "outside_refs": 15,
+    "outside_refs": 19,
     "is_host_lifecycle": false
    }
   ]

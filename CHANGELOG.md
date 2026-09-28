@@ -1,3 +1,135 @@
+## v3.255.0
+**主题：M-O4 兑现审计—— 刚交付的出口还在不在守，以及它守的时候用的判据真不成立。**
+
+一句话纪律：**“刚交付”不等于“还在守”** —— 本版在自己刚上的身份面上抽出一处静默失效。
+
+### 修前实测（真源码抽出方法体真跑，不是模拟）
+
+- `_cacheIdentityOf()` 首稿把 `revision` 位填成 `this.storage.getRevision()`，而
+  `StorageManager.save()`（index.js:17201）是**无条件** `this._revision += 1` —— 它数的是
+  「落盘**次数**」。而同一份文件的头注上一段**刚刚警告过这个来源**。
+- 三条即时存盘路径都会踩到：`MESSAGE_EDITED`（`recordSaveSource('edit')`）、
+  `MESSAGE_SWIPED`（`'swipe'`）、`MESSAGE_DELETED`（`'delete'`）—— 同一楼任何一次编辑/
+  swipe/删楼都会立即落盘 ⇒ 命中检查读到 `r0 → r1`（会话 / 代际 / 历史指纹
+  **三位逐字未变**）⇒ `stale=true / reason=revision-changed` ⇒ 缓存被拒。
+- 真源码探针读数（抽 `_cacheIdentityOf` 方法体 811 字节，`new Function` 重建后 `call(host)`）：
+  修前 `chat-A|e3|r0|abc123_40` → 落盘一次 → `chat-A|e3|r1|abc123_40` ⇒ `revision-changed`；
+  修后两侧均 `chat-A|e3|r-|abc123_40` ⇒ `hit`，再落一次盘仍 `hit`。。
+
+**形态定性：不报错，只是把缓存**静默禁用**（计划原文禁的形态）** ——
+它不会给出错结果（保守重算），故与 M-O4 修掉的那四类「错读数」不同层：
+这一类的代价是**白花钱**，而它恰恰是 M-O4 自己的目的（节省重算）被自己抵消。
+
+### 交付面
+
+- `index.js`：`_cacheIdentityOf()` 的 `revision` 位改为不自行填（写 `null` ⇒ key 里 `r-`，
+  `invalidate()` 不据它判失效），并把**为什么不能接这个来源**（含三条即时存盘路径、
+  真源码探针读数、两位共线性的如实登记）逐条写进头注；同步修正四位分工块里
+  仍写着旧口径的两行（实现已改而文档没改，是另一种“看起来在守”）。
+- `tests/audit/scan_v3254_cache_identity.mjs`：新增 **C9 身份来源**（两向）—— 静态面看这一位有没有被写成那个来源
+  （在**剥掉注释**的副本上下结论：头注里逐字引用了它，直接匹原文会假红）；行为面用**真源码抽出的方法体**
+  真跑（正向：落盘一次必须 `hit`；反向 1 换会话 ⇒ `conversation-changed`；反向 2 历史变 ⇒ `history-changed`。
+  后两条专防「为了压假阳把整位填成常量」）。新工具：`methodBody` / `stripCommentsKeepLength` / `normForMatch` / `REV_SOURCE_NEEDLE`。
+- `tests/v3254_cache_identity_and_workload.test.mjs`：D8–D12 五条（正向零问题、破坏必红、锚点消失必红、
+  工具两向自证、判据纯度）；新增 `NL`/`FORBIDDEN` 拼接字面量，以免负控制自命中被禁来源针。
+- `tests/v3255_cache_identity_source.test.mjs`（新）：当版 frontier 锚 —— 三源同版、判据位真跑、
+  破坏必红、判据纯度、词表项不得为了过判据而被删。
+- **审计层自查出一处本地重写**：C9 的剥注释工具首稿在 `scan_v3254` 里自写了一份，
+  被 `scan_audit_lib_consolidation` 的 E1 当场判红（「仍在本地重写 stripComments」）——而它确实与唯一真源**同语义**（真源同样认字符串 / 模板串 / 正则字面量，且保长）。改为转调 `tests/_audit_lib.mjs` 的**delegating 薄包装**（保留本名，不改名绕过）。
+  共同收益：真源额外认**正则**字面量，而本仓 `index.js` 里有 `//` 形的正则（在旧自写版下会误判成行注释而吞掉该行真代码）。
+  这一条不是整洁性偏好：它是「同一份口径多份实现 ⇒ 判据在不同脚本里语义漂移」的现场。
+- 台账同步：`index_beast_map.tsv`（measured_at v3.255.0 / index_lines 18401 / full_suite 236-2397-134.1s）、`host_beast_baseline.json`（零手拄重建：total_lines 18401 / member_count 588 / top5_pct 22.4）、
+  `dead_code_budget.json`（ceiling 41640→41663，实测 41263）、`catalog_reference_consumers.tsv` 与 `v3247` 的 REGISTRY（新建 `v3255` 登记）。
+
+### 纪律留痕
+
+- **判据看起来在守、实际把功能静默关掉**：这是本仓最贵的形态，本版又一次在自己刚交付的出口上抓到。
+  防线不在“以后注意”，在**一条会真跑真源码方法体的判据**。
+- **判据纯度（H5/W9）**：身份面的头注必须能逐字说出“为什么不能接这个来源”；
+  而那句话本身就是被禁的字面量 ⇒ 判据必须在剥注释副本上说话，否则判据会把自己的说明当成缺陷。
+- **同源共线性如实登记**：`_dataRevision()` 返回的就是 `_historyFingerprint()`，
+  故 `revision` 位与 `historyFingerprint` 位**同源**（历史上 `revision-changed` 从不曾独立于
+  `history-changed` 出现过）；把它填成另一个（退化）来源，正是把“冗余但无害”变成“缓存杀手”的那一步。
+- **本次没动产品行为口径**：修的是一位读数的**来源**（从“每轮都在变”改为“不自行填”），
+  四位身份的契约、key 形态、判据面均未改。
+
+## v3.254.0
+**主题：计划一 M-O4 —— 派生缓存身份统一 + 长线规模与缓存负载量测。**
+
+一句话纪律：**「凭什么说这份缓存还有效」必须有一处能答**，且**「热点」不得由读数自己命名** ——
+证据说不支持时，结论必须说「不支持」。本版两条各修一个真形态的失效。
+
+### 修前实测（不是推测）
+
+- 缓存身份是**三个各自独立**的读数，散在调用点各自手写：`_recallCache` 只认
+  `floor + queryKey + 末楼消息指纹`（**不含会话、不含代际、不含历史**）；
+  `recall-artifact` 只认历史指纹；`_fragCache` 一个都不认。
+  后果是本仓最贵的那类失效 —— **不报错，只错结果**：换对话后同楼层同查询
+  可命中**上一段会话**的注入；回滚/恢复之后（`_mutationEpoch` 已递增）缓存仍被当作有效。
+- 长线规模只有**一条曲线**的取证：`tests/audit/_p3_snapshot_probe.mjs`（v3.251.0）量
+  `buildBridgeSnapshot` 的 `meta.selfBytes`，档位 `{0,10,50,200}`。计划原文点名的
+  1000/5000/10000 量级、另外三条消费路径（候选化 / 序列化 / 设置界面）、重复读取冗余度
+  **全部没有读数**。
+
+### 交付面
+
+- `cache-identity.js`（新模块）：把四件读数（会话 `chatId` / 代际 `epoch` /
+  修订号 `revision` / 历史指纹 `historyFingerprint`）合成一份可比身份，并给出
+  **具名**的失效原因。词表：`IDENTITY_KEYS` / `INVALIDATION_CAUSES`（六词：switch ·
+  edit · delete · regen · import · restore）/ `REASONS`（七词）。键形态
+  `<chatId>|e<epoch>|r<revision|'-'>|<historyFingerprint>`，分隔符单反斜杠转义，
+  缺位写 `-` 而**不是** `0`（`0` 是「确实是第 0 代」这个真读数）。
+- `cache-workload.js`（新模块）：可注入探针的量测台（`curve` / `survey` / `repeatCost` /
+  `report`）。档位 `{0,10,50,200,1000,5000,10000}`；路径 `snapshot / candidate /
+  serialize / settings`。**本模块不 import 任何生产文件** —— 探针留在只读脚本里。
+- `tests/audit/_m_o4_probe.mjs`（只读探针，非扫描器）：四条路径各配一个真模块/真方法探针
+  （`buildBridgeSnapshot` / `unified-recall.js::graphToCandidates` /
+  `buildBridgeSnapshotJson` / `_summarizeRecallAudit`）。
+- 宿主接线（`index.js`）：`_dataRevision()`（数据修订号唯一对读口）、`_cacheIdentityOf()`
+  （当下身份组装口）、`_cacheIdentityStale()`（消费点唯一判定入口）、
+  `_recallCache` 写入位补 `identity`、命中位前置身份判定、`selfCheck()` 新增「缓存身份」诊断行、
+  `manifest.extra_js` 注册两模块。
+
+### 本版修掉的四个真缺陷（都不是「优化」，是「读数说谎」）
+
+1. **`superlinear` 把方向丢了**：首稿写 `(minSlope > 0) && (maxSlope / minSlope > 1.5)`。
+   实测 `settings` 曲线的边际斜率是 `5.12 → 1.29 → 0.26 → 0.05`（**递减**，深拷贝摊薄，
+   典型**亚**线性），而 `max/min ≈ 102 > 1.5` ⇒ 首稿判 `superlinear:true` 并给出
+   `open-hotspot-candidate`。那是计划原文「只有证明有收益的热点进入产品修改」要禁的形态：
+   **证据说不支持、结论说支持**。改为按方向分型（`superlinear` 须相邻边际逐段非降且
+   末段/首段 > 1.5 ⇒ 缓升不误判、递减不误判；`sublinear` 单列；其余 `linear`）。
+   修后同一读数归 `sublinear` ⇒ `not-done-until-evidence`。
+2. **`process` 在浏览器里不存在**：`nowMs` 首稿直接 `process.hrtime.bigint()`。本模块的运行
+   宿主是浏览器 ⇒ 整条曲线 `measured:false`（不报错、只是永远测不出）。改为按可用性三档探测
+   （`process.hrtime.bigint()` → `performance.now()` → `Date.now()`）。
+3. **「时钟坏了」被读成「耗时 0」**：注入时钟返回 `NaN` 时首稿折成 `0`，曲线照报
+   `measured:true` 且 ms 全 0（`null - null === 0` 会骗过 `Number.isFinite` 那道）。现返回
+   `null` 并在算术**之前**拦下，归因 `clock-nonfinite`；单次读恰为 0 另归
+   `clock-resolution-too-coarse`（分辨率不够 ≠ 时钟坏了 ≠ 无重复工）。
+4. **`serialize` 探针把失败读成 0 字节**：`buildBridgeSnapshotJson` 内部调
+   `this.buildBridgeSnapshot()`，首稿夹具只给前者 ⇒ `read` 抛 `no-snapshot` 而 `bytes` 取到 0，
+   四个档位齐刷刷「0B/0ms」看起来像「序列化免费」。夹具补齐后读数成立。
+
+### 纪律留痕（三条，都是本仓老账的同一句话）
+
+- **拿不到判据 ≠ 判为失效**：`invalidate()` 读不出当下身份即 `no-current` 且 `stale:false`
+  （放行）；旧格式缓存项 `no-id` 默认放行，收紧须调用方显式 `noIdIsStale:true`。
+- **不完整即不同一**：`diffIdentity()` 对两侧共同缺位**不判相等**，由 `unjudgeable` 单独说清；
+  `invalidate()` 在判据不全而仍判失效时把 `unjudgeable` 带在返回值里 ——
+  「证据充分判失效」与「证据不足只能保守重算」是两个不同结论，读者有权区分。
+- **登记的失败不得成为新的失败**：`_cacheIdentityStale()` 在模块缺席时返回 `null`，
+  调用方退回既有判据 —— 绝不把「不知道」当作「已失效」（那等于静默禁用召回缓存，
+  正是计划原文禁的形态）。
+
+### 连带登记（**三处**）
+
+- `manifest.json` 的 `extra_js` 增两行（根 `.js` 数 69 → 71，`v3116` 的
+  「根 `.js` 数 == 入口 + extra_js」由声明驱动，无需改测试）。
+- `tests/audit/catalog_reference_consumers.tsv` 补 `v3254_cache_identity_unification.test.mjs` 一行。
+- `tests/v3247_break_kit_consolidation.test.mjs` 的 `REGISTRY` 补同一文件名（本套件 import 了
+  `_break_kit.mjs` 却未入接收方台账 ⇒ v3247 转红，这是抬版后跑全量才会抓到的缺口）。
+- `tests/audit/dead_code_budget.json` 走 `--bump --reason` 抬升（活跃代码增长，活跃功能）。
+
 ## v3.253.0
 **主题：计划一「共同配套」第 2 条 —— 跨仓功能登记表。**
 

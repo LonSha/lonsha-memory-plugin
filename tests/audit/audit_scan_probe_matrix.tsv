@@ -38,6 +38,7 @@ scan_v3190_lifecycle_collapse.mjs	0	2	0	读根 .js 面（入口不在场即阻�
 scan_v3193_host_matrix.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
 scan_v3193_lexicon_drift.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
 scan_v3202_carryover_archive_diff.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
+scan_v3254_cache_identity.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
 scan_version_guard.mjs	0	2	1	两类输入面都敏感
 scan_wiring.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
 scan_world_clock_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）

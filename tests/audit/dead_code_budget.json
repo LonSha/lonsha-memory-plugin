@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 40941,
+  "ceiling": 41663,
   "maxSlack": 400,
-  "note": "v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）",
+  "note": "v3.255.0 M-O4 兑现审计：index.js 新增 C9 身份来源头注（为何不能接落盘计数器）与新墙查；代码面未改行为（revision 改为 null 净增几行）",
   "history": [
     {
       "ceiling": 21000,
@@ -157,7 +157,15 @@
     {
       "ceiling": 40941,
       "reason": "v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）"
+    },
+    {
+      "ceiling": 41640,
+      "reason": "v3.254.0 M-O4：新增 cache-identity.js（224 行：四位身份 + 六词失效原因 + 具名差异）与 cache-workload.js（326 行：四条消费路径的可注入量测台，含方向分型与两态时钟归因）两个模块，加宿主接线（两个取库口 + 三个宿主口 + 两处消费点改造 + selfCheck 缓存身份行）与配套判据面（scan_v3254_cache_identity.mjs 312 行 + v3254 套件）"
+    },
+    {
+      "ceiling": 41663,
+      "reason": "v3.255.0 M-O4 兑现审计：index.js 新增 C9 身份来源头注（为何不能接落盘计数器）与新墙查；代码面未改行为（revision 改为 null 净增几行）"
     }
   ],
-  "_history_last": "ceiling 40576 → 40941（实测 40541 + slack 400）：v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）"
+  "_history_last": "ceiling 41640 → 41663（实测 41263 + slack 400）：v3.255.0 M-O4 兑现审计：index.js 新增 C9 身份来源头注（为何不能接落盘计数器）与新墙查；代码面未改行为（revision 改为 null 净增几行）"
 }

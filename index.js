@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.253.0';
+    const VERSION = '3.255.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -111,6 +111,24 @@
             _changesetStore = new CS.ChangesetStore({});
             return _changesetStore;
         } catch (e) { return null; }
+    }
+    /**
+     * [v3.254.0] M-O4：派生缓存身份（`cache-identity.js`）取库口。
+     *   为什么要有这一层见该模块头注：身份此前是**三个各自独立**的读数
+     *   （会话 `getCurrentChatId()` / 代际 `_mutationEpoch` / 历史 `_historyFingerprint()`），
+     *   于是「哪里该失效」散在调用点各自手写，删楼/导入/恢复的交叉情形无人统一判。
+     *   本取库口与 `_schemaMigrationLib` 同形；**不在构造期缓存**（extra_js 后加载）。
+     */
+    function _cacheIdentityLib() {
+        return _moduleLib(() => window.LonShaCacheIdentity, 'cache-identity.js');
+    }
+    /**
+     * [v3.254.0] M-O4：长线规模与缓存负载量测台（`cache-workload.js`）取库口。
+     *   它是「只有证明有收益的热点进入产品修改」这条计划口径的**唯一证据来源**；
+     *   本体是纯量测（不 import 任何生产文件），探针由调用方给出。
+     */
+    function _cacheWorkloadLib() {
+        return _moduleLib(() => window.LonShaCacheWorkload, 'cache-workload.js');
     }
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
@@ -2439,6 +2457,111 @@ function relativeTimeLabel(eventTime, nowTime) {
                 this._histFpRead = _read;
                 return hex + '_' + tail.length;
             } catch (e) { return ''; }
+        }
+        /**
+         * [v3.254.0] M-O4：**数据修订号**的唯一对读口（计划原文点名的身份第三位）。
+         *
+         * 【为什么不能直接读 `storage._revision` —— 本版实测的否证】
+         *   计划原文要求身份含「数据修订号」。`StorageManager._revision` 是最像它的字段
+         *   （乐观并发锁），但实测 `save()` 的 17046 行是**无条件** `this._revision += 1`：
+         *   它数的是「落盘**次数**」。而 index.js 每次生成都落盘 —— 于是身份**每一轮都在变**，
+         *   任何以它为判据的内存缓存（`_recallCache` 首当其冲）永不命中 ⇒ 计划原文
+         *   「优化不能靠隐瞒截断」在这里的形态是**静默禁用缓存**：不报错、只是白花钱。
+         *
+         * 【本访问器改读什么】读 `_historyFingerprint()` —— 它是**已落定楼层的折叠**，
+         *   逐条来自 chat 数组；只有「上游楼被编辑 / 删楼 / 回填 / 导入恢复」才变。
+         *   于是它对外扮演「数据修订号」这个职责，同时**确实**满足语义：
+         *   回合内重复读稳定（缓存可命中）、上游真变即失效。
+         *
+         * 【为什么与 `cache-identity.js` 的 `revision` 位是两回事（读法须看清）】
+         *   · 本方法产出 → 喂进 `historyFingerprint` 位（「历史内容改了吗」）。
+         *   · `revision` 位留给**外部在飞的排他修订**（`reconcilePlotlines` 的 expectedRevision），
+         *     **本引擎不自行填**（v3.255.0 修复：首稿曾填 `storage.getRevision()`，见下）。
+         *
+         * 【v3.255.0 修复的形态 —— 首稿填了一位「每轮都在变」的读数】
+         *   首稿写 `revision: this.storage.getRevision()`，而那**正是本文件头注上一段警告过的来源**：
+         *   `StorageManager.save()`（index.js:17179）是**无条件** `this._revision += 1` ——
+         *   它数的是「落盘**次数**」，与内容无关。于是同一楼发生任何一次**即时存盘**
+         *   （`MESSAGE_EDITED` / `MESSAGE_SWIPED` / `MESSAGE_DELETED` 三条路径都会立即落盘）
+         *   就会让命中检查读到 `r0 → r1`：会话 / 代际 / 历史指纹**三位逐字未变**，
+         *   却被判 `revision-changed` ⇒ 缓存被拒。
+         *   形态正是计划原文禁的「静默禁用缓存」：不报错、只是白花钱。
+         *   真源码探针实测（抽本方法体真跑）：`chat-A|e3|r0|abc123_40` → 落盘一次
+         *   → `chat-A|e3|r1|abc123_40` ⇒ `stale=true / reason=revision-changed`。
+         *   修法：这一位不自行填（写 `null` ⇒ key 里是 `r-`，`invalidate` 不据它判失效）。
+         *   若将来真有**内容相关**的修订源，须以独立读数接入（例如 `storage.getContentRevision()`），
+         *   **不得**复用 `getRevision()`：那是落盘计数器，恒随每次 save 前进。
+         *
+         * 【与第四位的共线性（如实登记）】`_dataRevision()` 返回的就是 `_historyFingerprint()`，
+         *   故 `revision` 与 `historyFingerprint` 两位**同源**：历史上 `revision-changed` 从不曾
+         *   独立于 `history-changed` 出现过。把这一位填成另一个（退化的）来源，
+         *   正是把「冗余但无害」变成「缓存杀手」的那一步。
+         *   两位的分工写在 `cache-identity.js` 的 `IDENTITY_KEYS` 头注里，改一处须同改另一处。
+         *
+         * 【为什么是方法而不是 getter】与 `repairRevision()` 同纪律：读不到就返回 `''`，
+         *   绝不抛 —— 诊断读数的失败不得变成调用方的失败。旧格式缓存拿它比对时，
+         *   缺失走 `invalidate()` 的 `no-id` 档（放行 + 具名），与本仓 v3.213 投影守卫同纪律。
+         */
+        _dataRevision() {
+            try {
+                if (typeof this._historyFingerprint !== 'function') return '';
+                return String(this._historyFingerprint() || '');
+            } catch (e) { return ''; }
+        }
+        /**
+         * [v3.254.0] M-O4：**当下缓存身份**的组装口（消费点只调本方法，不自拼）。
+         *
+         * 【为什么必须有这一处】修前实测：身份是**三个各自独立**的读数，散在调用点各自手写
+         *   （`_recallCache` 只认 floor + queryKey + 末楼指纹；`recall-artifact` 只认历史指纹；
+         *   `_fragCache` 一个都不认）。于是「哪里该失效」没有单一真源，删楼/导入/恢复的交叉
+         *   情形无人统一判 —— 换对话后同楼层同查询可命中**上一段会话**的注入。
+         *
+         * 【四位的分工（与 cache-identity.js 的 IDENTITY_KEYS 逐位对应）】
+         *   · chatId             —— `getCurrentChatId()`（会话）
+         *   · epoch              —— `_mutationEpoch`（剧情代际；回滚/恢复/导入递增）
+        *   · revision           —— **本引擎不自行填**（写 `null` ⇒ key 里 `r-`，不据此判失效）。
+        *                             该位留给**外部在飞的排他修订**（`reconcilePlotlines` 的 expectedRevision）：
+        *                             首稿曾填 `storage.getRevision()`，那是无条件自增的落盘计数器 ⇒ 缓存永不命中，见 `_dataRevision` 头注。
+         *   · historyFingerprint —— `_dataRevision()`（历史内容改了吗）
+         *
+         * 【读不到时返回什么】整体返回 `null`（而不是拼一份半瘫对象）：`invalidate()` 拿到
+         *   空当下身份即判 `no-current` **放行** —— 「证伪不了不等于失效」。任一必需位读不到
+         *   （例如宿主还没给 chatId、历史指纹为空）也走放行，与 v3.213 投影守卫同纪律。
+         *   本方法只读、不抛、无副作用。
+         */
+        _cacheIdentityOf() {
+            try {
+                const raw = (typeof this.getCurrentChatId === 'function') ? this.getCurrentChatId() : '';
+                const epochNum = Number(this._mutationEpoch);
+                return {
+                    chatId: (raw === null || raw === undefined) ? '' : String(raw),
+                    epoch: Number.isFinite(epochNum) ? Math.floor(epochNum) : null,
+                    /* [v3.255.0] **不**读 `storage.getRevision()` —— 那是无条件自增的落盘计数器
+                       （index.js:17179），每轮 save 都前进 ⇒ 会把缓存变成永不命中（见头注）。
+                       本引擎不自行填这一位：写 `null` ⇒ key 里 `r-`，不据此判失效。 */
+                    revision: null,
+                    historyFingerprint: String(this._dataRevision() || ''),
+                };
+            } catch (e) { errLog(e, 'cacheIdentity.of'); return null; }
+        }
+        /**
+         * [v3.254.0] M-O4：缓存项身份是否仍然有效（消费点的**唯一**判定入口）。
+         *   模块不在场（extra_js 未加载 / 拼错符号名）⇒ 返回 `null`，调用方**退回既有判据**
+         *   （绝不把「不知道」当成「已失效」——那会把缓存静默禁用，正是计划原文禁的形态）。
+         * @param {object} entry 缓存项（可带 `identity` 位；`identity` 缺失即旧格式项）
+         * @param {{noIdIsStale?:boolean}} [opts]
+         * @returns {{stale:boolean, reason:string, why:string[], unjudgeable:boolean}|null}
+         */
+        _cacheIdentityStale(entry, opts) {
+            try {
+                const CI = _cacheIdentityLib();
+                if (!CI || typeof CI.invalidate !== 'function') return null;
+                const e = (entry && typeof entry === 'object') ? entry : {};
+                /* 旧格式项（本版之前的缓存对象没有 identity 位）：把它**整体**当身份传，
+                   于是四项全缺 ⇒ 模块判 `no-id`（默认放行）。这与「传 undefined」不同：
+                   undefined 会走 `identityOf(undefined)` ⇒ 同样是 no-id，但语义更含糊。 */
+                return CI.invalidate(e.identity || {}, this._cacheIdentityOf(), opts);
+            } catch (e) { errLog(e, 'cacheIdentity.stale'); return null; }
         }
         isOmittedFloor(message) {
             try {
@@ -4832,7 +4955,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                         // 翻 swipe 变体 → fp 变化 → 自动失效重算；翻回旧变体 → fp 相同 → 到变体级复用（v2.9 原意更精细化）
                         const curMsg = ctxChat[curFloor];
                         const curFp = (this.config.config.swipeFingerprintGuard !== false && curMsg) ? msgFpOf(curMsg) : '';
-                        if (this._recallCache.floor === curFloor && this._recallCache.queryKey === qKey && this._recallCache.injection
+                        /* [v3.254.0] M-O4：**身份位前置**（会话 / 代际 / 修订 / 历史），见 `_cacheIdentityStale` 头注。
+                           位置位（floor + queryKey + fp）只说「同一楼、同一问、同一变体」，说不出
+                           「还是不是同一段会话、同一代剧情」——旧版正因此会在换对话后命中上一段的注入。
+                           模块不在场时 `_cacheIdentityStale` 返回 null ⇒ `_identOk` 为 true ⇒ 退回既有判据
+                           （**不允许**把「不知道身份」当成「已失效」，那会静默禁用缓存）。 */
+                        const _idv = this._cacheIdentityStale(this._recallCache);
+                        const _identOk = !(_idv && _idv.stale);
+                        if (this.config.config.debugMode && _idv && _idv.stale) console.log(`[${PLUGIN_NAME}] [v3.254.0] 召回缓存失效（身份：${_idv.reason}${_idv.unjudgeable ? '，判据不全保守重算' : ''}），重算召回`);
+                        if (_identOk && this._recallCache.floor === curFloor && this._recallCache.queryKey === qKey && this._recallCache.injection
                             && this._recallCache.fp === curFp) {
                             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 召回缓存命中 (floor ${curFloor})`);
                             return this._recallCache.injection;
@@ -5184,6 +5315,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const cc = window.SillyTavern?.getContext?.()?.chat || [];
                     const _cm = cc[cc.length - 1];
                     this._recallCache = {floor: cc.length - 1, queryKey: String(query.text || '').slice(0, 200), injection: inj2, fp: (this.config.config.swipeFingerprintGuard !== false && _cm) ? msgFpOf(_cm) : ''};   // [v3.89] + 三元组定位符的消息指纹位（写入/命中路径同受开关门控，保证关闭时指纹恒空串、行为退回 v2.9）
+                    /* [v3.254.0] M-O4：写入**身份位**（会话/代际/修订/历史四元组）。
+                       与命中路径同一判据来源（`_cacheIdentityOf`），故两者不可能各写一套；
+                       取不到当下身份时如实写 null —— 命中侧按 `no-id` **放行**（旧格式是历史事实），
+                       而不是当成「已失效」（那会把刚写进去的缓存立刻作废，等于关掉缓存）。 */
+                    try { this._recallCache.identity = this._cacheIdentityOf() || null; } catch (e) { errLog(e, 'onBeforeGeneration.缓存身份'); }
                     // [v3.109] 同时落一条召回产物（含历史指纹），供跨会话复用与「上游变更后拒绝复用」判定
                     if (this.config.config.recallArtifactEnabled === true) {
                         try {
@@ -10389,6 +10525,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         rows.push(['注入读数', `第${_ir.round}轮 ${_ir.total}块 保留${_ir.kept} 裁掉${Math.max(0, _ir.total - _ir.kept)}｜${_ir.chars}字符 约${_ir.tokens}token｜结局${_ocTxt}（完成${Number(_end.completed) || 0}·中止${Number(_end.aborted) || 0}）${_stale ? `｜代际过期${_stale}次` : ''}`]);
                     }
                 } catch (e) { errLog(e, 'selfCheck.注入读数'); }
+                // [v3.254.0] M-O4 缓存身份行：回答「召回缓存凭什么说自己是有效的」。
+                //   与上面的「召回自检」是两个不同的问题：那一行说「召回了什么」，
+                //   本行说「缓存**凭什么**敢命中」——修前身份是三个各自独立的读数
+                //   （会话/代际/历史），换对话后同楼层同查询可命中上一段会话的注入。
+                //   三态必须**不同形**（本仓老账）：没跑过 / 模块缺席 / 有读数。
+                try {
+                    const _ci = _cacheIdentityLib();
+                    const _cur = this._cacheIdentityOf();
+                    if (!_ci || typeof _ci.line !== 'function') {
+                        rows.push(['缓存身份', '模块缺席（cache-identity.js 未加载）——身份判定退回既有位置位，不停机']);
+                    } else if (!_cur) {
+                        rows.push(['缓存身份', '当下身份读不出（会话/代际/历史任一位缺失）——按放行处置，不判失效']);
+                    } else {
+                        const _rc = this._recallCache;
+                        const _v = _rc ? this._cacheIdentityStale(_rc) : null;
+                        const _key = _ci.identityKey(_cur);
+                        const _verdict = _v ? _ci.line(Object.assign({}, _v, { count: 1 })) : '模块缺席';
+                        rows.push(['缓存身份', `${_key}｜召回缓存${_rc ? '在册' : '未建'}：${_verdict}`]);
+                    }
+                } catch (e) { errLog(e, 'selfCheck.cacheIdentity'); }
                 report.stats = rows.map(([k, v]) => ({k, v}));
                 // 2. 召回管线 dry-run（不注入，只验证链路通）
                 try {

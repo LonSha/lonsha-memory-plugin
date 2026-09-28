@@ -1,8 +1,8 @@
 file	index.js
-measured_at	v3.252.0
-index_lines	18245
+measured_at	v3.255.0
+index_lines	18401
 todo_stated_lines	16972
-note	TODO 写 16972；磁盘实测末行 18245（v3.252.0 抬版后）。本表按行号抽样，未跑 AST/未 fork。不拆生产、不改快照键面、不抬 VERSION。
+note	TODO 写 16972；磁盘实测末行 18401（v3.255.0 抬版后；M-O4 接线 +133，兑现审计修复 +23）。下面各域的 start/end 行号是 **v3.252.0（18245 行）** 那次的抽样，本版只刷新头部读数、未重抽（域边界未成契约，不假装精确）。未跑 AST/未 fork。不拆生产、不改快照键面。
 
 domain	start_line	end_line	lines	coupling	split_now	reason
 iife_helpers	1	830	830	high	no	_moduleLib / 存档键 / fetch / 注入槽 / json / errLog / numOr 被全文件引用；边界不清晰
@@ -19,6 +19,6 @@ bridge_snapshot_ctor	7702	7892	191	high	no	buildBridgeSnapshot 7702–7892；旁
 
 decision	keep_index_unsplit
 fork	available（fork 限制只作用于交互 bash 会话；code_runner 的独立 node 可正常 spawn）
-full_suite	passed：233/233 文件 · 2342 断言 · 82.5s（v3.252.0 抬版后实跑；审计段 50/50 · 49.7s）
+full_suite	passed：236/236 文件 · 2397 断言 · 134.1s（v3.255.0 抬版后实跑，--jobs 3 --audit-jobs 2；审计段 52/52 · 86.2s）
 p3_snapshot_bytes	measured（线性：N=0→169B / 每项≈98.3~105.19B / ratio_200_50=4.007 / superlinear=false ⇒ not_done_until_superlinear）	tests/audit/_p3_snapshot_probe.mjs（可复跑；键面不动）
 version	3.252.0_unchanged
