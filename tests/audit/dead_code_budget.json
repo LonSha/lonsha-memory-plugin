@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 40022,
+  "ceiling": 40941,
   "maxSlack": 400,
-  "note": "v3.249.0 M-O1：index.js 召回收尾改为唯一出口（_finalize 四路径收口 + rerankPath/injectedIds 归因）与图谱全量候选接线，活跃代码 +31 行（实测 39622）",
+  "note": "v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）",
   "history": [
     {
       "ceiling": 21000,
@@ -149,7 +149,15 @@
     {
       "ceiling": 40022,
       "reason": "v3.249.0 M-O1：index.js 召回收尾改为唯一出口（_finalize 四路径收口 + rerankPath/injectedIds 归因）与图谱全量候选接线，活跃代码 +31 行（实测 39622）"
+    },
+    {
+      "ceiling": 40576,
+      "reason": "v3.251.0 M-O3：注入回执（五阶段/token 口径/分层/禁用对账）+ 拼装现场归因记账 + v3251 专锁"
+    },
+    {
+      "ceiling": 40941,
+      "reason": "v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）"
     }
   ],
-  "_history_last": "ceiling 39679 → 40022（实测 39622 + slack 400）：v3.249.0 M-O1：index.js 召回收尾改为唯一出口（_finalize 四路径收口 + rerankPath/injectedIds 归因）与图谱全量候选接线，活跃代码 +31 行（实测 39622）"
+  "_history_last": "ceiling 40576 → 40941（实测 40541 + slack 400）：v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）"
 }

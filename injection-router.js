@@ -163,20 +163,118 @@
         };
     }
 
-    function trimToBudget(full, budget, blocks, strategy) {
+    /**
+     * [v3.251.0] M-O3：预算裁剪 + **阶段回执**（可选 `opts.trace`）。
+     *
+     * 【为什么必须由裁剪过程自己派生，而不是事后反推】
+     *   修前「哪个块被裁掉」只能拿最终文本做 `includes(块)` 反推 —— cost-ledger 的
+     *   `identity.includesHeuristic: true` 就是这条自认。反推有两处**已知盲区**：
+     *     · **同文重复**：同一文本在候选里出现两份、裁掉其中一份时，`includes` 仍为真
+     *       ⇒ 把「裁了一份」读成「原样留下」，是假绿；
+     *     · **半段截断**：recency 无可保留项时走 `slice(0, budget)` 硬截断，切口落在块
+     *       内部 ⇒ 半段块 `includes` 为假 ⇒ 把「切了半段」读成「整块被丢」。
+     *   两者都是在**判定发生的地点之外**猜。trace 在裁剪发生的地点把「谁留下」记下来，
+     *   它是构建过程派生的本轮事实（只记留下哪些文本、按什么策略、切在哪），
+     *   不是第二份事实库（不复制块的内容语义，也不参与任何决策）。
+     *
+     * 【向后兼容】不传 opts 时行为逐字同修前：v3114 的三策略判据与真路径都不受影响。
+     */
+    function trimToBudget(full, budget, blocks, strategy, opts) {
         const len = String(full || '').length;
         if (len <= budget) return full;
-        const { resident, trigger } = classifyBlocks(blocks);
+        const all = Array.isArray(blocks) ? blocks : [];
+        // 与 classifyBlocks 同口径、同顺序的分组（**保序划分**），额外记下每个触发块在
+        //   输入数组中的**下标** —— 回执要按下标说话，不能按文本说话（见下）。
+        const resident = [], trigger = [], _trigIdxInAll = [];
+        for (let _k = 0; _k < all.length; _k++) {
+            if (isResidentBlock(all[_k])) resident.push(all[_k]);
+            else { trigger.push(all[_k]); _trigIdxInAll.push(_k); }
+        }
+        const _trace = (opts && opts.trace && typeof opts.trace === 'object') ? opts.trace : null;
+        if (_trace) {
+            _trace.traceFrom = 'router';       // 回执来源（消费侧据此判它是否可信）
+            _trace.strategy = String(strategy || 'balanced');
+            _trace.trimmed = true;
+            _trace.hardTruncated = false;
+            _trace.residentKept = resident.length;
+            _trace.triggerTotal = trigger.length;
+            _trace.contiguous = null;      // 三策略各自填
+            _trace.keptIdxInAll = [];      // ★ 保留块的**下标**（判定只用它）
+            _trace.keptTexts = [];         // 可读面：保留块的文本（与下标必须一一对应）
+            _trace.droppedTriggerIdx = []; // 触发组内被丢的下标（便于回答「从第几个开始丢」）
+        }
+        /* 下标而不是文本：同文重复是修前 `includes` 反推的**头号盲区** ——
+         *   候选里有两条完全相同的文本、预算只装得下一条时，`includes` 对两条都为真，
+         *   于是把「裁了一份」读成「两份都留着」。按下标判定在构造上不可能有这个问题。
+         *
+         *   ★ 入参必须是**触发组内的位置**，不能是文本：若按文本回查（`trigger.indexOf(t)`），
+         *     两条同文触发块会双双指到第一个位置 —— 本方法要治的正是同文，绝不能在
+         *     自己的实现里再犯一次（第一版就这么写过，被同一类反例打回）。 */
+        const _markKeptByPos = (posInTrigger) => {
+            if (!_trace) return;
+            const inTrig = Array.isArray(posInTrigger) ? posInTrigger.slice() : [];
+            _trace.keptTexts = inTrig.map((p) => trigger[p]);
+            const out = [];
+            for (let i = 0; i < all.length; i++) if (isResidentBlock(all[i])) out.push(i);
+            for (const p of inTrig) {
+                const at = _trigIdxInAll[p];
+                if (Number.isFinite(at) && at >= 0) out.push(at);
+            }
+            out.sort((a, b) => a - b);
+            _trace.keptIdxInAll = out;
+            _trace.droppedTriggerIdx = _trigIdxInAll.filter((x) => out.indexOf(x) < 0);
+        };
+        const _posRange = (n) => { const a = []; for (let i = 0; i < n; i++) a.push(i); return a; };
         const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
         const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
         const st = strategy || 'balanced';
         if (st === 'relevance') {
             const keepTrig = Math.max(3, Math.floor(trigger.length * 0.6));
-            return `\n\n${NOTE}\n${[...resident, ...trigger.slice(0, keepTrig)].join('\n')}\n${END}\n`;
+            const keptT = trigger.slice(0, keepTrig);
+            if (_trace) { _trace.contiguous = true; _markKeptByPos(_posRange(keptT.length)); }
+            return `\n\n${NOTE}\n${[...resident, ...keptT].join('\n')}\n${END}\n`;
         }
         if (st === 'recency') {
-            const kept = [...resident, ...trigger.filter((b) => RECENCY_MARKERS.some((k) => b.startsWith(k) || b.includes(k)))];
-            return kept.length ? `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n` : String(full).slice(0, budget);
+            const keptT = trigger.filter((b) => RECENCY_MARKERS.some((k) => b.startsWith(k) || b.includes(k)));
+            const kept = [...resident, ...keptT];
+            if (_trace) {
+                // recency 的保留集**非连续**（按标记筛，中间会跳）：只记一个断点下标是错的，
+                //   故显式记 contiguous=false + 真实保留清单，下游不得按下标算区间。
+                _trace.contiguous = false;
+                /* ★ 位置必须用**同一个判据**重算，不能拿保留文本回查下标：
+                 *   `keptT.indexOf(trigger[i])` 在「两条同文触发块」时会把第二条也认成保留
+                 *   （回查到第一条）—— 那正是本方法要治的同文盲区，绝不能在自己的实现里再犯。
+                 *   这里直接用筛 keptT 时的同一谓词（RECENCY_MARKERS）对 trigger 逐个判。 */
+                _markKeptByPos(_posRange(trigger.length).filter((i) =>
+                    RECENCY_MARKERS.some((k) => trigger[i].startsWith(k) || trigger[i].includes(k))));
+            }
+            if (kept.length) return `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n`;
+            /* 硬截断：`full.slice(0, budget)` 的切口可能落在**块内部**。
+             *   块级保留清单因此不成立（不按下标判整块），但「半段」这件事本身要能被追踪，
+             *   故这里按**原始 full** 精确扫出每个块的 [start, end) span（块按构造顺序出现，
+             *   从上一个块的结束位置继续搜）。消费侧据此判三态：
+             *     整块在切点内 / 跨切点被切半 / 完全在切点外 —— 修前这三态同形（都只是 includes=false）。
+             *   边界如实登记：这是诊断回执用的定位，若两个块的文本互为子串，按序定位可能偏移；
+             *   该路径只在 recency 硬截断时启用，且只影响「半段」标注，不参与任何决策。 */
+            if (_trace) {
+                _trace.hardTruncated = true;
+                _trace.sliceAt = budget;
+                _trace.keptIdxInAll = null;    // 块级清单不成立（消费侧必须走 span 判据）
+                _trace.keptTexts = [];
+                const _full0 = String(full);
+                const spans = [];
+                let cur = 0;
+                for (let i = 0; i < all.length; i++) {
+                    const t = String(all[i] == null ? '' : all[i]);
+                    if (!t) { spans.push(null); continue; }
+                    const at = _full0.indexOf(t, cur);
+                    if (at < 0) { spans.push(null); continue; }   // 定位不到 ⇒ null，不编位置
+                    spans.push([at, at + t.length]);
+                    cur = at + t.length;
+                }
+                _trace.blockSpans = spans;
+            }
+            return String(full).slice(0, budget);
         }
         // balanced：常驻全保留 + 触发按剩余预算截断
         const residentText = `\n\n${NOTE}\n${resident.join('\n')}`;
@@ -188,6 +286,7 @@
             kept.push(t);
             acc += t.length;
         }
+        if (_trace) { _trace.contiguous = true; _markKeptByPos(_posRange(kept.length)); }
         return `${residentText}${kept.length ? '\n' + kept.join('\n') : ''}\n${END}\n`;
     }
 

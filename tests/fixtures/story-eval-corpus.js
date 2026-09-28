@@ -99,8 +99,9 @@
     "unresolved|ur4|630|s1|ur4_a,ur4_b|||她到底知不知道那件事|ur4_a~event~知情的说法~她自己说早就知道了;ur4_b~event~不知情的说法~她朋友说她根本不知情|矛盾未决：两条并列||||",
     "cross-session|cs3|1200|s4|cs3_a||cs3_b|这边刚开头，什么都没有|cs3_a~event~本会话开头~这一条是本次会话的;cs3_b~event~旧会话的记录~上一轮的记录不该串过来|跨会话隔离；★ 本环境只能验到「来源页已翻」这一层，真会话隔离（chatMetadata 键域）需真宿主，登记为未验证||provenance|floor:300|",
     "cross-session|cs4|1300|s5|cs4_a|||这一轮该从头讲起，前面没有前情|cs4_a~event~空会话的第一楼~这一楼就昰开头|换会话后回执不得串联||||",
-    "legacy-clue|gp1|700|s1||||他想起那件事，心里发沉|gp1_a~event~旧账~当年那档子事情一直没结清|代词指代：query 用「那件事」、节点写「当年那档子事情」——无字面交集，字面匹配召不回||||gap",
-    "paraphrase|gp2|710|s1||||他后来把那地方卖了|gp2_a~event~房产处置~名下的那处不动产已经过户给旁人|自然转述：query「那地方」vs 节点「那处不动产」——无字面交集||||gap",
+    "legacy-clue|gp1|700|s1|gp1_a|gp1_a||他想起那件事，心里发沉|gp1_a~event~旧账~当年那档子事情一直没结清~那件事|代词指代：query「那件事」经夹具 aliases 进 primary（生产 nodeToCandidate 已读 d.aliases）；不改生产召回||||",
+    "paraphrase|gp2|710|s1||||他后来把那地方卖了|gp2_a~event~房产处置~名下的那处不动产已经过户给旁人|自然转述：query「那地方」vs 节点「那处不动产」——无字面交集；台账至少留 1 例缺口||||gap",
+    "paraphrase|rp1|50|s1|rp1_a|rp1_a||ZZZONLY 要找的那条|rp1_a~trivia~被追的旧事~这条描述里一个查询字也不带;rp1_b~trivia~首位噪声~ZZZONLY 落在这一条|非保底类型+查询只命中噪声：mustIn 不在排序首位；专供证伪排序单层，不进主指标||||rank-probe",
   ];
   /** 展开成对象：nodes 的 slot 已是全名（如 lc1_a），不再加 case 前缀。
    *  第 10 列之后的扩展（v3.250.0）：low = 低分噪声（只报读数，不是硬零）；
@@ -120,7 +121,14 @@
       const nodes = String(f[8] || '').split(';').map((x) => x.trim()).filter(Boolean).map((p) => {
         const a = p.split('~');
         if (a.length < 4) return null;
-        return N(a[0].trim(), a[1].trim(), a[2].trim(), a[3].trim(), Number(f[2]) || 1000, a[0].trim());
+        const node = N(a[0].trim(), a[1].trim(), a[2].trim(), a[3].trim(), Number(f[2]) || 1000, a[0].trim());
+        /* 第 5 段起为 aliases。生产 nodeToCandidate 已读 d.aliases 进 primary。
+         * 只写在评测夹具上，不改生产召回、不扩跨仓面。 */
+        if (a.length > 4) {
+          const aliases = a.slice(4).map((x) => String(x || '').trim()).filter(Boolean);
+          if (aliases.length) node.data.aliases = aliases;
+        }
+        return node;
       }).filter(Boolean);
       const ns = noise(cs, 4);
       const gate = f[11].trim();

@@ -1,0 +1,24 @@
+file	index.js
+measured_at	v3.252.0
+index_lines	18245
+todo_stated_lines	16972
+note	TODO 写 16972；磁盘实测末行 18245（v3.252.0 抬版后）。本表按行号抽样，未跑 AST/未 fork。不拆生产、不改快照键面、不抬 VERSION。
+
+domain	start_line	end_line	lines	coupling	split_now	reason
+iife_helpers	1	830	830	high	no	_moduleLib / 存档键 / fetch / 注入槽 / json / errLog / numOr 被全文件引用；边界不清晰
+config_manager	831	~2000	~1170	medium	no	ConfigManager 与 settings-ui 双端；本轮未精确收尾行
+memory_engine_injection	~8900	9200	~300	high	no	注入读数 R2 面已有 v3216–v3219 覆盖，但与 buildInjection/onBeforeGeneration 同在 MemoryEngine，抽出需改 this 绑定
+memory_engine_export_restore	10776	~11800	~1024	high	no	collectExport + restoreFromPayload 是存档单真源；拆出即跨三入口契约，属 P-3/R4 邻域不是「边界已清晰」
+memory_engine_evidence_repair	11800	~12500	~700	medium	no	_evidenceWorkbench / repair 已有独立模块，宿主只是接线；接线留在 index 是刻意的
+character_state	~14800	16801	~2000	medium	no	CharacterState 内嵌于同一 IIFE；抽出要动 extra_js 加载序，判据面未覆盖导出形状
+snapshot_manager	16802	16874	73	low	defer	IndexedDB 快照；小且独立，但无下游契约快照锁，拆了也测不了宿主 IDB
+storage_manager	16875	17084	210	high	no	saveChat / 修订号 / 合流；热路径，O-5 量过但不在「桥快照构造段」
+emergency_backup	17086	17142	57	low	defer	与 SnapshotManager 同库名；拆收益为零
+plugin_shell	17144	18139	996	high	no	init / 事件接线 / 公开接口；EXPECTED_EVENT_TYPES=7 钉在此。事件接线域暂不拆（假绿历史在 bindEvent）
+bridge_snapshot_ctor	7702	7892	191	high	no	buildBridgeSnapshot 7702–7892；旁路 JSON 出口 7898–7908。方法深绑 this（status/clock/scene/_lastProjectionEnvelope/_mutationEpoch/_evidenceWorkbench/buildInjectionReadout）。注释写明：提取执行模式不得现跑投影管线。拆出即跨仓键面契约。keep_index_unsplit。
+
+decision	keep_index_unsplit
+fork	available（fork 限制只作用于交互 bash 会话；code_runner 的独立 node 可正常 spawn）
+full_suite	passed：233/233 文件 · 2342 断言 · 82.5s（v3.252.0 抬版后实跑；审计段 50/50 · 49.7s）
+p3_snapshot_bytes	measured（线性：N=0→169B / 每项≈98.3~105.19B / ratio_200_50=4.007 / superlinear=false ⇒ not_done_until_superlinear）	tests/audit/_p3_snapshot_probe.mjs（可复跑；键面不动）
+version	3.252.0_unchanged

@@ -110,6 +110,8 @@
    *   promoted        { key: [dim,...] } 反向提权名单（回答「为什么这条被提」）
    *   recallSources   { sourceName: count }
    *   enabledSources  { sourceName: bool }（false 者进 disabled）
+   *   trace           裁剪过程回执（index.js `_injectionTraceDraft`）：可用则按下标判留存，
+   *                   不可用退回 `injected.includes` 并在 identity 上如实自述（keptFrom/traceWhy）
    *   tokensOf        文本→token 估算函数
    *   now             时间戳（测试可注入求确定性）
    * }
@@ -119,6 +121,27 @@
     const tagged = tagBlocks(o.allBlocks, o.residentMarkers);
     const injected = String(o.injectedText == null ? '' : o.injectedText);
     const tokensOf = o.tokensOf;
+    /* [v3.251.0] M-O3：**留存判据**从「文本反推」换成「裁剪回执」。
+     *   修前本模块顶部自认 `identity.includesHeuristic: true` —— 「哪些块留在注入里」
+     *   只用 `injected.includes(block)` 反推，有两个实测盲区（探针 /tmp/mo3/probe1.mjs）：
+     *     · 同文重复：两条完全相同的触发块只留下一条时，`includes` 对两条都为真
+     *       ⇒ 「裁掉一份」被读成「两份都在」；
+     *     · 半段截断：recency 硬截断切在块内部时，半段块 `includes` 为假
+     *       ⇒ 「切了半段」被读成「整块被丢」。
+     *   回执（index.js `_injectionTraceDraft`）由裁剪发生的地点派生，按下标说话，
+     *   这两个盲区在构造上不可能发生。
+     *
+     *   可用性两问（与 index.js `_injectionBlocksOf` 同规格、同门槛）：
+     *     ① 规模自证：`blockCount` 必须等于本模块收到的块数（防「拿别批的回执判本批」）；
+     *     ② 来源必须是路由模块（内联回落时没有块级清单，不可当精确判据用）。
+     *   不满足则**退回 includes 并把这件事记在 identity 上**（`includesHeuristic` 随之为 true），
+     *   绝不静默混用两种判据 —— 「这次是精确的还是猜的」必须读得出来。 */
+    const _tr = (o.trace && typeof o.trace === 'object') ? o.trace : null;
+    const _allLen = Array.isArray(o.allBlocks) ? o.allBlocks.length : 0;
+    const traceOk = !!(_tr && _tr.version && Number(_tr.blockCount) === _allLen
+        && _tr.traceFrom === 'router' && Array.isArray(_tr.keptIdxInAll));
+    const keptIdxSet = traceOk ? new Set(_tr.keptIdxInAll) : null;
+    let _tagIdx = -1;
 
     const bySource = {};
     const touch = (t) => (bySource[t] || (bySource[t] = _blank()));
@@ -126,14 +149,22 @@
     const droppedSamples = [];
 
     for (const { block, tag } of tagged) {
+      /* 下标必须**先推进再跳过空块**：`keptIdxInAll` 指的是调用侧块数组里的位置，
+       *   而空块**也占一个位置**。若写成「跳过空块后再 ++」，只要有空块在前面，
+       *   后续所有块的下标就整体前移 —— 会出现一类极难察觉的错读数：
+       *   账本按回执判保留，却把「保留/丢弃」贴到了别的块身上。 */
+      _tagIdx++;
       if (tag === 'empty') { emptyBlocks++; continue; }
       const rec = touch(tag);
       const t = _tok(block, tokensOf);
       rec.blocks++; rec.chars += block.length; rec.tokens += t;
       candidateChars += block.length; candidateTokens += t;
-      // 空注入文本时不做 includes 判定：'' 会被任何 includes 判 false，但空块判 true，
+      // 空注入文本时不做判据：'' 会被任何 includes 判 false，但空块判 true，
       // 两边都不靠谱。一律记「未注入」——账本宁可说「这一轮没注入」，也不给假的保留数。
-      const kept = injected.length > 0 && injected.includes(block);
+      //   回执判据下同样受此门控：空注入 ⇒ 整批皆未注入（与既有一致，读数不变）。
+      const kept = traceOk
+        ? (injected.length > 0 && keptIdxSet.has(_tagIdx))
+        : (injected.length > 0 && injected.includes(block));
       if (kept) { rec.kept++; rec.keptChars += block.length; rec.keptTokens += t; keptTotal++; }
       else {
         rec.dropped++; rec.droppedChars += block.length; droppedTotal++;
@@ -186,6 +217,35 @@
 
     const enabled = (o.enabledSources && typeof o.enabledSources === 'object') ? o.enabledSources : {};
     const disabled = Object.keys(enabled).filter((k) => enabled[k] === false);
+    /* [v3.251.0] M-O3 第 ⑦ 条：**「禁用项不计入实际注入成本」要可判，而不只是被声明**。
+     *   修前这里只输出一个 `disabled` 名单（谁被关了），没有任何一格回答
+     *   「它到底有没有偷偷贡献成本」—— 名单与事实之间没有对账。
+     *   现在拿裁剪回执里的 `sourceBlocks`（拼装现场逐源记的块数）做**交叉核对**：
+     *     · 自有块的源（有注入期自有渲染）：禁用 ⇒ 该源块数**必须为 0**；
+     *       非零即说明闸门与拼装现场不一致 ⇒ 记进 `disabledLeak`（账本自曝，不静默）。
+     *     · 融合源（召回侧生效）：构建期不可分，如实计入 `notSeparable`，
+     *       不给一个编造的 0（那是把「测不了」写成「没有」）。
+     *   两者都不写「成本为 0」这种结论 —— 只报**可判的那部分事实**。 */
+    const srcBlocks = (o.trace && o.trace.sourceBlocks && typeof o.trace.sourceBlocks === 'object') ? o.trace.sourceBlocks : null;
+    const fusedKeys = (o.trace && o.trace.fusedSourceBlocks && Array.isArray(o.trace.fusedSourceBlocks.keys))
+      ? o.trace.fusedSourceBlocks.keys : [];
+    const disabledLeak = [];
+    const notSeparable = [];
+    const unaccounted = [];
+    const checked = [];
+    for (const k of disabled) {
+      if (srcBlocks && Object.prototype.hasOwnProperty.call(srcBlocks, k)) {
+        // 自有块记账在场：这一源的「禁用 ⇒ 0 块」**可核对**（唯一可当场证伪的一类）
+        checked.push(k);
+        if (Number(srcBlocks[k]) > 0) disabledLeak.push({ source: k, blocks: Number(srcBlocks[k]) });
+      } else if (fusedKeys.indexOf(k) >= 0) {
+        notSeparable.push(k);   // 登记过：在召回侧生效，构建期不可分
+      } else {
+        // 既没有自有块记账、也不是登记的融合源 ⇒ **没有参与核对**。
+        //   不写成「不可分」：那是把「没测」与「测不了」混成一态（本仓三态纪律）。
+        unaccounted.push(k);
+      }
+    }
 
     const preTrim = Number(o.preTrimChars) || 0;
     const totalChars = injected.length;
@@ -215,6 +275,35 @@
       },
       truncated: { blocks: droppedTotal, chars: Object.keys(bySource).reduce((a, k) => a + bySource[k].droppedChars, 0), samples: droppedSamples },
       disabled,
+      /* [v3.251.0] M-O3 第 ⑦ 条：禁用名单与**事实**的对账结果（两态都可读，互不冒充）。 */
+      disabledCost: {
+        declared: disabled.length,
+        // 禁用却仍有块 ⇒ 闸门失效（账本自曝；空数组表示「核对通过」）
+        leak: disabledLeak,
+        leakBlocks: disabledLeak.reduce((a, x) => a + x.blocks, 0),
+        // 三态分开摆，互不冒充：
+        //   checked       —— 有自有块记账，**核对过**（禁用 ⇒ 0 块已被证伪过一遍）
+        //   notSeparable  —— 登记在案的融合源（召回侧生效，构建期不可分）
+        //   unaccounted   —— 既无记账也非登记融合源 ⇒ **没参与核对**（不是「测不了」）
+        checked,
+        checkedCount: checked.length,
+        notSeparable,
+        notSeparableCount: notSeparable.length,
+        unaccounted,
+        unaccountedCount: unaccounted.length,
+        verdict: (disabledLeak.length ? 'leak'
+          : (unaccounted.length ? 'partially-checked' : (notSeparable.length ? 'fused-only' : 'checked'))),
+        why: '自有块的源按拼装现场记账核对（禁用 ⇒ 必须 0 块）；融合源在召回侧生效、构建期不可分；两者都没命中的记「未参与核对」，不混进不可分',
+      },
+      /* [v3.251.0] M-O3 第 ③ 条：**五阶段漏斗**（与回执同源，不另算一份）。
+       *   为什么账本要带上它：M-O3 要的是「一条链上的同一个事实」——
+       *   回执里说「合并 40 条、最终留 12 块」，账本这里说「这 12 块是谁的、多少字符」。
+       *   两处若各算一遍就会漂移；故此处只**转述回执**（缺失则整格 null）。 */
+      stages: (o.trace && o.trace.stages) ? o.trace.stages : null,
+      stageNotes: (o.trace && o.trace.stageNotes) ? o.trace.stageNotes : null,
+      /* [v3.251.0] M-O3 第 ⑤/⑧ 条：token 口径与分层标识同样转述（缺失 ⇒ null）。 */
+      tokenSource: (o.trace && o.trace.tokenSource) ? String(o.trace.tokenSource) : null,
+      layer: (o.trace && o.trace.layer) ? o.trace.layer : null,
       recallSources: (o.recallSources && typeof o.recallSources === 'object') ? o.recallSources : {},
       identity: {
         candidateBlocks: tagged.length,
@@ -225,7 +314,16 @@
         // 自洽：除空块外每块要么保留要么丢弃；且除空块外每块都落进了某个标签
         ok: (keptTotal + droppedTotal) === (tagged.length - emptyBlocks)
           && (Object.keys(bySource).reduce((a, k) => a + bySource[k].blocks, 0) + emptyBlocks) === tagged.length,
-        includesHeuristic: true,   // 「是否注入」用 includes 判定（与 v3.144 同口径），非精确
+        /* [v3.251.0] M-O3：这一格的含义从「本模块一直在猜」变成
+         *   「**本次**用的是猜还是回执」—— 它是判据来源的**如实自述**，不是固定标签。
+         *   回执可用（规模自证 + 来源为路由模块）⇒ false（按下标判定，精确）；
+         *   否则 true（`injected.includes` 反推，已知盲区仍在）。 */
+        includesHeuristic: !traceOk,
+        keptFrom: traceOk ? 'trace' : 'includes',
+        // 回执不可用的原因（可归因：规模对不上 / 来源不是路由 / 压根没给回执）
+        traceWhy: traceOk ? null : (!_tr ? 'no-trace'
+          : (Number(_tr.blockCount) !== _allLen ? 'scale-mismatch'
+            : (_tr.traceFrom !== 'router' ? String(_tr.traceFrom || 'unknown') : 'no-kept-idx'))),
       },
     };
     return ledger;
@@ -246,6 +344,15 @@
       ];
       if (g('other')) parts.push(`未归类 ${g('other')}`);
       if (ledger.disabled && ledger.disabled.length) parts.push(`禁用 ${ledger.disabled.length} 源`);
+      /* [v3.251.0] M-O3：判据来源与禁用对账都上这一行 ——
+       *   「这块读数是精确的还是猜的」「禁用的源有没有偷偷贡献」都是**用户该当场知道**的事，
+       *   藏进账本深处等于没说（本仓对诊断行的口径：坏消息必须在场）。 */
+      const _id = ledger.identity || {};
+      if (_id.keptFrom === 'includes') parts.push('留存判据=文本反推');
+      const _dc = ledger.disabledCost || {};
+      if (_dc.verdict === 'leak') parts.push(`⚠️ 禁用却有块 ${_dc.leakBlocks}`);
+      else if (_dc.verdict === 'partially-checked') parts.push(`禁用核对 ${_dc.checkedCount || 0}/${_dc.declared}（其余未参与核对）`);
+      else if (_dc.verdict === 'fused-only' && _dc.declared) parts.push(`禁用核对 0/${_dc.declared}（均为召回侧源）`);
       if (ledger.truncated && ledger.truncated.blocks) parts.push(`截断 ${ledger.truncated.blocks} 块`);
       if (ledger.identity && ledger.identity.ok === false) parts.push('⚠️ 账目不自洽');
       return parts.join(' · ');

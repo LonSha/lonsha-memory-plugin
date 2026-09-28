@@ -363,6 +363,258 @@ function diffPayloads(a, b) {
     };
 }
 
+
+/* ============================================================
+ * [v3.252.0] F7 首阶段：**内容级只读对照**（计划二 F7）
+ * ------------------------------------------------------------
+ * 为什么必须**并列新出口**、不许把 diffPayloads 就地改成深比较：
+ *   `diffPayloads` 是「键面 + 规模 + 代际」的既有契约，`tests/v3237` F 组与
+ *   `tests/v3239` B3/B4 逐条钉着它（含「代际未给不得压成 0」）。就地改成深比较
+ *   会同时改掉那两张判据的含义 —— 那是「同一处改动静默改掉既有断言」，本仓治过多轮。
+ *
+ * 修前实测缺口（计划原文点名的反例）：
+ *   `diffPayloads({balance:100}, {balance:900})`
+ *     ⇒ { onlyInA:[], onlyInB:[], shared:['balance'], ... } —— **值变了却零读数**；
+ *   字符串同理（`{friend:'朋友'}` vs `{friend:'仇人'}`，长度相同、值不同）。
+ *   用户拿这份对照看不出「差了什么」，只能看到「键一样」。
+ *
+ * 本出口给出**逐条改动**（有界、可归因、三态可分）：
+ *   · changedKeys  —— 同键但值不同（上面那类「键面看不出来」的）
+ *   · changes[]    —— 路径 + 前后值 + 两侧类型（kind 不同即类型变了）
+ *   · sets[]       —— 带稳定 id 的集合对拍（新增 / 删除 / 改动 / 未动）
+ *   · capped[]     —— 因深度 / 宽度上限**没看下去**的路径（「没比」不得与「一样」同形）
+ *   · cycles[]     —— 循环引用路径（不下钻，如实报）
+ *   · changesTruncated —— 达到 maxChanges 后**余下差异未记录**（截断不得与「没有更多差异」同形）
+ *
+ * 三态纪律（本仓老账，逐条落进判据）：
+ *   ① `undefined` / `null` / `0` 在**值**上必须可分（kindOf）——
+ *      「源里没这项」与「有这项、值是空」与「有这项、值是 0」三者不同形；
+ *   ② `deepContentCompared` 三态：'not-applicable'（两侧都非对象，没内容可比）/ true（比了）/
+ *      'failed'（比不成，带 reason）—— 「比了没差异」与「没比」不同形；
+ *   ③ 集合对拍 `byId` 如实三值：true / false（元素上无稳定 id，退化为按索引对齐）/ 'duplicate'；
+ *      **不假装按 id 对齐了**（拿不到判据不等于证伪）。
+ *
+ * 分工（避免同一件事两个真源）：键面的增删由既有 `onlyInA` / `onlyInB` 承担；
+ *   `changes[]` **只记「两侧都有的键之间的差异」**（changed / type-changed）。
+ *
+ * 边界（如实登记）：纯读 + 零写 + 绝不抛；有界（默认 maxChanges 200 / maxDepth 6 / maxArray 50）；
+ *   比较的是**载荷对象本身**，不做域 schema 解释（那是各域自己的知识）；
+ *   不比较函数 / Symbol / BigInt 的语义（列为 kind 但不深入）；实机未验。
+ * ============================================================ */
+
+/** 值类型三态：undefined / null 单列，数组单列，其余按 typeof。
+ *  为什么不能只对 null 特判：本仓老账的形态正是「没给 / 给了空 / 给了 0」三态塌成两态。 */
+function kindOf(v) {
+    if (v === undefined) return 'undefined';
+    if (v === null) return 'null';
+    if (Array.isArray(v)) return 'array';
+    return typeof v;
+}
+
+/** 有界预览：字符串给前 40 字 + 真长度；数组给项数；对象给键数。
+ *  「同长度但值不同」（计划点名的反例）靠 text 逐字看得见、len 相同 ⇒ 两条读数缺一不可。 */
+function previewOf(v) {
+    const k = kindOf(v);
+    if (k === 'undefined') return { kind: k, text: '（未给）' };
+    if (k === 'null') return { kind: k, text: '（空）' };
+    if (k === 'string') return { kind: k, text: v.length > 40 ? (v.slice(0, 40) + '…') : v, len: v.length };
+    if (k === 'number' || k === 'boolean' || k === 'bigint') return { kind: k, text: String(v) };
+    if (k === 'array') return { kind: k, text: '（' + v.length + ' 项）', len: v.length };
+    if (k === 'object') return { kind: k, text: '（' + Object.keys(v).length + ' 键）', len: Object.keys(v).length };
+    return { kind: k, text: '（不可比较）' };
+}
+
+/** 稳定 id 的唯一判定口：只认对象上这几种键，且值必须是非空串 / 有限数。
+ *  取不到即 null ⇒ 调用方**不得**假装按 id 对齐（拿不到判据不等于证伪）。 */
+const STABLE_ID_KEYS = ['id', 'uid', 'key', 'msg_id', 'floor', 'name'];
+function stableIdOf(el) {
+    if (!el || typeof el !== 'object' || Array.isArray(el)) return null;
+    for (const k of STABLE_ID_KEYS) {
+        const v = safe(() => el[k], undefined);
+        if (typeof v === 'string' && v.trim() !== '') return { key: k, id: v };
+        if (typeof v === 'number' && Number.isFinite(v)) return { key: k, id: String(v) };
+    }
+    return null;
+}
+
+/** 路径深度（'' = 0；'a.b' = 2；'a#n1.x' = 3）—— 深度上限的唯一判定口。 */
+function pathDepth(path) {
+    if (!path) return 0;
+    let n = 1;
+    for (let i = 0; i < path.length; i++) { const c = path[i]; if (c === '.' || c === '#') n++; }
+    return n;
+}
+
+/** 回指发生处：去掉路径最后一段（'a.b.c' → 'a.b'；'a#id' → 'a'；顶层名 → '（根）'）。
+ *  [v3.252.0] 循环引用报的是**回指发生的那一层**，而不是多走一格之后的位置：
+ *    报位置比报结论更容易被后人当成事实引用（本仓代际）。 */
+function parentPath(path) {
+    if (!path) return '(根)';
+    let cut = -1;
+    for (let i = path.length - 1; i >= 0; i--) { const c = path[i]; if (c === '.' || c === '#' || c === '[') { cut = i; break; } }
+    return cut > 0 ? path.slice(0, cut) : '(根)';
+}
+
+/** 记一条差异；达到上限即置 truncated 并**不再记录**（不编造总数）。 */
+function pushChange(ctx, path, kind, x, y) {
+    if (ctx.changes.length >= ctx.maxChanges) { ctx.truncated = true; return; }
+    ctx.changes.push({ path: path || '(根)', kind: kind, from: previewOf(x), to: previewOf(y) });
+}
+
+/** 递归对拍（只记「两侧都有的键」之间的差异；键面增删由 diffPayloads 承担）。 */
+function walkDeep(x, y, path, ctx) {
+    if (ctx.truncated) return;
+    const kx = kindOf(x), ky = kindOf(y);
+    if (kx !== ky) { pushChange(ctx, path, 'type-changed', x, y); return; }
+    if (kx === 'array') { walkDeepArray(x, y, path, ctx); return; }
+    if (kx === 'object') {
+        /* [v3.252.0 首稿自抓] 循环判定必须**先于**入栈：首稿把 push 放在判定之前，
+         *   于是 {self:{...}} 形态会把「自己」误报成循环并把路径虚高一格（报 'self.self'）。
+         *   本仓代际：报错位置比报错本身更容易被当成事实引用。 */
+        if (ctx.stack.indexOf(x) !== -1 || ctx.stack.indexOf(y) !== -1) { ctx.cycles.push(parentPath(path)); return; }
+        if (pathDepth(path) >= ctx.maxDepth) { ctx.capped.push(path || '(根)'); return; }
+        ctx.stack.push(x); ctx.stack.push(y);
+        try {
+            const setY = new Set(Object.keys(y));
+            for (const k of Object.keys(x)) {
+                if (ctx.truncated) break;
+                if (!setY.has(k)) continue;
+                walkDeep(x[k], y[k], path ? (path + '.' + k) : k, ctx);
+            }
+        } finally { ctx.stack.pop(); ctx.stack.pop(); }
+        return;
+    }
+    if (!Object.is(x, y)) pushChange(ctx, path, 'changed', x, y);
+}
+
+/** 集合对拍：元素带稳定 id ⇒ 按 id 对齐；否则**如实**降为按索引对齐。 */
+function walkDeepArray(x, y, path, ctx) {
+    if (ctx.stack.indexOf(x) !== -1 || ctx.stack.indexOf(y) !== -1) { ctx.cycles.push(parentPath(path)); return; }
+    if (pathDepth(path) >= ctx.maxDepth) { ctx.capped.push(path || '(根)'); return; }
+    const nx = Math.min(x.length, ctx.maxArray), ny = Math.min(y.length, ctx.maxArray);
+    if (x.length > ctx.maxArray || y.length > ctx.maxArray) {
+        ctx.capped.push((path || '(根)') + '（超 maxArray=' + ctx.maxArray + '，只比前 ' + ctx.maxArray + ' 项）');
+    }
+    const ia = idsOfSlice(x, nx), ib = idsOfSlice(y, ny);
+    let byId = false, idKey = null, dupIds = [];
+    if (ia.ok && ib.ok && ia.key === ib.key) {
+        if (ia.dup.length || ib.dup.length) {
+            byId = 'duplicate'; idKey = ia.key;
+            /* [v3.252.0 首稿自抓] 去重且**保留侧别**：首稿盲目 concat ⇒ 两侧各一个重复 id 时
+             *   报出 ['a','a']，「A 侧重了」与「B 侧重了」与「两侧都重」三者同形 ——
+             *   而本仓老账 ① 明写：三态压成两态就是错读数。 */
+            const uniq = (arr) => { const o = []; for (const z of arr) if (o.indexOf(z) === -1) o.push(z); return o; };
+            dupIds = uniq(ia.dup).map((z) => 'A:' + z).concat(uniq(ib.dup).map((z) => 'B:' + z));
+        } else { byId = true; idKey = ia.key; }
+    }
+    const set = { path: path || '(根)', byId: byId, idKey: idKey, countA: x.length, countB: y.length,
+        addedIds: [], removedIds: [], modifiedIds: [], unchangedCount: 0, duplicateIds: dupIds };
+    ctx.stack.push(x); ctx.stack.push(y);
+    try {
+        if (byId === true) {
+            for (const id of ia.map.keys()) {
+                if (ctx.truncated) break;
+                if (!ib.map.has(id)) { set.removedIds.push(id); continue; }
+                const before = ctx.changes.length;
+                walkDeep(x[ia.map.get(id)], y[ib.map.get(id)], (path ? path : '') + '#' + id, ctx);
+                if (ctx.changes.length > before) set.modifiedIds.push(id); else set.unchangedCount++;
+            }
+            for (const id of ib.map.keys()) { if (!ia.map.has(id)) set.addedIds.push(id); }
+        } else {
+            const n = Math.min(nx, ny);
+            for (let i = 0; i < n; i++) {
+                if (ctx.truncated) break;
+                walkDeep(x[i], y[i], (path ? path : '') + '[' + i + ']', ctx);
+            }
+            /* [v3.252.0 首稿自抓] 索引对齐时**长度差本身就是差异**：
+             *   首稿只比前 min(nx,ny) 项 ⇒ {list:[1,2,3]} vs {list:[1,2]} 报
+             *   「同键且值相同 + 零改动」，第 3 项整个消失却**没有任何读数**
+             *   —— 这正是本仓最贵的那类错读数（不报错、只错结果），
+             *   也正是计划二 F7 要治的「键面看不出来」。按 id 对齐时长度差由
+             *   addedIds / removedIds 承担；此处按索引对齐，故单列索引读数。 */
+            for (let i = n; i < nx; i++) {
+                if (ctx.truncated) break;
+                pushChange(ctx, (path ? path : '') + '[' + i + ']', 'removed-index', x[i], undefined);
+            }
+            for (let i = n; i < ny; i++) {
+                if (ctx.truncated) break;
+                pushChange(ctx, (path ? path : '') + '[' + i + ']', 'added-index', undefined, y[i]);
+            }
+        }
+    } finally { ctx.stack.pop(); ctx.stack.pop(); }
+    ctx.sets.push(set);
+}
+
+/** 前 n 项能否建立唯一 id 映射：ok 表示**全部**都能取到同一个 id 键。 */
+function idsOfSlice(arr, n) {
+    const map = new Map(); const dup = []; let key = null; let ok = true;
+    for (let i = 0; i < n; i++) {
+        const got = stableIdOf(arr[i]);
+        if (!got) { ok = false; break; }
+        if (key === null) key = got.key;
+        else if (key !== got.key) { ok = false; break; }
+        if (map.has(got.id)) dup.push(got.id); else map.set(got.id, i);
+    }
+    return { ok: ok, key: key, map: map, dup: dup };
+}
+
+/**
+ * [v3.252.0] F7 首阶段：**内容级只读对照**（纯函数，零写零读全局，绝不抛）。
+ *
+ * @param {*} a 基线载荷（通常 = 当前状态）
+ * @param {*} b 目标载荷（通常 = 某份检查点）
+ * @param {{maxChanges?:number, maxDepth?:number, maxArray?:number}} [opts] 有界读数上限
+ * @returns {object} 键面 / 规模 / 代际读数（继承 `diffPayloads`，**逐字未改**）+ 内容级增量：
+ *   `changedKeys` / `sameValueKeys` / `changes[]` / `sets[]` / `capped[]` / `cycles[]` /
+ *   `deepContentCompared`（三态）/ `changesTruncated` / `limits`。
+ *   异常路径如实回 `{ ok:false, reason:'internal', error }`，**不吞成「无差异」**（本仓纪律）。
+ */
+function diffPayloadsDeep(a, b, opts) {
+    const o = (opts && typeof opts === 'object') ? opts : {};
+    const maxChanges = (Number.isFinite(o.maxChanges) && o.maxChanges >= 1) ? Math.floor(o.maxChanges) : 200;
+    const maxDepth = (Number.isFinite(o.maxDepth) && o.maxDepth >= 0) ? Math.floor(o.maxDepth) : 6;
+    const maxArray = (Number.isFinite(o.maxArray) && o.maxArray >= 1) ? Math.floor(o.maxArray) : 50;
+    /* 键面 / 规模 / 代际**继承**既有出口，不在本函数重算一处口径（两处必漂移）。 */
+    const face = diffPayloads(a, b);
+    const out = {};
+    for (const k of Object.keys(face)) out[k] = face[k];
+    out.ok = true; out.reason = 'ok'; out.deep = true;
+    out.deepContentCompared = 'not-applicable';
+    out.changedKeys = []; out.sameValueKeys = [];
+    out.changes = []; out.sets = []; out.capped = []; out.cycles = [];
+    out.changesTruncated = false;
+    out.limits = { maxChanges: maxChanges, maxDepth: maxDepth, maxArray: maxArray };
+    const ctx = { changes: out.changes, sets: out.sets, capped: out.capped, cycles: out.cycles,
+        maxChanges: maxChanges, maxDepth: maxDepth, maxArray: maxArray, truncated: false, stack: [] };
+    try {
+        const oa = (a && typeof a === 'object' && !Array.isArray(a));
+        const ob = (b && typeof b === 'object' && !Array.isArray(b));
+        if (!oa && !ob) {
+            out.deepContentCompared = 'not-applicable';
+        } else if (kindOf(a) !== kindOf(b)) {
+            /* 一侧是对象、另一侧不是：这是**类型层**差异，如实记一条，不假装能逐键比。 */
+            out.deepContentCompared = true;
+            pushChange(ctx, '', 'type-changed', a, b);
+        } else {
+            out.deepContentCompared = true;
+            const ka = Object.keys(a).sort();
+            const kb = Object.keys(b).sort();
+            const setB = new Set(kb);
+            for (const k of ka) {
+                if (!setB.has(k)) continue;   /* 键面增删归 onlyInA/onlyInB，不在此重复记 */
+                const before = ctx.changes.length;
+                walkDeep(a[k], b[k], k, ctx);
+                if (ctx.changes.length > before) out.changedKeys.push(k); else out.sameValueKeys.push(k);
+            }
+        }
+    } catch (e) {
+        out.ok = false; out.reason = 'internal'; out.error = String((e && e.message) || e);
+        out.deepContentCompared = 'failed';
+    }
+    out.changesTruncated = ctx.truncated === true;
+    return out;
+}
+
 /**
  * 恢复预览（**只读**）：把「这份检查点相对当前运行时会带来什么差异」算出来。
  * 刻意**不执行**恢复——真正落地仍走 `restoreFromPayload` 那一条管线（单真源）。
@@ -438,6 +690,7 @@ const api = {
     readCheckpoint,
     dropCheckpoint,
     diffPayloads,
+    diffPayloadsDeep,
     previewRestore,
     compareCheckpoints,
     describe

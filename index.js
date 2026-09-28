@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.250.0';
+    const VERSION = '3.252.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -6232,6 +6232,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                     vecHeatCount: vecHeat.length,
                     ts: Date.now(),
                 };
+                /* [v3.251.0] M-O3：把本轮的**楼层号**落成实例字段，作为「回执 ↔ 召回账本」
+                 *   配对的唯一键。不落这个字段的话，构建期只能取 `_recallAudit` 的
+                 *   最后一条来当本轮的原始命中数 —— 而「最后一条」在一轮里可能属于
+                 *   上一次召回（重试 / 多次 recallMemory 调用），拿它当本轮读数
+                 *   就是本仓点名的「张冠李戴」。楼层对不上时构建侧宁可报 null。 */
+                this._lastRecallFloor = rec.floor;
                 const log = this._recallAudit || (this._recallAudit = []);
                 log.push(rec);
                 if (log.length > 50) log.shift();
@@ -7947,6 +7953,12 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   ★ 必须在早返回**之前**清：「本轮召回为空」正是 0 块的主要来源，
             //     若清空写在早返回后面，这条路径反而成了唯一漏网的那条。
             this._lastInjectionDraft = null;
+            /* [v3.251.0] M-O3：本轮**构建过程回执草稿**（同生命期、同归零纪律）。
+             *   为什么必须与 `_lastInjectionDraft` 一样在早返回**之前**归零：
+             *   回执回答「本轮各阶段的计数与裁剪事实」，若残留上一轮的值，
+             *   那么「本轮召回为空」就会带着上一轮的 kept/stages 一起被读出去 ——
+             *   正是 R2-A 治过的「同形」在回执面的翻版。 */
+            this._injectionTraceDraft = null;
             if (!recalled?.length) return '';
             const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
@@ -7991,6 +8003,49 @@ function relativeTimeLabel(eventTime, nowTime) {
             }   // [v3.114] 闭合 else 分支
             
             const blocks = [];
+            /* [v3.251.0] M-O3：**拼装现场归因记账**（必须在回执草稿建立之前就开始记）。
+             *   为什么不能等到裁剪后再记：块是**渲染后的文本**，「这块是哪来的」这个信息
+             *   只在 push 的那一刻存在于局部变量里；等到裁剪回执那一层，源归属早已丢失
+             *   （cost-ledger 只能靠「分节继承」猜节名，正是这个丢失的下游补偿）。
+             *   这里只记**计数**（谁贡献了几块），不记内容、不参与任何决策：
+             *     · 回执在裁剪前才建草稿（那时才有 budget / strategy），故本处先用两个局部
+             *       容器收着，等草稿建立时并入 —— 不提前建草稿是为了不动既有回归基线。
+             *     · 有开关的源**无论开关开合都落一个键**（闸门关 ⇒ 0），于是
+             *       「某源被禁用 ⇒ 它贡献 0 块」是一条可在回执上直接断言的判据，
+             *       而不是事后从块文本反推（M-O3 第 ⑦ 条）。 */
+            const _srcBlocks = {};
+            const _stageCnt = { relationGated: null, povOffstage: null, povScoped: false, relationScoped: false };
+            const _countSource = (key, n) => {
+                const _n = Number(n);
+                _srcBlocks[key] = (_srcBlocks[key] || 0) + (Number.isFinite(_n) && _n > 0 ? Math.floor(_n) : 0);
+            };
+            /* [v3.251.0] M-O3 第 ⑦ 条的**单一真源**：召回侧开关表。
+             *   修前这张表只在下方的 cost-ledger 调用处**就地写死一份**（10 键），
+             *   若回执再抄一份，就是本仓点名的「同一事实两个真源」——
+             *   两处迟早漂移，而漂移的表现恰好是「禁用项仍被报成有注入」。
+             *   故提到拼装之前建一次：拼装侧按它开闸/计数，账本侧原样读同一对象。
+             *   键面与语义**一字不改**（保持既有诊断行「禁用 N 源」的读数不变）。 */
+            const _srcGate = {
+                emotionOppositeRecall: this.config.config.emotionOppositeRecall === true,
+                vector: this.config.config.vectorEnabled !== false,
+                cse: this.config.config.cseEnabled !== false,
+                scene: this.config.config.sceneEnabled !== false,
+                suspense: this.config.config.suspenseEnabled !== false,
+                worldProgress: this.config.config.worldProgressEnabled !== false,
+                lockedFacts: this.config.config.lockedFactsEnabled !== false,
+                timeTagAnchor: this.config.config.timeTagAnchorEnabled !== false,
+                itemLedger: this.config.config.itemLedgerEnabled !== false,
+                narrativePulse: this.config.config.narrativePulseEnabled !== false,
+            };
+            /* 有注入期**自有块**的源（构建期能真判「它贡献了几块」）与没有的，必须分开记：
+             *   本插件的块是从**召回候选池**融合渲染出来的：`vector` / `suspense` / `worldProgress`
+             *   这些源在**召回**侧生效，禁用它们的效果是「候选池里少几条」，而不是
+             *   「渲染时少几个块」—— 在构建期把它们拆成「谁贡献了几块」是**做不到的**，
+             *   硬拆只会得到一份看起来精确、实则编造的归属表。
+             *   故：自有块的源逐一记数（禁用 ⇒ 恒 0，可断言）；融合源记在 `fused`
+             *   并指向召回侧读数（`recallPerSource`），不假装构建期可分。 */
+            const _OWNED_SOURCES = ['lockedFacts', 'cse', 'narrativePulse', 'scene', 'npcTier', 'typedFacts', 'protagonist', 'npcTies'];
+            const _FUSED_SOURCES = ['vector', 'suspense', 'worldProgress', 'timeTagAnchor', 'itemLedger', 'emotionOppositeRecall'];
             // ===== A. 静态锚定前缀区 (Static Cache Anchor Zone - Prompt Cache Guard) =====
             // [v3.46] 宏观世界线·纪元史记 (Grand Chronicle)
             if (this.summary?.getGrandChroniclePrompt) {
@@ -8001,6 +8056,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (this.config.config.lockedFactsEnabled !== false) {
                 const lfText = this.summary?.lockedFactsForPrompt?.(this.config.config.lockedFactMaxChars);
                 if (lfText) blocks.push('[用户锁定剧情事实]\n' + lfText);
+                _countSource('lockedFacts', lfText ? 1 : 0);
+            } else {
+                // 闸门关也必须落键并记 0（M-O3 ⑦）：不落键的话，「这个源被禁用 ⇒ 它贡献 0 块」
+                //   在回执上就查不到，只能落进账本的「未参与核对」——那是把可判的事实弄成不可判。
+                _countSource('lockedFacts', 0);
             }
             // [v3.45] 吸收 baibai: 主角客观档案与生活习惯癖好追踪
             if (this.config.config.protagonistTracking !== false) {
@@ -8011,6 +8071,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     blocks.push('[主角当前客观状态与生活习惯]');
                     if (proPrompt) blocks.push(`- ${proPrompt}`);
                     if (lifePrompt.length) blocks.push(...lifePrompt);
+                    _countSource('protagonist', 1 + (proPrompt ? 1 : 0) + lifePrompt.length);
                 }
             }
             // [v3.45] 吸收 baibai: 跨空间角色长期人伦社会羁绊网（稳定字典序排序）
@@ -8019,14 +8080,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (tiesText) {
                     blocks.push(tiesText);
                 }
+                _countSource('npcTies', tiesText ? 1 : 0);
             }
             // [v3.94] CSE 级人物状态引擎注入（分层呈现+toward+可见性+待证标注）
             if (this.config.config.cseEnabled !== false) {
                 try {
                     const cseText = this.cse?.toPrompt?.(null, { includePrivate: true, maxStates: 10 });
                     if (cseText) blocks.push(cseText);
+                    _countSource('cse', cseText ? 1 : 0);
                 } catch (e) { errLog(e, 'buildInjection.cse'); }
-            }
+            } else { _countSource('cse', 0); }
             // [v3.95] 叙事心电图注入（原创：节奏自反提示，仅在连续高压/平淡时输出，避免每轮噪音）
             if (this.config.config.narrativePulseEnabled !== false) {
                 try {
@@ -8037,15 +8100,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const _pulseCast = this.captureCast();
                     const pulseText = this.pulse?.toPrompt?.({ characters: _pulseCast });
                     if (pulseText) blocks.push(pulseText);
+                    _countSource('narrativePulse', pulseText ? 1 : 0);
                 } catch (e) { errLog(e, 'buildInjection.叙事心电图'); }
-            }
+            } else { _countSource('narrativePulse', 0); }
             if (this.config.config.npcTierInjection !== false) {
                 const npcTierLines = buildNpcTierInjection(this.buildNpcTierRecords());
                 if (npcTierLines.length) {
                     blocks.push('[角色索引·分级注入]');
                     blocks.push(...npcTierLines);
                 }
-            }
+                _countSource('npcTier', npcTierLines.length ? 1 + npcTierLines.length : 0);
+            } else { _countSource('npcTier', 0); }
 
             // ===== B. 动态易变尾部区 (Volatile Dynamic Zone) =====
             // [v3.211] 类型化事实入注入：消费 memory-type.js 的 routeForType / typedBuckets / policyOfType。
@@ -8060,7 +8125,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const _tf = (typeof this.typedFactsBlocks === 'function') ? this.typedFactsBlocks() : null;
                 if (_tf && _tf.stable) blocks.push(_tf.stable);
                 if (_tf && _tf.volatile) blocks.push(_tf.volatile);
-            } catch (e) { errLog(e, 'buildInjection.typedFacts'); }
+                _countSource('typedFacts', (_tf && _tf.stable ? 1 : 0) + (_tf && _tf.volatile ? 1 : 0));
+            } catch (e) { errLog(e, 'buildInjection.typedFacts'); _countSource('typedFacts', 0); }
             // [v3.91] 审计修复：setGeoLocation 从 LLM geo_location 抽取并写入，getGeoLocation 被召回路径消费，
             //         但 getGeoPrompt 从未进入注入（数据空转）。位置会随剧情变化，故放动态区而非静态锚定。
             try {
@@ -8133,15 +8199,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _rdRead = { moduleMissing: true };
                 }
                 this._relationDisclosureRead = _rdRead;
-                /* [v3.219.0] R2-F：**双向关系对账**（relation-mutual.js）。
-                 *   关系边是单向主观的（提示词第 3 条：A看B 与 B看A 分别各记一条），
-                 *   而注入侧修前只把每条边原样列出来 —— 没有任何一格说「对侧那条在不在」。
-                 *   于是「乙对甲是警惕」与「乙对甲从未登记」在注入面上**同形**，
-                 *   而后者是提取漏了一条（该补记）。模型读到单向的「甲对乙是挚友」
-                 *   会默认它是对称的，那正是本仓最贵的塌陷形态。
-                 *   对账必须收**两份**输入：图里的全量边（判「对侧在不在」）与本轮实际
-                 *   进注入的那批（判「对侧是不是被披露条件挡下了」）—— 只看召回集合，
-                 *   这两态必然同形。只读、不抛、不改边。 */
+                if (_rdRead && _rdRead.counts && Number.isFinite(_rdRead.counts.gated)) {
+                    _stageCnt.relationGated = _rdRead.counts.gated;   // 有效的「挡下几条」，可测
+                } else {
+                    // 模块缺席 / 读数缺失 ⇒ 如实 null（不写 0：0 是「测到了，一条都没挡」）
+                    _stageCnt.relationGated = null;
+                }
+                _stageCnt.relationScoped = true;   // 关系面本轮参与过构建（判据据此知道这一格为何有值）
+                /* [v3.219.0] R2-F：**双向关系对账**（relation-mutual.js）——单向主观边要能看出「对侧在不在」，
+                 *   收两份输入（图里全量边 + 本轮真进注入的那批）；只读、不抛、不改边。 */
                 let _mutualRead = null;
                 try {
                     const _RM = _moduleLib(() => window.LonShaRelationMutual, 'relation-mutual.js');
@@ -8271,6 +8337,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const validPovs = (present.length > 0)
                     ? povs.filter(p => !p.owner || presentSet.has(this.resolveCharacterName(p.owner)))
                     : povs;
+                /* [v3.251.0] M-O3 第 ③ 条：有效性过滤的**第二支**（视界隔离挡下的心声条数）。
+                 *   与关系披露同一形态：这是**构建期真发生的一次有效性过滤**，
+                 *   修前它只在「块有没有出现」上留痕（整段消失），没有任何一格说「挡下了几条」。
+                 *   仅在**真做了过滤**时给数（present.length > 0）；没有在场角色时不筛，
+                 *   那一格记 null（不写 0 —— 0 是「筛了，一条都没挡」）。 */
+                if (present.length > 0) _stageCnt.povOffstage = Math.max(0, povs.length - validPovs.length);
+                _stageCnt.povScoped = true;
                 if (validPovs.length) {
                     const who = present.length ? present.join('、') : '当前角色';
                     blocks.push(`〔全知禁令与私密视界｜仅${who}知晓，其他角色绝不知情，严禁未卜先知或在对话动作中直接戳破〕`);
@@ -8300,6 +8373,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             if (this.config.config.sceneEnabled) {
                 try {
+                    let _sceneN = 0;
                     const cur = this.scene.currentKey();
                     if (cur) {
                         const chain = this.scene.chainOf(cur);
@@ -8307,14 +8381,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                             blocks.push('[当前场景]');
                             const line = chain.map(n => n.path[n.path.length - 1] + (n.desc ? `（${n.desc}）` : '')).join(' › ');
                             blocks.push(`- ${line}`);
+                            _sceneN += 2;
                         }
                     }
                     // [v3.195] 场景头只读本楼。没有就不出行，不回退到别的楼。
                     const _hdrFloor = (typeof window !== 'undefined' ? window.SillyTavern?.getContext?.()?.chat?.length : 0) || 0;
                     const _hdr = _hdrFloor > 0 && this.scene.headerLine ? this.scene.headerLine(_hdrFloor - 1) : '';
-                    if (_hdr) blocks.push(_hdr);
-                } catch (e) { errLog(e, 'buildInjection.场景链'); }
-            }
+                    if (_hdr) { blocks.push(_hdr); _sceneN += 1; }
+                    _countSource('scene', _sceneN);   // sceneEnabled 关 ⇒ 整块不进 ⇒ 恒 0
+                } catch (e) { errLog(e, 'buildInjection.场景链'); _countSource('scene', 0); }
+            } else { _countSource('scene', 0); }
             if (scenesList.length) {
                 blocks.push('[相关地点]');
                 scenesList.forEach(i => blocks.push(`- ${i.text || ''}`));
@@ -8402,6 +8478,132 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             const _preTrimLen = full.length;   // [v3.144] CP: 预算实测基线（裁剪前字符数）
             const keepCount = this.config.config.budgetStrategy || 'balanced';
+            const _opt = {};   // [v3.251.0] M-O3：构建期外部输入口（本版**不扩签名**，见下）
+            /* 为什么这里不写成 `opts` 形参：本方法的方法头字面量是**判据的一部分**
+             *   （tests/v3216 的 HOST_METHODS 逐一按字面量抽方法体、v3211 的负控制
+             *   按方法头定位真源码破坏点）。改签名会让那些
+             *   判据定位失败 —— 判据失效比方法签名健壮性重要得多，故签名**一字不动**。
+             *   本轮需要外部输入的只有「原始命中数」，而它在本仓有**更可靠的来源**：
+             *   召回自检账本（`_recallAudit`）按楼层配对取，不依赖调用方传参。
+             *   将来若真要从外部注入，走 `_opt` 的赋值口（属性挂载），不改方法头。 */
+            if (this.__buildInjectionOpts && typeof this.__buildInjectionOpts === 'object') {
+                Object.assign(_opt, this.__buildInjectionOpts);
+            }
+            /* [v3.251.0] M-O3 第 ⑤ 条：**真实 tokenizer 探测**（按能力探测，不按版本号硬判）。
+             *   为什么必须在**每次构建时**探一次而不是启动时缓存一次：酒馆的 tokenizer
+             *   随版本/加载顺序变化，缓存一份会在「本来是估算、后来宿主装上了」时继续报估算
+             *   （正是本仓点名的「读数停在过去」形态）。探测本身是常量代价的几个 typeof。
+             *   探测不到一律退回 `estimateTextTokens` 并**在回执上标明**是估算 ——
+             *   绝不把估算值当精确值摆出去。 */
+            const _tokSrc = (() => {
+                try {
+                    const _st = (typeof window !== 'undefined') ? window.SillyTavern : null;
+                    const _c = (_st && typeof _st.getContext === 'function') ? _st.getContext() : null;
+                    if (_c && typeof _c.getTokenCountAsync === 'function') return { mode: 'host-async', name: 'SillyTavern.getContext().getTokenCountAsync' };
+                    if (_c && typeof _c.getTokenCount === 'function') return { mode: 'host', name: 'SillyTavern.getContext().getTokenCount' };
+                    if (_st && typeof _st.getTokenCount === 'function') return { mode: 'host', name: 'SillyTavern.getTokenCount' };
+                } catch (e) { /* 探测失败 ⇒ 估算 */ }
+                return { mode: 'estimate', name: 'estimateTextTokens(CJK 口径)' };
+            })();
+            /* 本轮对应的**召回自检记录**：原始命中数（第 ① 阶段）与各源命中分布的唯一真源。
+             *   配对纪律（本仓老账「别拿上一轮的读当本轮的」）：**只认楼层号相符的那一条**，
+             *   不取「最后一条」。构建跑在召回之后、同一楼层，故楼层号可靠；
+             *   楼层号缺失或对不上 ⇒ 不配对（宁可 null，也不给一条别的轮次的读数）。 */
+            const _auditLastRec = (() => {
+                try {
+                    const _ra = this._recallAudit;
+                    if (!Array.isArray(_ra) || !_ra.length) return null;
+                    const _fl = Number(this._lastRecallFloor);
+                    if (!Number.isFinite(_fl)) return null;
+                    for (let i = _ra.length - 1; i >= 0; i--) {
+                        if (Number(_ra[i] && _ra[i].floor) === _fl) return _ra[i];
+                    }
+                    return null;
+                } catch (e) { return null; }
+            })();
+            /* [v3.251.0] M-O3：**回执草稿**（本次构建的事实，由构建过程自己派生）。
+             *   与「事后反推」的分工（口径写死在这里，别处不得再解释一遍）：
+             *     · 本对象里的一切（策略 / 是否裁剪 / 谁留下 / 切在哪 / 各阶段计数）都产生于
+             *       **判定发生的地点**；
+             *     · 下游的 `_injectionBlocksOf`、cost-ledger 与手机端 **读** 它，不再拿最终文本猜；
+             *     · 它**不是第二份事实库**：只记本轮留下哪些块与各阶段计数，不复制块的内容语义，
+             *       也不参与任何决策（决策全在 trimToBudget 内）。
+             *   未超预算时 trimmed=false、keptAll=true，同样如实落下来。 */
+            const _trace = this._injectionTraceDraft = {
+                version: 1,
+                strategy: keepCount,
+                trimmed: false,
+                hardTruncated: false,
+                preTrimChars: _preTrimLen,
+                budget: budget,
+                tierOn: _tierOn,
+                recallCount: Array.isArray(recalled) ? recalled.length : 0,
+                /* [v3.251.0] M-O3 第 ③ 条：**五阶段计数**（原始命中 → 合并 → 有效性过滤 →
+                 *   预算裁剪 → 最终保留）。每一格只写本仓**真能测**的量；测不出的写 null
+                 *   并在 `stageNotes` 里写明为什么 —— 编一个 0 会让「没测到」与「真的是 0」同形。
+                 *   口径（写死在这里，别处不得另解释一遍）：
+                 *     · rawHits       各召回源返回条目总数（含重复），取自本仓召回自检账本
+                 *                     最后一次记录；调用侧未带 / 楼层对不上 ⇒ null。
+                 *     · merged        送入本函数的候选条数（已过合并去重与精选）。
+                 *     · validityFiltered 构建期被**有效性规则**挡下的条数（分项见 byRule）。
+                 *     · budgetTrimmed 预算裁剪丢掉的块数（裁剪回执给出；硬截断时不可测）。
+                 *     · finalKept     最终进载荷的块数（裁剪回执给出）。 */
+                stages: {
+                    rawHits: (_auditLastRec && Number.isFinite(_auditLastRec.totalHits))
+                        ? Number(_auditLastRec.totalHits)
+                        : (Number.isFinite(_opt.rawHits) ? Number(_opt.rawHits) : null),
+                    merged: Array.isArray(recalled) ? recalled.length : 0,
+                    validityFiltered: null,
+                    budgetTrimmed: null,
+                    finalKept: null,
+                    byRule: {
+                        relationGated: _stageCnt.relationGated,
+                        povOffstage: _stageCnt.povOffstage,
+                        relationScoped: _stageCnt.relationScoped,
+                        povScoped: _stageCnt.povScoped,
+                    },
+                },
+                stageNotes: {
+                    rawHits: ((_auditLastRec && Number.isFinite(_auditLastRec.totalHits)) || Number.isFinite(_opt.rawHits))
+                        ? '' : '召回自检账本无**楼层相符**的记录（或本轮未跑召回）⇒ 原始命中数不可测',
+                    validityFiltered: '',
+                    budgetTrimmed: '',
+                },
+                /* [v3.251.0] M-O3 第 ⑤ 条：token 口径。**真实 tokenizer 可用就用真的**，
+                 *   不可用只给字符数与**明确标记**的估算值。
+                 *   修前全仓只有 `estimateTextTokens` 一个来源，而它在面板上被写成
+                 *   「约 N token」—— 读的人分不清「酒馆真 tokenizer 算的」与「本插件估的」。
+                 *   本仓是酒馆扩展，宿主若提供 tokenizer（SillyTavern 不同版本的挂载点不同，
+                 *   故按能力探测而不是按版本号硬判）就用真的；探测不到如实退回估算并标注。 */
+                tokenSource: _tokSrc.mode,
+                tokenizer: _tokSrc.name,
+                /* [v3.251.0] M-O3 第 ⑧ 条：**分层标识**。本仓只产出自己的注入块；
+                 *   宿主最终请求体（世界书 / 角色卡 / 其它扩展塞进 prompt 的部分）
+                 *   **不在本插件可观测面内** —— 如实标注不可测，不假装自己看得见。
+                 *   故 `hostRequestBody` 的 `observed` 恒为 false：这一格存在的意义是
+                 *   **说清边界**，而不是给出一个看起来很精确的宿主侧数字。 */
+                layer: {
+                    pluginBlocks: 'own',        // 本回执描述的就是本插件的注入块
+                    hostRequestBody: 'unobserved',
+                    hostNote: '宿主最终请求体（世界书/角色卡/其它扩展）不在本插件可观测面内 ⇒ 不可测',
+                },
+                /* [v3.251.0] M-O3 第 ⑦ 条：**禁用项注入量为零**的可判形式。
+                 *   修前「某源被禁用 ⇒ 它没贡献任何块」这件事无处可查：块是渲染后的文本，
+                 *   源归属在拼装时就丢了（cost-ledger 正是因此只能做「分节继承」的启发式）。
+                 *   现在在**拼装现场**逐源记贡献块数（谁 push 的谁记账），于是
+                 *   「禁用 ⇒ 该源块数为 0」是一条可在回执上直接断言的判据，而不是事后推断。 */
+                sourceBlocks: _srcBlocks,
+                /* 融合源（在召回侧生效、构建期不可分）单独一格：**不假装能拆**。
+                 *   `recallPerSource` 是召回自检账本里各源命中数 —— 它是「召回给了几条」，
+                 *   不是「注入里几条」；两件事分开摆，读的人自己不会混。 */
+                fusedSourceBlocks: {
+                    keys: _FUSED_SOURCES.slice(),
+                    separable: false,
+                    why: '这些源经召回候选池融合渲染，构建期无法把某个块归给某个源；禁用它们的效果是候选池少条目（见 recallPerSource）',
+                    recallPerSource: (_auditLastRec && _auditLastRec.perSource) ? _auditLastRec.perSource : {},
+                },
+                disabledSources: Object.keys(_srcGate).filter((k) => _srcGate[k] === false),
+            };
             // [v3.195] 召回只读边界。recalled 是已经发生过的记录，不是本轮指令。
             //   没有显式维护指令就不产生写回；与更新事实同键的旧记录只标 shadowed，不覆盖。
             //   这里只记账，不改 full 的正文——边界是「不得当成本轮动作」，不是再改一遍已拼好的块。
@@ -8418,9 +8620,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
             } catch (e) { errLog(e, 'buildInjection.召回只读边界'); }
             if (full.length > budget) {
+                // [v3.251.0] M-O3：把**重试参照**交给裁剪（模块在时用于重试判定，见下方 catch）
+                if (_trace) _trace.preTrimFull = full;
                 if (_ir) {
                     // [v3.114] 裁剪决策走可测纯函数（与内联实现等价；recallTierEnabled 关闭时 blocks 全为触发区）
-                    full = _ir.trimToBudget(full, budget, _tierOn ? [...residentBlocks, ...triggerBlocks] : blocks, keepCount);
+                    full = _ir.trimToBudget(full, budget, _tierOn ? [...residentBlocks, ...triggerBlocks] : blocks, keepCount, { trace: _trace });
                 } else {
                 const strategy = keepCount;
                 if (strategy === 'relevance') {
@@ -8448,6 +8652,103 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 }   // [v3.114] 闭合 else 分支
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 注入预算裁剪: ${budget} 字符 (常驻${residentBlocks.length}块保留)`);
+            }
+            if (_trace) {
+                /* [v3.251.0] M-O3：未裁剪路径也要留下**同形**的载荷内块清单。
+                 *   理由：「没超预算、全部留下」与「裁剪后恰好全留下」在 `trimmed` 上是两态，
+                 *   但下游要判「谁留下」时不该为此分两条路读 —— 两条路就是同形隐患的温床。
+                 *
+                 *   ★★ 但必须再分一层：本函数里的 `trimmed=false` 有**两种**来源，处置相反：
+                 *     · 真的没超预算（走模块或走内联都一样）⇒ 整批都在载荷里，回执可给全下标；
+                 *     · **模块缺席时的内联回落**（`_ir` 为空，裁剪在下面的 else 分支里做）
+                 *       ⇒ 裁剪确实发生了，而**留下哪些块这件事没有留下回执**
+                 *         （内联分支只拼 `full`，不记 kept 清单）。
+                 *   修前本处若一律按「整批都在」填满下标，就是**谎报**：把真实被裁掉的块
+                 *   报成保留 —— 实测会直接打红 v3216 的「有被裁掉的块」判据（本轮真实发生）。
+                 *   故内联回落**如实记不可测**（`keptIdxInAll=null` + `traceFrom:'inline'`），
+                 *   由消费侧退回 `includes` 并在逐块 `via` 上现形 ——
+                 *   与 cost-ledger「不可测就写不可测」同一纪律。
+                 *   不给内联分支补一份 kept 清单的理由：那会让「谁留下」这个事实在同一文件里
+                 *   有两份实现，而两者迟早漂移（v3.208 已在 deriveBudget 上吃过这个亏）。 */
+                const _allT = _tierOn ? [...residentBlocks, ...triggerBlocks] : blocks;
+                _trace.blockCount = _allT.length;
+                /* trimmed 的三态：false=真没超预算 / true=走模块裁过 / null=**裁了但不可测**
+                 *   （模块缺席时的内联回落；判定见下方 `_ir` 分支）。
+                 *   `keptAll` 必须与它同口径：`!null === true` 会把「不可测」静默读成
+                 *   「全部留下」——正是本版要治的谎报形态，故此处显式按 `=== false` 算。 */
+                _trace.keptAll = (_trace.trimmed === false);
+                if (!_trace.trimmed) {
+                    if (_ir) {
+                        _trace.traceFrom = 'router';
+                        _trace.keptIdxInAll = _allT.map((_, i) => i);   // 整批都在载荷里
+                        _trace.keptTexts = _allT.slice();
+                        _trace.droppedTriggerIdx = [];
+                    } else {
+                        /* 模块缺席时的内联回落：裁剪确实发生了（就在上面的 else 分支里），
+                         *   但**留下哪些块这件事没有留下回执**（内联分支只拼 full，不记 kept 清单）。
+                         *   这里若一律按「整批都在」填满下标，就是谎报 —— 实测会直接打红
+                         *   v3216 的「有被裁掉的块」判据（本轮真实发生过一次，已修）。
+                         *   故如实记**不可测**：`trimmed=null`（不是 false）+ `traceFrom='inline'`，
+                         *   消费侧据此退回 `includes` 并让逐块 `via` 现形。
+                         *   不给内联分支补一份 kept 清单的理由：那会让「谁留下」这个事实在同一
+                         *   文件里出现两份实现，而两者迟早漂移（v3.208 已在 deriveBudget 上吃过）。 */
+                        _trace.traceFrom = 'inline';
+                        _trace.trimmed = null;
+                        _trace.trimmedUnknown = true;
+                        _trace.keptIdxInAll = null;
+                        _trace.keptTexts = [];
+                        _trace.droppedTriggerIdx = null;
+                        _trace.contiguous = null;
+                    }
+                    if (_trace.trimmed === false) {
+                        _trace.triggerTotal = (_tierOn ? triggerBlocks : blocks).length;
+                        _trace.contiguous = true;
+                        _trace.residentKept = _tierOn ? residentBlocks.length : 0;
+                    }
+                } else if (!_trace.traceFrom) {
+                    // 模块在时由 trimToBudget 填 `traceFrom`；此处兜住「裁剪走了模块但没标来源」
+                    _trace.traceFrom = _ir ? 'router' : 'inline';
+                }
+            }
+            /* [v3.251.0] M-O3 第 ③ 条：**五阶段的最后两格收口**（预算裁剪 / 最终保留）。
+             *   为什么拖到最后才填：这两格只有拿到**处置结果**才算得出 ——
+             *   裁剪发生在上面，而「留下几块 / 丢掉几块」在裁剪回执里才有。
+             *
+             *   三态纪律（本仓老账，与 dedup.savedChars 同款）：
+             *     · 有块级清单（未裁剪 / 模块裁过且给出了下标）⇒ 两个数都是**真读数**；
+             *     · 硬截断 ⇒ 块级清单**不成立**（切口在块内部），两格记 null + 指明原因，
+             *       绝不按 `blockCount - 明显估计` 编一个差数（那是把「测不了」写成数字）；
+             *     · 内联回落 ⇒ 同上（裁剪真发生了，但没留清单）。
+             *   `validityFiltered` 是各支**已测项之和**：只有测到的那几支才计入，
+             *   一支都没测到记 null（不写 0 —— 0 是「测了，一条都没挡」）。 */
+            if (_trace && _trace.stages) {
+                const _st = _trace.stages;
+                if (Array.isArray(_trace.keptIdxInAll) && Number.isFinite(_trace.blockCount)) {
+                    _st.finalKept = _trace.keptIdxInAll.length;
+                    _st.budgetTrimmed = Math.max(0, _trace.blockCount - _trace.keptIdxInAll.length);
+                    _trace.stageNotes.budgetTrimmed = '';
+                } else if (_trace.hardTruncated === true) {
+                    _st.budgetTrimmed = null; _st.finalKept = null;
+                    _trace.stageNotes.budgetTrimmed = '硬截断（切口落在块内部，块级保留清单不成立）⇒ 裁剪丢了几块 / 最终留了几块均不可测';
+                } else if (_trace.trimmedUnknown === true || _trace.traceFrom === 'inline') {
+                    _st.budgetTrimmed = null; _st.finalKept = null;
+                    _trace.stageNotes.budgetTrimmed = '内联回落（注入裁剪模块缺席）：裁剪已发生但未留块级清单 ⇒ 不可测';
+                } else {
+                    // 未裁剪：整批都在载荷里，两格是真读数（不是 null）
+                    _st.finalKept = Number.isFinite(_trace.blockCount) ? _trace.blockCount : null;
+                    _st.budgetTrimmed = _st.finalKept === null ? null : 0;
+                    _trace.stageNotes.budgetTrimmed = '';
+                }
+                const _ruleParts = [];
+                if (Number.isFinite(_st.byRule.relationGated)) _ruleParts.push(_st.byRule.relationGated);
+                if (Number.isFinite(_st.byRule.povOffstage)) _ruleParts.push(_st.byRule.povOffstage);
+                if (_ruleParts.length) {
+                    _st.validityFiltered = _ruleParts.reduce((a, b) => a + b, 0);
+                    _trace.stageNotes.validityFiltered = '';
+                } else {
+                    _st.validityFiltered = null;
+                    _trace.stageNotes.validityFiltered = '本轮没有可测的有效性过滤支（关系披露模块缺席 / 无在场角色时不筛 / 相关分区未参与构建）⇒ 不可测（不写 0）';
+                }
             }
             // [v3.144] CP: 预算实测（丢弃可见性）——此前超预算时 trimToBudget 静默 break，
             // 丢了几块/丢多少字符/命中哪个策略全部无处可查，调预算只能靠猜。
@@ -8489,18 +8790,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                         promotedSnippets: this._emoOppositeSnippets || {},
                         recallSources: (this._recallAudit && this._recallAudit.length
                             ? (this._recallAudit[this._recallAudit.length - 1].perSource || {}) : {}),
-                        enabledSources: {
-                            emotionOppositeRecall: this.config.config.emotionOppositeRecall === true,
-                            vector: this.config.config.vectorEnabled !== false,
-                            cse: this.config.config.cseEnabled !== false,
-                            scene: this.config.config.sceneEnabled !== false,
-                            suspense: this.config.config.suspenseEnabled !== false,
-                            worldProgress: this.config.config.worldProgressEnabled !== false,
-                            lockedFacts: this.config.config.lockedFactsEnabled !== false,
-                            timeTagAnchor: this.config.config.timeTagAnchorEnabled !== false,
-                            itemLedger: this.config.config.itemLedgerEnabled !== false,
-                            narrativePulse: this.config.config.narrativePulseEnabled !== false,
-                        },
+                        /* [v3.251.0] M-O3 第 ⑦ 条：开关表提到拼装前建一次（`_srcGate`），
+                         *   此处**原样引用同一对象**。修前这里是就地写死的一份表 ——
+                         *   若回执再抄一份就是「同一事实两个真源」，而漂移的表现恰好是
+                         *   「禁用项仍被报成有注入」。键面与语义一字未改。 */
+                        enabledSources: _srcGate,
+                        /* [v3.251.0] M-O3：**把裁剪回执交给账本**，让它不再靠 `includes` 反推
+                         *   「谁被留下」。这是「禁用项不计入实际注入成本」可信的前提：
+                         *   块级留存数从回执来，才有资格谈「某个被禁用的源贡献了多少成本」。 */
+                        trace: _trace,
                         tokensOf: estimateTextTokens,
                         now: this._lastBudgetStats.ts,
                     });
@@ -8597,21 +8895,67 @@ function relativeTimeLabel(eventTime, nowTime) {
          *   为什么重算而不是在拼装时一路收集：拼装函数有 20+ 个 `blocks.push`
          *   分散在静态区 / 动态区 / 预算裁剪三处，逐处收集等于把「谁进了」这个事实
          *   抄成二十份真源。这里只做一次判定：**块文本在最终载荷里出现过 ⇒ kept**。
-         *   `indexOf` 的位置差就是排序键 —— 与载荷的真实顺序一致，不另立顺序。
          *
-         *   逐块键面恒定 7 项：`ref / id / label / kept / chars / reason / at`。
+         *   [v3.251.0] M-O3 **改判据**：优先读构建过程派生的**回执**（`_injectionTraceDraft`
+         *   的 `keptIdxInAll`），只在回执不可用/规模对不上时才退回文本 `includes`。
+         *   为什么必须换：修前那条 `indexOf(块) >= 0` 有两个实测盲区（探针 `/tmp/mo3/probe1.mjs`
+         *   A 例的实证）——
+         *     · **同文重复**：候选含两条完全相同的触发块、预算只装得下一条时，
+         *       留下的那条让**两条**的 `indexOf` 都 ≥ 0 ⇒ 把「裁了一份」读成「两份都留」；
+         *     · **半段截断**：recency 硬截断切在块内部 ⇒ 半段块被读成「整块被丢」。
+         *   回执按下标说话（`keptIdxInAll`），这两态在构造上不可能发生。
+         *   `via` 字段如实登记本次用的是哪条判据 —— 「换了判据」这件事本身必须可见，
+         *   否则下一次读这块读数的人会以为它一直是精确的。
+         *
+         *   逐块键面恒定 6 项：`ref / id / label / kept / chars / reason / at`。
          *   被裁的块也必须可辨认（`label` 取块首行，截断到 40 字），
          *   否则「丢了什么」在面板上仍然是一团空白。
          */
         _injectionBlocksOf(allBlocks, fullText) {
             const list = Array.isArray(allBlocks) ? allBlocks : [];
             const full = String(fullText == null ? '' : fullText);
+            /* 回执可用性两问（缺一不可，且必须**分开**问）：
+             *   ① 这批回执对的是不是本批块清单（`blockCount` 规模自证）——
+             *      诊断 dry-run 路径也会调 buildInjection 并各自重建草稿，
+             *      不核对就会按**别人那批**的下标判 kept（错读数且看不出来）；
+             *   ② 回执是「块级清单」还是「硬截断」形态 —— 后者不成立块级清单，
+             *      只能判「整块落在切点内 / 被切半」，不能假装能判整块。 */
+            const tr = this._injectionTraceDraft;
+            const traceUsable = !!(tr && tr.version && Number(tr.blockCount) === list.length);
+            // 来源必须是**路由模块**：内联回落时 `keptIdxInAll` 为 null（不可测），
+            //   这里再把 `traceFrom` 也纳入条件，防止将来有人给内联分支补一份清单后
+            //   消费侧仍按旧口径读（那时「清单来自哪」必须重新过一遍这道门）。
+            const idxOk = traceUsable && tr.traceFrom === 'router' && Array.isArray(tr.keptIdxInAll);
+            // 第二态：硬截断（recency 无保留项时的 `slice(0, budget)`）。它与「块级清单」
+            //   互斥（那时回执把 keptIdxInAll 显式置 null），故两态的先后不影响判定。
+            const hardCut = traceUsable && tr.hardTruncated === true;
+            const keptSet = idxOk ? new Set(tr.keptIdxInAll) : null;
+            const sliceAt = hardCut ? Number(tr.sliceAt) : NaN;
             const out = [];
             for (let i = 0; i < list.length; i++) {
                 const text = String(list[i] == null ? '' : list[i]);
                 if (!text) continue;
                 const at = full.indexOf(text);
-                const kept = at >= 0;
+                /* 三态判据，互斥且穷尽（每条都真的可达，不存在「声明了却不发生」的分支）：
+                 *   idxOk   回执带块级下标清单 ⇒ 按下标判（精确，同文重复也分得开）
+                 *   hardCut 回执是硬截断形态   ⇒ 整块落在切点内才算 kept，跨切点记 partial
+                 *   否则     回执缺席/规模不符  ⇒ 退回文本反推（已知盲区如实标注） */
+                let kept, via, partial = false;
+                if (idxOk) { kept = keptSet.has(i); via = 'trace'; }
+                else if (hardCut) {
+                    /* 硬截断：块级清单不成立，改按**原始 full 的 span** 判三态。
+                     *   为什么不能用截断后的 `full.indexOf(块)` 判：切半的块在截断文本里
+                     *   根本找不到完整文本（indexOf = -1），于是「被切半」与「整块被丢」
+                     *   会双双落进同一个 false —— 那正是修前那个盲区。
+                     *   span 缺席（未定位到 / 无 span 表）⇒ 一律 kept=false 且 partial=false，
+                     *   并在 `via` 上标明是降级判据，不假装精确。 */
+                    const sp = (Array.isArray(tr.blockSpans) && Array.isArray(tr.blockSpans[i])) ? tr.blockSpans[i] : null;
+                    if (sp) {
+                        kept = sp[1] <= sliceAt;
+                        partial = (sp[0] < sliceAt && sp[1] > sliceAt);
+                        via = 'trace-span';
+                    } else { kept = false; partial = false; via = 'trace-truncated-nospan'; }
+                } else { kept = at >= 0; via = 'includes'; }
                 const head = text.split('\n')[0].trim();
                 out.push({
                     ref: this._injectionRefOf(i),
@@ -8619,8 +8963,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                     label: head.length > 40 ? head.slice(0, 40) + '…' : head,
                     kept,
                     chars: text.length,
-                    reason: kept ? 'kept' : 'dropped-budget',
-                    at: kept ? at : null,
+                    reason: partial ? 'truncated-partial' : (kept ? 'kept' : 'dropped-budget'),
+                    at: (kept && at >= 0) ? at : null,
+                    via: via,
+                    // 半段：块的下标在切点之前、末尾在切点之后 —— 真实发生过的「裁剪半段」，
+                    //   修前它与「整块被丢」同形（两者都只是 includes=false）。
+                    partial: partial,
                 });
             }
             return out;
@@ -11132,6 +11480,112 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 '恢复后会回来的字段：' + list(d.onlyInB),
                 '存档代际：' + (p.schemaCross === 'same' ? '同代' : ('跨代 ' + String(p.fromSchema) + ' → ' + String(p.toSchema)))
             ].join('\n');
+        }
+        /**
+         * [v3.252.0] F7 首阶段：**内容级只读对照**（读侧唯一出口）。
+         *
+         * 与 `compareBranchCheckpoints` 的分工（计划二 F7 原文点名的缺口）：
+         *   若只给「键面 + 规模 + 代际」，用户看到的是「两边的键一样、字节差不多」，
+         *   而计划点名的反例「同键同长度但值不同」（余额 100→900、朋友→仇人）**零读数**。
+         *   本方法在既有键面读数**之上**叠一层有界的逐条内容差异，键面口径逐字不动。
+         *
+         * 为什么**并列新出口**而不改 `diffPayloads`：那是「键面 + 规模 + 代际」的既有契约，
+         *   由 `v3237` F 组与 `v3239` B3/B4 逐条钉着（含「代际未给不得压成 0」）；
+         *   就地扩成深比较会**静默改掉那两张判据的含义**（同一处改动静默改掉既有断言）。
+         *
+         * 三态不同形（本仓老账）：
+         *   · 任一侧缺失 ⇒ `ok:false` 且 `deep:null`（**不拿空载荷冒充「那边是空的」**）；
+         *   · 载荷损坏 ⇒ `reason` 如实报 `corrupt`（与「没有这份」不同形）；
+         *   · 模块过旧（无 `diffPayloadsDeep`）⇒ `reason` 报 `deep-unavailable`，
+         *     且**仍给出键面读数** —— 「深比较这版没有」不得把已经能给的键面读数一起吞掉；
+         *   · 深比较内部出错 ⇒ 向上仍报 `ok:true` 且 `deep.ok:false`（键面能用就说能用）。
+         * 纯读：零写、零全局读写、绝不抛（与本族其余成员同规格）。
+         * @returns {{ok:boolean, reason:string, face:object|null, deep:object|null}}
+         */
+        compareBranchCheckpointsDeep(nameA, nameB, chatId, opts) {
+            const faceRes = this.compareBranchCheckpoints(nameA, nameB, chatId);
+            if (!faceRes || faceRes.ok !== true) {
+                return { ok: false, reason: (faceRes && faceRes.reason) || '未知', face: null, deep: null };
+            }
+            const CP = this._checkpointLib();
+            if (!CP || typeof CP.diffPayloadsDeep !== 'function') {
+                /* 键面读数照给：模块过旧是「这面没有」，不是「什么都没读到」。 */
+                return { ok: false, reason: 'deep-unavailable', face: faceRes.diff, deep: null };
+            }
+            const store = this.checkpointStore();
+            const cid = chatId || this.getCurrentChatId();
+            /* 两侧载荷走与 compareCheckpoints 同一条读取口（不另开一条读法）。 */
+            const ra = CP.readCheckpoint(store, cid, nameA);
+            const rb = CP.readCheckpoint(store, cid, nameB);
+            if (!ra || ra.ok !== true || !rb || rb.ok !== true) {
+                return { ok: false, reason: 'corrupt', face: faceRes.diff, deep: null };
+            }
+            const pa = ra.record ? ra.record.payload : null;
+            const pb = rb.record ? rb.record.payload : null;
+            if (!pa || !pb || typeof pa !== 'object' || typeof pb !== 'object') {
+                return { ok: false, reason: 'corrupt', face: faceRes.diff, deep: null };
+            }
+            let deep = null;
+            try { deep = CP.diffPayloadsDeep(pa, pb, opts); }
+            catch (e) { errLog(e, 'compareBranchCheckpointsDeep'); deep = null; }
+            if (!deep) return { ok: false, reason: 'internal', face: faceRes.diff, deep: null };
+            return { ok: true, reason: 'ok', face: faceRes.diff, deep: deep };
+        }
+        /**
+         * [v3.252.0] F7 首阶段：**内容级对照**的多行文案（纯函数，只读、零写）。
+         *
+         * 为什么文案口住引擎侧：与 `checkpointBranchesDiffLines` 同规格 ——
+         *   行长什么样是引擎的知识，面板只负责塞进 popup。
+         * 三态不同形（面板必须能分辨）：
+         *   · 读不到（模块未加载 / 某一侧缺失 / 损坏）⇒ `null`；
+         *   · 模块过旧（无深比较出口）⇒ **仍出一段键面文案**，并明说「本版无深比较」——
+         *     不得与「两边内容完全一样」同形；
+         *   · 有深比较 ⇒ 出「改动/未动/类型变化」并**点名路径**（折成计数等于把这件事还回用户）；
+         *     截断 / 未下钻 / 循环引用各自单列（「没比」不得与「一样」同形）。
+         * @returns {string|null}
+         */
+        checkpointContentDiffLines(nameA, nameB, chatId) {
+            const r = this.compareBranchCheckpointsDeep(nameA, nameB, chatId);
+            if (!r || (r.ok !== true && r.reason !== 'deep-unavailable') || !r.face) return null;
+            const f = r.face;
+            const list = (arr) => (Array.isArray(arr) && arr.length) ? arr.join('、') : '（无）';
+            const out = [
+                'A = ' + String(nameA) + ' ／ B = ' + String(nameB) + '（只对照，不改任何一份）',
+                '键面：共同 ' + Number(f.sharedCount) + '；A 独有 ' + list(f.onlyInA) + '；B 独有 ' + list(f.onlyInB)
+            ];
+            if (r.reason === 'deep-unavailable') {
+                out.push('内容级对照：**本版插件没有这个出口**（模块过旧）；上面只是键面读数，不等同于「内容一样」。');
+                return out.join('\n');
+            }
+            const d = r.deep;
+            if (!d || d.ok !== true) {
+                out.push('内容级对照：**比不成**（' + String((d && d.reason) || '未知') + '）—— 这不是「没有差异」。');
+                return out.join('\n');
+            }
+            const changed = Array.isArray(d.changes) ? d.changes : [];
+            out.push('内容级：改动 ' + changed.length + ' 处；同键且值相同 ' + ((d.sameValueKeys || []).length) + ' 个');
+            for (const c of changed.slice(0, 20)) {
+                const from = c.from || {}; const to = c.to || {};
+                const tag = (c.kind === 'type-changed') ? ('（类型变了：' + String(from.kind) + ' → ' + String(to.kind) + '）') : '';
+                out.push('  · ' + String(c.path) + tag + '：' + String(from.text) + ' → ' + String(to.text));
+            }
+            if (changed.length > 20) out.push('  （只列前 20 处，另有 ' + (changed.length - 20) + ' 处未列出）');
+            if (d.changesTruncated) out.push('⚠ 差异已达记录上限（' + Number((d.limits || {}).maxChanges) + ' 条）**截断**；后面还有差异没记，这不是「没有更多差异」。');
+            for (const s of (Array.isArray(d.sets) ? d.sets : [])) {
+                if (!Array.isArray(s.addedIds) || !Array.isArray(s.removedIds)) continue;
+                if (!s.addedIds.length && !s.removedIds.length && !(s.modifiedIds || []).length) continue;
+                let how;
+                if (s.byId === true) how = '按 id ' + String(s.idKey) + ' 对齐';
+                else if (s.byId === 'duplicate') how = '元素 id 有重复，未按 id 对齐';
+                else how = '元素无可识别 id，按索引对齐';
+                out.push('集合 ' + String(s.path) + '（' + how + '）：新增 ' + s.addedIds.length + ' / 删除 ' + s.removedIds.length + ' / 改动 ' + (s.modifiedIds || []).length);
+                if (s.addedIds.length) out.push('  新增：' + list(s.addedIds.slice(0, 10)));
+                if (s.removedIds.length) out.push('  删除：' + list(s.removedIds.slice(0, 10)));
+                if ((s.modifiedIds || []).length) out.push('  改动：' + list(s.modifiedIds.slice(0, 10)));
+            }
+            if (Array.isArray(d.capped) && d.capped.length) out.push('未下钻（达深度/宽度上限，**没比**，不等于一样）：' + list(d.capped));
+            if (Array.isArray(d.cycles) && d.cycles.length) out.push('循环引用（不下钻）：' + list(d.cycles));
+            return out.join('\n');
         }
         /**
          * [v3.238.0] R4-D：**单份检查点详情**的多行文案（纯函数，只读）。

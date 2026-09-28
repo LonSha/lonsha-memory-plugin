@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.249.0",
+ "measured_at": "v3.252.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -39,7 +39,7 @@
     "top40_lines": 8752,
     "top40_pct": 51.4,
     "prefix_rule_coverage_lines": 4254,
-    "prefix_rule_coverage_pct": 25.0,
+    "prefix_rule_coverage_pct": 25,
     "unclassified_lines": 11936,
     "seam_distinct_modules": 35,
     "seam_reference_sites": 46,
@@ -65,7 +65,7 @@
     "top40_lines": 8779,
     "top40_pct": 51.4,
     "prefix_rule_coverage_lines": 4274,
-    "prefix_rule_coverage_pct": 25.0,
+    "prefix_rule_coverage_pct": 25,
     "unclassified_lines": 11968,
     "seam_distinct_modules": 35,
     "seam_reference_sites": 46,
@@ -161,6 +161,68 @@
     "★ 本版唯一触到 TOP40 的行动是 `recallMemory` 656 到 688 行与 `onBeforeGeneration` 503 到 511 行 —— 这正是 v3.233.0 那段话说的「下一次抬版只要碰过 index.js 就必红」；「成员涨了 32 行」本身不是缺陷，四件面不因此改口径"
    ],
    "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。"
+  },
+  "v3.251.0": {
+   "reason": "v3.251.0 M-O3: injection trace + source attribution in buildInjection",
+   "readings": {
+    "total_lines": 18138,
+    "member_count": 583,
+    "top5_lines": 4096,
+    "top5_pct": 22.6,
+    "top40_lines": 9247,
+    "top40_pct": 51,
+    "prefix_rule_coverage_lines": 4410,
+    "prefix_rule_coverage_pct": 24.3,
+    "unclassified_lines": 12897,
+    "seam_distinct_modules": 36,
+    "seam_reference_sites": 48,
+    "seam_call_shape_sites": 51,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.249.0",
+   "delta": {
+    "total_lines": 347,
+    "member_count": 0,
+    "top5_pct": 1.2
+   }
+  },
+  "v3.252.0": {
+   "reason": "v3.252.0 F7 首阶段：内容级只读对照（数据层并列新出口 diffPayloadsDeep + 引擎读侧/文案口 + 面板真调用）",
+   "readings": {
+    "total_lines": 18245,
+    "member_count": 585,
+    "top5_lines": 4096,
+    "top5_pct": 22.4,
+    "top40_lines": 9247,
+    "top40_pct": 50.7,
+    "prefix_rule_coverage_lines": 4410,
+    "prefix_rule_coverage_pct": 24.2,
+    "unclassified_lines": 13004,
+    "seam_distinct_modules": 36,
+    "seam_reference_sites": 48,
+    "seam_call_shape_sites": 51,
+    "members_over_80_lines": 32,
+    "low_coupling_members": 18,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.251.0",
+   "delta": {
+    "total_lines": 107,
+    "member_count": 2,
+    "top5_pct": -0.2
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -172,15 +234,15 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 17791,
-  "member_count": 583,
-  "top5_lines": 3804,
-  "top5_pct": 21.4,
-  "top40_lines": 8945,
-  "top40_pct": 50.3,
-  "prefix_rule_coverage_lines": 4360,
-  "prefix_rule_coverage_pct": 24.5,
-  "unclassified_lines": 12600,
+  "total_lines": 18245,
+  "member_count": 585,
+  "top5_lines": 4096,
+  "top5_pct": 22.4,
+  "top40_lines": 9247,
+  "top40_pct": 50.7,
+  "prefix_rule_coverage_lines": 4410,
+  "prefix_rule_coverage_pct": 24.2,
+  "unclassified_lines": 13004,
   "seam_distinct_modules": 36,
   "seam_reference_sites": 48,
   "seam_call_shape_sites": 51,
@@ -191,18 +253,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 527,
-   "lines": 12600,
-   "lines_pct": 70.8,
-   "outside_refs": 3661,
-   "internal_refs": 5748,
-   "outside_ref_share_pct": 38.9
+   "members": 529,
+   "lines": 13004,
+   "lines_pct": 71.3,
+   "outside_refs": 3728,
+   "internal_refs": 5752,
+   "outside_ref_share_pct": 39.3
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1757,
-   "lines_pct": 9.9,
+   "lines_pct": 9.6,
    "outside_refs": 1,
    "internal_refs": 74,
    "outside_ref_share_pct": 1.3
@@ -211,7 +273,7 @@
    "domain": "诊断与导出",
    "members": 27,
    "lines": 1176,
-   "lines_pct": 6.6,
+   "lines_pct": 6.4,
    "outside_refs": 443,
    "internal_refs": 2382,
    "outside_ref_share_pct": 15.7
@@ -219,11 +281,11 @@
   {
    "domain": "召回与注入",
    "members": 11,
-   "lines": 917,
-   "lines_pct": 5.2,
-   "outside_refs": 1,
-   "internal_refs": 58,
-   "outside_ref_share_pct": 1.7
+   "lines": 967,
+   "lines_pct": 5.3,
+   "outside_refs": 2,
+   "internal_refs": 59,
+   "outside_ref_share_pct": 3.3
   },
   {
    "domain": "桥/快照出口",
@@ -287,6 +349,11 @@
    "outside_refs": 1
   },
   {
+   "name": "buildInjection",
+   "lines": 921,
+   "outside_refs": 9
+  },
+  {
    "name": "selfCheck",
    "lines": 748,
    "outside_refs": 10
@@ -295,11 +362,6 @@
    "name": "recallMemory",
    "lines": 688,
    "outside_refs": 1
-  },
-  {
-   "name": "buildInjection",
-   "lines": 629,
-   "outside_refs": 9
   },
   {
    "name": "onBeforeGeneration",
@@ -457,6 +519,11 @@
    "outside_refs": 0
   },
   {
+   "name": "_injectionBlocksOf",
+   "lines": 70,
+   "outside_refs": 1
+  },
+  {
    "name": "_runProjections",
    "lines": 69,
    "outside_refs": 1
@@ -475,11 +542,6 @@
    "name": "archiveCoveredFloors",
    "lines": 62,
    "outside_refs": 0
-  },
-  {
-   "name": "rerank",
-   "lines": 60,
-   "outside_refs": 5
   }
  ],
  "split_candidates": {
@@ -563,15 +625,15 @@
   ],
   "high_coupling_examples": [
    {
-    "name": "selfCheck",
-    "lines": 748,
-    "outside_refs": 10,
+    "name": "buildInjection",
+    "lines": 921,
+    "outside_refs": 9,
     "is_host_lifecycle": false
    },
    {
-    "name": "buildInjection",
-    "lines": 629,
-    "outside_refs": 9,
+    "name": "selfCheck",
+    "lines": 748,
+    "outside_refs": 10,
     "is_host_lifecycle": false
    },
    {

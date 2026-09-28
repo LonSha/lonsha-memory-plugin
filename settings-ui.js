@@ -1556,7 +1556,13 @@
                     const lines = engine.checkpointBranchesDiffLines(a, b);
                     /* 任一侧缺失 ⇒ 引擎返回 null（不拿空载荷冒充「那边是空的」），面板如实说。 */
                     if (lines === null) { toast('❌ 对照失败：至少有一份不存在，或载荷已损坏（拿不到可选）'); return; }
-                    alert(lines);
+                    /* [v3.252.0] F7 首阶段：键面之上再给一层**内容级**对照。
+                     *   为什么必须由面板**真调用**（而不是只留引擎出口）：R4-C 的教训就是
+                     *   「建好不消费 = 功能级失效」—— 出口存在但用户点不到，等于没做。
+                     *   三态：深比较出口不存在时 checkpointContentDiffLines 仍会返回键面文案
+                     *   （并明说「本版无深比较」），故这里只判 null（= 读不到）。 */
+                    const deepLines = engine.checkpointContentDiffLines(a, b);
+                    alert(deepLines === null ? lines : (lines + '\n\n── 内容级 ──\n' + deepLines));
                 });
                 const dropBtn = ov.querySelector('#ls-ckpt-drop');
                 if (dropBtn) dropBtn.addEventListener('click', () => {

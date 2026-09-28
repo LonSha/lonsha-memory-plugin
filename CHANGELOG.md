@@ -1,3 +1,34 @@
+## v3.252.0
+**主题：计划二 F7 首阶段 —— 内容级只读对照（「同键、同长度，只有值不同」的缺口）。**
+一句话纪律：**「看不出差异」不得与「没有差异」同形；比不动要如实报「比不成」——折成计数等于把这件事还回用户。**
+### 交付面
+- `snapshot-checkpoint.js`：**并列新出口** `diffPayloadsDeep(a, b, opts)` —— 键面 / 规模 / 代际读数**继承** `diffPayloads`（不在本函数重算口径），新增 `changedKeys` / `sameValueKeys` / `changes[]`（路径 + 前后值 + 两侧类型）/ `sets[]`（按稳定 id 对齐：新增 / 删除 / 改动 / 未动 / 重复 id 分侧）/ `capped[]` / `cycles[]` / `changesTruncated` / `limits` / `deepContentCompared`（三态）。有界：默认 `maxChanges=200` / `maxDepth=6` / `maxArray=50`。纯函数、零写、绝不抛。
+- `index.js`：`compareBranchCheckpointsDeep`（读侧唯一出口；模块过旧仍给**键面读数**并报 `deep-unavailable`）+ `checkpointContentDiffLines`（文案口，逐条点名路径、截断/未下钻/循环各自单列）。
+- `settings-ui.js`：并排对照按钮**真调用**新文案口（建好不消费 = 功能级失效）。
+- `tests/v3252_content_level_checkpoint_diff.test.mjs`：A–F 19 条专锁（含三条真源码破坏负控制 + 工具两向自证 + 切断自证）。
+### 首稿自抓三处缺陷（判据抓到实现，不是实现抓到判据）
+- 索引对齐下**数组长度差零读数**（`{list:[1,2,3]}` vs `{list:[1,2]}` 报「同键且值相同」）⇒ 新增 `removed-index` / `added-index`；
+- 循环引用路径**虚高一格**（报 `self.self` 而非 `self`）⇒ 循环判定先于入栈 + 新增 `parentPath()` 报**回指发生处**；
+- `duplicateIds` **未去重且不分侧**（`['a','a']`）⇒ 去重 + 分侧（`A:` / `B:`）—— 三态压成两态即错读数。
+### 本轮自抓的缺陷（判据抓到实现与工具，不是反过来）
+- **判据自身缺陷三处**（首跑 5 红中 4 红属判据自己）：① 夹具缺件（C2/C3 要观测写日志却没把 `ls` 挂上实例）；② 调用边口径写错（两侧载荷走的是**模块**读取口 `CP.readCheckpoint`，只扫 `this.` 边会把一处正确接线判成红）；③ 断言串写错（搜不带引号的 `id, uid, …` 而源码里有引号 ⇒ 恒 -1）。
+- **`tools/_rebuild_host_beast.py` 三处根因**：① 记录键与 `ROOT` 硬编码成 `v3.251.0` ⇒ 同一工作区再跑一次会**静默改写已有版本的历史读数**（实测已发生，故 v3.251.0 的读数改为在**镜像时点**上用旧版 index.js 重建，不手抄）；② 从不写 `not_done` ⇒ 它产出的记录**必过不了** `v3232 F1`（四件齐备）；③ `delta_from` 取的是**抬版后**的 `measured_at` ⇒ 恒等于自己。三处均已修（键从真源码取 / 已存在即拒绝静默覆盖 / `LONSHA_AUDIT_ROOT` / `--not-done=` / 先存旧值）。
+- **纪律违规一处（本套件自己）**：`v3252` 首稿本地重写了 `stripComments`，被 `scan_audit_lib_consolidation`（E1 结构面）与 `v3159 [2d]` 当场点名 ⇒ 改为从唯一真源 `tests/_audit_lib.mjs` import。
+- **临时物一处**：插入用的 `tools/_f7_*_snippet.js` 留在仓里被语法门扫到（未闭包）⇒ 已删。
+### 纪律
+- `diffPayloads` **逐字未改**（v3237 F 组 / v3239 B3-B4 的含义不变）；深出口的键面读数必须与它逐字相同（同一口径只许存在一处）。
+- 未下钻（`capped`）/ 循环（`cycles`）/ 截断（`changesTruncated`）各自单列：「没比」不得与「一样」同形。
+## v3.251.0
+**主题：M-O3 —— 注入读数／回执的真实性与可判性。**
+一句话纪律：**每一格只写本仓真能测的量；测不出写 null 并说明为什么，绝不编 0。**
+### 交付面
+- `injection-router.js`：`trimToBudget` 第五参 `opts.trace`；回执按下标说话（`keptIdxInAll` / `droppedTriggerIdx`）；recency 硬截断给 span 不假装整块可判；不传 opts 行为逐字同修前。
+- `index.js` `buildInjection`：回执草稿 `_injectionTraceDraft`（五阶段 / token 口径按能力探测 / 分层三态 / 拼装现场 `_countSource` / 融合源 separable=false）；闸门关也必须落键记 0。
+- `cost-ledger.js`：留存判据从 `includes` 换成回执（规模自证 + 来源必须是 router）；`disabledCost` 四态（checked / notSeparable / unaccounted / leak）；诊断行把「文本反推 / 禁用却有块」摆在场。
+- `tests/v3251_injection_trace_and_source_attribution.test.mjs`：A–G 22 条专锁（含同文重复按下标、空块占下标、楼层配对 rawHits、tokenizer 三挂载点）。
+### 纪律
+- 面级 10 键（`buildInjectionReadout`）一字不动；新字段只活在回执 / 账本转述，不扩跨仓面契约。
+- 注释/字符串不得字面引用测试用来抽方法体的锚点（本轮 v3216 假红根因）。
 ## v3.250.0
 **主题：M-O2 首批 —— 面向剧情结果的质量评测（计划 A 批第二项）。**
 一句话纪律：**「情绪评测全绿」不代表叙事质量；三阶段必须分开测 —— 前两步对、裁剪后丢了不算成功。**

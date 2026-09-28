@@ -21,7 +21,27 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.250.0
+> 最近更新：v3.252.0
+> **两计划落地对账（v3.251.0 轮）**：`tests/audit/open_items_reconcile.md` 逐项列「计划仍写开 vs 磁盘已收口」，
+> **【本批更正】** 原文写「并对齐《优化提升计划》M-O1~M-O4 / R-O1~R-O4 与《拓展升级计划》F1~F9 的批次映射」——
+> 实测该映射**当时并未建立**（该文件零条 M-O*/R-O*），系**声称过头**；本批已按磁盘补齐实际映射：
+> · 上游 M-O1 = **v3.249.0**（`v3249`，13 项）/ M-O2 首批 = **v3.250.0 + v3.250.1**（`v3250`，40 样本 / 15 项）
+> · 上游 M-O3 = **v3.251.0**（`v3251`，22 项）/ M-O4 **未做**（规模曲线与缓存身份无交付）
+> · 下游 R-O1 + R-O2 = **v3.17.0**（全历史检索两档化 + 搜索重依赖移除）/ R-O3、R-O4 **未做**；
+> 计划二 F1~F9 见 `tests/audit/open_items_reconcile.md` §4；
+> 计划一「共同配套」第 1 条点名的两组**过期状态**（上游 P-2/P-3 勾选、上游「手机未消费 eventPlatforms」）
+> 已于本轮按磁盘读数补齐，勾选项不再滞后（T8 陈旧文案同步加更正块）。
+> 同轮另核（第三批）：**能力索引**（根 `README.md` 自报 v1.1.0 / Phase 9，点名的 9 个模块文件
+> —— `visualizer.js` / `graph-worker.js` / `worker-manager.js` / `virtual-renderer.js` / `wasm-bridge.js` /
+> `storage.js` / `gpu-renderer.js` / `realtime-sync.js` / `cloud-sync.js` —— 磁盘全无）**陈旧且零门禁覆盖**
+> （`scan_version_guard` 不含 README、`scan_claim_truthfulness` 只吃 `index.js`）；因属用户门面改写，**只登记不改**。
+> 计划二 F7 首阶段「只读内容对照」经源级取证**未交付**：`diffPayloads` 实测只到**顶层键面**（`snapshot-checkpoint.js:343-364`），
+> 内容级对照仍无；上一轮对账里「内容级 `diffPayloads`」一句**已自审更正**（对账文件 §2 与 §4c、下游 F-1 块同步）。
+> **【v3.252.0 轮更正 —— 本条文案已陈旧，以磁盘为准】** 计划二 F7 首阶段已**交付**：`snapshot-checkpoint.js` 新增**并列出口**
+> `diffPayloadsDeep`（键面读数继承既有 `diffPayloads`，新增逐条改动 / 集合对拍四态 / 有界三读数 / 三态 `deepContentCompared`），
+> 引擎侧 `compareBranchCheckpointsDeep` + `checkpointContentDiffLines`，面板并排对照按钮**真调用**文案口；
+> 判据面为 `tests/v3252_content_level_checkpoint_diff.test.mjs`（19 条，含三条真源码破坏负控制）。
+> 上面那句「未交付」保留作历史记录，不再代表当前状态；计划二 F7 的**后续阶段**（实机真跑数据下的差异面展示、跨设备快照差异比对）仍为开项。
 >
 > **「证据面登记表无人守 + 违规账本只有人读读数」已于 v3.248.0 处置**（计划 #11 / #12 / #21）——
 > 本版实测 `grep -rln 'apiGlobal' tests/` **零命中**：`evidence-workbench.js` 的九账登记表
@@ -82,8 +102,13 @@
 > 怎么知道它还没变：`tests/v3234_event_platform_composition.test.mjs`（24 项：出口与口径 /
 > 分级四态 / 构成面 / 出处修正 / 幂等与三态 / 诊断接线 / 旧档逐字兼容 / 六条真源码破坏负控制 / 版本锚）。
 >
-> **F-2 的下游侧（ruby-phone）尚未接入** —— worldpulse / timeweaver 对
-> `readLonshaSnapshot().eventPlatforms` 的消费点待做；本条就是「怎么知道它还没做」。
+> **F-2 的下游侧（ruby-phone）已接入 —— 本条已被 v3.234.0 复校推翻（原文写「尚未接入」）**：
+> 实测下游 `config/world-bridge.js:287` 导出 `readLonshaEventPlatforms`，
+> `apps/timeweaver/timeweaver-collector.js:139` 与 `apps/worldpulse/worldpulse-app.js:341`
+> 各一处真消费（**2 消费点 / 2 文件**），常驻判据 `tests/system-v321.test.mjs` 已把
+> 「面缺席 / 空 / 不可用」三态钉开（`face-absent` 与空面不同形）⇒ **计划文本陈旧，按读数修正、不重做**。
+> 原文（保留以便追溯）：worldpulse / timeweaver 对 `readLonshaSnapshot().eventPlatforms`
+> 的消费点**待做**；「本条就是怎么知道它还没做」—— 该句已反向成立。
 >
 > **F-3（同楼同刻 ≥2 在场读数）与 F-6（两条观察项口径自述）已于 v3.232.0 落地** ——
 > 同一条纪律「**只给事实，不给判断**」：F-3 只回「同楼同刻有谁」（无冲突激烈程度字段），
@@ -289,12 +314,20 @@
 > 上一版登记的两条观察项 T8（`updatedFloor` 两种口径并存）**本版仍不改**（属读侧语义问题，
 > 需单独一版评估影响面）。
 > 本版新登记的**观察项 T8**（不构成 TODO：口径已与改前逐字一致，改动会破坏「纯重构」性质）：
+> **【v3.251.0 轮对账更正 —— 本条文案已陈旧，以磁盘为准】**
+> `finite(null) === 0` 这一族已由 **v3.240.0** 收口（`ledger-entity.js` 的 `finite()` 改为
+> `null` 入 `null` 出；`tests/v3240` E 组钉住四类输入逐条可证；证据工作台注释亦写「v3.240 闭环」）。
+> 读侧同一收口已完成：`seed-ledger.js:56` 现为 `updatedFloor: finiteFloor(item.updatedFloor)`。
+> ⇒ 原文末句「怎么知道它还没修：`items[0].updatedFloor === 0`」**已反向成立**
+> （现在应为 `null`，是即为回归）。**禁止再把 T8 当未修项开工**；
+> 本条保留仅为追溯「当时为何刻意不改」。
 > - `updatedFloor` 有**两种口径**并存：`record`（走契约 `stampFloor`）把 `event.floor`
 >   原样写入（`null` 保持 `null`，即「楼层未知」）；而各账 `copyItem` 仍写
 >   `finite(item.updatedFloor)`，把 `null` / 缺失读回成 **0**（即「第 0 楼」）。
 >   实测旧版同形，故本版**刻意不改**（改了就不是纯重构）。
 >   怎么知道它还没修：在真账上 `seed.plant(null,{hook:'x',eventKey:'p'})` 后，
 >   `items[0].updatedFloor === 0`（应为 `null`）。这是跨账读回语义问题，需单独一版评估读侧影响面。
+>   **↑ 该读数已于 v3.240.0 变更：现为 `null`。**
 > 历史销账（v3.205.0）：T3 / T4 / T5 / T6 / T7 五项全部修掉。
 > - T3 行数上界靠手抬 → `tests/audit/dead_code_budget.json` 为唯一真源，`--bump` 必须带理由。
 > - T4 楼层字段手工枚举 → 容器内事件由条目清单**派生**（shift/drop 两份，需求相反）。
@@ -314,7 +347,17 @@
       台账 4 条逐条实测后删除定义（53 行），转为处置台账；反坐实「与配置键无绑定关系」；
       判据 `tests/v3230`（9 项，含两条整仓镜像负控制）。详见上文本版留痕与 CHANGELOG v3.229.0。
 
-- [ ] **P-2 `index.js` 宿主巨兽分诊**（V3 版）
+- [x] **P-2 `index.js` 宿主巨兽分诊**（V3 版）—— **已于 v3.231.0 落地（只量不拆）**；
+      本行勾选此前滞后于 CHANGELOG（计划一「共同配套」点名的过期状态，v3.251.0 轮按磁盘读数补齐）。
+      落地读数：成员 559（v3.233.0 重建后 560）/ TOP5 21.7% / TOP40 51.3% / 十条前缀域规则覆盖 24.7%
+      （重建后 24.9%）/ over-80 行成员 32 / 缝合模块 34 个 45 引用点；「按域拆」按读数**否掉**
+      （最大成员是生命周期接线本身 — 外部引用极低 = 唯一入口；引用读数只能当上界；规则外互调 4696 处）。
+      唯一有读数支持的轴是「成员级预算 + 文件规模上界」，本版只立判据不动手。
+      判据 `tests/v3232_host_beast_triage.test.mjs`（14 项）+ 基线 `tests/audit/host_beast_baseline.json`；
+      `tests/audit/index_beast_map.tsv` 已补行号图（`buildBridgeSnapshot` 7702–7892，深绑 `this` ⇒ `keep_index_unsplit`）。
+      ⇒ 原文末尾「怎么知道它还没做」已**反向成立**：该文件已存在，且行数守的是「不退回未分诊」而非「等拆分」。
+      现状读数：`index.js` 磁盘末行 **18139**（原文写的 16972 已过期，勿照抄）。
+      原立项理由（保留以便追溯）：
       `index.js` 实测 16972 行，占全仓 46%（65 个根模块共 37170 行）；O-6 已证「扫描面只有 index.js」
       是盲区来源之一 —— **体量本身就是判据失效的温床**。
       交付：**先量再拆** —— 按职责域（桥快照 / 注入面 / 事件接线 / 设置面板 / 账本装配）统计行数与耦合度，
@@ -323,7 +366,16 @@
       双保险）、新模块进 `scan_syntax` 与死代码扫描面。
       怎么知道它还没做：`tests/audit/index_beast_map.tsv` 不存在，且 `index.js` 行数仍 > 15000。
 
-- [ ] **P-3 快照外供面瘦身评估**（V2 版）
+- [x] **P-3 快照外供面瘦身评估**（V2 版）—— **已于 v3.230.0 落地（只取证不动手）**；
+      本行勾选此前滞后于 CHANGELOG（计划一「共同配套」点名的过期状态，v3.251.0 轮按磁盘读数补齐）。
+      落地读数（近似线性）：空 117 B / 400 角色 35 917 B·1.253 ms / 1600 角色 124 597 B·5.158 ms；
+      **characters 一面占 80.6%**；成本 65% 在深克隆段且**与字节成正比、与面数无关** ⇒「砍面数」按读数**否掉**
+      （13 面下游各有读者、快照是出口不是缓存、恒定承载面仅 3.3%）；唯一有读数支持的瘦身轴是
+      「每面预算 + 如实截断读数」。
+      判据 `tests/v3231_snapshot_scale_evidence.test.mjs`（12 项）+ 基线 `tests/audit/snapshot_baseline.json`；
+      本环境探针文档 `tests/audit/p3_snapshot_probe.md` 记 `p3_snapshot_bytes=not_measured`（fork 不可用，不编 0）。
+      ⇒ 改快照键面属跨仓契约变更，仍须另立 Gate（本版不顺手改，此边界未变）。
+      原立项理由（保留以便追溯）：
       `index.js:10768` 注释自证「九账各有 list/summarize/render，但快照**一本账都不带**」；
       反向问题（快照带了什么、多大、长会话下全量深克隆成本）**从未量过**。
       交付：合成探针量 `buildBridgeSnapshot()` 的耗时与字节数随楼层/条目数的缩放曲线
@@ -331,7 +383,17 @@
       ⇒ 立「增量快照 / 字段按需」候选；读数平庸 ⇒ 记入 `not_done` 附实测理由。
       边界：**只取证**；改快照键面属跨仓契约变更，须另立 Gate（禁在本版顺手改）。
 
-- [ ] **P-6 声明式生命周期注册（可行性取证）**（V4 之后排期，可与下游 P-6 合并评估）
+- [x] **P-6 声明式生命周期注册（可行性取证）**（V4 之后排期，可与下游 P-6 合并评估）
+      —— **取证已交付，实施按读数否掉**；本行勾选此前滞后于 CHANGELOG
+      （计划一「共同配套」点名的过期状态，v3.251.0 轮按磁盘读数补齐）。
+      上游侧取证（`tests/audit/p6_lifecycle_feasibility.md`，只读取证、不跑扫描器）：
+      `plugin_shell` / `registerEvents` 处静态数出 **7 处 `bindEvent`（7/7 全闭包）**，
+      与 `runtime expected` 由 types 派生（**不等于常量 7**）对齐；另有 interceptor 第 8 条注入路径
+      **不经 `bindEvent`**；与下游 `onChatChanged` 出口形态**不同构**（参数契约 / 路径语义 / 非 App 接线占比）。
+      ⇒ 结论 `not_done`：替代轴是「路径 × 资源处置矩阵」，**不是**统一 `lifecycleExits`。
+      与下游同族结论一致（下游 v3.7.0 取证 79.7% / 三态不可统一 / 45.5% / 20.3% 四项准入全不达）。
+      ⇒ 本条不立 Gate（覆盖不足即如实记 `not_done`、不做半套 —— 这正是原文自己写的处置）。
+      原立项理由（保留以便追溯）：
       与 `ruby-phone` 的同名诉求同族：让边界自声明出口与覆盖关系，由框架统一调用，
       从根上消除「写了出口但没人调」。本仓侧先做**可行性取证**（出口形态矩阵 + 覆盖面判定），
       覆盖不足即如实记入 `not_done`，不做半套。

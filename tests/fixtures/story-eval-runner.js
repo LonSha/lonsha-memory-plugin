@@ -71,9 +71,6 @@
     const lowScores = (sc.low ? [sc.low] : []).map((k) => ({ id: k, score: scoreOf(k) }));
     return {
       cls: sc.cls, case: sc.case, note: sc.note, query: q, gate: sc.gate || '',
-      /* ★ 验收答案要**回填到结果上**：汇总层（以及判据）读的是结果对象。
-       *   首版只回填了「判过的缺口」（missCand 等），没回填 must/mustIn ⇒ 汇总层读到空数组，
-       *   而 `[].every()` 恒真 ⇒ mustInTopRate 永远是 1 —— 一条只在纸上成立的读数。 */
       must: sc.must.slice(), mustIn: sc.mustIn.slice(), forbid: (sc.forbid || []).slice(),
       candTotal: candIds.length, candIds: candIds.slice(0, 40),
       scored: ranked.slice(0, 8).map((x) => ({ id: x.id, score: x.score })),
@@ -82,16 +79,12 @@
       guard: gd,
       low: sc.low || '',
       lowScores: lowScores,
-      /* 阶段闸门：候选层 / 排序层 / 机制门（危险样本才用） */
       stage1Ok: missCand.length === 0,
-      /* gap 样本（keys 与 query 无字面交集⇒字面匹配召不回）**不进主指标**，
-       *   但读数照旧全留：它是「已知缺口台账」，下次改评分能逐条对比。 */
       isGap: sc.kind === 'gap',
-      stage2Ok: sc.kind === 'gap' ? true : (missMerge.length === 0 && missRank.length === 0),
+      isRankProbe: sc.kind === 'rank-probe',
+      stage2Ok: (sc.kind === 'gap' || sc.kind === 'rank-probe') ? true : (missMerge.length === 0 && missRank.length === 0),
       guardOk: gd.guarded,
-      stage3Ok: (sc.kind === 'gap' || (sc.mustIn || []).length === 0) ? true : (function () {
-        /* 最终注入层：在真分区 + 真预算裁剪下，mustIn 是否仍活着 ——
-         *   前两步对、裁剪后丢了**不算成功**（计划原文）。 */
+      stage3Ok: (sc.kind === 'gap' || sc.kind === 'rank-probe' || (sc.mustIn || []).length === 0) ? true : (function () {
         const IR = modules.IR;
         const recalled = merged.map((c) => ({ text: String(c.content || c._label || ''), source: 'graph:' + c._nodeType }));
         const blocks = recalled.map((r) => r.text);
@@ -106,7 +99,6 @@
       noiseIds: (sc.noiseIds || []).slice(), noiseInMerge: (sc.noiseIds || []).filter((k) => inMerge(k)).length,
     };
   }
-  /** 单条事实账的装配（守卫夹具与正控共用，避免两处各写一遍）。 */
   function buildFactState(FV, facts) {
     let st = FV.normalize(null);
     const trace = [];
@@ -117,7 +109,6 @@
     }
     return { state: st, trace: trace };
   }
-  /** 事实账守卫：现状值对不对 + 旧值到底退没退役（退役也算守卫成立）。 */
   function guardFact(FV, sc) {
     const facts = (sc.facts || []).slice();
     if (!facts.length) return { guarded: false, why: 'no-facts（拒判）', detail: {} };
@@ -127,7 +118,6 @@
     const bad = String(sc.forbidValue || '');
     const tl = FV.timeline(b.state, { subject: facts[0].subject });
     const versions = (tl && tl.versions) || [];
-    /* 三种成立方式：旧值退役 / 现状已替换 / 历史视图里由新版本覆盖该时点 */
     const tomb = versions.some((v) => String(v.value) === bad && v.revoked);
     const replaced = !!cur && cur !== bad;
     const supersededInView = versions.some((v) => String(v.value) === bad && v.to != null);
@@ -138,26 +128,16 @@
         supersededInView: supersededInView, versions: versions.length, trace: b.trace },
     };
   }
-  /** 来源过滤守卫：先把该楼的来源指纹挂上，再让它**对不上**（删楼 / 换页）。 */
   function guardProvenance(SP, sc) {
     const floor = Number(sc.deletedFloor);
     if (!Number.isFinite(floor) || floor < 0) return { guarded: false, why: 'no-deleted-floor（拒判）', detail: {} };
     const probe = { id: 'probe', text: 'probe-' + sc.case, floor: floor };
     const before = [];
     for (let i = 0; i < floor; i++) before.push({ index: i, mes: '第 ' + i + ' 楼旧正文', is_user: false, swipes: ['第 ' + i + ' 楼旧正文'], swipe_id: 0 });
-    /* ★ 楼层索引必须落在**数组下标**上：floorOf 若拿不到 index/floor 会给 -1，
-     *   指纹照旧能取（fpOf 不看楼层）⇒ capture 成功但 verify 永远找不到该楼，
-     *   于是判据把「楼不在」读成「门没开」—— 首版就踩了这个假绿。 */
     const atFloor = { index: floor, mes: '第 ' + floor + ' 楼原文（留证时的显示页）', is_user: false,
       swipes: ['第 ' + floor + ' 楼原文（留证时的显示页）'], swipe_id: 0 };
-    const chatBefore = before.concat([atFloor]);
     const cap = SP.capture(probe, atFloor);
     const captured = !!cap;
-    /* ★ 让来源对不上的方式必须选**真会被剔**的那一种（本仓纪律：只剔 source_changed）。
-     *   删楼（数组截短）⇒ verify 得 source_missing，而 filterForRecall **故意放行**它
-     *     （删楼与楼层前移不可区分，前移时剔掉就是真丢 —— 见 summary-provenance 的已知代价）。
-     *   所以探针用「同楼换页（swipe）」：楼还在、指纹变了 ⇒ source_changed ⇒ 真被剔。
-     *   首版用删楼写法，判据把「机制按纪律放行」误读成「硬零被破」—— 测的不是同一件事。 */
     const atFloor2 = { index: floor, mes: '第 ' + floor + ' 楼改过之后', is_user: false,
       swipes: ['第 ' + floor + ' 楼原文（留证时的显示页）', '第 ' + floor + ' 楼改过之后'], swipe_id: 1 };
     const chatAfter = before.concat([atFloor2]);
@@ -168,18 +148,10 @@
       detail: { captured: captured, dropped: r.dropped.length, status: (r.dropped[0] || {}).status || '', counts: r.counts },
     };
   }
-  /**
-   * 真机制守卫（只对 kind !== 'gap' 且带 gate 的样本跑）：
-   *   · disclosure    —— 关系披露门（!X = X 在场时抑制）
-   *   · fact-revoked  —— 事实换代 / 撤销（旧值必须退役）
-   *   · provenance    —— 来源页过滤（source_changed 必须被剔）
-   *   · scoring       —— 应被评分自然挡下（不加额外机制）
-   * 返回 { guarded, why, detail }：guarded=false 即**硬零被破**（泄露）。
-   */
   function guard(sc, modules, ctx) {
     const g = sc.gate;
     if (!g) return { guarded: true, why: 'no-gate', detail: {} };
-    if (sc.kind === 'gap') return { guarded: true, why: 'known-gap（不进主指标）', detail: {} };
+    if (sc.kind === 'gap' || sc.kind === 'rank-probe') return { guarded: true, why: 'known-gap（不进主指标）', detail: {} };
     if (g === 'scoring') {
       const ks = ctx && ctx.scores ? ctx.scores : {};
       const id = (sc.low || (sc.forbid || [])[0] || '');
@@ -191,7 +163,6 @@
       const RD = modules.RD;
       if (!RD || typeof RD.partition !== 'function') return { guarded: false, why: 'module-missing:relation-disclosure', detail: {} };
       const text = String(ctx && ctx.contextText || '');
-      /* 自证门真的会开：同条件在同一条上下文里必须被抑制（否则「没泄露」是假绿）。 */
       const probe = RD.partition([{ id: 'probe', data: { disclosure: sc.guardCond } }], text);
       const gateOpens = (probe.counts && probe.counts.miss) > 0;
       const edges = (sc.forbid || []).map((id) => ({ id: id, data: { disclosure: sc.guardCond } }));
@@ -211,7 +182,6 @@
     }
     return { guarded: true, why: g, detail: {} };
   }
-  /** 跑全量 + 汇总指标（口径都在这里，套件只读指标）。 */
   function runAll(opts) {
     const o = opts || {};
     const root = (typeof globalThis !== 'undefined') ? globalThis : {};
@@ -220,7 +190,6 @@
     if (!M.UR || typeof M.UR.graphToCandidates !== 'function') missing.push('unified-recall.graphToCandidates');
     if (!M.AS || typeof M.AS.scoreEntry !== 'function') missing.push('ai-select.scoreEntry');
     if (!M.IR || typeof M.IR.trimToBudget !== 'function') missing.push('injection-router.trimToBudget');
-    /* 危险样本需要真机制；缺了它**拒判**（不静默跳过那些样本 —— 那是把硬零挪出战场的典型做法）。 */
     const gateNeeded = [];
     const list = Array.isArray(o.scenarios) && o.scenarios.length ? o.scenarios : (o.corpus && o.corpus.SCENARIOS) || [];
     for (const s of list) {
@@ -229,18 +198,15 @@
       if (s.gate === 'provenance' && !(M.SP && M.SP.filterForRecall)) gateNeeded.push('summary-provenance.filterForRecall');
     }
     if (missing.length || gateNeeded.length) {
-      /* 缺模块 ⇒ 拒判（不是「通过」）。写 0 分会让这一版看起来「全过」。 */
       return { ok: false, error: '真管线模块缺失：' + missing.concat(gateNeeded).join(' / '), samples: [], metrics: null };
     }
     if (!list.length) return { ok: false, error: '样本集为空（拒判）', samples: [], metrics: null };
     const samples = list.map((sc) => runSample(sc, M, o));
     return summarize(samples, o);
   }
-  /** 汇总（与 runAll 分开：套件可拿自造样本直接过这一层）。 */
   function summarize(samples, opts) {
     const o = opts || {};
-    /* 主指标只跑非 gap 样本（与 eval-corpus 同一口径）；gap 另立台账。 */
-    const main = samples.filter((s) => !s.isGap);
+    const main = samples.filter((s) => !s.isGap && !s.isRankProbe);
     const gaps = samples.filter((s) => s.isGap);
     const n = main.length;
     const pct = (k) => (n ? main.filter((s) => s[k]).length / n : 0);
@@ -266,7 +232,6 @@
         stage2HitRate: pct('stage2Ok'),
         stage3HitRate: pct('stage3Ok'),
         guardOkRate: pct('guardOk'),
-        /* 危险样本与门实际开合（门没开过就必须显出来 —— 否则“没泄露”是假绿） */
         gatedSamples: samples.filter((s) => s.gate).length,
         gateDetail: samples.filter((s) => s.gate).map((s) => ({ case: s.case, gate: s.gate, ok: s.guardOk, why: s.guard.why })),
         leakCases: leakCases.map((s) => ({ case: s.case, cls: s.cls, gate: s.gate, detail: s.guard.detail })),
@@ -279,18 +244,12 @@
         stage2Loss: samples.filter((s) => s.stage1Ok && !s.stage2Ok).map((s) => ({ case: s.case, miss: s.missMerge.concat(s.missRank) })),
         stage3Loss: samples.filter((s) => s.stage2Ok && !s.stage3Ok).map((s) => ({ case: s.case, mustIn: s.mustIn })),
         avgCandTotal: n ? samples.reduce((a, s) => a + s.candTotal, 0) / n : 0,
-        /* ★ 排序层的**可证伪性**读数：mustIn 每样本条数 + 是否全在各样本的排序首位。
-         *   为什么要有它：本批样本的 mustIn 都是「单条最高分」，而选取层（保底/打分/补齐
-         *   三层）互为冗余 ⇒ 把名额压到 1 条时 mustIn 照样在。这意味着**选取层对本批
-         *   不可证伪**，必须写成读数而不是假装测过单条层失效。 */
         mustInPerSample: main.map((s) => (s.mustIn || []).length),
         mustInTopRate: main.length ? main.filter((s) => {
           const ids = s.scored.map((x) => x.id);
           return (s.mustIn || []).every((k) => ids.indexOf(k) < 1);
         }).length / main.length : 0,
-        /* 低分噪声读数（只报，不做硬零）：期望 0 分 —— 非 0 不是错，但要看得见 */
         lowNoise: samples.filter((s) => s.low).map((s) => ({ case: s.case, id: s.low, score: (s.lowScores[0] || {}).score })),
-        /* 已知缺口台账：逐条记「缺口在哪一步 + 现读数」，下版可逐条对比。 */
         knownGaps: gaps.map((s) => ({ case: s.case, cls: s.cls,
           stage1Ok: s.stage1Ok, stage2Ok: s.stage2Ok, missRank: s.missRank, why: s.note })),
         gapStage1: gaps.filter((s) => s.stage1Ok).length,
@@ -298,7 +257,6 @@
       },
     };
   }
-  /** 逐条判门禁（默认门槛 = 本版实测基线；收紧即变回归门禁）。 */
   function checkGates(result, gates) {
     if (!result || !result.ok || !result.metrics) return ['评测未产出指标（拒判，不是通过）'];
     const m = result.metrics, g = Object.assign({
