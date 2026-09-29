@@ -272,3 +272,33 @@
 **第三处（抬版后跑全量才抓到，单跑发现不了）**：`tests/v3247_break_kit_consolidation.test.mjs` 的 `REGISTRY` 补 `v3253_open_face_registry.test.mjs` —— 本套件 import 了 `_break_kit.mjs`（真·接收方）却未入接收方台账。
 读数：`233/234 文件通过 / 2 断言失败`，错误原文「磁盘上新增了接收方却没登记（下一步就是接入面与判据面不同源）」；补后 `v3247` 17/17。
 => **教训：本仓连带登记面不止两处** —— 新增测试文件要同时问三张表「我在不在里面」（参考基准 / 扫描器矩阵 / 破坏工具接收方台账）。
+
+--- 
+
+## 本轮追加（v3.255.0 轮：**下游已接入** —— F7 首阶段的外供面真被消费）
+
+### (o) 跨仓面 `checkpointCompare` 从 `none@0` 变为 `readLonshaCheckpointFace@1`
+| 项 | 前值 | 本轮读数 |
+| --- | --- | --- |
+| 登记表 `consumer` 列 | `none@0`（＝**零消费**，本仓第十次「建好不消费」） | **`readLonshaCheckpointFace@1`** —— 下游 ruby-phone **v3.20.2** 已真接入 |
+| 登记表 `producer_version` 列 | `v3.237.0`（族首见） | **`v3.252.0`** —— 取**完整契约形状齐备**的那一版，与下游 `config/crossrepo-registry.js` 的 `since` **同口径**（口径不一致会让两侧各指一个版本） |
+| 登记表 `standalone_behavior` 列 | 「下游尚未接入（计划二 T4 已排 F7）」 | 「下游已接入（只读真源 + 诊断中心接线；下游第九道门新增 J13 按面设下限 1）」 |
+
+**下游这一侧的真读数（在下游仓库实测，不是声明）**：
+- 新增只读真源 `config/checkpoint-content-contract.js`（256 行）：只调上游**只读**出口
+  （`compareBranchCheckpointsDeep` / `checkpointContentDiffLines`），绝不碰 `saveCheckpoint` /
+  `dropCheckpoint` 这类写面，也不碰 localStorage（下游判据在**剥注释后的代码面**上钉住这六个词）；
+- 五态各有各的话（`engine-absent` / `face-absent` / `unusable` / `empty` / `ok`），
+  判据断言的是「五句话**互不相同**」而不是「都非空」；
+- **上游半成功态照原样搬**：`deep-unavailable` 时**仍给键面读数**（下游把它标 readable 且保留原 reason）；
+- 诊断中心接线：内核唯一取数口 + 视图卡片「检查点内容级对照（上游只读）」（视图零取数零判断）；
+- 下游第九道门**新增 J13**（出口在场 ↔ 消费点下限**分别判**），实测
+  `readLonshaCheckpointFace 消费点 1 个（1 文件，下限 1）· 真源四出口在场 是`；
+- 下游判据 `tests/system-v3202.test.mjs`（18 条，含 4 条真源码破坏负控制），定向实跑 18/18。
+
+**本仓这一侧未动**：生产代码 / VERSION / `snapshot-checkpoint.js` **一字未改**；
+本轮只改**登记表与对账文件**（前者由 `tests/v3253_open_face_registry.test.mjs` 21 条把守，
+后者不在任何守卫的扫描面里）。⇒ 这是「下游接线」的**台账同步**，不是上游发布。
+
+**仍未做的部分（如实登记，不外推）**：真宿主里两份检查点长什么样、上游换版后是否仍同形 ——
+两侧都测不了（无真酒馆宿主），归 R-O3。

@@ -21,7 +21,7 @@ RubyPhone（P-4 存储层 schema 版本戳，本版同轮，见下游计划）�
 ## 不动范围
 存储归属/外部数据库/依赖体系/用户存档/凭据/原作者仓库；不重造既有事实、秘密、伏笔、迁移和修复机制。Windows结构规范当前不可读，已告知用户，遵循仓内现有规范。
 
-## Gate R1-A：投影缺席语义
+## Gate R1-A：投影缺席语义（**已完成**，lonsha v3.212.0）
 - Structural: Local Fix；Execution: Local Fix Only；授权：approved local fix（四批授权内）。
 - 证据：真实 runPipeline provider返回undefined，object形状被归为empty，summary.absent=0；null同态；0正常value。
 - 契约：undefined保持absent，显式null按声明空形归empty；0不改；API1/函数形状/存储/模块加载不变。
@@ -30,7 +30,7 @@ RubyPhone（P-4 存储层 schema 版本戳，本版同轮，见下游计划）�
 - 回滚：仅逆转该小补丁及新增测试；出现历史契约冲突回AUDIT，不放宽门禁。
 - 子agent：DeepSeek R1-A提供候选，我方真实模块复现。API Key不写入仓库。
 
-## Gate R1-C：投影的导出期新鲜度（比「归属」，不比「时刻」）
+## Gate R1-C：投影的导出期新鲜度（比「归属」，不比「时刻」）（**已完成**，首次提交于基线 v3.212.0；正式交付版本待核）
 - Structural: Local Fix；Execution: Local Fix Only；授权：approved local fix（四批授权内）。
 - 证据：`_lastProjectionEnvelope` 的归属（conversationId + revision）只在 `readWorldLedger()`→`_buildProjectionEnvelope()` 写入的那一刻成立。
   切聊（CHAT_CHANGED）换 chatId、回滚/恢复（`_bumpEpoch`）只递增 `_mutationEpoch`，两条路径**都不清该缓存**；
@@ -43,7 +43,7 @@ RubyPhone（P-4 存储层 schema 版本戳，本版同轮，见下游计划）�
 - 子agent：DeepSeek R1-C 提供候选（主张**读取期校验**而非新增清理点：`_mutationEpoch` 递增点十处以上，逐点清缓存必漏；用 undefined 表「不可用」以与「无会话」区分），我方逐行复核并在真实模块上复现。API Key 不写入仓库。
 - 「扔掉了」与「本来就没这面」分开：前者等宿主重跑、后者等上游升级，处置相反，压成一态即错读数。
 
-## Gate R1-E：九账只读对账面（工作台与证据查询的上游出口）
+## Gate R1-E：九账只读对账面（工作台与证据查询的上游出口）（**已完成**，lonsha v3.214.0）
 - Structural: Local Fix；Execution: Local Fix Only；授权：approved local fix（四批授权内）。
 - 证据：本仓九本账（伏笔 seed / 约定 commitment / 平行事实 parallel / 秘密 secret / 回扣 recall-echo /
   回声 echo / 事实版本 fact-version / 事件完整性 event-completeness / 修复闭环 repair）各自有
@@ -64,7 +64,7 @@ RubyPhone（P-4 存储层 schema 版本戳，本版同轮，见下游计划）�
 - 验证：新回归先红后绿；v3212/v3213/projection-absence 联合通过；全量 test:audit RC=0；不删除功能。
 - 回滚：仅逆转该新增模块与快照接线；出现历史契约冲突回 AUDIT，不放宽门禁。
 
-## Gate R1-F：修复预览与受控写入回执
+## Gate R1-F：修复预览与受控写入回执（**已完成**，lonsha v3.214.0）
 - Structural: Local Fix；Execution: Local Fix Only；授权：approved local fix（四批授权内）。
 - 证据：`repair-loop.js` 三类修复动作（retarget / split / revoke）与宿主 `requestRepair` / `settleRepair`
   已实现（v3.194），但**零真实调用点**：全库 grep `requestRepair` 只有两处定义与一条测试扫签名
@@ -897,6 +897,31 @@ N1 当场转红；改为共用 `ROOT_MKDTEMP` / `ROOT_TMPWRITE` 两个常量，*
   计划二 F7 点名的「同键同长度但值不同」（余额 100→900、朋友→仇人）**仍呈现不了** ⇒
   「只读**内容**对照」这一步**仍待做**，不因本条更正而视作已交付。
   原句保留以便追溯；本条更正只动文案，不重做已完成的 Gate。
+  **【v3.252.0 轮更正（上一条更正自身已过期）】** 上面两处（853 行与 895–898 行）说的
+  「内容级只读对照**仍待做**」，在 **v3.252.0（F7 首阶段）** 落地后**已不成立**，按磁盘读数补齐：
+  · 模块面：`snapshot-checkpoint.js` 新增纯函数 `diffPayloadsDeep(a, b, opts)`（同文件 572 行起；
+    导出面已收进 `api`，随 `manifest.extra_js` 分发），默认 `maxChanges=200 / maxDepth=6 / maxArray=50`。
+    读数分两层且**键面口径逐字未动**：继承 `diffPayloads`（`onlyInA` / `onlyInB` / `shared` /
+    `bytes` / `bytesDelta` / 代际）**之上**叠 `changedKeys` / `sameValueKeys` / `changes[]`
+    （path + from/to + kind）/ `sets[]`（byId 三值 `true` / `false` / `'duplicate'`）/
+    `capped[]` / `cycles[]` / `deepContentCompared`（三态 `'not-applicable'` / `true` / `'failed'`）/
+    `changesTruncated` / `limits`。
+  · 引擎面：`compareBranchCheckpointsDeep(nameA, nameB, chatId, opts)`（index.js 11661）——
+    与既有 `compareBranchCheckpoints` 的**分工**是「在键面读数之上叠一层有界的逐条内容差异」；
+    模块过旧（无 `diffPayloadsDeep`）时报 `deep-unavailable` 但**仍给键面读数**（「深比较这版没有」
+    不得把已经能给的键面读数一起吞掉）；任一侧缺失 / 载荷损坏报 `corrupt`（不拿空载荷冒充「那边是空的」）。
+    另出 `checkpointContentDiffLines(nameA, nameB, chatId)`（index.js 11703），供面板塞进 popup。
+  · **★ 为什么并列新出口而不就地扩 `diffPayloads`**（这一条是本轮的口径纪律，写进注释与判据）：
+    那是「键面 + 规模 + 代际」的既有契约，由 `v3237` F 组与 `v3239` B3/B4 逐条钉着
+    （含「代际未给不得压成 0」）；就地扩成深比较会**静默改掉那两张判据的含义**
+    —— 同一处改动静默改掉既有断言，是本仓反复治理过的形态。
+  · 判据：`tests/v3252_content_level_checkpoint_diff.test.mjs`（19 项，本运行实测 19/19，
+    含四条真源码破坏负控制 E1/E2/E3/E4 与判据面自防护 F2）；面板侧消费点
+    `settings-ui.js:1564`（`engine.checkpointContentDiffLines(a, b)`，三态在 UI 上仍是三态）。
+  · **仍未做的部分（如实登记，不外推）**：① 下游（RubyPhone）对本面的**真消费**属跨仓消费，
+    须在下游另立 Gate（下游当前对 `compareCheckpoints|diffPayloads|snapshot-checkpoint|LonShaSnapshot` 的
+    产品侧命中数为 **0**）；② 真宿主实机未验（同本文件末行的边界）。
+  ⇒ 本行只改文案，**不重做 R4 已完成的三件 Gate**；`v3237` 的键面判据含义一字未动。
 - 真实SillyTavern宿主验证：未验（写入面的两道门与回执形状已在无头环境逐条验证，宿主侧实机未验）。
 
 - R1-A追加GATE：全量失败根因为新增测试未按仓内纪律登记，允许catalog_reference_consumers.tsv追加一行；不放宽守卫。上游预算4文件/150行。
