@@ -9,6 +9,8 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 const su = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf-8');
+/* [A1] DeltaBook.confirm 已抽为 memory-ledgers.js；空串兜底回归判据改指模块真源。 */
+const mlSrc = readFileSync(`${REPO_ROOT}/memory-ledgers.js`, 'utf-8');
 
 test('=== 1. A: 批量补齐 UI 入口（v3.76 管线首次可触达） ===', () => {
     // 按钮
@@ -87,7 +89,7 @@ test('=== 4. NUL 字节清除回归 ===', () => {
     for (const b of buf) if (b === 0) n++;
     assert.strictEqual(n, 0, 'index.js 无 NUL 字节');
     // confirm 语义恢复
-    assert.ok(src.includes("String(summaryMatch || '')"), 'confirm 空串兜底恢复');
+    assert.ok(mlSrc.includes("String(summaryMatch || '')"), 'confirm 空串兜底恢复（memory-ledgers.js）');
 });
 
 test('=== 5. 回归防护 ===', () => {

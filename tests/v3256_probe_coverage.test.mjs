@@ -1,4 +1,5 @@
 // tests/v3256_probe_coverage.test.mjs — v3.256.0
+//   [v3.257.0 交棒] 当版硬锚已由 v3257 接管；本档退回出生版本下限锚。
 //
 // 主题：M-O4 量测台的探针覆盖面——导出在场，不等于有人真调。
 // 本档锁 C10「引用 cache-workload 的探针必须实际调用 cacheHit / repeatCost / survey」，
@@ -91,11 +92,14 @@ const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 
 test('v3256 F1. 当版 frontier 与发布元数据锁定 3.256.0', () => {
     const idx = read('index.js');
     const codeVer = (/const VERSION = '([^']+)'/.exec(idx) || [])[1];
-    assert.equal(vnum(codeVer), vnum('3.256.0'), '入口版本必须是本档当版');
+    /* [v3.257.0 交棒] 原为 `assert.equal(vnum(codeVer), vnum('3.256.0'))` —— 那是「锁当版」，
+     *   下一版一抬就必红（且红的信息量只有「版本变大了」）。按 v3.203 交棒纪律退回**出生版本下限锚**：
+     *   本档只承诺「出生在 3.256.0 之后仍成立」，不承诺「永远是 3.256.0」。 */
+    assert.ok(vnum(codeVer) >= vnum('3.256.0'), '入口版本不得回退到本档出生版本之前');
+    assert.ok(read('tests/v3256_probe_coverage.test.mjs').length > 2000, '本档不得被掏空');
     assert.equal(JSON.parse(read('package.json')).version, codeVer);
     assert.equal(JSON.parse(read('manifest.json')).version, codeVer);
     assert.ok(read('CHANGELOG.md').startsWith('## v' + codeVer), 'CHANGELOG 顶节须为当版');
     assert.match(read('TODO.md'), new RegExp('最近更新：v' + codeVer));
-    assert.ok(SELF.includes("vnum('3.256.0')"), '当版硬锚必须由本档接管');
     ok('版本锚与三源发布面均为 ' + codeVer);
 });

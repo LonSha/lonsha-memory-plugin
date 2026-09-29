@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf8');
+/* [A1] PairMemory 已抽为 memory-ledgers.js（index.js 不再声明）。
+ *   `pair:change` 源头随之移到模块；原断言只扫 index.js，现列名两个真源。 */
+const mlSrc = readFileSync(`${REPO_ROOT}/memory-ledgers.js`, 'utf8');
 test('v3.121 时间线提供游标变化读取', () => {
   assert.match(src, /getChangesSince\(floor = -1, anchorDate = ''/);
   assert.match(src, /timeChangeDrivenInjection: true/);
@@ -34,7 +37,7 @@ test('v3.121 时间倒退保留诊断证据', () => {
 });
 
 test('v3.123 时间变化覆盖状态、关系、物品并隔离聊天与 swipe', () => {
-  assert.match(src, /status:change/); assert.match(src, /pair:change/); assert.match(src, /items:change/);
+  assert.match(src, /status:change/); assert.match(mlSrc, /pair:change/); assert.match(src, /items:change/);
   assert.match(src, /_timelineCursorChatId/); assert.match(src, /_timelineCursorFingerprint/);
 });
 

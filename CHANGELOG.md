@@ -1,3 +1,53 @@
+## v3.257.0
+**主题：A1 宿主巨兽第一刀——把最松的叶子从 index.js 剥出去（18401 → 18124 行）。**
+
+计划一 A1 的目标是 `index.js` 从 18401 行降到 15000 行以下。这一步之前，全仓只有一条**有读数支持**的
+路径：P-2 分诊（`tests/audit/host_beast_probe.cjs`）按读数**否掉了「按域拆」**（最大的成员是生命周期接线本身，
+外部引用数极低正是「唯一入口」而非「松散」；内部互调稠密；没有一道门禁看得见跨模块 `this` 丢失），
+只留下「成员级预算 + 文件规模上界」这条轴。本版按这条轴落**第一刀**。
+
+### 剥走的是哪一块（以及为什么是这一块）
+六个**叶子账本类**抽为 `memory-ledgers.js`（`manifest.extra_js` 第 69 项）：
+`MoneyLedger` / `CardCollection` / `ConflictBook` / `DeltaBook` / `PairMemory` / `PovMemory`。
+
+选它的读数依据（逐条实测，不是感觉）：
+- **彼此零互调**：六个类之间不存在任何相互引用（它们的统合由宿主 `MemoryEngine` 负责）；
+- **不读宿主状态**：不碰 `window.SillyTavern`、不读写 `localStorage`、不发请求、不写盘；
+- **对外接触面窄**：只被 `MemoryEngine` 在构造期 `new` 一次 + 在 fixup / 回滚 / 注入 / 持久化四处按**方法名**调用；
+- **外部符号依赖极少**：唯一跨类依赖是字符名归一化，已在本模块内以同算式 `norm()` 提供（不重写第二套语义）。
+
+### 交接纪律（对齐 v3.181 抽取 SceneBook 的样板）
+- 宿主侧新增 `_memoryLedgersLib()` 取库口（与 `_cacheIdentityLib` / `_sceneBookLib` 同形，**不在构造期缓存**：extra_js 后加载）；
+- **缺席退路是常量空实现** `MemoryLedgerFallback`，不是留旧类当备份（两份实现会漂移，本仓治理过十几轮）；
+  `export()` 返回六个账本顶层键的超集形状，避免调用方读到 `undefined` 塌成第三态；
+- 构造点统一走 `_newMemoryLedger(name)`：模块在场用真实现，缺席退同形空实现，**不静默化成空对象**。
+
+### 测试面同步迁移（这是本次真正的成本所在）
+六类的 `extractClass` / `indexOf('class X {')` 文本抽取口径按 v3.181 纪律同步迁移到真加载模块：
+`v347_hc_mechanics`（MoneyLedger / CardCollection / ConflictBook）、`v366_delta_book`（DeltaBook + ConflictBook）、
+`v367_delta_lifecycle`（DeltaBook）、`v3118_change_driven`（DeltaBook）、`v3121_time_anchor_change`（`pair:change` 源头）、
+`v379_omit_batch_ui`（`confirm` 空串兜底回归判据）。断言从「字符串在 index.js 里」改为「模块真导出 / 真行为」。
+
+### 本版自伤与修复留痕（三处，都不是「顺手」而是流程该抓的）
+1. **manifest 重写格式污染**：首版用 `json.dumps(indent=1)` 落盘，把 `extra_js` 的 2/4 空格缩进压成 1/2 空格 ⇒
+   `scan_ledger_contract_negctl.mjs` 的两条 manifest 锚点（`    "ledger-entity.js",\n`）命中数掉到 0，
+   V1/V2 两组负控制作废、`v3207` 当场翻红。**修法是改回「按行插入」而不是重排整个 JSON**，
+   插入后逐条复核两个锚点仍**恰中 1 次**。教训：格式化工具会改掉别的门禁赖以定位的空白。
+2. **v3209 的 `extra_js` 数量锁**：设计上就要求「新增模块必须显式改这里」（68 → 69，连 README 人读面一起），
+   本版按纪律显式改，并把新增项写进锁的说明文案。
+3. **断言口径漏迁**：`v3121` 的 `pair:change` 与 `v379` 的 `confirm` 兜底断言在首轮跑全量时才暴露 ——
+   抽样定向跑（10 个文件）**看不见**它们。这正是「必须跑全量」的成本证据：**剥走代码的破坏面不等于抽样面。**
+
+### 读数
+- `index.js`：**18401 → 18124 行**（-277 行）；成员 **588 → 561**（-27，六类的方法数）。
+- `memory-ledgers.js`：368 行、零依赖、CJS/IIFE 双导出（`window.LonShaMemoryLedgers`）。
+- 门禁：`scan_module_wiring` 真加载 **70/70** 零冲突、对外全局 70 个、已挂载未消费 **0** 个；
+  `dead_code_budget` 实测 41401 / 上界 41709（余量 308）；`scan_ledger_contract` rc=0。
+- 全量：**237/237 文件、2405 断言、0 失败**（`TEST_JOBS=2`，159.5s）。
+- 基线随本刀重建：`tests/audit/host_beast_baseline.json` 的读数按当版落盘（成员 561 / 行数 18124 /
+  缝合模块接线面 39/51/54），TOP40 逐条在场且行数逐条不变。
+- `index.js` 距 A1 验收线（15000 行）仍差 3124 行 —— 本刀是**第一刀，不是收官**。
+
 ## v3.256.0
 **主题：M-O4 缓存命中量测接通——导出在场不等于有人真调。**
 - `cache-workload.js` 的 `cacheHit` 由 M-O4 探针真调用：snapshot / candidate / serialize / settings 四条路径，在同等输入下连读两次均得到 `hit（ok）`；`miss` 与测不出（`no-probe` / 异常 / 不可序列化）保持不同形。

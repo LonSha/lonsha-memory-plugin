@@ -7,6 +7,9 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [A1] DeltaBook 已抽为 memory-ledgers.js（index.js 不再声明）。本套件原用文本抽取，
+ *   抽走后改为真加载模块。 */
+const MLA = (await import('../memory-ledgers.js')).default;
 import { createRequire as __mkReq } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
@@ -44,8 +47,7 @@ test('=== 1. 静态关键字检查 ===', () => {
 });
 
 test('=== 2. DeltaBook 回滚功能测试 ===', () => {
-    const cls = extractClass(src, 'class DeltaBook');
-    const DeltaBook = new Function('return (' + cls + ')')();
+    const DeltaBook = MLA.DeltaBook;
     const db = new DeltaBook();
     db.add('林一获得解药的事件记录', 'established', 42);
     db.add('玉佩下落待定的事实记录', 'uncertain', 43);

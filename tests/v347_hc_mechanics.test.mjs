@@ -8,6 +8,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [A1] 账本类已抽为 memory-ledgers.js（index.js 不再声明）。
+ *   本套件原用 index.js 文本抽取实现；抽走后改为真加载模块。
+ *   三个真实依赖零实现：norm / "+"。 */
+import { createRequire as __mkReq2 } from 'node:module';
+const MLA = __mkReq2(import.meta.url)('../memory-ledgers.js');
 import { createRequire as __mkReq } from 'node:module';
 const __require = __mkReq(import.meta.url);
 const __fsReq = __require('fs');   // require 函数本身不带 readFileSync，先取 fs 模块
@@ -43,13 +48,13 @@ function extractFn(name) {
 
 test('=== 1. v3.47 静态锚点与版本检查 ===', () => {
     assert.match(src.match(/const VERSION = '([^']+)';/)?.[1] || '', /^3\.\d{2,}/, '版本号必须 >= 3.47.0');
-    assert.ok(src.includes('class MoneyLedger'), '必须声明 MoneyLedger 钱财账本类');
-    assert.ok(src.includes('class CardCollection'), '必须声明 CardCollection 剧情卡牌类');
-    assert.ok(src.includes('class ConflictBook'), '必须声明 ConflictBook 矛盾账本类');
+    assert.ok(MLA.MoneyLedger, 'memory-ledgers.js 导出 MoneyLedger 钱财账本类');
+    assert.ok(MLA.CardCollection, 'memory-ledgers.js 导出 CardCollection 剧情卡牌类');
+    assert.ok(MLA.ConflictBook, 'memory-ledgers.js 导出 ConflictBook 矛盾账本类');
     assert.ok(src.includes('sleepCycle() {'), '必须声明 sleepCycle 睡眠周期方法');
-    assert.ok(src.includes('this.moneyLedger = new MoneyLedger();'), 'MemoryEngine 必须实例化 MoneyLedger');
-    assert.ok(src.includes('this.cards = new CardCollection();'), 'MemoryEngine 必须实例化 CardCollection');
-    assert.ok(src.includes('this.conflicts = new ConflictBook();'), 'MemoryEngine 必须实例化 ConflictBook');
+    assert.ok(src.includes("this.moneyLedger = _newMemoryLedger('MoneyLedger');"), 'MemoryEngine 必须实例化 MoneyLedger');
+    assert.ok(src.includes("this.cards = _newMemoryLedger('CardCollection');"), 'MemoryEngine 必须实例化 CardCollection');
+    assert.ok(src.includes("this.conflicts = _newMemoryLedger('ConflictBook');"), 'MemoryEngine 必须实例化 ConflictBook');
     // 提取 schema 新字段
     assert.ok(src.includes('9d. money_changes：'), '提取规则必须含 9d money_changes');
     assert.ok(src.includes('3b. conflicts：'), '提取规则必须含 3b conflicts（矛盾二分）');
@@ -65,9 +70,7 @@ test('=== 1. v3.47 静态锚点与版本检查 ===', () => {
 });
 
 test('=== 2. 钱财账本 MoneyLedger 行为测试 ===', () => {
-    const normCode = extractFn('normalizeCharName');
-    const mlCode = extractClass('MoneyLedger');
-    const mk = () => new Function(`${normCode}\n${mlCode}\nreturn new MoneyLedger();`)();
+    const mk = () => new MLA.MoneyLedger();
 
     const ml = mk();
     assert.equal(ml.toPrompt(), '', '空账本注入为空');
@@ -114,8 +117,7 @@ test('=== 2. 钱财账本 MoneyLedger 行为测试 ===', () => {
 });
 
 test('=== 3. 剧情卡牌 CardCollection 行为测试 ===', () => {
-    const ccCode = extractClass('CardCollection');
-    const mk = () => new Function(`${ccCode}\nreturn new CardCollection();`)();
+    const mk = () => new MLA.CardCollection();
 
     const cc = mk();
     assert.equal(cc.toPrompt(), '', '空卡组注入为空');
@@ -145,8 +147,7 @@ test('=== 3. 剧情卡牌 CardCollection 行为测试 ===', () => {
 });
 
 test('=== 4. 矛盾账本 ConflictBook 行为测试（真矛盾显式标注并存）===', () => {
-    const cbCode = extractClass('ConflictBook');
-    const mk = () => new Function(`${cbCode}\nreturn new ConflictBook();`)();
+    const mk = () => new MLA.ConflictBook();
 
     const cb = mk();
     assert.equal(cb.toPrompt(), '', '空矛盾账本注入为空');

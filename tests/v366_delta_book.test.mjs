@@ -10,6 +10,10 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [A1] 账本类已抽为 memory-ledgers.js（index.js 不再声明）。
+ *   本套件原用 index.js 文本抽取实现；抽走后改为真加载模块。
+ *   三个真实依赖零实现：norm / "+"。 */
+const MLA = (await import('../memory-ledgers.js')).default;
 
 function extractClass(source, startMarker) {
     const start = source.indexOf(startMarker);
@@ -24,8 +28,9 @@ function extractClass(source, startMarker) {
 }
 
 test('=== 1. 静态关键字检查 ===', () => {
-    assert.ok(src.includes('class DeltaBook'), 'DeltaBook 类');
-    assert.ok(src.includes("this.deltaBook = new DeltaBook();"), '实例化');
+    assert.ok(MLA.DeltaBook, 'memory-ledgers.js 导出 DeltaBook 类');
+    assert.ok(!src.includes('class DeltaBook'), 'index.js 不再内联 DeltaBook（已抽为模块）');
+    assert.ok(src.includes("this.deltaBook = _newMemoryLedger('DeltaBook');"), '实例化');
     assert.ok(src.includes('deltaBook: this.deltaBook.export()'), 'export 持久化');
     assert.ok(src.includes('this.deltaBook.import(pack.deltaBook)'), 'import 恢复');
     assert.ok(src.includes('this.deltaBook.toPrompt()'), '注入流');
@@ -37,9 +42,7 @@ test('=== 1. 静态关键字检查 ===', () => {
 });
 
 test('=== 2. DeltaBook 功能测试 ===', () => {
-    const cls = extractClass(src, 'class DeltaBook');
-    assert.ok(cls, 'DeltaBook 可提取');
-    const DeltaBook = new Function('return (' + cls + ')')();
+    const DeltaBook = MLA.DeltaBook;
     const db = new DeltaBook();
     // add：合法状态
     assert.strictEqual(db.add('林一获得解药', 'established', 42), true, 'established 登记');
@@ -64,8 +67,7 @@ test('=== 2. DeltaBook 功能测试 ===', () => {
 });
 
 test('=== 3. confirm 确证测试 ===', () => {
-    const cls = extractClass(src, 'class DeltaBook');
-    const DeltaBook = new Function('return (' + cls + ')')();
+    const DeltaBook = MLA.DeltaBook;
     const db = new DeltaBook();
     db.add('林一在聚贤庄留下解药', 'uncertain', 42);
     db.add('沈青梧的玉佩是信物', 'uncertain', 43);
@@ -76,8 +78,7 @@ test('=== 3. confirm 确证测试 ===', () => {
 });
 
 test('=== 4. toPrompt 分状态展示测试 ===', () => {
-    const cls = extractClass(src, 'class DeltaBook');
-    const DeltaBook = new Function('return (' + cls + ')')();
+    const DeltaBook = MLA.DeltaBook;
     const db = new DeltaBook();
     db.add('已确证事实', 'established', 10);
     db.add('待定事实', 'uncertain', 11);
@@ -91,8 +92,7 @@ test('=== 4. toPrompt 分状态展示测试 ===', () => {
 });
 
 test('=== 5. removeByFloor 与 export/import 对称 ===', () => {
-    const cls = extractClass(src, 'class DeltaBook');
-    const DeltaBook = new Function('return (' + cls + ')')();
+    const DeltaBook = MLA.DeltaBook;
     const db = new DeltaBook();
     db.add('事实AAA', 'established', 10);
     db.add('事实BBB', 'uncertain', 11);
@@ -131,8 +131,7 @@ test('=== 6. 三合一解析逻辑复刻测试 ===', () => {
 
 test('=== 7. 冲突通道消费测试（conflictBook.add 签名对齐） ===', () => {
     // maybeFold 的 conflicts 消费调用签名：add(claim, canon, note, floor, '', severity)
-    const cls = extractClass(src, 'class ConflictBook');
-    const ConflictBook = new Function('return (' + cls + ')')();
+    const ConflictBook = MLA.ConflictBook;
     const cb = new ConflictBook();
     // 模拟 maybeFold 中的调用形态
     const c = { claim: '灵石是甲给的', canon: '灵石是乙给的', severity: 'high' };

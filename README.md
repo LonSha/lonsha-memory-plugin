@@ -44,7 +44,7 @@ npm run test:serial  # 串行执行（排查偶发时的口径）
 npm run test:audit   # 带审计面
 ```
 
-模块位于**根目录**：由 `manifest.json` 的 `extra_js`（68 项）按**文件名**加载，
+模块位于**根目录**：由 `manifest.json` 的 `extra_js`（69 项）按**文件名**加载，
 迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**
 （由 `tests/audit/scan_module_wiring.mjs` 监控）。
 
@@ -53,7 +53,7 @@ npm run test:audit   # 带审计面
 ```
 lonsha-memory-plugin/
 ├── index.js                  # 主入口（VERSION 唯一锚点 / 事件接线 / 注入汇总）
-├── manifest.json             # 插件清单（js / css / extra_js 68 / extra_css 2）
+├── manifest.json             # 插件清单（js / css / extra_js 69 / extra_css 2）
 ├── package.json              # 版本源之一（不参与运行时加载）
 ├── style.css | lonsha-design.css | visualizer.css
 │
@@ -104,8 +104,8 @@ lonsha-memory-plugin/
     └── rust/             # pagerank.rs + Cargo.toml（未接入）
 ```
 
-**运行时模块**：69 个（根目录 `.js`，含入口 `index.js`）
-**载入面**：`index.js` + `extra_js` 68 项 + CSS 3 项
+**运行时模块**：70 个（根目录 `.js`，含入口 `index.js`）
+**载入面**：`index.js` + `extra_js` 69 项 + CSS 3 项
 **在役门禁**：`tests/` 236 个测试文件 / `tests/audit/` 55 个审计脚本
 **当前版本**：见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
 

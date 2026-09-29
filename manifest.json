@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.256.0",
+  "version": "3.257.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -78,7 +78,8 @@
     "sleep-awaken.js",
     "snapshot-checkpoint.js",
     "cache-identity.js",
-    "cache-workload.js"
+    "cache-workload.js",
+    "memory-ledgers.js"
   ],
   "extra_css": [
     "lonsha-design.css",
