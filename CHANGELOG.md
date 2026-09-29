@@ -1,3 +1,11 @@
+## v3.256.0
+**主题：M-O4 缓存命中量测接通——导出在场不等于有人真调。**
+- `cache-workload.js` 的 `cacheHit` 由 M-O4 探针真调用：snapshot / candidate / serialize / settings 四条路径，在同等输入下连读两次均得到 `hit（ok）`；`miss` 与测不出（`no-probe` / 异常 / 不可序列化）保持不同形。
+- `tests/audit/_m_o4_probe.mjs` 输出缓存命中段与 JSON `hits` 读数；已确认 `scan_v3254_cache_identity.mjs` 的 C10 守卫探针覆盖面：引用量测模块的探针须真调用 `cacheHit` / `repeatCost` / `survey`，注释不算调用，无关探针不被强制耦合，空探针清单 fail-closed。
+- 新增常驻套件 `tests/v3256_probe_coverage.test.mjs`：真跑探针、真源码破坏负控制、注释/无关探针两向自证、台账与当版 frontier 锁定。v3255 的当版硬锚已交棒给 v3256，历史套件退回出生版本下限锚。
+- TODO 对照发现 `p3_snapshot_bytes` 已可复跑：订正探针文档为 measured，线性读数不支持超线性热点，故不改产品路径。
+- 台账：`dead_code_budget` 实测 41309，ceiling 41663→41709（余量 400）；index.js 实测 18401 行 / 588 成员，本版未改。未完成项均继续保留原登记，不虚报覆盖。
+
 ## v3.255.0
 **主题：M-O4 兑现审计—— 刚交付的出口还在不在守，以及它守的时候用的判据真不成立。**
 

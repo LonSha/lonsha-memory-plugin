@@ -21,7 +21,8 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.255.0
+> 最近更新：v3.256.0
+> 本批全量测试实跑通过：237/237 文件、2405 断言、105.4s（`npm test`，默认并发 7；1 个文件因环境资源耗尽重试后转绿）；C10 守卫另行真跑卫生；全量 `--audit` 未跑。
 > **两计划落地对账（v3.251.0 轮）**：`tests/audit/open_items_reconcile.md` 逐项列「计划仍写开 vs 磁盘已收口」，
 > **【本批更正】** 原文写「并对齐《优化提升计划》M-O1~M-O4 / R-O1~R-O4 与《拓展升级计划》F1~F9 的批次映射」——
 > 实测该映射**当时并未建立**（该文件零条 M-O*/R-O*），系**声称过头**；本批已按磁盘补齐实际映射：
@@ -393,7 +394,7 @@
       （13 面下游各有读者、快照是出口不是缓存、恒定承载面仅 3.3%）；唯一有读数支持的瘦身轴是
       「每面预算 + 如实截断读数」。
       判据 `tests/v3231_snapshot_scale_evidence.test.mjs`（12 项）+ 基线 `tests/audit/snapshot_baseline.json`；
-      本环境探针文档 `tests/audit/p3_snapshot_probe.md` 记 `p3_snapshot_bytes=not_measured`（fork 不可用，不编 0）。
+      本环境探针文档 `tests/audit/p3_snapshot_probe.md` 已订正为 `p3_snapshot_bytes=measured`（`_p3_snapshot_probe.mjs` 可复跑；读数近线性，`superlinear=false`，不编 0）。
       ⇒ 改快照键面属跨仓契约变更，仍须另立 Gate（本版不顺手改，此边界未变）。
       原立项理由（保留以便追溯）：
       `index.js:10768` 注释自证「九账各有 list/summarize/render，但快照**一本账都不带**」；

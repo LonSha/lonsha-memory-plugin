@@ -190,6 +190,26 @@ test('v3254 C3. ★★ 重复读取：坏钟与钝钟必须**不同形**，可�
     ok('坏钟 / 钝钟 / 可控钟三态可分');
 });
 
+test('v3254 C4. ★★ 缓存命中：同等输入连读必须 hit；测不出与未命中不同形', () => {
+    assert.equal(typeof WL.cacheHit, 'function', 'cacheHit 必须导出（缺导出=调用方静默降级）');
+    let missReads = 0;
+    const missProbe = { build: (n) => n, read: () => ({ nonce: 'x'.repeat(++missReads) }) };
+    const miss = WL.cacheHit(missProbe, { n: 10 });
+    assert.equal(miss.measured, true, '有探针必须测得出');
+    assert.equal(miss.hit, false, '每次输出不同 ⇒ 未命中');
+    assert.equal(miss.reason, 'miss');
+    const hitProbe = { build: (n) => ({ n }), read: (d) => d, hit: () => true };
+    const hit = WL.cacheHit(hitProbe, { n: 10 });
+    assert.equal(hit.measured, true);
+    assert.equal(hit.hit, true);
+    assert.equal(hit.reason, 'ok');
+    const none = WL.cacheHit(null, { n: 10 });
+    assert.equal(none.measured, false);
+    assert.equal(none.reason, 'no-probe');
+    assert.notEqual(none.reason, miss.reason, '测不出与未命中必须不同形');
+    ok('cacheHit：hit / miss / no-probe 三态可分');
+});
+
 /* ══════════ D 负控制 ══════════ */
 test('v3254 D1. ★★ 锚点不存在 ⇒ 拒绝破坏', () => {
     assert.throws(() => breakSource(ENTRY_SRC, '__no_such_anchor_xyz__', 'x', 'D1'), /拒绝破坏/);

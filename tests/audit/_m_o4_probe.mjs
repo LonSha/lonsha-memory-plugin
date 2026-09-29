@@ -15,6 +15,10 @@
 //   serialize  序列化       —— 真引擎方法 `buildBridgeSnapshotJson`（快照 + JSON.stringify）
 //   settings   设置界面消费 —— 真引擎方法 `_summarizeRecallAudit`（状态总览面板「召回自检」行读它）
 //
+// 除四条曲线外，本探针还**真调用** `cache-workload.js::cacheHit`（同等输入连读两次必须命中）——
+//   它是「缓存被静默禁用」这条最贵形态的唯一量测口；只断言导出在场而无人调用，
+//   就会让导出面绿着、读数一条没有（功能级失效）。
+//
 // 口径纪律（与 `_p3_snapshot_probe.mjs` 逐条对齐）：
 //   ① **绝不编 0**：抽不出方法体 / 构造失败 / 读数非有限数 ⇒ 该路径 measured:false 并如实报原因，
 //      且整体 exit 2（探针自己不可信时不留一个看起来正常的读数）。
@@ -200,6 +204,21 @@ const repeats = [
     probes.settings ? WL.repeatCost(probes.settings, { n: bigN, repeat: 5 }) : null,
 ].filter(Boolean);
 
+/* ---------- 4b. 缓存命中断言（A3：同等输入连读两次必须命中） ----------
+ * 为什么必须由**探针**真调用：`cache-workload.js::cacheHit` 是「缓存被静默禁用」这条
+ *   最贵形态（不报错、只是白花钱）的唯一量测口。若探针不调它，模块导出面在判据里绿着、
+ *   而真读数一条都没有 —— 正是本仓治过的「功能级失效」（导出了 API 而零调用点）。
+ * 口径：命中 = 两次读出的 JSON 字节相等且非空（`cacheHit` 内建三态：
+ *   ok / miss / no-probe·unserializable —— 测不出与未命中**不同形**，见该函数头注）。 */
+const HIT_PATHS = ['snapshot', 'candidate', 'serialize', 'settings'];
+const hits = HIT_PATHS.map((name) => {
+    const p = probes[name];
+    if (!p) {
+        return { path: name, n: bigN, measured: false, hit: false, reason: 'no-probe', firstBytes: null, secondBytes: null };
+    }
+    return Object.assign({ path: name }, WL.cacheHit(p, { n: bigN }));
+});
+
 console.log('=== M-O4 四条消费路径只读量测（合成数据 + 真模块，非实机） ===');
 console.log('index.js ' + idxSrc.length + ' 字节 · node ' + process.version + ' · 档位 ' + probeSizes.join('/'));
 console.log('方法体：snapshot=' + (M_SNAPSHOT.body ? M_SNAPSHOT.body.length : '—')
@@ -207,6 +226,13 @@ console.log('方法体：snapshot=' + (M_SNAPSHOT.body ? M_SNAPSHOT.body.length 
     + ' settings=' + (M_SETTINGS.body ? M_SETTINGS.body.length : '—') + ' 字符');
 console.log('');
 console.log(WL.report(survey, repeats));
+console.log('');
+console.log('--- 缓存命中断言（同等输入连读两次）---');
+for (const h of hits) {
+    console.log(h.path + '\t' + (h.measured
+        ? (h.hit ? 'hit（ok）' : 'miss') + ' first=' + h.firstBytes + 'B second=' + h.secondBytes + 'B'
+        : '测不出（' + h.reason + '）—— 与「未命中」不同形'));
+}
 console.log('');
 console.log('--- 逐档明细 ---');
 for (const c of survey.curves) {
@@ -216,7 +242,7 @@ for (const c of survey.curves) {
 if (WANT_JSON) {
     console.log('');
     console.log('--- json ---');
-    console.log(JSON.stringify({ synth: true, sizes: probeSizes, survey, repeats }));
+    console.log(JSON.stringify({ synth: true, sizes: probeSizes, survey, repeats, hits }));
 }
 
 /* ---------- 5. 自我可信性：全路径测不出即 exit 2（探针自己失效时不留下正常读数） ---------- */

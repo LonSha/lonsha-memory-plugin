@@ -108,6 +108,7 @@ const REGISTRY = [
     'v3253_open_face_registry.test.mjs',
     'v3254_cache_identity_and_workload.test.mjs',
     'v3255_cache_identity_source.test.mjs',
+    'v3256_probe_coverage.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

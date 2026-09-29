@@ -24,14 +24,16 @@
 - **验收**：`tests/audit/host_beast_baseline.json` 冻结的 559 成员基线随每次剥离减项，瘦身进度转为可读数；门禁保持 0 失败。
 
 ### A2 · 兑现已登记的「未做」
-- **`p3_snapshot_bytes` 重跑**：环境障碍已除，补一笔真读数替换估算值。
-- **README 能力索引改写**：已登记为产品门面取舍。68 个 extra_js + 5 个外供面，README 若仍旧描述会误导接入者。建议下次大版本前补上。
+- **`p3_snapshot_bytes` 重跑**：环境障碍已除；探针早已可跑。文档头部曾滞后写 `not_measured`。
+- **README 能力索引改写**：已于 v3.255.0（`8b9ea65`）按磁盘真读数重写。
 - **验收**：两项在 TODO 勾掉并附读数/证据。
+- **已交付 v3.256.0**：订正 `tests/audit/p3_snapshot_probe.md` 头部为 `measured`（读数 N=0:169B … N=200:21207B，superlinear=false）；TODO 同步去掉 `not_measured`。README 无需再改。
 
 ### A3 · 缓存正确性的回归加固
 - **现状**：v3.255.0 刚修「`_cacheIdentityOf()` 把 revision 填成 `getRevision()` 致缓存被静默禁用」。这类「正确性被静默打掉」的退化最危险。
 - **路径**：把 `cache-workload.js` 的七档 `{0,10,...,10000}` 从「只测耗时」扩一档「缓存命中断言」——同等输入下断言缓存确实被命中。
 - **验收**：新增断言能把「缓存静默禁用」钉成测试失败。
+- **已交付 v3.256.0**：`cache-workload.js` 新增 `cacheHit`（同等输入连读两次：第二次必须 hit；测不出与未命中不同形）。`scan_v3254` 导出面纳入该函数。
 
 ---
 

@@ -308,6 +308,51 @@
         return lines.join('\n');
     }
 
+    /**
+     * 缓存命中断言（同等输入连读两次）。
+     * 第二次必须 hit；测不出（无 probe / 抛错 / 无判定）与未命中必须不同形。
+     * 探针可选 `hit(out, n)`：返回 true 视为命中。缺席则退回「两次输出 JSON 字节相等且非空」。
+     */
+    function cacheHit(probe, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const n = Number.isFinite(Number(o.n)) ? Math.floor(Number(o.n)) : 1000;
+        const p = (probe && typeof probe === 'object') ? probe : null;
+        if (!p || typeof p.read !== 'function') {
+            return { n, measured: false, hit: false, reason: 'no-probe', firstBytes: null, secondBytes: null };
+        }
+        let data;
+        try { data = (typeof p.build === 'function') ? p.build(n) : null; }
+        catch (e) {
+            return { n, measured: false, hit: false, reason: 'build-threw:' + errMsg(e), firstBytes: null, secondBytes: null };
+        }
+        let a, b;
+        try {
+            a = p.read(data, n);
+            b = p.read(data, n);
+        } catch (e) {
+            return { n, measured: false, hit: false, reason: 'read-threw:' + errMsg(e), firstBytes: null, secondBytes: null };
+        }
+        const ba = bytesOf(a);
+        const bb = bytesOf(b);
+        if (typeof p.hit === 'function') {
+            let h;
+            try { h = p.hit(b, n, a); }
+            catch (e) {
+                return { n, measured: true, hit: false, reason: 'hit-threw:' + errMsg(e), firstBytes: ba, secondBytes: bb };
+            }
+            return {
+                n, measured: true, hit: h === true,
+                reason: h === true ? 'ok' : 'miss',
+                firstBytes: ba, secondBytes: bb,
+            };
+        }
+        if (!Number.isFinite(ba) || !Number.isFinite(bb) || ba === null || bb === null) {
+            return { n, measured: false, hit: false, reason: 'unserializable', firstBytes: ba, secondBytes: bb };
+        }
+        const same = ba === bb && ba > 0;
+        return { n, measured: true, hit: same, reason: same ? 'ok' : 'miss', firstBytes: ba, secondBytes: bb };
+    }
+
     const api = {
         SIZES,
         PATHS,
@@ -317,6 +362,7 @@
         curve,
         survey,
         repeatCost,
+        cacheHit,
         report,
     };
 

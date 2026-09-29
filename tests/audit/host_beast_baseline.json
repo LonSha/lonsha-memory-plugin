@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.255.0",
+ "measured_at": "v3.256.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -252,7 +252,7 @@
    "delta": {
     "total_lines": 0,
     "member_count": 0,
-    "top5_pct": 0.0
+    "top5_pct": 0
    }
   },
   "v3.254.0": {
@@ -315,6 +315,37 @@
     "total_lines": 23,
     "member_count": 0,
     "top5_pct": -0.1
+   }
+  },
+  "v3.256.0": {
+   "reason": "v3.256.0 M-O4 cacheHit 探针读数与 C10 覆盖面判据；不改 index.js 产品结构",
+   "readings": {
+    "total_lines": 18401,
+    "member_count": 588,
+    "top5_lines": 4129,
+    "top5_pct": 22.4,
+    "top40_lines": 9303,
+    "top40_pct": 50.6,
+    "prefix_rule_coverage_lines": 4443,
+    "prefix_rule_coverage_pct": 24.1,
+    "unclassified_lines": 13958,
+    "seam_distinct_modules": 38,
+    "seam_reference_sites": 50,
+    "seam_call_shape_sites": 53,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 19,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "探针真跑；index.js 本轮未改，成员与行数保持不变",
+    "本版只量不拆"
+   ],
+   "not_done": "未实机验证；index.js 本轮未改；不重抽各域行号（域边界未成契约）",
+   "delta_from": "v3.255.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0
    }
   }
  },

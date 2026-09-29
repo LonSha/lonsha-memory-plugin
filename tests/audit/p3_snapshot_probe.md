@@ -1,7 +1,8 @@
 # P-3 快照外供面瘦身 — 只读取证探针
 
-状态：`p3_snapshot_bytes=not_measured`（本环境 `fork: Function not implemented`，node 不能真正启动子进程）。
-纪律：不改快照键面、不抬 VERSION（仍 3.251.0）、不跑全量。超线性才立增量快照候选；平庸则 `not_done`。
+状态：`p3_snapshot_bytes=measured`（探针 `tests/audit/_p3_snapshot_probe.mjs` 可复跑；本环境已出读数）。
+纪律：不改快照键面。超线性才立增量快照候选；平庸则 `not_done_until_superlinear`。
+最新读数（复跑）：N=0:169B / N=10:1152B / N=50:5292B / N=200:21207B；slope_per_item=98.3/102.46/105.19；ratio_200_50=4.007；superlinear=false。
 
 ## 源
 

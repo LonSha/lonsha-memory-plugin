@@ -65,9 +65,9 @@ test('v3255 A1. ★★★ 三源同版 ' + VER + '，且身份位在真源码上
     const codeVer = (/const VERSION = '([^']+)'/.exec(ENTRY_SRC) || [])[1];
     const pkg = JSON.parse(read('package.json'));
     const mf = JSON.parse(read('manifest.json'));
-    assert.equal(codeVer, VER, '入口版本应为当版');
-    assert.equal(pkg.version, VER, 'package.json 必须与入口同版');
-    assert.equal(mf.version, VER, 'manifest.json 必须与入口同版');
+    assert.ok(vnum(codeVer) >= vnum(VER), '出生版本之后的当前版本应保持向前：' + codeVer);
+    assert.equal(pkg.version, codeVer, 'package.json 必须与入口同版');
+    assert.equal(mf.version, codeVer, 'manifest.json 必须与入口同版');
     const fn = realIdentityFn();
     const id = fn.call(mkHost('chat-A', 'abc123_40'));
     assert.ok(id && typeof id === 'object', '方法体必须返回身份对象');
@@ -162,7 +162,7 @@ const vnum = (s) => Number(String(s).split('.').reduce((a, x) => a * 1000 + Numb
 
 test('v3255 F1. ★ 版本锚（当版 frontier：硬等号锁 ' + VER + '）', () => {
     const codeVer = (/const VERSION = '([^']+)'/.exec(ENTRY_SRC) || [])[1];
-    assert.equal(vnum(codeVer), vnum('3.255.0'), '本档只在 ' + VER + ' 成立；当前 ' + codeVer);
-    assert.equal(codeVer, VER, '当版 frontier 锁自己的版本（下一版接管时按既有交棒口径改）');
+    /* [v3.256.0 交棒] 当版 frontier 由 v3256 接管；本档退回出生版本下限锚。 */
+    assert.ok(vnum(codeVer) >= vnum('3.255.0'), '本档只在出生版本 3.255.0 及以后成立；当前 ' + codeVer);
     ok('版本锚：' + codeVer);
 });

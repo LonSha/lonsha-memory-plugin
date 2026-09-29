@@ -110,7 +110,7 @@ export function judgeExports(CI, WL) {
     }
     if (WL.__loadError) problems.push('C4 cache-workload.js 装载失败：' + WL.__loadError);
     else {
-        for (const fn of ['curve', 'survey', 'repeatCost', 'report', 'bytesOf']) {
+        for (const fn of ['curve', 'survey', 'repeatCost', 'cacheHit', 'report', 'bytesOf']) {
             if (typeof WL[fn] !== 'function') problems.push('C4 cache-workload.js 缺导出函数 ' + fn);
         }
         if (!Array.isArray(WL.SIZES) || !WL.SIZES.includes(1000) || !WL.SIZES.includes(5000) || !WL.SIZES.includes(10000)) {
@@ -422,6 +422,39 @@ export function judgeProbeShape(probeFiles, matrixText, diskHas) {
     return problems;
 }
 
+/* ---------- C10 探针覆盖面：量测台的导出必须**真被探针调用** ----------
+ * 为什么单列一条（v3.256.0）：本仓治过多次的形态是「导出了 API、全库零调用点」——
+ *   导出面在判据里绿着（C4 只断言 `typeof WL.cacheHit === 'function'`），
+ *   而**真读数一条都没有**。这不是整洁性问题：`cacheHit` 是「缓存被静默禁用」这条
+ *   最贵形态（不报错、只是白花钱）的唯一量测口，探针不调它，那条形态就没人量。
+ *   判据形态：在**剥注释**后的探针源码里找调用点（注释里提一嘴不算调用，
+ *   与本仓「注释不算消费」同纪律）。范围只覆盖**引用了 cache-workload 的探针**
+ *   —— 不强制与本模块无关的探针（`_p3_snapshot_probe` / `_probe_v3199_r2shift`
+ *   量的是别的东西，逼它们调 cacheHit 是造无意义的耦合）。
+ */
+export const PROBE_REQUIRED_CALLS = ['cacheHit', 'repeatCost', 'survey'];
+export function judgeProbeCoverage(probeFiles, readSrc) {
+    const problems = [];
+    if (probeFiles.length === 0) return ['C10 探针清单为空 —— 量测台失去唯一读数来源'];
+    let covered = 0;
+    for (const p of probeFiles) {
+        const raw = readSrc(path.join('tests', 'audit', p));
+        if (raw == null) { problems.push('C10 读不到探针 ' + p); continue; }
+        /* 只判「引用了 cache-workload」的探针：它既然接了这条量测台，就得真调它的口。 */
+        if (!stripComments(raw).includes('cache-workload')) continue;
+        covered++;
+        const code = stripComments(raw);
+        for (const fn of PROBE_REQUIRED_CALLS) {
+            const call = new RegExp(fn + '\\s*\\(');
+            if (!call.test(code)) {
+                problems.push('C10 探针 ' + p + ' 未真调用 cache-workload.js::' + fn
+                    + '()（导出在场而零调用点 = 量测面空转；注释里提及不算）');
+            }
+        }
+    }
+    if (covered === 0) problems.push('C10 没有任何探针引用 cache-workload.js —— 量测台失去唯一读数来源');
+    return problems;
+}
 /* ============================================================
  * 入口（只在直接执行时跑；被 import 时纯函数面可用）
  * ============================================================ */
@@ -484,6 +517,8 @@ export async function runAll(root) {
         if (!FIXTURE_MODE && probeFiles.length === 0) problems.push('C7 审计目录下找不到只读探针（`_*probe*.mjs`）——量测面无工具');
         problems.push(...judgeProbeShape(probeFiles, readIf(path.join(AUDIT_DIR, 'audit_scan_probe_matrix.tsv')),
             (rel) => fs.existsSync(path.join(root, rel))));
+        /* C10 探针覆盖面：量测台的导出必须真被探针调用（防「导出在场、零调用点」）。 */
+        problems.push(...judgeProbeCoverage(probeFiles, (rel) => readIf(path.join(root, rel))));
     } else if (!FIXTURE_MODE) {
         problems.push('C7 找不到 tests/audit 目录（结构漂移）');
     }
