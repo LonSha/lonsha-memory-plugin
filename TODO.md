@@ -375,7 +375,8 @@
       判据 `tests/v3232_host_beast_triage.test.mjs`（14 项）+ 基线 `tests/audit/host_beast_baseline.json`；
       `tests/audit/index_beast_map.tsv` 已补行号图（`buildBridgeSnapshot` 7702–7892，深绑 `this` ⇒ `keep_index_unsplit`）。
       ⇒ 原文末尾「怎么知道它还没做」已**反向成立**：该文件已存在，且行数守的是「不退回未分诊」而非「等拆分」。
-      现状读数：`index.js` 磁盘末行 **18139**（原文写的 16972 已过期，勿照抄）。
+      现状读数：`index.js` 磁盘末行 **18400**（原文写的 16972 已过期，勿照抄；
+      18139 亦已过期 —— **这个数会随每次改动腐坏，以 `wc -l index.js` 现读为准**）。
       原立项理由（保留以便追溯）：
       `index.js` 实测 16972 行，占全仓 46%（65 个根模块共 37170 行）；O-6 已证「扫描面只有 index.js」
       是盲区来源之一 —— **体量本身就是判据失效的温床**。

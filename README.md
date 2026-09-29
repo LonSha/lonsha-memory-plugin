@@ -1,169 +1,66 @@
-# LonSha记忆引擎 v1.1.0
+# LonSha 记忆引擎
 
-为 SillyTavern 打造的**生产强化级 AI 记忆管理系统**，融合 7 大开源项目精华，历经 Phase 1-9 完整开发，实现从**知识图谱**到 **AI 智能化 + 生产加固**的完整演进。
+为 SillyTavern 打造的记忆与账本引擎。它要解决的不是「记得更多」，而是
+**「记错了能被发现」** —— 每次写入都有出处，每条召回都有归因，每个读数都能回源到一次真实计算。
 
-**当前版本**: v1.1.0 (Phase 9 完成)  
-**项目状态**: ✅ 生产强化级（7x24 稳定运行）  
-**支持规模**: 20000 节点  
-**新特性**: 生产加固（错误处理/资源管理/性能监控/健康检查）+ 自动调优 + 智能降级  
+**当前版本**：`3.255.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
+**运行形态**：SillyTavern 第三方扩展（`manifest.json` + `index.js`）
+**门禁**：`npm test` = **236 个测试文件 · 2397 条断言 · 0 失败**（rc 0）
 
-## ✨ 核心特性
+> ⚠️ **本 README 于 v3.255.0 重写。**
+> 旧版描述的是早期「Phase 1-9」阶段的形态（标注 v1.1.0，声称 WebGL GPU 渲染、
+> WebSocket 实时协作、Firebase/Supabase 云端同步、WebWorker 多线程、Rust WASM 加速、
+> OT 操作转换等）。逐词 grep 实测：**这些能力在代码里零命中**，现架构也不走那条路。
+> 旧版全文保留在 git 历史里；本版按**磁盘真读数**重写，理由与本仓一贯口径相同 ——
+> **给人读的那一处不得与真源脱节**。
 
-### Phase 1-2: 基础架构（v0.1-0.3）
-- **🧠 知识图谱**：自动提取角色、事件、关系，构建记忆图谱
-- **📊 向量检索**：Embedding + 余弦相似度，智能召回相关记忆
-- **📝 多层摘要**：楼层级、角色级、事件级分层摘要
-- **📖 角色日记**：为每个角色维护独立日记本
-- **🔄 混合召回**：向量检索 + 图谱查询 + 摘要搜索，α混合策略
+## 设计立场
 
-### Phase 3-4: 算法优化 + 可视化（v0.5-0.6）
-- **🎯 PageRank 优化**：稀疏矩阵 + 自适应收敛 + 缓存（50% 提升）
-- **🎲 DPP 多样性采样**：O(nk) 复杂度优化（78% 提升）
-- **👥 社区检测优化**：权重预计算 + 模块度优化（55% 提升）
-- **📊 性能监控**：完整埋点 + 实时仪表盘 + 基准测试
-- **🗺️ 可视化面板**：图谱/时间线/统计/社区 4 视图
+上下文窗口里「记住了什么」通常不可见、不可查、不可回滚。本引擎把这件事拆成**账本**：
+写入 → 回读 → 判据三层可对账。每个数都有来源，每个「没读到」与「确实是空」都被判开
+（这两者同形是本仓反复付代价的地方）。**看起来没坏但显示不对**，是本层唯一
+能挡住、也必须挡住的那一类。
 
-### Phase 5: 高级优化（v0.7）⭐
-- **⚡ WebWorker 多线程**：主线程零阻塞，UI 完全流畅
-- **🔄 增量 PageRank**：8ms vs 52ms 全量（85% 提升）
-- **📇 索引系统**：类型 O(1) + 时间 O(log n)（18-93倍 提升）
-- **🎨 虚拟滚动**：视口裁剪 + 四叉树（88% 渲染提升）
+## 工程纪律（本项目的重心）
 
-### Phase 6: WASM + 持久化（v0.8）⭐
-- **🚀 Rust WASM 模块**：PageRank 算法 2-3x 加速
-- **🧠 自适应选择**：智能切换 JavaScript/WASM
-- **💾 IndexedDB 存储**：无限容量持久化
-- **🔁 自动同步**：定时保存，数据永不丢失
+1. **版本四源同源** —— `index.js` 的 `VERSION` / `manifest.json` / `package.json` /
+   `CHANGELOG.md` 顶节，由 `scan_version_guard.mjs`（V1/V6/V7）把守。
+   抬版漏了发布面 ⇒ 用户看到的是上一版的说明。
+2. **文档不得说谎** —— `TODO.md` 的「最近更新」必须等于当前版本（同一门 V7）；
+   `CHANGELOG.md` 顶节必须就是当前版本（V6）。
+3. **判据不许押在别人的进度上** —— 跨仓声明必须对账；缺口要登记成**台账**并**双向闭合**
+   （有分歧无理由 ⇒ 报；有理由无分歧 ⇒ **也报**，登记着不存在的分歧就是掩饰）。
+4. **退役不是删除** —— `tests/archived/` 保留 18 个退役测试的 git 历史与退役理据，
+   `run.mjs` 按目录发现且**不递归**，故退役即出扫描面。退役面对外**哈希冻结**，
+   防止「退役」变成「悄悄改判据」。
+5. **派生数交给机器** —— 凡「套件 N 条」这类会随代码增长而腐坏的数字，由脚本单向回写
+   （以判据文件真读数为准），不手抄。
 
-### Phase 7: GPU + 实时协作（v0.9）⭐ NEW
-- **🎮 WebGL GPU 渲染**：20000 节点流畅渲染（40x Canvas 2D）
-- **👥 实时协作**：WebSocket 多人共享（< 52ms 延迟）
-- **☁️ 云端同步**：Firebase/Supabase 离线优先同步
-- **🔄 操作转换（OT）**：自动冲突解决
+## 运行与验证
 
-## 📦 技术栈
-
-| 模块 | 技术 | 来源灵感 |
-|------|------|----------|
-| 知识图谱 | Map + 索引 | shujuku, yuzuki-Memory |
-| 向量检索 | Embedding + 余弦相似度 | Anima-Memory-System |
-| 摘要系统 | LLM提取 + 分层 | HCDiary, BaiBai-Book |
-| 图扩散 | PageRank + DPP | ST-Bionic-Memory-Ecology |
-| 可视化 | Canvas + 力导向布局 | Anima-Memory-System |
-| 数据持久化 | chatMetadata.extensions | TriviumDB |
-
-## 🚀 快速开始
-
-### 安装
-
-1. 将整个文件夹复制到 `SillyTavern/public/scripts/extensions/third-party/`
-2. 刷新 SillyTavern
-3. 插件自动初始化，右下角出现🧠按钮
-
-### 使用
-
-1. **自动记忆**：聊天时自动提取并存储记忆
-2. **查看面板**：点击🧠按钮打开可视化面板
-3. **调试控制台**：`window.LonShaMemory` 访问完整API
-
-### 配置
-
-```javascript
-// 访问配置
-window.LonShaMemory.configMgr.config
-
-// 主要配置项
-{
-  enabled: true,                    // 总开关
-  extractionEnabled: true,          // LLM提取开关
-  vectorEnabled: true,              // 向量检索开关
-  graphDiffusionEnabled: true,      // 图扩散开关
-  vectorTopK: 5,                    // 召回Top-K
-  hybridAlpha: 0.7,                 // 混合权重（向量vs图谱）
-  pageRankDamping: 0.85,            // PageRank阻尼因子
-  dppLambda: 0.5,                   // DPP多样性权重
-  debugMode: false                  // 调试模式
-}
+```bash
+npm test             # 全部用例：236 个测试文件，各自独立子进程（隔离全局态污染）
+npm run test:serial  # 串行执行（排查偶发时的口径）
+npm run test:audit   # 带审计面
 ```
 
-## 📊 性能指标
+模块位于**根目录**：由 `manifest.json` 的 `extra_js`（68 项）按**文件名**加载，
+迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**
+（由 `tests/audit/scan_module_wiring.mjs` 监控）。
 
-### Phase 1-7 总计性能提升
-
-| 指标 | v0.5 原始 | v0.9 最终 | 总提升 |
-|------|----------|----------|--------|
-| PageRank (500节点) | 105ms | **22ms WASM** | **4.8x** ⬆️ |
-| PageRank (1000节点) | 250ms | **48ms WASM** | **5.2x** ⬆️ |
-| 图谱渲染 (1000节点) | 120ms | **3ms GPU** | **40x** ⬆️ |
-| 图谱渲染 (10000节点) | 卡顿 | **25ms GPU** | **无限** ✨ |
-| 类型查询 | 2.5ms | **0.05ms** | **50x** ⬆️ |
-| 增量更新 (5节点) | 105ms | **3.5ms WASM** | **30x** ⬆️ |
-| 数据持久化 | 5MB | **无限** | **无限** ✨ |
-| 支持规模 | 200节点 | **20000节点** | **100x** ⬆️ |
-| UI 响应性 | 卡顿 | **完全流畅** | **100%** ✨ |
-| 实时协作 | ❌ | **✅ < 52ms** | **新增** |
-| 云端同步 | ❌ | **✅ 离线优先** | **新增** |
-
-*测试环境：中端 Android (Snapdragon 7+ Gen 2)，Chrome 120*
-
-### 各阶段对比
-
-| 版本 | 推荐规模 | 上限 | PageRank | 渲染 | 协作 | UI响应 |
-|------|---------|------|---------|------|------|--------|
-| v0.5 | 50节点 | 200节点 | 105ms | 120ms | ❌ | 卡顿 ❌ |
-| v0.7 | 500节点 | 2000节点 | 0ms阻塞 | 15ms | ❌ | 流畅 ⚡ |
-| v0.8 | 2000节点 | 5000节点 | 22ms WASM | 15ms | ❌ | 完全流畅 ✨ |
-| v0.9 | 5000节点 | **20000节点** | 22ms WASM | **3ms GPU** | **✅ < 52ms** | **完全流畅** ✨ |
-
-## 🔧 高级功能
-
-### 图扩散调优
-
-```javascript
-// 调整PageRank参数
-LonShaMemory.configMgr.config.pageRankDamping = 0.9; // 更激进的扩散
-
-// 调整DPP多样性
-LonShaMemory.configMgr.config.dppLambda = 0.3; // 更相似的结果
-```
-
-### 手动触发图扩散
-
-```javascript
-const diffusion = window.LonShaMemory.diffusion;
-const seedNodes = [{id: 'node_123', name: '角色A'}];
-
-// PageRank扩散
-const results = diffusion.personalizedPageRank(seedNodes, 3, 10);
-
-// 多样性采样
-const diverse = diffusion.diversitySampling(results, 5, 0.5);
-```
-
-### 社区检测
-
-```javascript
-const communities = window.LonShaMemory.diffusion.detectCommunities();
-console.log(`检测到 ${communities.length} 个社区`);
-```
-
-## 📁 项目结构
-
-模块均位于根目录：它们由 `manifest.json` 的 `extra_js`（66 项）按**文件名**加载，
-迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**，
-否则宿主不会载入（由 `tests/audit/scan_module_wiring.mjs` 监控）。
+## 目录
 
 ```
 lonsha-memory-plugin/
 ├── index.js                  # 主入口（VERSION 唯一锚点 / 事件接线 / 注入汇总）
-├── manifest.json             # 插件清单（js / css / extra_js / extra_css 加载面）
-├── package.json              # 版本三源之一（不参与运行时加载）
+├── manifest.json             # 插件清单（js / css / extra_js 68 / extra_css 2）
+├── package.json              # 版本源之一（不参与运行时加载）
 ├── style.css | lonsha-design.css | visualizer.css
 │
 ├── ── 账本族（写入 → 回读 → 判据） ──
 ├── commitment-ledger.js  cost-ledger.js    coverage-ledger.js  echo-ledger.js
 ├── floor-ledger.js       ledger-entity.js  ledger-replay.js    parallel-ledger.js
-├── secret-ledger.js      seed-ledger.js
+├── secret-ledger.js      seed-ledger.js    cache-identity.js   cache-workload.js
 │
 ├── ── 召回与注入 ──
 ├── injection-router.js   unified-recall.js recall-artifact.js  recall-echo.js
@@ -198,58 +95,41 @@ lonsha-memory-plugin/
 ├── ── UI 与打包 ──
 ├── settings-ui.js        modules_combined.js
 │
-├── tests/                # 在役门禁（233 个测试文件 + 50 个审计脚本）
+├── tests/                # 在役门禁：236 个测试文件 + 55 个审计脚本
+│   └── archived/         # 18 个退役测试（保留历史与理据，不参与跑批）
 ├── tools/                # 一次性修崩助手（_ 前缀不进门禁扫描面）
-└── archive/              # 历史报告与考察存档（不参与运行时）
-   ├── *.md               # Phase 报告、交付清单、项目总结
-   ├── research/          # 参考项目考察存档（6 份）
-   ├── rust/              # pagerank.rs + Cargo.toml（未接入）
-   └── local-backups/     # 本地备份（未入库，.gitignore 已同步）
+└── archive/              # 历史存档（不参与运行时）
+    ├── *.md              # 早期 Phase 报告（13 份）
+    ├── research/         # 参考项目考察存档（6 份）
+    └── rust/             # pagerank.rs + Cargo.toml（未接入）
 ```
 
-**运行时模块**: 67 个（根目录 `.js`）  
-**载入面**: `index.js` + `extra_js` 66 项 + CSS 3 项  
-**在役门禁**: `tests/` 233 个测试文件 / `tests/audit/` 50 个审计脚本  
-**当前版本**: 见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
-## 🎯 Roadmap
+**运行时模块**：69 个（根目录 `.js`，含入口 `index.js`）
+**载入面**：`index.js` + `extra_js` 68 项 + CSS 3 项
+**在役门禁**：`tests/` 236 个测试文件 / `tests/audit/` 55 个审计脚本
+**当前版本**：见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
 
-### Phase 1-7: ✅ 已完成
-- [x] 知识图谱 + 向量检索 + 分层摘要（Phase 1-2）
-- [x] 图扩散算法优化（Phase 3）
-- [x] 可视化面板 + 性能监控（Phase 4）
-- [x] WebWorker 多线程 + 索引 + 虚拟滚动（Phase 5）
-- [x] WASM 加速 + IndexedDB 持久化（Phase 6）
-- [x] WebGL GPU 渲染（20000 节点 48ms，Canvas2D 的 40x 提升）
-- [x] 实时协作（WebSocket + OT 冲突解决，操作延迟 < 52ms）
-- [x] 云端同步（Firebase/Supabase 统一接口 + 离线优先队列）
+## 安装
 
-### Phase 8: AI 智能化（规划中 → v1.0）
-- [ ] 图神经网络（GNN）记忆推荐（目标准确率 > 85%）
-- [ ] LLM 自动实体抽取增强（目标 F1 > 90%）
-- [ ] 智能摘要生成（目标质量评分 > 4.0/5.0）
-- [ ] 图异常检测（目标召回率 > 95%）
+放入 SillyTavern 的 third-party extensions 目录，刷新宿主即可。
+插件按 `manifest.json` 自动装载，无需构建步骤、无外部数据库依赖。
 
-## 🤝 致谢
+## 致谢
 
-本项目站在巨人的肩膀上，感谢以下开源项目：
+本项目站在这几个开源项目的考察基础上（完整考察存档在 `archive/research/`）：
 
-1. **shujuku** - 知识图谱基础架构
-2. **ST-BaiBai-Book** - 角色日记系统
-3. **yuzuki-Memory** - 记忆分层设计
-4. **HCDiary** - LLM提取prompt工程
-5. **Anima-Memory-System** - 可视化界面
-6. **ST-Bionic-Memory-Ecology** - PageRank图扩散
-7. **TriviumDB** - chatMetadata持久化方案
+shujuku · ST-BaiBai-Book · yuzuki-Memory · HCDiary · Anima-Memory-System ·
+ST-Bionic-Memory-Ecology · TriviumDB
 
-## 📄 许可证
+## 许可证
 
 MIT License
 
-## 🐛 反馈
+## 反馈
 
 - GitHub Issues: https://github.com/LonSha/lonsha-memory-plugin/issues
-- 调试信息：打开浏览器控制台查看 `[LonSha记忆引擎]` 日志
+- 调试信息：浏览器控制台过滤 `[LonSha记忆引擎]`
 
 ---
 
-**Made with ❤️ by LonSha | Powered by 7 Open Source Projects**
+**Made with ❤️ by LonSha**
