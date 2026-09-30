@@ -22,7 +22,11 @@ const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
  *   [1b]「声明的键必须在配置块外至少被读一次」的扫描面要跟着代码走：
  *   只扫入口会把 outlinePlanCooldownFloors 这类已随类搬家的键误报成孤儿。字节下限守卫同步扩到合并面。 */
 const genSrc = readFileSync(path.join(ROOT, 'narrative-generators.js'), 'utf-8');
-const faceText = src + String.fromCharCode(10) + genSrc;
+/* [v3.259.0 A1 第四刀] 书册/时间七类外迁到 memory-books.js —— [1b] 扫描面同步跟着代码走。
+ *   本刀带走两个**已声明键的消费点**：`bm25LexiconNormalizeEnabled`（BM25._lexNormalize 的开关门控）
+ *   与 `echoBaseLife`（EchoPool._baseLife 的配置读点）。不扩面就等于把「键搬了家」误报成「键没人用」。 */
+const booksSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');
+const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + booksSrc;
 
 function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());

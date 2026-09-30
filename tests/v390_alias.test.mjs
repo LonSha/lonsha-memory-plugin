@@ -9,13 +9,15 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf8');
 const sui = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf8');
 const man = JSON.parse(readFileSync(`${REPO_ROOT}/manifest.json`, 'utf8'));
+/* [v3.259.0 A1 第四刀] BM25 与 PrequelSystem 已外迁到 memory-books.js。 */
+const bkSrc = readFileSync(`${REPO_ROOT}/memory-books.js`, 'utf8');
 
 // ---------- 静态接线检查 ----------
 assert.ok(src.includes('buildAliasMap()'), '别名映射构建方法在位');
 assert.ok(src.includes('_expandAliases('), 'BM25 别名扩展方法在位');
 assert.ok(src.includes('aliasQueryExpansion: true,  // [v3.90] 实体别名查询扩展'), 'config 默认值在位');
 assert.ok(src.includes('aliasMap: query.aliases'), '召回管线传参在位');
-assert.ok(src.includes('query?.aliases || null'), '前情选段传参在位');
+assert.ok(bkSrc.includes('query?.aliases || null'), '前情选段传参在位');
 assert.ok(sui.includes("ck('aliasQueryExpansion', '别名查询扩展'"), '设置开关在位');
 // [v3.92] 硬编码 -> 跨源自洽（真实不变量是两源相等，不是等于某字面量）
 const __verIdx = (src.match(/const VERSION = '([^']+)'/) || [])[1];
@@ -38,7 +40,7 @@ function extractMethod(source, name) {
   return source.slice(start, end + 1);
 }
 const aliasMapSrc = extractMethod(src, 'buildAliasMap');
-const bm25Src = src.slice(src.indexOf('class BM25 {'), src.indexOf('class BM25 {') + 6000);
+const bm25Src = bkSrc.slice(bkSrc.indexOf('class BM25 {'));
 
 // ---------- 测试 1: buildAliasMap 归一化 + 防碰撞 ----------
 const graphNodes = new Map();
@@ -73,8 +75,8 @@ function extractInRange(source, name) {
   }
   return source.slice(idx, end + 1);
 }
-const tokenSrc = extractInRange(src.slice(src.indexOf('class BM25 {')), '_tokenize');
-const expandSrc = extractInRange(src.slice(src.indexOf('class BM25 {')), '_expandAliases');
+const tokenSrc = extractInRange(bkSrc.slice(bkSrc.indexOf('class BM25 {')), '_tokenize');
+const expandSrc = extractInRange(bkSrc.slice(bkSrc.indexOf('class BM25 {')), '_expandAliases');
 const bmObj = new Function(`return ({ ${tokenSrc}, ${expandSrc} });`)();
 const amap2 = new Map([['阿珈', '珞珈'], ['alice', '爱丽丝原主名']]);
 assert.strictEqual(bmObj._expandAliases('阿珈今天心情怎么样', amap2), '阿珈今天心情怎么样 珞珈', '命中别名 → 附加主名');
@@ -84,14 +86,14 @@ assert.strictEqual(bmObj._expandAliases('任意文本', null), '任意文本', '
 console.log('✓ 测试 2: BM25 _expandAliases 文本层扩展');
 
 // ---------- 测试 3: 端到端——别名扩展让主名记忆被召回 ----------
-const bm25ClsStart = src.indexOf('class BM25 {');
+const bm25ClsStart = bkSrc.indexOf('class BM25 {');
 let depth3 = 0, end3 = -1;
-for (let i = src.indexOf('{', bm25ClsStart); i < src.length; i++) {
-  if (src[i] === '{') depth3++;
-  else if (src[i] === '}') { depth3--; if (depth3 === 0) { end3 = i; break; } }
+for (let i = bkSrc.indexOf('{', bm25ClsStart); i < bkSrc.length; i++) {
+  if (bkSrc[i] === '{') depth3++;
+  else if (bkSrc[i] === '}') { depth3--; if (depth3 === 0) { end3 = i; break; } }
 }
 const BM25Ctor = new Function('BM25_dummy', `
-  const cls = ${JSON.stringify(src.slice(bm25ClsStart, end3 + 1))};
+  const cls = ${JSON.stringify(bkSrc.slice(bm25ClsStart, end3 + 1))};
   const factory = new Function(cls + '; return BM25;');
   return factory();
 `)();

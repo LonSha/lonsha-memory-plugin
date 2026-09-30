@@ -8,6 +8,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
 
 function braceEnd(s, open) {
     let depth = 0;
@@ -20,11 +24,11 @@ function braceEnd(s, open) {
     }
     return -1;
 }
-function extractClass(name) {
-    const start = src.indexOf(`class ${name} {`);
+function extractClass(name, source = src) {
+    const start = source.indexOf(`class ${name} {`);
     if (start < 0) throw new Error('missing class ' + name);
-    const brace = src.indexOf('{', start);
-    return src.slice(start, braceEnd(src, brace) + 1);
+    const brace = source.indexOf('{', start);
+    return source.slice(start, braceEnd(source, brace) + 1);
 }
 
 const errLog = () => {};
@@ -115,7 +119,7 @@ test('=== 3. 主角客观档案与生活细节癖好追踪动态测试 ===', () 
 });
 
 test('=== 4. 悬念簿近期已了结事项防复读注入动态测试 ===', () => {
-    const suspCode = extractClass('SuspenseBook');
+    const suspCode = extractClass('SuspenseBook', bkSrc);
     const mkSuspense = () => new Function(`
         ${suspCode}
         return new SuspenseBook();

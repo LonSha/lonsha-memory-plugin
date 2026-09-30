@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.258.0",
+  "version": "3.259.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -81,7 +81,8 @@
     "cache-workload.js",
     "memory-ledgers.js",
     "memory-aux.js",
-    "narrative-generators.js"
+    "narrative-generators.js",
+    "memory-books.js"
   ],
   "extra_css": [
     "lonsha-design.css",

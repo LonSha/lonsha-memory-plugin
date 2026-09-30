@@ -2,6 +2,8 @@
 // v3.19 RUBY 结构型收编测试（周期调度 + 增量书签 + 系统消息修正）
 import { readFileSync } from 'fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark 已外迁 memory-books.js（本档只抽该类）。 */
+const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf-8');
 const PLUGIN_NAME = 'LonSha记忆引擎';
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
@@ -64,7 +66,9 @@ function makeBookmarkEngine() {
   };
 }
 // 直接用源码类 IncrementBookmark 的行为逻辑（mock window）
-const ibM = src.match(/    class IncrementBookmark \{[\s\S]*?\n    \}\n/);
+// [v3.259.0 A1 第四刀] IncrementBookmark 已外迁 memory-books.js：模块顶层是 IIFE，
+//   类声明无 4 空格缩进、类体末行是列首 `}`。抽取正则与读取源随之换轨（语义不变）。
+const ibM = bkSrc.match(/class IncrementBookmark \{[\s\S]*?\n\}/);
 if (!ibM) fail('IncrementBookmark 未找到');
 // 通过 eval 构造类，注入 window mock
 global.window = {

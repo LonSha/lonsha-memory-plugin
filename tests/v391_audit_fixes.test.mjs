@@ -9,6 +9,8 @@ const ga = fs.readFileSync('graph_algorithms.js', 'utf8');
 /* [v3.258.0 A1 第三刀] 生成侧三类已外迁。[9]「幽灵配置」扫描面必须含这些模块，
  *   否则已搬家的消费点会被判成零引用。 */
 const genSrc = fs.readFileSync('narrative-generators.js', 'utf8');
+/* [v3.259.0 A1 第四刀] 七个书册/时间类外迁到 memory-books.js。 */
+const bkSrc = fs.readFileSync('memory-books.js', 'utf8');
 const faceText = src + String.fromCharCode(10) + genSrc;
 
 // ---------- 提取工具（复用 v388/v390 花括号计数法） ----------
@@ -55,10 +57,10 @@ test('【1】presenceInjection 门控键统一（原 presenceTier 恒 undefined 
 
 // ═══════════ 2. echoBaseLife / echoMaxCount：硬编码绕过修复 ═══════════
 test('【2】EchoPool 读取 config（原硬编码 life=2 / cap=30 绕过配置）', () => {
-    const cls = extractClass(src, 'EchoPool');
+    const cls = extractClass(bkSrc, 'EchoPool');
     assert.ok(!/life:\s*2,/.test(cls) || cls.includes('life: baseLife'), '不再硬编码 life: 2');
     assert.ok(!cls.includes('slice(-30)') && !cls.includes('> 30'), '不再硬编码容量 30');
-    const EchoPool = new Function('errLog', extractClass(src, 'EchoPool') + '; return EchoPool;')(() => {});
+    const EchoPool = new Function('errLog', extractClass(bkSrc, 'EchoPool') + '; return EchoPool;')(() => {});
 
     // 行为 A: 自定义 baseLife 生效
     const p1 = new EchoPool(() => ({ echoBaseLife: 4, echoMaxCount: 10 }));

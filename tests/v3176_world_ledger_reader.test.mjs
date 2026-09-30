@@ -365,7 +365,8 @@ test('【G6】worldLedgerLine 未读返回 null；已读/不可用均给得出�
 });
 
 test('【G7】★ 本地投影由插件本体收集（GameClock 上没有 status/outline，挂上去会静默恒空）', () => {
-    const gcSrc = idxSrc.slice(idxSrc.indexOf('class GameClock'), idxSrc.indexOf('class PlotTimeline'));
+    // [v3.259.0 A1 第四刀] PlotTimeline 已外迁，旧边界会把切片拉到文件末尾；改花括号配平。
+    const gcSrc = extractClass(idxSrc, 'GameClock');
     assert.ok(!/_localPeopleLocations\s*\(/.test(gcSrc), '★ 本地投影不得挂在 GameClock 上（时钟无 status/outline ⇒ 对读永远静默返回空）');
     assert.ok(!/_localFactKeys\s*\(/.test(gcSrc));
     assert.ok(/_localPeopleLocations\(\)\s*\{/.test(idxSrc), '投影收集器在插件本体');

@@ -419,7 +419,14 @@ test('【G1】★ 缺席退路与真实现同形：12 个同位方法一个不�
 test('【G2】★ 缺席退路不得伪造「能写不能读」的世界（读侧一律空/假）', () => {
     // 段锚点用类名（'[v2.2] RC: 悬念簿' 这类注记在文件前部也出现过，indexOf 会取到更早的位置而切出空段）
     const at = idxSrc.indexOf('class SceneBookFallback');
-    const end = idxSrc.indexOf('class SuspenseBook', at);
+    /* [v3.259.0 A1 第四刀] 原终点用「下一个类的名字」（class SuspenseBook）——该类已外迁
+     *   memory-books.js，锚点随之消失。退路段边界改由**代码结构**决定：花括号配平（到下一位列的 `}` 为止）。
+     *   这与 v3130 对 GameClock 的修法同形：边界不由「下一个类叫什么」决定。 */
+    let end = -1, _depth = 0;
+    for (let i = idxSrc.indexOf('{', at); i < idxSrc.length; i++) {
+        if (idxSrc[i] === '{') _depth++;
+        else if (idxSrc[i] === '}') { _depth--; if (_depth === 0) { end = i + 1; break; } }
+    }
     assert.ok(at > 0 && end > at, '退路段可定位（at=' + at + ' end=' + end + '）');
     const seg = idxSrc.slice(at, end);
     assert.ok(seg.length > 800, '退路段长度为实（' + seg.length + ' 字符）');

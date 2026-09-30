@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.258.0';
+    const VERSION = '3.259.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -997,6 +997,107 @@
         const NG = _narrativeGeneratorsLib();
         const C = (NG && typeof NG[name] === 'function') ? NG[name] : NarrativeGeneratorFallback;
         return new C();
+    }
+    // ═══════════════════════════════════════════════════════════════════
+    // [A1 第四刀] 书册与时间工具类集取库口（memory-books.js）
+    //   IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+    //   RelativeTimeHelper / PlotTimeline / BM25 七个类已于本版抽为 memory-books.js。
+    //   为什么七个同类一刀：它们之间只有两条真依赖边（PrequelSystem→BM25 选段、
+    //   SuspenseBook→RelativeTimeHelper 倒计时），两条边都跨「书册 ↔ 时间」，
+    //   拆开反而要另造注入链。抽走前的实测依据：七个类彼此不再有别的互调、
+    //   对主人符号的依赖只有 6 处诊断记账（已收进构造参数 errLog）与 2 处日期松解析
+    //   （模块内自带逐字副本），对外只被 MemoryEngine 在构造期 new 一次、之后按方法名调用。
+    //   本取库口与 _narrativeGeneratorsLib / _memoryAuxLib 同形：**不在构造期缓存**（extra_js 后加载）。
+    // ═══════════════════════════════════════════════════════════════════
+    function _memoryBooksLib() {
+        return _moduleLib(() => window.LonShaMemoryBooks, 'memory-books.js');
+    }
+    // 模块缺席时的内置退路：与 memory-books.js 的公开面**同形**（少功能但绝不抛、绝不静默）。
+    //   为什么不留着旧类当退路：两份实现会漂移（前三刀同一条理由）。
+    //   故退路是一层**常量空实现**：读数全部如实回报「没有」——不伪造一个能写不能读的账本。
+    //   空实现刻意**不吃构造参数**：每个方法都是常量返回，没有「有 opts 才能正确回报」的分支；
+    //   真实现才需要 errLog / cfgGetter 才能如实回报；两份实现的公开面按**方法名**对账。
+    class MemoryBooksFallback {
+        constructor() { this._absent = true; }
+        /* ── IncrementBookmark ── */
+        _store() { return null; }
+        get() { return 0; }
+        save() { return undefined; }
+        reset() { return undefined; }
+        all() { return {}; }
+        resyncAfterDeletion() { return []; }
+        /* ── EchoPool ── */
+        _baseLife() { return 0; }
+        _maxCount() { return 0; }
+        onRecalled() { return undefined; }
+        tick() { return []; }
+        /* ── SuspenseBook ── */
+        add() { return null; }
+        getOpenPrompts() { return []; }
+        resolve() { return null; }
+        openItems() { return []; }
+        recentlyResolved() { return []; }
+        getRecentlyResolvedPrompt() { return []; }
+        prune() { return 0; }
+        briefForPrompt() { return '（暂无未了结的悬念）'; }
+        /* ── PrequelSystem ── */
+        importPrequel() { return { ok: false, chars: 0 }; }
+        clearPrequel() { return undefined; }
+        _boundaryWeight() { return 0; }
+        splitFragments() { return []; }
+        _frags() { return []; }
+        _format() { return ''; }
+        _estimateTokens() { return 0; }
+        _tailFallback() { return []; }
+        selectInjection() { return []; }
+        buildInjection() { return ''; }
+        /* ── RelativeTimeHelper ── */
+        extractDualTimeTags() { return { hasDual: false, start: null, end: null, durationMinutes: 0, parseError: null }; }
+        compactTimeRange() { return ''; }
+        formatTimeRange() { return ''; }
+        calcAge() { return 0; }
+        calcDaysTogether() { return 0; }
+        normalizeNumericDateSeparators() { return ''; }
+        looksLikeStructuredNumericDate() { return false; }
+        extractDayNumber() { return null; }
+        extractMonthIdentifier() { return null; }
+        parseStoryDate() { return null; }
+        calcDaysDiff() { return null; }
+        relativeTimePrefix() { return ''; }
+        /* ── PlotTimeline ── */
+        searchNear() { return []; }
+        _norm() { return ''; }
+        getChangesSince() { return []; }
+        /* ── BM25 ── */
+        _tokenize() { return []; }
+        _lexExpand() { return ''; }
+        _lexNormalize() { return ''; }
+        normalizeQueryByLexicon() { return ''; }
+        rebuild() { return undefined; }
+        _cliffCut() { return []; }
+        search() { return []; }
+        _expandAliases() { return ''; }
+        searchBranches() { return []; }
+        /* ── 多方共用名（一个形状覆盖全部：如实回报「没有」）── */
+        export() { return {}; }
+        import() { return undefined; }
+    }
+    /** 取一个书册/时间工具实例：模块在场用真实现，缺席退到同形空实现（**不静默化成空对象**）。
+     *  余下参数原样转发给真实现的构造（IncrementBookmark 收 engine+errLog、EchoPool 收
+     *  cfgGetter+errLog、RelativeTimeHelper 收 errLog）——空实现忽略它们（见上方注释）。 */
+    function _newMemoryBooks(name, ...args) {
+        const MB = _memoryBooksLib();
+        const C = (MB && typeof MB[name] === 'function') ? MB[name] : MemoryBooksFallback;
+        return new C(...args);
+    }
+    /** [A1 第四刀] RelativeTimeHelper 的唯一取用口：真实现或同形空实现，errLog 一律注入。
+     *  独立出来是因为宿主有 13 处零散 `_newRelativeTimeHelper()`（时间标签 / 相对前缀 /
+     *  年龄推算 / 期限判定），逐个写取库表达式会把「缺模块时退到哪」散成 13 份。
+     *  注入用模块导出的 bindErrLog 现算 —— 本仓库纪律「不在构造期缓存模块对象」（extra_js 后加载）。 */
+    function _newRelativeTimeHelper() {
+        const MB = _memoryBooksLib();
+        const opt = (MB && typeof MB.bindErrLog === 'function') ? MB.bindErrLog({ errLog }) : {};
+        return _newMemoryBooks('RelativeTimeHelper', opt.errLog || errLog);
     }
     class ConfigManager {
         constructor() {
@@ -2117,49 +2218,6 @@ function relativeTimeLabel(eventTime, nowTime) {
         if (m.emotion === undefined) m.emotion = { valence: 0.5, arousal: 0.5 };
         return m;
     }
-
-    class IncrementBookmark {
-        constructor(engine) { this.engine = engine; this.NS = 'LonShaMemory'; }
-        _store() {
-            try {
-                const ctx = window.SillyTavern?.getContext?.();
-                const meta = ctx?.chatMetadata;
-                if (!meta) return null;
-                meta.extensions ??= {};
-                meta.extensions[this.NS] ??= {};
-                meta.extensions[this.NS].bookmarks ??= {};
-                return meta.extensions[this.NS].bookmarks;
-            } catch (e) { return null; }
-        }
-        get(key) { const s = this._store(); if (!s) return 0; const v = Number(s[key]); return Number.isFinite(v) && v > 0 ? v : 0; }
-        save(key, ordinal) {
-            const s = this._store();
-            if (!s || !Number.isFinite(ordinal) || ordinal <= 0) return;
-            s[key] = ordinal;
-            try { window.SillyTavern?.getContext?.()?.saveMetadataDebounced?.(); } catch (e) { errLog(e, 'nonfatal') }
-        }
-        reset(key) { const s = this._store(); if (s) delete s[key]; }
-        all() { const s = this._store(); return s ? { ...s } : {}; }
-        // [v3.19] 删楼后书签重同步（ruby resyncBookmarksAfterDeletion）:
-        // 删除使后续楼层序数前移，书签减去位于其前的被删楼层数；越界重置
-        resyncAfterDeletion(deletedOldOrdinals, currentAiCount) {
-            const s = this._store();
-            if (!s || !deletedOldOrdinals?.length) return [];
-            const changed = [];
-            for (const [k, raw] of Object.entries(s)) {
-                const b = Number(raw);
-                if (!Number.isFinite(b) || b <= 0) continue;
-                let next = b - deletedOldOrdinals.filter(d => d <= b).length;
-                if (next > currentAiCount) next = 0;
-                if (next !== b) { s[k] = next; changed.push(`${k} ${b}→${next}`); }
-            }
-            if (changed.length && window.SillyTavern?.getContext?.()?.saveMetadataDebounced) {
-                try { window.SillyTavern.getContext().saveMetadataDebounced(); } catch (e) { errLog(e, 'nonfatal') }
-            }
-            return changed;
-        }
-    }
-
     // [v3.23] 跨调用去重状态（NE-Memory recall_memory lastRecallMsgIds）
     // 缓存上一次注入召回结果的追溯指纹, 下次注入时若候选已被上轮覆盖则附加 [DEDUP] 提示
     const _recallDedupState = { lastTexts: null, lastQuery: '', lastChatId: '' };
@@ -2402,7 +2460,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastSaveGroundTruth = { ts: 0, floor: -1, sources: {} };   // [v3.130] 保存地面真源：最近一次保存的时间/楼层/来源计数
             // [v3.37] 叙事惊奇度/熵累加器（MemGPT 动态反思理念）
             this._narrativeEntropy = 0;
-            this.bookmarks = new IncrementBookmark(this);   // [v3.19] 增量书签（ruby）
+            this.bookmarks = _newMemoryBooks('IncrementBookmark', this, errLog);   // [v3.19] 增量书签（ruby）· [v3.259.0] A1 第四刀外移
             this.config = config;
             this.graph = new MemoryGraph();
             this.summary = new SummarySystem();
@@ -2483,18 +2541,18 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.llm = new LLMCaller(config);
             // [v1.8] P0
             this.pov = _newMemoryLedger('PovMemory');
-            this.timeline = new PlotTimeline();
+            this.timeline = _newMemoryBooks('PlotTimeline');
             // [v3.46] 剧情时钟与回忆隔离
             this.clock = new GameClock();
             // [v1.9] P1
-            this.bm25 = new BM25();
+            this.bm25 = _newMemoryBooks('BM25');
             // [v3.152] ANIMA 词典线：术语词典实例（默认开；构造零依赖，存档键 lexicon）
             // [v3.157] 配置接线：此前这里不传参，EntityLexicon 恒用内建默认 40，
             //   `termLexiconMax` 的 UI 滑块与卡覆盖均为死配置（改了没反应）。
             this.lexicon = new (window.LonShaEntityLexicon?.EntityLexicon || function () { this.items = []; this.resolve = () => null; this.export = () => []; this.import = () => {}; this.promptRules = () => ''; this.match = () => []; })({
                 max: numOr(this.config.config.termLexiconMax, 40)
             });
-            this.prequel = new PrequelSystem();   // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入前情资料
+            this.prequel = _newMemoryBooks('PrequelSystem');   // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入前情资料
             // [v2.0] P2
             this.status = new CharacterState();
             this.status.clock = this.clock;   // [v3.180] 年龄读数的日期解析助手来源（引擎侧注入优先；
@@ -2515,11 +2573,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._swipeRegen = false;   // 末楼 swipe_id>0（正在重绘 assistant 回复）
             this._currentFloor = -1;    // 当前楼层（台账臂窗口锚点）
             // [v2.2] RC
-            this.suspense = new SuspenseBook();
+            this.suspense = _newMemoryBooks('SuspenseBook');
             // [v3.181] SG: 场所图景（构造期只取函数调用结果，不缓存模块对象）
             this.scene = _newSceneBook();
             // [v2.5] RF
-            this.echo = new EchoPool(() => this.config?.config || null);
+            this.echo = _newMemoryBooks('EchoPool', () => this.config?.config || null, errLog);
             // [v3.30] PV: 记忆矛盾换代（window.LonShaSupersede）
             this.supersede = new (window.LonShaSupersede?.SupersedeManager || function() {
                 this.supersededMap = {}; this.config = {};
@@ -3164,9 +3222,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                     if (_outlineParsed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🎬 解析剧情大纲: ${_outlineParsed.title}（${_outlineParsed.nodes.length} 节点）`);
                 } catch (e) { errLog(e, 'onMessageReceived.大纲解析'); }
             }
-            if (!this.rth) this.rth = new RelativeTimeHelper();
+            if (!this.rth) this.rth = (typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper();
                 const dualTimeAnchor = (this.config.config.dualTimeAnchorEnabled !== false) ? (() => {
-                try { return new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis); } catch (e) { return null; }
+                try { return _newRelativeTimeHelper().extractDualTimeTags(_rawForSynopsis); } catch (e) { return null; }
             })() : null;
             if ((aiRecallOps && (aiRecallOps.changes.length || aiRecallOps.todos.length || aiRecallOps.items.length)) || timeTagFound || dualTimeAnchor?.hasDual) {
                 if (aiRecallOps && this.config.config.aiRecallOpsDebug) console.log(`[${PLUGIN_NAME}] 主动记忆操作: 字段${aiRecallOps.changes.length} 待办${aiRecallOps.todos.length} 物品${aiRecallOps.items.length} (楼层 ${message.index})`);
@@ -3513,7 +3571,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     try {
                         const _tts = this.clock.timeTagStats || (this.clock.timeTagStats = { total: 0, paired: 0, unparseable: 0, calibrated: 0 });
                         _tts.total++;
-                        const _dtt = new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');
+                        const _dtt = _newRelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');
                         if (_dtt?.parseError === 'half-pair') {
                             // 半对：另一侧缺失——记录但不校准
                             if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 时间标签半对(缺${_dtt.start ? 'end' : 'start'})，跳过时钟校准 (楼层 ${curFloor})`);
@@ -3541,7 +3599,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     let sd = this.extractStoryDate(message.mes || '', extracted.story_date);
                     // [v3.72] B: 正文时间标签的 end 优先为剧情日期（正文事实优先于 LLM 猜测）
                     try {
-                        const dta = new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');  // [v3.73] 清洗前原文（cleanMessageText 会剥 bbs 标签）
+                        const dta = _newRelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');  // [v3.73] 清洗前原文（cleanMessageText 会剥 bbs 标签）
                         if (dta?.hasDual && dta.end) {
                             const endDate = String(dta.end).split(/\s+/)[0];  // 取日期部分（去时刻）
                             if (endDate && /[\d年月/.]/.test(endDate)) sd = endDate;
@@ -3951,7 +4009,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 let _summaryStoryTime = '';
                 try {
                     _summaryStoryTime = String(this.extractStoryDate(message.mes || '', extracted?.story_date) || '').trim();
-                    const _dta2 = new RelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');
+                    const _dta2 = _newRelativeTimeHelper().extractDualTimeTags(_rawForSynopsis || message.mes || '');
                     if (_dta2?.hasDual && _dta2.end) {
                         const _endDate2 = String(_dta2.end).split(/\s+/)[0];
                         if (_endDate2 && /[\d年月/.]/.test(_endDate2)) _summaryStoryTime = _endDate2;
@@ -4741,7 +4799,7 @@ function relativeTimeLabel(eventTime, nowTime) {
         // [v2.9] RU-A: 主动时间推进（抄 shujuku plot-runtime——"三天后"无具体日期时算术推进）
         advanceStoryDate(baseDate, days) {
             try {
-                const h = new RelativeTimeHelper();
+                const h = _newRelativeTimeHelper();
                 const parsed = h.parseStoryDate(baseDate);
                 if (!parsed || parsed.type !== 'standard') return null;  // 架空日历无法算术，宁可不推
                 const now = new Date();
@@ -12456,50 +12514,6 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'engine.typedFactsBlocks'); return { stable: '', volatile: '' }; }
         }
     }
-    
-    // [v2.5] RF: 回响池（抄 anima echoConfig——召回过的记忆停留N轮，防同一记忆"闪现又消失"）
-    class EchoPool {
-        // [v3.91] 审计修复：baseLife/maxCount 原为硬编码 2/30，绕过 config.echoBaseLife(2)/echoMaxCount(10)，
-        //         配置项与 UI 滑块调整均无实际效果，且容量行为与声明不符。改为构造注入（cfgGetter 惰性读取，支持运行时改配置）。
-        constructor(cfgGetter = null) {
-            this.items = [];   // [{key, text, source, life}]
-            this._cfg = typeof cfgGetter === 'function' ? cfgGetter : null;
-        }
-        _baseLife() {
-            const v = Number(this._cfg?.()?.echoBaseLife);
-            return Number.isFinite(v) && v >= 1 ? Math.round(v) : 2;
-        }
-        _maxCount() {
-            // [v3.156] 0 = 关闭回响池（UI min=0 的合法意图）；仅 NaN/负数回落默认 10
-            const v = Number(this._cfg?.()?.echoMaxCount);
-            return Number.isFinite(v) && v >= 0 ? Math.round(v) : 10;
-        }
-        onRecalled(recalled) {
-            try {
-                const now = Date.now();
-                const baseLife = this._baseLife();
-                for (const item of (recalled || []).slice(0, 20)) {
-                    const key = item.id || item.text || JSON.stringify(item).slice(0, 60);
-                    const exist = this.items.find(x => x.key === key);
-                    if (exist) { exist.life = Math.max(exist.life, baseLife); exist.lastSeen = now; }   // 重要度更高的条目粘更久
-                    else this.items.push({ key, text: item.text || item.content || item.summary || '', source: item.source, life: baseLife, lastSeen: now });
-                }
-                const cap = this._maxCount();
-                // [v3.156] cap=0 时 `slice(-0)` === `slice(0)` === 原数组（不会清空），
-                //   必须显式清空才符合「关闭回响池」语义；负数已在 _maxCount 回退。
-                if (cap <= 0) this.items = [];
-                else if (this.items.length > cap) this.items = this.items.slice(-cap);
-            } catch (e) { errLog(e, 'EchoPool.onRecalled'); }
-        }
-        /** 每轮衰减；返回仍存活的（life>0） */
-        tick() {
-            this.items = this.items.filter(x => { x.life -= 1; return x.life > 0; });
-            return this.items;
-        }
-        export() { return this.items; }
-        import(data) { const cap = this._maxCount(); this.items = Array.isArray(data) ? (cap <= 0 ? [] : data.slice(-cap)) : []; }   // [v3.156] 关闭态不导入存量
-    }
-
     // [v3.181] SG: 场所图景（Spatial Grounding）——SceneBook 已抽为独立模块 scene-book.js。
     //   抽取前的现场（本版修掉的）：整个类 89 行，读法只有 currentKey/chainOf/brief 三个；
     //   「谁在何处 / 到访史 / 某地多大多深 / 树完不完整」全部读不出来，且 rollbackFloorOnly
@@ -12736,115 +12750,6 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         import() { /* 无真源可导入：如实保持空 */ }
         summary() { return { version: 0, scale: this.scale(), current: null, currentLine: null, currentChain: [], presence: [], coverage: this.coverage(), tree: this.tree(), visits: this.visitHistory(), header: this.headerFace(), empty: true, absent: true }; }
     }
-
-    // [v2.2] RC: 悬念簿（抄 baibai MemPlan：约定/伏笔/未解之谜 + done/cancelled/failed 三态了结）
-    class SuspenseBook {
-        constructor() { this.items = []; this._seq = 0; }
-        /** 添加新悬项。kind: 'plan'|'suspense' */
-        add(kind, content, floor, createdTime, due) {
-            const c = String(content || '').trim();
-            if (c.length < 4) return null;
-            const id = 'sus_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-            this._seq = (this._seq || 0) + 1;
-            this.items.push({
-                id, sid: 's' + this._seq, kind: (kind === 'suspense' ? 'suspense' : 'plan'), content: c.slice(0, 120),
-                status: 'open', floor: floor ?? null, createdTime: createdTime || null, due: due || null,
-                outcome: null, resolvedReason: null, resolvedFloor: null, createdAt: Date.now()
-            });
-            return id;
-        }
-        /** [v3.46] 吸收 Bakemono: 悬念倒计时与剧情时钟联动计算 */
-        getOpenPrompts(clockDate) {
-            const rth = new RelativeTimeHelper();
-            return this.openItems().map(it => {
-                let note = `${it.sid} [${it.kind === 'plan' ? '计划' : '悬念'}] ${it.content}`;
-                if (it.due) {
-                    const dueStr = String(it.due).trim();
-                    if (clockDate && rth) {
-                        try {
-                            const pClock = rth.parseStoryDate(clockDate);
-                            const pDue = rth.parseStoryDate(dueStr);
-                            if (pClock && pDue && pClock.type === 'standard' && pDue.type === 'standard') {
-                                const d1 = new Date(Date.UTC(pClock.year || 2026, (pClock.month || 1) - 1, pClock.day || 1));
-                                const d2 = new Date(Date.UTC(pDue.year || 2026, (pDue.month || 1) - 1, pDue.day || 1));
-                                const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-                                if (diffDays < 0) note += ` [已逾期${Math.abs(diffDays)}天!]`;
-                                else if (diffDays === 0) note += ' [今日到期!]';
-                                else note += ` [距期限还剩${diffDays}天]`;
-                            } else {
-                                note += ` [期限:${dueStr}]`;
-                            }
-                        } catch (e) { note += ` [期限:${dueStr}]`; }
-                    } else {
-                        note += ` [期限:${dueStr}]`;
-                    }
-                }
-                return note;
-            });
-        }
-        /** 了结悬项。outcome: 'done'|'cancelled'|'failed' */
-        resolve(idOrContent, outcome, reason, floor) {
-            let it = this.items.find(x => x.id === idOrContent && x.status === 'open');
-            if (!it) it = this.items.find(x => x.sid === idOrContent && x.status === 'open');
-            if (!it) {
-                const key = String(idOrContent || '').trim();
-                // [v3.179] 唯一命中才结：多条并存一律不动（与承诺账本 resolvePromise 的同族纪律对齐）。
-                //   旧实现是 find 取【首个】模糊命中：AI 回引里写了半句/泛词（如「约定」「出去」）时，
-                //   会把一条不相干的悬项当成目标结掉，且全程无痕——悬念簿自报「了结」，正文其实没发生。
-                //   宁可漏结（保持 open，下一轮可再次精确引用），不可错结。
-                const cands = key ? this.items.filter(x => x.status === 'open' && (x.content.includes(key) || key.includes(x.content))) : [];
-                if (cands.length === 1) it = cands[0];
-            }
-            if (!it) return null;
-            it.status = 'resolved';
-            it.outcome = ['done', 'cancelled', 'failed'].includes(outcome) ? outcome : 'done';
-            it.resolvedReason = String(reason || '').slice(0, 80) || null;
-            it.resolvedFloor = floor ?? null;
-            return it;
-        }
-        openItems() { return this.items.filter(x => x.status === 'open'); }
-        /** 近期了结（注入"已了结"分区，防主模型把办完的事再拿出来说） */
-        recentlyResolved(limit = 3) {
-            return this.items.filter(x => x.status === 'resolved').slice(-limit).reverse();
-        }
-        /** [v3.45] 近期已了结/已作废事项防复读注入 (baibai 理念) */
-        getRecentlyResolvedPrompt(limit = 3) {
-            const recents = this.recentlyResolved(limit);
-            if (!recents.length) return [];
-            return recents.map(x => {
-                const outcomeMap = { done: '已达成', cancelled: '已作废', failed: '已失败' };
-                const outLabel = outcomeMap[x.outcome] || '已了结';
-                const reason = x.resolvedReason ? `（原因：${x.resolvedReason}）` : '';
-                return `- [${outLabel}] ${x.content}${reason}`;
-            });
-        }
-        /** 上限控制：超出的最旧 open 沉降（不再注入，但保留记录） */
-        prune(maxOpen) {
-            const open = this.openItems();
-            if (open.length <= (maxOpen || 20)) return 0;
-            const toClose = open.slice(0, open.length - (maxOpen || 20));
-            for (const it of toClose) { it.status = 'resolved'; it.outcome = 'cancelled'; it.resolvedReason = '（长期未了结，自动沉降）'; }
-            return toClose.length;
-        }
-        /** 给提取 prompt 的悬念清单（带稳定短编号 s1/s2… 供 LLM 引用了结） */
-        briefForPrompt() {
-            const open = this.openItems();
-            if (!open.length) return '（暂无未了结的悬念）';
-            return open.slice(0, 12).map(x => `${x.sid || '?'}: ${x.kind === 'suspense' ? '[谜团]' : '[约定]'} ${x.content}`).join('\n');
-        }
-        export() { return this.items; }
-        import(data) {
-            this.items = Array.isArray(data) ? data : [];
-            // 恢复序号器: 取历史最大 sid 编号, 防新条目 sid 撞号
-            let mx = 0;
-            for (const x of this.items) {
-                const m = String(x.sid || '').match(/^s(\d+)$/);
-                if (m) mx = Math.max(mx, Number(m[1]));
-            }
-            this._seq = mx;
-        }
-    }
-
     // [v2.2] RC: 相对时间前缀（抄 baibai timeRel：数字日历精确算天数差，宁可不标绝不标错）
     function parseStoryDateLoose(s) {
         s = String(s || '');
@@ -12879,7 +12784,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     // [v2.6] RG: 相对时间统一走 RelativeTimeHelper（架空日历/全角分隔符容忍），旧 storyDayDiff 保留为兜底
     function relativePrefix(dateStr, nowStr) {
         try {
-            const p = new RelativeTimeHelper().relativeTimePrefix(dateStr, nowStr);
+            const p = _newRelativeTimeHelper().relativeTimePrefix(dateStr, nowStr);
             if (p) return p;
         } catch (e) { errLog(e, 'relativePrefix.legacy兜底'); }
         try {
@@ -13261,129 +13166,6 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             this.rebuildNameIndex();   // [v3.6] 统一走重建（原实现不归一化，SF4 归一化键缺失）
         }
     }
-    
-    // [v3.87] 吸收 MyriadKnots recall-prequel：用户导入的过去经历资料（前情导入）
-    // 边界加权切片（换行3/句叹分号2/空白1）+ BM25 分支归一化选段 + 预算内注入
-    class PrequelSystem {
-        constructor() {
-            this.text = '';          // 前情原文（随聊天持久化）
-            this.importedAt = 0;
-            this._fragCache = { src: null, maxChars: 0, fragments: [] };
-        }
-        FRAGMENT_CHARS = 560;      // 千千结 DEFAULT_FRAGMENT_CHARACTERS
-        BUDGET_SHARE = 0.3;        // 千千结 PREQUEL_BUDGET_SHARE
-        MAX_TOKENS = 1200;         // 千千结 MAX_PREQUEL_TOKENS
-        INSTRUCTION = '以下内容为用户导入的过去经历资料，仅用于理解前情。旧状态不代表现在仍持续；若新聊天已明确发生变化，以新聊天为准。';
-        MAX_SOURCE_CHARS = 400000; // 硬上限防恶意输入
-
-        importPrequel(text) {
-            const s = String(text ?? '').replace(/\r\n/g, '\n').trim();
-            if (!s) return { ok: false, chars: 0 };
-            const truncated = s.length > this.MAX_SOURCE_CHARS;
-            this.text = truncated ? s.slice(0, this.MAX_SOURCE_CHARS) : s;
-            this.importedAt = Date.now();
-            this._fragCache = { src: null, maxChars: 0, fragments: [] };
-            return { ok: true, chars: this.text.length, truncated };
-        }
-        clearPrequel() { this.text = ''; this.importedAt = 0; this._fragCache = { src: null, maxChars: 0, fragments: [] }; }
-        export() { return { text: this.text, importedAt: this.importedAt }; }
-        import(data) {
-            if (!data || typeof data !== 'object') return;
-            this.text = String(data.text || '');
-            this.importedAt = Number(data.importedAt) || 0;
-            this._fragCache = { src: null, maxChars: 0, fragments: [] };
-        }
-        // 边界权重（千千结 boundaryWeight）：换行3 / 句叹分号2 / 空白1
-        _boundaryWeight(ch) {
-            if (/[\n\r]/.test(ch)) return 3;
-            if (/[。！？!?；;]/u.test(ch)) return 2;
-            if (/\s/u.test(ch)) return 1;
-            return 0;
-        }
-        // 边界加权切片（忠实移植 splitPrequelText）
-        splitFragments(source, maxChars = 560) {
-            const s = String(source ?? '');
-            if (!s) return [];
-            const chars = [...s];
-            const maximum = Math.max(32, Math.floor(Number(maxChars) || 560));
-            const fragments = [];
-            for (let start = 0; start < chars.length;) {
-                const endLimit = Math.min(chars.length, start + maximum);
-                let end = endLimit;
-                if (endLimit < chars.length) {
-                    const minimum = Math.min(endLimit, start + Math.max(16, Math.floor(maximum * 0.55)));
-                    let bestWeight = 0;
-                    for (let index = endLimit - 1; index >= minimum; index -= 1) {
-                        const weight = this._boundaryWeight(chars[index]);
-                        if (weight > bestWeight) { end = index + 1; bestWeight = weight; }
-                        if (weight === 3) break;
-                    }
-                }
-                fragments.push({ index: fragments.length + 1, text: chars.slice(start, end).join('') });
-                start = end;
-            }
-            return fragments;
-        }
-        _frags(maxChars) {
-            if (this._fragCache.src === this.text && this._fragCache.maxChars === maxChars) return this._fragCache.fragments;
-            const fragments = this.splitFragments(this.text, maxChars);
-            this._fragCache = { src: this.text, maxChars, fragments };
-            return fragments;
-        }
-        _format(selected) {
-            if (!selected || !selected.length) return '';
-            return '【用户导入的过去经历资料】\n' + this.INSTRUCTION + '\n\n'
-                + selected.map(f => '【前情片段 ' + f.index + '】\n' + f.text).join('\n\n');
-        }
-        _estimateTokens(text) { return Math.ceil((text || '').length / 4); }   // ~0.25 token/字符（与注入预算口径一致）
-        _tailFallback(fragments) { return fragments.slice(-2); }   // 千千结 fallbackToTail：无命中取尾部两段
-        // 选段：预算内全量；超限时用 BM25 分支归一化按当前对话相关性挑片段
-        selectInjection(fragments, branchList, mainText, charBudget, tokenBudget, aliasMap) {
-            const within = (sel) => {
-                const t = this._format(sel);
-                return t.length <= charBudget && this._estimateTokens(t) <= tokenBudget;
-            };
-            const complete = this._format(fragments);
-            if (complete.length <= charBudget && this._estimateTokens(complete) <= tokenBudget) {
-                return fragments.slice();
-            }
-            const bm = new BM25();
-            bm.rebuild(fragments.map(f => ({ id: f.index, text: f.text, floor: f.index, source: 'prequel' })));
-            const branchSet = (branchList || [])
-                .filter(b => b && b.text && Number(b.weight) > 0)
-                .map(b => ({ key: b.key, text: b.text, weight: Number(b.weight) }));
-            branchSet.push({ key: 'main', text: String(mainText || ''), weight: 0.3 });   // 主查询 0.3 锚点（与召回管线同基调）
-            let ranked = [];
-            try { ranked = bm.searchBranches(branchSet, fragments.length, { cliffCut: false, aliasMap: aliasMap || null }); } catch (e) { ranked = []; }
-            const byIndex = new Map(fragments.map(f => [f.index, f]));
-            const matches = ranked.filter(r => (r.score || 0) > 0).sort((a, b) => (b.score - a.score) || (b.id - a.id));
-            const candidates = matches.length ? matches.map(m => byIndex.get(m.id)).filter(Boolean) : this._tailFallback(fragments);
-            let selected = [];
-            for (const frag of candidates) {
-                const attempt = [...selected, frag].sort((a, b) => a.index - b.index);
-                if (within(attempt)) selected = attempt;
-            }
-            return selected;
-        }
-        buildInjection(query = {}, opts = {}) {
-            if (opts.enabled === false) return '';
-            if (!String(this.text || '').trim()) return '';
-            const baseChars = Math.max(600, Number(opts.baseChars) || 3000);
-            const tokenBase = Math.max(200, Number(opts.tokenBase) || 2700);   // [v3.135] 随默认重校准
-            // 前情预算占比 30%（千千结 PREQUEL_BUDGET_SHARE），字符/token 双口径取严
-            const charBudget = Math.max(200, Math.floor(baseChars * this.BUDGET_SHARE));
-            const tokenBudget = Math.min(this.MAX_TOKENS, Math.max(150, Math.floor(tokenBase * this.BUDGET_SHARE)));
-            const effCharBudget = Math.min(charBudget, tokenBudget * 10 / 9);   // [v3.135] CJK 口径统一（v3.133 同族）
-            const fragMax = Math.max(32, Math.min(this.FRAGMENT_CHARS, effCharBudget - 120));
-            const fragments = this._frags(fragMax);
-            if (!fragments.length) return '';
-            const branchList = (query?.branches || []).map(b => ({ key: b.key, text: b.text, weight: Number(b.weight) }));
-            const selected = this.selectInjection(fragments, branchList, String(query?.text || ''), effCharBudget, tokenBudget, query?.aliases || null);
-            const injectionText = this._format(selected);
-            return injectionText;
-        }
-    }
-    
     class SummarySystem {
         constructor() { this.summaries = []; this.volumes = []; this.historical = []; this.genericTiers = []; this.folding = false; this.foldingHistorical = false; }
         // 诊断适配层：允许 SummarySystem 在宿主闭包和独立单类测试中都安全记录错误。
@@ -13510,7 +13292,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             // [v3.80] C: 从该楼原文提取时间标签（bbs_start/bbs_end → 结束时间作为 storyTime）
                             let stTag = '';
                             try {
-                                const dta = new RelativeTimeHelper().extractDualTimeTags(text);
+                                const dta = _newRelativeTimeHelper().extractDualTimeTags(text);
                                 if (dta?.hasDual && dta.end) stTag = String(dta.end).split(/\s+/)[0];
                                 else if (dta?.start) stTag = String(dta.start).split(/\s+/)[0];
                             } catch (e) { this._reportError(e, 'nonfatal') }
@@ -14652,225 +14434,6 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
         }
     }
-
-    class RelativeTimeHelper {
-        // [v3.43] 吸收 baibai: 双界时间锚点提取 (起止时间与经过时长)
-        extractDualTimeTags(text) {
-            const s = String(text || '');
-            const startM = /<bbs_start>([\s\S]*?)<\/bbs_start>/i.exec(s);
-            const endM = /<bbs_end>([\s\S]*?)<\/bbs_end>/i.exec(s);
-            // [v3.130] 解析诊断：标签在场但日期部分无法解析时带 parseError 返回（喂给时间校准的降级决策与诊断面板）
-            const parseErr = (raw) => {
-                const d = String(raw || '').trim().split(/\s+/)[0];
-                if (!d) return 'empty';
-                if (/[\d年月/.]/.test(d)) return null;
-                return `unparseable:${d.slice(0, 12)}`;
-            };
-            if (startM && endM) {
-                const start = startM[1].trim();
-                const end = endM[1].trim();
-                let durationMinutes = 0;
-                try {
-                    const t1 = new Date(start).getTime();
-                    const t2 = new Date(end).getTime();
-                    if (!isNaN(t1) && !isNaN(t2)) {
-                        durationMinutes = Math.max(0, Math.round((t2 - t1) / 60000));
-                    }
-                } catch (e) { errLog(e, 'nonfatal') }
-                const parseError = parseErr(start) || parseErr(end) || null;
-                return { hasDual: true, start, end, durationMinutes, parseError };
-            }
-            // 标签不齐（只有一半或都缺）时记录缺哪半，供协议健康度统计
-            if (startM || endM) return { hasDual: false, start: startM?.[1]?.trim() || null, end: endM?.[1]?.trim() || null, durationMinutes: 0, parseError: 'half-pair' };
-            return { hasDual: false, start: null, end: null, durationMinutes: 0, parseError: null };
-        }
-
-        // [v3.73] D: 时间段压缩（柏宝书 compactPair 理念）——"2023/9/10 06:45 - 2023/9/10 06:55" → "2023/9/10 06:45 - 06:55"
-        // 通用做法：取首尾最长公共前缀，回退到最近的分隔边界（含），零误伤无需判断能否解析
-        compactTimeRange(a, b) {
-            const s1 = String(a || '').trim(), s2 = String(b || '').trim();
-            if (!s1 || !s2) return s2;
-            let p = 0;
-            const minLen = Math.min(s1.length, s2.length);
-            while (p < minLen && s1[p] === s2[p]) p++;
-            // 回退到最近的分隔边界（含）——故意不含 : 与时/点，避免切碎时分
-            while (p > 0 && !/[\s/／\-－年月日]/.test(s2[p - 1])) p--;
-            return p > 0 ? s2.slice(p) : s2;
-        }
-        // [v3.73] D2: 时间标签格式化（起止压缩展示 +  原始保留双模式）
-        formatTimeRange(start, end) {
-            if (!start) return '';
-            if (!end) return String(start).trim();
-            return String(start).trim() + ' - ' + this.compactTimeRange(start, end);
-        }
-        // [v3.43] 吸收 baibai: 年龄精准推算时钟 (基于出生日期与当前剧情日期的数学差)
-        calcAge(birthDateStr, currentStoryDateStr) {
-            try {
-                const b = this.parseStoryDate(birthDateStr);
-                const c = this.parseStoryDate(currentStoryDateStr);
-                if (b && c && b.year && c.year) {
-                    let age = c.year - b.year;
-                    if (c.month != null && b.month != null) {
-                        if (c.month < b.month || (c.month === b.month && (c.day || 0) < (b.day || 0))) {
-                            age--;
-                        }
-                    }
-                    return Math.max(0, age);
-                }
-            } catch (e) { errLog(e, 'nonfatal') }
-            return 0;
-        }
-
-        // [v3.43] 吸收 baibai: 相识天数数学推算
-        calcDaysTogether(firstMetDateStr, currentStoryDateStr) {
-            try {
-                const d1 = new Date(this.normalizeNumericDateSeparators(firstMetDateStr)).getTime();
-                const d2 = new Date(this.normalizeNumericDateSeparators(currentStoryDateStr)).getTime();
-                if (!isNaN(d1) && !isNaN(d2)) {
-                    return Math.max(0, Math.floor((d2 - d1) / this.DAY_MS));
-                }
-            } catch (e) { errLog(e, 'nonfatal') }
-            return 0;
-        }
-        constructor() {
-            this.DAY_MS = 24 * 60 * 60 * 1000;
-            this.WEEK_MS = 7 * this.DAY_MS;
-            // 带「年月日」单位的日期字段之间允许出现的装饰分隔符
-            this.DATE_FIELD_SEPARATOR = '[\\s·・•‧∙⋅.．。﹒/／,，、_\\-—–－]*';
-        }
-
-        /** 把全角/中文句点等日期分隔符规范成 / */
-        normalizeNumericDateSeparators(dateStr) {
-            if (!dateStr) return dateStr;
-            return dateStr
-                // 长格式(4 位年起):日数后只要不再跟数字/点即认,容忍后接逗号、中文、括号等
-                .replace(/^(\d{4,})[.．。﹒](\d{1,2})[.．。﹒](\d{1,2})(?![\d.．。﹒])/, '$1/$2/$3')
-                // 短格式(M.D):歧义大,仍要求后接空白或结尾,保守
-                .replace(/^(\d{1,2})[.．。﹒](\d{1,2})(?=$|\s)/, '$1/$2');
-        }
-
-        /** 看起来是结构化数字日期(用于排除「霜月3日」误判为架空) */
-        looksLikeStructuredNumericDate(dateStr) {
-            if (!dateStr) return false;
-            return (
-                /^(?:\d{4,}[/.\-．。﹒]\d{1,2}[/.\-．。﹒]\d{1,2}|\d{1,2}[/.\-．。﹒]\d{1,2})(?=$|\s)/.test(dateStr) ||
-                new RegExp(`^\\d+\\s*年${this.DATE_FIELD_SEPARATOR}\\d{1,2}\\s*月${this.DATE_FIELD_SEPARATOR}\\d{1,2}\\s*日?(?=$|\\s)`).test(dateStr) ||
-                new RegExp(`^\\d{1,2}\\s*月${this.DATE_FIELD_SEPARATOR}\\d{1,2}\\s*日?(?=$|\\s)`).test(dateStr)
-            );
-        }
-
-        /** 从架空日期串里抽「日数」(阿拉伯优先,无则取首个数字) */
-        extractDayNumber(dateStr) {
-            if (!dateStr) return null;
-            const m = dateStr.match(/(\d+)\s*[日号]/) || dateStr.match(/第\s*(\d+)/);
-            if (m) return parseInt(m[1], 10);
-            const any = dateStr.match(/(\d+)/);
-            if (any) return parseInt(any[1], 10);
-            return null;
-        }
-
-        /** 从架空日期串里抽「月标识」(如「霜月」) */
-        extractMonthIdentifier(dateStr) {
-            if (!dateStr) return null;
-            const m = dateStr.match(/([^\s\d]+月)/);
-            if (m) return m[1];
-            const num = dateStr.match(/(?:\d{4}[/\-])?(\d{1,2})[/\-]\d{1,2}/);
-            if (num) return `M${num[1]}`;
-            return null;
-        }
-
-        /** 解析故事日期字符串 → {type: 'standard'|'fantasy', year?, month?, day?, monthId?, calendarPrefix?} */
-        parseStoryDate(dateStr) {
-            if (!dateStr || typeof dateStr !== 'string') return null;
-            const trimmed = dateStr.trim();
-            if (!trimmed) return null;
-
-            const normalized = this.normalizeNumericDateSeparators(trimmed);
-
-            // 1. 尝试结构化数字日期
-            if (this.looksLikeStructuredNumericDate(normalized)) {
-                // 长格式：YYYY/M/D 或 YYYY-M-D
-                let m = normalized.match(/^(\d{4,})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-                if (m) return {type: 'standard', year: parseInt(m[1], 10), month: parseInt(m[2], 10), day: parseInt(m[3], 10)};
-
-                // 短格式：M/D 或 M-D
-                m = normalized.match(/^(\d{1,2})[\/\-](\d{1,2})(?=$|\s)/);
-                if (m) return {type: 'standard', month: parseInt(m[1], 10), day: parseInt(m[2], 10)};
-
-                // 中文格式：X年Y月Z日
-                const reYear = new RegExp(`^(\\d+)\\s*年${this.DATE_FIELD_SEPARATOR}(\\d{1,2})\\s*月${this.DATE_FIELD_SEPARATOR}(\\d{1,2})\\s*日?`);
-                m = trimmed.match(reYear);
-                if (m) return {type: 'standard', year: parseInt(m[1], 10), month: parseInt(m[2], 10), day: parseInt(m[3], 10)};
-
-                // 中文格式：X月Y日
-                const reMonth = new RegExp(`^(\\d{1,2})\\s*月${this.DATE_FIELD_SEPARATOR}(\\d{1,2})\\s*日?`);
-                m = trimmed.match(reMonth);
-                if (m) return {type: 'standard', month: parseInt(m[1], 10), day: parseInt(m[2], 10)};
-            }
-
-            // 2. 尝试架空日历（如「霜月3日」）
-            const monthId = this.extractMonthIdentifier(trimmed);
-            const day = this.extractDayNumber(trimmed);
-            if (monthId && day) return {type: 'fantasy', monthId, day};
-
-            return null;
-        }
-
-        /** 算天数差（standard 日期精确算，fantasy 日期仅同月可算） */
-        calcDaysDiff(date1, date2) {
-            if (!date1 || !date2) return null;
-            if (date1.type !== date2.type) return null;
-
-            if (date1.type === 'standard') {
-                // 补齐缺失的年/月（按当前真实时间补）
-                const now = new Date();
-                const y1 = date1.year ?? now.getFullYear();
-                const m1 = date1.month ?? (now.getMonth() + 1);
-                const d1 = date1.day ?? 1;
-                const y2 = date2.year ?? now.getFullYear();
-                const m2 = date2.month ?? (now.getMonth() + 1);
-                const d2 = date2.day ?? 1;
-
-                const t1 = new Date(y1, m1 - 1, d1).getTime();
-                const t2 = new Date(y2, m2 - 1, d2).getTime();
-                return Math.round((t2 - t1) / this.DAY_MS);
-            }
-
-            if (date1.type === 'fantasy') {
-                // 架空日历：只有同月才能算天数差
-                if (date1.monthId !== date2.monthId) return null;
-                return (date2.day ?? 0) - (date1.day ?? 0);
-            }
-
-            return null;
-        }
-
-        /** 生成相对时间前缀（「昨天」「3天前」「上周」等） */
-        relativeTimePrefix(storyDate, nowDate) {
-            const parsed1 = this.parseStoryDate(storyDate);
-            const parsed2 = this.parseStoryDate(nowDate);
-            const daysDiff = this.calcDaysDiff(parsed1, parsed2);
-
-            if (daysDiff === null || daysDiff === undefined) return '';
-            if (daysDiff === 0) return '今天';
-            if (daysDiff === 1) return '昨天';
-            if (daysDiff === 2) return '前天';
-            if (daysDiff === -1) return '明天';
-            if (daysDiff === -2) return '后天';
-            if (daysDiff > 0 && daysDiff <= 7) return `${daysDiff}天前`;
-            if (daysDiff < 0 && daysDiff >= -7) return `${-daysDiff}天后`;
-            if (daysDiff > 7 && daysDiff < 14) return '上周';
-            if (daysDiff < -7 && daysDiff > -14) return '下周';
-            if (daysDiff >= 14 && daysDiff < 30) return `${Math.floor(daysDiff / 7)}周前`;
-            if (daysDiff <= -14 && daysDiff > -30) return `${Math.floor(-daysDiff / 7)}周后`;
-            if (daysDiff >= 30 && daysDiff < 365) return `${Math.floor(daysDiff / 30)}个月前`;
-            if (daysDiff <= -30 && daysDiff > -365) return `${Math.floor(-daysDiff / 30)}个月后`;
-            if (daysDiff >= 365) return `${Math.floor(daysDiff / 365)}年前`;
-            if (daysDiff <= -365) return `${Math.floor(-daysDiff / 365)}年后`;
-            return '';
-        }
-    }
-
         // [v3.46] 吸收 Bakemono: 剧情时钟与回忆隔离（GameClock）
     class GameClock {
         constructor() {
@@ -14895,10 +14458,10 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
          *   RelativeTimeHelper 不在作用域，这里要降级成 null/0 而不是连坐。
          */
         parseStoryDate(dateStr) {
-            try { return new RelativeTimeHelper().parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }
+            try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }
         }
         calcAge(birthDateStr, currentStoryDateStr) {
-            try { return new RelativeTimeHelper().calcAge(birthDateStr, currentStoryDateStr); } catch (e) { errLog(e, 'GameClock.calcAge'); return 0; }
+            try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).calcAge(birthDateStr, currentStoryDateStr); } catch (e) { errLog(e, 'GameClock.calcAge'); return 0; }
         }
         // 设置/推进剧情时间
         // opts: { date, label, flashback, floor, relativeDays }
@@ -14934,7 +14497,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 const days = Number(opts.relativeDays);
                 if (this.date) {
                     try {
-                        const rth = new RelativeTimeHelper();
+                        const rth = (typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper();
                         const parsed = rth.parseStoryDate(this.date);
                         if (parsed && parsed.type === 'standard') {
                             const now = new Date();
@@ -15165,67 +14728,6 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
             }
         }
     }
-
-    class PlotTimeline {
-        constructor() { this.entries = []; }
-        add(date, text, floor, characters = [], importance = 5) {
-            if (!date || !text) return null;
-            const source = arguments.length > 5 ? arguments[5] : null;
-            const sourceKey = source && source.id ? String(source.kind || '') + ':' + String(source.id) + ':' + String(source.action || '') : '';
-            if (sourceKey) {
-                const same = this.entries.find(e => e.sourceKey === sourceKey);
-                if (same) return same;
-            }
-            const exist = this.entries.find(e => e.date === date && e.text === text);
-            if (exist) { exist.floor = floor; exist.timestamp = Date.now(); if (importance > (exist.importance || 5)) exist.importance = importance; return exist; }
-            const e = {id: 'tl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6), date, text, floor, characters, importance: (importance >= 1 && importance <= 10) ? importance : 5, timestamp: Date.now()};
-            if (sourceKey) { e.sourceKey = sourceKey; e.source = { kind: String(source.kind || ''), id: String(source.id), action: String(source.action || '') }; }
-            this.entries.push(e);
-            if (this.entries.length > 500) this.entries.shift();
-            return e;
-        }
-        // 按剧情日期相近度召回（同日最优先，前缀相近次之，最后兜底最新）
-        searchNear(date, windowDays = 3, limit = 5) {
-            if (!date) return this.entries.slice(-limit).reverse();
-            const key = this._norm(date);
-            const scored = this.entries.map(e => {
-                const ek = this._norm(e.date);
-                let dist = 999;
-                if (ek === key) dist = 0;
-                else if (ek.slice(0, 6) === key.slice(0, 6)) dist = 1;
-                else if (ek.slice(0, 4) === key.slice(0, 4)) dist = 2;
-                return {e, dist, t: e.timestamp};
-            });
-            scored.sort((a, b) => a.dist - b.dist || b.t - a.t);
-            return scored.slice(0, limit).map(s => s.e);
-        }
-        _norm(d) { return String(d || '').replace(/\s+/g, '').replace(/[年月日]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''); }
-        // [v3.121] 变化驱动读取：按楼层游标读取与当前时间锚点相近的事件，返回副本。
-        getChangesSince(floor = -1, anchorDate = '', limit = 5, windowDays = 3, characters = []) {
-            const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
-            const cap = Math.min(20, Math.max(0, Number(limit) || 0));
-            const anchor = parseStoryDateLoose(anchorDate);
-            const allowed = new Set((characters || []).map(x => String(x || '').trim()).filter(Boolean));
-            const rows = this.entries.filter(e => {
-                if (Number(e?.floor) <= cursor) return false;
-                // 有角色筛选时，允许事件声明的角色与当前登场角色相交；无声明角色的事件保留。
-                const ecs = Array.isArray(e?.characters) ? e.characters.map(x => String(x || '').trim()) : [];
-                if (allowed.size && ecs.length && !ecs.some(x => allowed.has(x))) return false;
-                if (!anchor || !e?.date) return true;
-                const ev = parseStoryDateLoose(e.date);
-                if (!ev || ev.type !== anchor.type) return false;
-                if (ev.type === 'fantasy') return ev.monthId === anchor.monthId && Math.abs((ev.day || 0) - (anchor.day || 0)) <= Math.max(0, Number(windowDays) || 0);
-                if (ev.year == null || anchor.year == null) return false;
-                const a = Date.UTC(anchor.year, (anchor.month || 1) - 1, anchor.day || 1);
-                const b = Date.UTC(ev.year, (ev.month || 1) - 1, ev.day || 1);
-                return Math.abs(Math.round((b - a) / 86400000)) <= Math.max(0, Number(windowDays) || 0);
-            });
-            return rows.sort((a, b) => Number(a.floor) - Number(b.floor) || Number(a.timestamp || 0) - Number(b.timestamp || 0)).slice(-cap).map(e => ({ ...e, characters: Array.isArray(e.characters) ? [...e.characters] : e.characters }));
-        }
-        export() { return this.entries; }
-        import(data) { this.entries = Array.isArray(data) ? data : []; }
-    }
-    
     // [v3.152] ANIMA 词典线 A1：术语词典（聊天内非角色实体术语的 surface 化沉淀）。
     // 检索端既有 buildAliasMap（角色昵称）也有本词典（物品/地名/概念/招式/组织等），
     // 查询命中术语时把规范名 + 释义短语附加进查询文本，BM25 与向量同享。
@@ -15312,158 +14814,6 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
     }
     // [v3.152] ANIMA 词典线 A1：对外挂载（与 LonShaEventChain 等库挂载同构；本类内联 index.js 无外部依赖）
     window.LonShaEntityLexicon = { EntityLexicon };
-
-    // [v1.9] P1: BM25 稀疏检索（抄 anima bm25：词频×逆文档频率×长度归一化）
-    class BM25 {
-        constructor() { this.docs = []; this.docTerms = []; this.df = new Map(); this.N = 0; this.avgLen = 0; }
-        // [v3.86] 吸收 MyriadKnots Han-bigram 分词：NFKC 归一化 + Unicode Script 属性
-        // （覆盖扩展区汉字/全角字符；拉丁与数字整词保留，汉字重叠二元组）
-        _tokenize(text) {
-            const tokens = [];
-            const s = String(text ?? '').normalize('NFKC').toLocaleLowerCase('zh-CN');
-            for (const m of s.matchAll(/[\p{Script=Latin}\p{N}]+/gu)) tokens.push(m[0]);
-            for (const m of s.matchAll(/\p{Script=Han}+/gu)) {
-                const ch = [...m[0]];
-                if (ch.length === 1) { tokens.push(ch[0]); continue; }
-                for (let i = 0; i + 1 < ch.length; i++) tokens.push(ch[i] + ch[i + 1]);
-            }
-            return tokens;
-        }
-        // [v3.152] A2 词典归一单真源：文档端统一别名表面→规范名；查询端附加规范名+释义。
-        // 数据源优先 rebuild 注入的引擎词典（_lexRef），回落 window.LonShaMemory.engine.lexicon；
-        // 两处都不可用（Node 单测/无词典）时原样返回，行为与 v3.151 完全一致。
-        _lexExpand(text, lxOverride, withDesc) {
-            try {
-                const lx = lxOverride || this._lexRef
-                    || (typeof window !== 'undefined' && window.LonShaMemory?.engine?.lexicon) || null;
-                if (!lx || !lx.items?.length) return String(text ?? '');
-                const hits = lx.match(text);
-                if (!hits.length) return String(text ?? '');
-                let out = String(text ?? '');
-                for (const h of hits) {
-                    const canon = h.item.terms[0];
-                    for (const s of h.terms) if (s !== canon) out += ' ' + canon;
-                    if (withDesc && h.item.desc) out += ' ' + String(h.item.desc).slice(0, 60);
-                }
-                return out;
-            } catch (e) { return String(text ?? ''); }
-        }
-        /** 文档端归一（rebuild 的 docTerms 构建内调用） */
-        _lexNormalize(text) { return this._lexExpand(text, null, false); }
-        /** 查询端归一（searchBranches 的分支构建处调用）：附加规范名 + 释义短语 */
-        normalizeQueryByLexicon(text, lx) { return this._lexExpand(text, lx, true); }
-        rebuild(docs, lexicon = null) {
-            this.docs = docs || [];
-            this.N = this.docs.length;
-            // [v3.152] 词典引用与归一指纹（诊断用；词典变更后引擎经 _invalidateBm25Corpus 置空 _corpusFp 触发重建）
-            this._lexRef = lexicon || this._lexRef || null;
-            try {
-                this._lexFp = (this._lexRef?.items || []).map(x => x.canon + ':' + x.count + ':' + (x.terms || []).length + ':' + (x.desc ? 1 : 0)).join('|');
-            } catch (e) { this._lexFp = ''; }
-            this.docTerms = this.docs.map(d => {
-                const terms = this._tokenize(this._lexNormalize(d.text));
-                const map = new Map();
-                terms.forEach(t => map.set(t, (map.get(t) || 0) + 1));
-                return map;
-            });
-            this.df = new Map();
-            for (const tm of this.docTerms) for (const t of tm.keys()) this.df.set(t, (this.df.get(t) || 0) + 1);
-            this.avgLen = this.N ? this.docTerms.reduce((a, m) => a + m.size, 0) / this.N : 0;
-        }
-        // [v3.23] 断崖截断（NE-Memory retrieval-filter 分数断崖）: 相邻分 3x 且低于首项 15% → 自然截断
-        // 弱相关长尾截掉，minResults 保底防空洞
-        _cliffCut(scored, topK, opts = {}) {
-            scored.sort((a, b) => b.score - a.score);
-            if (!opts.cliffCut) return scored.slice(0, topK);
-            const minResults = opts.minResults || 2;
-            let resultCount = Math.min(topK, scored.length);
-            const topScore = scored[0]?.score || 0;
-            if (resultCount >= minResults && scored.length > minResults && topScore > 0) {
-                for (let i = 0; i < resultCount - 1; i++) {
-                    const cur = scored[i].score;
-                    const next = Math.max(scored[i + 1].score, 1e-8);
-                    const pctOfTop = next / Math.max(topScore, 1e-8);
-                    if (cur / next > 3.0 && pctOfTop < 0.15 && (i + 1) >= minResults) {
-                        resultCount = i + 1;
-                        break;
-                    }
-                }
-            }
-            // 保底: 至少返回 minResults 条非零分结果
-            let pos = 0;
-            while (pos < scored.length && scored[pos].score > 0) pos++;
-            if (resultCount < minResults) resultCount = Math.min(Math.max(minResults, 1), Math.max(pos, 1), scored.length);
-            return scored.slice(0, resultCount);
-        }
-        search(query, topK = 5, opts = {}) {
-            // [v3.86] 单查询等价为主分支（weight=1），统一走 searchBranches 管线
-            return this.searchBranches([{ key: 'main', text: query, weight: 1 }], topK, opts);
-        }
-        // [v3.90] 吸收 MyriadKnots entity-identity：查询侧别名扩展。命中别名→附加主名原文，
-        // 注意扩展在分词前的文本层做（中文二元切分下 3 字以上别名整串永远不是 token）
-        _expandAliases(text, aliasMap) {
-            if (!(aliasMap instanceof Map) || !aliasMap.size) return String(text ?? '');
-            let out = String(text ?? '');
-            const norm = out.normalize('NFKC').toLocaleLowerCase('zh-CN');   // 归一化副本上检测（全角/大小写别名也能命中）
-            for (const [key, main] of aliasMap) {
-                if (norm.includes(key)) out += ' ' + String(main ?? '').trim();
-            }
-            return out;
-        }
-        // [v3.86] 吸收 MyriadKnots recall-ranking：多路查询分支各自按分支内最高分归一化后加权合成。
-        // 解决痛点：长背景文本（recentAssistant）的 BM25 绝对分高，会淹没用户最新短输入（latestUser）。
-        // 分支独立归一化后，短查询在自己分支内也能拿满 1.0，锚定最新诉求。
-        searchBranches(branches, topK = 5, opts = {}) {
-            if (!this.N) return [];
-            // [v3.152] A2 查询端词典归一：查询命中术语时附加规范名 + 释义短语（与文档端同一词典）
-            const _lxOn = (typeof window !== 'undefined' && window.LonShaMemory?.engine?.config?.config?.bm25LexiconNormalizeEnabled !== false);
-            const _lx = _lxOn ? (this._lexRef || (typeof window !== 'undefined' && window.LonShaMemory?.engine?.lexicon) || null) : null;
-            const active = (Array.isArray(branches) ? branches : [])
-.map((b, i) => {
-                    let _t = (opts.aliasMap ? this._expandAliases(b?.text, opts.aliasMap) : b?.text);
-                    if (_lx && _lx.items?.length) _t = this.normalizeQueryByLexicon(_t, _lx);
-                    return { key: String(b?.key ?? i), weight: Number(b?.weight) || 0, terms: [...new Set(this._tokenize(_t))] };
-                })
-                .filter(b => b.weight > 0 && b.terms.length);
-            if (!active.length) return [];
-            const weightTotal = active.reduce((s, b) => s + b.weight, 0);
-            if (weightTotal <= 0) return [];
-            const k1 = 1.2, bParam = 0.75;
-            const normByBranch = [];
-            for (const q of active) {
-                const raw = new Array(this.N).fill(0);
-                for (let i = 0; i < this.N; i++) {
-                    const tm = this.docTerms[i];
-                    const len = tm.size || 1;
-                    let score = 0;
-                    for (const qt of q.terms) {
-                        const tf = tm.get(qt) || 0;
-                        if (!tf) continue;
-                        const df = this.df.get(qt) || 0;
-                        const idf = Math.log(1 + (this.N - df + 0.5) / (df + 0.5));
-                        score += idf * (tf * (k1 + 1)) / (tf + k1 * (1 - bParam + bParam * len / (this.avgLen || 1)));
-                    }
-                    raw[i] = score;
-                }
-                // 分支内按最高分归一化；分支全零时保持全零（不放大全语料级低 IDF 重叠）
-                const max = Math.max(0, ...raw);
-                normByBranch.push(raw.map(s => max > 0 ? s / max : 0));
-            }
-            const scored = [];
-            for (let i = 0; i < this.N; i++) {
-                let score = 0;
-                const branchScores = {};
-                for (let j = 0; j < active.length; j++) {
-                    const norm = normByBranch[j][i];
-                    branchScores[active[j].key] = norm;
-                    score += norm * (active[j].weight / weightTotal);
-                }
-                if (score > 0) scored.push({ ...this.docs[i], score, branchScores });
-            }
-            return this._cliffCut(scored, topK, opts);
-        }
-    }
-    
     // [v2.0] P2: 角色状态表（抄 yuzuki character-status：数值状态 + 待办生命周期）
     class CharacterState {
         constructor() {
@@ -15723,13 +15073,18 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 }
             } catch (e) { /* 注入的时钟不可用 ⇒ 走自建 */ }
             try {
-                if (typeof RelativeTimeHelper === 'function') {
-                    const rth = new RelativeTimeHelper();
-                    if (rth && typeof rth.parseStoryDate === 'function' && typeof rth.calcAge === 'function') {
-                        return { parseStoryDate: (s) => rth.parseStoryDate(s), calcAge: (a, b) => rth.calcAge(a, b) };
-                    }
+                // [v3.259.0] A1 第四刀：RelativeTimeHelper 已外移到 memory-books.js，不再是本文件
+                //   作用域里的类声明。这里按 _ageAnchor 同一条契约回落（闭包取库口 → 全局符号），
+                //   两层都取不到时返回 null（与抽取前的 `typeof 类名 === 'function'` 同一结局）。
+                const _MB = (typeof _memoryBooksLib === 'function') ? _memoryBooksLib() : null;
+                const _RTH = (_MB && typeof _MB.RelativeTimeHelper === 'function')
+                    ? _MB.RelativeTimeHelper
+                    : ((typeof window !== 'undefined' && window.LonShaMemoryBooks?.RelativeTimeHelper) || null);
+                const rth = _RTH ? new _RTH() : null;
+                if (rth && typeof rth.parseStoryDate === 'function' && typeof rth.calcAge === 'function') {
+                    return { parseStoryDate: (s) => rth.parseStoryDate(s), calcAge: (a, b) => rth.calcAge(a, b) };
                 }
-            } catch (e) { /* 隔离环境：类不在作用域 ⇒ 返回 null */ }
+            } catch (e) { /* 隔离环境：类与取库口都不在作用域 ⇒ 返回 null */ }
             return null;
         }
         _ageAnchor() {
@@ -15925,7 +15280,7 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
                 const isExpired = (d) => {
                     if (!d?.until || !now) return false;
                     try {
-                        const h = new RelativeTimeHelper();
+                        const h = _newRelativeTimeHelper();
                         const a = h.parseStoryDate(d.until), b = h.parseStoryDate(now);
                         if (!a || !b || a.type !== 'standard' || b.type !== 'standard') return false;
                         const da = new Date(a.year ?? 2000, (a.month ?? 1) - 1, a.day ?? 1);

@@ -12,6 +12,8 @@ function vnum(s) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
+// [v3.259.0 A1 第四刀] BM25 已外迁到 memory-books.js（本档只抽 BM25）。
+const bkSrc = fs.readFileSync(path.join(__dirname, '../memory-books.js'), 'utf-8');
 
 // 版本断言（>= v3.23 容灾）
 const vMatch = src.match(/const VERSION = '([^']+)'/);
@@ -45,12 +47,16 @@ function extractFn(name, params) {
 {
     // 从源码抽 BM25 类 search 很复杂（依赖 _tokenize 等），改为直接构建 BW25 实例方法测试
     // 用 evalClass 模式：抽取整个 BM25 类
-    const classRe = /class BM25 \{([\s\S]*?)\n    \}/;
-    const cm = src.match(classRe);
+    /* [v3.259.0 A1 第四刀] BM25 已外迁到 memory-books.js：模块顶层是 IIFE，类声明无 4 空格缩进，
+     *   类体末行是列首 `}`。抽取正则随之去缩进（语义不变：仍取到配对的那一个右花括号）。 */
+    const classRe = /class BM25 \{([\s\S]*?)\n\}/;
+    const cm = bkSrc.match(classRe);
     if (!cm) { fail('T1: BM25 类未找到'); }
     else {
-        const Code = new Function('errLog', `return class BM25 { ${cm[1]} };`);
-        const BM25 = Code(() => {});
+        /* [v3.259.0 A1 第四刀] 隔离副本要补 shell 面：BM25 类内引用 `window`（别名表 reader）。
+         *   模块里靠 IIFE 参数注入；抠进 new Function 的副本必须显式给同名形参，否则 ReferenceError。 */
+        const Code = new Function('errLog', 'window', `return class BM25 { ${cm[1]} };`);
+        const BM25 = Code(() => {}, {});
         const bm = new BM25();
         // 造 6 条文档：前 2 条含查询词"龙牙剑"，后 4 条完全不相关（不同词）
         bm.rebuild([

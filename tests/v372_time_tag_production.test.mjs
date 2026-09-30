@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.259.0 A1 第四刀] RelativeTimeHelper 已外迁到 memory-books.js。 */
+const bkSrc = readFileSync(`${REPO_ROOT}/memory-books.js`, 'utf-8');
 
 function extractClass(source, startMarker) {
     const start = source.indexOf(startMarker);
@@ -37,7 +39,7 @@ test('=== 1. 静态关键字检查 ===', () => {
 });
 
 test('=== 2. extractDualTimeTags 功能测试 ===', () => {
-    const cls = extractClass(src, 'class RelativeTimeHelper');
+    const cls = extractClass(bkSrc, 'class RelativeTimeHelper');
     assert.ok(cls, 'RelativeTimeHelper 可提取');
     // 提取 extractDualTimeTags 方法（裸括号）
     const mIdx = cls.indexOf('extractDualTimeTags(text)');

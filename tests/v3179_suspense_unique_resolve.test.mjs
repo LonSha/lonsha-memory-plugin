@@ -13,6 +13,10 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
@@ -34,18 +38,18 @@ function extractClass(source, name) {
     const brace = source.indexOf('{', start);
     return source.slice(start, braceEnd(source, brace) + 1);
 }
-const mkSuspense = (source = src) => new Function(`
+const mkSuspense = (source = bkSrc) => new Function(`
     ${extractClass(source, 'SuspenseBook')}
     return new SuspenseBook();
 `)();
 
 console.log('=== 1. 静态锚点：唯一命中纪律已落地 ===');
 {
-    assert.ok(src.includes('const cands = key ? this.items.filter('), 'resolve 必须用 filter 收候选集（非 find 取首个）');
-    assert.ok(src.includes('if (cands.length === 1) it = cands[0];'), '必须唯一命中才结');
-    assert.ok(src.includes('[v3.179]'), '版本标记存在');
+    assert.ok(bkSrc.includes('const cands = key ? this.items.filter('), 'resolve 必须用 filter 收候选集（非 find 取首个）');
+    assert.ok(bkSrc.includes('if (cands.length === 1) it = cands[0];'), '必须唯一命中才结');
+    assert.ok(bkSrc.includes('[v3.179]'), '版本标记存在');
     // 旧的一步式 find 取首个不得再出现
-    assert.ok(!src.includes('it = this.items.find(x => x.status === \'open\' && (x.content.includes(key) || key.includes(x.content)));'),
+    assert.ok(!bkSrc.includes('it = this.items.find(x => x.status === \'open\' && (x.content.includes(key) || key.includes(x.content)));'),
         '旧的 find 取首个实现必须已被移除');
     ok('唯一命中判据 / 版本标记齐备，旧取首个实现已移除');
 }
@@ -119,11 +123,13 @@ console.log('=== 6. 空回引 / 未知回引：不结、不抛、不得错结 ==
 
 console.log('=== 7. 负控制：退回「取首个」后行为必须改变 ===');
 {
+    /* [v3.259.0 A1 第四刀] 被破坏的实现（SuspenseBook.resolve）已外迁 memory-books.js，
+     *   真源码 = 模块源；破坏副本也必须从模块源造（否则破坏的是「文件里不再有的那一段」）。 */
     const ANCHOR = 'if (cands.length === 1) it = cands[0];';
-    const hits = src.split(ANCHOR).length - 1;
+    const hits = bkSrc.split(ANCHOR).length - 1;
     assert.equal(hits, 1, `破坏锚点必须恰中 1 次（实际 ${hits}）`);
 
-    const brokenSrc = src.replace(ANCHOR, 'if (cands.length >= 1) it = cands[0]; // [negctl] 退回取首个');
+    const brokenSrc = bkSrc.replace(ANCHOR, 'if (cands.length >= 1) it = cands[0]; // [negctl] 退回取首个');
     const bs = mkSuspense(brokenSrc);
     bs.add('plan', '约好一起去看城南灯会', 3);
     bs.add('plan', '约好陪阿婆去城北庙里还愿', 4);

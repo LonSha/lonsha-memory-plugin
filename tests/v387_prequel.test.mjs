@@ -8,6 +8,10 @@ import assert from 'node:assert';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
 const idxSrc = src;   // [v3.236.0] 同源别名：本套件的 src 即 index.js
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = fs.readFileSync(path.join(__dirname, '../memory-books.js'), 'utf-8');
 
 // 版本断言
 const vMatch = src.match(/const VERSION = '([^']+)'/);
@@ -16,16 +20,28 @@ assert.ok(vMatch, 'VERSION 未找到');
 assert.match(vMatch[1], /^\d+\.\d+\.\d+$/, `VERSION 应为合法 semver，实际 ${vMatch[1]}`);
 
 // 抽取 PrequelSystem 类（依赖 BM25 类）
+/** 花括号配平取类的收口位置（返回右花括号之后一位）。 */
+function braceEndOf(source, at) {
+    let depth = 0;
+    for (let i = source.indexOf('{', at); i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) return i + 1; }
+    }
+    return -1;
+}
 function extractClasses() {
-    const pqStart = src.indexOf('class PrequelSystem {');
+    /* [v3.259.0 A1 第四刀] 两个类都在 memory-books.js（同刀同文件）；原写法以
+     *   「class SummarySystem / class CharacterState 的位置」当终点，迁走后两者都不再是相邻类，
+     *   改为花括号配平收口（仍只读真源，不复制类体）。 */
+    const pqStart = bkSrc.indexOf('class PrequelSystem {');
     assert.ok(pqStart > 0, 'PrequelSystem 未找到');
-    const ssStart = src.indexOf('class SummarySystem {', pqStart);
-    assert.ok(ssStart > pqStart, 'PrequelSystem 类终点未找到');
-    let body = src.slice(pqStart, ssStart);
-    // PrequelSystem 类与前置注释一起截取（类定义前的注释属它自己）
-    const bmStart = src.indexOf('class BM25 {');
-    const bmEnd = src.indexOf('class CharacterState {', bmStart);
-    const bmBody = src.slice(bmStart, bmEnd).replace(/\n    \/\/ \[v2\.0\] P2[\s\S]*$/, '');
+    const pqEnd = braceEndOf(bkSrc, pqStart);
+    assert.ok(pqEnd > pqStart, 'PrequelSystem 类终点未找到');
+    let body = bkSrc.slice(pqStart, pqEnd);
+    const bmStart = bkSrc.indexOf('class BM25 {');
+    const bmEnd = braceEndOf(bkSrc, bmStart);
+    assert.ok(bmEnd > bmStart, 'BM25 类终点未找到');
+    const bmBody = bkSrc.slice(bmStart, bmEnd);
     // 去一层缩进（8 空格 → 2 空格）便于 eval
     const deindent = (s) => s.replace(/\n        /g, '\n  ');
     const BM25cls = new Function('return (' + deindent(bmBody) + ')')();

@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
 const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const bkSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');  // [v3.259.0 A1 第四刀] BM25 外迁后真源
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 
@@ -50,8 +51,8 @@ function vnum(s) {
 test('【1】结构接线：词典类/双端归一/持久化/感知配额', () => {
     assert.ok(src.includes('window.LonShaEntityLexicon'), 'A1 词典库挂载点');
     assert.ok(src.includes('class EntityLexicon'), 'A1 词典类在 index.js（内联，零加载依赖）');
-    assert.ok(src.includes('this._lexNormalize('), 'A2 BM25 文档端归一');
-    assert.ok(src.includes('normalizeQueryByLexicon('), 'A2 查询端归一');
+    assert.ok(bkSrc.includes('this._lexNormalize('), 'A2 BM25 文档端归一（[v3.259.0] 随 BM25 外迁）');
+    assert.ok(bkSrc.includes('normalizeQueryByLexicon('), 'A2 查询端归一（[v3.259.0] 随 BM25 外迁）');
     assert.ok(src.includes('termLexiconEnabled'), 'A1 开关');
     assert.ok(src.includes('bm25LexiconNormalizeEnabled'), 'A2 开关');
     assert.ok(src.includes('statusAwareQuotaEnabled'), 'B1 开关');
@@ -131,21 +132,24 @@ test('【3】词典随存档持久化（collectExport/restore 对称 + 契约登
 // ================= 4. BM25 双端归一接线 =================
 test('【4】BM25 词典归一（文档端 + 查询端 + 归一指纹参与语料重建）', () => {
     // 文档端：BM25 内联方法，接在 rebuild 的 docTerms 构建内（开关门控）
-    const rb = src.indexOf('rebuild(docs, lexicon = null) {');
-    const docNorm = src.indexOf('_lexNormalize(d.text)', rb);
+    /* [v3.259.0 A1 第四刀] BM25 类体（含 rebuild / searchBranches / _lexFp）已外迁 memory-books.js：
+     *   本段的七条锚点随之换源（只换被读的文件，语义一字不改）；
+     *   只有最后一条 **宿主侧**（_invalidateBm25Corpus 的置空通路）仍读 index.js。 */
+    const rb = bkSrc.indexOf('rebuild(docs, lexicon = null) {');
+    const docNorm = bkSrc.indexOf('_lexNormalize(d.text)', rb);
     assert.ok(rb > 0 && docNorm > rb && docNorm < rb + 2000, '文档端归一在 rebuild 内（_lexNormalize）');
-    assert.ok(src.includes('normalizeQueryByLexicon(text, lx) { return this._lexExpand(text, lx, true); }'), 'BM25.normalizeQueryByLexicon 方法存在');
+    assert.ok(bkSrc.includes('normalizeQueryByLexicon(text, lx) { return this._lexExpand(text, lx, true); }'), 'BM25.normalizeQueryByLexicon 方法存在');
     // 查询端：searchBranches 的 active 分支构建处经 _expandAliases 链
-    const sb = src.indexOf('searchBranches(branches, topK = 5, opts = {}) {');
-    const qNorm = src.indexOf('this._expandAliases(', sb);
-    const qLex = src.indexOf('normalizeQueryByLexicon(', sb);
+    const sb = bkSrc.indexOf('searchBranches(branches, topK = 5, opts = {}) {');
+    const qNorm = bkSrc.indexOf('this._expandAliases(', sb);
+    const qLex = bkSrc.indexOf('normalizeQueryByLexicon(', sb);
     assert.ok(sb > 0 && qNorm > sb && qNorm < sb + 1200, '查询端 _expandAliases 在 searchBranches 内');
     assert.ok(qLex > 0 && qLex < sb + 1200, '查询端词典归一在 searchBranches 内');
     // 归一指纹独立于 _corpusFp（v3148 硬约束：词典状态不入 _corpusFp，走失效-重建通路）
-    assert.ok(src.includes('this._lexFp ='), '归一指纹字段 _lexFp');
-    const rbfp = src.indexOf('this._lexFp =', rb);
+    assert.ok(bkSrc.includes('this._lexFp ='), '归一指纹字段 _lexFp');
+    const rbfp = bkSrc.indexOf('this._lexFp =', rb);
     assert.ok(rbfp > rb && rbfp < rb + 900, 'rebuild 内计算 _lexFp');
-    assert.ok(src.includes("if (this.bm25) this.bm25._corpusFp = '';"), '_invalidateBm25Corpus 走置空通路');
+    assert.ok(src.includes("if (this.bm25) this.bm25._corpusFp = '';"), '_invalidateBm25Corpus 走置空通路（宿主侧）');
 });
 
 // ================= 5. 感知配额 =================

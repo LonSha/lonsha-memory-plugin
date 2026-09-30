@@ -470,7 +470,15 @@ test('【G1】★ 宿主接线与退路同形：新方法在真实现与退路�
 test('【G3】★ 退路与真实现同形：覆盖度逐键一致，且判据两向自证', () => {
     // ① 真实现键面（真加载 scene-book.js）
     const realKeys = Object.keys(new SB.SceneBook().coverage()).sort();
-    const seg = idxSrc.slice(idxSrc.indexOf('class SceneBookFallback'), idxSrc.indexOf('class SuspenseBook', idxSrc.indexOf('class SceneBookFallback')));
+    /* [v3.259.0 A1 第四刀] 终点原用下一个类名（SuspenseBook，已外迁 memory-books.js）——
+     *   退路段边界改由**代码结构**决定（花括号配平），不再吊在别的类名上。 */
+    const _fbAt = idxSrc.indexOf('class SceneBookFallback');
+    let _fbEnd = -1, _d1 = 0;
+    for (let i = idxSrc.indexOf('{', _fbAt); i < idxSrc.length; i++) {
+        if (idxSrc[i] === '{') _d1++;
+        else if (idxSrc[i] === '}') { _d1--; if (_d1 === 0) { _fbEnd = i + 1; break; } }
+    }
+    const seg = idxSrc.slice(_fbAt, _fbEnd);
     assert.ok(seg.length > 800, '退路段可定位（' + seg.length + ' 字符）');
     const m = /coverage\(\) \{ return \{([\s\S]*?)\}; \}/.exec(seg);
     assert.ok(m, '★ 退路 coverage() 形态可读（形态漂移即判据失效，须显式红）');
@@ -482,7 +490,13 @@ test('【G3】★ 退路与真实现同形：覆盖度逐键一致，且判据�
     }
     // ② 两向自证：撤掉退路里的这两键，同款判据必须转红（否则判据恒真）
     const broke = mutate(idxSrc, 'headerFloors: [], headerCount: 0,', '', 'G3-fallback');
-    const seg2 = broke.slice(broke.indexOf('class SceneBookFallback'), broke.indexOf('class SuspenseBook', broke.indexOf('class SceneBookFallback')));
+    const _fbAt2 = broke.indexOf('class SceneBookFallback');
+    let _fbEnd2 = -1, _d2 = 0;
+    for (let i = broke.indexOf('{', _fbAt2); i < broke.length; i++) {
+        if (broke[i] === '{') _d2++;
+        else if (broke[i] === '}') { _d2--; if (_d2 === 0) { _fbEnd2 = i + 1; break; } }
+    }
+    const seg2 = broke.slice(_fbAt2, _fbEnd2);
     const m2 = /coverage\(\) \{ return \{([\s\S]*?)\}; \}/.exec(seg2);
     const fallbackKeys2 = m2[1].split(',').map((s) => s.trim().split(':')[0]).filter(Boolean).sort();
     assert.notDeepEqual(fallbackKeys2, realKeys, '★ 破坏副本上同款判据必须变红（否则这条判据恒真）');

@@ -59,7 +59,9 @@ const CASES = [
         1, 1,
         '声明了却零消费（死声明），M1 必须翻红'],
     ['V6-时钟委托被拆', IDX,
-        "            try { return new RelativeTimeHelper().parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
+        /* [v3.259.0 A1 第四刀] RelativeTimeHelper 外迁后宿主改写为「统一取用口优先、裸 new 兜底」三元式；
+         *   锚点必须与真实现逐字一致（否则破坏命中 0 次 ⇒ 该组作废、负控制静默失效）。 */
+        "            try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
         '            return null;',
         1, 1,
         '时钟不再解析日期 ⇒ 年龄 estimated 永不达成，M5 必须翻红'],

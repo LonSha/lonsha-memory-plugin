@@ -10,7 +10,7 @@
 |---|---|---|
 | 版本 | v3.258.0（四源同源） | `scan_version_guard.mjs` |
 | 门禁 | **241 测试文件 / 2446 断言 0 失败** + **56** 个 audit 脚本 | `npm test` |
-| 体量 | `index.js` **17444 行**（A1 三刀后：18401 → 18124 → 17776 → 17444）+ extra_js **71** 项共 **24124 行**，**72** 个根模块 | `wc -l` / `manifest.json` |
+| 体量 | `index.js` **16798 行**（A1 四刀后：18401 → 18124 → 17776 → 17444 → 16798）+ extra_js **72** 项共 **25007 行**，**73** 个根模块 | `wc -l` / `manifest.json` |
 | 跨仓外供 | 正向 **5 面**（`open_face_registry.tsv`）+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |
 
 ---
@@ -18,14 +18,14 @@
 ## 一、优化提升
 
 ### A1 · 宿主巨兽 `index.js` 继续瘦身【最大杠杆】
-- **现状（已推进三刀）**：**17444 行**（18401 → 18124 → 17776 → 17444）。P-2 已分诊并按读数**否掉「按域拆」**，
+- **现状（已推进四刀）**：**16798 行**（18401 → 18124 → 17776 → 17444 → 16798）。P-2 已分诊并按读数**否掉「按域拆」**，
   只留「成员级预算 + 文件规模上界」这条轴；实测 TOP5 集中度 **23.7%** / TOP40 **53.3%** / 前缀规则覆盖 **25.4%**（TO5/TO40 按**成员**计，不是按域）。
 - **路径**：不拆域，每版剥 1~2 个聚簇为 extra_js 模块 —— 已落三刀：第一刀 **v3.257.0** 六个叶子账本类（`memory-ledgers.js`）、
   第二刀 **v3.258.0** 六个工具类（`memory-aux.js`）、同轮第三刀 **v3.258.0** 三个生成侧派生系统（`narrative-generators.js`）。
   **下一刀候选**（按类级「判据面爆炸半径」＝ 类行数 ÷ 被测试/审计文件引用数排序）：`PrequelSystem`（爆炸半径最小，但依赖 `BM25`，须与它同刀或先提层）、
   再往后的类级候选 `SuspenseBook` / `CharacterMemoryBank` / `EntityLexicon` / `EchoPool` / `IncrementBookmark` / `RelativeTimeHelper`（零外部依赖）/ `PlotTimeline`；
   成员级候选见 `host_beast_baseline.json` 的 `split_candidates.low_coupling_examples`（`recallMemory` 688 / `exportMemoryReport` 349 等）。
-- **目标**：index.js 降至 15000 行以下。当前 **17444**，仍差 **2444 行**（三刀共剥 957 行）。
+- **目标**：index.js 降至 15000 行以下。当前 **16798**，仍差 **1798 行**（四刀共剥 1603 行）。
 - **验收**：`tests/audit/host_beast_baseline.json` 的成员基线随每次剥离减项（561 → 553 → 549）、瘦身进度转为可读数；门禁保持 0 失败。
   **每刀必做项**（三刀各踩一次的教训）：① 退路对账（缺席退路的公开面必须按**方法名**与真实现对账，含 getter）；② **扫描面口径跟着代码走** —— 只读 `index.js` 的审计脚本/内联判据会因消费点外迁而假报死配置；
   ③ 数量锁与登记面同步（`extra_js` 计数、README 人读面、`catalog_reference_consumers.tsv`、`v3247` 的 `REGISTRY`）。

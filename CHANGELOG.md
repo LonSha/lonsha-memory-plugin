@@ -1,3 +1,64 @@
+## v3.259.0
+
+**主题：A1 宿主巨兽第四刀 —— 七个「书册 / 时间」类外移，`index.js` 17444 → 16798 行。**
+
+### 同轮第一件：A1 第四刀（`memory-books.js`）
+
+`IncrementBookmark` / `EchoPool` / `SuspenseBook` / `PrequelSystem` / `RelativeTimeHelper` / `PlotTimeline` / `BM25`
+七类抽为 `memory-books.js`（`extra_js` 第 72 项，854 行）。**读数**：`index.js` **17444 → 16798 行**（净 −646，
+`wc -l` 实测）、成员 **549 → 536**；`extra_js` 71 → **72**、根 `.js` 72 → **73**。
+
+**选型依据（不是感觉）**：这一簇里有**两条跨簇真依赖边**，且都跨「书册 ↔ 时间」——
+`PrequelSystem.selectInjection` 内 `new BM25()`（超预算选段打分）、`SuspenseBook.getOpenPrompts` 内
+`new RelativeTimeHelper()`（期限倒计时）。拆成两个模块就得多出两份前言/边界段、两条 manifest 登记与两处取库口，
+还要为跨模块通信再造一条注入链；同文件里它们只是「同一作用域里的两个类声明」，类体一字不改。
+
+**交接纪律（对齐前三刀）**：取库口 `_memoryBooksLib()`（`_moduleLib(() => window.LonShaMemoryBooks, 'memory-books.js')`，
+不在构造期缓存）/ 缺席退路 `MemoryBooksFallback`（常量空实现，公开面按方法名与真实现对账，55 个方法名）/ 
+统一构造点 `_newMemoryBooks(name, ...args)`（宿主 7 处：六个字段 + `RelativeTimeHelper`）/
+`RelativeTimeHelper` 另有**唯一取用口** `_newRelativeTimeHelper()`（宿主 13 处零散读取收成一个口子，
+4 处 `new` 全在「取用口优先、裸 new 兜底」形态内 ⇒ 缺模块时全部降级而非外抛）。
+
+**判据真源随代码搬家（语义一字不改，只换被读的文件）**：`v3130`（`extractDualTimeTags` 解析诊断）/
+`v346`（悬项倒计时）/ `v386`（BM25 分支检索）/ `v319`（增量书签）/ `v3121`·`v373`（时间锚与时间范围）等；
+`v3209` `extra_js` 数量锁 71 → 72 与顺序 parity；参考基准 `catalog_reference_consumers.tsv` 补 `v3261` 行；
+`v3247` 破坏形态库接收方台账补 `v3261`。
+
+**新增常驻套件** `tests/v3261_a1_memory_books.test.mjs`（A 接线逐点在场 / B 真加载与逐类语义抽检（含两条依赖边
+真行为）/ C 加载面与基线同源 / D 六条真源码破坏（取库口读错全局名 / 模块缺类 / 漏接构造点 / 退路少一方法 /
+取用口绕开统一构造点 / 依赖边被拆）/ E 出生版本下限锚 / F 判据面自防护）。**首版 4 处判据缺陷**逐处修后 **6/6**。
+
+**本刀全链读数（收尾实测）**：`node tests/run.mjs --audit` ⇒ 测试段 242/242 文件通过（2453 断言 / 0 失败 / 108.3s）、审计段 53/53 脚本通过（65.5s）、`rc=0`；`scan_version_guard` 四源 manifest✓ package✓ CHANGELOG✓ TODO✓。一处需记的门禁脆弱性：`v3159` 的 `[2d]` 单项即 46s（内层串行跑全套审计），高并发下会在 120s 单文件上限附近抖动（本轮曾出现一次 TIMEOUT），单跑 12/12 通过 —— 非回归，是预算脆性。
+
+### 本刀自伤与修法（逐条留痕，供后人少走）
+
+1. **★ 抄错同名函数的份 —— 这不是笔误，是功能缺陷。** `index.js` 里 `parseStoryDateLoose` 有两份：
+   第一份在 v3.71 段、**IIFE 顶层**，返回 `{ type: standard|fantasy, year, month, day, monthId }`；
+   第二份在 v2.2 段、**内层闭包**里，返回 `{ y, mo, d }`（只服务它自己那层的 `storyDayDiff`/`relativePrefix`）。
+   类搬走前 `PlotTimeline` 声明在 IIFE 顶层，无限定名解析到的是**第一份**，`getChangesSince` 读的也正是
+   `.type/.year/.month/.day/.monthId`。首版按「函数声明提升后生效的是后者」抄了第二份 —— 那句理由**是错的**：
+   提升只在**同一作用域**内替换同名声明，第二份在内层闭包里，对顶层的类根本不可见。
+   后果是**静默功能性回归**：带锚点日期时 `anchor.type` 恒 `undefined` ⇒ 所有事件被过滤掉、
+   `getChangesSince` 恒返回空数组；无锚点那条路径不受影响，故症状极不显眼。
+   由新套件的「带锚点日期 + 时间窗」真行为断言当场抓住。修法：改抄第一份，并把判据从「任意一份同源」升为
+   「**被消费的形状**（含 `type:`/`standard`/`fantasy`/`monthId`）+ 宿主里恰好一份逐字等价」。
+2. **模块导出面漏 `bindErrLog`**：宿主 `_newRelativeTimeHelper()` 有一支「取库口现算 `bindErrLog`」的分支，
+   而 `api` 只冻了七个类 ⇒ `typeof MB.bindErrLog === 'function'` 恒 false、该分支静默降级（行为与设计不符）。
+   已补进导出面，并由 B 段真调用断言钉住。
+3. **模块内一处非可选链宿主接触**：`window.SillyTavern.getContext()` 写在可选链守卫之下的二级兜底里。
+   收敛为整条可选链（`?.getContext?.().saveMetadataDebounced?.()`），语义不变、形态统一。
+4. **判据自身四处缺陷（v3261 首版）**：① 方法名切分把成员缩进写死成 8 空格，而模块类声明在 IIFE 顶层
+   （类体 0 / 成员 4）⇒ 61 条「模块缺成员」假红；② 「非可选链 window.SillyTavern 接触」是**误判**
+   （那是受控的二级兜底），判据改为量形态（可选链处数 + 无守卫裸取红线）；③ 同名副本对账取了宿主第一份，
+   与 ① 的取份问题同源，改为按「与模块逐字等价」定位并要求恰好一份；④ `MEMBERS` 是按类分列（61 项，
+   去重 54），退路是单类 55 项（含 `constructor`），三者口径不同被混用。
+
+### 边界
+
+真实宿主实机**仍未验**（本版读数依旧是无头读数）。`index.js` 距 A1 验收线（15000 行）仍差 **1798 行** ——
+本刀是第四刀，不是收官。
+
+
 ## v3.258.0
 **主题：跨仓外供面的**反向半边**——从「声明 0 面」到「另表 + 另判据」。**
  同轮第二件（同版内落地）：**A1 宿主巨兽第二刀**（六个工具类抽出 `index.js`），见本节末「同轮第二件」小节。

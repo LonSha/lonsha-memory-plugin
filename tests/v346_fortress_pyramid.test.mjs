@@ -9,6 +9,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
 
 function braceEnd(s, open) {
     let depth = 0;
@@ -21,11 +25,11 @@ function braceEnd(s, open) {
     }
     return -1;
 }
-function extractClass(name) {
-    const start = src.indexOf(`class ${name} {`);
+function extractClass(name, source = src) {
+    const start = source.indexOf(`class ${name} {`);
     if (start < 0) throw new Error('missing class ' + name);
-    const brace = src.indexOf('{', start);
-    return src.slice(start, braceEnd(src, brace) + 1);
+    const brace = source.indexOf('{', start);
+    return source.slice(start, braceEnd(source, brace) + 1);
 }
 
 const errLog = () => {};
@@ -34,7 +38,8 @@ test('=== 1. 静态关键锚点与版本检查 ===', () => {
     assert.match(src.match(/const VERSION = '([^']+)';/)?.[1] || '', /^3\.\d{2,}/, '版本号必须 >= 3.46.0');
     assert.ok(src.includes('class GameClock'), '必须声明 GameClock 剧情时钟类');
     assert.ok(src.includes('addGrandChronicle') && src.includes('getGrandChroniclePrompt'), 'SummarySystem 必须声明宏观史记方法');
-    assert.ok(src.includes('getOpenPrompts(clockDate)'), 'SuspenseBook 必须支持时钟联动倒计时');
+    assert.ok(bkSrc.includes('getOpenPrompts(clockDate)'),
+        'SuspenseBook 必须支持时钟联动倒计时（[v3.259.0 A1 第四刀] 类已外迁 memory-books.js，锚点随之换源）');
     assert.ok(src.includes('[宏观世界线·纪元史记]'), '必须支持宏观史记注入块');
     assert.ok(src.includes('[当前剧情时间]'), '必须支持当前剧情时间注入块');
     assert.ok(src.includes('〔全知禁令与私密视界'), '必须支持全知禁令与私密视界提示');
@@ -45,7 +50,7 @@ test('=== 1. 静态关键锚点与版本检查 ===', () => {
 });
 
 test('=== 2. GameClock 剧情时钟动态演进与回忆隔离测试 ===', () => {
-    const rthCode = extractClass('RelativeTimeHelper');
+    const rthCode = extractClass('RelativeTimeHelper', bkSrc);
     const clockCode = extractClass('GameClock');
     const mkClock = () => new Function(`
         ${rthCode}
@@ -88,8 +93,8 @@ test('=== 2. GameClock 剧情时钟动态演进与回忆隔离测试 ===', () =>
 });
 
 test('=== 3. 悬念簿与剧情时钟倒计时联动测试 ===', () => {
-    const rthCode = extractClass('RelativeTimeHelper');
-    const suspCode = extractClass('SuspenseBook');
+    const rthCode = extractClass('RelativeTimeHelper', bkSrc);
+    const suspCode = extractClass('SuspenseBook', bkSrc);
     const mkSuspense = () => new Function(`
         ${rthCode}
         ${suspCode}

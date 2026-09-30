@@ -14,6 +14,8 @@ function vnum(s) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
+// [v3.259.0 A1 第四刀] BM25 已外迁到 memory-books.js（类体与宿主逐字同形，只少一层缩进）。
+const bkSrc = fs.readFileSync(path.join(__dirname, '../memory-books.js'), 'utf-8');
 
 // 版本断言
 const vMatch = src.match(/const VERSION = '([^']+)'/);
@@ -23,11 +25,17 @@ assert.ok(verNum >= vnum('3.86'), `版本 ${vMatch[1]} < 3.86`);
 
 // 抽取 BM25 类（保留缩进结构，去掉类体前导 8 空格换 2 空格）
 function extractClass() {
-    const start = src.indexOf('class BM25 {');
+    const start = bkSrc.indexOf('class BM25 {');
     assert.ok(start > 0, 'BM25 类未找到');
-    const end = src.indexOf('class CharacterState {', start);
+    // [v3.259.0 A1 第四刀] 旧写法以「下一个类（class CharacterState）的位置」当终点；
+    //   BM25 搬进 memory-books.js 后不再是相邻写法，改为花括号配平收口。
+    let depth = 0, end = -1;
+    for (let i = bkSrc.indexOf('{', start); i < bkSrc.length; i++) {
+        if (bkSrc[i] === '{') depth++;
+        else if (bkSrc[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
+    }
     assert.ok(end > start, 'BM25 类终点未找到');
-    const body = src.slice(start, end).replace(/\n    \/\/ \[v2\.0\] P2[\s\S]*$/, '');
+    const body = bkSrc.slice(start, end);
     // 去一层缩进（8 空格 → 2 空格），便于 eval
     return new Function('return (' + body.replace(/\n        /g, '\n  ') + ')')();
 }
@@ -125,12 +133,12 @@ test('=== 5. 静态检查：挂接完整性 ===', () => {
     assert.ok(src.includes('query.branches'), 'buildQuery 返回 branches');
     assert.ok(src.includes('this.bm25.searchBranches('), 'recallMemory 走 searchBranches');
     assert.ok(src.includes('branchScores: d.branchScores'), '结果携带 branchScores');
-    assert.ok(src.includes("\\p{Script=Han}"), 'Unicode Han Script 分词');
-    assert.ok(src.includes("normalize('NFKC')"), 'NFKC 归一化');
+    assert.ok(bkSrc.includes("\\p{Script=Han}"), 'Unicode Han Script 分词');
+    assert.ok(bkSrc.includes("normalize('NFKC')"), 'NFKC 归一化');
     // 旧分词正则绝迹（[a-z0-9]+ / [\u4e00-\u9fa5] 不再出现在 BM25 类内）
-    const clsStart = src.indexOf('class BM25 {');
-    const clsEnd = src.indexOf('class CharacterState {', clsStart);
-    const cls = src.slice(clsStart, clsEnd);
+    const clsStart = bkSrc.indexOf('class BM25 {');
+    const clsEnd = bkSrc.indexOf('class IncrementBookmark {');   // 模块内物理顺序的下一个类
+    const cls = bkSrc.slice(clsStart, clsEnd > clsStart ? clsEnd : bkSrc.length);
     assert.ok(!cls.includes('[a-z0-9]+'), '旧拉丁分词正则绝迹');
     assert.ok(!cls.includes('\\u4e00-\\u9fa5'), '旧基本区汉字正则绝迹');
     // manifest 同步

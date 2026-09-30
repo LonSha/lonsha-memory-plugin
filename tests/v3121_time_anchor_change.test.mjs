@@ -10,8 +10,12 @@ const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf8');
 /* [A1] PairMemory 已抽为 memory-ledgers.js（index.js 不再声明）。
  *   `pair:change` 源头随之移到模块；原断言只扫 index.js，现列名两个真源。 */
 const mlSrc = readFileSync(`${REPO_ROOT}/memory-ledgers.js`, 'utf8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = readFileSync(`${REPO_ROOT}/memory-books.js`, 'utf8');
 test('v3.121 时间线提供游标变化读取', () => {
-  assert.match(src, /getChangesSince\(floor = -1, anchorDate = ''/);
+  assert.match(bkSrc, /getChangesSince\(floor = -1, anchorDate = ''/);
   assert.match(src, /timeChangeDrivenInjection: true/);
 });
 test('v3.121 生成前接入时间锚点变化', () => {
@@ -26,9 +30,9 @@ test('v3.121 时间线游标持久化与回滚', () => {
 });
 
 test('v3.121 时间变化支持日期窗口与角色关联', () => {
-  assert.match(src, /windowDays = 3, characters = \[\]/);
-  assert.match(src, /Date\.UTC\(anchor\.year/);
-  assert.match(src, /ecs\.some\(x => allowed\.has\(x\)\)/);
+  assert.match(bkSrc, /windowDays = 3, characters = \[\]/);
+  assert.match(bkSrc, /Date\.UTC\(anchor\.year/);
+  assert.match(bkSrc, /ecs\.some\(x => allowed\.has\(x\)\)/);
   assert.match(src, /timelineWindowDays/);
 });
 test('v3.121 时间倒退保留诊断证据', () => {

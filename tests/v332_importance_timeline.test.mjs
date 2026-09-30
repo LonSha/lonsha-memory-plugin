@@ -2,14 +2,18 @@
 // 覆盖：events 提取 schema importance；PlotTimeline.add 持久化（向后兼容）；recall 保留；buildInjection 分级注入
 import fs from 'node:fs';
 const src = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = fs.readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
 let pass = 0, fail = 0;
 const assert = (n, c) => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}`); } };
 // ===== 1. 静态锚点检查 =====
 assert('extractionPrompt events 规则含 importance', src.includes('importance（1-10，数字越大越重要'));
 assert('输出 schema events 含 importance 默认5', src.includes('"importance": 5'));
-assert('PlotTimeline.add 接受 importance 参数', /add\(date, text, floor, characters = \[\], importance = 5\)/.test(src));
-assert('PlotTimeline.add 持久化 importance 且限幅1-10', src.includes('importance: (importance >= 1 && importance <= 10) ? importance : 5'));
-assert('PlotTimeline.add 去重时保大 importance', src.includes('if (importance > (exist.importance || 5)) exist.importance = importance'));
+assert('PlotTimeline.add 接受 importance 参数', /add\(date, text, floor, characters = \[\], importance = 5\)/.test(bkSrc));
+assert('PlotTimeline.add 持久化 importance 且限幅1-10', bkSrc.includes('importance: (importance >= 1 && importance <= 10) ? importance : 5'));
+assert('PlotTimeline.add 去重时保大 importance', bkSrc.includes('if (importance > (exist.importance || 5)) exist.importance = importance'));
 assert('onMessageReceived 聚合 tlImp', src.includes('let tlImp = 5;'));
 assert('timeline.add 传 tlImp（主）', src.includes('timeline.add(sd, extracted.summary, message.index || 0, extracted.characters || [], tlImp)'));
 assert('timeline.add 传 tlImp（推进）', src.includes('timeline.add(advanced, extracted.summary, message.index || 0, extracted.characters || [], tlImp)'));

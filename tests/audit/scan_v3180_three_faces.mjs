@@ -182,13 +182,29 @@ else problems.push('M4 无效 format 未抛 TypeError（错误应浮到用户面
 /* ---------- M5 接线真落地（时钟助手可达性） ---------- */
 // ★ 判据必须看**是否真委托**，而不是只看有没有同名方法：
 //   修前教训是「签名在位、方法体空转」也算通过——那正是本版治理的功能级失效形态。
-if (!/new RelativeTimeHelper\(\)\.parseStoryDate\(dateStr\)/.test(idx)) {
+/* [v3.259.0 A1 第四刀] 这两条判据原为「析取」形态（`!甲 && !乙` ⇒ 报错），本刀实测发现它
+ *   **对半拆的破坏无反应**：RelativeTimeHelper 外迁后宿主写成「统一取用口优先、裸 new 兜底」
+ *   的三元式，把「裸 new 那一半」拆掉时 `_newRelativeTimeHelper()` 仍在 ⇒ 析取项仍为真 ⇒ 恒绿。
+ *   （负控制 scan_v3180_three_faces_negctl 的 V6 组当场抓到：破坏后 M 仍 exit 0。）
+ *   改为两段：① 形态面——统一取用口或裸 new 委托至少一条在场；
+ *            ② 落点面——**两处委托各自都要在场**（缺一处 estimated 就不可达）。
+ *   落点用逐字子串判（与本仓既有逐字锚点同一纪律：宿主实现改写形态时必须同步本条）。 */
+const DELEGATES = [
+    ['parseStoryDate', '? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr)'],
+    ['calcAge', '? _newRelativeTimeHelper() : new RelativeTimeHelper()).calcAge(birthDateStr, currentStoryDateStr)'],
+];
+if (!idx.includes('_newRelativeTimeHelper()') && !idx.includes('new RelativeTimeHelper().parseStoryDate(dateStr)')) {
     problems.push('M5 ★ GameClock.parseStoryDate 未真委托（同名方法在位但空转 ⇒ age-anchor 的 parseFn 取不到日期）');
 }
-if (!/new RelativeTimeHelper\(\)\.calcAge\(birthDateStr, currentStoryDateStr\)/.test(idx)) {
+if (!idx.includes('_newRelativeTimeHelper()') && !idx.includes('new RelativeTimeHelper().calcAge(birthDateStr, currentStoryDateStr)')) {
     problems.push('M5 ★ GameClock.calcAge 未真委托（出生日期口径的年龄算不出来）');
 }
-if (/new RelativeTimeHelper\(\)\.parseStoryDate\(dateStr\)/.test(idx) && /new RelativeTimeHelper\(\)\.calcAge\(birthDateStr/.test(idx)) {
+for (const [sig, needle] of DELEGATES) {
+    if (!idx.includes(needle)) {
+        problems.push('M5 ★ GameClock.' + sig + ' 未真委托（取用口优先、裸 new 兜底两条路径缺一条 ⇒ estimated 不可达）');
+    }
+}
+if (DELEGATES.every(([, nd]) => idx.includes(nd))) {
     notes.push('M5 时钟自带日期解析委托且**真委托**（estimated 可达的前提）');
 }
 if (!/this\.status\.clock = this\.clock/.test(idx)) {
@@ -200,7 +216,7 @@ if (!/_clockHelpers\(\)\s*\{/.test(idx)) {
     problems.push('M5 CharacterState 缺 _clockHelpers（无自包含回落 ⇒ 隔离副本里 estimated 不可达且不报错）');
 }
 // 助手缺失时不得连坐
-if (!/typeof RelativeTimeHelper === 'function'/.test(idx)) {
+if (!/typeof RelativeTimeHelper === 'function'/.test(idx) && !/window\.LonShaMemoryBooks\?\.RelativeTimeHelper/.test(idx)) {
     problems.push('M5 时钟助手回落未做存在性检查（隔离/半加载环境会外抛）');
 }
 // ★ 遗漏基线交叉检查：接线必须落在**构造器内**，不得落在实例字段声明区

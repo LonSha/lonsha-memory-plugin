@@ -21,7 +21,28 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.258.0
+> 最近更新：v3.259.0
+>
+> **【同轮第四件 · v3.259.0】A1 宿主巨兽第四刀**：七个「书册 / 时间」类（`IncrementBookmark` / `EchoPool` / `SuspenseBook` /
+> `PrequelSystem` / `RelativeTimeHelper` / `PlotTimeline` / `BM25`）抽为 `memory-books.js`（`extra_js` 第 72 项）；
+> `index.js` **17444 → 16798 行**（净 −646）、成员 549 → 536。选型依据是**两条跨簇真依赖边**
+> （`PrequelSystem.selectInjection` 内 `new BM25()`、`SuspenseBook.getOpenPrompts` 内 `new RelativeTimeHelper()`）——
+> 拆成两个模块就得另造注入链，故同刀搬。交接纪律同前三刀：取库口 `_memoryBooksLib()` / 常量空实现退路
+> `MemoryBooksFallback`（公开面 55 个方法名对账）/ 统一构造点 `_newMemoryBooks(name, ...args)`；
+> `RelativeTimeHelper` 另有**唯一取用口** `_newRelativeTimeHelper()`（宿主 13 处零散读取收成一个，
+> 4 处 `new` 全部处在「取用口优先、裸 new 兜底」形态里）。
+> 判据真源随代码搬家：`v3130`（`extractDualTimeTags` 解析诊断）/ `v346`（悬项倒计时）/ `v386`（BM25 分支检索）等
+> 十余处抽取面切到模块文件；`v3209` 数量锁 71 → 72；参考基准补登记 `v3261`。
+> 新增常驻套件 `tests/v3261_a1_memory_books.test.mjs`（A 接线逐点 / B 真加载与逐类语义（含两条依赖边真行为）/
+> C 基线同源 / D 六条真源码破坏 / E 出生版本下限锚 / F 判据面自防护），首版 4 处判据缺陷逐处修后 **6/6**。
+> **本刀最大教训（已留痕 CHANGELOG）：抽类时「同名函数抄哪一份」不是笔误而是功能缺陷。**
+> `index.js` 里 `parseStoryDateLoose` 有两份（IIFE 顶层那份返回 `{type, year, month, day}`、内层闭包那份返回 `{y, mo, d}`），
+> 首版按「函数声明提升后生效的是后者」抄了闭包那份 —— 那句理由**是错的**（提升只在同一作用域内替换同名声明）。
+> `PlotTimeline` 声明在 IIFE 顶层、读的正是前者的形状，于是带锚点日期时 `getChangesSince` **恒返回空数组**
+> （无锚点那条路径不受影响 ⇒ 静默功能回归），由 v3261 的「带锚点真行为」断言当场抓住并已改抄正确的那一份。
+> 另两处自伤：模块导出面漏 `bindErrLog`（宿主「取库口现算」分支恒 false、静默降级）已补；
+> 模块内一处非可选链 `window.SillyTavern.getContext()`（在可选链守卫之下作二级兜底）已收敛为整条可选链。
+> 边界：真实宿主实机**仍未验**（本版读数依旧是无头读数）；`index.js` 距 A1 验收线 15000 行仍差 **1798 行**。
 > **【同轮第二件 · v3.258.0】A1 宿主巨兽第二刀**：六个工具类（`HolidayAware` / `Mutex` / `OpLog` / `FloorLedger` /
 > `SnapshotManager` / `EmergencyBackup`）抽为 `memory-aux.js`（`extra_js` 第 70 项）；`index.js` **18124 → 17776 行**
 > （净 −348）、成员 561 → 553。交接纪律对齐第一刀：取库口 `_memoryAuxLib()` / 常量空实现退路 `MemoryAuxFallback`

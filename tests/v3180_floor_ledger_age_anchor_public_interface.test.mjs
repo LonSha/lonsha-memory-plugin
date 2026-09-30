@@ -78,9 +78,51 @@ function extractClass(source, name) {
  *  ★ 关键：CharacterState 的隔离副本里 `_moduleLib` 与 `require` 都不可用，
  *    取库只认 `window.LonShaAgeAnchor` —— 与 h345_deep_bastion 的真实抽取现场一致，
  *    也正因如此这里必须**显式注入 window**（否则等于测了一个「模块不存在」的世界）。 */
+/* [v3.259.0 A1 第四刀] 隔离副本的两类 shell：
+ *   ① 被抽的类里，RelativeTimeHelper 已外迁 memory-books.js —— 它在本副本里**只被 new 出来用**，
+ *      故按「同形壳」的策略补一个最小实现（真实现的公开面在 memory-books.js，另有专门套件在测）。
+ *      宿主侧那三处三元式在副本里恰好走 `typeof _newRelativeTimeHelper === 'function'` 的**假**分支
+ *      （取用口不在副本作用域），于是这条壳被真正用到 —— 副本行为与修前逐字同形。
+ *   ② `window` 必须是形参：若干宿主方法读 `window.SillyTavern?.getContext?.()`；
+ *      不显式给形参就成了「模块不存在」的世界，测出来的不是接线。 */
+const RTH_SHELL = `class RelativeTimeHelper {
+    constructor(errLog = null) { this._err = (typeof errLog === 'function') ? errLog : function () {}; }
+    parseStoryDate(s) {
+        const m = /^(\\d{1,4})\\s*年\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*日?$/.exec(String(s || '').trim());
+        if (m) return { type: 'standard', year: +m[1], month: +m[2], day: +m[3] };
+        const m2 = /^(\\d{4})-(\\d{1,2})-(\\d{1,2})$/.exec(String(s || '').trim());
+        if (m2) return { type: 'standard', year: +m2[1], month: +m2[2], day: +m2[3] };
+        return null;
+    }
+    calcAge(birth, now) {
+        const b = this.parseStoryDate(birth), c = this.parseStoryDate(now);
+        if (!b || !c) return 0;
+        let age = c.year - b.year;
+        if (c.month < b.month || (c.month === b.month && c.day < b.day)) age--;
+        return Math.max(0, age);
+    }
+    compactTimeRange(a, b) { return String(b || ''); }
+    formatTimeRange(a, b) { return a ? String(a).trim() + (b ? ' - ' + String(b).trim() : '') : ''; }
+    extractDualTimeTags(t) { return { hasDual: false, start: null, end: null, durationMinutes: 0, parseError: null }; }
+    calcDaysTogether() { return 0; }
+    calcDaysDiff() { return null; }
+    relativeTimePrefix() { return ''; }
+}`;
+const RELOCATED = ['RelativeTimeHelper'];   // 已外迁的类：副本里走同形壳
+/* [v3.259.0 A1 第四刀] 壳**只声明在作用域里是取不到的**：`_clockHelpers()` 取自建件走两条路径 ——
+ *   闭包取库口 `_memoryBooksLib()`（副本里不在作用域）与 `window.LonShaMemoryBooks?.RelativeTimeHelper`。
+ *   故副本还要把壳按**宿主全局面的形状**挂进 window（与 AA_WIN 给 LonShaAgeAnchor 是同一件事）。
+ *   只在显式传了 win（即「这是个有宿主全局面的世界」）时挂：G4 那一档不给 win，
+ *   它测的正是「两个符号都不在作用域 ⇒ 如实返回 null」，挂了就把那一档的语义改掉了。 */
+const RTH_CLASS = (0, eval)('(' + RTH_SHELL + ')');
+const RTH_WIN = (base) => (base ? Object.assign({}, base, {
+    LonShaMemoryBooks: Object.assign({}, base.LonShaMemoryBooks, { RelativeTimeHelper: RTH_CLASS })
+}) : base);
 function loadClasses(source, deps, want, win) {
-    const body = deps.map(d => extractClass(source, d)).join('\n');
-    return new Function('errLog', 'window', body + '\nreturn ' + want + ';')(() => {}, win || {});
+    const body = deps.map((d) => (RELOCATED.includes(d) && source.indexOf('class ' + d + ' {') < 0)
+        ? RTH_SHELL
+        : extractClass(source, d)).join('\n');
+    return new Function('errLog', 'window', body + '\nreturn ' + want + ';')(() => {}, RTH_WIN(win));
 }
 const AA_WIN = () => ({ LonShaAgeAnchor: AA });
 /** 抽类方法体（★ 先配平圆括号再找函数体：`f(a, b = {})` 的参数默认值会把裸找 `{` 的写法坑到）。
@@ -529,7 +571,9 @@ test('【G2】★ 生产路径上 estimated 必须真能达成（三态不能塌
 test('【G3】★ CharacterState 侧时钟引用必须真的接上（this.clock 修前在状态层恒 undefined）', () => {
     assert.ok(/this\.status\.clock = this\.clock/.test(idxSrc),
         '★ 引擎必须把时钟交给状态层（否则 this.clock 恒 undefined，助手静默缺席）');
-    const CS = loadClasses(idxSrc, ['RelativeTimeHelper', 'CharacterState'], 'CharacterState');
+    /* 判这条要走「有宿主全局面」的副本（AA_WIN）：自建件的取用路径是 window.LonShaMemoryBooks，
+     *   不给面就只能测到「两个符号都不在 ⇒ null」那一档（G4 专门管那一档）。 */
+    const CS = loadClasses(idxSrc, ['RelativeTimeHelper', 'CharacterState'], 'CharacterState', AA_WIN());
     const cs = new CS();
     const h = cs._clockHelpers();
     assert.ok(h && typeof h.parseStoryDate === 'function' && typeof h.calcAge === 'function',
@@ -919,7 +963,9 @@ function brokenCopies() {
         {
             tag: 'G1-clock-no-delegate', what: '拆掉时钟的日期解析委托（估算态回到不可达）',
             target: 'index', src: breakText(idxSrc,
-                "            try { return new RelativeTimeHelper().parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
+                /* [v3.259.0 A1 第四刀] 锚点随宿主实现同步：RelativeTimeHelper 外迁后该行写成
+                 *   「统一取用口优先、裸 new 兜底」的三元式（取库口不在 ⇒ 退到裸 new，与修前同形）。 */
+                "            try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
                 '            return null;',
                 'G1')
         },

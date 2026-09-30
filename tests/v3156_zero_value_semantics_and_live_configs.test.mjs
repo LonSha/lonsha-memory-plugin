@@ -24,7 +24,9 @@ const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
  *   narrative-generators.js。下面凡是跨面描描的判据都要拿两个面的合并文本，
  *   否则「消费点已随类搬家」会被当成「消费点不存在」。每条判据仍只读自己的真源。 */
 const genSrc = readFileSync(path.join(ROOT, 'narrative-generators.js'), 'utf-8');
-const faceText = src + String.fromCharCode(10) + genSrc;   // 跨面判据用（入口 + 外迁模块）
+/* [v3.259.0 A1 第四刀] 七个书册/时间类外迁到 memory-books.js；跨面判据用 faceText + bkSrc。 */
+const bkSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');
+const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + bkSrc;   // 跨面判据用（入口 + 外迁模块）
 function vnum(s) {
     const p = String(s || '').trim().split('.');
     const a = Number(p[0]), b = Number(p[1] || 0), c = Number(p[2] || 0);
@@ -50,13 +52,14 @@ function braceSpan(text, fromIdx) {
     throw new Error('unclosed span');
 }
 function extractClass(name) {
-    const at = src.indexOf('class ' + name);
+    const at = (src + bkSrc).indexOf('class ' + name);
     assert.ok(at > 0, 'found class ' + name);
-    const bodyStart = src.indexOf('{', at);
+    const hay = src + bkSrc;
+    const bodyStart = hay.indexOf('{', at);
     let depth = 0;
-    for (let i = bodyStart; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(at, i + 1); }
+    for (let i = bodyStart; i < hay.length; i++) {
+        if (hay[i] === '{') depth++;
+        else if (hay[i] === '}') { depth--; if (depth === 0) return hay.slice(at, i + 1); }
     }
     throw new Error('class ' + name + ' unclosed');
 }

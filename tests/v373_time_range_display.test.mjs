@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.259.0 A1 第四刀] RelativeTimeHelper 已外迁到 memory-books.js。 */
+const bkSrc = readFileSync(`${REPO_ROOT}/memory-books.js`, 'utf-8');
 
 function extractClass(source, startMarker) {
     const start = source.indexOf(startMarker);
@@ -30,7 +32,7 @@ test('=== 1. 清洗误伤修复检查 ===', () => {
 });
 
 test('=== 2. compactTimeRange 功能测试 ===', () => {
-    const cls = extractClass(src, 'class RelativeTimeHelper');
+    const cls = extractClass(bkSrc, 'class RelativeTimeHelper');
     assert.ok(cls, 'RelativeTimeHelper 可提取');
     // 提取 compactTimeRange 方法并单测（逻辑复刻）
     const compact = (a, b) => {
@@ -77,7 +79,12 @@ test('=== 3. formatTimeRange 功能测试 ===', () => {
 });
 
 test('=== 4. rth 实例与 rangeLabel 检查 ===', () => {
-    assert.ok(src.includes('if (!this.rth) this.rth = new RelativeTimeHelper();'), 'rth 懒实例化');
+    /* [v3.259.0 A1 第四刀] RelativeTimeHelper 外迁；宿主懒实例化改走唯一取用口 `_newRelativeTimeHelper()`，
+     *   并保留「隔离副本里没有取用口」时的裸 new 兜底（两条形态任一在场即算过）。 */
+    assert.ok(/if \(!this\.rth\) this\.rth = .*_newRelativeTimeHelper\(\)/.test(src)
+        || src.includes('if (!this.rth) this.rth = new RelativeTimeHelper();'), 'rth 懒实例化');
+    assert.ok(bkSrc.includes('class RelativeTimeHelper'),
+        'RelativeTimeHelper 真实现已在 memory-books.js（懒实例化取的必须是它）');
     assert.ok(src.includes('rangeLabel: this.rth ? this.rth.formatTimeRange('), 'time_anchor 带压缩展示');
 });
 

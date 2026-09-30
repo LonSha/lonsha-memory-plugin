@@ -5,6 +5,10 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
@@ -20,11 +24,11 @@ function braceEnd(s, open) {
     }
     return -1;
 }
-function extractClass(name) {
-    const start = src.indexOf(`class ${name} {`);
+function extractClass(name, source = src) {
+    const start = source.indexOf(`class ${name} {`);
     if (start < 0) throw new Error('missing class ' + name);
-    const brace = src.indexOf('{', start);
-    return src.slice(start, braceEnd(src, brace) + 1);
+    const brace = source.indexOf('{', start);
+    return source.slice(start, braceEnd(source, brace) + 1);
 }
 
 const normFn = (n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
@@ -81,7 +85,7 @@ const buildNpcFn = new Function('errLog', `
 }
 
 console.log('=== 3. 双界时间锚点与年龄/天数推算动态测试 ===');
-const rthSrc = extractClass('RelativeTimeHelper');
+const rthSrc = extractClass('RelativeTimeHelper', bkSrc);
 const mkRelativeTimeHelper = () => new Function('errLog', `
     ${rthSrc}
     return new RelativeTimeHelper();

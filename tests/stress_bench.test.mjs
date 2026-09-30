@@ -5,6 +5,10 @@ import { strict as assert } from 'node:assert';
 import { performance } from 'node:perf_hooks';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
+ *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
+ *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
 
 function braceEnd(s, open) {
     let depth = 0;
@@ -17,11 +21,11 @@ function braceEnd(s, open) {
     }
     return -1;
 }
-function extractClass(name) {
-    const start = src.indexOf(`class ${name} {`);
+function extractClass(name, source = src) {
+    const start = source.indexOf(`class ${name} {`);
     if (start < 0) throw new Error('missing class ' + name);
-    const brace = src.indexOf('{', start);
-    return src.slice(start, braceEnd(src, brace) + 1);
+    const brace = source.indexOf('{', start);
+    return source.slice(start, braceEnd(source, brace) + 1);
 }
 
 const normFn = (n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
@@ -49,7 +53,7 @@ function areLabelsInConflict(l1, l2) {
 `)(normFn, errLog);
 
 // 提取 BM25Engine
-const bm25Src = extractClass('BM25');
+const bm25Src = extractClass('BM25', bkSrc);
 const mkBM25 = () => new Function('errLog', `
     ${bm25Src}
     return new BM25();
