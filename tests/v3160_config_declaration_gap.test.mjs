@@ -18,6 +18,11 @@ const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+/* [v3.258.0 A1 第三刀] 生成侧三类已外迁到 narrative-generators.js。
+ *   [1b]「声明的键必须在配置块外至少被读一次」的扫描面要跟着代码走：
+ *   只扫入口会把 outlinePlanCooldownFloors 这类已随类搬家的键误报成孤儿。字节下限守卫同步扩到合并面。 */
+const genSrc = readFileSync(path.join(ROOT, 'narrative-generators.js'), 'utf-8');
+const faceText = src + String.fromCharCode(10) + genSrc;
 
 function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
@@ -65,7 +70,7 @@ test('[1] no config key is read by the engine without being declared', () => {
 test('[1b] no declared key is unreachable (zero member reads outside the block)', () => {
     const dead = [];
     for (const k of [...declaredKeys].sort()) {
-        const hits = [...src.matchAll(new RegExp('[.]' + k + '(?![A-Za-z0-9_$])', 'g'))].map((m) => m.index);
+        const hits = [...faceText.matchAll(new RegExp('[.]' + k + '(?![A-Za-z0-9_$])', 'g'))].map((m) => m.index);
         if (!hits.some((p) => p < CFG.open || p > CFG.close)) dead.push(k);
     }
     assert.deepStrictEqual(dead, [], 'declared but never consumed: ' + dead.join(', '));

@@ -24,6 +24,11 @@ const AUDIT = path.join(ROOT, 'tests', 'audit');
 const LEDGER = path.join(AUDIT, 'scan_wiring_dead_methods.tsv');
 const read = (p) => fs.readFileSync(p, 'utf8');
 const idxSrc = read(path.join(ROOT, 'index.js'));
+/* [v3.258.0 迁移] A1 第二刀把 OpLog / FloorLedger 等六个工具类外迁到 memory-aux.js；
+   「保留面」判据读的 `queryByRef/queryByType/recent` 已随 OpLog 搬家。判据须**跨根级模块**判，
+   而不是钉在 index.js —— 钉单文件等于把「哪天再抽一个模块」写死成红。 */
+const ROOT_MODS = fs.readdirSync(ROOT).filter((f) => f.endsWith('.js') && !f.endsWith('.bak'));
+const modSrc = new Map(ROOT_MODS.map((f) => [f, read(path.join(ROOT, f))]));
 const ledger = read(LEDGER);
 
 /* 本版处置的四条（顺序即台账顺序） */
@@ -61,15 +66,21 @@ test('v3230 A1. ★★★ 四条方法定义确已删除（跨文件扫描面）
 });
 
 test('v3230 A2. ★★ 保留面逐条在场（删代码最怕删错同族兄弟）', () => {
-    for (const keep of [
-        'fulfillPromise(id) {',                 // 同族的「履行」入口（测试在用，保留）
-        'resolvePromise(id, status',            // 产品路径唯一入口（两个旧入口都不再直调）
-        'hybridMerge(results) {',               // 遗留融合的**活**替代者
-        'queryByRef(refId) {',                  // OpLog 三类检索里的仍活着的两条
-        'queryByType(type) {',
-        'recent(n) {',
-    ]) {
-        assert.ok(idxSrc.includes(keep), '保留面缺失: ' + keep);
+    /* [v3.258.0 迁移] 真源可能不在 index.js（A1 已外迁六个工具类）；改为**跨根级模块**在场判据，
+       并逐条检查它「落在哪个模块」——搬家这件事本身也要写在判据里，否则是隐性依赖。 */
+    const KEEP = [
+        ['fulfillPromise(id) {', 'index.js'],              // 同族的「履行」入口（测试在用，保留）
+        ['resolvePromise(id, status', 'index.js'],         // 产品路径唯一入口（两个旧入口都不再直调）
+        ['hybridMerge(results) {', 'index.js'],            // 遗留融合的**活**替代者
+        ['queryByRef(refId) {', 'memory-aux.js'],          // OpLog 三类检索里仍活着的两条（随 OpLog 外迁）
+        ['queryByType(type) {', 'memory-aux.js'],
+        ['recent(n) {', 'memory-aux.js'],
+    ];
+    for (const [keep, home] of KEEP) {
+        const inHome = (modSrc.get(home) || '').includes(keep);
+        assert.ok(inHome, '保留面缺失: ' + keep + '（应在 ' + home + '）');
+        const elsewhere = ROOT_MODS.filter((f) => f !== home && modSrc.get(f).includes(keep));
+        assert.deepEqual(elsewhere, [], '保留面不得在 ' + home + ' 之外重复出现: ' + keep + ' -> ' + elsewhere.join(','));
     }
 });
 

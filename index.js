@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.257.0';
+    const VERSION = '3.258.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -885,6 +885,117 @@
     function _newMemoryLedger(name) {
         const ML = _memoryLedgersLib();
         const C = (ML && typeof ML[name] === 'function') ? ML[name] : MemoryLedgerFallback;
+        return new C();
+    }
+    // ═══════════════════════════════════════════════════════════════════
+    // [A1 第二刀] 记忆辅助类集取库口（memory-aux.js）
+    //   HolidayAware / Mutex / OpLog / FloorLedger / SnapshotManager /
+    //   EmergencyBackup 六个工具类已于本版抽为 memory-aux.js。
+    //   抽走前的实测依据（与第一刀同一条读数轴）：六个类彼此零互调、除 EmergencyBackup
+    //   的诊断记账外对主人符号零依赖，对外只被 MemoryEngine 在构造期 new 一次、之后按方法名调用。
+    //   本取库口与 _memoryLedgersLib / _cacheIdentityLib 同形：**不在构造期缓存**（extra_js 后加载）。
+    // ═══════════════════════════════════════════════════════════════════
+    function _memoryAuxLib() {
+        return _moduleLib(() => window.LonShaMemoryAux, 'memory-aux.js');
+    }
+    // 模块缺席时的内置退路：与 memory-aux.js 的公开面**同形**（少功能但绝不抛、绝不静默）。
+    //   为什么不留着旧类当退路：两份实现会漂移（与第一刀同一条理由）。
+    //   故退路是一层**常量空实现**：读数全部如实回报「没有」，而不是伪造一个能写不能读的账本。
+    //   空实现刻意**不吃构造参数**：它的每个方法都是常量返回（没有「有 opts 才能正确回报」的分支），
+    //   真实现才需要 maxFloors / errLog 才能如实回报；两份实现的公开面按**方法名**对账。
+    class MemoryAuxFallback {
+        constructor() { this._absent = true; }
+        /* ── HolidayAware ── */
+        _parse() { return null; }
+        current() { return null; }
+        _dayDiff() { return 0; }
+        keywords() { return []; }
+        /* ── Mutex ── */
+        acquire() { return null; }
+        release() { return false; }
+        get locked() { return false; }
+        get holderToken() { return null; }
+        get queueLength() { return 0; }
+        /* ── OpLog ── */
+        _retention() { return { total: 0, op: 0, ref: 0, type: 0, meta: 0 }; }
+        static normRef(v) { return String(v == null ? '' : v); }
+        static normOp(v) { return String(v == null ? '' : v); }
+        log() { return false; }
+        recent() { return []; }
+        queryByType() { return []; }
+        queryByRef() { return []; }
+        stats() { return null; }
+        observedTotal() { return 0; }
+        auditSummary() { return null; }
+        export() { return { entries: [], seq: 0 }; }
+        import() { return false; }
+        /* ── FloorLedger ── */
+        beginFloor() { return null; }
+        record() { return false; }
+        get() { return null; }
+        remove() { return 0; }
+        floorsAfter() { return []; }
+        /* ── SnapshotManager / EmergencyBackup ── */
+        _open() { return null; }
+        save() { return false; }
+        latest() { return null; }
+        list() { return []; }
+        restore() { return false; }
+    }
+    /** 取一个辅助类实例：模块在场用真实现，缺席退到同形空实现（**不静默化成空对象**）。
+     *  第二参为构造参数（仅 FloorLedger / EmergencyBackup 需要）—— 空实现忽略它（见上方注释）。 */
+    function _newMemoryAux(name, opts) {
+        const MA = _memoryAuxLib();
+        const C = (MA && typeof MA[name] === 'function') ? MA[name] : MemoryAuxFallback;
+        if (opts === undefined) return new C();
+        return new C(opts);
+    }
+    // ===================================================================
+    // [A1 第三刀] 叙事产物生成类集取库口（narrative-generators.js）
+    //   DiarySystem / ReflectionSystem / OutlineDirector 三个生成侧派生系统已于本版抽为
+    //   narrative-generators.js。抽走前的实测依据（与前两刀同一条读数轴）：三类彼此零互调、
+    //   对主人模块级符号零依赖、对外只被 MemoryEngine 在构造期 new 一次、之后按方法名调用；
+    //   唯一宿主接触面是三处同形的 window.SillyTavern 可选链取上下文。
+    //   本取库口与 _memoryAuxLib / _memoryLedgersLib 同形：**不在构造期缓存**（extra_js 后加载）。
+    // ===================================================================
+    function _narrativeGeneratorsLib() {
+        return _moduleLib(() => window.LonShaNarrativeGenerators, 'narrative-generators.js');
+    }
+    // 模块缺席时的内置退路：与 narrative-generators.js 的公开面**同形**（少功能但绝不抛、绝不静默）。
+    //   为什么不留着旧类当退路：两份实现会漂移（前两刀同一条理由）。
+    //   故退路是一层**常量空实现**：读数全部如实回报「没有」。
+    //   export() 返回**超集形状**（日记与大纲两边的顶层键全在）：避免调用方读到 undefined 塌成第三态。
+    class NarrativeGeneratorFallback {
+        constructor() { this._absent = true; }
+        /* ── DiarySystem ── */
+        generateLiving() { return 0; }
+        getChangesSince() { return []; }
+        /* ── ReflectionSystem ── */
+        generate() { return 0; }
+        recent() { return []; }
+        /* ── OutlineDirector ── */
+        currentTurn() { return null; }
+        get flatTurns() { return []; }
+        get exhausted() { return true; }
+        parseOutline() { return null; }
+        turn() { return ''; }
+        advanceTurn() { return null; }
+        planNext() { return null; }
+        toPrompt() { return ''; }
+        rollbackFloor() { return 0; }
+        shiftFloorRefs() { return 0; }
+        dec() { return null; }
+        pick() { return null; }
+        /* ── 两方共用名（一个形状覆盖两边：如实回报「没有」）── */
+        search() { return []; }
+        removeByFloor() { return 0; }
+        export() { return { diaries: {}, lastDiaryFloor: -1, stage: null, turnIndex: 0, turnFloor: 0, history: [] }; }
+        import() { return false; }
+    }
+    /** 取一个生成系统实例：模块在场用真实现，缺席退到同形空实现（**不静默化成空对象**）。 */
+    function _newNarrativeGenerator(name) {
+        const NG = _narrativeGeneratorsLib();
+        const C = (NG && typeof NG[name] === 'function') ? NG[name] : NarrativeGeneratorFallback;
         return new C();
     }
     class ConfigManager {
@@ -2296,10 +2407,10 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.graph = new MemoryGraph();
             this.summary = new SummarySystem();
             this.summary.fpOf = (m) => { try { return msgFpOf(m); } catch (e) { return ''; } };   // [v3.149] 卷摘要 intact：指纹函数注入位（独立单类测试无 SillyTavern 依赖时可覆盖）
-            this.diary = new DiarySystem();
+            this.diary = _newNarrativeGenerator('DiarySystem');
             this.charMem = new CharacterMemoryBank();   // [v3.16] 角色记忆银行（核心/近期两层）
             this.worldProg = new WorldProgress();        // [v3.16] 世界推进（不在场角色）
-            this.reflection = new ReflectionSystem();  // [v2.8] RT-B 反思系统
+            this.reflection = _newNarrativeGenerator('ReflectionSystem');  // [v2.8] RT-B 反思系统
             this.items = { records: [] };               // [v2.8] RT-C 物品台账（派生缓存）
             this._lastStoryDate = null;                 // [v2.9] RU-A 主动时间推进的锚点
             this._recallCache = null;                   // [v2.9] RU-D swipe 召回缓存 {floor, queryKey, injection}
@@ -2347,7 +2458,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   （`_injectionClose`），于是「谁的载荷谁提交」，无主载荷既不落成读数也不静默消失。
             this._diagnostics = null;                   // [v3.215.0] 诊断读数面（selfCheck dry-run 等，**不进** _lastInjection）
             this._generationActive = false;             // [v3.10] 生成中标志（GENERATION_STARTED→MESSAGE_RECEIVED 之间为 true；自愈调度器读它防并发）
-            this.snapshots = new SnapshotManager();     // [v2.9] RU-C 存储快照
+            this.snapshots = _newMemoryAux('SnapshotManager');     // [v2.9] RU-C 存储快照
             this._lastKnownChatLen = 0;  // [v3.1] SF2 渲染切片保护基线
             this._lastOptimizeFloor = 0;                // [v2.9] RU-B 优化周期锚点
             this.itemOps = [];                          // 物品 ops 真源（楼层回滚用）
@@ -2390,7 +2501,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   状态层副本里没有这个引用时自建 RelativeTimeHelper —— 修前 this.clock 恒 undefined，
             //   于是 age-anchor 的 parseFn 静默返回 undefined，估算态永不达成）
             // [v3.155] 楼层账本：上限可配 + 淘汰可见（淘汰即「回滚能力失效」，必须让人知道）
-            this.ledger = new FloorLedger({
+            this.ledger = _newMemoryAux('FloorLedger', {
                 maxFloors: Number(this.config.config.floorLedgerRetention) || 400,
                 onEvict: (floor, total) => {
                     try { this.opLog?.log?.('ledger', 'evict', String(floor), Number(floor), `楼层账本上限淘汰（累计 ${total}）: 第${floor}楼回滚能力失效`); } catch (e) {}
@@ -2398,8 +2509,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
             });
             // [v2.1] P3
-            this.mutex = new Mutex();
-            this.holiday = new HolidayAware();
+            this.mutex = _newMemoryAux('Mutex');
+            this.holiday = _newMemoryAux('HolidayAware');
             // [v3.153] ANIMA 感知线：swipe 重绘态 + 当前楼层标记（无条件维护，消费在 computeRecallQuota 且受总门控）
             this._swipeRegen = false;   // 末楼 swipe_id>0（正在重绘 assistant 回复）
             this._currentFloor = -1;    // 当前楼层（台账臂窗口锚点）
@@ -2424,13 +2535,13 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.cse = new (window.LonShaCSE?.CSEngine || function() {
                 return { set(){return null}, addFromExtracted(){return 0}, confirm(){return false}, get(){return []}, getToward(){return []}, toPrompt(){return ''}, shiftFloors(){return 0}, removeByFloor(){return 0}, removeChar(){return false}, export(){return {chars:{}}}, import(){} };
             })();
-            this.outline = new OutlineDirector();
+            this.outline = _newNarrativeGenerator('OutlineDirector');
             // [v3.95] 叙事心电图（完全原创·LonSha 独有，window.LonShaNarrativePulse，降级为空实现）
             this.pulse = new (window.LonShaNarrativePulse?.NarrativePulse || function() {
                 return { beat(){return null}, diagnose(){return {status:'flow',advice:'',streakHigh:0,streakLow:0,avgTension:0,avgPolarity:0}}, getArc(){return null}, toPrompt(){return ''}, shiftFloors(){return 0}, removeByFloor(){return 0}, export(){return {beats:[],arcs:{}}}, import(){} };
             })();
             this.pairMem = _newMemoryLedger('PairMemory');
-            this.opLog = new OpLog();  // [v3.54] 事件溯源日志
+            this.opLog = _newMemoryAux('OpLog');  // [v3.54] 事件溯源日志
             // [v3.96] 缝合四模块实例化（降级为空实现，缺 window 全局时不影响主链路）
             // ① 前置 AI 精选（ai-select.js）：候选语义精选，注入 llm.callAPI 走独立API+宿主双通道
             this.aiSelect = new (window.LonShaAISelect?.AISelect || function() {
@@ -16105,368 +16216,11 @@ deltas 只列本次新增的重要事实（established=有明确证据，uncerta
         }
     }
     
-    // [v2.0] P2: 楼层账本（抄 yuzuki floor-ledger：记忆变更绑定楼层，删楼/重生成自动回滚）
-    class FloorLedger {
-        constructor(opts) {
-            this.floors = {};   // { floor: { nodeIds:[], summaryFloors:[], povIds:[], timelineIds:[], statusSnapshot:{} } }
-            // [v3.155] 旧写法 MAX_FLOORS=400 硬编码 + 超限 `delete` 最旧楼层：删除后 rollbackFloor 遇
-            //   `!entry` 直接 return 0，**回滚能力静默失效**（该楼产生的图谱节点/POV/时间线永远留在记忆里，
-            //   成为幽灵记忆）。长线连载（>400 楼）必然触发。改为可配 + 淘汰可见（evicted 计数 + 回调 + op-log）。
-            this.MAX_FLOORS = Math.max(20, Number(opts && opts.maxFloors) || 400);
-            this.evicted = 0;                      // 累计淘汰楼层数（诊断可观测）
-            this.onEvict = (opts && typeof opts.onEvict === 'function') ? opts.onEvict : null;
-        }
-        beginFloor(floor, statusSnapshot) {
-            this.floors[floor] = {
-                floor,
-                nodeIds: [],
-                summaryFloors: [],
-                povIds: [],
-                timelineIds: [],
-                recallIds: [],        // [v3.150] B 楼层召回账本：该楼剧情被后续哪轮召回过（recallHits 聚合计数）
-                statusSnapshot: statusSnapshot || null,
-                createdAt: Date.now()
-            };
-            const keys = Object.keys(this.floors);
-            if (keys.length > this.MAX_FLOORS) {
-                // [v3.155] 逐个淘汰（原实现只 delete 一条，批量导入超限时会残留超限状态）+ 显式记账
-                const _sorted = keys.sort((a, b) => a - b);
-                while (_sorted.length > this.MAX_FLOORS) {
-                    const _victim = _sorted.shift();
-                    delete this.floors[_victim];
-                    this.evicted++;
-                    const _vn = Number(_victim);
-                    if (Number.isFinite(_vn)) this.evictedFloorMax = Math.max(Number(this.evictedFloorMax) || -1, _vn);
-                    if (this.onEvict) { try { this.onEvict(_victim, this.evicted); } catch (e) {} }
-                }
-            }
-            return this.floors[floor];
-        }
-        record(floor, patch) {
-            const e = this.floors[floor] || this.beginFloor(floor);
-            if (patch.nodeIds) e.nodeIds.push(...patch.nodeIds);
-            if (patch.summaryFloors) e.summaryFloors.push(...patch.summaryFloors);
-            if (patch.povIds) e.povIds.push(...patch.povIds);
-            if (patch.timelineIds) e.timelineIds.push(...patch.timelineIds);
-            // [v3.150] B 楼层召回账本：本轮召回命中该楼的条目数（反向记账，非写入条目 id）
-            if (patch.recallHits) { e.recallIds = e.recallIds || []; const _marks = Array.isArray(patch.recallIds) && patch.recallIds.length ? patch.recallIds : ['rec_' + Date.now()]; for (const _m of _marks) e.recallIds.push(_m); e.recallHits = (e.recallHits || 0) + (Number(patch.recallHits) || 0); }
-            return e;
-        }
-        get(floor) { return this.floors[floor] || null; }
-        // 移除楼层记录，返回被移除的条目（供调用方回滚）
-        remove(floor) {
-            const e = this.floors[floor];
-            if (!e) return null;
-            delete this.floors[floor];
-            return e;
-        }
-        // 该楼层之后的所有楼层（重生成/删楼后需回滚的）
-        floorsAfter(floor) {
-            return Object.keys(this.floors).map(Number).filter(f => f > floor).sort((a, b) => a - b);
-        }
-        export() { return this.floors; }
-        import(data) { this.floors = (data && typeof data === 'object') ? data : {}; }
-    }
     
-    // [v2.1] P3: 提取互斥锁（抄 hcdiary：cdBusy/cdPending 防并发写坏数据）
-    class Mutex {
-        // [v3.145] CP-L6: 所有权令牌（stbme Restore Lock 语义）——此前 release() 无凭证，
-        // 任何持有引用的任务在 finally 里都能放锁：排队超时降级路径、聊天切换后晚到的
-        // finally、回滚期间的旧任务都可能把别人（甚至新会话）的锁放开，导致并发写。
-        // acquire() 现在返回签发凭证（truthy，既有 `if (!acquired)` 判定不受影响），
-        // release(cred) 只认签发者；无凭证/非签发者一律拒绝并计入 _foreignRelease 可见化。
-        constructor() { this.busy = false; this.pending = false; this.waiters = []; this._holder = null; this._tokenSeq = 0; this._foreignRelease = 0; }
-        async acquire(ownerHint) {
-            const issue = () => ({ id: ++this._tokenSeq, owner: String(ownerHint || 'anon'), at: Date.now() });
-            if (!this.busy) { this.busy = true; this._holder = issue(); return this._holder; }
-            // 已有任务在跑：排队等待（最多等 30s，避免死等）
-            return new Promise((resolve) => {
-                let done = false;
-                const timer = setTimeout(() => {
-                    if (done) return;
-                    done = true;
-                    const i = this.waiters.indexOf(entry);
-                    if (i >= 0) this.waiters.splice(i, 1);
-                    resolve(false);   // 超时→假值（调用方走降级路径，语义不变）
-                }, 30000);
-                const entry = (cred) => {
-                    if (done) return;
-                    done = true;
-                    clearTimeout(timer);
-                    if (cred) this.busy = true;
-                    resolve(cred);
-                };
-                this.waiters.push(entry);
-            });
-        }
-        release(cred) {
-            if (!this.busy) return true;                     // 未持锁：空放，不算越权
-            if (cred && cred === this._holder) { /* 正当释放 */ }
-            else if (cred && typeof cred === 'object') {
-                this._foreignRelease++;                       // [v3.145] 越权释放：晚到的 finally 不得放开新持有者的锁
-                try { console.warn(`[Mutex] 拒绝越权释放：令牌 #${cred?.id}(${cred?.owner}) 非当前持有者 #${this._holder?.id}(${this._holder?.owner})`); } catch (e) {}
-                return false;
-            }                                                 // 无凭证→兼容既有/测试调用，按当前持有者释放
-            if (this.waiters.length) {
-                const next = this.waiters.shift();
-                const cred2 = { id: ++this._tokenSeq, owner: next._ownerHint || 'queued', at: Date.now() };
-                this._holder = cred2;
-                next(cred2);   // 直接把锁（含新签发凭证）交给下一个等待者
-            } else {
-                this.busy = false; this._holder = null;
-            }
-            return true;
-        }
-        get locked() { return this.busy; }
-        get holderToken() { return this._holder; }
-        get queueLength() { return this.waiters.length; }
-    }
     
-    // [v2.1] P3: 节日感知（抄 anima default_rag_strategy.holidays：日期临近节日时增强）
-    class HolidayAware {
-        constructor() {
-            this.holidays = [
-                { date: '12-25', name: '圣诞节', before: 3, after: 3 },
-                { date: '02-14', name: '情人节', before: 2, after: 2 },
-                { date: '01-01', name: '元旦', before: 3, after: 3 },
-                { date: '10-31', name: '万圣节', before: 1, after: 1 },
-                { date: '05-20', name: '网络情人节', before: 1, after: 1 },
-                { date: '06-01', name: '儿童节', before: 1, after: 1 },
-                { date: '08-15', name: '中秋节', before: 3, after: 3 },
-                { date: '07-07', name: '七夕', before: 2, after: 2 }
-            ];
-        }
-        _parse(dateStr) {
-            const s = String(dateStr || '');
-            // [v2.2] 修复: 支持无年日期("3月12日"); 节日比较只看月/日, 年缺省用占位年
-            const m = s.match(/(\d{3,4})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})/)
-                || s.match(/(\d{1,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})/)
-                || s.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
-            if (!m) return null;
-            const mo = Number(m[m.length - 2]), d = Number(m[m.length - 1]);
-            if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-            let y = m.length === 4 ? Number(m[1]) : 2024;
-            if (y < 100) y += 2000;
-            return { y, mo, d };
-        }
-        /** 返回当前日期所处的节日（含临近窗口），无则 null */
-        current(dateStr) {
-            const p = this._parse(dateStr);
-            if (!p) return null;
-            for (const h of this.holidays) {
-                const [hm, hd] = h.date.split('-').map(Number);
-                const cur = p.mo * 100 + p.d;
-                const target = hm * 100 + hd;
-                // 允许跨月窗口（简单按天数近似）
-                const diff = this._dayDiff(p.mo, p.d, hm, hd, p.y);
-                if (diff >= -h.before && diff <= h.after) {
-                    return { name: h.name, date: h.date, offsetDays: diff };
-                }
-            }
-            return null;
-        }
-        _dayDiff(m1, d1, m2, d2, year) {
-            const a = new Date(year, m1 - 1, d1).getTime();
-            let bYear = year;
-            const b = new Date(bYear, m2 - 1, d2).getTime();
-            let diff = Math.round((a - b) / 86400000);
-            // 处理跨年（如 12月 看 1月1日）
-            if (diff > 180) diff -= 365;
-            if (diff < -180) diff += 365;
-            return diff;
-        }
-        /** 节日关键词（用于召回加权 / 注入提示） */
-        keywords(holidayName) {
-            const map = {
-                '圣诞节': ['圣诞', '圣诞树', '礼物', '平安夜', '雪'],
-                '情人节': ['情人节', '玫瑰', '巧克力', '告白', '约会'],
-                '元旦': ['元旦', '新年', '跨年', '倒计时'],
-                '万圣节': ['万圣', '南瓜', '糖果', '变装'],
-                '网络情人节': ['520', '告白', '我爱你'],
-                '儿童节': ['儿童节', '游乐场', '糖果'],
-                '中秋节': ['中秋', '月饼', '团圆', '赏月'],
-                '七夕': ['七夕', '牛郎织女', '鹊桥', '乞巧']
-            };
-            return map[holidayName] || [];
-        }
-    }
     
     // [v2.5] RF: 活人感日记（抄 hcdiary——第一人称心声+secret+记忆回环; 旧版仅summary副本已废弃）
     // [v2.8] RT-B: 反思系统（抄 stbme reflection——每N楼从近期剧情提炼高层洞察）
-    class ReflectionSystem {
-        constructor() { this.items = []; this._lastReflectFloor = -1; this._running = false; }
-        /** 反思生成：抽最近窗口剧情+已知矛盾区，产出 {insight,trigger,suggestion,importance} */
-        // [v3.37] 扩展 forceTrigger 支持惊奇度冲顶自适应触发
-        async generate(config, llm, engine, floor, forceTrigger = false) {
-            const every = Math.max(0, Number(config.reflectEveryFloors || 10));
-            if (!config.reflectionEnabled || !llm) return 0;
-            if (!forceTrigger && every > 0 && (floor - this._lastReflectFloor) < every) return 0;
-            if (this._running) return 0;
-            this._running = true;
-            // [v3.38] 延迟更新 _lastReflectFloor，仅当成功产生反思时才记录
-            try {
-                const ctx = window.SillyTavern?.getContext?.();
-                const chat = ctx?.chat || [];
-                const win = chat.slice(-Math.max(6, every)).map(m => (m.mes || '').substring(0, 400)).join('\n');
-                if (!win) return 0;
-                const contradictions = (engine.suspense?.items || []).filter(x => x.status !== 'open').slice(-3)
-                    .map(x => `- ${x.content}（${x.status}）`).join('\n') || '(无)';
-                const recentInsights = this.items.slice(-3).map(i => `- ${i.insight}`).join('\n') || '(无)';
-                const prompt = `你是 RP 长期记忆系统的反思生成器。阅读最近剧情，提炼最值得长期保留的高层结论。
-规则：
-- insight 总结最近情节中最值得长期保留的变化、关系趋势或潜在线索（50字内，不复述事件）。
-- trigger 说明触发这条反思的关键事件或矛盾。
-- suggestion 给出后续叙事上值得关注的提示。
-- importance 1-10，数字越大越重要。
-- 只输出JSON：{"insight":"...","trigger":"...","suggestion":"...","importance":5}
-【最近剧情】
-${win}
-【近期已有反思】（禁止重复提炼相同结论）
-${recentInsights}
-【已了结/失败的悬念】（可作为矛盾线索参考）
-${contradictions}`;
-                const raw = await llm.callAPI(prompt);
-                if (!raw) return 0;
-                const sanitized = sanitizeJson(raw);
-                const m = String(sanitized).match(/\{[\s\S]*\}/);
-                if (!m) return 0;
-                const parsed = JSON.parse(m[0]);
-                const insight = String(parsed?.insight || '').trim();
-                if (insight.length < 8) return 0;
-                this.items.push({
-                    floor, insight: insight.slice(0, 120),
-                    trigger: String(parsed?.trigger || '').slice(0, 120),
-                    suggestion: String(parsed?.suggestion || '').slice(0, 120),
-                    importance: Math.min(10, Math.max(1, Number(parsed?.importance) || 5)),
-                    timestamp: Date.now()
-                });
-                this._lastReflectFloor = floor;
-                if (this.items.length > 20) this.items.shift();
-                return 1;
-            } catch (e) { return 0; }
-            finally { this._running = false; }
-        }
-        /** 召回：重要度 Top-N */
-        search(limit = 2) {
-            return [...this.items].sort((a, b) => b.importance - a.importance).slice(0, limit);
-        }
-        export() { return { items: this.items, lastReflectFloor: this._lastReflectFloor }; }
-        import(data) {
-            if (data && typeof data === 'object' && Array.isArray(data.items)) {
-                this.items = data.items;
-                this._lastReflectFloor = Number(data.lastReflectFloor ?? -1);
-            } else if (Array.isArray(data)) { this.items = data; }
-        }
-    }
-
-    class DiarySystem {
-        constructor() { this.diaries = {}; this._lastDiaryFloor = -1; this._writing = false; this._pending = null; }
-        /**
-         * 活人感日记生成（每N楼节流，抽最近窗口一次生成所有登场角色的日记）
-         * @returns {number} 写入条数
-         */
-        async generateLiving(config, llm, knownChars, floor) {
-            const every = Math.max(0, numOr(config.diaryEveryFloors, 3));   // [v3.156] 0=每楼（下一行 every>0 已正确处理）
-            if (!config.livingDiary || !llm) return 0;
-            if (every > 0 && (floor - this._lastDiaryFloor) < every) return 0;
-            if (this._writing) { this._pending = floor; return 0; }
-            this._writing = true;
-            this._lastDiaryFloor = floor;
-            try {
-                const ctx = window.SillyTavern?.getContext?.();
-                const chat = ctx?.chat || [];
-                const win = chat.slice(-Math.max(4, every * 2 + 2)).map(m => (m.mes || '').substring(0, 500)).join('\n');
-                if (!win) return 0;
-                const memory = Object.entries(this.diaries).map(([n, arr]) => {
-                    const last = (arr || []).slice(-1)[0];
-                    return last ? `${n}: ${String(last.text || '').substring(0, 60)}` : null;
-                }).filter(Boolean).slice(0, 10).join('\n');
-                const prompt = `你是"角色日记"记录员。阅读给定剧情片段，为其中每个有名有戏份的登场角色，以该角色第一人称主观视角写一篇日记。
-规则：
-- 只为有名字、有实际戏份的角色写；纯路人忽略；不要为用户/玩家角色写日记。
-- 第一人称，带该角色的情绪、私心、主观理解（可与事实有偏差）。同一事件不同角色可以记得不同。
-- entry 是心声不是剧情复述：聚焦心理活动、情绪、关系变化、关键决定。100字内。
-- secret 写"没说出口的心思"（没有填空串）。
-- attitude_to_user 写该角色此刻对用户/主角的态度（一句话，如：表面客气心底记仇、依赖中带试探）。
-- key_events 写他亲历且对他个人有分量的事件（数组，最多3条）。
-- relationship_with_others 写他对自己与别人关系的主观印象（对象:描述；按他经历来写，不是上帝视角结论，可有偏差——单恋/错付/误判都是宝贵素材）。
-- 复用已知角色名单中的主名。只输出JSON：{"diaries":[{"name":"主名","entry":"第一人称正文","mood":"心情词","secret":"没说出口的心思","attitude_to_user":"对用户态度","key_events":["事件1"],"relationship_with_others":{"某角色":"他眼中的关系"}}]}
-${knownChars?.length ? `已知角色名单: ${knownChars.join('、')}` : '已知角色名单: (暂无)'}
-${memory ? `各角色已有记忆(最新日记):\n${memory}` : '各角色已有记忆: (暂无)'}
-【剧情片段】
-${win}`;
-                const raw = await llm.callAPI(prompt);
-                if (!raw) return 0;
-                const m = String(raw).match(/\{[\s\S]*\}/);
-                if (!m) return 0;
-                const parsed = JSON.parse(m[0]);
-                let n = 0;
-                for (const d of (parsed.diaries || [])) {
-                    const name = String(d?.name || '').trim();
-                    const entry = String(d?.entry || '').trim();
-                    if (!name || entry.length < 4) continue;
-                    if (!this.diaries[name]) this.diaries[name] = [];
-                    this.diaries[name].push({
-                        floor, text: entry.slice(0, 200), mood: String(d.mood || '平静').slice(0, 10),
-                        secret: String(d.secret || '').slice(0, 100), timestamp: Date.now(),
-                        attitude: String(d.attitude_to_user || '').slice(0, 60),
-                        keyEvents: (Array.isArray(d.key_events) ? d.key_events : []).map(x => String(x).slice(0, 60)).slice(0, 3),
-                        subjRelations: (d.relationship_with_others && typeof d.relationship_with_others === 'object' && !Array.isArray(d.relationship_with_others)) ? Object.entries(d.relationship_with_others).slice(0, 4).map(([k, v]) => `${String(k).slice(0, 12)}:${String(v).slice(0, 40)}`) : []
-                    });
-                    if (this.diaries[name].length > 30) this.diaries[name].shift();
-                    n++;
-                }
-                return n;
-            } catch (e) { return 0; }
-            finally { this._writing = false; }
-        }
-        search(characters) {
-            const results = [];
-            const allowed = new Set((characters || []).map(c => String(c || '').trim()).filter(Boolean));
-            for (const char of allowed) if (this.diaries[char]) results.push(...this.diaries[char].slice(-3));
-            return results;
-        }
-        /** HCDiary 变化驱动适配：读取游标之后、指定角色的日记，返回副本。 */
-        getChangesSince(floor = -1, characters = [], limit = 30) {
-            const cursor = Number.isFinite(Number(floor)) ? Number(floor) : -1;
-            const cap = Math.min(30, Math.max(0, Number(limit) || 0));
-            const allowed = new Set((characters || []).map(c => String(c || '').trim()).filter(Boolean));
-            const out = [];
-            for (const [name, entries] of Object.entries(this.diaries || {})) {
-                if (allowed.size && !allowed.has(name)) continue;
-                for (const entry of (Array.isArray(entries) ? entries : [])) {
-                    if (Number(entry?.floor) > cursor) out.push({ name, ...entry });
-                }
-            }
-            return out
-                .sort((a, b) => Number(a.floor) - Number(b.floor) || String(a.name).localeCompare(String(b.name), 'zh-CN'))
-                .slice(-cap)
-                .map(x => ({
-                    ...x,
-                    keyEvents: Array.isArray(x.keyEvents) ? [...x.keyEvents] : x.keyEvents,
-                    subjRelations: Array.isArray(x.subjRelations) ? [...x.subjRelations] : x.subjRelations,
-                }));
-        }
-        // [v2.7] RS: 按楼层删除日记（rollbackFloor 联动，幂等）
-        removeByFloor(floor) {
-            let n = 0;
-            for (const name of Object.keys(this.diaries)) {
-                const arr = this.diaries[name];
-                const filtered = arr.filter(d => d.floor !== floor);
-                if (filtered.length !== arr.length) { n += arr.length - filtered.length; this.diaries[name] = filtered; }
-            }
-            return n;
-        }
-        export() { return { diaries: this.diaries, lastDiaryFloor: this._lastDiaryFloor }; }
-        import(data) {
-            if (data && typeof data === 'object' && data.diaries) {
-                this.diaries = data.diaries;
-                this._lastDiaryFloor = Number(data.lastDiaryFloor ?? -1);
-            } else {
-                this.diaries = data || {};
-            }
-        }
-    }
     
 
 
@@ -16474,388 +16228,9 @@ ${win}`;
 
         // [v3.48] 吸收 shujuku: 剧情大纲导演（阶段节奏四形态 + 轮级 pacing 四相 + 宽容标签解析）
     // 记忆插件从此有了"导演视角"：不只记录过去，还规划未来。
-    class OutlineDirector {
-        constructor() {
-            this.stage = null;        // { title, goal, tempo, nodes: [{title, goal, turns: [{goal, pacing}] }] }
-            this._turnIndex = 0;      // 全局扁平 turn 指针
-            this._turnFloor = 0;      // 当前 turn 起始楼层
-            this.history = [];        // 已完成 turn 的简史
-        }
-        static TEMPOS = [
-            { key: 'buildup', desc: '铺垫型：低压为主，攒关系与信息，为爆发蓄力' },
-            { key: 'mixed', desc: '起伏型：常规推进，松紧交替' },
-            { key: 'surge', desc: '高压型：决战/逃亡/密集事件' },
-            { key: 'aftermath', desc: '余波型：消化代价、重建关系、落地前段高压' }
-        ];
-        static PACINGS = [
-            { key: 'setup', desc: '铺垫：关系变化、信息沉淀、情绪落地' },
-            { key: 'pressure', desc: '施压：行动+阻碍+悬念，冲突升级' },
-            { key: 'turn', desc: '反转：揭示/转折/高潮爆点' },
-            { key: 'cooldown', desc: '收束：后果消化、余韵' }
-        ];
-        get flatTurns() {
-            if (!this.stage) return [];
-            const out = [];
-            for (const n of this.stage.nodes) for (const t of n.turns) out.push(t);
-            return out;
-        }
-        get currentTurn() { return this.flatTurns[this._turnIndex] || null; }
-        get exhausted() { return !this.stage || this._turnIndex >= this.flatTurns.length; }
-        /** 宽容解析 AI 回复中的大纲标签（标签外内容全部忽略；<think> 已在上游剥离） */
-        parseOutline(raw, floor) {
-            const text = String(raw || '');
-            if (!text.includes('<node')) return null;
-            try {
-                const pick = (tag) => {
-                    const m = new RegExp('<' + tag + '>\\s*([\\s\\S]*?)\\s*</' + tag + '>', 'i').exec(text);
-                    return m ? m[1].trim() : '';
-                };
-                const nodeBlocks = [];
-                const nodeRe = /<node>([\s\S]*?)<\/node>/gi;
-                let nm;
-                while ((nm = nodeRe.exec(text))) {
-                    const block = nm[1];
-                    const turns = [];
-                    const turnRe = /<turn([^>]*)>([\s\S]*?)<\/turn>/gi;
-                    let tm;
-                    while ((tm = turnRe.exec(block))) {
-                        const pacingM = /pacing\s*=\s*[^a-z0-9]{0,2}([a-z]+)/i.exec(tm[1] || '');
-                        const goal = String(tm[2] || '').replace(/<[^>]+>/g, '').trim();
-                        if (goal) turns.push({ goal: goal.slice(0, 120), pacing: pacingM ? pacingM[1].toLowerCase() : 'mixed' });
-                    }
-                    if (turns.length) nodeBlocks.push({
-                        title: (pick.call(null, 'node_title') || '').slice(0, 40),
-                        goal: (pick.call(null, 'node_goal') || '').slice(0, 150),
-                        turns
-                    });
-                }
-                if (!nodeBlocks.length) return null;
-                this.stage = {
-                    title: pick('stage_title').slice(0, 60) || '未命名阶段',
-                    goal: pick('stage_goal').slice(0, 200),
-                    tempo: (pick('stage_tempo') || 'mixed').toLowerCase(),
-                    nodes: nodeBlocks
-                };
-                this._turnIndex = 0;
-                this._turnFloor = floor || 0;
-                return this.stage;
-            } catch (e) { return null; }
-        }
-        /** 每楼推进：当前 turn 的起始楼层距离超过 N 楼或剧情明显完成时推进（由外部判定） */
-        advanceTurn(floor) {
-            const cur = this.currentTurn;
-            if (cur) {
-                this.history.push({ goal: cur.goal, pacing: cur.pacing, floorFrom: this._turnFloor, floorTo: floor || 0 });
-                if (this.history.length > 30) this.history.shift();
-            }
-            this._turnIndex++;
-            this._turnFloor = floor || 0;
-        }
-        /** 注入块（导演视角：阶段/节点/本轮目标/本轮节奏） */
-        toPrompt() {
-            if (!this.stage) return '';
-            const lines = [];
-            const tempoDef = OutlineDirector.TEMPOS.find(t => t.key === this.stage.tempo);
-            lines.push(`[剧情大纲·导演视角]（当前阶段「${this.stage.title}」：${this.stage.goal}）`);
-            lines.push(`阶段节奏：${this.stage.tempo}${tempoDef ? '（' + tempoDef.desc + '）' : ''}`);
-            // 扁平定位当前 node
-            let acc = 0, nodeInfo = null;
-            for (const n of this.stage.nodes) {
-                if (this._turnIndex < acc + n.turns.length) { nodeInfo = { n, local: this._turnIndex - acc }; break; }
-                acc += n.turns.length;
-            }
-            if (nodeInfo) {
-                lines.push(`当前节点「${nodeInfo.n.title || '未命名'}」：${nodeInfo.n.goal}`);
-                const cur = nodeInfo.n.turns[nodeInfo.local];
-                const pacDef = OutlineDirector.PACINGS.find(p => p.key === cur.pacing);
-                lines.push(`本轮目标（第${this._turnIndex + 1}/${this.flatTurns.length}轮）：${cur.goal}`);
-                lines.push(`本轮节奏：${cur.pacing}${pacDef ? '（' + pacDef.desc + '）' : ''}——剧情推进应贴合该节奏形态`);
-                const next = nodeInfo.n.turns[nodeInfo.local + 1];
-                if (next) lines.push(`下一轮预告：${next.goal}`);
-            } else if (this.exhausted) {
-                lines.push('⚠️ 大纲轮次已耗尽：剧情可自然收束本阶段，建议 AI 以收束姿态推进并在方便时提出新的阶段方向');
-            }
-            return lines.join('\n');
-        }
-        // [v3.85] OutlineDirector 楼层生命周期：删楼撤销对应已执行轮次，但保留未执行计划。
-        removeByFloor(floor) {
-            const f = Number(floor);
-            if (!Number.isFinite(f)) return 0;
-            const before = this.history.length;
-            this.history = this.history.filter(h => Number(h.floorTo) !== f);
-            const removed = before - this.history.length;
-            if (removed) {
-                this._turnIndex = Math.max(0, this._turnIndex - removed);
-                const prev = this.history[this.history.length - 1];
-                this._turnFloor = prev ? Number(prev.floorTo) || 0 : 0;
-            } else if (Number(this._turnFloor) === f) {
-                const prev = this.history[this.history.length - 1];
-                this._turnFloor = prev ? Number(prev.floorTo) || 0 : 0;
-            }
-            return removed;
-        }
-        rollbackFloor(floor) {
-            return this.removeByFloor(floor);
-        }
-        shiftFloorRefs(deleted) {
-            const del = Number(deleted);
-            if (!Number.isFinite(del)) return 0;
-            const dec = (value) => {
-                const n = Number(value);
-                return Number.isFinite(n) && n > del ? n - 1 : value;
-            };
-            let shifted = 0;
-            const oldTurnFloor = this._turnFloor;
-            this._turnFloor = dec(this._turnFloor);
-            if (this._turnFloor !== oldTurnFloor) shifted++;
-            for (const h of this.history) {
-                const oldFrom = h.floorFrom, oldTo = h.floorTo;
-                h.floorFrom = dec(h.floorFrom);
-                h.floorTo = dec(h.floorTo);
-                if (h.floorFrom !== oldFrom) shifted++;
-                if (h.floorTo !== oldTo) shifted++;
-            }
-            return shifted;
-        }
-        /**
-         * [v3.56] P18: 大纲耗尽时 LLM 自动规划新阶段（导演系统闭环）。
-         * 上下文：最近摘要 + 群像关系 + 悬念簿（未结伏笔是新阶段最好的素材）。
-         * 防重入 _planning + 冷却（失败后 outlinePlanCooldownFloors 楼内不重试，默认10）。
-         * @returns 新阶段对象（规划成功）或 null
-         */
-        async planNext(config, llm, engine, floor) {
-            if (!config.outlineAutoPlan || !llm) return null;
-            if (!this.exhausted) return null;                    // 未耗尽不规划
-            if (this._planning) return null;                     // 防重入
-            const cooldown = Number(config.outlinePlanCooldownFloors) || 10;
-            if (this._lastPlanFailFloor && (floor - this._lastPlanFailFloor) < cooldown) return null;
-            this._planning = true;
-            try {
-                const ctx = (typeof window !== 'undefined') ? window.SillyTavern?.getContext?.() : null;
-                const chat = ctx?.chat || [];
-                const recentSummaries = (engine.summary?.getActiveSummaries?.() || []).slice(-4)
-                    .map(s => `- ${s.text}`).join('\n') || '(无)';
-                const openSusp = (engine.suspense?.openItems?.() || []).slice(-5)
-                    .map(x => `- ${x.content}`).join('\n') || '(无)';
-                const chars = (engine.getKnownCharacters?.() || []).slice(0, 12).join('、') || '(无)';
-                const recentTurns = (this.history || []).slice(-3)
-                    .map(h => `- [${h.pacing}] ${h.goal}`).join('\n') || '(首阶段)';
-                const prompt = `你是 RP 剧情导演。上一阶段大纲已演完，请为接下来的剧情规划【新阶段大纲】。
-规则：
-- 新阶段要自然衔接最近剧情，优先消化【未结悬念】（伏笔是最好的阶段素材）。
-- stage_tempo 从 buildup/mixed/surge/aftermath 中选（语义：铺垫蓄力/松紧交替/高压密集/余波消化）。
-- 2-3 个 <node>，每个 node 内 2-4 个 <turn>，每个 turn 带 pacing 属性（setup 铺垫/pressure 施压/turn 反转/cooldown 收束）。
-- turn 目标写具体剧情（一句话），不许空话；遵守角色名单，不新增主要角色。
-- 标签外可写简短规划思路，系统只读标签内内容。
-只输出以下标签结构：
-<stage_title>阶段标题</stage_title>
-<stage_goal>阶段整体目标</stage_goal>
-<stage_tempo>形态</stage_tempo>
-<node><node_title>节点标题</node_title><node_goal>节点目标</node_goal><turn pacing="setup">该轮剧情</turn>...</node>...
-【角色名单】${chars}
-【最近剧情摘要】
-${recentSummaries}
-【未结悬念】（新阶段优先消化）
-${openSusp}
-【上一阶段最后几轮】（衔接参考）
-${recentTurns}`;
-                const raw = await llm.callAPI(prompt);
-                if (!raw) { this._lastPlanFailFloor = floor; return null; }
-                const stage = this.parseOutline(raw, floor);
-                if (!stage) { this._lastPlanFailFloor = floor; return null; }
-                this._lastPlanFailFloor = 0;
-                return stage;
-            } catch (e) { this._lastPlanFailFloor = floor; return null; }
-            finally { this._planning = false; }
-        }
-        export() {
-            return { stage: this.stage, turnIndex: this._turnIndex, turnFloor: this._turnFloor, history: this.history };
-        }
-        import(data) {
-            if (data && typeof data === 'object') {
-                this.stage = data.stage || null;
-                this._turnIndex = Number(data.turnIndex) || 0;
-                this._turnFloor = Number(data.turnFloor) || 0;
-                this.history = Array.isArray(data.history) ? data.history : [];
-            }
-        }
-    }
 
 
-    // [v3.54] 吸收 shujuku replay: 全量事件溯源日志（append-only op-log）
-    // 记录所有记忆子系统的结构化变更事件：审计（这条记忆何时/为何产生）、诊断（异常回放查因）、
-    // 与各子系统自身回滚机制互为验证。环形缓冲 500 条防膨胀。
-    // [v3.169] 账本自述面：本类此前有三处**有损却不留痕**的行为，使「账本自述」与「账本内容」
-    //   不一致——(a) 字段裁剪偷改身份：`op` 截 10 把 'rollback-miss' 存成 'rollback-m'
-    //   （看起来像一处拼写错误），`ref` 截 60 让 queryByRef 对同一个 id 返回 0 命中，
-    //   `meta` 截 80 把「键=值」串切成半截键；(b) 环形淘汰无计数：掉出窗口的事件连 byType
-    //   一起消失，读者据此断定「那类变更从未发生过」；(c) import 静默丢弃：900 条存进来
-    //   只剩 500，无 dropped、无告警。三者共同后果是**从这里读到的结论是错的，且错得没有痕迹**。
-    class OpLog {
-        constructor() { this.entries = []; this._seq = 0; this._truncated = 0; this._trimFields = 0; this._importDropped = 0; this.lastTruncation = null; }
-        /** 记录一条变更事件 */
-        log(type, op, ref, floor, meta) {
-            // [v3.169] 裁剪不得改写身份：截断是可接受的取舍，但必须留痕。
-            //   旧实现把 'rollback-miss'(13) 静默存成 'rollback-m'(10)，于是「按 op 检索」这条
-            //   诊断路径对同一 op 永远返回 0 命中——诊断工具先改了证据的名字。
-            const _cap = OpLog._retention();
-            const _type = String(type ?? '').slice(0, _cap.type);
-            const _op = String(op ?? '').slice(0, _cap.op);
-            const _ref = String(ref ?? '').slice(0, _cap.ref);
-            const _meta = meta ? String(meta).slice(0, _cap.meta) : '';
-            const _opLen = String(op ?? '').length, _refLen = String(ref ?? '').length, _metaLen = meta ? String(meta).length : 0;
-            if (_opLen > _cap.op || _refLen > _cap.ref || _metaLen > _cap.meta) {
-                this._trimFields = (this._trimFields || 0) + 1;
-                this.lastTruncation = { at: Date.now(), op: _op, seq: (this._seq || 0) + 1, opFrom: _opLen, refFrom: _refLen, metaFrom: _metaLen };
-            }
-            this.entries.push({
-                seq: ++this._seq,
-                ts: Date.now(),
-                type: _type,          // summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair|locked_fact
-                op: _op,              // add|update|remove|resolve|forge|shift
-                ref: _ref,            // 目标 id/键/摘要签名
-                floor: floor ?? null,
-                meta: _meta
-            });
-            if (this.entries.length > 500) {
-                const _over = this.entries.length - 500;
-                this.entries.splice(0, _over);
-                this._truncated = (this._truncated || 0) + _over;   // [v3.169] 淘汰即记账：数字不涨 = 没有淘汰过
-            }
-        }
-        // [v3.169] 身份保真：**读侧必须用与写侧同一套规范化**。
-        //   修前写侧截 60、读侧拿完整 id 直接比 —— 于是「自己写进去的 id 查不到自己」，
-        //   这是同一条记录在两侧各有一套换算规则。现把规范化提为唯一真源（_retention），
-        //   写入与三类检索全部经它，任何以后调整上限都只改一处、两侧自动同源。
-        static _retention() { return { type: 20, op: 10, ref: 60, meta: 80 }; }
-        static normRef(v) { return String(v ?? '').slice(0, OpLog._retention().ref); }
-        static normOp(v) { return String(v ?? '').slice(0, OpLog._retention().op); }
-        queryByType(type) { return this.entries.filter(e => e.type === String(type ?? '').slice(0, OpLog._retention().type)); }
-        queryByRef(refId) { return this.entries.filter(e => e.ref === OpLog.normRef(refId)); }
-        recent(n) { return this.entries.slice(-Math.max(1, Number(n) || 20)); }
-        /** [v3.169] 账本实际覆盖的事件总数（含已淘汰）——读者不该把展示条数当成事件总数。 */
-        observedTotal() { return Math.max(this._seq || 0, this.entries.length); }
-        /** [v3.169] 一行自述：窗口 / 累计 / 三类损失。 */
-        auditSummary() {
-            const st = this.stats();
-            const bits = ['窗口 ' + st.total + '/' + st.cap];
-            const ever = this.observedTotal();
-            if (ever > st.total) bits.push('累计 ' + ever);
-            if (st.truncated) bits.push('已淘汰 ' + st.truncated);
-            if (st.trimFields) bits.push('字段裁剪 ' + st.trimFields);
-            if (st.importDropped) bits.push('导入丢弃 ' + st.importDropped);
-            if (!st.truncated && !st.trimFields && !st.importDropped) bits.push('无损失');
-            return bits.join(' · ');
-        }
-        /** 审计摘要：各类型事件计数 + 账本自述（窗口/容量/三类损失） */
-        stats() {
-            const byType = {};
-            for (const e of this.entries) byType[e.type] = (byType[e.type] || 0) + 1;
-            // [v3.169] 旧实现只回 {total, byType}：淘汰过 200 条的账本与从未超限的账本返回
-            //   同一个形状，而 byType 里那 200 条的类型计数连同事件一起消失。
-            return {
-                total: this.entries.length,
-                byType,
-                cap: 500,
-                seq: this._seq || 0,
-                truncated: this._truncated || 0,
-                trimFields: this._trimFields || 0,
-                importDropped: this._importDropped || 0,
-            };
-        }
-        export() { return { entries: this.entries, seq: this._seq, truncated: this._truncated || 0, trimFields: this._trimFields || 0 }; }
-        import(data) {
-            if (data && typeof data === 'object') {
-                // [v3.169] 旧实现 `data.entries.slice(-500)` 静默丢弃超窗部分：900 条存进来只剩
-                //   500，无计数、无告警。丢弃必须落账，否则「账本少了 400 条」只存在于
-                //   「有人去数过原文件」这个前提里。
-                const _all = Array.isArray(data.entries) ? data.entries : [];
-                const _kept = _all.length > 500 ? _all.slice(-500) : _all;
-                if (_all.length > 500) {
-                    const _drop = _all.length - _kept.length;
-                    this._importDropped = (this._importDropped || 0) + _drop;
-                    this._truncated = (this._truncated || 0) + _drop;
-                }
-                this.entries = _kept;
-                this._seq = Number(data.seq) || this.entries.length;
-                // 存档自带的历史淘汰量：相加而非覆盖（宁可多算，不可漏算）
-                this._truncated = (this._truncated || 0) + (Number(data.truncated) || 0);
-                this._trimFields = (this._trimFields || 0) + (Number(data.trimFields) || 0);
-            }
-        }
-    }
 
-    // [v2.9] RU-C: 存储快照管理（抄 shujuku SQLite 版本管理理念——IndexedDB 每50楼一份快照，可回溯恢复）
-    class SnapshotManager {
-        constructor() { this.DB_NAME = 'lonsha_snapshots'; this.STORE = 'snaps'; this.MAX_KEEP = 5; this._db = null; }
-        async _open() {
-            if (this._db) return this._db;
-            return new Promise((resolve, reject) => {
-                const req = indexedDB.open(this.DB_NAME, 1);
-                req.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains(this.STORE)) {
-                        db.createObjectStore(this.STORE, { keyPath: 'id' });
-                    }
-                };
-                req.onsuccess = () => { this._db = req.result; resolve(req.result); };
-                req.onerror = () => reject(req.error);
-            });
-        }
-        /** 保存快照（同对话只保留最近 MAX_KEEP 份，同楼覆盖） */
-        async save(chatId, floor, data) {
-            try {
-                const db = await this._open();
-                const id = `${chatId}`;
-                // 读出该对话现有快照
-                const existing = await new Promise((resolve) => {
-                    const tx = db.transaction(this.STORE, 'readonly');
-                    const req = tx.objectStore(this.STORE).get(id);
-                    req.onsuccess = () => resolve(req.result || {id, snaps: []});
-                    req.onerror = () => resolve({id, snaps: []});
-                });
-                const snaps = (existing.snaps || []).filter(s => s.floor !== floor);
-                snaps.push({floor, data, timestamp: Date.now()});
-                snaps.sort((a, b) => a.floor - b.floor);
-                while (snaps.length > this.MAX_KEEP) snaps.shift();
-                const doc = {id, snaps};
-                await new Promise((resolve, reject) => {
-                    const tx = db.transaction(this.STORE, 'readwrite');
-                    tx.objectStore(this.STORE).put(doc);
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = () => reject(tx.error);
-                });
-                return snaps.length;
-            } catch (e) { return 0; }
-        }
-        /** 列出该对话的快照（楼层+时间） */
-        async list(chatId) {
-            try {
-                const db = await this._open();
-                return await new Promise((resolve) => {
-                    const tx = db.transaction(this.STORE, 'readonly');
-                    const req = tx.objectStore(this.STORE).get(`${chatId}`);
-                    req.onsuccess = () => resolve((req.result?.snaps || []).map(s => ({floor: s.floor, timestamp: s.timestamp})));
-                    req.onerror = () => resolve([]);
-                });
-            } catch (e) { return []; }
-        }
-        /** 恢复指定楼层的快照数据 */
-        async restore(chatId, floor) {
-            try {
-                const db = await this._open();
-                return await new Promise((resolve) => {
-                    const tx = db.transaction(this.STORE, 'readonly');
-                    const req = tx.objectStore(this.STORE).get(`${chatId}`);
-                    req.onsuccess = () => {
-                        const snap = (req.result?.snaps || []).find(s => s.floor === floor);
-                        resolve(snap?.data || null);
-                    };
-                    req.onerror = () => resolve(null);
-                });
-            } catch (e) { return null; }
-        }
-    }
 
     class StorageManager {
         constructor() {
@@ -17068,69 +16443,14 @@ ${recentTurns}`;
         }
     }
     
-    // [v3.4] DB: 紧急备份（摘要骤减保护，抄 hcdiary 日记骤减补回——检测到骤减自动写 IndexedDB 快照 + localStorage）
-    class EmergencyBackup {
-        constructor() { this.DB_NAME = 'lonsha_snapshots'; this.STORE = 'snaps'; this.MAX_EMERGENCY = 8; this.LS_KEY = 'lonsha_emergency_backup'; this._db = null; }
-        async _open() {
-            if (this._db) return this._db;
-            return new Promise((resolve, reject) => {
-                const req = indexedDB.open(this.DB_NAME, 1);
-                req.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains(this.STORE)) db.createObjectStore(this.STORE, { keyPath: 'id' });
-                };
-                req.onsuccess = () => { this._db = req.result; resolve(req.result); };
-                req.onerror = () => reject(req.error);
-            });
-        }
-        /** 写紧急备份（同聊天最多保留 MAX_EMERGENCY 份；IndexedDB + localStorage 双写） */
-        async save(chatId, reason, data, counts) {
-            const entry = { floor: -1, emergency: true, reason: String(reason || ''), counts: counts || {}, data, timestamp: Date.now() };
-            // localStorage 兜底（IndexedDB 不可用时也能保命）
-            try {
-                if (data.summaries && JSON.stringify(data.summaries).length < 900000) {
-                    localStorage.setItem(this.LS_KEY + ':' + String(chatId || 'default'), JSON.stringify({ reason: entry.reason, counts: entry.counts, timestamp: entry.timestamp, data: { summaries: data.summaries, diaries: data.diaries, graph: data.graph, itemOps: data.itemOps } }));
-                }
-            } catch (e) { errLog(e, 'nonfatal') }
-            try {
-                const db = await this._open();
-                const id = 'emergency:' + String(chatId || 'default');
-                const existing = await new Promise((resolve) => {
-                    const tx = db.transaction(this.STORE, 'readonly');
-                    const req = tx.objectStore(this.STORE).get(id);
-                    req.onsuccess = () => resolve(req.result || { id, snaps: [] });
-                    req.onerror = () => resolve({ id, snaps: [] });
-                });
-                const snaps = (existing.snaps || []).slice(-(this.MAX_EMERGENCY - 1));
-                snaps.push(entry);
-                await new Promise((resolve, reject) => {
-                    const tx = db.transaction(this.STORE, 'readwrite');
-                    tx.objectStore(this.STORE).put({ id, snaps });
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = () => reject(tx.error);
-                });
-                return true;
-            } catch (e) { errLog(e, 'DB.emergency.save'); return false; }
-        }
-        /** 读最近一份紧急备份 */
-        async latest(chatId) {
-            try {
-                const db = await this._open();
-                return await new Promise((resolve) => {
-                    const tx = db.transaction(this.STORE, 'readonly');
-                    const req = tx.objectStore(this.STORE).get('emergency:' + String(chatId || 'default'));
-                    req.onsuccess = () => { const s = req.result?.snaps || []; resolve(s.length ? s[s.length - 1] : null); };
-                    req.onerror = () => resolve(null);
-                });
-            } catch (e) { return null; }
-        }
-    }
 
     class LonShaMemoryPlugin {
         constructor() { 
             this.configMgr = new ConfigManager(); 
             this.engine = new MemoryEngine(this.configMgr); 
-            this.emergency = new EmergencyBackup();   // [v3.4] DB: 紧急备份
+            this.emergency = _newMemoryAux('EmergencyBackup', {
+            errLog: (e, tag) => { try { errLog(e, tag); } catch (_) { /* 诊断不得成为新的失败 */ } }
+        });   // [v3.4] DB: 紧急备份
             this.diffusion = null;
             this.visualizer = null;
             this.initialized = false; 

@@ -91,8 +91,11 @@ test('v3205 2. T4 落法在位：容器内事件字段由条目清单派生（�
 
 test('v3205 3. T5 落法在位：守卫 P5 与独立面真源验证', () => {
     assert.ok(/P5 独立面甄别/.test(CA), 'P5 判据标记须在场');
-    assert.ok(/this\\\.ledger\\s\*=\\s\*new\\s\+FloorLedger/.test(CA), 'P5 须在宿主上验证 ledger 真源');
-    assert.ok(/echo:\\s\*this\\\.echo\\\?\\\.export/.test(CA), 'P5 须在宿主上验证 echo 真源');
+    /* [v3.258.0 A1 第二刀] 宿主构造点改走统一取库口（类已抽为 memory-aux.js），扫描器的两形判据同步改为
+     *   **无转义子串**（原正则的转义层数在本仓属已记账的坑）。本判据只问「扫描器是否仍把独立面的真源钉在宿主上」。 */
+    assert.ok(CA.includes("this.ledger = _newMemoryAux('FloorLedger'"), 'P5 须在宿主上验证 ledger 真源');
+    assert.ok(CA.includes("hostSub:") && CA.includes("echo: this.echo"), 'P5 须在宿主上验证 echo 真源');
+    assert.ok(CA.includes('for (const it of INDEPENDENT)'), 'P5 判据循环仍在');
     assert.ok(/同源/.test(CA), 'P5 须显式禁止把独立面说成「同源」');
 });
 

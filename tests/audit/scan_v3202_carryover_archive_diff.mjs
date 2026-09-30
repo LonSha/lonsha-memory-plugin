@@ -122,14 +122,19 @@ if (overlap.length) {
 //   `echoLedger` / `recallEcho` 是 worldProg 子面、宿主字段 this.echoLedger / this.recallEcho。
 //   注：抽取面用**剥注释后**的 clean，避免命中的是解释性注释。
 const INDEPENDENT = [
-    { key: 'ledger', hostRe: /this\.ledger\s*=\s*new\s+FloorLedger/, why: '宿主 this.ledger = new FloorLedger' },
-    { key: 'echo', hostRe: /echo:\s*this\.echo\?\.export/, why: '存档面的 echo 来自 this.echo.export()' },
+    /* [v3.258.0 A1 第二刀] 宿主构造点由 `new FloorLedger` 改走统一取库口；两形右值同义（同一个类），
+     *   故判据改**无转义子串**形态（原正则的转义层数在本仓属已记账的坑，逐层叠加易静默失灵）。 */
+    { key: 'ledger', hostSub: ["this.ledger = _newMemoryAux('FloorLedger'"], why: "宿主 this.ledger = _newMemoryAux('FloorLedger', …)" },
+    { key: 'echo', hostSub: ['echo: this.echo'], why: '存档面的 echo 来自 this.echo.export()' },
 ];
 const archAndContract = new Set([...archive, ...contract]);
 for (const it of INDEPENDENT) {
     if (!exempt.includes(it.key)) continue; // 不再豁免就不适用
     if (archAndContract.has(it.key)) continue; // 已进携带面则不再适用（P2/P4 会管）
-    if (!it.hostRe.test(clean)) {
+    const _hostOk = Array.isArray(it.hostSub)
+        ? it.hostSub.every((t) => clean.includes(t))
+        : it.hostRe.test(clean);
+    if (!_hostOk) {
         defects.push('P5 豁免键 ' + it.key + ' 的独立真源在宿主里验证不到（' + it.why
             + '）—— 「与 worldProg 子面不同源」的复核结论已失效，须重新甄别');
     }

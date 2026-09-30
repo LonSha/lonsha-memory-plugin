@@ -105,10 +105,14 @@ test('【2】A2 导入：外部存档 ops 先过校验，违规以 source=import
 });
 // ================= 3. FloorLedger：可配上限 + 逐个淘汰 + 记账 + 回调 =================
 test('【3】FloorLedger 真执行：上限可配（下限 20）+ 逐个淘汰 + evicted/水位/回调', () => {
-    const _i3 = src.indexOf('class FloorLedger {');
-    const _j3 = src.indexOf('class Mutex {', _i3);
+    /* [v3.258.0 A1 第二刀] FloorLedger 已抽为 memory-aux.js：真执行面切到模块文件上；
+     *   「宿主不得仍内联声明」由 v3259 的 A 段钉住（本档不重复造判据）。 */
+    const _aux = readFileSync(path.join(ROOT, 'memory-aux.js'), 'utf-8');
+    const _i3 = _aux.indexOf('    class FloorLedger {');
+    /* [v3.258.0 A1 第二刀] 切片终点用模块里 FloorLedger **之后**的那个类（模块内类序与宿主不同：Mutex 在前）。 */
+    const _j3 = _aux.indexOf('    class SnapshotManager {', _i3);
     assert.ok(_i3 > 0 && _j3 > _i3, 'FloorLedger 段已切出');
-    const FL = new Function(src.slice(_i3, _j3) + '\nreturn FloorLedger;')();
+    const FL = new Function(_aux.slice(_i3, _j3) + '\nreturn FloorLedger;')();
     // 默认值 / 下限保护
     assert.equal(new FL({}).MAX_FLOORS, 400, '默认 400');
     assert.equal(new FL().MAX_FLOORS, 400, '无参兼容');
@@ -204,7 +208,7 @@ test('【4】rollbackFloor 缺失分支真执行：已淘汰才计「回滚失�
 });
 // ================= 5. 接线：实例化注入 + 配置默认值 + 卡白名单 + 构造计数 =================
 test('【5】接线：FloorLedger 注入 maxFloors/onEvict + 配置 2 键 + 卡白名单 2 键', () => {
-    assert.ok(src.includes('this.ledger = new FloorLedger({'), '实例化改为传 opts');
+    assert.ok(src.includes("this.ledger = _newMemoryAux('FloorLedger', {"), '实例化改为传 opts（A1 第二刀后走统一构造点）');
     assert.ok(src.includes('maxFloors: Number(this.config.config.floorLedgerRetention) || 400'), '上限读配置');
     assert.ok(src.includes("'ledger', 'evict'"), '淘汰写 op-log');
     assert.ok(src.includes("'ledger', 'rollback-miss'"), '回滚失效写 op-log');

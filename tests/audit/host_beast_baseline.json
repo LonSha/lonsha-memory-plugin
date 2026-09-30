@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.257.0",
+ "measured_at": "v3.258.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -373,6 +373,31 @@
     "分诊面 33 / 19 / 11 三者逐字不变"
    ],
    "not_done": "本版剥的是**叶子类**（六个账本，彼此零互调、不读宿主状态）；「按域拆」的结论不受影响：TOP1 仍是生命周期接线 onMessageReceived 1228 行 / 外部引用 1 次。index.js 距 A1 验收线（15000 行）仍差 3124 行。"
+  },
+  "v3.258.0": {
+   "reason": "A1 第三刀：三个生成侧派生系统（DiarySystem / ReflectionSystem / OutlineDirector）抽为 narrative-generators.js（manifest.extra_js 第 71 项）；index.js 侧改为 _narrativeGeneratorsLib() 取库口 + NarrativeGeneratorFallback 同形退路 + _newNarrativeGenerator(name) 统一构造点。行数 17776→17444、成员 553→549。",
+   "readings": {
+    "total_lines": 17444,
+    "member_count": 549,
+    "top5_lines": 4129,
+    "top5_pct": 23.7,
+    "top40_lines": 9303,
+    "top40_pct": 53.3,
+    "prefix_rule_coverage_lines": 4433,
+    "prefix_rule_coverage_pct": 25.4,
+    "unclassified_lines": 12147,
+    "seam_distinct_modules": 41,
+    "seam_reference_sites": 53,
+    "seam_call_shape_sites": 56,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 19,
+    "high_coupling_members": 11
+   },
+   "unchanged": [
+    "TOP40 巨型成员逐条在场（本刀剥的是类，不是巨型成员）",
+    "分诊结论不变：按域拆仍被否掉（TOP1 仍是生命周期接线）"
+   ],
+   "not_done": "本刀仍只动了叶子类；index.js 距 A1 验收线（15000 行）仍差 2444 行。"
   }
  },
  "node_version": "v24.18.0",
@@ -384,18 +409,18 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 18124,
-  "member_count": 561,
+  "total_lines": 17444,
+  "member_count": 549,
   "top5_lines": 4129,
-  "top5_pct": 22.8,
+  "top5_pct": 23.7,
   "top40_lines": 9303,
-  "top40_pct": 51.3,
-  "prefix_rule_coverage_lines": 4438,
-  "prefix_rule_coverage_pct": 24.5,
-  "unclassified_lines": 12822,
-  "seam_distinct_modules": 39,
-  "seam_reference_sites": 51,
-  "seam_call_shape_sites": 54,
+  "top40_pct": 53.3,
+  "prefix_rule_coverage_lines": 4433,
+  "prefix_rule_coverage_pct": 25.4,
+  "unclassified_lines": 12147,
+  "seam_distinct_modules": 41,
+  "seam_reference_sites": 53,
+  "seam_call_shape_sites": 56,
   "members_over_80_lines": 33,
   "low_coupling_members": 19,
   "high_coupling_members": 11
@@ -403,36 +428,36 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 510,
-   "lines": 12822,
-   "lines_pct": 70.7,
-   "outside_refs": 3800,
-   "internal_refs": 4228,
-   "outside_ref_share_pct": 47.3
+   "members": 501,
+   "lines": 12147,
+   "lines_pct": 69.6,
+   "outside_refs": 4144,
+   "internal_refs": 3134,
+   "outside_ref_share_pct": 56.9
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1770,
-   "lines_pct": 9.8,
+   "lines_pct": 10.1,
    "outside_refs": 3,
    "internal_refs": 73,
    "outside_ref_share_pct": 3.9
   },
   {
    "domain": "诊断与导出",
-   "members": 22,
-   "lines": 1191,
-   "lines_pct": 6.6,
-   "outside_refs": 467,
-   "internal_refs": 1708,
-   "outside_ref_share_pct": 21.5
+   "members": 19,
+   "lines": 1186,
+   "lines_pct": 6.8,
+   "outside_refs": 475,
+   "internal_refs": 1335,
+   "outside_ref_share_pct": 26.2
   },
   {
    "domain": "召回与注入",
    "members": 11,
    "lines": 967,
-   "lines_pct": 5.3,
+   "lines_pct": 5.5,
    "outside_refs": 2,
    "internal_refs": 59,
    "outside_ref_share_pct": 3.3
@@ -469,9 +494,9 @@
    "members": 5,
    "lines": 61,
    "lines_pct": 0.3,
-   "outside_refs": 4,
-   "internal_refs": 96,
-   "outside_ref_share_pct": 4
+   "outside_refs": 58,
+   "internal_refs": 20,
+   "outside_ref_share_pct": 74.4
   },
   {
    "domain": "事件链/完整性",
@@ -496,7 +521,7 @@
   {
    "name": "onMessageReceived",
    "lines": 1228,
-   "outside_refs": 1
+   "outside_refs": 2
   },
   {
    "name": "buildInjection",
@@ -516,12 +541,12 @@
   {
    "name": "onBeforeGeneration",
    "lines": 524,
-   "outside_refs": 0
+   "outside_refs": 1
   },
   {
    "name": "registerEvents",
    "lines": 379,
-   "outside_refs": 0
+   "outside_refs": 1
   },
   {
    "name": "exportMemoryReport",
@@ -531,7 +556,7 @@
   {
    "name": "constructor",
    "lines": 331,
-   "outside_refs": 8
+   "outside_refs": 23
   },
   {
    "name": "resyncAfterDeletion",
@@ -546,12 +571,12 @@
   {
    "name": "import",
    "lines": 206,
-   "outside_refs": 19
+   "outside_refs": 30
   },
   {
    "name": "rollbackFloor",
    "lines": 202,
-   "outside_refs": 8
+   "outside_refs": 11
   },
   {
    "name": "buildBridgeSnapshot",
@@ -561,12 +586,12 @@
   {
    "name": "import",
    "lines": 188,
-   "outside_refs": 19
+   "outside_refs": 30
   },
   {
    "name": "constructor",
    "lines": 187,
-   "outside_refs": 8
+   "outside_refs": 23
   },
   {
    "name": "optimizeMemory",
@@ -581,7 +606,7 @@
   {
    "name": "save",
    "lines": 157,
-   "outside_refs": 15
+   "outside_refs": 18
   },
   {
    "name": "feedThinking",
@@ -656,7 +681,7 @@
   {
    "name": "import",
    "lines": 82,
-   "outside_refs": 19
+   "outside_refs": 30
   },
   {
    "name": "clearRuntimeMemory",
@@ -789,7 +814,7 @@
    {
     "name": "constructor",
     "lines": 331,
-    "outside_refs": 14,
+    "outside_refs": 23,
     "is_host_lifecycle": false
    },
    {
@@ -801,25 +826,25 @@
    {
     "name": "import",
     "lines": 206,
-    "outside_refs": 25,
+    "outside_refs": 30,
     "is_host_lifecycle": false
    },
    {
     "name": "rollbackFloor",
     "lines": 202,
-    "outside_refs": 8,
+    "outside_refs": 11,
     "is_host_lifecycle": false
    },
    {
     "name": "import",
     "lines": 188,
-    "outside_refs": 25,
+    "outside_refs": 30,
     "is_host_lifecycle": false
    },
    {
     "name": "constructor",
     "lines": 187,
-    "outside_refs": 14,
+    "outside_refs": 23,
     "is_host_lifecycle": false
    },
    {
@@ -831,19 +856,19 @@
    {
     "name": "save",
     "lines": 157,
-    "outside_refs": 15,
+    "outside_refs": 18,
     "is_host_lifecycle": false
    },
    {
     "name": "import",
     "lines": 82,
-    "outside_refs": 25,
+    "outside_refs": 30,
     "is_host_lifecycle": false
    }
   ]
  },
  "shape": {
-  "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 22.8%、TOP40 占 51.3%；10 条前缀域规则只覆盖 24.5%，剩下 75.5% 落在规则之外。",
+  "note": "巨兽的形状是「**少数超大成员 + 长尾小成员**」：TOP5 占 23.7%、TOP40 占 53.3%；10 条前缀域规则只覆盖 25.4%，剩下 74.6% 落在规则之外。",
   "verdict": "未观察到「可以按域整体搬走」的形态：超大成员多数是生命周期接线本身，长尾成员则互相稠密互调。"
  },
  "split_verdict": {
@@ -871,6 +896,8 @@
   "（v3.235.0）R4-A 回滚预览接线后按当版 index.js 重建读数：17021 → 17073 行、成员 560 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
   "（v3.236.0）R4-B 快照恢复收编单真源接线后按当版 index.js 重建读数：17073 → 17389 行、成员 561 → 567；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
   "（v3.248.0）证据面契约门禁 + 违规结构化出口接线后按当版 index.js 重建读数：17389 → 17751 行、成员 567 → 583；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
-  "（v3.257.0）A1 第一刀（memory-ledgers.js 抽出）后按当版 index.js 重建读数：18401 → 18124 行、成员 588 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。"
+  "（v3.257.0）A1 第一刀（memory-ledgers.js 抽出）后按当版 index.js 重建读数：18401 → 18124 行、成员 588 → 561；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
+  "（v3.258.0）A1 第二刀（memory-aux.js 抽出六个工具类）后按当版 index.js 重建读数：18124 → 17773 行、成员 561 → 550；「文件到底改没改」仍不在本基线的证据面内，交给 git 面。",
+  "（v3.258.0 A1 第三刀）narrative-generators.js 抽出后，index.js 17444 行 / 成员 549；距 15000 行验收线仍差 2444 行。真实宿主实机仍未验。"
  ]
 }

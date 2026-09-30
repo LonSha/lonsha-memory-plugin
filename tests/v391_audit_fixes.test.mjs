@@ -6,6 +6,10 @@ import fs from 'fs';
 
 const src = fs.readFileSync('index.js', 'utf8');
 const ga = fs.readFileSync('graph_algorithms.js', 'utf8');
+/* [v3.258.0 A1 第三刀] 生成侧三类已外迁。[9]「幽灵配置」扫描面必须含这些模块，
+ *   否则已搬家的消费点会被判成零引用。 */
+const genSrc = fs.readFileSync('narrative-generators.js', 'utf8');
+const faceText = src + String.fromCharCode(10) + genSrc;
 
 // ---------- 提取工具（复用 v388/v390 花括号计数法） ----------
 function extractNamed(text, marker) {
@@ -201,18 +205,15 @@ test('【9】回归门：不得再出现「有默认值但全项目零引用」�
     const keys = [...block.matchAll(/^\s{12,20}([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm)].map(m => m[1]);
     assert.ok(keys.length > 100, `配置键数量正常（${keys.length}）`);
 
-    const lines = src.split('\n');
+    /* 扫描面：入口的配置块坐标只在 src 里，因此配置块本身仍取 src；
+       「块外是否有引用」则在入口 + 外迁模块的合并面上判。 */
+    const outerLines = faceText.slice(0, cfgAt).split('\n').concat(faceText.slice(cfgAt + block.length).split('\n'));
     const l0 = src.slice(0, cfgAt).split('\n').length;
     const l1 = l0 + block.split('\n').length;
     const orphan = [];
     for (const k of new Set(keys)) {
-        const re = new RegExp(`\\b${k}\\b`);
-        let seen = false;
-        for (let n = 0; n < lines.length; n++) {
-            if (n + 1 >= l0 && n + 1 <= l1) continue;
-            if (re.test(lines[n])) { seen = true; break; }
-        }
-        if (!seen) orphan.push(k);
+        const re = new RegExp('\\b' + k + '\\b');
+        if (!outerLines.some((l) => re.test(l))) orphan.push(k);
     }
     assert.deepStrictEqual(orphan, [], '存在零引用配置键（幽灵配置）: ' + orphan.join(', '));
     console.log(`✓ 9: ${new Set(keys).size} 个配置键全部有引用点，无幽灵配置`);

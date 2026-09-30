@@ -30,8 +30,9 @@ test('=== 2. 状态面板入口卡片验证 ===', () => {
 
 test('=== 3. 数据通路验证 ===', () => {
     // settings-ui 的 s = this.engine；opLog 是 engine 实例属性
-    assert.ok(src.includes('this.opLog = new OpLog();'), 'engine.opLog 实例属性');
-    assert.ok(src.includes('class OpLog'), 'OpLog 类');
+    /* [v3.258.0 A1 第二刀] OpLog 已抽为 memory-aux.js（构造点走统一取库口）。 */
+    assert.ok(src.includes("this.opLog = _newMemoryAux('OpLog');"), 'engine.opLog 实例属性');
+    assert.ok(readFileSync(new URL('../memory-aux.js', import.meta.url), 'utf8').includes('class OpLog'), 'OpLog 类');
     // showBrowser 的 esc 转义函数在 oplog 视图前定义
     const escIdx = suSrc.indexOf('const esc = (t)');
     const oplogIdx = suSrc.indexOf("viewType === 'oplog'");

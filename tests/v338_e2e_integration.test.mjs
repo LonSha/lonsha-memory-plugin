@@ -3,6 +3,10 @@
 import fs from 'node:fs';
 
 const idxSrc = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.258.0 A1 第三刀] 三个生成侧派生系统（DiarySystem / ReflectionSystem / OutlineDirector）
+ *   已外迁到 narrative-generators.js。本文件里「真源已随类搬家」的锚改读该模块的全文件文本；
+ *   仍留在入口的锚继续读 src —— 两处读的都是各自真源，不是再拄一份副本。 */
+const genSrc = fs.readFileSync(new URL('../narrative-generators.js', import.meta.url), 'utf8');  // 本文件只导入了 fs
 const suiSrc = fs.readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 const mftSrc = fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8');
 
@@ -36,7 +40,7 @@ assert('shiftFloorsFrom 包含图谱快照 floor 前移（登记表 graph 面）
     lrSrc.includes('_snapshots') && /snap, 'floor'\)/.test(lrSrc));
 
 // 修复 4: 反思生成器 sanitizeJson 与延迟更新
-assert('ReflectionSystem 接入 sanitizeJson', idxSrc.includes('const sanitized = sanitizeJson(raw);'));
+assert('ReflectionSystem 接入 sanitizeJson', genSrc.includes('const sanitized = sanitizeJson(raw);'));
 
 // 修复 5: 全量无损导出
 assert('collectExport 包含 charMem、worldProg、supersede、narrativeEntropy', 

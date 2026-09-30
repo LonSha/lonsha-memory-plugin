@@ -2,6 +2,10 @@
 // 覆盖：HippoRAG双路引燃扩散、时态知识图谱、自适应叙事熵反思、正文时间物理标签、Prompt Cache友好分流
 import fs from 'node:fs';
 const idxSrc = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.258.0 A1 第三刀] 三个生成侧派生系统（DiarySystem / ReflectionSystem / OutlineDirector）
+ *   已外迁到 narrative-generators.js。本文件里「真源已随类搬家」的锚改读该模块的全文件文本；
+ *   仍留在入口的锚继续读 src —— 两处读的都是各自真源，不是再拄一份副本。 */
+const genSrc = fs.readFileSync(new URL('../narrative-generators.js', import.meta.url), 'utf8');  // 本文件只导入了 fs
 const suiSrc = fs.readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 const mftSrc = fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8');
 
@@ -28,7 +32,7 @@ assert('buildInjection 渲染历史羁绊标记', idxSrc.includes('（曾于第$
 assert('config 拥有 entropyReflectionEnabled 与 threshold', idxSrc.includes('entropyReflectionEnabled: true') && idxSrc.includes('entropyThreshold: 15'));
 assert('MemoryEngine 拥有 _narrativeEntropy', idxSrc.includes('this._narrativeEntropy = 0'));
 assert('onMessageReceived 包含叙事熵累加逻辑', idxSrc.includes('this._narrativeEntropy = (this._narrativeEntropy || 0) + deltaEntropy'));
-assert('ReflectionSystem.generate 支持 forceTrigger', idxSrc.includes('forceTrigger = false') && idxSrc.includes('!forceTrigger && every > 0'));
+assert('ReflectionSystem.generate 支持 forceTrigger', genSrc.includes('forceTrigger = false') && genSrc.includes('!forceTrigger && every > 0'));
 
 // 支柱 4: 物理时间标签锚点
 assert('config 拥有 timeTagAnchorEnabled', idxSrc.includes('timeTagAnchorEnabled: true'));

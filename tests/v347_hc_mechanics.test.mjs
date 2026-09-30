@@ -8,6 +8,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.258.0 A1 第三刀] 三个生成侧派生系统（DiarySystem / ReflectionSystem / OutlineDirector）
+ *   已外迁到 narrative-generators.js。本文件里「真源已随类搬家」的锚改读该模块的全文件文本；
+ *   仍留在入口的锚继续读 src —— 两处读的都是各自真源，不是再拄一份副本。 */
+const genSrc = readFileSync(new URL('../narrative-generators.js', import.meta.url), 'utf-8');
 /* [A1] 账本类已抽为 memory-ledgers.js（index.js 不再声明）。
  *   本套件原用 index.js 文本抽取实现；抽走后改为真加载模块。
  *   三个真实依赖零实现：norm / "+"。 */
@@ -63,9 +67,9 @@ test('=== 1. v3.47 静态锚点与版本检查 ===', () => {
     // NaN 修复
     assert.ok(src.includes('Number.isFinite(access)'), 'sleepCycle 必须修 NaN 边界（Number.isFinite 兜底）');
     // 心理暗流日记
-    assert.ok(src.includes('attitude_to_user'), '日记提取必须含 attitude_to_user');
-    assert.ok(src.includes('relationship_with_others'), '日记提取必须含 relationship_with_others（主观关系印象）');
-    assert.ok(src.includes('subjRelations:'), '日记存储必须含 subjRelations');
+    assert.ok(genSrc.includes('attitude_to_user'), '日记提取必须含 attitude_to_user');
+    assert.ok(genSrc.includes('relationship_with_others'), '日记提取必须含 relationship_with_others（主观关系印象）');
+    assert.ok(genSrc.includes('subjRelations:'), '日记存储必须含 subjRelations');
     console.log('✓ v3.47 静态锚点与接口声明检查全部通过');
 });
 
@@ -198,13 +202,13 @@ test('=== 5. 睡眠周期 sleepCycle 归档式遗忘测试（含 NaN 修复）==
 
 test('=== 6. 心理暗流日记增强测试（attitude/keyEvents/subjRelations）===', () => {
     // 提取 prompt 增强
-    assert.ok(src.includes('- attitude_to_user 写该角色此刻对用户/主角的态度'), 'prompt 含对用户态度规则');
-    assert.ok(src.includes('- key_events 写他亲历且对他个人有分量的事件'), 'prompt 含亲历要事规则');
-    assert.ok(src.includes('主观印象'), 'prompt 含主观印象规则（不是上帝视角结论）');
+    assert.ok(genSrc.includes('- attitude_to_user 写该角色此刻对用户/主角的态度'), 'prompt 含对用户态度规则');
+    assert.ok(genSrc.includes('- key_events 写他亲历且对他个人有分量的事件'), 'prompt 含亲历要事规则');
+    assert.ok(genSrc.includes('主观印象'), 'prompt 含主观印象规则（不是上帝视角结论）');
     // 存储增强
-    assert.ok(src.includes("attitude: String(d.attitude_to_user || '').slice(0, 60)"), '存储 attitude 字段');
-    assert.ok(src.includes('keyEvents: (Array.isArray(d.key_events)'), '存储 keyEvents 字段');
-    assert.ok(src.includes('subjRelations:'), '存储 subjRelations 字段');
+    assert.ok(genSrc.includes("attitude: String(d.attitude_to_user || '').slice(0, 60)"), '存储 attitude 字段');
+    assert.ok(genSrc.includes('keyEvents: (Array.isArray(d.key_events)'), '存储 keyEvents 字段');
+    assert.ok(genSrc.includes('subjRelations:'), '存储 subjRelations 字段');
     // 注入渲染增强
     assert.ok(src.includes('｜对用户态度: '), '注入渲染对用户态度');
     assert.ok(src.includes('｜亲历要事: '), '注入渲染亲历要事');

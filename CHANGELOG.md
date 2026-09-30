@@ -1,3 +1,118 @@
+## v3.258.0
+**主题：跨仓外供面的**反向半边**——从「声明 0 面」到「另表 + 另判据」。**
+ 同轮第二件（同版内落地）：**A1 宿主巨兽第二刀**（六个工具类抽出 `index.js`），见本节末「同轮第二件」小节。
+ 同轮第三件（同版内落地）：**A1 宿主巨兽第三刀**（三个生成侧派生系统抽出 `index.js`，17776 → 17444 行），见本节末「同轮第三件」小节。
+修前实测（不是推测）：本仓 `tests/audit/open_face_registry.tsv`（v3.253.0 建的外供面登记表，5 面 × 9 列）表头第 6 行逐字写着
+「本表只登记上游→下游方向的外供面（下游→上游方向当前 0 面，故无行）」。**而那句现已不真**：下游 ruby-phone 的手机记忆桥
+`lonshaBridge`（`apps/memory/lonsha-bridge.js` 导出 `mountLonShaBridge`）早已在本仓真被消费：index.js 四处调用点
+（回填 `backfill` / 召回 `recall` / 楼层生命周期 `onFloorCommitted`、`onFloorRollback`）。「声明没有判据 ⇒ 声明会漂移」
+—— 这次漂的是**两仓的规划文档**，两边都没人说错话，两边也都没人核过。
+
+### 为什么**另表 + 另判据**，而不是在正向表里加几行
+
+逐条读过正向表的六条判据（T1~T6）与常驻守卫 `tests/v3253_open_face_registry.test.mjs` 后确认：
+它们**全部是按「上游产出、下游消费」写的**，方向反转后逐条错位：
+
+| 判据 | 共用会怎样 |
+| --- | --- |
+| T2 符号真在场 | 要在**本仓磁盘**上找 `upstream_symbol` 的定义，而反向面的**产出方在下游** ⇒ 必红（假红，不是检出缺陷） |
+| T4 consumer 语法 | 该列是《读出口名》@《下限》；反向面这里该写的是「上游哪些出口在调」，语义反了 |
+| T5/T6 四态与分态 | 口径按产出方写，反向面须按消费方重写 |
+| N0 阳性对照 | 会当场把新行判红 —— 那张表的判据无法容纳异向行 |
+
+硬塞进去还有第二条死路：把表的语义改成「混合方向」，就丢掉了原表的价值
+（「本仓一共外供了几面」这个问题从此没有一处能干净回答）。故本版另起一张同样可核的表 + 一份方向反转的判据集。
+
+### 落地三件（均已真跑验证）
+
+1. `tests/audit/open_face_registry_inbound.tsv`（1 面 × 9 列）：`owner` 列是**产出方**，`downstream_symbol` 是产出侧符号，
+   `upstream_consumers` 是**上游消费面**，`upstream_floor` 是上游消费点下限（声明值）；
+2. `tests/audit/scan_inbound_faces.mjs`（六条判据 I1~I6，全部站在**上游本仓**可核部分）：
+   I1 表形态+**方向硬断**（owner 不得是本仓）/ I2 消费面在磁盘且出口名真在场 / I3 消费面在分发面 /
+   I4 下限形态 / I5 四态分别呈现 / I6 缺席与空不同形；
+3. `tests/v3258_inbound_face_registry.test.mjs`（套件：A 表本体 / B 真源码面 / C 负控制七例 / D 工具两向自证 /
+   E 版本锚 / F 判据面自防护 / G 两表实时对账），并**同时订正**正向表表头那句番话。
+
+### 本版自己抓到的缺陷（留档防复发）
+
+· **G1 首跑就红**：订正段里为了说清原委我把旧句**逐字复述**了一遍，结果判据（按子串查）命中了那个子串
+  ⇒ 自己判自己红。修法是**改措辞而不是改判据**（引述改成不再含那个子串）；
+  这与本仓「注释不得字面引用锚点」同族。
+· **A2 首跑红**：对向表表头没写「真核实挂在下游 R12」—— 而那一句正是正向表表头早已写明的同一件事。
+· **`--check` 通过 ≠ 能跑**：套件首版用了一个换行字符字面量，落盘层逐层加码后变成非法 token（`node --check` 当场拦下）。
+  修法：改用 `String.fromCharCode` 拼，与本仓「零反斜杠源」同规。
+
+
+### 同轮第二件：A1 宿主巨兽第二刀（memory-aux.js）
+第一刀（v3.257.0）剥的是彼此零互调的叶子**账本**类；本刀按同一条读数轴（成员级预算 + 文件规模上界）剥**工具类**：
+`HolidayAware` / `Mutex` / `OpLog` / `FloorLedger` / `SnapshotManager` / `EmergencyBackup` → `memory-aux.js`
+（455 行、零依赖、`window.LonShaMemoryAux` 双导出、`manifest.extra_js` 第 70 项）。
+
+**为什么这六个能一起走**（逐条实测，不是感觉）：六个类在 `index.js` 各只有**一个**构造点且互不引用（统合由宿主 `MemoryEngine` 负责）；
+不读宿主状态；逐类 strip 后 diff 证明搬家**逐字等价**（五个类 IDENTICAL），唯一差异是 `EmergencyBackup` 多一处 `opts.errLog`
+显式注入形态（宿主版直接引模块级 `errLog`）—— 本刀唯一需要改语义的地方：切成注入形态，并让 `errLog` 自身 try 兜住
+（**诊断不得成为新的失败**）。
+
+交接纪律对齐 v3.257.0 样板：取库口 `_memoryAuxLib()`（**不在构造期缓存**：extra_js 后加载）；缺席退路
+`MemoryAuxFallback` 是常量空实现、公开面按**方法名**与真实现对账；构造点统一 `_newMemoryAux(name, opts)`，
+宿主字段对位刻意不同名（`HolidayAware→holiday` / `Mutex→mutex` / `OpLog→opLog` / `FloorLedger→ledger` /
+`SnapshotManager→snapshots` / `EmergencyBackup→emergency`）。
+
+**本刀真正的成本：判据的真源跟着代码一起搬家（10 处 + 人数面）。** `v3145`/`v3150`/`v3155`/`v3169`/`v340`/`v355`/`v3157`
+七处把真执行面切到模块文件（`extractBraced`/`extractClass`/`classSpan` 口径）；`v3205` 与 `scan_v3202` 两处 P5 判据换形态；
+`v358` 的 OpLog 类型注释、`v3230` 保留面三条（改跨根级模块在场判据）、`v3209` 两处 `extra_js` 数量锁 + README 人读面同步。
+
+**本版自己抓到的缺陷（留档防复发）**：
+1. **退路漏三个 getter（判据当场抓住）**：`v3259` 的方法名对账报出 `Mutex.locked` / `Mutex.holderToken` /
+   `Mutex.queueLength` 三个真缺失（缺席时调用方读到 `undefined`）；同批还报了 `Mutex.resolve` / `SnapshotManager.resolve` /
+   `EmergencyBackup.resolve` 三条**假红**——判据自己的方法名切分用了宽松正则，把 `new Promise((resolve) => …)` 收了进来。
+   修法分别是「改判据（按成员签名缩进切分，与 `host_beast_probe.cjs` 同口径）」与「改交付物（补 getter）」。
+   教训：**同一条判据既可能假红也可能真红，分野只能逐条核名字**。
+2. **转义层数不可手推**：`v3205` / `scan_v3202` 的 P5 原是多层转义正则；手推层数 ABORT，行定位替换后层数翻倍使判据
+   **静默失效**。终解是**换判据形态**（无转义子串数组 `hostSub: [...]` + `clean.includes(t)`）。
+   教训：**当转义层数需要「推」才能写对时，那就是该换形态的信号**。
+3. **加参数改造必须整函数替换**：`v3145` 的 `extractBraced` 加第二参后漏改函数体内对旧变量的引用，`node --check` 当场拦下。
+4. **模块内类序可能与宿主不同**：`v3155` 切片终点原用宿主里排后面的 `class Mutex {`，而模块里 Mutex 在 FloorLedger **之前** ⇒ 负切片；
+   终点必须取「模块里排后面的那个类」。
+5. **抬版必触发交棒**：`v3257` E 段原是当版硬锚 `assert.equal(vnum(codeVer), vnum('3.257.0'))`，本版抬到 3.258.0 即判红。
+   按 `scan_version_guard.mjs` 既有口径退回**出生版本下限锚**（`>= 3.257.0`）并留 `[v3.258.0 交棒]` 注释，另补「本档不得被掏空」。
+
+**读数**：`index.js` **18124 → 17776 行**（净 −348）、成员 **561 → 553**；`memory-aux.js` 455 行；
+`extra_js` 69 → **70**、根 `.js` 71；`dead_code_budget` rc 0（实测 41505 / 上界 41709）；
+`host_beast_baseline.json` 按当版重建；**全量 240/240 文件、2440 断言、0 失败**（58.8s）。
+本刀首轮全量出了三个「我改红」（`v3209` / `v3230` / `v358`，均为真源搬家与数量锁未同步），逐处修完转绿。
+`index.js` 距 A1 验收线（15000 行）仍差 **2776 行** —— 本刀是第二刀，不是收官。
+真实宿主实机仍未验（本版读数依旧是无头读数）。
+### 同轮第三件：A1 宿主巨兽第三刀（narrative-generators.js）
+前两刀刻的是**彼此零互调的叶子**（第一刀六个账本类、第二刀六个工具类），第三刀刻的是**生成侧派生系统**：`DiarySystem` / `ReflectionSystem` / `OutlineDirector` → `narrative-generators.js`（425 行、三个类三种职责、`manifest.extra_js` 第 71 项）。
+
+**选型不是凭感觉，是量出来的「判据面爆炸半径」**：`host_beast_baseline.json` 的 `split_candidates.low_coupling_examples` 给的是**成员级**候选（最大的 `recallMemory` 688 行），而前两刀都是**整类抽取**，口径必须一致 ⇒ 改按类级轴量「类行数 ÷ 被测试/审计文件引用数」：`DiarySystem` 108 行/1 文件、`ReflectionSystem` 65 行/2 文件、`OutlineDirector` 206 行/2 文件，三者互不引用、各自只有一处 `window.SillyTavern?.getContext?.()`、只被宿主构造期 new 一次。（同批量出 `PrequelSystem` 爆炸半径最小，但它依赖 BM25 ⇒ 本刀不取，留给下一刀。）
+
+交接纪律逐字对齐第二刀：取库口 `_narrativeGeneratorsLib()`（**不在构造期缓存**：extra_js 后加载）、缺席退路 `NarrativeGeneratorFallback` 是常量空实现、构造点统一 `_newNarrativeGenerator(name)`、宿主字段对位刻意不同名（`DiarySystem→diary` / `ReflectionSystem→reflection` / `OutlineDirector→outline`）。
+
+**本刀真正的成本是「扫描面口径」，不是搬类（本轮最大的教训）。** 三个消费点随类搬走后，`tests/audit/scan_config_liveness.mjs` 的扫描面仍只读 `index.js`（第 19 行），于是 `outlinePlanCooldownFloors`（真消费点在 `narrative-generators.js` 的 `Number(config.outlinePlanCooldownFloors) || 10`）被判成「引擎无成员读取形态的消费」= 假死配置，连带 `v3157`/`v3159`/`v3160`/`v3161`/`v3227`/`v3230`/`v391` 七处翻红。
+
+修法照本仓既有范式（`scan_open_faces` / `scan_inbound_faces` / `scan_ledger_contract` / `scan_module_wiring` 都从 `manifest.extra_js` 派生命名清单）：扫描面改为「入口 + `manifest.extra_js`」，**入口固定在首位**（`cfgOpen/cfgClose` 与「提及是否落在配置块外」的偏移判定都建立在前缀逐字等于入口上）；无 `manifest.json` 的合成树（探针自测夹具）退回单文件面，行为与扩面前逐字一致 ⇒ `v3157` 的七条夹具自测全部原样通过。
+扩面后读数：**扫描面 72 个文件（入口 + 71 模块）/ 215 万字节 → UI 呈现键 172 / 可到达 172 / 死配置 0**（扩面前是 171/1）。另补一道闸：非夹具模式下「面里只有入口」即 exit 2（manifest 派生失败时不许静默退回窄面）、面里的模块读到空内容即 exit 2 —— 与脚本头部「审计失效的方式是报告一切正常」同一条纪律。
+
+**其余四处「真源跟代码走」**（逐条实测锚点分布后改，不是见红就改）：
+- `v337` 的 `forceTrigger = false` / `!forceTrigger && every > 0`（入口 0 次 / 模块 1 次）、`v338` 的 `const sanitized = sanitizeJson(raw);`（入口 0 / 模块 1）⇒ 改读模块全文件文本；
+- `v347`：一次**全量锚点普查**（把所有 `.includes(字面量)` 抽出来，与入口比 count）抓出 **8 处**真源已搬家的锚（`attitude_to_user` / `relationship_with_others` / `subjRelations:` / `keyEvents` / `主观印象` / 两条 prompt 规则 / `attitude:` 存储行）—— 首轮只按「第一个失败」修了 1 处，剩下 7 处会在下一轮才暴露。**这就是「逐条普查」与「见红改红」的成本差**；
+- `v3156` 的 `PROBES` 是**混合面清单**（13 条里 12 条在入口、1 条在模块）⇒ 逐锚按「真源所在面」取值，其 `[1c]` 的「键是否被 numOr 消费」扫描面同步扩到两文件；
+- `v3160 [1b]`（声明的键必须在配置块外被读）与 `v391 [9]`（幽灵配置）各自带**内联**扫描面：前者的配置块坐标只在入口 ⇒ 「块内容取入口、块外取入口+模块合并面」（源码为 `faceText.slice(0,cfgAt) + faceText.slice(cfgAt+block.length)`，因为模块被追加在配置块之后，偏移量不受影响）；后者把「逐行排除配置块行范围」改为「直接做块外两段文本拼接」。
+
+**本版自己抓到的缺陷（留档防复发）**：
+1. **全量报告的「第一条错误」≠ 根因**：上一轮把 `v3209` 的红记成「迁移块必须在 `const dry` 之后（TDZ）」，实测其第 10 段「接线面」是**通过**的，真凶是 `extra_js` 数量锁 69（我在上一刀加到 70、本刀又要加到 71）。**必须跑单套件原始输出才定得了根因。**
+2. **退路漏三个成员（判据当场抓住）**：退路对账（成员签名 8 空格口径）报 `[exhausted, flatTurns, parseOutline]` 三项真缺 —— 其中两个是 **getter**（`get flatTurns()` / `get exhausted()`）、一个是带参方法。补三行后 TOTAL MISSING 为 `[]`。
+3. **宿主依赖口径不是「一刀切零依赖」**：`memory-aux.js` 是零宿主依赖，而本模块有**一个受控接触面**（三个类各自一处同形的 `window.SillyTavern?.getContext?.()`，全模块实测 5 次）。判据写成「只准出现该形态、不得出现其它 `window.SillyTavern` 引用」，并把这条差异写进模块头注 —— **强行统一口径会让判据失真**。
+4. **转义坑本刀踩了三次**（补丁里拼含中文引号/反斜杠的 JS 字符串 ⇒ `unterminated string literal`）。终解是**占位符纪律**：脚本内绝不写真引号与反斜杠，用 `__SQ__ / __BQ__ / __BS__` 占位、最后统一 replace；第二手段是「按行索引替换」。
+5. **探针键名不能猜、占比口径要看清**：重建基线脚本首版按旧形状猜 `biggest_members_top40` ⇒ `KeyError`（真键是 `biggest_members`）；又把「域」当「成员」算出 TOP5 = 93.3%，改用 `biggest_members_top40[:5]` 后为 **23.7%**。
+
+**读数**：`index.js` **17776 → 17444 行**（净 −332，其中退路补 3 行）、成员 **553 → 549**；`narrative-generators.js` 425 行；`extra_js` 70 → **71**、根 `.js` 72；`scan_module_wiring` 真加载 **72/72**、已挂载未消费 **0**；`dead_code_budget` rc 0（实测 **41596** / 上界 **41996**，余量 400）；`host_beast_baseline.json` 按当版重建（TOP5 23.7% / TOP40 53.3% / 前缀规则覆盖 25.4%）；新增套件 `tests/v3260_a1_narrative_generators.test.mjs`（6/6，含四条真源码破坏负控制与判据面自防护）；后补一节 G「扫描面不得退回只读入口」（含两个退化负控制）后为 **7/7**；全量 **241/241 文件、2447 断言、0 失败**，并完整跑过 `node tests/run.mjs --audit`：**53/53 审计脚本全通过**（45.2s）。**全量 241/241 文件、2446 断言、0 失败**（58.2s）。
+本刀首轮全量出了 **11 个红**（配置活性族 8 / 文本锚族 3），逐处归因修完转绿 —— 归因过程即上面第 1、2、4 条教训的来源。
+`index.js` 距 A1 验收线（15000 行）仍差 **2444 行** —— 本刀是第三刀，不是收官。
+真实宿主实机仍未验（本版读数依旧是无头读数）。
+
 ## v3.257.0
 **主题：A1 宿主巨兽第一刀——把最松的叶子从 index.js 剥出去（18401 → 18124 行）。**
 

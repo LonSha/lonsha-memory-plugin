@@ -14,6 +14,9 @@ import { codeLines } from './_audit_lib.mjs';
 
 const idx = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
 const sui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8');
+/* [v3.258.0 A1 第二刀] OpLog 已抽为 memory-aux.js：真执行面与源码面均改读模块文件。
+ *   本档的语义（环形 500 / 自述面 / 字段上限同源）一字不改 —— 只换被读的文件。 */
+const aux = readFileSync(new URL('../memory-aux.js', import.meta.url), 'utf-8');
 
 // ---------- 源码抽取工具 ----------
 
@@ -55,7 +58,7 @@ function classSpan(src, name) {
 }
 
 /** 从源码装载 OpLog 类（真执行，不用桩）。 */
-const OpLog = new Function('return (' + classSpan(idx, 'OpLog') + ')')();
+const OpLog = new Function('return (' + classSpan(aux, 'OpLog') + ')')();
 
 // ---------- 行级剥注释 ----------
 // 背景（本版负控制实测的假绿）：文本判据若在**原始源码**上做字面包含检查，代码注释里的
@@ -73,7 +76,7 @@ const codeOf = (src) => codeLines(src).join('\n');
 assert.ok(!codeOf(idx).includes('[v3.169]'), '行级剥注释后不得残留本版注释标记');
 assert.ok(!codeOf(sui).includes('[v3.169]'), '行级剥注释后不得残留本版注释标记');
 // 反向自证：不得吞掉代码本体
-assert.ok(codeOf(idx).includes('class OpLog'), '剥注释后必须仍有 class OpLog');
+assert.ok(codeOf(aux).includes('class OpLog'), '剥注释后必须仍有 class OpLog');
 assert.ok(codeOf(idx).includes('getDegradationLedger'), '剥注释后必须仍有 getDegradationLedger');
 assert.ok(codeOf(sui).includes('data-view="oplog"'), '剥注释后必须仍有 oplog 卡片');
 /** 从 index.js 扫描真实埋点类型集合（判据的真源，不钉字面量）。 */
@@ -537,7 +540,7 @@ test('A6 读侧与写侧必须共用同一套字段上限（唯一真源）', ()
     assert.equal(log.queryByType(longType).length, 1, 'type 检索同样必须同源');
 
     // 源码层面：检索入口必须调用规范化，而不是各自 slice
-    const cls = classSpan(idx, 'OpLog');
+    const cls = classSpan(aux, 'OpLog');
     assert.ok(/queryByRef\(\s*refId\s*\)\s*\{[^}]*normRef/.test(cls), 'queryByRef 必须经 normRef');
     assert.ok(/queryByType\(\s*type\s*\)\s*\{[^}]*_retention\(\)/.test(cls), 'queryByType 必须经 _retention');
 });
@@ -567,8 +570,8 @@ test('G2 CHANGELOG 必须记录本版主题与两项不变量', () => {
 
 test('G3 既有 OpLog 测试的断言语义不得被绕过', () => {
     // v354 断言 st.total === 500 且 st.byType.item === 500 —— 本版必须仍然满足
-    assert.ok(idx.includes("if (this.entries.length > 500) {"), '环形 500 仍在');
-    assert.ok(/cap:\s*500/.test(idx), 'stats 自述容量为 500');
+    assert.ok(aux.includes("if (this.entries.length > 500) {"), '环形 500 仍在');
+    assert.ok(/cap:\s*500/.test(aux), 'stats 自述容量为 500');
     // v355 断言的可视化入口仍在
     assert.ok(sui.includes('opLog.recent(80)'));
     assert.ok(sui.includes('const st = opLog.stats()'));

@@ -8,20 +8,27 @@
 
 | 量 | 读数 | 出处 |
 |---|---|---|
-| 版本 | v3.255.0（四源同源） | `scan_version_guard.mjs` |
-| 门禁 | 236 测试文件 / 2397 断言 0 失败 + 55 个 audit 脚本 | `npm test` |
-| 体量 | `index.js` **18400 行**（占全仓 45%）+ extra_js 68 项共 **22837 行**，69 个根模块 | `wc -l` / `manifest.json` |
-| 跨仓外供 | **5 面**（`open_face_registry.tsv`），下游→上游 **0 面** | v3.253.0 建表 |
+| 版本 | v3.258.0（四源同源） | `scan_version_guard.mjs` |
+| 门禁 | **241 测试文件 / 2446 断言 0 失败** + **56** 个 audit 脚本 | `npm test` |
+| 体量 | `index.js` **17444 行**（A1 三刀后：18401 → 18124 → 17776 → 17444）+ extra_js **71** 项共 **24124 行**，**72** 个根模块 | `wc -l` / `manifest.json` |
+| 跨仓外供 | 正向 **5 面**（`open_face_registry.tsv`）+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |
 
 ---
 
 ## 一、优化提升
 
 ### A1 · 宿主巨兽 `index.js` 继续瘦身【最大杠杆】
-- **现状**：18400 行 / 占 45%。P-2 已分诊（559 成员 / TOP40 集中度 51.3%）并按读数**否掉「按域拆」**。
-- **路径**：不拆域，沿用 v3.254.0「`cache-identity.js` 独立成模块」的成功路径——从 `tests/audit/index_beast_map.tsv` 挑「自抓 `this.*` 最少、出口最清晰」的聚簇，每版剥 1~2 个为 extra_js 模块。
-- **目标**：index.js 降至 15000 行以下。
-- **验收**：`tests/audit/host_beast_baseline.json` 冻结的 559 成员基线随每次剥离减项，瘦身进度转为可读数；门禁保持 0 失败。
+- **现状（已推进三刀）**：**17444 行**（18401 → 18124 → 17776 → 17444）。P-2 已分诊并按读数**否掉「按域拆」**，
+  只留「成员级预算 + 文件规模上界」这条轴；实测 TOP5 集中度 **23.7%** / TOP40 **53.3%** / 前缀规则覆盖 **25.4%**（TO5/TO40 按**成员**计，不是按域）。
+- **路径**：不拆域，每版剥 1~2 个聚簇为 extra_js 模块 —— 已落三刀：第一刀 **v3.257.0** 六个叶子账本类（`memory-ledgers.js`）、
+  第二刀 **v3.258.0** 六个工具类（`memory-aux.js`）、同轮第三刀 **v3.258.0** 三个生成侧派生系统（`narrative-generators.js`）。
+  **下一刀候选**（按类级「判据面爆炸半径」＝ 类行数 ÷ 被测试/审计文件引用数排序）：`PrequelSystem`（爆炸半径最小，但依赖 `BM25`，须与它同刀或先提层）、
+  再往后的类级候选 `SuspenseBook` / `CharacterMemoryBank` / `EntityLexicon` / `EchoPool` / `IncrementBookmark` / `RelativeTimeHelper`（零外部依赖）/ `PlotTimeline`；
+  成员级候选见 `host_beast_baseline.json` 的 `split_candidates.low_coupling_examples`（`recallMemory` 688 / `exportMemoryReport` 349 等）。
+- **目标**：index.js 降至 15000 行以下。当前 **17444**，仍差 **2444 行**（三刀共剥 957 行）。
+- **验收**：`tests/audit/host_beast_baseline.json` 的成员基线随每次剥离减项（561 → 553 → 549）、瘦身进度转为可读数；门禁保持 0 失败。
+  **每刀必做项**（三刀各踩一次的教训）：① 退路对账（缺席退路的公开面必须按**方法名**与真实现对账，含 getter）；② **扫描面口径跟着代码走** —— 只读 `index.js` 的审计脚本/内联判据会因消费点外迁而假报死配置；
+  ③ 数量锁与登记面同步（`extra_js` 计数、README 人读面、`catalog_reference_consumers.tsv`、`v3247` 的 `REGISTRY`）。
 
 ### A2 · 兑现已登记的「未做」
 - **`p3_snapshot_bytes` 重跑**：环境障碍已除；探针早已可跑。文档头部曾滞后写 `not_measured`。
@@ -39,11 +46,17 @@
 
 ## 二、拓宽·拓展·拓深
 
-### T1 · 打通「下游→上游」0 面【结构空档，最高优先】
-- **现状**：`open_face_registry.tsv` 表头明写下游→上游 **0 面**。下游 ruby-phone 41 个 App 沉淀大量运行时事实（usage-tracker / life-events / phone-chat-memory / worldbook-dryrun 的选择结果），上游记忆图谱用得上。
-- **路径**：按现有 5 面的 `contract_shape` 九列范式（producer_version / consumer / absent_vs_empty 等）新增第 6 行，**方向反转**。第一候选：使用画像或 worldbook 选择回执。
-- **价值**：把单向供给做成双向回路，结构性最强；登记表机制（v3.253.0）已备「新增一面补一行」维护规则。
-- **验收**：`open_face_registry.tsv` 增一行且 `tests/v3253` 双向点名通过。
+### T1 · 打通「下游→上游」0 面【已交付 v3.258.0 · 另表另判据】
+- **现状（订正）**：**「0 面」这句已不真，两个仓的 PLAN 都写过它，两边都没人核过。** 实测下游 `ruby-phone` 的手机记忆桥
+  `lonshaBridge`（`apps/memory/lonsha-bridge.js` 导出 `mountLonShaBridge`）早已在本仓真被消费：`index.js` 四处调用点
+  （回填 `backfill` / 召回 `recall` / 楼层生命周期 `onFloorCommitted`、`onFloorRollback`）—— 「功能早在跑，登记面 0 面」。
+- **路径（已按实测修正）**：「在 `open_face_registry.tsv` 新增第 6 行」**行不通** —— 那张表的判据 （T2 要在**本仓**磁盘上找 `upstream_symbol` 的定义 / T4 `consumer` 语法 / T5 四态 / T6 分态 / `v3253` N0 阳性对照）
+  全部按「上游产出、下游消费」设计，方向反转后逐条错位（硬塞会当场把新行判红）。故改为**另起一张同样可核的表 + 一份方向反转的判据集**。
+- **已交付 v3.258.0**：`tests/audit/open_face_registry_inbound.tsv`（1 面 × 9 列，`owner` 列是产出方）+ `tests/audit/scan_inbound_faces.mjs`（六条判据 I1~I6，含方向硬断）+ 常驻套件 `tests/v3258_inbound_face_registry.test.mjs`
+  （A 表本体 / B 真源码面 / C 负控制七例 / D 工具两向自证 / E 版本锚 / F 判据面自防护 / G 两表实时对账）；
+  并订正正向表表头那句「下游→上游方向当前 0 面，故无行」+ 本文件上一行基线读数。
+- **价值**：把单向供给做成双向回路，结构性最强；两份表各自保持单一方向，两个问题（「供了几面」/「被供了几面」）都能有一处干净回答。
+- **验收**：反向表 1 面在册、六条判据 rc=0、两表实时对账通过、两仓 PLAN 都不再写「0 面」。**已达成**（v3.258.0 全量 241/241 · 2446 断言 · 0 失败）。
 
 ### T2 · 注入质量从「真实」走向「相关」【拓深】
 - **现状**：已交付注入回执真实性（v3.251.0）+ 剧情质量 40 样本评测（v3.250.0，含 5 项 known-gap）。
@@ -60,7 +73,7 @@
 ## 优先级
 
 1. **A1 + A2**（瘦身 + 兑现登记项）——成本最低、读数回报最快。
-2. **T1**（下游→上游第 6 面）——结构价值最高，机制已备。
+2. **T1**（反向面）——**已交付 v3.258.0**（另表另判据，见上）。**遗留**：下游侧的 PLAN / ITERATION_LOG 记账（下游仓自身的迭代轮次，不阻塞本仓）。
 3. T2 / A3 / X1 按版本窗口排。
 
 > 维护规则：本文件条目落地后，在条目末标注「已交付 v3.x.x」并附证据；不删历史条目，保持追加式。

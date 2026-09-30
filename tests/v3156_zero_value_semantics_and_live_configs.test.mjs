@@ -20,6 +20,11 @@ const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+/* [v3.258.0 A1 第三刀] DiarySystem / ReflectionSystem / OutlineDirector 已外迁到
+ *   narrative-generators.js。下面凡是跨面描描的判据都要拿两个面的合并文本，
+ *   否则「消费点已随类搬家」会被当成「消费点不存在」。每条判据仍只读自己的真源。 */
+const genSrc = readFileSync(path.join(ROOT, 'narrative-generators.js'), 'utf-8');
+const faceText = src + String.fromCharCode(10) + genSrc;   // 跨面判据用（入口 + 外迁模块）
 function vnum(s) {
     const p = String(s || '').trim().split('.');
     const a = Number(p[0]), b = Number(p[1] || 0), c = Number(p[2] || 0);
@@ -163,9 +168,9 @@ test('[1c] every min=0 key is actually consumed through numOr', () => {
         const at = src.indexOf('numOr(');
         let hit = false, from = 0;
         for (;;) {
-            const i = src.indexOf('numOr(', from);
+            const i = faceText.indexOf('numOr(', from);
             if (i < 0) break;
-            const seg = src.slice(i, i + 120);
+            const seg = faceText.slice(i, i + 120);
             const close = seg.indexOf(')');
             if (seg.includes(k) && close > 0) hit = true;
             from = i + 5;
@@ -193,7 +198,10 @@ test('[1d] numOr consumption sites reach expected count', () => {
         'numOr(this.engine.config.config.injectionDepth, 0)',
         'numOr(plugin.engine.config.config.injectionDepth, 0)'
     ];
-    for (const p of PROBES) assert.ok(src.includes(p), 'consumption site present: ' + p);
+    /* [v3.258.0 A1 第三刀] PROBES 是混合面清单：多数锚留在入口，而
+     *   `numOr(config.diaryEveryFloors, 3)` 的真源已随 DiarySystem 外迁。
+     *   逐锚按「真源所在面」取值（任一面在场即算消费点在场），不再一律读 src。 */
+    for (const p of PROBES) assert.ok(src.includes(p) || genSrc.includes(p), 'consumption site present: ' + p);
 });
 test('[1e] vectorChunkSize was not widened (it is not a min=0 key)', () => {
     assert.ok(src.includes('Number(cfg.vectorChunkSize) || 800'), 'chunkSize keeps its original form');

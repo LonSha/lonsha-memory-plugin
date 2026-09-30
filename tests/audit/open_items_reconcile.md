@@ -302,3 +302,47 @@
 
 **仍未做的部分（如实登记，不外推）**：真宿主里两份检查点长什么样、上游换版后是否仍同形 ——
 两侧都测不了（无真酒馆宿主），归 R-O3。
+
+---
+
+## 本轮追加（v3.258.0 轮：**反向外供面** —— 从「声明 0 面」到「另表 + 另判据」）
+
+### (p) 正向表表头那句「下游→上游方向当前 0 面，故无行」已订正
+
+| 项 | 前值 | 本轮读数 |
+| --- | --- | --- |
+| 正向表 `open_face_registry.tsv` 表头第 6 行 | 「本表只登记上游→下游方向的外供面（下游→上游方向当前 0 面，故无行）」 | **订正**：那句已不真 —— 下游 ruby-phone 的手机记忆桥 `lonshaBridge` 早已在本仓真被消费 |
+| 反向面登记表 | **不存在**（两仓 PLAN 都写着 0 面） | **新建** `tests/audit/open_face_registry_inbound.tsv`（1 面 × 9 列） |
+| 反向面守卫 | 不存在 | **新建** `tests/audit/scan_inbound_faces.mjs`（六判据 I1~I6） |
+| 反向面常驻判据 | 不存在 | **新建** `tests/v3258_inbound_face_registry.test.mjs`（24 条） |
+
+### (q) 为什么**不能**把反向面塞进正向表（本轮逐条读透后才下的结论）
+
+正向表的六条判据（T1~T6）与 v3253 的 N0「未破坏时全量判据为零问题」**全部是按「上游产出、下游消费」写的**：
+
+- T2 要在**本仓磁盘**上找 `upstream_symbol` 的定义 —— 而反向面的产出方在下游，模块文件根本不在本仓 ⇒ 必红（假红）；
+- T4 的 `consumer` 语法是《读出口名》@《下限》—— 反向面这里该写的是「上游哪些出口在调」，语义反了；
+- T5 的四态与 T6 的「缺席 vs 空」口径按产出方写，反向面须按消费方重写；
+- v3253 N0（阳性对照）会当场把新行判红 —— 那张表的判据**无法容纳异向行**。
+
+第二条死路：把表的语义改成「混合方向」，就丢掉了原表的价值（「本仓一共外供了几面」这个问题从此没有一处能干净回答）。
+
+⇒ **正确形态是另表 + 另判据**（本仓治过的「一处口径两件事」形态）。
+
+### (r) 连带登记（三处，缺一即红 —— 与 v3.253.0 轮同规）
+
+- `tests/audit/catalog_reference_consumers.tsv` 补 `v3258_inbound_face_registry.test.mjs`（不补则跨仓守卫 P3 报「新增测试未登记进参考基准」）；
+- `tests/audit/audit_scan_probe_matrix.tsv` 补 `scan_inbound_faces.mjs`（不补则 v3226 B1 双向齐全判据转红）；
+- `tests/v3247_break_kit_consolidation.test.mjs` 的 `REGISTRY` 补新套件（它 import 了 `_break_kit.mjs` ⇒ 真·接收方）。
+
+读数：`v3258` 首跑 3 红（A2 表头缺 R12 指向 / E1 未抬版 / G1 订正段逐字复现了旧短语）⇒ 逐条修交付物 ⇒ 24/24；`v3247` 首跑 2 红 ⇒ 补台账 ⇒ 17/17。
+
+### (s) 抬版四源
+
+- `index.js` `const VERSION` / `manifest.json` / `package.json` → **3.258.0**；`CHANGELOG.md` 顶节与 `TODO.md`「最近更新」同步（V6/V7）。
+
+**仍未做的部分（如实登记）**：反向面的 `downstream_symbol` 列是**声明** —— 下游磁盘在本仓扫描面之外，
+
+而 `tests/audit/scan_cross_repo_binding.mjs` 的 P2 逐字禁止在役面引用兄弟仓，故本仓**不得**跨仓核实它。
+
+真核实挂在下游自己的门禁（ruby-phone `scripts/upstream-face-audit.mjs` 的 **R12** 反向面对账）。

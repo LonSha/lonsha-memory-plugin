@@ -7,6 +7,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.258.0 A1 第三刀] OutlineDirector 已抽为 narrative-generators.js。
+   静态面（class 体）读模块文件；接线面（调用点 this.outline.exhausted 等）仍在 index.js —— 分读两个真源。 */
+const genSrc = readFileSync(new URL('../narrative-generators.js', import.meta.url), 'utf-8');
 
 function braceEnd(s, open) {
     let depth = 0;
@@ -21,25 +24,25 @@ function braceEnd(s, open) {
 }
 
 test('=== 1. planNext 静态验证 ===', () => {
-    assert.ok(src.includes('async planNext(config, llm, engine, floor)'), 'planNext 方法');
+    assert.ok(genSrc.includes('async planNext(config, llm, engine, floor)'), 'planNext 方法');
     assert.ok(src.includes('outlineAutoPlan && this.outline.exhausted && !this.outline._planning'), '耗尽触发守卫');
     assert.ok(src.includes('outlinePlanCooldownFloors'), '冷却配置');
     assert.ok(src.includes('outlineAutoPlan: true,'), '配置开关显式声明');
     assert.ok(src.includes('outlineDirectorEnabled: true,'), '导演开关显式声明');
-    assert.ok(src.includes('优先消化【未结悬念】'), '规划 prompt 含悬念消化指令');
-    assert.ok(src.includes('this._planning = true;') && src.includes('finally { this._planning = false; }'), '防重入标志成对');
+    assert.ok(genSrc.includes('优先消化【未结悬念】'), '规划 prompt 含悬念消化指令');
+    assert.ok(genSrc.includes('this._planning = true;') && genSrc.includes('finally { this._planning = false; }'), '防重入标志成对');
     console.log('✓ planNext 静态验证通过');
 });
 
 test('=== 2. planNext 行为测试（mock LLM 闭环）===', async (t) => {
-    const clsStart = src.indexOf('class OutlineDirector');
-    const brace = src.indexOf('{', clsStart);
+    const clsStart = genSrc.indexOf('class OutlineDirector');
+    const brace = genSrc.indexOf('{', clsStart);
     let depth = 0, clsEnd = -1;
-    for (let i = brace; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) { clsEnd = i; break; } }
+    for (let i = brace; i < genSrc.length; i++) {
+        if (genSrc[i] === '{') depth++;
+        else if (genSrc[i] === '}') { depth--; if (depth === 0) { clsEnd = i; break; } }
     }
-    const odCode = src.slice(clsStart, clsEnd + 1);
+    const odCode = genSrc.slice(clsStart, clsEnd + 1);
     const OutlineDirector = new Function('return (' + odCode + ');')();
 
     const od = new OutlineDirector();

@@ -46,9 +46,13 @@ function braceEnd(s, open) {
 
 /* ══════════ 2. DB2: EmergencyBackup 结构（静态断言） ══════════ */
 {
-    assert.ok(srcI.includes('class EmergencyBackup'), 'EmergencyBackup 类存在');
-    assert.ok(srcI.includes('this.emergency = new EmergencyBackup()'), '插件实例挂载');
-    assert.ok(srcI.includes('lonsha_emergency_backup'), 'localStorage 键存在');
+    /* [v3.258.0 A1 第二刀] EmergencyBackup 已抽为 memory-aux.js，构造点走统一取库口并显式注入
+     *   errLog（诊断函数显式注入，不在模块里另存一份）。 */
+    const _auxSrc = readFileSync(new URL('../memory-aux.js', import.meta.url), 'utf8');
+    assert.ok(_auxSrc.includes('class EmergencyBackup'), 'EmergencyBackup 类存在');
+    assert.ok(srcI.includes("this.emergency = _newMemoryAux('EmergencyBackup', {"), '插件实例挂载');
+    assert.ok(srcI.includes('errLog: (e, tag) =>'), 'errLog 显式注入');
+    assert.ok(_auxSrc.includes('lonsha_emergency_backup'), 'localStorage 键存在');
     ok('DB2 EmergencyBackup 类 + 挂载 + LS 兜底键');
 }
 

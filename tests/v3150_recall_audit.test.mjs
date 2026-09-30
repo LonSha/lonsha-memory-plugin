@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.258.0 A1 第二刀] FloorLedger 已抽为 memory-aux.js：真执行面读模块文件。 */
+const auxSrc = readFileSync(`${REPO_ROOT}/memory-aux.js`, 'utf-8');
 function extractClass(source, startMarker) {
     const start = source.indexOf(startMarker);
     if (start < 0) return null;
@@ -28,8 +30,9 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
     assert.ok(src.includes('_auditRecall'), 'A 审计方法存在');
     assert.ok(src.includes('_recordFloorRecall'), 'B 记账方法存在');
     assert.ok(src.includes('this._recallAudit = []'), 'A 环形账本初始化');
-    assert.ok(src.includes("if (patch.recallHits)"), 'B FloorLedger.record 命中分支');
-    assert.ok(src.includes('recallIds: [],'), 'B beginFloor 带 recallIds 字段');
+    /* [v3.258.0 A1 第二刀] record 的命中分支实现已随 FloorLedger 抽到 memory-aux.js。 */
+    assert.ok(auxSrc.includes("if (patch.recallHits)"), 'B FloorLedger.record 命中分支');
+    assert.ok(auxSrc.includes('recallIds: [],'), 'B beginFloor 带 recallIds 字段');
     // A 观测层接在 recallMemory 唯一收口（intentRerank 之后）
     const irIdx = src.indexOf('const finalMerged = this.intentRerank(merged, query.text);');
     const auditIdx = src.indexOf('this._auditRecall(query, results, finalMerged)', irIdx);
@@ -81,7 +84,7 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
 });
 
 test('=== 2. FloorLedger 召回记账（recallIds/recallHits 累积 + 导出对称） ===', () => {
-    const FloorLedger = new Function('return (' + extractClass(src, 'class FloorLedger') + ')')();
+    const FloorLedger = new Function('return (' + extractClass(auxSrc, 'class FloorLedger') + ')')();
     const l = new FloorLedger();
     // beginFloor 初始化 recallIds
     l.beginFloor(5, {});

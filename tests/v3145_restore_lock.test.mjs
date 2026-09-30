@@ -5,19 +5,22 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
-function extractBraced(marker) {
-    const start = src.indexOf(marker);
+/* [v3.258.0 A1 第二刀] Mutex 已抽为 memory-aux.js：真执行面读模块文件（宿主仍内联声明由 v3259 A 段钉住）。 */
+const auxSrc = readFileSync(new URL('../memory-aux.js', import.meta.url), 'utf8');
+function extractBraced(marker, source) {
+    const text = source || src;
+    const start = text.indexOf(marker);
     assert.ok(start >= 0, `${marker} 存在`);
-    let depth = 0, i = src.indexOf('{', start + marker.length - 1);
+    let depth = 0, i = text.indexOf('{', start + marker.length - 1);
     const open = i;
-    for (; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) break; }
+    for (; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') { depth--; if (depth === 0) break; }
     }
-    return src.slice(open + 1, i);
+    return text.slice(open + 1, i);
 }
 const mkMutex = () => {
-    const body = extractBraced('class Mutex {');
+    const body = extractBraced('class Mutex {', auxSrc);
     // 类体含 constructor/get 简写，必须塞回 class 而非 function 体
     return new Function('setTimeout', 'clearTimeout', 'console', `return class Mutex { ${body} }`)(
         setTimeout, clearTimeout, { warn: () => {} });

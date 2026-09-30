@@ -67,7 +67,7 @@ test('[1b] the constructor actually receives the configured max (the old bug)', 
 });
 
 test('[1c] a correct sibling (FloorLedger) shows passing options was always the pattern', () => {
-    assert.ok(src.includes('this.ledger = new FloorLedger({'), 'FloorLedger gets its options passed');
+    assert.ok(src.includes("this.ledger = _newMemoryAux('FloorLedger', {"), 'FloorLedger gets its options passed');
 });
 
 test('[1d] the constructor itself is zero-value safe', () => {

@@ -7,6 +7,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.258.0 迁移] A1 第二刀把 OpLog 类（含 `type:` 行的类型注释）迁去 memory-aux.js。
+   埋点调用点（`opLog?.log('x'` 形式）仍在 index.js，但那句「类型注释」的真源已随类搬家 ——
+   判据须跟真源走，否则要么恒红、要么变成对「未来某天再次内联」的假绿。 */
+const auxSrc = readFileSync(new URL('../memory-aux.js', import.meta.url), 'utf-8');
 
 test('=== 1. OpLog 13 类型全覆盖验证 ===', () => {
     const types = ['summary', 'graph', 'status', 'suspense', 'item', 'rollback',
@@ -15,7 +19,7 @@ test('=== 1. OpLog 13 类型全覆盖验证 ===', () => {
         assert.ok(src.includes(`opLog?.log('${t}'`), `埋点缺失: ${t}`);
     }
     // 注释中的类型清单与实际埋点一致
-    assert.ok(src.includes('summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair'), 'OpLog 类型注释');
+    assert.ok(auxSrc.includes('summary|graph|status|item|suspense|diary|pov|timeline|card|money|conflict|pair'), 'OpLog 类型注释（真源已迁 memory-aux.js）');
     console.log('✓ OpLog 13 类型全覆盖验证通过');
 });
 

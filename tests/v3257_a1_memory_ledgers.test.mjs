@@ -118,8 +118,12 @@ test('v3257 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     assert.equal(mf.extra_js.filter((f) => f === MOD_REL).length, 1, MOD_REL + ' 须在 extra_js 恰好 1 次');
     const b = JSON.parse(read('tests/audit/host_beast_baseline.json'));
     assert.equal(b.readings.total_lines, IDX.split(NL).length, '基线行数须等于真 index.js 行数');
-    assert.ok(b.rebuilds['v3.257.0'], '本刀须在 rebuilds 面留读数（抬版后仍可回溯）');
-    assert.equal(b.rebuilds['v3.257.0'].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
+    /* [v3.258.0] 不再点名 v3.257.0：基线的 measured_at 会随每次重建前移（第一刀之后已有第二刀），
+     *   点名等于把「当版」写死成历史版本。判据改为「**最新那次** rebuild 与 readings 同读数」——
+     *   不变量不变（台账与读数块必须同源），但不再锁当版。 */
+    const _cur = b.measured_at;
+    assert.ok(b.rebuilds[_cur], '当版须在 rebuilds 面留读数（每次重建才可回溯）');
+    assert.equal(b.rebuilds[_cur].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
     assert.ok(b.readings.member_count < 588, '成员数须已随本刀下降（剥走前的基线是 588）');
     assert.ok(b.readings.total_lines < 18401, '行数须已随本刀下降（剥走前 18401）');
     ok('manifest 恰 1 项；基线行数/成员数与真文件同源且已下降');
@@ -137,9 +141,13 @@ test('v3257 D. 真源码破坏 → 同一条判据必须翻红（取库口 / 模
 });
 
 const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-test('v3257 E. 当版 frontier：本档接管 3.257.0 硬锚', () => {
+test('v3257 E. 出生版本下限锚：本档于 v3.258.0 交棒（原为当版硬锚）', () => {
     const codeVer = (/const VERSION = '([^']+)'/.exec(IDX) || [])[1];
-    assert.equal(vnum(codeVer), vnum('3.257.0'), '入口版本必须是本档当版');
-    assert.ok(read('tests/v3257_a1_memory_ledgers.test.mjs').includes("vnum('3.257.0')"), '当版硬锚必须由本档接管');
+    /* [v3.258.0 交棒] 原为 `assert.equal(vnum(codeVer), vnum('3.257.0'))` —— 那是「锁当版」，
+     *   下一版一抬就必红（红的信息量只有「版本变大了」）。按 v3.203 交棒纪律退回**出生版本下限锚**：
+     *   本档只承诺「出生在 3.257.0 之后仍成立」，不承诺「永远是 3.257.0」。 */
+    assert.ok(vnum(codeVer) >= vnum('3.257.0'), '入口版本不得回退到本档出生版本之前');
+    assert.ok(read('tests/v3257_a1_memory_ledgers.test.mjs').includes("vnum('3.257.0')"), '出生版本下限锚必须由本档接管');
+    assert.ok(read('tests/v3257_a1_memory_ledgers.test.mjs').length > 2000, '本档不得被掏空');
     ok('本档锚着 ' + codeVer);
 });

@@ -15,8 +15,38 @@
 //   5. 若某键的所有提及都落在「无调用者」的方法内 -> 死配置，报错退出 1
 // 退出码：0 = 无死配置 / 1 = 发现死配置（阻断 CI）/ 2 = 结构变化导致脚本需同步
 import fs from 'fs';
+import path from 'path';
 
-const idx = fs.readFileSync('index.js', 'utf8');
+/* ---------- 0-a. 扫描面（v3.258.0 A1 第三刀扩面）----------
+ * 只读 index.js 的面会让「类已外迁」的消费点凭空消失：v3.258.0 实测 outlinePlanCooldownFloors
+ *   的滑杆仍在 UI 上、消费点已随 OutlineDirector 搬到 narrative-generators.js，
+ *   而扫描面只取入口 ⇒ 该键被判成「引擎无成员读取形态的消费」（假死配置）。
+ * 本仓既有范式（scan_open_faces / scan_inbound_faces / scan_ledger_contract / scan_module_wiring）
+ *   一律从 manifest 派生「宿主真正加载的面」，这里与之一致：
+ *     面 = manifest.js（入口，**必须排首位**） + manifest.extra_js（按声明顺序）。
+ *   入口固定在首位是硬前提：cfgOpen/cfgClose 与「提及是否落在配置块外」的偏移判定
+ *   都建立在「faceText 的前缀逐字等于入口」这一条上。
+ * 合成树（探针自测夹具）通常只物化 index.js + settings-ui.js、无 manifest.json ⇒
+ *   退回单文件面，行为与扩面前逐字一致。 */
+const ROOT = process.cwd();
+let FACE = ['index.js'];
+let ENTRY = 'index.js';
+let FACE_SOURCE = 'single-file fallback (no manifest.json)';
+try {
+    const mf = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+    if (mf && typeof mf.js === 'string') ENTRY = mf.js;
+    const list = [ENTRY].concat(Array.isArray(mf && mf.extra_js) ? mf.extra_js : []).filter(Boolean);
+    if (list.length) { FACE = list; FACE_SOURCE = 'manifest.js + manifest.extra_js'; }
+} catch (_e) { /* 无 manifest ⇒ 单文件面 */ }
+const faceCode = new Map();
+for (const f of FACE) {
+    try { faceCode.set(f, fs.readFileSync(path.join(ROOT, f), 'utf8')); }
+    catch (_e) { faceCode.set(f, ''); }
+}
+const idx = faceCode.get(ENTRY) || '';
+const faceText = idx + String.fromCharCode(10)
+    + FACE.filter((f) => f !== ENTRY).map((f) => faceCode.get(f) || '').join(String.fromCharCode(10));
+const faceBytes = faceText.length;
 const ui = fs.readFileSync('settings-ui.js', 'utf8');
 /* ---------- 0. 结构预检（v3.159 补：此前 UI 侧退化成空文件会报「UI 呈现键 0 / 死配置 0」并 exit 0） ---------- */
 // 为什么要有这一段：本脚本的下游全部推理都以「从 UI 里抽到了键」为输入。
@@ -33,6 +63,23 @@ if (!FIXTURE_MODE && (ui.length < MIN_UI_BYTES || !ui.includes('data-cfg'))) {
 }
 if (!FIXTURE_MODE && idx.length < 100000) {
     console.error('[config-liveness] index.js 退化（' + idx.length + ' 字节），无法进行可达性分析，审计脚本需同步结构变化');
+    process.exit(2);
+}
+/* v3.258.0 扩面守卫：manifest 声明的模块必须真的读到内容。
+ *   语义是「面覆盖了它自称覆盖的文件」，不是「面必须比入口大」—— 后者会在
+ *   将来把模块并回入口时误报。夹具模式（合成树无 manifest）下 FACE 只有一个文件，此守卫自动为空集。 */
+/* 面派生必须成功：健康树上 manifest 一定在场。若这里退回单文件面（例如 cwd 不对、
+ *   manifest.json 被改名），扫描面会静默变窄 —— 正是本脚本头部警告的
+ *   「审计失效的方式是报告一切正常」。故非夹具模式下「面里只有入口」即判结构漂移。 */
+if (!FIXTURE_MODE && FACE.length < 2) {
+    console.error('[config-liveness] 扫描面只抽到入口（' + FACE_SOURCE + '）：manifest 派生失败，'
+        + '外迁模块的消费点会假死，本次「无死配置」不具证明力');
+    process.exit(2);
+}
+const emptyMods = FACE.slice(1).filter((f) => (faceCode.get(f) || '').length === 0);
+if (!FIXTURE_MODE && emptyMods.length) {
+    console.error('[config-liveness] 扫描面缺文件（读到空内容）：' + emptyMods.join(', ')
+        + ' —— manifest 声明的模块必须纳入扫描面，否则外迁消费点会假死');
     process.exit(2);
 }
 
@@ -63,7 +110,7 @@ for (const m of ui.matchAll(/\bck\('([a-zA-Z_][a-zA-Z0-9_]*)'/g)) uiKeys.add(m[1
 const methods = [];
 const mre = /^\s{8,20}([A-Za-z_$][A-Za-z0-9_$]*)\s*\([^)]*\)\s*\{/gm;
 let mm;
-while ((mm = mre.exec(idx)) !== null) {
+while ((mm = mre.exec(faceText)) !== null) {
     const name = mm[1];
     if (['if', 'for', 'while', 'switch', 'catch', 'function'].includes(name)) continue;
     const open = idx.indexOf('{', mm.index + mm[0].length - 1);
@@ -81,11 +128,11 @@ while ((mm = mre.exec(idx)) !== null) {
 function callCount(name) {
     let n = 0;
     const e = name.replace(/\$/g, '\\$');
-    const a = idx.match(new RegExp('this[.]' + e + '\\s*\\(', 'g'));
+    const a = faceText.match(new RegExp('this[.]' + e + '\\s*\\(', 'g'));
     if (a) n += a.length;
-    const b = idx.match(new RegExp('[.]' + e + '\\s*\\(', 'g'));
+    const b = faceText.match(new RegExp('[.]' + e + '\\s*\\(', 'g'));
     if (b) n += b.length;
-    const c = idx.match(new RegExp('(?<![A-Za-z0-9_$.])' + e + '\\s*\\(', 'g'));
+    const c = faceText.match(new RegExp('(?<![A-Za-z0-9_$.])' + e + '\\s*\\(', 'g'));
     if (c) n += c.length;
     return n;
 }
@@ -101,7 +148,7 @@ function memberReads(key) {
     const re = new RegExp("[.]" + key + "(?![A-Za-z0-9_$])", "g");
     const out = [];
     let m;
-    while ((m = re.exec(idx)) !== null) {
+    while ((m = re.exec(faceText)) !== null) {
         out.push(m.index);
         if (m.index === re.lastIndex) re.lastIndex++;
     }
@@ -130,6 +177,7 @@ if (uiKeys.size < MIN_UI_KEYS) {
     console.error("[config-liveness] 仅抽到 " + uiKeys.size + " 个 UI 配置键（低于下限 " + MIN_UI_KEYS + "），提取器已失效，本次「无死配置」不具证明力");
     process.exit(2);
 }
+console.log("[config-liveness] 扫描面 " + FACE.length + " 个文件（" + FACE_SOURCE + "，入口 " + ENTRY + " + 模块 " + (FACE.length - 1) + "）/ " + faceBytes + " 字节");
 console.log("=== D1 配置活性: UI 呈现键 " + uiKeys.size + " / 可到达 " + reachable.length + " / 死配置 " + dead.length + " ===");
 if (dead.length) {
     for (const d of dead) console.log("  x DEAD: " + d.key + "  (" + d.why + ")");
