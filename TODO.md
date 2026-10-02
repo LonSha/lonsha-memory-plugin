@@ -21,7 +21,7 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.259.0
+> 最近更新：v3.261.0
 >
 > **【同轮第四件 · v3.259.0】A1 宿主巨兽第四刀**：七个「书册 / 时间」类（`IncrementBookmark` / `EchoPool` / `SuspenseBook` /
 > `PrequelSystem` / `RelativeTimeHelper` / `PlotTimeline` / `BM25`）抽为 `memory-books.js`（`extra_js` 第 72 项）；

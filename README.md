@@ -3,9 +3,9 @@
 为 SillyTavern 打造的记忆与账本引擎。它要解决的不是「记得更多」，而是
 **「记错了能被发现」** —— 每次写入都有出处，每条召回都有归因，每个读数都能回源到一次真实计算。
 
-**当前版本**：`3.255.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
+**当前版本**：`3.261.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
 **运行形态**：SillyTavern 第三方扩展（`manifest.json` + `index.js`）
-**门禁**：`npm test` = **236 个测试文件 · 2397 条断言 · 0 失败**（rc 0）
+**门禁**：`npm test` = **244 个测试文件 · 0 失败**（rc 0；断言总数随版漂移，以门禁输出为准，不在此手抄）
 
 > ⚠️ **本 README 于 v3.255.0 重写。**
 > 旧版描述的是早期「Phase 1-9」阶段的形态（标注 v1.1.0，声称 WebGL GPU 渲染、
@@ -39,12 +39,12 @@
 ## 运行与验证
 
 ```bash
-npm test             # 全部用例：242 个测试文件，各自独立子进程（隔离全局态污染）
+npm test             # 全部用例：244 个测试文件，各自独立子进程（隔离全局态污染）
 npm run test:serial  # 串行执行（排查偶发时的口径）
 npm run test:audit   # 带审计面
 ```
 
-模块位于**根目录**：由 `manifest.json` 的 `extra_js`（72 项）按**文件名**加载，
+模块位于**根目录**：由 `manifest.json` 的 `extra_js`（76 项）按**文件名**加载，
 迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**
 （由 `tests/audit/scan_module_wiring.mjs` 监控）。
 
@@ -53,7 +53,7 @@ npm run test:audit   # 带审计面
 ```
 lonsha-memory-plugin/
 ├── index.js                  # 主入口（VERSION 唯一锚点 / 事件接线 / 注入汇总）
-├── manifest.json             # 插件清单（js / css / extra_js 72 / extra_css 2）
+├── manifest.json             # 插件清单（js / css / extra_js 76 / extra_css 2）
 ├── package.json              # 版本源之一（不参与运行时加载）
 ├── style.css | lonsha-design.css | visualizer.css
 │
@@ -92,10 +92,16 @@ lonsha-memory-plugin/
 ├── stm-ltm.js            api-channels.js    model-response.js   loose-json.js
 ├── cse-engine.js         node-rollup.js     evidence-workbench.js task-inbox.js
 │
+├── ── 协议与传输（v3.260.0 缝合 shujuku） ──
+├── native-tools.js       pristine-fetch.js
+│
+├── ── 身份与体检（v3.261.0 缝合 MyriadKnots） ──
+├── floor-identity.js     archive-audit.js
+│
 ├── ── UI 与打包 ──
 ├── settings-ui.js        modules_combined.js
 │
-├── tests/                # 在役门禁：236 个测试文件 + 55 个审计脚本
+├── tests/                # 在役门禁：244 个测试文件 + 59 个审计脚本
 │   └── archived/         # 18 个退役测试（保留历史与理据，不参与跑批）
 ├── tools/                # 一次性修崩助手（_ 前缀不进门禁扫描面）
 └── archive/              # 历史存档（不参与运行时）
@@ -104,9 +110,9 @@ lonsha-memory-plugin/
     └── rust/             # pagerank.rs + Cargo.toml（未接入）
 ```
 
-**运行时模块**：73 个（根目录 `.js`，含入口 `index.js`）
-**载入面**：`index.js` + `extra_js` 72 项 + CSS 3 项
-**在役门禁**：`tests/` 242 个测试文件（`*.test.mjs`，即 `npm test` 的扫描面）/ `tests/audit/` 56 个审计脚本
+**运行时模块**：77 个（根目录 `.js`，含入口 `index.js`）
+**载入面**：`index.js` + `extra_js` 76 项 + CSS 3 项
+**在役门禁**：`tests/` 244 个测试文件（`*.test.mjs`，即 `npm test` 的扫描面）/ `tests/audit/` 59 个审计脚本
 **当前版本**：见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
 
 ## 安装

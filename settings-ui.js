@@ -134,6 +134,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="archive"><div class="ls-stat-num">${s._lastArchiveAudit ? (s._lastArchiveAudit.verdict === 'classified' ? ((s._lastArchiveAudit.cleanup || 0) > 0 ? (s._lastArchiveAudit.cleanup + ' ⚠️') : '✓') : '—') : '—'}</div><div class="ls-stat-label">🧾 存档体检 👁</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${s.mutex?.locked ? '🔒' : '🟢'}</div><div class="ls-stat-label">提取锁 ${s.mutex?.queueLength ? `(队列${s.mutex.queueLength})` : ''}</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
                 </div>
@@ -528,6 +529,36 @@
                 }
             }
 
+            else if (viewType === 'archive') {
+                // [v3.261.0 缝合 MyriadKnots] 存档体检（三分判定：活真源 / 可清理候选 / 保留）。
+                //   为什么不塞进「最近恢复」：恢复面回答「这次搬了哪些字段」，
+                //   体检面回答「这份档里有没有谁都不认的键、有没有读不出的值」——成因与处置都不同。
+                //   本页**只点名不执行**：清理已有唯一真源（顶层键集合），在此再删一份就是第二份判据。
+                title = '🧾 存档体检（MyriadKnots）';
+                const aa = s._lastArchiveAudit;
+                if (!aa) {
+                    body = '<div class="ls-hint">尚无恢复记录。导入一次存档（或恢复快照）后，此处显示该档的三分判定：活真源 / 可清理候选 / 保留。</div>';
+                } else if (aa.verdict !== 'classified') {
+                    body = `<div class="ls-hint">本档未产出判定：<b>${esc(aa.verdict)}</b>${aa.why ? ' · ' + esc(aa.why) : ''}</div>`
+                        + '<div class="ls-hint" style="color:var(--ls-text-3,#6e7681)">「判不了」不等于「查过没问题」——故不编默认值，如实说判不了。</div>';
+                } else {
+                    const head = `<div class="ls-hint">判定 <b>${esc(aa.verdict)}</b> · 总 ${aa.total ?? 0} 键 / ${aa.bytes ?? 0} 字节 · 活真源 ${aa.active ?? 0} · 可清理候选 ${aa.cleanup ?? 0} · 保留 ${aa.retained ?? 0}</div>`;
+                    const warn = (aa.cleanup || 0) > 0
+                        ? `<div class="ls-hint" style="color:var(--ls-warn,#e3b341)">⚠️ 有 ${aa.cleanup} 个键可清理：不在本插件存档顶层键集合内、且值可读。清理不在本页执行，此处只点名。</div>`
+                        : '';
+                    const ckRow = (aa.cleanupKeys || []).length
+                        ? `<div class="ls-item"><div class="ls-item-meta">可清理候选</div><div class="ls-item-text">${(aa.cleanupKeys || []).map(esc).join(' · ')}</div></div>` : '';
+                    const rkRow = (aa.retainedKeys || []).length
+                        ? `<div class="ls-item"><div class="ls-item-meta">保留（含原因）</div><div class="ls-item-text">${(aa.retainedKeys || []).map(esc).join(' · ')}</div></div>` : '';
+                    const cl = s._lastItemOpsClaim;
+                    const claim = cl
+                        ? `<div class="ls-item"><div class="ls-item-meta">🎒 物品 op 忠实认领证明</div><div class="ls-item-text">候选 ${cl.ops} 条 / 楼层 ${cl.floors} 层 · 可证明 ${cl.proved} · 判不了 ${cl.unproved}${cl.issue ? ' · 根因 ' + esc(cl.issue) : ''}</div><div class="ls-item-meta" style="color:var(--ls-text-3,#6e7681)">只读证明：不删任何 op —— 失效清理的唯一真源是优化 3b 段（fp 不在该楼任何 swipe 取值里）。</div></div>`
+                        : '<div class="ls-hint">🎒 物品 op 认领证明：本次导入无 itemOps，或聊天未就绪。</div>';
+                    body = head + warn + ckRow + rkRow + claim
+                        + (aa.line ? `<div class="ls-hint" style="color:var(--ls-text-3,#6e7681)">${esc(aa.line)}</div>` : '');
+                }
+            }
+
             else if (viewType === 'lockedfacts') {
                 // [v3.63] 锁定事实管理（dsh lockedFacts）：查看/新增/删除，逐字保护
                 title = '🔒 用户锁定剧情事实';
@@ -882,7 +913,12 @@
                     <div class="ls-slider-label"><span>维护超期提醒（天）</span><span class="ls-slider-val" id="ls-v-mntd">${c.maintenanceOverdueWarnDays || 45}</span></div>
                     <input type="range" class="ls-slider" min="7" max="120" step="1" value="${c.maintenanceOverdueWarnDays || 45}" data-cfg-num="maintenanceOverdueWarnDays">
                     <div class="ls-hint" style="padding:0 8px;">距上次维护超过该天数 → 流水线跳回优化步骤补做一次（防长篇长时间挂机后记忆长期未整理）。</div>
-                    ${ck('llmEventChainEnabled', 'LLM 调用事件链审计（抄engram/bionic）', '为每次模型调用记录事件链并校验迁移不变量（run_started→model_requested→assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
+                    ${ck('pristineFetchEnabled', '绕包装取数（抄shujuku）', '宿主预设脚本（如 Kemini 伴生面板）会 patch 页面 fetch 并改写内部请求的请求体/响应流，轻则混入外来注入文本、重则工具调用被剥且静默发生。打开后内部取数改走「剥离已知包装 → 专用隐藏同源 iframe 原生 fetch」，拿回未改写的原始响应。默认开：纯传输层防御，不改请求/响应语义，拿不到原生 fetch 时逐字回退全局 fetch')}
+                     ${ck('nativeToolExtractEnabled', '原生函数调用协议（抄shujuku）', '内部模型调用改带 tools 请求，回包里的 tool_calls 被真执行（search_memory 关键词检索 / write_memory 写显式摘要 / vector_search 语义检索）并以 role=tool 回灌，最多 nativeToolMaxRounds 轮后取最终正文。关闭时逐字节走旧文本路径。默认关（实验）')}
+                    <div class="ls-slider-label"><span>工具回合上限（1~5）</span><span class="ls-slider-val" id="ls-v-ntmr">${c.nativeToolMaxRounds ?? 3}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.nativeToolMaxRounds ?? 3}" data-cfg-num="nativeToolMaxRounds" oninput="document.getElementById('ls-v-ntmr').textContent=this.value">
+                    <div class="ls-hint" style="padding:0 8px;">模型在一轮内最多连续调用几次工具（检索→精读→作答 三轮够用）。引擎侧另夹一道 Math.min(5, …)，此处填超过 5 也不会被采纳。</div>
+                     ${ck('llmEventChainEnabled', 'LLM 调用事件链审计（抄engram/bionic）', '为每次模型调用记录事件链并校验迁移不变量（run_started→model_requested→assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
                     ${ck('recallArtifactEnabled', '召回产物持久化（抄bionic）', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 → 自动拒绝复用陈旧注入。默认关')}
                     ${ck('smartTriggerEnabled', '事件性门控（抄bionic）', '先判断本楼有没有事件性（关键词/自定义正则/多轮往返/情绪波动/疑似新实体），达不到阈值就跳过 LLM 提取、降级为本地廉价摘要——省下大量平淡楼的 API 调用，绝不丢楼层。默认关')}
                     ${ck('vectorTailRecoveryEnabled', '掉队候选补召回（抄bionic）', '把因「无向量/零向量/维度不符」而永远进不了向量检索的条目，低分补进候选池交由正常评分与预算裁剪决定去留（防「记忆在库里却召不回」）。默认关')}

@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 41996,
+  "ceiling": 43580,
   "maxSlack": 400,
-  "note": "A1 第三刀：新增 narrative-generators.js（420 行）并将三个生成侧类类实体迁出 index.js；活跃代码实测上升，按本仓口径限制内抬升上界",
+  "note": "v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）",
   "history": [
     {
       "ceiling": 21000,
@@ -173,7 +173,15 @@
     {
       "ceiling": 41996,
       "reason": "A1 第三刀：新增 narrative-generators.js（420 行）并将三个生成侧类类实体迁出 index.js；活跃代码实测上升，按本仓口径限制内抬升上界"
+    },
+    {
+      "ceiling": 43047,
+      "reason": "v3.260.0 缝合 shujuku：新增 native-tools.js（协议机制 21 出口）与 pristine-fetch.js（传输机制 11 出口），二者均为「先落机制、判据套件真执行」的模块，出口消费在 index.js 接线点"
+    },
+    {
+      "ceiling": 43580,
+      "reason": "v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）"
     }
   ],
-  "_history_last": "ceiling 41709 → 41996（实测 41596 + slack 400）：A1 第三刀：新增 narrative-generators.js（420 行）并将三个生成侧类类实体迁出 index.js；活跃代码实测上升，按本仓口径限制内抬升上界"
+  "_history_last": "ceiling 43047 → 43580（实测 43180 + slack 400）：v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）"
 }

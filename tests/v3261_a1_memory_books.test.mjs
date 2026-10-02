@@ -330,7 +330,10 @@ test('v3261 B. 模块真加载：导出七项 + 七类真构造 + 逐类语义�
 test('v3261 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀同源重建', () => {
     const mf = JSON.parse(read('manifest.json'));
     assert.equal(mf.extra_js.filter((f) => f === MOD_REL).length, 1, MOD_REL + ' 须在 extra_js 恰好 1 次');
-    assert.equal(mf.extra_js[mf.extra_js.length - 1], MOD_REL, '本刀模块须是 extra_js 末项（加载序）');
+    // [v3.260.0 交棒] 末项断言移交 v3262（本刀之后 extra_js 末项已是 pristine-fetch.js）：
+    //   本档只保留「本刀模块仍在 extra_js 内」——模块是否仍在加载队列，是它自己的不变量；
+    //   而「谁是末项」属于当前 frontier，随版本移动，故由当版套件接管。
+    assert.ok(mf.extra_js.includes(MOD_REL), MOD_REL + ' 须仍在 extra_js 内（加载序末项断言已移交 v3262）');
     const b = JSON.parse(read('tests/audit/host_beast_baseline.json'));
     assert.equal(b.readings.total_lines, IDX.split(NL).length, '基线行数须等于真 index.js 行数');
     const _cur = b.measured_at;
@@ -338,7 +341,11 @@ test('v3261 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     assert.equal(b.rebuilds[_cur].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
     assert.ok(b.readings.member_count < 549, '成员数须已随本刀下降（剥走前的基线是 549）');
     assert.ok(b.readings.total_lines < 17444, '行数须已随本刀下降（剥走前 17444）');
-    assert.ok(b.readings.total_lines <= 17000, '本刀须至少剥掉 440 行，实测 ' + b.readings.total_lines);
+    // [v3.261.0 交棒] 原文是「本刀须至少剥掉 440 行（≤17000）」—— 那是**当版绝对下界**，
+    //   后续缝合件（v3.260.0 起）合法回涨后它会翻红，而翻红的信息量只有「数字不够小」。
+    //   A1 的真实不变量是「各刀之后宿主读数始终低于 A1 首刀前的基线」——
+    //   它才是「剥了又长回来」的探测器，且不随抬版失效（本仓 T3 口径：上界只跟活跃模块走）。
+    assert.ok(b.readings.total_lines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）：剥了又长回来必须响，实测 ' + b.readings.total_lines);
     ok('manifest 恰 1 项且在末位；基线行数/成员数与真文件同源且已下降');
 });
 

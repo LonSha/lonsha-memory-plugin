@@ -1,3 +1,153 @@
+## v3.261.0
+
+**主题：缝合 atonal519/ST-MyriadKnots（千织）的两个「说不清就别动」面 —— 楼层身份匹配证明 / 存档三分体检。`index.js` 16978 → 17091 行，`extra_js` 74 → 76。**
+
+上游真源码在 `/tmp/refup/ST-MyriadKnots`（HEAD `ad7bc77 Release v0.6.3`）。读透两块后确认：
+千织的 `chat-branch-inheritance.js` 依赖整套 v3 foundation 体系（`createChatBranchInitializer` / `copyLatestPeople` / `saveRecords`），
+**整搬等于把半个引擎搬进来**；真正可独立移植的是两个**判解内核** ——
+`src/v3/floor-binding.js` 的四段判解（标记预留 → locator+内容 → 全局唯一指纹对 → 连续前缀）
+与 `src/storage-management.js` 的 `classifyStorageRecords` 三分判定。本刀只缝这两块内核。
+
+### 为什么缝的是「判不了时怎么办」
+
+本插件有两处**判不了时的默认行为**此前是隐式的，且两处都静默：
+
+| 面 | 修前的实际形态 | 代价 |
+| --- | --- | --- |
+| 楼层身份 | 持久记录（summary / pov / itemOps 的 `floor` + `fp`）还属不属于当前聊天，由**调用方各写一遍**：按 `floor` 号直接认领、按指纹单条比对、导入外部档时干脆不判 | 改楼/插楼后**静默错位**，事后无法回滚 |
+| 存档体检 | 只回答「认得的键回填了、不认得的收进 `_archiveExtensions` 备份袋」，没人回答三分 | 最贵的一种：把「说不清是谁的」当成「可以删」——那是删别人的数据 |
+
+两处共用同一条纪律：**判不了 ⇒ 不认领 / 不动，且必须能被点名（根因码）**。
+
+### 落地两件（均已真跑验证）
+
+1. **`floor-identity.js`（227 行，7 出口）** —— 楼层身份匹配**证明**。
+   四段判解与源码逐段同构，判不了返回 `issue` 根因码（六种）而不是「最像的那个」：
+   `markerRejected` / `markerConflict` / `duplicateMarker` / `duplicateBinding` /
+   `ambiguousLocatorCanonical` / `ambiguousFingerprint`。
+   `inheritedPrefix` 只承认**连续前缀**：前缀段之外仍存在可证明的匹配 ⇒ 抛 `NOT_PREFIX`
+   （「尽量多取」等于把「用户的第 5 楼」贴上「记录第 7 条」的标签，错位静默且不可回滚）。
+2. **`archive-audit.js`（226 行，10 出口）** —— 存档体检三分判定（活真源 / 可清理候选 / 保留）。
+   照搬源码纪律那句 `Unreachable is not proof of ownership; malformed or foreign records stay out of cleanup candidates`：
+   不可达**不等于**可以删，判不了 ⇒ `retained` 且带原因（`value-unreadable` / `value-cyclic` / `contract-mismatch`）。
+
+### 三处宿主接线 + 两行自检 + 一个面板视图
+
+- 两取库口 `_floorIdentityLib()` / `_archiveAuditLib()`（口径同 `_moduleLib`：**不在构造期缓存**，extra_js 后加载）；
+- 消费点一：`restoreFromPayload` 现场就地跑三分判定，契约取**现成真源** `ARCHIVE_TOP_LEVEL_KEY_SET`
+  （与上方 `_unknown` 判定同源，不另造第二份清单），留档 `_lastArchiveAudit`；
+- 消费点二：`itemOps` 导入时产出**忠实认领证明**，留档 `_lastItemOpsClaim`；
+- `selfCheck` 两行（`存档体检` / `物品认领`），三态可分：模块不可用 / 待导入 / 有读数；
+- `settings-ui` 新增「🧾 存档体检」卡片与视图（面板**真读**两个留档，不是只留引擎出口）。
+
+### 本版自己抓到的真设计缺陷（留档防复发）
+
+**`archive-audit` 初版在无契约时仍会产出「可清理」候选。** 冒烟当场抓住：
+判不了 ⇒ 必须 `retained`。修法是加 `contractUsable` 门控（无契约 / 契约不可读时，`canCleanup` 恒 false）。
+这与源码那句纪律同源 —— **把「说不清是谁的」当成「可以删」，是本仓最不能出的那类事故**。
+（本仓历史上同一形态已出现过两次，故本条同时钉进判据套件 B11 与 D 段的「★ 契约门控被摘」负控制。）
+
+**`itemOps` 认领证明首版自相矛盾（写前即改）。** 初版写成「按 locator + fp 过滤保留」，
+但 `_kept` 判据等价于全留，且 op 只存 `floor` 号不存页码 —— locator 口径与实存字段根本不符。
+改为**只读证明 + 台账**：op 的失效清理**已有唯一真源**（`optimizeMemory` 的 3b 段按
+「fp 不在该楼任何 swipe 取值里」判定），在此再删一份就是第二份判据 ——
+两份判据一定漂移，且会先把「越界楼层」这类 pending 误删（3b 明确保留它们）。
+故候选 locator 置 `-1`（永不可能命中），只让「全局唯一指纹对」段生效，产出 proved / unproved / 根因供诊断面点名。
+
+### 全量门禁抓到的两处红（都属上一刀 `v3.260.0` 缝合 shujuku 的遗留，该轮未跑全量）
+
+**① `nativeToolMaxRounds` 是「死声明」。** 该键在默认配置块里声明、被 `_nativeToolMaxRounds()` 真读取，
+但**面板没有控件、卡白名单没有条目** —— 两边都不能设，引擎读到的永远是硬编码回退值 3，
+面板上这个旋钮根本不存在。`v3161 [1]`（declared ⊆ UI可设 ∪ 卡白名单）当场报红。
+修法：面板补滑杆（1~5，与引擎 `Math.min(5, …)` 的上限对齐，回退用 `??` 而非 `||`——0 不在值域内但口径要一致）
++ 卡白名单补键（纯数值、无密钥、非全局资产，按 v3.160 三键同口径可进卡）。
+**这条是本刀最该记的一条**：本刀自己反复讲「判不了 ⇒ 不认领」，而上一刀留下的却是一个
+**用户根本调不到**的旋钮 —— 声明与可达性脱节，与「静默失效」同族。
+
+**② 本刀的认领证明块击穿了 `v3155` 的源码抽取面。** 该套件用
+`new Function('engine','data','validateLedgerItemOps', A2_BODY)` **真执行** A2 块；
+本刀在块内引入了四个它不认识的符号（`_floorIdentityLib` / `window` / `msgFpOf` / `errLog`）
+⇒ `ReferenceError: errLog is not defined`。
+修法：抽取面参数表补齐，`errLog` 注空实现、`_floorIdentityLib` 注「取不到模块」的取库口
+（那正是认领证明三态的第一态：模块不可用 ⇒ `_claim` 保持 null，**不写假读数**）。
+教训：**真执行型抽取面**的代价就是「块内每加一个外部符号都得同步参数表」——
+这正是它比静态 includes 值钱的地方（静态断言不会因为少一个参数而红）。
+
+### 同轮抬版连带接管
+
+`extra_js` 74 → 76（`floor-identity.js` + `archive-audit.js` 接管末项 frontier）；根 `.js` 75 → 77；
+`v3209` 数量锁 74 → 76（两处）；`v3262 C.` 的末项断言按交棒口径改为「仍在 extra_js 内」；
+`host_beast_baseline.json` 按本版重建（读数由探针生成，零手抄）；`dead_code_budget` ceiling 43047 → 43580（实测 43250）；
+`catalog_reference_consumers.tsv` 补登记 `v3263`；README 人读面同步。
+
+### 判据套件 `tests/v3263_floor_identity_archive_audit.test.mjs`（322 行）
+
+A 模块面（出口清单与三张码表冻结 + 静态判据切片）/ B 行为面（真模块真执行：四段判解逐段、
+六个根因码、前缀纪律两向、值形态六态、契约三态、三分判定、★ 无契约零可清理）/
+C 接线面（消费点 + 面板 + 两行自检 + 加载序末项 + 数量锁 + 基线同源 + **只读纪律**：证明段不得写回 `itemOps`）/
+D 十八条真源码破坏负控制（副本上跑同一 `judgeSlice`，含「契约门控被摘」的 ★ 项，并断言破坏串不含锚点）/
+E 版本锚（四源同版 + `vnum('3.261.0') === 3261000` 当版锚点）。
+
+### 边界
+
+真实宿主实机**仍未验**（本版读数依旧是无头读数）。`index.js` 距 A1 验收线（15000 行）仍差 **2091 行** ——
+本刀是缝合件，不是 A1 的刀。千织的**分支继承本体**（`chat-branch-inheritance.js`）未缝：
+它依赖整套 v3 foundation，按「不照抄自评路线图、先读真源码再定缝什么」的纪律，本版只取了它的
+`inheritedPrefix` 前缀纪律（已落在 `floor-identity.js`）。
+
+## v3.260.0
+
+**主题：缝合 AlbusKen/shujuku（数剧）的两个协议面 —— 原生函数调用 / 绕宿主 fetch 取数。`index.js` 16799 → 16978 行，`extra_js` 72 → 74。**
+
+### 同轮第一件：原生函数调用协议（`native-tools.js`）
+
+来源是 shujuku 的 `src/service/ai/native-tool.ts`（507 行）。读真源码后确认：本插件的**协议层地基早已具备**
+（`model-response.js` 的 `normalizeModelResponse` / `toAssistantMessage` / `toToolMessage`），缺的是三样东西——
+① 本插件自有工具定义；② 把 **OpenAI / Anthropic / Gemini** 三种回包（JSON 与 SSE）累积成一轮「正文 + 工具调用」
+的读取器；③ 工具回执回灌时的**消息锚定**。
+
+**真根因（不是感觉）**：`callOpenAI`（旧 L1773-1811）在 `normalizeModelResponse` 之后只 `return norm.content || ''`，
+**把 `tool_calls` 丢掉了**——这就是「原生工具协议此前无法落地」的确切位置。本版把该路径拆为
+`callOpenAI`（分派）+ `_callOpenAILegacy`（旧实现逐字保留）+ `_callOpenAINative`（原生回合）。
+
+三条纪律与源码逐字同构：协议边界（不从 `content` 猜动作、参数先验 JSON 对象、拒绝文本协议 `action` 字段、调用 ID 去重）、
+消息锚定（连续 assistant 合并保留全部编号 + 给无编号 tool 回执补回 `tool_calls`，防上游报 `tool result's tool id not found`）、
+预填充剥离（五种 JSON stub + 思维链 stub，末条补 ` thinking` 且上一条已是 assistant 时不补）。
+
+三工具与**真实消费点一一对应**（`window.LonShaMemory.engine`）：`search_memory` → `engine.bm25.search`、
+`write_memory` → `engine.summary.addManualSummary`（幂等）、`vector_search` → `engine.vector.search`。
+轮数上限 `nativeToolMaxRounds`（默认 3，钳 1~5）；参数无效或单个工具抛错只写进该条回执交模型自纠，不中断回合。
+
+### 同轮第二件：绕宿主 fetch 取数（`pristine-fetch.js`）
+
+来源 `src/data/gateways/pristine-fetch.ts`。酒馆预设脚本（如 Kemini 伴生面板）会 patch 页面 `fetch`，
+命中生成端点后改写请求体并重写响应流——本插件的内部请求被改写后轻则混入外来注入文本、重则工具调用被剥，
+**且全程静默**。三段解析与源码逐字同构：按已知标记（`__keminiAntiTruncation__` / `__keminiFetchInterceptor__`，
+深度 ≤16）剥离包装链 → 剥离结果仍非原生（`name === 'fetch'` 且源码含 `[native code]`）则改用**专用隐藏同源 iframe**
+（`lonsha-pristine-fetch-frame`，常驻复用）的原生 fetch → 皆不可得则回退全局 fetch 并一次性告警。
+每次调用重新解析（脚本可能晚于本模块安装，缓存会让屏蔽静默失效）。
+
+**接线点是取数层而非调用层**：`fetchWithTimeoutRetry` 增 `opts.fetchImpl` 注入口（`(_impl || fetch)(url, ...)`）。
+不传 = 与 v3.259.0 逐字一致（既有判据用 `new Function('fetch', ...)` 把 mock 作函数参数注入，该抽取面未被破坏）；
+传了 = 走原生绕包装。全仓 `tests/` 无 `await fetch(` 字面断言，改动面可控。默认开：纯传输层防御，
+不改请求/响应语义，拿不到原生 fetch 时内部兜底不阻断。
+
+### 读数与交棒
+
+`index.js` **16799 → 16978 行**（+179，实测）、成员 **536 → 544**；`extra_js` 72 → **74**、根 `.js` 73 → **75**。
+交接：`v3209` 数量锁 72 → **74**；`v3261 C.` 的「本刀模块须是 extra_js 末项」**移交 v3262**（本档只保留「仍在 extra_js 内」）；
+`host_beast_baseline.json` 按本版重建（rebuilds 留 `v3.260.0` 读数）；`dead_code_budget` ceiling 41996 → **43047**（实测 42647）。
+新增 selfCheck「原生工具回合」一栏（四态可分：未启用 / 已开启无回合 / 真回合读数 / 模块不可用）。
+人读面同步（数量锁纪律明示「连同 README」）：`README.md` 的版本号 / 门禁读数 / `extra_js` 项数 / 根 `.js` 数 /
+目录树（新增「协议与传输」一栏）/ 载入面逐处更新；`live` 表补登记 `v3262_native_tools_pristine_fetch.test.mjs`（数据行 248 → 249，不补则跨仓守卫 P3 报「新增测试未登记进参考基准」）。
+
+**本刀两处自伤（已留痕，均为「判据自己坏掉」而非产品代码）**：
+① `v3262` 负控制里三条用例的**替换串包含锚点原文**（写成「锚点 + XXXX」），判据按 `includes` 比对仍命中 ⇒
+破坏打在判据的观测点上，同一条判据不翻红（`v3249` 记载的「打在空气上」变体）。整段替换后才真翻红；
+② B 段用 `new Function('... [native code] ...')` 造「原生形态」样本**根本不是合法 JS**（`[native code]` 不是语句），
+且 `Function.prototype.toString` 读引擎真源码、自有 `toString` 覆盖不掉。改用 `Proxy`（V8 对 Proxy 的
+`toString` 恰返回 `function () { [native code] }`）+ `defineProperty(name)`，且 target 须带真实现（否则取数三段拿到 `undefined`）。
+
 ## v3.259.0
 
 **主题：A1 宿主巨兽第四刀 —— 七个「书册 / 时间」类外移，`index.js` 17444 → 16798 行。**

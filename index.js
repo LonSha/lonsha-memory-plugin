@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.259.0';
+    const VERSION = '3.261.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -264,7 +264,11 @@
     // [v3.1] SF1: 带超时+自动重试的 fetch（抄 baibai embed.ts——向量/LLM 上游常挂住不返回）
     // 分类重试：内部超时/网络异常/5xx/429 → 重试；4xx（鉴权/格式）→ 不重试直接返回交调用方；401/403 触发冷却
     async function fetchWithTimeoutRetry(url, init, opts) {
-        const { timeoutSec = 30, retries = 2, label = 'API', externalSignal = null, cooldownSec = 1800 } = opts || {};
+        // [v3.260.0 缝合 shujuku] opts.fetchImpl：传输实现注入口（取数面）。
+        //   不传 = 直呼全局 fetch（与 v3.259.0 逐字一致，既有判据用 new Function('fetch', ...)
+        //   把 mock 作为函数参数注入，本改动不破坏该抽取面）；传了 = 走注入实现
+        //   （pristine-fetch.js 的原生绕包装取数，见 LLMCaller._fetchOpts）。
+        const { timeoutSec = 30, retries = 2, label = 'API', externalSignal = null, cooldownSec = 1800, fetchImpl = null } = opts || {};
         const credKey = typeof _getCredKey === 'function' ? _getCredKey(url, init, opts) : null;
         if (credKey && _credCooldowns.has(credKey)) {
             const until = _credCooldowns.get(credKey);
@@ -287,7 +291,7 @@
                 try { externalSignal.addEventListener('abort', () => { if (!timedOut) ctrl.abort(); }, { once: true }); } catch (e) { errLog(e, 'nonfatal') }
             }
             try {
-                const resp = await fetch(url, { ...init, signal: ctrl.signal });
+                const resp = await (fetchImpl || fetch)(url, { ...init, signal: ctrl.signal });
                 clearTimeout(timer);
                 if (resp.status === 401 || resp.status === 403) {
                     if (credKey) {
@@ -1400,6 +1404,17 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 optimizeEveryFloors: 50,       // [v2.9] RU-B: 优化周期（楼）
                 // [v3.108] LLM 调用事件链审计（缝合 bionic agent 事件迁移表）
                 llmEventChainEnabled: false,   // 默认关：为每次 LLM 调用记录并校验事件链（只记警告，不中断主链路）
+            // [v3.260.0 缝合 shujuku] 绕包装取数：内部请求打同源生成端点时，宿主预设脚本
+            //   （如 Kemini 伴生面板）会 patch 页面 fetch 并改写请求体/响应流。本项打开后，
+            //   内部取数改走 pristine-fetch.js 的「剥离已知包装 → 专用隐藏同源 iframe 原生 fetch」，
+            //   拿回未被改写的原始响应。默认开：纯传输层防御，不改任何请求/响应语义，
+            //   拿不到原生 fetch 时逐字回退全局 fetch（pristineFetch 内部兜底，不阻断请求）。
+            pristineFetchEnabled: true,
+            // [v3.260.0 缝合 shujuku] 原生函数调用协议（默认关，实验）：callOpenAI 改带 tools 请求，
+            //   模型回包里的 tool_calls 被真执行（search_memory / write_memory / vector_search）
+            //   并以 role=tool 回灌，最多 nativeToolMaxRounds 轮。关闭时逐字节走旧路径。
+            nativeToolExtractEnabled: false,
+            nativeToolMaxRounds: 3,        // 工具回合上限（1~5，仅 nativeToolExtractEnabled 开启时生效）
                 // [v3.106] 维护流水线（engram WorkflowEngine 缝合）：归档→优化→分诊编排为单次可诊断流水线
                 maintenancePipelineEnabled: false,   // 默认关：不改动既有逐条维护路径（两路不同时执行）
                 maintenanceOverdueWarnDays: 45,      // 距上次维护超过 N 天 → 跳转回优化步骤补做一次
@@ -1571,6 +1586,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                     // [v3.161] 召回调优五键（仅策略/数值/命名；提示词 extractRolesPrompt 与含密钥的
                     //   secondaryApis 刻意不进卡——前者是全局资产，后者会随卡泄露 API Key）
                     'budgetStrategy', 'pageRankDamping', 'dppLambda', 'memoryTreeEnabled', 'pyramidTiers',
+                    // [v3.261.0] 补 v3.260.0 漏登记的 nativeToolMaxRounds：该键当时被声明且被
+                    //   `_nativeToolMaxRounds()` 读取，却既无面板控件也不在白名单里 —— 引擎读到的
+                    //   永远是硬编码回退值 3，旋钮在面板上不存在（v3161 [1] 当场报红）。
+                    //   它是纯数值、无密钥、非全局资产，按 v3.160 三键同口径可进卡。
+                    'nativeToolMaxRounds',
                 ];
                 let applied = 0;
                 for (const k of CARD_CFG_KEYS) {
@@ -1597,13 +1617,42 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
     }
     
     class LLMCaller {
-        constructor(config) { this.config = config; this._lastEventChain = null; }
+        constructor(config) { this.config = config; this._lastEventChain = null; this._nativeToolLedger = null; } // [v3.260.0] _nativeToolLedger：原生工具回合读数台账（selfCheck「原生工具回合」一栏的数据源）
         // [v3.108] 事件链库（缝合 bionic memory-contract 的 agent 事件迁移表）：双通道加载 + 降级
         _eventChainLib() {
             try {
                 return (typeof window !== 'undefined' ? window.LonShaEventChain : null)
                     || (typeof require !== 'undefined' ? (() => { try { return require('./event-chain.js'); } catch { return null; } })() : null);
             } catch (e) { return null; }
+        }
+        // [v3.260.0 缝合 shujuku] 原生函数调用协议库（工具定义 / 响应累积 / 消息锚定）。
+        //   双通道取库 + 降级，口径同 _eventChainLib：拿不到就退回文本协议老路径。
+        _nativeToolsLib() {
+            try {
+                return (typeof window !== 'undefined' ? window.LonShaNativeTools : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./native-tools.js'); } catch { return null; } })() : null);
+            } catch (e) { return null; }
+        }
+        // [v3.260.0 缝合 shujuku] 绕包装取数库（宿主第三方脚本会 patch 全局 fetch）。
+        _pristineFetchLib() {
+            try {
+                return (typeof window !== 'undefined' ? window.LonShaPristineFetch : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./pristine-fetch.js'); } catch { return null; } })() : null);
+            } catch (e) { return null; }
+        }
+        /**
+         * [v3.260.0 缝合 shujuku] 传输选项：pristineFetchEnabled 打开且模块在场时，
+         * 把原生取数实现交给 fetchWithTimeoutRetry（绕开宿主对 fetch 的包装）；
+         * 否则返回 {} —— 传下去等价于 v3.259.0 的直呼全局 fetch。
+         * 本选项只改「取数」这一层，不改请求体、不改响应解析、不改调用方语义。
+         */
+        _fetchOpts() {
+            try {
+                if (this.config.config.pristineFetchEnabled !== true) return {};
+                const pf = this._pristineFetchLib();
+                if (!pf || typeof pf.pristineFetch !== 'function') return {};
+                return { fetchImpl: (url, init) => pf.pristineFetch(url, init) };
+            } catch (e) { return {}; }
         }
         /**
          * [v3.108] callAPI 外层审计包装（默认关）：为每次 LLM 调用维护一条事件链
@@ -1770,7 +1819,27 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             const data = await res.json();
             return (data.data || data.models || []).map(m => m.id || m.name).filter(Boolean).sort();
         }
+        /**
+         * [v3.260.0 缝合 shujuku] callOpenAI 分派：原生函数调用路径优先，未开启/失败时逐字节回落旧路径。
+         *   旧路径（_callOpenAILegacy）保留 v3.259.0 行为，是本版的门禁兜底面。
+         */
         async callOpenAI(prompt, url, key, model) {
+            if (this.config.config.nativeToolExtractEnabled === true) {
+                const NT = this._nativeToolsLib();
+                if (NT && typeof NT.readChatTurn === 'function' && typeof NT.toolMessagesFromCalls === 'function') {
+                    try {
+                        const out = await this._callOpenAINative(prompt, url, key, model, NT);
+                        if (out !== null) return out;
+                    } catch (e) {
+                        // 原生回合任何异常都不外抛：记一条非致命日志后回落旧路径（语义与关闭该开关一致）
+                        errLog(e, 'nativeToolRound');
+                    }
+                }
+            }
+            return this._callOpenAILegacy(prompt, url, key, model);
+        }
+        // [v3.260.0] 旧路径：与 v3.259.0 逐字一致（含 v3.102 响应形状归一化与截断告警）
+        async _callOpenAILegacy(prompt, url, key, model) {
             // 端点归一化：兼容 base(https://x.com/v1) 和完整端点两种填法
             let endpoint = url.replace(/\/+$/, '');
             if (!endpoint.includes('/chat/completions')) {
@@ -1781,7 +1850,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${key}`},
                 body: JSON.stringify({model: model || 'gpt-4o-mini', messages: [{role: 'user', content: prompt}], temperature: 0.3, max_tokens: 1000})
-            });
+            }, this._fetchOpts());
             if (!res.ok) throw new Error(`API ${res.status}: ${await res.text().catch(() => '')}`);
             const data = await res.json();
             // [v3.102] 缝合 bionic-memory model-protocol：响应形状归一化。
@@ -1808,6 +1877,101 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             }
             const legacyContent = msg.content;
             return typeof legacyContent === 'string' ? legacyContent : '';
+        }
+        /**
+         * [v3.260.0 缝合 shujuku] 原生工具回合：请求带 tools，回包按协议累积（JSON 与 SSE 同一读取器）；
+         *   模型真发起调用时执行并回灌，最多 _nativeToolMaxRounds() 轮，取最后一轮正文。
+         *   无工具调用时正常返回正文；连一次回合都没读到则返回 null（交旧路径）。
+         */
+        async _callOpenAINative(prompt, url, key, model, NT) {
+            let endpoint = url.replace(/\/+$/, '');
+            if (!endpoint.includes('/chat/completions')) {
+                endpoint = endpoint.endsWith('/v1') ? endpoint + '/chat/completions' : endpoint + '/v1/chat/completions';
+            }
+            const fetchOpts = this._fetchOpts();
+            let messages = [{ role: 'user', content: prompt }];
+            let round = 0;
+            let lastContent = '';
+            let sawTurn = false;
+            for (;;) {
+                const res = await fetchWithTimeoutRetry(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                    body: JSON.stringify({
+                        model: model || 'gpt-4o-mini',
+                        messages,
+                        temperature: 0.3,
+                        max_tokens: 1000,
+                        tools: NT.MEMORY_TOOL_DEFINITIONS,
+                        tool_choice: 'auto',
+                    }),
+                }, Object.assign({ label: '原生工具' }, fetchOpts));
+                if (!res.ok) throw new Error(`API ${res.status}: ${await res.text().catch(() => '')}`);
+                const turn = (await NT.readChatTurn(res, false)).turn;
+                sawTurn = true;
+                if (typeof turn.content === 'string' && turn.content) lastContent = turn.content;
+                if (!turn.toolCalls.length) break;
+                if (round >= this._nativeToolMaxRounds()) break;
+                round += 1;
+                const results = await this._dispatchMemoryTools(NT, turn.toolCalls);
+                messages = NT.withThinkPrefill(messages.concat(NT.toolMessagesFromCalls(turn.content, turn.toolCalls, results)));
+            }
+            this._nativeToolLedger = Object.assign({}, this._nativeToolLedger, { rounds: round, at: Date.now() });
+            return sawTurn ? lastContent : null;
+        }
+        // [v3.260.0] 工具回合轮数上限（防模型无限调用；默认 3 轮够「检索→精读→作答」）
+        _nativeToolMaxRounds() {
+            const n = Number(this.config.config.nativeToolMaxRounds);
+            return Number.isFinite(n) && n >= 1 ? Math.min(5, Math.floor(n)) : 3;
+        }
+        /**
+         * [v3.260.0] 三工具分发：search_memory → BM25 分支检索 / write_memory → 显式摘要 /
+         *   vector_search → 向量库语义检索。每个工具都有真实消费点（模块接线零容忍面）。
+         *   参数校验失败或单个工具抛错只影响该条回执（错误文本回灌给模型自纠），不中断回合。
+         */
+        async _dispatchMemoryTools(NT, calls) {
+            let parsed;
+            try {
+                parsed = NT.toolArguments(calls);
+            } catch (e) {
+                const note = '参数无效: ' + String((e && e.message) || e);
+                return calls.map(() => note);
+            }
+            const results = [];
+            for (const item of parsed) {
+                try {
+                    results.push(await this._dispatchMemoryTool(item.call.name, item.payload || {}));
+                } catch (e) {
+                    results.push('工具执行失败: ' + String((e && e.message) || e));
+                }
+            }
+            return results;
+        }
+        async _dispatchMemoryTool(name, payload) {
+            const eng = (typeof window !== 'undefined' && window.LonShaMemory && window.LonShaMemory.engine) || null;
+            const topK = Math.max(1, Math.min(20, Number(payload.topK) || 5));
+            const brief = (item) => String((item && (item.text || item.summary || item.name)) || '').slice(0, 200);
+            if (name === 'search_memory') {
+                if (!eng || !eng.bm25) return '记忆库未就绪：无法检索';
+                const hits = eng.bm25.search(String(payload.query || ''), topK, { cliffCut: true });
+                this._nativeToolLedger = { tool: name, hits: Array.isArray(hits) ? hits.length : 0, at: Date.now() };
+                if (!hits || !hits.length) return '无命中';
+                return hits.map((h, i) => `[${i + 1}] ${brief(h)}`).join('\n');
+            }
+            if (name === 'write_memory') {
+                if (!eng || !eng.summary) return '记忆库未就绪：无法写入';
+                const saved = eng.summary.addManualSummary(Number(payload.floor), String(payload.text || ''), String(payload.storyTime || ''));
+                this._nativeToolLedger = { tool: name, saved: !!saved, at: Date.now() };
+                return saved ? `已写入第 ${saved.floor} 楼摘要` : '未写入（同楼层已有摘要或参数无效）';
+            }
+            if (name === 'vector_search') {
+                if (!eng || !eng.vector) return '向量库未就绪：无法检索';
+                const hits = await eng.vector.search(String(payload.query || ''), topK);
+                this._nativeToolLedger = { tool: name, hits: Array.isArray(hits) ? hits.length : 0, at: Date.now() };
+                if (!hits || !hits.length) return '无命中（向量库为空或未启用）';
+                return hits.map((h, i) => `[${i + 1}] ${brief(h)}`).join('\n');
+            }
+            return '未知工具: ' + String(name);
         }
     }
     
@@ -2523,6 +2687,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._ledgerViolations = [];                 // [v3.154] 台账写入校验违规环形账本（诊断可观测）
             this._ledgerMissingRollbacks = 0;             // [v3.155] 因账本淘汰而无法回滚的楼层请求数（诊断可观测）
             this._lastReplayReport = null;
+            // [v3.261.0 缝合 MyriadKnots] 两个留档显式初始化为 null（三态的第一态：**没查过**）。
+            //   为什么不靠 undefined 隐式兜底：`undefined` 与「查过但判不了」在判据里都走 falsy 分支，
+            //   两者一旦同形，「没查过」与「查过没问题」就分不开了 —— 那正是本刀要修的那类静默。
+            this._lastArchiveAudit = null;      // 最近一次导入/恢复的存档三分体检读数
+            this._lastItemOpsClaim = null;      // 最近一次导入的物品 op 忠实认领证明
             this._lastRollbackPreview = null;   // [v3.235.0] R4-A：最近一次破坏前的只读预告（与 _lastReplayReport 成对，可对账）                // [v3.182] 最近一次账本回放报告（删楼/前移的分态留痕，诊断可观测）
             // [v3.236.0] R4-B 缺口 2：定期快照的节流锚点此前是**裸楼层数**（`_lastSnapshotFloor`），
             //   它不认会话身份 —— 在 B 会话里，`curFloor - A的锚点` 恒为负数（首楼 index 为 0 时
@@ -10700,6 +10869,52 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.moduleRegistry'); return ['模块加载', '—（诊断异常）'];
                         }
                     })(),
+                    // [v3.260.0 缝合 shujuku] 原生工具回合自述：回答「本会话真发起过工具调用吗、几轮、读了多少条」。
+                    //   零调用时显式说「未启用」，与「启用了但没触发」和「触发了但零命中」三态可分——
+                    //   这正是本仓九账证据面治理后留下的纪律：坏了有人知道吗，且三种坏法不能同形。
+                    (() => {
+                        try {
+                            const nt = (typeof window !== 'undefined' ? window.LonShaNativeTools : null);
+                            if (!nt) return ['原生工具回合', '—（模块不可用）'];
+                            const _lc = this.llm || (this.engine && this.engine.llm) || null;
+                            const led = _lc && _lc._nativeToolLedger;
+                            const _on = this.config.config.nativeToolExtractEnabled === true;
+                            const _pf = this.config.config.pristineFetchEnabled === true;
+                            if (!led) return ['原生工具回合', _on ? '—（已开启但尚无回合）' : '—（未启用）'];
+                            const bits = [];
+                            if (led.rounds !== undefined) bits.push('回合 ' + led.rounds);
+                            if (led.tool) bits.push(led.tool);
+                            if (led.hits !== undefined) bits.push('命中 ' + led.hits);
+                            if (led.saved !== undefined) bits.push(led.saved ? '已写入' : '未写入');
+                            return ['原生工具回合', bits.join(' · ') + (_pf ? ' · 原生取数' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.nativeToolRound'); return ['原生工具回合', '—（诊断异常）']; }
+                    })(),
+                    // [v3.261.0 缝合 MyriadKnots] 存档体检：回答「导进来的这份档，有多少键谁都不认、
+                    //   有多少读不出、有多少是活真源」。三态可分：模块不可用 / 待导入（无恢复记录）/
+                    //   有判定（verdict 非 classified 时如实说判不了，不编「没问题」）。
+                    //   真源是恢复现场留档（那时才有真载荷），**不在此处合成载荷重算**。
+                    (() => {
+                        try {
+                            const AA = _archiveAuditLib();
+                            if (!AA || typeof AA.line !== 'function') return ['存档体检', '模块未加载（archive-audit.js）'];
+                            const au = this._lastArchiveAudit;
+                            if (!au) return ['存档体检', '待导入（尚无恢复记录）'];
+                            if (au.verdict !== 'classified') return ['存档体检', '—（' + au.verdict + (au.why ? '：' + au.why : '') + '）'];
+                            return ['存档体检', '总 ' + au.total + ' 键 / ' + au.bytes + ' 字节 · 活真源 ' + au.active + ' · 保留 ' + au.retained + (au.cleanup ? ' ⚠️ 可清理候选 ' + au.cleanup : '')];
+                        } catch (e) { errLog(e, 'selfCheck.archiveAudit'); return ['存档体检', '—（诊断异常）']; }
+                    })(),
+                    // [v3.261.0 缝合 MyriadKnots] 物品 op 忠实认领：回答「导入档里的 op，有多少**能证明**
+                    //   属于当前聊天、多少判不了、判不了是哪种根因」。只读证明，不删任何 op ——
+                    //   失效清理已有唯一真源（优化 3b 段），两份判据一定漂移。
+                    (() => {
+                        try {
+                            const FI = _floorIdentityLib();
+                            if (!FI || typeof FI.line !== 'function') return ['物品认领', '模块未加载（floor-identity.js）'];
+                            const c = this._lastItemOpsClaim;
+                            if (!c) return ['物品认领', '待导入（本次导入无 op 或聊天未就绪）'];
+                            return ['物品认领', '候选 ' + c.ops + ' 条 / ' + c.floors + ' 层 · 可证明 ' + c.proved + ' · 判不了 ' + c.unproved + (c.issue ? '（根因 ' + c.issue + '）' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.itemOpsClaim'); return ['物品认领', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -11282,6 +11497,29 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (!dry && _ext) { this._archiveExtensions = Object.assign({}, this._archiveExtensions || {}, _ext); }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');
             res.unknown = _unknown;
+            // [v3.261.0 缝合 MyriadKnots] 存档体检：在恢复现场就地做**三分判定**
+            //   （活真源 / 可清理候选 / 保留），契约取本插件存档顶层键集合这一**现成真源**
+            //   （ARCHIVE_TOP_LEVEL_KEY_SET，与上方 _unknown 判定同源，不另造第二份清单）。
+            //   为什么就地算而不在 selfCheck 里合成：此处 data 还是真载荷——合成载荷会把
+            //   「键不在册」与「值判不了」两类成因抹平，而两者处置完全不同。
+            //   模块缺席 / 载荷不可判时留 null（**不编默认值**：「没查过」≠「查过没问题」）。
+            try {
+                const _AA = _archiveAuditLib();
+                if (_AA && typeof _AA.classifyArchive === 'function') {
+                    const _au = _AA.classifyArchive(data, ARCHIVE_TOP_LEVEL_KEY_SET);
+                    if (_au && _au.ok === true) {
+                        res.archiveAudit = {
+                            verdict: _au.verdict,
+                            active: _au.stats.active.count, cleanup: _au.stats.cleanup.count, retained: _au.stats.retained.count,
+                            total: _au.stats.total.count, bytes: _au.stats.total.bytes,
+                            cleanupKeys: _au.entries.filter((e) => e.verdict === 'cleanup').map((e) => e.key).slice(0, 12),
+                            retainedKeys: _au.entries.filter((e) => e.verdict === 'retained').map((e) => e.key + '(' + e.reason + ')').slice(0, 12),
+                            line: _AA.line(_au),
+                        };
+                    } else res.archiveAudit = { verdict: 'invalid-payload', why: _au?.reason || '未知' };
+                } else res.archiveAudit = null;
+            } catch (e) { errLog(e, 'restoreFromPayload.archiveAudit'); res.archiveAudit = { verdict: 'threw', why: String(e?.message || e) }; }
+            this._lastArchiveAudit = res.archiveAudit ? Object.assign({ at: Date.now(), source: res.source }, res.archiveAudit) : null;
             if (!dry && _unknown.length) {
                 const bag = this._archiveExtensions || (this._archiveExtensions = {});
                 for (const k of _unknown) bag[k] = data[k];
@@ -11321,6 +11559,43 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 const _vres = (engine.config && engine.config.config && engine.config.config.ledgerWriteValidationEnabled === false)
                     ? _raw.filter(o => o && o.name)
                     : validateLedgerItemOps(_raw, { fallbackFloor: 0 });
+                // [v3.261.0 缝合 MyriadKnots] 忠实认领**证明**（只读，不改数据）。
+                //   回答的是一个此前无人回答的问题：这份导入档里的物品 op，有多少**能证明**
+                //   属于当前聊天、有多少判不了、判不了是哪种根因。
+                //   为什么只证明不删：op 的失效清理**已有唯一真源**（optimizeMemory 的 3b 段
+                //   按「fp 不在该楼任何 swipe 取值里」判定），在此再删一份就是第二份判据——
+                //   两份判据一定漂移，且会先把「越界楼层」这类 pending 误删（3b 明确保留它们）。
+                //   故本处产出的是**可查证明**：proved / unproved / 根因，供诊断面点名。
+                //   op 与本聊天楼层的对应关系不能用 locator 段（op 只存 floor 号，不存页码），
+                //   故把候选 locator 置为永不可能命中的负值，只让「全局唯一指纹对」段生效。
+                let _claim = null;
+                try {
+                    const _FI = _floorIdentityLib();
+                    const _chat = window.SillyTavern?.getContext?.()?.chat;
+                    const _ops = (_vres.items || _vres);
+                    if (_FI && typeof _FI.matchFloorCandidates === 'function' && Array.isArray(_chat) && _chat.length && _ops.length) {
+                        const _entries = _chat.map((m, i) => {
+                            const _sw = Math.max(0, Math.round(Number(m?.swipe_id) || 0));
+                            const _fp = msgFpOf(m);
+                            return { id: 'floor:' + i, hostLocator: { messageIndex: i, swipeId: _sw, selectedSwipeIndex: _sw }, content: { canonicalFingerprint: _fp, rawFingerprint: _fp } };
+                        });
+                        const _candidates = _ops.map((o) => {
+                            const _fp = String(o?.fp || '');
+                            return { hostLocator: { messageIndex: -1, swipeId: -1, selectedSwipeIndex: -1 }, canonicalFingerprint: _fp, rawFingerprint: _fp, messageAnchor: { status: 'none' } };
+                        });
+                        const _m = _FI.matchFloorCandidates(_entries, _candidates);
+                        _claim = {
+                            at: Date.now(),
+                            ops: _ops.length,
+                            floors: _entries.length,
+                            proved: _m.matches.length,
+                            unproved: _m.unmatchedCandidateIndexes.length,
+                            issue: _m.issue ? _m.issue.code : null,
+                            line: _FI.line(_m),
+                        };
+                    }
+                } catch (e) { errLog(e, 'restoreFromPayload.itemOpsClaim'); _claim = null; }
+                engine._lastItemOpsClaim = _claim;
                 engine.itemOps = _vres.items || _vres;
                 if (_vres.violations && _vres.violations.length) engine._recordLedgerViolations?.(_vres.violations, 'import', 0);
                 (engine.reconcileItemOps || engine.rebuildItems)?.call(engine);
@@ -12561,6 +12836,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   branch-guard 回答「现在这一轮该不该往这一楼写」。前者是事后验真，后者是事前拦。
     function _branchGuardLib() {
         return _moduleLib(() => window.LonShaBranchGuard, 'branch-guard.js');
+    }
+    // [v3.261.0 缝合 MyriadKnots] 楼层身份匹配证明（floor-identity.js）。
+    //   为什么需要：本插件有两种楼层身份并存（持久侧的 floor 号 + fp 指纹 / 宿主侧当前
+    //   chat 数组第 N 楼此刻的正文），而「持久记录还属于当前聊天吗」此前由各调用方各写一遍
+    //   ——按号认领的会在删楼/插楼后静默错位，按指纹单条比对的会把「同页不同代」当同一楼。
+    //   本模块把这件事收成**证明过程**：四段判解，判不了就点名根因（绝不猜）。
+    //   与 branch-guard 的分工：branch-guard 回答「这一轮该不该往这一楼写」（事前拦），
+    //   本模块回答「这条记录与这一楼是不是同一个东西」（身份证明）。
+    function _floorIdentityLib() {
+        return _moduleLib(() => window.LonShaFloorIdentity, 'floor-identity.js');
+    }
+    // [v3.261.0 缝合 MyriadKnots] 存档体检三分判定（archive-audit.js）。
+    //   为什么需要：本插件存档是一个并集（自写键 / 用户导入过的外部档键 / 旧版已不认的键），
+    //   而 restoreFromPayload 只做「认得的回填、不认得的收进 _archiveExtensions」，
+    //   没有任何一面回答「这份档里多少是活真源、多少是可清理候选、多少根本判不了」。
+    //   ★ 纪律照搬源码：不可达 ≠ 可以删 —— 畸形/外来一律 retained，且必须能被点名。
+    function _archiveAuditLib() {
+        return _moduleLib(() => window.LonShaArchiveAudit, 'archive-audit.js');
     }
     // [v3.183] 条目关联（Crosslink）：手写 Aho-Corasick 扫正文，找出共享关键词的其他条目。
     //   给的是**弱关系候选**（只报告不写图）——写图由提取管线负责，自动写边会累积幻觉边。

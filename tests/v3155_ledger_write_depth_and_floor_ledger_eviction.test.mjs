@@ -31,7 +31,11 @@ const _i2 = src.indexOf('const _raw = Array.isArray(data.itemOps) ? data.itemOps
 const _j2 = src.indexOf('(engine.reconcileItemOps || engine.rebuildItems)?.call(engine);', _i2);
 const A2_BODY = src.slice(_i2, _j2) + '(engine.reconcileItemOps || engine.rebuildItems)?.call(engine);';
 const runA1 = new Function('pack', 'validateCarriedItems', 'PLUGIN_NAME', 'errLog', 'with (this) { ' + A1_BODY + ' }');
-const runA2 = new Function('engine', 'data', 'validateLedgerItemOps', A2_BODY);
+/* [v3.261.0] A2 块里新增了 itemOps 忠实认领证明（缝合 MyriadKnots），它触及四个本文件
+ *   之外的符号。抽取面必须把参数表补齐，否则真执行会 ReferenceError（本刀首跑即红）。
+ *   注入口径：`errLog` 注入空实现；`_floorIdentityLib` 注入「取不到模块」的取库口
+ *   —— 那正是认领证明三态里的第一态（模块不可用 ⇒ `_claim` 保持 null，不写假读数）。 */
+const runA2 = new Function('engine', 'data', 'validateLedgerItemOps', 'window', 'msgFpOf', 'errLog', '_floorIdentityLib', A2_BODY);
 // ================= 1. A1：携带包 itemOps 由「整体替换」改「校验 + 合并去重」 =================
 test('【1】A1 携带包：校验 + 合并而非替换（旧语义会静默丢弃本会话已入账 ops）', () => {
     assert.ok(_i1 > 0 && _j1 > _i1, 'A1 源码块已切出');
@@ -83,7 +87,8 @@ test('【2】A2 导入：外部存档 ops 先过校验，违规以 source=import
         _recordLedgerViolations(v, s, f) { rec.push({ v, s, f }); },
         rebuildItems() { built.push('r'); }
     };
-    runA2(engine, { itemOps: [{ name: '好剑' }, { action: 'explode', name: '坏' }, null] }, K.validateLedgerItemOps);
+    runA2(engine, { itemOps: [{ name: '好剑' }, { action: 'explode', name: '坏' }, null] }, K.validateLedgerItemOps,
+        {}, () => '', () => {}, () => null);
     assert.equal(engine.itemOps.length, 1, '脏值不落真源（旧写法会整批赋值）');
     assert.equal(engine.itemOps[0].name, '好剑');
     assert.equal(rec.length, 1, '违规入账本 1 次');
@@ -92,11 +97,12 @@ test('【2】A2 导入：外部存档 ops 先过校验，违规以 source=import
     assert.equal(built.length, 1, '落盘后重建派生层');
     // 非数组兜底
     const e2 = { config: { config: {} }, itemOps: [{ key: 'x', name: 'x' }], _recordLedgerViolations() { throw new Error('不应记违规'); }, rebuildItems() {} };
-    runA2(e2, { itemOps: null }, K.validateLedgerItemOps);
+    runA2(e2, { itemOps: null }, K.validateLedgerItemOps, {}, () => '', () => {}, () => null);
     assert.equal(e2.itemOps.length, 0, '非数组兜底为空数组');
     // 关卡关闭：旧 filter 语义
     const e3 = { config: { config: { ledgerWriteValidationEnabled: false } }, itemOps: [], _recordLedgerViolations() { throw new Error('关卡关闭不应记违规'); }, rebuildItems() {} };
-    runA2(e3, { itemOps: [{ name: 'a', action: 'drop' }, { name: '' }] }, K.validateLedgerItemOps);
+    runA2(e3, { itemOps: [{ name: 'a', action: 'drop' }, { name: '' }] }, K.validateLedgerItemOps,
+        {}, () => '', () => {}, () => null);
     assert.equal(e3.itemOps.length, 1, '关卡关闭仅 filter');
     assert.equal(e3.itemOps[0].action, 'drop', '不归一（旧语义）');
     // 旧整体赋值写法彻底清零
