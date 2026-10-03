@@ -35,7 +35,11 @@ const PI = require(path.join(REPO, 'public-interface.js'));
 const flSrc = fs.readFileSync(path.join(REPO, 'floor-ledger.js'), 'utf8');
 const aaSrc = fs.readFileSync(path.join(REPO, 'age-anchor.js'), 'utf8');
 const piSrc = fs.readFileSync(path.join(REPO, 'public-interface.js'), 'utf8');
-const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+const idxSrcRaw = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const idxSrc = idxSrcRaw + String.fromCharCode(10) + (fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8'))
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
@@ -965,8 +969,9 @@ function brokenCopies() {
             target: 'index', src: breakText(idxSrc,
                 /* [v3.259.0 A1 第四刀] 锚点随宿主实现同步：RelativeTimeHelper 外迁后该行写成
                  *   「统一取用口优先、裸 new 兜底」的三元式（取库口不在 ⇒ 退到裸 new，与修前同形）。 */
-                "            try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
-                '            return null;',
+                /* [v3.266.0 A1 第六刀] GameClock 已外移 memory-core.js：锚点按模块缩进（类体整体去 4 空格）。 */
+                "        try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
+                '        return null;',
                 'G1')
         },
         {

@@ -3,7 +3,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] LLMCaller（rerank / INTENT / _BATCH）与 VectorStore 已外移 memory-organs.js；
  *   抽取面须按「真源所在面」取值（本档多数判据仍是宿主级：BM25 缓存三处调用点、age 锚点在宿主）。 */
 const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');

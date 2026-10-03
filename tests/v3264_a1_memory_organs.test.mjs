@@ -264,7 +264,9 @@ test('v3264 B. \u6a21\u5757\u771f\u52a0\u8f7d\uff1a\u5bfc\u51fa\u516d\u9879 + \u
 test('v3264 C. \u52a0\u8f7d\u9762\u4e0e\u57fa\u7ebf\uff1amanifest \u6070 1 \u9879\u4e14\u63a5\u7ba1\u672b\u9879 + \u57fa\u7ebf\u8bfb\u6570\u4e0e\u771f\u6587\u4ef6\u540c\u6e90', () => {
     const mf = JSON.parse(read('manifest.json'));
     assert.equal(mf.extra_js.filter((f) => f === MOD_REL).length, 1, MOD_REL + ' \u987b\u5728 extra_js \u6070\u597d 1 \u6b21');
-    assert.equal(mf.extra_js[mf.extra_js.length - 1], MOD_REL, '\u672c\u5200\u6a21\u5757\u987b\u63a5\u7ba1 extra_js \u672b\u9879\uff08\u52a0\u8f7d\u5e8f frontier\uff09');
+    /* [v3.266.0 交棒] 「谁是末项」属于当版 frontier，随版本移动：第六刀 memory-core.js 已成为末项，
+     *   本档只保留「本刀模块仍在 extra_js 内」这一自身不变量；末项断言由 tests/v3266_a1_memory_core.test.mjs 接管。 */
+    assert.ok(mf.extra_js.indexOf(MOD_REL) >= 0, MOD_REL + ' 须仍在 extra_js 内（末项断言已交棒 v3266）');
     assert.equal(mf.extra_js[0], 'ledger-entity.js', 'ledger-entity.js \u4ecd\u987b\u5728\u9996\u4f4d\uff08v3.207 \u4e0d\u53d8\u91cf\uff09');
     const b = JSON.parse(read('tests/audit/host_beast_baseline.json'));
     assert.equal(b.readings.total_lines, IDX.split(NL).length, '\u57fa\u7ebf\u884c\u6570\u987b\u7b49\u4e8e\u771f index.js \u884c\u6570');
@@ -298,18 +300,20 @@ test('v3264 D. \u771f\u6e90\u7801\u7834\u574f -> \u540c\u4e00\u6761\u5224\u636e\
 
 /* ========== E \u51fa\u751f\u7248\u672c\u4e0b\u9650\u951a ========== */
 const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-test('v3264 E. \u51fa\u751f\u7248\u672c\u4e0b\u9650\u951a\uff08\u672c\u6863\u51fa\u751f\u5728 3.264.0\uff09', () => {
+test('v3264 E. \u51fa\u751f\u7248\u672c\u4e0b\u9650\u951a\uff08\u672c\u6863\u51fa\u751f\u5728 3.264.0\uff0c\u5df2\u4e8e 3.266.0 \u4ea4\u68d2\uff09', () => {
     const codeVer = (/const VERSION = '([^']+)'/.exec(IDX) || [])[1];
     assert.equal(codeVer, JSON.parse(read('manifest.json')).version, 'manifest \u987b\u4e0e\u5165\u53e3\u540c\u6e90');
     assert.equal(codeVer, JSON.parse(read('package.json')).version, 'package \u987b\u4e0e\u5165\u53e3\u540c\u6e90');
     assert.equal(codeVer, M.VERSION, '\u6a21\u5757\u526f\u672c VERSION \u987b\u4e0e\u5165\u53e3\u540c\u6e90\uff08\u5426\u5219 bindDeps \u6ce8\u5165\u524d\u5c31\u5df2\u6f02\u79fb\uff09');
-    /* V4 当版锚点：必须是 `vnum('3.264.0')` 形态（版本守卫的 boundRe 只认这种写法），
-     *   同时保留数值写法：两者一致才能说明「当版锚点真在」。 */
-    assert.equal(vnum(codeVer), vnum('3.264.0'), '\u672c\u6863\u5373\u5f53\u7248\uff1avnum \u987b\u6070\u597d\u951a\u7740 3.264.0');
-    assert.equal(vnum(codeVer), 3264000, '\u540c一\u951a点的数值写法（两者必须一致）');
-    assert.ok(read('CHANGELOG.md').startsWith('## v' + codeVer), 'CHANGELOG \u9876\u8282\u987b\u662f\u672c\u7248');
-    assert.ok(read('TODO.md').includes('\u6700\u8fd1\u66f4\u65b0\uff1av' + codeVer), 'TODO \u6700\u8fd1\u66f4\u65b0\u987b\u662f\u672c\u7248');
-    ok('\u4e09\u6e90 + \u6a21\u5757\u526f\u672c\u56db\u8005\u540c\u6e90\uff0c\u4e14 vnum \u6070\u597d\u951a\u7740 3.264.0');
+    /* [v3.266.0 交棒] 原句是三条当版**硬锚**（`vnum('3.264.0')` / 数值 3264000 / `startsWith('## v3.264.0')`）。
+     *   一抬版就必红，而红的信息量只有「版本变大了」—— 按 v3.203 交棒纪律退回出生版本**下限锚**。
+     *   「同源」本身不随版本变化，故三源 / 模块副本四者相等的判据继续保留；
+     *   CHANGELOG / TODO 两人读面改按**当前版本**判（不因交棒而放宽）。
+     *   当版锚点（V4）已由 tests/v3266_a1_memory_core.test.mjs 接管。 */
+    assert.ok(vnum(codeVer) >= vnum('3.264.0'), '入口版本不得回退到本档出生版本之前，当前 ' + codeVer);
+    assert.ok(read('CHANGELOG.md').startsWith('## v' + codeVer), 'CHANGELOG 顶节须是当前版本（人读面同源）');
+    assert.ok(read('TODO.md').includes('最近更新：v' + codeVer), 'TODO 最近更新须是当前版本');
+    ok('三源 + 模块副本四者同源；本档已退回出生版本下限锚（' + codeVer + '）');
 });
 
 /* ========== F \u5224\u636e\u9762\u81ea\u9632\u62a4 ========== */

@@ -26,7 +26,11 @@ import { fileURLToPath } from 'node:url';
 import { braceMatch } from './_audit_lib.mjs';
 const ROOT = new URL('..', import.meta.url).pathname;
 const require_ = createRequire(import.meta.url);
-const raw = readFileSync(ROOT + 'index.js', 'utf-8');
+const rawRaw = readFileSync(ROOT + 'index.js', 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const raw = rawRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 const mf = JSON.parse(readFileSync(ROOT + 'manifest.json', 'utf-8'));
 const pkg = JSON.parse(readFileSync(ROOT + 'package.json', 'utf-8'));
 const changelog = readFileSync(ROOT + 'CHANGELOG.md', 'utf-8');

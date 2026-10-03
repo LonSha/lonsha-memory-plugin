@@ -259,7 +259,8 @@ test('v3263 C. 接线面：消费点 + 面板 + 自检行 + 加载序 + 数量�
     assert.equal(b.rebuilds[b.measured_at].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
     // 数量锁已被本刀接管
     const V3209 = read('tests/v3209_migration_registry.test.mjs');
-    assert.ok(V3209.includes('mf.extra_js.length === 77'), 'v3209 数量锁须已接管为 77');
+    /* [v3.266.0 交棒] 同 v3262：具体数值由当版刀口接管，本桡只守「锁还在」。 */
+assert.ok(/mf\.extra_js\.length === \d+/.test(V3209), 'v3209 数量锁须仍在场（当前接管者：v3266）');
     // 判据面自防护
     assert.ok(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
     assert.ok((SELF.match(/assert\./g) || []).length >= 40, '断言密度须 >= 40，实为 ' + (SELF.match(/assert\./g) || []).length);

@@ -9,7 +9,11 @@ import { fileURLToPath } from 'node:url';
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 function extractClass(source, startMarker) {
     const start = source.indexOf(startMarker);
     if (start < 0) return null;
@@ -109,7 +113,8 @@ test('=== 2. 降级语义：源指纹失效 → 整卷降级 + 源摘要回活�
 });
 
 test('=== 3. 引擎闭包接线：指纹函数注入 + recallMemory 对账 ===', () => {
-    const wireIdx = src.indexOf('this.summary = new SummarySystem();');
+    /* [v3.266.0 A1 第六刀] SummarySystem 已外移 memory-core.js：构造点改走 _newCore('SummarySystem')。 */
+    const wireIdx = src.indexOf("this.summary = _newCore('SummarySystem');");
     const fpIdx = src.indexOf('this.summary.fpOf = (m) =>', wireIdx);
     assert.ok(wireIdx > 0 && fpIdx > wireIdx && fpIdx < wireIdx + 200, 'fpOf 紧随 SummarySystem 构造注入');
     const rmIdx = src.indexOf('async recallMemory(query)');

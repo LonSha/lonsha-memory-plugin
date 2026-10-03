@@ -16,7 +16,11 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
 const SCANNER = path.join(__dirname, 'audit', 'scan_module_wiring.mjs');
-const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+const idxSrcRaw = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const idxSrc = idxSrcRaw + String.fromCharCode(10) + (fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8'))
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');

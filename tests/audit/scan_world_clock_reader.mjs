@@ -34,7 +34,10 @@ const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 
 const MOD = path.join(ROOT, 'world-clock-reader.js');
 const IDX = path.join(ROOT, 'index.js');
-for (const [p, what] of [[MOD, 'world-clock-reader.js'], [IDX, 'index.js']]) {
+/* [v3.266.0 A1 第六刀] GameClock 外移 memory-core.js：W1 的「GameClock.readWorldAxisClock 签名」
+ *   与「快照携带读数」两处真源随类搬走 ⇒ 判据面改为「入口 + 该模块」合看（语义不放宽）。 */
+const MEMCORE = path.join(ROOT, 'memory-core.js');
+for (const [p, what] of [[MOD, 'world-clock-reader.js'], [IDX, 'index.js'], [MEMCORE, 'memory-core.js']]) {
     if (!fs.existsSync(p)) {
         console.error('[world-clock-reader] 找不到 ' + what + '（ROOT=' + ROOT + '）——结构漂移');
         process.exit(2);
@@ -49,7 +52,7 @@ const idx = fs.readFileSync(IDX, 'utf8');
  *   （那是源码内的声明，不是解释性文字），故 W4 仍用 mod。stripComments 等长等换行，
  *   故 W6 的行数判据用原文与剥后同值。 */
 const modCode = stripComments(mod);
-const idxCode = stripComments(idx);
+const idxCode = stripComments(idx) + String.fromCharCode(10) + stripComments(fs.readFileSync(MEMCORE, 'utf8'));
 
 const problems = [];
 const notes = [];

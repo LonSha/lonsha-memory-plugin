@@ -11,7 +11,11 @@ function vnum(s) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
+const srcRaw = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + (fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8'))
 
 // 版本断言（>= v3.28 容灾）
 const vm = src.match(/const VERSION = '([^']+)'/);

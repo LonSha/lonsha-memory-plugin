@@ -14,7 +14,11 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] 六个器官类已外移 memory-organs.js：「声明了却没人读」的读数面必须合看两个文件，
  *   否则每次剥类都会把「真消费」误报成「死配置」（假红）。 */
 const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');

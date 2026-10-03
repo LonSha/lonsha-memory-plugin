@@ -194,7 +194,11 @@ function judgeSlice(idxSrc, modSrc) {
         problems.push('有 ' + bare + ' 处 new RelativeTimeHelper()，但只有 ' + guarded + ' 处走了取用口优先形态（绕过取用口 => 缺模块时那一处外抛）');
     }
     const calls = idxSrc.split('_newRelativeTimeHelper()').length - 1;
-    if (calls < 12) problems.push('取用口调用点只剩 ' + calls + ' 处（剥走前实测 13 处 + 兜底形态 4 处），疑有调用点漏接');
+    /* [v3.266.0 A1 第六刀] 计数面改为「入口 + memory-core.js」合看：取用口有 4 处调用点
+     *   随 CharacterState / GameClock 一同搬进了内核模块（同一全局作用域、同一插件，仍是真调用点）。 */
+    const _coreSrc = read('memory-core.js');
+    const _callsAll = _coreSrc.split('_newRelativeTimeHelper()').length - 1;
+    if (calls + _callsAll < 12) problems.push('取用口调用点只剩 ' + (calls + _callsAll) + ' 处（入口 ' + calls + ' + 内核模块 ' + _callsAll + '），疑有调用点漏接');
     /* ⑩ 两条**跨类依赖边**必须在场 —— 本刀为什么把这七类同刀搬的全部理由。
      *   拆散的症状都是**静默降级**：选段退到尾部两段、倒计时不出（不是崩溃，最难归因）。 */
     const EDGES = [

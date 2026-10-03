@@ -21,7 +21,24 @@
 
 > 只记**已确认、未修复**的项。修掉即从本文件删除，并在 CHANGELOG 里留痕。
 > 不许写「待优化」这类没有判据的空条目：每条都要能回答「怎么知道它还没修」。
-> 最近更新：v3.264.0
+> 最近更新：v3.266.0
+>
+> **【A1 主线续刀 · v3.266.0】A1 宿主巨兽第六刀**：四个**内核数据模型类**（`CharacterState` 46 方法 755 行 /
+> `SummarySystem` 34 / 641 / `MemoryGraph` 18 / 348 / `GameClock` 13 / 293）抽为 `memory-core.js`（`extra_js` 第 78 项）；
+> `index.js` **15739 → 13883 行**（净 −1856），成员 530 → 521。**A1 立项目标（< 15000 行）本刀达成**（现余量 1117 行）。
+> 与前五刀最大的不同：这四类是引擎的**数据中枢**，宿主消费点最密（86 / 93 / 79 / 68 处），且被十余个历史套件以
+> 「抠整段进 `new Function`」形态重放 —— 故逐字副本（`normalizeCharName` / `sanitizeJson` / `areLabelsInConflict`
+> + `PLUGIN_NAME` / `RELATION_CONFLICT_GROUPS` / `VERSION` + 四条取库链）必须在位；`bindDeps(deps)` 七键作为活口。
+> **本刀真抓到一处静默降级（留痕，只跑真行为才发现）**：模块侧 `VERSION` 首版照抄宿主写成 `const`，而 `bindDeps` 要给它赋值，
+> 当场 `TypeError: Assignment to constant variable`；宿主 `_bindCoreDeps` 外层的 `try/catch` 把它吞成「注入 0 项」——
+> **整轮依赖注入在 version 这一键上静默中断且不报错**。修法：模块侧改 `let VERSION`（附留痕注释）、生成脚本同步 emit `let`；
+> 判据面两条钉住（A 段判 `let` 形态 / D 段 `let`→`const` 真源码破坏），并在**全新实例**上真跑一次完整注入（`threw===null` 且 `n===7`）作为行为面根因探针。
+> 代价面（本刀最宽）：`scan_v3180_three_faces` / `scan_v3184_final_four` / `scan_world_clock_reader` / `scan_world_ledger_reader`
+> 四处门禁判据面改为「入口 + `memory-core.js`」合看，且**四个负控制夹具同步补搬该模块**（夹具缺文件会让门禁走 fail-closed，
+> 而那个 exit 2 会被负控制读成「结构漂移判据工作正常」——**空对空**）；`scan_fixture_sync` 的 E2 清单与 `v3247` 的 `REGISTRY` 同步登记。
+> 边界：真实宿主实机**仍未验**（本版读数依旧是无头读数）；四类里 `parseStoryDateLoose` / `storyDayDiff` 只在一条注释里出现、无代码引用，
+> 故模块**不搬也不取**（避免长出第二个时间解析真源）；`RelativeTimeHelper` 的 else 分支是「形态在场、永不执行」的遗留，**不造假类去填**。
+> 判据：`tests/v3266_a1_memory_core.test.mjs`（6/6，含十条真源码破坏负控制）；六处审计脚本 + 四套依赖守卫（`v3203`/`v3241`/`v3227`/`v3159`）全绿。
 >
 > **【同轮第四件 · v3.259.0】A1 宿主巨兽第四刀**：七个「书册 / 时间」类（`IncrementBookmark` / `EchoPool` / `SuspenseBook` /
 > `PrequelSystem` / `RelativeTimeHelper` / `PlotTimeline` / `BM25`）抽为 `memory-books.js`（`extra_js` 第 72 项）；

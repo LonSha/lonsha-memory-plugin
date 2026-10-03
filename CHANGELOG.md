@@ -1,3 +1,86 @@
+## v3.266.0
+
+**A1 宿主巨兽第六刀：四个内核数据模型类抽为 `memory-core.js`**（index.js 15739 → 13881 行，-1858）
+
+### 为什么是这四个类（按磁盘真读数，不按旧清单）
+
+| 类 | 方法 | 行 | 宿主字段 | 消费点 |
+| --- | ---: | ---: | --- | ---: |
+| `CharacterState` | 46 | 755 | `this.status` | 86 |
+| `SummarySystem` | 34 | 641 | `this.summary` | 93 |
+| `GameClock` | 13 | 293 | `this.clock` | 68 |
+| `MemoryGraph` | 18 | 347 | `this.graph` | 79 |
+
+四类合计 **2036** 行（物理行，含注释与空行；逐类 `braceMatch` 实测）—— 宿主剩余候选里最大的一块。
+抽走依据与前五刀同一条读数轴：四类互调**近零**（唯一命中的是 `SummarySystem` 里一条注释
+提到 GameClock 一词），对外只被 `MemoryEngine` 在构造期 `new` 一次、之后按方法名驱动。
+五个刀口模块（`memory-ledgers` / `memory-aux` / `narrative-generators` / `memory-books` /
+`memory-organs`）对这四个类**零代码引用**（只有注释提到类名），故不存在跨刀依赖。
+
+### 依赖收口（与第五刀同型，但坐标另有四条必须显式选定）
+
+收口仍是两层：**逐字副本**（`normalizeCharName` / `sanitizeJson` / `areLabelsInConflict`
+三个函数 + `RELATION_CONFLICT_GROUPS` 常量 + 三条取库链 `_moduleLib` / `_memoryBooksLib` /
+`_changeset` / `_newRelativeTimeHelper`）与**活口** `bindDeps(deps)`（七键：errLog /
+sanitizeJson / moduleLib / memoryBooksLib / changesetLib / relativeTimeHelperFactory / version）。
+为什么副本必不可少：历史套件把这些类抠进 `new Function` 单独重放（v315 抽 `MemoryGraph`
+方法、v3166 / v3175 抽 `GameClock` 整段、v382 抽 `CharacterState` 方法、v340 抽
+`SummarySystem` 类）—— 类内若继续引用宿主自由标识符，那些抽取面**全部当场 ReferenceError**。
+
+★ 本刀按磁盘实读显式选定的四条坐标（第四刀踩过的旧坑）：
+1. **同名函数有两份，取真源份（或干脆不取）**：宿主里 `parseStoryDateLoose` 与
+   `storyDayDiff` 各有两份（L1756 / L12626 的顶层族与 L12608 的 `{y,mo,d}` 族）。
+   实测四个类体**只在一条注释里出现这两个名字**（CharacterState 时效过期判断上方那句
+   「复用全局 parseStoryDateLoose + storyDayDiff 式天数差」），**没有代码引用** ——
+   故本模块**不搬也不取**它们，那条注释逐字保留。类内真正走的是 `_newRelativeTimeHelper()`。
+2. **字段名与类名不同名**：`this.status` / `this.summary` / `this.graph` / `this.clock`。
+   判据不能按类名推字段名（本刀套件的 `FIELDS` 表把这件事写成结构）。
+3. **类内已整体去 4 空格缩进**：判据里写死 8 空格的锚点在模块内恒红。
+4. **errLog 在模块里是活口形态**：宿主是函数声明，模块写成 `let errLog = function (`；
+   锚点须认两种形态。
+★ 另有一条形态留痕：`GameClock` / `CharacterState` 里有
+`(typeof _newRelativeTimeHelper === 'function') ? … : new RelativeTimeHelper()` 两分支写法，
+而 **`RelativeTimeHelper` 类本身已在第四刀随 `memory-books.js` 外移**，宿主与模块作用域里
+都没有它 —— 那两处 else 分支是「形态在场、永不执行」的遗留（调用点都在 try 内，抽取面走到
+它时被 catch 兜住，与抽取前的结局逐字相同）。本模块**不造假类来填它**：造了就会长出第二个
+时间解析真源。
+
+### 接线
+
+- 取库口 `_memoryCoreLib()`（惰性、不缓存，`_moduleLib(() => window.LonShaMemoryCore, 'memory-core.js')`）；
+- 同形退路 `CoreFallback`（常量空实现，不吃构造参数，与真实现**按方法名对账**）；
+- 统一构造点 `_newCore(name, ...args)`；
+- 依赖注入口 `_bindCoreDeps()`，调用点紧邻第五刀的 `_bindOrganDeps()`；
+- 四处构造点改走统一构造点（`this.graph` / `this.summary` / `this.clock` / `this.status`）；
+- `manifest.extra_js` 末项新增 `memory-core.js`（77 → 78 项）。
+
+### 实装过程中修掉的一处静默降级（本刀最贵的一条，留痕）
+
+模块侧 `VERSION` 首版**照抄宿主**写成 `const VERSION = '3.266.0';`，而 `bindDeps(deps)` 内那行是
+`if (typeof d.version === 'string' && d.version) { VERSION = d.version; n++; }` —— 给 const 赋值当场
+`TypeError: Assignment to constant variable`（`memory-core.js:2319`）。
+宿主 `_bindCoreDeps()` 外层有 `try { return MC.bindDeps({...}) } catch (e) { errLog(e, 'A1 第六刀.bindDeps'); return 0; }`，
+于是这个 TypeError 被**静默吞掉**：注入报「0 项」、`version` 永远是模块副本值 ——
+正是本仓治理多轮的「静默降级」形态（**不报错、不退化到明显坏掉，只是默默地不生效**）。
+它是行为探针抓到的，文本判据一条都看不出来（源码里 `const VERSION` 与 `VERSION = d.version` 都在场）。
+
+修法两步：
+1. 模块侧改 `let VERSION = '3.266.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）`；
+2. 生成脚本 `tools/v3266_build_core.py` 同步改 emit `let`（附同样的两行留痕注释，防后人「统一风格」改回去）。
+
+判据面两条钉住（**形态判据 + 行为判据各一，缺一不可**）：
+- 形态：A 段以 `/^\s*let VERSION\s*=\s*/m` 判模块侧声明形态；D 段把 `let VERSION = ` 换成 `const VERSION = `
+  做真源码破坏，同一条判据必须翻红；
+- 行为：B 段在一个**全新实例**上真跑一次完整 `bindDeps`（`threw === null` 且 `n === 7`）——
+  「只数字段写没写 let」不够，要真跑出「七键逐个确实被换」才排除「内部断在某个 key 上」。
+
+### 两条被否决的口径（留痕）
+
+- **不把四类拆成四个模块**：四类共享同一批收口符号与同一批构造点，拆开要付出四份前言/边界段 +
+  四条 manifest 登记 + 四个退路类。
+- **不新增第二实现**：四类类体逐字搬（构建脚本对每个类做 `verbatim-in-module` 回校），
+  退路只是常量空实现。
+
 ## v3.264.0
 
 **A1 宿主巨兽第五刀：六个器官类抽为 `memory-organs.js`**（index.js 17091 → 15739 行，-1352）

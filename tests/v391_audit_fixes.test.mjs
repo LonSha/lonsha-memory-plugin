@@ -4,7 +4,12 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'fs';
 
-const src = fs.readFileSync('index.js', 'utf8');
+const srcRaw = fs.readFileSync('index.js', 'utf8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const coreSrc = fs.readFileSync('memory-core.js', 'utf8');
+const src = srcRaw + String.fromCharCode(10) + coreSrc;
 /* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：类内调用点/方法体的抽取面改读该模块。 */
 const orgSrc = fs.readFileSync('memory-organs.js', 'utf8');
 const ga = fs.readFileSync('graph_algorithms.js', 'utf8');
@@ -158,7 +163,9 @@ test('【6】getGeoPrompt 接入 buildInjection 动态区', () => {
     assert.ok(geoAt > dynAt, 'geo 注入在动态区内（位置会变，不进静态锚定破坏 prompt cache）');
     assert.ok(dynAt > staticAt, '区段顺序正常');
     // 行为：空 geo 不产出噪声
-    const m = extractNamed(src, 'getGeoPrompt() {');
+    /* [v3.266.0 A1 第六刀] 「取真源份」：退路类 CoreFallback 也有同名 getGeoPrompt()（退路须与真实现同形），
+     *   合看面上第一个命中会落在退路上（空实现）—— 本条改指 memory-core.js 真源。 */
+    const m = extractNamed(coreSrc, 'getGeoPrompt() {');
     const obj = objOf(m, {});
     assert.strictEqual(obj.getGeoPrompt.call({ geoContext: { majorArea: '', minorArea: '', detailLocation: '' } }), '', '空位置不注入');
     assert.strictEqual(obj.getGeoPrompt.call({ geoContext: null }), '', 'null 容灾');

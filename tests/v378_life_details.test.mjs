@@ -7,7 +7,11 @@ import { fileURLToPath } from 'node:url';
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
-const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 
 test('=== 1. A: 提取 prompt 水源补全（9f/9g 规则） ===', () => {
     // 提取 prompt 要求 protagonist/life_details
@@ -119,7 +123,9 @@ test('=== 5. C: anchors/until 字段支持 ===', () => {
     assert.ok(src.includes('...(existing.anchors || []), ...anchors'), 'anchors 合并去重');
     assert.ok(src.includes('if (until) existing.until = until;'), 'until 更新');
     // 新条目含字段
-    assert.ok(src.includes('                anchors,\n                until,'), '新条目字段');
+    /* [v3.266.0 A1 第六刀] addLifeDetail 已随 CharacterState 外移 memory-core.js，
+     *   条目字面量在模块内整体去 4 空格（12 空格缩进）。 */
+    assert.ok(src.includes('            anchors,\n            until,'), '新条目字段');
     // anchors 上限 8
     assert.ok(src.includes('.filter(Boolean).slice(0, 8)'), 'anchors 上限 8');
 });

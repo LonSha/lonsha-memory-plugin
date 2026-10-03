@@ -7,7 +7,11 @@ import { fileURLToPath } from 'node:url';
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
-const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 const su = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf-8');
 /* [A1] DeltaBook.confirm 已抽为 memory-ledgers.js；空串兜底回归判据改指模块真源。 */
 const mlSrc = readFileSync(`${REPO_ROOT}/memory-ledgers.js`, 'utf-8');

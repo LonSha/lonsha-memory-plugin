@@ -3,7 +3,11 @@
 // 双模式：行为实测（解析/过滤/别名补入/新节点）+ 静态断言（入口/按钮/配置）
 import { readFileSync } from 'fs';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 // [v3.184] 提取提示词填充改走 fuzzy-patch（占位符宽容匹配）。本测试用 new Function 抽方法体
 //   执行，方法体现在引用 _moduleLib 取库 —— 故必须把取库口一起注入，否则抽取体里 _moduleLib 未定义。
 import { createRequire } from 'module';

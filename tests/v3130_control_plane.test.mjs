@@ -6,7 +6,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 /* [v3.259.0 A1 第四刀] RelativeTimeHelper 已外迁 memory-books.js：本档③（extractDualTimeTags 解析诊断）
  *   的真源随之搬走。口径同仓内既有范式：语义一字不改，只换被读的文件。 */
@@ -92,7 +96,10 @@ test('v3.130 时间标签→时钟校准接线与协议健康统计', () => {
     // GameClock 构造器/getSnapshot/import 三处都有 timeTagStats
     const ctor = src.slice(src.indexOf('class GameClock'), src.indexOf('setTime(opts'));
     assert.match(ctor, /timeTagStats = \{ total: 0, paired: 0, unparseable: 0, calibrated: 0 \}/);
-    const snap = extractBraced('getSnapshot() {');
+    /* [v3.266.0 A1 第六刀] 「取真源份」：退路类 CoreFallback 也有同名 getSnapshot()（退路必须与真实现同形），
+     *   故合看面上第一个命中会落在退路上—— 本条改指 memory-core.js 真源。 */
+    const CORE_REL = readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+    const snap = extractBraced('getSnapshot() {', CORE_REL);
     assert.match(snap, /timeTagStats/);
     // [v3.259.0 A1 第四刀] PlotTimeline 已外迁，不能再当 GameClock 的切片边界；
     //   改用花括号配平（边界由代码结构决定，不由「下一个类的名字」决定）。

@@ -227,6 +227,8 @@ const nodesOf = (arr) => new Map(arr.map((n) => [String(n.id), n]));
 
 // ========== 6/7/8. MemoryGraph 接线 ==========
 const isrc0 = read('index.js');
+/* [v3.266.0 A1 第六刀] MemoryGraph 真源已外移 memory-core.js：该面在本档被两处消费（类抽取 + 锚点唯一性），故在顶层定义一次。 */
+const core0 = read('memory-core.js');
 function braceEnd(s, open) {
   let depth = 0;
   for (let i = open; i < s.length; i++) {
@@ -241,9 +243,9 @@ function braceEnd(s, open) {
   return -1;
 }
 const gSrc = (() => {
-  const at = isrc0.indexOf('    class MemoryGraph {');
+  const at = core0.indexOf('class MemoryGraph {');
   assert.ok(at > 0, '未找到 MemoryGraph 类');
-  return isrc0.slice(at, braceEnd(isrc0, isrc0.indexOf('{', at)) + 1);
+  return core0.slice(at, braceEnd(core0, core0.indexOf('{', at)) + 1);
 })();
 const normCharName = (n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
 /** 取库桩：可切换成「模块在」与「模块缺席」两态（缺席路径也必须可测）。 */
@@ -433,7 +435,7 @@ const src = read('node-rollup.js');
     ['负控0d 认领检查锚点唯一', A_CLAIM, src],
     ['负控0e 重复 id 检查锚点唯一', A_DUP, src],
     ['负控0f 子节点数下限锚点唯一', A_TOFEW, src],
-    ['负控0g 时间戳逃逸锚点唯一（在 index.js 内）', A_TSESCAPE, isrc0],
+    ['负控0g 时间戳逃逸锚点唯一（[v3.266.0] 在 memory-core.js 内）', A_TSESCAPE, core0],
   ]) eq(label, file.split(anchor).length, 2);
 
   // 负控制 1：破坏严格数值守卫 → 字符串 '3' 会被当成边界（正是要防的假覆盖）
@@ -521,10 +523,13 @@ const src = read('node-rollup.js');
   const mf = JSON.parse(read('manifest.json'));
   ok('10c manifest 登记 node-rollup.js', mf.extra_js.includes('node-rollup.js'));
   ok('10d 有诊断读数入口', /_graphRollupLine/.test(isrc));
-  ok('10e rollupGroup 写了认领标记', isrc.includes('child.data.rollupParent = String(parentId);'));
-  ok('10f 写入走 addEdge 原路径（semantic_contains 边）', isrc.includes("type: 'semantic_contains'"));
-  ok('10g 父节点走 addNode 并重建索引', isrc.includes('const parentId = this.addNode(plan.parent);') && isrc.includes('this.rebuildNameIndex();'));
-  ok('10h maintainGraph 固定 rollup→vacuum 顺序', /out\.rollup = this\.autoRollup\(options\)[\s\S]{0,400}this\.vacuum\(/.test(isrc));
+  /* [v3.266.0 A1 第六刀] rollupGroup / addEdge / addNode 均随 MemoryGraph 外移 memory-core.js：
+   *   “写入面”判据合看两面（不放宽，每条仍须在场）。 */
+  const isrcCore = isrc + core0;
+  ok('10e rollupGroup 写了认领标记', isrcCore.includes('child.data.rollupParent = String(parentId);'));
+  ok('10f 写入走 addEdge 原路径（semantic_contains 边）', isrcCore.includes("type: 'semantic_contains'"));
+  ok('10g 父节点走 addNode 并重建索引', isrcCore.includes('const parentId = this.addNode(plan.parent);') && isrcCore.includes('this.rebuildNameIndex();'));
+  ok('10h maintainGraph 固定 rollup→vacuum 顺序', /out\.rollup = this\.autoRollup\(options\)[\s\S]{0,400}this\.vacuum\(/.test(isrcCore));
 }
 // 维护管线接线：步骤存在、在 optimize 之后、在 cadence-triage 之前、标记 ignoreFailure
 {

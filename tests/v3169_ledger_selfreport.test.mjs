@@ -12,7 +12,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 import { codeLines } from './_audit_lib.mjs';
 
-const idx = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const idxRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const idx = idxRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 const sui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8');
 /* [v3.258.0 A1 第二刀] OpLog 已抽为 memory-aux.js：真执行面与源码面均改读模块文件。
  *   本档的语义（环形 500 / 自述面 / 字段上限同源）一字不改 —— 只换被读的文件。 */

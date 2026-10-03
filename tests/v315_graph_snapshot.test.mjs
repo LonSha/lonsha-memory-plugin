@@ -3,19 +3,24 @@
 // 双模式：行为实测（snapshotGraph/truncateGraphFrom/export-import）+ 静态断言（联动/持久化/版本）
 import { readFileSync } from 'fs';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 const PLUGIN_NAME = 'LonSha记忆引擎';   // 匹配 index.js 顶部常量
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
 
 // ─── 从源码抽 MemoryGraph 类（最小化重建，保留快照方法）───
-const gMatch = src.match(/    class MemoryGraph \{[\s\S]*?\n    \}/);
+/* [v3.266.0 A1 第六刀] MemoryGraph 已外移 memory-core.js（类体整体去 4 空格）：抽取面改按模块缩进取。 */
+const gMatch = src.match(/class MemoryGraph \{[\s\S]*?\n\}/);
 if (!gMatch) fail('未找到 MemoryGraph 类');
 const gCode = gMatch[0];
 // 抽取快照方法单独验证（依赖 rebuildNameIndex/addNode 用注入）
-const snapM = src.match(/        snapshotGraph\(floor\) \{[\s\S]*?\n        \}\n/);
-const truncM = src.match(/        truncateGraphFrom\(floor\) \{[\s\S]*?\n        \}\n/);
+const snapM = src.match(/    snapshotGraph\(floor\) \{[\s\S]*?\n    \}\n/);
+const truncM = src.match(/    truncateGraphFrom\(floor\) \{[\s\S]*?\n    \}\n/);
 if (!snapM || !truncM) fail('快照方法未找到');
 
 // 抽取方法体（去掉签名行 + 尾部闭合 }），构造可执行函数

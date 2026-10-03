@@ -4,7 +4,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const coreSrc = readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const src = srcRaw + String.fromCharCode(10) + coreSrc;
 /* [v3.264.0 A1 第五刀] 六个器官类已外移 memory-organs.js：errLog 的**诊断面**判据须合看两面
  *   （模块内是带与宿主同等纪律的最小实现，宿主仍持含 _ERROR_HINTS 的真源）。 */
 const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf8');
@@ -19,7 +24,10 @@ function vnum(s) {
 
 function extractMethod(name) {
     const marker = `${name}(`;
-    const start = src.indexOf(marker);
+    /* [v3.266.0 A1 第六刀] 退路类里有同名前缀方法 `_reportError()`，
+     *   它含 `reportError(` 子串会被 indexOf 先命中（抽出的是空退路）。故跳过前导下划线的同名命中。 */
+    let start = src.indexOf(marker);
+    while (start > 0 && src[start - 1] === '_') start = src.indexOf(marker, start + 1);
     assert.ok(start >= 0, `找到 ${name}`);
     const bodyStart = src.indexOf('{', start);
     let depth = 0;
@@ -47,11 +55,13 @@ test('错误记录器不会递归调用自身', () => {
     /* 切片器必须绑在**被切的那一面**上：把 orgSrc 的下标喂给 face 会切出错位的垃圾
      *   （首版就是如此，模块面假报「无告警出口」）。 */
     function braced(hay, at) { let d = 0; for (let i = at; i < hay.length; i++) { if (hay[i] === '{') d++; else if (hay[i] === '}' && --d === 0) return hay.slice(at, i + 1); } return ''; }
-    for (const hay of [src, orgSrc]) {
+    /* [v3.266.0 A1 第六刀] 扫描面扩为三面：入口 / memory-core.js / memory-organs.js
+     *   （合看面 src 不能代替模块面：indexOf 只会取到第一个定义）。 */
+    for (const hay of [srcRaw, coreSrc, orgSrc]) {
         /* [v3.264.0] 模块内的 errLog 是活口形态 `let errLog = function (`（bindDeps 可换真源），
          *   不是函数声明，故两种形态都要认。 */
         const at = Math.max(hay.indexOf('function errLog('), hay.indexOf('errLog = function ('));
-        assert.ok(at >= 0, 'errLog 必须存在于 ' + (hay === src ? '宿主' : '模块'));
+        assert.ok(at >= 0, 'errLog 必须存在于 ' + (hay === srcRaw ? '宿主' : (hay === coreSrc ? '内核模块' : '器官模块')));
         const body = braced(hay, hay.indexOf('{', at));
         assert.ok(body.includes('console.warn'), 'errLog 必须有告警出口');
         assert.ok(!/catch\s*\([^)]*\)\s*\{\s*errLog\(/.test(body), 'errLog 不得在自身 catch 里再调 errLog（递归）');

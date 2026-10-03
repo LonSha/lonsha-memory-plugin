@@ -42,7 +42,11 @@ for (const [p, what] of [[FLOOR, 'floor-ledger.js'], [AGE, 'age-anchor.js'], [PU
 const floor = fs.readFileSync(FLOOR, 'utf8');
 const age = fs.readFileSync(AGE, 'utf8');
 const pub = fs.readFileSync(PUB, 'utf8');
-const idx = fs.readFileSync(IDX, 'utf8');
+const idxRaw = fs.readFileSync(IDX, 'utf8');
+/* [v3.266.0 A1 第六刀] GameClock / CharacterState 已外移 memory-core.js：
+ *   时钟委托与状态层助手这两面的真源随类搬走，判据面改为「入口 + 该模块」合看
+ *   （语义一字不改；不放宽：每一条仍须在场）。 */
+const idx = idxRaw + String.fromCharCode(10) + fs.readFileSync(path.join(ROOT, 'memory-core.js'), 'utf8');
 
 const problems = [];
 const notes = [];

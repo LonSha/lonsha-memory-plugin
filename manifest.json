@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "LonSha",
-  "version": "3.264.0",
+  "version": "3.266.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -87,7 +87,8 @@
     "pristine-fetch.js",
     "floor-identity.js",
     "archive-audit.js",
-    "memory-organs.js"
+    "memory-organs.js",
+    "memory-core.js"
   ],
   "extra_css": [
     "lonsha-design.css",

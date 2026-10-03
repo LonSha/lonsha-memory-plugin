@@ -34,7 +34,11 @@ const req = createRequire(import.meta.url);
 const MOD_NAME = 'sleep-awaken.js';
 const MOD = path.join(ROOT, MOD_NAME);
 const modSrc = readFileSync(MOD, 'utf8');
-const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+const idxSrcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const idxSrc = idxSrcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 const uiSrc = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const A = req(MOD);

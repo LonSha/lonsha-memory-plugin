@@ -8,7 +8,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
+ *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
+ *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 /* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
  *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
  *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
@@ -45,7 +49,7 @@ test('=== 1. 静态关键锚点与版本检查 ===', () => {
     assert.ok(src.includes('〔全知禁令与私密视界'), '必须支持全知禁令与私密视界提示');
     assert.ok(src.includes("a.name.localeCompare(b.name, 'zh-CN')"), 'NPC羁绊必须按字典序稳定排序');
     assert.ok(src.includes('clock: this.clock?.export?.() || null'), 'collectExport 必须携带 clock');
-    assert.ok(src.includes('this.clock = new GameClock();'), 'MemoryEngine 必须实例化 GameClock');
+    assert.ok(src.includes("this.clock = _newCore('GameClock');"), 'MemoryEngine 必须实例化 GameClock（[v3.266.0] 改走统一构造点）');
     console.log('✓ 静态锚点与接口声明检查全部通过');
 });
 

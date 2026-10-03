@@ -24,7 +24,9 @@ import { execFileSync } from 'child_process';
 
 const SRC = process.cwd();
 const SCAN = path.join(SRC, 'tests/audit/scan_v3184_final_four.mjs');
-const FILES = ['relation-disclosure.js', 'node-rollup.js', 'fuzzy-patch.js', 'changeset.js', 'index.js', 'settings-ui.js', 'manifest.json'];
+/* [v3.266.0 A1 第六刀] GameClock / CharacterState 外移 memory-core.js ⇒
+ *   夹具必须同步搬该模块，否则被破坏的真源根本不在 mirror 里。 */
+const FILES = ['relation-disclosure.js', 'node-rollup.js', 'fuzzy-patch.js', 'changeset.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-core.js'];
 
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
@@ -122,23 +124,25 @@ group('R2-取库口被换名',
 
 // ── R2 宿主关键调用点被摘 ──
 group('R2-变更集记录点被摘',
-    'index.js',
+    'memory-core.js',
     'try { _changeset()?.record({ table: \'status\', pk: [name, field]',
     'try { null?.record({ table: \'status\', pk: [name, field]',
     'R2 宿主未调用：变更集记录');
 
 // ── R3 位置纪律：前值取在写入之后 ──
 group('R3-前值取值点被抹掉（改名绕开探测）',
-    'index.js',
-    "                const _csPrev = (rec.fields && Object.prototype.hasOwnProperty.call(rec.fields, field)) ? rec.fields[field] : null;",
-    "                const _csPrevPrev = (rec.fields && Object.prototype.hasOwnProperty.call(rec.fields, field)) ? rec.fields[field] : null;",
+    'memory-core.js',
+    "            const _csPrev = (rec.fields && Object.prototype.hasOwnProperty.call(rec.fields, field)) ? rec.fields[field] : null;",
+    "            const _csPrevPrev = (rec.fields && Object.prototype.hasOwnProperty.call(rec.fields, field)) ? rec.fields[field] : null;",
     'R3 找不到改前取值点');
 
 // ── R3 维护顺序被倒置（改行为不改注释：注释不参与判据，破坏必须落在可观测处） ──
+/* [v3.266.0 A1 第六刀] maintainGraph 随 MemoryGraph 搬进 memory-core.js（类体一层缩进 8 空格）。
+ *   破坏保持语法合法：在 const out 之后先调 vacuum、再调 autoRollup（而判据要求 rollup 在前）。 */
 group('R3-维护顺序倒置',
-    'index.js',
-    "            const out = { rollup: null, vacuum: null };",
-    "            const out = { vacuum: null, rollup: null }; await this.vacuum({});",
+    'memory-core.js',
+    "        const out = { rollup: null, vacuum: null };",
+    "        const out = { vacuum: null, rollup: null }; this.vacuum({}); this.autoRollup({});",
     'R3 ');
 
 // ── R4a 病句放行被拆 ──

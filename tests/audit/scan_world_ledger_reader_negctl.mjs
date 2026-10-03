@@ -29,7 +29,10 @@ const SCAN = path.join(HERE, 'scan_world_ledger_reader.mjs');
 const MOD = 'world-ledger-reader.js';
 const CLK = 'world-clock-reader.js';
 const IDX = 'index.js';
-const GAUGED = [MOD, CLK, IDX];
+/* [v3.266.0 A1 第六刀] GameClock 外移 memory-core.js：V6 破坏的真源（类声明）随类搬走，
+ *   夹具必须同步搬运，否则锚点在 index.js 里命中 0 次 ⇒ 本组作废。 */
+const MEMCORE = 'memory-core.js';
+const GAUGED = [MOD, CLK, IDX, MEMCORE];
 
 // (名字, 目标文件 | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 说明)
 const CASES = [
@@ -49,7 +52,7 @@ const CASES = [
         '两处各写一份桥访问会口径漂移，M5 必须翻红'],
     ['V5-模块消失', 'DELETE', MOD, null, null, 2,
         '读者模块被删/改名 ⇒ M0 结构漂移（探测对象不在，不得当「没问题」）'],
-    ['V6-本地投影误挂时钟', IDX,
+    ['V6-本地投影误挂时钟', MEMCORE,
         'class GameClock {',
         'class GameClock {\n    _localPeopleLocations() {\n        const out = {};\n        return out;\n    } /* M1-PROBE */', 1, 1,
         '投影挂到只有 date/label/turn 的时钟上 ⇒ 对读恒空且不报错，M1 必须翻红']

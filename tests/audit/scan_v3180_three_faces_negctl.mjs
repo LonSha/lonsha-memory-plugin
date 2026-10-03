@@ -8,7 +8,7 @@
 //   本档统一用「真源码破坏 → 破坏副本 → 在副本上重跑同一套真判据」来排除这三种。
 //
 // 纪律（三条都是被踩过才写的）：
-//   · 每次破坏发生在**独立 fixture 目录**里，只搬判据真正读的 4 个文件；
+//   · 每次破坏发生在**独立 fixture 目录**里，只搬判据真正读的 5 个文件（含 memory-core.js）；
 //     LONSHA_AUDIT_ROOT 指过去 ⇒ 源仓库零污染，且判据读的确实是「被破坏的那份真源码」。
 //   · 锚点必须**恰中期望次数**：命中数不符 ⇒ 该组作废并报错（防锚点漂移后静默跳过、
 //     把「没破坏成功」误读成「判据对破坏无反应」）。
@@ -28,7 +28,12 @@ const FLOOR = 'floor-ledger.js';
 const AGE = 'age-anchor.js';
 const PUB = 'public-interface.js';
 const IDX = 'index.js';
-const GAUGED = [FLOOR, AGE, PUB, IDX];
+/* [v3.266.0 A1 第六刀] 门禁把 idx 判据面改为「入口 + memory-core.js」合看：
+ *   GameClock / CharacterState 的真源随类外移，门禁必须读到该模块才能判（缺文件会走 fail-closed）。
+ *   故负控制夹具的搬运清单必须同步补上 —— 否则 V0 原版对照在 fixture 里就 exit 2，
+ *   而那个 exit 2 会被本档读成「破坏后翻红」（空对空、归因不成立）。 */
+const MEMCORE = 'memory-core.js';
+const GAUGED = [FLOOR, AGE, PUB, IDX, MEMCORE];
 // (名字, 目标文件 | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 说明)
 const CASES = [
     ['V0-原版对照', null, null, null, null, 0,
@@ -58,11 +63,16 @@ const CASES = [
         '/* 破坏：不再落笔 */',
         1, 1,
         '声明了却零消费（死声明），M1 必须翻红'],
-    ['V6-时钟委托被拆', IDX,
+    /* [v3.266.0 A1 第六刀] GameClock 随类外移到 memory-core.js：锚点真源也搬了。
+     *   破坏目标必须跟着改成 MEMCORE —— 否则锚点在 index.js 里命中 0 次，
+     *   该组当场作废（锚点漂移），整个负控制判红。 */
+    ['V6-时钟委托被拆', MEMCORE,
         /* [v3.259.0 A1 第四刀] RelativeTimeHelper 外迁后宿主改写为「统一取用口优先、裸 new 兜底」三元式；
          *   锚点必须与真实现逐字一致（否则破坏命中 0 次 ⇒ 该组作废、负控制静默失效）。 */
-        "            try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
-        '            return null;',
+        /* [v3.266.0 A1 第六刀] 锚点随类外移到 memory-core.js 后，缩进是**类体一层**
+         *   （8 空格），不再是在宿主 IIFE 深处的 12 空格 —— 逐字照抄旧缩进会命中 0 次。 */
+        "        try { return ((typeof _newRelativeTimeHelper === 'function') ? _newRelativeTimeHelper() : new RelativeTimeHelper()).parseStoryDate(dateStr); } catch (e) { errLog(e, 'GameClock.parseStoryDate'); return null; }",
+        '        return null;',
         1, 1,
         '时钟不再解析日期 ⇒ 年龄 estimated 永不达成，M5 必须翻红'],
     ['V7-时钟未交给状态层', IDX,

@@ -35,7 +35,10 @@ const REPO = path.resolve(HERE, '..', '..');
 const SCAN = path.join(HERE, 'scan_world_clock_reader.mjs');
 const MOD = 'world-clock-reader.js';
 const IDX = 'index.js';
-const GAUGED = [MOD, IDX];
+/* [v3.266.0 A1 第六刀] GameClock 外移 memory-core.js：L2 破坏的真源也搬了，
+ *   夹具必须同步搬运，否则锚点在 index.js 里命中 0 次 ⇒ 本组作废。 */
+const MEMCORE = 'memory-core.js';
+const GAUGED = [MOD, IDX, MEMCORE];
 
 // (名字, 编辑序列 | 'DELETE', 期望退出码, 期望归因串 | null, 说明)
 //   编辑 = [目标文件, 锚点, 替换为, 期望命中数]
@@ -48,7 +51,7 @@ const CASES = [
         [MOD, "reason: 'disabled', source: src, snapshot: null };", "reason: 'not-mounted', source: src, snapshot: null };", 1],
     ], 1, '来源态 "disabled" 不可达', '把「未启用」压成「未装」⇒ W2 必须翻红（用户无从知道该去开哪个开关）'],
     ['L2-快照不携带读数', [
-        [IDX, 'worldClockRead: this._worldClockRead', 'worldClockRead: undefined', 1],
+        [MEMCORE, 'worldClockRead: this._worldClockRead', 'worldClockRead: undefined', 1],
     ], 1, '快照携带 worldClockRead', '快照不再携带对读结果 ⇒ W1「快照携带」消费点脱钩'],
     ['L3-读者面带写路径', [
         [MOD, 'const b = getBridge(WORLDAXIS_BRIDGE_ID, win);',

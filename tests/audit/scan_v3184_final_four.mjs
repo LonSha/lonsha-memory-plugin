@@ -39,8 +39,12 @@ const FILES = {
     idx: 'index.js',
     sui: 'settings-ui.js',
     mf: 'manifest.json',
+    /* [v3.266.0 A1 第六刀] GameClock / CharacterState 外移 memory-core.js：
+     *   R2 变更集调用点、R3 变更集前值位置、R3 maintainGraph 顺序这三面的真源随类搬走。
+     *   判据面改为「入口 + 该模块」合看（语义一字不改；每条仍须在场，不放宽）。 */
+    mem: 'memory-core.js',
 };
-for (const k of ['rd', 'nr', 'fp', 'cs', 'idx', 'sui', 'mf']) {
+for (const k of ['rd', 'nr', 'fp', 'cs', 'idx', 'sui', 'mf', 'mem']) {
     if (!fs.existsSync(path.join(ROOT, FILES[k]))) {
         console.error('[final-four] 缺少 ' + FILES[k] + '（' + ROOT + '）');
         process.exit(2);
@@ -49,7 +53,9 @@ for (const k of ['rd', 'nr', 'fp', 'cs', 'idx', 'sui', 'mf']) {
 const idxRaw = fs.readFileSync(path.join(ROOT, FILES.idx), 'utf8');
 const sui = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已收口」不算收口）。
-const idx = stripComments(idxRaw);
+const idxHost = stripComments(idxRaw);
+const idx = stripComments(idxRaw) + String.fromCharCode(10)
+    + stripComments(fs.readFileSync(path.join(ROOT, FILES.mem), 'utf8'));
 if (idxRaw.length < 500000) {
     console.error('[final-four] index.js 退化（' + idxRaw.length + ' 字节），审计需同步结构变化');
     process.exit(2);
@@ -96,7 +102,11 @@ const libs = [
     ['fuzzy-patch', /_moduleLib\(\(\) => window\.LonShaFuzzyPatch,\s*'fuzzy-patch\.js'\)/],
     ['changeset', /_moduleLib\(\(\) => window\.LonShaChangeset,\s*'changeset\.js'\)/],
 ];
-for (const [name, re] of libs) if (!re.test(idx)) defects.push('R2 宿主未按契约取库：' + name);
+/* [v3.266.0 A1 第六刀] 取库口是**宿主侧契约**：只读宿主自身的源码（idxHost）。
+ *   判据面合看变宽后，模块里的**逐字副本**（_changeset / _moduleLib 链）会把同串带进合看文本，
+ *   使「宿主取库口被换名」这类破坏不再可观测（负控制当场假绿）。
+ *   模块侧副本另有专门判据（第六刀套件 A 段「取库链副本」），此处不得放宽。 */
+for (const [name, re] of libs) if (!re.test(idxHost)) defects.push('R2 宿主未按契约取库：' + name);
 const calls = [
     ['关系披露 partition', /_RD\.partition\(/],
     ['关系过滤后循环', /_relKept\.forEach\(/],
@@ -122,7 +132,9 @@ for (const [name, re] of calls) if (!re.test(idx)) defects.push('R2 宿主未调
     const i = idx.indexOf('const _csPrev =');
     if (i < 0) defects.push('R3 找不到改前取值点');
     else {
-        const seg = idx.slice(i, i + 1600);
+        /* [v3.266.0 A1 第六刀] 窗口 1600 → 3200：前值取值点与写入点随 CharacterState 搬进
+         *   memory-core.js 的类体深处（一层 indent 变两层），原窗口量不到写入点 ⇒ 假红。 */
+        const seg = idx.slice(i, i + 3200);
         const w = seg.indexOf('rec.fields[field] =');
         if (w < 0 || w < seg.indexOf('const _csPrev')) defects.push('R3 前值取在写入之后（前后值退化）');
     }

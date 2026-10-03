@@ -403,7 +403,7 @@ test('v3209 11. manifest 登记 + 判据面自防护', () => {
        → 72（A1 第四刀 memory-books.js）→ 74（v3.260.0 缝合 shujuku：native-tools.js + pristine-fetch.js）
        → 76（v3.261.0 缝合 MyriadKnots：floor-identity.js + archive-audit.js）。
        数量锁语义不变：新增模块必须显式改这里（人读面：tests/audit/catalog_reference_consumers.tsv 与 PLAN/CHANGELOG）。 */
-    A(mf.extra_js.length === 77, 'extra_js 须 77 项（v3.219.0 新增 relation-mutual.js / knowledge-network.js；v3.234.0 新增 sleep-awaken.js；v3.237.0 新增 snapshot-checkpoint.js；v3.254.0 新增 cache-identity.js / cache-workload.js；A1 首刀新增 memory-ledgers.js；A1 第二刀新增 memory-aux.js；v3.260.0 新增 native-tools.js / pristine-fetch.js；v3.261.0 缝合 MyriadKnots 新增 floor-identity.js / archive-audit.js；v3.264.0 A1 第五刀新增 memory-organs.js）—— 数量锁：新增模块必须显式改这里（连同 README 人读面），否则「模块加了但没进 extra_js」会被静默放行，实为 ' + mf.extra_js.length);
+    A(mf.extra_js.length === 78, 'extra_js 须 77 项（v3.219.0 新增 relation-mutual.js / knowledge-network.js；v3.234.0 新增 sleep-awaken.js；v3.237.0 新增 snapshot-checkpoint.js；v3.254.0 新增 cache-identity.js / cache-workload.js；A1 首刀新增 memory-ledgers.js；A1 第二刀新增 memory-aux.js；v3.260.0 新增 native-tools.js / pristine-fetch.js；v3.261.0 缝合 MyriadKnots 新增 floor-identity.js / archive-audit.js；v3.264.0 A1 第五刀新增 memory-organs.js；v3.266.0 A1 第六刀新增 memory-core.js）—— 数量锁：新增模块必须显式改这里（连同 README 人读面），否则「模块加了但没进 extra_js」会被静默放行，实为 ' + mf.extra_js.length);
     A(mf.extra_js.includes('schema-migration.js') && mf.extra_js.includes('module-registry.js'), '两新模块须登记');
     // 判据面自防护：断言密度 + 关键指纹（防套件被悄悄掏空）
     A(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
@@ -421,7 +421,7 @@ test('v3209 12. 真 extra_js 顺序 parity：7 条真依赖必须全部正序；
        → 74（v3.260.0 缝合 shujuku：native-tools.js + pristine-fetch.js）
        → 76（v3.261.0 缝合 MyriadKnots：floor-identity.js + archive-audit.js）。
        本条是**抽取器退化守卫**（计数本身就是判据，抽取退化会静默放行），故随真 manifest 同步。 */
-    A(files.length === 77, 'extra_js 抽取器应得 77 项（v3.219.0 起累积；A1 四刀 memory-ledgers.js / memory-aux.js / narrative-generators.js / memory-books.js；v3.260.0 缝合 shujuku 新增 native-tools.js / pristine-fetch.js；v3.261.0 缝合 MyriadKnots 新增 floor-identity.js / archive-audit.js；v3.264.0 A1 第五刀新增 memory-organs.js；抽取退化会静默放行，故先钉住）');
+    A(files.length === 78, 'extra_js 抽取器应得 77 项（v3.219.0 起累积；A1 四刀 memory-ledgers.js / memory-aux.js / narrative-generators.js / memory-books.js；v3.260.0 缝合 shujuku 新增 native-tools.js / pristine-fetch.js；v3.261.0 缝合 MyriadKnots 新增 floor-identity.js / archive-audit.js；v3.264.0 A1 第五刀新增 memory-organs.js；v3.266.0 A1 第六刀新增 memory-core.js；抽取退化会静默放行，故先钉住）');
     // 真源码切段：谁真的引用了 ledger-entity 的全局符号
     const users = [];
     for (const f of files) {
