@@ -8,9 +8,9 @@
 
 | 量 | 读数 | 出处 |
 |---|---|---|
-| 版本 | v3.261.0（四源同源） | `scan_version_guard.mjs` |
-| 门禁 | **241 测试文件 / 2446 断言 0 失败** + **56** 个 audit 脚本 | `npm test` |
-| 体量 | `index.js` **17091 行**（A1 四刀后 16798，v3.260.0 缝合 +180、v3.261.0 缝合 +293）+ extra_js **76** 项，**77** 个根模块 | `wc -l` / `manifest.json` |
+| 版本 | v3.264.0（四源同源） | `scan_version_guard.mjs` |
+| 门禁 | **245 测试文件 / 2469 断言 0 失败** + **53** 个 audit 脚本（`--audit` 53/53） | `npm test` / `npm test -- --audit` |
+| 体量 | `index.js` **15739 行**（物理行；探针读数 15761 / 530 成员 —— A1 五刀后，第五刀 -1352）+ extra_js **77** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
 | 跨仓外供 | 正向 **5 面**（`open_face_registry.tsv`）+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |
 
 ---
@@ -18,15 +18,26 @@
 ## 一、优化提升
 
 ### A1 · 宿主巨兽 `index.js` 继续瘦身【最大杠杆】
-- **现状（已推进四刀）**：**16798 行**（18401 → 18124 → 17776 → 17444 → 16798）。P-2 已分诊并按读数**否掉「按域拆」**，
-  只留「成员级预算 + 文件规模上界」这条轴；实测 TOP5 集中度 **23.7%** / TOP40 **53.3%** / 前缀规则覆盖 **25.4%**（TO5/TO40 按**成员**计，不是按域）。
-- **路径**：不拆域，每版剥 1~2 个聚簇为 extra_js 模块 —— 已落三刀：第一刀 **v3.257.0** 六个叶子账本类（`memory-ledgers.js`）、
-  第二刀 **v3.258.0** 六个工具类（`memory-aux.js`）、同轮第三刀 **v3.258.0** 三个生成侧派生系统（`narrative-generators.js`）。
-  **下一刀候选**（按类级「判据面爆炸半径」＝ 类行数 ÷ 被测试/审计文件引用数排序）：`PrequelSystem`（爆炸半径最小，但依赖 `BM25`，须与它同刀或先提层）、
+- **现状（已推进五刀）**：**15739 行**（18401 → 18124 → 17776 → 17444 → 16798 → 15739）。P-2 已分诊并按读数**否掉「按域拆」**，
+  只留「成员级预算 + 文件规模上界」这条轴；五刀后实测 TOP5 集中度 **26.5%** / TOP40 **59.3%** / 前缀规则覆盖 **30.3%**（TO5/TO40 按**成员**计，不是按域）。
+- **路径**：不拆域，每版剥 1~2 个聚簇为 extra_js 模块 —— 已落五刀：第一刀 **v3.257.0** 六个叶子账本类（`memory-ledgers.js`）、
+  第二刀 **v3.258.0** 六个工具类（`memory-aux.js`）、同轮第三刀 **v3.258.0** 三个生成侧派生系统（`narrative-generators.js`）、
+  第四刀 **v3.259.0** 七个书册/时间类（`memory-books.js`）、第五刀 **v3.264.0** 六个器官类（`memory-organs.js`）。
+  **下一刀候选**（★ 下面这份是**四刀时代的旧清单**，其中多项已在 v3.259.0 第四刀剥进 `memory-books.js`；续刀须按磁盘重算。旧排序口径＝类级「判据面爆炸半径」即 类行数 ÷ 被测引用数）：`PrequelSystem`（爆炸半径最小，但依赖 `BM25`，须与它同刀或先提层）、
   再往后的类级候选 `SuspenseBook` / `CharacterMemoryBank` / `EntityLexicon` / `EchoPool` / `IncrementBookmark` / `RelativeTimeHelper`（零外部依赖）/ `PlotTimeline`；
   成员级候选见 `host_beast_baseline.json` 的 `split_candidates.low_coupling_examples`（`recallMemory` 688 / `exportMemoryReport` 349 等）。
-- **目标**：index.js 降至 15000 行以下。当前 **16798**，仍差 **1798 行**（四刀共剥 1603 行）。
-- **验收**：`tests/audit/host_beast_baseline.json` 的成员基线随每次剥离减项（561 → 553 → 549）、瘦身进度转为可读数；门禁保持 0 失败。
+- **目标**：index.js 降至 15000 行以下。当前 **15739**（探针 15761），仍差 **739 行**（五刀共剥 2951 行）。
+- **已交付 v3.264.0（第五刀 · `memory-organs.js`）**：六个**器官级**类 —— `LLMCaller` 357 / `WorldProgress` 507 / `VectorStore` 220 /
+  `StorageManager` 209 / `CharacterMemoryBank` 102 / `EntityLexicon` 78 行，共 -1352 行；`extra_js` 76 → 77。
+  与前四刀（零依赖叶子类）最大的不同：这六类对**主人模块级符号**有真依赖，故采 **barrel 模式** —— 模块内置逐字副本 + 常量副本，
+  宿主在引擎构造期经 `bindDeps(deps)` 注入真实现（八键）；`errLog` 是唯一非逐字副本。
+  两条被否决的口径写在模块头注里：口径 B（宿主口代理成模块导出）会把宿主函数搬出宿主作用域 ⇒ 与两条读数轴的基线口径冲突（等于偷改尺子）；
+  口径 C（改全部历史套件抽取面）单刀面太大且与主题无关。
+  同时兑现了本条自列的「每刀必做项」：① 退路 `OrganFallback` 按**方法名**与真实现对账（74 项）；
+  ② **扫描面口径跟着代码走** —— `scan_module_wiring` 消费面扩为 `entryCode + A1_CARRIERS` 五个刀口模块、`selfProvided` 认 `defineProperty` 形态，
+  约 30 个历史套件按「换真源、语义一字不改」对齐；③ 数量锁与登记面同步（`extra_js` 计数 + `v3209` + `catalog_reference_consumers.tsv` + `v3247` 的 `REGISTRY`）。
+  证据：`npm test` 245/245 · 2469 断言；`--audit` 245/245 + 53/53；`tests/v3264_a1_memory_organs.test.mjs` 6/6（含七条真源码破坏负控制）。
+- **验收**：`tests/audit/host_beast_baseline.json` 的成员基线随每次剥离减项（561 → 553 → 549 → 536 → **530**）、瘦身进度转为可读数；门禁保持 0 失败。
   **每刀必做项**（三刀各踩一次的教训）：① 退路对账（缺席退路的公开面必须按**方法名**与真实现对账，含 getter）；② **扫描面口径跟着代码走** —— 只读 `index.js` 的审计脚本/内联判据会因消费点外迁而假报死配置；
   ③ 数量锁与登记面同步（`extra_js` 计数、README 人读面、`catalog_reference_consumers.tsv`、`v3247` 的 `REGISTRY`）。
 
@@ -89,7 +100,7 @@
 
 ## 优化提升
 
-- **A1 · index.js 瘦身至 <15000 行【既定主线 · 杠杆最大】**：按磁盘重算剩余候选（**不照上文 PLAN 旧清单** —— `IncrementBookmark` / `EchoPool` / `SuspenseBook` / `RelativeTimeHelper` / `PlotTimeline` / `BM25` / `PrequelSystem` 已在 v3.259 第四刀剥进 `memory-books.js`）。
+- **A1 · index.js 瘦身至 <15000 行【既定主线 · 杠杆最大】——第五刀已交付 v3.264.0（15739 行，差 739）**：按磁盘重算剩余候选（**不照上文 PLAN 旧清单** —— `IncrementBookmark` / `EchoPool` / `SuspenseBook` / `RelativeTimeHelper` / `PlotTimeline` / `BM25` / `PrequelSystem` 已在 v3.259 第四刀剥进 `memory-books.js`）。
   续剥候选 `CharacterMemoryBank` / `EntityLexicon` 等 + 成员级候选（`recallMemory` 688 行 / `exportMemoryReport` 349 行，见 `host_beast_baseline.json` 的 `split_candidates.low_coupling_examples`）。
   每刀三件套（取库口 / 退路对账 / 统一构造点）+ 数量锁同步 + 「同名函数抄哪份」真行为断言。
 - **A2 · 判据面卫生【对标 ruby-phone v3.54.0 的 58 项学费】**：固化三形态假绿自检（对原文件断言 / 破坏写死常量 / 破坏把判据自己删了），统一「真源码破坏 → 加载副本 → 副本上重跑同款真判据」范式；
