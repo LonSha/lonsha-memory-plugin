@@ -8,8 +8,11 @@ let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
 
-const bankM = src.match(/    class CharacterMemoryBank \{[\s\S]*?\n    \}\n/);
-const wpM = src.match(/    class WorldProgress \{[\s\S]*?\n    \}\n/);
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf-8');
+/* [v3.264.0 A1 第五刀] CharacterMemoryBank / WorldProgress 已外移到 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
+const cutClass = (src2, name) => { const at = src2.indexOf('class ' + name + ' {'); if (at < 0) return null; let d = 0; for (let i = at; i < src2.length; i++) { if (src2[i] === '{') d++; else if (src2[i] === '}') { d--; if (d === 0) return src2.slice(at, i + 1); } } return null; }
+const bankM = cutClass(orgSrc, 'CharacterMemoryBank');
+const wpM = cutClass(orgSrc, 'WorldProgress');
 const EXTERNAL_FUNCS = `function decayScore(m, conf) {
         if (!m) return 0;
         const lambda = conf?.lambda || 0.03;
@@ -48,7 +51,7 @@ const evalC = (code) => {
   const fn = new Function('window', 'PLUGIN_NAME', 'errLog', code + '\nreturn { CharacterMemoryBank, WorldProgress };');
   return fn({ LonShaMemory: { engine: { config: { config: { debugMode: false } } } } }, PLUGIN_NAME, errLog);
 };
-const { CharacterMemoryBank, WorldProgress } = evalC(EXTERNAL_FUNCS + bankM[0] + '\n' + wpM[0]);
+const { CharacterMemoryBank, WorldProgress } = evalC(EXTERNAL_FUNCS + bankM + '\n' + wpM);
 
 // ─── ① 确定性 id（baibai）───
 // TC1: 同角色同文本同楼层 → 同 id（幂等不重复）
@@ -154,9 +157,9 @@ const { CharacterMemoryBank, WorldProgress } = evalC(EXTERNAL_FUNCS + bankM[0] +
   ok('ST1: charMem 确定性 id（旧随机 id 绝迹）');
 }
 // ST2: GC 校准器（_gcCore）
-{ if (!src.includes('_gcCore')) fail('ST2 GC'); ok('ST2: GC 校准器 _gcCore'); }
+{ if (!orgSrc.includes('_gcCore')) fail('ST2 GC'); ok('ST2: GC 校准器 _gcCore（[v3.264.0] 类已外移）'); }
 // ST3: 发布确认（propose/publish/discard + revision）
-{ if (!src.includes('propose(char, level, memory, floor)')) fail('ST3 propose'); if (!src.includes('publish() {') || !src.includes('discard()')) fail('ST3 publish/discard'); ok('ST3: 发布确认 propose/publish/discard'); }
+{ if (!orgSrc.includes('propose(char, level, memory, floor)')) fail('ST3 propose'); if (!orgSrc.includes('publish() {') || !orgSrc.includes('discard()')) fail('ST3 publish/discard'); ok('ST3: 发布确认 propose/publish/discard（[v3.264.0] 类已外移）'); }
 // ST4: 对账挂 rollbackFloor
 { if (!src.includes('this.worldProg.discard(); this.worldProg.reconcile(floor - 1)')) fail('ST4 对账'); ok('ST4: rollbackFloor 内 世界推进隔离+对账'); }
 // ST5: 宿主确认点在生成路径

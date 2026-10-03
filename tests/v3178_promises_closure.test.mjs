@@ -11,6 +11,9 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：下方抽取面改读该模块（语义一字不改）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
@@ -33,7 +36,7 @@ function extractClass(source, name) {
     return source.slice(start, braceEnd(source, brace) + 1);
 }
 const errLog = () => {};
-const mkWorldProgress = (source = src) => new Function('errLog', `
+const mkWorldProgress = (source = orgSrc) => new Function('errLog', `
     ${extractClass(source, 'WorldProgress')}
     return new WorldProgress();
 `)(errLog);
@@ -44,9 +47,9 @@ console.log('=== 1. 静态锚点：回路三端齐备 ===');
     assert.ok(src.includes('extracted.promises_resolve'), '应用块必须读取 extracted.promises_resolve');
     assert.ok(src.includes('this.worldProg.resolvePromise('), '应用块必须调用 worldProg.resolvePromise');
     // 钥匙端：注入文本必须携带 prom_id
-    assert.ok(src.includes('`- [${p.id}|约定|'), '注入文本必须携带 prom_id（AI 回引的钥匙）');
+    assert.ok(orgSrc.includes('`- [${p.id}|约定|'), '注入文本必须携带 prom_id（AI 回引的钥匙）（[v3.264.0] 类已外移）');
     // 方法端
-    assert.ok(/resolvePromise\(id, status = 'fulfilled'/.test(src), 'WorldProgress 必须实现 resolvePromise');
+    assert.ok(/resolvePromise\(id, status = 'fulfilled'/.test(orgSrc), 'WorldProgress 必须实现 resolvePromise（[v3.264.0] 类已外移）');
     // 记账端
     assert.ok(src.includes('resolvedCount'), 'resolve 结果必须纳入应用块记账');
     ok('promises_resolve 消费口 / prom_id 钥匙 / resolvePromise 方法 / 记账 四位齐备');
@@ -124,10 +127,10 @@ console.log('=== 4. 注入格式携带 prom_id ===');
 console.log('=== 5. 负控制：破坏幂等后行为必须改变 ===');
 {
     const ANCHOR = "if (p.status === 'fulfilled' || p.status === 'broken') return null; // 幂等：已了结不重复";
-    const hits = src.split(ANCHOR).length - 1;
+    const hits = orgSrc.split(ANCHOR).length - 1;
     assert.equal(hits, 1, `破坏锚点必须恰中 1 次（实际 ${hits}）`);
 
-    const brokenSrc = src.replace(ANCHOR, '// [negctl] 幂等守卫已移除');
+    const brokenSrc = orgSrc.replace(ANCHOR, '// [negctl] 幂等守卫已移除');
     const bwp = mkWorldProgress(brokenSrc);
     const p = bwp.addPromise({ character: 'N', content: 'negctl', floor: 1 });
     bwp.resolvePromise(p.id, 'fulfilled', 2);

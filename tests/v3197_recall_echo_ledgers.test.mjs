@@ -26,6 +26,9 @@ import { createRequire } from 'node:module';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const require = createRequire(import.meta.url);
 const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：类内初始化的抽取面合看两个真源。 */
+const wpSrc = idxSrc + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf8');
+
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 function vnum(s) {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(s || '').trim());
@@ -120,19 +123,21 @@ test('【2】echo-ledger：11 模式与防重复轮转', () => {
 
 test('【3】WorldProgress 四处接线', () => {
   // ① 构造初始化
-  assert.ok(idxSrc.includes('this.recallEcho = null;'), 'init recallEcho');
-  assert.ok(idxSrc.includes('this.echoLedger = null;'), 'init echoLedger');
+  assert.ok(wpSrc.includes('this.recallEcho = null;'), 'init recallEcho');
+  /* [v3.264.0 A1 第五刀] echoLedger 初始化随 WorldProgress 外移 memory-organs.js；
+   *   wpSrc = 入口 + 该模块（合看两个真源，不放宽）。 */
+  assert.ok(wpSrc.includes('this.echoLedger = null;'), 'init echoLedger');
   // ② toInjection 注入块
-  assert.ok(idxSrc.includes("id: 'wp_recall_echo'"), 'injection wp_recall_echo');
-  assert.ok(idxSrc.includes("id: 'wp_echo_ledger_' + charName"), 'injection wp_echo_ledger_<char>');
+  assert.ok(wpSrc.includes("id: 'wp_recall_echo'"), 'injection wp_recall_echo');
+  assert.ok(wpSrc.includes("id: 'wp_echo_ledger_' + charName"), 'injection wp_echo_ledger_<char>');
   // ③ export
-  assert.ok(/recallEcho: this\.recallEcho \|\| null/.test(idxSrc), 'export recallEcho');
-  assert.ok(/echoLedger: this\.echoLedger \|\| null/.test(idxSrc), 'export echoLedger');
+  assert.ok(/recallEcho: this\.recallEcho \|\| null/.test(wpSrc), 'export recallEcho');
+  assert.ok(/echoLedger: this\.echoLedger \|\| null/.test(wpSrc), 'export echoLedger');
   // ④ import
-  assert.ok(/this\.recallEcho = data\.recallEcho \|\| null;/.test(idxSrc), 'import recallEcho');
-  assert.ok(/this\.echoLedger = data\.echoLedger \|\| null;/.test(idxSrc), 'import echoLedger');
+  assert.ok(/this\.recallEcho = data\.recallEcho \|\| null;/.test(wpSrc), 'import recallEcho');
+  assert.ok(/this\.echoLedger = data\.echoLedger \|\| null;/.test(wpSrc), 'import echoLedger');
   // 在场角色真源是 scene.presence（不是臆造字段）
-  assert.ok(idxSrc.includes('this.scene.presence'), 'presence source is scene.presence');
+  assert.ok(wpSrc.includes('this.scene.presence'), 'presence source is scene.presence');
   ok('WorldProgress 四处接线');
 });
 
@@ -159,8 +164,8 @@ test('【6】语法门禁', () => {
 
 test('【7】注入面纪律标注', () => {
   // 回扣注入带「不强行解释为伏笔」纪律；回声注入带「不改写为既定事实」纪律
-  assert.ok(idxSrc.includes('worldprogress+recall-echo'), 'recall source tag');
-  assert.ok(idxSrc.includes('worldprogress+echo-ledger'), 'echo source tag');
+  assert.ok(wpSrc.includes('worldprogress+recall-echo'), 'recall source tag（[v3.264.0] 在 memory-organs.js）');
+  assert.ok(wpSrc.includes('worldprogress+echo-ledger'), 'echo source tag（[v3.264.0] 在 memory-organs.js）');
   ok('注入纪律标注在模块 render 内（测试 1/2 已验）');
 });
 

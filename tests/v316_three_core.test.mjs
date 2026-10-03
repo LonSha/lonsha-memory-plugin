@@ -9,8 +9,11 @@ const ok = (m) => { pass++; console.log('ok: ' + m); };
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
 
 // ─── 组件抽取 ───
-const bankM = src.match(/    class CharacterMemoryBank \{[\s\S]*?\n    \}\n/);
-const wpM = src.match(/    class WorldProgress \{[\s\S]*?\n    \}\n/);
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf-8');
+/* [v3.264.0 A1 第五刀] CharacterMemoryBank / WorldProgress 已外移到 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
+const cutClass = (src2, name) => { const at = src2.indexOf('class ' + name + ' {'); if (at < 0) return null; let d = 0; for (let i = at; i < src2.length; i++) { if (src2[i] === '{') d++; else if (src2[i] === '}') { d--; if (d === 0) return src2.slice(at, i + 1); } } return null; }
+const bankM = cutClass(orgSrc, 'CharacterMemoryBank');
+const wpM = cutClass(orgSrc, 'WorldProgress');
 const EXTERNAL_FUNCS = `function decayScore(m, conf) {
         if (!m) return 0;
         const lambda = conf?.lambda || 0.03;
@@ -51,7 +54,7 @@ const evalClass = (code) => {
   const fn = new Function('window', 'PLUGIN_NAME', 'errLog', code + '\nreturn { CharacterMemoryBank, WorldProgress };');
   return fn({ LonShaMemory: { engine: { config: { config: { debugMode: false } } } } }, PLUGIN_NAME, errLog);
 };
-const { CharacterMemoryBank, WorldProgress } = evalClass(EXTERNAL_FUNCS + bankM[0] + '\n' + wpM[0]);
+const { CharacterMemoryBank, WorldProgress } = evalClass(EXTERNAL_FUNCS + bankM + '\n' + wpM);
 
 // ─── ① 角色记忆银行 ───
 // TC1: 核心永久 + 近期更替（近期超 3 条淘汰最旧）
@@ -165,7 +168,7 @@ const { CharacterMemoryBank, WorldProgress } = evalClass(EXTERNAL_FUNCS + bankM[
 
 // ─── 静态断言 ───
 // ST1: 组件挂载
-{ if (!src.includes('this.charMem = new CharacterMemoryBank()') || !src.includes('this.worldProg = new WorldProgress()')) fail('ST1 挂载'); ok('ST1: charMem/worldProg 挂载'); }
+{ if (!src.includes("_newMemoryOrgan('CharacterMemoryBank')") || !src.includes("_newMemoryOrgan('WorldProgress')")) fail('ST1 挂载'); ok('ST1: charMem/worldProg 挂载（[v3.264.0] 走统一构造点）'); }
 // ST2: 写入点（提取后自动写入 charMem）
 { if (!src.includes('this.charMem.addRecent(cn')) fail('ST2 写入'); ok('ST2: 提取后写 charMem 近期'); if (!src.includes('this.charMem.addCore(a, coreText')) fail('ST2b 核心写入'); ok('ST2b: 关系变化写核心'); }
 // ST3: 神经链召回挂载（results.neuralChain）

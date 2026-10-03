@@ -7,6 +7,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：写侧契约卫兵（违约告警）随类过去；
+ *   契约清单/Set 索引仍在宿主（它们是宿主级常量，模块内置的是供类内引用的逐字副本）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+const face = src + String.fromCharCode(10) + orgSrc;
 
 test('v3.139 身份单通道：去重指纹身份走 getCurrentChatId', () => {
     assert.ok(!src.includes('ctxCc?.characterId'), '私有身份通道已废除');
@@ -17,8 +21,8 @@ test('v3.139 身份单通道：去重指纹身份走 getCurrentChatId', () => {
 test('v3.139 冻结键契约：清单冻结 + Set 索引 + 写侧卫兵', () => {
     assert.match(src, /const ARCHIVE_TOP_LEVEL_KEYS = Object\.freeze\(\[/, '契约清单 Object.freeze');
     assert.match(src, /const ARCHIVE_TOP_LEVEL_KEY_SET = new Set\(ARCHIVE_TOP_LEVEL_KEYS\)/, 'Set 索引');
-    assert.match(src, /存档顶层键契约违约/, 'storage.save 写侧告警');
-    assert.match(src, /ARCHIVE_TOP_LEVEL_KEY_SET\.has\(_k\)/, '卫兵查 Set');
+    assert.match(face, /存档顶层键契约违约/, 'storage.save 写侧告警（[v3.264.0] 随 StorageManager 外移）');
+    assert.match(face, /ARCHIVE_TOP_LEVEL_KEY_SET\.has\(_k\)/, '卫兵查 Set（[v3.264.0] 随 StorageManager 外移）');
 });
 
 test('v3.139 契约键集 == collectExport 实际导出键集（双向）', () => {

@@ -15,6 +15,9 @@ const require = createRequire(import.meta.url);
 const { CSEngine } = require('../cse-engine.js');
 const src = readFileSync(new URL('../cse-engine.js', import.meta.url), 'utf8');
 const idxSrc = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] 六类（按各自面） 已外移 memory-organs.js：本文件凡「从 index.js 抽这些类/方法」的抽取面改读该模块，
+ *   语义一字不改，只换被读的文件。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
 
 /* ── 共用助手：把「该角色索引键 ⊆ states 真实 toward」写成可复用判据 ── */
 const towardKeys = (e, ch) => Object.keys(e.chars[ch]?.toward || {});

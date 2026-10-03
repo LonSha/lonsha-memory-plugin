@@ -101,7 +101,12 @@ test('manifest 登记了 seed-ledger，宿主写入口与注入口都在', () =>
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
   assert.ok(manifest.extra_js.includes('seed-ledger.js'));
   const index = readFileSync(join(root, 'index.js'), 'utf8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：本文件凡「从 index.js 抽 WorldProgress 面」的抽取点改读该模块（语义一字不改）。 */
+const organs = readFileSync(join(root, 'memory-organs.js'), 'utf8');
+
   assert.equal((index.match(/recordSeedFact/g) || []).length >= 1, true);
-  assert.ok(index.includes('wp_seed_ledger'));
-  assert.ok(index.includes('this.seedLedger = data.seedLedger || null'));
+  /* [v3.264.0] 注入面在 WorldProgress.toInjection 内（已随类外移）：两个真源合看。 */
+assert.ok(index.includes('wp_seed_ledger') || organs.includes('wp_seed_ledger'));
+  /* [v3.264.0] 该赋值属 WorldProgress.import，已随类外移：两个真源合看（不放宽：它仍须存在）。 */
+assert.ok(index.includes('this.seedLedger = data.seedLedger || null') || organs.includes('this.seedLedger = data.seedLedger || null'));
 });

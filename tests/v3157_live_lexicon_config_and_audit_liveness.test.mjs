@@ -17,6 +17,10 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
 const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.264.0 A1 第五刀] EntityLexicon 已外移到 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
+const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
+const orgClass = (name) => { const at = orgSrc.indexOf('class ' + name + ' {'); if (at < 0) throw new Error('missing class ' + name); const body = orgSrc.slice(at, orgSrc.indexOf('\n}', at) + 2); return body; };
+
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -57,12 +61,16 @@ test('[1] termLexiconMax is presented in the UI (slider + whitelist)', () => {
 });
 
 test('[1b] the constructor actually receives the configured max (the old bug)', () => {
-    assert.ok(src.includes('this.lexicon = new ('), 'lexicon is built behind a window fallback');
+    /* [v3.264.0] 构造点已改走统一构造点 _newMemoryOrgan（模块在场取真实现，缺席退到同形空实现） */
+    assert.ok(src.includes("_newMemoryOrgan('EntityLexicon'"), 'lexicon is built behind the unified construction point');
     assert.ok(src.includes('max: numOr(this.config.config.termLexiconMax, 40)'),
         'the configured value is passed into the constructor');
-    const at = src.indexOf('this.lexicon = new (');
-    const inst = src.slice(at, at + 700);
-    assert.ok(inst.includes('})({'), 'invocation is not empty any more');
+    /* [v3.264.0 A1 第五刀] 构造点已改走统一构造点（_newMemoryOrgan）：
+     *   判据改量「实参非空」+「不再是内联降级对象」，语义与原判据同。 */
+    const at = src.indexOf("_newMemoryOrgan('EntityLexicon'");
+    assert.ok(at > 0, 'lexicon is built at the unified construction point');
+    const inst = src.slice(at, at + 400);
+    assert.ok(inst.includes('max: numOr(this.config.config.termLexiconMax, 40)'), 'invocation is not empty any more');
     assert.ok(!inst.includes('})();'), 'the empty invocation is gone');
 });
 
@@ -71,10 +79,11 @@ test('[1c] a correct sibling (FloorLedger) shows passing options was always the 
 });
 
 test('[1d] the constructor itself is zero-value safe', () => {
-    const body = extractClass(src, 'class EntityLexicon');
+    const body = orgClass('EntityLexicon');
     assert.ok(body, 'class found');
     assert.ok(body.includes('Math.max(10, Math.round(numOr(opts?.max, 40)))'),
         'max is read through the zero-value safe kernel, keeping the floor');
+    /* [v3.264.0] 类体已外移：上一行读的是 memory-organs.js 里那份逐字副本 */
     assert.ok(!body.includes('Number(opts?.max) || 40'), 'the falsy-eating read is gone');
 });
 
@@ -87,7 +96,7 @@ test('[1e] termLexiconMax has a real member-read consumer outside the default bl
 
 // ================= 2. EntityLexicon really honours max (live execution) =================
 test('[2] EntityLexicon: configured cap is really applied', () => {
-    const Lex = new Function('numOr', 'return (' + extractClass(src, 'class EntityLexicon') + ');')(numOr);
+    const Lex = new Function('numOr', 'return (' + orgClass('EntityLexicon') + ');')(numOr);
     const lx = new Lex({ max: 12 });
     assert.strictEqual(lx.max, 12, 'cap taken from the option');
     for (let i = 0; i < 15; i++) lx.resolve(T(i), i + 1);
@@ -100,7 +109,7 @@ test('[2] EntityLexicon: configured cap is really applied', () => {
 });
 
 test('[2b] the old hardcoded 40 is gone: 12 and 40 behave differently', () => {
-    const Lex = new Function('numOr', 'return (' + extractClass(src, 'class EntityLexicon') + ');')(numOr);
+    const Lex = new Function('numOr', 'return (' + orgClass('EntityLexicon') + ');')(numOr);
     const small = new Lex({ max: 12 });
     const big = new Lex({ max: 40 });
     for (let i = 0; i < 30; i++) { small.resolve(T(i), i + 1); big.resolve(T(i), i + 1); }
@@ -110,7 +119,7 @@ test('[2b] the old hardcoded 40 is gone: 12 and 40 behave differently', () => {
 });
 
 test('[2c] default / null / garbage fall back to 40; 0 floors at 10', () => {
-    const Lex = new Function('numOr', 'return (' + extractClass(src, 'class EntityLexicon') + ');')(numOr);
+    const Lex = new Function('numOr', 'return (' + orgClass('EntityLexicon') + ');')(numOr);
     assert.strictEqual(new Lex().max, 40, 'no options');
     assert.strictEqual(new Lex({}).max, 40, 'empty options');
     assert.strictEqual(new Lex({ max: null }).max, 40, 'null');
@@ -121,13 +130,13 @@ test('[2c] default / null / garbage fall back to 40; 0 floors at 10', () => {
 });
 
 test('[2d] numeric strings from a card override are honoured', () => {
-    const Lex = new Function('numOr', 'return (' + extractClass(src, 'class EntityLexicon') + ');')(numOr);
+    const Lex = new Function('numOr', 'return (' + orgClass('EntityLexicon') + ');')(numOr);
     assert.strictEqual(new Lex({ max: '60' }).max, 60, 'card override may arrive as a string');
     assert.strictEqual(new Lex({ max: 60.4 }).max, 60, 'rounded');
 });
 
 test('[2e] import() truncates to the configured cap, not to a constant', () => {
-    const Lex = new Function('numOr', 'return (' + extractClass(src, 'class EntityLexicon') + ');')(numOr);
+    const Lex = new Function('numOr', 'return (' + orgClass('EntityLexicon') + ');')(numOr);
     const lx = new Lex({ max: 12 });
     const data = [];
     for (let i = 0; i < 30; i++) data.push({ canon: '\u672f\u8bed' + i, terms: ['\u672f\u8bed' + i], count: 1, firstFloor: i, lastFloor: i });

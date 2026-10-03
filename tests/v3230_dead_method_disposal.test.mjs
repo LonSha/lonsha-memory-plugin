@@ -69,8 +69,9 @@ test('v3230 A2. ★★ 保留面逐条在场（删代码最怕删错同族兄弟
     /* [v3.258.0 迁移] 真源可能不在 index.js（A1 已外迁六个工具类）；改为**跨根级模块**在场判据，
        并逐条检查它「落在哪个模块」——搬家这件事本身也要写在判据里，否则是隐性依赖。 */
     const KEEP = [
-        ['fulfillPromise(id) {', 'index.js'],              // 同族的「履行」入口（测试在用，保留）
-        ['resolvePromise(id, status', 'index.js'],         // 产品路径唯一入口（两个旧入口都不再直调）
+        /* [v3.264.0 A1 第五刀] fulfillPromise 已随 WorldProgress 外移 memory-organs.js：保留面的真源字段改指该模块。 */
+ ['fulfillPromise(id) {', 'memory-organs.js'],              // 同族的「履行」入口（测试在用，保留）
+        ['resolvePromise(id, status', 'memory-organs.js'], // 产品路径唯一入口（[v3.264.0] 随 WorldProgress 外移 memory-organs.js）
         ['hybridMerge(results) {', 'index.js'],            // 遗留融合的**活**替代者
         ['queryByRef(refId) {', 'memory-aux.js'],          // OpLog 三类检索里仍活着的两条（随 OpLog 外迁）
         ['queryByType(type) {', 'memory-aux.js'],

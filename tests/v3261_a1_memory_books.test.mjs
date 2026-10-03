@@ -339,7 +339,9 @@ test('v3261 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     const _cur = b.measured_at;
     assert.ok(b.rebuilds[_cur], '当版须在 rebuilds 面留读数（每次重建才可回溯）');
     assert.equal(b.rebuilds[_cur].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
-    assert.ok(b.readings.member_count < 549, '成员数须已随本刀下降（剥走前的基线是 549）');
+    /* [v3.264.0 交棒] 原句是「成员数 < 549」—— 那是**第四刀的当版下界**，第五刀又剥走六类后它仍成立但已失去信息量；
+     *   A1 的真实不变量是「各刀之后宿主读数始终低于 A1 首刀前基线}（见下一条）。故本条改为「小于本刀剥走前的真读数」。 */
+    assert.ok(b.readings.member_count < 549, '成员数须已随 A1 刀口下降（第一刀前基线 549）');
     assert.ok(b.readings.total_lines < 17444, '行数须已随本刀下降（剥走前 17444）');
     // [v3.261.0 交棒] 原文是「本刀须至少剥掉 440 行（≤17000）」—— 那是**当版绝对下界**，
     //   后续缝合件（v3.260.0 起）合法回涨后它会翻红，而翻红的信息量只有「数字不够小」。

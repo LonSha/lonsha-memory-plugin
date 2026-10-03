@@ -116,6 +116,8 @@ const REGISTRY = [
     'v3261_a1_memory_books.test.mjs',
     'v3262_native_tools_pristine_fetch.test.mjs',
     'v3263_floor_identity_archive_audit.test.mjs',
+    /* [v3.264.0 A1 第五刀] 本刀的新档从唯一真源 import breakSource；按 B1 台账纪律在此登记。 */
+    'v3264_a1_memory_organs.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

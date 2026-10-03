@@ -3,6 +3,10 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 
 const src = fs.readFileSync('index.js', 'utf8');
+/* [v3.264.0 A1 第五刀] VectorStore / fetchWithTimeoutRetry 已外移到 memory-organs.js。
+ *   凡「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const orgSrc = fs.readFileSync('memory-organs.js', 'utf8');
+const orgClass = (name) => { const at = orgSrc.indexOf('class ' + name + ' {'); if (at < 0) throw new Error('missing class ' + name); return orgSrc.slice(at, braceEnd(orgSrc, orgSrc.indexOf('{', at)) + 1); };
 
 function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
@@ -24,7 +28,7 @@ function braceEnd(str, openBraceIdx) {
     return -1;
 }
 
-function extractFn(name) {
+function extractFn(name, src) {
     let start = src.indexOf(`async function ${name}(`);
     if (start < 0) start = src.indexOf(`function ${name}(`);
     if (start < 0) throw new Error('missing fn ' + name);
@@ -53,8 +57,8 @@ test('【v3.147.0】结构与契约基线断言', () => {
   assert.ok(src.includes('_credCooldowns = new Map()'), '存在 _credCooldowns 冷却表');
   assert.ok(src.includes('clearApiCooldowns'), '存在 clearApiCooldowns 方法');
   assert.ok(src.includes('getApiCooldownStats'), '存在 getApiCooldownStats 方法');
-  assert.ok(src.includes('_calcHashes'), 'VectorStore 存在 _calcHashes');
-  assert.ok(src.includes('this.embedCache'), 'VectorStore 存在 embedCache');
+  assert.ok(orgSrc.includes('_calcHashes'), 'VectorStore 存在 _calcHashes（[v3.264.0] 随类外移）');
+  assert.ok(orgSrc.includes('this.embedCache'), 'VectorStore 存在 embedCache（[v3.264.0] 随类外移）');
 });
 
 test('【v3.147.0 行为】API 凭据 401/403 冷却拦截与恢复', async () => {
@@ -69,11 +73,11 @@ test('【v3.147.0 行为】API 凭据 401/403 冷却拦截与恢复', async () =
     return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) };
   };
 
-  const hash32Code = extractFn('hash32');
-  const getCredKeyCode = extractFn('_getCredKey');
-  const clearCooldownsCode = extractFn('clearApiCooldowns');
-  const getStatsCode = extractFn('getApiCooldownStats');
-  const fetchCode = extractFn('fetchWithTimeoutRetry');
+  const hash32Code = extractFn('hash32', orgSrc);
+  const getCredKeyCode = extractFn('_getCredKey', orgSrc);
+  const clearCooldownsCode = extractFn('clearApiCooldowns', orgSrc);
+  const getStatsCode = extractFn('getApiCooldownStats', orgSrc);
+  const fetchCode = extractFn('fetchWithTimeoutRetry', orgSrc);
 
   const makeScope = new Function('fetch', 'AbortController', 'setTimeout', 'clearTimeout', 'PLUGIN_NAME', `
     ${hash32Code}
@@ -150,13 +154,13 @@ test('【v3.147.0 行为】VectorStore 双 hash 分层对账与 embedCache 缓�
     };
   };
 
-  const hash32Code = extractFn('hash32');
+  const hash32Code = extractFn('hash32', orgSrc);
   const errLogCode = 'function errLog(e, label) { console.error(label, e); }';
-  const getCredKeyCode = extractFn('_getCredKey');
-  const clearCooldownsCode = extractFn('clearApiCooldowns');
-  const getStatsCode = extractFn('getApiCooldownStats');
-  const fetchCode = extractFn('fetchWithTimeoutRetry');
-  const vecStoreCode = extractClass('VectorStore');
+  const getCredKeyCode = extractFn('_getCredKey', orgSrc);
+  const clearCooldownsCode = extractFn('clearApiCooldowns', orgSrc);
+  const getStatsCode = extractFn('getApiCooldownStats', orgSrc);
+  const fetchCode = extractFn('fetchWithTimeoutRetry', orgSrc);
+  const vecStoreCode = orgClass('VectorStore');
 
   const makeScope = new Function('fetch', 'AbortController', 'setTimeout', 'clearTimeout', 'PLUGIN_NAME', 'localStorage', `
     ${hash32Code}

@@ -5,6 +5,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] storage.load 已随 StorageManager 外移 memory-organs.js：
+ *   凡「从 index.js 抽 StorageManager 方法」的抽取面改读该模块（语义一字不改）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
 function extractBraced(marker) {
     const start = src.indexOf(marker);
     assert.ok(start >= 0, `${marker} 存在`);
@@ -79,7 +82,8 @@ test('v3.146 全成功路径不触发回滚，快照分支无额外开销泄漏'
 });
 test('v3.146 UI 两处用户发起的恢复已请求 snapshot，storage.load 刻意不请求', () => {
     assert.equal((ui.match(/snapshot: true/g) || []).length, 2, '导入 + 嵌入恢复两处抓快照');
-    assert.match(src, /restoreFromPayload\(data, \{ source: 'storage-load' \}\)/, 'load 不抓快照');
+    /* [v3.264.0 A1 第五刀] storage.load 已随 StorageManager 外移 memory-organs.js。 */
+    assert.match(orgSrc, /restoreFromPayload\(data, \{ source: 'storage-load' \}\)/, 'load 不抓快照');
     assert.match(src, /atomicRestoreEnabled: true/, '配置默认开启');
     assert.match(src, /source: 'auto-rollback:' \+ res\.source/, '回滚来源可追溯');
     assert.match(src, /回滚目标是「上一聊天/, 'load 不抓快照的跨档污染理由已注释在案');

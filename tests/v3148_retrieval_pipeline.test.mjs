@@ -4,6 +4,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] LLMCaller（rerank / INTENT / _BATCH）与 VectorStore 已外移 memory-organs.js；
+ *   抽取面须按「真源所在面」取值（本档多数判据仍是宿主级：BM25 缓存三处调用点、age 锚点在宿主）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+const pickSrc = (marker) => (src.includes(marker) ? src : orgSrc);
 
 function braceEnd(str, openBraceIdx) {
     let depth = 0;
@@ -27,9 +31,9 @@ function extractFn(name) {
 
 test('【1】结构断言：四件套接线齐备', () => {
     assert.ok(src.includes('_corpusFp'), 'BM25 语料缓存指纹存在');
-    assert.ok(src.includes('const _BATCH = 300'), 'rerank 分批常量存在');
-    assert.ok(src.includes('INTENT:'), 'INTENT 提示词存在');
-    assert.ok(src.includes('getLastIntent'), 'INTENT getter 存在');
+    assert.ok(pickSrc('const _BATCH = 300').includes('const _BATCH = 300'), 'rerank 分批常量存在（[v3.264.0] 已随 LLMCaller 外移）');
+    assert.ok(pickSrc('INTENT:').includes('INTENT:'), 'INTENT 提示词存在（[v3.264.0] 已随 LLMCaller 外移）');
+    assert.ok(src.includes('getLastIntent'), 'INTENT getter 调用点存在（宿主消费侧）');
     assert.ok(src.includes('ageAnchorTime'), 'age 锚点字段存在');
     assert.ok(src.includes('getEffectiveAge'), 'getEffectiveAge 存在');
     // 三处 BM25 rebuild 调用点全部走缓存
@@ -47,19 +51,21 @@ test('【2】行为：BM25 语料缓存——素材指纹一致跳过重建', ()
 
 test('【3】行为：rerank 分批——超 300 条递归分批', () => {
     // LLMCaller.rerank 是类方法（非顶层 function），用直接源断言
-    const idx = src.indexOf('const _BATCH = 300;');
+    const _bs = pickSrc('const _BATCH = 300;');
+    const idx = _bs.indexOf('const _BATCH = 300;');
     assert.ok(idx > 0, '分批入口存在');
-    const batchBlock = src.slice(idx, idx + 500);
+    const batchBlock = _bs.slice(idx, idx + 500);
     assert.ok(batchBlock.includes('docs.slice(bi, bi + _BATCH)'), '按批切片');
     assert.ok(batchBlock.includes('await this.rerank(query, sub)'), '子批递归复用本方法');
     assert.ok(batchBlock.includes('orderParts.push(bi + si)'), '子批索引折算回全量索引');
 });
 
 test('【4】行为：INTENT 解析与 rerank 接线', () => {
-    assert.ok(/INTENT[:：]\\s\*\(\.\+\)\$/i.test(src) || /INTENT\[:：\]/.test(src), 'INTENT 行解析正则存在');
-    assert.ok(src.includes('const _rq = (this.llm.getLastIntent?.() || query.text)'), 'rerank 消费 INTENT 优先');
-    assert.ok(src.includes('lines.slice(0, 6)'), '检索 Q 上限 6 条');
-    assert.ok(src.includes('clean.length <= 220'), '检索 Q 长度上限 220');
+    /* [v3.264.0] INTENT 行解析与上限钳制随 LLMCaller 外移 memory-organs.js（宿主只留消费点）。 */
+    assert.ok(/INTENT[:：]/.test(orgSrc), 'INTENT 行解析正则存在（[v3.264.0] 已随 LLMCaller 外移）');
+    assert.ok(src.includes('const _rq = (this.llm.getLastIntent?.() || query.text)'), 'rerank 消费 INTENT 优先（宿主消费侧）');
+    assert.ok(orgSrc.includes('lines.slice(0, 6)'), '检索 Q 上限 6 条（[v3.264.0] 已随 LLMCaller 外移）');
+    assert.ok(orgSrc.includes('clean.length <= 220'), '检索 Q 长度上限 220（[v3.264.0] 已随 LLMCaller 外移）');
 });
 
 test('【5】行为：age 锚点机制', () => {

@@ -33,6 +33,10 @@ const NL = String.fromCharCode(10);
 /** 版本序（仅本档 V4 当版锚点用）：3.260.0 → 3260000。 */
 const vnum = (v) => String(v).split('.').map(Number).reduce((a, b) => a * 1000 + b, 0);
 const IDX = read('index.js');
+/* [v3.264.0 A1 第五刀] LLMCaller 已外移 memory-organs.js：本档判据里「取数注入口 / 旧路径 / 三工具消费点 / 轮数钳制」四面均在该模块内，
+ *   故对应锚点改读模块（语义一字不改，只换被读的文件）；D 段四条破坏也改打在真源上。 */
+const ORG_SRC = read('memory-organs.js');
+
 const NT_SRC = read('native-tools.js');
 const PF_SRC = read('pristine-fetch.js');
 const SELF = read('tests/v3262_native_tools_pristine_fetch.test.mjs');
@@ -56,26 +60,31 @@ const PF_EXPORTS = [
  * 纯判据切片：对「入口源码 + 两模块源码」做静态核对。
  * 返回缺陷清单（空数组 = 通过）。A/C 段与 D 段跑的是同一个它。
  */
-function judgeSlice(idxSrc, ntSrc, pfSrc) {
+function judgeSlice(idxSrc, ntSrc, pfSrc, orgSrcIn) {
     const defects = [];
     const stripped = stripComments(idxSrc);
     // 1) 入口必须真消费两个新模块的全局符号（B4 零容忍面）
-    if (!stripped.includes('window.LonShaNativeTools')) defects.push('入口未消费 window.LonShaNativeTools（模块挂载了却无人取用）');
-    if (!stripped.includes('window.LonShaPristineFetch')) defects.push('入口未消费 window.LonShaPristineFetch（模块挂载了却无人取用）');
+    /* [v3.264.0 A1 第五刀] 两个取库口原本都在 LLMCaller 内（`_nativeToolsLib` / `_pristineFetchLib`），
+     *   已随该类外移 memory-organs.js：故「谁真消费了这个全局符号」的判据面改为**入口 + 模块**两处合并看。
+     *   这不是放宽：符号被真读这件事仍然必须成立，只是消费点从一个文件移到了另一个。 */
+    const consuming = stripComments(orgSrcIn || ORG_SRC) + stripped;
+    if (!consuming.includes('window.LonShaNativeTools')) defects.push('入口未消费 window.LonShaNativeTools（模块挂载了却无人取用）');
+    if (!consuming.includes('window.LonShaPristineFetch')) defects.push('入口未消费 window.LonShaPristineFetch（模块挂载了却无人取用）');
     // 2) 取数注入口必须在场且是「注入优先、全局兜底」形态
-    if (!stripped.includes('(fetchImpl || fetch)(url')) defects.push('fetchWithTimeoutRetry 缺 (fetchImpl || fetch) 取数注入口');
-    if (!stripped.includes('fetchImpl = null')) defects.push('fetchWithTimeoutRetry 缺 fetchImpl 形参默认值');
+    const orgStripped = stripComments(orgSrcIn || ORG_SRC);
+    if (!orgStripped.includes('(fetchImpl || fetch)(url')) defects.push('fetchWithTimeoutRetry 缺 (fetchImpl || fetch) 取数注入口（[v3.264.0] 随 LLMCaller 外移）');
+    if (!orgStripped.includes('fetchImpl = null')) defects.push('fetchWithTimeoutRetry 缺 fetchImpl 形参默认值（[v3.264.0] 随 LLMCaller 外移）');
     // 3) 分派面：旧路径**定义**必须保留（回落兜底），原生路径必须真读到协议库
-    if (!stripped.includes('async _callOpenAILegacy(prompt, url, key, model) {')) defects.push('callOpenAI 分派后旧路径 _callOpenAILegacy 定义不在场（失去逐字节回落面）');
-    if (!stripped.includes('_nativeToolsLib()')) defects.push('缺 _nativeToolsLib() 取库口');
-    if (!stripped.includes('_pristineFetchLib()')) defects.push('缺 _pristineFetchLib() 取库口');
-    if (!stripped.includes('_fetchOpts()')) defects.push('缺 _fetchOpts() 传输选项口');
+    if (!orgStripped.includes('async _callOpenAILegacy(prompt, url, key, model) {')) defects.push('callOpenAI 分派后旧路径 _callOpenAILegacy 定义不在场（失去逐字节回落面）（[v3.264.0] 随 LLMCaller 外移）');
+    if (!orgStripped.includes('_nativeToolsLib()')) defects.push('缺 _nativeToolsLib() 取库口（[v3.264.0] 随 LLMCaller 外移）');
+    if (!orgStripped.includes('_pristineFetchLib()')) defects.push('缺 _pristineFetchLib() 取库口（[v3.264.0] 随 LLMCaller 外移）');
+    if (!orgStripped.includes('_fetchOpts()')) defects.push('缺 _fetchOpts() 传输选项口（[v3.264.0] 随 LLMCaller 外移）');
     // 4) 三工具各有真实消费点（带接收者的调用形态 —— 裸方法名在定义处也在场，故不能按裸名判）
-    if (!stripped.includes('eng.bm25.search(')) defects.push('search_memory 无消费点（engine.bm25.search 不在场）');
-    if (!stripped.includes('eng.summary.addManualSummary(')) defects.push('write_memory 无消费点（engine.summary.addManualSummary 不在场）');
-    if (!stripped.includes('eng.vector.search(')) defects.push('vector_search 无消费点（engine.vector.search 不在场）');
+    if (!orgStripped.includes('eng.bm25.search(')) defects.push('search_memory 无消费点（engine.bm25.search 不在场）（[v3.264.0] 随 LLMCaller 外移）');
+    if (!orgStripped.includes('eng.summary.addManualSummary(')) defects.push('write_memory 无消费点（engine.summary.addManualSummary 不在场）（[v3.264.0] 随 LLMCaller 外移）');
+    if (!orgStripped.includes('eng.vector.search(')) defects.push('vector_search 无消费点（engine.vector.search 不在场）（[v3.264.0] 随 LLMCaller 外移）');
     // 4b) 取库口必须被真调用（只定义不调用 = 协议库取来不用，静默退回文本路径）
-    if (!stripped.includes('const NT = this._nativeToolsLib();')) defects.push('callOpenAI 未真调用 _nativeToolsLib()（协议库取来不用）');
+    if (!orgStripped.includes('const NT = this._nativeToolsLib();')) defects.push('callOpenAI 未真调用 _nativeToolsLib()（协议库取来不用）（[v3.264.0] 随 LLMCaller 外移）');
     // 5) 模块侧：IIFE 双导出 + 全局挂载名
     for (const [src, g, tag] of [[ntSrc, 'LonShaNativeTools', MOD_NT], [pfSrc, 'LonShaPristineFetch', MOD_PF]]) {
         if (!src.includes('global.' + g + ' = api')) defects.push(tag + ' 未挂载全局 ' + g);
@@ -265,9 +274,9 @@ test('v3262 C. 接线面：六处接线 + 三配置键 + 面板 + 自检行 + �
     assert.ok(IDX.includes("'原生工具回合'"), 'selfCheck 缺「原生工具回合」一栏');
     assert.ok(IDX.includes('_nativeToolLedger'), 'selfCheck 须读 _nativeToolLedger 台账');
     // 传输注入口接线：两处消费点（旧路径 + 原生回合）都须带 _fetchOpts
-    assert.ok((stripComments(IDX).match(/_fetchOpts\(\)/g) || []).length >= 3, '_fetchOpts 须在定义之外至少 2 处消费（旧路径 + 原生回合）');
+    assert.ok((stripComments(ORG_SRC).match(/_fetchOpts\(\)/g) || []).length >= 3, '_fetchOpts 须在定义之外至少 2 处消费（旧路径 + 原生回合）[v3.264.0 随 LLMCaller 外移]');
     // 轮数钳制
-    assert.ok(IDX.includes('Math.min(5, Math.floor(n))'), '轮数上限须钳 1~5');
+    assert.ok(ORG_SRC.includes('Math.min(5, Math.floor(n))'), '轮数上限须钳 1~5 [v3.264.0 随 LLMCaller 外移]');
     // 基线与本档同源
     const b = JSON.parse(read('tests/audit/host_beast_baseline.json'));
     assert.equal(b.readings.total_lines, IDX.split(NL).length, '基线行数须等于真 index.js 行数');
@@ -275,7 +284,7 @@ test('v3262 C. 接线面：六处接线 + 三配置键 + 面板 + 自检行 + �
     assert.equal(b.rebuilds[b.measured_at].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
     // 数量锁已被本刀接管
     const V3209 = read('tests/v3209_migration_registry.test.mjs');
-    assert.ok(V3209.includes('mf.extra_js.length === 76'), 'v3209 数量锁须已接管为 76（本刀模块计入后仍随新刀上抬）');
+    assert.ok(V3209.includes('mf.extra_js.length === 77'), 'v3209 数量锁须已接管为 77（A1 第五刀 memory-organs.js 计入后仍随新刀上抬）');
     // 判据面自防护
     assert.ok(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
     assert.ok((SELF.match(/assert\./g) || []).length >= 40, '断言密度须 >= 40，实为 ' + (SELF.match(/assert\./g) || []).length);
@@ -287,13 +296,13 @@ test('v3262 D. 负控制：真源码破坏后同一条判据必须翻红', () =>
     const cases = [
         // 1) 入口不再消费协议库（B4 零容忍面；锚点取「真取库调用」处 ——
 //   模块名在入口出现两次：一次在取库口表达式、一次在自检行，故不能按模块名打点）
-        { label: '入口摘除协议库取库口', idx: true, anchor: 'const NT = this._nativeToolsLib();', repl: 'const NT = null;', want: /未真调用 _nativeToolsLib\(\)/ },
+        { label: '入口摘除协议库取库口', org: true, anchor: 'const NT = this._nativeToolsLib();', repl: 'const NT = null;', want: /未真调用 _nativeToolsLib\(\)/ },
         // 2) 取数注入口被拿掉（退回直呼全局 fetch）
-        { label: '取数注入口被摘', idx: true, anchor: '(fetchImpl || fetch)(url, { ...init, signal: ctrl.signal })', repl: 'fetch(url, { ...init, signal: ctrl.signal })', want: /缺 \(fetchImpl \|\| fetch\)/ },
+        { label: '取数注入口被摘', org: true, anchor: '(fetchImpl || fetch)(url, { ...init, signal: ctrl.signal })', repl: 'fetch(url, { ...init, signal: ctrl.signal })', want: /缺 \(fetchImpl \|\| fetch\)/ },
         // 3) 旧路径被删（失去回落面）
-        { label: '旧路径 _callOpenAILegacy 被删', idx: true, anchor: 'async _callOpenAILegacy(prompt, url, key, model) {', repl: 'async _callOpenAILegacyDELETED(prompt, url, key, model) {', want: /旧路径/ },
+        { label: '旧路径 _callOpenAILegacy 被删', org: true, anchor: 'async _callOpenAILegacy(prompt, url, key, model) {', repl: 'async _callOpenAILegacyDELETED(prompt, url, key, model) {', want: /旧路径/ },
         // 4) 三工具之一失去消费点
-        { label: 'write_memory 消费点被摘', idx: true, anchor: 'eng.summary.addManualSummary(', repl: 'eng.summary.addManualSummaryXXXX(', want: /write_memory 无消费点/ },
+        { label: 'write_memory 消费点被摘', org: true, anchor: 'eng.summary.addManualSummary(', repl: 'eng.summary.addManualSummaryXXXX(', want: /write_memory 无消费点/ },
         // 5) 协议边界纪律被摘（action 拒绝）
         { label: 'action 拒绝被摘', idx: false, anchor: "不得包含文本协议 action", repl: "不得包含文本协议 ACTIONXXXX", want: /action 字段拒绝/ },
         // 6) 调用 ID 去重被摘
@@ -312,14 +321,18 @@ test('v3262 D. 负控制：真源码破坏后同一条判据必须翻红', () =>
     ];
     for (const c of cases) {
         // 破坏打在哪一份源码：入口 / 协议模块 / 取数模块（按锚点归属）
-        const isPf = c.anchor.includes('kemini') || c.anchor.includes('native code') || c.anchor.includes('frame') || c.anchor.includes('LonShaPristineFetch');
-        const src = c.idx ? IDX : (isPf ? PF_SRC : NT_SRC);
+        const isOg = c.org === true;
+        const isPf = !isOg && (c.anchor.includes('kemini') || c.anchor.includes('native code') || c.anchor.includes('frame') || c.anchor.includes('LonShaPristineFetch'));
+        /* [v3.264.0] 第四个归属面：organs（LLMCaller 已外移）。破坏必须打在**真源**上，
+         *   否则就是「打在空气上」的假绿（本仓 v3249 记过这个形态）。 */
+        const src = isOg ? ORG_SRC : (c.idx ? IDX : (isPf ? PF_SRC : NT_SRC));
         const broken = breakSource(src, c.anchor, c.repl, c.label);
         assert.notEqual(broken, src, c.label + '：破坏须真的改变源码');
         const d = judgeSlice(
-            c.idx ? broken : IDX,
-            (!c.idx && !isPf) ? broken : NT_SRC,
-            (!c.idx && isPf) ? broken : PF_SRC,
+            (!isOg && c.idx) ? broken : IDX,
+            (!isOg && !c.idx && !isPf) ? broken : NT_SRC,
+            (!isOg && !c.idx && isPf) ? broken : PF_SRC,
+            isOg ? broken : ORG_SRC,
         );
         const hit = d.some((x) => c.want.test(x));
         assert.ok(hit, c.label + '：破坏后同一条判据必须翻红，实得 ' + JSON.stringify(d));

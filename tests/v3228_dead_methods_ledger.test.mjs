@@ -67,9 +67,12 @@ test('v3228 A2. ★★ 扫描面必须含全部根级模块（settings-ui.js 也
     const sui = read(path.join(ROOT, 'settings-ui.js'));
     assert.ok(/this\.engine\.llm\.fetchModels\(/.test(sui), '基准事实：settings-ui.js 里有 fetchModels 调用');
     const idx = read(path.join(ROOT, 'index.js'));
-    assert.ok(/async fetchModels\(url, key\)/.test(idx), '基准事实：index.js 里定义 fetchModels');
+    /* [v3.264.0 A1 第五刀] fetchModels 已随 LLMCaller 外移 memory-organs.js：
+      *   「定义在哪个文件」的真源随之改指该模块，而「调用在 settings-ui」那一面不变（恰好守住本档的主题：扫描面必须完整）。 */
+    const organs = read(path.join(ROOT, 'memory-organs.js'));
+    assert.ok(/async fetchModels\(url, key\)/.test(organs), '基准事实：memory-organs.js 里定义 fetchModels');
     // 用 A1 的口径把两文件拼起来后必须判「有引用」
-    assert.equal(isReferenced('fetchModels', idx + '\n' + sui), true,
+    assert.equal(isReferenced('fetchModels', organs + '\n' + sui), true,
         '★ 两文件合起来必须判有引用（首稿只扫 index.js ⇒ 活代码被报成零引用）');
 });
 
@@ -134,13 +137,14 @@ test('v3228 N1. ★★★ 破坏扫描面（退回只扫 index.js）⇒ A2 判�
     assert.notEqual(broken, scanSrc, '破坏必须真改变源码');
     // 同款判据：破坏后「两文件合起来才能看到 fetchModels」这个事实仍应成立，
     //   但扫描器已不看第二个文件 —— 用行为探针把它复现出来。
-    const idx = read(path.join(ROOT, 'index.js'));
+    /* [v3.264.0] 定义面真源随 fetchModels 外移：memory-organs.js。 */
+    const organs = read(path.join(ROOT, 'memory-organs.js'));
     const sui = read(path.join(ROOT, 'settings-ui.js'));
     // 探针必须**排除定义行**：`async fetchModels(url, key) {` 本身也能被 `name(` 形态命中，
     //   若不排除，探针会把「定义」当成「调用」（本套件首稿就是这样把自己判绿的）。
-    const idxNoDef = idx.replace('async fetchModels(url, key) {', '');
-    assert.equal(isReferenced('fetchModels', idxNoDef), false, '只看 index.js（除定义行）时确为「无引用」（这就是首稿的错处）');
-    assert.equal(isReferenced('fetchModels', idx + '\n' + sui), true, '加上 settings-ui.js 后为有引用');
+    const idxNoDef = organs.replace('async fetchModels(url, key) {', '');
+    assert.equal(isReferenced('fetchModels', idxNoDef), false, '只看定义侧文件（除定义行）时确为「无引用」（这就是首稿的错处）');
+    assert.equal(isReferenced('fetchModels', organs + '\n' + sui), true, '加上 settings-ui.js 后为有引用');
 });
 
 test('v3228 N2. ★★ 破坏口径（可选调用写成名字前置）⇒ A1 判据必须转红', () => {

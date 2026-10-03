@@ -2,6 +2,10 @@
 // v3.20 RubyPhone Ebbinghaus 衰减引擎嫁接到 charMem 测试
 import { readFileSync } from 'fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.264.0 A1 第五刀] CharacterMemoryBank 已外移 memory-organs.js：下方 ST1/ST2/ST3 的类内消费面改读该模块。
+ *   decayScore / _initEbbingMeta 本身仍留宿主（第五刀不搬宿主函数，改由 bindDeps 现算注入）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf-8');
+
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
@@ -66,11 +70,11 @@ const _initEbbingMeta = new Function('return ' + iM[0].trim() + '; _initEbbingMe
 
 // ─── 静态断言 ───
 // ST1: GC 用 decayScore
-{ if (!src.includes('scored.sort((a, b) => b.s - a.s)') || !src.includes('decayScore(m, {})')) fail('ST1'); ok('ST1: _gcCore 用 Ebbinghaus 打分'); }
+{ if (!orgSrc.includes('scored.sort((a, b) => b.s - a.s)') || !orgSrc.includes('decayScore(m, {})')) fail('ST1'); ok('ST1: _gcCore 用 Ebbinghaus 打分（[v3.264.0] 类已外移）'); }
 // ST2: search 用衰减排序
-{ if (!src.includes('const sa = decayScore(a, {}) * (a._isCore ? 3 : 1)')) fail('ST2'); ok('ST2: search 用衰减价值排序（核心×3加权）'); }
+{ if (!orgSrc.includes('const sa = decayScore(a, {}) * (a._isCore ? 3 : 1)')) fail('ST2'); ok('ST2: search 用衰减价值排序（核心×3加权）（[v3.264.0] 类已外移）'); }
 // ST3: addCore/addRecent 初始化
-{ if (src.split('_initEbbingMeta(m);').length - 1 < 2) fail('ST3 初始化点'); ok('ST3: addCore/addRecent 都初始化 Ebbinghaus 字段'); }
+{ if (orgSrc.split('_initEbbingMeta(m);').length - 1 < 2) fail('ST3 初始化点'); ok('ST3: addCore/addRecent 都初始化 Ebbinghaus 字段（[v3.264.0] 类已外移）'); }
 // ST4: 版本号已前进（>= v3.20）
 {
   const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);

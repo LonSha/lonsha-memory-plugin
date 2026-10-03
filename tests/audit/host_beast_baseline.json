@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.261.0",
+ "measured_at": "v3.264.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -491,6 +491,37 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.264.0": {
+   "reason": "v3.264.0 重建（A1 第五刀：六器官类外移 + OrganFallback 方法面对账面扩充，读数由探针生成，零手抄）",
+   "readings": {
+    "total_lines": 15761,
+    "member_count": 530,
+    "top5_lines": 4175,
+    "top5_pct": 26.5,
+    "top40_lines": 9345,
+    "top40_pct": 59.3,
+    "prefix_rule_coverage_lines": 4775,
+    "prefix_rule_coverage_pct": 30.3,
+    "unclassified_lines": 10118,
+    "seam_distinct_modules": 45,
+    "seam_reference_sites": 56,
+    "seam_call_shape_sites": 59,
+    "members_over_80_lines": 29,
+    "low_coupling_members": 19,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.264.0",
+   "delta": {
+    "total_lines": 20,
+    "member_count": 19,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -502,76 +533,76 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 17092,
-  "member_count": 544,
+  "total_lines": 15761,
+  "member_count": 530,
   "top5_lines": 4175,
-  "top5_pct": 24.4,
-  "top40_lines": 9515,
-  "top40_pct": 55.7,
-  "prefix_rule_coverage_lines": 4436,
-  "prefix_rule_coverage_pct": 26.0,
-  "unclassified_lines": 11788,
-  "seam_distinct_modules": 44,
+  "top5_pct": 26.5,
+  "top40_lines": 9345,
+  "top40_pct": 59.3,
+  "prefix_rule_coverage_lines": 4775,
+  "prefix_rule_coverage_pct": 30.3,
+  "unclassified_lines": 10118,
+  "seam_distinct_modules": 45,
   "seam_reference_sites": 56,
   "seam_call_shape_sites": 59,
-  "members_over_80_lines": 31,
+  "members_over_80_lines": 29,
   "low_coupling_members": 19,
-  "high_coupling_members": 9
+  "high_coupling_members": 7
  },
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 499,
-   "lines": 11788,
-   "lines_pct": 69,
-   "outside_refs": 4318,
-   "internal_refs": 2625,
-   "outside_ref_share_pct": 62.2
+   "members": 488,
+   "lines": 10118,
+   "lines_pct": 64.2,
+   "outside_refs": 4624,
+   "internal_refs": 2006,
+   "outside_ref_share_pct": 69.7
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1753,
-   "lines_pct": 10.3,
+   "lines_pct": 11.1,
    "outside_refs": 5,
    "internal_refs": 71,
    "outside_ref_share_pct": 6.6
   },
   {
    "domain": "诊断与导出",
-   "members": 16,
-   "lines": 1229,
-   "lines_pct": 7.2,
-   "outside_refs": 453,
-   "internal_refs": 996,
-   "outside_ref_share_pct": 31.3
+   "members": 13,
+   "lines": 1205,
+   "lines_pct": 7.6,
+   "outside_refs": 392,
+   "internal_refs": 698,
+   "outside_ref_share_pct": 36
   },
   {
    "domain": "召回与注入",
    "members": 11,
    "lines": 967,
-   "lines_pct": 5.7,
+   "lines_pct": 6.1,
    "outside_refs": 2,
    "internal_refs": 59,
    "outside_ref_share_pct": 3.3
   },
   {
+   "domain": "配置与持久化",
+   "members": 3,
+   "lines": 528,
+   "lines_pct": 3.4,
+   "outside_refs": 3,
+   "internal_refs": 14,
+   "outside_ref_share_pct": 17.6
+  },
+  {
    "domain": "桥/快照出口",
    "members": 2,
    "lines": 211,
-   "lines_pct": 1.2,
+   "lines_pct": 1.3,
    "outside_refs": 2,
    "internal_refs": 5,
    "outside_ref_share_pct": 28.6
-  },
-  {
-   "domain": "配置与持久化",
-   "members": 3,
-   "lines": 138,
-   "lines_pct": 0.8,
-   "outside_refs": 2,
-   "internal_refs": 14,
-   "outside_ref_share_pct": 12.5
   },
   {
    "domain": "世界账本读取",
@@ -585,20 +616,20 @@
   {
    "domain": "承诺账本",
    "members": 5,
-   "lines": 43,
-   "lines_pct": 0.3,
-   "outside_refs": 63,
+   "lines": 23,
+   "lines_pct": 0.1,
+   "outside_refs": 66,
    "internal_refs": 18,
-   "outside_ref_share_pct": 77.8
+   "outside_ref_share_pct": 78.6
   },
   {
    "domain": "事件链/完整性",
    "members": 2,
-   "lines": 27,
-   "lines_pct": 0.2,
-   "outside_refs": 0,
-   "internal_refs": 5,
-   "outside_ref_share_pct": 0
+   "lines": 20,
+   "lines_pct": 0.1,
+   "outside_refs": 3,
+   "internal_refs": 3,
+   "outside_ref_share_pct": 50
   },
   {
    "domain": "业务状态面",
@@ -619,12 +650,12 @@
   {
    "name": "buildInjection",
    "lines": 921,
-   "outside_refs": 10
+   "outside_refs": 11
   },
   {
    "name": "selfCheck",
    "lines": 814,
-   "outside_refs": 10
+   "outside_refs": 11
   },
   {
    "name": "recallMemory",
@@ -637,9 +668,9 @@
    "outside_refs": 1
   },
   {
-   "name": "import",
-   "lines": 417,
-   "outside_refs": 34
+   "name": "saveConfig",
+   "lines": 408,
+   "outside_refs": 2
   },
   {
    "name": "registerEvents",
@@ -654,12 +685,12 @@
   {
    "name": "constructor",
    "lines": 342,
-   "outside_refs": 30
+   "outside_refs": 36
   },
   {
    "name": "restoreFromPayload",
    "lines": 272,
-   "outside_refs": 12
+   "outside_refs": 15
   },
   {
    "name": "typedFactsBlocks",
@@ -669,17 +700,17 @@
   {
    "name": "rollbackFloor",
    "lines": 202,
-   "outside_refs": 11
+   "outside_refs": 13
+  },
+  {
+   "name": "constructor",
+   "lines": 200,
+   "outside_refs": 36
   },
   {
    "name": "buildBridgeSnapshot",
    "lines": 196,
    "outside_refs": 2
-  },
-  {
-   "name": "constructor",
-   "lines": 192,
-   "outside_refs": 30
   },
   {
    "name": "optimizeMemory",
@@ -692,11 +723,6 @@
    "outside_refs": 9
   },
   {
-   "name": "save",
-   "lines": 157,
-   "outside_refs": 19
-  },
-  {
    "name": "feedThinking",
    "lines": 144,
    "outside_refs": 0
@@ -704,11 +730,6 @@
   {
    "name": "extractMemoryWithLLM",
    "lines": 142,
-   "outside_refs": 0
-  },
-  {
-   "name": "toInjection",
-   "lines": 132,
    "outside_refs": 0
   },
   {
@@ -774,7 +795,7 @@
   {
    "name": "summary",
    "lines": 72,
-   "outside_refs": 166
+   "outside_refs": 171
   },
   {
    "name": "rebuildItems",
@@ -810,18 +831,34 @@
    "name": "archiveCoveredFloors",
    "lines": 62,
    "outside_refs": 0
+  },
+  {
+   "name": "collectExport",
+   "lines": 60,
+   "outside_refs": 15
+  },
+  {
+   "name": "getLifeDetailsPrompt",
+   "lines": 60,
+   "outside_refs": 0
   }
  ],
  "split_candidates": {
   "threshold_lines": 80,
-  "total_over_threshold": 31,
+  "total_over_threshold": 29,
   "low_coupling_non_lifecycle": 19,
-  "high_coupling_non_lifecycle": 9,
+  "high_coupling_non_lifecycle": 7,
   "low_coupling_examples": [
    {
     "name": "recallMemory",
     "lines": 688,
     "outside_refs": 1,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "saveConfig",
+    "lines": 408,
+    "outside_refs": 2,
     "is_host_lifecycle": false
    },
    {
@@ -861,12 +898,6 @@
     "is_host_lifecycle": false
    },
    {
-    "name": "toInjection",
-    "lines": 132,
-    "outside_refs": 0,
-    "is_host_lifecycle": false
-   },
-   {
     "name": "showPanel",
     "lines": 127,
     "outside_refs": 0,
@@ -895,55 +926,43 @@
    {
     "name": "buildInjection",
     "lines": 921,
-    "outside_refs": 10,
+    "outside_refs": 11,
     "is_host_lifecycle": false
    },
    {
     "name": "selfCheck",
     "lines": 814,
-    "outside_refs": 10,
-    "is_host_lifecycle": false
-   },
-   {
-    "name": "import",
-    "lines": 417,
-    "outside_refs": 34,
-    "is_host_lifecycle": false
-   },
-   {
-    "name": "constructor",
-    "lines": 342,
-    "outside_refs": 30,
-    "is_host_lifecycle": false
-   },
-   {
-    "name": "restoreFromPayload",
-    "lines": 272,
-    "outside_refs": 12,
-    "is_host_lifecycle": false
-   },
-   {
-    "name": "rollbackFloor",
-    "lines": 202,
     "outside_refs": 11,
     "is_host_lifecycle": false
    },
    {
     "name": "constructor",
-    "lines": 192,
-    "outside_refs": 30,
+    "lines": 342,
+    "outside_refs": 36,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "restoreFromPayload",
+    "lines": 272,
+    "outside_refs": 15,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "rollbackFloor",
+    "lines": 202,
+    "outside_refs": 13,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "constructor",
+    "lines": 200,
+    "outside_refs": 36,
     "is_host_lifecycle": false
    },
    {
     "name": "refresh",
     "lines": 161,
     "outside_refs": 9,
-    "is_host_lifecycle": false
-   },
-   {
-    "name": "save",
-    "lines": 157,
-    "outside_refs": 19,
     "is_host_lifecycle": false
    }
   ]

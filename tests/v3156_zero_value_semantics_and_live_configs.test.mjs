@@ -17,6 +17,11 @@ const require = createRequire(import.meta.url);
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
 const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.264.0 A1 第五刀] 六个器官类已外移 memory-organs.js：读配置的消费面（numOr(...)）有三处跟着过去了，
+ *   故「消费点在场」与「读数面」两处口径改为 index.js + memory-organs.js 合看（不放宽：每一条仍须存在）。 */
+const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
+const allSrc = src + String.fromCharCode(10) + orgSrc;
+
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -26,7 +31,7 @@ const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 const genSrc = readFileSync(path.join(ROOT, 'narrative-generators.js'), 'utf-8');
 /* [v3.259.0 A1 第四刀] 七个书册/时间类外迁到 memory-books.js；跨面判据用 faceText + bkSrc。 */
 const bkSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');
-const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + bkSrc;   // 跨面判据用（入口 + 外迁模块）
+const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + bkSrc + String.fromCharCode(10) + orgSrc;   // 跨面判据用（入口 + 外迁模块 + A1 五刀器官模块）
 function vnum(s) {
     const p = String(s || '').trim().split('.');
     const a = Number(p[0]), b = Number(p[1] || 0), c = Number(p[2] || 0);
@@ -204,10 +209,11 @@ test('[1d] numOr consumption sites reach expected count', () => {
     /* [v3.258.0 A1 第三刀] PROBES 是混合面清单：多数锚留在入口，而
      *   `numOr(config.diaryEveryFloors, 3)` 的真源已随 DiarySystem 外迁。
      *   逐锚按「真源所在面」取值（任一面在场即算消费点在场），不再一律读 src。 */
-    for (const p of PROBES) assert.ok(src.includes(p) || genSrc.includes(p), 'consumption site present: ' + p);
+    /* [v3.264.0 A1 第五刀] `numOr(cfg.vectorChunkOverlap, 10)`（VectorStore 分块）已随 VectorStore 外移 memory-organs.js。 */
+    for (const p of PROBES) assert.ok(faceText.includes(p), 'consumption site present: ' + p);
 });
 test('[1e] vectorChunkSize was not widened (it is not a min=0 key)', () => {
-    assert.ok(src.includes('Number(cfg.vectorChunkSize) || 800'), 'chunkSize keeps its original form');
+    assert.ok(allSrc.includes('Number(cfg.vectorChunkSize) || 800'), 'chunkSize keeps its original form（[v3.264.0] 已随 VectorStore 外移）');
 });
 /* ============ 2. slice(-0) trap: explicit branches ============ */
 test('[2] aiRecallOpsMaxPerFloor=0 must not fall into the slice(-0) trap', () => {

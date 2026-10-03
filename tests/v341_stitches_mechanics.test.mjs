@@ -7,6 +7,9 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：下方抽取面改读该模块（语义一字不改）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
@@ -23,6 +26,12 @@ function braceEnd(s, open) {
     return -1;
 }
 function extractClass(name) {
+    /* [v3.264.0] WorldProgress 类已外移：改在 memory-organs.js 上切片 */
+    if (orgSrc.indexOf('class ' + name + ' {') >= 0) {
+        const at = orgSrc.indexOf('class ' + name + ' {');
+        const brace = orgSrc.indexOf('{', at);
+        return orgSrc.slice(at, braceEnd(orgSrc, brace) + 1);
+    }
     const start = src.indexOf(`class ${name} {`);
     if (start < 0) throw new Error('missing class ' + name);
     const brace = src.indexOf('{', start);
@@ -34,10 +43,10 @@ const errLog = () => {};
 
 console.log('=== 1. 静态关键锚点与版本检查 ===');
 assert.ok(/const VERSION = '3\.(4[1-9]|[5-9]\d+|[1-9]\d{2,})\./.test(src), '版本号必须有效 (>= 3.41.0)');
-assert.ok(src.includes('addPromise') && src.includes('checkPromises'), 'WorldProgress 必须实现约定账本 (Promises Ledger)');
-assert.ok(src.includes('markUnaware') && src.includes('getReEntryNotice'), 'WorldProgress 必须实现认知隔离 (Cognitive Horizon)');
+assert.ok(orgSrc.includes('addPromise') && orgSrc.includes('checkPromises'), 'WorldProgress 必须实现约定账本 (Promises Ledger)（[v3.264.0] 类已外移）');
+assert.ok(orgSrc.includes('markUnaware') && orgSrc.includes('getReEntryNotice'), 'WorldProgress 必须实现认知隔离 (Cognitive Horizon)（[v3.264.0] 类已外移）');
 assert.ok(src.includes('generateAMIndex') && src.includes('resolveByAMCodes'), 'SummarySystem 必须实现紧凑 AM 记忆地址编码');
-assert.ok(src.includes('decayArcs') && src.includes('touchArc'), 'WorldProgress 必须实现支线生命周期与衰减时钟');
+assert.ok(orgSrc.includes('decayArcs') && orgSrc.includes('touchArc'), 'WorldProgress 必须实现支线生命周期与衰减时钟（[v3.264.0] 类已外移）');
 assert.ok(src.includes('stripInternalTags') || src.includes('stripMemoryOpsTags'), '必须拥有标签过滤净化函数');
 ok('静态锚点与接口声明检查全部通过');
 

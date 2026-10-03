@@ -10,6 +10,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
 const src = fs.readFileSync(path.join(REPO, 'event-chain.js'), 'utf8');
 const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+/* [v3.264.0 A1 第五刀] LLMCaller 已外移 memory-organs.js：callAPI / _callAPIInner /
+ *   getLastEventChain / _eventChainLib 都随类过去了，接线判据须读「宿主 + 器官模块」两面
+ *   （host 侧只留兼容挂载点与退路声明；合看不放宽，每条仍须存在）。 */
+const orgSrc = fs.readFileSync(path.join(REPO, 'memory-organs.js'), 'utf8');
+const llmFace = idxSrc + String.fromCharCode(10) + orgSrc;
 const suiSrc = fs.readFileSync(path.join(REPO, 'settings-ui.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'manifest.json'), 'utf8'));
 
@@ -205,34 +210,36 @@ test('【7】与源码 AGENT_EVENT_TRANSITIONS 逐条对齐', () => {
 // ---------- 8. index.js 接线（正向） ----------
 test('【8】index.js 接线：callAPI 事件链审计已挂上主链路', () => {
   assert.ok(/llmEventChainEnabled:\s*false/.test(idxSrc), '默认关（不改变既有行为）');
-  assert.ok(idxSrc.includes('llmEventChainEnabled !== true'), '门控为显式 !== true');
-  assert.ok(idxSrc.includes('window.LonShaEventChain'), 'window 通道');
-  assert.ok(idxSrc.includes("require('./event-chain.js')"), 'require 降级通道');
-  assert.ok(idxSrc.includes('await this._callAPIInner(prompt)'), '包装层真实转调内层实现');
-  assert.ok(/async _callAPIInner\(prompt\)/.test(idxSrc), '_callAPIInner 存在');
-  assert.ok(idxSrc.includes('getLastEventChain()'), '提供诊断读取方法');
+  assert.ok(llmFace.includes('llmEventChainEnabled !== true'), '门控为显式 !== true');
+  assert.ok(llmFace.includes('window.LonShaEventChain'), 'window 通道');
+  /* require 降级通道已按本刀「受守卫的双通道取库」形态书写（外层 typeof require 守卫）。 */
+  assert.ok(llmFace.includes("require('./event-chain.js')"), 'require 降级通道');
+  assert.ok(llmFace.includes('await this._callAPIInner(prompt)'), '包装层真实转调内层实现');
+  assert.ok(/async _callAPIInner\(prompt\)/.test(llmFace), '_callAPIInner 存在');
+  assert.ok(llmFace.includes('getLastEventChain()'), '提供诊断读取方法');
   assert.ok(EC.append([], { type: T.RUN_STARTED }).ok, '引擎可用');
   assert.ok(suiSrc.includes('llmEventChainEnabled'), 'settings-ui 声明该键（非幽灵配置）');
   // 内层实现仍保留原独立 API / 宿主降级路径（未被包装破坏）
-  assert.ok(idxSrc.includes('if (cfg.apiProviderCustom && cfg.apiUrl && cfg.apiKey) {'), '独立 API 路径仍在');
-  assert.ok(idxSrc.includes('generateQuietPrompt'), '宿主降级路径仍在');
+  assert.ok(llmFace.includes('if (cfg.apiProviderCustom && cfg.apiUrl && cfg.apiKey) {'), '独立 API 路径仍在');
+  assert.ok(llmFace.includes('generateQuietPrompt'), '宿主降级路径仍在');
   ok('接线（门控 / 双通道 / 转调 / UI 声明）');
 });
 
 // ---------- 9. 逆向审计：关闭时不引入副作用 ----------
 test('【9】逆向审计：关闭时零副作用、异常不中断主链路', () => {
   // 关闭分支必须直接 return 内层实现（不构造链、不记日志）
-  const m = /if \(this\.config\.config\.llmEventChainEnabled !== true\) return this\._callAPIInner\(prompt\);/.exec(idxSrc);
+  const m = /if \(this\.config\.config\.llmEventChainEnabled !== true\) return this\._callAPIInner\(prompt\);/.exec(llmFace);
   assert.ok(m, '关闭分支为直接转调，无中间副作用');
   // 事件链违反只 warn（不 throw）
-  const body = /async callAPI\(prompt\)[\s\S]*?\n {8}\}/.exec(idxSrc)[0];
+  /* [v3.264.0] 类体随 LLMCaller 去了模块，且模块内类已整体去 4 空格缩进，故块尾缩进为 4 空格。 */
+  const body = /async callAPI\(prompt\)[\s\S]*?\n {4}\}/.exec(orgSrc)[0];
   assert.ok(!/throw new Error\('event chain/.test(body), '链违规不抛错');
   assert.ok(/console\.warn/.test(body) && /debugMode/.test(body), '违规仅调试态告警');
   // 真实异常仍向上抛（审计不得吞掉故障）
   assert.ok(/throw e;/.test(body), '原始异常仍向上抛');
   // 引擎缺库时降级（返回内层结果）
-  const noLib = idxSrc.indexOf('_eventChainLib()');
-  assert.ok(noLib > 0 && idxSrc.includes('if (!EC) return this._callAPIInner(prompt);'), '缺引擎时降级');
+  const noLib = orgSrc.indexOf('_eventChainLib()');
+  assert.ok(noLib > 0 && orgSrc.includes('if (!EC) return this._callAPIInner(prompt);'), '缺引擎时降级');
   // 迁移校验本身是纯函数 → 重复调用结果一致
   const a = EC.canFollow(T.MODEL_REQUESTED, T.ASSISTANT_MESSAGE);
   const b = EC.canFollow(T.MODEL_REQUESTED, T.ASSISTANT_MESSAGE);

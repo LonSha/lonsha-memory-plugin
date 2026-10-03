@@ -8,13 +8,16 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.264.0 A1 第五刀] CharacterMemoryBank 已外移 memory-organs.js：本文件凡「从 index.js 抽这些类/方法」的抽取面改读该模块，
+ *   语义一字不改，只换被读的文件。 */
+const orgSrc = readFileSync(`${REPO_ROOT}/memory-organs.js`, 'utf-8');
 
 test('=== 1. A: charMem shiftFloorRefs（静态特征） ===', () => {
-    assert.ok(src.includes('shiftFloorRefs(deleted)'), '位移方法定义');
-    assert.ok(src.includes('[v3.84] A: 角色记忆银行楼层位移'), 'A 标记');
+    assert.ok(orgSrc.includes('shiftFloorRefs(deleted)'), '位移方法定义（[v3.264.0] 类已外移）');
+    assert.ok(orgSrc.includes('[v3.84] A: 角色记忆银行楼层位移'), 'A 标记（[v3.264.0] 类已外移）');
     assert.ok(src.includes("shiftFloorsFrom.角色记忆位移"), 'shiftFloorsFrom 挂接');
     // 原有 removeByFloor 保留
-    assert.ok(src.includes('removeByFloor(floor) {'), 'v3.22 方法保留');
+    assert.ok(orgSrc.includes('removeByFloor(floor) {'), 'v3.22 方法保留（[v3.264.0] 类已外移）');
 });
 
 test('=== 2. A: shiftFloorRefs 逻辑复刻 ===', () => {
@@ -72,7 +75,7 @@ test('=== 3. A: removeByFloor 计数修复 ===', () => {
     assert.strictEqual(removeByFloor(mem, 99), 0, '无命中计数 0');
     // 静态：旧 bug 绝迹
     assert.ok(!src.includes('removed += 1;'), 'removed += 1 已清除');
-    assert.ok(src.includes('beforeCore - c.core.length'), '新计数逻辑');
+    assert.ok(orgSrc.includes('beforeCore - c.core.length'), '新计数逻辑（[v3.264.0] 类已外移）');
 });
 
 test('=== 4. B: drift 生命周期方法（静态特征） ===', () => {

@@ -6,12 +6,16 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const src = fs.readFileSync(path.resolve(__dirname, '../index.js'), 'utf-8');
+/* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
+const orgSrc = fs.readFileSync(path.resolve(__dirname, '../memory-organs.js'), 'utf-8');
+
 
 console.log('=== 1. 静态关键锚点与版本检查 ===');
 assert.ok(/const VERSION = '3\.\d{2,}\.\d+';/.test(src), '版本号必须递增至 3.44.0+');
 assert.ok(src.includes('sanitizeJson') && src.includes('safeJsonParse'), '必须包含字符流状态机 JSON 容错解析器');
+// [v3.264.0 A1 第五刀] sanitizeJson 仍留宿主（模块内只有逐字副本，bindDeps 现算注入）
 assert.ok(src.includes('clean.carried = true;\n                    clean.location = \'\';') || src.includes('clean.carried === true') && src.includes('clean.location = \'\';'), '物品台账必须实现 carried 与 location 互斥');
-assert.ok(src.includes('this._revision = 0;') && src.includes('setStateIfRevision'), 'StorageManager 必须实现单调递增修订号与乐观并发');
+assert.ok(orgSrc.includes('this._revision = 0;') && orgSrc.includes('setStateIfRevision'), 'StorageManager 必须实现单调递增修订号与乐观并发（[v3.264.0] 类已外移）');
 assert.ok(src.includes('开场白写入抑制 (Opening Floor Write Suppression'), 'onMessageReceived 必须包含开场白写入抑制');
 console.log('✓ 静态锚点与接口声明检查全部通过');
 
@@ -19,6 +23,7 @@ console.log('✓ 静态锚点与接口声明检查全部通过');
 function extractSanitizer() {
     const start = src.indexOf('function sanitizeJson(raw) {');
     const end = src.indexOf('function hintForError(err) {', start);
+    /* [v3.264.0] sanitizeJson 仍在宿主：本段从 index.js 切片（不要跟 StorageManager 那段一起换源） */
     const code = src.slice(start, end);
     const fn = new Function(`${code}; return { sanitizeJson, safeJsonParse };`);
     return fn();
@@ -70,6 +75,7 @@ console.log('\n=== 3. 物品物理可达性与随身/存放互斥动态测试 ==
 function extractItemOpSanitizer() {
     const start = src.indexOf('_sanitizeItemOp(op) {');
     const end = src.indexOf('rebuildItems() {', start);
+    /* [v3.264.0] _sanitizeItemOp 属 MemoryEngine，仍在宿主（本体不在本刀六类内） */
     const code = src.slice(start, end);
     const inner = code.slice(code.indexOf('{') + 1, code.lastIndexOf('}'));
     const fn = new Function('errLog', `return function _sanitizeItemOp(op) { ${inner} };`);
@@ -117,9 +123,9 @@ console.log('✓ 物品物理可达性、随身/存放互斥与他处寄存划�
 console.log('\n=== 4. 数据库级修订号乐观并发与开场白抑制测试 ===');
 // 提取 StorageManager
 function extractStorageManagerClass() {
-    const start = src.indexOf('class StorageManager {');
-    const end = src.indexOf('class LonShaMemoryPlugin {', start);
-    const code = src.slice(start, end);
+    const start = orgSrc.indexOf('class StorageManager {');
+    const end = orgSrc.indexOf('\n}', start) + 2;
+    const code = orgSrc.slice(start, end);
     const fn = new Function('VERSION', 'PLUGIN_NAME', 'errLog', `${code}; return StorageManager;`);
     return fn('3.44.0', 'LonSha', () => {});
 }

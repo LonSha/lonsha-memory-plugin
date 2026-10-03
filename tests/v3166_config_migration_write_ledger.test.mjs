@@ -13,6 +13,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments as libStrip } from './_audit_lib.mjs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：「从 index.js 抽 save 方法」的抽取面改读该模块（语义一字不改）。
+ *   一个文件里只能有一个真源：凡「从 index.js 抽 StorageManager 方法」的抽取点均改读 memory-organs.js。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+const pickSrc = (marker) => (src.includes(marker) ? src : orgSrc);
 const STORAGE_KEY = 'lonsha_memory';
 
 /* ══════════════ 0. 版本与发布卫生 ══════════════ */
@@ -36,13 +40,14 @@ test('v3.166 版本下界与四处同步', () => {
 
 /** 花括号配对提取（字符串/注释/模板串安全），与仓库既有测试同风格。 */
 function extractBraced(marker) {
-    const start = src.indexOf(marker);
+    const hj = pickSrc(marker);
+    const start = hj.indexOf(marker);
     assert.ok(start >= 0, `${marker} 存在`);
     let depth = 0, inStr = null, esc = false, lineC = false, blockC = false;
-    let i = src.indexOf('{', start);
+    let i = hj.indexOf('{', start);
     const open = i;
-    for (; i < src.length; i++) {
-        const ch = src[i], nx = src[i + 1];
+    for (; i < hj.length; i++) {
+        const ch = hj[i], nx = hj[i + 1];
         if (lineC) { if (ch === '\n') lineC = false; continue; }
         if (blockC) { if (ch === '*' && nx === '/') { blockC = false; i++; } continue; }
         if (inStr) {
@@ -57,7 +62,7 @@ function extractBraced(marker) {
         if (ch === '{') depth++;
         else if (ch === '}') { depth--; if (depth === 0) break; }
     }
-    return src.slice(open + 1, i);
+    return hj.slice(open + 1, i);
 }
 
 /** 构造一个可独立运行的 storage.save 环境（只提供部分字段，模拟测试桩/残留实例）。 */

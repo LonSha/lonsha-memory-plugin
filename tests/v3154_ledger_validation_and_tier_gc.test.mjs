@@ -181,8 +181,13 @@ test('【5b】配置默认值 5 键 + 卡覆盖白名单 5 键 + 违规账本字
     for (const k of ['ledgerWriteValidationEnabled', 'ledgerWriteValidationDebug', 'ledgerViolationLogMax', 'volumeRetention', 'historicalRetention']) {
         assert.ok(cc.includes(k), '卡覆盖白名单含 ' + k);
     }
-    const _ctorSeg = src.slice(src.indexOf('constructor(config) {'), src.indexOf('this.vector = new VectorStore'));
+    /* [v3.264.0 A1 第五刀] 原切片终点是 `this.vector = new VectorStore`——VectorStore 构造点已改写为
+     *   `_newMemoryOrgan('VectorStore', ...)`，终点串消失（indexOf=-1）⇒ slice(a,-1) 把全文都算进构造区，
+     *   于是「恰一处」被算成 2。终点改用同构造区内仍在场的稳定锚。 */
+    const _ctorSeg = src.slice(src.indexOf('constructor(config) {'), src.indexOf("this.vector = _newMemoryOrgan('VectorStore', config)"));
     assert.equal((_ctorSeg.match(/this\._ledgerViolations = \[\];/g) || []).length, 1, '构造函数内违规账本字段仅一处');
+    /* [v3.264.0] MemoryEngine 仍在宿主（不是本刀剥走的六类）：两处字段初始化都应在 index.js。
+     *   这条不得改成「合看两个文件」—— mind 一下：它量的是「构造区与防御区各一处」这个**宿主内部**的对称性。 */
     assert.equal((src.match(/this\._ledgerViolations = \[\];/g) || []).length, 2, '方法内另有 1 处防御性初始化');
 });
 

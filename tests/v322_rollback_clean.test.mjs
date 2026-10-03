@@ -8,6 +8,9 @@ function vnum(s) {
 }
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.264.0 A1 第五刀] CharacterMemoryBank 已外移 memory-organs.js：本文件凡「从 index.js 抽这些类/方法」的抽取面改读该模块，
+ *   语义一字不改，只换被读的文件。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
@@ -68,7 +71,8 @@ function clearSigByFloor(signals, floor) {
 // ST2: rollbackFloor 内补场外信号清理
 { if (!src.includes('this.clearThinkingSignalsByFloor(floor)')) fail('ST2 信号'); ok('ST2: rollbackFloor 内场外信号清理'); }
 // ST3: 方法定义存在
-{ if (!src.includes('removeByFloor(floor) {\n            const f = Math.max')) fail('ST3 charMem方法'); if (!src.includes('clearThinkingSignalsByFloor(floor) {')) fail('ST3 信号方法'); ok('ST3: 两个清理方法已定义'); }
+/* [v3.264.0] 模块内类体整体去 4 空格：方法体缩进由 12 → 8（只换被读的文件与缩进）。 */
+{ if (!orgSrc.includes('removeByFloor(floor) {' + String.fromCharCode(10) + '        const f = Math.max')) fail('ST3 charMem方法'); if (!src.includes('clearThinkingSignalsByFloor(floor) {')) fail('ST3 信号方法'); ok('ST3: 两个清理方法已定义'); }
 // ST4: 版本号（容灾：>= 3.23）
 { const vm4 = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/); if (vm4 && vnum(vm4[1]) >= vnum('3.23')) ok('ST4: 版本号 ' + vm4[1]); else fail('ST4: 版本 >= 3.23'); }
 

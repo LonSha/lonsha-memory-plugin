@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const srcI = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：「从 index.js 抽 save 方法」的抽取面改读该模块（语义一字不改）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
 const srcS = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
@@ -59,12 +61,19 @@ function braceEnd(s, open) {
 /* ══════════ 3. DB4: storage.save 骤减守卫（行为测试） ══════════ */
 {
     // 从 index.js 提取 save 方法体
-    const START = '        async save(chatId, data) {';
-    const start = srcI.indexOf(START);
-    assert.ok(start > 0, 'save 方法存在');
-    const brace = srcI.indexOf('{', start);
-    const end = braceEnd(srcI, brace);
-    const methodSrc = srcI.slice(srcI.indexOf('async save', start), end + 1);
+    /* [v3.264.0] save 已随 StorageManager 外移：先在 index.js 找，找不到就到模块里找（同一方法、同一语义）。 */
+    /* [v3.264.0 A1 第五刀] 模块内的类已去 4 空格缩进（IIFE 顶层），故同一方法在两面**行首缩进不同**。
+     *   两个面各用自己的写法取；indexOf 合法下界是 0（命中第 0 行也是命中）。 */
+    const START_H = '        async save(chatId, data) {';
+    const START_M = '    async save(chatId, data) {';
+    const _host = srcI.indexOf(START_H);
+    const _src = _host >= 0 ? srcI : orgSrc;
+    const start = _host >= 0 ? _host : orgSrc.indexOf(START_M);
+    /* [v3.264.0] 原句 `start > 0`：save 随 StorageManager 外移后模块内首行即可能命中（indexOf 合法返回 0）。 */
+    assert.ok(start >= 0, 'save 方法存在（indexOf 合法下界为 0）');
+    const brace = _src.indexOf('{', start);
+    const end = braceEnd(_src, brace);
+    const methodSrc = _src.slice(_src.indexOf('async save', start), end + 1);
 
     function makeEnv(prevData) {
         const calls = [];

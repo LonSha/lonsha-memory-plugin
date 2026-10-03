@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 43580,
+  "ceiling": 44184,
   "maxSlack": 400,
-  "note": "v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）",
+  "note": "v3.264.0 A1 第五刀：宿主六器官类（LLMCaller/VectorStore/CharacterMemoryBank/EntityLexicon/WorldProgress/StorageManager）外移 memory-organs.js，宿主行数下降；模块侧新增逐字副本与依赖收口（活跃代码总量随模块新代码合法回涨，非死代码回流）",
   "history": [
     {
       "ceiling": 21000,
@@ -181,7 +181,11 @@
     {
       "ceiling": 43580,
       "reason": "v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）"
+    },
+    {
+      "ceiling": 44184,
+      "reason": "v3.264.0 A1 第五刀：宿主六器官类（LLMCaller/VectorStore/CharacterMemoryBank/EntityLexicon/WorldProgress/StorageManager）外移 memory-organs.js，宿主行数下降；模块侧新增逐字副本与依赖收口（活跃代码总量随模块新代码合法回涨，非死代码回流）"
     }
   ],
-  "_history_last": "ceiling 43047 → 43580（实测 43180 + slack 400）：v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）"
+  "_history_last": "ceiling 43580 → 44184（实测 43784 + slack 400）：v3.264.0 A1 第五刀：宿主六器官类（LLMCaller/VectorStore/CharacterMemoryBank/EntityLexicon/WorldProgress/StorageManager）外移 memory-organs.js，宿主行数下降；模块侧新增逐字副本与依赖收口（活跃代码总量随模块新代码合法回涨，非死代码回流）"
 }

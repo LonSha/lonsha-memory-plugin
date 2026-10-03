@@ -5,13 +5,17 @@ import assert from 'node:assert';
 import fs from 'fs';
 
 const src = fs.readFileSync('index.js', 'utf8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：类内调用点/方法体的抽取面改读该模块。 */
+const orgSrc = fs.readFileSync('memory-organs.js', 'utf8');
 const ga = fs.readFileSync('graph_algorithms.js', 'utf8');
 /* [v3.258.0 A1 第三刀] 生成侧三类已外迁。[9]「幽灵配置」扫描面必须含这些模块，
  *   否则已搬家的消费点会被判成零引用。 */
 const genSrc = fs.readFileSync('narrative-generators.js', 'utf8');
 /* [v3.259.0 A1 第四刀] 七个书册/时间类外迁到 memory-books.js。 */
 const bkSrc = fs.readFileSync('memory-books.js', 'utf8');
-const faceText = src + String.fromCharCode(10) + genSrc;
+/* [v3.264.0 A1 第五刀] 「块外是否有引用」的扫描面必须含本刀外移的器官模块，
+ *   否则己搬家的消费点会被判成零引用（幽灵配置假报）。 */
+const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + bkSrc + String.fromCharCode(10) + orgSrc;
 
 // ---------- 提取工具（复用 v388/v390 花括号计数法） ----------
 function extractNamed(text, marker) {
@@ -165,14 +169,14 @@ test('【6】getGeoPrompt 接入 buildInjection 动态区', () => {
 
 // ═══════════ 7. worldProgressMaxCandidates：MAX_ACTIVE 硬编码 修复 ═══════════
 test('【7】WorldProgress.select 接受 maxCandidates', () => {
-    const m = extractNamed(src, 'select(candidates, status, maxCandidates) {');
+    const m = extractNamed(orgSrc, 'select(candidates, status, maxCandidates) {');
     const obj = objOf(m, {});
     const ctx = { MAX_ACTIVE: 2 };
     const cands = ['a', 'b', 'c', 'd'];
     assert.strictEqual(obj.select.call(ctx, cands, null).length, 2, '缺省回落 MAX_ACTIVE=2（向后兼容）');
     assert.strictEqual(obj.select.call(ctx, cands, null, 4).length, 4, 'maxCandidates=4 生效');
     assert.strictEqual(obj.select.call(ctx, cands, null, 0).length, 2, '非法 0 回落 MAX_ACTIVE');
-    assert.ok(src.includes('engine?.config?.config?.worldProgressMaxCandidates'), '调用点已传入配置（可选链守卫）');
+    assert.ok(orgSrc.includes('engine?.config?.config?.worldProgressMaxCandidates'), '调用点已传入配置（可选链守卫）（[v3.264.0] 类已外移）');
     console.log('✓ 7: worldProgressMaxCandidates 已接通 select 上限');
 });
 

@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：类内调用点/方法体的抽取面改读该模块。 */
+const orgSrc = readFileSync(`${REPO_ROOT}/memory-organs.js`, 'utf-8');
 
 test('=== 1. A: 提取 prompt 新增 WorldProgress 字段 ===', () => {
     assert.ok(src.includes('9h. promises：'), 'promises 字段规则');
@@ -201,9 +203,11 @@ test('=== 6. 挂接与注入门控 ===', () => {
     // 注入门控：worldProgressEnabled 关闭时不注入
     assert.ok(src.includes('const prog = this.config.config.worldProgressEnabled && this.worldProg'), '注入门控');
     // 认知隔离注入
-    assert.ok(src.includes("id: 'wp_knowledge'"), '认知隔离注入块');
-    assert.ok(src.includes("id: 'wp_promises'"), '承诺注入保留');
-    assert.ok(src.includes("id: 'wp_arcs'"), '支线注入保留');
+    /* [v3.264.0 A1 第五刀] toInjection 的三个注入块随 WorldProgress 外移 memory-organs.js；
+     *   挂接面（rollbackFloor/shiftFloorsFrom 标注）仍在宿主。 */
+    assert.ok(orgSrc.includes("id: 'wp_knowledge'"), '认知隔离注入块');
+    assert.ok(orgSrc.includes("id: 'wp_promises'"), '承诺注入保留');
+    assert.ok(orgSrc.includes("id: 'wp_arcs'"), '支线注入保留');
     // WorldProgress 应用块接线
     assert.ok(src.includes('[v3.85] A/B/C: WorldProgress 数据源接线'), '应用块标记');
     assert.ok(src.includes('this.worldProg.checkPromises(wpFloor)'), '承诺即时检查');
@@ -213,13 +217,13 @@ test('=== 6. 挂接与注入门控 ===', () => {
 
 test('=== 7. 回归防护 ===', () => {
     // v3.41 既有机制保留
-    assert.ok(src.includes('addPromise') && src.includes('checkPromises'), 'v3.41 承诺');
-    assert.ok(src.includes('markUnaware') && src.includes('getReEntryNotice'), 'v3.41 认知');
-    assert.ok(src.includes('decayArcs') && src.includes('touchArc'), 'v3.41 支线');
+    assert.ok(orgSrc.includes('addPromise') && orgSrc.includes('checkPromises'), 'v3.41 承诺（[v3.264.0] 类已外移）');
+    assert.ok(orgSrc.includes('markUnaware') && orgSrc.includes('getReEntryNotice'), 'v3.41 认知（[v3.264.0] 类已外移）');
+    assert.ok(orgSrc.includes('decayArcs') && orgSrc.includes('touchArc'), 'v3.41 支线（[v3.264.0] 类已外移）');
     // v3.82-3.84 方法保留
     assert.ok(src.includes('removeLifeDetailByFloor(floor)'), 'v3.82');
     assert.ok(src.includes('removeProtagonistByFloor(floor)'), 'v3.83');
-    assert.ok(src.includes('shiftFloorRefs(deleted)'), 'charMem v3.84 shiftFloorRefs');
+    assert.ok(orgSrc.includes('shiftFloorRefs(deleted)'), 'charMem v3.84 shiftFloorRefs（[v3.264.0] 方法已外移）');
     assert.ok(src.includes('shiftDriftFloors(deleted)'), 'v3.84 drift');
     assert.ok(src.includes('shiftBaselineFloors(deleted)'), 'v3.84 baseline');
     assert.ok(src.includes('shiftGeoFloor(deleted)'), 'v3.84 geo');

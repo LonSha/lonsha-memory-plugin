@@ -195,7 +195,9 @@ test('v3.168 B 空种子必须有失败出口（v3.165 的判据不得被本版�
 });
 
 /* ══════════════ C. 降级必有计数（I4） ══════════════ */
-const embedSpan = methodSpan(idx, 'getEmbedding(text)');
+/* [v3.264.0 A1 第五刀] VectorStore 已外移 memory-organs.js：getEmbedding 从该模块切片（语义一字不改）。 */
+const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf8');
+const embedSpan = methodSpan(orgSrc, 'getEmbedding(text)');
 function embedRunner(cfg, fetchImpl, storeGet) {
     const self = {
         _embedDegrade: undefined,

@@ -232,7 +232,9 @@ test('v3263 C. 接线面：消费点 + 面板 + 自检行 + 加载序 + 数量�
         assert.equal(mf.extra_js.filter((f) => f === m).length, 1, m + ' 须在 extra_js 恰好 1 次');
         assert.ok(mf.extra_js.includes(m), m + ' 须在 extra_js 内');
     }
-    assert.equal(mf.extra_js[mf.extra_js.length - 1], MOD_AA, '本刀模块须接管 extra_js 末项（加载序 frontier）');
+    /* [v3.264.0 交棒] 末项断言已交第五刀（memory-organs.js 现为末项）：「谁是末项」属于当版 frontier，随版本移动。
+     *   本档只保留「本刀模块仍在 extra_js 内」这一自身不变量（见上一条循环）。 */
+    assert.ok(mf.extra_js.includes(MOD_AA), MOD_AA + ' 须仍在 extra_js 内（末项断言已交五刀）');
     // 两行自检（三态可分：模块不可用 / 待导入 / 有读数）
     assert.ok(IDX.includes("'存档体检'"), 'selfCheck 缺「存档体检」一栏');
     assert.ok(IDX.includes("'物品认领'"), 'selfCheck 缺「物品认领」一栏');
@@ -257,7 +259,7 @@ test('v3263 C. 接线面：消费点 + 面板 + 自检行 + 加载序 + 数量�
     assert.equal(b.rebuilds[b.measured_at].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
     // 数量锁已被本刀接管
     const V3209 = read('tests/v3209_migration_registry.test.mjs');
-    assert.ok(V3209.includes('mf.extra_js.length === 76'), 'v3209 数量锁须已接管为 76');
+    assert.ok(V3209.includes('mf.extra_js.length === 77'), 'v3209 数量锁须已接管为 77');
     // 判据面自防护
     assert.ok(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
     assert.ok((SELF.match(/assert\./g) || []).length >= 40, '断言密度须 >= 40，实为 ' + (SELF.match(/assert\./g) || []).length);
@@ -312,11 +314,17 @@ test('v3263 D. 负控制：真源码破坏后同一条判据必须翻红', () =>
 /* ========== E 版本锚 ========== */
 test('v3263 E. 版本锚：四源同版 + 本档随版冻结', () => {
     const ver = (IDX.match(/const VERSION = '([0-9.]+)'/) || [])[1];
-    assert.equal(ver, '3.261.0', 'index.js 版本须为本刀版本');
+    /* [v3.264.0 交棒] 原句硬等当版 —— 那是当版 frontier 形态，抬版后必红。
+     *   本档只锁自己的出生版本（3.261.0），不承诺未来；当版锚点由当版套件（v3264）接管。 */
+    assert.ok(vnum(IDX.match(/const VERSION = '([^']+)'/)[1]) >= vnum('3.261.0'), 'index.js 版本不得低于本刀出生版本');
     assert.equal(JSON.parse(read('manifest.json')).version, ver, 'manifest 版本须与入口同源');
     assert.equal(JSON.parse(read('package.json')).version, ver, 'package 版本须与入口同源');
-    assert.match(read('CHANGELOG.md'), /^## v3\.261\.0/, 'CHANGELOG 顶节须为本版');
-    assert.match(read('TODO.md'), /最近更新：v3\.261\.0/, 'TODO「最近更新」须为本版');
-    // V4 当版锚点：以 vnum 恰好锚着当版（不写死等号，供下一版接管时平滑交棒）
-    assert.equal(vnum('3.261.0'), 3261000, '本档即当版：vnum 须恰好锚着 3.261.0');
+    /* [v3.264.0 交棒] CHANGELOG/TODO 顶节是**发布面**，随当版走（原句硬等本档版本 = 当版 frontier 形态，抬版必红）。
+     *   本档只锁「发布面不得落后于自己的出生版本」。 */
+    const _clTop = (read('CHANGELOG.md').match(/^## v([0-9.]+)/m) || [])[1];
+    assert.ok(vnum(_clTop) >= vnum('3.261.0'), 'CHANGELOG 顶节不得低于本档版本（实 ' + _clTop + '）');
+    const _td = (read('TODO.md').match(/最近更新：v([0-9.]+)/) || [])[1];
+    assert.ok(vnum(_td) >= vnum('3.261.0'), 'TODO「最近更新」不得低于本档版本（实 ' + _td + '）');
+    // V4 当版锚点：本档出生版本号（供版本守卫取基准，不随抬版失效）
+    assert.equal(vnum('3.261.0'), 3261000, '本档出生版本 vnum 锚点');
 });

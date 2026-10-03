@@ -12,6 +12,11 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
 const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.264.0 A1 第五刀] EntityLexicon 已外移到 memory-organs.js。
+ *   凡「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
+/* 类切片走本文件已有的 extractClass（函数声明提升，放前面也能用） */
+const orgClass = (name) => extractClass(orgSrc, 'class ' + name + ' {');
 const bkSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');  // [v3.259.0 A1 第四刀] BM25 外迁后真源
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -41,6 +46,7 @@ function extractKernel(source) {
     throw new Error('numOr kernel is not brace balanced');
 }
 const numOrFromSource = new Function('return (' + extractKernel(src) + ')')();
+/* [v3.264.0] numOr 仍留宿主（第五刀不搬宿主函数，改由 bindDeps 现算注入） */
 
 function vnum(s) {
     const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(s || '').trim());
@@ -49,8 +55,8 @@ function vnum(s) {
 
 // ================= 1. 结构接线 =================
 test('【1】结构接线：词典类/双端归一/持久化/感知配额', () => {
-    assert.ok(src.includes('window.LonShaEntityLexicon'), 'A1 词典库挂载点');
-    assert.ok(src.includes('class EntityLexicon'), 'A1 词典类在 index.js（内联，零加载依赖）');
+    assert.ok(src.includes('window.LonShaEntityLexicon'), 'A1 词典库挂载点（兼容挂载点仍在宿主）');
+    assert.ok(orgSrc.includes('class EntityLexicon'), 'A1 词典类在 memory-organs.js（[v3.264.0] A1 第五刀外移）');
     assert.ok(bkSrc.includes('this._lexNormalize('), 'A2 BM25 文档端归一（[v3.259.0] 随 BM25 外迁）');
     assert.ok(bkSrc.includes('normalizeQueryByLexicon('), 'A2 查询端归一（[v3.259.0] 随 BM25 外迁）');
     assert.ok(src.includes('termLexiconEnabled'), 'A1 开关');
@@ -65,7 +71,7 @@ test('【1】结构接线：词典类/双端归一/持久化/感知配额', () =
 test('【2】EntityLexicon：resolve 匹配/词边界/NFKC/条数上限/超限淘汰', () => {
     // [v3.157] EntityLexicon 构造器取值已走零值安全内核 numOr（实体类不再自包含取值逻辑）。
     //   载体随源迁移：内核从源码里提取后注入，而不是本地复制一份（防语义漂移）。
-    const Lex = new Function('numOr', 'return (' + extractClass(src, 'class EntityLexicon') + ')')(numOrFromSource);
+    const Lex = new Function('numOr', 'return (' + orgClass('EntityLexicon') + ')')(numOrFromSource);
     const lx = new Lex();
     // 构造期不依赖宿主
     assert.ok(lx && typeof lx.resolve === 'function', '构造零依赖');
@@ -212,7 +218,7 @@ test('【8】版本下限 >= 3.152.0', () => {
 
 // ================= 9. 语法护栏（词典类花括号配平） =================
 test('【9】词典类块配平（防提取错类）', () => {
-    const cls = extractClass(src, 'class EntityLexicon');
+    const cls = orgClass('EntityLexicon');
     assert.ok(cls && cls.length > 1000, '类完整提取');
     assert.ok(cls.includes('export()'), '含 export 方法');
     assert.ok(cls.includes('import('), '含 import 方法');

@@ -15,6 +15,11 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
 const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.264.0 A1 第五刀] 六个器官类已外移 memory-organs.js：「声明了却没人读」的读数面必须合看两个文件，
+ *   否则每次剥类都会把「真消费」误报成「死配置」（假红）。 */
+const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
+const scanSrc = src + String.fromCharCode(10) + orgSrc;
+
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -26,7 +31,10 @@ const genSrc = readFileSync(path.join(ROOT, 'narrative-generators.js'), 'utf-8')
  *   本刀带走两个**已声明键的消费点**：`bm25LexiconNormalizeEnabled`（BM25._lexNormalize 的开关门控）
  *   与 `echoBaseLife`（EchoPool._baseLife 的配置读点）。不扩面就等于把「键搬了家」误报成「键没人用」。 */
 const booksSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');
-const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + booksSrc;
+/* [v3.264.0 A1 第五刀] 六个器官类外移：它们带走了若干已声明键的读点（vectorChunk* / rerank* / apiProviderCustom / embedding*），
+ *   故「读数面」继续跟着代码走（每一条仍须存在，不放宽）。 */
+const organsSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
+const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + booksSrc + String.fromCharCode(10) + organsSrc;
 
 function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());

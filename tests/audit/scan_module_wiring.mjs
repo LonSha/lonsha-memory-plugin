@@ -208,11 +208,20 @@ if (actuallyProvided.size < MIN_GLOBALS) {
     process.exit(2);
 }
 const entryCode = fs.readFileSync(path.join(ROOT, entry), 'utf8');
+/* [v3.264.0 A1 第五刀] 消费面的真实形态：A1 刀口把类外移后，那些类对其他模块全局符号的 *   消费点**随类一起搬走了**（同一全局作用域、同一插件，仍是真消费）。
+ *   若消费面只认入口一个文件，每一刀都会把「真接线」误报成「零消费」——
+ *   那是假红，与 B4 想拓的假绿同属「判据量错了对象」。
+ *   故把 A1 刀口的模块列为**同族消费载体**（仅限这些：它们是从本文件剥出去的，不是新外部依赖）。 */
+const A1_CARRIERS = ['memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js', 'memory-organs.js']
+    .filter((f) => loadOrder.includes(f));
+const consumptionCode = [entryCode].concat(
+    A1_CARRIERS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))).join(String.fromCharCode(10));
 const referenced = new Set();
-for (const m of entryCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)/g)) referenced.add(m[1]);
-// index.js 自身产出（同文件内既有赋值）也算供给
+for (const m of consumptionCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)/g)) referenced.add(m[1]);
+// index.js 自身产出（同文件内既有赋值）也算供给；[v3.264.0] getter 挂载（defineProperty）同为自产
 const selfProvided = new Set();
 for (const m of entryCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)\s*=/g)) selfProvided.add(m[1]);
+for (const m of entryCode.matchAll(/defineProperty\(\s*window\s*,\s*'([A-Za-z0-9_]+)'/g)) selfProvided.add(m[1]);
 const unresolved = [...referenced].filter(s => !actuallyProvided.has(s) && !selfProvided.has(s)).sort();
 
 /* ---------- 4. B4：消费面（冻结账本） ---------- */

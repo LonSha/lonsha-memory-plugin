@@ -25,6 +25,9 @@ import { breakSource } from './_break_kit.mjs';
 const R = process.cwd();
 const require_ = createRequire(import.meta.url);
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：本文件凡「从 index.js 抽这些类/方法」的抽取面改读该模块，
+ *   语义一字不改，只换被读的文件。 */
+const orgSrc = fs.readFileSync(path.join(R, 'memory-organs.js'), 'utf8');
 const RM_SRC = fs.readFileSync(path.join(R, 'relation-mutual.js'), 'utf8');
 const KN_SRC = fs.readFileSync(path.join(R, 'knowledge-network.js'), 'utf8');
 const RM = require_(path.join(R, 'relation-mutual.js'));
@@ -213,14 +216,19 @@ test('v3220 12. 宿主真接线：注入侧调对账并只标 one-sided；认知
     assert.ok(/LonShaRelationMutual/.test(inj), '注入侧必须走双向对账模块');
     assert.ok(/annotate\(/.test(inj), '渲染必须调标注');
     assert.ok(/_relationMutualRead/.test(code), '对账读数必须落在宿主上（否则诊断面读不到）');
-    const mu = blockOf(code, 'markUnaware(charName, fact) {');
+    /* [v3.264.0] 方法体已外移：markUnaware / revealKnowledge 同属 WorldProgress，在 memory-organs.js 上取块 */
+    const mu = blockOf(orgSrc, 'markUnaware(charName, fact) {');
     assert.ok(/reconcile\(/.test(mu), '★ 登记必须经知情网络判定（修前是 includes 逐字比较）');
     assert.ok(/rec\.dup/.test(mu), '重复登记必须被拦下');
-    const rv = blockOf(code, 'revealKnowledge(charName, fact, source = \'\') {');
+    const rv = blockOf(orgSrc, 'revealKnowledge(charName, fact, source = \'\') {');
     assert.ok(/reconcile\(/.test(rv), '★ 解除必须经知情网络判定');
     assert.ok(/splice\(/.test(rv), '解除必须按**下标**删（值不等于措辞）');
-    assert.ok(!/filter\(x => x !== fact\)/.test(rv.split('if (!KN)')[0] || ''),
-        '★ 模块在位时不得回落逐字比较');
+    /* [v3.264.0] 原文案用 split('if (!KN)')[0] 取「分派前」，本意是「模块在位分支不该逐字比较」。
+     *   但真正「模块在位」的分支在 else 一侧（KN 缺席分支的逐字回落是**有意保留**的兜底），
+     *   故改量 else 分支体：里面不得再出现逐字比较。 */
+    const _elseBody = rv.slice(rv.indexOf('} else {', rv.indexOf('const KN = this._knowledgeNet();')));
+    assert.ok(!/filter\(x => x !== fact\)/.test(_elseBody),
+        '★ 模块在位（else 分支）时不得回落逐字比较');
 });
 test('v3220 14. 本 Gate 属于 v3.219.0（出生版本锚点，供版本守卫 V4 取基准）', () => {
     const ver = (idxSrc.match(/const VERSION = '([^']+)'/) || [])[1];

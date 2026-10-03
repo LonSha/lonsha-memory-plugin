@@ -1,3 +1,56 @@
+## v3.264.0
+
+**A1 宿主巨兽第五刀：六个器官类抽为 `memory-organs.js`**（index.js 17091 → 15739 行，-1352）
+
+### 为什么是这六个类（按磁盘真读数，不按感觉）
+
+| 类 | 方法 | 行 | 宿主消费点 |
+| --- | ---: | ---: | ---: |
+| `LLMCaller` | 16 | 357 | 11 |
+| `VectorStore` | 13 | 220 | 34 |
+| `CharacterMemoryBank` | 15 | 102 | 12 |
+| `WorldProgress` | 26 | 507 | 46 |
+| `EntityLexicon` | 8 | 78 | 5 |
+| `StorageManager` | 4 | 209 | 12 |
+| **合计** | **82** | **1473** | **120** |
+
+### 本刀与前四刀最大的不同：这六个类对主人符号有**真依赖**
+
+前四刀剥走的类对模块级符号零依赖（诊断记账改走构造注入 `errLog`）。本刀六个类读主人符号：
+`errLog` / `numOr` / `decayScore` / `_initEbbingMeta` / `sanitizeJson` / `hash32` /
+`fetchWithTimeoutRetry` / `_moduleLib` / `VERSION` / `PLUGIN_NAME` /
+`ARCHIVE_TOP_LEVEL_KEYS` / `ARCHIVE_TOP_LEVEL_KEY_SET` / `STORAGE_FP_FIELDS`。
+两层收口：
+
+1. **逐字副本**（7 个函数 + 5 个常量）—— 为什么必须有：宿主与历史套件把类抽进 `new Function` 单独重放
+   （v3147 拼 `new Function('fetch','AbortController','setTimeout','clearTimeout','PLUGIN_NAME','localStorage', ...)`；
+   v3168 / v320 抽 `getEmbedding` / `fetchWithTimeoutRetry` 同形）。类内若继续引用宿主自由标识符，
+   那些抽取面**全部当场 ReferenceError**。
+   `errLog` 是唯一**非逐字**的一份：宿主那份内嵌 43 条错误提示矩阵（`_ERROR_HINTS`），
+   逐字副本会把整张矩阵拖进模块；故给**同契约的最小实现**（不抛、不递归），而宿主在构造期**必注入**自己那份。
+2. **活口**：`bindDeps(deps)` —— 宿主在引擎构造期把上述符号换成**现算**的那一份（热更新时也重建，不留旧闭包）。
+   宿主那些符号**一律留在原处不搬**：搬走会把 host_beast 与 dead_code 两条读数轴的基线口径偷偷改掉。
+
+### 接线（三件）
+
+- 取库口 `_memoryOrgansLib()`（与 `_memoryBooksLib` / `_memoryAuxLib` 同形，**不在构造期缓存**）；
+- 缺席退路 `OrganFallback`（常量空实现，按**方法名**与真实现对账）+ 统一构造点 `_newMemoryOrgan(name, ...args)`；
+- 六处构造点改走统一构造点（`charMem` / `worldProg` / `vector` / `storage` / `llm` / `lexicon`）；
+- `_bindOrganDeps()` 在引擎构造期注入依赖；
+- 兼容挂载点 `window.LonShaEntityLexicon` 保留为 **getter**（外部脚本/面板可能读它，历史套件 v3152 也断言本行在场），取的是模块导出的那一份；
+- 模块登记：`extra_js` **76 → 77**（`memory-organs.js` 接管末项，数量锁与末项断言同步交棒）。
+
+### 判据面（新档 + 历史套件换真源）
+
+- 新档 `tests/v3264_a1_memory_organs.test.mjs`：接线逐点在场 / 模块真加载与行为 / 模块级实例独立可用 / 逐字副本与宿主同源 / 真源破坏负控制 / 版本锚；
+- 历史套件（v312 / v316 / v317 / v320 / v340 / v341 / v344 / v3147 / v3152 / v3157 / v3168 / v3178 / v3261 / v3262 / v3263）：
+  凡「从 index.js 抽这些类」的抽取面改读 `memory-organs.js`（语义一字不改，只换被读的文件）；
+- `v3209` 数量锁与末项断言按交棒纪律上抬，并在新档里接管当版锚点。
+
+### 读数面
+
+- `index.js` 17091 → **15739** 行；成员数随六类外移下降（基线由探针重建，零手抄）；
+- 新模块 `memory-organs.js` 1884 行；死代码预算与宿主基线按实测同步维护。
 ## v3.261.0
 
 **主题：缝合 atonal519/ST-MyriadKnots（千织）的两个「说不清就别动」面 —— 楼层身份匹配证明 / 存档三分体检。`index.js` 16978 → 17091 行，`extra_js` 74 → 76。**

@@ -176,7 +176,10 @@ test('v3232 C1. ★★★ 真跑探针：TOP40 逐条在场（本版起不再锁
 test('v3232 C2. ★★★ index.js 的真实规模必须被分诊（不许基线在一个不存在的文件上成立）', () => {
     const idxLines = IDX_SRC.split('\n').length;
     assert.equal(rep.total_lines, idxLines, '★ 探针读的必须就是真 index.js（实测 ' + rep.total_lines + ' vs ' + idxLines + '）');
-    assert.ok(idxLines > 16000, 'index.js 规模须仍在同一量级，实测 ' + idxLines);
+    /* [v3.264.0 交棒] 原句是「> 16000」（v3.231.0 的当版量级）；A1 连剥五刀后它失效，而「仍是巨兽」这个命题本身仍真（仍占全仓四成以上）。
+     *   下界改为「A1 首刀后的真读数不得回涨到剥前水平」—— 它才是不随抬版失效的不变量。 */
+    assert.ok(idxLines > 10000, 'index.js 须仍在巨兽量级（> 10000），实测 ' + idxLines);
+    assert.ok(idxLines < 17091, '★ A1 五刀之后宿主读数不得回涨到剥前水平（17091），实测 ' + idxLines);
     /* 主权声明：本版不动 index.js —— 用「行数没变」之外的更强判据：探针记录的行数必须等于文件行数
      *   （已断言）；而「是否被改动」由 git 面保证，不在此重复。 */
     assert.equal(base.split_candidates.total_over_threshold, R.members_over_80_lines, '分诊总数须与读数一致');

@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
@@ -21,6 +24,12 @@ function braceEnd(s, open) {
     return -1;
 }
 function extractClass(name) {
+    /* [v3.264.0] StorageManager 类已外移：改在 memory-organs.js 上切片 */
+    if (orgSrc.indexOf('class ' + name + ' {') >= 0) {
+        const at = orgSrc.indexOf('class ' + name + ' {');
+        const brace = orgSrc.indexOf('{', at);
+        return orgSrc.slice(at, braceEnd(orgSrc, brace) + 1);
+    }
     const start = src.indexOf(`class ${name} {`);
     if (start < 0) throw new Error('missing class ' + name);
     const brace = src.indexOf('{', start);
@@ -53,7 +62,7 @@ ok('MemoryGraph 拥有 vacuum 方法');
 assert.ok(!src.includes('return inj1;'), 'onBeforeGeneration 中禁止回响池孤立早退');
 ok('onBeforeGeneration 回响池与下游管道合并，杜绝早退截断');
 
-assert.ok(src.includes('_isWriting') && src.includes('_pendingWrite'), 'StorageManager 必须拥有写入队列与写合并锁');
+assert.ok(orgSrc.includes('_isWriting') && orgSrc.includes('_pendingWrite'), 'StorageManager 必须拥有写入队列与写合并锁（[v3.264.0] 类已外移）');
 ok('StorageManager 包含 Write Coalescing 写协调锁');
 
 console.log('=== 2. Graph Vacuum (碎片整理与压缩) 动态测试 ===');

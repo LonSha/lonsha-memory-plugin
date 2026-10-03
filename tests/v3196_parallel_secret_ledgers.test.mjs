@@ -27,6 +27,10 @@ import { createRequire } from 'node:module';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const require = createRequire(import.meta.url);
 const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：本文件凡「从 index.js 抽 WorldProgress 面」的抽取点改读该模块（语义一字不改）。 */
+const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf8');
+/* 类内面（构造/注入/export/import）已外移：合看两个真源（不放宽，只是消费点换了文件）。 */
+const wpSrc = idxSrc + String.fromCharCode(10) + orgSrc;
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 
 function vnum(s) {
@@ -136,12 +140,12 @@ test('【2】secret-ledger 行为', () => {
 
 // ---------- 3 ----------
 test('【3】WorldProgress 四处接线', () => {
-  assert.ok(idxSrc.includes('this.parallelLedger = null; // [v3.196]'), '构造初始化 parallelLedger');
-  assert.ok(idxSrc.includes('this.secretLedger = null; // [v3.196]'), '构造初始化 secretLedger');
-  assert.ok(idxSrc.includes("id: 'wp_parallel_visible'"), 'toInjection 公开面');
-  assert.ok(idxSrc.includes("id: 'wp_parallel_hidden'"), 'toInjection 隐藏面');
-  assert.ok(idxSrc.includes("id: 'wp_secret_ledger'"), 'toInjection 秘密面');
-  assert.ok(/parallelLedger: this\.parallelLedger \|\| null,\n\s*secretLedger: this\.secretLedger \|\| null,/.test(idxSrc), 'export/import 随身带');
+  assert.ok(wpSrc.includes('this.parallelLedger = null; // [v3.196]'), '构造初始化 parallelLedger');
+  assert.ok(wpSrc.includes('this.secretLedger = null; // [v3.196]'), '构造初始化 secretLedger');
+  assert.ok(wpSrc.includes("id: 'wp_parallel_visible'"), 'toInjection 公开面');
+  assert.ok(wpSrc.includes("id: 'wp_parallel_hidden'"), 'toInjection 隐藏面');
+  assert.ok(wpSrc.includes("id: 'wp_secret_ledger'"), 'toInjection 秘密面');
+  assert.ok(/parallelLedger: this\.parallelLedger \|\| null,\n\s*secretLedger: this\.secretLedger \|\| null,/.test(wpSrc), 'export/import 随身带');
   ok('WorldProgress 构造/注入/export/import 四处接线');
 });
 
@@ -188,7 +192,7 @@ test('【7】桥快照契约面', () => {
   // 桥快照 deep 拷贝 worldProg.export()，新增账本字段随 export 自动入快照；
   // 此处只验证 export 面不被本版改动破坏（字段集只增不减）。
   for (const field of ['commitmentLedger', 'seedLedger', 'parallelLedger', 'secretLedger', 'knowledge', 'plotArcs']) {
-    assert.ok(idxSrc.includes(field + ': this.' + field + ' || null') || idxSrc.includes(field + ': this.' + field), 'export 字段 ' + field);
+    assert.ok(wpSrc.includes(field + ': this.' + field + ' || null') || wpSrc.includes(field + ': this.' + field), 'export 字段 ' + field);
   }
   ok('export 字段集只增不减');
 });

@@ -2,13 +2,16 @@
 // v3.21 第七轮审计修复测试（世界推进空转 + rollback 未清新功能）
 import { readFileSync } from 'fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+/* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：类内方法体的抽取面改读该模块（语义一字不改，仅整体去 4 空格）。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf-8');
+
 const PLUGIN_NAME = 'LonSha记忆引擎';
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
 
 // ─── ① 世界推进空转修复（generateFromMemory）───
-const gfmM = src.match(/        generateFromMemory\(engine, knownChars, presentChars, floor\) \{[\s\S]*?\n        \}\n/);
+const gfmM = /^    generateFromMemory\(engine, knownChars, presentChars, floor\) \{[\s\S]*?^    \}$/m.exec(orgSrc);
 if (!gfmM) fail('generateFromMemory 未找到');
 
 // 用等价逻辑验证（避免 new Function 闭包坑）
@@ -75,13 +78,16 @@ charMem._m['珞珈'] = [{ text: '珞珈准备去祭典' }];
 // ST1: publish 前补推演
 {
   if (!src.includes('世界推进实际推演（修复空转）')) fail('ST1 推演注释');
+/* [v3.264.0 A1 第五刀] 修正：原新增行把「注释」也指向模块——但那条注释本来就在宿主（index.js:5042）。
+ *   本行改为量模块侧的真对象：generateFromMemory 方法体在 memory-organs.js（方法已外移，注释留在入口）。 */
+if (!orgSrc.includes('generateFromMemory(engine, knownChars, presentChars, floor) {')) fail('ST1 推演方法（[v3.264.0] 模块侧）');
   if (!src.includes('this.worldProg.generateFromMemory(this, known, present, floor)')) fail('ST1 推演调用');
   ok('ST1: onBeforeGeneration 前置实际推演');
 }
 // ST2: 生成路径会 publish
 { if (!src.includes('if (this.worldProg.pendingWrite) this.worldProg.publish()')) fail('ST2 publish'); ok('ST2: 生成路径确认 publish'); }
 // ST3: 动态文本含角色名 + 场外标记
-{ if (!src.includes('（场外动态）')) fail('ST3 场外标记'); ok('ST3: 场外动态标记文本'); }
+{ if (!orgSrc.includes('（场外动态）')) fail('ST3 场外标记'); ok('ST3: 场外动态标记文本（[v3.264.0] 在 memory-organs.js）'); }
 // ST4: 版本号已前进（>= v3.21）
 {
   const vm = src.match(/const VERSION = '(\d+\.\d+\.\d+)'/);

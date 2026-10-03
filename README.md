@@ -3,7 +3,7 @@
 为 SillyTavern 打造的记忆与账本引擎。它要解决的不是「记得更多」，而是
 **「记错了能被发现」** —— 每次写入都有出处，每条召回都有归因，每个读数都能回源到一次真实计算。
 
-**当前版本**：`3.261.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
+**当前版本**：`3.264.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
 **运行形态**：SillyTavern 第三方扩展（`manifest.json` + `index.js`）
 **门禁**：`npm test` = **244 个测试文件 · 0 失败**（rc 0；断言总数随版漂移，以门禁输出为准，不在此手抄）
 

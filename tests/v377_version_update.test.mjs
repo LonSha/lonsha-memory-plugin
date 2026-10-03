@@ -9,6 +9,9 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 const su = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf-8');
+/* [v3.264.0 A1 第五刀] rewriteQuery 已随 LLMCaller 外移 memory-organs.js（签名与 prompt 串都在模块）；
+ *   调用点（_rwSnap 构造与传参）仍在宿主。 */
+const orgSrc = readFileSync(`${REPO_ROOT}/memory-organs.js`, 'utf-8');
 
 test('=== 1. A: 版本真值 + 更新检测 静态特征 ===', () => {
     // index.js 暴露 plugin.VERSION
@@ -50,10 +53,12 @@ test('=== 2. A: 版本比较逻辑复刻（isNewer） ===', () => {
 
 test('=== 3. C: 查询重写上下文增强 ===', () => {
     // rewriteQuery 签名升级
-    assert.ok(src.includes('async rewriteQuery(recentText, ctxSnapshot = \'\')'), '签名带 ctxSnapshot 默认值');
+    /* [v3.264.0] rewriteQuery 已随 LLMCaller 外移 memory-organs.js（签名与 prompt 字符串都在模块）；
+     *   调用点（_rwSnap 构造与传参）仍在宿主。 */
+    assert.ok(orgSrc.includes('async rewriteQuery(recentText, ctxSnapshot = \'\')'), '签名带 ctxSnapshot 默认值');
     // 快照注入 prompt
-    assert.ok(src.includes('[当前状态快照（供指代消解'), '快照注入行');
-    assert.ok(src.includes('String(ctxSnapshot).substring(0, 400)'), '快照 400 截断');
+    assert.ok(orgSrc.includes('[当前状态快照（供指代消解'), '快照注入行（[v3.264.0] 类已外移）');
+    assert.ok(orgSrc.includes('String(ctxSnapshot).substring(0, 400)'), '快照 400 截断（[v3.264.0] 类已外移）');
     // 调用处构建快照
     assert.ok(src.includes('let _rwSnap = \'\';'), '快照变量');
     assert.ok(src.includes('this.status?.getProtagonist?.()'), '主角来源');

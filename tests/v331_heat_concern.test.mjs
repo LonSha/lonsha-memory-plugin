@@ -3,16 +3,20 @@
 import fs from 'node:fs';
 
 const src = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] VectorStore 已外移 memory-organs.js：本文件凡「从 index.js 抽这些类/方法」的抽取面改读该模块，
+ *   语义一字不改，只换被读的文件。 */
+const orgSrc = fs.readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
 
 let pass = 0, fail = 0;
 const assert = (n, c) => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}`); } };
 
 // ===== 1. 静态锚点检查 =====
 assert('config 有 heatOnRecallEnabled', src.includes('heatOnRecallEnabled: true'));
-assert('VectorStore 有 _heatEntry 方法', src.includes('_heatEntry(v)'));
-assert('VectorStore 有 heatByText 方法', src.includes('heatByText(text)'));
-assert('search 调用 _heatEntry', /for \(const v of scored\.slice\(0, topK\)\) \{[\s\S]*?this\._heatEntry\(src\)/.test(src));
+assert('VectorStore 有 _heatEntry 方法', orgSrc.includes('_heatEntry(v)'));
+assert('VectorStore 有 heatByText 方法', orgSrc.includes('heatByText(text)'));
+assert('search 调用 _heatEntry', /for \(const v of scored\.slice\(0, topK\)\) \{[\s\S]*?this\._heatEntry\(src\)/.test(orgSrc));
 assert('BM25 命中加热', src.includes('this.vector.heatByText(b.text)'));
+/* [v3.264.0] 消费点在宿主（MemoryEngine），方法本体已外移——上一行守宿主、本行守模块。 */
 assert('todos 有 lastMentionedAt', src.includes('lastMentionedAt: Date.now()'));
 assert('todos 有 reoccurred 标记', src.includes('reoccurred: reoccurred || undefined'));
 assert('pruneTodos 有复发豁免', src.includes('lastMentionedAt && (Date.now() - t.lastMentionedAt < 24'));

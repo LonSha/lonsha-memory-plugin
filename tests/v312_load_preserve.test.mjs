@@ -5,6 +5,11 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] StorageManager 已外移到 memory-organs.js。
+ *   凡「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+/* [v3.264.0] StorageManager 抽取面改读 memory-organs.js（类声明已外移） */
+const org = (name) => { const at = orgSrc.indexOf('class ' + name + ' {'); if (at < 0) throw new Error('missing class ' + name); return orgSrc.slice(at, braceEnd(orgSrc, orgSrc.indexOf('{', at)) + 1); };
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
@@ -28,7 +33,7 @@ function extractClass(name) {
 
 /* ══════════ 1. Bug A: storage.load preserveRuntime 语义（行为） ══════════ */
 {
-    const clsSrc = extractClass('StorageManager');
+    const clsSrc = org('StorageManager');
     const mkStorage = (metadata) => new Function('window', 'errLog', 'PLUGIN_NAME', 'VERSION', `
         ${clsSrc}
         return new StorageManager();
@@ -137,7 +142,8 @@ function extractClass(name) {
 /* ══════════ 6. 存档键一致性（快照恢复/存盘路径） ══════════ */
 {
     // storage.save 的 STORAGE_KEY 与 load 一致
-    assert.ok(src.includes("STORAGE_KEY = 'lonsha_memory'"), '存档键一致');
+    // [v3.264.0 A1 第五刀] STORAGE_KEY 声明已随 StorageManager 外移 memory-organs.js
+    assert.ok(orgSrc.includes("STORAGE_KEY = 'lonsha_memory'") || src.includes("STORAGE_KEY = 'lonsha_memory'"), '存档键一致');
     // collectExport 仍是唯一序列化出口（settings-ui 无手写保存块回归）
     const fs2 = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
     assert.ok(!fs2.includes("version: '1.3.0'"), '无旧版本块回归');

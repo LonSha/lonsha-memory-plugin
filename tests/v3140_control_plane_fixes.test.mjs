@@ -4,18 +4,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：「从 index.js 抽 save 方法」的抽取面改读该模块（语义一字不改）。
+ *   一个文件里只能有一个真源：凡「从 index.js 抽 StorageManager 方法」的抽取点均改读 memory-organs.js。 */
+const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+/* 真源选择：StorageManager 的方法已不在 index.js，因此用「能在真 index.js 找到就用它、否则用模块」的取源器——而不是把整个抽取器改成只读模块（那会把本文件其余面的真源也换掉）。 */
+const pickSrc = (marker) => (src.includes(marker) ? src : orgSrc);
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 function extractBraced(marker) {
-    const start = src.indexOf(marker);
+    const hj = pickSrc(marker);
+    const start = hj.indexOf(marker);
     assert.ok(start >= 0, `${marker} 存在`);
     const trimmed = marker.trimEnd();
-    const open = trimmed.endsWith('{') ? start + trimmed.length - 1 : src.indexOf('{', start + marker.length);
+    const open = trimmed.endsWith('{') ? start + trimmed.length - 1 : hj.indexOf('{', start + marker.length);
     let depth = 0, i = open;
-    for (; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) break; }
+    for (; i < hj.length; i++) {
+        if (hj[i] === '{') depth++;
+        else if (hj[i] === '}') { depth--; if (depth === 0) break; }
     }
-    return src.slice(open + 1, i);
+    return hj.slice(open + 1, i);
 }
 test('v3.140 compareVersion 分段数值比较（修 parseFloat 语义颠倒）', () => {
     const fn = new Function(`return function (a, b) { ${extractBraced('function compareVersion(a, b) {')} }`)();
@@ -115,7 +121,8 @@ test('v3.140 判旧用 schemaVersion + compareVersion（不再 Number(插件版�
     assert.match(cem, /Number\(emb\.schemaVersion\)/);
     assert.match(cem, /compareVersion\(VERSION, embProducer\)/);
     assert.match(cem, /localHasData && localNotOlder/, '无本地数据时不得判为“本地更新”而清理');
-    assert.match(src, /_loadedChatId = chatId/, 'storage.load 登记装载身份');
+    /* [v3.264.0 A1 第五刀] 装载身份登记在 storage.load 里，已随 StorageManager 外移。 */
+    assert.match(orgSrc, /_loadedChatId = chatId/, 'storage.load 登记装载身份');
     assert.match(src, /this\._loadedChatId === chatId/, 'OMR 护栏用装载身份判定');
     assert.match(src, /_saveDeniedCount < 5/, '连续拒绝有上限（防永久卡死写入）');
 });
