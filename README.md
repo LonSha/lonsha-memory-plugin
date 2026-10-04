@@ -5,7 +5,7 @@
 
 **当前版本**：`3.267.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
 **运行形态**：SillyTavern 第三方扩展（`manifest.json` + `index.js`）
-**门禁基线**：截至 v3.266.0，`npm test` 为 **246 个测试文件 · 0 失败**；v3.267.0 按用户纪律（计划全部内容完成前不跑全量）以定向口径复验：本刀涉及的 78 个测试文件 + 14 个审计脚本全部定向复跑通过，全量门禁待两仓总控计划收尾后统一执行。
+**门禁基线**：截至 v3.266.0，`npm test` 为 **246 个测试文件 · 0 失败**；v3.267.0 按用户纪律（计划全部内容完成前不跑全量）以定向口径复验：本刀涉及的 78 个测试文件 + 14 个审计脚本全部定向复跑通过（含新增 `tests/v3267_negctl_hygiene.test.mjs` 16/16、`tests/audit/scan_negctl_hygiene.mjs`），在役面读数为 **247 个测试文件 / 54 个审计脚本**（下划线前缀不进门禁扫描面），全量门禁待两仓总控计划收尾后统一执行。
 
 > ⚠️ **本 README 于 v3.255.0 重写。**
 > 旧版描述的是早期「Phase 1-9」阶段的形态（标注 v1.1.0，声称 WebGL GPU 渲染、
@@ -39,7 +39,7 @@
 ## 运行与验证
 
 ```bash
-npm test             # 全部用例：246 个测试文件，各自独立子进程（隔离全局态污染）
+npm test             # 全部用例：247 个测试文件，各自独立子进程（隔离全局态污染）
 npm run test:serial  # 串行执行（排查偶发时的口径）
 npm run test:audit   # 带审计面
 ```
@@ -105,7 +105,7 @@ lonsha-memory-plugin/
 ├── ── UI 与打包 ──
 ├── settings-ui.js        modules_combined.js
 │
-├── tests/                # 在役门禁：246 个测试文件 + 53 个审计脚本
+├── tests/                # 在役门禁：247 个测试文件 + 54 个审计脚本
 │   └── archived/         # 18 个退役测试（保留历史与理据，不参与跑批）
 ├── tools/                # 一次性修崩助手（_ 前缀不进门禁扫描面）
 └── archive/              # 历史存档（不参与运行时）
@@ -116,7 +116,7 @@ lonsha-memory-plugin/
 
 **运行时模块**：79 个（根目录 `.js`，含入口 `index.js`）
 **载入面**：`index.js` + `extra_js` 78 项 + CSS 3 项
-**在役门禁**：`tests/` 246 个测试文件（`*.test.mjs`，即 `npm test` 的扫描面）/ `tests/audit/` 53 个审计脚本
+**在役门禁**：`tests/` 247 个测试文件（`*.test.mjs`，即 `npm test` 的扫描面）/ `tests/audit/` 54 个审计脚本
 **当前版本**：见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
 
 ## 安装

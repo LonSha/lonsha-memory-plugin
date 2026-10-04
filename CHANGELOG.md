@@ -123,7 +123,57 @@ sanitizeJson / moduleLib / memoryBooksLib / changesetLib / relativeTimeHelperFac
 - **不新增第二实现**：四类类体逐字搬（构建脚本对每个类做 `verbatim-in-module` 回校），
   退路只是常量空实现。
 
-## v3.264.0
+
+## v3.267.0 · A2 判据面卫生（同版追加）
+
+**三形态假绿固化为可机检读数**（对标 ruby-phone v3.54.0 的 58 项学费）。
+
+### 交付三件
+
+| 文件 | 角色 |
+| --- | --- |
+| `tests/_negctl_hygiene.mjs` | 判据**唯一真源**：9 条硬信号 K1–K9 + 不饱和读数 + 三形态假绿名 + `auditNegctlSource(code)` / `judgeIsPure(judgeCode, anchors)`（纯数据纯函数，不读环境不写盘） |
+| `tests/audit/scan_negctl_hygiene.mjs` | 门禁（A 扫描面自证 / B 三形态逐份过硬信号集 / C 判据纯度读数 / D fail-closed，三态出口 0/1/2，`MIN_NEGCTL=12`） |
+| `tests/v3267_negctl_hygiene.test.mjs` | 常驻套件 16/16，含**三条真源码破坏**负控制 |
+
+### 九条硬信号（逐条对应「挡住哪种假绿」）
+
+K1 破坏落盘 / K2 被测门禁真跑 / K3 独立树 mkdtemp / K4 定点恰中 1 次 / K5 按归因翻红 /
+K6 目标指向副本 / K7 清场 rmSync / K8 三态出口 / K9 阳性对照。
+
+三形态假绿定义与拦截分工：
+① **对原文件断言**（破坏没发生也绿）⇒ K1 + K6；
+② **破坏写死成模拟常量**（真判据根本没被调用）⇒ K4；
+③ **破坏把判据自己删了**（自我指涉）⇒ K5。
+
+### 实测读数
+
+- `tests/audit/` 59 个脚本，其中 **17 份 `*_negctl.mjs` 全部具备**「真源码破坏 → 独立树上真跑 → 按归因翻红」的形状（**剥注释后**判定：不剥注释会因头注里逐字写着 `mkdtempSync` / `writeFileSync` 而虚假饱和，已由套件 B3 两向钉住）。
+- 三条真源码破坏自证：掏空一份负控制 ⇒ `exit 1` 并点名；裁判断某条信号 ⇒ 归因点名该条；扫描面塌成 0 份 ⇒ `exit 2`（**不得用「找不到东西」冒充「东西没问题」**）。
+
+### ★ 判据自指假红（本仓最经典形态，三处，均留痕）
+
+1. **A3 段**首版 `assert.equal(/writeFileSync|rmSync|mkdirSync/.test(code), false)` ——
+   被**真源信号表自身**的正则字面量命中 ⇒ 改判**调用形态** `/\bfs\.(writeFileSync|rmSync|mkdirSync|cpSync)\s*\(/`。
+2. **B3 段**头注样例未覆盖 K4/K5/K9 ⇒ 扩样为真调用形态。
+3. **C3 段**「不得重写实现」被 N4 必需的真字面量锚点命中 ⇒ 改为只扫**判据段**（`SELF.split('/* ══════════ D ')` 之前），D 段的真锚点是纪律要求。
+
+### 判据过窄 ≠ 对方有缺陷（留痕）
+
+首版把 K9「阳性对照」写成过窄正则（只 11/17 饱和），逐份核实后确认是**判据自己的正则过窄**
+而非 6 份缺项 —— 已升为硬信号并修，同一老毛病（把「我没想到的写法」读成「对方有缺陷」）。
+
+### 登记面
+
+新增测试文件须登记进 `tests/audit/catalog_reference_consumers.tsv`（**只登记 `tests/*.test.mjs`**：
+门禁与真源不在其列，由 `scan_fixture_sync` 的目录真值面把守 —— 两向都报红）。
+改表后 `scan_cross_repo_binding` rc=0：**在役 247 / 退役 18 / 参考基准 247 / 问题 0**。
+
+### 剩余（挂起）
+
+`npm test -- --audit` 纳入**定期全量**（防 audit 脚本漂移）—— 按用户纪律（计划全部落地前不跑全量）
+留待两仓总控计划收口后随终局全量一并执行。
+
 
 **A1 宿主巨兽第五刀：六个器官类抽为 `memory-organs.js`**（index.js 17091 → 15739 行，-1352）
 
