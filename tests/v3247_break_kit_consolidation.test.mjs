@@ -128,6 +128,9 @@ const REGISTRY = [
     'v3270_b2_injection_preview.test.mjs',
     /* [v3.267.0 A2] 本档从 tests/_break_kit.mjs 取 breakSource（三条真源码破坏）；按 B1 台账纪律在此登记。 */
     'v3267_fakegreen_hygiene.test.mjs',
+    /* [v3.271.0 UI 运行时] 本档从 tests/_break_kit.mjs 取 breakSource / assertSingleHit
+     *   （四条真源码破坏 + 一处形态唯一性检查，锚点取自 settings-ui.js）；按 B1 台账纪律在此登记。 */
+    'v3271_ls_settings_panel_ui_runtime.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

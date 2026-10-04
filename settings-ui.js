@@ -147,144 +147,6 @@
             ov.querySelectorAll('.ls-clickable').forEach(card => {
                 card.addEventListener('click', () => plugin.showBrowser(card.dataset.view));
             });
-            // [v3.63] lockedfacts 视图的交互绑定
-            if (viewType === 'lockedfacts') {
-                const addBtn = ov.querySelector('#ls-lf-add');
-                const input = ov.querySelector('#ls-lf-input');
-                if (addBtn && input) {
-                    const doAdd = () => {
-                        const text = (input.value || '').trim();
-                        if (!text) { toast('请输入事实内容'); return; }
-                        const curFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
-                        s.lockFact ? s.lockFact(text) : s.summary.addLockedFact(text, curFloor);
-                        toast('🔒 已锁定：' + text.slice(0, 30) + (text.length > 30 ? '…' : ''));
-                        plugin.showBrowser('lockedfacts');
-                    };
-                    addBtn.addEventListener('click', doAdd);
-                    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
-                }
-                ov.querySelectorAll('.ls-lf-del').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const id = btn.dataset.lfid;
-                        const fact = (s.summary.getLockedFacts() || []).find(f => f.id === id);
-                        if (fact && confirm('解除锁定并从摘要保护中移除？\n\n' + fact.text)) {
-                            s.unlockFact ? s.unlockFact(id) : s.summary.removeLockedFact(id);
-                            toast('已解除锁定');
-                            plugin.showBrowser('lockedfacts');
-                        }
-                    });
-                });
-            }
-
-            // [v3.87] prequel 视图的保存绑定
-            if (viewType === 'prequel') {
-                const saveBtn = ov.querySelector('#ls-pq-save');
-                const ta = ov.querySelector('#ls-pq-text');
-                if (saveBtn && ta) {
-                    saveBtn.addEventListener('click', async () => {
-                        const val = (ta.value || '').trim();
-                        try {
-                            if (!val) {
-                                s.prequel?.clearPrequel?.();
-                                toast('已清空前情资料');
-                            } else {
-                                const r = s.prequel.importPrequel(val);
-                                if (!r.ok) { toast('内容为空'); return; }
-                                toast(r.truncated ? ('✅ 已保存（超长截断至 ' + r.chars + ' 字符）') : ('✅ 已保存 ' + r.chars + ' 字符'));
-                            }
-                            const chatId = s.getCurrentChatId?.();
-                            if (chatId) await s.storage.save(chatId, s.collectExport());
-                            plugin.showBrowser('prequel');
-                        } catch (e) { toast('保存失败: ' + e.message); }
-                    });
-                }
-            }
-            // [v3.74] B3: summaries 视图的手动补摘绑定
-            if (viewType === 'summaries') {
-                const addBtn = ov.querySelector('#ls-ms-add');
-                const floorIn = ov.querySelector('#ls-ms-floor');
-                const textIn = ov.querySelector('#ls-ms-text');
-                if (addBtn && floorIn && textIn) {
-                    const doAdd = () => {
-                        const f = Number(floorIn.value);
-                        const t = (textIn.value || '').trim();
-                        if (!t) { toast('请输入摘要内容'); return; }
-                        if (!Number.isFinite(f) || f < 0) { toast('请输入有效楼层号'); return; }
-                        if (!s.summary?.addManualSummary) { toast('引擎版本过旧'); return; }
-                        const r = s.summary.addManualSummary(f, t);
-                        if (r) {
-                            toast('✅ 已补录第 ' + f + ' 楼摘要');
-                            if (eng?.bm25?.rebuild && s.summary?.getActiveSummaries) {
-                                eng.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: 'sum_' + x.floor, text: x.text, floor: x.floor, source: 'bm25'})));
-                            }
-                            plugin.showBrowser('summaries');
-                        } else { toast('该楼层已有摘要'); }
-                    };
-                    addBtn.addEventListener('click', doAdd);
-                    textIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
-                }
-                // [v3.79] A: 一键批量补齐按钮（v3.76 引擎管线首次获得 UI 入口）
-                const compBtn = ov.querySelector('#ls-ms-complete');
-                if (compBtn) {
-                    compBtn.addEventListener('click', async () => {
-                        if (!s.summary?.completeMissingFloors) { toast('引擎版本过旧'); return; }
-                        let missingN = 0;
-                        try { missingN = s.summary.missingFloors((window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1).length; } catch (e) { reportUiError(e, 'nonfatal') }
-                        if (!missingN) { toast('✅ 无缺失楼层'); return; }
-                        if (!confirm('发现 ' + missingN + ' 个缺失楼层（不含番外/用户楼）。\n将调用 LLM 批量补齐（每批最多 5 楼，本批补完后可再次点击续补）。\n继续？')) return;
-                        compBtn.disabled = true; compBtn.textContent = '⏳ 补齐中…';
-                        try {
-                            const chat = window.SillyTavern?.getContext?.()?.chat || [];
-                            const r = await s.summary.completeMissingFloors(s.config.config, s.llm, (f) => String(chat?.[f]?.mes || ''), 5);
-                            if (r?.skipped) { toast('⚠️ 上一批仍在进行中'); }
-                            else {
-                                toast('✅ 已补齐 ' + (r.done || 0) + ' 楼' + (r.missing ? '（还剩 ' + r.missing + ' 楼）' : ''));
-                                if (s.bm25?.rebuild && s.summary?.getActiveSummaries) {
-                                    s.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: "sum_" + x.floor, text: x.text, floor: x.floor, source: "bm25"})));
-                                }
-                                plugin.showBrowser('summaries');
-                            }
-                        } catch (e) { toast('❌ 补齐失败：' + (e.message || e)); }
-                    });
-                }
-                // [v3.79] C: 番外楼标记/取消（替代控制台命令，柏宝书 bbs_omit 的 UI 入口）
-                const omitIn = ov.querySelector('#ls-omit-floor');
-                const omitMark = ov.querySelector('#ls-omit-mark');
-                const omitUnmark = ov.querySelector('#ls-omit-unmark');
-                if (omitIn && omitMark && omitUnmark) {
-                    const setOmit = (mark) => {
-                        const f = Number(omitIn.value);
-                        if (!Number.isFinite(f) || f < 0) { toast('请输入有效楼层号'); return; }
-                        try {
-                            const chat = window.SillyTavern?.getContext?.()?.chat || [];
-                            const m = chat[f];
-                            if (!m) { toast('该楼层不存在'); return; }
-                            m.extra = m.extra || {};
-                            m.extra.lonsha_omit = mark;
-                            toast(mark ? '🎬 第 ' + f + ' 楼已标记为番外（引擎将彻底忽略）' : '↩️ 第 ' + f + ' 楼已取消番外标记');
-                            if (mark && s.summary?.removeByFloor) { try { s.summary.removeByFloor(f); } catch (e) { reportUiError(e, 'nonfatal') } }
-                        } catch (e) { toast('操作失败：' + (e.message || e)); }
-                    };
-                    omitMark.addEventListener('click', () => setOmit(true));
-                    omitUnmark.addEventListener('click', () => setOmit(false));
-                }
-            }
-
-            // [v3.68] A: deltas 视图的手动确证绑定
-            if (viewType === 'deltas') {
-                ov.querySelectorAll('.ls-delta-confirm').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const dsum = btn.dataset.dsum;
-                        const n = s.deltaBook?.confirm?.(dsum) || 0;
-                        if (n > 0) {
-                            toast('✅ 已确证 ' + n + ' 条增量事实');
-                            plugin.showBrowser('deltas');
-                        } else {
-                            toast('未找到匹配的待定项');
-                        }
-                    });
-                });
-            }
         };
 
         // [v3.14] 从世界书提取角色面板（收编 zhino）: 提取 → 预览勾选 → 确认写入
@@ -813,6 +675,9 @@
         // ========== 设置面板 ==========
         plugin.showSettingsPanel = function() {
             const self = this;
+            // [v3.271] 面板 HTML 构造期需要转义器；此前本函数体内未定义 esc，
+            //   一进入模板串即抛 ReferenceError: esc is not defined，设置面板整块打不开。
+            const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             const c = this.engine.config.config;
             const ck = (key, label, hint) => `
                 <label class="ls-row">
@@ -873,7 +738,7 @@
                     ${ck('sessionLeaseGuardEnabled', '会话租约校验', '异步提取/补提取/STM 巩固跨 await 后若已切换聊天，旧任务结果作废，防跨聊天记忆污染')}
                     ${ck('atomicRestoreEnabled', '恢复原子提交', '导入/嵌入恢复部分失败时自动回滚到恢复前状态，不留半套记忆（快照仅对用户发起的恢复抓取）')}
                     ${ck('swipeFingerprintGuard', 'swipe 指纹校验', '召回缓存命中前验证末楼消息指纹：翻变体自动失效重算，翻回旧变体则到变体级复用')}
-                    \${ck('volumeIntegrityGuard', '卷摘要 intact 判定', '折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前对账源楼层指纹，失效整卷降级并展开源摘要回活跃池（柏宝书 #13）')}
+                    ${ck('volumeIntegrityGuard', '卷摘要 intact 判定', '折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前对账源楼层指纹，失效整卷降级并展开源摘要回活跃池（柏宝书 #13）')}
                     ${ck('aliasQueryExpansion', '别名查询扩展', '查询命中角色别名/昵称时自动附加主名词条参与 BM25 检索：喊昵称也能召回主名记忆（吸收 MyriadKnots entity-identity）')}
                     ${ck('termLexiconEnabled', '术语词典', '聊天内非角色实体术语（物品/地名/招式/组织等）沉淀成词典；查询命中术语时自动附加规范名参与检索（吸收 anima 词典方案）')}
                     ${ck('bm25LexiconNormalizeEnabled', 'BM25 词典归一', '文档端把术语别名统一为规范名、查询端附加规范名+释义短语，两侧同词典对齐')}
@@ -1075,7 +940,7 @@
                     <div class="ls-group-title">数据管理</div>
                     <button class="ls-btn" id="ls-export">📤 导出记忆数据 (JSON)</button>
                     <button class="ls-btn" id="ls-import">📥 导入记忆数据</button>
-                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;'}>♻️ 恢复嵌入存档（跨设备迁移）</button>
+                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻️ 恢复嵌入存档（跨设备迁移）</button>
                     <button class="ls-btn ls-btn-danger" id="ls-clear">🗑️ 清空当前对话记忆</button>
                     <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载（抄 baibai carryover）。</div>
                     <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（带去新对话）</button>
