@@ -127,7 +127,11 @@ test('v3241 C1. 负控制 N1：CHANGELOG 顶节停在上一版 → 必须 exit 1
         const p = path.join(d, 'CHANGELOG.md');
         const src = readFileSync(p, 'utf-8');
         // 真源码破坏：把顶节标题的版本号改成「上一版」形态（不是写死常量，是改真文件文本）
-        writeFileSync(p, breakText(src, '## v' + CUR, '## v0.0.1'));
+        // [v3.267.0 修] 锚点原为 '## v' + CUR —— 同版追加节（`## v3.267.0 · A2/A3 …（同版追加）`）
+        // 让该串在同一份 CHANGELOG 里出现 3 次，「恰中 1 次」当场拒绝破坏 ⇒ 负控制红在**锚点**而不是在判据
+        // （而拒绝破坏被 assert 读成「判据没翻红」）。改为**只匹配文件首行**的正则（无 m 标志，^ 即串首）：
+        // 判据意图本就是「顶节」，且不再依赖当版号字面量 —— 以后追加节怎么写都不会再误伤。
+        writeFileSync(p, breakText(src, /^## v[0-9.]+/, '## v0.0.1'));
     });
     assert.strictEqual(r.status, 1, 'V6 必须翻红，实得 ' + r.status + ' / ' + r.out.slice(-300));
     assert.ok(/V6 /.test(r.out), '归因串须指向 V6');

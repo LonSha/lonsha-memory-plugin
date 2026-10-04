@@ -45,3 +45,4 @@ scan_world_clock_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
 scan_world_ledger_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
 scan_open_faces.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
 scan_inbound_faces.mjs	0	1	0	读根 .js 面（消费点入口不在场即阻断）
+scan_fakegreen_hygiene.mjs	0	0	1	读 tests/audit 面（负控制族退化即阻断：本门禁量的是负控制自身的形状）

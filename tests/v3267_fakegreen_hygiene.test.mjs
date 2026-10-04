@@ -1,18 +1,18 @@
 /* ============================================================
- * tests/v3267_negctl_hygiene.test.mjs — [v3.267.0 · A2 判据面卫生]
- *   负控制卫生门禁（tests/audit/scan_negctl_hygiene.mjs）的常驻套件。
+ * tests/v3267_fakegreen_hygiene.test.mjs — [v3.267.0 · A2 判据面卫生]
+ *   负控制卫生门禁（tests/audit/scan_fakegreen_hygiene.mjs）的常驻套件。
  *
  *   【为什么本档存在】
  *     本仓最贵的形态是「绿着，但绿的成因不是判据在守」。三形态假绿是它的三个入口：
  *       ① 对原文件断言（破坏没发生也绿）
  *       ② 破坏写死成模拟常量（真判据没被调用）
  *       ③ 破坏把判据自己删了（自我指涉）
- *     本档给 scan_negctl_hygiene 装上观测点：判据纯函数对**真源码破坏后的副本**必须翻红。
+ *     本档给 scan_fakegreen_hygiene 装上观测点：判据纯函数对**真源码破坏后的副本**必须翻红。
  *     没有这一档，那个门禁无论返回什么，全仓没有一处会因它失效而变红
  *     （scan_fixture_sync 的 E4 逐条要求这一件）。
  *
  *   【判据与负控制跑同一份代码】
- *     auditNegctlSource(code) 是 tests/_negctl_hygiene.mjs 的纯函数；A 段对磁盘真源码跑它，
+ *     auditNegctlSource(code) 是 tests/_fakegreen_hygiene.mjs 的纯函数；A 段对磁盘真源码跑它，
  *     D 段对**真源码破坏后的副本**跑同一个它。破坏一律走唯一真源 tests/_break_kit.mjs
  *     的 breakSource（锚点须恰中 1 次）。
  * ============================================================ */
@@ -25,16 +25,16 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { breakSource } from './_break_kit.mjs';
 import { stripComments } from './_audit_lib.mjs';
-import { auditNegctlSource, NEGCTL_SIGNALS, NEGCTL_ADVISORY, FAKE_GREEN_FORMS } from './_negctl_hygiene.mjs';
+import { auditNegctlSource, NEGCTL_SIGNALS, NEGCTL_ADVISORY, FAKE_GREEN_FORMS } from './_fakegreen_hygiene.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const NL = String.fromCharCode(10);
 const Q = String.fromCharCode(39);
-const SELF_REL = 'tests/v3267_negctl_hygiene.test.mjs';
-const GATE_REL = 'tests/audit/scan_negctl_hygiene.mjs';
-const LIB_REL = 'tests/_negctl_hygiene.mjs';
+const SELF_REL = 'tests/v3267_fakegreen_hygiene.test.mjs';
+const GATE_REL = 'tests/audit/scan_fakegreen_hygiene.mjs';
+const LIB_REL = 'tests/_fakegreen_hygiene.mjs';
 const GATE = read(GATE_REL);
 const LIB = read(LIB_REL);
 const SELF = read(SELF_REL);
@@ -118,7 +118,7 @@ test('v3267 B3. ★★ 剥注释是必须的：不剥时头注会让信号集虚
 
 /* ══════════ C 门禁接线面 ══════════ */
 test('v3267 C1. ★★★ 门禁必须真跑同一份判据真源（不是各写一份）', () => {
-    assert.ok(GATE.includes('_negctl_hygiene.mjs'), '门禁必须 import 判据真源');
+    assert.ok(GATE.includes('_fakegreen_hygiene.mjs'), '门禁必须 import 判据真源');
     assert.ok(GATE.includes('auditNegctlSource('), '门禁必须真调用判据函数');
     assert.ok(GATE.includes('stripComments('), '门禁必须先剥注释再判');
     const libImpl = 'function ' + 'auditNegctlSource';
@@ -169,7 +169,7 @@ function withMirror(mut, fn) {
     }
 }
 function runGateAt(dir) {
-    const r = spawnSync(process.execPath, [path.join('tests', 'audit', 'scan_negctl_hygiene.mjs')], {
+    const r = spawnSync(process.execPath, [path.join('tests', 'audit', 'scan_fakegreen_hygiene.mjs')], {
         cwd: dir, encoding: 'utf8', timeout: 180000,
         env: Object.assign({}, process.env, { LONSHA_AUDIT_ROOT: dir }),
     });

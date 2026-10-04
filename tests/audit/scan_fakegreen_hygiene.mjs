@@ -1,4 +1,4 @@
-// tests/audit/scan_negctl_hygiene.mjs
+// tests/audit/scan_fakegreen_hygiene.mjs
 // [v3.267.0 · A2 判据面卫生] 负控制卫生常驻门禁：三形态假绿的可机检面
 // ------------------------------------------------------------
 // 为什么存在（PLAN.md A2 原文）：
@@ -14,7 +14,7 @@
 //
 // 判据：
 //   A 面（扫描面自证）：负控制清单非空 + 覆盖下限 + 每份都可读
-//   B 面（三形态）：逐份过 tests/_negctl_hygiene.mjs 的硬信号集（K1–K8），
+//   B 面（三形态）：逐份过 tests/_fakegreen_hygiene.mjs 的硬信号集（K1–K8），
 //       并把「不饱和信号」作为**读数**报出（不阻断 —— 用不饱和信号做硬判据会立刻假红）
 //   C 面（判据纯度 H5）：负控制/判据层内不得把被破坏的锚点字面量声明一遍
 //   D 面（fail-closed）：探测器失效（面塌成 0 份 / 清单不可读）一律 exit 2，不给结论
@@ -22,7 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripComments } from '../_audit_lib.mjs';
-import { auditNegctlSource, NEGCTL_SIGNALS, FAKE_GREEN_FORMS } from '../_negctl_hygiene.mjs';
+import { auditNegctlSource, NEGCTL_SIGNALS, FAKE_GREEN_FORMS } from '../_fakegreen_hygiene.mjs';
 
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 const AUDIT_DIR = path.join(ROOT, 'tests', 'audit');
@@ -78,7 +78,7 @@ for (const f of negFiles) {
 }
 
 /* ---------- 报告 ---------- */
-console.log('[negctl-hygiene] 负控制清单 ' + negFiles.length + ' 份 ｜ 硬信号 ' + NEGCTL_SIGNALS.length + ' 条 ｜ 判据真源 tests/_negctl_hygiene.mjs');
+console.log('[negctl-hygiene] 负控制清单 ' + negFiles.length + ' 份 ｜ 硬信号 ' + NEGCTL_SIGNALS.length + ' 条 ｜ 判据真源 tests/_fakegreen_hygiene.mjs');
 console.log('[negctl-hygiene] 三形态假绿：' + Object.values(FAKE_GREEN_FORMS).join(' / '));
 for (const n of notes) console.log('  · ' + n);
 const advCount = rows.filter((r) => r.pid.advisories.length).length;
