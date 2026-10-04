@@ -9,7 +9,8 @@ const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const coreSrc = readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
-const src = srcRaw + String.fromCharCode(10) + coreSrc;
+const src = srcRaw + String.fromCharCode(10) + coreSrc
+    + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');   // [v3.267.0] 合看面追加
 /* [v3.264.0 A1 第五刀] 六个器官类已外移 memory-organs.js：errLog 的**诊断面**判据须合看两面
  *   （模块内是带与宿主同等纪律的最小实现，宿主仍持含 _ERROR_HINTS 的真源）。 */
 const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf8');

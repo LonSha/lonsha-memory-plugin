@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.258.0 A1 第三刀] OutlineDirector 已抽为 narrative-generators.js。
    静态面（class 体）读模块文件；接线面（调用点 this.outline.exhausted 等）仍在 index.js —— 分读两个真源。 */
 const genSrc = readFileSync(new URL('../narrative-generators.js', import.meta.url), 'utf-8');

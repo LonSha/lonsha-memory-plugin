@@ -9,18 +9,47 @@ const srcRaw = fs.readFileSync('index.js', 'utf8');
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const coreSrc = fs.readFileSync('memory-core.js', 'utf8');
-const src = srcRaw + String.fromCharCode(10) + coreSrc;
+const cfgSrc = fs.readFileSync('memory-config.js', 'utf8');
+const cfgRawBlockAt = cfgSrc.indexOf('this.config = {' + String.fromCharCode(10));
+function cfgBlockEndIn(text, openAt) {
+    let depth = 0;
+    for (let i = openAt; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') { depth--; if (depth === 0) return i; }
+    }
+    throw new Error('unclosed raw config block');
+}
+const cfgRawBlockStart = cfgSrc.indexOf('{', cfgRawBlockAt);
+const cfgRawBlockEnd = cfgBlockEndIn(cfgSrc, cfgRawBlockStart);
+const src = srcRaw + String.fromCharCode(10) + coreSrc + String.fromCharCode(10) + cfgSrc;   // [v3.267.0] 配置模块合看
+const cfgSrcAt = src.indexOf('this.config = {' + String.fromCharCode(10));
+function braceBlockEnd(text, openAt) {
+    let depth = 0;
+    for (let i = openAt; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') { depth--; if (depth === 0) return i; }
+    }
+    throw new Error('unclosed ConfigManager default block');
+}
+if (cfgSrcAt < 0) throw new Error('ConfigManager default block anchor missing');
+const cfgBlockStart = src.indexOf('{', cfgSrcAt);
+const cfgBlockEnd = braceBlockEnd(src, cfgBlockStart);
+const cfgBlockText = src.slice(cfgBlockStart, cfgBlockEnd + 1);
 /* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：类内调用点/方法体的抽取面改读该模块。 */
 const orgSrc = fs.readFileSync('memory-organs.js', 'utf8');
 const ga = fs.readFileSync('graph_algorithms.js', 'utf8');
 /* [v3.258.0 A1 第三刀] 生成侧三类已外迁。[9]「幽灵配置」扫描面必须含这些模块，
  *   否则已搬家的消费点会被判成零引用。 */
 const genSrc = fs.readFileSync('narrative-generators.js', 'utf8');
+/* v3.267: memory-organs is scanned only outside the config block. */
+
 /* [v3.259.0 A1 第四刀] 七个书册/时间类外迁到 memory-books.js。 */
 const bkSrc = fs.readFileSync('memory-books.js', 'utf8');
 /* [v3.264.0 A1 第五刀] 「块外是否有引用」的扫描面必须含本刀外移的器官模块，
  *   否则己搬家的消费点会被判成零引用（幽灵配置假报）。 */
-const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + bkSrc + String.fromCharCode(10) + orgSrc;
+/* [v3.267.0] 世界进度等配置读点随 `memory-organs.js` 外移；幽灵配置扫描面追加该现有模块。 */
+const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + bkSrc
+    + String.fromCharCode(10) + orgSrc + String.fromCharCode(10) + fs.readFileSync('memory-organs.js', 'utf8');
 
 // ---------- 提取工具（复用 v388/v390 花括号计数法） ----------
 function extractNamed(text, marker) {
@@ -207,26 +236,28 @@ test('【8】recallTierEnabled 与 temporalGraphEnabled 门控接入', () => {
 
 // ═══════════ 9. 回归门：配置项零引用扫描 ═══════════
 test('【9】回归门：不得再出现「有默认值但全项目零引用」的配置键', () => {
-    const cfgAt = src.indexOf('this.config = {');
-    let i = src.indexOf('{', cfgAt), depth = 0;
-    const start = i;
-    for (; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) break; }
-    }
-    const block = src.slice(start, i + 1);
-    const keys = [...block.matchAll(/^\s{12,20}([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm)].map(m => m[1]);
+    const cfgAt = cfgSrcAt;   // 真默认块仅在 memory-config.js；入口退路 `{}` 同行闭合
+    const block = cfgBlockText;
+    const keys = [...block.matchAll(/^\s{8,20}([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm)].map(m => m[1]);
     assert.ok(keys.length > 100, `配置键数量正常（${keys.length}）`);
 
-    /* 扫描面：入口的配置块坐标只在 src 里，因此配置块本身仍取 src；
-       「块外是否有引用」则在入口 + 外迁模块的合并面上判。 */
-    const outerLines = faceText.slice(0, cfgAt).split('\n').concat(faceText.slice(cfgAt + block.length).split('\n'));
-    const l0 = src.slice(0, cfgAt).split('\n').length;
-    const l1 = l0 + block.split('\n').length;
+    /* [v3.267.0] 默认块从唯一配置真源 cfgSrc 按物理区间剔除；余下的入口/模块消费点另扫。
+     *   逐行过滤 whole face 是错误的：把带着「键名：」的真实消费代码行一起删掉，会假报一批孤儿配置。 */
+    assert.ok(cfgRawBlockStart >= 0 && cfgRawBlockEnd < cfgSrc.length, 'default-block coordinates resolve in memory-config.js');
+    const references = srcRaw.split('\n').concat(coreSrc.split('\n'),
+        cfgSrc.slice(0, cfgRawBlockStart).split('\n'), cfgSrc.slice(cfgRawBlockEnd + 1).split('\n'),
+        genSrc.split('\n'), fs.readFileSync('memory-organs.js', 'utf8').split('\n'));
+    const externalOccurrences = new Map();
+    for (const line of references) {
+        for (const k of new Set(keys)) {
+            const re = new RegExp('\\b' + k + '\\b', 'g');
+            const hits = line.match(re);
+            if (hits) externalOccurrences.set(k, (externalOccurrences.get(k) || 0) + hits.length);
+        }
+    }
     const orphan = [];
     for (const k of new Set(keys)) {
-        const re = new RegExp('\\b' + k + '\\b');
-        if (!outerLines.some((l) => re.test(l))) orphan.push(k);
+        if (!externalOccurrences.has(k)) orphan.push(k);
     }
     assert.deepStrictEqual(orphan, [], '存在零引用配置键（幽灵配置）: ' + orphan.join(', '));
     console.log(`✓ 9: ${new Set(keys).size} 个配置键全部有引用点，无幽灵配置`);

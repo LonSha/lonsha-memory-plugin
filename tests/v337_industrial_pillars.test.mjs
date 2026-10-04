@@ -1,7 +1,7 @@
 // v3.37 工业级长文本记忆五大前沿支柱测试
 // 覆盖：HippoRAG双路引燃扩散、时态知识图谱、自适应叙事熵反思、正文时间物理标签、Prompt Cache友好分流
 import fs from 'node:fs';
-const idxSrcRaw = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const idxSrcRaw = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8') + String.fromCharCode(10) + fs.readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */

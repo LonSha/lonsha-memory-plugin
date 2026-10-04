@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8') + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf8');
 const suiSrc = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 
@@ -32,10 +32,11 @@ function vnum(s) {
 let pass = 0;
 const ok = (n) => { pass++; console.log('✓ ' + n); };
 
-// config 默认值块
-const blockMatch = /config\s*=\s*\{([\s\S]*?)\n {12}\};/.exec(idxSrc);
+// config 默认值块。v3.267：默认真源已移入 memory-config.js。
+const cfgSrc = readFileSync(path.join(ROOT, 'memory-config.js'), 'utf8');
+const blockMatch = /this\.config = \{\n([\s\S]*?)\n {12}\};/.exec(cfgSrc);
 const block = blockMatch ? blockMatch[1] : '';
-const cfgKeys = [...block.matchAll(/^ {16}([a-zA-Z0-9_]+):/gm)].map((x) => x[1]);
+const cfgKeys = [...block.matchAll(/^ {12}([a-zA-Z0-9_]+):/gm)].map((x) => x[1]);
 // settings-ui 引用键
 const suiKeys = new Set([
   ...[...suiSrc.matchAll(/ck\('([a-zA-Z0-9_]+)'/g)].map((x) => x[1]),
@@ -131,12 +132,12 @@ test('【5】默认值不被 UI 改变（向后兼容）', () => {
   // 本版只加 UI 控件，不动任何 config 默认值
   for (const k of ['memoryTokenBudget', 'vectorMaxCount', 'summaryMaxCount',
     'bm25TopK', 'entropyThreshold', 'echoMaxCount', 'archivePreserveRecent']) {
-    const re = new RegExp('^ {16}' + k + ':\\s*([^,]+),', 'm');
+    const re = new RegExp('^ {12}' + k + ':\\s*([^,]+),', 'm');
     const m = re.exec(idxSrc);
     assert.ok(m, '默认值仍在: ' + k);
   }
-  assert.ok(/memoryTokenBudget:\s*2700/.test(idxSrc), 'memoryTokenBudget 默认 2700（v3.135 CJK 口径重校准）');
-  assert.ok(/vectorMaxCount:\s*500/.test(idxSrc), 'vectorMaxCount 默认 500 未动');
+  assert.ok(/memoryTokenBudget:\s*2700/.test(cfgSrc), 'memoryTokenBudget 默认 2700（v3.135 CJK 口径重校准）');
+  assert.ok(/vectorMaxCount:\s*500/.test(cfgSrc), 'vectorMaxCount 默认 500 未动');
   ok('默认值零变更');
 });
 

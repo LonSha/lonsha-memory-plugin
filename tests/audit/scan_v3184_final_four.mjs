@@ -41,10 +41,12 @@ const FILES = {
     mf: 'manifest.json',
     /* [v3.266.0 A1 第六刀] GameClock / CharacterState 外移 memory-core.js：
      *   R2 变更集调用点、R3 变更集前值位置、R3 maintainGraph 顺序这三面的真源随类搬走。
-     *   判据面改为「入口 + 该模块」合看（语义一字不改；每条仍须在场，不放宽）。 */
+     *   [v3.267.0 A1 第七刀] 默认配置块与迁移消费点外移 memory-config.js；声明判据改读该模块。
+     *   判据面按各判定职责分域读取，语义不放宽。 */
     mem: 'memory-core.js',
+    cfg: 'memory-config.js',
 };
-for (const k of ['rd', 'nr', 'fp', 'cs', 'idx', 'sui', 'mf', 'mem']) {
+for (const k of ['rd', 'nr', 'fp', 'cs', 'idx', 'sui', 'mf', 'mem', 'cfg']) {
     if (!fs.existsSync(path.join(ROOT, FILES[k]))) {
         console.error('[final-four] 缺少 ' + FILES[k] + '（' + ROOT + '）');
         process.exit(2);
@@ -54,8 +56,10 @@ const idxRaw = fs.readFileSync(path.join(ROOT, FILES.idx), 'utf8');
 const sui = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已收口」不算收口）。
 const idxHost = stripComments(idxRaw);
-const idx = stripComments(idxRaw) + String.fromCharCode(10)
-    + stripComments(fs.readFileSync(path.join(ROOT, FILES.mem), 'utf8'));
+const memSrc = stripComments(fs.readFileSync(path.join(ROOT, FILES.mem), 'utf8'));
+const cfgSrc = stripComments(fs.readFileSync(path.join(ROOT, FILES.cfg), 'utf8'));
+const cfgFace = stripComments(idxRaw) + String.fromCharCode(10) + cfgSrc;
+const idx = stripComments(idxRaw) + String.fromCharCode(10) + memSrc + String.fromCharCode(10) + cfgSrc;
 if (idxRaw.length < 500000) {
     console.error('[final-four] index.js 退化（' + idxRaw.length + ' 字节），审计需同步结构变化');
     process.exit(2);
@@ -117,7 +121,12 @@ const calls = [
     ['变更集记录', /_changeset\(\)\?\.record\(/],
     ['变更集回滚联动', /_changeset\(\)\?\.removeByFloor\?\.\(floor\)/],
 ];
-for (const [name, re] of calls) if (!re.test(idx)) defects.push('R2 宿主未调用：' + name);
+for (const [name, re] of calls) {
+    /* 配置迁移调用已随 ConfigManager 外移；只对此项在 cfgFace 的模块/入口合看面找，
+     *   其他消费点仍要求出现在宿主方法路径 idx，不把模块副本误认为宿主调用。 */
+    const source = name === '配置迁移宽容替换' ? cfgFace : idx;
+    if (!re.test(source)) defects.push('R2 宿主未调用：' + name);
+}
 
 // ── R3 位置纪律 ──
 // 关系收口必须落在关系块**内部**（落在外面等于对别的块做过滤，关系原样进注入）
@@ -265,7 +274,7 @@ try {
 // ── R6 配置面 ──
 {
     for (const k of ['relationDisclosureEnabled', 'fuzzyPatchEnabled', 'graphRollupEnabled']) {
-        if (!new RegExp('\\b' + k + ':').test(idx)) defects.push('R6 默认配置块未声明 ' + k + '（引擎有功能、用户无法开关）');
+        if (!new RegExp('\\b' + k + ':').test(cfgFace)) defects.push('R6 默认配置块未声明 ' + k + '（引擎有功能、用户无法开关）');
         if (!sui.includes("ck('" + k + "'")) defects.push('R6 设置面板缺控件 ' + k + '（不可达）');
     }
     // 变更集刻意不加键、不导出的理由必须留档（不加声明的纪律）

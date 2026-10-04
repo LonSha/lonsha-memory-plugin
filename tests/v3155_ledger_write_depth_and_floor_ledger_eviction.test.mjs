@@ -12,7 +12,11 @@ import { fileURLToPath } from 'node:url';
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
+ *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
+ *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -220,7 +224,8 @@ test('【5】接线：FloorLedger 注入 maxFloors/onEvict + 配置 2 键 + 卡�
     assert.ok(src.includes("'ledger', 'rollback-miss'"), '回滚失效写 op-log');
     const d = src.slice(src.indexOf('floorLedgerRetention: 400'), src.indexOf('floorLedgerRetention: 400') + 220);
     assert.ok(d.includes('floorLedgerEvictionDebug: false'), '调试开关默认关');
-    const cc = src.slice(src.indexOf('_applyCardOverrides() {'), src.indexOf('_applyCardOverrides() {') + 2400);
+    const cc = src.slice(src.indexOf('_applyCardOverrides() {' + String.fromCharCode(10)),
+        src.indexOf('_applyCardOverrides() {' + String.fromCharCode(10)) + 2400);
     for (const k of ['floorLedgerRetention', 'floorLedgerEvictionDebug']) {
         assert.ok(cc.includes(k), '卡覆盖白名单含 ' + k);
     }

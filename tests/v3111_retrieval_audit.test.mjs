@@ -22,7 +22,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const suiSrc = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 

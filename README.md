@@ -3,9 +3,9 @@
 为 SillyTavern 打造的记忆与账本引擎。它要解决的不是「记得更多」，而是
 **「记错了能被发现」** —— 每次写入都有出处，每条召回都有归因，每个读数都能回源到一次真实计算。
 
-**当前版本**：`3.266.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
+**当前版本**：`3.267.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
 **运行形态**：SillyTavern 第三方扩展（`manifest.json` + `index.js`）
-**门禁**：`npm test` = **246 个测试文件 · 0 失败**（rc 0；断言总数随版漂移，以门禁输出为准，不在此手抄）
+**门禁基线**：截至 v3.266.0，`npm test` 为 **246 个测试文件 · 0 失败**；v3.267.0 按用户纪律（计划全部内容完成前不跑全量）以定向口径复验：本刀涉及的 78 个测试文件 + 14 个审计脚本全部定向复跑通过，全量门禁待两仓总控计划收尾后统一执行。
 
 > ⚠️ **本 README 于 v3.255.0 重写。**
 > 旧版描述的是早期「Phase 1-9」阶段的形态（标注 v1.1.0，声称 WebGL GPU 渲染、
@@ -44,7 +44,7 @@ npm run test:serial  # 串行执行（排查偶发时的口径）
 npm run test:audit   # 带审计面
 ```
 
-模块位于**根目录**：由 `manifest.json` 的 `extra_js`（78 项）按**文件名**加载，
+模块位于**根目录**：由 `manifest.json` 的 `extra_js`（79 项）按**文件名**加载，
 迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**
 （由 `tests/audit/scan_module_wiring.mjs` 监控）。
 
@@ -53,7 +53,7 @@ npm run test:audit   # 带审计面
 ```
 lonsha-memory-plugin/
 ├── index.js                  # 主入口（VERSION 唯一锚点 / 事件接线 / 注入汇总）
-├── manifest.json             # 插件清单（js / css / extra_js 78 / extra_css 2）
+├── manifest.json             # 插件清单（js / css / extra_js 79 / extra_css 2）
 ├── package.json              # 版本源之一（不参与运行时加载）
 ├── style.css | lonsha-design.css | visualizer.css
 │
@@ -100,7 +100,7 @@ lonsha-memory-plugin/
 │
 ├── ── A1 内核外移模块（index.js 瘦身刀口） ──
 ├── memory-ledgers.js     memory-aux.js          narrative-generators.js
-├── memory-books.js       memory-organs.js       memory-core.js
+├── memory-books.js       memory-organs.js       memory-core.js       memory-config.js
 │
 ├── ── UI 与打包 ──
 ├── settings-ui.js        modules_combined.js

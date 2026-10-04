@@ -20,7 +20,11 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
 const AUDIT_DIR = path.join(ROOT, 'tests/audit');
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
+ *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
+ *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -127,7 +131,7 @@ async function runInScratch(mutate) {
             if (existsSync(p)) writeFileSync(path.join(dir, f), readFileSync(p, 'utf-8'));
         }
         // 入口与面板由调用方按需覆盖（退化用例会写入 '// gone'）
-        writeFileSync(path.join(dir, 'index.js'), src);
+        writeFileSync(path.join(dir, 'index.js'), srcRaw);
         writeFileSync(path.join(dir, 'settings-ui.js'), sui);
         // [v3.191] 整份镜像 tests/：库用例（scan_audit_lib_consolidation）核对唯一真源
         //   tests/_audit_lib.mjs 与 tests/run.mjs 是否在场——缺了就 fail-closed 判结构漂移。
@@ -154,7 +158,7 @@ test('[1] engine fallback for archivePreserveRecent matches the declared default
 });
 test('[1b] no other config key silently disagrees with its declared default', () => {
     // extract the default config block
-    const at = src.indexOf('this.config = {');
+    const at = src.indexOf('this.config = {' + String.fromCharCode(10));   // 真块 `{` 后换行；退路 `{}` 同行闭合
     assert.ok(at > 0, 'config block found');
     let i = src.indexOf('{', at), depth = 0, j = i;
     for (; j < src.length; j++) {
@@ -198,7 +202,7 @@ test('[2] every audit script can block (exit 2), and defect-scanners can fail ha
     }
     // 已知会判定「真缺陷」的四个脚本必须有 exit 1。
     //   scan_resilience 只报参考指标（静默 catch 不一律是缺陷），故只需 exit 2。
-    for (const f of ['scan_config_liveness.mjs', 'scan_slider_coherence.mjs', 'scan_syntax.mjs', 'scan_wiring.mjs']) {
+    for (const f of ['scan_config_liveness.mjs', 'scan_slider_coherence.mjs', 'scan_syntax.mjs', 'scan_wiring.mjs', 'dead_code_budget.mjs']) {
         /* [v3.247.0] 原为 `/process\.exit\s*\(\s*1\s*\)/` —— 正则猜结构。
          *   V2 的补丁 A 已把 scan_resilience 的缺陷出口改成 `shouldFail({kind:'defect'})`
          *   （真源归因），源码里不再字面出现 `process.exit(1)`，于是这条判据在**真读数**上是假的。

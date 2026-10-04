@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.258.0 A1 第三刀] 三个生成侧派生系统（DiarySystem / ReflectionSystem / OutlineDirector）
  *   已外迁到 narrative-generators.js。本文件里「真源已随类搬家」的锚改读该模块的全文件文本；
  *   仍留在入口的锚继续读 src —— 两处读的都是各自真源，不是再拄一份副本。 */

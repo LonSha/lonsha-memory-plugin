@@ -18,7 +18,11 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
+ *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
+ *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -28,7 +32,7 @@ function vnum(s) {
 }
 /** the default config block, plus its character offsets in index.js */
 function configBlock() {
-    const at = src.indexOf('this.config = {');
+    const at = src.indexOf('this.config = {' + String.fromCharCode(10));
     assert.ok(at > 0, 'the default config block exists');
     const open = src.indexOf('{', at);
     let depth = 0, close = -1;

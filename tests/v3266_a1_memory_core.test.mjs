@@ -1,5 +1,6 @@
 /* ============================================================
- * tests/v3266_a1_memory_core.test.mjs — v3.266.0
+ * tests/v3266_a1_memory_core.test.mjs — v3.266.0 [v3.267.0 frontier: A1 第七刀接管末项与V4/V5锚]
+ *   出生下界 3.266.0 保持不变；V4 当版锚点由下方 `vnum('3.267.0')` frontier 明确接管。
  *
  * 主题：A1 宿主巨兽第六刀 —— 四个「内核数据模型」类（MemoryGraph / SummarySystem /
  *   GameClock / CharacterState）抽为 memory-core.js 之后的**接线、行为、依赖收口与破坏面**。
@@ -296,16 +297,19 @@ test('v3266 B. 模块真加载：导出面 + 四类真构造 + 逐类语义抽�
     /* ★ 留痕（实测）：导出面 `api.VERSION` 是 **Object.freeze 的快照**，
      *   注入后不会跟着变 —— 故对 version 的可观测面就是上面那两条：
      *   **不抛**（const 会抛 TypeError）+ **n 恰为 key 数**（少一个 = 断在那个 key 上）。这里不写一条永远不会成立的断言。 */
-    assert.ok(Object.isFrozen(fresh), '导出面必须冻结（否则副本会被外部改成第二真源）');    assert.equal(fresh.VERSION, (/const VERSION = '([0-9.]+)'/.exec(IDX) || [])[1], '快照值仍是出生版本（含义：不跨会话漂移）');
+    assert.ok(Object.isFrozen(fresh), '导出面必须冻结（否则副本会被外部改成第二真源）');
+    assert.equal(fresh.VERSION, (/const VERSION = '([0-9.]+)'/.exec(IDX) || [])[1], '快照值仍是出生版本（含义：不跨会话漂移）');
     assert.equal(MC.VERSION, (/const VERSION = '([0-9.]+)'/.exec(IDX) || [])[1], '本档共用的 MC 未被上一步污染（不跨用例漋移）');
     ok('四类真构造 + 行为抽检全绿；依赖注入真换掉 7 项');
 });
 
 /* ========== C 加载面与基线 ========== */
-test('v3266 C. 加载面与基线：manifest 恰 1 项且接管末项 + 基线读数与真文件同源', () => {
+test('v3266 C. 加载面与基线：memory-core 恰 1 项且在 memory-config 之前 + 基线读数同源', () => {
     const mf = JSON.parse(read('manifest.json'));
     assert.equal(mf.extra_js.filter((f) => f === MOD_REL).length, 1, MOD_REL + ' 须在 extra_js 恰好 1 次');
-    assert.equal(mf.extra_js[mf.extra_js.length - 1], MOD_REL, MOD_REL + ' 须接管 extra_js 末项（最后加载）');
+    /* [v3.267.0 A1 第七刀] 末项已交接给 memory-config.js；本档改守 memory-core 仍唯一登记且在 memory-config 之前。 */
+    assert.ok(mf.extra_js.includes(MOD_REL), MOD_REL + ' 须仍在 extra_js');
+    assert.ok(mf.extra_js.indexOf(MOD_REL) < mf.extra_js.indexOf('memory-config.js'), 'memory-core.js 必须在新末项 memory-config.js 之前');
     assert.equal(mf.extra_js[0], 'ledger-entity.js', 'ledger-entity.js 仍须在首位（v3.207 不变量）');
     assert.ok(!mf.extra_js.includes('memory-organs.js') || mf.extra_js.indexOf('memory-organs.js') < mf.extra_js.indexOf(MOD_REL), '五刀模块必须在本刀之前加载（依赖顺序）');
     const b = JSON.parse(read('tests/audit/host_beast_baseline.json'));
@@ -316,7 +320,7 @@ test('v3266 C. 加载面与基线：manifest 恰 1 项且接管末项 + 基线�
     assert.ok(b.readings.total_lines < 15000, '★ A1 验收线：本刀后宿主须 < 15000 行，实测 ' + b.readings.total_lines);
     assert.ok(b.readings.total_lines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）');
     const dcb = JSON.parse(read('tests/audit/dead_code_budget.json'));
-    assert.ok(dcb.ceiling >= 0 && dcb.note.includes('3.266.0'), '死代码上限必须有当版抬升留痕（否则是静默抬墅）');
+    assert.ok(dcb.ceiling >= 0 && dcb.note.includes('3.267.0'), '死代码上限必须有当版抬升留痕（否则是静默抬升）');
     ok('manifest 尾项接管；基线行数/成员数与真文件同源且已达 15000 验收线');
 });
 
@@ -348,15 +352,14 @@ test('v3266 D. 真源码破坏 -> 同一条判据必须翻红', () => {
 
 /* ========== E 出生版本下限锚 + V4 当版锚点 ========== */
 const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-test('v3266 E. 当版锚点（V4）与四源同源：本档出生于 3.266.0', () => {
+test('v3266 E. 当版锚点（V4）与四源同源：本档出生于 3.266.0，当前 frontier 锚于 vnum(3.267.0)', () => {
     const codeVer = (/const VERSION = '([^']+)'/.exec(IDX) || [])[1];
-    assert.equal(codeVer, '3.266.0', '本档出生版本须为 3.266.0');
     assert.equal(codeVer, JSON.parse(read('manifest.json')).version, 'manifest 须与入口同源');
     assert.equal(codeVer, JSON.parse(read('package.json')).version, 'package 须与入口同源');
     assert.equal(codeVer, MC.VERSION, '模块副本 VERSION 须与入口同源（否则 bindDeps 注入前就已漂移）');
     assert.ok(read('CHANGELOG.md').startsWith('## v' + codeVer), 'CHANGELOG 顶节须是当前版本（人读面同源）');
     assert.ok(read('TODO.md').includes('最近更新：v' + codeVer), 'TODO 最近更新须是当前版本');
-    assert.ok(vnum(codeVer) >= vnum('3.266.0'), '入口版本不得回退到本档出生版本之前，当前 ' + codeVer);
+    assert.ok(vnum(codeVer) >= vnum('3.267.0'), '本轮 frontier 出生版本锚仍须在场，当前 ' + codeVer);
     ok('四源同源；当版锚点已留下（供版本守卫 V4 计数）');
 });
 

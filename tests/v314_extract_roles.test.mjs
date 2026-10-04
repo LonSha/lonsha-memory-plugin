@@ -3,7 +3,7 @@
 // 双模式：行为实测（解析/过滤/别名补入/新节点）+ 静态断言（入口/按钮/配置）
 import { readFileSync } from 'fs';
 
-const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */

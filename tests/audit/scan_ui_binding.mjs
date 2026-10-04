@@ -33,6 +33,15 @@ import fs from 'fs';
 
 const src = fs.readFileSync('index.js', 'utf8');
 const ui = fs.readFileSync('settings-ui.js', 'utf8');
+/* [v3.267.0 A1 第七刀] **声明面**改读「入口 + memory-config.js」合看。
+ *   A3（幽灵控件）判的是「被绑定的键是否在默认块里声明」，而默认块已随 ConfigManager 外移；
+ *   声明面若只读入口，全部控件都会被判成幽灵（假红）。
+ *   渲染控件面仍只读 settings-ui.js；入口体量守卫仍看 src（它是「输入退化」守卫，不是声明面）。 */
+const cfgModSrc = (function () {
+    try { return fs.readFileSync('memory-config.js', 'utf8'); }
+    catch (_e) { return ''; }
+})();
+const cfgFace = src + String.fromCharCode(10) + cfgModSrc;
 
 /* ---------- 0. 结构预检（fail-closed） ---------- */
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
@@ -56,12 +65,12 @@ function braceBlock(text, at) {
     }
     return null;
 }
-const cfgAt = src.indexOf('this.config = {');
+const cfgAt = cfgFace.indexOf('this.config = {' + String.fromCharCode(10));   // 退路是 `{};`，同行闭合
 if (cfgAt < 0) {
     console.error('[ui-binding] 找不到默认配置块（`this.config = {`），探测器失效');
     process.exit(2);
 }
-const cfg = braceBlock(src, cfgAt);
+const cfg = braceBlock(cfgFace, cfgAt);
 const declared = new Map();
 for (const m of cfg.text.matchAll(/\n\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^\n,]*)/g)) {
     const k = m[1], raw = m[2].trim();

@@ -8,3 +8,8 @@ node_modules/
 /[a-z]*fix[0-9]*.py
 /dbg*.js
 /tmp_*.js
+
+# [v3.267.0 A1 第七刀] Rebuild tooling retains source extraction but no generated payloads.
+/tools/_v3267_*
+/tools/__pycache__/
+/tools/patch_v3267_*.py

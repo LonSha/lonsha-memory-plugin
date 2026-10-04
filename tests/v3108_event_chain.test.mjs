@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
 const src = fs.readFileSync(path.join(REPO, 'event-chain.js'), 'utf8');
-const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8') + String.fromCharCode(10) + fs.readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] LLMCaller 已外移 memory-organs.js：callAPI / _callAPIInner /
  *   getLastEventChain / _eventChainLib 都随类过去了，接线判据须读「宿主 + 器官模块」两面
  *   （host 侧只留兼容挂载点与退路声明；合看不放宽，每条仍须存在）。 */

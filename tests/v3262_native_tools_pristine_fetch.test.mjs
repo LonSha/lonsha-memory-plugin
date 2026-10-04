@@ -33,6 +33,7 @@ const NL = String.fromCharCode(10);
 /** 版本序（仅本档 V4 当版锚点用）：3.260.0 → 3260000。 */
 const vnum = (v) => String(v).split('.').map(Number).reduce((a, b) => a * 1000 + b, 0);
 const IDX = read('index.js');
+const CFG_SRC = read('memory-config.js');
 /* [v3.264.0 A1 第五刀] LLMCaller 已外移 memory-organs.js：本档判据里「取数注入口 / 旧路径 / 三工具消费点 / 轮数钳制」四面均在该模块内，
  *   故对应锚点改读模块（语义一字不改，只换被读的文件）；D 段四条破坏也改打在真源上。 */
 const ORG_SRC = read('memory-organs.js');
@@ -255,9 +256,9 @@ test('v3262 C. 接线面：六处接线 + 三配置键 + 面板 + 自检行 + �
     // 末项 frontier 守卫已交棒后续版本（v3.261.0 起末项是 archive-audit.js）：本档只守「仍在册」。
     assert.ok(mf.extra_js.includes(MOD_PF) && mf.extra_js.includes(MOD_NT), '本刀两模块须仍在 extra_js 内（末项守卫已移交后续版本）');
     // 三配置键 + 默认值
-    assert.match(IDX, /pristineFetchEnabled:\s*true/, 'pristineFetchEnabled 默认须为 true（纯传输层防御）');
-    assert.match(IDX, /nativeToolExtractEnabled:\s*false/, 'nativeToolExtractEnabled 默认须为 false（实验）');
-    assert.match(IDX, /nativeToolMaxRounds:\s*3/, 'nativeToolMaxRounds 默认须为 3');
+    assert.match(CFG_SRC, /pristineFetchEnabled:\s*true/, 'pristineFetchEnabled 默认须为 true（纯传输层防御）');
+    assert.match(CFG_SRC, /nativeToolExtractEnabled:\s*false/, 'nativeToolExtractEnabled 默认须为 false（实验）');
+    assert.match(CFG_SRC, /nativeToolMaxRounds:\s*3/, 'nativeToolMaxRounds 默认须为 3');
     // 面板两行（settings-ui）
     const UI = read('settings-ui.js');
     assert.ok(UI.includes("ck('pristineFetchEnabled'"), 'settings-ui 缺 pristineFetchEnabled 控件');
@@ -266,7 +267,9 @@ test('v3262 C. 接线面：六处接线 + 三配置键 + 面板 + 自检行 + �
     //   于是它成了死声明（引擎读了、面板调不到、白名单也没有），v3161 [1] 报红才发现。
     //   本档补上：三配置键里凡是被引擎读取的，都必须有一条可设置路径。
     assert.ok(UI.includes('data-cfg-num="nativeToolMaxRounds"'), 'settings-ui 缺 nativeToolMaxRounds 控件（旋钮不可达 = 死声明）');
-    const WL = (IDX.match(/const CARD_CFG_KEYS = \[([\s\S]*?)\];/) || [])[1] || '';
+    /* [v3.267.0 A1 第七刀] 卡白名单随 ConfigManager 外移 memory-config.js ⇒ 声明面改读模块。
+     *   入口 IDX 其余用法（默认值在场 / selfCheck 行）不受影响。 */
+    const WL = (read('memory-config.js').match(/const CARD_CFG_KEYS = \[([\s\S]*?)\];/) || [])[1] || '';
     for (const k of ['pristineFetchEnabled', 'nativeToolExtractEnabled', 'nativeToolMaxRounds']) {
         assert.ok(UI.includes(k) || WL.includes("'" + k + "'"), k + ' 须至少有一条可设置路径（UI 控件或卡白名单）');
     }
@@ -284,8 +287,9 @@ test('v3262 C. 接线面：六处接线 + 三配置键 + 面板 + 自检行 + �
     assert.equal(b.rebuilds[b.measured_at].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
     // 数量锁已被本刀接管
     const V3209 = read('tests/v3209_migration_registry.test.mjs');
-    /* [v3.266.0 交棒] 数量锁已随第六刀上抬到 78（memory-core.js 计入）：本桡只守「数量锁仍以当前值在场」这一交棒形态。 */
-assert.ok(/mf\.extra_js\.length === \d+/.test(V3209), 'v3209 数量锁须仍在场（具体值由当版刀口接管，当前接管者：v3266）');
+    /* [v3.267.0 交棒] 数量锁已随第七刀上抬到 79（memory-config.js 计入）：本档只守锁仍在场；
+     *   具体值由 v3209 真 manifest 套件接管，避免两份固定数字形成第二真源。 */
+    assert.ok(/mf\.extra_js\.length === \d+/.test(V3209), 'v3209 数量锁须仍在场（值由当版 manifest 真源接管）');
     // 判据面自防护
     assert.ok(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
     assert.ok((SELF.match(/assert\./g) || []).length >= 40, '断言密度须 >= 40，实为 ' + (SELF.match(/assert\./g) || []).length);

@@ -31,7 +31,7 @@ import os from 'os';
 import { execFileSync } from 'child_process';
 const SRC = process.cwd();
 const SCAN = path.join(SRC, 'tests/audit/scan_v3186_emotion_recall.mjs');
-const FILES = ['narrative-pulse.js', 'index.js', 'settings-ui.js', 'manifest.json'];
+const FILES = ['narrative-pulse.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'];
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
 const bad = (m) => { fail++; console.error('  ✗ ' + m); };
@@ -94,7 +94,7 @@ const ANCHORS = [
     ['index.js', 'Number(this._emoOppositeRounds || 0) >= 5'],
     ['index.js', '待本轮（尚无召回）'],
     ['index.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });'],
-    ['index.js', 'emotionOppositeRecall: false'],
+    ['memory-config.js', 'emotionOppositeRecall: false'],
     ['index.js', "['情绪反向', line + (idle ? ' ⚠️' : '')]"],
     ['settings-ui.js', "ck('emotionOppositeRecall'"],
     ['narrative-pulse.js', 'for (const p of (EMOTION_OPPOSITES[w] || [])) out.add(p);'],
@@ -166,7 +166,7 @@ mutate('index.js', 'Number(this._emoOppositeRounds || 0) >= 5', 'Number(this._em
     'N-R5b 拆掉 idle 的「≥5 轮」绑定', 'R5 idle 警示不可分辨');
 
 // ── N-R6 默认值：false → true ⇒ 必须翻红（零行为变化承诺被破坏）──
-mutate('index.js', 'emotionOppositeRecall: false', 'emotionOppositeRecall: true',
+mutate('memory-config.js', 'emotionOppositeRecall: false', 'emotionOppositeRecall: true',
     'N-R6a 默认值被改成 true', 'R6 默认值不符');
 
 // ── N-R6b UI 控件缺失 ⇒ 必须翻红 ──
@@ -280,8 +280,9 @@ if (!EXPECT_ATTRIB || !EXPECT_ATTRIB.length) {
 // ── 还原自证：破坏副本用完即删，原版目录未被触碰 ──
 {
     const s = fs.readFileSync(path.join(SRC, 'index.js'), 'utf8');
+    const cfg = fs.readFileSync(path.join(SRC, 'memory-config.js'), 'utf8');
     const n = fs.readFileSync(path.join(SRC, 'narrative-pulse.js'), 'utf8');
-    if (!s.includes('emotionOppositeRecall: false')) bad('原版 index.js 被污染（破坏泄漏到工作区）');
+    if (!cfg.includes('emotionOppositeRecall: false')) bad('原版 memory-config.js 被污染（破坏泄漏到工作区）');
     else if (!s.includes("['情绪反向', line + (idle ? ' ⚠️' : '')]")) bad('原版 index.js 诊断行被污染');
     else if (!n.includes('for (const p of (EMOTION_OPPOSITES[w] || [])) out.add(p);')) bad('原版 narrative-pulse.js 被污染');
     else ok('原版工作区未被触碰（破坏只在临时副本里发生）');

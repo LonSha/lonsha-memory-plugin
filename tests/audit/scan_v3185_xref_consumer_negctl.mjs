@@ -26,7 +26,7 @@ import os from 'os';
 import { execFileSync } from 'child_process';
 const SRC = process.cwd();
 const SCAN = path.join(SRC, 'tests/audit/scan_v3185_xref_consumer.mjs');
-const FILES = ['crosslink.js', 'index.js', 'settings-ui.js', 'manifest.json'];
+const FILES = ['crosslink.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'];
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
 const bad = (m) => { fail++; console.error('  ✗ ' + m); };
@@ -117,7 +117,7 @@ mutate('index.js', XL_IDLE_ANCHOR, "return ['条目复用', line];",
     'N-R5a 拆掉 idle 警示绑定', 'R5 idle 警示不可分辨');
 
 // ── N-R6 配置面：默认值从 false 改成 true ⇒ 必须翻红（零行为变化承诺被破坏） ──
-mutate('index.js', 'crosslinkRecallBoost: false', 'crosslinkRecallBoost: true',
+mutate('memory-config.js', 'crosslinkRecallBoost: false', 'crosslinkRecallBoost: true',
     'N-R6a 默认值被改成 true', 'R6 默认值不符');
 
 // ── N-R6b UI 控件缺失 ⇒ 必须翻红 ──
@@ -234,8 +234,9 @@ if (!EXPECT_ATTRIB || !EXPECT_ATTRIB.length) {
 // ── 还原自证：破坏副本用完即删，原版目录未被触碰 ──
 {
     const s = fs.readFileSync(path.join(SRC, 'index.js'), 'utf8');
+    const cfg = fs.readFileSync(path.join(SRC, 'memory-config.js'), 'utf8');
     if (!s.includes('intentRerank(merged, query.text);')) bad('原版 index.js 被污染（破坏泄漏到工作区）');
-    else if (!s.includes('crosslinkRecallBoost: false')) bad('原版 index.js 配置默认值被污染');
+    else if (!cfg.includes('crosslinkRecallBoost: false')) bad('原版 memory-config.js 配置默认值被污染');
     else ok('原版工作区未被触碰（破坏只在临时副本里发生）');
 }
 

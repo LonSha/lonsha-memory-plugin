@@ -213,8 +213,9 @@ const entryCode = fs.readFileSync(path.join(ROOT, entry), 'utf8');
  *   那是假红，与 B4 想拓的假绿同属「判据量错了对象」。
  *   故把 A1 刀口的模块列为**同族消费载体**（仅限这些：它们是从本文件剥出去的，不是新外部依赖）。 */
 /* [v3.266.0 A1 第六刀] 刀口模块又多了 memory-core.js（四个内核数据模型类的消费点随类一同搬过去）。
+ *   [v3.267.0 A1 第七刀] memory-config.js 也纳入同族消费载体：ConfigManager 配置/迁移路径随类外移。
  *   同族载体清单必须随每一刀扩面：否则新刀口下的真接线会被误报成「零消费」（假红）。 */
-const A1_CARRIERS = ['memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js', 'memory-organs.js', 'memory-core.js']
+const A1_CARRIERS = ['memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js', 'memory-organs.js', 'memory-core.js', 'memory-config.js']
     .filter((f) => loadOrder.includes(f));
 const consumptionCode = [entryCode].concat(
     A1_CARRIERS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))).join(String.fromCharCode(10));

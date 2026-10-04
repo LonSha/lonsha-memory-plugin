@@ -11,7 +11,7 @@ function vnum(s) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
+const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8') + String.fromCharCode(10) + fs.readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 
 // 版本断言（>= v3.25 容灾）
 const vm = src.match(/const VERSION = '([^']+)'/);

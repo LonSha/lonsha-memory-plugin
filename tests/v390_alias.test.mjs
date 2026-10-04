@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf8');
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const sui = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf8');
 const man = JSON.parse(readFileSync(`${REPO_ROOT}/manifest.json`, 'utf8'));
 /* [v3.259.0 A1 第四刀] BM25 与 PrequelSystem 已外迁到 memory-books.js。 */

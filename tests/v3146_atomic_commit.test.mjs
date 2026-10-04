@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] storage.load 已随 StorageManager 外移 memory-organs.js：
  *   凡「从 index.js 抽 StorageManager 方法」的抽取面改读该模块（语义一字不改）。 */

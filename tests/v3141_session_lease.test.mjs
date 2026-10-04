@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 const fnBody = (marker, endMarker) => {
     const st = src.indexOf(marker);

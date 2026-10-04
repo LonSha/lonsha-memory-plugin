@@ -8,6 +8,21 @@ import fs from 'fs';
 const idx = fs.readFileSync('index.js', 'utf8');
 const ui = fs.readFileSync('settings-ui.js', 'utf8');
 const lines = idx.split('\n');
+/* [v3.267.0 A1 第七刀] 配置面改读「入口 + memory-config.js」合看。
+ *   为什么只扩配置面、不动方法面（A5/A7）与持久化面（A8）：ConfigManager 整类外移后，
+ *   它的 `this.config = {` 默认块不再在入口 —— 配置面若仍只读入口，`cfgStart` 会命中
+ *   退路实例上的 `this.config = {};`（键数 0）⇒ A1 键数 < 100 ⇒ exit 2（探测器失效）。
+ *   而方法面 / 持久化面在**前六刀**就已确立「只读入口」的口径（六刀剥走的类同样不在入口），
+ *   本刀不单方面更改那条既立口径，只在此显式记账这一分层。
+ *   配置面的行号体系随之改为合看面，故 readCount 的「跳过块内行」也走合看行面。 */
+const cfgModSrc = (function () {
+    try { return fs.readFileSync('memory-config.js', 'utf8'); }
+    catch (_e) { return ''; }
+})();
+/* [v3.267.0] 判别锚：真默认块是 `{\n`（后紧跟换行），退路是 `{};`（同行闭合）。
+ *   用裸 `this.config = {` 会在合看面上先命中宿主 L1422 的退路空对象（键数 0 ⇒ exit 2）。 */
+const cfgFace = idx + String.fromCharCode(10) + cfgModSrc;
+const cfgFaceLines = cfgFace.split('\n');
 /* ---------- 0. 结构预检（v3.159 补） ---------- */
 // 本脚本旧版没有任何 exit 语句：所有指标都是计数，不管数字多不合理，进程都以 0 退出。
 //   一旦 index.js / settings-ui.js 退化（空文件、结构改名），它会报「配置键 0 / 方法 0 / 孤儿 0」并「通过」。
@@ -39,8 +54,13 @@ function braceBlock(text, fromIdx) {
 }
 
 // ---------- 1. 配置默认值键 ----------
-const cfgStart = idx.indexOf('this.config = {');
-const cfgBlock = braceBlock(idx, cfgStart);
+const CFG_ANCHOR = 'this.config = {' + String.fromCharCode(10);
+const cfgStart = cfgFace.indexOf(CFG_ANCHOR);
+if (cfgStart < 0) {
+    console.error('[wiring] 合看面（入口 + memory-config.js）里找不到 this.config = {，审计脚本需同步结构变化');
+    process.exit(2);
+}
+const cfgBlock = braceBlock(cfgFace, cfgStart);
 const cfgKeys = new Set();
 for (const km of cfgBlock.matchAll(/^\s{12,20}([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm)) cfgKeys.add(km[1]);
 if (cfgKeys.size < MIN_CFG_KEYS) {
@@ -54,15 +74,16 @@ for (const km of ui.matchAll(/['"]([a-zA-Z_][a-zA-Z0-9_]{2,40})['"]/g)) uiKeys.a
 for (const km of ui.matchAll(/config(?:\?)?\.([a-zA-Z_][a-zA-Z0-9_]*)/g)) uiKeys.add(km[1]);
 
 // ---------- 3. 配置键在别处的出现次数 ----------
-const cfgL0 = idx.slice(0, cfgStart).split('\n').length;
+const cfgL0 = cfgFace.slice(0, cfgStart).split('\n').length;
 const cfgL1 = cfgL0 + cfgBlock.split('\n').length;
 const readCount = {};
 for (const k of cfgKeys) {
     const re = new RegExp(`\\b${k}\\b`);
     let n = 0;
-    for (let i = 0; i < lines.length; i++) {
+    /* [v3.267.0] 行面随之改合看面：cfgL0/cfgL1 是合看面坐标，与 lines（入口面）不同体系。 */
+    for (let i = 0; i < cfgFaceLines.length; i++) {
         if (i + 1 >= cfgL0 && i + 1 <= cfgL1) continue;
-        if (re.test(lines[i])) n++;
+        if (re.test(cfgFaceLines[i])) n++;
     }
     readCount[k] = n;
 }

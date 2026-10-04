@@ -46,7 +46,7 @@ const SELF = readFileSync(SELF_PATH, 'utf-8');
 
 const MTF = join(ROOT, 'memory-type.js');
 const FVF = join(ROOT, 'fact-version.js');
-const IDX = join(ROOT, 'index.js');
+const IDX_PATH = join(ROOT, 'index.js');
 const MF = join(ROOT, 'manifest.json');
 const IRR = join(ROOT, 'injection-router.js');
 const CLF = join(ROOT, 'cost-ledger.js');
@@ -56,7 +56,12 @@ const MT = req(MTF);
 const FV = req(FVF);
 const IR = req(IRR);
 const CL = req(CLF);
-const idxSrc = readFileSync(IDX, 'utf-8');
+/* [v3.267.0 A1 第七刀] 类抽取面改读「入口 + memory-config.js」合看：
+ *   ConfigManager（loadConfig / _applyCardOverrides / 默认块 / 三个锚点常量）已外移，
+ *   语义一字不改、不放宽（每一条仍须在场）。 */
+const idxFileSrc = readFileSync(IDX_PATH, 'utf-8');
+const idxConfigSrc = readFileSync(join(ROOT, 'memory-config.js'), 'utf-8');
+const idxSrc = idxFileSrc + String.fromCharCode(10) + idxConfigSrc;
 const fvSrc = readFileSync(FVF, 'utf-8');
 const mtSrc = readFileSync(MTF, 'utf-8');
 const irSrc = readFileSync(IRR, 'utf-8');
@@ -273,12 +278,13 @@ test('v3211 6. 落笔侧 facts[] 显式类型通道：schema 在场 + 迁移补�
     // 6c 迁移：老用户的提示词持久化在配置里，必须能补上该通道
     A(idxSrc.includes('v3.211-facts通道'), '★ 须有迁移项把 facts 通道补进已存配置（否则老用户永远拿不到）');
     const FP = req(join(ROOT, 'fuzzy-patch.js'));
-    const ANCHOR_OLD = constStr(idxSrc, '_FACTS_PROMPT_ANCHOR_OLD');
-    const ANCHOR_NEW = constStr(idxSrc, '_FACTS_PROMPT_ANCHOR_NEW');
-    const IDEM = constStr(idxSrc, '_FACTS_PROMPT_IDEMPOTENT');
+    /* 配置模块与入口各保留锚点定义：抽取真定义时只读入口源，不能把合看面上同源副本误判为重复。 */
+    const ANCHOR_OLD = constStr(idxFileSrc, '_FACTS_PROMPT_ANCHOR_OLD');
+    const ANCHOR_NEW = constStr(idxFileSrc, '_FACTS_PROMPT_ANCHOR_NEW');
+    const IDEM = constStr(idxFileSrc, '_FACTS_PROMPT_IDEMPOTENT');
     A(IDEM === '"facts": [{"subject"', '幂等键取 facts 通道开头（与 schema 里写的逐字一致）');
     // 6d 锚点字面量必须在类外：内联在方法体里会让扫描器的裸花括号配平算歪（v3159 的 F1 会翻红）
-    const loadCfg = classMethodBody(idxSrc, 'loadConfig() {', 'loadConfig', 'ConfigManager');
+    const loadCfg = classMethodBody(idxConfigSrc, 'loadConfig() {' + String.fromCharCode(10), 'loadConfig', 'ConfigManager');
     A(loadCfg.includes(ANCHOR_OLD) === false && loadCfg.includes(ANCHOR_NEW) === false,
         '★ 含花括号的锚点字面量不得内联在 loadConfig 方法体内（否则方法区间配平错位 ⇒ v3159 的 F1 误报）');
     A(loadCfg.includes('_FACTS_PROMPT_ANCHOR_OLD') && loadCfg.includes('_FACTS_PROMPT_ANCHOR_NEW'),

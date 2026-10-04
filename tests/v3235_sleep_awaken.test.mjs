@@ -34,7 +34,7 @@ const req = createRequire(import.meta.url);
 const MOD_NAME = 'sleep-awaken.js';
 const MOD = path.join(ROOT, MOD_NAME);
 const modSrc = readFileSync(MOD, 'utf8');
-const idxSrcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+const idxSrcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
@@ -224,7 +224,7 @@ test('v3235 9. 不抛：所有导出的畸形入参一律落拒绝态或中性�
 
 /* ══════════ 10. 宿主接线（真消费点，防「导出但零调用」） ══════════ */
 test('v3235 10. 宿主接线：配置键 / UI 控件 / 取库口 / index.js 真引用 / manifest 注册', () => {
-    assert.match(idxSrc, /^\s{16}sleepAwakenEnabled: (true|false),/m, 'index.js config 默认值块有 sleepAwakenEnabled');
+    assert.match(idxSrc, /^\s{12}sleepAwakenEnabled: (true|false),/m, 'index.js config 默认值块有 sleepAwakenEnabled');
     assert.ok(/_sleepAwakenLib\s*\(\)/.test(idxSrc), '取库口函数存在');
     assert.ok(/window\.LonShaSleepAwaken/.test(idxSrc), 'index.js 真引用 window.LonShaSleepAwaken（B4 判据的消费凭据）');
     assert.ok(/return _moduleLib\(\(\) => window\.LonShaSleepAwaken, 'sleep-awaken\.js'\)/.test(idxSrc), '取库口按本仓契约写（真读表达式 + 文件名）');

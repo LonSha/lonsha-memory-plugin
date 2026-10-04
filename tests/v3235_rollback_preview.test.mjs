@@ -51,7 +51,7 @@ const SU = 'settings-ui.js';
 
 const LR_MOD = (await import(at(LR))).default;
 const LR_SRC = read(LR);
-const IDX_SRC = read(IDX);
+const IDX_SRC = read(IDX) + String.fromCharCode(10) + read('memory-config.js'); // [v3.267.0] 配置默认块外移 memory-config.js，合看两真源
 const SU_SRC = read(SU);
 const pkg = JSON.parse(read('package.json'));
 
@@ -385,7 +385,7 @@ test('【H1】★ 版本锚：本套件只在 3.235.0 及以后成立', () => {
  *   副本写进裸临时目录会解析成别的模块 ⇒ 跑出来的不是判据而是一次加载失败（假红）。
  *   本仓 v2.99.0 起统一为 cpSync 整仓镜像，且 `withMirror` 必须 `await`。 */
 const ORIG = new Map();
-for (const f of [LR, IDX, SU]) ORIG.set(f, read(f));
+for (const f of [LR, IDX, SU, 'memory-config.js']) ORIG.set(f, read(f));
 function mirror(mut) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3235-mir-'));
     fs.cpSync(ROOT, dir, { recursive: true, filter: (src) => !src.split(path.sep).includes('.git') });
@@ -467,12 +467,14 @@ test('【N4】★★ 负控制·形态归一化：previewLine 退回只认包装
 });
 
 test('【N5】★★ 负控制·键名：宿主开关名写错一个字 ⇒ J6 必须转红', async () => {
+    /* [v3.267.0] 配置默认块外移：rollbackPreviewEnabled 的真源在 memory-config.js，
+     * 负控制的破坏目标必须跟随真源迁移，否则锚点在旧源里命中 0 次（假红而非负控制）。 */
     await withMirror({
-        [IDX]: (s) => mutateOnce(s,
+        ['memory-config.js']: (s) => mutateOnce(s,
             "rollbackPreviewEnabled: true,",
-            "rollbackPreviewEnable: true,")
+            "rollbackPreviewEnableX: true,")
     }, async (dir) => {
-        const brokenSrc = fs.readFileSync(path.join(dir, IDX), 'utf8');
+        const brokenSrc = fs.readFileSync(path.join(dir, 'memory-config.js'), 'utf8');
         assert.equal(hostJudge(brokenSrc, SU_SRC), false, '★ J6 必须转红（配置键与 UI 控件对不上）');
         assert.equal(hostJudge(IDX_SRC, SU_SRC), true, '对照：原件上仍为 true');
     });

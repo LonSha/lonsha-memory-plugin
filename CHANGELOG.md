@@ -1,4 +1,46 @@
-## v3.266.0
+## v3.267.0
+
+**A1 宿主巨兽第七刀（加固刀）：`ConfigManager` 抽为 `memory-config.js`**（index.js 13883 → 13443 行，-440）
+
+### 位置与形态
+| 项 | 值 |
+| --- | --- |
+| 剥走的类 | `ConfigManager`（默认配置块 180 键 + `loadConfig` 迁移段 + `_applyCardOverrides` + `saveConfig`） |
+| 宿主行数 | 13883 → **13443**（`wc -l` 口径 13442；A1 验收线 15000 已更深地达成） |
+| 新模块 | `memory-config.js`（670 行），`extra_js` 第 79 项 / 末项 |
+| 前六刀链 | memory-ledgers → memory-aux → narrative-generators → memory-books → memory-organs → memory-core → **memory-config** |
+
+### ★ 本刀修掉的三个真缺陷（都不是「重构带来的」，是被本刀暴露的既有缺口）
+1. **P0 加载级缺陷**：首版模块的导出面 `Object.freeze({ …, VERSION })` 在模块顶层求值，
+   而生成脚本漏了 `let VERSION` 声明 ⇒ `require` 当场抛 `ReferenceError`。
+   宿主取库口的 `try/catch` 会把它吞成「模块缺席」⇒ 退到 `ConfigManagerFallback`（`config` 是空对象）。
+   后果不止「一个变量没定义」：**「模块没加载」与「配置全默认」被混成同一形态** ——
+   而这正是 `ConfigManagerFallback` 用空对象（而非默认值表）设计时要防的那件事。
+   留痕教训：**`node --check` 是语法级、`require` 才是加载级**，本刀的判据套件补了加载级断言。
+2. **审计锚点缺陷**：宿主里 `this.config = {}`（`ConfigManagerFallback` 退路 / SupersedeManager 占位）
+   **是** `this.config = {`（真默认块）的**前缀** ⇒ 四个审计脚本换面后 `indexOf` 仍先命中退路（键数 0 ⇒ exit 2）。
+   判别锚改为 `this.config = {` **后紧跟换行**（真块必换行、退路同行闭合）。
+3. **活性扫描面的坐标缺陷**：`scan_config_liveness` 的 FACE 由 manifest 派生，
+   而「默认块面」原先读入口 ⇒ 面扩了、定位面没扩（同一缺陷的另一半）；本次一并改到模块面。
+
+### 模块化契约（与前六刀逐项对齐）
+- 取库口 `_memoryConfigLib()`、统一构造点 `_newConfigManager(...)`（**构造前推、构造后镜像**双向对齐 `_configDefaultsTemplate`）、
+  缺席退路 `ConfigManagerFallback`（4 方法 + 4 字段，`config` 刻意空对象 + `_absent` 标记）、注入口 `_bindConfigDeps()`。
+- 模块侧 `VERSION` 必须 **`let`**：`bindDeps` 要能换它（`const` 会 `TypeError`，被宿主 try/catch 吞掉 ⇒ 整轮注入静默中断）。
+- 依赖收口 5 键：`errLog` / `_moduleLib` / `clearApiCooldowns` / `_configDefaultsTemplate` / `version`；
+  ★ `_configDefaultsTemplate` 的值域含 `null`（合法），故注入判据必须是 **`hasOwnProperty` + 非 undefined**，
+  写成真值判断会把合法的 `null` 挡掉；不做过滤则每次注入清空已冻模板 ⇒ 迁移静默失效。
+- 生成脚本 `tools/v3267_build_config.py` 的抽取源提为位置参数（本刀后入口已无 `ConfigManager`，默认读入口会直接失败）。
+
+### 测试真源迁移回归修复（第七刀收尾）
+历史测试的静态断言只读 `index.js`，而配置默认块 / 提示词 / schema 条款真源已随 `ConfigManager` 迁入 `memory-config.js` —— 断言必须**合看两个真源**才能继续守卫。批量接线规则：
+- 读源声明追加 `+ String.fromCharCode(10) + readFileSync(...memory-config.js...)`；命名空间前缀按各文件 import 风格取：默认导入 `import fs` 用 `fs.readFileSync`，具名导入用裸 `readFileSync`（前缀装反 = `fs is not defined` / `readFileSync is not defined`，双前缀 = `fs.fs.readFileSync`，三类错均已清零）。
+- `memory-config.js` 默认块顶层键为 **12 空格缩进**（原 index.js 块是 16 空格），缩进锚全部换面；`this.config = {` 锚须带换行，区分构造器真块与 `loadConfig` 合并块（后者不换行跟 `...` 展开合并）。
+- 特化修复三件：`v3113_config_coverage`（cfgSrc 抽块 + 缩进换面）、`v3235_sleep_awaken`（缩进 `^\s{12}`）、`v3236_snapshot_restore_and_clear`（E1 行数对账仍指 index.js 单文件——探针只扫 index.js，合看源会抬高行数）。
+- 负控制跟随真源迁移：`v3235_rollback_preview` N5 的破坏目标从 index.js 改到 `memory-config.js`（`rollbackPreviewEnabled` 真源），`_break_kit.mjs` 锚点恰中 1 次 / 拒绝同值替换 / 消息措辞四口径不变。
+
+**产出**：78 个测试文件接线 / 修正全部定向复跑通过（rollback_preview 26/26、snapshot_restore 18/18、sleep_awaken 全绿）；14 个审计脚本通过。全量 `npm test` 按用户纪律（计划全部内容完成前不跑全量）推迟至两仓总控计划收尾后统一执行。
+
 
 **A1 宿主巨兽第六刀：四个内核数据模型类抽为 `memory-core.js`**（index.js 15739 → 13881 行，-1858）
 

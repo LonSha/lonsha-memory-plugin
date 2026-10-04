@@ -16,7 +16,11 @@ const require = createRequire(import.meta.url);
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
+ *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
+ *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
+const src = srcRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
 /* [v3.264.0 A1 第五刀] 六个器官类已外移 memory-organs.js：读配置的消费面（numOr(...)）有三处跟着过去了，
  *   故「消费点在场」与「读数面」两处口径改为 index.js + memory-organs.js 合看（不放宽：每一条仍须存在）。 */
 const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');

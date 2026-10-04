@@ -3,7 +3,7 @@
 // 双模式：行为实测（extractThinkingChain 全分支 + feedThinking 白名单）+ 静态断言（旧模式绝迹）
 import { readFileSync } from 'fs';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const srcS = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8');
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };

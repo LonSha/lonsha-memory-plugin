@@ -16,7 +16,8 @@ const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
-const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8')
+    + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');   // [v3.267.0] 合看面追加
 /* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：「从 index.js 抽 save 方法」的抽取面改读该模块（语义一字不改）。
  *   一个文件里只能有一个真源：凡「从 index.js 抽 StorageManager 方法」的抽取点均改读 memory-organs.js。 */
 const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
@@ -100,7 +101,10 @@ test('v3.166 A 配置迁移不靠自引用构造 + 栈溢出收敛', () => {
     //   旧写法 new (this.constructor)() 在迁移条件成立时递归 —— 构造函数调 loadConfig、
     //   迁移条件又成立，直到栈溢出 RangeError 被 catch 吞掉才「收敛」。
     //   收敛依据是异常兜底而不是值正确，且每次冷启动白烧数千步递归。
-    const migRegion = src.slice(src.indexOf('loadConfig() {'), src.indexOf('_applyCardOverrides() {'));
+    /* [v3.267.0] 判别锚加换行：入口退路写作 `loadConfig() { return undefined; }` /
+     *   `_applyCardOverrides() { return 0; }`（同行闭合），裸锚会先命中它们 ⇒ slice(a,b) 里 b<a ⇒ 空串。 */
+    const migRegion = src.slice(src.indexOf('loadConfig() {' + String.fromCharCode(10)),
+        src.indexOf('_applyCardOverrides() {' + String.fromCharCode(10)));
     // 先剥注释再判：这段代码紧邻的说明文字本身就写着 new (this.constructor)()，
     //   裸正则命中注释会假失败（判据被自己的说明注释骗过）。
     // [v3.191] 剥注释收敛到唯一真源（原第四份副本：不保偏移的正则版，含字符串/正则误伤风险）
@@ -110,7 +114,7 @@ test('v3.166 A 配置迁移不靠自引用构造 + 栈溢出收敛', () => {
 
     // 不变量 2：默认值来自类外冻结模板（在合并 localStorage 之前拍下，不受运行时改动污染）
     assert.ok(/let _configDefaultsTemplate = null;/.test(src), '类外默认值模板存在');
-    const ctorRegion = src.slice(src.indexOf('class ConfigManager'), src.indexOf('loadConfig() {'));
+    const ctorRegion = src.slice(src.indexOf('class ConfigManager'), src.indexOf('loadConfig() {' + String.fromCharCode(10)));
     assert.ok(/_configDefaultsTemplate\s*=\s*JSON\.parse\(JSON\.stringify\(this\.config\)\)/.test(ctorRegion),
         '构造函数在合并外部配置前冻结默认值模板');
     const ctorTail = ctorRegion.slice(ctorRegion.indexOf('_configDefaultsTemplate'));

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+const src = readFileSync(path.join(ROOT, 'index.js'), 'utf8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const ui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 
 test('v3.128 注入槽位清单化（LEGACY 清空模式）', () => {

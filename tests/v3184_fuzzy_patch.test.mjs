@@ -12,7 +12,7 @@ import test from 'node:test';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const require_ = createRequire(import.meta.url);
-const src = readFileSync(ROOT + 'index.js', 'utf-8');
+const src = readFileSync(ROOT + 'index.js', 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const sui = readFileSync(ROOT + 'settings-ui.js', 'utf-8');
 const mf = JSON.parse(readFileSync(ROOT + 'manifest.json', 'utf-8'));
 const MOD_SRC = readFileSync(ROOT + 'fuzzy-patch.js', 'utf-8');

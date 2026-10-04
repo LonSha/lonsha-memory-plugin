@@ -16,6 +16,14 @@ import fs from 'fs';
 
 const idx = fs.readFileSync('index.js', 'utf8');
 const ui = fs.readFileSync('settings-ui.js', 'utf8');
+/* [v3.267.0 A1 第七刀] 默认配置块随 ConfigManager 外移 memory-config.js ⇒ 合看面定位。
+ *   E3/E4 要读的真源（默认值字面量）现在在模块里；只读入口会读到退路的 `this.config = {};`，
+ *   于是「每个滑杆键都有默认值」会集体假红（E4）。 */
+const cfgModSrc = (function () {
+    try { return fs.readFileSync('memory-config.js', 'utf8'); }
+    catch (_e) { return ''; }
+})();
+const face = idx + String.fromCharCode(10) + cfgModSrc;
 
 /* ---------- 1. 拆出所有 range 控件 ---------- */
 function attr(tag, name) {
@@ -52,19 +60,20 @@ if (sliders.length === 0) {
 }
 
 /* ---------- 2. 默认配置块 ---------- */
-const cfgAt = idx.indexOf('this.config = {');
+const cfgAt = face.indexOf('this.config = {' + String.fromCharCode(10));   // 退路是 `{};`，同行闭合
+
 if (cfgAt < 0) {
     console.error('[slider-coherence] 未找到 this.config = { 默认配置块，审计脚本需同步结构变化');
     process.exit(2);
 }
-const cfgOpen = idx.indexOf('{', cfgAt);
+const cfgOpen = face.indexOf('{', cfgAt);
 let depth = 0, cfgClose = -1;
-for (let i = cfgOpen; i < idx.length; i++) {
-    if (idx[i] === '{') depth++;
-    else if (idx[i] === '}') { depth--; if (depth === 0) { cfgClose = i; break; } }
+for (let i = cfgOpen; i < face.length; i++) {
+    if (face[i] === '{') depth++;
+    else if (face[i] === '}') { depth--; if (depth === 0) { cfgClose = i; break; } }
 }
 if (cfgClose < 0) { console.error('[slider-coherence] 默认配置块括号不闭合'); process.exit(2); }
-const cfg = idx.slice(cfgOpen, cfgClose);
+const cfg = face.slice(cfgOpen, cfgClose);
 
 function num(v) {
     if (v === null || v === '') return null;

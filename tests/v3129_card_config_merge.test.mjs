@@ -5,10 +5,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
+ *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
+ *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
+const idxSrc = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const cfgModSrc = readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
+const src = idxSrc + String.fromCharCode(10) + cfgModSrc;
 
 function extractMethodBody() {
-    const marker = `_applyCardOverrides() {`;
+    /* [v3.267.0] 真实现已外移模块；入口退路同名方法写作 `_applyCardOverrides() { return 0; }`
+     *   （同行闭合）⇒ 判别锚加换行即跳过退路、命中模块里的真实现。 */
+    const marker = '_applyCardOverrides() {' + String.fromCharCode(10);
     const start = src.indexOf(marker);
     assert.ok(start >= 0, '_applyCardOverrides 定义存在');
     let depth = 0, i = src.indexOf('{', start);
@@ -64,9 +71,12 @@ test('v3.129 无卡配置 / 结构损坏时安全返回 0', () => {
 
 test('v3.129 载入与切换角色接线', () => {
     // loadConfig 在 localStorage 合并后调用卡覆盖
-    const iLoad = src.indexOf('this._applyCardOverrides();');
+    /* [v3.267.0] 接线点（loadConfig 内调卡覆盖）**仍在入口**；而 loadConfig 与
+     *   _applyCardOverrides 的**定义体**已外移模块 ⇒ 顺序判据在**同一语义面**上取：
+     *   入口段在前、模块段在后；iLoad 取入口、iSaved 取模块，比较仍是「同一次 loadConfig 内」。 */
+    const iLoad = cfgModSrc.indexOf('this._applyCardOverrides();');
     assert.ok(iLoad > 0, 'loadConfig 接线存在');
-    const iSaved = src.indexOf("if (saved) this.config = {...this.config, ...JSON.parse(saved)};");
+    const iSaved = cfgModSrc.indexOf("if (saved) this.config = {...this.config, ...JSON.parse(saved)};");
     assert.ok(iSaved > 0 && iLoad > iSaved, '卡覆盖发生在全局层合并之后');
     // CHAT_CHANGED 事件重放
     assert.match(src, /this\.engine\.config\?\._applyCardOverrides\?\.\(\)/);

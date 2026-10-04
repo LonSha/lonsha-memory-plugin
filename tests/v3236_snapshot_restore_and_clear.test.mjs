@@ -32,7 +32,7 @@ import { breakFile } from './_break_kit.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
-const idx = read(path.join(ROOT, 'index.js'));
+const idx = read(path.join(ROOT, 'index.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'memory-config.js')); // [v3.267.0] 配置默认块已外移 memory-config.js，合看两个真源
 const ui = read(path.join(ROOT, 'settings-ui.js'));
 
 /** 取一段源码（起点字面量 → 终点字面量）。**不**用正则：本仓的锚点里全是括号与引号。 */
@@ -288,7 +288,10 @@ test('v3236 E1. ★★ 真跑宿主探针：`onMessageReceived` 仍是最大成�
     const top = rep.biggest_members[0];
     assert.match(top.name, /^on/, '最大成员仍应是宿主回调形状（本版改的是它内部，不是它的地位）');
     assert.ok(top.lines >= 1000, '最大成员须 ≥ 1000 行，实测 ' + top.lines);
-    assert.equal(rep.total_lines, idx.split('\n').length, '★ 探针读的必须就是真 index.js');
+    /* [v3.267.0] 配置默认块外移后，「探针读的必须就是真 index.js」的行数对账对象仍应
+     * 指向 index.js 单文件本身（探针 host_beast_probe.cjs 只扫 index.js）；
+     * idx 真源已合看 memory-config.js，行数口径若用它会被配置文件抬高。 */
+    assert.equal(rep.total_lines, read(path.join(ROOT, 'index.js')).split('\n').length, '★ 探针读的必须就是真 index.js');
 });
 
 test('v3236 E2. ★★ 三源同源（index.js VERSION / manifest / package.json）', () => {

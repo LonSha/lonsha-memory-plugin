@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] EntityLexicon 已外移到 memory-organs.js。
  *   凡「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
 const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');

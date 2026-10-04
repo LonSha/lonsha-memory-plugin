@@ -13,7 +13,7 @@ function vnum(s) {
   const m = /^([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?/.exec(String(s));
   return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
 }
-const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8') + String.fromCharCode(10) + fs.readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'manifest.json'), 'utf8'));
 
 const sbox = { module: { exports: {} }, window: undefined };

@@ -22,7 +22,11 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
-const idx = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+const idxRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
+ *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
+ *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
+const idx = idxRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf8');
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -146,8 +150,10 @@ test('v3.168 A 读侧对账：导入必须登记实收与缺键（旧包不得�
 });
 
 test('v3.168 A 新配置的可达性（v3.160/v3.161 两条不变量在此重合）', () => {
-    const cfgAt = idx.indexOf('this.config = {');
-    const cfg = idx.slice(cfgAt, idx.indexOf('\n            };', cfgAt));
+    const cfgAt = idx.indexOf('this.config = {' + String.fromCharCode(10));   // 真块 `{` 后换行；退路 `{}` 同行闭合
+    /* [v3.267.0] 终止行随类外移而**少一层缩进**（类体整体去 4 空格）：原 '\n            };'
+     *   （12 空格）在合看面上不存在。用不带缩进的 '};' 在模块段内命中首个同名终止行，语义相同。 */
+    const cfg = idx.slice(cfgAt, idx.indexOf('};', cfgAt));
     assert.ok(/^\s+carryoverContractStrict: true,/m.test(cfg), '必须进 defaults 声明（读取而未声明 = 静默回退硬编码值）');
     assert.ok(idx.includes('this.config.config.carryoverContractStrict'), '必须被引擎真实读取');
     assert.ok(sui.includes("ck('carryoverContractStrict'"), '必须在面板有控件（无控件又无卡白名单 = 旋钮不存在）');

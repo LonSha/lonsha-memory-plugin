@@ -84,7 +84,10 @@ if (!FIXTURE_MODE && emptyMods.length) {
 }
 
 /* ---------- 1. 默认配置块 ---------- */
-const cfgStart = idx.indexOf('this.config = {');
+/* [v3.267.0 A1 第七刀] 默认块随 ConfigManager 外移 memory-config.js ⇒ 在**合看面**上定位。
+ *   原先读 idx（= ENTRY）：面扩了而定位面没扩，是同一个「坐标面不一致」缺陷的另一半。 */
+const CFG_ANCHOR = 'this.config = {' + String.fromCharCode(10);   // 真块是 `{\n`；退路是 `{};`（同行闭合）
+const cfgStart = faceText.indexOf(CFG_ANCHOR);
 if (cfgStart < 0) {
     console.error('[config-liveness] 未找到 this.config = { 默认配置块，审计脚本需同步结构变化');
     process.exit(2);
@@ -97,8 +100,8 @@ function braceEnd(text, openIdx) {
     }
     return -1;
 }
-const cfgOpen = idx.indexOf('{', cfgStart);
-const cfgClose = braceEnd(idx, cfgOpen);
+const cfgOpen = faceText.indexOf('{', cfgStart);
+const cfgClose = braceEnd(faceText, cfgOpen);
 if (cfgClose < 0) { console.error('[config-liveness] 默认配置块括号不闭合'); process.exit(2); }
 
 /* ---------- 2. UI 呈现的键 ---------- */
@@ -113,8 +116,10 @@ let mm;
 while ((mm = mre.exec(faceText)) !== null) {
     const name = mm[1];
     if (['if', 'for', 'while', 'switch', 'catch', 'function'].includes(name)) continue;
-    const open = idx.indexOf('{', mm.index + mm[0].length - 1);
-    const close = braceEnd(idx, open);
+    /* [v3.267.0] 方法区间必须与 mm（faceText 坐标）同面：原写法拿 faceText 的偏移去 idx 里定位，
+     *   对模块内成员会静默切出错位区间，进而把「有调用者」判成「无调用者」（假红/假绿双向）。 */
+    const open = faceText.indexOf('{', mm.index + mm[0].length - 1);
+    const close = braceEnd(faceText, open);
     if (close < 0) continue;
     methods.push({ name, start: open, end: close });
 }

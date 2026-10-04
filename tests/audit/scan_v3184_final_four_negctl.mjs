@@ -25,8 +25,9 @@ import { execFileSync } from 'child_process';
 const SRC = process.cwd();
 const SCAN = path.join(SRC, 'tests/audit/scan_v3184_final_four.mjs');
 /* [v3.266.0 A1 第六刀] GameClock / CharacterState 外移 memory-core.js ⇒
- *   夹具必须同步搬该模块，否则被破坏的真源根本不在 mirror 里。 */
-const FILES = ['relation-disclosure.js', 'node-rollup.js', 'fuzzy-patch.js', 'changeset.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-core.js'];
+ *   夹具必须同步搬该模块，否则被破坏的真源根本不在 mirror 里。
+ *   [v3.267.0 A1 第七刀] memory-config.js 加入声明/迁移判定面，也必须同步进 mirror。 */
+const FILES = ['relation-disclosure.js', 'node-rollup.js', 'fuzzy-patch.js', 'changeset.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-core.js', 'memory-config.js'];
 
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
@@ -201,9 +202,9 @@ group('R5-读数把无条件与命中合并',
 
 // ── R6 配置键未声明 ──
 group('R6-配置键未声明',
-    'index.js',
-    '                relationDisclosureEnabled: true,',
-    '                relationDisclosureEnabledX: true,',
+    'memory-config.js',
+    '            relationDisclosureEnabled: true,',
+    '            relationDisclosureEnabledX: true,',
     'R6 默认配置块未声明 relationDisclosureEnabled');
 
 // ── R6 UI 控件被摘 ──

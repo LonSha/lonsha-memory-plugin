@@ -1,7 +1,7 @@
 // v3.32 剧情时间线重要度分级注入 测试（Visual-Memory highlightThreshold 理念）
 // 覆盖：events 提取 schema importance；PlotTimeline.add 持久化（向后兼容）；recall 保留；buildInjection 分级注入
 import fs from 'node:fs';
-const src = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const src = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8') + String.fromCharCode(10) + fs.readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
  *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
  *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */

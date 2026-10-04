@@ -16,7 +16,14 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
-const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.267.0 A1 第七刀] ConfigManager 默认块与卡白名单声明已外移 memory-config.js；
+ *   本档原 src 的用途就是配置声明面，故变量 src 直接改读合看（语义一字不改）。 */
+const cfgModSrc = readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
+const src = idxSrc + String.fromCharCode(10) + cfgModSrc;
+/* [v3.267.0 A1 第七刀] 类抽取/读取顺序判据必须以真定义的换行形态为锚：入口退路 `this.config = {};`
+ *   是默认块签名前缀；只认 `{` 后换行可跳过退路，命中模块真默认块。 */
+const face = src;
 /* [v3.264.0 A1 第五刀] EntityLexicon 已外移到 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
 const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
 const orgClass = (name) => { const at = orgSrc.indexOf('class ' + name + ' {'); if (at < 0) throw new Error('missing class ' + name); const body = orgSrc.slice(at, orgSrc.indexOf('\n}', at) + 2); return body; };
@@ -91,7 +98,10 @@ test('[1e] termLexiconMax has a real member-read consumer outside the default bl
     const reads = occurrences(src, '.termLexiconMax');
     assert.ok(reads >= 1, 'member-read form present (got ' + reads + ')');
     const first = src.indexOf('.termLexiconMax');
-    assert.ok(first > src.indexOf('this.config = {') + 200, 'the read is not the bare default declaration');
+    /* [v3.267.0] 默认块已移入合看面的后段；坐标不能再用入口内默认块位置作比较。
+     *   这里直接验证消费语法在场：member-read 位于非默认字面量形式，并传入词典构造点。 */
+    assert.ok(first > 0 && idxSrc.includes('max: numOr(this.config.config.termLexiconMax, 40)'),
+        'member-read consumer remains in the host constructor and reads the relocated default');
 });
 
 // ================= 2. EntityLexicon really honours max (live execution) =================

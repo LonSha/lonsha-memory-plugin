@@ -41,11 +41,14 @@ for (const k of Object.keys(FILES)) {
 }
 const npRaw = fs.readFileSync(path.join(ROOT, FILES.np), 'utf8');
 const idxRaw = fs.readFileSync(path.join(ROOT, FILES.idx), 'utf8');
+const cfgPath = path.join(ROOT, 'memory-config.js');
+const cfgRaw = fs.existsSync(cfgPath) ? fs.readFileSync(cfgPath, 'utf8') : '';
 const suiRaw = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 const mf = JSON.parse(fs.readFileSync(path.join(ROOT, FILES.mf), 'utf8'));
 
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已接消费者」不算接上）。
 const idx = stripComments(idxRaw);
+const cfgFace = idx + String.fromCharCode(10) + stripComments(cfgRaw);
 const sui = stripComments(suiRaw);
 const npc = stripComments(npRaw);
 if (idxRaw.length < 500000) {
@@ -304,7 +307,7 @@ if (new RegExp(NEEDLE_ROW).test(lineBody)) bad('R5 判据自我指涉', '诊断�
 
 // ── R6 口径与默认 ──
 const KEY = 'emotionOppositeRecall';
-if (!new RegExp(KEY + '\\s*:\\s*false').test(idx)) bad('R6 默认值不符', KEY + ' 默认必须为 false（默认关＝零行为变化承诺）');
+if (!new RegExp(KEY + '\\s*:\\s*false').test(cfgFace)) bad('R6 默认值不符', KEY + ' 默认必须为 false（默认关＝零行为变化承诺）');
 else ok('R6 默认 false');
 if (!new RegExp(KEY + "\\s*===\\s*true|" + KEY + "\\s*!==\\s*true").test(idx)) bad('R6 未被读取', KEY + ' 无消费点（死配置）');
 else ok('R6 键有消费点');

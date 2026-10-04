@@ -552,9 +552,13 @@ const src = read('node-rollup.js');
 // 配置声明纪律（v3.160）：读取点用 config.config.KEY 的键必须在默认配置块声明
 {
   const isrc = read('index.js');
-  const cfgAt = isrc.indexOf('this.config = {');
+  /* [v3.267.0 A1 第七刀] 默认块随 ConfigManager 外移 memory-config.js ⇒ 本块改读合看面。
+   *   isrc 仍指入口（本档其余方法体块按入口面判），只有声明面扩到模块。
+   *   判别锚加换行：入口退路的 `this.config = {};` 是裸锚的前缀，会先命中（键数 0）。 */
+  const isrcCfg = isrc + '\n' + read('memory-config.js');
+  const cfgAt = isrcCfg.indexOf('this.config = {' + String.fromCharCode(10));
   ok('10r 默认配置块存在', cfgAt > 0);
-  const cfg = isrc.slice(cfgAt, braceEnd(isrc, isrc.indexOf('{', cfgAt)) + 1);
+  const cfg = isrcCfg.slice(cfgAt, braceEnd(isrcCfg, isrcCfg.indexOf('{', cfgAt)) + 1);
   ok('10s 声明 graphRollupEnabled', /graphRollupEnabled: true,/.test(cfg));
   ok('10t 声明 graphRollupMinChildren', /graphRollupMinChildren: 4,/.test(cfg));
 }

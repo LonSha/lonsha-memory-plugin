@@ -12,6 +12,10 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
 const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+/* [v3.267.0 A1 第七刀] _applyCardOverrides / CARD_CFG_KEYS 已外移 memory-config.js：本文件对
+ *   它们的抽取面改读合看面（VERSION 读点仍在入口 src 上）。 */
+const cfgModSrc = readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
+const face = src + String.fromCharCode(10) + cfgModSrc;
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 
@@ -71,8 +75,8 @@ test('【5】settings-ui 登记两开关 + 卡覆盖白名单', () => {
     assert.ok(sui.includes("ck('swipeAwareRecallEnabled'"), 'swipe 开关 UI 登记');
     assert.ok(sui.includes("ck('ledgerAwareQuotaEnabled'"), '台账开关 UI 登记');
     // 卡覆盖白名单（_applyCardOverrides 的 CARD_CFG_KEYS）
-    const cc = src.indexOf('_applyCardOverrides() {');
-    const seg = src.slice(cc, cc + 1600);
+    const cc = face.indexOf('_applyCardOverrides() {' + String.fromCharCode(10));   // 退路同名方法同行闭合
+    const seg = face.slice(cc, cc + 1600);
     assert.ok(seg.includes('swipeAwareRecallEnabled'), 'swipe 开关进卡覆盖白名单');
     assert.ok(seg.includes('ledgerAwareQuotaEnabled'), '台账开关进卡覆盖白名单');
     // v3113 白名单不新增（两开关均有 UI，不需要白名单豁免）

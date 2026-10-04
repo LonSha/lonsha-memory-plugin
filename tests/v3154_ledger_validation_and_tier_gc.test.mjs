@@ -16,7 +16,8 @@ const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
-const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8')
+    + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');   // [v3.267.0] 合看面追加
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -181,7 +182,8 @@ test('【5b】配置默认值 5 键 + 卡覆盖白名单 5 键 + 违规账本字
     assert.ok(d.includes('ledgerViolationLogMax: 200'), '环形上限 200');
     assert.ok(d.includes('volumeRetention: 40'), '卷保留 40');
     assert.ok(d.includes('historicalRetention: 24'), '史记保留 24');
-    const cc = src.slice(src.indexOf('_applyCardOverrides() {'), src.indexOf('_applyCardOverrides() {') + 2200);
+    const cc = src.slice(src.indexOf('_applyCardOverrides() {' + String.fromCharCode(10)),
+        src.indexOf('_applyCardOverrides() {' + String.fromCharCode(10)) + 2200);   // 退路同名方法同行闭合，加换行跳过
     for (const k of ['ledgerWriteValidationEnabled', 'ledgerWriteValidationDebug', 'ledgerViolationLogMax', 'volumeRetention', 'historicalRetention']) {
         assert.ok(cc.includes(k), '卡覆盖白名单含 ' + k);
     }
