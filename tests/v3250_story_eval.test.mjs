@@ -17,9 +17,9 @@ function run() { if (!_cache) _cache = RUNNER.runAll({ corpus: CORPUS }); return
 test('v3250 A1. 十二类逐类有样本，且主/缺口分列（验收答案冻结）', () => {
   const cov = CORPUS.coverageCheck();
   assert.deepEqual(cov.missing, [], '十二类不得缺类：' + cov.missing.join(','));
-  assert.equal(cov.total, 43, '样本总数（实测 ' + cov.total + '）');
+  assert.equal(cov.total, 55, '样本总数（[v3.268.0 B1] 原四十 + 边缘 12 + rp1 + gp2；实测 ' + cov.total + '）');
   assert.equal(cov.total - cov.gaps, cov.main, '主/缺口分列时数字要自洽');
-  assert.equal(CORPUS.STORY_EVAL_VERSION, 1, '验收答案版本冻结');
+  assert.equal(CORPUS.STORY_EVAL_VERSION, 2, '[v3.268.0 B1] 验收答案版本（1→2：缺口归零 + 边缘扩样）');
   for (const c of CORPUS.CLASSES) assert.ok(cov.byClass[c] >= 2, c + ' 每类至少 2 例（实测 ' + cov.byClass[c] + '）');
   const rp = CORPUS.SCENARIOS.find((s) => s.case === 'rp1');
   assert.ok(rp && rp.kind === 'rank-probe', '冻结语料必须含 rp1 rank-probe');
@@ -77,23 +77,28 @@ test('v3250 B4. 机制门（硬零）：三条全过，且**门真的会开**（
     assert.equal(/missing|拒判/.test(d.why), false, d.case + ' 的守卫没真的开：' + d.why);
   }
 });
-test('v3250 C1. 缺口样本逐条登记，且缺口位置写清（候选层 / 排序层）', () => {
+test('v3250 C1. [v3.268.0 B1] 缺口归零（gp2 转正），且「空集合」是被量出来的（反坐实）', () => {
   const r = run();
   const kg = r.metrics.knownGaps;
-  assert.ok(r.metrics.gapSamples >= 1, '缺口台账至少要有 1 例（否则说明台账根本没生效）');
-  assert.equal(kg.length, r.metrics.gapSamples, '台账条数必须等于缺口样本数');
-  for (const g of kg) {
-    assert.ok(g.case && g.cls, '台账必须点名到样本');
-    assert.ok(typeof g.stage1Ok === 'boolean' && typeof g.stage2Ok === 'boolean', g.case + ' 必须记两层读数');
-    assert.ok(Array.isArray(g.missRank), g.case + ' 必须记「卡在哪一步」');
-  }
-  const byStage = kg.map((g) => (g.stage1Ok ? 'rank' : 'candidate'));
-  assert.ok(byStage.length > 0, '台账不能为空');
-  for (const g of kg) {
-    const where = g.stage1Ok ? 'rank' : 'candidate';
-    assert.ok(where === 'rank' ? Array.isArray(g.missRank) : true, g.case + ' 的缺口位置必须可判定');
-  }
+  /* 只断言空是不够的：台账机制若整个失效（字段没了 / 从未被填），读数同样是空 ——
+   * 故同时钉「字段在场」与「喂一条自造 gap 样本后它必须重新出现」。 */
+  assert.deepEqual(kg, [], 'B1 验收：story-eval 缺口台账必须为空，实为 ' + JSON.stringify(kg.map((g) => g.case)));
+  assert.equal(r.metrics.gapSamples, 0, '缺口样本数必须为 0');
+  const injected = Object.assign({}, CORPUS.SCENARIOS[0], {
+    cls: 'self-made-gap', case: 'zz-gap', floor: 1, session: 's1',
+    query: '他后来把那地方卖了', note: '反坐实',
+    must: [], mustIn: [], forbid: [], low: '', gate: '', kind: 'gap',
+    nodes: [{ id: 'zz_a', type: 'event', name: '旧事', data: { summary: '与查询无字面交集' }, timestamp: 1 }],
+    noiseIds: [], src: { floor: 1, session: 's1' },
+  });
+  const fake = Object.assign({}, CORPUS, { SCENARIOS: CORPUS.SCENARIOS.concat([injected]) });
+  const r2 = RUNNER.runAll({ corpus: fake });
+  assert.equal(r2.metrics.knownGaps.length, 1, '喂一条 gap 样本 ⇒ 台账必须重新出现（否则归零是机制失效）');
+  assert.equal(r2.metrics.knownGaps[0].case, 'zz-gap', '台账必须点名到那一条');
+  assert.ok(typeof r2.metrics.knownGaps[0].stage1Ok === 'boolean', '必须记两层读数');
+  assert.ok(Array.isArray(r2.metrics.knownGaps[0].missRank), '必须记「卡在哪一步」');
 });
+
 test('v3250 C2. 低分噪声读数在场（只报数，不做硬零——避免把「分不开」写成「没泄露」）', () => {
   const r = run();
   const lowCases = CORPUS.SCENARIOS.filter((s) => s.low).map((s) => s.case);

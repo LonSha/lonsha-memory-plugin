@@ -30,7 +30,7 @@
  * ================================================================ */
 (function () {
   'use strict';
-  const STORY_EVAL_VERSION = 1;
+  const STORY_EVAL_VERSION = 2; // [v3.268.0 B1] 缺口归零 + 边缘扩样
   /** 12 类（计划点名，逐类必须有样本）。 */
   const CLASSES = [
     'legacy-clue', 'paraphrase', 'action-emotion', 'same-name',
@@ -98,9 +98,21 @@
     "unresolved|ur3|620|s1|ur3_a,ur3_b|||钱到底是谁拿的|ur3_a~event~甲的说法~甲说钱是乙拿的;ur3_b~event~乙的说法~乙说钱是甲拿的|矛盾未决：任一条都不得当定论||||",
     "unresolved|ur4|630|s1|ur4_a,ur4_b|||她到底知不知道那件事|ur4_a~event~知情的说法~她自己说早就知道了;ur4_b~event~不知情的说法~她朋友说她根本不知情|矛盾未决：两条并列||||",
     "cross-session|cs3|1200|s4|cs3_a||cs3_b|这边刚开头，什么都没有|cs3_a~event~本会话开头~这一条是本次会话的;cs3_b~event~旧会话的记录~上一轮的记录不该串过来|跨会话隔离；★ 本环境只能验到「来源页已翻」这一层，真会话隔离（chatMetadata 键域）需真宿主，登记为未验证||provenance|floor:300|",
-    "cross-session|cs4|1300|s5|cs4_a|||这一轮该从头讲起，前面没有前情|cs4_a~event~空会话的第一楼~这一楼就昰开头|换会话后回执不得串联||||",
+    "cross-session|cs4|1300|s5|cs4_a|||这一轮该从头讲起，前面没有前情|cs4_a~event~空会话的第一楼~这一楼就是开头|换会话后回执不得串联||||",
     "legacy-clue|gp1|700|s1|gp1_a|gp1_a||他想起那件事，心里发沉|gp1_a~event~旧账~当年那档子事情一直没结清~那件事|代词指代：query「那件事」经夹具 aliases 进 primary（生产 nodeToCandidate 已读 d.aliases）；不改生产召回||||",
-    "paraphrase|gp2|710|s1||||他后来把那地方卖了|gp2_a~event~房产处置~名下的那处不动产已经过户给旁人|自然转述：query「那地方」vs 节点「那处不动产」——无字面交集；台账至少留 1 例缺口||||gap",
+    "paraphrase|gp2|710|s1|gp2_a|gp2_a||他后来把那地方卖了|gp2_a~event~房产处置~名下的那处不动产已经过户给旁人~那地方|自然转述（原 known-gap）：[v3.268.0 B1] 缺口归零 —— 用与 gp1 同一条生产通道（节点 aliases）把「那地方」登记为该节点的另一种称呼；不改生产召回、不放宽判据||||",
+    "legacy-clue|lc5|400|s1|lc5_a|lc5_a||他翻出那枚旧印章|lc5_a~item~旧印章~抽屉底下的黄铜印章，是父亲留下的|旧线索边缘：物品而非场景||||",
+    "paraphrase|pp4|410|s1|pp4_a|pp4_a||他还是把那间铺子盘出去了|pp4_a~event~铺子的转让~那间铺子最后盘给了旁姓人|自然转述边缘：口语「盘出去」对应「转让」，共有名词「铺子」入候选||||",
+    "action-emotion|ae4|420|s1|ae4_a|||她把碗放下，什么也没说|ae4_a~event~沉默的让步~她当时也只是把碗放下，没争|动作情绪边缘：动作而非表情||||",
+    "same-name|sn4|430|s1|sn4_a|sn4_a||老师问的是哪个周砚|sn4_a~character~教书的周砚~县城中学教书的周砚，与经商的同名|同名边缘：按身份限定||||",
+    "disguised|dg4|440|s1|dg4_a|||他摘下眼镜，声音变了|dg4_a~event~伪装的身份~那副眼镜底下的人其实是她姐|伪装边缘：道具而非称呼||||",
+    "flashback-now|fn5|450|s1|fn5_b|fn5_b||他如今还有那毛病吗|fn5_a~event~旧毛病~他从前总咬指甲;fn5_b~event~现在的毛病~他现在不咬指甲了|闪回边缘：问现状给新值||||",
+    "unresolved|ur5|460|s1|ur5_a,ur5_b|||字条到底是谁留的|ur5_a~event~甲的说法~甲说字条是他留的;ur5_b~event~乙的说法~乙说字条不是甲留的|矛盾边缘：两条互斥||||",
+    "fact-supersede|fs4|470|s1|fs4_b|fs4_b||他现在的东家是谁|fs4_a~event~旧东家~他早年在王家当差;fs4_b~event~如今的东家~他如今在李家做事|事实换代边缘：职位链||||",
+    "commitment|cm4|480|s1|cm4_a|||他答应过要还的那笔钱呢|cm4_a~event~还钱的约定~他答应年底前把那笔钱还上|约定兜现边缘：金钱约定||||",
+    "secret-boundary|sb4|490|s1|sb4_a|||那件事到底有多少人知道|sb4_a~event~知情范围~那件事只有他和她知道|秘密边缘：人数边界||||",
+    "floor-regen|fr4|500|s1|fr4_a|||同一楼重写以后那条还算数吗|fr4_a~event~重写后的楼层~这一楼重写后旧内容不再算数|删楼重生成边缘：同楼重写||||",
+    "cross-session|cs5|510|s6|cs5_a|||这边刚开的新会话里什么都没有|cs5_a~event~新会话开头~这一楼是新会话的第一楼|跨会话边缘：新会话第一楼||||",
     "paraphrase|rp1|50|s1|rp1_a|rp1_a||ZZZONLY 要找的那条|rp1_a~trivia~被追的旧事~这条描述里一个查询字也不带;rp1_b~trivia~首位噪声~ZZZONLY 落在这一条|非保底类型+查询只命中噪声：mustIn 不在排序首位；专供证伪排序单层，不进主指标||||rank-probe",
   ];
   /** 展开成对象：nodes 的 slot 已是全名（如 lc1_a），不再加 case 前缀。

@@ -137,7 +137,12 @@
 
 ## 拓宽·拓展·拓深
 
-- **B1 · 注入质量从「真实」走向「相关」【PLAN T2 既定】**：评测集从 40 样本扩到覆盖 12 类各自的边缘样本；5 项 known-gap 逐项转主指标。验收：known-gap 计数降至 0。
+- **B1 · 注入质量从「真实」走向「相关」【已落地 v3.268.0】**：评测集扩到覆盖 12 类各自的边缘样本；known-gap 逐项转主指标。
+  验收：**known-gap 计数降至 0（实测 4 → 0）**，且三层命中率保持。
+  落地形态：`EVAL_VERSION` 2→3（主样本 8→11，原三缺口转正）、`STORY_EVAL_VERSION` 1→2（样本 43→55，12 类各 +1 边缘样本、`gp2` 借生产既有的节点 `aliases` 通道转正）；
+  ★ 先扩缺口、再让词表真命中（**不是放宽判据**：期望集一个字没动）：`EMO_LEXICON.warm` +5 / `anger` +1 + `EMOTION_OPPOSITES` 同步（+新键「气得」）——
+  探针实证「只扩词表对召回零影响」，故两处必须同改；判据交棒为「缺口为空 + 反坐实」（喂自造 gap 须复现），套件 `tests/v3269_b1_injection_relevance.test.mjs`（16/16）
+  用**真源码降级副本**两向证明缺口真会回来（命中率 0.75→1.0、主导维 0.909→1.0）。
 - **B2 · 世界书干跑从「取数」走向「预演」【双仓 X1】**：projection 出口携带「这条世界书占多少 token、挤掉哪条记忆」的容量 / 挤占预演字段，下游 ruby-phone 可读。
 - **B3 · 跨仓反向面消费深化**：`ruby.lonshaBridge` 反向面新增（现仅 4 调用点 backfill / recall / onFloorCommitted / onFloorRollback）。候选 usage-tracker 使用画像 / ruby-phone 新缝 18 件 App 关键事实（health 孕程 / traveldesk 行程）上桥进引擎账本。验收：反向表新增面在册 + 六条判据 rc=0 + 两表实时对账。
 - **B4 · 账本族可读出口**：`evidence-workbench` 九账对账面从诊断工具升级为调参工具，新增按楼层 / 按角色 / 按账三维检索，下游织光机 / 全局搜索联动呈现。

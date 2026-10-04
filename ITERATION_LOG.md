@@ -3,10 +3,36 @@
 > 自主迭代模式的流水账。每条：**做了什么 / 为什么 / 影响范围 / 门禁结果**。
 > 版本级详情在 CHANGELOG.md，本文件只记迭代节奏与判据出处。
 > ⚠️ **覆盖范围：本文件最后一条是 v3.249.0（2026-09-28）**；
-> v3.250.0 ~ v3.255.0 这 6 个版本**未进本流水账**，其版本级详情在 `CHANGELOG.md` 顶节。
+> v3.250.0 ~ v3.255.0 这 6 个版本**未进本流水账**，其版本级详情在 `CHANGELOG.md` 顶节；
+> v3.256.0 ~ v3.267.0 亦未逐版进流水账（其间详情见 `CHANGELOG.md` 的各「同版追加」节）—— **自 v3.268.0 起恢复逐版记账**。
 > 要判断「现在到哪了」，以 `CHANGELOG.md` 顶节与 `index.js` 的 `VERSION` 为准。
 
 ---
+
+---
+## 2026-10-04 · v3.268.0（B1 注入质量：真实 → 相关）
+**做了什么**：① 四源抬版 3.267.0 → **3.268.0**（`index.js` / `manifest.json` / `package.json` / `README.md`）+ TODO「最近更新」；
+② 情绪词表扩表：`EMO_LEXICON.warm` +5（陪在/别怕/披在/手帕/擦眼泪）、`anger` +1（气得），`EMOTION_OPPOSITES` 同步加值并新增键「气得」；
+③ `eval-corpus.js`：`EVAL_VERSION` 2→3、三条原 gap 去 `gap:` 字段并改名、`aggregate-emotion` 的 `expectDim` 由 fear 改 anger、`knownGaps` 归零；
+④ `story-eval-corpus.js`：`STORY_EVAL_VERSION` 1→2、`gp2` 借节点 `aliases` 通道转正、12 类各新增 1 例边缘样本（43→55）；
+⑤ 判据交棒：v3193 #14/#16 与 v3250 A1/C1 从「断言缺口 ≥N」反转为「断言为空 + 反坐实」；
+⑥ 新建交付档 `tests/v3269_b1_injection_relevance.test.mjs`（16 项）；两份台账登记；词表漂移基线同步。
+
+**为什么**：缺口是「词表按标准词收录、不按真实行文收录」的覆盖问题 —— 修法是扩覆盖，**不是放宽判据**（期望集一个字没动）。
+★ 关键机制事实（探针实证）：**只扩 `EMO_LEXICON` 对召回零影响**，反向线索经 `opposedWordsFor` → `EMOTION_OPPOSITES` 汇出，两处必须同改。
+★ 三条缺口的成因**不是同一种**：natural-wording / action-comfort 是命中面（0/2、0/1 → 2/2、1/1），
+aggregate-emotion 是**语义面**（dim fear→anger）—— 撤回扩表后它**照样命中**（fear 面里也有「温柔」），拿 hit 当判据会读成「没退化」。
+此条本档首版写错，被自己新写的双向判据当场抓住（C1 报「归因错了」），修正后按成因分列。
+
+**影响范围**：`narrative-pulse.js`（词表 + 映射）、两份评测夹具、两个历史套件（判据交棒）、
+`tests/fixtures/lexicon_baseline.json`（漂移 7 项 → 0）、`tests/audit/catalog_reference_consumers.tsv`（255→256 行）、
+`tests/v3247` 接收方台账 +1；顺手修正两处字符损坏（`攝`→`攥`、`就昰`→`就是`）。
+
+**门禁结果**：定向口径（全量按用户纪律留待计划收口后一次跑）——
+新档 v3269 **16/16**；v3193 21/21；v3250 15/15；v3186 24/24；v3189 9/9；v3268 15/15；v3267 15/15；
+v3203 · v3204 · v3245 · v3246 · v3247 · v3255 均 rc 0；两个扫描器 rc 0。
+抬版后 `v3203` / `v3256` 曾转红 —— 那是门禁**正确地**拓到「版本抬了、发布面没抬」（V6/V7），补 CHANGELOG 顶节后自复绿。
+
 ## 2026-09-28 · v3.249.0（M-O1 召回收尾唯一出口 + 候选资格分层）
 **做了什么**：① 三源抬版 3.248.0 → **3.249.0**（`index.js` / `manifest.json` / `package.json`）+ TODO「最近更新」；
 ② `unified-recall.js` 候选三层分离（资格 / 保留 / 限额），补 `deferred` / `capFill` 读数，

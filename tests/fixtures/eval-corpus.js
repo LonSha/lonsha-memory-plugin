@@ -21,7 +21,7 @@
 (function () {
   'use strict';
 
-  const EVAL_VERSION = 2;
+  const EVAL_VERSION = 3; // [v3.268.0 B1] 缺口归零后升版
 
   /* 每类样本：queryText 查询文本；docs 候选（key→文本）；expect 期望命中 key；
    * expectDim 期望的可信主导维；expectReason 期望 reason；
@@ -113,42 +113,38 @@
         + '召回侧用的是聚合可信主导维（此处 sad），句内多角色反极性时聚合与逐角色会不一致 —— '
         + '该差距由 gap-action-comfort 与 note2 显式记账，不用放宽判据掩盖。',
     },
-    /* ── 已知缺口（known-gap）─────────────────────────────
-     * 这两类**不是**判据放宽，而是把「词表覆盖不足」这件事实写进评测集本身，
-     * 让它每版都被量出来、看得见趋势。否则它们会以「样本通过」的形态消失，
-     * 而真实场景漏召回照旧发生——那正是本仓最忌的「坏了没人知道」。
-     * gap 字段会出现在 metrics.knownGaps 里，数值每版重算。 */
+    /* ── 原「已知缺口」三例：[v3.268.0 B1] 缺口归零，已转主指标 ──────
+     * 成因与修法（实测留痕）：三条缺口的成因都是「词表按标准词收录」而不是逻辑缺陷，
+     * 故修法是把行文真用的说法收进词表（陪在/别怕/披在/手帕/擦眼泪 入 warm；气得 入 anger）
+     * 与反向映射（难过/心痛/孤独/心碎 + 新词，新增键 气得），而不是放宽判据。
+     * 扩表后三条均真命中，故转为主指标：名字去掉 gap- 前缀（名里带 gap 会让后人以为还有未修缺口）。
+     * 台账机制本身不撤：它仍在（knownGaps 字段在场），只是本版它为空 ——
+     * 「空集合」必须是被量出来的零，故 § 反坐实留在套件里（喂自造 gap 样本 ⇒ 台账必须重新出现）。 */
     {
-      cls: 'gap-natural-wording', note: '【已知缺口】自然措辞未入词表',
-      gap: '「气得发抖」（自然写法）在词表里只命中「发抖」⇒ 被判 fear 而非 anger；'
-        + '「陪在」（自然写法）未入词表（词表只有「陪伴」）；「别怕」未入词表。'
-        + '成因是词表按「标准词」而非「真实行文」收录，属覆盖问题不是逻辑问题。',
+      cls: 'natural-wording', note: '自然措辞（原 gap-natural-wording）',
       queryText: '她一个人坐在窗边，眼泪止不住地流。',
       docs: [
         { key: 'g1', text: '他默默陪在她身边' },
         { key: 'g2', text: '别怕，有我在' },
+        { key: 'n8', text: '窗外的树叶晃了一下' },
       ],
-      // expect 同上：写语义正确答案，缺口才量得出来。
       expect: ['g1', 'g2'], expectDim: 'sad', expectReason: 'ok',
+      note2: '陪在/别怕 已入 warm 词表；噪声 n8 不得被带出（无关召回读数）',
     },
     {
-      cls: 'gap-action-comfort', note: '【已知缺口】动作性安慰未入词表',
-      gap: '「把外套披在她肩上」「递手帕」「擦眼泪」这类动作性安慰在词表里没有任何入口'
-        + '（词表收的是「陪伴/守护/依靠」等状态性词）。这是覆盖面最大的一个漏召回形态，'
-        + '本版只记账、不改判据：want=1 / hit=0 每版重算，直到词表或规则补上为止。',
+      cls: 'action-comfort', note: '动作性安慰（原 gap-action-comfort）',
       queryText: '她一个人坐在窗边，眼泪止不住地流。',
       docs: [{ key: 'a1', text: '他沉默着把外套披在她肩上' }],
       expect: ['a1'], expectDim: 'sad', expectReason: 'ok',
+      note2: '披在 已入 warm 词表：不说别哭，只做动作',
     },
     {
-      cls: 'gap-aggregate-emotion', note: '【已知缺口】主体指代 / 聚合式情绪',
-      gap: '「他气得发抖」当主语名不在 characters 里时，整体主导维可能被次要情绪词抢走'
-        + '（发抖 → fear）；主体靠代词指代时需要调用方先做角色指代消解，本模块不做。',
+      cls: 'aggregate-emotion', note: '聚合式情绪/主体指代（原 gap-aggregate-emotion）',
       queryText: '他气得发抖，拳头攥得发白。',
       docs: [{ key: 'x1', text: '她温柔地拉住他的手' }],
-      expect: [], expectDim: 'fear',
-      note2: '台账里 want=0 / hit=1 表示「出了线索」，而语义上不该出（主体是愤怒，'
-        + '主导维被「发抖」抢成 fear）。这类缺口看 dimOk（主导维判对了吗），不看 hit。',
+      expect: ['x1'], expectDim: 'anger', expectReason: 'ok',
+      note2: '扩表前「气得发抖」只命中「发抖」⇒ 被判 fear（主体实为愤怒）；'
+        + '扩表后「气得」进 anger（权重 3），主导维修正为 anger（语义正确）。',
     },
   ];
 

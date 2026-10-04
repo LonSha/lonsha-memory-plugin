@@ -207,7 +207,7 @@ test('v3193 13. 不自洽的账本会自曝（costLine 亮警告）', () => {
 });
 
 /* ── ⑥ 固定评测集 ─────────────────────────────────── */
-test('v3193 14. 评测集覆盖计划点名的八类样本，且缺口不混入主类', () => {
+test('v3193 14. 评测集覆盖计划点名的八类样本；[v3.268.0 B1] 缺口归零后 11 类全在主指标', () => {
   const plan8 = ['sad-warm', 'fear-safe', 'anger-soften', 'tense-relax',
     'multi-negative', 'quoted-only', 'negated-recalled', 'multi-char'];
   const main = EC.CORPUS.filter((c) => !c.gap);
@@ -215,10 +215,16 @@ test('v3193 14. 评测集覆盖计划点名的八类样本，且缺口不混入�
   for (const need of plan8) {
     assert.ok(mainCls.includes(need), '点名类 ' + need + ' 必须是主样本（不能塞进已知缺口里销账）');
   }
-  assert.equal(main.length, 8, '主样本恰为点名八类，实为 ' + main.length);
+  /* [v3.268.0 B1] 原三条 gap 已转主指标：主样本从 8 升到 11。
+   *   判据从「缺口至少 3 条」反转为「缺口必须为 0」—— 归零之后，
+   *   仍然盯着旧数字会让「缺口又回来了」无人发现；反过来盯 0，
+   *   任何一条 gap 样本复活都会当场翻红（这才是 B1 的验收条件）。 */
+  assert.equal(main.length, 11, '主样本为点名八类 + 原三缺口转正，实为 ' + main.length);
   const gapCls = EC.CORPUS.filter((c) => c.gap).map((c) => c.cls);
-  assert.ok(gapCls.length >= 3, '覆盖缺口另立台账，实为 ' + gapCls.length);
-  for (const g of gapCls) assert.ok(!mainCls.includes(g), '缺口类 ' + g + ' 不得同时算主样本（双计会让指标失真）');
+  assert.deepEqual(gapCls, [], 'B1 验收：known-gap 计数必须为 0，实为 ' + JSON.stringify(gapCls));
+  for (const need of ['natural-wording', 'action-comfort', 'aggregate-emotion']) {
+    assert.ok(mainCls.includes(need), '原缺口类 ' + need + ' 必须真在主指标里（不是被删掉）');
+  }
 });
 test('v3193 15. 评测指标全部可算，且基线达标', () => {
   const r = EC.runEval({ api: np, costLedger: CL });
@@ -235,19 +241,24 @@ test('v3193 15. 评测指标全部可算，且基线达标', () => {
   assert.equal(m.tokenDeltaMeasured, true, '接入 cost-ledger 后 token 增量可测');
   assert.deepEqual(EC.checkGates(r), [], '门禁全过');
 });
-test('v3193 16. 已知缺口被台账跟踪（不被隐藏、不污染主指标）', () => {
+test('v3193 16. [v3.268.0 B1] 缺口台账归零，且「空集合」也是被量出来的（反坐实留痕）', () => {
   const r = EC.runEval({ api: np, costLedger: CL });
   const gaps = r.metrics.knownGaps;
-  assert.ok(gaps.length >= 3, '三条已知缺口都在台账里，实为 ' + gaps.length);
-  for (const g of gaps) {
-    assert.ok(String(g.why).length > 10, g.cls + ' 必须写明缺口成因');
-  }
+  /* 为什么不能只写 `assert.equal(gaps.length, 0)`：
+   *   空集合是永远成立的绿 —— 台账机制若整个失效（字段没了 / 从未被填），
+   *   读数同样是空。故这里同时钉住「台账字段在场」与「喂一条自造 gap 样本后它必须重新出现」。 */
+  assert.deepEqual(gaps, [], 'B1 验收：knownGap 台账必须为空，实为 ' + JSON.stringify(gaps.map((g) => g.cls)));
+  assert.ok(Array.isArray(r.metrics.knownGaps), '台账字段必须在场（字段没了也会读成空）');
+  const injected = { cls: 'self-made-gap', note: '反坐实', gap: '自造缺口：台账机制必须仍能把它记下来',
+    queryText: '她一个人坐在窗边，眼泪止不住地流。', docs: [{ key: 'z1', text: '桌上的杯子晃了一下' }],
+    expect: ['z1'], expectDim: 'sad', expectReason: 'ok' };
+  const r2 = EC.runEval({ api: np, costLedger: CL, corpus: EC.CORPUS.concat([injected]) });
+  assert.equal(r2.metrics.knownGaps.length, 1, '喂一条 gap 样本 ⇒ 台账必须重新出现（否则归零是机制失效而非真修好）');
+  assert.equal(r2.metrics.knownGaps[0].cls, 'self-made-gap', '台账必须点名到那一条');
+  assert.ok(String(r2.metrics.knownGaps[0].why).length > 10, '缺口成因必须写清');
   // gap 样本不计入主指标：样本总数 = 主样本数（不含 gap）
   assert.equal(r.metrics.samples + r.metrics.gapSamples, EC.CORPUS.length, '主 + gap = 全量');
   assert.equal(r.metrics.samples, EC.CORPUS.filter((c) => !c.gap).length, '主指标只含主样本');
-  // 缺口必须是「被量出来的 0」：want 写语义正确答案，hit 记实际收回数
-  const act = gaps.find((g) => g.cls === 'gap-action-comfort');
-  assert.ok(act && act.want >= 1, '动作性安慰缺口如实记 want');
 });
 test('v3193 17. 门禁能真的拦住退化（判据不是装饰）', () => {
   const r = EC.runEval({ api: np, costLedger: CL });

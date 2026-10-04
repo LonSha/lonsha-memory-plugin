@@ -122,6 +122,7 @@ const REGISTRY = [
     'v3266_a1_memory_core.test.mjs',
     /* [v3.267.0 A3] 本档从 tests/_break_kit.mjs 取 breakSource（四条真源码破坏）；按 B1 台账纪律在此登记。 */
     'v3268_cache_same_input.test.mjs',
+    'v3269_b1_injection_relevance.test.mjs',
     /* [v3.267.0 A2] 本档从 tests/_break_kit.mjs 取 breakSource（三条真源码破坏）；按 B1 台账纪律在此登记。 */
     'v3267_fakegreen_hygiene.test.mjs',
 ];
