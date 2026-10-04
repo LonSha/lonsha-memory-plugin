@@ -1,3 +1,68 @@
+## v3.270.0
+
+**B2 · 世界书干跑从「取数」走向「预演」（双仓 X1 · 上游那一半）**：projection 出口携带容量/挤占预演字段，下游可读。
+
+### 位置与形态（实测读数，不是估算）
+| 项 | 改前 | 改后 |
+| --- | --- | --- |
+| 注入前容量面 | **不存在**（上游结构性空白） | `sourceLedger.prediction` 恒有键 |
+| 世界书占用读数 | 无 | 常驻 `chars`/`tokens` + 全库上限单列 |
+| 挤占预演 | 无 | `squeeze.deltaChars`（真复算）、`pushesIntoTrim`、尾部优先样本 |
+| 诊断面 | — | 新增「注入预演」行（三态可分） |
+| `ENVELOPE_FIELDS` | 11 项 | **11 项（一字不动）** |
+| `PROJECTION_API_VERSION` | 1 | **1（不抬）** |
+
+### ★ 本版最重要的设计结论：预演**不能**进 ENVELOPE_FIELDS
+
+下游 `config/projection-contract.js` 认死 `SUPPORTED_API_VERSION = 1`：**上游一抬 api 版**，四个现役业务 App
+（`place` / `chars` / `plotline` / `clock`）当场判 `ahead` → `unusable`。抬版的成立前提是「消费者也改」，
+而上游不自足于下游 —— 那就成了「为加两个字段打断四条现役读线」。
+
+⇒ 预演作为 **`sourceLedger` 的新子键**落地：下游保留的是整个 `raw.sourceLedger`（只按
+`available`/`bound`/`reason`/`absent`/`summary`/`identity` 取用，**没有封闭键清单**），故新子键**当下即可读**；
+旧下游完全不读它，也不会坏。`ENVELOPE_FIELDS` / `contractOf` 一字不动 ⇒ `v3212` 的 `deepStrictEqual`
+与五态裁定全部照旧（本版真跑复验）。
+
+### ★ 机制事实（读码实证，不是猜的）
+
+`injection-router.deriveBudget` 的 `reserve` 槽按 token 从预算里扣：`budget = max(200, budget - floor(reserve * 10/9))`。
+宿主把 `reserve` 取成 `keepRecentTokenReserve`（最近正文预留）。故**把世界书占用并入 reserve 槽**，即得
+「若它也进预算，记忆侧还剩多少」—— 预演复用的是**真路径的同一批纯函数**，不是另写的近似公式。
+
+**实测边界（本版首跑即撞到我写错的一条断言）**：`deltaChars` 只在楼层为 0 时恰等于 reserve 槽的原值扣减；
+楼层 > 0 时 `deriveBudget` 的自适应系数会把整个预算（含那次扣减）**等比缩放** —— `cl=0` 时 3000→2000（差 1000），
+`cl=50` 时 3150→2100（差 1050），`cl=80` 时 1800→1200（差 600 = 1000 × 0.6 地板）。
+故 `deltaChars` 的语义是「并入后预算的**实际变化量（含自适应等比缩放）**」，跨楼层之间不可直接比。
+
+### ★ 口径纪律：只算「确定进提示词」的那一部分
+
+世界书条目要不要进提示词，取决于激活引擎的关键词匹配 —— 那个引擎在宿主/世界书扩展里，**不在本插件可观测面内**
+（`buildInjection` 对宿主最终请求体的既有自述就是「不在可观测面内 ⇒ 不可测」）。故：
+- `chars` —— 只算 `enabled && constant === true`（**每轮必进**，正是吃预算的那一类）；
+- `upperChars` —— 全库启用条目之和（**上限**，明确不得当实际占用）；
+- `known:false` —— 取不到（无宿主上下文 / 无 `lore` 通道 / 取数抛错）⇒ 三个量全 `null`，**不写 0**。
+
+### 三态（各自独立可分）
+- `measurable:false` —— `injection-router` 缺席 ⇒ 预算面全 `null`，不编数字；
+- `worldbook.known:false` —— 占用**未知**，绝不写 0（「读不到」与「零占用」同形是本仓最贵的那类账）；
+- `memory.known:false` —— 宿主还没跑过注入 ⇒ 候选块面未知。
+
+### 本版修掉的真缺陷
+- **`buildEnvelope(null)` 上裸写 `pipeline.prediction` 抛 TypeError**（我引入的）：管线缺席是**最常走的降级路径**，
+  而 `buildEnvelope` 的纪律是「任何畸形入参都收敛成结构完整的 envelope」。`v3212`/`v3213` 首跑当场翻红（5 + 6 条），
+  修法是照抄紧邻一行的 `available && ...` 短路形态。
+- **自己的断言未经验证**：首版 A1 写「挤占量恰等于 `floor(占用 token × 10/9)`」，实测只在 `chatLength=0` 成立。
+  这不是产品缺陷，是**我把一个未验证的恒等式写成了断言**；已改为「实测值 + 边界声明 + 两个楼层端点的钉住」。
+- **判据自指**：同一档里我最初把破坏锚点字面量直接写进断言，断言被**它自己的写法**弄红（连改三版才定位）。
+  最终口径：锚点在档内合法出现 **2 次**（D1 破坏调用 + E2 唯一性清单），而真正必须为 0 的是「锚点混进 `assert` 行」。
+
+### 交付与验证（定向口径）
+- 新增 `tests/v3270_b2_injection_preview.test.mjs`（**19/19**）：三条真源码破坏负控制，每条带阳性对照；
+- 受影响套件定向复跑全绿：`v3212` / `v3213` / `projection-absence` / `v3208` / `v3216` / `v3253` / `v3258` / `v3247` / `v3243` / `v3231`；
+- 审计脚本：`scan_version_guard`（V6 曾点名 CHANGELOG 未抬，已修）/ `scan_open_faces` / `scan_inbound_faces` / `scan_cross_repo_binding` / `scan_syntax` 均 rc 0；
+- 两张台账已登记（参考基准 + 破坏件接收方）。
+- 全量 `npm test` 按用户纪律（计划全部内容完成前不跑）留待两仓总控计划收尾后统一执行。
+
 ## v3.268.0
 
 **B1 · 注入质量从「真实」走向「相关」**：评测集扩到覆盖 12 类各自的边缘样本；known-gap 逐项转主指标（实测 **4 条 → 0**）。

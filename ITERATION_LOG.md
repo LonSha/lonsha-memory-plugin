@@ -10,6 +10,34 @@
 ---
 
 ---
+## 2026-10-04 · v3.270.0（B2 / 双仓 X1：世界书干跑从取数走向预演 · 上游那一半）
+**做了什么**：① 四源抬版 3.268.0 → **3.270.0** + TODO「最近更新」；
+② `projection-pipeline.js` 新增 `predictInjection(opts)` 纯函数 + `PREDICTION_VERSION = 1`，并导出；
+③ `buildEnvelope` 的 `sourceLedger` 增恒有键 `prediction`（**不进 ENVELOPE_FIELDS**）、`envelopeOf` 承接构建方给的预演；
+④ `index.js` 新增 `_worldbookOccupancy()`（宿主取数，只读）与 `_projectionPrediction()`（预演取值），预演在 `_runProjections` 挂上管线读数；
+⑤ `selfCheck` 新增「注入预演」诊断行（世界书占用 / 候选面 / 挤占 / 把记忆推过裁剪线 三态可分）；
+⑥ 新增 `tests/v3270_b2_injection_preview.test.mjs`（19/19）并登记两张台账；
+⑦ 写 CHANGELOG 顶节 + README 门禁基线。
+
+**为什么**：下游 F-9 干跑只有**取数层**（哪些世界书条目会被激活），注入前答不出「这条占多少 token、挤掉哪条记忆」，
+干跑便停在诊断工具、升不成调参工具；而上游的 `cost-forecast` 输入面里没有世界书，对「世界书占用」**结构性盲**，
+复用不了。
+
+**关键取舍**：预演**只能**做 `sourceLedger` 子键 —— 下游 `projection-contract.js` 认死 `SUPPORTED_API_VERSION = 1`，
+抬版会当场打断四个现役业务 App（`place`/`chars`/`plotline`/`clock` 判 `ahead` → `unusable`）。
+故 `ENVELOPE_FIELDS` 与 api 版**一字不动**，预演靠「下游保留整个 `sourceLedger`、无封闭键清单」当下即可读。
+
+**影响范围**：`projection-pipeline.js`（+149 行）、`index.js`（+112 行）、新增测试档 1 份、`CHANGELOG` / `README` / `TODO` / 两张台账。
+
+**门禁结果（定向口径）**：本档 **19/19**；受影响套件 `v3212`/`v3213`/`projection-absence`/`v3208`/`v3216`/`v3253`/`v3258`/`v3247`/`v3243`/`v3231` 全绿；
+审计脚本 `scan_version_guard`/`scan_open_faces`/`scan_inbound_faces`/`scan_cross_repo_binding`/`scan_syntax` 均 rc 0。全量按纪律留待计划收尾。
+
+**本版三次自纠（都由本轮新写的判据当场抓住）**：
+① `buildEnvelope(null)` 裸访问 `pipeline.prediction` ⇒ TypeError（v3212/v3213 翻红 11 条）；
+② A1 断言了一个**未经验证的恒等式**（挤占量恒等于 reserve 槽原值扣减）—— 实测只在 `chatLength=0` 成立，楼层 > 0 时被自适应等比缩放；
+③ 判据**自指**：把破坏锚点字面量写进断言，断言被自己的写法弄红；最终定位到「必须为 0 的是锚点混进 assert 行」。
+
+---
 ## 2026-10-04 · v3.268.0（B1 注入质量：真实 → 相关）
 **做了什么**：① 四源抬版 3.267.0 → **3.268.0**（`index.js` / `manifest.json` / `package.json` / `README.md`）+ TODO「最近更新」；
 ② 情绪词表扩表：`EMO_LEXICON.warm` +5（陪在/别怕/披在/手帕/擦眼泪）、`anger` +1（气得），`EMOTION_OPPOSITES` 同步加值并新增键「气得」；

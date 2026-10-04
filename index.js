@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.268.0';
+    const VERSION = '3.270.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7449,6 +7449,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                     },
                 }, { nowProvider: () => Date.now() });
                 this._lastProjection = pipe;
+                /* [v3.270.0 · B2/X1] 容量预演随管线读数一起产出（纯读，只用于外供）。
+                 *   为何挂这里而不是 envelope 构建里：envelope 是**搬运**面（只搬值、不取值），
+                 *   取数与复算属宿主职责——两处分工与 v3.212 的既有划分一致。 */
+                try { pipe.prediction = this._projectionPrediction(); } catch (e) { errLog(e, 'plugin._runProjections.prediction'); }
                 return pipe;
             } catch (e) { errLog(e, 'plugin._runProjections'); this._lastProjection = null; return null; }
         }
@@ -7493,6 +7497,92 @@ function relativeTimeLabel(eventTime, nowTime) {
                 this._lastProjectionEnvelope = env;
                 return env;
             } catch (e) { errLog(e, 'plugin._buildProjectionEnvelope'); this._lastProjectionEnvelope = null; return null; }
+        }
+
+        /**
+         * [v3.270.0 · B2/X1] 世界书占用读数（宿主侧取数，**只读**，不注入）。
+         *
+         * 取数通道（本轮实测）：SillyTavern.getContext().lore 是宿主给扩展的世界书条目数组
+         *   （全库仅两处真入口，另一处是 extractRolesFromLore 的角色提取）。
+         *
+         * ★ 口径是本方法最要紧的部分（取错就会算出一个「看着正常、实际夸大」的占用）：
+         *   · chars        —— 只算 **enabled && constant===true** 的条目。理由：这局部是
+         *      **无需关键词命中、每轮必进提示词**的部分，也是真正吃预算的那一类
+         *      （「一堆常驻世界书把记忆预算吃光」正是本轮要治的形态）。
+         *   · upperChars   —— 全库启用条目之和（**上限**）。非 constant 条目要不要进，
+         *      取决于激活引擎的关键词匹配，而那个引擎在宿主/世界书扩展里，**不在本插件可观测面内**
+         *      （buildInjection 对宿主最终请求体的既有自述就是「不在可观测面内 ⇒ 不可测」）。
+         *      故它只作上限，**不得拿去当实际占用算挤占**。
+         *   · known:false  —— 取不到（无宿主上下文 / 无 lore 通道 / 取数抛错）⇒ 占用**未知**，
+         *      三个量全 null 且**不写 0**。
+         *      「读不到」与「零占用」同形，会让用户看到「世界书不占空间」这种假读数。
+         *
+         * @returns {object} { known, reason, source, count, enabledCount, constantCount, chars, upperChars }
+         */
+        _worldbookOccupancy() {
+            const unk = (reason) => ({ known: false, reason: reason, source: null, count: null,
+                enabledCount: null, constantCount: null, chars: null, upperChars: null });
+            try {
+                const ctx = (typeof window !== 'undefined' && window.SillyTavern && typeof window.SillyTavern.getContext === 'function')
+                    ? window.SillyTavern.getContext() : null;
+                if (!ctx) return unk('no-host-context');
+                const lore = ctx.lore;
+                if (!Array.isArray(lore)) return unk('no-lore-channel');
+                let chars = 0, upperChars = 0, enabledCount = 0, constantCount = 0;
+                for (const e of lore) {
+                    if (!e || e.enabled === false || e.disable === true) continue;
+                    enabledCount++;
+                    const c = String(e.content || '').length;
+                    upperChars += c;
+                    if (e.constant === true) { constantCount++; chars += c; }
+                }
+                return {
+                    known: true, reason: 'ok', source: 'SillyTavern.getContext().lore',
+                    count: lore.length, enabledCount: enabledCount, constantCount: constantCount,
+                    chars: chars,           // ★ 确定进提示词的占用（enabled && constant）
+                    upperChars: upperChars, // 全库启用上限（不得当实际占用）
+                };
+            } catch (e) { errLog(e, 'plugin._worldbookOccupancy'); return unk('threw:' + String((e && e.message) || e)); }
+        }
+        /**
+         * [v3.270.0 · B2/X1] 投影出口的**注入容量预演**（只读，不注入、不改任何状态）。
+         *
+         * 记忆候选面从**真注入路径的读数**取（`_lastInjectionDraft` 的逐块字符数）：
+         *   不另算一遍「候选块该有多大」—— 那会与真路径漂移，而本仓最忌「同一事实两个真源」。
+         * 宿主还没跑过注入（草稿为空）⇒ items=null ⇒ memory.known=false，**不写 0**。
+         * 不可测一律 null + reason：模块缺席 / 世界书读不到 / 未跑过注入 三种情形分别归因。
+         * @returns {object|null} 预演读数；模块缺席时为 null（＝「没跑」，不是「占用为零」）
+         */
+        _projectionPrediction() {
+            try {
+                const P = _projectionLib();
+                if (!P || typeof P.predictInjection !== 'function') return null;
+                // 预算输入与 buildInjection 的取值点**同源**（同一批配置键、同一个推导模块）
+                const _ir = (typeof window !== 'undefined' ? window.LonShaInjectionRouter : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./injection-router.js'); } catch { return null; } })() : null);
+                const cfg = (this.config && this.config.config) ? this.config.config : {};
+                const chatLength = (typeof window !== 'undefined' ? window.SillyTavern?.getContext?.()?.chat?.length : 0) || 0;
+                const draft = Array.isArray(this._lastInjectionDraft) ? this._lastInjectionDraft : null;
+                const items = draft ? draft.filter((b) => b && Number(b.chars) > 0).map((b) => ({
+                    id: b.id, label: b.label, chars: Number(b.chars) || 0,
+                    // 常驻口径与 buildInjection 同一真源（RESIDENT_MARKERS），不自立一套
+                    resident: (typeof RESIDENT_MARKERS !== 'undefined')
+                        ? RESIDENT_MARKERS.some((m) => String(b.label || '').startsWith(m)) : false,
+                })) : null;
+                return P.predictInjection({
+                    items: items,
+                    baseBudget: cfg.injectionBudget || 3000,
+                    tokenBudget: Number(cfg.memoryTokenBudget) || 0,
+                    reserve: numOr(cfg.keepRecentTokenReserve, 0),
+                    chatLength: chatLength,
+                    adaptive: cfg.adaptiveBudget,
+                    decayFloors: cfg.adaptiveBudgetDecayFloors,
+                    router: _ir,
+                    worldbook: this._worldbookOccupancy(),
+                    strategy: cfg.budgetStrategy || 'balanced',
+                    now: Date.now(),
+                });
+            } catch (e) { errLog(e, 'plugin._projectionPrediction'); return null; }
         }
         buildBridgeSnapshot() {
             try {
@@ -9824,7 +9914,29 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['投影管线', line + detail + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.projectionPipeline'); return ['投影管线', '—（诊断异常）']; }
                     })(),
-                    // [v3.180] 楼层真源落笔面：覆盖度是**现算**读数（不入快照存盘），把「哪些楼还没落笔」
+                    // [v3.270.0 · B2/X1] 注入容量预演体检面（「世界书占多少、挤掉哪条记忆」）。
+                    //   三态必须可分：模块未加载 / 世界书读不到 / 有读数在算。
+                    //   为何不可压成一态：世界书读不到时占用是**未知**，报「0 占用」会让用户
+                    //   把「读不到」读成「不占空间」—— 正是本仓最贵的「未知与零同形」形态。
+                    (() => {
+                        try {
+                            const pr = this._projectionPrediction();
+                            if (!pr) return ['注入预演', '模块未加载（projection-pipeline.js）'];
+                            const wb = pr.worldbook || {};
+                            const wbTxt = wb.known
+                                ? ('世界书常驻 ' + wb.chars + ' 字符/' + wb.tokens + ' token（' + wb.constantCount + ' 条；全库上限 ' + wb.upperChars + '）')
+                                : ('世界书占用未知（' + String(wb.reason || '?') + '）');
+                            if (pr.measurable !== true) return ['注入预演', wbTxt + ' · 预算不可测（' + String(pr.reason || '?') + '）'];
+                            const sq = pr.squeeze || {};
+                            const memTxt = (pr.memory && pr.memory.known)
+                                ? ('候选 ' + pr.memory.chars + ' 字符 · 剩余 ' + pr.headroom.now + '')
+                                : '候选面待本轮（尚未跑过注入）';
+                            const isSqueezing = (sq.deltaChars > 0);
+                            return ['注入预演', wbTxt + ' · ' + memTxt
+                                + (isSqueezing ? (' · 挤占 ' + sq.deltaChars + ' 字符') : ' · 无挤占')
+                                + (sq.pushesIntoTrim ? ' · ⚠️ 会把记忆推过裁剪线' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.injectionPrediction'); return ['注入预演', '—（诊断异常）']; }
+                    })(),                    // [v3.180] 楼层真源落笔面：覆盖度是**现算**读数（不入快照存盘），把「哪些楼还没落笔」
                     //   连同失效原因一并念出来。口径：模块未加载如实报（不装成「无缺口」）；无缺口安静；
                     //   有缺口标 ⚠️——「有缺陷时告警、没缺陷时安静」与前述各行同规格。
                     (() => {

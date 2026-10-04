@@ -30,6 +30,11 @@
  *   · 不做对读本身（diff/diffPeople/diffFacts 在 world-ledger-reader.js，单一真源）；
  *   · 不做世界状态的读或写（那是 world-clock-reader 的事）；
  *   · 不把 `{}` 当「没有」——空对象与「源里没这项」在本模块里**必须可分**（这是本模块存在的理由）。
+ *
+ * 【v3.270.0 · B2/X1 新增：注入容量预演（sourceLedger.prediction）】
+ *   下游 F-9 干跑能答「哪些世界书条目会被激活」（取数层），但注入前答不出
+ *   「这条世界书占多少 token、它会挤掉哪条记忆」。本轮补上，落点是 **sourceLedger 的新子键**，
+ *   **不动 ENVELOPE_FIELDS、不抬 PROJECTION_API_VERSION** —— 理由与边界见 predictInjection 头注释。
  * ================================================================ */
 (function (global) {
     'use strict';
@@ -175,6 +180,190 @@
         };
     }
 
+    /* ================================================================
+     * [v3.270.0 · B2/X1] 注入容量预演：把「世界书占多少、挤掉哪条记忆」变成注入前可算的读数
+     * ================================================================
+     *
+     * 【为什么要有这一面 / 修前实测后果】
+     *   下游 ruby-phone 的 F-9 干跑能回答「哪些世界书条目会被激活」（**取数层**），
+     *   但注入前**答不出**两件事：① 这些条目占多少 token；② 记忆预算还剩多少可支配。
+     *   于是「一堆常驻世界书把预算吃光」只能靠改完再看一轮 —— 干跑停在诊断工具，升不成调参工具。
+     *   本仓既有的 cost-forecast **不能复用**来答：它的输入是记忆候选块全集（allBlocks），
+     *   输入面里**没有世界书**，所以它对「世界书占用」结构性盲。
+     *
+     * 【机制事实（本轮读码实证，不是猜的）】
+     *   injection-router.deriveBudget 的 reserve 槽按 token 从预算里扣：
+     *     `budget = max(200, budget - floor(reserve * 10 / 9))`   ← 与 index.js 内联回落逐项等价
+     *   宿主把 reserve 取成 keepRecentTokenReserve（最近正文预留）。因此
+     *   「外部占用多少」与「记忆还剩多少」落在**同一个公式**里：把世界书占用并入 reserve 槽，
+     *   即得「若它也进预算，记忆侧还能剩多少」。⇒ 预演**复用真路径的同一批纯函数**（derive），
+     *   不另写近似公式 —— 另写就是「同一事实两个真源」，预测值会随真路径漂移而不自知。
+     *
+     * 【为什么不进 ENVELOPE_FIELDS、不抬 PROJECTION_API_VERSION（本版最重要的设计结论）】
+     *   下游 config/projection-contract.js 认死 SUPPORTED_API_VERSION = 1：上游一抬版，
+     *   四个现役业务 App（place / chars / plotline / clock）当场判 ahead → unusable。
+     *   抬版的成立前提是**消费者也改**；本仓不自足于下游，改不了就变成「为加两个字段打断四条
+     *   现役读线」——那正是本仓点名的「交付即破坏」。
+     *   ⇒ 预演作为 **sourceLedger 的新子键**落地：下游 projection-contract 保留的是整个
+     *   raw.sourceLedger（它只按 available / bound / reason / absent / summary / identity 取用，
+     *   没有封闭键清单），故新子键**当下即可读**；旧下游完全不读它，也不会坏。
+     *   ENVELOPE_FIELDS / contractOf 一字不动 ⇒ v3212 的 deepStrictEqual 与五态裁定全部照旧。
+     *
+     * 【三态（与其余读出口同规格，各自独立可分）】
+     *   · measurable:false  —— 预算推导不可复算（injection-router 缺席）⇒ 预算面全 null，**不编数字**；
+     *   · worldbook.known:false —— 宿主没给世界书读数（无 ctx.lore / 取数抛错）⇒ 占用**未知**，
+     *     绝不写 0（「未知」与「零占用」同形是本仓最贵的那一类账）；
+     *   · memory.known:false —— 宿主还没跑过注入 ⇒ 候选块面未知（同样不写 0）。
+     * ================================================================ */
+    const PREDICTION_VERSION = 1;
+
+    const _num0 = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+    /** 字符 → token 估算（与 estimateTextTokens 的 CJK 口径同族：汉字≈0.9 token/字） */
+    const _tokOfChars = (chars) => { const c = _num0(chars); return c > 0 ? Math.max(1, Math.ceil(c * 9 / 10)) : 0; };
+
+    /**
+     * 注入容量预演（纯函数、不抛）。
+     *
+     * @param opts {
+     *   items        记忆候选面 [{ id, label, chars, tokens, resident }] | null（未跑过注入给 null）
+     *   baseBudget / tokenBudget / reserve / chatLength / adaptive / decayFloors  预算输入
+     *   router       injection-router api（缺席 ⇒ measurable:false）
+     *   derive       覆盖用（默认 router.deriveBudget；注入以便负控制替换）
+     *   worldbook    { known, count, chars, reason, source } —— 宿主取数；取不到给 known:false
+     *   atRiskLimit  挤占样本上限（默认 5）
+     *   strategy     裁剪策略名（只作自述，不参与复算）
+     *   now          时间戳
+     * }
+     * @returns {object} 结构恒定（不可测处一律 null + reason，不用 0 冒充）
+     */
+    function predictInjection(opts) {
+        const o = isPlainObject(opts) ? opts : {};
+        const router = o.router || null;
+        const derive = (typeof o.derive === 'function') ? o.derive
+            : ((router && typeof router.deriveBudget === 'function') ? router.deriveBudget : null);
+        const baseBudget = _num0(o.baseBudget);
+        const tokenBudget = _num0(o.tokenBudget);
+        const reserve = _num0(o.reserve);
+        const chatLength = _num0(o.chatLength);
+        const budgetOpts = { adaptive: o.adaptive, decayFloors: o.decayFloors };
+
+        const wbRaw = isPlainObject(o.worldbook) ? o.worldbook : null;
+        const wbKnown = !!(wbRaw && wbRaw.known === true);
+        const wbChars = wbKnown ? _num0(wbRaw.chars) : null;
+        const wbTokens = (wbChars === null) ? null : _tokOfChars(wbChars);
+        const wb = {
+            known: wbKnown,
+            reason: String((wbRaw && wbRaw.reason) || (wbKnown ? 'ok' : 'not-provided')),
+            source: (wbRaw && wbRaw.source) ? String(wbRaw.source) : null,
+            count: wbKnown ? _num0(wbRaw.count) : null,
+            chars: wbChars,
+            tokens: wbTokens,
+        };
+
+        const knownItems = Array.isArray(o.items);
+        const items = knownItems ? o.items.filter(isPlainObject) : null;
+        const memoryChars = knownItems ? items.reduce((a, it) => a + Math.max(0, _num0(it.chars)), 0) : null;
+        const memoryTokens = knownItems ? items.reduce((a, it) => a + Math.max(0, _num0(it.tokens)), 0) : null;
+        const residentItems = knownItems ? items.filter((it) => it.resident === true) : null;
+        const residentChars = knownItems ? residentItems.reduce((a, it) => a + Math.max(0, _num0(it.chars)), 0) : null;
+
+        const out = {
+            version: PREDICTION_VERSION,
+            ts: _num0(o.now),
+            strategy: String(o.strategy || 'balanced'),
+            measurable: false,
+            reason: 'no-router',
+            why: '',
+            empty: false,
+            worldbook: wb,
+            memory: {
+                known: knownItems, items: knownItems ? items.length : null, chars: memoryChars, tokens: memoryTokens,
+                residentItems: knownItems ? residentItems.length : null, residentChars: residentChars,
+            },
+            budget: {
+                base: baseBudget, tokenBudget: tokenBudget, reserve: reserve, chatLength: chatLength,
+                now: null, ifWorldbook: null, deltaChars: null,
+            },
+            headroom: { now: null, ifWorldbook: null },
+            squeeze: null,
+        };
+
+        if (!derive) {
+            out.why = 'injection-router 未加载：预算推导不可复算，不预测（照抄会把它伪装成预测成功）';
+            return out;
+        }
+        if (!wbKnown || wbChars === null) {
+            out.reason = 'worldbook-unknown';
+            out.why = '世界书占用未知（宿主未提供读数）⇒ 不预演挤占（写 0 会把「未知」读成「没占用」）';
+            return out;
+        }
+
+        let budgetNow = null, budgetIf = null;
+        try {
+            budgetNow = _num0(derive(baseBudget, tokenBudget, reserve, chatLength, budgetOpts));
+            // 世界书占用并入 reserve 槽（token 计）—— 与真路径同一个公式、同一个函数
+            budgetIf = _num0(derive(baseBudget, tokenBudget, reserve + (wbTokens || 0), chatLength, budgetOpts));
+        } catch (e) {
+            out.reason = 'derive-threw';
+            out.why = '预算推导抛异常：' + String((e && e.message) || e);
+            return out;
+        }
+
+        const squeezedChars = Math.max(0, budgetNow - budgetIf);
+        const squeezedTokens = _tokOfChars(squeezedChars);
+
+        out.measurable = true;
+        out.reason = 'ok';
+        out.why = '预算按真路径纯函数复算（世界书占用并入 reserve 槽，与 keepRecentTokenReserve 同槽）';
+        out.empty = knownItems ? (items.length === 0) : false;
+        out.budget.now = budgetNow;
+        out.budget.ifWorldbook = budgetIf;
+        out.budget.deltaChars = -squeezedChars;
+        out.headroom.now = knownItems ? (budgetNow - memoryChars) : null;
+        out.headroom.ifWorldbook = knownItems ? (budgetIf - memoryChars) : null;
+
+        // 挤占面：chars/tokens 是**精确复算**；「挤掉哪几条」只给口径自述的样本
+        //   （真裁剪走 trimToBudget 的四种策略，谁被丢由策略定；此处不假装知道，只按尾部优先取样本）
+        const overflowNow = knownItems ? Math.max(0, memoryChars - budgetNow) : null;
+        const overflowIf = knownItems ? Math.max(0, memoryChars - budgetIf) : null;
+        const wouldTrimNow = knownItems ? (memoryChars > budgetNow) : null;
+        const wouldTrimIf = knownItems ? (memoryChars > budgetIf) : null;
+
+        let atRisk = null;
+        if (knownItems && squeezedChars > 0) {
+            const limit = Math.max(0, _num0(o.atRiskLimit) || 5);
+            const picked = [];
+            let acc = 0;
+            for (let i = items.length - 1; i >= 0 && picked.length < limit; i--) {
+                const it = items[i];
+                const c = Math.max(0, _num0(it.chars));
+                acc += c;
+                picked.push({ id: (it.id === undefined ? null : it.id), label: String(it.label || '').slice(0, 40), chars: c });
+                if (acc >= squeezedChars) break;
+            }
+            atRisk = {
+                basis: 'tail-first',
+                why: '谁被真裁剪丢掉由 trimToBudget 的策略定（本模块不复算策略）⇒ 此处只按尾部优先给样本，chars 合计才是精确量',
+                scannedChars: acc,
+                covered: acc >= squeezedChars,
+                items: picked,
+            };
+        }
+
+        out.squeeze = {
+            deltaChars: squeezedChars,
+            deltaTokens: squeezedTokens,
+            overflowCharsNow: overflowNow,
+            overflowCharsIfWorldbook: overflowIf,
+            wouldTrimNow: wouldTrimNow,
+            wouldTrimIfWorldbook: wouldTrimIf,
+            // 「世界书把记忆从『刚好装下』推过线」这一类：现在不裁、加了世界书就裁
+            pushesIntoTrim: (wouldTrimNow === false && wouldTrimIf === true),
+            atRisk: atRisk,
+        };
+        return out;
+    }
+
     /**
      * [v3.212.0] 把一次管线读数装成**对外投影 envelope**（纯函数、不抛）。
      *
@@ -249,6 +438,14 @@
                 summary,
                 identity,
                 projections: (available && isPlainObject(pipeline.projections)) ? pipeline.projections : {},
+                /* [v3.270.0 · B2/X1] 注入容量预演随 sourceLedger 外供（**不进 ENVELOPE_FIELDS**：
+                 *   抬 api 版会打断下游四条现役读线，理由见 predictInjection 头注释）。
+                 *   恒有键：没给预演时是 null（「没给」与「给了全零」必须可分）。 */
+                /* ★ MUST 短路（v3212/v3213 首跑即抓）：pipeline 可能为 null（管线缺席/畸形入参/
+                 *   构建失败）。裸写 pipeline.prediction 会在「管线缺席」这条**最常走**的降级路径上抛
+                 *   TypeError，而 buildEnvelope 的纪律是「任何畸形入参都收敛成结构完整的 envelope」。
+                 *   同一行紧邻的 projections 用的是 available && ... —— 本次照抄那个短路形态。 */
+                prediction: (available && isPlainObject(pipeline.prediction)) ? pipeline.prediction : null,
             },
             revision: Number(o.revision) || 0,
             expiresAt: now + ttl,
@@ -287,6 +484,8 @@
         const o = isPlainObject(opts) ? opts : {};
         let pipe = null;
         try { pipe = runPipeline(providers, o); } catch (_e) { pipe = null; }
+        // [v3.270.0 · B2/X1] 构建方给的预演随管线读数一起进 envelope.sourceLedger.prediction
+        if (isPlainObject(pipe)) pipe.prediction = isPlainObject(o.prediction) ? o.prediction : (pipe.prediction || null);
         return buildEnvelope(pipe, o);
     }
 
@@ -342,6 +541,8 @@
         buildEnvelope,
         contractOf,
         envelopeOf,
+        predictInjection,
+        PREDICTION_VERSION,
         PROJECTION_VERSION,
         PROJECTION_API_VERSION,
     };

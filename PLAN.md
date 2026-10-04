@@ -143,7 +143,12 @@
   ★ 先扩缺口、再让词表真命中（**不是放宽判据**：期望集一个字没动）：`EMO_LEXICON.warm` +5 / `anger` +1 + `EMOTION_OPPOSITES` 同步（+新键「气得」）——
   探针实证「只扩词表对召回零影响」，故两处必须同改；判据交棒为「缺口为空 + 反坐实」（喂自造 gap 须复现），套件 `tests/v3269_b1_injection_relevance.test.mjs`（16/16）
   用**真源码降级副本**两向证明缺口真会回来（命中率 0.75→1.0、主导维 0.909→1.0）。
-- **B2 · 世界书干跑从「取数」走向「预演」【双仓 X1】**：projection 出口携带「这条世界书占多少 token、挤掉哪条记忆」的容量 / 挤占预演字段，下游 ruby-phone 可读。
+- **B2 · 世界书干跑从「取数」走向「预演」【双仓 X1 · 已落地 v3.270.0】**：projection 出口携带「这条世界书占多少 token、挤掉哪条记忆」的容量 / 挤占预演字段，下游 ruby-phone 可读。
+  验收：**预演随 `sourceLedger.prediction` 恒有键外供**（实测三态：模块缺席 ⇒ 预算面全 null / 世界书未知 ⇒ `chars:null` 而非 0 / 有读数 ⇒ 挤占可复算）。
+  落地形态：`projection-pipeline.js` 新增 `predictInjection()`（纯函数，复用真路径同一批 `deriveBudget`）；「世界书占用并入 reserve 槽」即得挤占量，**不是另写的近似公式**；
+  ★ 关键设计结论：下游 `projection-contract.js` 认死 `SUPPORTED_API_VERSION = 1`，抬 api 版会当场打断四个现役业务 App ⇒ 预演**只能**做 `sourceLedger` 子键，`ENVELOPE_FIELDS` 与 api 版一字不动；
+  口径纪律：世界书条目「要不要进提示词」由宿主的激活引擎定（**不在本插件可观测面内**）⇒ 只算 `enabled && constant === true`（每轮必进），全库量单列 `upperChars` 作上限、不得当实际占用；
+  交付档 `tests/v3270_b2_injection_preview.test.mjs`（19/19，三条真源码破坏 + 阳性对照 + 出口面不变式）。
 - **B3 · 跨仓反向面消费深化**：`ruby.lonshaBridge` 反向面新增（现仅 4 调用点 backfill / recall / onFloorCommitted / onFloorRollback）。候选 usage-tracker 使用画像 / ruby-phone 新缝 18 件 App 关键事实（health 孕程 / traveldesk 行程）上桥进引擎账本。验收：反向表新增面在册 + 六条判据 rc=0 + 两表实时对账。
 - **B4 · 账本族可读出口**：`evidence-workbench` 九账对账面从诊断工具升级为调参工具，新增按楼层 / 按角色 / 按账三维检索，下游织光机 / 全局搜索联动呈现。
 
