@@ -320,7 +320,16 @@ test('v3266 C. 加载面与基线：memory-core 恰 1 项且在 memory-config �
     assert.ok(b.readings.total_lines < 15000, '★ A1 验收线：本刀后宿主须 < 15000 行，实测 ' + b.readings.total_lines);
     assert.ok(b.readings.total_lines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）');
     const dcb = JSON.parse(read('tests/audit/dead_code_budget.json'));
-    assert.ok(dcb.ceiling >= 0 && dcb.note.includes('3.267.0'), '死代码上限必须有当版抬升留痕（否则是静默抬升）');
+    /* [v3.273.0 交棒] 原文是 `dcb.note.includes('3.267.0')` —— 那是**硬锁当版字面量**，
+     *   与仓内 V2/V3 纪律同族的反模式，且方向反了：它只证明「note 里留着某个旧版本号」，
+     *   证明不了「当前 ceiling 没被静默改掉」。改成版本无关的不变量：
+     *   **当前 ceiling 必须能被最后一条 history 记录解释**（数值与理由两处同步）。
+     *   静默改 ceiling 而不同步 history ⇒ 红；走 --bump 的合法抬版三条读数自动同步 ⇒ 绿。 */
+    const _hist = Array.isArray(dcb.history) ? dcb.history : [];
+    assert.ok(_hist.length >= 1, '死代码上限必须有抬升留痕（否则是静默抬升）');
+    const _last = _hist[_hist.length - 1];
+    assert.equal(dcb.ceiling, _last.ceiling, '当前 ceiling 必须等于最后一条 history 的 ceiling（防静默改数）');
+    assert.equal(dcb.note, _last.reason, '当前 note 必须是最后一条 history 理由的复述（防理由与数脱节）');
     ok('manifest 尾项接管；基线行数/成员数与真文件同源且已达 15000 验收线');
 });
 

@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.267.0",
+ "measured_at": "v3.273.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -584,6 +584,37 @@
     "member_count": 0,
     "top5_pct": 1.0
    }
+  },
+  "v3.273.0": {
+   "reason": "v3.273.0 O3 注入预算裁剪可执行契约：index.js 内联回落与模块版同构化（balanced 统一 join，消一处真同源漂移），宿主 +23 行（13554→13577），按本版重建读数",
+   "readings": {
+    "total_lines": 13578,
+    "member_count": 523,
+    "top5_lines": 4220,
+    "top5_pct": 31.1,
+    "top40_lines": 9040,
+    "top40_pct": 66.6,
+    "prefix_rule_coverage_lines": 4633,
+    "prefix_rule_coverage_pct": 34.1,
+    "unclassified_lines": 8077,
+    "seam_distinct_modules": 46,
+    "seam_reference_sites": 54,
+    "seam_call_shape_sites": 57,
+    "members_over_80_lines": 27,
+    "low_coupling_members": 16,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西（O3 只改 trimToBudget 及其内联回落）。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.267.0",
+   "delta": {
+    "total_lines": 135,
+    "member_count": 2,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -595,15 +626,15 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 13443,
-  "member_count": 521,
-  "top5_lines": 4175,
+  "total_lines": 13578,
+  "member_count": 523,
+  "top5_lines": 4220,
   "top5_pct": 31.1,
-  "top40_lines": 8991,
-  "top40_pct": 66.9,
-  "prefix_rule_coverage_lines": 4611,
-  "prefix_rule_coverage_pct": 34.3,
-  "unclassified_lines": 7964,
+  "top40_lines": 9040,
+  "top40_pct": 66.6,
+  "prefix_rule_coverage_lines": 4633,
+  "prefix_rule_coverage_pct": 34.1,
+  "unclassified_lines": 8077,
   "seam_distinct_modules": 46,
   "seam_reference_sites": 54,
   "seam_call_shape_sites": 57,
@@ -614,18 +645,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 482,
-   "lines": 7964,
-   "lines_pct": 59.2,
-   "outside_refs": 5076,
-   "internal_refs": 1355,
-   "outside_ref_share_pct": 78.9
+   "members": 484,
+   "lines": 8077,
+   "lines_pct": 59.5,
+   "outside_refs": 5034,
+   "internal_refs": 1372,
+   "outside_ref_share_pct": 78.6
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1753,
-   "lines_pct": 13,
+   "lines_pct": 12.9,
    "outside_refs": 5,
    "internal_refs": 71,
    "outside_ref_share_pct": 6.6
@@ -633,17 +664,17 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1171,
-   "lines_pct": 8.7,
+   "lines": 1193,
+   "lines_pct": 8.8,
    "outside_refs": 308,
-   "internal_refs": 454,
+   "internal_refs": 455,
    "outside_ref_share_pct": 40.4
   },
   {
    "domain": "召回与注入",
    "members": 11,
    "lines": 967,
-   "lines_pct": 7.2,
+   "lines_pct": 7.1,
    "outside_refs": 2,
    "internal_refs": 59,
    "outside_ref_share_pct": 3.3
@@ -711,12 +742,12 @@
   },
   {
    "name": "buildInjection",
-   "lines": 921,
+   "lines": 944,
    "outside_refs": 12
   },
   {
    "name": "selfCheck",
-   "lines": 814,
+   "lines": 836,
    "outside_refs": 11
   },
   {
@@ -827,7 +858,7 @@
   {
    "name": "summary",
    "lines": 100,
-   "outside_refs": 205
+   "outside_refs": 192
   },
   {
    "name": "_historyFingerprint",
@@ -845,6 +876,11 @@
    "outside_refs": 1
   },
   {
+   "name": "_runProjections",
+   "lines": 73,
+   "outside_refs": 1
+  },
+  {
    "name": "rebuildItems",
    "lines": 71,
    "outside_refs": 9
@@ -857,11 +893,6 @@
   {
    "name": "_injectionBlocksOf",
    "lines": 70,
-   "outside_refs": 1
-  },
-  {
-   "name": "_runProjections",
-   "lines": 69,
    "outside_refs": 1
   },
   {
@@ -882,7 +913,7 @@
   {
    "name": "collectExport",
    "lines": 60,
-   "outside_refs": 15
+   "outside_refs": 14
   },
   {
    "name": "_stmLtmConsolidate",
@@ -987,13 +1018,13 @@
   "high_coupling_examples": [
    {
     "name": "buildInjection",
-    "lines": 921,
+    "lines": 944,
     "outside_refs": 12,
     "is_host_lifecycle": false
    },
    {
     "name": "selfCheck",
-    "lines": 814,
+    "lines": 836,
     "outside_refs": 11,
     "is_host_lifecycle": false
    },
@@ -1030,7 +1061,7 @@
    {
     "name": "summary",
     "lines": 100,
-    "outside_refs": 205,
+    "outside_refs": 192,
     "is_host_lifecycle": false
    }
   ]

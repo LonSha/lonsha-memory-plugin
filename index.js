@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.272.0';
+    const VERSION = '3.273.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -8513,27 +8513,50 @@ function relativeTimeLabel(eventTime, nowTime) {
                 } else {
                 const strategy = keepCount;
                 if (strategy === 'relevance') {
-                    // 常驻全保留 + 触发保留 RRF 前 60%
-                    const keepTrig = Math.max(3, Math.floor(triggerBlocks.length * 0.6));
-                    const kept = [...residentBlocks, ...triggerBlocks.slice(0, keepTrig)];
+                    // 常驻全保留 + 触发保留 RRF 前 60%（[v3.273.0] O3 同源等价：候选序仍是相关性序，装多少由容量定）
+                    const prefer = Math.max(3, Math.floor(triggerBlocks.length * 0.6));
+                    const ranked = triggerBlocks.slice(0, prefer);
+                    const _resFrameLen = residentBlocks.length ? (`\n\n${NOTE}\n${residentBlocks.join('\n')}`).length : 0;
+                    const _trigBudget = Math.max(0, budget - _resFrameLen - (`\n${END}\n`).length - (residentBlocks.length ? 1 : (`\n\n${NOTE}\n`).length));
+                    const keptT = [];
+                    let _acc = 0;
+                    for (const t of ranked) {
+                        const _sep = (residentBlocks.length + keptT.length) ? 1 : 0;
+                        if (_acc + t.length + _sep > _trigBudget) break;
+                        keptT.push(t); _acc += t.length + _sep;
+                    }
+                    const kept = [...residentBlocks, ...keptT];
                     full = `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n`;
                 } else if (strategy === 'recency') {
-                    // 保留常驻 + 近期分区
+                    // 保留常驻 + 近期分区（[v3.273.0] O3 同源等价：kept 同样按容量装，不再整批全塞）
                     const recencyTypes = ['[关键事件·影响当前]', '[剧情时间线]', '[角色状态]', 'POV', '[手机生活记忆]', '[前情摘要]', '[节日]'];
-                    const kept = [...residentBlocks, ...triggerBlocks.filter(b => recencyTypes.some(k => b.startsWith(k) || b.includes(k)))];
+                    const _cands = triggerBlocks.filter(b => recencyTypes.some(k => b.startsWith(k) || b.includes(k)));
+                    const _resFrameLen = residentBlocks.length ? (`\n\n${NOTE}\n${residentBlocks.join('\n')}`).length : 0;
+                    const _trigBudget = Math.max(0, budget - _resFrameLen - (`\n${END}\n`).length - (residentBlocks.length ? 1 : (`\n\n${NOTE}\n`).length));
+                    const keptT = [];
+                    let _acc = 0;
+                    for (const t of _cands) {
+                        const _sep = (residentBlocks.length + keptT.length) ? 1 : 0;
+                        if (_acc + t.length + _sep > _trigBudget) break;
+                        keptT.push(t); _acc += t.length + _sep;
+                    }
+                    const kept = [...residentBlocks, ...keptT];
                     full = kept.length ? `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n` : full.slice(0, budget);
                 } else {
-                    // balanced：常驻全保留 + 触发截断到剩余预算
-                    const residentText = `\n\n${NOTE}\n${residentBlocks.join('\n')}`;
-                    const triggerFull = triggerBlocks.join('\n');
-                    const triggerBudget = Math.max(0, budget - residentText.length);
+                    // balanced：常驻全保留 + 触发截断到剩余预算（[v3.273.0] O3 同源等价：TAIL 与连接符计入）
+                    const residentFrame = `\n\n${NOTE}\n${residentBlocks.join('\n')}`;
+                    const triggerBudget = Math.max(0, budget - residentFrame.length - (`\n${END}\n`).length);
                     const triggerKept = [];
                     let acc = 0;
                     for (const t of triggerBlocks) {
-                        if (acc + t.length > triggerBudget) break;
-                        triggerKept.push(t); acc += t.length;
+                        const sep = (residentBlocks.length + triggerKept.length) ? 1 : 0;
+                        if (acc + t.length + sep > triggerBudget) break;
+                        triggerKept.push(t); acc += t.length + sep;
                     }
-                    full = `${residentText}${triggerKept.length ? '\n' + triggerKept.join('\n') : ''}\n${END}\n`;
+                    // ★ 拼接必须与模块版**同构**（统一 join 常驻+触发），不能分开拼：
+                    //   分开拼在**无常驻**时会多出一个连接符（实测 mod=152 / inl=153），
+                    //   而 residentFrame 只用于算容量，不用于拼装。
+                    full = `\n\n${NOTE}\n${[...residentBlocks, ...triggerKept].join('\n')}\n${END}\n`;
                 }
                 }   // [v3.114] 闭合 else 分支
                 if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 注入预算裁剪: ${budget} 字符 (常驻${residentBlocks.length}块保留)`);

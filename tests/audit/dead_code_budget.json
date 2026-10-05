@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 44883,
+  "ceiling": 45313,
   "maxSlack": 400,
-  "note": "v3.267.0 A1 第七刀：memory-config.js 承载 ConfigManager、默认配置块与迁移逻辑，活跃实现新增为合法模块抽取，不是死代码回流",
+  "note": "v3.273.0：① O3 注入预算裁剪契约（index.js 内联回落与 injection-router.js 同构化，+23 行）；② 收口 v3.271.0 的误删 —— 该版修 D2 时把 showBrowser 的 4 段交互绑定整块删掉（那是唯一实现），本版搬回并补 eng 别名，+139 行。两者均为活跃功能增长，非死代码回流。",
   "history": [
     {
       "ceiling": 21000,
@@ -193,7 +193,11 @@
     {
       "ceiling": 44883,
       "reason": "v3.267.0 A1 第七刀：memory-config.js 承载 ConfigManager、默认配置块与迁移逻辑，活跃实现新增为合法模块抽取，不是死代码回流"
+    },
+    {
+      "ceiling": 45313,
+      "reason": "v3.273.0：① O3 注入预算裁剪契约（index.js 内联回落与 injection-router.js 同构化，+23 行）；② 收口 v3.271.0 的误删 —— 该版修 D2 时把 showBrowser 的 4 段交互绑定整块删掉（那是唯一实现），本版搬回并补 eng 别名，+139 行。两者均为活跃功能增长，非死代码回流。"
     }
   ],
-  "_history_last": "ceiling 44651 → 44883（实测 44483 + slack 400）：v3.267.0 A1 第七刀：memory-config.js 承载 ConfigManager、默认配置块与迁移逻辑，活跃实现新增为合法模块抽取，不是死代码回流"
+  "_history_last": "ceiling 44883 → 45313（实测 44913 + slack 400）：v3.273.0：① O3 注入预算裁剪契约（index.js 内联回落与 injection-router.js 同构化，+23 行）；② 收口 v3.271.0 的误删 —— 该版修 D2 时把 showBrowser 的 4 段交互绑定整块删掉（那是唯一实现），本版搬回并补 eng 别名，+139 行。两者均为活跃功能增长，非死代码回流。"
 }

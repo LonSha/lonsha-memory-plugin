@@ -196,6 +196,8 @@
         plugin.showBrowser = function(viewType) {
             const s = this.engine;
             let title = '', body = '';
+            // [v3.273] 交互绑定块要用引擎别名（该块原先错位在 showStatsPanel，eng 与 viewType 双未定义）；搬回本函数后 viewType 在作用域内，eng 在此声明。
+            const eng = this.engine;
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             const fmtTime = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
 
@@ -630,6 +632,145 @@
                     });
                 });
             });
+
+            // [v3.63] lockedfacts 视图的交互绑定
+            if (viewType === 'lockedfacts') {
+                const addBtn = ov.querySelector('#ls-lf-add');
+                const input = ov.querySelector('#ls-lf-input');
+                if (addBtn && input) {
+                    const doAdd = () => {
+                        const text = (input.value || '').trim();
+                        if (!text) { toast('请输入事实内容'); return; }
+                        const curFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
+                        s.lockFact ? s.lockFact(text) : s.summary.addLockedFact(text, curFloor);
+                        toast('🔒 已锁定：' + text.slice(0, 30) + (text.length > 30 ? '…' : ''));
+                        plugin.showBrowser('lockedfacts');
+                    };
+                    addBtn.addEventListener('click', doAdd);
+                    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+                }
+                ov.querySelectorAll('.ls-lf-del').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.dataset.lfid;
+                        const fact = (s.summary.getLockedFacts() || []).find(f => f.id === id);
+                        if (fact && confirm('解除锁定并从摘要保护中移除？\n\n' + fact.text)) {
+                            s.unlockFact ? s.unlockFact(id) : s.summary.removeLockedFact(id);
+                            toast('已解除锁定');
+                            plugin.showBrowser('lockedfacts');
+                        }
+                    });
+                });
+            }
+
+            // [v3.87] prequel 视图的保存绑定
+            if (viewType === 'prequel') {
+                const saveBtn = ov.querySelector('#ls-pq-save');
+                const ta = ov.querySelector('#ls-pq-text');
+                if (saveBtn && ta) {
+                    saveBtn.addEventListener('click', async () => {
+                        const val = (ta.value || '').trim();
+                        try {
+                            if (!val) {
+                                s.prequel?.clearPrequel?.();
+                                toast('已清空前情资料');
+                            } else {
+                                const r = s.prequel.importPrequel(val);
+                                if (!r.ok) { toast('内容为空'); return; }
+                                toast(r.truncated ? ('✅ 已保存（超长截断至 ' + r.chars + ' 字符）') : ('✅ 已保存 ' + r.chars + ' 字符'));
+                            }
+                            const chatId = s.getCurrentChatId?.();
+                            if (chatId) await s.storage.save(chatId, s.collectExport());
+                            plugin.showBrowser('prequel');
+                        } catch (e) { toast('保存失败: ' + e.message); }
+                    });
+                }
+            }
+            // [v3.74] B3: summaries 视图的手动补摘绑定
+            if (viewType === 'summaries') {
+                const addBtn = ov.querySelector('#ls-ms-add');
+                const floorIn = ov.querySelector('#ls-ms-floor');
+                const textIn = ov.querySelector('#ls-ms-text');
+                if (addBtn && floorIn && textIn) {
+                    const doAdd = () => {
+                        const f = Number(floorIn.value);
+                        const t = (textIn.value || '').trim();
+                        if (!t) { toast('请输入摘要内容'); return; }
+                        if (!Number.isFinite(f) || f < 0) { toast('请输入有效楼层号'); return; }
+                        if (!s.summary?.addManualSummary) { toast('引擎版本过旧'); return; }
+                        const r = s.summary.addManualSummary(f, t);
+                        if (r) {
+                            toast('✅ 已补录第 ' + f + ' 楼摘要');
+                            if (eng?.bm25?.rebuild && s.summary?.getActiveSummaries) {
+                                eng.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: 'sum_' + x.floor, text: x.text, floor: x.floor, source: 'bm25'})));
+                            }
+                            plugin.showBrowser('summaries');
+                        } else { toast('该楼层已有摘要'); }
+                    };
+                    addBtn.addEventListener('click', doAdd);
+                    textIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+                }
+                // [v3.79] A: 一键批量补齐按钮（v3.76 引擎管线首次获得 UI 入口）
+                const compBtn = ov.querySelector('#ls-ms-complete');
+                if (compBtn) {
+                    compBtn.addEventListener('click', async () => {
+                        if (!s.summary?.completeMissingFloors) { toast('引擎版本过旧'); return; }
+                        let missingN = 0;
+                        try { missingN = s.summary.missingFloors((window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1).length; } catch (e) { reportUiError(e, 'nonfatal') }
+                        if (!missingN) { toast('✅ 无缺失楼层'); return; }
+                        if (!confirm('发现 ' + missingN + ' 个缺失楼层（不含番外/用户楼）。\n将调用 LLM 批量补齐（每批最多 5 楼，本批补完后可再次点击续补）。\n继续？')) return;
+                        compBtn.disabled = true; compBtn.textContent = '⏳ 补齐中…';
+                        try {
+                            const chat = window.SillyTavern?.getContext?.()?.chat || [];
+                            const r = await s.summary.completeMissingFloors(s.config.config, s.llm, (f) => String(chat?.[f]?.mes || ''), 5);
+                            if (r?.skipped) { toast('⚠️ 上一批仍在进行中'); }
+                            else {
+                                toast('✅ 已补齐 ' + (r.done || 0) + ' 楼' + (r.missing ? '（还剩 ' + r.missing + ' 楼）' : ''));
+                                if (s.bm25?.rebuild && s.summary?.getActiveSummaries) {
+                                    s.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: "sum_" + x.floor, text: x.text, floor: x.floor, source: "bm25"})));
+                                }
+                                plugin.showBrowser('summaries');
+                            }
+                        } catch (e) { toast('❌ 补齐失败：' + (e.message || e)); }
+                    });
+                }
+                // [v3.79] C: 番外楼标记/取消（替代控制台命令，柏宝书 bbs_omit 的 UI 入口）
+                const omitIn = ov.querySelector('#ls-omit-floor');
+                const omitMark = ov.querySelector('#ls-omit-mark');
+                const omitUnmark = ov.querySelector('#ls-omit-unmark');
+                if (omitIn && omitMark && omitUnmark) {
+                    const setOmit = (mark) => {
+                        const f = Number(omitIn.value);
+                        if (!Number.isFinite(f) || f < 0) { toast('请输入有效楼层号'); return; }
+                        try {
+                            const chat = window.SillyTavern?.getContext?.()?.chat || [];
+                            const m = chat[f];
+                            if (!m) { toast('该楼层不存在'); return; }
+                            m.extra = m.extra || {};
+                            m.extra.lonsha_omit = mark;
+                            toast(mark ? '🎬 第 ' + f + ' 楼已标记为番外（引擎将彻底忽略）' : '↩️ 第 ' + f + ' 楼已取消番外标记');
+                            if (mark && s.summary?.removeByFloor) { try { s.summary.removeByFloor(f); } catch (e) { reportUiError(e, 'nonfatal') } }
+                        } catch (e) { toast('操作失败：' + (e.message || e)); }
+                    };
+                    omitMark.addEventListener('click', () => setOmit(true));
+                    omitUnmark.addEventListener('click', () => setOmit(false));
+                }
+            }
+
+            // [v3.68] A: deltas 视图的手动确证绑定
+            if (viewType === 'deltas') {
+                ov.querySelectorAll('.ls-delta-confirm').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const dsum = btn.dataset.dsum;
+                        const n = s.deltaBook?.confirm?.(dsum) || 0;
+                        if (n > 0) {
+                            toast('✅ 已确证 ' + n + ' 条增量事实');
+                            plugin.showBrowser('deltas');
+                        } else {
+                            toast('未找到匹配的待定项');
+                        }
+                    });
+                });
+            }
 
             // [v3.59] B2: OpLog 楼层过滤交互（输入楼层号实时过滤该楼事件）
             const floorFilter = ov.querySelector('#lonsha-oplog-floor-filter');

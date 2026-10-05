@@ -228,14 +228,62 @@
         const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
         const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
         const st = strategy || 'balanced';
+        /* [v3.273.0] O3：**载荷总长口径**（修前缺陷：预算判定不含封装面）。
+         *   修前实测（三块无常驻、budget=200）：balanced 212 / relevance 453——载荷
+         *   恒超预算。根因有三：
+         *     ① balanced 的 `triggerBudget = budget - residentText.length` 只扣了头部
+         *       封装（\\n\\nNOTE\\n），尾部 `\\nEND\\n`（39 字符）恒漏计；
+         *     ② relevance 完全不看预算：`keepTrig = max(3, 60%)` 是**比例**不是容量，
+         *       触发块越长超得越多（453 vs 200）；
+         *     ③ recency 的 kept 分支同样整批全塞（常驻超预算场景实测 404 vs 200）。
+         *   修法（软预算 + 常驻保护不变）：
+         *     · 封装成本先算后扣：HEAD = \\n\\nNOTE\\n（52），TAIL = \\nEND\\n（39），
+         *       块间连接符 \\n（1）——三策略统一用同一组封装常量，不再各拼各的；
+         *     · 触发按可用容量逐块装（保序），装不下即停——不再以比例代替预算；
+         *     · 常驻仍全保留（设计意图：关键事实保护）；常驻自身超预算时**不偷偷裁**，
+         *       而是在回执上显式登记 residentOverflow（chars / over），载荷如实超预算。
+         *   「未超预算直接返回」的早退判定不变——判定对象是 full（含原封装），原样返回。 */
+        const HEAD = `\n\n${NOTE}\n`;
+        const TAIL = `\n${END}\n`;
+        // 常驻封装成本：HEAD + 常驻块 join 的连接符（n-1 个 \n，n=0/1 时为 0）
+        const residentJoinLen = resident.length > 1
+            ? resident.reduce((a, b) => a + String(b == null ? '' : b).length, 0) + (resident.length - 1)
+            : (resident.length === 1 ? String(resident[0] == null ? '' : resident[0]).length : 0);
+        const residentFrameLen = resident.length ? HEAD.length + residentJoinLen : 0;
+        /* 常驻溢出归因（不偷偷裁关键事实 ⇒ 载荷如实超预算，但必须读得出来）：
+         *   over = 常驻封装长 - 预算；> 0 时触发容量为 0（装不下任何触发块），
+         *   TAIL 仍拼上（回执同形），溢出量记在 trace.residentOverflow。 */
+        const residentOver = resident.length ? Math.max(0, residentFrameLen + TAIL.length - budget) : 0;
+        if (_trace && residentOver > 0) {
+            _trace.residentOverflow = { chars: residentFrameLen + TAIL.length, over: residentOver };
+        }
+        // 触发可用容量：预算 - 常驻封装 - TAIL - 触发首块前的第一个 \n
+        const triggerBudget = Math.max(0, budget - residentFrameLen - TAIL.length - (resident.length ? 1 : HEAD.length));
+        // 触发按可用容量逐块装（保序；relevance/recency 同口径，不再以比例代替预算）
+        const _fillTrigger = (cands) => {
+            const keptT = [];
+            let acc = 0;
+            for (let i = 0; i < cands.length; i++) {
+                const t = String(cands[i] == null ? '' : cands[i]);
+                if (!t) continue;
+                const sep = (resident.length + keptT.length) ? 1 : 0;   // 块间连接符
+                if (acc + t.length + sep > triggerBudget) break;
+                keptT.push(cands[i]);
+                acc += t.length + sep;
+            }
+            return keptT;
+        };
         if (st === 'relevance') {
-            const keepTrig = Math.max(3, Math.floor(trigger.length * 0.6));
-            const keptT = trigger.slice(0, keepTrig);
-            if (_trace) { _trace.contiguous = true; _markKeptByPos(_posRange(keptT.length)); }
-            return `\n\n${NOTE}\n${[...resident, ...keptT].join('\n')}\n${END}\n`;
+            // 修前：max(3, 60%) 比例不看容量（实测 453 vs 200）。修后：排序优先级
+            //   仍是「前 60% 或至少 3 块」（RRF 序即相关性序），但**装多少由容量定**。
+            const prefer = Math.max(3, Math.floor(trigger.length * 0.6));
+            const ranked = trigger.slice(0, prefer);          // 候选序仍是相关性序
+            const keptT = _fillTrigger(ranked);
+            if (_trace) { _trace.contiguous = true; _markKeptByPos(_posRange(trigger.length).slice(0, keptT.length)); }
+            return `${HEAD}${[...resident, ...keptT].join('\n')}${TAIL}`;
         }
         if (st === 'recency') {
-            const keptT = trigger.filter((b) => RECENCY_MARKERS.some((k) => b.startsWith(k) || b.includes(k)));
+            const keptT = _fillTrigger(trigger.filter((b) => RECENCY_MARKERS.some((k) => b.startsWith(k) || b.includes(k))));
             const kept = [...resident, ...keptT];
             if (_trace) {
                 // recency 的保留集**非连续**（按标记筛，中间会跳）：只记一个断点下标是错的，
@@ -244,11 +292,12 @@
                 /* ★ 位置必须用**同一个判据**重算，不能拿保留文本回查下标：
                  *   `keptT.indexOf(trigger[i])` 在「两条同文触发块」时会把第二条也认成保留
                  *   （回查到第一条）—— 那正是本方法要治的同文盲区，绝不能在自己的实现里再犯。
-                 *   这里直接用筛 keptT 时的同一谓词（RECENCY_MARKERS）对 trigger 逐个判。 */
+                 *   这里直接用筛 keptT 时的同一谓词（RECENCY_MARKERS）对 trigger 逐个判，
+                 *   且容量截断只发生在谓词命中的尾部（保序装 ⇒ 命中集的前缀保留）。 */
                 _markKeptByPos(_posRange(trigger.length).filter((i) =>
-                    RECENCY_MARKERS.some((k) => trigger[i].startsWith(k) || trigger[i].includes(k))));
+                    RECENCY_MARKERS.some((k) => trigger[i].startsWith(k) || trigger[i].includes(k))).slice(0, keptT.length));
             }
-            if (kept.length) return `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n`;
+            if (kept.length) return `${HEAD}${kept.join('\n')}${TAIL}`;
             /* 硬截断：`full.slice(0, budget)` 的切口可能落在**块内部**。
              *   块级保留清单因此不成立（不按下标判整块），但「半段」这件事本身要能被追踪，
              *   故这里按**原始 full** 精确扫出每个块的 [start, end) span（块按构造顺序出现，
@@ -276,18 +325,10 @@
             }
             return String(full).slice(0, budget);
         }
-        // balanced：常驻全保留 + 触发按剩余预算截断
-        const residentText = `\n\n${NOTE}\n${resident.join('\n')}`;
-        const triggerBudget = Math.max(0, budget - residentText.length);
-        const kept = [];
-        let acc = 0;
-        for (const t of trigger) {
-            if (acc + t.length > triggerBudget) break;
-            kept.push(t);
-            acc += t.length;
-        }
+        // balanced：常驻全保留 + 触发按可用容量截断（[v3.273.0] O3：TAIL/连接符漏计已修）
+        const kept = _fillTrigger(trigger);
         if (_trace) { _trace.contiguous = true; _markKeptByPos(_posRange(kept.length)); }
-        return `${residentText}${kept.length ? '\n' + kept.join('\n') : ''}\n${END}\n`;
+        return `${HEAD}${[...resident, ...kept].join('\n')}${TAIL}`;
     }
 
     const api = {
