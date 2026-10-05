@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.275.0",
+ "measured_at": "v3.276.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -677,6 +677,37 @@
     "member_count": 0,
     "top5_pct": 0.1
    }
+  },
+  "v3.276.0": {
+   "reason": "v3.276.0 O6：本版不改 index.js 宿主成员（O6 落在评测夹具与 runner 侧），重建仅为把版本键与既有读数对齐",
+   "readings": {
+    "total_lines": 13690,
+    "member_count": 523,
+    "top5_lines": 4320,
+    "top5_pct": 31.6,
+    "top40_lines": 9152,
+    "top40_pct": 66.9,
+    "prefix_rule_coverage_lines": 4666,
+    "prefix_rule_coverage_pct": 34.1,
+    "unclassified_lines": 8156,
+    "seam_distinct_modules": 46,
+    "seam_reference_sites": 54,
+    "seam_call_shape_sites": 57,
+    "members_over_80_lines": 27,
+    "low_coupling_members": 16,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.275.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -710,9 +741,9 @@
    "members": 484,
    "lines": 8156,
    "lines_pct": 59.6,
-   "outside_refs": 5110,
-   "internal_refs": 1352,
-   "outside_ref_share_pct": 79.1
+   "outside_refs": 5096,
+   "internal_refs": 1364,
+   "outside_ref_share_pct": 78.9
   },
   {
    "domain": "宿主事件接线",
@@ -728,9 +759,9 @@
    "members": 10,
    "lines": 1218,
    "lines_pct": 8.9,
-   "outside_refs": 311,
-   "internal_refs": 453,
-   "outside_ref_share_pct": 40.7
+   "outside_refs": 308,
+   "internal_refs": 456,
+   "outside_ref_share_pct": 40.3
   },
   {
    "domain": "召回与注入",
@@ -810,7 +841,7 @@
   {
    "name": "selfCheck",
    "lines": 854,
-   "outside_refs": 14
+   "outside_refs": 11
   },
   {
    "name": "recallMemory",
@@ -1087,7 +1118,7 @@
    {
     "name": "selfCheck",
     "lines": 854,
-    "outside_refs": 14,
+    "outside_refs": 11,
     "is_host_lifecycle": false
    },
    {

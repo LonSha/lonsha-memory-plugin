@@ -20,7 +20,7 @@
  * ================================================================ */
 (function () {
   'use strict';
-  const RUNNER_VERSION = 2;
+  const RUNNER_VERSION = 3; // [v3.276.0 O6] 留出集通路：多轮序列 + 无答案样本
   /** 取一个模块（Node: require；浏览器: root.LonShaXxx）。 */
   function pick(root, name, rel) {
     if (root && root[name]) return root[name];
@@ -99,6 +99,72 @@
       noiseIds: (sc.noiseIds || []).slice(), noiseInMerge: (sc.noiseIds || []).filter((k) => inMerge(k)).length,
     };
   }
+  /* ── [v3.276.0 O6] 多轮状态序列：同一记忆图逐轮追问 ────────────────
+   * 【为什么必须逐轮跑而不是拼成一个大查询】
+   *   多轮的质量问题恰好出在「上一轮说过的、下一轮不见了」：把三轮拼成一个查询，
+   *   这个形态**测不出来**（每轮都有全量候选参赛）。
+   * 【口径】每轮独立走真三阶段，节点集**逐轮完全相同**（同一张图），
+   *   故「某轮丢」只能归因到该轮的查询，不能归因到图变了。
+   */
+  function runTurns(spec, modules, opts) {
+    const o = opts || {};
+    const turns = Array.isArray(spec.turns) ? spec.turns : [];
+    if (!turns.length) return { ok: false, error: '多轮样本没有轮次（拒判）', turns: [] };
+    const out = [];
+    for (let i = 0; i < turns.length; i++) {
+      const t = turns[i];
+      const sc = {
+        cls: spec.cls, case: spec.case + '#t' + (i + 1), floor: spec.floor, session: spec.session,
+        query: t.query, note: spec.note,
+        must: (t.must || []).slice(), mustIn: (t.mustIn || []).slice(), forbid: [],
+        low: '', gate: '', guardCond: '', kind: '',
+        nodes: (spec.nodes || []).slice(),
+        noiseIds: (spec.nodes || []).filter((n) => /_n\d+$/.test(n.id)).map((n) => n.id),
+        src: { floor: spec.floor, session: spec.session },
+      };
+      const r = runSample(sc, modules, o);
+      out.push({ turn: i + 1, query: t.query, srcText: t.srcText || '', stage1Ok: r.stage1Ok, stage2Ok: r.stage2Ok,
+        stage3Ok: r.stage3Ok, missCand: r.missCand, missMerge: r.missMerge, candTotal: r.candTotal,
+        mergedIds: r.mergedIds });
+    }
+    const bad = out.filter((x) => !(x.stage1Ok && x.stage2Ok && x.stage3Ok));
+    return { ok: true, case: spec.case, cls: spec.cls, turns: out,
+      turnsOk: out.length - bad.length, turnsTotal: out.length, badTurns: bad.map((x) => x.turn), allOk: bad.length === 0 };
+  }
+
+  /* ── [v3.276.0 O6] 「无答案」样本：记忆里没有这条 ────────────────
+   * 【口径：不许靠扩召回数量得分】
+   *   引擎在候选稀疏时会把**零分条目补齐**进注入（mergeWithGuaranteed 第 3 步）。
+   *   在「有答案」的场景里这是保底（防漏召）；在「本来就没有答案」的场景里，
+   *   它就变成「拿无关条目凑出一个看起来有内容的注入」—— 判据必须能把它量出来。
+   *   故本通路报两件事：
+   *     · paddedZeroScore —— 零分却进了注入的条数（**扩召回数量**的直接读数）
+   *     · topScore —— 最高分；为 0 表示「一条真证据都没有」
+   *   并且**不做**「必须返回空」这种断言：本 runner 不下产品结论，只把读数交出去。
+   */
+  function runNoAnswer(spec, modules, opts) {
+    const o = opts || {};
+    const q = String(spec.query || '');
+    if (!q) return { ok: false, error: '无答案样本没有查询（拒判）' };
+    const nodes = (spec.nodes || []).slice();
+    const cands = modules.UR.graphToCandidates(nodes, { includeDeferred: true }, {});
+    const scored = cands.map((c) => Object.assign({}, c, { score: modules.AS.scoreEntry(c, q, q, q).score }));
+    const ranked = scored.slice().sort((a, b) => (b.score - a.score) || (b.updatedAt - a.updatedAt));
+    const carry = {};
+    const merged = modules.UR.mergeWithGuaranteed(ranked, { maxTotal: Number(o.maxTotal) || 4 }, carry);
+    const topScore = ranked.length ? Number(ranked[0].score) || 0 : null;
+    const padded = merged.filter((c) => (Number(c.score) || 0) <= 0).length;
+    return {
+      ok: true, case: spec.case, cls: spec.cls, query: q, note: spec.note || '',
+      srcText: spec.srcText || '',
+      candTotal: cands.length, mergedTotal: merged.length,
+      topScore: topScore, paddedZeroScore: padded,
+      /* 判据读数（不是产品结论）：有词面证据为 0 条 ⇒ 这一轮「答不出」是**应当的**。 */
+      noEvidence: (topScore === 0 || topScore === null),
+      mergedIds: merged.map((c) => c.id), scoredIds: ranked.filter((c) => (Number(c.score) || 0) > 0).map((c) => c.id),
+    };
+  }
+
   function buildFactState(FV, facts) {
     let st = FV.normalize(null);
     const trace = [];
@@ -231,7 +297,21 @@
         stage1HitRate: pct('stage1Ok'),
         stage2HitRate: pct('stage2Ok'),
         stage3HitRate: pct('stage3Ok'),
+        /* [v3.276.0 O6] 硬零指标**单独计**：
+         *   修前 `guardOkRate = pct('guardOk')` 的分母是**全部主样本**（55 例），
+         *   而带机制门的只有 4 例 —— 于是「泄密」这种禁入指标被摊进 55 例里：
+         *   一例泄露只让读数从 1.0 掉到 0.982，在一堆 0.9x 的覆盖率里根本看不出来。
+         *   计划原文点名：「泄密等禁入指标单独计不被平均命中率抵消」。
+         *   故新增 `guardOkRateGated`（分母 = 带门样本）与显式的分子/分母；
+         *   旧键 `guardOkRate` 保留（v3250 在用），但语义按注释说清是**覆盖率**口径。 */
         guardOkRate: pct('guardOk'),
+        guardOkRateGated: (function () {
+          const g = main.filter((s) => s.gate);
+          return g.length ? g.filter((s) => s.guardOk).length / g.length : null;
+        })(),
+        guardGatedOk: main.filter((s) => s.gate && s.guardOk).length,
+        guardGatedDenominator: main.filter((s) => s.gate).length,
+        guardMainDenominator: n,
         gatedSamples: samples.filter((s) => s.gate).length,
         gateDetail: samples.filter((s) => s.gate).map((s) => ({ case: s.case, gate: s.gate, ok: s.guardOk, why: s.guard.why })),
         leakCases: leakCases.map((s) => ({ case: s.case, cls: s.cls, gate: s.gate, detail: s.guard.detail })),
@@ -254,6 +334,16 @@
           stage1Ok: s.stage1Ok, stage2Ok: s.stage2Ok, missRank: s.missRank, why: s.note })),
         gapStage1: gaps.filter((s) => s.stage1Ok).length,
         gapStage2: gaps.filter((s) => s.stage2Ok).length,
+        /* [v3.276.0 O6] **模型输出与确定性内核分报告**。
+         *   计划原文要求「模型输出与确定性内核分报告」；本 runner 只跑确定性内核
+         *   （候选 → 评分 → 裁剪，全部真模块、无 LLM 调用）。
+         *   没有真模型条件时**如实记不可测**（measured:false + 原因），
+         *   不得写成 0 或省略该字段 —— 省略会让「没测」与「测了没问题」同形。 */
+        modelFace: {
+          measured: false,
+          why: '无真模型条件（本 runner 不调 LLM；提取→写入→召回→请求载荷→生成需真宿主 + 真模型）',
+          deterministicOnly: true,
+        },
       },
     };
   }
@@ -267,9 +357,14 @@
     if (m.stage2HitRate < g.minStage2) bad.push('排序命中率 ' + m.stage2HitRate + ' < ' + g.minStage2);
     if (m.stage3HitRate < g.minStage3) bad.push('最终注入命中率 ' + m.stage3HitRate + ' < ' + g.minStage3);
     if (m.leakCases.length > g.maxLeak) bad.push('机制门被破 ' + m.leakCases.length + ' 例 > ' + g.maxLeak);
+    /* 禁入指标另有**带门分母**的读数：分母为 0（没有带门样本）时拒判，不得当成 1.0 通过。 */
+    if (typeof g.minGuardGated === 'number') {
+      if (m.guardOkRateGated === null) bad.push('没有带机制门的样本 ⇒ 禁入指标拒判（不得当成通过）');
+      else if (m.guardOkRateGated < g.minGuardGated) bad.push('带门守卫通过率 ' + m.guardOkRateGated + ' < ' + g.minGuardGated);
+    }
     return bad;
   }
-  const api = { RUNNER_VERSION, pick, DEF_MODULES, guard, runSample, runAll, summarize, checkGates };
+  const api = { RUNNER_VERSION, pick, DEF_MODULES, guard, runSample, runAll, summarize, checkGates, runTurns, runNoAnswer };
   if (typeof window !== 'undefined') window.LonShaStoryEvalRunner = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

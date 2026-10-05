@@ -25,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { breakSource } from './_break_kit.mjs';
+import { codeLines } from './_audit_lib.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ROOT = path.resolve(HERE, '..');
@@ -168,8 +169,10 @@ test('v3275 B4. 宿主真跑四条路径（量测台与真模块接线不空转�
 const AS = requireFromHere(path.join(ROOT, 'archive-shift.js'));
 const LR = requireFromHere(path.join(ROOT, 'ledger-replay.js'));
 const AS_SRC = read('archive-shift.js');
-/* 只看代码行：注释里提到某字面量不算「真源写了一次」。 */
-const codeLines = (src) => src.split('\n').filter(l => !/^\s*(\*|\/\/|\/\*)/.test(l));
+/* 只看代码行：注释里提到某字面量不算「真源写了一次」。
+ *   实现**不在此处**：走 v3.191 收敛后的唯一真源 `tests/_audit_lib.mjs`（剥注释口径）。
+ *   本轮实测踩过：本档首稿自己写了一份「只剔除整行注释」的近似版，被
+ *   `scan_audit_lib_consolidation.mjs` 判为本地重写（E1）——同一口径两份实现正是它守的东西。 */
 
 function mkHost(ids) {
     const h = { _archivedFloorIds: new Set(ids) };
