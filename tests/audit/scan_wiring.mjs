@@ -129,6 +129,8 @@ console.log(dup.length ? '  ' + dup.join('\n  ') : '  （无）');
  *   opt   ?.name?.(                     （可选链调用，旧口径漏的形态之一）
  *   prop  name:                         （对象键 / 标签表）
  *   q     引号中的名字                   （公共出口 / 桥按名取，旧口径漏的形态之二）
+ *   ref   裸标识符                       （`for (const x of NAME)` / `NAME.indexOf(..)`；v3.279.0 补的第三种漏形态，
+ *                                        且**只在去注释的入口面上**算，防止「注释里提过一次」冒充真引用）
  *   test  仅测试引用                     （对外契约面：供测试直调；由测试自己守着）
  *   zero  以上全无                       ⇒ 真零引用（**硬失败**）
  * 冻结基线：tests/audit/<files>.tsv —— zero 集合必须与之逐条一致（多一条即红）。
@@ -170,10 +172,34 @@ const FORM = {
     opt: (n) => new RegExp('(?<![' + WORD + '])' + n + '[\\s]*[?][.][\\s]*[(]'),
     prop: (n) => new RegExp('(?<![' + WORD + '])' + n + '[\\s]*:'),
     q: (n) => new RegExp('[' + QCH + ']' + n + '[' + QCH + ']'),
+    // [v3.279.0 O7] 裸标识符：`for (const x of NAME)` / `NAME.indexOf(..)` / `data.NAME` —— 最朴素也最常见的引用形态，
+    //   此前四种形态全不认它 ⇒ 真被使用的常量被误落「仅测试」桶。
+    ref: (n) => new RegExp('(?<![' + WORD + '])' + n + '(?![' + WORD + '])'),
 };
 const methodHits = {};
-for (const name of defLines.keys()) methodHits[name] = { call: 0, opt: 0, prop: 0, q: 0, test: 0 };
+for (const name of defLines.keys()) methodHits[name] = { call: 0, opt: 0, prop: 0, q: 0, ref: 0, test: 0 };
 const KNOWN_TESTS = fs.existsSync('tests') ? fs.readdirSync('tests').filter((f) => f.endsWith('.mjs')) : [];
+/* [v3.279.0 O7] 裸标识符形态（`ref`）只能在**去注释**的入口面上算。
+ *   实证：`STORAGE_FP_FIELDS` / `INJECT_SLOTS` / `LEDGER_ITEM_ACTIONS` / `RELATION_CONFLICT_GROUPS`
+ *   等在入口里被 `for (const x of NAME)` / `NAME.indexOf(...)` 这类**裸标识符**引用，
+ *   但只要附近任一注释里提一次名字，不去注释的面就会把「只在注释里被提过」也算成真引用 ——
+ *   那是假绿通道（读注释当调用）。去注释后这些名字仍活 ⇒ 它们本就该落「有真引用」桶。 */
+function _stripComments(text) {
+    let inBlock = false;
+    return text.split(String.fromCharCode(10)).map((l) => {
+        let out = '', i = 0;
+        while (i < l.length) {
+            if (inBlock) { const e = l.indexOf('*/', i); if (e < 0) { i = l.length; break; } inBlock = false; i = e + 2; continue; }
+            const s = l.indexOf('/*', i);
+            const sl = l.indexOf('//', i);
+            if (sl >= 0 && (s < 0 || sl < s)) { out += l.slice(i, sl); i = l.length; break; }
+            if (s >= 0) { out += l.slice(i, s); inBlock = true; i = s + 2; continue; }
+            out += l.slice(i); i = l.length;
+        }
+        return out;
+    }).join(String.fromCharCode(10));
+}
+const IDX_PLAIN_LINES = _stripComments(idx).split(String.fromCharCode(10));
 /* [v3.227.0] A7 的扫描面必须含**全部根级模块**：首稿只扫 index.js，于是 `fetchModels` 与
  *   `unlockFact` 被判成零引用 —— 它们的调用点在 **settings-ui.js**（同一根目录的另一模块，
  *   `this.engine.llm.fetchModels(...)` / `s.unlockFact(...)`）。判据的面漏了一个文件，
@@ -203,9 +229,10 @@ try {
 } catch (e) { /* 无 tools 目录：跳过 */ }
 for (const name of defLines.keys()) {
     const forms = {};
-    for (const k of ['call', 'opt', 'prop', 'q']) forms[k] = FORM[k](name.replace(/[$]/g, '\$'));
+    for (const k of ['call', 'opt', 'prop', 'q', 'ref']) forms[k] = FORM[k](name.replace(/[$]/g, '\$'));
     for (const mf of Object.keys(MOD_BLOB)) {
-        const mLines = mf === 'index.js' ? lines : MOD_BLOB[mf].split('\n');
+        // [v3.279.0 O7] 入口面用**去注释**行面（其余模块本就是调用点，照旧读原文）。
+        const mLines = mf === 'index.js' ? IDX_PLAIN_LINES : MOD_BLOB[mf].split('\n');
         for (let i = 0; i < mLines.length; i++) {
             const ln = i + 1;
             if (mf === 'index.js' && defLines.get(name).has(ln)) continue;   // 只跳过定义行（只在本文件里有意义）
@@ -215,6 +242,7 @@ for (const name of defLines.keys()) {
             else if (forms.call.test(l)) methodHits[name].call++;
             else if (forms.prop.test(l)) methodHits[name].prop++;
             else if (forms.q.test(l)) methodHits[name].q++;
+            else if (forms.ref.test(l)) methodHits[name].ref++;
         }
     }
     for (const tf of Object.keys(TEST_BLOB)) {
@@ -230,11 +258,11 @@ for (const name of defLines.keys()) {
 }
 const zeroRefs = [], testOnly = [];
 for (const [name, h] of Object.entries(methodHits)) {
-    if (h.call || h.opt || h.prop || h.q) continue;
+    if (h.call || h.opt || h.prop || h.q || h.ref) continue;
     if (h.test) testOnly.push(name); else zeroRefs.push(name);
 }
 zeroRefs.sort(); testOnly.sort();
-console.log('=== A7 声明级死代码台账（v3.279.0 扩面：方法 + 函数声明 + 顶层常量表）: 声明 ' + defLines.size + ' / 有真引用 ' + (defLines.size - zeroRefs.length - testOnly.length) + ' / 仅测试·审计 ' + testOnly.length + ' / 零引用 ' + zeroRefs.length + ' ===');
+console.log('=== A7 声明级死代码台账（v3.279.0 扩面：方法 + 函数声明 + 顶层常量表；形态含裸标识符）: 声明 ' + defLines.size + ' / 有真引用 ' + (defLines.size - zeroRefs.length - testOnly.length) + ' / 仅测试·审计 ' + testOnly.length + ' / 零引用 ' + zeroRefs.length + ' ===');
 console.log('=== A7.1 零引用（真死代码，硬失败） (' + zeroRefs.length + '):');
 console.log(zeroRefs.length ? '  ' + zeroRefs.join(String.fromCharCode(10) + '  ') : '  （无）');
 console.log('=== A7.2 仅测试/审计引用（对外契约面，由测试与扫描器守着） (' + testOnly.length + '):');

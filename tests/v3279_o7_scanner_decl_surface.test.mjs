@@ -48,7 +48,11 @@ const A_AUDIT_READ = "fs.readdirSync('tests/audit')";
 const A_TOOL = "const TOOL_BLOB = {};";
 const A_TOOL_READ = "fs.readdirSync('tools')";
 const A_TOOL_TALLY = "if (TOOL_BLOB[kA].includes(name)) methodHits[name].test++;";
-const A_BUCKET = "=== A7 声明级死代码台账（v3.279.0 扩面：方法 + 函数声明 + 顶层常量表）";
+/* [v3.279.0] 裸标识符形态（ref）的真源锚点 */
+const A_REF_FORM = "ref: (n) => new RegExp('(?<![' + WORD + '])' + n + '(?![' + WORD + '])'),";
+const A_REF_BUCKET = "if (h.call || h.opt || h.prop || h.q || h.ref) continue;";
+const A_REF_STRIP = "const IDX_PLAIN_LINES = _stripComments(idx).split(String.fromCharCode(10));";
+const A_BUCKET = "=== A7 声明级死代码台账（v3.279.0 扩面：方法 + 函数声明 + 顶层常量表；形态含裸标识符）";
 const A_TITLE = "=== A7.1 零引用（真死代码，硬失败） (";
 const A_NEW_MSG = "A7.1 新增零引用方法（本面含函数声明与顶层常量表） ";
 const A_GONE_MSG = "A7.1 基线里的方法已不再零引用（请更新基线；本面含函数声明与顶层常量表）";
@@ -75,6 +79,10 @@ function judge(scanSrc, tsvSrc) {
     if (!scanSrc.includes(A_AUDIT) || !scanSrc.includes(A_AUDIT_READ)) P.push('B1 审计引用面缺席（tests/audit）');
     if (!scanSrc.includes(A_TOOL) || !scanSrc.includes(A_TOOL_READ)) P.push('B1 工具引用面缺席（tools）');
     if (!scanSrc.includes(A_TOOL_TALLY)) P.push('B1 工具面命中未计入（落桶规则被拆）');
+    /* [v3.279.0] 裸标识符形态与其去注释面必须在场 */
+    if (!scanSrc.includes(A_REF_FORM)) P.push('B1 裸标识符形态缺席（ref 未入 FORM）');
+    if (!scanSrc.includes(A_REF_BUCKET)) P.push('B1 裸标识符未参与落桶（被引用的声明会掉进仅测试桶）');
+    if (!scanSrc.includes(A_REF_STRIP)) P.push('B1 裸标识符面无去注释（注释里提过一次会冒充真引用）');
     /* ③ 台账头口径必须与实现同步（口径与实现不符 = 读者按口径理解会反） */
     if (!tsvSrc.includes(A_TSV_FACE)) P.push('B1 台账头口径未随扩面同步');
     /* ④ 声明面不得被重复收集（同一行两条正则同时命中 ⇒ 计数翻倍） */
@@ -131,6 +139,10 @@ test('v3279 B1. ★★★ 真跑扫描器：rc=0 且三面读数如实（零引�
         '必须打出声明级台账读数行: ' + out.slice(-400));
     assert.match(out, /声明 5[0-9][0-9] \/ 有真引用 5[0-9][0-9] \/ 仅测试·审计 \d+ \/ 零引用 0 /,
         '读数形态须为「声明 / 有真引用 / 仅测试·审计 / 零引用」: ' + out.slice(-400));
+    /* [v3.279.0] 形态面补了裸标识符（ref）后，被误落「仅测试」桶的 14 个名字必须回「有真引用」桶 ——
+     *   本断言钉住「形态面确实生效」，且用**具体名字**而非仅计数（计数会被别的变动顶走）。 */
+    assert.match(out, /仅测试·审计 (?:[1-9]|1[0-2]) \/ 零引用 0 /,
+        '补 ref 后仅测试·审计桶须降到 12 以内（旧口径 26）: ' + out.slice(-400));
     assert.match(out, new RegExp(A_TITLE.replace(/[()]/g, (c) => '\\' + c) + '0\\)'),
         'A7.1 零引用须为 0: ' + out.slice(-400));
     /* 仅测试/审计桶必须点名审计面独占的那一个（证明 audit 面真参与了落桶） */
@@ -171,6 +183,49 @@ test('v3279 C4. ★★ 台账头口径被摘掉 ⇒ 同一条判据必须翻红�
     ok('摘掉台账头口径 ⇒ 判据点名「未随扩面同步」');
 });
 
+test('v3279 C5. ★★ 摘掉裸标识符形态 ⇒ 同一条判据必须翻红（真被引用的声明会掉进仅测试桶）', () => {
+    const b = breakSource(read(SCAN_REL), A_REF_BUCKET,
+        "if (h.call || h.opt || h.prop || h.q) continue;   // [破坏] 裸标识符不再算真引用", 'v3279_ref');
+    const problems = judge(b, read(TSV_REL));
+    assert.ok(problems.some((p) => p.includes('裸标识符未参与落桶')), '必须点名裸标识符未参与落桶：' + problems.join(' | '));
+    ok('摘掉 ref 落桶 ⇒ 判据点名「裸标识符未参与落桶」');
+});
+
+test('v3279 C6. ★★ 摘掉裸标识符的**去注释**面 ⇒ 同一条判据必须翻红（读注释当调用是假绿通道）', () => {
+    const b = breakSource(read(SCAN_REL), A_REF_STRIP,
+        "const IDX_PLAIN_LINES = lines;   // [破坏] 裸标识符面退回不去注释的原文", 'v3279_strip');
+    const problems = judge(b, read(TSV_REL));
+    assert.ok(problems.some((p) => p.includes('裸标识符面无去注释')), '必须点名去注释面被摘：' + problems.join(' | '));
+    ok('摘掉去注释面 ⇒ 判据点名「注释里提过一次会冒充真引用」');
+});
+
+test('v3279 C7. ★★★ 捆绑未测副本：ref 一旦失效，**真被使用的**声明会掉进 A7.2「仅测试」桶（硬失败抓不到）', () => {
+    /* 本条不能用纯文本判据证明（纯文本判据只能看见「ref 在场」）—— 它是一条**运行时**断言：
+     *   真跑扫描器，读它真打出来的 A7.2 名单。对照组与破坏组都是同一次真跑。 */
+    const listOf = (dir) => {
+        const { status, out } = runScan(dir);
+        assert.equal(status, 0, '两组都必须 exit 0（否则读不到 A7.2 名单）: ' + out.slice(-300));
+        const a = out.indexOf('=== A7.2');
+        const b = out.indexOf('=== A8');
+        assert.ok(a >= 0 && b > a, '必须能切出 A7.2 段: ' + out.slice(-300));
+        return out.slice(a, b);
+    };
+    /* 对照组：原样树上，真被 `for (const group of RELATION_CONFLICT_GROUPS)` 引用的常量
+     *   必须**不在** A7.2（它是活代码）。 */
+    /* ★ 两次扫描都必须在 withMirror 的**回调内**完成：`withMirror` 在回调返回后即销毁镜像目录，
+     *   把目录路径带出来再 spawn 会拿到 status=null（不是红判据，是工具用错 —— 本档 C7 首稿即如此）。 */
+    const ctrl = withMirror({}, (d) => listOf(d));
+    assert.equal(ctrl.includes('RELATION_CONFLICT_GROUPS'), false,
+        '原样树上 RELATION_CONFLICT_GROUPS 不得落进 A7.2（它被裸标识符引用，是活代码）');
+    /* 破坏组：只摘掉「裸标识符算真引用」这一条判据，其余一切不动 —— 该常量必须掉进 A7.2。 */
+    const brokenScan = breakSource(read(SCAN_REL), A_REF_BUCKET,
+        "if (h.call || h.opt || h.prop || h.q) continue;   // [破坏] 裸标识符不再算真引用", 'v3279_bundle');
+    const broke = withMirror({ [SCAN_REL]: brokenScan }, (d) => listOf(d));
+    assert.ok(broke.includes('RELATION_CONFLICT_GROUPS'),
+        '★ 摘掉 ref 后，真被使用的声明必须掉进 A7.2「仅测试」桶 —— 这就是「真死代码被测试提一次即可藏身」的机制：' + broke.slice(0, 400));
+    ok('对照：活声明在有 ref 时不在 A7.2；破坏：摘掉 ref 后当场掉进去（硬失败 A7.1 抓不到）');
+});
+
 /* ══════════════ D. 工具两向自证 + 反向可观测（不是「破坏写死成常量」） ══════════════ */
 test('v3279 D1. ★★★ 工具两向自证：锚点 0 次/不唯一必抛、同值替换必抛；真破坏真改行为', () => {
     assert.throws(() => assertSingleHit(read(SCAN_REL), 'const 绝不存在的锚点 = 1;', 'v3279_n0'),
@@ -194,7 +249,7 @@ test('v3279 E1. ★★ 判据纯度：破坏锚点字面量在本档只出现一
     /* 本档是**源码文本**，含反斜杠的锚点在文件里是转义形态（`\\s`），故比对前须把锚点值
      * 反向转义一次 —— 直接拿运行时值去 `split` 原始文本会 0 命中，那是假绿通道。 */
     const rawForm = (s) => s.replace(/[\\]/g, '\\\\');
-    for (const [label, a] of [['FN_RE', A_FN], ['CT_RE', A_CT], ['AUDIT_BLOB', A_AUDIT], ['TOOL_TALLY', A_TOOL_TALLY]]) {
+    for (const [label, a] of [['FN_RE', A_FN], ['CT_RE', A_CT], ['AUDIT_BLOB', A_AUDIT], ['TOOL_TALLY', A_TOOL_TALLY], ['REF_BUCKET', A_REF_BUCKET]]) {
         const n = self.split(rawForm(a)).length - 1;
         assert.equal(n, 1, label + ' 锚点字面量在本档须恰好出现 1 次（实 ' + n + '）');
     }
@@ -203,10 +258,11 @@ test('v3279 E1. ★★ 判据纯度：破坏锚点字面量在本档只出现一
     for (const [label, a] of [['FN_RE', A_FN], ['CT_RE', A_CT], ['AUDIT_BLOB', A_AUDIT],
         ['AUDIT_READ', A_AUDIT_READ], ['TOOL_BLOB', A_TOOL], ['TOOL_READ', A_TOOL_READ],
         ['TOOL_TALLY', A_TOOL_TALLY], ['BUCKET', A_BUCKET], ['TITLE', A_TITLE],
-        ['NEW_MSG', A_NEW_MSG], ['GONE_MSG', A_GONE_MSG]]) {
+        ['NEW_MSG', A_NEW_MSG], ['GONE_MSG', A_GONE_MSG],
+        ['REF_FORM', A_REF_FORM], ['REF_BUCKET', A_REF_BUCKET], ['REF_STRIP', A_REF_STRIP]]) {
         assertSingleHit(scan, a, 'v3279_' + label);
     }
-    ok('11 个真源锚点各恰中一次；破坏锚点字面量在本档各只声明一次');
+    ok('14 个真源锚点各恰中一次；破坏锚点字面量在本档各只声明一次');
 });
 
 /* ══════════════ F. 被扩面后不许留下旧面残留 ══════════════ */
@@ -231,7 +287,7 @@ test('v3279 G1. ★ 自防护：O7 三批真源特征与本档自身不得被摘
     const self = read(path.join('tests', 'v3279_o7_scanner_decl_surface.test.mjs'));
     assert.ok(self.length > 6000, '本档自身不得被清空（长度下限）');
     const rawForm2 = (s) => s.replace(/[\\]/g, '\\\\');
-    for (const a of [A_FN, A_CT, A_AUDIT, A_TOOL_TALLY]) assert.ok(self.includes(rawForm2(a)), '本档须逐字持有锚点：' + a);
+    for (const a of [A_FN, A_CT, A_AUDIT, A_TOOL_TALLY, A_REF_BUCKET]) assert.ok(self.includes(rawForm2(a)), '本档须逐字持有锚点：' + a);
     ok('真源特征 / 破坏工具 / 本档自身均在位');
 });
 

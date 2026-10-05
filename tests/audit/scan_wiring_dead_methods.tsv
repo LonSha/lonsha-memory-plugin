@@ -16,6 +16,15 @@
 #   引用面同时补上 `tests/audit/` 与 `tools/`（`_cacheWorkloadLib` 的唯一消费点在审计脚本里）。
 #   本表口径随之变为：声明（方法 / 函数声明 / 顶层常量表）在全部根级 .js + tests/*.mjs + tests/audit/* + tools/*
 #   里既无调用形态、也无键名、也无引号名 ⇒ 零引用。当前集合仍为**空**（扩面后实测零引用 0）。
+#
+# [v3.279.0 O7·形态面] **形态面再补一类：裸标识符（`ref`）**。旧四形态（`name(` / `name?.(` / `name:` / `'name'`）
+#   全都不认最朴素的引用写法 —— 实证：`STORAGE_FP_FIELDS` 在入口里被`for (const group of ...)` 同族的
+#   `computeStateFingerprint(data, STORAGE_FP_FIELDS)`、`INJECT_SLOTS` 被 `for (const slot of INJECT_SLOTS)`、
+#   `LEDGER_ITEM_ACTIONS` 被 `LEDGER_ITEM_ACTIONS.indexOf(action)`、`RELATION_CONFLICT_GROUPS` 被
+#   `for (const group of RELATION_CONFLICT_GROUPS)` 引用，却全部落进「仅测试·审计」桶（14 个）——
+#   真死代码只要被任一测试提一次就能藏进 A7.2、逃过 A7.1 硬失败。
+#   `ref` 形态**只在去注释的入口面上**算：否则「注释里提过一次」会被算成真引用（读注释当调用）。
+#   补后读数：声明 579 / 有真引用 567 / 仅测试·审计 12 / 零引用 0（旧 553 / 26）。
 #   本表 v3.227.0 冻结了 4 条；v3.229.0（P-1 死方法处置）逐条实测后**全部删除定义**，集合归零。
 #   **这不是基线失效**：它仍是「新增零引用即红」的判据真源，只是当前没有豁免项（期望状态就是空）。
 #   由 tests/v3230_dead_method_disposal.test.mjs 的 B 组钉住「空集合 + 台账如实记账」两件事。
