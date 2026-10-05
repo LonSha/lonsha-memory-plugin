@@ -5,12 +5,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
+import { createRequire } from 'node:module';
 
 const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 SummarySystem 类体 + new Function 重放，
+ *   那是与 memory-core.js 真类**并行的第二实现**（类外符号靠注入，漂移了本档绿着而真类已坏）。
+ *   现在直接 require 真模块拿真类 —— 语义一字不改，只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
 
 function braceEnd(s, open) {
     let depth = 0;
@@ -25,17 +32,8 @@ function braceEnd(s, open) {
 }
 
 test('=== 1. compressSummary 主干句压缩行为测试 ===', () => {
-    // 提取 SummarySystem 并用 new Function 构造（同 v347 测试方式）
-    const clsStart = src.indexOf('class SummarySystem');
-    const brace = src.indexOf('{', clsStart);
-    let depth = 0, clsEnd = -1;
-    for (let i = brace; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) { clsEnd = i; break; } }
-    }
-    const ssCode = src.slice(clsStart, clsEnd + 1);
-    const SummarySystem = new Function('return (' + ssCode + ');')();
-    const ss = new SummarySystem();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const ss = new MC.SummarySystem();
 
     // 场景 1：氛围句 + 动作句混合——动作句应胜出
     const mixed = '气氛变得紧张起来。苏晨拔出短剑指向王五。空气中弥漫着火药味。王五说我不怕你。两人随即大打出手。';

@@ -159,6 +159,8 @@ test('G. 三源同源，且本档恰锚当版（供版本守卫 V4 计数）', (
     const man = JSON.parse(read('../manifest.json')).version;
     assert.equal(pkg, man, 'package.json 与 manifest.json 版本一致');
     assert.ok(read('../index.js').includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
-    assert.equal(vnum('3.278.0'), vnum(pkg), '本档恰锚当版');
+    /* [v3.279.0 交棒] 当版硬锚交棒给 v3279_o7_scanner_decl_surface.test.mjs（H 段恰锚当版）；
+     *   本档退回**下限锚**：自 3.278.0 起成立，不承诺未来（版本守卫 V2/V3 口径）。 */
+    assert.ok(vnum(pkg) >= vnum('3.278.0'), '本档自 3.278.0 起成立；当前 ' + pkg);
     console.log('  ✓ 三源同源 ' + pkg);
 });

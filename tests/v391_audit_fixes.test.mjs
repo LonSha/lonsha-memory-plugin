@@ -3,6 +3,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'fs';
+import { createRequire } from 'node:module';
+import { breakSource } from './_break_kit.mjs';
+import { loadBroken } from './_negative_util.mjs';
+const require_ = createRequire(import.meta.url);
+const MB = require_('../memory-books.js');
 
 const srcRaw = fs.readFileSync('index.js', 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
@@ -63,16 +68,6 @@ function extractNamed(text, marker) {
     }
     return text.slice(start, i + 1);
 }
-function extractClass(text, name) {
-    const at = text.indexOf('class ' + name + ' {');
-    if (at < 0) throw new Error('找不到 class ' + name);
-    let i = text.indexOf('{', at), depth = 0;
-    for (; i < text.length; i++) {
-        if (text[i] === '{') depth++;
-        else if (text[i] === '}') { depth--; if (depth === 0) break; }
-    }
-    return text.slice(at, i + 1);
-}
 function objOf(methodSrc, deps = {}) {
     const names = Object.keys(deps);
     const fn = new Function(...names, `return ({ ${methodSrc} });`);
@@ -95,10 +90,11 @@ test('【1】presenceInjection 门控键统一（原 presenceTier 恒 undefined 
 
 // ═══════════ 2. echoBaseLife / echoMaxCount：硬编码绕过修复 ═══════════
 test('【2】EchoPool 读取 config（原硬编码 life=2 / cap=30 绕过配置）', () => {
-    const cls = extractClass(bkSrc, 'EchoPool');
+    // [v3.279.0 O7] 类体静态面改为**模块内类边界切片**（不再用抽取机器；本档只做文本判据、不重放实现）
+    const cls = bkSrc.slice(bkSrc.indexOf('class EchoPool {'), bkSrc.indexOf('class SuspenseBook {'));
     assert.ok(!/life:\s*2,/.test(cls) || cls.includes('life: baseLife'), '不再硬编码 life: 2');
     assert.ok(!cls.includes('slice(-30)') && !cls.includes('> 30'), '不再硬编码容量 30');
-    const EchoPool = new Function('errLog', extractClass(bkSrc, 'EchoPool') + '; return EchoPool;')(() => {});
+    const EchoPool = MB.EchoPool;   // [v3.279.0 O7] 真类装载（修前：类体切片 + 函数构造重放）
 
     // 行为 A: 自定义 baseLife 生效
     const p1 = new EchoPool(() => ({ echoBaseLife: 4, echoMaxCount: 10 }));
@@ -124,6 +120,22 @@ test('【2】EchoPool 读取 config（原硬编码 life=2 / cap=30 绕过配置�
     assert.strictEqual(p4.items[0].life, 2, '非法 baseLife 回落 2');
     assert.ok(p4.items.length >= 1, '非法 maxCount 不导致清空');
     console.log('✓ 2: EchoPool baseLife/maxCount 已接入 config + 容灾回落');
+});
+
+// ═══════════ 2b. 负控制：真源码破坏 EchoPool 关闭态清空面（[v3.279.0 O7] 类已真模块装载） ═══════════
+test('【2b】负控制·真源码破坏：cap<=0 不再显式清空 ⇒ 关闭语义必须可观测地失效', () => {
+    const bkRaw = fs.readFileSync('memory-books.js', 'utf8');
+    const anchor = 'if (cap <= 0) this.items = [];';
+    assert.equal(bkRaw.split(anchor).length - 1, 1, '破坏锚点必须恰中 1 次');
+    const bmod = loadBroken(breakSource(bkRaw, anchor, 'if (false) this.items = [];', 'v391-negctl'), 'v391_negctl');
+    const BEP = bmod.EchoPool;
+    const b = new BEP(() => ({ echoBaseLife: 2, echoMaxCount: 0 }));
+    b.onRecalled([{ id: 'a', text: 't1' }, { id: 'b', text: 't2' }]);
+    assert.equal(b.items.length, 2, '破坏后：cap=0 不再清空（关闭语义静默失效）—— 证明负控制可观测');
+    // 原版同址必须清空
+    const r = new MB.EchoPool(() => ({ echoBaseLife: 2, echoMaxCount: 0 }));
+    r.onRecalled([{ id: 'a', text: 't1' }, { id: 'b', text: 't2' }]);
+    assert.equal(r.items.length, 0, '原版：cap=0 显式清空');
 });
 
 // ═══════════ 3. maxSummaryLength：UI 有滑块引擎不读 修复 ═══════════

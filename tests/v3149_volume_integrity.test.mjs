@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -14,48 +15,12 @@ const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
-// 提取顶层闭包 helper sanitizeJson（与 SummarySystem 同作用域，类方法内直接引用）
-function extractFunc(source, name) {
-    const marker = 'function ' + name;
-    const start = source.indexOf(marker);
-    if (start < 0) return null;
-    // 深度计数提取：跳过字符串/模板串/行注释/块注释，精确配对花括号
-    let depth = 0, i = source.indexOf('{', start), str = null, esc = false;
-    while (i < source.length) {
-        const ch = source[i], nx = source[i + 1];
-        if (str) {
-            if (esc) esc = false;
-            else if (ch === '\\') esc = true;
-            else if (ch === str) str = null;
-        } else if (ch === '"' || ch === "'" || ch === '`') str = ch;
-        else if (ch === '/' && nx === '/') { const e = source.indexOf('\n', i); i = (e < 0 ? source.length : e); continue; }
-        else if (ch === '/' && nx === '*') { const e = source.indexOf('*/', i + 2); i = (e < 0 ? source.length : e + 2); continue; }
-        else if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return source.slice(start, i + 1); }
-        i++;
-    }
-    return null;
-}
-function loadSummarySystem() {
-    const cls = extractClass(src, 'class SummarySystem');
-    assert.ok(cls, 'SummarySystem 可提取');
-    const san = extractFunc(src, 'sanitizeJson');
-    assert.ok(san, 'sanitizeJson 可提取');
-    // 类内闭包依赖 sanitizeJson：连同它一起注入作用域
-    return new Function(san + '\nreturn (' + cls + ');')();
-}
 
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 SummarySystem 类体 + sanitizeJson 一起灌进
+ *   new Function 的作用域重放，那是与 memory-core.js 真类**并行的第二实现**（类外符号还要靠抽取拼接）。
+ *   现在直接 require 真模块拿真类 —— 语义一字不改，只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
 test('=== 1. 结构断言（写入侧快照 + 校验方法存在） ===', () => {
     assert.ok(src.includes('volumeIntegrityGuard'), '配置开关');
     assert.ok(src.includes('verifyVolumesIntact'), '校验方法');
@@ -72,7 +37,8 @@ test('=== 1. 结构断言（写入侧快照 + 校验方法存在） ===', () => 
 });
 
 test('=== 2. 降级语义：源指纹失效 → 整卷降级 + 源摘要回活跃池 ===', async () => {
-    const SummarySystem = loadSummarySystem();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + sanitizeJson 一起灌进 new Function 重放）
+    const SummarySystem = MC.SummarySystem;
     const s = new SummarySystem();
     // 自实现指纹：文本变 → 指纹变（模拟 swipe/编辑），不依赖引擎 hash32
     s.fpOf = (m) => (m && typeof m.t === 'string') ? 'fp_' + m.t : '';

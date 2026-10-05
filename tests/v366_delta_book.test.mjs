@@ -19,17 +19,7 @@ const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-c
  *   三个真实依赖零实现：norm / "+"。 */
 const MLA = (await import('../memory-ledgers.js')).default;
 
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档把 `extractClass` 留在文件里（第 2 段早已改走 `MLA.DeltaBook`，该助手零调用）；现在删掉这段与 memory-ledgers.js 真类**并行的第二实现**，全档只跑真模块导出的类 —— 语义一字不改，只换「被跑的对象」。静态面仍读「入口 + 该模块」合看。 */
 
 test('=== 1. 静态关键字检查 ===', () => {
     assert.ok(MLA.DeltaBook, 'memory-ledgers.js 导出 DeltaBook 类');

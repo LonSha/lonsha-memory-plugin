@@ -60,18 +60,11 @@ function braceSpan(text, fromIdx) {
     }
     throw new Error('unclosed span');
 }
-function extractClass(name) {
-    const at = (src + bkSrc).indexOf('class ' + name);
-    assert.ok(at > 0, 'found class ' + name);
-    const hay = src + bkSrc;
-    const bodyStart = hay.indexOf('{', at);
-    let depth = 0;
-    for (let i = bodyStart; i < hay.length; i++) {
-        if (hay[i] === '{') depth++;
-        else if (hay[i] === '}') { depth--; if (depth === 0) return hay.slice(at, i + 1); }
-    }
-    throw new Error('class ' + name + ' unclosed');
-}
+/* [v3.279.0 O7] 真模块装载：修前本档用类体切片抠 `class EchoPool` + 函数构造重放
+ *   （与真类并行的第二实现）。现在直接取真类，类源文本改由 `EchoPool.toString()` 提供
+ *   —— 那正是真类的源码，不再有「复制品」。 */
+const MB = require(path.join(ROOT, 'memory-books.js'));
+const EchoPool = MB.EchoPool;
 /* count non-overlapping occurrences of needle in hay (string ops only, no regex) */
 function countOf(hay, needle) {
     if (!needle) return 0;
@@ -230,18 +223,18 @@ test('[2] aiRecallOpsMaxPerFloor=0 must not fall into the slice(-0) trap', () =>
     assert.ok(block.includes('_capped && extracted.items.length > _cap'), 'items guarded');
 });
 test('[2b] EchoPool cap=0 must clear explicitly (slice(-0) does not clear)', () => {
-    const cls = extractClass('EchoPool');
+    const cls = EchoPool.toString();
     assert.ok(cls.includes('if (cap <= 0) this.items = [];'), 'cap<=0 clears explicitly');
     assert.ok(cls.includes('else if (this.items.length > cap)'), 'now an else-if chain');
     assert.ok(cls.includes('Number.isFinite(v) && v >= 0 ? Math.round(v) : 10;'), '0 is no longer rejected by >=1');
-    const mc = braceBody(cls, cls.indexOf('_maxCount()'));
+    const mc = EchoPool.prototype._maxCount.toString();
     assert.ok(mc.includes('v >= 0 ? Math.round(v) : 10;'), '0 accepted by _maxCount');
     assert.strictEqual(mc.includes('v >= 1'), false, 'old >=1 predicate removed from _maxCount');
-    assert.ok(braceBody(cls, cls.indexOf('_baseLife()')).includes('v >= 1'), '_baseLife keeps its own >=1 guard');
+    assert.ok(EchoPool.prototype._baseLife.toString().includes('v >= 1'), '_baseLife keeps its own >=1 guard');
     assert.ok(cls.includes('import(data) { const cap = this._maxCount();'), 'import uses the same predicate');
 });
 /* ============ 3. EchoPool real execution ============ */
-const EchoPool = new Function('errLog', extractClass('EchoPool') + '; return EchoPool;')(() => {});
+/* [v3.279.0 O7] EchoPool 真类已在文件头装载（MB.EchoPool），此处不再重放 */
 test('[3] EchoPool: cap=0 turns the pool off (old behaviour was unlimited)', () => {
     const p = new EchoPool(() => ({ echoBaseLife: 2, echoMaxCount: 0 }));
     p.onRecalled([{ id: 'a', text: 't1' }, { id: 'b', text: 't2' }, { id: 'c', text: 't3' }]);

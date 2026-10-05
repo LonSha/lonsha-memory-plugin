@@ -16,7 +16,8 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'node:url';
-import { breakOnce as breakText } from './_break_kit.mjs';
+import { breakOnce as breakText, breakSource } from './_break_kit.mjs';
+import { loadBroken } from './_negative_util.mjs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
@@ -27,6 +28,11 @@ const idxSrcRaw = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const idxSrc = idxSrcRaw + String.fromCharCode(10) + (fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8'))
+/* [v3.279.0 O7] GameClock 真源在 memory-core.js；下方 GameClock 抽取面已迁为真模块装载。
+ *   ⚠ 边界纪律：绝不从 idxSrc（index.js + memory-core.js 合并文本）里找 `class GameClock {` ——
+ *   那会真的命中，等于「从合并文本抠真类」，仍是隐藏的抽取面；真类一律直接 require 模块。 */
+const CORE_SRC = fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const MC = require(new URL('../memory-core.js', import.meta.url).pathname);
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
@@ -34,25 +40,13 @@ function vnum(s) {
     const m = /^([0-9]+)(?:[.]([0-9]+))?(?:[.]([0-9]+))?/.exec(String(s));
     return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
 }
-// ── GameClock 抽取（花括号配平；class 边界即 class PlotTimeline） ──
-function extractClass(source, name) {
-    const start = source.indexOf('class ' + name + ' {');
-    assert.ok(start > 0, `找到 class ${name}`);
-    let depth = 0, i = source.indexOf('{', start), end = -1;
-    for (; i < source.length; i++) {
-        if (source[i] === '{') depth++;
-        else if (source[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
-    }
-    assert.ok(end > 0, `class ${name} 花括号闭合`);
-    return source.slice(start, end);
+/* [v3.279.0 O7] 破坏副本装载：真源码（memory-core.js）破坏 → 子进程加载破坏副本 → 取其中的真类。 */
+function brokenGameClock(brokenSrc) {
+    const mod = loadBroken(brokenSrc, 'v3175_gc_' + (brokenGameClock._n = (brokenGameClock._n || 0) + 1));
+    assert.ok(mod && typeof mod.GameClock === 'function', '破坏副本必须仍导出 GameClock');
+    return mod.GameClock;
 }
-/** 用给定源码造一台 GameClock（破坏副本也走这里 → 判据与破坏同源） */
-function makeClock(source) {
-    const holder = { LonShaWorldClockReader: R };
-    const factory = new Function('errLog', 'window', 'return (' + extractClass(source, 'GameClock') + ');');
-    return factory(() => {}, holder);
-}
-const GC = makeClock(idxSrc);
+const GC = MC.GameClock;   // [v3.279.0 O7] 真类装载
 /** 显式注入 reader 与 win（readWorldAxisClock 透传 opts.win）——判据可独立驱动 */
 const readOn = (inst, bridge) => {
     const w = { LonShaWorldClockReader: R };
@@ -312,7 +306,7 @@ function judgeReader(api, makeClk) {
     };
 }
 function judgeClock(source, api) {
-    const GCx = makeClock(source);
+    const GCx = brokenGameClock(source);
     const c = new GCx();
     c.date = '2026-09-13';
     const okRead = readOn(c, BRIDGE.ready('2026-09-13T21:45'));
@@ -360,7 +354,7 @@ function brokenCopies() {
         },
         {
             tag: 'B4-ok-honesty', what: '把 ok 写死（不可用也报「已读」）',
-            clock: breakText(idxSrc, /ok: !!\(read && read\.ok\),/, 'ok: true,')
+            clock: breakSource(CORE_SRC, 'ok: !!(read && read.ok),', 'ok: true,', 'B4')
         },
         {
             tag: 'B5-contract-collapse', what: '拆掉上游契约版本门（升版后静默按旧契约解读）',
@@ -417,7 +411,7 @@ test('【F2】★ 负控制·逐项现形：每处破坏都必须让对应判据
 
 test('【F3】★ 负控制·GameClock 接线：ok 写死后「不可用」会被报成「已读」', () => {
     const broken = brokenCopies().find(v => v.tag === 'B4-ok-honesty');
-    const jReal = judgeClock(idxSrc, R);
+    const jReal = judgeClock(CORE_SRC, R);
     assert.equal(jReal.okHonest, true, '原版：ok 如实');
     assert.equal(jReal.readCarried, true, '原版：读数真的落进快照（此判据非恒真）');
     assert.equal(jReal.keptEra, true, '原版：本插件时钟不被改写');

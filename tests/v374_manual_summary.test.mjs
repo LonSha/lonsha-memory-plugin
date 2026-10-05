@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -16,17 +17,12 @@ const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 const su = readFileSync(`${REPO_ROOT}/settings-ui.js`, 'utf-8');
 
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 SummarySystem 类体 + new Function 重放，
+ *   那是与 memory-core.js 真类**并行的第二实现**（类外符号靠注入，漂移了本档绿着而真类已坏）。
+ *   现在直接 require 真模块拿真类 —— 语义一字不改，只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
+
 
 test('=== 1. 静态关键字检查 ===', () => {
     // A 引擎侧
@@ -47,9 +43,8 @@ test('=== 1. 静态关键字检查 ===', () => {
 });
 
 test('=== 2. updateSummaryText 功能测试 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    const SummarySystem = new Function('return (' + cls + ')')();
-    const s = new SummarySystem();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const s = new MC.SummarySystem();
     // 无摘要时更新失败
     assert.strictEqual(s.updateSummaryText(1, '新文本'), false, '无摘要拒绝');
     // 手动造一条摘要再更新
@@ -67,9 +62,8 @@ test('=== 2. updateSummaryText 功能测试 ===', () => {
 });
 
 test('=== 3. addManualSummary 功能测试 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    const SummarySystem = new Function('return (' + cls + ')')();
-    const s = new SummarySystem();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const s = new MC.SummarySystem();
     // 正常补摘
     const r = s.addManualSummary(42, '林一在聚贤庄留下解药。');
     assert.ok(r, '补摘成功');
@@ -89,16 +83,15 @@ test('=== 3. addManualSummary 功能测试 ===', () => {
 });
 
 test('=== 4. missingFloors 功能测试 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    const SummarySystem = new Function('return (' + cls + ')')();
-    const s = new SummarySystem();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const s = new MC.SummarySystem();
     assert.doesNotThrow(() => s.missingFloors(5), '独立抽取的 SummarySystem 不应依赖宿主 errLog');
     s.summaries.push({ floor: 1, text: 'a' }, { floor: 3, text: 'c' });
     assert.deepStrictEqual(s.missingFloors(5), [0, 2, 4, 5], '缺失楼层清单');
     assert.deepStrictEqual(s.missingFloors(2), [0, 2], '小范围');
     assert.deepStrictEqual(s.missingFloors(-1), [], '负 maxFloor 空清单');
     // 全覆盖
-    const s2 = new SummarySystem();
+    const s2 = new MC.SummarySystem();
     s2.summaries.push({ floor: 0, text: 'a' }, { floor: 1, text: 'b' });
     assert.deepStrictEqual(s2.missingFloors(1), [], '全覆盖空清单');
 });

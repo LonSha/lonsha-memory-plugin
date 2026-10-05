@@ -3,6 +3,20 @@
 // 运行: node tests/v340_content_db.test.mjs
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
+import { createRequire } from 'node:module';
+const require_ = createRequire(import.meta.url);
+const MO = require_(new URL('../memory-organs.js', import.meta.url).pathname);
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从 memory-organs.js 源码抠 `async save` 方法体
+ *   + new Function 重放（注入 window / errLog / PLUGIN_NAME / VERSION 四个符号），那是与真实现
+ *   并行的第二个 StorageManager —— 写入合流 / 会话身份保护 / 骤减保护任何一处改了，夹具里的
+ *   副本都不会跟。现在直接 require 真模块拿真类，只换「被跑的对象」。宿主面照真契约给：
+ *   window.SillyTavern.getContext + window.LonShaMemory.emergency；每个场景重建一次 HOST，
+ *   等价于原夹具每场景新建 calls 数组（场景间不串味，失败可归因到具体场景）。 */
+const HOST = { ctx: null, emergencyCalls: [] };
+globalThis.window = {
+    SillyTavern: { getContext: () => HOST.ctx },
+    LonShaMemory: { emergency: { save: async (...args) => { HOST.emergencyCalls.push(args); } } },
+};
 
 const srcI = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：「从 index.js 抽 save 方法」的抽取面改读该模块（语义一字不改）。 */
@@ -11,18 +25,6 @@ const srcS = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8')
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
-/* ---------- 提取器 ---------- */
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
 
 /* ══════════ 1. DB1: TDZ 修复（静态断言） ══════════ */
 {
@@ -60,36 +62,17 @@ function braceEnd(s, open) {
 
 /* ══════════ 3. DB4: storage.save 骤减守卫（行为测试） ══════════ */
 {
-    // 从 index.js 提取 save 方法体
-    /* [v3.264.0] save 已随 StorageManager 外移：先在 index.js 找，找不到就到模块里找（同一方法、同一语义）。 */
-    /* [v3.264.0 A1 第五刀] 模块内的类已去 4 空格缩进（IIFE 顶层），故同一方法在两面**行首缩进不同**。
-     *   两个面各用自己的写法取；indexOf 合法下界是 0（命中第 0 行也是命中）。 */
-    const START_H = '        async save(chatId, data) {';
-    const START_M = '    async save(chatId, data) {';
-    const _host = srcI.indexOf(START_H);
-    const _src = _host >= 0 ? srcI : orgSrc;
-    const start = _host >= 0 ? _host : orgSrc.indexOf(START_M);
-    /* [v3.264.0] 原句 `start > 0`：save 随 StorageManager 外移后模块内首行即可能命中（indexOf 合法返回 0）。 */
-    assert.ok(start >= 0, 'save 方法存在（indexOf 合法下界为 0）');
-    const brace = _src.indexOf('{', start);
-    const end = braceEnd(_src, brace);
-    const methodSrc = _src.slice(_src.indexOf('async save', start), end + 1);
-
+    // [v3.279.0 O7] 真类实例（原为「抠 save 方法体 + new Function 重放」的并行第二实现）
+    // [v3.264.0] save 已随 StorageManager 外移 memory-organs.js；此处直接构造真类并接宿主面。
     function makeEnv(prevData) {
-        const calls = [];
-        const ctx = {
+        HOST.ctx = {
             chatMetadata: { extensions: prevData === null ? {} : { lonsha_memory: { data: prevData } } },
             saveChat: async () => {},
         };
-        const win = {
-            SillyTavern: { getContext: () => ctx },
-            LonShaMemory: { emergency: { save: async (...args) => { calls.push(args); } } },
-        };
-        const obj = new Function('window', 'errLog', 'PLUGIN_NAME', 'VERSION', `
-            const obj = { STORAGE_KEY: 'lonsha_memory', ${methodSrc} };
-            return obj;
-        `)(win, () => {}, 'LonSha记忆引擎', '3.4.0');
-        return { obj, ctx, calls };
+        HOST.emergencyCalls.length = 0;
+        const obj = new MO.StorageManager();
+        // 判据直接读宿主侧读数（不再是夹具内联副本的 calls 数组）
+        return { obj, ctx: HOST.ctx, calls: HOST.emergencyCalls };
     }
 
     const mkSums = (n) => ({ summaries: Array.from({ length: n }, (_, i) => ({ floor: i, text: 's' + i })) });

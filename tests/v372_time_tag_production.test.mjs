@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -17,17 +18,10 @@ const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-c
 /* [v3.259.0 A1 第四刀] RelativeTimeHelper 已外迁到 memory-books.js。 */
 const bkSrc = readFileSync(`${REPO_ROOT}/memory-books.js`, 'utf-8');
 
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
+/* [v3.259.0 A1 第四刀] RelativeTimeHelper 已外迁到 memory-books.js。 */
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从 memory-books.js 源码抠 `class RelativeTimeHelper` 类体 + `new Function` 重放，那是与真类**并行的第二实现**；现在直接 require 真模块拿真类 ——除静态面仍按「入口 + 该模块」合看，行为面已真跑 `RelativeTimeHelper`（真证据只增不减：原手写复刻断言全部保留，另加真实现返回值对账）。 */
+const require_ = createRequire(import.meta.url);
+const MB = require_(new URL('../memory-books.js', import.meta.url).pathname);
 
 test('=== 1. 静态关键字检查 ===', () => {
     // A 时间标签生产 prompt
@@ -43,17 +37,27 @@ test('=== 1. 静态关键字检查 ===', () => {
 });
 
 test('=== 2. extractDualTimeTags 功能测试 ===', () => {
-    const cls = extractClass(bkSrc, 'class RelativeTimeHelper');
-    assert.ok(cls, 'RelativeTimeHelper 可提取');
-    // 提取 extractDualTimeTags 方法（裸括号）
-    const mIdx = cls.indexOf('extractDualTimeTags(text)');
+    /* [v3.279.0 O7] 结构面读真模块源（memory-books.js 内就是真实现）；行为面直接跑真类实例。 */
+    const mIdx = bkSrc.indexOf('extractDualTimeTags(text)');
     assert.ok(mIdx > 0, '方法存在');
-    const methodSrc = cls.slice(mIdx);
-    // 起止解析逻辑
+    const methodSrc = bkSrc.slice(mIdx);
+    // 起止解析逻辑（真实现文本）
     assert.ok(methodSrc.includes('<bbs_start>'), 'start 正则');
     assert.ok(methodSrc.includes('<bbs_end>'), 'end 正则');
-    // 功能模拟
+    // 功能实证：真 RelativeTimeHelper 实例
+    const rth = new MB.RelativeTimeHelper();
     const text = '<bbs_start>1988/9/29 21:30</bbs_start>正文内容<bbs_end>1988/9/29 21:45</bbs_end>';
+    const r = rth.extractDualTimeTags(text);
+    assert.strictEqual(r.hasDual, true, '真实现识别成对标签');
+    assert.strictEqual(r.start, '1988/9/29 21:30', '真实现取 start');
+    assert.strictEqual(r.end, '1988/9/29 21:45', '真实现取 end');
+    assert.strictEqual(r.durationMinutes, 15, '时长 15 分钟');
+    assert.strictEqual(r.parseError, null, '可解析纪年 parseError 为 null');
+    // 半对标签：真实现带 half-pair 诊断（不是静默 0）
+    const half = rth.extractDualTimeTags('<bbs_start>1988/9/29 21:30</bbs_start>正文');
+    assert.strictEqual(half.hasDual, false, '半对不成对');
+    assert.strictEqual(half.parseError, 'half-pair', '半对带诊断');
+    // 保留原手写复刻断言（真证据只增不减）
     const startM = /<bbs_start>([\s\S]*?)<\/bbs_start>/i.exec(text);
     const endM = /<bbs_end>([\s\S]*?)<\/bbs_end>/i.exec(text);
     assert.ok(startM && endM, '标签解析命中');

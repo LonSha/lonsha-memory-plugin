@@ -132,11 +132,32 @@ console.log(dup.length ? '  ' + dup.join('\n  ') : '  （无）');
  *   test  仅测试引用                     （对外契约面：供测试直调；由测试自己守着）
  *   zero  以上全无                       ⇒ 真零引用（**硬失败**）
  * 冻结基线：tests/audit/<files>.tsv —— zero 集合必须与之逐条一致（多一条即红）。
+ * [v3.279.0 O7] 声明面从「方法」扩到「方法 + 函数声明 + 顶层常量表」，引用面从「根级 .js + tests/*.mjs」
+ *   扩到含 tests/audit 与 tools。两条扩面的共同理由：**判据的面漏一类，结论就完全反了**
+ *   （函数声明级死代码在本仓真实存在过，而 A7 一直报「零引用 0」）。
  */
 const DEF_RE = /^(\s*)(?:async\s+)?(?!if|for|while|switch|catch|return|function\b)([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s*\{/;
+/* [v3.279.0 O7] 面扩展到**声明级**：本轮实测踩到的盲区 —— DEF_RE 的负向断言显式排除 `function\b`，
+ *   顶层 `const <表> = [` 也不在面内，于是 `collectCycleTasks` / `TIME_WORDS_ZH` 这类**永不会被调用的声明**
+ *   在 A7 里完全不可见（读数「零引用 0」被误读成「没有死代码」）。三条正则各自独立，定义行集合按名合并。 */
+const FN_RE = /^(\s*)(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+const CT_RE = /^(\s{4})const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*[\[{]/;
 const defLines = new Map();   // name -> Set(line)
 for (let i = 0; i < lines.length; i++) {
     const m = DEF_RE.exec(lines[i]);
+    if (!m) continue;
+    if (!defLines.has(m[2])) defLines.set(m[2], new Set());
+    defLines.get(m[2]).add(i + 1);
+}
+/* [v3.279.0 O7] 函数声明与顶层常量表同样入面：后者被 DEF_RE 的负向断言排除，前者本就不带参数表 `{`。 */
+for (let i = 0; i < lines.length; i++) {
+    const m = FN_RE.exec(lines[i]);
+    if (!m) continue;
+    if (!defLines.has(m[2])) defLines.set(m[2], new Set());
+    defLines.get(m[2]).add(i + 1);
+}
+for (let i = 0; i < lines.length; i++) {
+    const m = CT_RE.exec(lines[i]);
     if (!m) continue;
     if (!defLines.has(m[2])) defLines.set(m[2], new Set());
     defLines.get(m[2]).add(i + 1);
@@ -163,6 +184,23 @@ for (const mf of ROOT_MODULES) { try { MOD_BLOB[mf] = mf === 'index.js' ? idx : 
 // 测试面 blob：**先读一次**再逐个方法查（首稿在方法循环里逐文件读 ⇒ 434 x 269 = 116k 次读盘）。
 const TEST_BLOB = {};
 for (const tf of KNOWN_TESTS) { try { TEST_BLOB[tf] = fs.readFileSync('tests/' + tf, 'utf8'); } catch (e) { /* 读不到跳过 */ } }
+/* [v3.279.0 O7] 引用面须含**审计脚本与工具**：`_cacheWorkloadLib` 的唯一消费点是
+ *   tests/audit/scan_v3254_cache_identity.mjs（取库口台账）。只在「根级 .js + tests/*.mjs」两面里找，
+ *   会把它判成真死声明 —— 与 v3.227.0「面漏一个文件，结论就完全反了」同型。 */
+const AUDIT_BLOB = {};
+try {
+    for (const af of fs.readdirSync('tests/audit')) {
+        const p = 'tests/audit/' + af;
+        try { if (fs.statSync(p).isFile()) AUDIT_BLOB[p] = fs.readFileSync(p, 'utf8'); } catch (e) { /* 跳过 */ }
+    }
+} catch (e) { /* 无 tests/audit 目录：跳过（结构漂移由别处判） */ }
+const TOOL_BLOB = {};
+try {
+    for (const kT of fs.readdirSync('tools')) {
+        const p = 'tools/' + kT;
+        try { if (fs.statSync(p).isFile()) TOOL_BLOB[p] = fs.readFileSync(p, 'utf8'); } catch (e) { /* 跳过 */ }
+    }
+} catch (e) { /* 无 tools 目录：跳过 */ }
 for (const name of defLines.keys()) {
     const forms = {};
     for (const k of ['call', 'opt', 'prop', 'q']) forms[k] = FORM[k](name.replace(/[$]/g, '\$'));
@@ -182,6 +220,13 @@ for (const name of defLines.keys()) {
     for (const tf of Object.keys(TEST_BLOB)) {
         if (TEST_BLOB[tf].includes(name)) methodHits[name].test++;
     }
+    /* [v3.279.0 O7] 审计/工具面命中也算「有面守着」，与 TEST_BLOB 同桶。 */
+    for (const kA of Object.keys(AUDIT_BLOB)) {
+        if (AUDIT_BLOB[kA].includes(name)) methodHits[name].test++;
+    }
+    for (const kA of Object.keys(TOOL_BLOB)) {
+        if (TOOL_BLOB[kA].includes(name)) methodHits[name].test++;
+    }
 }
 const zeroRefs = [], testOnly = [];
 for (const [name, h] of Object.entries(methodHits)) {
@@ -189,10 +234,10 @@ for (const [name, h] of Object.entries(methodHits)) {
     if (h.test) testOnly.push(name); else zeroRefs.push(name);
 }
 zeroRefs.sort(); testOnly.sort();
-console.log('=== A7 方法级死代码台账（v3.227.0 分域）: 方法 ' + defLines.size + ' / 有真引用 ' + (defLines.size - zeroRefs.length - testOnly.length) + ' / 仅测试 ' + testOnly.length + ' / 零引用 ' + zeroRefs.length + ' ===');
+console.log('=== A7 声明级死代码台账（v3.279.0 扩面：方法 + 函数声明 + 顶层常量表）: 声明 ' + defLines.size + ' / 有真引用 ' + (defLines.size - zeroRefs.length - testOnly.length) + ' / 仅测试·审计 ' + testOnly.length + ' / 零引用 ' + zeroRefs.length + ' ===');
 console.log('=== A7.1 零引用（真死代码，硬失败） (' + zeroRefs.length + '):');
 console.log(zeroRefs.length ? '  ' + zeroRefs.join(String.fromCharCode(10) + '  ') : '  （无）');
-console.log('=== A7.2 仅测试引用（对外契约面，由测试守着） (' + testOnly.length + '):');
+console.log('=== A7.2 仅测试/审计引用（对外契约面，由测试与扫描器守着） (' + testOnly.length + '):');
 console.log(testOnly.length ? '  ' + testOnly.join(', ') : '  （无）');
 const DEAD_BASELINE = 'tests/audit/scan_wiring_dead_methods.tsv';
 let baselineList = null;
@@ -239,8 +284,8 @@ if (loadOnly.length) hardFails.push('A8.2 读而无存 ' + loadOnly.length + ' �
 // [v3.227.0] A7.1 零引用同样是实质缺陷（注册了但没人调 ⇒ 永不执行）；用冻结基线分「已知」与「新增」，新增即硬失败。
 const newDead = zeroRefs.filter((n) => !baselineList.includes(n));
 const goneDead = baselineList.filter((n) => !zeroRefs.includes(n));
-if (newDead.length) hardFails.push('A7.1 新增零引用方法 ' + newDead.length + ' 个: ' + newDead.join(', '));
-if (goneDead.length) hardFails.push('A7.1 基线里的方法已不再零引用（请更新基线）: ' + goneDead.join(', '));
+if (newDead.length) hardFails.push('A7.1 新增零引用方法（本面含函数声明与顶层常量表） ' + newDead.length + ' 个: ' + newDead.join(', '));
+if (goneDead.length) hardFails.push('A7.1 基线里的方法已不再零引用（请更新基线；本面含函数声明与顶层常量表）: ' + goneDead.join(', '));
 if (hardFails.length) {
     console.error('');
     console.error('[wiring] 发现 ' + hardFails.length + ' 类硬缺陷：');

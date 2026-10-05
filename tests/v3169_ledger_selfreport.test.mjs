@@ -21,6 +21,25 @@ const sui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8')
 /* [v3.258.0 A1 第二刀] OpLog 已抽为 memory-aux.js：真执行面与源码面均改读模块文件。
  *   本档的语义（环形 500 / 自述面 / 字段上限同源）一字不改 —— 只换被读的文件。 */
 const aux = readFileSync(new URL('../memory-aux.js', import.meta.url), 'utf-8');
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从 memory-aux.js 源码抠 `class OpLog` 类体 + new Function
+ *   重放（A/B/C/D 组执行面各抠一次，F1-F3 三处又各抠一次，共 4 处）。那是与真类并行的第二实现。
+ *   现在直接 require 真模块拿真类。同步修正一处**假绿**（O7「扫描器与负控制副本同步跟真源迁移」）：
+ *   F1-F3 原先用 idx.replace(...) 做破坏，而三个锚点早在 OpLog 外移时就搬到了 memory-aux.js ——
+ *   破坏根本没发生，判据只是因「idx 里没有 class OpLog」而抛错，被 negative 记成「翻红」。
+ *   现改走 _negative_util.loadBroken 的既定口径：真源码破坏 → 子进程加载破坏副本 → 在副本上跑同款判据。 */
+import { createRequire } from 'node:module';
+import { loadBroken } from './_negative_util.mjs';
+import { breakSource } from './_break_kit.mjs';
+const require_ = createRequire(import.meta.url);
+const MA = require_(new URL('../memory-aux.js', import.meta.url).pathname);
+
+/** [v3.279.0 O7] 加载模块的**破坏副本**并取真类（子进程加载，行为证据来自破坏后的真源码）。 */
+function brokenOpLog(anchor, repl, tag) {
+    const broken = breakSource(aux, anchor, repl, tag);
+    const mod = loadBroken(broken, 'oplog_' + tag);
+    assert.ok(mod && mod.OpLog, '破坏副本仍应导出 OpLog（否则测的不是本判据）');
+    return mod.OpLog;
+}
 
 // ---------- 源码抽取工具 ----------
 
@@ -62,7 +81,7 @@ function classSpan(src, name) {
 }
 
 /** 从源码装载 OpLog 类（真执行，不用桩）。 */
-const OpLog = new Function('return (' + classSpan(aux, 'OpLog') + ')')();
+const OpLog = MA.OpLog;   // [v3.279.0 O7] 真模块类（原为抠类体 + new Function 重放）
 
 // ---------- 行级剥注释 ----------
 // 背景（本版负控制实测的假绿）：文本判据若在**原始源码**上做字面包含检查，代码注释里的
@@ -437,9 +456,10 @@ function negative(broken, check, label) {
 
 test('F1 负控制：删掉淘汰计数 → B 组判据必须翻红', () => {
     negative(
-        idx.replace('this._truncated = (this._truncated || 0) + _over;', ''),
-        (src) => {
-            const cls = new Function('return (' + classSpan(src, 'OpLog') + ')')();
+        null,
+        () => {
+            /* [v3.279.0 O7] 真源码破坏（锚点在 memory-aux.js，早已不在 idx）+ 破坏副本真跑 */
+            const cls = brokenOpLog('this._truncated = (this._truncated || 0) + _over;', '', 'f1_truncated');
             const l = new cls();
             for (let i = 0; i < 700; i++) l.log('graph', 'add', 'n' + i, i, '');
             assert.equal(l.stats().truncated, 200);
@@ -450,9 +470,9 @@ test('F1 负控制：删掉淘汰计数 → B 组判据必须翻红', () => {
 
 test('F2 负控制：删掉裁剪留痕 → A 组判据必须翻红', () => {
     negative(
-        idx.replace('this._trimFields = (this._trimFields || 0) + 1;', ''),
-        (src) => {
-            const cls = new Function('return (' + classSpan(src, 'OpLog') + ')')();
+        null,
+        () => {
+            const cls = brokenOpLog('this._trimFields = (this._trimFields || 0) + 1;', '', 'f2_trim');
             const l = new cls();
             l.log('summary', 'evict', 'sum_' + 'x'.repeat(80), 12, 't');
             assert.equal(l.stats().trimFields, 1, '裁剪必须留痕');
@@ -463,9 +483,9 @@ test('F2 负控制：删掉裁剪留痕 → A 组判据必须翻红', () => {
 
 test('F3 负控制：删掉 import 丢弃记账 → B4 必须翻红', () => {
     negative(
-        idx.replace('this._importDropped = (this._importDropped || 0) + _drop;', ''),
-        (src) => {
-            const cls = new Function('return (' + classSpan(src, 'OpLog') + ')')();
+        null,
+        () => {
+            const cls = brokenOpLog('this._importDropped = (this._importDropped || 0) + _drop;', '', 'f3_import');
             const l = new cls();
             l.import({ entries: Array.from({ length: 900 }, (_, i) => ({ seq: i + 1, ts: 1, type: 'g', op: 'add', ref: 'r', floor: i, meta: '' })), seq: 900 });
             assert.equal(l.stats().importDropped, 400);
@@ -544,7 +564,7 @@ test('A6 读侧与写侧必须共用同一套字段上限（唯一真源）', ()
     assert.equal(log.queryByType(longType).length, 1, 'type 检索同样必须同源');
 
     // 源码层面：检索入口必须调用规范化，而不是各自 slice
-    const cls = classSpan(aux, 'OpLog');
+    const cls = classSpan(aux, 'OpLog');   // [v3.279.0 O7] 源码面（读模块文件本身，不是抠类体重放）
     assert.ok(/queryByRef\(\s*refId\s*\)\s*\{[^}]*normRef/.test(cls), 'queryByRef 必须经 normRef');
     assert.ok(/queryByType\(\s*type\s*\)\s*\{[^}]*_retention\(\)/.test(cls), 'queryByType 必须经 _retention');
 });

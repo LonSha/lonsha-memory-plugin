@@ -5,23 +5,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
+import { createRequire } from 'node:module';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 /* [v3.258.0 A1 第三刀] OutlineDirector 已抽为 narrative-generators.js。
    静态面（class 体）读模块文件；接线面（调用点 this.outline.exhausted 等）仍在 index.js —— 分读两个真源。 */
 const genSrc = readFileSync(new URL('../narrative-generators.js', import.meta.url), 'utf-8');
-
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从 narrative-generators.js 抠 OutlineDirector 类体
+ *   + new Function 重放（连 braceEnd 抽取机器一起），那是与真类**并行的第二实现**；
+ *   现在直接 require 真模块拿真类 —— 语义一字不改，只换「被跑的对象」。 */
+const require_ = createRequire(import.meta.url);
+const NG = require_(new URL('../narrative-generators.js', import.meta.url).pathname);
 
 test('=== 1. planNext 静态验证 ===', () => {
     assert.ok(genSrc.includes('async planNext(config, llm, engine, floor)'), 'planNext 方法');
@@ -35,15 +29,8 @@ test('=== 1. planNext 静态验证 ===', () => {
 });
 
 test('=== 2. planNext 行为测试（mock LLM 闭环）===', async (t) => {
-    const clsStart = genSrc.indexOf('class OutlineDirector');
-    const brace = genSrc.indexOf('{', clsStart);
-    let depth = 0, clsEnd = -1;
-    for (let i = brace; i < genSrc.length; i++) {
-        if (genSrc[i] === '{') depth++;
-        else if (genSrc[i] === '}') { depth--; if (depth === 0) { clsEnd = i; break; } }
-    }
-    const odCode = genSrc.slice(clsStart, clsEnd + 1);
-    const OutlineDirector = new Function('return (' + odCode + ');')();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const OutlineDirector = NG.OutlineDirector;
 
     const od = new OutlineDirector();
     const raw = `<stage_title>第一阶段</stage_title><stage_goal>测试</stage_goal><stage_tempo>mixed</stage_tempo>

@@ -22,6 +22,25 @@ const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-c
  *   一个文件里只能有一个真源：凡「从 index.js 抽 StorageManager 方法」的抽取点均改读 memory-organs.js。 */
 const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
 const pickSrc = (marker) => (src.includes(marker) ? src : orgSrc);
+
+/* [v3.279.0 O7] 抽取面改为**真模块装载**（本档只换被跑的对象）：
+ *   `makeSaveEnv` 修前从 memory-organs.js 抠 `async save` 方法体 + new Function 重放，并手注入
+ *   window / console / ARCHIVE_TOP_LEVEL_KEY_SET / STORAGE_FP_FIELDS / VERSION / PLUGIN_NAME —
+ *   那是与真实现并行的第二个 StorageManager（写作合流、会话身份保护、骤减保护改了它不会跟）。
+ *   现在直接 require 真模块拿真类；宿主面按真契约挂 globalThis.window（getContext 指向当前场景）。
+ *   保留面：`recordSaveSource` / `recordSaveFailed` / `getSaveSourceReport` 三个方法仍在宿主
+ *   index.js 同一文件里（非模块），仍走模板提取（与 v3278 C 段口径一致：只留宿主同文件函数）。 */
+import { createRequire } from 'node:module';
+const require_ = createRequire(import.meta.url);
+const MO = require_(new URL('../memory-organs.js', import.meta.url).pathname);
+
+/* 宿主面（globalThis.window）：同一进程内按场景复用，makeSaveEnv 只换 HOST.ctx。 */
+const HOST = {
+    ctx: null,
+    get SillyTavern() { return HOST.ctx ? { getContext: () => HOST.ctx } : undefined; },
+    get LonShaMemory() { return { emergency: { save: async () => {} } }; },
+};
+globalThis.window = HOST;
 const STORAGE_KEY = 'lonsha_memory';
 
 /* ══════════════ 0. 版本与发布卫生 ══════════════ */
@@ -82,16 +101,16 @@ function makeSaveEnv({ saveChatReturn = true, withPending = false, chatMetadata 
             return saveChatReturn;
         },
     };
-    const win = { SillyTavern: { getContext: () => ctx }, LonShaMemory: { emergency: { save: async () => {} } } };
-    const body = extractBraced('async save(chatId, data) {');
-    const st = { STORAGE_KEY, _isWriting: false, _revision: 0, _confirmed: null, _lastWrite: null };
-    if (withPending) {
-        st._pendingWrites = new Map();
-        st._mergedBatches = 0; st._coalescedByChat = {}; st._crossChatCoexists = 0; st._lastMergedRevis = 0;
+    HOST.ctx = ctx;
+    const st = new MO.StorageManager();
+    st._lastWrite = null;
+    if (!withPending) {
+        /* E 段：模拟「只提供部分字段的调用方」（测试桩 / 热更新残留实例）——
+         *   save 必须能惰性补全，而不是抛 TypeError 把「保存失败」变成「保存崩溃」。 */
+        delete st._pendingWrites;
     }
-    const fn = new Function('window', 'console', 'errLog', 'ARCHIVE_TOP_LEVEL_KEY_SET', 'STORAGE_FP_FIELDS', 'VERSION', 'PLUGIN_NAME',
-        `return async function (chatId, data) { ${body} }`)(
-        win, { warn() {}, error() {}, log() {} }, () => {}, new Set(['graph', 'summaries']), ['graph'], '3.166.0', 'T');
+    /* 真类原型方法直接当夹具函数（与原「new Function 返回的 async 函数」同形）。 */
+    const fn = MO.StorageManager.prototype.save;
     return { st, fn, seen, dataSeen, ctx };
 }
 

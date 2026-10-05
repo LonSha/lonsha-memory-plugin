@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -13,17 +14,11 @@ const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 /* [v3.259.0 A1 第四刀] RelativeTimeHelper 已外迁到 memory-books.js。 */
 const bkSrc = readFileSync(`${REPO_ROOT}/memory-books.js`, 'utf-8');
 
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从 memory-books.js 源码抠 `class RelativeTimeHelper` 类体（extractClass）+ 只做子串检查，那是与真类并行的第二实现；现在直接 require 真模块拿真类：静态面仍按「入口 + 该模块」合看，行为面改成真跑 `compactTimeRange` / `formatTimeRange`（保留原手写复刻断言，真证据只增不减）。 */
+const require_ = createRequire(import.meta.url);
+const MB = require_(new URL('../memory-books.js', import.meta.url).pathname);
+/* [v3.279.0 O7] 真类实例：行为面直接调它（手写复刻仅作对账基线）。 */
+const rth = new MB.RelativeTimeHelper();
 
 test('=== 1. 清洗误伤修复检查 ===', () => {
     // v3.73 修复：extractDualTimeTags 用清洗前原文 _rawForSynopsis
@@ -32,9 +27,9 @@ test('=== 1. 清洗误伤修复检查 ===', () => {
 });
 
 test('=== 2. compactTimeRange 功能测试 ===', () => {
-    const cls = extractClass(bkSrc, 'class RelativeTimeHelper');
-    assert.ok(cls, 'RelativeTimeHelper 可提取');
-    // 提取 compactTimeRange 方法并单测（逻辑复刻）
+    // [v3.279.0 O7] 静态面：真实现仍在 memory-books.js（不再是源码抠类体）
+    assert.ok(bkSrc.includes('compactTimeRange(a, b)'), '真实现含 compactTimeRange');
+    // 手写复刻（保留为对账基线）
     const compact = (a, b) => {
         const s1 = String(a || '').trim(), s2 = String(b || '').trim();
         if (!s1 || !s2) return s2;
@@ -56,6 +51,13 @@ test('=== 2. compactTimeRange 功能测试 ===', () => {
     // 空值防护
     assert.strictEqual(compact('', 'x'), 'x', '空 a');
     assert.strictEqual(compact('x', ''), '', '空 b');
+    /* [v3.279.0 O7] 真实现对账：同一批用例真跑 RelativeTimeHelper.compactTimeRange */
+    assert.strictEqual(rth.compactTimeRange('2023/9/10 06:45', '2023/9/10 06:55'), '06:55', '真实现 同日期压缩');
+    assert.strictEqual(rth.compactTimeRange('2023/9/10 23:50', '2023/9/11 00:10'), '11 00:10', '真实现 跨日部分压缩');
+    assert.strictEqual(rth.compactTimeRange('庆历四年暮春 辰时', '庆历四年暮春 巳时'), '巳时', '真实现 古风压缩');
+    assert.strictEqual(rth.compactTimeRange('1988/1/1', '1999/12/31'), '1999/12/31', '真实现 前缀不重合保留');
+    assert.strictEqual(rth.compactTimeRange('', 'x'), 'x', '真实现 空 a');
+    assert.strictEqual(rth.compactTimeRange('x', ''), '', '真实现 空 b');
 });
 
 test('=== 3. formatTimeRange 功能测试 ===', () => {
@@ -76,6 +78,10 @@ test('=== 3. formatTimeRange 功能测试 ===', () => {
     assert.strictEqual(formatTimeRange('2023/9/10 06:45', '2023/9/10 06:55', compact), '2023/9/10 06:45 - 06:55', '压缩展示');
     assert.strictEqual(formatTimeRange('2023/9/10 06:45', '', compact), '2023/9/10 06:45', '无止只起');
     assert.strictEqual(formatTimeRange('', 'x', compact), '', '无起空串');
+    /* [v3.279.0 O7] 真实现对账：真跑 RelativeTimeHelper.formatTimeRange（内部走真 compactTimeRange） */
+    assert.strictEqual(rth.formatTimeRange('2023/9/10 06:45', '2023/9/10 06:55'), '2023/9/10 06:45 - 06:55', '真实现 压缩展示');
+    assert.strictEqual(rth.formatTimeRange('2023/9/10 06:45', ''), '2023/9/10 06:45', '真实现 无止只起');
+    assert.strictEqual(rth.formatTimeRange('', 'x'), '', '真实现 无起空串');
 });
 
 test('=== 4. rth 实例与 rangeLabel 检查 ===', () => {

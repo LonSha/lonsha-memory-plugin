@@ -7,6 +7,11 @@ const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 /* [v3.258.0 A1 第二刀] Mutex 已抽为 memory-aux.js：真执行面读模块文件（宿主仍内联声明由 v3259 A 段钉住）。 */
 const auxSrc = readFileSync(new URL('../memory-aux.js', import.meta.url), 'utf8');
+import { createRequire } from 'node:module';
+import { breakSource } from './_break_kit.mjs';
+import { loadBroken } from './_negative_util.mjs';
+const require_ = createRequire(import.meta.url);
+const MA = require_('../memory-aux.js');
 function extractBraced(marker, source) {
     const text = source || src;
     const start = text.indexOf(marker);
@@ -19,12 +24,9 @@ function extractBraced(marker, source) {
     }
     return text.slice(open + 1, i);
 }
-const mkMutex = () => {
-    const body = extractBraced('class Mutex {', auxSrc);
-    // 类体含 constructor/get 简写，必须塞回 class 而非 function 体
-    return new Function('setTimeout', 'clearTimeout', 'console', `return class Mutex { ${body} }`)(
-        setTimeout, clearTimeout, { warn: () => {} });
-};
+/* [v3.279.0 O7] 真模块装载（修前：抠 `class Mutex` 类体塞回 class + 函数构造重放
+ *   —— 那是与真类**并行的第二实现**，真类漂移时本档绿着而真类已坏）。现在直接取真类。 */
+const mkMutex = () => MA.Mutex;
 test('v3.145 Mutex 令牌：非持有者释放被拒绝，持有者释放生效', async () => {
     const M = mkMutex();
     const m = new M();
@@ -74,6 +76,23 @@ test('v3.145 _leaseValid：双类失效（切聊/状态变更）+ 开关可回�
     assert.equal(fn.call(eng(6, 'c1'), { chatId: 'c1', epoch: 5 }), false, '同会话但状态已回滚→失效（v3.141 挡不住的那一类）');
     const off = new Function(`return function (lease) { ${body} }`)();
     assert.equal(off.call({ config: { config: { sessionLeaseGuardEnabled: false } }, _mutationEpoch: 9, getCurrentChatId: () => 'zzz' }, { chatId: 'c1', epoch: 1 }), true, '开关关闭退回宽松');
+});
+test('v3.145★ 负控制：真源码破坏「正当释放」判定 → 越权释放行为必须改变', async () => {
+    const anchor = 'if (cred && cred === this._holder) { /* 正当释放 */ }';
+    assert.equal(auxSrc.split(anchor).length - 1, 1, '破坏锚点必须恰中 1 次');
+    const bmod = loadBroken(breakSource(auxSrc, anchor, 'if (cred !== undefined || true) { /* 正当释放 */ }', 'v3145-negctl'), 'v3145_negctl');
+    const BM = bmod.Mutex;
+    const m = new BM();
+    const a = await m.acquire('taskA');
+    m.release({ id: 999, owner: 'intruder' });
+    assert.equal(m.locked, false, '破坏后：越权释放被当成正当释放（锁被外人放开）—— 证明负控制可观测');
+    assert.equal(m._foreignRelease, 0, '破坏后：越权计数不再累加');
+    // 原版同址必须拒绝
+    const mu = new MA.Mutex();
+    const a2 = await mu.acquire('taskA');
+    mu.release({ id: 999, owner: 'intruder' });
+    assert.equal(mu.locked, true, '原版：非签发者不得放开锁');
+    assert.equal(mu._foreignRelease, 1, '原版：越权释放计数可见');
 });
 test('v3.145 三处异步路径均携带 epoch 身份并走统一判据', () => {
     for (const v of ['_omrLease', '_bfLease', '_stlLease']) {

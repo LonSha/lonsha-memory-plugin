@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.278.0';
+    const VERSION = '3.279.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1565,14 +1565,9 @@ function relativeTimeLabel(eventTime, nowTime) {
         if (!len || len <= 0 || aiReplyCount <= 0) return 0;
         return ((aiReplyCount - 1) % len) + 1;
     }
-    function collectCycleTasks(tasks, position) {
-        if (!position || position <= 0) return [];
-        return (tasks || []).filter(t => t?.enabled && (t.cyclePositions || []).includes(position));
-    }
     // [v3.23] 剧情时间约束解析（NE-Memory parseTimeConstraint 移植）
     // 从 recall 查询中解析出时间约束（Day X / 月 / ISO 日期 / 相对时间），
     // 供 timeline 召回前做时间过滤——"那天/周二/5月 发生了什么"这类查询也能命中时间线
-    const TIME_WORDS_ZH = ['今天','昨天','明天','前天','上午','下午','晚上','早晨','凌晨','周一','周二','周三','周四','周五','周六','周日','一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月','天','周','月','年','小时','分钟','星期','礼拜'];
     function parseStoryTimeConstraint(query) {
         try {
             const q = String(query || '').trim();

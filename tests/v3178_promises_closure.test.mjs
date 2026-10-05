@@ -9,6 +9,11 @@
 //   两层断裂叠加：提取端声明了、注入端不给钥匙、消费端不存在。
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
+import { createRequire } from 'node:module';
+import { breakSource } from './_break_kit.mjs';
+import { loadBroken } from './_negative_util.mjs';
+const require_ = createRequire(import.meta.url);
+const MO = require_('../memory-organs.js');
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] WorldProgress 已外移 memory-organs.js：下方抽取面改读该模块（语义一字不改）。 */
@@ -18,28 +23,9 @@ let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
 
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
-function extractClass(source, name) {
-    const start = source.indexOf(`class ${name} {`);
-    if (start < 0) throw new Error('missing class ' + name);
-    const brace = source.indexOf('{', start);
-    return source.slice(start, braceEnd(source, brace) + 1);
-}
-const errLog = () => {};
-const mkWorldProgress = (source = orgSrc) => new Function('errLog', `
-    ${extractClass(source, 'WorldProgress')}
-    return new WorldProgress();
-`)(errLog);
+/* [v3.279.0 O7] 真模块装载（修前：抠 `class WorldProgress` 类体 + 函数构造重放 = 并行的第二实现）；
+ *   负控制改走 loadBroken（真源码破坏 → 破坏副本 → 同款真判据）。 */
+const mkWorldProgress = () => new MO.WorldProgress();
 
 console.log('=== 1. 静态锚点：回路三端齐备 ===');
 {
@@ -130,8 +116,8 @@ console.log('=== 5. 负控制：破坏幂等后行为必须改变 ===');
     const hits = orgSrc.split(ANCHOR).length - 1;
     assert.equal(hits, 1, `破坏锚点必须恰中 1 次（实际 ${hits}）`);
 
-    const brokenSrc = orgSrc.replace(ANCHOR, '// [negctl] 幂等守卫已移除');
-    const bwp = mkWorldProgress(brokenSrc);
+    const _bmod = loadBroken(breakSource(orgSrc, ANCHOR, '// [negctl] 幂等守卫已移除', 'v3178-negctl'), 'v3178_negctl');
+    const bwp = new _bmod.WorldProgress();
     const p = bwp.addPromise({ character: 'N', content: 'negctl', floor: 1 });
     bwp.resolvePromise(p.id, 'fulfilled', 2);
     const second = bwp.resolvePromise(p.id, 'broken', 3);

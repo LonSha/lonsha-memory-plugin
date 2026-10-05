@@ -1,6 +1,11 @@
 # TODO — LonSha 记忆插件
 
-> **最近更新：v3.278.0** —— O7 第二批：把 9 个历史抽取套件从「从源码抠已外移类 + `new Function` 重放」迁为**真模块装载**（`createRequire` + `memory-core.js` / `memory-organs.js` / `memory-books.js`），语义一字不改、`assert`/`ok(`/`test(` 逐条保留。
+> **最近更新：v3.279.0** —— O7 第三批收尾：**扫描器的面漏了一类，结论就完全反了**。`scan_wiring` 的 A7 从「方法级」扩到**声明级**（方法 + 函数声明 + 顶层常量表），引用面补上 `tests/audit/*` 与 `tools/*`；扩面后当场现形两条**永不执行**的真死声明（`collectCycleTasks` / `const TIME_WORDS_ZH`）并删除。
+> 修前的面：`DEF_RE` 负向断言显式排除函数声明形态，顶层 `const <表> = [` 也不在面内 —— 于是 A7 一直报「零引用 0」，被读成「没有死代码」。与 v3.227.0 的**文件面**漏洞（漏 `settings-ui.js`，`fetchModels` 被判零引用）同族。
+> 读数：`A7 声明级…: 声明 579 / 有真引用 554 / 仅测试·审计 25 / 零引用 0`（旧读数「方法 474 / 462 / 12 / 0」）。
+> 处置：两条死声明删除（`index.js` 13776 → 13771 行）；台账头补扩面留痕；A7.1 失败文案补面说明、**保留**被 v3228/v3230 匹配的子串。
+> 新面 `tests/v3279_o7_scanner_decl_surface.test.mjs`（8 段，判据与负控制跑同一个 `judge`）；`host_beast_baseline` 按探针重建到 3.279.0。
+> [v3.278.0 上一版] O7 第二批：9 个历史抽取套件从「从源码抠已外移类 + `new Function` 重放」迁为真模块装载，减负账本 `new Function` 22→5 / `extractClass` 28→1 / `areLabelsInConflict` 4→0。
 > 减负账本：`new Function` 22→5（余下 5 处全是宿主同文件函数，合法保留）/ `RELATION_CONFLICT_GROUPS` 8→0 / `areLabelsInConflict` 4→0 / `extractClass` 28→1 / `braceEnd` 20→0；九档字节 77082→70992。
 > 真实行为证据增量（双向对照，不是单向破坏）：破坏 `memory-core.js` 的 `normalizeCharName` ⇒ `v360_graph_dedup` **迁移前 rc=0 / 迁移后 rc=1**；方法级破坏（`vacuum`/`addEdge`/`addNode`/…）迁移前后都红 —— 故增量**严格来自类外符号**，如实记录。
 > 迁移边界（实证）：只迁已外移的类；宿主同文件函数（`buildNpcTierInjection`/`fmtNpcTiesContext`/`extractThinkingChain`/`stripMemoryOpsTags`）的 `new Function` 抽取面保留 —— `v343` 第 2 段仍需 `errLog`（首轮误删致 `ReferenceError`）。

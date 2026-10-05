@@ -27,7 +27,8 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'node:url';
-import { breakOnce as breakText } from './_break_kit.mjs';
+import { breakOnce as breakText, breakSource } from './_break_kit.mjs';
+import { loadBroken } from './_negative_util.mjs';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
@@ -42,6 +43,11 @@ const idxSrcRaw = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const idxSrc = idxSrcRaw + String.fromCharCode(10) + (fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8'))
+/* [v3.279.0 O7] GameClock 真源在 memory-core.js；下方 GameClock 抽取面已迁为真模块装载。
+ *   ⚠ 边界纪律：绝不从 idxSrc（index.js + memory-core.js 合并文本）里找 `class GameClock {` ——
+ *   那会真的命中，等于「从合并文本抠真类」，仍是隐藏的抽取面；真类一律直接 require 模块。 */
+const CORE_SRC = fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const MC = require(new URL('../memory-core.js', import.meta.url).pathname);
 const manifest = JSON.parse(fs.readFileSync(path.join(REPO, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
 const changelog = fs.readFileSync(path.join(REPO, 'CHANGELOG.md'), 'utf8');
@@ -65,23 +71,14 @@ const LEDGER_SNAP = () => ({
 });
 const bridgeWith = (snap) => ({ settings: () => ({ enabled: true }), stat: () => ({}), snapshot: () => snap });
 const readSnap = (api, snap) => api.readWorldSnapshot({ win: { LonShaWorldClockReader: CLOCK, worldaxis_bridge_v1: bridgeWith(snap) } });
-// ── GameClock 抽取（花括号配平；class 边界即 class GameClock） ──
-function extractClass(source, name) {
-    const start = source.indexOf('class ' + name + ' {');
-    assert.ok(start > 0, `找到 class ${name}`);
-    let depth = 0, i = source.indexOf('{', start), end = -1;
-    for (; i < source.length; i++) {
-        if (source[i] === '{') depth++;
-        else if (source[i] === '}') { depth--; if (depth === 0) { end = i + 1; break; } }
-    }
-    assert.ok(end > 0, `class ${name} 花括号闭合`);
-    return source.slice(start, end);
+/* [v3.279.0 O7] 破坏副本装载：真源码（memory-core.js）破坏 → 子进程加载破坏副本 → 取其中的真类。
+ *   修前这里是「抠类体 + 函数构造重放」——那是与真类并行的第二实现，也是本档唯一残留的抽取面。 */
+function brokenGameClock(brokenSrc) {
+    const mod = loadBroken(brokenSrc, 'v3176_gc_' + (brokenGameClock._n = (brokenGameClock._n || 0) + 1));
+    assert.ok(mod && typeof mod.GameClock === 'function', '破坏副本必须仍导出 GameClock');
+    return mod.GameClock;
 }
-/** 用给定源码造一台 GameClock（破坏副本也走这里 → 判据与破坏同源） */
-function makeClock(source) {
-    return new Function('errLog', 'window', 'return (' + extractClass(source, 'GameClock') + ');')(() => {}, undefined);
-}
-const GC = makeClock(idxSrc);
+const GC = MC.GameClock;   // [v3.279.0 O7] 真类装载
 
 // ══════════ A 缺口四态归因 ══════════
 test('【A1】无 filter 块 → no-filter（上游没告诉我有没有缺口，不是「没有缺口」）', () => {
@@ -370,7 +367,7 @@ test('【G6】worldLedgerLine 未读返回 null；已读/不可用均给得出�
 
 test('【G7】★ 本地投影由插件本体收集（GameClock 上没有 status/outline，挂上去会静默恒空）', () => {
     // [v3.259.0 A1 第四刀] PlotTimeline 已外迁，旧边界会把切片拉到文件末尾；改花括号配平。
-    const gcSrc = extractClass(idxSrc, 'GameClock');
+    const gcSrc = CORE_SRC.slice(CORE_SRC.indexOf('class GameClock {'), CORE_SRC.indexOf('class CharacterState {'));   // [v3.279.0 O7] 模块内类边界切片
     assert.ok(!/_localPeopleLocations\s*\(/.test(gcSrc), '★ 本地投影不得挂在 GameClock 上（时钟无 status/outline ⇒ 对读永远静默返回空）');
     assert.ok(!/_localFactKeys\s*\(/.test(gcSrc));
     assert.ok(/_localPeopleLocations\(\)\s*\{/.test(idxSrc), '投影收集器在插件本体');
@@ -440,7 +437,7 @@ function judgeLedger(api) {
     return { gapDistinct, unknownHonest, ratioSane, sectionDistinct, oneSidedSeparate, claimHonest, reuseLive, noThrow: !threw };
 }
 function judgeClock(source, api) {
-    const GCx = makeClock(source);
+    const GCx = brokenGameClock(source);
     const win = { LonShaWorldClockReader: CLOCK, worldaxis_bridge_v1: bridgeWith(LEDGER_SNAP()) };
     // 判据一：一次读全（含人物/事实对读结果）
     const c = new GCx();
@@ -508,14 +505,14 @@ function brokenCopies() {
         },
         {
             tag: 'B7-archive-drop', what: '读数不随存档恢复（重开后缺口读数丢失）',
-            clock: breakText(idxSrc,
+            clock: breakSource(CORE_SRC,
                 "if (data.worldLedgerRead && typeof data.worldLedgerRead === 'object') {   // [v3.176]",
                 "if (false) {   // [v3.176]",
                 'B7')
         },
         {
             tag: 'B8-carried-drop', what: '读数不进快照（声明了却带不出去）',
-            clock: breakText(idxSrc,
+            clock: breakSource(CORE_SRC,
                 'worldLedgerRead: this._worldLedgerRead ? { ...this._worldLedgerRead } : null  // [v3.176]',
                 'worldLedgerRead: null  // [v3.176]',
                 'B8')
@@ -539,7 +536,7 @@ test('【I1】负控制·原版对照：全部判据在真源码上必须干净'
     assert.equal(j.claimHonest, true, '原版：空 claim 归 unknown');
     assert.equal(j.reuseLive, true, '原版：桥访问复用世界钟读者面（单一真源）');
     assert.equal(j.noThrow, true, '原版：怪异输入不外抛');
-    const k = judgeClock(idxSrc, R);
+    const k = judgeClock(CORE_SRC, R);
     assert.equal(k.readOk, true, '原版：一次读全（含对读）');
     assert.equal(k.carried, true, '原版：读数真的落进快照');
     assert.equal(k.clockKept, true, '原版：本插件时钟不被改写');
@@ -570,7 +567,7 @@ test('【I2】★ 负控制·reader 六处破坏逐项现形，且互不掩护',
 });
 
 test('【I3】★ 负控制·GameClock 接线：存档丢弃 / 快照不携带，各自现形', () => {
-    const kReal = judgeClock(idxSrc, R);
+    const kReal = judgeClock(CORE_SRC, R);
     assert.equal(kReal.restored, true, '原版：可恢复（此判据非恒真）');
     assert.equal(kReal.carried, true, '原版：可携带（此判据非恒真）');
     const b7 = brokenCopies().find(v => v.tag === 'B7-archive-drop');
@@ -609,7 +606,7 @@ test('【I4】工具两向自证：锚点不存在或不唯一必须抛；判据
     // ④ 破坏副本确实与原版不同（防止「破坏打空」造成假绿）
     for (const v of brokenCopies()) {
         if (v.reader) assert.notEqual(v.reader, readerSrc, v.tag + ' 必须真的改了源码');
-        if (v.clock) assert.notEqual(v.clock, idxSrc, v.tag + ' 必须真的改了源码');
+        if (v.clock) assert.notEqual(v.clock, CORE_SRC, v.tag + ' 必须真的改了源码');
     }
 });
 

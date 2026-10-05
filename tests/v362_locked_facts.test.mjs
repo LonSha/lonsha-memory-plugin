@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -16,18 +17,14 @@ const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8') + String.fromCharC
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 
-// 提取 SummarySystem 类（裸括号平衡法，跳过引号干扰风险：类体内无引号陷阱字符串时可靠）
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 SummarySystem 类体 + new Function 重放，
+ *   那是与 memory-core.js 真类**并行的第二实现**（类外符号靠注入，漂移了本档绿着而真类已坏）。
+ *   现在直接 require 真模块拿真类 —— 语义一字不改，只换「被跑的对象」；
+ *   静态面（类内文本扫描）也改读真模块源，不另抄一份。 */
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
+const MC_SRC = readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+
 
 test('=== 1. 静态关键字检查 ===', () => {
     // A1 配置声明
@@ -65,11 +62,8 @@ test('=== 1. 静态关键字检查 ===', () => {
 });
 
 test('=== 2. SummarySystem 类提取与锁定事实方法功能测试 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    assert.ok(cls, 'SummarySystem 可提取');
-    // 两层调用：Function 返回 class，再 new 实例
-    const SummarySystem = new Function('return (' + cls + ')')();
-    const s = new SummarySystem();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const s = new MC.SummarySystem();
     // addLockedFact
     const id1 = s.addLockedFact('林一在聚贤庄留下解药', 42);
     assert.ok(id1 && id1.startsWith('lf_'), 'id 前缀 lf_');
@@ -90,8 +84,8 @@ test('=== 2. SummarySystem 类提取与锁定事实方法功能测试 ===', () =
 });
 
 test('=== 3. export/import 对称测试 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    const SummarySystem = new Function('return (' + cls + ')')();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const SummarySystem = MC.SummarySystem;
     // export 带 lockedFacts
     const s1 = new SummarySystem();
     s1.addLockedFact('测试事实A', 10);
@@ -134,8 +128,8 @@ test('=== 4. 校验器逻辑单元测试（模拟遗漏检测与重试判定） 
 });
 
 test('=== 5. 增量卷摘要 prompt 结构检查 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    assert.ok(cls, 'SummarySystem 提取');
+    /* [v3.279.0 O7] 类内文本扫描改读真模块源（不再从入口抠类体） */
+    const cls = MC_SRC;
     // maybeFold 存在增量逻辑
     const idx = cls.indexOf('async maybeFold');
     assert.ok(idx > 0, 'maybeFold 存在');

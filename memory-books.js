@@ -89,7 +89,11 @@
     }
 
     const _noop = () => {};
-    const _pickErr = (fn) => (typeof fn === 'function' ? fn : _noop);
+    /* [v3.279.0 O7] 可移除副本收紧：原此处另有一个辅助小函数，形如 `(fn) => (typeof fn === 'function' ? fn : _noop)`。
+     *   实测全仓零引用（唯一命中就是它自己的声明行）：它是「选函数或回落到 _noop」的第三种写法，
+     *   而本书册真正的默认诊断注入走下面 bindErrLog（Object.assign 口径，把 errLog 交给三个类）。
+     *   即：它既没被用，也不承载任何契约 —— 是与模块并行的第二份实现里最纯的一类，故删除。
+     *   删除不改语义：_noop 仍被 bindErrLog 使用，保留。 */
     /** 宿主取用的默认诊断注入：把 index.js 的 errLog 交给本书册里的三个类。
      *  抽离副本（测试把某个类单独抠进 new Function）拿不到这个函数，
      *  但那些副本的运行环境里 errLog 通常是注入的形参 —— 类内已按两级兜底。 */

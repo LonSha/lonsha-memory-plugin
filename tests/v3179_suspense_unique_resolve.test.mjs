@@ -11,6 +11,11 @@
 //   悬念簿是同一主线的另一半，尚未收口。
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
+import { createRequire } from 'node:module';
+import { breakSource } from './_break_kit.mjs';
+import { loadBroken } from './_negative_util.mjs';
+const require_ = createRequire(import.meta.url);
+const MB = require_('../memory-books.js');
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [v3.259.0 A1 第四刀] IncrementBookmark / EchoPool / SuspenseBook / PrequelSystem /
@@ -21,27 +26,11 @@ let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
 
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
-function extractClass(source, name) {
-    const start = source.indexOf(`class ${name} {`);
-    if (start < 0) throw new Error('missing class ' + name);
-    const brace = source.indexOf('{', start);
-    return source.slice(start, braceEnd(source, brace) + 1);
-}
-const mkSuspense = (source = bkSrc) => new Function(`
-    ${extractClass(source, 'SuspenseBook')}
-    return new SuspenseBook();
-`)();
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从 memory-books.js 源码抠 `class SuspenseBook`
+ *   类体切片 + 函数构造重放，那是与真类**并行的第二实现**——两处一旦漂移，本档绿着而真类已坏。
+ *   现在直接 require 真模块拿真类；负控制的破坏副本改走 loadBroken（真源码破坏 → 子进程加载
+ *   破坏副本 → 同款真判据）——语义一字不改，只换「被跑的对象」。 */
+const mkSuspense = () => new MB.SuspenseBook();
 
 console.log('=== 1. 静态锚点：唯一命中纪律已落地 ===');
 {
@@ -129,8 +118,9 @@ console.log('=== 7. 负控制：退回「取首个」后行为必须改变 ===')
     const hits = bkSrc.split(ANCHOR).length - 1;
     assert.equal(hits, 1, `破坏锚点必须恰中 1 次（实际 ${hits}）`);
 
-    const brokenSrc = bkSrc.replace(ANCHOR, 'if (cands.length >= 1) it = cands[0]; // [negctl] 退回取首个');
-    const bs = mkSuspense(brokenSrc);
+    const _bmod = loadBroken(breakSource(bkSrc, ANCHOR,
+        'if (cands.length >= 1) it = cands[0]; // [negctl] 退回取首个', 'v3179-negctl'), 'v3179_negctl');
+    const bs = new _bmod.SuspenseBook();
     bs.add('plan', '约好一起去看城南灯会', 3);
     bs.add('plan', '约好陪阿婆去城北庙里还愿', 4);
     const rr = bs.resolve('约好', 'done', '都做了', 9);

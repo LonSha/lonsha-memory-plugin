@@ -6,6 +6,7 @@ import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -15,38 +16,28 @@ const src = readFileSync(path.join(ROOT, 'index.js'), 'utf-8') + String.fromChar
 /* [v3.264.0 A1 第五刀] EntityLexicon 已外移到 memory-organs.js。
  *   凡「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
 const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
-/* 类切片走本文件已有的 extractClass（函数声明提升，放前面也能用） */
-const orgClass = (name) => extractClass(orgSrc, 'class ' + name + ' {');
 const bkSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');  // [v3.259.0 A1 第四刀] BM25 外迁后真源
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
 
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 `class EntityLexicon` 类体与 index.js 的
+ *   `numOr` 内核，再用 new Function 重放并注入 —— 那是与真类并行的第二实现（类体修了、夹具里的
+ *   副本不会跟）。现在直接 require 真模块拿真类，零注入。为兼防「模块内 numOr 与宿主漂移」，
+ *   下面断两面的 numOr 实现逐字一致（漂移就红，而不是静默用副本）。 */
+const require_ = createRequire(import.meta.url);
+const MO = require_(new URL('../memory-organs.js', import.meta.url).pathname);
+const _numOrOf = (text) => {
+    const at = text.indexOf('function numOr(');
+    if (at < 0) return null;
     let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
+    for (let i = at; i < text.length; i++) {
+        const ch = text[i];
         if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
+        else if (ch === '}') { depth--; if (started && depth === 0) return text.slice(at, i + 1); }
     }
     return null;
-}
-/* [v3.157] extract the zero-value kernel from the source so the class under test
-   gets the real implementation, not a stale local copy. */
-function extractKernel(source) {
-    const at = source.indexOf('function numOr(');
-    if (at < 0) throw new Error('numOr kernel not found in index.js');
-    let depth = 0, started = false;
-    for (let i = at; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(at, i + 1); }
-    }
-    throw new Error('numOr kernel is not brace balanced');
-}
-const numOrFromSource = new Function('return (' + extractKernel(src) + ')')();
-/* [v3.264.0] numOr 仍留宿主（第五刀不搬宿主函数，改由 bindDeps 现算注入） */
+};
+assert.strictEqual(_numOrOf(orgSrc), _numOrOf(src), '模块内 numOr 与宿主实现逐字一致（零值内核不漂移）');
 
 function vnum(s) {
     const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(s || '').trim());
@@ -71,7 +62,8 @@ test('【1】结构接线：词典类/双端归一/持久化/感知配额', () =
 test('【2】EntityLexicon：resolve 匹配/词边界/NFKC/条数上限/超限淘汰', () => {
     // [v3.157] EntityLexicon 构造器取值已走零值安全内核 numOr（实体类不再自包含取值逻辑）。
     //   载体随源迁移：内核从源码里提取后注入，而不是本地复制一份（防语义漂移）。
-    const Lex = new Function('numOr', 'return (' + orgClass('EntityLexicon') + ')')(numOrFromSource);
+    /* [v3.279.0 O7] 真模块类（原为抠类体 + new Function 注入 numOr 重放） */
+    const Lex = MO.EntityLexicon;
     const lx = new Lex();
     // 构造期不依赖宿主
     assert.ok(lx && typeof lx.resolve === 'function', '构造零依赖');
@@ -217,14 +209,13 @@ test('【8】版本下限 >= 3.152.0', () => {
 });
 
 // ================= 9. 语法护栏（词典类花括号配平） =================
-test('【9】词典类块配平（防提取错类）', () => {
-    const cls = orgClass('EntityLexicon');
-    assert.ok(cls && cls.length > 1000, '类完整提取');
-    assert.ok(cls.includes('export()'), '含 export 方法');
-    assert.ok(cls.includes('import('), '含 import 方法');
-    assert.ok(cls.includes('resolve('), '含 resolve 方法');
-    assert.ok(cls.includes('normalizeText('), '含 normalizeText');
-    assert.ok(cls.includes('promptRules()'), '含 promptRules');
-    assert.ok(cls.includes('match('), '含 match 方法');
-    assert.ok(cls.includes('_lexExpand') === false, '词典类不包含 BM25 归一方（职责分离）');
+test('【9】词典类方法面齐备（防提取错类）', () => {
+    /* [v3.279.0 O7] 原为「抠类体后查子串」：类边界靠手写配平，抠错类也会绿；
+     *   现在改查**真类原型面** —— 方法在不在原型上是运行时事实，不由文本切片推断。 */
+    assert.ok(orgSrc.includes('class EntityLexicon'), '类声明仍在 memory-organs.js');
+    const P = MO.EntityLexicon.prototype;
+    for (const m of ['export', 'import', 'resolve', 'normalizeText', 'promptRules', 'match']) {
+        assert.ok(typeof P[m] === 'function', '真类原型含 ' + m + ' 方法');
+    }
+    assert.ok(P._lexExpand === undefined, '词典类不包含 BM25 归一方（职责分离）');
 });

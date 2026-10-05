@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -12,17 +13,12 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 /* [v3.258.0 A1 第二刀] FloorLedger 已抽为 memory-aux.js：真执行面读模块文件。 */
 const auxSrc = readFileSync(`${REPO_ROOT}/memory-aux.js`, 'utf-8');
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
+
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 FloorLedger 类体 + new Function 重放，
+ *   那是与 memory-aux.js 真类**并行的第二实现**；现在直接 require 真模块拿真类 ——
+ *   语义一字不改，只换「被跑的对象」（auxSrc 仍保留：静态面读它，不另抄）。 */
+const require_ = createRequire(import.meta.url);
+const MO = require_(new URL('../memory-aux.js', import.meta.url).pathname);
 
 test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
     assert.ok(src.includes('recallAuditEnabled'), 'A 开关存在');
@@ -84,7 +80,8 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
 });
 
 test('=== 2. FloorLedger 召回记账（recallIds/recallHits 累积 + 导出对称） ===', () => {
-    const FloorLedger = new Function('return (' + extractClass(auxSrc, 'class FloorLedger') + ')')();
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const FloorLedger = MO.FloorLedger;
     const l = new FloorLedger();
     // beginFloor 初始化 recallIds
     l.beginFloor(5, {});

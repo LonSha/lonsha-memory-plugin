@@ -15,6 +15,11 @@ const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 /* [v3.259.0 A1 第四刀] RelativeTimeHelper 已外迁 memory-books.js：本档③（extractDualTimeTags 解析诊断）
  *   的真源随之搬走。口径同仓内既有范式：语义一字不改，只换被读的文件。 */
 const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
+import { createRequire } from 'node:module';
+const require_ = createRequire(import.meta.url);
+const MB = require_(new URL('../memory-books.js', import.meta.url).pathname);
+/* [v3.279.0 O7] 真模块装载：下面③的解析诊断直接跑 memory-books.js 的真 RelativeTimeHelper
+ *   （原为「从模块源码抠方法体 + 函数串重放」，那是第二个实现）。 */
 
 function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
@@ -73,10 +78,10 @@ test('v3.130 collectExport 补齐漂移键，load 补齐恢复面', () => {
 });
 
 test('v3.130 extractDualTimeTags 解析诊断（成对/半对/坏标签）', () => {
-    const errLog = () => {};
     /* [v3.259.0 A1 第四刀] 真源已搬到 memory-books.js（宿主不再内联这个类） */
-    const body = extractBraced('extractDualTimeTags(text) {', bkSrc);
-    const fn = new Function('errLog', `return function (text) { ${body} }`)(errLog);
+    /* [v3.279.0 O7] 真类实例：直接调真 extractDualTimeTags（原为抠方法体 + new Function 重放） */
+    const rth = new MB.RelativeTimeHelper();
+    const fn = (text) => rth.extractDualTimeTags(text);
     const ok = fn('<bbs_start>2026/9/15 21:30</bbs_start>正文<bbs_end>2026/9/15 21:45</bbs_end>');
     assert.equal(ok.hasDual, true);
     assert.equal(ok.parseError, null, '数字日期成对无 parseError');

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -15,17 +16,11 @@ const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8') + String.fromCharC
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
 const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 
-function extractClass(source, startMarker) {
-    const start = source.indexOf(startMarker);
-    if (start < 0) return null;
-    let depth = 0, started = false;
-    for (let i = start; i < source.length; i++) {
-        const ch = source[i];
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') { depth--; if (started && depth === 0) return source.slice(start, i + 1); }
-    }
-    return null;
-}
+/* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 SummarySystem 类体 + new Function 重放，
+ *   那是与 memory-core.js 真类**并行的第二实现**；现在直接 require 真模块拿真类 ——
+ *   语义一字不改，只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
 
 test('=== 1. 静态关键字检查 ===', () => {
     // A 金字塔泛化
@@ -69,8 +64,6 @@ test('=== 2. 通用折叠链逻辑复刻测试 ===', () => {
 });
 
 test('=== 3. 重试队列功能测试 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    assert.ok(cls, 'SummarySystem 可提取');
     // enqueueRetry 幂等逻辑复刻
     const queue = [];
     const enqueueRetry = (kind, tier, payload) => {
@@ -98,18 +91,18 @@ test('=== 3. 重试队列功能测试 ===', () => {
 });
 
 test('=== 4. export/import 对称测试 ===', () => {
-    const cls = extractClass(src, 'class SummarySystem');
-    const SummarySystem = new Function('return (' + cls + ')')();
-    const s1 = new SummarySystem();
+
+    // [v3.279.0 O7] 真模块装载（修前是抠类体 + new Function 重放）
+    const s1 = new MC.SummarySystem();
     s1.genericTiers = [{ tier: 3, name: '书', items: [{ text: 'x', tier: 3 }] }];
     const exported = s1.export();
     assert.ok(Array.isArray(exported.genericTiers), 'export 含 genericTiers');
     assert.strictEqual(exported.genericTiers[0].name, '书', '内容一致');
-    const s2 = new SummarySystem();
+    const s2 = new MC.SummarySystem();
     s2.import(exported);
     assert.strictEqual(s2.genericTiers.length, 1, 'import 恢复');
     // 旧快照兼容
-    const s3 = new SummarySystem();
+    const s3 = new MC.SummarySystem();
     s3.import({ summaries: [], volumes: [], historical: [] });
     assert.deepStrictEqual(s3.genericTiers, [], '旧快照兼容');
 });

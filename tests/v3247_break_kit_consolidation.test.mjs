@@ -75,6 +75,9 @@ const MESSAGE_WORDS = Object.values(KIT.BREAK_MSG);
  *   为什么是台账而不是「数量检查」：本仓 v3.246 刚把「收编了谁」与「判据覆盖谁」
  *   收敛成同源；一个纯计数会被「新文件接入、老文件掉队」相互抵消掉。 */
 const REGISTRY = [
+    /* [v3.279.0 O7 第三批] 本档从 tests/_break_kit.mjs 取 breakSource / loadBroken 配套口径（三条真源码破坏，
+     *   锚点取自 memory-aux.js 的 OpLog 三处记账行）；按 B1 台账纪律在此登记。 */
+    'v3169_ledger_selfreport.test.mjs',
     'v3171_trigger_read_surface.test.mjs',
     'v3174_bridge_reader_contract.test.mjs',
     'v3175_world_clock_reader.test.mjs',
@@ -146,6 +149,16 @@ const REGISTRY = [
     /* [v3.278.0 O7 第二批] 本档从 tests/_break_kit.mjs 取 breakSource / assertSingleHit（真源码破坏 + 锚点唯一性断言，
      *   锚点取自 memory-core.js 的 normalizeCharName 与 index.js 的 O7 注入面）；按 B1 台账纪律在此登记。 */
     'v3278_o7_extraction_to_real_load.test.mjs',
+    /* [v3.279.0 O7 第三批·续] 下列五档原为「历史抽取重放」套件，本轮迁为真模块装载 + loadBroken
+     *   （真源码破坏 → 子进程加载破坏副本 → 同款真判据）；按 B1 台账纪律在此登记。 */
+    'v3145_restore_lock.test.mjs',
+    'v3178_promises_closure.test.mjs',
+    'v3179_suspense_unique_resolve.test.mjs',
+    'v391_audit_fixes.test.mjs',
+    /* [v3.279.0 O7 第三批·续] 本档从 tests/_break_kit.mjs 取 breakSource（四条真源码破坏：
+     *   摘 scan_wiring 的函数声明正则 / 摘审计引用面收集 / 摘工具面落桶 / 摘台账头口径）+ 在 D1 里
+     *   对 `assertSingleHit` 做两向自证（锚点 0 次、不唯一、同值替换均须抛）；按 B1 台账纪律在此登记。 */
+    'v3279_o7_scanner_decl_surface.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
