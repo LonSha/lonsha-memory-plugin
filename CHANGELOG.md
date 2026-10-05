@@ -1,3 +1,20 @@
+## v3.274.0
+
+**O4：注入与预测完全消费过程回执**（真裁剪自 v3.251.0 起就记下 `keptIdxInAll` 与硬截断 spans，但**消费侧**仍在自行反推）。
+
+### 修的错
+- **生产聚合数**：`_lastBudgetStats.keptBlocks` 修前拿 `full.includes(块)` 反推 ⇒ 两条完全相同的触发块只留下一份时，被丢数报 0（真读数 1）。改为从逐块读数（`via`）导出，并新增 `countedBlocks / droppedBlocks / partialBlocks / partialBlockChars`。
+- **三态三分**：`被切半` 此前与 `整块被丢` 同形（两者都只是 `includes=false`）。现在「保留 + 被丢 + 被切半 = countedBlocks」是一条可直接对账的等式。
+- **预测侧**（cost-forecast.js）：`predicted.kept/dropped` 同样按 `includes` 反推。改为消费同一回执；**硬截断态按 span 判**（修前整组退回反推）。
+- **成本账本**（cost-ledger.js）：只认「下标清单」，硬截断整组退回反推 ⇒ 被丢块数多报（把半段算成整块被丢）。补上 span 判据，`keptFrom` 四态与生产侧同口径。
+- **面板**（settings-ui.js）：修前拿「候选总数 − 保留数」**自己推**丢弃块数 ⇒ `keptBlocks` 为 null 时被当 0，报「丢弃 N 块」。改为直接消费回执的 `droppedBlocks`，不可测时转专门文案。
+- **宿主谎报全留**（index.js）：路由模块在场但**没标** `trimmed`（版本错配 / 调用抛错回退）时，修前按「没超预算 ⇒ 整批都在」填满下标 —— 而载荷其实已被裁过。新增 `_trimAttempted` 本地事实，该情形如实记不可测。
+
+### 纪律
+- 未知一律记 `null` 并自述来源（`keptFrom / keptWhy`），**不倒推成「成功」**；反推在未裁剪场景恰好偏向「全部留下」，那正是本版要断的谎报形态。
+- 四处消费点（生产聚合 / 预测 / 账本 / 面板）对**同一 trace** 一致。
+- 新增 `tests/v3274_o4_receipt_consumption.test.mjs`（A–E 五段 20 项，含 5 条真源码破坏负控制）。
+
 ## v3.273.0
 **注入预算裁剪的可执行契约（O3）**：超预算时三策略各自裁剪，但**载荷恒超预算且无归因**。
 修前实测（三块无常驻、budget=200）：

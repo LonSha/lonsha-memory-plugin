@@ -115,23 +115,87 @@
         let projected = full;
         let willTrim = false;
         let predicted = null;
+        /* [v3.274.0] O4：**预测的留存判定改为消费裁剪回执**，不再用 `projected.includes(块)` 反推。
+         *   修前实测的两个盲区（与 cost-ledger 同源、同一轮实测）：
+         *     · **同文重复**：候选里两条完全相同的触发块、只装得下一条时，`includes` 对两条
+         *       都为真 ⇒ 预测报「2 块全留」，而真裁剪回执说「留 1 丢 1」；
+         *     · **互为子串 / 半段截断**：块 A 是块 B 的子串，或 recency 硬截断切在块内部，
+         *       反推会把「切了半段」读成「整块被丢」。
+         *   回执由裁剪发生的地点派生（injection-router::trimToBudget），按下标说话，
+         *   两个盲区在构造上不可能发生。**预测与实测从此对同一条事实说话**。
+         *
+         *   三态（与 index.js 的 `_lastBudgetStats` 同规格）：
+         *     · `no-trim`  未裁剪 ⇒ 整批都在载荷里，逐块状态是**真读数**（不是 null）；
+         *     · `trace` / `trace-span` ⇒ 按下标 / 按 span 判定，精确；
+         *     · `unknown`   回执缺席 / 内联回落 / 规模不符 ⇒ **块级数记 null 并自述原因**，
+         *       不倒推成一个数（反推在那些场景恰好偏向「全部留下」，正是本版要断的谎报）。 */
+        const _tr = {};
         try {
             willTrim = full.length > budget;
-            if (willTrim) projected = String(trim(full, budget, blocks, base.strategy) || '');
-            const keptBlocks = blocks.filter((b) => b.length > 0 && projected.includes(b));
-            const droppedBlocks = blocks.filter((b) => b.length > 0 && !projected.includes(b));
-            const keptResident = resident.filter((b) => projected.includes(b));
-            const keptTrigger = trigger.filter((b) => projected.includes(b));
+            if (willTrim) projected = String(trim(full, budget, blocks, base.strategy, { trace: _tr }) || '');
+            /* 回执可用性两问（缺一不可，与 index.js 的 `_injectionBlocksOf` 同一口径）：
+             *   ① 来源必须是**路由模块** —— 内联回落时裁剪真发生了但没有块级清单，
+             *      拿它判「谁留下」就是拿一份不存在的清单判（修前 includes 反推的老路）；
+             *   ② 规模必须与本批候选相符 —— 路由回执用 `residentKept + triggerTotal`
+             *      自证规模（它把候选分成常驻/触发两组，两个数之和就是它见过的块总数）。
+             *      ★ 这里**不能**要求回执带 `version` / `blockCount`：那两个字段是宿主
+             *      （index.js 的回执草稿）填的，路由模块本身不填 —— 本仓第一版就是这么写的，
+             *      结果**每一次**精确回执都被判成「未派发」而整组记 null（假不可测），
+             *      与「把不可测写成数字」是同一族错，只是方向相反。 */
+            const _fromRouter = (_tr.traceFrom === 'router');
+            const _scaleOk = _fromRouter && (Number(_tr.residentKept) + Number(_tr.triggerTotal)) === blocks.length;
+            const _idxOk = _scaleOk && Array.isArray(_tr.keptIdxInAll);
+            const _hard = _scaleOk && (_tr.hardTruncated === true);
+            let keptFrom, keptWhy;
+            if (!willTrim) { keptFrom = 'no-trim'; keptWhy = ''; }
+            else if (_idxOk) { keptFrom = 'trace'; keptWhy = ''; }
+            else if (_hard) { keptFrom = 'trace-span'; keptWhy = '硬截断：块级清单不成立，按 span 判三态'; }
+            else { keptFrom = 'unknown'; keptWhy = (!_fromRouter ? '裁剪未派发回执（模块缺席 / 内联回落）'
+                : (!_scaleOk ? '回执规模与本批候选不符（拿别批回执判本批）'
+                    : '回执形态既不成立块级清单也不是硬截断：' + String(_tr.traceFrom || 'unknown'))) + ' ⇒ 块级留存不可测，不倒推'; }
+            const _idxSet = _idxOk ? new Set(_tr.keptIdxInAll) : null;
+            const _spanAt = _hard ? Number(_tr.sliceAt) : NaN;
+            const _spans = (_hard && Array.isArray(_tr.blockSpans)) ? _tr.blockSpans : null;
+            const _st = blocks.map((b, i) => {
+                if (!b.length) return { i, b, kept: false, partial: false, state: 'empty' };
+                if (!willTrim) return { i, b, kept: true, partial: false, state: 'kept' };
+                if (_idxSet) return { i, b, kept: _idxSet.has(i), partial: false, state: _idxSet.has(i) ? 'kept' : 'dropped' };
+                if (_spans) {
+                    const sp = Array.isArray(_spans[i]) ? _spans[i] : null;
+                    if (!sp) return { i, b, kept: false, partial: false, state: 'unknown' };
+                    const kept = sp[1] <= _spanAt;
+                    const partial = (sp[0] < _spanAt && sp[1] > _spanAt);
+                    return { i, b, kept, partial, state: partial ? 'partial' : (kept ? 'kept' : 'dropped') };
+                }
+                return { i, b, kept: null, partial: null, state: 'unknown' };
+            });
+            const _known = (keptFrom === 'no-trim' || keptFrom === 'trace' || keptFrom === 'trace-span');
+            const _unknownN = _known ? 0 : _st.filter((x) => x.state === 'unknown').length;
+            const _countedN = _st.filter((x) => x.state !== 'empty').length;
+            const keptBlocks = _known ? _st.filter((x) => x.state === 'kept').map((x) => x.b) : null;
+            /* 三态互斥且穷尽：保留 / 被丢 / 被切半 —— 空块既不属哪一边（它是候选里的占位，
+             *   不占载荷字符），**被切半也不得混进「被丢」**（半段其实进了载荷）。 */
+            const droppedBlocks = _known ? _st.filter((x) => x.state === 'dropped').map((x) => x.b) : null;
+            const partialBlocks = _known ? _st.filter((x) => x.state === 'partial').map((x) => x.b) : null;
+            /* 分区一律**按下标**，不按文本回查 —— 同文重复时 `blocks.indexOf(块)` 会把两条
+             *   都指到第一条，正是本版要治的盲区在消费侧的重演（v3251 A2 同一教训）。 */
+            const keptResident = _known ? _st.filter((x) => x.kept === true && isResident(x.b)).map((x) => x.b) : null;
+            const keptTrigger = _known ? _st.filter((x) => x.kept === true && !isResident(x.b)).map((x) => x.b) : null;
+            const _sumLen = (arr) => (arr || []).reduce((a, b) => a + b.length, 0);
 
             // 反向线索真进注入的预测：提权项按「注入里真会出现的片段」匹配**预测文本**。
             const snips = (o.promotedSnippets && typeof o.promotedSnippets === 'object') ? o.promotedSnippets : {};
             const snipKeys = Object.keys(snips);
             let oppInjected = null;
             if (snipKeys.length) {
+                /* [v3.274.0] O4：有块级回执时按**保留块文本**匹配，不再对最终载荷反推 ——
+                 *   片段来自被裁掉的块、却恰好也在别处出现时，反推会把它报成「真进了注入」。
+                 *   无回执（不可测）时退回原口径（对载荷匹配），因为那是唯一可用的证据。 */
+                const _hay = _known ? keptBlocks.join('\n') : projected;
                 oppInjected = 0;
                 for (const k of snipKeys) {
                     const s = String(snips[k] || '').trim();
-                    if (s.length >= 4 && projected.includes(s)) oppInjected++;
+                    if (s.length >= 4 && _hay.includes(s)) oppInjected++;
                 }
             }
 
@@ -147,10 +211,22 @@
                 //   故本模块另给一个与之等价的口径 `overBudgetChars`，对账只用它。
                 preTrimChars: full.length,
                 overBudgetChars: Math.max(0, full.length - projected.length),
-                kept: { blocks: keptBlocks.length, chars: keptBlocks.reduce((a, b) => a + b.length, 0) },
-                dropped: { blocks: droppedBlocks.length, chars: droppedBlocks.reduce((a, b) => a + b.length, 0) },
-                keptResident: { blocks: keptResident.length, chars: keptResident.reduce((a, b) => a + b.length, 0) },
-                keptTrigger: { blocks: keptTrigger.length, chars: keptTrigger.reduce((a, b) => a + b.length, 0) },
+                /* [v3.274.0] O4：块级留存数一律从回执导出；不可测时**整组记 null**（不倒推成功）。
+                 *   `keptFrom` / `keptWhy` 是**如实自述**：读的人当场知道这一组是真读数还是不可测。 */
+                keptFrom,
+                keptWhy,
+                unknownBlocks: _unknownN,
+                /* 参与三态判定的块数（排除空块占位）：与 kept/dropped/partial 三个数自洽 ——
+                 *   三者之和必须等于它，可在判据里直接对账。不可测时为 null（不写 0）。 */
+                countedBlocks: _known ? _countedN : null,
+                kept: _known ? { blocks: keptBlocks.length, chars: _sumLen(keptBlocks) } : null,
+                dropped: _known ? { blocks: droppedBlocks.length, chars: _sumLen(droppedBlocks) } : null,
+                partial: _known ? { blocks: partialBlocks.length, chars: _sumLen(partialBlocks) } : null,
+                keptResident: _known ? { blocks: keptResident.length, chars: _sumLen(keptResident) } : null,
+                keptTrigger: _known ? { blocks: keptTrigger.length, chars: _sumLen(keptTrigger) } : null,
+                // 裁剪过程回执的**归因面**（与 index.js 同一 trace 导出，不另算一份）
+                residentOverflow: (_tr.residentOverflow && typeof _tr.residentOverflow === 'object') ? _tr.residentOverflow : null,
+                hardTruncated: _hard === true,
                 // 反向线索：promoted 的**预计**真进注入条数。无可匹配片段时 null（不可测），不写 0。
                 oppositeInjected: oppInjected,
                 headroom: Math.max(0, budget - projected.length),
@@ -232,11 +308,17 @@
             if (!fc) return '—';
             if (fc.measurable !== true || !fc.predicted) return '预测不可测（' + String(fc.reason || '?') + '）';
             const p = fc.predicted;
+            /* [v3.274.0] O4：块级留存不可测时**不得**写成「丢 0 块」（那是把「测不了」写成「没有」）。
+             *   一行读数上如实标「块级留存不可测」并带归因，与 cost-ledger 的「留存判据=文本反推」同一纪律。 */
             const parts = [
                 '预计预算 ' + p.budget,
                 '注入 ' + p.injectedChars + ' 字符',
-                p.willTrim ? ('裁剪丢 ' + p.dropped.blocks + ' 块/' + p.dropped.chars + ' 字符') : '不裁剪',
+                !p.willTrim ? '不裁剪'
+                    : (p.dropped ? ('裁剪丢 ' + p.dropped.blocks + ' 块/' + p.dropped.chars + ' 字符'
+                        + (p.partial && p.partial.blocks ? '，另 ' + p.partial.blocks + ' 块被切半' : ''))
+                        : ('块级留存不可测（' + String(p.keptFrom || 'unknown') + '）')),
             ];
+            if (p.residentOverflow && Number(p.residentOverflow.over) > 0) parts.push('常驻溢出 ' + p.residentOverflow.over + ' 字符（关键事实保护）');
             if (p.oppositeInjected !== null) parts.push('反向预计进注入 ' + p.oppositeInjected + ' 条');
             if (fc.empty) parts.push('（无候选块）');
             return parts.join(' · ');

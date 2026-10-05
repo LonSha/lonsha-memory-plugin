@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.273.0';
+    const VERSION = '3.274.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -8504,7 +8504,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                     };
                 }
             } catch (e) { errLog(e, 'buildInjection.召回只读边界'); }
+            /* [v3.274.0] O4：**是否真的走过裁剪路径**必须留一个本地事实。
+             *   修前下游只看 `_trace.trimmed`（回执自己标的字段）就下结论，于是
+             *   「模块在场但**没标** trimmed」被当成「没超预算 ⇒ 整批都在」——
+             *   而那是**谎报全留**：载荷其实已经被裁过。
+             *   两条真实可达的路径：模块版本错配（旧 router.js 不写回执）、
+             *   模块调用抛错后回退内联（catch 分支）。两者都让 `trimmed` 停在 false。 */
+            let _trimAttempted = false;
             if (full.length > budget) {
+                _trimAttempted = true;
                 // [v3.251.0] M-O3：把**重试参照**交给裁剪（模块在时用于重试判定，见下方 catch）
                 if (_trace) _trace.preTrimFull = full;
                 if (_ir) {
@@ -8586,11 +8594,23 @@ function relativeTimeLabel(eventTime, nowTime) {
                  *   「全部留下」——正是本版要治的谎报形态，故此处显式按 `=== false` 算。 */
                 _trace.keptAll = (_trace.trimmed === false);
                 if (!_trace.trimmed) {
-                    if (_ir) {
+                    if (_ir && !_trimAttempted) {
                         _trace.traceFrom = 'router';
                         _trace.keptIdxInAll = _allT.map((_, i) => i);   // 整批都在载荷里
                         _trace.keptTexts = _allT.slice();
                         _trace.droppedTriggerIdx = [];
+                    } else if (_ir && _trimAttempted) {
+                        /* [v3.274.0] O4：走了裁剪路径、模块也在场，但回执**没标** `trimmed`
+                         *   ⇒ 「留下哪些块」这件事没有留下可信回执。如实记不可测，
+                         *   绝不按「整批都在」填满下标（那是把「测不了」写成「全部留下」）。
+                         *   与内联回落同一处置，只是来源仍如实标 `router`（确实走了路由）。 */
+                        _trace.traceFrom = 'router';
+                        _trace.trimmed = null;
+                        _trace.trimmedUnknown = true;
+                        _trace.keptIdxInAll = null;
+                        _trace.keptTexts = [];
+                        _trace.droppedTriggerIdx = null;
+                        _trace.contiguous = null;
                     } else {
                         /* 模块缺席时的内联回落：裁剪确实发生了（就在上面的 else 分支里），
                          *   但**留下哪些块这件事没有留下回执**（内联分支只拼 full，不记 kept 清单）。
@@ -8669,15 +8689,69 @@ function relativeTimeLabel(eventTime, nowTime) {
                 //   （丢了几块 / 多少字符），回答不了「丢的是哪一块」。
                 //   非致命：失败时不写草稿（读数会如实报 0 块），不连坐注入本身。
                 try { this._lastInjectionDraft = this._injectionBlocksOf(_allB, full); } catch (e) { errLog(e, 'buildInjection.逐块读数'); }
-                let _keptN = 0; const _droppedSamples = [];
-                for (const b of _allB) {
-                    if (full.includes(b)) _keptN++;
-                    else if (_droppedSamples.length < 3) _droppedSamples.push(String(b).slice(0, 36));
-                }
+                /* [v3.274.0] O4：**块级聚合数改为从逐块读数导出**，不再拿最终文本 
+                 *   `full.includes(块)` 反推。
+                 *   为什么必须换（同一事实两个真源）：逐块读数自 v3.251.0 起按下标 / span 判定，
+                 *   而这一格此前仍走文本反推 —— 于是**同一轮里**可以同时出现
+                 *   「逐块读数：两条同文块裁掉了 1 条」与「预算实测：2 块全留」。
+                 *   反推的两个已知盲区（同文重复 / 互为子串 / 半段截断）在那一格已被治理，
+                 *   此处只做聚合，不另立一套判据。
+                 *
+                 *   三态（本仓老账，与 dedup.savedChars 同款）：
+                 *     · `via` 全为精确判据（trace / trace-span）⇒ 聚合数是**真读数**；
+                 *     · 硬截断但块 span 定位不到 ⇒ 整块与半段都不可判，如实记该态；
+                 *     · 退回 `includes`（回执缺席 / 内联回落 / 规模不符）⇒ **未知，记 null**，
+                 *       不倒推成一个数 —— 反推在那些场景恰好偏向「全部留下」（未裁剪时
+                 *       每条块都能被载荷命中），那正是本版要断的谎报形态。
+                 *   混合判据（一批里既有精确又有反推）整体不当精确读数：报一个总数会让读的人
+                 *   以为整批都精确。 */
+                const _draft = Array.isArray(this._lastInjectionDraft) ? this._lastInjectionDraft : [];
+                const _vias = new Set(_draft.map(x => String((x && x.via) || '')));
+                const _keptFrom = (!_draft.length) ? 'unknown'
+                    : (_vias.size === 1 && _vias.has('trace')) ? 'trace'
+                        : (_vias.size === 1 && _vias.has('trace-span')) ? 'trace-span'
+                            : (_vias.size === 1 && _vias.has('trace-truncated-nospan')) ? 'trace-truncated-nospan'
+                                : 'unknown';
+                const _keptMeasurable = (_keptFrom === 'trace' || _keptFrom === 'trace-span');
+                const _keptN = _keptMeasurable ? _draft.filter(x => x && x.kept).length : null;
+                const _partialN = (_keptFrom === 'trace-span') ? _draft.filter(x => x && x.partial).length : null;
+                /* [v3.274.0] O4：**三态三分**——整块保留 / 整块被丢 / 被切半，互斥且穷尽。
+                 *   修前 `_droppedN = 总数 - 保留数` 把「被切半」也算进「被丢」：
+                 *   半段其实进了载荷，读成「整块被丢」是另一种假读数（与把「测不了」写成 0 同族）。
+                 *   故被丢一律排除 partial；被丢 + 被切半 + 保留 = 总数（可在回执上直接对账）。 */
+                const _droppedN = _keptMeasurable ? _draft.filter(x => x && !x.kept && !x.partial).length : null;
+                const _keptBlockChars = _keptMeasurable
+                    ? _draft.reduce((a, x) => a + ((x && x.kept && Number.isFinite(x.chars)) ? x.chars : 0), 0) : null;
+                const _droppedBlockChars = _keptMeasurable
+                    ? _draft.reduce((a, x) => a + ((x && !x.kept && !x.partial && Number.isFinite(x.chars)) ? x.chars : 0), 0) : null;
+                const _partialBlockChars = (_keptFrom === 'trace-span')
+                    ? _draft.reduce((a, x) => a + ((x && x.partial && Number.isFinite(x.chars)) ? x.chars : 0), 0) : null;
+                const _candChars = _allB.reduce((a, b) => a + String(b == null ? '' : b).length, 0);
+                const _ro = (_trace && _trace.residentOverflow && typeof _trace.residentOverflow === 'object')
+                    ? _trace.residentOverflow : null;
+                const _roChars = (_ro && Number.isFinite(_ro.chars)) ? _ro.chars : null;
+                const _roOver = (_ro && Number.isFinite(_ro.over)) ? _ro.over : null;
+                const _droppedSamples = _draft.filter(x => x && !x.kept && !x.partial && x.label)
+                    .slice(0, 3).map(x => String(x.label).slice(0, 36));
+                const _keptWhy = _keptMeasurable ? '' : (_keptFrom === 'trace-truncated-nospan'
+                    ? '硬截断但块 span 定位不到 ⇒ 整块 / 半段均不可判'
+                    : (!_draft.length ? '逐块读数缺席（本轮无块或读数构造失败）⇒ 不可测'
+                        : '留存判据退回文本反推（回执缺席 / 内联回落 / 规模不符）⇒ 已知盲区，不倒推成功'));
                 this._lastBudgetStats = {
                     requested: budget, beforeChars: _preTrimLen, afterChars: full.length,
                     droppedChars: Math.max(0, _preTrimLen - full.length),
                     keptBlocks: _keptN, totalBlocks: _allB.length, droppedSamples: _droppedSamples,
+                    /* [v3.274.0] O4：**参与三态判定的块数**（空块是候选里的占位，不占载荷字符，
+                     *   逐块读数按 v3251 G3 的纪律把它排除在保留/丢弃之外）——
+                     *   于是 `保留 + 被丢 + 被切半 = countedBlocks` 是一条可直接对账的等式，
+                     *   而 `totalBlocks`（候选总数）保持原语义不动（旧字段兼容）。 */
+                    countedBlocks: _draft.length,
+                    droppedBlocks: _droppedN, partialBlocks: _partialN,
+                    keptFrom: _keptFrom, keptWhy: _keptWhy,
+                    candidateChars: _candChars, keptBlockChars: _keptBlockChars, droppedBlockChars: _droppedBlockChars,
+                    partialBlockChars: _partialBlockChars,
+                    overBudgetChars: Math.max(0, full.length - budget),
+                    residentOverflowChars: _roChars, residentOverflowOver: _roOver,
                     strategy: keepCount, tokens: estimateTextTokens(full),
                     tokenBudget: tokenBudget || null, ts: Date.now(),
                 };

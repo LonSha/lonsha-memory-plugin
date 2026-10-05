@@ -95,7 +95,7 @@
   }
 
   function _blank() {
-    return { blocks: 0, kept: 0, dropped: 0, chars: 0, keptChars: 0, droppedChars: 0, tokens: 0, keptTokens: 0 };
+    return { blocks: 0, kept: 0, dropped: 0, partial: 0, chars: 0, keptChars: 0, droppedChars: 0, partialChars: 0, tokens: 0, keptTokens: 0 };
   }
 
   /**
@@ -138,14 +138,20 @@
      *   绝不静默混用两种判据 —— 「这次是精确的还是猜的」必须读得出来。 */
     const _tr = (o.trace && typeof o.trace === 'object') ? o.trace : null;
     const _allLen = Array.isArray(o.allBlocks) ? o.allBlocks.length : 0;
-    const traceOk = !!(_tr && _tr.version && Number(_tr.blockCount) === _allLen
-        && _tr.traceFrom === 'router' && Array.isArray(_tr.keptIdxInAll));
-    const keptIdxSet = traceOk ? new Set(_tr.keptIdxInAll) : null;
+    /* [v3.274.0] O4：精确判据有**两态**，不是一个 —— 修前只认「下标清单」，于是
+     *   硬截断（recency 无保留项时的 slice）整组退回 includes：那正是「把可测写成不可测」
+     *   （与预测侧同族）。回执在硬截断态给的是 blockSpans，按下标判不成立、按 span 判成立。 */
+    const _trOk = !!(_tr && _tr.version && Number(_tr.blockCount) === _allLen && _tr.traceFrom === 'router');
+    const idxOk = _trOk && Array.isArray(_tr.keptIdxInAll);
+    const spanOk = _trOk && _tr.hardTruncated === true && Array.isArray(_tr.blockSpans);
+    const traceOk = idxOk || spanOk;   // 「精确判据可用」的合并口径
+    const keptIdxSet = idxOk ? new Set(_tr.keptIdxInAll) : null;
+    const sliceAt = spanOk ? Number(_tr.sliceAt) : NaN;
     let _tagIdx = -1;
 
     const bySource = {};
     const touch = (t) => (bySource[t] || (bySource[t] = _blank()));
-    let keptTotal = 0, droppedTotal = 0, candidateChars = 0, candidateTokens = 0, emptyBlocks = 0;
+    let keptTotal = 0, droppedTotal = 0, partialTotal = 0, candidateChars = 0, candidateTokens = 0, emptyBlocks = 0;
     const droppedSamples = [];
 
     for (const { block, tag } of tagged) {
@@ -162,10 +168,26 @@
       // 空注入文本时不做判据：'' 会被任何 includes 判 false，但空块判 true，
       // 两边都不靠谱。一律记「未注入」——账本宁可说「这一轮没注入」，也不给假的保留数。
       //   回执判据下同样受此门控：空注入 ⇒ 整批皆未注入（与既有一致，读数不变）。
-      const kept = traceOk
-        ? (injected.length > 0 && keptIdxSet.has(_tagIdx))
-        : (injected.length > 0 && injected.includes(block));
-      if (kept) { rec.kept++; rec.keptChars += block.length; rec.keptTokens += t; keptTotal++; }
+      /* 三态互斥穷尽（与 index.js `_injectionBlocksOf` 同规格）：
+       *   idxOk  回执带块级下标清单 ⇒ 按下标判（同文重复也分得开）
+       *   spanOk 硬截断 ⇒ 按原始 full 的 span 判「整块在切点内 / 被切半 / 在切点外」
+       *   否则   回执缺席/规模不符 ⇒ 退回 includes（已知盲区如实自述） */
+      let kept = false, partial = false;
+      if (idxOk) {
+        kept = injected.length > 0 && keptIdxSet.has(_tagIdx);
+      } else if (spanOk) {
+        const sp = Array.isArray(_tr.blockSpans[_tagIdx]) ? _tr.blockSpans[_tagIdx] : null;
+        if (sp) {
+          kept = injected.length > 0 && sp[1] <= sliceAt;
+          partial = injected.length > 0 && sp[0] < sliceAt && sp[1] > sliceAt;
+        } else {
+          kept = injected.length > 0 && injected.includes(block);   // span 定位不到 ⇒ 降级
+        }
+      } else {
+        kept = injected.length > 0 && injected.includes(block);
+      }
+      if (partial) { rec.partial++; rec.partialChars += block.length; partialTotal++; }
+      else if (kept) { rec.kept++; rec.keptChars += block.length; rec.keptTokens += t; keptTotal++; }
       else {
         rec.dropped++; rec.droppedChars += block.length; droppedTotal++;
         if (droppedSamples.length < 3) droppedSamples.push(block.slice(0, 36));
@@ -311,16 +333,20 @@
         otherBlocks: (bySource.other || {}).blocks || 0,
         keptBlocks: keptTotal,
         droppedBlocks: droppedTotal,
-        // 自洽：除空块外每块要么保留要么丢弃；且除空块外每块都落进了某个标签
-        ok: (keptTotal + droppedTotal) === (tagged.length - emptyBlocks)
+        /* [v3.274.0] O4：被切半单列。半段进了载荷，既不是「保留」也不是「整块被丢」——
+         *   修前它与整块被丢同形（两者都只是 includes=false），账本因此多报被丢块数。 */
+        partialBlocks: partialTotal,
+        // 自洽：除空块外每块恰落进三态之一（保留 / 被丢 / 被切半）
+        ok: (keptTotal + droppedTotal + partialTotal) === (tagged.length - emptyBlocks)
           && (Object.keys(bySource).reduce((a, k) => a + bySource[k].blocks, 0) + emptyBlocks) === tagged.length,
         /* [v3.251.0] M-O3：这一格的含义从「本模块一直在猜」变成
          *   「**本次**用的是猜还是回执」—— 它是判据来源的**如实自述**，不是固定标签。
          *   回执可用（规模自证 + 来源为路由模块）⇒ false（按下标判定，精确）；
          *   否则 true（`injected.includes` 反推，已知盲区仍在）。 */
         includesHeuristic: !traceOk,
-        keptFrom: traceOk ? 'trace' : 'includes',
-        // 回执不可用的原因（可归因：规模对不上 / 来源不是路由 / 压根没给回执）
+        // 判据来源四态：按下标 / 按 span / 未裁剪整批 / 反推（与 index.js 的 keptFrom 同口径）
+        keptFrom: idxOk ? 'trace' : (spanOk ? 'trace-span' : 'includes'),
+        // 回执不可用的原因（可归因：规模对不上 / 来源不是路由 / 既无下标也无 span / 压根没给回执）
         traceWhy: traceOk ? null : (!_tr ? 'no-trace'
           : (Number(_tr.blockCount) !== _allLen ? 'scale-mismatch'
             : (_tr.traceFrom !== 'router' ? String(_tr.traceFrom || 'unknown') : 'no-kept-idx'))),

@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.273.0",
+ "measured_at": "v3.274.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -615,6 +615,37 @@
     "member_count": 2,
     "top5_pct": 0.0
    }
+  },
+  "v3.274.0": {
+   "reason": "v3.274.0 O4：buildInjection 内回执消费与 _trimAttempted 本地事实新增（+74 行）；基线按探针重建",
+   "readings": {
+    "total_lines": 13652,
+    "member_count": 523,
+    "top5_lines": 4294,
+    "top5_pct": 31.5,
+    "top40_lines": 9114,
+    "top40_pct": 66.8,
+    "prefix_rule_coverage_lines": 4633,
+    "prefix_rule_coverage_pct": 33.9,
+    "unclassified_lines": 8151,
+    "seam_distinct_modules": 46,
+    "seam_reference_sites": 54,
+    "seam_call_shape_sites": 57,
+    "members_over_80_lines": 27,
+    "low_coupling_members": 16,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.273.0",
+   "delta": {
+    "total_lines": 74,
+    "member_count": 0,
+    "top5_pct": 0.4
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -626,15 +657,15 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 13578,
+  "total_lines": 13652,
   "member_count": 523,
-  "top5_lines": 4220,
-  "top5_pct": 31.1,
-  "top40_lines": 9040,
-  "top40_pct": 66.6,
+  "top5_lines": 4294,
+  "top5_pct": 31.5,
+  "top40_lines": 9114,
+  "top40_pct": 66.8,
   "prefix_rule_coverage_lines": 4633,
-  "prefix_rule_coverage_pct": 34.1,
-  "unclassified_lines": 8077,
+  "prefix_rule_coverage_pct": 33.9,
+  "unclassified_lines": 8151,
   "seam_distinct_modules": 46,
   "seam_reference_sites": 54,
   "seam_call_shape_sites": 57,
@@ -646,17 +677,17 @@
   {
    "domain": "（未归类）",
    "members": 484,
-   "lines": 8077,
-   "lines_pct": 59.5,
-   "outside_refs": 5034,
-   "internal_refs": 1372,
-   "outside_ref_share_pct": 78.6
+   "lines": 8151,
+   "lines_pct": 59.7,
+   "outside_refs": 5092,
+   "internal_refs": 1358,
+   "outside_ref_share_pct": 78.9
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1753,
-   "lines_pct": 12.9,
+   "lines_pct": 12.8,
    "outside_refs": 5,
    "internal_refs": 71,
    "outside_ref_share_pct": 6.6
@@ -665,7 +696,7 @@
    "domain": "诊断与导出",
    "members": 10,
    "lines": 1193,
-   "lines_pct": 8.8,
+   "lines_pct": 8.7,
    "outside_refs": 308,
    "internal_refs": 455,
    "outside_ref_share_pct": 40.4
@@ -675,9 +706,9 @@
    "members": 11,
    "lines": 967,
    "lines_pct": 7.1,
-   "outside_refs": 2,
-   "internal_refs": 59,
-   "outside_ref_share_pct": 3.3
+   "outside_refs": 4,
+   "internal_refs": 58,
+   "outside_ref_share_pct": 6.5
   },
   {
    "domain": "配置与持久化",
@@ -692,7 +723,7 @@
    "domain": "桥/快照出口",
    "members": 2,
    "lines": 211,
-   "lines_pct": 1.6,
+   "lines_pct": 1.5,
    "outside_refs": 2,
    "internal_refs": 5,
    "outside_ref_share_pct": 28.6
@@ -742,7 +773,7 @@
   },
   {
    "name": "buildInjection",
-   "lines": 944,
+   "lines": 1018,
    "outside_refs": 12
   },
   {
@@ -858,7 +889,7 @@
   {
    "name": "summary",
    "lines": 100,
-   "outside_refs": 192
+   "outside_refs": 206
   },
   {
    "name": "_historyFingerprint",
@@ -893,7 +924,7 @@
   {
    "name": "_injectionBlocksOf",
    "lines": 70,
-   "outside_refs": 1
+   "outside_refs": 3
   },
   {
    "name": "hybridMerge",
@@ -913,7 +944,7 @@
   {
    "name": "collectExport",
    "lines": 60,
-   "outside_refs": 14
+   "outside_refs": 15
   },
   {
    "name": "_stmLtmConsolidate",
@@ -1018,7 +1049,7 @@
   "high_coupling_examples": [
    {
     "name": "buildInjection",
-    "lines": 944,
+    "lines": 1018,
     "outside_refs": 12,
     "is_host_lifecycle": false
    },
@@ -1061,7 +1092,7 @@
    {
     "name": "summary",
     "lines": 100,
-    "outside_refs": 192,
+    "outside_refs": 206,
     "is_host_lifecycle": false
    }
   ]

@@ -571,7 +571,30 @@
                     }
                     // [v3.144] CP: 预算实测条（丢弃可见性）——超预算时丢了什么此前完全静默
                     const _bs = s._lastBudgetStats;
-                    if (_bs && _bs.ts) head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta">📊 预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars} → 实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${Math.max(0, _bs.totalBlocks - _bs.keptBlocks)} 块</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_bs.keptBlocks}${_bs.droppedChars > 0 ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div></div>`;
+                    if (_bs && _bs.ts) {
+                        /* [v3.274.0] O4：块级留存数**三态展示**，`keptBlocks` 为 null 时不得参与算术。
+                         *   修前这里是「候选总数 − 保留数」自己推一遍：null 被当 0
+                         *   ⇒ 面板报「丢弃 N 块」，而事实是「这一轮块级留存不可测」
+                         *   （回执缺席 / 内联回落 / 硬截断无 span）。把「测不了」显示成一个具体的
+                         *   丢弃块数，正是本仓最忌的假读数——它看起来与「真丢了 N 块」完全同形。
+                         *   判据与来源一并显示：读的人当场知道这组数是真读数还是不可测。 */
+                        const _keptKnown = Number.isFinite(_bs.keptBlocks);
+                        /* 丢弃块数**直接消费回执**（`droppedBlocks`），不再自己拿「候选总数 − 保留数」推导：
+                         *   ① 那会把「被切半」也算成「整块被丢」（半段其实进了载荷）；
+                         *   ② 同一个事实立第二份实现，本仓点名的头号缺陷形态。
+                         *   回执不可测时 `droppedBlocks` 为 null，面板随之转「不可测」文案。 */
+                        const _dropN = Number.isFinite(_bs.droppedBlocks) ? _bs.droppedBlocks : null;
+                        const _blkPhrase = (_dropN !== null)
+                            ? `${_dropN} 块`
+                            : `块级留存不可测（${String(_bs.keptFrom || 'unknown')}）`;
+                        const _whyLine = (!_keptKnown && _bs.keptWhy)
+                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3,#6e7681);">${esc(String(_bs.keptWhy))}</div>` : '';
+                        const _partialLine = (Number.isFinite(_bs.partialBlocks) && _bs.partialBlocks > 0)
+                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn,#d29922);">被切半的块 ${_bs.partialBlocks} 块（硬截断切口落在块内部：半段进了载荷，与「整块被丢」不是一回事）</div>` : '';
+                        const _roLine = (Number.isFinite(_bs.residentOverflowOver) && _bs.residentOverflowOver > 0)
+                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn,#d29922);">常驻溢出 ${_bs.residentOverflowOver} 字符（关键事实保护：常驻块优先于预算上限）</div>` : '';
+                        head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta">📊 预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars} → 实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${_blkPhrase}</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_keptKnown ? _bs.keptBlocks : '不可测'}${_keptKnown ? '' : '（' + String(_bs.keptFrom || 'unknown') + '）'}${_bs.droppedChars > 0 && _keptKnown ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div>${_partialLine}${_roLine}${_whyLine}</div>`;
+                    }
                     // 分块渲染：按区块标题拆分便于阅读
                     const blocks = inj.html.split('\n').filter(l => l.trim());
                     // [v3.59] D2: diff 高亮——对比上一轮注入，新增行标绿色边框
