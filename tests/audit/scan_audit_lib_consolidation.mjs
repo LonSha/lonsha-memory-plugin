@@ -238,7 +238,14 @@ const EXEMPT = {
     //   单独用在类体上取不到段。故同样是「真源 stripComments（等长占位、偏移不变）+ 真源 braceMatch」
     //   的串联，并把切出的长度映射回原文（判据要看原文的注释与格式）。
     'tests/v3211_type_to_injection.test.mjs': ['braceMatch'],
+    // [v3.272.0] 同一形态、同一登记规范：本套件要把 memory-organs.js 里 save / load 的**方法体**
+    //   抠进 new Function 重放（抽取式夹具），故另有一个 dir 版 bodyOf(dir, marker)（签名与真源不同）。
+    //   真源 braceMatch 只跳字符串、不跳注释；真源 bodyOf 又在 async load(chatId, opts = {}) { 的
+    //   参数默认值 {} 处取错起点（把体抽成空串）。故用「真源 stripComments（等长占位、偏移不变）
+    //   + 真源 braceMatch」的串联，起点由 marker 末尾花括号显式给出。不是第二份实现，是对真源两段能力的串联。
+    'tests/v3272_o1_session_identity.test.mjs': ['bodyOf'],
 };
+
 const filesToScan = [];
 for (const f of fs.readdirSync(path.join(SRC, AUDIT_REL)).filter((x) => x.endsWith('.mjs'))) filesToScan.push(AUDIT_REL + '/' + f);
 for (const f of fs.readdirSync(path.join(SRC, 'tests')).filter((x) => x.endsWith('.mjs'))) filesToScan.push('tests/' + f);

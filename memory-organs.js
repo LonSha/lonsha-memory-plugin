@@ -1743,6 +1743,23 @@ class StorageManager {
         // [v3.166] 落盘身份必须成对：revision 取实际落盘批次，chatId 也必须取
         //   同一批次。只改 revision 会让 _confirmed 描述一个从未同时存在的「对」。
         let _lastPersistedChatId = String(chatId);
+        /* [v3.272.0 O1] 目标会话身份保护（**内联**，不新增实例方法）：
+         *   历史套件用 extractBraced 把 save 方法体抠进 new Function 重放，体内引用新实例方法
+         *   必抛 TypeError —— 「加了个方法」就能打破别人的夹具。故核验逻辑就地展开。
+         *   背景：save(chatId) 按 chatId 排队与合流，但真实写入用的是**执行那一刻**的上下文
+         *   metadata。不核对就出现「在 B 的元数据里写上 chatId:A 的数据，还回 true、报 confirmed A」
+         *   —— A 的存档看起来存了、实际在 B 里；B 的存档被陌生数据覆盖。不报错、只错档。
+         *   取不到身份（宿主未给）⇒ 放行：不拦「未知」，否则会把未就绪窗口误判成身份不符而丢写。 */
+        const _ctxIdOf = function () {
+            try {
+                const _st = (typeof window !== 'undefined') ? window.SillyTavern : null;
+                const _c = (_st && typeof _st.getContext === 'function') ? _st.getContext() : null;
+                const _v = _c ? (_c.chatId || (_c.chatMetadata && _c.chatMetadata.file_name)) : null;
+                return (_v === null || _v === undefined || String(_v) === '') ? null : String(_v);
+            } catch (_e) { return null; }
+        };
+        const _liveChatId = _ctxIdOf();
+        const _deferredBatches = [];
         this._isWriting = true;
         try {
             let curChatId = chatId;
@@ -1751,7 +1768,16 @@ class StorageManager {
             while (curData) {
                 try {
                     const ctx = window.SillyTavern?.getContext?.();
-                    if (ctx?.chatMetadata) {
+                    if (_liveChatId && curChatId !== null && curChatId !== undefined
+                        && String(curChatId) !== '' && String(curChatId) !== String(_liveChatId)) {
+                        /* [v3.272.0 O1] 目标不是当前会话 ⇒ **拒绝 / 延期**（绝不写当前 metadata）：
+                         *   延期不是丢弃 —— 批次数据在内存里是真的，丢的就是用户的记忆；
+                         *   放回挂起集合，等身份回到该会话时自然落盘。 */
+                        _deferredBatches.push({ chatId: curChatId, data: curData, revision: curRev });
+                        this._lastDeferredAt = Date.now();
+                        this._deferredOldSessionCount = (Number(this._deferredOldSessionCount) || 0) + 1;
+                        errLog(new Error('目标会话 ' + String(curChatId) + ' 不是当前会话 ' + String(_liveChatId) + '，本批延期不写'), 'DB.会话身份');
+                    } else if (ctx?.chatMetadata) {
                         // [v3.4] DB: 摘要骤减保护——存储前对比上一版，总量骤减（>50%且缺口≥20）先紧急备份再写
                         try {
                             const prev = ctx.chatMetadata.extensions?.[this.STORAGE_KEY]?.data;
@@ -1772,7 +1798,7 @@ class StorageManager {
                         };
                         ctx.chatMetadata.extensions[this.STORAGE_KEY] = {
                             version: VERSION,
-                            revision: currentRev,
+                            revision: curRev,   /* [v3.272.0 O1] 用**本批自己的**修订号：此前写循环外首调 rev，合流批会把自己记错 */
                             chatId: curChatId,
                             stats,
                             data: curData,
@@ -1810,6 +1836,12 @@ class StorageManager {
                     curData = null;
                 }
             }
+            /* [v3.272.0 O1] 循环结束后把被拒批次放回挂起集合（数据不丢，等身份对上再落） */
+            if (_deferredBatches.length && (this._pendingWrites instanceof Map)) {
+                for (const _b of _deferredBatches) {
+                    this._pendingWrites.set(String(_b.chatId), { chatId: _b.chatId, data: _b.data, revision: _b.revision });
+                }
+            }
         } finally {
             this._isWriting = false;
         }
@@ -1835,6 +1867,20 @@ class StorageManager {
     async load(chatId, opts = {}) {
         try {
             const ctx = window.SillyTavern?.getContext?.();
+            /* [v3.272.0 O1] 装载身份核验（**内联**，不新增方法 → 历史套件的 new Function 重放照旧可跑）。
+             *   为什么这里拦而 save 侧放行：导错档是**把别人的记忆装进你的会话**（错内容），
+             *   漏写一次回头还能补（错时机）；两者危害不同形，不可用同一颗宽松尺度。
+             *   取不到当前身份（宿主未就绪）⇒ 也不导：既然不知道当前是谁，就没有「该导谁的档」。 */
+            let _nowId = null;
+            try {
+                const _v = ctx ? (ctx.chatId || (ctx.chatMetadata && ctx.chatMetadata.file_name)) : null;
+                _nowId = (_v === null || _v === undefined || String(_v) === '') ? null : String(_v);
+            } catch (_e) { _nowId = null; }
+            const _wantId = (chatId === null || chatId === undefined || String(chatId) === '') ? null : String(chatId);
+            if (_wantId && _nowId && _wantId !== String(_nowId)) {
+                this._lastLoadRefusal = { at: Date.now(), target: _wantId, current: String(_nowId) };
+                return null;
+            }
             const extData = ctx?.chatMetadata?.extensions?.[this.STORAGE_KEY];
             const data = extData?.data;
             if (extData?.revision != null) {
