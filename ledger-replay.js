@@ -397,8 +397,12 @@
             //   修前 `replayShift(host, null)` 会因 `Number(null) === 0` 把它整集合搬掉一格。
             //   （首稿曾把它标成 participates:false，被 v3190 第 8 条当场判死，已撤回。）
             get: (h) => (h && h._archivedFloorIds) ? h._archivedFloorIds : null,
-            drop: (h, f) => { const ids = h._archivedFloorIds; if (!ids) return 0; const f0 = floorOrNull(f); if (f0 === null) return 0; const before = []; for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.push(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.pruneArchivedIds === 'function') { try { out = _as.pruneArchivedIds(before, f0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const n of before) if (n < f0) out.add(n); } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; return n; },
-            shift: (h, d) => { const ids = h._archivedFloorIds; if (!ids) return 0; const d0 = floorOrNull(d); if (d0 === null) return 0; const before = new Set(); for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.add(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; if (_as && typeof _as.shiftArchivedIds === 'function') { try { out = _as.shiftArchivedIds(before, d0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const v of before) { if (v === d0) continue; out.add(v > d0 ? v - 1 : v); } } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; for (const v of out) if (!before.has(v)) n++; return n; }
+            /* [v3.275.0] O5：处置**留痕**（剪了哪几楼 / 为什么）。
+             *   修前这里只回一个计数 —— provenance 在处置那一刻就被丢掉，
+             *   之后无论怎么查都答不出「第 7 楼回滚时剪掉了哪几个归档」。
+             *   记录来源是 archive-shift.js 的 explain*（唯一真源），不是另算一份。 */
+            drop: (h, f) => { const ids = h._archivedFloorIds; if (!ids) return 0; const f0 = floorOrNull(f); if (f0 === null) return 0; const before = []; for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.push(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; let _prov = null; if (_as && typeof _as.explainPrune === 'function') { try { _prov = _as.explainPrune(before, f0); out = _prov.next; } catch (e) { _prov = null; out = null; } } if (!out && _as && typeof _as.pruneArchivedIds === 'function') { try { out = _as.pruneArchivedIds(before, f0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const n of before) if (n < f0) out.add(n); } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; _logArchiveShift(h, { side: 'drop', floor: f0, kept: [...out], removed: _prov ? _prov.removed : null, moved: [], removedCountHint: n, why: _prov ? _prov.why : 'fallback-no-explain' }); return n; },
+            shift: (h, d) => { const ids = h._archivedFloorIds; if (!ids) return 0; const d0 = floorOrNull(d); if (d0 === null) return 0; const before = new Set(); for (const v of ids) { const n = Number(v); if (Number.isFinite(n)) before.add(n); } const _as = (typeof h._archiveShiftLib === 'function') ? h._archiveShiftLib() : null; let out = null; let _prov = null; if (_as && typeof _as.explainShift === 'function') { try { _prov = _as.explainShift(before, d0); out = _prov.next; } catch (e) { _prov = null; out = null; } } if (!out && _as && typeof _as.shiftArchivedIds === 'function') { try { out = _as.shiftArchivedIds(before, d0); } catch (e) { out = null; } } if (!out) { out = new Set(); for (const v of before) { if (v === d0) continue; out.add(v > d0 ? v - 1 : v); } } h._archivedFloorIds = out; let n = 0; for (const v of before) if (!out.has(v)) n++; for (const v of out) if (!before.has(v)) n++; _logArchiveShift(h, { side: 'shift', floor: d0, kept: [...out], removed: _prov ? _prov.removed : null, moved: _prov ? _prov.moved : null, disposedHint: n > 0, why: _prov ? _prov.why : 'fallback-no-explain' }); return n; }
         },
         {
             // 变化驱动注入的读取游标。删楼侧此前有回退、前移侧完全没有——
@@ -529,6 +533,38 @@
             };
         }
         return { version: LEDGER_REPLAY_VERSION, side, floor: target, items, dropped, shifted, threw, absent, skipped: null };
+    }
+
+    /* [v3.275.0] O5：归档处置的**审计 provenance 缓冲**（有界）。
+     *   为什么必须住在这里而不是宿主：处置发生在**回放**里，宿主只看得到返回值；
+     *   而本仓 O5 的验收是「归档或 tombstone 不抹掉审计 provenance」——
+     *   留着一条「第 N 楼回滚剪掉了 [2,7,9]」的记录，事后才答得出「这个归档为什么没了」。
+     *   有界（最近 20 条）是刻意的：这是**诊断证据**不是账本，不该无界增长。
+     *   只在真有处置时推入（空处置不留噪声行）。 */
+    const ARCHIVE_PROV_MAX = 20;
+    function _logArchiveShift(h, rec) {
+        try {
+            if (!h || typeof h !== 'object') return;
+            /* [自纠] 计数优先取逐条记录；记录读不出来时用调用方给的**口径提示** ——
+             *   否则「处置真发生了、但出处不可读」会被下面那行早退**静默丢掉**，
+             *   那就是本版要治的「抹掉 provenance」换了一个入口（换成「没留痕」）。 */
+            const removedN = Number.isFinite(rec.removedCountHint) ? rec.removedCountHint
+                : (Array.isArray(rec.removed) ? rec.removed.length : null);
+            const movedN = Array.isArray(rec.moved) ? rec.moved.length : null;
+            /* 空处置（没剪也没移）不占位：留痕的价值在「有东西被处理掉」。 */
+            if (!removedN && !movedN && rec.disposedHint !== true) return;
+            const buf = Array.isArray(h._archiveShiftLog) ? h._archiveShiftLog : (h._archiveShiftLog = []);
+            buf.push({
+                at: Date.now(), side: rec.side, floor: rec.floor,
+                removed: Array.isArray(rec.removed) ? rec.removed.slice(0, 32) : null,
+                moved: Array.isArray(rec.moved) ? rec.moved.slice(0, 32) : null,
+                removedCount: removedN, movedCount: movedN, keptCount: Array.isArray(rec.kept) ? rec.kept.length : null,
+                /* 出处是否可读：逐条记录在场 = explain；否则是**不可读**，读的人不许把它当成「没剪」。 */
+                provKind: Array.isArray(rec.removed) ? 'explain' : 'unreadable',
+                why: rec.why || '',
+            });
+            if (buf.length > ARCHIVE_PROV_MAX) buf.splice(0, buf.length - ARCHIVE_PROV_MAX);
+        } catch (e) { /* 留痕失败不连坐回放本身 */ }
     }
 
     // 删楼回放：撤掉该楼在所有登记子系统里的归属。

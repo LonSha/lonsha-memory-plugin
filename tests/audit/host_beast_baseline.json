@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.274.0",
+ "measured_at": "v3.275.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -646,6 +646,37 @@
     "member_count": 0,
     "top5_pct": 0.4
    }
+  },
+  "v3.275.0": {
+   "reason": "v3.275.0 O5：index.js 侧新增归档处置留痕接线（_archiveShiftLog 初始化 + CHAT_CHANGED 归零 + selfCheck 行）与召回产物截断自述传递（selectedMemoryIdsTotal 真总数入参），均为活跃功能增长",
+   "readings": {
+    "total_lines": 13690,
+    "member_count": 523,
+    "top5_lines": 4320,
+    "top5_pct": 31.6,
+    "top40_lines": 9152,
+    "top40_pct": 66.9,
+    "prefix_rule_coverage_lines": 4666,
+    "prefix_rule_coverage_pct": 34.1,
+    "unclassified_lines": 8156,
+    "seam_distinct_modules": 46,
+    "seam_reference_sites": 54,
+    "seam_call_shape_sites": 57,
+    "members_over_80_lines": 27,
+    "low_coupling_members": 16,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.274.0",
+   "delta": {
+    "total_lines": 38,
+    "member_count": 0,
+    "top5_pct": 0.1
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -657,15 +688,15 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 13652,
+  "total_lines": 13690,
   "member_count": 523,
-  "top5_lines": 4294,
-  "top5_pct": 31.5,
-  "top40_lines": 9114,
-  "top40_pct": 66.8,
-  "prefix_rule_coverage_lines": 4633,
-  "prefix_rule_coverage_pct": 33.9,
-  "unclassified_lines": 8151,
+  "top5_lines": 4320,
+  "top5_pct": 31.6,
+  "top40_lines": 9152,
+  "top40_pct": 66.9,
+  "prefix_rule_coverage_lines": 4666,
+  "prefix_rule_coverage_pct": 34.1,
+  "unclassified_lines": 8156,
   "seam_distinct_modules": 46,
   "seam_reference_sites": 54,
   "seam_call_shape_sites": 57,
@@ -677,17 +708,17 @@
   {
    "domain": "（未归类）",
    "members": 484,
-   "lines": 8151,
-   "lines_pct": 59.7,
-   "outside_refs": 5092,
-   "internal_refs": 1358,
-   "outside_ref_share_pct": 78.9
+   "lines": 8156,
+   "lines_pct": 59.6,
+   "outside_refs": 5110,
+   "internal_refs": 1352,
+   "outside_ref_share_pct": 79.1
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
-   "lines": 1753,
-   "lines_pct": 12.8,
+   "lines": 1761,
+   "lines_pct": 12.9,
    "outside_refs": 5,
    "internal_refs": 71,
    "outside_ref_share_pct": 6.6
@@ -695,11 +726,11 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1193,
-   "lines_pct": 8.7,
-   "outside_refs": 308,
-   "internal_refs": 455,
-   "outside_ref_share_pct": 40.4
+   "lines": 1218,
+   "lines_pct": 8.9,
+   "outside_refs": 311,
+   "internal_refs": 453,
+   "outside_ref_share_pct": 40.7
   },
   {
    "domain": "召回与注入",
@@ -778,8 +809,8 @@
   },
   {
    "name": "selfCheck",
-   "lines": 836,
-   "outside_refs": 11
+   "lines": 854,
+   "outside_refs": 14
   },
   {
    "name": "recallMemory",
@@ -788,7 +819,7 @@
   },
   {
    "name": "onBeforeGeneration",
-   "lines": 524,
+   "lines": 532,
    "outside_refs": 1
   },
   {
@@ -803,7 +834,7 @@
   },
   {
    "name": "exportMemoryReport",
-   "lines": 349,
+   "lines": 356,
    "outside_refs": 1
   },
   {
@@ -818,7 +849,7 @@
   },
   {
    "name": "constructor",
-   "lines": 202,
+   "lines": 207,
    "outside_refs": 43
   },
   {
@@ -981,7 +1012,7 @@
    },
    {
     "name": "exportMemoryReport",
-    "lines": 349,
+    "lines": 356,
     "outside_refs": 1,
     "is_host_lifecycle": false
    },
@@ -1055,8 +1086,8 @@
    },
    {
     "name": "selfCheck",
-    "lines": 836,
-    "outside_refs": 11,
+    "lines": 854,
+    "outside_refs": 14,
     "is_host_lifecycle": false
    },
    {
@@ -1073,7 +1104,7 @@
    },
    {
     "name": "constructor",
-    "lines": 202,
+    "lines": 207,
     "outside_refs": 43,
     "is_host_lifecycle": false
    },

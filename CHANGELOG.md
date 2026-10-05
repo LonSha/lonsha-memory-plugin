@@ -1,3 +1,23 @@
+## v3.275.0
+
+**O5：长对话的规模、缓存与归档治理**（计划原文三条验收：① 同输入真命中、改楼/切聊/恢复真失效；② 规模上升**不静默漏可用记忆**；③ 归档或 tombstone **不抹掉审计 provenance**）。
+
+### 修的错
+- **依据清单被静默截断**（`recall-artifact.js` + `index.js`）：宿主侧 `this._lastSelectedIds = Array.from(...).slice(0, 200)` 把「本轮入选依据」砍到 200 条后落盘，产物于是**声称**「我的依据就是这 200 条」——规模越大这条读数越窄，而**没有任何一面**说它被截过；`isArtifactStale` 的 missing/ratio 也只在被砍剩的那 200 条上算（窄读数被当成全量读数）。现在：`selectedMemoryIdsTotal`（调用方给则按面值取，**不传即 null**）与 `selectedMemoryIdsTruncated`（`true/false/null` 三态）随产物落盘，失效判定把**覆盖范围**与读数一起给出，命中率诊断新增「被截过的产物数」。
+- **「总数未知」被塌陷成「没截」**（`recall-artifact.js`，本版自纠）：三处各写一遍 `Number(x.selectedMemoryIdsTotal)` —— 而 `Number(null) === 0` 是 finite，于是「没给总数」被读成「总数 = 0」、截断态退化成 `false`。与 v3.224 修的 `Number(f) || 0` 逐字同族。口径收进 `selectedTotalOf / selectedTruncOf` 一处，四处调用；总数未知时一律 `null`（**不倒推**）。
+- **归档 provenance 在处置那一刻就被丢掉**（`archive-shift.js` + `ledger-replay.js` + `index.js`）：删楼/回滚只留下一个**计数**，「剪了哪几楼 / 为什么剪」再也答不出。现在 `explainShift / explainPrune` 是**唯一真源**（返回 `{next, removed:[{from,why}], moved, kept, why}`），旧 API 改为它的**薄投影**（行为逐字不变）；回放侧把处置写进有界留痕（最近 20 条），宿主自检新增「归档处置」行。
+- **入参门在纯函数里失守**（`archive-shift.js`，本版自纠）：`toNum` 用 `Number(v)` ⇒ `Number(null) === 0`、`Number('') === 0`、`Number([]) === 0`，`shiftArchivedIds([1,3,5], null)` 被读成「删了第 0 楼」而**整组搬掉一格**。收紧为「只认数字与非空数字字符串」，与 `ledger-replay.js` 的 `floorOrNull` 同口径。
+- **留痕器把「出处不可读」当成「没处置」**（`ledger-replay.js`，本版自纠）：首稿按「逐条记录的长度」判空处置，出处不可读时长度为 0 ⇒ **整条处置被静默丢掉**（「抹掉 provenance」换了个入口）。现在计数优先取调用方的口径提示，并记 `provKind: 'explain' | 'unreadable'`。
+- **量测台把「同长度」读成「同内容」**（`cache-workload.js`，本版自纠）：命中回退只比序列化字节数，**同长度不同内容会被读成命中**。改为比内容签名（字符串直取、对象 JSON 序列化）且要求非空；不可序列化如实记 `measured:false`。
+
+### 量测与基线
+- 新增 `tests/audit/scale_archive_baseline.json`：1000/5000/10000 楼四路径（snapshot / candidate / serialize / settings）的字节与耗时、形状分型、缓存命中、重复读取冗余度。**合成数据 + 真模块**，不代表实机性能。
+- 读数：三条路径 `shape=linear`（5000→10000 比值 2.004–2.007），settings 为 `sublinear`；**无有证据的热点** ⇒ 总判 `not-done-until-evidence`（计划原文口径：只有证明有收益的热点进入产品修改，本版**不改产品**）。
+
+### 边界（诚实）
+- 未做实机取证：无浏览器、无 SillyTavern 宿主、无真实长对话记录。**目标设备预算未定**（计划原文要求「先记录新基线，再定目标设备预算」，预算必须来自实机）。
+- 「改楼/切聊/恢复真失效」由 v3.254.0 的 `cache-identity.js` 与 `v3254` 套件把守，本版**不另建第二真源**，只在 v3275 里复核它仍成立。
+
 ## v3.274.0
 
 **O4：注入与预测完全消费过程回执**（真裁剪自 v3.251.0 起就记下 `keptIdxInAll` 与硬截断 spans，但**消费侧**仍在自行反推）。

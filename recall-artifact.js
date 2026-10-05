@@ -38,6 +38,16 @@
     const DEFAULT_MAX_ENTRIES = 32;
     const DEFAULT_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 
+    /* [v3.275.0] O5：产物「依据」（入选条目 id）的**容量上界**与截断自述。
+     *   为什么需要这一格：宿主此前把 id 清单 `.slice(0, 200)` 静默截断后落进产物，
+     *   产物于是声称「这一轮的入选依据就是这 200 条」—— 而真候选更多时，
+     *   多出来的那部分**在产物里根本不存在**，`isArtifactStale` 的 missing/ratio
+     *   也只在那 200 条上算。规模上升时这条读数会静默变窄（不是变错，是变窄）。
+     *   本模块只负责**如实自述**：`selectedMemoryIdsTotal` 为真总数、
+     *   `selectedMemoryIdsTruncated` 为是否被截。两者**不可从保留数倒推** ——
+     *   调用方不传总数时记 null（不可测），绝不写成「保留数即总数」。 */
+    const MAX_SELECTED_IDS = 200;
+
     function normStr(v) {
         return String(v == null ? '' : v).trim();
     }
@@ -91,6 +101,27 @@
         }));
     }
 
+    /* [v3.275.0] O5 自纠：**「总数未知」只能有一个入口**。
+     *   修前本文件三处各写一遍 `Number(x.selectedMemoryIdsTotal)` ——
+     *   而 `Number(null) === 0` 是 finite，于是「调用方没给总数」被读成「总数 = 0」，
+     *   截断态随之塌陷成 `false`（**不可测被写成「没截」**，方向与本版要治的正好相反）。
+     *   形态与 v3.224 在 ledger-replay 修的 `Number(f) || 0`、本轮 archive-shift 的 `toNum`
+     *   同族：拿原参数直接 Number()，没给就退化成 0。故口径收进一处，三处调用。
+     *   口径：只认非负数字与非空数字字符串（给 0 照常是 0）；其余一律 null＝不可测。
+     *   「按面值取、只向上补到保留数」：不静默下调 —— 下调会把「被截」读成「没截」。 */
+    function selectedTotalOf(v, keptLen) {
+        const raw = (typeof v === 'number') ? v
+            : ((typeof v === 'string' && v.trim() !== '') ? Number(v) : null);
+        if (raw === null || !Number.isFinite(raw) || raw < 0) return null;
+        return Math.max(keptLen || 0, Math.floor(raw));
+    }
+
+    /** 截断态：三态（true / false / null＝总数未知，不倒推）。 */
+    function selectedTruncOf(v, keptLen) {
+        const t = selectedTotalOf(v, keptLen);
+        return (t === null) ? null : (t > (keptLen || 0));
+    }
+
     /** 新建产物（校验必需字段；输入指纹缺省时按内容派生） */
     function createArtifact(raw) {
         const s = raw || {};
@@ -105,7 +136,16 @@
                 historyFingerprint: s.historyFingerprint,
             });
         const injectionText = String(s.injectionText == null ? '' : s.injectionText);
-        const selected = Array.isArray(s.selectedMemoryIds) ? s.selectedMemoryIds.map(normStr).filter(Boolean) : [];
+        /* 去重后再截：先截后去重会让「总数」与「保留数」的口径不一致（重复项算不算占位）。 */
+        const _selectedAll = Array.isArray(s.selectedMemoryIds)
+            ? [...new Set(s.selectedMemoryIds.map(normStr).filter(Boolean))] : [];
+        const selected = _selectedAll.slice(0, MAX_SELECTED_IDS);
+        /* 真总数优先取调用方给的（它才知道上游有没有截过）；没给就是**不可测**（null），
+         *   不拿保留数冒充总数 —— 那是把「测不了」写成「就这么点」。
+         *   给了但比保留数还小时按保留数算（调用方自相矛盾时以**能证实的**下界为准，
+         *   且该情形本身由 truncated 如实反映）。 */
+        const selectedTotal = selectedTotalOf(s.selectedMemoryIdsTotal, selected.length);
+        const selectedTruncated = selectedTruncOf(s.selectedMemoryIdsTotal, selected.length);
         return {
             artifactId: normStr(s.artifactId) || (artifactKind + '_' + inputFingerprint),
             turnId,
@@ -116,7 +156,9 @@
             floor: Number.isFinite(Number(s.floor)) ? Math.floor(Number(s.floor)) : null,
             empty: injectionText.trim().length === 0,
             injectionText,
-            selectedMemoryIds: [...new Set(selected)],
+            selectedMemoryIds: selected,
+            selectedMemoryIdsTotal: selectedTotal,
+            selectedMemoryIdsTruncated: selectedTruncated,
             sourceKinds: Array.isArray(s.sourceKinds) ? [...new Set(s.sourceKinds.map(normStr).filter(Boolean))] : [],
             candidateCount: Number.isFinite(Number(s.candidateCount)) ? Math.max(0, Math.floor(Number(s.candidateCount))) : 0,
             source: normStr(s.source) || 'recall',
@@ -234,7 +276,20 @@
         const o = options || {};
         const art = artifact || {};
         const ids = Array.isArray(art.selectedMemoryIds) ? art.selectedMemoryIds.filter(Boolean) : [];
-        if (!ids.length) return { stale: false, checked: 0, missing: [], ratio: 0 };
+        /* [v3.275.0] O5：判据的**覆盖范围**必须随读数一起给出。
+         *   产物若被截过（清单只剩前 N 条），missing/ratio 就只是「这 N 条里丢了多少」，
+         *   不能读成「这一轮的依据丢了多少」—— 规模越大，这条读数越是**窄的**。
+         *   故 stale 的判定仍只用现有清单（判据不变），但把覆盖范围与是否截断一并外供；
+         *   `selectedTotal` 为 null（调用方没给总数）时同样如实记 null，不倒推。 */
+        const _selTotal = selectedTotalOf(art.selectedMemoryIdsTotal, ids.length);
+        /* 三态：显式 true 就是 true；其余一律由**总数**派生 ——
+         *   总数未知时记 null（**不得塌陷成 false**）。修前这里是
+         *   `(field === true) || (_selTotal !== null && _selTotal > ids.length)`：
+         *   总数未知时整条为 false —— 「测不了」被读成「没截」，与 O5 要治的方向相反。 */
+        const _selTrunc = (art.selectedMemoryIdsTruncated === true) ? true
+            : selectedTruncOf(art.selectedMemoryIdsTotal, ids.length);
+        const _cover = { checked: ids.length, selectedTotal: _selTotal, truncated: _selTrunc };
+        if (!ids.length) return { stale: false, checked: 0, missing: [], ratio: 0, selectedTotal: _selTotal, truncated: _selTrunc }; 
         const live = liveIds instanceof Set ? liveIds
             : new Set((Array.isArray(liveIds) ? liveIds : []).map(normStr).filter(Boolean));
         const missing = ids.filter(id => !live.has(normStr(id)));
@@ -245,6 +300,9 @@
             checked: ids.length,
             missing: missing.slice(0, 64),
             ratio,
+            /* 覆盖范围：截断时 ratio 只代表**清单内**的缺失率（窄读数，必须能被读出来）。 */
+            selectedTotal: _cover.selectedTotal,
+            truncated: _cover.truncated,
         };
     }
 
@@ -262,6 +320,11 @@
             floor: artifact.floor,
             empty: artifact.empty,
             selectedMemoryIds: (artifact.selectedMemoryIds || []).slice(),
+            selectedMemoryIdsTotal: selectedTotalOf(artifact.selectedMemoryIdsTotal, (artifact.selectedMemoryIds || []).length),
+            /* 三态原样传递：字段缺失（旧产物）时从总数派生，总数也没有就记 null。 */
+            selectedMemoryIdsTruncated: (artifact.selectedMemoryIdsTruncated === true) ? true
+                : ((artifact.selectedMemoryIdsTruncated === false) ? false
+                    : selectedTruncOf(artifact.selectedMemoryIdsTotal, (artifact.selectedMemoryIds || []).length)),
             sourceKinds: (artifact.sourceKinds || []).slice(),
             candidateCount: artifact.candidateCount,
             injectionText: artifact.injectionText,
@@ -275,10 +338,23 @@
         let reuses = 0;
         let chars = 0;
         let empties = 0;
+        /* [v3.275.0] O5：**依据清单被截过的产物**必须能被数出来。
+         *   只报「总 N 条」会把「其中 M 条的入选依据只剩前 200 条」藏掉 ——
+         *   而规模越大这个 M 越大，正是长线里该被看见的那一类窄读数。 */
+        let truncatedCount = 0;
+        let selectedKnown = 0;
+        let selectedTotal = 0;
         for (const a of list) {
             reuses += Number(a.reuseCount || 0);
             chars += String(a.injectionText || '').length;
             if (a.empty) empties += 1;
+            const _n = Array.isArray(a.selectedMemoryIds) ? a.selectedMemoryIds.length : 0;
+            const _t = selectedTotalOf(a.selectedMemoryIdsTotal, _n);
+            if (_t !== null) { selectedKnown += 1; selectedTotal += _t; }
+            else selectedTotal += _n;
+            const _tr = (a.selectedMemoryIdsTruncated === true) ? true
+                : ((a.selectedMemoryIdsTruncated === false) ? false : (_t !== null && _t > _n));
+            if (_tr === true) truncatedCount += 1;
         }
         return {
             total: list.length,
@@ -287,12 +363,17 @@
             empties,
             avgInjectionChars: list.length ? Math.round(chars / list.length) : 0,
             hitRate: (list.length + reuses) > 0 ? Number((reuses / (list.length + reuses)).toFixed(4)) : 0,
+            /* 依据清单：被截过的条数 / 总数已知的条数 / 依据条目数合计（截断时是下界）。 */
+            selectedTruncatedCount: truncatedCount,
+            selectedTotalKnown: selectedKnown,
+            selectedIdsSum: selectedTotal,
         };
     }
 
     const api = {
         DEFAULT_MAX_ENTRIES,
         DEFAULT_MAX_AGE_MS,
+        MAX_SELECTED_IDS,
         stableStringify,
         hash32,
         createInputFingerprint,

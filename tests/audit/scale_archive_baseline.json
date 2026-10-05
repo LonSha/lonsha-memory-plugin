@@ -1,0 +1,109 @@
+{
+  "file": "tests/audit/scale_archive_baseline.json",
+  "note": "O5 长对话规模与归档 provenance 取证基线。**合成数据 + 真模块 / 真宿主方法体**（无浏览器、无 SillyTavern 宿主参与）—— 这些数字不代表实机性能，只用于「量级是否漂移」的回归对照（与 perf_baseline.json / snapshot_baseline.json / gate_timing_baseline.json 同一条口径纪律）。",
+  "measured_at": "v3.275.0",
+  "node_version": "v24.18.0",
+  "probe": "tests/audit/_m_o4_probe.mjs",
+  "subject": "四条只读消费路径：snapshot(buildBridgeSnapshot) / candidate(graphToCandidates) / serialize(buildBridgeSnapshotJson) / settings(settings 投影)",
+  "readings": {
+    "snapshot": {
+      "0": "453B/1ms",
+      "200": "35875B/2ms",
+      "1000": "180197B/13ms",
+      "5000": "925797B/32ms",
+      "10000": "1857799B/66ms"
+    },
+    "candidate": {
+      "0": "2B/0ms",
+      "200": "58537B/2ms",
+      "1000": "295333B/7ms",
+      "5000": "1503337B/18ms",
+      "10000": "3013333B/40ms"
+    },
+    "serialize": {
+      "0": "1436B/1ms",
+      "200": "36860B/2ms",
+      "1000": "181183B/11ms",
+      "5000": "926783B/40ms",
+      "10000": "1858786B/68ms"
+    },
+    "settings": {
+      "0": "81B/0ms",
+      "200": "340B/0ms",
+      "1000": "339B/3ms",
+      "5000": "340B/14ms",
+      "10000": "342B/11ms"
+    }
+  },
+  "shapes": {
+    "snapshot": {
+      "slope": [
+        177.11,
+        179.74,
+        185.07,
+        185.73
+      ],
+      "shape": "linear",
+      "ratio_5000_to_10000": 2.007,
+      "superlinear": false
+    },
+    "candidate": {
+      "slope": [
+        292.68,
+        295.33,
+        300.67,
+        301.33
+      ],
+      "shape": "linear",
+      "ratio_5000_to_10000": 2.004,
+      "superlinear": false
+    },
+    "serialize": {
+      "slope": [
+        177.12,
+        179.75,
+        185.07,
+        185.74
+      ],
+      "shape": "linear",
+      "ratio_5000_to_10000": 2.006,
+      "superlinear": false
+    },
+    "settings": {
+      "slope": [
+        1.29,
+        0.26,
+        0.05,
+        0.03
+      ],
+      "shape": "sublinear",
+      "ratio_5000_to_10000": 1.006,
+      "superlinear": false
+    }
+  },
+  "cache_hit": {
+    "note": "同等输入连读两次。snapshot/serialize 报 miss（它们的读口每次重新序列化，本身不缓存 —— 如实记 miss，不倒推为 hit）；candidate/settings 报 hit（ok）。",
+    "snapshot": "miss",
+    "candidate": "hit",
+    "serialize": "miss",
+    "settings": "hit"
+  },
+  "redundancy_n10000_x5": [
+    4.962,
+    2.634,
+    4.25
+  ],
+  "verdict": "not-done-until-evidence（无有证据的热点 ⇒ 不改产品；计划原文口径：只有证明有收益的热点进入产品修改）",
+  "measured_paths": "4/4",
+  "hotspans": null,
+  "corrections": [
+    "candidate 在 0 档报 2B/0ms/n=0 —— 空图确实产出 0 个候选，不是「测不了」（与 settings 的 81B 基线同形：最小结构开销）。",
+    "snapshot/serialize 报 miss 是**真读数**：这两个读口每次调用都重新拼装载荷，没有缓存层。首版夹具若把它们报成 hit，就是拿「读得到」冒充「缓存命中」（v3275 B2 正是钉这一条的判据）。",
+    "重复读取 redundancy 2.6–5.0 判为「可疑重复工」但**不进产品**：本探针只能证明「同一档位重复调用耗时随次数增长」，不能证明实机里存在真实重复调用（合成探针不产生真实交互序列）。"
+  ],
+  "not_done": [
+    "未做实机取证：无浏览器、无 SillyTavern 宿主、无真实 1000/5000/10000 楼聊天记录；合成数据只覆盖场所/账本两类结构。",
+    "未测向量检索 / LLM 调用 / 注入预算裁剪等 I/O 与网络路径 —— 受宿主与外部服务影响，合成探针测不出意义。",
+    "未定「目标设备预算」：计划原文要求「先记录新基线，再定目标设备预算」，而预算必须来自实机（本探针的数字是合成数据）。此处只立基线，预算留待实机取证。"
+  ]
+}

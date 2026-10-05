@@ -81,6 +81,20 @@
         return Number.isFinite(t) ? t : null;
     }
 
+    /* [v3.275.0] O5：命中判据的**内容签名**。
+     *   修前回退只比 `bytesOf`（序列化长度）：两个**同长度不同内容**的输出会被读成「命中」——
+     *   而「同输入真命中」的反面正是「不同输入不得命中」。只看长度是一种窄读数，它会把真失效读成命中。
+     *   故改为比**序列化字符串**（严格强于长度相等，且不引入新假命中）。 */
+    function sigOf(v) {
+        if (v === undefined) return null;
+        try {
+            const t = typeof v;
+            if (t === 'string') return v;
+            const str = JSON.stringify(v);
+            return (typeof str === 'string') ? str : null;
+        } catch (_e) { return null; }
+    }
+
     /** 字节口径：优先 JSON 长度（与快照 `meta.selfBytes` 同口径）；不可序列化即 null。 */
     function bytesOf(v) {
         if (v === undefined) return null;
@@ -349,8 +363,14 @@
         if (!Number.isFinite(ba) || !Number.isFinite(bb) || ba === null || bb === null) {
             return { n, measured: false, hit: false, reason: 'unserializable', firstBytes: ba, secondBytes: bb };
         }
-        const same = ba === bb && ba > 0;
-        return { n, measured: true, hit: same, reason: same ? 'ok' : 'miss', firstBytes: ba, secondBytes: bb };
+        /* 命中 = **内容相同且非空**（修前只比长度：同长度不同内容会被读成命中）。
+         *   不可序列化（签名 null）⇒ 如实记不可测，不当命中也不当未命中。 */
+        const sa = sigOf(a), sb = sigOf(b);
+        if (sa === null || sb === null) {
+            return { n, measured: false, hit: false, reason: 'unserializable', firstBytes: ba, secondBytes: bb };
+        }
+        const same = sa === sb && sa.length > 0;
+        return { n, measured: true, hit: same, reason: same ? 'ok' : 'miss', firstBytes: ba, secondBytes: bb, sameBy: 'content' };
     }
 
     const api = {
@@ -359,6 +379,7 @@
         SUPERLINEAR_RATIO,
         REDUNDANCY_RATIO,
         bytesOf,
+        sigOf,
         curve,
         survey,
         repeatCost,

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.274.0';
+    const VERSION = '3.275.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1874,6 +1874,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._diffusionFatigueTimeout = 3;    // 疲劳标记保留轮数（防永久封印）
             // [v3.25] 归档隐藏状态（Bakemono archive-controller）
             this._archivedFloorIds = new Set();   // 已被插件归档隐藏的楼层（可恢复）
+            /* [v3.275.0] O5：**归档处置的审计 provenance**（有界，最近 20 条）。
+             *   修前处置只留一个计数（replayDrop/replayShift 的返回值），「剪了哪几楼 / 为什么」
+             *   在处置那一刻就丢了 —— 事后答不出「这个归档为什么不见了」。
+             *   写入方是 ledger-replay.js 的归档面（处置发生地），此处只负责持有与随会话归零。 */
+            this._archiveShiftLog = [];
             // [v3.173] 缝合模块接线面：7 个「已挂载但零消费」模块（v3.163 账本）的读数台账。
             //   接线纪律是「每个模块必须获得真实消费点，且接线不得改变既有行为」——
             //   凡接线只做归因的，读数落在这里，诊断面板可查（坏了有人知道吗）。
@@ -4883,13 +4888,19 @@ function relativeTimeLabel(eventTime, nowTime) {
                 // [v3.109] 记录本轮实际入选条目 id（供召回产物记录「依据」；被引用记忆消失时可据此判定产物失效）
                 try {
                     const _srcKinds = new Set();
+                    /* [v3.275.0] O5：**不再在此处静默截断**（修前 `.slice(0, 200)`）。
+                     *   截断的后果不是报错而是**读数变窄**：产物里声称「本轮入选依据就是这 200 条」，
+                     *   而规模大时多出来的部分在产物里根本不存在（isArtifactStale 的 missing/ratio
+                     *   也只在那 200 条上算）—— 长线里这条读数会静默缩水。
+                     *   现在保留真清单，把容量上界与截断自述交给 recall-artifact.js 一处决定
+                     *   （同一事实只许一个真源），总数一并交出去，不在这里算。 */
                     this._lastSelectedIds = Array.from(new Set((candidateItems || [])
                         .map((it, i) => {
                             const sk = String(it?.source || 'other').split('+')[0];
                             if (sk) _srcKinds.add(sk);
                             return String(it?.id ?? it?.key ?? ('idx_' + i));
                         })
-                        .filter(Boolean))).slice(0, 200);
+                        .filter(Boolean)));
                     this._lastCandidateCount = (candidateItems || []).length;
                     this._lastSourceKinds = Array.from(_srcKinds).sort();
                 } catch (e) { errLog(e, 'onBeforeGeneration.入选id记录'); }
@@ -4996,6 +5007,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     stateFingerprint: String(msgFpOf(_cm) || ''),
                                     injectionText: inj2,
                                     selectedMemoryIds: (Array.isArray(this._lastSelectedIds)) ? this._lastSelectedIds : [],
+                                    // 真总数（含被模块按上界裁掉的部分）：产物据此自述「依据清单是否被截」。
+                                    selectedMemoryIdsTotal: (Array.isArray(this._lastSelectedIds)) ? this._lastSelectedIds.length : null,
                                     sourceKinds: (Array.isArray(this._lastSourceKinds)) ? this._lastSourceKinds : [],
                                     candidateCount: Number(this._lastCandidateCount || 0),
                                     source: 'onBeforeGeneration',
@@ -10404,6 +10417,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['物品认领', '候选 ' + c.ops + ' 条 / ' + c.floors + ' 层 · 可证明 ' + c.proved + ' · 判不了 ' + c.unproved + (c.issue ? '（根因 ' + c.issue + '）' : '')];
                         } catch (e) { errLog(e, 'selfCheck.itemOpsClaim'); return ['物品认领', '—（诊断异常）']; }
                     })(),
+                    /* [v3.275.0] O5：归档处置留痕。回答「刚才那次删楼/回滚，把哪些归档楼层处理掉了、为什么」。
+                     *   修前只有计数（replayDrop 的返回值），处置记录在那一刻就丢了 ——
+                     *   事后无从回答「这个归档为什么不见了」，正是 O5 要治的「抹掉 provenance」。
+                     *   三态可分：没发生过处置 / 有处置（列最近一条细节）/ 面不在场。 */
+                    (() => {
+                        try {
+                            const log = Array.isArray(this._archiveShiftLog) ? this._archiveShiftLog : null;
+                            if (!log) return ['归档处置', '—（本轮尚无归档面）'];
+                            if (!log.length) return ['归档处置', '暂无（本会话未剪/未移任何归档）'];
+                            const last = log[log.length - 1];
+                            const _rm = Array.isArray(last.removed) ? last.removed.map(x => x.from).join(',') : '不可读';
+                            const _mv = Array.isArray(last.moved) ? last.moved.map(x => x.from + '→' + x.to).join(',') : '不可读';
+                            return ['归档处置', '共 ' + log.length + ' 次 · 最近 ' + String(last.side) + ' 于第 ' + last.floor + ' 楼'
+                                + (last.removedCount ? ' 剪 ' + last.removedCount + '（' + _rm + '）' : '')
+                                + (last.movedCount ? ' 移 ' + last.movedCount + '（' + _mv + '）' : '')
+                                + ' · 保留 ' + last.keptCount];
+                        } catch (e) { errLog(e, 'selfCheck.archiveShiftLog'); return ['归档处置', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -10706,6 +10737,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     push('');
                     push(`**召回产物：** ${s.total} 条（复用 ${s.reuses} 次，命中率 ${(s.hitRate * 100).toFixed(1)}%）`);
                     push(`- 平均注入 ${s.avgInjectionChars} 字 / 空产物 ${s.empties} 条`);
+                    /* [v3.275.0] O5：依据清单被截过的产物数必须出现在报告里。
+                     *   截断时 isArtifactStale 的 missing/ratio 只覆盖清单内那部分（窄读数），
+                     *   报告不写这一行，读的人会把「这 200 条里没丢」读成「依据完整」。 */
+                    if (Number(s.selectedTruncatedCount) > 0) {
+                        push(`- ⚠️ ${s.selectedTruncatedCount} 条产物的入选依据清单被截（每条至多保留 ${aa.MAX_SELECTED_IDS || 200} 条，`
+                            + `合计依据 ${s.selectedIdsSum} 条下界）—— 其失效判定只覆盖清单内部分`);
+                    }
                     // [v3.157] 术语词典可观测：上限是多少、当前多少条，一眼可查
                     try {
                         const _lx = this.lexicon;
@@ -13010,7 +13048,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         // [v3.23.1] 换对话同步清空 dedup 指纹（防旧对话文本误标新对话）
                         try { resetRecallDedup(); } catch (e) { errLog(e, 'events.CHAT_CHANGED去重清空'); }
                         // [v3.25.1] 换对话同步清空归档状态（防旧对话楼层 index 误操作新对话）
-                        try { this.engine._archivedFloorIds?.clear(); } catch (e) { errLog(e, 'events.CHAT_CHANGED归档清空'); }
+                        try { this.engine._archivedFloorIds?.clear(); this.engine._archiveShiftLog = []; } catch (e) { errLog(e, 'events.CHAT_CHANGED归档清空'); }
                         // [v3.2] DF1/DF5: 清空注入槽位（setExtensionPrompt 持久化，旧聊天注入会残留到新聊天；GENERATION_STARTED 若仍活跃会立即重新注入）
                         try { clearInjectSlots(); } catch (e) { errLog(e, 'events.CHAT_CHANGED槽位清空'); }
                         // [v3.9] SF2: 基线重置（换聊天后用新聊天的长度，防旧基线误报批量删除）
