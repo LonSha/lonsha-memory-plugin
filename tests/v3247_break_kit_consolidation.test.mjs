@@ -143,6 +143,9 @@ const REGISTRY = [
     /* [v3.277.0 O7] 本档从 tests/_break_kit.mjs 取 breakSource（五条真源码破坏，锚点取自
      *   index.js 的键面行 / init 重绑调用 / 失败过滤 与 memory-config.js 的 null 过滤）；按 B1 台账纪律在此登记。 */
     'v3277_o7_dep_injection.test.mjs',
+    /* [v3.278.0 O7 第二批] 本档从 tests/_break_kit.mjs 取 breakSource / assertSingleHit（真源码破坏 + 锚点唯一性断言，
+     *   锚点取自 memory-core.js 的 normalizeCharName 与 index.js 的 O7 注入面）；按 B1 台账纪律在此登记。 */
+    'v3278_o7_extraction_to_real_load.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
+import { createRequire } from 'node:module';
 const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
@@ -11,53 +12,20 @@ const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 /* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
 const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
+/* [v3.277.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠类体 + new Function 重放，
+ *   那是与真类**并行的第二实现**（类外符号靠注入，normalizeCharName / 关系冲突组还是
+ *   本档手抄的副本）——两处一旦漂移，本档绿着而真类已坏。现在直接 require 真模块拿真类
+ *   （memory-core.js 自带 normalizeCharName / errLog 收口，无需注入）——语义一字不改，
+ *   只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
+
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
+const MO = require_(new URL('../memory-organs.js', import.meta.url).pathname);
 
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
 
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
-function extractClass(name) {
-    /* [v3.264.0] StorageManager 类已外移：改在 memory-organs.js 上切片 */
-    if (orgSrc.indexOf('class ' + name + ' {') >= 0) {
-        const at = orgSrc.indexOf('class ' + name + ' {');
-        const brace = orgSrc.indexOf('{', at);
-        return orgSrc.slice(at, braceEnd(orgSrc, brace) + 1);
-    }
-    const start = src.indexOf(`class ${name} {`);
-    if (start < 0) throw new Error('missing class ' + name);
-    const brace = src.indexOf('{', start);
-    return src.slice(start, braceEnd(src, brace) + 1);
-}
-
-const normFn = (n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
-const errLog = () => {};
-
-const conflictDef = `
-const RELATION_CONFLICT_GROUPS = [
-    new Set(['陌生', '相识', '友好', '暧昧', '暗恋', '热恋', '恋人', '夫妻', '冷战', '决裂', '陌路']),
-    new Set(['盟友', '同行', '中立', '对立', '敌对', '宿敌', '仇敌', '背叛'])
-];
-function areLabelsInConflict(l1, l2) {
-    if (!l1 || !l2 || l1 === l2) return false;
-    for (const group of RELATION_CONFLICT_GROUPS) {
-        if (group.has(l1) && group.has(l2)) return true;
-    }
-    const p1 = '\${l1}-\${l2}';
-    if (/恋人-决裂|决裂-恋人|友好-敌对|敌对-友好|盟友-宿敌|宿敌-盟友/i.test(p1)) return true;
-    return false;
-}
-`;
 
 console.log('=== 1. 静态锚点检查 ===');
 assert.ok(src.includes('vacuum(options = {})'), 'MemoryGraph 必须拥有 vacuum 压缩方法');
@@ -70,12 +38,7 @@ assert.ok(orgSrc.includes('_isWriting') && orgSrc.includes('_pendingWrite'), 'St
 ok('StorageManager 包含 Write Coalescing 写协调锁');
 
 console.log('=== 2. Graph Vacuum (碎片整理与压缩) 动态测试 ===');
-const graphSrc = extractClass('MemoryGraph');
-const mkGraph = () => new Function('normalizeCharName', 'errLog', `
-    ${conflictDef}
-    ${graphSrc}
-    return new MemoryGraph();
-`)(normFn, errLog);
+const mkGraph = () => new MC.MemoryGraph();
 
 {
     const g = mkGraph();
@@ -116,11 +79,7 @@ const mkGraph = () => new Function('normalizeCharName', 'errLog', `
 }
 
 console.log('=== 3. StorageManager 写入合并 (Write Coalescing) 测试 ===');
-const storageSrc = extractClass('StorageManager');
-const mkStorage = () => new Function('VERSION', 'PLUGIN_NAME', 'errLog', `
-    ${storageSrc}
-    return new StorageManager();
-`)('3.40.0', 'LonShaMemory', errLog);
+const mkStorage = () => new MO.StorageManager();
 
 {
     const sm = mkStorage();

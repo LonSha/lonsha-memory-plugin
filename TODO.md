@@ -1,6 +1,11 @@
 # TODO — LonSha 记忆插件
 
-> **最近更新：v3.277.0** —— O7 第一批：真 vm 装载实测证出「宿主符号注入」在真实装载顺序下**从未生效**（构造期必定 module-missing），修四个真缺陷后同面给出「构造期如实缺席 / 装载后全补齐（organs 换满 8 项）」双轮读数；键面简写错名、config 模板被 null 清空（注释与实现相反）、诊断面不可真跑一并收口。
+> **最近更新：v3.278.0** —— O7 第二批：把 9 个历史抽取套件从「从源码抠已外移类 + `new Function` 重放」迁为**真模块装载**（`createRequire` + `memory-core.js` / `memory-organs.js` / `memory-books.js`），语义一字不改、`assert`/`ok(`/`test(` 逐条保留。
+> 减负账本：`new Function` 22→5（余下 5 处全是宿主同文件函数，合法保留）/ `RELATION_CONFLICT_GROUPS` 8→0 / `areLabelsInConflict` 4→0 / `extractClass` 28→1 / `braceEnd` 20→0；九档字节 77082→70992。
+> 真实行为证据增量（双向对照，不是单向破坏）：破坏 `memory-core.js` 的 `normalizeCharName` ⇒ `v360_graph_dedup` **迁移前 rc=0 / 迁移后 rc=1**；方法级破坏（`vacuum`/`addEdge`/`addNode`/…）迁移前后都红 —— 故增量**严格来自类外符号**，如实记录。
+> 迁移边界（实证）：只迁已外移的类；宿主同文件函数（`buildNpcTierInjection`/`fmtNpcTiesContext`/`extractThinkingChain`/`stripMemoryOpsTags`）的 `new Function` 抽取面保留 —— `v343` 第 2 段仍需 `errLog`（首轮误删致 `ReferenceError`）。
+> 新面 `tests/v3278_o7_extraction_to_real_load.test.mjs`（7 段）；`host_beast_baseline` 按探针重建到 v3.278.0（四条不变量断言一条未改）；台账两手登记（tsv + v3247 REGISTRY）。
+> [v3.277.0 上一版] O7 第一批：真 vm 装载实测证出「宿主符号注入」在真实装载顺序下**从未生效**（构造期必定 module-missing），修四个真缺陷后同面给出「构造期如实缺席 / 装载后全补齐（organs 换满 8 项）」双轮读数；键面简写错名、config 模板被 null 清空（注释与实现相反）、诊断面不可真跑一并收口。
 > 判据同步收紧：键面正则删 `(_?)` 假绿通道；注入口判据改为「收集点 >= 2 处且无裸语句调用」；负控制锚点改多行形只打构造期那一处。
 > 新面 `tests/v3277_o7_dep_injection.test.mjs`（判据与负控制跑同一个 judge 函数）；v3264/v3266 的 C 段基线与真 index.js 重新同源。
 > 同版全量回归暴出三条真缺陷（HEAD 上同样红，非既有基线）：`v312`/`v39` 的**固定字符窗口耦合**（断言目标被顶出 `slice(idx, idx+3000/2500)` 窗口，恰差 1 字符）改花括号配平取整块；`_m_o4_probe.mjs` 的命中面**未冻结时钟**（快照带 `exportedAt: Date.now()` ⇒ 测的是毫秒巧合，随机红）改量测窗内冻结。三处均附真源码负控制。

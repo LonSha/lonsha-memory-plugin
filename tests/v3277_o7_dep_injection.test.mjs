@@ -402,7 +402,11 @@ test('v3277 I. 四源同源：index / manifest / package 三源都是当版', ()
     const m = /const VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/.exec(IDX);
     assert.ok(m, 'index.js 里找不到 const VERSION');
     const vnum = (s) => { const q = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim()); return q ? Number(q[1]) * 1000000 + Number(q[2]) * 1000 + Number(q[3]) : NaN; };
-    assert.ok(vnum(m[1]) === vnum('3.277.0'), 'index.js VERSION 应为当版，实得 ' + m[1]);
+    /* [v3.278.0 交棒] 当版硬锚交棒给 v3278_o7_extraction_to_real_load.test.mjs（G 段恰锚当版）；
+     *   本档按 scan_version_guard.mjs 既定口径退回**出生版本下限锚**（>= 本档出生版），
+     *   并另补「本档不得被掏空」——交棒不等于松绑：不承诺高于现版（同 V3）。 */
+    assert.ok(vnum(m[1]) >= vnum('3.277.0'), '本档自 3.277.0 起成立；当前 ' + m[1]);
+    assert.ok(read('tests/v3277_o7_dep_injection.test.mjs').length > 9000, '★ 交棒后本档不得被掏空');
     assert.equal(MF.version, m[1], 'manifest.version 与 index.js 同源');
     assert.equal(JSON.parse(read('package.json')).version, m[1], 'package.json version 与 index.js 同源');
     ok('三源同源 ' + m[1]);

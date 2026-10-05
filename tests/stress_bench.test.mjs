@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import { performance } from 'node:perf_hooks';
 
+import { createRequire } from 'node:module';
 const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
@@ -13,55 +14,20 @@ const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-c
  *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
  *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
 const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
+/* [v3.277.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠类体 + new Function 重放，
+ *   那是与真类**并行的第二实现**（类外符号靠注入，normalizeCharName / 关系冲突组还是
+ *   本档手抄的副本）——两处一旦漂移，本档绿着而真类已坏。现在直接 require 真模块拿真类
+ *   （memory-core.js 自带 normalizeCharName / errLog 收口，无需注入）——语义一字不改，
+ *   只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
 
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
-function extractClass(name, source = src) {
-    const start = source.indexOf(`class ${name} {`);
-    if (start < 0) throw new Error('missing class ' + name);
-    const brace = source.indexOf('{', start);
-    return source.slice(start, braceEnd(source, brace) + 1);
-}
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
+const MB = require_(new URL('../memory-books.js', import.meta.url).pathname);
 
-const normFn = (n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
-const errLog = () => {};
 
-// 提取 MemoryGraph
-const graphSrc = extractClass('MemoryGraph');
-const mkGraph = () => new Function('normalizeCharName', 'errLog', `
-const RELATION_CONFLICT_GROUPS = [
-    new Set(['陌生', '相识', '友好', '暧昧', '暗恋', '热恋', '恋人', '夫妻', '冷战', '决裂', '陌路']),
-    new Set(['盟友', '同行', '中立', '对立', '敌对', '宿敌', '仇敌', '背叛'])
-];
-function areLabelsInConflict(l1, l2) {
-    if (!l1 || !l2 || l1 === l2) return false;
-    for (const group of RELATION_CONFLICT_GROUPS) {
-        if (group.has(l1) && group.has(l2)) return true;
-    }
-    const p1 = '\${l1}-\${l2}';
-    if (/恋人-决裂|决裂-恋人|友好-敌对|敌对-友好|盟友-宿敌|宿敌-盟友/i.test(p1)) return true;
-    return false;
-}
+const mkGraph = () => new MC.MemoryGraph();
 
-    ${graphSrc}
-    return new MemoryGraph();
-`)(normFn, errLog);
-
-// 提取 BM25Engine
-const bm25Src = extractClass('BM25', bkSrc);
-const mkBM25 = () => new Function('errLog', `
-    ${bm25Src}
-    return new BM25();
-`)(errLog);
+const mkBM25 = () => new MB.BM25();
 
 console.log('=== [STRESS TEST 1] 1000 节点 / 5000 边 时态图谱压力测试 ===');
 const graph = mkGraph();

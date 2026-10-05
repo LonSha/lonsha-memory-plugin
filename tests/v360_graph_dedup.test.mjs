@@ -5,39 +5,23 @@ import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
 const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
-/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
- *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
- *   只换被读的文件面；不放宽：每一条仍须在场）。 */
+/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移 memory-core.js。
+ * [v3.277.0 O7] ★ 抽取面改为**真模块装载**：
+ *   修前本档 `extractClass('MemoryGraph')` 从源码里切出类体、再用 `new Function` 重放一份 ——
+ *   那是一个**与真类并行的第二实现**（类外符号靠注入，`normalizeCharName` 还是本档手抄的
+ *   一份），两处一旦漂移，本档绿着而真类已坏（本仓治过多轮的形态）。
+ *   现在直接 require 真模块拿真类（memory-core.js 自带 normalizeCharName 与 errLog 收口，
+ *   无需注入）——语义一字不改，只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
+import { createRequire } from 'node:module';
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
 const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
-/* ---------- 提取器 ---------- */
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
-function extractClass(name) {
-    /* [v3.266.0 A1 第六刀] 类已外移 memory-core.js，类体整体去 4 空格：抽取面按模块缩进取。 */
-    const start = src.indexOf(`class ${name} {`);
-    if (start < 0) throw new Error('missing class ' + name);
-    const brace = src.indexOf('{', start);
-    return src.slice(start, braceEnd(src, brace) + 1);
-}
-
-/* ---------- 装配 MemoryGraph（含 normalizeCharName 依赖） ---------- */
-const gSrc = extractClass('MemoryGraph');
-const mkGraph = () => new Function('normalizeCharName', 'errLog', `
-    ${gSrc}
-    return new MemoryGraph();
-`)((n) => String(n || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase(), () => {});
+/* ---------- 真模块装载（不再切源码重放） ---------- */
+if (typeof MC.MemoryGraph !== 'function') throw new Error('memory-core.js 未导出 MemoryGraph（导出面退化）');
+const mkGraph = () => new MC.MemoryGraph();
 
 /* ══════════ 1. findCharacterByName ══════════ */
 {

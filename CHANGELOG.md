@@ -1,3 +1,68 @@
+## v3.278.0
+
+**O7：外移模块依赖与历史测试减负（第二批：历史抽取测试迁为真实模块装载）**（计划原文四条验收：① 每批减少实际重复实现/夹具耦合，真实行为证据不减；② bindDeps 全量注入及失败部分可观察；③ 扫描器与负控制副本同步跟真源迁移；④ 不能用更新 baseline 洗掉断言）。
+
+上一批（v3.277.0）先证「注入机制本身是否在跑」；本批把它换成「测试到底在跑**谁**」。9 个历史抽取套件此前是**从源码抠出已外移的类体 + `new Function` 重放**，与 `memory-*.js` 里的真类构成**并行的第二实现**（类外符号还得各档手抄副本）——两边一旦漂移，本档绿着而真类已坏。本批只换「被跑的对象」：语义一字不改，`assert` / `ok(` / `test(` 逐条保留。
+
+### 迁移（9 档，逐档真跑绿）
+
+统一形态：`createRequire` + `require_(new URL('../memory-<x>.js', import.meta.url).pathname)` 拿真类，`const mkXxx = () => new MC.Xxx()` 取代原 `new Function` 重放；静态面仍读「入口 + 该模块」合看。
+
+| 档 | 装载模块 | 字节（前 → 后） | 产出面 |
+| --- | --- | --- | --- |
+| `v340_database_evolution` | core + organs | 7211 → 5868 | `ok(` 5 |
+| `chaos_resilience` | core | 5809 → 4710 | `ok(` 5 |
+| `stress_bench` | core + books | 6593 → 5599 | `console.log` |
+| `v341_stitches_mechanics` | core + organs | 10946 → 10375 | `ok(` 6 |
+| `v342_caikis_mechanics` | core | 6723 → 6588 | `ok(` 5 |
+| `v343_baibai_mechanics` | core + books | 8927 → 8026 | `ok(` 4 |
+| `v345_deep_bastion` | core + books | 12021 → 11803 | `test(` 6 |
+| `v346_fortress_pyramid` | core + books | 9494 → 9018 | `test(` 6 |
+| `v360_graph_dedup` | core | 9281 → 9005 | `ok(` 9 |
+
+### 减负账本（pre = HEAD / post = 本版；均按剥注释后的代码面计数）
+
+| 记号 | pre | post | 去向 |
+| --- | --- | --- | --- |
+| `new Function` | 22 | **5** | 5 处全是宿主同文件函数的抽取面（`buildNpcTierInjection` / `fmtNpcTiesContext` / `extractThinkingChain` / `stripMemoryOpsTags`） |
+| `RELATION_CONFLICT_GROUPS` | 8 | **0** | 真源归 `memory-core.js` 一处 |
+| `areLabelsInConflict` | 4 | **0** | 同上 |
+| `extractClass` | 28 | **1** | 又一处只生在 `v341` 的无类体抽取面 |
+| `braceEnd` | 20 | **0** | 抽取机器随重放一起去掉 |
+| 字节合计 | 77082 | **70992**（-8.0%） | 两套维护面的第二套被删掉 |
+
+「两处一旦漂移就无人发现」的实质消失，不是行数搬家：`normalizeCharName` 从 8 处**手抄副本**变成 0 处（保留的 20 处引用全在真装载注记与断言里）。
+
+### 真实行为证据增量（双向对照，不是单向「破坏后翻红」）
+
+本批第一次做出「迁移前 vs 迁移后」的同破坏对照（前者用 `git show HEAD:tests/<f>` 取出跑）：
+
+- **类外符号面（本批的真实增量）**：破坏 `memory-core.js` 的 `normalizeCharName`（声明行之后插 `return String(name || '');`，跳过 NFKC 归一化与小写化）⇒ **`v360_graph_dedup` 迁移前 rc=0（全绿、破坏无反应）/ 迁移后 rc=1**。这正是 O7 验收「真实行为证据不减」的可执行反证：旧形态下真类的一个类外符号坏了，本档绿着。其余 8 档两边都绿（**如实记录：这些档不经过该符号**，不是「没测到也报绿」）。
+- **方法级面（两边都红，如实记录）**：`vacuum` / `addEdge` / `addNode` / `generateAMIndex` / `addPromise` / `setBaseline` / `setProtagonist` / `setTime` 逐个破坏，迁移前后**都**是红的 —— 因为旧档的类体是**现从真源码抠**的，方法体改动会同步进去。故本批增量**严格来自类外符号**这一面，不是全类。
+- **对照协议本身修过一次**：首稿用「替换方法声明行」的破坏方式，`vacuum` 那例把静态子串也一起破坏了 ⇒ 两边都红、无法归因。改为**把破坏插进方法体内部**（保留声明行）后才隔离出真正的行为面差异。
+- 破坏全部走 `tests/_break_kit.mjs`（锚点 `assertSingleHit` 恰中 1 次、必须真改变），跑完逐字节还原。
+
+### 上一轮「STILL GREEN」的三条归因（不是改断言迁就）
+
+首轮挑 `findCharacterByName` 当破坏点，`chaos_resilience` / `stress_bench` / `v343` 三档**全绿**。逐条查过再换点：并非判据失效，而是**该破坏不在本档实际调用路径上**（前者只跑 `addEdge` / `export` / `import` / `snapshotGraph`；中者跑 `addNode` / `addEdge` / `findByNames`；后者的图谱段跑 `addEdge` / `rollbackGraphFrom`）。换到真命中点（`addEdge` / `addNode` / `addEdge`）后三档全部转红。
+
+### 迁移边界（实证，非推断）
+
+本批**只迁「已外移到 `memory-*.js` 的类」**。宿主同文件函数（`buildNpcTierInjection` / `fmtNpcTiesContext` / `extractThinkingChain` / `stripMemoryOpsTags`）**仍在 `index.js`**，其 `new Function` 抽取面**合法保留**（没有第二真源可装载），新档 B 段显式断言「不冒充已迁移」。实证来自本批唯一一次删除决策错误：`v343` 第 2 段的 `buildNpcFn` 仍从真源码抽取面用 `errLog`，首轮迁移把它连 `normFn` 一起删掉 ⇒ `ReferenceError: errLog is not defined`。修法是把 `const errLog = () => {};` 补回并留痕 —— **边界就是「只迁已外移的」，宿主同文件函数的抽取面必须保留**。
+
+### 新增
+- `tests/v3278_o7_extraction_to_real_load.test.mjs`：O7 第二批验收面（7 段全绿）。A 九档 `extractClass` / `braceEnd` / 手抄副本代码面归零 + 真装载在场 + **字节数逐档钉住**（防静默回退到重放形态）+ 产出面不缩水；B 真模块导出面齐备、九类可无参构造、`memory-core.js` 自带 `normalizeCharName` / `areLabelsInConflict` / 关系冲突组真源、宿主同文件函数仍在场；C 九档 `new Function` ≤ 6 / 关系冲突组 = 0 / `areLabelsInConflict` = 0；D 破坏样本真发生且可观察 + 行为基线（NFKC 空格变体可命中、未命中返回 `null`）成立；E 10 个锚点各恰中 1 次 + **锚点字面量在本档只准声明 1 次（判据纯度）** + 单次真破坏可观察且原版判据真成立；F 自防护（真源特征 / 破坏工具 / 本档长度下限 / 逐字持有宿主锚点）；G 三源同源 + 恰锚当版。
+- 台账登记：`tests/audit/catalog_reference_consumers.tsv` 追加 v3278 行；`tests/v3247_break_kit_consolidation.test.mjs` 的 `REGISTRY` 补入 v3278（B1 台账纪律：新增接收方必须登记，否则接入面与判据面不同源）。
+
+### 基线（不洗断言）
+- `tests/audit/host_beast_baseline.json` 按 `tools/_rebuild_host_beast.py` 探针重建到 `measured_at = v3.278.0`（读数零手抄）：`total_lines 13777` / `member_count 524` / delta 三项全 0（本版只动测试档，宿主未变）。
+- 四条不变量断言（`v3264` / `v3266` 的 C 段）**一条未改**：`readings.total_lines` 与真文件同源 / 当版在 `rebuilds` 留痕 / `< 16000` / `< 18401`。本版没有任何「用更新 baseline 洗掉断言」的动作。
+
+### 全量门禁
+- `node tests/run.mjs`：**258/258 文件通过**、0 失败断言；`node tests/run.mjs --audit`：**55/55** 通过。
+- `scan_version_guard.mjs`：当版 frontier 交棒给 `v3278_o7_extraction_to_real_load.test.mjs`，当版锚点 1、问题 0（`v3277` 的当版硬锚按 v3.203.0 既定口径退回**出生版本下限锚**，另补「本档不得被掏空」）。
+- `dead_code_budget.mjs` rc=0（本版只动测试档，活跃代码未变）；`scan_cross_repo_binding.mjs`：在役 258 / 退役 18 / 参考基准 258 / 问题 0。
+
 ## v3.277.0
 
 **O7：外移模块依赖与历史测试减负（第一批：让「宿主符号注入」真的生效 + 失败部分可观察）**（计划原文三条验收：① 每批减少实际重复实现/夹具耦合，真实行为证据不减；② bindDeps 全量注入及失败部分可观察；③ 扫描器与负控制副本同步跟真源迁移；④ 不能用更新 baseline 洗掉断言）。

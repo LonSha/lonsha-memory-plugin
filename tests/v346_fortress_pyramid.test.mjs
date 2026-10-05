@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
+import { createRequire } from 'node:module';
 const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
@@ -17,26 +18,16 @@ const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-c
  *   RelativeTimeHelper / PlotTimeline / BM25 七个类已外迁到 memory-books.js。
  *   凡是「从 index.js 抽这些类」的抽取面都改读该模块；语义一字不改，只换被读的文件。 */
 const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8');
+/* [v3.277.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠类体 + new Function 重放，
+ *   那是与真类**并行的第二实现**（类外符号靠注入，normalizeCharName / 关系冲突组还是
+ *   本档手抄的副本）——两处一旦漂移，本档绿着而真类已坏。现在直接 require 真模块拿真类
+ *   （memory-core.js 自带 normalizeCharName / errLog 收口，无需注入）——语义一字不改，
+ *   只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
 
-function braceEnd(s, open) {
-    let depth = 0;
-    for (let i = open; i < s.length; i++) {
-        const ch = s[i];
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) return i; }
-        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
-        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
-    }
-    return -1;
-}
-function extractClass(name, source = src) {
-    const start = source.indexOf(`class ${name} {`);
-    if (start < 0) throw new Error('missing class ' + name);
-    const brace = source.indexOf('{', start);
-    return source.slice(start, braceEnd(source, brace) + 1);
-}
+const require_ = createRequire(import.meta.url);
+const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
+const MB = require_(new URL('../memory-books.js', import.meta.url).pathname);
 
-const errLog = () => {};
 
 test('=== 1. 静态关键锚点与版本检查 ===', () => {
     assert.match(src.match(/const VERSION = '([^']+)';/)?.[1] || '', /^3\.\d{2,}/, '版本号必须 >= 3.46.0');
@@ -54,13 +45,7 @@ test('=== 1. 静态关键锚点与版本检查 ===', () => {
 });
 
 test('=== 2. GameClock 剧情时钟动态演进与回忆隔离测试 ===', () => {
-    const rthCode = extractClass('RelativeTimeHelper', bkSrc);
-    const clockCode = extractClass('GameClock');
-    const mkClock = () => new Function(`
-        ${rthCode}
-        ${clockCode}
-        return new GameClock();
-    `)();
+    const mkClock = () => new MC.GameClock();
 
     const clock = mkClock();
     assert.equal(clock.date, '', '初始日期为空');
@@ -97,13 +82,7 @@ test('=== 2. GameClock 剧情时钟动态演进与回忆隔离测试 ===', () =>
 });
 
 test('=== 3. 悬念簿与剧情时钟倒计时联动测试 ===', () => {
-    const rthCode = extractClass('RelativeTimeHelper', bkSrc);
-    const suspCode = extractClass('SuspenseBook', bkSrc);
-    const mkSuspense = () => new Function(`
-        ${rthCode}
-        ${suspCode}
-        return new SuspenseBook();
-    `)();
+    const mkSuspense = () => new MB.SuspenseBook();
     const sb = mkSuspense();
 
     sb.add('plan', '前往聚贤庄解毒', 1, '2026-10-01', '2026-10-05');
@@ -121,11 +100,7 @@ test('=== 3. 悬念簿与剧情时钟倒计时联动测试 ===', () => {
 });
 
 test('=== 4. 纪元宏观史记与编年金字塔动态测试 ===', () => {
-    const sumCode = extractClass('SummarySystem');
-    const mkSummary = () => new Function(`
-        ${sumCode}
-        return new SummarySystem();
-    `)();
+    const mkSummary = () => new MC.SummarySystem();
     const ss = mkSummary();
 
     ss.addGrandChronicle('纪元大事件一：汴京大剧变，主角被迫逃离并结识林冲。', { floorStart: 1, floorEnd: 50 });
