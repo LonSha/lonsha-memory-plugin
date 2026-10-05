@@ -102,6 +102,16 @@ function fnBody(src, header) {
 /** 剥行注释：形态判据一律在它上面做，防注释里的示例文字自我满足。 */
 const stripLine = (t) => t.split(NL).map((l) => l.replace(/\/\/.*$/, '')).join(NL);
 const ok = (m) => console.log('  \u2713 ' + m);
+/** [v3.277.0 O7] 调用点判据（纯函数，A 段与 D 段共用）：注入口必须被真调用两次，且返回值全被读走。
+ *  ① 收集点 >= 2：构造期一次 + 模块装载后重绑一次。真实装载顺序是入口先 / extra_js 后，
+ *     取库口又刻意惰性 ⇒ 构造期那次必定 module-missing；没有第二次，这个机制在真实顺序下从未生效。
+ *  ② 不得有裸语句调用：返回值落空会让「模块缺席 / 模块抛错 / 一个 key 都没对上」三种根因同形为 0。 */
+function capturedCalls(tag, fn, src) {
+    const here = 'Object.assign({ tag: ' + Q + tag + Q + ' }, ' + fn + '())';
+    const collected = src.split(here).length - 1;
+    const bare = new RegExp('(?:^|[\n;{}])[ \t]*' + fn + '\(\);').test(src);
+    return { collected, bare };
+}
 
 /**
  * 真判据体（纯函数，无副作用）。返回问题列表，空数组 = 卫生。
@@ -129,12 +139,16 @@ function judgeSlice(idxSrc, modSrc) {
     if (!/class CoreFallback/.test(idxSrc)) problems.push('缺缺席退路 CoreFallback');
     if (!/function _newCore\(name, \.\.\.args\)/.test(idxSrc)) problems.push('缺统一构造点 _newCore(name, ...args)');
     if (!/function _bindCoreDeps\(\)\s*\{/.test(idxSrc)) problems.push('缺依赖注入口 _bindCoreDeps()');
-    if (!idxSrc.includes('_bindCoreDeps();')) problems.push('_bindCoreDeps 定义了却没有调用点（依赖永远是副本）');
+    /* [v3.277.0 O7] 同 v3264：判「返回值真被读出来」，不判裸语句字面量。 */
+    /* [v3.277.0 O7] 同 v3264：收集点 >= 2（构造期 + 装载后重绑），且不得裸语句调用。 */
+    { const c = capturedCalls('core', '_bindCoreDeps', idxSrc);
+      if (c.collected < 2) problems.push('_bindCoreDeps 的注入读数收集点只有 ' + c.collected + ' 处（须 >= 2：构造期 + 模块装载后重绑）');
+      if (c.bare) problems.push('_bindCoreDeps 存在裸语句调用（返回值落空 ⇒ 注入成败不可观察）'); }
     /* ⑤ 依赖面：模块必须真导出 bindDeps，宿主必须逐个供给 */
     if (!/function bindDeps\(deps\)\s*\{/.test(modSrc)) problems.push(MOD_REL + ' 缺 bindDeps(deps)');
     const bindBlock = fnBody(idxSrc, 'function _bindCoreDeps() {') || '';
     for (const k of DEP_KEYS) {
-        const re = new RegExp('(^|[\\s{,])(_?)' + k + '\\s*[:,]');
+        const re = new RegExp('(^|[\\s{,])' + k + '\\s*[:,]');
         if (!re.test(bindBlock)) problems.push('_bindCoreDeps 未提供 ' + k);
     }
     /* ⑥ 退路与真实现按方法名对账 */
@@ -356,6 +370,13 @@ test('v3266 D. 真源码破坏 -> 同一条判据必须翻红', () => {
     assert.ok(judgeSlice(b9, MOD).some((p) => p.includes('已丢失 storyDayDiff')), '宿主丢失双份定义必须翻红');
     const b10 = breakSource(MOD, '                const nk = normalizeCharName(node.name);', '            const nk = storyDayDiff(node.name, ' + Q + Q + ');', 'A1-类体内引用双份函数');
     assert.ok(judgeSlice(IDX, b10).some((p) => p.includes('代码引用')), '类体内出现双份同名函数的代码引用必须翻红');
+    /* [v3.277.0 O7] 新增负控制：核心注入读数被丢弃必须翻红。 */
+    /* 只打掉构造期那一处收集点即须翻红（收集点 2 → 1）。 */
+    const b11 = breakSource(IDX,
+        '                Object.assign({ tag: ' + Q + 'core' + Q + ' }, _bindCoreDeps()),   // [v3.266.0] A1 第六刀',
+        '                _bindCoreDeps();   // [v3.266.0] A1 第六刀',
+        'A1-注入读数被丢');
+    assert.ok(judgeSlice(b11, MOD).some((p) => p.includes('收集点只有')), '核心注入收集点掉到 1 处必须翻红');
     ok('十条真源码破坏各自被同一条判据抓到');
 });
 
@@ -400,7 +421,7 @@ test('v3266 F. 判据面自防护：实现住在本档 + 走唯一破坏真源 +
         ['模块类名', 'class CharacterState {', MOD],
         ['构造点', "this.clock = _newCore('GameClock');", IDX],
         ['退路方法', FB_ANCHOR, IDX],
-        ['依赖注入', '            return MC.bindDeps({', IDX],
+        ['依赖注入', '            const n = MC.bindDeps({', IDX],
     ]) {
         assert.ok(src.includes(anchor), label + ' 锚点在真源码里必须存在（否则负控制是空的）');
         const all = occ(SELF, anchor);

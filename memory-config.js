@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.276.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.277.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -652,7 +652,13 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
         if (typeof d.errLog === 'function') { errLog = d.errLog; n++; }
         if (typeof d.moduleLib === 'function') { _moduleLib = d.moduleLib; n++; }
         if (typeof d.clearApiCooldowns === 'function') { clearApiCooldowns = d.clearApiCooldowns; n++; }
-        if (Object.prototype.hasOwnProperty.call(d, 'configDefaultsTemplate') && d.configDefaultsTemplate !== undefined) {
+        /* [v3.277.0 O7] ★ 这里的 `!= null` 是**设计落地**不是写法偏好：
+         *   上方 645-648 的设计注释就写着「不做非 null 过滤则每次宿主注入都会把已冻结的
+         *   模板清空」——而修前实现用的是 `!== undefined`，`null` 照样放行，注释与实现相反。
+         *   实测（探针）：bindDeps({ configDefaultsTemplate: null }) 真把已冻模板清成 null，
+         *   触发路径即 index.js 的 _newConfigManager 首次构造前把尚为 null 的宿主变量推过来。
+         *   修后：null 与 undefined 同义（都表示「宿主还没提供快照」），一律忽略、不计入 swapped。 */
+        if (Object.prototype.hasOwnProperty.call(d, 'configDefaultsTemplate') && d.configDefaultsTemplate != null) {
             _configDefaultsTemplate = d.configDefaultsTemplate; n++;
         }
         if (typeof d.version === 'string' && d.version) { VERSION = d.version; n++; }

@@ -88,6 +88,16 @@ function fnBody(src, header) {
     return src.slice(at, classEnd(src, src.indexOf('{', at)));
 }
 const ok = (m) => console.log('  \u2713 ' + m);
+/** [v3.277.0 O7] 调用点判据（纯函数，A 段与 D 段共用）：注入口必须被真调用两次，且返回值全被读走。
+ *  ① 收集点 >= 2：构造期一次 + 模块装载后重绑一次。真实装载顺序是入口先 / extra_js 后，
+ *     取库口又刻意惰性 ⇒ 构造期那次必定 module-missing；没有第二次，这个机制在真实顺序下从未生效。
+ *  ② 不得有裸语句调用：返回值落空会让「模块缺席 / 模块抛错 / 一个 key 都没对上」三种根因同形为 0。 */
+function capturedCalls(tag, fn, src) {
+    const here = 'Object.assign({ tag: ' + Q + tag + Q + ' }, ' + fn + '())';
+    const collected = src.split(here).length - 1;
+    const bare = new RegExp('(?:^|[\n;{}])[ \t]*' + fn + '\(\);').test(src);
+    return { collected, bare };
+}
 
 /**
  * 真判据体（纯函数，无副作用）。返回问题列表，空数组 = 卫生。
@@ -115,12 +125,18 @@ function judgeSlice(idxSrc, modSrc) {
     if (!/class OrganFallback/.test(idxSrc)) problems.push('\u7f3a\u7f3a\u5e2d\u9000\u8def OrganFallback');
     if (!/function _newMemoryOrgan\(name, \.\.\.args\)/.test(idxSrc)) problems.push('\u7f3a\u7edf\u4e00\u6784\u9020\u70b9 _newMemoryOrgan(name, ...args)');
     if (!/function _bindOrganDeps\(\)\s*\{/.test(idxSrc)) problems.push('\u7f3a\u4f9d\u8d56\u6ce8\u5165\u53e3 _bindOrganDeps()');
-    if (!idxSrc.includes('_bindOrganDeps();')) problems.push('_bindOrganDeps \u5b9a\u4e49\u4e86\u5374\u6ca1\u6709\u8c03\u7528\u70b9\uff08\u4f9d\u8d56\u6c38\u8fdc\u662f\u526f\u672c\uff09');
+    /* [v3.277.0 O7] 调用点判据升级：不再查裸语句字面量（O7 已把它改成收集返回值的形态），
+     *   改判**返回值真被读出来** —— 修前返回值被丢弃，于是三种根因（模块缺席 / 模块抛错 /
+     *   模块在但一个 key 都没对上）同形为 0，没有任何一面能回答「这一轮注进去了没有」。 */
+    /* [v3.277.0 O7] 调用点判据（两处 + 无裸语句）：见 capturedCalls 的两条理由。 */
+    { const c = capturedCalls('organs', '_bindOrganDeps', idxSrc);
+      if (c.collected < 2) problems.push('_bindOrganDeps 的注入读数收集点只有 ' + c.collected + ' 处（须 >= 2：构造期 + 模块装载后重绑）');
+      if (c.bare) problems.push('_bindOrganDeps 存在裸语句调用（返回值落空 ⇒ 注入成败不可观察）'); }
     /* \u2464 \u4f9d\u8d56\u9762\uff1a\u6a21\u5757\u5fc5\u987b\u771f\u5bfc\u51fa bindDeps\uff0c\u5bbf\u4e3b\u5fc5\u987b\u9010\u4e2a\u4f9b\u7ed9 */
     if (!/function bindDeps\(deps\)\s*\{/.test(modSrc)) problems.push(MOD_REL + ' \u7f3a bindDeps(deps)');
     const bindBlock = fnBody(idxSrc, 'function _bindOrganDeps() {') || '';
     for (const k of DEP_KEYS) {
-        const re = new RegExp('(^|[\\s{,])(_?)' + k + '\\s*[:,]');
+        const re = new RegExp('(^|[\\s{,])' + k + '\\s*[:,]');
         if (!re.test(bindBlock)) problems.push('_bindOrganDeps \u672a\u63d0\u4f9b ' + k);
     }
     /* \u2465 \u9000\u8def\u4e0e\u771f\u5b9e\u73b0\u6309\u65b9\u6cd5\u540d\u5bf9\u8d26 */
@@ -289,12 +305,21 @@ test('v3264 D. \u771f\u6e90\u7801\u7834\u574f -> \u540c\u4e00\u6761\u5224\u636e\
     const b4 = breakSource(IDX, '        getRevision() { return 0; }\n', '', 'A1-\u9000\u8def\u7f3a\u65b9\u6cd5');
     assert.ok(judgeSlice(b4, MOD).some((p) => p.includes('\u9000\u8def\u7f3a\u65b9\u6cd5 StorageManager.getRevision')), '\u9000\u8def\u5c11\u4e00\u4e2a\u65b9\u6cd5\u5fc5\u987b\u7ffb\u7ea2');
     /* \u7834\u574f\u5fc5\u987b\u6253\u5728\u89c2\u6d4b\u70b9\u4e0a\uff1a\u76ee\u6807\u662f\u300c\u952e\u9762\u6d88\u5931\u300d\uff0c\u6545\u628a\u952e\u9762\u672c\u8eab\u6362\u6389\u3002 */
-    const b5 = breakSource(IDX, '                errLog, numOr, decayScore, sanitizeJson, _moduleLib,', '                /* \u4f9d\u8d56\u9762\u88ab\u6458 */', 'A1-\u4f9d\u8d56\u6ce8\u5165\u88ab\u6458');
+    const b5 = breakSource(IDX, '                errLog, numOr, decayScore, sanitizeJson,', '                /* \u4f9d\u8d56\u9762\u88ab\u6458 */', 'A1-\u4f9d\u8d56\u6ce8\u5165\u88ab\u6458');
     assert.ok(judgeSlice(b5, MOD).some((p) => p.includes('\u672a\u63d0\u4f9b')), '\u4f9d\u8d56\u6ce8\u5165\u88ab\u6458\u5fc5\u987b\u7ffb\u7ea2');
     const b6 = breakSource(MOD, 'return (h >>> 0).toString(16).padStart(8, ' + Q + '0' + Q + ');', 'return String(h);', 'A1-\u526f\u672c\u6f02\u79fb');
     assert.ok(judgeSlice(IDX, b6).some((p) => p.includes('\u4e0d\u9010\u5b57\u540c\u6e90')), '\u526f\u672c\u4e0e\u5bbf\u4e3b\u4e0d\u540c\u6e90\u5fc5\u987b\u7ffb\u7ea2');
     const b7 = breakSource(MOD, '    toInjection(knownChars = []) {', '    toInjectionRENAMED(knownChars = []) {', 'A1-\u6210\u5458\u9762\u7f29\u6c34');
     assert.ok(judgeSlice(IDX, b7).some((p) => p.includes('\u7f3a\u6210\u5458 toInjection')), '\u6210\u5458\u9762\u7f29\u6c34\u5fc5\u987b\u7ffb\u7ea2');
+    /* [v3.277.0 O7] 新增负控制：调用点改回**裸语句**（返回值被丢弃）必须翻红。 */
+    /* 只打掉**一处**收集点即须翻红 —— 这正是「两处」不变量在工作（收集点从 2 掉到 1）。 */
+    const b8 = breakSource(IDX,
+        '                Object.assign({ tag: ' + Q + 'organs' + Q + ' }, _bindOrganDeps()),' + NL
+        + '                Object.assign({ tag: ' + Q + 'core' + Q + ' }, _bindCoreDeps()),   // [v3.266.0] A1 第六刀',
+        '                _bindOrganDeps();' + NL
+        + '                Object.assign({ tag: ' + Q + 'core' + Q + ' }, _bindCoreDeps()),   // [v3.266.0] A1 第六刀',
+        'A1-注入读数被丢');
+    assert.ok(judgeSlice(b8, MOD).some((p) => p.includes('收集点只有')), '收集点掉到 1 处必须翻红（否则「两轮」不变量没有观测点）');
     ok('\u4e03\u6761\u771f\u6e90\u7801\u7834\u574f\u5404\u81ea\u88ab\u540c\u4e00\u6761\u5224\u636e\u6293\u5230');
 });
 
@@ -341,7 +366,7 @@ test('v3264 F. \u5224\u636e\u9762\u81ea\u9632\u62a4\uff1a\u5b9e\u73b0\u4f4f\u572
         ['\u6a21\u5757\u7c7b\u540d', 'class EntityLexicon {', MOD],
         ['\u6784\u9020\u70b9', "this.vector = _newMemoryOrgan('VectorStore', config);", IDX],
         ['\u9000\u8def\u65b9\u6cd5', '        getRevision() { return 0; }', IDX],
-        ['\u4f9d\u8d56\u6ce8\u5165', '            return MO.bindDeps({', IDX],
+        ['\u4f9d\u8d56\u6ce8\u5165', '            const n = MO.bindDeps({', IDX],
     ]) {
         assert.ok(src.includes(anchor), label + ' \u951a\u70b9\u5728\u771f\u6e90\u7801\u91cc\u5fc5\u987b\u5b58\u5728\uff08\u5426\u5219\u8d1f\u63a7\u5236\u662f\u7a7a\u7684\uff09');
         const all = SELF.split(anchor).length - 1;

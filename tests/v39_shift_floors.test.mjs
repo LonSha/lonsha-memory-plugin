@@ -16,6 +16,19 @@ const __libSrc = (() => { try { return __fsReq.readFileSync(new URL('../ledger-r
 
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
+/* [v3.277.0 O7] 花括号配平取块（跳过字符串/模板串与行注释）——
+ *   替代历史套件里的 `slice(idx, idx + 固定字数)`：后者随宿主增长把断言目标顶出窗口（假红）。 */
+function __braceEnd(s, open) {
+    let depth = 0;
+    for (let i = open; i < s.length; i++) {
+        const ch = s[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) return i; }
+        else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; i++; while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; } }
+        else if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; }
+    }
+    return -1;
+}
 
 /* ══════════ 1. 旧级联模式绝迹（静态） ══════════ */
 {
@@ -152,8 +165,12 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
 /* ══════════ 6. SF2 基线重置（静态） ══════════ */
 {
+    /* [v3.277.0 O7] 同 v312「Bug C」节：修前 `src.slice(ccIdx, ccIdx + 2500)` 是固定字符距离，
+     *   实测锚点 `_lastKnownChatLen` 偏移 2509 ⇒ 恰在窗口外（假红）。改为花括号配平取整个处理块。 */
     const ccIdx = src.indexOf('types.CHAT_CHANGED');
-    const ccBlock = src.slice(ccIdx, ccIdx + 2500);
+    assert.ok(ccIdx >= 0, '找不到 types.CHAT_CHANGED 注册点');
+    const ccBlock = src.slice(ccIdx, __braceEnd(src, src.indexOf('{', ccIdx)) + 1);
+    assert.ok(ccBlock.length > 0, 'CHAT_CHANGED 处理块取不出来（花括号未配平）');
     assert.ok(ccBlock.includes('_lastKnownChatLen'), 'CHAT_CHANGED 内重置基线');
     ok('SF2: 换聊天基线重置落位');
 }

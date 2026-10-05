@@ -1,3 +1,32 @@
+## v3.277.0
+
+**O7：外移模块依赖与历史测试减负（第一批：让「宿主符号注入」真的生效 + 失败部分可观察）**（计划原文三条验收：① 每批减少实际重复实现/夹具耦合，真实行为证据不减；② bindDeps 全量注入及失败部分可观察；③ 扫描器与负控制副本同步跟真源迁移；④ 不能用更新 baseline 洗掉断言）。
+
+本版把 O7 的第一步放在「先证机制本身是否真的在跑」：用与 `tests/audit/scan_module_wiring.mjs` 同形的真 vm 夹具按 `manifest` 顺序装载全部 80 个脚本后，实测证实——这个机制在真实装载顺序下**从未生效过**。修完四个真缺陷后，同一面真装载给出「构造期三处如实缺席 / 模块装载后三处全部补齐（organs 换满 8 项）」的双轮读数。
+
+### 修的错
+- **注入时机不存在（最贵）**：三处 `bindDeps` 注入点住在引擎构造期，而真实装载顺序是**入口先 / extra_js 后**、取库口又刻意惰性 ⇒ 构造期三处**必定** `module-missing`，模块永远用自己的逐字副本（即「注入」这个机制只存在于源码里）。新增 `rebindModuleDeps()` 并在 `init()` 的 `loadModules()` 之后调用：装载完成时重跑三处，并把结果落 `this._bindDepsRebindRead`。注入幂等（同一批符号重复注入只重赋同值），故重跑不改变语义，只让它真的生效。
+- **键面不匹配**：宿主 `_bindOrganDeps` 曾以**对象简写**写 `_moduleLib,`（键名即 `_moduleLib`），而 `memory-organs.js` 的 `bindDeps` 读的是 `d.moduleLib` ⇒ 这一个键永不注入。实测：对象简写换 7 项、显式键 `moduleLib: _moduleLib,` 换 8 项（DEP_KEYS 恰 8 项）。
+- **config 模板被 null 清空（注释与实现相反）**：`memory-config.js` 的 `bindDeps` 用 `!== undefined` 放行 `null`，而 `index.js` 的注释声称「模块侧对 null 的处置是忽略」。触发路径即 `_newConfigManager` 首次构造前把尚为 `null` 的宿主变量推给模块 —— 已冻模板被清空后，每段迁移都走「默认值缺失」的 skipped 分支（迁移静默失效）。修后 `!= null` 落地，与注释一致。
+- **诊断面不可真跑**：依赖注入读数此前只住在 `selfCheck` 的内联 IIFE 里，只能读源码判断。抽为纯函数 `_formatBindDepsRow(constructRead, rebindRead)`，selfCheck 与判据**共用同一段逻辑**（破坏它能让判据当场翻红）。
+
+### 新增
+- `tests/v3277_o7_dep_injection.test.mjs`：O7 专用验收面（A 真装载零失败 / B 构造期如实缺席 / C 装载后重绑换满键面 / C2 重绑真挂在 `loadModules` 之后（真跑 `init`）/ D 行为面（八键逐个接受、错键名被拒、静态挂载真执行）/ E null 语义与宿主注释一致 / F 三态真跑 / G 自防护 / H 五条真源码破坏各自让同款判据翻红）。**判据与负控制跑同一个 `judge*` 函数**，不是两段平行实现。
+- 两轮读数（构造期 + 装载后重绑）在 selfCheck 合并展示：构造期缺席是**时机**不是缺陷，最终态以重绑为准；重绑仍有失败项时带 `⚠` 点名 tag 与 why，不静默。
+
+### 全量回归暴出的三条真缺陷（**不是既有基线**：三处都在 HEAD 上同样红，逐条实测归因后修的是真判据/夹具缺陷，不是改断言迁就）
+- **`tests/v312` / `tests/v39`：固定字符窗口耦合**（`src.slice(ccIdx, ccIdx + 3000)` / `+ 2500`）。两者都从 `types.CHAT_CHANGED` 起算固定距离，而断言目标随宿主增长被顶出窗口末端——实测偏移 `_lockDegradePending`=3000（窗口 3000）、`_lastKnownChatLen`=2509（窗口 2500），**恰在窗口外一位** ⇒ 代码没坏却报假红。修法：改为花括号配平取**整个 CHAT_CHANGED 处理块**（结构决定边界，长度无关）。
+  - 负控制复核（确认不是把判据改松了）：摘掉 `this._lockDegradePending = new Set();` ⇒ v312「清降级排队」翻红；摘掉 `clearTimeout(this._editHealTimer)` ⇒ v312「清自愈定时器」翻红；摘掉 `this.engine._lastKnownChatLen = ...` ⇒ v39「CHAT_CHANGED 内重置基线」翻红。三次破坏均逐字节还原（md5 前后一致）。
+- **`tests/audit/_m_o4_probe.mjs`：时钟耦合的假红**（v3256 真跑转红）。快照里带 `exportedAt: Date.now()`，而探针的命中面（「同等输入连读两次必须命中」）不冻结时钟 ⇒ 它测的其实是「两次调用是否恰在同一毫秒」。实测（40 次内循环）：不冻结 `hits=25 / misses=15`，冻结 `hits=40 / misses=0`；连跑 8 次探针，snapshot 命中 2 次、serialize 命中 4 次——**随机红**。
+  - 修法：量测窗内冻结 `Date.now` / `performance.now`（覆盖 `build` + 两次 `read`，因为快照字段在 build 里生成），量完立即还原，不污染其它读数。修后连跑 8 次四条路径全 hit。
+  - 这**不是**把判据调绿：被测对象的不确定来自宿主时钟，不是来自「缓存是否被静默禁用」。原来那条判据声称守的东西没变，变的是它终于只测那个东西。
+
+### 判据收紧（扫描器与负控制同步跟真源迁移）
+- `tests/v3264_a1_memory_organs.test.mjs` / `tests/v3266_a1_memory_core.test.mjs`：键面正则删去 `(_?)` —— 那个可选下划线前缀会把错误的 `_moduleLib,` 判为「已提供 moduleLib」，是本仓典型假绿通道。
+- 调用点判据由「含 `_bindOrganDeps();` 字面量」改为**收集点计数 + 裸语句检查**：注入口必须被 `Object.assign({ tag }, fn())` 收集 **>= 2 次**（构造期 + 装载后重绑），且不得存在裸语句 `fn();`（返回值落空 ⇒ 注入成败不可观察）。
+- 负控制锚点升级：同一段字面量在真源码里出现两处以上时，改用多行锚点只打掉构造期那一处。
+- `tests/audit/host_beast_baseline.json` 按探针重建（零手抄），不洗断言，四个不变量（`total_lines` 与真文件同源 / 当版在 `rebuilds` 留痕 / `< 15000` / `< 18401`）保持。
+
 ## v3.276.0
 
 **O6：质量评测升级为端到端与留出验证**（计划原文三条验收：① 新增能力在不改期望集的前提下提升；② 无答案样本不会靠扩召回数量得分；③ 泄密等禁入指标单独计不被平均命中率抵消）。

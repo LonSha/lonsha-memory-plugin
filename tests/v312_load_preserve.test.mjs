@@ -91,8 +91,15 @@ function extractClass(name) {
 
 /* ══════════ 3. Bug C: CHAT_CHANGED 清自愈（静态） ══════════ */
 {
+    /* [v3.277.0 O7] 修前是 `src.slice(ccIdx, ccIdx + 3000)` —— 固定字符距离。
+     *   病根：锚点本身（`types.CHAT_CHANGED`）在窗口内，但随宿主增长，**断言目标**被顶出
+     *   窗口末端（当前实测：`_lockDegradePending` 偏移 3000，恰好落在窗口外一位）⇒
+     *   判据在「代码没坏」时报假红。这与 O7 要治的「历史测试与字符距离耦合」是同一条。
+     *   改为花括号配平取**整个 CHAT_CHANGED 处理块**：结构决定边界，长度无关。 */
     const ccIdx = src.indexOf('types.CHAT_CHANGED');
-    const ccBlock = src.slice(ccIdx, ccIdx + 3000);
+    assert.ok(ccIdx >= 0, '找不到 types.CHAT_CHANGED 注册点');
+    const ccBlock = src.slice(ccIdx, braceEnd(src, src.indexOf('{', ccIdx)) + 1);
+    assert.ok(ccBlock.length > 0, 'CHAT_CHANGED 处理块取不出来（花括号未配平）');
     assert.ok(ccBlock.includes('clearTimeout(this._editHealTimer)'), '清自愈定时器');
     assert.ok(ccBlock.includes('this._editHealPending = new Set()'), '清待愈集合');
     assert.ok(ccBlock.includes('this._selfHealRunning = false'), '复位执行标志');

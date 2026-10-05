@@ -211,12 +211,33 @@ const repeats = [
  * 口径：命中 = 两次读出的 JSON 字节相等且非空（`cacheHit` 内建三态：
  *   ok / miss / no-probe·unserializable —— 测不出与未命中**不同形**，见该函数头注）。 */
 const HIT_PATHS = ['snapshot', 'candidate', 'serialize', 'settings'];
+/* 【v3.277.0 O7】命中面必须先**固定时钟**再读。
+ *   实测（40 次内循环）：`buildBridgeSnapshot` 的快照里带 `exportedAt: Date.now()`，
+ *   于是「同等输入连读两次」在**不冻结时钟**时只测「两次调用是否恰在同一毫秒」：
+ *   hits=25 / misses=15（假红），冻结后 hits=40 / misses=0。
+ *   原判据声称守的是「缓存被静默禁用」，而实际测出来的是宿主时钟分辨率 ——
+ *   这不是被测对象的不确定，是**夹具没控制住一个非确定输入**。
+ *   本节只在量测窗内冻结 Date.now / performance.now，量完立即还原（不得污染其它读数）。 */
+const realNow = Date.now;
+const realPerfNow = (typeof performance !== 'undefined' && performance && typeof performance.now === 'function')
+    ? performance.now.bind(performance) : null;
+const FROZEN_MS = 1700000000000;
+function withFrozenClock(fn) {
+    Date.now = () => FROZEN_MS;
+    if (realPerfNow) { try { performance.now = () => FROZEN_MS; } catch (e) { /* 只读实现，退回不动 */ } }
+    try { return fn(); }
+    finally {
+        Date.now = realNow;
+        if (realPerfNow) { try { performance.now = realPerfNow; } catch (e) { /* 同上 */ } }
+    }
+}
 const hits = HIT_PATHS.map((name) => {
     const p = probes[name];
     if (!p) {
         return { path: name, n: bigN, measured: false, hit: false, reason: 'no-probe', firstBytes: null, secondBytes: null };
     }
-    return Object.assign({ path: name }, WL.cacheHit(p, { n: bigN }));
+    /* 时钟冻结覆盖 build + 两次 read（build 也读时钟：快照字段在 build 里生成）。 */
+    return Object.assign({ path: name }, withFrozenClock(() => WL.cacheHit(p, { n: bigN })));
 });
 
 console.log('=== M-O4 四条消费路径只读量测（合成数据 + 真模块，非实机） ===');

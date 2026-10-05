@@ -134,6 +134,15 @@ const REGISTRY = [
     /* [v3.273.0 O3] 本档从 tests/_break_kit.mjs 取 breakSource（三条真源码破坏，
      *   锚点取自 injection-router.js 的容量计算与拼接面）；按 B1 台账纪律在此登记。 */
     'v3273_o3_budget_cut_contract.test.mjs',
+    /* [v3.274.0 O4] 本档从 tests/_break_kit.mjs 取 breakSource（五条真源码破坏）；按 B1 台账纪律在此登记。 */
+    'v3274_o4_receipt_consumption.test.mjs',
+    /* [v3.275.0 O5] 同上（三向负控制：清单截断自述 / 归档 provenance / Number(null) 同族）。 */
+    'v3275_o5_scale_and_archive.test.mjs',
+    /* [v3.276.0 O6] 同上（四条负控制：候选层 / 评分层 / 披露门 / 读数写死）。 */
+    'v3276_o6_holdout_and_turns.test.mjs',
+    /* [v3.277.0 O7] 本档从 tests/_break_kit.mjs 取 breakSource（五条真源码破坏，锚点取自
+     *   index.js 的键面行 / init 重绑调用 / 失败过滤 与 memory-config.js 的 null 过滤）；按 B1 台账纪律在此登记。 */
+    'v3277_o7_dep_injection.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

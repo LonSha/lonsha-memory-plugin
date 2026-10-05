@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.276.0';
+    const VERSION = '3.277.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1225,15 +1225,21 @@
      *  为什么放在构造期现算：热更新/模块后加载时不留旧闭包。返回被换掉的项数（诊断用）。 */
     function _bindOrganDeps() {
         const MO = _memoryOrgansLib();
-        if (!MO || typeof MO.bindDeps !== 'function') return 0;
+        if (!MO || typeof MO.bindDeps !== 'function') return { ok: false, swapped: 0, why: 'module-missing' };
         try {
-            return MO.bindDeps({
-                errLog, numOr, decayScore, sanitizeJson, _moduleLib,
+            const n = MO.bindDeps({
+                /* [v3.277.0 O7] ★ 必须是显式键 `moduleLib:` —— 修前写成对象简写 `_moduleLib,`，
+                 *   键名即 `_moduleLib`，而 memory-organs.js 的 bindDeps 读的是 `d.moduleLib`，
+                 *   于是这一个键**永不注入**（实测：注入 `_moduleLib` 换 7 项、注入 `moduleLib` 换 8 项，
+                 *   DEP_KEYS 恰 8 项）。模块侧的 `_moduleLib` 只能继续用副本。 */
+                errLog, numOr, decayScore, sanitizeJson,
+                moduleLib: _moduleLib,
                 initEbbingMeta: _initEbbingMeta,
                 fetchWithTimeoutRetry,
                 version: VERSION,
             });
-        } catch (e) { errLog(e, 'A1第五刀.bindDeps'); return 0; }
+            return { ok: true, swapped: Number(n) || 0, why: '' };
+        } catch (e) { errLog(e, 'A1第五刀.bindDeps'); return { ok: false, swapped: 0, why: (e && e.message) ? String(e.message) : String(e) }; }
     }
     // ══════════════════════════════════════════════════════════════════
     // [A1 第六刀] 内核数据模型类集取库口（memory-core.js）
@@ -1381,9 +1387,9 @@
      *  为什么放在构造期现算：热更新/模块后加载时不留旧闭包。返回被换掉的项数（诊断用）。 */
     function _bindCoreDeps() {
         const MC = _memoryCoreLib();
-        if (!MC || typeof MC.bindDeps !== 'function') return 0;
+        if (!MC || typeof MC.bindDeps !== 'function') return { ok: false, swapped: 0, why: 'module-missing' };
         try {
-            return MC.bindDeps({
+            const n = MC.bindDeps({
                 errLog, sanitizeJson,
                 moduleLib: _moduleLib,
                 memoryBooksLib: _memoryBooksLib,
@@ -1391,7 +1397,8 @@
                 relativeTimeHelperFactory: _newRelativeTimeHelper,
                 version: VERSION,
             });
-        } catch (e) { errLog(e, 'A1 第六刀.bindDeps'); return 0; }
+            return { ok: true, swapped: Number(n) || 0, why: '' };
+        } catch (e) { errLog(e, 'A1 第六刀.bindDeps'); return { ok: false, swapped: 0, why: (e && e.message) ? String(e.message) : String(e) }; }
     }
     // ══════════════════════════════════════════════════════════════════
     // [A1 第七刀] 配置管理类取库口（memory-config.js）
@@ -1450,19 +1457,55 @@
      *  则宿主改了函数而副本未同步就会**静默漂移**（本仓治理过多轮的缺陷形态）。
      *  为什么放在构造期现算：热更新/模块后加载时不留旧闭包。返回被换掉的项数（诊断用）。
      *  ★ 传给 bindDeps 的 `_configDefaultsTemplate` 在首次构造时是 null（尚未冻结）——
-     *    模块侧对 null 的处置是「忽略」，**不会**把已冻的值清空（见模块 bindDeps 的留痕）。 */
+     *    模块侧对 null/undefined 的处置是「忽略」：把已冻的值清空会让迁移分支反复走
+     *    「默认值缺失」的 skipped 分支（迁移静默失效），故 [v3.277.0 O7] 把这条**落到实现**
+     *    （memory-config.js 的 `!= null`）。修前该处实现是 `!== undefined`、null 照样放行，
+     *    本注释与实现相反（本轮实测的注释说谎形态）。 */
     function _bindConfigDeps() {
         const MC = _memoryConfigLib();
-        if (!MC || typeof MC.bindDeps !== 'function') return 0;
+        if (!MC || typeof MC.bindDeps !== 'function') return { ok: false, swapped: 0, why: 'module-missing' };
         try {
-            return MC.bindDeps({
+            const n = MC.bindDeps({
                 errLog,
                 moduleLib: _moduleLib,
                 clearApiCooldowns,
                 configDefaultsTemplate: _configDefaultsTemplate,
                 version: VERSION,
             });
-        } catch (e) { errLog(e, 'A1 第七刀.bindDeps'); return 0; }
+            return { ok: true, swapped: Number(n) || 0, why: '' };
+        } catch (e) { errLog(e, 'A1 第七刀.bindDeps'); return { ok: false, swapped: 0, why: (e && e.message) ? String(e.message) : String(e) }; }
+    }
+    /** [v3.277.0 O7] 依赖注入诊断行的**纯函数**格式化面：selfCheck 调用它，判据也真跑它。
+     *  为什么必须抽成纯函数：诊断行若只住在 selfCheck 的内联 IIFE 里，
+     *  就只能靠读源码判断、无法被真跑（本仓治理过多轮的「判据只能文本推断」形态）。
+     *  抽出后同一段逻辑既被 selfCheck 用，也能被判据用 new Function 真跑三态：
+     *  破坏它（如把失败项过滤改成空数组）能让判据当场翻红。
+     *  入参：constructRead（构造期三态数组或 null）、rebindRead（装载后重绑三态数组或 null）。
+     *  返回：[标题, 值] 两元组（与 selfCheck 的 rows 元素同形）。 */
+    function _formatBindDepsRow(constructRead, rebindRead) {
+        const fmt = (r) => r.map((x) => x.tag + ' ' + x.swapped).join(' · ');
+        const badOf = (r) => r.filter((x) => !x || x.ok !== true);
+        const reb = Array.isArray(rebindRead) ? rebindRead : null;
+        if (reb) {
+            const bad = badOf(reb);
+            const total = reb.reduce((a, x) => a + (Number(x && x.swapped) || 0), 0);
+            if (!bad.length) {
+                const c0 = Array.isArray(constructRead) ? constructRead : [];
+                const c0bad = badOf(c0).length;
+                return ['依赖注入', fmt(reb) + '（共换 ' + total + ' 项）'
+                    + (c0bad ? '；构造期 ' + c0bad + ' 处因 extra_js 未装载而缺席，装载后已补齐' : '')];
+            }
+            return ['依赖注入', '⚠ 装载后仍有 ' + bad.length + '/' + reb.length + ' 处未注入：'
+                + bad.map((x) => (x && x.tag ? x.tag : '?') + '（' + ((x && x.why) || '未知') + '）').join(' · ')
+                + ' · 成功处 ' + fmt(reb.filter((x) => x && x.ok === true))];
+        }
+        const r = Array.isArray(constructRead) ? constructRead : null;
+        if (!r) return ['依赖注入', '—（尚未走到构造期，未注入）'];
+        const bad = badOf(r);
+        if (!bad.length) return ['依赖注入', fmt(r) + '（共换 ' + r.reduce((a, x) => a + (Number(x.swapped) || 0), 0) + ' 项）'];
+        return ['依赖注入', '⚠ ' + bad.length + '/' + r.length + ' 处未注入（构造期）：'
+            + bad.map((x) => (x && x.tag ? x.tag : '?') + '（' + ((x && x.why) || '未知') + '）').join(' · ')
+            + ' · 模块装载后未重绑'];
     }
     
     
@@ -1879,6 +1922,13 @@ function relativeTimeLabel(eventTime, nowTime) {
              *   在处置那一刻就丢了 —— 事后答不出「这个归档为什么不见了」。
              *   写入方是 ledger-replay.js 的归档面（处置发生地），此处只负责持有与随会话归零。 */
             this._archiveShiftLog = [];
+            /* [v3.277.0 O7] 三处 bindDeps 的注入读数（构造期填入）。
+             *   初始为 null（未注入）与 [] 不同义：null = 还没走到那一步。 */
+            this._bindDepsRead = null;
+            /* [v3.277.0 O7] 重绑读数：构造期必然早于 extra_js 装载（取库口刻意惰性），
+             *   故构造期三处注入在真实顺序下**必定** module-missing。init() 在 loadModules()
+             *   之后重跑一遍并把结果落在这里（仍为 null = 还没重绑）。 */
+            this._bindDepsRebindRead = null;
             // [v3.173] 缝合模块接线面：7 个「已挂载但零消费」模块（v3.163 账本）的读数台账。
             //   接线纪律是「每个模块必须获得真实消费点，且接线不得改变既有行为」——
             //   凡接线只做归因的，读数落在这里，诊断面板可查（坏了有人知道吗）。
@@ -2004,9 +2054,17 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   _moduleLib / fetchWithTimeoutRetry / VERSION）。放在这里而不是构造函数开头：
             //   注入本身要读 _memoryOrgansLib()，而取库口是惰性的（extra_js 后加载）——
             //   早注也是注给同一个模块对象，但放在器官构造点旁边，「谁依赖谁」一眼可读。
-            _bindOrganDeps();
-            _bindCoreDeps();   // [v3.266.0] A1 第六刀：四个内核数据模型的主人符号现算注入
-            _bindConfigDeps();   // [v3.267.0] A1 第七刀：配置管理的主人符号现算注入
+            /* [v3.277.0 O7] 注入结果**必须被读出来**（计划原文：bindDeps 全量注入及失败部分可观察）。
+             *   修前三处调用点都把返回值丢掉，而失败与「成功但换了 0 项」的返回值都是 0 ——
+             *   于是「模块没加载」「模块抛错」「模块在但一个 key 都没对上」三种根因同形，
+             *   且**没有任何一面**能回答「这一轮到底注进去了没有」。
+             *   现在收进 this._bindDepsRead：每项三态（ok=true 带 swapped / ok=false 带 why），
+             *   由 selfCheck 的「依赖注入」行输出。 */
+            this._bindDepsRead = [
+                Object.assign({ tag: 'organs' }, _bindOrganDeps()),
+                Object.assign({ tag: 'core' }, _bindCoreDeps()),   // [v3.266.0] A1 第六刀
+                Object.assign({ tag: 'config' }, _bindConfigDeps()),   // [v3.267.0] A1 第七刀
+            ];
             // [v2.0] P2
             this.status = _newCore('CharacterState');   // [v3.266.0] A1 第六刀外移 memory-core.js
             this.status.clock = this.clock;   // [v3.180] 年龄读数的日期解析助手来源（引擎侧注入优先；
@@ -9671,6 +9729,25 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         }
 
         // [v3.0] SD: 一键诊断——子系统统计 + 召回管线 dry-run + 存档 schema 校验 + 错误日志
+        /** [v3.277.0 O7] 模块装载后的**重绑**：把三处 bindDeps 重跑一遍并留下读数。
+         *  为什么必须重跑：三处注入点在引擎构造期，而真实装载顺序是入口先 / extra_js 后，
+         *  取库口又刻意惰性 ⇒ 构造期注入**必定** module-missing（实测读数），模块从此恒用副本。
+         *  注入本身是幂等的（同一批符号重复注入只重赋同值），故重跑不改变语义，只让机制真的生效。
+         *  返回值：与构造期同形的三态数组（ok/swapped/why），失败项不被静默吞掉。 */
+        rebindModuleDeps() {
+            const read = [
+                Object.assign({ tag: 'organs' }, _bindOrganDeps()),
+                Object.assign({ tag: 'core' }, _bindCoreDeps()),
+                Object.assign({ tag: 'config' }, _bindConfigDeps()),
+            ];
+            this._bindDepsRebindRead = read;
+            const bad = read.filter((x) => !x || x.ok !== true);
+            if (bad.length) {
+                try { errLog(new Error('模块装载后仍有 ' + bad.length + ' 处注入未成功：' + bad.map((x) => x.tag + '/' + x.why).join(' ')), 'O7.rebindModuleDeps'); } catch (e) { /* 留痕不得成为新的失败 */ }
+            }
+            return read;
+        }
+
         async selfCheck() {
             const report = { time: new Date().toLocaleString(), version: VERSION, stats: [], errors: _errBuf.slice(-15), pipeline: null, schema: null };   // [v3.2] DF4: 面板只展示最近15条
             try {
@@ -10435,6 +10512,12 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                                 + ' · 保留 ' + last.keptCount];
                         } catch (e) { errLog(e, 'selfCheck.archiveShiftLog'); return ['归档处置', '—（诊断异常）']; }
                     })(),
+                    /* [v3.277.0 O7] 依赖注入读数：三处 bindDeps 的**成功/失败/缺席**必须可分。
+                     *   修前返回值被丢弃 ⇒ 「模块没加载」「模块抛错」「模块在但一个 key 都没对上」
+                     *   三种根因同形（都是 0），且没有任何一面能回答「这一轮注进去了没有」。
+                     *   修后两轮都展示：构造期（真实顺序下必定 module-missing，那是**时机**不是缺陷）
+                     *   与模块装载后的重绑（这才是机制该生效的那一轮）。最终态以重绑为准。 */
+                    _formatBindDepsRow(this._bindDepsRead, this._bindDepsRebindRead),
                 ];
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
@@ -12754,6 +12837,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             console.log(`[${PLUGIN_NAME}] v${VERSION} 初始化...`);
             await this.waitForST();
             this.loadModules();
+            /* [v3.277.0 O7] 模块装载之后立刻重绑依赖：extra_js 已挂上，此时注入才真正生效。
+             *   放在 loadModules 之后、registerEvents 之前 —— 事件接线与后续构造会用到
+             *   被注入后的模块符号，顺序不能颠倒。失败只留痕、不阻断 init（注入是增强不是前置）。 */
+            try { this.engine.rebindModuleDeps(); } catch (e) { errLog(e, 'O7.init.rebindModuleDeps'); }
             this.registerEvents();
             this.createUI();
             await this.ensureSettingsUI();
