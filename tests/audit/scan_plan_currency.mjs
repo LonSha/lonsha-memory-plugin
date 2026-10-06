@@ -24,6 +24,12 @@
 //      与实际读到的排序型节集合双向齐全（新增排序节不登记 ⇒ 红）
 //   P6 契约声明：登记 note 必须写「唯一现行排序」与「陈旧标记」两句
 //   P7 fail-closed：PLAN 缺失 / 登记缺失或非法 ⇒ exit 2（没得判 ≠ 通过）
+//   P8 [v3.287.0] 已交付的 **X 项**不得复活为本节「下一步」—— 与 P4 同源，但面补一类：
+//      P4 只钉 O1–O8，X 系列不在它的枚举面内（实测：已于 v3.270.0 交付的 X1 曾被写进第 3 条待做，
+//      且名字写错）。判据只认**条目标题**（`N. **…**`）里列出的编号 ——
+//      ★ 首版取「编号 ±N 字符窗口」判有无状态词，负控制当场漏判：破坏文本自带的说明
+//        「X1 已于 v3.270.0 交付」也在窗口内，破坏被自己的解释掩盖（H5 判据纯度）。
+//        正文叙述里的 X 编号一律不看 —— 它往往正是在陈述「别再做」。
 //
 // 退出码：0=卫生  1=真缺陷（陈旧节无标记 / 已交付项复活 / 双现行节）  2=结构漂移
 //
@@ -106,36 +112,124 @@ for (const [ln, title] of sortSections) {
 }
 
 // ---------- P4 已交付条目不得复活为本节「下一步」 ----------
+/* [v3.287.0] 现状节那一行（含「优化计划 O1–O8」的那行）。 */
+function statusLineOf(src) {
+    return src.split('\n').find((l) => l.includes('优化计划 O1–O8')) || '';
+}
+/* 从 pos 起，到**下一个 O 编号段**（`**O<数字>` 或 `O<数字>（`）或行尾为止。 */
+function nextSegEnd(line, pos) {
+    const rest = line.slice(pos + 1);
+    const m = /\*\*O[1-8]|O[1-8]\s*（/.exec(rest);
+    return m ? pos + 1 + m.index : line.length;
+}
 // 判据来源：optimization-plan O8 原文「已交付条目不再列为下一步」。
 //   Op 的交付事实写在文首现状节：「O1（…）/ O2（…）…已交付各自定向门」。
-//   本判据只钉一条**可机械核**的形态：若本节下一步里点名了某个 O 编号，
-//   而该编号在文首现状节被记为「已交付」，则该条必须自带「已交付 / 收口 / 交付」字样。
+//
+//   ★ [v3.287.0 判据纯度修正 · H5] 首版按「编号 ±40/120 字符窗口」找状态词，**负控制漏判**：
+//     `seg` 的后 120 字符会跨到**相邻条目**（第 3 条常写「X1 已于 v… 交付（勿再列入待办）」），
+//     那个「交付」被当成第 1 条自己的状态词 ⇒ 未标状态的 O6 被放行。
+//     实测：`1. **O6 推进**（按计划继续）。` 与第 3 条的说明同处一个 120 字符窗口时，判据静默通过。
+//     修法同 P8：只认**条目标题**（`N. **…**` 的加粗段）里点名的编号 ——
+//     状态词必须出现在**同一个标题内**（如 `**O8 收口**`），跨条、跨正文一律不算。
 if (currentLine > 0) {
     const after = lines.slice(currentLine, currentLine + 12).join('\n');
+    /* 交付事实只认**该编号自己那一段**里的措辞 —— 不能靠「整行里有『已交付各自定向门』」
+     * 就把行内所有 O 编号都当已交付：现状节一旦把「部分交付的 O2」与「六项已交付」并列写，
+     * 那种粗读法会把未交付（未收口）的 O2 也算成已交付，从而误报「O2 复活」。
+     * 段界：从该编号起，到下一个 `**O<数字>` 或行尾为止。 */
     const delivered = new Set();
-    for (const m of planSrc.matchAll(/O([1-8])（[^）]*）\s*\/|O([1-8])（[^）]*）(?=[^\n]*已交付各自定向门)/g)) {
-        if (m[1]) delivered.add(m[1]);
-    }
-    /* 更稳的读法：现状节那一整行里，逐个 Op 看它后面是否紧跟「已交付各自定向门」。 */
-    const statusLine = lines.find((l) => l.includes('优化计划 O1–O8')) || '';
-    for (const m of statusLine.matchAll(/O([1-8])（/g)) delivered.add(m[1]);
-    const deliveredAll = delivered.size >= 7 && /已交付各自定向门/.test(statusLine);
-    if (deliveredAll) {
-        for (const m of after.matchAll(/O([1-8])\b/g)) {
-            const num = m[1];
-            if (!delivered.has(num)) continue;
-            const segStart = Math.max(0, m.index - 40);
-            const seg = after.slice(segStart, m.index + 120);
-            if (!/已交付|收口|交付/.test(seg)) {
-                bad('现行排序节的下一步里出现「O' + num + '」（文首现状节记为已交付）却未标状态'
-                    + ' ⇒ 已交付条目被复活为待办（O8 验收原文禁止）');
+    const statusLine = statusLineOf(planSrc);
+    for (const m of statusLine.matchAll(/O([1-8])\s*（/g)) {
+        const seg = statusLine.slice(m.index, nextSegEnd(statusLine, m.index));
+        /* 「部分交付 / 未收口 / 未执行」是**未交付**的显式标记，优先级高于「已交付」字样。 */
+        if (/部分交付|未收口|未执行|尚未/.test(seg)) continue;
+        /* 形态 A：编号自己那一段自带状态词（`O7（…，已交付六刀台账：…）`）。 */
+        if (/已交付/.test(seg)) { delivered.add(m[1]); continue; }
+        /* 形态 B：**收尾总结句**（`…）**六项已交付各自定向门**；`）—— 编号逐项列出、
+         *   交付事实写在行内末尾的总结句里，这是人写计划时的自然写法（实测本轮 PLAN 即此形态）。
+         *   判据要让位于文档，不该逼文档为判据改写成「每段自带状态词」的八股。
+         *   收窄条件：总结句须含「N 项已交付」且 N 等于行内 O 编号个数，才承认它覆盖全行。 */
+        if (m[1] === '1') {
+            const nums = [...statusLine.matchAll(/O([1-8])\s*（/g)].map((x) => x[1]);
+            const uniq = [...new Set(nums)];
+            const sm = /([一二三四五六七八]|\d+)\s*项已交付/.exec(statusLine);
+            const cn = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8 };
+            const claim = sm ? (cn[sm[1]] || Number(sm[1])) : 0;
+            if (claim > 0) {
+                /* 逐段复核：被显式标「部分交付/未收口/未执行」的编号仍须排除。 */
+                for (const n of uniq) {
+                    const p = statusLine.indexOf('O' + n + '（');
+                    const s = statusLine.slice(p, nextSegEnd(statusLine, p));
+                    if (/部分交付|未收口|未执行|尚未/.test(s)) continue;
+                    delivered.add(n);
+                }
+                notes.push('P4 交付事实按**行尾总结句**读：声明 ' + claim + ' 项 / 行内 ' + uniq.length
+                    + ' 个编号（旧形态「每段自带状态词」同样接受）');
             }
         }
+    }
+    const deliveredAll = delivered.size >= 6;
+    if (deliveredAll) {
+        /* ★ 只认**条目标题**里的编号：那是「待做清单」的位置；状态词须在同一标题内。 */
+        const bulletRe = /^\s*\d+[.]\s*\*\*(.+?)\*\*/gm;
+        let hit = 0;
+        for (const bm of after.matchAll(bulletRe)) {
+            const title = bm[1];
+            for (const m of title.matchAll(/O([1-8])\b/g)) {
+                const num = m[1];
+                if (!delivered.has(num)) continue;
+                if (/已交付|收口|交付/.test(title)) continue;   // 状态词在**本标题内**才放行
+                hit++;
+                bad('现行排序节第 ' + bm[0].trim().split('.')[0] + ' 条**标题**里仍把已交付的「O' + num
+                    + '」列为待做却未标状态 ⇒ 已交付条目被复活为待办（O8 验收原文禁止）');
+            }
+        }
+        notes.push('P4 已交付编号 ' + [...delivered].sort().join(',') + '（标题面命中 ' + hit
+            + ' 处；跨条说明（如「X1 已于 v… 交付」）不参与判定）');
     } else {
         notes.push('文首现状节未呈现「O1–O7 已交付各自定向门」形态，P4 本档跳过（如实报出）');
     }
 }
-
+// ---------- P8 已交付的 X 项不得复活为本节「下一步」 ----------
+// [v3.287.0 新增] 判据来源同 P4，但面补一类：O8 原文「已交付条目不再列为下一步」对
+//   拓展计划 X 系列同样成立，而 P4 只钉「O1–O8」，X 系列完全不在它的枚举面内 ——
+//   实测本刀修前，第 3 条把**已于 v3.270.0 交付的 X1** 写进了「X 系列首批（待做）」，
+//   且把它的名字写错（写成「结构化证据查询与完整度」，实为「世界书干跑从取数走向预演」）。
+//
+//   ★ 判据纯度（H5）：首版取「编号 ±40/120 字符窗口」判有无状态词，**负控制当场漏判** ——
+//     破坏文本 `3. **X 系列首批（X1 结构化证据查询与完整度 / …）** —— X1 已于 v3.270.0 交付（勿再列入待办）`
+//     里那条**说明**本身就含「已交付」，判定窗口跨过去就命中白名单，破坏被自己的解释掩盖。
+//     修法：判据只认**条目标题**（`N. **…**` 的加粗段）里列出的编号 —— 那是「待做清单」的位置；
+//     正文叙述里的 X 编号（如「X1 已于 v3.270.0 交付」）一律不看，因为它正是在陈述「别再做」。
+if (currentLine > 0) {
+    const after = lines.slice(currentLine, currentLine + 12).join('\n');
+    const xStatusLine = lines.find((l) => l.includes('拓展计划 X1–X8')) || '';
+    const xDelivered = new Set();
+    for (const m of xStatusLine.matchAll(/X([1-8])\s*\*{0,2}\s*已交付/g)) xDelivered.add(m[1]);
+    /* 区间写法「X2–X8 尚未实施」里的编号是**未交付**方，须排除（防把 X2 误记为已交付）。 */
+    for (const m of xStatusLine.matchAll(/X([1-8])\s*[–\-—]\s*X([1-8])\s*\*{0,2}\s*尚未实施/g)) {
+        const a = Number(m[1]); const b = Number(m[2]);
+        for (let i = a; i <= b; i++) xDelivered.delete(String(i));
+    }
+    if (xDelivered.size) {
+        /* 条目标题形态：行首 `N. **` … `**`（本节的下一步三条）。只在这里找编号。 */
+        const bulletRe = /^\s*\d+[.]\s*\*\*(.+?)\*\*/gm;
+        let hit = 0;
+        for (const bm of after.matchAll(bulletRe)) {
+            const title = bm[1];
+            for (const m of title.matchAll(/X([1-8])\b/g)) {
+                if (!xDelivered.has(m[1])) continue;
+                hit++;
+                bad('现行排序节第 ' + bm[0].trim().slice(0, 3) + ' 条**标题**里仍把已交付的「X' + m[1]
+                    + '」列为待做（文首现状节记为已交付）⇒ 已交付的 X 项被复活为待办（O8 验收原文禁止）');
+            }
+        }
+        notes.push('P8 X 系列已交付编号：' + [...xDelivered].sort().join(',')
+            + '（标题面命中 ' + hit + ' 处；说明面（如「X1 已于 v… 交付」）不参与判定）');
+    } else {
+        notes.push('文首现状节未呈现「X… 已交付」形态，P8 本档跳过（如实报出）');
+    }
+}
 // ---------- P5 登记 ↔ 磁盘 双向齐全 ----------
 {
     const raw = fs.readFileSync(REG, 'utf8');

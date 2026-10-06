@@ -180,6 +180,9 @@ const REGISTRY = [
     /* [v3.287.0 O2] 新套件同样从唯一真源取 breakSource / assertSingleHit，
      *   按台账纪律（接入面 == 磁盘事实）在此登记。 */
     'v3287_ui_interaction.test.mjs',
+    /* [v3.288.0 X 系列面补一类] 新套件同样从唯一真源取 breakSource / assertSingleHit，
+     *   按台账纪律（接入面 == 磁盘事实）在此登记。 */
+    'v3288_plan_currency_xface.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

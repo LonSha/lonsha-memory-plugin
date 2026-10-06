@@ -429,7 +429,8 @@ test('v3287 H1. 当版锚点：套件与包版本同源（V4 数得到）', () =
     const self = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
     assert.ok(self.includes(A_SELF_HEAD), '自防护：套件须自持扫描器路径常量');
     assert.ok(self.includes('assertSingleHit'), '自防护：须用统一锚点校验器');
-    assert.equal(vnum('3.287.0'), vnum(pkg), '当版锚点须与 package.json 同源（V4 计数形态）');
+    /* [v3.288.0 交棒] 本档写于 3.287.0；转下限锚：后续版本须 >= 它，不得把历史档锁成恰好等于当版。 */
+    assert.ok(vnum(pkg) >= vnum('3.287.0'), '本档版本下界 3.287.0 不得被绕过（实 ' + pkg + '）');
     ok('当版锚点 ' + pkg);
 });
 

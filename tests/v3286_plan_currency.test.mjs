@@ -34,11 +34,12 @@ const A_P1_NONE = "    bad('PLAN 里找不到「唯一现行排序」节 ⇒ 读
 const A_P1_MULTI = "    bad('PLAN 里有 ' + currentSections.length + ' 个「唯一现行排序」节（第 '";
 const A_P2 = "        bad('PLAN 第 ' + ln + ' 行的排序型节「' + title + '」未带陈旧标记 ⇒ '";
 const A_P3 = "        bad('PLAN 当前执行状态写 v' + m[1] + ' ≠ index.js 真值 v' + VERSION";
-const A_P4 = "                bad('现行排序节的下一步里出现「O' + num + '」（文首现状节记为已交付）却未标状态'";
+const A_P4 = "                bad('现行排序节第 ' + bm[0].trim().split('.')[0] + ' 条**标题**里仍把已交付的「O' + num";
 const A_P5_MISS = "    if (missing.length) bad('实际读到的排序型节未登记（新增排序节必须登记）：' + missing.join(' / '));";
 const A_P5_EXTRA = "    if (extra.length) bad('登记了但磁盘上已没有该排序型节（退位项须一并摘掉）：' + extra.join(' / '));";
 const A_P6_A = "    if (!regSrc.includes('唯一现行排序')) bad('plan_currency.tsv 丢了「唯一现行排序」契约声明');";
 const A_P6_B = "    if (!regSrc.includes('陈旧标记')) bad('plan_currency.tsv 丢了「陈旧标记」契约声明');";
+const A_P8 = "                bad('现行排序节第 ' + bm[0].trim().slice(0, 3) + ' 条**标题**里仍把已交付的「X' + m[1]";
 const A_FLOOR_LINES = "if (lines.length < 40) drift('PLAN 只有 ' + lines.length + ' 行（下限 40）⇒ 枚举塌陷，拒绝给结论');";
 const A_FLOOR_H2 = "if (h2.length < 4) drift('PLAN 的 H2 节只有 ' + h2.length + ' 个（下限 4）⇒ 结构塌陷，拒绝给结论');";
 const A_SELF_LEN = 'assert.ok(self.length > 6000';
@@ -67,6 +68,11 @@ function mkRepo(mut = () => {}) {
         stepOp: 'O8',                      // 下一步里点名的 Op
         stepOpStated: true,                // 该条是否带「已交付/收口/交付」字样
         extraSortSection: null,            // 追加一个排序型节（P5 未登记用）
+        /* ---- P8（X 系列复活判据）[v3.287.0 新增] ---- */
+        xStatus: '> · **拓展计划 X1–X8**：**X1 已交付**（v3.270.0，占位证据）；'
+            + '**X2–X8 尚未实施**（依赖占位）。',   // null ⇒ 现状节不写 X 行（P8 跳过档）
+        stepX3: '**X 系列第二批起步（X2 证据 / X3 预演）**',  // 第 3 条标题（健康：不点已交付项）
+        stepX3Note: ' —— X1 已于 v3.270.0 交付（勿再列入待办）。',  // 第 3 条说明（说明面，不参与判定）
     };
     mut(st);
 
@@ -83,8 +89,10 @@ function mkRepo(mut = () => {}) {
     blocks.push('# 合成仓发展规划');
     blocks.push('');
     blocks.push('> **当前执行状态（2026-10-06，v' + st.version + '）**：【本节是唯一现行口径】');
-    blocks.push('> · **优化计划 O1–O8**：O1（甲）/ O2（乙）/ O3（丙）/ O4（丁）/ O5（戊）/ O6（己）/ O7（庚）'
-        + '已交付各自定向门；**O8 为当前主线**。');
+    blocks.push('> · **优化计划 O1–O8**：O1（甲，已交付各自定向门）/ O2（乙，已交付各自定向门）/ '
+        + 'O3（丙，已交付各自定向门）/ O4（丁，已交付各自定向门）/ O5（戊，已交付各自定向门）/ '
+        + 'O6（己，已交付各自定向门）/ O7（庚，已交付各自定向门）；**O8 为当前主线**。');
+    if (st.xStatus) blocks.push(st.xStatus);
     blocks.push('');
     blocks.push('## 现状基线（规划起点）');
     blocks.push('');
@@ -100,7 +108,7 @@ function mkRepo(mut = () => {}) {
         blocks.push('1. **' + st.stepOp + (st.stepOpStated ? ' 收口' : ' 推进')
             + '**（' + (st.stepOpStated ? '已交付第一刀；本刀补第二刀后收口' : '按计划继续') + '）。');
         blocks.push('2. **下一项乙** —— 尚未做。');
-        blocks.push('3. **下一项丙** —— 尚未做。');
+        blocks.push('3. ' + st.stepX3 + st.stepX3Note);
         blocks.push('');
     }
     if (st.dupCurrent) {
@@ -274,7 +282,31 @@ test('v3286B B6. P6 契约声明缺失 ⇒ exit 1', () => {
     });
     ok('P6 翻红');
 });
-
+test('v3286B B7. P8 [v3.287.0] 已交付的 X 项复活为下一步 ⇒ exit 1；说明面不误红', () => {
+    /* ① 标题里点名已交付的 X1 ⇒ 翻红 */
+    withRepo((s) => { s.stepX3 = '**X 系列首批（X1 结构化证据查询与完整度 / X2 证据 / X3 预演）**'; }, (dir) => {
+        const r = run(dir);
+        assert.equal(r.code, 1, '第 3 条标题里把已交付的 X1 列为待做必须 exit 1：' + r.out.slice(-300));
+        assert.ok(r.out.includes('复活为待办'), '须点名「已交付的 X 项被复活」');
+        assert.ok(r.out.includes('X1'), '须点名具体编号');
+    });
+    /* ② ★ 判据纯度回归：**说明面**含「X1 已于…交付」时不得误红（首版正是被这句掩盖而漏判） */
+    withRepo((s) => {
+        s.stepX3 = '**X 系列第二批起步（X2 证据 / X3 预演）**';
+        s.stepX3Note = ' —— X1 已于 v3.270.0 交付（勿再列入待办）；X2/X3 尚待做。';
+    }, (dir) => {
+        const r = run(dir);
+        assert.equal(r.code, 0, '标题未点已交付项、仅说明面提及 ⇒ 必须放行：' + r.out.slice(-300));
+        assert.ok(r.out.includes('标题面命中 0 处'), '注记须自述「标题面命中 0 处」');
+    });
+    /* ③ 现状节不写 X 行 ⇒ P8 跳过档（如实报出，不静默通过） */
+    withRepo((s) => { s.xStatus = null; }, (dir) => {
+        const r = run(dir);
+        assert.equal(r.code, 0, '现状节无 X 行时 P8 跳过，不得凭空翻红');
+        assert.ok(r.out.includes('P8 本档跳过'), '跳过须如实报出（不静默）');
+    });
+    ok('P8 翻红 + 说明面放行 + 跳过档如实报出');
+});
 /* ══════════════ C. fail-closed ══════════════ */
 test('v3286B C. fail-closed：三份真源不可用 ⇒ exit 2', () => {
     withRepo((s) => { s.omitPlan = true; }, (dir) => {
@@ -305,9 +337,10 @@ test('v3286B E. 判据纯度：破坏锚点字面量在本档各只有 1 个持�
     const self = readRoot(path.join('tests', 'v3286_plan_currency.test.mjs'));
     const ANCHORS = [['P1_NONE', A_P1_NONE], ['P1_MULTI', A_P1_MULTI], ['P2', A_P2], ['P3', A_P3],
         ['P4', A_P4], ['P5_MISS', A_P5_MISS], ['P5_EXTRA', A_P5_EXTRA], ['P6_A', A_P6_A], ['P6_B', A_P6_B],
+        ['P8', A_P8],
         ['FLOOR_LINES', A_FLOOR_LINES], ['FLOOR_H2', A_FLOOR_H2],
         ['SELF_LEN', A_SELF_LEN], ['SELF_HEAD', A_SELF_HEAD]];
-    const SCANNER_ANCHORS = ANCHORS.slice(0, 11);
+    const SCANNER_ANCHORS = ANCHORS.slice(0, 12);
     const holders = new Map();
     for (const [label, a] of ANCHORS) {
         assert.equal(a.includes(NL), false, label + ' 须是单行锚点');
@@ -322,11 +355,11 @@ test('v3286B E. 判据纯度：破坏锚点字面量在本档各只有 1 个持�
     const declRe = /^const\s+(A_[A-Z0-9_]+)\s*=/gm;
     const declNames = [...self.matchAll(declRe)].map((m) => m[1]);
     assert.deepEqual(declNames, ['A_P1_NONE', 'A_P1_MULTI', 'A_P2', 'A_P3', 'A_P4', 'A_P5_MISS',
-        'A_P5_EXTRA', 'A_P6_A', 'A_P6_B', 'A_FLOOR_LINES', 'A_FLOOR_H2', 'A_SELF_LEN', 'A_SELF_HEAD'],
+        'A_P5_EXTRA', 'A_P6_A', 'A_P6_B', 'A_P8', 'A_FLOOR_LINES', 'A_FLOOR_H2', 'A_SELF_LEN', 'A_SELF_HEAD'],
         '本档锚点常量声明序须稳定');
-    const s = scanSrc();
+const s = scanSrc();
     for (const [label, a] of SCANNER_ANCHORS) assertSingleHit(s, a, 'v3286b_h_' + label);
-    ok('13 个锚点各只有 1 个持有常量；11 条扫描器锚点在真源上各恰中一次');
+    ok('14 个锚点各只有 1 个持有常量；12 条扫描器锚点在真源上各恰中一次');
 });
 
 /* ══════════════ F. 真源码破坏 ══════════════ */
