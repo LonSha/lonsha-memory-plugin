@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.289.0';
+    const VERSION = '3.290.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -6573,8 +6573,23 @@ function relativeTimeLabel(eventTime, nowTime) {
                 try {
                     const _phoneQuery = window.VirtualPhone.lonshaBridge.queryPhoneMemory || window.VirtualPhone.lonshaBridge.recall.bind(window.VirtualPhone.lonshaBridge);
                     const phoneHits = await _phoneQuery(query.text, numOr(this.config.config.rubyPhoneRecallTopN, 3));   // [v3.156] 0=不向手机库取记忆
-                    if (phoneHits?.length) {
-                        results.rubyphone = phoneHits.map((h, i) => ({
+                    /* [v3.290.0 · X4] 召回侧准入：手机召回结果进注入块前的**唯一门**。
+                     *   修前实测：本处直接 map 成 [手机记忆·…] 注入，而「玩家使用行为」
+                     *   （usage-tracker）与角色剧情记忆在该文本里**同形**，角色回复因此可能
+                     *   引用「玩家点开了什么 App」这类作者面事实。现按来源建议可见性过滤：
+                     *   player-only 一律不进角色面，并**分列**放行/挡掉两栏（不是静默丢弃）。
+                     *   ★ 面缺席（旧版 / 模块未加载）时如实留痕并按原路径放行 —— 不静默当「已核对」。 */
+                    const _faLib = _factAdmissionLib();
+                    let _phoneKept = phoneHits;
+                    if (phoneHits?.length && _faLib && typeof _faLib.filterRecallForCharacter === 'function') {
+                        try {
+                            const _fr = _faLib.filterRecallForCharacter(phoneHits.map((h) => Object.assign({}, h, { app: h.app || h.source || h.layer })));
+                            _phoneKept = _fr.kept;
+                            this._lastFactAdmissionRecall = _fr;
+                        } catch (e) { errLog(e, 'recallMemory.手机记忆准入过滤'); }
+                    }
+                    if (_phoneKept?.length) {
+                        results.rubyphone = _phoneKept.map((h, i) => ({
                             // [v3.48] P0 字段对齐: bridge.recall 返回 {content, score, layer, floor}，旧映射期望 h.id/h.type  恒 undefined
                             id: 'phone_' + (h.id ?? (h.floor ?? 'i') + '_' + i),
                             text: `[手机记忆·${h.layer || h.type || '生活'}] ${h.content}`,
@@ -10218,6 +10233,38 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                                 + (cmp.scope && cmp.scope.limited ? ' · 范围有限' : '')];
                         } catch (e) { errLog(e, 'selfCheck.strategyCompare'); return ['策略对照', '—（诊断异常）']; }
                     })(),
+                    // [v3.290.0 · X4] 手机事实准入体检面（「这条手机事实能不能进引擎」）。
+                    //   四态与本仓其余诊断行同规格：面未加载 / 桥缺席（手机未装）/ 桥旧（无准入面）
+                    //   / 有读数。★ 刻意与「策略对照」分列：那条答「换成别套配置会怎样」，
+                    //   这条答「手机送来的这条事实算不算事实」——两种缺席归因完全不同。
+                    (() => {
+                        try {
+                            const FA = _factAdmissionLib();
+                            if (!FA || typeof FA.admissionLine !== 'function') return ['手机准入', '模块未加载（native-fact-admission.js）'];
+                            const bridge = window.VirtualPhone?.lonshaBridge;
+                            const probe = (typeof FA.probeCounterpart === 'function') ? FA.probeCounterpart(bridge) : { state: 'absent', reason: 'probe-absent' };
+                            const rep = this._lastFactAdmissionRecall || this._lastFactAdmissionReport || null;
+                            if (!rep && probe.state !== 'capable') return ['手机准入', FA.admissionLine({ measurable: true, probe: probe, byDecision: {}, byReason: {}, merged: 0 })];
+                            if (!rep) return ['手机准入', '候选面待本轮（尚未跑过注入）'];
+                            return ['手机准入', FA.admissionLine(Object.assign({}, rep, { probe: probe }))];
+                        } catch (e) { errLog(e, 'selfCheck.factAdmission'); return ['手机准入', '—（诊断异常）']; }
+                    })(),
+                    // [v3.290.0 · X4] 手机事实准入体检面（「这条手机事实能不能进引擎」）。
+                    //   四态与本仓其余诊断行同规格：面未加载 / 桥缺席（手机未装）/ 桥旧（无准入面）
+                    //   / 有读数。★ 刻意与「策略对照」分列：那条答「换成别套配置会怎样」，
+                    //   这条答「手机送来的这条事实算不算事实」——两种缺席归因完全不同。
+                    (() => {
+                        try {
+                            const FA = _factAdmissionLib();
+                            if (!FA || typeof FA.admissionLine !== 'function') return ['手机准入', '模块未加载（native-fact-admission.js）'];
+                            const bridge = window.VirtualPhone?.lonshaBridge;
+                            const probe = (typeof FA.probeCounterpart === 'function') ? FA.probeCounterpart(bridge) : { state: 'absent', reason: 'probe-absent' };
+                            const rep = this._lastFactAdmissionRecall || this._lastFactAdmissionReport || null;
+                            if (!rep && probe.state !== 'capable') return ['手机准入', FA.admissionLine({ measurable: true, probe: probe, byDecision: {}, byReason: {}, merged: 0 })];
+                            if (!rep) return ['手机准入', '候选面待本轮（尚未跑过注入）'];
+                            return ['手机准入', FA.admissionLine(Object.assign({}, rep, { probe: probe }))];
+                        } catch (e) { errLog(e, 'selfCheck.factAdmission'); return ['手机准入', '—（诊断异常）']; }
+                    })(),
                     // [v3.180] 楼层真源落笔面：覆盖度是**现算**读数（不入快照存盘），把「哪些楼还没落笔」
                     //   连同失效原因一并念出来。口径：模块未加载如实报（不装成「无缺口」）；无缺口安静；
                     //   有缺口标 ⚠️——「有缺陷时告警、没缺陷时安静」与前述各行同规格。
@@ -12594,6 +12641,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   现改为声明式登记表 + 三态读数（ok/empty/absent）+ 缺席原因。
     function _projectionLib() {
         return _moduleLib(() => window.LonShaProjectionPipeline, 'projection-pipeline.js');
+    }
+    // [v3.290.0 · X4] 手机事实受控准入（native-fact-admission.js）。为什么需要：
+    //   本仓消费手机侧只有三条通路（回填 / 召回 / 楼层生命周期），三条都**没有准入契约** ——
+    //   于是「用户确认入账的支出」与「模拟报价 / 建议转账」在注入路径上同形，
+    //   「usage-tracker 的玩家使用行为」与「角色剧情记忆」也同形（X4 原文点名两者）。
+    //   本面把八栏身份（chatId/branchId/eventId/revision/sourceFloor/storyTime/status/visibility）
+    //   与五态来源收成一条判定，宿主只消费**返回值**，照旧经既有 owner 落笔。
+    function _factAdmissionLib() {
+        return _moduleLib(() => window.LonShaNativeFactAdmission, 'native-fact-admission.js');
     }
     // [v3.194] 时间与事实版本（fact-version.js）。为什么需要：
     //   本仓能记「事实」的四处（ConflictBook / DeltaBook / lockedFacts / age-anchor）

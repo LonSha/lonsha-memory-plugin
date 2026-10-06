@@ -1,3 +1,52 @@
+## v3.290.0
+**X 系列第二条落地：手机事实受控准入（X4）—— 「手机送来的这条，算不算事实」**
+- **面新增（不是整洁性改动）**：本仓消费手机侧只有三条通路（回填 `bridge.backfill` / 召回 `bridge.recall` /
+  楼层生命周期 `onFloorCommitted`·`onFloorRollback`），**三条都没有准入契约**。后果是三处结构性缺口：
+  ① **状态塌成一态** —— 「用户确认入账的支出」与「模拟报价 / 建议转账」在注入路径上同形；
+  ② **身份不带** —— 跨会话、跨代事实混进当前注入；
+  ③ **可见性不带** —— 「usage-tracker 的玩家使用行为」与「角色剧情记忆」同形（X4 原文点名两者）。
+  新增 `native-fact-admission.js`（377 行纯函数，零依赖，双导出）把八栏
+  `chatId / branchId / eventId / revision / sourceFloor / storyTime / status / visibility`
+  与五态来源收成**一条判定**，输出六档裁决：`admitted`（**仅 confirmed**）/ `observed` / `predicted` /
+  `quoted` / `draft` / `rejected`。
+- **三条越权防线（否则预测会被洗成已发生事实）**：
+  ① **预测不升档**：`predicted` 来源（报价 / 分摊 / 建议转账 / 未来日程）自述 `confirmed` **不升档**，
+     除非带 `userConfirmed:true`（用户真点过确认）；
+  ② **未知来源拒收**：`some-new-app` 这类没进台账的来源一律 `unknown-source` 拒收 ——
+     **查不出来 ≠ 按已发生处理**（本仓最忌讳的静默降级形态，这里必须反向）；
+  ③ **拼错不留情**：状态自述写 `confirm`（不在五态内）⇒ 不识别、回落来源默认、并在 `notes` 留痕。
+- **拒绝必须能归因（四态不同形）**：`session-mismatch`（错会话，**含分支不符** —— 分支是会话身份的一部分）/
+  `stale-generation`（旧代：事实 rev 落后于当前 ⇒ 旧异步写入无门可进）/ `duplicate-event`
+  （同事件重试；`rootEventId` 同源转发只进一次、不当独立证据）/ `unknown-source`。
+  判据 C1 直接断言三种拒绝的 `reason` **互不相同**：压成一态就再也分不出来。
+- **来源台账是一张表**：`SOURCE_POLICY` 19 行（`calendar` / `appointment` / `finance-confirmed` /
+  `traveldesk` / `quote` / `forecast` / `usage-tracker` / `forward` / `health` …）。
+  加来源 = 加一行，「加没加」因此变成可机检事实（判据 D2 遍历全表断言每行都有确定裁决，
+  防本仓反复出现的「清单式回收漏项」）。
+- **召回侧接入（唯一门）**：`index.js` 的 `[手机记忆·…]` 注入路径此前**直接 map 后拼接**，
+  现经 `filterRecallForCharacter()` 过滤：`player-only` 一律不进角色面，并**分列**放行 / 挡掉两栏
+  （不是静默丢弃）；「一条都没有」与「有但全被挡掉」是两种不同形（`no-hits` / `all-player-only`）。
+- **成对边界三态**：`probeCounterpart()` 分 `absent`（桥缺席＝手机未装）/ `legacy`（桥在但无准入面＝旧版手机）/
+  `capable`，三态不同形 —— 手机单装、插件单装、旧版缺能力都必须可工作并有原因。
+- **诊断面**：新增「手机准入」体检行（与「策略对照」**分列**：那条答「换成别套配置会怎样」，
+  这条答「手机送来的这条事实算不算事实」——两种缺席归因完全不同）。
+- **首版两处真缺陷（本套件当场抓住，留痕）**：
+  ① **`global !== window` 在无 window 环境抛 ReferenceError**（Node 无头套件加载即崩）⇒
+     改为先判声明存在再比较；
+  ② **F 段首版破坏点不可观测**：破坏点选「自述升档防线」，而 `quote` 未自述时走的是**来源默认路径**，
+     拆掉防线它照样判 `predicted` —— 属本仓反复踩过的「破坏不可观测」型假绿。已改为破坏来源台账的
+     `traveldesk` 整行（锚点恰中 1 次、破坏后判决真变、原版同款判据真通过，三向自证）。
+- **判据**：`tests/v3290_x4_fact_admission.test.mjs`（16 条）：A 只读面结构 / B1 预测不得变已发生 /
+  B2 自述越权被堵 / C1 三拒各自归因 / C2 分支不符 / C3 同源去重 / D1 未知来源拒收 /
+  D2 台账逐行确定裁决 / D3 拼错不静默 / E1 召回过滤 / E2 空与全挡不同形 / E3 批量归并 /
+  E4 成对三态 / E5 缺身份不可测 / F 真源码破坏 / G 自防护 + 当版锚点（V4 计数形态，不写死版本）。
+- **X4 与 X3 的关系**：X3 答「**换成别套**配置会怎样」（注入面读数）、X4 答「**这条算不算事实**」（准入面判定）—— 两条诊断行**分列**，两种缺席归因完全不同。
+- **未跑全量**（用户纪律：计划全部内容完成前不跑全量）：本版只跑单套件 + 相关单门（版本守卫 / 跨仓绑定 / 模块接线 / 死代码预算）。文档如实标 **v3.290.0 全量待验**。
+- **分片落盘留痕**：`create_file` 直写 377 行面两次失败（`sh: syntax error: unexpected ( `）⇒ 改分片生成 + `cat` 拼接；拼接后 `node --check` 与冒烟各抓到一处真缺陷（见上）。
+- **本版新增判据档**：`tests/v3290_x4_fact_admission.test.mjs`（16 条）；登记面两处已补（`catalog_reference_consumers.tsv` 一行 + `manifest.json` extra_js 一行）。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**
+- **接线**：`manifest.json` extra_js 登记 `native-fact-admission.js`
+（81/81 脚本真加载，B5 ok）。
 ## v3.289.0
 **X 系列第一条落地：注入策略对照（X3）—— 「换成别套配置会怎样」**
 

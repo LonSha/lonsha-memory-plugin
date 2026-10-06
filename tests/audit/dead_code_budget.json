@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 46135,
+  "ceiling": 46570,
   "maxSlack": 400,
-  "note": "v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行",
+  "note": "X4 手机事实受控准入面新增 native-fact-admission.js（377 行活性代码，宿主 _factAdmissionLib 消费）",
   "history": [
     {
       "ceiling": 21000,
@@ -213,7 +213,11 @@
     {
       "ceiling": 46135,
       "reason": "v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行"
+    },
+    {
+      "ceiling": 46570,
+      "reason": "X4 手机事实受控准入面新增 native-fact-admission.js（377 行活性代码，宿主 _factAdmissionLib 消费）"
     }
   ],
-  "_history_last": "ceiling 45733 → 46135（实测 45735 + slack 400）：v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行"
+  "_history_last": "ceiling 46135 → 46570（实测 46170 + slack 400）：X4 手机事实受控准入面新增 native-fact-admission.js（377 行活性代码，宿主 _factAdmissionLib 消费）"
 }
