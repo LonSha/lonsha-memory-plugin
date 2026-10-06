@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.290.0';
+    const VERSION = '3.291.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1166,6 +1166,14 @@
         resolvePromise() { return false; }
         markUnaware() { return false; }
         revealKnowledge() { return false; }
+        /* [v3.291.0 · X5] 知识轨迹三法退路。为什么退路也必须声明：
+         *   退路类的方法集是「宿主可调用面」的穷举；新增真实方法而不补退路，
+         *   会在模块缺席时抛 TypeError（而不是降级）—— 正是本仓点名的
+         *   「新增面忘补退路」缺陷形态。返回值与同族一致（不抛、可判空）。 */
+        _knowledgeTrace() { return null; }
+        recordKnowledgeTrace() { return null; }
+        refreshKnowledgeTraceRead() { return null; }
+        _knowledgeNet() { return null; }
         getReEntryNotice() { return null; }
         addPlotArc() { return null; }
         touchArc() { return false; }
@@ -2662,6 +2670,22 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { errLog(e, 'engine._knowledgeNetworkLine'); return '—（诊断异常）'; }
         }
         /**
+         * [v3.291.0 · X5] 知识轨迹读数（诊断面用；纯读、不抛）。
+         * 为什么必须与「知情网络」分列：知情网络答的是**同事实判定**（两句话是不是一件事），
+         *   本行答的是**轨迹**（这条知识在第几楼、从谁、经哪条证据取得的）。
+         *   「未记录」必须单独报且与「未知」分列 —— 把两者并成「不知道」正是本行要治的
+         *   那句无据断言（没有轨迹 ⇒ 我们没记过，不等于该角色确实不知道）。
+         */
+        _knowledgeTraceLine() {
+            try {
+                const KT = _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js');
+                const read = this.worldProg && this.worldProg._knowledgeTraceRead;
+                if (!read) return '尚无轨迹';
+                if (!KT || typeof KT.line !== 'function') return '模块未加载（knowledge-trace.js）';
+                return KT.line(read);
+            } catch (e) { errLog(e, 'engine._knowledgeTraceLine'); return '—（诊断异常）'; }
+        }
+        /**
          * [v3.184] 提示词填充读数（诊断面用；纯读、不抛）。
          * 回答「模板里的占位符填进去了几条、有几条靠宽容回退才填上、有没有填完还残留的」。
          * 为什么必须报「残留」：残留 = 用户把占位符写成了别的形态（全角/空格/单括号），
@@ -3274,6 +3298,32 @@ function relativeTimeLabel(eventTime, nowTime) {
                             const action = String(raw.action || 'unaware').toLowerCase();
                             if (action === 'reveal' || action === 'known') this.worldProg.revealKnowledge(character, fact, raw.source || '');
                             else this.worldProg.markUnaware(character, fact);
+                            /* [v3.291.0 · X5] 同一次提取里**同时**记一条知识轨迹。
+                             *   为什么必须并行记而不是从认知侧反推：
+                             *     认知侧只有 {known, unaware} 两个字符串数组 ——
+                             *     它答不出「第几楼」「从谁」「哪条证据」，更答不出 doubt /
+                             *     misbelieve / retract 三种状态（那三种在认知侧无落点）。
+                             *   轨迹失败**不得**连坐认知侧写入：cognitive 与 trace 是两条独立
+                             *     处置（前者改状态、后者加轨迹），轨迹抛错必须被吞在本块内。 */
+                            try {
+                                if (this.worldProg && typeof this.worldProg.recordKnowledgeTrace === 'function') {
+                                    this.worldProg.recordKnowledgeTrace({
+                                        character,
+                                        fact,
+                                        action: (action === 'reveal' || action === 'known') ? 'correct' : (String(raw.action || '').toLowerCase() === 'doubt' ? 'doubt'
+                                            : (String(raw.action || '').toLowerCase() === 'misbelieve' ? 'misbelieve'
+                                                : (String(raw.action || '').toLowerCase() === 'retract' ? 'retract' : 'unaware'))),
+                                        via: raw.via || raw.channel || '',
+                                        from: raw.source || '',
+                                        evidenceKey: raw.evidenceKey || raw.evidence || '',
+                                        floor: wpFloor,
+                                        identity: raw.identity || (raw.disguise ? 'surface' : 'unspecified'),
+                                        corrects: raw.corrects || '',
+                                        suspect: raw.suspect || '',
+                                        note: raw.note || ''
+                                    });
+                                }
+                            } catch (e) { errLog(e, 'onMessageReceived.知识轨迹'); }
                             knowledgeCount++;
                         }
                         // 即时推进检查：不等到下一次生成才刷新 imminent/overdue 与支线沉降。
@@ -6573,7 +6623,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 try {
                     const _phoneQuery = window.VirtualPhone.lonshaBridge.queryPhoneMemory || window.VirtualPhone.lonshaBridge.recall.bind(window.VirtualPhone.lonshaBridge);
                     const phoneHits = await _phoneQuery(query.text, numOr(this.config.config.rubyPhoneRecallTopN, 3));   // [v3.156] 0=不向手机库取记忆
-                    /* [v3.290.0 · X4] 召回侧准入：手机召回结果进注入块前的**唯一门**。
+                    /* [v3.291.0 · X4] 召回侧准入：手机召回结果进注入块前的**唯一门**。
                      *   修前实测：本处直接 map 成 [手机记忆·…] 注入，而「玩家使用行为」
                      *   （usage-tracker）与角色剧情记忆在该文本里**同形**，角色回复因此可能
                      *   引用「玩家点开了什么 App」这类作者面事实。现按来源建议可见性过滤：
@@ -10233,7 +10283,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                                 + (cmp.scope && cmp.scope.limited ? ' · 范围有限' : '')];
                         } catch (e) { errLog(e, 'selfCheck.strategyCompare'); return ['策略对照', '—（诊断异常）']; }
                     })(),
-                    // [v3.290.0 · X4] 手机事实准入体检面（「这条手机事实能不能进引擎」）。
+                    // [v3.291.0 · X4] 手机事实准入体检面（「这条手机事实能不能进引擎」）。
                     //   四态与本仓其余诊断行同规格：面未加载 / 桥缺席（手机未装）/ 桥旧（无准入面）
                     //   / 有读数。★ 刻意与「策略对照」分列：那条答「换成别套配置会怎样」，
                     //   这条答「手机送来的这条事实算不算事实」——两种缺席归因完全不同。
@@ -10249,7 +10299,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['手机准入', FA.admissionLine(Object.assign({}, rep, { probe: probe }))];
                         } catch (e) { errLog(e, 'selfCheck.factAdmission'); return ['手机准入', '—（诊断异常）']; }
                     })(),
-                    // [v3.290.0 · X4] 手机事实准入体检面（「这条手机事实能不能进引擎」）。
+                    // [v3.291.0 · X4] 手机事实准入体检面（「这条手机事实能不能进引擎」）。
                     //   四态与本仓其余诊断行同规格：面未加载 / 桥缺席（手机未装）/ 桥旧（无准入面）
                     //   / 有读数。★ 刻意与「策略对照」分列：那条答「换成别套配置会怎样」，
                     //   这条答「手机送来的这条事实算不算事实」——两种缺席归因完全不同。
@@ -10381,6 +10431,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = !!(r && r.suspect > 0);
                             return ['知情网络', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.knowledgeNetwork'); return ['知情网络', '—（诊断异常）']; }
+                    })(),
+                    // [v3.291.0 · X5] 知识轨迹体检面：与「知情网络」**分列**。
+                    //   知情网络答「是不是同一件事」（判定），本行答「这条知识在第几楼、
+                    //   从谁、经哪条证据取得的」（轨迹）—— 合成一行会让「判不开」与
+                    //   「没记录」两类完全不同的问题共用一个提示位。
+                    //   报警只认两条真损失：截断（丢了轨迹）与纠正链断裂（纠正指向的
+                    //   轨迹已被删楼撤销 ⇒ 那个误信现在无人可证）。
+                    (() => {
+                        try {
+                            if (this.worldProg && typeof this.worldProg.refreshKnowledgeTraceRead === 'function') {
+                                this.worldProg.refreshKnowledgeTraceRead();
+                            }
+                            const line = (typeof this._knowledgeTraceLine === 'function') ? this._knowledgeTraceLine() : '—';
+                            const r = this.worldProg && this.worldProg._knowledgeTraceRead;
+                            const bad = !!(r && ((r.truncated || 0) > 0 || (r.orphaned || 0) > 0 || r.degraded));
+                            return ['知识轨迹', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.knowledgeTrace'); return ['知识轨迹', '—（诊断异常）']; }
                     })(),
                     // [v3.184] 提示词填充体检面：**未填**与**残留**都要现形。
                     //   残留（占位符写成了全角/带空格形态）意味着这一处根本没填进去，
@@ -12642,7 +12709,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     function _projectionLib() {
         return _moduleLib(() => window.LonShaProjectionPipeline, 'projection-pipeline.js');
     }
-    // [v3.290.0 · X4] 手机事实受控准入（native-fact-admission.js）。为什么需要：
+    // [v3.291.0 · X4] 手机事实受控准入（native-fact-admission.js）。为什么需要：
     //   本仓消费手机侧只有三条通路（回填 / 召回 / 楼层生命周期），三条都**没有准入契约** ——
     //   于是「用户确认入账的支出」与「模拟报价 / 建议转账」在注入路径上同形，
     //   「usage-tracker 的玩家使用行为」与「角色剧情记忆」也同形（X4 原文点名两者）。

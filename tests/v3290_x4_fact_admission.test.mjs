@@ -232,15 +232,15 @@ test('v3290 F. 真源码破坏：拆掉「预测不升档」⇒ B1 真判据实�
     fs.rmSync(dir, { recursive: true, force: true });
 })
 
-test('v3290 G. 自防护 + 当版锚点', () => {
-    /* 当版锚点：本套件是本仓唯一锚当版的套件。
-     * ★ 形态按本仓 V4 惯例：**不写死版本号**，而是与三源同源比对 —— 写死数字的锚点
-     *   在下一版抬版时会变成「与本测试出生版本无关的下界」，版本守卫当场判为锚点被删空。 */
+test('v3290 G. 自防护 + 出生版本下限锚', () => {
+    /* [v3.291.0 交棒] 当版锚点已由 tests/v3291_x5_knowledge_trace.test.mjs 接管。
+     *   本档退回**出生版本下限锚**（与 v3264 同款交棒形态）：
+     *   一抬版就必红的硬等号锚点，红的信息量只有「版本变大了」。 */
     const pkg = require(path.join(ROOT, 'package.json'));
     const pkgRaw = String(pkg.version);
     const SQ = String.fromCharCode(39);
     const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-    assert.equal(vnum('3.290.0'), vnum(pkgRaw), '当版锚点须与 package.json 同源（V4 计数形态）');
+    assert.ok(vnum(pkgRaw) >= vnum('3.290.0'), '版本不得回退到本档出生版本之前，当前 ' + pkgRaw);
     assert.ok(readFileSync(path.join(ROOT, 'index.js'), 'utf8').includes('const VERSION = ' + SQ + pkgRaw + SQ + ';'),
         'index.js 版本常量须与 package.json 同源');
     assert.ok(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8').includes('"version": "' + pkgRaw + '",'),

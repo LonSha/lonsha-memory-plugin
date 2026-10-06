@@ -257,6 +257,6 @@ test('v3289 G. 自防护 + 当版锚点（V4 计数形态）', () => {
     assert.ok(readRoot('index.js').includes('const VERSION = ' + SQ + pkgRaw + SQ + ';'),
         'index.js 版本常量与 package.json 一致');
     const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-    assert.equal(vnum('3.289.0'), vnum(pkgRaw), '当版锚点须与 package.json 同源（V4 计数形态）');
+    assert.ok(vnum(pkgRaw) >= vnum('3.289.0'), '版本不得回退到本档出生版本之前，当前 ' + pkgRaw);
     ok('自防护 + 当版锚点 ' + pkgRaw);
 });

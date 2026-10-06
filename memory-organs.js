@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.290.0';
+let VERSION = '3.291.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1232,6 +1232,100 @@ class WorldProgress {
             return (KN && typeof KN.reconcile === 'function') ? KN : null;
         } catch (e) { errLog(e, 'worldProg._knowledgeNet'); return null; }
     }
+    /* [v3.291.0 · X5] 知识轨迹取库口（knowledge-trace.js）。
+     *   与 _knowledgeNet 同规格：模块缺席/取库抛错一律回 null，调用方按「不记轨迹」
+     *   降级（**数据不丢**：认知侧照旧按 knowledge-network 判定），并把缺席记进读数，
+     *   不把「没装」伪装成「没有轨迹」。 */
+    _knowledgeTrace() {
+        try {
+            const KT = _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js');
+            return (KT && typeof KT.stateOf === 'function') ? KT : null;
+        } catch (e) { errLog(e, 'worldProg._knowledgeTrace'); return null; }
+    }
+    /* [v3.291.0 · X5] 轨迹写入（**只加轨迹，不改既有认知判定**）。
+     *   为什么单独一条路而不是并进 markUnaware/revealKnowledge：
+     *     ① 既有两法已各自有一套「同事实判定 + 降级」口径，轨迹是**第三种信息**
+     *        （在第几楼、从谁、经哪条证据），并进去会让那两法的分支数翻倍；
+     *     ② 角色知识取得/误信/被纠正**不止**这两个动作（doubt / misbelieve / retract
+     *        在既有两法里无处落点），必须有一条能收六种动作的口。
+     *   计数进 _knowledgeTraceRead（供诊断行）；模块缺席时**不写**但计数可见。 */
+    recordKnowledgeTrace(input = {}) {
+        const trace = this.knowledgeTraces || (this.knowledgeTraces = { version: 1, traces: [] });
+        const KT = this._knowledgeTrace();
+        const read = this._knowledgeTraceRead || (this._knowledgeTraceRead = {
+            knows: 0, doubts: 0, misled: 0, unknown: 0, notRecorded: 0,
+            transmittals: 0, removed: 0, orphaned: 0, malformed: 0, owners: 0, suspect: 0
+        });
+        if (!KT) {
+            /* 模块缺席：不静默吞（计数可见），但不写半截轨迹 —— 半截轨迹比没轨迹更难查。 */
+            read.malformed = (Number(read.malformed) || 0) + 1;
+            return null;
+        }
+        const character = String(input.character || input.owner || '').trim().slice(0, 40);
+        const fact = String(input.fact || input.content || '').trim().slice(0, 180);
+        if (!character || !fact) { read.malformed = (Number(read.malformed) || 0) + 1; return null; }
+        /* 轨迹号由账本持有（与六本账同款：调用方不得自编 id 造成撞号）。 */
+        const seq = (trace.traces || []).length + 1;
+        const row = Object.assign({}, input, {
+            traceId: String(input.traceId || ('kt_' + seq)),
+            character, fact
+        });
+        trace.traces.push(row);
+        /* 有界：超上限丢最旧，且**丢了多少必须可见**（不静默截断）。 */
+        const KT_MAX = Number(KT.MAX_TRACES) || 240;
+        if (trace.traces.length > KT_MAX) {
+            const dropped = trace.traces.length - KT_MAX;
+            trace.traces = trace.traces.slice(-KT_MAX);
+            read.truncated = (Number(read.truncated) || 0) + dropped;
+        }
+        /* 该角色首次产生轨迹 ⇒ owners 计一次（与 _knowledgeTally 同款）。 */
+        if (!read._seen) read._seen = {};
+        if (!read._seen[character]) { read._seen[character] = true; read.owners = (Number(read.owners) || 0) + 1; }
+        if (row.suspect) read.suspect = (Number(read.suspect) || 0) + 1;
+        return row;
+    }
+    /* [v3.291.0 · X5] 轨迹读数刷新（把六态计数与转述/断链数按当前轨迹重算）。
+     *   为什么每次重算而不是累加：状态是**由整条时间线决定**的（先误信后被纠正
+     *   ⇒ 从 misled 变 knows），累加计数会在状态迁移时留下永不回落的旧值，
+     *   读数与实际不一致 —— 那正是本仓点名的「账本自证」形态。 */
+    refreshKnowledgeTraceRead() {
+        const KT = this._knowledgeTrace();
+        const trace = this.knowledgeTraces;
+        const read = this._knowledgeTraceRead || (this._knowledgeTraceRead = {
+            knows: 0, doubts: 0, misled: 0, unknown: 0, notRecorded: 0,
+            transmittals: 0, removed: 0, orphaned: 0, malformed: 0, owners: 0, suspect: 0
+        });
+        if (!KT) { read.moduleMissing = true; return read; }
+        read.moduleMissing = false;
+        try {
+            const norm = KT.normalize(trace);
+            /* 六态按「角色 × 事实」逐格重算 —— 与读取侧同款判定（同一口径，不另写一套）。 */
+            const pairs = new Map();
+            for (const t of norm.traces) {
+                const norm2 = t.character + '\u0000' + KT.normalizeFact(t.fact);
+                if (!pairs.has(norm2)) pairs.set(norm2, { character: t.character, fact: t.fact });
+            }
+            let knows = 0, doubts = 0, misled = 0, unknown = 0, owners = 0;
+            for (const p of pairs.values()) {
+                const st = KT.stateOf(trace, p.character, p.fact);
+                if (st.state === 'knows') knows++;
+                else if (st.state === 'doubts') doubts++;
+                else if (st.state === 'misled') misled++;
+                else if (st.state === 'unknown') unknown++;
+                if (st.ambiguousIdentity) read.ambiguousIdentity = (Number(read.ambiguousIdentity) || 0) + 1;
+            }
+            const letters = new Set();
+            for (const t of norm.traces) letters.add(t.character);
+            const ps = KT.propagationSet(norm);
+            read.knows = knows; read.doubts = doubts; read.misled = misled; read.unknown = unknown;
+            read.notRecorded = 0;                       // 逐格重算只在「有轨迹」的格上走，未记录格不计入本读数
+            read.transmittals = ps.transmittalCount;
+            read.owners = letters.size;
+            read.malformed = (Number(read.malformed) || 0) + norm.malformed;
+            if (norm.truncated) read.truncated = (Number(read.truncated) || 0) + norm.truncated;
+        } catch (e) { errLog(e, 'worldProg.refreshKnowledgeTraceRead'); read.degraded = true; }
+        return read;
+    }
     /* 累计读数的一格计数（不抛）。owners 按「该角色第一次产生读数」计一次。 */
     _knowledgeTally(charName, key) {
         const r = this._knowledgeRead || (this._knowledgeRead = { marked: 0, merged: 0, released: 0, alreadyKnown: 0, suspect: 0, malformed: 0, owners: 0 });
@@ -1622,6 +1716,12 @@ class WorldProgress {
             recallEcho: this.recallEcho || null,
             echoLedger: this.echoLedger || null,
             knowledge: this.knowledge || {},
+            /* [v3.291.0 · X5] 知识轨迹随世界推进一并持久化。
+             *   为什么不挂在别的账本里：轨迹的键是「角色 × 事实 × 楼层」，
+             *   与 knowledge 的「角色 × 事实」同域但**时间维度**不同，
+             *   并进去会让既有 knowledge 的结构从 {known,unaware} 二字段变成复合体，
+             *   迁移期两边都要兼容 —— 单独一格可独立迁移、独立回滚。 */
+            knowledgeTraces: this.knowledgeTraces || { version: 1, traces: [] },
             plotArcs: this.plotArcs || []
         };
     }
@@ -1637,6 +1737,12 @@ class WorldProgress {
             this.recallEcho = data.recallEcho || null;
             this.echoLedger = data.echoLedger || null;
             this.knowledge = (typeof data.knowledge === 'object' && data.knowledge) ? data.knowledge : {};
+            /* [v3.291.0 · X5] 轨迹导入：畸形一律回落空账（**不抛、不半截**）。
+             *   与 knowledge 同款「类型不对就回落」，但多一步结构核对：
+             *   traces 必须是数组（对象/字符串会被后面 normalize 当成空数组而静默丢数据）。 */
+            this.knowledgeTraces = (data.knowledgeTraces && typeof data.knowledgeTraces === 'object' && Array.isArray(data.knowledgeTraces.traces))
+                ? data.knowledgeTraces : { version: 1, traces: [] };
+            this._knowledgeTraceRead = null;   // 导入后读数由 refreshKnowledgeTraceRead 重算，不沿用旧读数
             this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
         }
     }
