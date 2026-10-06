@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.282.0",
+ "measured_at": "v3.283.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -889,6 +889,37 @@
    ],
    "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
    "delta_from": "v3.281.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
+  },
+  "v3.283.0": {
+   "reason": "v3.283.0 重建（读数由探针生成，零手抄）",
+   "readings": {
+    "total_lines": 13772,
+    "member_count": 524,
+    "top5_lines": 4326,
+    "top5_pct": 31.4,
+    "top40_lines": 9211,
+    "top40_pct": 66.9,
+    "prefix_rule_coverage_lines": 4703,
+    "prefix_rule_coverage_pct": 34.1,
+    "unclassified_lines": 8201,
+    "seam_distinct_modules": 46,
+    "seam_reference_sites": 54,
+    "seam_call_shape_sites": 57,
+    "members_over_80_lines": 27,
+    "low_coupling_members": 16,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.282.0",
    "delta": {
     "total_lines": 0,
     "member_count": 0,
