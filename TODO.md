@@ -3,6 +3,23 @@
 > [v3.280.0] O7 第四项：**逐字副本台账** —— 宿主 `index.js` 与根级模块里 **9 对 `function` 体逐字相同**（剥注释 + 折叠空白后比对），两套维护面此前**无任何一致性判据**。现在双向登记：新增未登记的副本即红、登记项漂移即红，且漂移给出第一处差异位置与两侧上下文。破坏三形态各有负控制（宿主侧 / 模块侧 / 凭空抄一份）。取块用跳过引号与注释的配平（裸数花括号会被正则字面量里的 `{` 提前收口）。
 > [v3.281.0] O7 第四项（续）：**模块↔模块副本面** —— 既有的副本判据 100% 只覆盖「宿主 ↔ 模块」，把同一套归一化口径掉转横向用在 79 个根级模块之间，实测 **15 簇 / 60 对**逐字副本（族 A 账本状态形状：`reject`/`result`/`record`/`clone`/`openCount`/`remove`；族 B 哈希与文本原语：`hash32`/`fnv1a`/`textOf`/`stableStringify`/`toSet`/`fpOf`/`normTime`）。全仓唯一有「反重复」语义的 `scan_ledger_contract` R3 只钉三个字面量，这 15 簇一个都不在射程里。现在簇级双向登记：新增未登记簇即红、成员集合变了即红（点名掉出去的模块）。同名不同体（`reject`/`result` 的六账版与三账版）必须分成两条独立簇 —— 合簇会把两种语义的差异抹掉。破坏三向各有负控制（族 A 成员 / 族 B 成员 / 凭空多出一簇）。判据纯度按**转义形态**计数（多行锚点在源码里是 `\n` 两字符，真换行 split 恒 0 会让该断言空转）。
 > 新面 `tests/v3281_o7_module_copy_ledger.test.mjs`（10 条）；台账双手登记（`catalog_reference_consumers.tsv` + `v3247` REGISTRY）。
+> **最近更新：v3.287.0** —— O2 真实用户操作层（**可做切片**）：**交互逻辑门**。
+> 计划 O2 的验收原文是「控件有 DOM、可见、可操作、**改变正确状态**且**重开保留**；测展开、滑块、输入、焦点与窄屏」，
+> 而 v3.271.0 的 `scan_ui_runtime.mjs`（U1~U5）只到**渲染层**、**从未点过任何控件** ——
+> 「控件有 DOM」与「控件可用」之间没有蕴含关系（disabled 滑块 / 写进死变量的 handler / 没接存储的保存键都满足 U1~U5）。
+> 新增 `tests/audit/scan_ui_interaction.mjs`（V1~V10，自带最小 DOM shim）+ `tests/v3287_ui_interaction.test.mjs`（17 条 test）。
+> ★ 实测五处假红**全是测量侧错**：① shim 未模拟 checkbox 原生 checked 翻转；② 把 `.ls-group-title`（纯标题样式，34 处）
+> 当折叠头（真源是原生 `<details id="ls-advanced">`，仅 1 处）；③ **shim 的 `matchesOne` 不支持 `>` 子组合器** ⇒
+> `details > summary` 候选恒 0 ⇒ 报出「本仓无折叠头」的**假结论**（测量盲区冒充事实，比红着更坏）；
+> ④ 判据断言「click 后 config 立即反转」，而真源复选框无 change 监听、写回走 `#ls-save` 收集循环（判据按想象写）；
+> ⑤ 顺序弄反 —— 真源 `value="${c.vectorTopK ?? 5}"` 每次开面板从配置重渲染，改值后再重开会被旧值覆盖。
+> ★ 边界（同 O2 验收原文「未执行不算通过」）：本环境**无任何 headless 浏览器**（chromium/chrome/firefox 全无）、
+> **无 Playwright/Puppeteer** ⇒ 宿主 CSS / 真实点击坐标 / 真实 localStorage 配额与跨会话行为**未覆盖**，
+> 真 SillyTavern 侧（生成 / 楼层重生成删除 / 切角色 / 两插件共装）**如实登记未执行**。
+> ★ 抬版交棒两坑：① v3287 成新 frontier ⇒ **v3286 两档当版硬锚必须退为下限锚**（`assert.ok(vnum(pkg) >= vnum('3.286.0'), …)`），
+> 否则 V4 计数 > 1、两档 G 条当场翻红（`3286000 ≠ 3287000`）；② H1 的 `vnum` 首版写成 `split('.').map(Number)` 返回**数组**，
+> `assert.equal` 严格相等下 `[3,287,0] === [3,287,0]` 引用不等**恒假** ⇒ 「版本同源却常红」；须用数值形态（版本守卫 V4 的计数口径同形）。
+> ★ 敏感度三档实测 `H=0 / G=2 / T=0`（G 非 0 ⇒ 非恒绿探测器）；三处登记面已补。
 > **最近更新：v3.286.0** —— O8 第二刀：**门禁成本一致性**。计划要求「为测试成本建立热点读数」，而磁盘上此前**没有任何成本读数**（`run.mjs` 摘要只有失败档带 duration；`--audit` 的 slowest 只收 top3）⇒ 「哪个档最慢」无从复算。本刀给摘要追加 `scope`（覆盖范围自述）与 `tests.slowest`（逐档耗时 top30），新增零手抄重绑工具 `tools/_rebind_test_cost.py` + 登记 `tests/audit/test_cost_readings.json` + 扫描器 `tests/audit/scan_cost_truthfulness.mjs`（C1~C8）与判据套件 `tests/v3286_cost_truthfulness.test.mjs`（12 个 test）。
 > ★ 首份读数就抓到真热点：`v3285_o7_doc_truthfulness.test.mjs` 单档 **15473ms**，是次慢档的近 3 倍（本刀只建读数、不做优化）。
 > ★ 最要紧判据是 C5「覆盖范围自述」：`full=true` ⇒ 必须盖版本章；`full=false` ⇒ 必须带 pattern；缺席按旧登记如实报出不判红。定向采样**不得**推进 `measured_at`（不得冒充全量）。

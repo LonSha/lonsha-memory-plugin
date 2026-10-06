@@ -515,7 +515,8 @@ test('v3286 H. 自防护：登记文件与扫描器/工具都不得被摘掉；�
     assert.ok(readRoot('index.js').includes('const VERSION = ' + SQ + pkg + SQ + ';'),
         'index.js 版本常量与 package.json 一致');
     const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-    assert.equal(vnum('3.286.0'), vnum(pkg), '本档恰锚当版（V4 计数形态）');
+    /* [v3.287.0 交棒] 本档写于 3.286.0；转下限锚：后续版本须 >= 它，不得把历史档锁成恰好等于当版。 */
+    assert.ok(vnum(pkg) >= vnum('3.286.0'), '本档版本下界 3.286.0 不得被绕过（实 ' + pkg + '）');
     /* 本档必须已登记进两处登记面（否则 v3226 B1 / 在役面守卫会转红） */
     assert.ok(readRoot(path.join('tests', 'audit', 'audit_scan_probe_matrix.tsv')).includes('scan_cost_truthfulness.mjs'),
         '新扫描器须登记进探针矩阵');
