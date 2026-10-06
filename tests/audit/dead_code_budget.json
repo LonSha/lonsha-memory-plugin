@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 45733,
+  "ceiling": 46135,
   "maxSlack": 400,
-  "note": "v3.276.0 O6：O5 抬到 45790 后余量 457 超过 maxSlack=400（上界与实测脱节＝等于没守），按工具建议收紧到 45733（实测 45333 + 400）。本版 O6 不改 index.js 宿主成员，行数变化来自 recall-artifact/archive-shift/ledger-replay 的 O5 改造与新增评测夹具（夹具不计入活跃代码）。",
+  "note": "v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行",
   "history": [
     {
       "ceiling": 21000,
@@ -209,7 +209,11 @@
     {
       "ceiling": 45733,
       "reason": "v3.276.0 O6：O5 抬到 45790 后余量 457 超过 maxSlack=400（上界与实测脱节＝等于没守），按工具建议收紧到 45733（实测 45333 + 400）。本版 O6 不改 index.js 宿主成员，行数变化来自 recall-artifact/archive-shift/ledger-replay 的 O5 改造与新增评测夹具（夹具不计入活跃代码）。"
+    },
+    {
+      "ceiling": 46135,
+      "reason": "v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行"
     }
   ],
-  "_history_last": "ceiling 45518 → 45790（实测 45390 + slack 400）：v3.275.0 O5：① index.js 新增归档处置留痕接线（_archiveShiftLog 初始化 + CHAT_CHANGED 归零 + selfCheck「归档处置」三态行）与召回产物截断自述传递（selectedMemoryIdsTotal / 真总数入参 + 报告面警示行）；② archive-shift.js 新增 explainShift/explainPrune 唯一真源（旧 API 改薄投影）；③ ledger-replay.js 新增有界留痕器与出处可读性标记；④ recall-artifact.js 新增 selectedTotalOf/selectedTruncOf 唯一口径入口。均为活跃功能增长，非死代码回流。"
+  "_history_last": "ceiling 45733 → 46135（实测 45735 + slack 400）：v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行"
 }

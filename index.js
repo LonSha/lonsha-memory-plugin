@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.288.0';
+    const VERSION = '3.289.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7519,6 +7519,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                  *   为何挂这里而不是 envelope 构建里：envelope 是**搬运**面（只搬值、不取值），
                  *   取数与复算属宿主职责——两处分工与 v3.212 的既有划分一致。 */
                 try { pipe.prediction = this._projectionPrediction(); } catch (e) { errLog(e, 'plugin._runProjections.prediction'); }
+                /* [v3.289.0 · X3] 策略对照同样随管线产出。与预演**同源**：它内部先取预演，
+                 *   预演不可测时返回 null（＝没跑），不伪造一份「零差异」的对照。 */
+                try { pipe.strategyCompare = this._projectionStrategyCompare(); } catch (e) { errLog(e, 'plugin._runProjections.strategyCompare'); }
                 return pipe;
             } catch (e) { errLog(e, 'plugin._runProjections'); this._lastProjection = null; return null; }
         }
@@ -7649,6 +7652,76 @@ function relativeTimeLabel(eventTime, nowTime) {
                     now: Date.now(),
                 });
             } catch (e) { errLog(e, 'plugin._projectionPrediction'); return null; }
+        }
+        /**
+         * [v3.289.0 · X3] 投影出口的**注入策略对照**（只读，不注入、不改配置、不写账）。
+         *
+         * 【与 _projectionPrediction 的关系（重要 · 单一真源纪律）】
+         *   本函数**不另取候选、不另算预算**：候选面与预算输入全部走 `_projectionPrediction()`
+         *   同一批真读数口径（`_lastInjectionDraft` 逐块字符数 / 同一批配置键 / 同一个
+         *   `injection-router`）。对照只是把**同一份输入**喂给多套 plan 再比读数 ——
+         *   若这里自己再算一遍「候选该多大」，就成了同一事实两个真源（本仓最忌）。
+         *
+         * 【来源可信度自述（原文要求 exact / constant-only / unknown）】
+         *   宿主是**唯一**知道「世界书占用是怎么来的」的地方：`_worldbookOccupancy()`
+         *   返回的 `enabledCount/constantCount` 决定了候选里有没有真激活条目。
+         *      · 只拿得到常驻（`constantCount > 0` 且 `enabledCount === constantCount`）
+         *        ⇒ `constant-only`（触发项不可知，对照范围有限）；
+         *      · 两者不等 ⇒ 有触发项但**未取到激活明细** ⇒ `unknown`（不冒充 exact）；
+         *      · 全库为空（`count === 0`）⇒ `exact`（空库是**明确的**空，不是未知）。
+         *   三档只影响读数与范围自述，**不影响预算复算**。
+         *
+         * @param {Array}  plans 方案数组（由设置面/诊断面传入；缺省给三套常用档）
+         * @returns {object|null} 对照读数；模块缺席时为 null（＝「没跑」，不是「没差异」）
+         */
+        _projectionStrategyCompare(plans) {
+            try {
+                const P = _projectionLib();
+                if (!P || typeof P.compareStrategies !== 'function') return null;
+                const pred = this._projectionPrediction();
+                /* 预演都不可测 ⇒ 对照无从谈起：如实返回 null（＝没跑），不伪造一份空对照。 */
+                if (!pred || pred.measurable !== true) return null;
+                const cfg = (this.config && this.config.config) ? this.config.config : {};
+                const wb = this._worldbookOccupancy();
+                const wbKnown = !!(wb && wb.known === true);
+                const itemsSource = !wbKnown ? { kind: 'unknown', note: '世界书占用读不到（' + String((wb && wb.reason) || 'n/a') + '）' }
+                    : (Number(wb.count) === 0 ? { kind: 'dryrun', note: '全库为空（明确的空，非未知）' }
+                        : (Number(wb.enabledCount) > 0 && Number(wb.enabledCount) === Number(wb.constantCount)
+                            ? { kind: 'constant', note: '仅取到常驻条目（enabled=' + wb.enabledCount + '，与 constant 相等）⇒ 触发项不可知' }
+                            : { kind: 'unknown', note: '有触发项但未取到激活明细（enabled=' + wb.enabledCount + ' / constant=' + wb.constantCount + '）' }));
+                /* 候选块与 _projectionPrediction 同源（同一批 draft 读数、同一条常驻口径）。 */
+                const draft = Array.isArray(this._lastInjectionDraft) ? this._lastInjectionDraft : null;
+                const items = draft ? draft.filter((b) => b && Number(b.chars) > 0).map((b) => ({
+                    id: b.id, label: b.label, chars: Number(b.chars) || 0,
+                    resident: (typeof RESIDENT_MARKERS !== 'undefined')
+                        ? RESIDENT_MARKERS.some((m) => String(b.label || '').startsWith(m)) : false,
+                })) : null;
+                if (!items) return null;
+                const _ir = (typeof window !== 'undefined' ? window.LonShaInjectionRouter : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./injection-router.js'); } catch { return null; } })() : null);
+                const chatLength = (typeof window !== 'undefined' ? window.SillyTavern?.getContext?.()?.chat?.length : 0) || 0;
+                const cur = Number(cfg.injectionBudget) || 3000;
+                const planList = Array.isArray(plans) && plans.length ? plans : [
+                    { id: 'cur', label: '当前配置', baseBudget: cur },
+                    { id: 'tight', label: '收紧（-600）', baseBudget: Math.max(300, cur - 600) },
+                    { id: 'loose', label: '放宽（+600）', baseBudget: cur + 600 },
+                ];
+                return P.compareStrategies({
+                    items: items,
+                    itemsSource: itemsSource,
+                    plans: planList,
+                    baseBudget: cur,
+                    tokenBudget: Number(cfg.memoryTokenBudget) || 0,
+                    reserve: numOr(cfg.keepRecentTokenReserve, 0),
+                    chatLength: chatLength,
+                    adaptive: cfg.adaptiveBudget,
+                    decayFloors: cfg.adaptiveBudgetDecayFloors,
+                    router: _ir,
+                    worldbook: wb,
+                    strategy: cfg.budgetStrategy || 'balanced',
+                    now: Date.now(),
+                });
+            } catch (e) { errLog(e, 'plugin._projectionStrategyCompare'); return null; }
         }
         buildBridgeSnapshot() {
             try {
@@ -10118,7 +10191,34 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                                 + (isSqueezing ? (' · 挤占 ' + sq.deltaChars + ' 字符') : ' · 无挤占')
                                 + (sq.pushesIntoTrim ? ' · ⚠️ 会把记忆推过裁剪线' : '')];
                         } catch (e) { errLog(e, 'selfCheck.injectionPrediction'); return ['注入预演', '—（诊断异常）']; }
-                    })(),                    // [v3.180] 楼层真源落笔面：覆盖度是**现算**读数（不入快照存盘），把「哪些楼还没落笔」
+                    })(),
+                    // [v3.289.0 · X3] 注入策略对照体检面（「换预算/换策略会怎样」）。
+                    //   三态与本仓其余诊断行同规格：模块未加载 / 没跑过注入（没得对照）/ 有读数。
+                    //   为何单独一行而不并进「注入预演」：预演答「这套配置会怎样」，
+                    //   对照答「换成别套会怎样」——后者**没得判时是「没跑过」**，
+                    //   而前者没得判是「模块缺席」，两种缺席归因不同，压成一行会混。
+                    (() => {
+                        try {
+                            const cmp = this._projectionStrategyCompare();
+                            if (!cmp) {
+                                const pr = this._projectionPrediction();
+                                if (!pr) return ['策略对照', '模块未加载（projection-pipeline.js）'];
+                                if (pr.measurable !== true) return ['策略对照', '预演不可测（' + String(pr.reason || '?') + '）⇒ 不对照'];
+                                return ['策略对照', '候选面待本轮（尚未跑过注入）'];
+                            }
+                            const d = cmp.diff || {};
+                            const rows = Array.isArray(d.rows) ? d.rows : [];
+                            const base = rows.find((r) => r.id === d.baseId) || rows[0] || {};
+                            const parts = rows.map((r) => r.id + ':' + (r.measurable
+                                ? (String(r.budgetNow) + '/' + String(r.headroomNow) + (r.pushesIntoTrim ? '⚠️推过线' : ''))
+                                : '不可测'));
+                            return ['策略对照', '来源 ' + cmp.activation
+                                + ' · 基准 ' + String(base.id || '?')
+                                + ' · ' + parts.join(' ')
+                                + (cmp.scope && cmp.scope.limited ? ' · 范围有限' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.strategyCompare'); return ['策略对照', '—（诊断异常）']; }
+                    })(),
+                    // [v3.180] 楼层真源落笔面：覆盖度是**现算**读数（不入快照存盘），把「哪些楼还没落笔」
                     //   连同失效原因一并念出来。口径：模块未加载如实报（不装成「无缺口」）；无缺口安静；
                     //   有缺口标 ⚠️——「有缺陷时告警、没缺陷时安静」与前述各行同规格。
                     (() => {

@@ -1,3 +1,40 @@
+## v3.289.0
+**X 系列第一条落地：注入策略对照（X3）—— 「换成别套配置会怎样」**
+
+- **面新增（不是整洁性改动）**：X1（v3.270.0）的 `predictInjection()` 只答「**这套**配置会怎样」；
+  用户改预算/策略时真正缺的是「**换成别套**会怎样」。本版补上对照面 `compareStrategies()`（`projection-pipeline.js`）。
+- **四条纪律落在实现里**：
+  ① **冻结同一份候选**：`eligible` 数组被每套 plan 复用（不经 plan 重取）—— 否则各套基数不同，对照本身无效；
+  ② **单一真源**：每套都走**同一个** `predictInjection`（全文件恰 1 处委派），不另算一遍预算；
+  ③ **不应用任何方案**：`applied` 是结构常量 `false`，并带 `applyHint` 说明「应用走宿主设置面」；
+  ④ **来源三档**：`dryrun`/`verified` ⇒ `exact`；`constant` ⇒ `constant-only`；缺自述 ⇒ `unknown`；
+     非 exact 时 `scope.limited=true` 且带原因（不得冒充完整激活）。
+- **首版三处真缺口（自查并修正，留痕）**：① `COMPARE_VERSION` 未定义（与 `PREDICTION_VERSION` 分列：
+  单套预演与多套对照是两个可独立演进的消费面）；② 注释写了 `activeFilter` 而代码是 `it.disabled===true`
+  直判 ⇒ 改写注释为真实写法（不引入额外抽象：多包一层反而多一个可漂移的真源）；
+  ③ 零调用出口风险（本仓有 `scan_wiring_dead_members.tsv` + `dead_code_budget` 门禁）⇒ 加宿主消费点。
+- **宿主接入（单一真源口径）**：`index.js` 新增 `_projectionStrategyCompare(plans)` —— **不另取候选、
+  不另算预算**，候选块与预算键全走 `_projectionPrediction()` 同源；来源可信度由 `_worldbookOccupancy()`
+  唯一判定（`count===0` ⇒ dryrun/exact、`enabledCount===constantCount` ⇒ constant、否则 unknown）；
+  预演不可测时返回 `null`（＝没跑，不冒充「已对照」）。两处接线：`_runProjections` 的 `pipe.strategyCompare`
+  与诊断面「策略对照」体检行（三态各自归因，与预演行**分列**：预演答「这套会怎样」、对照答「换别套会怎样」）。
+- **判据**：`tests/v3289_x3_strategy_compare.test.mjs`（**10 条**）A 出口与 `applied:false`（+ 不抬
+  `PROJECTION_API_VERSION` ⇒ 保 v1 消费兼容）/ B1 冻结候选（源码面锚点恰 1 处 + 3 套同基数 + 读数随配置真变）
+  / B2 单一真源（委派恰 1 处 + 与直接预演逐值相等）/ C1 禁用与非激活不计（4→2、`excluded.chars=100`）
+  / C2 逐项差可复算（预算差 -500 / 挤占差 0）/ D1 三档来源（5 组）/ D2 非 exact 须 limited+原因
+  / E 不可测≠通过（无 router / 无候选 / 无方案三态各自归因）/ F 真源码破坏 / G 自防护 + 当版锚点。
+- ★ **本轮实测两处坑（写下来防后人重踩）**：
+  ① **F 组首版是假绿**：破坏体用 `eligible.slice()`（换引用不换内容），而 `predictInjection` 只 `.filter()`
+     读候选、**不回写**传入数组 ⇒ 读数面**不可观测**，归因只能靠文本判定（「写死成模拟常量」型假绿）。
+     已改为**真可观测破坏**：把「候选同一份」破成「按 plan 现算候选」⇒ 破坏副本上 B1 的**真判据真的失败**，
+     且原版同款判据通过作反向对照。
+  ② **vm 沙箱载入坑**：真源尾部挂载判定是 `typeof window !== 'undefined'` ⇒ 沙箱必须提供 `window`；
+     首版把 `window` 显式设成 `undefined`，两个挂载分支全不命中 ⇒ `api()` 恒 `undefined`（10 条全红）。
+- **未跑全量**（用户纪律：计划全部内容完成前不跑全量）：本版只跑单套件 + 相关单门（版本守卫 / 跨仓绑定 /
+  死代码预算）。文档如实标 **v3.289.0 全量待验**。
+- **本版新增判据档**：`tests/v3289_x3_strategy_compare.test.mjs`（10 条）；登记面两处已补（`catalog_reference_consumers.tsv` 一行 + `v3247` 破坏形态库复用）。
+- 退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移（fail-closed）——本版受影响的单门均实测 exit 0；本档**绝不跑全量**（扫描器不具子进程能力）。
+
 ## v3.288.0
 **计划陈旧口径门的「面补一类」：X 系列已交付项复活 + 判据纯度修正（两处漏判）**
 - **真缺口（本轮实测，三条）**：

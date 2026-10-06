@@ -216,6 +216,9 @@
      *   · memory.known:false —— 宿主还没跑过注入 ⇒ 候选块面未知（同样不写 0）。
      * ================================================================ */
     const PREDICTION_VERSION = 1;
+    /** [v3.289.0 · X3] 策略对照读数的**结构**版本（字段增删才抬；与 PREDICTION_VERSION 分列，
+     *  因为「单套预演」与「多套对照」是两个可独立演进的消费面）。 */
+    const COMPARE_VERSION = 1;
 
     const _num0 = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
     /** 字符 → token 估算（与 estimateTextTokens 的 CJK 口径同族：汉字≈0.9 token/字） */
@@ -364,6 +367,211 @@
         return out;
     }
 
+    /**
+     * [v3.289.0 · X3] 注入**策略对照**（在同一批候选与会话身份上比较多套配置）。
+     *
+     * 【为什么需要这一面 / 修前实测后果】
+     *   X1 交付的 `predictInjection(opts)` 只答**一套**配置（一个预算 / 一个策略 / 一组开关）
+     *   下的推演结果。用户真正要做的决定是**比较**：「预算 3000 换 1800 会怎样」
+     *   「`tail-first` 换 `head-first` 谁被挤掉」——没有对照就只能改一轮、看一轮、再改一轮。
+     *
+     * 【本模块做什么】
+     *   · `compareStrategies(opts)`：**冻结同一份候选与会话身份**，对 `plans` 里每套配置
+     *     逐一套用**同一个** `predictInjection`（不是另写一套近似公式——另写就是第二真源），
+     *     再给出逐项对照与「谁被挤掉」的差异。
+     *   · `exact / constant-only / unknown` 三档来源可信度：原文要求
+     *     「由 worldbook-dryrun 或已核对的宿主出口提供真正激活条目，区分 exact/constant-only/unknown」。
+     *     本模块按 `opts.itemsSource` 自述 + 逐项 `it.activation` 判定：
+     *       `exact`          —— 来源自述为 dryrun/verified，且候选带激活标记（真激活条目）；
+     *       `constant-only`  —— 只拿到常驻（constant）条目，触发项不可知 ⇒ **不得**当完整激活用；
+     *       `unknown`        —— 来源未自述或自述为未知。
+     *     **三档只影响 `activation` 读数与 `why`，不影响预算复算**（预算只吃 chars/tokens）。
+     *
+     * 【与原文验收的对应（逐条落点）】
+     *   · 「给同一输入的预演与实际路径一致」—— 每套 plan 都走同一个 `predictInjection`，
+     *     本函数**不含**任何自算公式（负控制会摘掉这一条来证明归因）。
+     *   · 「对照不调用模型、不写账、不改当前开关」—— 纯函数、无 IO、只读入参；
+     *     本函数**没有**任何写回路径（`applied:false` 是结构常量，见下）。
+     *   · 「未取得实际激活时只报告有限范围」—— `activation` 三档 + `scope.limited`。
+     *   · 「禁用条目不计实际注入，非激活内容不计」—— 候选在**过滤前**逐项剔除
+     *     `it.disabled === true` 与 `it.active === false` 两项（本模块不引入额外的
+     *     `activeFilter` 抽象：过滤口径就是这两个直判，多包一层反而多一个可漂移的真源），
+     *     剔除量计入 `scope.excluded` 读数（「排除了多少」本身也要可解释，
+     *     否则「少算」与「本来没有」同形）。
+     *   · 「保留 projection API v1 消费兼容」—— 本函数是**新增出口**，不改
+     *     `ENVELOPE_FIELDS`、不抬 `PROJECTION_API_VERSION`、不改任何既有返回结构。
+     *
+     * 【本函数**不做**什么（边界）】
+     *   · **不应用**任何方案：返回结构里 `applied` 恒 `false` 且 `applyHint` 只说明
+     *     「应用是显式配置动作，走宿主设置面」——本模块不写配置（无写权限即无静默改开关）。
+     *   · **不预测模型侧**：模型调用、token 计费口径都不在面内。
+     *   · **不假装知道谁被真裁剪丢掉**：沿用 `predictInjection` 的 `atRisk.basis='tail-first'`
+     *     口径（谁被丢由 `trimToBudget` 的策略定），对照的差异只按同一口径给**同源可比**样本。
+     *
+     * @param {object} opts
+     *   items        候选块（**冻结的同一份**；每套 plan 复用，绝不按 plan 重取）
+     *   plans        方案数组，每项 `{ id, label?, baseBudget?, tokenBudget?, reserve?, strategy?,
+     *                sources? }`（`sources` 是来源开关自述，进读数**不参与复算**）
+     *   itemsSource  候选来源自述：`{ kind:'dryrun'|'verified'|'constant'|..., note? }`
+     *   router/derive/worldbook/chatLength/adaptive/decayFloors/atRiskLimit  透传给 predictInjection
+     *   now          时间戳
+     * @returns {object} 结构恒定（不可测处一律 null + reason，不用 0 冒充）
+     */
+    function compareStrategies(opts) {
+        const o = isPlainObject(opts) ? opts : {};
+        const plans = Array.isArray(o.plans) ? o.plans.filter(isPlainObject) : null;
+        const src = isPlainObject(o.itemsSource) ? o.itemsSource : null;
+        const srcKind = src ? String(src.kind || 'unknown') : 'unknown';
+        const srcNote = src ? String(src.note || '') : '';
+
+        /* 候选：先按「真参与注入」过滤（禁用 / 非激活不计），再算合计。
+         *   —— 过滤只影响**候选合计**；每套 plan 仍然拿到同一份**未过滤**原始候选，
+         *      过滤口径随 itemsSource 走，不由 plan 各自决定（否则两套 plan 的基数不同，对照无效）。 */
+        const raw = Array.isArray(o.items) ? o.items.filter(isPlainObject) : null;
+        const excluded = { disabled: 0, inactive: 0, chars: 0 };
+        let eligible = null;
+        if (raw) {
+            eligible = [];
+            for (const it of raw) {
+                if (it.disabled === true) { excluded.disabled++; excluded.chars += Math.max(0, _num0(it.chars)); continue; }
+                if (it.active === false) { excluded.inactive++; excluded.chars += Math.max(0, _num0(it.chars)); continue; }
+                eligible.push(it);
+            }
+        }
+
+        /* 来源可信度三档（只影响 activation 读数与 why，不影响预算复算）。 */
+        const hasActivationMark = !!(eligible && eligible.some((it) => it.activation === 'exact'
+            || it.activation === 'constant-only' || it.activation === 'unknown'));
+        let activation = 'unknown';
+        if (srcKind === 'dryrun' || srcKind === 'verified') activation = 'exact';
+        else if (srcKind === 'constant') activation = 'constant-only';
+        const activationWhy = {
+            exact: '来源自述为 dryrun/verified ⇒ 候选即真正激活条目，对照可按完整激活读',
+            'constant-only': '来源只给常驻（constant）条目，触发项不可知 ⇒ 不得当完整激活读，'
+                + '本对照的「挤占」只覆盖常驻部分（范围有限，已在 scope.limited 标出）',
+            unknown: '来源未自述（缺 worldbook-dryrun / 已核对宿主出口）⇒ 只报告有限范围',
+        }[activation];
+
+        const out = {
+            version: COMPARE_VERSION,
+            ts: _num0(o.now),
+            applied: false,
+            applyHint: '应用是**显式配置动作**：本函数只对照，不改任何开关；改配置走宿主设置面',
+            itemsSource: { kind: srcKind, note: srcNote, hasActivationMark: hasActivationMark },
+            activation: activation,
+            activationWhy: activationWhy,
+            scope: {
+                /* 范围自述：候选基数（过滤后）+ 被排除多少 + 是否只覆盖常驻。 */
+                eligibleItems: eligible ? eligible.length : null,
+                rawItems: raw ? raw.length : null,
+                excluded: excluded,
+                limited: (activation !== 'exact'),
+                limitedWhy: (activation === 'exact') ? '' : activationWhy,
+            },
+            plans: null,
+            diff: null,
+            why: '',
+        };
+
+        if (!plans || !plans.length) {
+            out.why = '未提供 plans（至少一套配置才算对照）⇒ 不给结论';
+            return out;
+        }
+        if (!raw) {
+            out.why = '未提供候选 items ⇒ 无对照基数（写 0 会把「未知」读成「没有」）';
+            return out;
+        }
+
+        /* 每套 plan 套用**同一个** predictInjection（单一真源）。 */
+        const results = [];
+        for (const p of plans) {
+            const id = (p.id === undefined || p.id === null) ? ('plan' + (results.length + 1)) : String(p.id);
+            const callOpts = {
+                router: o.router, derive: o.derive, worldbook: o.worldbook,
+                baseBudget: (p.baseBudget === undefined) ? o.baseBudget : p.baseBudget,
+                tokenBudget: (p.tokenBudget === undefined) ? o.tokenBudget : p.tokenBudget,
+                reserve: (p.reserve === undefined) ? o.reserve : p.reserve,
+                chatLength: (p.chatLength === undefined) ? o.chatLength : p.chatLength,
+                adaptive: (p.adaptive === undefined) ? o.adaptive : p.adaptive,
+                decayFloors: o.decayFloors,
+                atRiskLimit: (p.atRiskLimit === undefined) ? o.atRiskLimit : p.atRiskLimit,
+                strategy: (p.strategy === undefined) ? o.strategy : p.strategy,
+                /* 候选**同一份**：这是「冻结同一候选」的落点（不按 plan 重取）。 */
+                items: eligible,
+                now: o.now,
+            };
+            let r = null;
+            let threw = null;
+            try { r = predictInjection(callOpts); } catch (e) { threw = String((e && e.message) || e); }
+            results.push({
+                id: id,
+                label: String(p.label || id),
+                sources: isPlainObject(p.sources) ? p.sources : null,
+                config: {
+                    baseBudget: _num0(callOpts.baseBudget), tokenBudget: _num0(callOpts.tokenBudget),
+                    reserve: _num0(callOpts.reserve), chatLength: _num0(callOpts.chatLength),
+                    strategy: String(r ? r.strategy : (callOpts.strategy || 'balanced')),
+                },
+                measurable: !!(r && r.measurable),
+                reason: threw ? 'predict-threw' : (r ? String(r.reason) : 'predict-missing'),
+                why: threw ? ('predictInjection 抛异常：' + threw) : (r ? String(r.why) : ''),
+                budget: r ? r.budget : null,
+                headroom: r ? r.headroom : null,
+                squeeze: r ? r.squeeze : null,
+                raw: r,
+            });
+        }
+        out.plans = results;
+
+        /* ---------- 逐项对照 ---------- */
+        const measurablePlans = results.filter((r) => r.measurable);
+        if (!measurablePlans.length) {
+            out.why = '所有方案都不可测（' + results.map((r) => r.id + ':' + r.reason).join(' / ')
+                + '）⇒ 不给对照结论（不可测≠通过）';
+            return out;
+        }
+        const base = results[0];
+        const rows = [];
+        for (const r of results) {
+            rows.push({
+                id: r.id,
+                measurable: r.measurable,
+                budgetNow: (r.budget ? r.budget.now : null),
+                budgetIfWorldbook: (r.budget ? r.budget.ifWorldbook : null),
+                headroomNow: (r.headroom ? r.headroom.now : null),
+                headroomIfWorldbook: (r.headroom ? r.headroom.ifWorldbook : null),
+                squeezeChars: (r.squeeze ? r.squeeze.deltaChars : null),
+                wouldTrimNow: (r.squeeze ? r.squeeze.wouldTrimNow : null),
+                wouldTrimIfWorldbook: (r.squeeze ? r.squeeze.wouldTrimIfWorldbook : null),
+                pushesIntoTrim: (r.squeeze ? r.squeeze.pushesIntoTrim : null),
+                /* 与**第一套**逐项差（对照的用途就是「换成它会怎样」）。 */
+                deltaBudgetNow: (r.budget && base.budget && r.budget.now !== null && base.budget.now !== null)
+                    ? (r.budget.now - base.budget.now) : null,
+                deltaSqueezeChars: (r.squeeze && base.squeeze && r.squeeze.deltaChars !== null
+                    && base.squeeze.deltaChars !== null)
+                    ? (r.squeeze.deltaChars - base.squeeze.deltaChars) : null,
+                atRiskIds: (r.squeeze && r.squeeze.atRisk && Array.isArray(r.squeeze.atRisk.items))
+                    ? r.squeeze.atRisk.items.map((x) => (x.id === undefined ? null : x.id)) : null,
+            });
+        }
+        /* 「谁被挤掉」的差异：同一口径下的样本集差异（不是精确真裁剪结果，口径见 atRisk.why）。 */
+        const baseRisk = rows[0].atRiskIds;
+        for (const row of rows) {
+            row.atRiskDeltaVsBase = (baseRisk && row.atRiskIds)
+                ? row.atRiskIds.filter((x) => !baseRisk.includes(x)) : null;
+        }
+        out.diff = {
+            baseId: base.id,
+            rows: rows,
+            /* 差异结论只在**全部方案可测**时给，否则缩小到可测子集并如实标注。 */
+            allMeasurable: (measurablePlans.length === results.length),
+            comparedIds: measurablePlans.map((r) => r.id),
+            skippedIds: results.filter((r) => !r.measurable).map((r) => r.id),
+        };
+        out.why = '每套方案复用同一个 predictInjection（单一真源）；候选冻结为同一份（'
+            + (eligible ? eligible.length : 0) + ' 项）；来源可信度 ' + activation;
+        return out;
+    }
     /**
      * [v3.212.0] 把一次管线读数装成**对外投影 envelope**（纯函数、不抛）。
      *
@@ -542,7 +750,9 @@
         contractOf,
         envelopeOf,
         predictInjection,
+        compareStrategies,
         PREDICTION_VERSION,
+        COMPARE_VERSION,
         PROJECTION_VERSION,
         PROJECTION_API_VERSION,
     };
