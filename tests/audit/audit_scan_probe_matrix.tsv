@@ -47,3 +47,4 @@ scan_open_faces.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
 scan_inbound_faces.mjs	0	1	0	读根 .js 面（消费点入口不在场即阻断）
 scan_fakegreen_hygiene.mjs	0	0	1	读 tests/audit 面（负控制族退化即阻断：本门禁量的是负控制自身的形状）
 scan_ui_runtime.mjs	0	2	0	读 settings-ui.js 面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门禁不读 tests/ 面），故如实记 0 —— G 列已非 0，非恒绿探测器
+scan_doc_truthfulness.mjs	0	2	0	读根 .js 面（入口不在场即阻断：缺 index.js ⇒ 无 VERSION 真源 ⇒ exit 2）；T 档对它无影响（本门禁量的是「文档读数 ↔ 磁盘」与「文档 ↔ 登记」两个面，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器

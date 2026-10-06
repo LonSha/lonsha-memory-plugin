@@ -519,6 +519,7 @@ test('v3284 F2. ★ 三源同源，且本档恰锚当版（供版本守卫 V4 �
     const vnum = (s) => String(s).split('.').map((x) => Number(x)).join('.');
     assert.equal(pkg, man, 'package.json 与 manifest.json 版本一致');
     assert.ok(readRoot('index.js').includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
-    assert.equal(vnum('3.284.0'), vnum(pkg), '本档恰锚当版');
-    ok('三源同源；本档锚 v3.284.0');
+    /* [v3.285.0 交棒] 本档写于 3.284.0；转下限锚：后续版本须 >= 它，不得把历史档锁成恰好等于当版。 */
+    assert.ok(vnum(pkg) >= vnum('3.284.0'), '本档版本下界 3.284.0 不得被绕过（实 ' + pkg + '）');
+    ok('三源同源；本档下界 v3.284.0（当版锚已交棒给 v3285）');
 });
