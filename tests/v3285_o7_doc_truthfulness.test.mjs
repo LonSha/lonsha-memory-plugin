@@ -653,6 +653,7 @@ test('v3285 H. 三源同源，且本档恰锚当版（供版本守卫 V4 计数�
     for (const m of mf.extra_js) {
         assert.ok(fs.existsSync(path.join(ROOT, m)), 'extra_js 登记的模块必须真实存在：' + m);
     }
-    assert.equal(vnum('3.285.0'), vnum(pkg), '本档恰锚当版');
-    ok('三源同源；manifest.extra_js ' + mf.extra_js.length + ' 项全部真实存在；本档锚 v3.285.0');
+    /* [v3.286.0 交棒] 本档写于 3.285.0；转下限锚：后续版本须 >= 它，不得把历史档锁成恰好等于当版。 */
+    assert.ok(vnum(pkg) >= vnum('3.285.0'), '本档版本下界 3.285.0 不得被绕过（实 ' + pkg + '）');
+    ok('三源同源；manifest.extra_js ' + mf.extra_js.length + ' 项全部真实存在；本档下界 v3.285.0（当版锚已交棒给 v3286）');
 });

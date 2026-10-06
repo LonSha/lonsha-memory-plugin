@@ -1,0 +1,229 @@
+{
+ "file": "tests/audit/test_cost_readings.json",
+ "note": "测试成本读数登记。**读数零手抄**：由 tools/_rebind_test_cost.py 消费 TEST_SUMMARY_JSON=<path> node tests/run.mjs 的结构化摘要后写入（summary.tests.slowest / wall / total 与 summary.scope 即真源）。scan_cost_truthfulness.mjs 只核对「文档 ↔ 本文件」，自己不跑全量。**覆盖范围必须自述**：scope.full=true 才代表一次全量实跑；定向采样（full=false）不得作为全量读数使用。",
+ "measured_at": null,
+ "latest": {
+  "version": "3.286.0",
+  "scope": {
+   "full": false,
+   "patterns": [
+    "v3273",
+    "v3275",
+    "v3280",
+    "v3281",
+    "v3282",
+    "v3283",
+    "v3284",
+    "v3285",
+    "v3286",
+    "v3286_cost",
+    "v3286_plan"
+   ],
+   "jobs": 7
+  },
+  "tests_total": 10,
+  "tests_wall_s": 15.6,
+  "slowest_top": [
+   {
+    "file": "tests/v3285_o7_doc_truthfulness.test.mjs",
+    "duration": 15033,
+    "status": 0
+   },
+   {
+    "file": "tests/v3286_cost_truthfulness.test.mjs",
+    "duration": 8768,
+    "status": 0
+   },
+   {
+    "file": "tests/v3282_o7_alias_copy_ledger.test.mjs",
+    "duration": 5098,
+    "status": 0
+   },
+   {
+    "file": "tests/v3286_plan_currency.test.mjs",
+    "duration": 1908,
+    "status": 0
+   },
+   {
+    "file": "tests/v3280_o7_verbatim_copy_ledger.test.mjs",
+    "duration": 1648,
+    "status": 0
+   },
+   {
+    "file": "tests/v3283_o7_const_table_copy_ledger.test.mjs",
+    "duration": 1630,
+    "status": 0
+   },
+   {
+    "file": "tests/v3281_o7_module_copy_ledger.test.mjs",
+    "duration": 1553,
+    "status": 0
+   },
+   {
+    "file": "tests/v3284_o7_audit_copy_ledger.test.mjs",
+    "duration": 1376,
+    "status": 0
+   },
+   {
+    "file": "tests/v3275_o5_scale_and_archive.test.mjs",
+    "duration": 698,
+    "status": 0
+   },
+   {
+    "file": "tests/v3273_o3_budget_cut_contract.test.mjs",
+    "duration": 556,
+    "status": 0
+   }
+  ],
+  "audit_passed": null,
+  "audit_total": null,
+  "source": "node tests/run.mjs  v3273 v3275 v3280 v3281 v3282 v3283 v3284 v3285 v3286 v3286_cost v3286_plan",
+  "rebound_at": "2026-10-06T11:10:55.798Z"
+ },
+ "rebinds": [
+  {
+   "version": "3.285.0",
+   "scope": {
+    "full": false,
+    "patterns": [
+     "v3273",
+     "v3275",
+     "v3280",
+     "v3281",
+     "v3282",
+     "v3283",
+     "v3284",
+     "v3285",
+     "v3286"
+    ],
+    "jobs": 7
+   },
+   "tests_total": 8,
+   "tests_wall_s": 16,
+   "slowest_top": [
+    {
+     "file": "tests/v3285_o7_doc_truthfulness.test.mjs",
+     "duration": 15473,
+     "status": 0
+    },
+    {
+     "file": "tests/v3282_o7_alias_copy_ledger.test.mjs",
+     "duration": 5336,
+     "status": 0
+    },
+    {
+     "file": "tests/v3281_o7_module_copy_ledger.test.mjs",
+     "duration": 1787,
+     "status": 0
+    },
+    {
+     "file": "tests/v3283_o7_const_table_copy_ledger.test.mjs",
+     "duration": 1786,
+     "status": 0
+    },
+    {
+     "file": "tests/v3280_o7_verbatim_copy_ledger.test.mjs",
+     "duration": 1645,
+     "status": 0
+    },
+    {
+     "file": "tests/v3284_o7_audit_copy_ledger.test.mjs",
+     "duration": 1456,
+     "status": 0
+    },
+    {
+     "file": "tests/v3275_o5_scale_and_archive.test.mjs",
+     "duration": 758,
+     "status": 0
+    },
+    {
+     "file": "tests/v3273_o3_budget_cut_contract.test.mjs",
+     "duration": 485,
+     "status": 0
+    }
+   ],
+   "audit_passed": null,
+   "audit_total": null,
+   "source": "node tests/run.mjs  v3273 v3275 v3280 v3281 v3282 v3283 v3284 v3285 v3286",
+   "rebound_at": "2026-10-06T10:44:36.338Z"
+  },
+  {
+   "version": "3.286.0",
+   "scope": {
+    "full": false,
+    "patterns": [
+     "v3273",
+     "v3275",
+     "v3280",
+     "v3281",
+     "v3282",
+     "v3283",
+     "v3284",
+     "v3285",
+     "v3286",
+     "v3286_cost",
+     "v3286_plan"
+    ],
+    "jobs": 7
+   },
+   "tests_total": 10,
+   "tests_wall_s": 15.6,
+   "slowest_top": [
+    {
+     "file": "tests/v3285_o7_doc_truthfulness.test.mjs",
+     "duration": 15033,
+     "status": 0
+    },
+    {
+     "file": "tests/v3286_cost_truthfulness.test.mjs",
+     "duration": 8768,
+     "status": 0
+    },
+    {
+     "file": "tests/v3282_o7_alias_copy_ledger.test.mjs",
+     "duration": 5098,
+     "status": 0
+    },
+    {
+     "file": "tests/v3286_plan_currency.test.mjs",
+     "duration": 1908,
+     "status": 0
+    },
+    {
+     "file": "tests/v3280_o7_verbatim_copy_ledger.test.mjs",
+     "duration": 1648,
+     "status": 0
+    },
+    {
+     "file": "tests/v3283_o7_const_table_copy_ledger.test.mjs",
+     "duration": 1630,
+     "status": 0
+    },
+    {
+     "file": "tests/v3281_o7_module_copy_ledger.test.mjs",
+     "duration": 1553,
+     "status": 0
+    },
+    {
+     "file": "tests/v3284_o7_audit_copy_ledger.test.mjs",
+     "duration": 1376,
+     "status": 0
+    },
+    {
+     "file": "tests/v3275_o5_scale_and_archive.test.mjs",
+     "duration": 698,
+     "status": 0
+    },
+    {
+     "file": "tests/v3273_o3_budget_cut_contract.test.mjs",
+     "duration": 556,
+     "status": 0
+    }
+   ],
+   "audit_passed": null,
+   "audit_total": null,
+   "source": "node tests/run.mjs  v3273 v3275 v3280 v3281 v3282 v3283 v3284 v3285 v3286 v3286_cost v3286_plan",
+   "rebound_at": "2026-10-06T11:10:55.798Z"
+  }
+ ]
+}

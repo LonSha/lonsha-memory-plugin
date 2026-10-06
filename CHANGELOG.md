@@ -1,3 +1,62 @@
+## v3.286.0
+
+**O8 第二刀：门禁成本一致性（为测试成本建立可判的热点读数 + 计划陈旧口径收口）**
+
+- **真缺口（本轮实测，两条）**：
+  ① 计划 O8 的工作项写着「为测试成本建立热点读数，不减少负控制来换快」，而磁盘上**没有任何成本读数** ——
+     `tests/run.mjs` 的摘要只有 `failed[]` 带 duration（**只有失败档有耗时**），通过的档耗时只活在控制台输出流里，
+     `--audit` 段的 `slowest` 也只收 top3 ⇒ 「哪个档最慢」在磁盘上无从复算，「成本热点」这句话没有交付物。
+  ② `PLAN.md` 的旧「## 优先级」节仍把**已交付的** A1/A2/T1 列为下一步，与代码事实冲突 ——
+     而文档读者（含新会话）**无从分辨哪一节是现行排序**。
+
+- **本刀交付**：
+  · `tests/run.mjs` 摘要追加两个出口：`scope`（`{ patterns, full, jobs, testedAt }` —— **覆盖范围自述**的机器可读凭据）
+    与 `tests.slowest`（全量逐档耗时 top30，降序、并列按文件名升序以保证可复现）。**只追加字段，不改既有语义**
+    （`scan_doc_truthfulness.mjs` 消费的 `tests.total` / `wall` / `failed` 一字不动）。
+  · `tools/_rebind_test_cost.py`：与 `_rebind_doc_readings.py` 同源口径的零手抄重绑工具 ——
+    只读不测、只追加（`rebinds[]` 保留最近 12 条）、覆盖范围原样透传、
+    **只有 `scope.full === true` 才推进 `measured_at`**（定向采样不得冒充全量）、fail-closed 从不落盘。
+  · `tests/audit/test_cost_readings.json`：首份成本读数登记（**定向采样**：9 档，8 档通过 / 103 断言 / 16.0s）。
+  · `tests/audit/scan_cost_truthfulness.mjs`（C1~C8，退出码 0/1/2）+ `tests/v3286_cost_truthfulness.test.mjs`（12 个 test）。
+
+- **首份读数就抓到一个真热点**：`tests/v3285_o7_doc_truthfulness.test.mjs` 单档 **15473ms**，
+  是次慢档 `v3282`（5336ms）的近 3 倍，其余在 1.4–1.8s。本刀**只建读数、不做优化**（计划原文要求「先记录新基线，再定目标设备预算」）。
+
+- ★ **本刀最要紧的一条判据是 C5「覆盖范围自述」**：本仓明令「定向采样不得冒充全量」，
+  而修前连「这次是全量还是采样」这个字段都不存在。C5 双向判：
+  `full=true` ⇒ `measured_at` 必须等于该档 `version`（全量实跑必须盖版本章）；
+  `full=false` ⇒ 必须带至少一个 `pattern`（既非全量也非定向采样 = 覆盖范围不可解释）；
+  `full` 缺席按旧登记记入 notes、不判红（历史口径豁免）。
+
+- ★ **实测踩坑并修正（写下来防后人重复）**：
+  ① 扫描器首版**是恒绿探测器** —— 它只读 `tests/` 面，G（镜像根目录 `.js` 全删）与 T（`tests/` 下 `.mjs` 置 `// gutted`）
+     两档都照样 exit 0，而 `tests/v3226_audit_sensitivity.test.mjs` 的 J3 判定「两档皆 0 = 恒绿探测器」
+     （永远通过，人以为有它守着）。修法不是凑敏感度，而是补两条**本门真实存在的前提**的在场检查：
+     `index.js` 的 `const VERSION`（C8 比对真源）与 `tests/run.mjs` 的 `slowest`/`scope` 出口（**本门所核读数的产出者**）。
+     修后**三档实测 H=0 / G=2 / T=2**（`tools/_o8b_gt_probe.py`，最小镜像 + `LONSHA_AUDIT_ROOT`）。
+  ② 补丁首版**不幂等**：锚点原文出现在替换文本开头 ⇒ 重跑会再插一遍（141→180→218 行）。
+     改为哨兵前置检查（已在场即跳过）+ **回滚后重做**（`git checkout` 干净基线）。
+  ③ 五条 C7 结构性 drift 里只有两条带「结构漂移」字样，另三条被判据套件误判成「没给归因」（假红）。
+     修法是**统一写入侧措辞**，不是放宽读取侧断言。
+  ④ 面下限写死 200/40 ⇒ 合成仓（几十个文件）每条用例都卡在「枚举塌陷 exit 2」，判据永远到不了。
+     改为与 `scan_doc_truthfulness.mjs` 同形的 `numEnv(...) || (FIXTURE_MODE ? 1 : N)`。
+
+- **计划陈旧口径收口**：`PLAN.md` 新增 `## 当前优先级（唯一现行排序 · 判据 scan_plan_currency.mjs）` 节，
+  并给旧「## 优先级」节加 `> **【陈旧节 · 勿当排序读】**` 标记 ——
+  本仓历史上有多处「优先级 / 起手」节，每一处在自己那轮之后都会变成陈旧陈述。
+
+- ★ **登记面是「四处」而不是「三处」（本刀实测踩到第四处）**：新增一个测试档/扫描器，必须逐处核对 —— ① `tests/audit/audit_scan_probe_matrix.tsv`（在役扫描器灵敏度矩阵，`v3226` 双向齐全硬校验）；② `tests/audit/catalog_reference_consumers.tsv`（在役测试面名册，`scan_ledger_contract` R7 + 跨仓守卫）；③ `tests/audit/plan_currency.tsv`（排序型节名册，本刀新建）；④ `tests/v3247_break_kit_consolidation.test.mjs` 里的 `REGISTRY` 接收方台账（**跑关联套件才暴露**：「磁盘上新增了接收方却没登记」）。前三处是计划里预见的，第四处不是 —— 「新增一个档要登记几处」此前在文档里没有答案，此处留痕。
+  另附抬版面的一条同族教训：本仓抬版脚本所谓「四源」实际是**五源** —— README 的「**当前版本**：`x.y.z`」行也被 `scan_doc_truthfulness` D1 硬校验，`_bump3286.py` 首版漏了它（文档门当场抓出）。
+
+- **本刀两个交付档的自述读数**（D9 要求：文档里的「N 条」也要核回磁盘，故此处逐字给出路径与条数）：`tests/v3286_cost_truthfulness.test.mjs`（12 条）、`tests/v3286_plan_currency.test.mjs`（12 条）。
+  两个扫描器各自带配对判据套件：`tests/audit/scan_cost_truthfulness.mjs`（C1~C8）与 `tests/audit/scan_plan_currency.mjs`（P1~P7）。
+  退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
+
+- **边界（诚实）**：① 扫描器**不自己跑测试**（审计段跑全量会自指，且把审计拖成分钟级），
+  只核对「登记 ↔ 磁盘」与「登记自洽」；实跑读数的权威来源始终是 `TEST_SUMMARY_JSON=<path> node tests/run.mjs`。
+  ② 耗时为**本机并发 7 的单次读数**：它证明「谁贵」，不承诺目标设备预算。
+  ③ 跨机 / 跨时段的耗时波动**不判**（那会产出必然 flaky 的红）。
+
 ## v3.285.0
 
 **O8：当前事实、旧决策与门禁成本一致（第一刀：文档读数真实性）**

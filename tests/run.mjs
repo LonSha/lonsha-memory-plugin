@@ -355,12 +355,30 @@ async function main() {
   const summary = {
     version: VERSION_OF_REPO(),
     at: new Date().toISOString(),
+    /* [v3.286.0 · O8] 覆盖范围自述：本摘要来自一次**全量**还是**定向采样**。
+     *   为什么必须自述：计划 O8 要求「为测试成本建立热点读数」，而读数的解释力
+     *   完全取决于覆盖面 —— 定向采样的 wall 与 slowest 不能冒充全量。
+     *   重绑工具（tools/_rebind_test_cost.py）据此写 scope，扫描器据此分档判定。 */
+    scope: {
+      patterns: OPT.patterns.slice(),
+      full: OPT.patterns.length === 0,
+      jobs: OPT.jobs,
+      testedAt: new Date().toISOString(),
+    },
     tests: {
       total: tests.length, passed: tests.length - failed.length,
       failed: failed.map((r) => ({
         file: r.file.replace(REPO + '/', ''), status: r.killed ? 'timeout' : r.code,
         duration: r.ms, firstError: r.firstError || firstError(r),
       })),
+      /* [v3.286.0 · O8] 全量逐档耗时（不只失败档）。
+       *   修前：只有 failed[] 带 duration ⇒ 通过的档耗时只活在屏幕输出里，
+       *   「哪个档最慢」在磁盘上无从复算，O8 的「热点读数」没有交付物。 */
+      slowest: [...results]
+        .filter(Boolean)
+        .map((r) => ({ file: r.file.replace(REPO + '/', ''), duration: r.ms, status: r.killed ? 'timeout' : r.code }))
+        .sort((a, b) => (b.duration - a.duration) || a.file.localeCompare(b.file))
+        .slice(0, 30),
       wall: Number(wall),
     },
     audit: auditSummary,

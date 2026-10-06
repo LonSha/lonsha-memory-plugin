@@ -173,6 +173,10 @@ const REGISTRY = [
      *   （六处真源码破坏：摘 D1 比较 / 摘 D3 自相矛盾 / 摘 D6 快照滞后整支 / 摘 D6 反向判据 /
      *   摘 D2b 时点豁免 / 拔面下限，锚点取自 tests/audit/scan_doc_truthfulness.mjs）；按 B1 台账纪律在此登记。 */
     'v3285_o7_doc_truthfulness.test.mjs',
+    /* [v3.286.0 O8 第二刀] 两个新套件都从唯一真源取 breakSource / assertSingleHit，
+     *   故按台账纪律（接入面 == 磁盘事实）在此登记。 */
+    'v3286_cost_truthfulness.test.mjs',
+    'v3286_plan_currency.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
