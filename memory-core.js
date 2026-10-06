@@ -208,7 +208,7 @@ function areLabelsInConflict(l1, l2) {
 
 const PLUGIN_NAME = 'LonSha记忆引擎';
 
-let VERSION = '3.283.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.284.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 
     // [v3.38] 关系多维共存与互斥演化（Zep/Graphiti 理念）——是 areLabelsInConflict 的判据表
 

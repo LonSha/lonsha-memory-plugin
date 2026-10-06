@@ -167,6 +167,8 @@ const REGISTRY = [
     'v3282_o7_alias_copy_ledger.test.mjs',
     /* [v3.283.0 O7 第四项续三] 常量表值级副本面（同名常量副本的值此前无任何判据） */
     'v3283_o7_const_table_copy_ledger.test.mjs',
+    /* [v3.284.0 O7 第四项续四] 审计面副本（tests/audit/*.mjs 此前不在任何一档的枚举面内） */
+    'v3284_o7_audit_copy_ledger.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
