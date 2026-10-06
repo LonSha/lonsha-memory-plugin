@@ -161,6 +161,8 @@ const REGISTRY = [
     'v3279_o7_scanner_decl_surface.test.mjs',
     /* [v3.280.0 O7 第四项] 逐字副本台账（副本第二套维护面也开始有人守） */
     'v3280_o7_verbatim_copy_ledger.test.mjs',
+    /* [v3.281.0 O7 第四项续] 模块↔模块副本面（此前副本判据只覆盖宿主↔模块这一面） */
+    'v3281_o7_module_copy_ledger.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
