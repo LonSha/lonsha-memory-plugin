@@ -299,6 +299,8 @@ test('v3279 H1. ★ 三源同源，且本档恰锚当版（供版本守卫 V4 �
     const vnum = (s) => String(s).split('.').map((x) => Number(x)).join('.');
     assert.equal(pkg, man, 'package.json 与 manifest.json 版本一致');
     assert.ok(INDEX_SRC.includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
-    assert.equal(vnum('3.279.0'), vnum(pkg), '本档恰锚当版');
+    /* [v3.280.0 交棒] 本档的「当版硬锚」已交棒给 v3280；此处改为**下限锚**：
+     *   不承诺高于现版，只锁「本档生于 3.279.0」。 */
+    assert.ok(vnum(pkg) >= vnum('3.279.0'), '本档出生于 3.279.0，当前版本不得低于它');
     ok('三源同源 ' + pkg);
 });
