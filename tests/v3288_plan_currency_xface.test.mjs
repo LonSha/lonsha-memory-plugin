@@ -167,7 +167,15 @@ test('v3288 D. PLAN 事实面：X1 在已交付列、O2 未收口显式在列', 
     const plan = readRoot('PLAN.md');
     const xLine = plan.split('\n').find((l) => l.includes('拓展计划 X1–X8')) || '';
     assert.ok(/X1\s*\*{0,2}\s*已交付/.test(xLine), '文首现状节须把 X1 记为已交付');
-    assert.ok(/X2\s*[–\-—]\s*X8\s*\*{0,2}\s*尚未实施/.test(xLine), 'X2–X8 须记为尚未实施');
+    /* [v3.292.0 抬版交棒] 原断言写死「X2–X8 尚未实施」—— X3/X4/X5/X6 陆续交付后该形态必然翻红。
+     *   事实面断言应钉**结构**（未交付项必须显式在列 + 已交付项必须标已交付），
+     *   而不是钉某一版的编号集合（否则每交付一项就要回头改历史档 = T1 抬版仪式）。
+     *   本条仍能抓真缺陷：X2 被静默摘掉、或已交付项漏标状态，都会翻红。 */
+    assert.ok(/X2\b/.test(xLine) && /尚未实施/.test(xLine), 'X2 未交付须在现状节显式在列（不得静默摘掉）');
+    assert.ok(!/X2\s*[–\-—]\s*X8\s*\*{0,2}\s*尚未实施/.test(xLine)
+        || /X3\s*\*{0,2}\s*已交付/.test(xLine) === false,
+        '区间形态「X2–X8 尚未实施」与已交付项互斥（不得同时成立）');
+    assert.ok(/X6\s*\*{0,2}\s*已交付/.test(xLine), 'X6 已交付须在现状节标出（P8 的已交付面据此读）');
     const oLine = plan.split('\n').find((l) => l.includes('优化计划 O1–O8')) || '';
     assert.ok(oLine.includes('未收口'), 'O2 的部分交付/未收口须显式在列');
     ok('事实面：X1 已交付 / X2–X8 未实施 / O2 未收口');
@@ -251,6 +259,10 @@ test('v3288 G. 自防护 + 当版锚点（V4 计数形态）', () => {
     assert.ok(readRoot('index.js').includes('const VERSION = ' + SQ + pkgRaw + SQ + ';'),
         'index.js 版本常量与 package.json 一致');
     const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-    assert.equal(vnum('3.288.0'), vnum(pkgRaw), '当版锚点须与 package.json 同源（V4 计数形态）');
+    /* [v3.292.0 抬版交棒] 本档出生版本 3.288.0 —— 原写死等号「vnum('3.288.0') == pkgRaw」
+     *   在后续每版抬版时必然翻红（T1 抬版仪式；版本守卫 V2 因该形态不含引号包裹的
+     *   当前版本串而静默放过，属「判据的面漏一类」）。当版锚点已由 v3292 承担，
+     *   这里退为**下限锚**：只锁「不早于本档出生版本」。 */
+    assert.ok(vnum(pkgRaw) >= vnum('3.288.0'), '版本不得回退到本档出生版本之前，当前 ' + pkgRaw);
     ok('自防护 + 当版锚点 ' + pkgRaw);
 });

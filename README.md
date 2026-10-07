@@ -3,10 +3,10 @@
 为 SillyTavern 打造的记忆与账本引擎。它要解决的不是「记得更多」，而是
 **「记错了能被发现」** —— 每次写入都有出处，每条召回都有归因，每个读数都能回源到一次真实计算。
 
-**当前版本**：`3.291.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
+**当前版本**：`3.292.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
 **运行形态**：SillyTavern 第三方扩展（`manifest.json` + `index.js`）
-**在役面读数**（磁盘枚举，**不代表已实跑**）：`npm test` 当前发现 **272 个测试文件**；`npm test -- --audit` 当前发现 **59/59** 审计脚本（`tests/audit/` 磁盘 **62** 个，3 个 `_` 前缀探针不进门禁扫描面）。逐条由 `tests/audit/scan_doc_truthfulness.mjs` 核回磁盘，不是手抄。
-**最近一次全量实跑快照**（`tests/audit/doc_readings.json`，由 `tools/_rebind_doc_readings.py` 消费 `TEST_SUMMARY_JSON` 零手抄写入）：v3.284.0 · 264 个测试文件 · 2727 断言 · 0 失败 · 审计 55/55。当前版本 v3.291.0 **全量待验** —— 新增文件进入在役面，但不得冒充已通过（按用户纪律：计划全部内容完成前不跑全量）。两处读数**刻意分开**：合成一条就会把「盘上多了几个文件」写成「整片已通过」。
+**在役面读数**（磁盘枚举，**不代表已实跑**）：`npm test` 当前发现 **273 个测试文件**；`npm test -- --audit` 当前发现 **59/59** 审计脚本（`tests/audit/` 磁盘 **62** 个，3 个 `_` 前缀探针不进门禁扫描面）。逐条由 `tests/audit/scan_doc_truthfulness.mjs` 核回磁盘，不是手抄。
+**最近一次全量实跑快照**（`tests/audit/doc_readings.json`，由 `tools/_rebind_doc_readings.py` 消费 `TEST_SUMMARY_JSON` 零手抄写入）：v3.284.0 · 264 个测试文件 · 2727 断言 · 0 失败 · 审计 55/55。当前版本 v3.292.0 **全量待验** —— 新增文件进入在役面，但不得冒充已通过（按用户纪律：计划全部内容完成前不跑全量）。两处读数**刻意分开**：合成一条就会把「盘上多了几个文件」写成「整片已通过」。
 以下旧口径保留，供追溯这些数字是怎么变的：截至 v3.266.0，`npm test` 为 246 个测试文件 · 0 失败；v3.267.0 起按用户纪律以定向口径复验（新增 `tests/v3267_fakegreen_hygiene.test.mjs` 15/15 与门禁 `tests/audit/scan_fakegreen_hygiene.mjs`，在役面 248 文件 / 54 审计脚本）；v3.268.0（B1 注入质量）249 文件；v3.270.0（B2/X1 注入容量预演）250 文件；v3.271.0（UI 运行时面）**251 文件 / 55 审计脚本**；v3.284.0 恢复全量实跑（264 / 2727 / 55）。
 
 > ⚠️ **本 README 于 v3.255.0 重写。**
@@ -46,7 +46,7 @@ npm run test:serial  # 串行执行（排查偶发时的口径）
 npm run test:audit   # 带审计面
 ```
 
-模块位于**根目录**：由 `manifest.json` 的 `extra_js`（81 项）按**文件名**加载，
+模块位于**根目录**：由 `manifest.json` 的 `extra_js`（82 项）按**文件名**加载，
 迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**
 （由 `tests/audit/scan_module_wiring.mjs` 监控）。
 
@@ -55,7 +55,7 @@ npm run test:audit   # 带审计面
 ```
 lonsha-memory-plugin/
 ├── index.js                  # 主入口（VERSION 唯一锚点 / 事件接线 / 注入汇总）
-├── manifest.json             # 插件清单（js / css / extra_js 81 / extra_css 2）
+├── manifest.json             # 插件清单（js / css / extra_js 82 / extra_css 2）
 ├── package.json              # 版本源之一（不参与运行时加载）
 ├── style.css | lonsha-design.css | visualizer.css
 │
@@ -116,8 +116,8 @@ lonsha-memory-plugin/
     └── rust/             # pagerank.rs + Cargo.toml（未接入）
 ```
 
-**运行时模块**：82 个（根目录 `.js`，含入口 `index.js`）
-**载入面**：`index.js` + `extra_js` 81 项 + CSS 3 项
+**运行时模块**：83 个（根目录 `.js`，含入口 `index.js`）
+**载入面**：`index.js` + `extra_js` 82 项 + CSS 3 项
 **在役面**（磁盘枚举，不代表已实跑）：`tests/` （截至 v3.288.0；现行 270，见上）269 个测试文件（`*.test.mjs`，即 `npm test` 的扫描面）/ `tests/audit/` 58 个审计脚本（磁盘 62，3 个 `_` 探针不进门禁扫描面）
 **当前版本**：见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
 

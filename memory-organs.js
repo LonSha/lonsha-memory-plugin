@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.291.0';
+let VERSION = '3.292.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1326,6 +1326,109 @@ class WorldProgress {
         } catch (e) { errLog(e, 'worldProg.refreshKnowledgeTraceRead'); read.degraded = true; }
         return read;
     }
+    /* [v3.292.0 · X6] 分支语义取库口（branch-semantics.js）。
+     *   与 _knowledgeNet/_knowledgeTrace 同规格：模块缺席/取库抛错一律回 null，
+     *   调用方按「不可比」降级，并把缺席记进读数，不把「没装」伪装成「无差异」。 */
+    _branchSemantics() {
+        try {
+            const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+            return (BS && typeof BS.compareOwners === 'function') ? BS : null;
+        } catch (e) { errLog(e, 'worldProg._branchSemantics'); return null; }
+    }
+    /* [v3.292.0 · X6] 两分支逐 owner 只读对照（**只读**：不切分支、不写任何状态）。
+     *   为何放在本器官：对照的两侧正是本器官持有的 knowledge/promises/commitmentLedger 等，
+     *   可零拷贝取到「本分支」侧；另一侧由调用方按检查点载荷传入。
+     *   读数进 _branchSemanticsRead，供诊断行「分支语义」；模块缺席时**不写**但计数可见。 */
+    compareBranchOwners(otherPayload, opts = {}) {
+        const BS = this._branchSemantics();
+        const read = this._branchSemanticsRead || (this._branchSemanticsRead = {
+            owners: 0, incomparable: 0, filtered: 0, absentModules: 0, unknownModules: 0, degraded: false
+        });
+        if (!BS) { read.degraded = true; return null; }
+        try {
+            const self = this.export();
+            const a = (self && self.owners) ? self : { owners: { __world__: { commitmentLedger: this.commitmentLedger, promises: this.promises } } };
+            const cmp = BS.compareOwners(a, otherPayload, opts);
+            this.branchComparison = cmp;
+            read.owners = cmp.ownerCount || 0;
+            read.incomparable = (cmp.incomparableFaces || []).length;
+            read.absentModules = (cmp.absentModules || []).length;
+            read.unknownModules = (cmp.unknownModules || []).length;
+            let filtered = 0;
+            for (const rec of (cmp.owners || [])) filtered += Number(rec.hidden) || 0;
+            read.filtered = filtered;
+            read.degraded = false;
+            return cmp;
+        } catch (e) { errLog(e, 'worldProg.compareBranchOwners'); read.degraded = true; return null; }
+    }
+    /* [v3.292.0 · X6] 逐项提案（草稿：只产出提案，不落笔）。 */
+    proposeBranchImport(opts = {}) {
+        const BS = this._branchSemantics();
+        if (!BS) return null;
+        try {
+            const cmp = this.branchComparison || this.compareBranchOwners(opts.otherPayload, opts);
+            if (!cmp) return null;
+            return BS.proposeImport(cmp, opts);
+        } catch (e) { errLog(e, 'worldProg.proposeBranchImport'); return null; }
+    }
+    /* [v3.292.0 · X6] 预检（blocked / warn / ok 三档；不许跳过预检直接落笔）。 */
+    precheckBranchImport(proposals, ctx = {}) {
+        const BS = this._branchSemantics();
+        if (!BS) return null;
+        try { return BS.precheckImport(proposals, ctx); }
+        catch (e) { errLog(e, 'worldProg.precheckBranchImport'); return null; }
+    }
+    /* [v3.292.0 · X6] 把一条**已过预检**的提案落到本器官**真正拥有**的账本面上。
+     *   为什么只落 unfinished 一面：X6 的五面里本器官只持有 `promises`（未了事项）。
+     *   其余四面分别落在引擎别的域（事实版本 `factVersion` / 角色状态 `characterState` /
+     *   金钱 `money` / 剧情时间 `storyTime`），本器官**不代持** —— 代持会造出第二真源，
+     *   且那四面的写入各自有 owner 语义（如金钱要过账本、剧情时间要走时钟）。
+     *   故未持有的面一律**如实回报 `not-owned-by-this-organ`**，绝不假装成功
+     *   （「没接上」不得说成「已应用」是本仓点名的假绿形态之一）。
+     *   落笔形态走既有 promises 结构，不新增字段语义：`source:'branch-import'` 是唯一标记，
+     *   供保存后回读按来源计数核对（回读不能只报「有几条」，要报「有几条是这次来的」）。 */
+    applyBranchImport(proposal) {
+        const p = (proposal && typeof proposal === 'object') ? proposal : null;
+        if (!p) return { ok: false, reason: 'no-proposal' };
+        if (p.action !== 'add' && p.action !== 'replace') return { ok: false, reason: 'not-applicable' };
+        if (p.face !== 'unfinished') return { ok: false, reason: 'not-owned-by-this-organ' };
+        try {
+            const list = Array.isArray(this.promises) ? this.promises : (this.promises = []);
+            const id = String(p.key == null ? '' : p.key);
+            if (!id) return { ok: false, reason: 'no-key' };
+            const srcFloor = (p.from && Number.isFinite(Number(p.from.b))) ? Number(p.from.b)
+                : ((p.from && Number.isFinite(Number(p.from.a))) ? Number(p.from.a) : null);
+            const hit = list.find((x) => x && String(x.id) === id);
+            if (hit) {
+                if (p.action !== 'replace') return { ok: false, reason: 'exists' };
+                hit.content = String(p.value == null ? hit.content : p.value);
+                if (srcFloor != null) hit.floor = srcFloor;
+                hit.importedAt = Date.now();
+                hit.source = 'branch-import';
+                return { ok: true, reason: 'replaced' };
+            }
+            if (p.action !== 'add') return { ok: false, reason: 'missing' };
+            list.push({
+                id,
+                character: String(p.owner == null ? '' : p.owner),
+                content: String(p.value == null ? '' : p.value),
+                status: 'pending',
+                floor: srcFloor,
+                source: 'branch-import',
+                importedAt: Date.now(),
+            });
+            return { ok: true, reason: 'added' };
+        } catch (e) { errLog(e, 'worldProg.applyBranchImport'); return { ok: false, reason: 'threw' }; }
+    }
+    /* [v3.292.0 · X6] 本次会话经分支导入落下的条数（保存后回读的唯一口径）。
+     *   按 `source:'branch-import'` 计数而非按总数：总数把「本来就在的」也算进来，
+     *   于是「一条都没落」与「落了两条」在读数上同形（本仓点名的读数塌陷）。 */
+    branchImportCount() {
+        try {
+            const list = Array.isArray(this.promises) ? this.promises : [];
+            return list.filter((x) => x && x.source === 'branch-import').length;
+        } catch (e) { errLog(e, 'worldProg.branchImportCount'); return 0; }
+    }
     /* 累计读数的一格计数（不抛）。owners 按「该角色第一次产生读数」计一次。 */
     _knowledgeTally(charName, key) {
         const r = this._knowledgeRead || (this._knowledgeRead = { marked: 0, merged: 0, released: 0, alreadyKnown: 0, suspect: 0, malformed: 0, owners: 0 });
@@ -1722,6 +1825,9 @@ class WorldProgress {
              *   并进去会让既有 knowledge 的结构从 {known,unaware} 二字段变成复合体，
              *   迁移期两边都要兼容 —— 单独一格可独立迁移、独立回滚。 */
             knowledgeTraces: this.knowledgeTraces || { version: 1, traces: [] },
+            /* [v3.292.0 · X6] 分支语义读数随世界推进持久化。只存**读数**（不可比面数 / 被过滤条数 / 缺模块数），
+             *   不存整个对照结构 —— 对照结构由下一次 compare 重建，存进去只会随分支漂移。 */
+            branchSemanticsRead: this._branchSemanticsRead || null,
             plotArcs: this.plotArcs || []
         };
     }
@@ -1743,6 +1849,11 @@ class WorldProgress {
             this.knowledgeTraces = (data.knowledgeTraces && typeof data.knowledgeTraces === 'object' && Array.isArray(data.knowledgeTraces.traces))
                 ? data.knowledgeTraces : { version: 1, traces: [] };
             this._knowledgeTraceRead = null;   // 导入后读数由 refreshKnowledgeTraceRead 重算，不沿用旧读数
+            /* [v3.292.0 · X6] 分支语义读数导入：畸形一律回落 null（与同族口径）。
+             *   对照结构**不导入**（导入后无意义 —— 那份 otherPayload 可能已随回档消失）。 */
+            this._branchSemanticsRead = (data.branchSemanticsRead && typeof data.branchSemanticsRead === 'object')
+                ? data.branchSemanticsRead : null;
+            this.branchComparison = null;
             this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
         }
     }

@@ -8,6 +8,12 @@
 // 判据（全部版本无关，发版时无需修改本脚本）：
 //   V1 三源同源（index.js VERSION / manifest.version / package.json version）
 //      —— package.json 是构建产物、不进插件分发，夹具树里可以不在场。
+//   V1b [v3.292.0] 模块副本同源（memory-organs / memory-config / memory-core 各持一份
+//      `let VERSION` 逐字副本，只在宿主 bindDeps 注入成功时才被换掉）。
+//      为什么补这一条：V1 只查三源，而副本在**注入失败**（模块缺席 / 键名写错 /
+//      构造期异常）时就是真实现 —— 那时诊断面与导出载荷会报出一个上一版的版本号，
+//      三源却全绿。实测 v3.291.0→v3.292.0 抬版时三份副本全部漏抬（HEAD 基线四份同源，
+//      故属本版漂移，非历史遗留）。缺席容忍、在场必一致（同 V1 对 package.json 的口径）。
 //   V2 历史测试（非当版 frontier）不得用 assert.equal / assert.strictEqual /
 //      String.includes 把 VERSION 锁成「恰好等于当前版本」
 //   V3 历史测试里的版本下界（vnum('X.Y.Z')）不得高于当前版本
@@ -67,6 +73,23 @@ if (pkgRaw) {
     if (pkg.version !== current) problems.push('V1 package.json version ' + pkg.version + ' != VERSION ' + current);
 }
 
+/* ---- V1b [v3.292.0] 模块副本同源 ----
+ *   三份内核模块各持一份 `let VERSION = 'X.Y.Z'` 的**逐字副本**。宿主 `_bind*Deps()`
+ *   会在构造期用 `version: VERSION` 把它们换成宿主现算的那一份；但注入**失败**时
+ *   （模块缺席 / `moduleLib` 键名写错 / 构造期抛异常被 catch 吞掉）副本就是真实现 ——
+ *   于是诊断面与导出载荷报的是上一版的号，而 V1 三源全绿。这正是本仓治理过多轮的
+ *   「副本静默漂移」形态，且**可机械核对**，故进守卫。缺席容忍、在场必一致。 */
+const COPY_SOURCES = ['memory-organs.js', 'memory-config.js', 'memory-core.js'];
+const copyRead = COPY_SOURCES.map((f) => ({ f, src: read(f) }));
+const copyPresent = copyRead.filter((x) => x.src != null);
+for (const { f, src } of copyPresent) {
+    /* 只认 `let VERSION = '<ver>'` 这一种声明形态（含行尾注释）：副本必须可被 bindDeps 换掉，
+     *   故是 let 而非 const；形态不符（改成 const / 改名）同样要点名 —— 那时 bindDeps 的
+     *   注入会静默失效，副本永久留在旧号上。 */
+    const m = /^[ \t]*let VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/m.exec(src);
+    if (!m) problems.push('V1b ' + f + ' 里找不到 `let VERSION = \'X.Y.Z\'`（副本声明形态漂移，bindDeps 注入将静默失效）');
+    else if (m[1] !== current) problems.push('V1b ' + f + ' 副本 VERSION ' + m[1] + ' != VERSION ' + current + '（抬版漏抬副本：注入失败时它就是真实现）');
+}
 /* ---- V6/V7 四源同源补完：人读面两份（在场即必须一致）----
  *   [v3.241.0] 为什么单列：V1 只查了「机器读的三份」（index / manifest / package）。
  *   本仓的发布面还有两份**人读**的：CHANGELOG 顶节（用户看的那节说明）与
@@ -161,7 +184,10 @@ console.log('=== 版本守卫：当前 ' + current + ' / 四源 ' + [
     pkgRaw ? (JSON.parse(pkgRaw).version === current ? 'package✓' : 'package✗') : 'package(缺席)',
     changelogRaw == null ? 'CHANGELOG(缺席)' : (/^## v/.test(changelogRaw) ? 'CHANGELOG' : 'CHANGELOG✗'),
     todoRaw == null ? 'TODO(缺席)' : (/最近更新：v/.test(todoRaw) ? 'TODO' : 'TODO✗'),
-].join(' ') + ' / 历史测试 ' + scanned
+].join(' ') + ' / 副本 ' + (copyPresent.length ? copyPresent.map(({ f, src }) => {
+    const m = /^[ \t]*let VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/m.exec(src);
+    return f.replace(/[.]js$/, '') + (m && m[1] === current ? '✓' : '✗');
+}).join(' ') : '(全缺席)') + ' / 历史测试 ' + scanned
     + ' / 当版 frontier ' + frontier.length + ' / 当版锚点 ' + anchored + ' / 问题 ' + problems.length + ' ===');
 if (frontier.length) console.log('  frontier: ' + frontier.join(', '));
 if (problems.length) {

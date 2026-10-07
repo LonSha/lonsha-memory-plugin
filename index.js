@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.291.0';
+    const VERSION = '3.292.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1173,6 +1173,14 @@
         _knowledgeTrace() { return null; }
         recordKnowledgeTrace() { return null; }
         refreshKnowledgeTraceRead() { return null; }
+        /* [v3.292.0 · X6] 分支语义四法退路。同上：宿主可调用面穷举，缺退路会在
+         *   模块缺席时抛 TypeError 而不是降级。四个出口各对一支（取库/对照/提案/预检），
+         *   不做成一个大出口 —— 合成一个会让「对照没做」与「提案没算」同形。 */
+        _branchSemantics() { return null; }
+        compareBranchOwners() { return null; }
+        proposeBranchImport() { return null; }
+        precheckBranchImport() { return null; }
+        confirmBranchImport() { return null; }
         _knowledgeNet() { return null; }
         getReEntryNotice() { return null; }
         addPlotArc() { return null; }
@@ -2684,6 +2692,122 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (!KT || typeof KT.line !== 'function') return '模块未加载（knowledge-trace.js）';
                 return KT.line(read);
             } catch (e) { errLog(e, 'engine._knowledgeTraceLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.292.0 · X6] 分支语义体检行（与「知识轨迹」**分列**）。
+         *   轨迹行答「这条知识是怎么来的」；本行答「两个分支之间，逐 owner 的语义差在哪、
+         *   哪一面因为缺模块而**不可比**」。合成一行会让「秘密边界被过滤了几条」与
+         *   「轨迹断链」共用一个提示位。
+         *   报警只认两条真损失：不可比面（该面根本没比）与被过滤条数（秘密被挡了）。
+         */
+        _branchSemanticsLine() {
+            try {
+                const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+                const read = this.worldProg && this.worldProg._branchSemanticsRead;
+                if (!read) return '尚未对照';
+                if (!BS || typeof BS.line !== 'function') return '模块未加载（branch-semantics.js）';
+                const cmp = this.worldProg && this.worldProg.branchComparison;
+                return BS.line(cmp || read);
+            } catch (e) { errLog(e, 'engine._branchSemanticsLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.292.0 · X6] 分支导入**落笔**（三步里的第三步；前两步是提案与预检）。
+         *
+         * 为什么必须由宿主做（而不是让 branch-semantics.js 自己写）：
+         *   面模块是纯函数、零依赖、零宿主存储 —— 这是刻意的（可单测、无副作用）。
+         *   于是「真落笔」这一环必须落在**唯一真源**手里：本引擎的
+         *   ① owner 归属（哪些面归本器官持有）、② 代际栅栏 `_mutationEpoch`
+         *   （回档/恢复/切聊期间的在飞落笔必须作废）、③ 真实落盘与落盘证据
+         *   （`StorageManager.save` 返回 true 才算落地）、④ 保存后回读。
+         *   四个环缺一，`applied` 就会变成一句**无据的断言**。
+         *
+         * 纪律（与 X6 验收原文逐条对应）：
+         *   · 无预检 / 预检非 ok ⇒ 直接 held，**不落笔**（不许绕过预检）；
+         *   · 提案里 action==='skip' 的项（含 undecided 与不可比面）**一条都不落**；
+         *   · 落笔前后各取一次代际栅栏：中途变过（用户回档/切聊）⇒ 整批作废并回报
+         *     `epoch-changed`，已落的那部分**如实计数**（不假装「一条都没落」）；
+         *   · 落盘失败 ⇒ `applied` 保留但 `ok:false` 且 `persisted:false`
+         *     （「内存改了但没落地」与「已落地」是两件事，不得同形）；
+         *   · 回读按**来源计数**（`branchImportCount`）核对，三态 ok/mismatch/unreadable；
+         *   · `proposalId` 幂等：本引擎持有 `_branchImportSeen` 表（内存态，随会话存续）。
+         *
+         * @param {object} opts { proposals, precheck, proposalId, sourceRef, targetRef, seen }
+         * @returns {Promise<object|null>} 回执；模块缺席/异常 ⇒ null（降级，不抛）
+         */
+        async confirmBranchImport(opts = {}) {
+            try {
+                const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+                if (!BS || typeof BS.confirmImport !== 'function') return null;
+                const seen = this._branchImportSeen || (this._branchImportSeen = {});
+                const lease = { chatId: this.getCurrentChatId(), epoch: this._mutationEpoch };
+                const wp = this.worldProg;
+                let applied = 0;
+                /* 落盘结果三态：null=没尝试（无 storage）/ true=已落地 / false=落地被拒。
+                 *   为什么单独记：回读的 `unreadable` 只说明「核不了」，而「核不了」的**原因**
+                 *   分两种 —— 落盘被拒（防护拒绝 / 无落盘目标）与根本没有回读口。把两者并成
+                 *   一个读数，用户就分不清「存失败」与「没法核」。 */
+                let persisted = null;
+                const receipt = await BS.confirmImport({
+                    proposals: opts.proposals,
+                    precheck: opts.precheck,
+                    proposalId: opts.proposalId,
+                    sourceRef: opts.sourceRef,
+                    targetRef: opts.targetRef,
+                    seen,
+                    /* ① 真落笔：逐条走本器官的 owner 面（未持有的面如实拒绝）。 */
+                    applyFn: (p) => {
+                        if (!wp || typeof wp.applyBranchImport !== 'function') return { ok: false, reason: 'no-organ' };
+                        const r = wp.applyBranchImport(p);
+                        if (r && r.ok === true) applied++;
+                        return r;
+                    },
+                    /* ② 保存后回读：先真落盘（走既有 StorageManager.save），再按来源计数核对。 */
+                    readback: async () => {
+                        if (!wp || typeof wp.branchImportCount !== 'function') return undefined;
+                        if (typeof this.storage?.save !== 'function') return undefined;
+                        /* [v3.292.0] 修前形态：`const okSave = await save(...)` 后判 `!== true`
+                         *   即 throw。三处问题：① 落盘被拒（false）与落盘抛异常被并成同一个
+                         *   `unreadable` 读数，而本方法注释承诺「落盘失败 ⇒ persisted:false」——
+                         *   注释与实现相反（本仓点名过的「注释说谎」形态）；② 少了 save 缺席
+                         *   时「没尝试落盘」与「落盘被拒」的不同形；③ 回读口径取了「落笔前后
+                         *   的差」——但 `readback` 是在 applyFn **之后**被调用的，那时的
+                         *   「落笔前计数」**已经含**本次新增，差值恒为 0 ⇒ 每次落笔都报
+                         *   mismatch（一条**永不成立的判据**）。故回读只报当前来源总数，
+                         *   由契约侧与 `applied` 比对。 */
+                        let okSave = null;
+                        try { okSave = await this.storage.save(this.getCurrentChatId(), this.collectExport()); }
+                        catch (e) { errLog(e, 'engine.confirmBranchImport.save'); okSave = false; }
+                        persisted = (okSave === true);
+                        /* 回读只报**来源计数**（source:'branch-import' 的条数），不报 promises 总数：
+                         *   总数把「本来就在的」也算进来，于是「一条都没落」与「落了两条」在读数上同形。 */
+                        return Number(wp.branchImportCount()) || 0;
+                    },
+                });
+                /* ③ 代际栅栏复核：落笔期间发生过回档/恢复/切聊 ⇒ 整批标记作废。
+                 *   为什么不回滚已落的那部分：回滚会二次改状态，而真相是「这批基于旧代」——
+                 *   如实回报比默默抹掉更可查（抹掉后没人知道曾经落过）。 */
+                if (receipt) receipt.persisted = persisted;
+                if (receipt && persisted === false && receipt.ok === true) {
+                    /* 落盘被拒：内存里确实落了 `applied` 条，但它们**没落地** ——
+                     *   与「已落地」是两件事，不得同形（本方法注释④的承诺）。 */
+                    receipt.ok = false;
+                    receipt.reason = 'persist-failed';
+                }
+                const stale = !this._leaseValid(lease);
+                if (stale) {
+                    if (receipt) {
+                        receipt.ok = false;
+                        receipt.reason = 'epoch-changed';
+                        receipt.stale = true;
+                        receipt.applied = applied;
+                    }
+                    this._leaseDrop(lease, 'branchImport', -1);
+                }
+                if (receipt && receipt.ok === true && receipt.proposalId && !receipt.duplicate) {
+                    seen[receipt.proposalId] = { applied: Number(receipt.applied) || 0, at: Date.now() };
+                }
+                return receipt;
+            } catch (e) { errLog(e, 'engine.confirmBranchImport'); return null; }
         }
         /**
          * [v3.184] 提示词填充读数（诊断面用；纯读、不抛）。
@@ -10448,6 +10572,18 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = !!(r && ((r.truncated || 0) > 0 || (r.orphaned || 0) > 0 || r.degraded));
                             return ['知识轨迹', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.knowledgeTrace'); return ['知识轨迹', '—（诊断异常）']; }
+                    })(),
+                    // [v3.292.0 · X6] 分支语义体检面：与「知识轨迹」**分列**。
+                    //   轨迹行答「这条知识是怎么来的」，本行答「两个分支逐 owner 的语义差在哪、
+                    //   哪一面因缺模块而不可比」。★ 不可比面必须与「无差异」分列：把「没比」
+                    //   读成「一样」正是 X6 要治的（不可比 ≠ 相等）。
+                    (() => {
+                        try {
+                            const line = (typeof this._branchSemanticsLine === 'function') ? this._branchSemanticsLine() : '—';
+                            const r = this.worldProg && this.worldProg._branchSemanticsRead;
+                            const bad = !!(r && ((r.incomparable || 0) > 0 || (r.filtered || 0) > 0 || r.degraded));
+                            return ['分支语义', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.branchSemantics'); return ['分支语义', '—（诊断异常）']; }
                     })(),
                     // [v3.184] 提示词填充体检面：**未填**与**残留**都要现形。
                     //   残留（占位符写成了全角/带空格形态）意味着这一处根本没填进去，

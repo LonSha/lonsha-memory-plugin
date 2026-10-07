@@ -334,7 +334,10 @@ test('v3291 H2. 面文件不得退化，且版本四源同源（当版锚点）'
     const pkgRaw = String(pkg.version);
     const SQ = String.fromCharCode(39);
     const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-    assert.equal(vnum('3.291.0'), vnum(pkgRaw), '当版锚点须与 package.json 同源（V4 计数形态）');
+    /* [v3.292.0 抬版交棒] 本档出生版本 3.291.0 —— X6 落地后当版锚点已交给 v3292，
+     *   故这里退为**下限锚**（本仓 V3 口径：历史测试不得承诺未来，只锁自己不回退）。
+     *   写死当版等号会让每次抬版都要回头改历史档（T1 反模式），版本守卫 V2 亦会翻红。 */
+    assert.ok(vnum(pkgRaw) >= vnum('3.291.0'), '版本不得回退到本档出生版本之前，当前 ' + pkgRaw);
     assert.ok(IDX_SRC.includes('const VERSION = ' + SQ + pkgRaw + SQ + ';'), 'index.js 版本常量须与 package.json 同源');
     assert.ok(fs.readFileSync(path.join(R, 'manifest.json'), 'utf8').includes('"version": "' + pkgRaw + '",'), 'manifest.json 版本须与 package.json 同源');
     assert.ok(KT_SRC.length > 14000, '面文件不得退化（实 ' + KT_SRC.length + ' 字节）');
