@@ -404,7 +404,7 @@ test('v3209 11. manifest 登记 + 判据面自防护', () => {
        → 76（v3.261.0 缝合 MyriadKnots：floor-identity.js + archive-audit.js）。
        数量锁语义不变：新增模块必须显式改这里（人读面：tests/audit/catalog_reference_consumers.tsv 与 PLAN/CHANGELOG）。 */
     /* [v3.267.0 A1 第七刀] 78 → 79：新增 memory-config.js（ConfigManager），追加为末项以保证其取库口的依赖顺序。 */
-    A(mf.extra_js.length === 83, 'extra_js 须 83 项（v3.292.0 X6 新增 branch-semantics.js；v3.293.0 X7 新增 volume-continuation.js；v3.219.0 新增 relation-mutual.js / knowledge-network.js；v3.234.0 新增 sleep-awaken.js；v3.237.0 新增 snapshot-checkpoint.js；v3.254.0 新增 cache-identity.js / cache-workload.js；A1 首刀新增 memory-ledgers.js；A1 第二刀新增 memory-aux.js；A1 第三刀新增 narrative-generators.js；A1 第四刀新增 memory-books.js；v3.260.0 新增 native-tools.js / pristine-fetch.js；v3.261.0 缝合 MyriadKnots 新增 floor-identity.js / archive-audit.js；v3.264.0 A1 第五刀新增 memory-organs.js；v3.266.0 A1 第六刀新增 memory-core.js；v3.267.0 A1 第七刀新增 memory-config.js）—— 数量锁：新增模块必须显式改这里（连同 README 人读面），否则「模块加了但没进 extra_js」会被静默放行，实为 ' + mf.extra_js.length);
+    A(mf.extra_js.length === 84, 'extra_js 须 84 项（v3.292.0 X6 新增 branch-semantics.js；v3.294.0 X8 新增 recall-explain.js；v3.293.0 X7 新增 volume-continuation.js；v3.219.0 新增 relation-mutual.js / knowledge-network.js；v3.234.0 新增 sleep-awaken.js；v3.237.0 新增 snapshot-checkpoint.js；v3.254.0 新增 cache-identity.js / cache-workload.js；A1 首刀新增 memory-ledgers.js；A1 第二刀新增 memory-aux.js；A1 第三刀新增 narrative-generators.js；A1 第四刀新增 memory-books.js；v3.260.0 新增 native-tools.js / pristine-fetch.js；v3.261.0 缝合 MyriadKnots 新增 floor-identity.js / archive-audit.js；v3.264.0 A1 第五刀新增 memory-organs.js；v3.266.0 A1 第六刀新增 memory-core.js；v3.267.0 A1 第七刀新增 memory-config.js）—— 数量锁：新增模块必须显式改这里（连同 README 人读面），否则「模块加了但没进 extra_js」会被静默放行，实为 ' + mf.extra_js.length);
     A(mf.extra_js.includes('schema-migration.js') && mf.extra_js.includes('module-registry.js'), '两新模块须登记');
     // 判据面自防护：断言密度 + 关键指纹（防套件被悄悄掏空）
     A(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
@@ -423,7 +423,7 @@ test('v3209 12. 真 extra_js 顺序 parity：7 条真依赖必须全部正序；
        → 76（v3.261.0 缝合 MyriadKnots：floor-identity.js + archive-audit.js）。
        本条是**抽取器退化守卫**（计数本身就是判据，抽取退化会静默放行），故随真 manifest 同步。 */
     /* [v3.267.0 A1 第七刀] 数量 78 → 79：注册表读取也要与 manifest 真源同步。 */
-    A(files.length === 83, 'extra_js 抽取器应得 83 项（v3.292.0 X6 branch-semantics.js；v3.293.0 X7 volume-continuation.js；v3.219.0 起累积；A1 七刀 memory-ledgers.js / memory-aux.js / narrative-generators.js / memory-books.js / memory-organs.js / memory-core.js / memory-config.js；v3.260.0 shujuku 新增 native-tools.js / pristine-fetch.js；v3.261.0 新增 floor-identity.js / archive-audit.js；抽取退化会静默放行，故先钉住）');
+    A(files.length === 84, 'extra_js 抽取器应得 84 项（v3.292.0 X6 branch-semantics.js；v3.294.0 X8 recall-explain.js；v3.293.0 X7 volume-continuation.js；v3.219.0 起累积；A1 七刀 memory-ledgers.js / memory-aux.js / narrative-generators.js / memory-books.js / memory-organs.js / memory-core.js / memory-config.js；v3.260.0 shujuku 新增 native-tools.js / pristine-fetch.js；v3.261.0 新增 floor-identity.js / archive-audit.js；抽取退化会静默放行，故先钉住）');
     // 真源码切段：谁真的引用了 ledger-entity 的全局符号
     const users = [];
     for (const f of files) {

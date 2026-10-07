@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.293.0';
+    const VERSION = '3.294.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2849,6 +2849,175 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (!VC || typeof VC.line !== 'function') return '模块未加载（volume-continuation.js）';
                 return VC.line(read);
             } catch (e) { errLog(e, 'engine._volumeContinuationLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.294.0 · X8] X8 模块取库口（照 `_moduleLib` 契约：浏览器取 window 全局，
+         *   回落 CJS require，两处都取不到返回 null）。
+         *   为什么单独一个取库口而不是就近 `_moduleLib(...)`：X8 有三个出口都要用它，
+         *   写三遍就会漂移；且取库失败要能被诊断面读到（诊断行会如实报「模块未加载」）。
+         */
+        _recallExplainLib() {
+            return _moduleLib(() => window.LonShaRecallExplain, 'recall-explain.js');
+        }
+        /**
+         * [v3.294.0 · X8] 沿**同一轮真实 trace**组装召回解释输入。
+         *
+         * 口径写死在这里，别处不得再解释一遍：
+         *   · **同一轮**：账本按 `_lastRecallFloor` 配对（与 buildInjection 同一键）。
+         *     楼层不可用时按最近一条取，但**如实把身份层级标成「无从核对」**，
+         *     不假装核对过。身份是否被证伪另由「本轮入选条目 vs 实际载荷」交叉比对给出。
+         *   · **源表**：名册取自账本 `srcKeys`（唯一真源）；开关态只对**确有配置键**的源给值，
+         *     其余给 null。⚠️ 本插件多数召回源由**数据条件**入场（无节日 ⇒ 节日源不跑），
+         *     那些门散在 recallMemory 里，不在这里重列 —— 重列就是「同一事实两个真源」。
+         *   · **判不了就给 null**：任何一格测不到都不许编值（`missing` ≠ `0`）。
+         */
+        explainRecallHost() {
+            try {
+                const X = this._recallExplainLib();
+                if (!X || typeof X.explainRecall !== 'function') return { ok: false, reason: 'module-unavailable' };
+                const _ra = Array.isArray(this._recallAudit) ? this._recallAudit : [];
+                if (!_ra.length) return { ok: false, reason: 'no-audit' };
+                const _fl = Number(this._lastRecallFloor);
+                let _rec = null;
+                if (Number.isFinite(_fl)) {
+                    for (let i = _ra.length - 1; i >= 0; i--) {
+                        if (Number(_ra[i] && _ra[i].floor) === _fl) { _rec = _ra[i]; break; }
+                    }
+                } else {
+                    _rec = _ra[_ra.length - 1];
+                }
+                if (!_rec) return { ok: false, reason: 'no-audit-for-floor' };
+
+                /* 源表：名册源自账本；开关态只认确有配置键的源。
+                 *   键的**作者位**是 recallMemory 里的各道门，这里只是把它们读出来 ——
+                 *   值与门同源（读同一个 config 字段），不另立一套开关语义。 */
+                const _SRC_SWITCH = {
+                    vector: 'vectorEnabled', bm25: 'bm25Enabled', suspense: 'suspenseEnabled',
+                    worldProg: 'worldProgressEnabled', neuralChain: 'neuralChainEnabled',
+                    volume: 'summaryFoldEnabled', holiday: 'holidayAware',
+                    pov: 'povIsolation', presence: 'presenceInjection',
+                };
+                const _perSource = (_rec.perSource && typeof _rec.perSource === 'object') ? _rec.perSource : null;
+                const _keys = Array.isArray(_rec.srcKeys) && _rec.srcKeys.length ? _rec.srcKeys : Object.keys(_SRC_SWITCH);
+                const sources = _keys.map((k) => {
+                    const sw = _SRC_SWITCH[k];
+                    /* 三态：有键且显式设过 ⇒ true/false；没设过或没有键 ⇒ null（不知道）。
+                     *   「关着」与「不知道关没关」处置相反，不得合成一态。 */
+                    let enabled = null;
+                    if (sw) {
+                        const v = this.config && this.config.config ? this.config.config[sw] : undefined;
+                        if (v !== undefined) enabled = (v !== false);
+                    }
+                    /* ⚠️ 源级命中数只在 `perSource` 里**出现过的源**才有值：
+                     *   `_auditRecall` 只对非零命中写键，所以「键不在」的含义是
+                     *   「本轮这个源没给非零命中」，**不是**「没读数」。
+                     *   但「它在册且无错」时，缺席 == 0 条 —— 这是可判定的一致读法；
+                     *   源级读数**不完整时不得据此倒推合计**（无合计读数时解释面判不了）。 */
+                    const hit = (_perSource && Object.prototype.hasOwnProperty.call(_perSource, k))
+                        ? Number(_perSource[k]) : 0;
+                    return { key: k, label: k, enabled: enabled, hits: hit, switchKey: sw || '' };
+                });
+
+                /* 载荷面：轮次身份**无从核对** —— `_lastInjection` 不带可与本轮召回配对的键。
+                 *   这里如实标『unknown』交给解释面，不编一个「对上了」。 */
+                const _ir = (typeof this.buildInjectionReadout === 'function') ? this.buildInjectionReadout() : null;
+                const injected = _ir ? { count: _ir.kept, refs: (_ir.blocks || []).filter((b) => b && b.kept).map((b) => b.ref) } : null;
+
+                /* ★ 身份核对（内容级）：账本记的「本轮入选条目」vs **实际进了载荷的块**。
+                 *   这两者来自不同面（收尾结果 / 构建回执），比对才有意义；
+                 *   两边任一缺读数 ⇒ null（无从核对），**不算核对过**。 */
+                const _aIds = (Array.isArray(_rec.injectedIds) ? _rec.injectedIds : []).filter(Boolean);
+                const _pRefs = injected ? (injected.refs || []).filter(Boolean) : [];
+                let _idMatched = null;
+                if (_aIds.length && _pRefs.length) {
+                    const _set = {};
+                    for (const r of _pRefs) _set[String(r)] = true;
+                    _idMatched = _aIds.some((x) => _set[String(x)] === true);
+                }
+
+                const _trace = this._injectionTraceDraft;
+                const _st = (_trace && _trace.stages) ? _trace.stages : null;
+                const explanation = X.explainRecall({
+                    query: { text: String((_rec.queryText || '')) + String((this._lastCtxText || '')), floor: Number.isFinite(_fl) ? _fl : null },
+                    sources: sources,
+                    /* 别名面：宿主**没有**按轮次记录「挡下几条」的读数 ⇒ 如实留空
+                     *   （解释面会把它记成「观测面缺读数·只收窄」，不是「没被过滤」）。
+                     *   开关态与别名表规模是真读数，给出来。 */
+                    alias: (() => {
+                        let mapSize = null;
+                        try {
+                            const am = (typeof this.buildAliasMap === 'function') ? this.buildAliasMap() : null;
+                            mapSize = (am && typeof am.size === 'number') ? am.size : null;
+                        } catch (e) { mapSize = null; }
+                        const cfg = (this.config && this.config.config) ? this.config.config : {};
+                        return {
+                            expanded: (cfg.aliasQueryExpansion === undefined) ? null : (cfg.aliasQueryExpansion !== false),
+                            mapSize: mapSize, filtered: null, switchKey: 'aliasQueryExpansion',
+                        };
+                    })(),
+                    /* 有效性面：分项来自构建回执的 byRule（关系门 / POV 越界）。
+                     *   `relationGated` 可能是 null（模块缺席），那一位**不得记 0**。 */
+                    validity: _st ? (() => {
+                        const byRule = {};
+                        const r = _st.byRule || {};
+                        if (Number.isFinite(r.relationGated)) byRule.relationGated = r.relationGated;
+                        if (Number.isFinite(r.povOffstage)) byRule.povOffstage = r.povOffstage;
+                        return { filtered: Number.isFinite(_st.validityFiltered) ? _st.validityFiltered : null, byRule: byRule };
+                    })() : null,
+                    budget: _trace ? {
+                        preTrimChars: Number.isFinite(_trace.preTrimChars) ? _trace.preTrimChars : null,
+                        budgetChars: Number.isFinite(_trace.budget) ? _trace.budget : null,
+                        trimmed: _trace.trimmed === true,
+                        dropped: Number.isFinite(_st && _st.budgetTrimmed) ? _st.budgetTrimmed : null,
+                        kept: Number.isFinite(_st && _st.finalKept) ? _st.finalKept : null,
+                        hardTruncated: _trace.hardTruncated === true,
+                        switchKey: 'injectionBudget',
+                    } : null,
+                    injected: injected,
+                    audit: {
+                        floor: Number.isFinite(Number(_rec.floor)) ? Number(_rec.floor) : null,
+                        /* 宿主这一维**不可比**（query 不带楼层号），如实 unknown；
+                         *   真正的身份核对走 idMatched。 */
+                        floorMatched: 'unknown',
+                        idMatched: _idMatched,
+                        totalHits: Number.isFinite(_rec.totalHits) ? _rec.totalHits : null,
+                        perSource: _perSource || {},
+                        srcKeys: Array.isArray(_rec.srcKeys) ? _rec.srcKeys.slice() : [],
+                    },
+                });
+                return explanation;
+            } catch (e) { errLog(e, 'engine.explainRecallHost'); return { ok: false, reason: 'thrown', error: String((e && e.message) || e) }; }
+        }
+        /**
+         * [v3.294.0 · X8] 召回解释的**一行诊断读数**（面板 selfCheck 用）。
+         *   判不了时如实报「判不了 / 无从核对」，**不报 0**（0 是「测了，一条都没有」）。
+         */
+        _recallExplainLine() {
+            try {
+                const X = this._recallExplainLib();
+                if (!X || typeof X.line !== 'function') return '模块未加载（recall-explain.js）';
+                const ex = this.explainRecallHost();
+                if (!ex || ex.ok !== true) {
+                    if (ex && ex.reason === 'no-audit') return '暂无数据（本轮未跑召回自检 / 自检开关关闭）';
+                    if (ex && ex.reason === 'no-audit-for-floor') return '本轮账本楼层对不上（按「判不了」处置，不倒推）';
+                    return '读不出（' + String((ex && ex.reason) || '未知') + '）';
+                }
+                return X.line(ex);
+            } catch (e) { errLog(e, 'engine._recallExplainLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.294.0 · X8] 召回解释的**建议出口**。
+         *   ★ 建议一律 `apply.auto === false`：X8 验收原文「自动调参默认关闭」「用户选择后才改配置」。
+         *   本方法**只产出建议，不改任何配置** —— 改配置由用户在面板上显式做。
+         */
+        suggestRecallFixes(explanation, opts) {
+            try {
+                const X = this._recallExplainLib();
+                if (!X || typeof X.suggestFor !== 'function') return { ok: false, reason: 'module-unavailable', suggestions: [], count: 0, autoParamTuning: false };
+                const ex = explanation || this.explainRecallHost();
+                if (!ex || ex.ok !== true) return { ok: false, reason: 'no-explanation', suggestions: [], count: 0, autoParamTuning: false };
+                return X.suggestFor(ex, opts || {});
+            } catch (e) { errLog(e, 'engine.suggestRecallFixes'); return { ok: false, reason: 'thrown', suggestions: [], count: 0, autoParamTuning: false }; }
         }
         /**
          * [v3.293.0 · X7] 建接续包（**只读**，不落笔）。宿主负责把「五面素材 + 源标识」
@@ -6496,6 +6665,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                     floorHits,
                     vecHeatCount: vecHeat.length,
                     ts: Date.now(),
+                    /* [v3.294.0 · X8] 两条**给下游核对用**的读数：
+                     *   · srcKeys  本轮的源名册（SRC 常量的实参快照）。作用是让
+                     *     「哪些源在册」这件事全局只有一份真源 —— 解释面拿它组装源表，
+                     *     不必在别处再手抄一份名单（抄了就会漂移，而漂移的表现恰好是
+                     *     「禁用项仍被报成有注入」）。
+                     *   · injectedIds 见调用侧 `_finalize`，那里才拿得到收尾结果。
+                     *   两条都不参与任何决策，只供解释面做**跨面一致性**核对。 */
+                    srcKeys: SRC.slice(),
                 };
                 /* [v3.251.0] M-O3：把本轮的**楼层号**落成实例字段，作为「回执 ↔ 召回账本」
                  *   配对的唯一键。不落这个字段的话，构建期只能取 `_recallAudit` 的
@@ -10828,6 +11005,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                                 || (r.selected === true && r.navigable === false)));
                             return ['分卷接续', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.volumeContinuation'); return ['分卷接续', '—（诊断异常）']; }
+                    })(),
+                    // [v3.294.0 · X8] 召回解释面：与「召回自检」「注入读数」**分列**。
+                    //   那两行分别答「召回了什么」「最终送进去什么」；本行答
+                    //   **「这一轮到底卡在哪一档」** —— 缺源 / 无命中 / 别名挡下 /
+                    //   有效性挡下 / 预算裁掉 / 已注入 / 判不了，七档互斥且带改法。
+                    //   ★ 报警只认「判不了」：那一档说明**连有没有候选都不知道**，
+                    //   是唯一必须立刻去修观测面的形态；其余五档都是正常断点。
+                    (() => {
+                        try {
+                            const line = (typeof this._recallExplainLine === 'function') ? this._recallExplainLine() : '—';
+                            const ex = (typeof this.explainRecallHost === 'function') ? this.explainRecallHost() : null;
+                            const ok = !!(ex && ex.ok === true);
+                            const bad = ok && (ex.degraded === true || ex.verdict.stage === 'unknown');
+                            const hint = ok ? '（按需看阶段表）' : '';
+                            return ['召回解释', line + (bad ? ' ⚠️' : '') + hint];
+                        } catch (e) { errLog(e, 'selfCheck.recallExplain'); return ['召回解释', '—（诊断异常）']; }
                     })(),
                     // [v3.184] 提示词填充体检面：**未填**与**残留**都要现形。
                     //   残留（占位符写成了全角/带空格形态）意味着这一处根本没填进去，

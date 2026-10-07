@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.293.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.294.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';

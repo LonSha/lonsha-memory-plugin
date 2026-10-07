@@ -1,5 +1,5 @@
 /**
- * volume-continuation.js — [v3.293.0 · X7] 长篇剧情分卷与选择性接续
+ * volume-continuation.js — [v3.294.0 · X7] 长篇剧情分卷与选择性接续
  *
  * 【为什么需要这一面】
  *   本仓已有：卷摘要（memory-core 的三级金字塔 summaries → volumes → historical）、
