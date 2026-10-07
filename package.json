@@ -1,6 +1,6 @@
 {
   "name": "lonsha-memory-plugin",
-  "version": "3.292.0",
+  "version": "3.293.0",
   "private": true,
   "description": "SillyTavern memory plugin (graph / vector / timeline). Shipped as a CJS+IIFE bundle - do not add type:module.",
   "scripts": {

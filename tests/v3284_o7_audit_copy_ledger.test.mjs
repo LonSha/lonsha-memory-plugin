@@ -17,7 +17,7 @@
 //     改一处、漏四处，四面门禁照样全绿。
 //     这比 v3.283.0 更尖锐：**探测器的实现若在副本间漂移，探测器给出的结论本身就该被怀疑**。
 //
-//   【本档登记（9 簇，实测逐字相同；体长 ≥ 40）】
+//   【本档登记（11 簇，实测逐字相同；体长 ≥ 40；v3.293.0 口径，补 2 簇）】
 //     名字                       成员数  体长  md5
 //     mutate                     2       640   3460e9a2
 //     extractMethod              2       399   cf7b47d4
@@ -25,6 +25,8 @@
 //     runAt / runScanAt          5       314   72230cdf
 //     extractBlock               3       238   14de97bf
 //     distributionFace / …       2       218   7fd61df8
+//     matches                    2       144   e30125e0   ← v3.293.0 补（v3.287.0 起潜伏）
+//     walk                       2       109   72fd012b   ← v3.293.0 补（v3.287.0 起潜伏）
 //     downstreamModule / …       2       91    3d714a19
 //     readOrNull                 2       75    3501fac1
 //     read / readOrNull          2       74    b7ad68f6
@@ -80,11 +82,11 @@ const NL = String.fromCharCode(10);
 
 /** 体长下限（实 74 最短）：低于此不构成「一份实现」，不收。 */
 const MIN_BODY = 40;
-/** audit 面 .mjs 文件数下限（实 58）。 */
+/** audit 面 .mjs 文件数下限（实 62）。 */
 const MIN_FILES = 45;
-/** function 体枚举下限（实 165）：塌陷时「0 簇」会伪装成卫生。 */
+/** function 体枚举下限（实 180）：塌陷时「0 簇」会伪装成卫生。 */
 const MIN_ITEMS = 100;
-/** 跨文件簇下限（实 9）。 */
+/** 跨文件簇下限（实 11）。 */
 const MIN_CLUSTERS = 6;
 
 /**
@@ -105,6 +107,11 @@ const AUDIT_LEDGER = [
     [['downstreamModule', 'faceModule'], ['scan_inbound_faces.mjs', 'scan_open_faces.mjs'], 91, '3d714a19'],
     ['readOrNull', ['scan_exit_codes.mjs', 'scan_fixture_sync.mjs'], 75, '3501fac1'],
     [['read', 'readOrNull'], ['scan_cross_repo_binding.mjs', 'scan_ledger_contract.mjs'], 74, 'b7ad68f6'],
+    /* v3.287.0 的 UI 交互门与 v3.271.0 的 UI 运行时门各自持一份**零依赖 DOM shim**，
+     *   这两个小助手在两个 shim 里逐字相同。刻意各持一份：让其中一门 import 另一门，
+     *   会引入「门 A 的 shim 改动影响门 B 的判定」—— 与被判对象同罪的自我指涉。 */
+    ['matches', ['scan_ui_interaction.mjs', 'scan_ui_runtime.mjs'], 144, 'e30125e0'],
+    ['walk', ['scan_ui_interaction.mjs', 'scan_ui_runtime.mjs'], 109, '72fd012b'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有；全部单行，无转义） ----
@@ -312,10 +319,10 @@ test('v3284 A1. ★★ 枚举面与登记表都在场（枚举失效时「0 簇�
 });
 
 /* ══════════════ B. 读盘实测 ══════════════ */
-test('v3284 B1. ★★★ 9 簇审计面副本值逐字相等，且与登记表双向一致', () => {
+test('v3284 B1. ★★★ 登记的审计面副本值逐字相等，且与登记表双向一致', () => {
     const problems = judge(readAll(), AUDIT_LEDGER);
     assert.deepEqual(problems, [], '盘上真源必须卫生：' + problems.join(' | '));
-    ok('9 簇双向一致；无新增未登记簇，无漂移/成员变化/名字变化');
+    ok('登记的簇双向一致；无新增未登记簇，无漂移/成员变化/名字变化');
 });
 
 test('v3284 B2. ★★ 改声明名 ⇒ 点名 B2c（名字集合变），且不误报成员集合变化', () => {

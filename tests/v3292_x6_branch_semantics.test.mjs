@@ -367,7 +367,10 @@ test('v3292 H2. 面文件不得退化，且版本四源同源（当版锚点）'
     const pkgRaw = String(pkg.version);
     const SQ = String.fromCharCode(39);
     const vnum = (s) => String(s).split('.').reduce((a, x) => a * 1000 + Number(x), 0);
-    assert.equal(vnum('3.292.0'), vnum(pkgRaw), '当版锚点须与 package.json 同源（V4 计数形态）');
+    /* [v3.293.0 抬版交棒] 本档出生版本 3.292.0 —— X7 落地后当版锚点已交给 v3293，
+     *   故这里退为**下限锚**（本仓 V3 口径：历史测试不得承诺未来，只锁自己不回退）。
+     *   写死当版等号会让每次抬版都要回头改历史档（T1 反模式），版本守卫 V2 亦会翻红。 */
+    assert.ok(vnum(pkgRaw) >= vnum('3.292.0'), '版本不得回退到本档出生版本之前，当前 ' + pkgRaw);
     assert.ok(IDX_SRC.includes('const VERSION = ' + SQ + pkgRaw + SQ + ';'), 'index.js 版本常量须与 package.json 同源');
     assert.ok(fs.readFileSync(path.join(R, 'manifest.json'), 'utf8').includes('"version": "' + pkgRaw + '",'), 'manifest.json 版本须与 package.json 同源');
     assert.ok(BS_SRC.length > 20000, '面文件不得退化（实 ' + BS_SRC.length + ' 字节）');
@@ -593,7 +596,27 @@ test('v3292 I8. 宿主闭环缺件降级：模块缺席 / 无 applyFn ⇒ null �
 /* ── I 段真源码破坏（H5/H6 纪律）：把「只落本器官持有的面」拆掉 ⇒ I3 真判据必须翻红 ──
  *   ★ 判据纯度：本层内锚点字面量只声明一次、判据函数不引用锚点串（H5）。
  *   ★ 工具两向自证：锚点不存在 / 不唯一必须抛；破坏须**可观测改行为**，不只是改返回值。 */
-const ORG_ANCHOR_FACE_GATE = "if (p.face !== 'unfinished')";
+/* ★ [v3.293.0 修] 锚点必须**唯一**：原写法只锚闸门那一行，而 X7 给
+ *   `applyVolumeContinuation` 加了同形闸门 ⇒ 全文 2 处 ⇒ 工具自证正确抛出
+ *   （`assert.equal(n, 1)`），测试里表现为 `Missing expected exception`。
+ *   修法不是放宽计数（那会让破坏同时打在两个方法上、翻红归因不清），而是把锚点
+ *   扩到**含方法签名**的整段 —— 它在全文唯一，破坏仍只落在被观测的那一个方法上。 */
+const ORG_ANCHOR_FACE_GATE = [
+    '    applyBranchImport(proposal) {',
+    "        const p = (proposal && typeof proposal === 'object') ? proposal : null;",
+    "        if (!p) return { ok: false, reason: 'no-proposal' };",
+    "        if (p.action !== 'add' && p.action !== 'replace') return { ok: false, reason: 'not-applicable' };",
+    "        if (p.face !== 'unfinished') return { ok: false, reason: 'not-owned-by-this-organ' };",
+    '',
+].join('\n');
+/** 破坏时把整段换成**不含闸门**的版本（其余逐字保留）。 */
+const ORG_BROKEN_FACE_GATE = [
+    '    applyBranchImport(proposal) {',
+    "        const p = (proposal && typeof proposal === 'object') ? proposal : null;",
+    "        if (!p) return { ok: false, reason: 'no-proposal' };",
+    "        if (p.action !== 'add' && p.action !== 'replace') return { ok: false, reason: 'not-applicable' };",
+    '',
+].join('\n');
 /** 判据：未持有的面必须被拒绝（破坏前必成立）。返回 '' = 通过。 */
 function jFaceOwnedOnly(orgApi) {
     const w = new orgApi.WorldProgress();
@@ -608,7 +631,7 @@ function jFaceOwnedOnly(orgApi) {
 function breakOrgFaceGate(src) {
     const n = src.split(ORG_ANCHOR_FACE_GATE).length - 1;
     assert.equal(n, 1, '锚点必须恰中 1 次，实际 ' + n);
-    const out = src.replace(ORG_ANCHOR_FACE_GATE, 'if (false)');
+    const out = src.replace(ORG_ANCHOR_FACE_GATE, ORG_BROKEN_FACE_GATE);
     assert.notStrictEqual(out, src, '破坏必须真的发生');
     return out;
 }

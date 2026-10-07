@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.292.0';
+    const VERSION = '3.293.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1173,7 +1173,7 @@
         _knowledgeTrace() { return null; }
         recordKnowledgeTrace() { return null; }
         refreshKnowledgeTraceRead() { return null; }
-        /* [v3.292.0 · X6] 分支语义四法退路。同上：宿主可调用面穷举，缺退路会在
+        /* [v3.293.0 · X6] 分支语义四法退路。同上：宿主可调用面穷举，缺退路会在
          *   模块缺席时抛 TypeError 而不是降级。四个出口各对一支（取库/对照/提案/预检），
          *   不做成一个大出口 —— 合成一个会让「对照没做」与「提案没算」同形。 */
         _branchSemantics() { return null; }
@@ -1181,6 +1181,30 @@
         proposeBranchImport() { return null; }
         precheckBranchImport() { return null; }
         confirmBranchImport() { return null; }
+        /* [v3.293.0 · X7] 分卷接续四法退路。同上：宿主可调用面穷举，缺退路会在
+         *   模块缺席时抛 TypeError 而不是降级。四个出口各对一支（取库 / 建包 / 交接 / 撤销），
+         *   不做成一个大出口 —— 合成一个会让「包没建」与「交接没跑」同形。 */
+        _volumeContinuation() { return null; }
+        buildVolumePack() { return null; }
+        handoffVolumeContinuation() { return null; }
+        revokeVolumeHandoff() { return null; }
+        /* [v3.293.0] 器官侧交接/撤销/读数七法退路（X6 落笔两法 + X7 落笔与读数五法）。
+         *   与上面两组同一条理由：退路类的方法集是「宿主可调用面」的穷举 —— 模块缺席时
+         *   必须降级返回空值，而不是抛 TypeError。
+         *   ★ 本版实测踩到（判据 v3264 A 段点名七条「退路缺方法」）：X6/X7 给
+         *   memory-organs.js 的 WorldProgress 加了这七个真方法，**宿主侧调用点接了、
+         *   器官缺席退路漏了**。这正是本仓点名过的「新增面忘补退路」形态，而它只在
+         *   「模块缺席」这条路径上才现形 —— 健康树上永不出现，负控制也测不到。
+         *   返回值按**真实现的降级形状**给（不是一律 null）：调用侧多处直接做数值/数组
+         *   消费（`Number(wp.volumeContinuationCount()) || 0` / 逐条遍历 entries），
+         *   一律给 null 会把「坏在降级里」与「坏在返回类型上」两种故障混成一种。 */
+        applyBranchImport() { return { ok: false, reason: 'no-organ' }; }
+        branchImportCount() { return 0; }
+        applyVolumeContinuation() { return { ok: false, reason: 'no-organ' }; }
+        volumeContinuationCount() { return 0; }
+        volumeContinuationEntries() { return []; }
+        revokeVolumeContinuation() { return { ok: false, reason: 'no-organ', revokedCount: 0, keptCount: 0, alreadyRevoked: 0 }; }
+        noteVolumeContinuation() { return null; }
         _knowledgeNet() { return null; }
         getReEntryNotice() { return null; }
         addPlotArc() { return null; }
@@ -2694,7 +2718,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { errLog(e, 'engine._knowledgeTraceLine'); return '—（诊断异常）'; }
         }
         /**
-         * [v3.292.0 · X6] 分支语义体检行（与「知识轨迹」**分列**）。
+         * [v3.293.0 · X6] 分支语义体检行（与「知识轨迹」**分列**）。
          *   轨迹行答「这条知识是怎么来的」；本行答「两个分支之间，逐 owner 的语义差在哪、
          *   哪一面因为缺模块而**不可比**」。合成一行会让「秘密边界被过滤了几条」与
          *   「轨迹断链」共用一个提示位。
@@ -2711,7 +2735,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { errLog(e, 'engine._branchSemanticsLine'); return '—（诊断异常）'; }
         }
         /**
-         * [v3.292.0 · X6] 分支导入**落笔**（三步里的第三步；前两步是提案与预检）。
+         * [v3.293.0 · X6] 分支导入**落笔**（三步里的第三步；前两步是提案与预检）。
          *
          * 为什么必须由宿主做（而不是让 branch-semantics.js 自己写）：
          *   面模块是纯函数、零依赖、零宿主存储 —— 这是刻意的（可单测、无副作用）。
@@ -2765,7 +2789,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     readback: async () => {
                         if (!wp || typeof wp.branchImportCount !== 'function') return undefined;
                         if (typeof this.storage?.save !== 'function') return undefined;
-                        /* [v3.292.0] 修前形态：`const okSave = await save(...)` 后判 `!== true`
+                        /* [v3.293.0] 修前形态：`const okSave = await save(...)` 后判 `!== true`
                          *   即 throw。三处问题：① 落盘被拒（false）与落盘抛异常被并成同一个
                          *   `unreadable` 读数，而本方法注释承诺「落盘失败 ⇒ persisted:false」——
                          *   注释与实现相反（本仓点名过的「注释说谎」形态）；② 少了 save 缺席
@@ -2808,6 +2832,212 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
                 return receipt;
             } catch (e) { errLog(e, 'engine.confirmBranchImport'); return null; }
+        }
+        /**
+         * [v3.293.0 · X7] 分卷接续**体检行**（与「分支语义」「知识轨迹」**分列**）。
+         *   本行答「用户选没选长篇项目、选了哪一卷、那一卷能接续几条、哪一面缺、
+         *   有几个同名候选被挡、旧源还在不在」。合成一行会让「没选项目（隔离）」与
+         *   「选了但零条」共用一个提示位 —— 而 X7 验收原文第一条正是「不选项目时维持完全隔离」。
+         *   报警只认三条真损失：缺面（该面根本没比）、同名候选被挡（有东西没接上）、
+         *   源不可跳转（引用状态已变）。
+         */
+        _volumeContinuationLine() {
+            try {
+                const VC = _moduleLib(() => window.LonShaVolumeContinuation, 'volume-continuation.js');
+                const read = this.worldProg && this.worldProg._volumeContinuationRead;
+                if (!read) return '未选项目（维持隔离）';
+                if (!VC || typeof VC.line !== 'function') return '模块未加载（volume-continuation.js）';
+                return VC.line(read);
+            } catch (e) { errLog(e, 'engine._volumeContinuationLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.293.0 · X7] 建接续包（**只读**，不落笔）。宿主负责把「五面素材 + 源标识」
+         *   喂给面模块，并把读数写进器官（诊断行据此出读数）。
+         *
+         * 五面素材**不由本方法自己拼**：`opts.faces` 是调用方（UI / 手机侧）给的显式输入 ——
+         *   宿主替用户决定「哪些面算接续素材」正是 X7 要防的隐式共享。本方法只做三件事：
+         *   ① 转交建包；② 记读数；③ 如实回报失败原因（无项目 / 无卷 / 无许可）。
+         * @returns {object|null} 包外壳；模块缺席 / 建包失败 ⇒ null（降级，不抛）
+         */
+        buildVolumePack(opts = {}) {
+            try {
+                const VC = _moduleLib(() => window.LonShaVolumeContinuation, 'volume-continuation.js');
+                if (!VC || typeof VC.buildContinuationPack !== 'function') return null;
+                const r = VC.buildContinuationPack(opts);
+                /* 读数**成功失败都记**：`selected:false`（没选项目）本身就是产品状态
+                 *   （默认隔离），不记会让诊断行分不清「没选」与「没数据」。 */
+                if (this.worldProg && typeof this.worldProg.noteVolumeContinuation === 'function') {
+                    if (r && r.ok && r.pack) {
+                        this.worldProg.noteVolumeContinuation({
+                            selected: true,
+                            projectId: r.pack.projectId,
+                            volumeTitle: r.pack.volumeTitle,
+                            volumeCount: (opts.project && Array.isArray(opts.project.volumes)) ? opts.project.volumes.length : 0,
+                            chapterCount: 0,
+                            entryCount: r.pack.entries.length,
+                            absentFaceCount: r.absentFaces.length,
+                            absentFaces: r.absentFaces,
+                            nameOnlyCount: 0,
+                            hidden: r.hidden,
+                            sourceState: null,
+                            navigable: false,
+                        });
+                    } else {
+                        this.worldProg.noteVolumeContinuation({ selected: false });
+                    }
+                }
+                return (r && r.ok) ? r : null;
+            } catch (e) { errLog(e, 'engine.buildVolumePack'); return null; }
+        }
+        /**
+         * [v3.293.0 · X7] 接续**落笔**（预览 → 提案 → 预检 → 确认 的最后一环）。
+         *
+         * 为什么必须由宿主做（与 `confirmBranchImport` 逐条同因）：
+         *   面模块纯函数零依赖；「真落笔」只能落在唯一真源手里 —— 这里的四环是
+         *   ① 落笔走本器官的 owner 面（`applyVolumeContinuation`）、② 代际栅栏
+         *   （落笔期间回档/切聊 ⇒ 整批作废）、③ 真实落盘（`StorageManager.save` 返 true
+         *   才算落地）、④ 保存后按**来源计数**回读。缺一环，`applied` 就是无据断言。
+         *
+         * 与 X6 的分工：X7 的 `handoffContinuation` 在拿到 branch-semantics 时**借用它的
+         *   precheck / confirm**（受控交接只有一份语义），本方法只注入 applyFn / readback /
+         *   persist 三个宿主能力。
+         *
+         * ★ `readback` 口径与 X6 同一处教训：**不能取「落笔前后计数差」** —— `readback`
+         *   在 applyFn 之后被调用，那时「落笔前计数」已含本次新增，差值恒 0 ⇒ 每次都报
+         *   mismatch（一条永不成立的判据）。故只回读**当前来源计数**，由契约侧与 applied 比。
+         *
+         * @returns {Promise<object|null>} 交接结果；模块缺席 / 异常 ⇒ null（降级，不抛）
+         */
+        async handoffVolumeContinuation(opts = {}) {
+            /* ★ 这两个必须声明在 `try` **之外**：catch 分支要引用它们记录「落过几条」的
+             *   作废读数。修前放在 try 内的 `let` 声明，catch 里引用会抛 ReferenceError
+             *   （块级作用域），而那一抛又被留痕块自己的 try 吞掉 ⇒ 留痕**永不出现在场**
+             *   （实测：G9 报 `_lastVolumeHandoff` 为 undefined，账本却真落了 1 条）。 */
+            let applied = 0;
+            let persisted = null;
+            try {
+                const VC = _moduleLib(() => window.LonShaVolumeContinuation, 'volume-continuation.js');
+                if (!VC || typeof VC.handoffContinuation !== 'function') return null;
+                const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+                const seen = this._volumeHandoffSeen || (this._volumeHandoffSeen = {});
+                const lease = { chatId: this.getCurrentChatId(), epoch: this._mutationEpoch };
+                const wp = this.worldProg;
+                const res = await VC.handoffContinuation({
+                    pack: opts.pack,
+                    target: opts.target,
+                    select: opts.select,
+                    allowReplace: opts.allowReplace === true,
+                    allowNameLink: opts.allowNameLink === true,
+                    liveSources: opts.liveSources,
+                    dependents: opts.dependents,
+                    proposalId: opts.proposalId,
+                    /* 借 X6 的受控交接（在场即借；缺席则走 VC 自持退路）。 */
+                    bs: BS || null,
+                    applyFn: (p) => {
+                        if (!wp || typeof wp.applyVolumeContinuation !== 'function') return { ok: false, reason: 'no-organ' };
+                        const r = wp.applyVolumeContinuation(p);
+                        if (r && r.ok === true) applied++;
+                        return r;
+                    },
+                    readback: async () => {
+                        if (!wp || typeof wp.volumeContinuationCount !== 'function') return undefined;
+                        if (typeof this.storage?.save !== 'function') return undefined;
+                        let okSave = null;
+                        try { okSave = await this.storage.save(this.getCurrentChatId(), this.collectExport()); }
+                        catch (e) { errLog(e, 'engine.handoffVolumeContinuation.save'); okSave = false; }
+                        persisted = (okSave === true);
+                        /* 只报**来源计数**（source:'volume-continuation' 的条数）。报 promises 总数
+                         *   会把「本来就在的」也算进来 ⇒「一条没落」与「落了两条」同形。 */
+                        return Number(wp.volumeContinuationCount()) || 0;
+                    },
+                    seen,
+                });
+                if (!res) return null;
+                const receipt = res.receipt || null;
+                if (receipt) receipt.persisted = persisted;
+                if (receipt && persisted === false && receipt.ok === true) {
+                    receipt.ok = false;
+                    receipt.reason = 'persist-failed';
+                }
+                /* 代际栅栏复核：落笔期间回档/切聊 ⇒ 整批标记作废，但 `applied` **如实计数**
+                 *   （抹掉已落的那部分会二次改状态，且没人知道曾经落过）。 */
+                const stale = !this._leaseValid(lease);
+                if (stale) {
+                    if (receipt) {
+                        receipt.ok = false; receipt.reason = 'epoch-changed';
+                        receipt.stale = true; receipt.applied = applied;
+                    }
+                    this._leaseDrop(lease, 'volumeContinuation', -1);
+                }
+                if (receipt && receipt.ok === true && receipt.proposalId && !receipt.duplicate) {
+                    seen[receipt.proposalId] = { applied: Number(receipt.applied) || 0, at: Date.now() };
+                }
+                /* 交接后刷新诊断读数（包级 + 预览结论）。 */
+                if (this.worldProg && typeof this.worldProg.noteVolumeContinuation === 'function' && res.preview) {
+                    const pv = res.preview;
+                    this.worldProg.noteVolumeContinuation({
+                        selected: true,
+                        projectId: (opts.pack && opts.pack.projectId) || null,
+                        volumeTitle: (opts.pack && opts.pack.volumeTitle) || null,
+                        volumeCount: 0, chapterCount: 0,
+                        entryCount: Number(pv.willAdd || 0) + Number(pv.willReplace || 0),
+                        absentFaceCount: (pv.absentFaces || []).length,
+                        /* 面名与计数一起传：只有计数时，告警条件依赖每个调用点都记得传这一格。 */
+                        absentFaces: pv.absentFaces || [],
+                        nameOnlyCount: (pv.nameOnly || []).length,
+                        hidden: (opts.pack && Number(opts.pack.hidden)) || 0,
+                        sourceState: (pv.sourceState && pv.sourceState.state) || null,
+                        navigable: pv.navigable === true,
+                    });
+                }
+                return res;
+            } catch (e) {
+                /* ★ 这里的「降级返回 null」有一个真隐患：`applyFn` 是**同步真写器官账本**，
+                 *   于是异常可能发生在「已经落了 N 条」之后（实测：落笔成功、`promises` 已多
+                 *   一条，随后读栅栏时抛错 ⇒ 对外 `null`）。上层把 `null` 读成「没成」并重试，
+                 *   就会**重复落笔**——账本真增条而回执说没成，两处不同形。
+                 *   修法按本仓既有纪律：降级照旧（不把降级改成崩溃），但**先留一条可查的作废
+                 *   读数**（落了条数 / 落盘三态 / 当前来源计数），让「落过但没回执」可被追。
+                 *   留痕自身必须自兜：登记的失败不得成为新的失败。 */
+                try {
+                    const cnt = (this.worldProg && typeof this.worldProg.volumeContinuationCount === 'function')
+                        ? this.worldProg.volumeContinuationCount() : null;
+                    this._lastVolumeHandoff = {
+                        at: Date.now(), why: 'threw', applied: applied, persisted: persisted,
+                        count: cnt, err: (e && e.message) || String(e),
+                    };
+                } catch (_e) { /* 留痕失败就作罢：出口契约仍是「失败返回 null」 */ }
+                errLog(e, 'engine.handoffVolumeContinuation');
+                return null;
+            }
+        }
+        /**
+         * [v3.293.0 · X7] 撤销接续落笔（**必须有来源范围**；范围外一条不动，重试不重复）。
+         *   撤销落在器官上（改账本条目的 `revoked` 标记只能由持有者做），本方法负责：
+         *   ① 把范围转交器官；② 落盘（撤销也要真落地，否则重启后「撤了」消失）；
+         *   ③ 如实回报三态（revoked / nothing-in-scope / no-scope）。
+         * @returns {Promise<object|null>} 撤销回执；模块 / 器官缺席 ⇒ null（降级，不抛）
+         */
+        async revokeVolumeHandoff(opts = {}) {
+            try {
+                const wp = this.worldProg;
+                if (!wp || typeof wp.revokeVolumeContinuation !== 'function') return null;
+                const scope = (opts.scope && typeof opts.scope === 'object') ? opts.scope
+                    : (opts.receipt && opts.receipt.revokeScope) ? opts.receipt.revokeScope : null;
+                const r = wp.revokeVolumeContinuation(scope);
+                if (!r) return null;
+                /* 撤销真落地：撤了不落盘 ⇒ 重启后条目又「活着」，撤销就成了假动作。 */
+                if (r.ok === true && r.revokedCount > 0 && typeof this.storage?.save === 'function') {
+                    let okSave = null;
+                    try { okSave = await this.storage.save(this.getCurrentChatId(), this.collectExport()); }
+                    catch (e) { errLog(e, 'engine.revokeVolumeHandoff.save'); okSave = false; }
+                    r.persisted = (okSave === true);
+                    if (r.persisted === false) { r.ok = false; r.reason = 'persist-failed'; }
+                } else {
+                    r.persisted = null;
+                }
+                return r;
+            } catch (e) { errLog(e, 'engine.revokeVolumeHandoff'); return null; }
         }
         /**
          * [v3.184] 提示词填充读数（诊断面用；纯读、不抛）。
@@ -10573,7 +10803,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['知识轨迹', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.knowledgeTrace'); return ['知识轨迹', '—（诊断异常）']; }
                     })(),
-                    // [v3.292.0 · X6] 分支语义体检面：与「知识轨迹」**分列**。
+                    // [v3.293.0 · X6] 分支语义体检面：与「知识轨迹」**分列**。
                     //   轨迹行答「这条知识是怎么来的」，本行答「两个分支逐 owner 的语义差在哪、
                     //   哪一面因缺模块而不可比」。★ 不可比面必须与「无差异」分列：把「没比」
                     //   读成「一样」正是 X6 要治的（不可比 ≠ 相等）。
@@ -10584,6 +10814,20 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = !!(r && ((r.incomparable || 0) > 0 || (r.filtered || 0) > 0 || r.degraded));
                             return ['分支语义', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.branchSemantics'); return ['分支语义', '—（诊断异常）']; }
+                    })(),
+                    // [v3.293.0 · X7] 分卷接续体检面：与「分支语义」「知识轨迹」**分列**。
+                    //   本行答「用户选没选长篇项目、那一卷能接续几条、哪一面缺、有几个同名候选被挡、
+                    //   旧源还在不在」。★ 「没选项目（维持隔离）」必须与「选了但零条」分列 ——
+                    //   把两者并成一格，正是 X7 验收第一条（不选项目时维持完全隔离）会被读错的地方。
+                    //   报警只认三条真损失：缺面 / 同名候选被挡 / 源不可跳转。
+                    (() => {
+                        try {
+                            const line = (typeof this._volumeContinuationLine === 'function') ? this._volumeContinuationLine() : '—';
+                            const r = this.worldProg && this.worldProg._volumeContinuationRead;
+                            const bad = !!(r && ((r.absentFaceCount || 0) > 0 || (r.nameOnlyCount || 0) > 0
+                                || (r.selected === true && r.navigable === false)));
+                            return ['分卷接续', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.volumeContinuation'); return ['分卷接续', '—（诊断异常）']; }
                     })(),
                     // [v3.184] 提示词填充体检面：**未填**与**残留**都要现形。
                     //   残留（占位符写成了全角/带空格形态）意味着这一处根本没填进去，

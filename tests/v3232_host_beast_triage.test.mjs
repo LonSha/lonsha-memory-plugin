@@ -194,10 +194,16 @@ test('v3232 D1. ★★★ 「不拆」必须挂在读数上，且算术可复算
     assert.ok(top1.lines >= 1000, '最大成员须 ≥ 1000 行，实测 ' + top1.lines);
     /* 读数据点 2：该成员的外部引用数极低 —— 这正是「低引用 ≠ 低耦合」的证据 */
     assert.ok(top1.outside_refs <= 2, '最大成员的外部引用数须极低，实测 ' + top1.outside_refs);
-    /* 读数据点 3：同名重复（引用读数只能当上界） */
-    const names = base.biggest_members_top40.map((m) => m.name);
-    const dup = names.filter((n, i) => names.indexOf(n) !== i);
-    assert.ok(dup.length > 0, '★ TOP40 里必须存在同名成员（否则「引用读数只能当上界」这条是无据之谈），实测 ' + JSON.stringify([...new Set(dup)]));
+    /* 读数据点 3：同名重复（引用读数只能当上界）
+     *   ★ [v3.293.0 修] 原判读的是 **TOP40 切片**里的同名 —— 那是**锁当版边界**：
+     *   TOP40 的边界随 index.js 增长漂移，v3.231.0 建套件时 `import` 恰在切片内，
+     *   X6/X7 加真代码后它被挤出，断言读到的是「边界漂移」而它要守的命题仍真。
+     *   改读**全文**同名种类数（不随切片移动），并真跑探针复核（两处读数互相印证）。 */
+    assert.ok(R.duplicate_member_names > 0,
+        '★ 全文成员名里必须存在同名（否则「引用读数只能当上界」这条是无据之谈），实测 '
+        + R.duplicate_member_names + ' 组');
+    assert.ok(rep.duplicate_member_names.length > 0,
+        '★ 探针当前输出里也必须读到同名成员（防基线记着一个已不成立的读数）');
     /* 读数据点 4：分诊表把生命周期面单列 */
     assert.ok(base.split_candidates.high_coupling_examples.length > 0, '高耦合例须在场');
     assert.ok(base.split_candidates.low_coupling_examples.every((x) => x.is_host_lifecycle === false),

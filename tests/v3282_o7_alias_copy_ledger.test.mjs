@@ -10,7 +10,7 @@
 //     把同一段实现换个名字抄过去，三层判据全部静默（这正是「判据的面漏一类」的第五处）。
 //
 //     实测（真源 tests/_audit_lib.mjs 的 stripComments 归一化口径，全 80 个根级 .js，
-//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **8 个簇**：
+//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **9 个簇**：
 //
 //       _numOrNull / numOrNull        index.js ↔ snapshot-checkpoint.js （258 字符）
 //       floorOrNull / toNum           ledger-replay.js ↔ archive-shift.js （208）
@@ -20,6 +20,7 @@
 //       _num / _num0                  cost-forecast.js ↔ projection-pipeline.js （60，箭头）
 //       _text / txt                   sleep-awaken.js ↔ world-ledger-reader.js （56）
 //       normOp / normRef / normStr    index.js · fuzzy-patch.js · changeset.js · relation-disclosure.js （34）
+//       PRECHECK / PREVIEW            branch-semantics.js ↔ volume-continuation.js （42，常量表；v3.293.0 补）
 //
 //     其中两条注释**自己承认**了跨文件重复（真源逐字）：
 //       archive-shift.js:28-29 「两处是**各自路径上的门**……不是同一份事实的两份实现；
@@ -36,7 +37,7 @@
 //
 //   【判据（fail-closed）】
 //     A  枚举面：全仓 items 下限 + 别名簇数下限 + 登记表格式（名字互不相同，否则它就不是别名簇）
-//     B  读盘实测：8 簇逐字相同；任一簇少一个成员即「漂移/消失」（红，且点名差异成员）
+//     B  读盘实测：9 簇逐字相同；任一簇少一个成员即「漂移/消失」（红，且点名差异成员）
 //     C  真源码破坏（三向）：改成员 A 的体 ⇒ 该簇成员缩水；改另一族成员 ⇒ 同样；凭空抄一份 ⇒ 新增未登记
 //     D  工具两向自证：breakSource 的 0 次 / 同值必抛；原版判据真、破坏副本真红
 //     E  判据纯度 H5：破坏锚点字面量在本档各只声明一次（按**转义形态**计数），真源上各恰中一次
@@ -70,9 +71,9 @@ const md5 = (s) => crypto.createHash('md5').update(s).digest('hex').slice(0, 8);
 /** 体长下限：30 让「一行取值门」（normOp 那一簇 34）也在面内；常量表 20（跨行数组较短）。 */
 const MIN_BODY = 30;
 const MIN_TAB = 20;
-/** 全仓 items 下限（实 2004）：枚举面塌陷时「0 别名簇」会伪装成卫生。 */
+/** 全仓 items 下限（实 2153）：枚举面塌陷时「0 别名簇」会伪装成卫生。 */
 const MIN_ITEMS = 1200;
-/** 别名簇数下限（实 8）：登记表被清空或聚类失效时立刻红。 */
+/** 别名簇数下限（实 9）：登记表被清空或聚类失效时立刻红。 */
 const MIN_CLUSTERS = 6;
 
 /**
@@ -89,6 +90,9 @@ const ALIAS_LEDGER = [
     ['arr', ['_num', '_num0'], ['cost-forecast.js', 'projection-pipeline.js'], 60, '885d07fc'],
     ['fn', ['_text', 'txt'], ['sleep-awaken.js', 'world-ledger-reader.js'], 56, 'c590df35'],
     ['fn', ['normOp', 'normRef', 'normStr'], ['changeset.js', 'fuzzy-patch.js', 'index.js', 'relation-disclosure.js'], 34, '311c820d'],
+    /* X6/X7：同一个「预检三档」体在两个新模块里挂了两个名字 —— 名字不同，故三层按名配对的
+     *   判据（v3280/v3281）整片看不见它，正落入本档射程。两模块刻意各持一份（见 v3281 同簇留痕）。 */
+    ['tab', ['PRECHECK', 'PREVIEW'], ['branch-semantics.js', 'volume-continuation.js'], 42, '9471dab4'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */
@@ -299,7 +303,7 @@ test('v3282 A1. ★★ 枚举面与登记表都在场（枚举失效时「0 别�
 });
 
 /* ══════════════ B. 读盘实测 ══════════════ */
-test('v3282 B1. ★★★ 8 个别名簇逐字副本与登记表双向一致（少一个成员即漂移）', () => {
+test('v3282 B1. ★★★ 登记别名簇逐字副本与登记表双向一致（少一个成员即漂移）', () => {
     const problems = judge(readAll(), ALIAS_LEDGER);
     assert.deepEqual(problems, [], '盘上真源必须卫生：' + problems.join(' | '));
     ok('簇级双向一致；无新增未登记别名簇，无成员漂移');

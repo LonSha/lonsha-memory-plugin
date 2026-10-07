@@ -128,6 +128,16 @@ const report = {
      *   故这里如实带出每个大成员的外部引用数，读者可自行判断「搬它要动多少接线」。 */
     biggest_members: [...members].sort((a, b) => b.lines - a.lines).slice(0, 40)
         .map((m) => ({ name: m.name, lines: m.lines, outside_refs: countOutside(m.name) })),
+    /* ── 5b. 全文**同名成员**：判据「外部引用读数只能当上界」的据 ──
+     *   为什么不能拿 TOP40 里的同名当据（v3.293.0 实测）：TOP40 是**切片**，
+     *   边界随 index.js 增长漂移 —— v3.231.0 建套件时 `import` 恰在 TOP40 内，
+     *   X6/X7 加真代码后它被挤出边界，于是那条断言读到的是「边界漂移」而不是
+     *   「同名事实消失」（而全文同名仍有 22 组）。读数必须落在**不随切片移动**的面上。 */
+    duplicate_member_names: (() => {
+        const cnt = new Map();
+        for (const m of members) cnt.set(m.name, (cnt.get(m.name) || 0) + 1);
+        return [...cnt.entries()].filter(([, n]) => n > 1).map(([k]) => k).sort();
+    })(),
     /* ── 7. 拆分候选分诊：巨兽拆分的「可搬性」是什么形状 ──
      *   三个读数决定一个成员能不能先被搬走：
      *     · lines        —— 搬它能减多少行

@@ -16,12 +16,17 @@
 //     即：**该副本的值漂移，整套测试面完全不可见**。这正是 O7 第一条要抓的
 //     「减少实际重复实现」的反面 —— 重复实现没人守，就是两份会各自腐化的真源。
 //
-//   【本档登记（3 对同名常量表，实测值逐字相同）】
+//   【本档登记（5 对同名常量表，实测值逐字相同；v3.293.0 口径，X6/X7 补 2 对）】
 //     ARCHIVE_TOP_LEVEL_KEYS   index.js ↔ memory-organs.js   629 字符  md5 72ef6f67
 //     RELATION_CONFLICT_GROUPS index.js ↔ memory-core.js     134       md5 a2700f54
 //     STORAGE_FP_FIELDS        index.js ↔ memory-organs.js    65       md5 70a8fcd9
-//     三对都在 v3264 / v3266 的 `VERBATIM_CONSTS` 名单里被**按名**登记过（声明在场性），
+//     FACES                    branch-semantics.js ↔ volume-continuation.js   67  md5 997c2e8b
+//     ACTION                   branch-semantics.js ↔ volume-continuation.js   44  md5 e7884be8
+//     前三对都在 v3264 / v3266 的 `VERBATIM_CONSTS` 名单里被**按名**登记过（声明在场性），
 //     本档补的是那份名单缺的**值**这一维（两者互补，非重复）。
+//     后两对（FACES / ACTION）是 X6/X7 两个新模块刻意各持一份的值级副本 ——
+//     volume-continuation.js 档头逐字声明「不引 X6 的常量」及其理由（跨模块引用会把两处抬版
+//     变成一处悄悄读旧值）。**两处必须一致**这件事正由本档 B1 钉住：改任一侧即红。
 //
 //   【判据（fail-closed）】
 //     A  枚举面：根级 .js 下限 + 常量表声明枚举下限 + 同名跨文件对下限（塌陷时「0 漂移」是空对空）
@@ -57,13 +62,13 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const ok = (m) => console.log('  ✓ ' + m);
 const md5 = (s) => crypto.createHash('md5').update(s).digest('hex').slice(0, 8);
 
-/** 常量表体长下限（实 65 最短）：低于此不构成「一张表」，不收。 */
+/** 常量表体长下限（实 44 最短）：低于此不构成「一张表」，不收。 */
 const MIN_BODY = 40;
-/** 根级 .js 下限（实 80）。 */
+/** 根级 .js 下限（实 84）。 */
 const MIN_FILES = 60;
 /** 常量表声明枚举下限（实数百）：塌陷时「0 对」会伪装成卫生。 */
 const MIN_TABS = 200;
-/** 同名跨文件对下限（实 3）。 */
+/** 同名跨文件对下限（实 5）。 */
 const MIN_PAIRS = 2;
 
 /**
@@ -76,6 +81,8 @@ const CONST_LEDGER = [
     ['ARCHIVE_TOP_LEVEL_KEYS', ['index.js', 'memory-organs.js'], 629, '72ef6f67', 'Object.freeze(['],
     ['RELATION_CONFLICT_GROUPS', ['index.js', 'memory-core.js'], 134, 'a2700f54', '['],
     ['STORAGE_FP_FIELDS', ['index.js', 'memory-organs.js'], 65, '70a8fcd9', '['],
+    ['FACES', ['branch-semantics.js', 'volume-continuation.js'], 67, '997c2e8b', 'Object.freeze(['],
+    ['ACTION', ['branch-semantics.js', 'volume-continuation.js'], 44, 'e7884be8', 'Object.freeze({'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */
@@ -242,10 +249,10 @@ test('v3283 A1. ★★ 枚举面与登记表都在场（枚举失效时「0 漂�
 });
 
 /* ══════════════ B. 读盘实测 ══════════════ */
-test('v3283 B1. ★★★ 3 对同名常量副本的值逐字相等，且与登记表双向一致', () => {
+test('v3283 B1. ★★★ 登记的同名常量副本值逐字相等，且与登记表双向一致', () => {
     const problems = judge(readAll(), CONST_LEDGER);
     assert.deepEqual(problems, [], '盘上真源必须卫生：' + problems.join(' | '));
-    ok('3 对常量副本值级双向一致；无新增未登记对，无漂移/形态变化');
+    ok('登记的同名常量副本值级双向一致；无新增未登记对，无漂移/形态变化');
 });
 
 test('v3283 B2. ★★ 值级漂移可归因（点名是哪一对、差在哪一维）', () => {

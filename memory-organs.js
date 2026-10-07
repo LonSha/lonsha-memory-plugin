@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.292.0';
+let VERSION = '3.293.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1326,7 +1326,7 @@ class WorldProgress {
         } catch (e) { errLog(e, 'worldProg.refreshKnowledgeTraceRead'); read.degraded = true; }
         return read;
     }
-    /* [v3.292.0 · X6] 分支语义取库口（branch-semantics.js）。
+    /* [v3.293.0 · X6] 分支语义取库口（branch-semantics.js）。
      *   与 _knowledgeNet/_knowledgeTrace 同规格：模块缺席/取库抛错一律回 null，
      *   调用方按「不可比」降级，并把缺席记进读数，不把「没装」伪装成「无差异」。 */
     _branchSemantics() {
@@ -1335,7 +1335,7 @@ class WorldProgress {
             return (BS && typeof BS.compareOwners === 'function') ? BS : null;
         } catch (e) { errLog(e, 'worldProg._branchSemantics'); return null; }
     }
-    /* [v3.292.0 · X6] 两分支逐 owner 只读对照（**只读**：不切分支、不写任何状态）。
+    /* [v3.293.0 · X6] 两分支逐 owner 只读对照（**只读**：不切分支、不写任何状态）。
      *   为何放在本器官：对照的两侧正是本器官持有的 knowledge/promises/commitmentLedger 等，
      *   可零拷贝取到「本分支」侧；另一侧由调用方按检查点载荷传入。
      *   读数进 _branchSemanticsRead，供诊断行「分支语义」；模块缺席时**不写**但计数可见。 */
@@ -1361,7 +1361,7 @@ class WorldProgress {
             return cmp;
         } catch (e) { errLog(e, 'worldProg.compareBranchOwners'); read.degraded = true; return null; }
     }
-    /* [v3.292.0 · X6] 逐项提案（草稿：只产出提案，不落笔）。 */
+    /* [v3.293.0 · X6] 逐项提案（草稿：只产出提案，不落笔）。 */
     proposeBranchImport(opts = {}) {
         const BS = this._branchSemantics();
         if (!BS) return null;
@@ -1371,14 +1371,14 @@ class WorldProgress {
             return BS.proposeImport(cmp, opts);
         } catch (e) { errLog(e, 'worldProg.proposeBranchImport'); return null; }
     }
-    /* [v3.292.0 · X6] 预检（blocked / warn / ok 三档；不许跳过预检直接落笔）。 */
+    /* [v3.293.0 · X6] 预检（blocked / warn / ok 三档；不许跳过预检直接落笔）。 */
     precheckBranchImport(proposals, ctx = {}) {
         const BS = this._branchSemantics();
         if (!BS) return null;
         try { return BS.precheckImport(proposals, ctx); }
         catch (e) { errLog(e, 'worldProg.precheckBranchImport'); return null; }
     }
-    /* [v3.292.0 · X6] 把一条**已过预检**的提案落到本器官**真正拥有**的账本面上。
+    /* [v3.293.0 · X6] 把一条**已过预检**的提案落到本器官**真正拥有**的账本面上。
      *   为什么只落 unfinished 一面：X6 的五面里本器官只持有 `promises`（未了事项）。
      *   其余四面分别落在引擎别的域（事实版本 `factVersion` / 角色状态 `characterState` /
      *   金钱 `money` / 剧情时间 `storyTime`），本器官**不代持** —— 代持会造出第二真源，
@@ -1420,7 +1420,7 @@ class WorldProgress {
             return { ok: true, reason: 'added' };
         } catch (e) { errLog(e, 'worldProg.applyBranchImport'); return { ok: false, reason: 'threw' }; }
     }
-    /* [v3.292.0 · X6] 本次会话经分支导入落下的条数（保存后回读的唯一口径）。
+    /* [v3.293.0 · X6] 本次会话经分支导入落下的条数（保存后回读的唯一口径）。
      *   按 `source:'branch-import'` 计数而非按总数：总数把「本来就在的」也算进来，
      *   于是「一条都没落」与「落了两条」在读数上同形（本仓点名的读数塌陷）。 */
     branchImportCount() {
@@ -1428,6 +1428,173 @@ class WorldProgress {
             const list = Array.isArray(this.promises) ? this.promises : [];
             return list.filter((x) => x && x.source === 'branch-import').length;
         } catch (e) { errLog(e, 'worldProg.branchImportCount'); return 0; }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+     * [v3.293.0 · X7] 长篇剧情分卷与选择性接续（本器官持有「接续落笔」那一环）
+     *   为什么归本器官：X7 的落笔终点是**本器官的账本面**（`promises` 用 unfinished，
+     *   与 X6 同一支）。面模块（volume-continuation.js）纯函数零依赖，不碰存储；
+     *   「真落笔 + 来源计数回读」这一环只能由唯一真源做（与 applyBranchImport 同族）。
+     * ══════════════════════════════════════════════════════════════════ */
+    /** 取卷接续模块（缺席 ⇒ null，降级不抛）。 */
+    _volumeContinuation() {
+        try {
+            if (typeof _moduleLib === 'function') return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaVolumeContinuation : null), 'volume-continuation.js');
+        } catch (_e) { /* 归 null */ }
+        try { return (typeof globalThis !== 'undefined' && globalThis.LonShaVolumeContinuation) || null; } catch (_e) { return null; }
+    }
+    /**
+     * [X7] 把一条**已过预检**的接续提案落到本器官真正拥有的账本面上。
+     *   与 `applyBranchImport` 同一族纪律：只落自己持有的面（unfinished ⇒ promises），
+     *   未持有的面**如实回报 `not-owned-by-this-organ`**，绝不假装成功。
+     *   落笔标记用 `source:'volume-continuation'`（与分支导入**分开计数**：两种来源的
+     *   「有几条是这次来的」必须能分别读出，否则撤销范围与落笔读数会互相冒充）。
+     */
+    applyVolumeContinuation(proposal) {
+        const p = (proposal && typeof proposal === 'object') ? proposal : null;
+        if (!p) return { ok: false, reason: 'no-proposal' };
+        if (p.action !== 'add' && p.action !== 'replace') return { ok: false, reason: 'not-applicable' };
+        if (p.face !== 'unfinished') return { ok: false, reason: 'not-owned-by-this-organ' };
+        try {
+            const list = Array.isArray(this.promises) ? this.promises : (this.promises = []);
+            const id = String(p.key == null ? '' : p.key);
+            if (!id) return { ok: false, reason: 'no-key' };
+            const srcFloor = (p.from && Number.isFinite(Number(p.from.b))) ? Number(p.from.b)
+                : ((p.from && Number.isFinite(Number(p.from.a))) ? Number(p.from.a) : null);
+            const hit = list.find((x) => x && String(x.id) === id);
+            if (hit) {
+                if (p.action !== 'replace') return { ok: false, reason: 'exists' };
+                hit.content = String(p.value == null ? hit.content : p.value);
+                if (srcFloor != null) hit.floor = srcFloor;
+                hit.importedAt = Date.now();
+                hit.source = 'volume-continuation';
+                if (p.packId) hit.packId = String(p.packId);
+                if (p.volumeId) hit.volumeId = String(p.volumeId);
+                return { ok: true, reason: 'replaced' };
+            }
+            if (p.action !== 'add') return { ok: false, reason: 'missing' };
+            const rec = {
+                id,
+                character: String(p.owner == null ? '' : p.owner),
+                content: String(p.value == null ? '' : p.value),
+                status: 'pending',
+                floor: srcFloor,
+                source: 'volume-continuation',
+                importedAt: Date.now(),
+            };
+            /* 撤销寻址素材：packId / volumeId 逐条落条（撤销按来源范围筛时**必须**逐条可比，
+             *   只在包级记一次会让「范围外的条目一条不动」无从实现）。 */
+            if (p.packId) rec.packId = String(p.packId);
+            if (p.volumeId) rec.volumeId = String(p.volumeId);
+            if (p.sourceRef && typeof p.sourceRef === 'object') rec.sourceRef = {
+                session: p.sourceRef.session || null,
+                branch: p.sourceRef.branch || null,
+                version: p.sourceRef.version || null,
+            };
+            list.push(rec);
+            return { ok: true, reason: 'added' };
+        } catch (e) { errLog(e, 'worldProg.applyVolumeContinuation'); return { ok: false, reason: 'threw' }; }
+    }
+    /** [X7] 本次会话经接续落下的条数（保存后回读的唯一口径；与分支导入分列）。 */
+    volumeContinuationCount() {
+        try {
+            const list = Array.isArray(this.promises) ? this.promises : [];
+            return list.filter((x) => x && x.source === 'volume-continuation').length;
+        } catch (e) { errLog(e, 'worldProg.volumeContinuationCount'); return 0; }
+    }
+    /** [X7] 接续落下的**逐条**记录（撤销/来源核对的输入）。 */
+    volumeContinuationEntries() {
+        try {
+            const list = Array.isArray(this.promises) ? this.promises : [];
+            return list.filter((x) => x && x.source === 'volume-continuation').map((x) => ({
+                entityId: x.character || null,
+                ownerKey: x.character ? ('id:' + x.character) : null,
+                face: 'unfinished',
+                key: String(x.id == null ? '' : x.id),
+                value: x.content,
+                from: x.floor,
+                packId: x.packId || null,
+                volumeId: x.volumeId || null,
+                sourceRef: x.sourceRef || null,
+                revoked: x.revoked === true,
+            }));
+        } catch (e) { errLog(e, 'worldProg.volumeContinuationEntries'); return []; }
+    }
+    /**
+     * [X7] 按来源范围撤销接续落笔。**必须有范围**（没范围一律拒绝）。
+     *   范围外条目**一条不动**；已撤条重复撤销不再计（幂等）。
+     *   为什么撤销要落在器官上：条目是器官的账本条目，改 `revoked` 标记必须由持有者做，
+     *   否则会造出「模块说撤了、账本还在」的第二真源。
+     */
+    revokeVolumeContinuation(scope) {
+        const VC = this._volumeContinuation();
+        try {
+            const list = Array.isArray(this.promises) ? this.promises : [];
+            const entries = list.filter((x) => x && x.source === 'volume-continuation');
+            const sc = (scope && typeof scope === 'object') ? scope : null;
+            const hasScope = !!(sc && (sc.packId || sc.volumeId || (sc.sourceRef && (sc.sourceRef.session || sc.sourceRef.branch || sc.sourceRef.version))));
+            if (!hasScope) return { ok: false, reason: 'no-scope', revokedCount: 0, keptCount: entries.length, alreadyRevoked: 0 };
+            const match = (x) => {
+                if (sc.packId && String(x.packId || '') !== String(sc.packId)) return false;
+                if (sc.volumeId && String(x.volumeId || '') !== String(sc.volumeId)) return false;
+                const sr = sc.sourceRef;
+                if (sr && (sr.session || sr.branch || sr.version)) {
+                    const er = (x.sourceRef && typeof x.sourceRef === 'object') ? x.sourceRef : {};
+                    if (sr.session && String(er.session || '') !== String(sr.session)) return false;
+                    if (sr.branch && String(er.branch || '') !== String(sr.branch)) return false;
+                    if (sr.version && String(er.version || '') !== String(sr.version)) return false;
+                }
+                return true;
+            };
+            let revoked = 0;
+            let already = 0;
+            for (const x of entries) {
+                if (!match(x)) continue;
+                if (x.revoked === true) { already++; continue; }
+                x.revoked = true;
+                x.revokedAt = Date.now();
+                revoked++;
+            }
+            /* 回读计数只算**未撤**的：撤了却仍计入落笔数，会让「撤销」在读数上不成立。 */
+            const live = entries.filter((x) => x.revoked !== true).length;
+            return {
+                ok: true,
+                reason: revoked ? 'revoked' : 'nothing-in-scope',
+                revokedCount: revoked,
+                keptCount: entries.length - revoked,
+                alreadyRevoked: already,
+                liveCount: live,
+                via: VC ? 'volume-continuation' : 'host-fallback',
+            };
+        } catch (e) { errLog(e, 'worldProg.revokeVolumeContinuation'); return { ok: false, reason: 'threw', revokedCount: 0, keptCount: 0, alreadyRevoked: 0 }; }
+    }
+    /* [v3.293.0 · X7] 分卷接续体检读数（诊断行「分卷接续」用；纯读、不抛）。
+     *   ★ 「没选项目」必须与「选了但零条」不同形：`selected:false` 单列，读数写
+     *   「未选项目（维持隔离）」—— 把两者并成一格会让「完全隔离」被读成「本来就没内容」。 */
+    noteVolumeContinuation(read) {
+        const r = (read && typeof read === 'object') ? read : null;
+        /* ★ 「源侧缺面」必须连**面名**一起存：只存计数时，任何一处调用点少传这一格，
+         *   告警条件（`absentFaceCount > 0`）就变成**恒假**——体检行永远不亮（判据永假，
+         *   本仓点名过的形态）。存了面名，计数可由名字现算，少传也退化成 0 而不是静默。 */
+        const absent = Array.isArray(r && r.absentFaces)
+            ? r.absentFaces.map((x) => (x && typeof x === 'object') ? (x.face || null) : String(x || '')).filter(Boolean).slice(0, 12)
+            : [];
+        this._volumeContinuationRead = r ? {
+            selected: r.selected === true,
+            projectId: r.projectId || null,
+            volumeTitle: r.volumeTitle || null,
+            volumeCount: Number(r.volumeCount) || 0,
+            chapterCount: Number(r.chapterCount) || 0,
+            entryCount: Number(r.entryCount) || 0,
+            absentFaceCount: Math.max(Number(r.absentFaceCount) || 0, absent.length),
+            absentFaces: absent,
+            nameOnlyCount: Number(r.nameOnlyCount) || 0,
+            hidden: Number(r.hidden) || 0,
+            sourceState: r.sourceState || null,
+            navigable: r.navigable === true,
+            at: Date.now(),
+        } : null;
+        return this._volumeContinuationRead;
     }
     /* 累计读数的一格计数（不抛）。owners 按「该角色第一次产生读数」计一次。 */
     _knowledgeTally(charName, key) {
@@ -1825,9 +1992,15 @@ class WorldProgress {
              *   并进去会让既有 knowledge 的结构从 {known,unaware} 二字段变成复合体，
              *   迁移期两边都要兼容 —— 单独一格可独立迁移、独立回滚。 */
             knowledgeTraces: this.knowledgeTraces || { version: 1, traces: [] },
-            /* [v3.292.0 · X6] 分支语义读数随世界推进持久化。只存**读数**（不可比面数 / 被过滤条数 / 缺模块数），
+            /* [v3.293.0 · X6] 分支语义读数随世界推进持久化。只存**读数**（不可比面数 / 被过滤条数 / 缺模块数），
              *   不存整个对照结构 —— 对照结构由下一次 compare 重建，存进去只会随分支漂移。 */
             branchSemanticsRead: this._branchSemanticsRead || null,
+            /* [v3.293.0 · X7] 分卷接续读数随世界推进持久化。只存**读数**
+             *   （卷数 / 可接续条数 / 缺面数 / 同名候选数 / 源状态），不存整包 ——
+             *   包由调用方持有（边界：不自建持久化），存进去会变成第二真源。
+             *   ★ `selected:false`（没选项目）也照样持久化：默认隔离是**产品状态**，
+             *   不是「没有数据」，重启后必须还能读出「它一直是隔离的」。 */
+            volumeContinuationRead: this._volumeContinuationRead || null,
             plotArcs: this.plotArcs || []
         };
     }
@@ -1849,11 +2022,15 @@ class WorldProgress {
             this.knowledgeTraces = (data.knowledgeTraces && typeof data.knowledgeTraces === 'object' && Array.isArray(data.knowledgeTraces.traces))
                 ? data.knowledgeTraces : { version: 1, traces: [] };
             this._knowledgeTraceRead = null;   // 导入后读数由 refreshKnowledgeTraceRead 重算，不沿用旧读数
-            /* [v3.292.0 · X6] 分支语义读数导入：畸形一律回落 null（与同族口径）。
+            /* [v3.293.0 · X6] 分支语义读数导入：畸形一律回落 null（与同族口径）。
              *   对照结构**不导入**（导入后无意义 —— 那份 otherPayload 可能已随回档消失）。 */
             this._branchSemanticsRead = (data.branchSemanticsRead && typeof data.branchSemanticsRead === 'object')
                 ? data.branchSemanticsRead : null;
             this.branchComparison = null;
+            /* [v3.293.0 · X7] 分卷接续读数导入：畸形一律回落 null（与同族口径）。
+             *   接续包**不导入**（包由调用方持有；跨会话重新构建才符合「先预览再导入」）。 */
+            this._volumeContinuationRead = (data.volumeContinuationRead && typeof data.volumeContinuationRead === 'object')
+                ? data.volumeContinuationRead : null;
             this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
         }
     }

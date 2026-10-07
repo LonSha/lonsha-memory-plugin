@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 48074,
+  "ceiling": 49546,
   "maxSlack": 400,
-  "note": "v3.292.0 X6 分支语义对照与受控交接：新增 branch-semantics.js（672 行纯函数面）+ index.js 三入口与退路（37 行）+ memory-organs.js 读数与 export/import（60 行），均为活跃功能增长（非死代码回流）",
+  "note": "v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）",
   "history": [
     {
       "ceiling": 21000,
@@ -221,7 +221,11 @@
     {
       "ceiling": 48074,
       "reason": "v3.292.0 X6 分支语义对照与受控交接：新增 branch-semantics.js（672 行纯函数面）+ index.js 三入口与退路（37 行）+ memory-organs.js 读数与 export/import（60 行），均为活跃功能增长（非死代码回流）"
+    },
+    {
+      "ceiling": 49546,
+      "reason": "v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）"
     }
   ],
-  "_history_last": "ceiling 46570 → 48074（实测 47674 + slack 400）：v3.292.0 X6 分支语义对照与受控交接：新增 branch-semantics.js（672 行纯函数面）+ index.js 三入口与退路（37 行）+ memory-organs.js 读数与 export/import（60 行），均为活跃功能增长（非死代码回流）"
+  "_history_last": "ceiling 48074 → 49546（实测 49146 + slack 400）：v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）"
 }

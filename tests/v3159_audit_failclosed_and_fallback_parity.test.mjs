@@ -133,6 +133,17 @@ async function runInScratch(mutate) {
         // 入口与面板由调用方按需覆盖（退化用例会写入 '// gone'）
         writeFileSync(path.join(dir, 'index.js'), srcRaw);
         writeFileSync(path.join(dir, 'settings-ui.js'), sui);
+        /* [v3.293.0] 根级**人读面**也要物化：v3.285.0 起 scan_doc_truthfulness /
+         *   scan_plan_currency 读 README.md / PLAN.md / CHANGELOG.md，
+         *   scan_version_guard 的 V6/V7 读 CHANGELOG 顶节与 TODO「最近更新」。
+         *   夹具里没有这些文件时，它们直接判「结构漂移 exit 2」—— 而 [2d] 要观测的是
+         *   「每个门在健康树上都能通过」，读到却成了「夹具缺件」。
+         *   ★ 本仓已点名过同族形态（v3.163 的 scan_module_wiring、v3.191 的 tests/ 镜像）：
+         *   健康树夹具必须真的像健康树，判据不因此放宽。 */
+        for (const f of ['README.md', 'PLAN.md', 'CHANGELOG.md', 'TODO.md', 'package.json']) {
+            const p0 = path.join(ROOT, f);
+            if (existsSync(p0)) writeFileSync(path.join(dir, f), readFileSync(p0, 'utf-8'));
+        }
         // [v3.191] 整份镜像 tests/：库用例（scan_audit_lib_consolidation）核对唯一真源
         //   tests/_audit_lib.mjs 与 tests/run.mjs 是否在场——缺了就 fail-closed 判结构漂移。
         //   健康树夹具必须真的像健康树；判据不因此放宽。

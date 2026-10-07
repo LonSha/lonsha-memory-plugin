@@ -1,3 +1,127 @@
+## v3.293.0
+**X 系列第五条落地：长篇剧情分卷与选择性接续（X7）—— 「上一卷结束时说了什么、还剩什么没结」**
+- **面新增（不是整洁性改动）**：本仓 `memory-core.js` 的 `SummarySystem` 已有三级金字塔
+  （`summaries` 日记 → `volumes` 周记/卷 → `historical` 史记，卷带 `floorStart/floorEnd/srcFps/degraded`），
+  但**没有任何一面答「这两卷之间要接什么、接的时候缺哪一面、旧源还在不在」**。修前实测三处落点缺失：
+  ① 换卷/换会长篇时只能人肉抄上一卷的尾巴，抄漏了没人知道；② 同名角色跨项目被当成同一人隐式接上；
+  ③ 引用一条说不清出处的旧卷，界面上却照样显示「可跳转」。新增 `volume-continuation.js`
+  （纯函数、零依赖、双导出、909 行、33 个出口）把三件事各给一条**可复算的判定**，
+  且**只加归属/导航/预览与闸门，不碰存储、不改既有金字塔**。
+- **不选项目 = 完全隔离，且不得与「空卷」同形**：`normalizeProject()` 拿不到非空 `projectId`
+  ⇒ `buildContinuationPack()` 一律 `ok:false / reason:'no-project'` 且 `pack:null`。
+  ★ 刻意**不**返回「空包 + ok:true」：空包会被下游读成「这卷确实没有可接续的事实」，
+  而真相是「你根本没选项目」——两件事不同形（判据 A1 钉住）。读数 `line()` 对
+  `selected:false` 单列「未选项目（维持隔离）」，与「选了但零条」不同形（判据 A2 钉住）。
+- **卷/章节导航可寻址且稳定**：`listVolumes()` / `volumeAt()` 生成稳定 `navKey`
+  （`vol:proj-long#1`、`ch:proj-long#1.1`），两次调用恒定；`floorStart` 缺省**排后**且记 `null`
+  —— 拿 `0` 冒充「首卷」会让「不知道第几楼」与「确实从 0 楼开始」同形（判据 A4/A5 钉住）。
+- **同名不同宇宙不合并（本面最贵的一条）**：条目身份一律 `id:<entityId>` 优先；
+  只有名字的条目记 `link:'by-name'`，在预览里进 `nameOnly` 候选，**永不**自动进可落笔集合；
+  真要按名字接必须调用方显式 `allowNameLink:true`，且 **`allowNameLink:false` 时两个分支虽同为 `skip`，
+  原因必须不同**（`name-only-candidate` vs `same-value`/`undecided-hold`）。目标侧索引**分两张表**
+  （按 id / 按名字），跨表比对**不发生**——那正是「隐式串联同名角色」的实现方式（判据 B1/B2/B3 钉住）。
+- **缺面 ≠ 空面，且「没给我们装没装」不得读成「没装」**：`faces` 逐面记 `present` / `count` / `reason`；
+  键缺席 ⇒ `present:false / reason:'face-absent'` 进 `absentFaces`；空数组 ⇒ `present:true / count:0`
+  （「比了，确实没有」）。许可收窄 `summary-only` ⇒ 五面**逐面点名**（`reason:'license-summary-only'`），
+  不得因为「没带」就静默消失；`none` ⇒ 连包都不出（判据 C1/C2/C3 钉住）。
+  目标侧缺面 ⇒ **不比对**（不可比 ≠ 相等）且必须点名（判据 C4/C5 钉住）。
+- **源引用状态三态，不许伪装可跳转**：`resolveSourceState()` 输出 `live` / `source-deleted` / `unknown`。
+  ★ 活源表**没给**（`null`/`undefined`）⇒ `unknown` 且 `navigable:false`——「判不了」不是「还在」；
+  给了空数组 ⇒ 查了、没有 ⇒ `source-deleted`；版本漂移 ⇒ `live` 但 `versionShifted:true` 且
+  **不可跳转**（会话还在，但旧锚点已不在原位）。只有「源在场且版本一致」才 `navigable:true`
+  （判据 D1–D4 钉住）。
+- **接续重试不重复 + 撤销有来源范围**：`proposeHandoff()` 的 `proposalId` 由
+  `stableId(packId + 选中键 + 两个开关)` 确定性导出 ⇒ 同一份选择重试恒同 id；
+  落笔借 X6 `confirmImport` 的 `seen` 幂等表 ⇒ 二次调用 `duplicate:true` 且不重复落笔。
+  `revokeHandoff()` **必须拿到 scope**（`packId` / `volumeId` / `sourceRef` 至少一维），
+  没范围一律 `ok:false / reason:'no-scope'`——「撤销」不是「推倒重来」；带范围只撤域内条、
+  域外**一条不动**；多级 scope 各维取**与**（更窄）；已撤条重试不再计并如实报 `alreadyRevoked`
+  （判据 E1–E5 钉住）。回执自带 `revokeScope`（撤销范围不能藏在对象里，判据 E5 钉住）。
+- **秘密带知识范围**：包内条目按 keeper 过滤（与 X6 同口径：实体 ID 优先），
+  挡掉的条数**必须计数可见**（`hidden` / `hiddenBy`），绝不静默少条（判据 B4 钉住）。
+- **交接三步不可合并 + 跨模块只借一份语义**：`handoffContinuation()` 在拿到 X6（`args.bs`）时
+  **逐字借用**其 `precheckImport` / `confirmImport`（回执标 `via:'branch-semantics'`），
+  X6 缺席走本模块同形退路（标 `via:'volume-continuation'`）——两处的受控交接只有**一份**语义。
+  本模块**不 `require` X6、不引用其全局符号**，五面常量自持一份（判据 H3/H4 钉住），
+  防跨模块漂移导致静默读旧值。源已删 ⇒ 预览 `blocked` ⇒ **连提案都不出**
+  （不基于说不清出处的源落笔，判据 F5 钉住）。
+- **宿主真接线与真实落笔闭环**：`manifest.extra_js` 注册（82→83，紧随 X6）；
+  `index.js` 新增 `_volumeContinuation()` 取库、`buildVolumePack()` 建包记读数、
+  `handoffVolumeContinuation()` 交接、`revokeVolumeHandoff()` 撤销与**四法缺席退路**
+  （`return null` ⇒ 模块缺席时降级而非 TypeError）+ 诊断面「分卷接续」体检行
+  （与「分支语义」「知识轨迹」**分列**：那两条答「两条分支差在哪」「这条知识怎么来的」，
+  这条答「用户选没选长篇项目、那一卷能接续几条、哪一面缺、有几个同名候选被挡、旧源还在不在」）；
+  `memory-organs.js` 新增 `applyVolumeContinuation()`（只落本器官真正持有的 `unfinished` 面，
+  其余面如实回报 `not-owned-by-this-organ`）、`volumeContinuationCount()`（按
+  `source:'volume-continuation'` 计数，不按总数）、`volumeContinuationEntries()`（逐条导出供撤销寻址）、
+  `revokeVolumeContinuation(scope)`、`noteVolumeContinuation()`，并持有 `volumeContinuationRead`
+  随世界推进 `export/import`。
+  ★ 落笔走 `owner / epoch 栅栏 / 落盘 / 回读` 四环：`applyFn` 注真写入口；
+  `readback` **先真 `storage.save` 再按来源计数核对**（不取「落笔前后计数差」——
+  `readback` 在 `applyFn` 之后被调用，那时的「落笔前计数」已含本次新增，差值恒 0 ⇒ 一条**永不成立**的判据，
+  正是 X6 轮踩过的坑）；`persisted` 走 **null / true / false 三态**（没尝试落盘 ≠ 已落地 ≠ 落盘被拒）；
+  落笔前后 `_leaseValid` 代际栅栏复核，代际变过 ⇒ 整批标记作废但 `applied` **如实计数**
+  （回滚会二次改状态，且抹掉后没人知道曾经落过）。
+- **判据**：`tests/v3293_x7_volume_continuation.test.mjs`（48 条）锚当版，含
+  **G 段宿主真实落笔闭环**（真方法体 + 真器官 + 真 storage + 真租约 + 真配置闸门）与
+  **4 条真源码破坏**负控制（拆缺面闸门 ⇒ 判据 A 翻红 / 拆同名候选闸门 ⇒ 判据 B 翻红 /
+  拆「没范围就拒绝」⇒ 判据 C 翻红 / 拆「判不了须 unknown」⇒ 判据 D 翻红），原版通过作反向对照。
+- **本版修复留痕（七处，全部实测复验）**：
+  ① **夹具缺件掩盖真隐患**：`makeHost` 未提供 `config.config`，而真实现的 `_leaseValid` 会读
+  `this.config.config.sessionLeaseGuardEnabled` ⇒ 栅栏判据抛错并被出口 catch 吞成 `null`，
+  G 段 6 条读到的其实是「夹具缺件」而非「落笔失败」——真隐患（②）被这层噪音盖住。已补配置并加 G8 反向对照。
+  ② **判据 A 自身写错**：原判据把「任何 add 提案」都算违规，而目标**在场**的那一面本来就该 `add`
+  ⇒ 真源码上恒翻红（报「缺面的条目不得变成 add 提案」，而缺的那四面其实一条提案都没出）。
+  已按「只盯缺的那几面」重写。**判据写错与防线失效同形，都会被负控制测绿。**
+  ③ **判据 C 的触发方式让失败原因失真**：原用「不传 scope」触发，破坏副本的 `sc` 为 `null`
+  继续往下走会在 `sc.packId` 上抛 TypeError ——「判据翻红」与「判据自己炸了」同形，遮住真正的结论。
+  已改用空范围（同样满足「没有可用范围」）走通全流程，让判据以**返回值**翻红。
+  ④ **真隐患（本版最重要的一处，非测试问题）**：`handoffVolumeContinuation` 的 `applyFn` 是
+  **同步真写器官账本**，于是异常可能发生在「已经落了 N 条」之后（实测：账本真增 1 条，随后任一步抛错
+  ⇒ 对外返回 `null`）。上层把 `null` 读成「没成」并重试，就会**重复落笔**——账本真增条而回执说没成，
+  两处不同形。已按本仓既有纪律补：降级照旧（不把降级改成崩溃），但**先留一条可查的作废读数**
+  `_lastVolumeHandoff`（落了条数 / 落盘三态 / 当前来源计数 / 错误消息），且登记块自身用 `try` 自兜。
+  ⑤ **留痕块首版恒不落（上一条修完仍不出现在场）**：`applied` / `persisted` 原声明在 `try` **内部**
+  （块级作用域），catch 分支引用它们抛 `ReferenceError`，而那一抛又被留痕块自己的 `try` 吞掉
+  ⇒ 留痕**永不出现在场**（实测 G9 报 `_lastVolumeHandoff` 为 `undefined`，账本却真落了 1 条）。
+  已把两个变量提到 `try` 之外，并让 G9 用**真落笔后的真实抛错点**触发。
+  ⑥ **读数只有计数 ⇒ 告警条件恒假**：体检行的告警条件是 `absentFaceCount > 0`，而该格全靠调用点
+  自己记得传 ⇒ 任一处漏传即「告警永假、体检行永远不亮」（本仓点名过的形态）。已让
+  `noteVolumeContinuation()` 同时存**面名** `absentFaces` 并由面名兜计数（少传时退化成 0 而不是静默）。
+  ⑦ **判据 D 首版破坏锚点打偏（假绿型）**：原破坏锚 `Array.isArray(liveSources)` 那一行，
+  而判据走的是「源标识缺失」分支 ⇒ 破坏后判据仍绿（破坏不可观测）。已锚到 `unknown-liveness`
+  那一行，并把判据改述为「源标识缺失须 unknown」。
+  另修：判据 B 判据函数缺 `return ''` 收尾（编辑错位）、H5 锚点字面量在测试源码里散落两处导致
+  「只准声明一次」自身翻红（已集中为 `NEG_ANCHORS` 并补「每条锚点在真源码上恰中 1 次」核对）、
+  H9 判定窗口向**后**取越出了体检块（已改向前取）。
+- **判据面（其余修复留痕）**：另有八处属「判据/夹具自身缺陷」，与源码修复分列，避免把
+  「防线没生效」与「防线写错了」读成一件事 —— ① `v3264` 器官缺席退路漏补七个新方法
+  （X6/X7 给 `memory-organs.js` 加了真方法，宿主调用点接了、`OrganFallback` 漏了 ⇒ 模块缺席时
+  抛 `TypeError` 而不是降级；健康树上永不现形）；② `v3232` 的「TOP40 内必须存在同名成员」
+  是**锁当版边界**（`index.js` 增长后边界漂出 TOP40 ⇒ 该断言失效，改判「全文成员名里确有同名」）；
+  ③ `v3159` 的**健康树夹具未物化根级人读文档面**（v3.285.0 起两个文档门读 README/PLAN/CHANGELOG，
+  夹具里没有 ⇒ 门在夹具上判「结构漂移」，而 `[2d]` 要观测的是「每个门在健康树上都能通过」）；
+  ④ `v3116` / `v3159[2d]` / `v3205` 三处共用的**活跃代码总量上界**已越过（本版新增真代码）；
+  ⑤ `host_beast_baseline` 的宿主读数（`index.js` 行数/成员数）随 X6/X7 接线漂移，按探针重建；
+  ⑥ `v3279` 的声明级台账读数断言写死了量级 `5[0-9][0-9]`（v3.279.0 建档时该读数为 5xx，
+  本版全仓真值已 603 / 591）—— 与 ② 同族的**锁当版读数**：红的是「量级漂了」而不是任何被测缺陷，
+  而它要守的命题（零引用必须为 0、不得靠基线洗出来）**仍然为真**。已改为钉**不变量**
+  「有真引用 + 仅测试·审计 = 声明总数」（实跑读数），量级数字降为下限型非空断言；
+  ⑦ O7 副本账本的**登记滞后**（`v3281` / `v3282` / `v3283` / `v3284` 四档）：X6/X7 两个新模块
+  之间出现五簇逐字副本（`numOf` / `keyOf` 两函数簇、`PRECHECK`↔`PREVIEW` 同体别名簇、
+  `FACES` / `ACTION` 两张常量表），四档的登记表都没跟上 ⇒ B1/D1 双向一致判据翻红。
+  ★ 处置是**补登记 + 留痕理由**，不是合并成一份：`volume-continuation.js` 档头**逐字声明**过
+  「本模块自持一份，不引 X6 的常量 —— 跨模块引用常量会把两处的抬版变成一处悄悄读旧值的静默错」，
+  即这是**声明过的双实现**（本仓既有边界口径：不判定某一族应当收拢到哪里，收拢取决于契约，
+  不是文本比对能得出的结论）。另有两簇（两个 UI 门各自的零依赖 DOM shim 里的 `matches` / `walk`，
+  自 v3.287.0 起潜伏）同属此理：让一门 import 另一门会引入「门 A 的 shim 改动影响门 B 的判定」。
+  登记值全部由**抽取各档判据体头部后转储**的探针取得（与判据逐字同源，非手抄 md5）。
+- **门禁读数**（本档受影响的单门均实测 `exit 0`）：`scan_doc_truthfulness.mjs`（D1–D9）、
+  `scan_plan_currency.mjs`（P1–P8）、`scan_version_guard.mjs`、`scan_cross_repo_binding.mjs`、
+  `scan_module_wiring.mjs`，以及本档判据 `tests/v3293_x7_volume_continuation.test.mjs`（48 条）。
+  **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（fail-closed；`1` 与 `2` 的区别是
+  「文档/实现说谎」与「没得判」——后者绝不算通过）。本档**绝不跑全量**（按用户纪律：
+  计划全部内容完成前只跑单门 / 单套件；扫描器不具子进程能力）。
 ## v3.292.0
 **X 系列第四条落地：分支语义对照与受控交接（X6）—— 「这两条分支各是什么，怎么合才不算偷」**
 - **面新增（不是整洁性改动）**：本仓已有 `branch-guard.js`（**生成期**分支守护：防在 A 分支写出 B 分支的

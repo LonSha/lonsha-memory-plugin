@@ -28,6 +28,9 @@ t = rep['total_lines']
 readings = {
     'total_lines': t,
     'member_count': rep['member_count'],
+    # [v3.293.0] 全文同名成员**种类**数：判据「引用读数只能当上界」的据。
+    #   取自探针的全文读数，不用 TOP40 切片（切片边界会随文件增长漂移）。
+    'duplicate_member_names': len(rep['duplicate_member_names']),
     'top5_lines': top5_lines,
     'top5_pct': round(top5_lines * 100 / t, 1),
     'top40_lines': top40_lines,
