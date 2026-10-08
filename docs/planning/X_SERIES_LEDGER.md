@@ -1,4 +1,5 @@
-# X 系列推进台账（v3.289.0 起）
+# X 系列推进台账（v3.289.0 起 · v3.296.0 收口）
+> **收口读数（v3.296.0）**：拓展计划原文的 **X1–X8 八条全部落地**，各条判据套件在磁盘上齐备：`v3289`(X3) / `v3290`(X4) / `v3291`(X5) / `v3292`(X6) / `v3293`(X7) / `v3294`(X8) / `v3295`(X2) / `v3296`(X1)。★ 收口 ≠ 每条都收口：**X2 的依赖 O2 只交付了交互逻辑切片**（真浏览器 + 真 SillyTavern 面未执行，如实登记）；本台账不把「未执行」读成「已通过」（同 O2 验收原文）。
 
 > 用户指令（2026-10-06）：**继续推进 X2–X8，X2 放最后**；**双项目记得都推进**。
 > 本台账是 X 系列实施的工作记录；验收原文以
@@ -14,12 +15,13 @@
 | 3 | **X5** 角色知识演变与传播证据 | X1/X4 | ✅ 均已交付 | ✅ **v3.291.0 已交付**（判据 `tests/v3291_x5_knowledge_trace.test.mjs`） |
 | 4 | **X6** 分支语义对照与受控交接 | O1、X1/X2 | O1 ✅ / X1 ✅ / X2 未做 | ✅ **v3.292.0 已交付**（判据 `tests/v3292_x6_branch_semantics.test.mjs` 46 条） |
 | 5 | **X7** 长篇剧情分卷与选择性接续 | X1/X5/X6 | ✅ 均已交付 | ✅ **v3.293.0 已交付**（判据 `tests/v3293_x7_volume_continuation.test.mjs` 48 条；含 G 段宿主真实落笔闭环 + 四条真源码破坏负控制） |
-| 6 | **X8** 召回问题解释与有证据的策略建议 | O4/O6、X1/X3 | O4/O6 ✅ / X1 ✅ / X3 本批 | 待做 |
-| 7 | **X2** 证据到真实修复的操作流程 | O1/O2/O4 | O1/O4 ✅ / O2 **仅交互逻辑切片、真浏览器面未执行** | 最后 |
+| 6 | **X8** 召回问题解释与有证据的策略建议 | O4/O6、X1/X3 | O4/O6 ✅ / X1 ✅ / X3 本批 | ✅ **v3.294.0 已交付**（判据 `tests/v3294_x8_recall_explain.test.mjs`；七档互斥归因 + 四态纪律） |
+| 7 | **X2** 证据到真实修复的操作流程 | O1/O2/O4 | O1/O4 ✅ / O2 **仅交互逻辑切片、真浏览器面未执行** | ✅ **v3.295.0 已交付**（判据 `tests/v3295_x2_repair_flow.test.mjs` 17 条：A 两态可分 / B 未覆盖范围 / C 悬空分列 / D 证据三态 / E 只读方案 / F 落笔链路 + N1–N6 真源码破坏负控制 + 版本卫生；实测 17/17 全绿） |
 
+| 8 | **X1** 结构化证据查询与完整度（拓展计划原文里的 X1） | —（对既有九账的深化，不阻塞他项） | ✅ | ✅ **v3.296.0 已交付**（`evidence-query.js` 636 行 + 宿主六口与降级回执 + 诊断行「证据查询」；判据 `tests/v3296_x1_evidence_query.test.mjs` 16 条：A 登记表逐字对齐 / B **900 条账里找得到最老那条**（同一台机器上同时证工作台 `search()` 找不到它、`query()` 找得到 —— 只证后者是「函数能跑」，两件一起证才是「缺口真被补上」）/ C 楼层三态不压平 / D 分页不回落 / E 区间反转按空集且给理由 / F 四态不同形 / G 只存条件且重放走当前原账 / H 未知条件名不静默忽略且零写副作用 + N1–N5 真源码破坏负控制 + 7~9 宿主接线与加载面 + V 四源同源与当版锚）。★ 与序 1 注明的**旧 X1**（v3.270.0 `projection-pipeline.js` 注入容量预演）**同名不同物**，两条各自独立、登记与判据不得互认 |
 ## 双项目边界
 
-- **lonsha-memory-plugin**（本仓，v3.293.0 → ）：X3–X8 主战场；X3/X4/X5/X6/X7 已交付，剩 X2（放最后）/X8。
+- **lonsha-memory-plugin**（本仓，v3.296.0 → ）：**拓展计划的 X1–X8 八条全部交付**（X3 v3.289.0 / X4 v3.290.0 / X5 v3.291.0 / X6 v3.292.0 / X7 v3.293.0 / X8 v3.294.0 / X2 v3.295.0 / **X1 结构化证据查询与完整度 v3.296.0**）。★ 注意**同名不同物**：本仓另有两条历史 X1 —— v3.270.0 的注入容量预演（`projection-pipeline.js`）与 v3.272.0 前的一批早期编号，与拓展计划原文里的 X1（结构化证据查询）编号相同、内容不同，登记与判据**不得互认**。
 - **ruby-phone**（实测 v3.63.0）：其拓展计划另有一套 X1–X8（编号相同、内容不同）。
   联动点在原文里点明：memory-plugin 的 **X3 与 RubyPhone X8 配套**、
   **X4 与 RubyPhone 手机事实**同源、**X5 联动 RubyPhone X5**、
@@ -129,20 +131,39 @@
   本仓 X8 的下游消费点候选：诊断面「召回解释」读数可进手机端诊断页。
   按同一 R3 双向对账纪律，**待下游侧先决定消费点**再成对落地，本轮不登记外供面。
 
-### X2 状态（本轮侦察，未实现）
-- 依赖面复核：O1（✅）/ O4（✅）/ O2 **仅交互逻辑切片**（真浏览器面未执行）。
-- ★ 本轮实测把 X2 的一条前置从「阻塞」改为「可补齐」：真浏览器通道**可用且零依赖** ——
+### X2 状态（**v3.295.0 已交付**）
+- 依赖面复核：O1（✅）/ O4（✅）/ O2 **仅交互逻辑切片**（真浏览器面未执行，仍待补）。
+- ★ 侦察期把一条前置从「阻塞」改为「可补齐」：真浏览器通道**可用且零依赖** ——
   `/root/.cache/ms-playwright/chromium-1148/chrome-linux/chrome` 与 `chromium_headless_shell-1148` 二进制在场；
   `playwright` / `puppeteer` / `jsdom` / `linkedom` 驱动包**均未安装**；
   但 Node v24.18.0 自带全局 `WebSocket` ⇒ 可**零依赖直连 CDP**
   （实测 `/tmp/cdp_probe.mjs`：`--headless=new --no-sandbox --disable-gpu --remote-debugging-port=0`
   能起，devtools ws 地址可抽，`/json/version` 返回 `Chrome/131.0.6778.33`、`Protocol-Version 1.3`）。
-  ⇒ 补 O2 真浏览器面不必引入第三方依赖，自建最小 CDP 客户端即可。
-- 实现落点已定位（未动手）：`index.js` 修复面 `requestRepair` / `settleRepair` / `abandonRepair` /
-  `repairRevision` / `previewRepair` / `_repairPool()`（六池单一真源）；
-  `repair-loop.js` 的 `affectedBy` 现用 `mentions-needle` 判候选、正文只看前 200 字，
-  正是 X2 验收要改的那一处；`bridge.apply` 目前**只是登记**，不会自动改摘要/关系/事实。
-- ★ 按用户指令「X2 放最后」，本轮只做侦察与通道验证，**不进入实现**。
+  ⇒ 补 O2 真浏览器面不必引入第三方依赖，自建最小 CDP 客户端即可（**本轮未做**）。
+- 交付面（本版落地）：
+  · **模块侧** `repair-loop.js`：`affectedBy` 返回 `{items, coverage, dangling}`（不再裸数组）；
+    两态 `basis`（`ref` 确切引用 / `needle` 文本候选，去重留更强的那条）；`coverage` 报
+    「池缺席」与「截断（扫到/总数）」；`dangling` 与受影响**分列**；新增只读 `plan()` 与
+    `evidenceOf()`，导出 `BASES`/`EVIDENCE`/`COVERAGE_STATE`/`INVERSE`。
+  · **宿主侧** `index.js`：新增池装配口 `_repairPoolFor(input)`（`refId` / `knownRefs` 的通路，
+    三个判定入口共用）；`_repairPool()` 的 `info` 按 **kind（单数）** 写、`facts` 透出
+    `supersededBy`；`_repairOwners()` 六类逆操作接线表；`applyRepairPlan()` 四步
+    「改数据 → 核原数据 → 落盘回读 → 带证据 settle」；`_verifyRepairItem()` 逐类核验。
+  · **桥面**：只读 `plan(input)`（不对表、不碰账）、写 `applyPlan(input)`（两道门与
+    `apply` **逐字同规格**）；回执 9 键 → **13 键**（新增 `applied/verified/readback/items`），
+    `readback` 三态 `true/false/null`。
+- ★ 本版实测修掉三条「**只在夹具里成立**」的死通路（判据在测试里过、生产上永不生效）：
+  ① 宿主按**池键（复数）**写 `info`，模块按 **kind（单数）** 读 ⇒ `meta` 恒 null、
+     截断读数永不触发（「900 条只看了 200 条」与「真的只有 200 条」同形）；
+  ② `refsOf` 读的 `sourceRefs` / `derivedFrom` **全仓零产出** ⇒ `hitRef` 恒假、`basis` 恒
+     `needle`，「按确切引用找影响」在生产上从来没生效过（现接本仓真实存在的跨条引用
+     `eventKey` / `supersededBy`）；
+  ③ `refId` **无路可入池** ⇒ 模块只能退化拿 `target` 文本去比，而池项自报的是 id，两者永不相遇
+     （现经 `_repairPoolFor` 装配）。
+- 判据 `tests/v3295_x2_repair_flow.test.mjs` 17 条（A–F + N1–N6 真源码破坏 + 版本卫生），
+  实测 17/17 全绿；相邻门禁 `tests/v3194_time_and_fact_version.test.mjs` 20/20、
+  `tests/v3215_repair_write_channel.test.mjs` 14/14、`tests/v3209_migration_registry.test.mjs` 15/15
+  均零破坏（`manifest.extra_js` 未新增模块，仍 84 项）。
 
 ## 纪律（沿用本仓既有口径）
 

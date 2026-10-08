@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 49546,
+  "ceiling": 52238,
   "maxSlack": 400,
-  "note": "v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）",
+  "note": "v3.294.0 X8 召回解释（recall-explain.js 800 行 + 宿主三出口与体检行）+ v3.295.0 X2 修复流程（repair-loop.js 两态依赖/落定证据/方案/落笔通道 + 宿主 _repairPoolFor 与桥接）+ v3.296.0 X1 结构化证据查询（evidence-query.js 636 行 + 宿主取库口/四只读口/诊断行/selfCheck 行）—— 三版均为活跃功能增长（非死代码回流）",
   "history": [
     {
       "ceiling": 21000,
@@ -225,7 +225,11 @@
     {
       "ceiling": 49546,
       "reason": "v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）"
+    },
+    {
+      "ceiling": 52238,
+      "reason": "v3.294.0 X8 召回解释（recall-explain.js 800 行 + 宿主三出口与体检行）+ v3.295.0 X2 修复流程（repair-loop.js 两态依赖/落定证据/方案/落笔通道 + 宿主 _repairPoolFor 与桥接）+ v3.296.0 X1 结构化证据查询（evidence-query.js 636 行 + 宿主取库口/四只读口/诊断行/selfCheck 行）—— 三版均为活跃功能增长（非死代码回流）"
     }
   ],
-  "_history_last": "ceiling 48074 → 49546（实测 49146 + slack 400）：v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）"
+  "_history_last": "ceiling 49546 → 52238（实测 51838 + slack 400）：v3.294.0 X8 召回解释（recall-explain.js 800 行 + 宿主三出口与体检行）+ v3.295.0 X2 修复流程（repair-loop.js 两态依赖/落定证据/方案/落笔通道 + 宿主 _repairPoolFor 与桥接）+ v3.296.0 X1 结构化证据查询（evidence-query.js 636 行 + 宿主取库口/四只读口/诊断行/selfCheck 行）—— 三版均为活跃功能增长（非死代码回流）"
 }

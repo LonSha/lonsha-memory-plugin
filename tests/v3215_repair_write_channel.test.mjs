@@ -10,7 +10,7 @@
  *   ② 幂等只按「未放弃」判重：同键重放不新增记录；**放弃后重试是新意图，必须重新登记**；
  *   ③ 写入面过两道门：缺幂等键拒、预览修订对不上表拒，且**被拒时账不动**；
  *      `expectRevision` 缺省不得被当成 0 而"恰好"通过；
- *   ④ 回执形状恒定 9 键（失败分支与成功分支同形），`revision` 一律回当下修订号
+ *   ④ 回执形状恒定 13 键（失败分支与成功分支同形），`revision` 一律回当下修订号
  *      ——「这次什么都没写」不得与「这次写了」同形。
  *
  * 负控制一律：真源码破坏（锚点恰中 1 次）→ 载入破坏副本 → 在副本上重跑同款判据 → 必须现形。
@@ -61,7 +61,11 @@ function bridgeLiteralOf(src) {
 }
 
 const HOST_METHODS = [
-    '_repairPool() {', 'requestRepair(input) {', 'previewRepair(input) {',
+    /* [v3.295.0 · X2] `_repairPoolFor` 必须一并提取：三个判定入口（request/preview/plan）
+     *   都走它（它才是**池的装配口**，`_repairPool` 只收池本身）。漏掉它时
+     *   `this._repairPoolFor is not a function` 会让整批判定静默失败，
+     *   而现象是「预览不成功」——与本套件的判据毫无关系的那种红。 */
+    '_repairPoolFor(input) {', '_repairPool() {', 'requestRepair(input) {', 'previewRepair(input) {',
     'settleRepair(input) {', 'abandonRepair(input) {', 'repairRevision() {'
 ];
 
@@ -117,10 +121,14 @@ function ctxWith(src, rl) {
     return { host: eng, bridge: bridgeFrom(src, { engine: eng }) };
 }
 
-const RECEIPT_KEYS = ['ok', 'reason', 'repairId', 'action', 'affected', 'total', 'revision', 'replayed', 'at'];
+/* [v3.295.0 · X2] 9 键 -> 13 键。新增的四项是 X2 落笔通道的读数，但**全体方法都恒有**
+ *   （默认 0 / null / []）——本常量约束的从来不是「有哪些读数」，而是
+ *   「**同一个命名空间里不许出现两种回执形状**」。故这里跟着扩，而不是给新方法单开一份。 */
+const RECEIPT_KEYS = ['ok', 'reason', 'repairId', 'action', 'affected', 'total', 'revision', 'replayed',
+    'applied', 'verified', 'readback', 'items', 'at'];
 function assertReceiptShape(r, tag) {
     assert.deepEqual(Object.keys(r).slice().sort(), RECEIPT_KEYS.slice().sort(),
-        tag + '：回执必须 9 键恒定（少一个键 = 失败分支与成功分支不同形）');
+        tag + '：回执必须 13 键恒定（少一个键 = 失败分支与成功分支不同形）');
     assert.ok(Number.isFinite(r.at) && r.at > 0, tag + '：at 是时间戳');
     assert.ok(Array.isArray(r.affected), tag + '：affected 恒为数组');
     assert.ok(Number.isFinite(r.total) && Number.isFinite(r.revision), tag + '：total/revision 恒为数字');
@@ -365,7 +373,7 @@ const JUDGE = {
         const r3 = c.bridge.repair.apply(inp);
         return r3.ok === true && r3.replayed === false && r3.repairId !== r1.repairId;
     },
-    /** 回执形状恒定（9 键，含 revision） */
+    /** 回执形状恒定（13 键，含 revision） */
     receiptShape(src, rl) {
         const c = ctxWith(src, rl);
         const ok = c.bridge.repair.apply({ action: 'revoke', subject: '苏晴', target: '住老城', idempotencyKey: 'ks', expectRevision: 0 });
@@ -396,9 +404,17 @@ test('v3215 10. 负控制：四处真破坏必须在同一套判据上各自现�
         assert.equal(JUDGE[name](idxSrc, RL), true, `原版：判据 ${name} 必须为真`);
     }
 
+    // N1 前置：门要两个写动作**同规格**。原版上这道守卫恰好出现 2 次（apply / applyPlan），
+    //   验的是「不许只给 apply 加门、applyPlan 漏门」——一半严一半松，调用方会把重试放去松的那边。
+    assert.equal((idxSrc.match(/i\.idempotencyKey == null \? '' : i\.idempotencyKey/g) || []).length, 2,
+        'N1 前置：两个写动作（apply / applyPlan）必须复用逐字相同的门①');
     // N1 破坏：门①的守卫被短路 ⇒ 缺键不再被拒（会掉到门②，reason 变成 revision-mismatch）
+    //   N1 锚点为什么要**带上上一行注释**：X2 起 `applyPlan` 是同一命名空间里的**第二个写动作**，
+    //   按纪律它与 `apply` 复用**逐字相同**的门①——裸行锚点于是命中 2 次，`_break_kit` 的
+    //   「恰中 1 次」当场抛（这正是它该做的事：不唯一的锚点会拆一处、留一处，判定就被掩护住）。
+    //   带上 `apply` 独有的那行注释后锚点回到唯一；`applyPlan` 侧的门由 X2 自己的套件覆盖。
     const n1 = breakSource(idxSrc,
-        "if (!String(i.idempotencyKey == null ? '' : i.idempotencyKey).trim()) {",
+        "// 门①：幂等键必填（空串 / 缺省都算没给）\n                if (!String(i.idempotencyKey == null ? '' : i.idempotencyKey).trim()) {",
         'if (false) {', 'N1');
     assert.equal(JUDGE.missingKeyGate(n1, RL), false, 'N1：门①被拆掉后，缺键拦截必须现形');
 

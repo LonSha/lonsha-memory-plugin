@@ -49,10 +49,20 @@ const CP_CODE = stripComments(CP_SRC);
 
 /** 抽取一个方法体（含签名与花括号），与 v3174 / v3238 同款口径。 */
 function extractMethod(source, name) {
-    const marker = name + '(';
-    const start = source.indexOf(marker);
-    assert.ok(start > 0, '找不到方法 ' + name);
-    const bodyStart = source.indexOf('{', start);
+    /* [v3.296.0 判据自身缺陷修正 · 与 v3239 同款] 原用 `source.indexOf(name + '(')` 取「方法体」——
+     *   那命中**首次出现**，包括**调用点**：X1 落地后宿主里出现一处早于定义的
+     *   `this._numOrNull(...)` 调用（召回解释读 recall 记录的 floor，index.js:2981），
+     *   定义却在 12375 行，抽出来的片段以 `_numOrNull(_rec.floor),` 起头，
+     *   `new Function` 解析期直接 SyntaxError —— 把「锚点漂了」误报成「实现坏了」。
+     *   改锚**声明形态**（行首缩进 + 名字 + 参数表 + `{`，从该 `{` 起配平取体）：
+     *   判据要的一直是方法体，强度不变，且不再受「文件里谁先提到这个名字」影响。 */
+    /* [v3.296.0] 声明形态锚：行首缩进 + 可选的 async/function 前缀 + 名字 + 参数表 + `{`。
+     *   不含前缀的版本会漏掉模块级 function 声明（v3252 抽 diffPayloads 时即栽在此）。 */
+    const decl = new RegExp('(?:^|\\n)([ \\t]*)(?:async[ \\t]+)?(?:function[ \\t]+)?' + name + '\\s*\\([^)]*\\)\\s*\\{');
+    const m = decl.exec(source);
+    assert.ok(m, '找不到方法 ' + name);
+    const start = m.index + (m[0].startsWith('\n') ? 1 : 0) + m[1].length;
+    const bodyStart = m.index + m[0].length - 1;
     let depth = 0, end = -1;
     for (let i = bodyStart; i < source.length; i++) {
         if (source[i] === '{') depth++;

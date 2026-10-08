@@ -1,3 +1,223 @@
+## v3.296.0
+**X 系列最后一条：X1 结构化证据查询与完整度 —— 「200 条摘要里找不到」不再等于「全库没有」**
+- **缺口（修前实测，两条都写在 `evidence-workbench.js` 自己的实现里）**：
+  ① **只有关键词检索**：`search(face, query, opts)` 只收 `{ limit, ledgers }`，命不命中由
+  `scoreOf(title, detail, q)` 的关键子串打分决定 —— 「按角色找」「按楼层区间找」「按状态找」
+  「按来源身份找」「按修订号找」全**无处可查**；而 actor / keeper / about / who / actors
+  这些**结构化参与者**在各账里都真实存在，只是各自被折进 detail 文本里靠眼睛认。
+  ② **只看得到最后 200 条**：`readLedger` 是 `items.slice(-MAX_ITEMS_PER_LEDGER)`（=200）**先切后投影**
+  ⇒ 「这本账有 900 条」与「这本账有 200 条」在面上**完全同形**。而 X1 验收原文写着
+  「**超过 200 条的旧证据仍能按需检索**」「**不默认在 200 条摘要中找不到就判全库没有**」。
+- **交付**：`evidence-query.js`（636 行，纯函数、零依赖、IIFE + CJS 双导出，版本常量
+  `QUERY_VERSION = 1`）。三条补法，**都不改既有面**：
+  ① `query(spec, opts)` 在**原账状态**上做组合筛选（账本 / 参与者 / 楼层区间 / 状态 /
+     来源身份 / 修订号区间 / 正文子串，逐条件**与**语义，条件全空即全收）；
+  ② 分页与排序由**匹配总数**驱动（不是由摘要长度驱动），`sort` 走登记表；
+  ③ **完整度读数**：扫描范围逐账报 `total / kept / truncated`，取不到的账单列 `absent`
+     （带 `module-missing` / `module-unavailable` / `state-missing` 三因）、空账单列 `empty`，
+     并**显式**报出「本面绕过 200 条摘要、直读原账全量」（`coverage.summaryBypassed = true`）。
+- ★ **单一真源：账本登记表仍只有一份**。本模块经 `opts.ledgers`（= 工作台 `LEDGERS`）
+  复用它的 `state / pick / project / keyOf`，**绝不另抄一份「哪本账取哪个字段」的取值代码** ——
+  本仓在 v3.233.0 的 event-completeness 上踩过「照抄别账字段名 ⇒ 恒空」这一族缺陷
+  （该账顶层**没有** floor/source，只有 segments 段，故 `timeFloorsOf` 单独为它取楼层）。
+  本模块自己的 `FACETS` 表只声明**检索面**（哪几个字段算参与者 / 算时间 / 算来源），
+  并以 `facetsAligned()` 与 `LEDGERS` 的 id 集合**逐字对账**（少一个 id 即报红）。
+- ★ **口径分列（两处刻意不合并）**：`MAX_SCAN_PER_LEDGER = 20000` 是**扫描上限**，
+  不是取数窗口 —— 工作台的 `MAX_ITEMS_PER_LEDGER = 200` 是另一件东西；
+  `searchEvidence`（关键词打分）与 `searchEvidenceStructured`（结构化组合筛选）**两者都留**，
+  不合成一口：合成会让回执里的 `total` 到底是「命中数」还是「打分过线数」无从分辨。
+- **四态不压平**：`ok` / `empty` / `absent` / `inverted-range` 各自成态；
+  楼层**三态**（`floor:0` 是真楼层、`floor:null` 未给、未来楼层）—— 无楼层行既不得被当成 0 楼命中、
+  也**不得**静默丢，被排除的必须**单独计数并点名原因**（`matchRow` 返回具名原因：
+  `ledger` / `status` / `source` / `actor` / `has-floor` / `floor-unknown` / `floor-range` /
+  `revision-absent` / `revision-range` / `text`）。区间反转按**空集**且给理由（**不自动交换** ——
+  交换会查出另一个区间而不报错）。翻过头如实报 `pageOutOfRange` 且 `rows` 为空（**不回落第一页** ——
+  回落会让「你翻过头了」与「这就是全部」同形）。
+- **保存的是条件，不是第二份证据库**：`upsertSaved` / `removeSaved` / `replaySaved` 为纯函数，
+  保存项**只存条件**（键面里没有 `rows` / `total` / `hits` / `items` / `scanned`），
+  重放走**当前原账**重跑并自报 `keyMatched`；同条件同键（`replayKeyOf`），有条数上界。
+- **宿主真接线**：`manifest.extra_js` 注册（84→85，紧随 `evidence-workbench.js` —— 本模块复用它当登记表真源）
+  + `index.js` 取库口 `_evidenceQueryLib`、登记表复用口 `_evidenceQueryLedgersOf`、
+  四个只读口（`searchEvidenceStructured` / `evidenceQueryFacets` / `saveEvidenceQuery` /
+  `removeEvidenceQuery` / `replayEvidenceQuery` / `evidenceSavedQueries`）与**同键面降级回执**
+  `_evidenceQueryEmpty`（模块没挂时下游按键断言不必猜）+ 诊断行「证据查询」
+  （**空 / 查不到 / 没东西可查三者分开写**；诊断行里**不跑真查询**，免得为一行字面扫九账全量）
+  + `selfCheck` 表「证据查询」行。宿主侧**不得出现 `apiGlobal`**（那是登记表专有字段，出现即第二份真源）。
+- **保存查询刻意不落盘**：写进 `ARCHIVE_TOP_LEVEL_KEYS` 要连带改携带契约，而书签跨对话无意义 ——
+  故本次会话内有效，理由写进实现注释。
+- 判据 `tests/v3296_x1_evidence_query.test.mjs`（16 条，新建）：A 登记表逐字对齐 / B **900 条账里找得到最老那条**
+  （同一台机器上同时证 `evidence-workbench.search()` 找不到它、`evidence-query.query()` 找得到 ——
+  只证后者是「函数能跑」，两件一起证才是「缺口真被补上」）/ C 楼层三态不压平 / D 分页不回落 /
+  E 区间反转按空集且给理由 / F 四态不同形 / G 保存查询只存条件且重放走当前原账 / H 未知条件名不静默忽略
+  且零写副作用 + N1–N5 真源码破坏负控制 + 7~9 宿主接线与加载面 + V 四源同源与当版锚。
+- ★ **本版修复留痕（全部实测，判据套件调试期）**：
+  ① **N3 首版破坏不可观测（假绿）**：破坏点选的是 `const rows = outOfRange ? [] : ...` 这个三元式，
+     而 `pageOutOfRange` 仍报 `true` ⇒ 判据看不到差别，「破坏后翻红」是假的；改破坏**越界标记本身**
+     （`const outOfRange = ...` → `const outOfRange = false;`）才是可观测破坏。
+  ② **G 段首版把判据写反了**：原写「重放结果里不得出现新加的条目」—— 而重放**本就该**看到当前原账的新条目，
+     那是「走当前原账」的**证据**；改为检查**保存项自身键面**不得含结果字段。
+  ③ F 段三态计数首版写错（hostTiny 应为 ok=5 / empty=1 / absent=3）；锚点纯度检查首版把锚点内联成
+     普通字符串、真换行写成 `\n` 转义 ⇒ 锚点值不再等于真源码行，四处恒 0（改 `ANCHORS` 表 + `String.raw`）；
+     G 段回放项按 `replayKey` 取回而非按名字。
+  ④ **夹具比被测物更容易骗人**：`searchEvidenceStructured` 经 `_ledgerApis()` 注入账 API，
+     夹具里必须**一并给** `_moduleLib` / `_workbench` 取库口与三个助手（`_factVersionLib` /
+     `_eventCompletenessLib` / `_repairLoopLib`）—— 首版漏了 `_moduleLib` ⇒ `_evidenceWorkbenchLib()` 抛
+     ReferenceError、被 `_evidenceQueryLedgersOf` 的 try/catch 吞成 `[]`，现象是「复用到的账本数 = 0」，
+     看着像**接线断了**、其实是夹具缺件（与 v3.293.0 夹具缺 `config.config` 同族）。
+- **抬版连带（本版实测：v3.294.0 / v3.295.0 两版留下的登记与抬版仪式此前全部滞后）**：
+  `v3209` 的 `extra_js` 数量锁两处 84→85；`v3247` 的 REGISTRY 补登 `v3294` / `v3295` / `v3296`；
+  `catalog_reference_consumers.tsv` 参考基准补登同三档；`host_beast_baseline.json` 重建
+  （探针读数 **15326 行 / 568 成员**，重建是追加不是改写）；
+  `dead_code_budget.json` 上界 49546 → 52238（三版均为活跃功能增长，非死代码回流，理由落 `note`）；
+  README / PLAN 的版本与在役读数与磁盘对齐（测试 277 / 审计门禁 59（磁盘 62）/ 根级 .js 86 / extra_js 85）。
+- 边界（诚实）：本模块只做**只读**检索与**条件**保存，不写任何账、不摸 storage、不拉长取数窗口。
+  **本版即「计划收口点」**（X 系列八条全部交付 ⇒ 按纪律在此跑一次全量）：
+  全量 `npm test` **277/277 文件 · 2986 断言 · 0 失败**；`npm test -- --audit` **审计 59/59**；
+  登记 `tests/audit/doc_readings.json`（零手抄重绑），README / PLAN 快照行同批对齐。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**；本版读数均为**定向复验**，新增判据**绝不跑全量**。
+### 收口轮（同版内补记，全部实测）
+- **为什么跑全量**：X 系列八条全部交付 ⇒ 计划收口，按仓内纪律把全量集中到此处跑一次。
+  首跑 **273/277**（4 档真红），逐个定位修复后复跑 **277/277 · 2986 断言 · 0 失败**；
+  62 个 `tests/audit/scan_*.mjs` 零红；A1 系列九档 + 两套负控制（`_negctl3296_a1b.py` /
+  `_negctl3296_member.py`）全 PASS。
+- ★ **四个全量缺陷（各自的根因，不是「改大小写」这种事）**
+  ① `v3145_restore_lock`：`epoch: this._mutationEpoch }` 捕获点**硬锁恰 3 处**。
+     该数字是 v3.145.0 的一次性事实；v3.292.0 起 X6（分支导入）/ X7（分卷接续）/ X2（修复计划）
+     的宿主真实接线各新增一个同形捕获点，实测 6 处。锁当版字面量会把**活跃功能增长**判红。
+     交棒为版本无关的**结构不变量**：捕获点 `>= 3`，且**每一处都必须被 `_leaseValid` 消费**
+     （分割窗口配对：逐捕获点到下一捕获点之间必须有校验）——「捕获了身份却从不核」这个真缺陷
+     才会被这条抓住，只看数量是抓不住的。
+  ② `v3281_o7_module_copy_ledger` B1 + D1：X1 的 `evidence-query.js` 与工作台
+     `evidence-workbench.js` 各有逐字相同的 `text()`（体 md5 `fb00e488`），而它是**未登记**的新簇
+     （磁盘实测 18 簇 / 63 对，档头原写 17 / 62）。处置是**补登记 + 写清留两份的理由**
+     （通用文本原语，不是账本字段取值代码；两模块装载时机互不包含，收拢会把「本模块自足」
+     换成「依赖另一模块先挂载」＝本仓反过的跨模块静默读旧值），不是合并。
+  ③ `v3239_null_is_not_zero` E1：`explainRecallHost` 的 `audit.floor` 仍走旧判据
+     `Number.isFinite(Number(_rec.floor)) ? … : null` —— 它把 `null` / `` / `[]` 一律读成 **0**
+     （`Number(null) === 0`），于是「楼层未记」与「第 0 楼」塌成同形，而下游 `recall-explain.js`
+     正是按 `audit.floor` 与查询楼层做身份核对。改走真源口 `this._numOrNull(_rec.floor)`。
+  ④ `v3288_plan_currency_xface` D：原断言「X2 未交付须在现状节显式在列」在**八条全交付**后
+     前提消失（再要求某编号标「尚未实施」＝要求文档说假话）。二次交棒为等价结构不变量：
+     ① 八个编号**一个都不能被静默摘掉**；② 在列的每个编号**必须带显式状态词**
+     （后者才是「已交付项漏标状态」的真拦网）。
+- ★★ **两处「判据自身缺陷」被同一次修复连带暴露（比上面四条更值得记）**
+  ⑤ `v3239` / `v3238` / `v3252` 三档的 `extractMethod` 都用 `source.indexOf(name + '(')`
+     取「方法体」—— 那命中**首次出现**，包括**调用点**。③ 修完让宿主里出现一处早于定义的
+     `this._numOrNull(...)`（index.js:2981 vs 定义 12375），于是抽出来的是以
+     `_numOrNull(_rec.floor),` 起头的**非法片段**，`new Function` 解析期直接 `SyntaxError`。
+     现象是 A2/A3/C1/D1 四档齐报「实现有问题」，**而实现完全正确** —— 「锚点漂了」被误报成
+     「实现缺陷」（本仓 E6 形态，与 v3.296.0 主线那批「假绿」同族：都是**判据的读数不真**）。
+     修法：改锚**声明形态**（行首缩进 + 可选 `async`/`function` 前缀 + 名字 + 参数表 + `{`，
+     从该 `{` 起配平取体）—— 带接收者的调用点天然不匹配。★ 收口轮内自己又栽一次：
+     首版漏了可选前缀，`v3252` 从模块抽 `function diffPayloads(a, b) {` 时匹配失败，
+     报「找不到方法 diffPayloads」；补前缀后三档齐绿（**同一个坑在半小时内踩了两次**）。
+  ⑥ 8 档（`v3232` / `v3257` / `v3259`~`v3264` / `v3266`）翻红的其实是**基线陈旧**，
+     不是缺陷：③ 在 `explainRecallHost` 内加了 4 行理由注释 ⇒ 宿主 15326→15329、
+     该成员 121→124。处置按仓内纪律「读数零手抄」走探针 + `tools/_rebuild_host_beast.py` 重建，
+     并把 `line_budget.note` 与 history 末条 reason **同批**同步到新读数
+     （两处必须逐字相同，由 v3266 C 的「note 必须是最后一条历史理由的复述」把守）。
+- **交付的收口脚本（全部落盘可复跑）**：
+  `tools/bump3296_ledger.py`（X 系列台账补 X1 行 + 双项目边界行 + 收口读数）、
+  `tools/bump3296_plan_p8.py`（现行排序节第 3 条标题面去编号）、
+  `tools/bump3296_a1_line_budget.py` / `bump3296_member_budget.py` / `bump3296_member_budget3.py`
+  （A1 行数/成员上界登记面交棒）、`tools/fix3296_fulltest4.py`（全量四缺陷）、
+  `tools/fix3296_v3239_extract.py` / `fix3296_v3238_v3252_extract.py` / `fix3296_extract_regex2.py`
+  （判据自身缺陷）、`tools/bump3296_host_beast_rebind.py`（基线按真读数重绑）、
+  `tools/bump3296_docs_rebind.py`（README/PLAN 快照与体量行）。
+  ★ 补丁一律「**全部锚点先校验（须各恰中 1 次）→ 通过后统一写盘**」：收口轮实测该纪律抓到
+  一次「半改造」（A3 锚点因首版改动而与真源差一个词 ⇒ 命中 0 ⇒ 整个脚本拒绝写盘、
+  前四项补丁未静默落地），与 v3.294.0 留痕里那次半改造是同一族。
+- **本版最终读数**：全量 `npm test` 277/277 文件 · 2986 断言 · 0 失败；
+  `npm test -- --audit` 审计 59/59；`index.js` 15329 行（物理行）/ 探针 15329 行 · 568 成员；
+  `line_budget` 上界 15726（余量 397 ≤ maxSlack 400）。
+## v3.295.0
+**X 系列最后一条落地：X2 证据到真实修复的操作流程 —— 「仅登记」不再能显示「事实已纠正」**
+- **面新增（不是整洁性改动）**：此前 `bridge.repair.apply` **只是登记台账**，没有任何一处
+  派生数据被证明改过；而界面显示「已纠正」的唯一依据就是账上的 `done`。于是「我改了」
+  与「我证明我改了」在账上**逐字同形**。本版把流程补全到可执行：
+  `plan`（只读方案：每条派生件该怎么改、谁来改、能不能撤、拿什么证明）→
+  `applyPlan`（**真落笔**：走原 owner 的逆操作 → 核原数据 → 保存并回读 → 带证据 settle）。
+- **两态依赖判据（`BASES = ref / needle`）**：计划点名「按**确切依赖引用**找影响，旧内容的
+  文本命中**只标候选**」。修前 `affectedBy` 只有 needle 一态 ⇒ 「这条确实由被撤的事实派生」
+  与「正文里恰好出现了这个名字」在 `affected` 清单上**完全同形**。现每项带 `basis`
+  （`ref` 确切引用 / `needle` 文本候选），去重规则改为「同 kind+key 只留**更强**的那条」。
+- ★★ **实测发现一处「判据只在测试夹具里成立」的死通路（本版最值钱的修正）**：
+  `refsOf` 读的是 `sourceRefs` / `derivedFrom` 两个字段，而这两个名字在全仓**零产出**
+  （`sourceRefs` 只命中 `stale-guard.js` 的 change-set 入参，那是另一件东西；
+  `derivedFrom` 只有 `repair-loop.js` 自己）。后果：`hitRef` 恒假、`basis` 恒 `'needle'`，
+  计划点名的「按确切引用找影响」**从来没有生效过**——一条在生产上不可达的判据。
+  修法：接上本仓**真实存在**的跨条引用 —— `supersededBy`（事实换代时指向取代它的那条 id，
+  `fact-version.js:309`）与 `eventKey`（写入时的幂等键 = 这条是从哪个事件产生的，账本实体契约）；
+  宿主侧 `facts` 池**原样透出** `supersededBy`。
+- **`refId` 必须真能送到池上**：模块判确切引用时把 `pool.refId` 与池项自报的引用比；
+  若调用方给的 id 到不了池上，模块只能退化拿 `target` **文本**去比，而池项自报的是 **id**
+  ——两者永不相遇。故新增宿主 `_repairPoolFor(input)` 作为**池的装配口**，
+  三个判定入口（`requestRepair` / `previewRepair` / 桥的 `plan`）共用**同一份**装配，
+  免得一处带了 `refId`、另一处没带，出现「预览是候选、登记是引用」这种漂移。
+- **未覆盖范围必须报出来（`coverage`）**：`relations` 取前 200、`timeline` 取末 100 是
+  **既有**护栏，但它此前从未被报出来 —— 「扫了 200 条、真的没有」与「总共 900 条、
+  只看了 200 条」在 `affected` 清单上同形。现在 `coverage` 给出
+  `{state, scanned, absent, truncated, note}`，`note` 是可读文本
+  （如 `未覆盖：summary(池缺席)、relation(截断 200/900)`）。
+  ★ 注意 note 里的名字是 **kind（单数）**，不是池键（复数）：逐条按 kind 报，两侧同口径 ——
+  文档若写成复数，就与本条自己点名要治的「两边口径不一致」同形。
+  ★ 同一处的**第二个静默缺陷**：宿主 `_repairPool()` 的 `info` 曾按**池键（复数）**写，
+  而模块按 **kind（单数）**读 ⇒ `meta` 恒 null、截断读数**永不触发**。两侧口径已对齐，
+  模块侧并容忍两种写法（与 `poolList` 同一风格：静默取不到就等于「判不了被当成没截断」）。
+- **`dangling` 补上一条八十七个版本未兑现的声明**：`repair-loop.js` 档头从 v3.194 起就写着
+  输出含 `dangling`，而**全仓零实现** —— 声明的输出从来没出现过。本版实现：
+  登记「本身与本次修复无关、但自报引用点不到」的项，与「受影响」**分列两个出口**。
+- **落定证据单列一维（`EVIDENCE` 三态）**：`settle` 此前只吃 `status`。现要求逐项自报
+  `originData`（原数据已核）+ `persistedReadback`（落盘回读已证），两者均真才 `confirmed`；
+  ★ 记录级 `status` 口径**逐字保持旧语义**（`待落定>0 ⇒ open`；否则 `failed/missing>0 ⇒ partial`；
+  否则 `applied`），证据落在**独立两字段** `rec.evidence` / `rec.unproven` 上。
+  为什么不合进 `applied`：`status` 回答的是**流程**（这条落定了没有），把它与
+  「有没有被证明」并进同一维，等于让一个字段同时回答两个问题 —— 本仓那族
+  「同一形状两个读数」正是这样长出来的。旧档缺这两个字段时**现算**而不是给死默认
+  （给 `'unconfirmed'` 会把「旧数据没这一维」写成「这些修改被证明没证据」，那是对历史的错判）。
+- **`settle` 的幂等判据带上证据**：只比 `status` 的话，「先报 done（无据）、后补证据再报一次」
+  会被当成重放而**丢掉证据** —— 那正是本版新加的那一维，不能栽在旧幂等上。
+- **两态落定（候选默认不动）**：`basis==='needle'` 的项除非调用方显式
+  `allowCandidates:true`，一律落 `failed` + `candidate-unconfirmed`，**不猜、不改**；
+  这不是「没做成」，而是「必须先由人确认」，两态在回执里分开计数。
+- **撤销只在原 owner 能提供逆操作时开放**：模块侧只登记**语义名**
+  （`INVERSE`：summary→restore-text / event→abandon-event / relation→rebuild-edge /
+  promise→cancel / fact→revoke / timeline→drop-entry），方法名与运行期接线归宿主
+  （`_repairOwners()` 六类接线表，缺面 ⇒ `null` 并如实落 `no-inverse`，**不是**静默照撤）。
+  逐类核验判据不同（每类改法不同）：摘要取**前缀**比对（`smartTruncate(t,2000)` 会截断，
+  全等会在长文本上恒假 ⇒ 一条永不成立的判据）、事件判 `abandoned===true`、
+  关系判旧边已不在且新边已建成、约定判 `cancelled`、事实判 `revoked===true`、
+  时间线判该 id 已不在。
+- **落笔四步顺序不可换**：先改数据 → 再核原数据 → 后落盘回读 → 最后带证据 settle。
+  回读**只做一次**（覆盖本次全部已改项：N 项做 N 次就是 N 次全量序列化，本仓代价最高的一步）；
+  代际栅栏 `_leaseValid` 复核后**已落条数如实计数**；异常分支**先留 `_lastRepairApply` 作废读数
+  再返回 null**（防「留过但没回执」被读成「没成」而重试，于是重复落笔）。
+- ★ 与 X6/X7 的**关键差别**：它们的回读读「来源计数」，本面必须读**这份派生件自身的值**
+  ——本面要证的是「这一条**改了**」而不是「多了一条」；计数式回读在改文字上**恒真**，
+  是一条永不成立的判据。
+- **回执从 9 键统一扩到 13 键**（新增 `applied` / `verified` / `readback` / `items`，
+  其余方法恒给默认值 0 / 0 / `null` / `[]`）。为什么不是「只给 `applyPlan` 加三个键」：
+  v3215 的 `assertReceiptShape` 钉的是「**同一命名空间内所有方法**回执键集逐字相同」，
+  只给新方法加键，会让命名空间里出现两种形状 —— 那正是该判据要防的。
+  `readback` 用三态 `true/false/null`（**没尝试** ≠ 试了失败，本仓同族纪律）。
+- **判据**：`tests/v3295_x2_repair_flow.test.mjs`（新建）**17 条**，实测 **17/17 全绿**：
+  A 两态可分 / B 未覆盖范围 / C 悬空分列 / D 证据三态 / E 只读方案 / F 落笔链路，
+  另配 **N1–N6 六条真源码破坏负控制**（每条都断言「破坏副本上同一判据必须现形」+
+  「原版上同判据必须通过」双向对照）与版本卫生 V。
+  既有判据回归零破坏：`v3194` 20/20、`v3215` 14/14、`v3209` 15/15 全绿
+  （后两者同批扩到 13 键，并补 `_repairPoolFor` 进 `HOST_METHODS` 提取名单 ——
+  漏掉它会让三个入口静默失败，现象是「预览不成功」，与本套件判据毫无关系的那种红）。
+  ★ 本套件自身修掉的两类**提取器/夹具**缺陷（都不是被测代码问题，但都会造出假红）：
+  · 宿主方法体是**自由变量**环境：`_repairLoopLib()` / `_factVersionLib()` /
+    `_eventCompletenessLib()` 定义在 IIFE 顶层、不在 class 内，只抠方法体会得到
+    `ReferenceError`，被方法自己的 `try/catch` 吞成 `reason:'thrown'`（现象是「登记必须成功」
+    这种与判据无关的红）；且**不能靠给 `new Function` 传一个同名 lambda 参数**绕过 ——
+    源码里的 `function _moduleLib(...)` **声明会遮蔽参数**（那个 lambda 一次都没被调用过）。
+  · 夹具必须按真宿主建模：`storage.save` / `load` 要成**一对**（`load` 回**落盘快照**，
+    而不是运行时当前状态），`collectExport()` 要读 `this._repairState`（经
+    `Object.assign` 造出的引擎，闭包里的 `h._repairState` 与 `eng._repairState` 是两个对象）——
+    否则「落盘」在夹具里等于没发生，`readback` 判的就不是真宿主那件事。
+
 ## v3.294.0
 **X 系列第六条落地：召回解释（X8）—— 「这一轮为什么没有那条记忆」的七档归因**
 - **面新增（不是整洁性改动）**：本仓已有「召回自检」（`_recallAudit`：查了什么 / 命中几条 / 各源分布）

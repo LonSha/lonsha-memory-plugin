@@ -331,7 +331,36 @@ test('v3266 C. 加载面与基线：memory-core 恰 1 项且在 memory-config �
     assert.equal(b.measured_at, 'v' + (/const VERSION = '([0-9.]+)'/.exec(IDX) || [])[1], '当版须已在基线留读数');
     assert.ok(b.rebuilds[b.measured_at], '当版须在 rebuilds 面留读数');
     assert.equal(b.rebuilds[b.measured_at].readings.total_lines, b.readings.total_lines, 'rebuilds 与 readings 同读数');
-    assert.ok(b.readings.total_lines < 15000, '★ A1 验收线：本刀后宿主须 < 15000 行，实测 ' + b.readings.total_lines);
+    /* [v3.296.0 交棒] 原文是 `total_lines < 15000` ——【硬锁当版里程碑】（文案「本刀后」，
+     *   本档出生于 v3.266.0，那一刀后实测 13883，里程碑当时**真的**达成）。
+     *   它与本档下面那段 dead_code 断言踩过的是**同一族的坑**（CHANGELOG v3.273.0 留痕）：
+     *   把「某版的一次性事实」当永久不变量 ⇒ 后续活跃功能增长（X 系列八条宿主接线 +769 行）
+     *   把它推回线上，翻红的信息量只剩「数字不够小」。
+     *   而 A1 的**拆分任务**已于 v3.266.0 收官，现行裁定见
+     *   `.agents/notes/proposed/architecture/2026-10-04-optimization-plan.md` 的「过时内容裁定」表
+     *   （「index 瘦身至 <15000 行 → v3.266.0 已达成」）与 O7（继续追行数会「搬走代码却保留两套维护面」）。
+     *   交棒**不弱化**判据面，只改锚到可机检事实：① 里程碑留痕不许抹史；② 活体上界须能被
+     *   最后一条 history 解释（静默改数 ⇒ 红）；③ 单调守卫 18401 照旧。 */
+    const _lb = b.line_budget || null;
+    assert.ok(_lb && Number.isFinite(_lb.ceiling), '宿主行数上界必须登记（否则「长回线上」无人管）');
+    const _lbHist = Array.isArray(_lb.history) ? _lb.history : [];
+    assert.ok(_lbHist.length >= 2, '上界历史须含「里程碑达成」与「本次抬升」两条，实测 ' + _lbHist.length);
+    const _lbFirst = _lbHist[0];
+    assert.equal(_lbFirst.ceiling, 15000, '首条历史必须是 A1 里程碑上界 15000');
+    assert.ok(_lbFirst.milestone_version, '首条历史必须标注里程碑达成版本');
+    const _mv = b.rebuilds[_lbFirst.milestone_version];
+    assert.ok(_mv, '里程碑版本必须在 rebuilds 面留读数（达成记录不许抹掉）：' + _lbFirst.milestone_version);
+    assert.ok(_mv.readings.total_lines < _lbFirst.ceiling,
+        '★ A1 里程碑（' + _lbFirst.milestone_version + '）的真实读数须低于当时的 15000 线上，实测 '
+        + _mv.readings.total_lines);
+    const _lbLast = _lbHist[_lbHist.length - 1];
+    assert.equal(_lb.ceiling, _lbLast.ceiling, '当前上界必须等于最后一条历史的 ceiling（防静默改数）');
+    assert.equal(_lb.note, _lbLast.reason, '当前 note 必须是最后一条历史理由的复述（防理由与数脱节）');
+    assert.ok(b.readings.total_lines <= _lb.ceiling,
+        '★ 宿主行数须 <= 登记上界 ' + _lb.ceiling + '，实测 ' + b.readings.total_lines);
+    assert.ok(_lb.ceiling - b.readings.total_lines <= _lb.maxSlack,
+        '上界余量 ' + (_lb.ceiling - b.readings.total_lines) + ' 不得超过 maxSlack ' + _lb.maxSlack
+        + '（余量过大 = 上界与实测脱节，等于没守）');
     assert.ok(b.readings.total_lines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）');
     const dcb = JSON.parse(read('tests/audit/dead_code_budget.json'));
     /* [v3.273.0 交棒] 原文是 `dcb.note.includes('3.267.0')` —— 那是**硬锁当版字面量**，

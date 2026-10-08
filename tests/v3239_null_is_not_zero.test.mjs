@@ -181,12 +181,22 @@ test('B4. ★★ 两条透传面（previewRestore / compareCheckpoints）也不�
 /* ══════════ C 入口楼层判据（index.js） ══════════ */
 
 /** 抽方法体（含签名与花括号），与 v3174 / v3230 / v3238 同款口径。 */
+/* [v3.296.0 判据自身缺陷修正] 原实现用 `source.indexOf(name + '(')` 取「方法体」——
+ *   那命中**首次出现**，包括**调用点**。X1 落地后宿主里出现一处早于定义的
+ *   `this._numOrNull(...)` 调用（召回解释读 recall 记录的 floor，见 index.js:2981），
+ *   定义却在 12375 行；于是抽出来的是「调用点 + 后续代码」这段非法片段，
+ *   `new Function` 解析期直接 SyntaxError —— A2/A3/C1/D1 四档齐报「实现有问题」，
+ *   而实现本身没问题：这是「锚点漂了」被误报成「实现缺陷」（本仓 E6 形态）。
+ *   改锚**声明形态**（行首缩进 + 名字 + 参数表 + `{`，从该 `{` 起配平取体）：
+ *   判据要的一直是方法体，强度不变，但不再受「文件里哪儿先提到这个名字」影响。 */
 function extractMethod(source, name) {
-    const marker = name + '(';
-    const start = source.indexOf(marker);
-    if (start <= 0) return null;
-    const bodyStart = source.indexOf('{', start);
-    if (bodyStart < 0) return null;
+    /* [v3.296.0] 声明形态锚：行首缩进 + 可选的 async/function 前缀 + 名字 + 参数表 + `{`。
+     *   不含前缀的版本会漏掉模块级 function 声明（v3252 抽 diffPayloads 时即栽在此）。 */
+    const decl = new RegExp('(?:^|\\n)([ \\t]*)(?:async[ \\t]+)?(?:function[ \\t]+)?' + name + '\\s*\\([^)]*\\)\\s*\\{');
+    const m = decl.exec(source);
+    if (!m) return null;
+    const start = m.index + (m[0].startsWith('\n') ? 1 : 0) + m[1].length;
+    const bodyStart = m.index + m[0].length - 1;
     let depth = 0, end = -1;
     for (let i = bodyStart; i < source.length; i++) {
         if (source[i] === '{') depth++;

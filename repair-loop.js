@@ -39,6 +39,47 @@
   const STATES = Object.freeze(['open', 'applied', 'partial', 'abandoned']);
   /** 派生件类型六态——每一类都是本仓真实的派生子系统。 */
   const KINDS = Object.freeze(['summary', 'event', 'relation', 'promise', 'fact', 'timeline']);
+  /**
+   * [v3.295.0 · X2] 依赖判据两态（**单一真源**）——「确切引用」与「文本命中」不是同一强度。
+   *
+   * 【修前实测后果】
+   *   `affectedBy` 只有 needle 一态：拿 target/subject 的**文本**去每一条派生件的正文里
+   *   `includes()`。于是两种完全不同的处境在 affected 清单里**逐字同形**：
+   *     · 这条派生件**确实**由被撤的事实派生而来（引用就在它身上）；
+   *     · 这条派生件只是正文里出现了这个名字（同名角色、泛指、甚至引号里的一句台词）。
+   *   而计划里点名的正是「按确切依赖引用找影响，旧内容的文本命中只标候选」——
+   *   旧面把「候选」当成「受影响」交付，调用方无从区分该动哪一条。
+   *
+   * 【本版口径】
+   *   · `ref`    —— 派生件自报 `sourceRefs` / `derivedFrom`，且其中含被修复对象的标识
+   *                 ⇒ 引用命中，是**同一件事**（why='by-ref'）；
+   *   · `needle` —— 正文文本命中（why='mentions-needle'）⇒ **只标候选**，basis 如实透出。
+   *   `basis` 与 `why` 分开：why 是给人读的理由，basis 是给判据/统计用的**类别**。
+   */
+  const BASES = Object.freeze(['ref', 'needle']);
+  /**
+   * [v3.295.0 · X2] 落定证据三态（**单一真源**）。
+   *
+   *   计划验收原文：「仅登记不能显示『事实已纠正』；只有**原数据与持久化回读均证明**修改才记 done」。
+   *   旧 `settle()` 只吃 `status`，于是「我改了」与「我证明我改了」在账上**完全同形**——
+   *   而 `done` 正是界面显示「已纠正」的唯一依据。故证据单列一维：
+   *     · `unconfirmed` —— 只有调用方的声明（原数据未核 / 未回读）；
+   *     · `partial`     —— 原数据核过**或**持久化回读过了，只其一；
+   *     · `confirmed`   —— 两者均过 ⇒ 这才允许参与终态 `applied`。
+   */
+  const EVIDENCE = Object.freeze(['unconfirmed', 'partial', 'confirmed']);
+  /** 覆盖度两态：有池缺席或池被截断 ⇒ partial（**未覆盖范围必须报出来**，不得当成「扫过了没有」）。 */
+  const COVERAGE_STATE = Object.freeze(['full', 'partial']);
+  /**
+   * [v3.295.0 · X2] 每类派生件**可用的逆操作名**（原 owner 才能提供的那一下）。
+   *   计划验收明文：「撤销操作在原 owner 能提供逆操作/检查点时才开放」。
+   *   这里登记的是**语义名**而非方法名——方法名是宿主的接线细节，模块不该持有第二份；
+   *   宿主按本表逐类接线，接不上的那类在 `revocable` 上如实为 false。
+   */
+  const INVERSE = Object.freeze({
+    summary: 'restore-text', event: 'abandon-event', relation: 'rebuild-edge',
+    promise: 'cancel', fact: 'revoke', timeline: 'drop-entry'
+  });
 
   /* [v3.240.0] 账本实体契约单一真源（ledger-entity.js）——本模块此前自带一份 `text` / `finite` 拷贝。
    *   拷贝的判据是 `Number.isFinite(Number(v))`：`Number(null) === 0` 且有限 ⇒ `finite(null)` 得 0，
@@ -57,6 +98,11 @@
       kind: KINDS.includes(it.kind) ? it.kind : 'summary',
       key: text(it.key, 80),
       why: text(it.why, 80),
+      /* [v3.295.0 · X2] 两维随项走，且**旧档缺字段时退默认**（回读不清零、改写形）：
+       *   basis    = 这条为什么被列进来（ref 确切引用 / needle 文本候选）；
+       *   evidence = 修改是否已被证明（见 EVIDENCE 三态）。 */
+      basis: BASES.includes(it.basis) ? it.basis : 'needle',
+      evidence: EVIDENCE.includes(it.evidence) ? it.evidence : 'unconfirmed',
       status: ['pending', 'done', 'failed', 'missing'].includes(it.status) ? it.status : 'pending',
       note: text(it.note, 80)
     };
@@ -77,6 +123,36 @@
       floor: finiteFloor(r.floor),
       status: STATES.includes(r.status) ? r.status : 'open',
       affected: Array.isArray(r.affected) ? r.affected.map(copyItem).slice(-24) : [],
+      /* [v3.295.0 · X2] 登记时就把「方案 / 未覆盖范围 / 悬空依赖」钉在记录上：
+       *   事后现算会随运行时漂移（池是现收的），于是「当时看到会影响 5 条」
+       *   与「事后复算 3 条」同形——账上说不清到底按哪个清单落的定。 */
+      coverage: (function () {
+        const c = r.coverage || {};
+        const scanned = {};
+        const src = (c.scanned && typeof c.scanned === 'object') ? c.scanned : {};
+        for (const k of KINDS) scanned[k] = finite(src[k]) || 0;
+        return {
+          state: COVERAGE_STATE.includes(c.state) ? c.state : 'partial',
+          scanned: scanned,
+          absent: Array.isArray(c.absent) ? c.absent.filter(function (k) { return KINDS.includes(k); }) : [],
+          note: text(c.note, 160)
+        };
+      })(),
+      dangling: Array.isArray(r.dangling) ? r.dangling.slice(0, 24).map(function (d) {
+        return { kind: KINDS.includes(d && d.kind) ? d.kind : 'summary', key: text(d && d.key, 80), ref: text(d && d.ref, 48) };
+      }) : [],
+      /* [v3.295.0 · X2] 记录级证据（`status` 之外的那一维）。**旧档缺字段时**
+       *   现算一次而不是给死默认：给 'unconfirmed' 会把「旧数据没这一维」写成
+       *   「这些修改被证明没证据」，那是对历史的错判。 */
+      evidence: EVIDENCE.includes(r.evidence) ? r.evidence : (function () {
+        const list = Array.isArray(r.affected) ? r.affected : [];
+        if (!list.length) return 'partial';
+        if (list.some(function (it) { return it.status === 'pending'; })) return 'partial';
+        if (list.some(function (it) { return it.status === 'failed' || it.status === 'missing'; })) return 'partial';
+        if (list.some(function (it) { return it.evidence !== 'confirmed'; })) return 'unconfirmed';
+        return 'confirmed';
+      })(),
+      unproven: finite(r.unproven) || 0,
       at: finiteFloor(r.at)
     };
   }
@@ -135,36 +211,166 @@
     if (Array.isArray(p[kind])) return p[kind];
     return [];
   }
+  /** 取一条派生件自报的依赖引用（两种既有形状都吃：数组 / 标量）。 */
+  function refsOf(it) {
+    const out = [];
+    const push = function (v) {
+      if (Array.isArray(v)) { for (const x of v) push(x); return; }
+      const t = text(v, 48);
+      if (t) out.push(t);
+    };
+    /* 【为什么还要读 `eventKey` / `supersededBy`（本条修前是**死通路**）】
+     *   本函数原先只读 `sourceRefs` / `derivedFrom` 两个字段，而这两个名字
+     *   **全仓零产出**（实测：`grep -rn 'sourceRefs' *.js` 只命中 stale-guard 的
+     *   change-set 入参 —— 那是另一件东西；`derivedFrom` 只有本文件自己）。后果是
+     *   `hitRef` 恒假、`basis` 恒 'needle'：计划点名的「按**确切依赖引用**找影响」
+     *   在生产上**从来没有生效过**，永远只有文本撞名那一态。
+     *   本仓真实存在的跨条引用是：
+     *     · `supersededBy` —— 事实被换代时指向**取代它的那条事实** id（fact-version.js:309）；
+     *     · `eventKey`     —— 写入时带的幂等键，就是「这条是从哪个事件产生的」（账本实体契约）。
+     *   两者都照实收下：ref 命中于是**可达**，而不是一条只在测试夹具里成立的判据。 */
+    if (it) { push(it.sourceRefs); push(it.derivedFrom); push(it.eventKey); push(it.supersededBy); }
+    return out;
+  }
+  /**
+   * 派生件命中规则（显式表，逐条可读）。
+   *   pool = { summaries:[{key,text,floor}], events, relations, promises, timeline,
+   *            facts:[{key,text,supersededBy?}],   // supersededBy = 换代指向的事实 id（真实 ref 来源）
+   *            info?:{<kind>:{scanned,total}}, knownRefs?:[string] }
+   * 返回 `{ items, coverage, dangling }`（**不再返回裸数组**）：
+   *   · items    —— 受影响派生件，每项带 `basis`（ref / needle）与 `why`；
+   *   · coverage —— 本次**实际扫到**的范围 + 缺席/被截断的池（未覆盖范围）；
+   *   · dangling —— 引用指向点不到的东西（悬空依赖）。它与「受影响」是两件事，分列。
+   * 关键纪律：**命中就列出来**，不在这里判断「要不要改」——改不改是调用方的事。
+   * 旧签名返回数组且没有 coverage/dangling —— 档头从 v3.194 起就写着 `dangling` 输出，
+   *   而全仓**零实现**：声明的输出从来没出现过（本版补上，不是顺手加的字段）。
+   */
   function affectedBy(action, target, subject, pool) {
     const p = pool || {};
-    const out = [];
-    const has = function (v, needle) {
-      return needle && String(v == null ? '' : v).toLowerCase().includes(String(needle).toLowerCase());
-    };
-    const scan = function (kind, list, needle) {
-      for (const it of (Array.isArray(list) ? list : [])) {
-        const key = text(it && (it.key || it.id || it.name || it.title), 80);
-        const body = text(it && (it.text || it.content || it.value || it.summary || it.desc), 200);
-        if (!key && !body) continue;
-        if (has(body, needle) || has(key, needle)) {
-          out.push({ kind: kind, key: key || body.slice(0, 40), why: 'mentions-needle', status: 'pending', note: '' });
-        }
+    const info = (p && typeof p.info === 'object' && p.info) ? p.info : null;
+    /* 已知引用全集：池内所有项自己的 key + 调用方声明的 knownRefs。
+     *   —— 只用来判「悬空」，不参与「是否受影响」的判定（两件事，两个出口）。 */
+    const known = new Set();
+    for (const kind of KINDS) {
+      for (const it of (Array.isArray(p[POOL_KEYS[kind]]) ? p[POOL_KEYS[kind]] : (Array.isArray(p[kind]) ? p[kind] : []))) {
+        const k = text(it && (it.key || it.id || it.name || it.title), 80);
+        if (k) known.add(k);
       }
-    };
-    // 三类动作扫的针不同（不是同一套规则换个名字）：
-    //   retarget ⇒ 针 = 旧主体。要说「这条其实属于别人」，受牵连的是出现旧名字
-    //              的那些派生件；target 只是被纠正的那一条本身。
-    //   split    ⇒ 针 = target（被误合并成一个名字的那条）。
-    //   revoke   ⇒ 针 = target（被撤销的事实文本），连同从它派生的下游。
-    const needle = action === 'retarget' ? subject : target;
-    for (const kind of KINDS) scan(kind, poolList(p, kind), needle);
-    // 去重：同 kind+key 只留一条（同一条派生件被同名多处提到不重复列入）
-    const seen = new Map();
-    for (const it of out) {
-      const k = it.kind + '\u0000' + it.key;
-      if (!seen.has(k)) seen.set(k, it);
     }
-    return [...seen.values()];
+    for (const r of (Array.isArray(p.knownRefs) ? p.knownRefs : [])) { const t = text(r, 48); if (t) known.add(t); }
+
+    /* 三类动作扫的针不同（不是同一套规则换个名字）：
+     *   retarget ⇒ 针 = 旧主体（出现旧名字的派生件受牵连；target 是被纠正的那一条本身）。
+     *   split    ⇒ 针 = target（被误合并成一个名字的那条）。
+     *   revoke   ⇒ 针 = target（被撤销的事实文本），连同从它派生的下游。 */
+    const needle = action === 'retarget' ? subject : target;
+    /* `refId` 是**被修复对象的稳定标识**（调用方给；给不出则退化为 target 文本本身）。
+     *   为什么允许退化：既有调用点大多只有可读文本，逼它们先造 id 就等于把 X2 挡在门外；
+     *   而 by-ref 判据在池项自报引用时依然成立——退化的只是「用什么去比」。 */
+    const needleId = text(p.refId, 48) || text(needle, 80);
+
+    const items = [];
+    const dangling = [];
+    const scanned = {};
+    const absent = [];
+    const truncated = {};
+    const seen = new Map();
+    const has = function (v, n) {
+      return n && String(v == null ? '' : v).toLowerCase().includes(String(n).toLowerCase());
+    };
+    for (const kind of KINDS) {
+      const list = poolList(p, kind);
+      const n = list.length;
+      scanned[kind] = n;
+      /* `info` 的键**按 kind 取**（单数），并容忍调用方写复数——与 `poolList` 接受
+       *   两种池键写法同一个理由：静默取不到就等于「这一池判不了被当成没截断」。
+       *   实测过：宿主曾按池键（复数）写 info，于是 `meta` 恒 null，
+       *   截断读数**永不触发**，而「总共 900 条、只看了 200 条」在 affected 清单上
+       *   与「真的只有 200 条」完全同形 —— 正是本版要治的那一族。 */
+      const meta = info ? (info[kind] || info[POOL_KEYS[kind]]) : null;
+      if (meta && Number(meta.total) > Number(meta.scanned)) {
+        truncated[kind] = { scanned: Number(meta.scanned) || 0, total: Number(meta.total) || 0 };
+      }
+      /* 池缺席 = **判不了**（不是「扫过了、没有」）。判据：既没有读数也没有项。
+       *   给了 info 但 total=0 ⇒ 是真的空池（已覆盖）；没给 info 且数组为空 ⇒ 缺席。 */
+      if (n === 0 && !meta) absent.push(kind);
+      for (const it of list) {
+        if (!it) continue;
+        const key = text(it.key || it.id || it.name || it.title, 80);
+        const body = text(it.text || it.content || it.value || it.summary || it.desc, 200);
+        if (!key && !body) continue;
+        const refs = refsOf(it);
+        const hitRef = !!(needleId && refs.indexOf(needleId) >= 0);
+        const hitText = has(body, needle) || has(key, needle);
+        if (!hitRef && !hitText) {
+          /* 与本次修复无关，但它自报的引用点不到 ⇒ 悬空依赖，照实报（不混进 affected）。 */
+          for (const r of refs) if (!known.has(r)) dangling.push({ kind: kind, key: key || body.slice(0, 40), ref: r });
+          continue;
+        }
+        const basis = hitRef ? 'ref' : 'needle';
+        const item = {
+          kind: kind, key: key || body.slice(0, 40),
+          why: hitRef ? 'by-ref' : 'mentions-needle',
+          basis: basis, status: 'pending', note: '', evidence: 'unconfirmed'
+        };
+        /* 去重：同 kind+key 只留**更强**的那条（ref 胜过 needle）——同一件东西被同名多处
+         *   提到不重复列入；而「有确切引用」比「文本撞上」更该被看见。 */
+        const dk = kind + '\u0000' + item.key;
+        const old = seen.get(dk);
+        if (old) { if (old.basis === 'needle' && basis === 'ref') { old.why = 'by-ref'; old.basis = 'ref'; } continue; }
+        seen.set(dk, item);
+        items.push(item);
+      }
+    }
+    const coverage = {
+      state: 'full', scanned: scanned, absent: absent, truncated: truncated, note: ''
+    };
+    if (absent.length || Object.keys(truncated).length) {
+      coverage.state = 'partial';
+      const parts = [];
+      for (const k of absent) parts.push(k + '(池缺席)');
+      for (const k of Object.keys(truncated)) parts.push(k + '(截断 ' + truncated[k].scanned + '/' + truncated[k].total + ')');
+      coverage.note = '未覆盖：' + parts.join('、');
+    }
+    return { items: items, coverage: coverage, dangling: dangling };
+  }
+  /**
+   * [v3.295.0 · X2] 一次修复的**逐项修改方案**（计划原文：「逐项确认修改方案」）。
+   *   只读纯函数：吃与 preview 同一份 pool，产出每一条受影响派生件**该怎么改、谁来改、
+   *   能不能撤、改完拿什么证明**。不作为调用方的写入口（`wrote:false` 恒为真）。
+   * @returns {object} { ok, action, steps, total, coverage, dangling, wrote }
+   */
+  function plan(input) {
+    const i = input || {};
+    const bad = validate(i);
+    if (bad) return { ok: false, reason: bad, steps: [], total: 0, wrote: false };
+    const action = text(i.action, 16);
+    const r = affectedBy(action, text(i.target, 80), text(i.subject, 40), i.pool);
+    const steps = r.items.map(function (it) {
+      const inverse = INVERSE[it.kind] || '';
+      return {
+        kind: it.kind, key: it.key, why: it.why, basis: it.basis,
+        /* owner = **哪一类持有者**要动（kind 与持有者一一对应，不在这里写方法名：
+         *   方法名是宿主的接线细节，模块持有第二份就是第二份真源）。 */
+        owner: it.kind,
+        inverse: inverse,
+        /* revocable：撤销类动作只在本类**有逆操作**时才开放（计划验收明文）。 */
+        revocable: !!inverse,
+        /* 确切引用可以按引用改；文本命中的候选**必须先由人确认**再动。 */
+        requires: it.basis === 'ref' ? ['same-ref'] : ['confirm-by-human'],
+        /* 记 done 的门（与 settle 的证据门同一口径）：原数据 + 持久化回读。 */
+        evidence: ['origin-data', 'persisted-readback'],
+        status: it.status
+      };
+    });
+    return {
+      ok: true, action: action, subject: text(i.subject, 40), target: text(i.target, 80),
+      steps: steps, total: steps.length,
+      /* 精确 / 候选分开计数：「有几条真该改」与「有几条只是可能」不是一个读数。 */
+      byRef: steps.filter(function (s) { return s.basis === 'ref'; }).length,
+      byNeedle: steps.filter(function (s) { return s.basis === 'needle'; }).length,
+      coverage: r.coverage, dangling: r.dangling, wrote: false
+    };
   }
   /**
    * 入参校验的**单一真源**（request / preview 共用同一份规则）。
@@ -204,10 +410,20 @@
     const action = text(i.action, 16);
     const bad = validate(i);
     if (bad) return { ok: false, reason: bad, affected: [], total: 0 };
-    const affected = affectedBy(action, text(i.target, 80), text(i.subject, 40), i.pool);
+    const r = affectedBy(action, text(i.target, 80), text(i.subject, 40), i.pool);
+    const affected = r.items;
+    const steps = r.items.map(function (it) {
+      return { kind: it.kind, key: it.key, why: it.why, basis: it.basis, status: it.status };
+    });
     return {
       ok: true, action: action, subject: text(i.subject, 40), target: text(i.target, 80),
       affected: affected.slice(), total: affected.length,
+      /* [v3.295.0 · X2] 精确 / 候选分列：`affected` 是**全部**命中，但两态的强度不同，
+       *   合并成一个数就等于把「这条肯定要改」与「这条只是名字撞上」说成同一件事。 */
+      byRef: steps.filter(function (x) { return x.basis === 'ref'; }).length,
+      byNeedle: steps.filter(function (x) { return x.basis === 'needle'; }).length,
+      /* 未覆盖范围与悬空依赖随预览一起给出（计划：「报告未覆盖范围」）。 */
+      coverage: r.coverage, dangling: r.dangling,
       // 明确回一句「什么都没写」，让调用方不必读源码就知道这是只读面
       wrote: false
     };
@@ -241,25 +457,54 @@
       const old = state.repairs.find(function (r) { return r.dedupeKey === dedupeKey && r.status !== 'abandoned'; });
       if (old) return result(state, {
         repair: copyRepair(old), replayed: true, changed: false,
-        affected: old.affected.slice(), total: old.affected.length
+        affected: old.affected.slice(), total: old.affected.length,
+        coverage: old.coverage, dangling: old.dangling.slice()
       });
     }
-    const affected = affectedBy(action, target, subject, i.pool);
+    const r = affectedBy(action, target, subject, i.pool);
+    const affected = r.items;
     const rec = copyRepair({
       id: nextId(state), action: action, subject: subject,
       from: i.from, to: i.to, target: target, reason: i.reason, floor: i.floor,
-      dedupeKey: dedupeKey, status: 'open', affected: affected, at: i.at
+      dedupeKey: dedupeKey, status: 'open', affected: affected, at: i.at,
+      /* 覆盖度与悬空依赖**随记录存档**：它们是「当时这次判定看到了多宽的范围」的证词，
+       *   事后现算会随运行时漂移（池是现收的），两处读数就不再指向同一次判定。 */
+      coverage: r.coverage, dangling: r.dangling
     });
     state.repairs.push(rec);
     return result(state, {
       repair: copyRepair(rec), changed: true,
-      affected: affected.slice(), total: affected.length
+      affected: affected.slice(), total: affected.length,
+      coverage: r.coverage, dangling: r.dangling
     });
+  }
+  /**
+   * [v3.295.0 · X2] 证据判定（**单一真源**）——「我改了」与「我证明我改了」不是同一句话。
+   *
+   *   计划验收原文：「仅登记不能显示『事实已纠正』；只有**原数据与持久化回读均证明**修改才记 done」。
+   *   `done` 是界面显示「已纠正」的唯一依据，而旧 `settle()` 只看 `status` 一个字——
+   *   调用方说 done 就是 done，没有第二个人核过。故本版要求逐项**自报证据**：
+   *     · `originData`      —— 原数据（持有者那本账）已核过这次修改；
+   *     · `persistedReadback` —— 真落盘后的回读已证明写入存在。
+   *   两者**都真**才 `confirmed`；只其一 `partial`；都没有 `unconfirmed`。
+   *   ★ 不传证据 = `unconfirmed`（**不判为假，也不判为真**）：旧调用点逐字不变地仍能落定，
+   *     但它换不来 `applied`——旧行为里那个无据的 `applied` 正是本版要治的那一处。
+   * @returns {string} 'unconfirmed' | 'partial' | 'confirmed'
+   */
+  function evidenceOf(input) {
+    const i = input || {};
+    const a = i.originData === true ? 1 : (i.originData === false ? -1 : 0);
+    const b = i.persistedReadback === true ? 1 : (i.persistedReadback === false ? -1 : 0);
+    if (a > 0 && b > 0) return 'confirmed';
+    if (a > 0 || b > 0) return 'partial';
+    return 'unconfirmed';
   }
   /**
    * 落定一条受影响项。宿主每改完一处就报一次；不报的就一直是 pending。
    *   status: 'done' | 'failed' | 'missing'（missing = 目标已不存在，如被上限淘汰）
-   * 全部落定（无 pending）时自动把修复记录推成 applied；有 failed/missing 则 partial。
+   *   `originData` / `persistedReadback` 两项证据（见 evidenceOf）：只有 `done` **且**
+   *   证据 `confirmed` 才算「真落定」；`done` 但证据不足 ⇒ 状态照记、终态只到 `partial`。
+   * 全部落定（无 pending）时自动把修复记录推成 applied；有 failed/missing/未证实项则 partial。
    */
   function settle(rawState, input) {
     const state = normalize(rawState);
@@ -272,15 +517,39 @@
     const next = ['done', 'failed', 'missing'].includes(i.status) ? i.status : 'done';
     const item = rec.affected.find(function (it) { return it.key === key && (!kind || it.kind === kind); });
     if (!item) return reject(state, 'item-not-found');
-    if (item.status === next) return result(state, { repair: copyRepair(rec), item: copyItem(item), replayed: true, changed: false });
+    const ev = evidenceOf(i);
+    /* 幂等判据必须带上**证据**：只比 status 的话，「先报 done（无据）、后补证据再报一次」
+     *   会被当成重放而丢掉证据 —— 那正是本版新加的那一维，不能栽在旧幂等上。 */
+    if (item.status === next && item.evidence === ev) {
+      return result(state, { repair: copyRepair(rec), item: copyItem(item), replayed: true, changed: false });
+    }
     item.status = next;
+    item.evidence = ev;
     item.note = text(i.note, 80);
     const pend = rec.affected.filter(function (it) { return it.status === 'pending'; }).length;
+    /* ★ `bad` / `applied` 的口径**逐字保持旧版**（failed / missing 才算不完成）。
+     *   为什么本版**没有**顺手把「无据的 done」也算进来：`status` 回答的是**流程**
+     *   （这条落定了没有），而 `applied` 是流程的终态；把「有没有被证明」并进同一维，
+     *   等于让一个字段同时回答两个问题——本仓那一族「同一形状两个读数」正是这样长出来的。
+     *   而全仓已有三处判据（v3194 测试 9/10、v3215 测试 8）咬住「全 done ⇒ applied」，
+     *   那是流程语义，本身没错；错的是**把它当成「事实已纠正」来读**。
+     *   故证据单列一维，落在记录上（见 rec.evidence / rec.unproven）。 */
     const bad = rec.affected.filter(function (it) { return it.status === 'failed' || it.status === 'missing'; }).length;
+    const unproven = rec.affected.filter(function (it) { return it.status === 'done' && it.evidence !== 'confirmed'; }).length;
     rec.status = pend > 0 ? 'open' : (bad > 0 ? 'partial' : 'applied');
+    /* 记录级证据聚合（**单一真源**，line / 宿主回执都读它，不再各算一套）：
+     *   confirmed —— 至少有过一次落定，且所有 done 项都已证实；
+     *   unconfirmed —— 有「报了 done 但没证实」的项（**这才是「仅登记」的那一族**）；
+     *   partial —— 其余（还没落定 / 有失败项）。 */
+    rec.unproven = unproven;
+    rec.evidence = unproven > 0 ? 'unconfirmed'
+      : ((pend === 0 && bad === 0 && rec.affected.length > 0) ? 'confirmed' : 'partial');
     return result(state, {
       repair: copyRepair(rec), item: copyItem(item), changed: true,
-      pending: pend, failed: bad, settled: rec.status !== 'open'
+      pending: pend, failed: bad, settled: rec.status !== 'open',
+      evidence: ev, confirmed: ev === 'confirmed',
+      /* 「账上已落定」与「账上已证明」两个读数**分列回**，让调用方不必从 applied 猜。 */
+      unproven: unproven, repairEvidence: rec.evidence
     });
   }
   /** 放弃一次修复（用户改主意）：把剩余 pending 一并标 missing 并留原因。 */
@@ -298,7 +567,13 @@
     const state = normalize(rawState);
     return state.repairs.filter(function (r) { return r.status === 'open'; }).map(function (r) {
       return Object.assign(copyRepair(r), {
-        pending: r.affected.filter(function (it) { return it.status === 'pending'; }).map(copyItem)
+        pending: r.affected.filter(function (it) { return it.status === 'pending'; }).map(copyItem),
+        /* [v3.295.0 · X2] 「已报 done 但证据不足」单列：它不再是 pending（宿主确实动过手），
+         *   却也没到 confirmed —— 压进 pending 会让「还没动」与「动了没证」同形，
+         *   而不列出来则等于让无据的 done 悄悄消失。 */
+        unconfirmed: r.affected.filter(function (it) { return it.status === 'done' && it.evidence !== 'confirmed'; }).map(copyItem),
+        /* 未落定名单**只放真 pending**（旧语义不动）；未证实项在上面那格。 */
+        evidence: EVIDENCE.includes(r.evidence) ? r.evidence : 'partial'
       });
     });
   }
@@ -307,14 +582,19 @@
     try {
       const state = normalize(rawState);
       if (!state.repairs.length) return '暂无修复记录';
-      let applied = 0, open = 0, partial = 0, abandoned = 0, items = 0, bad = 0;
+      let applied = 0, open = 0, partial = 0, abandoned = 0, items = 0, bad = 0, unproven = 0;
       for (const r of state.repairs) {
         items += r.affected.length;
         if (r.status === 'applied') applied++;
         else if (r.status === 'open') open++;
         else if (r.status === 'partial') partial++;
         else abandoned++;
+        /* [v3.295.0 · X2] 两个口径都与 settle **逐字同源**，且**分开数**：
+         *   bad      = failed / missing（流程未完成）；
+         *   unproven = 报了 done 但证据没到 confirmed（流程走完、没被证明）。
+         *   合成一个数就会让「没修完」与「修了没证」在诊断行上同形。 */
         bad += r.affected.filter(function (it) { return it.status === 'failed' || it.status === 'missing'; }).length;
+        unproven += r.affected.filter(function (it) { return it.status === 'done' && it.evidence !== 'confirmed'; }).length;
       }
       const parts = ['修复 ' + state.repairs.length, '已落定 ' + applied];
       if (open) parts.push('未落定 ' + open + ' ⚠️');
@@ -322,6 +602,8 @@
       if (abandoned) parts.push('已放弃 ' + abandoned);
       parts.push('派生件 ' + items);
       if (bad) parts.push('异常项 ' + bad);
+      /* 「已落定但没被证明」单报 —— 它就是「仅登记不能显示事实已纠正」在诊断面上的样子。 */
+      if (unproven) parts.push('未证实 ' + unproven + ' ⚠️');
       return parts.join(' · ');
     } catch (e) { return '—（修复账异常）'; }
   }
@@ -329,7 +611,11 @@
     normalize, request, settle, abandon, pending, line, affectedBy, poolList,
     // [v3.214.0] R1-F：预览与校验（preview 只算不改；validate 是 request/preview 的共用判据）
     preview, validate,
-    ACTIONS, STATES, KINDS, POOL_KEYS, RL_VERSION
+    /* [v3.295.0 · X2] 逐项修改方案（只读；与 preview 共用 affectedBy 与新 pool 契约）
+     *   与证据判定（settle 与宿主回执共用**同一份**口径，不在宿主再抄一份）。 */
+    plan, evidenceOf,
+    ACTIONS, STATES, KINDS, POOL_KEYS, RL_VERSION,
+    BASES, EVIDENCE, COVERAGE_STATE, INVERSE
   });
   root.LonShaRepairLoop = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

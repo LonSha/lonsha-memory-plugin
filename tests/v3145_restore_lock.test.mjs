@@ -99,7 +99,24 @@ test('v3.145 三处异步路径均携带 epoch 身份并走统一判据', () => 
         assert.ok(src.includes(`const ${v} = `), `${v} 存在`);
         assert.ok(src.includes(`if (!this._leaseValid(${v}))`), `${v} 走统一判据`);
     }
-    assert.equal((src.match(/epoch: this\._mutationEpoch \}/g) || []).length, 3, '三处租约捕获发起时栅栏（排除 _lastEpochBump 的记录字段）');
+    /* [v3.296.0 抬版交棒] 原写死「恰 3 处」—— 该形态是 v3.145.0 的一次性事实；
+     *   v3.292.0 起 X6（分支导入）/ X7（分卷接续）/ X2（修复计划）的宿主真实接线
+     *   各新增一个同形捕获点，实测已 6 处。锁当版字面量会把**活跃功能增长**判红
+     *   （本仓明令禁止：删断言 = 洗断言，锁当版 = 假绿，两者都不取）。
+     *   改钉**版本无关的结构不变量**：
+     *   ① 捕获点数 >= 3（原先那三处老路径不得消失）；
+     *   ② **每一处捕获点都必须在同一段内被 `_leaseValid` 消费** —— 只看数量不看消费，
+     *      「捕获了身份却从不核」这一真缺陷会整个漏网（那正是本条要防的）。
+     *      配对方式是**分割窗口**：每处捕获点到下一处捕获点（末处到文件尾）之间必须有校验。 */
+    const CAP_RE = /epoch: this\._mutationEpoch \}/g;
+    const caps = [...src.matchAll(CAP_RE)].map((m) => m.index);
+    assert.ok(caps.length >= 3, '租约捕获点不得少于 3 处（实 ' + caps.length + '）');
+    caps.forEach((at, i) => {
+        const to = (i + 1 < caps.length) ? caps[i + 1] : src.length;
+        const win = src.slice(at, to);
+        assert.ok(/this\._leaseValid\(/.test(win),
+            '第 ' + (src.slice(0, at).split('\n').length) + ' 行的租约捕获点必须在同段内被 _leaseValid 消费');
+    });
     assert.equal((src.match(/if \(!this\._leaseValid\(/g) || []).length, 3, '三处统一判据');
     assert.equal((src.match(/this\.mutex\.release\(_\w+Cred\)/g) || []).length, 2, 'OMR/backfill 均带凭证释放');
     assert.ok(!/this\.mutex\.release\(\)/.test(src), '禁止无凭证释放残留');

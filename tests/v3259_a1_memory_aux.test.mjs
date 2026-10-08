@@ -164,7 +164,21 @@ test('v3259 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     assert.equal(b.readings.total_lines, IDX.split(NL).length, '基线行数须等于真 index.js 行数');
     assert.ok(b.rebuilds[b.measured_at], '本刀须在 rebuilds 面留读数（抬版后仍可回溯）');
     assert.equal(b.rebuilds[b.measured_at].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
-    assert.ok(b.readings.member_count < 561, '成员数须已随本刀下降（剥走前的基线是 561）');
+    /* [v3.296.0 交棒] 原文是 `member_count < 561` ——【硬锁当版快照】（文案「剥走前的基线是 561」），
+     *   与 v3259/v3260/v3261 三档同族：把某刀的一次性读数当永久不变量 ⇒ 后续活跃功能增长
+     *   （X 系列八条接线 +16 位成员）就把它推回线上。交棒**不弱化**：561 作为里程碑读数搬进
+     *   `host_beast_baseline.json` 的 `line_budget.history[0].member_milestones`（可机检、留痕），
+     *   本档改守**全仓唯一的成员上界** `member_ceiling` —— 三档共用一个登记面，
+     *   免得下一版增长要改三处数字（「一份契约 N 份拷贝」）。 */
+    const _lb = b.line_budget || null;
+    assert.ok(_lb && Number.isFinite(_lb.member_ceiling), '宿主成员数上界必须登记');
+    const _ms = ((Array.isArray(_lb.history) ? _lb.history[0] : {}) || {}).member_milestones || {};
+    assert.ok(_ms['561'], '里程碑读数 561 必须留在登记面（勿删）：A1 第二刀 memory-aux.js');
+    assert.ok(b.readings.member_count <= _lb.member_ceiling,
+        '★ 宿主成员数须 <= 登记上界 ' + _lb.member_ceiling + '，实测 ' + b.readings.member_count);
+    assert.ok(_lb.member_ceiling - b.readings.member_count <= _lb.member_max_slack,
+        '成员上界余量 ' + (_lb.member_ceiling - b.readings.member_count)
+        + ' 不得超过 member_max_slack ' + _lb.member_max_slack);
     assert.ok(b.readings.total_lines < 18124, '行数须已随本刀下降（剥走前 18124）');
     /* 追加：本刀抽的是六个类 —— 用「减幅」把「基线刷新时少刷一点」钉住。 */
     assert.ok(b.readings.total_lines <= 17800, '本刀须至少剥掉 300 行，实测 ' + b.readings.total_lines);

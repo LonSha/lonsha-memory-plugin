@@ -183,6 +183,18 @@ const REGISTRY = [
     /* [v3.288.0 X 系列面补一类] 新套件同样从唯一真源取 breakSource / assertSingleHit，
      *   按台账纪律（接入面 == 磁盘事实）在此登记。 */
     'v3288_plan_currency_xface.test.mjs',
+    /* [v3.291.0 X5 / v3.292.0 X6 / v3.293.0 X7 补登] 三档各自从 tests/_break_kit.mjs
+     *   取 breakSource（真源码破坏）；按 B1 台账纪律在此登记。
+     *   为什么迟到：三档当版各自独立落笔，漏了本表 —— 而 B1 是「磁盘 ↔ 台账双向差集皆空」
+     *   （磁盘实时扫描），漏登记不会静默，下一次跑本档即点名。 */
+    'v3291_x5_knowledge_trace.test.mjs',
+    'v3292_x6_branch_semantics.test.mjs',
+    'v3293_x7_volume_continuation.test.mjs',
+    /* [v3.294.0 X8 / v3.295.0 X2 / v3.296.0 X1] 三档同样从唯一真源取 breakSource
+     *   （真源码破坏负控制），按台账纪律（接入面 == 磁盘事实）在此登记。 */
+    'v3294_x8_recall_explain.test.mjs',
+    'v3295_x2_repair_flow.test.mjs',
+    'v3296_x1_evidence_query.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

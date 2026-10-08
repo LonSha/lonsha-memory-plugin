@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.294.0';
+    const VERSION = '3.296.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2975,7 +2975,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                     } : null,
                     injected: injected,
                     audit: {
-                        floor: Number.isFinite(Number(_rec.floor)) ? Number(_rec.floor) : null,
+                        /* [v3.296.0 收口] 走真源口的「数或 null」：旧判据 `Number.isFinite(Number(x))`
+                         *   会把 null / '' / [] 一律读成 **0**（`Number(null) === 0`），于是「楼层未记」
+                         *   与「第 0 楼」塌成同形 —— 与本档 recall-explain.js 消费 audit.floor 的口径冲突。 */
+                        floor: this._numOrNull(_rec.floor),
                         /* 宿主这一维**不可比**（query 不带楼层号），如实 unknown；
                          *   真正的身份核对走 idMatched。 */
                         floorMatched: 'unknown',
@@ -11181,6 +11184,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.repairLoop'); return ['记忆修复', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.296.0 · X1] 结构化证据查询：回答「按人/楼层/状态能不能查、登记面对没对齐、
+                     *   扫了多少账、有没有账被截断」。与上面「账本实体」是两个问题：
+                     *   那一行答「有多少条」，本行答「能按什么查、查的时候能看到多少」——
+                     *   压成一行会让「查不到」与「没有」再次同形（正是 X1 要治的那条）。
+                     *   三态可分：模块未加载 / 检索面没对齐（⚠️）/ 面在位（待用 or 上次读数）。 */
+                    (() => {
+                        try {
+                            const Q = _evidenceQueryLib();
+                            if (!Q || typeof Q.line !== 'function' || typeof this.evidenceQueryLine !== 'function') {
+                                return ['证据查询', '模块未加载（evidence-query.js）'];
+                            }
+                            const body = this.evidenceQueryLine();
+                            return ['证据查询', body];
+                        } catch (e) { errLog(e, 'selfCheck.evidenceQuery'); return ['证据查询', '—（诊断异常）'];
+                        }
+                    })(),
                     // [v3.207] 账本实体契约：回答「六本账有多少条目、多少被替代过、有没有读不出修订号的」。
                     //   这行同时是 `item.revision` 的**首个真实读侧** —— 此前它写进去但全仓无人读。
                     //   三态可分：模块未加载 / 尚无条目 / 有账（未定型条目数 > 0 才亮 ⚠️）。
@@ -12923,7 +12942,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (!RL || typeof RL.request !== 'function') return { ok: false, reason: 'module-unavailable' };
                 const st = this._repairState ? RL.normalize(this._repairState) : { version: 1, seq: 0, repairs: [] };
                 // 派生件池收在 _repairPool()（单一真源；本方法此前内联一份，previewRepair 一加就会分叉）
-                const r = RL.request(st, Object.assign({}, input, { pool: this._repairPool() }));
+                const r = RL.request(st, Object.assign({}, input, { pool: this._repairPoolFor(input) }));
                 if (!r.ok) return { ok: false, reason: r.reason };
                 this._repairState = r.state;
                 this._lastRepair = { at: Date.now(), action: r.repair.action, total: r.total, id: r.repair.id };
@@ -12991,32 +13010,452 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             try {
                 const RL = _repairLoopLib();
                 if (!RL || typeof RL.preview !== 'function') return { ok: false, reason: 'module-unavailable', affected: [], total: 0 };
-                const r = RL.preview(Object.assign({}, input, { pool: this._repairPool() }));
+                const r = RL.preview(Object.assign({}, input, { pool: this._repairPoolFor(input) }));
                 if (!r.ok) return { ok: false, reason: r.reason, affected: [], total: 0 };
                 return { ok: true, action: r.action, subject: r.subject, target: r.target, affected: r.affected, total: r.total, wrote: false };
             } catch (e) { errLog(e, 'engine.previewRepair'); return { ok: false, reason: 'thrown', affected: [], total: 0 }; }
         }
         /**
+         * [v3.295.0 · X2] 六类派生件的**逐类逆操作接线表**（宿主侧**单一真源**）。
+         *
+         * 【为什么必须由宿主持有】模块侧只登记**语义名**（`INVERSE`），因为「用哪个方法改哪本账」
+         *   是宿主的接线细节；把它写进模块就是让纯函数持有第二份运行期真源。本表是那句
+         *   「撤销只在原 owner 能提供逆操作时才开放」的**实况**：owner 面缺席 ⇒ `null`，
+         *   方案里如实显示 `revocable:false`，而**不是**静默照撤。
+         *
+         * 契约：`fn(item) -> { ok:boolean, reason?:string, note?:string }`（同步、不抛；
+         *   本表统一兜异常 —— 接线表自己抛会把「这一项失败」变成「整次修复失败」）。
+         *   `reason` 用既有词表：missing-target / not-found / unsupported / no-organ。
+         */
+        _repairOwners() {
+            const self = this;
+            const itemKey = (it) => String((it && it.key) || '');
+            /* 从 key 里取楼层（摘要 `sum_12` / 时间线 `tl_12`；取不到给 null，**不猜 0**
+             *   —— 0 在本插件是合法楼层，猜出来的 0 会改到第 0 楼去）。 */
+            const floorOf = (key) => {
+                const m = String(key || '').match(/(\d+)\s*$/);
+                if (!m) return null;
+                const n = Number(m[1]);
+                return Number.isFinite(n) ? n : null;
+            };
+            return {
+                /* ① 摘要：改文字。`updateSummaryText(floor, newText)` 是 summary 器官既有写面。 */
+                summary: function (it) {
+                    const s = self.summary;
+                    if (!s || typeof s.updateSummaryText !== 'function') return { ok: false, reason: 'no-organ' };
+                    const text = String((it && it.note) || '').trim();
+                    if (!text) return { ok: false, reason: 'missing-target' };
+                    const fl = floorOf(itemKey(it));
+                    if (fl === null) return { ok: false, reason: 'missing-target' };
+                    const done = s.updateSummaryText(fl, text);
+                    return done ? { ok: true, note: '摘要第' + fl + '楼已改' } : { ok: false, reason: 'not-found' };
+                },
+                /* ② 事件段：撤销整条事件线（`abandonEvent` 是 event-completeness 既有写面）。 */
+                event: function (it) {
+                    const EC = _eventCompletenessLib();
+                    if (!EC || typeof EC.abandonEvent !== 'function') return { ok: false, reason: 'no-organ' };
+                    const id = itemKey(it);
+                    if (!id) return { ok: false, reason: 'missing-target' };
+                    let st = self._eventThreadState;
+                    if (!st) return { ok: false, reason: 'not-found' };
+                    const r = EC.abandonEvent(st, { id: id, reason: String((it && it.note) || 'repair') });
+                    if (!r || !r.ok) return { ok: false, reason: (r && r.reason) || 'not-found' };
+                    self._eventThreadState = r.state;
+                    return { ok: true, note: '事件线已放弃' };
+                },
+                /* ③ 关系：改图谱边的两端（重定向到新主体；同主体则删边）。
+                 *   与既有 `graphDedup` 的「迁移边」逐字同法：删旧键、按复合键重建。 */
+                relation: function (it) {
+                    const g = self.graph;
+                    if (!g || !g.edges || typeof g.edges.get !== 'function') return { ok: false, reason: 'no-organ' };
+                    const key = itemKey(it);
+                    const m = key.match(/^\s*(.+?)\s*->\s*(.+?)\s*$/);
+                    if (!m) return { ok: false, reason: 'missing-target' };
+                    const to = String((it && it.note) || '').trim();
+                    if (!to) return { ok: false, reason: 'missing-target' };
+                    const oldTo = m[2];
+                    let hit = null;
+                    for (const e of Array.from(g.edges.values())) {
+                        if (String(e.from) === m[1] && String(e.to) === oldTo) { hit = e; break; }
+                    }
+                    if (!hit) return { ok: false, reason: 'not-found' };
+                    const eid = hit.id || (hit.from + '-' + hit.to + '-' + (hit.label || 'related'));
+                    g.edges.delete(eid);
+                    if (String(m[1]) !== to) {
+                        const nid = m[1] + '-' + to + '-' + (hit.label || 'related');
+                        g.edges.set(nid, Object.assign({}, hit, { from: m[1], to: to, id: nid }));
+                    }
+                    if (typeof g.rebuildNameIndex === 'function') g.rebuildNameIndex();
+                    return { ok: true, note: '关系边已重定向' };
+                },
+                /* ④ 约定：cancel（commitment-ledger 既有终态迁移）。 */
+                promise: function (it) {
+                    const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+                    if (!CL || typeof CL.cancel !== 'function') return { ok: false, reason: 'no-organ' };
+                    if (!self.worldProg) return { ok: false, reason: 'not-found' };
+                    const id = itemKey(it);
+                    if (!id) return { ok: false, reason: 'missing-target' };
+                    const r = CL.cancel(self.worldProg.commitmentLedger, { id: id, reason: String((it && it.note) || 'repair') });
+                    if (!r || !r.ok) return { ok: false, reason: (r && r.reason) || 'not-found' };
+                    self.worldProg.commitmentLedger = r.state;
+                    return { ok: true, note: '约定已作废' };
+                },
+                /* ⑤ 事实：撤销（fact-version 既有写面；这是本仓「修复闭环」的原生动作）。 */
+                fact: function (it) {
+                    const FV = _factVersionLib();
+                    if (!FV || typeof FV.revokeFact !== 'function') return { ok: false, reason: 'no-organ' };
+                    const id = itemKey(it);
+                    if (!id) return { ok: false, reason: 'missing-target' };
+                    let st = self._factVersionState;
+                    if (!st) return { ok: false, reason: 'not-found' };
+                    const r = FV.revokeFact(st, { id: id, reason: String((it && it.note) || 'repair') });
+                    if (!r || !r.ok) return { ok: false, reason: (r && r.reason) || 'not-found' };
+                    self._factVersionState = r.state;
+                    return { ok: true, note: '事实已撤销' };
+                },
+                /* ⑥ 时间线：按 id 摘条（与 `rollbackFloor` 里摘时间线逐字同法）。 */
+                timeline: function (it) {
+                    const id = itemKey(it);
+                    if (!id) return { ok: false, reason: 'missing-target' };
+                    const tl = self.timeline;
+                    if (!tl || !Array.isArray(tl.entries)) return { ok: false, reason: 'no-organ' };
+                    const before = tl.entries.length;
+                    tl.entries = tl.entries.filter(function (t) { return String(t.id) !== id; });
+                    if (tl.entries.length === before) return { ok: false, reason: 'not-found' };
+                    return { ok: true, note: '时间线条目已摘除' };
+                },
+            };
+        }
+
+/**
+         * [v3.295.0 · X2] 逐项落笔通道：把一次修复的**确认方案**真正落到六类派生件的 owner 上，
+         * 并按「原数据核验 + 持久化回读」两条证据逐项落定（`RL.settle` 的证据门）。
+         *
+         * 【为什么必须由宿主做】模块侧是纯函数（`repair-loop.js` 没有六本账的引用，也不该有）。
+         *   计划验收原文：「用户选错项 → 看原文和候选影响 → 选择纠正归属/拆分/撤销 → 逐项确认修改
+         *   方案 → **原 owner 执行** → 保存并回读 → settle」——「原 owner 执行」与「保存并回读」
+         *   两句都只有宿主能做到。缺了它们，`settle(done)` 就是一句**无据的声明**：
+         *   界面显示「事实已纠正」，而没有任何一处数据被证明改过。这正是 X2 要治的那一处。
+         *
+         * 【与 X6/X7 的 handoff 同构（同一条纪律的三个实例）】
+         *   ① 落笔走各器官既有写面（`_repairOwners()`，缺面即该类不可撤，如实拒绝）；
+         *   ② 代际栅栏 `_leaseValid`（落笔期间切聊/回档 ⇒ 整批作废，但已落条数**如实计数**）；
+         *   ③ 真落盘（`StorageManager.save` 返 true 才算落地）；
+         *   ④ **真回读**（`StorageManager.load(chatId, {preserveRuntime:true})`）。
+         *   ★ 第 ④ 条是 X2 与 X6/X7 的**关键差别**：X6/X7 回读的是「来源计数」，
+         *     本面回读的是**这份派生件自身的值**——因为本面要证的是「这一条改了」，
+         *     而不是「多了一条」。计数式回读在这里恒真（改文字不改条数），是一条**永不成立的判据**。
+         *
+         * 【两态落定：`byNeedle` 的高风险项默认不自动动】
+         *   `basis==='needle'` 是文本撞上的**候选**（可能是同名角色、可能只是引号里一句台词）。
+         *   计划原文「旧内容的文本命中只标候选」——故除非调用方显式 `allowCandidates:true`，
+         *   候选一律落 `failed` 且原因 `candidate-unconfirmed`，**不猜、不改**。
+         *   这不是「没做成」，而是「必须先由人确认」；两态在回执里分开计数。
+         *
+         * @returns {Promise<object|null>} 落笔回执；模块缺席 / 异常 ⇒ null（降级，不抛）
+         */
+        async applyRepairPlan(opts = {}) {
+            const o = opts || {};
+            let applied = 0, persisted = null, readbackOk = null;
+            try {
+                const RL = _repairLoopLib();
+                if (!RL || typeof RL.plan !== 'function' || typeof RL.settle !== 'function') {
+                    /* 模块缺席**不写账**：模块不在时连「有没有这条修复」都判不了，
+                     *   谎报 ok 会让调用方以为落定过了。 */
+                    this._lastRepairApply = { at: Date.now(), why: 'module-unavailable' };
+                    return null;
+                }
+                const state = this._repairState ? RL.normalize(this._repairState) : { version: 1, seq: 0, repairs: [] };
+                const id = String(o.id || '').trim();
+                const rec = (state.repairs || []).find(function (r) { return r.id === id; });
+                if (!rec) {
+                    this._lastRepairApply = { at: Date.now(), why: 'not-found', id: id };
+                    return { ok: false, reason: 'not-found', id: id, applied: 0, settled: 0 };
+                }
+                /* 方案从**记录里存的那份清单**复算（池是现收的，不重新扫）：
+                 *   重新扫会得到「今天的影响面」，而账上那条修复是**当时**按旧清单登记的。 */
+                const owners = this._repairOwners();
+                const plan = (Array.isArray(rec.affected) ? rec.affected : []).map(function (it) {
+                    return {
+                        kind: it.kind, key: it.key, basis: it.basis,
+                        inverse: (RL.INVERSE && RL.INVERSE[it.kind]) || '',
+                    };
+                });
+                const lease = { chatId: this.getCurrentChatId(), epoch: this._mutationEpoch };
+                const noteOf = (o.notes && typeof o.notes === 'object') ? o.notes : {};
+                const allowCandidates = o.allowCandidates === true;
+                const results = [];
+                let st = state;
+                /* 逐项：**先改数据**（owner 面），**再核原数据**（读回来比），**后落盘回读**，
+                 *   最后带证据 settle。四步的顺序不可换：先 settle 再改，就成了「先声明后动手」。 */
+                for (const step of plan) {
+                    const item = (rec.affected || []).find(function (x) { return x.key === step.key && x.kind === step.kind; });
+                    if (!item) continue;
+                    const note = String(noteOf[step.key] || '').slice(0, 80);
+                    if (step.basis === 'needle' && !allowCandidates) {
+                        /* 候选未确认 ⇒ 不动数据、如实落 failed（原因可读、可重试）。 */
+                        st = RL.settle(st, {
+                            id: id, key: step.key, kind: step.kind, status: 'failed',
+                            note: 'candidate-unconfirmed',
+                        }).state;
+                        results.push({ kind: step.kind, key: step.key, basis: step.basis, status: 'failed', reason: 'candidate-unconfirmed' });
+                        continue;
+                    }
+                    const fn = step.inverse ? owners[step.kind] : null;
+                    if (typeof fn !== 'function') {
+                        /* 该类**没有**逆操作面 ⇒ 不开放撤销（计划明文），如实落 failed。 */
+                        st = RL.settle(st, {
+                            id: id, key: step.key, kind: step.kind, status: 'failed', note: 'no-inverse',
+                        }).state;
+                        results.push({ kind: step.kind, key: step.key, basis: step.basis, status: 'failed', reason: 'no-inverse' });
+                        continue;
+                    }
+                    let r;
+                    try { r = fn({ kind: step.kind, key: step.key, note: note }) || {}; }
+                    catch (e) { errLog(e, 'engine.applyRepairPlan.owner'); r = { ok: false, reason: 'thrown' }; }
+                    if (!r.ok) {
+                        st = RL.settle(st, {
+                            id: id, key: step.key, kind: step.kind, status: 'failed', note: String(r.reason || 'failed'),
+                        }).state;
+                        results.push({ kind: step.kind, key: step.key, basis: step.basis, status: 'failed', reason: String(r.reason || 'failed') });
+                        continue;
+                    }
+                    applied++;
+                    /* 原数据核验：**读运行时**那一本账，确认这一项真的变了。
+                     *   注意这里读的是**运行时**（不是落盘），落盘由下一步单独证明——
+                     *   两步各证一件事，合成一步就会出现「落盘成功」被当成「改对了」。 */
+                    let originOk = false;
+                    try { originOk = this._verifyRepairItem(step.kind, step.key, note) === true; }
+                    catch (e) { errLog(e, 'engine.applyRepairPlan.verify'); originOk = false; }
+                    results.push({ kind: step.kind, key: step.key, basis: step.basis, status: 'done', originData: originOk });
+                    /* 此项的「持久化回读」在**落盘+回读循环之后**统一补 settle（见下），
+                     *   否则每项都要存一次盘：N 项就是 N 次全量序列化（本仓代价最高的一步）。 */
+                }
+                /* 保存 + 回读（一次，覆盖本次全部已改项）。 */
+                let persistedSection = null;
+                if (typeof this.storage?.save === 'function' && typeof this.storage?.load === 'function') {
+                    try { persisted = (await this.storage.save(this.getCurrentChatId(), this.collectExport())) === true; }
+                    catch (e) { errLog(e, 'engine.applyRepairPlan.save'); persisted = false; }
+                    try {
+                        const back = await this.storage.load(this.getCurrentChatId(), { preserveRuntime: true });
+                        persistedSection = (back && back.repairLog) ? back.repairLog : null;
+                        readbackOk = (persisted === true && persistedSection !== null);
+                    } catch (e) { errLog(e, 'engine.applyRepairPlan.load'); readbackOk = false; }
+                } else {
+                    /* 无落盘 / 无回读口 ⇒ `persistedReadback` **不判为真**（也**不判为假**）：
+                     *   「没尝试」与「试了失败」不同形，两者都换不来 confirmed。 */
+                    persisted = null; readbackOk = null;
+                }
+                /* 逐项落定：done 项按「原数据 + 持久化回读」两条证据给 status/evidence。 */
+                for (const res of results) {
+                    if (res.status !== 'done') continue;
+                    const originData = res.originData === true;
+                    const evOk = (readbackOk === true);
+                    st = RL.settle(st, {
+                        id: id, key: res.key, kind: res.kind, status: 'done',
+                        note: originData && evOk ? 'verified' : 'unverified',
+                        originData: originData, persistedReadback: evOk,
+                    }).state;
+                }
+                this._repairState = st;
+                const bad = results.filter(function (x) { return x.status !== 'done'; }).length;
+                const stale = !this._leaseValid(lease);
+                const out = {
+                    ok: bad === 0 && !stale,
+                    id: id,
+                    /* 三态读数分开：落了几项 / 核过原数据几项 / 回读证明几项。 */
+                    applied: applied,
+                    settled: st.repairs ? (st.repairs.find(function (r) { return r.id === id; }) || {}).status : null,
+                    evidence: st.repairs ? (st.repairs.find(function (r) { return r.id === id; }) || {}).evidence : null,
+                    verified: results.filter(function (x) { return x.originData === true; }).length,
+                    persisted: persisted,
+                    readback: readbackOk,
+                    items: results,
+                    stale: stale,
+                    reason: stale ? 'epoch-changed' : (bad === 0 ? '' : 'partial-failed'),
+                };
+                if (stale) this._leaseDrop(lease, 'repairPlan', -1);
+                this._lastRepairApply = { at: Date.now(), why: out.reason || 'ok', applied: applied, verified: out.verified, readback: readbackOk };
+                return out;
+            } catch (e) {
+                /* 降级返回 null，但**先留一条可查的作废读数**（与 X7 同一处置）：
+                 *   异常可能发生在「已经落了 N 条」之后，调用方把 null 读成「没成」就会重试，
+                 *   于是重复落笔。留痕自身必须自兜：登记的失败不得成为新的失败。 */
+                try {
+                    this._lastRepairApply = { at: Date.now(), why: 'threw', applied: applied, persisted: persisted, readback: readbackOk, err: (e && e.message) || String(e) };
+                } catch (_e) { /* 留痕失败就作罢 */ }
+                errLog(e, 'engine.applyRepairPlan');
+                return null;
+            }
+        }
+        /**
+         * [v3.295.0 · X2] **原数据核验**（逐类读回运行时，确认这一项真的改了）。
+         *
+         * 【为什么不能省】`settle(done)` 的语义是「这一处已改」，而它是界面显示
+         *   「事实已纠正」的唯一依据。若只凭 owner 函数返回 `ok:true` 就记 done，
+         *   那么**owner 面自己说谎**（返回真但没改）与**真的改了**同形 —— 本仓治过
+         *   好几轮的「回执与实际相反」。故这里回读那一本账本身。
+         *   判据**逐类不同**（每类改法不同，不能一套判据通吃）：
+         *     · summary  —— 该楼摘要文字 === 本次写入的文字；
+         *     · event    —— 该事件线 `abandoned === true`；
+         *     · relation —— 旧边已不在图谱里；
+         *     · promise  —— 该约定终态已是 cancelled；
+         *     · fact     —— 该事实 `revoked === true`；
+         *     · timeline —— 该 id 已不在时间线里。
+         * @returns {boolean} 真 = 已核到；假 = 核不到（**不抛**）
+         */
+        _verifyRepairItem(kind, key, note) {
+            try {
+                if (kind === 'summary') {
+                    const m = String(key || '').match(/(\d+)\s*$/);
+                    if (!m) return false;
+                    const fl = Number(m[1]);
+                    const list = (this.summary && typeof this.summary.getActiveSummaries === 'function')
+                        ? this.summary.getActiveSummaries() : (this.summary?.summaries || []);
+                    const s = (list || []).find(function (x) { return Number(x.floor) === fl; });
+                    if (!s) return false;
+                    const want = String(note || '').trim();
+                    /* 摘要写入会被 `smartTruncate(t, 2000)` 截断 ⇒ 判据取**前缀**而不是全等：
+                     *   全等会在长文本上恒假，变成一条永不成立的判据。 */
+                    return want !== '' && String(s.text || '').slice(0, want.length) === want;
+                }
+                if (kind === 'event') {
+                    const st = this._eventThreadState;
+                    const evt = ((st && st.events) || []).find(function (e) { return String(e.id) === String(key); });
+                    return !!(evt && evt.abandoned === true);
+                }
+                if (kind === 'relation') {
+                    const m = String(key || '').match(/^\s*(.+?)\s*->\s*(.+?)\s*$/);
+                    if (!m) return false;
+                    const to = String(note || '').trim();
+                    const g = this.graph;
+                    if (!g || !g.edges) return false;
+                    for (const e of g.edges.values()) {
+                        /* 旧边仍在 ⇒ 没改到。 */
+                        if (String(e.from) === m[1] && String(e.to) === m[2]) return false;
+                    }
+                    if (to && to !== m[2]) {
+                        for (const e of g.edges.values()) if (String(e.from) === m[1] && String(e.to) === to) return true;
+                    }
+                    return true;
+                }
+                if (kind === 'promise') {
+                    const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+                    if (!CL || typeof CL.list !== 'function' || !this.worldProg) return false;
+                    const item = (CL.list(this.worldProg.commitmentLedger, {}) || []).find(function (c) { return String(c.id) === String(key); });
+                    return !!(item && item.status === 'cancelled');
+                }
+                if (kind === 'fact') {
+                    const st = this._factVersionState;
+                    const f = ((st && st.facts) || []).find(function (x) { return String(x.id) === String(key); });
+                    return !!(f && f.revoked === true);
+                }
+                if (kind === 'timeline') {
+                    const tl = this.timeline;
+                    if (!tl || !Array.isArray(tl.entries)) return false;
+                    return !tl.entries.some(function (t) { return String(t.id) === String(key); });
+                }
+                return false;
+            } catch (e) { errLog(e, 'engine._verifyRepairItem'); return false; }
+        }
+
+        /**
          * 派生件池（`requestRepair` 与 `previewRepair` 的**单一真源**）。
          * 从当前运行时现收，**不另存副本**（另存就是第二份真源）。
          * 六个池各自独立 try —— 任一池缺席不影响其余池参与判定。
          */
+        /**
+         * [v3.295.0 · X2] **池的装配口**（`_repairPool()` 之上再加调用方给的两个判据入参）。
+         *
+         * 【为什么必须有这一层】模块侧 `affectedBy` 判「确切引用」时读的是池上的
+         *   `refId`（被修复对象的**稳定 id**）。若调用方给的 id 到不了池上，
+         *   模块只能退化成拿 `target` **文本**去比，而池项自报的引用是 **id**
+         *   （`supersededBy` 是事实 id、`eventKey` 是幂等键）——两者永不相遇，
+         *   于是 `basis` 恒 'needle'、「按确切引用找影响」在生产上**永不生效**
+         *   （实测：全仓 `sourceRefs`/`derivedFrom` 零产出，本仓真实的跨条引用是
+         *   `supersededBy`/`eventKey`；见 repair-loop.js 的 refsOf）。
+         *   本层就是那条通路：`refId` 有 ⇒ 原样带下去；没有 ⇒ 逐字保持旧行为
+         *   （退化为文本命中，ref 不可达）。三个调用点共用**同一份**装配，
+         *   免得一处带了 refId、另一处没带，出现「预览是候选、登记是引用」这种漂移。
+         */
+        _repairPoolFor(input) {
+            const i = input || {};
+            const p = this._repairPool();
+            const refId = String(i.refId == null ? '' : i.refId).trim();
+            if (refId) p.refId = refId;
+            /* 调用方声明的已知引用：只参与**悬空**判定，不参与「是否受影响」（两件事两个出口）。 */
+            if (Array.isArray(i.knownRefs)) p.knownRefs = i.knownRefs.slice();
+            return p;
+        }
         _repairPool() {
+            /* [v3.295.0 · X2] 两个新读数，回答「这次判定**看到了多宽的范围**」：
+             *   · `info`     —— 每一类**实际扫过多少条 / 真总数多少**。两类各**独立 try**：
+             *                  收集成功（哪怕 0 条）⇒ 报 {scanned,total}；收集抛错 ⇒ **不给**该键
+             *                  （「判不了」与「真的空」不同形 —— 这正是本模块在别处守的纪律）。
+             *   · 截断     —— relations 取前 200、timeline 取末 100，是**既有**的护栏；
+             *                  但它此前从未被报出来：于是「扫了 200 条、真的没有」与
+             *                  「总共 900 条、只看了 200 条」在 affected 清单上**完全同形**。
+             *                  X2 验收要求「报告未覆盖范围」，故把 total 一并读出。
+             * 逐类包 try 之外**不再另写一套**判断：模块侧 `affectedBy` 只认这两个读数。 */
+            const info = {};
             let summaries = [];
-            try { summaries = (this.summary?.getActiveSummaries?.() || []).map(s => ({ key: 'sum_' + s.floor, text: s.text, floor: s.floor })); } catch (e) { /* 池可缺 */ }
+            try {
+                const all = (this.summary?.getActiveSummaries?.() || []);
+                summaries = all.map(s => ({ key: 'sum_' + s.floor, text: s.text, floor: s.floor }));
+                /* 键名按 **kind（单数）**：模块侧 `affectedBy` 就是按 kind 取的
+                 *   （`info[kind]`）。此处曾按池键（复数）写，于是截断读数永不触发。 */
+                info.summary = { scanned: summaries.length, total: all.length };
+            } catch (e) { /* 池可缺 ⇒ 不给 info（判不了） */ }
             let events = [];
-            try { events = (this._eventThreadState?.events || []).map(e => ({ key: e.id, title: e.title })); } catch (e) { /* 池可缺 */ }
+            try {
+                const all = (this._eventThreadState?.events || []);
+                events = all.map(e => ({ key: e.id, title: e.title }));
+                /* 键名按 **kind（单数）**：模块侧 `affectedBy` 就是按 kind 取的
+                 *   （`info[kind]`）。此处曾按池键（复数）写，于是截断读数永不触发。 */
+                info.event = { scanned: events.length, total: all.length };
+            } catch (e) { /* 池可缺 */ }
             let relations = [];
-            try { relations = [...(this.graph?.edges?.values?.() || [])].slice(0, 200).map(e => ({ key: e.from + '->' + e.to, text: e.label || '' })); } catch (e) { /* 池可缺 */ }
+            try {
+                const all = [...(this.graph?.edges?.values?.() || [])];
+                relations = all.slice(0, 200).map(e => ({ key: e.from + '->' + e.to, text: e.label || '' }));
+                /* 键名按 **kind（单数）**：模块侧 `affectedBy` 就是按 kind 取的
+                 *   （`info[kind]`）。此处曾按池键（复数）写，于是截断读数永不触发。 */
+                info.relation = { scanned: relations.length, total: all.length };
+            } catch (e) { /* 池可缺 */ }
             let promises = [];
             try {
                 const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
-                promises = (CL?.list?.(this.worldProg?.commitmentLedger, {}) || []).map(c => ({ key: c.id, content: c.content }));
+                const all = (CL?.list?.(this.worldProg?.commitmentLedger, {}) || []);
+                promises = all.map(c => ({ key: c.id, content: c.content }));
+                /* 键名按 **kind（单数）**：模块侧 `affectedBy` 就是按 kind 取的
+                 *   （`info[kind]`）。此处曾按池键（复数）写，于是截断读数永不触发。 */
+                info.promise = { scanned: promises.length, total: all.length };
             } catch (e) { /* 池可缺 */ }
-            const facts = ((this._factVersionState?.facts) || []).map(f => ({ key: f.id, text: f.subject + f.predicate + f.value }));
+            let facts = [];
+            try {
+                const all = ((this._factVersionState?.facts) || []);
+                /* `supersededBy` 必须**原样透出**：它是本仓事实账里唯一真实存在的
+                 *   跨条引用（换代指向取代它的那条 id）。漏了它，模块侧 `refsOf` 就
+                 *   收不到任何引用，`basis` 恒 'needle' —— 「按确切引用找影响」于是
+                 *   在生产上永不生效（本条修前实测就是这个状态）。 */
+                facts = all.map(f => ({ key: f.id, text: f.subject + f.predicate + f.value, supersededBy: f.supersededBy }));
+                /* 键名按 **kind（单数）**：模块侧 `affectedBy` 就是按 kind 取的
+                 *   （`info[kind]`）。此处曾按池键（复数）写，于是截断读数永不触发。 */
+                info.fact = { scanned: facts.length, total: all.length };
+            } catch (e) { /* 池可缺 */ }
             let timeline = [];
-            try { timeline = (this.timeline?.entries || []).slice(-100).map(t => ({ key: t.id || ('tl_' + t.floor), text: t.text })); } catch (e) { /* 池可缺 */ }
-            return { summaries: summaries, events: events, relations: relations, promises: promises, facts: facts, timeline: timeline };
+            try {
+                const all = (this.timeline?.entries || []);
+                timeline = all.slice(-100).map(t => ({ key: t.id || ('tl_' + t.floor), text: t.text }));
+                /* 键名按 **kind（单数）**：模块侧 `affectedBy` 就是按 kind 取的
+                 *   （`info[kind]`）。此处曾按池键（复数）写，于是截断读数永不触发。 */
+                info.timeline = { scanned: timeline.length, total: all.length };
+            } catch (e) { /* 池可缺 */ }
+            return {
+                summaries: summaries, events: events, relations: relations,
+                promises: promises, facts: facts, timeline: timeline,
+                info: info,
+            };
         }
         /**
          * [v3.214.0] R1-E：九账证据工作台读数（只读，不写任何账）。
@@ -13104,6 +13543,200 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 }
                 return W.search(this._evidenceWorkbench(), query, opts);
             } catch (e) { errLog(e, 'plugin.searchEvidence'); return { query: '', hits: [], missLedgers: [], emptyLedgers: [], absentLedgers: [], scanned: 0, limit: 0, truncated: false, reason: 'thrown' }; }
+        }
+
+        /* ────────────────────────────────────────────────────────────────
+         * [v3.296.0 · X1] 结构化证据查询（宿主接线，四口 + 一行诊断）
+         *
+         * 与 searchEvidence 的关系（**两者都留**，不是替代）：
+         *   · searchEvidence(query)        —— 关键词打分检索（人找「好像提过一句」）
+         *   · searchEvidenceStructured(s)  —— 结构化组合筛选（按人 / 楼层 / 状态 / 来源 / 修订）
+         *   合成一个口会让「关键词命中」与「结构条件全满足」两种语义混在一条返回里，
+         *   而它们的 `total` 含义不同（打分命中数 vs 条件匹配数）—— 本仓不压同形。
+         *
+         * 三条边界（逐条对齐模块头声明）：
+         *   · 只读：全部走 LEDGERS 的 state/pick（纯取值），**不写任何账**；
+         *   · 不摸 window/storage：账 API 经 `_ledgerApis()`（模块面唯一取库口）注入；
+         *   · 宿主**不自己算筛选**：条件语义在模块里（同一口径只许一份实现）。
+         * ──────────────────────────────────────────────────────────────── */
+        /**
+         * [v3.296.0 · X1] 结构化证据查询（只读、不抛）。
+         * @param {object} spec 条件：ledgers / actors / statuses / sources / floorFrom / floorTo /
+         *                      revisionFrom / revisionTo / text / hasFloor（未知键进 droppedKeys）
+         * @param {object} [opts] page / pageSize / sort / dir / maxPerLedger
+         * @returns {object} 恒定键面（取不到内核也全键在场，下游按键断言即可）
+         */
+        searchEvidenceStructured(spec, opts) {
+            const o = opts || {};
+            const ledgers = _evidenceQueryLedgersOf();
+            const payload = {
+                ledgers: ledgers,
+                apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {}
+            };
+            if (o.maxPerLedger !== undefined) payload.maxPerLedger = o.maxPerLedger;
+            if (o.page !== undefined) payload.page = o.page;
+            if (o.pageSize !== undefined) payload.pageSize = o.pageSize;
+            if (o.sort !== undefined) payload.sort = o.sort;
+            if (o.dir !== undefined) payload.dir = o.dir;
+            const Q = _evidenceQueryLib();
+            if (!Q || typeof Q.query !== 'function') {
+                return this._evidenceQueryEmpty('module-unavailable', spec, o, ledgers);
+            }
+            try {
+                const res = Q.query(this, spec, payload);
+                /* 只留**读数摘要**，不留 rows —— 存 rows 就是第二份证据库（X1 明令禁止的形态）。 */
+                this._evidenceQueryLast = {
+                    at: Date.now(), total: res.total, state: res.state,
+                    scanned: res.scanned, counts: (res.coverage || {}).counts || null,
+                    truncated: (res.coverage || {}).truncated || []
+                };
+                return res;
+            } catch (e) {
+                errLog(e, 'plugin.searchEvidenceStructured');
+                return this._evidenceQueryEmpty('thrown', spec, o, ledgers);
+            }
+        }
+        /**
+         * [v3.296.0 · X1] 检索面缺登记时的**降级回执**：形状与内核同键。
+         *   为什么宿主这里留一份形状而不是「让内核给」：模块整个没挂时内核根本不可达
+         *   （与 `searchEvidence` 的既有降级同规格）。本函数**不是**投影真源 ——
+         *   它只保证「取不到」时下游按同一个键面读，不会读到 undefined。
+         */
+        _evidenceQueryEmpty(reason, spec, opts, ledgers) {
+            const o = opts || {};
+            const n = Math.max(1, Math.min(200, Number(o.pageSize) > 0 ? Math.floor(Number(o.pageSize)) : 30));
+            return {
+                version: 0, replayKey: '', spec: (spec && typeof spec === 'object') ? spec : {},
+                droppedKeys: [], emptyReason: '查询内核不可达（evidence-query.js 未加载）',
+                total: 0, page: 1, pageSize: n, pages: 0, pageOutOfRange: false,
+                sort: null, dir: 'asc', rows: [], hitsByLedger: {},
+                scanned: 0, unmatched: {}, unmatchedUnknownFloor: [],
+                coverage: {
+                    ledgers: {}, counts: { ok: 0, empty: 0, absent: 0 }, scanned: 0,
+                    requestedLedgers: Array.isArray(ledgers) ? ledgers.length : 0,
+                    summaryBypassed: true, scanCap: 0, truncated: []
+                },
+                state: 'absent', reason: reason || 'module-unavailable'
+            };
+        }
+        /**
+         * [v3.296.0 · X1] 检索面对账面：**模块自己的 FACETS ↔ 工作台 LEDGERS** 逐字对账。
+         *   少一个 id / 多一个 id 都是可机检事实（「加了哪本账没加检索面」不靠人记）。
+         * 三态（与九账口径一致）：模块没挂 / 工作台没挂 / 两边都在（ok 才表示对得上）。
+         */
+        evidenceQueryFacets() {
+            const Q = _evidenceQueryLib();
+            const ledgers = _evidenceQueryLedgersOf();
+            if (!Q || typeof Q.facetsAligned !== 'function') {
+                return { ok: false, reason: 'module-unavailable', missing: [], extra: [], facets: 0, ledgers: ledgers.length, filterKeys: [], sortKeys: [], scanCap: 0, savedQueries: 0 };
+            }
+            if (!ledgers.length) {
+                return { ok: false, reason: 'workbench-unavailable', missing: [], extra: [], facets: 0, ledgers: 0, filterKeys: [], sortKeys: [], scanCap: 0, savedQueries: 0 };
+            }
+            try {
+                const al = Q.facetsAligned(ledgers);
+                return {
+                    ok: al.ok === true,
+                    reason: al.ok === true ? '' : 'facet-misaligned',
+                    missing: al.missing || [], extra: al.extra || [],
+                    facets: al.count || 0, ledgers: ledgers.length,
+                    filterKeys: (Q.FILTERS || []).map((f) => f.key),
+                    sortKeys: (Q.SORTS || []).map((f) => f.key),
+                    scanCap: Q.MAX_SCAN_PER_LEDGER || 0,
+                    savedQueries: this.evidenceSavedQueries().length
+                };
+            } catch (e) {
+                errLog(e, 'plugin.evidenceQueryFacets');
+                return { ok: false, reason: 'thrown', missing: [], extra: [], facets: 0, ledgers: ledgers.length, filterKeys: [], sortKeys: [], scanCap: 0, savedQueries: 0 };
+            }
+        }
+        /* ── 保存的查询（**只存条件**；本版刻意不落盘） ──
+         *   为什么不落存档：保存查询是**检索书签**，不是剧情业务面。写进 ARCHIVE_TOP_LEVEL_KEYS
+         *   要连带改携带契约（D3 扫描器按 ARCHIVE ⊆ CARRYOVER ∪ EXEMPT 对账），而它跨对话
+         *   毫无意义（新对话的原账本就不同）—— 为它动存档契约是拿契约换一个书签。
+         *   故：**本次会话内有效**，诊断行如实写出「未落盘」，别让读者以为它会跨对话活着。
+         *   存条件不存结果：存结果＝第二份证据库（原账一改，旧结果就成了旧读数冒充现读数）。
+         */
+        evidenceSavedQueries() {
+            return Array.isArray(this._evidenceSavedQueries) ? this._evidenceSavedQueries.slice() : [];
+        }
+        /** 新增/覆盖一条保存查询（同条件即覆盖；同名不同条件是两条）。不抛。 */
+        saveEvidenceQuery(label, spec) {
+            const empty = { ok: false, saved: false, replaced: false, dropped: 0, reason: 'module-unavailable', label: '', replayKey: '', count: 0, persisted: false };
+            const Q = _evidenceQueryLib();
+            if (!Q || typeof Q.upsertSaved !== 'function') return empty;
+            try {
+                const cur = Array.isArray(this._evidenceSavedQueries) ? this._evidenceSavedQueries : [];
+                const r = Q.upsertSaved(cur, { label: label, spec: spec }, Date.now());
+                this._evidenceSavedQueries = r.list;
+                return {
+                    ok: r.saved === true, saved: r.saved === true, replaced: r.replaced === true,
+                    dropped: r.dropped || 0, reason: r.reason || '',
+                    label: String(label == null ? '' : label),
+                    replayKey: (r.list.length && r.list[r.list.length - 1].replayKey) || '',
+                    count: r.list.length, persisted: false
+                };
+            } catch (e) { errLog(e, 'plugin.saveEvidenceQuery'); return Object.assign({}, empty, { reason: 'thrown' }); }
+        }
+        /** 删除一条保存查询。不抛（找不到就如实报 not-found，不静默当删掉了）。 */
+        removeEvidenceQuery(replayKey) {
+            const Q = _evidenceQueryLib();
+            if (!Q || typeof Q.removeSaved !== 'function') return { ok: false, removed: false, reason: 'module-unavailable', count: this.evidenceSavedQueries().length };
+            try {
+                const cur = Array.isArray(this._evidenceSavedQueries) ? this._evidenceSavedQueries : [];
+                const r = Q.removeSaved(cur, replayKey);
+                this._evidenceSavedQueries = r.list;
+                return { ok: r.removed === true, removed: r.removed === true, reason: r.reason || '', count: r.list.length };
+            } catch (e) { errLog(e, 'plugin.removeEvidenceQuery'); return { ok: false, removed: false, reason: 'thrown', count: this.evidenceSavedQueries().length }; }
+        }
+        /**
+         * 回放一条保存查询：**用当前原账重跑**（这就是「重放一致」的全部含义）。
+         * `keyMatched` 必须为 true —— 它是「存下来的条件与跑出来的条件同一个」的证据；
+         * 为 false 即条件在往返中被改写（那正是要抓的缺陷，不静默）。
+         */
+        replayEvidenceQuery(replayKey, opts) {
+            const key = String(replayKey == null ? '' : replayKey);
+            const Q = _evidenceQueryLib();
+            if (!Q || typeof Q.replaySaved !== 'function') return { ok: false, reason: 'module-unavailable', query: null, replayKey: key, keyMatched: false, persisted: false };
+            const list = this.evidenceSavedQueries();
+            const entry = list.filter((it) => it && it.replayKey === key)[0] || null;
+            if (!entry) return { ok: false, reason: 'not-found', query: null, replayKey: key, keyMatched: false, persisted: false };
+            try {
+                const r = Q.replaySaved(this, entry, {
+                    ledgers: _evidenceQueryLedgersOf(),
+                    apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {},
+                    page: (opts || {}).page, pageSize: (opts || {}).pageSize,
+                    sort: (opts || {}).sort, dir: (opts || {}).dir
+                });
+                return { ok: r.ok === true, reason: r.reason || '', query: r.query, replayKey: r.replayKey, keyMatched: r.keyMatched === true, persisted: false };
+            } catch (e) { errLog(e, 'plugin.replayEvidenceQuery'); return { ok: false, reason: 'thrown', query: null, replayKey: key, keyMatched: false, persisted: false }; }
+        }
+        /**
+         * [v3.296.0 · X1] 诊断一行。**三种坏法分开写**（本仓九账治理后的纪律）：
+         *   模块没挂 / 登记面没对齐 / 面在位但本会话没查过 —— 后者不是缺陷，是「待用」。
+         * 不在诊断行里跑真查询：查一次要扫九账全量，诊断面不许有这种副作用。
+         */
+        evidenceQueryLine() {
+            try {
+                const Q = _evidenceQueryLib();
+                if (!Q || typeof Q.line !== 'function') return '模块未加载（evidence-query.js）';
+                const ledgers = _evidenceQueryLedgersOf();
+                const al = (typeof Q.facetsAligned === 'function') ? Q.facetsAligned(ledgers) : null;
+                if (al && al.ok !== true) {
+                    return '⚠️ 检索面与账本登记表不对齐：缺 ' + (al.missing.join('、') || '无')
+                        + ' / 多 ' + (al.extra.join('、') || '无');
+                }
+                const saved = this.evidenceSavedQueries().length;
+                const last = this._evidenceQueryLast || null;
+                if (!last) return '待用（面在位 · ' + ledgers.length + ' 账 · 保存查询 ' + saved + ' 条未落盘）';
+                const c = last.counts || {};
+                const bits = ['上次 ' + last.total + ' 条', '扫 ' + (last.scanned || 0) + ' / ' + (c.ok || 0) + ' 账'];
+                if (c.empty) bits.push('空账 ' + c.empty);
+                if (c.absent) bits.push('缺席 ' + c.absent);
+                if (Array.isArray(last.truncated) && last.truncated.length) bits.push('截断 ' + last.truncated.join('、'));
+                if (last.state === 'inverted-range') bits.push('（区间反转按空集）');
+                return bits.join(' · ') + ' · 保存查询 ' + saved + ' 条未落盘';
+            } catch (e) { errLog(e, 'plugin.evidenceQueryLine'); return '—（诊断异常）'; }
         }
         /** [v3.194] 当前未完成事项（事件线里缺结果/后续的）——计划点名「保留未完成事项」的读取面。不抛。 */
         outstandingThreads(filter) {
@@ -13321,6 +13954,30 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   可查对账面（三态 + 出处 ref/floor），是「工作台与证据查询」的上游出口。
     function _evidenceWorkbenchLib() {
         return _moduleLib(() => window.LonShaEvidenceWorkbench, 'evidence-workbench.js');
+    }
+    // [v3.296.0 · X1] 结构化证据查询（evidence-query.js）。为什么需要：
+    //   evidence-workbench.js 的 search() 只有**关键词**一条路（打分命中），且它的投影面
+    //   是 `items.slice(-200)` —— 于是「这本账 900 条」与「200 条」同形，actor / 状态 /
+    //   楼层区间 / 来源 / 修订号这些**在原账里真实存在**的结构化字段无处可查。
+    //   本模块在**原账状态**上做组合筛选 + 分页 + 完整度读数（X1 验收原文两条：
+    //   「超过 200 条的旧证据仍能按需检索」「不默认在 200 条摘要中找不到就判全库没有」）。
+    function _evidenceQueryLib() {
+        return _moduleLib(() => window.LonShaEvidenceQuery, 'evidence-query.js');
+    }
+    /**
+     * [v3.296.0 · X1] 账本登记表（**取自工作台，不另抄一份**）。
+     *
+     * 为什么必须复用而不在宿主再写一份「哪本账取哪个字段」：
+     *   那份知识已经是 evidence-workbench.js 的 `LEDGERS`（state / pick / project / keyOf
+     *   四件套）。宿主再抄一份 ⇒ 两份必然漂移，且漂移形态正是本仓治理过多轮的
+     *   「照抄别账字段名 ⇒ 恒空」（v3.233.0 F-2 在 event-completeness 上踩过一次）。
+     * 取不到工作台 ⇒ 返回空数组（内核会如实报「扫描面为空」，**不是**「没有证据」）。
+     */
+    function _evidenceQueryLedgersOf() {
+        try {
+            const W = _evidenceWorkbenchLib();
+            return (W && Array.isArray(W.LEDGERS)) ? W.LEDGERS : [];
+        } catch (_e) { return []; }
     }
     /**
      * [v3.214.0] R1-E：九账 API 表（**单一真源**，工作台接线只从这里取）。
@@ -14330,6 +14987,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
      */
     function repairReceipt(extra) {
         const e = extra || {};
+        /* [v3.295.0 · X2] 回执从 **9 键扩到 13 键**。为什么不是「只给 applyPlan 加三个键」：
+         *   v3215 的 `assertReceiptShape` 钉的是「**同一命名空间内所有方法**回执键集逐字相同」，
+         *   它的本意是「失败分支与成功分支不同形」——只给新方法加键，会让命名空间里出现
+         *   两种形状，那正是该判据要防的。故新读数一律**全体方法都有**，恒定给默认值：
+         *     · applied  —— 落笔改到的项数（其余方法恒 0）；
+         *     · verified —— 原数据核验通过的项数（其余方法恒 0）；
+         *     · readback —— 持久化回读的结论：true / false / **null**（没尝试）。
+         *                  三态而非布尔：「没尝试」与「试了失败」不同形（本仓同族纪律）。
+         *     · items    —— 逐项结局（落笔才有内容；其余方法恒空数组，**不是 undefined**）。 */
         return {
             ok: !!e.ok,
             reason: e.reason || '',
@@ -14339,6 +15005,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             total: Number.isFinite(e.total) ? e.total : 0,
             revision: Number.isFinite(e.revision) ? e.revision : 0,
             replayed: !!e.replayed,
+            applied: Number.isFinite(e.applied) ? e.applied : 0,
+            verified: Number.isFinite(e.verified) ? e.verified : 0,
+            readback: (e.readback === true) ? true : (e.readback === false ? false : null),
+            items: Array.isArray(e.items) ? e.items : [],
             at: Date.now(),
         };
     }
@@ -14450,7 +15120,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
          *          塞一条按旧状态算出来的修复。宁可拒，不可错位写入。
          *   · `settle(input)`   —— 逐项落定（done / failed / missing）。
          *   · `abandon(input)`  —— 放弃。
-         *   回执 9 键恒定：{ok, reason, repairId, action, affected, total, revision, replayed, at}。
+         *   回执 13 键恒定：{ok, reason, repairId, action, affected, total, revision, replayed,
+         *     applied, verified, readback, items, at}——后四项对 `apply` 恒为 0/0/null/[]，
+         *   它们描述的是「落笔」这件事，而 `apply` 只登记台账（落笔在 `applyPlan`）。
          *   `revision` 一律回**写后**修订号（被拒时即写前当下值）。
          * 【边界】本面**不自动改派生件**：回执只说「账上落定了什么」，不推断剧情已经发生
          *   （改哪一处是产品决定，自动改会累积幻觉删改 —— repair-loop 原注释已立）。
@@ -14467,6 +15139,95 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     return repairReceipt({
                         ok: true, action: r.action, affected: r.affected, total: r.total,
                         revision: repairRevisionOf()
+                    });
+                } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
+            },
+            /**
+             * [v3.295.0 · X2] **逐项修改方案**（只读；计划原文的「逐项确认修改方案」那一步）。
+             *   与 `preview` 的分工：`preview` 回答「会牵连哪些派生件」，
+             *   `plan` 回答「每一项该怎么改、谁来改、能不能撤、改完拿什么证明」。
+             *   两者共用 `RL.affectedBy`，故 affected 逐条一致（不会出现「预览通过、方案没这项」）。
+             *   纯读：不碰账、不碰数据，也不接受 `expectRevision`（读不需要对表）。
+             */
+            plan(input) {
+                try {
+                    const eng = plugin.engine;
+                    if (!eng || typeof eng.previewRepair !== 'function') {
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: repairRevisionOf() });
+                    }
+                    const RL = _repairLoopLib();
+                    if (!RL || typeof RL.plan !== 'function') {
+                        return repairReceipt({ ok: false, reason: 'module-unavailable', revision: repairRevisionOf() });
+                    }
+                    /* 池由宿主现收（同一份 `_repairPool()`）：方案与预览必须看同一片世界，
+                     *   否则「预览 3 条、方案 5 条」而两处都对——这正是本仓治理过的漂移形态。 */
+                    const pool = (typeof eng._repairPoolFor === 'function') ? eng._repairPoolFor(input)
+                        : ((typeof eng._repairPool === 'function') ? eng._repairPool() : undefined);
+                    const r = RL.plan(Object.assign({}, input, { pool: pool })) || {};
+                    if (!r.ok) return repairReceipt({ ok: false, reason: r.reason || 'rejected', revision: repairRevisionOf() });
+                    return repairReceipt({
+                        ok: true, action: r.action, affected: r.steps, total: r.total,
+                        revision: repairRevisionOf()
+                    });
+                } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
+            },
+            /**
+             * [v3.295.0 · X2] **真落笔**（原 owner 执行 → 保存并回读 → settle 三步的入口）。
+             *
+             * 【与 `apply` 的分工（两者都是写，但写的**东西**不同）】
+             *   `apply`     —— 写**台账**：登记一次修复请求（算影响面 + 立项）。它不改任何派生件。
+             *   `applyPlan` —— 写**数据**：按已登记的那条修复，逐项改六类派生件、核原数据、
+             *                  落盘回读，然后带证据 settle。计划里那句「仅登记不能显示『事实已纠正』」
+             *                  说的就是：只做 `apply` 的那一步，账上写着「修复中」而界面上
+             *                  已经能显示「已纠正」——两者之间原本没有任何数据被证明改过。
+             *
+             * 【两道门与 `apply` 完全同规格】（同一命名空间内的两个写动作，门必须一致，
+             *   否则调用方会以为「apply 严、applyPlan 松」而把重试放在松的那一边）
+             *   ① `idempotencyKey` 必填：本面**本身是重放安全**的（同一项改两次结果相同、
+             *      settle 有幂等），但**重放安全不等于可以无声重放**——回执里的 applied 计数
+             *      会让「第二次什么都没发生」看起来像「又落了一遍」。键必填就是为此。
+             *      本面不往 `dedupeKey` 里塞（那是**登记**的判重键，塞进来会改掉 apply 的语义）。
+             *   ② `expectRevision` 必填且必须等于当下修订号：方案里的 key 来自**旧代数**的池，
+             *      切聊/回滚后照落就是往新会话里塞一批按旧状态算出来的修改。
+             * @returns {Promise<object>} 回执 13 键恒定；其中 `applied/verified/readback/items`
+             *   是本次落笔的读数（其余方法的同名键恒为 0/0/null/[]）
+             */
+            async applyPlan(input) {
+                const i = input || {};
+                const nowRev = repairRevisionOf();
+                if (!String(i.idempotencyKey == null ? '' : i.idempotencyKey).trim()) {
+                    return repairReceipt({ ok: false, reason: 'missing-idempotency-key', revision: nowRev });
+                }
+                if (i.expectRevision == null) {
+                    return repairReceipt({ ok: false, reason: 'revision-mismatch', revision: nowRev });
+                }
+                if (Number(i.expectRevision) !== nowRev) {
+                    return repairReceipt({ ok: false, reason: 'revision-mismatch', revision: nowRev });
+                }
+                try {
+                    const eng = plugin.engine;
+                    if (!eng || typeof eng.applyRepairPlan !== 'function') {
+                        return repairReceipt({ ok: false, reason: 'engine-absent', revision: nowRev });
+                    }
+                    const r = (await eng.applyRepairPlan(i)) || {};
+                    const rec = (function () {
+                        try {
+                            const RL = _repairLoopLib();
+                            const st = RL && RL.normalize ? RL.normalize(eng._repairState) : null;
+                            return (st && st.repairs || []).find(function (x) { return x.id === String(i.id || ''); }) || null;
+                        } catch (e) { return null; }
+                    })();
+                    return repairReceipt({
+                        ok: r.ok === true, reason: r.reason || (r.ok === true ? '' : 'rejected'),
+                        repairId: r.id, action: rec ? rec.action : undefined,
+                        affected: rec ? rec.affected : undefined,
+                        total: rec && Array.isArray(rec.affected) ? rec.affected.length : 0,
+                        revision: repairRevisionOf(),
+                        /* 落笔独有的三态读数：落了几项 / 核到原数据几项 / 回读是否证明。 */
+                        applied: Number(r.applied) || 0,
+                        verified: Number(r.verified) || 0,
+                        readback: (r.readback === true) ? true : (r.readback === false ? false : null),
+                        items: r.items || [],
                     });
                 } catch (e) { return repairReceipt({ ok: false, reason: 'thrown', revision: repairRevisionOf() }); }
             },
