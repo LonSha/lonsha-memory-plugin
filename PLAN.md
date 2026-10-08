@@ -6,6 +6,10 @@
 > · **门禁纪律**：用户指令「做完计划全部内容前别跑全量」仍然有效 —— 只跑单门 / 单套件；全量 `npm test`、`npm test -- --audit` 与依赖其产物的断言重绑，集中到计划收口后跑一次。**本版即该收口点**：X 系列八条全部交付后已跑一次全量（v3.296.0 · 277 文件 · 2986 断言 · 0 失败 · 审计 59/59，登记见 `doc_readings.json`），故下方快照行不再是「待验」而是实测读数；后续再动盘面仍须回到「未实跑即标待验」的口径，由 `scan_doc_truthfulness.mjs` 把守。
 > · **测试成本读数**：「测试成本热点读数」也走登记 + 重绑（`tests/audit/test_cost_readings.json`，由 `tools/_rebind_test_cost.py` 消费 `TEST_SUMMARY_JSON` 写入），由 `scan_cost_truthfulness.mjs` 把守 —— 覆盖范围（全量实跑 / 定向采样）必须自述，定向采样不得冒充全量。
 > · **当前优先级**：见下方「当前优先级」节；只运行该节三级排序，旧排序节（如「## 优先级」）已陈旧，判据 `scan_plan_currency.mjs`。
+> · **第二期计划入口（2026-10-08 核实，v3.296.0 / d0c4a78）**：【本期为现行提案，基线 v3.296.0 —— 拓展计划八条与优化计划 O1–O8 均已交付（O2 仅交互逻辑切片），故第二期只保留仍成立的真实缺口。实施前请重算基线。】
+> [优化提升计划（第二期）](.agents/notes/proposed/architecture/2026-10-08-optimization-plan-v2.md) ·
+> [拓展计划（第二期）](.agents/notes/proposed/feature/2026-10-08-expansion-plan-v2.md)。
+> 两份均为 `proposed`；各自开篇的「过时内容裁定」表已逐条把第一期条目转为「已完成 / 已并入 / 不再追求」。
 > · **上一份现行计划入口（2026-10-04 核实，v3.271.0 / 1a0ba36）**：【核实日快照，非永久事实 —— 这些链接指向的 `proposed` 计划以 v3.271.0 为基线；本仓已推进到 v3.284.0，实施前请重算基线。】
 > [优化提升计划](.agents/notes/proposed/architecture/2026-10-04-optimization-plan.md) ·
 > [拓展计划](.agents/notes/proposed/feature/2026-10-04-expansion-plan.md) ·
