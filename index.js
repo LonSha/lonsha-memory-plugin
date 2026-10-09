@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.298.0';
+    const VERSION = '3.299.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11177,6 +11177,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.factVersion'); return ['事实版本', '—（诊断异常）'];
                         }
                     })(),
+                    // [v3.299.0 · M-O6] 事实状态：回答「这条事实现在算不算数」这个**独立于版本**的问题。
+                    //   为什么不并进「事实版本」那一行：版本行答「同格几个版本、多少闭合」，
+                    //   状态行答「多少条允许进载荷 + **本版挡下了哪几条旧口径会放行的**」。
+                    //   后者是 M-O6 修复的量化读数（点名到 id），压进版本行就看不见了。
+                    (() => {
+                        try {
+                            const FS = _factStateLib();
+                            if (!FS || typeof FS.line !== 'function') return ['事实状态', '模块未加载（fact-state.js）'];
+                            if (!this._factVersionState) return ['事实状态', '待本轮（尚无事实账）'];
+                            return ['事实状态', FS.line(this._factVersionState)];
+                        } catch (e) { errLog(e, 'selfCheck.factState'); return ['事实状态', '—（诊断异常）'];
+                        }
+                    })(),
                     // [v3.210] 记忆类型：回答「账上事实按类型怎么分布、有多少条还没归类、有没有类型名被拒」。
                     //   三态可分：模块未加载 / 尚无事实账 / 有账（未归类亮 ⚠️）。
                     //   为什么不并进上一行：上一行答的是「多少个版本、多少未决」，这一行答的是
@@ -13832,7 +13845,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (!MT || typeof MT.typedBuckets !== 'function') return empty;
                 if (!this._factVersionState) return empty;
                 const MAX_TYPED_LINES = 3;
-                const buckets = MT.typedBuckets(this._factVersionState);
+                /* [v3.299.0 · M-O6] 状态准入**前置**：先由 fact-state 把「哪条事实允许进载荷」判完，
+                 *   再交给 typedBuckets 分桶。
+                 *   为什么必须前置而不是在 typedBuckets 里补一句：`typedBuckets` 修前只挡
+                 *   `revoked === true`，放行 `to != null` 的已换代旧事实 ⇒ 旧值进注入面（本版修的真缺陷）。
+                 *   为什么不用 `admitForLoad().supported` 直接替掉 buckets：那是**第二套分桶**——
+                 *   准入与分组是两件事（准入管「算不算数」，分组管「该进哪个分区」），
+                 *   这里只把准入结果当**过滤器**用（按 id 放行），分组口径仍只有 typedBuckets 一份。
+                 *   模块缺席（extra_js 未加载）⇒ 退回既有行为并留痕，**不静默按新口径**也未静默丢弃。 */
+                const FS = _factStateLib();
+                const stateGate = (FS && typeof FS.readState === 'function')
+                    ? FS.readState(this._factVersionState) : null;
+                const allowIds = stateGate
+                    ? new Set(stateGate.entries.filter(e => e.admissible).map(e => e.id)) : null;
+                const gated = (f) => !allowIds || allowIds.has(String(f && f.id != null ? f.id : ''));
+                const rawBuckets = MT.typedBuckets(this._factVersionState);
+                const buckets = {};
+                for (const k of Object.keys(rawBuckets)) {
+                    const list = rawBuckets[k];
+                    buckets[k] = Array.isArray(list) ? list.filter(gated) : list;
+                }
                 const stableGroups = [];
                 const volatileGroups = [];
                 for (const key of Object.keys(buckets)) {
@@ -14005,6 +14037,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   能执行的冲突策略。注意分工：本模块不存储、不校验存储侧；类型落在事实条目上。
     function _memoryTypeLib() {
         return _moduleLib(() => window.LonShaMemoryType, 'memory-type.js');
+    }
+    // [v3.299.0 · M-O6] 事实状态**单一真源**（fact-state.js）。为什么需要：
+    //   `fact-version.js` 有 `revoked` / `to` / `supersededBy` 三个字段，但**没有一处**把它们
+    //   合成「这条事实现在算不算数」；于是每个消费点各写一遍判法，且写法不一。
+    //   修前实测的真缺陷：`memory-type.js#typedBuckets` **只挡 `revoked === true`**，
+    //   放行了 `to != null` 的已被换代的旧事实 ⇒ 旧值仍进类型化注入面（M-O6 真实需求那一条）。
+    //   本模块把五态（active/superseded/revoked/disputed/unknown）+ 有效范围收成一处判定，
+    //   并**只读不写**（写回式迁移会让「推导说 superseded、持久说 active」成为第二份真源）。
+    function _factStateLib() {
+        return _moduleLib(() => window.LonShaFactState, 'fact-state.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的

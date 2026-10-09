@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.298.0",
+ "measured_at": "v3.299.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1115,6 +1115,38 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.299.0": {
+   "reason": "v3.299.0 M-O6 事实状态单一真源：宿主新增 _factStateLib 取库口 + typedFactsBlocks 状态准入过滤器 + 诊断面「事实状态」体检行；读数由探针重绑",
+   "readings": {
+    "total_lines": 15435,
+    "member_count": 568,
+    "duplicate_member_names": 25,
+    "top5_lines": 4562,
+    "top5_pct": 29.6,
+    "top40_lines": 9987,
+    "top40_pct": 64.7,
+    "prefix_rule_coverage_lines": 4924,
+    "prefix_rule_coverage_pct": 31.9,
+    "unclassified_lines": 9643,
+    "seam_distinct_modules": 54,
+    "seam_reference_sites": 66,
+    "seam_call_shape_sites": 70,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 22,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把 M-O6 的新接线按读数并入基线。",
+   "delta_from": "v3.298.0",
+   "delta": {
+    "total_lines": 42,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1126,19 +1158,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 15393,
+  "total_lines": 15435,
   "member_count": 568,
   "duplicate_member_names": 25,
-  "top5_lines": 4549,
+  "top5_lines": 4562,
   "top5_pct": 29.6,
-  "top40_lines": 9945,
-  "top40_pct": 64.6,
-  "prefix_rule_coverage_lines": 4911,
+  "top40_lines": 9987,
+  "top40_pct": 64.7,
+  "prefix_rule_coverage_lines": 4924,
   "prefix_rule_coverage_pct": 31.9,
-  "unclassified_lines": 9614,
-  "seam_distinct_modules": 53,
-  "seam_reference_sites": 65,
-  "seam_call_shape_sites": 69,
+  "unclassified_lines": 9643,
+  "seam_distinct_modules": 54,
+  "seam_reference_sites": 66,
+  "seam_call_shape_sites": 70,
   "members_over_80_lines": 33,
   "low_coupling_members": 22,
   "high_coupling_members": 8
@@ -1147,11 +1179,11 @@
   {
    "domain": "（未归类）",
    "members": 527,
-   "lines": 9614,
+   "lines": 9643,
    "lines_pct": 62.5,
-   "outside_refs": 5574,
+   "outside_refs": 5593,
    "internal_refs": 1507,
-   "outside_ref_share_pct": 78.7
+   "outside_ref_share_pct": 78.8
   },
   {
    "domain": "宿主事件接线",
@@ -1165,11 +1197,11 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1358,
-   "lines_pct": 8.8,
-   "outside_refs": 315,
-   "internal_refs": 463,
-   "outside_ref_share_pct": 40.5
+   "lines": 1371,
+   "lines_pct": 8.9,
+   "outside_refs": 317,
+   "internal_refs": 462,
+   "outside_ref_share_pct": 40.7
   },
   {
    "domain": "召回与注入",
@@ -1248,8 +1280,8 @@
   },
   {
    "name": "selfCheck",
-   "lines": 994,
-   "outside_refs": 11
+   "lines": 1007,
+   "outside_refs": 13
   },
   {
    "name": "recallMemory",
@@ -1278,7 +1310,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 289,
+   "lines": 318,
    "outside_refs": 0
   },
   {
@@ -1457,7 +1489,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 289,
+    "lines": 318,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -1525,8 +1557,8 @@
    },
    {
     "name": "selfCheck",
-    "lines": 994,
-    "outside_refs": 11,
+    "lines": 1007,
+    "outside_refs": 13,
     "is_host_lifecycle": false
    },
    {

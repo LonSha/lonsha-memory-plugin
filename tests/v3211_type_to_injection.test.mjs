@@ -56,6 +56,10 @@ const MT = req(MTF);
 const FV = req(FVF);
 const IR = req(IRR);
 const CL = req(CLF);
+/* [v3.299.0 M-O6] 事实状态模块（产品那一份）：第 7 段夹具按**真实模块**注入
+ *   `_factStateLib`，故这里取一次真身 —— 不造 stub（stub 会让 7a~7d 测到假对象）。 */
+const FSF = join(ROOT, 'fact-state.js');
+const FS = req(FSF);
 /* [v3.267.0 A1 第七刀] 类抽取面改读「入口 + memory-config.js」合看：
  *   ConfigManager（loadConfig / _applyCardOverrides / 默认块 / 三个锚点常量）已外移，
  *   语义一字不改、不放宽（每一条仍须在场）。 */
@@ -307,15 +311,22 @@ test('v3211 6. 落笔侧 facts[] 显式类型通道：schema 在场 + 迁移补�
 /* ══════════ 7. 注入面真跑 ══════════ */
 test('v3211 7. typedFactsBlocks 真跑：稳定/波动两块可分（抽真方法体 + fake engine）', () => {
     const body = classMethodBody(idxSrc, 'typedFactsBlocks() {', 'typedFactsBlocks');
-    const mk = new Function('_memoryTypeLib', '_factVersionState', 'errLog',
-        'const m = function()' + body + '; return m.call({ _memoryTypeLib: _memoryTypeLib, _factVersionState: _factVersionState });');
+    /* [v3.299.0 M-O6] 本方法体新增一个依赖 **取库口 `_factStateLib`**：
+     *   它在方法体内先取状态模块、再取准入集合。夹具必须把它一并注入 ——
+     *   不注入的话方法体会抛 ReferenceError、被自身 try/catch 吞成 `{stable:'',volatile:''}`，
+     *   于是本档 7a~7d **全部转红**，而根因看起来像「产品坏了」（实测首跑正是这么红的）。
+     *   这里是**夹具缺件**，不是产品缺陷：故 `_factStateLib` 按**真实模块**传入
+     *   （`FS` 就是产品那份 fact-state.js），使本档继续测到真行为 —— 不另造 stub。 */
+    const mk = new Function('_memoryTypeLib', '_factStateLib', '_factVersionState', 'errLog',
+        'const m = function()' + body + '; return m.call({ _memoryTypeLib: _memoryTypeLib,'
+        + ' _factStateLib: _factStateLib, _factVersionState: _factVersionState });');
     const LIB = { typedBuckets: MT.typedBuckets, routeForType: MT.routeForType, policyOfType: MT.policyOfType };
     // 7a 稳定块：long/permanent 类型（人物状态 / 世界规则）
     let st = MT.assertTyped(FV, S(), T('A', '好感', '高', 'character-state', 1)).state;
     st = MT.assertTyped(FV, st, T('世界', '规则', '夜晚禁行', 'world-rule', 1)).state;
     // 7b 波动块：medium/short 类型（地点状态）
     st = MT.assertTyped(FV, st, T('A', '所在', '北京', 'location-state', 1)).state;
-    const out = mk(() => LIB, st, () => {});
+    const out = mk(() => LIB, () => FS, st, () => {});
     A(out.stable.startsWith('[类型化事实·长期]'), '★ 稳定块首行必须是常驻标记 `[类型化事实·长期]`（前缀判定靠它进常驻分区）');
     A(out.volatile.startsWith('[类型化事实·当下]'), '★ 波动块首行是 `[类型化事实·当下]`（**不得**与稳定块同标记）');
     A(out.stable.includes('世界规则') && out.stable.includes('人物状态'), '稳定块含长期类型（世界规则 / 人物状态）');
@@ -323,16 +334,21 @@ test('v3211 7. typedFactsBlocks 真跑：稳定/波动两块可分（抽真方�
     A(out.volatile.includes('地点状态'), '波动块含地点状态');
     A(!out.volatile.includes('世界规则'), '★ 世界规则不得进波动块 —— 否则会被预算裁掉（正是本版要防的「长期规则被裁」）');
     // 7c 三态：无账 / 无模块 / 空账 ⇒ 两块皆空（不得报内容）
-    const noState = mk(() => LIB, null, () => {});
+    const noState = mk(() => LIB, () => FS, null, () => {});
     A(noState.stable === '' && noState.volatile === '', '无事实账 ⇒ 两块皆空（三态：无内容 ≠ 有内容）');
-    const noMod = mk(() => null, st, () => {});
+    const noMod = mk(() => null, () => FS, st, () => {});
     A(noMod.stable === '' && noMod.volatile === '', '模块缺席 ⇒ 两块皆空且不抛（降级安全）');
-    const empty = mk(() => LIB, FV.normalize(null), () => {});
+    /* [v3.299.0 M-O6] 新增三态：**类型模块在场、状态模块缺席** ⇒ 退回既有行为（那块现在还会多出
+     *   已换代的旧值，但**不得整块变空**）—— 这条档住「新接线失败就整块消失」这种更坏的降级。 */
+    const noStateLib = mk(() => LIB, () => null, st, () => {});
+    A(noStateLib.volatile.includes('地点状态'),
+        '★ 状态模块缺席 ⇒ 退回既有行为（该出的块仍出），**不得整块变空**（新接线失败不得吞掉注入面）');
+    const empty = mk(() => LIB, () => FS, FV.normalize(null), () => {});
     A(empty.stable === '' && empty.volatile === '', '空账 ⇒ 两块皆空');
     // 7d 每型行数上限（防单一类型吃掉注入预算）
     let many = FV.normalize(null);
     for (let i = 1; i <= 6; i++) many = MT.assertTyped(FV, many, T('E', '结果' + i, '值' + i, 'event-outcome', i)).state;
-    const mo = mk(() => LIB, many, () => {});
+    const mo = mk(() => LIB, () => FS, many, () => {});
     const lines = mo.stable.split('\n').filter((l) => l.startsWith('- '));
     A(lines.length <= 3, '★ 单一类型最多 3 行（防事件结果堆积吃掉注入预算），实为 ' + lines.length);
     // 7e buildInjection 必须真调用（结构化：方法体内出现对 typedFactsBlocks 的调用）
@@ -405,13 +421,16 @@ test('v3211 10. 判据纯度：负控制是真源码破坏 + 同款真判据重�
     const broken = src0.replace(anchor, 'const route = null;');   // 破坏：路由恒缺席 ⇒ 全落波动块
     const mkFrom = (src) => {
         const body = classMethodBody(src, 'typedFactsBlocks() {', 'typedFactsBlocks');
-        return new Function('_memoryTypeLib', '_factVersionState', 'errLog',
-            'const m = function()' + body + '; return m.call({ _memoryTypeLib: _memoryTypeLib, _factVersionState: _factVersionState });');
+        /* [v3.299.0 M-O6] 与第 7 段同款：方法体现在还依赖取库口 `_factStateLib`，夹具须一并注入
+         *   （漏注入 ⇒ 方法体抛错被自身吞成空块 ⇒ 本条负控制的「原版为真」半边会假红）。 */
+        return new Function('_memoryTypeLib', '_factStateLib', '_factVersionState', 'errLog',
+            'const m = function()' + body + '; return m.call({ _memoryTypeLib: _memoryTypeLib,'
+            + ' _factStateLib: _factStateLib, _factVersionState: _factVersionState });');
     };
     const LIB = { typedBuckets: MT.typedBuckets, routeForType: MT.routeForType, policyOfType: MT.policyOfType };
     let st = MT.assertTyped(FV, S(), T('世界', '规则', '夜晚禁行', 'world-rule', 1)).state;
-    const rt = mkFrom(src0)(() => LIB, st, () => {});
-    const rb = mkFrom(broken)(() => LIB, st, () => {});
+    const rt = mkFrom(src0)(() => LIB, () => FS, st, () => {});
+    const rb = mkFrom(broken)(() => LIB, () => FS, st, () => {});
     A(rt.stable.includes('世界规则') && !rb.stable.includes('世界规则'),
         '★ 判据纯度：真源码破坏（路由恒 null）后同款判据翻红 —— 稳定块不再含世界规则，证明判据真读源码行为而非恒绿');
     A(rb.volatile.includes('世界规则'), '破坏后世界规则被误降级进波动块（可观测地改了行为，不是「破坏没生效」）');

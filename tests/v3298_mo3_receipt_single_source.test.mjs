@@ -586,7 +586,7 @@ test('v3298 E5. 版本锚（当版形，数值 vnum）+ 六源同源', () => {
      *      修前 V4 数的是全网任意文件，于是「给当版补锚」的直觉动作必然踩 V2（见 V2/V4 段头）；
      *   ③ 锚的是「本档出生版本」这条**自洽事实**，不绑运行版本 ⇒ 抬版后本行无需再改
      *      （旧形态绑 idxVer，抬版必红）；运行版本另判「不得低于本档出生版本」。 */
-    assert.strictEqual(vnum('3.298.0'), 3298000, '★ 当版锚：本档出生版本 vnum 须给出三段数值');
+    assert.strictEqual(vnum('3.298.0'), 3298000, '出生版本锚（v3.299.0 起降为历史下界，当版锚交棒给 v3299）：vnum 须给出三段数值');
     assert.ok(vnum(idxVer) >= vnum('3.298.0'), '运行版本不得低于本档出生版本 3.298.0，实 ' + idxVer);
     assert.ok(SELF.includes('v3.298.0'), '★ 本档必须锁自己的出生版本 v3.298.0（不随抬版上抬）');
     assert.strictEqual(RC.RECEIPT_VERSION, 1, '回执结构版本独立于插件版本（结构可判）');
@@ -599,7 +599,10 @@ test('v3298 E6. 登记面：新模块进 extra_js、进人读面、数量锁同�
     assert.ok(MANIFEST.extra_js.indexOf('injection-receipt.js') > MANIFEST.extra_js.indexOf('cost-forecast.js'),
         '加载序：回执模块排在它所消费的 cost-forecast 之后');
     assert.ok(fs.existsSync(path.join(ROOT, 'injection-receipt.js')), '模块文件必须在磁盘上（声明了却缺席 = 静默失败）');
-    assert.strictEqual(MANIFEST.extra_js.length, 86, 'extra_js 项数锁：本版新增 injection-receipt.js（85 → 86）');
+    /* 项数锁随抬版**交棒给当版**（v3299）：本档只判「自己登记的那一项在场且恰一次」，
+     *   不再锁总项数 —— 否则每加一个模块都要回头改历史档（本仓早已定性为抬版仪式）。 */
+    assert.strictEqual(MANIFEST.extra_js.filter((x) => x === 'injection-receipt.js').length, 1,
+        'injection-receipt.js 始终恰登记一次');
     // 人读面（README / PLAN）由 scan_doc_truthfulness 的 D3 / D5 常驻把守，这里只确认登记面在场
     assert.ok(fs.existsSync(path.join(ROOT, 'tests/audit/catalog_reference_consumers.tsv')), '在役测试面登记表在场');
 });
