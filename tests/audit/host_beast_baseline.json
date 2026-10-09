@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.296.0",
+ "measured_at": "v3.298.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1051,6 +1051,70 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.297.0": {
+   "reason": "v3.298.0 M-O3 预算回执单一真源（injection-receipt.js 386 行 + 宿主取库口/回执读数面/诊断行）",
+   "readings": {
+    "total_lines": 15393,
+    "member_count": 568,
+    "duplicate_member_names": 25,
+    "top5_lines": 4549,
+    "top5_pct": 29.6,
+    "top40_lines": 9945,
+    "top40_pct": 64.6,
+    "prefix_rule_coverage_lines": 4911,
+    "prefix_rule_coverage_pct": 31.9,
+    "unclassified_lines": 9614,
+    "seam_distinct_modules": 53,
+    "seam_reference_sites": 65,
+    "seam_call_shape_sites": 69,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 22,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.296.0",
+   "delta": {
+    "total_lines": 64,
+    "member_count": 0,
+    "top5_pct": 0.2
+   }
+  },
+  "v3.298.0": {
+   "reason": "v3.298.0 M-O3 预算回执单一真源（injection-receipt.js 386 行 + 宿主取库口/回执读数面/诊断行）",
+   "readings": {
+    "total_lines": 15393,
+    "member_count": 568,
+    "duplicate_member_names": 25,
+    "top5_lines": 4549,
+    "top5_pct": 29.6,
+    "top40_lines": 9945,
+    "top40_pct": 64.6,
+    "prefix_rule_coverage_lines": 4911,
+    "prefix_rule_coverage_pct": 31.9,
+    "unclassified_lines": 9614,
+    "seam_distinct_modules": 53,
+    "seam_reference_sites": 65,
+    "seam_call_shape_sites": 69,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 22,
+    "high_coupling_members": 8
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.297.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1062,19 +1126,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 15329,
+  "total_lines": 15393,
   "member_count": 568,
   "duplicate_member_names": 25,
-  "top5_lines": 4501,
-  "top5_pct": 29.4,
-  "top40_lines": 9881,
-  "top40_pct": 64.5,
+  "top5_lines": 4549,
+  "top5_pct": 29.6,
+  "top40_lines": 9945,
+  "top40_pct": 64.6,
   "prefix_rule_coverage_lines": 4911,
-  "prefix_rule_coverage_pct": 32.0,
-  "unclassified_lines": 9550,
-  "seam_distinct_modules": 52,
-  "seam_reference_sites": 64,
-  "seam_call_shape_sites": 68,
+  "prefix_rule_coverage_pct": 31.9,
+  "unclassified_lines": 9614,
+  "seam_distinct_modules": 53,
+  "seam_reference_sites": 65,
+  "seam_call_shape_sites": 69,
   "members_over_80_lines": 33,
   "low_coupling_members": 22,
   "high_coupling_members": 8
@@ -1083,17 +1147,17 @@
   {
    "domain": "（未归类）",
    "members": 527,
-   "lines": 9550,
-   "lines_pct": 62.3,
-   "outside_refs": 5552,
-   "internal_refs": 1524,
-   "outside_ref_share_pct": 78.5
+   "lines": 9614,
+   "lines_pct": 62.5,
+   "outside_refs": 5574,
+   "internal_refs": 1507,
+   "outside_ref_share_pct": 78.7
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1787,
-   "lines_pct": 11.7,
+   "lines_pct": 11.6,
    "outside_refs": 5,
    "internal_refs": 72,
    "outside_ref_share_pct": 6.5
@@ -1102,7 +1166,7 @@
    "domain": "诊断与导出",
    "members": 10,
    "lines": 1358,
-   "lines_pct": 8.9,
+   "lines_pct": 8.8,
    "outside_refs": 315,
    "internal_refs": 463,
    "outside_ref_share_pct": 40.5
@@ -1112,9 +1176,9 @@
    "members": 13,
    "lines": 1015,
    "lines_pct": 6.6,
-   "outside_refs": 4,
+   "outside_refs": 5,
    "internal_refs": 67,
-   "outside_ref_share_pct": 5.6
+   "outside_ref_share_pct": 6.9
   },
   {
    "domain": "配置与持久化",
@@ -1179,8 +1243,8 @@
   },
   {
    "name": "buildInjection",
-   "lines": 1018,
-   "outside_refs": 12
+   "lines": 1066,
+   "outside_refs": 13
   },
   {
    "name": "selfCheck",
@@ -1214,7 +1278,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 279,
+   "lines": 289,
    "outside_refs": 0
   },
   {
@@ -1229,7 +1293,7 @@
   },
   {
    "name": "constructor",
-   "lines": 222,
+   "lines": 228,
    "outside_refs": 43
   },
   {
@@ -1365,7 +1429,7 @@
   {
    "name": "_injectionBlocksOf",
    "lines": 70,
-   "outside_refs": 3
+   "outside_refs": 4
   },
   {
    "name": "hybridMerge",
@@ -1393,7 +1457,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 279,
+    "lines": 289,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -1455,8 +1519,8 @@
   "high_coupling_examples": [
    {
     "name": "buildInjection",
-    "lines": 1018,
-    "outside_refs": 12,
+    "lines": 1066,
+    "outside_refs": 13,
     "is_host_lifecycle": false
    },
    {
@@ -1485,7 +1549,7 @@
    },
    {
     "name": "constructor",
-    "lines": 222,
+    "lines": 228,
     "outside_refs": 43,
     "is_host_lifecycle": false
    },

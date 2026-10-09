@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.297.0';
+    const VERSION = '3.298.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2025,6 +2025,12 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastInjection = null;                 // 最近一次**真生成**的注入读数（唯一构造点 _injectionRecord）
             this._lastInjectionDraft = null;            // 本轮逐块读数草稿（buildInjection 现算，零块路径留空）
             this._lastInjectionDiscard = null;          // 最近一次代际过期留痕（_injectionDiscardStale）
+            /* [v3.298.0 · M-O3] 本轮预算/裁剪/注入回执（`injection-receipt.js` 派生）。
+             *   与 `_lastCostLedger` / `_lastForecast` 的关系：那两格是**归因面**（谁的字符）
+             *   与**预测面**（下轮会怎样），本格是**量纲面** —— 六类量各叫什么、口径是什么、
+             *   哪些不可测。三格读同一条 trace，互不重算。
+             *   显式置 null 而不是靠 undefined：「模块未加载」与「本轮是空的」必须可分。 */
+            this._lastReceipt = null;
             this._injectionRound = 0;                   // 真生成轮次（0 块的一轮也推进）
             // [v3.216.0] R2-B 暂存面：生成路径在 await 内部只**暂存**载荷，
             //   载荷在代际确认之后由 _injectionCommit 落成读数。
@@ -9563,6 +9569,54 @@ function relativeTimeLabel(eventTime, nowTime) {
                         this._lastBudgetStats.reconcile = null;
                     }
                 } catch (e) { errLog(e, 'buildInjection.成本预测'); }
+                /* [v3.298.0 · M-O3] **预算/裁剪/注入回执的单一真源**（injection-receipt.js）。
+                 *
+                 * 为什么要有这一格（修前实测的三处缺口，不是推断）：
+                 *   ① **同一事实三份实现**：候选字符量在本文件（`_allB.reduce`）、cost-ledger
+                 *      （累 `tagged`）与 cost-forecast（累 resident+trigger）各算一遍；
+                 *      「载荷字符」同理。任一处漏掉空块 / 封装口径就漂移，且没有任何判据看着。
+                 *   ② **两类量被混着叫 `droppedChars`**：`_lastBudgetStats.droppedChars` 是
+                 *      「裁剪前全文 − 载荷」（**含**首尾说明与块间分隔符），而 cost-ledger 的
+                 *      `truncated.chars` 是「被丢块的字符之和」（**不含**封装）。实测
+                 *      三触发块场景 124 vs 122 —— 差的两个字符正是块间分隔符。
+                 *      把两者当同一个量对账，必然假 drift（cost-forecast 的注释里已记过这笔账）。
+                 *   ③ **判据不可用时没有任何一格回答「多少字符不可归因」**：修前的做法是整组
+                 *      退回 `includes` 反推，而反推在未裁剪场景恰好偏向「全部留下」——
+                 *      正是 M-O3 要断的谎报形态。
+                 *
+                 * 本格的做法：把「六类量」拆开各自命名（候选 / 载荷 / 被丢块 / 裁剪减少 /
+                 *   预算溢出 / **未知**），一律在同一条 trace 上派生；判据不可用时块级量记
+                 *   null + 来源并**不倒推**，不可归因的字符量单列 `unknownChars`。
+                 *   旧键（`droppedChars` / `candidateChars` / `overBudgetChars` …）**一字不动**：
+                 *   下游（v3144 / v3274 / 面板）读的是它们，本格是**新增**的单一真源面。
+                 *   非致命：失败时置 null（读数如实报「不可测」），不连坐注入本身。 */
+                try {
+                    const _RC2 = _injectionReceiptLib();
+                    if (_RC2 && typeof _RC2.deriveReceipt === 'function') {
+                        const _resIdx = [];
+                        for (let _i2 = 0; _i2 < _allB.length; _i2++) {
+                            if (RESIDENT_MARKERS.some((m) => String(_allB[_i2] == null ? '' : _allB[_i2]).startsWith(m))) _resIdx.push(_i2);
+                        }
+                        this._lastReceipt = _RC2.deriveReceipt({
+                            trace: _trace,
+                            blocks: _allB,
+                            payloadText: full,
+                            preTrimChars: _preTrimLen,
+                            budget: budget,
+                            tokenBudget: tokenBudget || null,
+                            tokenSource: (_trace && _trace.tokenSource) ? _trace.tokenSource : null,
+                            strategy: keepCount,
+                            residentIdx: _resIdx,
+                            frame: { headLen: NOTE.length + 3, tailLen: END.length + 2, separatorLen: 1 },
+                            now: this._lastBudgetStats.ts,
+                        });
+                        this._lastBudgetStats.receipt = this._lastReceipt;
+                        this._lastBudgetStats.receiptLine = (_RC2.receiptLine ? _RC2.receiptLine(this._lastReceipt) : '');
+                    } else {
+                        this._lastReceipt = null;
+                        this._lastBudgetStats.receipt = null;
+                    }
+                } catch (e) { errLog(e, 'buildInjection.回执派生'); }
             } catch (e) { errLog(e, 'buildInjection.预算实测'); }
             return full;
         }
@@ -13906,6 +13960,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   并给 reconcile 做「预测 vs 实测」对账：预算行为变了不该只靠感觉发现。
     function _costForecastLib() {
         return _moduleLib(() => window.LonShaCostForecast, 'cost-forecast.js');
+    }
+    // [v3.298.0 · M-O3] **预算/裁剪/注入回执**（injection-receipt.js）。为什么需要：
+    //   v3.251.0 把「谁被留下」从文本反推换成裁剪回执，v3.274.0 把三处消费点统一到同一回执；
+    //   但**量纲**这一面仍然是三处各算一遍（本文件 `_allB.reduce` / cost-ledger 累 tagged /
+    //   cost-forecast 累 resident+trigger），且「裁剪减少的字符」与「被丢块的字符之和」
+    //   被混着叫 `droppedChars`（实测 124 vs 122，差的是块间分隔符）。本模块把六类量
+    //   （候选 / 载荷 / 被丢块 / 裁剪减少 / 预算溢出 / 未知）拆开、在同一条 trace 上派生，
+    //   并给出「判据不可用时多少字符不可归因」—— 修前没有任何一格回答这个问题。
+    function _injectionReceiptLib() {
+        return _moduleLib(() => window.LonShaInjectionReceipt, 'injection-receipt.js');
     }
     // [v3.208.0] 投影管线（projection-pipeline.js）。为什么需要：
     //   v3.176 的本地投影只有两次手工调用（人物位置 / 事实键），加一个投影就要再改一遍宿主

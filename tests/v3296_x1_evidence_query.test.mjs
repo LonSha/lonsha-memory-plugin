@@ -489,7 +489,8 @@ test('v3296 8. 加载面：模块登记进 extra_js 且磁盘在场', () => {
     assert.ok(MF.extra_js.includes('evidence-query.js'), 'evidence-query.js 必须在 manifest.extra_js（不登记 = 浏览器不加载 = 面永远缺席）');
     assert.ok(fs.existsSync(path.join(R, 'evidence-query.js')), '磁盘必须在场');
     assert.ok(MF.extra_js.includes('evidence-workbench.js'), '工作台仍须在（本模块复用它当登记表真源）');
-    assert.equal(MF.extra_js.length, 85, 'extra_js 数量锁：v3.296.0 X1 新增 evidence-query.js ⇒ 85 项，实 ' + MF.extra_js.length);
+    assert.equal(MF.extra_js.length, 86, 'extra_js 数量锁：v3.296.0 X1 新增 evidence-query.js ⇒ 85 项；'
+        + 'v3.298.0 M-O3 新增 injection-receipt.js ⇒ 86 项，实 ' + MF.extra_js.length);
 });
 
 test('v3296 9. 宿主行为面：真方法体在真模块上跑通（口径 / 复用 / 不抛）', () => {

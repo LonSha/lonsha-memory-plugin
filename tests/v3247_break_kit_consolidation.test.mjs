@@ -195,6 +195,9 @@ const REGISTRY = [
     'v3294_x8_recall_explain.test.mjs',
     'v3295_x2_repair_flow.test.mjs',
     'v3296_x1_evidence_query.test.mjs',
+    /* [v3.298.0 M-O3] 本档从 tests/_break_kit.mjs 取 breakSource（四条真源码破坏：
+     *   回执谎报全留 / 未知写成 0 / 常驻归因缺席 / 量纲偏 1）；按 B1 台账纪律在此登记。 */
+    'v3298_mo3_receipt_single_source.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

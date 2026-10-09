@@ -14,6 +14,8 @@
  *   3 负控制：六组（真源码破坏 → 独立树 → 同款真判据），含一组保绿对照
  *   4 交棒链已拆：历史文件的 vnum() 下界逐文件核回各自出生版本
  *   5 判据面自防护：断言数 / 代码行 / 关键指纹
+ *   6 V2/V4 不再互斥（[v3.298.0] 修复）：锚点位置与形态的**双向**判据
+ *     （结构面 / 正控：锚挪进历史文件 ⇒ V2 与 V4 同红 / 保绿对照：注释与下界比较不翻红）
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
@@ -54,6 +56,9 @@ test('v3203 1. 版本守卫审计脚本在位，五条判据与三档退出码�
         ['V3 ', '缺 V3 判据标记'],
         ['V4 ', '缺 V4 判据标记'],
         ['V5 ', '缺 V5 判据标记'],
+        ['vnumLocksCurrent', 'V2 须覆盖 vnum 数值锁形态（[v3.298.0] 修）'],
+        ['hasAnchorFor', 'V4 须用「锚点在场」判定（字面量形 + 本档自锚常量形）'],
+        ['当版档案', 'V4 须写明锚点住在当版档案里（否则与 V2 互斥）'],
         ['failClosed', '缺 fail-closed 结构兜底'],
         ['process.exit(2)', '缺结构漂移退出码（每个审计脚本的底线）'],
         ['process.exit(1)', '缺真缺陷退出码'],
@@ -154,15 +159,23 @@ test('v3203 8. 负控制 N4：当版锚点被删空 → 必须 exit 1（V4）', 
     const r = withTree((d) => {
         // 当版锚点可能散在多个文件里（frontier 自己 + 交棒后的后继）：全部删空才算真的没有基准。
         const dir = path.join(d, 'tests');
-        const needle = "vnum('" + CUR + "')";
+        /* [v3.298.0] 锚的形态是**字面量入 vnum**，故按字面量找；另收本档自锚常量形
+         *   （`const CUR = '<当版>'` + `vnum(CUR)`）—— 两种形态都删空，才算真的没有基准。
+         *   旧夹具只按字面量找，而当时当版锚写成变量形 ⇒ 它**数不出 hit**（破坏照样发生、
+         *   判据却没跑到）：这正是本仓定性过的「负控制自己的夹具也要自证」。 */
+        const needles = ["vnum('" + CUR + "')", 'vnum(CUR)'];
         let hit = 0;
         for (const f of readdirSync(dir).filter((x) => x.endsWith('.test.mjs'))) {
             const p = path.join(dir, f);
-            const s = readFileSync(p, 'utf-8');
-            const n = s.split(needle).length - 1;
+            let s = readFileSync(p, 'utf-8');
+            let n = 0;
+            for (const nd of needles) {
+                n += s.split(nd).length - 1;
+                s = s.split(nd).join('vnun(0)');
+            }
             if (!n) continue;
             hit += n;
-            writeFileSync(p, s.split(needle).join("vnun('" + CUR + "')"));
+            writeFileSync(p, s);
         }
         assert.ok(hit >= 1, '夹具前提：树里须含当版锚点');
     });
@@ -332,4 +345,75 @@ test('v3203 16. 判据面自防护：断言数 / 代码行 / 关键指纹不得�
         ['工具两向自证', '拒绝破坏'],
         ['负控制：frontier 被改', 'frontier 文件头版本被改'],
     ]) assert.ok(SELF.includes(needle), '关键指纹缺失：' + label);
+});
+
+
+/* ══════════ 6. V2/V4 不再互斥（[v3.298.0] 修复的判据面） ══════════
+ * 缺陷（本版定向复验实测）：V2 判「历史测试不得把 VERSION 锁成恰好等于当前版本」，
+ *   V4 判「至少一个测试以 vnum 恰好锚着当前版本」，而 V4 的旧计数口径是**全网任意文件**
+ *   且**只认字面量**。于是：锚只写在当版套件、写成变量形 ⇒ V4 计数 0（判据静默失效）；
+ *   把锚写进**历史文件** ⇒ V4 有数了、V2 当场红（本版 v3297 那一行正是这么补的）。
+ *   两条判据对同一事实给出相反要求 ⇒ 每次抬版都会重演「补锚 = 踩 V2」。
+ * 本组三支：结构面（形态与位置写死在判据文本里）+ **正控**（破坏照样被抓，且两处同时报）
+ *   + **保绿对照**（不得顺手把判据调松）。缺了正控就等于「把判据调松」也照样绿。 */
+
+test('v3203 17. 结构面：V4 计数限定当版档案、V2 覆盖 vnum 数值锁', () => {
+    const S = strip(SCAN);
+    assert.ok(/function vnumLocksCurrent\(/.test(S), 'V2 须有 vnum 数值锁判定（独立函数，可被指纹钉住）');
+    assert.ok(/function hasAnchorFor\(/.test(S), 'V4 须有锚点在场判定');
+    assert.ok(/selfConstNames\(/.test(S), '两种判据须共用「本档自锚常量」解析（否则形态口径会分叉）');
+    assert.ok(S.includes('if (isFrontier) {\n        if (anchorHere) anchored++;'),
+        'V4 的计数必须写在**当版档案**分支里（旧口径写在分支外 ⇒ 历史文件能替当版凑数）');
+    assert.ok(!/^\s*if \(\[\.\.\.text\.matchAll\(boundRe\)\].some/m.test(S),
+        '旧的「全网计数」写法必须消失（它正是与 V2 互斥的那一半）');
+    assert.ok(/\(?:>=|<=\)/.test(S), '比较式必须显式放过（下界/上界是 V3 的读数，不是锁）');
+    assert.ok(S.includes('恰 1 处'), 'V4 须判锚的唯一性（多处锚会在抬版时分叉）');
+});
+
+test('v3203 18. 正控（修复的核心）：锚被挪进历史文件 ⇒ V2 与 V4 **同时**报', () => {
+    /* 复现修复前的现场：当版档案里的字面量锚删空，历史文件里补一行 `vnum('<当版>')` 锚。
+     *   修复前 V4 会把历史文件那一行也计进去 ⇒ 只报 V2（「补锚」看似成立）；
+     *   修复后 V4 只数当版档案 ⇒ 两处同时报。断言的正是后半句。 */
+    const r = withTree((d) => {
+        const dir = path.join(d, 'tests');
+        const needles = ["vnum('" + CUR + "')", 'vnum(CUR)'];
+        let removed = 0;
+        for (const f of readdirSync(dir).filter((x) => x.endsWith('.test.mjs'))) {
+            const p = path.join(dir, f);
+            let s = readFileSync(p, 'utf-8');
+            let n = 0;
+            for (const nd of needles) {
+                n += s.split(nd).length - 1;
+                s = s.split(nd).join('vnun(0)');
+            }
+            if (!n) continue;
+            removed += n;
+            writeFileSync(p, s);
+        }
+        assert.ok(removed >= 1, '夹具前提：当版锚在树里（字面量形态）—— 旧夹具在此数不出 hit');
+        const p = path.join(d, HIST);
+        writeFileSync(p, readFileSync(p, 'utf-8') + '\n'
+            + 'test("注入：把当版锚写进历史文件", () => { assert.equal(vnum(\''
+            + CUR + '\'), 0); });\n');
+    });
+    assert.strictEqual(r.status, 1, '必须翻红：' + r.out.slice(-300));
+    assert.ok(/V2 /.test(r.out), '历史文件锁当版 ⇒ V2 须报');
+    assert.ok(/V4 /.test(r.out),
+        '当版档案里的锚被删空 ⇒ V4 须报（旧口径会被历史文件那一行糊弄过去 —— 这正是互斥的现场）');
+});
+
+test('v3203 19. 保绿对照（防过判）：历史文件里的注释与下界比较提及当版号 ⇒ 不得翻红', () => {
+    /* 修复的对称面：V2 补了 vnum 形态，就必须证明它**没有**把合法的读数一起判死。
+     *   两类合法提及：① 注释里的历史留痕；② `assert.equal(vnum('<低版本>') <= vnum('<当版>'), true)`
+     *   这种**比较式**（下界/上界是 V3 的地盘）。两者都不许翻红。 */
+    const r = withTree((d) => {
+        const p = path.join(d, HIST);
+        writeFileSync(p, readFileSync(p, 'utf-8') + '\n'
+            + '// 抬版留痕：本文件在 vnum(\'' + CUR + '\') 形态确立之后仍按下界比较\n'
+            + 'const VG_NOTE_V3203B = [];\n'
+            + 'test("下界比较用当版号不算锁", () => { assert.equal(vnum(\'3.0.0\') <= vnum(\''
+            + CUR + '\'), true, "下界"); });\n');
+    });
+    assert.strictEqual(r.status, 0,
+        '注释与下界比较不得被当成锁版（否则修复等于把判据调松到另一头）：' + r.out.slice(-400));
 });

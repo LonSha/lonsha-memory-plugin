@@ -14,12 +14,24 @@
 //      构造期异常）时就是真实现 —— 那时诊断面与导出载荷会报出一个上一版的版本号，
 //      三源却全绿。实测 v3.291.0→v3.292.0 抬版时三份副本全部漏抬（HEAD 基线四份同源，
 //      故属本版漂移，非历史遗留）。缺席容忍、在场必一致（同 V1 对 package.json 的口径）。
-//   V2 历史测试（非当版 frontier）不得用 assert.equal / assert.strictEqual /
-//      String.includes 把 VERSION 锁成「恰好等于当前版本」
+//   V2 历史测试（非当版 frontier）不得把 VERSION 锁成「恰好等于当前版本」—— 两种形态都判：
+//      ① 串相等 `assert.equal(v, '<当版>')`；
+//      ② **vnum 数值锁** `assert.equal(vnum('<当版>'), 3298000)` 或本档自锚常量形
+//         `const CUR = '<当版>'; … assert.equal(vnum(CUR), 3298000)`。
+//      （带 `>=` / `<=` 的比较式不是锁 —— 那是 V3 管的下界/上界读数，整行放过。）
+//      ② 是 [v3.298.0] 补的：旧实现只认串相等，于是「数值锁」在历史文件里存活，跨版即变成
+//      「锁上一版」的死数；而 V4 的计数口径又只看 vnum —— 两条判据当时**互相踢球**（详见 V4）。
 //   V3 历史测试里的版本下界（vnum('X.Y.Z')）不得高于当前版本
 //      —— 高于现版即「承诺了一个还没发布的版本」，也是抬版仪式留下的痕迹
-//   V4 当版锚点必须在场：至少一个测试以 vnum 恰好锚着当前版本
-//      （锚点被静默删空时，版本守卫就失去基准，必须响）
+//   V4 当版锚点必须在**当版档案**（frontier）里且恰一处：至少一个 frontier 文件以 vnum 恰好
+//      锚着当前版本。两种可判形态都收：字面量形 `vnum('<当版>')` 与**本档自锚常量形**
+//      （`const CUR = '<当版>'; … vnum(CUR)`）。
+//      （锚点被静默删空时，版本守卫就失去基准，必须响。）[v3.298.0] 修前的计数口径有两处失真，
+//      且与 V2 互斥：**只认字面量** ⇒ 当版套件写成变量形时计数为 0；**数全网任意文件** ⇒
+//      历史文件能替当版把数凑够（实测 v3296→v3297：唯一被计到的锚，正是 V2 要抓的那一行）。
+//      修后锚只能住在当版档案里：V2 判「历史文件不得锁当版」、V4 判「当版档案必须有锚」，
+//      两句话不再冲突。正例早就在场 —— v3263 的 `assert.equal(vnum('3.261.0'), 3261000)`
+//      就是「锚放在当版自己的档案里」的形态，只是被上述两个口径同时漏掉。
 //   V5 结构面：frontier 存在、扫描面不少于 50 个测试文件
 //   V6 [v3.241.0] 四源同源补完：CHANGELOG 顶节必须就是当前版本 ——
 //      三源（index/manifest/package）同步了、发布面没抬版，用户看到的是上一版的说明。
@@ -115,7 +127,7 @@ if (!fs.existsSync(TESTS)) failClosed('tests/ 不存在');
 const files = fs.readdirSync(TESTS).filter((f) => f.endsWith('.test.mjs')).sort();
 if (files.length < 50) failClosed('tests/ 下测试文件过少（' + files.length + '），扫描面不可信');
 
-// 硬锁当前版本的两种形态。只认代码行，不认注释。
+// 硬锁当前版本的形态。只认代码行，不认注释。
 //   （旧实现用动态 RegExp 拼 current，转义层数一多就静默失灵 —— 本轮实测：
 //    V2 在硬等号注入下仍报 exit 0。改为纯字符串判定，不经过正则转义。）
 const ASSERT_CALL = /assert\.\s*(?:equal|strictEqual|deepStrictEqual|deepEqual)\s*\(/;
@@ -125,12 +137,39 @@ const QUOTES = ["'", '"', '`'];
 function quotedVersions(line) {
     return QUOTES.some((q) => line.includes(q + current + q));
 }
-function hardLocksCurrent(codeLine) {
+const boundRe = /vnum\(\s*'([0-9]+[.][0-9]+[.][0-9]+)'\s*\)/g;
+/* [v3.298.0] 「本档自锚常量」：文件里把当版号写成 `const NAME = '<当版>'` 的那个名字（可能没有）。
+ *   两种判据共用：V2 判 `vnum(NAME)` 的**数值锁**，V4 判 `vnum(NAME)` 也是**合法锚形**。
+ *   为什么需要它：锚写成变量形（`vnum(CUR)`）时字面量只出现一次、且不在锚那一行上 —— 
+ *   只看字面量的话，V2 漏判历史文件里的数值锁、V4 漏计当版档案里的锚。 */
+function selfConstNames(txt) {
+    const re = /const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*'([0-9]+[.][0-9]+[.][0-9]+)'/g;
+    return [...txt.matchAll(re)].filter((m) => vnum(m[2]) === vnum(current)).map((m) => m[1]);
+}
+/* [v3.298.0] V2 的第二形态：**vnum 数值锁** —— `assert.*equal` 且把当版号写进 vnum。
+ *   为什么补：旧实现只认「串相等」，于是 `assert.equal(vnum('<当版>'), 3298000)` 在历史文件里
+ *   活了下来 —— 跨版就是「锁上一版」的死数，而 V4 的计数口径又只认 vnum，两条判据互斥
+ *   （「给当版补锚」的直觉动作必然踩 V2）。比较式整行放过：`>=` / `<=` 是 V3 管的下界/上界读数。 */
+function vnumLocksCurrent(codeLine, names) {
+    if (!ASSERT_CALL.test(codeLine)) return false;
+    if (/(?:>=|<=)/.test(codeLine)) return false;
+    if (codeLine.includes("vnum('" + current + "')")) return true;
+    return names.some((nm) => new RegExp('vnum\\(\\s*' + nm + '\\s*\\)').test(codeLine));
+}
+function hardLocksCurrent(codeLine, names) {
+    /* 比较式（`>=` / `<=`）整行先放过：下界/上界是 V3 管的**读数**，不是锁 —— 不先放过的话，
+     *   串相等分支会把 `assert.equal(vnum('3.0.0') <= vnum('<当版>'), true)` 这类下界比较判成锁版。
+     *   （[v3.298.0] 实测：V2 补 vnum 形态的同一轮里，这条路正是靠 v3203 的保绿对照抓出来的。） */
+    if (/(?:>=|<=)/.test(codeLine)) return false;
     if (quotedVersions(codeLine) && ASSERT_CALL.test(codeLine)) return true;
     if (/includes\s*\(/.test(codeLine) && QUOTES.some((q) => codeLine.includes('const VERSION = ' + q + current + q + ';'))) return true;
-    return false;
+    return vnumLocksCurrent(codeLine, names);
 }
-const boundRe = /vnum\(\s*'([0-9]+[.][0-9]+[.][0-9]+)'\s*\)/g;
+/* [v3.298.0] V4 的「锚点在场」判定：字面量形 `vnum('<当版>')` 或本档自锚常量形 `vnum(NAME)`。 */
+function hasAnchorFor(txt) {
+    if ([...txt.matchAll(new RegExp(boundRe.source, 'g'))].some((m) => vnum(m[1]) === vnum(current))) return true;
+    return selfConstNames(txt).some((nm) => new RegExp('vnum\\(\\s*' + nm + '\\s*\\)').test(txt));
+}
 
 let scanned = 0;
 const frontier = [];
@@ -151,15 +190,21 @@ for (const f of files) {
     //   只看「含文件名 + 含当版号」也太松（11 个文件首行自报文件名、头两句里有注记）。
     const isFrontier = text.split('\n').slice(0, 12)
         .some((l) => l.includes(base) && l.includes('v' + current));
-    // V4 计数：任何文件（含 frontier）恰好锚着当前版本，都算当版锚点在场。
-    if ([...text.matchAll(boundRe)].some((m) => vnum(m[1]) === vnum(current))) anchored++;
-    if (isFrontier) { frontier.push(f); continue; }
+    /* [v3.298.0] V4 只数**当版档案**里的锚点。旧口径数全网任意文件 ⇒ 历史文件能替当版把数
+     *   凑够（于是「补锚」的直觉动作是把锚写进历史文件、再被 V2 抓）—— 两条判据互斥的根因。 */
+    const anchorHere = hasAnchorFor(text);
+    if (isFrontier) {
+        if (anchorHere) anchored++;
+        frontier.push(f);
+        continue;
+    }
     scanned++;
     const code = text.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+    const names = selfConstNames(text);
     for (const [i, line] of text.split('\n').entries()) {
         const codeLine = line.replace(/\/\/.*$/, '');
         if (!codeLine.trim()) continue;
-        if (hardLocksCurrent(codeLine)) {
+        if (hardLocksCurrent(codeLine, names)) {
             problems.push('V2 ' + f + ':' + (i + 1) + ' 把当前版本 ' + current + ' 写死成等号：' + line.trim().slice(0, 120));
         }
     }
@@ -176,7 +221,10 @@ if (frontier.length === 0) {
     problems.push('V5 扫描面异常：没有任何测试文件的头部标着当版 ' + current + '（frontier 豁免失效，或版本声明漂移）');
 }
 if (anchored === 0) {
-    problems.push('V4 没有任何测试恰好锚着当版 ' + current + '（当版锚点被删空，版本守卫失去基准）');
+    problems.push('V4 当版档案里没有任何测试以 vnum 恰好锚着当版 ' + current
+        + '（锚点必须住在**当版套件**里：写进历史文件会被 V2 抓，写成变量形也要能计数 —— 见 V2/V4 段头）');
+} else if (anchored > 1) {
+    problems.push('V4 当版锚点有 ' + anchored + ' 处（应当恰 1 处：多处锚会在抬版时分叉，见 V4 段头）');
 }
 
 console.log('=== 版本守卫：当前 ' + current + ' / 四源 ' + [
@@ -188,7 +236,8 @@ console.log('=== 版本守卫：当前 ' + current + ' / 四源 ' + [
     const m = /^[ \t]*let VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/m.exec(src);
     return f.replace(/[.]js$/, '') + (m && m[1] === current ? '✓' : '✗');
 }).join(' ') : '(全缺席)') + ' / 历史测试 ' + scanned
-    + ' / 当版 frontier ' + frontier.length + ' / 当版锚点 ' + anchored + ' / 问题 ' + problems.length + ' ===');
+    + ' / 当版 frontier ' + frontier.length + ' / 当版锚点 ' + anchored + '（仅当版档案）'
+    + ' / 问题 ' + problems.length + ' ===');
 if (frontier.length) console.log('  frontier: ' + frontier.join(', '));
 if (problems.length) {
     for (const x of problems) console.log('  x ' + x);
