@@ -63,6 +63,23 @@
   v3272 C1 负控制再也回不到原病灶形态。另有一处**判据自伤**：NEG 锚点表写成本文拼装
   （`'...' + NL`）⇒ 该值在文件里根本不存在、判据纯度检查计数 0 而自伤（已改为含真换行的模板）。
 - **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（本档沿用全仓口径；`node --test` 单套件为 0/1）。
+- **★ 真宿主证据（M-O1 验收「真宿主路径至少有一批可复现证据」）**：探针
+  `tests/audit/_mo1_realhost_probe.mjs`（**零依赖**：Node v24 自带 `WebSocket` 直连 CDP，
+  不引入 playwright/puppeteer）在真 SillyTavern 1.19.0 + 真 Chromium 131 上，对
+  **真装载的** `window.LonShaMemory.engine.storage` 调 `save()`，用真 ST 的
+  `updateChatMetadata` 在真 await 窗口里真切聊。**23 条读数全成立**：
+  `modules.loadedGlobals=85` / 同会话 `ret=true, status=confirmed` / ★ await 期间切聊
+  `ret=false, entryStatus=deferred, entryReason=detached-after-await, confirmed=null`
+  且当前会话里不留本批数据 / ★ 排队批 `retC=false, retD=true, 整队=partial` /
+  ★ **字节级错档检查**：四次真落盘那一刻的（格子里的 chatId，当前会话 chatId）逐对相等
+  （probe-1/1、A/A、C/C、D/D —— 错档形态「当前会话=B 槽.chatId=A」不出现）/ `page.errors=[]`。
+  ★ 边界：本探针依赖本地 ST clone 与 Chromium，**不进 `npm test`**（`_` 前缀 = 探针不入门禁扫描面）。
+  两条**只有真宿主才暴露**的实测结论已写进探针头部：① `getContext()` 每次返回新对象，
+  换 chat 必须走真 ST 的 `updateChatMetadata`（在外面给 `ctx.chatMetadata` 赋值不传导）；
+  ② `ctx.saveChat` 是每次重新绑定的引用，观测点须代理 `getContext` 注入（跑完还原）。
+  探针自身首版误判两处并已修：死等 7s 读早了（误报「模块不在场」）⇒ 改 60s 轮询；
+  用「saveChat 那一刻格子含本批标记」当落地证据恒假（写入在 saveChat 之前）⇒ 改为
+  「跑完后当前会话里还留着本批数据吗」+「落盘那一刻槽 chatId 是否等于当前会话」。
 - **本档绝不跑全量**：按用户纪律「做完计划全部内容前别跑全量」，此处只跑本档定向门与相关单套件。
 - 版本六处同步（`index.js` / `manifest.json` / `package.json` + `memory-config.js` /
   `memory-core.js` / `memory-organs.js` 副本）已抬至 **3.302.0**；`extra_js` **仍 87 项**

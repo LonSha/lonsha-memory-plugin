@@ -25,7 +25,7 @@
 | 量 | 读数 | 出处 |
 |---|---|---|
 | 版本 | **v3.302.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
-| 门禁 | 在役面 **283 测试文件 / 59 个 audit 脚本**（磁盘 62）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
+| 门禁 | 在役面 **283 测试文件 / 59 个 audit 脚本**（磁盘 63）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
 | 全量快照 | 最近全量快照 **v3.296.0：277 测试文件 / 2986 断言 0 失败 / 审计 59/59**（上一快照 v3.284.0：264 / 2727 / 55/55）；当前 v3.302.0 **全量待验** | `tests/audit/doc_readings.json` |
 | 体量 | `index.js` **15434 行**（物理行；探针读数 15435 行 / **568** 成员 —— 原 A1 六刀后为 13883 / 521）+ extra_js **87** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
 | 跨仓外供 | 正向 **5 面**（`open_face_registry.tsv`）+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |
