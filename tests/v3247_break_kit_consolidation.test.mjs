@@ -201,6 +201,14 @@ const REGISTRY = [
     /* [v3.299.0 M-O6] 本档从 tests/_break_kit.mjs 取 breakSource（四条真源码破坏：
      *   准入门恒真 / 闭合不判换代 / 读侧写回条目 / 无区间塌成 false）；按 B1 台账纪律在此登记。 */
     'v3299_mo6_fact_state_single_source.test.mjs',
+    /* [v3.300.0 M-O2] 本档从 tests/_break_kit.mjs 取 breakSource（四条真源码破坏：
+     *   base 不再认领本插件 / 裸文件名正则放宽 / partial 读成 ok / 配置开关失效）；
+     *   按 B1 台账纪律在此登记。 */
+    'v3300_mo2_host_loader.test.mjs',
+    /* [v3.301.0 M-O2 第二刀] 本档从 tests/_break_kit.mjs 取 breakSource（四条真源码破坏：
+     *   构造期不装配 / 重建不回灌 / 幂等分支吞新配置，另配一条「不得误伤」阴性对照）；
+     *   按 B1 台账纪律在此登记。 */
+    'v3301_mo2_component_rebuild.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

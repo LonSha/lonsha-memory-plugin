@@ -420,7 +420,7 @@ test('v3299 J. 版本锚（当版形，数值 vnum）+ 登记面 + 加载序', (
         assert.ok(m, f + ' 应有 `let VERSION` 副本');
         assert.strictEqual(m[1], idxVer, f + ' 版本副本同源');
     }
-    assert.strictEqual(vnum('3.299.0'), 3299000, '★ 当版锚：本档出生版本 vnum 须给出三段数值');
+    assert.strictEqual(vnum('3.299.0'), 3299000, '出生版本锚（v3.300.0 起降为历史下界，当版锚交棒给 v3300）：vnum 须给出三段数值');
     /* 自锚常量形（V4 认的第二种锚形）：抬版时只改 `CUR` 一处，数值锁随之平移。 */
     assert.strictEqual(vnum(CUR), 3299000, '★ 自锚常量形：vnum(CUR) 须给出三段数值（V4 的计数口径看得见）');
     assert.ok(vnum(idxVer) >= vnum('3.299.0'), '运行版本不得低于本档出生版本，实 ' + idxVer);
@@ -433,7 +433,12 @@ test('v3299 J. 版本锚（当版形，数值 vnum）+ 登记面 + 加载序', (
     assert.ok(MANIFEST.extra_js.indexOf('fact-state.js') > MANIFEST.extra_js.indexOf('memory-type.js'),
         '加载序：状态模块排在 memory-type 之后');
     assert.ok(fs.existsSync(path.join(ROOT, 'fact-state.js')), '模块文件必须在磁盘上（声明了却缺席 = 静默失败）');
-    assert.strictEqual(MANIFEST.extra_js.length, 87, 'extra_js 项数锁：本版新增 fact-state.js（86 → 87）');
+    /* 项数锁随抬版**交棒给当版**（v3300）：本档只判「自己登记的那一项在场且恰一次」，
+     *   不再锁总项数 —— 否则每加一个模块都要回头改历史档（本仓早已定性为抬版仪式）。
+     *   与 v3298 同一处交棒，理由同源：数量锁的职责是「新增模块必须显式改**当版**」，
+     *   不是给历史档留维护债。 */
+    assert.strictEqual(MANIFEST.extra_js.filter((x) => x === 'fact-state.js').length, 1,
+        'fact-state.js 始终恰登记一次');
     /* 消费点接线在场：取库口 + 方法体内真调用（结构化判据，不用文本包含当判据）。 */
     assert.ok(/function _factStateLib\(\)/.test(IDX_SRC), '宿主须有 fact-state 取库口');
     assert.ok(stripComments(IDX_SRC).includes('_factStateLib()'), '取库口必须被真调用（否则接线是死的）');

@@ -221,6 +221,11 @@ const consumptionCode = [entryCode].concat(
     A1_CARRIERS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))).join(String.fromCharCode(10));
 const referenced = new Set();
 for (const m of consumptionCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)/g)) referenced.add(m[1]);
+/* [v3.301.0 M-O2 第二刀] 消费面必须认**第二种取库形态**：`this._winModule('LonShaX','Y')`。
+ *   本刀把七个「构造期直取 window」的点改为惰性取库（构造期读不到、重建期读得到），
+ *   若消费面只认 `window.LonShaX` 文本，这三个**真接线**会被 B4 当场误报成「已挂载但零消费」
+ *   —— 正是本文件开头点名的假红（「判据量错了对象」）。两条形态都算真消费，非放宽判定。 */
+for (const m of consumptionCode.matchAll(/\b_winModule\(\s*['"](LonSha[A-Za-z0-9_]*)['"]/g)) referenced.add(m[1]);
 // index.js 自身产出（同文件内既有赋值）也算供给；[v3.264.0] getter 挂载（defineProperty）同为自产
 const selfProvided = new Set();
 for (const m of entryCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)\s*=/g)) selfProvided.add(m[1]);

@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.299.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.301.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -226,6 +226,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             aliasQueryExpansion: true,  // [v3.90] 实体别名查询扩展（吸收 MyriadKnots entity-identity）：查询命中角色别名时附加主名词条
             prequelEnabled: true,       // [v3.87] 用户导入前情资料（Prequel）按相关性选段注入
             bridgeEnabled: true,        // [v3.88] 公开只读快照桥（window.lonsha_memory_bridge_v1）
+            preferModuleFiles: true,     // [v3.300.0 M-O2] 真宿主下自行装载 manifest.extra_js
+                                         //   （宿主只加载 manifest.js；关掉即回到「只有入口」的旧行为并如实告警）
 
             // [v2.0] P2: 角色状态表 + 楼层账本
             characterStateEnabled: true,   // 角色数值状态追踪（好感/疲劳/心情等）

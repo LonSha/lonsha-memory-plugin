@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.299.0",
+ "measured_at": "v3.301.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1147,6 +1147,38 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.301.0": {
+   "reason": "v3.301.0 M-O2 第二刀：装配段外提为 _assembleComponents + 装载后 rebuildComponents（真实现换装）+ 惰性 _winModule 读取口 + init 接线序重排；净增 260 行（15695 − 15435），全为活跃骨架（唯一装配点/重建/冻灌/体检读数/惰性取库），非死代码回流",
+   "readings": {
+    "total_lines": 15696,
+    "member_count": 576,
+    "duplicate_member_names": 25,
+    "top5_lines": 4562,
+    "top5_pct": 29.1,
+    "top40_lines": 9951,
+    "top40_pct": 63.4,
+    "prefix_rule_coverage_lines": 4924,
+    "prefix_rule_coverage_pct": 31.4,
+    "unclassified_lines": 9801,
+    "seam_distinct_modules": 54,
+    "seam_reference_sites": 66,
+    "seam_call_shape_sites": 70,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 23,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版不拆任何东西：只把新接线按读数并入基线。行数涨是 M-O2 第二刀的真实交付面（装配外提 + 重建 + 冻灌 + 体检），不是回流。",
+   "delta_from": "v3.299.0",
+   "delta": {
+    "total_lines": 261,
+    "member_count": 8,
+    "top5_pct": -0.5
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1158,38 +1190,38 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 15435,
-  "member_count": 568,
+  "total_lines": 15696,
+  "member_count": 576,
   "duplicate_member_names": 25,
   "top5_lines": 4562,
-  "top5_pct": 29.6,
-  "top40_lines": 9987,
-  "top40_pct": 64.7,
+  "top5_pct": 29.1,
+  "top40_lines": 9951,
+  "top40_pct": 63.4,
   "prefix_rule_coverage_lines": 4924,
-  "prefix_rule_coverage_pct": 31.9,
-  "unclassified_lines": 9643,
+  "prefix_rule_coverage_pct": 31.4,
+  "unclassified_lines": 9801,
   "seam_distinct_modules": 54,
   "seam_reference_sites": 66,
   "seam_call_shape_sites": 70,
   "members_over_80_lines": 33,
-  "low_coupling_members": 22,
-  "high_coupling_members": 8
+  "low_coupling_members": 23,
+  "high_coupling_members": 7
  },
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 527,
-   "lines": 9643,
-   "lines_pct": 62.5,
+   "members": 535,
+   "lines": 9801,
+   "lines_pct": 62.4,
    "outside_refs": 5593,
-   "internal_refs": 1507,
-   "outside_ref_share_pct": 78.8
+   "internal_refs": 1577,
+   "outside_ref_share_pct": 78
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1787,
-   "lines_pct": 11.6,
+   "lines_pct": 11.4,
    "outside_refs": 5,
    "internal_refs": 72,
    "outside_ref_share_pct": 6.5
@@ -1198,16 +1230,16 @@
    "domain": "诊断与导出",
    "members": 10,
    "lines": 1371,
-   "lines_pct": 8.9,
+   "lines_pct": 8.7,
    "outside_refs": 317,
-   "internal_refs": 462,
-   "outside_ref_share_pct": 40.7
+   "internal_refs": 483,
+   "outside_ref_share_pct": 39.6
   },
   {
    "domain": "召回与注入",
    "members": 13,
    "lines": 1015,
-   "lines_pct": 6.6,
+   "lines_pct": 6.5,
    "outside_refs": 5,
    "internal_refs": 67,
    "outside_ref_share_pct": 6.9
@@ -1216,7 +1248,7 @@
    "domain": "配置与持久化",
    "members": 3,
    "lines": 476,
-   "lines_pct": 3.1,
+   "lines_pct": 3,
    "outside_refs": 22,
    "internal_refs": 0,
    "outside_ref_share_pct": 100
@@ -1225,7 +1257,7 @@
    "domain": "桥/快照出口",
    "members": 2,
    "lines": 211,
-   "lines_pct": 1.4,
+   "lines_pct": 1.3,
    "outside_refs": 2,
    "internal_refs": 5,
    "outside_ref_share_pct": 28.6
@@ -1324,11 +1356,6 @@
    "outside_refs": 9
   },
   {
-   "name": "constructor",
-   "lines": 228,
-   "outside_refs": 43
-  },
-  {
    "name": "rollbackFloor",
    "lines": 202,
    "outside_refs": 14
@@ -1337,6 +1364,11 @@
    "name": "buildBridgeSnapshot",
    "lines": 196,
    "outside_refs": 2
+  },
+  {
+   "name": "_assembleComponents",
+   "lines": 192,
+   "outside_refs": 0
   },
   {
    "name": "optimizeMemory",
@@ -1472,8 +1504,8 @@
  "split_candidates": {
   "threshold_lines": 80,
   "total_over_threshold": 33,
-  "low_coupling_non_lifecycle": 22,
-  "high_coupling_non_lifecycle": 8,
+  "low_coupling_non_lifecycle": 23,
+  "high_coupling_non_lifecycle": 7,
   "low_coupling_examples": [
    {
     "name": "recallMemory",
@@ -1497,6 +1529,12 @@
     "name": "buildBridgeSnapshot",
     "lines": 196,
     "outside_refs": 2,
+    "is_host_lifecycle": false
+   },
+   {
+    "name": "_assembleComponents",
+    "lines": 192,
+    "outside_refs": 0,
     "is_host_lifecycle": false
    },
    {
@@ -1540,12 +1578,6 @@
     "lines": 124,
     "outside_refs": 0,
     "is_host_lifecycle": false
-   },
-   {
-    "name": "_absorbFactVersions",
-    "lines": 124,
-    "outside_refs": 0,
-    "is_host_lifecycle": false
    }
   ],
   "high_coupling_examples": [
@@ -1577,12 +1609,6 @@
     "name": "refresh",
     "lines": 252,
     "outside_refs": 9,
-    "is_host_lifecycle": false
-   },
-   {
-    "name": "constructor",
-    "lines": 228,
-    "outside_refs": 43,
     "is_host_lifecycle": false
    },
    {

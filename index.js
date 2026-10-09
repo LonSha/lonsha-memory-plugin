@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.299.0';
+    const VERSION = '3.301.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -353,6 +353,109 @@
     }
     function clearInjectSlots() {
         for (const slot of INJECT_SLOTS) writeInjectSlot(slot.key, '', slot.clearDepth);
+    }
+    /* [v3.300.0 M-O2] ★★ extra_js **模块清单**的真装载器。
+     *
+     * 【修前实测（SillyTavern 1.19.0 真浏览器 + 真宿主，取证见 tests/audit/host-reality.json）】
+     *   宿主 `public/scripts/extensions.js#addExtensionScript` 只加载 `manifest.js`（= 入口 index.js），
+     *   `manifest.extra_js` 字段**宿主全仓零消费**。于是：
+     *     · 浏览器全局里本仓模块 **0 个**（实测 window 上只有 LonShaMemory / lonsha_memory_bridge_v1 /
+     *       lonsha_memory_interceptor 三项，全是入口自己挂的）；
+     *     · `_moduleLib` 的 require 回落把 **88 个模块各当 CJS 求值一次**，而各模块的全局挂载行
+     *       （`root.LonShaXxx = api`）在 `typeof window !== 'undefined'` 下**不成立** ⇒
+     *       require 回来的对象是空 api：88 份内存与解析开销换回来一个都不挂；
+     *     · 后果：LonShaFactState / LonShaMemoryType / LonShaUnifiedRecall … 全部缺席，
+     *       近几版新接的机制在真宿主上**恒不生效**，而文档把它读成「装载面 88 模块」。
+     *
+     * 【为什么只挂清单、不 eval 内容（两条不可让步的理由）】
+     *   ① 清单是**行为契约**（本仓已定性两次）：模块会挂全局、会读邻居全局。把清单当数据吃掉，
+     *      等于换掉模块语义 —— 本版就变成「换了实现的版本」而不是「修复的版本」；
+     *   ② 自带解析器求值 = 宿主侧的**第二套模块系统**（解析器漂移、与未来 import 语义分歧）。
+     *   故走**浏览器原生解析器**：真 `<script src>`（module 型，与宿主加载入口同形态）。
+     *
+     * 【三态与幂等】status = ok / partial / unavailable（缺席如实可见，不静默降级）；
+     *   幂等：清单只读一次、同一 URL 只注入一次（重复调用直接返回上次读数）。
+     */
+    /* 入口脚本自身的 src：**脚本求值那一刻**取（classic script 下 currentScript 有效；
+     *   module 脚本下为 null，此时靠 _extraJsBaseDir 的候选扫描 + manifest 反证）。 */
+    const _LOADED_SRC = (() => { try { return (document.currentScript && document.currentScript.src) || ''; } catch (e) { return ''; } })();
+    /* 清单项必须是**裸文件名**：只允许 [A-Za-z0-9._-]+.js，挡掉 `../`、绝对 URL、查询串。
+     *   为什么不用 URL 拼接来做这件事：`new URL('../x', base)` 会**悄悄跳出**插件目录，
+     *   而这里要的是「拒绝」而不是「解析出来一个能用的地址」。 */
+    const EXTRA_JS_FILE_RE = /^[A-Za-z0-9._-]+\.js$/;
+    /** 本插件 extra_js 的装载读数（**绝不静默**：谁没装上、为什么，都要能读出来）。 */
+    const _extraJsLoad = { status: 'idle', started: false, okCount: 0, triedCount: 0, fail: [], at: null };
+    function extraJsLoadReport() { return Object.assign({}, _extraJsLoad, { fail: _extraJsLoad.fail.slice() }); }
+    /** 推导本插件的 base 目录。**不写死仓库名 / 用户名**：候选来自宿主实际注入的 script 标签，
+     *  逐个用 `manifest.json` **反证**（display_name 必须是本插件）——取不到即如实 unavailable，
+     *  不猜路径、不退到任何 CDN。 */
+    async function _extraJsBaseDir() {
+        try {
+            const cands = [];
+            if (_LOADED_SRC) cands.push(_LOADED_SRC);
+            for (const s of Array.from(document.querySelectorAll('script[src]'))) {
+                const u = String(s.src || '');
+                if (/index\.js$/.test(u) && cands.indexOf(u) < 0) cands.push(u);
+            }
+            /* 含本插件名的候选优先（真宿主下路径形如 .../third-party/lonsha-memory-plugin/index.js） */
+            cands.sort((a, b) => (/lonsha-memory-plugin/.test(b) ? 1 : 0) - (/lonsha-memory-plugin/.test(a) ? 1 : 0));
+            for (const u of cands) {
+                const base = String(u).replace(/index\.js.*$/, '');
+                try {
+                    const r = await fetch(base + 'manifest.json', { cache: 'no-store' });
+                    if (!r.ok) continue;
+                    const mf = await r.json();
+                    if (mf && typeof mf.display_name === 'string' && /LonSha/i.test(mf.display_name) && Array.isArray(mf.extra_js)) return base;
+                } catch (_e) { /* 换个候选继续反证 */ }
+            }
+            return '';
+        } catch (e) { return ''; }
+    }
+    /** 注入一个 extra_js 模块（浏览器原生解析器；失败即 reject，**不吞**）。 */
+    function loadExtraJsScript(url) {
+        return new Promise((resolve, reject) => {
+            try {
+                const s = document.createElement('script');
+                s.type = 'module';
+                s.src = url;
+                s.onload = () => resolve(true);
+                s.onerror = () => reject(new Error('script-error'));
+                document.head.appendChild(s);
+            } catch (e) { reject(e); }
+        });
+    }
+    /** 幂等入口：清单只读一次、注入只做一次，第二次直接回上次读数。 */
+    async function ensureExtraJsOnce() {
+        if (_extraJsLoad.started) return extraJsLoadReport();
+        _extraJsLoad.started = true;
+        _extraJsLoad.status = 'unavailable';
+        _extraJsLoad.at = Date.now();
+        try {
+            const base = await _extraJsBaseDir();
+            if (!base) { _extraJsLoad.fail.push({ file: '(base)', why: 'base-unresolved' }); return extraJsLoadReport(); }
+            const mf = await fetch(base + 'manifest.json', { cache: 'no-store' }).then((r) => r.json());
+            const list = (mf && Array.isArray(mf.extra_js)) ? mf.extra_js.slice() : null;
+            if (!list) { _extraJsLoad.fail.push({ file: '(manifest)', why: 'extra_js-missing' }); return extraJsLoadReport(); }
+            const unsafe = list.filter((f) => typeof f !== 'string' || !EXTRA_JS_FILE_RE.test(f));
+            if (unsafe.length) { _extraJsLoad.fail.push({ file: '(manifest)', why: 'unsafe-entry:' + String(unsafe[0]).slice(0, 60) }); return extraJsLoadReport(); }
+            const seen = new Set(Array.from(document.scripts || []).map((s) => s.src));
+            const results = [];
+            for (const f of list) {
+                const url = base + f;
+                _extraJsLoad.triedCount++;
+                if (seen.has(url)) { results.push({ ok: true, file: f, why: 'already' }); continue; }
+                try { await loadExtraJsScript(url); seen.add(url); results.push({ ok: true, file: f, why: 'loaded' }); }
+                catch (e) { results.push({ ok: false, file: f, why: String((e && e.message) || e) }); }
+            }
+            _extraJsLoad.okCount = results.filter((r) => r.ok).length;
+            _extraJsLoad.fail = results.filter((r) => !r.ok);
+            /* 三态互斥：全成 ok / 部分 partial / 一个没成 unavailable（**不得**把 partial 读成 ok）。 */
+            _extraJsLoad.status = (results.length && _extraJsLoad.okCount === results.length) ? 'ok'
+                : (_extraJsLoad.okCount > 0 ? 'partial' : 'unavailable');
+        } catch (e) {
+            _extraJsLoad.fail.push({ file: '(load)', why: String((e && e.message) || e) });
+        }
+        return extraJsLoadReport();
     }
 
     // [v3.128] token 量级估算（baibai bytes/3.35 口径 + CJK 感知）：中文 UTF-8 每字 3 字节 ≈ 0.9 token，
@@ -1984,6 +2087,31 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._lastSaveGroundTruth = { ts: 0, floor: -1, sources: {} };   // [v3.130] 保存地面真源：最近一次保存的时间/楼层/来源计数
             // [v3.37] 叙事惊奇度/熵累加器（MemGPT 动态反思理念）
             this._narrativeEntropy = 0;
+            /* [v3.301.0 · M-O2 第二刀] ★ 装配段已整段外提为 `_assembleComponents()`。
+             *   为什么必须外提（真宿主实测）：本构造函数运行在**入口加载期**，而 manifest.extra_js
+             *   要到 init() 里才由 ensureExtraJs() 挂上 —— 于是体内每个 `_new*` 工厂在这一刻
+             *   取库口都读到 null，一律落到 `*Fallback` 空退路；装载之后**没人重建实例**，
+             *   空退路就永久生效。真宿主读数：engine 32 + plugin 2 个成员 `_absent=true`、
+             *   ConfigManagerFallback 持 0 键（真实现 181 键）、`saveConfig()` 是 `return undefined`
+             *   —— 面板 toast「✅ 设置已保存」而 localStorage 一字未写。
+             *   本刀把装配收成**唯一入口**：构造期调一次（模块未装载时的如实降级），
+             *   装载之后由 `rebuildComponents()` 再调一次（真实现 + 数据回灌）。
+             *   ★ 「模块缺席」因而与「模块在场」不同形 —— 前者是降级，后者是真装配。 */
+            this._assembleRead = null;
+            this._assembleComponents(config);
+
+        }
+
+        // [v3.147] API 凭据 401/403 冷却管控（Engine 代理入口）
+
+        /** [v3.301.0 · M-O2 第二刀] ★ 唯一装配点（构造期 + 装载后各调一次，幂等）。
+         *  为什么必须有它：所有 `_new*` 工厂与内联 window 降级都依赖 extra_js 挂上的模块全局，
+         *  而挂载时机**晚于**本引擎的构造 —— 修前装配写在构造体内，于是模块在场也永远走空退路
+         *  （真宿主实测：34 个成员 `_absent=true`、配置 0 键、saveConfig 空转、graph 空 Map）。
+         *  `config` 缺省沿用现有 this.config；重建路径由 rebuildComponents 传入新造的真配置实例。 */
+        _assembleComponents(config) {
+            if (config !== undefined) this.config = config;
+            else config = this.config;
             this.bookmarks = _newMemoryBooks('IncrementBookmark', this, errLog);   // [v3.19] 增量书签（ruby）· [v3.259.0] A1 第四刀外移
             this.config = config;
             this.graph = _newCore('MemoryGraph');   // [v3.266.0] A1 第六刀外移 memory-core.js
@@ -2132,7 +2260,7 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v2.5] RF
             this.echo = _newMemoryBooks('EchoPool', () => this.config?.config || null, errLog);
             // [v3.30] PV: 记忆矛盾换代（window.LonShaSupersede）
-            this.supersede = new (window.LonShaSupersede?.SupersedeManager || function() {
+            this.supersede = new (this._winModule('LonShaSupersede', 'SupersedeManager') || function() {
                 this.supersededMap = {}; this.config = {};
                 this.scan = () => []; this.isSuperseded = () => false;
                 this.revive = () => 0; this.export = () => ({supersededMap:{}}); this.import = () => {};
@@ -2143,19 +2271,19 @@ function relativeTimeLabel(eventTime, nowTime) {
             this.conflicts = _newMemoryLedger('ConflictBook');
             this.deltaBook = _newMemoryLedger('DeltaBook');  // [v3.66] 正史增量账本
             // [v3.94] CSE 级人物状态引擎（自研融合增强版，window.LonShaCSE，降级为空实现）
-            this.cse = new (window.LonShaCSE?.CSEngine || function() {
+            this.cse = new (this._winModule('LonShaCSE', 'CSEngine') || function() {
                 return { set(){return null}, addFromExtracted(){return 0}, confirm(){return false}, get(){return []}, getToward(){return []}, toPrompt(){return ''}, shiftFloors(){return 0}, removeByFloor(){return 0}, removeChar(){return false}, export(){return {chars:{}}}, import(){} };
             })();
             this.outline = _newNarrativeGenerator('OutlineDirector');
             // [v3.95] 叙事心电图（完全原创·LonSha 独有，window.LonShaNarrativePulse，降级为空实现）
-            this.pulse = new (window.LonShaNarrativePulse?.NarrativePulse || function() {
+            this.pulse = new (this._winModule('LonShaNarrativePulse', 'NarrativePulse') || function() {
                 return { beat(){return null}, diagnose(){return {status:'flow',advice:'',streakHigh:0,streakLow:0,avgTension:0,avgPolarity:0}}, getArc(){return null}, toPrompt(){return ''}, shiftFloors(){return 0}, removeByFloor(){return 0}, export(){return {beats:[],arcs:{}}}, import(){} };
             })();
             this.pairMem = _newMemoryLedger('PairMemory');
             this.opLog = _newMemoryAux('OpLog');  // [v3.54] 事件溯源日志
             // [v3.96] 缝合四模块实例化（降级为空实现，缺 window 全局时不影响主链路）
             // ① 前置 AI 精选（ai-select.js）：候选语义精选，注入 llm.callAPI 走独立API+宿主双通道
-            this.aiSelect = new (window.LonShaAISelect?.AISelect || function() {
+            this.aiSelect = new (this._winModule('LonShaAISelect', 'AISelect') || function() {
                 return { async route(c){ return { selected: (c||[]), source: 'local-noai', candidates: (c||[]).length, aiRaw: null }; }, lastTrace: null };
             })({
                 callAI: async (prompt) => { try { return await this.llm.callAPI(prompt); } catch (e) { return null; } },
@@ -2163,14 +2291,104 @@ function relativeTimeLabel(eventTime, nowTime) {
                 maxSelect: this.config.config.aiSelectMaxSelect || 6
             });
             // ② STM/LTM 游标巩固（stm-ltm.js）：纯函数引擎，state 持久化到 chatMetadata
-            this.stmLtm = window.LonShaStmLtm || null;
+            this.stmLtm = this._winModule('LonShaStmLtm') || null;
             // ③ 统一召回管线（unified-recall.js）：图谱节点候选化
-            this.unifiedRecall = window.LonShaUnifiedRecall || null;
+            this.unifiedRecall = this._winModule('LonShaUnifiedRecall') || null;
             // ④ 副API通道表（api-channels.js）：任务路由
-            this.apiChannels = window.LonShaApiChannels || null;
+            this.apiChannels = this._winModule('LonShaApiChannels') || null;
+            return this;
         }
-
-        // [v3.147] API 凭据 401/403 冷却管控（Engine 代理入口）
+        /** [v3.301.0 · M-O2 第二刀] 装载之后的重建：先冻用户数据面 → 重装配 → 回灌。
+         *  读数落 `_assembleRead`（before/after 各自 real/absent，可对账「真的换过来了」）。
+         *  失败只留痕、不阻断（与 ensureExtraJs / rebindModuleDeps 同规格）。 */
+        rebuildComponents(newConfig) {
+            const read = { at: Date.now(), rebuilt: false, frozen: 0, restored: 0, before: null, after: null, why: '' };
+            try {
+                read.before = this._componentProbe();
+                if (read.before.absent === 0) {
+                    read.why = 'already-live';   // 模块提前在场（判据夹具 / 热更新）⇒ 无需重建
+                    /* [v3.301.0] 已全真时不重装，但**传入的新配置实例必须装上**：
+                     *   init() 每次都会新造一份 configMgr 传进来，若因为“已全真”就丢掉它，
+                     *   会出现 plugin.configMgr 与 engine.config 各持一份的分裂（面板读一份、保存另一份）。 */
+                    if (newConfig !== undefined && newConfig !== null && newConfig !== this.config) {
+                        this.config = newConfig;
+                        read.configSwapped = true;
+                    }
+                } else {
+                    const snap = this._captureComponentState();
+                    read.frozen = snap ? (snap.__slots || 0) : 0;
+                    this._assembleComponents(newConfig);
+                    read.restored = this._restoreComponentState(snap);
+                    read.rebuilt = true;
+                }
+                read.after = this._componentProbe();
+            } catch (e) {
+                read.why = 'error:' + String((e && e.message) || e).slice(0, 200);
+                try { errLog(e, 'O2.rebuildComponents'); } catch (_e) { /* 留痕不得成为新的失败 */ }
+            }
+            this._assembleRead = read;
+            return read;
+        }
+        /** [v3.301.0 · M-O2 第二刀] 装配体检读数：真实现 / 空退路各几个（「模块缺席不冒充空账」）。 */
+        _componentProbe() {
+            let total = 0, real = 0, absent = 0;
+            for (const n of this._componentSlots()) {
+                const v = this[n];
+                if (v === null || v === undefined || typeof v !== 'object') continue;
+                total += 1;
+                if (v._absent === true) absent += 1; else real += 1;
+            }
+            return { total, real, absent };
+        }
+        /** 受检成员名（装配段 `this.X = ...` 的两类消费面：工厂产物 + window 直取面）。 */
+        _componentSlots() {
+            return ['bookmarks', 'graph', 'summary', 'diary', 'charMem', 'worldProg', 'reflection',
+                'snapshots', 'vector', 'storage', 'llm', 'pov', 'timeline', 'clock', 'bm25',
+                'lexicon', 'prequel', 'status', 'ledger', 'mutex', 'holiday', 'suspense', 'scene',
+                'echo', 'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'outline', 'pairMem',
+                'opLog', 'supersede'];
+        }
+        /** 冻「用户数据面」：重建前必须把有状态组件的内容取出（否则重建 = 清空存档）。
+         *  契约：**只取 export() 的返回值**，取不到就记 null（null 与 {} 不同义）。 */
+        _captureComponentState() {
+            const out = {};
+            const take = (k) => {
+                try {
+                    const v = this[k];
+                    out[k] = (v && typeof v.export === 'function') ? v.export() : null;
+                } catch (_e) { out[k] = null; }
+            };
+            for (const k of ['graph', 'summary', 'diary', 'charMem', 'worldProg', 'reflection',
+                'vector', 'pov', 'timeline', 'clock', 'bm25', 'prequel', 'status', 'suspense',
+                'scene', 'echo', 'moneyLedger', 'cards', 'conflicts', 'deltaBook', 'outline',
+                'pairMem', 'bookmarks', 'supersede', 'ledger']) take(k);
+            out.__slots = Object.keys(out).length - 1;
+            return out;
+        }
+        /** 回灌：把冻下来的面装回重建后的真实现（`import` 契约同构；失败只留痕）。 */
+        _restoreComponentState(snap) {
+            if (!snap) return 0;
+            let n = 0;
+            for (const k of Object.keys(snap)) {
+                if (k === '__slots') continue;
+                const data = snap[k];
+                if (data === null || data === undefined) continue;
+                const v = this[k];
+                if (!v || typeof v.import !== 'function') continue;
+                try { v.import(data); n += 1; } catch (e) { try { errLog(e, 'O2.restore.' + k); } catch (_e) { /* 留痕不得成为新的失败 */ } }
+            }
+            /* [v3.180] status.clock 是跨实例引用：装配段只在其构造点设一次，重建后必须重挂。 */
+            try { if (this.status && this.clock) this.status.clock = this.clock; } catch (_e) { /* 非致命 */ }
+            return n;
+        }
+        /** 惰性取模块全局：构造期读不到（extra_js 未挂）与重建期读得到，必须不同形。 */
+        _winModule(globalName, propName) {
+            try {
+                const g = (typeof window !== 'undefined') ? window[globalName] : null;
+                if (!g) return null;
+                return propName ? (g[propName] || null) : g;
+            } catch (_e) { return null; }
+        }
         clearApiCooldowns() { clearApiCooldowns(); }
         getApiCooldownStats() { return getApiCooldownStats(); }
         
@@ -14390,11 +14608,34 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (this.initialized) return;
             console.log(`[${PLUGIN_NAME}] v${VERSION} 初始化...`);
             await this.waitForST();
+            /* [v3.300.0 M-O2] ★ 真宿主装载面修复：宿主只加载 manifest.js，extra_js 从来没人读。
+             *   必须在 loadModules() / rebindModuleDeps() / createUI() / ensureSettingsUI() **之前**
+             *   跑完 —— 它们全都依赖模块全局（rebindModuleDeps 更是「模块已挂上」这一前提的消费方）。
+             *   失败只留痕、不阻断 init（与 ensureSettingsUI 同规格）。 */
+            try { await this.ensureExtraJs(); } catch (e) { errLog(e, 'init.ensureExtraJs'); }
             this.loadModules();
             /* [v3.277.0 O7] 模块装载之后立刻重绑依赖：extra_js 已挂上，此时注入才真正生效。
              *   放在 loadModules 之后、registerEvents 之前 —— 事件接线与后续构造会用到
              *   被注入后的模块符号，顺序不能颠倒。失败只留痕、不阻断 init（注入是增强不是前置）。 */
             try { this.engine.rebindModuleDeps(); } catch (e) { errLog(e, 'O7.init.rebindModuleDeps'); }
+            /* [v3.301.0 · M-O2 第二刀] ★ 依赖注入之后**重建装配**（顺序：先注入模块、再造实例）。
+             *   为什么必须在 rebind 之后：rebind 把宿主现算的符号注入**模块**，此后 new 出来的
+             *   实例才持有注入过的模块；反序会让实例闭包停留在未注入的那一份。
+             *   为什么必须重建：构造期在入口加载时，extra_js 尚未挂上 ⇒ 装配全落空退路
+             *   （真宿主实测 before：32 个受检成员里 31 个 `_absent=true`、配置 0 键、
+             *   saveConfig 空转）；此处换成真实现，并把重建前的用户数据面原样回灌。
+             *   配置实例必须**新造一份**（构造期那份是 ConfigManagerFallback，持 0 键）。
+             *   失败只留痕、不阻断 init（与 ensureExtraJs 同规格）。 */
+            try {
+                this.configMgr = _newConfigManager();
+                this.engine.rebuildComponents(this.configMgr);
+            } catch (e) { errLog(e, 'init.rebuildComponents'); }
+            /* 紧急备份同为构造期产物（其消费点在 init 之后的真实事件里），退路必须换掉。 */
+            try {
+                if (this.emergency && this.emergency._absent === true) {
+                    this.emergency = _newMemoryAux('EmergencyBackup', { errLog: (e, tag) => { try { errLog(e, tag); } catch (_e) { /* 诊断不得成为新的失败 */ } } });
+                }
+            } catch (e) { errLog(e, 'init.emergencyRebuild'); }
             this.registerEvents();
             this.createUI();
             await this.ensureSettingsUI();
@@ -14499,6 +14740,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 } catch (e) { errLog(e, 'publicInterface.register'); return null; }
             };
             setTimeout(() => { run(); }, 0);
+        }
+        /** [v3.300.0 M-O2] 真宿主装载面：把 manifest.extra_js 真正挂上去（幂等、如实留痕）。
+         *  读数存 `this._extraJsLoad`（诊断面板与判据都从这里读，**不另造一份**）。 */
+        async ensureExtraJs() {
+            try {
+                if (this.config && this.config.config && this.config.config.preferModuleFiles === false) {
+                    this._extraJsLoad = { status: 'disabled', started: false, okCount: 0, triedCount: 0, fail: [], at: Date.now() };
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ extra_js 自装载已按配置关闭（preferModuleFiles=false）：本仓模块全部走 CJS 回落，机制不生效`);
+                    return this._extraJsLoad;
+                }
+                const rep = await ensureExtraJsOnce();
+                this._extraJsLoad = rep;
+                if (rep.status === 'ok') {
+                    console.log(`[${PLUGIN_NAME}] ✓ extra_js 已装载 ${rep.okCount}/${rep.triedCount} 项（宿主不读 manifest.extra_js，由本插件自行注入）`);
+                } else {
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ extra_js 装载 ${rep.status}：${rep.okCount}/${rep.triedCount} 成功`
+                        + (rep.fail.length ? '；失败 ' + rep.fail.map((f) => f.file + ':' + f.why).slice(0, 5).join(' / ') : ''));
+                }
+                return rep;
+            } catch (e) { errLog(e, 'ensureExtraJs'); return null; }
         }
         loadModules() {
             // [v3.165] 成功声称面：原写法 `if (typeof X !== 'undefined') { 加载 + 报成功 }`
