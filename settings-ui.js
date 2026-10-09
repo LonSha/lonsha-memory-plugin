@@ -865,6 +865,7 @@
             const body = `
                 <div class="ls-group">
                     <div class="ls-group-title">基础开关</div>
+                    ${ck('preferModuleFiles', 'extra_js 自装载', '本仓模块按 manifest 顺序自行装载（关闭则全部走 CJS 回落，机制不生效）')}
                     ${ck('enabled', '启用插件', '总开关，关闭后不提取也不注入')}
                     ${ck('extractionEnabled', '自动提取', '每条 AI 回复后自动用 LLM 提取记忆')}
                     ${ck('vectorEnabled', '向量检索', '需要 Embedding API，关闭则只用关键词+图谱')}

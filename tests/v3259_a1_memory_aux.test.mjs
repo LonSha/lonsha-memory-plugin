@@ -85,8 +85,20 @@ function judgeSlice(idxSrc, auxSrc) {
         if (!new RegExp('class ' + name + '\\s*\\{').test(auxSrc)) problems.push(MOD_REL + ' 缺 ' + name);
         /* ③ 构造点逐点在场、唯一、且接在宿主字段上 */
         const needle = '_newMemoryAux(' + Q + name + Q;
-        const n = idxSrc.split(needle).length - 1;
-        if (n !== 1) problems.push('构造点 ' + needle + ' 命中 ' + n + ' 次（须恰 1）');
+        /* [v3.304.0] 「构造点唯一」这条口径必须与真源同形：v3.301.0 起多了一个
+         *   **缺席退路替换点**（`if (this.x && this.x._absent === true) this.x = _newMemoryAux(...)`），
+         *   它不是构造 —— 而旧判据按整文本计数，把那处替换也算成第二次构造（判据面比事实宽）。
+         *   修法不是放宽，而是**分开计**：无条件构造必须恰 1 处；其余命中必须都落在
+         *   `_absent === true` 守卫里（缺席才换）；两者都不满足才报缺陷。 */
+        const windows = [];
+        let at = idxSrc.indexOf(needle);
+        while (at >= 0) {
+            windows.push(idxSrc.slice(Math.max(0, at - 160), at));
+            at = idxSrc.indexOf(needle, at + needle.length);
+        }
+        const guarded = windows.filter((w) => /_absent === true/.test(w));
+        const plain = windows.length - guarded.length;
+        if (plain !== 1) problems.push('构造点 ' + needle + ' 无条件命中 ' + plain + ' 次（须恰 1；缺席退路替换点不计）');
         else if (!idxSrc.includes('this.' + FIELDS[name] + ' = ' + needle)) {
             problems.push(name + ' 的构造点未接到宿主字段 this.' + FIELDS[name]);
         }

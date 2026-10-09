@@ -231,10 +231,18 @@ if (!/typeof RelativeTimeHelper === 'function'/.test(idx) && !/window\.LonShaMem
     if (mStart < 0 || ctor < 0) {
         problems.push('M5 MemoryEngine 构造器定位失败（接线点无法核对）');
     } else {
-        const inj = idx.indexOf('this.status.clock = this.clock');
-        if (inj < 0) problems.push('M5 时钟未交给状态层（已在上面报过）');
+        /* [v3.304.0] 两处接线**必须分形状**判定（本版修的一处假绿）：
+         *   构造器里那处是**独立语句**（12 空格 + 语句 + 分号）；重建后重挂那处包在
+         *   `try { if (…) …; } catch` 里。修前判据只查 `this.status.clock = this.clock` 子串，
+         *   于是**把构造器那处破坏掉并不会转红** —— 重建重挂那一行替它满足了子串
+         *   （负控制 V7 当场抓到：破坏后 M 仍 exit 0，判据恒绿）。
+         *   修法不是放宽而是收紧：两处各按各自形状判，缺任一处即红。 */
+        const inj = idx.search(/^ {12}this\.status\.clock = this\.clock;/m);
+        const rebound = /if \(this\.status && this\.clock\) this\.status\.clock = this\.clock;/.test(idx);
+        if (inj < 0) problems.push('M5 ★ 引擎未把时钟交给状态层（构造器里的独立注入语句不在位 ⇒ this.clock 在 CharacterState 上恒 undefined）');
         else if (inj < ctor) problems.push('M5 ★ 时钟注入落在实例字段声明区（会在实例化时外抛）——必须放进构造器');
-        else notes.push('M5 时钟注入落在构造器内（基线校准：非实例字段区）');
+        if (!rebound) problems.push('M5 ★ 重建后未重挂 status.clock（跨实例引用只在构造期设一次 ⇒ 重建后助手静默缺席）');
+        if (inj >= 0 && rebound) notes.push('M5 时钟两处接线同在（构造器注入 + 重建重挂）');
     }
     // _registerPublicInterface 必须不在 ipcMain 语境（防误套桌面壳样板）
     if (/ipcMain|BrowserWindow/.test(idx)) {

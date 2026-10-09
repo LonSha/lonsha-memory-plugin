@@ -37,7 +37,9 @@ test('=== 1. 静态关键字检查 ===', () => {
     assert.ok(su.includes('ls-ms-text'), '文本输入');
     assert.ok(su.includes('ls-ms-add'), '补摘按钮');
     assert.ok(su.includes('s.summary?.addManualSummary'), '补摘调用');
-    assert.ok(su.includes('eng.summary.updateSummaryText(id, nt)'), '编辑调用');
+    /* [v3.304.0] 真源的取数口在 v3.303.0 修了 key 归一化（`id` 是展示串、`key` 才是楼层键）：
+     *   判据跟着真源换口径 —— 断言的是「真的调了更新且带楼层键」，不是某个旧写法。 */
+    assert.ok(/eng\.summary\.updateSummaryText\(Number\(key\), nt\)/.test(su), '编辑调用（带楼层键）');
     assert.ok(su.includes('该楼层已有摘要'), '幂等提示');
     assert.ok(su.includes('引擎版本过旧'), '版本守卫');
 });
