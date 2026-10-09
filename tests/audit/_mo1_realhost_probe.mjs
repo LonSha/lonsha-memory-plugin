@@ -29,6 +29,9 @@
  *   ② 读数带来源：每条标明实测来源（真页面 / 真 saveChat 观测点 / 真 chat_metadata）。
  *   ③ 不改产品：只调只读面 + 调 save() 写**测试会话**的 metadata，跑完还原 getContext 与 metadata。
  *   ④ 真宿主读数不进门禁：依赖本地 ST clone 与 Chromium，故不进 npm test。
+ *  ⑤ **进程纪律**（v3.303.0 补，由 scan_process_reaping.mjs 当场点名）：浏览器放**独立进程组**
+ *     （`detached: true`）并在收尾按**进程组**收割（`process.kill(-pid)`）—— 形态与
+ *     `tests/run.mjs` 的 `killGroup` 一致，两处必须同形。
  *
  * 用法：node tests/audit/_mo1_realhost_probe.mjs [--json] [--keep]
  * 退出码：0 = 读数成立；2 = 探针自身失效 / 读数不满足。
@@ -70,7 +73,7 @@ fs.rmSync(PROFILE, { recursive: true, force: true });
 const chrome = spawn(BIN, [
     '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
     '--remote-debugging-port=0', '--user-data-dir=' + PROFILE, 'about:blank',
-], { stdio: ['ignore', 'pipe', 'pipe'] });
+], { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
 let errBuf = '';
 const wsUrl = await new Promise((res, rej) => {
     const t = setTimeout(() => rej(new Error('起浏览器超时（30s）')), 30000);
@@ -318,5 +321,10 @@ check(misrouted.length === 0, '不得出现「写进别的会话」的落盘（�
 if (WANT_JSON) console.log(JSON.stringify({ probe: 'mo1-realhost', readings, pageErrors: pageErrors.slice(0, 5) }));
 console.log('[mo1-probe] 真宿主读数成立：' + readings.length + ' 条');
 for (const r of readings) console.log('  · ' + r.key + ' = ' + JSON.stringify(r.value) + '   ← ' + r.source);
-try { chrome.kill('SIGKILL'); } catch { /* ignore */ }
+/* ★ 进程组收割（v3.303.0 补）：本探针此前用裸 `chrome.kill` + 无 `detached` ⇒
+ *   超时/中途收尾只杀得掉直接子进程，孙进程会被孤儿化（PPID→1）继续吃 CPU。
+ *   修法形态与 tests/run.mjs 的 killGroup 一致：先按进程组杀，再兜底杀直接子进程。
+ *   实测：裸 spawn + 单杀 ⇒ 长命孙进程 2 个存活；detached + 组杀 ⇒ 0 个。 */
+try { process.kill(-chrome.pid, 'SIGKILL'); } catch { /* 组可能已不存在 */ }
+try { chrome.kill('SIGKILL'); } catch { /* 兜底 */ }
 process.exit(0);

@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.302.0",
+  "version": "3.303.0",
   "version_sources": {
-    "manifest": "3.302.0",
-    "package": "3.302.0",
-    "index_const": "3.302.0"
+    "manifest": "3.303.0",
+    "package": "3.303.0",
+    "index_const": "3.303.0"
   },
   "version_same": true,
-  "human_index_version": "3.302.0",
+  "human_index_version": "3.303.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 87,
@@ -105,7 +105,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 283,
+    "test_files": 284,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -330,6 +330,7 @@
       "v3300_mo2_host_loader.test.mjs",
       "v3301_mo2_component_rebuild.test.mjs",
       "v3302_mo1_write_closure.test.mjs",
+      "v3303_ui_panel_drive_gate.test.mjs",
       "v330_ledger_replay.test.mjs",
       "v331_heat_concern.test.mjs",
       "v332_importance_timeline.test.mjs",
@@ -392,7 +393,7 @@
       "v39_shift_floors.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 62,
+    "audit_gated": 63,
     "audit_probes": 4,
     "tiers": {
       "schema": "gate-tiers@1",
@@ -431,7 +432,7 @@
     "tests_total": 277,
     "assertions": 2986,
     "audit": "59/59",
-    "reason": "登记版本 3.296.0 ≠ 当前 3.302.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.296.0 ≠ 当前 3.303.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -450,19 +451,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "11889dac2d05",
-      "package.json": "036e4145cd12",
-      "index.js": "c3c9f0d40752",
+      "manifest.json": "b5a7bbc867f9",
+      "package.json": "a71a413d7c97",
+      "index.js": "8e667328389f",
       "update-log.json": null,
-      "README.md": "b774dcc9b241",
-      "PLAN.md": "e70a2379ca48",
-      "CHANGELOG.md": "7e13524dc0b6",
-      "TODO.md": "f3598337ddf7",
+      "README.md": "ce766369d9fc",
+      "PLAN.md": "e85161626e60",
+      "CHANGELOG.md": "4bb797e15cd3",
+      "TODO.md": "921b7a2ba51d",
       "tests/audit/doc_readings.json": "0f59cfa368d4"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.296.0，当前 3.302.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.296.0，当前 3.303.0"
   ],
   "unknown_count": 1
 }

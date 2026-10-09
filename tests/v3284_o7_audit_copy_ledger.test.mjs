@@ -17,7 +17,7 @@
 //     改一处、漏四处，四面门禁照样全绿。
 //     这比 v3.283.0 更尖锐：**探测器的实现若在副本间漂移，探测器给出的结论本身就该被怀疑**。
 //
-//   【本档登记（11 簇，实测逐字相同；体长 ≥ 40；v3.293.0 口径，补 2 簇）】
+//   【本档登记（14 簇，实测逐字相同；体长 ≥ 40；v3.293.0 口径起，v3.303.0 补 3 簇）】
 //     名字                       成员数  体长  md5
 //     mutate                     2       640   3460e9a2
 //     extractMethod              2       399   cf7b47d4
@@ -26,7 +26,10 @@
 //     extractBlock               3       238   14de97bf
 //     distributionFace / …       2       218   7fd61df8
 //     matches                    2       144   e30125e0   ← v3.293.0 补（v3.287.0 起潜伏）
-//     walk                       2       109   72fd012b   ← v3.293.0 补（v3.287.0 起潜伏）
+//     walk                       3       109   72fd012b   ← v3.293.0 补；v3.303.0 成员 2→3（面板驱动门）
+//     parseHTML                  2       995   0d50a373   ← v3.303.0 补（面板驱动门的 shim 派生）
+//     findTagEnd                 2       218   bcc29c37   ← v3.303.0 补
+//     matchSimple                2       131   e2b7ff1a   ← v3.303.0 补
 //     downstreamModule / …       2       91    3d714a19
 //     readOrNull                 2       75    3501fac1
 //     read / readOrNull          2       74    b7ad68f6
@@ -108,10 +111,17 @@ const AUDIT_LEDGER = [
     ['readOrNull', ['scan_exit_codes.mjs', 'scan_fixture_sync.mjs'], 75, '3501fac1'],
     [['read', 'readOrNull'], ['scan_cross_repo_binding.mjs', 'scan_ledger_contract.mjs'], 74, 'b7ad68f6'],
     /* v3.287.0 的 UI 交互门与 v3.271.0 的 UI 运行时门各自持一份**零依赖 DOM shim**，
-     *   这两个小助手在两个 shim 里逐字相同。刻意各持一份：让其中一门 import 另一门，
+     *   这四个小助手（v3.303.0 起）在三个 shim 里逐字相同。刻意各持一份：让其中一门 import 另一门，
      *   会引入「门 A 的 shim 改动影响门 B 的判定」—— 与被判对象同罪的自我指涉。 */
     ['matches', ['scan_ui_interaction.mjs', 'scan_ui_runtime.mjs'], 144, 'e30125e0'],
-    ['walk', ['scan_ui_interaction.mjs', 'scan_ui_runtime.mjs'], 109, '72fd012b'],
+    ['walk', ['scan_ui_interaction.mjs', 'scan_ui_panel_drive.mjs', 'scan_ui_runtime.mjs'], 109, '72fd012b'],
+    /* v3.303.0 补（O2 的面板逐条驱动门从 scan_ui_interaction.mjs 的 DOM shim 派生）：
+     *   新门自持一份 shim，故解析层的三个 helper 成了 2 档簇。**刻意各持一份**（见上条理由）。
+     *   646/218/131 是归一化后体长；findTagEnd(218) 与 distributionFace(218) 同长但 md5 不同，
+     *   键为 len#md5，故不冲突。 */
+    ['parseHTML', ['scan_ui_interaction.mjs', 'scan_ui_panel_drive.mjs'], 995, '0d50a373'],
+    ['findTagEnd', ['scan_ui_interaction.mjs', 'scan_ui_panel_drive.mjs'], 218, 'bcc29c37'],
+    ['matchSimple', ['scan_ui_interaction.mjs', 'scan_ui_panel_drive.mjs'], 131, 'e2b7ff1a'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有；全部单行，无转义） ----

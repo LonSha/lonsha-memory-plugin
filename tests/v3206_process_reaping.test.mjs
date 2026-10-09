@@ -182,7 +182,20 @@ test('v3206 6. 负控制 N3：新增一个裸 spawn 文件 → 门必须点名�
 test('v3206 7. 负控制 N4：空转（扫描面无 spawn 使用者）→ 必须 exit 2，不是 exit 0', () => {
     const r = withTree((d) => {
         // 把所有使用异步 spawn 的文件退化成「没有 spawn」：门不得因此报绿
-        for (const f of ['tests/run.mjs', V3159_REL]) {
+        /* 动态枚举（v3.303.0 修）：原来写死两个文件 —— v3.303.0 新增的
+         *   tests/audit/_mo1_realhost_probe.mjs 也用异步 spawn ⇒ 掏空那两个后
+         *   扫描面仍有 1 个使用者 ⇒ 门照旧 exit 0、本负控制**静默失效**（假绿）。
+         *   改为与门同一口径地枚举扫描面真值，以后新增使用者不会再让负控制失效。 */
+        const targets = ['tests/run.mjs', V3159_REL];
+        const collectSpawners = (rel) => {
+            for (const e of readdirSync(path.join(d, rel), { withFileTypes: true })) {
+                if (e.isDirectory()) { if (e.name !== 'archived' && e.name !== 'node_modules') collectSpawners(rel + '/' + e.name); continue; }
+                if (!/\.m?js$/.test(e.name)) continue;
+                if (/(^|[^A-Za-z0-9_$.])spawn\s*\(/.test(readFileSync(path.join(d, rel + '/' + e.name), 'utf-8'))) targets.push(rel + '/' + e.name);
+            }
+        };
+        collectSpawners('tests');
+        for (const f of targets) {
             const p = path.join(d, f);
             writeFileSync(p, '// no async spawn here\nexport const x = 1;\n');
         }

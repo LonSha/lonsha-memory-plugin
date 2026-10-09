@@ -556,7 +556,7 @@ test('v3302 D1 判据纯度（H5）：锚点字面量只此一处声明 + 破坏
     assert.match(SELF, /return req\(file\);/, '破坏副本必须用真模块装载（不是抠方法体重放）');
     assert.ok(!/function\s+breakSource/.test(SELF), '不得在判据里自带第二份破坏实现');
 });
-test('v3302 D2 版本锚（自锚常量形）+ 三源同源', () => {
+test('v3302 D2 版本锚（自锚常量作出生版本下界）+ 三源同源', () => {
     const idx = read('index.js');
     const man = JSON.parse(read('manifest.json'));
     const pkg = JSON.parse(read('package.json'));
@@ -564,7 +564,7 @@ test('v3302 D2 版本锚（自锚常量形）+ 三源同源', () => {
     assert.ok(v, '入口版本常量在场');
     assert.equal(man.version, v, 'manifest 与入口同版');
     assert.equal(pkg.version, v, 'package 与入口同版');
-    assert.equal(vnum(CUR), vnum(v), '本档自锚常量须等于当版');
+    assert.ok(vnum(CUR) <= vnum(v), '本档自锚常量是**出生版本下界**（当版锚已交给本刀新档，历史档不得跟着抬版）');
     assert.ok(vnum(v) >= vnum('3.302.0'), '本套件自 3.302.0 起成立；当前 ' + v);
 });
 test('v3302 D3 登记面：本档须在参考基准 tsv 里留痕', () => {

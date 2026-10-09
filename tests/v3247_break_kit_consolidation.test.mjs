@@ -213,6 +213,11 @@ const REGISTRY = [
      *   摘约定槽判据 / 摘「本批没落 ⇒ false」这道闸 / 挪声明顺序 / 摘循环入口重核；
      *   按 B1 台账纪律在此登记）。 */
     'v3302_mo1_write_closure.test.mjs',
+    /* [v3.303.0 M-O2 第三刀] 本档从 tests/_break_kit.mjs 取 breakSource / assertSingleHit
+     *   （四条真源码破坏：摘 showDiagnose 的 esc 定义 / summary 分支类型比对回退 /
+     *   opHint 无条件挂 / items 的 data-opid 回退成 esc；锚点取自 settings-ui.js）；
+     *   按 B1 台账纪律在此登记。 */
+    'v3303_ui_panel_drive_gate.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

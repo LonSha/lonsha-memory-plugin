@@ -199,6 +199,13 @@
             // [v3.273] 交互绑定块要用引擎别名（该块原先错位在 showStatsPanel，eng 与 viewType 双未定义）；搬回本函数后 viewType 在作用域内，eng 在此声明。
             const eng = this.engine;
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            /* [v3.303.0 M-O2] 属性值专用转义 `escAttr`：`esc` 只处理 & < >，把它用在
+             *   **属性值**上时，值里一个双引号就能提前闭合属性、余下内容被浏览器当成新标签
+             *   （属性吞并）。本函数九个 `data-opid` 里 `items`（物品名）与 `life`（档案 id）
+             *   都是用户/LLM 产出的自由文本，故口令按上下文分：文本节点用 `esc`，属性值用 `escAttr`。
+             *   修前实测：物品名含双引号 ⇒ `getAttribute("data-opid")` 读回被吞并后的残缺串，
+             *   点击后寻址失败；更坏的情形是页面被注入多余标签而**不报错**。 */
+            const escAttr = (t) => esc(t).replace(/"/g, '&quot;');
             const fmtTime = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
 
             if (viewType === 'summaries') {
@@ -218,7 +225,7 @@
                 </div><div class="ls-hint" style="font-size:11px;color:var(--ls-text-3,#6e7681);margin:4px 0;">💡 若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置 → 正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
                 body = addForm + (list.length === 0 ? '<div class="ls-hint">暂无摘要。去聊几句，AI 回复后会自动生成。</div>' :
                     list.slice().reverse().map(m => `
-                        <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${m.floor}">
+                        <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${escAttr(String(m.floor))}">
                             <div class="ls-item-meta">楼层 ${m.floor ?? '?'} · ${fmtTime(m.timestamp)}</div>
                             <div class="ls-item-text">${esc(m.text)}</div>
                         </div>`).join(''));
@@ -253,7 +260,7 @@
                 const povs = s.pov?.povs || [];
                 body = povs.length === 0 ? '<div class="ls-hint">暂无私密记忆。提取到角色内心/秘密时会自动记录。</div>' :
                     povs.slice().reverse().map(p => `
-                        <div class="ls-item ls-clickable" data-opkind="pov" data-opid="${p.id}">
+                        <div class="ls-item ls-clickable" data-opkind="pov" data-opid="${escAttr(p.id)}">
                             <div class="ls-item-meta"><b>${esc(p.owner)}</b> · 楼层 ${p.floor ?? '?'} · 触发${p.count || 1}次</div>
                             <div class="ls-item-text">${esc(p.content)}</div>
                         </div>`).join('');
@@ -263,7 +270,7 @@
                 const tl = s.timeline?.entries || [];
                 body = tl.length === 0 ? '<div class="ls-hint">暂无剧情时间线。剧情中出现明确日期时会自动记录。</div>' :
                     tl.slice().reverse().map(e => `
-                        <div class="ls-item ls-clickable" data-opkind="timeline" data-opid="${e.id}">
+                        <div class="ls-item ls-clickable" data-opkind="timeline" data-opid="${escAttr(e.id)}">
                             <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · ⭐${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''}</div>
                             <div class="ls-item-text">${esc(e.text)}</div>
                         </div>`).join('');
@@ -299,7 +306,7 @@
                 const p = s.status?.protagonist || {};
                 const pFields = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
                 const pLabels = { gender: '性别', age: '年龄', identity: '身份', appearance: '体貌', outfit: '当前着装', condition: '生理/伤病状况' };
-                const pRows = pFields.map(k => `<div class="ls-item ls-clickable" data-opkind="protagonist_field" data-opid="${k}"><div class="ls-item-meta">${pLabels[k]}${p.floor ? ` · 第${p.floor}楼更新` : ''}</div><div class="ls-item-text">${esc(p[k]) || '<span class="ls-hint">未登记（点击编辑）</span>'}</div></div>`).join('');
+                const pRows = pFields.map(k => `<div class="ls-item ls-clickable" data-opkind="protagonist_field" data-opid="${escAttr(k)}"><div class="ls-item-meta">${pLabels[k]}${p.floor ? ` · 第${p.floor}楼更新` : ''}</div><div class="ls-item-text">${esc(p[k]) || '<span class="ls-hint">未登记（点击编辑）</span>'}</div></div>`).join('');
                 const lds = s.status?.lifeDetails || [];
                 const tierName = { pinned: '📌 置顶常驻', active: '🔹 常规', archive: '📦 沉降' };
                 let ldHtml = '';
@@ -307,7 +314,7 @@
                     const group = lds.filter(d => (d.tier || 'active') === tier);
                     if (!group.length) continue;
                     ldHtml += `<div class="ls-group"><div class="ls-group-title">${tierName[tier]} (${group.length})</div>` +
-                        group.map(d => `<div class="ls-item ls-clickable" data-opkind="life" data-opid="${esc(d.id)}"><div class="ls-item-meta">${d.floor ? `第${d.floor}楼` : '—'}${(d.anchors || []).length ? ' · ' + esc((d.anchors || []).slice(0, 4).join('/')) : ''}${d.until ? ' · 至 ' + esc(d.until) : ''}</div><div class="ls-item-text">${esc(d.text)}</div></div>`).join('') + '</div>';
+                        group.map(d => `<div class="ls-item ls-clickable" data-opkind="life" data-opid="${escAttr(d.id)}"><div class="ls-item-meta">${d.floor ? `第${d.floor}楼` : '—'}${(d.anchors || []).length ? ' · ' + esc((d.anchors || []).slice(0, 4).join('/')) : ''}${d.until ? ' · 至 ' + esc(d.until) : ''}</div><div class="ls-item-text">${esc(d.text)}</div></div>`).join('') + '</div>';
                 }
                 body = `<div class="ls-group"><div class="ls-group-title">🧍 主角档案（点击字段可编辑）</div>${pRows}</div>` +
                     `<div class="ls-group"><div class="ls-group-title">🧬 生活小档案 (${lds.length})</div>` +
@@ -331,7 +338,7 @@
                 const resolved = items.filter(x => x.status === 'resolved').slice(-10).reverse();
                 body = (items.length === 0) ? '<div class="ls-hint">暂无悬念。LLM 提取到约定/伏笔/谜团后会自动登记。</div>' :
                     `<div class="ls-group"><div class="ls-group-title">未了结 (${open.length})</div>` +
-                    (open.map(x => `<div class="ls-item ls-clickable" data-opkind="suspense" data-opid="${x.id}"><div class="ls-item-meta">${x.kind === 'suspense' ? '谜团' : '约定'} · 第${x.floor ?? '?'}楼${x.createdTime ? ' · ' + esc(x.createdTime) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
+                    (open.map(x => `<div class="ls-item ls-clickable" data-opkind="suspense" data-opid="${escAttr(x.id)}"><div class="ls-item-meta">${x.kind === 'suspense' ? '谜团' : '约定'} · 第${x.floor ?? '?'}楼${x.createdTime ? ' · ' + esc(x.createdTime) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
                     `</div><div class="ls-group"><div class="ls-group-title">近期了结</div>` +
                     (resolved.map(x => `<div class="ls-item"><div class="ls-item-meta">${x.outcome === 'done' ? '✅ 完成' : x.outcome === 'cancelled' ? '🚫 取消' : '❌ 失败'}${x.resolvedReason ? ' · ' + esc(x.resolvedReason) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
                     '</div>';
@@ -351,7 +358,7 @@
                 const vecs = s.vector.vectors;
                 body = vecs.length === 0 ? '<div class="ls-hint">暂无向量。需要配置 Embedding API。</div>' :
                     vecs.slice().reverse().map(v => `
-                        <div class="ls-item ls-clickable" data-opkind="vector" data-opid="${v.id}">
+                        <div class="ls-item ls-clickable" data-opkind="vector" data-opid="${escAttr(v.id)}">
                             <div class="ls-item-meta">楼层 ${v.metadata?.floor ?? '?'} · ${fmtTime(v.timestamp)}</div>
                             <div class="ls-item-text">${esc((v.text || '').substring(0, 150))}</div>
                         </div>`).join('');
@@ -361,7 +368,7 @@
                 const items = s.items?.records || [];
                 body = items.length === 0 ? '<div class="ls-hint">暂无物品记录。剧情中出现物品获得、转交或丢失时会自动登记。</div>' :
                     items.slice().reverse().map(it => `
-                        <div class="ls-item ls-clickable" data-opkind="item" data-opid="${esc(it.name)}">
+                        <div class="ls-item ls-clickable" data-opkind="item" data-opid="${escAttr(it.name)}">
                             <div class="ls-item-meta"><b>${esc(it.name)}</b> · 持有者: ${esc(it.holder || '无主')} · 状态: ${esc(it.state || '完好')}${it.floor !== undefined ? ` · 第${it.floor}楼` : ''}</div>
                             <div class="ls-item-text">${esc(it.desc || '（无描述）')}</div>
                         </div>`).join('');
@@ -440,7 +447,7 @@
                                 <div class="ls-item-meta">第${f.floor}楼锁定 · ${fmtTime(f.createdAt)}</div>
                                 <div class="ls-item-text">${esc(f.text)}</div>
                             </div>
-                            <button class="ls-btn ls-lf-del" data-lfid="${esc(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✕</button>
+                            <button class="ls-btn ls-lf-del" data-lfid="${escAttr(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✕</button>
                         </div>`).join('');
                 body = head + addForm + '<div style="margin-top:8px;">' + items + '</div>';
             }
@@ -460,7 +467,7 @@
                                 <div class="ls-item-meta">${stBadge(d.status)} · 第${d.evidenceFloor}楼 · ${fmtTime(d.timestamp)}</div>
                                 <div class="ls-item-text">${esc(d.summary)}</div>
                             </div>
-                            ${d.status === 'uncertain' ? `<button class="ls-btn ls-delta-confirm" data-dsum="${esc(d.summary)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✓</button>` : ''}
+                            ${d.status === 'uncertain' ? `<button class="ls-btn ls-delta-confirm" data-dsum="${escAttr(d.summary)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✓</button>` : ''}
                         </div>`).join('');
                 }
 }
@@ -645,7 +652,14 @@
                 body = '<div class="ls-hint">✅ 报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:var(--ls-bg-1,#0d1117);padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
             }
 
-            const opHint = '<div class="ls-hint" style="color:var(--ls-accent,#58a6ff);margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>';
+            /* [v3.303.0 M-O2] 提示必须与**本面板真有可点条目**一致：本函数有 22 个视图，
+             *   而带 `data-opkind`（点下去会走 `_memOps`）的只有 9 类条目。
+             *   修前无条件挂这条提示 ⇒ `lockedfacts` / `deltas` / `oplog` 等**一个可点条目都没有**
+             *   的视图上也写着「点击条目可操作」，用户按提示点下去毫无反应 ——
+             *   这正是本刀要清的形态（把「不可用」说成「可用」，比不提示更坏）。
+             *   判据从**已渲染的 HTML 自身**取（`body` 里有没有 `data-opkind=` 标记），
+             *   而不是另立一份「哪些视图可点」的名单 —— 名单会与渲染面漂移。 */
+            const opHint = /\sdata-opkind=/.test(body || '') ? '<div class="ls-hint" style="color:var(--ls-accent,#58a6ff);margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>' : '';
             const ov = makeSheet('lonsha-browser-overlay', title, body ? (opHint + body) : '<div class="ls-hint">暂无数据</div>');
             ov.querySelectorAll('[data-opkind]').forEach(it => {
                 it.addEventListener('click', () => {
@@ -1750,18 +1764,31 @@
         plugin._memOps = function(kind, id, onDone) {
             const eng = this.engine;
             const esc = (t) => String(t || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+            /* [v3.303.0 M-O2] **比对同一性**：本函数收到的 `id` 永远来自 `dataset` / HTML 属性，
+             *   而 DOM 属性**只能是字符串**（`data-opid="3"` 读出来是 `'3'`，不是 `3`）。
+             *   改动前的各分支拿它去比引擎侧的原生值（summary 是 `floor: Number`、
+             *   life/suspense 是各自 `id` 生成式）——一旦两侧类型不同，`===` 恒 false，
+             *   于是 `find` 恒落空、函数**静默 return**，表现为「条目点得动但面板永远不弹」。
+             *   真宿主实测（probe flow5，真 ST 1.19.0 + Chromium 131）：
+             *     `_memOps('summary','3')` ⇒ panelOpen=false；`_memOps('summary',3)` ⇒ panelOpen=true
+             *     （同函数、同数据、只差 id 类型）⇒ 根因是**两侧类型不同**，不是数据没造出来。
+             *   读侧口径必须与写侧同源：在寻址口**一次性**归一成字符串（`String()` 在写侧
+             *   同样是规范化口，见 `addManualSummary` / `addLockedFact` 的 `String(floor)`），
+             *   各分支的比对表达式相应改为 `.id === key` / `.floor === key` —— 不做逐处 `Number()`
+             *   强转（那会把字符串型 id 打回 NaN，把一类错换成另一类错）。 */
+            const key = String(id);
             let label = "", actions = [];
             if (kind === "timeline") {
-                const e = eng.timeline.entries.find(x => x.id === id);
+                const e = eng.timeline.entries.find(x => x.id === key);
                 if (!e) return;
                 label = esc(e.text).substring(0, 60);
                 actions = [
                     { t: "⭐ 提升重要度", fn: () => { e.importance = Math.min(10, (e.importance || 5) + 2); return "重要度→" + e.importance; } },
-                    { t: "🗑 删除该条", fn: () => { eng.timeline.entries = eng.timeline.entries.filter(x => x.id !== id); return "已删除"; }, danger: true },
+                    { t: "🗑 删除该条", fn: () => { eng.timeline.entries = eng.timeline.entries.filter(x => x.id !== key); return "已删除"; }, danger: true },
                 ];
             }
             else if (kind === "summary") {
-                const m = eng.summary.summaries.find(x => x.floor === id);
+                const m = eng.summary.summaries.find(x => String(x.floor) === key);
                 if (!m) return;
                 label = esc(m.text).substring(0, 60);
                 actions = [
@@ -1769,7 +1796,7 @@
                         const nt = prompt('编辑第 ' + id + ' 楼摘要（可直接修改文本）：', m.text);
                         if (nt === null) return;
                         if (!eng.summary?.updateSummaryText) { toast('引擎版本过旧'); return; }
-                        if (eng.summary.updateSummaryText(id, nt)) {
+                        if (eng.summary.updateSummaryText(Number(key), nt)) {
                             toast('✅ 摘要已更新');
                             if (eng.bm25?.rebuild && eng.summary?.getActiveSummaries) {
                                 eng.bm25.rebuild(eng.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
@@ -1777,7 +1804,7 @@
                         } else { toast('更新失败'); }
                     } },
                     { t: "🗑 删除该摘要", fn: () => {
-                        eng.summary.summaries = eng.summary.summaries.filter(x => x.floor !== id);
+                        eng.summary.summaries = eng.summary.summaries.filter(x => String(x.floor) !== key);
                         if (eng.bm25?.rebuild && eng.summary?.getActiveSummaries) {
                             eng.bm25.rebuild(eng.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
                         }
@@ -1785,19 +1812,19 @@
                     }, danger: true },
                 ];
             } else if (kind === "pov") {
-                const p = (eng.pov?.povs || []).find(x => x.id === id);
+                const p = (eng.pov?.povs || []).find(x => x.id === key);
                 if (!p) return;
                 label = esc(p.content).substring(0, 60);
                 actions = [
-                    { t: "🗑 删除该私密记忆", fn: () => { eng.pov.povs = eng.pov.povs.filter(x => x.id !== id); return "已删除POV"; }, danger: true },
+                    { t: "🗑 删除该私密记忆", fn: () => { eng.pov.povs = eng.pov.povs.filter(x => x.id !== key); return "已删除POV"; }, danger: true },
                 ];
             }
             else if (kind === "vector") {
-                const v = eng.vector.vectors.find(x => x.id === id);
+                const v = eng.vector.vectors.find(x => x.id === key);
                 if (!v) return;
                 label = esc((v.text || "").substring(0, 60));
                 actions = [
-                    { t: "🗑 删除该向量", fn: () => { eng.vector.vectors = eng.vector.vectors.filter(x => x.id !== id); return "已删除向量"; }, danger: true },
+                    { t: "🗑 删除该向量", fn: () => { eng.vector.vectors = eng.vector.vectors.filter(x => x.id !== key); return "已删除向量"; }, danger: true },
                 ];
             } else if (kind === "todo") {
                 const parts = String(id).split("|||");
@@ -1851,7 +1878,7 @@
                 ];
             }
             else if (kind === "life") {
-                const ld = (eng.status?.lifeDetails || []).find(x => x.id === id);
+                const ld = (eng.status?.lifeDetails || []).find(x => x.id === key);
                 if (!ld) return;
                 label = esc(ld.text).substring(0, 60);
                 const setTier = (tier, name) => () => {
@@ -1876,22 +1903,22 @@
                     { t: "🗑 删除该条", fn: () => {
                         const backup = { ...ld };
                         const idx2 = (eng.status.lifeDetails || []).indexOf(ld);
-                        eng.status.lifeDetails = eng.status.lifeDetails.filter(x => x.id !== id);
+                        eng.status.lifeDetails = eng.status.lifeDetails.filter(x => x.id !== key);
                         return { label: "已删除", desc: "生活小档案删除还原", undo: () => { if (idx2 >= 0) eng.status.lifeDetails.splice(idx2, 0, backup); else eng.status.lifeDetails.push(backup); } };
                     }, danger: true },
                 ];
             }
             else if (kind === "suspense") {
-                const it = (eng.suspense?.items || []).find(x => x.id === id);
+                const it = (eng.suspense?.items || []).find(x => x.id === key);
                 if (!it) return;
                 label = esc(it.content).substring(0, 60);
                 actions = [
                     { t: "✅ 标记完成", fn: () => { eng.suspense.resolve(id, "done", "（手动了结）"); return "悬念已了结"; } },
                     { t: "🚫 标记取消", fn: () => { eng.suspense.resolve(id, "cancelled", "（手动取消）"); return "悬念已取消"; } },
-                    { t: "🗑 删除该条", fn: () => { eng.suspense.items = eng.suspense.items.filter(x => x.id !== id); return "已删除悬念"; }, danger: true },
+                    { t: "🗑 删除该条", fn: () => { eng.suspense.items = eng.suspense.items.filter(x => x.id !== key); return "已删除悬念"; }, danger: true },
                 ];
             } else if (kind === "item") {
-                const rec = (eng.items?.records || []).find(x => x.name === id);
+                const rec = (eng.items?.records || []).find(x => x.name === key);
                 if (!rec) return;
                 label = esc(rec.name) + "（" + esc(rec.holder || "无主") + " · " + esc(rec.state || "完好") + "）";
                 actions = [
@@ -1990,6 +2017,16 @@
             if (!engine) { toast('引擎未初始化'); return; }
             toast('诊断中…');
             let r;
+            /* [v3.303.0 M-O2] **`esc` 必须在本函数内可见**：本档是一个 IIFE，里面每个 `show*`
+             *   各定义一个局部的 `const esc`；本函数原先**漏了这一行**，而下面构造错误行的
+             *   模板串里用了 6 处 `esc(...)` ⇒ 一进 HTML 构造即 `ReferenceError: esc is not defined`。
+             *   形态定性：这条路径**只在真有诊断数据时**才走到 —— 空数据下 `r.errors` 为空、
+             *   `r.pipeline` / `r.schema` 缺席都会跳开用 `esc` 的那几行，故「新档空跑一次」看不出来。
+             *   真宿主实测（probe flow3 / flow5，真 ST 1.19.0 + Chromium 131）：
+             *   `showDiagnose()` ⇒ `threw = "esc is not defined"`、诊断面板 **未落 DOM**。
+             *   静态普查（/tmp/mo2/esc_scope2.py；模板串内 `${...}` 插值按代码词法处理）：
+             *   全档 4 处 `const esc =` / 80 处使用点 / **3 处不可达**，全部落在这个函数体内。 */
+            const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             try { r = await engine.selfCheck(); } catch (e) { toast('诊断失败: ' + e.message); return; }
             const errRows = (r.errors || []).slice(-15).reverse().map(e2 =>
                 `<div style="padding:6px 8px;font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">
