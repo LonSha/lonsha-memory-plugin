@@ -244,6 +244,14 @@ const EXEMPT = {
     //   参数默认值 {} 处取错起点（把体抽成空串）。故用「真源 stripComments（等长占位、偏移不变）
     //   + 真源 braceMatch」的串联，起点由 marker 末尾花括号显式给出。不是第二份实现，是对真源两段能力的串联。
     'tests/v3272_o1_session_identity.test.mjs': ['bodyOf'],
+    // [v3.302.0] 同一形态、同一登记规范（**同一份理由，故同一条豁免**）：
+    //   v3302 也要把 memory-organs.js 里 `async save(chatId, data) {` 的**方法体**抠出来
+    //   （结构面判据读它、破坏副本上也读它），故另有一个签名不同的 bodyOf(marker, src = MOD_SRC)
+    //   —— 参数序与真源 bodyOf(src, marker) **相反**。真源 braceMatch 只跳字符串、不跳注释，
+    //   而 save 体内注释密集（且注释里就有花括号，如分支结构行的说明），单独用会把深度算错；
+    //   故与 v3272 / v3210 / v3211 同款，用「真源 stripComments（等长占位、偏移不变）
+    //   + 真源 braceMatch」的**串联**，起点由 marker 末尾花括号显式给出。不是第二份实现。
+    'tests/v3302_mo1_write_closure.test.mjs': ['bodyOf'],
 };
 
 const filesToScan = [];
