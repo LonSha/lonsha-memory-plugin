@@ -230,6 +230,10 @@ const REGISTRY = [
      *   按 B1 台账纪律在此登记。★ 收编留痕：首版用 require 取真源、局部名与出口同名，
      *   被 B2 当场点名；另动态 import 不带 from ⇒ B1 不认，故改为静态 import（见本档 E 段头）。 */
     'v3306_secret_knowledge_scope.test.mjs',
+    /* [v3.307.0 M-O8 第二刀] 本档从 tests/_break_kit.mjs 静态取 breakOnce
+     *   （五条真源码破坏负控制：正文放回 title / 知识范围塌成一态 / 查询面正文列写回 /
+     *   报告段写进正文 / 导出段整段删除）；按 B1 台账纪律在此登记。 */
+    'v3307_secret_scope_surface.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

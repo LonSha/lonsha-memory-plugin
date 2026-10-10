@@ -50,7 +50,11 @@
  * ================================================================ */
 (function (root) {
     'use strict';
-    const QUERY_VERSION = 1;
+    /* [v3.307.0 · M-O8 第二刀] 2：秘密面不再把正文放进检索面。
+     *   修前实测：同一条秘密的正文会同时进 `row.title`（由工作台 LEDGERS 投影）
+     *   与 `row.text`（本模块 textFields 拼）两个列 —— 只改一处，另一列照旧泄。
+     *   故两列同时收口，并在行上透出 `scope` / `masked` 两个读数。 */
+    const QUERY_VERSION = 2;
     /** 单页默认条数 / 上限。分页由**匹配总数**驱动，故上限只防呆、不是数据天花板。 */
     const PAGE_SIZE_DEFAULT = 30;
     const PAGE_SIZE_MAX = 200;
@@ -136,7 +140,11 @@
         {
             id: 'secret', actors: ['keeper', 'about'], timeFields: ['floor', 'updatedFloor', 'revealedFloor'],
             statusField: 'status', sourceField: 'source', revision: true,
-            textFields: ['secret'],
+            /* [v3.307.0 · M-O8 第二刀] **正文不进检索面**（修前为 ['secret']）。
+             *   为什么不是「保留但不展示」：`text` 列本身就在外供结构里
+             *   （query 的 rows → 实体信封 → 手机端），保留就是泄。
+             *   可见性改由 `row.scope` 承担；正文归注入面（renderForViewer）。 */
+            textFields: [],
             why: '「谁知道」与「关于谁」是**两件事**（keeper / about 分开），合并后答不出「谁还蒙在鼓里」'
         },
         {
@@ -367,6 +375,11 @@
                     source: sourceOf(facet, it),
                     actors: actorsOf(facet, it),
                     text: textOf(facet, it),
+                    /* [v3.307.0 · M-O8 第二刀] 两列恒定键：`scope` 三态（工作台单一真源
+                     *   产出，本面只搬运，不另解一份）+ `masked`（本行正文是否被遮蔽）。
+                     *   非秘密账为 null / false —— 与工作台行键同规格。 */
+                    scope: (p.scope === undefined || p.scope === null) ? null : text(p.scope, 20),
+                    masked: (p.masked === true),
                     _score: null
                 });
             }
@@ -616,6 +629,14 @@
                 if (c.empty) parts.push('空账 ' + c.empty);
                 if (c.absent) parts.push('缺席 ' + c.absent);
             }
+            /* [v3.307.0 · M-O8 第二刀] 本文命中里**被遮蔽**的有几条、其中几条判不了。
+             *   与工作台行同口径（同一批行、同一批读数），不另算一份。 */
+            const rows = Array.isArray(res.rows) ? res.rows : [];
+            let masked = 0, undecided = 0;
+            for (const r of rows) {
+                if (r && r.masked === true) { masked += 1; if (r.scope === 'unlisted') undecided += 1; }
+            }
+            if (masked) parts.push('正文遮蔽 ' + masked + ' 条' + (undecided ? '（其中 **判不了 ' + undecided + '**）' : ''));
             const tr = Array.isArray(cov.truncated) ? cov.truncated : [];
             if (tr.length) parts.push('截断 ' + tr.join('、'));
             if (res.state === 'inverted-range') parts.push('（区间反转，按空集）');

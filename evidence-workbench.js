@@ -45,11 +45,60 @@
 (function (root) {
     'use strict';
 
-    const EVIDENCE_VERSION = 2;   // [v3.233.0] F-2：出处列按段真值 + detail 带来源构成（面键不变，取值更准）
+    /* [v3.307.0 · M-O8 第二刀] 3：秘密账的投影行**默认遮蔽正文**，并把「知识范围」
+     *   与「可用性」提成两列。
+     *   为什么必须抬版：下游按行取 `title` 当展示文本 —— 修前它是**秘密正文**，
+     *   修后是站位串。取值语义变了而不改版本号，旧下游会把站位串当正文渲染、
+     *   新下游则可能把「上游没遮蔽」当成「这本账没有秘密」。
+     *   面键（ref/ledger/title/detail/status/floor/updatedFloor/source/revision）不变，
+     *   只增 `scope` / `masked` 两列。 */
+    const EVIDENCE_VERSION = 3;
     /** 单本账投影的条目上限（防一本账把面板拖死；超出如实记 truncated）。 */
     const MAX_ITEMS_PER_LEDGER = 200;
     /** 单条正文裁剪上限（与 search 的摘要宽度同量级）。 */
     const MAX_TEXT = 160;
+    /* ── [v3.307.0 · M-O8 第二刀] 秘密面的外供口径 ──────────────────────────
+     * 【修前实测的泄漏（真探针可复现）】
+     *   secret 段的 `project` 写的是 `title: text(it.secret, MAX_TEXT)` —— 即**秘密正文
+     *   逐字进投影行**，随后经 `search()` 返回、并经宿主 `buildBridgeSnapshot().evidence`
+     *   外供到下游手机端。而本模块的导出面里**零知识范围出口**：
+     *   下游能读到正文，却问不出「这条现在能不能说」。
+     *   这正是 M-O8 验收③「诊断可显示『存在但不可用』，不得直接泄露正文」的缺口。
+     *
+     * 【本刀的做法：诊断面只报存在性 + 可用性，正文一律由注入面负责】
+     *   正文的可见性判定与渲染只有一处真源：`secret-ledger.js` 的
+     *   `knowledgeOf` / `filterForViewer` / `renderForViewer`（M-O8 第一刀）。
+     *   本模块**不另解一遍**（另解即第二份实现），只调它的 `knowledgeOf`。
+     *
+     * 【为什么站位串而不是空串、也不是正文前缀】
+     *   空串与「这条本来没有内容」同形；正文前缀是「只漏一点」—— 本仓历来不接受。
+     *   站位串是**明确的存在性声明**，且与真读数不可能撞（下游可据此判 `masked`）。 */
+    const SECRET_MASK = '（正文不对外提供：诊断面只报存在性与知识范围）';
+    /** 知识范围三态的中文标签（诊断面与外供面共用一处，避免各写一份）。 */
+    const SCOPE_LABEL = Object.freeze({
+        /* 本读取路径（无查看者）只产出 listed / unlisted 两态，标签须与这一事实一致：
+         *   它答的是「本条**给没给**知情名单」＝边界可不可判；
+         *   「此人**在不在**名单里」由 `filterForViewer` 在带查看者时答（knower / listed）。 */
+        knower: '在册知情', listed: '已给知情名单（边界可判）', unlisted: '未给名单（判不了）'
+    });
+    /**
+     * 取一条秘密的**知识范围**（三态互不同形，判不了不与挡下同形）。
+     *   · 判定一律调该账自己的 `knowledgeOf`（单一真源）；
+     *   · api 缺该函数（旧版模块 / 版本错配）⇒ `state:null` + 明确标签，
+     *     **不回落成 `unlisted`** —— 那是「判不了」，而这里连判的依据都没有。
+     */
+    function knowledgeScopeOf(api, item) {
+        const knowers = names(item && item.knowers);
+        if (!api || typeof api.knowledgeOf !== 'function') {
+            return { state: null, label: '判不了（本账无 knowledgeOf，判据缺）', knowers: knowers };
+        }
+        let state = 'unlisted';
+        /* who 传空串：`knowledgeOf` 在「没给名单」时返回 unlisted、给了名单时返回 listed，
+         *   正好是「本条有无名单」这一问，且**走的是同一条判据**。 */
+        try { state = (api.knowledgeOf(item, '') === 'unlisted') ? 'unlisted' : 'listed'; }
+        catch (_e) { state = 'unlisted'; }
+        return { state: state, label: SCOPE_LABEL[state] || state, knowers: knowers };
+    }
 
     function text(v, max) {
         const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
@@ -146,12 +195,23 @@
             id: 'secret', label: '秘密', apiGlobal: 'LonShaSecretLedger',
             state: (h) => (h && h.worldProg ? h.worldProg.secretLedger : undefined),
             pick: (api, st) => (Array.isArray(st && st.items) ? st.items : []),
-            project: (it) => ({
-                title: text(it.secret, MAX_TEXT),
-                detail: ['知情 ' + (names(it.keeper).join('、') || '（未点名）'), names(it.about).length ? '关于 ' + names(it.about).join('、') : ''].filter(Boolean).join(' · '),
-                status: text(it.status, 20), floor: finiteFloor(it.floor),
-                updatedFloor: finiteFloor(it.updatedFloor), source: 'secretLedger', revision: finiteNum(it.revision)
-            }),
+            /* [v3.307.0 · M-O8 第二刀] **本行不外供正文**（修前 `title` 就是 `it.secret`）。
+             *   可见性改由 `scope` 列承担，正文归注入面（`renderForViewer`）。
+             *   ★ 有意的行为改变：秘密**正文不再参与本面的关键词检索**。
+             *     这不是能力退化 —— 正文检索属于注入路径的职责（那里带知情名单与禁令头），
+             *     诊断路径的职责是「存在吗、能不能说」，两者不该共用一条匹配面。 */
+            project: (it, api) => {
+                const k = knowledgeScopeOf(api, it);
+                return {
+                    title: SECRET_MASK,
+                    detail: ['知情 ' + (names(it.keeper).join('、') || '（未点名）'),
+                        names(it.about).length ? '关于 ' + names(it.about).join('、') : '',
+                        '知识范围 ' + k.label + (k.knowers.length ? '（' + k.knowers.join('、') + '）' : '')].filter(Boolean).join(' · '),
+                    status: text(it.status, 20), floor: finiteFloor(it.floor),
+                    updatedFloor: finiteFloor(it.updatedFloor), source: 'secretLedger', revision: finiteNum(it.revision),
+                    scope: k.state, masked: true,
+                };
+            },
             why: '谁知道、谁还不知道，直接决定角色会不会「提前说漏」'
         },
         {
@@ -308,7 +368,13 @@
                 floor: (p.floor === undefined ? null : p.floor),
                 updatedFloor: (p.updatedFloor === undefined ? null : p.updatedFloor),
                 source: text(p.source, 40),
-                revision: (p.revision === undefined ? null : p.revision)
+                revision: (p.revision === undefined ? null : p.revision),
+                /* [v3.307.0 · M-O8 第二刀] 两列恒定键（非秘密账为 null / false）。
+                 *   `scope` 三态（knower / listed / unlisted）+ `masked` 声明
+                 *   「本行 title 是站位串、不是正文」—— 后者让下游能区分
+                 *   「这行本来就没有正文」与「正文被遮蔽了」（两者处置相反）。 */
+                scope: (p.scope === undefined || p.scope === null) ? null : text(p.scope, 20),
+                masked: (p.masked === true)
             });
         }
         return out;
@@ -435,6 +501,28 @@
             const c = face.summary.counts || {};
             const parts = ['证据 ' + (c.ok || 0) + '/' + (face.summary.total || 0) + ' 账', '条目 ' + (face.summary.items || 0)];
             if (c.empty) parts.push('空账 ' + c.empty);
+            /* [v3.307.0 · M-O8 第二刀] 秘密面**存在但不可用**读数 —— 验收③要的正是
+             *   「能显示它存在、但不能用」，且**不得**顺带给出正文。
+             *   三态分开报（本仓老账：压成一格就是错读数）：
+             *     · 已给名单 ⇒ 边界可判；
+             *     · 未给名单 ⇒ **判不了**（单独报，且带星号）；
+             *     · scope 为 null ⇒ 该账版本错配，连判据都没有（与「判不了」再分一档）。
+             *   ★ 只对有 `masked===true` 的行计数：本行的存在以**遮蔽事实**为准，
+             *     不按标题猜（标题是站位串，猜不出任何东西）。 */
+            const secL = (face.ledgers || {})['secret'];
+            if (secL && Array.isArray(secL.items) && secL.items.length) {
+                let listed = 0, unlisted = 0, blind = 0;
+                for (const it of secL.items) {
+                    if (it.masked !== true) continue;
+                    if (it.scope === 'listed' || it.scope === 'knower') listed += 1;
+                    else if (it.scope === 'unlisted') unlisted += 1;
+                    else blind += 1;
+                }
+                const sp = ['秘密 ' + secL.items.length + ' 条（存在但不可用：正文按知识范围隔离，不入本面）', '边界可判 ' + listed];
+                if (unlisted) sp.push('**判不了 ' + unlisted + '**');
+                if (blind) sp.push('判据缺 ' + blind);
+                parts.push(sp.join(' · '));
+            }
             if (c.absent) {
                 const why = [];
                 const ls = face.ledgers || {};

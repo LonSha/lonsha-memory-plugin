@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.306.0",
+  "version": "3.307.0",
   "version_sources": {
-    "manifest": "3.306.0",
-    "package": "3.306.0",
-    "index_const": "3.306.0"
+    "manifest": "3.307.0",
+    "package": "3.307.0",
+    "index_const": "3.307.0"
   },
   "version_same": true,
-  "human_index_version": "3.306.0",
+  "human_index_version": "3.307.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 88,
@@ -106,7 +106,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 287,
+    "test_files": 288,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -335,6 +335,7 @@
       "v3304_head_defect_sweep.test.mjs",
       "v3305_memory_tools_api.test.mjs",
       "v3306_secret_knowledge_scope.test.mjs",
+      "v3307_secret_scope_surface.test.mjs",
       "v330_ledger_replay.test.mjs",
       "v331_heat_concern.test.mjs",
       "v332_importance_timeline.test.mjs",
@@ -436,7 +437,7 @@
     "tests_total": 277,
     "assertions": 2986,
     "audit": "59/59",
-    "reason": "登记版本 3.296.0 ≠ 当前 3.306.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.296.0 ≠ 当前 3.307.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -455,19 +456,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "c89cc965c6f3",
-      "package.json": "b26d71eb6bac",
-      "index.js": "2a4b89a996eb",
+      "manifest.json": "2d02454694fd",
+      "package.json": "ce359be8e41f",
+      "index.js": "34c5a1e4784c",
       "update-log.json": null,
-      "README.md": "63c9502d3933",
-      "PLAN.md": "3bbac3b582c4",
-      "CHANGELOG.md": "be84554164c4",
-      "TODO.md": "f53fab9ade00",
+      "README.md": "133d77d01f31",
+      "PLAN.md": "9c5b4a3c619a",
+      "CHANGELOG.md": "32f64d4cca31",
+      "TODO.md": "607296eabbc3",
       "tests/audit/doc_readings.json": "0f59cfa368d4"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.296.0，当前 3.306.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.296.0，当前 3.307.0"
   ],
   "unknown_count": 1
 }

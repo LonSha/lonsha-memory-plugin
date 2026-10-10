@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.306.0';
+    const VERSION = '3.307.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11912,6 +11912,39 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 }
                 push('');
             }
+            /* [v3.307.0 · M-O8 第二刀] 秘密账的导出面（验收④「导出包按知识范围过滤」）。
+             *   本刀先收**最高危的那一格**：正文**一律不出报告**。
+             *   为什么是「一律」而不是「按名单筛」：报告是用户会贴出去、转发出去的东西
+             *   （此前它的日记板块连「未说出口」都照抄），而报告这一侧**没有**任何
+             *   「谁在看」的信息 —— 无从判定，就只能不输出正文。
+             *   于是本段输出的是**存在性 + 知识范围读数**：读者知道有几条、边界可判几条、
+             *   判不了几条，但拿不到任何一条的内容。
+             *   ★ 与自检面的「秘密隔离」行分列：那一行报**注入侧**挡了多少，
+             *     本段报**导出侧**有多少条存在 —— 两件事处置不同，不并一格。 */
+            try {
+                const _SL = _moduleLib(() => window.LonShaSecretLedger, 'secret-ledger.js');
+                const _secState = (this.worldProg && this.worldProg.secretLedger) || null;
+                const _open = (_SL && typeof _SL.list === 'function')
+                    ? (_SL.list(_secState, { status: 'unrevealed' }) || [])
+                    : ((_secState && Array.isArray(_secState.items)) ? _secState.items : []);
+                if (_open.length) {
+                    push('## 🤫 未揭露的秘密（正文按知识范围隔离，不随报告导出）');
+                    push('');
+                    push('> 本段只报**存在性**与**知识范围**：秘密正文只在注入路径按知情名单渲染，导出文件不携带正文。');
+                    push('');
+                    const _blind = (_SL && typeof _SL.filterForViewer === 'function')
+                        ? (Number((_SL.filterForViewer(_open, '') || {}).undecided) || 0)
+                        : _open.length;
+                    push(`- 共 ${_open.length} 条 · 已给知情名单 ${_open.length - _blind} 条 · **未给名单（判不了）${_blind} 条**`);
+                    for (const _it of _open.slice(0, 10)) {
+                        const _k = (_SL && typeof _SL.knowledgeOf === 'function') ? _SL.knowledgeOf(_it, '') : 'unlisted';
+                        const _who = (Array.isArray(_it.knowers) && _it.knowers.length) ? '（' + _it.knowers.join('、') + '）' : '';
+                        push(`- \`${_it.id || '?'}\` · ${_k === 'unlisted' ? '**未给名单（判不了）**' : '已给知情名单' + _who} · 进度 ${_it.progress == null ? '?' : _it.progress}% · 第 ${_it.floor == null ? '?' : _it.floor} 楼`);
+                    }
+                    if (_open.length > 10) push(`- …另 ${_open.length - 10} 条（正文同样不外带）`);
+                    push('');
+                }
+            } catch (e) { errLog(e, 'exportMemoryReport.secretScope'); }
             // 物品
             if ((this.itemOps || []).length) {
                 push('## 🎒 物品台账');
