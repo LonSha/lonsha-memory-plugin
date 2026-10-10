@@ -1,3 +1,71 @@
+## v3.306.0
+**M-O8 第一刀（第二期优化计划）秘密的「知识范围」注入侧隔离 —— 把「在场者知不知道」变成读侧的真判据**
+- **它补的是哪一格**：第二期优化计划 M-O8「隐私、秘密与跨项目隔离审计」四条验收里的第①条
+  「**未获知的秘密不进入角色生成上下文**」。修前全仓实测（探针 `/tmp/probe_secret_leak.js` 真跑，
+  装载真 `secret-ledger.js` + `ledger-entity.js` + `memory-organs.js`，构造真 `WorldProgress`）：
+  · 注入点 `WorldProgress.toInjection` 里只有一句 `secretApi?.render?.(this.secretLedger, 5)` ——
+    它与**在场名单完全无关**：守密人「阿绣」在场时，载荷里照样逐字出现
+    `【尚未揭露的秘密】\n- sec_1〔阿绣不知 · 0%〕养女实为仇家之后`，且**没有任何禁令句**；
+  · 对照同一处的另两面：认知隔离面 `wp_knowledge` 带「切勿未卜先知」，平行事实隐藏面带
+    「在场角色不得知晓」—— **三面里只有秘密面没有这道禁令**；
+  · 写入侧其实有纪律（`advance` / `reveal` 一旦 keeper 在场即拒写，reason `keeper-present`），
+    于是形成「**写入侧有纪律、注入侧无纪律**」的不对称：同一场景，写不进账，却读得出来；
+  · 更硬的一条：`recordSecretFact` **全仓零调用点**（`grep -rn` 只命中它自己的定义；同族的
+    `recordCommitmentFact` 2 处 / `recordSeedFact` 2 处 / `recordEcho` 1 处）——
+    秘密账本在真实运行里**永远为空**。也就是说，修前「没泄漏」的成因是「压根没数据」，
+    一旦提取通道接上，上面那条泄漏就是**立即生效**的。
+- **交付物一：知识范围单一真源**（`secret-ledger.js`，11,596 → 16,714 字符）——
+  `knowledgeOf(item, who)` / `filterForViewer(items, viewer)` / `renderForViewer(rawState, viewer, limit)`
+  三件 + `line(read)` 诊断一行，API 冻结导出。
+- **两份名单是**互不同形**的，这是本刀的核心设计判断**：`keeper` 答「守密人**在不在场**」（写入侧用），
+  `knowers` 答「这个人**知不知道**」（读侧用）。**用同一份名单必然同形** ⇒ 恰好抹掉最该说漏的那一刻
+  （守密人不在场但也不知道 = 最危险的一格）。故 `knowers` 是三态：
+  `'knower'`（在册知情）／`'listed'`（被点名为一件事的相关方但未列为知情者）／
+  `'unlisted'`（未给名单）—— **「判不了」不按 listed 处置**，那是猜。
+- **交付物二：提取通道接回**（`memory-config.js` 新增 9m `secrets` 通道 + `index.js` 接线）——
+  与 `knowledge_changes` 相邻（同一件事的两面），逐条带 `floor` 与幂等 `eventKey`；
+  ★ **只有 `out.ok && out.changed` 才计数**：复封幂等与 keeper 缺失被拒都**不得**读成「成功登记一条」。
+  `pov_memories` 同时增可选 `knowers`（缺省 ⇒ 按「谁知道判不了」处理，只保证不因它泄漏，不保证注入）。
+- **交付物三：注入侧 fail-closed + 真实读侧**（`memory-organs.js`）——
+  读侧身份与 `knownChars` **同源**（不另取一份真源）；旧版模块（无 `renderForViewer`）**不渲染、
+  只计一档 `malformed`**（宁可少注入一条真该漏的，不可多注入一条不该漏的）。
+  `_secretRead` 八档读数**逐档可分辨**：`rendered / withheld / known / notKnower / undecided /
+  noViewer / malformed / owners` —— 「判不了」单独一档，**并进 `withheld` 会让读者以为判过了**。
+  `index.js` 自检面新增「秘密隔离」一行，报警**只认两条真损失**：版本错配与 `undecided > 0`。
+- **修后验证（真读数，不靠阅读）**：26/26 断言全绿（守密人单独在场 ⇒ 整条不注入 · 在册知情者 ⇒
+  注入且含禁令头 · 三者交叉 · 无 viewer ⇒ 只见公开面 · 复封 `knowers` 只追加不覆盖 ·
+  旧版模块 ⇒ fail-closed · null 账本不崩 · 认知隔离面未受影响 · 多秘密逐条判定）。
+  禁令头常量：`【尚未揭露的秘密｜仅知情名单内的人知晓，未列名者一概不知情，严禁未卜先知或代其说破】`。
+- **新档** `tests/v3306_secret_knowledge_scope.test.mjs`（9 条）：注入面 / 导出面 / 生产口三条结构判据 +
+  三态互不同形 + 过滤四路逐档计数 + 禁令头与逐条判定 + 写入侧纪律未被削弱 + 复封追加语义 +
+  端到端四路 + 真实读侧（`_secretIsolationLine` 与自检面行）+ **三条真源码破坏负控制**
+  （拆遮蔽分流 / 拆 fail-closed / 拆 knowers 追加）+ 判据纯度（H5：负控制锚点在本层只声明一次，
+  E 块与 F1 一律引用 `ANCHORS`）+ H6 锚点两向自证 + 版本锚。
+- **本版抓修的三处自伤（全部留痕，都是本档自己写出来的）**：
+  ① **B3 期望值写错**：拿「王五」测「全遮蔽」，而王五正是**不给看那一条的在册知情者** ——
+     三态没分，判据就会把「该看的人看不到」和「不该看的人看到了」写成同一个期望；改用不在任何名单的人。
+  ② **E2 破坏形状不对**：首版用「让守卫条件恒真」拆 fail-closed，结果触发
+     `TypeError: renderForViewer is not a function` —— 红的原因是**崩了**而不是**漏了**。
+     负控制要证的是「那条遮蔽路径真在起作用」，故改成「把旧路接回来」。
+  ③ **E/F 段收编形态错**：首版 `const breakOnce = require('tests/_break_kit.mjs')` —— 局部名与
+     真源出口**同名** ⇒ 命中 `v3247` 的 B2「本地重写破坏工具」；改动态 `import` 又不带 `from`
+     关键字 ⇒ B1 的接收方扫描不认本档（登记了反成掉队项）。两条合起来只有一个正确解：
+     **静态 `import` 真源 + 按台账登记**（与全仓其余 60+ 档同形）。
+- **登记面连带**：`v3247` 接收方台账（本档真 `import _break_kit.mjs`）+ `catalog_reference_consumers.tsv`
+  （本档单行）+ README / PLAN 人读面读数（测试文件 286 → 287）+ `host_beast_baseline` 真探针重绑
+  + `state-report.json` 重生成。**本版不新增模块**（`extra_js` 仍 88）。
+- **边界 · 诚实四条**：① 本刀只收 M-O8 四条验收里的**第①条**（注入侧）；
+  第②条（A 分支秘密不出现在 B）已在 X6 `branch-semantics.filterByKeeper` / X5
+  `volume-continuation.filterByKeeper` 治过，本版**沿用同口径不重复劳动**（`filterForViewer`
+  的无 viewer 分支与它逐字同形）；第③④条（诊断「存在但不可用」的完整面 / 导出包按知识范围过滤）
+  **本刀只落了诊断行这一格**，导出面 `exportMemoryReport` 目前**不含**秘密正文段，另一刀再收。
+  ② 提取通道**接上了**，但「模型是否会按 schema 填 `secrets`」属**真模型面**，本仓环境无任何 headless
+  浏览器与真模型 ⇒ **如实登记未执行**，不在本版声称范围。
+  ③ `advance` / `reveal` 的 keeper-present 纪律**未被本版削弱**，有判据钉住（B4）。
+  ④ 本版**全量未跑**（按用户纪律「做完计划全部内容前别跑全量」）：只跑单门 / 单套件与 12 道直接相关
+  审计门禁，README / PLAN 如实标「当前版本 v3.306.0 **全量待验**」。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+
 ## v3.305.0
 **M-X9（第二期拓展计划）统一记忆工具 API 与手机可消费投影 —— 把五条既有能力收进一个信封，让缺席不再与空数据同形**
 - **它补的是哪一格**：M-X9 点名五个 API（`queryEvidence` / `getContinuityPack` / `previewFactAdmission` /

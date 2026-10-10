@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.305.0';
+let VERSION = '3.306.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1160,6 +1160,12 @@ class WorldProgress {
          *   suspect 单独成格：「判不开但疑似同一件事」是本模块唯一说不出结论的一档，
          *   并进任何一格都会让读者以为「判过了」。 */
         this._knowledgeRead = { marked: 0, merged: 0, released: 0, alreadyKnown: 0, suspect: 0, malformed: 0, owners: 0 };
+        /* [v3.306.0 · M-O8] 秘密注入侧读数（**累计**，同 _knowledgeRead 口径）。
+         *   为什么累计而不是本轮：单轮的「挡下 0」与「这一轮本来就没有秘密」同形，
+         *   只有跨轮累计才看得出隔离是否长期空转。
+         *   undecided 单独成格：「条目没给知情名单」是本模块唯一说不出结论的一档，
+         *   并进 withheld 会让读者以为「判过了」。noViewer 另计（没人在场 vs 判不了，两件事）。 */
+        this._secretRead = { rendered: 0, withheld: 0, known: 0, notKnower: 0, undecided: 0, noViewer: 0, malformed: 0, owners: 0 };
         // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
         this.plotArcs = []; // [{ id, title, clue, lastActiveFloor, status: 'active'|'shelved'|'resolved', interestedBy }]
     }
@@ -1906,15 +1912,47 @@ class WorldProgress {
                 });
             }
         }
-        // [v3.196] 秘密账本：只注入未揭露的（sealed/advancing），已揭露的进历史不再占注入
+        /* [v3.196] 秘密账本：只注入未揭露的（sealed/advancing），已揭露的进历史不再占注入。
+         * [v3.306.0 · M-O8] **本条修正 v3.196 的注入侧泄漏**（修前实测，探针可复现）：
+         *   修前直调 `render(secretLedger, 5)`，把秘密**正文**与「谁知道」写成一行注入，
+         *   且与在场名单**完全无关**。实测：守密人「阿绣」在场时注入文本仍是
+         *   `- sec_1〔阿绣不知 · 0%〕养女实为仇家之后` —— 正文逐字进模型载荷，且**无任何禁令句**。
+         *   对照：同一处由 knownChars 驱动的认知隔离面（wp_knowledge）带「切勿未卜先知」显式禁令，
+         *   平行事实隐藏面带「在场角色不得知晓」头 —— 三面里只有秘密面没有。
+         *   与写入侧的不对称更刺眼：advance/reveal 一旦 keeper 在场即**拒写**（reason `keeper-present`），
+         *   注入口对同一场景毫无反应。
+         * 【为什么不能顺手用 keeperPresent 来筛】见 secret-ledger.js 头注：
+         *   写侧问「守密人**在不在场**」，读侧问「这个人**知不知道**」，用同一份名单必然同形 ⇒
+         *   恰好抹掉最该说漏的那一刻。故读侧走 knowers（与 keeper 互不同形）。
+         * 【为什么逐条过滤而不是「有人在场就整段丢」】整段丢会让「有一条真该漏给他」与
+         *   「一条都没有」同形（本仓治理过多轮的静默少条）。 */
         const secretApi = (typeof window !== 'undefined' && window.LonShaSecretLedger) || null;
-        const secretText = secretApi?.render?.(this.secretLedger, 5) || '';
-        if (secretText) {
-            results.push({
-                id: 'wp_secret_ledger',
-                text: secretText,
-                source: 'worldprogress+secret-ledger'
-            });
+        if (secretApi && typeof secretApi.renderForViewer === 'function') {
+            /* 读侧身份取**在场名单里的第一个已知角色**（与 knownChars 同源，不另取真源）。 */
+            const reader = names.length ? names[0] : '';
+            const secretView = secretApi.renderForViewer(this.secretLedger, reader, 5);
+            const secretRead = this._secretRead || (this._secretRead = { rendered: 0, withheld: 0, known: 0, notKnower: 0, undecided: 0, noViewer: 0, malformed: 0, owners: 0 });
+            const sr = secretView.read || {};
+            secretRead.rendered += Number(sr.rendered) || 0;
+            secretRead.withheld += Number(sr.withheld) || 0;
+            secretRead.known += Number(sr.known) || 0;
+            secretRead.notKnower += Number(sr.notKnower) || 0;
+            secretRead.undecided += Number(sr.undecided) || 0;
+            if (sr.noViewer) secretRead.noViewer += 1;
+            if (secretView.text) {
+                results.push({
+                    id: 'wp_secret_ledger',
+                    text: secretView.text,
+                    source: 'worldprogress+secret-ledger'
+                });
+            }
+        } else if (secretApi) {
+            /* 旧版模块（无 renderForViewer）在场：**fail-closed** —— 不渲染，只计一档 malformed。
+             *   为什么不「照旧渲染 + 记一档」：那等于修复只对升级后的模块生效，
+             *   而版本错配恰是最易发生的现场（extra_js 加载顺序 / CDN 缓存）。
+             *   宁可少注入一条真该漏的，不可多注入一条不该漏的。 */
+            const secretRead = this._secretRead || (this._secretRead = { rendered: 0, withheld: 0, known: 0, notKnower: 0, undecided: 0, noViewer: 0, malformed: 0, owners: 0 });
+            secretRead.malformed += 1;
         }
         // [v3.197] 前文回扣账本：只给 pending 高价值候选，生成侧自行决定是否重现
         const echoApi = (typeof window !== 'undefined' && window.LonShaRecallEcho) || null;

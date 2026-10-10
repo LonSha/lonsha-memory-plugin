@@ -225,6 +225,11 @@ const REGISTRY = [
      *   本档与它相反：真走唯一真源，故**必须**登记；漏登记即 B1 在「磁盘有、台账无」
      *   那一半转红。抬版脚本首版把锚点写成「假设 v3304 已登记」⇒ 命中 0 次当场中止。 */
     'v3305_memory_tools_api.test.mjs',
+    /* [v3.306.0 M-O8 第一刀] 本档从 tests/_break_kit.mjs 取 breakOnce
+     *   （三条真源码破坏负控制：拆遮蔽分流 / 拆 fail-closed / 拆 knowers 追加）；
+     *   按 B1 台账纪律在此登记。★ 收编留痕：首版用 require 取真源、局部名与出口同名，
+     *   被 B2 当场点名；另动态 import 不带 from ⇒ B1 不认，故改为静态 import（见本档 E 段头）。 */
+    'v3306_secret_knowledge_scope.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.305.0';
+    const VERSION = '3.306.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2942,6 +2942,27 @@ function relativeTimeLabel(eventTime, nowTime) {
             } catch (e) { errLog(e, 'engine._knowledgeTraceLine'); return '—（诊断异常）'; }
         }
         /**
+         * [v3.306.0 · M-O8] 秘密注入侧隔离读数（诊断面用；纯读、不抛）。
+         * 与「认知隔离提示」分列：那一面答「他此前不在场、还不知情」，
+         *   本行答「注入时挡下了几条秘密、其中几条**判不了**」。
+         * ★ 「判不了」（条目没给知情名单）必须单独报且与「挡下」分列 ——
+         *   把两者并成一格会让读者以为边界判过了，而实际是边界无从判起。
+         * ★ 「无在场者 N 轮」也单独报：它既不是挡下也不是判不了，
+         *   而是「根本不知道读的人是谁」——三者处置完全不同。
+         */
+        _secretIsolationLine() {
+            try {
+                const SL = _moduleLib(() => window.LonShaSecretLedger, 'secret-ledger.js');
+                const read = this.worldProg && this.worldProg._secretRead;
+                if (!read) return '本轮未注入秘密面';
+                if (read.malformed && !read.rendered && !read.withheld) {
+                    return '模块未加载或版本错配（secret-ledger.js 无 renderForViewer）——已 **fail-closed**（宁可不注入）';
+                }
+                if (!SL || typeof SL.line !== 'function') return '模块未加载（secret-ledger.js）';
+                return SL.line(read);
+            } catch (e) { errLog(e, 'engine._secretIsolationLine'); return '—（诊断异常）'; }
+        }
+        /**
          * [v3.293.0 · X6] 分支语义体检行（与「知识轨迹」**分列**）。
          *   轨迹行答「这条知识是怎么来的」；本行答「两个分支之间，逐 owner 的语义差在哪、
          *   哪一面因为缺模块而**不可比**」。合成一行会让「秘密边界被过滤了几条」与
@@ -3953,7 +3974,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (this.config.config.worldProgressEnabled && extracted) {
                     try {
                         const wpFloor = Number(message.index) || 0;
-                        let promiseCount = 0, arcCount = 0, knowledgeCount = 0;
+                        let promiseCount = 0, arcCount = 0, knowledgeCount = 0, secretCount = 0;
                         const explicitPromises = Array.isArray(extracted.promises) ? extracted.promises : [];
                         for (const raw of explicitPromises.slice(0, 3)) {
                             const item = typeof raw === 'string' ? { content: raw } : (raw || {});
@@ -4076,6 +4097,41 @@ function relativeTimeLabel(eventTime, nowTime) {
                             } catch (e) { errLog(e, 'onMessageReceived.知识轨迹'); }
                             knowledgeCount++;
                         }
+                        /* [v3.306.0 · M-O8] 秘密账本提取通道消费口。
+                         *   【修前实测：这条链路在提取层**根本没有生产口**】
+                         *     secret-ledger.js 有 seal（keeper 必填、复封幂等、开数上限 MAX_OPEN=5），
+                         *     宿主 index.js 有 recordSecretFact（八本账的同族写入入口），
+                         *     但**全仓零调用点**（`grep -rn recordSecretFact` 只命中它自己的定义；
+                         *     同代的 recordCommitmentFact 有 2 处、recordSeedFact 有 2 处、
+                         *     recordEcho 有 1 处调用）⇒ 秘密账本在真实运行里**永远为空**。
+                         *   本版把它接上：与 knowledge_changes 同一条提取通路（同一 LLM 轮次、
+                         *     同一 wpFloor、同一 try/catch 归因），并逐条带 floor 与 eventKey
+                         *     （eventKey 让复提取幂等：同轮重放不重复入账）。
+                         *   【为什么放在 knowledge_changes 之后】secrets 与 knowledge 是同一件事的
+                         *     两面（谁知道了 / 谁还不知道），相邻阅读才不会漏掉其中一面。 */
+                        const secretReqs = Array.isArray(extracted.secrets) ? extracted.secrets : [];
+                        for (const raw of secretReqs.slice(0, 5)) {
+                            if (!raw || typeof raw !== 'object') continue;
+                            const secretText = String(raw.secret || raw.content || '').trim();
+                            if (!secretText) continue;
+                            try {
+                                const out = this.recordSecretFact({
+                                    action: 'seal',
+                                    secret: secretText.slice(0, 180),
+                                    keeper: raw.keeper || raw.keepers || [],
+                                    knowers: raw.knowers || [],
+                                    about: raw.about || [],
+                                    progress: raw.progress,
+                                    floor: wpFloor,
+                                    source: 'secrets',
+                                    eventKey: 'seal:' + wpFloor + ':' + secretText.slice(0, 60)
+                                });
+                                /* 只有**真变了**才计数：复封幂等（changed=false）与
+                                 *   keeper 缺失被拒（ok=false, reason=missing-keeper）都不得
+                                 *   被计成「这一轮登记了一条秘密」——那是把拒绝读成成功。 */
+                                if (out && out.ok && out.changed) secretCount++;
+                            } catch (e) { errLog(e, 'onMessageReceived.秘密账本'); }
+                        }
                         // 即时推进检查：不等到下一次生成才刷新 imminent/overdue 与支线沉降。
                         this.worldProg.checkPromises(wpFloor);
                         this.worldProg.decayArcs(wpFloor, 15);
@@ -4083,9 +4139,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         //   本回合刚回收的留下；没有账本时 recordSeedFact 自己返回 null。
                         try { this.recordSeedFact({ action: 'sweep', floor: wpFloor }); }
                         catch (e) { errLog(e, 'onMessageReceived.伏笔清扫'); }
-                        if (promiseCount || arcCount || knowledgeCount || resolvedCount) {
-                            this.opLog?.log('worldprogress', 'update', promiseCount + ' promises/' + arcCount + ' arcs/' + knowledgeCount + ' knowledge/' + resolvedCount + ' resolved', wpFloor, '');
-                            if (this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] 🌐 世界推进接线: 承诺' + promiseCount + '·支线' + arcCount + '·认知' + knowledgeCount + '·了结' + resolvedCount);
+                        if (promiseCount || arcCount || knowledgeCount || secretCount || resolvedCount) {
+                            this.opLog?.log('worldprogress', 'update', promiseCount + ' promises/' + arcCount + ' arcs/' + knowledgeCount + ' knowledge/' + secretCount + ' secrets/' + resolvedCount + ' resolved', wpFloor, '');
+                            if (this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] 🌐 世界推进接线: 承诺' + promiseCount + '·支线' + arcCount + '·认知' + knowledgeCount + '·秘密' + secretCount + '·了结' + resolvedCount);
                         }
                     } catch (e) { errLog(e, 'onMessageReceived.WorldProgress接线'); }
                 }
@@ -8219,7 +8275,11 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (out && out.ok && out.changed) this.worldProg.parallelLedger = out.state;
             return out;
         }
-        // [v3.196] 秘密账本：宿主写入入口，状态存 worldProg.secretLedger
+        /* [v3.196] 秘密账本：宿主写入入口，状态存 worldProg.secretLedger。
+         * [v3.306.0 · M-O8] 本入口此前**全仓零调用点**（秘密账本在真实运行里永远为空）；
+         *   本版由 onMessageReceived 的 secrets 提取通道消费（与 knowledge_changes 同路）。
+         *   seal 另收 `knowers`（已经知道的人）：它在**读侧**划边界，与写侧的 keeper
+         *   （还不知情的人）是两份互不同形的名单 —— 理由见 secret-ledger.js 头注。 */
         recordSecretFact(input = {}) {
             const api = (typeof window !== 'undefined' && window.LonShaSecretLedger) || null;
             if (!api || !this.worldProg) return null;
@@ -11254,6 +11314,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             const bad = !!(r && ((r.truncated || 0) > 0 || (r.orphaned || 0) > 0 || r.degraded));
                             return ['知识轨迹', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.knowledgeTrace'); return ['知识轨迹', '—（诊断异常）']; }
+                    })(),
+                    // [v3.306.0 · M-O8] 秘密注入侧隔离面：与「认知隔离提示」分列。
+                    //   认知面答「他此前不在场、还不知情」；本行答「注入时挡下几条、
+                    //   其中几条**判不了**（条目没给知情名单）」。报警只认两条真损失：
+                    //   版本错配（该挡的没挡成，已 fail-closed）与判不了 > 0
+                    //   （边界无从判起 —— 不是「没秘密」，是「判不了」）。
+                    (() => {
+                        try {
+                            const line = (typeof this._secretIsolationLine === 'function') ? this._secretIsolationLine() : '—';
+                            const r = this.worldProg && this.worldProg._secretRead;
+                            const bad = !!(r && ((r.malformed || 0) > 0 || (r.undecided || 0) > 0));
+                            return ['秘密隔离', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.secretIsolation'); return ['秘密隔离', '—（诊断异常）']; }
                     })(),
                     // [v3.293.0 · X6] 分支语义体检面：与「知识轨迹」**分列**。
                     //   轨迹行答「这条知识是怎么来的」，本行答「两个分支逐 owner 的语义差在哪、

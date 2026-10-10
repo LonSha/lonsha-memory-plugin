@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 53613,
+  "ceiling": 54730,
   "maxSlack": 400,
-  "note": "v3.302.0 M-O1 会话身份写入闭环（第一刀 + 第二刀）：memory-organs.js 的 StorageManager.save 内联三处 await 后重核（含约定槽读数）+ 批次回执五态 + 排干批每批重绑，全部为活跃功能增长（修真实错档缺陷），非死代码回流；宿主八十八文件 53013 → 53213 行",
+  "note": "v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -241,7 +241,11 @@
     {
       "ceiling": 53613,
       "reason": "v3.302.0 M-O1 会话身份写入闭环（第一刀 + 第二刀）：memory-organs.js 的 StorageManager.save 内联三处 await 后重核（含约定槽读数）+ 批次回执五态 + 排干批每批重绑，全部为活跃功能增长（修真实错档缺陷），非死代码回流；宿主八十八文件 53013 → 53213 行"
+    },
+    {
+      "ceiling": 54730,
+      "reason": "v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流"
     }
   ],
-  "_history_last": "ceiling 53150 → 53613（实测 53213 + slack 400）：v3.302.0 M-O1 会话身份写入闭环（第一刀 + 第二刀）：memory-organs.js 的 StorageManager.save 内联三处 await 后重核（含约定槽读数）+ 批次回执五态 + 排干批每批重绑，全部为活跃功能增长（修真实错档缺陷），非死代码回流；宿主八十八文件 53013 → 53213 行"
+  "_history_last": "ceiling 53613 → 54730（实测 54330 + slack 400）：v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流"
 }
