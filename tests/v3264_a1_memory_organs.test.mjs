@@ -288,7 +288,29 @@ test('v3264 C. \u52a0\u8f7d\u9762\u4e0e\u57fa\u7ebf\uff1amanifest \u6070 1 \u987
     assert.equal(b.readings.total_lines, IDX.split(NL).length, '\u57fa\u7ebf\u884c\u6570\u987b\u7b49\u4e8e\u771f index.js \u884c\u6570');
     assert.ok(b.rebuilds[b.measured_at], '\u5f53\u7248\u987b\u5728 rebuilds \u9762\u7559\u8bfb\u6570');
     assert.equal(b.rebuilds[b.measured_at].readings.member_count, b.readings.member_count, 'rebuilds \u4e0e readings \u540c\u8bfb\u6570');
-    assert.ok(b.readings.total_lines < 16000, '\u884c\u6570\u987b\u5df2\u968f\u672c\u5200\u4e0b\u964d\uff08\u5265\u8d70\u524d 17091\uff09\uff0c\u5b9e\u6d4b ' + b.readings.total_lines);
+    /* [v3.309.0 交棒] 原文是 `total_lines < 16000` ——【硬锁当版里程碑】：
+     *   它是 v3.264.0 那一刀的**一次性事实**（文案「剥走前 17091」是 v3.231.0 的量级）。
+     *   与 v3266 C / v3261 C 踩过的是**同一族坑**（CHANGELOG v3.273.0 留痕）：
+     *   把「某版的一次性事实」当永久不变量 ⇒ 后续活跃功能增长（本刀世界推进块头加闸 +55 行）
+     *   把它推回线上，翻红的信息量只剩「数字不够小」。而本刀 +55 行**并不是**「剥了又长回来」——
+     *   A1 的真实不变量是「各刀之后宿主读数始终低于 A1 首刀前基线（18401）」，它照旧在下面把守。
+     *   交棒**不弱化**判据面：活体上界改读 host_beast_baseline.json 的 `line_budget` 登记面
+     *   （ceiling + history + maxSlack，抬升只走脚本、三条读数自动同步；登记面由 v3266 C 立起，
+     *   本档只读不另立 —— 立两份就是两份真源），并保留「当版须在 rebuilds 面留读数」这一条。 */
+    const _lb = b.line_budget || null;
+    assert.ok(_lb && Number.isFinite(_lb.ceiling), '宿主行数上界必须登记（否则「长回线上」无人管）');
+    const _lbHist = Array.isArray(_lb.history) ? _lb.history : [];
+    assert.ok(_lbHist.length >= 2, '上界历史须含「里程碑达成」与「本次抬升」两条，实测 ' + _lbHist.length);
+    assert.equal((_lbHist[0] || {}).ceiling, 15000, '首条历史必须是 A1 里程碑上界 15000');
+    assert.equal(_lb.ceiling, (_lbHist[_lbHist.length - 1] || {}).ceiling,
+        '当前上界必须等于最后一条历史的 ceiling（防静默改数）');
+    assert.equal(_lb.note, (_lbHist[_lbHist.length - 1] || {}).reason,
+        '当前 note 必须是最后一条历史理由的复述（防理由与数脱节）');
+    assert.ok(b.readings.total_lines <= _lb.ceiling,
+        '★ 宿主行数须 <= 登记上界 ' + _lb.ceiling + '，实测 ' + b.readings.total_lines);
+    assert.ok(_lb.ceiling - b.readings.total_lines <= _lb.maxSlack,
+        '上界余量 ' + (_lb.ceiling - b.readings.total_lines) + ' 不得超过 maxSlack ' + _lb.maxSlack
+        + '（余量过大 = 上界与实测脱节，等于没守）');
     assert.ok(b.readings.total_lines < 18401, '\u2605 A1 \u4e4b\u540e\u5bbf\u4e3b\u8bfb\u6570\u987b\u59cb\u7ec8\u4f4e\u4e8e A1 \u9996\u5200\u524d\u57fa\u7ebf\uff0818401\uff09');
     ok('manifest \u6070 1 \u9879\u4e14\u5728\u672b\u4f4d\uff1b\u57fa\u7ebf\u884c\u6570/\u6210\u5458\u6570\u4e0e\u771f\u6587\u4ef6\u540c\u6e90\u4e14\u5df2\u4e0b\u964d');
 });

@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 54730,
+  "ceiling": 55140,
   "maxSlack": 400,
-  "note": "v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流",
+  "note": "v3.309.0 M-O8 第四刀：世界推进账本写入纳入分支守卫（判定前移 + 块头闸 + 两组读数分开记，index.js +55 行），非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -245,7 +245,11 @@
     {
       "ceiling": 54730,
       "reason": "v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流"
+    },
+    {
+      "ceiling": 55140,
+      "reason": "v3.309.0 M-O8 第四刀：世界推进账本写入纳入分支守卫（判定前移 + 块头闸 + 两组读数分开记，index.js +55 行），非死代码回流"
     }
   ],
-  "_history_last": "ceiling 53613 → 54730（实测 54330 + slack 400）：v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流"
+  "_history_last": "ceiling 54730 → 55140（实测 54740 + slack 400）：v3.309.0 M-O8 第四刀：世界推进账本写入纳入分支守卫（判定前移 + 块头闸 + 两组读数分开记，index.js +55 行），非死代码回流"
 }

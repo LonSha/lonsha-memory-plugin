@@ -38,6 +38,8 @@ const NL = String.fromCharCode(10);
 /* 被禁来源拼接成串（本档不得出现它的完整字面量，否则判据纯度自证会假红）。 */
 const FORBIDDEN = 'this.storage.' + 'getRevision(';
 const ENTRY_SRC = read('index.js');
+/* [v3.309.0] 破坏锚的唯一上下文形态（理由同 v3254 D9 留痕）。 */
+const REV_ANCHOR = 'revision: null,' + '\n' + '                    historyFingerprint:';
 const CI = await loadModule(ROOT, 'cache-identity.js');
 
 /** 从真源码抽出的方法体重建为可调用函数（与扫描器同一个口径）。 */
@@ -97,7 +99,10 @@ test('v3255 B1. ★★★ 行为面：落盘一次仍 hit；换会话 / 历史�
 /* ═══════ C 负控制与判据纯度 ═══════ */
 test('v3255 C1. ★★★ 真源码破坏（改回落盘计数器）⇒ 同一条判据转红', () => {
     assert.deepEqual(judgeIdentitySource(CI, ENTRY_SRC), [], '原件上零问题');
-    const broken = breakSource(ENTRY_SRC, 'revision: null,', 'revision: ' + FORBIDDEN + '),', 'v3255-C1');
+    /* [v3.309.0 修] 锚由裸串 `revision: null,` 改为**唯一上下文形态**：v3.305.0 的回执面
+     *   引进了第二处同形字面量 ⇒ 裸串命中 2 次 ⇒ 工具拒绝破坏 ⇒ 本条负控制空转。 */
+    const broken = breakSource(ENTRY_SRC, REV_ANCHOR,
+        'revision: ' + FORBIDDEN + '),' + NL + '                    historyFingerprint:', 'v3255-C1');
     const probs = judgeIdentitySource(CI, broken);
     assert.ok(probs.length >= 2, '静态面与行为面都必须转红：' + JSON.stringify(probs));
     assert.ok(probs.some((p) => p.includes('正向失败')), '行为面必须点名“落盘一次就失效”');

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.308.0';
+    const VERSION = '3.309.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2739,7 +2739,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const last = this._branchGuardLast
                     ? ` · 最近拦截 ${this._branchGuardLast.reason}（第${this._branchGuardLast.floor}楼）`
                     : '';
-                return body + last;
+                /* [v3.309.0 · M-O8 第四刀] 世界推进面的拦截面单列。
+                 *   为什么必须单列而不是并进上面那句：两条闸拦的是**不同的写入**
+                 *   （摘要落笔 / 世界推进账本），并成一句后「账本被拦」与「摘要被拦」
+                 *   在后验时无法分辨 —— 而账本面才是不该越权的那一面（M-O8 验收②）。
+                 *   三态不同形：拦下报理由与楼层；从未拦过**不报**（不是「放行」，
+                 *   是这一轮根本没走到那里）—— 与 secret-ledger 的「判不了单独一档」同纪律。 */
+                const wp = this._wpBranchSkip && this._wpBranchSkip.skipped
+                    ? ` · 账本面拦截 ${this._wpBranchSkip.reason}（第${this._wpBranchSkip.floor}楼）`
+                    : '';
+                return body + last + wp;
             } catch (e) { errLog(e, 'engine._branchGuardLine'); return '—（诊断异常）'; }
         }
         /**
@@ -3970,8 +3979,54 @@ function relativeTimeLabel(eventTime, nowTime) {
                         }
                     } catch (e) { if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] 悬念簿处理失败:`, e); }
                 }
+                /* [v3.309.0 · M-O8 第四刀] 分支判定**前移**到世界推进之前。
+                 *   【修前实测，探针 tests/audit/_mo8_branch_probe.mjs 可复现】
+                 *     `guardApply` 原本只在摘要落笔处调用（本节下方 §2），而承诺 / 支线 /
+                 *     认知 / 秘密的写入在**它之前 295~422 行**就已执行完；探针 R2 实测
+                 *     `_branchOk` 的四个使用点里世界推进写入口被覆盖 **0/21**。
+                 *     ⇒ 翻页 / 重生成之后，被放弃那一分支的账照旧入账，而账本是会话级、
+                 *       无分支归属 —— 这正是 M-O8 验收②「A 分支秘密不出现在 B」的字面反例。
+                 *   【为什么判定要前移而不是在下面再算一次】
+                 *     两次判定各取一次 `getProcessedSignature`，中间若发生翻页，两处会得出
+                 *     不同结论（摘要放行、账本拦下，或反过来）—— 那是「同一个问题两个答案」，
+                 *     本仓治理过多轮。故**只算一次**，结果存 `this._branchVerdict`，下面 §2
+                 *     改为读它；§2 原逻辑逐字保留（同一对象、同一字段）。
+                 *   【为什么判不了就放行】
+                 *     `judged === false`（首次提取 / 老对话 / 分支守护未装）**不是**「有问题」，
+                 *     按 branch-guard 自己的纪律「隔离漏一点，好过让用户的记忆整体消失」放行；
+                 *     一律拦等于把世界推进功能关掉。三态各自留痕，不压成一格。 */
+                let _branchOk = true;
+                this._branchVerdict = null;
+                try {
+                    const BG0 = _branchGuardLib();
+                    if (BG0 && typeof BG0.createGuard === 'function') {
+                        if (!this._branchGuard) this._branchGuard = BG0.createGuard();
+                        const sess0 = this.getCurrentChatId ? this.getCurrentChatId() : '';
+                        const f0 = Number(message && message.index);
+                        const g0 = this._branchGuard.guardApply(message, this._branchGuard.getProcessedSignature(f0, sess0), sess0);
+                        this._branchVerdict = { accept: !!g0.accept, judged: !!g0.judged, reason: String(g0.reason || ''), floor: f0 };
+                        if (!g0.accept) _branchOk = false;
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.分支判定前移'); }
+                /* 世界推进整块的分支闸：只在「判得出问题」时拦。
+                 *   读数走 `_wpBranchSkip`（三态不同形：拦下 / 判不了放行 / 无守卫），
+                 *   与 `_branchGuardLast`（摘要面）分开记 —— 两件事都拦了却只报一处，
+                 *   会让「账本被拦」与「摘要被拦」在后验时无法分辨。
+                 *   ★ 不另立 `_wpBranchGate` 布尔：本仓点名过「写完没人调 = 等于没写」，
+                 *     而闸本身已经在 `if (... && _branchOk)` 的条件串里被消费 ——
+                 *     再存一份布尔就是第二份真源，两处漂移时无人能判谁对。 */
+                if (_branchOk === false) {
+                    this._wpBranchSkip = {
+                        skipped: true,
+                        reason: (this._branchVerdict && this._branchVerdict.reason) || 'unknown',
+                        floor: Number(message && message.index) || 0,
+                        at: Date.now()
+                    };
+                    if (this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] ⛔ 分支守护拦截第' + this._wpBranchSkip.floor + '楼世界推进账本写入（' + this._wpBranchSkip.reason + '）');
+                    try { this.opLog?.log?.('branch', 'wp-skip', String(this._wpBranchSkip.reason), this._wpBranchSkip.floor, ''); } catch (e) { errLog(e, 'onMessageReceived.分支账本审计'); }
+                }
                 // [v3.85] A/B/C: WorldProgress 数据源接线（承诺账本/剧情支线/认知隔离）
-                if (this.config.config.worldProgressEnabled && extracted) {
+                if (this.config.config.worldProgressEnabled && extracted && _branchOk) {
                     try {
                         const wpFloor = Number(message.index) || 0;
                         let promiseCount = 0, arcCount = 0, knowledgeCount = 0, secretCount = 0;
@@ -4397,22 +4452,22 @@ function relativeTimeLabel(eventTime, nowTime) {
                     //   「摘要里躺着上一个分支的事实」——用户翻回去才发现内容对不上。
                     //   判定用**签名**（角色+页码+正文hash+代次+时间戳），不用楼层号：
                     //   楼层号在翻页时不变化，签名才有辨别力。
-                    let _branchOk = true;
-                    try {
-                        const BG = _branchGuardLib();
-                        if (BG && typeof BG.createGuard === 'function') {
-                            if (!this._branchGuard) this._branchGuard = BG.createGuard();
-                            const sess = this.getCurrentChatId ? this.getCurrentChatId() : '';
-                            const f = Number(message && message.index);
-                            const g = this._branchGuard.guardApply(message, this._branchGuard.getProcessedSignature(f, sess), sess);
-                            if (!g.accept) {
-                                _branchOk = false;
-                                this._branchGuardLast = { floor: f, reason: g.reason, at: Date.now() };
-                                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] ⛔ 分支守护拦截第${f}楼摘要落笔（${g.reason}）`);
-                                try { this.opLog?.log?.('branch', 'apply-skip', String(g.reason), f, ''); } catch (e) { errLog(e, 'onMessageReceived.分支守卫审计'); }
-                            }
-                        }
-                    } catch (e) { errLog(e, 'onMessageReceived.分支守护'); }
+                    /* [v3.309.0 · M-O8 第四刀] 本处**不再重算** —— 判定已前移到世界推进块
+                     *   之前（见上方「分支判定前移」）。理由逐字记在那里：两次判定各取一次
+                     *   `getProcessedSignature`，中间若发生翻页会得出两个不同答案。
+                     *   `_branchOk` 仍在同一作用域（由前移那段用 `let` 声明），下游
+                     *   `if (_branchOk) try { ...摘要留证... }` 与签名记录处的行为逐字不变；
+                     *   变量名与配对判据一个字未动（v3.183 的逐字契约仍在）。
+                     *   台账语义不变：摘要面仍记 `apply-skip` 这一条（账本面另有 `wp-skip`）。 */
+                    if (!_branchOk) {
+                        this._branchGuardLast = {
+                            floor: (this._branchVerdict && this._branchVerdict.floor) || Number(message && message.index) || 0,
+                            reason: (this._branchVerdict && this._branchVerdict.reason) || 'unknown',
+                            at: Date.now()
+                        };
+                        if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] ⛔ 分支守护拦截第${this._branchGuardLast.floor}楼摘要落笔（${this._branchGuardLast.reason}）`);
+                        try { this.opLog?.log?.('branch', 'apply-skip', String(this._branchGuardLast.reason), this._branchGuardLast.floor, ''); } catch (e) { errLog(e, 'onMessageReceived.分支守卫审计'); }
+                    }
                     // [v3.183] 来源留证：把「这条摘要来自哪一页」写进摘要自己（summary.prov）。
                     //   与 floor-ledger 分工：ledger 记的是**楼上有过什么**，这里记的是
                     //   **这条摘要的来源还对不对得上**。楼删了、翻页了、摘要被就地改了，

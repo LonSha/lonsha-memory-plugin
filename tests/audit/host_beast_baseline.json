@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.308.0",
+ "measured_at": "v3.309.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1403,6 +1403,38 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.309.0": {
+   "reason": "v3.309.0 重建（读数由探针生成，零手抄）",
+   "readings": {
+    "total_lines": 16010,
+    "member_count": 586,
+    "duplicate_member_names": 25,
+    "top5_lines": 4656,
+    "top5_pct": 29.1,
+    "top40_lines": 10090,
+    "top40_pct": 63.0,
+    "prefix_rule_coverage_lines": 5051,
+    "prefix_rule_coverage_pct": 31.5,
+    "unclassified_lines": 9988,
+    "seam_distinct_modules": 56,
+    "seam_reference_sites": 74,
+    "seam_call_shape_sites": 78,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 22,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.308.0",
+   "delta": {
+    "total_lines": 55,
+    "member_count": 0,
+    "top5_pct": 0.2
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1414,16 +1446,16 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 15955,
+  "total_lines": 16010,
   "member_count": 586,
   "duplicate_member_names": 25,
-  "top5_lines": 4610,
-  "top5_pct": 28.9,
-  "top40_lines": 10044,
+  "top5_lines": 4656,
+  "top5_pct": 29.1,
+  "top40_lines": 10090,
   "top40_pct": 63.0,
-  "prefix_rule_coverage_lines": 5005,
-  "prefix_rule_coverage_pct": 31.4,
-  "unclassified_lines": 9979,
+  "prefix_rule_coverage_lines": 5051,
+  "prefix_rule_coverage_pct": 31.5,
+  "unclassified_lines": 9988,
   "seam_distinct_modules": 56,
   "seam_reference_sites": 74,
   "seam_call_shape_sites": 78,
@@ -1435,19 +1467,19 @@
   {
    "domain": "（未归类）",
    "members": 545,
-   "lines": 9979,
-   "lines_pct": 62.5,
+   "lines": 9988,
+   "lines_pct": 62.4,
    "outside_refs": 5679,
-   "internal_refs": 1607,
+   "internal_refs": 1609,
    "outside_ref_share_pct": 77.9
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
-   "lines": 1822,
-   "lines_pct": 11.4,
+   "lines": 1868,
+   "lines_pct": 11.7,
    "outside_refs": 5,
-   "internal_refs": 74,
+   "internal_refs": 75,
    "outside_ref_share_pct": 6.3
   },
   {
@@ -1463,7 +1495,7 @@
    "domain": "召回与注入",
    "members": 13,
    "lines": 1015,
-   "lines_pct": 6.4,
+   "lines_pct": 6.3,
    "outside_refs": 5,
    "internal_refs": 67,
    "outside_ref_share_pct": 6.9
@@ -1526,7 +1558,7 @@
  "biggest_members_top40": [
   {
    "name": "onMessageReceived",
-   "lines": 1289,
+   "lines": 1335,
    "outside_refs": 2
   },
   {

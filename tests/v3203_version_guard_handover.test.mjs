@@ -124,6 +124,22 @@ function withTree(mutate) {
     }
 }
 const HIST_INJECT = NGF.n1HardEqual.replace('__CUR__', CUR);
+/* [v3.309.0] 当版锚的 needle 集合必须**按真源口径现场派生**，不得写死常量名。
+ *   真源 `hasAnchorFor()` 认两种形态：字面量 `vnum('<当版>')` 与自锚常量 `vnum(NAME)`
+ *   （NAME 取自 `const NAME = '<当版>'`，见 `selfConstNames()`）。
+ *   【留痕·真缺陷】N4/18 原夹具只删字面量形与写死的 `vnum(CUR)`；当 frontier 改用
+ *   `const BORN = '3.309.0'` + `vnum(BORN)` 之后，夹具**一个锚都删不到** ⇒ V4 不翻红 ⇒
+ *   两条判据空转（红的是夹具，不是判据）。故改为现场派生，frontier 改名不再打偏。 */
+function anchorNeedles(dir) {
+    const names = new Set();
+    for (const f of readdirSync(path.join(dir, 'tests')).filter((x) => x.endsWith('.test.mjs'))) {
+        const t = readFileSync(path.join(dir, 'tests', f), 'utf-8');
+        for (const m of t.matchAll(/const\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*'([0-9]+[.][0-9]+[.][0-9]+)'/g)) {
+            if (m[2] === CUR) names.add(m[1]);
+        }
+    }
+    return ["vnum('" + CUR + "')"].concat([...names].map((n) => 'vnum(' + n + ')'));
+}
 
 test('v3203 5. 负控制 N1：硬等号重新长回 → 必须 exit 1（V2）', () => {
     const r = withTree((d) => {
@@ -163,7 +179,7 @@ test('v3203 8. 负控制 N4：当版锚点被删空 → 必须 exit 1（V4）', 
          *   （`const CUR = '<当版>'` + `vnum(CUR)`）—— 两种形态都删空，才算真的没有基准。
          *   旧夹具只按字面量找，而当时当版锚写成变量形 ⇒ 它**数不出 hit**（破坏照样发生、
          *   判据却没跑到）：这正是本仓定性过的「负控制自己的夹具也要自证」。 */
-        const needles = ["vnum('" + CUR + "')", 'vnum(CUR)'];
+        const needles = anchorNeedles(d);
         let hit = 0;
         for (const f of readdirSync(dir).filter((x) => x.endsWith('.test.mjs'))) {
             const p = path.join(dir, f);
@@ -177,7 +193,8 @@ test('v3203 8. 负控制 N4：当版锚点被删空 → 必须 exit 1（V4）', 
             hit += n;
             writeFileSync(p, s);
         }
-        assert.ok(hit >= 1, '夹具前提：树里须含当版锚点');
+        assert.ok(hit >= 1, '夹具前提：树里须含当版锚点（needle 按真源口径现场派生，'
+            + 'frontier 改名不得让夹具打偏）');
     });
     assert.strictEqual(r.status, 1, 'V4 必须翻红，实得 ' + r.status + ' / ' + r.out.slice(-200));
     assert.ok(/V4 /.test(r.out), '归因串须指向 V4');
@@ -376,7 +393,7 @@ test('v3203 18. 正控（修复的核心）：锚被挪进历史文件 ⇒ V2 �
      *   修复后 V4 只数当版档案 ⇒ 两处同时报。断言的正是后半句。 */
     const r = withTree((d) => {
         const dir = path.join(d, 'tests');
-        const needles = ["vnum('" + CUR + "')", 'vnum(CUR)'];
+        const needles = anchorNeedles(d);
         let removed = 0;
         for (const f of readdirSync(dir).filter((x) => x.endsWith('.test.mjs'))) {
             const p = path.join(dir, f);
@@ -390,7 +407,8 @@ test('v3203 18. 正控（修复的核心）：锚被挪进历史文件 ⇒ V2 �
             removed += n;
             writeFileSync(p, s);
         }
-        assert.ok(removed >= 1, '夹具前提：当版锚在树里（字面量形态）—— 旧夹具在此数不出 hit');
+        assert.ok(removed >= 1, '夹具前提：当版锚在树里（needle 按真源口径现场派生 ——'
+            + '旧夹具写死 vnum(CUR)，frontier 改名后一个锚都删不到）');
         const p = path.join(d, HIST);
         writeFileSync(p, readFileSync(p, 'utf-8') + '\n'
             + 'test("注入：把当版锚写进历史文件", () => { assert.equal(vnum(\''

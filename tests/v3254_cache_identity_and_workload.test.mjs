@@ -46,6 +46,10 @@ const ok = (m) => console.log('  ✓ ' + m);
 const MANIFEST = JSON.parse(read('manifest.json'));
 const ENTRY = MANIFEST.js || 'index.js';
 const ENTRY_SRC = read(ENTRY);
+/* [v3.309.0] 破坏锚的**唯一上下文形态**：`_cacheIdentityOf()` 里 revision 位 + 下一行同缩进的
+ *   historyFingerprint。裸串 `revision: null,` 在入口里已出现 2 次（第二处在回执面），
+ *   拿它当锚会被工具按「须恰中 1 次」拒绝破坏（负控制空转）。 */
+const REV_ANCHOR = 'revision: null,' + '\n' + '                    historyFingerprint:';
 const EXTRA = Array.isArray(MANIFEST.extra_js) ? MANIFEST.extra_js : [];
 const UID_SRC = 'cache-' + 'identity.js';      // 锚点字面量拼接（防注释自指假红）
 const WL_SRC = 'cache-' + 'workload.js';
@@ -286,12 +290,16 @@ test('v3254 D8. ★★★ 身份来源：真源码的 revision 位不读 storage
 });
 
 test('v3254 D9. ★★★ 负控制·身份来源：把 revision 位改回 storage.getRevision() ⇒ 同一条真判据转红', () => {
-    /* 破坏点取 `revision: null,`（该字面量在入口里恰一处，且不出现在注释里）；
-       替换串拆成拼接，以免本档字面量自命中「被禁来源针」（否则判据纯度自证会假红）。 */
+    /* 破坏点：**唯一上下文形态**。
+     *   【v3.309.0 修·留痕】原文锚是裸串 `'revision: null,'`，并注明「该字面量在入口里恰一处」——
+     *   那在 v3.305.0 之后**已不成立**：`_memoryToolsAbsent()`（index.js 的回执面）引进了第二处同形
+     *   字面量 ⇒ 锚命中 2 次 ⇒ 工具按口径 ①（须恰中 1 次）**拒绝破坏** ⇒ 本条负控制整组空转
+     *   （红的是夹具，不是判据）。修法是让锚重新唯一，不是放宽工具口径。
+     *   替换串拆成拼接，以免本档字面量自命中「被禁来源针」（否则判据纯度自证会假红）。 */
     const FORBIDDEN = 'this.storage.' + 'getRevision(';
     const brokenSrc = breakSource(ENTRY_SRC,
-        'revision: null,',
-        'revision: ' + FORBIDDEN + '),', 'D9-identity-source');
+        REV_ANCHOR,
+        'revision: ' + FORBIDDEN + '),' + NL + '                    historyFingerprint:', 'D9-identity-source');
     const probs = judgeIdentitySource(CI, brokenSrc);
     assert.ok(probs.length > 0, '改回无条件自增的落盘计数器必须转红');
     assert.ok(probs.some((p) => p.includes('getRevision')), '转红原因须点名 getRevision：' + JSON.stringify(probs));
@@ -340,8 +348,9 @@ test('v3254 D12. ★★判据纯度（H5/W9 同纪律）：注释里的旧写法
     assert.equal(ownMasked.indexOf(REV_SOURCE_NEEDLE), -1,
         '负控制不得引用被禁来源针的完整字面量（自我指涉假绿）');
     /* 破坏锚的唯一性对象是**真源码**（index.js），不是本档：对本档数会把「断言自己」也算进去（A2 的合法身份对象里也有同名字段）。 */
-    assert.equal(ENTRY_SRC.split('revision: null,').length - 1, 1,
-        '破坏锚在真源码里精确只准出现 1 次（命中多次 breakSource 会拒绝破坏）');
+    assert.equal(ENTRY_SRC.split(REV_ANCHOR).length - 1, 1,
+        '破坏锚在真源码里精确只准出现 1 次（命中多次 breakSource 会拒绝破坏）；'
+        + '★ v3.309.0 起锚是**上下文形态**：裸串 `revision: null,` 已因第二处同形字面量失去唯一性');
     /* ③ 行为面两向：注释里放针 ⇒ 不红；真代码里放针 ⇒ 红。 */
     const hit = IDENTITY_ANCHOR_RE.exec(ENTRY_SRC);
     const polluted = ENTRY_SRC.replace(hit[0], hit[0] + NL + '            /* ' + REV_SOURCE_NEEDLE + ') 旧写法在注释里 */');
