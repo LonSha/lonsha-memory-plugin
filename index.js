@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.309.0';
+    const VERSION = '3.310.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11597,6 +11597,20 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.repairLoop'); return ['记忆修复', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.310.0 · M-X1] 用户侧记忆控制中心：回答「界面上能不能按人/楼层/来源组合查、
+                     *   依赖缺没缺格、字段映射对齐没有、上次看了多少条」。与「证据查询」那行是两个问题：
+                     *   那一行答「内核能不能查」，本行答「用户侧那一面在不在、齐不齐」。
+                     *   四种坏法可分：模块未加载 / 依赖缺格（⚠️）/ 字段未对齐（⚠️）/ 面在位（待看 or 上次读数）。 */
+                    (() => {
+                        try {
+                            const MC = _memoryCenterLib();
+                            if (!MC || typeof MC.line !== 'function' || typeof this.memoryCenterLine !== 'function') {
+                                return ['记忆控制', '模块未加载（memory-center.js）'];
+                            }
+                            return ['记忆控制', this.memoryCenterLine()];
+                        } catch (e) { errLog(e, 'selfCheck.memoryCenter'); return ['记忆控制', '—（诊断异常）'];
+                        }
+                    })(),
                     /* [v3.296.0 · X1] 结构化证据查询：回答「按人/楼层/状态能不能查、登记面对没对齐、
                      *   扫了多少账、有没有账被截断」。与上面「账本实体」是两个问题：
                      *   那一行答「有多少条」，本行答「能按什么查、查的时候能看到多少」——
@@ -14325,6 +14339,191 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     + ' · 五态齐备';
             } catch (e) { errLog(e, 'plugin.memoryToolsLine'); return '—（诊断异常）'; }
         }
+        /* ────────────────────────────────────────────────────────────────
+         * [v3.310.0 · M-X1] 用户侧记忆控制中心（宿主接线，六出口 + 自述 + 一行诊断）
+         *
+         * 【宿主只做三件事，绝不自己算】
+         *   ① **装配**：七件依赖经 `memoryCenterDeps()` 注入（唯一装配点，键名与
+         *      `memory-center.js` 的 `REQUIRED_DEPS[].key` 逐字一致；改名会静默变成
+         *      「依赖缺席」，故判据套件按名对账）；
+         *   ② **转发**：出口把实参原样交给内核，**不改写返回值**；
+         *   ③ **降级**：内核整个不可达时给**同键形状**的回执（不是投影真源，只保证
+         *      「取不到」时下游按同一键面读，不会读到 undefined）。
+         *   凡「哪一态算 ok / 四态怎么分 / 空条件算不算筛空集」——口径全在内核；
+         *   宿主再写一遍就是第二份真源（本仓治理过多轮的形态）。
+         *
+         * 【为什么不把视图缓存进快照】
+         *   与 X9 同因：本面**按需调用**（一次 dispatch 要扫九账全量），塞进每轮快照 =
+         *   每轮付一遍扫描代价，且会把「这一轮没看」伪装成「看了没结果」——两者在快照里同形。
+         *   下游要看面自述时走 `memoryCenterDescribe()`（自带依赖在场读数）。
+         * ──────────────────────────────────────────────────────────────── */
+        /**
+         * [v3.310.0 · M-X1] 控制中心的**唯一装配点**。
+         *   七件里有五件同出 `evidence-query.js`（内核的单一真源），**不另抄一份条件口径**；
+         *   `LEDGERS` 复用工作台登记表（`_evidenceQueryLedgersOf`，见其注释）。
+         *   取不到一律 null（不是 `{}`）：内核按「值为空即缺席」判 `module-absent`，
+         *   而 `{}` 会装作「在位但空」——两者处置相反，不在这里编空壳。
+         */
+        memoryCenterDeps() {
+            const Q = _moduleLib(() => window.LonShaEvidenceQuery, 'evidence-query.js');
+            const pick = (k) => ((Q && typeof Q[k] === 'function') ? Q[k] : null);
+            return {
+                query: pick('query'),
+                normalizeSpec: pick('normalizeSpec'),
+                upsertSaved: pick('upsertSaved'),
+                removeSaved: pick('removeSaved'),
+                replaySaved: pick('replaySaved'),
+                FILTERS: (Q && Array.isArray(Q.FILTERS)) ? Q.FILTERS : null,
+                LEDGERS: _evidenceQueryLedgersOf()
+            };
+        }
+        /**
+         * [v3.310.0 · M-X1] 控制中心内核不可达时的**同键降级**（形状与 dispatch 的 base 同键）。
+         *   为什么宿主留一份形状：模块整个没挂时内核根本不可达（与 `_evidenceQueryEmpty`
+         *   同规格）。`view:'error'` / `reason` 分开写 —— 「面不可用」不等于「查不到」。
+         */
+        _memoryCenterAbsent(state, reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                version: 0, state: state || {}, spec: {}, view: 'error', reason: r,
+                rows: [], actions: [], saved: [],
+                pager: { page: 1, pageSize: 30, pages: 0, total: 0, outOfRange: false },
+                uiFields: [],
+                notes: ['记忆控制中心模块不可达（memory-center.js 未加载）⇒ 报 error/' + r + '，**不报空数据**']
+            };
+        }
+        /**
+         * [v3.310.0 · M-X1] 组装一次视图（**只读**、不抛）。
+         *   `host` 实参传 `this`：内核的 LEDGERS 四件套要读宿主账本，传错对象会**恒空而不报错**。
+         *   `availableHandlers` 未给（undefined）⇒ 宿主尚未声明，内核原样给出声明的 kind
+         *   并附 `declaredOnly` 语义 —— 「我没问」与「宿主说没有」是两件事。
+         */
+        memoryCenterView(state, opts) {
+            const o = opts || {};
+            const C = _memoryCenterLib();
+            if (!C || typeof C.dispatch !== 'function') return this._memoryCenterAbsent(state);
+            try {
+                const face = C.dispatch(this.memoryCenterDeps(), state, {
+                    host: this,
+                    apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {},
+                    availableHandlers: o.availableHandlers,
+                    now: o.now
+                });
+                /* 只留**读数摘要**，不留 rows —— 存 rows 就是第二份证据库。 */
+                this._memoryCenterLast = {
+                    at: Date.now(), view: face.view, reason: face.reason,
+                    total: (face.pager || {}).total || 0, page: (face.pager || {}).page || 1,
+                    pages: (face.pager || {}).pages || 0,
+                    rows: (face.rows || []).length, saved: (face.saved || []).length,
+                    unavailable: (face.actions || []).filter((a) => a.unavailable).length
+                };
+                return face;
+            } catch (e) { errLog(e, 'plugin.memoryCenterView'); return this._memoryCenterAbsent(state, 'thrown'); }
+        }
+        /**
+         * [v3.310.0 · M-X1] 一步：先把界面动作算进状态，再组装视图（宿主事件循环用）。
+         *   **处置类动作（row.revoke / saved.remove …）不在内核执行** —— 它们要真改账，
+         *   那是宿主的活；内核如实回报 `handled:false` + `ignored:<动作名>`，不假装成功。
+         */
+        memoryCenterStep(state, action, payload, opts) {
+            const C = _memoryCenterLib();
+            if (!C || typeof C.step !== 'function') {
+                const f = this._memoryCenterAbsent(state);
+                f.handled = false;
+                f.ignored = String(action == null ? '' : action);
+                return f;
+            }
+            try {
+                const face = C.step(this.memoryCenterDeps(), state, action, payload, {
+                    host: this,
+                    apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {},
+                    availableHandlers: (opts || {}).availableHandlers,
+                    now: (opts || {}).now
+                });
+                this._memoryCenterLast = {
+                    at: Date.now(), view: face.view, reason: face.reason,
+                    total: (face.pager || {}).total || 0, page: (face.pager || {}).page || 1,
+                    pages: (face.pager || {}).pages || 0,
+                    rows: (face.rows || []).length, saved: (face.saved || []).length,
+                    unavailable: (face.actions || []).filter((a) => a.unavailable).length
+                };
+                return face;
+            } catch (e) {
+                errLog(e, 'plugin.memoryCenterStep');
+                const f = this._memoryCenterAbsent(state, 'thrown');
+                f.handled = false;
+                f.ignored = String(action == null ? '' : action);
+                return f;
+            }
+        }
+        /** [v3.310.0 · M-X1] 界面状态归一（从存档读回来的旧状态也接）。不抛。 */
+        memoryCenterLoad(raw) {
+            const C = _memoryCenterLib();
+            if (!C || typeof C.loadState !== 'function') return null;
+            try { return C.loadState(raw); } catch (e) { errLog(e, 'plugin.memoryCenterLoad'); return null; }
+        }
+        /**
+         * [v3.310.0 · M-X1] 空白界面状态（**取自内核**，面板不得自己手抄一份字段表）。
+         *   为什么单列一个出口：面板要「第一次打开时的空条件」时若自己写一遍字段清单，
+         *   内核算出的状态与面板造的状态就会各有一套字段（本仓治理过多轮的「两份口径」）。
+         */
+        memoryCenterBlankState() {
+            const C = _memoryCenterLib();
+            if (!C || typeof C.blankState !== 'function') return null;
+            try { return C.blankState(); } catch (e) { errLog(e, 'plugin.memoryCenterBlankState'); return null; }
+        }
+        /** [v3.310.0 · M-X1] 界面状态 → 可存形态（**只吐条件，不吐结果**）。不抛。 */
+        memoryCenterSave(state) {
+            const C = _memoryCenterLib();
+            if (!C || typeof C.saveState !== 'function') return null;
+            try { return C.saveState(state); } catch (e) { errLog(e, 'plugin.memoryCenterSave'); return null; }
+        }
+        /** [v3.310.0 · M-X1] 整页渲染串（宿主只塞进容器 + 把 `[data-mc]`/`[data-action]` 转给 handler）。 */
+        memoryCenterSheet(face) {
+            const C = _memoryCenterLib();
+            if (!C || typeof C.sheetHtml !== 'function') return '';
+            try { return C.sheetHtml(face); } catch (e) { errLog(e, 'plugin.memoryCenterSheet'); return ''; }
+        }
+        /** [v3.310.0 · M-X1] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        memoryCenterDescribe() {
+            const C = _memoryCenterLib();
+            if (!C || typeof C.describe !== 'function') {
+                return { kind: 'memory-center-describe', version: 0, views: [], actions: 0, uiFields: 0,
+                    present: 0, total: 0, missing: [], keysAligned: false, complete: false,
+                    writesNothing: true, note: '记忆控制中心模块未加载（memory-center.js）', reason: 'module-unavailable' };
+            }
+            try {
+                const d = C.describe(this.memoryCenterDeps());
+                d.reason = d.complete ? '' : (d.missing.length ? 'deps-missing' : 'keys-unaligned');
+                return d;
+            } catch (e) { errLog(e, 'plugin.memoryCenterDescribe'); return { kind: 'memory-center-describe', version: 0, views: [], actions: 0, uiFields: 0, present: 0, total: 0, missing: [], keysAligned: false, complete: false, writesNothing: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.310.0 · M-X1] 诊断一行。**四种坏法分开写**（本仓纪律）：
+         *   模块没挂 / 依赖缺格 / 字段映射没对齐 / 面在位（未看过 ⇒ 「待看」，不是「没有」）。
+         *   不在诊断行里跑真 dispatch：看一次要扫九账全量，诊断面不许有这种副作用。
+         */
+        memoryCenterLine() {
+            try {
+                const C = _memoryCenterLib();
+                if (!C || typeof C.line !== 'function') return '模块未加载（memory-center.js）';
+                const d = this.memoryCenterDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（memory-center.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                if (String(d.reason || '').indexOf('deps-missing') === 0 || (d.missing && d.missing.length)) {
+                    return '⚠️ 依赖缺格：' + (d.missing || []).map((m) => m.key).join('、') + '（' + d.present + '/' + d.total + '）';
+                }
+                if (d.keysAligned === false) return '⚠️ 界面字段与条件登记表不对齐（keysAligned=false）';
+                const last = this._memoryCenterLast || null;
+                if (!last) return '待看（面在位 · 五态 ' + (d.views || []).length + ' · 动作 ' + d.actions + ' 个 · 界面字段 ' + d.uiFields + ' 个）';
+                /* 自己拼摘要而不转调内核行：内核行自带「记忆控制中心」前缀，转调会出现两遍名。 */
+                const bits2 = ['上次 ' + last.view + (last.reason ? '(' + last.reason + ')' : ''), '命中 ' + last.total + ' 条', '第 ' + last.page + '/' + (last.pages || 1) + ' 页'];
+                if (last.rows) bits2.push('本页 ' + last.rows + ' 条');
+                if (last.saved) bits2.push('保存条件 ' + last.saved + ' 条');
+                if (last.unavailable) bits2.push('⚠️ 不可用动作 ' + last.unavailable);
+                return bits2.join(' · ');
+            } catch (e) { errLog(e, 'plugin.memoryCenterLine'); return '—（诊断异常）'; }
+        }
         /** [v3.194] 当前未完成事项（事件线里缺结果/后续的）——计划点名「保留未完成事项」的读取面。不抛。 */
         outstandingThreads(filter) {
             try {
@@ -14601,6 +14800,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   故此处只加**一个取库口**；五个被包装能力的装配点唯一在 `memoryToolsSources()`。
     function _memoryToolsLib() {
         return _moduleLib(() => window.LonShaMemoryTools, 'memory-tools-api.js');
+    }
+    // [v3.310.0 · M-X1] 用户侧记忆控制中心（memory-center.js）。为什么需要：
+    //   X1 已交付结构化查询**内核**（evidence-query.js），但全仓没有一处把它渲染成界面，
+    //   也没有一处把「按角色/时间/楼层/来源/状态组合筛选」的**条件**收成可保存可回放的对象
+    //   —— 用户侧那一面是空的（M-X1 原文：「仍主要是内核出口」）。
+    //   本模块不重做查询：条件口径、保存/回放、分页全走 evidence-query（**单一真源**，
+    //   经 memoryCenterDeps 注入）；它只做「界面模型 + 四态分形 + 动作只声明不执行 + 零写」。
+    //   故此处只加**一个取库口**；七件依赖的装配点唯一在 `memoryCenterDeps()`。
+    function _memoryCenterLib() {
+        return _moduleLib(() => window.LonShaMemoryCenter, 'memory-center.js');
     }
     /**
      * [v3.296.0 · X1] 账本登记表（**取自工作台，不另抄一份**）。

@@ -132,6 +132,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="deltas"><div class="ls-stat-num">${s.deltaBook?.deltas?.length || 0}</div><div class="ls-stat-label">📒 正史增量 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="pulse"><div class="ls-stat-num">${s.pulse?.beats?.length || 0}</div><div class="ls-stat-label">💓 叙事心电图 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">🔍</div><div class="ls-stat-label">记忆控制中心 👁</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="archive"><div class="ls-stat-num">${s._lastArchiveAudit ? (s._lastArchiveAudit.verdict === 'classified' ? ((s._lastArchiveAudit.cleanup || 0) > 0 ? (s._lastArchiveAudit.cleanup + ' ⚠️') : '✓') : '—') : '—'}</div><div class="ls-stat-label">🧾 存档体检 👁</div></div>
@@ -640,6 +641,34 @@
                     <div class="ls-hint" id="ls-pq-stat">当前 ${cur.length} 字符${pq?.importedAt ? ' · 导入于 ' + new Date(pq.importedAt).toLocaleString('zh-CN') : ''}</div>
                     <button class="ls-btn ls-btn-primary" id="ls-pq-save">💾 保存前情资料</button>`;
             }
+            else if (viewType === 'memorycenter') {
+                title = '🔍 记忆控制中心';
+                /* [v3.310.0 · M-X1] 用户侧记忆控制中心。
+                 *   薄接线：**条件与结果全在内核**（memory-center.js）；本块只做两件事 ——
+                 *   ① 把内核产出的整页串塞进容器（渲染口径不在面板里重写：重写一次就会出现
+                 *      「界面显示的」与「内核真查到的」各说一套，正是验收第四条要防的形态）；
+                 *   ② 把 `[data-mc]` / `[data-action]` 的点击转给内核（**动作只声明不执行**：
+                 *      处置类动作走 `_memoryCenterHandlers` 映射，缺失即如实报「未接」，不假装成功）。
+                 *   四态（有命中 / 确实没有 / 判不了 / 面不可用）由内核判、由 `data-view` 属性自证，
+                 *   本块不把任何一态改写成另一态。 */
+                const d = (typeof s.memoryCenterDescribe === 'function') ? s.memoryCenterDescribe() : null;
+                const bad = !d || d.complete !== true;
+                if (bad) {
+                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 记忆控制中心不可用：'
+                        + esc(!d ? '模块未加载（memory-center.js）'
+                            : (d.reason === 'module-unavailable' ? '模块未加载（memory-center.js）'
+                                : ((d.missing && d.missing.length) ? '依赖缺格：' + (d.missing || []).map((m) => m.key).join('、')
+                                    : '界面字段与条件登记表不对齐'))) + '</div>';
+                } else if (typeof s.memoryCenterView !== 'function' || typeof s.memoryCenterSheet !== 'function') {
+                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 宿主未接控制中心出口（memoryCenterView / memoryCenterSheet）</div>';
+                } else {
+                    const face = s.memoryCenterView(plugin._memoryCenterState || null, { availableHandlers: Object.keys(plugin._memoryCenterHandlers || {}) });
+                    plugin._memoryCenterLastFace = face;
+                    body = '<div class="ls-hint">🔍 本面直读原账**全量**（分页由匹配总数驱动 —— 超过 200 条的历史记录仍能翻到）。'
+                        + '四态分开：有命中 / 确实没有 / 判不了（区间反转 · 翻过头 · 点了不存在的账）/ 面不可用（内核缺席 · 面板空）。'
+                        + '保存的是**条件**，不是第二份证据库。</div>' + s.memoryCenterSheet(face);
+                }
+            }
             else if (viewType === 'report') {
                 // [v3.61] P24: 记忆全景 Markdown 报告导出
                 const md = this.engine.exportMemoryReport();
@@ -826,6 +855,62 @@
                     });
                 });
             }
+            // [v3.310.0 · M-X1] 记忆控制中心的交互绑定
+            /*   三条纪律（与内核的分工，不在面板里重写）：
+             *   ① **事件 → 内核动作名**，不在这里算条件（条件归一在内核 buildSpec）；
+             *   ② 处置类动作（`row.*` / `saved.*` / `query.save`）走 `_memoryCenterHandlers`；
+             *      宿主没接的 handler ⇒ 内核已把它降级为 `unavailable`，这里如实提示「未接」，
+             *      **不假装成功**（本仓最贵的老账就是把「不可用」说成「可用」）；
+             *   ③ 每次交互都重跑一次 dispatch（界面显示的永远是**这一次**的真结果）。 */
+            if (viewType === 'memorycenter') {
+                /* ★ 空白态**取自内核**（`memoryCenterBlankState()`），不在这里手抄字段表 ——
+                 *   手抄一次就是**第二套字段清单**：内核日后加一格条件而面板没跟上，
+                 *   界面会静默少一格（本仓治理过多轮的「两份口径」，也是本刀特意单开
+                 *   一个宿主出口的理由）。内核不可达时给空壳并把归因留在别处
+                 *   （`memoryCenterDescribe()` 报 module-unavailable），
+                 *   不在这里编一份「看起来完整」的假状态 —— 那会把不可用伪装成可用。 */
+                const mcState = () => {
+                    if (plugin._memoryCenterState) return plugin._memoryCenterState;
+                    const b = (typeof s.memoryCenterBlankState === 'function') ? s.memoryCenterBlankState() : null;
+                    plugin._memoryCenterState = b || {};
+                    return plugin._memoryCenterState;
+                };
+                const rerender = () => { ov.remove(); plugin.showBrowser('memorycenter'); };
+                ov.querySelectorAll('[data-mc="f"]').forEach((el) => {
+                    const commit = () => {
+                        if (typeof s.memoryCenterStep !== 'function') return;
+                        const face = s.memoryCenterStep(mcState(), 'filter', { key: el.dataset.k, value: el.value });
+                        plugin._memoryCenterState = face.state || plugin._memoryCenterState;
+                    };
+                    el.addEventListener('change', commit);
+                    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { commit(); rerender(); } });
+                });
+                ov.querySelectorAll('[data-mc="apply"]').forEach((b2) => b2.addEventListener('click', () => {
+                    ov.querySelectorAll('[data-mc="f"]').forEach((el) => {
+                        if (typeof s.memoryCenterStep !== 'function') return;
+                        const face = s.memoryCenterStep(mcState(), 'filter', { key: el.dataset.k, value: el.value });
+                        plugin._memoryCenterState = face.state || plugin._memoryCenterState;
+                    });
+                    rerender();
+                }));
+                ov.querySelectorAll('[data-mc="page"]').forEach((b2) => b2.addEventListener('click', () => {
+                    if (typeof s.memoryCenterStep !== 'function') return;
+                    const face = s.memoryCenterStep(mcState(), 'page', { page: Number(b2.dataset.page) });
+                    plugin._memoryCenterState = face.state || plugin._memoryCenterState;
+                    rerender();
+                }));
+                ov.querySelectorAll('[data-action]').forEach((b2) => b2.addEventListener('click', () => {
+                    if (b2.disabled || b2.getAttribute('aria-disabled') === 'true') { toast('该动作不可用（宿主未接 handler）'); return; }
+                    const id = b2.dataset.action;
+                    const ref = b2.dataset.ref || '';
+                    const h = (plugin._memoryCenterHandlers || {})[id];
+                    if (typeof h !== 'function') { toast('该动作未接：' + id); return; }
+                    try {
+                        h.call(plugin, { ref: ref, state: mcState(), face: plugin._memoryCenterLastFace });
+                    } catch (e) { toast('动作失败：' + (e && e.message ? e.message : e)); }
+                }));
+            }
+
             // 浏览器里加一个返回按钮
             const back = document.createElement('div');
             back.className = 'ls-btn';
