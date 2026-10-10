@@ -1,3 +1,72 @@
+## v3.311.0
+**M-X2（第二期拓展计划）修复落定面：从「流程完成」到「所有派生面落盘完成」**
+- **它补的是哪一格**：X2（v3.295.0）已把「登记 → 逐项落笔 → 核原数据 → 落盘回读 → 带证据
+  settle」这条链做通；但**落定之后**还空着五格，逐条对验收原文：
+  · **「仅登记」不得显示「事实已纠正」** —— 旧面上界面能读到的落定读数只有 `applied`，
+    而它回答的是**流程**（六类派生件都动过手了），从不回答**结果**（改动被证明了没有）。
+  · **部分成功显示 `partial`，不伪装全成功** —— 回执里 `ok:false` 只说「有坏的」，
+    不分「一条都没成」与「九成成了、一条没跟上」。
+  · **失败项单独重试，不整批重放** —— `applyRepairPlan` 是一次性全量；重试就重落全部项。
+  · **切聊后旧预览被拒绝** —— `expectRevision` 比的是变更栅栏号，**切聊不递增它** ⇒
+    拿着旧会话的预览在新会话里落笔，桥面上照样通过。
+  · **源、摘要、图谱、时间线、召回缓存跟随同代变化** —— 事实撤了，
+    `_recallArtifacts` 里引用它的产物照旧可复用（`isArtifactStale` 是**被动**的，
+    落定流程从不去问）。
+- **交付物：`repair-settle.js`（386 行）+ 宿主九出口 + 一行诊断**。本模块**不写任何账**，
+  是纯函数面（与 `repair-loop.js` 同一条纪律）；逐项改法仍归 `_repairOwners()`、
+  原数据核验仍归 `_verifyRepairItem()`（**单一真源**：本刀不另写第二套落笔通道）。
+- **五个读数，每个都治上面的一格**：
+  · `verdictOf` —— **四态穷尽互斥**：`registered`（仅登记）/ `partial`（流程没走完）/
+    `settled`（流程走完但未全证）/ `corrected`（逐项 confirmed）⇒ 治第一格与第二格。
+  · `coherenceOf` —— 同代三态：`same` / `mixed`（**实证**：真看到两个不同的代）/
+    `unknown`（判不了）。★ **有一项没盖戳时判 `unknown`，不判 `same`** ——
+    把「没盖戳」读成「同代」等于**用缺席补上证据**。
+  · `ticket` / `checkTicket` —— 预览凭据（会话 + 代际 + 修订三样同源拼键），校验**五形**：
+    `ok` / `no-ticket` / `chat-changed` / `epoch-changed` / `expired` ⇒ 治第四格。
+    顺序上，切聊与过期同时成立时报**更具体**的那个（切聊）。
+  · `retryOf` —— 只挑 `failed` / `missing`（`done` 的进 `skipped` 明说）；幂等键
+    `id#kind#key#attempt` 逐项逐次；达 `MAX_ATTEMPTS` ⇒ `exhausted`（「还能试」与
+    「试到底了」不同形）；`includeUnproven` 默认关（那些项宿主已动过手，重试会二次改数据）。
+  · `cacheOf` —— 列出引用了被撤 id 的召回产物（三态 `has-hits` / `clean` / `no-artifacts`），
+    宿主用**既有写面** `recall-artifact.invalidateTurn` 真作废 ⇒ 治第五格。
+- **★ 本刀自伤两处（判据当场逼出，已修，留痕）**：
+  · `seal()` 起初**一律写自己的 rev** ⇒ `coherenceOf` 永远算出 `same`，
+    「所有派生面来自同一 revision」那条判据**恒过**（判据自己空转）。改为**自有戳优先**
+    （本函数是「给没盖戳的补上」，不是「把别人的戳改掉」）。
+  · `verdictOf` 起初把 `unproven` 并进 `partial` ⇒ `settled` **不可达**（词表里有一个
+    永远出不来的字）。写自述时用「四条真记录过一遍 `verdictOf`，要求产出态集合恰等于词表」
+    把这条逼了出来；改为「流程走完（无 pending / 无 failed）后，未全证 ⇒ settled」。
+  · 同一版还修了自述里的一处**自我指涉判据**：`verdictsExhaustive` 首版写成
+    `VERDICTS.length === 4 && new Set(VERDICTS).size === 4` —— 那是**对常量自己断言**，
+    永远为真；改为拿四条真记录真跑一遍 `verdictOf`。
+- **修后验证（真读数）**：`node --test tests/v3311_repair_settle.test.mjs` **15/15 全绿**；
+  `scan_syntax` 481 文件；`scan_module_wiring` 91/91 真加载（对外全局 90）；
+  `scan_doc_truthfulness` rc=0（版本 3.311.0 / 测试 292 / 审计门禁 60（磁盘 65）/
+  根级 .js 91 / extra_js 90）；`scan_version_guard` 通过（frontier `v3311_repair_settle.test.mjs`）。
+- **新档** `tests/v3311_repair_settle.test.mjs`（15 条）：M 登记面与导出面 · V 落定四态
+  （★ 反向自证态集合恰等于词表）· C 同代一致性 · T 票据五形 · R 定向重试 · K 召回缓存 ·
+  H 宿主接线逐符号在场（★ 判「重试只走 `plan.items`」「同一套 `_repairOwners` /
+  `_verifyRepairItem`」「重试次数只此一处知道」）· E1/E2 端到端（注册完一条 ⇒ `partial`
+  **不是** `corrected`；重试后证据推进；召回缓存 `dryRun` 只看不动）· J 加载面 ·
+  N 六条真源码破坏 + 正控制地基与反向对照 · L 判据纯度 · M3 版本锚。
+- **★ 抬版连带抓出的三处「把某版一次性事实当永久不变量」（逐条修，非本刀引入）**：
+  这三条都是**在下一版必然翻红、且红得与自身无关**的形态（本仓 v3261 C / v3266 C 同族）：
+  · `tests/v3305_memory_tools_api.test.mjs` 与 `tests/v3310_memory_center.test.mjs` 各有一条
+    「本模块须是 `extra_js` **末位**」——末位是任一版都会变的位置，本刀追加 `repair-settle.js`
+    即两处必红。**修**：改判「本模块与它追加时紧邻的那个模块都恰在场」（位置不入判据，在场仍在）。
+  · `tests/audit/open_face_registry.tsv` 的 `memoryToolsEnvelope` 行 `producer_version` 停在
+    **v3.309.0** —— v3.310.0（M-X1）那次抬版漏了这一行（v3305 的判据要求它与当前版本同步）
+    ⇒ 本仓在 v3.310.0 提交时**就有一条红**，本刀抬到 v3.311.0 时一并修正。
+    教训与 v3209 数量锁同族：**抬版牵连面必须逐项核**，「脚本没报错」不等于「面都对齐了」。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+- **抬版连带**：版本六源 3.310.0 → 3.311.0；README 当前版本 / 全量待验标记 / 在役面
+  291→**292** 测试文件、`extra_js` 89→**90**、运行时模块 90→**91**；PLAN 当前执行状态行版本、
+  版本行、门禁行 291→292、全量快照行待验标记、体量行 `extra_js` 89→90；TODO 最近更新 +
+  历史留痕；v3209 数量锁两处断言值与文案；v3247 REGISTRY 登记新档；
+  `catalog_reference_consumers.tsv` 追加新档行；`state-report.json` 重生成。
+- **本版全量未跑**（按用户纪律「做完计划全部内容前别跑全量」，只跑单门 / 单套件），
+  README / PLAN 标「当前版本 v3.311.0 **全量待验**」；上一快照仍为 v3.296.0。
+
 ## v3.310.0
 **M-X1（第二期拓展计划）用户侧记忆控制中心：超 200 条的旧记忆仍能翻到，四态互不同形，本面只读**
 - **它补的是哪一格**：证据工作台（`evidence-workbench.js`）把九本账投影成**消费者摘要面**，

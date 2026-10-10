@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.310.0",
+  "version": "3.311.0",
   "version_sources": {
-    "manifest": "3.310.0",
-    "package": "3.310.0",
-    "index_const": "3.310.0"
+    "manifest": "3.311.0",
+    "package": "3.311.0",
+    "index_const": "3.311.0"
   },
   "version_same": true,
-  "human_index_version": "3.310.0",
+  "human_index_version": "3.311.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 89,
+    "extra_js": 90,
     "extra_js_list": [
       "ledger-entity.js",
       "settings-ui.js",
@@ -101,13 +101,14 @@
       "memory-config.js",
       "fact-state.js",
       "memory-tools-api.js",
-      "memory-center.js"
+      "memory-center.js",
+      "repair-settle.js"
     ],
-    "root_js": 90,
+    "root_js": 91,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 291,
+    "test_files": 292,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -341,6 +342,7 @@
       "v3309_wp_branch_gate.test.mjs",
       "v330_ledger_replay.test.mjs",
       "v3310_memory_center.test.mjs",
+      "v3311_repair_settle.test.mjs",
       "v331_heat_concern.test.mjs",
       "v332_importance_timeline.test.mjs",
       "v333_ai_recall_ops.test.mjs",
@@ -441,7 +443,7 @@
     "tests_total": 277,
     "assertions": 2986,
     "audit": "59/59",
-    "reason": "登记版本 3.296.0 ≠ 当前 3.310.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.296.0 ≠ 当前 3.311.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -460,19 +462,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "0967466271ad",
-      "package.json": "5c689892f737",
-      "index.js": "8466259c14d6",
+      "manifest.json": "dff0c22d8e79",
+      "package.json": "acbb1eca2120",
+      "index.js": "7e9ed2b2ac8c",
       "update-log.json": null,
-      "README.md": "648965e43fad",
-      "PLAN.md": "7b701ae2ae04",
-      "CHANGELOG.md": "21c1788f7a91",
-      "TODO.md": "682a6a3a87f8",
+      "README.md": "46c12dd855db",
+      "PLAN.md": "b5c6e564e097",
+      "CHANGELOG.md": "5b83a8c25d69",
+      "TODO.md": "a952fac8998e",
       "tests/audit/doc_readings.json": "0f59cfa368d4"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.296.0，当前 3.310.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.296.0，当前 3.311.0"
   ],
   "unknown_count": 1
 }

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.310.0';
+    const VERSION = '3.311.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11597,6 +11597,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.repairLoop'); return ['记忆修复', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.311.0 · M-X2] 修复**落定面**：回答「这一条到底改完没有、改的东西
+                     *   是不是同一代、有没有该重试的项、旧预览还能不能用、召回缓存跟没跟上」。
+                     *   与「记忆修复」（那一行答「有几条修复、落定了几条」）是两个问题：
+                     *   那一行读的是 **repair-loop 的流程态**，本行读的是 **落定与同代**。
+                     *   四种坏法可分：模块未加载 / 依赖缺格（⚠️）/ 词表不自洽（⚠️）/ 面在位。 */
+                    (() => {
+                        try {
+                            const RS = _repairSettleLib();
+                            if (!RS || typeof RS.line !== 'function' || typeof this.repairSettleLine !== 'function') {
+                                return ['修复落定', '模块未加载（repair-settle.js）'];
+                            }
+                            return ['修复落定', this.repairSettleLine()];
+                        } catch (e) { errLog(e, 'selfCheck.repairSettle'); return ['修复落定', '—（诊断异常）'];
+                        }
+                    })(),
                     /* [v3.310.0 · M-X1] 用户侧记忆控制中心：回答「界面上能不能按人/楼层/来源组合查、
                      *   依赖缺没缺格、字段映射对齐没有、上次看了多少条」。与「证据查询」那行是两个问题：
                      *   那一行答「内核能不能查」，本行答「用户侧那一面在不在、齐不齐」。
@@ -14524,6 +14539,322 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 return bits2.join(' · ');
             } catch (e) { errLog(e, 'plugin.memoryCenterLine'); return '—（诊断异常）'; }
         }
+        /* ────────────────────────────────────────────────────────────────────────
+         * [v3.311.0 · M-X2] 修复**落定面**（从「流程完成」到「所有派生面落盘完成」）
+         *
+         * 【宿主只做三件事，绝不自己算】
+         *   ① **装配**：把 `repair-loop` 的登记表 + 时钟经 `_settleDeps()` 注入（唯一装配点，
+         *      键名与 `repair-settle.js` 的 `REQUIRED_DEPS[].key` 逐字一致 —— 改名会静默
+         *      变成「依赖缺席」，故判据套件按名对账）；
+         *   ② **转发**：出口把实参原样交给内核，**不改写返回值**；
+         *   ③ **降级**：内核整个不可达时给**同键形状**的回执（不是投影真源，只保证
+         *      「取不到」时下游按同一键面读，不会读到 undefined）。
+         *
+         * 【为什么不把落定读数缓存进快照】
+         *   与 M-X1 / X9 同因：本面**按需调用**（每次要过一遍记录的全部受影响项 +
+         *   全部召回产物），塞进每轮快照 = 每轮付一遍扫描代价，且会把「这一条还没看」
+         *   伪装成「看了、没问题」—— 两者在快照里同形。下游要看面自述时走
+         *   `repairSettleDescribe()`（自带依赖在场读数）。
+         * ──────────────────────────────────────────────────────────────────────── */
+        /**
+         * [v3.311.0 · M-X2] 落定面的**唯一装配点**。三件里有两件同出 `repair-loop.js`
+         *   （**单一真源**：本模块不另抄一份派生件清单 / 证据词表），`now` 是宿主时钟
+         *   （可注入 —— 没有它「票据过期」这条判据只能靠 `Date.now()`，判据无法对过期取证）。
+         *   取不到一律 null（不是 `{}`）：内核按「值为空即缺席」判 `deps-missing`，
+         *   而 `{}` 会装作「在位但空」—— 两者处置相反，不在这里编空壳。
+         */
+        _settleDeps(now) {
+            const RL = _repairLoopLib();
+            const RS = _repairSettleLib();
+            const pick = (o, k) => ((o && o[k] !== undefined && o[k] !== null) ? o[k] : null);
+            return {
+                KINDS: pick(RL, 'KINDS'),
+                EVIDENCE: pick(RL, 'EVIDENCE'),
+                now: Number.isFinite(Number(now)) ? Number(now) : Date.now()
+                /* ★ 只给**该给的**三件：`REQUIRED_DEPS` 之外的键一律不塞 ——
+                 *   塞了会让「依赖面」这个读数里混进不是依赖的东西（本仓的「同一形状两个读数」）。 */
+            };
+        }
+        /** [v3.311.0 · M-X2] 取一条修复记录（归一后）。取不到给 null（**不编空记录**）。 */
+        repairRecord(ref) {
+            try {
+                const RL = _repairLoopLib();
+                if (!RL || typeof RL.normalize !== 'function' || !this._repairState) return null;
+                const st = RL.normalize(this._repairState);
+                const id = String((ref && (ref.id || ref)) || '').trim();
+                if (!id) return null;
+                return (st.repairs || []).find((r) => r.id === id) || null;
+            } catch (e) { errLog(e, 'engine.repairRecord'); return null; }
+        }
+        /**
+         * [v3.311.0 · M-X2] **落定判定**出口（验收①：仅登记不得显示「事实已纠正」）。
+         *   返回 { ok, verdict, reason, counts, coherence, faces, line }。
+         *   内核不可达 ⇒ `ok:false` + `reason:'module-unavailable'`（**不报 verdict** ——
+         *   报一个 'registered' 会让「判不了」与「确实只登记了」同形）。
+         */
+        repairSettleView(ref, opts) {
+            const o = opts || {};
+            const RS = _repairSettleLib();
+            if (!RS || typeof RS.verdictOf !== 'function') {
+                return { ok: false, reason: 'module-unavailable', verdict: null, counts: null, coherence: null, faces: null, line: '模块未加载（repair-settle.js）' };
+            }
+            try {
+                const rec = (ref && ref.affected) ? ref : this.repairRecord(ref);
+                if (!rec) return { ok: false, reason: 'not-found', verdict: null, counts: null, coherence: null, faces: null, line: '未找到这条修复记录' };
+                const v = RS.verdictOf(rec);
+                const rev = Number.isFinite(Number(o.rev)) ? Number(o.rev) : (Number(this._mutationEpoch) || 0);
+                const faces = (typeof RS.facesOf === 'function') ? RS.facesOf(rec, rev) : null;
+                const out = {
+                    ok: true, id: rec.id, verdict: v.verdict, reason: v.reason, counts: v.counts || null,
+                    coherence: faces ? faces.coherence : null, faces: faces ? faces.faces : null,
+                    rev: faces ? faces.rev : null,
+                    line: RS.line(rec)
+                };
+                this._lastRepairSettle = { at: Date.now(), id: rec.id, verdict: out.verdict, coherence: out.coherence ? out.coherence.state : null };
+                return out;
+            } catch (e) { errLog(e, 'engine.repairSettleView'); return { ok: false, reason: 'thrown', verdict: null, counts: null, coherence: null, faces: null, line: '—（落定面异常）' }; }
+        }
+        /**
+         * [v3.311.0 · M-X2] **预览票据**出口（验收③：切聊后旧预览被拒绝）。
+         *   `repairPreviewTicket()` 产票（会话 + 代际 + 修订三样同源拼键）；
+         *   `repairPreviewCheck(ticket)` 校验（五种不同形理由）。
+         *   产票**不写任何状态**（票由调用方自己保管 —— 宿主不替下游存票，
+         *   存了就是第二份会话归属真源）。
+         */
+        repairPreviewTicket(input) {
+            const RS = _repairSettleLib();
+            if (!RS || typeof RS.ticket !== 'function') return null;
+            try {
+                const i = input || {};
+                return RS.ticket({
+                    chatId: (i.chatId != null) ? i.chatId : this.getCurrentChatId(),
+                    epoch: (i.epoch != null) ? i.epoch : (Number(this._mutationEpoch) || 0),
+                    rev: (i.rev != null) ? i.rev : this.repairRevision(),
+                    nonce: i.nonce, now: i.now
+                });
+            } catch (e) { errLog(e, 'engine.repairPreviewTicket'); return null; }
+        }
+        repairPreviewCheck(t, ctx) {
+            const RS = _repairSettleLib();
+            if (!RS || typeof RS.checkTicket !== 'function') return { ok: false, reason: 'module-unavailable' };
+            try {
+                const c = ctx || {};
+                return RS.checkTicket(t, {
+                    chatId: (c.chatId != null) ? c.chatId : this.getCurrentChatId(),
+                    epoch: (c.epoch != null) ? c.epoch : (Number(this._mutationEpoch) || 0),
+                    now: (c.now != null) ? c.now : Date.now()
+                });
+            } catch (e) { errLog(e, 'engine.repairPreviewCheck'); return { ok: false, reason: 'thrown' }; }
+        }
+        /**
+         * [v3.311.0 · M-X2] **只重试失败项**（验收③：失败项单独重试，不整批重放）。
+         *
+         *   与 `applyRepairPlan` 的分工：那个是「把整条修复按原清单走一遍」，
+         *   本方法是「只把上次没成的那些项，按它们的 retryKey 再走一遍」。
+         *   两者的落笔通道**同一份**（`_repairOwners()` + `_verifyRepairItem()`），
+         *   不另写一套 —— 两套落笔通道迟早会分叉成两种语义。
+         * @returns {Promise<object|null>} 与 applyRepairPlan 同形的回执；模块缺席 ⇒ null
+         */
+        async retryRepairItems(ref, opts = {}) {
+            const o = opts || {};
+            let applied = 0, persisted = null, readbackOk = null;
+            try {
+                const RS = _repairSettleLib();
+                const RL = _repairLoopLib();
+                if (!RS || typeof RS.retryOf !== 'function' || !RL || typeof RL.settle !== 'function') {
+                    this._lastRepairRetry = { at: Date.now(), why: 'module-unavailable' };
+                    return null;
+                }
+                const rec0 = (ref && ref.affected) ? ref : this.repairRecord(ref);
+                if (!rec0) {
+                    this._lastRepairRetry = { at: Date.now(), why: 'not-found' };
+                    return null;
+                }
+                /* 重试次数从记录上读（`retryAttempt` 是本刀新增的那一格）——
+                 *   为什么不从调用方拿：调用方每多传一次就多一次「这算第几次」的口径，
+                 *   而这个数必须**只有一处**知道。 */
+                const attempt = Number(rec0.retryAttempt) > 0 ? Number(rec0.retryAttempt) : 0;
+                const plan = RS.retryOf(rec0, { attempt: attempt, includeUnproven: o.includeUnproven === true });
+                if (plan.state === 'none') {
+                    this._lastRepairRetry = { at: Date.now(), why: 'nothing-to-retry', id: rec0.id };
+                    return { ok: true, id: rec0.id, reason: 'nothing-to-retry', applied: 0, verified: 0, readback: null, items: [], retry: plan };
+                }
+                if (plan.state === 'exhausted') {
+                    /* ★ 「还能再试」与「试到底了」不同形：不抛、不静默，如实回执 + **不落笔**。 */
+                    this._lastRepairRetry = { at: Date.now(), why: 'attempt-limit', id: rec0.id, attempt: attempt };
+                    return { ok: false, id: rec0.id, reason: 'attempt-limit', applied: 0, verified: 0, readback: null, items: [], retry: plan };
+                }
+                let st = RL.normalize(this._repairState);
+                const owners = this._repairOwners();
+                const lease = { chatId: this.getCurrentChatId(), epoch: this._mutationEpoch };
+                const results = [];
+                const noteOf = (o.notes && typeof o.notes === 'object') ? o.notes : {};
+                /* 逐项：改数据 → 核原数据（与 applyRepairPlan **同一批次口径**，只是**项的集合**
+                 *   只含该重试的那些）。落盘回读与 settle 同样放在循环之后一次做完。 */
+                for (const step of plan.items) {
+                    const item = (rec0.affected || []).find((x) => x.key === step.key && x.kind === step.kind);
+                    if (!item) continue;
+                    const note = String(noteOf[step.key] || '').slice(0, 80);
+                    const fn = owners[step.kind];
+                    if (typeof fn !== 'function') {
+                        st = RL.settle(st, { id: rec0.id, key: step.key, kind: step.kind, status: 'failed', note: 'no-inverse' }).state;
+                        results.push({ kind: step.kind, key: step.key, basis: step.basis, status: 'failed', reason: 'no-inverse', retryKey: step.retryKey });
+                        continue;
+                    }
+                    let r;
+                    try { r = fn({ kind: step.kind, key: step.key, note: note }) || {}; }
+                    catch (e) { errLog(e, 'engine.retryRepairItems.owner'); r = { ok: false, reason: 'thrown' }; }
+                    if (!r.ok) {
+                        st = RL.settle(st, { id: rec0.id, key: step.key, kind: step.kind, status: 'failed', note: String(r.reason || 'failed') }).state;
+                        results.push({ kind: step.kind, key: step.key, basis: step.basis, status: 'failed', reason: String(r.reason || 'failed'), retryKey: step.retryKey });
+                        continue;
+                    }
+                    applied++;
+                    let originOk = false;
+                    try { originOk = this._verifyRepairItem(step.kind, step.key, note) === true; }
+                    catch (e) { errLog(e, 'engine.retryRepairItems.verify'); originOk = false; }
+                    results.push({ kind: step.kind, key: step.key, basis: step.basis, status: 'done', originData: originOk, retryKey: step.retryKey });
+                }
+                const planLen = plan.items.length;
+                let persistedSection = null;
+                if (planLen && typeof this.storage?.save === 'function' && typeof this.storage?.load === 'function') {
+                    try { persisted = (await this.storage.save(this.getCurrentChatId(), this.collectExport())) === true; }
+                    catch (e) { errLog(e, 'engine.retryRepairItems.save'); persisted = false; }
+                    try {
+                        const back = await this.storage.load(this.getCurrentChatId(), { preserveRuntime: true });
+                        persistedSection = (back && back.repairLog) ? back.repairLog : null;
+                        readbackOk = (persisted === true && persistedSection !== null);
+                    } catch (e) { errLog(e, 'engine.retryRepairItems.load'); readbackOk = false; }
+                } else if (planLen) {
+                    persisted = null; readbackOk = null;   /* 「没尝试」不判为真也不判为假 */
+                }
+                for (const res of results) {
+                    if (res.status !== 'done') continue;
+                    const originData = res.originData === true;
+                    const evOk = (readbackOk === true);
+                    st = RL.settle(st, {
+                        id: rec0.id, key: res.key, kind: res.kind, status: 'done',
+                        note: originData && evOk ? 'verified' : 'unverified',
+                        originData: originData, persistedReadback: evOk
+                    }).state;
+                }
+                /* 重试计数 +1（**只在这一批真有项要重试时**才加 —— 空转不该消耗额度）。 */
+                if (planLen) {
+                    const rec = (st.repairs || []).find((x) => x.id === rec0.id);
+                    if (rec) rec.retryAttempt = attempt + 1;
+                }
+                this._repairState = st;
+                const bad = results.filter((x) => x.status !== 'done').length;
+                const stale = !this._leaseValid(lease);
+                const rec2 = (st.repairs || []).find((x) => x.id === rec0.id) || rec0;
+                const v = RS.verdictOf(rec2);
+                const out = {
+                    ok: bad === 0 && !stale && planLen > 0,
+                    id: rec0.id,
+                    applied: applied,
+                    settled: rec2.status || null,
+                    evidence: rec2.evidence || null,
+                    verdict: v.verdict,
+                    verified: results.filter((x) => x.originData === true).length,
+                    persisted: persisted,
+                    readback: readbackOk,
+                    items: results,
+                    retry: { state: plan.state, attempted: attempt, limit: plan.limit, candidate: plan.candidate, skipped: plan.skipped },
+                    /* ★ 明说「本次**没有**重放哪些项」——「不整批重放」必须可读。 */
+                    skipped: plan.skipped,
+                    stale: stale,
+                    reason: stale ? 'epoch-changed' : (bad === 0 ? '' : 'partial-failed')
+                };
+                if (stale) this._leaseDrop(lease, 'repairRetry', -1);
+                this._lastRepairRetry = { at: Date.now(), why: out.reason || 'ok', id: rec0.id, applied: applied, verified: out.verified, readback: readbackOk, attempt: attempt + 1 };
+                return out;
+            } catch (e) {
+                try {
+                    this._lastRepairRetry = { at: Date.now(), why: 'threw', applied: applied, persisted: persisted, readback: readbackOk, err: (e && e.message) || String(e) };
+                } catch (_e) { /* 留痕失败就作罢 */ }
+                errLog(e, 'engine.retryRepairItems');
+                return null;
+            }
+        }
+        /**
+         * [v3.311.0 · M-X2] **召回缓存跟随落定**（验收⑤：源、摘要、图谱、时间线、召回缓存
+         *   跟随同代变化）。
+         *
+         *   【为什么必须由宿主做】内核是纯函数（`repair-settle.js` 不认识 `_recallArtifacts`，
+         *   也不该认识）。宿主把产物数组与「哪些 id 被撤了」两样喂进去，内核指出该作废哪些，
+         *   宿主用**既有写面** `recall-artifact.invalidateTurn` 真作废。
+         *   ★ `isArtifactStale` 是**被动**的（调用方不问就永不算），本方法把它接成主动：
+         *     落定之后自动扫一遍 —— 这正是计划第五条「召回缓存跟随同代变化」的落点。
+         * @returns {object} { ok, state, count, invalidated, removed, reason }
+         */
+        repairInvalidateRecallCache(revokedIds, opts = {}) {
+            const o = opts || {};
+            try {
+                const RS = _repairSettleLib();
+                if (!RS || typeof RS.cacheOf !== 'function') return { ok: false, reason: 'module-unavailable', state: null, count: 0, invalidated: [], removed: 0 };
+                const ids = Array.isArray(revokedIds) ? revokedIds.filter(Boolean) : [];
+                const report = RS.cacheOf(this._recallArtifacts || [], ids);
+                let removed = 0;
+                if (report.count && o.dryRun !== true) {
+                    const RA = _recallArtifactLib();
+                    if (RA && typeof RA.invalidateTurn === 'function') {
+                        let store = this._recallArtifacts || [];
+                        for (const hit of report.invalidated) {
+                            if (!hit.turnId) continue;
+                            const r = RA.invalidateTurn(store, hit.turnId);
+                            if (r && Array.isArray(r.store)) { store = r.store; removed += Number(r.removed) || 0; }
+                        }
+                        this._recallArtifacts = store;
+                        this._recallArtifactEvictions = Object.assign({}, this._recallArtifactEvictions, { lastRemoved: removed, lastAt: Date.now() });
+                    } else {
+                        /* 作废面缺席 ⇒ **如实说没作废**，不把「指出了」当成「已经清了」。 */
+                        return Object.assign({}, report, { ok: false, reason: 'invalidate-unavailable', removed: 0 });
+                    }
+                }
+                const out = Object.assign({}, report, { ok: true, reason: o.dryRun === true ? 'dry-run' : '', removed: removed });
+                this._lastRepairCache = { at: Date.now(), state: report.state, count: report.count, removed: removed, revoked: ids.length };
+                return out;
+            } catch (e) { errLog(e, 'engine.repairInvalidateRecallCache'); return { ok: false, reason: 'thrown', state: null, count: 0, invalidated: [], removed: 0 }; }
+        }
+        /** [v3.311.0 · M-X2] 落定面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        repairSettleDescribe() {
+            const RS = _repairSettleLib();
+            if (!RS || typeof RS.describe !== 'function') {
+                return { kind: 'repair-settle-describe', version: 0, verdicts: [], coherence: [], retryStates: [], ticketReasons: [], faces: [], present: 0, total: 0, missing: [], verdictsExhaustive: false, writesNothing: true, note: '模块未加载（repair-settle.js）', reason: 'module-unavailable' };
+            }
+            try {
+                const d = RS.describe(this._settleDeps());
+                d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'engine.repairSettleDescribe'); return { kind: 'repair-settle-describe', version: 0, verdicts: [], coherence: [], retryStates: [], ticketReasons: [], faces: [], present: 0, total: 0, missing: [], verdictsExhaustive: false, writesNothing: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.311.0 · M-X2] 诊断一行。**七种坏法分开写**（本仓纪律）：
+         *   模块没挂 / 依赖缺格 / 词表不自洽 / 未看过任何记录 / 最近一条的落定态。
+         *   四种「没记录」的情形各不相同：没模块、没依赖、没看过、看过但没有记录。
+         */
+        repairSettleLine() {
+            try {
+                const RS = _repairSettleLib();
+                if (!RS || typeof RS.line !== 'function') return '模块未加载（repair-settle.js）';
+                const d = this.repairSettleDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（repair-settle.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                if (String(d.reason || '').indexOf('deps-missing') === 0 || (d.missing && d.missing.length)) {
+                    return '⚠️ 依赖缺格：' + (d.missing || []).map((m) => m.key).join('、') + '（' + d.present + '/' + d.total + '）';
+                }
+                if (d.verdictsExhaustive === false) return '⚠️ 判定词表不自洽（四态必须各自可达）';
+                const last = this._lastRepairSettle || null;
+                if (!last) return '待看（面在位 · 落定四态 ' + (d.verdicts || []).length + ' · 同代三态 ' + (d.coherence || []).length + ' · 面 ' + (d.faces || []).length + '）';
+                const bits = ['最近 ' + last.id + ' ⇒ ' + last.verdict];
+                if (last.coherence) bits.push('同代 ' + last.coherence);
+                const rr = this._lastRepairRetry || null;
+                if (rr) bits.push(rr.why === 'ok' ? ('重试 ' + (rr.applied || 0) + ' 项') : ('重试未成（' + rr.why + '）'));
+                const cc = this._lastRepairCache || null;
+                if (cc) bits.push('召回作废 ' + cc.removed + '/' + cc.count);
+                return bits.join(' · ');
+            } catch (e) { errLog(e, 'engine.repairSettleLine'); return '—（诊断异常）'; }
+        }
         /** [v3.194] 当前未完成事项（事件线里缺结果/后续的）——计划点名「保留未完成事项」的读取面。不抛。 */
         outstandingThreads(filter) {
             try {
@@ -14810,6 +15141,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   故此处只加**一个取库口**；七件依赖的装配点唯一在 `memoryCenterDeps()`。
     function _memoryCenterLib() {
         return _moduleLib(() => window.LonShaMemoryCenter, 'memory-center.js');
+    }
+    // [v3.311.0 · M-X2] 修复落定面（repair-settle.js）。为什么需要：
+    //   X2 已把「登记 → 逐项落笔 → 核原数据 → 落盘回读 → 带证据 settle」做通，但**落定之后**
+    //   还有五格空着（详细理由见该模块档头）：仅登记与「事实已纠正」同形 / 全部成功与部分成功
+    //   同形 / 失败项只能整批重放 / 预览无凭据（切聊后旧预览无人拦）/ 召回缓存不跟随同代变化。
+    //   本模块不重做落笔：逐项改法仍归 `_repairOwners()`、核验仍归 `_verifyRepairItem()`
+    //   （**单一真源**：本刀不另写第二套落笔通道）；它只做「四态判定 + 同代一致性 + 票据 +
+    //   定向重试计划 + 召回缓存作废清单」五个纯函数读数。
+    //   故此处只加**一个取库口**；三件依赖的装配点唯一在 `_settleDeps()`。
+    function _repairSettleLib() {
+        return _moduleLib(() => window.LonShaRepairSettle, 'repair-settle.js');
+    }
+    // [v3.311.0 · M-X2] 召回产物（recall-artifact.js）的**取库口**。
+    //   为什么此前没有这一口：全仓三处调用点各自内联 `window.LonShaRecallArtifact`（5549/5960/12077），
+    //   于是「模块缺席」在这三处各写一遍判断。本刀要用的是它的 `invalidateTurn`（既有写面），
+    //   与其再抄第四份内联，不如收成取库口 —— 与 `_repairLoopLib` 等 20 余个取库口同规格。
+    function _recallArtifactLib() {
+        return _moduleLib(() => window.LonShaRecallArtifact, 'recall-artifact.js');
     }
     /**
      * [v3.296.0 · X1] 账本登记表（**取自工作台，不另抄一份**）。

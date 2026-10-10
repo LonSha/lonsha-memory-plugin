@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "LonSha",
-    "version": "3.310.0",
+    "version": "3.311.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -99,7 +99,8 @@
         "memory-config.js",
         "fact-state.js",
         "memory-tools-api.js",
-        "memory-center.js"
+        "memory-center.js",
+        "repair-settle.js"
     ],
     "extra_css": [
         "lonsha-design.css",

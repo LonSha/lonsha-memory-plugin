@@ -124,8 +124,12 @@ const exUnproven = () => {
 function judgeA1(Tx, mf) {
     const hits = (mf.extra_js || []).filter((f) => f === MOD);
     if (hits.length !== 1) return 'extra_js 里 ' + MOD + ' 必须恰出现 1 次，实 ' + hits.length;
-    if (mf.extra_js[mf.extra_js.length - 1] !== MOD) {
-        return '本模块不 require 任何兄弟模块（对加载顺序零要求）⇒ 追加末位，实末位=' + mf.extra_js[mf.extra_js.length - 1];
+    /* ★ **不判末位**：`extra_js` 末位是**任一版都会变**的位置（后来的模块不断往后追加），
+     *   把「本版是末位」写成永久断言 = 「把某版的一次性事实当永久不变量」——
+     *   它会在**下一版**必然翻红，且红得与自身无关（本档实测就是这样）。
+     *   改判「本模块与它追加时紧邻的那个模块都恰在场」：位置不入判据，在场仍在判据。 */
+    if (mf.extra_js.indexOf(MOD) < 0 || mf.extra_js.indexOf('fact-state.js') < 0) {
+        return '本模块与其追加时的邻居须都在 extra_js（位置不作判据）';
     }
     if (!Tx || typeof Tx !== 'object') return '模块须可加载（CJS 双导出）';
     if (typeof Tx.queryEvidence !== 'function') return 'queryEvidence 必须是函数';
