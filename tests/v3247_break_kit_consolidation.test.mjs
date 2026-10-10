@@ -234,6 +234,10 @@ const REGISTRY = [
      *   （五条真源码破坏负控制：正文放回 title / 知识范围塌成一态 / 查询面正文列写回 /
      *   报告段写进正文 / 导出段整段删除）；按 B1 台账纪律在此登记。 */
     'v3307_secret_scope_surface.test.mjs',
+    /* [v3.308.0 M-O8 第三刀] 本档从 tests/_break_kit.mjs 静态取 breakOnce
+     *   （五条真源码破坏负控制：拆 knowers 分派 / 无 viewer 判成放行 / 拆风险计数 /
+     *   拆正文剥除 ×X6 双向、拆 X5 包入口剥除、拆 X5 冲突条剥除）；按 B1 台账纪律在此登记。 */
+    'v3308_secret_scope_crossbranch.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

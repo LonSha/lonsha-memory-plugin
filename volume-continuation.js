@@ -53,7 +53,7 @@
  */
 (function (root) {
     'use strict';
-    const VOLUME_CONTINUATION_VERSION = 1;
+    const VOLUME_CONTINUATION_VERSION = 3;   // [v3.308.0 · M-O8 第三刀] 认知情名单 + 正文不进包/提案（shadowed 读数）
 
     /** 导航可达性（诊断面单列，不与「有没有条目」混说）。 */
     const NAV = Object.freeze({ JUMPABLE: 'jumpable', NOT_NAVIGABLE: 'not-navigable' });
@@ -136,7 +136,10 @@
      *   两侧都空 ⇒ 公开条，放行。剔除**计数可见**（hidden）——静默少条会把
      *   「被挡住」读成「本来就没有」，那正是泄密判定的反向错读。
      * 走名字命中的条数单列（byName）：**看不见的匹配风险比看得见的排除更危险**。
-     * @returns {{visible:Array, hidden:number, hiddenBy:string, total:number, byName:number}}
+     * [v3.308.0 · M-O8 第三刀] 认的名单是**知情名单**（knowers）：`keeper` 在本仓有两个相反
+     *   语义（secret-ledger 里是「不该知道的人」），同名异义按**名单种类**分派，不猜名字。
+     * @returns {{visible:Array, hidden:number, hiddenBy:string, total:number, byName:number,
+     *             knowerOnly:number, knowerUndecided:number, knowersMatched:number}}
      */
     function filterByKeeper(entries, viewer) {
         const list = Array.isArray(entries) ? entries : [];
@@ -147,11 +150,30 @@
         let hidden = 0;
         let byName = 0;
         let nameMatched = 0;
+        /* [v3.308.0 · M-O8 第三刀] 知情名单两档（与 X6 逐字同口径）。 */
+        let knowerOnly = 0;
+        let knowerUndecided = 0;
+        /* [v3.308.0 · M-O8 第三刀] 知情名单这一路的同名异人风险计数（与 X6 同口径）。 */
+        let knowersMatched = 0;
         for (const e of list) {
             if (!e || typeof e !== 'object') { visible.push(e); continue; }
             const ids = Array.isArray(e.keeperIds) ? e.keeperIds.map(keyOf).filter(Boolean) : [];
             const names = Array.isArray(e.keeper) ? e.keeper.map(keyOf).filter(Boolean)
                 : (e.keeper === null || e.keeper === undefined ? [] : [keyOf(e.keeper)]);
+            /* [v3.308.0 · M-O8 第三刀] 秘密条先按**知情名单**判，再谈 keeper（与 X6 同口径）。
+             *   修前实测（探针 /tmp/probe_o8c.mjs）：守密人 visible=1、在册知情者 hidden=1 —— 方向反。
+             *   根因是 `keeper` 在 secret-ledger 里是「不该知道的人」、在本模块里是「有权查看的人」，
+             *   同名异义。故按**名单种类**分派：带 knowers 即走知情名单，不做名字猜测。 */
+            const knowers = Array.isArray(e.knowers) ? e.knowers.map(keyOf).filter(Boolean) : [];
+            if (knowers.length) {
+                knowerOnly++;
+                if (!vName) { hidden++; knowerUndecided++; continue; }
+                /* 按名命中即计数（无论放行还是剔除）—— 这一路只有名字，风险必须数得出来。 */
+                for (const n of knowers) { if (n === vName) { knowersMatched++; break; } }
+                if (knowers.indexOf(vName) >= 0) { visible.push(e); continue; }
+                hidden++;
+                continue;
+            }
             const isPublic = ids.length === 0 && names.length === 0;
             if (isPublic) { visible.push(e); continue; }
             let hit = false;
@@ -163,7 +185,9 @@
             }
             if (hit) visible.push(e); else hidden++;
         }
-        return { visible, hidden, hiddenBy: byName > 0 ? LINK.NAME : LINK.ID, total: list.length, byName, nameMatched };
+        return { visible, hidden, hiddenBy: byName > 0 ? LINK.NAME : LINK.ID, total: list.length, byName, nameMatched,
+            /* [v3.308.0 · M-O8 第三刀] 知情名单两档（旧字段一个不改，只增）。 */
+            knowerOnly, knowerUndecided, knowersMatched };
     }
 
     /* ──────────────────────────────────────────────────────────
@@ -262,13 +286,63 @@
      *   · sources    —— { session, branch, version }（源标识，缺省记 null 不假装有）
      * @returns {{ok:boolean, reason:string, pack:object|null, absentFaces:Array, hidden:number, hiddenBy:string}}
      */
+    /* ── [v3.308.0 · M-O8 第三刀] C 组：秘密**正文**不得随「对照 / 提案 / 接续包」外带 ────
+     * 【修前实测（探针 /tmp/probe_o8f.mjs，rc=0）】
+     *   · `compareOwners` 的 `deltas[].b` 是**整条**秘密（含 `secret` 正文）：实测
+     *     `Object.keys(d.b)` = ["id","secret","keeper","knowers","about","progress","status","floor"]，
+     *     且 `JSON.stringify(cmp)` 里逐字含正文；`proposeImport` 的 `proposals[].value` 同款。
+     *   · 这一格此前是**假绿**：用例两侧没声明 `modules` => 五面被记「在场未知」=>
+     *     `comparable:false` => 面不出提案 => 「提案里没有正文」自然成立 —— 判据根本没碰到那一格。
+     *     （本仓点名的假绿第二形：缺陷发生在别处，判据对着一个不会出问题的面断言。）
+     * 【为什么在**入口**剥，而不是只在提案出口剥】
+     *   只堵出口的话，`compareOwners` 的读数、宿主缓存的 `branchComparison`、
+     *   以及**接续包本身**都还带着正文 —— 那是「只修了看得见的那条路」。
+     *   本刀在「进容器」的那一步剥：正文根本进不了 `deltas` / `entries` / `proposals`。
+     * 【判据是「值里有没有这个键」，不是「值像不像一条秘密」】
+     *   不去猜哪个面/哪个字段是秘密（猜就是第二份实现）：秘密的可见性只有一处真源
+     *   （`secret-ledger.js` 的 `knowledgeOf` / `filterForViewer`，v3.306.0 第一刀）；
+     *   而「与知识范围无关、本就不该外带正文的容器」按**键名**机械剥。
+     * 【为什么是**替换站位串**而不是删键】
+     *   与 v3.307.0 第二刀 `SECRET_MASK` 逐字同一条理由：删键与「这条本来没有内容」同形，
+     *   空串同形，前缀「只漏一点」不被接受。站位串是**明确的存在性声明**：
+     *   读者知道「有内容，且这里不给」，且与真读数不可能撞。
+     * 【边界字段不剥】
+     *   `keeper` / `knowers` / `progress` / `status` / `floor` 必须随条目走 ——
+     *   过滤要按它判、推进度要继续。被挡的只有正文。
+     * 【不做深度递归】
+     *   只剥「被交换 / 被携带的那个值」的**顶层**正文键。深度递归会走进任意载荷
+     *   （把别人合法字段一起改掉），而本刀要治的三条路恰好都是顶层形态 ——
+     *   如实声明边界比「覆盖到看不见的地方」可靠。
+     */
+    const SECRET_MASK = '（正文不对外提供：秘密正文只在注入路径按知情名单渲染）';
+    const SECRET_BODY_KEYS = ['secret', 'secretText', 'secretBody'];
+    /**
+     * 剥掉一个值顶层的秘密正文键。**只读、不改调用方的对象**（含正文时才浅拷贝）。
+     * @returns {{value:*, masked:number}} masked = 被剥掉**真内容**的键数（0 或 1）
+     */
+    function maskSecretBody(v) {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return { value: v, masked: 0 };
+        let out = null;
+        let masked = 0;
+        for (const k of SECRET_BODY_KEYS) {
+            if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+            const raw = v[k];
+            if (!out) out = Object.assign({}, v);
+            out[k] = SECRET_MASK;
+            if (raw !== null && raw !== undefined && String(raw).trim() !== '') masked = 1;
+        }
+        return { value: out || v, masked: masked };
+    }
+
     function buildContinuationPack(args) {
         const a = (args && typeof args === 'object') ? args : {};
-        const none = { ok: false, reason: '', pack: null, absentFaces: [], hidden: 0, hiddenBy: LINK.NONE };
+        const none = { ok: false, reason: '', shadowed: 0, pack: null, absentFaces: [], hidden: 0, hiddenBy: LINK.NONE };
         const np = normalizeProject(a.project);
         if (!np.ok) return Object.assign({}, none, { reason: np.reason });
         const proj = np.project;
         const lic = keyOf(a.license) || LICENSE.FACES;
+        /* [v3.308.0 · M-O8 第三刀] 本包剥掉几份秘密正文（**只报条数，不报内容**）。 */
+        let shadowed = 0;
         if (lic === LICENSE.NONE) return Object.assign({}, none, { reason: 'license-none' });
         const catalog = { projectId: proj.projectId, title: proj.title, volumes: proj.volumes };
         const vol = volumeAt(catalog, a.volumeRef === undefined || a.volumeRef === null ? 1 : a.volumeRef);
@@ -327,6 +401,16 @@
                     volumeId: vol.id,
                     sourceRef: sourceRef,
                 };
+                /* [v3.308.0 · M-O8 第三刀] 正文**不进包**（入口剥，替代修前的原样携带）。
+                 *   为什么不整条剔除：`keeper` / `knowers` / `progress` / `status` / `floor`
+                 *   是**边界与推进度** —— 过滤要按它判、进度要继续，随条目走才对；
+                 *   被挡的只有正文。于是「A 卷的秘密进 B 卷」时，读者知道有这条、知道边界，
+                 *   但拿不到一个字。 */
+                {
+                    const _m = maskSecretBody(rec.value);
+                    rec.value = _m.value;
+                    shadowed += _m.masked;
+                }
                 entries.push(rec);
                 if (rec.evidenceRef) evidence.push(rec.evidenceRef);
                 n++;
@@ -361,7 +445,8 @@
             /* 卷边界：包只含本卷，**不跨卷隐式带**（跨卷接续要么再建一个包，要么用户明说）。 */
             scopedToVolume: true,
         };
-        return { ok: true, reason: 'ok', pack: pack, absentFaces: absentFaces, hidden: hidden, hiddenBy: pack.hiddenBy };
+        return { ok: true, reason: 'ok', shadowed: shadowed, pack: pack, absentFaces: absentFaces,
+            hidden: hidden, hiddenBy: pack.hiddenBy };
     }
     /** 用户勾选：从包里挑出要被接续的条目。未给 select ⇒ 全选（**但同名候选仍由预览挡**）。 */
     function selectEntries(pack, select) {
@@ -450,7 +535,7 @@
      */
     function previewContinuation(pack, target, opts) {
         const p = (pack && typeof pack === 'object' && Array.isArray(pack.entries)) ? pack : null;
-        if (!p) return { ok: false, reason: 'no-pack', verdict: PREVIEW.BLOCKED, conflicts: [], nameOnly: [], missingFaces: [], blocked: [], warnings: [], willAdd: 0, willReplace: 0, willSkip: 0, undecided: 0, navigable: false, absentFaces: [], sourceState: { state: SOURCE.UNKNOWN, navigable: false } };
+        if (!p) return { ok: false, reason: 'no-pack', verdict: PREVIEW.BLOCKED, conflicts: [], nameOnly: [], missingFaces: [], blocked: [], warnings: [], willAdd: 0, willReplace: 0, willSkip: 0, undecided: 0, shadowed: 0, navigable: false, absentFaces: [], sourceState: { state: SOURCE.UNKNOWN, navigable: false } };
         const o = (opts && typeof opts === 'object') ? opts : {};
         const tgt = (target && typeof target === 'object') ? target : null;
         const modules = (tgt && tgt.modules && typeof tgt.modules === 'object') ? tgt.modules : null;
@@ -477,6 +562,7 @@
         const warnings = [];
         const blocked = [];
         let willAdd = 0, willReplace = 0, willSkip = 0, undecided = 0;
+        let shadowed = 0;   // [v3.308.0 · M-O8 第三刀] 本预览剥掉几份正文
 
         const state = resolveSourceState(p, o.liveSources);
         if (state.state === SOURCE.DELETED) {
@@ -501,12 +587,19 @@
             if (!map.has(kk)) { willAdd++; continue; }
             const cur = map.get(kk);
             if (sameValue(cur, e.value)) {
-                conflicts.push({ ownerKey: e.ownerKey, face: f, key: e.key, packValue: e.value, targetValue: cur, verdict: 'same-value', action: ACTION.SKIP });
+                /* [v3.308.0 · M-O8 第三刀] 冲突条的两侧都剥（同一入口策略）。 */
+                const _mSame = maskSecretBody(e.value);
+                const _mSameT = maskSecretBody(cur);
+                shadowed += _mSame.masked + _mSameT.masked;
+                conflicts.push({ ownerKey: e.ownerKey, face: f, key: e.key, packValue: _mSame.value, targetValue: _mSameT.value, verdict: 'same-value', action: ACTION.SKIP });
                 willSkip++; continue;
             }
             /* 两侧都有值且不同 ⇒ **判不开**（本模块不猜谁对）。默认 skip，
              *   只有用户显式 allowReplace 才出 replace —— 「用户选择后才导入」的落点。 */
-            conflicts.push({ ownerKey: e.ownerKey, face: f, key: e.key, packValue: e.value, targetValue: cur, verdict: 'undecided', action: allowReplace ? ACTION.REPLACE : ACTION.SKIP });
+            const _mUn = maskSecretBody(e.value);
+            const _mUnT = maskSecretBody(cur);
+            shadowed += _mUn.masked + _mUnT.masked;
+            conflicts.push({ ownerKey: e.ownerKey, face: f, key: e.key, packValue: _mUn.value, targetValue: _mUnT.value, verdict: 'undecided', action: allowReplace ? ACTION.REPLACE : ACTION.SKIP });
             if (allowReplace) willReplace++; else { undecided++; willSkip++; }
         }
 
@@ -523,6 +616,8 @@
             blocked: blocked, warnings: warnings,
             willAdd: willAdd, willReplace: willReplace, willSkip: willSkip, undecided: undecided,
             sourceState: state, navigable: state.navigable === true,
+            /* [v3.308.0 · M-O8 第三刀] 本预览剥掉几份正文（只报条数，不报内容）。 */
+            shadowed: shadowed,
             absentFaces: absentFaces,
         };
     }
@@ -558,10 +653,12 @@
             else if (c.verdict === 'same-value') { action = ACTION.SKIP; reason = 'same-value'; }
             else if (o.allowReplace === true) { action = ACTION.REPLACE; reason = 'user-chose-replace'; }
             else { action = ACTION.SKIP; reason = 'undecided-hold'; }
+            /* [v3.308.0 · M-O8 第三刀] 出口第二道闸（幂等）：包条目已在入口剥过，
+             *   这里只为「调用方自造包」那条路兜底（无变化即原对象）。 */
             proposals.push({
                 owner: e.ownerKey, face: f, key: e.key,
                 action: action, reason: reason,
-                value: e.value, from: e.from,
+                value: maskSecretBody(e.value).value, from: e.from,
                 sourceRef: p.sourceRef, evidenceRef: e.evidenceRef,
                 packId: p.packId, volumeId: p.volumeId,
             });
@@ -897,6 +994,8 @@
         NAV, SOURCE, LICENSE, FACES, LINK, ACTION, PREVIEW,
         keyOf, numOf, strOf, stableId, sameValue, safe,
         ownerKeyOf, entryKeyOf, fullEntryKey, filterByKeeper,
+        /* [v3.308.0 · M-O8 第三刀] 剥正文的助手与站位串**上公共面**（与 X6 同形）。 */
+        maskSecretBody, SECRET_MASK, SECRET_BODY_KEYS,
         normalizeProject, listVolumes, volumeAt,
         buildContinuationPack, selectEntries,
         resolveSourceState, previewContinuation,

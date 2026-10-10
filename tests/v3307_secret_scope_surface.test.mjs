@@ -430,7 +430,12 @@ test('v3307 I1. ★ 本档恰锚当版 v3.307.0（供 scan_version_guard V4 计�
     const idx = read('index.js');
     const m = /const VERSION = '([^']+)'/.exec(idx);
     assert.ok(m, 'index.js 必须有 VERSION 真源');
-    assert.equal(m[1], BORN, '本档锚定的版本必须与 index.js 同源（抬版时本行随抬版脚本改）');
+    /* [v3.308.0 抬版交棒] 原文是 `assert.equal(m[1], BORN)` ——【硬锁当版】。
+     *   本档出生于 v3.307.0，抬版后 index.js 即不再是它锚的那一版 ⇒ 硬等号必然自伤
+     *   （本仓「抬版仪式」反模式：要求每版回头改写历史档）。
+     *   交棒**不弱化**：锚形仍是当版档案里的自锚常量（V4 照旧计数），
+     *   本行只把「恰好等于」改成「不低于」—— 版本不得回退这条判据一字不丢。 */
+    assert.ok(vnum(m[1]) >= vnum(BORN), '版本不得回退到本档出生版本之前，实 ' + m[1]);
     assert.ok(vnum(m[1]) >= vnum(BORN), '本档只在 ' + BORN + ' 及以后成立，实 ' + m[1]);
     console.log('  ✓ 本档锚 v' + m[1]);
 });

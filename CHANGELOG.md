@@ -1,3 +1,102 @@
+## v3.308.0
+**M-O8 第三刀（第二期优化计划）跨支 / 跨卷的秘密边界：认「知情名单」，且正文不进对照 / 提案 / 接续包**
+- **它补的是哪一格**：第二期优化计划 M-O8 四条验收里的第②条「**A 分支秘密不出现在 B**」与
+  第④条「导出包按知识范围过滤」在**跨模块**方向上的那一半。X6 / X5 早在 v3.292.0 / v3.293.0
+  就各有一个 `filterByKeeper`，但它们把秘密条的 `keeper` 当成「**有权查看的人**」（名单内放行）；
+  而 `secret-ledger.js` 里 `keeper` 的意思是「**不该知道的人**」（写侧纪律：keeper 在场即拒推进 / 拒揭露）——
+  **同名异义**。于是跨模块对接时方向整个反了：修前真探针实测（`/tmp/probe_o8c.mjs`，rc=0，
+  条 = `{ keeper:['阿绣'], knowers:['老周'] }`）——
+  · `X6 filterByKeeper(viewer='阿绣') ⇒ visible=1` ← **守密人被放行**，正文随读数外带；
+  · `X6 filterByKeeper(viewer='老周') ⇒ hidden=1` ← **在册知情者被挡住**；X5 同款。
+  ★ 与第一刀（v3.306.0）同一条治理：`secret-ledger` 里那两份名单**本来就是**「keeper = 不该知道的人 /
+  knowers = 已经知道的人」（v3.306.0 逐字写下的口径），本刀要做的不是新发明，而是**让另外两处接上它**。
+- **交付物一：口径按「名单种类」分派**（`branch-semantics.js` 34,262 → 38,143 字符，
+  `BRANCH_SEMANTICS_VERSION` 2 → **3**；`volume-continuation.js` 47,246 → 51,130 字符，
+  `VOLUME_CONTINUATION_VERSION` 2 → **3**）：条目带非空 `knowers` ⇒ 走知情名单口径
+  （`!vName ⇒ hidden++ / knowerUndecided++`；在册 ⇒ `visible`；否则 `hidden++`），
+  **不做名字猜测**。分派依据是**名单的种类**（有没有 `knowers`），不是名字怎么写的 ——
+  猜名字就是第二份实现。返回面增 `knowerOnly` / `knowerUndecided` / `knowersMatched` 三档，
+  **旧字段一个不改**（`visible` / `hidden` / `hiddenBy` / `nameMatched` / `total` / `byName` 逐字仍在）。
+  · 为什么「判不了」要单独一档：`undecided` 与「名单外」在旧口径下都是 `hidden + 1` —— 压成一格就是
+    本仓老账点名的「三态压成两态」。
+- **交付物二：同名异人的风险计数（工作项 3）**：`knowers` 与 `keeper` 一样**只有名字、没有实体 id 通道**
+  （实测全仓 `knowerIds` 零命中），故按名比就有同名异人 / 伪装身份 / 同一角色不同宇宙的串扰可能。
+  `keeper` 侧早在 v3.292.0 就把它单列成 `nameMatched` 并写明「**看不见的匹配风险比看得见的排除更危险**」；
+  这一路是同一风险，本刀补 `knowersMatched`（按名命中的条数，无论随后放行还是剔除都计数）。
+- **交付物三：秘密正文不进「对照 / 提案 / 接续包 / 冲突条」四条外供路径**（C 组）：
+  修前实测（`/tmp/probe_o8f.mjs`，rc=0）`compareOwners` 的 `deltas[].b` 是**整条**秘密
+  （`Object.keys(d.b)` = `["id","secret","keeper","knowers","about","progress","status","floor"]`），
+  `JSON.stringify(cmp)` 里逐字含正文；`proposeImport` 的 `proposals[].value`、X5 的
+  `buildContinuationPack` 条目 `value` / `proposeHandoff` 的 `proposals[].value` /
+  `previewContinuation` 的 `conflicts[].packValue·targetValue` 同款。
+  修法是在「**进容器**」那一步剥（不是只堵出口）：`maskSecretBody(v)` 按**键名**机械剥顶层
+  `secret` / `secretText` / `secretBody`，替换为站位串
+  `SECRET_MASK = '（正文不对外提供：秘密正文只在注入路径按知情名单渲染）'`；
+  对照面入口剥（`makeDelta` 两侧**同时**剥）+ `proposeImport` 出口二道闸（幂等，兜住「调用方自造
+  comparison」那条路）；X5 侧包条目入口剥 + 冲突条两侧剥 + `proposeHandoff` 出口二道闸。
+  ★ **只剥一侧等于没剥**：`only-in-a` 走 a 侧、`only-in-b` 走 b 侧，冲突条也是两侧各一份。
+  ★ 剥除留读数：`shadowed`（**只报条数，不报内容**）—— 没有它，「真的没漏」与「那条路根本没走到」
+  在读数上同形。
+  ★ 与第二刀的站位串**同一句话、同一条理由**（`SECRET_MASK` 走公共面，两个模块共用一句，
+  下游不必认两句）：空串与「这条本来没有内容」同形；正文前缀是「只漏一点」，本仓历来不接受。
+  ★ 边界字段**不剥**：`keeper` / `knowers` / `progress` / `status` / `floor` 必须随条目走 ——
+  过滤要按它判、推进度要继续；只剥正文。深度递归的边界也在实现处显式声明（只剥被交换的那个值）
+  —— 如实声明边界比「覆盖到看不见的地方」可靠。
+- **手机桥不入本刀（审计判定为设计内路径，如实登记）**：`worldProg.export()` 的 `secretLedger` 子面
+  确实含正文（`export().secretLedger.items[0].secret` 为真值），桥快照 `worldProg: deep(rawWorld)`
+  直接搬运 —— 但下游 `ruby-phone/apps/plotline/plotline-data.js` 的 `secretList` **真消费** `item.secret`
+  供**生成侧**使用，且该文件注释明写「面板层只显示持有者与推进度，秘密内容本体只进生成侧」；
+  `open_face_registry.tsv` 与下游 `crossrepo-registry.js` 也**未**把 `secretLedger` 列成独立契约面。
+  动它会打断下游真消费 —— 那是「为对齐口径而破坏产品」。故本刀**不动桥面**，在此如实登记。
+- **召回面不入本刀（实测零命中）**：`recall-artifact.js` / `unified-recall.js` / `recall-echo.js` /
+  `recall-explain.js` / `echo-ledger.js` 五模块 `secret` 与 `secretLedger` **各命中 0 次** ——
+  召回面根本不触碰秘密账，无需补丁。
+- **修后验证（真读数）**：`tests/v3308_secret_scope_crossbranch.test.mjs` **29/29 全绿**，
+  其中五条是**真源码破坏负控制**（拆 `knowers` 分派 / 把「无 viewer」判成放行 / 拆风险计数 /
+  拆 X6 入口剥除（a·b 两行）/ 拆 X5 包入口剥除 / 拆 X5 冲突条剥除 ⇒ 各自必须翻红），
+  且配**正控制地基**（原版上同一套判据必须全绿 —— 否则破坏后的翻红证明不了任何事）。
+- **新档** `tests/v3308_secret_scope_crossbranch.test.mjs`（29 条）：A 结构（两模块版本 3 + 三档 + `shadowed`；
+  旧字段逐个仍在）+ B 口径三格（守密人看不见 / 在册知情者看得见 / 名单外看不见）+ C 「判不了」单独一档
+  + 计数守恒 + D 对照与提案不含正文（含自造 comparison 走出口二道闸）+ E 跨卷四条（包条目 / 提案 /
+  冲突条两侧 / `shadowed` 三级阶梯 0·1·2）+ F 同名异人两路计数 + 同一角色不同宇宙 + 代码位无 `knowerIds`
+  + G 三处同口径 + 公开条兜底面如实不同形 + H 边界四条 + I 五条负控制 + 正控制 + 工具两向自证
+  + J 判据纯度 + K 版本锚（自锚常量形 `vnum(BORN)`，供版本守卫 V4 计数）。
+- **本档抓修的自伤六处（全部留痕，都是本档自己写出来的）**：
+  ① **对照面判据的假绿第二形**：首版两侧没声明 `modules` ⇒ 五面被记「在场未知」⇒ `comparable:false`
+  ⇒ 面里**根本没有 delta** ⇒ 「没有正文」自然成立。缺陷发生在别处、判据对着一个不会出问题的面断言 ——
+  修法是显式声明五面在场，并加一条「这一条应出 delta」的前置断言（判据空转与判据通过必须不同形）。
+  ② **X5 的面条目形态与 X6 不同**：X5 的边界字段挂**面条目**上、正文挂 `value` 里；
+  首版把关卡挂在条目自己身上 ⇒ `rec.value` 是 `undefined` ⇒ 破坏入口剥除也读不出差别。
+  ③ **冲突条只有在「名字通道 + 显式 `allowNameLink`」下才现形**：按 id 的条**不与**按名字的条比对
+  （那正是 v3.293.0 的「隐式串联」防线）—— 判据必须走到那一格，否则破坏冲突条剥除无反应。
+  ④ **`buildContinuationPack` 的 `viewer` 只接受对象形态**：传字符串会被记成「没给我们看的人是谁」
+  ⇒ 条目被挡 ⇒ 判据在「没走到」那一面上空转。
+  ⑤ **X6 入口剥除的锚点须 a / b 两行一起拆**：只拆 a 侧时 `only-in-b` 的差异仍走 b 侧剥除 ⇒ 判据不翻红，
+  负控制变成假绿。
+  ⑥ **负控制判据体必须整体包 `try/catch`**：破坏副本可能让某个分支返回**形态不同**的值，
+  判据自己抛 `TypeError` 与「判据翻红」在输出上同形（本仓点名的「判据自己炸了遮住结论」）。
+- **登记面连带**：`catalog_reference_consumers.tsv`（本档单行，含六处自伤留痕与边界声明）+
+  `tests/v3247` 的接收方台账（本档真静态 `import _break_kit.mjs`）+
+  `open_face_registry.tsv` 的 `memoryToolsEnvelope` 行随版（`v3.307.0 → v3.308.0`：本仓口径
+  「`producer_version` 与当前版本同步」，由 `tests/v3305` 的 D2 断言钉住；★ 本版**不**削弱该判据，
+  而是让登记面跟上 —— 为让发布通过而放宽门禁是本仓明令的反模式）+
+  README / PLAN 人读面读数（测试文件 288 → 289）+ `host_beast_baseline` 真探针重绑 +
+  `state-report.json` 重生成。**本版不新增模块**（`extra_js` 仍 88）。
+- **抬版连带一处历史档自伤（已修，留痕）**：`tests/v3307_secret_scope_surface.test.mjs` 的 I1
+  首版写的是 `assert.equal(m[1], BORN)` —— **硬锁当版**。抬版后 `index.js` 不再是它锚的那一版，
+  该行必然自伤（本仓点名的「抬版仪式」反模式：要求每版回头改写历史档）。
+  改为**下限锚** `assert.ok(vnum(m[1]) >= vnum(BORN))` —— 锚形仍是当版档案里的自锚常量（V4 照旧计数），
+  「版本不得回退」这条判据一字不丢。
+- **边界 · 诚实五条**：① 本刀收的是「**跨支 / 跨卷的秘密边界**」这一格（M-O8 第②条）；注入侧隔离
+  （第一刀 v3.306.0）与诊断 / 检索 / 导出三面（第二刀 v3.307.0）**未被削弱**，三处口径由 G1 判据同锁。
+  ② 正文的**可见性判定与渲染**仍只有一处真源（`secret-ledger.js` 的 `knowledgeOf` / `filterForViewer` /
+  `renderForViewer`，第一刀），本刀不复制第二份实现（G1 钉住）。③ 手机桥与召回面**未被本刀改动**，
+  原因逐条写在上面（设计内路径 / 实测零命中），不是漏看。④ 「模型是否照 schema 填 `secrets`」属
+  **真模型面**：本仓环境无 headless 浏览器与真模型 ⇒ **如实登记未执行**，不在本版声称范围。
+  ⑤ 本版**全量未跑**（按用户纪律「做完计划全部内容前别跑全量」）：只跑单门 / 单套件与直接相关审计门禁，
+  README / PLAN 如实标「当前版本 v3.308.0 **全量待验**」。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+
 ## v3.307.0
 **M-O8 第二刀（第二期优化计划）秘密正文的三条外供路径收口 —— 诊断面只报「存在与能不能说」，正文一律不外带**
 - **它补的是哪一格**：第二期优化计划 M-O8 四条验收里的第③条「诊断可显示『存在但不可用』，**不得直接泄露正文**」

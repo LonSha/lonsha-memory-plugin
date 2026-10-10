@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.307.0",
+ "measured_at": "v3.308.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1371,6 +1371,38 @@
     "member_count": 0,
     "top5_pct": -0.1
    }
+  },
+  "v3.308.0": {
+   "reason": "v3.308.0 M-O8 第三刀：跨支/跨卷的秘密边界收口（branch-semantics 与 volume-continuation 的 filterByKeeper 改认知情名单 + 返回面三档 + 正文不进对照/提案/接续包/冲突条 + shadowed 读数），全为活跃功能增长、非死代码回流",
+   "readings": {
+    "total_lines": 15955,
+    "member_count": 586,
+    "duplicate_member_names": 25,
+    "top5_lines": 4610,
+    "top5_pct": 28.9,
+    "top40_lines": 10044,
+    "top40_pct": 63.0,
+    "prefix_rule_coverage_lines": 5005,
+    "prefix_rule_coverage_pct": 31.4,
+    "unclassified_lines": 9979,
+    "seam_distinct_modules": 56,
+    "seam_reference_sites": 74,
+    "seam_call_shape_sites": 78,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 22,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.307.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1405,7 +1437,7 @@
    "members": 545,
    "lines": 9979,
    "lines_pct": 62.5,
-   "outside_refs": 5675,
+   "outside_refs": 5679,
    "internal_refs": 1607,
    "outside_ref_share_pct": 77.9
   },

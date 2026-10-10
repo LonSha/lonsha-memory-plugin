@@ -29,6 +29,9 @@
 //      absent 的面一律 `comparable:false` 且**不参与冲突判定**（不可比 ≠ 相等）。
 //   ③ 秘密边界：`filterByKeeper(entries, viewer)` —— 带 keeper 且 viewer 不在 keeper 名单内的
 //      条目一律剔除，且**剔除计数可见**（不静默少条）。同名异人按实体 id，不按名字。
+//      [v3.308.0 · M-O8 第三刀] 认的名单是**知情名单**（knowers）：`keeper` 在本仓有
+//      两个相反语义（secret-ledger 里是「不该知道的人」），同名异义按名单种类分派；
+//      且正文**不进** deltas / proposals（入口剥 + 出口二道闸，剥了几份进 shadowed 读数）。
 //   ④ 冲突不靠「较新」：`classifyConflict` 出四档 —— `same-value` / `newer-wins`（**仅当
 //      另一侧无有效回源**）/ `stale-source`（较新的一方来自已回档楼层）/ `undecided`（判不开）。
 //      「较新」只是**输入之一**，绝不是默认结论。
@@ -49,7 +52,7 @@
 // 纪律：纯函数、零依赖、IIFE + CJS 双导出；三态归因 ok / absent / threw；绝不外抛。
 (function (root) {
     'use strict';
-    const BRANCH_SEMANTICS_VERSION = 1;
+    const BRANCH_SEMANTICS_VERSION = 3;   // [v3.308.0 · M-O8 第三刀] 认知情名单 + 正文不进对照/提案（shadowed 读数）
 
     // 五面（X6 原话点名的五类：事实版本 / 角色状态 / 未了事项 / 金钱 / 剧情时间）。
     const FACES = Object.freeze(['factVersion', 'characterState', 'unfinished', 'money', 'storyTime']);
@@ -185,11 +188,43 @@
         /* [v3.292.0] 按名字命中的条数（无论放行还是剔除）：这条路本身有同名异人风险，
          *   必须**数得出来** —— 看不见的匹配风险比看得见的排除更危险。 */
         let nameMatched = 0;
+        /* [v3.308.0 · M-O8 第三刀] 按**知情名单**判的条数，以及其中「无从判起」的条数。
+         *   为什么另起两档而不是并进 nameMatched：这一路问的是**反过来的那一问**
+         *   （「这个人知不知道」而不是「他在不在 keeper 名单里」），处置完全不同，
+         *   并成一格就是本仓老账点名的「三态压成两态」。 */
+        let knowerOnly = 0;
+        let knowerUndecided = 0;
+        /* [v3.308.0 · M-O8 第三刀] 知情名单这一路的**同名异人风险计数**。
+         *   为什么必须有：`knowers` 与 `keeper` 一样只有名字、没有实体 id 通道
+         *   （实测全仓 `knowerIds` 零命中），故按名比就有同名异人串扰的可能 ——
+         *   keeper 侧早在 v3.292.0 就把它单列成 nameMatched 并写明
+         *   「看不见的匹配风险比看得见的排除更危险」；这一路是同一风险，不能没有读数。 */
+        let knowersMatched = 0;
         for (const e of list) {
             if (!e || typeof e !== 'object') { visible.push(e); continue; }
             const ids = Array.isArray(e.keeperIds) ? e.keeperIds.map(keyOf).filter(Boolean) : [];
             const names = Array.isArray(e.keeper) ? e.keeper.map(keyOf).filter(Boolean)
                 : (e.keeper === null || e.keeper === undefined ? [] : [keyOf(e.keeper)]);
+            /* [v3.308.0 · M-O8 第三刀] 秘密条先按**知情名单**判，再谈 keeper。
+             *   为什么必须显式分派（本版治的是这一格）：`keeper` 这个名字在本仓有**两个相反的语义** ——
+             *     secret-ledger：keeper =「不该知道的人」（写侧：keeper 在场即拒推进/拒揭露）；
+             *     本模块：keeper =「有权查看的人」（名单内放行）。
+             *   同名异义是跨模块对接最危险的一类。修前实测：守密人被放行、在册知情者被挡住，
+             *   方向整个反 —— 而验收②要的正是「A 分支的秘密不出现在 B」。
+             *   分派依据是**名单的种类**（有没有 knowers），不是名字怎么写的（不猜）。
+             *   与 secret-ledger.filterForViewer 同口径；v3308 用例 P1 锁三处同口径。 */
+            const knowers = Array.isArray(e.knowers) ? e.knowers.map(keyOf).filter(Boolean) : [];
+            if (knowers.length) {
+                knowerOnly++;
+                /* 无 viewer ⇒ 只见「未给名单」的条（判不了走公开面兜底）。
+                 *   与旧口径「不知道看的人是谁 ≠ 都能看」逐字同款，只是对象换成 knowers。 */
+                if (!vName) { hidden++; knowerUndecided++; continue; }
+                /* 按名命中即计数：无论随后放行还是剔除，这一路的风险都要数得出来。 */
+                for (const n of knowers) { if (n === vName) { knowersMatched++; break; } }
+                if (knowers.indexOf(vName) >= 0) { visible.push(e); continue; }
+                hidden++;
+                continue;
+            }
             const isPublic = ids.length === 0 && names.length === 0;
             if (isPublic) { visible.push(e); continue; }
             if (ids.length) {
@@ -208,6 +243,10 @@
             hidden: hidden,
             hiddenBy: byName ? 'name-only-kept :' + byName : '',
             nameMatched: nameMatched,
+            /* [v3.308.0 · M-O8 第三刀] 知情名单两档（旧字段一个不改，只增）。 */
+            knowerOnly: knowerOnly,
+            knowerUndecided: knowerUndecided,
+            knowersMatched: knowersMatched,
             total: list.length,
         };
     }
@@ -307,14 +346,68 @@
         if (typeof entry.name === 'string' && entry.name.trim()) return entry.name.trim();
         return '#i' + idx;
     }
+    /* ── [v3.308.0 · M-O8 第三刀] C 组：秘密**正文**不得随「对照 / 提案 / 接续包」外带 ────
+     * 【修前实测（探针 /tmp/probe_o8f.mjs，rc=0）】
+     *   · `compareOwners` 的 `deltas[].b` 是**整条**秘密（含 `secret` 正文）：实测
+     *     `Object.keys(d.b)` = ["id","secret","keeper","knowers","about","progress","status","floor"]，
+     *     且 `JSON.stringify(cmp)` 里逐字含正文；`proposeImport` 的 `proposals[].value` 同款。
+     *   · 这一格此前是**假绿**：用例两侧没声明 `modules` => 五面被记「在场未知」=>
+     *     `comparable:false` => 面不出提案 => 「提案里没有正文」自然成立 —— 判据根本没碰到那一格。
+     *     （本仓点名的假绿第二形：缺陷发生在别处，判据对着一个不会出问题的面断言。）
+     * 【为什么在**入口**剥，而不是只在提案出口剥】
+     *   只堵出口的话，`compareOwners` 的读数、宿主缓存的 `branchComparison`、
+     *   以及**接续包本身**都还带着正文 —— 那是「只修了看得见的那条路」。
+     *   本刀在「进容器」的那一步剥：正文根本进不了 `deltas` / `entries` / `proposals`。
+     * 【判据是「值里有没有这个键」，不是「值像不像一条秘密」】
+     *   不去猜哪个面/哪个字段是秘密（猜就是第二份实现）：秘密的可见性只有一处真源
+     *   （`secret-ledger.js` 的 `knowledgeOf` / `filterForViewer`，v3.306.0 第一刀）；
+     *   而「与知识范围无关、本就不该外带正文的容器」按**键名**机械剥。
+     * 【为什么是**替换站位串**而不是删键】
+     *   与 v3.307.0 第二刀 `SECRET_MASK` 逐字同一条理由：删键与「这条本来没有内容」同形，
+     *   空串同形，前缀「只漏一点」不被接受。站位串是**明确的存在性声明**：
+     *   读者知道「有内容，且这里不给」，且与真读数不可能撞。
+     * 【边界字段不剥】
+     *   `keeper` / `knowers` / `progress` / `status` / `floor` 必须随条目走 ——
+     *   过滤要按它判、推进度要继续。被挡的只有正文。
+     * 【不做深度递归】
+     *   只剥「被交换 / 被携带的那个值」的**顶层**正文键。深度递归会走进任意载荷
+     *   （把别人合法字段一起改掉），而本刀要治的三条路恰好都是顶层形态 ——
+     *   如实声明边界比「覆盖到看不见的地方」可靠。
+     */
+    const SECRET_MASK = '（正文不对外提供：秘密正文只在注入路径按知情名单渲染）';
+    const SECRET_BODY_KEYS = ['secret', 'secretText', 'secretBody'];
+    /**
+     * 剥掉一个值顶层的秘密正文键。**只读、不改调用方的对象**（含正文时才浅拷贝）。
+     * @returns {{value:*, masked:number}} masked = 被剥掉**真内容**的键数（0 或 1）
+     */
+    function maskSecretBody(v) {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return { value: v, masked: 0 };
+        let out = null;
+        let masked = 0;
+        for (const k of SECRET_BODY_KEYS) {
+            if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+            const raw = v[k];
+            if (!out) out = Object.assign({}, v);
+            out[k] = SECRET_MASK;
+            if (raw !== null && raw !== undefined && String(raw).trim() !== '') masked = 1;
+        }
+        return { value: out || v, masked: masked };
+    }
+
     /** 单据一条差异（含来源楼层与有效范围）。 */
     function makeDelta(kind, key, aVal, bVal, aEntry, bEntry) {
         const oa = (aEntry && typeof aEntry === 'object') ? aEntry : {};
         const ob = (bEntry && typeof bEntry === 'object') ? bEntry : {};
+        /* [v3.308.0 · M-O8 第三刀] 两侧的值**同时**剥（只剥一侧 = 泄漏仍然发生：
+         *   only-in-a 走 a 侧、only-in-b 走 b 侧，剥一边堵不住另一边）。
+         *   去重是必须的：把一份剥过的值与它自身对照时，both-declared 不得两次计数。 */
+        const ma = maskSecretBody(aVal);
+        const mb = maskSecretBody(bVal);
         return {
             kind: kind,               // only-in-a / only-in-b / changed
             key: key,
-            a: aVal, b: bVal,
+            a: ma.value, b: mb.value,
+            masked: ma.masked + mb.masked,   // 本条差异剥掉了几份正文（只报条数，不报内容）
             from: {
                 a: floorOf(oa.floor !== undefined ? oa.floor : oa.sourceFloor),
                 b: floorOf(ob.floor !== undefined ? ob.floor : ob.sourceFloor),
@@ -385,6 +478,10 @@
         for (const id of mapB.keys()) if (!mapA.has(id)) ids.push(id);
         ids.sort();
         const owners = [];
+        /* [v3.308.0 · M-O8 第三刀] 「剥掉了几份秘密正文」的读数。
+         *   为什么必须有：一条路径「没有泄漏」有两种可能 —— 真的没漏，
+         *   或者那条路根本没走到。没有这个计数，两者在读数上同形。 */
+        let shadowed = 0;
         const incomparableFaces = [];
         for (const id of ids) {
             const ra = mapA.get(id) || {};
@@ -420,6 +517,8 @@
                     deltaCount: deltas.length,
                     truncated: truncated,
                     hidden: hid,
+                    /* [v3.308.0 · M-O8 第三刀] 本面剥掉几份正文（下面按条累加）。 */
+                    shadowed: 0,
                     // 面本身在这一侧有没有容器（与「模块在不在」是两件事）。
                     containerPresent: { a: fa.present, b: fb.present },
                 };
@@ -429,7 +528,12 @@
                         why: absent ? 'module-absent' : 'module-presence-unknown',
                     });
                 }
-                for (const d of listed) rec.deltas.push(Object.assign({ face: face }, d));
+                for (const d of listed) {
+                    /* 累计面级 / owner 级 / 顶层三级读数（读数在哪一级都能读到）。 */
+                    shadowed += Number(d.masked) || 0;
+                    if (rec.faces[face]) rec.faces[face].shadowed += Number(d.masked) || 0;
+                    rec.deltas.push(Object.assign({ face: face }, d));
+                }
             }
             owners.push(rec);
         }
@@ -443,6 +547,9 @@
             else if (p.state === PRESENCE.UNKNOWN || q.state === PRESENCE.UNKNOWN) unknownModules.push(f);
         }
         return {
+            /* [v3.308.0 · M-O8 第三刀] 本面剥掉几份正文（**只报条数，不报内容**）。
+             *   与 ok / readOnly 相邻，是为了让「剥了没有」与「跑没跑通」在读数里可对。 */
+            shadowed: shadowed,
             ok: true, reason: 'ok', readOnly: true,
             owners: owners,
             ownerCount: owners.length,
@@ -502,7 +609,11 @@
                         owner: rec.id, face: face, key: d.key,
                         action: action, reason: reason, conflict: verdict,
                         from: d.from, scope: d.scope,
-                        value: (d.kind === 'only-in-b' ? d.b : d.a),
+                        /* [v3.308.0 · M-O8 第三刀] 出口第二道闸（幂等）：
+                         *   `deltas` 已在 makeDelta 入口剥过，合规调用方这里剥不到东西；
+                         *   但 `proposeImport` 是**导出的公共面**，调用方可以自造 comparison ——
+                         *   有了这道闸，绕过入口的那条路也带不出正文（无变化即原对象）。 */
+                        value: maskSecretBody(d.kind === 'only-in-b' ? d.b : d.a).value,
                     });
                 }
             }
@@ -670,6 +781,9 @@
         FACES, PRESENCE, CONFLICT, PRECHECK, READBACK, ACTION,
         floorOf, numOf, keyOf, sameValue, stable, safe,
         presenceOf, filterByKeeper, classifyConflict,
+        /* [v3.308.0 · M-O8 第三刀] 剥正文的助手与站位串**上公共面**：
+         *   宿主与下游要能自己判「这个值是正文还是站位串」，不能靠猜字符串。 */
+        maskSecretBody, SECRET_MASK, SECRET_BODY_KEYS,
         ownersOf, faceOf, entryKeyOf, compareListFace, compareMapFace,
         compareOwners, proposeImport, precheckImport, confirmImport, line,
     });
