@@ -1,3 +1,66 @@
+## v3.305.0
+**M-X9（第二期拓展计划）统一记忆工具 API 与手机可消费投影 —— 把五条既有能力收进一个信封，让缺席不再与空数据同形**
+- **它补的是哪一格**：M-X9 点名五个 API（`queryEvidence` / `getContinuityPack` / `previewFactAdmission` /
+  `explainRecall` / `getKnowledgeBoundary`）。修前全仓实测（`grep -rn` 五名，排除 `.git`/`node_modules`）：
+  **只有 `explainRecall` 有实现**（`recall-explain.js` + 宿主出口），其余四个名**零命中** ——
+  而它们各自的能力**早在盘上**（`evidence-query.js` 的查询口、`volume-continuation.js` 的包构造、
+  `native-fact-admission.js` 的准入裁决、`knowledge-trace.js` 的边界），只是**没有任何一处
+  把「下游可以按名调用的统一面」产出来**。后果是下游只能按模块名逐个结对：每加一条上游能力，
+  下游就多一处硬编码配对；上游一改名，下游**静默失效** —— 那是本仓最贵那笔老账的复发条件。
+- **新模块** `memory-tools-api.js`（新增进 `extra_js` 末位，87 → 88）：本模块**不实现任何业务**，
+  只做三件事 —— ① 按名找到能力（**且缺席必须可表达**）；② 把该能力自己的读数**原样引用**进统一信封
+  （不复制、不改写、不缓存）；③ 把「缺席 / 空数据 / 判不了 / 范围收窄」压成**互不同形**的五态。
+- **五态词表是契约，不是装饰**：`ok`（有读数且范围完整）/ `empty`（能力在场、真跑过、明确没有）/
+  `unknown`（**判不了**，不得当 empty 用）/ `unavailable`（能力**缺席**）/ `partial`（有读数但范围被收窄）。
+  每个出口的状态映射逐条有据（模块内注释写死「为什么这一态不是那一态」）。
+- **四个设计决策，逐条对齐 M-X9 验收**：
+  · **参数注入而非 require**：能力经 `sources` 由宿主注入 —— 理由三条写在模块头
+    （跨仓纪律 / 缺席必须是可表达的 / 一份装配点）。硬 require 一旦失败，
+    「装不上」与「本来就没数据」会**同形**（本仓最忌的形态）。
+  · **信封只给文件名 + 符号名**，`source.path` 恒为字面量 `not-given`：机器可核，不靠人记得别写路径。
+  · **不开写口**：五个出口全只读；导出名里零 mutating 前缀（判据真源码扫描 + 反向断言），
+    信封自带 `writesNothing: true` 声明。
+  · **同一份输出可用于诊断 / 手机 UI / 测试夹具**：信封是纯 JSON 面（无函数、无循环引用），
+    `selfCheck()` 四条当场自证（幂等 / 只读面 / 五态齐 / 可序列化）。
+- **本版抓修的三处自伤（全部留痕，都是「同一件事两份口径」）**：
+  ① **决策值域自建第二份**：`previewFactAdmission` 首版按四个名写死映射表，
+  实测上游 `decision` 的**真值域是事实状态词**（`admitted` / `observed` / `predicted` / `draft` /
+  `quoted` / `rejected` / `retracted`）⇒ `observed/predicted/draft/quoted` 四条真读数**全落兜底 unknown**，
+  静默读成「判不了」。改为照抄上游值域，未登记值才落 unknown 并把原值带进 `reason`。
+  ② **reason 与 state 自相矛盾**：`getContinuityPack` 成功分支自编 `reason='faces-absent'`，
+  而 `reason` 本是上游词表（实测成功时字面量是 `'ok'`）⇒ 出现「一处说没问题、一处说收窄了」。
+  改为 reason 保持上游原值、缺面成因放 `scope.absentBy`。
+  ③ **两件不同的事压成一态**：`explainRecall` 首版把 `blockingMissing`（判不了）与 `narrowed`（范围有限）
+  压成同一态，且 partial 判据取错 —— 真判据是 **`verdict.unproven`**。改后：`blockingMissing` 非空 ⇒
+  `unknown(blocked)`；`verdict.unproven` ⇒ `partial(unproven)`；`degraded` 仅作兜底。
+- **宿主接线**（`index.js` **+153 行**，1174270 → 1185518 字节）：**一个取库口** `_memoryToolsLib()` +
+  **唯一装配点** `memoryToolsSources()`（五个能力各取一次，键名与内核 `CAPABILITIES[].name` 逐字一致）+
+  五个外供出口 + `memoryToolsDescribe()` + `memoryToolsLine()`（诊断一行）。
+  宿主只做三件事：**装配 / 转发 / 降级** —— 凡「哪一态算 ok / 缺面怎么归类 / 值域怎么认」的口径
+  全在内核，宿主再写一遍就是**第二份真源**。
+  **本面刻意不进快照**：快照是「每轮生成时取一次」的状态投影，而工具面是「按需调用」的查询口
+  （查一次要扫九账全量）—— 塞进每轮快照等于每轮都付一遍扫描代价，且会把「这一轮没查」
+  伪装成「查了没结果」（两者在快照里同形）。下游要面自述走 `memoryToolsDescribe()`。
+- **跨仓登记**：`tests/audit/open_face_registry.tsv` 新增一行 `memoryToolsEnvelope`（第 6 面），
+  九列逐字含「缺席 / 旧版 / 不产出 / 空数据」四态与「unavailable｜empty｜unknown」分形读数；
+  由 `scan_open_faces.mjs` 的 T1~T6 把守（符号真在场 / 模块在分发面 / consumer 语法 / 四态分别呈现 /
+  缺席与空分形）。**consumer 声明为 `none@0`** —— 下游桥尚未接入（属下一轮跨仓任务），
+  本版只交付上游侧的面与契约，**不假装下游已在消费**。
+- **新档** `tests/v3305_memory_tools_api.test.mjs`（13 条）：模块登记面 / 导出面 / 只读面 /
+  三态在场判定 / 五出口逐条真跑（注入**真上游模块**做被包装面，每条同时断 `state` 与 `reason`）/
+  信封形状恒定（14 键 + `path` 字面量）/ `data` 原样引用（同一性）/ 幂等 + 可序列化 /
+  宿主接线逐符号在场 / 外供登记表不漂移 / **三条真源码破坏负控制**（拆掉一态 / 摘掉缺席分流 /
+  把 `data` 换深拷贝，各自必须让对应判据转红）/ 判据纯度 + fail-closed。
+- **登记面连带**：`v3247` 的接收方台账（本档真 import `_break_kit.mjs`，按 B1 双向差集纪律登记）
+  + `v3209` 数量锁两处（87 → 88）+ `catalog_reference_consumers.tsv`（本档单行）
+  + README / PLAN 人读面读数。
+- **边界 · 诚实三条**：① 本版交付的是**上游侧的面**，下游 ruby-phone 的接入点**未做**
+  （consumer 列如实写 `none@0`，不填一个下游还不存在的读出口名）；
+  ② 本版**不声称**五态映射已穷尽上游所有值域 —— 未登记的值一律落 `unknown` 并把原值带进 `reason`，
+  由后续版本按真读数补词（**不猜**）；
+  ③ 真 SillyTavern 里的装载顺序与真浏览器行为**仍未证**（那归 M-O2 的浏览器门与真宿主台账）。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+
 ## v3.304.0
 **抬版前真缺陷清扫 —— 五处分类处置（产品 1 / 判据面 2 / 登记面 2）**
 - **它补的是哪一格**：本轮进入第二期双项目并行推进时，先对本案跑了一次**全量**

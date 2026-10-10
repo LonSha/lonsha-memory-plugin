@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.304.0",
+ "measured_at": "v3.305.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1275,6 +1275,38 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.305.0": {
+   "reason": "v3.305.0 M-X9 新增宿主接线（+153 行 / 一个取库口 + 唯一装配点 + 五出口 + 自述 + 诊断行）",
+   "readings": {
+    "total_lines": 15849,
+    "member_count": 585,
+    "duplicate_member_names": 25,
+    "top5_lines": 4562,
+    "top5_pct": 28.8,
+    "top40_lines": 9963,
+    "top40_pct": 62.9,
+    "prefix_rule_coverage_lines": 4924,
+    "prefix_rule_coverage_pct": 31.1,
+    "unclassified_lines": 9954,
+    "seam_distinct_modules": 55,
+    "seam_reference_sites": 72,
+    "seam_call_shape_sites": 76,
+    "members_over_80_lines": 33,
+    "low_coupling_members": 23,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.304.0",
+   "delta": {
+    "total_lines": 153,
+    "member_count": 9,
+    "top5_pct": -0.3
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1286,19 +1318,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 15696,
-  "member_count": 576,
+  "total_lines": 15849,
+  "member_count": 585,
   "duplicate_member_names": 25,
   "top5_lines": 4562,
-  "top5_pct": 29.1,
-  "top40_lines": 9951,
-  "top40_pct": 63.4,
+  "top5_pct": 28.8,
+  "top40_lines": 9963,
+  "top40_pct": 62.9,
   "prefix_rule_coverage_lines": 4924,
-  "prefix_rule_coverage_pct": 31.4,
-  "unclassified_lines": 9801,
-  "seam_distinct_modules": 54,
-  "seam_reference_sites": 66,
-  "seam_call_shape_sites": 70,
+  "prefix_rule_coverage_pct": 31.1,
+  "unclassified_lines": 9954,
+  "seam_distinct_modules": 55,
+  "seam_reference_sites": 72,
+  "seam_call_shape_sites": 76,
   "members_over_80_lines": 33,
   "low_coupling_members": 23,
   "high_coupling_members": 7
@@ -1306,18 +1338,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 535,
-   "lines": 9801,
-   "lines_pct": 62.4,
-   "outside_refs": 5604,
-   "internal_refs": 1576,
-   "outside_ref_share_pct": 78.1
+   "members": 544,
+   "lines": 9954,
+   "lines_pct": 62.8,
+   "outside_refs": 5659,
+   "internal_refs": 1602,
+   "outside_ref_share_pct": 77.9
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1787,
-   "lines_pct": 11.4,
+   "lines_pct": 11.3,
    "outside_refs": 5,
    "internal_refs": 72,
    "outside_ref_share_pct": 6.5
@@ -1327,15 +1359,15 @@
    "members": 10,
    "lines": 1371,
    "lines_pct": 8.7,
-   "outside_refs": 317,
-   "internal_refs": 483,
-   "outside_ref_share_pct": 39.6
+   "outside_refs": 323,
+   "internal_refs": 479,
+   "outside_ref_share_pct": 40.3
   },
   {
    "domain": "召回与注入",
    "members": 13,
    "lines": 1015,
-   "lines_pct": 6.5,
+   "lines_pct": 6.4,
    "outside_refs": 5,
    "internal_refs": 67,
    "outside_ref_share_pct": 6.9
@@ -1409,7 +1441,7 @@
   {
    "name": "selfCheck",
    "lines": 1007,
-   "outside_refs": 13
+   "outside_refs": 19
   },
   {
    "name": "recallMemory",
@@ -1438,7 +1470,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 318,
+   "lines": 330,
    "outside_refs": 0
   },
   {
@@ -1499,7 +1531,7 @@
   {
    "name": "explainRecallHost",
    "lines": 124,
-   "outside_refs": 0
+   "outside_refs": 1
   },
   {
    "name": "_absorbFactVersions",
@@ -1539,7 +1571,7 @@
   {
    "name": "summary",
    "lines": 100,
-   "outside_refs": 218
+   "outside_refs": 222
   },
   {
    "name": "_repairPool",
@@ -1617,7 +1649,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 318,
+    "lines": 330,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -1672,7 +1704,7 @@
    {
     "name": "explainRecallHost",
     "lines": 124,
-    "outside_refs": 0,
+    "outside_refs": 1,
     "is_host_lifecycle": false
    }
   ],
@@ -1686,7 +1718,7 @@
    {
     "name": "selfCheck",
     "lines": 1007,
-    "outside_refs": 13,
+    "outside_refs": 19,
     "is_host_lifecycle": false
    },
    {
@@ -1716,7 +1748,7 @@
    {
     "name": "summary",
     "lines": 100,
-    "outside_refs": 218,
+    "outside_refs": 222,
     "is_host_lifecycle": false
    }
   ]

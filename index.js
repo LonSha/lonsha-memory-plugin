@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.304.0';
+    const VERSION = '3.305.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -14023,6 +14023,147 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 return bits.join(' · ') + ' · 保存查询 ' + saved + ' 条未落盘';
             } catch (e) { errLog(e, 'plugin.evidenceQueryLine'); return '—（诊断异常）'; }
         }
+        /* ────────────────────────────────────────────────────────────────
+         * [v3.305.0 · X9] 统一记忆工具 API（宿主接线，五出口 + 自述 + 一行诊断）
+         *
+         * 【为什么宿主只做三件事、绝不自己算】
+         *   ① **装配**：五个被包装能力经 `sources` 注入（`memoryToolsSources()` 是唯一装配点）；
+         *   ② **转发**：五个出口把宿主的实参原样交给内核，**不改写返回值**；
+         *   ③ **降级**：内核整个不可达时给**同键形状**的回执（不是投影真源，只保证下游读不到 undefined）。
+         *   凡涉及「哪一态算 ok / 缺面怎么归类 / 值域怎么认」——口径全在内核，
+         *   宿主再写一遍就是第二份真源（本仓治理过多轮的形态）。
+         *
+         * 【为什么要注入而不是让内核 require】
+         *   见模块头三条理由（跨仓纪律 / 缺席必须是可表达的 / 一份装配点）。
+         *   宿主这里**就地取库**（每能力只在此函数取一次）：与 `_volumeContinuationLine` 同规格；
+         *   五个都集中在这一个函数体内，天然唯一，不构成漂移面。
+         *
+         * 【来源可见性】
+         *   本面不进快照：快照是**每轮生成时**取一次的状态投影，而工具面是「按需调用」的查询口
+         *   （查一次要扫九账全量）。把按需面塞进每轮快照 = 每轮都付一遍扫描代价，
+         *   且会把「这一轮没查」伪装成「查了没结果」—— 两者在快照里同形。
+         *   下游要面自述时走 `memoryToolsDescribe()`（自带五格在场读数）。
+         * ──────────────────────────────────────────────────────────────── */
+        /**
+         * [v3.305.0 · X9] 五个能力的**唯一装配点**。
+         *   键名与 `memory-tools-api.js` 的 `CAPABILITIES[].name` **逐字一致**（内核按名取件）；
+         *   改名会静默变成「能力缺席」——故判据套件按名对账（缺一即红），不靠人记。
+         *   取不到即 null（**不是** `{}`）：内核的 `probeOne` 只认对象，null 会被如实报成
+         *   `module-absent`，而 `{}` 也会 —— 两者同态，故不在这里编空壳。
+         */
+        memoryToolsSources() {
+            return {
+                queryEvidence: _moduleLib(() => window.LonShaEvidenceQuery, 'evidence-query.js'),
+                getContinuityPack: _moduleLib(() => window.LonShaVolumeContinuation, 'volume-continuation.js'),
+                previewFactAdmission: _moduleLib(() => window.LonShaNativeFactAdmission, 'native-fact-admission.js'),
+                explainRecall: _moduleLib(() => window.LonShaRecallExplain, 'recall-explain.js'),
+                getKnowledgeBoundary: _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js')
+            };
+        }
+        /**
+         * [v3.305.0 · X9] 内核不可达时的降级信封（形状与内核 `envelope()` 同键）。
+         *   为什么宿主留一份形状：模块整个没挂时内核根本不可达（与 `_evidenceQueryEmpty`
+         *   的既有降级同规格）。本函数**不是**投影真源 —— 它只保证「取不到」时下游按同一键面读。
+         *   `apiVersion` / `toolVersion` 给 **0 并带 reason**：0 表示「取不到」，不是「版本 0」
+         *   （本仓取数门口径：不给假值；形状要求数字位在场，故 0 + reason 归因）。
+         */
+        _memoryToolsAbsent(api, reason) {
+            const known = ['queryEvidence', 'getContinuityPack', 'previewFactAdmission', 'explainRecall', 'getKnowledgeBoundary'];
+            const name = (known.indexOf(api) >= 0) ? api : String(api == null ? '' : api);
+            return {
+                kind: 'memory-tools-envelope',
+                api: name,
+                apiVersion: 0,
+                toolVersion: 0,
+                state: 'unavailable',
+                stateLabel: '能力缺席（模块或符号不在场）',
+                reason: String(reason || 'module-unavailable'),
+                source: { module: '', symbol: '', path: 'not-given' },
+                revision: null,
+                revisionSource: '',
+                scope: {},
+                data: null,
+                notes: ['记忆工具面模块不可达（memory-tools-api.js 未加载）⇒ 报 unavailable，**不报空数据**'],
+                writesNothing: true
+            };
+        }
+        /** [v3.305.0 · X9] 能力面自述（缺哪一格、为什么缺、缺了会怎样）。只读、不抛。 */
+        memoryToolsDescribe() {
+            const T = _memoryToolsLib();
+            if (!T || typeof T.describe !== 'function') {
+                return {
+                    kind: 'memory-tools-envelope-describe', apiVersion: 0, toolVersion: 0,
+                    states: [], counts: { total: 0, present: 0, absent: 0 }, absentReasons: [],
+                    complete: false, capabilities: [],
+                    note: '记忆工具面模块未加载（memory-tools-api.js）',
+                    reason: 'module-unavailable'
+                };
+            }
+            try { return T.describe(this.memoryToolsSources()); }
+            catch (e) { errLog(e, 'plugin.memoryToolsDescribe'); return { kind: 'memory-tools-envelope-describe', apiVersion: 0, toolVersion: 0, states: [], counts: { total: 0, present: 0, absent: 0 }, absentReasons: [], complete: false, capabilities: [], note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.305.0 · X9] 出口 ①：结构化证据查询（统一信封）。
+         *   `host` 实参传 `this`：与既有 `searchEvidenceStructured` 的调用口径逐字一致
+         *   （内核的 `state/pick` 四件套要读宿主账本，传错对象会恒空而**不报错**）。
+         */
+        queryEvidence(spec, opts) {
+            try {
+                const T = _memoryToolsLib();
+                if (!T || typeof T.queryEvidence !== 'function') return this._memoryToolsAbsent('queryEvidence', 'module-unavailable');
+                return T.queryEvidence(this.memoryToolsSources(), this, spec, opts);
+            } catch (e) { errLog(e, 'plugin.queryEvidence'); return this._memoryToolsAbsent('queryEvidence', 'thrown'); }
+        }
+        /** [v3.305.0 · X9] 出口 ②：续接包（统一信封）。 */
+        getContinuityPack(args) {
+            try {
+                const T = _memoryToolsLib();
+                if (!T || typeof T.getContinuityPack !== 'function') return this._memoryToolsAbsent('getContinuityPack', 'module-unavailable');
+                return T.getContinuityPack(this.memoryToolsSources(), args);
+            } catch (e) { errLog(e, 'plugin.getContinuityPack'); return this._memoryToolsAbsent('getContinuityPack', 'thrown'); }
+        }
+        /** [v3.305.0 · X9] 出口 ③：事实准入**预演**（统一信封）。本面不开写口。 */
+        previewFactAdmission(fact, ctx) {
+            try {
+                const T = _memoryToolsLib();
+                if (!T || typeof T.previewFactAdmission !== 'function') return this._memoryToolsAbsent('previewFactAdmission', 'module-unavailable');
+                return T.previewFactAdmission(this.memoryToolsSources(), fact, ctx);
+            } catch (e) { errLog(e, 'plugin.previewFactAdmission'); return this._memoryToolsAbsent('previewFactAdmission', 'thrown'); }
+        }
+        /** [v3.305.0 · X9] 出口 ④：召回解释（统一信封）。 */
+        explainRecall(input, opts) {
+            try {
+                const T = _memoryToolsLib();
+                if (!T || typeof T.explainRecall !== 'function') return this._memoryToolsAbsent('explainRecall', 'module-unavailable');
+                return T.explainRecall(this.memoryToolsSources(), input, opts);
+            } catch (e) { errLog(e, 'plugin.explainRecall'); return this._memoryToolsAbsent('explainRecall', 'thrown'); }
+        }
+        /** [v3.305.0 · X9] 出口 ⑤：知识出处链（统一信封）。 */
+        getKnowledgeBoundary(raw, character, fact, opts) {
+            try {
+                const T = _memoryToolsLib();
+                if (!T || typeof T.getKnowledgeBoundary !== 'function') return this._memoryToolsAbsent('getKnowledgeBoundary', 'module-unavailable');
+                return T.getKnowledgeBoundary(this.memoryToolsSources(), raw, character, fact, opts);
+            } catch (e) { errLog(e, 'plugin.getKnowledgeBoundary'); return this._memoryToolsAbsent('getKnowledgeBoundary', 'thrown'); }
+        }
+        /**
+         * [v3.305.0 · X9] 诊断一行。**三种坏法分开写**（本仓九账治理后的纪律）：
+         *   模块没挂 / 能力缺一格 / 五格齐备 —— 后者报版本与自检读数。
+         * 不在诊断行里跑真查询：查一次要扫九账全量，诊断面不许有这种副作用。
+         */
+        memoryToolsLine() {
+            try {
+                const T = _memoryToolsLib();
+                if (!T || typeof T.line !== 'function') return '模块未加载（memory-tools-api.js）';
+                const d = this.memoryToolsDescribe();
+                if (!d.complete) return '⚠️ ' + T.line(this.memoryToolsSources());
+                const sc = (typeof T.selfCheck === 'function') ? T.selfCheck(this.memoryToolsSources()) : null;
+                const bits = ['五能力齐备'];
+                if (sc) bits.push(sc.ok === true ? '自检通过' : ('⚠️ 自检未过（' + JSON.stringify(sc) + '）'));
+                return '记忆工具面 v' + (d.apiVersion || 0) + ' · ' + bits.join(' · ')
+                    + ' · 五态齐备';
+            } catch (e) { errLog(e, 'plugin.memoryToolsLine'); return '—（诊断异常）'; }
+        }
         /** [v3.194] 当前未完成事项（事件线里缺结果/后续的）——计划点名「保留未完成事项」的读取面。不抛。 */
         outstandingThreads(filter) {
             try {
@@ -14287,6 +14428,18 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   「超过 200 条的旧证据仍能按需检索」「不默认在 200 条摘要中找不到就判全库没有」）。
     function _evidenceQueryLib() {
         return _moduleLib(() => window.LonShaEvidenceQuery, 'evidence-query.js');
+    }
+    // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
+    //   M-X9 点名的五个 API 里，修前只有 explainRecall 有实现，其余四个名**全仓零命中** ——
+    //   它们的能力早在盘上（evidence-query / volume-continuation / native-fact-admission /
+    //   knowledge-trace 各自的出口），但没有任何一处把「下游可以按名调用的统一面」产出来。
+    //   后果是下游只能按模块名逐个结对（readLonshaEvidence / readProjection …），
+    //   每加一条上游能力就要多一处硬编码配对，而上游一改名下游就静默失效
+    //   —— 正是本仓最贵的那笔老账（同一件事两份口径）。
+    //   本模块**不实现业务**：只做「按名找能力 + 装进统一信封 + 把缺席/空/判不了/收窄分成互不同形的五态」。
+    //   故此处只加**一个取库口**；五个被包装能力的装配点唯一在 `memoryToolsSources()`。
+    function _memoryToolsLib() {
+        return _moduleLib(() => window.LonShaMemoryTools, 'memory-tools-api.js');
     }
     /**
      * [v3.296.0 · X1] 账本登记表（**取自工作台，不另抄一份**）。

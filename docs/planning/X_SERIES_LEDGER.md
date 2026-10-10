@@ -174,3 +174,32 @@
 5. **诚实留痕**：把「首次踩坑 → 实际报错 → 根因 → 修法」写进 CHANGELOG / 扫描器档头。
 6. **不跑全量**（用户纪律）：只跑单门 / 单套件；全量集中到计划收口后一次。
 7. **不可测就写不可测**：缺模块 / 缺读数一律 `measurable:false` + `reason`，不用 0 冒充。
+
+---
+
+## M-X9 跨仓影响（v3.305.0）
+
+**本轮上游新增第 6 面**：`tests/audit/open_face_registry.tsv` 增 `memoryToolsEnvelope`
+（`memory-tools-api.js::queryEvidence,getContinuityPack,previewFactAdmission,explainRecall,getKnowledgeBoundary`，
+`producer_version=v3.305.0`，`consumer=none@0`）。
+
+**下游当前状态（实测，不是推断）**：`tests/audit/upstream_face_cache.json` 冻的是
+`upstreamVersion=3.304.0` / `tableRows=5` / `upstreamCommit=cc08a3f`。
+**故本版不改下游**：冻读取是显式刷新的（`--refresh --upstream <dir> --reason "..."`），
+不刷新则下游门禁仍按**旧表**闭链对账、`exit 0` 不受影响。
+
+**★ 但下一次 `--refresh` 之前必须先做下游侧两件事**（否则 R3/R8 立刻转红，且归因会显得像上游的问题）：
+1. **R3 面 ↔ 条目双向**：`config/crossrepo-registry.js` 需增一条带
+   `upstreamFace: 'memoryToolsEnvelope'` 的登记行（含 `since` / `declaredConsumer` / `declaredFloor`），
+   否则 R3 报「上游登记了面 `memoryToolsEnvelope`，而本仓没有任何登记行带 upstreamFace 指向它」。
+2. **R8 未消费面诚实登记**：该行声明 `none@0` ⇒ 必须在
+   `tests/audit/upstream_face_unconsumed.json` 里给出**非空理由**（本仓的 R8 与之同源：
+   「还没人用」必须能回答「为什么」）。
+   理由草稿（下游可自行改写）：**M-X9 交付的是上游侧的面与契约；手机侧的统一工具面板消费点属
+   R-X 系列下一轮**，故本版如实写 `none@0`，不填一个下游还不存在的读出口名。
+   同理 R4（`producer_version` ↔ `since` 逐面相等）与 R5（`consumer` ↔ 门禁标签逐字一致）
+   在补登记行时一并满足。
+
+**为什么上游不能替下游做**：上游 `scan_cross_repo_binding.mjs` 的 P2 明令在役测试面不得引用兄弟仓库
+（直读会把开发机的目录布局写进判据）。两侧各自自足 —— 上游只登记「本仓可核部分」
+（符号在场 / 契约形状 / 失效条件四态 / 单独安装行为），核实挂在下游自有门禁上。

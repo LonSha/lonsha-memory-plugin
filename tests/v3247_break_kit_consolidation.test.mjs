@@ -218,6 +218,13 @@ const REGISTRY = [
      *   opHint 无条件挂 / items 的 data-opid 回退成 esc；锚点取自 settings-ui.js）；
      *   按 B1 台账纪律在此登记。 */
     'v3303_ui_panel_drive_gate.test.mjs',
+    /* [v3.305.0 M-X9] 本档从 tests/_break_kit.mjs 取 breakSource / breakOnce
+     *   （三条真源码破坏负控制）；按 B1 台账纪律在此登记。
+     *   【与上一档的对照·留痕】v3304_head_defect_sweep.test.mjs **不在**本台账里 ——
+     *   它自带内联破坏、不 import _break_kit.mjs，而 B1 是双向差集（登记 ⊆ 真接收方）。
+     *   本档与它相反：真走唯一真源，故**必须**登记；漏登记即 B1 在「磁盘有、台账无」
+     *   那一半转红。抬版脚本首版把锚点写成「假设 v3304 已登记」⇒ 命中 0 次当场中止。 */
+    'v3305_memory_tools_api.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
