@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.314.0';
+    const VERSION = '3.315.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11370,6 +11370,25 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['知识轨迹', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.knowledgeTrace'); return ['知识轨迹', '—（诊断异常）']; }
                     })(),
+                    /* [v3.315.0 · M-X5] 知识传播预演体检面：与「知识轨迹」**分列**。
+                     *   轨迹面答**过去**（这条知识在第几楼、从谁、经哪条证据取得的），
+                     *   本行答**事前**（若按这条路传播，谁的认知会从哪一格变到哪一格）——
+                     *   合成一行会让「下笔前能预演」与「下笔后能回看」共用一个提示位。
+                     *   报警只认两条真损失：依赖缺格（轨迹内核缺席 ⇒ 判不了）与
+                     *   「判不了」与「改不动」同形（本仓最贵的老账）。 */
+                    (() => {
+                        try {
+                            const KP = _knowledgePreviewLib();
+                            if (!KP || typeof KP.line !== 'function' || typeof this.knowledgePreviewLine !== 'function') {
+                                return ['知识预演', '模块未加载（knowledge-preview.js）'];
+                            }
+                            const d = this.knowledgePreviewDescribe();
+                            const bad = !!(d.missingDeps && d.missingDeps.length)
+                                || !!(this._lastPreview && this._lastPreview.decidable === false);
+                            return ['知识预演', this.knowledgePreviewLine() + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.knowledgePreview'); return ['知识预演', '—（诊断异常）'];
+                        }
+                    })(),
                     // [v3.306.0 · M-O8] 秘密注入侧隔离面：与「认知隔离提示」分列。
                     //   认知面答「他此前不在场、还不知情」；本行答「注入时挡下几条、
                     //   其中几条**判不了**（条目没给知情名单）」。报警只认两条真损失：
@@ -14988,6 +15007,154 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.phoneFactBridgeLine'); return '—（诊断异常）'; }
         }
         /* ────────────────────────────────────────────────────────────────────────
+         * [v3.315.0 · M-X5] 角色知识传播的可见范围预演
+         *
+         * 【与「知识轨迹」（X5）那一面的关系（两个方向）】
+         *   轨迹面答**过去**：这条知识在第几楼、从谁、经哪条原始证据取得的；
+         *   本面答**事前**：若按这条路传播，谁的认知会从哪一格变到哪一格。
+         *   两面共用同一个状态判定真源（`knowledge-trace.js` 是唯一真源），
+         *   故诊断面**分开两行**，不合成一行。
+         *
+         * 【宿主只做三件事，绝不自己算】
+         *   ① **装配**：轨迹模块经 `_knowledgePreviewDeps()` 注入（唯一装配点，键名与内核
+         *      `REQUIRED_DEPS[].key` 逐字一致 —— 改名会静默变成「依赖缺席」，判据按名对账）；
+         *   ② **转发**：出口把实参原样交给内核，**不改写返回值**；
+         *   ③ **留痕**：只留读数摘要（存整份预演行就是第二份轨迹库）。
+         *
+         * 【本面**零落笔**】预演是「下笔之前看一眼」，它若自己写账，就成了绕过既有门的第二条写法。
+         */
+        /** [v3.315.0 · M-X5] 本面的**唯一装配点**。轨迹内核缺席一律 null（不是 `{}`）。 */
+        _knowledgePreviewDeps() {
+            /* 与 `memoryToolsSources()` 同规格：**就地取库**（每件只在此函数取一次，天然唯一）。 */
+            const KT = _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js');
+            const SL = _moduleLib(() => window.LonShaSecretLedger, 'secret-ledger.js');
+            return {
+                KNOWLEDGE_TRACE: (KT && typeof KT.stateOf === 'function' && typeof KT.normalize === 'function') ? KT : null,
+                SECRET_LEDGER: (SL && typeof SL.knowledgeOf === 'function') ? SL : null
+            };
+        }
+        /** [v3.315.0 · M-X5] 内核不可达时的**同键降级**（`ok:false` + `reason` 分开写）。 */
+        _knowledgePreviewAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                ok: false, state: 'absent', reason: r, path: '', verdict: 'indeterminate',
+                decidable: false, rows: [], byVerdict: {}, wouldAffect: 0, noChange: 0,
+                revealSecret: 0, breakBoundary: 0, indeterminate: 0, duplicateEvidence: 0, total: 0,
+                notes: ['知识预演面不可达（knowledge-preview.js 未加载）⇒ 报 ok:false/' + r
+                    + '，**不报「改了没事」也不报「会变」']
+            };
+        }
+        /** [v3.315.0 · M-X5] 传播计划（谁被推到哪一格）。只算不写。 */
+        knowledgePreviewPlan(payload, opts) {
+            const KP = _knowledgePreviewLib();
+            if (!KP || typeof KP.propagationPlan !== 'function') return this._knowledgePreviewAbsent('plan-unavailable');
+            try { return KP.propagationPlan(payload, opts); }
+            catch (e) { errLog(e, 'plugin.knowledgePreviewPlan'); return this._knowledgePreviewAbsent('thrown'); }
+        }
+        /** [v3.315.0 · M-X5] 单条预演（逐人五档；依赖缺席 ⇒ 判不了，不假装改不动）。 */
+        knowledgePreviewRun(payload, trace, opts) {
+            const KP = _knowledgePreviewLib();
+            if (!KP || typeof KP.previewPropagation !== 'function') return this._knowledgePreviewAbsent();
+            try {
+                const res = KP.previewPropagation(payload, trace, this._knowledgePreviewDeps(), opts);
+                this._lastPreview = {
+                    at: Date.now(), path: res.path || '', verdict: res.verdict || '',
+                    wouldAffect: res.wouldAffect || 0, noChange: res.noChange || 0,
+                    revealSecret: res.revealSecret || 0, indeterminate: res.indeterminate || 0,
+                    duplicateEvidence: res.duplicateEvidence || 0, decidable: res.decidable !== false
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.knowledgePreviewRun'); return this._knowledgePreviewAbsent('thrown'); }
+        }
+        /** [v3.315.0 · M-X5] 批量预演（与单条同函）。只算不写。 */
+        knowledgePreviewBatch(plans, trace, opts) {
+            const KP = _knowledgePreviewLib();
+            if (!KP || typeof KP.previewBatch !== 'function') {
+                return { kind: 'knowledge_preview', rows: [], total: 0, measurable: false,
+                    byVerdict: {}, wouldAffect: 0, noChange: 0, revealSecret: 0, breakBoundary: 0,
+                    indeterminate: 0, duplicateEvidence: 0, riskiest: '', order: [],
+                    reason: 'module-absent', zeroWrite: true };
+            }
+            try {
+                const res = KP.previewBatch(plans, trace, this._knowledgePreviewDeps(), opts);
+                this._lastPreview = {
+                    at: Date.now(), path: 'batch', verdict: 'batch', wouldAffect: res.wouldAffect || 0,
+                    noChange: res.noChange || 0, revealSecret: res.revealSecret || 0,
+                    indeterminate: res.indeterminate || 0, duplicateEvidence: res.duplicateEvidence || 0,
+                    decidable: true, riskiest: res.riskiest || '', order: res.order || [],
+                    total: res.total || 0
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.knowledgePreviewBatch');
+                return { kind: 'knowledge_preview', rows: [], total: 0, measurable: false,
+                    byVerdict: {}, wouldAffect: 0, noChange: 0, revealSecret: 0, breakBoundary: 0,
+                    indeterminate: 0, duplicateEvidence: 0, riskiest: '', order: [],
+                    reason: 'thrown', zeroWrite: true }; }
+        }
+        /** [v3.315.0 · M-X5] 作者预演面（带理由与改法建议，剥一切正文键）。 */
+        knowledgePreviewAuthorFace(preview) {
+            const KP = _knowledgePreviewLib();
+            if (!KP || typeof KP.authorFace !== 'function') {
+                return { audience: 'author', rows: [], keys: [], carriesBody: false, zeroWrite: true,
+                    reason: 'module-absent' };
+            }
+            try { return KP.authorFace(preview); }
+            catch (e) { errLog(e, 'plugin.knowledgePreviewAuthorFace');
+                return { audience: 'author', rows: [], keys: [], carriesBody: false, zeroWrite: true, reason: 'thrown' }; }
+        }
+        /** [v3.315.0 · M-X5] 角色生成面（**严格收窄**：只有会变且终态为已知者）。 */
+        knowledgePreviewCharacterFace(preview) {
+            const KP = _knowledgePreviewLib();
+            if (!KP || typeof KP.characterFace !== 'function') {
+                return { audience: 'character', rows: [], keys: [], withheld: 0, zeroWrite: true,
+                    reason: 'module-absent' };
+            }
+            try { return KP.characterFace(preview); }
+            catch (e) { errLog(e, 'plugin.knowledgePreviewCharacterFace');
+                return { audience: 'character', rows: [], keys: [], withheld: 0, zeroWrite: true, reason: 'thrown' }; }
+        }
+        /** [v3.315.0 · M-X5] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        knowledgePreviewDescribe() {
+            const KP = _knowledgePreviewLib();
+            if (!KP || typeof KP.describe !== 'function') {
+                return { name: 'knowledge-preview', version: 0, previewVersion: 0, paths: [], directions: [],
+                    pathActions: [], pathReasons: [], pathVias: [], previewVerdicts: [], planVerdicts: [],
+                    identities: [], authorKeys: [], characterKeys: [], characterFaceForbidden: [],
+                    pathsDistinctDirections: false, pathsExhaustive: false,
+                    indeterminateDistinctFromNoChange: false, facesDisjoint: false,
+                    requiredDeps: [], optionalDeps: [], missingDeps: ['KNOWLEDGE_TRACE'], optionalMissing: [],
+                    offline: true, zeroWrite: true, note: '知识预演模块未加载（knowledge-preview.js）',
+                    reason: 'module-unavailable' };
+            }
+            try {
+                const d = KP.describe(this._knowledgePreviewDeps());
+                d.reason = (d.missingDeps && d.missingDeps.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.knowledgePreviewDescribe');
+                return { name: 'knowledge-preview', version: 0, previewVersion: 0, paths: [], directions: [],
+                    pathActions: [], pathReasons: [], pathVias: [], previewVerdicts: [], planVerdicts: [],
+                    identities: [], authorKeys: [], characterKeys: [], characterFaceForbidden: [],
+                    pathsDistinctDirections: false, pathsExhaustive: false,
+                    indeterminateDistinctFromNoChange: false, facesDisjoint: false,
+                    requiredDeps: [], optionalDeps: [], missingDeps: [], optionalMissing: [],
+                    offline: true, zeroWrite: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.315.0 · M-X5] 诊断一行。**五种坏法分开写**：
+         *   模块没挂 / 依赖缺格 / 路径表不齐 / 「判不了」与「改不动」同形 / 两面键集相交 / 面在位。
+         */
+        knowledgePreviewLine() {
+            try {
+                const KP = _knowledgePreviewLib();
+                if (!KP || typeof KP.line !== 'function') return '模块未加载（knowledge-preview.js）';
+                const d = this.knowledgePreviewDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（knowledge-preview.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                const last = this._lastPreview || null;
+                return KP.line({ last: last, deps: this._knowledgePreviewDeps() });
+            } catch (e) { errLog(e, 'plugin.knowledgePreviewLine'); return '—（诊断异常）'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
          * [v3.311.0 · M-X2] 修复**落定面**（从「流程完成」到「所有派生面落盘完成」）
          *
          * 【宿主只做三件事，绝不自己算】
@@ -15571,6 +15738,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   **纯函数零写零联网**。
     function _phoneFactBridgeLib() {
         return _moduleLib(() => window.LonShaPhoneFactBridge, 'phone-fact-bridge.js');
+    }
+    // [v3.315.0 · M-X5] 角色知识传播的可见范围预演（knowledge-preview.js）。为什么需要：
+    //   `knowledge-trace.js`（X5）只能答**过去** —— 这条知识在第几楼、从谁、经哪条证据取得的。
+    //   它答不了 M-X5 点名的这一问：**在下笔之前**先看一眼「要是这么写，会影响到谁」。
+    //   缺这一面的后果不可回滚：一旦写进正文，轨迹已经产生，「这个秘密本来不该让他知道」
+    //   只能靠事后 reconcile 去猜同义措辞。本模块出**两张面**（作者面 / 角色生成面）——
+    //   作者面带理由与改法建议，角色生成面只有名字与目标格，两面除 who/after 外零共享。
+    //   **纯函数零写零联网**。
+    function _knowledgePreviewLib() {
+        return _moduleLib(() => window.LonShaKnowledgePreview, 'knowledge-preview.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的

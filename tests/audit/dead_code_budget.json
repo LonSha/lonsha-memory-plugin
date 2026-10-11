@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 59222,
+  "ceiling": 60039,
   "maxSlack": 400,
-  "note": "v3.314.0 M-X6 手机事实桥 2.0 活跃代码增长（新增 phone-fact-bridge.js 597 行 + 宿主七出口接线），均为活跃功能增长、非死代码回流",
+  "note": "v3.315.0 M-X5 角色知识传播的可见范围预演活跃代码增长（新增 knowledge-preview.js 591 行 + 宿主七出口与装配点接线），均为活跃功能增长、非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -261,7 +261,11 @@
     {
       "ceiling": 59222,
       "reason": "v3.314.0 M-X6 手机事实桥 2.0 活跃代码增长（新增 phone-fact-bridge.js 597 行 + 宿主七出口接线），均为活跃功能增长、非死代码回流"
+    },
+    {
+      "ceiling": 60039,
+      "reason": "v3.315.0 M-X5 角色知识传播的可见范围预演活跃代码增长（新增 knowledge-preview.js 591 行 + 宿主七出口与装配点接线），均为活跃功能增长、非死代码回流"
     }
   ],
-  "_history_last": "ceiling 58444 → 59222（实测 58822 + slack 400）：v3.314.0 M-X6 手机事实桥 2.0 活跃代码增长（新增 phone-fact-bridge.js 597 行 + 宿主七出口接线），均为活跃功能增长、非死代码回流"
+  "_history_last": "ceiling 59222 → 60039（实测 59639 + slack 400）：v3.315.0 M-X5 角色知识传播的可见范围预演活跃代码增长（新增 knowledge-preview.js 591 行 + 宿主七出口与装配点接线），均为活跃功能增长、非死代码回流"
 }

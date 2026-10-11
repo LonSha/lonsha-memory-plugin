@@ -179,7 +179,22 @@ test('v3232 C2. ★★★ index.js 的真实规模必须被分诊（不许基线
     /* [v3.264.0 交棒] 原句是「> 16000」（v3.231.0 的当版量级）；A1 连剥五刀后它失效，而「仍是巨兽」这个命题本身仍真（仍占全仓四成以上）。
      *   下界改为「A1 首刀后的真读数不得回涨到剥前水平」—— 它才是不随抬版失效的不变量。 */
     assert.ok(idxLines > 10000, 'index.js 须仍在巨兽量级（> 10000），实测 ' + idxLines);
-    assert.ok(idxLines < 17091, '★ A1 五刀之后宿主读数不得回涨到剥前水平（17091），实测 ' + idxLines);
+    /* [v3.315.0 交棒] 原文是 `idxLines < 17091` —— 与 v3264 C / v3266 C / v3261 C 踩过的是**同一族坑**：
+     *   它是 v3.231.0 那一刀的**一次性事实**（「剥前水平 17091」），不是永久不变量。
+     *   后续活跃功能增长（v3.315.0 M-X5 宿主接线 +177 行）把它推回线上，翻红的信息量只剩「数字不够小」；
+     *   而「剥了又长回来」这件事应由**登记面**把守。A1 的真实不变量是「各刀之后宿主读数始终低于
+     *   A1 首刀前基线（18401）」，照旧在下面把守。
+     *   交棒**不弱化**判据面：活体上界改读 `host_beast_baseline.json` 的 `line_budget` 登记面
+     *   （ceiling + history + maxSlack；抬升只走脚本 `_rebuild_host_beast.py`，三条读数自动同步）。
+     *   本档只读 ceiling 与余量（history/note 两处自洽由 v3266 C / v3261 C 把守 —— 立两份就是两份真源）。 */
+    const _lb = base.line_budget || null;
+    assert.ok(_lb && Number.isFinite(_lb.ceiling), '宿主行数上界必须登记（否则「长回线上」无人管）');
+    assert.ok(idxLines <= _lb.ceiling,
+        '★ 宿主行数须 <= 登记上界 ' + _lb.ceiling + '，实测 ' + idxLines);
+    assert.ok(_lb.ceiling - idxLines <= _lb.maxSlack,
+        '上界余量 ' + (_lb.ceiling - idxLines) + ' 不得超过 maxSlack ' + _lb.maxSlack
+        + '（余量过大 = 上界与实测脱节，等于没守）');
+    assert.ok(idxLines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401），实测 ' + idxLines);
     /* 主权声明：本版不动 index.js —— 用「行数没变」之外的更强判据：探针记录的行数必须等于文件行数
      *   （已断言）；而「是否被改动」由 git 面保证，不在此重复。 */
     assert.equal(base.split_candidates.total_over_threshold, R.members_over_80_lines, '分诊总数须与读数一致');

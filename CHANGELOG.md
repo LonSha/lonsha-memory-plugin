@@ -1,3 +1,80 @@
+## v3.315.0
+
+**M-X5（第二期拓展计划）角色知识传播的可见范围预演：五路径 × 五档 / 两面严格分离 / 预演零写 / 同源不重复造证据 / 判不了单独一档**
+
+### 它补的是哪一格（修前实测逐点，非抽样）
+
+- **能答「过去」，答不了「事前」。** `knowledge-trace.js`（X5, v3.291.0）把「这条知识在第几楼、从谁、经哪条原始证据取得的」落成可复算轨迹，但它只判**已经发生**的事。而写稿时的真实问题是反过来的：**若我按下这一步，谁会被推到哪一格**。
+- **事后才知道越界，代价不可逆。** 秘密一旦经公开线泄出、误信一旦落成「已知」，回滚（`dropByFloor`）只能撤账本里的那条，**撤不回已经注入上下文的阅读印象**。
+- **没有「提案层」这一格。** 全库此前没有任何一处**只产提案、不动事实**的预演面 —— 想看一眼只能真写一次，真写就得回滚。
+
+本模块只做那一格：**给定一条事实或秘密 + 一条路径 ⇒ 逐人给出「会变 / 不会变 / 会泄露 / 会打穿边界 / 判不了」，并分开交出作者面与角色生成面**。它不替 X5 背书：现状一律由 `knowledge-trace.js`（真模块）给出，本模块只在其上判映射与分离。
+
+### 交付物
+
+- **`knowledge-preview.js`**（纯函数、零依赖、IIFE 双导出、591 行 / 27 个导出项）：常量面 `KP_VERSION=1` / `KP_PREVIEW_VERSION=1` / `KP_KIND='knowledge_preview'` / `PATHS`（五路径）/ `DIRECTION` / `PATH_ACTION` / `PATH_REASONS` / `PATH_VIA`（四张表逐条对齐）/ `PREVIEW_VERDICTS`（五档）/ `PLAN_VERDICTS`（五档，含 `degraded`）/ `IDENTITY`（三态）/ `MAX_ROWS=60` / `MAX_CHANGES=240` / `AUTHOR_KEYS`（11 键）/ `CHARACTER_KEYS`（**只 2 键**：who / after）/ `FORBIDDEN_IN_CHARACTER_FACE`（20 项独立字面量）/ `REQUIRED_DEPS`（**只一件**：`KNOWLEDGE_TRACE`）/ `OPTIONAL_DEPS`（`SECRET_LEDGER`）。函数面 9 个：`propagationPlan` / `previewPropagation` / `previewBatch` / `authorFace` / `characterFace` / `describe` / `selfCheck` / `line` / `surfaceDigest`。
+- **宿主七出口**（`index.js`）：模块级取库口 `_knowledgePreviewLib()`（`_moduleLib(() => window.LonShaKnowledgePreview, 'knowledge-preview.js')`）；唯一装配点 `_knowledgePreviewDeps()`（**就地取库**：`KNOWLEDGE_TRACE` 需 `stateOf`+`normalize` 双函数齐备，`SECRET_LEDGER` 需 `knowledgeOf`，取不到 `null` 而非 `{}`）；降级面 `_knowledgePreviewAbsent(reason)`（同键降级，`ok:false / state:'absent' / decidable:false`）；出口 `knowledgePreviewPlan` / `knowledgePreviewRun` / `knowledgePreviewBatch` / `knowledgePreviewAuthorFace` / `knowledgePreviewCharacterFace` / `knowledgePreviewDescribe` / `knowledgePreviewLine`（**出口不落笔**，只留 `_lastPreview` 读数摘要）；`selfCheck` 表新增一行 `['知识预演', this.knowledgePreviewLine()]`，与「知识轨迹」「知情网络」**分列**（事前 / 事后 / 同事实判定是三个问题，合成一行就看不出缺的是哪一个）。
+
+### ① 五条传播路径各自可达且取法不同
+
+`propagationPlan()` 按路径取目标集：`public` / `misbelieve` 取 `participants + witnesses`；`relay` / `private` 取 `listener`；`correct` 取 `affected`。★ **未知路径不落默认档**：`PATHS.indexOf(path) < 0` ⇒ `verdict:'bad-path'`（写错路径名不再静默当成公开传播 —— 那形态是「一次静默扩面」，比报错坏得多）。★ 四张表（`DIRECTION` / `PATH_ACTION` / `PATH_REASONS` / `PATH_VIA`）**逐条对齐**：少一条即有路径无处安放；判据 `v3315 M2` 逐路径核对。私聊路径**不扩散**（`narrow`，且途径为 `told` 而非 `witnessed`）。
+
+### ② 五档互斥，「判不了」单独一档（本仓最贵的老账）
+
+`previewPropagation()` 逐人五档：`would-affect` / `no-change` / `would-reveal-secret` / `would-break-boundary` / `indeterminate`。★ 判定序：计划非 ok ⇒ indeterminate（`degraded` 时 `decidable:false`）→ `identityVerified === false` ⇒ **整面** `would-break-boundary`（同名异人未分格 ⇒ 预演不可信，**不逐人猜**，fail-closed）→ 轨迹模块缺席 ⇒ 全员 indeterminate + `trace-module-absent` → 碰秘密但边界无从判 ⇒ `boundary-unjudgeable` → 不在知情名单 ⇒ `would-reveal-secret` → 已在该格 ⇒ `no-change / already-in-state` → 同源重复 ⇒ `no-change / evidence-already-recorded` → `correct` 无 misbelieve 前提 ⇒ `nothing-to-correct` → 其余 ⇒ `would-affect`。★ **面级档认最坏一条**：`indeterminate > 泄露 > 会变 > 改不动` —— 不拿「多数没事」把判不了淹没。
+
+### ③ 作者预览面与角色生成面严格分离（验收④）
+
+`authorFace()` 逐行带 `who` / `before` / `after` / `verdict` / `reason` / `via` / `action` / `reasonCode` / `evidenceKey` / `floor` / `advice`（**给改法建议**：作者要据此改稿），并 `_strip` 剥掉一切正文键（自报 `carriesBody:false`）。`characterFace()` **只带 `who` / `after`**（且只带 `would-affect && after === 'knows'` 者），其余计入 `withheld`。★ 禁止键表 **`FORBIDDEN_IN_CHARACTER_FACE` 是独立字面量真源（20 项），不由 `AUTHOR_KEYS` 派生** —— 派生表会随作者面一起加宽而失效，那是「拿自己当对照」的假绿形态；`facesDisjoint` 同时对独立禁止表断言**且**要求两面确实不同宽（否则分离判据恒真）。
+
+### ④ 预演零写 + 同源不重复造证据（验收①②）
+
+`propagationPlan` / `previewPropagation` / `previewBatch` / `authorFace` 一律不改传入的 `payload` / `trace` / `opts`（判据做三处快照比对），源码零写口（无 `storage.save` / `localStorage.setItem` / `writeFile` / `collectExport(`）—— **只产提案**，写法归 owner 侧经既有门。★ `_recordedEvidence(kt, t, who, fact, evidenceKey, action)` 与 `knowledge-trace.js` 的 `evidenceKeyOf` 同源：命中即落 `no-change / evidence-already-recorded` 并计 `duplicateEvidence` —— **这就是验收②「同一传播事件不生成多条重复证据」**，批量面聚合并透出同一计数。
+
+### ⑤ 批量与单条同函 + 空批 ≠ 全判不了
+
+`previewBatch()` 与单条**同函**（逐条与直接调单条逐字同形，判据逐条比对 `byVerdict`）；`order` / `riskiest` 只是**读数**（不改判定）。★ **空批** `{total:0, measurable:true, indeterminate:0}` 与「有但全被判不了」`{total:1, indeterminate:1}` **不同形**；非数组入参 ⇒ `measurable:false`（不得报可测 —— 那是「没跑」冒充「跑了没有」）。
+
+### ⑥ 输入畸形单列一档（不与「没有事实」同形）
+
+`propagationPlan()` 的 `PLAN_VERDICTS` 含 **`degraded`** 一档：payload / opts 非对象 ⇒ `verdict:'degraded', measurable:false, decidable:false` —— **不压成「没有事实」**（`no-fact`）。`decidable` 只在 `degraded` 时为 false：`bad-path` / `no-fact` / `no-subject` 都是**判得出的结论**。
+
+### ⑦ 离线
+
+源码零 `require(` / `fetch(` / `XMLHttpRequest` / `localStorage` / `indexedDB` / `WebSocket` —— 由判据 `judgeMeta` 逐词钉住（剥注释后判）。
+
+### ⑧ 跨仓面：本版不新增外供面（如实）
+
+M-X5 的拓展计划原文**未要求**外供面，故 `open_face_registry.tsv` 仍为 **7 面**、不追加行；只把 `memoryToolsEnvelope` 行的 `producer_version` 同步抬到本版（`v3305:553` 硬要求「producer_version 必须与当前版本同步」）。**不为了凑一行而登记一个没有下游的面**。
+
+### ⑨ 新档 `tests/v3315_knowledge_preview.test.mjs`（12 条）
+
+M1 登记面（`extra_js` 恰一次 + 与追加时邻居 `knowledge-trace.js` 都在场，**位置不作判据** + 零依赖零联网 + 双导出 + 冻结）· M2 导出面（九函数 / 五路径四表 / 五档逐字 / 两面键集 / 独立禁止表 / 依赖声明面）· P1 五路径各自可达且取法不同 + 未知路径不落默认档 · V1 五档互斥可达 + 「判不了」单独一档 + 面级认最坏 · C1 纠正缺前提 ⇒ 判不了（不是改不动）+ 误信落 `misled` · D1 依赖缺席 / 空壳 / 抛错 / 边界无从判 / 条目剥空 ⇒ 判不了 + `describe` 缺格只列必需件 + `selfCheck` 真跑 · S1 两面严格分离（角色面行键集恰 `who,after` + 禁止表独立真源 + 作者面剥正文 + `carriesBody:false`）· Z1 零写（三处快照 + 源码零写口 + 批量同函 + 同源不重复造证据 + 空批 ≠ 全判不了 + 非数组不可测）· H1 宿主接线逐符号（定义面恰一次 / 使用面 ≥1 / 装配点键名与内核 `REQUIRED_DEPS`+`OPTIONAL_DEPS` 逐字 / 出口不落笔且真调内核 / 三个诊断行分列）· H2 端到端（真 `plan` / `run` / 两面 / 诊断行 / 批量 / 模块缺席 / 依赖缺格）· V2 版本锚 + 六源同源 · X1 七条真源码破坏各现形 + 正控制地基 + 判据纯度。
+
+### ⑩ 修后验证真读数
+
+- `node --test tests/v3315_knowledge_preview.test.mjs` ⇒ **12/12 pass / 0 fail**（含 X1 七条真源码破坏）。
+- 内核自检 `selfCheck().ok === true`（探针九项：`public:2` / `relay:1` / `private:1` / `misbelieve:'misled'` / `correct:'knows'` / `noChange:1` / `indeterminate:false` / `degraded:'degraded'` / `duplicateEvidence:0`）；`surfaceDigest` 27 项 / digest `d4ab5744`。
+- `scan_doc_truthfulness` rc0（版本 3.315.0 / 测试 296 / 审计门禁 60（磁盘 65）/ 根级 .js 95 / extra_js 94）。
+- `scan_version_guard` rc0（frontier `v3315_knowledge_preview.test.mjs` / 当版锚点 1）；`scan_open_faces` rc0（7 面 0 问题）；`scan_module_wiring` rc0；`scan_plan_currency` rc0。
+
+### ⑪ 抬版牵连面（逐项核）
+
+六源（`index.js` / `manifest.json` / `package.json` / `memory-config.js` / `memory-core.js` / `memory-organs.js`）· `manifest.extra_js` 93 → **94**（末位 `knowledge-preview.js`）· README 版本行 / 测试文件数 295→**296** / 运行时模块 94→**95** / `extra_js` 三处 93→**94** / 待验标记 · PLAN 当前执行状态行 / 版本行 / 门禁行（295→**296**）/ 体量行（17042→**17219** 行 / 626→**635** 成员 / extra_js **94**）/ 两处待验标记 · TODO 顶行新增「最近更新 v3.315.0」+ 旧行降为历史留痕 · **CHANGELOG 新顶节**（本版）· `v3209` 两处数量锁 93→**94** · `v3247` REGISTRY 追加本档 · `catalog_reference_consumers.tsv` 追加本档一行 · `open_face_registry.tsv` 仅 `memoryToolsEnvelope` 行 `producer_version` 3.314.0→**3.315.0**（不新增面）。
+
+### ⑫ 本版全量未跑
+
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+- 按用户纪律（「做完计划全部内容前别跑全量」）只跑单门 / 单套件；全量 `npm test` 与 `npm test -- --audit` 留到计划收口点跑一次。故 README / PLAN 的「全量待验」标记照旧由 `scan_doc_truthfulness` 的 D6 把守。
+
+### ⑬ 抬版连带：三个派生账按真源刷新（读数零手抄）
+
+- `host_beast_baseline.json`：按探针重绑（宿主 17042 → **17219** 行 / 626 → **635** 成员；全部来自 M-X5 宿主真实接线，非死代码回流），`measured_at` 前移到本版；`line_budget` 的 ceiling 17262 / member_ceiling 647 **不动**（余量 43 ≤ slack 400、成员余量 12 ≤ 30，仍在线内）。
+- `dead_code_budget.json`：活跃代码实测 59639 行越过旧上界 59222（余量 -417）⇒ 走 `--bump` 抬到 60039（= 实测 + slack 400），理由写进 `note` 与 `history`。
+- `state-report.json`：走 `node tools/gen_state_report.mjs --write` 重生成（S3 逐格对账）。
+
+---
+
 ## v3.314.0
 
 **M-X6（第二期拓展计划）手机事实桥 2.0：准入之上叠确认环 / 生命周期四态互不同形 / 双向回执只读 / 编辑换代与撤回 / 单装可解释降级**
