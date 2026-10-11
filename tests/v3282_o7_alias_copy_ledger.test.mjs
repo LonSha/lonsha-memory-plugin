@@ -93,12 +93,13 @@ const ALIAS_LEDGER = [
     ['fn', ['normOp', 'normRef', 'normStr'], ['changeset.js', 'fuzzy-patch.js', 'index.js', 'relation-disclosure.js'], 34, '311c820d'],
     /* X6/X7：同一个「预检三档」体在两个新模块里挂了两个名字 —— 名字不同，故三层按名配对的
      *   判据（v3280/v3281）整片看不见它，正落入本档射程。两模块刻意各持一份（见 v3281 同簇留痕）。 */
-    ['tab', ['PRECHECK', 'PREVIEW'], ['branch-semantics.js', 'volume-continuation.js'], 42, '9471dab4'],
+    ['tab', ['PRECHECK', 'PREVIEW'], ['branch-semantics.js', 'memory-package.js', 'volume-continuation.js'], 42, '9471dab4'],
     /* [v3.294.0 · X8] 同一个「取值门」体在三个模块里挂了两个名字：X6/X7 的 `keyOf`
      *   与 X8 的 `strOf`（体长 100）—— 名字不同，故按名配对的三层判据整片看不见它。
      *   ★ 这是**判据真抓到东西**（不是为过门禁而补登记）：X8 档头刻意声明「本模块自持
      *   一份、不引 X6/X7 的常量」，故不合并成一份；登记 + 留痕理由，与 PRECHECK/PREVIEW 同处理。 */
-    ['fn', ['keyOf', 'strOf'], ['branch-semantics.js', 'recall-explain.js', 'volume-continuation.js'], 100, 'cb4883eb'],
+    ['fn', ['keyOf', 'strOf'], ['branch-semantics.js', 'memory-package.js', 'recall-explain.js', 'volume-continuation.js'], 100, 'cb4883eb'],
+    /* [v3.313.0 · M-X8] 两簇各多一个成员 memory-package.js：M-X8 自持与 X6/X7 同形同值的原语/词表\n     *   （档头声明「不引兄弟模块」），故不合并成一份；登记 + 留痕理由，与上两条同处理。\n     *   ★ 判据真抓到东西（不是为过门禁而补登记）：既有两模块的簇成员集合确实变了。 */
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

@@ -81,8 +81,12 @@ const CONST_LEDGER = [
     ['ARCHIVE_TOP_LEVEL_KEYS', ['index.js', 'memory-organs.js'], 629, '72ef6f67', 'Object.freeze(['],
     ['RELATION_CONFLICT_GROUPS', ['index.js', 'memory-core.js'], 134, 'a2700f54', '['],
     ['STORAGE_FP_FIELDS', ['index.js', 'memory-organs.js'], 65, '70a8fcd9', '['],
-    ['FACES', ['branch-semantics.js', 'volume-continuation.js'], 67, '997c2e8b', 'Object.freeze(['],
+    ['FACES', ['branch-semantics.js', 'memory-package.js', 'volume-continuation.js'], 67, '997c2e8b', 'Object.freeze(['],
     ['ACTION', ['branch-semantics.js', 'volume-continuation.js'], 44, 'e7884be8', 'Object.freeze({'],
+    /* [v3.313.0 · M-X8] 以下三对与 FACES 同源：M-X8 自持与 X7 同形同值的词表（档头声明「不引 X7 的常量」，\n     *   理由同 volume-continuation：跨模块引用常量会把两处抬版变成一处悄悄读旧值）。\n     *   **两处必须一致**这件事正由本档 B1 钉住：改任一侧即红。 */
+    ['PREVIEW', ['memory-package.js', 'volume-continuation.js'], 42, '9471dab4', 'Object.freeze({'],
+    ['SOURCE', ['memory-package.js', 'volume-continuation.js'], 59, '0ef2567e', 'Object.freeze({'],
+    ['LICENSE', ['memory-package.js', 'volume-continuation.js'], 58, '3a8ba034', 'Object.freeze({'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

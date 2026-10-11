@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.312.0';
+    const VERSION = '3.313.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11640,6 +11640,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.factLifecycle'); return ['事实生命周期', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.313.0 · M-X8] 版本化记忆包：回答「这个包是哪个代际、能不能收、
+                     *   有没有冲突与悬空、重复导会不会进两次、撤销有没有来源边界」。与「结构迁移」
+                     *   那行是两个问题：那一行读的是**本机存档**的迁移现场，本行读的是**外来包**的
+                     *   准入与导入；与「快照检查点」那行也不是一回事（那些绑在同一宿主的 localStorage）。
+                     *   四种坏法可分：模块未加载 / 依赖缺格（⚠️）/ 口径不自洽（⚠️）/ 面在位。 */
+                    (() => {
+                        try {
+                            const MPk = _memoryPackageLib();
+                            if (!MPk || typeof MPk.line !== 'function' || typeof this.memoryPackageLine !== 'function') {
+                                return ['记忆包', '模块未加载（memory-package.js）'];
+                            }
+                            return ['记忆包', this.memoryPackageLine()];
+                        } catch (e) { errLog(e, 'selfCheck.memoryPackage'); return ['记忆包', '—（诊断异常）'];
+                        }
+                    })(),
                     /* [v3.296.0 · X1] 结构化证据查询：回答「按人/楼层/状态能不能查、登记面对没对齐、
                      *   扫了多少账、有没有账被截断」。与上面「账本实体」是两个问题：
                      *   那一行答「有多少条」，本行答「能按什么查、查的时候能看到多少」——
@@ -14670,6 +14685,138 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.factLifecycleLine'); return '—（诊断异常）'; }
         }
         /* ────────────────────────────────────────────────────────────────────────
+         * [v3.313.0 · M-X8] 版本化记忆包与跨设备迁移面
+         *
+         * 【与「结构迁移」那一面的关系（两个问题）】
+         *   「结构迁移」读的是**本机存档**被导入时的现场（`_lastSchemaMigration`）；
+         *   本面读的是**外来包**的准入与导入（用户从别的设备带回来的 .json）。
+         *   两者共用同一个代际真源 —— `schema-migration.js` —— 但**不是同一条路**，
+         *   故诊断面分开两行，不合成一行。
+         *
+         * 【宿主只做三件事，绝不自己算】
+         *   ① **装配**：代际注册表 / 存档键契约 / 受限正文键经 `_memoryPackageDeps()` 注入
+         *      （唯一装配点，键名与 `memory-package.js` 的 `REQUIRED_DEPS[].key` 逐字一致
+         *      —— 改名会静默变成「依赖缺席」，故判据套件按名对账）；
+         *   ② **转发**：出口把实参原样交给内核，**不改写返回值**；
+         *   ③ **留痕**：只留读数摘要（存整包就是第二份证据库，且受限条目会随之外泄）。
+         */
+        /**
+         * [v3.313.0 · M-X8] 记忆包面的**唯一装配点**。三件里两件同出别处
+         *   （`SCHEMA_MIGRATION` 是结构代际单一真源、`ARCHIVE_KEYS` 是存档键契约单一真源），
+         *   本面**不另抄一份**。`SECRET_BODY_KEYS` 走同款取件纪律（与 X6/X7/X4 同口径）：
+         *   取不到一律 null（不是 `{}`）——内核按「值为空即缺席」判 deps-missing。
+         * ★ `ARCHIVE_KEYS` 从 `ARCHIVE_TOP_LEVEL_KEYS` 取：它就是**包内待导入键是否被本仓
+         *   认识**的判据源；这里不给它一个简化子集，宁可让它与存档契约逐字同源。
+         */
+        _memoryPackageDeps() {
+            const SM = _schemaMigrationLib();
+            const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+            return {
+                SCHEMA_MIGRATION: (SM && typeof SM.plan === 'function') ? SM : null,
+                ARCHIVE_KEYS: (Array.isArray(ARCHIVE_TOP_LEVEL_KEYS) && ARCHIVE_TOP_LEVEL_KEYS.length) ? ARCHIVE_TOP_LEVEL_KEYS : null,
+                SECRET_BODY_KEYS: (BS && Array.isArray(BS.SECRET_BODY_KEYS) && BS.SECRET_BODY_KEYS.length) ? BS.SECRET_BODY_KEYS : null
+                /* ★ 只给**该给的**三件：`REQUIRED_DEPS` 之外的键一律不塞。 */
+            };
+        }
+        /**
+         * [v3.313.0 · M-X8] 内核不可达时的**同键降级**。
+         *   `ok:false` + `reason` 分开写：「面不可用」不等于「这个包没问题」。
+         */
+        _memoryPackageAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                ok: false, verdict: 'reject', reason: r, from: null, to: null, steps: [], unknownKeys: [],
+                keysChecked: false, migratable: false, why: '',
+                notes: ['记忆包面不可达（memory-package.js 未加载）⇒ 报 ok:false/' + r + '，**不报「可以导入」**']
+            };
+        }
+        /**
+         * [v3.313.0 · M-X8] 判包（**只判不写**、不抛）。
+         *   返回面原样透传（**不改写返回值**），并把**读数摘要**留在 `_lastMemoryPackage`
+         *   ——存整包就是第二份证据库，且受限条目会随之外泄。
+         */
+        memoryPackageAdmit(pkg, opts) {
+            const MPk = _memoryPackageLib();
+            if (!MPk || typeof MPk.admitPackage !== 'function') return this._memoryPackageAbsent();
+            try {
+                const deps = this._memoryPackageDeps();
+                const res = MPk.admitPackage(pkg, opts, deps);
+                this._lastMemoryPackage = {
+                    at: Date.now(), verdict: res.verdict, reason: res.reason, from: res.from, to: res.to,
+                    steps: (res.steps || []).length, unknownKeys: (res.unknownKeys || []).length,
+                    keysChecked: res.keysChecked === true, migratable: res.migratable === true,
+                    depsMissing: (deps.SCHEMA_MIGRATION ? 0 : 1) + (deps.ARCHIVE_KEYS ? 0 : 1) + (deps.SECRET_BODY_KEYS ? 0 : 1)
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.memoryPackageAdmit'); return this._memoryPackageAbsent('thrown'); }
+        }
+        /**
+         * [v3.313.0 · M-X8] 导入预览（只读；冲突默认**不替用户决定**）。
+         */
+        memoryPackagePreview(pkg, target, opts) {
+            const MPk = _memoryPackageLib();
+            if (!MPk || typeof MPk.previewImport !== 'function') {
+                return { verdict: 'blocked', entries: [], add: 0, same: 0, conflict: 0, dangling: 0, blocked: ['module-absent'], skipped: 0, targetChecked: false, why: ['module-absent'] };
+            }
+            try { return MPk.previewImport(pkg, target, opts); }
+            catch (e) { errLog(e, 'plugin.memoryPackagePreview'); return { verdict: 'blocked', entries: [], add: 0, same: 0, conflict: 0, dangling: 0, blocked: ['thrown'], skipped: 0, targetChecked: false, why: ['thrown'] }; }
+        }
+        /**
+         * [v3.313.0 · M-X8] 出导入计划（**只算不写**）。
+         *   `seen` 由调用方持有并回传 —— 幂等表**不在本仓偷偷落一份**。
+         */
+        memoryPackagePlan(pkg, preview, opts) {
+            const MPk = _memoryPackageLib();
+            if (!MPk || typeof MPk.planImport !== 'function') {
+                return { ok: false, importId: '', duplicate: false, applied: [], count: 0, total: 0, skipped: [], blocked: [], writesNothing: true, reason: 'module-absent' };
+            }
+            try { return MPk.planImport(pkg, preview, opts); }
+            catch (e) { errLog(e, 'plugin.memoryPackagePlan'); return { ok: false, importId: '', duplicate: false, applied: [], count: 0, total: 0, skipped: [], blocked: [], writesNothing: true, reason: 'thrown' }; }
+        }
+        /** [v3.313.0 · M-X8] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        memoryPackageDescribe() {
+            const MPk = _memoryPackageLib();
+            if (!MPk || typeof MPk.describe !== 'function') {
+                return { kind: 'memory-package-describe', version: 0, granularity: [], admit: [], preview: [], sources: [],
+                    rejectReasons: [], faces: [], secretBodyKeys: [], bodyMax: 0, packageKeys: [],
+                    present: 0, total: 0, missing: [], admitExhaustive: false, maskFixedLength: false,
+                    offline: true, writesNothing: true, note: '记忆包模块未加载（memory-package.js）', reason: 'module-unavailable' };
+            }
+            try {
+                const d = MPk.describe(this._memoryPackageDeps());
+                d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.memoryPackageDescribe'); return { kind: 'memory-package-describe', version: 0, granularity: [], admit: [], preview: [], sources: [], rejectReasons: [], faces: [], secretBodyKeys: [], bodyMax: 0, packageKeys: [], present: 0, total: 0, missing: [], admitExhaustive: false, maskFixedLength: false, offline: true, writesNothing: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.313.0 · M-X8] 诊断一行。**四种坏法分开写**（本仓纪律）：
+         *   模块没挂 / 依赖缺格 / 口径不自洽（掩码不定长 ⇒ 长度本身就是读数）/ 面在位。
+         *   不在诊断行里跑真导入：看一次要读全目标面，诊断面不许有这种副作用。
+         */
+        memoryPackageLine() {
+            try {
+                const MPk = _memoryPackageLib();
+                if (!MPk || typeof MPk.line !== 'function') return '模块未加载（memory-package.js）';
+                const d = this.memoryPackageDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（memory-package.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                if (String(d.reason || '').indexOf('deps-missing') === 0 || (d.missing && d.missing.length)) {
+                    return '⚠️ 依赖缺格：' + (d.missing || []).map((m) => m.key).join('、') + '（' + d.present + '/' + d.total + '）';
+                }
+                if (d.maskFixedLength === false) return '⚠️ 受限正文掩码不是定长（长度本身成了读数）';
+                if (d.admitExhaustive === false) return '⚠️ 准入三态不可穷尽（拒绝会被读成「要迁移」）';
+                const last = this._lastMemoryPackage || null;
+                if (!last) return '待导入（面在位 · 粒度 ' + (d.granularity || []).length + ' 档 · 拒绝理由 ' + (d.rejectReasons || []).length + ' 条 · 离线）';
+                const bits = ['上次 ' + (last.verdict || '—')];
+                if (last.from !== null && last.from !== undefined) bits.push('v' + last.from + '→v' + last.to);
+                if (last.steps) bits.push('需迁 ' + last.steps + ' 步');
+                if (last.unknownKeys) bits.push('⚠️ 未知键 ' + last.unknownKeys);
+                if (last.keysChecked === false) bits.push('键面未判');
+                if (last.reason) bits.push('理由 ' + last.reason);
+                return bits.join(' · ');
+            } catch (e) { errLog(e, 'plugin.memoryPackageLine'); return '—（诊断异常）'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
          * [v3.311.0 · M-X2] 修复**落定面**（从「流程完成」到「所有派生面落盘完成」）
          *
          * 【宿主只做三件事，绝不自己算】
@@ -15235,6 +15382,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   本模块把处置（定位）/ 动作（手段）分开，配计划 / 审计 / 回滚 / 回读，**纯函数零写**。
     function _factLifecycleLib() {
         return _moduleLib(() => window.LonShaFactLifecycle, 'fact-lifecycle.js');
+    }
+    // [v3.313.0 · M-X8] 版本化记忆包（memory-package.js）。为什么需要：
+    //   `volume-continuation.js`（X7）能建卷接续包，但那是**会话内**的接续件 ——
+    //   没有包格式代际、没有导入预览、没有幂等账、没有撤销；`snapshot-checkpoint.js`
+    //   存命名检查点但绑在同一宿主的 localStorage，换设备即无；`schema-migration.js`
+    //   有结构代际迁移注册表，但没人把「用户从别的设备带回来的包」接到那条路上。
+    //   本模块把「造包 → 准入判定 → 预览 → 部分导入 → 撤销」收成一处，**纯函数零联网**。
+    function _memoryPackageLib() {
+        return _moduleLib(() => window.LonShaMemoryPackage, 'memory-package.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的

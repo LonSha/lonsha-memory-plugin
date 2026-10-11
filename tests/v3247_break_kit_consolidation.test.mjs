@@ -248,6 +248,7 @@ const REGISTRY = [
     'v3310_memory_center.test.mjs',
     'v3311_repair_settle.test.mjs',
     'v3312_fact_lifecycle.test.mjs',
+    'v3313_memory_package.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

@@ -1,3 +1,99 @@
+## v3.313.0
+
+**M-X8（第二期拓展计划）版本化记忆包与跨设备迁移：代际三态 / 未知键不静默丢 / 幂等账在调用方 / 悬空不伪装可跳转 / 受限正文定长站位串 / 边界不打穿**
+
+### 它补的是哪一格（修前实测逐点，非抽样）
+
+- **能把「上一卷说了什么」接下去，但带不走。** `volume-continuation.js`（X7）建的是**会话内**接续包：按卷切、按 keeper 过滤、带 `sourceRef` —— 没有包格式代际、没有导入预览、没有冲突检测、没有幂等账、没有撤销。把它当迁移包用，等于把「卷内接续」说成「跨设备迁移」。
+- **能在同一宿主的 localStorage 存命名检查点，换设备即无。** `snapshot-checkpoint.js`（R4-C）刻意不新建存储系统，检查点落在调用方给的 store 上 —— 这在本宿主内是对的，**恰是本条目要治的那件事**（跨设备）。
+- **有结构代际迁移注册表，但没人把「外来包」接到那条路上。** `schema-migration.js`（v3.209.0）的 `plan()/run()` 是给**存档载荷**用的。用户从别的设备带回来的 `.json` 包于是只有两种命运：被逐字段硬塞进新运行时（缺字段静默缺失、语义变化静默沿用），或整包被拒（字段全丢）—— 两种都不叫「明确迁移或明确拒绝」。
+
+本模块把三件收成一处：**造包 → 判包 → 预览 → 部分导入（幂等）→ 撤销（有来源边界）**。
+
+### 交付物
+
+- **`memory-package.js`**（纯函数、零依赖、IIFE 双导出、705 行）：常量面 `MP_VERSION=1` / `GRANULARITY`（项目级·角色级·会话级） / `ADMIT`（current·migrate·reject） / `PREVIEW`（ok·warn·blocked） / `SOURCE`（live·source-deleted·unknown） / `REJECT_REASONS`（9 条**穷尽**） / `PACKAGE_KEYS`（包顶层契约 16 键，本模块是包格式的定义者） / `SECRET_BODY_KEYS`（与 X6/X7 同形同值） / `SECRET_MASK` / `BODY_MAX=80` / `FACES`（与 X6/X7 同词表） / `LICENSE` / `REQUIRED_DEPS`（**三件**）。函数面 17 个：`normalizeScope` / `isSecret` / `maskEntry` / `filterByKeeper` / `sourceRefOf` / `schemaOf` / `buildPackage` / `admitPackage` / `sourceStateOf` / `boundaryCheck` / `entryKeyOf` / `previewImport` / `planImport` / `revokeImport` / `describe` / `selfCheck` / `line`。
+- **宿主五出口**（`index.js`）：模块级取库口 `_memoryPackageLib()`；唯一装配点 `_memoryPackageDeps()`（三件：`SCHEMA_MIGRATION` 取 `schema-migration.js` / `ARCHIVE_KEYS` 取 `ARCHIVE_TOP_LEVEL_KEYS` / `SECRET_BODY_KEYS` 取 `branch-semantics.js`，取不到一律 `null` 而非 `{}`）；降级面 `_memoryPackageAbsent(reason)`（同键 + `ok:false` + 明写「不报可以导入」）；出口 `memoryPackageAdmit` / `memoryPackagePreview` / `memoryPackagePlan`（**出口不落笔**）/ `memoryPackageDescribe` / `memoryPackageLine`（四种坏法分开写）；`selfCheck` 表新增一行 `['记忆包', this.memoryPackageLine()]`。
+
+### ① 代际要么迁、要么明确拒（验收①：不得静默丢字段）
+
+`admitPackage()` 三态 `current / migrate / reject`，每态各自可达且命名不同形：
+
+- **包比插件新** ⇒ `reject / too-new`（「降级读取不在迁移职责内，不得假装可导」）；
+- **连 `schemaVersion` 都没写** ⇒ `reject / no-schema`（旧到无法判，须人工确认结构后再导入）；
+- **写了但不可解析** ⇒ `reject / schema-unparsable`；
+- **旧代际** ⇒ `migrate` + 逐条 `steps`；路�**不问本模块** —— 一律问 `deps.SCHEMA_MIGRATION.plan()`（结构代际的唯一真源）；
+- **迁移模块缺席** ⇒ `reject / migration-unavailable`（**不假装已是当前代际** —— 这是本刀最容易写错的一格）；
+- **注册表缺链**（`plan` 回 `unknown` 且带 `broken`）⇒ `reject / no-migration-path`，与「包不可用」分开点名。
+
+★ **未知顶层键默认拒**：`unknown-keys` 且逐条列进 `unknownKeys`。静默丢字段正是验收①点名要治的那件事，故默认不吞；只有调用方显式 `keepUnknown:true` 才放行，且**放行也仍把 `unknownKeys` 列出**（留痕）。
+★ **键面未判与「无未知键」不同形**：`ARCHIVE_KEYS` 缺席时 `keysChecked:false`，**不报「没有未知键」**。
+
+### ② 幂等账在调用方手里（验收②）
+
+`importId = 'im_' + stableId(packageId + '#' + scopeKey + '#' + revision)` —— 同包同目标恒同 id（确定性）。`seen` 数组由**调用方持有并回传**：命中即 `duplicate:true` 且 `applied` 为空。★ 本模块**零持久状态**：不偷偷写第二份导入账。★ 重复导入是**正常读数**（`ok:true` / `reason:'duplicate-import'`），不得与被挡（`ok:false`）同形 —— 本仓 O-1 / R3-D / F-8 抓过的老账。
+
+### ③ 悬空来源不伪装可跳转（验收③）
+
+`sourceStateOf()` 三态：**没给活源表 ⇒ `unknown`**（判不了 ≠ 还在），**给了空表 ⇒ `source-deleted`**（查了，没有）。只有 live 且版本一致才 `navigable:true`；**版本漂移仍是 live 但 `versionShifted:true` 且 `navigable:false`**（旧锚点不可跳转）。没给来源引用 ⇒ `no-source-ref`，与「查不到」不同形。预览面同理：给了 `knownRefs` 且条目自报的 ref 不在表里 ⇒ `dangling-source`；**没给 `knownRefs` ⇒ 未判**（`dangling` 恒 0，不报「无悬空」）。
+
+### ④ 受限正文与知识范围不因导出而放宽（验收④）
+
+入口即剥（与 X7 M-O8 第三刀同纪律）：受限条目正文一律 `SECRET_MASK` 定长站位串，**受限键名整键清空**（留着 `secret:null` 会让键名本身成为逐字反查里的一处残留），条目只带 `sensitive:true` 标记 + 归属。★ **站位串不随原文本长变化** —— 否则长度本身就是读数。★ keeper 过滤照走（实体 id 优先，只有名字才退 `by-name` 并如实回报），**挡掉的条数必须计数可见**（`hidden` / `knowledge.hiddenBy`），绝不静默少条。
+
+### ⑤ 边界不打穿（验收⑤）
+
+`boundaryCheck()` 逐条比对包内 `sourceRef.session / branch` 与目标：不一致 ⇒ `boundary-cross` 进 `crosses` 并计入 `blocked`；有越界时 `planImport` 一律 `boundary-blocked`、**不出计划**。只有显式 `allowCrossBranch:true` 才放行，且**放行也仍列 `crosses`**（留痕）。未选作用域 ⇒ `buildPackage` 一律 `ok:false / reason:'no-scope'`，**不产包**（空包会被下游读成「这个项目确实没有可带走的」，真相是「你根本没选」）。
+
+### ⑥ 撤销有来源边界（功能④）
+
+`revokeImport()`：没给范围（`packageId` / `importId` / `scopeKey` 三选一皆无）⇒ `no-scope` **拒**（撤销不是推倒重来）；给范围则只撤来源在 scope 内的，范围外一条不动并计 `untouched`；已撤条重复调用计 `already` 不再计（幂等）。
+
+### ⑦ 离线（功能④：优先本地、不默认联网）
+
+源码零 `fetch` / `XMLHttpRequest` / `localStorage` / `indexedDB` / `WebSocket` / `navigator.sendBeacon` —— 由判据 `judgeOffline` 逐词钉住；包与自述均带 `offline:true`。
+
+### ⑧ 本刀自伤与修法留痕（五处）
+
+1. **`entryKeyOf` 对不上号**（判据 P1 首跑当场报 `add=1`）：包内条目带的是 `ownerKey`（形如 `id:e1`），而目标面条目带的是 `entityId` —— 两者对不上，「同一条」被读成 `add`，**冲突检测整格失效**。修法：`entryKeyOf` 先归一 `ownerKey`，再退回实体字段。
+2. **数字被折成字符串**（判据 P1 报 `same=1` 而非 2）：`maskEntry` 对非受限正文无差别地走 `text()`，把 `value: 120` 变成 `'120'`；而 `sameValue` 是稳定串比较，`'120' ≠ 120` 让「同值」被读成冲突。修法：**只对字符串**折空白 + 截断，数字 / 布尔 / 对象原样保留（跨设备迁移尤其不能改类型）。
+3. **受限键名残留**（judgeSecret 报 `受限键名不得残留在条目里`）：`maskEntry` 清的是值，上层又把键名搬回条目。修法：键名整键清空，不留 `secret:null`。
+4. **夹具与包不等长**（`pl.count !== 2`，实 3）：夹具的包里有 3 条（factVersion 两条 + money 一条），判据却按 2 条写。修法：判据按实数（3）对齐，并把目标面补上 money 一格（否则 `ownerKey` 对账面看不出问题）。
+5. **负控制异常逃逸**（破副本 `srcunk` 抛 `TypeError`，后续断言静默漏跑）：破坏把守卫 `if` 换成 `if (false)` 后 `liveSources.length` 直接抛错，而 `assert.notEqual(judge(b), '', ...)` 没有 catch ⇒ 断言面漏跑、结论失真（本仓负向探针纪律）。修法：加 `broke()` 包装，**破副本抛错也算翻红**（并注明原因），使「六条各自现形」不被异常遮蔽。
+
+### ⑨ 新档 `tests/v3313_memory_package.test.mjs`（14 条）
+
+M1 登记面（extra_js 恰一次 + 与追加时邻居 `fact-lifecycle.js` 都在场，**位置不作判据**）· M2 导出面（17 函数 / 五登记表 / 四状态词表 / 离线钉词 / `schemaOf` 四态）· **D2 当版版本锚**（`const BORN = '3.313.0'` + `vnum` + 六源同源）· O1 造包七件齐 + 完全隔离 · **D1 准入**（三态可达 / 未知键默认拒 / 显式放行留痕 / 迁移缺席不假装当前代际 / 键面未判 / 非对象两种 / 理由必须取自词表）· S1 来源悬空 · U1 受限正文（定长站位串 + 逐字反查 + 知识范围不放宽）· P1 预览 · B1 幂等 + 边界 · R1 撤销 · H1 宿主接线（定义面恰一次 / 使用面 ≥1 次 / 装配点键名逐字 / 出口不落笔 / 真调内核）· E1/E2 端到端（缺格 / 模块缺席 / 键面未判 / 地基）· **L1 六条真源码破坏 + 正控制地基 + 反向对照 + 判据纯度**。
+
+### ⑩ 修后验证真读数
+
+- `node --test tests/v3313_memory_package.test.mjs` ⇒ **14/14 pass / 0 fail**。
+- `scan_doc_truthfulness` rc0（版本 3.313.0 / 测试 294 / 审计门禁 60（磁盘 65）/ 根级 .js 93 / extra_js 92）。
+- `scan_module_wiring` rc0（加载顺序 93 个脚本 / 真加载成功 93/93 / 对外全局 92 个）—— 上一轮的 B3「`window.LonShaMemoryPackage` 无人供给」已解消。
+- `scan_version_guard` rc0（frontier `v3313_memory_package.test.mjs` / 当版锚点 1）；`scan_plan_currency` rc0（执行状态 v3.313.0）；`scan_open_faces` rc0（`memoryToolsEnvelope (v3.313.0) → none@0`）；`scan_syntax` rc0（486 文件均可解析）。
+
+### ⑪ 抬版牵连面（逐项核）
+
+六源（`index.js` / `manifest.json` / `package.json` / `memory-config.js` / `memory-core.js` / `memory-organs.js`）· `manifest.extra_js` 91 → **92**（末位 `memory-package.js`）· README 版本行 / 测试文件数 293→**294** / 运行时模块 92→**93** / `extra_js` 三处 91→**92** · PLAN 状态行 / 版本行 / 门禁行 / 体量行（16862 行 / 617 成员 / extra_js 92）/ 两处待验标记 · TODO 顶行新增「最近更新 v3.313.0」+ 旧行降为历史留痕 · **CHANGELOG 新顶节**（本版）· `v3209` 两处数量锁 91→**92** · `v3247` REGISTRY 追加本档 · `catalog_reference_consumers.tsv` 追加本档一行 · `open_face_registry.tsv` 的 `memoryToolsEnvelope` 行 `producer_version` 3.312.0→**3.313.0**。
+
+### ⑫ 本版全量未跑
+
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+
+### ⑬ 抬版连带：O7 副本台账三档补登（判据按设计抓到，非为过门禁）
+
+新模块自持原语是**本仓既定纪律**（`volume-continuation.js` 档头逐字声明「不引 X6 的常量 —— 跨模块引用会把两处抬版变成一处悄悄读旧值」），故 `memory-package.js` 的 `keyOf` / `strOf` / `numOrNull` / `text` 与 `PREVIEW` / `SOURCE` / `LICENSE` / `FACES` 各持一份同形同值体。这让 O7 的四层副本台账**按设计翻红**（成员集合变了），逐档补登 + 留痕理由：
+
+- **`v3281`（模块↔模块逐字副本）**：`numOrNull` 五份 → **六份**、`keyOf` 两份 → **三份**（第三次补登）；**新增 `strOf#c43bf88e`**（`memory-package.js` ↔ `volume-continuation.js`）。
+- **`v3282`（别名副本）**：`keyOf/strOf` 三份 → **四份**、`PRECHECK/PREVIEW` 两份 → **三份**（成员集合变更，非新簇）。
+- **`v3283`（常量表值级副本）**：`FACES` 两份 → **三份**；**新增 `PREVIEW` / `SOURCE` / `LICENSE` 三对**（与 `volume-continuation.js` 同值，逐字相等由该档 B1 钉住）。
+
+★ 三档的体 md5 均**未变**（逐字同源仍在）；补登只改成员集合与理由，不改数值。
+
+按用户纪律（「做完计划全部内容前别跑全量」）只跑单门 / 单套件；全量 `npm test` 与 `npm test -- --audit` 留到计划收口点跑一次。故 README / PLAN 的「全量待验」标记照旧由 `scan_doc_truthfulness` 的 D6 把守。
+
+---
+
 ## v3.312.0
 **M-X4（第二期拓展计划）事实生命周期与「遗忘 / 撤回 / 保留」控制：五处置穷尽互斥、四动作不一一对应、被挡即出不了计划、回滚三档与回读按面分开核**
 - **它补的是哪一格**：本仓已能把「这条事实是什么」读出来（`fact-state` 五态 / `memory-type`
