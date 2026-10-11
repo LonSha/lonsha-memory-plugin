@@ -137,7 +137,14 @@ ST-Bionic-Memory-Ecology · TriviumDB
 
 ## 许可证
 
-MIT License
+MIT License —— 全文见仓根 [`LICENSE`](LICENSE)（Copyright (c) 2026 LonSha）。
+
+本仓**不含**任何第三方版权代码：根级模块与 `extra_js` 全部为本项目自有实现。
+致谢段列出的项目仅作**机制考察**（存档在 `archive/research/`），其源码不在本仓内。
+
+## 发布
+
+版本以 git tag（`v<version>`）与 GitHub Release 发行；Release 附件是该版本的离线运行包，由 `python3 tools/release_zip.py` 现场构建（成员集自 `git ls-files` 派生、排除 `tests/ tools/ docs/ archive/` 等开发面）。
 
 ## 反馈
 

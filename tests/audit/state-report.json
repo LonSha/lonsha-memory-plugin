@@ -475,11 +475,11 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "caaad4956807",
+      "manifest.json": "c9b22d1889f0",
       "package.json": "e0dc73b4c01f",
       "index.js": "a2c3fe00be75",
       "update-log.json": null,
-      "README.md": "a71a1144d750",
+      "README.md": "9785c3a1add9",
       "PLAN.md": "8475f039cf7c",
       "CHANGELOG.md": "711a22b4b7cb",
       "TODO.md": "129300dacc9c",

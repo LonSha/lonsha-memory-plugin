@@ -13,3 +13,5 @@ node_modules/
 /tools/_v3267_*
 /tools/__pycache__/
 /tools/patch_v3267_*.py
+# Release package output (built by tools/release_zip.py; attached to GitHub releases, not committed)
+dist/
