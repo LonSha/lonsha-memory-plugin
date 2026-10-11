@@ -256,6 +256,9 @@ const REGISTRY = [
     /* [v3.318.0 M-O2 真浏览器切片] 本档从 tests/_break_kit.mjs 取 breakSource / assertSingleHit，
      *   按 B1 台账纪律（接入面 == 磁盘事实）在此登记。 */
     'v3318_ui_narrow_layout_gate.test.mjs',
+    /* [v3.319.0 CI 忠实性修复] 本档从 tests/_break_kit.mjs 取 breakText（真源码破坏），
+     *   按 B1 台账纪律（接入面 == 磁盘事实）在此登记。 */
+    'v3319_ci_faithful_probe_and_attribution.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

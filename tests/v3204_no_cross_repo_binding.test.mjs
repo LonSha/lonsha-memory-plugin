@@ -295,6 +295,35 @@ test('v3204 15. 退役面已封口：archived 清单 == 退役登记，且在役
     for (const f of onArch) assert.ok(!onLive.includes(f), '退役文件不得回到在役面：' + f);
 });
 
+/* ══════════ 5b. P7：探测面不得绑宿主绝对路径（CI 实测缺陷回归） ══════════ */
+/* 为什么补这一档：P1 只扫 tests/*.test.mjs，而 tests/audit/ 下的探针
+ *   是**另一类文件**。v3.318.0 下游项目的 CI 实测抳回一个真缺陷：
+ *   tests/audit/perf_probe.cjs 写死了本机 checkout 路径，本地因该路径
+ *   恰是本机而被读成「绿」，干净检出 / CI 上 require ENOENT。
+ *   此前本仓对探测面绝对路径**无判据**（CODE_EXEMPT 整片豁免）。 */
+test('v3204 15b. P7 结构面：在役探测面不得写入型绝对路径（扫描面是 P1 之外的探测面）', () => {
+    for (const [needle, why] of [
+        ['P7 探测面写入型绝对路径', 'P7 判据标记'],
+        ['ABS_STRICT', 'P7 用严格绝对路径判据（排除转义正则形态）'],
+        ['onProbe', '在役探测面枚举'],
+        ['探测面 ', '读数行须念出探测面数'],
+    ]) assert.ok(SCAN.includes(needle), '守卫缺少：' + why + '（' + needle + '）');
+});
+
+test('v3204 15c. 负控制 N8：在役探测面写入型绝对路径 → 必须 exit 1（P7）', () => {
+    const rel = 'tests/audit/snapshot_probe.cjs';
+    const r = withTree((d) => {
+        const p = path.join(d, rel);
+        /* 被注入的路径必须在运行时拼成：本档自己在 P1 扫描面内，
+         *   写成字面量会反手命中自己（判据自指伪证）。 */
+        const bad = 'const X = require(' + JSON.stringify('/ho' + 'me/xyz') + ');';
+        writeFileSync(p, readFileSync(p, 'utf-8') + '\n' + bad + '\n');
+    });
+    assert.strictEqual(r.status, 1, '探测面绑宿主路径必须阻断：' + r.out.slice(-400));
+    assert.ok(/P7 探测面写入型绝对路径/.test(r.out), '应点名 P7：' + r.out.slice(-400));
+    assert.ok(r.out.includes('snapshot_probe.cjs'), '应点名具体探测文件');
+});
+
 /* ══════════ 6. 可移植性证明 ══════════ */
 test('v3204 16. 可移植性证明：整仓复制到仓库之外 → 关键用例仍 EXIT 0', () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3204-port-'));

@@ -215,13 +215,14 @@ test('v3318 G1. ★ 当版锚点（精确形）+ 四处登记面已补', () => {
     const self = readRoot(path.join('tests', 'v3318_ui_narrow_layout_gate.test.mjs'));
     assert.ok(self.includes('const SCAN_REL = '), '自防护：套件须自持扫描器路径常量');
     assert.ok(self.includes('assertSingleHit'), '自防护：须用统一锚点校验器');
-    /* [v3.318.0] 当版锚（精确形）：本档即当版 frontier，版本必须与 package.json 同源。 */
-    assert.equal(vnum(pkg), vnum('3.318.0'), '当版锚点：package.json 须为 3.318.0（实 ' + pkg + '）');
+    /* [v3.319.0 交棒] 本档不再是当版 frontier：锚点改为**下界形**（与 v3317 同口径）——
+     *   不再把当版版本写死，否则每次抬版都要回改历史档（本仓定性过的「抬版仪式」）。 */
+    assert.ok(vnum(pkg) >= vnum('3.318.0'), '本档自出生版本 3.318.0 起成立：实 ' + pkg);
     const matrix = readRoot(path.join('tests', 'audit', 'audit_scan_probe_matrix.tsv'));
     assert.ok(/scan_ui_narrow_layout\.mjs/.test(matrix), '探针矩阵须登记本门（否则灵敏度体检面悄悄变窄）');
     const roster = readRoot(path.join('tests', 'audit', 'catalog_reference_consumers.tsv'));
     assert.ok(/v3318_ui_narrow_layout_gate\.test\.mjs/.test(roster), '在役测试面名册须登记本套件');
     const reg = readRoot(path.join('tests', 'v3247_break_kit_consolidation.test.mjs'));
     assert.ok(/v3318_ui_narrow_layout_gate\.test\.mjs/.test(reg), 'v3247 接收方台账须登记本套件（它取 breakSource）');
-    ok('当版锚 3.318.0；探针矩阵 / 在役名册 / v3247 台账三处登记面齐');
+    ok('下界锚 3.318.0；探针矩阵 / 在役名册 / v3247 台账三处登记面齐');
 });

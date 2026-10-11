@@ -5,7 +5,14 @@
  * 口径仍声明：合成数据 + 真模块，非实机。
  */
 const path=require('path');
-const R='/home/user/lonsha-memory-plugin';
+/* 仓库根按**文件位置**推导（不是本机绝对路径）。
+ *   [CI 实测缺陷] 这里曾经把仓库根写死成开发机上的一个绝对路径：
+ *     · 本地绿 —— 因为该路径恰好就是本机 checkout 位置，探针读的是**主仓**而非被测树；
+ *     · 干净检出 / CI（/home/runner/work/...）必红 —— require 直接 ENOENT，
+ *       v3229 B2 报「探针必须能跑通」，而 B1 在同一轮是 ✓。
+ *   即「门禁的绿一半来自本机环境」，与 tests/audit/ 里两个真实宿主探针同族。
+ *   探针的职责是量**被测树**，就必须只依赖自己被检出的位置。 */
+const R=path.resolve(__dirname,'..','..');
 const LR=require(path.join(R,'ledger-replay.js'));
 const SB=require(path.join(R,'scene-book.js'));
 function buildScene(N){const s=new SB.SceneBook();for(let f=1;f<=N;f++)s.apply([{action:'add',path:['城A','街'+f]}],f);return s;}

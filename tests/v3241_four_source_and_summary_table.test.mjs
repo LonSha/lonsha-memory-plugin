@@ -71,6 +71,7 @@ test('v3241 A3. run.mjs 含汇总表三件：firstError / 失败汇总表 / TEST
         ['TEST_SUMMARY_JSON', '缺结构化摘要落盘通道'],
         ['auditSummary', 'audit 段须并入同一张表'],
         ['摘要**不参与判定**', '摘要与判据的边界必须写明（否则摘要会变成第二套判据）'],
+        ['TAP_ERR', '归因抽取须含 TAP 形态分支（旧实现只取首个 ERR_SIG 行 → CI 必红）'],
     ]) assert.ok(RUN.includes(needle), why + '：' + needle);
     ok('汇总表三件齐备');
 
@@ -252,6 +253,26 @@ test('v3241 D2. 全绿夹具：exit 0、无失败表、摘要 ok=true（表不�
         assert.ok(!r.out.includes('[run] 失败汇总表'), '全绿时不得打印失败表：' + r.out.slice(-400));
         assert.ok(r.summary && r.summary.ok === true, '摘要须 ok=true');
         assert.deepStrictEqual(r.summary.tests.failed, [], '摘要失败清单须为空');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('v3241 D3. 归因抽取对报告器无关：TAP 形态下仍带出断言原文（CI 的 Node 20/22 走 TAP）', () => {
+    /* [v3.318.1 CI 实测缺陷] 旧实现只取「首个 ERR_SIG 命中行」。
+     *   spec 报告器下首行恰好是 AssertionError 行（本机 Node 24 就这样，故本地假绿）；
+     *   而 TAP 报告器下首行是 `not ok 1 - <用例名>`（**不含断言原文**）。
+     *   CI 的 node --test 走管道时默认 TAP → 本该必红。
+     *   因果已在 CI 与本地 Node 20 上双向复现。 */
+    const dir = mkRunTree();
+    try {
+        const r = runRunner(dir, { NODE_OPTIONS: '--test-reporter=tap' });
+        assert.strictEqual(r.status, 1, '有红文件必须 exit 1：' + r.out.slice(-400));
+        const row = r.out.split('\n').find((l) => l.startsWith('  test  |') && l.includes('zz_red.test.mjs'));
+        assert.ok(row, '汇总表须有该文件的表行：' + r.out.slice(-600));
+        assert.ok(row.includes('故意失败'), 'TAP 形态下表行仍须带断言原文（旧实现只带 not ok 标题行 → CI 必红）：' + row);
+        assert.ok(r.summary, '结构化摘要须落盘且可解析');
+        const f = r.summary.tests.failed.find((x) => x.file.includes('zz_red.test.mjs'));
+        assert.ok(/故意失败/.test(f.firstError), 'JSON 摘要的 firstError 同源：' + f.firstError);
+        ok('TAP 与 spec 两种报告器下归因同样可达');
     } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

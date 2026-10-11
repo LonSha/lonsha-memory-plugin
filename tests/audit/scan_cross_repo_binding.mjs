@@ -22,6 +22,13 @@
  *      缺口（新增文件未登记）与残留（登记了不存在的文件）都报。
  *   P4 退役面（catalog_version_guard.tsv）的每个文件不得重新出现在顶层。
  *   P5 退役文件本身只在 tests/archived/ 下，且目录不得为空。
+ *   P7（探测面）在役探测面（tests/audit/*.cjs / *.mjs，非 `_` 前缀）不得把自己绑到
+ *      写入型绝对路径（/home/… 、/tmp/…）。探测面是 P1 之外的**另一类文件** ——
+ *      P1 只看 tests/*.test.mjs，探测面整个不在面内；实测该处复发过同类病：
+ *      一个探针写死本机 checkout 路径，本地因该路径恰是本机而被读成「绿」，
+ *      干净检出 / CI 上 require ENOENT ⇒ 判据不 hermetic。
+ *      口径：`/home/`、`/tmp/` 前不能是反斜杠（`\/home\/` 是正则里的转义写法，
+ *      是在**检测**绝对路径本身，不算绑路径）。
  *   P6 退役面的**覆盖率转移有判据**（v3.205.0 起）：每行必须声明 covered_by ——
  *      或是「在役见证文件」（必须在役、且真的被该退役文件点名，防空洞引用），
  *      或是 `-:理由`（无同等覆盖时理由必填）。把所有退役都标 `-` 相当于没判据，
@@ -76,10 +83,16 @@ if (refRows.length === 0) failClosed('参考基准为空（扫描面不可信）
 if (staleRows.length === 0) failClosed('退役登记为空（退役基线不可信）');
 
 const onDisk = fs.readdirSync(TESTS).filter((f) => f.endsWith('.test.mjs')).sort();
+/* 在役探测面：P1 之外的另一类文件（下划线前缀是取证探针，非在役）。 */
+const onProbe = fs.readdirSync(AUDIT).filter((f) => (f.endsWith('.cjs') || f.endsWith('.mjs')) && !f.startsWith('_')).sort();
 const onArchive = fs.readdirSync(ARCHIVED).filter((f) => f.endsWith('.test.mjs')).sort();
 
 /* 绝对路径：/home/... 或 /tmp/...（POSIX 形态）；Windows 盘符一并拦 */
 const ABS = /(?:^|[^A-Za-z0-9_$.])\/home\/|(?:^|[^A-Za-z0-9_$.])\/tmp\/|(?:^|[\s'"`(,=\[])[A-Za-z]:[\\/]/;
+/* P7 用：写入型 / 字符串型绝对路径 —— `/home/`、`/tmp/` 前不得是反斜杠。
+ *   原因：正则字面量里的 `\/home\/` 属于「检测绝对路径」的词表，不是自己绑路径；
+ *   把两者混为一谈会让守卫退化成「不准写检测词」。 */
+const ABS_STRICT = /(?:^|[^A-Za-z0-9_$.\\])\/(?:home|tmp)\//;
 /* 兄弟仓库标记 */
 const SIBLING = /ruby-phone-work|ruby-phone(?!-work)/;
 /* 逃出本仓的相对读取：../.. 及以上，且目标不是 tests/ 内（测试本来就可引 ../index.js） */
@@ -111,6 +124,22 @@ for (const f of onDisk) {
         if (ABS.test(line)) problems.push('P1 绝对路径字面量（位置无关性被破坏，换 checkout 位置必红）：' + at + ' → ' + trimmed.slice(0, 90));
         if (SIBLING.test(line)) problems.push('P2 引用兄弟仓库（跨仓绑定：兄弟树不存在/已退休时门禁必红）：' + at + ' → ' + trimmed.slice(0, 90));
         if (ESCAPE.test(line)) problems.push('P2 相对路径逃出本仓（读取仓库之外）：' + at + ' → ' + trimmed.slice(0, 90));
+    });
+}
+
+/* ── P7：在役探测面不得把自己绑到宿主绝对路径 ── */
+let p7Hits = 0;
+for (const f of onProbe) {
+    const raw = read(path.join(AUDIT, f));
+    if (raw == null) continue;
+    stripSrc(raw).split('\n').forEach((line, i) => {
+        const t = line.trim();
+        if (!t) return;
+        if (ABS_STRICT.test(line)) {
+            problems.push('P7 探测面写入型绝对路径（探测面不在 P1 面内：该路径同时让判据不 hermetic、且换 checkout 位置必红）：'
+                + f + ':' + (i + 1) + ' → ' + t.slice(0, 90));
+            p7Hits++;
+        }
     });
 }
 
@@ -183,7 +212,8 @@ if (staleAll.length > 0 && dashOnly > staleAll.length / 2) {
 }
 
 console.log('=== 跨仓/绝对路径守卫：在役 ' + onDisk.length + ' / 退役 ' + onArchive.length
-    + ' / 参考基准 ' + refRows.length + ' / 问题 ' + problems.length + ' ===');
+    + ' / 参考基准 ' + refRows.length + ' / 探测面 ' + onProbe.length + ' · P7 ' + p7Hits
+    + ' / 问题 ' + problems.length + ' ===');
 if (problems.length) {
     for (const p of problems) console.error('  ✗ ' + p);
     console.error('[cross-repo] 发现 ' + problems.length + ' 处。');

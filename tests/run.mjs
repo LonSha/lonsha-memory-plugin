@@ -215,9 +215,24 @@ async function pool(items, jobs, worker) {
  *   这里的形态是「从子进程输出里挑第一条像错误的行」，**只用于摘要展示**，
  *   判据一律仍以退出码为准（摘要不参与判定，避免把「像错误的行」当成判据）。 */
 const ERR_SIG = /AssertionError|Error:|SyntaxError|TypeError|ReferenceError|not ok|\[.*\] *失败|✗/;
+/* TAP 形态的失败详情行 —— **必须先于下面的标题行判据**：
+ *   [CI 实测缺陷] 旧实现只找 ERR_SIG 的首个命中，而 TAP 里那条是
+ *   `not ok 1 - <用例名>`（旧 TAP 输出**不含断言原文**）。于是 Node 20/22 的 CI 上
+ *   归因行只带得出用例名 → v3241 D1「表行须带第一条错误原文」必红；
+ *   而本地 Node 24 是 spec 输出（`✖ <用例名>` 之后紧跟 AssertionError 行），
+ *   恰好跳过标题行命中断言行 —— 同一个缺陷在本地是隐形的。
+ *   两种报告器的「真错误行」不同形，抽取就必须对**报告器无关**。 */
+const TAP_ERR = /^\s*error:\s*(?:'(.*)'|"(.*)"|(.*))$/;
 function firstError(r) {
   const lines = ((r.err || '') + '\n' + (r.out || '')).split('\n')
     .map((l) => l.trim()).filter(Boolean);
+  for (const l of lines) {
+    const m = TAP_ERR.exec(l);
+    if (m) {
+      const msg = (m[1] != null ? m[1] : m[2] != null ? m[2] : m[3]) || '';
+      if (msg.trim()) return msg.trim().slice(0, 160);
+    }
+  }
   const hit = lines.find((l) => ERR_SIG.test(l));
   return hit ? hit.slice(0, 160) : '(无输出)';
 }

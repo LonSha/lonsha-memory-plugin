@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.318.0",
+  "version": "3.319.0",
   "version_sources": {
-    "manifest": "3.318.0",
-    "package": "3.318.0",
-    "index_const": "3.318.0"
+    "manifest": "3.319.0",
+    "package": "3.319.0",
+    "index_const": "3.319.0"
   },
   "version_same": true,
-  "human_index_version": "3.318.0",
+  "human_index_version": "3.319.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 96,
@@ -114,7 +114,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 299,
+    "test_files": 300,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -356,6 +356,7 @@
       "v3316_extract_feedback.test.mjs",
       "v3317_project_registry.test.mjs",
       "v3318_ui_narrow_layout_gate.test.mjs",
+      "v3319_ci_faithful_probe_and_attribution.test.mjs",
       "v331_heat_concern.test.mjs",
       "v332_importance_timeline.test.mjs",
       "v333_ai_recall_ops.test.mjs",
@@ -451,12 +452,12 @@
     }
   },
   "full_run": {
-    "status": "registered",
+    "status": "stale",
     "registered_at": "3.318.0",
     "tests_total": 299,
     "assertions": 3302,
     "audit": "61/61",
-    "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
+    "reason": "登记版本 3.318.0 ≠ 当前 3.319.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -475,17 +476,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "c9b22d1889f0",
-      "package.json": "e0dc73b4c01f",
-      "index.js": "a2c3fe00be75",
+      "manifest.json": "e3e36e5c99aa",
+      "package.json": "843149d376e1",
+      "index.js": "1fc4326fdc4c",
       "update-log.json": null,
-      "README.md": "f0a94f53e24c",
-      "PLAN.md": "8475f039cf7c",
-      "CHANGELOG.md": "711a22b4b7cb",
-      "TODO.md": "129300dacc9c",
+      "README.md": "ccca24a99bf8",
+      "PLAN.md": "ab9838d447f7",
+      "CHANGELOG.md": "f3eb4cc7a3d2",
+      "TODO.md": "273396a861ee",
       "tests/audit/doc_readings.json": "ea97c7927fe8"
     }
   },
-  "unknown": [],
-  "unknown_count": 0
+  "unknown": [
+    "全量实跑读数陈旧：doc_readings 登记 3.318.0，当前 3.319.0"
+  ],
+  "unknown_count": 1
 }
