@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.315.0",
+ "measured_at": "v3.316.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1563,6 +1563,38 @@
     "member_count": 9,
     "top5_pct": -0.1
    }
+  },
+  "v3.316.0": {
+   "reason": "v3.315.0–v3.316.0 M-X5/M-X7 两刀宿主真实接线（各自取库口 / 唯一装配点 / 出口 / 自检面诊断行），全为活跃功能增长、非死代码回流：宿主 17042 → 17401，抬到实测 17401 + slack 400",
+   "readings": {
+    "total_lines": 17401,
+    "member_count": 645,
+    "duplicate_member_names": 25,
+    "top5_lines": 4765,
+    "top5_pct": 27.4,
+    "top40_lines": 10339,
+    "top40_pct": 59.4,
+    "prefix_rule_coverage_lines": 5160,
+    "prefix_rule_coverage_pct": 29.7,
+    "unclassified_lines": 11270,
+    "seam_distinct_modules": 64,
+    "seam_reference_sites": 89,
+    "seam_call_shape_sites": 93,
+    "members_over_80_lines": 34,
+    "low_coupling_members": 23,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.315.0",
+   "delta": {
+    "total_lines": 182,
+    "member_count": 10,
+    "top5_pct": -0.2
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1574,19 +1606,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 17219,
-  "member_count": 635,
+  "total_lines": 17401,
+  "member_count": 645,
   "duplicate_member_names": 25,
-  "top5_lines": 4746,
-  "top5_pct": 27.6,
-  "top40_lines": 10309,
-  "top40_pct": 59.9,
-  "prefix_rule_coverage_lines": 5141,
-  "prefix_rule_coverage_pct": 29.9,
-  "unclassified_lines": 11107,
-  "seam_distinct_modules": 63,
-  "seam_reference_sites": 86,
-  "seam_call_shape_sites": 90,
+  "top5_lines": 4765,
+  "top5_pct": 27.4,
+  "top40_lines": 10339,
+  "top40_pct": 59.4,
+  "prefix_rule_coverage_lines": 5160,
+  "prefix_rule_coverage_pct": 29.7,
+  "unclassified_lines": 11270,
+  "seam_distinct_modules": 64,
+  "seam_reference_sites": 89,
+  "seam_call_shape_sites": 93,
   "members_over_80_lines": 34,
   "low_coupling_members": 23,
   "high_coupling_members": 7
@@ -1594,18 +1626,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 594,
-   "lines": 11107,
-   "lines_pct": 64.5,
-   "outside_refs": 5909,
-   "internal_refs": 1718,
-   "outside_ref_share_pct": 77.5
+   "members": 604,
+   "lines": 11270,
+   "lines_pct": 64.8,
+   "outside_refs": 5950,
+   "internal_refs": 1740,
+   "outside_ref_share_pct": 77.4
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1868,
-   "lines_pct": 10.8,
+   "lines_pct": 10.7,
    "outside_refs": 5,
    "internal_refs": 75,
    "outside_ref_share_pct": 6.3
@@ -1613,17 +1645,17 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1507,
+   "lines": 1526,
    "lines_pct": 8.8,
-   "outside_refs": 344,
-   "internal_refs": 466,
-   "outside_ref_share_pct": 42.5
+   "outside_refs": 346,
+   "internal_refs": 465,
+   "outside_ref_share_pct": 42.7
   },
   {
    "domain": "召回与注入",
    "members": 13,
    "lines": 1015,
-   "lines_pct": 5.9,
+   "lines_pct": 5.8,
    "outside_refs": 5,
    "internal_refs": 67,
    "outside_ref_share_pct": 6.9
@@ -1632,7 +1664,7 @@
    "domain": "配置与持久化",
    "members": 3,
    "lines": 476,
-   "lines_pct": 2.8,
+   "lines_pct": 2.7,
    "outside_refs": 22,
    "internal_refs": 0,
    "outside_ref_share_pct": 100
@@ -1691,8 +1723,8 @@
   },
   {
    "name": "selfCheck",
-   "lines": 1110,
-   "outside_refs": 33
+   "lines": 1129,
+   "outside_refs": 35
   },
   {
    "name": "buildInjection",
@@ -1716,7 +1748,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 394,
+   "lines": 405,
    "outside_refs": 0
   },
   {
@@ -1899,7 +1931,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 394,
+    "lines": 405,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -1967,8 +1999,8 @@
   "high_coupling_examples": [
    {
     "name": "selfCheck",
-    "lines": 1110,
-    "outside_refs": 33,
+    "lines": 1129,
+    "outside_refs": 35,
     "is_host_lifecycle": false
    },
    {
@@ -2045,9 +2077,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 17262,
+  "ceiling": 17801,
   "maxSlack": 400,
-  "note": "v3.313.0 M-X8 版本化记忆包宿主真实接线（_memoryPackageLib 取库口 / _memoryPackageDeps 唯一装配点 / 四出口 + 自检面「记忆包」诊断行），全为活跃功能增长、非死代码回流：宿主 16706 → 16862，抬到实测 16862 + slack 400",
+  "note": "v3.315.0–v3.316.0 M-X5/M-X7 两刀宿主真实接线（knowledge-preview 与 extract-feedback 各自的取库口 / 唯一装配点 / 出口 / 自检面诊断行），全为活跃功能增长、非死代码回流：宿主 17042 → 17401，抬到实测 17401 + slack 400",
   "history": [
    {
     "ceiling": 15000,
@@ -2080,10 +2112,15 @@
     "ceiling": 17262,
     "reason": "v3.313.0 M-X8 版本化记忆包宿主真实接线（_memoryPackageLib 取库口 / _memoryPackageDeps 唯一装配点 / 四出口 + 自检面「记忆包」诊断行），全为活跃功能增长、非死代码回流：宿主 16706 → 16862，抬到实测 16862 + slack 400",
     "member_ceiling": 647
+   },
+   {
+    "ceiling": 17801,
+    "reason": "v3.315.0–v3.316.0 M-X5/M-X7 两刀宿主真实接线（knowledge-preview 与 extract-feedback 各自的取库口 / 唯一装配点 / 出口 / 自检面诊断行），全为活跃功能增长、非死代码回流：宿主 17042 → 17401，抬到实测 17401 + slack 400",
+    "member_ceiling": 675
    }
   ],
-  "member_ceiling": 647,
+  "member_ceiling": 675,
   "member_max_slack": 30,
-  "member_note": "v3.310.0–v3.312.0 同上三刀的活跃接线成员（宿主成员 586 → 610），非死代码回流：抬到实测 610 + slack 30"
+  "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
  }
 }

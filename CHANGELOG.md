@@ -1,3 +1,89 @@
+## v3.316.0
+
+**M-X7（第二期拓展计划）提取质量反馈与可控策略配置：五类错法各自可指认 / 建议只看真读数 / 自动调参恒关 / 反馈不写历史事实 / 应用闸四态不压格**
+
+### 它补的是哪一格（修前实测逐点，非抽样）
+
+- **能答「召回链路断在哪一格」，答不了「提取这次为什么错」。** `recall-explain.js`（X8, v3.294.0）把一次召回从源到载荷的路径落成七档归因，但它解的是**召回**；而用户最常抱怨的那一类问题发生在更上游 —— 提取本身错了。
+- **五种错法在读数上同形。** 「漏记 / 错记 / 错角色 / 旧事实未被替换 / 不应记录」修前没有任何一处能分开 —— 它们的处置面完全不同（触发面 / 内容面 / 身份面 / 换代面 / 准入门），压成一类就等于「反馈收了一堆，但改哪个开关无从判断」。
+- **「改了有没有用」无处证明。** 想改只能直接改配置，而本仓最贵的一类自欺正是「看着像好了」——当前样本上对了 ≠ 泛化上好了。
+- **反馈天然带正文。** 用户要指明「哪句提错了」就得带原文，一个不走闸的反馈面等于给「把正文回写进历史事实」开了一条侧路（M-X8 验收①要拦的正是这条）。
+
+本模块把四件收成一处：**五类归类 → 反馈记录（带原文依据）→ 有据建议 → 应用闸**。它不重做对照：对照重跑仍走 `projection-pipeline.js`（X3，**单一真源**），本模块只判**怎么用**这些读数。
+
+### 交付物
+
+- **`extract-feedback.js`**（纯函数、零依赖、IIFE 双导出、625 行 / 27 个导出项）：常量面 `FB_VERSION=1` / `FB_RECORD_VERSION=1` / `FB_KIND='extract_feedback'` / `PROBLEM_CLASSES`（五类）/ `CLASS_LABELS` / `CLASS_TARGETS`（**五类→五面一一对应**）/ `CLASS_KINDS` / `PROOF_VERDICTS`（三背书）/ `LINK_STATES`（关联四态）/ `GATE_STATES`（应用闸四态）/ `EVIDENCE_FIELDS`（依据三件）/ `MAX_RECORDS=60` / `REQUIRED_DEPS`（**只一件**：`COMPARE`）/ `OPTIONAL_DEPS`（`RECALL_EXPLAIN`）。函数面 12 个：`classify` / `evidenceOf` / `record` / `tally` / `suggest` / `evidence` / `gate` / `batch` / `describe` / `selfCheck` / `line` / `surfaceDigest`。
+- **宿主十出口**（`index.js`）：模块级取库口 `_extractFeedbackLib()`；唯一装配点 `_extractFeedbackDeps()`（**就地取库**：`COMPARE` 需 `compareStrategies`，`RECALL_EXPLAIN` 需 `explainRecall`，取不到 `null` 而非 `{}`）；降级面 `_extractFeedbackAbsent(reason)`（同键降级，`ok:false / state:'absent' / decidable:false`，同样自报 `writesHistoryFact:false`）；出口 `extractFeedbackClassify` / `Record` / `Tally` / `Suggest` / `Gate` / `Batch` / `Describe` / `Line`（**出口不落笔**，只留 `_lastFeedback` 读数摘要）；`selfCheck` 表新增一行 `['提取反馈', this.extractFeedbackLine()]`，与「召回解释」「知识预演」**分列**（三个问题，不得合成一行）。
+
+### ① 五类各自可指认且指向不同面
+
+`classify()` 判定序：显式类别（**必须在表内**，表外一律 `unknown`）→ 信号推导（**仅当恰一个**信号为真）→ 其余 **判不了**。★ 为什么「不应记录」排第一：一条本就不该落账的内容，即使提得再准也不该被归到「错记」—— 那会把准入缺口读成内容质量问题，**修错面**。★ 多信号共存 ⇒ 判不了（按一面处置会改错地方）。★ 五类 → 五面**一一对应**（判据逐条核对，两类别指向同一面即红）。
+
+### ② 建议的背书只看真读数（验收②）
+
+`suggest()` 三种背书：
+
+| 背书 | 何时给 | 含义 |
+|---|---|---|
+| `proven` | 对照可测 **且** 留出集真跑且改善 | 不是只优化当前样本 |
+| `overfit` | 对照跑过但留出集**未验 / 未跑 / 退化** | 只证明了当前样本（**退化时明确不建议采用**） |
+| `unproven` | 无对照读数 / 对照不可测 / 轨迹入参畸形 | **判不了** —— 不编原因、不产「有用」的结论 |
+
+★ `unproven` 时 `decidable:false`（判不了 ≠ 改不动）。★ `evidence[].field` 必须是**入参上真实存在的路径**（`cls` / `compare.measurable` / `holdout.improved` …），可核、不编。★ 类别判不了时**只给一条**「先修归类」+ `blocked` 理由 —— 在错的读数上调参比不调更坏（与 `recall-explain` 的 degraded 同纪律）。
+
+### ③ 自动调参默认关闭（验收③）
+
+建议的 `apply.auto` **恒为 false** —— 不是「默认值是 false」，而是**代码里就写死 false**（判据做真源码破坏：改成 true 必须翻红）。理由：本面只给**面向**（该改哪个面），不给**值** —— 给值就是在替用户调参。
+
+### ④ 反馈不得直接成为历史事实（验收①）
+
+`record()` 返回面显式带 `writesHistoryFact:false`（让下游无法把这条口径读漏），且**原文依据只存摘要**（`evidenceDigest`，≤ 80 字）—— 反馈面不是第二条事实库（同 `memory-tools-api.js` 的「投影不复制第二份事实库」纪律）。依据三件（楼层 / 原文 / 提取版本）**逐项可分**：缺件 ⇒ `missing-evidence` 并逐项点名；卷外引用 ⇒ `dangling`；类别判不了 ⇒ `indeterminate` —— **四态不得压成一态**（前者的处置是补依据，后者是核对卷外引用）。
+
+### ⑤ 应用闸四态不得压格（验收③）
+
+`gate()` 四态：`awaiting-user`（判得了、就等你点）/ `planned`（已确认 + 有背书）/ `not-applicable`（判得了但不适用：依据不全）/ `indeterminate`（**判不了**：无背书）。★ 无背书时**哪怕用户已确认也不得可应用** —— 把它压成「不用做」正是本仓最贵的那笔老账。
+
+### ⑥ 批量与单条同函 + 空批 ≠ 全判不了
+
+`batch()` 与单条**同函**（逐条与直接调单条读数逐字一致，判据逐条比对 `proof` 与 `decidable`）；`byProof` 三态计数可见；★ **空批** `{total:0, measurable:true, empty:true}` 与「有但全被判不了」`{total:1, indeterminate:1, empty:false}` **不同形**；非数组入参 ⇒ `measurable:false`。
+
+### ⑦ 零写 + 离线
+
+`classify` / `record` / `tally` / `suggest` / `gate` / `batch` 一律不改传入的 `list` / `item` / `trace`（判据做三处快照比对）；源码零写口（无 `storage.save` / `localStorage.setItem` / `writeFile` / `collectExport(`）—— **只产建议**，写法归 owner 侧经既有门。源码零 `require(` / `fetch(` / `XMLHttpRequest` / `localStorage` / `indexedDB` / `WebSocket`。
+
+### ⑧ 跨仓面：本版不新增外供面（如实）
+
+M-X7 的拓展计划原文**未要求**外供面，故 `open_face_registry.tsv` 仍为 **7 面**、不追加行；只把 `memoryToolsEnvelope` 行的 `producer_version` 同步抬到本版（`v3305:553` 硬要求）。**不为了凑一行而登记一个没有下游的面**。
+
+### ⑨ 新档 `tests/v3316_extract_feedback.test.mjs`（16 条）
+
+M1 登记面（`extra_js` 恰一次 + 与追加时邻居 `knowledge-preview.js` 都在场 + 零依赖零联网 + 双导出 + 冻结）· M2 导出面（十二函数 / 五类三表 / 三背书 / 四态表 / 依据三件 / 五类→五面一一对应）· C1 五类各自可达且指向不同面 + 表外类别与多信号共存各自判不了 · R1 反馈不写历史事实（显式 false）+ 依据三件分列 + 只存摘要 + 有界环形 · T1 按五类聚合 + 关联**四态分列** · S1 三种背书各自可达 + `apply.auto` 恒 false + 类别判不了只给一条 · G1 应用闸四态齐备且互不同形 · B1 批量与单条同函 + 空批 ≠ 全判不了 · D1 依赖缺格只列必需件 + `selfCheck` 真跑 · Z1 零写（三处快照 + 源码零写口）· H1 宿主接线逐符号（定义面恰一次 / 使用面 ≥1 / 装配点键名逐字 / 出口不落笔 / 三个诊断行分列）· H2 端到端（真归类 / 记录 / 建议 / 闸 / 诊断行 / 模块缺席）· V2 版本锚 + 六源同源 · X1 **八条**真源码破坏各现形 + 正控制地基 · W1/W2 破坏工具两向自证 + 判据纯度。
+
+### ⑩ 修后验证真读数
+
+- `node --test tests/v3316_extract_feedback.test.mjs` ⇒ **16/16 pass / 0 fail**（含 X1 八条真源码破坏）。
+- 内核自检 `selfCheck().ok === true`（探针 16 项：五类各自可达 / 表外类别与多信号判不了 / 三种背书 / 应用闸四态 / `noHistoryFact:false` / `autoOff:false`）；`surfaceDigest` 27 项 / digest `ce9bba3c`。
+- `scan_doc_truthfulness` rc0（版本 3.316.0 / 测试 297 / 审计门禁 60（磁盘 65）/ 根级 .js 96 / extra_js 95）。
+- `scan_version_guard` rc0（frontier `v3316_extract_feedback.test.mjs` / 当版锚点 1）；`scan_open_faces` rc0（7 面 0 问题）；`scan_module_wiring` rc0；`scan_plan_currency` rc0。
+
+### ⑪ 抬版牵连面（逐项核）
+
+六源（`index.js` / `manifest.json` / `package.json` / `memory-config.js` / `memory-core.js` / `memory-organs.js`）· `manifest.extra_js` 94 → **95**（末位 `extract-feedback.js`）· README 版本行 / 测试文件数 296→**297** / 运行时模块 95→**96** / `extra_js` 三处 94→**95** / 待验标记 · PLAN 当前执行状态行 / 版本行 / 门禁行（296→**297**）/ 体量行（17219→**17401** 行 / 635→**645** 成员 / extra_js **95**）/ 两处待验标记 · TODO 顶行新增「最近更新 v3.316.0」+ 旧行降为历史留痕 · **CHANGELOG 新顶节**（本版）· `v3209` 两处数量锁 94→**95** · `v3247` REGISTRY 追加本档 · `catalog_reference_consumers.tsv` 追加本档一行 · `open_face_registry.tsv` 仅 `memoryToolsEnvelope` 行 `producer_version` 3.315.0→**3.316.0**（不新增面）。
+
+### ⑫ 本版全量未跑
+
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+- 按用户纪律（「做完计划全部内容前别跑全量」）只跑单门 / 单套件；全量 `npm test` 与 `npm test -- --audit` 留到计划收口点跑一次。故 README / PLAN 的「全量待验」标记照旧由 `scan_doc_truthfulness` 的 D6 把守。
+
+### ⑬ 抬版连带：三个派生账按真源刷新（读数零手抄）
+
+- `host_beast_baseline.json`：按探针重绑（宿主 17219 → **17401** 行 / 635 → **645** 成员；全部来自 M-X7 宿主真实接线，非死代码回流），`measured_at` 前移到本版；`line_budget` 的 ceiling 17262 **须抬**（实测 17401 已越过）⇒ 抬到 17401 + slack 400 = **17801**；member_ceiling 647 → **675**（= 645 + 30）。
+- `dead_code_budget.json`：走 `--bump` 重算（实测 + slack 400），理由写进 `note` 与 `history`。
+- `state-report.json`：走 `node tools/gen_state_report.mjs --write` 重生成（S3 逐格对账）。
+
+---
+
 ## v3.315.0
 
 **M-X5（第二期拓展计划）角色知识传播的可见范围预演：五路径 × 五档 / 两面严格分离 / 预演零写 / 同源不重复造证据 / 判不了单独一档**

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.315.0';
+    const VERSION = '3.316.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11389,6 +11389,25 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.knowledgePreview'); return ['知识预演', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.316.0 · M-X7] 提取质量反馈体检面：与「召回解释」**分列**。
+                     *   召回面答「召回链路断在哪一格」，本行答「提取错在哪一类、建议有没有据」——
+                     *   合成一行会让「这次没召回」与「这次提错了」共用一个提示位（处置面完全不同）。
+                     *   报警只认两条真损失：对照缺格（建议一律 unproven ⇒ 判不了）与
+                     *   未归类 / 依据不全 > 0（收了反馈但归不出面 / 改完无从归因）。 */
+                    (() => {
+                        try {
+                            const FB = _extractFeedbackLib();
+                            if (!FB || typeof FB.line !== 'function' || typeof this.extractFeedbackLine !== 'function') {
+                                return ['提取反馈', '模块未加载（extract-feedback.js）'];
+                            }
+                            const d = this.extractFeedbackDescribe();
+                            const t = this._lastFeedbackTally || null;
+                            const bad = !!(d.missingDeps && d.missingDeps.length)
+                                || !!(t && (t.unknown > 0 || t.unlinked > 0));
+                            return ['提取反馈', this.extractFeedbackLine() + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.extractFeedback'); return ['提取反馈', '—（诊断异常）'];
+                        }
+                    })(),
                     // [v3.306.0 · M-O8] 秘密注入侧隔离面：与「认知隔离提示」分列。
                     //   认知面答「他此前不在场、还不知情」；本行答「注入时挡下几条、
                     //   其中几条**判不了**（条目没给知情名单）」。报警只认两条真损失：
@@ -15154,6 +15173,158 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 return KP.line({ last: last, deps: this._knowledgePreviewDeps() });
             } catch (e) { errLog(e, 'plugin.knowledgePreviewLine'); return '—（诊断异常）'; }
         }
+
+        /* ────────────────────────────────────────────────────────────────────────
+         * [v3.316.0 · M-X7] 提取质量反馈与可控策略配置
+         *
+         * 【与「召回解释」（X8）那一面的关系（两个方向）】
+         *   召回面答「**召回链路**断在哪一格」（注入没进来 / 被裁掉 / 源被关）；
+         *   本面答「**提取**这次为什么错、怎样减少同类错误」。
+         *   本面复用 X3 的对照重跑（`projection-pipeline.js` 是唯一真源）作为建议的**背书**，
+         *   但**不自己跑对照**（跑法归 X3）；诊断面**分开两行**，不合成一行。
+         *
+         * 【宿主只做三件事，绝不自己算】
+         *   ① **装配**：对照重跑经 `_extractFeedbackDeps()` 注入（唯一装配点，键名与内核
+         *      `REQUIRED_DEPS[].key` 逐字一致 —— 改名会静默变成「依赖缺席」）；
+         *   ② **转发**：出口把实参原样交给内核，**不改写返回值**；
+         *   ③ **留痕**：只留读数摘要（存整份反馈列表就是第二份事实库）。
+         *
+         * 【本面**零落笔**】反馈是「意见」，写法归 owner 侧经既有门 —— 本面若自己写账，
+         *   就成了「反馈直接成为历史事实」，正是 M-X7 验收①要拦的那条。
+         */
+        /** [v3.316.0 · M-X7] 本面的**唯一装配点**。对照重跑缺席一律 null（不是 `{}`）。 */
+        _extractFeedbackDeps() {
+            /* 与 `memoryToolsSources()` 同规格：**就地取库**（每件只在此函数取一次，天然唯一）。 */
+            const PP = _moduleLib(() => window.LonShaProjectionPipeline, 'projection-pipeline.js');
+            const RX = _moduleLib(() => window.LonShaRecallExplain, 'recall-explain.js');
+            return {
+                COMPARE: (PP && typeof PP.compareStrategies === 'function') ? PP : null,
+                RECALL_EXPLAIN: (RX && typeof RX.explainRecall === 'function') ? RX : null
+            };
+        }
+        /** [v3.316.0 · M-X7] 内核不可达时的**同键降级**（`ok:false` + `reason` 分开写）。 */
+        _extractFeedbackAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                ok: false, state: 'absent', reason: r, list: [], count: 0,
+                writesHistoryFact: false, autoParamTuning: false, decidable: false,
+                byClass: {}, byLink: {}, unknown: 0, unlinked: 0, total: 0,
+                notes: ['提取反馈面不可达（extract-feedback.js 未加载）⇒ 报 ok:false/' + r
+                    + '，**不报「改过了没事」也不报「没反馈」']
+            };
+        }
+        /** [v3.316.0 · M-X7] 归类（五类 → 五个面；未知类别不落默认档）。只算不写。 */
+        extractFeedbackClassify(item) {
+            const FB = _extractFeedbackLib();
+            if (!FB || typeof FB.classify !== 'function') return this._extractFeedbackAbsent('classify-unavailable');
+            try { return FB.classify(item); }
+            catch (e) { errLog(e, 'plugin.extractFeedbackClassify'); return this._extractFeedbackAbsent('thrown'); }
+        }
+        /** [v3.316.0 · M-X7] 记录一条反馈（**不写历史事实**，返回面显式带 false）。 */
+        extractFeedbackRecord(list, item, opts) {
+            const FB = _extractFeedbackLib();
+            if (!FB || typeof FB.record !== 'function') return this._extractFeedbackAbsent('record-unavailable');
+            try {
+                const res = FB.record(list, item, opts);
+                this._lastFeedback = {
+                    at: Date.now(), link: res.link || '', classified: (res.classified === true),
+                    count: res.count || 0, writesHistoryFact: false
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.extractFeedbackRecord'); return this._extractFeedbackAbsent('thrown'); }
+        }
+        /** [v3.316.0 · M-X7] 反馈读数（按五类 + 关联四态分列）。只算不写。 */
+        extractFeedbackTally(list, opts) {
+            const FB = _extractFeedbackLib();
+            if (!FB || typeof FB.tally !== 'function') return this._extractFeedbackAbsent('tally-unavailable');
+            try {
+                const t = FB.tally(list, opts);
+                this._lastFeedbackTally = {
+                    at: Date.now(), total: t.total || 0, unknown: t.unknown || 0,
+                    unlinked: t.unlinked || 0, measurable: (t.measurable === true)
+                };
+                return t;
+            } catch (e) { errLog(e, 'plugin.extractFeedbackTally'); return this._extractFeedbackAbsent('thrown'); }
+        }
+        /** [v3.316.0 · M-X7] 策略建议（**背书只看真读数**；`apply.auto` 恒 false）。 */
+        extractFeedbackSuggest(feedback, trace, opts) {
+            const FB = _extractFeedbackLib();
+            if (!FB || typeof FB.suggest !== 'function') {
+                return { ok: false, reason: 'module-absent', suggestions: [], count: 0,
+                    autoParamTuning: false, proof: 'unproven', decidable: false };
+            }
+            try {
+                const res = FB.suggest(feedback, trace, opts);
+                this._lastFeedback = {
+                    at: Date.now(), proof: res.proof || 'unproven', count: res.count || 0,
+                    decidable: (res.decidable === true), writesHistoryFact: false, autoParamTuning: false
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.extractFeedbackSuggest');
+                return { ok: false, reason: 'thrown', suggestions: [], count: 0,
+                    autoParamTuning: false, proof: 'unproven', decidable: false }; }
+        }
+        /** [v3.316.0 · M-X7] 应用闸（等待用户 ≠ 不可用 ≠ 判不了）。 */
+        extractFeedbackGate(suggestion, opts) {
+            const FB = _extractFeedbackLib();
+            if (!FB || typeof FB.gate !== 'function') {
+                return { state: 'indeterminate', decidable: false, mayApply: false,
+                    why: '模块未加载（extract-feedback.js）' };
+            }
+            try { return FB.gate(suggestion, opts); }
+            catch (e) { errLog(e, 'plugin.extractFeedbackGate');
+                return { state: 'indeterminate', decidable: false, mayApply: false, why: '抛错（已降级）' }; }
+        }
+        /** [v3.316.0 · M-X7] 批量建议（与单条同函）。只算不写。 */
+        extractFeedbackBatch(list, trace, opts) {
+            const FB = _extractFeedbackLib();
+            if (!FB || typeof FB.batch !== 'function') {
+                return { ok: false, reason: 'module-absent', measurable: false, total: 0,
+                    indeterminate: 0, rows: [], byProof: {}, autoParamTuning: false };
+            }
+            try { return FB.batch(list, trace, opts); }
+            catch (e) { errLog(e, 'plugin.extractFeedbackBatch');
+                return { ok: false, reason: 'thrown', measurable: false, total: 0,
+                    indeterminate: 0, rows: [], byProof: {}, autoParamTuning: false }; }
+        }
+        /** [v3.316.0 · M-X7] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        extractFeedbackDescribe() {
+            const FB = _extractFeedbackLib();
+            if (!FB || typeof FB.describe !== 'function') {
+                return { version: 0, kind: 'extract_feedback', classes: [], classLabels: {}, classTargets: {},
+                    classKinds: {}, targetDistinct: false, proofVerdicts: [], linkStates: [], gateStates: [],
+                    evidenceFields: [], maxRecords: 0, autoParamTuning: false, writesHistoryFact: false,
+                    evidenceDigestOnly: true, requiredDeps: [], optionalDeps: [],
+                    missingDeps: ['COMPARE'], presentDeps: [], optionalMissing: [],
+                    indeterminateDistinct: false, note: '提取反馈模块未加载（extract-feedback.js）',
+                    reason: 'module-unavailable' };
+            }
+            try {
+                const d = FB.describe(this._extractFeedbackDeps());
+                d.reason = '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.extractFeedbackDescribe');
+                return { version: 0, kind: 'extract_feedback', classes: [], classLabels: {}, classTargets: {},
+                    classKinds: {}, targetDistinct: false, proofVerdicts: [], linkStates: [], gateStates: [],
+                    evidenceFields: [], maxRecords: 0, autoParamTuning: false, writesHistoryFact: false,
+                    evidenceDigestOnly: true, requiredDeps: [], optionalDeps: [],
+                    missingDeps: [], presentDeps: [], optionalMissing: [],
+                    indeterminateDistinct: false, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.316.0 · M-X7] 诊断一行。**五种坏法分开写**：
+         *   模块没挂 / 五类指向的面重复 / 对照缺格（建议一律 unproven）/ 面在位 / 有反馈读数。
+         */
+        extractFeedbackLine() {
+            try {
+                const FB = _extractFeedbackLib();
+                if (!FB || typeof FB.line !== 'function') return '模块未加载（extract-feedback.js）';
+                const d = this.extractFeedbackDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（extract-feedback.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                return FB.line({ tally: this._lastFeedbackTally || null, deps: this._extractFeedbackDeps() });
+            } catch (e) { errLog(e, 'plugin.extractFeedbackLine'); return '—（诊断异常）'; }
+        }
         /* ────────────────────────────────────────────────────────────────────────
          * [v3.311.0 · M-X2] 修复**落定面**（从「流程完成」到「所有派生面落盘完成」）
          *
@@ -15748,6 +15919,17 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   **纯函数零写零联网**。
     function _knowledgePreviewLib() {
         return _moduleLib(() => window.LonShaKnowledgePreview, 'knowledge-preview.js');
+    }
+    // [v3.316.0 · M-X7] 提取质量反馈与可控策略配置（extract-feedback.js）。为什么需要：
+    //   `recall-explain.js`（X8）解的是**召回链路**的断点（注入没进来 / 被裁掉），
+    //   它答不了 M-X7 点名的这一问：**这次为什么提取错了，怎样减少同类错误**。
+    //   修前「漏记 / 错记 / 错角色 / 旧事实未被替换 / 不应记录」五种错法在读数上同形
+    //   （都只是「结果不如意」），且想改只能直接改配置 —— 而「改了到底有没有用」无处证明。
+    //   本模块只做分类 / 记录 / 有据建议 / 应用闸四件事：
+    //   建议的背书只看**真读数**（对照重跑 + 留出集），`apply.auto` 恒 false，
+    //   反馈**不写历史事实**、原文依据只存摘要（不复制第二份事实库）。纯函数零写零联网。
+    function _extractFeedbackLib() {
+        return _moduleLib(() => window.LonShaExtractFeedback, 'extract-feedback.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的
