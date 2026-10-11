@@ -10,7 +10,7 @@
 //     把同一段实现换个名字抄过去，三层判据全部静默（这正是「判据的面漏一类」的第五处）。
 //
 //     实测（真源 tests/_audit_lib.mjs 的 stripComments 归一化口径，全 80 个根级 .js，
-//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **9 个簇**：
+//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **13 个簇**：
 //
 //       _numOrNull / numOrNull        index.js ↔ snapshot-checkpoint.js （258 字符）
 //       floorOrNull / toNum           ledger-replay.js ↔ archive-shift.js （208）
@@ -38,7 +38,7 @@
 //
 //   【判据（fail-closed）】
 //     A  枚举面：全仓 items 下限 + 别名簇数下限 + 登记表格式（名字互不相同，否则它就不是别名簇）
-//     B  读盘实测：11 簇逐字相同；任一簇少一个成员即「漂移/消失」（红，且点名差异成员）
+//     B  读盘实测：13 簇逐字相同；任一簇少一个成员即「漂移/消失」（红，且点名差异成员）
 //     C  真源码破坏（三向）：改成员 A 的体 ⇒ 该簇成员缩水；改另一族成员 ⇒ 同样；凭空抄一份 ⇒ 新增未登记
 //     D  工具两向自证：breakSource 的 0 次 / 同值必抛；原版判据真、破坏副本真红
 //     E  判据纯度 H5：破坏锚点字面量在本档各只声明一次（按**转义形态**计数），真源上各恰中一次
@@ -74,7 +74,7 @@ const MIN_BODY = 30;
 const MIN_TAB = 20;
 /** 全仓 items 下限（实 2153）：枚举面塌陷时「0 别名簇」会伪装成卫生。 */
 const MIN_ITEMS = 1200;
-/** 别名簇数下限（实 11）：登记表被清空或聚类失效时立刻红。 */
+/** 别名簇数下限（实 13）：登记表被清空或聚类失效时立刻红。 */
 const MIN_CLUSTERS = 6;
 
 /**
@@ -100,6 +100,9 @@ const ALIAS_LEDGER = [
      *   一份、不引 X6/X7 的常量」，故不合并成一份；登记 + 留痕理由，与 PRECHECK/PREVIEW 同处理。 */
     ['fn', ['keyOf', 'strOf'], ['branch-semantics.js', 'memory-package.js', 'recall-explain.js', 'volume-continuation.js'], 100, 'cb4883eb'],
     /* [v3.313.0 · M-X8] 两簇各多一个成员 memory-package.js：M-X8 自持与 X6/X7 同形同值的原语/词表\n     *   （档头声明「不引兄弟模块」），故不合并成一份；登记 + 留痕理由，与上两条同处理。\n     *   ★ 判据真抓到东西（不是为过门禁而补登记）：既有两模块的簇成员集合确实变了。 */
+    ['fn', ['_t', 'text'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 142, 'bc94705d'],
+    ['fn', ['_floorOf', 'floorOf'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 228, '6fe7a611'],
+    ['fn', ['_isPlain', 'isPlainObject'], ['extract-feedback.js', 'project-registry.js', 'projection-pipeline.js'], 57, 'dd6bb22c'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.316.0",
+ "measured_at": "v3.317.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1595,6 +1595,38 @@
     "member_count": 10,
     "top5_pct": -0.2
    }
+  },
+  "v3.317.0": {
+   "reason": "v3.317.0 M-X3 项目 / 卷 / 章节管理面：宿主新增取库口 / 唯一装配点 / 十四出口 / 自检面「项目管理」诊断行接线（+210 行 / +14 成员），本版只量不拆",
+   "readings": {
+    "total_lines": 17611,
+    "member_count": 659,
+    "duplicate_member_names": 25,
+    "top5_lines": 4784,
+    "top5_pct": 27.2,
+    "top40_lines": 10369,
+    "top40_pct": 58.9,
+    "prefix_rule_coverage_lines": 5179,
+    "prefix_rule_coverage_pct": 29.4,
+    "unclassified_lines": 11461,
+    "seam_distinct_modules": 65,
+    "seam_reference_sites": 91,
+    "seam_call_shape_sites": 95,
+    "members_over_80_lines": 34,
+    "low_coupling_members": 23,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.316.0",
+   "delta": {
+    "total_lines": 210,
+    "member_count": 14,
+    "top5_pct": -0.2
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1606,19 +1638,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 17401,
-  "member_count": 645,
+  "total_lines": 17611,
+  "member_count": 659,
   "duplicate_member_names": 25,
-  "top5_lines": 4765,
-  "top5_pct": 27.4,
-  "top40_lines": 10339,
-  "top40_pct": 59.4,
-  "prefix_rule_coverage_lines": 5160,
-  "prefix_rule_coverage_pct": 29.7,
-  "unclassified_lines": 11270,
-  "seam_distinct_modules": 64,
-  "seam_reference_sites": 89,
-  "seam_call_shape_sites": 93,
+  "top5_lines": 4784,
+  "top5_pct": 27.2,
+  "top40_lines": 10369,
+  "top40_pct": 58.9,
+  "prefix_rule_coverage_lines": 5179,
+  "prefix_rule_coverage_pct": 29.4,
+  "unclassified_lines": 11461,
+  "seam_distinct_modules": 65,
+  "seam_reference_sites": 91,
+  "seam_call_shape_sites": 95,
   "members_over_80_lines": 34,
   "low_coupling_members": 23,
   "high_coupling_members": 7
@@ -1626,18 +1658,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 604,
-   "lines": 11270,
-   "lines_pct": 64.8,
-   "outside_refs": 5950,
-   "internal_refs": 1740,
-   "outside_ref_share_pct": 77.4
+   "members": 618,
+   "lines": 11461,
+   "lines_pct": 65.1,
+   "outside_refs": 5993,
+   "internal_refs": 1784,
+   "outside_ref_share_pct": 77.1
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1868,
-   "lines_pct": 10.7,
+   "lines_pct": 10.6,
    "outside_refs": 5,
    "internal_refs": 75,
    "outside_ref_share_pct": 6.3
@@ -1645,11 +1677,11 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1526,
+   "lines": 1545,
    "lines_pct": 8.8,
-   "outside_refs": 346,
-   "internal_refs": 465,
-   "outside_ref_share_pct": 42.7
+   "outside_refs": 348,
+   "internal_refs": 464,
+   "outside_ref_share_pct": 42.9
   },
   {
    "domain": "召回与注入",
@@ -1723,8 +1755,8 @@
   },
   {
    "name": "selfCheck",
-   "lines": 1129,
-   "outside_refs": 35
+   "lines": 1148,
+   "outside_refs": 37
   },
   {
    "name": "buildInjection",
@@ -1748,7 +1780,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 405,
+   "lines": 416,
    "outside_refs": 0
   },
   {
@@ -1864,7 +1896,7 @@
   {
    "name": "summary",
    "lines": 100,
-   "outside_refs": 228
+   "outside_refs": 231
   },
   {
    "name": "_repairPool",
@@ -1931,7 +1963,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 405,
+    "lines": 416,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -1999,8 +2031,8 @@
   "high_coupling_examples": [
    {
     "name": "selfCheck",
-    "lines": 1129,
-    "outside_refs": 35,
+    "lines": 1148,
+    "outside_refs": 37,
     "is_host_lifecycle": false
    },
    {
@@ -2036,7 +2068,7 @@
    {
     "name": "summary",
     "lines": 100,
-    "outside_refs": 228,
+    "outside_refs": 231,
     "is_host_lifecycle": false
    }
   ]

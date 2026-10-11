@@ -1,3 +1,85 @@
+## v3.317.0
+
+**M-X3（第二期拓展计划）项目 / 卷 / 章节管理面：未选项目完全隔离 / 同名不同宇宙不合并 / 重复导入幂等 / 撤销有来源边界 / 旧源删除不伪装可跳**
+
+### 它补的是哪一格（修前实测逐点，非抽样）
+
+- **能答「这一卷怎么接出去」，答不了「项目在哪儿」。** `volume-continuation.js`（X7, v3.293.0）已经有卷目录 / 接续包 / 预览 / 提案 / 撤销五项能力，但它解的是**内核**：修前全仓 `normalizeProject` / `listVolumes` / `volumeAt` 在 `index.js` 里命中 **0 次** —— 能力在盘上，**没有人能选项目**。
+- **多个项目并存时没有隔离读数。** 「未选项目」与「选了但卷是空的」在读数上同形；两个项目各自的卷也同形。M-X3 验收①要拦的正是这条。
+- **同名角色跨宇宙没有可判之处。** X7 的 owner 键只有 id / name 两态，`universe` 在全仓 `index.js` 命中 **0** —— 于是「同一个名字在两个项目里是两个人」这件事在键上**不存在**，一旦靠名字对表就自然串了（验收②）。
+- **导入幂等账与撤销来源边界散在调用方。** 包被导入两次没人知道；而「撤销」若没有来源范围就退化成「整批回滚」。
+
+本模块把四件收成一处：**项目落点 → 卷与章节编目 → 三类绑定 → 跨项目隔离 → 身份合并判定 → 导入计划 → 撤销边界 → 源引用镜像**。与 X7 是**分层**、不是替代：卷目录与源状态由 `deps.VOLUME_CONTINUATION`（唯一真源）给出，本模块只在其上判「项目层」那四件。
+
+### 交付物
+
+- **`project-registry.js`**（纯函数、零依赖、IIFE 双导出、896 行 / 36 个导出项；导出面指纹 `021bc091`）：常量面 `PR_VERSION=1` / `PR_REGISTRY_VERSION=1` / `PR_KIND='project_registry'` / `PROJECT_STATES`（active·archived·detached）/ `BINDING_KINDS`（session·branch·character）/ `LINK_MODES`（by-id·by-name·none）/ `SCOPE_VERDICTS`（isolated·same-project·cross-project·indeterminate）/ `MERGE_VERDICTS`（mergable·name-only·different-universe·different-owner·indeterminate）/ `IMPORT_STATES`（applied·duplicate·blocked·indeterminate）/ `BOUNDARY_STATES`（bounded·unbounded·indeterminate）/ `SOURCE_STATES`（live·source-deleted·unknown）/ `MAX_BINDINGS=24` / `REQUIRED_DEPS`（**只一件**：`VOLUME_CONTINUATION`）/ `OPTIONAL_DEPS`（**空**）。函数面 22 个，含 `normalizeProject` / `bindToProject` / `unbindFrom` / `archiveProject` / `volumesOf` / `scopeOf` / `mergable` / `planImport` / `revokeBoundaryOf` / `relink` / `describe` / `selfCheck` / `line`。
+- **宿主三处接线**（`index.js`，+210 行 / +14 成员，17401 → 17611）：模块级取库口 `_projectRegistryLib()`；唯一装配点 `_projectRegistryDeps()`（**只装一件**：`VOLUME_CONTINUATION` 取 `volume-continuation.js`，取不到 `null` 而非 `{}`）；降级面 `_projectRegistryAbsent(reason)`（同键 + 明确降级，明示**不报「没有项目」也不报「已隔离」**）；十四出口（`projectRegistryNormalize` / `Bind` / `Unbind` / `Archive` / `Volumes` / `Scope` / `MergeCheck` / `PlanImport` / `RevokeBoundary` / `Relink` / `Describe` / `Line` 等，**出口不落笔**）；`selfCheck` 表新增一行 `['项目管理', this.projectRegistryLine()]`，与 X7 的「分卷接续」行**分列**。
+
+### ① 未选项目维持完全隔离（验收①）
+
+`scopeOf()` 未选（无 id 项目一律当「没选」）⇒ `selected:false` 且 `verdict:'isolated'` + `decidable:true`，**不是** `indeterminate`；项目门在身份门**之前** —— 身份判不了也不得把隔离塌成判不了（这是本轮自检当场抓到的判定序缺陷，已修）。`planImport()` 在未选项目下一律 `blocked / no-project`（不产计划，也不产**空**计划）。★ 这是**结构上的**隔离：两个项目之间的条目不经 `separateInquiry()` 的显式读数就不可能撞上。
+
+### ② 同名角色、不同宇宙不合并（验收②）
+
+`identityOf()` 的身份键**必须带 universe**（`u:<universe>|id:<owner>`，宇宙缺省取项目 id —— **项目即宇宙**）；`mergable()` 对「同名不同宇宙」给 `different-universe` + `mayMerge:false`，对「同宇宙仅名字对得上」给 `name-only` + `requiresConsent:true` + `mayMerge:false` —— 两者**不同形**，因为处置相反（前者是两个世界，后者是同一世界里的候选，须用户显式 `allowNameMerge` 认领，且认领后**仍标 name-only**）。★ 拿掉 universe 就退化成隐式合并，故判据把「身份键以 `u:<universe>|` 开头」钉死。
+
+### ③ 重复导入幂等 + 撤销有明确来源边界（验收③）
+
+`importIdOf()` 由包身份件确定性派生（不同代际给不同 id）；`planImport()` 命中 `seen` ⇒ `duplicate` + `ok:true` + `zeroWrite:true` ——**重复导入是正常读数**，不与被挡同形。`revokeBoundaryOf()` 无来源件 ⇒ `unbounded` + `ok:false` + `no-scope` 且**一律拒撤** —— 无边界不能撤，「撤销」不是整批回滚更不是清库。
+
+### ④ 旧源删除后引用状态清楚，不伪装仍可跳（验收④）
+
+`relink()` **不重写判定**，把 `volume-continuation.resolveSourceState` 的读数如实镜像（**单一真源**）；内核缺席 ⇒ `unknown / navigable:false / liveness-unavailable / decidable:false`（不假装还在、也不假装可跳）。★ 本轮实测抓到一次「装配点自指」自伤：首版 `_projectRegistryDeps()` 取的是**本面的取库口**而非 X7 内核，导致 `volumesOf` 照旧报 `catalog-unavailable` —— 已改为取 `window.LonShaVolumeContinuation`，并把这条教训写成判据的硬断言（装配点不得取本面自身）。
+
+### ⑤ 零写与离线
+
+`planImport` / `assignToVolume` / `mergable` / `scopeOf` 一律**纯函数不改入参**（project / pack / seen 三处快照），返回面恒带 `zeroWrite:true`（写法的归属仍在 owner 侧经既有门）；源码零 `require(` / `fetch(` / `XMLHttpRequest` / `localStorage` / `indexedDB` / `WebSocket`。
+
+### ⑥ 新档 `tests/v3317_project_registry.test.mjs`（15 条）
+
+M1 登记面（`extra_js` 恰一次 + 与追加时邻居 `extract-feedback.js` 都在场 + 零兄弟依赖 + 双导出 + 冻结 + 离线）· M2 导出面（八张常量表逐字 / 依赖声明面 / 22 函数名）· S1 验收①（未选 ⇒ isolated 且与判不了不同形；未选导入 ⇒ blocked/no-project）· B1 三类绑定可达 + duplicate 是正常读数 + 未知类别不落默认档 + 归档保留绑定，解绑不得改成归档 · V1 卷目录（duplicate-volume / range-inverted / 空标题各给具名 why；X7 缺席 ⇒ catalog-unavailable 且**不得自己列卷**）· I1 验收②（身份键必含 universe；两种不合并不变形；显式认领仍标 name-only）· D1 验收③④（导入幂等 / 归档项目 / 跨宇宙默认阻 / 无来源件 ⇒ unbounded 拒撤 / X7 缺席 ⇒ relink unknown）· Z1 零写（三处快照 + 恒带 zeroWrite + 无越权键）· A1 describe 缺格只列必需件 + selfCheck 探针 + line 六种坏法分列 · H1 宿主接线逐符号（十四口径各恰一次 + 装配点键名逐字 + **装配点必须取 LonShaVolumeContinuation 且不得取本面自身** + 出口不落笔）· H2 端到端九段（用 X7 桩注入真宿主段）· V2 版本锚 + 六源同源 · X1 **十二条**真源码破坏各现形 + 正控制地基 + 破坏副本抛错也算翻红 · W1/W2 破坏工具两向自证 + 判据纯度。
+
+### ⑦ 修后验证真读数
+
+- `node --test tests/v3317_project_registry.test.mjs` ⇒ **15/15 pass / 0 fail**。
+- 宿主端到端真跑（从真 `index.js` 切出宿主段 + 真 `project-registry.js` + 真 `volume-continuation.js`）⇒ 24/24 全绿。
+- `node --check index.js` rc0；`project-registry.js` 自检 20 探针全绿、导出面指纹 `021bc091`。
+- `scan_module_wiring` rc0（加载顺序 97 个脚本 / 真加载成功 97/97 / 对外全局 96 个）；`scan_version_guard` rc0（frontier `v3317_project_registry.test.mjs` / 当版锚点 1）；`scan_open_faces` rc0（7 面 0 问题）；`scan_doc_truthfulness` rc0。
+
+### ⑧ 抬版牵连面（逐项核）
+
+六源（`index.js` / `manifest.json` / `package.json` / `memory-config.js` / `memory-core.js` / `memory-organs.js`）· `manifest.extra_js` 95 → **96**（末位 `project-registry.js`）· README 版本行 / 测试文件数 297→**298** / 运行时模块 96→**97** / `extra_js` 三处 95→**96** · PLAN 状态行 / 版本行 / 门禁行 / 体量行（17611 行 / 659 成员 / extra_js 96）/ 两处待验标记 · TODO 顶行新增「最近更新 v3.317.0」+ 旧行降为历史留痕 · **CHANGELOG 新顶节**（本版）· `v3209` 两处数量锁 95→**96** · `v3247` REGISTRY 追加本档 · `catalog_reference_consumers.tsv` 追加本档一行 · `open_face_registry.tsv` 只把 `memoryToolsEnvelope` 行的 `producer_version` 同步到本版（**本版不新增外供面**，面数锁仍 7）。
+
+### ⑨ 本版全量未跑
+
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+- 按用户纪律（「做完计划全部内容前别跑全量」）只跑单门 / 单套件；全量 `npm test` 与 `npm test -- --audit` 留到计划收口点跑一次，本档**绝不跑全量**。故 README / PLAN 的「全量待验」标记照旧由 `scan_doc_truthfulness` 的 D6 把守。
+
+### ⑨b 门禁链当场抓红六处（三档行数锁交棒 + 两台账补登，全为既往漏同步的既有真缺陷与本刀扩成员）
+
+本刀抬版后跑门禁链（单套件 / 逐门，**不含全量**）当场抓到六处红，逐处在干净基线 `3d54b62` 上重跑同档对照定归属：
+
+- **`v3259 C` / `v3260 C` / `v3261 C` 三档「硬锁当版行数魔数」**（`< 18124`+`<= 17800` / `< 17776`+`<= 17500` / `< 17444`）：
+  它们是各刀**一次性事实**，与 v3264 C / v3266 C 踩过的完全同族（CHANGELOG v3.273.0 留痕）—— 主动接线把宿主推到 17611 行后翻红，
+  而翻红的信息量只剩「数字不够小」。按同族先例**交棒**到 `host_beast_baseline.json` 的 `line_budget` 登记面（`tools/patch3317_line_locks.py`）：
+  三档改守 `line_budget.ceiling`（余量须 ≤ maxSlack）+ 单调守卫 `18401` 照旧；不新建第二份真源（该登记面由 v3266 C 立起）。
+- **`v3281` 模块↔模块副本台账漏三簇**（`_t` / `_floorOf` / `surfaceDigest`）：前两簇是 **v3.316.0 · M-X7 抬版漏同步**（基线即红，取证见脚本头），
+  第三簇由本刀 M-X3 给 `project-registry.js` 加成员所致。三者均为「通用原语、装载时机互不包含」，故**补登**而不收拢（`tools/patch3317_copy_ledger.py`）。
+- **`v3282` 别名副本台账漏三簇**（`_t/text` / `_floorOf/floorOf` / `_isPlain/isPlainObject`）：前两簇同属 **v3.316.0 抬版漏同步**，
+  第三簇由本刀加成员所致（`tools/patch3317_alias_ledger.py`）。两档台账的簇数口径同步到实测（24 / 13）。
+
+★ 归因口径：**「门禁红了」不等于「本刀坏了」**，红绿都要能归因 —— 三档行数锁与两簇副本是既往遗留，本刀只是让它们显形（并就地处置）；
+剩余一簇（`surfaceDigest` / `_isPlain`）是本刀扩成员带来的真实增量，已按档设计登记。
+
+
+### ⑩ 抬版连带：三个派生账按真源刷新（读数零手抄）
+
+- `host_beast_baseline.json`：按探针重绑（宿主 17401 → **17611** 行 / 645 → **659** 成员；全部来自 M-X3 宿主真实接线，非死代码回流），`measured_at` 前移到本版；`line_budget` 的 ceiling 17801 / member_ceiling 675 **不动**（余量 190 ≤ slack 400、成员余量 16 ≤ 30，仍在线内）。
+- `dead_code_budget.json`：活跃代码实测 61553 行越过旧上界 60846 ⇒ 走 `--bump` 抬到 61953（= 实测 + slack 400），理由写进 `note` 与 `history`。
+- `state-report.json`：走 `node tools/gen_state_report.mjs --write` 重生成（S3 逐格对账）。
+
+---
 ## v3.316.0
 
 **M-X7（第二期拓展计划）提取质量反馈与可控策略配置：五类错法各自可指认 / 建议只看真读数 / 自动调参恒关 / 反馈不写历史事实 / 应用闸四态不压格**

@@ -252,6 +252,7 @@ const REGISTRY = [
     'v3314_phone_fact_bridge.test.mjs',
     'v3315_knowledge_preview.test.mjs',
     'v3316_extract_feedback.test.mjs',
+    'v3317_project_registry.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

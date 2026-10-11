@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.316.0';
+    const VERSION = '3.317.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11447,6 +11447,25 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['分卷接续', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.volumeContinuation'); return ['分卷接续', '—（诊断异常）']; }
                     })(),
+                    /* [v3.317.0 · M-X3] 项目管理体检面：与「分卷接续」**分列**。
+                     *   接续行答「这一卷怎么接出去」，本行答「**项目存在不存在、挂在哪儿**」——
+                     *   合成一行会让「没选项目（维持隔离）」与「选了但零卷」共用一个提示位，
+                     *   而验收①点名的正是前者。
+                     *   报警只认两条真损失：目录依赖缺格（卷与源状态一律判不了）与
+                     *   「判不了」与「改不动」同形（本仓最贵的老账）。 */
+                    (() => {
+                        try {
+                            const PR = _projectRegistryLib();
+                            if (!PR || typeof PR.line !== 'function' || typeof this.projectRegistryLine !== 'function') {
+                                return ['项目管理', '模块未加载（project-registry.js）'];
+                            }
+                            const d = this.projectRegistryDescribe();
+                            const bad = !!(d.missingDeps && d.missingDeps.length)
+                                || d.indeterminateDistinct === false;
+                            return ['项目管理', this.projectRegistryLine() + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.projectRegistry'); return ['项目管理', '—（诊断异常）'];
+                        }
+                    })(),
                     // [v3.294.0 · X8] 召回解释面：与「召回自检」「注入读数」**分列**。
                     //   那两行分别答「召回了什么」「最终送进去什么」；本行答
                     //   **「这一轮到底卡在哪一档」** —— 缺源 / 无命中 / 别名挡下 /
@@ -15326,6 +15345,186 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.extractFeedbackLine'); return '—（诊断异常）'; }
         }
         /* ────────────────────────────────────────────────────────────────────────
+         * [v3.317.0 · M-X3] 项目 / 卷 / 章节管理面（用户层）
+         *
+         * 【与「分卷接续」（X7）那一面的关系（两个方向）】
+         *   接续面答「**这一卷怎么接出去**」（建包 / 选面 / 源还在不在）；
+         *   本面答「**这个项目存在不存在、挂在哪儿、能不能并存**」（立项 / 绑定 / 归档 / 隔离）。
+         *   两面的读取口径**只有一份真源**：卷目录一律**转发** `volume-continuation.js` 的
+         *   `listVolumes`，源状态一律**镜像**它的 `resolveSourceState` —— 本面不留第二份目录。
+         *   故诊断面**分开两行**（与「分卷接续」分列），不合成一行。
+         *
+         * 【宿主只做三件事，绝不自己算】
+         *   ① **装配**：分卷接续内核经 `_projectRegistryDeps()` 注入（唯一装配点，键名与内核
+         *      `REQUIRED_DEPS[].key` 逐字一致 —— 改名会静默变成「依赖缺席」，判据按名对账）；
+         *   ② **转发**：出口把实参原样交给内核，**不改写返回值**；
+         *   ③ **留痕**：只留读数摘要（存整份项目表就是第二份目录真源）。
+         *
+         * 【本面**零落笔**】计划只出计划（`zeroWrite:true`）：写法归 owner 侧经既有门 ——
+         *   本面若自己写账，「没选项目」就会多出一条绕过隔离的写入路径，正是验收①要拦的那条。
+         */
+        /** [v3.317.0 · M-X3] 本面的**唯一装配点**。分卷接续内核缺席一律 null（不是 `{}`）。 */
+        _projectRegistryDeps() {
+            /* 与 `memoryToolsSources()` 同规格：**就地取库**（每件只在此函数取一次，天然唯一）。
+             * ★ 这里取的是 **X7 分卷接续内核**（`volume-continuation.js` 是目录与源状态的
+             *   唯一真源），**不是本面模块本身** —— 取成本面的取库口就是一个空转的依赖
+             *   （实测自伤：首版把本面的取库口当成了它，`volumesOf` 照旧报目录判不了）。 */
+            const VC = _moduleLib(() => window.LonShaVolumeContinuation, 'volume-continuation.js');
+            return {
+                VOLUME_CONTINUATION: (VC && typeof VC.listVolumes === 'function'
+                    && typeof VC.resolveSourceState === 'function') ? VC : null
+            };
+        }
+        /** [v3.317.0 · M-X3] 内核不可达时的**同键降级**（`ok:false` + `reason` 分开写）。 */
+        _projectRegistryAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                ok: false, state: 'absent', reason: r, project: null, verdict: 'indeterminate',
+                decidable: false, entries: [], count: 0, duplicate: false, zeroWrite: true,
+                volumes: [], chapterCount: 0, removed: 0, bindingsKept: 0, importId: '',
+                notes: ['项目面模块不可达（project-registry.js 未加载）⇒ 报 ok:false/' + r
+                    + '，**不报「没有项目」也不报「已隔离」**（缺席与隔离不同形）']
+            };
+        }
+        /** [v3.317.0 · M-X3] 项目归一（**id 非空是唯一「已选中」证据**）。只算不写。 */
+        projectRegistryNormalize(raw, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.normalizeProject !== 'function') return this._projectRegistryAbsent('normalize-unavailable');
+            try {
+                const np = PR.normalizeProject(raw, opts);
+                /* ★ selected:false（没选项目）**本身就是产品状态**（默认隔离），不记会让诊断行
+                 *   分不清「没选」与「模块没挂」。 */
+                this._lastProject = {
+                    at: Date.now(), selected: np.selected === true, projectId: (np.project && np.project.projectId) || '',
+                    title: (np.project && np.project.title) || '', state: (np.project && np.project.state) || '',
+                    volumeCount: np.volumeCount || 0, chapterCount: np.chapterCount || 0,
+                    bindingCount: np.bindings ? (np.bindings.session.length + np.bindings.branch.length + np.bindings.character.length) : 0,
+                    reason: np.reason || '', project: np.project || null
+                };
+                return np;
+            } catch (e) { errLog(e, 'plugin.projectRegistryNormalize'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 挂一个绑定（会话 / 分支 / 角色三类；重复绑定是**正常读数**）。 */
+        projectRegistryBind(project, kind, value, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.bindTo !== 'function') return this._projectRegistryAbsent('bind-unavailable');
+            try { return PR.bindTo(project, kind, value, opts); }
+            catch (e) { errLog(e, 'plugin.projectRegistryBind'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 解除绑定（`'all'` / 不给 ⇒ 全部解绑）。**不等于归档**（不清 state 为 archived）。 */
+        projectRegistryUnbind(project, kindOrAll) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.unbind !== 'function') return this._projectRegistryAbsent('unbind-unavailable');
+            try { return PR.unbind(project, kindOrAll); }
+            catch (e) { errLog(e, 'plugin.projectRegistryUnbind'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 归档（冻结 state，**保留绑定** —— 归档与解绑是两件事，不得互代）。 */
+        projectRegistryArchive(project, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.archiveProject !== 'function') return this._projectRegistryAbsent('archive-unavailable');
+            try { return PR.archiveProject(project, opts); }
+            catch (e) { errLog(e, 'plugin.projectRegistryArchive'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 读卷目录（**只转发** X7 `listVolumes`；内核缺席 ⇒ 判不了，不自己列一遍）。 */
+        projectRegistryVolumes(project, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.volumesOf !== 'function') return this._projectRegistryAbsent('volumes-unavailable');
+            try {
+                const res = PR.volumesOf(project, this._projectRegistryDeps(), opts);
+                this._lastProjectVolumes = {
+                    at: Date.now(), decidable: res.decidable === true, count: res.count || 0,
+                    chapterCount: res.chapterCount || 0, via: res.via || '', reason: res.reason || ''
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.projectRegistryVolumes'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 作用域判定（isolated / same-project / cross-project / indeterminate 四态不压格）。 */
+        projectRegistryScope(a, b, project) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.scopeOf !== 'function') return this._projectRegistryAbsent('scope-unavailable');
+            try { return PR.scopeOf(a, b, project); }
+            catch (e) { errLog(e, 'plugin.projectRegistryScope'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 合并判定（★ 同名不同宇宙 ⇒ **不是同一人**；仅名字对得上 ⇒ 候选、永不自动合）。 */
+        projectRegistryMergeCheck(a, b, project, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.mergable !== 'function') return this._projectRegistryAbsent('merge-unavailable');
+            try {
+                const res = PR.mergable(a, b, project, opts);
+                this._lastProjectMerge = {
+                    at: Date.now(), verdict: res.verdict || '', mayMerge: res.mayMerge === true,
+                    decidable: res.decidable === true, requiresConsent: res.requiresConsent === true
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.projectRegistryMergeCheck'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 导入计划（★ 未选项目一律 blocked；重复导入是**正常读数**；跨宇宙默认阻）。只出计划不落笔。 */
+        projectRegistryPlanImport(pack, project, seen, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.planImport !== 'function') return this._projectRegistryAbsent('plan-unavailable');
+            try {
+                const res = PR.planImport(pack, project, seen, opts);
+                this._lastProjectImport = {
+                    at: Date.now(), state: res.state || '', reason: res.reason || '', count: res.count || 0,
+                    duplicate: res.duplicate === true, decidable: res.decidable === true, zeroWrite: true
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.projectRegistryPlanImport'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 撤销来源边界（★ **无来源件不能撤** —— 那是清库，不是撤销）。 */
+        projectRegistryRevokeBoundary(pack, project, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.revokeBoundaryOf !== 'function') return this._projectRegistryAbsent('boundary-unavailable');
+            try { return PR.revokeBoundaryOf(pack, project, opts); }
+            catch (e) { errLog(e, 'plugin.projectRegistryRevokeBoundary'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 重新接线（**只镜像** X7 判定；内核缺席 ⇒ unknown + 不可跳转，不伪装仍可跳）。 */
+        projectRegistryRelink(ref, liveSources, opts) {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.relink !== 'function') return this._projectRegistryAbsent('relink-unavailable');
+            try {
+                const res = PR.relink(ref, liveSources, this._projectRegistryDeps(), opts);
+                this._lastProjectRelink = {
+                    at: Date.now(), state: res.state || '', navigable: res.navigable === true,
+                    decidable: res.decidable === true, reason: res.reason || ''
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.projectRegistryRelink'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /** [v3.317.0 · M-X3] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        projectRegistryDescribe() {
+            const PR = _projectRegistryLib();
+            if (!PR || typeof PR.describe !== 'function') return this._projectRegistryAbsent('module-unavailable');
+            try {
+                const d = PR.describe(this._projectRegistryDeps());
+                d.reason = '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.projectRegistryDescribe'); return this._projectRegistryAbsent('thrown'); }
+        }
+        /**
+         * [v3.317.0 · M-X3] 诊断一行。**六种坏法分开写**：
+         *   模块没挂 / 抛错 / 依赖缺格（目录与源状态判不了）/ **未选项目（维持隔离）** / 项目读数 / 空。
+         *   ★「未选项目（维持隔离）」与「选了但零卷」**绝不同形** —— 验收①点名的就是前者。
+         */
+        projectRegistryLine() {
+            try {
+                const PR = _projectRegistryLib();
+                if (!PR || typeof PR.line !== 'function') return '模块未加载（project-registry.js）';
+                const d = this.projectRegistryDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（project-registry.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                const lk = this._lastProjectRelink || null;
+                return PR.line({
+                    project: this._lastProject ? this._lastProject.project : null,
+                    importCount: this._lastProjectImport ? (this._lastProjectImport.state === 'applied' ? 1 : 0) : 0,
+                    duplicateCount: this._lastProjectImport && this._lastProjectImport.duplicate ? 1 : 0,
+                    sourceState: lk ? lk.state : '',
+                    navigable: lk ? lk.navigable : null,
+                    deps: this._projectRegistryDeps()
+                });
+            } catch (e) { errLog(e, 'plugin.projectRegistryLine'); return '—（诊断异常）'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
          * [v3.311.0 · M-X2] 修复**落定面**（从「流程完成」到「所有派生面落盘完成」）
          *
          * 【宿主只做三件事，绝不自己算】
@@ -15930,6 +16129,17 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   反馈**不写历史事实**、原文依据只存摘要（不复制第二份事实库）。纯函数零写零联网。
     function _extractFeedbackLib() {
         return _moduleLib(() => window.LonShaExtractFeedback, 'extract-feedback.js');
+    }
+    // [v3.317.0 · M-X3] 项目 / 卷 / 章节管理面（project-registry.js）。为什么需要：
+    //   `volume-continuation.js`（X7）答的是「这一卷怎么接出去」（建包 / 选面 / 源状态），
+    //   它答不了 M-X3 点名的这一问：**这个项目存在不存在、挂在哪儿、能不能并存**。
+    //   修前「没选项目」「选了但零卷」「同名不同宇宙」在读数上同形（都只是「没有内容」），
+    //   且项目 id 与宇宙在宿主里**根本没有落点** —— 于是验收①「未选项目维持完全隔离」
+    //   与验收②「同名角色、不同宇宙不合并」都没有可判之处。本模块只做
+    //   归一 / 绑定 / 归档 / 卷章节编辑 / 身份与合并判定 / 导入计划 / 撤销边界 / 重新接线，
+    //   目录与源状态**一律转发 X7**（本模块不留第二份导航真源），**纯函数零写零联网**。
+    function _projectRegistryLib() {
+        return _moduleLib(() => window.LonShaProjectRegistry, 'project-registry.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的

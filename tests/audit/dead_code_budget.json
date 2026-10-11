@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 60846,
+  "ceiling": 61953,
   "maxSlack": 400,
-  "note": "v3.316.0 M-X7 提取质量反馈活跃代码增长（新增 extract-feedback.js 625 行 + 宿主十出口与装配点接线），均为活跃功能增长、非死代码回流",
+  "note": "v3.317.0 M-X3 项目 / 卷 / 章节管理面活跃代码增长（新增 project-registry.js 896 行 + 宿主取库口 / 唯一装配点 / 十四出口 / 自检面诊断行接线），均为活跃功能增长、非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -269,7 +269,11 @@
     {
       "ceiling": 60846,
       "reason": "v3.316.0 M-X7 提取质量反馈活跃代码增长（新增 extract-feedback.js 625 行 + 宿主十出口与装配点接线），均为活跃功能增长、非死代码回流"
+    },
+    {
+      "ceiling": 61953,
+      "reason": "v3.317.0 M-X3 项目 / 卷 / 章节管理面活跃代码增长（新增 project-registry.js 896 行 + 宿主取库口 / 唯一装配点 / 十四出口 / 自检面诊断行接线），均为活跃功能增长、非死代码回流"
     }
   ],
-  "_history_last": "ceiling 60039 → 60846（实测 60446 + slack 400）：v3.316.0 M-X7 提取质量反馈活跃代码增长（新增 extract-feedback.js 625 行 + 宿主十出口与装配点接线），均为活跃功能增长、非死代码回流"
+  "_history_last": "ceiling 60846 → 61953（实测 61553 + slack 400）：v3.317.0 M-X3 项目 / 卷 / 章节管理面活跃代码增长（新增 project-registry.js 896 行 + 宿主取库口 / 唯一装配点 / 十四出口 / 自检面诊断行接线），均为活跃功能增长、非死代码回流"
 }

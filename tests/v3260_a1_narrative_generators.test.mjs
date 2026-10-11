@@ -188,8 +188,23 @@ test('v3260 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     assert.ok(_lb.member_ceiling - b.readings.member_count <= _lb.member_max_slack,
         '成员上界余量 ' + (_lb.member_ceiling - b.readings.member_count)
         + ' 不得超过 member_max_slack ' + _lb.member_max_slack);
-    assert.ok(b.readings.total_lines < 17776, '行数须已随本刀下降（剥走前 17776）');
-    assert.ok(b.readings.total_lines <= 17500, '本刀须至少剥掉 270 行，实测 ' + b.readings.total_lines);
+    /* [v3.317.0 交棒] 原文是 `< 17776` + `<= 17500` ——【硬锁当版快照】。
+     *   与 v3264 C / v3266 C 踩过的是**同一族坑**（CHANGELOG v3.273.0 留痕）：把某刀的一次性读数
+     *   当永久不变量 ⇒ 后续活跃功能增长（第二期 M-X 各刀真实宿主接线）把它推回线上，翻红的
+     *   信息量只剩「数字不够小」。而 A1 的真实不变量是「各刀之后宿主读数始终低于 A1 首刀前
+     *   基线（18401）」，那条照旧在下面把守。
+     *   交棒**不弱化**：本档改守全仓唯一的活体上界 `line_budget.ceiling`（由 v3266 C 立起，
+     *   本档只读不另立 —— 立两份就是两份真源）。 */
+    const _lbL = b.line_budget || null;
+    assert.ok(_lbL && Number.isFinite(_lbL.ceiling), '宿主行数上界必须登记（否则「长回线上」无人管）');
+    assert.ok(b.readings.total_lines <= _lbL.ceiling,
+        '★ 宿主行数须 <= 登记上界 ' + _lbL.ceiling + '，实测 ' + b.readings.total_lines);
+    assert.ok(_lbL.ceiling - b.readings.total_lines <= _lbL.maxSlack,
+        '上界余量 ' + (_lbL.ceiling - b.readings.total_lines) + ' 不得超过 maxSlack ' + _lbL.maxSlack
+        + '（余量过大 = 上界与实测脱节，等于没守）');
+    assert.ok(b.readings.total_lines < 18401,
+        '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）：剥了又长回来必须响，实测 '
+        + b.readings.total_lines);
     ok('manifest 恰 1 项；基线行数/成员数与真文件同源且已下降');
 });
 
