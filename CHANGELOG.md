@@ -1,3 +1,94 @@
+## v3.318.0
+**M-O2 收口（真浏览器切片）：真 Chromium + 真 SillyTavern 的控件交互回归 —— 并把当场抓到的窄屏真缺陷修掉**
+- **它补的是哪一格**：M-O2 验收原文第一条是「**真实浏览器与真宿主的控件交互回归**」。此前四层 UI 门
+  （`scan_ui_binding` A / `scan_ui_runtime` U / `scan_ui_interaction` V / `scan_ui_panel_drive` W）
+  **全部跑在最小 DOM shim 上** —— shim 里没有视口、没有 flex 收缩、没有文本换行、没有真实点击坐标、
+  没有真实 localStorage 配额。v3.300.0~v3.303.0 三刀把「真宿主装载面」与「同款 shim 下的面板驱动」补齐，
+  并在文档里**如实登记**真浏览器面「未执行」。本刀把那一格真正执行掉。
+- **交付**：`tests/audit/_mo2_realbrowser_probe.mjs`（395 行，`_` 前缀 ⇒ 不进 `npm test`）——
+  零依赖通道：本仓无 playwright / puppeteer，Node v24 自带全局 `WebSocket` 直连 CDP
+  （`--headless=new --remote-debugging-port=0`，devtools ws 从 stderr 抽），与 `_mo1_realhost_probe.mjs` 同款。
+  读数面：0 前置（仓库 manifest 与**部署** manifest 版本必须一致，否则报「装的是旧版」）→
+  4 装载面（`_extraJsLoad.status=ok` / `okCount === manifest.extra_js` / 失败项为空）→
+  5 真鼠标（`Input.dispatchMouseEvent` 三段式）点 `#lonsha-memory-fab` 再点菜单 `data-act="settings"` →
+  6 真鼠标点 checkbox（前后 checked 对比）→ 7 真鼠标点 `#ls-save` 并回读 `localStorage` + config →
+  8 重开核对控件保留 → 9 真键盘（`Input.insertText` 走真实输入管线）→
+  10 真 Emulation 320x640 → 11 还原 → 12 判据。**33 条读数全成立（rc=0）**。
+- **★ 当场抓到的产品面真缺陷（本刀的主要价值）**：320px 窄屏下
+  `narrow.inViewOfControls = 160/161`、`narrow.overflow` 逐项点名
+  `{tag:INPUT, key:llmEventChainEnabled, left:449, right:493, w:44, parentCls:ls-row}` ——
+  **有一个 44x44 的开关被顶出屏幕**（视口 320，它 left=449）。根因两处、缺一不成：
+  ① `.ls-hint`（说明文本）没有 `overflow-wrap` / `word-break`，而文案里含**长不可断 ASCII 串**
+    （`SillyTavern.getContext().chat[N].extra.lonsha_omit = true`、
+    `run_started→model_requested/assistant_message/run_failed`、`window.lonsha_memory_bridge_v1`、
+    `extract/summarize/select/rerank/...`）⇒ 按 CSS 默认不换行，把所在行撑到 277~474px；
+  ② `.ls-row` 是 `display:flex`，而 flex 子项的自动最小尺寸是**内容最小尺寸**（`min-width: auto`）
+    ⇒ 子项**不允许收缩到内容以下**，于是①撑宽的内容把右侧控件一路推到 left=449。
+  实测读数：`.lonsha-sheet-body` scrollWidth 492 > clientWidth 307。
+- **修法（两处配套，缺一即白加）**：`settings-ui.js` 注入样式里
+  `.ls-hint` / `.ls-group-title` / `.ls-row > div` / `.ls-slider-label` 加
+  `overflow-wrap: anywhere` + `word-break: break-word`，`.ls-row > div` 另加 `min-width: 0`
+  （flex 项能收缩的**必要条件**），`.ls-slider-label` 另加 `gap: 8px` + `min-width: 0`
+  （它是 flex 双 span 行，同族形态）。修后复跑探针：**161/161 且 `narrow.overflow = []`**。
+- **新门禁** `tests/audit/scan_ui_narrow_layout.mjs`（零依赖，自带极简 CSS 解析器；退出码三档 0/1/2）：
+  N1 长文本载体断行在册（`.ls-hint` / `.ls-group-title` / `.ls-item-text` / `.ls-slider-label`
+  各自必须声明 `overflow-wrap` 或 `word-break`，**不依赖继承**）/ N2 flex 行容器的收缩许可
+  （凡「flex 容器 + 其下有定宽控件」形态，须在容器或其标签子项上声明 `min-width: 0`）/
+  N2b 同一形态还须让文本真能断 / N4 **内容驱动**（UI 说明文本里 >=24 字符的不可断 ASCII 串
+  真出现时断行必须真在册 —— 防「声明了但没人用」）/ N5 面自证（CSS 字节 / 规则数 / 载体数 /
+  flex 容器数 / 长串数全为非零下限）。解析前**必须剥注释**（否则注释会被并进下一条规则的 prelude，
+  选择器精确匹配全部失效 —— 首稿实测踩过）。
+- **成对套件** `tests/v3318_ui_narrow_layout_gate.test.mjs`（8 条，全绿）：A1 结构面（门在位 /
+  N1·N2·N2b·N4·N5 判据名在册 / 六个面下限常量 / 边界声明与四层 UI 门关系）/ B1 真仓 exit 0 /
+  C1~C2 两条**真源码破坏负控制**（摘 `.ls-hint` 断行 ⇒ N1 点名；摘 `.ls-row > div` 的
+  `min-width: 0` ⇒ N2 点名；每条配**原版对照**）/ D1 fail-closed（缺文件 / 退化输入 / 注入样式块缺席
+  三条路径 ⇒ exit 2）/ E1 面下限非装饰（抬高字节阈值 ⇒ exit 2）/ F1 判据纯度（四个单行锚点片段
+  各只有 1 个持有常量 + 真源各恰中 1 次 + 两向自证）/ G1 当版锚 + 三处登记面。
+- **灵敏度登记（反恒绿探测器）**：`tools/_o2c_narrow_gt_probe.py` 实测 H/G/T = **0/2/0**
+  （本门只读 `settings-ui.js` ⇒ T 档无影响是正常的，G 档非 0 即非恒绿），已按实测值登记进
+  `tests/audit/audit_scan_probe_matrix.tsv`。
+- **探针开发中三次自伤，逐条留痕（对后续任何真宿主 / 真浏览器探针都适用）**：
+  ① **CDP 鼠标坐标是视口坐标**，长面板里控件可能在折叠线以下 ⇒ 必须先 `scrollIntoView({block:'center'})`
+    再重测 `getBoundingClientRect` 后点击（`realClickScrolled` / `scrollIntoCenter`）。shim 门里
+    没有视口概念，**这一类结构上就测不出来**。
+  ② **失败路径也要收割进程组**：`fail()` 里若不 `reap()`，孤儿浏览器会占着调试端口与 profile，
+    让**下一次探针**读到上一次的状态（实测被污染成「视口宽度 320」）。
+  ③ 读数缺失（如 overlay 为 null）时要**先确认前置状态**，否则容易把「上一步误点背景关了面板」
+    误读成「本步机制失效（Emulation 没生效）」。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（本档沿用全仓口径；`node --test` 单套件为 0/1）。
+- **本档绝不跑全量**：按用户纪律「做完计划全部内容前别跑全量」，此处只跑本档定向门与相关单套件；
+  全量 `npm test` / `npm test -- --audit` 集中到计划收口后跑一次。
+- 版本六处同步（`index.js` / `manifest.json` / `package.json` + `memory-config.js` /
+  `memory-core.js` / `memory-organs.js` 副本）已抬至 **3.318.0**；本版**不新增运行时模块**
+  （`extra_js` **仍 96 项**）；测试文件 298 → **299**；审计脚本 60 → **61**（磁盘 65 → **67**）。
+  当版锚由本档自带 `vnum('3.318.0')` 字面量形承担。
+- **M-O2 收口判定**：第二期优化批 9 条与拓展批 9 条**至此全部交付**（M-O2 的交付面 =
+  v3.287 shim 交互切片 + v3.300/301 shim 重建 + v3.302 真宿主装载面 + v3.303 面板逐条驱动 +
+  **v3.318 真浏览器切片**）。M-O2 原文其余流程面（生成 / 楼层重生成删除 / 切角色 /
+  与手机插件双扩展共装）**如实登记未执行**（不在本刀范围，仍是可续做项）。
+- **计划收口：全量实跑（本版唯一的「计划全部内容」终点）** —— 按用户纪律「做完计划全部内容前别跑全量」，
+  第二期首批 18 条（M-O1~M-O9 / M-X1~M-X9）全部交付后跑**一次**全量：
+  `node tests/run.mjs --audit` = **299/299 文件 · 3302 断言 · 0 失败 · 审计 61/61**（rc=0，耗时 109.8s + 76.7s）。
+  读数经 `tools/_rebind_doc_readings.py` / `tools/_rebind_test_cost.py` **零手抄**写入
+  `tests/audit/doc_readings.json` 与 `tests/audit/test_cost_readings.json`。
+- **★ 全量实跑当场抓出 5 处红（1 处本就为真缺陷 + 4 处本刀改动的登记面滞后）**，逐条归因并修复：
+  ① `scan_plan_currency.mjs`（**产品面真缺陷**）：现行排序节第 2 条仍把**已收口的 O2** 列为待做 ——
+     本刀正是 O2 的收口刀，文档滞后于交付事实 ⇒ PLAN 如实改写（含本刀窄屏缺陷与修后 161/161 读数）。
+  ② `v3284`（审计面副本台账 B1 当场点名）：本刀新增的 `_mo2_realbrowser_probe.mjs` 与 M-O1 的
+     `_mo1_realhost_probe.mjs` 持有逐字相同的 CDP 求值 helper `evalPage` ⇒ 登记新簇（**刻意各持一份**，
+     避免两份证据通道耦合）；登记值按判据侧口径（体自**参数括号**起算）实测为 350/cf4d6596。
+  ③ `v3266` C / `v3304` B3（基线当版读数同源）：`host_beast_baseline.json` 停在 v3.317.0 ⇒
+     经 `tools/_rebuild_host_beast.py` 重建（读数由探针生成）；本版宿主零改动，行数/成员数与上版同值。
+  ④ `v3288` D（**判据缺陷，非产品缺陷**）：该段把「O2 未收口须显式在列」钉死成永久不变量 ——
+     本刀收口 O2 后必然翻红；而删掉它又会让「已收口项被写回待办」无人把守。
+     按本档 v3.292.0 / v3.296.0 两次交棒口径重述为**结构不变量**（O2 仍须在列 + 状态词两形态都认
+     + **反向**：不得列为「尚未做 / 待交付 / 待做」）。修前实测：该断言在 O2 收口后是**恒绿**的
+     （现行排序节把 O2 写回待办，全仓无判据响应）。
+  ⑤ `v3297` S7（状态报告可重建）：`scan_plan_currency` 的 ① 与文档重绑改了 `PLAN.md`，
+     报告里的 `doc_hashes.PLAN.md` 随之陈旧 ⇒ 经 `tools/gen_state_report.mjs --write` 重写。
+- **本次收口后全量再跑一次即为 rc=0**（上列 5 处全部修完，且另复跑 9 道关键门禁全绿）。
+- 退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
+***
 ## v3.317.0
 
 **M-X3（第二期拓展计划）项目 / 卷 / 章节管理面：未选项目完全隔离 / 同名不同宇宙不合并 / 重复导入幂等 / 撤销有来源边界 / 旧源删除不伪装可跳**

@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.317.0",
+ "measured_at": "v3.318.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1626,6 +1626,38 @@
     "total_lines": 210,
     "member_count": 14,
     "top5_pct": -0.2
+   }
+  },
+  "v3.318.0": {
+   "reason": "v3.318.0 M-O2 真浏览器切片：宿主零改动，只把读数并入基线（行数与成员数同 v3.317.0）",
+   "readings": {
+    "total_lines": 17611,
+    "member_count": 659,
+    "duplicate_member_names": 25,
+    "top5_lines": 4784,
+    "top5_pct": 27.2,
+    "top40_lines": 10369,
+    "top40_pct": 58.9,
+    "prefix_rule_coverage_lines": 5179,
+    "prefix_rule_coverage_pct": 29.4,
+    "unclassified_lines": 11461,
+    "seam_distinct_modules": 65,
+    "seam_reference_sites": 91,
+    "seam_call_shape_sites": 95,
+    "members_over_80_lines": 34,
+    "low_coupling_members": 23,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.317.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
    }
   }
  },

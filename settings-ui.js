@@ -35,12 +35,17 @@
             .lonsha-sheet-close:hover { background: var(--ls-danger-soft,rgba(248,81,73,0.14)); color: var(--ls-danger,#f85149); }
             .lonsha-sheet-body { padding: 14px 18px 26px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: var(--ls-text,#e6edf3); }
             .ls-group { margin-bottom: 18px; }
-            .ls-group-title { font-size: 12px; color: var(--ls-accent,#58a6ff); margin: 10px 0 6px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; }
+            .ls-group-title { font-size: 12px; color: var(--ls-accent,#58a6ff); margin: 10px 0 6px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; overflow-wrap: anywhere; word-break: break-word; }
             .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--ls-line,rgba(240,246,252,0.10)); font-size: 15px; }
+            /* [v3.318.0] 320px 窄屏真浏览器实测：flex 子项默认 min-width:auto => 不允许收缩到内容以下，
+             *   说明文本里的长不可断 ASCII 串（SillyTavern.getContext()… / run_started->…）会把
+             *   整行撑到 474px，把 44px 的 checkbox 顶出视口（left=449 > 320）。
+             *   修法两处配套：容器 min-width:0（允许收缩）+ 任意位置断行（让长串真能断）。 */
+            .ls-row > div { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
             .ls-row:last-child { border-bottom: none; }
             .ls-row input[type="checkbox"] { width: 44px; height: 44px; margin: 0; accent-color: var(--ls-accent,#58a6ff); }
             .ls-slider { width: 100%; accent-color: var(--ls-accent,#58a6ff); height: 32px; }
-            .ls-slider-label { display: flex; justify-content: space-between; font-size: 14px; padding: 8px; color: var(--ls-text-2,#9da7b3); }
+            .ls-slider-label { display: flex; justify-content: space-between; gap: 8px; min-width: 0; font-size: 14px; padding: 8px; color: var(--ls-text-2,#9da7b3); overflow-wrap: anywhere; word-break: break-word; }
             .ls-slider-val { color: var(--ls-accent,#58a6ff); font-weight: 600; font-variant-numeric: tabular-nums; }
             .ls-input { width: 100%; background: var(--ls-bg-2,#161b22); color: var(--ls-text,#e6edf3); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 12px; font-size: 14px; margin: 5px 0; box-sizing: border-box; transition: border-color var(--ls-t-fast,120ms), box-shadow var(--ls-t-fast,120ms); }
             .ls-input:focus { outline: none; border-color: var(--ls-accent,#58a6ff); box-shadow: 0 0 0 3px var(--ls-accent-soft,rgba(56,139,253,0.15)); }
@@ -58,7 +63,7 @@
             .ls-stat-card:hover { transform: translateY(-2px); border-color: var(--ls-accent-line,rgba(56,139,253,0.35)); }
             .ls-stat-num { font-size: 20px; font-weight: 700; color: var(--ls-accent,#58a6ff); font-variant-numeric: tabular-nums; }
             .ls-stat-label { font-size: 11px; color: var(--ls-text-2,#9da7b3); margin-top: 2px; }
-            .ls-hint { font-size: 12px; color: var(--ls-text-3,#6e7681); padding: 6px 8px; line-height: 1.5; }
+            .ls-hint { font-size: 12px; color: var(--ls-text-3,#6e7681); padding: 6px 8px; line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
             .ls-clickable { cursor: pointer; transition: transform var(--ls-t-fast,120ms), border-color var(--ls-t-fast,120ms); }
             .ls-clickable:active { transform: scale(0.97); }
             .ls-item { background: var(--ls-bg-2,#161b22); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 13px; margin: 6px 0; }

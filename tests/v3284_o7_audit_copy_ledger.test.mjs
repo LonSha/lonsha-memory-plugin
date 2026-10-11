@@ -17,11 +17,12 @@
 //     改一处、漏四处，四面门禁照样全绿。
 //     这比 v3.283.0 更尖锐：**探测器的实现若在副本间漂移，探测器给出的结论本身就该被怀疑**。
 //
-//   【本档登记（14 簇，实测逐字相同；体长 ≥ 40；v3.293.0 口径起，v3.303.0 补 3 簇）】
+//   【本档登记（15 簇，实测逐字相同；体长 ≥ 40；v3.293.0 口径起，v3.303.0 补 3 簇，v3.318.0 补 1 簇）】
 //     名字                       成员数  体长  md5
 //     mutate                     2       640   3460e9a2
 //     extractMethod              2       399   cf7b47d4
 //     methodBody                 2       328   69503fb4
+//     evalPage                   2       350   cf4d6596   ← v3.318.0 补（M-O2 真浏览器探针与 M-O1 真宿主探针的 CDP 求值 helper）
 //     runAt / runScanAt          5       314   72230cdf
 //     extractBlock               3       238   14de97bf
 //     distributionFace / …       2       218   7fd61df8
@@ -102,6 +103,10 @@ const AUDIT_LEDGER = [
     ['mutate', ['scan_v3185_xref_consumer_negctl.mjs', 'scan_v3186_emotion_recall_negctl.mjs'], 640, '3460e9a2'],
     ['extractMethod', ['scan_world_clock_reader.mjs', 'scan_world_ledger_reader.mjs'], 399, 'cf7b47d4'],
     ['methodBody', ['_m_o4_probe.mjs', '_p3_snapshot_probe.mjs'], 328, '69503fb4'],
+    /* v3.318.0 补（M-O2 真浏览器切片新增 `_mo2_realbrowser_probe.mjs` 后与 M-O1 真宿主探针形成的跨档簇）：
+     *   两档各自持有同一份 CDP `Runtime.evaluate` 求值 helper。**刻意各持一份**：让一个探针 import 另一个，
+     *   会把两份证据通道耦在一起（真浏览器探针的会话 / 端口假设渗进真宿主探针）。 */
+    ['evalPage', ['_mo1_realhost_probe.mjs', '_mo2_realbrowser_probe.mjs'], 350, 'cf4d6596'],
     [['runAt', 'runScanAt'], ['scan_v3184_final_four_negctl.mjs', 'scan_v3185_xref_consumer_negctl.mjs',
         'scan_v3186_emotion_recall_negctl.mjs', 'scan_v3193_host_matrix_negctl.mjs',
         'scan_v3193_lexicon_drift_negctl.mjs'], 314, '72230cdf'],
@@ -133,6 +138,7 @@ const A_RUNSCANAT = 'function runScanAt(scanPath, dir) {';
 const A_EXMETHOD = 'function extractMethod(text, name) {';
 const A_EXBLOCK = 'function extractBlock(text, startIdx) {';
 const A_METHODBODY = 'function methodBody(src, name) {';
+const A_EVALPAGE = 'function evalPage(expr) {';
 const A_READNULL = 'function readOrNull(p) {';
 const A_READ = 'function read(p) {';
 const A_FACE_IN = 'export function inboundDistributionFace(manifest) {';
@@ -453,6 +459,7 @@ test('v3284 E1. ★★ 判据纯度：每个破坏锚点字面量在本档只有
     const anchors = [['MUTATE', A_MUTATE], ['RUNAT', A_RUNAT], ['RUNSCANAT', A_RUNSCANAT],
         ['EXMETHOD', A_EXMETHOD], ['EXBLOCK', A_EXBLOCK], ['METHODBODY', A_METHODBODY],
         ['READNULL', A_READNULL], ['READ', A_READ], ['FACE_IN', A_FACE_IN], ['FACE_OPEN', A_FACE_OPEN],
+        ['EVALPAGE', A_EVALPAGE],
         ['MEASURE', A_MEASURE], ['EXBLOCK_BODY', A_EXBLOCK_BODY], ['READNULL_BODY', A_READNULL_BODY],
         ['RUNAT_BODY', A_RUNAT_BODY]];
     for (const [label, a] of anchors) {
@@ -475,6 +482,7 @@ test('v3284 E1. ★★ 判据纯度：每个破坏锚点字面量在本档只有
     const declRe = /^const\s+([AR]_[A-Z_]+)\s*=/gm;
     const declNames = [...self.matchAll(declRe)].map((m) => m[1]);
     assert.deepEqual(declNames, ['A_MUTATE', 'A_RUNAT', 'A_RUNSCANAT', 'A_EXMETHOD', 'A_EXBLOCK', 'A_METHODBODY',
+        'A_EVALPAGE',
         'A_READNULL', 'A_READ', 'A_FACE_IN', 'A_FACE_OPEN', 'A_MEASURE',
         'A_EXBLOCK_BODY', 'A_READNULL_BODY', 'A_RUNAT_BODY',
         'R_EXBLOCK_BODY', 'R_READNULL_BODY', 'R_RUNAT_BODY', 'A_SELF_LEN', 'A_SELF_LEDGER'],
