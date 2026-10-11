@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.313.0",
+ "measured_at": "v3.314.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1499,6 +1499,38 @@
     "member_count": 7,
     "top5_pct": -0.1
    }
+  },
+  "v3.314.0": {
+   "reason": "v3.314.0 M-X6 手机事实桥 2.0：宿主新增七出口接线（+180 行 / +9 成员），本版只量不拆",
+   "readings": {
+    "total_lines": 17042,
+    "member_count": 626,
+    "duplicate_member_names": 25,
+    "top5_lines": 4727,
+    "top5_pct": 27.7,
+    "top40_lines": 10280,
+    "top40_pct": 60.3,
+    "prefix_rule_coverage_lines": 5122,
+    "prefix_rule_coverage_pct": 30.1,
+    "unclassified_lines": 10949,
+    "seam_distinct_modules": 62,
+    "seam_reference_sites": 83,
+    "seam_call_shape_sites": 87,
+    "members_over_80_lines": 34,
+    "low_coupling_members": 23,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.313.0",
+   "delta": {
+    "total_lines": 180,
+    "member_count": 9,
+    "top5_pct": -0.3
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1510,19 +1542,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 16862,
-  "member_count": 617,
+  "total_lines": 17042,
+  "member_count": 626,
   "duplicate_member_names": 25,
-  "top5_lines": 4714,
-  "top5_pct": 28.0,
-  "top40_lines": 10258,
-  "top40_pct": 60.8,
-  "prefix_rule_coverage_lines": 5109,
-  "prefix_rule_coverage_pct": 30.3,
-  "unclassified_lines": 10782,
-  "seam_distinct_modules": 61,
-  "seam_reference_sites": 82,
-  "seam_call_shape_sites": 86,
+  "top5_lines": 4727,
+  "top5_pct": 27.7,
+  "top40_lines": 10280,
+  "top40_pct": 60.3,
+  "prefix_rule_coverage_lines": 5122,
+  "prefix_rule_coverage_pct": 30.1,
+  "unclassified_lines": 10949,
+  "seam_distinct_modules": 62,
+  "seam_reference_sites": 83,
+  "seam_call_shape_sites": 87,
   "members_over_80_lines": 34,
   "low_coupling_members": 23,
   "high_coupling_members": 7
@@ -1530,18 +1562,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 576,
-   "lines": 10782,
-   "lines_pct": 63.9,
-   "outside_refs": 5871,
-   "internal_refs": 1679,
-   "outside_ref_share_pct": 77.8
+   "members": 585,
+   "lines": 10949,
+   "lines_pct": 64.2,
+   "outside_refs": 5881,
+   "internal_refs": 1697,
+   "outside_ref_share_pct": 77.6
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1868,
-   "lines_pct": 11.1,
+   "lines_pct": 11,
    "outside_refs": 5,
    "internal_refs": 75,
    "outside_ref_share_pct": 6.3
@@ -1549,11 +1581,11 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1475,
+   "lines": 1488,
    "lines_pct": 8.7,
-   "outside_refs": 338,
-   "internal_refs": 470,
-   "outside_ref_share_pct": 41.8
+   "outside_refs": 342,
+   "internal_refs": 467,
+   "outside_ref_share_pct": 42.3
   },
   {
    "domain": "召回与注入",
@@ -1577,7 +1609,7 @@
    "domain": "桥/快照出口",
    "members": 2,
    "lines": 211,
-   "lines_pct": 1.3,
+   "lines_pct": 1.2,
    "outside_refs": 3,
    "internal_refs": 4,
    "outside_ref_share_pct": 42.9
@@ -1627,8 +1659,8 @@
   },
   {
    "name": "selfCheck",
-   "lines": 1078,
-   "outside_refs": 27
+   "lines": 1091,
+   "outside_refs": 31
   },
   {
    "name": "buildInjection",
@@ -1656,14 +1688,14 @@
    "outside_refs": 1
   },
   {
+   "name": "typedFactsBlocks",
+   "lines": 384,
+   "outside_refs": 0
+  },
+  {
    "name": "registerEvents",
    "lines": 379,
    "outside_refs": 1
-  },
-  {
-   "name": "typedFactsBlocks",
-   "lines": 375,
-   "outside_refs": 0
   },
   {
    "name": "restoreFromPayload",
@@ -1841,7 +1873,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 375,
+    "lines": 384,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -1903,8 +1935,8 @@
   "high_coupling_examples": [
    {
     "name": "selfCheck",
-    "lines": 1078,
-    "outside_refs": 27,
+    "lines": 1091,
+    "outside_refs": 31,
     "is_host_lifecycle": false
    },
    {

@@ -1,3 +1,87 @@
+## v3.314.0
+
+**M-X6（第二期拓展计划）手机事实桥 2.0：准入之上叠确认环 / 生命周期四态互不同形 / 双向回执只读 / 编辑换代与撤回 / 单装可解释降级**
+
+### 它补的是哪一格（修前实测逐点，非抽样）
+
+- **能判「这条算不算事实」，判不了「算完之后走到哪一步」。** `native-fact-admission.js`（X4, v3.290.0）给了八栏身份 + 五态来源 + 五档裁决（admitted / observed / predicted / draft / quoted / rejected），但**用户确认环**只有一个 `userConfirmed` 布尔钩子 ——「谁点的确认、点没点」在这一层不可判。
+- **手机侧只知道送出去了，不知道记忆侧收没收。** X4 全库**零回执面**：没有一处把「记忆侧的最终状态」折成手机侧可显示的读数。
+- **手机侧改了 / 删了，记忆侧不知道。** X4 只把 `retracted` 一并拒掉，**没有换代链** ——「改了口径」与「从来没有过」在读数上同形。
+
+本模块把三件收成一处：**事件分类 → 证据守卫（前置拦）→ 用户确认环 → 生命周期四态 → 回执 → 编辑换代 / 撤回计划**。与 X4 是**叠加**、不是替代：准入结果由 `deps.FACT_ADMISSION`（唯一真源）给出，本模块只在其上判上面那四件。
+
+### 交付物
+
+- **`phone-fact-bridge.js`**（纯函数、零依赖、IIFE 双导出、597 行 / 36K 字符）：常量面 `BRIDGE_VERSION=1` / `RECEIPT_VERSION=1` / `LIFECYCLE_STATES`（四态）/ `EVENT_CLASSES`（财务·日历·剧情）/ `EDIT_ACTIONS`（edit·delete·retract）/ `EDIT_EFFECT`（supersede·withdraw）/ `EVIDENCE_GUARDS`（predictive·quote-like·draft-like）/ `RECEIPT_REASONS`（**十条穷尽**）/ `BRIDGE_STATES`（absent·legacy·capable）/ `REQUIRED_DEPS`（**只一件**：`FACT_ADMISSION`）/ `OPTIONAL_DEPS`（`EVENT_CLASSES_HINT`）/ `DEFAULT_CLASS_HINT`。函数面 12 个：`eventClassOf` / `guardEvidence` / `lifecycleOf` / `receiptFor` / `probeCounterpart` / `planEdit` / `bridgeState` / `handleFact` / `handleBatch` / `describe` / `selfCheck` / `line`。
+- **宿主七出口**（`index.js`）：模块级取库口 `_phoneFactBridgeLib()`；唯一装配点 `_phoneFactBridgeDeps()`（**只装一件**：`FACT_ADMISSION` 取 `native-fact-admission.js`，取不到 `null` 而非 `{}`）；降级面 `_phoneFactBridgeAbsent(reason)`（同键 + 明确降级）；出口 `phoneFactBridgeHandle` / `phoneFactBridgeBatch` / `phoneFactBridgeReceipt` / `phoneFactBridgePlanEdit` / `phoneFactBridgeState` / `phoneFactBridgeDescribe` / `phoneFactBridgeLine`（**出口不落笔**）；`selfCheck` 表新增一行 `['手机桥', this.phoneFactBridgeLine()]`，与 X4 的「手机准入」行**分列**（两种缺席归因不同，不得合成一行）。
+
+### ① 证据守卫是结构硬守卫（预测 / 报价 / 草稿不自动变成事实）
+
+`guardEvidence()` 三档各自可达且理由不同形：`predictive`（来源含 forecast / predict / suggest / simulat 或自述 `predicted`）/ `quote-like`（quote / transfer / repay / settle ——「这不是已发生的支出」）/ `draft-like`（draft / usage / `visibility:player-only` ——「它还不是角色剧情事实」）。**关键**：命中守卫一律落 `pending / evidence-guarded`，**与用户是否接受无关** —— 用户点 accept 也推不动（X4 的 SOURCE_POLICY 对这些来源恒 `isFact:false`，结构上就不该有「洗成 accepted」这条路）。
+
+### ② 生命周期四态互不同形（本仓最贵的老账）
+
+`lifecycleOf()` 判定顺序：撤回落定优先 → 用户明确拒绝 → `measurable===false` ⇒ `pending / admission-unavailable / decidable:false` → X4 拒收 / 撤回 → **证据守卫（结构硬守卫）** → `admitted`/`observed` + `accept` ⇒ `accepted`，否则 `awaiting-user` → 其余 ⇒ 判不了。★ 三态必须分得开：**`pending`（等用户确认，判得了但还悬着）≠ `rejected`（明确未进账）≠ `decidable:false`（判不了）**。把它们压成一态，就是本仓反复治过的「判不了与查了没有同形」。
+
+### ③ 双向回执只读 + 理由穷尽
+
+`receiptFor()` 返回**新冻结对象**（绝不改传入的 fact / admission），字段 `eventId` / `rootEventId` / `state` / `reason` / `decidable` / `accepted` / `nextStep` / `reasonText` / `version`。★ 理由必须取自 `RECEIPT_REASONS`（十条穷尽）；任何不在表内的理由一律回落 `admission-unavailable`（**不现编字符串**）。★ `nextStep` 自述「这条手机侧该拿它怎么办」（`ask-user-confirm` / `retry-when-module-present` / `retry-when-bridge-present` / `provide-event-id` / `none`），手机侧不必猜包内的 X4 词表。
+
+
+### ④ 编辑换代与撤回不同形
+
+`planEdit()`：编辑 ⇒ `supersede`（旧条置 `supersededBy=mobile-edit` **留痕**，新条以同 `rootEventId` 挂到换代链尾）；删除 / 撤回 ⇒ `withdraw`（逐条落撤回标记，**不留**作历史事实）。★ 二者以同一 `rootEventId` 为轴（跨平台转发只进一次）；无身份 ⇒ `no-identity` 拒（不猜待换代的旧条）；未知动作 ⇒ `unknown-action` 拒。★ 计划是**纯函数零写**：写法由 owner 侧经既有门落笔。
+
+### ⑤ 单装可解释降级（依赖只一件）
+
+`bridgeState()`：桥缺席 ⇒ `absent`（整条准入 / 回执分支不进入，**非「没事实」**）；`FACT_ADMISSION` 缺席或缺 `admitNativeFact` ⇒ `indeterminate / admission-unavailable`（**不假装能判**，与 M-X8 的 migration-unavailable 同纪律）。`probeCounterpart()` 桥能力三态 `absent` / `legacy`（桥在但缺回执面 = 旧版手机）/ `capable` **不得压成一态**。
+
+### ⑥ 批量与同源去重
+
+`handleBatch()` 与单条**同函**（不另写一份）：逐条出读数 + `byState` / `byReason` 计数可见；★ 同源重复（`rootEventId` 同）是**幂等读数**（`duplicate`）、**不是失败**，也不增条、不计入 `rejected`；★ 空批与「有但全被挡」不同形（空批不得报出任何事实类读数）。
+
+### ⑦ 离线
+
+源码零 `fetch` / `XMLHttpRequest` / `localStorage` / `indexedDB` / `WebSocket` / `navigator.sendBeacon` —— 由判据 `judgeOffline` 逐词钉住。
+
+### ⑧ 跨仓面：新增第 7 面（不假装已在消费）
+
+`tests/audit/open_face_registry.tsv` 新增一行 `phoneFactReceipt`（第 7 面）：`consumer` 如实写 `none@0`（下游 ruby-phone 尚未接入回执面，**不假装已在消费**）；四态与「缺席 vs 空」按 T5/T6 逐字呈现；`memoryToolsEnvelope` 行的 `producer_version` 同步抬到本版（v3305 D2 硬要求：「producer_version 必须与当前版本同步」）。
+
+### ⑨ 新档 `tests/v3314_phone_fact_bridge.test.mjs`（13 条）
+
+M1 登记面（`extra_js` 恰一次 + 与追加时邻居都在场，**位置不作判据**）· M2 导出面（12 函数 / 六登记表 / 十条理由 / 依赖声明面 / 离线）· C1 事件三类 + 未知来源报 `unknown`（**不落默认类**）· G1 证据守卫三档可达且用户接受也推不动 · L1 四态互不同形 + 撤回落定优先 · R1 回执只读 + 理由取自穷尽词表 + `nextStep` 指向真出路 · D1 依赖缺席 ⇒ `decidable:false` · E1 编辑换代 / 撤回两效不同形 · B1 批量与单条同函 + 同源去重是幂等读数 · H1 宿主接线逐符号（定义面恰一次 / 使用面 ≥1 次 / 装配点键名逐字 / 出口不落笔 / 诊断行与 X4 分列）· H2 端到端（真确认 / 未表态 / 守卫档 / 批量 / 模块缺席 / 依赖缺格 / 桥三态）· V1 版本锚 + 六源同源 · X1 六条真源码破坏各自现形 + 正控制地基 + 反向对照 + 判据纯度。
+
+### ⑩ 修后验证真读数
+
+- `node --test tests/v3314_phone_fact_bridge.test.mjs` ⇒ **13/13 pass / 0 fail**。
+- `scan_doc_truthfulness` rc0（版本 3.314.0 / 测试 295 / 审计门禁 60（磁盘 65）/ 根级 .js 94 / extra_js 93）。
+- `scan_module_wiring` rc0（加载顺序 94 个脚本 / 真加载成功 94/94 / 对外全局 93 个）—— 上一轮的 B3「`window.LonShaPhoneFactBridge` 无人供给」已解消。
+- `scan_version_guard` rc0（frontier `v3314_phone_fact_bridge.test.mjs` / 当版锚点 1）；`scan_open_faces` rc0（7 面 0 问题）；`scan_cross_repo_binding` rc0（参考基准 = 磁盘）。
+
+### ⑪ 抬版牵连面（逐项核）
+
+六源（`index.js` / `manifest.json` / `package.json` / `memory-config.js` / `memory-core.js` / `memory-organs.js`）· `manifest.extra_js` 92 → **93**（末位 `phone-fact-bridge.js`）· README 版本行 / 测试文件数 294→**295** / 运行时模块 93→**94** / `extra_js` 三处 92→**93** · PLAN 状态行 / 版本行 / 门禁行 / 体量行（17042 行 / 626 成员 / extra_js 93）/ 两处待验标记 / 跨仓面 6→**7** · TODO 顶行新增「最近更新 v3.314.0」+ 旧行降为历史留痕 · **CHANGELOG 新顶节**（本版）· `v3209` 两处数量锁 92→**93** · `v3247` REGISTRY 追加本档 · `catalog_reference_consumers.tsv` 追加本档一行 · `open_face_registry.tsv` 新增 `phoneFactReceipt` 行 + `memoryToolsEnvelope` 行 `producer_version` 3.313.0→**3.314.0**。
+
+### ⑫ 本版全量未跑
+
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+- 按用户纪律（「做完计划全部内容前别跑全量」）只跑单门 / 单套件；全量 `npm test` 与 `npm test -- --audit` 留到计划收口点跑一次。故 README / PLAN 的「全量待验」标记照旧由 `scan_doc_truthfulness` 的 D6 把守。
+
+### ⑬ 抬版连带：三个派生账按真源刷新（读数零手抄）
+
+- `host_beast_baseline.json`：按探针重绑（宿主 16862 → **17042** 行 / 617 → **626** 成员；全部来自 M-X6 宿主真实接线，非死代码回流），`measured_at` 前移到本版；`line_budget` 的 ceiling 17262 / member_ceiling 647 **不动**（余量 220 ≤ slack 400、成员余量 21 ≤ 30，仍在线内）。
+- `dead_code_budget.json`：活跃代码实测 58822 行越过旧上界 58444（余量 -378）⇒ 走 `--bump` 抬到 59222（= 实测 + slack 400），理由写进 `note` 与 `history`。
+- `state-report.json`：走 `node tools/gen_state_report.mjs --write` 重生成（S3 逐格对账）。
+
+---
+
+### ⑭ 抬版首跑实测到的自伤（当场改内核，不改判据）
+
+- **M1 首跑红点根因是内核真缺陷，不是抬版牵连面。** `phone-fact-bridge.js` 尾部原写 `})(typeof window !== 'undefined' ? window : this);` —— **Node**（无头套件 / 宿主 `require` 路径）下模块顶层 `this === module.exports`，挂载根因此指向 exports 而非 `globalThis`：实测 `typeof globalThis.LonShaPhoneFactBridge === 'undefined'`，而姊妹模块 `memory-package.js` / `fact-lifecycle.js` 用 `globalThis` 全部挂上 —— 本模块是**唯一没挂上全局**的那个。
+- **修法（范式对齐，非改判据）**：改为显式 `global.LonShaPhoneFactBridge = api;` + 根实参 `globalThis`，并按本仓纪律在原地留下自伤留痕注释。修后 `node --test tests/v3314_phone_fact_bridge.test.mjs` ⇒ **13/13**（M1 由红转绿，其余 12 条不受影响）。
+
+---
 ## v3.313.0
 
 **M-X8（第二期拓展计划）版本化记忆包与跨设备迁移：代际三态 / 未知键不静默丢 / 幂等账在调用方 / 悬空不伪装可跳转 / 受限正文定长站位串 / 边界不打穿**

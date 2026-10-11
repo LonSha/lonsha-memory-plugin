@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.313.0';
+    const VERSION = '3.314.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11654,6 +11654,19 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['记忆包', this.memoryPackageLine()];
                         } catch (e) { errLog(e, 'selfCheck.memoryPackage'); return ['记忆包', '—（诊断异常）'];
                         }
+                    },
+                    /* [v3.314.0 · M-X6] 手机事实桥 2.0：回答「这条手机事实现在处于生命周期的哪一态、
+                     *   记忆侧回过什么话」—— 与上一行「手机准入」（只答算不算事实）**分列**，
+                     *   两种缺席归因完全不同（准入面缺 vs 回执面缺）。 */
+                    () => {
+                        try {
+                            const PFB = _phoneFactBridgeLib();
+                            if (!PFB || typeof PFB.line !== 'function' || typeof this.phoneFactBridgeLine !== 'function') {
+                                return ['手机桥', '模块未加载（phone-fact-bridge.js）'];
+                            }
+                            return ['手机桥', this.phoneFactBridgeLine()];
+                        } catch (e) { errLog(e, 'selfCheck.phoneFactBridge'); return ['手机桥', '—（诊断异常）'];
+                        }
                     })(),
                     /* [v3.296.0 · X1] 结构化证据查询：回答「按人/楼层/状态能不能查、登记面对没对齐、
                      *   扫了多少账、有没有账被截断」。与上面「账本实体」是两个问题：
@@ -14817,6 +14830,164 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.memoryPackageLine'); return '—（诊断异常）'; }
         }
         /* ────────────────────────────────────────────────────────────────────────
+         * [v3.314.0 · M-X6] 手机事实桥 2.0（确认 / 撤回 / 双向回执）
+         *
+         * 【与「手机准入」（X4）那一面的关系（两个问题）】
+         *   准入面答「这条算不算事实」（八栏身份 + 五态来源 + 五档裁决）；
+         *   本面答「算完之后走到哪一步了」—— 用户确认环 / 编辑删除撤回的换代撤回 /
+         *   回传到手机侧的最终状态（accepted / rejected / pending / revoked）。
+         *   两面**共用同一个准入内核**（`native-fact-admission.js` 是唯一真源），
+         *   故诊断面**分开两行**，不合成一行。
+         *
+         * 【宿主只做三件事，绝不自己算】
+         *   ① **装配**：准入内核经 `_phoneFactBridgeDeps()` 注入（唯一装配点，键名与内核
+         *      `REQUIRED_DEPS[].key` 逐字一致 —— 改名会静默变成「依赖缺席」，判据按名对账）；
+         *   ② **转发**：出口把实参原样交给内核，**不改写返回值**；
+         *   ③ **留痕**：只留读数摘要（存整批事实就是第二份证据库）。
+         */
+        /** [v3.314.0 · M-X6] 本面的**唯一装配点**。准入内核缺席一律 null（不是 `{}`）。 */
+        _phoneFactBridgeDeps() {
+            const FA = _factAdmissionLib();
+            return {
+                FACT_ADMISSION: (FA && typeof FA.admitNativeFact === 'function') ? FA : null
+            };
+        }
+        /** [v3.314.0 · M-X6] 内核不可达时的**同键降级**（`ok:false` + `reason` 分开写）。 */
+        _phoneFactBridgeAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                ok: false, state: 'absent', reason: r, eventId: '', rootEventId: '',
+                eventClass: 'unknown', classKnown: false, guard: '', guarded: false,
+                lifecycle: null, receipt: null, plan: null,
+                notes: ['手机桥面不可达（phone-fact-bridge.js 未加载）⇒ 报 ok:false/' + r
+                    + '，**不报「已入账」也**不报「被拒」']
+            };
+        }
+        /** [v3.314.0 · M-X6] 单条事实走完全程（守卫 → X4 准入 → 确认环 → 四态 → 回执）。只算不写。 */
+        phoneFactBridgeHandle(fact, ctx) {
+            const PFB = _phoneFactBridgeLib();
+            if (!PFB || typeof PFB.handleFact !== 'function') return this._phoneFactBridgeAbsent();
+            try {
+                const res = PFB.handleFact(fact, ctx, this._phoneFactBridgeDeps());
+                this._lastPhoneBridge = {
+                    at: Date.now(), state: (res.lifecycle || {}).state || '',
+                    reason: (res.receipt || {}).reason || '', decidable: (res.lifecycle || {}).decidable !== false,
+                    guard: res.guard || '', eventClass: res.eventClass || 'unknown'
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.phoneFactBridgeHandle'); return this._phoneFactBridgeAbsent('thrown'); }
+        }
+        /** [v3.314.0 · M-X6] 批量（批内去重与单条同函）。只算不写。 */
+        phoneFactBridgeBatch(facts, ctx) {
+            const PFB = _phoneFactBridgeLib();
+            if (!PFB || typeof PFB.handleBatch !== 'function') {
+                return { ok: false, rows: [], accepted: 0, rejected: 0, pending: 0, revoked: 0,
+                    byState: {}, byReason: {}, measurable: false, reason: 'module-absent', writesNothing: true };
+            }
+            try {
+                const res = PFB.handleBatch(facts, ctx, this._phoneFactBridgeDeps());
+                this._lastPhoneBridge = {
+                    at: Date.now(), state: 'batch', accepted: res.accepted, pending: res.pending,
+                    rejected: res.rejected, revoked: res.revoked, reason: 'batch'
+                };
+                return res;
+            } catch (e) {
+                errLog(e, 'plugin.phoneFactBridgeBatch');
+                return { ok: false, rows: [], accepted: 0, rejected: 0, pending: 0, revoked: 0,
+                    byState: {}, byReason: {}, measurable: false, reason: 'thrown', writesNothing: true };
+            }
+        }
+        /** [v3.314.0 · M-X6] 只取回执行（不改事实、不写账）。 */
+        phoneFactBridgeReceipt(fact, ctx) {
+            const PFB = _phoneFactBridgeLib();
+            if (!PFB || typeof PFB.receiptFor !== 'function') {
+                return { eventId: '', rootEventId: '', state: 'pending', reason: 'admission-unavailable',
+                    decidable: false, accepted: false, nextStep: 'retry-when-module-present', version: 0 };
+            }
+            try {
+                const r = this.phoneFactBridgeHandle(fact, ctx);
+                if (r && r.receipt) return r.receipt;
+                return PFB.receiptFor({ fact: fact || {}, admission: {}, lifecycle: null, opts: ctx || {} });
+            } catch (e) {
+                errLog(e, 'plugin.phoneFactBridgeReceipt');
+                return { eventId: '', rootEventId: '', state: 'pending', reason: 'admission-unavailable',
+                    decidable: false, accepted: false, nextStep: 'retry-when-module-present', version: 0 };
+            }
+        }
+        /** [v3.314.0 · M-X6] 编辑 / 删除 / 撤回 ⇒ 换代或撤回计划（只算不写）。 */
+        phoneFactBridgePlanEdit(action, fact) {
+            const PFB = _phoneFactBridgeLib();
+            if (!PFB || typeof PFB.planEdit !== 'function') {
+                return { action: String(action || ''), eventId: '', rootEventId: '', effect: '',
+                    steps: ['module-absent'], ok: false, reason: 'module-absent' };
+            }
+            try { return PFB.planEdit(action, fact); }
+            catch (e) { errLog(e, 'plugin.phoneFactBridgePlanEdit');
+                return { action: String(action || ''), eventId: '', rootEventId: '', effect: '',
+                    steps: ['thrown'], ok: false, reason: 'thrown' }; }
+        }
+        /** [v3.314.0 · M-X6] 桥能力三态总判（absent / legacy / capable 不许压成一态）。 */
+        phoneFactBridgeState(bridge) {
+            const PFB = _phoneFactBridgeLib();
+            if (!PFB || typeof PFB.bridgeState !== 'function') {
+                return { state: 'indeterminate', reason: 'module-absent', probe: null,
+                    canJudge: false, detail: '手机桥模块未加载（phone-fact-bridge.js）' };
+            }
+            try { return PFB.bridgeState(this._phoneFactBridgeDeps(), bridge); }
+            catch (e) { errLog(e, 'plugin.phoneFactBridgeState');
+                return { state: 'indeterminate', reason: 'thrown', probe: null, canJudge: false, detail: '判不了' }; }
+        }
+        /** [v3.314.0 · M-X6] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        phoneFactBridgeDescribe() {
+            const PFB = _phoneFactBridgeLib();
+            if (!PFB || typeof PFB.describe !== 'function') {
+                return { name: 'phone-fact-bridge', version: 0, receiptVersion: 0, lifecycleStates: [],
+                    eventClasses: [], editActions: [], evidenceGuards: [], receiptReasons: [], bridgeStates: [],
+                    lifecycleExhaustive: false, pendingDistinctFromRejected: false, requiredDeps: [],
+                    optionalDeps: [], missingDeps: ['FACT_ADMISSION'], offline: true,
+                    note: '手机桥模块未加载（phone-fact-bridge.js）', reason: 'module-unavailable' };
+            }
+            try {
+                const d = PFB.describe(this._phoneFactBridgeDeps());
+                d.reason = (d.missingDeps && d.missingDeps.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.phoneFactBridgeDescribe');
+                return { name: 'phone-fact-bridge', version: 0, receiptVersion: 0, lifecycleStates: [],
+                    eventClasses: [], editActions: [], evidenceGuards: [], receiptReasons: [], bridgeStates: [],
+                    lifecycleExhaustive: false, pendingDistinctFromRejected: false, requiredDeps: [],
+                    optionalDeps: [], missingDeps: [], offline: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.314.0 · M-X6] 诊断一行。**四种坏法分开写**：
+         *   模块没挂 / 依赖缺格（⚠️）/ 口径不自洽（四态不可穷尽或 pending 与 rejected 同形）/ 面在位。
+         */
+        phoneFactBridgeLine() {
+            try {
+                const PFB = _phoneFactBridgeLib();
+                if (!PFB || typeof PFB.line !== 'function') return '模块未加载（phone-fact-bridge.js）';
+                const d = this.phoneFactBridgeDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（phone-fact-bridge.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                if (d.missingDeps && d.missingDeps.length) {
+                    return '⚠️ 依赖缺格：' + d.missingDeps.join('、') + '（准入内核缺席 ⇒ 判不了，不假装能判）';
+                }
+                if (d.lifecycleExhaustive === false) return '⚠️ 生命周期态非四档（accept 会被读成 reject）';
+                if (d.pendingDistinctFromRejected === false) return '⚠️ pending 与 rejected 同形（本仓最贵的老账）';
+                const last = this._lastPhoneBridge || null;
+                if (!last) return '待用（面在位 · 四态 · 守卫 ' + (d.evidenceGuards || []).length + ' 档 · 离线）';
+                if (last.state === 'batch') {
+                    return '上次 批 ' + last.accepted + '✓/' + last.pending + '…/' + last.rejected + '✗/'
+                        + last.revoked + '↩';
+                }
+                const bits = ['上次 ' + (last.state || '—')];
+                if (last.guard) bits.push('守卫 ' + last.guard);
+                if (last.eventClass) bits.push('类 ' + last.eventClass);
+                if (last.decidable === false) bits.push('⚠️ 判不了');
+                if (last.reason) bits.push('理由 ' + last.reason);
+                return bits.join(' · ');
+            } catch (e) { errLog(e, 'plugin.phoneFactBridgeLine'); return '—（诊断异常）'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
          * [v3.311.0 · M-X2] 修复**落定面**（从「流程完成」到「所有派生面落盘完成」）
          *
          * 【宿主只做三件事，绝不自己算】
@@ -15391,6 +15562,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   本模块把「造包 → 准入判定 → 预览 → 部分导入 → 撤销」收成一处，**纯函数零联网**。
     function _memoryPackageLib() {
         return _moduleLib(() => window.LonShaMemoryPackage, 'memory-package.js');
+    }
+    // [v3.314.0 · M-X6] 手机事实桥 2.0（phone-fact-bridge.js）。为什么需要：
+    //   `native-fact-admission.js`（X4）回答「这条算不算事实」，但它**没有**回答 M-X6
+    //   点名的三件事：用户确认环 / 手机侧编辑删除撤回后的换代撤回 / 记忆侧对手机侧的最终回执。
+    //   长期使用后缺这三环的后果是**桥的单向化**：手机侧只知道送出去了，不知道收没收、
+    //   是不是还作数。本模块把「证据守卫 → X4 准入 → 用户确认环 → 生命周期四态 → 回执」收成一处，
+    //   **纯函数零写零联网**。
+    function _phoneFactBridgeLib() {
+        return _moduleLib(() => window.LonShaPhoneFactBridge, 'phone-fact-bridge.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的
