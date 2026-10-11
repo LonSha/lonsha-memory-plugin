@@ -6,7 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# one run per ref; a newer push cancels the older in-flight run
 concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
@@ -24,5 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - name: Gate (npm test)
-        run: npm test
+      # 为什么用 test:serial：默认并发下几条性能/进程归因用例（v3229 性能探针 5x 抖动、
+      # v3241 夹具里真跑 run.mjs 的进程归因）在资源受限的 runner 上会随并发抖动而假红；
+      # 干净检出上串行实测 299/299 · 3302 断言 · 0 失败。仓内本就提供该入口给受限环境。
+      - name: Gate (npm run test:serial)
+        run: npm run test:serial
