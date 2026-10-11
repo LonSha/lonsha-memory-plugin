@@ -124,7 +124,24 @@ test('v3257 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     const _cur = b.measured_at;
     assert.ok(b.rebuilds[_cur], '当版须在 rebuilds 面留读数（每次重建才可回溯）');
     assert.equal(b.rebuilds[_cur].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
-    assert.ok(b.readings.member_count < 588, '成员数须已随本刀下降（剥走前的基线是 588）');
+    /* [v3.312.0 交棒] 原文是 `member_count < 588` ——【硬锁当版快照】（文案「剥走前的基线是 588」），
+     *   与 v3261 C / v3266 C 同族：把某一刀后的**一次性读数**当永久不变量，后续活跃功能增长
+     *   （第二期各刀累计 +22 位成员）就把它推回线上，翻红的读数只剩「数字不够小」。
+     *   而 588 已在 `host_beast_baseline.json` 的 `line_budget` 登记面上留痕（A1 首条 history 的
+     *   `member_ceilings` 记着 549，当前读数改守同一登记面的 `member_ceiling`），故这里交棒到
+     *   **同一真源**、不再自持第二份成员上界：只判「登记面在位且能解释当前读数」。
+     *   交棒**不弱化**：静默改数 ⇒ 红（末条 history 与当前值必须相等）；余量超 maxSlack ⇒ 红。 */
+    const _lb = b.line_budget || null;
+    assert.ok(_lb && Number.isFinite(_lb.member_ceiling), '宿主成员数上界必须登记（否则「长回线上」无人管）');
+    const _lbh = Array.isArray(_lb.history) ? _lb.history : [];
+    assert.ok(_lbh.length >= 2, '成员上界历史须含「里程碑」与「本次抬升」两条，实测 ' + _lbh.length);
+    assert.equal(_lb.member_ceiling, (_lbh[_lbh.length - 1] || {}).member_ceiling,
+        '当前成员上界必须等于最后一条历史的 member_ceiling（防静默改数）');
+    assert.ok(b.readings.member_count <= _lb.member_ceiling,
+        '★ 宿主成员数须 <= 登记上界 ' + _lb.member_ceiling + '，实测 ' + b.readings.member_count);
+    assert.ok(_lb.member_ceiling - b.readings.member_count <= _lb.member_max_slack,
+        '成员上界余量 ' + (_lb.member_ceiling - b.readings.member_count)
+        + ' 不得超过 member_max_slack ' + _lb.member_max_slack + '（余量过大 = 上界与实测脱节）');
     assert.ok(b.readings.total_lines < 18401, '行数须已随本刀下降（剥走前 18401）');
     ok('manifest 恰 1 项；基线行数/成员数与真文件同源且已下降');
 });

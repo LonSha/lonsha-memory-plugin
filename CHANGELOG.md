@@ -1,3 +1,118 @@
+## v3.312.0
+**M-X4（第二期拓展计划）事实生命周期与「遗忘 / 撤回 / 保留」控制：五处置穷尽互斥、四动作不一一对应、被挡即出不了计划、回滚三档与回读按面分开核**
+- **它补的是哪一格**：本仓已能把「这条事实是什么」读出来（`fact-state` 五态 / `memory-type`
+  类型化注入 / `fact-version` 版本链），但**回答不了「它还算不算数、被我处置成了什么、
+  处置会动到哪些面、动了能不能反悔」**：
+  · 「**不许进生成**」与「**可以删原文**」之间**没有门** —— 没有一处把**处置（定位）**
+    与**手段（动作）**分开放，因此「为了不进生成而把原文删掉」这一步既不报错也拦不住；
+  · 撤回后**没有任何读数回答「它真没进载荷吗」**，而且「账上没有这条」与「处置已生效」
+    在界面上**同形**；
+  · 保留审计会把**受限正文**（秘密）一并写进去，写进去之后与普通条目**分不出来**；
+  · 「反悔」没有分档：删原文无快照与撤回派生在界面上**都是「撤销」**，前者其实**不可逆**；
+  · 批量圈定沿用「区间闭合」的常规假设，而账上大量条目是**未闭合**（`to == null`
+    意思是「尚未结束」，**不是 0**）。
+- **交付物：`fact-lifecycle.js`（702 行 / 32237 字符，纯函数、零依赖、双导出、冻结）+ 宿主五出口 + 自检面一行诊断**。
+  ★ **本模块不写任何账**（与 `repair-loop.js` / `repair-settle.js` 同一条纪律）：
+  逐项改法仍归各 owner（撤回走 `fact-version.revokeFact`、审计走审计账），
+  本刀只交付**判定与读数**，且宿主出口 `factLifecyclePlan()` **不落笔**（判在方法体切片里）。
+- **五处置 × 四动作：两张表不得合成一张**：
+  · `DISPOSITIONS` 五态穷尽互斥：`keep` / `expire` / `revoke` / `author-only` / `no-generate`。
+  · `ACTIONS` 四态：`delete-source` / `revoke-derived` / `hide-from-generation` / `keep-audit`
+    —— **与处置不是一一对应，也不得合并**（一个处置配多个动作是常态，
+    而「怎么做」与「做成什么」是两类事实）。
+  · `checkCombo(disposition, actions)` 是本刀最核心的一格，返回面
+    `{ok, disposition, actions, blocked[], missing[], allowed[], reason}`：
+    `allowed`（**这一态允许什么**）与 `actions`（**这次要做什么**）**分行**；
+    `blocked[].why` 四档具名 `not-allowed-by-disposition` / **`evidence-preserved`** /
+    `audit-required` / `unknown-action`。
+  · ★ **`no-generate` / `author-only` 下出现 `delete-source` 一律先判并拒，理由必须点名
+    `evidence-preserved`**（删了原文就再查不出曾经记错过）—— 若把两格合成一张表，
+    这一档会塔成普通越界，**验收①的那道门就没了**（X1 判据专治这一条：只看 `ok:false`
+    会把「误删证据」与「选错动作」看成同一档，而两者的修法完全不同）。
+  · `delete-source` 未配 `keep-audit` 且未显式 `allowUnsavedDeletion:true` ⇒ 拒，点名 `audit-required`。
+  · `describe().combosDistinct` 拿 **5 次真 `checkCombo`** 断言这一格没塌成一张表
+    （**不对常量自己断言**）。
+- **批量圈定（验收③「按来源 / 角色 / 项目 / 时间范围」）**：
+  · `criteriaOf` 条件归一，**空数组 = 不限**（不是「一条都不匹配」）；
+  · `overlaps` 把 **`to == null` 当「尚未闭合」而不是 0** —— 判不了的那一端按**最宽**处理，
+    因此「问 100 楼以后未闭合的条仍须命中」；
+  · `matchesCriteria` 未命中**具名 why**：`id-not-listed` / `origin-mismatch` /
+    `subject-mismatch` / `range-outside`；`selectFacts` 返回 `matched` + `skipped`
+    **双向读数** + `byState`，逐条状态取自 `FACT_STATE.readState`（**不另立口径**）。
+- **计划：纯函数零写，被挡即出不了计划**：
+  · `planFor` 只出**目标态**，`planId` 走 FNV-1a 稳定 id（同输入恒同输出）；
+  · 组合被挡 ⇒ `ok:false` 且「一个字都没改，也没出计划」；
+    ★ 被挡分支**显式写 `count: 0, total: 0`** —— 否则与「圈定了零条」**同形无处可辨**
+    （本刀自伤一处，见下）；
+  · 生成面两态（`no-generate` / `author-only`）`targetState` 恒 `null`：那一态
+    **没有账本态**（`RULES[].ledgerState: null`），**不许凭空编一个**。
+- **回滚三档与回读按面分开**：
+  · `rollbackOf` 三态 `reversible` / `partial` / `irreversible`；
+    `delete-source` 无快照 ⇒ `no-inverse` **不可逆**（有快照 ⇒ `restore-from-snapshot`）；
+    ★ `revoke-derived` 的逆操作是 **`replay-rebuild`（需 `replay`）而不是逐条反写** ——
+    逐条反写会把派生面写成第二份真源。
+  · `readbackOf` **按面分开报**：账本面比现态与目标态 ⇒ `state-reached` / `state-not-reached` /
+    **`not-on-ledger`（账上无此条，不当作已生效）**；生成面 ⇒ `checked:false` +
+    `generation-suppression-not-in-ledger`，**不编 `applied` / `pending`**。
+  · `verifyWithheld` 撤回路径走 `admitForLoad` 真读数，`leaked` **必须为空**；
+    禁入生成两态 ⇒ `checked:false` 但**证据必须仍在账上**，缺一条报 `some-evidence-gone`。
+- **审计不得泄露受限正文（验收③）**：`auditEntries` 每条只出 `subject` / `predicate`（归属）
+  + `body`：受限 ⇒ `SECRET_MASK` **站位串**（**不透露长度**），非受限 ⇒ 截断到
+  `AUDIT_BODY_MAX = 60`。★ 判据**逐字反查**「输出串里不存在受限原文本体」，
+  且**站位串不得随原文本长度变化**（否则长度本身就是一条读数）。
+- **★ 本刀自伤三处（全部由判据当场逼出，已修并留痕）**：
+  · **判据首跑 7/13，六条失败全有归因**（逐条修法见下条与「测试」段）：
+    其中 **S1 红的不是内核而是夹具** —— 未闭合条（f4）与已闭合条**同形**，
+    导致区间判据测的**不是「未闭合」那一档**（给 f4 补 `to: 12`）；
+    **H1 是判据自身口径过严**（把「定义面」与「使用面」混成一类 ⇒ 拆成「定义面 7 个符号
+    必须恰一次（重复定义是第二份真源，比缺席更坏）/ 使用面 2 个符号只需 ≥1 次」）；
+    **L1 暴露判据覆盖面不足**（`judgePlan` 原本没有「删原文不配保留审计」这一格，
+    补 ③b 后破坏当场现形）。
+  · **E1/E2 是夹具拼装缺陷**：用 Python 三引号串写 JS 时 `join(',\n')` 里的 `\n`
+    被解成**真换行**而截断 JS（`SyntaxError: Invalid or unexpected token`，两处）⇒
+    改用 `String.fromCharCode(10)` 与 `buildCode()` 助手，并加 `V3312_DUMP` 落盘复核
+    （dump 出的 6978 字符代码 `node --check` rc 0，证明宿主五方法体本身可拼装）。
+  · **E2 还有一条真因（很有价值）**：`_moduleLib` **会回落 `require('./x.js')`** ⇒
+    夹具把 `window.LonShaFactState` 设为 `null` **造不出「缺席」**（会拿到真模块）；
+    必须设 `{}`（**在场但形状不对**）才能让装配点判 `typeof FS.readState !== 'function'` ⇒ 真缺格。
+  · **内核同步修补一处**：`planFor` 被挡分支原本没有 `count` / `total` ⇒ 宿主回执里 `count` 是
+    `undefined`，与「圈定了零条」**同形无处可辨**。
+- **★ 拦回一条「假缺陷」的取证纪律（本轮最值钱的一条）**：上一轮曾把 `fact-lifecycle.js`
+  第 154–155 行读成「写入双重转义」（`\\s+` / `\\u2026`），并两次尝试修复（`AssertionError: old1 in s`）。
+  本轮做**字节级 hex 复核**：`[hex(ord(c)) for c in line if c == chr(92)]` 输出 `['0x5c']`
+  —— 每行只有**一个**反斜杠，真值就是正确的 `/\s+/g` 与 `'\u2026'`；
+  双反斜杠是 **JSON 回显层的二次转义假象**，磁盘上根本没有那个待替换串。
+  同时 `node --check` 的 `Unexpected end of input` 也**不是**语法缺陷，而是模块
+  **只写了两段、尚未收口**（写到 `checkCombo` 截断）。**结论撤销，上一轮判断更正**。
+  教训：**报告缺陷前必须先做字节级取证**，否则会「为修一个不存在的 bug 改坏正确代码」。
+- **新档** `tests/v3312_fact_lifecycle.test.mjs`（14 条）：M1 登记面（分发面恰一次 + 双导出 +
+  冻结，★ **不判末位**）· M2 导出面 · **M3 版本锚** · X1 处置 × 动作组合（★ 承重判据）·
+  S1 批量四条件 · P1 计划（被挡即出不了计划）· U1 审计不泄正文 · B1 回滚三档 ·
+  R1 回读两面分开 · W1 抑制取证 · H1 宿主接线逐符号在场（★ 判「出口不落笔」
+  与「诊断行接进 `selfCheck` 表」）· E1/E2 端到端（含缺格降级）· L1 **六条真源码破坏**
+  （误删证据并回普通越界 / 删原文不再需要保留审计 / 审计泄露受限正文 / 回滚三档塔成两档 /
+  生成面回读编一个 pending / 证据被删也当没泄露）**+ 正控制地基 + 反向对照 + 判据纯度**。
+- **修后验证（真读数）**：`node --test tests/v3312_fact_lifecycle.test.mjs` **14/14 全绿**；
+  `scan_module_wiring` rc=0（92/92 真加载、对外全局 91、B3 解消）；
+  `scan_doc_truthfulness` rc=0（版本 3.312.0 / 测试 293 / 审计门禁 60（磁盘 65）/
+  根级 .js 92 / extra_js 91）；`scan_version_guard` 通过（frontier `v3312_fact_lifecycle.test.mjs`）；
+  `scan_plan_currency` rc=0；`scan_open_faces` rc=0（6 面）。
+- **★ 抬版连带修一处「把某版一次性事实当永久不变量」（非本刀引入）**：
+  `tests/v3311_repair_settle.test.mjs` 有一条「本模块须是 `extra_js` **末位**」——
+  末位是任一版都会变的位置，本刀追加 `fact-lifecycle.js` 即必红（且红得与自身无关）。
+  按 v3.310.0 / v3.311.0 已落地的范式改为「**本模块与其追加时的邻居都须在 `extra_js`**
+  （位置不作判据，在场仍在判据）」；本档自己的 M1 也一并按此写，**不再制造下一个同族问题**。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（全仓口径；`node --test` 单套件为 0/1）。
+- **抬版连带**：版本六源 3.311.0 → 3.312.0；README 当前版本 / 在役面 292→**293** 测试文件 /
+  运行时模块 91→**92** / `extra_js` 两处 90→**91** / 探针数 4→5 / 全量待验标记；
+  PLAN 当前执行状态行、版本行、门禁行 292→293、体量行 15955 行 /586 成员/extra_js 90
+  → **16706 行 / 610 成员 / 91 项**、两处待验标记；TODO 最近更新 + 历史留痕；
+  v3209 数量锁两处断言值与文案（90→91）；v3247 REGISTRY 登记新档；
+  `catalog_reference_consumers.tsv` 追加新档行；`open_face_registry.tsv` 的
+  `memoryToolsEnvelope` 行 `producer_version` 同步到 v3.312.0；`state-report.json` 重生成。
+- **本版全量未跑**（按用户纪律「做完计划全部内容前别跑全量」，只跑单门 / 单套件），
+  README / PLAN 标「当前版本 v3.312.0 **全量待验**」；上一快照仍为 v3.296.0。
+
 ## v3.311.0
 **M-X2（第二期拓展计划）修复落定面：从「流程完成」到「所有派生面落盘完成」**
 - **它补的是哪一格**：X2（v3.295.0）已把「登记 → 逐项落笔 → 核原数据 → 落盘回读 → 带证据

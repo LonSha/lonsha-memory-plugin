@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.311.0';
+    const VERSION = '3.312.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11626,6 +11626,20 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.memoryCenter'); return ['记忆控制', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.312.0 · M-X4] 事实生命周期：回答「这条事实以后怎么算、批量处置圈了谁、
+                     *   退不退得回来、目标态到了没有」。与「事实状态」那行是两个问题：那一行答
+                     *   「每一条现在处于五态里的哪一态」，本行答「我想把它怎么办、办完没办成」。
+                     *   四种坏法可分：模块未加载 / 依赖缺格（⚠️）/ 口径不自洽（⚠️）/ 面在位。 */
+                    (() => {
+                        try {
+                            const FL = _factLifecycleLib();
+                            if (!FL || typeof FL.line !== 'function' || typeof this.factLifecycleLine !== 'function') {
+                                return ['事实生命周期', '模块未加载（fact-lifecycle.js）'];
+                            }
+                            return ['事实生命周期', this.factLifecycleLine()];
+                        } catch (e) { errLog(e, 'selfCheck.factLifecycle'); return ['事实生命周期', '—（诊断异常）'];
+                        }
+                    })(),
                     /* [v3.296.0 · X1] 结构化证据查询：回答「按人/楼层/状态能不能查、登记面对没对齐、
                      *   扫了多少账、有没有账被截断」。与上面「账本实体」是两个问题：
                      *   那一行答「有多少条」，本行答「能按什么查、查的时候能看到多少」——
@@ -14539,6 +14553,122 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 return bits2.join(' · ');
             } catch (e) { errLog(e, 'plugin.memoryCenterLine'); return '—（诊断异常）'; }
         }
+        /* ────────────────────────────────────────────────────────────────
+         * [v3.312.0 · M-X4] 事实生命周期与「遗忘 / 撤回 / 保留」控制面
+         *
+         * 【它补的是哪一格】
+         *   事实面有 `revokeFact`（撤一条）、有 `fact-state`（说出五态），但缺一处
+         *   「用户**明确控制**哪些事实继续存在、哪些该撤回或降级」的控制面。本面把
+         *   「处置 → 动作 → 计划 → 审计 → 回滚 → 回读」收成一处。
+         *
+         * 【为什么宿主只做装配 + 转发 + 降级，一步落笔都不做】
+         *   内核是**纯函数面**：它算出计划、逆操作与回读读数，**不带一行写**。
+         *   写口仍归各 owner（撤回走 `fact-version.revokeFact`、审计走审计账）——
+         *   宿主在这里落笔，就会造出两套撤回语义。
+         * ──────────────────────────────────────────────────────────────── */
+        /**
+         * [v3.312.0 · M-X4] 事实生命周期面的**唯一装配点**。四件里两件同出别处
+         *   （`FACT_STATE` 是五态单一真源、`ORIGINS` 是来源词表单一真源），本面**不另抄一份**。
+         *   `SECRET_BODY_KEYS` 走**同款取件纪律**（与 branch-semantics / volume-continuation 同口径）：
+         *   硬取全局名会把「别的模块没挂」变成抛错，而依赖缺席是**可表达、要如实报**的一档。
+         *   取不到一律 null（不是 `{}`）：内核按「值为空即缺席」判 deps-missing，
+         *   而 `{}` 会装作「在位但空」——两者处置相反，不在这里编空壳。
+         */
+        _factLifecycleDeps(now) {
+            const FS = _factStateLib();
+            const FV = _factVersionLib();
+            const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+            return {
+                FACT_STATE: (FS && typeof FS.readState === 'function' && typeof FS.admitForLoad === 'function') ? FS : null,
+                ORIGINS: (FV && Array.isArray(FV.ORIGINS) && FV.ORIGINS.length) ? FV.ORIGINS : null,
+                SECRET_BODY_KEYS: (BS && Array.isArray(BS.SECRET_BODY_KEYS) && BS.SECRET_BODY_KEYS.length) ? BS.SECRET_BODY_KEYS : null,
+                now: Number.isFinite(Number(now)) ? Number(now) : Date.now()
+                /* ★ 只给**该给的**四件：`REQUIRED_DEPS` 之外的键一律不塞。 */
+            };
+        }
+        /**
+         * [v3.312.0 · M-X4] 内核不可达时的**同键降级**。
+         *   `ok:false` + `reason` 分开写：「面不可用」不等于「圈定了零条」。
+         * 这个形状存在的原因与 `_memoryCenterAbsent` 同：模块整个没挂时，内核根本不可达。
+         */
+        _factLifecycleAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                ok: false, planId: '', disposition: '', actions: [], blocked: [], reason: r,
+                matched: [], skipped: [], count: 0, total: 0, changes: [], audit: [],
+                rollback: null, targetState: null, face: null, writesNothing: true,
+                notes: ['事实生命周期面不可达（fact-lifecycle.js 未加载）⇒ 报 ok:false/' + r + '，**不报空计划**']
+            };
+        }
+        /**
+         * [v3.312.0 · M-X4] 出一份处置计划（**只算不写**、不抛）。
+         *   `state` 缺省取宿主当前事实账（`_factVersionState`）——调用方显式传入则以其为准
+         *   （判据才对「拿哪一本账算」取证）。
+         *   返回面原样透传（**不改写返回值**），并把**读数摘要**留在 `_lastFactLifecycle`
+         *   ——存 `matched` / `audit` 全量就是第二份证据库。
+         */
+        factLifecyclePlan(opts) {
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const FL = _factLifecycleLib();
+            if (!FL || typeof FL.planFor !== 'function') return this._factLifecycleAbsent();
+            try {
+                const state = (o.state !== undefined && o.state !== null) ? o.state : this._factVersionState;
+                const deps = this._factLifecycleDeps(o.now);
+                const plan = FL.planFor({
+                    state: state, disposition: o.disposition, actions: o.actions, criteria: o.criteria,
+                    allowUnsavedDeletion: o.allowUnsavedDeletion, snapshot: o.snapshot
+                }, deps);
+                this._lastFactLifecycle = {
+                    at: Date.now(), planId: plan.planId, disposition: plan.disposition,
+                    actionCount: (plan.actions || []).length, count: plan.count || 0,
+                    verdict: (plan.rollback && plan.rollback.verdict) || '', reason: plan.reason || '',
+                    blocked: (plan.blocked || []).length, depsMissing: (deps.FACT_STATE ? 0 : 1)
+                };
+                return plan;
+            } catch (e) { errLog(e, 'plugin.factLifecyclePlan'); return this._factLifecycleAbsent('thrown'); }
+        }
+        /** [v3.312.0 · M-X4] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
+        factLifecycleDescribe() {
+            const FL = _factLifecycleLib();
+            if (!FL || typeof FL.describe !== 'function') {
+                return { kind: 'fact-lifecycle-describe', version: 0, dispositions: [], actions: [], faces: [],
+                    secretBodyKeys: [], auditBodyMax: 0, present: 0, total: 0, missing: [],
+                    combosDistinct: false, generationOnlyHaveNoLedgerState: false, rollbackTiersReachable: false,
+                    writesNothing: true, note: '事实生命周期模块未加载（fact-lifecycle.js）', reason: 'module-unavailable' };
+            }
+            try {
+                const d = FL.describe(this._factLifecycleDeps());
+                d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.factLifecycleDescribe'); return { kind: 'fact-lifecycle-describe', version: 0, dispositions: [], actions: [], faces: [], secretBodyKeys: [], auditBodyMax: 0, present: 0, total: 0, missing: [], combosDistinct: false, generationOnlyHaveNoLedgerState: false, rollbackTiersReachable: false, writesNothing: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /**
+         * [v3.312.0 · M-X4] 诊断一行。**四种坏法分开写**（本仓纪律）：
+         *   模块没挂 / 依赖缺格 / 口径不自洽（组合塌成一张表）/ 面在位（未处置过 ⇒ 「待处置」）。
+         *   不在诊断行里跑真计划：看一次要扫全量事实，诊断面不许有这种副作用。
+         */
+        factLifecycleLine() {
+            try {
+                const FL = _factLifecycleLib();
+                if (!FL || typeof FL.line !== 'function') return '模块未加载（fact-lifecycle.js）';
+                const d = this.factLifecycleDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载（fact-lifecycle.js）';
+                if (d.reason === 'thrown') return '—（诊断异常）';
+                if (String(d.reason || '').indexOf('deps-missing') === 0 || (d.missing && d.missing.length)) {
+                    return '⚠️ 依赖缺格：' + (d.missing || []).map((m) => m.key).join('、') + '（' + d.present + '/' + d.total + '）';
+                }
+                if (d.combosDistinct === false) return '⚠️ 处置与动作被合成一张表（「禁止生成」会连原文一起删）';
+                if (d.generationOnlyHaveNoLedgerState === false) return '⚠️ 生成面两态被安上了账本态（回读会拿账本读数回答生成面）';
+                if (d.rollbackTiersReachable === false) return '⚠️ 回滚三档不可达（不可逆的会被说成可撤销）';
+                const last = this._lastFactLifecycle || null;
+                if (!last) return '待处置（面在位 · 处置 ' + (d.dispositions || []).length + ' · 动作 ' + (d.actions || []).length + ' · 面 ' + (d.faces || []).length + '）';
+                const bits = ['上次 ' + (last.disposition || '—') + ' 命中 ' + last.count];
+                if (last.verdict) bits.push('回滚 ' + last.verdict);
+                if (last.blocked) bits.push('⚠️ 被挡 ' + last.blocked);
+                if (last.reason) bits.push('理由 ' + last.reason);
+                return bits.join(' · ');
+            } catch (e) { errLog(e, 'plugin.factLifecycleLine'); return '—（诊断异常）'; }
+        }
         /* ────────────────────────────────────────────────────────────────────────
          * [v3.311.0 · M-X2] 修复**落定面**（从「流程完成」到「所有派生面落盘完成」）
          *
@@ -15097,6 +15227,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   并**只读不写**（写回式迁移会让「推导说 superseded、持久说 active」成为第二份真源）。
     function _factStateLib() {
         return _moduleLib(() => window.LonShaFactState, 'fact-state.js');
+    }
+    // [v3.312.0 · M-X4] 事实生命周期（fact-lifecycle.js）。为什么需要：
+    //   事实面有 `revokeFact`（撤一条）与 `fact-state`（说出五态），但**没有一处**回答
+    //   「这条事实以后怎么算、我要批量把它怎么办」。于是「删原文」与「不许进生成」在
+    //   调用方眼里长得一样 —— 而那正是会把原始证据误删的那条路。
+    //   本模块把处置（定位）/ 动作（手段）分开，配计划 / 审计 / 回滚 / 回读，**纯函数零写**。
+    function _factLifecycleLib() {
+        return _moduleLib(() => window.LonShaFactLifecycle, 'fact-lifecycle.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的
