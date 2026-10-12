@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.324.0';
+    const VERSION = '3.325.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -15169,6 +15169,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         memoryCenterDeps() {
             const Q = _moduleLib(() => window.LonShaEvidenceQuery, 'evidence-query.js');
             const pick = (k) => ((Q && typeof Q[k] === 'function') ? Q[k] : null);
+            const FV = (typeof _factVersionLib === 'function') ? _factVersionLib() : null;
+            const FS = (typeof _factStateLib === 'function') ? _factStateLib() : null;
+            const FL = (typeof _factLifecycleLib === 'function') ? _factLifecycleLib() : null;
             return {
                 query: pick('query'),
                 normalizeSpec: pick('normalizeSpec'),
@@ -15176,7 +15179,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 removeSaved: pick('removeSaved'),
                 replaySaved: pick('replaySaved'),
                 FILTERS: (Q && Array.isArray(Q.FILTERS)) ? Q.FILTERS : null,
-                LEDGERS: _evidenceQueryLedgersOf()
+                LEDGERS: _evidenceQueryLedgersOf(),
+                /* [v3.325.0 · M3-O8] 可选四件（缺席即相应能力降级并具名，**不冒充可用**）：
+                 *   ① 换代链读面 + ② 事实账读口 + ③ 五态读面 ⇒ 详情里的修订链；
+                 *   ④ 事实生命周期登记表（RULES / ACTION_SPEC）⇒ 批量影响预览。
+                 *   ★ 影响面**只搬登记表本身**，不在宿主侧另抄一份处置语义。 */
+                versionsOf: (FV && typeof FV.versionsOf === 'function') ? FV.versionsOf : null,
+                factState: (typeof this.memoryCenterFactState === 'function') ? (() => this.memoryCenterFactState()) : null,
+                FACT_STATE: (FS && typeof FS.readState === 'function') ? FS : null,
+                FACT_LIFECYCLE: (FL && FL.RULES && FL.ACTION_SPEC) ? { RULES: FL.RULES, ACTION_SPEC: FL.ACTION_SPEC, DISPOSITIONS: FL.DISPOSITIONS } : null
             };
         }
         /**
@@ -15209,7 +15220,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     host: this,
                     apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {},
                     availableHandlers: o.availableHandlers,
-                    now: o.now
+                    now: o.now,
+                    /* [v3.325.0 · M3-O8] 「看原文」的取数口**每次现取**（不缓存、不预取）：
+                     *   缓存一份正文就是第二份证据库，原账一改它就成旧读数冒充现读数。 */
+                    textSource: (o.textSource !== undefined) ? o.textSource : ((r) => this.memoryCenterSourceText(r)),
+                    factState: (o.factState !== undefined) ? o.factState : this._factVersionState,
+                    batchSelection: o.batchSelection,
+                    profileKinds: o.profileKinds
                 });
                 /* 只留**读数摘要**，不留 rows —— 存 rows 就是第二份证据库。 */
                 this._memoryCenterLast = {
@@ -15217,7 +15234,12 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     total: (face.pager || {}).total || 0, page: (face.pager || {}).page || 1,
                     pages: (face.pager || {}).pages || 0,
                     rows: (face.rows || []).length, saved: (face.saved || []).length,
-                    unavailable: (face.actions || []).filter((a) => a.unavailable).length
+                    unavailable: (face.actions || []).filter((a) => a.unavailable).length,
+                    /* [v3.325.0 · M3-O8] 组织层读数（**只留数，不留页**：存 pages 全量又是第二份证据库） */
+                    profiles: (face.profiles || {}).count || 0,
+                    detail: face.detailFace ? face.detailFace.ref : '',
+                    detailChannel: face.detailFace ? face.detailFace.textChannel : '',
+                    batch: face.batch ? face.batch.state : ''
                 };
                 return face;
             } catch (e) { errLog(e, 'plugin.memoryCenterView'); return this._memoryCenterAbsent(state, 'thrown'); }
@@ -15227,6 +15249,62 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
          *   **处置类动作（row.revoke / saved.remove …）不在内核执行** —— 它们要真改账，
          *   那是宿主的活；内核如实回报 `handled:false` + `ignored:<动作名>`，不假装成功。
          */
+        /**
+         * [v3.325.0 · M3-O8] 「看**原文**」的唯一取数口（宿主侧）。
+         *   【为什么必须有它】控制中心的投影面（工作台 / 查询行）本身**只带摘要**：
+         *     实测 workbench 行键里没有全文列，evidence-query 行的 text 也是
+         *     textOf(facet,it) 拼出来的 160 字投影。没这个口子，详情里那句「看原文」
+         *     就只能显示摘要 —— 而把摘要当原文，正是本仓反复治理的「两份口径」。
+         *   【为什么它是**自包含**的】只走本文件已有的 _evidenceQueryLedgersOf()
+         *     + _ledgerApis() + facet 的 textFields（后者是「哪些字段算正文」的单一真源）：
+         *     · 不新造第二条账本字段口径；
+         *     · 不再开一份对外契约面（open_face_registry.tsv 不动）。
+         *   【逐态说话】ref 不合法 / 账不在场 / 条目不在 / 该账无正文列 / 都取到了 —— 逐条具名，
+         *     **不抛**（详情渲染不许因一格坏掉而整面消失）。
+         * @returns {{ok:boolean, reason:string, text:string, field:string, ledger:string, id:string}}
+         */
+        memoryCenterSourceText(ref) {
+            const out = { ok: false, reason: '', text: '', field: '', ledger: '', id: '' };
+            try {
+                const s = String(ref == null ? '' : ref);
+                const at = s.indexOf(':');
+                if (at <= 0) { out.reason = 'bad-ref'; return out; }
+                const lid = s.slice(0, at), iid = s.slice(at + 1);
+                out.ledger = lid; out.id = iid;
+                const Q = _evidenceQueryLib();
+                const ledgers = _evidenceQueryLedgersOf();
+                if (!Q || !Array.isArray(Q.FACETS) || !Array.isArray(ledgers)) { out.reason = 'module-unavailable'; return out; }
+                const spec = ledgers.filter((l) => l && l.id === lid)[0] || null;
+                if (!spec) { out.reason = 'unknown-ledger'; return out; }
+                const facet = Q.FACETS.filter((f) => f && f.id === lid)[0] || null;
+                if (!facet) { out.reason = 'facet-absent'; return out; }
+                const fields = Array.isArray(facet.textFields) ? facet.textFields : [];
+                if (!fields.length) { out.reason = 'no-text-fields'; return out; }
+                const apis = (typeof _ledgerApis === 'function') ? _ledgerApis() : {};
+                if (!apis[lid]) { out.reason = 'api-absent'; return out; }
+                let raw = null;
+                try { raw = (typeof spec.state === 'function') ? spec.state(this) : undefined; } catch (_e) { raw = undefined; }
+                if (raw === undefined || raw === null) { out.reason = 'state-missing'; return out; }
+                let items = [];
+                try { items = (typeof spec.pick === 'function') ? (spec.pick(apis[lid], raw) || []) : []; } catch (_e) { items = []; }
+                if (!Array.isArray(items)) items = [];
+                const hit = items.filter((it) => it && String(it.id === undefined ? it.key : it.id) === iid)[0] || null;
+                if (!hit) { out.reason = 'not-found'; return out; }
+                const parts = [];
+                for (const f of fields) {
+                    const v = hit[f];
+                    if (v === undefined || v === null) continue;
+                    if (typeof v === 'object') continue;
+                    const t = String(v).trim();
+                    if (t) parts.push(t);
+                }
+                if (!parts.length) { out.reason = 'empty-fields'; return out; }
+                out.ok = true;
+                out.text = parts.join(' · ');
+                out.field = fields.join('/');
+                return out;
+            } catch (e) { errLog(e, 'plugin.memoryCenterSourceText'); out.ok = false; out.reason = 'thrown'; return out; }
+        }
         memoryCenterStep(state, action, payload, opts) {
             const C = _memoryCenterLib();
             if (!C || typeof C.step !== 'function') {
@@ -15240,14 +15318,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     host: this,
                     apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {},
                     availableHandlers: (opts || {}).availableHandlers,
-                    now: (opts || {}).now
+                    now: (opts || {}).now,
+                    textSource: ((opts || {}).textSource !== undefined) ? opts.textSource : ((r) => this.memoryCenterSourceText(r)),
+                    factState: ((opts || {}).factState !== undefined) ? opts.factState : this._factVersionState,
+                    batchSelection: (opts || {}).batchSelection,
+                    profileKinds: (opts || {}).profileKinds
                 });
                 this._memoryCenterLast = {
                     at: Date.now(), view: face.view, reason: face.reason,
                     total: (face.pager || {}).total || 0, page: (face.pager || {}).page || 1,
                     pages: (face.pager || {}).pages || 0,
                     rows: (face.rows || []).length, saved: (face.saved || []).length,
-                    unavailable: (face.actions || []).filter((a) => a.unavailable).length
+                    unavailable: (face.actions || []).filter((a) => a.unavailable).length,
+                    profiles: (face.profiles || {}).count || 0,
+                    detail: face.detailFace ? face.detailFace.ref : '',
+                    detailChannel: face.detailFace ? face.detailFace.textChannel : '',
+                    batch: face.batch ? face.batch.state : ''
                 };
                 return face;
             } catch (e) {
@@ -15269,6 +15355,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
          *   为什么单列一个出口：面板要「第一次打开时的空条件」时若自己写一遍字段清单，
          *   内核算出的状态与面板造的状态就会各有一套字段（本仓治理过多轮的「两份口径」）。
          */
+        /** [v3.325.0 · M3-O8] 事实账读口：**引用**而非拷贝（拷一份 = 链算在快照上，原账改过就不算）。不抛。 */
+        memoryCenterFactState() {
+            return (this._factVersionState && typeof this._factVersionState === 'object') ? this._factVersionState : null;
+        }
         memoryCenterBlankState() {
             const C = _memoryCenterLib();
             if (!C || typeof C.blankState !== 'function') return null;
@@ -15323,6 +15413,11 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (last.rows) bits2.push('本页 ' + last.rows + ' 条');
                 if (last.saved) bits2.push('保存条件 ' + last.saved + ' 条');
                 if (last.unavailable) bits2.push('⚠️ 不可用动作 ' + last.unavailable);
+                /* [v3.325.0 · M3-O8] 组织层读数并进同一行。正文通道要**说出来**：
+                 *   projection（投影摘要）与 ledger-source（真原文）是两件事，不许同形。 */
+                if (last.profiles) bits2.push('资料页 ' + last.profiles);
+                if (last.detail) bits2.push('详情 ' + last.detail + (last.detailChannel ? '（' + last.detailChannel + '）' : ''));
+                if (last.batch) bits2.push('批量预览 ' + last.batch);
                 return bits2.join(' · ');
             } catch (e) { errLog(e, 'plugin.memoryCenterLine'); return '—（诊断异常）'; }
         }

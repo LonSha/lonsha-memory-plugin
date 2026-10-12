@@ -1757,18 +1757,18 @@
    }
   },
   "v3.324.0": {
-   "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取对照）：extraction-driver / correction-plan 两模块各自的取库口 + 三个出口成员 + 真每轮调用点（onMessageReceived 门控之后，只算不写、不改门控判定）+ 两诊断行真跑出口 + 自检面两行，并新增配置旋钮 extractionProfile（UI → 方法体内提及 → 有调用者，两跳可达）；另含一处内核真缺陷修复（纠错方案配置面 proofWhy 在对照读数缺失时改为防御性取值，由本版真源码破坏负控制当场抓出）。全为活跃功能增长、非死代码回流：宿主 18232 → 18417，成员 680 → 686。行数上界按「实测 + slack」贴回；成员面 686 <= 现有上界 710 仍在线内，按 v3.322.0 先例**不抬**（在线内就不抬，由脚本断言把关）。",
+   "reason": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：宿主 index.js 落两个出口（memoryCenterSourceText 真原文取数口：只走既有账本登记表 + facet.textFields 单一真源，不新造字段口径、不新开跨仓契约面；memoryCenterFactState 事实账读口：引用而非拷贝）+ 装配点补四个**可选**依赖（缺席即相应能力降级并具名，不进 REQUIRED_DEPS：把落靠能力升为硬依赖等于把整面弄瞎）+ 两处 dispatch/step 传参 （textSource / factState / batchSelection / profileKinds）+ 诊断行并进组织层读数 （资料页 / 详情与正文通道 / 批量预览态）。全为活跃功能增长、非死代码回流。",
    "readings": {
-    "total_lines": 18417,
-    "member_count": 686,
+    "total_lines": 18512,
+    "member_count": 688,
     "duplicate_member_names": 25,
     "top5_lines": 4943,
-    "top5_pct": 26.8,
+    "top5_pct": 26.7,
     "top40_lines": 10672,
-    "top40_pct": 57.9,
+    "top40_pct": 57.6,
     "prefix_rule_coverage_lines": 5346,
-    "prefix_rule_coverage_pct": 29.0,
-    "unclassified_lines": 12100,
+    "prefix_rule_coverage_pct": 28.9,
+    "unclassified_lines": 12195,
     "seam_distinct_modules": 70,
     "seam_reference_sites": 96,
     "seam_call_shape_sites": 100,
@@ -1781,10 +1781,10 @@
     "本版只量不拆"
    ],
    "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
-   "delta_from": "v3.323.0",
+   "delta_from": "v3.324.0",
    "delta": {
-    "total_lines": 185,
-    "member_count": 6,
+    "total_lines": 0,
+    "member_count": 0,
     "top5_pct": 0.0
    }
   }
@@ -1798,16 +1798,16 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 18417,
-  "member_count": 686,
+  "total_lines": 18512,
+  "member_count": 688,
   "duplicate_member_names": 25,
   "top5_lines": 4943,
-  "top5_pct": 26.8,
+  "top5_pct": 26.7,
   "top40_lines": 10672,
-  "top40_pct": 57.9,
+  "top40_pct": 57.6,
   "prefix_rule_coverage_lines": 5346,
-  "prefix_rule_coverage_pct": 29.0,
-  "unclassified_lines": 12100,
+  "prefix_rule_coverage_pct": 28.9,
+  "unclassified_lines": 12195,
   "seam_distinct_modules": 70,
   "seam_reference_sites": 96,
   "seam_call_shape_sites": 100,
@@ -1818,18 +1818,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 643,
-   "lines": 12100,
-   "lines_pct": 65.7,
-   "outside_refs": 6307,
-   "internal_refs": 1848,
-   "outside_ref_share_pct": 77.3
+   "members": 645,
+   "lines": 12195,
+   "lines_pct": 65.9,
+   "outside_refs": 6351,
+   "internal_refs": 1853,
+   "outside_ref_share_pct": 77.4
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1910,
-   "lines_pct": 10.4,
+   "lines_pct": 10.3,
    "outside_refs": 5,
    "internal_refs": 76,
    "outside_ref_share_pct": 6.2
@@ -1838,7 +1838,7 @@
    "domain": "诊断与导出",
    "members": 10,
    "lines": 1633,
-   "lines_pct": 8.9,
+   "lines_pct": 8.8,
    "outside_refs": 363,
    "internal_refs": 455,
    "outside_ref_share_pct": 44.4
@@ -2269,9 +2269,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 18817,
+  "ceiling": 18912,
   "maxSlack": 400,
-  "note": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取对照）：extraction-driver / correction-plan 两模块各自的取库口 + 三个出口成员 + 真每轮调用点（onMessageReceived 门控之后，只算不写、不改门控判定）+ 两诊断行真跑出口 + 自检面两行，并新增配置旋钮 extractionProfile（UI → 方法体内提及 → 有调用者，两跳可达）；另含一处内核真缺陷修复（纠错方案配置面 proofWhy 在对照读数缺失时改为防御性取值，由本版真源码破坏负控制当场抓出）。全为活跃功能增长、非死代码回流：宿主 18232 → 18417，成员 680 → 686。行数上界按「实测 + slack」贴回；成员面 686 <= 现有上界 710 仍在线内，按 v3.322.0 先例**不抬**（在线内就不抬，由脚本断言把关）。",
+  "note": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：宿主 index.js 落两个出口（memoryCenterSourceText 真原文取数口：只走既有账本登记表 + facet.textFields 单一真源，不新造字段口径、不新开跨仓契约面；memoryCenterFactState 事实账读口：引用而非拷贝）+ 装配点补四个**可选**依赖（缺席即相应能力降级并具名，不进 REQUIRED_DEPS：把落靠能力升为硬依赖等于把整面弄瞎）+ 两处 dispatch/step 传参 （textSource / factState / batchSelection / profileKinds）+ 诊断行并进组织层读数 （资料页 / 详情与正文通道 / 批量预览态）。全为活跃功能增长、非死代码回流。",
   "history": [
    {
     "ceiling": 15000,
@@ -2323,6 +2323,16 @@
    {
     "ceiling": 18817,
     "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取对照）：extraction-driver / correction-plan 两模块各自的取库口 + 三个出口成员 + 真每轮调用点（onMessageReceived 门控之后，只算不写、不改门控判定）+ 两诊断行真跑出口 + 自检面两行，并新增配置旋钮 extractionProfile（UI → 方法体内提及 → 有调用者，两跳可达）；另含一处内核真缺陷修复（纠错方案配置面 proofWhy 在对照读数缺失时改为防御性取值，由本版真源码破坏负控制当场抓出）。全为活跃功能增长、非死代码回流：宿主 18232 → 18417，成员 680 → 686。行数上界按「实测 + slack」贴回；成员面 686 <= 现有上界 710 仍在线内，按 v3.322.0 先例**不抬**（在线内就不抬，由脚本断言把关）。",
+    "member_ceiling": 710
+   },
+   {
+    "ceiling": 18912,
+    "reason": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：宿主 index.js 落两个出口（memoryCenterSourceText 真原文取数口：只走既有账本登记表 + facet.textFields 单一真源，不新造字段口径、不新开跨仓契约面；memoryCenterFactState 事实账读口：引用而非拷贝）+ 装配点补四个**可选**依赖（缺席即相应能力降级并具名，不进 REQUIRED_DEPS：把落靠能力升为硬依赖等于把整面弄瞎）+ 两处 dispatch/step 传参 （textSource / factState / batchSelection / profileKinds）+ 诊断行并进组织层读数 （资料页 / 详情与正文通道 / 批量预览态）。全为活跃功能增长、非死代码回流。",
+    "member_ceiling": 710
+   },
+   {
+    "ceiling": 18912,
+    "reason": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：宿主 index.js 落两个出口（memoryCenterSourceText 真原文取数口：只走既有账本登记表 + facet.textFields 单一真源，不新造字段口径、不新开跨仓契约面；memoryCenterFactState 事实账读口：引用而非拷贝）+ 装配点补四个**可选**依赖（缺席即相应能力降级并具名，不进 REQUIRED_DEPS：把落靠能力升为硬依赖等于把整面弄瞎）+ 两处 dispatch/step 传参 （textSource / factState / batchSelection / profileKinds）+ 诊断行并进组织层读数 （资料页 / 详情与正文通道 / 批量预览态）。全为活跃功能增长、非死代码回流。",
     "member_ceiling": 710
    }
   ],

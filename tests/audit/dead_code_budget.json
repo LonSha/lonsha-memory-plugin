@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 66462,
+  "ceiling": 67071,
   "maxSlack": 400,
-  "note": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。",
+  "note": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：memory-center.js 从技术表扩成资料页组织层（资料页三轴 / 详情与修订链 / 批量影响预览 / 导航保留筛选页码）+ index.js 宿主两出口（memoryCenterSourceText 真原文取数口 / memoryCenterFactState 事实账读口）与可选依赖装配 + settings-ui.js 组织层交互接线。全为活跃功能增长、非死代码回流：实测 66062 → 66671，抬到实测 66671 + slack 400 = 67071。",
   "history": [
     {
       "ceiling": 21000,
@@ -285,7 +285,11 @@
     {
       "ceiling": 66462,
       "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。"
+    },
+    {
+      "ceiling": 67071,
+      "reason": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：memory-center.js 从技术表扩成资料页组织层（资料页三轴 / 详情与修订链 / 批量影响预览 / 导航保留筛选页码）+ index.js 宿主两出口（memoryCenterSourceText 真原文取数口 / memoryCenterFactState 事实账读口）与可选依赖装配 + settings-ui.js 组织层交互接线。全为活跃功能增长、非死代码回流：实测 66062 → 66671，抬到实测 66671 + slack 400 = 67071。"
     }
   ],
-  "_history_last": "ceiling 65332 → 66462（实测 66062 + slack 400）：[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。"
+  "_history_last": "ceiling 66462 → 67071（实测 66671 + slack 400）：[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：memory-center.js 从技术表扩成资料页组织层（资料页三轴 / 详情与修订链 / 批量影响预览 / 导航保留筛选页码）+ index.js 宿主两出口（memoryCenterSourceText 真原文取数口 / memoryCenterFactState 事实账读口）与可选依赖装配 + settings-ui.js 组织层交互接线。全为活跃功能增长、非死代码回流：实测 66062 → 66671，抬到实测 66671 + slack 400 = 67071。"
 }

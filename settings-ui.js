@@ -904,6 +904,34 @@
                     plugin._memoryCenterState = face.state || plugin._memoryCenterState;
                     rerender();
                 }));
+                /* [v3.325.0 · M3-O8] 组织层交互（资料页 / 详情进出 / 选区 / 批量档位）。
+                 *   三条纪律与上面同：① 事件 → 内核动作名，不在面板里算；② 状态只从 face.state 回写
+                 *   （面板不得自己拼一份）；③ 每次交互都重跑一次 dispatch，界面显示的**永远是这一次**的真结果。
+                 *   ★ 「进出详情保留筛选与页码」的保证来自内核 `navigate()`（它只动组织态），
+                 *     面板这里**不重建状态**——重建一次就等于把页码与筛选条件丢掉。 */
+                const stepOrg = (action, payload) => {
+                    if (typeof s.memoryCenterStep !== 'function') return;
+                    const face = s.memoryCenterStep(mcState(), action, payload);
+                    plugin._memoryCenterState = face.state || plugin._memoryCenterState;
+                    rerender();
+                };
+                ov.querySelectorAll('[data-mc="profile"]').forEach((b2) => b2.addEventListener('click', () => {
+                    stepOrg('profile', { to: 'profile', profile: b2.dataset.profile });
+                }));
+                ov.querySelectorAll('[data-mc="select"]').forEach((cb) => cb.addEventListener('click', (ev) => {
+                    /* 阻止标签点击再触发一次 change（否则同一次点击会来回翻转两遍 = 看上去「点不动」）。 */
+                    if (ev) ev.stopPropagation();
+                    stepOrg('select', { ref: cb.dataset.ref, mode: 'toggle' });
+                }));
+                ov.querySelectorAll('[data-mc="select-clear"]').forEach((b2) => b2.addEventListener('click', () => {
+                    stepOrg('select', { mode: 'clear' });
+                }));
+                ov.querySelectorAll('[data-mc="batch"]').forEach((b2) => b2.addEventListener('click', () => {
+                    stepOrg('batch', { action: b2.dataset.batchAction });
+                }));
+                ov.querySelectorAll('[data-mc="detail-back"]').forEach((b2) => b2.addEventListener('click', () => {
+                    stepOrg('navigate', { to: 'list' });
+                }));
                 ov.querySelectorAll('[data-action]').forEach((b2) => b2.addEventListener('click', () => {
                     if (b2.disabled || b2.getAttribute('aria-disabled') === 'true') { toast('该动作不可用（宿主未接 handler）'); return; }
                     const id = b2.dataset.action;
