@@ -21,6 +21,17 @@
 // 类型保底白名单（router recallMemoryCandidates 的保底类型）
 const GUARANTEED_TYPES = new Set(['event', 'quest', 'character', 'location', 'scene', 'faction']);
 const MAX_SECONDARY_KEYS = 8;    // router: content 切句取 8 条作 secondary
+/* [M3-O2] 检索面与展示面**分离**：展示摘要仍 200 字（既有契约不动），检索文本保留完整正文。
+ *   为什么必须分：候选层的损失无法被后续任何评分/精排挽回——评分只能排它拿到的候选。
+ *   「超过 200 字才出现的关键结论」在候选化那一刻就已经不存在了，之后的 rerank 再准也没用。 */
+const SEARCH_TEXT_MAX = 4000;
+const EVIDENCE_SENTENCE_MAX = 120;
+const EVIDENCE_BUDGET_DEFAULT = 3;
+/* 保护面：截断不得切断否定词与数额。
+ *   「他不想还钱」截成「他想还钱」是语义反转；「欠 3 万」截成「欠 3」是数额失真。
+ *   两者都不是「少了一点信息」，而是「信息变错」——比不记更糟。 */
+const NEGATION_RE = /[不没未别莫勿无非否拒绝停止取消戒]/;
+const AMOUNT_RE = /\d+(?:\.\d+)?\s*(?:万|千|百|亿|元|块|角|分|两|斤|公斤|米|公里|岁|年|月|日|天|小时|分钟|秒|%|％|成|倍|个|件|条|次|人|口|名|层|楼)/;
 const MAX_CANDIDATES = 24;       // 图谱侧候选上限
 const SECONDARY_MIN = 2, SECONDARY_MAX = 18; // 切句长度窗
 
@@ -43,7 +54,7 @@ function _slicePhrases(text, cap) {
  * @returns {object} 候选 { id, _nodeType, _label, comment, content, constant:false,
  *                          keys:{primary,secondary,all}, updatedAt, order }
  */
-function nodeToCandidate(node) {
+function nodeToCandidate(node, opts = {}) {
   if (!node || typeof node !== 'object') return null;
   const d = node.data || {};
   const name = String(node.name || d.name || d.title || '').trim();
@@ -71,7 +82,10 @@ function nodeToCandidate(node) {
   // secondary keys：从 data 的描述/摘要/内容切句
   const bodyText = [d.summary, d.desc, d.description, d.content, d.persona, d.note]
     .filter(x => typeof x === 'string').join('。');
-  const secondary = _slicePhrases(bodyText, MAX_SECONDARY_KEYS)
+  // [M3-O2] 切句条数可放宽（默认 8 保持既有契约）：短语只是 secondary 面，
+  //   检索文本另有完整正文兜底，故放宽与否不改变「展示摘要 200 字」这一条。
+  const _secCap = Math.max(MAX_SECONDARY_KEYS, Math.min(64, Number(opts.maxSecondaryKeys) || 0));
+  const secondary = _slicePhrases(bodyText, _secCap)
     .filter(p => ![...primary].some(pk => pk.includes(p) || p.includes(pk)));
 
   const all = [...new Set([...primary, ...secondary])];
@@ -81,6 +95,38 @@ function nodeToCandidate(node) {
   const content = _trunc(
     [name && `【${type}】${name}`, d.title, d.summary || d.desc || d.description, d.location && `@${d.location}`]
       .filter(Boolean).join(' '), 200);
+  /* [M3-O2] 结构化关键字段索引：身份 / 时间 / 关系 / 结果四类。
+   *   修前这四类里只有身份与时间进了 primary，**关系与结果字段在候选层就已消失**——
+   *   检索文本里也没有，于是「谁把东西给了谁」「最后谈成了什么」这类结论永远召不回。
+   *   这里把它们并进检索文本（不动 keys，以免改变既有评分口径），并按类别单独留一份可读索引。 */
+  const _pick = (keys) => keys
+    .map(k => (typeof d[k] === 'string' ? d[k].trim() : ''))
+    .filter(Boolean);
+  const indexFields = {
+    identity: [...new Set([name, d.title, ...(Array.isArray(d.aliases) ? d.aliases : [])].filter(x => typeof x === 'string' && x.trim()))],
+    time: _pick(['timeSpan', 'date', 'storyTime', 'at', 'floor']),
+    relation: _pick(['relation', 'relationFrom', 'relationTo', 'related', 'counterpart']),
+    outcome: _pick(['result', 'outcome', 'effect', 'conclusion', 'status'])
+  };
+  const searchText = _trunc([
+    name && '【' + type + '】' + name, d.title, d.summary || d.desc || d.description,
+    d.content, d.persona, d.note, d.location && '@' + d.location,
+    Array.isArray(d.tags) ? d.tags.join(' ') : '',
+    Array.isArray(d.path) ? d.path.join(' ') : '',
+    indexFields.time.join(' '), indexFields.relation.join(' '), indexFields.outcome.join(' ')
+  ].filter(Boolean).join(' '), SEARCH_TEXT_MAX);
+  /* [M3-O2] 完整源 ref：候选被选中后要能回到出处（计划点名「保留完整源 ref」）。
+   *   没有它，注入面只能给一句摘要，用户问「这条从哪来」时无从回答。 */
+  const sourceRef = {
+    id: node.id != null ? String(node.id) : '',
+    floor: (d.floor != null ? d.floor : (node.floor != null ? node.floor : null)),
+    revision: (d.revision != null ? d.revision : (node.revision != null ? node.revision : null)),
+    eventId: String(d.eventId || d.event || node.eventId || ''),
+    group: String(d.group || d.thread || ''),
+    branchId: String(d.branchId || node.branchId || ''),
+    source: String(d.source || node.source || ''),
+    path: Array.isArray(d.path) ? d.path.map(String) : []
+  };
 
   return {
     id: node.id,
@@ -88,6 +134,9 @@ function nodeToCandidate(node) {
     _label: label,
     comment: `[${type}] ${label}`,
     content,
+    searchText,
+    sourceRef,
+    indexFields,
     constant: false,
     disable: false,
     keys: { primary: [...primary], secondary, all },
@@ -117,7 +166,7 @@ function graphToCandidates(nodes, opts = {}, carry = null) {
   const out = [];
   let unmappable = 0;
   for (const n of arr) {
-    const c = nodeToCandidate(n);
+    const c = nodeToCandidate(n, opts);
     if (c) out.push(c); else unmappable++;
   }
   // 按更新时间降序（router: updatedAt 降序 tiebreak），新节点优先
@@ -219,9 +268,130 @@ function mergeWithGuaranteed(scoredCandidates, opts = {}, carry = null) {
   return picked;
 }
 
+
+// ── [M3-O2b] 查询词提取：中文按 2-4 字滑窗切，与 ai-select.extractQueryTerms 同口径 ──
+/**
+ * 为什么不能直接用 /[\u4e00-\u9fa5]{2,}/g：中文没有空格，那会把「她签约了吗」
+ *   整体当一个词，正文里永远不命中 —— 实测中「按查询词挑证据句」直接失效。
+ * 与 ai-select 的既有分词口径保持一致（段长 > 6 才滑窗），不另立第二套真源。
+ */
+function _queryTerms(text) {
+  const t = String(text == null ? '' : text)
+    .toLowerCase()
+    .replace(/[，。！？；：、"'【】（）()<>《》·…—~`^$|\\/[\]{}@#%&*+=_-]/g, ' ');
+  const out = new Set();
+  for (const seg of t.split(/\s+/)) {
+    if (!seg || seg.length < 2) continue;
+    if (/^[a-z0-9]+$/.test(seg)) { out.add(seg); continue; }
+    if (seg.length <= 6) out.add(seg);
+    for (let L = 4; L >= 2; L--) {
+      for (let i = 0; i + L <= seg.length; i++) out.add(seg.slice(i, i + L));
+    }
+  }
+  return [...out].slice(0, 48);
+}
+
+// ── [M3-O2] 安全截断：不切断否定词与数额 ─────────────────────────────
+/**
+ * 把 s 截到 n 字以内，且**不切断**否定词与数额。
+ * 为什么需要：「他不想还钱」截成「他想还钱」是语义反转，「欠 3 万」截成「欠 3」是数额失真。
+ * 返回 { text, cut, guarded }：guarded 表示因保护面而提前收窄（可归因，不是静默变化）。
+ */
+function _safeTruncate(s, n) {
+  const t = String(s == null ? '' : s);
+  const cap = Math.max(8, Number(n) || 0);
+  if (t.length <= cap) return { text: t, cut: false, guarded: false };
+  let cut = t.slice(0, cap);
+  let guarded = false;
+  if (NEGATION_RE.test(cut.slice(-1)) || /\d$/.test(cut.slice(-1))) {
+    const m = cut.match(/^[\s\S]*[，,、]/);
+    if (m && m[0].length >= Math.max(4, Math.floor(cap * 0.4))) {
+      cut = m[0].replace(/[，,、]$/, '');
+      guarded = true;
+    }
+  }
+  return { text: cut, cut: true, guarded: guarded };
+}
+
+// ── [M3-O2] 证据句提取：按任务预算取句，保护否定与数额 ────────────────
+/**
+ * 从完整正文里按查询词与任务预算挑出证据句（不是把整段原文塞进注入面）。
+ * 完整原文留在 searchText 供检索，进上下文的是它挑出来的句子——「完整原文不全量注入」。
+ * @param {string} text 完整检索文本
+ * @param {string} queryText 本轮查询文本
+ * @param {object} opts { budget=3, maxLen=120 }
+ */
+function extractEvidenceSentences(text, queryText, opts) {
+  const o = opts || {};
+  const raw = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  const budget = Math.max(1, Number(o.budget) || EVIDENCE_BUDGET_DEFAULT);
+  const maxLen = Math.max(20, Number(o.maxLen) || EVIDENCE_SENTENCE_MAX);
+  const out = { text: '', sentences: [], total: 0, dropped: 0, guarded: 0, cut: 0 };
+  if (!raw) return out;
+  const parts = raw.split(/[。！？；!?;]+/).map(x => x.trim()).filter(Boolean);
+  out.total = parts.length;
+  if (!parts.length) return out;
+  const terms = _queryTerms(queryText);
+  const scored = parts.map((s, k) => {
+    let sc = 0;
+    for (const t of terms) if (s.indexOf(t) >= 0) sc += t.length >= 3 ? 3 : 2;
+    const neg = NEGATION_RE.test(s);
+    const amt = AMOUNT_RE.test(s);
+    if (neg) sc += 1;                    // 否定句优先保留（最容易被截断读反）
+    if (amt) sc += 1;                    // 数额句优先保留
+    if (neg && amt) sc += 1;
+    return { s: s, i: k, sc: sc };
+  });
+  scored.sort((a, b) => (b.sc - a.sc) || (a.i - b.i));   // 同分按原文顺序（确定性）
+  const picked = scored.slice(0, budget).sort((a, b) => a.i - b.i);   // 输出回原文顺序
+  out.dropped = Math.max(0, parts.length - picked.length);
+  for (const p of picked) {
+    const r = _safeTruncate(p.s, maxLen);
+    if (r.cut) out.cut++;
+    if (r.guarded) out.guarded++;
+    out.sentences.push(r.text);
+  }
+  out.text = out.sentences.join('。');
+  return out;
+}
+
+// ── [M3-O2] 事件级去重：同一事件的多节点不重复占预算 ──────────────────
+/**
+ * 计划点名「同一事件多节点不会重复占预算」。键取 sourceRef 的事件标识
+ *   （eventId / group / thread），**没有键的节点一律保留**——
+ *   「没有事件标识」不等于「属于同一个事件」，把无键项并成一堆是静默丢弃。
+ * @param {Array} cands 候选（可带 score）
+ */
+function dedupeByEvent(cands, opts, carry) {
+  const list = Array.isArray(cands) ? cands : [];
+  const best = new Map();
+  const noKey = [];
+  let keyed = 0;
+  for (const c of list) {
+    const r = (c && c.sourceRef) || {};
+    const k = String(r.eventId || r.group || r.thread || '').trim();
+    if (!k) { noKey.push(c); continue; }
+    keyed++;
+    const prev = best.get(k);
+    if (!prev) { best.set(k, c); continue; }
+    const a = Number(c.score) || 0, b = Number(prev.score) || 0;
+    if (a > b || (a === b && (Number(c.updatedAt) || 0) > (Number(prev.updatedAt) || 0))) best.set(k, c);
+  }
+  const kept = [...best.values(), ...noKey];
+  if (carry && typeof carry === 'object') {
+    carry.evTotal = list.length;
+    carry.evKeyed = keyed;
+    carry.evEvents = best.size;
+    carry.evNoKey = noKey.length;
+    carry.evDropped = Math.max(0, keyed - best.size);
+  }
+  return kept;
+}
+
 const api = {
   GUARANTEED_TYPES, MAX_CANDIDATES,
-  nodeToCandidate, graphToCandidates, mergeWithGuaranteed
+  nodeToCandidate, graphToCandidates, mergeWithGuaranteed,
+  extractEvidenceSentences, dedupeByEvent
 };
 if (typeof window !== 'undefined') window.LonShaUnifiedRecall = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -79,7 +79,10 @@ function scoreEntry(entry, matchText, lastUserText, recentText) {
   const lowerLastUserText = normalizeText(lastUserText);
   const comment = normalizeText(entry.comment);
   const content = normalizeText(truncateText(entry.content, 2400));
-  const haystack = `${comment}\n${content}`;
+  /* [M3-O2] 检索面与展示面分离：候选带 searchText（完整正文）时，词项命中判定走它——
+   *   否则「超过 200 字才出现的关键结论」在评分这一步就已不可见（content 是展示摘要）。 */
+  const hay = entry.searchText ? normalizeText(truncateText(entry.searchText, 6000)) : content;
+  const haystack = comment + '\n' + hay;
 
   const keys = entry.keys || {};
   for (const key of (keys.primary || [])) {

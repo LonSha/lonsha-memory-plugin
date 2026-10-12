@@ -287,6 +287,9 @@
       };
     }
     let allSequenced = false;
+    /* [M3-O9] 写侧**一字不动**：auto 策略「新 from 更小 ⇒ 不换代（并存）」是 v3210 锁定契约，
+     *   且被登记为「与 prefer-new 的分界」。时态一致改在读侧（readAt）——
+     *   把「并存」读成「两条都覆盖 now」才是真缺陷，而不是并存本身。 */
     if (policy === 'auto') {
       allSequenced = differing.length > 0 && newFrom != null
         && differing.every(function (f) { return f.from != null && newFrom > f.from; });
@@ -465,6 +468,172 @@
       closed: ordered.filter(function (f) { return f.to != null; }).map(copyFact)
     };
   }
+  /* ══════════ [M3-O9] 时态读面 ══════════
+   * 计划点名「统一查询意图中的现在/当时/闪回之后」「按剧情有效时间而非录入新旧选择事实」。
+   * 与 lookup 的差别：lookup 一次只答**(subject, predicate) 一格**；readAt 一次答**整本账**在
+   * 给定时点上的形态，供注入面与诊断面使用。判据（coversAt / 信任门槛 / 撤销）**复用同一份**，
+   * 不另写第二套时间口径。
+   */
+  const TIME_STATES = Object.freeze(['current', 'historical', 'ambiguous', 'none-at', 'unversioned', 'none-trusted', 'none-revoked']);
+  /**
+   * @param {object} rawState
+   * @param {number|null} at 剧情时点；null = 「现在」（取 to 为空的版本）
+   * @param {object} [opts] { minTrust, only }
+   * @returns {{ok:boolean, at:(number|null), rows:Array, counts:object, total:number}}
+   */
+  function readAt(rawState, at, opts) {
+    const state = normalize(rawState);
+    const o = opts || {};
+    const minTrust = Number.isFinite(Number(o.minTrust)) ? Number(o.minTrust) : DEFAULT_MIN_TRUST;
+    const q = (at == null) ? null : finiteFloor(at);
+    const groups = new Map();
+    for (const f of state.facts) {
+      const k = pairKey(f.subject, f.predicate);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(f);
+    }
+    const rows = [];
+    const counts = {};
+    for (const st of TIME_STATES) counts[st] = 0;
+    for (const [k, list] of groups) {
+      const head = list[0];
+      const revokedN = list.filter(function (f) { return f.revoked; }).length;
+      const alive = list.filter(function (f) { return !f.revoked; });
+      const trusted = alive.filter(function (f) { return f.trust >= minTrust; });
+      const row = {
+        subject: head.subject, predicate: head.predicate, key: k,
+        state: '', value: null, id: '', from: null, to: null,
+        values: [], excludedByTrust: alive.length - trusted.length, excludedByRevoked: revokedN
+      };
+      if (!alive.length) { row.state = 'none-revoked'; }
+      else if (!trusted.length) { row.state = 'none-trusted'; }
+      else {
+        const anyVersioned = trusted.some(function (f) { return f.from != null || f.to != null; });
+        let picked;
+        if (q == null) {
+          picked = trusted.filter(function (f) { return f.to == null; });
+        } else {
+          if (!anyVersioned) { row.state = 'unversioned'; }
+          picked = anyVersioned ? trusted.filter(function (f) { return coversAt(f, q) === true; }) : [];
+        }
+        if (!row.state) {
+          if (!picked.length) row.state = 'none-at';
+          else {
+            const byVal = new Map();
+            for (const f of picked) {
+              const vk = text(f.value).toLowerCase();
+              if (!byVal.has(vk)) byVal.set(vk, f);
+            }
+            let uniq = [...byVal.values()];
+            /* [M3-O9] 「现在」这一问下，多条 to == null 的开放事实**不再一律判 ambiguous**。
+             *   为什么：一条 from 更早的开放事实，在同谓词上已存在 from 更晚的开放事实时，
+             *   按**剧情有效时间**它不可能是「现在」—— 这不是替用户裁决，是时序事实。
+             *   修前实测：后补一条 from=5 的旧住址（写侧按契约并存、to 仍为空），
+             *   于是「现在住哪」返回 ambiguous（两条都盖住当下）—— 用户看到的是「账坏了」。
+             *   判据只在「from 都存在且互不相同」时生效；from 相同或缺失 ⇒ 仍 ambiguous（判不了就不裁决）。 */
+            if (q == null && uniq.length > 1) {
+              const froms = uniq.map(function (f) { return f.from == null ? null : finiteFloor(f.from); });
+              const allNumbered = froms.every(function (v) { return v != null; });
+              const distinct = new Set(froms).size === froms.length;
+              if (allNumbered && distinct) {
+                const maxFrom = Math.max.apply(null, froms);
+                const stale = [];
+                const live = [];
+                uniq.forEach(function (f, idx) {
+                  if (froms[idx] === maxFrom) live.push(f); else stale.push(f);
+                });
+                row.staleOpen = stale.map(function (f) {
+                  return { id: f.id, value: f.value, from: f.from };
+                });
+                uniq = live;
+              }
+            }
+            row.values = uniq.map(copyFact);
+            if (uniq.length > 1) {
+              row.state = 'ambiguous';            // 真判不了先后 ⇒ 不替用户裁决
+            } else {
+              row.state = uniq[0].to == null ? 'current' : 'historical';
+              row.id = uniq[0].id; row.value = uniq[0].value;
+              row.from = uniq[0].from; row.to = uniq[0].to;
+            }
+          }
+        }
+      }
+      /* 当下仍开着的那条（供「当时 vs 现在」对照；没有则 null，不猜）。
+       *   [M3-O9] 多条开放时与上面同口径：from 都存在且互不相同 ⇒ 取最新那条为「现在」，
+       *   其余登记为 openStale（**可见、可归因**，不是丢掉）；否则报 openNowAmbiguous（不裁决）。 */
+      const openNow = trusted.filter(function (f) { return f.to == null; });
+      if (openNow.length === 1) {
+        row.openNow = { id: openNow[0].id, value: openNow[0].value, from: openNow[0].from };
+      } else if (openNow.length > 1) {
+        const ofs = openNow.map(function (f) { return f.from == null ? null : finiteFloor(f.from); });
+        if (ofs.every(function (v) { return v != null; }) && new Set(ofs).size === ofs.length) {
+          const mx = Math.max.apply(null, ofs);
+          const liveIdx = ofs.indexOf(mx);
+          row.openNow = { id: openNow[liveIdx].id, value: openNow[liveIdx].value, from: openNow[liveIdx].from };
+          row.openStale = openNow.filter(function (f, i) { return i !== liveIdx; })
+            .map(function (f) { return { id: f.id, value: f.value, from: f.from }; });
+        } else {
+          row.openNow = null;
+          row.openNowAmbiguous = openNow.length;
+        }
+      } else {
+        row.openNow = null;
+      }
+      counts[row.state] = (counts[row.state] || 0) + 1;
+      rows.push(row);
+    }
+    return { ok: true, at: q, rows: rows, counts: counts, total: state.facts.length };
+  }
+
+  /* 查询意图词表。**只认显式线索**，判不出来报 unspecified —— 「时间未知不补现实日期」。 */
+  const NOW_CUES = Object.freeze(['现在', '如今', '当下', '眼下', '目前', '这会儿', '此刻', '今日', '最近']);
+  const THEN_CUES = Object.freeze(['当时', '那时', '那时候', '当年', '从前', '以前', '原先', '本来', '过去', '早先', '小时候']);
+  const FLASHBACK_CUES = Object.freeze(['回忆', '想起', '闪回', '记得', '回想到', '回忆起']);
+  /**
+   * 解析查询意图与显式时点。
+   * @param {string} text
+   * @returns {{intent:string, at:(number|null), cue:string, unknownTime:boolean}}
+   *   intent: 'now' | 'then' | 'flashback' | 'unspecified'
+   *   at:     显式时点（文本里写了「第 N 楼」这类）；没写就是 null
+   *   unknownTime: intent 是 then/flashback 但没给时点 ⇒ true（调用方**不得**补日期）
+   */
+  function classifyIntent(textRaw) {
+    const t = String(textRaw == null ? '' : textRaw);
+    const find = (list) => { for (const c of list) { if (t.indexOf(c) >= 0) return c; } return ''; };
+    const mFloor = t.match(/第\s*(\d{1,6})\s*楼/);
+    const at = mFloor ? finiteFloor(mFloor[1]) : null;
+    const now = find(NOW_CUES);
+    const then = find(THEN_CUES);
+    const fb = find(FLASHBACK_CUES);
+    let intent = 'unspecified', cue = '';
+    /* 优先级：显式时点 > 当时词 > 现在词 > 回忆词。
+     *   **时间副词压过回忆动词**，理由：「记得/想起」是引语框架（「我记得……」「她想起来……」），
+     *   它只说明这句话是回忆，**不定**回忆的是哪一段 —— 定时间是它后面的时间副词。
+     *   实测两例（都曾判反）：
+     *     ·「我记得她以前说话很轻」→ 有「以前」⇒ then（不是单凭「记得」判 flashback）
+     *     ·「她现在还记得那件事吗」→ 有「现在」⇒ now（不能因为出现「记得」就当问过去）
+     *   只有**没有**任何时间副词时才用「回忆动词」兜底成 flashback —— 那才是「问过去但没说哪段」。 */
+    if (at != null) { intent = 'then'; cue = 'floor'; }
+    else if (then) { intent = 'then'; cue = then; }
+    else if (now) { intent = 'now'; cue = now; }
+    else if (fb) { intent = 'flashback'; cue = fb; }
+    return {
+      intent: intent, at: at, cue: cue,
+      unknownTime: (intent === 'then' || intent === 'flashback') && at == null ? true : false
+    };
+  }
+
+  /** 按查询文本 + 当前时点取事实（时态一致的查询入口）。判不出时点就按「现在」读，并标 unknownTime。 */
+  function resolveQuery(rawState, textRaw, opts) {
+    const o = opts || {};
+    const it = (o.intentInfo && typeof o.intentInfo === 'object') ? o.intentInfo : classifyIntent(textRaw);
+    let at = null;
+    if (it.intent === 'then' || it.intent === 'flashback') at = (it.at != null ? it.at : (o.at != null ? o.at : null));
+    const r = readAt(rawState, at, o);
+    return Object.assign(r, { intent: it.intent, intentCue: it.cue, unknownTime: !!it.unknownTime });
+  }
+
   /** 诊断一行：回答「账上有多少事实、多少已闭合、多少是模型推测、有多少未决冲突」。 */
   function line(rawState) {
     try {
@@ -516,6 +685,9 @@
     //   · isMultiValue / MULTI_VALUE_POLICY —— 多值类型口径（与 assertFact / lookup 内部**同一份实现**）。
     setTypeValidator, typeStateOf, isMultiValue,
     MULTI_VALUE_POLICY,
+    // [M3-O9] 时态读面（当下/当时）与意图解析：注入面与诊断面共用同一份时间口径
+    TIME_STATES, NOW_CUES, THEN_CUES, FLASHBACK_CUES,
+    readAt, classifyIntent, resolveQuery,
     originTrustOf: trustOf, factFp, pairKey
   });
   root.LonShaFactVersion = api;

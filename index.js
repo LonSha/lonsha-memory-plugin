@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.319.0';
+    const VERSION = '3.320.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -5185,6 +5185,51 @@ function relativeTimeLabel(eventTime, nowTime) {
     }
 
 
+        /* [M3-O3] 实体映射的宿主读面。**为什么要有薄包装而不是让上层直接摸 _entityRegistry**：
+         *   手机侧桥（R3-O1 已把联系人身份消歧做在手机侧）与主聊天必须用**同一份**实体映射，
+         *   否则同名角色在两处会被解析成不同的人。包装层同时兜住「模块缺席 / 登记表未建」两态，
+         *   调用方拿到的是 {ok:false, reason} 而不是异常。 */
+        resolveEntityAt(kind, value, ctx, carry) {
+            try {
+                const r = this._entityRegistry;
+                if (!r || typeof r.resolveEntityAt !== 'function') return { ok: false, reason: 'registry-unavailable', entity: null };
+                const e = r.resolveEntityAt(kind, value, ctx || {}, carry || null);
+                return e ? { ok: true, reason: '', entity: { id: e.id, kind: e.kind, name: e.name } }
+                    : { ok: false, reason: String((carry && carry.entityResolveAt && carry.entityResolveAt.miss) || 'no-match'), entity: null };
+            } catch (e) { errLog(e, 'engine.resolveEntityAt'); return { ok: false, reason: 'thrown', entity: null }; }
+        }
+        /** 某值在当前情境下的全部候选（含被范围排除的，带 blockedBy）——歧义不硬合并的前提是看得见候选 */
+        entityCandidatesFor(kind, value, ctx) {
+            try {
+                const r = this._entityRegistry;
+                if (!r || typeof r.candidatesFor !== 'function') return [];
+                return r.candidatesFor(kind, value, ctx || {}).map(c => ({
+                    id: c.id, name: c.name, via: c.via, matchedAlias: c.matchedAlias, blockedBy: c.blockedBy
+                }));
+            } catch (e) { errLog(e, 'engine.entityCandidatesFor'); return []; }
+        }
+        /** 代称（她/老师/那位）候选：结合在场者与最近指代；歧义时返回多条而不是猜一个 */
+        referentCandidates(kind, value, ctx) {
+            try {
+                const r = this._entityRegistry;
+                if (!r || typeof r.referentCandidates !== 'function') return [];
+                return r.referentCandidates(kind, value, ctx || {});
+            } catch (e) { errLog(e, 'engine.referentCandidates'); return []; }
+        }
+        /** 当前剧情时点（楼层）：别名时段判定的默认 at。取不到就返回 null（不猜现实日期） */
+        currentStoryFloor() {
+            try {
+                /* 首选**当前楼层**（chat 末位）而不是「最近一次见到剧情日期的楼层」：
+                 *   后者会滞后，用它判「这个别名现在成不成立」会把已经有效的称呼误挡。
+                 *   取不到 chat 时才退回 _lastStoryDateFloor（本仓既有的剧情日楼层字段）。 */
+                const chat = window.SillyTavern?.getContext?.()?.chat;
+                if (Array.isArray(chat) && chat.length) return chat.length - 1;
+                const n = Number(this._lastStoryDateFloor);
+                if (Number.isFinite(n) && n >= 0) return n;
+            } catch (e) { errLog(e, 'engine.currentStoryFloor'); }
+            return null;
+        }
+
         extractMemorySimple(message) {
             // [v1.4 修复] 旧版用正则抓任意中文词块当角色名，产生"钥匙在锁""两下"这类垃圾。
             // 现在只匹配已知角色（当前角色卡 + 图谱已有节点），宁可漏记不记错。
@@ -5778,7 +5823,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                             // [v3.249.0] M-O1：候选资格与最终限额分离——这一路要**全量**候选
                             //   （includeDeferred），上限只用于拿「按默认上限会被挡在评分之外的条数」读数；
                             //   去重与最终注入预算仍由下方 candidateItems 与 buildInjection 把关。
-                            const graphCands = this.unifiedRecall.graphToCandidates(this.graph.nodes, { includeDeferred: true }, _urCarry);
+                            const _urAll = this.unifiedRecall.graphToCandidates(this.graph.nodes, { includeDeferred: true }, _urCarry);
+                            /* [M3-O2] 事件级去重：同一事件的多节点（起因/经过/结果各切一个）不再各占
+                             *   一个候选位——否则预算被同一件事的多个切面吃光，别的事件进不来。
+                             *   无事件键的节点一律保留（「没有键」不等于「属于同一件事」）。 */
+                            const graphCands = (typeof this.unifiedRecall.dedupeByEvent === 'function')
+                                ? this.unifiedRecall.dedupeByEvent(_urAll, {}, _urCarry) : _urAll;
+                            _funnel.graphEvents = Number(_urCarry.evEvents) || 0;
+                            _funnel.graphEventDropped = Number(_urCarry.evDropped) || 0;
                             _funnel.graphDropped = Number(_urCarry.dropped) || 0;
                             _funnel.graphGuaranteed = Number(_urCarry.guaranteedKept) || 0;
                             _funnel.graphDeferred = Number(_urCarry.deferred) || 0;
@@ -5788,7 +5840,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                             for (const gc of graphCands) {
                                 const r = window.LonShaAISelect?.scoreEntry ? window.LonShaAISelect.scoreEntry(gc, _lut + '\n' + _lrt, _lut, _lrt) : { score: 0 };
                                 if ((r.score || 0) > 0 || gc._guaranteed) {
-                                    const txt = (gc.content || gc._label || '').trim();
+                                    /* [M3-O2] 注入的是**证据句**而不是整段原文：完整原文留在 searchText
+                                     *   里供检索，进上下文的按预算取句（否定与数额不切断）。 */
+                                    let txt = (gc.content || gc._label || '').trim();
+                                    if (typeof this.unifiedRecall.extractEvidenceSentences === 'function' && gc.searchText) {
+                                        const _ev = this.unifiedRecall.extractEvidenceSentences(gc.searchText, _lut + ' ' + _lrt, { budget: 3 });
+                                        if (_ev && _ev.text && _ev.text.length > txt.length) {
+                                            txt = _ev.text;
+                                            _funnel.graphEvidence = (_funnel.graphEvidence || 0) + 1;
+                                        }
+                                    }
                                     if (txt && !candidateItems.some(x => (x.text || '') === txt)) {
                                         candidateItems.push({ id: gc.id, text: txt, source: 'graph:' + gc._nodeType, _score: r.score || 0 });
                                     }
@@ -7887,7 +7948,16 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v3.90] 吸收 MyriadKnots entity-identity：别名→主名映射（NFKC 归一），供 BM25 查询侧扩展
             let aliases = null;
             try {
-                if (this.config?.config?.aliasQueryExpansion !== false) aliases = this.buildAliasMap();
+                // [M3-O3] 先记当前剧情时点，再让 buildAliasMap 按它过滤被揭穿/时段挡下的别名
+                //   （不反向泄露到旧楼）。**调用形态仍是 buildAliasMap()**，签名与既有一致。
+                //   两者都走可选链：既有提取式测试用**裸 engine** 调本方法（无 _entityRegistry /
+                //   currentStoryFloor 这些宿主成员），任一缺席都必须退回「未给时点」而不是抛。
+                if (this.config?.config?.aliasQueryExpansion !== false) {
+                    try {
+                        this._aliasMapAt = (typeof this.currentStoryFloor === 'function') ? this.currentStoryFloor() : null;
+                    } catch (e) { this._aliasMapAt = null; }
+                    aliases = this.buildAliasMap();
+                }
             } catch (e) { errLog(e, 'buildQuery.aliasMap'); }
             // [v3.184] 记录本轮情境文本（关系披露条件的判定依据）。
             //   为何记在这里而不是各调用点各记一次：生成路径与 selfCheck dry-run 都经 buildQuery，
@@ -7903,6 +7973,25 @@ function relativeTimeLabel(eventTime, nowTime) {
             const map = new Map();
             try {
                 const canon = v => String(v ?? '').normalize('NFKC').trim().toLocaleLowerCase('zh-CN');
+                /* [M3-O3] 时段/揭穿感知：被 revealAfter/time 挡下的别名**不进查询映射** ——
+                 *   这正是「已揭穿身份不反向泄露到旧楼」的落点。修前：别名一旦登记就永久可查，
+                 *   伪装期的旧楼会因为后来的揭穿被反向改写。
+                 *   时点从 `this._aliasMapAt` 读而**不改本方法签名**：v390_alias 用花括号计数式
+                 *   extractMethod 按 marker 提取本方法体，marker 含本方法的无参签名；
+                 *   改签名会让那道门找不到方法而当场空转。
+                 *   未设该字段（含既有提取式测试的裸 engine）⇒ at=null ⇒ 行为与修前逐字一致。
+                 *   注意：本方法体内不得出现裸花括号字面量（含注释里）——花括号计数会被带偏。 */
+                const _atSrc = this._aliasMapAt;
+                const _reg = this._entityRegistry;
+                const _at = (_atSrc == null || _atSrc === '') ? null : Number(_atSrc);
+                const _scopeOf = (name) => {
+                    if (!_reg || _at == null || !Number.isFinite(_at)) return '';
+                    try {
+                        const cs = _reg.candidatesFor('person', name, { at: _at });
+                        if (!cs.length) return '';
+                        return cs[0].blockedBy || '';
+                    } catch (e) { return ''; }
+                };
                 for (const node of this.graph?.nodes?.values() || []) {
                     if (node?.type !== 'character' || !node.name) continue;
                     const main = canon(node.name);
@@ -7911,6 +8000,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     for (const a of aliases) {
                         const key = canon(a);
                         if (!key || key === main || key.length < 2 || key.length > 20) continue;
+                        if (_scopeOf(a)) continue;      // 被时段/揭穿挡下的别名不参与查询扩展
                         if (!map.has(key)) map.set(key, node.name);
                     }
                 }
@@ -15848,6 +15938,31 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 return EC.outstanding(this._eventThreadState, filter);
             } catch (e) { errLog(e, 'engine.outstandingThreads'); return []; }
         }
+        /* [M3-O9] 时态读面的宿主出口。上层（诊断面、手机问答）用**同一份**读面，
+         *   不各自摸 FV.readAt（那会漂移成两套时间口径）。两面都兜住模块缺席与异常。 */
+        timeRead(at) {
+            try {
+                const FV = _factVersionLib();
+                if (!FV || typeof FV.readAt !== 'function') return { ok: false, reason: 'module-unavailable', rows: [] };
+                return FV.readAt(this._factVersionState, (at == null ? null : at));
+            } catch (e) { errLog(e, 'engine.timeRead'); return { ok: false, reason: 'thrown', rows: [] }; }
+        }
+        /** 查询意图解析（现在 / 当时 / 回忆）。判不出来报 unspecified，**不补现实日期**。 */
+        queryIntent(text) {
+            try {
+                const FV = _factVersionLib();
+                if (!FV || typeof FV.classifyIntent !== 'function') return { intent: 'unspecified', at: null, cue: '', unknownTime: false };
+                return FV.classifyIntent(text);
+            } catch (e) { errLog(e, 'engine.queryIntent'); return { intent: 'unspecified', at: null, cue: '', unknownTime: false }; }
+        }
+        /** 时态一致的整账查询（按 queryIntent 决定读当下还是读某时点）。 */
+        resolveFactsByTime(text, at) {
+            try {
+                const FV = _factVersionLib();
+                if (!FV || typeof FV.resolveQuery !== 'function') return { ok: false, reason: 'module-unavailable', rows: [] };
+                return FV.resolveQuery(this._factVersionState, text, { at: (at == null ? null : at) });
+            } catch (e) { errLog(e, 'engine.resolveFactsByTime'); return { ok: false, reason: 'thrown', rows: [] }; }
+        }
         /** [v3.194] 事实按时间点查询（「现在去哪里找她」/「回忆大学时生活」）。不抛。 */
         lookupFact(ref) {
             try {
@@ -15893,12 +16008,33 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     ? FS.readState(this._factVersionState) : null;
                 const allowIds = stateGate
                     ? new Set(stateGate.entries.filter(e => e.admissible).map(e => e.id)) : null;
+                /* [M3-O9] 时态一致进**注入面**：后补录的旧事实（staleOpen）不得进载荷覆盖现状。
+                 *   判据与查询面 readAt **同一份实现**（不在宿主再写一遍时序规则）——
+                 *   否则「查询答对、注入答错」，用户看到的仍是旧值。
+                 *   模块缺席 ⇒ staleIds 为 null ⇒ 退回既有行为（不静默按新口径，也不静默丢弃）。 */
+                let staleIds = null;
+                try {
+                    const FVt = _factVersionLib();
+                    if (FVt && typeof FVt.readAt === 'function') {
+                        const _tr = FVt.readAt(this._factVersionState, null);
+                        const _sids = new Set();
+                        for (const _r of (_tr.rows || [])) {
+                            for (const _so of (_r.staleOpen || [])) _sids.add(String(_so.id));
+                        }
+                        if (_sids.size) staleIds = _sids;
+                    }
+                } catch (e) { errLog(e, 'typedFactsBlocks.staleOpen'); }
                 const gated = (f) => !allowIds || allowIds.has(String(f && f.id != null ? f.id : ''));
+                /* [M3-O9] staleOpen（后补录的旧事实）不进载荷：**不改 gated 这一行**——
+                 *   它是 v3299 负控制 I1 的破坏锚点（逐字字面量，要求恰中 1 次），
+                 *   拆成两行会让那条负控制找不到锚点而**静默失效**（门空转比门红危险得多）。
+                 *   故 stale 过滤作为**第二道**挂在过滤链上，两道各自独立可测。 */
+                const gatedStale = (f) => !staleIds || !staleIds.has(String(f && f.id != null ? f.id : ''));
                 const rawBuckets = MT.typedBuckets(this._factVersionState);
                 const buckets = {};
                 for (const k of Object.keys(rawBuckets)) {
                     const list = rawBuckets[k];
-                    buckets[k] = Array.isArray(list) ? list.filter(gated) : list;
+                    buckets[k] = Array.isArray(list) ? list.filter(gated).filter(gatedStale) : list;
                 }
                 const stableGroups = [];
                 const volatileGroups = [];

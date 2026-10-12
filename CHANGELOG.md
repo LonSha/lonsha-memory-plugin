@@ -1,3 +1,91 @@
+## v3.320.0
+**A 包（身份、时态与聊天记忆）记忆侧三项：M3-O2 候选保真 · M3-O3 时段身份 · M3-O9 时态一致**
+- 本版是第三期产品主线**第一个执行包**的记忆侧部分（手机侧 R3-O1/O2/O6 已在 v3.95.0/v3.96.0 落地）。
+  **改既有四文件、不新增运行时模块**：`unified-recall.js` / `ai-select.js` / `entity-semantic.js` /
+  `fact-version.js` 四个模块 + `index.js` 接线。`manifest.extra_js` **仍 96 项**。
+- **M3-O2 候选保真**（计划：候选索引保留身份/时间/关系/结果关键字段与完整源 ref；
+  展示摘要和检索文本分离；选中后按任务预算提取证据句，保护否定和数额）
+  - **真缺陷（修前形态）**：`nodeToCandidate` 把内容压到 200 字、secondary 只取 8 条
+    —— 而**候选层的损失发生在后续评分之前**。评分只能排它拿到的候选，
+    「超过 200 字才出现的关键结论」在候选化那一刻就已经不存在，后面的 rerank 再准也没用。
+  - 修法：新增 `searchText`（完整正文，上限 4000）与 `content`（展示摘要 200 字）**两分**；
+    `ai-select.scoreEntry` 的词项命中判定改走 `searchText`（不给时退回 `content`，既有调用零影响）。
+  - 新增 `indexFields`（identity/time/**relation**/**outcome**）：修前只有身份与时间进了 primary，
+    **关系与结果字段在候选层就已消失**，于是「谁把东西给了谁」「最后谈成了什么」永远召不回。
+  - 新增 `sourceRef`（id/floor/revision/eventId/group/branchId/source/path）：候选被选中后能回到出处。
+  - 新增 `extractEvidenceSentences`：完整原文**不全量注入**，按预算取证据句；截断**不切断否定与数额**
+    （「他不想还钱」→「他想还钱」是语义反转；「欠 3 万」→「欠 3」是数额失真）。
+  - 新增 `dedupeByEvent`：同一事件的多节点不再各占一个候选位；
+    **无事件键的节点一律保留**（「没有键」不等于「属于同一件事」）。
+- **M3-O3 时段身份**（计划：补别名的项目/分支/有效时段与称呼者范围；
+  「她/老师」结合在场与最近指代生成候选，歧义不硬合并；已揭穿身份不反向泄露到旧楼）
+  - `aliasMeta` 承载范围（**aliases 形状不动**，仍是字符串数组 ⇒ 老状态读进来零迁移），
+    `exportState`/`importState` 带上它（漏了就是**重开后时段规则静默失效**）。
+  - `resolveEntityAt` / `candidatesFor`：四类阻塞各自可归因（project / branch / time / speaker / reveal）。
+    失败态拆成 **missing / ambiguous / scope-excluded / reveal-blocked** ——
+    **「名字存在但被时段排除」与「登记表里根本没有这个名字」处置完全不同，不得同形**。
+  - `referentCandidates`：代称结合**在场者与最近指代**；歧义时返回多条候选而**不猜一个**。
+  - `markReveal` / `setAliasScope` / `removeAliasScope` / `removeAlias`：
+    **撤回范围 ≠ 删别名**，两者分开（人工绑定可撤回）。
+  - 宿主 `buildAliasMap` 按当前剧情楼层过滤被挡下的别名（**签名不改** ——
+    它是 v390_alias 花括号计数式 `extractMethod` 的 marker；时点走 `this._aliasMapAt`），
+    且**裸 engine 容灾**（宿主成员缺席 ⇒ 按「未给时点」处理而不是抛）。
+- **M3-O9 时态一致**（计划：统一查询意图中的「现在/当时/闪回之后」；
+  按剧情有效时间而非录入新旧选择事实；矛盾时间保留候选及原因，避免闪回覆盖当前状态）
+  - 新增 `readAt`（整账按时点分类读：current / historical / ambiguous / none-at / unversioned /
+    none-trusted / none-revoked；判据 coversAt / 信任门槛 / 撤销**复用同一份**）、
+    `classifyIntent`（**时间未知不补现实日期**）、`resolveQuery`。
+  - **真缺陷（修前形态）**：后补一条 **from 更小**的旧事实（用户回头补叙「她以前住北京」，from=5），
+    因为新值不比旧的晚 ⇒ 不换代（写侧既有契约），而它 `to == null`
+    ⇒ **一直开着、同时覆盖 now** ⇒ 「现在住哪」被拖成 **ambiguous**。
+  - **修法纪律**：`v3210_memory_type` 有 3 条**既有锁定**断言要求 auto 策略「新 from 更小 ⇒ 不换代（并存）」，
+    且被登记为「与 prefer-new 的分界」—— 改 `assertFact` 会把那三条打红。
+    **那是把写入侧的既有语义换掉，不是修缺陷**，故**写侧一字不动**，改到**读侧**：
+    一条 from 更早的开放事实，在同谓词上已存在 from 更晚的开放事实时，按**剧情有效时间**
+    不可能是「现在」—— 这不是替用户裁决，是时序事实。判据只在「from 都存在且互不相同」时生效；
+    from 相同/缺失 ⇒ **仍 ambiguous**（判不了就不裁决）。更早那条进 `staleOpen`（**可见可归因**），
+    回看旧时点仍查得到。
+  - **时段映射用于实际注入**（计划验收原文）：`typedFactsBlocks` 的载荷准入挂**第二道** `gatedStale`，
+    判据**复用 `readAt` 同一份实现**（不在宿主再写一遍时序规则，否则「查询答对、注入答错」）。
+- **本版自伤五处（附修法；全部由探针或门禁跑出来，不是推演）**
+  1. 证据句的查询词提取首版用 `[\u4e00-\u9fa5]{2,}` —— 中文无空格，`她签约了吗` 被整体当**一个词**、
+     命中判定恒假，**「按查询词挑句」实际退化**成只靠否定/数额加分兜底。修法：对齐
+     `ai-select.extractQueryTerms` 既有口径（段长 > 6 才做 2-4 字滑窗），不另立第二套分词真源。
+  2. 意图优先级首版把「回忆动词」排在「时间副词」之前 ⇒ `我记得她以前说话很轻` 判成 flashback、
+     `她现在还记得吗` 判反。修法：**时间副词压过回忆动词** —— 「记得/想起」是**引语框架**，
+     只说明这句是回忆、**不定**回忆的是哪一段；只有**没有任何时间副词**时才用回忆动词兜底 flashback。
+  3. 首版在注释里写了带裸花括号的字面量 ⇒ v390_alias 的**花括号计数式方法提取**被带偏、
+     方法体被截在注释中间（`new Function` 拼接语法错误）。修法：注释去掉裸花括号。
+  4. 首版把 `gated` 一行拆成两行 ⇒ v3299 负控制 I1 的破坏锚点**命中 0 次**、那道门**静默失效**
+     （**门空转比门红危险得多**）。修法：`gated` 行逐字还原，stale 过滤作为**第二道** `gatedStale`
+     挂在过滤链上（两道各自独立可测）。
+  5. 首版在 `buildQuery` 里无条件调 `this.currentStoryFloor()` ⇒ 既有提取式测试用**裸 engine** 调
+     该方法（无 `_entityRegistry` / `currentStoryFloor` 这些宿主成员）即抛 ⇒ 容灾红。
+     修法：两者都走可选链，任一缺席退回「未给时点」。
+- 成对套件 `tests/v3320_a_pack_identity_memory_time.test.mjs`（25 条）：
+  A 结构面 3 · B 行为面 12 · C 接线面 3 · D **真源码破坏负控制 6 条**（每条配「原版同判据必须过」反向对照）·
+  E 版本锚 1。负控制锚点全部走 `tests/_break_kit.mjs::breakOnce`（0 命中或同值替换当场拒绝）。
+- 验证读数（**定向，非全量** —— 按实施期铁律，计划收口时才跑一次全量）：
+  三个行为探针全绿（`m3o2_probe` 21 项 / `m3o3_probe` 27 项 / `m3o9_probe` 26 项）；
+  v3320 套件 25/25；定向 13 套既有套件全绿 —— 含 **v3210 189/189**（写侧契约未动）、
+  **v3299 14/14**（注入面准入门未被拆掉）、**v390_alias 5/5**（方法提取门未失效）、
+  v3194 20/20 · v3211 11/11 · v3248 16/16 · v3250 15/15 · v3269 16/16 · v3276 18/18 ·
+  v3312 14/14 · v396_fusion_modules 12/12 · v396_entity_semantic 13/13 · v3173 17/17。
+- 登记面：`catalog_reference_consumers.tsv` +1 行（新测试档）、
+  `v3247` REGISTRY +1 条、`v3209` 数量锁补版本出处（仍 96）、`open_face_registry` 只同步
+  `producer_version`（面数仍 7，**不新增外供面**）。
+- **退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移**（本档沿用全仓口径；`node --test` 单套件为 0/1）。
+- 本档定向跑过：`tests/v3320_a_pack_identity_memory_time.test.mjs`（25 条）·
+  `tests/v3210_memory_type.test.mjs`（14 条）· `tests/v3299_mo6_fact_state_single_source.test.mjs`（14 条）·
+  `tests/v3209_migration_registry.test.mjs`（15 条）·
+  `tests/v3247_break_kit_consolidation.test.mjs`（17 条）·
+  `tests/v3319_ci_faithful_probe_and_attribution.test.mjs`（9 条）；
+  静态门 `scan_syntax` / `scan_version_guard` / `scan_plan_currency` / `scan_ledger_contract` /
+  `scan_module_wiring` / `scan_cross_repo_binding` / `scan_open_faces` / `scan_doc_truthfulness` 全部 rc=0。
+- 边界（诚实）：本版**未跑全量回归**（按实施期铁律，计划收口时才跑一次）。
+  `readAt` 是**新增读面**，其消费点目前只有注入面准入与宿主出口（`timeRead` / `queryIntent` /
+  `resolveFactsByTime`），手机问答侧要等 B 包接上；`buildAliasMap` 的时段过滤依赖
+  `_entityRegistry` 已建（未建时按「未给时点」处理，与修前逐字一致）。
 ## v3.319.0
 **CI 忠实性修复：把跨仓双仓首跑抳回的两个"本地假绿"真缺陷钉住（云 runner 非本地）—— 并补 P7 探测面绝对路径盲区**
 - **背景**：上一轮把三改（M-O2 收口 / 窄屏修 / 本档）推上 CI 后发现 **memory-plugin 的 CI 是红的**，

@@ -79,7 +79,10 @@
                 entities.push(entity);
             }
             entity.name = String(name).trim();
+            // [M3-O3] aliases 的**形状不动**（仍是字符串数组，既有调用方与 exportState 都吃它）。
+            //   范围信息另存 aliasMeta（按归一别名索引），这样老状态读进来零迁移。
             entity.aliases = [...new Set(aliases.map(String).map(v => v.trim()).filter(Boolean))];
+            if (!entity.aliasMeta || typeof entity.aliasMeta !== 'object') entity.aliasMeta = {};
             return entity;
         }
 
@@ -120,6 +123,79 @@
             return null;
         }
 
+        // ══════════ [M3-O3] 别名范围（项目 / 分支 / 时段 / 称呼者）══════════
+        /**
+         * 给某实体的某个别名设范围。计划点名「补别名的项目/分支/有效时段与称呼者范围」。
+         * @param {string} kind
+         * @param {string} name 别名原文（也接受主名，用于给主名设时段）
+         * @param {object} scope { project, branch, from, to, speakerScope, revealAfter }
+         *   from/to       剧情时间或楼层（数值），闭开区间 [from, to)
+         *   revealAfter   该称呼**公开之后**才有效（伪装揭穿才公开的名字不得用于旧楼）
+         *   speakerScope  称呼者范围（谁这样称呼才成立），空 = 不限
+         * @returns {{ok:boolean, reason:string}}
+         */
+        function setAliasScope(kind, name, scope = {}) {
+            const key = norm(name);
+            if (!key) return { ok: false, reason: 'blank-name' };
+            const e = entities.find(x => x.kind === kind && (norm(x.name) === key || (x.aliases || []).some(a => norm(a) === key)));
+            if (!e) return { ok: false, reason: 'entity-not-found' };
+            if (!e.aliasMeta || typeof e.aliasMeta !== 'object') e.aliasMeta = {};
+            const cur = e.aliasMeta[key] || {};
+            const next = { ...cur };
+            for (const f of ['project', 'branch', 'speakerScope']) {
+                if (scope[f] !== undefined) next[f] = scope[f] === null ? '' : String(scope[f]);
+            }
+            for (const f of ['from', 'to', 'revealAfter']) {
+                if (scope[f] !== undefined) {
+                    if (scope[f] === null || scope[f] === '') delete next[f];
+                    else next[f] = Number(scope[f]);
+                }
+            }
+            e.aliasMeta[key] = next;
+            return { ok: true, reason: '', scope: next };
+        }
+
+        /** 撤回某个别名的范围（人工绑定可撤回：与 removeAlias 分开，撤回范围不等于删别名） */
+        function removeAliasScope(kind, name) {
+            const key = norm(name);
+            const e = entities.find(x => x.kind === kind && (norm(x.name) === key || (x.aliases || []).some(a => norm(a) === key)));
+            if (!e || !e.aliasMeta || !(key in e.aliasMeta)) return { ok: false, reason: 'no-scope' };
+            delete e.aliasMeta[key];
+            return { ok: true, reason: '' };
+        }
+
+        /** 删掉一个别名本身（含其范围）——「人工绑定可撤回」的那条撤回 */
+        function removeAlias(kind, name) {
+            const key = norm(name);
+            const e = entities.find(x => x.kind === kind && (x.aliases || []).some(a => norm(a) === key));
+            if (!e) return { ok: false, reason: 'alias-not-found' };
+            e.aliases = e.aliases.filter(a => norm(a) !== key);
+            if (e.aliasMeta && key in e.aliasMeta) delete e.aliasMeta[key];
+            return { ok: true, reason: '' };
+        }
+
+        /** 列出某 kind 下全部别名范围（诊断/UI 用） */
+        function listAliasScopes(kind) {
+            const out = [];
+            for (const e of entities) {
+                if (kind && e.kind !== kind) continue;
+                for (const [k, v] of Object.entries(e.aliasMeta || {})) {
+                    out.push({ entityId: e.id, kind: e.kind, alias: k, ...v });
+                }
+            }
+            return out;
+        }
+
+        /**
+         * 标记「身份已揭穿」的楼层。计划点名「已揭穿身份不反向泄露到旧楼」。
+         * @param {string} kind
+         * @param {string} name 揭穿后公开的称呼
+         * @param {number} floor 揭穿发生的楼层
+         */
+        function markReveal(kind, name, floor) {
+            return setAliasScope(kind, name, { revealAfter: Number(floor) });
+        }
+
         /** 返回匹配某值的全部候选实体（供重名歧义展示） */
         function resolveAll(kind, value) {
             const target = norm(value);
@@ -128,6 +204,131 @@
                 e.kind === kind &&
                 [e.name, ...(e.aliases || [])].some(n => norm(n) === target)
             );
+        }
+
+        // ══════════ [M3-O3] 范围相容判定 ══════════
+        /**
+         * 判断「某实体用某别名」在当前情境下是否成立。
+         * 返回 { ok, blockedBy }：blockedBy 为空表示通过；否则给出被哪一条挡下（可归因）。
+         * 四类阻塞分开报：project / branch / time / speaker / reveal ——
+         *   「因为跨了项目」和「因为那会儿还没这个称呼」是完全不同的处置。
+         */
+        function _scopeOk(entity, alias, ctx) {
+            const c = ctx || {};
+            const meta = (entity.aliasMeta || {})[norm(alias)] || null;
+            if (!meta) return { ok: true, blockedBy: '' };
+            if (meta.project && c.project != null && String(meta.project) !== String(c.project)) {
+                return { ok: false, blockedBy: 'project' };
+            }
+            if (meta.branch && c.branch != null && String(meta.branch) !== String(c.branch)) {
+                return { ok: false, blockedBy: 'branch' };
+            }
+            if (c.at != null) {
+                const at = Number(c.at);
+                if (Number.isFinite(at)) {
+                    if (meta.from != null && at < Number(meta.from)) return { ok: false, blockedBy: 'time' };
+                    if (meta.to != null && at >= Number(meta.to)) return { ok: false, blockedBy: 'time' };
+                    // 揭穿后才公开的称呼不得用于旧楼（防剧透反向泄露）
+                    if (meta.revealAfter != null && at < Number(meta.revealAfter)) return { ok: false, blockedBy: 'reveal' };
+                }
+            } else if (meta.revealAfter != null) {
+                // 没给时间点（问「现在」）时，揭穿后的称呼是**可用**的；只有明确问旧楼才挡。
+                // 这条不是漏洞：不给 at 就是问当下，当下已在揭穿之后。
+            }
+            if (meta.speakerScope && c.speaker != null && String(meta.speakerScope) !== String(c.speaker)) {
+                return { ok: false, blockedBy: 'speaker' };
+            }
+            return { ok: true, blockedBy: '' };
+        }
+
+        /**
+         * 列出某值在当前情境下的**全部**候选（含被范围排除的，带原因）。
+         * 与 resolveAll 的区别：resolveAll 只按名字匹配（无情境），本函数按情境过滤但**不丢候选**——
+         *   被排除的照样列出来，标 blockedBy。计划要求「歧义不硬合并」，那就必须看得见候选。
+         */
+        function candidatesFor(kind, value, ctx, carry) {
+            const target = norm(value);
+            const _read = { kind, value: String(value ?? ''), matched: 0, eligible: 0, blocked: [], candidates: [] };
+            if (carry && typeof carry === 'object') carry.entityCandidates = _read;
+            if (!target) return [];
+            const out = [];
+            for (const e of entities) {
+                if (e.kind !== kind) continue;
+                const names = [e.name, ...(e.aliases || [])];
+                const hit = names.find(n => norm(n) === target);
+                if (!hit) continue;
+                _read.matched++;
+                const sc = _scopeOk(e, hit, ctx);
+                const row = {
+                    entity: e, id: e.id, name: e.name, via: norm(e.name) === target ? 'name' : 'alias',
+                    matchedAlias: hit, blockedBy: sc.blockedBy
+                };
+                out.push(row);
+                _read.candidates.push({ id: e.id, name: e.name, via: row.via, matchedAlias: hit, blockedBy: sc.blockedBy });
+                if (!sc.ok) _read.blocked.push({ id: e.id, by: sc.blockedBy, alias: hit });
+                else _read.eligible++;
+            }
+            return out;
+        }
+
+        /**
+         * 时段/项目/称呼者感知的唯一解析。**歧义不硬合并**：
+         *   相容候选恰好 1 个才返回；0 个且原本有名字命中 ⇒ 报 scope-excluded（不是 no-match）；
+         *   >1 个 ⇒ ambiguous，返回 null 并把候选带出去。
+         * @param {string} kind
+         * @param {string} value
+         * @param {object} ctx { at, project, branch, speaker }
+         */
+        function resolveEntityAt(kind, value, ctx, carry) {
+            const _read = { kind, hit: false, via: '', candidates: 0, eligible: 0, miss: '', resolvedId: '', blockedBy: '', at: (ctx && ctx.at != null) ? ctx.at : null };
+            if (carry && typeof carry === 'object') carry.entityResolveAt = _read;
+            if (!String(value ?? '').trim()) { _read.miss = 'blank-value'; return null; }
+            const cands = candidatesFor(kind, value, ctx, carry);
+            _read.candidates = cands.length;
+            const ok = cands.filter(c => !c.blockedBy);
+            _read.eligible = ok.length;
+            if (ok.length === 1) {
+                _read.hit = true;
+                _read.via = ok[0].via;
+                _read.resolvedId = ok[0].id;
+                return ok[0].entity;
+            }
+            if (ok.length > 1) { _read.miss = 'ambiguous'; return null; }
+            if (cands.length > 0) {
+                // 名字存在、但全被范围挡下 —— 与「登记表里没有」是两件事
+                _read.miss = 'scope-excluded';
+                _read.blockedBy = cands.map(c => c.blockedBy).filter(Boolean).join(',');
+                return null;
+            }
+            _read.miss = 'no-match';
+            return null;
+        }
+
+        /**
+         * 代称解析：把「她 / 老师 / 那位」结合**在场者**与**最近指代**生成候选。
+         * 计划点名这条。歧义时**不硬合并**（返回全部候选、命中 0 条），
+         *   因为「她」在两人同时在场的场景里本来就不该被猜成某一个人。
+         * @param {string} kind
+         * @param {string} value 代称原文
+         * @param {object} ctx { present:string[], lastMention:string, at, project }
+         */
+        function referentCandidates(kind, value, ctx) {
+            const c = ctx || {};
+            const present = (Array.isArray(c.present) ? c.present : []).map(x => norm(x)).filter(Boolean);
+            const last = norm(c.lastMention);
+            const out = [];
+            for (const e of entities) {
+                if (kind && e.kind !== kind) continue;
+                const names = [e.name, ...(e.aliases || [])].map(norm);
+                const inScene = present.length ? names.some(n => present.includes(n)) : false;
+                const recent = last ? names.includes(last) : false;
+                if (!inScene && !recent) continue;
+                const sc = _scopeOk(e, e.name, c);
+                if (!sc.ok) continue;
+                out.push({ id: e.id, name: e.name, inScene, recent, score: (inScene ? 2 : 0) + (recent ? 1 : 0) });
+            }
+            out.sort((a, b) => b.score - a.score || String(a.id).localeCompare(String(b.id)));
+            return out;
         }
 
         /** 显式绑定一个原始值到实体 id（人工校正歧义） */
@@ -165,7 +366,12 @@
         /** 导出可持久化状态 */
         function exportState() {
             return {
-                entities: entities.map(e => ({ ...e, aliases: [...(e.aliases || [])] })),
+                // [M3-O3] aliasMeta 随实体一起落盘（范围必须持久化，否则重开后时段感知失效）
+                entities: entities.map(e => ({
+                    ...e,
+                    aliases: [...(e.aliases || [])],
+                    aliasMeta: { ...(e.aliasMeta || {}) },
+                })),
                 valueBindings: [...valueBindings.entries()],
             };
         }
@@ -183,7 +389,12 @@
                     if (_read.sample.length < 5) _read.sample.push(String(e?.kind ?? typeof e));
                     continue;
                 }
-                _kept.push({ id: e.id, kind: e.kind, name: e.name, aliases: [...(e.aliases || [])] });
+                // [M3-O3] 读回 aliasMeta：漏了它 = 范围静默丢失（重开后伪装/时段全失效）
+                _kept.push({
+                    id: e.id, kind: e.kind, name: e.name,
+                    aliases: [...(e.aliases || [])],
+                    aliasMeta: (e.aliasMeta && typeof e.aliasMeta === 'object') ? { ...e.aliasMeta } : {},
+                });
             }
             entities = _kept;
             _read.kept = _kept.length;
@@ -208,6 +419,14 @@
             bindValue,
             unbindValue,
             findUnresolved,
+            setAliasScope,
+            removeAliasScope,
+            removeAlias,
+            listAliasScopes,
+            markReveal,
+            candidatesFor,
+            resolveEntityAt,
+            referentCandidates,
             removeEntity,
             exportState,
             importState,
