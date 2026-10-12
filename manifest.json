@@ -7,7 +7,7 @@
     "css": "style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.323.0",
+    "version": "3.324.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -110,7 +110,9 @@
         "project-registry.js",
         "relation-history.js",
         "causal-chain.js",
-        "perspective-card.js"
+        "perspective-card.js",
+        "extraction-driver.js",
+        "correction-plan.js"
     ],
     "extra_css": [
         "lonsha-design.css",

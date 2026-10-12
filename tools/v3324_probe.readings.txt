@@ -1,0 +1,187 @@
+===== A. extraction-driver 常量 =====
+ED_VERSION 1 ED_KIND extraction_driver
+PROFILES quality,balanced,low-cost
+SIGNALS identity,commitment,item,relation,event
+SIGNAL_TYPES.identity character+relation
+CORE_TYPES character,event
+PROFILE_RULES {"quality":{"batchEveryFloors":1,"maxBatch":1,"types":"all"},"balanced":{"batchEveryFloors":3,"maxBatch":3,"types":"all"},"low-cost":{"batchEveryFloors":5,"maxBatch":4,"types":"core"}}
+DEFAULT_MARKERS.identity 其实我是|真名|化名|伪装|真面目|原来是|本名
+===== B. floorOrNull 形态 =====
+floorOrNull 0 => 0
+floorOrNull 3 => 3
+floorOrNull "4" => 4
+floorOrNull -1 => null
+floorOrNull 1.9 => 1
+floorOrNull "" => null
+floorOrNull null => null
+floorOrNull  => null
+floorOrNull true => null
+floorOrNull {} => null
+floorOrNull [] => null
+floorOrNull null => null
+floorOrNull "x" => null
+===== C. detect / classify =====
+detect.structural {"floor":7,"signals":["identity"],"chars":12,"empty":false}
+detect.empty {"floor":9,"signals":[],"chars":0,"empty":true}
+detect.commitment {"signals":["commitment"],"hits":{"commitment":["我答应","答应你","会等你"]}}
+classify.identity {"kind":"structural","signals":["identity"],"types":["character","relation"]}
+classify.chitchat {"kind":"chitchat","signals":[],"types":[]}
+classify.unreadable {"kind":"unreadable","chars":0}
+classify.noFloor {"floor":null,"kind":"structural"}
+===== D. plan 三档（同一输入） =====
+--- profile quality
+  due [{"f":7,"s":["identity"],"t":["character","relation"],"w":"structural-immediate"},{"f":10,"s":["item"],"t":["item"],"w":"structural-immediate"}]
+  batched(all) [{"f":8,"due":12,"ov":false,"w":"chitchat-batched"},{"f":11,"due":12,"ov":true,"w":"chitchat-batched"}]
+  batchThisRound 1 overflowCount 1 batchThisRoundCount 1 deferredBatchCalls 1
+  overflowReason [8] | [11]
+  deferredTypes []
+  periodicTypes 2 nextBatchFloor 12
+  unreadable [{"floor":9}] noFloor []
+  missed {"floors":[3,5],"count":2,"noFloor":1,"neverDropped":true,"why":"错过的楼一律带原楼号重新排队（「晚了」与「没了」处置相反）"}
+  regen {"scoped":true,"floors":[7],"types":[],"untouched":4,"why":"只补被改写段（未列出的楼一条不动）"}
+  readings {"considered":5,"structuralDue":2,"batched":2,"batchKept":1,"batchOverflow":1,"batchRequested":1,"deferredBatchCalls":1,"unreadable":1,"noFloor":0,"periodicTypes":2,"callsIfRun":3,"callsIfLegacy":4,"savedCalls":1,"missedRecovered":2,"structuralImmediate":true,"qualityNote":"省下的调用数是读数不是成绩；本面按「关键事件不落在非周期楼外」验收，溢出条只推后不消失"}
+  flags {"zeroWrite":true,"malformedInput":false,"degraded":false,"profileKnown":true,"kind":"extraction_driver","version":1}
+  line 节奏 quality · 即时 2 · 批处理 2（下一批 12 楼） · **未读到 1** · 补回错过 2 · 错过但无楼号 1 · 重生成补 1 楼
+--- profile balanced
+  due [{"f":7,"s":["identity"],"t":["character","relation"],"w":"structural-immediate"},{"f":10,"s":["item"],"t":["item"],"w":"structural-immediate"}]
+  batched(all) [{"f":8,"due":14,"ov":false,"w":"chitchat-batched"},{"f":11,"due":14,"ov":false,"w":"chitchat-batched"}]
+  batchThisRound 2 overflowCount 0 batchThisRoundCount 2 deferredBatchCalls 0
+  overflowReason [8,11] | []
+  deferredTypes []
+  periodicTypes 2 nextBatchFloor 14
+  unreadable [{"floor":9}] noFloor []
+  missed {"floors":[3,5],"count":2,"noFloor":1,"neverDropped":true,"why":"错过的楼一律带原楼号重新排队（「晚了」与「没了」处置相反）"}
+  regen {"scoped":true,"floors":[7],"types":[],"untouched":4,"why":"只补被改写段（未列出的楼一条不动）"}
+  readings {"considered":5,"structuralDue":2,"batched":2,"batchKept":2,"batchOverflow":0,"batchRequested":1,"deferredBatchCalls":0,"unreadable":1,"noFloor":0,"periodicTypes":2,"callsIfRun":3,"callsIfLegacy":4,"savedCalls":1,"missedRecovered":2,"structuralImmediate":true,"qualityNote":"省下的调用数是读数不是成绩；本面按「关键事件不落在非周期楼外」验收，溢出条只推后不消失"}
+  flags {"zeroWrite":true,"malformedInput":false,"degraded":false,"profileKnown":true,"kind":"extraction_driver","version":1}
+  line 节奏 balanced · 即时 2 · 批处理 2（下一批 14 楼） · **未读到 1** · 补回错过 2 · 错过但无楼号 1 · 重生成补 1 楼
+--- profile low-cost
+  due [{"f":7,"s":["identity"],"t":["character","relation"],"w":"structural-immediate"},{"f":10,"s":["item"],"t":["item"],"w":"structural-immediate"}]
+  batched(all) [{"f":8,"due":16,"ov":false,"w":"chitchat-batched"},{"f":11,"due":16,"ov":false,"w":"chitchat-batched"}]
+  batchThisRound 2 overflowCount 0 batchThisRoundCount 2 deferredBatchCalls 0
+  overflowReason [8,11] | []
+  deferredTypes ["diary","reflect"]
+  periodicTypes 2 nextBatchFloor 16
+  unreadable [{"floor":9}] noFloor []
+  missed {"floors":[3,5],"count":2,"noFloor":1,"neverDropped":true,"why":"错过的楼一律带原楼号重新排队（「晚了」与「没了」处置相反）"}
+  regen {"scoped":true,"floors":[7],"types":[],"untouched":4,"why":"只补被改写段（未列出的楼一条不动）"}
+  readings {"considered":5,"structuralDue":2,"batched":2,"batchKept":2,"batchOverflow":0,"batchRequested":1,"deferredBatchCalls":0,"unreadable":1,"noFloor":0,"periodicTypes":2,"callsIfRun":3,"callsIfLegacy":4,"savedCalls":1,"missedRecovered":2,"structuralImmediate":true,"qualityNote":"省下的调用数是读数不是成绩；本面按「关键事件不落在非周期楼外」验收，溢出条只推后不消失"}
+  flags {"zeroWrite":true,"malformedInput":false,"degraded":false,"profileKnown":true,"kind":"extraction_driver","version":1}
+  line 节奏 low-cost · 即时 2 · 批处理 2（下一批 16 楼） · **未读到 1** · 补回错过 2 · 错过但无楼号 1 · 重生成补 1 楼 · 本档延后类型 diary,reflect
+===== E. 批处理溢出与不丢 =====
+manyChitchat considered 9 batched(all) 9 thisRound 4 overflow 5 overflowMarked 5 deferredCalls 2
+quality maxBatch1 kept 1 batchedAll 9 overflow 8 nextBatchFloor 10
+===== F. 档位未知 / 畸形入参 =====
+unknownProfile -> balanced profileKnown false rules {"batchEveryFloors":3,"maxBatch":3,"types":"all"}
+undefinedProfile -> false
+arrayInput {"malformedInput":true,"considered":0,"due":0,"zeroWrite":true}
+entriesNonArray {"malformedInput":true,"considered":0}
+noFloorInput nextBatchFloor null dueFloors [7,10]
+nullInput {"considered":0,"malformedInput":true,"degraded":false}
+regenNone {"scoped":false,"floors":[],"untouched":5,"why":"未给受改写范围 ⇒ 不产全量重抽计划（报 scoped:false，让调用方先圈范围）"}
+===== G. markers 注入（逐类覆盖） =====
+injectedIdentity [{"f":3,"s":["identity"]}]
+overrideKeepsOthers [{"f":3,"s":["commitment"]}]
+markersOf keys 7 0
+emptyMarkersDisables {"due":0,"batched":1,"kind":"chitchat-batched"}
+===== H. 即时性不可被档位降掉（反向对照） =====
+immediateByProfile {"quality":{"due":1,"batched":0,"readings":true},"balanced":{"due":1,"batched":0,"readings":true},"low-cost":{"due":1,"batched":0,"readings":true}}
+===== I. ED selfCheck / 幂等 =====
+selfCheck {"ok":true,"noWrite":true,"structuralImmediate":true,"chitchatKept":true,"emptyDistinct":true,"overflowKept":true,"deterministic":true,"serializable":true,"profiles":3}
+deterministic true
+serializable extraction_driver
+line.empty —（模块未产出读数） | 节奏安排异常（已降级，不外抛） | 模块未加载（extraction-driver.js）
+
+===== J. correction-plan 常量 =====
+CP_VERSION 1 CP_KIND correction_plan
+FACES config,data STAGES proposed,selected,rejected OUTCOMES added,kept,replaced,conflicted KINDS config,data,rerun
+UNDO_KINDS config-undo,fact-undo
+CLASS_CANDIDATES keys missed,misrecorded,wrong-role,stale-not-superseded,should-not-record
+CLASS_CANDIDATES spec {"missed":{"kind":"config","target":"extraction-trigger","measurable":true},"misrecorded":{"kind":"data","target":"extraction-content","measurable":true},"wrong-role":{"kind":"data","target":"identity-disambiguation","measurable":true},"stale-not-superseded":{"kind":"config","target":"fact-supersede","measurable":true},"should-not-record":{"kind":"config","target":"admission-gate","measurable":true}}
+extract-feedback PROBLEM_CLASSES 形态 array keys missed,misrecorded,wrong-role,stale-not-superseded,should-not-record
+keySetAligned true
+===== K. floorRange 六态 =====
+floorRange no-range => {"from":null,"to":null,"scoped":false,"known":false,"reversed":false,"explicit":null,"reason":"no-range"}
+floorRange empty-range => {"from":null,"to":null,"scoped":false,"known":false,"reversed":false,"explicit":null,"reason":"empty-range"}
+floorRange single => {"from":5,"to":5,"scoped":true,"known":true,"reversed":false,"explicit":null,"reason":""}
+floorRange single-str => {"from":7,"to":7,"scoped":true,"known":true,"reversed":false,"explicit":null,"reason":""}
+floorRange pair-array => {"from":3,"to":9,"scoped":true,"known":true,"reversed":false,"explicit":[3,9],"reason":""}
+floorRange pair-obj => {"from":3,"to":9,"scoped":true,"known":true,"reversed":false,"explicit":null,"reason":""}
+floorRange reversed => {"from":9,"to":3,"scoped":true,"known":false,"reversed":true,"explicit":null,"reason":"reversed-range"}
+floorRange endpoint-unreadable => {"from":null,"to":null,"scoped":false,"known":false,"reversed":false,"explicit":null,"reason":"endpoint-unreadable"}
+floorRange no-usable-floor => {"from":null,"to":null,"scoped":false,"known":false,"reversed":false,"explicit":null,"reason":"no-usable-floor"}
+floorRange dropped-unreadable => {"from":3,"to":9,"scoped":true,"known":true,"reversed":false,"explicit":[3,9],"reason":"dropped-unreadable:1"}
+floorRange unreadable-floor => {"from":null,"to":null,"scoped":false,"known":false,"reversed":false,"explicit":null,"reason":"unreadable-floor"}
+floorRange unsorted-array => {"from":3,"to":9,"scoped":true,"known":true,"reversed":false,"explicit":[3,5,9],"reason":""}
+===== L. planReextract 全读数 =====
+scope {"from":3,"to":5,"scoped":true,"known":true,"reversed":false,"explicit":null,"reason":""}
+items [{"k":"f1","f":3,"o":"replaced","d":"proposed","ev":true,"req":true},{"k":"f2","f":4,"o":"kept","d":"selected","ev":true,"req":false},{"k":"f4","f":4,"o":"added","d":"proposed","ev":false,"req":true},{"k":"f3","f":5,"o":"added","d":"rejected","ev":false,"req":false}]
+byOutcome {"added":2,"kept":1,"replaced":1,"conflicted":0}
+staged {"proposed":2,"selected":1,"rejected":1}
+untouched 1
+rewritten {"floors":[3,4],"noFloor":1,"declared":true,"why":"只补被改写段（未列出的楼一条不动）"}
+retry {"pending":1,"keys":["f9"],"idempotentByFactKey":true,"duplicatesPrevented":1,"nothingLostOnFailure":true}
+readings {"considered":8,"inScope":4,"outOfScope":1,"oldNoKey":0,"newNoKey":2,"newNoFloor":1,"evidenceIncomplete":2}
+flags {"writes":0,"applied":false,"zeroWrite":true,"scoped":true,"decidable":true,"malformedInput":false,"degraded":false,"kind":"correction_plan@reextract"}
+line 对照 新增 2 / 保留 1 / 替换 1 · 待确认 2 · 范围外未动 1 · 可重试 1
+===== M. 未圈范围 / 颠倒范围 / 端点读不到（三个「不产提案」） =====
+  noProposal null {"scoped":false,"decidable":false,"items":0,"writes":0,"untouched":3,"why":"范围未圈定（no-range）⇒ 不产全量重抽提案；「没选范围」不等于「全选」","scopeReason":"no-range"}
+  noProposal undefined {"scoped":false,"decidable":false,"items":0,"writes":0,"untouched":3,"why":"范围未圈定（no-range）⇒ 不产全量重抽提案；「没选范围」不等于「全选」","scopeReason":"no-range"}
+  noProposal empty {"scoped":false,"decidable":false,"items":0,"writes":0,"untouched":3,"why":"范围未圈定（empty-range）⇒ 不产全量重抽提案；「没选范围」不等于「全选」","scopeReason":"empty-range"}
+  noProposal reversed {"scoped":false,"decidable":false,"items":0,"writes":0,"untouched":3,"why":"范围未圈定（reversed-range）⇒ 不产全量重抽提案；「没选范围」不等于「全选」","scopeReason":"reversed-range"}
+  noProposal endpoint-null {"scoped":false,"decidable":false,"items":0,"writes":0,"untouched":3,"why":"范围未圈定（endpoint-unreadable）⇒ 不产全量重抽提案；「没选范围」不等于「全选」","scopeReason":"endpoint-unreadable"}
+  noProposal junk {"scoped":false,"decidable":false,"items":0,"writes":0,"untouched":3,"why":"范围未圈定（no-usable-floor）⇒ 不产全量重抽提案；「没选范围」不等于「全选」","scopeReason":"no-usable-floor"}
+inScope on unknown false false
+inScope explicit true false
+===== N. 幂等 / 只读（真跑对照） =====
+f3 items per run [1,1,1] duplicatesPrevented 1
+inputUnchanged true
+singleFloorScope {"scope":{"from":4,"to":4,"scoped":true,"known":true,"reversed":false,"explicit":null,"reason":""},"keys":["f2","f4"],"untouched":4}
+===== O. planConfigFix =====
+  trace absent => state absent proof unproven decidable false count 1 needsMeasure true countsMeasured false delta {"facts":null,"budget":null}
+     why: 无对照重跑读数（compare 缺席 / 未跑）⇒ 判不了，不编原因
+  trace unmeasurable => state unmeasurable proof unproven decidable false count 1 needsMeasure true countsMeasured false delta {"facts":null,"budget":null}
+     why: 对照重跑不可测（no-baseline）⇒ 不可测 ≠ 通过，不编原因
+  trace compareNotOk => state unmeasurable proof unproven decidable false count 1 needsMeasure true countsMeasured false delta {"facts":null,"budget":null}
+     why: 对照重跑不可测（未自述）⇒ 不可测 ≠ 通过，不编原因
+  trace measured+holdoutImproved => state measurable proof proven decidable true count 1 needsMeasure false countsMeasured true delta {"facts":-3,"budget":-2}
+     why: 对照可测 + 留出集真跑且改善
+  trace measured+holdoutNotImproved => state measurable proof overfit decidable true count 1 needsMeasure false countsMeasured true delta {"facts":0,"budget":0}
+     why: 对照可测但留出集未改善（含退化）⇒ 只优化了当前样本
+  trace measured+holdoutRegressed => state measurable proof overfit decidable true count 1 needsMeasure false countsMeasured true delta {"facts":2,"budget":1}
+     why: 对照可测但留出集未改善（含退化）⇒ 只优化了当前样本
+  trace measured+noHoldout => state measurable proof overfit decidable true count 1 needsMeasure false countsMeasured false delta {"facts":-1,"budget":null}
+     why: 对照可测但留出集未跑（measured 非 true）⇒ 同「未验」处置
+  trace measuredButNoNumbers => state measurable proof proven decidable true count 1 needsMeasure false countsMeasured false delta {"facts":null,"budget":null}
+     why: 对照可测 + 留出集真跑且改善
+multiCandidate {"count":2,"unknownClass":1,"ids":["fix-missed","fix-wrong-role"],"kinds":["config","data"],"targets":["extraction-trigger","identity-disambiguation"],"subs":[null,null]}
+undo {"kinds":["config-undo","fact-undo"],"separate":true,"configUndo":{"kind":"config-undo","token":"undo:config:42","what":"把参数改回改前的值","touchesFacts":false},"factUndo":{"kind":"fact-undo","token":"undo:fact:42","what":"把这次重提取落下的条目撤回并保留换代链","touchesConfig":false},"note":"撤配置不动事实，撤事实不动配置 —— 合成一个「撤销」会让人以为两件都回退了"}
+flags {"applied":false,"defaultAuto":false,"writes":0,"zeroWrite":true,"proof":"proven","decidable":true}
+compareDetail {"before":{"facts":10,"budget":5},"after":{"facts":7,"budget":3},"measured":true,"countsMeasured":true,"delta":{"facts":-3,"budget":-2}} proofWhy 对照可测 + 留出集真跑且改善
+line 候选 2 · 背书 proven · **归类未定 1** · 范围 3-3 · 自动应用 关
+noFeedback {"count":0,"reason":"no-feedback","decidable":false,"writes":0,"candidates":0,"undoSeparate":true,"kind":"correction_plan@config"}
+line.noFeedback 尚无提取反馈（无候选可产）
+line.noRead —（模块未产出读数） | —（模块未产出读数） | —（模块未产出读数）
+===== P. CP selfCheck / 幂等 / 序列化 =====
+selfCheck {"ok":true,"noWrite":true,"scopedOnly":true,"unwritten":true,"idempotent":true,"outcomesDistinct":true,"undoSeparate":true,"compareStates":true,"deterministic":true,"serializable":true}
+deterministic true
+serializable correction_plan@reextract
+line.empty —（模块未产出读数） | —（模块未产出读数） | —（模块未产出读数）
+
+===== Q. factKey / factValue 退化路径 =====
+factKey {"key":"K1"} => "K1" value ""
+factKey {"factId":"K2"} => "K2" value ""
+factKey {"id":"K3"} => "K3" value ""
+factKey {"predicate":"住在","subject":"珞花","floor":3} => "住在|珞花@3" value ""
+factKey {"pred":"住","who":"A","floor":null} => "住|A@?" value ""
+factKey {"kind":"event","actor":"B"} => "event|B@?" value ""
+factKey {} => "" value ""
+factKey null => "" value ""
+factKey "str" => "" value ""
+===== R. 恒定键面（早退面 vs 正常路径逐字同键） =====
+X9 键面同形 true 缺 —
+X9 normalKeys kind,version,face,scope,items,byOutcome,staged,untouched,rewritten,retry,readings,writes,applied,zeroWrite,scoped,decidable,why,malformedInput,degraded
+CFG 键面同形 true 缺 —
+CFG normalKeys kind,version,face,candidates,count,unknownClass,scope,undo,applied,defaultAuto,writes,zeroWrite,decidable,proof,compareState,reason,why,malformedInput,degraded
+ED null vs undefined malformedInput true false false
+CP null vs undefined malformedInput true false

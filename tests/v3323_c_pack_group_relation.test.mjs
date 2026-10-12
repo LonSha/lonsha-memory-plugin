@@ -701,10 +701,27 @@ test('v3323 F3. ★★★ 加载面：三个新模块各在 extra_js 恰一次�
         assert.ok(fs.existsSync(path.join(R, m)), m + ' 磁盘必须在场');
         assert.equal(MF.extra_js.filter((x) => x === m).length, 1, m + ' 须在 extra_js 恰好声明一次（不登记 = 浏览器不加载 = 面永远缺席）');
     }
-    assert.equal(MF.extra_js.length, 99, 'v3.323.0 C 包新增三模块：分发面 96 → 99，实 ' + MF.extra_js.length);
+    /* [v3.324.0 交棒] 原文是 `assert.equal(MF.extra_js.length, 99, ...)` ——
+     *   【硬锁出生版读数】：99 是 C 包那一刀的一次性事实，D 包新增两模块后
+     *   （99 → 101）它会翻红，而翻红的信息量只剩「数字不对」。本仓同族坑已定性三轮
+     *   （v3296 §8 总项数锁、v3321/v3322 交棒）。交棒**不弱化**：本档改守**下界**
+     *   （不低于出生时的 99），当版项数锁由 tests/v3324_d_pack_extraction_driver.test.mjs 的 F3 接管。 */
+    assert.ok(MF.extra_js.length >= 99,
+        'extra_js 项数不得低于本档出生时的 99（当版项数锁已交棒 v3324 F3），实 ' + MF.extra_js.length);
     assert.equal(new Set(MF.extra_js).size, MF.extra_js.length, 'extra_js 不得重复');
     assert.equal(MF.extra_js[0], 'ledger-entity.js', 'ledger-entity.js 仍须在 extra_js 首位（v3.207 不变量：六本账的真源先加载）');
-    assert.equal(MF.extra_js.slice(-3).join(','), MODS.join(','), '三新模块须追加在分发面末尾（加载序：消费方在后）');
+    /* [v3.324.0 交棒] 原文是 `assert.equal(MF.extra_js.slice(-3).join(','), MODS.join(','), ...)` ——
+     *   【把「在绝对末尾」当永久不变量】：D 包两模块（extraction-driver / correction-plan）
+     *   追加在末尾后，C 包三模块退到倒数第 5~3 位，该断言翻红而信息量只剩「位置不对」。
+     *   本条要守的不变量是「**消费方在后**」：C 包三模块须**连续**且整体位于末尾两模块之前。
+     *   新写法同时钉死「连续」与「先后」两件事（比原写法信息量更大），
+     *   当版绝对末尾锚（末尾须是 D 包两模块）由 v3324 F3 接管。 */
+    const tail5 = MF.extra_js.slice(-5);
+    assert.equal(tail5.slice(0, 3).join(','), MODS.join(','),
+        'C 包三模块须连续相邻（加载序上它们是一组消费方），实 ' + tail5.slice(0, 3).join(','));
+    assert.equal(tail5.slice(3).join(','), 'extraction-driver.js,correction-plan.js',
+        'D 包两模块须位于 C 包三模块之后（当版追加在末尾），实 ' + tail5.slice(3).join(','));
+
 });
 test('v3323 F4. ★★ 三模块导出面指纹与只读纪律（不 require 兄弟模块 / 不落盘）', () => {
     const grid = [

@@ -1,0 +1,49 @@
+A.slice.libs function _moduleLib(getGlobal, fileName) {|function _extractionDriverLib() {|function _correctionPlanLib() {
+A.slice.meths _extractionWindowFloors(message) {|extractionPlan(opts) {|_extractionDriverLine() {|correctionPlanReextract(input, opts) {|correctionPlanConfig(feedback, trace, opts) {|_correctionPlanLine() {
+B.extractionPlan.keysSame true
+B.extractionPlan.absentOkReason false/module-unavailable
+B.extractionPlan.keyCount 21
+B.correctionPlanReextract.keysSame true
+B.correctionPlanReextract.absentOkReason false/module-unavailable
+B.correctionPlanReextract.keyCount 21
+B.correctionPlanConfig.keysSame true
+B.correctionPlanConfig.absentOkReason false/module-unavailable
+B.correctionPlanConfig.keyCount 20
+B.line.absent 模块未加载（extraction-driver.js）
+B.line.absentCP 模块未加载（correction-plan.js）
+C.window {"n":5,"omitted":0,"noFloor":0,"from":0,"to":4}
+C.ed.ok true
+C.ed.readings {"considered":5,"structuralDue":2,"batched":3,"batchKept":3,"batchOverflow":0,"batchRequested":1,"deferredBatchCalls":0,"unreadable":0,"noFloor":0,"periodicTypes":0,"callsIfRun":3,"callsIfLegacy":5,"savedCalls":2,"missedRecovered":0,"structuralImmediate":true,"qualityNote":"省下的调用数是读数不是成绩；本面按「关键事件不落在非周期楼外」验收，溢出条只推后不消失"}
+C.ed.dueFloors [1,3]
+C.ed.batchedAll 3
+C.ed.line 节奏 balanced · 即时 0 · 批处理 0（到期楼层读不到） · 重生成范围未圈定
+C.ed.profileSwitch.nextBatchFloor 7->9
+C.ed.profileSwitch.sameDue true
+C.cp.ok true
+C.cp.byOutcome {"added":1,"kept":0,"replaced":1,"conflicted":0}
+C.cp.writes 0
+C.cp.line 重提取范围未圈定（不产提案） · 尚无提取反馈（无候选可产）
+C.cp.noRange.scoped false/false/items0
+C.cp.noRange.keysSame true
+C.cfg.states absent/unmeasurable/measurable
+C.cfg.proofs unproven/unproven/proven
+C.cfg.keysSame true
+C.cfg.noFeedback "no-feedback"
+C.cfg.line 重提取范围未圈定（不产提案） · 尚无提取反馈（无候选可产）
+D.omr.hasDriverCall true
+D.omr.callsPlan true
+D.omr.recordsRead true
+D.omr.triggerStillThere true
+D.omr.driverAfterTrigger true
+D.idx.libOnce 1
+D.idx.libOnce2 1
+E.cfg.declared true
+E.ui.control true
+E.idx.consumedInOmr true
+E.idx.consumedInExit true
+F.face.extractionDriver true
+F.face.correctionPlan true
+F.face.allPresent true
+F.face.distinct true
+F.face.noMergedLine true
+F.face.noGluedName true

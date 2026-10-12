@@ -1061,6 +1061,13 @@
                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.smartTriggerThreshold ?? 2}" data-cfg-num="smartTriggerThreshold">
                     <div class="ls-hint" style="padding:0 8px;">达到该分才判为值得抽取 LLM；bionic 缺省 2。调低更容易触发（省得少），调高更省（可能漏事件）。</div>
                     <textarea class="ls-textarea" data-cfg-text="smartTriggerPatterns" placeholder="自定义触发规则（每行一条正则，命中即加权 2 分）">${c.smartTriggerPatterns || ''}</textarea>
+                    <div class="ls-slider-label" style="margin-top:8px;"><span>抽取节奏档位</span><span class="ls-slider-val">${c.extractionProfile || 'balanced'}</span></div>
+                    <select class="ls-input" data-cfg-text="extractionProfile">
+                        <option value="quality" ${(c.extractionProfile || 'balanced') === 'quality' ? 'selected' : ''}>quality（每楼都抽，最贵）</option>
+                        <option value="balanced" ${(c.extractionProfile || 'balanced') === 'balanced' ? 'selected' : ''}>balanced（每 3 楼攒批一次，默认）</option>
+                        <option value="low-cost" ${(c.extractionProfile || 'balanced') === 'low-cost' ? 'selected' : ''}>low-cost（每 5 楼攒批，且只抽核心类型）</option>
+                    </select>
+                    <div class="ls-hint" style="padding:0 8px;">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">📢 回响池 + 日记 + 提取节流</div>

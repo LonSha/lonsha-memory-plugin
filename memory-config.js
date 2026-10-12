@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.323.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.324.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -321,6 +321,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             smartTriggerEnabled: false,    // 默认关：开启后仅「有事件性」的楼层走 LLM 提取，其余降级本地摘要
             smartTriggerThreshold: 2,      // 触发阈值（bionic 缺省 2；越低越容易触发）
             smartTriggerPatterns: '',      // 自定义触发规则（换行/逗号分隔的正则；命中即加权）
+            // [v3.324.0 · M3-O5] 抽取节奏档位（quality / balanced / low-cost）：决定**寒暄楼**
+            //   攒批的周期与一次吃下的条数。★ 结构性信号（身份/承诺/物品/关系/事件）**任何档位都即时** ——
+            //   档位只影响「平淡楼花不花 LLM」，永不影响「关键事件会不会被漏掉」。
+            //   未知值回落 balanced 并在诊断行如实标「档位未知已回落」（不静默当默认）。
+            extractionProfile: 'balanced',
             // [v3.111] 掉队候选补召回（缝合 bionic collectVectorTailCandidates）
             vectorTailRecoveryEnabled: false,  // 默认关：开启后把「无向量/零向量/维度不符」的条目低分补进候选池
             vectorTailRecoveryLimit: 8,        // 每轮最多补召回条数（防脏库灌爆候选池）

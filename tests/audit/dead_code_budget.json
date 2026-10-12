@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 65332,
+  "ceiling": 66462,
   "maxSlack": 400,
-  "note": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：新增三个运行时模块 relation-history.js / causal-chain.js / perspective-card.js 并全部进 manifest.extra_js（96 → 99，活跃代码文件 97 → 100），全为活跃功能增长、非死代码回流：实测 63705 → 64932，抬到实测 64932 + slack 400 = 65332。",
+  "note": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。",
   "history": [
     {
       "ceiling": 21000,
@@ -281,7 +281,11 @@
     {
       "ceiling": 65332,
       "reason": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：新增三个运行时模块 relation-history.js / causal-chain.js / perspective-card.js 并全部进 manifest.extra_js（96 → 99，活跃代码文件 97 → 100），全为活跃功能增长、非死代码回流：实测 63705 → 64932，抬到实测 64932 + slack 400 = 65332。"
+    },
+    {
+      "ceiling": 66462,
+      "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。"
     }
   ],
-  "_history_last": "ceiling 63705 → 65332（实测 64932 + slack 400）：[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：新增三个运行时模块 relation-history.js / causal-chain.js / perspective-card.js 并全部进 manifest.extra_js（96 → 99，活跃代码文件 97 → 100），全为活跃功能增长、非死代码回流：实测 63705 → 64932，抬到实测 64932 + slack 400 = 65332。"
+  "_history_last": "ceiling 65332 → 66462（实测 66062 + slack 400）：[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。"
 }

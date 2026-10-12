@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.323.0';
+    const VERSION = '3.324.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3104,6 +3104,115 @@ function relativeTimeLabel(eventTime, nowTime) {
         return PC.line(got);
         } catch (e) { errLog(e, 'engine._perspectiveCardLine'); return '—（诊断异常）'; }
         }
+        /** [v3.324.0 · M3-O5] 本轮的抽取窗口（最近若干楼）。番外楼不进窗口但**如实计数**：
+         *   「跳过番外」与「窗口里本来就没这几楼」在读数上必须不同形（I6）。 */
+        _extractionWindowFloors(message) {
+        try {
+        const chat = (typeof window !== 'undefined' && window.SillyTavern && typeof window.SillyTavern.getContext === 'function')
+        ? (((window.SillyTavern.getContext() || {}).chat) || []) : [];
+        const end = Number(message && message.index);
+        if (!Number.isFinite(end) || end < 0) return { entries: [], omitted: 0, noFloor: 0, from: 0, to: null };
+        const from = Math.max(0, end - 4);
+        const entries = [];
+        let omitted = 0;
+        let noFloor = 0;
+        for (let i = from; i <= end; i++) {
+        const m = chat[i];
+        if (!m) { noFloor++; continue; }
+        if (typeof this.isOmittedFloor === 'function' && this.isOmittedFloor(m)) { omitted++; continue; }
+        entries.push({ floor: i, text: m.mes || m.content || '' });
+        }
+        return { entries: entries, omitted: omitted, noFloor: noFloor, from: from, to: end };
+        } catch (e) { errLog(e, 'engine._extractionWindowFloors'); return { entries: [], omitted: 0, noFloor: 0, from: 0, to: null }; }
+        }
+        /**
+         * [v3.324.0 · M3-O5] **真出口**：抽取节奏安排（何时抽 / 哪些楼还没处理 / 重生成补哪段）。
+         *   与「门控读数」**分列**：门控行答「这一楼值不值得抽」，本出口答「按剧情变化该怎么排」。
+         *   纯算不写；模块缺席给**具名** reason（缺席不是「这一轮没什么可抽」）。
+         */
+        extractionPlan(opts) {
+        /* [v3.324.0 · D 包] **恒定键面**：缺席面必须与在场产出**逐字同键**（C 包同款纪律），
+         *   否则下游按 `readings.unreadable` 断言会在模块缺席时读到 undefined —— 那与 0 处置相反。
+         *   键序按内核 `ED.plan()` 的产出序，尾部补 ok/reason。 */
+        const absent = (why) => ({ kind: 'extraction_driver', version: 0, floor: null, profile: '', profileKnown: false, rules: {}, due: [], batched: [], batchThisRound: [], deferredTypes: [], nextBatchFloor: null, unreadable: [], noFloor: [], missed: { floors: [], count: 0, noFloor: 0, neverDropped: true, why: '' }, regen: { scoped: false, floors: [], types: [], untouched: 0, why: '' }, readings: {}, zeroWrite: true, malformedInput: false, degraded: false, ok: false, reason: why });
+        try {
+        const ED = _extractionDriverLib();
+        if (!ED || typeof ED.plan !== 'function') return absent('module-unavailable');
+        const o = opts || {};
+        const out = ED.plan({
+        floor: o.floor,
+        profile: (o.profile !== undefined ? o.profile : this.config.config.extractionProfile),
+        entries: Array.isArray(o.entries) ? o.entries : [],
+        cadenceActive: o.cadenceActive,
+        missedFloors: Array.isArray(o.missedFloors) ? o.missedFloors : [],
+        regenFloors: Array.isArray(o.regenFloors) ? o.regenFloors : []
+        }, { markers: o.markers });
+        const r = Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        this._extractionDriverRead = r;
+        return r;
+        } catch (e) { errLog(e, 'engine.extractionPlan'); return absent('thrown'); }
+        }
+        /** [v3.324.0 · M3-O5] 诊断一行。即时 / 攒批 / 未读到 / 补回错过 分开说。
+         *   ★ **真跑出口**（与 C 包 `_relationHistoryLine` 逐字同范式）：出口必须有真实调用者，
+         *     「导出了但只等别人来问」= 本仓定性的功能级失效（导出即摆设）。 */
+        _extractionDriverLine() {
+        try {
+        const ED = _extractionDriverLib();
+        if (!ED || typeof ED.line !== 'function') return '模块未加载（extraction-driver.js）';
+        const got = this.extractionPlan({});
+        if (!got.ok) return '抽取节奏不可用（' + got.reason + '）';
+        return ED.line(got);
+        } catch (e) { errLog(e, 'engine._extractionDriverLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.324.0 · M3-O7 + M3-X9] **真出口（数据面）**：局部重提取提案 —— 与原文逐条对照。
+         *   四态**各自可达**（新增 / 保留 / 替换 / 冲突）；未圈范围 ⇒ 不产全量提案（`scoped:false`）。
+         *   确认前不写（`writes` 恒 0）：这是提案面，不是执行面。
+         */
+        correctionPlanReextract(input, opts) {
+        /* [v3.324.0 · D 包] **恒定键面**：键序按内核 `CP.planReextract()` 的产出序，尾部补 ok/reason。 */
+        const absent = (why) => ({ kind: 'correction_plan@reextract', version: 0, face: 'data', scope: {}, items: [], byOutcome: { added: 0, kept: 0, replaced: 0, conflicted: 0 }, staged: { proposed: 0, selected: 0, rejected: 0 }, untouched: 0, rewritten: { floors: [], noFloor: 0, declared: false, why: '' }, retry: { pending: 0, keys: [], idempotentByFactKey: true, duplicatesPrevented: 0, nothingLostOnFailure: true }, readings: {}, writes: 0, applied: false, zeroWrite: true, scoped: false, decidable: false, why: '', malformedInput: false, degraded: false, ok: false, reason: why });
+        try {
+        const CP = _correctionPlanLib();
+        if (!CP || typeof CP.planReextract !== 'function') return absent('module-unavailable');
+        const out = CP.planReextract(input, opts || {});
+        const r = Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        this._correctionPlanRead = r;
+        return r;
+        } catch (e) { errLog(e, 'engine.correctionPlanReextract'); return absent('thrown'); }
+        }
+        /**
+         * [v3.324.0 · M3-O7 + M3-X9] **真出口（配置面）**：改哪儿 + 撤的是什么。
+         *   ★ 对照三态**互不同形**：absent（还没跑过）/ unmeasurable（跑了判不了）/ measurable；
+         *     撤配置与撤事实**分成两个 token**（合成一个「撤销」会让人以为两件都回退了）。
+         */
+        correctionPlanConfig(feedback, trace, opts) {
+        /* [v3.324.0 · D 包] **恒定键面**：键序按内核 `CP.planConfigFix()` 的产出序（含 reason/why 两格），
+         *   尾部补 ok。缺席时 `reason` 承载缺席归因（在场时它承载内核自述，通常为空串）。 */
+        const absent = (why) => ({ kind: 'correction_plan@config', version: 0, face: 'config', candidates: [], count: 0, unknownClass: 0, scope: null, undo: { kinds: [], separate: true, configUndo: {}, factUndo: {}, note: '' }, applied: false, defaultAuto: false, writes: 0, zeroWrite: true, decidable: false, proof: 'unproven', compareState: 'absent', reason: why, why: '', malformedInput: false, degraded: false, ok: false });
+        try {
+        const CP = _correctionPlanLib();
+        if (!CP || typeof CP.planConfigFix !== 'function') return absent('module-unavailable');
+        const out = CP.planConfigFix(Array.isArray(feedback) ? feedback : [], trace || null, opts || {});
+        const r = Object.assign({}, out, { ok: true });
+        this._correctionPlanRead = r;
+        return r;
+        } catch (e) { errLog(e, 'engine.correctionPlanConfig'); return absent('thrown'); }
+        }
+        /** [v3.324.0 · M3-O7 + M3-X9] 诊断一行。**两面都真跑、都报**：
+         *   配置面答「改哪儿、撤的是配置还是事实」，数据面答「补哪段、跟原文逐条对上了没有」——
+         *   只报一面会让另一面在诊断台上根本不存在（用户在面板上看不见 = 这个能力不存在）。
+         *   ★ **真跑出口**（与 C 包同范式）：两个出口因此各自有真实调用者。 */
+        _correctionPlanLine() {
+        try {
+        const CP = _correctionPlanLib();
+        if (!CP || typeof CP.line !== 'function') return '模块未加载（correction-plan.js）';
+        const data = this.correctionPlanReextract({}, {});
+        const cfg = this.correctionPlanConfig([], null, {});
+        if (!data.ok && !cfg.ok) return '纠错方案不可用（' + data.reason + '）';
+        return CP.line(data) + ' · ' + CP.line(cfg);
+        } catch (e) { errLog(e, 'engine._correctionPlanLine'); return '—（诊断异常）'; }
+        }
         /**
          * [v3.306.0 · M-O8] 秘密注入侧隔离读数（诊断面用；纯读、不抛）。
          * 与「认知隔离提示」分列：那一面答「他此前不在场、还不知情」，
@@ -3783,6 +3892,32 @@ function relativeTimeLabel(eventTime, nowTime) {
                         }
                     } catch (e) { errLog(e, 'onMessageReceived.事件性门控'); }
                 }
+                /* [v3.324.0 · M3-O5] **真每轮调用点**：本轮窗口 + 档位 → 抽取节奏安排。
+                 *   为什么落在这里而不是只等诊断面来问：节奏安排是「这一楼的关键事件会不会
+                 *   落在周期楼外」的上游判据，等诊断面按需算，等于用户问的时候才算得动。
+                 *   ★ 本段**只算不写**：门控判定的结果、提取锁、摘要降级路径一条都不动 ——
+                 *     它是**读数**，不是第二套调度器（本仓「导出即摆设」的老坑）。
+                 *   ★ 算不出来如实记 `ok:false/reason`：缺席与「这一轮没什么可抽」不同形。 */
+                try {
+                    const _ED = _extractionDriverLib();
+                    if (_ED && typeof _ED.plan === 'function') {
+                        const _win = this._extractionWindowFloors(message);
+                        const _edOut = _ED.plan({
+                            floor: message.index || 0,
+                            profile: this.config.config.extractionProfile,
+                            entries: _win.entries,
+                            missedFloors: Array.from(this._lockDegradePending || []),
+                            regenFloors: Array.isArray(this._regenFloors) ? this._regenFloors : []
+                        }, {});
+                        this._extractionDriverRead = Object.assign({}, _edOut, { ok: true, reason: _edOut.degraded ? 'degraded' : '' });
+                        this._extractionWindowRead = { omitted: _win.omitted, noFloor: _win.noFloor, from: _win.from, to: _win.to };
+                        if (this.config.config.debugMode) {
+                            console.log(`[${PLUGIN_NAME}] [v3.324.0] 抽取节奏 ${_edOut.profile}: 即时 ${_edOut.readings.structuralDue} / 攒批 ${_edOut.readings.batched} / 未读到 ${_edOut.readings.unreadable}`);
+                        }
+                    } else {
+                        this._extractionDriverRead = { ok: false, reason: 'module-unavailable' };
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.抽取节奏'); this._extractionDriverRead = { ok: false, reason: 'thrown' }; }
                 if (!extracted) {
                     if (_triggerDecision && _triggerDecision.triggered === false) {
                         // [v3.171] 空读 ≠ 平淡楼：前者是「根本没读到内容」，此时既不该花 LLM，
@@ -11682,6 +11817,38 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         return ['视角卡', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.perspectiveCard'); return ['视角卡', '—（诊断异常）']; }
                         })(),
+                        // [v3.324.0 · M3-O5] 抽取节奏体检面：与「门控读数」**分列**。
+                        //   门控行答「这一楼值不值得花 LLM」，本行答「按剧情变化该怎么排」——
+                        //   合成一行会让「这一楼平淡」与「关键事件被推到周期楼外」共用一个提示位。
+                        //   报警只认两条真损失：未读到（内容都没读到 ⇒ 不是「没什么可抽」）
+                        //   与「错过但无楼号」（补不回来 ≠ 补得回来）。
+                        (() => {
+                        try {
+                        const line = (typeof this._extractionDriverLine === 'function') ? this._extractionDriverLine() : '—';
+                        const r = this._extractionDriverRead;
+                        const bad = !!(r && r.ok && ((Number(r.readings && r.readings.unreadable) || 0) > 0
+                        || (Number(r.missed && r.missed.noFloor) || 0) > 0));
+                        return ['抽取节奏', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.extractionDriver'); return ['抽取节奏', '—（诊断异常）']; }
+                        })(),
+                        // [v3.324.0 · M3-O7 + M3-X9] 纠错方案体检面：与「提取反馈」**分列**。
+                        //   反馈行答「提取错在哪一类、建议有没有据」，本行答「改哪 / 补哪段 /
+                        //   撤的是配置还是事实」并报与原文的对照四态。
+                        //   报警只认两条真损失：归类未定（收了反馈但归不出面）与冲突对照
+                        //   （同一事实两个值 —— 混进「替换」就等于把「改了口径」当「更新了一版」）。
+                        (() => {
+                        try {
+                        const line = (typeof this._correctionPlanLine === 'function') ? this._correctionPlanLine() : '—';
+                        /* ★ 判据取**两面真跑的返回值**而不是共用的缓存格：
+                         *   两个出口共写 `_correctionPlanRead`，只看缓存会让 bad 由「最后一次写入者」决定
+                         *   —— 数据面报过的冲突对照会因为随后一次配置面调用而被抹掉。 */
+                        const _rx = (typeof this.correctionPlanReextract === 'function') ? this.correctionPlanReextract({}, {}) : null;
+                        const _cf = (typeof this.correctionPlanConfig === 'function') ? this.correctionPlanConfig([], null, {}) : null;
+                        const bad = !!((_rx && _rx.ok && (Number(_rx.byOutcome && _rx.byOutcome.conflicted) || 0) > 0)
+                        || (_cf && _cf.ok && (Number(_cf.unknownClass) || 0) > 0));
+                        return ['纠错方案', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.correctionPlan'); return ['纠错方案', '—（诊断异常）']; }
+                        })(),
                     /* [v3.315.0 · M-X5] 知识传播预演体检面：与「知识轨迹」**分列**。
                      *   轨迹面答**过去**（这条知识在第几楼、从谁、经哪条证据取得的），
                      *   本行答**事前**（若按这条路传播，谁的认知会从哪一格变到哪一格）——
@@ -16736,6 +16903,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   把「我们没记过」显示成「该角色确实不知道」，正是本仓最贵的那类无据断言。
     function _perspectiveCardLib() {
     return _moduleLib(() => window.LonShaPerspectiveCard, 'perspective-card.js');
+    }
+    // [v3.324.0 · M3-O5] 抽取节奏安排（extraction-driver.js）。为什么需要：
+    //   既有「事件性门控」只答**这一楼**值不值得花一次 LLM，答不了 M3-O5 点名的三问 ——
+    //   ① 关键事件落在非周期楼时会不会被漏掉（修前全靠「每楼都抽」或靠人记）；
+    //   ② 连续寒暄为什么不每次全类型请求；③ 错过的楼/重生成段从哪儿补回来。
+    //   本模块只产**可复算的安排**（何时抽 / 哪些楼没处理 / 重生成补哪段），
+    //   **纯函数零写**、不改图、不改账、不替门控做决定。
+    function _extractionDriverLib() {
+    return _moduleLib(() => window.LonShaExtractionDriver, 'extraction-driver.js');
+    }
+    // [v3.324.0 · M3-O7 + M3-X9] 纠错方案（correction-plan.js）。为什么需要：
+    //   既有「提取反馈」答的是**错在哪一类**、建议有没有据；它答不了打补丁时真正的两问 ——
+    //   ① 改哪（配置面）/ 补哪一段（数据面），两者**不是一件事**（合成一个「纠错」会让人
+    //      以为改配置顺便重写了历史事实）；② 重提取之后**跟原文逐条对上了没有**
+    //      （新增 / 保留 / 替换 / 冲突四态各自可达，冲突不得被吞进「替换」）。
+    //   本模块只产**待确认的提案**（`writes` 恒 0）：确认前一个字节都不落盘。
+    function _correctionPlanLib() {
+    return _moduleLib(() => window.LonShaCorrectionPlan, 'correction-plan.js');
     }
     function _eventCompletenessLib() {
         return _moduleLib(() => window.LonShaEventCompleteness, 'event-completeness.js');

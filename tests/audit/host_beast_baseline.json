@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.323.0",
+ "measured_at": "v3.324.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1755,6 +1755,38 @@
     "member_count": 11,
     "top5_pct": -0.1
    }
+  },
+  "v3.324.0": {
+   "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取对照）：extraction-driver / correction-plan 两模块各自的取库口 + 三个出口成员 + 真每轮调用点（onMessageReceived 门控之后，只算不写、不改门控判定）+ 两诊断行真跑出口 + 自检面两行，并新增配置旋钮 extractionProfile（UI → 方法体内提及 → 有调用者，两跳可达）；另含一处内核真缺陷修复（纠错方案配置面 proofWhy 在对照读数缺失时改为防御性取值，由本版真源码破坏负控制当场抓出）。全为活跃功能增长、非死代码回流：宿主 18232 → 18417，成员 680 → 686。行数上界按「实测 + slack」贴回；成员面 686 <= 现有上界 710 仍在线内，按 v3.322.0 先例**不抬**（在线内就不抬，由脚本断言把关）。",
+   "readings": {
+    "total_lines": 18417,
+    "member_count": 686,
+    "duplicate_member_names": 25,
+    "top5_lines": 4943,
+    "top5_pct": 26.8,
+    "top40_lines": 10672,
+    "top40_pct": 57.9,
+    "prefix_rule_coverage_lines": 5346,
+    "prefix_rule_coverage_pct": 29.0,
+    "unclassified_lines": 12100,
+    "seam_distinct_modules": 70,
+    "seam_reference_sites": 96,
+    "seam_call_shape_sites": 100,
+    "members_over_80_lines": 35,
+    "low_coupling_members": 24,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.323.0",
+   "delta": {
+    "total_lines": 185,
+    "member_count": 6,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1766,19 +1798,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 18232,
-  "member_count": 680,
+  "total_lines": 18417,
+  "member_count": 686,
   "duplicate_member_names": 25,
-  "top5_lines": 4885,
+  "top5_lines": 4943,
   "top5_pct": 26.8,
-  "top40_lines": 10596,
-  "top40_pct": 58.1,
-  "prefix_rule_coverage_lines": 5288,
+  "top40_lines": 10672,
+  "top40_pct": 57.9,
+  "prefix_rule_coverage_lines": 5346,
   "prefix_rule_coverage_pct": 29.0,
-  "unclassified_lines": 11973,
-  "seam_distinct_modules": 68,
-  "seam_reference_sites": 94,
-  "seam_call_shape_sites": 98,
+  "unclassified_lines": 12100,
+  "seam_distinct_modules": 70,
+  "seam_reference_sites": 96,
+  "seam_call_shape_sites": 100,
   "members_over_80_lines": 35,
   "low_coupling_members": 24,
   "high_coupling_members": 7
@@ -1786,36 +1818,36 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 637,
-   "lines": 11973,
+   "members": 643,
+   "lines": 12100,
    "lines_pct": 65.7,
-   "outside_refs": 6250,
-   "internal_refs": 1826,
-   "outside_ref_share_pct": 77.4
+   "outside_refs": 6307,
+   "internal_refs": 1848,
+   "outside_ref_share_pct": 77.3
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
-   "lines": 1884,
-   "lines_pct": 10.3,
+   "lines": 1910,
+   "lines_pct": 10.4,
    "outside_refs": 5,
-   "internal_refs": 75,
-   "outside_ref_share_pct": 6.3
+   "internal_refs": 76,
+   "outside_ref_share_pct": 6.2
   },
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1601,
-   "lines_pct": 8.8,
-   "outside_refs": 357,
-   "internal_refs": 459,
-   "outside_ref_share_pct": 43.8
+   "lines": 1633,
+   "lines_pct": 8.9,
+   "outside_refs": 363,
+   "internal_refs": 455,
+   "outside_ref_share_pct": 44.4
   },
   {
    "domain": "召回与注入",
    "members": 13,
    "lines": 1034,
-   "lines_pct": 5.7,
+   "lines_pct": 5.6,
    "outside_refs": 5,
    "internal_refs": 67,
    "outside_ref_share_pct": 6.9
@@ -1833,7 +1865,7 @@
    "domain": "桥/快照出口",
    "members": 2,
    "lines": 211,
-   "lines_pct": 1.2,
+   "lines_pct": 1.1,
    "outside_refs": 3,
    "internal_refs": 4,
    "outside_ref_share_pct": 42.9
@@ -1878,13 +1910,13 @@
  "biggest_members_top40": [
   {
    "name": "onMessageReceived",
-   "lines": 1335,
+   "lines": 1361,
    "outside_refs": 2
   },
   {
    "name": "selfCheck",
-   "lines": 1204,
-   "outside_refs": 46
+   "lines": 1236,
+   "outside_refs": 52
   },
   {
    "name": "buildInjection",
@@ -1903,7 +1935,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 491,
+   "lines": 509,
    "outside_refs": 0
   },
   {
@@ -2029,7 +2061,7 @@
   {
    "name": "summary",
    "lines": 100,
-   "outside_refs": 237
+   "outside_refs": 238
   },
   {
    "name": "_repairPool",
@@ -2091,7 +2123,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 491,
+    "lines": 509,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -2159,8 +2191,8 @@
   "high_coupling_examples": [
    {
     "name": "selfCheck",
-    "lines": 1204,
-    "outside_refs": 46,
+    "lines": 1236,
+    "outside_refs": 52,
     "is_host_lifecycle": false
    },
    {
@@ -2196,7 +2228,7 @@
    {
     "name": "summary",
     "lines": 100,
-    "outside_refs": 237,
+    "outside_refs": 238,
     "is_host_lifecycle": false
    }
   ]
@@ -2237,9 +2269,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 18632,
+  "ceiling": 18817,
   "maxSlack": 400,
-  "note": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：relation-history / causal-chain / perspective-card 三模块各自的取库口 + 唯一装配点 + 出口成员（含一处恒定键面修复：三出口缺席面按在场键序重排 + 补 version/degraded + 时点面补 floor/floorKnown）接进宿主，全为活跃功能增长、非死代码回流：宿主 18003 → 18232。行数上界按「实测 + slack」贴回（同时把 v3.321.0 四条接线越过 17801 的欠账一并结清）；成员上界抬到实测 680 + slack（v3.322.0 时 669 <= 675 仍在线内故未抬，本版真实接线越过 675）。",
+  "note": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取对照）：extraction-driver / correction-plan 两模块各自的取库口 + 三个出口成员 + 真每轮调用点（onMessageReceived 门控之后，只算不写、不改门控判定）+ 两诊断行真跑出口 + 自检面两行，并新增配置旋钮 extractionProfile（UI → 方法体内提及 → 有调用者，两跳可达）；另含一处内核真缺陷修复（纠错方案配置面 proofWhy 在对照读数缺失时改为防御性取值，由本版真源码破坏负控制当场抓出）。全为活跃功能增长、非死代码回流：宿主 18232 → 18417，成员 680 → 686。行数上界按「实测 + slack」贴回；成员面 686 <= 现有上界 710 仍在线内，按 v3.322.0 先例**不抬**（在线内就不抬，由脚本断言把关）。",
   "history": [
    {
     "ceiling": 15000,
@@ -2286,6 +2318,11 @@
    {
     "ceiling": 18632,
     "reason": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：relation-history / causal-chain / perspective-card 三模块各自的取库口 + 唯一装配点 + 出口成员（含一处恒定键面修复：三出口缺席面按在场键序重排 + 补 version/degraded + 时点面补 floor/floorKnown）接进宿主，全为活跃功能增长、非死代码回流：宿主 18003 → 18232。行数上界按「实测 + slack」贴回（同时把 v3.321.0 四条接线越过 17801 的欠账一并结清）；成员上界抬到实测 680 + slack（v3.322.0 时 669 <= 675 仍在线内故未抬，本版真实接线越过 675）。",
+    "member_ceiling": 710
+   },
+   {
+    "ceiling": 18817,
+    "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取对照）：extraction-driver / correction-plan 两模块各自的取库口 + 三个出口成员 + 真每轮调用点（onMessageReceived 门控之后，只算不写、不改门控判定）+ 两诊断行真跑出口 + 自检面两行，并新增配置旋钮 extractionProfile（UI → 方法体内提及 → 有调用者，两跳可达）；另含一处内核真缺陷修复（纠错方案配置面 proofWhy 在对照读数缺失时改为防御性取值，由本版真源码破坏负控制当场抓出）。全为活跃功能增长、非死代码回流：宿主 18232 → 18417，成员 680 → 686。行数上界按「实测 + slack」贴回；成员面 686 <= 现有上界 710 仍在线内，按 v3.322.0 先例**不抬**（在线内就不抬，由脚本断言把关）。",
     "member_ceiling": 710
    }
   ],
