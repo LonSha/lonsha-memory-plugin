@@ -271,6 +271,10 @@ const REGISTRY = [
     /* [v3.323.0 C 包记忆侧] 本档从 tests/_break_kit.mjs 取 breakOnce（真源码破坏），
      *   按 B1 台账纪律（接入面 == 磁盘事实）在此登记。 */
     'v3323_c_pack_group_relation.test.mjs',
+    /* [v3.324.0 D 包] 本档从 tests/_break_kit.mjs 取 breakOnce（13 条真源码破坏：
+     *   7 条打在 extraction-driver.js / correction-plan.js 两内核上、6 条打在 index.js 宿主接线上）；
+     *   按 B1 台账纪律在此登记。 */
+    'v3324_d_pack_extraction_driver.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
