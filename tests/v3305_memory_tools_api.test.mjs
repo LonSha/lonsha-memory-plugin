@@ -554,7 +554,12 @@ test('v3305 D1~D2. ★★★★ 宿主接线逐符号在场 + 外供登记表不
     const syms = cols[3].split('::')[1].split(',');
     const names = T.CAPABILITIES.map((c) => c.name);
     for (const n of names) assert.ok(syms.indexOf(n) >= 0, '登记行缺出口符号：' + n);
-    assert.equal(cols[5], 'none@0', 'downstream 桥未接入 ⇒ 如实写 none@0（不假装已在消费）');
+    /* [v3.97.0 · 跨仓对账] 下游 ruby-phone 已接入本面（R3-X2：config/memory-qa-contract.js
+     *   的 readMemoryToolsEnvelope，产品侧消费点 ≥1）。故此处由 none@0 改为**真读数**：
+     *   出口名 @ 下游产品侧消费点下限。判据仍是「如实写」——只是事实变了。
+     *   反向纪律：若下游撤回接入，本行必须同步退回 none@0（`upstream-face-audit` 的 R11 会以
+     *   「台账里登记了不存在的分歧」转红，逼这条同步）。 */
+    assert.equal(cols[5], 'readMemoryToolsEnvelope@1', 'downstream 已接入 ⇒ 如实写出口名@下限（不假装还在等）');
     for (const w of ['缺席', '旧版', '不产出', '空数据']) assert.ok(cols[6].includes(w), '失效条件缺四态词：' + w);
     assert.ok(/[|｜/]/.test(cols[8]), '缺席与空必须分形列出');
     /* 模块必须在分发面（不然「建好了但没上线」与「没建」在用户侧同形）。 */

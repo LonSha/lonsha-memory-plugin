@@ -32,7 +32,14 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
     // A 观测层接在 recallMemory 唯一收口（intentRerank 之后）
     const irIdx = src.indexOf('const finalMerged = this.intentRerank(merged, query.text);');
     const auditIdx = src.indexOf('this._auditRecall(query, results, finalMerged)', irIdx);
-    assert.ok(irIdx > 0 && auditIdx > irIdx && auditIdx < irIdx + 400, 'A 审计接在 intentRerank 后');
+    /* [v3.322.0 交棒] 原判据带 `auditIdx < irIdx + 400` 坐桩窗口，B 包在两者之间合法插入
+     *   M3-O1 召回融合块后窗口失效（读数只剩「数字不够小」）。改判真结构：审计须落在
+     *   intentRerank 之后、**同一个收尾块**（_finalize 声明点）之内，且重排到收尾块之间无 await。 */
+    const _fz = src.indexOf('const _finalize = () => {', irIdx);
+    assert.ok(irIdx > 0 && auditIdx > irIdx && _fz > irIdx && auditIdx > _fz,
+        `A 审计须接在 intentRerank 之后、同一收尾块内（重排@${irIdx} / 收尾块@${_fz} / 审计@${auditIdx}）`);
+    assert.ok(!/await\s/.test(src.slice(irIdx, _fz)),
+        '重排到收尾块之间不得出现 await（避免审计被挪到异步之后）');
     // A 渲染进 selfCheck
     const scIdx = src.indexOf("['楼层账本',");
     const renderIdx = src.indexOf("['召回自检',", scIdx);

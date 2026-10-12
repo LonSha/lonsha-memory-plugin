@@ -140,7 +140,17 @@ test('【B1】收尾三段顺序：本地重排 → 审计 → 精排（v3150 �
     const au = idxSrc.indexOf('const rec = this._auditRecall(query, results, finalMerged);', ir);
     const rr = idxSrc.indexOf('const order = await this.llm.rerank(_rq, candidates);', ir);
     assert.ok(ir > 0 && au > ir && rr > au, `三段顺序必须为 重排@${ir} < 审计@${au} < 精排@${rr}`);
-    assert.ok(au - ir < 400, '审计仍在收尾块内（距重排 ' + (au - ir) + ' 字符）');
+    /* [v3.322.0 交棒] 原文是 `au - ir < 400` —— 一个**坐桩距离**。B 包在 intentRerank 与
+     *   审计之间合法插入了 M3-O1 召回融合块（30 行），距离涨到 1.4k；翻红读数只剩「数字不够小」，
+     *   与 v3.166 在同族判据上已记过的结论一致：坐桩距离是形状、不是不变量。
+     *   本档真正要守的是三件事，改判真结构：①收尾块声明点落在重排与审计之间；②重排到收尾块
+     *   之间不存在 `await`（有则审计已被挪到异步之后，属真缺陷）；③审计在收尾块声明点之后
+     *   （即仍在块内，而不是游离到块外的第二处调用）。 */
+    const fz = idxSrc.indexOf('const _finalize = () => {', ir);
+    assert.ok(fz > ir && fz < au,
+        `收尾块声明点须落在重排@${ir} 与审计@${au} 之间（实得 fz=${fz}）`);
+    assert.ok(!/await\s/.test(idxSrc.slice(ir, fz)),
+        '重排到收尾块之间不得出现 await（审计一旦被挪到异步之后即脱离收尾块）');
     assert.equal(idxSrc.split(IR_ANCHOR).length - 1, 1, '收尾只有一处');
 });
 
