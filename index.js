@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.320.0';
+    const VERSION = '3.322.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7784,6 +7784,25 @@ function relativeTimeLabel(eventTime, nowTime) {
             // [v3.249.0] M-O1：重排结果**就地**落在 `finalMerged`（不另建数组），
             //   于是「收尾顺序 = 上游最后一次重排的顺序」这条语义对四条路径是同一份。
             const finalMerged = this.intentRerank(merged, query.text);
+            /* [v3.321.0 · M3-O1] 融合优化（语义重复抑制 / 角色事件覆盖 / 未结保底）。
+             *   位置：**intentRerank 之后、_finalize 之前** —— 上游三条提权（crosslink /
+             *   情绪反向 / 意图分流）都已落位完毕，这里改的是「最终名次」；
+             *   放在它们之前会改到不存在的名次（v3185/v3186 锁的正是这个次序纪律）。
+             *   就地改序（splice）而不是另建数组：`_finalize` 与精排段引用的是同一个
+             *   `finalMerged`，换引用会让它们读到旧数组。 */
+            try {
+                if (this.unifiedRecall && typeof this.unifiedRecall.fuseCandidates === 'function') {
+                    this._fusionCarry = {};
+                    /* 刻意**不传 budget**：注入预算的 owner 是既有注入面（它有自己的截断与账），
+                     *   召回侧再截一次就是第二个预算真源。本面只改名次、不改条目数。 */
+                    const _fused = this.unifiedRecall.fuseCandidates(finalMerged, {
+                        queryText: query.text
+                    }, this._fusionCarry);
+                    if (Array.isArray(_fused)) finalMerged.splice(0, finalMerged.length, ..._fused);
+                } else {
+                    this._fusionCarry = null;   /* 模块缺席：不伪装成「融合了 0 条」，诊断行会说 */
+                }
+            } catch (e) { errLog(e, 'recall.fuseCandidates'); this._fusionCarry = null; }
             // [v3.249.0] M-O1 唯一收尾出口：LLM 精排成功不再提前 return（原因见 CHANGELOG）
             const _finalize = () => {
                 if (this.config.config.recallAuditEnabled) {
@@ -11831,6 +11850,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.evidenceQuery'); return ['证据查询', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.321.0 · M3-X1] 带证据问答：回答「问句能拆成哪几条受控查询、答案每句
+                     *   回不回得到源、有几处是具名缺口」。与上面「证据查询」行**分列**：
+                     *   那一行答「能按什么查、查的时候能看到多少」，本行答「问出来的答案
+                     *   有没有出处、哪几句答不出」——压成一行会让「没查过」与「问了没答出」
+                     *   同形（正是 X1/X9 那一族要治的）。
+                     *   三态可分：模块未加载 / 面在位未问过 / 上次读数（含缺口数）。 */
+                    (() => {
+                        try {
+                            const Q = _evidenceQueryLib();
+                            if (!Q || typeof Q.planQuestion !== 'function' || typeof this.memoryQaLine !== 'function') {
+                                return ['记忆问答', '模块未加载（evidence-query.js）'];
+                            }
+                            const body = this.memoryQaLine();
+                            return ['记忆问答', body];
+                        } catch (e) { errLog(e, 'selfCheck.memoryQa'); return ['记忆问答', '—（诊断异常）'];
+                        }
+                    })(),
                     // [v3.207] 账本实体契约：回答「六本账有多少条目、多少被替代过、有没有读不出修订号的」。
                     //   这行同时是 `item.revision` 的**首个真实读侧** —— 此前它写进去但全仓无人读。
                     //   三态可分：模块未加载 / 尚无条目 / 有账（未定型条目数 > 0 才亮 ⚠️）。
@@ -14403,6 +14439,198 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.evidenceQueryLine'); return '—（诊断异常）'; }
         }
         /* ────────────────────────────────────────────────────────────────
+         * [v3.321.0 · M3-X1] 带证据的自然语言记忆问答（宿主接线，一出口 + 一装配点 + 一行诊断）
+         *
+         * 【为什么宿主只做三件事、绝不自己算】（与 X9 / M-X1 两处同规格）
+         *   ① **装配**：`_qaKnownActors()` 是「已知人名」的唯一装配点；
+         *   ② **转发**：问句交给内核 `planQuestion` 规划、逐条计划跑**既有**查询、
+         *      已许可的结果行交给内核 `composeAnswer` 合成；宿主不改写内核返回值；
+         *   ③ **降级**：内核整个不可达时给**同键形状**回执（不是投影真源）。
+         *   凡「哪条算命中 / 什么算未结 / 认不出人名怎么办」——口径全在内核；
+         *   宿主再写一遍就是第二份真源（本仓治理过多轮的形态）。
+         *
+         * 【不扩权（M3-X1 验收原文「导出/手机显示不扩权」）】
+         *   出口只回**合成句 + 逐条计划的读数**（total / state / why / refs），
+         *   **不回 rows** —— 回 rows 等于把查询面整个再外供一次，
+         *   而遮蔽行的正文正是 M-O8 第二刀花了一整刀从外供结构里摘掉的东西。
+         *
+         * 【不进快照】
+         *   与 X9 / M-X1 同因：本面**按需调用**（一次回答要扫九账全量），
+         *   塞进每轮快照 = 每轮付一遍扫描代价，且会把「这一轮没问」伪装成
+         *   「问了没答出」——两者在快照里同形。下游要面自述时走 `memoryQaLine()`。
+         * ──────────────────────────────────────────────────────────────── */
+        /**
+         * [v3.321.0 · M3-X1] 已知人名表（问答规划的**唯一装配点**）。
+         *   为什么必须由宿主给：规划器**只认这里给的名字** —— 它自己不猜别名、
+         *   不做模糊匹配（见 `planQuestion` 的人名纪律）。取不到即空数组：
+         *   「宿主没给名字」（入参事实）与「这人不存在」在规划器里是**两句话**，
+         *   故此处**不编任何名字**。
+         *   两个来源各自独立 try：图谱没建不该让登记表那一份也拿不到。
+         * @returns {string[]} 原名（不含别名；别名解析归实体层）
+         */
+        _qaKnownActors(limit) {
+            const out = [];
+            const cap = Math.max(1, Math.min(500, Number(limit) > 0 ? Math.floor(Number(limit)) : 200));
+            const push = (n) => {
+                const t = String(n == null ? '' : n).trim();
+                if (t && out.indexOf(t) < 0 && out.length < cap) out.push(t);
+            };
+            try {
+                if (this._entityIdByName && typeof this._entityIdByName.keys === 'function') {
+                    for (const k of this._entityIdByName.keys()) push(k);
+                }
+            } catch (_e) { /* 单来源失败不阻断另一来源 */ }
+            try {
+                const nodes = (this.graph && this.graph.nodes && typeof this.graph.nodes.values === 'function')
+                    ? this.graph.nodes.values() : null;
+                if (nodes) for (const n of nodes) { if (n && n.type === 'character') push(n.name); }
+            } catch (_e) { /* 同上 */ }
+            return out;
+        }
+        /**
+         * [v3.321.0 · M3-X1] 出口：回答一个记忆问句（**只读、不抛**）。
+         *
+         * @param {string} question 用户问句
+         * @param {object} [opts] { knownActors?:string[], maxActors?:number,
+         *                          maxSentences?:number, pageSize?:number, maxPerLedger?:number }
+         * @returns {object} 恒定键面（取不到内核也全键在场，下游按键断言即可）
+         */
+        askMemoryQuestion(question, opts) {
+            const o = opts || {};
+            const qText = String(question == null ? '' : question);
+            /* [v3.322.0] 恒定键面：`knownActors` 在**缺席路径上也须在场**。
+             *   修前缺席回执缺这一格（15 键 → 14 键）⇒ 下游 `r.knownActors.length`
+             *   当场 TypeError，而登记表逐字声明的是恒定键面。
+             *   这里给的是**真读数**：人名装配点不依赖 `evidence-query.js`，
+             *   故「模块未加载」不等于「一个已知人名都没有」（缺席不当 0 用）。
+             *   整段就地 try：装配点万一抛错也不得把「模块没加载」改写成别的归因。 */
+            const absent = (reason) => {
+                let known = 0;
+                try {
+                    known = (Array.isArray(o.knownActors) ? o.knownActors : this._qaKnownActors(o.maxActors)).length;
+                } catch (_e) { known = 0; }
+                return {
+                    version: 0, question: qText, intents: [], actor: null,
+                    answer: [], gaps: [{ kind: 'module', why: reason }], refs: [], plans: [],
+                    masked: 0, truncated: false, resourced: 0, total: 0,
+                    knownActors: known, reason: reason, writesNothing: true
+                };
+            };
+            const Q = _evidenceQueryLib();
+            if (!Q || typeof Q.planQuestion !== 'function' || typeof Q.composeAnswer !== 'function') {
+                return absent('模块未加载（evidence-query.js）');
+            }
+            try {
+                const known = Array.isArray(o.knownActors) ? o.knownActors : this._qaKnownActors(o.maxActors);
+                const plan = Q.planQuestion(qText, { knownActors: known });
+                const ledgers = _evidenceQueryLedgersOf();
+                const payload = {
+                    ledgers: ledgers,
+                    apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {},
+                    pageSize: (Number(o.pageSize) > 0 ? Math.floor(Number(o.pageSize)) : 30)
+                };
+                if (o.maxPerLedger !== undefined) payload.maxPerLedger = o.maxPerLedger;
+                /* 逐条计划跑**既有** query（同一份 matchRow / 同一份 assemble）——
+                 *   不另写一条「问答专用查询」。计划条数由规划器定（未知意图兜底一条）。 */
+                const results = [];
+                const planReadings = [];
+                for (const p of plan.plans) {
+                    const r = Q.query(this, p.spec, payload);
+                    results.push({ id: p.id, spec: p.spec, query: r });
+                    /* 只留读数，不留 rows（见档头「不扩权」）。 */
+                    planReadings.push({
+                        id: p.id, why: p.why, spec: p.spec,
+                        total: (r && typeof r.total === 'number') ? r.total : 0,
+                        state: (r && r.state) || 'unknown',
+                        scanned: (r && r.scanned) || 0,
+                        replayKey: (r && r.replayKey) || ''
+                    });
+                }
+                const composed = Q.composeAnswer(plan, results, { maxSentences: o.maxSentences });
+                 /* [v3.322.0] **读侧缺口**（本仓最贵的那一格：「跑了、扫了、没命中」与
+                  *   「根本没读到东西」不得同形）。
+                  *   修前 `no-rows` 的 why 是一句模板：「扫描面为空：九账全部取不到（扫了 0 行）」
+                  *   —— 而当本问**只扫了一本账**时，这句话本身就是错的读数
+                  *   （既不是「九账」、也不是「全部取不到」），下游据此会把「问答没答出」
+                  *   误判成「记忆库不可用」。
+                  *   修法：按**本问真实的扫描面**逐本具名 —— 未参与的账分成
+                  *   「空账（读了、没有）」与「读不到（没读到）」两档，各自点数并点名。
+                  *   ★ 不新造缺口种类：`no-rows` 的语义本就含「扫描面为空」这一格。 */
+                 try {
+                     const skippedIds = [];
+                     for (const rr of results) {
+                         const cov = (rr && rr.query) ? rr.query.coverage : null;
+                         const ids = (cov && Array.isArray(cov.skippedByLedgerFilter)) ? cov.skippedByLedgerFilter : [];
+                         for (const id of ids) if (skippedIds.indexOf(id) < 0) skippedIds.push(id);
+                     }
+                     if (skippedIds.length) {
+                         const ledgersNow = _qaHelpDeps.call(this);
+                         const emptyIds = [];
+                         const absentIds = [];
+                         for (const id of skippedIds) {
+                             if (ledgersNow[id] === 'empty') emptyIds.push(id);
+                             else absentIds.push(id);
+                         }
+                         const why = '本问只扫被点名的账，另有 ' + skippedIds.length + ' 本未参与'
+                             + '（未参与不等于「没有」）：其中空账 ' + emptyIds.length + ' 本'
+                             + (emptyIds.length ? '（' + emptyIds.join('、') + '）' : '')
+                             + '、读不到 ' + absentIds.length + ' 本'
+                             + (absentIds.length ? '（' + absentIds.join('、') + '）' : '');
+                         let hit = null;
+                         for (const g of composed.gaps) if (g && g.kind === 'no-rows') { hit = g; break; }
+                         if (hit) hit.why = (hit.why || '') + '；' + why;
+                         else composed.gaps.push({ kind: 'no-rows', why: why });
+                     }
+                 } catch (_e) { /* 缺口照会面不得因读数失败而整体翻红（缺口的缺口另行治理） */ }
+                /* 最近一次读数：诊断行据此说「上次问了几句、几处缺口」。
+                 *   只留读数（计划数 / 句数 / 缺口数），不留问句正文也不留答案 ——
+                 *   诊断面是面自述，不是第二个答案库。 */
+                this._memoryQaLast = {
+                    at: Date.now(),
+                    intents: composed.intents, actor: plan.actor,
+                    plans: planReadings.length,
+                    total: composed.total, resourced: composed.resourced,
+                    masked: composed.masked, gaps: composed.gaps.length
+                };
+                return {
+                    version: Q.QA_VERSION || 0,
+                    question: composed.question, intents: composed.intents, actor: plan.actor,
+                    answer: composed.answer, gaps: composed.gaps, refs: composed.refs,
+                    plans: planReadings,
+                    masked: composed.masked, truncated: composed.truncated,
+                    resourced: composed.resourced, total: composed.total,
+                    knownActors: known.length,
+                    reason: '', writesNothing: true
+                };
+            } catch (e) {
+                errLog(e, 'plugin.askMemoryQuestion');
+                return absent('thrown');
+            }
+        }
+        /**
+         * [v3.321.0 · M3-X1] 诊断一行。**三种坏法分开写**：
+         *   模块没挂 / 面在位但本会话没问过（「待用」不是缺陷）/ 上次读数（含缺口数）。
+         * 不在诊断行里跑真问答：答一次要扫九账全量，诊断面不许有这种副作用。
+         */
+        memoryQaLine() {
+            try {
+                const Q = _evidenceQueryLib();
+                if (!Q || typeof Q.planQuestion !== 'function' || typeof Q.composeAnswer !== 'function') {
+                    return '模块未加载（evidence-query.js）';
+                }
+                const names = this._qaKnownActors(0);
+                const last = this._memoryQaLast || null;
+                if (!last) return '待用（面在位 · 可认人名 ' + names.length + ' 个 · 未问过）';
+                const bits = ['上次 ' + last.plans + ' 条计划 / ' + last.total + ' 句'];
+                if (last.resourced) bits.push('可回源 ' + last.resourced);
+                if (last.masked) bits.push('遮蔽 ' + last.masked);
+                if (last.gaps) bits.push('缺口 ' + last.gaps);
+                if (last.actor) bits.push('按人 ' + last.actor);
+                else bits.push('未按人筛');
+                return bits.join(' · ');
+            } catch (e) { errLog(e, 'plugin.memoryQaLine'); return '—（诊断异常）'; }
+        }
+        /* ────────────────────────────────────────────────────────────────
          * [v3.305.0 · X9] 统一记忆工具 API（宿主接线，五出口 + 自述 + 一行诊断）
          *
          * 【为什么宿主只做三件事、绝不自己算】
@@ -16348,6 +16576,34 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
      *   「照抄别账字段名 ⇒ 恒空」（v3.233.0 F-2 在 event-completeness 上踩过一次）。
      * 取不到工作台 ⇒ 返回空数组（内核会如实报「扫描面为空」，**不是**「没有证据」）。
      */
+    /**
+     * [v3.322.0 · M3-X1] 逐账**现状**读数（读侧缺口的唯一装配点）。
+     *
+     * 【与 `_ledgerApis()` 是两件事（不是第二个真源）】
+     *   · `_ledgerApis()` 答「这本账的 **API** 在不在」—— 投影 / 准入要用它；
+     *   · 本函数答「这本账**现在**是空账还是有条目」—— 从 `worldProg.*` 状态读。
+     *   合成一件事会让「取不到 API」与「账是空的」再次同形（本仓反复治过的漏）。
+     *
+     * 【契约】
+     *   · **按需**调用：只在该问真出现「未参与的账」时才算（不在每次问答都付一遍）；
+     *   · 逐项 try：单本账读不出不得让整张表消失；
+     *   · 三态而非布尔：有条目 ⇒ `'has-items'`；空数组 ⇒ `'empty'`；取不到 ⇒ `'absent'`。
+     *     「没有这本账」与「这本账是空的」不是同一句话。
+     *
+     * @returns {object} { <ledgerId>: 'has-items' | 'empty' | 'absent' }
+     */
+    function _qaHelpDeps() {
+        const ledgers = _evidenceQueryLedgersOf();
+        const out = {};
+        for (const spec of ledgers) {
+            try {
+                const st = (typeof spec.state === 'function') ? spec.state(this) : undefined;
+                const items = (typeof spec.pick === 'function') ? (spec.pick(null, st) || []) : [];
+                out[spec.id] = !Array.isArray(items) ? 'absent' : (items.length ? 'has-items' : 'empty');
+            } catch (_e) { out[spec.id] = 'absent'; }
+        }
+        return out;
+    }
     function _evidenceQueryLedgersOf() {
         try {
             const W = _evidenceWorkbenchLib();

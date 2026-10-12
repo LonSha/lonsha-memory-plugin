@@ -54,7 +54,7 @@
      *   修前实测：同一条秘密的正文会同时进 `row.title`（由工作台 LEDGERS 投影）
      *   与 `row.text`（本模块 textFields 拼）两个列 —— 只改一处，另一列照旧泄。
      *   故两列同时收口，并在行上透出 `scope` / `masked` 两个读数。 */
-    const QUERY_VERSION = 2;
+    const QUERY_VERSION = 3;
     /** 单页默认条数 / 上限。分页由**匹配总数**驱动，故上限只防呆、不是数据天花板。 */
     const PAGE_SIZE_DEFAULT = 30;
     const PAGE_SIZE_MAX = 200;
@@ -67,6 +67,18 @@
     const MAX_SCAN_PER_LEDGER = 20000;
     /** 保存查询的条数上限（有界环形，超限如实报 dropped）。 */
     const MAX_SAVED_QUERIES = 50;
+
+    /* [v3.321.0 · M3-O6] 大型库即时响应的三件读数（都不改任何既有判定口径）：
+     *   · 账条件非空时**只扫这些账**（`coverage.ledgers[].state='skipped'`）——
+     *     「分页 / 换筛选不反复物化全部」的落点；
+     *   · `PROJECTION_CACHE_VERSION` 逐账投影缓存的格式号（换格式即作废旧缓存，
+     *     免得旧格式的行被当新格式复用）；
+     *   · `QUERY_ASYNC_SHARD` 协作式查询每片比对的**行数**（让出粒度）。
+     *     为什么是行而不是账：账级让出在「一本账一万条」时仍是一次长阻塞，
+     *     而行级让出把最长连续占用压到 shard 行。
+     */
+    const PROJECTION_CACHE_VERSION = 1;
+    const QUERY_ASYNC_SHARD = 2000;
     const MAX_TEXT = 160;
     const MAX_ACTORS = 8;
     const MAX_LIST_VALUE = 40;
@@ -204,6 +216,233 @@
         { key: 'status', label: '状态', why: '字典序（各账状态词表不同，跨账比较无意义 —— 本表不承诺跨账语义可比）' }
     ]);
     const DIRECTIONS = Object.freeze(['asc', 'desc']);
+    /* ── [v3.321.0 · M3-X1] 带证据的自然语言问答：问题规划 + 证据合成 ──────
+     * 【这一段的边界（与计划逐条对齐，写死在代码里）】
+     *   · **不造查询 API**：条件一律产出 FILTERS 登记表里的键，判定一律走 matchRow；
+     *   · **只基于许可结果**：合成只读 query 返回的 rows；被遮蔽的行只报存在性；
+     *   · **每个关键句可回源**：每句带 ref（账本 + 引用键 + 楼层）；
+     *   · **无答案给缺口而非编补**：查不到报 gaps（具名原因），不回落成编造句子。
+     *
+     * 【为什么先规划再合成，而不是一次大查询】
+     *   用户问的是「谁答应了什么、后来怎样、为何改变」—— 这是一个**多条件问题**：
+     *   前半句要按人筛约定，后半句要按同一本账的状态看它后来变成了什么。
+     *   合成一条条件会把「按人筛」与「按状态筛」塌成一次筛选，答不出「后来怎样」。
+     *   故这里产出**若干条受控查询**（每条都可在 UI 上单列、可单独重放）。
+     */
+    const QA_VERSION = 1;
+    /** 问题意图登记表（**面向用户的问题型只有这些**；未知一律进 gaps，不猜）。 */
+    const QA_INTENTS = Object.freeze([
+        { id: 'promise', label: '谁答应了什么', hint: /答应|承诺|说好|约定|保证|发誓|欠/ },
+        { id: 'later', label: '后来怎样', hint: /后来|结果|最终|最后|现在|怎么样了/ },
+        { id: 'why', label: '为何改变', hint: /为什么|为何|怎么会|原因|转变|反悔|变卦/ },
+        { id: 'where', label: '在哪一楼', hint: /哪一?楼|什么时候|何时|第几楼/ },
+        { id: 'who', label: '涉及谁', hint: /谁|哪个角色|哪位/ }
+    ]);
+    /**
+     * 从自然语言问题里取**受控查询条件**（纯函数，不摸 host、不查任何东西）。
+     *
+     * 三条纪律：
+     *   ① **只产出登记表里的键**：返回的每个 spec 都经 normalizeSpec 走一遍，
+     *      于是未知键进 dropped、空值不落进条件 —— 规划器不可能造出非法条件；
+     *   ② **没识别出人名就说出来**：`who` 面为空时不编一个人名进去（那是编造），
+     *      而是把「谁」留在 gaps 里，由合成阶段如实说「这条问句里没认出人名」。
+     *   ③ **意图不明也要有产出**：至少一条按 text 的宽查，否则「问了个怪问题」
+     *      会与「系统坏了」同形（都返回空）。
+     *
+     * @param {string} question 用户问句
+     * @param {object} [opts] { knownActors?:string[], ledgers?:string[], now?:number }
+     * @returns {object} { intents, plans[], gaps[], actor }
+     */
+    function planQuestion(question, opts) {
+        const o = opts || {};
+        const q = text(question, 200);
+        const intents = [];
+        const gaps = [];
+        for (const it of QA_INTENTS) if (it.hint.test(q)) intents.push(it.id);
+        if (!intents.length) gaps.push({ kind: 'intent', why: '问句里没认出任何受控问题型（答应/后来/为何/哪一楼/谁）—— 按正文宽查，不假装理解' });
+        /* 人名识别：**只从宿主给的 knownActors 里认**（不猜别名、不做模糊匹配）。
+         *   为什么不让规划器自己从问句里切词当人名：切出来的多半是动词短语，
+         *   而「按一个不存在的人名筛」会返回空 —— 空与「这人确实没答应过」同形。 */
+        const known = (Array.isArray(o.knownActors) ? o.knownActors : [])
+            .map((x) => text(x, 40)).filter(Boolean);
+        let actor = null;
+        for (const k of known) if (q.indexOf(k) >= 0) { actor = k; break; }
+        if (!actor) {
+            gaps.push({
+                kind: 'actor',
+                why: known.length
+                    ? '问句里没认出在场人名（只认 knownActors 里的原名，不猜别名）—— 不按人名筛，避免「筛一个不存在的人」与「这人确实没答应过」同形'
+                    : '宿主未提供 knownActors：无人名可比对（这是入参事实，不是「没有这个人」）'
+            });
+        }
+        const ledgersOf = (id) => {
+            if (id === 'promise') return ['commitment'];
+            if (id === 'later' || id === 'why') return ['commitment', 'seed', 'fact-version'];
+            if (id === 'where') return null;
+            return null;
+        };
+        const plans = [];
+        const pushPlan = (id, spec, why) => {
+            const n = normalizeSpec(spec);
+            plans.push({ id: id, spec: n.spec, droppedKeys: n.dropped, why: why });
+        };
+        /* ① 「谁答应了什么」——按人 + 约定账。这是**受控**的一步：账名写死，不推导。 */
+        if (intents.indexOf('promise') >= 0) {
+            const spec = { ledgers: ledgersOf('promise'), text: '' };
+            if (actor) spec.actors = [actor];
+            pushPlan('promise', spec, actor
+                ? '按「' + actor + '」筛约定账：答「谁答应了什么」'
+                : '无人在场人名可比对：按约定账全量取（不按人名筛）');
+        }
+        /* ② 「后来怎样」——同一批账看**已结/未结**两态。
+         *   这里刻意**不**用 statuses 过滤成 open：那样答不出「后来怎样」（已结的会被滤掉）。
+         *   两态分列由合成阶段按行的 status 分档，而不是靠两条互斥查询 ——
+         *   互斥查询会把「没查到」与「已被过滤」混成一件事。 */
+        if (intents.indexOf('later') >= 0) {
+            const spec = { ledgers: ledgersOf('later') };
+            if (actor) spec.actors = [actor];
+            pushPlan('later', spec, '按同一批账取全部状态：由合成阶段分「未结 / 已结」两档（不用两条互斥查询）');
+        }
+        /* ③ 「为何改变」——转折类线索走正文宽查（只做子串，不做同义改写）。 */
+        if (intents.indexOf('why') >= 0) {
+            const spec = { ledgers: ledgersOf('why'), text: actor ? actor : '' };
+            pushPlan('why', spec, '按转折词/人名做正文子串查：本面只做子串命中，不解释因果（因果解释不是查询面的职责）');
+        }
+        /* ④ 意图不明（或只问「在哪一楼」）时兜底：至少给一条正文宽查。
+         *   否则「问了个怪问题」与「系统坏了」都是空结果，两者同形。 */
+        if (!plans.length) {
+            const spec = { text: q.slice(0, 80) };
+            if (actor) spec.actors = [actor];
+            pushPlan('text', spec, '未命中受控问题型：按问句正文做子串宽查（如实说明这是宽查，不是理解）');
+        }
+        return { question: q, intents: intents, actor: actor, plans: plans, gaps: gaps };
+    }
+    /**
+     * 证据合成：把**已经许可的结果行**装订成带出处的短答（纯函数，不查任何东西）。
+     *
+     * 四类句子，每类都可回源：
+     *   · 存在句：查到 N 条（分账计）；
+     *   · 未结句：status 属未结档的行（各账未结档在 QA_OPEN_STATES 里写死）；
+     *   · 已结句：其余行（含 broken / cancelled —— **不合并成一档**）；
+     *   · 遮蔽句：masked 行只报「存在 + 知识范围」，**正文一格不带**。
+     *
+     * 无答案时：`answer` 为空数组 + `gaps` 具名原因。**不产出任何无出处的句子。**
+     *
+     * @param {object} plan planQuestion 的返回
+     * @param {Array} results [{ id, query }] —— query 是 query() 的返回（已许可）
+     * @param {object} [opts] { maxSentences?:number }
+     * @returns {object} { answer[], gaps[], refs[], masked, truncated }
+     */
+    function composeAnswer(plan, results, opts) {
+        const o = opts || {};
+        const maxSentences = Math.max(1, Number(o.maxSentences) || 8);
+        const p = (plan && typeof plan === 'object') ? plan : { plans: [], gaps: [] };
+        const gaps = (Array.isArray(p.gaps) ? p.gaps.slice() : []);
+        const answer = [];
+        const refs = [];
+        let masked = 0;
+        let truncated = false;
+        const add = (s) => {
+            if (answer.length >= maxSentences) { truncated = true; return false; }
+            answer.push(s);
+            return true;
+        };
+        const list = Array.isArray(results) ? results : [];
+        let anyRows = false;
+        for (const r of list) {
+            const q = r && r.query;
+            if (!q || typeof q !== 'object') {
+                gaps.push({ kind: 'result-absent', planId: (r && r.id) || '', why: '该条计划没有查询结果（不是「没有命中」，是没跑）' });
+                continue;
+            }
+            const rows = Array.isArray(q.rows) ? q.rows : [];
+            if (q.state === 'empty' || q.state === 'inverted-range' || q.total === 0) {
+                gaps.push({
+                    kind: 'no-rows', planId: r.id,
+                    why: (q.emptyReason || '该条件下没有命中') + '（扫了 ' + (q.scanned || 0) + ' 行）'
+                });
+                continue;
+            }
+            if (q.pageOutOfRange) {
+                gaps.push({ kind: 'page-out-of-range', planId: r.id, why: '翻过头（共 ' + q.pages + ' 页）—— 这不是「没有」' });
+                continue;
+            }
+            anyRows = true;
+            /* 存在句：**带总数与账分布**（不是「找到几条」一句话）。 */
+            const byLedger = q.hitsByLedger || {};
+            const parts = Object.keys(byLedger).map((k) => k + ' ' + byLedger[k]);
+            add({
+                kind: 'exists', planId: r.id,
+                text: '查到 ' + q.total + ' 条' + (parts.length ? '（' + parts.join('、') + '）' : ''),
+                ref: null, floor: null
+            });
+            for (const row of rows) {
+                if (row && row.masked === true) {
+                    masked += 1;
+                    add({
+                        kind: 'masked', planId: r.id,
+                        text: '（存在但不可展示：' + (row.ledgerLabel || row.ledger) + ' 知识范围 ' + (row.scope || '判不了') + '）',
+                        ref: row.ref, floor: row.floor, ledger: row.ledger
+                    });
+                    if (row.ref) refs.push({ ref: row.ref, ledger: row.ledger, floor: row.floor });
+                    continue;
+                }
+                const isOpen = (QA_OPEN_STATES[row.ledger] || []).indexOf(row.status) >= 0;
+                add({
+                    kind: isOpen ? 'open' : 'settled',
+                    planId: r.id,
+                    text: (row.title || '（无标题）')
+                        + (row.status ? '［' + row.status + '］' : '')
+                        + (row.detail ? ' — ' + row.detail : ''),
+                    ref: row.ref, floor: row.floor, ledger: row.ledger, status: row.status
+                });
+                if (row.ref) refs.push({ ref: row.ref, ledger: row.ledger, floor: row.floor });
+            }
+        }
+        if (!anyRows && !answer.length) {
+            gaps.push({ kind: 'no-answer', why: '没有任何一条计划查到可展示的行 —— 这是「查不到」，不是「没有这件事」' });
+        }
+        return {
+            version: QA_VERSION,
+            question: p.question || '',
+            intents: Array.isArray(p.intents) ? p.intents : [],
+            answer: answer,
+            gaps: gaps,
+            refs: refs,
+            masked: masked,
+            truncated: truncated,
+            /* 回源率是**读数**不是承诺：每条有 ref 的句子都在 refs 里。 */
+            resourced: answer.filter((s) => !!s.ref).length,
+            total: answer.length
+        };
+    }
+    /** 各账的「未结」状态档（**写死，不推导** —— 各账状态词表本就不同）。
+     *   fact-version 的 active / seed 的 advancing 都属「还没结」：如实分档，不合并。 */
+    const QA_OPEN_STATES = Object.freeze({
+        commitment: ['open'],
+        seed: ['open', 'advancing'],
+        secret: ['sealed'],
+        parallel: ['open'],
+        'fact-version': ['active'],
+        repair: ['open'],
+        'recall-echo': ['open'],
+        echo: ['on'],
+        'event-completeness': ['open']
+    });
+    /** 诊断一行（纯字符串，不抛）。**没查 / 查了没有 / 判不了**三者分开写。 */
+    function qaLine(composed) {
+        try {
+            const c = composed;
+            if (!c || typeof c !== 'object') return '—（问答面异常）';
+            const parts = ['问答 ' + (c.total || 0) + ' 句'];
+            if (c.resourced) parts.push('可回源 ' + c.resourced);
+            if (c.masked) parts.push('遮蔽 ' + c.masked);
+            if (c.intents && c.intents.length) parts.push('问题型 ' + c.intents.join('/'));
+            if (c.gaps && c.gaps.length) parts.push('缺口 ' + c.gaps.length);
+            if (c.truncated) parts.push('⚠ 句子数触顶');
+            return parts.join(' · ');
+        } catch (_e) { return '—（问答面异常）'; }
+    }
 
     /** FACETS 与账本登记表对账（**少一个 id 即报红**）。 */
     function facetsAligned(ledgers) {
@@ -327,13 +566,61 @@
             ? Math.floor(Number(o.maxPerLedger)) : MAX_SCAN_PER_LEDGER;
         const rows = [];
         const ledgers = {};
-        const counts = { ok: 0, empty: 0, absent: 0 };
+        const counts = { ok: 0, empty: 0, absent: 0, skipped: 0 };
         let scanned = 0;
+        /* [v3.321.0 · M3-O6] 账条件非空时只扫被点名的账（这是「不反复物化全部」的落点）。
+         *   被跳过的账**必须可见**（state=skipped、reason=excluded-by-ledger-filter，
+         *   且 total=null 表示「没扫 ⇒ 条数未知」）—— 否则「这本账被筛掉了」与
+         *   「这本账不存在 / 是空的」在读数上同形，而三者处置相反。 */
+        const onlyRaw = (o.onlyLedgers instanceof Set) ? o.onlyLedgers
+            : (Array.isArray(o.onlyLedgers)
+                ? new Set(o.onlyLedgers.map((x) => text(x, 40)))
+                : null);
+        /* [v3.321.0 · M3-O6 自伤修复 ①] 收窄面与**真实登记表**求交：交集为空 ⇒ 退回全扫。
+         *   修前（本版首跑）：条件里全是登记表里没有的 id 时，九账会被全部跳过 ⇒
+         *   `counts.ok=0 && total=0` ⇒ 上层把它读成「扫描面为空（九账全取不到）」，
+         *   而用户其实只是**点错了一个账名** —— 两态处置相反（改条件 vs 查装载），
+         *   压成一态即缺陷（v3310 C1/K2 实测翻红）。
+         *   为什么退回全扫是对的：收窄的语义是「别扫用户没要的账」；
+         *   当用户点的账一本都不存在时，「一本都不扫」不是他要的语义，
+         *   而「点错了账名」自有既有判定（unknown-ledger）负责 —— 那需要扫描面在场。 */
+        const _knownIds = new Set();
+        for (const _sp of specs) _knownIds.add(text(_sp && _sp.id, 40));
+        let _onlyHit = false;
+        if (onlyRaw) for (const _id of onlyRaw) if (_knownIds.has(_id)) { _onlyHit = true; break; }
+        const only = (onlyRaw && _onlyHit) ? onlyRaw : null;
+        /* 逐账投影缓存：形状 {version, fp:{id:指纹}, rows:{id:[行]}}，由**宿主**持有。
+         *   本模块不持久化、不自己 new 一份 —— 缓存归调用方（与「保存查询只存条件」同一纪律）。 */
+        /* 缓存三态（**含义相反的态不得压成一个读数**）：
+         *   · 未给          ⇒ cache=null / state=off
+         *   · 给了、无 version 或 version 相同 ⇒ 当场可用（宿主刚 new 的空对象走这条）
+         *   · 给了、version 存在且不同       ⇒ **作废**（旧格式缓存必须明说被丢，不能静默当没有）
+         *   修前三条压成「enabled:false」一个读数：宿主首跑的空对象与旧格式同形，
+         *   于是「还没建缓存」永远进不去缓存路径（M3-O6 的复用等于没接）。 */
+        const _pcRaw = (o.projectionCache && typeof o.projectionCache === 'object') ? o.projectionCache : null;
+        const _pcVer = _pcRaw ? Number(_pcRaw.version) : null;
+        const _pcStale = !!_pcRaw && _pcVer !== null && Number.isFinite(_pcVer)
+            && _pcVer !== PROJECTION_CACHE_VERSION;
+        const cache = (_pcRaw && !_pcStale) ? _pcRaw : null;
+        const skippedLedgers = [];
+        let cacheHits = 0, cacheMisses = 0;
         for (const spec of specs) {
             const facet = FACETS.filter((f) => f.id === spec.id)[0] || null;
             const rec = { id: text(spec.id, 40), label: text(spec.label, 40), state: 'absent', reason: '', total: 0, kept: 0, truncated: false };
             /* 检索面缺登记 ⇒ 如实报出来（不是静默跳过）。判据 B1 钉住「两表 id 集合逐字相等」，
              *   这里留一条运行期兜底，免得「漏登记」变成「查不到还以为没有」。 */
+            /* [v3.321.0 · M3-O6] 账条件点名了别的账 ⇒ 这一账**本次根本不扫**（不物化、不投影）。
+             *   仍如实登记：state=skipped、total=null（没扫 ⇒ 条数未知，不是 0）。 */
+            if (only && !only.has(rec.id)) {
+                rec.state = 'skipped';
+                rec.reason = 'excluded-by-ledger-filter';
+                rec.total = null;
+                rec.kept = 0;
+                ledgers[rec.id] = rec;
+                counts.skipped += 1;
+                skippedLedgers.push(rec.id);
+                continue;
+            }
             if (!facet) { rec.reason = 'facet-missing'; ledgers[rec.id] = rec; counts.absent += 1; continue; }
             const api = apis[spec.id] || null;
             if (!api) { rec.reason = 'module-unavailable'; ledgers[rec.id] = rec; counts.absent += 1; continue; }
@@ -347,10 +634,31 @@
             if (!items.length) { rec.state = 'empty'; rec.reason = 'no-items'; ledgers[rec.id] = rec; counts.empty += 1; continue; }
             rec.state = 'ok';
             counts.ok += 1;
+            /* [v3.321.0 · M3-O6] 逐账投影缓存命中：指纹一致 ⇒ 复用上次这一账的行。
+             *   两处必须做对，否则缓存会**悄悄改结论**：
+             *     ① **浅拷贝每一行**：下游 matchRow 会就地写 `row._score`，
+             *        共享引用会让两次查询互相污染（本次的分数写进上次的行）；
+             *     ② 拷贝时 `_score` 显式归零：提前 return 的路径（ledger/status 不匹配）
+             *        **不会**重设 _score，脏分会被 sortRows 当相关度用。
+             *   指纹是**启发式**（条数 + 末条身份 + 末条修订号），不是内容哈希：
+             *   「改中间某条且条数与末条都不变」它看不见。故它只用于**复用投影**，
+             *   绝不用于任何「账没变所以结果不用重算」的断言 —— 未命中即重扫，代价回到修前。 */
+            const _fp = ledgerFingerprint(rec.id, items);
+            if (cache && cache.fp && cache.fp[rec.id] === _fp && Array.isArray(cache.rows[rec.id])) {
+                for (const _r of cache.rows[rec.id]) rows.push(Object.assign({}, _r, { _score: null }));
+                rec.kept = cache.rows[rec.id].length;
+                rec.cacheHit = true;
+                scanned += rec.kept;
+                cacheHits += 1;
+                ledgers[rec.id] = rec;
+                continue;
+            }
+            cacheMisses += 1;
             let kept = items;
             if (items.length > cap) { kept = items.slice(-cap); rec.truncated = true; }
             rec.kept = kept.length;
             scanned += kept.length;
+            const _rowStart = rows.length;   /* [v3.321.0 · M3-O6] 本账投影起点（供缓存写回切片） */
             let idx = 0;
             for (const it of kept) {
                 idx += 1;
@@ -383,9 +691,27 @@
                     _score: null
                 });
             }
+            /* [v3.321.0 · M3-O6] 写回本账投影（存**副本**：本次查询仍会就地写 _score，
+             *   把同一批对象交给缓存等于把本次的分数留给下次）。 */
+            if (cache) {
+                if (!cache.fp || typeof cache.fp !== 'object') cache.fp = {};
+                if (!cache.rows || typeof cache.rows !== 'object') cache.rows = {};
+                cache.version = PROJECTION_CACHE_VERSION;
+                cache.fp[rec.id] = _fp;
+                cache.rows[rec.id] = rows.slice(_rowStart).map((r) => Object.assign({}, r, { _score: null }));
+            }
             ledgers[rec.id] = rec;
         }
-        return { rows: rows, ledgers: ledgers, counts: counts, scanned: scanned, specs: specs };
+        return {
+            rows: rows, ledgers: ledgers, counts: counts, scanned: scanned, specs: specs,
+            /* [v3.321.0 · M3-O6] 扫描面读数：跳过的账 + 缓存命中/未命中（都是可归因事实）。 */
+            skippedLedgers: skippedLedgers,
+            cache: {
+                version: PROJECTION_CACHE_VERSION, enabled: !!cache, hits: cacheHits, misses: cacheMisses,
+                state: !_pcRaw ? 'off' : (_pcStale ? 'stale' : 'on'),
+                stale: _pcStale
+            }
+        };
     }
 
     /** 区间命中：'hit' | 'miss' | 'no-floor'。**无楼层不是「不满足」**——原因必须可分。 */
@@ -474,26 +800,24 @@
      *                          maxPerLedger?:number }
      * @returns {object} 恒定键面（取不到也全键在场，下游按键断言即可，不必猜）
      */
-    function query(host, spec, opts) {
-        const o = opts || {};
-        const n = normalizeSpec(spec);
-        const s = n.spec;
-        const specs = Array.isArray(o.ledgers) ? o.ledgers : [];
-        const uni = universeOf(host, { ledgers: specs, apis: o.apis, maxPerLedger: o.maxPerLedger });
-        /* 区间反转 ⇒ 空集（并如实说出为什么），不静默交换。 */
-        const inverted = s.inverted.length > 0;
-        const scanned = uni.rows.length;
-        const hits = [];
-        const unmatched = {};
-        const unknownFloor = [];
-        if (!inverted) {
-            for (const r of uni.rows) {
-                const v = matchRow(r, s);
-                if (v === 'hit') { hits.push(r); continue; }
-                unmatched[v] = (unmatched[v] || 0) + 1;
-                if (v === 'floor-unknown') unknownFloor.push({ ref: r.ref, why: 'no-floor-on-any-time-field' });
-            }
-        }
+    /**
+     * [v3.321.0 · M3-O6] 组装（**唯一真源**）：`query` 与 `queryAsync` 都经这里出结果。
+     *   为什么必须抽出来：协作式查询若自己再写一遍分页 / 覆盖度 / 空集归因，
+     *   两条路径就会各自漂移 —— 让出的是**执行时机**，不是口径。
+     *   任何「哪一态算空、翻过头怎么报」的判定只许有一份。
+     *
+     * @param {object} uni universeOf 的返回
+     * @param {object} s 规范化条件
+     * @param {object} n normalizeSpec 的返回（要它的 dropped）
+     * @param {Array} hits 已比对命中的行
+     * @param {object} unmatched 具名不匹配计数
+     * @param {Array} unknownFloor 无楼层被排除的行（可归因）
+     * @param {object} o opts
+     * @param {object} [extra] { inverted, canceled, processedRows }
+     */
+    function assemble(uni, s, n, hits, unmatched, unknownFloor, o, extra) {
+        const ex = extra || {};
+        const inverted = ex.inverted === true;
         const total = hits.length;
         const sorted = sortRows(hits, o.sort, o.dir);
         const pageSizeRaw = Number(o.pageSize);
@@ -508,6 +832,10 @@
         const rows = outOfRange ? [] : sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
         const byLedger = {};
         for (const r of hits) byLedger[r.ledger] = (byLedger[r.ledger] || 0) + 1;
+        const scanned = uni.rows.length;
+        const capUsed = Number.isFinite(Number(o.maxPerLedger)) && Number(o.maxPerLedger) > 0
+            ? Math.floor(Number(o.maxPerLedger)) : MAX_SCAN_PER_LEDGER;
+        const truncatedList = Object.keys(uni.ledgers).filter((k) => uni.ledgers[k].truncated === true);
         const out = {
             version: QUERY_VERSION,
             replayKey: replayKeyOf(s),
@@ -533,15 +861,30 @@
                 ledgers: uni.ledgers,
                 counts: uni.counts,
                 scanned: scanned,
-                requestedLedgers: specs.length,
+                requestedLedgers: (Array.isArray(o.ledgers) ? o.ledgers.length : 0),
                 /** 本面直读原账**全量**、不经过工作台的 200 条摘要 —— 显式声明，防读者以为同源。 */
                 summaryBypassed: true,
                 /** 直读封顶（真触到时该账 truncated=true，两个读数都在 coverage.ledgers 里）。 */
-                scanCap: Number.isFinite(Number(o.maxPerLedger)) && Number(o.maxPerLedger) > 0
-                    ? Math.floor(Number(o.maxPerLedger)) : MAX_SCAN_PER_LEDGER,
-                truncated: Object.keys(uni.ledgers).filter((k) => uni.ledgers[k].truncated === true)
+                scanCap: capUsed,
+                truncated: truncatedList,
+                /* [v3.321.0 · M3-O6] 被账条件排除、**本次根本没扫**的账。
+                 *   与 truncated 是两件事：truncated 是「扫了但没扫完」，skipped 是「按条件就没扫」。 */
+                skippedByLedgerFilter: uni.skippedLedgers || [],
+                /* [v3.321.0 · M3-O6] 逐账投影缓存读数：hits>0 即「这次没重算那些账」。 */
+                projectionCache: uni.cache || { version: PROJECTION_CACHE_VERSION, enabled: false, hits: 0, misses: 0, state: 'off', stale: false }
             },
-            state: inverted ? 'inverted-range' : (total > 0 ? 'ok' : 'empty')
+            /* [v3.321.0 · M3-O6] 范围上限的**可继续入口**：触顶才给，没触顶为 null。
+             *   不造一个恒在场的假入口 —— 「有入口」本身会被读成「上次没查完」。 */
+            continueWith: truncatedList.length ? {
+                ledgers: truncatedList,
+                maxPerLedger: Math.min(1000000, capUsed * 2),
+                note: '这些账触到本次扫描上限：把 opts.maxPerLedger 提到 maxPerLedger 后**重跑同一条件**即可继续'
+                    + '（不自动放宽 —— 放宽会让「这次扫了多少」与「这本账有多少」同形）'
+            } : null,
+            state: inverted ? 'inverted-range' : (total > 0 ? 'ok' : 'empty'),
+            /* [v3.321.0 · M3-O6] 取消读数：恒在场（false 也是读数）。 */
+            canceled: ex.canceled === true,
+            partial: ex.canceled === true
         };
         if (inverted) out.emptyReason = '区间起止反转（' + s.inverted.join(' / ') + '）：按空集处理，**不自动交换** —— 交换会查出另一个区间而不报错';
         if (!inverted && total === 0 && objCount(unmatched) === 0) {
@@ -550,10 +893,168 @@
                 ? '扫描面为空：九账全部取不到（见 coverage.ledgers 的 reason）'
                 : '扫描面为空（无账本登记 / 未给 ledgers）';
         }
+        if (ex.canceled === true) {
+            /* 取消**不是失败**，也不是「没有」：如实报「查到哪儿了」。
+             *   把取消报成 empty 是「用『没有』冒充『没查完』」——本仓治理过多轮的形态。 */
+            out.state = 'canceled';
+            out.emptyReason = '查询被取消：以下读数是**已处理部分**，不是全量结论';
+            out.processed = { rows: Number(ex.processedRows) || 0, totalRows: uni.rows.length };
+        }
         return out;
+    }
+    /**
+     * 结构化查询（**纯函数 + 只读**）。
+     *
+     * @param {object} host 宿主实例
+     * @param {object} spec 查询条件（见 FILTERS）
+     * @param {object} [opts] { ledgers:[登记表]（必给，来自工作台 LEDGERS）, apis:{id:api},
+     *                          page?:number, pageSize?:number, sort?:string, dir?:'asc'|'desc',
+     *                          maxPerLedger?:number, projectionCache?:object }
+     * @returns {object} 恒定键面（取不到也全键在场，下游按键断言即可，不必猜）
+     */
+    function query(host, spec, opts) {
+        const o = opts || {};
+        const n = normalizeSpec(spec);
+        const s = n.spec;
+        const specs = Array.isArray(o.ledgers) ? o.ledgers : [];
+        /* [v3.321.0 · M3-O6] ① 账条件非空 ⇒ **只扫这些账**（其余账如实记 skipped）；
+         *   ② 宿主给的投影缓存随扫描面一起传下去（逐账指纹命中即复用投影）。 */
+        const uni = universeOf(host, {
+            ledgers: specs, apis: o.apis, maxPerLedger: o.maxPerLedger,
+            onlyLedgers: (s.ledgers && s.ledgers.length ? s.ledgers : null),
+            projectionCache: (o.projectionCache && typeof o.projectionCache === 'object') ? o.projectionCache : null
+        });
+        /* 区间反转 ⇒ 空集（并如实说出为什么），不静默交换。 */
+        const inverted = s.inverted.length > 0;
+        const hits = [];
+        const unmatched = {};
+        const unknownFloor = [];
+        if (!inverted) {
+            for (const r of uni.rows) {
+                const v = matchRow(r, s);
+                if (v === 'hit') { hits.push(r); continue; }
+                unmatched[v] = (unmatched[v] || 0) + 1;
+                if (v === 'floor-unknown') unknownFloor.push({ ref: r.ref, why: 'no-floor-on-any-time-field' });
+            }
+        }
+        return assemble(uni, s, n, hits, unmatched, unknownFloor, o, { inverted: inverted });
     }
 
     /** 分页辅助：按条件直接取第 N 页（等价于 query 的 page 参数；单列便于宿主转发）。 */
+    /* ── [v3.321.0 · M3-O6] 三件新增面：缓存指纹 / 轻索引 / 协作式查询 ── */
+    /**
+     * 账指纹：**「这本账变没变」的可比较读数**。
+     *   为什么不是内容哈希：逐条哈希一本万条账的代价就是「每次全量物化」本身，
+     *   等于把要省的那件事又做了一遍。这里用「条数 + 末条身份 + 末条修订号」三个读数。
+     *   它是**启发式**、不是证明：追加 / 替换末条 / 末条改修订号都能被它看见，
+     *   而「改中间某条、且条数与末条都不变」看不见。故它只用于**缓存复用**，
+     *   绝不用于任何「账没变所以结果不用重算」的断言 —— 未命中即重扫，代价回到修前。
+     */
+    function ledgerFingerprint(id, items) {
+        const list = Array.isArray(items) ? items : [];
+        const n = list.length;
+        if (!n) return text(id, 40) + ':0';
+        const last = list[n - 1] || {};
+        const key = text(last.id != null ? last.id : last.key, 60);
+        const rev = (last.revision === null || last.revision === undefined) ? '' : text(last.revision, 20);
+        return text(id, 40) + ':' + n + '|' + key + '|' + rev;
+    }
+    /**
+     * 轻索引：把一批行按「账本 / 角色 / 来源 / 楼层」建下标表。
+     *   为什么是索引而不是「换一条更快的筛选」：筛选判定（matchRow）是**唯一真源**，
+     *   任何「另一条更快的判定路径」都是第二份口径，且两条迟早漂移。
+     *   本函数只回答「哪些行**可能**命中」，真正的取舍仍由 matchRow 做 ——
+     *   于是索引只能**缩小**候选，不能改变结论。
+     *
+     *   ⚠ 候选集是**上界**（含「字段在场」的行），不是等价集：漏索引的行**不代表不命中**
+     *     —— `hasFloor:false` 这类条件恰恰要收**没有**该字段的行。
+     *     故本函数只作诊断与上层导航用，**不进 matchRow 的判定路径**
+     *     （那正是「更快但可能少查」的形态）。
+     * @returns {object} { byLedger, byActor, bySource, byFloor, size, indexed }
+     */
+    function buildIndex(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        const idx = { byLedger: {}, byActor: {}, bySource: {}, byFloor: {}, size: list.length, indexed: 0 };
+        const push = (m, k, i) => {
+            const key = text(k, 40);
+            if (!key) return;
+            if (!m[key]) m[key] = [];
+            m[key].push(i);
+        };
+        for (let i = 0; i < list.length; i++) {
+            const r = list[i];
+            if (!r || typeof r !== 'object') continue;
+            idx.indexed += 1;
+            push(idx.byLedger, r.ledger, i);
+            push(idx.bySource, r.source, i);
+            if (r.floor !== null && r.floor !== undefined) push(idx.byFloor, String(r.floor), i);
+            for (const a of (Array.isArray(r.actors) ? r.actors : [])) {
+                push(idx.byActor, String((a && a.name) || '').toLowerCase(), i);
+            }
+        }
+        return idx;
+    }
+    /**
+     * 协作式查询：把「逐行比对」切成片，片间让出事件循环并在片间检查取消。
+     *   **口径与 query 完全同一份**（同一个 universeOf、同一个 matchRow、同一个 assemble）
+     *   —— 本函数不重写任何判定，只重排执行时机。
+     *
+     * 【为什么必须有它】万条库上 `query` 是一次同步长任务：它占着主线程，
+     *   浏览器既不能重绘也不能响应取消。让出粒度是**行数**（`shardRows`，默认 2000）：
+     *   账内逐行比对保持同步批量推进，因为逐行 await 会让一次翻页产生上万次微任务，比阻塞更慢。
+     *
+     * 【让出点在哪（如实说，不夸大）】让出与取消检查发生在**逐行比对**阶段；
+     *   `universeOf`（读账 + 投影）仍是一次同步调用 —— 投影代价与**账规模**成正比，
+     *   比对代价与**行数**成正比，万条场景里瓶颈是行数那一段。
+     *
+     * 【取消的语义】取消**不是失败**，也不是「没有」：`state='canceled'`、
+     *   `rows` 只含已处理部分、并如实报 `processed.{rows,totalRows}`。
+     *   把取消报成 empty 是「用『没有』冒充『没查完』」。
+     *
+     * @param {object} o 与 query 同键，另加 { shardRows?, yieldTo?(), shouldCancel?() }
+     * @returns {Promise<object>} 与 query 同形状（另带 canceled / partial / processed）
+     */
+    async function queryAsync(host, spec, opts) {
+        const o = opts || {};
+        const shard = Math.max(1, Math.floor(Number(o.shardRows) || QUERY_ASYNC_SHARD));
+        const yieldTo = (typeof o.yieldTo === 'function') ? o.yieldTo
+            : ((typeof setTimeout === 'function') ? (() => new Promise((res) => setTimeout(res, 0))) : null);
+        const shouldCancel = (typeof o.shouldCancel === 'function') ? o.shouldCancel : null;
+        const n = normalizeSpec(spec);
+        const s = n.spec;
+        const specs = Array.isArray(o.ledgers) ? o.ledgers : [];
+        const uni = universeOf(host, {
+            ledgers: specs, apis: o.apis, maxPerLedger: o.maxPerLedger,
+            onlyLedgers: (s.ledgers && s.ledgers.length ? s.ledgers : null),
+            projectionCache: (o.projectionCache && typeof o.projectionCache === 'object') ? o.projectionCache : null
+        });
+        const inverted = s.inverted.length > 0;
+        const hits = [];
+        const unmatched = {};
+        const unknownFloor = [];
+        let processed = 0;
+        let canceled = false;
+        if (!inverted) {
+            for (const r of uni.rows) {
+                const v = matchRow(r, s);
+                if (v === 'hit') hits.push(r);
+                else {
+                    unmatched[v] = (unmatched[v] || 0) + 1;
+                    if (v === 'floor-unknown') unknownFloor.push({ ref: r.ref, why: 'no-floor-on-any-time-field' });
+                }
+                processed += 1;
+                if (processed % shard === 0) {
+                    if (shouldCancel && shouldCancel() === true) { canceled = true; break; }
+                    if (yieldTo) await yieldTo();
+                }
+            }
+        }
+        /* 收尾再查一次取消：正好跑完最后一片时也必须给出一致的结论，
+         *   否则同一时刻调两次会得到不同读数（确定性是可机检事实）。 */
+        if (!canceled && shouldCancel && shouldCancel() === true) canceled = true;
+        return assemble(uni, s, n, hits, unmatched, unknownFloor, o,
+            { inverted: inverted, canceled: canceled, processedRows: processed });
+    }
     function pageOf(host, spec, page, pageSize, opts) {
         return query(host, spec, Object.assign({}, opts || {}, { page: page, pageSize: pageSize }));
     }
@@ -649,8 +1150,12 @@
         QUERY_VERSION, FACETS, FILTERS, SORTS, DIRECTIONS,
         PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX, MAX_SCAN_PER_LEDGER, MAX_SAVED_QUERIES,
         facetsAligned, normalizeSpec, replayKeyOf,
-        universeOf, matchRow, query, pageOf,
-        normalizeSaved, upsertSaved, removeSaved, replaySaved, line
+        universeOf, matchRow, query, queryAsync, assemble, pageOf,
+        ledgerFingerprint, buildIndex,
+        PROJECTION_CACHE_VERSION, QUERY_ASYNC_SHARD,
+        normalizeSaved, upsertSaved, removeSaved, replaySaved, line,
+        /* [v3.321.0 · M3-X1] 带证据的自然语言问答（规划 + 合成；不造查询 API） */
+        QA_VERSION, QA_INTENTS, QA_OPEN_STATES, planQuestion, composeAnswer, qaLine
     });
     root.LonShaEvidenceQuery = api;
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

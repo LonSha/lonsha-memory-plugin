@@ -256,7 +256,12 @@ test('v3307 A1. ★★ 两个面都在场，且行上的 scope / masked 是恒�
     assert.equal(typeof EW.LEDGERS, 'object', '九账登记表必须在场');
     assert.equal(typeof EQ.query, 'function', '查询面必须在场');
     assert.equal(EW.EVIDENCE_VERSION, 3, '证据面版本须抬到 3（修后 title 语义变了：正文 → 站位串）');
-    assert.equal(EQ.QUERY_VERSION, 2, '查询面版本须抬到 2（修后 row.text 不再含正文）');
+    /* [v3.321.0 · B 包 M3-O6] 本行原为 `assert.equal(EQ.QUERY_VERSION, 2, ...)` ——
+     *   它记的是 **v3.307.0 秘密面收口那一刻的读数**。M3-O6 新增三面
+     *   （投影缓存 / 轻索引 / 协作式查询）后查询面抬到 **3**；
+     *   本档要守的是「查询面有版本常量在场且 ≥ 收口时的读数」，不是那个具体数字。 */
+    assert.ok(EQ.QUERY_VERSION >= 2, '查询面版本须在场且不低于 2（v3.307 收口读数；M3-O6 后为 3）');
+    assert.equal(EQ.QA_VERSION, 1, 'M3-X1 问答面版本须在场（v3.321.0）');
     /* 非秘密账的两列必须仍是恒定的 null / false（不得为了秘密面把九账行键改歪） */
     const face = EW.buildWorkbench(mkHost(), { apis: APIS, now: () => 1000 });
     for (const id of ['seed', 'parallel', 'commitment']) {

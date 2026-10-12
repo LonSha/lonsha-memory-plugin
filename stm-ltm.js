@@ -81,7 +81,11 @@ const LOSS_KEYS = Object.freeze([
   'floorDropped',       // removeByFloors 删掉的 stm 条目数
   'emptyEntriesDropped',// removeByFloors 删掉的「floors 与 msg_ids 双空」条目数
   'inputDropped',       // 调用方自行丢弃输入片段时显式登记的量
-  'legacyTrimOnSave'    // 走 legacyTrimOnSave 旁路被截断的条目数（要裁就记一笔）
+  'legacyTrimOnSave',   // 走 legacyTrimOnSave 旁路被截断的条目数（要裁就记一笔）
+  // [v3.321 · M3-O4] 保底句所引用的片段没有楼层号（无法回到出处）的句子数。
+  //   摘要「保住了」承诺/转折/数字/原话，但如果它引用的楼层已被 removeByFloors 摘掉，
+  //   那就只能报「不可恢复」—— 读侧不变量：不可回源必须计数，不许假装还能回源。
+  'unrecoverableSources'
 ]);
 
 // ── state 初始化/归一 ────────────────────────────────────────────────
@@ -275,13 +279,20 @@ async function consolidate(state, opts = {}) {
   }
 
   s.stm_counter += 1;
+  // [v3.321 · M3-O4] 关键保底句必须在**原文还在手上**时抽。
+  //   放在 _rolloverToLtm 抽是错的：那时手上只有 consolidated 后的 text（已是摘要产物），
+  //   被压掉的承诺/转折/原话在更早一步就已经不在了 —— 保底段会静默变成空段。
+  const entrySalient = keepSalient(pending, { maxPerKind: 2, maxTotal: 8 })
+    .map(x => ({ kind: x.kind, text: x.text }));
   const entry = {
     id: 'stm_' + s.stm_counter,
     text: distilled,
     msg_ids: pending.map(p => p.msg_id).filter(v => v != null),
     floors: pending.map(p => p.floor).filter(v => v != null),
     ts: Date.now(),
-    score: 0
+    score: 0,
+    // [v3.321 · M3-O4] 随条目携带的保底句（原文阶段抽取，供 rollover 使用）
+    salient: entrySalient
   };
   s.stm_entries = s.stm_entries.concat(entry);
   // 游标推进：stm position 到已处理末尾，completedTurns 累加
@@ -303,13 +314,161 @@ async function consolidate(state, opts = {}) {
   return { state: s, consolidated: pending.length, usedAI, droppedStart: 0, legacyTrimmed };
 }
 
+// ── [v3.321 · M3-O4] 关键保底：承诺 / 转折 / 数字 / 原话 ──────────────────
+//   摘要通道（AI 摘要或降级拼接）都会优先丢掉「长句、低频词、数字」，
+//   而这三样恰好是「谁答应了什么、后来怎样、为何改变」的载体。
+//   本段不改变摘要通道的任何行为，只在摘要**尾部**附一段受控的关键句保底，
+//   并如实登记「这些句子还能不能回到原楼层」（不能回源就计数，不假装能）。
+const OPEN_ITEM_RE = /未结|没结|还没|仍未|待办|悬着|答应|约定|说好|保证|发誓|承诺|欠|约好/;
+const TURNING_RE = /但是|不过|然而|突然|结果|后来|其实|原来|反而|居然|竟然|决定|改成|变卦|反悔/;
+const NUMBER_RE = /[0-9０-９]+|[一二三四五六七八九十百千万]+\s*(?:天|周|月|年|次|点|号|块|元|个|条|遍)/;
+const QUOTE_RE = /[「『“"][^」』”"]{2,}[」』”"]/;
+/**
+ * [v3.321 · M3-O4] 关键词切片：连续中文段按 2-gram、连续字母数字段按整词（长度≥2）。
+ *
+ * 按「非字母数字字符」切分对中文是无效的：汉字本身就是字母类字符，
+ *   整句会被当成一个「词」—— 倒排归档于是退化成「把正文原样存一份」，
+ *   既没有索引价值，也成了第二份正文副本。改为按字切 2-gram 才有检索意义。
+ * 单字中文不产出（长度 < 2 的片段在检索里是噪声）。
+ */
+function bigrams(text) {
+  const s = String(text == null ? '' : text).toLowerCase();
+  const out = [];
+  const re = /[\u3400-\u9fff\uf900-\ufaff]+|[0-9a-z]+/g;
+  re.lastIndex = 0;
+  let m;
+  while ((m = re.exec(s))) {
+    const p = m[0];
+    if (/^[0-9a-z]+$/.test(p)) {
+      if (p.length >= 2) out.push(p);
+    } else if (p.length === 1) {
+      // 单字中文不进索引（噪声），此处显式跳过而非静默产出长度 1 的键
+    } else {
+      for (let i = 0; i + 1 < p.length; i++) out.push(p.slice(i, i + 2));
+    }
+  }
+  return out;
+}
+/** 把片段切成句子（**纯函数**，不改入参）。保留原始顺序。 */
+function splitSentences(text) {
+  const s = String(text == null ? '' : text);
+  const out = [];
+  let buf = '';
+  let depth = 0;
+  /* 成对引号/括号表：**引号内的句末标点不是句末**。
+     修前按 `(?<=[。！？!?；;…])` 一刀切，`「我不等了。」` 会被切成两半，
+     两半都不含成对引号 ⇒ QUOTE_RE 永不命中 ⇒「原话」这一类恒为空。 */
+  const OPENERS = '「『“（《';
+  const CLOSERS = '」』”）》';
+  const ENDERS = '。！？!?；;…';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    buf += ch;
+    if (ch === '\n') { out.push(buf); buf = ''; depth = 0; continue; }
+    /* 半角双引号按 toggle 计深度（它没有开闭之分，无法用表判）。 */
+    if (ch === '"') { depth = depth > 0 ? 0 : 1; continue; }
+    if (OPENERS.indexOf(ch) >= 0) { depth += 1; continue; }
+    if (CLOSERS.indexOf(ch) >= 0) { if (depth > 0) depth -= 1; continue; }
+    if (depth === 0 && ENDERS.indexOf(ch) >= 0) { out.push(buf); buf = ''; }
+  }
+  if (buf.trim()) out.push(buf);
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+/**
+ * 从若干片段里挑出关键句（**纯函数**，不改入参、不改 opts）。
+ *
+ * 四类按优先级**单一归档**（未结 > 转折 > 原话 > 数字）：一句只进一个类，
+ *   否则同一句话会在保底段里出现四次，保底段自己变成噪声源。
+ * 每类最多 maxPerKind 句、总量最多 maxTotal 句；顺序 = 类的优先级顺序，
+ *   类内按片段原始顺序 —— 不按分数重排（保底段要的是可预期，不是好看）。
+ *
+ * @param {Array<string|{text:string}>} texts 片段（字符串或带 text 的对象）
+ * @returns {Array<{kind, text, src}>} src = 该句来自 texts 的下标（供回源判定）
+ */
+function keepSalient(texts, opts = {}) {
+  const list = Array.isArray(texts) ? texts : [];
+  const maxPerKind = Math.max(0, Number(opts.maxPerKind) || 2);
+  const maxTotal = Math.max(0, Number(opts.maxTotal) || 8);
+  const kinds = [
+    { kind: 'open', re: OPEN_ITEM_RE },
+    { kind: 'turn', re: TURNING_RE },
+    { kind: 'quote', re: QUOTE_RE },
+    { kind: 'number', re: NUMBER_RE }
+  ];
+  const out = [];
+  const seen = new Set();
+  for (const k of kinds) {
+    if (out.length >= maxTotal) break;
+    let taken = 0;
+    for (let i = 0; i < list.length && taken < maxPerKind && out.length < maxTotal; i++) {
+      const raw = (list[i] && typeof list[i] === 'object') ? list[i].text : list[i];
+      for (const s of splitSentences(raw)) {
+        const key = i + "\u0000" + s;
+        if (seen.has(key)) continue;
+        // 全局正则必须复位 lastIndex：否则第二次调用会从上次位置继续，命中结果随机。
+        k.re.lastIndex = 0;
+        if (!k.re.test(s)) continue;
+        seen.add(key);
+        out.push({ kind: k.kind, text: s, src: i });
+        taken += 1;
+        break;
+      }
+    }
+  }
+  return out;
+}
+/**
+ * 把关键保底句渲染成摘要尾部的 `【关键保底】` 段（**纯函数**）。
+ * 无句可保时返回空串 —— 空段不写、不留一个空标题骗读者「保住了」。
+ */
+function renderSalient(items) {
+  const arr = Array.isArray(items) ? items.filter(x => x && x.text) : [];
+  if (!arr.length) return '';
+  const label = { open: '未结', turn: '转折', quote: '原话', number: '数字', carried: '保底' };
+  const rows = arr.map(x => `- [${label[x.kind] || x.kind}] ${x.text}`);
+  return '\n【关键保底】\n' + rows.join('\n');
+}
 // ── 3) LTM 滚动：把退役 STM 合并成一条长期摘要 ───────────────────────
 async function _rolloverToLtm(s, stmList, opts) {
   if (!stmList.length) return s;
   const texts = stmList.map(e => e.text);
+  // [v3.321 · M3-O4] 关键保底：从**原始片段**挑未结/转折/数字/原话。
+  //   从原始片段挑而不是从摘要挑：摘要是「已经压过一轮」的产物，
+  //   被压掉的恰恰是长句、低频词与数字 —— 也就是承诺与转折的载体。
+  // [v3.321 · M3-O4] 优先用条目携带的保底句（consolidate 在原文阶段抽好）；
+  //   老条目没有该字段 → 回退现抽（此时手上只有摘要产物，能抽到多少算多少），
+  //   并在条目上如实登记「有几条走了回退路径」，不假装它们也有原文级保底。
+  const SALIENT_TOTAL_CAP = 8;
+  const salient = [];
+  let fallbackSalientEntries = 0;
+  for (let i = 0; i < stmList.length; i++) {
+    const carried = stmList[i] && stmList[i].salient;
+    if (Array.isArray(carried) && carried.length) {
+      for (const t of carried) {
+        const o = (t && typeof t === 'object') ? t : { kind: 'carried', text: t };
+        salient.push({ kind: o.kind || 'carried', text: o.text, src: i });
+      }
+    } else {
+      fallbackSalientEntries += 1;
+      for (const x of keepSalient([stmList[i]], { maxPerKind: 2, maxTotal: 8 })) {
+        salient.push({ kind: x.kind, text: x.text, src: i });
+      }
+    }
+  }
+  const salientDropped = Math.max(0, salient.length - SALIENT_TOTAL_CAP);
+  if (salientDropped > 0) salient.length = SALIENT_TOTAL_CAP;
+  const salientBlock = renderSalient(salient);
+  const prevLtm = s.ltm_entries.length ? s.ltm_entries[s.ltm_entries.length - 1] : null;
   let summary = '';
   if (typeof opts.summarize === 'function') {
-    try { summary = String(await opts.summarize(texts) || '').trim(); } catch (e) { summary = ''; }
+  // [v3.321 · M3-O4] 差量更新：把上一版摘要作为**首元素**喂回摘要通道，
+  //   让它做「增量合并」而不是每轮从零重写 —— 后者正是反复摘要漂移的主因。
+  //   摘要函数签名不变（仍是 (texts) => Promise<string>），只是首元素换成了上一版摘要；
+  //   上游不必改一行代码。
+  const deltaInput = (prevLtm && prevLtm.summary)
+    ? ['【上一版摘要·增量合并】' + prevLtm.summary, ...texts]
+    : texts;
+  try { summary = String(await opts.summarize(deltaInput) || '').trim(); } catch (e) { summary = ''; }
   }
   if (!summary) summary = texts.join(' / ');
   // [v3.170] 在库体积护栏：**截断即落账**（I5）。
@@ -320,14 +479,30 @@ async function _rolloverToLtm(s, stmList, opts) {
     s.loss.lastDrop = { kind: 'ltmSummaryTrim', at: Date.now(), dropped: summary.length - LTM_SUMMARY_CAP };
     summary = summary.slice(-LTM_SUMMARY_CAP);
   }
+  // [v3.321 · M3-O4] 保底段附在摘要尾部。
+  //   先截断再加保底：保底句本来就是「摘要压掉的那部分」，不该再被摘要额度挤掉。
+  if (salientBlock) summary = summary + salientBlock;
   s.ltm_counter += 1;
   const floors = stmList.flatMap(e => e.floors || []);
+  // [v3.321 · M3-O4] 回源能力如实登记：保底句来自哪个片段、那个片段有没有楼层号。
+  //   没有楼层号 = 读侧回不到出处 —— 计数进 unrecoverableSources，不假装能回源。
+  const noSource = salient.filter(x => {
+    const e = stmList[x.src];
+    return !(e && Array.isArray(e.floors) && e.floors.length);
+  }).length;
+  if (noSource > 0) s.loss.unrecoverableSources += noSource;
   s.ltm_entries = s.ltm_entries.concat({
     id: 'ltm_' + s.ltm_counter,
     summary,
     from_stm_ids: stmList.map(e => e.id),
     ts: Date.now(),
-    span: floors.length ? { from: Math.min(...floors), to: Math.max(...floors) } : null
+    span: floors.length ? { from: Math.min(...floors), to: Math.max(...floors) } : null,
+    // [v3.321 · M3-O4] 保底读数：句子本身 + 能不能回源（三者同进同出）。
+    salient: salient.map(x => x.text),
+    // [v3.321 · M3-O4] 保底段自身的账：被总量上限截掉的句数 / 走回退抽取的条目数。
+    salientDropped, fallbackSalientEntries,
+    recoverable: noSource === 0,
+    noSourceCount: noSource
   });
   // LTM 滚动窗口：超容量丢最旧 —— [v3.170] 丢弃必须落账。
   //   修前 ltm_counter 先前进、条目随后被丢：实测新建的 'ltm_24' 立刻不在库，
@@ -522,6 +697,73 @@ function recallView(state, opts = {}) {
   };
 }
 
+// ── [v3.321 · M3-O4] 关键保底句的倒排归档（**纯读**，不改 state）─────────
+/**
+ * 只存「条目 id + 2-gram 关键词」，**不复制正文** —— 归档是为了「找得到」，
+ *   不是为了变成第二份摘要（第二份摘要就会变成第二个真源）。
+ *   不是为了变成第二份摘要（第二份摘要就会变成第二个真源）。
+ */
+function salienceIndex(state) {
+  const s = normalizeState(state);
+  const entries = [];
+  const postings = Object.create(null);
+  for (const e of s.ltm_entries) {
+    const items = Array.isArray(e && e.salient) ? e.salient : [];
+    if (!items.length) continue;
+    entries.push({
+      id: e.id, count: items.length,
+      recoverable: e.recoverable !== false,
+      noSourceCount: Number(e.noSourceCount) || 0,
+      span: e.span || null
+    });
+    for (const t of items) {
+      for (const w of bigrams(t)) {
+        if (w.length < 2) continue;
+        if (!postings[w]) postings[w] = [];
+        if (postings[w].indexOf(e.id) < 0) postings[w].push(e.id);
+      }
+    }
+  }
+  return { version: 1, entries, postings };
+}
+/**
+ * 按关键词查关键保底句（**纯读**）。
+ *
+ * recoverable 按**命中条目**如实报 true/false，不报 null：
+ *   「这一条能不能回源」是二值的，含糊其辞等于把判据做没了。
+ * 匹配语义（**如实写明，不含糊**）：查询与句子**共享任一关键词片段**即命中。
+ *   这是「找得到」导向的召回口径，不是精确匹配 —— 精确匹配留给上层排序。
+ *   「这一条能不能回源」是二值的，含糊其辞等于把判据做没了。
+ * 空查询 = 列出全部（仍是分页语义：limit 截断时 truncated=true）。
+ */
+function lookupSalient(state, query, opts = {}) {
+  const s = normalizeState(state);
+  const q = String(query == null ? '' : query).trim();
+  const limit = Math.max(1, Number(opts.limit) || 20);
+  const terms = q
+    ? bigrams(q)
+    : [];
+  const hits = [];
+  for (const e of s.ltm_entries) {
+    const items = Array.isArray(e && e.salient) ? e.salient : [];
+    if (!items.length) continue;
+    const matched = items.filter(t => {
+      if (!terms.length) return true;
+      const low = String(t).toLowerCase();
+      return terms.some(w => low.indexOf(w.toLowerCase()) >= 0);
+    });
+    if (!matched.length) continue;
+    hits.push({
+      id: e.id,
+      recoverable: e.recoverable !== false,
+      noSourceCount: Number(e.noSourceCount) || 0,
+      span: e.span || null,
+      matched
+    });
+    if (hits.length >= limit) break;
+  }
+  return { query: q, terms, hits, count: hits.length, truncated: hits.length >= limit };
+}
 // ── 8) [v3.170] 巩固自述：把全部有损计数聚合成一行可读结论 ────────────────
 /**
  * 对齐 v3.169 的 `auditSummary()` 口径：**只报数字本身不够，要让读者能一眼看出
@@ -546,6 +788,7 @@ function selfReport(state) {
   nz('id 碰撞去重', L.rawIdCollisions);
   nz('旧口径截断', L.legacyTrimOnSave);
   nz('输入侧丢弃', L.inputDropped);
+  nz('源楼层不可回源', L.unrecoverableSources);
   const cursorDocs = [];
   // D5 诚实登记：这两个字段被文档列为断点续跑核心，但实现全程只赋 []、从不写入。
   //   不凭空发明语义（那会是另一种谎报），而是让它**可见**。
@@ -586,7 +829,8 @@ function selfReport(state) {
       stmEvicted: L.stmEvicted, ltmEvicted: L.ltmEvicted, ltmTrimmed: L.ltmTrimmed,
       spanDropped: L.spanDropped, spanEmptied: L.spanEmptied, rawDropped: L.rawDropped,
       floorDropped: L.floorDropped, emptyEntriesDropped: L.emptyEntriesDropped,
-      legacyTrimOnSave: L.legacyTrimOnSave
+      legacyTrimOnSave: L.legacyTrimOnSave,
+      unrecoverableSources: Number(L.unrecoverableSources) || 0
     },
     cursor: {
       stmPosition: Number(s.cursor_state.stm.position) || 0,
@@ -618,7 +862,9 @@ const api = {
   ingest, consolidate, pendingRaw, removeByFloors, shiftFloorRefs, reextract, recallView,
   // [v3.170] 追加（不改既有键，按 v3.169 兼容约定「只增不换」）
   LTM_SUMMARY_CAP, LOSS_KEYS,
-  normalizeDetail, stateProvenance, selfReport, lossSummary
+  normalizeDetail, stateProvenance, selfReport, lossSummary,
+  // [v3.321 · M3-O4] 追加（只增不换，既有键与签名不动）
+  keepSalient, renderSalient, salienceIndex, lookupSalient
 };
 if (typeof window !== 'undefined') window.LonShaStmLtm = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
