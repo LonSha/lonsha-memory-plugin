@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.322.0';
+    const VERSION = '3.323.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2949,6 +2949,160 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (!KT || typeof KT.line !== 'function') return '模块未加载（knowledge-trace.js）';
                 return KT.line(read);
             } catch (e) { errLog(e, 'engine._knowledgeTraceLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.323.0 · M3-X2] **真出口**：人物关系变化史（给诊断面与手机回忆册）。
+         *   与 `_relationMutualLine` 分列：那一行答「这一轮对账有没有对侧」，
+         *   本出口答「这对人的看法在哪几楼变了、各自怎么看、有没有还没解决的」。
+         *   不改边、不缓存影子状态；模块缺席给**具名** reason（缺席不是「没有关系变化」）。
+         */
+        relationHistory(opts) {
+        /* [v3.323.0 · C 包] **恒定键面**（本补丁的由来）：缺席面必须与在场产出**逐字同键**，
+         *   否则下游按键断言的前提被破（「模块没加载」会被读成「一个都没有」，两者处置相反）。
+         *   键序按内核 `RH.build()` 的产出序排，尾部补 ok/reason；`version: 0` = 「这一面不在场」。 */
+        const absent = (why) => ({ kind: 'relation_history', version: 0, pairs: [], counts: {}, truncated: 0, turnsTruncated: 0, byName: false, malformedInput: false, writesNothing: true, degraded: false, ok: false, reason: why });
+        try {
+        const RH = _relationHistoryLib();
+        if (!RH || typeof RH.build !== 'function') return absent('module-unavailable');
+        const edges = [...((this.graph && this.graph.edges && this.graph.edges.values) ? this.graph.edges.values() : [])];
+        const out = RH.build(edges, opts || {});
+        const o = Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        this._relationHistoryRead = o;
+        return o;
+        } catch (e) { errLog(e, 'engine.relationHistory'); return absent('thrown'); }
+        }
+        /** [v3.323.0 · M3-X2] 指定时点快照（「那时他们是什么关系」；时点读不到如实标 null，不猜 0 楼）。 */
+        relationHistoryAt(floor) {
+        /* [v3.323.0 · C 包] 同上：键序按 `RH.asOf()` 的产出序。
+         *   `floor: null` + `floorKnown: false` —— 缺席时**不猜楼号**（与在场的「时点读不到」同判据）。 */
+        const absent = (why) => ({ kind: 'relation_history@floor', version: 0, floor: null, pairs: [], counts: { pairs: 0, at: 0 }, floorKnown: false, malformedInput: false, degraded: false, writesNothing: true, ok: false, reason: why });
+        try {
+        const RH = _relationHistoryLib();
+        if (!RH || typeof RH.asOf !== 'function') return absent('module-unavailable');
+        const edges = [...((this.graph && this.graph.edges && this.graph.edges.values) ? this.graph.edges.values() : [])];
+        const out = RH.asOf(edges, floor);
+        return Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        } catch (e) { errLog(e, 'engine.relationHistoryAt'); return absent('thrown'); }
+        }
+        /** [v3.323.0 · M3-X2] 诊断一行。三态分开说（无轨迹 / 两侧看法不同 / 出处不明）。 */
+        _relationHistoryLine() {
+        try {
+        const RH = _relationHistoryLib();
+        if (!RH || typeof RH.line !== 'function') return '模块未加载（relation-history.js）';
+        const got = this.relationHistory({});
+        if (!got.ok) return '关系变化史不可用（' + got.reason + '）';
+        return RH.line(got);
+        } catch (e) { errLog(e, 'engine._relationHistoryLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.323.0 · M3-X3] **真出口**：伏笔 / 约定 / 事件三账连成的因果图。
+         *   三账任一缺席都**照常出图**（少一类节点，而不是整图不可用），但缺席必须看得见：
+         *   消费方据 `counts` 分清「这一类本来就是空的」与「这一类根本没读进来」。
+         */
+        causalChainGraph(opts) {
+        /* [v3.323.0 · C 包] 同上：键序按 `CC.build()` 的产出序。
+         *   ★ 推测边面在缺席时**照样是空数组而不是缺键** —— 「没有推测边」与「这一面不在场」
+         *     是两个读数，消费方按同一个键就能分。 */
+        const absent = (why) => ({ kind: 'causal_chain', version: 0, nodes: [], edges: [], speculative: [], unresolved: [], resolved: [], cancelled: [], broken: [], counts: {}, truncated: 0, edgesTruncated: 0, malformedInput: false, writesNothing: true, degraded: false, ok: false, reason: why });
+        try {
+        const CC = _causalChainLib();
+        if (!CC || typeof CC.build !== 'function') return absent('module-unavailable');
+        const src = {
+        seeds: (this.worldProg && this.worldProg.seedLedger) || null,
+        commitments: (this.worldProg && this.worldProg.commitmentLedger) || null,
+        events: this._eventThreadState || null
+        };
+        const out = CC.build(src, opts || {});
+        const o = Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        this._causalChainRead = o;
+        return o;
+        } catch (e) { errLog(e, 'engine.causalChainGraph'); return absent('thrown'); }
+        }
+        /** [v3.323.0 · M3-X3] 未解待办面（取消 / 违约 / 完成**不在此列** —— 四者处置互不相同）。 */
+        causalChainTodos() {
+        try {
+        const CC = _causalChainLib();
+        if (!CC || typeof CC.todos !== 'function') return [];
+        const g = (this._causalChainRead && this._causalChainRead.ok) ? this._causalChainRead : this.causalChainGraph({});
+        if (!g.ok) return [];
+        return CC.todos(g);
+        } catch (e) { errLog(e, 'engine.causalChainTodos'); return []; }
+        }
+        /** [v3.323.0 · M3-X3] 从某结果向上游追溯（**只走已确认边**：推测边追出来的「链」不是链）。 */
+        causalChainTrace(id) {
+        try {
+        const CC = _causalChainLib();
+        if (!CC || typeof CC.traceBack !== 'function') return { ok: false, reason: 'module-unavailable', id: String(id == null ? '' : id), path: [], roots: [], known: false };
+        const g = (this._causalChainRead && this._causalChainRead.ok) ? this._causalChainRead : this.causalChainGraph({});
+        if (!g.ok) return { ok: false, reason: g.reason, id: String(id == null ? '' : id), path: [], roots: [], known: false };
+        return Object.assign({}, CC.traceBack(g, id), { ok: true });
+        } catch (e) { errLog(e, 'engine.causalChainTrace'); return { ok: false, reason: 'thrown', id: String(id == null ? '' : id), path: [], roots: [], known: false }; }
+        }
+        /** [v3.323.0 · M3-X3] 候选边（**恒为推测**：宿主不替用户确认因果，推测边另立数组）。 */
+        causalChainProposals(opts) {
+        try {
+        const CC = _causalChainLib();
+        if (!CC || typeof CC.proposeCandidates !== 'function') return [];
+        const src = {
+        seeds: (this.worldProg && this.worldProg.seedLedger) || null,
+        commitments: (this.worldProg && this.worldProg.commitmentLedger) || null,
+        events: this._eventThreadState || null
+        };
+        return CC.proposeCandidates(src, opts || {});
+        } catch (e) { errLog(e, 'engine.causalChainProposals'); return []; }
+        }
+        /** [v3.323.0 · M3-X3] 诊断一行。四类收口分开说（完成 / 作废 / 违约 / 未收口 + 推测边单列）。 */
+        _causalChainLine() {
+        try {
+        const CC = _causalChainLib();
+        if (!CC || typeof CC.line !== 'function') return '模块未加载（causal-chain.js）';
+        const g = this.causalChainGraph({});
+        if (!g.ok) return '因果链不可用（' + g.reason + '）';
+        return CC.line(g);
+        } catch (e) { errLog(e, 'engine._causalChainLine'); return '—（诊断异常）'; }
+        }
+        /**
+         * [v3.323.0 · M3-X4] **真出口**：按角色与时点生成视角记忆卡。
+         *   · `character` 只取该角色；不给则按角色分组各出一张；
+         *   · `at` 只收 floor ≤ at 的轨迹（**楼层读不到的轨迹不进任何时点**）；
+         *   ★ 没有轨迹的条目落 `unrecorded`（**不当「不知道」用**），由读数显式报出。
+         */
+        perspectiveCard(opts) {
+        /* [v3.323.0 · C 包] 同上：键序按 `PC.build()` 的产出序。
+         *   `at: null` + `atKnown: false` —— 缺席时不给「时点」，与在场的「未给时点」不同形。 */
+        const absent = (why) => ({ kind: 'perspective_card', version: 0, at: null, atKnown: false, cards: [], counts: {}, truncated: 0, malformedInput: false, writesNothing: true, degraded: false, ok: false, reason: why });
+        try {
+        const PC = _perspectiveCardLib();
+        if (!PC || typeof PC.build !== 'function') return absent('module-unavailable');
+        const traces = (this.worldProg && this.worldProg.knowledgeTraces && this.worldProg.knowledgeTraces.traces) || [];
+        const out = PC.build(traces, opts || {});
+        const o = Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        this._perspectiveCardRead = o;
+        return o;
+        } catch (e) { errLog(e, 'engine.perspectiveCard'); return absent('thrown'); }
+        }
+        /** [v3.323.0 · M3-X4] 两人信息差对照（**误信侧单列**：那一格最需要被看见）。 */
+        perspectiveContrast(characterA, characterB, opts) {
+        try {
+        const PC = _perspectiveCardLib();
+        if (!PC || typeof PC.contrast !== 'function') return { ok: false, reason: 'module-unavailable', diff: { onlyLeft: [], onlyRight: [], shared: [], misledSide: [] } };
+        const o = opts || {};
+        const a = this.perspectiveCard(Object.assign({}, o, { character: String(characterA || '') }));
+        const b = this.perspectiveCard(Object.assign({}, o, { character: String(characterB || '') }));
+        if (!a.ok || !b.ok) return { ok: false, reason: a.ok ? b.reason : a.reason, diff: { onlyLeft: [], onlyRight: [], shared: [], misledSide: [] } };
+        const out = PC.contrast(a.cards[0] || null, b.cards[0] || null);
+        return Object.assign({}, out, { ok: true });
+        } catch (e) { errLog(e, 'engine.perspectiveContrast'); return { ok: false, reason: 'thrown', diff: { onlyLeft: [], onlyRight: [], shared: [], misledSide: [] } }; }
+        }
+        /** [v3.323.0 · M3-X4] 诊断一行。四格分开说；「未记录」永远报出来（这一格是「我们没记过」的落点）。 */
+        _perspectiveCardLine() {
+        try {
+        const PC = _perspectiveCardLib();
+        if (!PC || typeof PC.line !== 'function') return '模块未加载（perspective-card.js）';
+        const got = this.perspectiveCard({});
+        if (!got.ok) return '视角卡不可用（' + got.reason + '）';
+        return PC.line(got);
+        } catch (e) { errLog(e, 'engine._perspectiveCardLine'); return '—（诊断异常）'; }
         }
         /**
          * [v3.306.0 · M-O8] 秘密注入侧隔离读数（诊断面用；纯读、不抛）。
@@ -9291,6 +9445,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 } catch (e) { errLog(e, 'buildInjection.双向对账'); _mutualRead = { degraded: true }; }
                 this._relationMutualRead = _mutualRead;
+                /* [v3.323.0 · M3-X2] **真调用点**：本轮边集算一次变化史（逐侧保留、不合成单一好感值）。
+                 *   为什么放在这里而不是只等诊断面来问：M3-X2 的收益是「用户问『为何从信任变成怀疑』
+                 *   答得出来」，而那一刻手边必须已有真读数 —— 诊断面按需算，会让用户问的时候
+                 *   才知道算不算得动。只读、不抛；算不出来如实记，不影响本轮注入（关系块照旧注入）。 */
+                try {
+                const _RH = _relationHistoryLib();
+                this._relationHistoryRead = (_RH && typeof _RH.build === 'function')
+                ? Object.assign({}, _RH.build([...(this.graph?.edges?.values?.() || [])], {}), { ok: true })
+                : { ok: false, reason: 'module-unavailable' };
+                } catch (e) { errLog(e, 'buildInjection.关系变化史'); this._relationHistoryRead = { ok: false, reason: 'thrown' }; }
                 if (_relKept.length) {
                 blocks.push('[角色关系]');
                 const CLS_CN = { family: '血缘', intimate: '亲密', hostile: '敌对', social: '社交', other: '其他' };
@@ -11479,6 +11643,45 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['知识轨迹', line + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.knowledgeTrace'); return ['知识轨迹', '—（诊断异常）']; }
                     })(),
+                        // [v3.323.0 · M3-X2] 关系变化史体检面：与「双向对账」**分列**。
+                        //   对账行答「这一轮的对侧在不在」，本行答「这对人是**怎么走到今天**的」——
+                        //   合成一行会让「对侧没登记」与「楼号出处不明」共用一个提示位。
+                        //   报警只认两条真损失：出处不明（无法编进任何时间序）与按名聚合
+                        //   （同名异人会被合并成一对 —— 本仓点名的「同名不同物」形态）。
+                        (() => {
+                        try {
+                        const line = (typeof this._relationHistoryLine === 'function') ? this._relationHistoryLine() : '—';
+                        const r = this._relationHistoryRead;
+                        const bad = !!(r && ((r.counts && r.counts.noFloor > 0) || r.byName || r.degraded));
+                        return ['关系变化', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.relationHistory'); return ['关系变化', '—（诊断异常）']; }
+                        })(),
+                        // [v3.323.0 · M3-X3] 因果链体检面：**四类收口各自可见**（完成 / 作废 / 违约 / 未收口）。
+                        //   本行要治的正是「取消被当成回收」「违约被当成完成」—— 压成一格就再也看不出来。
+                        //   报警只认两条真损失：悬空边（连到不存在的节点 ⇒ 这条因果是断的）与截断
+                        //   （图上少了一段而读数看不出来）。
+                        (() => {
+                        try {
+                        const line = (typeof this._causalChainLine === 'function') ? this._causalChainLine() : '—';
+                        const r = this._causalChainRead;
+                        const bad = !!(r && ((r.counts && ((r.counts.danglingEdges || 0) > 0 || (r.counts.malformedEdges || 0) > 0))
+                        || (r.truncated || 0) > 0 || (r.edgesTruncated || 0) > 0 || r.degraded));
+                        const prop = (typeof this.causalChainProposals === 'function') ? (this.causalChainProposals({}) || []).length : 0;
+                        return ['因果链', line + (prop ? (' · 候选边 ' + prop + '（**未确认**）') : '') + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.causalChain'); return ['因果链', '—（诊断异常）']; }
+                        })(),
+                        // [v3.323.0 · M3-X4] 视角卡体检面：与「知识轨迹」「知识预演」**分列**。
+                        //   轨迹行答「这条知识怎么来的」、预演行答「若传播会怎样」，
+                        //   本行答「**这个角色在这个时点手上到底有哪些、哪些是误信、哪些我们没记过**」。
+                        //   报警只认两条真损失：误信（不得写成世界真相）与无楼层（未计入任何时点）。
+                        (() => {
+                        try {
+                        const line = (typeof this._perspectiveCardLine === 'function') ? this._perspectiveCardLine() : '—';
+                        const r = this._perspectiveCardRead;
+                        const bad = !!(r && ((r.counts && ((r.counts.misled || 0) > 0 || (r.counts.noFloor || 0) > 0)) || r.degraded));
+                        return ['视角卡', line + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.perspectiveCard'); return ['视角卡', '—（诊断异常）']; }
+                        })(),
                     /* [v3.315.0 · M-X5] 知识传播预演体检面：与「知识轨迹」**分列**。
                      *   轨迹面答**过去**（这条知识在第几楼、从谁、经哪条证据取得的），
                      *   本行答**事前**（若按这条路传播，谁的认知会从哪一格变到哪一格）——
@@ -16508,6 +16711,32 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的
     //   起因—行动—结果—后续。缺结果或后续即「未完成事项」，必须能被单独列出来。
+    // [v3.323.0 · M3-X2] 人物关系变化史（relation-history.js）。为什么需要：
+    //   本仓已有 `relation-mutual`（双向对账，四态）与 `relation-disclosure`（披露条件），
+    //   两者答的都是**当下这一轮**：对侧在不在、这条要不要进注入。M3-X2 问的是第三个问题 ——
+    //   **这对人是怎么走到今天的**（从信任到怀疑，中间哪几楼、各自怎么看）。
+    //   轨迹必须逐侧保留（**永不产出单一合成好感值**：把两人看法平均成一个数是本模块立项
+    //   时要治的错读数）。本模块只读图里的边，**不新增关系账**、不改边、不写任何状态。
+    function _relationHistoryLib() {
+    return _moduleLib(() => window.LonShaRelationHistory, 'relation-history.js');
+    }
+    // [v3.323.0 · M3-X3] 伏笔与因果链导航（causal-chain.js）。为什么需要：
+    //   三本账此前各自成条：伏笔答「埋了什么、回收没有」、约定答「答应了什么、履没履」、
+    //   事件线答「起因—行动—结果—后续齐没齐」。**没有一处能回答「这个结果是从哪一段
+    //   铺垫长出来的」** —— 于是「长期未解伏笔找不回」「违约与取消同形」只能靠人记。
+    //   本模块把它们连成可追溯的图，并**结构上**把推测边与已确认边分成两个数组
+    //   （同数组即等于把「猜的」当「有据的」）；`traceBack` 只走已确认边。
+    function _causalChainLib() {
+    return _moduleLib(() => window.LonShaCausalChain, 'causal-chain.js');
+    }
+    // [v3.323.0 · M3-X4] 视角记忆卡（perspective-card.js）。为什么需要：
+    //   `knowledge-trace` 已有轨迹（这条知识在第几楼、从谁、经哪条证据取得的），
+    //   但**没有任何一处把它按角色与时间读成可写作的工作集**，而 M3-X4 点名的正是这个。
+    //   ★ 立身之本：没有轨迹的条目**绝不落进「未知」**，而是计入 `unrecorded` 且处处可见 ——
+    //   把「我们没记过」显示成「该角色确实不知道」，正是本仓最贵的那类无据断言。
+    function _perspectiveCardLib() {
+    return _moduleLib(() => window.LonShaPerspectiveCard, 'perspective-card.js');
+    }
     function _eventCompletenessLib() {
         return _moduleLib(() => window.LonShaEventCompleteness, 'event-completeness.js');
     }

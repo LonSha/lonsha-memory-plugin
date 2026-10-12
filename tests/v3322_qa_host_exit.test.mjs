@@ -240,7 +240,11 @@ test('v3322 F3. ★★★ 版本锚：本档出生版本 + 六源同源（V4 当
         const mv = (/let VERSION = '([^']+)'/.exec(read(m)) || [])[1];
         assert.equal(mv, codeVer, m + ' 副本须与入口同源（须是 let：bindDeps 可换，const 会 TypeError）');
     }
-    assert.equal(MF.extra_js.length, 96, '本刀改既有文件、**不新增运行时模块**，仍 96');
+    /* [v3.323.0 交棒] 原文是 `assert.equal(MF.extra_js.length, 96, ...)` ——
+     *   同 v3321：那是出生版（v3.322.0）的一次性读数，C 包新增三模块后必然翻红。
+     *   交棒**不弱化**：本档改守下界，当版项数锁由 v3323 F3 接管。 */
+    assert.ok(MF.extra_js.length >= 96,
+        'extra_js 项数不得低于本档出生时的 96（当版项数锁已交棒 v3323 F3），实 ' + MF.extra_js.length);
     assert.ok(SELF.includes("const BORN = '3.322.0'"), '当版锚点必须显式留在本档里');
     assert.equal(SELF.includes('vnum(BORN)'), true, '锚形须可被守卫计数');
 });

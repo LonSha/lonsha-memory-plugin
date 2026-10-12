@@ -500,7 +500,13 @@ test('v3321 F3. ★★★ 版本锚：本档出生版本 + 六源同源（V4 当
         const mv = (/let VERSION = '([^']+)'/.exec(read(m)) || [])[1];
         assert.equal(mv, codeVer, m + ' 副本须与入口同源（须是 let：bindDeps 可换，const 会 TypeError）');
     }
-    assert.equal(MF.extra_js.length, 96, 'B 包记忆侧四项改既有文件、**不新增运行时模块**，仍 96');
+    /* [v3.323.0 交棒] 原文是 `assert.equal(MF.extra_js.length, 96, ...)` ——
+     *   【硬锁出生版读数】：96 是 B 包那一刀的一次性事实，C 包新增三模块后
+     *   （96 → 99）它会翻红，而翻红的信息量只剩「数字不对」。本仓同族坑已定性两轮
+     *   （v3296 §8 的总项数锁交棒）。交棒**不弱化**：本档改守**下界**（不低于出生时的
+     *   96），当版项数锁由 tests/v3323_c_pack_group_relation.test.mjs 的 F3 接管。 */
+    assert.ok(MF.extra_js.length >= 96,
+        'extra_js 项数不得低于本档出生时的 96（当版项数锁已交棒 v3323 F3），实 ' + MF.extra_js.length);
     assert.ok(SELF.includes("const BORN = '3.321.0'"), '当版锚点必须显式留在本档里');
     assert.equal(SELF.includes('vnum(BORN)'), true, '锚形须可被守卫计数');
 });

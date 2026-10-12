@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.322.0",
+ "measured_at": "v3.323.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1723,6 +1723,38 @@
     "member_count": 10,
     "top5_pct": -0.3
    }
+  },
+  "v3.323.0": {
+   "reason": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：relation-history / causal-chain / perspective-card 三模块各自的取库口 + 唯一装配点 + 出口成员（含一处恒定键面修复：三出口缺席面按在场键序重排 + 补 version/degraded + 时点面补 floor/floorKnown）接进宿主，全为活跃功能增长、非死代码回流：宿主 18003 → 18232。行数上界按「实测 + slack」贴回（同时把 v3.321.0 四条接线越过 17801 的欠账一并结清）；成员上界抬到实测 680 + slack（v3.322.0 时 669 <= 675 仍在线内故未抬，本版真实接线越过 675）。",
+   "readings": {
+    "total_lines": 18232,
+    "member_count": 680,
+    "duplicate_member_names": 25,
+    "top5_lines": 4885,
+    "top5_pct": 26.8,
+    "top40_lines": 10596,
+    "top40_pct": 58.1,
+    "prefix_rule_coverage_lines": 5288,
+    "prefix_rule_coverage_pct": 29.0,
+    "unclassified_lines": 11973,
+    "seam_distinct_modules": 68,
+    "seam_reference_sites": 94,
+    "seam_call_shape_sites": 98,
+    "members_over_80_lines": 35,
+    "low_coupling_members": 24,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.322.0",
+   "delta": {
+    "total_lines": 229,
+    "member_count": 11,
+    "top5_pct": -0.1
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1734,19 +1766,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 18003,
-  "member_count": 669,
+  "total_lines": 18232,
+  "member_count": 680,
   "duplicate_member_names": 25,
-  "top5_lines": 4836,
-  "top5_pct": 26.9,
-  "top40_lines": 10521,
-  "top40_pct": 58.4,
-  "prefix_rule_coverage_lines": 5249,
-  "prefix_rule_coverage_pct": 29.2,
-  "unclassified_lines": 11783,
-  "seam_distinct_modules": 65,
-  "seam_reference_sites": 91,
-  "seam_call_shape_sites": 95,
+  "top5_lines": 4885,
+  "top5_pct": 26.8,
+  "top40_lines": 10596,
+  "top40_pct": 58.1,
+  "prefix_rule_coverage_lines": 5288,
+  "prefix_rule_coverage_pct": 29.0,
+  "unclassified_lines": 11973,
+  "seam_distinct_modules": 68,
+  "seam_reference_sites": 94,
+  "seam_call_shape_sites": 98,
   "members_over_80_lines": 35,
   "low_coupling_members": 24,
   "high_coupling_members": 7
@@ -1754,18 +1786,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 626,
-   "lines": 11783,
-   "lines_pct": 65.5,
-   "outside_refs": 6131,
-   "internal_refs": 1808,
-   "outside_ref_share_pct": 77.2
+   "members": 637,
+   "lines": 11973,
+   "lines_pct": 65.7,
+   "outside_refs": 6250,
+   "internal_refs": 1826,
+   "outside_ref_share_pct": 77.4
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1884,
-   "lines_pct": 10.5,
+   "lines_pct": 10.3,
    "outside_refs": 5,
    "internal_refs": 75,
    "outside_ref_share_pct": 6.3
@@ -1773,11 +1805,11 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1562,
-   "lines_pct": 8.7,
-   "outside_refs": 348,
-   "internal_refs": 465,
-   "outside_ref_share_pct": 42.8
+   "lines": 1601,
+   "lines_pct": 8.8,
+   "outside_refs": 357,
+   "internal_refs": 459,
+   "outside_ref_share_pct": 43.8
   },
   {
    "domain": "召回与注入",
@@ -1851,13 +1883,13 @@
   },
   {
    "name": "selfCheck",
-   "lines": 1165,
-   "outside_refs": 37
+   "lines": 1204,
+   "outside_refs": 46
   },
   {
    "name": "buildInjection",
-   "lines": 1066,
-   "outside_refs": 13
+   "lines": 1076,
+   "outside_refs": 14
   },
   {
    "name": "recallMemory",
@@ -1870,14 +1902,14 @@
    "outside_refs": 1
   },
   {
+   "name": "typedFactsBlocks",
+   "lines": 491,
+   "outside_refs": 0
+  },
+  {
    "name": "saveConfig",
    "lines": 474,
    "outside_refs": 12
-  },
-  {
-   "name": "typedFactsBlocks",
-   "lines": 465,
-   "outside_refs": 0
   },
   {
    "name": "exportMemoryReport",
@@ -1997,7 +2029,7 @@
   {
    "name": "summary",
    "lines": 100,
-   "outside_refs": 236
+   "outside_refs": 237
   },
   {
    "name": "_repairPool",
@@ -2059,7 +2091,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 465,
+    "lines": 491,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -2127,14 +2159,14 @@
   "high_coupling_examples": [
    {
     "name": "selfCheck",
-    "lines": 1165,
-    "outside_refs": 37,
+    "lines": 1204,
+    "outside_refs": 46,
     "is_host_lifecycle": false
    },
    {
     "name": "buildInjection",
-    "lines": 1066,
-    "outside_refs": 13,
+    "lines": 1076,
+    "outside_refs": 14,
     "is_host_lifecycle": false
    },
    {
@@ -2164,7 +2196,7 @@
    {
     "name": "summary",
     "lines": 100,
-    "outside_refs": 236,
+    "outside_refs": 237,
     "is_host_lifecycle": false
    }
   ]
@@ -2205,9 +2237,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 18403,
+  "ceiling": 18632,
   "maxSlack": 400,
-  "note": "[v3.322.0] B 包收尾：宿主出口判据面 + 读侧缺口具名化（缺席回执补 knownActors 一格 / 新增 _qaHelpDeps 装配点 / no-rows 缺口具名化）；另含 v3.321.0 四条真实接线（M3-O1 召回融合 / M3-O4 摘要保底 / M3-O6 大库查询 / M3-X1 问答内核）累计 +316 行此前未绑。全为活跃功能增长、非死代码回流：宿主 17611 → 18003，抬到实测 18003 + slack 400。此前登记上界 17801 已被 v3.321.0 接线越过（v3264 D 系交棒项）。",
+  "note": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：relation-history / causal-chain / perspective-card 三模块各自的取库口 + 唯一装配点 + 出口成员（含一处恒定键面修复：三出口缺席面按在场键序重排 + 补 version/degraded + 时点面补 floor/floorKnown）接进宿主，全为活跃功能增长、非死代码回流：宿主 18003 → 18232。行数上界按「实测 + slack」贴回（同时把 v3.321.0 四条接线越过 17801 的欠账一并结清）；成员上界抬到实测 680 + slack（v3.322.0 时 669 <= 675 仍在线内故未抬，本版真实接线越过 675）。",
   "history": [
    {
     "ceiling": 15000,
@@ -2250,9 +2282,14 @@
     "ceiling": 18403,
     "reason": "[v3.322.0] B 包收尾：宿主出口判据面 + 读侧缺口具名化（缺席回执补 knownActors 一格 / 新增 _qaHelpDeps 装配点 / no-rows 缺口具名化）；另含 v3.321.0 四条真实接线（M3-O1 召回融合 / M3-O4 摘要保底 / M3-O6 大库查询 / M3-X1 问答内核）累计 +316 行此前未绑。全为活跃功能增长、非死代码回流：宿主 17611 → 18003，抬到实测 18003 + slack 400。此前登记上界 17801 已被 v3.321.0 接线越过（v3264 D 系交棒项）。",
     "member_ceiling": 675
+   },
+   {
+    "ceiling": 18632,
+    "reason": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：relation-history / causal-chain / perspective-card 三模块各自的取库口 + 唯一装配点 + 出口成员（含一处恒定键面修复：三出口缺席面按在场键序重排 + 补 version/degraded + 时点面补 floor/floorKnown）接进宿主，全为活跃功能增长、非死代码回流：宿主 18003 → 18232。行数上界按「实测 + slack」贴回（同时把 v3.321.0 四条接线越过 17801 的欠账一并结清）；成员上界抬到实测 680 + slack（v3.322.0 时 669 <= 675 仍在线内故未抬，本版真实接线越过 675）。",
+    "member_ceiling": 710
    }
   ],
-  "member_ceiling": 675,
+  "member_ceiling": 710,
   "member_max_slack": 30,
   "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
  }

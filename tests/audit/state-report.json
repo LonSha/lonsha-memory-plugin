@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.322.0",
+  "version": "3.323.0",
   "version_sources": {
-    "manifest": "3.322.0",
-    "package": "3.322.0",
-    "index_const": "3.322.0"
+    "manifest": "3.323.0",
+    "package": "3.323.0",
+    "index_const": "3.323.0"
   },
   "version_same": true,
-  "human_index_version": "3.322.0",
+  "human_index_version": "3.323.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 96,
+    "extra_js": 99,
     "extra_js_list": [
       "ledger-entity.js",
       "settings-ui.js",
@@ -108,13 +108,16 @@
       "phone-fact-bridge.js",
       "knowledge-preview.js",
       "extract-feedback.js",
-      "project-registry.js"
+      "project-registry.js",
+      "relation-history.js",
+      "causal-chain.js",
+      "perspective-card.js"
     ],
-    "root_js": 97,
+    "root_js": 100,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 303,
+    "test_files": 304,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -361,6 +364,7 @@
       "v3320_a_pack_identity_memory_time.test.mjs",
       "v3321_b_pack_long_memory_time.test.mjs",
       "v3322_qa_host_exit.test.mjs",
+      "v3323_c_pack_group_relation.test.mjs",
       "v332_importance_timeline.test.mjs",
       "v333_ai_recall_ops.test.mjs",
       "v334_visual_editor.test.mjs",
@@ -460,7 +464,7 @@
     "tests_total": 299,
     "assertions": 3302,
     "audit": "61/61",
-    "reason": "登记版本 3.318.0 ≠ 当前 3.322.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.318.0 ≠ 当前 3.323.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -479,19 +483,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "0264fd938439",
-      "package.json": "16d8f32b4730",
-      "index.js": "b760559a9c1e",
+      "manifest.json": "4b19e430852f",
+      "package.json": "04cf46b6704c",
+      "index.js": "be5ed1f83a52",
       "update-log.json": null,
-      "README.md": "e6fa8ffdb7d2",
-      "PLAN.md": "03cdddc484e8",
-      "CHANGELOG.md": "539aa0fa7072",
-      "TODO.md": "c47e0de3c5b4",
+      "README.md": "02e2a6e667d8",
+      "PLAN.md": "d3674db98dfc",
+      "CHANGELOG.md": "a33dc56b2425",
+      "TODO.md": "503a51e34cea",
       "tests/audit/doc_readings.json": "ea97c7927fe8"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.318.0，当前 3.322.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.318.0，当前 3.323.0"
   ],
   "unknown_count": 1
 }
