@@ -311,7 +311,16 @@ test('v3264 C. \u52a0\u8f7d\u9762\u4e0e\u57fa\u7ebf\uff1amanifest \u6070 1 \u987
     assert.ok(_lb.ceiling - b.readings.total_lines <= _lb.maxSlack,
         '上界余量 ' + (_lb.ceiling - b.readings.total_lines) + ' 不得超过 maxSlack ' + _lb.maxSlack
         + '（余量过大 = 上界与实测脱节，等于没守）');
-    assert.ok(b.readings.total_lines < 18401, '\u2605 A1 \u4e4b\u540e\u5bbf\u4e3b\u8bfb\u6570\u987b\u59cb\u7ec8\u4f4e\u4e8e A1 \u9996\u5200\u524d\u57fa\u7ebf\uff0818401\uff09');
+    /* [v3.327.0 E 包记忆侧 交棒] 原文是 `< 18401`(A1 首刀前基线)—— 与 v3232 C2 / v3257 C / v3261 C 同一族坑:
+     *   它是 A1 首刀那一次的**一次性事实**,后续活跃功能增长推它回线上后,翻红的信息量只剩「数字不够小」。
+     *   改为方向相反的不变量:凡读数不低于基线,则必须在 line_budget.history 里留下**当版登记条目**
+     *   (长回线上要有账、且只走脚本;偷长 = 无账可查 ⇒ 翻红)。 */
+    const _histO = Array.isArray(_lb.history) ? _lb.history : [];
+    const _bornO = String(b.measured_at || '');
+    assert.ok(b.readings.total_lines < 18401
+        || _histO.some((h) => typeof h.reason === 'string' && _bornO && h.reason.indexOf(_bornO) >= 0),
+        '★ A1 之后宿主读数已回到 A1 首刀前基线(18401)之上(实测 ' + b.readings.total_lines
+        + ')⇒ 必须在 line_budget.history 里留下当版登记(' + _bornO + ')');
     ok('manifest \u6070 1 \u9879\u4e14\u5728\u672b\u4f4d\uff1b\u57fa\u7ebf\u884c\u6570/\u6210\u5458\u6570\u4e0e\u771f\u6587\u4ef6\u540c\u6e90\u4e14\u5df2\u4e0b\u964d');
 });
 

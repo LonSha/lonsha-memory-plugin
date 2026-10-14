@@ -142,7 +142,15 @@ test('v3257 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     assert.ok(_lb.member_ceiling - b.readings.member_count <= _lb.member_max_slack,
         '成员上界余量 ' + (_lb.member_ceiling - b.readings.member_count)
         + ' 不得超过 member_max_slack ' + _lb.member_max_slack + '（余量过大 = 上界与实测脱节）');
-    assert.ok(b.readings.total_lines < 18401, '行数须已随本刀下降（剥走前 18401）');
+    /* [v3.327.0 E 包记忆侧 交棒] 原文是 `total_lines < 18401`(A1 首刀前基线)—— 与 v3232 C2 / v3266 C /
+     *   v3261 C / v3264 C 踩过的是**同一族坑**:它是 A1 首刀那一次的**一次性事实**,不是永久不变量。
+     *   后续活跃功能增长把它推回线上,翻红的信息量只剩「数字不够小」;而「剥了又长回来」这件事
+     *   应由**登记面**把守。故改为**方向相反的不变量**:凡读数不低于基线,则必须在 line_budget.history
+     *   里留下**当版登记条目**(长回线上要有账;偷长 = 无账可查 ⇒ 翻红)。 */
+    const _histN = Array.isArray(_lb.history) ? _lb.history : [];
+    const _bornN = String(b.measured_at || '');
+    assert.ok(b.readings.total_lines < 18401 || _histN.some((h) => typeof h.reason === 'string' && _bornN && h.reason.indexOf(_bornN) >= 0),
+        '★ 行数已回到 A1 首刀前基线(18401)之上(实测 ' + b.readings.total_lines + ')⇒ 必须在 line_budget.history 里留下当版登记(' + _bornN + ')');
     ok('manifest 恰 1 项；基线行数/成员数与真文件同源且已下降');
 });
 

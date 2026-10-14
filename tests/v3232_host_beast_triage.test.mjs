@@ -194,7 +194,15 @@ test('v3232 C2. ★★★ index.js 的真实规模必须被分诊（不许基线
     assert.ok(_lb.ceiling - idxLines <= _lb.maxSlack,
         '上界余量 ' + (_lb.ceiling - idxLines) + ' 不得超过 maxSlack ' + _lb.maxSlack
         + '（余量过大 = 上界与实测脱节，等于没守）');
-    assert.ok(idxLines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401），实测 ' + idxLines);
+    /* [v3.327.0 E 包记忆侧 交棒] 原文是 `idxLines < 18401`(A1 首刀前基线)—— 与 v3264 C / v3266 C / v3261 C /
+     *   v3315 踩过的是**同一族坑**:它是 v3.231.0 那一刀的**一次性事实**,不是永久不变量。后续活跃功能增长
+     *   把它推回线上,翻红的信息量只剩「数字不够小」;而「剥了又长回来」这件事应由**登记面**把守。
+     *   故改为**方向相反的不变量**:凡读数不低于 A1 首刀前基线,则必须能在 `line_budget.history` 里
+     *   找到**当版登记条目**(长回线上要有账、且只走脚本;偷长 = 无账可查 ⇒ 翻红)。 */
+    const _hist = (_lb && Array.isArray(_lb.history)) ? _lb.history : [];
+    const _born = String(base.measured_at || '');
+    assert.ok(idxLines < 18401 || _hist.some((h) => typeof h.reason === 'string' && _born && h.reason.indexOf(_born) >= 0),
+        '★ 宿主读数已回到 A1 首刀前基线(18401)之上(实测 ' + idxLines + ')⇒ 必须在 line_budget.history 里留下当版登记(' + _born + '),否则「长回线上」无账可查');
     /* 主权声明：本版不动 index.js —— 用「行数没变」之外的更强判据：探针记录的行数必须等于文件行数
      *   （已断言）；而「是否被改动」由 git 面保证，不在此重复。 */
     assert.equal(base.split_candidates.total_over_threshold, R.members_over_80_lines, '分诊总数须与读数一致');

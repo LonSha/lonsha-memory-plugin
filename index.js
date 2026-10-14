@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.326.0';
+    const VERSION = '3.327.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -12090,6 +12090,35 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.phoneFactBridge'); return ['手机桥', '—（诊断异常）'];
                         }
                     })(),
+                    /* [v3.327.0 · E 包 M3-X5] 设定资料与前史分层导入:回答「这份资料分成了哪几类、
+                     *   哪些名字对不上库、有几处冲突、源改了哪一段」。与上一行「记忆包」是两个问题:
+                     *   那一行读的是**外来包**的准入与导入,本行读的是**作者给的设定资料**分层与映射。
+                     *   四种坏法可分:模块没挂 / 四类分层不可穷尽(⚠️)/ 掩码不定长(⚠️)/ 面在位。 */
+                    (() => {
+                        try {
+                            const LI = _loreImportLib();
+                            if (!LI || typeof LI.line !== 'function' || typeof this.loreImportLine !== 'function') {
+                                return ['资料导入', '模块未加载(lore-import.js)'];
+                            }
+                            return ['资料导入', this.loreImportLine()];
+                        } catch (e) { errLog(e, 'selfCheck.loreImport'); return ['资料导入', '—(诊断异常)'];
+                        }
+                    })(),
+                    /* [v3.327.0 · E 包 M3-X7] 故事年鉴:回答「这一章有什么值得回看、两版分没分开、
+                     *   有没有段因为原文改动过期了」。与「分层摘要」那行是两个问题:那一行答「窗口里
+                     *   讲过什么」(给生成用),本行答「玩家回看这一章该看什么」(四要素 / 两版 / 草稿)。
+                     *   五种坏法可分:模块没挂 / 两版不可分(⚠️,作者面会被当玩家面)/ 草稿白名单未生效
+                     *   (⚠️,能改到事实位)/ 泄漏扫描失效(⚠️)/ 面在位。 */
+                    (() => {
+                        try {
+                            const SA = _storyAnnualLib();
+                            if (!SA || typeof SA.line !== 'function' || typeof this.storyAnnualLine !== 'function') {
+                                return ['故事年鉴', '模块未加载(story-annual.js)'];
+                            }
+                            return ['故事年鉴', this.storyAnnualLine()];
+                        } catch (e) { errLog(e, 'selfCheck.storyAnnual'); return ['故事年鉴', '—(诊断异常)'];
+                        }
+                    })(),
                     /* [v3.296.0 · X1] 结构化证据查询：回答「按人/楼层/状态能不能查、登记面对没对齐、
                      *   扫了多少账、有没有账被截断」。与上面「账本实体」是两个问题：
                      *   那一行答「有多少条」，本行答「能按什么查、查的时候能看到多少」——
@@ -15556,6 +15585,233 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.memoryPackageLine'); return '—（诊断异常）'; }
         }
         /* ────────────────────────────────────────────────────────────────────────
+         * [v3.327.0 · E 包 M3-X5] 设定资料与前史分层导入面
+         *
+         * 【宿主只做三件事,绝不自己算】
+         *   1 **装配**:已登记实体名 / 已确认事实 / 受限正文键经 `_loreImportDeps()` 注入
+         *      (唯一装配点,键名与 `lore-import.js` 的 `REQUIRED_DEPS[].key` 逐字一致
+         *      —— 改名会静默变成「依赖缺席」,故判据套件按名对账);
+         *   2 **转发**:出口把实参原样交给内核,**不改写返回值**;
+         *   3 **留痕**:只留读数摘要(存整篇资料就是第二份证据库,且受限条目会随之外泄)。
+         *
+         * 【一个不可让步的口径】三件依赖**全为可选**:缺席即对应面降级并具名
+         *   —— 「映射面未判」与「没有映射」**不同形**,「冲突面未判」与「无冲突」也不同形。
+         *   把不知道写成没有,正是本仓治过多轮的错读数。
+         */
+        /** [v3.327.0 · M3-X5] 资料导入面的**唯一装配点**。 */
+        _loreImportDeps() {
+            const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+            return {
+                KNOWN_ENTITIES: (Array.isArray(this._loreKnownEntities) && this._loreKnownEntities.length) ? this._loreKnownEntities : null,
+                CONFIRMED_FACTS: (this._loreConfirmedFacts && typeof this._loreConfirmedFacts === 'object') ? this._loreConfirmedFacts : null,
+                SECRET_BODY_KEYS: (BS && Array.isArray(BS.SECRET_BODY_KEYS) && BS.SECRET_BODY_KEYS.length) ? BS.SECRET_BODY_KEYS : null
+                /* ★ 只给**该给的**三件:`REQUIRED_DEPS` 之外的键一律不塞。 */
+            };
+        }
+        /** [v3.327.0 · M3-X5] 内核不可达时的**同键降级**(面不可用 ≠ 这份资料没问题)。 */
+        _loreImportAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return { ok: false, source: null, sections: [], items: [], classes: {}, why: [r], reason: r, absent: true };
+        }
+        /** [v3.327.0 · M3-X5] 解析分层(**只读**;不抛、零写)。 */
+        loreImportParse(raw, opts) {
+            const LI = _loreImportLib();
+            if (!LI || typeof LI.parseSource !== 'function') return this._loreImportAbsent();
+            try {
+                const deps = this._loreImportDeps();
+                const merged = Object.assign({}, opts || {}, {
+                    secretBodyKeys: deps.SECRET_BODY_KEYS,
+                    carriers: (opts && opts.carriers) || null,
+                });
+                const res = LI.parseSource(raw, merged);
+                this._lastLoreImport = {
+                    at: Date.now(), sections: (res.sections || []).length, items: (res.items || []).length,
+                    classes: Object.assign({}, res.classes), truncated: res.truncated === true,
+                    secretKeysKnown: !!deps.SECRET_BODY_KEYS,
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.loreImportParse'); return this._loreImportAbsent('thrown'); }
+        }
+        /** [v3.327.0 · M3-X5] 实体映射(**映射必须确认**;未给清单 ⇒ 未判,不报「无映射」)。 */
+        loreImportEntities(parsed, opts) {
+            const LI = _loreImportLib();
+            if (!LI || typeof LI.entityCandidates !== 'function') return { checked: false, exact: 0, needsConfirm: 0, unresolved: 0, entries: [], why: ['module-absent'] };
+            try {
+                const deps = this._loreImportDeps();
+                const list = (opts && opts.knownEntities) || deps.KNOWN_ENTITIES;
+                const res = LI.entityCandidates(parsed, list, opts || {});
+                this._lastLoreMapping = { at: Date.now(), checked: res.checked === true, exact: res.exact, needsConfirm: res.needsConfirm, unresolved: res.unresolved };
+                return res;
+            } catch (e) { errLog(e, 'plugin.loreImportEntities'); return { checked: false, exact: 0, needsConfirm: 0, unresolved: 0, entries: [], why: ['thrown'] }; }
+        }
+        /** [v3.327.0 · M3-X5] 逐条 diff(**冲突默认不替用户决定**)。 */
+        loreImportPreview(parsed, target, opts) {
+            const LI = _loreImportLib();
+            if (!LI || typeof LI.diffPreview !== 'function') return { verdict: 'blocked', entries: [], add: 0, same: 0, conflict: 0, mapping: 0, dangling: 0, skipped: 0, total: 0, confirmedChecked: false, knownRefsChecked: false, why: ['module-absent'] };
+            try { return LI.diffPreview(parsed, target, opts || {}); }
+            catch (e) { errLog(e, 'plugin.loreImportPreview'); return { verdict: 'blocked', entries: [], add: 0, same: 0, conflict: 0, mapping: 0, dangling: 0, skipped: 0, total: 0, confirmedChecked: false, knownRefsChecked: false, why: ['thrown'] }; }
+        }
+        /** [v3.327.0 · M3-X5] 出导入计划(**只算不写**;幂等表由调用方持有并回传)。 */
+        loreImportPlan(parsed, preview, opts) {
+            const LI = _loreImportLib();
+            if (!LI || typeof LI.planApply !== 'function') return { ok: false, importId: '', duplicate: false, applied: [], count: 0, total: 0, skipped: [], reason: 'module-absent', writesNothing: true };
+            try { return LI.planApply(parsed, preview, opts || {}); }
+            catch (e) { errLog(e, 'plugin.loreImportPlan'); return { ok: false, importId: '', duplicate: false, applied: [], count: 0, total: 0, skipped: [], reason: 'thrown', writesNothing: true }; }
+        }
+        /** [v3.327.0 · M3-X5] 变更段(**源更新只重审变更段**)。 */
+        loreImportChanged(oldParsed, newParsed) {
+            const LI = _loreImportLib();
+            if (!LI || typeof LI.changedSections !== 'function') return { added: [], removed: [], changed: [], same: [], counts: { added: 0, removed: 0, changed: 0, same: 0 }, oldChecked: false, why: ['module-absent'] };
+            try { return LI.changedSections(oldParsed, newParsed); }
+            catch (e) { errLog(e, 'plugin.loreImportChanged'); return { added: [], removed: [], changed: [], same: [], counts: { added: 0, removed: 0, changed: 0, same: 0 }, oldChecked: false, why: ['thrown'] }; }
+        }
+        /** [v3.327.0 · M3-X5] 面自述(依赖缺哪一格、缺了会怎样)。 */
+        loreImportDescribe() {
+            const LI = _loreImportLib();
+            if (!LI || typeof LI.describe !== 'function') {
+                return { kind: 'lore_import', version: 0, classes: [], classLabels: [], origin: [], admit: [], preview: [], secretBodyKeys: [], secretMask: '', maxSourceChars: 0, present: 0, total: 0, missing: [], classesExhaustive: false, maskFixedLength: false, settingVsHappenedSplit: false, offline: true, writesNothing: true, note: '资料导入模块未加载(lore-import.js)', reason: 'module-unavailable' };
+            }
+            try {
+                const d = LI.describe(this._loreImportDeps());
+                d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.loreImportDescribe'); return { kind: 'lore_import', version: 0, classes: [], classLabels: [], origin: [], admit: [], preview: [], secretBodyKeys: [], secretMask: '', maxSourceChars: 0, present: 0, total: 0, missing: [], classesExhaustive: false, maskFixedLength: false, settingVsHappenedSplit: false, offline: true, writesNothing: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /** [v3.327.0 · M3-X5] 诊断一行。**四种坏法分开写**:模块没挂 / 受限键不识别
+         *   (则无法剥正文 ⇒ 拒绝解读)/ 口径不自洽(类目不可穷尽)/ 面在位。 */
+        loreImportLine() {
+            try {
+                const LI = _loreImportLib();
+                if (!LI || typeof LI.line !== 'function') return '模块未加载(lore-import.js)';
+                const d = this.loreImportDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载(lore-import.js)';
+                if (d.reason === 'thrown') return '—(诊断异常)';
+                if (d.classesExhaustive === false) return '⚠️ 四类分层不可穷尽(有类无处安放)';
+                if (d.maskFixedLength === false) return '⚠️ 受限正文掩码不是定长(长度本身成了读数)';
+                const last = this._lastLoreImport || null;
+                if (!last) return '待导入(面在位 · 四类分层 · 离线 · 依赖 ' + d.present + '/' + d.total + ')';
+                return LI.line(Object.assign({ verdict: 'parsed' }, last, { conflict: (this._lastLoreMapping || {}).needsConfirm || 0 }));
+            } catch (e) { errLog(e, 'plugin.loreImportLine'); return '—(诊断异常)'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
+         * [v3.327.0 · E 包 M3-X7] 章节回顾与可编辑故事年鉴面
+         *
+         * 【与「分层摘要」那一面的关系(两个问题)】
+         *   分层摘要回答「这一窗口讲过什么」(给生成用);本面回答「玩家回看这一章该看什么」
+         *   (四要素 / 两版 / 可编辑草稿)。故诊断面分开两行,不合成一行。
+         *
+         * 【宿主只做三件事】装配(卷章 / 摘要 / 原话经 `_storyAnnualDeps()`)→ 转发 → 留痕。
+         *   ★ 装配面**没有就报没有**:章面未判不得被写成「没有章节」——
+         *     本面宁可报「未判」也不猜章界。
+         */
+        /** [v3.327.0 · M3-X7] 年鉴面的**唯一装配点**。 */
+        _storyAnnualDeps() {
+            return {
+                CHAPTERS: (this._storyAnnualChapters && Array.isArray(this._storyAnnualChapters.chapters)) ? this._storyAnnualChapters : null,
+                SUMMARY: (this._storyAnnualSummary && typeof this._storyAnnualSummary === 'object') ? this._storyAnnualSummary : null,
+                QUOTES: (typeof this._storyAnnualQuotes === 'function') ? this._storyAnnualQuotes : null
+                /* ★ 只给**该给的**三件。 */
+            };
+        }
+        /** [v3.327.0 · M3-X7] 内核不可达时的**同键降级**。 */
+        _storyAnnualAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return { kind: 'story_annual', version: 0, ok: false, chapters: [], counts: {}, chaptersChecked: false, why: [r], reason: r, absent: true };
+        }
+        /** [v3.327.0 · M3-X7] 建章节册(**零写**);未给卷章 ⇒ 章面未判。 */
+        storyAnnualBuild(payload, opts) {
+            const SA = _storyAnnualLib();
+            if (!SA || typeof SA.build !== 'function') return this._storyAnnualAbsent();
+            try {
+                const deps = this._storyAnnualDeps();
+                const src = payload || deps.CHAPTERS;
+                const res = SA.build(src, opts || {});
+                this._lastStoryAnnual = {
+                    at: Date.now(), chapters: (res.chapters || []).length, counts: Object.assign({}, res.counts),
+                    chaptersChecked: res.chaptersChecked === true, depsPresent: (deps.CHAPTERS ? 1 : 0) + (deps.SUMMARY ? 1 : 0) + (deps.QUOTES ? 1 : 0)
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualBuild'); return this._storyAnnualAbsent('thrown'); }
+        }
+        /** [v3.327.0 · M3-X7] 单章回顾(**四要素;证据缺项单独计数**)。 */
+        storyAnnualReview(chapterRef, payload, opts) {
+            const SA = _storyAnnualLib();
+            if (!SA || typeof SA.review !== 'function') return { ok: false, ref: {}, title: '', elements: { events: [], changes: [], unfinished: [], quotes: [] }, evidence: [], evidenceChecked: false, evidenceMissing: 0, evidenceBound: 0, why: ['module-absent'] };
+            try { return SA.review(chapterRef, payload, (opts || {})); }
+            catch (e) { errLog(e, 'plugin.storyAnnualReview'); return { ok: false, ref: {}, title: '', elements: { events: [], changes: [], unfinished: [], quotes: [] }, evidence: [], evidenceChecked: false, evidenceMissing: 0, evidenceBound: 0, why: ['thrown'] }; }
+        }
+        /** [v3.327.0 · M3-X7] 两版可分(**无剧透版按在场角色白名单过滤**)。 */
+        storyAnnualTwoVersions(rev, opts) {
+            const SA = _storyAnnualLib();
+            if (!SA || typeof SA.twoVersions !== 'function') return { spoilerFree: null, authorial: null, leakedChars: [], versionsDistinct: false, why: ['module-absent'] };
+            try { return SA.twoVersions(rev, opts || {}); }
+            catch (e) { errLog(e, 'plugin.storyAnnualTwoVersions'); return { spoilerFree: null, authorial: null, leakedChars: [], versionsDistinct: false, why: ['thrown'] }; }
+        }
+        /** [v3.327.0 · M3-X7] 文风编辑模拟(**只报读数,不改写一个字**)。 */
+        storyAnnualBelletristic(text, opts) {
+            const SA = _storyAnnualLib();
+            if (!SA || typeof SA.belletristic !== 'function') return { chars: 0, smokeHits: 0, smokeWords: [], foulHits: 0, foulWords: [], smokeReasons: [], verdict: 'unavailable', writesNothing: true, note: '模块未加载' };
+            try { return SA.belletristic(text, opts || {}); }
+            catch (e) { errLog(e, 'plugin.storyAnnualBelletristic'); return { chars: 0, smokeHits: 0, smokeWords: [], foulHits: 0, foulWords: [], smokeReasons: [], verdict: 'thrown', writesNothing: true, note: '抛错' }; }
+        }
+        /** [v3.327.0 · M3-X7] 编辑草稿(**纯函数**;事实位一概拒 —— 编辑的不是事实)。 */
+        storyAnnualEdit(state, patch) {
+            const SA = _storyAnnualLib();
+            if (!SA || typeof SA.edit !== 'function') return { ok: false, state: null, changed: [], rejected: [], reason: 'module-absent' };
+            try {
+                const res = SA.edit(state, patch);
+                this._lastStoryAnnualEdit = { at: Date.now(), changed: (res.changed || []).length, rejected: (res.rejected || []).length, reason: res.reason };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualEdit'); return { ok: false, state: null, changed: [], rejected: [], reason: 'thrown' }; }
+        }
+        /** [v3.327.0 · M3-X7] 过期判定:**原文改动 ⇒ 对应段过期**(过期不等于删除)。 */
+        storyAnnualStale(oldChapters, newPayload) {
+            const SA = _storyAnnualLib();
+            if (!SA || typeof SA.staleRefs !== 'function') return { stale: 0, fresh: 0, missingChapters: 0, staleRefs: [], why: ['module-absent'], all: [] };
+            try {
+                const res = SA.staleRefs(oldChapters, newPayload);
+                this._lastStoryAnnualStale = { at: Date.now(), stale: res.stale, fresh: res.fresh, missingChapters: res.missingChapters };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualStale'); return { stale: 0, fresh: 0, missingChapters: 0, staleRefs: [], why: ['thrown'], all: [] }; }
+        }
+        /** [v3.327.0 · M3-X7] 面自述。 */
+        storyAnnualDescribe() {
+            const SA = _storyAnnualLib();
+            if (!SA || typeof SA.describe !== 'function') {
+                return { kind: 'story_annual', version: 0, elements: [], elementLabels: [], versions: [], draftFields: [], factFields: [], smokeWords: [], foulWords: [], itemMax: 0, present: 0, total: 0, missing: [], versionsDistinct: false, draftOnlyEnforced: false, leakScanWorks: false, offline: true, writesNothing: true, note: '年鉴模块未加载(story-annual.js)', reason: 'module-unavailable' };
+            }
+            try {
+                const d = SA.describe(this._storyAnnualDeps());
+                d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.storyAnnualDescribe'); return { kind: 'story_annual', version: 0, elements: [], elementLabels: [], versions: [], draftFields: [], factFields: [], smokeWords: [], foulWords: [], itemMax: 0, present: 0, total: 0, missing: [], versionsDistinct: false, draftOnlyEnforced: false, leakScanWorks: false, offline: true, writesNothing: true, note: '自述抛错', reason: 'thrown' }; }
+        }
+        /** [v3.327.0 · M3-X7] 诊断一行。**五种坏法分开写**:模块没挂 / 两版不可分
+         *   (把作者面当玩家面 = 直接剧透)/ 草稿白名单未生效 / 泄漏扫描失效 / 面在位。 */
+        storyAnnualLine() {
+            try {
+                const SA = _storyAnnualLib();
+                if (!SA || typeof SA.line !== 'function') return '模块未加载(story-annual.js)';
+                const d = this.storyAnnualDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载(story-annual.js)';
+                if (d.reason === 'thrown') return '—(诊断异常)';
+                if (d.draftOnlyEnforced === false) return '⚠️ 草稿白名单未生效(能改到事实位)';
+                if (d.versionsDistinct === false) return '⚠️ 两版不可分(作者面会被当玩家面)';
+                if (d.leakScanWorks === false) return '⚠️ 泄漏扫描失效(未过滤角色名不会报)';
+                const last = this._lastStoryAnnual || null;
+                if (!last) return '待生成(面在位 · 四要素 · 依赖 ' + d.present + '/' + d.total + ')';
+                const st = this._lastStoryAnnualStale || null;
+                const parts = ['年鉴 章 ' + (last.chapters || 0)];
+                const cs = last.counts || {};
+                if (cs.events) parts.push('事件 ' + cs.events);
+                if (cs.unfinished) parts.push('未了 ' + cs.unfinished);
+                if (st && st.stale) parts.push('⚠️ 过期段 ' + st.stale);
+                if (st && st.missingChapters) parts.push('整章过期 ' + st.missingChapters);
+                if (last.chaptersChecked === false) parts.push('章面未判');
+                return parts.join(' · ');
+            } catch (e) { errLog(e, 'plugin.storyAnnualLine'); return '—(诊断异常)'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
          * [v3.314.0 · M-X6] 手机事实桥 2.0（确认 / 撤回 / 双向回执）
          *
          * 【与「手机准入」（X4）那一面的关系（两个问题）】
@@ -16855,6 +17111,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   目录与源状态**一律转发 X7**（本模块不留第二份导航真源），**纯函数零写零联网**。
     function _projectRegistryLib() {
         return _moduleLib(() => window.LonShaProjectRegistry, 'project-registry.js');
+    }
+    // [v3.327.0 · E 包 M3-X5] 设定资料与前史的分层导入(lore-import.js)。为什么需要:
+    //   `memory-books.js::PrequelSystem.importPrequel(text)` 把**整篇文本**当一团前情存下来,
+    //   于是「设定规则」与「已经发生过的事件」在读数上同形 —— 世界观规则会被当成史实注入。
+    //   本模块把「解析分层 → 实体映射 → 逐条 diff → 只审变更段」收成一处,**纯函数零写零联网**:
+    //   设定类一律 origin=imported-lore,**不冒充聊天中已发生的事**。
+    function _loreImportLib() {
+        return _moduleLib(() => window.LonShaLoreImport, 'lore-import.js');
+    }
+    // [v3.327.0 · E 包 M3-X7] 章节回顾与可编辑故事年鉴(story-annual.js)。为什么需要:
+    //   叙事产物生成器(日记 / 反思 / 大纲)都是**面向角色或作者**的生成器;分层摘要按窗口切,
+    //   项目注册表有卷章结构 —— 两边**没接起来**,「这一章里发生过什么」无处可读,且回顾里的
+    //   每一句话**都不指向原文**(原文改了就没人知道它过期)。本模块只做四要素提取 / 两版可分 /
+    //   草稿编辑 / 过期判定,**不重建摘要引擎、不渲染页**,纯函数零写零联网。
+    function _storyAnnualLib() {
+        return _moduleLib(() => window.LonShaStoryAnnual, 'story-annual.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的

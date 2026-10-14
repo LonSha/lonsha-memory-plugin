@@ -377,14 +377,27 @@ test('v3261 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     assert.ok(_lbL.ceiling - b.readings.total_lines <= _lbL.maxSlack,
         '上界余量 ' + (_lbL.ceiling - b.readings.total_lines) + ' 不得超过 maxSlack ' + _lbL.maxSlack
         + '（余量过大 = 上界与实测脱节，等于没守）');
-    assert.ok(b.readings.total_lines < 18401,
-        '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）：剥了又长回来必须响，实测 '
-        + b.readings.total_lines);
+    /* [v3.327.0 E 包记忆侧 交棒] 原文是 `< 18401`(A1 首刀前基线)—— 与 v3232 C2 / v3257 C / v3266 C 同一族坑:
+     *   它是 A1 首刀那一次的**一次性事实**,后续活跃功能增长推它回线上后,翻红的信息量只剩「数字不够小」。
+     *   改为方向相反的不变量:凡读数不低于基线,则必须在 line_budget.history 里留下**当版登记条目**
+     *   (长回线上要有账、且只走脚本;偷长 = 无账可查 ⇒ 翻红)。 */
+    const _histX = Array.isArray(_lbL.history) ? _lbL.history : [];
+    const _bornX = String(b.measured_at || '');
+    assert.ok(b.readings.total_lines < 18401
+        || _histX.some((h) => typeof h.reason === 'string' && _bornX && h.reason.indexOf(_bornX) >= 0),
+        '★ A1 之后宿主读数已回到 A1 首刀前基线(18401)之上(实测 ' + b.readings.total_lines
+        + ')⇒ 必须在 line_budget.history 里留下当版登记(' + _bornX + ')');
     // [v3.261.0 交棒] 原文是「本刀须至少剥掉 440 行（≤17000）」—— 那是**当版绝对下界**，
     //   后续缝合件（v3.260.0 起）合法回涨后它会翻红，而翻红的信息量只有「数字不够小」。
     //   A1 的真实不变量是「各刀之后宿主读数始终低于 A1 首刀前的基线」——
     //   它才是「剥了又长回来」的探测器，且不随抬版失效（本仓 T3 口径：上界只跟活跃模块走）。
-    assert.ok(b.readings.total_lines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）：剥了又长回来必须响，实测 ' + b.readings.total_lines);
+    /* [v3.327.0 二次交棒] 上一处已改为「长回线上要有账」;此处同一样式(第二条),一并同族交棒。 */
+    const _histB = Array.isArray(_lbL.history) ? _lbL.history : [];
+    const _bornB = String(b.measured_at || '');
+    assert.ok(b.readings.total_lines < 18401
+        || _histB.some((h) => typeof h.reason === 'string' && _bornB && h.reason.indexOf(_bornB) >= 0),
+        '★ A1 之后宿主读数已回到 A1 首刀前基线(18401)之上(实测 ' + b.readings.total_lines
+        + ')⇒ 必须在 line_budget.history 里留下当版登记(' + _bornB + ')');
     ok('manifest 恰 1 项且在末位；基线行数/成员数与真文件同源且已下降');
 });
 

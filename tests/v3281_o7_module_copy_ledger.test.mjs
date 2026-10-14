@@ -116,7 +116,7 @@ const LEDGER = [
         '取整有限数（未给给 null，不拿 0 冒充「就是 0」）。X6/X7 各自持一份是**声明过的**：\n'
         + 'volume-continuation.js 档头逐字写明「本模块自持一份，不引 X6 的常量 —— 跨模块引用\n'
         + '常量会把两处的抬版变成一处悄悄读旧值的静默错（v3.292 三份副本漂移那一族的同形风险）」'],
-    ['keyOf', ['branch-semantics.js', 'memory-package.js', 'volume-continuation.js'], 'cb4883eb',
+    ['keyOf', ['branch-semantics.js', 'lore-import.js', 'memory-package.js', 'story-annual.js', 'volume-continuation.js'], 'cb4883eb',
         '名字/键归一（去首尾空白；非串给空串）。同上：刻意各持一份，收拢会引入跨模块静默读旧值。\n'
         + '★ **第三次补登（v3.313.0 轮）**：成员加 memory-package.js —— M-X8 自持一份（档头声明\n'
         + '与 X6/X7 同形同值），与「依赖模块先挂载」的静默读旧值形态同族，故不合并；体 md5 未变。'],
@@ -136,7 +136,7 @@ const LEDGER = [
         + '收拢会把「本模块自足」换成「依赖另一个模块先挂载」。（体 md5 未变 ⇒ 逐字同源仍在。）\n'
         + '★ **第三次补登（v3.313.0 轮）**：成员加 memory-package.js —— M-X8 的数值原语自持一份，\n'
         + '理由同前（通用数值原语、装载时机互不包含）。'],
-    ['strOf', ['memory-package.js', 'volume-continuation.js'], 'c43bf88e',
+    ['strOf', ['lore-import.js', 'memory-package.js', 'story-annual.js', 'volume-continuation.js'], 'c43bf88e',
         '文本化（缺省空串）。\n'
         + '**为什么留两份**：与 keyOf/numOrNull 同族 —— 通用文本原语，两模块装载时机互不包含\n'
         + '（X8 包面可缺席而 X7 卷接续在，反之亦然），收拢会引入跨模块静默读旧值。\n'
@@ -206,6 +206,12 @@ const LEDGER = [
         '**为什么留两份**:与 oneLine 同族 —— 通用取值原语 + 依赖本模块自持的 oneLine;' +
         '两模块装载时机互不包含(关系变化史可缺席而双向对账在,反之亦然)。' +
         '★ **补登(v3.326.0 轮)**:该簇由 v3.323.0 与 v3.219.0 两模块累积而成,前两次抬版漏同步本台账。'],
+    ['hash32', ['lore-import.js', 'story-annual.js'], '7a914ed7',
+        'FNV-1a 32 位(体长 173;与既有三份的 187 体不同,不并入那簇)。两模块零依赖自持一份,理由见上方注释。'],
+    ['arrOf', ['lore-import.js', 'memory-package.js', 'story-annual.js'], '0c294a84',
+        '数组归一(非数组 ⇒ 空数组)。通用容器原语;三模块装载时机互不包含(memory-package 早于本两模块存在)。'
+        + '★ 本行是当版自报:v3.327.0 · E 包两模块与 memory-package 同形同值,第三次成员由本刀引入并同批登记。'],
+
 ];
 
 /* ---- 破坏锚点（逐条取自真源，禁改；本档须逐字持有） ---- */

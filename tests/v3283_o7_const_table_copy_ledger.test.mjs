@@ -84,7 +84,10 @@ const CONST_LEDGER = [
     ['FACES', ['branch-semantics.js', 'memory-package.js', 'volume-continuation.js'], 67, '997c2e8b', 'Object.freeze(['],
     ['ACTION', ['branch-semantics.js', 'volume-continuation.js'], 44, 'e7884be8', 'Object.freeze({'],
     /* [v3.313.0 · M-X8] 以下三对与 FACES 同源：M-X8 自持与 X7 同形同值的词表（档头声明「不引 X7 的常量」，\n     *   理由同 volume-continuation：跨模块引用常量会把两处抬版变成一处悄悄读旧值）。\n     *   **两处必须一致**这件事正由本档 B1 钉住：改任一侧即红。 */
-    ['PREVIEW', ['memory-package.js', 'volume-continuation.js'], 42, '9471dab4', 'Object.freeze({'],
+    /* [v3.327.0 · E 包记忆侧] lore-import.js 自持一份 PREVIEW(准入面三态词表),与 X8/X7 同形同值。
+     *   **为什么留多份**:与 FACES / ACTION / SOURCE / LICENSE 同族 —— 通用词表原语,模块零依赖自足;
+     *   收拢会引入本仓反过的「跨模块静默读旧值」。★ **当版自报**:与簇同批落盘、同批登记。 */
+    ['PREVIEW', ['lore-import.js', 'memory-package.js', 'volume-continuation.js'], 42, '9471dab4', 'Object.freeze({'],
     ['SOURCE', ['memory-package.js', 'volume-continuation.js'], 59, '0ef2567e', 'Object.freeze({'],
     ['LICENSE', ['memory-package.js', 'volume-continuation.js'], 58, '3a8ba034', 'Object.freeze({'],
     /* [v3.326.0 · A1 第九刀] 两模块的 selfCheck 各持一份「导出面不许有写口」词表

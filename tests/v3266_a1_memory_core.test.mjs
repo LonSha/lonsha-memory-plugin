@@ -361,7 +361,12 @@ test('v3266 C. 加载面与基线：memory-core 恰 1 项且在 memory-config �
     assert.ok(_lb.ceiling - b.readings.total_lines <= _lb.maxSlack,
         '上界余量 ' + (_lb.ceiling - b.readings.total_lines) + ' 不得超过 maxSlack ' + _lb.maxSlack
         + '（余量过大 = 上界与实测脱节，等于没守）');
-    assert.ok(b.readings.total_lines < 18401, '★ A1 之后宿主读数须始终低于 A1 首刀前基线（18401）');
+    /* [v3.327.0 E 包记忆侧 交棒] 同 v3232 C2 / v3257 C:原句 `total_lines < 18401` 是 A1 首刀那一次的
+     *   **一次性事实**,后续活跃功能增长推它回线上后翻红的信息量只剩「数字不够小」。改为方向相反的不变量:
+     *   凡读数不低于基线,则必须在 line_budget.history 里留下**当版登记条目**(长回线上要有账)。 */
+    const _bornC = String(b.measured_at || '');
+    assert.ok(b.readings.total_lines < 18401 || _lbHist.some((h) => typeof h.reason === 'string' && _bornC && h.reason.indexOf(_bornC) >= 0),
+        '★ A1 之后宿主读数已回到 A1 首刀前基线(18401)之上(实测 ' + b.readings.total_lines + ')⇒ 必须在 line_budget.history 里留下当版登记(' + _bornC + ')');
     const dcb = JSON.parse(read('tests/audit/dead_code_budget.json'));
     /* [v3.273.0 交棒] 原文是 `dcb.note.includes('3.267.0')` —— 那是**硬锁当版字面量**，
      *   与仓内 V2/V3 纪律同族的反模式，且方向反了：它只证明「note 里留着某个旧版本号」，

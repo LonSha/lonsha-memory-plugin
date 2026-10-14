@@ -1,3 +1,38 @@
+## v3.327.0
+**E 包记忆侧:设定资料与前史分层导入(M3-X5)+ 章节回顾与可编辑故事年鉴(M3-X7)**
+- 本版是**第三期产品主线 E 包的记忆侧第一刀**(产品项 M3-X5 与 M3-X7),两个产品项**同批交付**:
+  `lore-import.js`(489 行 / 29 项导出)与 `story-annual.js`(440 行 / 28 项导出),均**零依赖 IIFE 双导出**,
+  进 `manifest.extra_js`(102 → 104),宿主接线 15 项出口 + 两行自检诊断。
+- **M3-X5 要修的是**:修前只有 `PrequelSystem.importPrequel(text)` —— 整篇文本被当**一团前情**
+  (`FRAGMENT_CHARS=560` / `BUDGET_SHARE=0.3` / `MAX_TOKENS=1200`),**设定规则会被当成已发生的历史注入**。
+  本刀新增四类分层(`setting-rule` / `backstory-event` / `character-bg` / `reference-only`,穷尽且各带 `judgeWhy`),
+  来源性质三态(`imported-lore` / `chat-confirmed` / `unknown`,**导入条目不得自称已发生**),
+  段落级来源(`sourceRef` 逐段不同),受限正文**入口即剥**(定长掩码字符串,长短文本恒等),
+  映射三态(未给清单 ⇒ `checked:false` 不报「无映射」;**空表 ⇒ `checked:true`**),
+  冲突**默认不覆盖**(已确认事实默认 `skip` / `confirmed-by-player`,显式 `allowReplace` 才替换),
+  变更段四态(`added` / `removed` / `changed` / `same`,源更新只重审变更段)。
+- **M3-X7 要修的是**:修前的回顾**不指向原文**(原文改了就没人知道过期),且作者面与玩家面**同一种东西**
+  (给玩家看 = 直接剧透)。本刀新增四要素(`events` / `changes` / `unfinished` / `quotes`)与**证据绑定**
+  (逐条挂 `evidenceRef`,缺据**单独计数**不静默当有据;ref 带条目类 `ch1#event@3` 防同楼多类撞号),
+  两版可分(无剧透版**一律清空未了事项**并按在场角色白名单裁条,白名单外角色名**逐一点名**),
+  草稿白名单(`DRAFT_FIELDS` 可改 / `FACT_FIELDS` 出现即 `draft-only` 拒,**纯函数不改入参**),
+  文风面**只报读数不改写**(`SMOKE_WORDS` / `FOUL_WORDS` 统计 + `clean`/`smoky` 结论,不回改后正文),
+  过期四态(逐证据比指纹:`gone` / `hash-changed`;旧章不在新载荷 ⇒ `missingChapters`,**过期不等于删除**)。
+- **诚实边界(写进档头,本刀不判)**:M3-X5 的类目判定是**关键词启发式**,只判「四类可达且穷尽」与
+  「判定词可溯」,**不判「分得对不对」**;M3-X7 的文风面**只报读数、不改写**,不判「写得好不好」。
+- **本刀自伤两处(判据错与实现错分开记)**:第 1 处,`lore-import.js` 掩码探针把 `carriers` 传在第 1 参而非第 2 参
+  (opts)⇒ 恒报 `maskFixedLength:false`,改后转真;第 2 处,`story-annual.js` 的 `evidenceOf` 与 `build` 各推一套证据位
+  ⇒ ref 撞车,改为**单点 `evidenceOf`** 并加**条目类**后才自比对 `fresh`。
+- **两态不许同形(本刀贯彻)**:未给依赖清单 ⇒ `checked:false`(不报「无映射」)vs 给了空表 ⇒ `checked:true`;
+  未给 facts ⇒ `confirmedChecked:false`(不报「无冲突」)vs 给了 facts ⇒ true;
+  未给 chapters ⇒ 章面未判(不猜章界)vs 给了空 chapters;未给旧源 ⇒ `no-old-source` vs 给了旧源。
+- **验收口径**:`tests/v3327_e_pack_lore_annual.test.mjs`(**25 条**:A 结构面 1 条 / B M3-X5 真跑 4 条 /
+  C M3-X7 真跑 4 条 / D 零写与不抛 2 条 / E 宿主接线 4 条 / F **真源码破坏负控制 7 条** / G H5 判据纯度 + H6 工具两向自证 /
+  H 自防护 + 六源同源 + 当版锚),含八个负控制锚(各在档内恰出现 1 次)与三处**判据自伤修复**
+  (跨 realm 数组不得用 `deepStrictEqual` 比;「证据位真消失」须逐字报 `gone` 档,否则抹掉 `gone` 分支判据无感)。
+- **退出码三档:0 卫生 / 1 真缺陷 / 2 结构漂移**(本档沿用全仓口径;`node --test` 单套件为 0/1)。
+
+- 本版**全量待验**(实施期只跑单门 / 单套件,全量口径见 README「全量口径」节)。
 ## v3.326.0
 **A1 第九刀:记忆优化器五路回收算法抽为 `memory-gc.js`(宿主净删 114 行)**
 - 本版是 A1 系列(宿主大函数逐刀外移)的**第九刀**。刀口是 `MemoryEngine.optimizeMemory()`:
