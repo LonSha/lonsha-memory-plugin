@@ -550,7 +550,20 @@ test('v3305 D1~D2. ★★★★ 宿主接线逐符号在场 + 外供登记表不
     assert.equal(cols.length, 9, '登记行必须九列');
     assert.equal(cols[0], 'memoryToolsEnvelope');
     assert.equal(cols[1], 'lonsha-memory-plugin');
-    assert.equal(cols[2], 'v' + PKG.version, 'producer_version 必须与当前版本同步');
+    /* [v3.328.1 修] 该格是「**生产者**版本」—— 生产者是供给本面的模块 memory-tools-api.js,
+     *   不是宿主。修前这里写 `'v' + PKG.version`(宿主版本),于是每个抬版脚本都按「随版」
+     *   机械改写这一格,而该模块自 v3.305.0 交付后**零改动** —— 账面在写一个从未改动过
+     *   本契约的版本。下游 ruby-phone 的第十一道门 R4(表 producer_version ↔ registry.since)
+     *   正是钉住这一格的判据,它抓到了本次漂移。
+     *   换锚后的判据是三件(**比原判据更强**,不是放宽):
+     *     a 该格 = 本面契约版本(本档出生版本,即供给模块最后一次改动所在版本);
+     *     b 该格**不得**被宿主抬版连带改写(与 PKG.version 脱钩:宿主抬版不构成本面变更);
+     *     c 供给模块真在场(签名:本档已逐符号核对,此处不再复述)。
+     *   为什么不是「照抄一个数字」:契约版本的真源是**该模块的变更史**,本档案里把
+     *   它作为常量锚住(BORN 同源),改模块必须同时改这里 —— 那正是我们想要的耦合。 */
+    const contractAt = cols[2];
+    assert.equal(contractAt, 'v' + BORN, 'producer_version 必须等于本面契约版本(供给模块最后改动所在版本)');
+    assert.notEqual(contractAt, 'v' + PKG.version, 'producer_version 不得被宿主抬版连带改写(生产者 ≠ 宿主)');
     const syms = cols[3].split('::')[1].split(',');
     const names = T.CAPABILITIES.map((c) => c.name);
     for (const n of names) assert.ok(syms.indexOf(n) >= 0, '登记行缺出口符号：' + n);
