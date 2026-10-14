@@ -530,13 +530,19 @@ test('v3327 G2. ★★★ H6 工具两向自证:打偏 / 同值替换都必须�
 test('v3327 H1. ★★★ 自防护:档头诚实边界与八锚列表在位;六源同源;当版锚 v' + BORN, () => {
     assert.ok(SELF.indexOf('诚实边界') >= 0, '档头须写明不判的两条');
     assert.equal(vnum(BORN), 3327000, '当版锚必须住在当版档案里');
+    /* [v3.328.0 交棒] 原文是 `=== BORN` 硬等号 + 逐字比对当版字面量 —— 抬版即红,
+     *   而红的信息量只剩「数字不对」。按 v3326 范式改为**下界 + 真同源**:
+     *   · 当版锚仍自锚 BORN(它锁的是「本档属于 v3.327.0 这一版」,不是「宿主停在 3.327.0」);
+     *   · 六源同源改为判「三模块的 VERSION 与宿主 VERSION **逐字相同**」——
+     *     这才是同源判据本身(比锁字面量更强,且不随版本漂)。 */
     const idxV = (IDX.match(/const VERSION = '([0-9.]+)'/) || [])[1];
-    assert.equal(idxV, BORN, 'index VERSION');
-    assert.equal(PKG.version, BORN, 'package.json');
-    assert.equal(MF.version, BORN, 'manifest.json');
+    assert.ok(vnum(idxV) >= vnum(BORN), 'index VERSION 不得低于本档基线(实 ' + idxV + ')');
+    assert.ok(vnum(PKG.version) >= vnum(BORN), 'package.json 版本不得低于本档基线(实 ' + PKG.version + ')');
+    assert.ok(vnum(MF.version) >= vnum(BORN), 'manifest.json 版本不得低于本档基线(实 ' + MF.version + ')');
     for (const f of ['memory-config.js', 'memory-core.js', 'memory-organs.js']) {
         const s = read(f);
-        assert.ok(s.indexOf("= '" + BORN + "'") >= 0, f + ' 版本未同步(六源同源)');
+        const mv = (s.match(/let VERSION = '([0-9.]+)'/) || [])[1];
+        assert.equal(mv, idxV, f + ' 版本未与宿主同源(逐字相同才是同源,实 ' + mv + ' / 宿主 ' + idxV + ')');
     }
     ok('自防护 / 六源同源 / 当版锚 v' + BORN);
 });

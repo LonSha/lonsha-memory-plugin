@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.327.0';
+    const VERSION = '3.328.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -12098,7 +12098,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         try {
                             const LI = _loreImportLib();
                             if (!LI || typeof LI.line !== 'function' || typeof this.loreImportLine !== 'function') {
-                                return ['资料导入', '模块未加载(lore-import.js)'];
+                                return ['资料导入', '模块未加载(lore-import.js;分不分得出设定与已经发生过的不得而知)'];
                             }
                             return ['资料导入', this.loreImportLine()];
                         } catch (e) { errLog(e, 'selfCheck.loreImport'); return ['资料导入', '—(诊断异常)'];
@@ -12113,7 +12113,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         try {
                             const SA = _storyAnnualLib();
                             if (!SA || typeof SA.line !== 'function' || typeof this.storyAnnualLine !== 'function') {
-                                return ['故事年鉴', '模块未加载(story-annual.js)'];
+                                return ['故事年鉴', '模块未加载(story-annual.js;给玩家看的是不是作者全知版不得而知)'];
                             }
                             return ['故事年鉴', this.storyAnnualLine()];
                         } catch (e) { errLog(e, 'selfCheck.storyAnnual'); return ['故事年鉴', '—(诊断异常)'];
@@ -12272,6 +12272,30 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                      *   与模块装载后的重绑（这才是机制该生效的那一轮）。最终态以重绑为准。 */
                     _formatBindDepsRow(this._bindDepsRead, this._bindDepsRebindRead),
                 ];
+                // [v3.328.0 · F 包 M3-X6] 支线正史体检面:与「分支对照」**分列**。
+                //   对照行答「两条分支的面差在哪」,本行答「哪一条算数」——合成一行会让
+                //   「两条结局同时成立」与「只有一条结局」共用一个提示位(本项立项要治的那条)。
+                //   报警只认两条真损失:未选定的位仍在(不得交接)与两条结局限定仍同时成立。
+                try {
+                    const BC = _branchCanonLib();
+                    if (!BC || typeof BC.line !== 'function' || typeof this.branchCanonLine !== 'function') {
+                        rows.push(['支线正史', '模块未加载(branch-canon.js;哪条算数不得而知)']);
+                    } else {
+                        rows.push(['支线正史', this.branchCanonLine()]);
+                    }
+                } catch (e) { errLog(e, 'selfCheck.branchCanon'); }
+                // [v3.328.0 · F 包 M3-X8] 旧事重现体检面:与「知识轨迹」**分列**。
+                //   轨迹行答「这条知识从哪来」,本行答「该不该在此刻提醒」——合成一行会让
+                //   「想不起来」与「我们不让它想」同形(正是本项要治的那条)。
+                //   报警只认两条真损失:知情面未判却仍出建议(替角色回忆)与冷却面未判(读成无冷却)。
+                try {
+                    const FR = _fatedRecallLib();
+                    if (!FR || typeof FR.line !== 'function' || typeof this.fatedRecallLine !== 'function') {
+                        rows.push(['旧事重现', '模块未加载(fated-recall.js;该不该提醒不得而知)']);
+                    } else {
+                        rows.push(['旧事重现', this.fatedRecallLine()]);
+                    }
+                } catch (e) { errLog(e, 'selfCheck.fatedRecall'); }
                 // [v3.150] A 召回效果自检：最近 N 轮召回命中分布 + 空结果警示（召回效果唯一盲区补自检）
                 try {
                     const ra = (this._recallAudit || []).slice(-8).reverse();
@@ -15812,6 +15836,258 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.storyAnnualLine'); return '—(诊断异常)'; }
         }
         /* ────────────────────────────────────────────────────────────────────────
+         * [v3.328.0 · F 包 M3-X6] 支线结果的正史选择工作区面
+         *
+         * 【宿主只做三件事,绝不自己算】
+         *   1 **装配**:结局清单 / 已确认事实 / 受限正文键经 `_branchCanonDeps()` 注入
+         *      (唯一装配点,键名与 `branch-canon.js` 的 `REQUIRED_DEPS[].key` 逐字一致);
+         *   2 **转发**:出口把实参原样交给内核,**不改写返回值**;
+         *   3 **留痕**:只留读数摘要(**不落任何分支写指令** —— 本面是选择与预览,
+         *      落笔仍归既有 owner:分卷接续面 / 前史面)。
+         *
+         * 【一个不可让步的口径】`BRANCH_OUTCOMES` 未给 ⇒ 冲突面**未判**;给了空表 ⇒
+         *   「查过、没有」。两者**不同形**(内核 `listOutcomes().judged` 就是这条的落点),
+         *   把不知道写成没有是本仓治过多轮的错读数。
+         */
+        /** [v3.328.0 · M3-X6] 本面的**唯一装配点**。 */
+        _branchCanonDeps() {
+            const BS = _moduleLib(() => window.LonShaBranchSemantics, 'branch-semantics.js');
+            return {
+                BRANCH_OUTCOMES: (Array.isArray(this._branchOutcomes)) ? this._branchOutcomes : null,
+                CONFIRMED_FACTS: (this._loreConfirmedFacts && typeof this._loreConfirmedFacts === 'object') ? this._loreConfirmedFacts : null,
+                SECRET_BODY_KEYS: (BS && Array.isArray(BS.SECRET_BODY_KEYS) && BS.SECRET_BODY_KEYS.length) ? BS.SECRET_BODY_KEYS : null
+                /* ★ 只给该给的三件:`REQUIRED_DEPS` 之外的键一律不塞。 */
+            };
+        }
+        /** [v3.328.0 · M3-X6] 内核不可达时的**同键降级**(面不可用 ≠ 两条结局没冲突)。 */
+        _branchCanonAbsent(kind, reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            const base = {
+                kind: kind, version: 0, ok: false, judged: false, reason: r,
+                note: '正史选择面不可达(branch-canon.js 未加载或符号缺失)⇒ 报 ok:false/' + r
+                    + ',**不报「无冲突」也不报「都已选」**',
+                writesNothing: true
+            };
+            if (kind === 'branch_canon') {
+                return Object.assign(base, { groups: 0, blocked: 0, unkeyed: 0, total: 0, rows: [] });
+            }
+            if (kind === 'branch_canon_plan') {
+                return Object.assign(base, { preview: 'blocked', chosen: [], coexisted: [], excluded: [], provenance: [], pending: [] });
+            }
+            if (kind === 'branch_canon_handoff') {
+                return Object.assign(base, { preview: 'blocked', pack: null, chosenCount: 0, coexistedCount: 0, excludedCount: 0, pendingCount: 0, keeperUnknown: true, masked: 0 });
+            }
+            return Object.assign(base, { scope: '', branchWrites: 0, volumeId: '', packId: '', keys: [], count: 0 });
+        }
+        /** [v3.328.0 · M3-X6] 逐冲突列举(**只读**;未给结局清单 ⇒ 未判,不报「无冲突」)。 */
+        branchCanonState(opts) {
+            const BC = _branchCanonLib();
+            if (!BC || typeof BC.conflicts !== 'function') return this._branchCanonAbsent('branch_canon');
+            try {
+                const res = BC.conflicts(this._branchCanonDeps(), opts);
+                const out = Object.assign({ kind: BC.BC_KIND, version: BC.BC_VERSION }, res, { ok: true });
+                this._branchCanonState = {
+                    at: Date.now(), groups: res.groups || 0, blocked: res.blocked || 0,
+                    unkeyed: res.unkeyed || 0, judged: res.judged !== false
+                };
+                return out;
+            } catch (e) { errLog(e, 'plugin.branchCanonState'); return this._branchCanonAbsent('branch_canon', 'thrown'); }
+        }
+        /** [v3.328.0 · M3-X6] 置一档选择(**纯**:只改宿主持有的计划容器,不碰任何分支账)。 */
+        branchCanonDecide(input) {
+            const BC = _branchCanonLib();
+            if (!BC || typeof BC.setDecision !== 'function') return this._branchCanonAbsent('branch_canon_plan');
+            try {
+                const res = BC.setDecision(this._branchCanonPlan || null, input || {});
+                if (res.ok && res.changed) this._branchCanonPlan = res.plan;
+                const prev = this._lastBranchCanonDecision || null;
+                this._lastBranchCanonDecision = {
+                    at: Date.now(), key: (input || {}).key || '', decision: (input || {}).decision || '',
+                    ok: res.ok === true, changed: res.changed === true, replay: prev ? 'repeat' : 'first',
+                    reason: res.reason || ''
+                };
+                return Object.assign({ kind: BC.BC_KIND + '_decision', version: BC.BC_VERSION }, res);
+            } catch (e) { errLog(e, 'plugin.branchCanonDecide'); return this._branchCanonAbsent('branch_canon_plan', 'thrown'); }
+        }
+        /** [v3.328.0 · M3-X6] 结算计划(选中 / 并存 / 排除 + 覆盖每条结局的出处清单)。 */
+        branchCanonPlan(opts) {
+            const BC = _branchCanonLib();
+            if (!BC || typeof BC.planCanon !== 'function') return this._branchCanonAbsent('branch_canon_plan');
+            try {
+                const res = BC.planCanon(this._branchCanonDeps(), this._branchCanonPlan || null, opts);
+                const out = Object.assign({ kind: BC.BC_KIND + '_plan', version: BC.BC_VERSION }, res);
+                this._lastBranchCanonPlan = {
+                    at: Date.now(), preview: res.preview || '', chosen: (res.chosen || []).length,
+                    coexisted: (res.coexisted || []).length, excluded: (res.excluded || []).length,
+                    pending: (res.pending || []).length, judged: res.judged !== false
+                };
+                return out;
+            } catch (e) { errLog(e, 'plugin.branchCanonPlan'); return this._branchCanonAbsent('branch_canon_plan', 'thrown'); }
+        }
+        /** [v3.328.0 · M3-X6] 交接预览(**只出读数、不落笔**;未选定的位在位 ⇒ blocked)。 */
+        branchCanonPreview(opts) {
+            const BC = _branchCanonLib();
+            if (!BC || typeof BC.previewHandoff !== 'function') return this._branchCanonAbsent('branch_canon_handoff');
+            try {
+                const res = BC.previewHandoff(this._branchCanonDeps(), this._branchCanonPlan || null, opts || {});
+                const out = Object.assign({ kind: BC.BC_KIND + '_handoff', version: BC.BC_VERSION }, res);
+                this._lastBranchCanonHandoff = {
+                    at: Date.now(), ok: res.ok === true, preview: res.preview || '',
+                    entries: ((res.pack || {}).entryCount || 0), withheld: ((res.pack || {}).withheldCount || 0),
+                    pending: res.pendingCount || 0, keeperUnknown: res.keeperUnknown === true,
+                    volumeId: (res.pack || {}).volumeId || ''
+                };
+                return out;
+            } catch (e) { errLog(e, 'plugin.branchCanonPreview'); return this._branchCanonAbsent('branch_canon_handoff', 'thrown'); }
+        }
+        /** [v3.328.0 · M3-X6] 撤销范围(验收4:**只撤本次接续,不改原分支**)。 */
+        branchCanonRevoke(opts) {
+            const BC = _branchCanonLib();
+            if (!BC || typeof BC.revokeScopeOf !== 'function') return this._branchCanonAbsent('branch_canon_revoke');
+            try {
+                const res = BC.revokeScopeOf(this._branchCanonPlan || null, opts || {});
+                this._lastBranchCanonRevoke = {
+                    at: Date.now(), keys: res.count || 0, branchWrites: res.branchWrites || 0
+                };
+                return Object.assign({ kind: BC.BC_KIND + '_revoke', version: BC.BC_VERSION }, res);
+            } catch (e) { errLog(e, 'plugin.branchCanonRevoke'); return this._branchCanonAbsent('branch_canon_revoke', 'thrown'); }
+        }
+        /** [v3.328.0 · M3-X6] 能力自述(缺哪一格、为什么缺、缺了会怎样)。 */
+        branchCanonDescribe() {
+            const BC = _branchCanonLib();
+            if (!BC || typeof BC.selfCheck !== 'function') {
+                return { kind: 'branch_canon', version: 0, decisions: [], clash: [], secretBodyKeys: [], present: 0, total: 0, missing: [], reason: 'module-unavailable', writesNothing: true };
+            }
+            try {
+                const d = BC.selfCheck(this._branchCanonDeps());
+                d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.branchCanonDescribe'); return { kind: 'branch_canon', version: 0, decisions: [], clash: [], secretBodyKeys: [], present: 0, total: 0, missing: [], reason: 'thrown', writesNothing: true }; }
+        }
+        /** [v3.328.0 · M3-X6] 诊断一行。**四种坏法分开写**(模块没挂 / 待选位仍在 / 两条结局仍同时
+         *   成立 / 面在位)—— 把「两条都成立」压进「有若干条结局」就是本项要治的那条。 */
+        branchCanonLine() {
+            try {
+                const BC = _branchCanonLib();
+                if (!BC || typeof BC.line !== 'function') return '模块未加载(branch-canon.js)';
+                const d = this.branchCanonDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载(branch-canon.js)';
+                if (d.reason === 'thrown') return '—(诊断异常)';
+                const st = this.branchCanonState();
+                if (st.judged === false) return '待选(面在位 · 结局清单未给 ⇒ 未判)';
+                const bad = ((st.rows || []).filter((r) => r.verdict === 'both-terminal' || r.verdict === 'divergent').length);
+                if (bad > 0) return '⚠️ 两条结局仍同时成立 ' + bad + ' 处(未选)';
+                const kept = this._lastBranchCanonPlan || null;
+                if (!kept) return '待选(面在位 · ' + (st.groups || 0) + ' 个冲突位)';
+                if (kept.pending > 0) return '⚠️ 待选 ' + kept.pending + ' 处未定 ⇒ 不得交接';
+                return '已选 ' + kept.chosen + ' / 并存 ' + kept.coexisted + ' / 排除 ' + kept.excluded + '(' + kept.preview + ')';
+            } catch (e) { errLog(e, 'plugin.branchCanonLine'); return '—(诊断异常)'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
+         * [v3.328.0 · F 包 M3-X8] 情境触发的旧事重现面
+         *
+         * 【宿主只做三件事】装配(旧事清单 / 角色知情名单 / 冷却窗口经 `_fatedRecallDeps()`)
+         *   → 转发 → 留痕。**本面零落笔**:建议只出读数,重现与否由生成侧决定。
+         *
+         * 【一个不可让步的口径】`KNOWN_FACTS` 缺席 / 该角色无知情记录 ⇒ 记录面**未判**;
+         *   这时**不建议**(不替角色回忆),并把未判原因具名带走 —— 与「角色确实不知道」不同形。
+         */
+        /** [v3.328.0 · M3-X8] 本面的**唯一装配点**。 */
+        _fatedRecallDeps() {
+            const CFG = (this.config && this.config.config) ? this.config.config : {};
+            const win = Number(CFG.recallCooldownDays);
+            return {
+                PAST_DETAILS: (Array.isArray(this._pastDetails)) ? this._pastDetails : null,
+                KNOWN_FACTS: (this._knownFacts && typeof this._knownFacts === 'object') ? this._knownFacts : null,
+                COOLDOWN_DAYS: Number.isFinite(win) ? win : 3
+            };
+        }
+        /** [v3.328.0 · M3-X8] 内核不可达时的**同键降级**(面不可用 ≠ 此刻没有旧事可提)。 */
+        _fatedRecallAbsent(reason) {
+            const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
+            return {
+                kind: 'fated_recall', version: 0, ok: false, judged: false, reason: r,
+                policy: 'inject', policyLabel: '可注入', actor: '', day: null,
+                triggers: [], triggerWhy: [], suggested: [], cooled: [], blind: [], noSource: [],
+                injectable: [], cooldownUnjudged: [], emotion: '', emotionUsed: false, markPlan: [],
+                reasons: [r],
+                note: '情境旧事面不可达(fated-recall.js 未加载或符号缺失)⇒ 报 ok:false/' + r
+                    + ',**不报「没有旧事」也不报「都已冷却」**',
+                writesNothing: true
+            };
+        }
+        /** [v3.328.0 · M3-X8] 建议旧事重现(**只读、只出建议**;策略三态由调用方给)。 */
+        fatedRecallSuggest(input) {
+            const FR = _fatedRecallLib();
+            if (!FR || typeof FR.suggest !== 'function') return this._fatedRecallAbsent();
+            try {
+                const res = FR.suggest(this._fatedRecallDeps(), this._fatedRecallState || {}, input || {});
+                const out = Object.assign({ kind: FR.FR_KIND, version: FR.FR_VERSION }, res);
+                this._lastFatedRecall = {
+                    at: Date.now(), judged: res.judged !== false, policy: res.policy || '',
+                    suggested: (res.suggested || []).length, cooled: (res.cooled || []).length,
+                    blind: (res.blind || []).length, noSource: (res.noSource || []).length,
+                    injectable: (res.injectable || []).length, cooldownUnjudged: (res.cooldownUnjudged || []).length
+                };
+                return out;
+            } catch (e) { errLog(e, 'plugin.fatedRecallSuggest'); return this._fatedRecallAbsent('thrown'); }
+        }
+        /** [v3.328.0 · M3-X8] 登记一次**展示**(纯:状态由宿主持有,不写任何账)。 */
+        fatedRecallMark(rec) {
+            const FR = _fatedRecallLib();
+            if (!FR || typeof FR.markShown !== 'function') {
+                return { ok: false, reason: 'module-absent', changed: false, state: (this._fatedRecallState || { shown: [] }) };
+            }
+            try {
+                const res = FR.markShown(this._fatedRecallState || {}, rec || {});
+                if (res.ok && res.changed) this._fatedRecallState = res.state;
+                return Object.assign({ kind: FR.FR_KIND + '_mark', version: FR.FR_VERSION }, res);
+            } catch (e) {
+                errLog(e, 'plugin.fatedRecallMark');
+                return { ok: false, reason: 'thrown', changed: false, state: (this._fatedRecallState || { shown: [] }) };
+            }
+        }
+        /** [v3.328.0 · M3-X8] 人读渲染(**只给建议与来源**,不产出正文)。 */
+        fatedRecallRender(report, opts) {
+            const FR = _fatedRecallLib();
+            if (!FR || typeof FR.render !== 'function') return '';
+            try { return FR.render(report || {}, opts || {}); }
+            catch (e) { errLog(e, 'plugin.fatedRecallRender'); return ''; }
+        }
+        /** [v3.328.0 · M3-X8] 能力自述(缺哪一格、为什么缺、缺了会怎样)。 */
+        fatedRecallDescribe() {
+            const FR = _fatedRecallLib();
+            if (!FR || typeof FR.selfCheck !== 'function') {
+                return { kind: 'fated_recall', version: 0, triggers: [], triggerLabels: [], policies: [], present: 0, total: 0, missing: [], reason: 'module-unavailable', writesNothing: true };
+            }
+            try {
+                const d = FR.selfCheck(this._fatedRecallDeps());
+                d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';
+                return d;
+            } catch (e) { errLog(e, 'plugin.fatedRecallDescribe'); return { kind: 'fated_recall', version: 0, triggers: [], triggerLabels: [], policies: [], present: 0, total: 0, missing: [], reason: 'thrown', writesNothing: true }; }
+        }
+        /** [v3.328.0 · M3-X8] 诊断一行。**四种坏法分开写**(模块没挂 / 知情面未判却仍出建议 /
+         *   关停面失效(hint-only 仍注入)/ 面在位)。 */
+        fatedRecallLine() {
+            try {
+                const FR = _fatedRecallLib();
+                if (!FR || typeof FR.line !== 'function') return '模块未加载(fated-recall.js)';
+                const d = this.fatedRecallDescribe();
+                if (d.reason === 'module-unavailable') return '模块未加载(fated-recall.js)';
+                if (d.reason === 'thrown') return '—(诊断异常)';
+                const last = this._lastFatedRecall || null;
+                if (!last) return '待触发(面在位 · 触发 ' + (d.triggers || []).length + ' 类 · 依赖 ' + d.present + '/' + d.total + ')';
+                if (last.blind > 0) return '⚠️ 知情未判/未知被挡 ' + last.blind + ' 条(不替角色回忆)';
+                if (last.policy === 'hint-only' && last.injectable > 0) return '⚠️ 关停面失效(只给提示却仍可注入)';
+                if (last.cooldownUnjudged > 0) return '⚠️ 冷却未判 ' + last.cooldownUnjudged + ' 条(不读成无冷却)';
+                const parts = ['建议 ' + last.suggested];
+                if (last.cooled) parts.push('冷却 ' + last.cooled);
+                if (last.noSource) parts.push('无来源 ' + last.noSource);
+                parts.push('可注入 ' + last.injectable);
+                return parts.join(' · ');
+            } catch (e) { errLog(e, 'plugin.fatedRecallLine'); return '—(诊断异常)'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
          * [v3.314.0 · M-X6] 手机事实桥 2.0（确认 / 撤回 / 双向回执）
          *
          * 【与「手机准入」（X4）那一面的关系（两个问题）】
@@ -17127,6 +17403,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   草稿编辑 / 过期判定,**不重建摘要引擎、不渲染页**,纯函数零写零联网。
     function _storyAnnualLib() {
         return _moduleLib(() => window.LonShaStoryAnnual, 'story-annual.js');
+    }
+    // [v3.328.0 · F 包 M3-X6] 支线结果的正史选择工作区(branch-canon.js)。为什么需要:
+    //   `branch-semantics.js` 能对照两条分支、`project-registry::compareProjects` 能比两个项目、
+    //   `volume-continuation.js` 能把一卷接出去 —— 但**没有任何一面**回答「这两条支线的结局,
+    //   哪一条成为后续正史?」。修前「两条结局同时成立」与「只有一条结局」在读数上同形
+    //   (都只是「有若干条结局条目」),于是下游把两条都当既成事实注入。本模块只做
+    //   逐冲突列举 / 逐冲突选择(canon / coexist / exclude)/ 交接预览 / 撤销范围 / 出处清单,
+    //   **不自建 merge 算法**(合并属 project-registry 的事),纯函数零写零联网。
+    function _branchCanonLib() {
+        return _moduleLib(() => window.LonShaBranchCanon, 'branch-canon.js');
+    }
+    // [v3.328.0 · F 包 M3-X8] 情境触发的旧事重现(fated-recall.js)。为什么需要:
+    //   `recall-echo.js` 有回扣账本、`echo-ledger.js` 有回扣模式、`narrative-pulse.js` 有情绪线索,
+    //   但三者都靠生成侧**自己记得去查**:没有任何一面答「此刻为什么该想起来」。本模块把
+    //   情境 → 触发键 → 候选(相关性 + 冷却 + 知情面)→ 用户策略收成一处,**纯函数、只出建议**:
+    //   不写账、不做后台常驻代理、不做情绪判定、不擅写续剧情,**不唤回角色未知的旧事**。
+    function _fatedRecallLib() {
+        return _moduleLib(() => window.LonShaFatedRecall, 'fated-recall.js');
     }
     // [v3.194] 事件完整性（event-completeness.js）。与 event-chain.js **不是同一件事**：
     //   后者管 agent run 生命周期（run_started→run_completed），前者管**剧情事件**的

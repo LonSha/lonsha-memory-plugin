@@ -7,7 +7,7 @@
     "css": "style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.327.0",
+    "version": "3.328.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -115,7 +115,9 @@
         "correction-plan.js",
         "memory-gc.js",
         "lore-import.js",
-        "story-annual.js"
+        "story-annual.js",
+        "branch-canon.js",
+        "fated-recall.js"
     ],
     "extra_css": [
         "lonsha-design.css",

@@ -98,12 +98,12 @@ const ALIAS_LEDGER = [
      *   取值门(keyOf)与预检三档词表 —— 两模块是**零依赖 IIFE**,档头声明能力一律经 deps 注入、
      *   不引兄弟模块的常量(跨模块引用常量会把两处抬版变成一处悄悄读旧值)。
      *   ★ 本行是**当版自报**(与簇同批落盘、同批登记),不是事后补登。 */
-    ['tab', ['PRECHECK', 'PREVIEW'], ['branch-semantics.js', 'lore-import.js', 'memory-package.js', 'volume-continuation.js'], 42, '9471dab4'],
+    ['tab', ['PRECHECK', 'PREVIEW'], ['branch-canon.js', 'branch-semantics.js', 'lore-import.js', 'memory-package.js', 'volume-continuation.js'], 42, '9471dab4'],
     /* [v3.294.0 · X8] 同一个「取值门」体在三个模块里挂了两个名字：X6/X7 的 `keyOf`
      *   与 X8 的 `strOf`（体长 100）—— 名字不同，故按名配对的三层判据整片看不见它。
      *   ★ 这是**判据真抓到东西**（不是为过门禁而补登记）：X8 档头刻意声明「本模块自持
      *   一份、不引 X6/X7 的常量」，故不合并成一份；登记 + 留痕理由，与 PRECHECK/PREVIEW 同处理。 */
-    ['fn', ['keyOf', 'strOf'], ['branch-semantics.js', 'lore-import.js', 'memory-package.js', 'recall-explain.js', 'story-annual.js', 'volume-continuation.js'], 100, 'cb4883eb'],
+    ['fn', ['keyOf', 'strOf'], ['branch-canon.js', 'branch-semantics.js', 'fated-recall.js', 'lore-import.js', 'memory-package.js', 'recall-explain.js', 'story-annual.js', 'volume-continuation.js'], 100, 'cb4883eb'],
     /* [v3.313.0 · M-X8] 两簇各多一个成员 memory-package.js：M-X8 自持与 X6/X7 同形同值的原语/词表\n     *   （档头声明「不引兄弟模块」），故不合并成一份；登记 + 留痕理由，与上两条同处理。\n     *   ★ 判据真抓到东西（不是为过门禁而补登记）：既有两模块的簇成员集合确实变了。 */
     ['fn', ['_t', 'text'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 142, 'bc94705d'],
     ['fn', ['_floorOf', 'floorOf'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 228, '6fe7a611'],

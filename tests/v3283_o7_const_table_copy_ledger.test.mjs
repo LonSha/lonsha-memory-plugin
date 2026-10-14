@@ -87,7 +87,11 @@ const CONST_LEDGER = [
     /* [v3.327.0 · E 包记忆侧] lore-import.js 自持一份 PREVIEW(准入面三态词表),与 X8/X7 同形同值。
      *   **为什么留多份**:与 FACES / ACTION / SOURCE / LICENSE 同族 —— 通用词表原语,模块零依赖自足;
      *   收拢会引入本仓反过的「跨模块静默读旧值」。★ **当版自报**:与簇同批落盘、同批登记。 */
-    ['PREVIEW', ['lore-import.js', 'memory-package.js', 'volume-continuation.js'], 42, '9471dab4', 'Object.freeze({'],
+    ['PREVIEW', ['branch-canon.js', 'lore-import.js', 'memory-package.js', 'volume-continuation.js'], 42, '9471dab4', 'Object.freeze({'],
+    /* [v3.328.0 · F 包] 成员加 branch-canon.js:该模块自持一份同形同值的预览三档词表
+     *   (ok / warn / blocked,档头声明「与 memory-package / lore-import 同词表,不另立」)。
+     *   ★ 本行是当版自报:v3.328.0 引入并同批登记。 *(fated-recall 自持的是 POLICY / CANDIDATE 等
+     *   别的词表,与这三档值不同 ⇒ 不在本簇,如实不登记。)* */
     ['SOURCE', ['memory-package.js', 'volume-continuation.js'], 59, '0ef2567e', 'Object.freeze({'],
     ['LICENSE', ['memory-package.js', 'volume-continuation.js'], 58, '3a8ba034', 'Object.freeze({'],
     /* [v3.326.0 · A1 第九刀] 两模块的 selfCheck 各持一份「导出面不许有写口」词表

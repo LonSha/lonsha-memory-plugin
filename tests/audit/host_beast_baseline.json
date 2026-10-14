@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.327.0",
+ "measured_at": "v3.328.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -1851,6 +1851,38 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.328.0": {
+   "reason": "[v3.328.0] F 包:支线结果的正史选择工作区(M3-X6)+ 情境触发的旧事重现(M3-X8)。新增两个运行时模块 branch-canon.js / fated-recall.js,并全部进 manifest.extra_js(104 → 106);宿主 index.js 增宿主取库口 / 两个面各九项出口 / 两行自检诊断(18669 → 18964 行)。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回。",
+   "readings": {
+    "total_lines": 18964,
+    "member_count": 723,
+    "duplicate_member_names": 25,
+    "top5_lines": 4996,
+    "top5_pct": 26.3,
+    "top40_lines": 10660,
+    "top40_pct": 56.2,
+    "prefix_rule_coverage_lines": 5399,
+    "prefix_rule_coverage_pct": 28.5,
+    "unclassified_lines": 12594,
+    "seam_distinct_modules": 75,
+    "seam_reference_sites": 103,
+    "seam_call_shape_sites": 107,
+    "members_over_80_lines": 34,
+    "low_coupling_members": 23,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.327.0",
+   "delta": {
+    "total_lines": 294,
+    "member_count": 16,
+    "top5_pct": -0.3
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -1862,19 +1894,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 18670,
-  "member_count": 707,
+  "total_lines": 18964,
+  "member_count": 723,
   "duplicate_member_names": 25,
-  "top5_lines": 4972,
-  "top5_pct": 26.6,
-  "top40_lines": 10618,
-  "top40_pct": 56.9,
-  "prefix_rule_coverage_lines": 5375,
-  "prefix_rule_coverage_pct": 28.8,
-  "unclassified_lines": 12324,
-  "seam_distinct_modules": 73,
-  "seam_reference_sites": 100,
-  "seam_call_shape_sites": 104,
+  "top5_lines": 4996,
+  "top5_pct": 26.3,
+  "top40_lines": 10660,
+  "top40_pct": 56.2,
+  "prefix_rule_coverage_lines": 5399,
+  "prefix_rule_coverage_pct": 28.5,
+  "unclassified_lines": 12594,
+  "seam_distinct_modules": 75,
+  "seam_reference_sites": 103,
+  "seam_call_shape_sites": 107,
   "members_over_80_lines": 34,
   "low_coupling_members": 23,
   "high_coupling_members": 7
@@ -1882,18 +1914,18 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 664,
-   "lines": 12324,
-   "lines_pct": 66,
-   "outside_refs": 6516,
-   "internal_refs": 1921,
-   "outside_ref_share_pct": 77.2
+   "members": 680,
+   "lines": 12594,
+   "lines_pct": 66.4,
+   "outside_refs": 6615,
+   "internal_refs": 1937,
+   "outside_ref_share_pct": 77.4
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1910,
-   "lines_pct": 10.2,
+   "lines_pct": 10.1,
    "outside_refs": 5,
    "internal_refs": 76,
    "outside_ref_share_pct": 6.2
@@ -1901,11 +1933,11 @@
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1662,
+   "lines": 1686,
    "lines_pct": 8.9,
-   "outside_refs": 370,
-   "internal_refs": 450,
-   "outside_ref_share_pct": 45.1
+   "outside_refs": 374,
+   "internal_refs": 452,
+   "outside_ref_share_pct": 45.3
   },
   {
    "domain": "召回与注入",
@@ -1979,8 +2011,8 @@
   },
   {
    "name": "selfCheck",
-   "lines": 1265,
-   "outside_refs": 59
+   "lines": 1289,
+   "outside_refs": 63
   },
   {
    "name": "buildInjection",
@@ -1999,7 +2031,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 525,
+   "lines": 543,
    "outside_refs": 0
   },
   {
@@ -2187,7 +2219,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 525,
+    "lines": 543,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -2255,8 +2287,8 @@
   "high_coupling_examples": [
    {
     "name": "selfCheck",
-    "lines": 1265,
-    "outside_refs": 59,
+    "lines": 1289,
+    "outside_refs": 63,
     "is_host_lifecycle": false
    },
    {
@@ -2333,9 +2365,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 19070,
+  "ceiling": 19364,
   "maxSlack": 400,
-  "note": "[v3.327.0] E 包记忆侧第一刀:设定资料与前史分层导入(M3-X5)+ 章节回顾与可编辑故事年鉴(M3-X7)。新增两个运行时模块 lore-import.js(489 行)/ story-annual.js,并全部进 manifest.extra_js(102 → 104);宿主 index.js 增宿主取库口 / 装配面 / 15 项出口 / 两行自检诊断(18398 → 18517 行)。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回。",
+  "note": "[v3.328.0] F 包:支线结果的正史选择工作区(M3-X6)+ 情境触发的旧事重现(M3-X8)。新增两个运行时模块 branch-canon.js / fated-recall.js,并全部进 manifest.extra_js(104 → 106);宿主 index.js 增宿主取库口 / 两个面各九项出口 / 两行自检诊断(18669 → 18964 行)。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回。",
   "history": [
    {
     "ceiling": 15000,
@@ -2408,9 +2440,14 @@
     "ceiling": 19070,
     "reason": "[v3.327.0] E 包记忆侧第一刀:设定资料与前史分层导入(M3-X5)+ 章节回顾与可编辑故事年鉴(M3-X7)。新增两个运行时模块 lore-import.js(489 行)/ story-annual.js,并全部进 manifest.extra_js(102 → 104);宿主 index.js 增宿主取库口 / 装配面 / 15 项出口 / 两行自检诊断(18398 → 18517 行)。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回。",
     "member_ceiling": 710
+   },
+   {
+    "ceiling": 19364,
+    "reason": "[v3.328.0] F 包:支线结果的正史选择工作区(M3-X6)+ 情境触发的旧事重现(M3-X8)。新增两个运行时模块 branch-canon.js / fated-recall.js,并全部进 manifest.extra_js(104 → 106);宿主 index.js 增宿主取库口 / 两个面各九项出口 / 两行自检诊断(18669 → 18964 行)。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回。",
+    "member_ceiling": 753
    }
   ],
-  "member_ceiling": 710,
+  "member_ceiling": 753,
   "member_max_slack": 30,
   "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
  }

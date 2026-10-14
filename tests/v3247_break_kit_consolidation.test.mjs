@@ -284,6 +284,7 @@ const REGISTRY = [
      *   3 条打在 lore-import.js 内核 / 3 条打在 story-annual.js 内核 / 2 条打在 index.js 宿主接线);
      *   按 B1 台账纪律在此登记。 */
     'v3327_e_pack_lore_annual.test.mjs',
+    'v3328_f_pack_canon_fated.test.mjs',        // [v3.328.0 F 包] 本档从 tests/_break_kit.mjs 取 breakOnce(8 条真源码破坏负控制),接入面须与磁盘双向一致
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

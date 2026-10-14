@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 68495,
+  "ceiling": 69800,
   "maxSlack": 400,
-  "note": "[v3.327.0] E 包记忆侧第一刀(M3-X5 设定资料与前史分层导入 + M3-X7 章节回顾与可编辑故事年鉴):新增两个运行时模块 lore-import.js / story-annual.js 并全部进 manifest.extra_js(102 → 104,活跃代码文件 103 → 105),全为活跃功能增长、非死代码回流。",
+  "note": "[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -293,7 +293,11 @@
     {
       "ceiling": 68495,
       "reason": "[v3.327.0] E 包记忆侧第一刀(M3-X5 设定资料与前史分层导入 + M3-X7 章节回顾与可编辑故事年鉴):新增两个运行时模块 lore-import.js / story-annual.js 并全部进 manifest.extra_js(102 → 104,活跃代码文件 103 → 105),全为活跃功能增长、非死代码回流。"
+    },
+    {
+      "ceiling": 69800,
+      "reason": "[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流"
     }
   ],
-  "_history_last": "ceiling 67071 → 68495（实测 68095 + slack 400）：[v3.327.0] E 包记忆侧第一刀(M3-X5 设定资料与前史分层导入 + M3-X7 章节回顾与可编辑故事年鉴):新增两个运行时模块 lore-import.js / story-annual.js 并全部进 manifest.extra_js(102 → 104,活跃代码文件 103 → 105),全为活跃功能增长、非死代码回流。"
+  "_history_last": "ceiling 68495 → 69800（实测 69400 + slack 400）：[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流"
 }
