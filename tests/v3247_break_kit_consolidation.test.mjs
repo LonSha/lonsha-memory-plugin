@@ -279,6 +279,7 @@ const REGISTRY = [
      *   7 条打在 memory-center.js 组织层 / 4 条打在宿主接线的解析与装配点 / 1 条打在 settings-ui.js 面板接线）；
      *   按 B1 台账纪律在此登记。 */
     'v3325_d_pack_memory_center_pages.test.mjs',
+    'v3326_a1_memory_gc_split.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

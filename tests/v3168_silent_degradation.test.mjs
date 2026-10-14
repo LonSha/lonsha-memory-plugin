@@ -245,12 +245,24 @@ test('v3.168 C I4 负向：正常拿到真向量时不得计数（判据不得�
     assert.deepStrictEqual(e.self._embedDegrade, { noKey: 0, apiError: 0, missingVector: 0, exception: 0 }, '正常路径不得记账');
 });
 
-test('v3.168 C GC 分路账本：删除必须分路留数', () => {
+test('v3.168 C GC 分路账本:删除必须分路留数', () => {
+    /* [v3.326.0 · A1 第九刀 交棒] 五路回收算法已抽为 memory-gc.js，
+     *   故「分路赋值」的**真源不再在宿主** —— 旧断言(idx.includes('_gcLedger.' + k + ' ='))
+     *   已失效。本条改为「两端各问一半」，不削判据：
+     *     · 分路赋值真源 → 问模块 memory-gc.js(runGc 内五路逐路点名)；
+     *     · 落账与读侧 → 问宿主(五键各自被读、且仅有删除时才落账)。 */
+    const gcSrc = readFileSync(path.join(ROOT, 'memory-gc.js'), 'utf8');
+    assert.ok(gcSrc.includes('function runGc('), 'memory-gc.js 在场且持有回收编排');
     assert.ok(idx.includes('this._lastGcLedger = _gcLedger'), '须挂账本');
-    for (const k of ['vecDup', 'vecCap', 'sumCap', 'orphanOps', 'graphDup']) {
-        assert.ok(idx.includes('_gcLedger.' + k + ' ='), k + ' 无分路赋值（账本字段成了空壳）');
+    const KEYS = ['vecDup', 'vecCap', 'sumCap', 'orphanOps', 'graphDup'];
+    for (const k of KEYS) {
+        assert.ok(gcSrc.includes('ledger.' + k + ' ='), k + ' 无分路赋值(账本字段成了空壳)');
+        assert.ok(idx.includes('_gcLedger.' + k), k + ' 宿主方未读这一路读数(算出来也无人看)');
     }
-    assert.ok(/if \(removed\) \{/.test(idx), '有删除才落账（零删除不留噪）');
+    const lk = /const LEDGER_KEYS = Object\.freeze\(\[(.*?)\]\)/.exec(gcSrc);
+    assert.ok(lk, '五路账本键须写成一份真源(LEDGER_KEYS)');
+    assert.equal((lk[1].match(/'[A-Za-z]+'/g) || []).length, 5, 'LEDGER_KEYS 须五键齐');
+    assert.ok(/if \(_r\.removed\) \{/.test(idx), '有删除才落账(零删除不留噪)');
 });
 
 test('v3.168 C 落账用 OpLog 的真实 API（本版初稿误用不存在的 push）', () => {

@@ -448,7 +448,7 @@ const UI_TO = "                    plugin._memoryCenterState = Object.assign({},
 test('v3325 A1. ★★★★ 模块登记面：分发面恰一次 + 双导出 + 冻结（本版不新增模块）', () => {
     assert.ok(fs.existsSync(path.join(R, MOD)), MOD + ' 必须在场');
     assert.equal(MF.extra_js.filter((x) => x === MOD).length, 1, MOD + ' 须恰登记一次');
-    assert.equal(MF.extra_js.length, 101, '本版**不新增模块**：extra_js 仍 101（99 → 101 是 v3.324.0 的账）');
+    assert.equal(MF.extra_js.length, 102, 'extra_js 102(v3.326.0 A1 第九刀新增 memory-gc.js;99 → 101 是 v3.324.0 的账),实 ' + MF.extra_js.length);
     const code = stripComments(MOD_SRC);
     if (code.includes('require(')) assert.fail('模块不得 require 兄弟模块（依赖经 deps 注入）');
     if (!code.includes('module.exports = api')) assert.fail('必须保留 CJS 导出');

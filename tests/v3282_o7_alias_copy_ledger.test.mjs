@@ -9,8 +9,8 @@
 //     于是「同名同体的副本」已被三层夹住，而**「同体不同名」整面没有任何判据**：
 //     把同一段实现换个名字抄过去，三层判据全部静默（这正是「判据的面漏一类」的第五处）。
 //
-//     实测（真源 tests/_audit_lib.mjs 的 stripComments 归一化口径，全 80 个根级 .js，
-//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **13 个簇**：
+//     实测（真源 tests/_audit_lib.mjs 的 stripComments 归一化口径，全 103 个根级 .js，
+//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **14 个簇**：
 //
 //       _numOrNull / numOrNull        index.js ↔ snapshot-checkpoint.js （258 字符）
 //       floorOrNull / toNum           ledger-replay.js ↔ archive-shift.js （208）
@@ -22,6 +22,7 @@
 //       normOp / normRef / normStr    index.js · fuzzy-patch.js · changeset.js · relation-disclosure.js （34）
 //       PRECHECK / PREVIEW            branch-semantics.js ↔ volume-continuation.js （42，常量表；v3.293.0 补）
 //       keyOf / strOf                 branch-semantics.js · recall-explain.js · volume-continuation.js （100；v3.294.0 补）
+//       KINDS / TARGET_KINDS          correction-plan.js · recall-explain.js (25,常量表;v3.326.0 补登)
 //
 //     其中两条注释**自己承认**了跨文件重复（真源逐字）：
 //       archive-shift.js:28-29 「两处是**各自路径上的门**……不是同一份事实的两份实现；
@@ -38,7 +39,7 @@
 //
 //   【判据（fail-closed）】
 //     A  枚举面：全仓 items 下限 + 别名簇数下限 + 登记表格式（名字互不相同，否则它就不是别名簇）
-//     B  读盘实测：13 簇逐字相同；任一簇少一个成员即「漂移/消失」（红，且点名差异成员）
+//     B  读盘实测：14 簇逐字相同；任一簇少一个成员即「漂移/消失」（红，且点名差异成员）
 //     C  真源码破坏（三向）：改成员 A 的体 ⇒ 该簇成员缩水；改另一族成员 ⇒ 同样；凭空抄一份 ⇒ 新增未登记
 //     D  工具两向自证：breakSource 的 0 次 / 同值必抛；原版判据真、破坏副本真红
 //     E  判据纯度 H5：破坏锚点字面量在本档各只声明一次（按**转义形态**计数），真源上各恰中一次
@@ -72,9 +73,9 @@ const md5 = (s) => crypto.createHash('md5').update(s).digest('hex').slice(0, 8);
 /** 体长下限：30 让「一行取值门」（normOp 那一簇 34）也在面内；常量表 20（跨行数组较短）。 */
 const MIN_BODY = 30;
 const MIN_TAB = 20;
-/** 全仓 items 下限（实 2153）：枚举面塌陷时「0 别名簇」会伪装成卫生。 */
+/** 全仓 items 下限（实 3015）：枚举面塌陷时「0 别名簇」会伪装成卫生。 */
 const MIN_ITEMS = 1200;
-/** 别名簇数下限（实 13）：登记表被清空或聚类失效时立刻红。 */
+/** 别名簇数下限（实 14）：登记表被清空或聚类失效时立刻红。 */
 const MIN_CLUSTERS = 6;
 
 /**
@@ -103,6 +104,15 @@ const ALIAS_LEDGER = [
     ['fn', ['_t', 'text'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 142, 'bc94705d'],
     ['fn', ['_floorOf', 'floorOf'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 228, '6fe7a611'],
     ['fn', ['_isPlain', 'isPlainObject'], ['extract-feedback.js', 'project-registry.js', 'projection-pipeline.js'], 57, 'dd6bb22c'],
+    /* [v3.326.0 · A1 第九刀] 两模块各持一份「建议目标三态」词表(config / data / rerun)。
+     *   D 包侧叫 `KINDS`、C 包侧叫 `TARGET_KINDS` —— 名字不同,故按**名**配对的三层判据(v3280 / v3281)整片看不见它。
+     *   **为什么留两份**:与 PRECHECK/PREVIEW、keyOf/strOf 同族 —— 它是**通用词表原语**,
+     *   两模块装载时机与存活期互不包含(建议方案面可缺席而召回解释在,反之亦然),
+     *   收拢会把「本模块自足」换成「依赖另一个模块先挂载」(本仓反过的跨模块静默读旧值)。
+     *   ★ 该簇由 v3.323.0(C 包)+ v3.324.0(D 包)两次抬版累积而成,
+     *   **两次都漏了同步本台账**;在干净基线 afb6071 上单跑本档
+     *   同样翻红(取证:非本刀引入)。体 md5 与磁盘同源。 */
+    ['tab', ['KINDS', 'TARGET_KINDS'], ['correction-plan.js', 'recall-explain.js'], 25, '96a6f5e8'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

@@ -16,7 +16,7 @@
 //     即：**该副本的值漂移，整套测试面完全不可见**。这正是 O7 第一条要抓的
 //     「减少实际重复实现」的反面 —— 重复实现没人守，就是两份会各自腐化的真源。
 //
-//   【本档登记（5 对同名常量表，实测值逐字相同；v3.293.0 口径，X6/X7 补 2 对）】
+//   【本档登记（6 对同名常量表，实测值逐字相同；v3.293.0 口径，X6/X7 补 2 对）】
 //     ARCHIVE_TOP_LEVEL_KEYS   index.js ↔ memory-organs.js   629 字符  md5 72ef6f67
 //     RELATION_CONFLICT_GROUPS index.js ↔ memory-core.js     134       md5 a2700f54
 //     STORAGE_FP_FIELDS        index.js ↔ memory-organs.js    65       md5 70a8fcd9
@@ -64,7 +64,7 @@ const md5 = (s) => crypto.createHash('md5').update(s).digest('hex').slice(0, 8);
 
 /** 常量表体长下限（实 44 最短）：低于此不构成「一张表」，不收。 */
 const MIN_BODY = 40;
-/** 根级 .js 下限（实 84）。 */
+/** 根级 .js 下限（实 103）。 */
 const MIN_FILES = 60;
 /** 常量表声明枚举下限（实数百）：塌陷时「0 对」会伪装成卫生。 */
 const MIN_TABS = 200;
@@ -87,6 +87,14 @@ const CONST_LEDGER = [
     ['PREVIEW', ['memory-package.js', 'volume-continuation.js'], 42, '9471dab4', 'Object.freeze({'],
     ['SOURCE', ['memory-package.js', 'volume-continuation.js'], 59, '0ef2567e', 'Object.freeze({'],
     ['LICENSE', ['memory-package.js', 'volume-continuation.js'], 58, '3a8ba034', 'Object.freeze({'],
+    /* [v3.326.0 · A1 第九刀] 两模块的 selfCheck 各持一份「导出面不许有写口」词表
+     *   (set/put/write/save/update/delete/clear/remove/commit/apply 十个前缀)。**同名**(都叫 `mutating`)故归本档。
+     *   **为什么留两份**:它是**自检用的词表原语** —— 每个模块对自己的导出面
+     *   各算一遍「写口数」,收拢成一份等于让两个模块的自检变成一次共用判断;
+     *   两模块装载时机不包含(统一信封层可缺席而关系史在,反之亦然)。
+     *   ★ 该对由 v3.310.0(记忆控制中心)+ v3.322.0(relation-history)
+     *   两次抬版累积**未同步本台账**;干净基线 afb6071 上单跑本档同样翻红(取证:非本刀引入)。 */
+    ['mutating', ['memory-tools-api.js', 'relation-history.js'], 87, 'ade6c7ce', '['],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

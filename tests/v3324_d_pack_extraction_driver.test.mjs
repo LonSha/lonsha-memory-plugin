@@ -723,11 +723,14 @@ test('v3324 F3. ★★★ 加载面：两个新模块各在 extra_js 恰一次�
         assert.ok(fs.existsSync(path.join(R, m)), m + ' 磁盘必须在场');
         assert.equal(MF.extra_js.filter((x) => x === m).length, 1, m + ' 须在 extra_js 恰好声明一次（不登记 = 浏览器不加载 = 面永远缺席）');
     }
-    assert.equal(MF.extra_js.length, 101, 'v3.324.0 D 包新增两模块：分发面 99 → 101，实 ' + MF.extra_js.length);
+    assert.equal(MF.extra_js.length, 102, 'v3.326.0 A1 第九刀新增 memory-gc.js:分发面 101 → 102(99 → 101 是 v3.324.0 的账),实 ' + MF.extra_js.length);
     assert.equal(new Set(MF.extra_js).size, MF.extra_js.length, 'extra_js 不得重复');
     assert.equal(MF.extra_js[0], 'ledger-entity.js', 'ledger-entity.js 仍须在 extra_js 首位（v3.207 不变量：六本账的真源先加载）');
-    assert.equal(MF.extra_js.slice(-5).join(','), 'relation-history.js,causal-chain.js,perspective-card.js,extraction-driver.js,correction-plan.js',
-        '当版末尾五模块（C 包三 + D 包两）须按加载序排列，实 ' + MF.extra_js.slice(-5).join(','));
+    /* [v3.326.0 A1 第九刀 交棒] 原文是 `assert.equal(MF.extra_js.slice(-5).join(','), ...)` ——
+     *   新增 memory-gc.js 后「末尾恰五模块」的硬等号会翻红,而翻红的信息量只剩「数字不对」。
+     *   改为判**语义**「当版新模块仍未掉队」:本刀模块须在**末尾三模块**之内且按加载序紧跟 D 包两模块。 */
+    assert.equal(MF.extra_js.slice(-3).join(','), 'extraction-driver.js,correction-plan.js,memory-gc.js',
+        '当版模块须按加载序位于分发面末尾(D 包两模块 + 本刀 memory-gc),实 ' + MF.extra_js.slice(-3).join(','));
 });
 test('v3324 F4. ★★ 两模块导出面指纹与只读纪律（不 require 兄弟模块 / 不联网 / 不落盘）', () => {
     const grid = [

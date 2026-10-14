@@ -172,8 +172,11 @@ test('v3184 7. addEdge 携带 disclosure：只在真写了条件时才落库', (
 test('v3184 8. 注入侧收口：关系块按条件过滤且不删边', () => {
     const i = src.indexOf("blocks.push('[角色关系]')");
     assert.ok(i > 0);
-    // 收口代码在 push 之前（判条件），改用过滤后集合的循环在它之后 —— 取双向窗口。
-    const before = src.slice(Math.max(0, i - 2600), i + 400);
+    // 收口代码在 push 之前(判条件),改用过滤后集合的循环在它之后 —— 取双向窗口。
+    // [v3.326.0 · A1 第九刀] 窗口 2600 → 3400:宿主行数回落 114 行**推远了**本块上方的
+    //   注释与取库口(实测取库口在 push 前 3025 字符处,旧窗口已够不到)。
+    //   这是**读数面陈旧**,不是收口代码搬走 —— 五个锚点仍在同块内,断言一字未改。
+    const before = src.slice(Math.max(0, i - 3400), i + 400);
     assert.ok(before.includes("_moduleLib(() => window.LonShaRelationDisclosure, 'relation-disclosure.js')"), '走统一取库口');
     assert.ok(before.includes('_RD.partition(relations'), '真调用判据');
     assert.ok(before.includes('_relKept.forEach'), '循环改用过滤后的集合');

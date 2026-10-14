@@ -710,17 +710,16 @@ test('v3323 F3. ★★★ 加载面：三个新模块各在 extra_js 恰一次�
         'extra_js 项数不得低于本档出生时的 99（当版项数锁已交棒 v3324 F3），实 ' + MF.extra_js.length);
     assert.equal(new Set(MF.extra_js).size, MF.extra_js.length, 'extra_js 不得重复');
     assert.equal(MF.extra_js[0], 'ledger-entity.js', 'ledger-entity.js 仍须在 extra_js 首位（v3.207 不变量：六本账的真源先加载）');
-    /* [v3.324.0 交棒] 原文是 `assert.equal(MF.extra_js.slice(-3).join(','), MODS.join(','), ...)` ——
-     *   【把「在绝对末尾」当永久不变量】：D 包两模块（extraction-driver / correction-plan）
-     *   追加在末尾后，C 包三模块退到倒数第 5~3 位，该断言翻红而信息量只剩「位置不对」。
-     *   本条要守的不变量是「**消费方在后**」：C 包三模块须**连续**且整体位于末尾两模块之前。
-     *   新写法同时钉死「连续」与「先后」两件事（比原写法信息量更大），
-     *   当版绝对末尾锚（末尾须是 D 包两模块）由 v3324 F3 接管。 */
-    const tail5 = MF.extra_js.slice(-5);
-    assert.equal(tail5.slice(0, 3).join(','), MODS.join(','),
-        'C 包三模块须连续相邻（加载序上它们是一组消费方），实 ' + tail5.slice(0, 3).join(','));
-    assert.equal(tail5.slice(3).join(','), 'extraction-driver.js,correction-plan.js',
-        'D 包两模块须位于 C 包三模块之后（当版追加在末尾），实 ' + tail5.slice(3).join(','));
+    /* [v3.324.0 交棒 → v3.326.0 再交棒] 原文是 `assert.equal(MF.extra_js.slice(-3).join(','), MODS.join(','), ...)` ——
+     *   【把「在绝对末尾」当永久不变量】:每有新模块追加在末尾,该断言就翻红一次,
+     *   而翻红的信息量只剩「位置不对」。本条要守的不变量是「**C 包三模块连续相邻**」
+     *   —— 与它们在 extra_js 里的绝对下标无关(D 包两模块、A1 第九刀的 memory-gc.js
+     *   都在它们之后追加过)。当版新模块自身是否恰一次、是否在末尾,由各自成对套件
+     *   (tests/v3324_d_pack_extraction_driver.test.mjs F3 / tests/v3326_a1_memory_gc_split.test.mjs A3)接管。 */
+    const _iRel = MF.extra_js.indexOf('relation-history.js');
+    assert.ok(_iRel >= 0, 'C 包首模块 relation-history.js 须在 extra_js 内(否则本条失去锚)');
+    assert.equal(MF.extra_js.slice(_iRel, _iRel + MODS.length).join(','), MODS.join(','),
+        'C 包三模块须连续相邻(加载序上它们是一组消费方),实 ' + MF.extra_js.slice(_iRel, _iRel + MODS.length).join(','));
 
 });
 test('v3323 F4. ★★ 三模块导出面指纹与只读纪律（不 require 兄弟模块 / 不落盘）', () => {

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.325.0';
+    const VERSION = '3.326.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1004,6 +1004,10 @@
     // ═══════════════════════════════════════════════════════════════════
     function _memoryAuxLib() {
         return _moduleLib(() => window.LonShaMemoryAux, 'memory-aux.js');
+    }
+    // [A1 9th cut] memory-gc.js lib getter (not cached at construction: extra_js loads after entry).
+    function _memoryGcLib() {
+        return _moduleLib(() => window.LonShaMemoryGc, 'memory-gc.js');
     }
     // 模块缺席时的内置退路：与 memory-aux.js 的公开面**同形**（少功能但绝不抛、绝不静默）。
     //   为什么不留着旧类当退路：两份实现会漂移（与第一刀同一条理由）。
@@ -7024,169 +7028,51 @@ function relativeTimeLabel(eventTime, nowTime) {
             return ledger;
         }
 
-        // [v2.9] RU-B: 记忆优化器（抄 shujuku optimization——防长对话记忆无限膨胀）
+        // [v2.9] RU-B: 记忆优化器(v3.326.0 · A1 第九刀:五路回收算法已抽为 memory-gc.js,本方法只剩取库 →
+        //   注入 → 写回 → 落账;模块缺席 ⇒ _lastGcLedger = null,与「在场但零删除」不同形)
         optimizeMemory() {
-            // [v3.168] GC 帐本：本方法会**永久删除**数据（向量去重 / 向量硬上限 /
-            //   摘要硬上限 / 孤儿物品 ops / 图谱去重），而旧实现只返回一个总数 removed，
-            //   调用方一律丢弃它（两处调用点都是裸调）——「鲸鱼了哪些东西」完全不可查。
-            //   本版把分路删除数归入账本与 opLog。
-            const _gcLedger = { vecDup: 0, vecCap: 0, sumCap: 0, orphanOps: 0, graphDup: 0 };
+            const GC = _memoryGcLib();
+            if (!GC || typeof GC.runGc !== 'function') {
+                this._lastGcLedger = null;
+                errLog(new Error('memory-gc.js 缺席'), 'GC.缺席');
+                return 0;
+            }
+            const _cfg = this.config.config || {};
+            const _r = GC.runGc({
+                vectors: this.vector.vectors, summarySummaries: this.summary.summaries,
+                itemOps: this.itemOps, graphNodes: this.graph.nodes, graphEdges: this.graph.edges,
+                vectorMaxCount: _cfg.vectorMaxCount, summaryMaxCount: _cfg.summaryMaxCount,
+                nowMs: Date.now(), chat: window.SillyTavern?.getContext?.()?.chat,
+                msgFpOf: msgFpOf, hash32: hash32, normalizeName: normalizeCharName,
+                dependencyClosure: _moduleLib(() => window.LonShaDependencyClosure, 'dependency-closure.js'),
+            });
+            const _gcLedger = _r.ledger;
             this._lastGcLedger = _gcLedger;
-            let removed = 0;
-            // 1. 向量文本级去重（完全相同文本只留最新）
-            const seen = new Map();
-            for (const v of this.vector.vectors) {
-                const key = String(v.text || '').trim();
-                if (!key) continue;
-                const prev = seen.get(key);
-                if (prev && prev.timestamp <= v.timestamp) { prev._dup = true; seen.set(key, v); }
-                else if (prev) { v._dup = true; }
-                else seen.set(key, v);
-            }
-            const beforeDup = this.vector.vectors.length;
-            this.vector.vectors = this.vector.vectors.filter(v => !v._dup);
-            removed += beforeDup - this.vector.vectors.length;
-            _gcLedger.vecDup = beforeDup - this.vector.vectors.length;
-            // 2. 向量硬上限（超限按遗忘价值淘汰）
-            const vMax = this.config.config.vectorMaxCount || 500;
-            if (this.vector.vectors.length > vMax) {
-                // [v3.1] SF3: 遗忘价值淘汰（importance/10 × recency × (1+accessFreq)，淘汰没人在乎的而非最老的）
-                const now = Date.now();
-                const rv = (v) => {
-                    const ageH = Math.max(0.5, (now - (v.timestamp || now)) / 3600000);
-                    const recency = 1 / (1 + Math.log10(1 + ageH));
-                    const accessFreq = (v.accessCount || 0) / Math.max(1, ageH / 24);
-                    return ((v.importance || 5) / 10) * recency * (1 + accessFreq);
-                };
-                this.vector.vectors.sort((a, b) => rv(a) - rv(b));
-                const cut = this.vector.vectors.length - vMax;
-                this.vector.vectors = this.vector.vectors.slice(cut);
-                removed += cut;
-                _gcLedger.vecCap = cut;
-            }
-            // 3. 摘要硬上限（已折叠的最旧条目物理删除；maybeFold 负责合并，这里兜底）
-            const sMax = this.config.config.summaryMaxCount || 400;
-            const sums = this.summary.summaries;
-            if (sums.length > sMax) {
-                const foldedOld = sums.filter(s => s.folded);
-                const foldable = Math.min(sums.length - sMax, foldedOld.length);
-                if (foldable > 0) {
-                    const removeIds = new Set(foldedOld.slice(0, foldable).map(s => s.floor));
-                    this.summary.summaries = sums.filter(s => !removeIds.has(s.floor));
-                    removed += foldable;
-                    _gcLedger.sumCap = foldable;
-                }
-            }
-            // 3b. [v3.8] 孤儿物资 ops 清理（v3.8 多变体保留后的必要对账：fp 不在该楼任何 swipe 取值中的 ops 是彻底废除的变体）
-            try {
-                const chat = window.SillyTavern?.getContext?.()?.chat;
-                if (Array.isArray(chat) && this.itemOps?.length) {
-                    const floorFps = new Map();   // floor → Set(该楼所有 swipe 文本的 fp)
-                    chat.forEach((m, i) => {
-                        const set = new Set();
-                        set.add(msgFpOf(m));
-                        if (Array.isArray(m?.swipes)) {
-                            for (let sw = 0; sw < m.swipes.length; sw++) {
-                                if (typeof m.swipes[sw] === 'string') {
-                                    set.add([(m?.is_user === true || m?.role === 'user') ? 'u' : 'a', sw, hash32(m.swipes[sw]), String(m?.send_date || m?.extra?.send_date || '')].join('|'));
-                                }
-                            }
-                        }
-                        floorFps.set(i, set);
-                    });
-                    const beforeOps = this.itemOps.length;
-                    this.itemOps = this.itemOps.filter(o => {
-                        if (!o || typeof o !== 'object') return false;
-                        if (o.carried === true || !o.fp) return true;   // carried/旧档保留
-                        const set = floorFps.get(o.floor);
-                        if (!set) return Math.floor(Number(o.floor) || 0) < chat.length;   // 越界清（楼层不存在）；界限内保（pending）
-                        return set.has(o.fp);
-                    });
-                    const opGone = beforeOps - this.itemOps.length;
-                    if (opGone > 0) { removed += opGone; _gcLedger.orphanOps = opGone; this.rebuildItems(); }
-
-                }
-            } catch (e) { errLog(e, 'HS.孤儿ops清理'); }
-            // 4. [v3.6] 图谱重复角色节点合并（兜底：对历史已膨胀的图谱——同归一化名只留最早一个，迁移边）
-            try {
-                const byName = new Map();
-                const dupIds = [];
-                for (const node of Array.from(this.graph.nodes.values())) {
-                    if (node.type !== 'character' || !node.name) continue;
-                    const nk = normalizeCharName(node.name);
-                    const prev = byName.get(nk);
-                    if (!prev) { byName.set(nk, node); continue; }
-                    // 保留更早创建的，另一个标记合并
-                    const [keep, drop] = (prev.timestamp || 0) <= (node.timestamp || 0) ? [prev, node] : [node, prev];
-                    byName.set(nk, keep);
-                    dupIds.push({ keepId: keep.id, dropId: drop.id });
-                }
-                for (const { keepId, dropId } of dupIds) {
-                    // 迁移边: 指向 drop 的边重定向到 keep（去重后 addEdge 复合 id 天然去重）
-                    for (const [eid, e] of Array.from(this.graph.edges)) {
-                        if (e.from === dropId || e.to === dropId) {
-                            this.graph.edges.delete(eid);
-                            const newFrom = e.from === dropId ? keepId : e.from;
-                            const newTo = e.to === dropId ? keepId : e.to;
-                            if (newFrom !== newTo) this.graph.edges.set(`${newFrom}-${newTo}-${e.label || 'related'}`, {...e, from: newFrom, to: newTo, id: `${newFrom}-${newTo}-${e.label || 'related'}`});
-                        }
-                    }
-                    this.graph.nodes.delete(dropId);
-                    removed++;
-                }
-                _gcLedger.graphDup = dupIds.length;
-                if (dupIds.length) this.graph.rebuildNameIndex();
-                if (dupIds.length && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 图谱去重: 合并 ${dupIds.length} 个重复角色节点`);
-                // [v3.173] 缝合模块接线面：dependency-closure.js 缝入后 70 个版本无人调用
-                //   （v3.163 账本「已挂载但零消费」）。接线点选在**图谱去重之后**：
-                //   去重会删节点、迁移边，而「边指向一个已不存在的节点」正是幽灵边的来源。
-                //   本处只做闭包归因（丢弃根因分类），不删不改任何边 —— 行为零变化。
-                try {
-                    const _dc = _moduleLib(() => window.LonShaDependencyClosure, 'dependency-closure.js');
-                    if (_dc && typeof _dc.computeCascade === 'function') {
-                        const _ids = new Set();
-                        for (const _nid of this.graph.nodes.keys()) _ids.add(String(_nid));
-                        const _adj = new Map();
-                        for (const _nid of _ids) _adj.set(_nid, new Set());
-                        for (const _e of this.graph.edges.values()) {
-                            const _f = String(_e && _e.from || ''), _t = String(_e && _e.to || '');
-                            if (!_ids.has(_f)) continue;
-                            _adj.get(_f).add(_t);
-                        }
-                        const _items = [];
-                        for (const _nid of _ids) _items.push({ id: _nid, refs: [], deps: [..._adj.get(_nid)] });
-                        const _carry = {};
-                        const _res = _dc.computeCascade({ items: _items, allowedRefs: null }, _carry);
-                        const _r = _carry.cascade || {};
-                        this._graphDedupCascade = {
-                            nodes: _ids.size, edges: this.graph.edges.size,
-                            ghostNodes: _r.dropped || 0, danglingDeps: _r.danglingDeps || 0,
-                            byReason: _r.byReason || {}, merged: dupIds.length, kept: _res.keptIds.length,
-                        };
-                    }
-                } catch (e) { errLog(e, 'V3173.dependencyClosure'); }
-            } catch (e) { errLog(e, 'GD.图谱去重'); }
-            // [v3.168] GC 账本落 opLog（可追溯）+ 脏链路（物品真源变更后派生层重建）
-            try {
-                // [v3.168] OpLog 的真实 API 是 log(type, op, ref, floor, meta)；
-                //   本版初稿曾误写成不存在的 push()，会让回收账本无声丢失——
-                //   正是本版要声讨的那种失败。此处按现行埋点惯例（type/op/ref/floor/meta）落账。
-                if (removed) {
-                    // [v3.169] 账本自述面：meta 上限 80 字符，而这里拼的是「键=值」串。
-                    //   累计量长到一定位数后尾巴会被切成半截键（`graphD` / `orphanO`），
-                    //   字符串从此不可解析——账本记下了回收量，却把回收量的**结构**污染了。
-                    //   超限时改用紧凑键：宁可少几个字节，也不产出半截键。
+            this.vector.vectors = _r.vectors;
+            this.summary.summaries = _r.summaries;
+            this.itemOps = _r.items;
+            this.graph.nodes = _r.nodes;
+            this.graph.edges = _r.edges;
+            if (_r.orphanThrew) errLog(new Error(_r.orphanThrew), 'HS.孤儿ops清理');
+            if (_r.graphThrew) errLog(new Error(_r.graphThrew), 'GD.图谱去重');
+            if (_r.cascadeThrew) errLog(new Error(_r.cascadeThrew), 'V3173.dependencyClosure');
+            if (_gcLedger.orphanOps > 0) { try { this.rebuildItems(); } catch (e) { errLog(e, 'HS.孤儿ops清理'); } }
+            if (_r.cascade) this._graphDedupCascade = _r.cascade;
+            if (_r.dupIds.length) { try { this.graph.rebuildNameIndex(); } catch (e) { errLog(e, 'GD.图谱去重'); } }
+            if (_r.dupIds.length && _cfg.debugMode) console.log('[' + PLUGIN_NAME + '] 图谱去重: 合并 ' + _r.dupIds.length + ' 个重复角色节点');
+            try {   // [v3.168] GC ledger -> opLog; meta cap 80 chars, compact keys above that.
+                if (_r.removed) {
                     const _gcFull = ['vecDup=' + _gcLedger.vecDup, 'vecCap=' + _gcLedger.vecCap,
                         'sumCap=' + _gcLedger.sumCap, 'orphanOps=' + _gcLedger.orphanOps,
                         'graphDup=' + _gcLedger.graphDup].join(' ');
                     const _gcm = _gcFull.length <= 80 ? _gcFull
                         : ['vd=' + _gcLedger.vecDup, 'vc=' + _gcLedger.vecCap, 'sc=' + _gcLedger.sumCap,
                             'oo=' + _gcLedger.orphanOps, 'gd=' + _gcLedger.graphDup].join(' ');
-                    this.opLog?.log('gc', 'remove', removed + ' items', this._currentFloor ?? null, _gcm);
+                    this.opLog?.log('gc', 'remove', _r.removed + ' items', this._currentFloor ?? null, _gcm);
                 }
             } catch (e) { errLog(e, 'nonfatal') }
-            if (removed && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 记忆优化: 清理 ${removed} 条冗余`);
-            return removed;
+            if (_r.removed && _cfg.debugMode) console.log('[' + PLUGIN_NAME + '] 记忆优化: 清理 ' + _r.removed + ' 条冗余');
+            return _r.removed;
         }
 
         /** [v3.168] 静默降级总账：把散落各处的「退到次优路径」计数聚成一张表。

@@ -288,8 +288,15 @@ if (reg) {
     const CL = path.join(ROOT, 'CHANGELOG.md');
     if (!fs.existsSync(CL)) drift('缺 CHANGELOG.md ⇒ 档自述读数无法核对，结构漂移');
     const CL_SRC = read(CL);
+    /* [v3.326.0 fix] The three patterns below are built with ZERO backslashes:
+     *   in earlier revisions their escape sequences were written into the file as
+     *   LITERAL backslashes (an extra layer before `d`), so D9 always reported
+     *   'detector may be dead'. A dead predicate is worse than none. */
+    const BT = String.fromCharCode(96);
+    const BS = String.fromCharCode(92);
+    const LF = String.fromCharCode(10);
     const HEAD_SRC = CL_SRC.split(/\n## v[0-9.]+/)[0];
-    const claimRe = /`(tests\/[A-Za-z0-9_.\-]+\.test\.mjs)`([^\n]{0,40}?)（(\d+) 条(?!\+)/g;
+    const claimRe = new RegExp(BT + '(tests' + BS + '/[A-Za-z0-9_.' + BS + '-]+' + BS + '.test' + BS + '.mjs)' + BT + '([^' + LF + ']{0,40}?)(' + BS + 'd+) 条(?!' + BS + '+)', 'g');
     let claims = 0; let bad = 0;
     for (const [i, line] of HEAD_SRC.split('\n').entries()) {
         for (const m of line.matchAll(claimRe)) {
@@ -323,7 +330,9 @@ if (reg) {
     /* 读**正在运行的这个脚本自己**（而非 ROOT 下那份）：夹具模式下 ROOT 是合成仓，
      *   那里没有本扫描器 ⇒ 首版按 ROOT 读，健康夹具直接 ENOENT 崩掉（实测 B1 由绿转红）。 */
     const SELF_SCAN = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
-    if (/退出码三档：0 卫生 \/ 1 真缺陷 \/ 2 结构漂移/.test(HEAD_SRC)) {
+    const EXIT_TAG = String.fromCharCode(36864,20986,30721,19977,26723,58,48,32,21355,29983,32,47,32,49,32,30495,32570,38519,32,47,32,50,32,32467,26500,28418,31227);
+    const EXIT_TAG_FW = EXIT_TAG.replace(String.fromCharCode(58), String.fromCharCode(65306));
+    if (HEAD_SRC.indexOf(EXIT_TAG) >= 0 || HEAD_SRC.indexOf(EXIT_TAG_FW) >= 0) {
         for (const [needle, why] of [['process.exit(0)', '卫生出口'], ['process.exit(1)', '真缺陷出口'],
             ['process.exit(2)', '结构漂移出口']]) {
             if (!SELF_SCAN.includes(needle)) {

@@ -1,3 +1,50 @@
+## v3.326.0
+**A1 第九刀:记忆优化器五路回收算法抽为 `memory-gc.js`(宿主净删 114 行)**
+- 本版是 A1 系列(宿主大函数逐刀外移)的**第九刀**。刀口是 `MemoryEngine.optimizeMemory()`:
+  它此前是 **164 行**的单体方法,里面塞了**五路互不相干的回收算法**(向量文本去重 /
+  向量硬上限 / 摘要硬上限 / 孤儿 ops 清理 / 图谱同名合并),外加闭包归因与落账。
+  本刀把这五路算法**整块外移**为新根级模块 `memory-gc.js`(**325 行**),宿主侧只剩
+  「取库 → 注入 → 写回 → 落账」四步,**44 行**。
+- **新增模块 `memory-gc.js`(13 项导出,导出面 `Object.freeze`)**：`GC_VERSION` / `GC_KIND` /
+  `LEDGER_KEYS`(五键一份真源:`vecDup` / `vecCap` / `sumCap` / `orphanOps` / `graphDup`) /
+  `blankLedger` / `dedupeByText` / `capByForgetValue` / `capSummaries` / `orphanOpsOf` /
+  `mergeDuplicateCharacters` / `runGc` / `cascadeReadout` / `line` / `selfCheck`。
+  模块是**零依赖 IIFE**(不 `require` 兄弟模块、不联网、不落盘),能力一律经 `deps` 注入。
+- **四条纪律,逐条落测**:1 **零写** —— 五路一律返回**新容器**,输入容器一个字节不改
+  (`mergeDuplicateCharacters` 返回新 `Map`,不复用入参);2 **不抛** —— 与修前**同口径**,
+  修前会抛的地方(如畸形向量元素)这里也**照样抛**,不加额外兜底(加兜底 = 悄悄改行为);
+  3 **不落账** —— 账本与 `opLog` 落账全归宿主,模块只**算数**;4 **写回主权在宿主** ——
+  五容器由宿主写回(`this.vector.vectors = _r.vectors` 等五处)。
+- **两态不许同形(本刀的核心判据)**:模块缺席导致的「**回收没跑**」(`this._lastGcLedger = null`
+  + `errLog(..., 'GC.缺席')` + `return 0`)必须与「**跑了、一条没删**」(`removed === 0`,
+  五键全零账本)**不同形**;闭包归因三态也互不同形 —— **缺席给 `null`**(「没测」不编 0)、
+  **抛给具名**(`cascadeThrew` / `graphThrew` / `orphanThrew` 是字符串)、**在场给读数**。
+  故障隔离:**一路抛不吞其余路读数**(第 4/5 路各自 `try/catch`,前三路读数必留)。
+- **宿主接线**:取库口 `_memoryGcLib()`(与既有 `_memoryLedgersLib` / `_memoryAuxLib` **同形**,
+  一处 `_moduleLib` + 模块文件名);缺席判定按**能力探测**(`typeof GC.runGc !== 'function'`,
+  不只看对象在场);注入面 13 组键(五容器 + 两上限 + `nowMs` + `chat` + `msgFpOf` + `hash32` +
+  `normalizeName: normalizeCharName` + `dependencyClosure`),**注入面不吃宿主 `this`**;
+  三处异常各带**独立中文 tag**(`'HS.孤儿ops清理'` / `'GD.图谱去重'` / `'V3173.dependencyClosure'`);
+  落账口径**逐字保留**(`_gcFull` 五键 / `_gcFull.length <= 80` 切换紧凑 `_gcm` / `this.opLog?.log('gc', 'remove', ...)` /
+  `if (_r.removed)` 零删除不留噪)。
+- **本刀连带的读数面收口(六处,不改即连锁红)**:1 **三张副本台账**补登 —— v3281 模块↔模块
+  补四簇(`oneLine` / `floorOrNull` / `clip` / `labelOf`,总簇 24 → **28**);v3282 别名台账补一簇
+  (`KINDS` / `TARGET_KINDS`,**同体不同名**故按名配对的三层判据看不见它,总簇 13 → **14**);
+  v3283 常量表台账补一对(`mutating`,两模块 selfCheck 各持一份,总对 5 → **6**)。
+  2 v3184 陈旧窗口 2600 → **3400**(宿主行数回落**推远**了本块上方的取库口,实测差 3025 字符;
+  这是**读数面陈旧**,不是收口代码搬走)。3 v3168 **交棒当版**:GC 分路账本判据由「只问宿主内联赋值」
+  改为「**分路赋值问模块 `ledger.<k> =`、落账与读侧问宿主**」(旧锚在模块化后必然命中 0)。
+  4 `manifest.extra_js` 101 → **102**。5 宿主分诊基线重建:实测 **18398 行 / 688 成员**,
+  `line_budget.ceiling` 18912 → **18798**(余量 514 → 400);成员面 688 仍在线内**不抬**。
+  6 四处 errLog tag 与两处调试文案由 ASCII 代号改回**中文**(人读面不得退化成代号)。
+- 成对套件 `tests/v3326_a1_memory_gc_split.test.mjs`(26 条 test;`^test\(` 计数):A 结构面 / B 五路真跑 / C 零写与不抛 / D 故障隔离 / E 宿主接线 / F 五条**真源码破坏**负控制 / G H5 判据纯度 + H6 工具两向自证 / H 自防护 + 六源同源 + 当版锚。期望值全部由 `tools/v3326_probe.mjs` 的**真跑读数**写成,零手抄。
+- **门禁口径**:本档新增后**在役面 306 → 307 个测试文件**(顶层常量锚:`const FLOOR = 307;`),该读数在 README / PLAN **逐版核回**(`scan_doc_truthfulness.mjs` D5 —— 文档写 306 而磁盘 307 即当场红,不以手抄为准)。
+- **退出码三档:0 卫生 / 1 真缺陷 / 2 结构漂移**(本仓审计脚本同约;`scan_doc_truthfulness.mjs` 只核「文档 ↔ 登记」,本门不自己跑全量)。
+- **抬版连带读数**:宿主 18512 → **18398 行 / 688 成员**;`manifest.extra_js` **102** 项;
+  根级模块 **103** 个;活跃代码实测 66882 行(余量 189,`--bump` 后 ceiling 67282)。
+- 边界:五路算法**行为等价**已由「修前同口径」逐条锚住(D 组故障隔离 + C2 不兜底),
+  但本刀**不**声称五路算法本身的正确性有提升 —— 这刀只动**位置**,不动**语义**。
+
 ## v3.325.0
 **D 包（纠错与日常操作）记忆侧收口：M3-O8 记忆控制中心从技术表变成可操作资料页**
 - 本版是第三期产品主线**第四个执行包**记忆侧的最后一项（手机侧 R3-O5/O9/X8 在其后）。
