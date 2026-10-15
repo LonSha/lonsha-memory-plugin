@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.328.0';
+    const VERSION = '3.329.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -4014,7 +4014,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                             // 已存在: 只补首次出现信息（不重复建；source 保留首次）
                             if (!existChar.data?.source && messageText) existChar.data = {...(existChar.data || {}), source: messageText};
                         } else {
-                            this.graph.addNode({type: 'character', name: canonical, data: {source: messageText}});
+                            this.graph.addNode({type: 'character', name: canonical, data: this._scopeData({source: messageText})});
                             this.opLog?.log('graph', 'add', canonical, message?.index || 0, 'character node');  // [v3.54] op-log
                         }
                     }
@@ -4992,7 +4992,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         characters: extracted?.characters || [],
                         events: extracted?.events || [],
                         summary: extracted?.summary || '',
-                        timeAnchor: extracted?.time_anchor || null
+timeAnchor: extracted?.time_anchor || null,
+                        /* [v3.329.0 · M4-O1] 会话范围戳:回收面据此判「这一条属于哪个宇宙」。 */
+                        scope: this._currentScopeStamp(message),
                     }, this.config.config);
                 }
                 
@@ -5427,7 +5429,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                     if (changed) { node.data = { ...(node.data || {}), aliases: Array.from(cur) }; aliasPatched++; }
                 } else {
-                    this.graph.addNode({ type: 'character', name: canonical, data: { source: '[世界书]', aliases: r.aliases || [] } });
+                    this.graph.addNode({ type: 'character', name: canonical, data: this._scopeData({ source: '[世界书]', aliases: r.aliases || [] }) });
                     added++;
                 }
             } catch (e) { errLog(e, 'V314.applyExtractedRoles'); }
@@ -6781,7 +6783,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                                     try {
                                         const canonical = this.resolveCharacterName(char);
                                         const exist = this.graph.findByNames([canonical]).some(n => n.type === 'character');
-                                        if (!exist) this.graph.addNode({type: 'character', name: canonical, data: {source: msg.mes}});
+                                        if (!exist) this.graph.addNode({type: 'character', name: canonical, data: this._scopeData({source: msg.mes})});
                                     } catch (e) { errLog(e, 'graph.角色节点写入'); }
                                 }
                             }
@@ -7028,6 +7030,134 @@ function relativeTimeLabel(eventTime, nowTime) {
             return ledger;
         }
 
+        /* [v3.329.0 · M4-O1] 回收范围键(**向量与图谱共用这一份口径**)。
+         *   为什么需要:回收的两条去重路此前只看「正文 / 名字」—— 同一句正文发生在两个
+         *   事件、同一个名字出现在两个宇宙时,后台优化会把它们当重复**永久删掉**。
+         *   计划裁定「缺 ID 的旧档保留,不能因为没法确定就合并」,故这里分两截:
+         *     · **基线**:会话 id(图与向量库都是**会话级容器** ⇒ 换会话必须换键)。
+         *       取不到会话 id 时用字面 `(no-chat)`(那是真实状态「还没进会话」,
+         *       **不是编造的宇宙**)⇒ 同键合并照旧,不会让优化静默停摆。
+         *     · **细界**:条目自带的 universe / projectId。带上了才拼进键 ——
+         *       于是「跨宇宙同名」在键上就分开了,而没带线索的旧档仍按会话归组。
+         *   为什么基线取会话:实例本身是会话级的(`getCurrentChatId()` 派生),
+         *   两次优化之间换会话只会换出不同的键 —— 跨宇宙误合并**在结构上不可能发生**;
+         *   而细界一旦由 project-registry 接上,同一会话内的多宇宙也分得开。
+         *   为什么**不含** floor:图谱角色节点不带楼层(`addNode` 只补 `id`/`timestamp`),
+         *   拿不到就得回退按名合 —— 那正好是原缺陷。向量的楼层由**调用方**选择性传入
+         *   (跨楼同文不是重复;同楼重复提取仍要能去重)。
+         */
+        _gcScopeKey(meta) {
+            const m = (meta && typeof meta === 'object') ? meta : null;
+            /* 线索可能落在四层(条目本体 / 向量 `metadata` / 显式 `scope` / 图节点 `data`):
+             *   向量条目把业务字段存在 `metadata` 里、图节点存在 `data` 里 —— 只查本体
+             *   等于两路都取不到细界(而收货的是同一条键,口径必须一致)。 */
+            const boxes = [];
+            if (m) boxes.push(m);
+            if (m && m.metadata && typeof m.metadata === 'object') boxes.push(m.metadata);
+            if (m && m.scope && typeof m.scope === 'object') boxes.push(m.scope);
+            if (m && m.data && typeof m.data === 'object') boxes.push(m.data);
+            const pick = (k) => {
+                for (const b of boxes) {
+                    const v = b[k];
+                    /* 0 是**有效楼层**(第 0 楼),不得当成缺省(与空串严格分开)。 */
+                    if (v === undefined || v === null || v === '') continue;
+                    return String(v);
+                }
+                return '';
+            };
+            let chatId = '';
+            try { chatId = String((typeof this.getCurrentChatId === 'function') ? (this.getCurrentChatId() || '') : ''); }
+            catch (e) { chatId = ''; }
+            const parts = ['c:' + (chatId || '(no-chat)')];
+            /* ★ [v3.329.0] 显式「判不了」的接线点(把模块侧的 null 分支接上真数据):
+             *   条目**自己带了 `scope` 键且值为 null** ⇒ 写它的那一刻就没有会话 id
+             *   (`_currentScopeStamp()` 无会话时返回 null)。这条目**身份不可判**,
+             *   按计划「不能因为没法确定就合并」⇒ 交给模块侧的 null 口径(拒绝合并 + 留读数)。
+             *   没有这个键的旧档(字段压根不存在)= **undefined** ⇒ 仍走旧行为,
+             *   「旧档不误合」与「旧行为不突袭」两件事才都成立。 */
+            for (const b of boxes) {
+                if (b && Object.prototype.hasOwnProperty.call(b, 'scope') && b.scope === null) return null;
+            }
+            /* 宇宙轴与**会话戳轴分开**(v3.329.0 修订,起因是实测出的一个遮蔽):
+             *   `_currentScopeStamp()` 把会话戳写成 `{universe:'chat:<id>'}` —— 它落在
+             *   `universe` 字段上只是**线索标记**。修前 `pick('universe')` 会先取到
+             *   `chat:<id>` 并让 `_lastProject.universe`(真宇宙,如项目归一化给的
+             *   `ruby-verse`)永远取不到 ⇒ 同会话内两个**不同项目**被并成一个域,
+             *   而「细界由项目读数接上」这条设计意图当场落空(自证不出、静默)。
+             *   现在:`chat:` 前缀一律**改走 `s:` 轴**,`u:` 轴只装真宇宙。 */
+            const lp = this._lastProject || null;
+            const isStamp = (s) => (typeof s === 'string' && s.indexOf('chat:') === 0);
+            const rawUni = pick('universe');
+            const uni = (rawUni && !isStamp(rawUni)) ? rawUni : String((lp && lp.universe) || '');
+            const stamp = isStamp(rawUni) ? rawUni : '';
+            const pid = pick('projectId') || String((lp && lp.projectId) || '');
+            const fl = pick('floor');
+            /* 分支轴:`fp`(消息指纹)是**同楼重生成**的分支单位 —— 只按 floor 判会把
+             *   上一个分支的正文当重复永删(计划「同文不同分支」那一组的真单位)。 */
+            const fp = pick('fp');
+            /* 实体 id:**带上才分开** —— 同宇宙里的同名异人只有靠它才分得开
+             *   (正常重复节点不带 id ⇒ 照旧按名合;带了不同 id ⇒ 不许合)。 */
+            const eid = pick('entityId');
+            if (uni) parts.push('u:' + uni);
+            if (stamp) parts.push('s:' + stamp);
+            if (pid) parts.push('p:' + pid);
+            if (eid) parts.push('e:' + eid);
+            if (fl) parts.push('f:' + fl);
+            if (fp) parts.push('g:' + fp);
+            return parts.join('|');
+        }
+        /** [v3.329.0 · M4-O1] 新建条目的会话范围戳。
+         *   **不缓存**:缓存了就会在切会话后继续用旧宇宙的戳 ⇒ 两个会话的条目同键。
+         *   带回它的条目**自成「有线索」**,于是「新建的能合、旧档不误合」两者同时成立。
+         *   会话 id 取不到 ⇒ null(条目落成「无线索」,保守不参与去重,不编一个假宇宙)。
+         *
+         *   `fp`(分支轴,可选):传了消息就带上该楼的**指纹**(角色|页|正文hash|时间戳)。
+         *   为什么楼层不够:同一楼**重新生成**会覆盖 swipe,新向量与旧向量同楼同文 ——
+         *   只按 floor 判就会把上一个分支的正文当重复永删。判分支的真源就在 `msgFpOf`
+         *   (`branch-guard.js` 的签名同源、多带 gen_id),这里只消费不另造。
+         *   同一楼同一页 ⇒ 指纹相同 ⇒ 照旧去重(旧行为不被本轴打散)。 */
+        _currentScopeStamp(msg) {
+            let chatId = '';
+            try { chatId = String((typeof this.getCurrentChatId === 'function') ? (this.getCurrentChatId() || '') : ''); }
+            catch (e) { chatId = ''; }
+            if (!chatId) return null;
+            const stamp = { universe: 'chat:' + chatId };
+            try {
+                const m = (msg && typeof msg === 'object') ? msg : null;
+                if (m && typeof msgFpOf === 'function') {
+                    const fp = msgFpOf(m);
+                    if (fp) stamp.fp = String(fp);
+                }
+            } catch (e) { errLog(e, 'M4O1.范围戳分支轴'); }
+            /* 项目出处(**写戳那一刻**取,不是回收那一刻取):
+             *   修前范围键对带戳条目只剩 `u:chat:<id>` —— 条目的**项目宇宙**在键上
+             *   从未出现过,于是「同一个会话里两个项目各有一个「林安」」仍会被合掉。
+             *   戳上记下当时的项目 id,回收面就不会拿「现在的项目」去追认历史条目的归属
+             *   (用户切了项目再优化,老条目不该被改判到新项目名下)。
+             *   没选项目时留空 ⇒ 回落「当前的最近项目读数」,与不带戳条目同一口径。 */
+            try {
+                const lp = this._lastProject || null;
+                if (lp && lp.projectId) stamp.projectId = String(lp.projectId);
+            } catch (e) { errLog(e, 'M4O1.范围戳项目轴'); }
+            return stamp;
+        }
+        /** [v3.329.0 · M4-O1] 图节点上的**范围字段**(与向量戳同源,只有一处派生点)。
+         *   为什么要有这一层:三处建角色节点的地方(正文抽取 / 历史回填 / 世界书角色)
+         *   各写一份表达式就有三份漂移面 —— 少写一处,那一类节点在回收面上就退回
+         *   「按名合」,而缺一个字段不会报错,只会让同名角色被永久合掉。
+         *   字段**平铺**在 `data` 上(不嵌 `scope` 对象):节点侧的历史格式本就是平的
+         *   (`data.source` / `data.aliases`),`_gcScopeKey` 的四层兜取照样取得到。 */
+        _scopeData(extra) {
+            let st = null;
+            try { st = this._currentScopeStamp() || null; } catch (e) { st = null; }
+            const out = Object.assign({}, extra || {});
+            if (st) { out.universe = st.universe; out.projectId = st.projectId; }
+            /* ★ 取不到会话 id ⇒ **显式写 `scope:null`**(不是留空):留空 = `undefined`,
+             *   回收面会把它读成「旧档、按旧口径合」—— 而定不出身份的新条目正属于
+             *   计划点名不许合的那一类。显式 null 让它进「判不了 ⇒ 拒绝合并 + 留读数」。 */
+            else out.scope = null;
+            return out;
+        }
         // [v2.9] RU-B: 记忆优化器(v3.326.0 · A1 第九刀:五路回收算法已抽为 memory-gc.js,本方法只剩取库 →
         //   注入 → 写回 → 落账;模块缺席 ⇒ _lastGcLedger = null,与「在场但零删除」不同形)
         optimizeMemory() {
@@ -7038,6 +7168,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return 0;
             }
             const _cfg = this.config.config || {};
+            const _scopeOf = (o) => this._gcScopeKey(o);
             const _r = GC.runGc({
                 vectors: this.vector.vectors, summarySummaries: this.summary.summaries,
                 itemOps: this.itemOps, graphNodes: this.graph.nodes, graphEdges: this.graph.edges,
@@ -7045,6 +7176,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                 nowMs: Date.now(), chat: window.SillyTavern?.getContext?.()?.chat,
                 msgFpOf: msgFpOf, hash32: hash32, normalizeName: normalizeCharName,
                 dependencyClosure: _moduleLib(() => window.LonShaDependencyClosure, 'dependency-closure.js'),
+                /* [v3.329.0 · M4-O1] 两条去重路的范围注入(**同一份口径**,不是两套规则):
+                 *   向量按 `metadata` 取范围、图谱按节点本身取范围。判不了范围(旧档条目)
+                 *   时模块侧返回 null ⇒ **不参与**去重(误合不可逆,少合只是少省一点)。 */
+                vectorScopeOf: _scopeOf, nodeScopeOf: _scopeOf,
             });
             const _gcLedger = _r.ledger;
             this._lastGcLedger = _gcLedger;
@@ -16597,6 +16732,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                  *   分不清「没选」与「模块没挂」。 */
                 this._lastProject = {
                     at: Date.now(), selected: np.selected === true, projectId: (np.project && np.project.projectId) || '',
+                    /* [v3.329.0 · M4-O1] 宇宙是**回收范围键的细界**(project-registry 的
+                     *   `normalizeProject` 缺省把 universe 置为项目 id ⇒ 这里取到的恒非空,
+                     *   除非根本没选项目)。不记它,回收面就只剩「按名字合」那一条轴。 */
+                    universe: (np.project && np.project.universe) || '',
                     title: (np.project && np.project.title) || '', state: (np.project && np.project.state) || '',
                     volumeCount: np.volumeCount || 0, chapterCount: np.chapterCount || 0,
                     bindingCount: np.bindings ? (np.bindings.session.length + np.bindings.branch.length + np.bindings.character.length) : 0,

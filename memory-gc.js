@@ -57,22 +57,44 @@
     function blankLedger() {
         return { vecDup: 0, vecCap: 0, sumCap: 0, orphanOps: 0, graphDup: 0 };
     }
-    /** 保序去重:每键只留 timestamp 最大者(平手留后者),**原数组顺序不变**。 */
-    function dedupeByText(vectors) {
+    /**
+     * 保序去重:每键只留 timestamp 最大者(平手留后者),**原数组顺序不变**。
+     *
+     * [M4-O1 · v3.329.0] 第四参 `scopeOf(item)` 是**可选的**范围注入 —— 同一句正文
+     *   发生在**两个不同事件 / 分支 / 宇宙**时不是重复,删掉哪一条都是丢证据。
+     *   三态口径(与 `mergeDuplicateCharacters` 同规,**不得塌格**):
+     *     · 未注入 scopeOf        ⇒ 逐字旧行为(纯文本键);
+     *     · `undefined`(无线索)   ⇒ 并入**同一个**键(旧行为:同会话同宇宙的默认);
+     *     · 字符串(可判范围)      ⇒ 进 `文本 + NUL + 范围` 键;
+     *     · `null` / 抛异常(有线索却判不了)⇒ **不参与去重**(给每条一个独立键),
+     *       并计入 `scopeUnknown`(判不了必须看得见,不得静默当成「同一件事」)。
+     */
+    function dedupeByText(vectors, scopeOf) {
         const list = Array.isArray(vectors) ? vectors : [];
+        const sc = (typeof scopeOf === 'function') ? scopeOf : null;
         const seen = new Map();
+        let scopeUnknown = 0;
+        let scopeKnown = 0;
         for (const v of list) {
             /* 与修前逐字同构:此处**不**为畸形元素兜底(修前会抛,这里也必须还抛)。 */
             const key = String(v.text || '').trim();
             if (!key) continue;
-            const prev = seen.get(key);
-            if (prev && prev.timestamp <= v.timestamp) seen.set(key, v);
+            let k = key;
+            if (sc) {
+                let s;
+                try { s = sc(v); } catch (e) { s = null; }
+                if (s === undefined) { k = key; }
+                else if (s === null || s === '') { scopeUnknown += 1; k = key + '\u0000~unknown~' + String(scopeUnknown); }
+                else { scopeKnown += 1; k = key + '\u0000' + String(s); }
+            }
+            const prev = seen.get(k);
+            if (prev && prev.timestamp <= v.timestamp) seen.set(k, v);
             else if (prev) continue;
-            else seen.set(key, v);
+            else seen.set(k, v);
         }
         const winners = new Set(seen.values());
         const kept = list.filter(v => winners.has(v));
-        return { vectors: kept, dropped: list.length - kept.length };
+        return { vectors: kept, dropped: list.length - kept.length, scopeKnown: scopeKnown, scopeUnknown: scopeUnknown };
     }
     /**
      * 按遗忘价值淘汰到上限。
@@ -147,18 +169,43 @@
      *   保留**更早创建**的那个(timestamp 小者),指向被丢节点的边重定向到保留节点
      *   (去重后复合 id 天然去重)。`normalize` 由调用方注入(归一化名口径**只有一份真源**,
      *   不在这里再抄一份)。
+     *
+     * [M4-O1 · v3.329.0] 第四参 `scopeOf(node)` 是**可选的**范围注入。
+     *   【为什么】修前只按归一化名分组 ⇒ 同一个名字出现在**两个项目 / 两个宇宙**时,
+     *   后台优化会把两条真实身份抹成一条(实测:两个不同 project 的同名节点进来、
+     *   只有一个出去),而节点上**没有 project / universe 字段** —— 上游从没把「同一个名字
+     *   在两个项目里不是同一个人」这件事喂给回收面(全仓 `universe` 在 index.js 命中 0)。
+     *   【三态,不得塌格】
+     *     · 未注入 scopeOf(旧调用方)      ⇒ 逐字旧行为(只按名分组);
+     *     · `undefined`(节点上无线索)      ⇒ 并入**同一个**名键(旧行为);
+     *     · 字符串(可判范围)               ⇒ 进 `名 + NUL + 范围` 键;
+     *     · `null` / 抛异常(有线索判不了)  ⇒ **拒绝合并**(给该节点一个独立键),
+     *       并计入 `blockedUnknownScope` —— 判不了时「不合」是保守正确的方向
+     *       (误合不可逆:证据与边会被搬到另一个身份上),且**必须看得见**。
      */
-    function mergeDuplicateCharacters(nodes, edges, normalize) {
+    function mergeDuplicateCharacters(nodes, edges, normalize, scopeOf) {
         const nodeMap = (nodes instanceof Map) ? nodes : new Map();
         const edgeMap = (edges instanceof Map) ? edges : new Map();
         const nk = (typeof normalize === 'function') ? normalize : (s) => String(s || '');
+        const sc = (typeof scopeOf === 'function') ? scopeOf : null;
         const outNodes = new Map(nodeMap);
         const outEdges = new Map(edgeMap);
         const byName = new Map();
         const dupIds = [];
+        let scopeKnown = 0;
+        let blockedUnknownScope = 0;
         for (const node of Array.from(nodeMap.values())) {
             if (!node || node.type !== 'character' || !node.name) continue;
-            const key = nk(node.name);
+            let key = nk(node.name);
+            if (sc) {
+                let s;
+                try { s = sc(node); } catch (e) { s = null; }
+                if (s === undefined) { /* 无线索 ⇒ 并入名键(旧行为) */ }
+                else if (s === null || s === '') {
+                    blockedUnknownScope += 1;
+                    key = key + '\u0000~noscope~' + String(blockedUnknownScope);
+                } else { scopeKnown += 1; key = key + '\u0000' + String(s); }
+            }
             const prev = byName.get(key);
             if (!prev) { byName.set(key, node); continue; }
             const keep = ((prev.timestamp || 0) <= (node.timestamp || 0)) ? prev : node;
@@ -181,7 +228,8 @@
             }
             outNodes.delete(dropId);
         }
-        return { nodes: outNodes, edges: outEdges, dupIds, merged: dupIds.length };
+        return { nodes: outNodes, edges: outEdges, dupIds, merged: dupIds.length,
+            scopeKnown: scopeKnown, blockedUnknownScope: blockedUnknownScope };
     }
     /**
      * 去重后的闭包归因读数(**只读**:不删不改任何边)。
@@ -232,7 +280,7 @@
         const ledger = blankLedger();
         let removed = 0;
         /* 第 1 路:向量文本级去重(完全相同文本只留最新)。 */
-        const dedup = dedupeByText(d.vectors);
+        const dedup = dedupeByText(d.vectors, d.vectorScopeOf);
         ledger.vecDup = dedup.dropped;
         removed += dedup.dropped;
         /* 第 2 路:向量硬上限(超限按遗忘价值淘汰)。 */
@@ -260,7 +308,7 @@
         let merged = { nodes: d.graphNodes, edges: d.graphEdges, dupIds: [], merged: 0 };
         let graphThrew = null;
         try {
-            merged = mergeDuplicateCharacters(d.graphNodes, d.graphEdges, d.normalizeName);
+            merged = mergeDuplicateCharacters(d.graphNodes, d.graphEdges, d.normalizeName, d.nodeScopeOf);
             ledger.graphDup = merged.merged;
             removed += merged.merged;
         } catch (e) { graphThrew = String((e && e.message) || e); }
@@ -285,6 +333,16 @@
             graphThrew: graphThrew,
             cascadeThrew: cascadeThrew,
             zeroWrite: true,
+            /* [M4-O1 · v3.329.0] 范围读数(**不得与「零删除」同形**):
+             *   两条去重路各自报「按范围分组过多少条 / 因判不了范围而没参与」。
+             *   全 0 且有 scopeOf 注入 ⇒ 说明调用方一次都没给出可判范围(配置/接线问题),
+             *   而不是「本来就没有同名」。 */
+            scope: {
+                vecKnown: dedup.scopeKnown || 0,
+                vecUnknown: dedup.scopeUnknown || 0,
+                nodeKnown: merged.scopeKnown || 0,
+                nodeUnknown: merged.blockedUnknownScope || 0,
+            },
         };
     }
     /** 单行读数(**必须报五路各自的数**:合成一个「共删 N」等于「鳏了哪些」无从回答)。 */
