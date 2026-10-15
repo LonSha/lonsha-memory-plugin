@@ -389,8 +389,8 @@ const A_GC_UNK = "scopeUnknown += 1; k = key + '\\u0000~unknown~' + String(scope
 const A_IDX_INJECT = 'vectorScopeOf: _scopeOf, nodeScopeOf: _scopeOf,';
 const A_IDX_STAMP = 'scope: this._currentScopeStamp(message),';
 /** 项目轴 / 分支轴 / 显式判不了:三条都是 v3.329.0 后补的真实维度,各自配一条负控制。 */
-const A_IDX_PROJ = 'if (pid) parts.push(\'p:\' + pid);';
-const A_IDX_BRANCH = 'if (fp) parts.push(\'g:\' + fp);';
+const A_IDX_PROJ = String.raw`if (pid) parts.push('p:' + pid);`;
+const A_IDX_BRANCH = String.raw`if (fp) parts.push('g:' + fp);`;
 const A_IDX_UNKNOWN = "if (b && Object.prototype.hasOwnProperty.call(b, 'scope') && b.scope === null) return null;";
 
 /** 宿主接线判据(**源码面**):四层线索兜取 / 两路注入 / 会话戳三处写入 / 项目读数带宇宙。
@@ -617,12 +617,19 @@ test('v3329 G1. ★★★ H5 判据纯度:八个破坏锚点在真源各恰中 1
     }
     assert.equal(keys.size, ANCHORS.length, '八个锚点须互不相同');
     assert.equal(new Set(ANCHORS.map((p) => p[0])).size, ANCHORS.length, '八个锚点名须互不相同(改一处漏一处即红)');
+    /* ★ 逐字纯度(本轮补):**仅对 String.raw 逐字声明**的锚点可判 —— 带 \n 转义的声明串
+     *   在源码面与真值不同形,数出来恒 0,那正是本档第一版只落行为面判据的原因。
+     *   对逐字锚点,「判据层各只出现 1 次」可直接数:改一处漏一处当场现形。 */
+    for (const nm of ['A_IDX_PROJ', 'A_IDX_BRANCH']) {
+        const a = ANCHORS.filter((x) => x[0] === nm)[0][1];
+        assert.equal(SELF.split(a).length - 1, 1, '锚点 ' + nm + ' 须在判据层各只出现 1 次(改一处漏一处须现形)');
+    }
     ok(ANCHORS.length + ' 个锚点:真源各恰中 1 次 / 判据层一对一绑定且互不相同');
 });
 test('v3329 G2. ★★★ H6 工具两向自证:锚点不存在 / 不唯一 / 同值替换必须抛', () => {
     assert.throws(() => breakSource(GC_SRC, '__不存在__', 'x'), /恰中 1 次|命中 0 次/);
     assert.throws(() => breakSource(GC_SRC, 'const ', 'x'), /恰中 1 次|要求恰好 1 次/, '多次锚点必抛');
-    assert.throws(() => breakSource(GC_SRC, A_GC_VEC, A_GC_VEC), /必须真改|必须真的改变源码|未改变/);
+    assert.throws(() => breakSource(GC_SRC, A_GC_VEC, A_GC_VEC), /必须真的改变源码/);
     ok('0 次 / 不唯一 / 同值三形态各抛');
 });
 
