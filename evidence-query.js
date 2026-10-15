@@ -1511,6 +1511,14 @@
         const yieldTo = (typeof o.yieldTo === 'function') ? o.yieldTo
             : ((typeof setTimeout === 'function') ? (() => new Promise((res) => setTimeout(res, 0))) : null);
         const shouldCancel = (typeof o.shouldCancel === 'function') ? o.shouldCancel : null;
+        /* [v3.332.0 · M4-O4] 片边界进度回调:与取消检查同一个位置 —— 只在片边界
+         *   上报(逐行上报会让万行库产生万次回调,读数面自己变成瓶颈)。
+         *   同步调用、不 await 下游;回调抛错不阻断查询(进度是读数面,不是关键链路)。 */
+        const onShard = (typeof o.onShard === 'function') ? o.onShard : null;
+        const emitShard = (rows, totalRows) => {
+            if (!onShard) return;
+            try { onShard(rows, totalRows); } catch (_e) { /* 进度回调抛错不阻断 */ }
+        };
         const n = normalizeSpec(spec);
         const s = n.spec;
         const specs = Array.isArray(o.ledgers) ? o.ledgers : [];
@@ -1536,9 +1544,15 @@
                 processed += 1;
                 if (processed % shard === 0) {
                     if (shouldCancel && shouldCancel() === true) { canceled = true; break; }
+                    emitShard(processed, uni.rows.length);
                     if (yieldTo) await yieldTo();
                 }
             }
+        }
+        /* [v3.332.0 · M4-O4] 尾片:最后不足一片的残片也补发一次最终进度 ——
+         *   只在片边界上报会让「processed % shard != 0」的库永远读不到 100% 进度。 */
+        if (!canceled && processed > 0 && (processed % shard) !== 0) {
+            emitShard(processed, uni.rows.length);
         }
         /* 收尾再查一次取消：正好跑完最后一片时也必须给出一致的结论，
          *   否则同一时刻调两次会得到不同读数（确定性是可机检事实）。 */

@@ -66,14 +66,20 @@
     /** 信封 kind（下游可据此判「这是不是本项目产出的信封」）。 */
     const KIND = 'memory-tools-envelope';
 
-    const STATES = Object.freeze(['ok', 'empty', 'unknown', 'unavailable', 'partial']);
+    const STATES = Object.freeze(['ok', 'empty', 'unknown', 'unavailable', 'partial', 'canceled']);
     const STATE_LABEL = Object.freeze({
         ok: '有读数（范围完整）',
         empty: '能力在场且明确没有（空数据）',
         unknown: '判不了（不得当 empty 用）',
         unavailable: '能力缺席（模块或符号不在场）',
-        partial: '有读数但范围被收窄（截断/收窄/断裂/降级）'
+        partial: '有读数但范围被收窄（截断/收窄/断裂/降级）',
+        /* [v3.332.0 · M4-O4] 取消不是失败也不是「没有」:被取消的查询有已处理部分的读数,
+         *   与 empty(明确没有) / partial(触顶收窄) 都不同形。 */
+        canceled: '查询被取消（读数是已处理部分，不是全量结论）'
     });
+    /* [v3.332.0 · M4-O4] 词表与标签表的一致性锚：selfCheck 的「六态齐」以本键表为准
+     *   （词表多一态没标签、或标签多一态没词条，都算不完整 —— 仍是 fail-closed）。 */
+    const STATE_LABEL_KEYS = Object.freeze(Object.keys(STATE_LABEL));
 
     /* ── 五个能力登记表（**符号名与版本常量名一律写死，不许推导**） ──
      * ★ 留痕（本版首跑抓到的自伤）：首版按 `cap.name.toUpperCase() + '_VERSION'` 推导
@@ -103,6 +109,15 @@
         {
             name: 'getKnowledgeBoundary', module: 'knowledge-trace.js', sym: 'provenanceOf',
             ver: 'KT_VERSION', label: '知识出处链（这条知识凭什么算数）', arg: '(raw, character, fact, opts)'
+        },
+        /* [v3.332.0 · M4-O4] 第六能力:异步结构化查询。同一模块、同一份判定
+         *   (queryAsync 与 query 走同一个 universeOf/matchRow/assemble),
+         *   只是执行时机不同 —— 片间让出事件循环、片间检查取消。
+         *   版本常量同 QUERY_VERSION(同一模块的同一个版本锚,不另造)。 */
+        {
+            name: 'queryEvidenceAsync', module: 'evidence-query.js', sym: 'queryAsync',
+            ver: 'QUERY_VERSION', label: '结构化证据查询（协作分片异步）',
+            arg: '(host, spec, opts:{shardRows,yieldTo,shouldCancel})'
         }
     ]);
 
@@ -259,6 +274,80 @@
             truncatedLedgers: truncated.slice()
         };
         const shared = { revision: p.version, scope: Object.assign({}, scope, full), data: q };
+        if (q.state === 'inverted-range') {
+            return envelope(cap.name, 'empty', Object.assign({}, shared, {
+                reason: 'inverted-range',
+                notes: [str(q.emptyReason, 240) || '区间起止反转 ⇒ 按空集处理（不自动交换）']
+            }));
+        }
+        if (q.state === 'empty') {
+            const allAbsent = full.counts.absent > 0 && full.counts.ok === 0;
+            return envelope(cap.name, allAbsent ? 'unavailable' : 'empty', Object.assign({}, shared, {
+                reason: allAbsent ? 'scan-surface-absent' : 'no-match',
+                notes: allAbsent
+                    ? ['九账全部取不到（见 coverage.ledgers 的 reason）⇒ 报 unavailable：这是「没东西可查」，不是「查不到」']
+                    : [str(q.emptyReason, 240) || '扫描面在场、逐条比对后无命中 ⇒ 明确没有']
+            }));
+        }
+        if (truncated.length) {
+            return envelope(cap.name, 'partial', Object.assign({}, shared, {
+                reason: 'truncated',
+                notes: ['有账触到扫描上限（' + truncated.join('、') + '）⇒ 读数可用但范围被收窄']
+            }));
+        }
+        return envelope(cap.name, 'ok', shared);
+    }
+
+    /* ===============================================================
+     * 出口 ⑥：queryEvidenceAsync —— 异步结构化证据查询 [v3.332.0 · M4-O4]
+     *   包装 evidence-query.js::queryAsync(host, spec, opts)。
+     *   状态映射与 queryEvidence 同源,另加 canceled:
+     *     · q.state === 'canceled' ⇒ canceled(读数是已处理部分,绝不当 empty)
+     *     · 其余态与 queryEvidence 逐条同款(同一份 assemble 产出的 state)
+     *   异步语义:返回 Promise;opts 里 shardRows/yieldTo/shouldCancel 原样透传,
+     *   本面不另设让出粒度(让出粒度是内核口径,包一层再写一份就是第二真源)。
+     * =============================================================== */
+    async function queryEvidenceAsync(sources, host, spec, opts) {
+        const cap = CAPABILITIES[5];
+        const p = probeOne(sources, cap);
+        const o = objOrEmpty(opts);
+        const scope = {
+            ledgers: Array.isArray(o.ledgers) ? o.ledgers.length : null,
+            page: intOrNull(o.page),
+            pageSize: intOrNull(o.pageSize),
+            shardRows: intOrNull(o.shardRows),
+            cancellable: typeof o.shouldCancel === 'function'
+        };
+        if (!p.present) return unavailableFor(cap.name, p, scope);
+        let q = null;
+        try { q = await p.fn(host, spec, opts); } catch (_e) { q = null; }
+        if (!q || typeof q !== 'object') {
+            return envelope(cap.name, 'unknown', {
+                reason: 'thrown', revision: p.version, scope: scope, data: null,
+                notes: ['被包装面未返回可读对象（异常或非对象返回）⇒ 报 unknown，不报空数据']
+            });
+        }
+        const cov = objOrEmpty(q.coverage);
+        const counts = objOrEmpty(cov.counts);
+        const truncated = Array.isArray(cov.truncated) ? cov.truncated : [];
+        const full = {
+            total: countOf(q.total), scanned: countOf(q.scanned),
+            requestedLedgers: countOf(cov.requestedLedgers),
+            counts: { ok: countOf(counts.ok), empty: countOf(counts.empty), absent: countOf(counts.absent) },
+            truncatedLedgers: truncated.slice()
+        };
+        const shared = { revision: p.version, scope: Object.assign({}, scope, full), data: q };
+        /* 取消先判:取消态下 total/hits 读数是「已处理部分」,不与触顶/空集混判。 */
+        if (q.canceled === true || q.state === 'canceled') {
+            const proc = objOrEmpty(q.processed);
+            return envelope(cap.name, 'canceled', Object.assign({}, shared, {
+                reason: 'canceled',
+                notes: ['查询被取消：data 里的读数是**已处理部分**（processed.rows/'
+                    + (numOrNull(proc.rows) === null ? 0 : proc.rows) + ' · totalRows/'
+                    + (numOrNull(proc.totalRows) === null ? 0 : proc.totalRows)
+                    + '），不是全量结论']
+            }));
+        }
         if (q.state === 'inverted-range') {
             return envelope(cap.name, 'empty', Object.assign({}, shared, {
                 reason: 'inverted-range',
@@ -638,13 +727,13 @@
 
     function line(sources) {
         const d = describe(sources);
-        if (d.complete) return '记忆工具面 v' + API_VERSION + '：五能力齐备';
+        if (d.complete) return '记忆工具面 v' + API_VERSION + '：' + d.counts.total + ' 能力齐备';
         const miss = d.absentReasons.map((x) => x.name + '(' + x.reason + ')').join('、');
         return '记忆工具面 v' + API_VERSION + '：' + d.counts.present + '/' + d.counts.total
             + ' 在场；缺 ' + miss;
     }
 
-    /** 自检：**幂等 + 只读面 + 五态齐 + 可序列化**，四条当场自证。 */
+    /** 自检：**幂等 + 只读面 + 六态齐 + 可序列化**，四条当场自证。 */
     function selfCheck(sources) {
         const d = describe(sources);
         /* ① 幂等：同一入参两次 describe 逐字相同（本模块无模块级可变状态）。 */
@@ -656,9 +745,11 @@
             const low = n.toLowerCase();
             return mutating.some((m) => low.indexOf(m) === 0);
         }).length;
-        /* ③ 五态齐（词表必须完整 —— 少一态就意味着某类处境无处安放）。 */
-        const statesComplete = STATES.length === 5
-            && ['ok', 'empty', 'unknown', 'unavailable', 'partial'].every((s) => STATES.indexOf(s) >= 0);
+        /* ③ 六态齐（词表必须完整 —— 少一态就意味着某类处境无处安放）。
+         *   [v3.332.0 · M4-O4] 五态 → 六态：canceled 与 empty/partial 都不同形，
+         *   长度判据从写死 5 改为对齐词表自身（拆掉一态仍会转 false，负控制不受影响）。 */
+        const statesComplete = STATES.length === STATE_LABEL_KEYS.length
+            && STATE_LABEL_KEYS.every((s) => STATES.indexOf(s) >= 0);
         /* ④ 可序列化：信封是纯 JSON 面（无函数 / 无循环引用）。 */
         let serializable = true;
         try {
@@ -686,6 +777,7 @@
         line: line,
         selfCheck: selfCheck,
         queryEvidence: queryEvidence,
+        queryEvidenceAsync: queryEvidenceAsync,
         getContinuityPack: getContinuityPack,
         previewFactAdmission: previewFactAdmission,
         explainRecall: explainRecall,

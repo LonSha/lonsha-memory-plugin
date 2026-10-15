@@ -2,7 +2,7 @@
 
 > **第四期产品计划（2026-10-15，唯一现行提案）**：本仓优化9项＋拓展9项，双仓共36项；全部为待实施计划，不是功能交付声明。
 > [优化提升九项](.agents/notes/proposed/architecture/2026-10-15-product-optimization-v4.md) · [拓展新功能九项](.agents/notes/proposed/feature/2026-10-15-product-expansion-v4.md)。
-> **当前执行状态（2026-10-15，v3.331.0）**：规划基线 `main@0f2f7fd`。本版是第四期 **M4-O3**（回答从行拼接变成有据的事件解释）实施点:读数句与证据句分池(`readingIdx` / `addReading`)、证据按 `ref` 去重、`emit()` 预算保关键句、答案解释面(`readings` / `covered` / `dropped` / `dedup` / `events` / `keyPoints`)、事件聚合按引用键、`explain.causal` 三态严格门槛 + `causalSource` 来源区分、宿主 `_qaCausalEdges()` 从因果链节点推导缩写、`absent()` 回执恒定键面齐平;专项套件 v3331 26 条 + v3330 28 条合计 54/54,宿主基线类 25/25。上一项 M4-O2(v3.330.0,问句保留主题多人物与时点)专项 28 条。本版 v3.331.0 未全量实跑,当前 v3.331.0 **全量待验**。
+> **当前执行状态（2026-10-15，v3.332.0）**：规划基线 `main@0f2f7fd`。本版是第四期 **M4-O4**（异步查询接到真实问答与资料页）实施点:`queryAsync` 增 `onShard` 与尾片最终进度(`QUERY_VERSION` 2→3)、`memory-tools-api.js` 六能力(`queryEvidenceAsync`)+六态(`canceled` 与 empty/partial 都不同形)、宿主双出口 `queryEvidenceAsync(spec,opts)` / `askMemoryQuestionAsync(question,opts)`(taskId/shouldCancel/onProgress/shardRows,取消时 gaps 具名 kind:canceled);`selfCheck` statesComplete 写死 5 的自伤已修(对齐词表自身);v3305 旧口径抬升六能力/六态(13/13)。专项套件 v3332 14 条,与 v3330/v3331 合计定向 68/68,宿主基线 19412/730(ceiling 19812)。上一项 M4-O3(v3.331.0,事件解释面)专项 26 条。本版 v3.332.0 未全量实跑,当前 v3.332.0 **全量待验**。
 > 产品主线是手机使用体验、记忆准确性与创作能力。**守卫、审计、台账、发布不独立占名额**；最小必要回归随功能，自动化通过不等于真实宿主/模型体验通过。
 > 新编号 M4-O1～O9 / M4-X1～X9，避免重复使用第三期编号。旧底座照用，只把明确增量列为本轮工作。
 
@@ -53,8 +53,8 @@
 
 | 量 | 读数 | 出处 |
 |---|---|---|
-| 版本 | **v3.331.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
-| 门禁 | 在役面 **312 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
+| 版本 | **v3.332.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
+| 门禁 | 在役面 **313 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
 | 全量快照 | 最近全量快照 **v3.328.0：309 测试文件 / 3528 断言 0 失败 / 审计 61/61**(上一快照 v3.318.0:299 / 3302 / 61/61;再上一份 v3.296.0:277 / 2986 / 59/59;更早 v3.284.0:264 / 2727 / 55/55);v3.328.0 已实跑并重绑读数 | `tests/audit/doc_readings.json` |
 | 体量 | `index.js` **19244 行**(探针读数;`wc -l` 19243) / **728** 成员 —— 原 A1 六刀后为 13883 / 521,v3.326.0 A1 第九刀后为 18398 / 688,v3.328.0 F 包两个产品项接线后为 18964 / 723,v3.330.0 结清 M4-O1(+139)+M4-O2(+53)两版宿主接线后为 19156 / 727,v3.331.0 M4-O3 宿主接线后为 19244 / 728;+ extra_js **106** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
 | 跨仓外供 | 正向 **7 面**（`open_face_registry.tsv`；v3.314.0 M-X6 新增 `phoneFactReceipt`（consumer `none@0`，手机侧回执面，下游接入属下一轮）；v3.305.0 M-X9 新增 `memoryToolsEnvelope`（consumer `none@0`，下游接入属下一轮））+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |

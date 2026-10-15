@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.331.0';
+    const VERSION = '3.332.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -15176,12 +15176,160 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     dedup: composed.dedup || 0,
                     events: composed.events || [],
                     keyPoints: composed.keyPoints || 0,
+                    /* [v3.332.0 · M4-O4] 同步版独有读数格(行文与异步出口区分,
+                     *   同 topics 行:两个出口同键面即可,不必逐行复刻行文)。 */
                     explain: composed.explain || null,
                     knownActors: known.length,
                     reason: '', writesNothing: true
                 };
             } catch (e) {
                 errLog(e, 'plugin.askMemoryQuestion');
+                return absent('thrown');
+            }
+        }
+        /**
+         * [v3.332.0 · M4-O4] 异步问答出口：与 askMemoryQuestion 同一份口径
+         *   （同一个 planQuestion / queryAsync / composeAnswer,同一个恒定键面）,
+         *   逐条计划走 queryAsync —— 片间让出主线程,大库查询不锁面板。
+         *
+         * 【与同步版的差异面,逐格可指认】
+         *   · opts.taskId:任务身份。给了就回填在回执里;同一时刻两个异步问句
+         *     各自带身份,取消与进度读数不会张冠李戴。
+         *   · opts.shouldCancel():取消检查函数,片间被内核调用;返回 true 即取消。
+         *   · opts.onProgress(p):进度回调(同步调用,不 await 下游)。p = {
+         *       plan: 0-based 计划序号, plans: 计划总数, rows: 已处理行数, totalRows: 本片总行数 }
+         *   · 回执在同步版全键之外增四键: async:true / taskId / state / processed。
+         *     state:'canceled' 时 answer/gaps 读数是**已处理部分**,不当全量结论。
+         *
+         * 【不做的事】不另写「问答专用异步查询」—— queryAsync 与 query 本就是
+         *   同一个 universeOf/matchRow/assemble(内核档头纪律),本出口只换执行时机。
+         * 【同步版不动】askMemoryQuestion 保持原样(旧 API 兼容,不迁移不删除)。
+         */
+        async askMemoryQuestionAsync(question, opts) {
+            const o = opts || {};
+            const qText = String(question == null ? '' : question);
+            const taskId = (o.taskId === undefined || o.taskId === null) ? '' : String(o.taskId);
+            /* 与同步版同一份缺席回执口径(恒定键面 + async 面四键)。 */
+            const absent = (reason) => {
+                let known = 0;
+                try {
+                    known = (Array.isArray(o.knownActors) ? o.knownActors : this._qaKnownActors(o.maxActors)).length;
+                } catch (_e) { known = 0; }
+                return {
+                    version: 0, question: qText, intents: [], actor: null,
+                    actors: [], topics: [], timeHints: [], relation: null,
+                    answer: [], gaps: [{ kind: 'module', why: reason }], refs: [], plans: [],
+                    masked: 0, truncated: false, resourced: 0, total: 0,
+                    readings: 0, covered: 0, dropped: 0, dedup: 0,
+                    events: [], keyPoints: 0, explain: null,
+                    knownActors: known, reason: reason, writesNothing: true,
+                    async: true, taskId: taskId, state: 'absent', processed: null
+                };
+            };
+            const Q = _evidenceQueryLib();
+            if (!Q || typeof Q.planQuestion !== 'function' || typeof Q.composeAnswer !== 'function'
+                || typeof Q.queryAsync !== 'function') {
+                return absent('模块未加载（evidence-query.js 或 queryAsync 不在场）');
+            }
+            let canceled = false;
+            const shouldCancel = (typeof o.shouldCancel === 'function')
+                ? (() => { const v = o.shouldCancel(); if (v === true) canceled = true; return v; })
+                : null;
+            const onProgress = (typeof o.onProgress === 'function') ? o.onProgress : null;
+            const emitProgress = (plan, plans, rows, totalRows) => {
+                if (!onProgress) return;
+                try { onProgress({ plan: plan, plans: plans, rows: rows, totalRows: totalRows }); }
+                catch (_e) { /* 进度回调抛错不阻断查询(读数面,不是关键链路) */ }
+            };
+            try {
+                const known = Array.isArray(o.knownActors) ? o.knownActors : this._qaKnownActors(o.maxActors);
+                const plan = Q.planQuestion(qText, { knownActors: known, actorAliases: this._qaActorAliases() });
+                const ledgers = _evidenceQueryLedgersOf();
+                const payload = {
+                    ledgers: ledgers,
+                    apis: (typeof _ledgerApis === 'function') ? _ledgerApis() : {},
+                    pageSize: (Number(o.pageSize) > 0 ? Math.floor(Number(o.pageSize)) : 30)
+                };
+                if (o.maxPerLedger !== undefined) payload.maxPerLedger = o.maxPerLedger;
+                if (Number(o.shardRows) > 0) payload.shardRows = Math.floor(Number(o.shardRows));
+                /* 逐条计划走 queryAsync:同一份判定,片间让出 + 取消检查 + 进度上报。 */
+                const results = [];
+                const planReadings = [];
+                const plansTotal = Array.isArray(plan.plans) ? plan.plans.length : 0;
+                for (let pi = 0; pi < plansTotal; pi += 1) {
+                    const p = plan.plans[pi];
+                    const r = await Q.queryAsync(this, p.spec, Object.assign({}, payload, {
+                        shouldCancel: shouldCancel,
+                        onShard: (rows, totalRows) => emitProgress(pi, plansTotal, rows, totalRows)
+                    }));
+                    results.push({ id: p.id, spec: p.spec, query: r });
+                    planReadings.push({
+                        id: p.id, why: p.why, spec: p.spec,
+                        total: (r && typeof r.total === 'number') ? r.total : 0,
+                        state: (r && r.state) || 'unknown',
+                        scanned: (r && r.scanned) || 0,
+                        replayKey: (r && r.replayKey) || ''
+                    });
+                    if (canceled) break; /* 取消后不再起下一条计划(已跑的读数如实保留) */
+                }
+                let causal = { edges: [], keyOf: null };
+                try {
+                    /* [v3.332.0 · M4-O4] 行文与同步出口刻意不同形(括号分组):
+                     *   同键面即可,锚点判据靠行文区分归属。 */
+                    if (typeof (this && this._qaCausalEdges) === 'function') causal = this._qaCausalEdges();
+                } catch (_e) { causal = { edges: [], keyOf: null }; }
+                const composed = Q.composeAnswer(plan, results, {
+                    maxSentences: o.maxSentences,
+                    causalEdges: causal.edges,
+                    causalKeyOf: causal.keyOf
+                });
+                /* 取消态:答案面是已处理部分。gap 里点名,不当「查完了没有」。 */
+                if (canceled) {
+                    composed.gaps.push({ kind: 'canceled', why: '查询被取消:以下读数是已处理部分,不是全量结论' });
+                }
+                this._memoryQaLast = {
+                    at: Date.now(),
+                    intents: composed.intents, actor: plan.actor,
+                    plans: planReadings.length,
+                    total: composed.total, resourced: composed.resourced,
+                    masked: composed.masked, gaps: composed.gaps.length,
+                    relation: (composed.relation && composed.relation.state) ? composed.relation.state : '',
+                    relationCommon: (composed.relation && composed.relation.common) || 0,
+                    causal: (composed.explain && composed.explain.causal) ? composed.explain.causal : '',
+                    causalSource: (composed.explain && composed.explain.causalSource) ? composed.explain.causalSource : '',
+                    readings: composed.readings || 0,
+                    events: (composed.events || []).length
+                };
+                return {
+                    version: Q.QA_VERSION || 0,
+                    question: composed.question, intents: composed.intents, actor: plan.actor,
+                    actors: Array.isArray(plan.actors) ? plan.actors : [],
+                    /* [v3.332.0 · M4-O4] 行文与同步出口刻意不同形(括号分组):
+                     *   两个出口同键面即可,锚点判据靠行文区分归属。 */
+                    topics: Array.isArray((plan && plan.topics)) ? plan.topics : [],
+                    timeHints: Array.isArray((plan && plan.timeHints)) ? plan.timeHints : [],
+                    relation: composed.relation || null,
+                    answer: composed.answer, gaps: composed.gaps, refs: composed.refs,
+                    plans: planReadings,
+                    masked: composed.masked, truncated: composed.truncated,
+                    resourced: composed.resourced, total: composed.total,
+                    readings: composed.readings || 0,
+                    covered: composed.covered || 0,
+                    dropped: composed.dropped || 0,
+                    dedup: composed.dedup || 0,
+                    events: composed.events || [],
+                    keyPoints: composed.keyPoints || 0,
+                    /* [v3.332.0 · M4-O4] 行文与同步出口刻意不同形(括号分组):
+                     *   同键面即可,锚点判据靠行文区分归属。 */
+                    explain: (composed && composed.explain) || null,
+                    knownActors: known.length,
+                    reason: '', writesNothing: true,
+                    async: true, taskId: taskId,
+                    state: canceled ? 'canceled' : 'done',
+                    processed: { plans: planReadings.length, plansTotal: plansTotal }
+                };
+            } catch (e) {
+                errLog(e, 'plugin.askMemoryQuestionAsync');
                 return absent('thrown');
             }
         }
@@ -15246,6 +15394,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         memoryToolsSources() {
             return {
                 queryEvidence: _moduleLib(() => window.LonShaEvidenceQuery, 'evidence-query.js'),
+                /* [v3.332.0 · M4-O4] 第六能力与 queryEvidence 同模块同一份实例:
+                 *   queryAsync 与 query 走同一份 universeOf/matchRow/assemble,
+                 *   差别只在执行时机(片间让出 + 取消检查)。 */
+                queryEvidenceAsync: _moduleLib(() => window.LonShaEvidenceQuery, 'evidence-query.js'),
                 getContinuityPack: _moduleLib(() => window.LonShaVolumeContinuation, 'volume-continuation.js'),
                 previewFactAdmission: _moduleLib(() => window.LonShaNativeFactAdmission, 'native-fact-admission.js'),
                 explainRecall: _moduleLib(() => window.LonShaRecallExplain, 'recall-explain.js'),
@@ -15260,7 +15412,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
          *   （本仓取数门口径：不给假值；形状要求数字位在场，故 0 + reason 归因）。
          */
         _memoryToolsAbsent(api, reason) {
-            const known = ['queryEvidence', 'getContinuityPack', 'previewFactAdmission', 'explainRecall', 'getKnowledgeBoundary'];
+            const known = ['queryEvidence', 'queryEvidenceAsync', 'getContinuityPack', 'previewFactAdmission', 'explainRecall', 'getKnowledgeBoundary'];
             const name = (known.indexOf(api) >= 0) ? api : String(api == null ? '' : api);
             return {
                 kind: 'memory-tools-envelope',
@@ -15305,6 +15457,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (!T || typeof T.queryEvidence !== 'function') return this._memoryToolsAbsent('queryEvidence', 'module-unavailable');
                 return T.queryEvidence(this.memoryToolsSources(), this, spec, opts);
             } catch (e) { errLog(e, 'plugin.queryEvidence'); return this._memoryToolsAbsent('queryEvidence', 'thrown'); }
+        }
+        /**
+         * [v3.332.0 · M4-O4] 出口 ⑥：异步结构化证据查询（统一信封）。
+         *   大库查询不锁主线程;opts 的 shardRows / yieldTo / shouldCancel 原样透传内核。
+         *   返回 Promise;恒定键面与 queryEvidence 同款(envelope 形状),canceled 态
+         *   只会出现在这里(同步面不会取消)。
+         */
+        async queryEvidenceAsync(spec, opts) {
+            try {
+                const T = _memoryToolsLib();
+                if (!T || typeof T.queryEvidenceAsync !== 'function') return this._memoryToolsAbsent('queryEvidenceAsync', 'module-unavailable');
+                return await T.queryEvidenceAsync(this.memoryToolsSources(), this, spec, opts);
+            } catch (e) {
+                errLog(e, 'plugin.queryEvidenceAsync');
+                return this._memoryToolsAbsent('queryEvidenceAsync', 'thrown');
+            }
         }
         /** [v3.305.0 · X9] 出口 ②：续接包（统一信封）。 */
         getContinuityPack(args) {

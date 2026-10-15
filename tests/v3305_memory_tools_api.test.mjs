@@ -58,7 +58,7 @@ const KT = require_(path.join(R, 'knowledge-trace.js'));
 const WB = require_(path.join(R, 'evidence-workbench.js'));
 const T = require_(path.join(R, MOD));
 const S = {
-    queryEvidence: Q, getContinuityPack: VC, previewFactAdmission: FA,
+    queryEvidence: Q, queryEvidenceAsync: Q, getContinuityPack: VC, previewFactAdmission: FA,
     explainRecall: RE, getKnowledgeBoundary: KT
 };
 /** 真上游模块表（同一性判据要包一层再核对，故需要拿到真函数）。 */
@@ -73,9 +73,11 @@ const UP = { Q: Q, VC: VC, FA: FA, RE: RE, KT: KT };
  *     而 `breakSource` 会在 0 命中时当场拒绝（本档不靠肉眼对齐）。
  */
 const ANCHORS = Object.freeze({
-    /* E1：五态词表被拆掉一态（词的完整性是契约：少一态意味着某类处境无处安放）。 */
-    states: String.raw`    const STATES = Object.freeze(['ok', 'empty', 'unknown', 'unavailable', 'partial']);`,
-    statesBroken: String.raw`    const STATES = Object.freeze(['ok', 'empty', 'unknown', 'unavailable']);`,
+    /* E1：六态词表被拆掉一态（词的完整性是契约：少一态意味着某类处境无处安放）。
+     *   [v3.332.0 抬升] 拆掉的选 canceled（M4-O4 新增态）—— 破坏后 STATES=5 而
+     *   STATE_LABEL_KEYS=6，selfCheck.statesComplete 转 false 的路径不变。 */
+    states: String.raw`    const STATES = Object.freeze(['ok', 'empty', 'unknown', 'unavailable', 'partial', 'canceled']);`,
+    statesBroken: String.raw`    const STATES = Object.freeze(['ok', 'empty', 'unknown', 'unavailable', 'partial']);`,
     /* E2：缺席分流被摘掉（把「能力不在场」改报成「在场且没有」——本仓最忌的同形）。 */
     absentBranch: String.raw`        return envelope(apiName, 'unavailable', {`,
     absentBranchBroken: String.raw`        return envelope(apiName, 'empty', {`,
@@ -139,17 +141,17 @@ function judgeA1(Tx, mf) {
 }
 /** A2：导出面逐字（含五个**写死**的版本常量名 —— 不许推导）。 */
 function judgeA2(Tx) {
-    const need = ['queryEvidence', 'getContinuityPack', 'previewFactAdmission', 'explainRecall',
+    const need = ['queryEvidence', 'queryEvidenceAsync', 'getContinuityPack', 'previewFactAdmission', 'explainRecall',
         'getKnowledgeBoundary', 'describe', 'line', 'selfCheck'];
     for (const k of need) if (typeof Tx[k] !== 'function') return '导出面缺函数：' + k;
     if (Tx.KIND !== 'memory-tools-envelope') return 'KIND 必须逐字 memory-tools-envelope，实 ' + Tx.KIND;
     if (!(Tx.TOOLS_VERSION >= 1) || !(Tx.API_VERSION >= 1)) return '两个版本常量必须 >= 1';
-    const want = ['ok', 'empty', 'unknown', 'unavailable', 'partial'];
-    if (!Array.isArray(Tx.STATES) || Tx.STATES.length !== want.length) return '五态词表长度必须是 5';
-    for (const s of want) if (Tx.STATES.indexOf(s) < 0) return '五态词表缺：' + s;
+    const want = ['ok', 'empty', 'unknown', 'unavailable', 'partial', 'canceled'];
+    if (!Array.isArray(Tx.STATES) || Tx.STATES.length !== want.length) return '六态词表长度必须是 6，实 ' + (Tx.STATES && Tx.STATES.length);
+    for (const s of want) if (Tx.STATES.indexOf(s) < 0) return '六态词表缺：' + s;
     for (const s of want) if (typeof Tx.STATE_LABEL[s] !== 'string' || !Tx.STATE_LABEL[s]) return 'STATE_LABEL 缺：' + s;
-    if (!Array.isArray(Tx.CAPABILITIES) || Tx.CAPABILITIES.length !== 5) return 'CAPABILITIES 必须 5 条';
-    /* ★ 「不许猜符号名」：五个 ver 常量名逐字写死（推导出来的名字全不存在 ⇒ 恒 null 而 state 仍 ok）。 */
+    if (!Array.isArray(Tx.CAPABILITIES) || Tx.CAPABILITIES.length !== 6) return 'CAPABILITIES 必须 6 条，实 ' + (Tx.CAPABILITIES && Tx.CAPABILITIES.length);
+    /* ★ 「不许猜符号名」：六个 ver 常量名逐字写死（推导出来的名字全不存在 ⇒ 恒 null 而 state 仍 ok）。 */
     const VERS = ['QUERY_VERSION', 'VOLUME_CONTINUATION_VERSION', 'ADMIT_VERSION',
         'RECALL_EXPLAIN_VERSION', 'KT_VERSION'];
     for (const c of Tx.CAPABILITIES) {
@@ -178,22 +180,22 @@ function judgeA3(Tx) {
     if (countMutating(names) !== 0) return 'const api 块里出现 mutating 名：' + names.join(',');
     return '';
 }
-/** B1：三态在场判定（互不同形）。 */
+/** B1：三态在场判定（互不同形）。[v3.332.0 抬升：五 → 六能力] */
 function judgeB1(Tx, Sx) {
     const full = Tx.describe(Sx);
-    if (full.counts.present !== 5 || full.counts.absent !== 0) return '五能力齐备时 present 应为 5';
-    if (full.complete !== true) return '五能力齐备时 complete 应为 true';
+    if (full.counts.present !== 6 || full.counts.absent !== 0) return '六能力齐备时 present 应为 6，实 ' + full.counts.present;
+    if (full.complete !== true) return '六能力齐备时 complete 应为 true';
     const none = Tx.describe({});
-    if (none.counts.absent !== 5) return '全缺席时 absent 应为 5';
+    if (none.counts.absent !== 6) return '全缺席时 absent 应为 6，实 ' + none.counts.absent;
     if (none.complete !== false) return '全缺席时 complete 应为 false';
     if (!none.absentReasons.every((x) => x.reason === 'module-absent')) return '未注入 ⇒ module-absent';
-    /* 注入了但缺符号：该格必须报 symbol-absent，**而其余四格仍缺席**（降级是逐出口的）。 */
+    /* 注入了但缺符号：该格必须报 symbol-absent，**而其余五格仍缺席**（降级是逐出口的）。 */
     const half = Tx.describe({ queryEvidence: {} });
     const row = half.absentReasons.filter((x) => x.name === 'queryEvidence')[0];
     if (!row) return '注入了缺符号的模块 ⇒ 该格必须仍出现在 absentReasons 里';
     if (row.reason !== 'symbol-absent') return '注入了但缺符号 ⇒ symbol-absent，实 ' + row.reason;
-    if (half.counts.absent !== 5 || half.counts.present !== 0) return '缺符号不是「在场」：五格都还没装配齐';
-    if (half.absentReasons.length !== 5) return '其余四格必须逐格点名（只注入一格不影响其余四格的判定）';
+    if (half.counts.absent !== 6 || half.counts.present !== 0) return '缺符号不是「在场」：六格都还没装配齐';
+    if (half.absentReasons.length !== 6) return '其余五格必须逐格点名（只注入一格不影响其余五格的判定）';
     /* 三态互不同形：两个原因串必须不同（否则下游无法分列）。 */
     if (row.reason === none.absentReasons[0].reason) return 'symbol-absent 与 module-absent 不得同形';
     return '';
@@ -396,14 +398,15 @@ test('v3305 A1. ★★★ 模块登记面：分发面恰一次 + 末位（零兄
     assert.equal(typeof globalThis.LonShaMemoryTools, 'object', 'root.LonShaMemoryTools 必须被挂上');
     assert.equal(globalThis.LonShaMemoryTools, T, '全局名必须指向同一个 api 对象');
     assert.equal(Object.isFrozen(globalThis.LonShaMemoryTools), true, '全局挂载须冻结（防宿主侧被改写）');
-    /* 五态词表与 STATE_LABEL 是契约，不是装饰。 */
+    /* 六态词表与 STATE_LABEL 是契约，不是装饰。[v3.332.0] canceled 入词表。 */
     assert.equal(T.KIND, 'memory-tools-envelope');
-    assert.equal(T.STATES.length, 5);
+    assert.equal(T.STATES.length, 6);
 });
 
-test('v3305 A2. ★★★★ 导出面：五出口 + 三辅助 + 词表/版本常量，五个 ver 真名逐字', () => {
+test('v3305 A2. ★★★★ 导出面：六出口 + 三辅助 + 词表/版本常量，ver 真名逐字', () => {
     assert.equal(judgeA2(T), '', '导出面判据');
-    /* 「不许猜符号名」的落点：五个 ver 名字必须与上游模块的**真导出**对得上。 */
+    /* 「不许猜符号名」的落点：ver 名字必须与上游模块的**真导出**对得上。
+     *   queryEvidenceAsync 复用 QUERY_VERSION（同一模块同一个版本锚，M4-O4 口径）。 */
     const mods = { 'evidence-query.js': Q, 'volume-continuation.js': VC, 'native-fact-admission.js': FA, 'recall-explain.js': RE, 'knowledge-trace.js': KT };
     for (const c of T.CAPABILITIES) {
         const m = mods[c.module];
@@ -412,6 +415,7 @@ test('v3305 A2. ★★★★ 导出面：五出口 + 三辅助 + 词表/版本�
         assert.equal(typeof m[c.sym], 'function', c.module + ' 必须真导出函数 ' + c.sym);
     }
     assert.equal(T.CAPABILITIES.filter((c) => c.name === 'queryEvidence')[0].sym, 'query');
+    assert.equal(T.CAPABILITIES.filter((c) => c.name === 'queryEvidenceAsync')[0].sym, 'queryAsync');
     assert.equal(T.CAPABILITIES.filter((c) => c.name === 'getKnowledgeBoundary')[0].sym, 'provenanceOf');
 });
 
@@ -428,13 +432,13 @@ test('v3305 B1. ★★★★ 三态在场判定：module-absent / symbol-absent 
     assert.equal(judgeB1(T, S), '', '三态在场判据');
     const d = T.describe(S);
     assert.equal(d.kind, T.KIND + '-describe', 'describe 的 kind 必须是子面标识（下游据此判认不认得）');
-    assert.equal(d.capabilities.length, 5, '逐能力读数必须五行');
+    assert.equal(d.capabilities.length, 6, '逐能力读数必须六行');
     for (const c of d.capabilities) {
         assert.equal(c.present, true, c.name + ' 应 present');
         assert.equal(typeof c.version, 'number', c.name + ' 的版本读数必须是数字（在场且真读到）');
     }
-    assert.ok(T.line(S).includes('五能力齐备'), '一行诊断：齐备');
-    assert.ok(T.line({}).includes('0/5 在场'), '一行诊断：全缺时如实报 0/5');
+    assert.ok(T.line(S).includes('6 能力齐备'), '一行诊断：齐备');
+    assert.ok(T.line({}).includes('0/6 在场'), '一行诊断：全缺时如实报 0/6');
 });
 
 test('v3305 B2. ★★★★★ queryEvidence 七路：ok / empty / 区间反转 / 扫描面缺 / 缺席 ×2 / 抛错', () => {
@@ -516,8 +520,8 @@ test('v3305 C1~C3. ★★★★ 信封恒定 14 键 + data 原样引用（五出
     for (const e of envs) assert.equal(e.source.path, 'not-given', '五个出口都必须不给内部路径');
     /* selfCheck 四条自证必须真跑过（不是写死的 true）。 */
     const sc = T.selfCheck(S);
-    assert.equal(sc.capabilities.total, 5);
-    assert.equal(sc.capabilities.present, 5);
+    assert.equal(sc.capabilities.total, 6);
+    assert.equal(sc.capabilities.present, 6);
     assert.equal(sc.writeFaces, 0);
 });
 
@@ -620,10 +624,10 @@ test('v3305 E1~E3 + F1. ★★★★★ 三条真源码破坏负控制 + 判据�
 
     /* E1：拆掉五态里的一态 ⇒ selfCheck.statesComplete 必须转 false。 */
     const b1 = loadBroken('states', ANCHORS.states, ANCHORS.statesBroken);
-    assert.equal(b1.STATES.length, 4, '破坏必须真的生效（词表少一态）');
+    assert.equal(b1.STATES.length, 5, '破坏必须真的生效（六态词表被拆掉 canceled 一态）');
     assert.equal(b1.selfCheck(S).statesComplete, false, '拆掉一态必须让 statesComplete 转 false');
     assert.equal(b1.selfCheck(S).ok, false, '拆掉一态必须让自检整体转 false');
-    assert.equal(judgeA2(b1).includes('五态词表长度'), true, '同款判据必须在破坏副本上点名它：' + judgeA2(b1));
+    assert.equal(judgeA2(b1).includes('六态词表长度'), true, '同款判据必须在破坏副本上点名它：' + judgeA2(b1));
 
     /* E2：摘掉缺席分流 ⇒ 缺席被报成 empty（本仓最忌的同形）。 */
     const b2 = loadBroken('absent', ANCHORS.absentBranch, ANCHORS.absentBranchBroken);
