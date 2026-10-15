@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.329.0';
+    const VERSION = '3.331.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -14746,6 +14746,57 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
          *   （与 `searchEvidence` 的既有降级同规格）。本函数**不是**投影真源 ——
          *   它只保证「取不到」时下游按同一个键面读，不会读到 undefined。
          */
+        /** [v3.331.0 - M4-O3] Confirmed causal edges **plus** the key-space bridge.
+         *
+         *  Why a bridge is required (read off both real sources):
+         *    rows carry `ref` = '<ledgerId>:<entryKey>'   ('commitment:c1')
+         *    chain nodes carry '<abbr>:<id>'               ('cmt:c1')
+         *  Same fact, two spellings -- matching them directly can never succeed.
+         *  The abbr is therefore READ OFF the chain's own `node.kind`, not
+         *  restated here: a second copy of that mapping would drift away from
+         *  causal-chain.js without anyone noticing.
+         *
+         *  Speculative edges are dropped on purpose -- an unproven link never
+         *  reaches the answer surface as a cause.
+         *  @returns {{edges:Array<{from:string,to:string}>, keyOf:Function|null}} */
+        _qaCausalEdges() {
+            const none = { edges: [], keyOf: null };
+            try {
+                if (typeof this.causalChainGraph !== 'function') return none;
+                const g = this.causalChainGraph({});
+                if (!g || !g.ok) return none;
+                const nodes = Array.isArray(g.nodes) ? g.nodes : [];
+                const confirmed = Array.isArray(g.edges) ? g.edges : [];
+                /* abbr per ledger, taken from the chain's own kinds. */
+                const abbrByKind = {};
+                for (const nd of nodes) {
+                    if (!nd || typeof nd !== 'object') continue;
+                    const id = String(nd.id == null ? '' : nd.id);
+                    const kind = String(nd.kind == null ? '' : nd.kind);
+                    const cut = id.indexOf(':');
+                    if (cut <= 0 || !kind) continue;
+                    abbrByKind[kind] = id.slice(0, cut);
+                }
+                const edges = [];
+                for (const e2 of confirmed) {
+                    if (!e2 || typeof e2 !== 'object') continue;
+                    const from = e2.from == null ? '' : String(e2.from);
+                    const to = e2.to == null ? '' : String(e2.to);
+                    if (from && to) edges.push({ from: from, to: to });
+                }
+                if (!edges.length) return none;
+                const keyOf = (ref) => {
+                    const s2 = String(ref == null ? '' : ref);
+                    const cut = s2.indexOf(':');
+                    if (cut <= 0) return '';
+                    const abbr = abbrByKind[s2.slice(0, cut)];
+                    if (!abbr) return '';
+                    return abbr + ':' + s2.slice(cut + 1);
+                };
+                return { edges: edges, keyOf: keyOf };
+            } catch (_e) { return none; }
+        }
+
         _evidenceQueryEmpty(reason, spec, opts, ledgers) {
             const o = opts || {};
             const n = Math.max(1, Math.min(200, Number(o.pageSize) > 0 ? Math.floor(Number(o.pageSize)) : 30));
@@ -14912,6 +14963,44 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
          *   两个来源各自独立 try：图谱没建不该让登记表那一份也拿不到。
          * @returns {string[]} 原名（不含别名；别名解析归实体层）
          */
+        /**
+         * [v3.330.0 · M4-O2] 「已知人名 → 别名」的**唯一装配点**。
+         *   来源:图谱节点 `data.aliases`(与图谱侧「角色新称呼写入 aliases」同一个真源,
+         *   见 `char_aliases` 的落点),以及 `_entityIdByName` 里登记过的名字。
+         *   纪律:
+         *     · **只出 `别名 → 本名` 这一向**,不收「本名 → 别名」(那会让一个本名多个身份);
+         *     · 本名必须在已知人名里(否则等于凭别名造人,规划器侧也会再拒一次);
+         *     · 别名与本名逐字相同时不入表(那不是别名);
+         *     · 上限 200 条,超出的截断 —— 别名表是识别用的窄面,不是第二份图谱。
+         *   取不到即 `{}`(**不是 null**):「没有别名」是可表达的入参事实。
+         */
+        _qaActorAliases() {
+            const out = {};
+            let n = 0;
+            const known = new Set(this._qaKnownActors(0));
+            const put = (alias, canon) => {
+                const a = String(alias == null ? '' : alias).trim();
+                const c = String(canon == null ? '' : canon).trim();
+                if (!a || !c || a === c || n >= 200) return;
+                if (!known.has(c)) return;
+                if (Object.prototype.hasOwnProperty.call(out, a)) return;
+                out[a] = c;
+                n += 1;
+            };
+            try {
+                const nodes = (this.graph && this.graph.nodes && typeof this.graph.nodes.values === 'function')
+                    ? this.graph.nodes.values() : null;
+                if (nodes) {
+                    for (const nd of nodes) {
+                        if (!nd || nd.type !== 'character') continue;
+                        const canon = String(nd.name == null ? '' : nd.name).trim();
+                        const al = (nd.data && Array.isArray(nd.data.aliases)) ? nd.data.aliases : [];
+                        for (const a of al) put(a, canon);
+                    }
+                }
+            } catch (_e) { /* 单来源失败不阻断:别名表是窄面,不是关键链路 */ }
+            return out;
+        }
         _qaKnownActors(limit) {
             const out = [];
             const cap = Math.max(1, Math.min(500, Number(limit) > 0 ? Math.floor(Number(limit)) : 200));
@@ -14955,8 +15044,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 } catch (_e) { known = 0; }
                 return {
                     version: 0, question: qText, intents: [], actor: null,
+                    actors: [], topics: [], timeHints: [], relation: null,
                     answer: [], gaps: [{ kind: 'module', why: reason }], refs: [], plans: [],
                     masked: 0, truncated: false, resourced: 0, total: 0,
+                    /* [v3.331.0 - M4-O3] same keys as the present path, verbatim
+                     * (constant key face is what lets downstream assert by key). */
+                    readings: 0, covered: 0, dropped: 0, dedup: 0,
+                    events: [], keyPoints: 0, explain: null,
                     knownActors: known, reason: reason, writesNothing: true
                 };
             };
@@ -14966,7 +15060,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             }
             try {
                 const known = Array.isArray(o.knownActors) ? o.knownActors : this._qaKnownActors(o.maxActors);
-                const plan = Q.planQuestion(qText, { knownActors: known });
+                /* [v3.330.0 · M4-O2] 别名表由宿主装配(单一装配点),内核仍**不猜**:
+                 *   宿主给不出的别名不参与识别 —— 给了就按别名认并记 via。 */
+                const plan = Q.planQuestion(qText, { knownActors: known, actorAliases: this._qaActorAliases() });
                 const ledgers = _evidenceQueryLedgersOf();
                 const payload = {
                     ledgers: ledgers,
@@ -14990,7 +15086,18 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         replayKey: (r && r.replayKey) || ''
                     });
                 }
-                const composed = Q.composeAnswer(plan, results, { maxSentences: o.maxSentences });
+                /* [v3.331.0 - M4-O3] confirmed edges + the bridge across the
+                 * two key spaces. Without the bridge an edge could never land,
+                 * and that silence must not be read as "no cause". */
+                let causal = { edges: [], keyOf: null };
+                try {
+                    if (typeof this._qaCausalEdges === 'function') causal = this._qaCausalEdges();
+                } catch (_e) { causal = { edges: [], keyOf: null }; }
+                const composed = Q.composeAnswer(plan, results, {
+                    maxSentences: o.maxSentences,
+                    causalEdges: causal.edges,
+                    causalKeyOf: causal.keyOf
+                });
                  /* [v3.322.0] **读侧缺口**（本仓最贵的那一格：「跑了、扫了、没命中」与
                   *   「根本没读到东西」不得同形）。
                   *   修前 `no-rows` 的 why 是一句模板：「扫描面为空：九账全部取不到（扫了 0 行）」
@@ -15034,15 +15141,42 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                     intents: composed.intents, actor: plan.actor,
                     plans: planReadings.length,
                     total: composed.total, resourced: composed.resourced,
-                    masked: composed.masked, gaps: composed.gaps.length
+                    masked: composed.masked, gaps: composed.gaps.length,
+                    /* [v3.330.0 · M4-O2] 关系读数进「上次」:诊断行据此说共现几条。 */
+                    relation: (composed.relation && composed.relation.state) ? composed.relation.state : '',
+                    relationCommon: (composed.relation && composed.relation.common) || 0,
+                    /* [v3.331.0 - M4-O3] the causal verdict belongs to the last
+                     * reading: "sequence" and "cause" must not look alike. */
+                    causal: (composed.explain && composed.explain.causal) ? composed.explain.causal : '',
+                    causalSource: (composed.explain && composed.explain.causalSource) ? composed.explain.causalSource : '',
+                    readings: composed.readings || 0,
+                    events: (composed.events || []).length
                 };
                 return {
                     version: Q.QA_VERSION || 0,
                     question: composed.question, intents: composed.intents, actor: plan.actor,
+                    /* [v3.330.0 · M4-O2] 规划侧新读数逐格外送(**不是**在宿主里再算一份):
+                     *   actors = 问句里认出的全部人名(多人物);topics = 保留下来的主题词;
+                     *   timeHints = 问句里的相对时点(本面**不**折算成楼层)。 */
+                    actors: Array.isArray(plan.actors) ? plan.actors : [],
+                    topics: Array.isArray(plan.topics) ? plan.topics : [],
+                    timeHints: Array.isArray(plan.timeHints) ? plan.timeHints : [],
+                    relation: composed.relation || null,
                     answer: composed.answer, gaps: composed.gaps, refs: composed.refs,
                     plans: planReadings,
                     masked: composed.masked, truncated: composed.truncated,
                     resourced: composed.resourced, total: composed.total,
+                    /* [v3.331.0 - M4-O3] explanation surface, forwarded as-is.
+                     *   `readings`/`covered` keep coverage lines apart from the
+                     *   sentence count; `explain.causal` keeps "sequence" from
+                     *   ever reading as "cause". */
+                    readings: composed.readings || 0,
+                    covered: composed.covered || 0,
+                    dropped: composed.dropped || 0,
+                    dedup: composed.dedup || 0,
+                    events: composed.events || [],
+                    keyPoints: composed.keyPoints || 0,
+                    explain: composed.explain || null,
                     knownActors: known.length,
                     reason: '', writesNothing: true
                 };
@@ -15071,6 +15205,13 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (last.gaps) bits.push('缺口 ' + last.gaps);
                 if (last.actor) bits.push('按人 ' + last.actor);
                 else bits.push('未按人筛');
+                /* [v3.330.0 · M4-O2] 关系读数单列:共现条数不是「查到几条」的一种说法。 */
+                if (last.relation) bits.push('关系 ' + last.relation + ' 共现 ' + (last.relationCommon || 0));
+                /* [v3.331.0 - M4-O3] coverage lines are not answers, and a
+                 * "sequence" verdict is not a cause -- each gets its own slot. */
+                if (last.readings) bits.push('覆盖面读数 ' + last.readings);
+                if (last.events) bits.push('事件 ' + last.events);
+                if (last.causal) bits.push('因果 ' + last.causal + (last.causalSource && last.causalSource !== 'no-source' ? '(' + last.causalSource + ')' : ''));
                 return bits.join(' · ');
             } catch (e) { errLog(e, 'plugin.memoryQaLine'); return '—（诊断异常）'; }
         }

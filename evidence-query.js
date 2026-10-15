@@ -229,14 +229,44 @@
      *   合成一条条件会把「按人筛」与「按状态筛」塌成一次筛选，答不出「后来怎样」。
      *   故这里产出**若干条受控查询**（每条都可在 UI 上单列、可单独重放）。
      */
-    const QA_VERSION = 1;
+    /* [v3.331.0 · M4-O3] 3:答案面从「行拼接」改为**有据的事件解释** ——
+     *   去重 / 预算按问题分配 / 关键结论优先占位 / 事件聚合 / 先后不说成因果。 */
+    const QA_VERSION = 3;
     /** 问题意图登记表（**面向用户的问题型只有这些**；未知一律进 gaps，不猜）。 */
+    /* ── [v3.331.0 · M4-O3] 答案预算与关键结论的**判据表** ──────────────
+     *   为什么按问题分配额度:修前 `composeAnswer` 是**顺序吃额度** ——
+     *   前几条计划把 8 句额度用完,后面那条真正回答「后来怎样」的计划整条被截掉,
+     *   而读数上只落 `truncated:true`(「被挤掉」与「本来就没有」同形)。
+     *   分配三档,顺序即优先级:
+     *     a **关键句优先**:句子里带转折 / 否定 / 数额的先占位 ——
+     *       验收原文点名的正是「答案末尾的转折/数额不遗漏」;
+     *     b **每条计划至少一句**:一条计划整条缺席比「只给一句」更坏(面塌了);
+     *     c **交错填满**:余额按计划轮转,不让先到的那条计划吃光。
+     *   ★ 未触顶时**逐字保持原序** —— 修的是「被挤掉」,不是「顺序不好」。 */
+    const QA_BUDGET = Object.freeze({ minPerPlan: 1, maxKeyPoints: 8 });
+    /* 关键结论的**可观测判据**:转折 / 否定 / 数额。不抽语义,只认这些字面形态。 */
+    const QA_TURN_RE = /但|却|反而|结果|最终|其实|然而|不过|没想到|未料|竟/;
+    const QA_NEG_RE = /没|未|不|拒绝|取消|作废|毁约|反悔|变卦/;
+    const QA_NUM_RE = /[0-9一二三四五六七八九十百千万]+\s*(元|块|角|分|万|千|百|天|年|月|日|次|件|米|公里|斤|个|条|封|通|张|页|楼|层)/;
+    /** 取一条句子的**关键点**(纯函数;只回形态名,不抽正文)。
+     *  参数名用 raw:文件里已有 `text()` 裁剪函数,同名参数会**遮蔽**它。 */
+    function keyPointsOf(raw) {
+        const t = String(raw == null ? '' : raw);
+        const out = [];
+        if (QA_TURN_RE.test(t)) out.push('turn');
+        if (QA_NEG_RE.test(t)) out.push('negation');
+        if (QA_NUM_RE.test(t)) out.push('amount');
+        return out;
+    }
     const QA_INTENTS = Object.freeze([
         { id: 'promise', label: '谁答应了什么', hint: /答应|承诺|说好|约定|保证|发誓|欠/ },
         { id: 'later', label: '后来怎样', hint: /后来|结果|最终|最后|现在|怎么样了/ },
         { id: 'why', label: '为何改变', hint: /为什么|为何|怎么会|原因|转变|反悔|变卦/ },
         { id: 'where', label: '在哪一楼', hint: /哪一?楼|什么时候|何时|第几楼/ },
-        { id: 'who', label: '涉及谁', hint: /谁|哪个角色|哪位/ }
+        { id: 'who', label: '涉及谁', hint: /谁|哪个角色|哪位/ },
+        /* [v3.330.0 · M4-O2] 双人关系:问「甲和乙之间」时**必须两侧都在场才算命中**,
+         *   不能退化成「任选其中一人」—— 故单列一类意图,由规划器拆成两侧各自的计划。 */
+        { id: 'relation', label: '两人之间', hint: /之间|谁和谁|两人|双方|彼此/ }
     ]);
     /**
      * 从自然语言问题里取**受控查询条件**（纯函数，不摸 host、不查任何东西）。
@@ -251,7 +281,12 @@
      *
      * @param {string} question 用户问句
      * @param {object} [opts] { knownActors?:string[], ledgers?:string[], now?:number }
-     * @returns {object} { intents, plans[], gaps[], actor }
+     * @returns {object} { question, intents[], actor, actors[], topics[], timeHints[],
+     *                     shadowed[], relation, plans[], gaps[] }
+     *   · `topics`   —— 剥掉人名/问句骨架后**留下来的内容主题**(无则空数组,不强塞);
+     *   · `timeHints`—— 问句里的相对时点线索(**不**折算成楼层,无锚点即不猜);
+     *   · `shadowed` —— 被更长实名吸收的影子名(如实登记,不静默);
+     *   · `relation` —— 认出两个及以上人名时给出两侧名单,否则 null。
      */
     function planQuestion(question, opts) {
         const o = opts || {};
@@ -259,22 +294,131 @@
         const intents = [];
         const gaps = [];
         for (const it of QA_INTENTS) if (it.hint.test(q)) intents.push(it.id);
-        if (!intents.length) gaps.push({ kind: 'intent', why: '问句里没认出任何受控问题型（答应/后来/为何/哪一楼/谁）—— 按正文宽查，不假装理解' });
-        /* 人名识别：**只从宿主给的 knownActors 里认**（不猜别名、不做模糊匹配）。
-         *   为什么不让规划器自己从问句里切词当人名：切出来的多半是动词短语，
-         *   而「按一个不存在的人名筛」会返回空 —— 空与「这人确实没答应过」同形。 */
+        if (!intents.length) gaps.push({ kind: 'intent', why: '问句里没认出任何受控问题型（答应/后来/为何/哪一楼/谁）—— 按正文宽查,不假装理解' });
+        /* ── 人名识别(**多人物** + 影子名排除 + 可选用别名表) ──────────
+         *   [v3.330.0 · M4-O2] 修前三处真缺陷(实测):
+         *   1 **首个子串命中获选**:`knownActors=['林','林安']` 时「林安答应…」选到「林」,
+         *     名单顺序一变答案就变(同一问句两个答案)—— 这是**顺序依赖**,不是纪律;
+         *   2 影子名(「林」是「林安」的子串)被当成另一个在场者,于是双人关系问句
+         *     被读成两人都在场:长名才是真实体,短名只是它的前缀;
+         *   3 旧称 / 别名一律认不出(gap 只说「不猜」)—— 现在**可以由宿主给别名表**,
+         *     给了就认并记 `via:'alias'`,没给仍不猜(纪律不变:不认识就说出来)。
+         *   仍然**不猜**:规划器不从问句里切词当人名。 */
         const known = (Array.isArray(o.knownActors) ? o.knownActors : [])
             .map((x) => text(x, 40)).filter(Boolean);
-        let actor = null;
-        for (const k of known) if (q.indexOf(k) >= 0) { actor = k; break; }
+        const aliasRaw = (o.actorAliases && typeof o.actorAliases === 'object' && !Array.isArray(o.actorAliases))
+            ? o.actorAliases : {};
+        const hits = [];
+        for (const k of known) {
+            const at = q.indexOf(k);
+            if (at >= 0) hits.push({ name: k, via: 'name', at: at });
+        }
+        for (const al of Object.keys(aliasRaw)) {
+            const a2 = text(al, 40), canon = text(aliasRaw[al], 40);
+            if (!a2 || !canon) continue;
+            const at = q.indexOf(a2);
+            if (at < 0) continue;
+            /* 别名指向的人名必须在 knownActors 里(否则等于凭空造人)。 */
+            if (known.indexOf(canon) < 0) continue;
+            if (hits.some((h) => h.name === canon && h.via === 'name')) continue;
+            if (hits.some((h) => h.name === canon && h.via === 'alias')) continue;
+            hits.push({ name: canon, via: 'alias', at: at, alias: a2 });
+        }
+        /* 影子名排除:某命中名是另一**更长**命中名的子串 ⇒ 短名不单独成实体。 */
+        const shadow = [];
+        const actors = [];
+        for (const h of hits.slice().sort((x, y) => (y.name.length - x.name.length) || (x.at - y.at))) {
+            if (hits.some((z) => z !== h && z.name.length > h.name.length && z.name.indexOf(h.name) >= 0)) {
+                shadow.push(h.name);
+                continue;
+            }
+            if (!actors.some((x) => x.name === h.name)) actors.push(h);
+        }
+        actors.sort((x, y) => x.at - y.at);
+        const actor = actors.length ? actors[0].name : null;
+        const actorNames = actors.map((x) => x.name);
         if (!actor) {
             gaps.push({
                 kind: 'actor',
                 why: known.length
-                    ? '问句里没认出在场人名（只认 knownActors 里的原名，不猜别名）—— 不按人名筛，避免「筛一个不存在的人」与「这人确实没答应过」同形'
+                    ? '问句里没认出在场人名(只认 knownActors 里的原名与宿主给的别名,不做模糊匹配)—— 不按人名筛,避免「筛一个不存在的人」与「这人确实没答应过」同形'
                     : '宿主未提供 knownActors：无人名可比对（这是入参事实，不是「没有这个人」）'
             });
+        } else if (shadow.length) {
+            /* 影子名不是「没认出」,是被更长的实名吸收 —— 如实说,不静默。 */
+            gaps.push({ kind: 'actor-shadow', why: '问句里的「' + shadow.join('/') + '」是更长实名的一部分,按实名计(不当作第二个在场者)' });
         }
+        /* ── 时点读数(不翻译成楼层) ───────────────────────────────
+         *   「那时 / 当时 / 之前」这类相对时点在**问句里没有锚点**,翻译成楼层就得猜。
+         *   故只把线索记下来并如实说「未翻译」—— 猜出来的楼层会让「查不到」变成谎话。 */
+        const TIME_HINT = /那时候|那时|当时|之前|以前|早年|当年|后来|起初/;
+        const timeHints = [];
+        if (TIME_HINT.test(q)) {
+            const m = TIME_HINT.exec(q);
+            timeHints.push(m[0]);
+            gaps.push({ kind: 'time-hint', why: '问句含相对时点「' + m[0] + '」:本面不把它折算成楼层(无锚点,折算等于猜),时点条件下界未施加' });
+        }
+        /* ── 主题词保留(把「送什么生日礼物」这类主题带进条件) ──────────
+         *   [M4-O2 修前实测] promise 条件恒 `text: ''` ⇒ 问「林安答应送什么生日礼物」
+         *   返回该人物**所有**承诺。修法:从问句里剥掉人名、问句词与虚词后,
+         *   取**最长的一个实词**作为正文条件(单条子串,不改 matchRow 口径)。
+         *   剥离后无实词 ⇒ 仍为空(不强塞一个词,那会把宽答说成精确答)。 */
+        const STOP = ['什么', '哪些', '哪个', '哪一', '哪里', '哪一楼', '什么时候', '何时', '为什么', '为何',
+            '怎么', '如何', '多少', '答应', '承诺', '说好', '约定', '保证', '发誓', '后来', '结果', '最终',
+            '最后', '现在', '怎么样了', '之间', '发生', '过什么', '事情', '有过', '谁和谁', '两人', '双方',
+            '彼此', '还有', '以及', '那时候', '那时', '当时', '之前', '以前', '早年', '当年', '起初',
+            '有没有', '有没', '有否', '和谁', '跟谁', '与谁', '是谁', '谁的', '哪些人', '哪个人',
+            '发生什么', '什么事', '干什么', '做什么', '送什么', '说些什么', '什么关系', '怎么样',
+            '第几楼', '哪层', '几楼', '多久', '多长时间',
+            /* [v3.330.0 · M4-O2 补] 同族残渣的第二批:探针 40 条问句实测读到
+             *   「会这样 / 这是在 / 时候 / 原因是 / 提起 / 并且和 / 所有人都 / 那件事」——
+             *   都是**问句骨架**的碎片,不是被问的那件事。 */
+            '这样', '那是', '这是', '原因', '提起', '提到', '并且', '那件事', '这件事', '这事儿', '这事',
+            '所有人', '大家', '说过', '做过', '想过', '发生过', '讲过',
+            /* 第三批(同一实测口径):代词 / 系与情态动词 / 骨架动词 / meta 名词。
+             *   实测残渣:「要做 / 怎样 / 进展 / 共同 / 她会转变 / 这种事」。
+             *   只收**问句骨架**词 —— 会被当实体名的词一律不收(宁可留空走宽查)。 */
+            '她', '他', '它', '你', '我', '我们', '他们', '她们', '它们', '你们', '自己', '彼此',
+            '怎样', '怎么', '是否', '能否', '可以', '应该', '可能', '也许', '一起', '共同', '单独',
+            '要做', '做过什么', '进展', '情况', '状况', '回事', '这种', '那种', '那些', '这些'];
+        let rest = q;
+        for (const nm of actorNames) rest = rest.split(nm).join(' ');
+        for (const al of Object.keys(aliasRaw)) { const a3 = text(al, 40); if (a3) rest = rest.split(a3).join(' '); }
+        /* ★ 剥离顺序必须**长词优先**:STOP 里存在子串包含关系(「什么」⊂「为什么」、
+         *   「时候」⊂「什么时候」),按原序剥时短词先命中,长词被切成残渣 ——
+         *   实测症状:「她为什么变卦」的「为什么」被切成「为」,主题读成「她为」。
+         *   排序不改词表内容,只改剥离次序(等长词之间无所谓)。 */
+        const stopSorted = STOP.slice().sort((x, y) => y.length - x.length);
+        for (const w of stopSorted) rest = rest.split(w).join(' ');
+        rest = rest.replace(/[\s\u3000]+/g, ' ').replace(/[的了过吗呢吧啊嘛吗?？!！,，.。:;；、"'（）()\[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+        /* ★ [v3.330.0 · M4-O2 补] 剥离后剩下的**粘连功能字**再除一遍:
+         *   实测残渣「事有」(由「要做的事有哪些」剥剩)、「会转变」——
+         *   病根不是词表缺词(「的/有」处处都有,补不完),而是剥完之后功能字与实词粘着。
+         *   故在这里按**字符**除功能字;「那 / 这 / 此 / 样」等**兼作实词前件**的字不收
+         *   （实测:「那台冰箱」若剥掉「那」⇒ 主题变「台冰箱」,反而更坏）。 */
+        /* ★ [v3.330.0 · M4-O2 修订] 清理只剥**词首 / 词尾**，不剥词中。
+         *   修前是位置无关的全局替换 ⇒ 「周三还书」的「还」被当功能字剥掉,
+         *   主题退化成「周三」—— **问句里最有内容的词反而丢了**(实测),
+         *   与「问句保留主题」直接相反。「还」在「还书/还款」里是实词一部分,
+         *   按下标一刀切即误伤;而按词只剥首尾时:
+         *     · 「周三还书」词中没有功能字 ⇒ 完整保留;
+         *     · 「事有」(「要做的事有哪些」剥剩) ⇒ 词尾「有」剥掉 ⇒ 「事」不足两字 ⇒ 丢;
+         *     · 纯功能词(「会在要了」) ⇒ 剥空 ⇒ 丢。 */
+        const FNHEAD = /^[的是会有在要和与给对从到就都也还再只才很更最不没未无之其能可当把被让]+/;
+        const FNTAIL = /[的是会有在要和与给对从到就都也还再只才很更最不没未无之其能可当把被让]+$/;
+        rest = rest.split(' ').map((w) => w.replace(FNHEAD, '').replace(FNTAIL, '')).filter(Boolean).join(' ')
+            .replace(/\s+/g, ' ').trim();
+        const words = rest.split(' ').map((w) => w.trim()).filter((w) => w.length >= 2);
+        words.sort((x, y) => y.length - x.length);
+        /* ★ [v3.330.0 · M4-O2 补] **主题读数**与**兜底宽查正文**必须分列。
+         *   两条用途对同一个词的要求相反:
+         *     · `topics`(读数):必须是**真内容** —— 下游会说「保留了主题」;
+         *     · 兜底 `text`(条件):要的是**可命中的子串** —— 问「那台冰箱」时
+         *       问句本身就是唯一线索(换成任何「主题」都命中不了)。
+         *   合并的后果实测出来过:问「那台冰箱」把一次**宽查**上报成
+         *   「主题 = 那台冰箱」—— 宽答被说成精确答。故此处起分列。 */
+        const topic = words.length ? words[0].slice(0, 40) : '';
+        const literals = rest.split(' ').map((w) => w.trim()).filter(Boolean).join(' ').slice(0, 80);
         const ledgersOf = (id) => {
             if (id === 'promise') return ['commitment'];
             if (id === 'later' || id === 'why') return ['commitment', 'seed', 'fact-version'];
@@ -286,36 +430,91 @@
             const n = normalizeSpec(spec);
             plans.push({ id: id, spec: n.spec, droppedKeys: n.dropped, why: why });
         };
-        /* ① 「谁答应了什么」——按人 + 约定账。这是**受控**的一步：账名写死，不推导。 */
+        /* 1 「谁答应了什么」——按人 + 约定账 + **主题词**(主题是条件,不是装饰)。 */
         if (intents.indexOf('promise') >= 0) {
-            const spec = { ledgers: ledgersOf('promise'), text: '' };
-            if (actor) spec.actors = [actor];
-            pushPlan('promise', spec, actor
-                ? '按「' + actor + '」筛约定账：答「谁答应了什么」'
-                : '无人在场人名可比对：按约定账全量取（不按人名筛）');
+            /* ★ [v3.330.0 · M4-O2 补] 多人物时**每人各出一条**:修前只取首个
+             *   （`spec.actors=[actor]`）⇒ 双人问句里另一侧没有承诺计划,
+             *   而合成阶段又不可能凭一条计划答出两人 —— 那是「任选一人」的另一面。 */
+            const many = actorNames.length >= 2;
+            for (const nm of (many ? actorNames.slice(0, 4) : [actor])) {
+                const spec = { ledgers: ledgersOf('promise'), text: topic };
+                if (nm) spec.actors = [nm];
+                pushPlan('promise', spec, nm
+                    ? '按「' + nm + '」筛约定账:答「谁答应了什么」' + (topic ? ';正文条件保留主题「' + topic + '」(修前恒空 ⇒ 返回该人全部承诺)' : '')
+                    : '无人在场人名可比对:按约定账全量取(不按人名筛)');
+            }
         }
-        /* ② 「后来怎样」——同一批账看**已结/未结**两态。
-         *   这里刻意**不**用 statuses 过滤成 open：那样答不出「后来怎样」（已结的会被滤掉）。
-         *   两态分列由合成阶段按行的 status 分档，而不是靠两条互斥查询 ——
-         *   互斥查询会把「没查到」与「已被过滤」混成一件事。 */
+        /* 2 「后来怎样」——同一批账看**已结/未结**两态。 */
         if (intents.indexOf('later') >= 0) {
-            const spec = { ledgers: ledgersOf('later') };
-            if (actor) spec.actors = [actor];
-            pushPlan('later', spec, '按同一批账取全部状态：由合成阶段分「未结 / 已结」两档（不用两条互斥查询）');
+            /* 同 promise:多人物时两侧各出一条(「后来怎样」对两个人都得成立才算答上)。 */
+            const many = actorNames.length >= 2;
+            for (const nm of (many ? actorNames.slice(0, 4) : [actor])) {
+                const spec = { ledgers: ledgersOf('later') };
+                if (nm) spec.actors = [nm];
+                if (topic) spec.text = topic;
+                pushPlan('later', spec, '按同一批账取全部状态:由合成阶段分「未结 / 已结」两档(不用两条互斥查询)');
+            }
         }
-        /* ③ 「为何改变」——转折类线索走正文宽查（只做子串，不做同义改写）。 */
+        /* 3 「为何改变」——转折类线索走正文宽查(只做子串,不做同义改写)。 */
         if (intents.indexOf('why') >= 0) {
-            const spec = { ledgers: ledgersOf('why'), text: actor ? actor : '' };
-            pushPlan('why', spec, '按转折词/人名做正文子串查：本面只做子串命中，不解释因果（因果解释不是查询面的职责）');
+            const spec = { ledgers: ledgersOf('why'), text: topic || (actor ? actor : '') };
+            pushPlan('why', spec, '按转折词/人名做正文子串查:本面只做子串命中,不解释因果(因果解释不是查询面的职责)');
         }
-        /* ④ 意图不明（或只问「在哪一楼」）时兜底：至少给一条正文宽查。
-         *   否则「问了个怪问题」与「系统坏了」都是空结果，两者同形。 */
+        /* 4 「两人之间」——**两侧各出一条计划**(不是一条 OR 计划)。
+         *   为什么:条件面的 `actors` 是「命中任一」,一条 OR 计划会把「甲和乙都在场」
+         *   退化成「甲乙任选其一」(M4-O2 验收原文点名的那一格)。
+         *   两计划各自带 ref ⇒ 交集由调用方/合成阶段按 ref 求,**不需要新增条件键**。 */
+        /* ★ [v3.330.0 · M4-O2 补] `relation` 的**弱形态**:hint 只认「之间/两人/双方/彼此」,
+         *   而「苏晴跟林一有什么约定」这类问句两侧人名**都在场**却隔着连接词 ——
+         *   实测它退化成只出一条按人计划(单人答案冒充双人问题)。
+         *   判据取**结构**而非扩词表:两名人名在问句里由连接词紧邻(中间只有连接词与空白)
+         *   ⇒ 就是双人问句。隔了别的实词的不算(E4「生日礼物并且和」不被误触)。 */
+        if (actorNames.length >= 2 && intents.indexOf('relation') < 0) {
+            let joined = false;
+            for (const a4 of actorNames) {
+                for (const b4 of actorNames) {
+                    if (a4 === b4) continue;
+                    for (const cc of ['跟', '和', '与', '、', '，', ',', '同']) {
+                        if (q.indexOf(a4 + cc + b4) >= 0) { joined = true; break; }
+                    }
+                    if (joined) break;
+                }
+                if (joined) break;
+            }
+            if (joined) intents.push('relation');
+        }
+        const wantRelation = intents.indexOf('relation') >= 0;
+        if (wantRelation && actorNames.length >= 2) {
+            for (const nm of actorNames.slice(0, 4)) {
+                const spec = { text: topic };
+                spec.actors = [nm];
+                pushPlan('relation', spec, '关系问句的一侧:「' + nm + '」各出一条计划 —— 共现(两侧都在场)须按 ref 求交集,单条 OR 计划会退化成「任选一人」');
+            }
+        } else if (wantRelation && actorNames.length === 1) {
+            gaps.push({ kind: 'relation-partial', why: '关系问句里只认出一个人名(另一侧没认出)—— 不假装是双人问题,按单人处理' });
+            const spec = { text: topic };
+            spec.actors = [actorNames[0]];
+            pushPlan('relation', spec, '关系问句只认出一侧:如实按单人查');
+        } else if (wantRelation) {
+            gaps.push({ kind: 'relation-unresolved', why: '关系问句里一个人名都没认出(两侧都缺)—— 不编人,退化为该问题型的全量查' });
+        }
+        /* 5 意图不明(或只问「在哪一楼」)时兜底:至少给一条正文宽查。
+         *   [v3.330.0 · M4-O2] 正文取 `literals`(原句剥掉骨架后的残片)而非整句:
+         *   整句里连着问句骨架(「这是哪一楼？」)⇒ 子串条件必然命中 0 条,
+         *   于是「宽查没命中」与「系统坏了」在读数上同形。 */
         if (!plans.length) {
-            const spec = { text: q.slice(0, 80) };
+            const spec = { text: literals };
             if (actor) spec.actors = [actor];
-            pushPlan('text', spec, '未命中受控问题型：按问句正文做子串宽查（如实说明这是宽查，不是理解）');
+            pushPlan('text', spec, '未命中受控问题型:按问句正文做子串宽查(如实说明这是宽查,不是理解)');
         }
-        return { question: q, intents: intents, actor: actor, plans: plans, gaps: gaps };
+        return {
+            question: q, intents: intents,
+            actor: actor, actors: actorNames.slice(),
+            topics: topic ? [topic] : [], timeHints: timeHints,
+            shadowed: shadow.slice(),
+            relation: actorNames.length >= 2 ? actorNames.slice() : null,
+            plans: plans, gaps: gaps
+        };
     }
     /**
      * 证据合成：把**已经许可的结果行**装订成带出处的短答（纯函数，不查任何东西）。
@@ -342,17 +541,63 @@
         const refs = [];
         let masked = 0;
         let truncated = false;
-        const add = (s) => {
-            if (answer.length >= maxSentences) { truncated = true; return false; }
-            answer.push(s);
-            return true;
+        /* [v3.331.0 · M4-O3] `add` 由「边加边截断」改为**收集器**:
+         *   取舍挪到全部候选到齐之后(见 emit)—— 「谁被挤掉」必须在看得见
+         *   全部候选时决定,否则先到的先占位、后到的真答案整条消失。 */
+        const cand = [];
+        const pinnedIdx = new Set();
+        const keptIdx = [];
+        const seenRef = new Set();
+        const dupRefs = [];
+        let dropped = 0;
+        let readingKept = 0;
+        /* ★ [v3.331.0 · M4-O3] **覆盖面读数句**与**证据句**是两类东西,不得抢同一个额度:
+         *   前者说「本问扫了什么、命中了多少」(exists 存在句 / relation 两侧条数 / 共现结论),
+         *   后者才是可回源的、能当答案的行。
+         *   修前两类混在同一个候选池里:额度紧时读数句会把真证据挤掉,
+         *   而读数句自己也可能「因为先到的证据多」而消失 —— 答案于是既答不全、
+         *   也说不清「到底查了多少」。
+         *   ★ 用**并行下标集合**记读数句,不往句子对象上加字段:
+         *     句子形状是下游契约(既有判据按形状比对),加一格就是扩权。 */
+        const readingIdx = new Set();
+        const add = (s2) => { cand.push(s2); return true; };
+        /* [v3.331.0 - M4-O3] reading pool: a same-plan `exists` says it once.
+         *   Two results entries sharing one planId (relation sides, or a
+         *   planner that emits the same id twice) used to repeat the
+         *   coverage line verbatim. Coverage of one plan is stated once. */
+        const addReading = (s2) => {
+            if (s2 && s2.kind === 'exists') {
+                for (const i2 of readingIdx) {
+                    const c2 = cand[i2];
+                    if (c2 && c2.kind === 'exists'
+                        && String(c2.planId || '') === String(s2.planId || '')) return false;
+                }
+            }
+            readingIdx.add(cand.length);
+            return add(s2);
         };
         const list = Array.isArray(results) ? results : [];
         let anyRows = false;
+        const pending = [];
+        /* ── [v3.330.0 · M4-O2] 关系问句的**两侧共现**:按 ref 求交集 ─────────
+         *   为什么在合成阶段求、而不是加一条 OR 计划:条件面的 `actors` 是「命中任一」,
+         *   一条 OR 计划会把「甲和乙都在场」退化成「甲乙任选其一」——
+         *   而「两人之间」这件事的**唯一硬判据**就是两侧各自都留下了引用键。
+         *   故规划器为每侧各出一条计划,合成阶段按 ref 求交集并如实报两读数:
+         *   共现条数(交集)与各侧单独条数(差集的存在性),两者不可互相冒充。
+         *   ★ 管路仍走**既有** FILTERS 键(不新增条件键 ⇒ 界面字段表与跨仓面不动)。 */
+        const rel = [];
         for (const r of list) {
+            if (!r || r.id !== 'relation') continue;
+            const sp = (r.spec && typeof r.spec === 'object') ? r.spec : {};
+            const nm = (Array.isArray(sp.actors) && sp.actors.length) ? String(sp.actors[0]) : '';
+            rel.push({ name: nm, entry: r, refs: null, total: 0, byRef: {} });
+        }
+        for (const r of list) {
+            if (r && r.id === 'relation') continue;   /* 关系组统一在后面按交集处理 */
             const q = r && r.query;
             if (!q || typeof q !== 'object') {
-                gaps.push({ kind: 'result-absent', planId: (r && r.id) || '', why: '该条计划没有查询结果（不是「没有命中」，是没跑）' });
+                gaps.push({ kind: 'result-absent', planId: (r && r.id) || '', why: '该条计划没有查询结果（不是「没有命中」，是没跑)' });
                 continue;
             }
             const rows = Array.isArray(q.rows) ? q.rows : [];
@@ -371,16 +616,93 @@
             /* 存在句：**带总数与账分布**（不是「找到几条」一句话）。 */
             const byLedger = q.hitsByLedger || {};
             const parts = Object.keys(byLedger).map((k) => k + ' ' + byLedger[k]);
-            add({
+            addReading({
                 kind: 'exists', planId: r.id,
                 text: '查到 ' + q.total + ' 条' + (parts.length ? '（' + parts.join('、') + '）' : ''),
                 ref: null, floor: null
             });
-            for (const row of rows) {
+            for (const row of rows) pending.push({ row: row, planId: r.id, kind: '' });
+        }
+        /* ── 关系组的四种结局(**各不同形**) ─────────────────────────
+         *   1 两侧各≥1 条且交集非空 ⇒ 共现,报出交集条数与两侧单独读数;
+         *   2 两侧都有行但交集为空 ⇒ **两人各有其事但无一共同** —— 如实说「没有共现」,
+         *     不把任一侧的行当答案(那是「任选一人」的另一种说法);
+         *   3 某一侧根本没有行 ⇒ 报该侧 0 条,并在缺口里点名;
+         *   4 只认出一侧 ⇒ partial,按单人如实处理,不冒充共现。 */
+        const relation = { sides: [], common: 0, coOccurred: null, state: '' };
+        if (rel.length >= 2) {
+            let ok = true;
+            for (const item of rel) {
+                const q = item.entry && item.entry.query;
+                if (!q || typeof q !== 'object') {
+                    ok = false;
+                    gaps.push({ kind: 'relation-side-absent', planId: 'relation', why: '关系问句的一侧没有查询结果(不是「没有命中」)' });
+                    continue;
+                }
+                const rows = Array.isArray(q.rows) ? q.rows : [];
+                const set = new Set();
+                for (const row of rows) if (row && row.ref) set.add(row.ref);
+                item.refs = set;
+                item.total = (typeof q.total === 'number') ? q.total : rows.length;
+                for (const row of rows) if (row && row.ref) item.byRef[row.ref] = row;
+                relation.sides.push({ name: item.name, total: item.total });
+            }
+            if (ok && rel.every((x) => x.refs)) {
+                let common = [...rel[0].refs];
+                for (const item of rel.slice(1)) common = common.filter((ref) => item.refs.has(ref));
+                relation.common = common.length;
+                relation.coOccurred = common.length > 0;
+                for (const item of rel) {
+                    addReading({ kind: 'relation-side', planId: 'relation', text: '「' + item.name + '」单独命中 ' + item.total + ' 条', ref: null, floor: null });
+                }
+                if (common.length) {
+                    anyRows = true;
+                    relation.state = 'co-occur';
+                    addReading({
+                        kind: 'relation', planId: 'relation',
+                        text: '两侧共现 ' + common.length + ' 条(按引用键求交集:' + rel.map((x) => x.name).join(' / ') + ')',
+                        ref: null, floor: null
+                    });
+                    for (const ref of common.slice(0, 8)) {
+                        pending.push({ row: rel[0].byRef[ref] || null, planId: 'relation', kind: 'relation-row' });
+                    }
+                } else {
+                    relation.state = 'no-co-occur';
+                    gaps.push({
+                        kind: 'no-co-occur', planId: 'relation',
+                        why: '两侧各有命中但**没有共同的引用键** —— 这是「两人各有其事、无一共同」,不是「没有这件事」'
+                    });
+                }
+            }
+        } else if (rel.length === 1) {
+            /* 只认出一侧(规划器已记 relation-partial):按单人如实处理,不冒充共现。 */
+            const item = rel[0];
+            const q = item.entry && item.entry.query;
+            relation.state = 'partial';
+            if (q && typeof q === 'object' && q.total > 0) {
+                anyRows = true;
+                for (const row of (Array.isArray(q.rows) ? q.rows : [])) {
+                    pending.push({ row: row, planId: 'relation', kind: 'relation-partial-row' });
+                }
+            }
+        }
+        if (pending.length) {
+            for (const item of pending) {
+                const row = item.row;
+                if (!row) continue;
+                /* ★ [v3.331.0 · M4-O3] 同一事实被多条计划命中 ⇒ **只说一次**。
+                 *   修前每条计划各出一句,同一件事在答案里出现两三遍,
+                 *   把真正的第二件事挤出额度(验收:同一事实被 3 个计划命中只说一次)。
+                 *   ★ 判据取**引用键**(行身份),不取标题字面量 ——
+                 *     两件文字相同的事仍是两件事,不得因「文字一样」被并成一件。 */
+                if (row.ref) {
+                    if (seenRef.has(row.ref)) { dupRefs.push(row.ref); continue; }
+                    seenRef.add(row.ref);
+                }
                 if (row && row.masked === true) {
                     masked += 1;
                     add({
-                        kind: 'masked', planId: r.id,
+                        kind: 'masked', planId: item.planId,
                         text: '（存在但不可展示：' + (row.ledgerLabel || row.ledger) + ' 知识范围 ' + (row.scope || '判不了') + '）',
                         ref: row.ref, floor: row.floor, ledger: row.ledger
                     });
@@ -388,19 +710,137 @@
                     continue;
                 }
                 const isOpen = (QA_OPEN_STATES[row.ledger] || []).indexOf(row.status) >= 0;
+                /* ★ 关键点用**并行下标集合**记录,不往句子对象上加字段:
+                 *   句子形状是下游契约(已有判据按形状比对),加一格就是扩权。 */
+                const kp = keyPointsOf((row.title || '') + ' ' + (row.detail || ''));
+                if (kp.length && pinnedIdx.size < QA_BUDGET.maxKeyPoints) pinnedIdx.add(cand.length);
                 add({
-                    kind: isOpen ? 'open' : 'settled',
-                    planId: r.id,
+                    kind: item.kind || (isOpen ? 'open' : 'settled'),
+                    planId: item.planId,
                     text: (row.title || '（无标题）')
-                        + (row.status ? '［' + row.status + '］' : '')
+                        + (row.status ? '[' + row.status + ']' : '')
                         + (row.detail ? ' — ' + row.detail : ''),
                     ref: row.ref, floor: row.floor, ledger: row.ledger, status: row.status
                 });
                 if (row.ref) refs.push({ ref: row.ref, ledger: row.ledger, floor: row.floor });
             }
         }
-        if (!anyRows && !answer.length) {
-            gaps.push({ kind: 'no-answer', why: '没有任何一条计划查到可展示的行 —— 这是「查不到」，不是「没有这件事」' });
+        /* ★ [v3.330.0 · M4-O2 修订] 关系组的**专属缺口**已经点名缺的是哪一侧,
+         *   此处再补一条宽泛的 `no-answer` 会把「关系的一侧没查到」与「所有计划都没查到」
+         *   在**读数条数**上又混回同一形(缺口类型已分开,条数不该再合)。
+         *   判据取「有没有带 planId 的关系缺口」,不取具体 kind 字面量。 */
+        /* ── [v3.331.0 · M4-O3] 额度取舍(**只在触顶时**改行为) ──────────
+         *   未触顶 ⇒ 逐字按原序输出。顺手改顺序会让「同一问句答出不同的话」,
+         *   那是另一个缺陷,不是本刀要修的「被挤掉」。 */
+        const emit = () => {
+            if (cand.length <= maxSentences) {
+                for (let i = 0; i < cand.length; i += 1) { answer.push(cand[i]); keptIdx.push(i); }
+                return;
+            }
+            truncated = true;
+            const keep = [];
+            const used = new Set();
+            /* a0 [v3.331.0 - M4-O3] reading lines are not evidence, so the
+             * evidence budget must not evict them. Readings are bound per plan
+             * (exists / relation sides / co-occur) so the count is bounded and
+             * cannot eat the whole budget; at least one slot stays for evidence
+             * whenever evidence exists at all. */
+            for (let i = 0; i < cand.length && keep.length < maxSentences; i += 1) {
+                if (!readingIdx.has(i)) continue;
+                if (readingIdx.size < cand.length && keep.length >= maxSentences - 1) break;
+                keep.push(i); used.add(i);
+            }
+            readingKept = keep.length;
+            /* a 关键句优先(保原序)。 */
+            for (let i = 0; i < cand.length && keep.length < maxSentences; i += 1) {
+                if (pinnedIdx.has(i)) { keep.push(i); used.add(i); }
+            }
+            /* b 每条计划至少一句(计划身份取 planId;关系面自带 planId)。 */
+            const byPlan = new Map();
+            for (let i = 0; i < cand.length; i += 1) {
+                if (used.has(i)) continue;
+                const k = cand[i].planId || '';
+                if (!byPlan.has(k)) byPlan.set(k, []);
+                byPlan.get(k).push(i);
+            }
+            for (const idxs of byPlan.values()) {
+                if (keep.length >= maxSentences) break;
+                keep.push(idxs[0]); used.add(idxs[0]);
+            }
+            /* c 交错填满:按计划轮转,不把余额交给先到的那条计划。 */
+            const lanes = [...byPlan.values()].map((idxs) => idxs.slice(1));
+            let more = true;
+            while (keep.length < maxSentences && more) {
+                more = false;
+                for (const lane of lanes) {
+                    if (keep.length >= maxSentences) break;
+                    const i2 = lane.shift();
+                    if (i2 === undefined) continue;
+                    keep.push(i2); used.add(i2); more = true;
+                }
+            }
+            keep.sort((a, b) => a - b);
+            for (const i of keep) { answer.push(cand[i]); keptIdx.push(i); }
+            dropped = cand.length - keep.length;
+        };
+        emit();
+        /* ── 事件聚合:命中的行按引用键聚成**事件**(不是一堆散句) ────── */
+        const events = [];
+        const evByRef = new Map();
+        for (const s2 of answer) {
+            if (!s2 || !s2.ref) continue;
+            if (!evByRef.has(s2.ref)) {
+                const ev = { ref: s2.ref, ledger: s2.ledger || '', floor: (s2.floor === undefined ? null : s2.floor), lines: 0 };
+                evByRef.set(s2.ref, ev);
+                events.push(ev);
+            }
+            evByRef.get(s2.ref).lines += 1;
+        }
+        /* ── 因果面(**顺序不得被说成因果**) ────────────────────────────
+         *   本面只有两条证据通道:
+         *     · 引用键 + 楼层 ⇒ 只能说**先后**(sequence);
+         *     · 调用方给的**已确认因果边** ⇒ 才能说 cause(仍标 basis)。
+         *   缺证据时如实说不知道,不默认「毕竟如此」。 */
+        let causalBasis = 'none';
+        let causalPairs = 0;
+        let causalSource = 'no-source';
+        /* [v3.331.0 - M4-O3] two DIFFERENT key spaces meet here and must not be
+         * conflated:
+         *   - rows carry `ref`  = '<ledgerId>:<entryKey>'  e.g. 'commitment:c1';
+         *   - causal-chain nodes carry ids '<abbr>:<id>'    e.g. 'cmt:c1'.
+         * So a confirmed edge can only be matched when the caller also hands
+         * over the KEY SPACE (`o.causalKeyOf`: ref -> chain node id). With no
+         * mapping there is no honest way to align the two, and we do not guess:
+         *   - `edge-mapped`   : mapping given, >=1 edge landed between events;
+         *   - `edge-unmapped` : edges were given but CANNOT be aligned here;
+         *   - `no-source`     : nobody supplied any edge at all.
+         * The last two are both "we cannot say", never "there is no cause". */
+        const edges = Array.isArray(o.causalEdges) ? o.causalEdges : [];
+        const keyOf = (typeof o.causalKeyOf === 'function') ? o.causalKeyOf : null;
+        if (keyOf && edges.length && events.length >= 2) {
+            const keys = new Set();
+            for (const ev of events) {
+                let k5 = '';
+                try { k5 = String(keyOf(ev.ref) || ''); } catch (_e) { k5 = ''; }
+                if (k5) keys.add(k5);
+            }
+            for (const e2 of edges) {
+                if (!e2 || typeof e2 !== 'object') continue;
+                const a5 = String(e2.from == null ? '' : e2.from);
+                const b5 = String(e2.to == null ? '' : e2.to);
+                if (a5 && b5 && keys.has(a5) && keys.has(b5)) causalPairs += 1;
+            }
+            if (causalPairs > 0) { causalBasis = 'confirmed-edge'; causalSource = 'edge-mapped'; }
+            else causalSource = 'edge-unmapped';
+        } else if (edges.length) {
+            causalSource = 'edge-unmapped';
+        } else {
+            causalSource = 'no-source';
+        }
+        const causalClaim = (causalPairs > 0) ? 'cause' : (events.length >= 2 ? 'sequence' : 'unknown');
+        const relationGap = gaps.some((g) => g && g.planId === 'relation');
+        if (!anyRows && !answer.length && !relationGap) {
+            gaps.push({ kind: 'no-answer', why: '没有任何一条计划查到可展示的行 —— 这是「查不到」,不是「没有这件事」' });
         }
         return {
             version: QA_VERSION,
@@ -411,13 +851,52 @@
             refs: refs,
             masked: masked,
             truncated: truncated,
-            /* 回源率是**读数**不是承诺：每条有 ref 的句子都在 refs 里。 */
-            resourced: answer.filter((s) => !!s.ref).length,
-            total: answer.length
+            /* [v3.330.0] 关系读数:两侧名 / 共现条数 / 四态('co-occur' | 'no-co-occur' | 'partial' | '')。
+             *   非关系问句恒为 null —— 不给「看着像关系」的伪读数。 */
+            relation: (rel.length ? relation : null),
+            /* 回源率是**读数**不是承诺:每条有 ref 的句子都在 refs 里。 */
+            resourced: answer.filter((s2) => !!s2.ref).length,
+            total: answer.length,
+            /* ── [v3.331.0 · M4-O3] 解释面读数(逐格单列,不合成一格) ──────
+             *   · `dedup`   —— 因**同一引用键**被合并掉的句子数(0 是没重复,不是没查);
+             *   · `dropped` —— 触顶时**被挤掉**的句子数。与 `truncated` 不同:后者
+             *     只说「触顶了」,不说「丢了几条」—— 合一会让「丢 1 条」与「丢 20 条」同形;
+             *   · `events`  —— 命中的行按引用键聚成的事件;
+             *   · `keyPoints` —— 保下来的关键句数(转折 / 否定 / 数额);
+             *   · `explain.causal` —— 'cause'(有已确认因果边)/ 'sequence'(只有先后)/
+             *     'unknown'(不足两条事件):**先后不被说成因果**由这一格把守。 */
+            dedup: dupRefs.length,
+            /* [v3.331.0 - M4-O3] coverage lines kept, stated separately from
+             * `total`: "answered N sentences" and "N of them are only coverage
+             * readings, not回源-able evidence" must not collapse into one number. */
+            readings: readingKept,
+            covered: readingIdx.size,
+            dropped: dropped,
+            events: events,
+            keyPoints: keptIdx.filter((i) => pinnedIdx.has(i)).length,
+            explain: {
+                basis: answer.some((s2) => !!s2.ref) ? 'rows' : 'none',
+                events: events.length,
+                sequence: (events.length >= 2) ? (events.length - 1) : 0,
+                causal: causalClaim,
+                causalPairs: causalPairs,
+                causalBasis: causalBasis,
+                causalSource: causalSource,
+                why: causalClaim === 'cause'
+                    ? '有 ' + causalPairs + ' 条**已确认**因果边落在本次命中的事件之间(来源:' + causalBasis + ')'
+                    : (causalClaim === 'sequence'
+                        ? '只有引用键与楼层 ⇒ 只能给**先后**;先后不是因果,故不称「因为」'
+                            + (causalSource === 'edge-unmapped'
+                                ? ';另有已确认因果边**键空间对不上**(行的 ref 是 `<账id>:<键>`,'
+                                    + '因果链节点是 `<缩写>:<id>` ⇒ 未经映射不得硬配)'
+                                : (causalSource === 'no-source'
+                                    ? ';本问**没有拿到任何已确认因果边**(不是「没有因果」)'
+                                    : ''))
+                        : '命中的事件不足两条 ⇒ 无所谓因果(如实说不知道)')
+            }
         };
     }
-    /** 各账的「未结」状态档（**写死，不推导** —— 各账状态词表本就不同）。
-     *   fact-version 的 active / seed 的 advancing 都属「还没结」：如实分档，不合并。 */
+
     const QA_OPEN_STATES = Object.freeze({
         commitment: ['open'],
         seed: ['open', 'advancing'],
@@ -438,8 +917,20 @@
             if (c.resourced) parts.push('可回源 ' + c.resourced);
             if (c.masked) parts.push('遮蔽 ' + c.masked);
             if (c.intents && c.intents.length) parts.push('问题型 ' + c.intents.join('/'));
+            /* [v3.330.0 · M4-O2] 关系读数单列:共现条数与单侧条数是两件事,不并成一格。 */
+            if (c.relation && c.relation.state) {
+                const rl = c.relation;
+                parts.push('关系 ' + rl.state + ' 共现 ' + rl.common + ' 条'
+                    + (rl.sides && rl.sides.length ? '(' + rl.sides.map((x) => x.name + ' ' + x.total).join(' / ') + ')' : ''));
+            }
+            /* [v3.331.0 · M4-O3] 解释面读数:重复 / 事件 / 因果各占一格。 */
+            if (c.dedup) parts.push('去重 ' + c.dedup);
+            if (c.readings) parts.push('覆盖面读数 ' + c.readings + (c.covered > c.readings ? '/' + c.covered : ''));
+            if (c.events && c.events.length) parts.push('事件 ' + c.events.length);
+            if (c.explain && c.explain.causal) parts.push('因果 ' + c.explain.causal + (c.explain.causalSource && c.explain.causalSource !== 'no-source'
+                ? '(' + c.explain.causalSource + ')' : ''));
             if (c.gaps && c.gaps.length) parts.push('缺口 ' + c.gaps.length);
-            if (c.truncated) parts.push('⚠ 句子数触顶');
+            if (c.truncated) parts.push('⚠ 句子数触顶' + (c.dropped ? '(挤掉 ' + c.dropped + ' 条)' : ''));
             return parts.join(' · ');
         } catch (_e) { return '—（问答面异常）'; }
     }
@@ -1155,7 +1646,8 @@
         PROJECTION_CACHE_VERSION, QUERY_ASYNC_SHARD,
         normalizeSaved, upsertSaved, removeSaved, replaySaved, line,
         /* [v3.321.0 · M3-X1] 带证据的自然语言问答（规划 + 合成；不造查询 API） */
-        QA_VERSION, QA_INTENTS, QA_OPEN_STATES, planQuestion, composeAnswer, qaLine
+        QA_VERSION, QA_INTENTS, QA_OPEN_STATES, QA_BUDGET, keyPointsOf,
+        planQuestion, composeAnswer, qaLine
     });
     root.LonShaEvidenceQuery = api;
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

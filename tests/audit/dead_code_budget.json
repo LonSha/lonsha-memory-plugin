@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 69800,
+  "ceiling": 70314,
   "maxSlack": 400,
-  "note": "[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流",
+  "note": "[v3.330.0] M4-O2 问句保留主题、多人物与时点:evidence-query.js 主题与宽查分列(literals 新增)+宿主别名装配点/关系求交出口/主题外送(+264 模块 +53 宿主,含 v3.329.0 M4-O1 一并结清的 +139/+58)。全为活跃功能增长、非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -297,7 +297,11 @@
     {
       "ceiling": 69800,
       "reason": "[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流"
+    },
+    {
+      "ceiling": 70314,
+      "reason": "[v3.330.0] M4-O2 问句保留主题、多人物与时点:evidence-query.js 主题与宽查分列(literals 新增)+宿主别名装配点/关系求交出口/主题外送(+264 模块 +53 宿主,含 v3.329.0 M4-O1 一并结清的 +139/+58)。全为活跃功能增长、非死代码回流"
     }
   ],
-  "_history_last": "ceiling 68495 → 69800（实测 69400 + slack 400）：[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流"
+  "_history_last": "ceiling 69800 → 70314（实测 69914 + slack 400）：[v3.330.0] M4-O2 问句保留主题、多人物与时点:evidence-query.js 主题与宽查分列(literals 新增)+宿主别名装配点/关系求交出口/主题外送(+264 模块 +53 宿主,含 v3.329.0 M4-O1 一并结清的 +139/+58)。全为活跃功能增长、非死代码回流"
 }

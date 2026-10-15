@@ -5,6 +5,8 @@
  *   M3-X1 **宿主出口**（index.js 的取人名 / 问答 / 诊断行三成员）：
  *      ① 取人名：两来源并集 + 去重 + 封顶；**单一来源失败不得把另一来源也带下去**（两处 try 各自独立）；
  *         只收 character 节点（事件节点不得混进「已知人名」）；
+ *      ①b [v3.330.0 · M4-O2] 别名装配点 `_qaActorAliases()`：图谱 character 节点的
+ *         `data.aliases` ⇒ **只出「别名 → 本名」一向**；本名须在已知人名里（不给就凭别名造人）；
  *      ② **恒定键面**：内核缺席的降级回执与在场路径**逐字同键** ——
  *         这是下游「按键断言不必猜」的前提；修前缺席只有 14 键、缺 knownActors 一格（本刀修真缺陷）；
  *      ③ 缺席路径的 knownActors 是**真读数**（人名装配不依赖内核）——
@@ -108,7 +110,11 @@ function mkQaHost(win, src) {
         'function _eventCompletenessLib() {', 'function _repairLoopLib() {'];
     const libs = heads.map((h) => sliceMember(idx, h));
     if (libs.some((x) => !x)) throw new Error('取库口切片缺失：' + heads.filter((h, i) => !libs[i]).join(' / '));
-    const mHeads = ['_qaKnownActors(limit) {', 'askMemoryQuestion(question, opts) {', 'memoryQaLine() {'];
+    /* [v3.330.0 · M4-O2] `_qaActorAliases()` 是宿主出口的**新装配点** ——
+     *   `askMemoryQuestion()` 现在直接调用它,故夹具必须一并切片:
+     *   切片不全时宿主整段进 catch ⇒ 返回 version=0 的缺席回执
+     *   （实测症状:「在场路径须报内核版本号」先红,而真因是夹具装配不完整）。 */
+    const mHeads = ['_qaActorAliases() {', '_qaKnownActors(limit) {', 'askMemoryQuestion(question, opts) {', 'memoryQaLine() {'];
     const meths = mHeads.map((h) => sliceMember(idx, h));
     if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失：' + mHeads.filter((h, i) => !meths[i]).join(' / '));
     return new Function('errLog', 'window',
@@ -200,7 +206,8 @@ function x1JudgeHostRun(src) {
 }
 test('v3322 G1. ★★★ M3-X1 宿主出口：恒定键面（缺席也是真读数）+ 不扩权 + 只读', () => {
     const r = x1JudgeHostFace(IDX);
-    assert.equal(r.version, 1, '在场路径须报内核版本号');
+    /* [v3.330.0 · M4-O2 交棒] 原文锁 `1`;问答面抬到 2 后本档改守下界。 */
+    assert.ok(r.version >= 1, '在场路径须报内核版本号（不低于 v3.322 收口读数）');
     console.log('  ✓ 缺席与在场同键（' + Object.keys(r).length + ' 键）；缺席的 knownActors 是真读数；rows 一格不外带');
 });
 test('v3322 G2. ★★★ M3-X1 宿主出口真跑通：真账本 → 真答案 → 真诊断行，且读侧缺口具名', () => {

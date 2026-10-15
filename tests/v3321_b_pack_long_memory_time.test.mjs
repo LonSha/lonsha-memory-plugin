@@ -512,7 +512,10 @@ test('v3321 F3. ★★★ 版本锚：本档出生版本 + 六源同源（V4 当
 });
 test('v3321 F4. B 包记忆侧四项版本读数在场（可被下游与诊断读到）', () => {
     assert.equal(EQ.QUERY_VERSION, 3, 'M3-O6 抬到 3（新增缓存/索引/协作式查询三面）');
-    assert.equal(EQ.QA_VERSION, 1, 'M3-X1 问答面版本在场');
+    /* [v3.330.0 · M4-O2 交棒] 原文 `assert.equal(EQ.QA_VERSION, 1, ...)` 锁的是
+     *   v3.321.0 的收口读数;M4-O2 加 relation 问题型后问答面抬到 2。
+     *   本档改守**下界**（不低于出生时的读数），当版读数锁由 M4-O2 专项接管。 */
+    assert.ok(EQ.QA_VERSION >= 1, '问答面版本在场且不低于 v3.321 收口读数');
     assert.equal(EQ.PROJECTION_CACHE_VERSION, 1, '投影缓存格式号在场');
     assert.equal(EQ.QUERY_ASYNC_SHARD, 2000, '协作式查询让出粒度在场');
     assert.equal(SL.LTM_SUMMARY_CAP > 0, true, '摘要额度仍在（保底段附在它之后）');

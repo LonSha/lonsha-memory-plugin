@@ -261,7 +261,12 @@ test('v3307 A1. ★★ 两个面都在场，且行上的 scope / masked 是恒�
      *   （投影缓存 / 轻索引 / 协作式查询）后查询面抬到 **3**；
      *   本档要守的是「查询面有版本常量在场且 ≥ 收口时的读数」，不是那个具体数字。 */
     assert.ok(EQ.QUERY_VERSION >= 2, '查询面版本须在场且不低于 2（v3.307 收口读数；M3-O6 后为 3）');
-    assert.equal(EQ.QA_VERSION, 1, 'M3-X1 问答面版本须在场（v3.321.0）');
+    /* [v3.330.0 · M4-O2 交棒] 本行原为 `assert.equal(EQ.QA_VERSION, 1, ...)` ——
+     *   它记的是 **v3.321.0 问答面收口那一刻的读数**。M4-O2（问句保留主题/多人物/时点）
+     *   给规划面加了 relation 问题型与两侧计划，问答面抬到 **2**;
+     *   本档要守的是「问答面有版本常量在场且 ≥ 收口时的读数」，不是那个具体数字
+     *   （与同档 QUERY_VERSION 那条的交棒形态一致：交棒不弱化，只把「恰好等于」换成「不低于」）。 */
+    assert.ok(EQ.QA_VERSION >= 1, '问答面版本须在场且不低于 1（v3.321 收口读数；M4-O2 后为 2）');
     /* 非秘密账的两列必须仍是恒定的 null / false（不得为了秘密面把九账行键改歪） */
     const face = EW.buildWorkbench(mkHost(), { apis: APIS, now: () => 1000 });
     for (const id of ['seed', 'parallel', 'commitment']) {
