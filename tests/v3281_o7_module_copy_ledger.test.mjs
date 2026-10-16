@@ -120,7 +120,7 @@ const LEDGER = [
         '名字/键归一（去首尾空白；非串给空串）。同上：刻意各持一份，收拢会引入跨模块静默读旧值。\n'
         + '★ **第三次补登（v3.313.0 轮）**：成员加 memory-package.js —— M-X8 自持一份（档头声明\n'
         + '与 X6/X7 同形同值），与「依赖模块先挂载」的静默读旧值形态同族，故不合并；体 md5 未变。'],
-    ['numOrNull', ['evidence-query.js', 'fact-lifecycle.js', 'memory-center.js', 'memory-package.js', 'memory-tools-api.js', 'repair-settle.js'], 'fe297bb9',
+    ['numOrNull', ['evidence-query.js', 'fact-lifecycle.js', 'memory-center.js', 'memory-package.js', 'memory-tools-api.js', 'qa-thread.js', 'repair-settle.js'], 'fe297bb9',
         '数值归一（没给 ⇒ null；布尔/对象/函数 ⇒ null，不拿 0 冒充「就是 0」）。\n'
         + '**为什么留两份**：与 text 簇同族 —— 它是**通用数值原语**，不是账本条目结构的取值代码。\n'
         + '两模块的装载时机与存活期互不包含（统一信封层可缺席而内核查询在，反之亦然），\n'

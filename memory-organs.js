@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.339.0';
+let VERSION = '3.340.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -345,6 +345,7 @@ const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'schemaVersion',
 'producerVersion',
 'loreImportLedger',  // [v3.339.0 · M4-X1] 资料导入账（幂等键 + 人工校订决定）
+'qaThread',  // [v3.340.0 · M4-X4] 追问线程（主体 / 时点下界 / 分支 / scope；只存约束不存答案）
 'extensions',
 ]);
 const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);

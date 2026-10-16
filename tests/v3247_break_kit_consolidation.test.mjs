@@ -299,6 +299,8 @@ const REGISTRY = [
     'v3360_m4o9_knowledge_gate.test.mjs',
     'v3370_m4o7_evidence_protect.test.mjs',
     'v3380_m4o8_center_actions.test.mjs',
+    'v3390_m4x1_lore_manual.test.mjs',
+    'v3400_m4x4_qa_thread.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

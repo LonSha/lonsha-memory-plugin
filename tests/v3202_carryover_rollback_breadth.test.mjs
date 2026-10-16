@@ -276,7 +276,7 @@ test('v3202 10. 豁免表在场：14 键、每键带理由、与契约零重叠'
     const contract = arrOf('CARRYOVER_CONTRACT_KEYS');
     const exempt = arrOf('CARRYOVER_EXEMPT_KEYS');
     assert.ok(exempt, '必须存在显式豁免表（不得静默豁免）');
-    assert.equal(exempt.length, 15, '豁免表本版应为 15 键（v3.339.0 M4-X1 新增 loreImportLedger），实际 ' + exempt.length);
+    assert.equal(exempt.length, 16, '豁免表本版应为 16 键（v3.340.0 M4-X4 新增 qaThread），实际 ' + exempt.length);
     assert.equal(exempt.filter((k) => contract.includes(k)).length, 0, '同一键不得既带走又豁免');
     // 每键必须在豁免表行区间内有 >= 4 字符的行内理由（「同上」这种不足 4 字符会被 D3 扫描器抓）
     const lines = raw.split('\n');

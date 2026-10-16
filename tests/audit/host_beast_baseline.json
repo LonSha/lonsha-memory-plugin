@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
-  "measured_at": "v3.339.0",
+  "measured_at": "v3.340.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2171,6 +2171,38 @@
         "member_count": 0,
         "top5_pct": 0.0
       }
+    },
+    "v3.340.0": {
+      "reason": "[v3.340.0] M4-X4「带消歧与条件继承的多轮记忆问答」宿主侧真实接线：新增内核模块 qa-thread.js（对话状态 + 消歧 + 条件继承；只存结构化查询约束与选中 ref，不存第二份答案事实）；宿主 index.js 新增取库口 _qaThreadLib 与四个方法 _qaThreadState（追问线程懒初始化）/ askMemoryQuestionFollowUp（与单问句同一 planQuestion，再走内核 advanceThread；awaiting 时直接返回不跑查询，避免把「指代不定」伪装成「查过了」）/ qaThreadResolve（消歧点选接回）/ qaThread（只读读数，模块缺席同键降级 version:0），并补 ARCHIVE_TOP_LEVEL_KEYS / CARRYOVER 豁免表 / collectExport / restoreFromPayload 四处契约与持久化接线 + 自检面「追问线程」诊断行。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
+      "readings": {
+        "total_lines": 21042,
+        "member_count": 768,
+        "duplicate_member_names": 25,
+        "top5_lines": 5018,
+        "top5_pct": 23.8,
+        "top40_lines": 11056,
+        "top40_pct": 52.5,
+        "prefix_rule_coverage_lines": 5419,
+        "prefix_rule_coverage_pct": 25.8,
+        "unclassified_lines": 14648,
+        "seam_distinct_modules": 76,
+        "seam_reference_sites": 108,
+        "seam_call_shape_sites": 112,
+        "members_over_80_lines": 41,
+        "low_coupling_members": 30,
+        "high_coupling_members": 7
+      },
+      "unchanged": [
+        "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+        "本版只量不拆"
+      ],
+      "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+      "delta_from": "v3.340.0",
+      "delta": {
+        "total_lines": 5,
+        "member_count": 0,
+        "top5_pct": -0.1
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2182,38 +2214,38 @@
     "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
   ],
   "readings": {
-    "total_lines": 20823,
-    "member_count": 764,
+    "total_lines": 21042,
+    "member_count": 768,
     "duplicate_member_names": 25,
-    "top5_lines": 4998,
-    "top5_pct": 24.0,
-    "top40_lines": 10979,
-    "top40_pct": 52.7,
-    "prefix_rule_coverage_lines": 5401,
-    "prefix_rule_coverage_pct": 25.9,
-    "unclassified_lines": 14449,
-    "seam_distinct_modules": 75,
-    "seam_reference_sites": 107,
-    "seam_call_shape_sites": 111,
-    "members_over_80_lines": 39,
-    "low_coupling_members": 28,
+    "top5_lines": 5018,
+    "top5_pct": 23.8,
+    "top40_lines": 11056,
+    "top40_pct": 52.5,
+    "prefix_rule_coverage_lines": 5419,
+    "prefix_rule_coverage_pct": 25.8,
+    "unclassified_lines": 14648,
+    "seam_distinct_modules": 76,
+    "seam_reference_sites": 108,
+    "seam_call_shape_sites": 112,
+    "members_over_80_lines": 41,
+    "low_coupling_members": 30,
     "high_coupling_members": 7
   },
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 721,
-      "lines": 14449,
-      "lines_pct": 69.4,
-      "outside_refs": 6798,
-      "internal_refs": 2121,
-      "outside_ref_share_pct": 76.2
+      "members": 725,
+      "lines": 14648,
+      "lines_pct": 69.6,
+      "outside_refs": 6842,
+      "internal_refs": 2148,
+      "outside_ref_share_pct": 76.1
     },
     {
       "domain": "宿主事件接线",
       "members": 3,
       "lines": 1912,
-      "lines_pct": 9.2,
+      "lines_pct": 9.1,
       "outside_refs": 5,
       "internal_refs": 76,
       "outside_ref_share_pct": 6.2
@@ -2221,17 +2253,17 @@
     {
       "domain": "诊断与导出",
       "members": 10,
-      "lines": 1686,
+      "lines": 1704,
       "lines_pct": 8.1,
-      "outside_refs": 382,
-      "internal_refs": 521,
-      "outside_ref_share_pct": 42.3
+      "outside_refs": 384,
+      "internal_refs": 520,
+      "outside_ref_share_pct": 42.5
     },
     {
       "domain": "召回与注入",
       "members": 13,
       "lines": 1034,
-      "lines_pct": 5,
+      "lines_pct": 4.9,
       "outside_refs": 5,
       "internal_refs": 67,
       "outside_ref_share_pct": 6.9
@@ -2299,8 +2331,8 @@
     },
     {
       "name": "selfCheck",
-      "lines": 1289,
-      "outside_refs": 64
+      "lines": 1307,
+      "outside_refs": 66
     },
     {
       "name": "buildInjection",
@@ -2313,14 +2345,14 @@
       "outside_refs": 1
     },
     {
+      "name": "typedFactsBlocks",
+      "lines": 550,
+      "outside_refs": 0
+    },
+    {
       "name": "onBeforeGeneration",
       "lines": 548,
       "outside_refs": 1
-    },
-    {
-      "name": "typedFactsBlocks",
-      "lines": 543,
-      "outside_refs": 0
     },
     {
       "name": "saveConfig",
@@ -2339,7 +2371,7 @@
     },
     {
       "name": "restoreFromPayload",
-      "lines": 273,
+      "lines": 274,
       "outside_refs": 16
     },
     {
@@ -2400,6 +2432,11 @@
     {
       "name": "retryRepairItems",
       "lines": 132,
+      "outside_refs": 0
+    },
+    {
+      "name": "askMemoryQuestionFollowUp",
+      "lines": 129,
       "outside_refs": 0
     },
     {
@@ -2486,17 +2523,12 @@
       "name": "confirmBranchImport",
       "lines": 83,
       "outside_refs": 0
-    },
-    {
-      "name": "clearRuntimeMemory",
-      "lines": 78,
-      "outside_refs": 1
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 39,
-    "low_coupling_non_lifecycle": 28,
+    "total_over_threshold": 41,
+    "low_coupling_non_lifecycle": 30,
     "high_coupling_non_lifecycle": 7,
     "low_coupling_examples": [
       {
@@ -2507,7 +2539,7 @@
       },
       {
         "name": "typedFactsBlocks",
-        "lines": 543,
+        "lines": 550,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -2575,8 +2607,8 @@
     "high_coupling_examples": [
       {
         "name": "selfCheck",
-        "lines": 1289,
-        "outside_refs": 64,
+        "lines": 1307,
+        "outside_refs": 66,
         "is_host_lifecycle": false
       },
       {
@@ -2593,7 +2625,7 @@
       },
       {
         "name": "restoreFromPayload",
-        "lines": 273,
+        "lines": 274,
         "outside_refs": 16,
         "is_host_lifecycle": false
       },
@@ -2653,9 +2685,9 @@
   "line_budget": {
     "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-    "ceiling": 21223,
+    "ceiling": 21442,
     "maxSlack": 400,
-    "note": "[v3.339.0] M4-X1 可校订的分层导入与源资料更新：宿主侧新增 _loreImportOwners（落笔 owner 唯一装配点：前情写面 + 事实读面 + 幂等面）/ _loreImportLedgerState（导入账懒初始化，只存幂等键与人工决定，不存整篇资料）/ loreImportOverride（人工校订叠加，转发内核 applyOverrides）/ loreImportConfirmMapping（同名映射确认回填，不静默合并同名异人）/ async loreImportApply（四步顺序不可换：叠校订出计划 → 只落选中段 → 写前情不写事实账 → 落盘回读）/ loreImportLedger（导入账读数，重开可查落点）；内核 lore-import.js 增人工校订三态与三原语。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
+    "note": "[v3.340.0] M4-X4「带消歧与条件继承的多轮记忆问答」宿主侧真实接线：新增内核模块 qa-thread.js（对话状态 + 消歧 + 条件继承；只存结构化查询约束与选中 ref，不存第二份答案事实）；宿主 index.js 新增取库口 _qaThreadLib 与四个方法 _qaThreadState（追问线程懒初始化）/ askMemoryQuestionFollowUp（与单问句同一 planQuestion，再走内核 advanceThread；awaiting 时直接返回不跑查询，避免把「指代不定」伪装成「查过了」）/ qaThreadResolve（消歧点选接回）/ qaThread（只读读数，模块缺席同键降级 version:0），并补 ARCHIVE_TOP_LEVEL_KEYS / CARRYOVER 豁免表 / collectExport / restoreFromPayload 四处契约与持久化接线 + 自检面「追问线程」诊断行。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
     "history": [
       {
         "ceiling": 15000,
@@ -2783,6 +2815,16 @@
       {
         "ceiling": 21223,
         "reason": "[v3.339.0] M4-X1 可校订的分层导入与源资料更新：宿主侧新增 _loreImportOwners（落笔 owner 唯一装配点：前情写面 + 事实读面 + 幂等面）/ _loreImportLedgerState（导入账懒初始化，只存幂等键与人工决定，不存整篇资料）/ loreImportOverride（人工校订叠加，转发内核 applyOverrides）/ loreImportConfirmMapping（同名映射确认回填，不静默合并同名异人）/ async loreImportApply（四步顺序不可换：叠校订出计划 → 只落选中段 → 写前情不写事实账 → 落盘回读）/ loreImportLedger（导入账读数，重开可查落点）；内核 lore-import.js 增人工校订三态与三原语。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
+        "member_ceiling": 788
+      },
+      {
+        "ceiling": 21437,
+        "reason": "[v3.340.0] M4-X4「带消歧与条件继承的多轮记忆问答」宿主侧真实接线：新增内核模块 qa-thread.js（对话状态 + 消歧 + 条件继承；只存结构化查询约束与选中 ref，不存第二份答案事实）；宿主 index.js 新增取库口 _qaThreadLib 与四个方法 _qaThreadState（追问线程懒初始化）/ askMemoryQuestionFollowUp（与单问句同一 planQuestion，再走内核 advanceThread；awaiting 时直接返回不跑查询，避免把「指代不定」伪装成「查过了」）/ qaThreadResolve（消歧点选接回）/ qaThread（只读读数，模块缺席同键降级 version:0），并补 ARCHIVE_TOP_LEVEL_KEYS / CARRYOVER 豁免表 / collectExport / restoreFromPayload 四处契约与持久化接线 + 自检面「追问线程」诊断行。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
+        "member_ceiling": 788
+      },
+      {
+        "ceiling": 21442,
+        "reason": "[v3.340.0] M4-X4「带消歧与条件继承的多轮记忆问答」宿主侧真实接线：新增内核模块 qa-thread.js（对话状态 + 消歧 + 条件继承；只存结构化查询约束与选中 ref，不存第二份答案事实）；宿主 index.js 新增取库口 _qaThreadLib 与四个方法 _qaThreadState（追问线程懒初始化）/ askMemoryQuestionFollowUp（与单问句同一 planQuestion，再走内核 advanceThread；awaiting 时直接返回不跑查询，避免把「指代不定」伪装成「查过了」）/ qaThreadResolve（消歧点选接回）/ qaThread（只读读数，模块缺席同键降级 version:0），并补 ARCHIVE_TOP_LEVEL_KEYS / CARRYOVER 豁免表 / collectExport / restoreFromPayload 四处契约与持久化接线 + 自检面「追问线程」诊断行。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
         "member_ceiling": 788
       }
     ],

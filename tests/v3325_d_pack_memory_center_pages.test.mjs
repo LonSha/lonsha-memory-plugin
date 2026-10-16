@@ -448,7 +448,7 @@ const UI_TO = "                    plugin._memoryCenterState = Object.assign({},
 test('v3325 A1. ★★★★ 模块登记面：分发面恰一次 + 双导出 + 冻结（本版不新增模块）', () => {
     assert.ok(fs.existsSync(path.join(R, MOD)), MOD + ' 必须在场');
     assert.equal(MF.extra_js.filter((x) => x === MOD).length, 1, MOD + ' 须恰登记一次');
-    assert.equal(MF.extra_js.length, 106, 'extra_js 106(v3.328.0 F 包新增 branch-canon.js / fated-recall.js;102 → 104 是 v3.327.0 E 包记忆侧的账),实 ' + MF.extra_js.length);
+    assert.equal(MF.extra_js.length, 107, 'extra_js 107(v3.340.0 M4-X4 新增 qa-thread.js,106 → 107;106 是 v3.328.0 F 包新增 branch-canon.js / fated-recall.js;102 → 104 是 v3.327.0 E 包记忆侧的账),实 ' + MF.extra_js.length);
     const code = stripComments(MOD_SRC);
     if (code.includes('require(')) assert.fail('模块不得 require 兄弟模块（依赖经 deps 注入）');
     if (!code.includes('module.exports = api')) assert.fail('必须保留 CJS 导出');

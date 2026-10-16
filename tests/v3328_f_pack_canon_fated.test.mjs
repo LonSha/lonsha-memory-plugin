@@ -450,11 +450,11 @@ test('v3328 E2. ★★★ 宿主不得自己算:四条降级面同键且不冒�
     ok('两处同键降级面在位,且都写明「不报什么」');
 });
 test('v3328 E3. ★★★ 分发面:两模块各登记一次,模块内标识在宿主一个都搜不到', () => {
-    assert.equal(MF.extra_js.length, 106, '分发面长度(本版新增两支)');
+    assert.equal(MF.extra_js.length, 107, '分发面长度(v3.328.0 F 包两支 + v3.340.0 M4-X4 qa-thread.js)');
     assert.equal(MF.extra_js.filter((x) => x === 'branch-canon.js').length, 1);
     assert.equal(MF.extra_js.filter((x) => x === 'fated-recall.js').length, 1);
     /* 末两项按加载序位于分发面末尾(本版新模块)。 */
-    assert.deepEqual(MF.extra_js.slice(-2), ['branch-canon.js', 'fated-recall.js']);
+    assert.deepEqual(MF.extra_js.slice(-2), ['fated-recall.js', 'qa-thread.js']);
     /* 模块内标识在宿主里零命中(宿主只转发,不复制实现)。 */
     const leaks = ['SECRET_MASK', 'TRIGGER_LABEL', 'DECISION_LABEL', 'CLASH.', 'PROVENANCE.'].filter((x) => IDX.indexOf(x) >= 0);
     assert.deepEqual(leaks, [], '宿主内联了模块标识:' + leaks.join(','));
