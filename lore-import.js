@@ -31,7 +31,7 @@
  * ============================================================ */
 (function (global) {
     'use strict';
-    const LI_VERSION = 1;
+    const LI_VERSION = 2;
     const LI_KIND = 'lore_import';
     /* 转义一律用字符码拼:本仓写入通道处理反斜杠会污染源码(零反斜杠构造纪律)。 */
     const NL = String.fromCharCode(10);
@@ -63,6 +63,15 @@
 
     /** 预览三档(与 memory-package 同词表,不另立)。 */
     const PREVIEW = Object.freeze({ OK: 'ok', WARN: 'warn', BLOCKED: 'blocked' });
+    /**
+     * [v3.339.0 · M4-X1] 人工校订决定三态(**穷尽**):
+     *   accept   —— 人工看过,接受规则判的类目(不改);
+     *   override —— 人工改类(规则判错,人工指定新类);
+     *   split    —— 同段混合(设定 / 前史混在一段),按人工给的切点拆成两条各带类。
+     *   ★ 三态**都不改 origin**:人工改类只改「归到哪一类」,不改「这是导入资料」这件事 ——
+     *     「规则不冒充已发生」这条口径对人工决定同样成立(人工也不能把资料说成聊天事实)。
+     */
+    const MANUAL = Object.freeze({ ACCEPT: 'accept', OVERRIDE: 'override', SPLIT: 'split' });
 
     /** 受限正文字段键(与前序模块**同形同值**;判据钉住三处一致)。 */
     const SECRET_BODY_KEYS = Object.freeze(['secret', 'secretText', 'secretBody']);
@@ -313,6 +322,118 @@
         return out;
     }
 
+    /* ── 1c [v3.339.0 · M4-X1] 人工校订面(改类 / 拆分 / 选入) ── */
+    /**
+     * 人工校订叠加(**零写、不改入参**)。把人工决定叠到解析结果上:
+     *   `overrides` 形态:`[{ key, decision, cls?, clsA?, clsB?, at?, atText?, why? }]`
+     *   或对象形态 `{ <itemKey>: { decision, cls } }`(便于 UI 回填)。
+     *   返回 `{ ok, items, applied, rejected, counts, why }` ——
+     *   ★ 每条 item 增 `clsRule`(规则原判,**永不丢**)/ `cls`(最终)/ `manual`(是否人工改过)/
+     *     `judgeWhy`(规则判命中的词,人工改类后仍在 —— 规则痕迹与人工痕迹**分列**)。
+     *   ★ 未在 overrides 里的段**保持规则判**(人工没说的不替他决定)。
+     *   ★ 非法 cls(不在 CLASSES 里)⇒ 拒收并具名,不静默落回默认类。
+     *   ★ 拆分切点缺(at / atText 都没给)⇒ 拒收具名 split-point-absent,不猜切点。
+     */
+    function applyOverrides(parsed, overrides, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const p = (parsed && typeof parsed === 'object') ? parsed : null;
+        const out = { ok: false, items: [], applied: 0, rejected: [], counts: {}, why: [] };
+        for (const c of CLASSES) out.counts[c] = 0;
+        if (!p || !Array.isArray(p.items)) return Object.assign(out, { why: ['no-parsed-source'] });
+        const map = new Map();
+        const src = Array.isArray(overrides) ? overrides
+            : (overrides && typeof overrides === 'object' ? Object.keys(overrides).map((k) => Object.assign({ key: k }, overrides[k])) : []);
+        for (const ov of src) {
+            if (!ov || typeof ov !== 'object') continue;
+            const k = keyOf(ov.key);
+            if (k) map.set(k, ov);
+        }
+        const lines = Array.isArray(o.lines) ? o.lines : null;
+        const snip = numOr(o.snippetMax, SNIPPET_MAX);
+        for (const it of p.items) {
+            const key = keyOf(it.key);
+            const base = {
+                key: key, title: keyOf(it.title), text: strOf(it.text), textHash: keyOf(it.textHash),
+                origin: keyOf(it.origin), sourceRef: it.sourceRef, sensitive: it.sensitive === true,
+                clsRule: keyOf(it.cls), judgeWhy: keyOf(it.judgeWhy), manual: false,
+            };
+            const ov = map.get(key);
+            const keepRule = () => {
+                out.items.push(Object.assign({}, base, {
+                    cls: base.clsRule, clsLabel: CLASS_LABEL[base.clsRule] || '', decision: MANUAL.ACCEPT,
+                    settingAsHappened: base.clsRule === 'setting-rule' && !!hitAny(base.text, HAPPENED_WORDS),
+                }));
+                out.counts[base.clsRule] = (out.counts[base.clsRule] || 0) + 1;
+            };
+            if (!ov) { keepRule(); continue; }
+            const dec = keyOf(ov.decision) || MANUAL.OVERRIDE;
+            if (dec === MANUAL.SPLIT) {
+                const parts = splitText(base.text, ov, lines);
+                if (!parts.ok) { out.rejected.push({ key: key, why: parts.why }); keepRule(); continue; }
+                const clsA = CLASSES.indexOf(keyOf(ov.clsA)) >= 0 ? keyOf(ov.clsA) : base.clsRule;
+                const clsB = CLASSES.indexOf(keyOf(ov.clsB)) >= 0 ? keyOf(ov.clsB) : base.clsRule;
+                out.items.push(Object.assign({}, base, {
+                    key: key + '#a', text: clip(parts.a, snip), textHash: hash32(parts.a),
+                    cls: clsA, clsLabel: CLASS_LABEL[clsA], manual: true, decision: MANUAL.SPLIT,
+                    settingAsHappened: clsA === 'setting-rule' && !!hitAny(parts.a, HAPPENED_WORDS),
+                }));
+                out.items.push(Object.assign({}, base, {
+                    key: key + '#b', text: clip(parts.b, snip), textHash: hash32(parts.b),
+                    cls: clsB, clsLabel: CLASS_LABEL[clsB], manual: true, decision: MANUAL.SPLIT,
+                    settingAsHappened: clsB === 'setting-rule' && !!hitAny(parts.b, HAPPENED_WORDS),
+                }));
+                out.counts[clsA] = (out.counts[clsA] || 0) + 1;
+                out.counts[clsB] = (out.counts[clsB] || 0) + 1;
+                out.applied += 1;
+                continue;
+            }
+            if (dec === MANUAL.ACCEPT) { keepRule(); continue; }
+            const want = keyOf(ov.cls);
+            if (CLASSES.indexOf(want) < 0) {
+                out.rejected.push({ key: key, why: 'bad-class', got: want });
+                keepRule();
+                continue;
+            }
+            out.items.push(Object.assign({}, base, {
+                cls: want, clsLabel: CLASS_LABEL[want], manual: true, decision: MANUAL.OVERRIDE,
+                manualWhy: keyOf(ov.why),
+                settingAsHappened: want === 'setting-rule' && !!hitAny(base.text, HAPPENED_WORDS),
+            }));
+            out.counts[want] = (out.counts[want] || 0) + 1;
+            out.applied += 1;
+        }
+        out.ok = out.rejected.length === 0;
+        if (!out.applied && !out.rejected.length) out.why.push('no-overrides');
+        return out;
+    }
+    /** 拆分原语:按人工切点切一段。切点缺(at / atText 都没给)⇒ 拒,**不猜切点**。 */
+    function splitText(text, ov, lines) {
+        const t = strOf(text);
+        const o = (ov && typeof ov === 'object') ? ov : {};
+        const atText = keyOf(o.atText);
+        if (atText) {
+            const i = t.indexOf(atText);
+            if (i <= 0 || i >= t.length) return { ok: false, why: 'split-marker-not-found' };
+            return { ok: true, a: t.slice(0, i).trim(), b: t.slice(i).trim() };
+        }
+        const at = numOr(o.at, NaN);
+        if (!Number.isFinite(at)) return { ok: false, why: 'split-point-absent' };
+        if (lines && lines.length) {
+            const a = lines.slice(0, at).join(NL).trim();
+            const b = lines.slice(at).join(NL).trim();
+            if (!a || !b) return { ok: false, why: 'split-empty-side' };
+            return { ok: true, a: a, b: b };
+        }
+        if (at <= 0 || at >= t.length) return { ok: false, why: 'split-out-of-range' };
+        return { ok: true, a: t.slice(0, at).trim(), b: t.slice(at).trim() };
+    }
+    /** 单条改类(**薄封装**,走 applyOverrides —— 不另立第二份口径)。 */
+    function reclassify(parsed, itemKey, cls, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const res = applyOverrides(parsed, [{ key: itemKey, decision: MANUAL.OVERRIDE, cls: cls, why: o.why }], o);
+        if (res.rejected.length) return { ok: false, why: res.rejected[0].why, got: res.rejected[0].got || '', items: res.items, applied: 0 };
+        return { ok: true, why: '', items: res.items, applied: res.applied };
+    }
     /* ── 3 逐条 diff(验收4:不自动覆盖玩家已确认事实) ── */
     /**
      * 导入预览(**零写**)。
@@ -403,9 +524,14 @@
         if (seen.indexOf(importId) >= 0) return Object.assign(out, { ok: true, duplicate: true, reason: 'duplicate-import', count: 0 });
         const entries = Array.isArray(pv.entries) ? pv.entries : [];
         out.total = entries.length;
+        /* [v3.339.0 · M4-X1] 选入面:给了 selected ⇒ 只落选中的段(未选段具名 not-selected,
+         *   不静默丢 —— 「未选段不写」是验收原文,而「没选」与「选了但落不下」必须可分)。 */
+        const selected = Array.isArray(o.selected) ? o.selected.map(keyOf).filter(Boolean) : null;
         for (const e of entries) {
             if (!e || typeof e !== 'object') continue;
-            if (e.action === 'skip') { out.skipped.push({ key: keyOf(e.key), why: keyOf(e.why) }); continue; }
+            const ek = keyOf(e.key);
+            if (selected && selected.indexOf(ek) < 0) { out.skipped.push({ key: ek, why: 'not-selected' }); continue; }
+            if (e.action === 'skip') { out.skipped.push({ key: ek, why: keyOf(e.why) }); continue; }
             out.applied.push({ key: keyOf(e.key), cls: keyOf(e.cls), action: keyOf(e.action), sensitive: e.sensitive === true });
         }
         out.count = out.applied.length;
@@ -480,6 +606,7 @@
             classLabels: CLASSES.map((c) => CLASS_LABEL[c]), origin: Object.keys(ORIGIN).map((k) => ORIGIN[k]),
             admit: Object.keys(ADMIT).map((k) => ADMIT[k]), preview: Object.keys(PREVIEW).map((k) => PREVIEW[k]),
             secretBodyKeys: SECRET_BODY_KEYS.slice(), secretMask: SECRET_MASK, maxSourceChars: MAX_SOURCE_CHARS,
+            manual: Object.keys(MANUAL).map((k) => MANUAL[k]), manualDecisions: 3,
             present: REQUIRED_DEPS.length - missing.length, total: REQUIRED_DEPS.length, missing: missing,
             offline: true, writesNothing: true,
             /* ★ 类目穷尽:拿四段**真文本**过一遗 classify,要求产出集合恰好等于词表
@@ -523,6 +650,7 @@
             classesExhaustive: dsc.classesExhaustive === true,
             settingVsHappenedSplit: dsc.settingVsHappenedSplit === true,
             classesDistinct: new Set(CLASSES).size === CLASSES.length,
+            manualDistinct: new Set(Object.keys(MANUAL).map((k) => MANUAL[k])).size === 3,
             offline: true, writesNothing: true,
         };
     }
@@ -545,10 +673,11 @@
     }
 
     const api = Object.freeze({
-        LI_VERSION, LI_KIND, CLASSES, CLASS_LABEL, ORIGIN, ADMIT, PREVIEW,
+        LI_VERSION, LI_KIND, CLASSES, CLASS_LABEL, ORIGIN, ADMIT, PREVIEW, MANUAL,
         SECRET_BODY_KEYS, SECRET_MASK, REQUIRED_DEPS, MAX_SOURCE_CHARS,
         keyOf, strOf, arrOf, numOr, clip, hash32, classify, isHeading, parseSource, parseSourceWindow,
         entityCandidates, diffPreview, planApply, changedSections, provenanceOf, originVerdict,
+        applyOverrides, reclassify, splitText,
         describe, selfCheck, line,
     });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

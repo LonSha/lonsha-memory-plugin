@@ -79,10 +79,13 @@ const A_IDX2 = "return _moduleLib(() => window.LonShaStoryAnnual, 'story-annual.
 /** A. 结构面:导出面逐字 / 冻结 / 依赖面 / 自证。 */
 function structureJudge(li, sa) {
     const P = [];
-    const liWant = ['ADMIT', 'CLASSES', 'CLASS_LABEL', 'LI_KIND', 'LI_VERSION', 'MAX_SOURCE_CHARS', 'ORIGIN', 'PREVIEW',
-        'REQUIRED_DEPS', 'SECRET_BODY_KEYS', 'SECRET_MASK', 'arrOf', 'changedSections', 'classify', 'clip', 'describe',
+    const liWant = ['ADMIT', 'CLASSES', 'CLASS_LABEL', 'LI_KIND', 'LI_VERSION', 'MANUAL', 'MAX_SOURCE_CHARS', 'ORIGIN', 'PREVIEW',
+        'REQUIRED_DEPS', 'SECRET_BODY_KEYS', 'SECRET_MASK', 'applyOverrides', 'arrOf', 'changedSections', 'classify', 'clip', 'describe',
         'diffPreview', 'entityCandidates', 'hash32', 'isHeading', 'keyOf', 'line', 'numOr', 'originVerdict', 'parseSource',
-        'parseSourceWindow', 'planApply', 'provenanceOf', 'selfCheck', 'strOf'];
+        'parseSourceWindow', 'planApply', 'provenanceOf', 'reclassify', 'selfCheck', 'splitText', 'strOf'];
+    /* [v3.339.0 · M4-X1] 导出面增 MANUAL / applyOverrides / reclassify / splitText（人工校订面 + 选入面）。
+     *   既有 29 项**逐字不动**：新路径是**加法**，旧口径与它的负控制锚点都得原样在场
+     *   （先例同 [v3.336.0 · M4-O9] 给 story-annual 加三面时的处理）。 */
     const gotLi = Object.keys(li).sort();
     if (gotLi.join(',') !== liWant.join(',')) P.push('lore-import 导出面变了:实测 [' + gotLi.join(',') + ']');
     /* [v3.336.0 · M4-O9] 导出面增 gatedVersions / spoilerGate / forPlayer（按事实可知性裁剪）。
