@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
-  "measured_at": "v3.335.0",
+  "measured_at": "v3.336.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2043,6 +2043,13 @@
         "member_count": 11,
         "top5_pct": -0.5
       }
+    },
+    "v3.336.0": {
+      "reason": "M4-O9(按事实可知性裁剪故事年鉴/玩家版输出):宿主增五个判决口成员(_o9Owners/_o9AliasIndex/_o9FactOf/_o9NamesIn/_o9Gate)+o9Sources+两出口改走可知性面(storyAnnualTwoVersions/storyAnnualForPlayer),成员 742→749、行数 19845→20104",
+      "readings": {
+        "total_lines": 20104,
+        "member_count": 749
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2054,9 +2061,35 @@
     "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
   ],
   "readings": {
-    "total_lines": 19845,
-    "member_count": 742,
-    "duplicate_member_names": 25,
+    "total_lines": 20104,
+    "member_count": 749,
+    "duplicate_member_names": [
+      "_knowledgeNet",
+      "add",
+      "buildInjection",
+      "buildVolumePack",
+      "calcAge",
+      "confirmBranchImport",
+      "constructor",
+      "export",
+      "get",
+      "getChangesSince",
+      "getNpcTiesRecords",
+      "handoffVolumeContinuation",
+      "import",
+      "parseStoryDate",
+      "readWorldLedger",
+      "rebuildFromOps",
+      "recent",
+      "removeByFloor",
+      "resolve",
+      "revokeVolumeHandoff",
+      "rollbackFloor",
+      "save",
+      "search",
+      "shiftFloorRefs",
+      "toPrompt"
+    ],
     "top5_lines": 4998,
     "top5_pct": 25.2,
     "top40_lines": 10804,
@@ -2069,7 +2102,467 @@
     "seam_call_shape_sites": 108,
     "members_over_80_lines": 35,
     "low_coupling_members": 24,
-    "high_coupling_members": 7
+    "high_coupling_members": 7,
+    "domains": [
+      {
+        "domain": "（未归类）",
+        "members": 706,
+        "lines": 13732,
+        "lines_pct": 68.3,
+        "outside_refs": 6716,
+        "internal_refs": 2027,
+        "outside_ref_share_pct": 76.8
+      },
+      {
+        "domain": "宿主事件接线",
+        "members": 3,
+        "lines": 1912,
+        "lines_pct": 9.5,
+        "outside_refs": 5,
+        "internal_refs": 76,
+        "outside_ref_share_pct": 6.2
+      },
+      {
+        "domain": "诊断与导出",
+        "members": 10,
+        "lines": 1686,
+        "lines_pct": 8.4,
+        "outside_refs": 375,
+        "internal_refs": 514,
+        "outside_ref_share_pct": 42.2
+      },
+      {
+        "domain": "召回与注入",
+        "members": 13,
+        "lines": 1034,
+        "lines_pct": 5.1,
+        "outside_refs": 5,
+        "internal_refs": 67,
+        "outside_ref_share_pct": 6.9
+      },
+      {
+        "domain": "配置与持久化",
+        "members": 3,
+        "lines": 476,
+        "lines_pct": 2.4,
+        "outside_refs": 22,
+        "internal_refs": 0,
+        "outside_ref_share_pct": 100
+      },
+      {
+        "domain": "桥/快照出口",
+        "members": 2,
+        "lines": 211,
+        "lines_pct": 1,
+        "outside_refs": 3,
+        "internal_refs": 4,
+        "outside_ref_share_pct": 42.9
+      },
+      {
+        "domain": "承诺账本",
+        "members": 7,
+        "lines": 34,
+        "lines_pct": 0.2,
+        "outside_refs": 87,
+        "internal_refs": 20,
+        "outside_ref_share_pct": 81.3
+      },
+      {
+        "domain": "世界账本读取",
+        "members": 2,
+        "lines": 27,
+        "lines_pct": 0.1,
+        "outside_refs": 8,
+        "internal_refs": 12,
+        "outside_ref_share_pct": 40
+      },
+      {
+        "domain": "事件链/完整性",
+        "members": 2,
+        "lines": 20,
+        "lines_pct": 0.1,
+        "outside_refs": 3,
+        "internal_refs": 3,
+        "outside_ref_share_pct": 50
+      },
+      {
+        "domain": "业务状态面",
+        "members": 1,
+        "lines": 1,
+        "lines_pct": 0,
+        "outside_refs": 3,
+        "internal_refs": 0,
+        "outside_ref_share_pct": 100
+      }
+    ],
+    "unclassified_top": [
+      "constructor",
+      "import",
+      "removeByFloor",
+      "toPrompt",
+      "setMoney",
+      "addDelta",
+      "getMoney",
+      "forge",
+      "forgeFromEvents",
+      "add",
+      "addFromExtracted",
+      "addFromList",
+      "confirm",
+      "getChangesSince",
+      "addEntry",
+      "search",
+      "constructor",
+      "_parse",
+      "current",
+      "_dayDiff",
+      "keywords",
+      "acquire",
+      "release",
+      "locked",
+      "holderToken"
+    ],
+    "biggest_members": [
+      {
+        "name": "onMessageReceived",
+        "lines": 1363,
+        "outside_refs": 2
+      },
+      {
+        "name": "selfCheck",
+        "lines": 1289,
+        "outside_refs": 64
+      },
+      {
+        "name": "buildInjection",
+        "lines": 1076,
+        "outside_refs": 14
+      },
+      {
+        "name": "recallMemory",
+        "lines": 722,
+        "outside_refs": 1
+      },
+      {
+        "name": "onBeforeGeneration",
+        "lines": 548,
+        "outside_refs": 1
+      },
+      {
+        "name": "typedFactsBlocks",
+        "lines": 543,
+        "outside_refs": 0
+      },
+      {
+        "name": "saveConfig",
+        "lines": 474,
+        "outside_refs": 12
+      },
+      {
+        "name": "exportMemoryReport",
+        "lines": 389,
+        "outside_refs": 1
+      },
+      {
+        "name": "registerEvents",
+        "lines": 379,
+        "outside_refs": 1
+      },
+      {
+        "name": "restoreFromPayload",
+        "lines": 272,
+        "outside_refs": 16
+      },
+      {
+        "name": "refresh",
+        "lines": 252,
+        "outside_refs": 9
+      },
+      {
+        "name": "rollbackFloor",
+        "lines": 202,
+        "outside_refs": 14
+      },
+      {
+        "name": "buildBridgeSnapshot",
+        "lines": 196,
+        "outside_refs": 3
+      },
+      {
+        "name": "_assembleComponents",
+        "lines": 192,
+        "outside_refs": 0
+      },
+      {
+        "name": "askMemoryQuestion",
+        "lines": 177,
+        "outside_refs": 0
+      },
+      {
+        "name": "applyRepairPlan",
+        "lines": 150,
+        "outside_refs": 1
+      },
+      {
+        "name": "feedThinking",
+        "lines": 148,
+        "outside_refs": 0
+      },
+      {
+        "name": "extractMemoryWithLLM",
+        "lines": 142,
+        "outside_refs": 0
+      },
+      {
+        "name": "showPanel",
+        "lines": 140,
+        "outside_refs": 0
+      },
+      {
+        "name": "askMemoryQuestionAsync",
+        "lines": 133,
+        "outside_refs": 0
+      },
+      {
+        "name": "retryRepairItems",
+        "lines": 132,
+        "outside_refs": 0
+      },
+      {
+        "name": "_repairOwners",
+        "lines": 127,
+        "outside_refs": 0
+      },
+      {
+        "name": "_maintenancePipeline",
+        "lines": 125,
+        "outside_refs": 0
+      },
+      {
+        "name": "explainRecallHost",
+        "lines": 124,
+        "outside_refs": 1
+      },
+      {
+        "name": "_absorbFactVersions",
+        "lines": 124,
+        "outside_refs": 0
+      },
+      {
+        "name": "applyCarryover",
+        "lines": 123,
+        "outside_refs": 1
+      },
+      {
+        "name": "getDegradationLedger",
+        "lines": 114,
+        "outside_refs": 0
+      },
+      {
+        "name": "importCarryoverSeed",
+        "lines": 113,
+        "outside_refs": 0
+      },
+      {
+        "name": "handoffVolumeContinuation",
+        "lines": 110,
+        "outside_refs": 0
+      },
+      {
+        "name": "_o9Gate",
+        "lines": 108,
+        "outside_refs": 0
+      },
+      {
+        "name": "backfillFloors",
+        "lines": 107,
+        "outside_refs": 1
+      },
+      {
+        "name": "summary",
+        "lines": 100,
+        "outside_refs": 261
+      },
+      {
+        "name": "_repairPool",
+        "lines": 91,
+        "outside_refs": 0
+      },
+      {
+        "name": "_historyFingerprint",
+        "lines": 85,
+        "outside_refs": 2
+      },
+      {
+        "name": "packCarryover",
+        "lines": 85,
+        "outside_refs": 1
+      },
+      {
+        "name": "confirmBranchImport",
+        "lines": 83,
+        "outside_refs": 0
+      },
+      {
+        "name": "clearRuntimeMemory",
+        "lines": 78,
+        "outside_refs": 1
+      },
+      {
+        "name": "_runProjections",
+        "lines": 76,
+        "outside_refs": 1
+      },
+      {
+        "name": "_o6Chapters",
+        "lines": 75,
+        "outside_refs": 0
+      },
+      {
+        "name": "_verifyRepairItem",
+        "lines": 74,
+        "outside_refs": 0
+      }
+    ],
+    "split_candidates": {
+      "threshold_lines": 80,
+      "total_over_threshold": 36,
+      "low_coupling_non_lifecycle": 25,
+      "high_coupling_non_lifecycle": 7,
+      "low_coupling_examples": [
+        {
+          "name": "recallMemory",
+          "lines": 722,
+          "outside_refs": 1,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "typedFactsBlocks",
+          "lines": 543,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "exportMemoryReport",
+          "lines": 389,
+          "outside_refs": 1,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "_assembleComponents",
+          "lines": 192,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "askMemoryQuestion",
+          "lines": 177,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "applyRepairPlan",
+          "lines": 150,
+          "outside_refs": 1,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "feedThinking",
+          "lines": 148,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "extractMemoryWithLLM",
+          "lines": 142,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "showPanel",
+          "lines": 140,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "askMemoryQuestionAsync",
+          "lines": 133,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "retryRepairItems",
+          "lines": 132,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "_repairOwners",
+          "lines": 127,
+          "outside_refs": 0,
+          "is_host_lifecycle": false
+        }
+      ],
+      "high_coupling_examples": [
+        {
+          "name": "selfCheck",
+          "lines": 1289,
+          "outside_refs": 64,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "buildInjection",
+          "lines": 1076,
+          "outside_refs": 14,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "saveConfig",
+          "lines": 474,
+          "outside_refs": 12,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "restoreFromPayload",
+          "lines": 272,
+          "outside_refs": 16,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "refresh",
+          "lines": 252,
+          "outside_refs": 9,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "rollbackFloor",
+          "lines": 202,
+          "outside_refs": 14,
+          "is_host_lifecycle": false
+        },
+        {
+          "name": "summary",
+          "lines": 100,
+          "outside_refs": 261,
+          "is_host_lifecycle": false
+        }
+      ]
+    },
+    "seam_modules": {
+      "distinct_modules": 75,
+      "reference_sites": 107,
+      "call_shape_sites": 111,
+      "sample": [
+        "schema-migration.js",
+        "module-registry.js",
+        "changeset.js",
+        "cache-identity.js",
+        "cache-workload.js",
+        "memory-ledgers.js",
+        "memory-aux.js",
+        "memory-gc.js"
+      ]
+    }
   },
   "domains": [
     {

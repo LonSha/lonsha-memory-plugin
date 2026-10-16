@@ -31,7 +31,7 @@
  * ============================================================ */
 (function (global) {
     'use strict';
-    const SA_VERSION = 1;
+    const SA_VERSION = 2;
     const SA_KIND = 'story_annual';
     const NL = String.fromCharCode(10);
     const ELLIPSIS = String.fromCharCode(8230);
@@ -180,7 +180,8 @@
     function review(chapterRef, payload, opts) {
         const o = (opts && typeof opts === 'object') ? opts : {};
         const out = {
-            ok: false, ref: {}, title: '', elements: { events: [], changes: [], unfinished: [], quotes: [] },
+            ok: false, ref: {}, title: '', summary: '',
+            elements: { events: [], changes: [], unfinished: [], quotes: [] },
             evidence: [], evidenceChecked: false, evidenceMissing: 0, evidenceBound: 0, why: []
         };
         const p = (payload && typeof payload === 'object') ? payload : null;
@@ -195,6 +196,10 @@
         if (!ch) return Object.assign(out, { why: ['no-such-chapter'] });
         out.ref = Object.assign({}, ch.ref);
         out.title = keyOf(ch.title);
+        /* summary is one of the five faces named in the plan; review did not carry it
+         *   before this cut, so the summary face was forever empty in the gate. */
+        out.summary = strOf(ch.summary);
+
         for (const e of ELEMENTS) {
             /* ★ 裸载荷里未了事项叫 open、build 之后叫 unfinished:两版都要认得。
              *   只认一边会让「未了事项」在裸载荷上**静静变空**(实测过:elements.unfinished 恒空 ⇒ 绑定 0 条)。 */
@@ -242,8 +247,196 @@
      *   **正文里出现白名单外的角色名 = 泄漏**,逐条具名 `leakedChars`。
      *   全知版带 `authorialOnly` 标记(哪些条是玩家版看不到的)。
      */
+    /**
+     * 逐条**可知性判决**（纯函数、零写）。[v3.336.0 · M4-O9]
+     *   计划原文：无剧透回顾按**事实可知性**裁剪，而不是按角色名名单。
+     *   ★ 本模块**不建权限表**：判决一律由调用方经 `gate.resolve(item, meta)` 注入
+     *     （宿主侧从 knowledge-trace / secret-ledger / fact-version 与实体别名现算）。
+     *     没给判决 ⇒ **判不了**（withhold 并计数）：不按名单放行、也不假装已去剧透。
+     */
+    function spoilerGate(item, meta, gate) {
+        const it = (item && typeof item === 'object') ? item : {};
+        const m = (meta && typeof meta === 'object') ? meta : {};
+        const g = (gate && typeof gate === 'object') ? gate : null;
+        if (!g || typeof g.resolve !== 'function') {
+            return { decision: 'withhold', basis: 'no-gate', fact: '', why: 'no-gate' };
+        }
+        let v = null;
+        try { v = g.resolve(it, m); } catch (_e) { v = null; }
+        if (!v || typeof v !== 'object') {
+            return { decision: 'withhold', basis: 'no-verdict', fact: '', why: 'no-verdict' };
+        }
+        const d = (v.decision === 'allow') ? 'allow' : 'withhold';
+        return {
+            decision: d,
+            basis: keyOf(v.basis) || (d === 'allow' ? 'known-at-floor' : 'not-known-at-floor'),
+            fact: keyOf(v.fact),
+            why: keyOf(v.why) || (d === 'allow' ? '' : 'withheld'),
+        };
+    }
+
+    /**
+     * 按事实可知性裁剪的两版（**零写**）。[v3.336.0 · M4-O9]
+     *   ① **五面全覆盖**：标题 / 摘要 / 正文引用（事件·人物变化）/ 未了事项 / 精选原话。
+     *      修前只裁事件·变化·原话，**未了事项一律清空** —— 已公开的未结伏笔被一并抹掉；
+     *   ② **逐条判决**：每条经 `gate.resolve` 现算（事实 × 时点）；判不了 ⇒ 遮蔽并**单独计数**；
+     *   ③ **匿名条目不再默认放行**：修前「没写 chars ⇒ return true」——
+     *      没有角色名的秘密靠名单根本判断不了，却按放行处置（最坏的一格）。
+     *      本路径下匿名条目一律经闸，判不了即遮蔽；
+     *   ④ **旧名伪装对账**：泄漏扫描按 `gate.aliasOf` 把已知名展开成**别名族**再扫，
+     *      修前只按名册原名逐字找 ⇒ 伪装期的旧名一个都扫不出来；
+     *   ⑤ **作者版仍全量可读**（不裁），并报 `overRedacted`：「安全但整篇空白」不算完成。
+     */
+    function gatedVersions(rev, o) {
+        const out = {
+            spoilerFree: null, authorial: null, leakedChars: [], aliasesChecked: [],
+            versionsDistinct: false, why: [], gated: true,
+            kept: 0, withheld: 0, undecided: 0, unknownFact: 0, overRedacted: false,
+            byKind: { title: 0, summary: 0, events: 0, changes: 0, unfinished: 0, quotes: 0 },
+            blessed: { title: 0, summary: 0, events: 0, changes: 0, unfinished: 0, quotes: 0 },
+            /* 判不了但**仍留在玩家版**的条数（当前只有未了事项面走这一格：公开的承诺没有秘密封条，
+             *   按「判不了即遮蔽」处置会把已公开的未结伏笔一并抹掉）。 */
+            undecidedKept: { title: 0, summary: 0, events: 0, changes: 0, unfinished: 0, quotes: 0 },
+        };
+        const r = (rev && typeof rev === 'object') ? rev : null;
+        if (!r || !r.ok) { out.why.push('no-review'); return out; }
+        const gate = (o && typeof o.gate === 'object') ? o.gate : null;
+        if (!gate || typeof gate.resolve !== 'function') { out.why.push('no-gate'); return out; }
+        const atRaw = gate.atFloor;
+        const atFloor = (atRaw === null || atRaw === undefined || atRaw === '') ? null : numOr(atRaw, null);
+        if (atFloor === null) out.why.push('no-at-floor');
+        const decide = function (kind, item) {
+            const v = spoilerGate(item, { kind: kind, atFloor: atFloor, chapter: Object.assign({}, r.ref) }, gate);
+            out.byKind[kind] = numOr(out.byKind[kind], 0) + 1;
+            if (v.decision === 'allow') {
+                out.kept += 1;
+                out.blessed[kind] = numOr(out.blessed[kind], 0) + 1;
+                return true;
+            }
+            /* ★ 未了事项面：**判不了**一律保留并单列计数。
+             *   为什么单列这一格（M4-O9 验收原文「已公开的未结伏笔保留」）：
+             *     未了事项（承诺/悬念）**不是秘密** —— 宿主侧的 promise:* 条目由承诺账现算，
+             *     其存在本身已是明面；按「判不了即遮蔽」处置等于把修前的「一律清空」
+             *     改了个名字（第一版实测：B1 保留 1/2、C4 未了面长度 0）。
+             *     秘密面**真判下来**的遮蔽（secret-sealed / alias-gated / not-known-at-floor）
+             *     照旧拦；只有「判决没做」这一格放过，且**如实计进 undecidedKept** ——
+             *     「保留了多少条其实没判」必须能从读数里看见，不许静默当成判过。 */
+            if (kind === 'unfinished' && v.basis === 'no-verdict') {
+                out.undecidedKept[kind] = numOr(out.undecidedKept[kind], 0) + 1;
+                out.kept += 1;
+                out.blessed[kind] = numOr(out.blessed[kind], 0) + 1;
+                return true;
+            }
+            out.withheld += 1;
+            if (v.basis === 'no-verdict' || v.basis === 'no-gate') out.undecided += 1;
+            if (!v.fact) out.unknownFact += 1;
+            return false;
+        };
+        const keepList = function (kind, list) {
+            return arrOf(list).filter(function (it) { return decide(kind, it); });
+        };
+        const known = arrOf(o && o.knownChars).map(keyOf).filter(Boolean);
+        const aliasOf = (typeof gate.aliasOf === 'function') ? gate.aliasOf : null;
+        /* 标题 / 摘要也走闸 —— 修前它们根本不裁（标题里写着「乙的真身」也照样给玩家）。 */
+        /* Empty faces must not pass the gate (they leak nothing; counting them
+         *   only inflates kept/withheld). B1 fixture has no summary. */
+        const titleOk = keyOf(r.title) ? decide('title', { text: keyOf(r.title) }) : true;
+        const sumOk = strOf(r.summary) ? decide('summary', { text: strOf(r.summary) }) : true;
+        out.spoilerFree = {
+            version: 'spoiler-free', ref: Object.assign({}, r.ref),
+            title: titleOk ? keyOf(r.title) : '',
+            summary: sumOk ? keyOf(r.summary) : '',
+            elements: {
+                events: keepList('events', r.elements.events),
+                changes: keepList('changes', r.elements.changes),
+                unfinished: keepList('unfinished', r.elements.unfinished),
+                quotes: keepList('quotes', r.elements.quotes),
+            },
+            evidence: arrOf(r.evidence).slice(),
+        };
+        out.authorial = {
+            version: 'authorial', title: keyOf(r.title), ref: Object.assign({}, r.ref),
+            summary: strOf(r.summary),
+            elements: {
+                events: arrOf(r.elements.events).slice(), changes: arrOf(r.elements.changes).slice(),
+                unfinished: arrOf(r.elements.unfinished).slice(), quotes: arrOf(r.elements.quotes).slice(),
+            },
+            evidence: arrOf(r.evidence).slice(),
+        };
+        /* 泄漏扫描：扫**放行后的玩家版**（扫原卷会把已遮蔽的条目也算成泄漏），
+         *   并且按别名族展开 —— 伪装期的旧名这才扫得出来。 */
+        if (known.length) {
+            const bodies = [out.spoilerFree.title, out.spoilerFree.summary];
+            const collect = function (list) {
+                for (const it of arrOf(list)) bodies.push(strOf(it && it.text) + strOf(it && it.to) + strOf(it && it.from) + strOf(it && it.char));
+            };
+            collect(out.spoilerFree.elements.events); collect(out.spoilerFree.elements.changes);
+            collect(out.spoilerFree.elements.unfinished); collect(out.spoilerFree.elements.quotes);
+            const blob = bodies.join(NL);
+            const leaked = [];
+            for (const nm of known) {
+                const fam = [nm];
+                if (aliasOf) {
+                    let a = null;
+                    try { a = aliasOf(nm); } catch (_e) { a = null; }
+                    for (const x of arrOf(a).map(keyOf).filter(Boolean)) if (fam.indexOf(x) < 0) fam.push(x);
+                }
+                if (fam.some(function (x) { return !!x && blob.indexOf(x) >= 0; })) leaked.push(nm);
+            }
+            out.leakedChars = leaked;
+            if (aliasOf) out.aliasesChecked = known.slice();
+            else out.why.push('alias-face-absent');
+        } else out.why.push('chars-face-absent');
+        const authTotal = (keyOf(r.title) ? 1 : 0) + (strOf(r.summary) ? 1 : 0)
+            + out.authorial.elements.events.length + out.authorial.elements.changes.length
+            + out.authorial.elements.unfinished.length + out.authorial.elements.quotes.length;
+        const freeTotal = (out.spoilerFree.title ? 1 : 0) + (out.spoilerFree.summary ? 1 : 0)
+            + out.spoilerFree.elements.events.length + out.spoilerFree.elements.changes.length
+            + out.spoilerFree.elements.unfinished.length + out.spoilerFree.elements.quotes.length;
+        out.overRedacted = authTotal > 0 && freeTotal === 0;
+        if (out.overRedacted) out.why.push('over-redacted');
+        out.spoilerFree.note = '无剧透版:按**事实可知性**逐条裁剪(时点 ' + (atFloor === null ? '未判' : String(atFloor))
+            + ' · 保留 ' + out.kept + ' / 遮蔽 ' + out.withheld
+            + (out.undecided ? ' · 其中判不了 ' + out.undecided : '')
+            + (out.unknownFact ? ' · 无事实引用 ' + out.unknownFact : '')
+            + (out.undecidedKept.unfinished ? ' · 未了判不了但保留 ' + out.undecidedKept.unfinished : '') + ')';
+        out.authorial.note = '作者全知版:含未了事项与全部人物线,不得直接给玩家'
+            + (known.length ? '(已登记角色 ' + known.length + ' 人)' : '');
+        out.versionsDistinct = JSON.stringify(out.spoilerFree.elements) !== JSON.stringify(out.authorial.elements)
+            || out.authorial.note !== out.spoilerFree.note || out.spoilerFree.title !== out.authorial.title;
+        return out;
+    }
+
+    /**
+     * **给玩家 / 生成侧的那一版**（零写）。[v3.336.0 · M4-O9]
+     *   ★ 本函数**绝不回退到作者版**：去剧透没做成（未给可知性面 / 没回顾 / 整篇裁空）
+     *     ⇒ `ok:false` + `reason` + `version:null`，由调用方显示「这一章暂时不能给玩家看」。
+     *     把作者面当兜底正是本仓治过多轮的那类直接剧透。
+     */
+    function forPlayer(rev, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const tv = twoVersions(rev, o);
+        const bad = function (why) {
+            return {
+                ok: false, version: null, reason: why, spoilerFree: null, authorial: null,
+                gated: !!(tv && tv.gated), note: '不接作者版:去剧透未成立(' + why + ')', writesNothing: true,
+            };
+        };
+        if (!tv || !tv.spoilerFree) return bad((tv && arrOf(tv.why)[0]) || 'no-review');
+        if (tv.gated !== true) return bad('knowledge-face-absent');
+        for (const k of arrOf(tv.why)) if (k === 'no-gate' || k === 'over-redacted') return bad(k);
+        return {
+            ok: true, version: tv.spoilerFree, spoilerFree: tv.spoilerFree, authorial: null,
+            reason: '', gated: true, kept: tv.kept, withheld: tv.withheld, undecided: tv.undecided,
+            note: '按事实可知性裁剪后的玩家版', writesNothing: true,
+        };
+    }
+
     function twoVersions(rev, opts) {
         const o = (opts && typeof opts === 'object') ? opts : {};
+        /* ★ [v3.336.0 · M4-O9] 给了**可知性面**就走逐事实逐时点闸（新路径）；
+         *   未给 ⇒ 旧口径**原样保留**并在 why 里具名（不假装已按可知性裁）。 */
+        if (o.gate && typeof o.gate === 'object' && typeof o.gate.resolve === 'function') return gatedVersions(rev, o);
         const out = { spoilerFree: null, authorial: null, leakedChars: [], versionsDistinct: false, why: [] };
         const r = (rev && typeof rev === 'object') ? rev : null;
         if (!r || !r.ok) return Object.assign(out, { why: ['no-review'] });
@@ -443,7 +636,7 @@
         SA_VERSION, SA_KIND, ELEMENTS, ELEMENT_LABEL, VERSIONS, DRAFT_FIELDS, FACT_FIELDS,
         SMOKE_WORDS, FOUL_WORDS, REQUIRED_DEPS, ITEM_MAX,
         keyOf, strOf, arrOf, numOr, clip, hash32, splitPoints, evidenceOf,
-        build, review, twoVersions, belletristic, edit, staleRefs,
+        build, review, twoVersions, gatedVersions, spoilerGate, forPlayer, belletristic, edit, staleRefs,
         describe, selfCheck, line,
     });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

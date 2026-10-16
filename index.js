@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.335.0';
+    const VERSION = '3.336.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -16610,6 +16610,226 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 /* ★ 只给**该给的**三件。 */
             };
         }
+        /* ────────────────────────────────────────────────────────────────────────
+         * [v3.336.0 · M4-O9] 无剧透回顾的**事实可知性判决口**
+         *
+         * 【修的是什么（修前实测，读码口径）】`story-annual.js::twoVersions` 的无剧透版
+         *   只看两件东西：`allowedChars`（本章在场角色白名单）与 `knownChars`（名册）。
+         *   于是三处必然漏：
+         *     ① **同一在场角色后来才揭露的秘密**也算「能看」—— 在场 ≠ 可知；
+         *     ② **没有角色名的秘密**（`chars` 为空）按「不因缺字段被裁」**默认放行**；
+         *     ③ 泄漏扫描只按名册**原名逐字**找 ⇒ 伪装期的旧名一个都扫不出来；
+         *     ④ 未了事项一律清空 ⇒ 已公开的未结伏笔被一并抹掉（这不算「安全」）。
+         *
+         * 【本层只做一件事】把三件**既有真源**现算成一个判决口交给内核：
+         *   · 秘密账本（`secret-ledger.js`）—— 该秘密在**这一楼**揭了没有；
+         *   · 知识轨迹（`knowledge-trace.js`）—— 该事实在**这一楼**有没有人知道；
+         *   · 事实版本账（`fact-version.js`）—— 该事实在**这一楼**是否成立、是否已闭合。
+         *   **不新增账本、不复制掩码与判定实现**（权利人裁决一律回既有模块）。
+         *
+         * 【四条不可让步口径】
+         *   1 **判不了 ⇒ withhold**（`basis:'no-verdict'` 单独计数），不按名单放行、
+         *      也不假装已去剧透；「没记过」与「确实不知道」不同形。
+         *   2 **零写、零缓存**：每次现算；源变更/截断/切分支后读数跟着变。
+         *   3 **绝不用作者版兜底**：去剧透没成立就报 `ok:false`（见 `storyAnnualForPlayer`）。
+         *   4 判决口只报**为什么**（`basis` 逐档），不把「遮挡了几条」写成「过滤成功」。
+         */
+        /** [v3.336.0 · M4-O9] 判决口的真源装配（只读；缺席逐件具名）。 */
+        _o9Owners() {
+            const out = { missing: [] };
+            const arm = (k, getter) => {
+                let v = null;
+                try { v = getter(); } catch (e) { errLog(e, 'm4o9.' + k); v = null; }
+                out[k] = (v === undefined) ? null : v;
+                if (v === null || v === undefined) out.missing.push(k);
+                return out[k];
+            };
+            arm('secret', () => {
+                const SL = _moduleLib(() => window.LonShaSecretLedger, 'secret-ledger.js');
+                return (SL && typeof SL.list === 'function') ? (this.worldProg && this.worldProg.secretLedger) || null : null;
+            });
+            arm('traces', () => {
+                const WP = (this.worldProg && typeof this.worldProg.export === 'function') ? this.worldProg.export() : null;
+                const t = (WP && WP.knowledgeTraces && Array.isArray(WP.knowledgeTraces.traces)) ? WP.knowledgeTraces : null;
+                return (t && t.traces.length) ? t : null;
+            });
+            arm('facts', () => (this._factVersionState && Array.isArray(this._factVersionState.facts)) ? this._factVersionState : null);
+            arm('atFloor', () => (typeof this.currentStoryFloor === 'function') ? this.currentStoryFloor() : null);
+            return out;
+        }
+        /** [v3.336.0 · M4-O9] 别名索引（**只读**图谱既有 `data.aliases`，不建第二份映射表）。 */
+        _o9AliasIndex() {
+            const canon = (v) => String(v == null ? '' : v).normalize('NFKC').trim().toLocaleLowerCase('zh-CN');
+            const toAliases = new Map();
+            try {
+                for (const node of (this.graph && this.graph.nodes && this.graph.nodes.values()) || []) {
+                    if (!node || node.type !== 'character' || !node.name) continue;
+                    const list = Array.isArray(node.data && node.data.aliases) ? node.data.aliases : [];
+                    const clean = [];
+                    for (const a of list) {
+                        const v = String(a == null ? '' : a).trim();
+                        if (v && v !== node.name && clean.indexOf(v) < 0) clean.push(v);
+                    }
+                    if (clean.length) toAliases.set(canon(node.name), { name: node.name, aliases: clean });
+                }
+            } catch (e) { errLog(e, 'm4o9.aliasIndex'); }
+            return toAliases;
+        }
+        /** [v3.336.0 · M4-O9] 一条条目的**事实引用**（没有可引用的 ⇒ 空串，由判决口按判不了处置）。 */
+        _o9FactOf(item) {
+            const it = (item && typeof item === 'object') ? item : {};
+            const direct = String((it.fact || it.key || '') ).trim();
+            if (direct) return direct;
+            const to = String(it.to == null ? '' : it.to);
+            const i = to.indexOf('：');
+            if (i > 0) return to.slice(0, i).trim();
+            const j = to.indexOf(':');
+            if (j > 0) return to.slice(0, j).trim();
+            const t = String(it.text == null ? '' : it.text).trim();
+            return t ? t.slice(0, 60) : '';
+        }
+        /** [v3.336.0 · M4-O9] 条目里**出现的实体名**（名册原名 + 图谱别名族，最长优先）。 */
+        _o9NamesIn(item) {
+            const it = (item && typeof item === 'object') ? item : {};
+            const blob = [it.text, it.to, it.from, it.char, it.title, it.summary]
+                .map((x) => String(x == null ? '' : x)).join(' ');
+            const out = [];
+            /* 口径与 _qaKnownActors / _qaActorAliases 一致：只要求非空（单字名照收）。 */
+            const push = (v) => { const s = String(v == null ? '' : v).trim(); if (s && out.indexOf(s) < 0 && out.length < 24) out.push(s); };
+            for (const c of (Array.isArray(it.chars) ? it.chars : [])) push(c);
+            push(it.char); push(it.speaker); push(it.subject);
+            let names = [];
+            try { const a = this._o6KnownEntities(); if (Array.isArray(a)) names = a; } catch (_e) { names = []; }
+            const idx = this._o9AliasIndex();
+            for (const info of idx.values()) { for (const a of info.aliases) names = names.concat([a]); }
+            const uniq = [];
+            for (const n of names) { const s = String(n == null ? '' : n).trim(); if (s && uniq.indexOf(s) < 0) uniq.push(s); }
+            uniq.sort((a, b) => b.length - a.length);
+            for (const n of uniq) if (blob.indexOf(n) >= 0) push(n);
+            return out;
+        }
+        /**
+         * [v3.336.0 · M4-O9] **可知性判决口**（纯读、现算、零缓存）。
+         *   判决逐档具名，调用方与诊断面读同一份读数。
+         */
+        _o9Gate() {
+            const O = this._o9Owners();
+            /* null/undefined/空串 = 读不到，不得被 Number(null)=0 冒充成「当时=第 0 楼」。 */
+            const atRaw = O.atFloor;
+            const atFloor = (atRaw === null || atRaw === undefined || atRaw === '')
+                ? null : (Number.isFinite(Number(atRaw)) ? Number(atRaw) : null);
+            const self = this;
+            const SL = _moduleLib(() => window.LonShaSecretLedger, 'secret-ledger.js');
+            const KT = _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js');
+            const FV = (typeof _factVersionLib === 'function') ? _factVersionLib() : null;
+            const idx = this._o9AliasIndex();
+            const read = { resolved: 0, allow: 0, withhold: 0, undecided: 0,
+                secretSealed: 0, knownAtFloor: 0, factEstablished: 0, factFuture: 0,
+                notKnown: 0, aliasGated: 0, noFactAnchor: 0 };
+            const gate = {
+                atFloor: atFloor, armed: (atFloor !== null), missing: O.missing.slice(), read: read,
+                /* 别名族：泄漏扫描把名册原名展开成**全部旧名/伪装名**再扫（修前只扫原名）。 */
+                aliasOf: function (name) {
+                    const key = String(name == null ? '' : name).normalize('NFKC').trim().toLocaleLowerCase('zh-CN');
+                    const info = idx.get(key);
+                    return info ? info.aliases.slice() : [];
+                },
+                resolve: function (item, meta) {
+                    const it = (item && typeof item === 'object') ? item : {};
+                    const m = (meta && typeof meta === 'object') ? meta : {};
+                    const fact = self._o9FactOf(it);
+                    const names = self._o9NamesIn(it);
+                    read.resolved += 1;
+                    const say = (decision, basis, why) => {
+                        if (decision === 'allow') read.allow += 1; else read.withhold += 1;
+                        if (basis === 'no-verdict') read.undecided += 1;
+                        return { decision: decision, basis: basis, fact: fact, why: why || basis, names: names };
+                    };
+                    /* ⓪ 时点读不到 ⇒ 判不了（不拿「现在」冒充「当时」）。 */
+                    if (atFloor === null) return say('withhold', 'no-verdict', 'no-at-floor');
+                    /* ① 没有事实引用也没有实体名 ⇒ 无从判断（修前这一格是**默认放行**）。 */
+                    if (!fact && !names.length) { read.noFactAnchor += 1; return say('withhold', 'no-verdict', 'no-fact-anchor'); }
+                    /* ② 秘密面：该秘密在**这一楼**还没揭 ⇒ 遮蔽（匿名秘密也走这一格）。 */
+                    if (O.secret && SL && typeof SL.list === 'function') {
+                        let rows = [];
+                        try { rows = SL.list(O.secret, { status: 'unrevealed' }); } catch (_e) { rows = []; }
+                        const blob = [it.text, it.to, it.from, it.char].map((x) => String(x == null ? '' : x)).join(' ');
+                        for (const row of rows) {
+                            const sec = String((row && row.secret) || '');
+                            if (!sec || blob.indexOf(sec) < 0) continue;
+                            const rawRf = (row && row.revealedFloor);
+                            /* 未揭 = revealedFloor 为空；Number(null)=0 会让它被误判成「第 0 楼已揭」。 */
+                            const rf = (rawRf === null || rawRf === undefined || rawRf === '')
+                                ? null : Number(rawRf);
+                            if (rf !== null && Number.isFinite(rf) && rf <= atFloor) continue;   /* 这一楼已揭 ⇒ 不挡 */
+                            read.secretSealed += 1;
+                            return say('withhold', 'secret-sealed', 'secret:' + String((row && row.id) || ''));
+                        }
+                    }
+                    /* Public open thread: promise:* / suspense:* come from the host
+                     *   public ledger (extracted from visible text), so they are readable.
+                     *   Sealed ones already returned above. Not a whitelist. */
+                    const _o9Key = String((it.key == null ? '' : it.key)).trim();
+                    if (_o9Key.indexOf('promise:') === 0 || _o9Key.indexOf('suspense:') === 0) {
+                        return say('allow', 'open-public', 'open:' + _o9Key);
+                    }
+                    /* ③ 别名面：条目点名了一个**此刻还没成立**的称呼（揭穿前的旧名）⇒ 遮蔽。 */
+
+                    /* resolve 是普通函数，this === gate 而非引擎 —— 修前此处恒 undefined，别名面整个空转。 */
+                    const reg = self._entityRegistry;
+                    if (reg && typeof reg.candidatesFor === 'function' && names.length) {
+                        for (const nm of names) {
+                            let cs = [];
+                            try { cs = reg.candidatesFor('person', nm, { at: atFloor }); } catch (_e) { cs = []; }
+                            if (!cs.length) continue;
+                            if (cs.every((c) => c && c.blockedBy)) { read.aliasGated += 1; return say('withhold', 'alias-gated', 'alias:' + nm); }
+                        }
+                    }
+                    /* ④ 知识轨迹面：这一楼**有没有人**已经知道这条事实。 */
+                    if (KT && typeof KT.knewAt === 'function' && fact) {
+                        const people = names.length ? names : [];
+                        let yes = 0, no = 0, unclear = 0;
+                        for (const who of people) {
+                            let k = null;
+                            try { k = KT.knewAt(O.traces, who, fact, atFloor); } catch (_e) { k = null; }
+                            const v = (k && k.knowledge) || 'unclear';
+                            if (v === 'yes') yes += 1; else if (v === 'no') no += 1; else unclear += 1;
+                        }
+                        if (yes > 0) { read.knownAtFloor += 1; return say('allow', 'known-at-floor', 'known:' + yes); }
+                        if (people.length && !unclear && no > 0) { read.notKnown += 1; return say('withhold', 'not-known-at-floor', 'none:0/' + people.length); }
+                    }
+                    /* ⑤ 事实版本面：这一楼该事实**成立**（未闭合、未被撤销、信任够）⇒ 可读。 */
+                    if (FV && typeof FV.lookup === 'function' && fact) {
+                        for (const who of (names.length ? names : [''])) {
+                            let res = null;
+                            try { res = FV.lookup(O.facts, { subject: who, predicate: fact, at: atFloor }); } catch (_e) { res = null; }
+                            if (!res || res.ok !== true) continue;
+                            if (res.reason === 'ok' || res.reason === 'multiple') { read.factEstablished += 1; return say('allow', 'fact-established', 'fv:' + res.reason); }
+                            if (res.reason === 'none-current' && FV.timeline) {
+                                let tl = null;
+                                try { tl = FV.timeline(O.facts, { subject: who, predicate: fact }); } catch (_e) { tl = null; }
+                                const future = (tl && Array.isArray(tl.versions)) ? tl.versions.some((v) => Number(v && v.from) > atFloor) : false;
+                                if (future) { read.factFuture += 1; return say('withhold', 'fact-future', 'fv:from>' + atFloor); }
+                            }
+                        }
+                    }
+                    /* ⑥ 都判不了 ⇒ **遮蔽并计入判不了**（不按名单放行）。 */
+                    return say('withhold', 'no-verdict', 'no-verdict');
+                }
+            };
+            return gate;
+        }
+        /** [v3.336.0 · M4-O9] 判决口读数（供诊断；**不是账本**、不落盘）。 */
+        o9Sources() {
+            const g = this._o9Gate();
+            return {
+                kind: 'm4o9_gate', version: 1, atFloor: g.atFloor, armed: g.armed === true,
+                missing: g.missing.slice(), read: Object.assign({}, g.read),
+                aliasFamilies: g.aliasOf ? g.aliasOf.length || null : null,
+                writesNothing: true,
+                note: '判不了 ⇒ 遮蔽并单独计数;本面不是账本,不落盘'
+            };
+        }
         /** [v3.327.0 · M3-X7] 内核不可达时的**同键降级**。 */
         _storyAnnualAbsent(reason) {
             const r = (typeof reason === 'string' && reason) ? reason : 'module-absent';
@@ -16637,14 +16857,53 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             try { return SA.review(chapterRef, payload, (opts || {})); }
             catch (e) { errLog(e, 'plugin.storyAnnualReview'); return { ok: false, ref: {}, title: '', elements: { events: [], changes: [], unfinished: [], quotes: [] }, evidence: [], evidenceChecked: false, evidenceMissing: 0, evidenceBound: 0, why: ['thrown'] }; }
         }
-        /** [v3.327.0 · M3-X7] 两版可分(**无剧透版按在场角色白名单过滤**)。 */
+        /** [v3.327.0 · M3-X7 · v3.336.0 · M4-O9] 两版可分。
+         *   ★ 调用方没给可知性面时**自动装配**（`_o9Gate()`）—— 真实会话里无人手动装配，
+         *     修前正是因此长期退回「按白名单裁」；显式传入的 `opts.gate` 仍**优先**。 */
         storyAnnualTwoVersions(rev, opts) {
             const SA = _storyAnnualLib();
             if (!SA || typeof SA.twoVersions !== 'function') return { spoilerFree: null, authorial: null, leakedChars: [], versionsDistinct: false, why: ['module-absent'] };
-            try { return SA.twoVersions(rev, opts || {}); }
+            try {
+                const o = Object.assign({}, opts || {});
+                if (!o.gate || typeof o.gate.resolve !== 'function') {
+                    try { o.gate = this._o9Gate(); } catch (e) { errLog(e, 'plugin.storyAnnualTwoVersions.gate'); }
+                }
+                const res = SA.twoVersions(rev, o);
+                this._lastStoryAnnualVersions = {
+                    at: Date.now(), gated: res.gated === true, kept: res.kept || 0,
+                    withheld: res.withheld || 0, undecided: res.undecided || 0,
+                    overRedacted: res.overRedacted === true, leaked: (res.leakedChars || []).length
+                };
+                return res;
+            }
             catch (e) { errLog(e, 'plugin.storyAnnualTwoVersions'); return { spoilerFree: null, authorial: null, leakedChars: [], versionsDistinct: false, why: ['thrown'] }; }
         }
-        /** [v3.327.0 · M3-X7] 文风编辑模拟(**只报读数,不改写一个字**)。 */
+        /**
+         * [v3.336.0 · M4-O9] **给玩家 / 生成侧的那一版**（零写）。
+         *   ★ 铁律：**绝不回退到作者版**。去剧透没成立 ⇒ `ok:false` + `reason`
+         *     （`knowledge-face-absent` / `over-redacted` / `no-gate`），由调用方显示
+         *     「这一章暂时不能给玩家看」—— 把作者面当兜底正是直接剧透。
+         */
+        storyAnnualForPlayer(rev, opts) {
+            const SA = _storyAnnualLib();
+            const absent = (why) => ({
+                ok: false, version: null, reason: why, spoilerFree: null, authorial: null,
+                gated: false, note: '不接作者版:去剧透未成立(' + why + ')', writesNothing: true,
+            });
+            if (!SA || typeof SA.forPlayer !== 'function') return absent('module-absent');
+            try {
+                const o = Object.assign({}, opts || {});
+                if (!o.gate || typeof o.gate.resolve !== 'function') {
+                    try { o.gate = this._o9Gate(); } catch (e) { errLog(e, 'plugin.storyAnnualForPlayer.gate'); }
+                }
+                const res = SA.forPlayer(rev, o);
+                this._lastStoryAnnualPlayer = {
+                    at: Date.now(), ok: res.ok === true, reason: res.reason || '',
+                    kept: res.kept || 0, withheld: res.withheld || 0
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualForPlayer'); return absent('thrown'); }
+        }        /** [v3.327.0 · M3-X7] 文风编辑模拟(**只报读数,不改写一个字**)。 */
         storyAnnualBelletristic(text, opts) {
             const SA = _storyAnnualLib();
             if (!SA || typeof SA.belletristic !== 'function') return { chars: 0, smokeHits: 0, smokeWords: [], foulHits: 0, foulWords: [], smokeReasons: [], verdict: 'unavailable', writesNothing: true, note: '模块未加载' };

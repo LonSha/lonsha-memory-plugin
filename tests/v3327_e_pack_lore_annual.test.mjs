@@ -85,9 +85,12 @@ function structureJudge(li, sa) {
         'parseSourceWindow', 'planApply', 'provenanceOf', 'selfCheck', 'strOf'];
     const gotLi = Object.keys(li).sort();
     if (gotLi.join(',') !== liWant.join(',')) P.push('lore-import 导出面变了:实测 [' + gotLi.join(',') + ']');
+    /* [v3.336.0 · M4-O9] 导出面增 gatedVersions / spoilerGate / forPlayer（按事实可知性裁剪）。
+     *   既有 27 项**逐字不动**：新路径是**加法**，旧口径与它的负控制锚点都得原样在场。 */
     const saWant = ['DRAFT_FIELDS', 'ELEMENTS', 'ELEMENT_LABEL', 'FACT_FIELDS', 'FOUL_WORDS', 'ITEM_MAX', 'REQUIRED_DEPS',
         'SA_KIND', 'SA_VERSION', 'SMOKE_WORDS', 'VERSIONS', 'arrOf', 'belletristic', 'build', 'clip', 'describe', 'edit',
-        'evidenceOf', 'hash32', 'keyOf', 'line', 'numOr', 'review', 'selfCheck', 'splitPoints', 'staleRefs', 'strOf', 'twoVersions'];
+        'evidenceOf', 'forPlayer', 'gatedVersions', 'hash32', 'keyOf', 'line', 'numOr', 'review', 'selfCheck',
+        'splitPoints', 'spoilerGate', 'staleRefs', 'strOf', 'twoVersions'];
     const gotSa = Object.keys(sa).sort();
     if (gotSa.join(',') !== saWant.join(',')) P.push('story-annual 导出面变了:实测 [' + gotSa.join(',') + ']');
     if (!Object.isFrozen(li)) P.push('lore-import 导出面未冻结');
