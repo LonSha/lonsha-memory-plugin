@@ -535,11 +535,11 @@ test('v3328 H1. ★★★ 自防护:档头诚实边界与八锚列表在位;六�
     assert.ok(SELF.indexOf('真源码破坏') >= 0, '档头须写明负控制形态');
     assert.equal(vnum(BORN), 3328000, '当版锚必须住在当版档案里');
     const idxV = (IDX.match(/const VERSION = '([0-9.]+)'/) || [])[1];
-    assert.equal(idxV, BORN, 'index VERSION');
-    assert.equal(PKG.version, BORN, 'package.json');
-    assert.equal(MF.version, BORN, 'manifest.json');
+    assert.ok(vnum(idxV) >= vnum(BORN), 'index VERSION >= born (got ' + idxV + ')');
+    assert.ok(vnum(PKG.version) >= vnum(BORN), 'package.json >= born (got ' + PKG.version + ')');
+    assert.ok(vnum(MF.version) >= vnum(BORN), 'manifest.json >= born (got ' + MF.version + ')');
     for (const f of ['memory-config.js', 'memory-core.js', 'memory-organs.js']) {
-        assert.ok(read(f).indexOf("= '" + BORN + "'") >= 0, f + ' 版本未同步(六源同源)');
+        assert.ok(read(f).indexOf("= '" + idxV + "'") >= 0, f + ' version not synced to host VERSION (six-source)');
     }
     ok('自防护 / 六源同源 / 当版锚 v' + BORN);
 });

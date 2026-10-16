@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.328.0",
+  "version": "3.335.0",
   "version_sources": {
-    "manifest": "3.328.0",
-    "package": "3.328.0",
-    "index_const": "3.328.0"
+    "manifest": "3.335.0",
+    "package": "3.335.0",
+    "index_const": "3.335.0"
   },
   "version_same": true,
-  "human_index_version": "3.328.0",
+  "human_index_version": "3.335.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 106,
@@ -124,7 +124,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 309,
+    "test_files": 315,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -377,9 +377,15 @@
       "v3326_a1_memory_gc_split.test.mjs",
       "v3327_e_pack_lore_annual.test.mjs",
       "v3328_f_pack_canon_fated.test.mjs",
+      "v3329_m4o1_gc_scope.test.mjs",
       "v332_importance_timeline.test.mjs",
+      "v3330_m4o2_qa_topic_actors.test.mjs",
+      "v3331_m4o3_event_explanation.test.mjs",
+      "v3332_m4o4_async_query.test.mjs",
+      "v3334_m4o5_long_source_read.test.mjs",
       "v333_ai_recall_ops.test.mjs",
       "v334_visual_editor.test.mjs",
+      "v3350_m4o6_real_supply.test.mjs",
       "v335_runtime_slimming.test.mjs",
       "v336_deterministic_items_error_hints.test.mjs",
       "v337_industrial_pillars.test.mjs",
@@ -471,12 +477,12 @@
     }
   },
   "full_run": {
-    "status": "registered",
+    "status": "stale",
     "registered_at": "3.328.0",
     "tests_total": 309,
     "assertions": 3528,
     "audit": "61/61",
-    "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
+    "reason": "登记版本 3.328.0 ≠ 当前 3.335.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -495,17 +501,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "76a6a42d07af",
-      "package.json": "816227d171ac",
-      "index.js": "381eb59e7082",
+      "manifest.json": "151c4a524d70",
+      "package.json": "c0962ea383c8",
+      "index.js": "bbfab7704337",
       "update-log.json": null,
-      "README.md": "9d05d51a7619",
-      "PLAN.md": "808a93b01661",
-      "CHANGELOG.md": "ad03b20b2a75",
-      "TODO.md": "de0e59ce770d",
+      "README.md": "e573841a6c5e",
+      "PLAN.md": "231627f0fce6",
+      "CHANGELOG.md": "fdc75cecdb8c",
+      "TODO.md": "148328edaff4",
       "tests/audit/doc_readings.json": "6a878b0d5431"
     }
   },
-  "unknown": [],
-  "unknown_count": 0
+  "unknown": [
+    "全量实跑读数陈旧：doc_readings 登记 3.328.0，当前 3.335.0"
+  ],
+  "unknown_count": 1
 }

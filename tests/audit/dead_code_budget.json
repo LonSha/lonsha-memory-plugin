@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 70904,
+  "ceiling": 71414,
   "maxSlack": 400,
-  "note": "[v3.332.0] M4-O4 异步查询三面接线:queryAsync onShard+尾片进度(QUERY_VERSION 3)/memory-tools-api 六能力+canceled 六态/index.js 双异步出口+宿主基线增量(+190 模块,实测 70504),全为活跃功能增长、非死代码回流",
+  "note": "[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)",
   "history": [
     {
       "ceiling": 21000,
@@ -305,7 +305,11 @@
     {
       "ceiling": 70904,
       "reason": "[v3.332.0] M4-O4 异步查询三面接线:queryAsync onShard+尾片进度(QUERY_VERSION 3)/memory-tools-api 六能力+canceled 六态/index.js 双异步出口+宿主基线增量(+190 模块,实测 70504),全为活跃功能增长、非死代码回流"
+    },
+    {
+      "ceiling": 71414,
+      "reason": "[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)"
     }
   ],
-  "_history_last": "ceiling 70314 → 70904（实测 70504 + slack 400）：[v3.332.0] M4-O4 异步查询三面接线,全为活跃功能增长、非死代码回流"
+  "_history_last": "ceiling 70904 → 71414（实测 71014 + slack 400）：[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)"
 }

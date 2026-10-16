@@ -53,11 +53,20 @@
         unset: '未选',
     });
 
-    /** 冲突三态(验收1:两条结局不能自动同时成立)。 */
+    /** 冲突词表(验收1:两条结局不能自动同时成立)。
+     *   ★ [v3.335.0 · M4-O6 连带修] `DIVERGENT` 此前**只在三处被引用、不在本表里**
+     *   （`conflicts` 的分档 / `blocked += 1` 的闸 / planCanon 的 isClash 与 whyKind）——
+     *   于是「同一位上两条取值不同」这条**真实冲突**落进 `undefined`，
+     *   三处闸全部静默失效（`blocked` 不增、planCanon 的 isClash 恒 false），
+     *   下游把「未选的冲突结局」当成「没有冲突」继续交接。
+     *   为什么直到 M4-O6 才现形：老判据只喂 `terminal:true` 的夹具，
+     *   那条路走 `BOTH_TERMINAL` 分支；**只有真实供数**才会产出 terminal:null 的
+     *   分支对照差异 —— 这正是本项「纯函数与诊断行全绿不足以收口」的现场。 */
     const CLASH = Object.freeze({
         SINGLE: 'single',
         BOTH_TERMINAL: 'both-terminal',
         SHARED_TERMINAL: 'shared-terminal',
+        DIVERGENT: 'divergent',
         NONE: 'none',
     });
 

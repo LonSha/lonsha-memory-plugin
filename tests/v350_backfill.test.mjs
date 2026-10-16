@@ -113,7 +113,8 @@ function extractAsyncMethod(name) {
             storage: { save: async () => {} },
             collectExport: () => ({}),
             getCurrentChatId: () => 'c1',
-            _mutationEpoch: 0,   // [v3.145] 补 mock：缺字段会让租约判据把 epoch 当 undefined 而误判失效
+            _mutationEpoch: 0,
+            _scopeData: (x) => x,   // [v3.145] 补 mock：缺字段会让租约判据把 epoch 当 undefined 而误判失效
             _staleTaskDropped: 0,
             _leaseValid(lease) { return !lease || (lease.chatId === 'c1' && lease.epoch === this._mutationEpoch); },
             _leaseDrop() {},

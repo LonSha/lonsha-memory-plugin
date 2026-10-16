@@ -285,6 +285,12 @@ const REGISTRY = [
      *   按 B1 台账纪律在此登记。 */
     'v3327_e_pack_lore_annual.test.mjs',
     'v3328_f_pack_canon_fated.test.mjs',        // [v3.328.0 F 包] 本档从 tests/_break_kit.mjs 取 breakOnce(8 条真源码破坏负控制),接入面须与磁盘双向一致
+    'v3334_m4o5_long_source_read.test.mjs',   // [v3.334.0 M4-O5] registered per B1 ledger rule
+    /* [v3.334.0 补登记] M4-O1..O4 各档此前未按 B1 台账纪律登记,补齐。 */
+    'v3329_m4o1_gc_scope.test.mjs',
+    'v3330_m4o2_qa_topic_actors.test.mjs',
+    'v3331_m4o3_event_explanation.test.mjs',
+    'v3332_m4o4_async_query.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

@@ -158,10 +158,16 @@
         const fileName = keyOf(input.file || input.name || o.fileName || '');
         let body = strOf(input.text !== undefined ? input.text : input.body);
         body = body.split(CR + NL).join(NL).split(CR).join(NL);
+        const totalChars = body.length;
         const truncated = body.length > MAX_SOURCE_CHARS;
         if (truncated) body = body.slice(0, MAX_SOURCE_CHARS);
         const lines = body.split(NL);
-        const out = { ok: false, source: { file: fileName, chars: body.length, lines: lines.length, truncated: truncated }, sections: [], items: [], classes: {}, why: [] };
+        /* [v3.334.0 · M4-O5] 完整度面:截断 ⇒ 状态必须是「未完成」。
+         *   修前缺陷(探针实测):42 万字符资料尾部唯一事实被 slice 静默丢弃,
+         *   ok:true + items 全进 —— 部分结果被当完成输入,且 planApply 照常放行。
+         *   修后口径:截断源 ⇒ ok:false + why 具名 source-truncated + completeness.partial,
+         *   局部导入走 parseSourceWindow 显式选择范围,不再靠静默 slice。 */
+        const out = { ok: false, source: { file: fileName, chars: body.length, lines: lines.length, truncated: truncated }, completeness: { state: truncated ? 'partial' : 'complete', totalChars: totalChars, readChars: body.length, truncated: truncated, nextCursor: truncated ? MAX_SOURCE_CHARS : null }, sections: [], items: [], classes: {}, why: [] };
         for (const c of CLASSES) out.classes[c] = 0;
         if (!body.trim()) return Object.assign(out, { why: ['empty-source'] });
         /* 分段:标题行开新段;标题之前的正文归第 0 段(无标题段是**真段**,不是缺项)。 */
@@ -207,9 +213,64 @@
                 settingAsHappened: false, sensitive: true,
             });
         }
-        out.ok = out.items.length > 0;
-        if (!out.ok) out.why.push('no-sections');
+        out.ok = out.items.length > 0 && !truncated;
+        if (!out.items.length) out.why.push('no-sections');
+        if (truncated) out.why.push('source-truncated');
         return out;
+    }
+
+    /* ── 1b [v3.334.0 · M4-O5] 窗口解析与续读游标(长资料完整读取) ── */
+    /**
+     * 窗口解析(**零写**):按字符范围显式解析一段 —— 局部导入的正规入口。
+     *   `opts.range = { from, to }`(字符偏移,to 可省 = 读到尾)。
+     *   ★ 与 parseSource 的关系:同一套分段/分类/敏感面,只换输入切片;
+     *     段的 sourceRef 额外带 window 偏移(from/to),回源可定位到**全文件坐标**。
+     *   ★ 完整度独立核算:本窗口读完不代表全文件读完 —— totalChars 仍是全文件长。
+     */
+    function parseSourceWindow(raw, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const input = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : { text: raw };
+        let full = strOf(input.text !== undefined ? input.text : input.body);
+        full = full.split(CR + NL).join(NL).split(CR).join(NL);
+        const totalChars = full.length;
+        const from = Math.max(0, numOr((o.range && o.range.from), 0));
+        const toRaw = (o.range && o.range.to !== undefined && o.range.to !== null) ? o.range.to : totalChars;
+        const to = Math.min(totalChars, Math.max(from, numOr(toRaw, totalChars)));
+        /* 窗口对齐:起点若落在行中间,回退到行首(段落不拦腰断);终点同理找行尾。 */
+        let start = from;
+        if (start > 0 && full.charAt(start - 1) !== NL) {
+            const back = full.lastIndexOf(NL, start - 1) + 1;
+            start = back;
+        }
+        let end = to;
+        if (end < totalChars && full.charAt(end - 1) !== NL) {
+            /* [v3.334.0] 终点对齐到**段边界**(\n\n)而非单行边界:行对齐会把跨窗段
+             *   切成「完整段 + 无题半段」两种形态(textHash 不同,去重不掉 ——
+             *   实测 3000 章流去重后 3002 条,多出的 2 条全是边界半段)。 */
+            const fwd = full.indexOf(NL + NL, Math.max(0, end - 1));
+            end = fwd < 0 ? totalChars : fwd + 1;
+        }
+        const aligned = full.slice(start, end);
+        const res = parseSource({ text: aligned, file: keyOf(input.file || input.name || o.fileName || '') }, Object.assign({}, o, { range: null }));
+        const hasNext = end < totalChars;
+        res.completeness = {
+            state: hasNext ? 'partial' : 'complete',
+            totalChars: totalChars, readChars: end, windowFrom: start, windowTo: end,
+            truncated: false, nextCursor: hasNext ? end : null,
+        };
+        res.window = { from: start, to: end, chars: aligned.length, hasNext: hasNext };
+        /* 窗口内段的 sourceRef 补全文件坐标。 */
+        for (const s of res.sections) {
+            const r = s.sourceRef;
+            if (r && typeof r === 'object') {
+                const pre = full.slice(0, start);
+                const baseLine = pre.length ? pre.split(NL).length : 1;
+                r.fileFrom = start; r.fileTo = end;
+                r.lineFrom = r.lineFrom + baseLine - 1;
+                r.lineTo = r.lineTo + baseLine - 1;
+            }
+        }
+        return res;
     }
 
     /* ── 2 实体映射(验收3:同名映射必须确认) ── */
@@ -326,6 +387,13 @@
         const pv = (preview && typeof preview === 'object') ? preview : null;
         if (!pv) return Object.assign(out, { reason: 'no-preview', why: '必须先预览再导入(预览是唯一的冲突判据)' });
         if (pv.verdict === PREVIEW.BLOCKED) return Object.assign(out, { reason: 'preview-blocked' });
+        /* [v3.334.0 · M4-O5] 截断/未完成源不得进入导入计划(修前缺陷:planApply 对
+         *   truncated 资料照常 ok:true 放行)。局部导入必须走 parseSourceWindow
+         *   的显式范围,其 completeness.state 为 complete 才可完整导入。 */
+        const comp = (p.completeness && typeof p.completeness === 'object') ? p.completeness : null;
+        if (comp && comp.state === 'partial') {
+            return Object.assign(out, { reason: 'source-incomplete', why: '源未读完(' + numOr(comp.readChars, 0) + '/' + numOr(comp.totalChars, 0) + ' 字符);请用窗口解析逐段导入或显式确认局部导入', nextCursor: numOr(comp.nextCursor, null) });
+        }
         const src = (p.source && typeof p.source === 'object') ? p.source : {};
         const secs = Array.isArray(p.sections) ? p.sections : [];
         const fingerprint = hash32(secs.map((s) => strOf(s.hash)).join('|'));
@@ -479,7 +547,7 @@
     const api = Object.freeze({
         LI_VERSION, LI_KIND, CLASSES, CLASS_LABEL, ORIGIN, ADMIT, PREVIEW,
         SECRET_BODY_KEYS, SECRET_MASK, REQUIRED_DEPS, MAX_SOURCE_CHARS,
-        keyOf, strOf, arrOf, numOr, clip, hash32, classify, isHeading, parseSource,
+        keyOf, strOf, arrOf, numOr, clip, hash32, classify, isHeading, parseSource, parseSourceWindow,
         entityCandidates, diffPreview, planApply, changedSections, provenanceOf, originVerdict,
         describe, selfCheck, line,
     });

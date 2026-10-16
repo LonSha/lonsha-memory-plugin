@@ -65,7 +65,9 @@ const ANCHORS = Object.freeze({
     /* [v3.322.0] 宿主出口侧锚点：缺席回执的恒定键面。
      *   破坏形态 = **删掉这一格**（不是改值）—— 那样在场/缺席两条路径的键数不同，
      *   下游按键断言当场破；这正是本刀修掉的那处真缺陷的**反向**。 */
-    x1AbsentKnown: String.raw`knownActors: known, reason: reason, writesNothing: true`,
+    /* [v3.334.0] 锚点改正则前瞻:两处同款键面(同步/异步),字符串锚两处命中;
+     *   前瞻 (?!,) 只锁同步版(行尾无逗号),async 版(true,)不命中。破坏形态不变。 */
+    x1AbsentKnown: /knownActors: known, reason: reason, writesNothing: true(?!,)/,
 });
 
 /* ══════════════ G. M3-X1 宿主出口（真方法体 + 真内核 + 真账本） ══════════════
@@ -232,7 +234,8 @@ test('v3322 F1. ★★ H5 判据纯度：破坏锚点在**本档源码**里恰�
 test('v3322 F2. ★★ H6 工具两向自证：锚点不存在 / 不唯一 / 同值替换必须抛', () => {
     assert.throws(() => breakOnce(IDX, '这段源码根本不存在', 'x', '不存在锚点'), /恰中 1 次|命中 0 次/);
     assert.throws(() => breakOnce(IDX, 'const ', 'x', '不唯一锚点'), /恰中 1 次|要求恰好 1 次/);
-    assert.throws(() => breakOnce(IDX, ANCHORS.x1AbsentKnown, ANCHORS.x1AbsentKnown, '同值替换'), /必须真的改变源码/);
+    /* [v3.334.0] 正则锚下的同值替换:替换串等于匹配原文(锚的 exec[0])才是真同值。 */
+    assert.throws(() => breakOnce(IDX, ANCHORS.x1AbsentKnown, ANCHORS.x1AbsentKnown.exec ? ANCHORS.x1AbsentKnown.exec(IDX)[0] : ANCHORS.x1AbsentKnown, '同值替换'), /必须真的改变源码/);
 });
 const vnum = (s) => { const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s).trim()); return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN; };
 const BORN = '3.322.0';

@@ -82,7 +82,7 @@ function structureJudge(li, sa) {
     const liWant = ['ADMIT', 'CLASSES', 'CLASS_LABEL', 'LI_KIND', 'LI_VERSION', 'MAX_SOURCE_CHARS', 'ORIGIN', 'PREVIEW',
         'REQUIRED_DEPS', 'SECRET_BODY_KEYS', 'SECRET_MASK', 'arrOf', 'changedSections', 'classify', 'clip', 'describe',
         'diffPreview', 'entityCandidates', 'hash32', 'isHeading', 'keyOf', 'line', 'numOr', 'originVerdict', 'parseSource',
-        'planApply', 'provenanceOf', 'selfCheck', 'strOf'];
+        'parseSourceWindow', 'planApply', 'provenanceOf', 'selfCheck', 'strOf'];
     const gotLi = Object.keys(li).sort();
     if (gotLi.join(',') !== liWant.join(',')) P.push('lore-import 导出面变了:实测 [' + gotLi.join(',') + ']');
     const saWant = ['DRAFT_FIELDS', 'ELEMENTS', 'ELEMENT_LABEL', 'FACT_FIELDS', 'FOUL_WORDS', 'ITEM_MAX', 'REQUIRED_DEPS',

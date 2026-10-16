@@ -144,7 +144,7 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   // apply 对新角色入图
   const g = { nodes: new Map() };
   const applier = new Function('findChar', 'addN', 'errLog', `
-    ${m2[0].replace(/    applyExtractedRoles\(roles\) \{/, 'function applyExtractedRoles(roles) {').replace(/this\.graph\.findCharacterByName/g, 'findChar').replace(/this\.graph\.addNode/g, 'addN').replace(/this\.resolveCharacterName/g, '((n)=>n)')}
+    ${m2[0].replace(/    applyExtractedRoles\(roles\) \{/, 'function applyExtractedRoles(roles) {').replace(/this\.graph\.findCharacterByName/g, 'findChar').replace(/this\.graph\.addNode/g, 'addN').replace(/this\.resolveCharacterName/g, '((n)=>n)').replace(/this\._scopeData/g, '((x)=>x)')}
     return applyExtractedRoles;
   `)((n) => null, (n) => { g.nodes.set('n_' + g.nodes.size, { ...n, id: 'n_' + g.nodes.size }); }, () => {});
   const res = applier(r);
@@ -157,7 +157,7 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
   const node = { name: '夏木', data: { source: '[对话]', aliases: [] } };
   const called = { add: 0, find: 0 };
   const applier = new Function('findChar', 'addN', 'errLog', `
-    ${m2[0].replace(/    applyExtractedRoles\(roles\) \{/, 'function applyExtractedRoles(roles) {').replace(/this\.graph\.findCharacterByName/g, 'findChar').replace(/this\.graph\.addNode/g, 'addN').replace(/this\.resolveCharacterName/g, '((n)=>n)')}
+    ${m2[0].replace(/    applyExtractedRoles\(roles\) \{/, 'function applyExtractedRoles(roles) {').replace(/this\.graph\.findCharacterByName/g, 'findChar').replace(/this\.graph\.addNode/g, 'addN').replace(/this\.resolveCharacterName/g, '((n)=>n)').replace(/this\._scopeData/g, '((x)=>x)')}
     return applyExtractedRoles;
   `)((n) => { called.find++; return node; }, (n) => { called.add++; return 'id'; }, () => {});
   const res = applier([{ name: '夏木', aliases: ['小夏', 'Natsuki'] }]);
@@ -171,7 +171,7 @@ if (!m2) fail('未找到 applyExtractedRoles 方法体');
 {
   const node = { name: 'A', data: { source: 'x', aliases: ['b'] } };
   const applier = new Function('findChar', 'addN', 'errLog', `
-    ${m2[0].replace(/    applyExtractedRoles\(roles\) \{/, 'function applyExtractedRoles(roles) {').replace(/this\.graph\.findCharacterByName/g, 'findChar').replace(/this\.graph\.addNode/g, 'addN').replace(/this\.resolveCharacterName/g, '((n)=>n)')}
+    ${m2[0].replace(/    applyExtractedRoles\(roles\) \{/, 'function applyExtractedRoles(roles) {').replace(/this\.graph\.findCharacterByName/g, 'findChar').replace(/this\.graph\.addNode/g, 'addN').replace(/this\.resolveCharacterName/g, '((n)=>n)').replace(/this\._scopeData/g, '((x)=>x)')}
     return applyExtractedRoles;
   `)(() => node, () => {}, () => {});
   const res = applier([{ name: 'A', aliases: ['b', 'b', 'c'] }]);
