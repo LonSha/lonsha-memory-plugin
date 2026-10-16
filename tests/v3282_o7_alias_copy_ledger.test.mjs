@@ -143,8 +143,20 @@ const norm = (s) => stripComments(String(s)).replace(/\s+/g, ' ').trim();
  *   于是两侧即使真漂移也可能「同样地被截断」而看起来相等。
  */
 function blockFrom(src, startBrace) {
-    let depth = 0, i = startBrace, quote = null;
+    let depth = 0, i = startBrace, quote = null, prevSig = '';
     const n = src.length;
+    /* 唯一真源的「/ 是正则起始还是除号」判定（同 tests/_audit_lib.mjs 的 stripComments）：
+     *   v3.335.0 给 index.js 加了一行正则字面量 `/[「“"](...)[」”"]/g`，
+     *   其字符类里含 `"`；只跳字符串、不跳正则的旧实现会把它当成字符串起始，
+     *   状态机从此失步 —— MemoryEngine 类体永不闭合（blockFrom → null），
+     *   `_numOrNull` 不被枚举，同名不同体的副本面整片塌掉（本档自注释已声明要防这条）。 */
+    const word = (end) => {
+        let k = end;
+        while (k > 0 && /[A-Za-z0-9_$]/.test(src[k - 1])) k--;
+        return src.slice(k, end);
+    };
+    const REGEX_PREV = new Set(['', '(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '^', '~', '<', '>']);
+    const REGEX_PREV_WORD = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'case', 'do', 'else', 'yield', 'await']);
     while (i < n) {
         const c = src[i];
         if (quote) {
@@ -152,11 +164,25 @@ function blockFrom(src, startBrace) {
             if (c === quote) quote = null;
             i++; continue;
         }
-        if (c === '"' || c === "'" || c === '`') { quote = c; i++; continue; }
+        if (c === '"' || c === "'" || c === '`') { quote = c; prevSig = c; i++; continue; }
         if (c === '/' && src[i + 1] === '/') { const e = src.indexOf(String.fromCharCode(10), i); i = e < 0 ? n : e + 1; continue; }
         if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i); i = e < 0 ? n : e + 2; continue; }
-        if ('{[('.includes(c)) { depth++; i++; continue; }
-        if ('}])'.includes(c)) { depth--; if (depth === 0) return src.slice(startBrace + 1, i); i++; continue; }
+        if (c === '/' && (REGEX_PREV.has(prevSig) || REGEX_PREV_WORD.has(word(i)))) {
+            let j = i + 1, cls = false;
+            while (j < n) {
+                const d = src[j];
+                if (d === '\\') { j += 2; continue; }
+                if (d === '[') cls = true;
+                else if (d === ']') cls = false;
+                else if (d === '/' && !cls) { j++; break; }
+                else if (d === String.fromCharCode(10)) break;
+                j++;
+            }
+            i = j; prevSig = ')'; continue;
+        }
+        if ('{[('.includes(c)) { depth++; prevSig = c; i++; continue; }
+        if ('}])'.includes(c)) { depth--; prevSig = c; if (depth === 0) return src.slice(startBrace + 1, i); i++; continue; }
+        if (!/\s/.test(c)) prevSig = c;
         i++;
     }
     return null;

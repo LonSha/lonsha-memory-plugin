@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.337.0",
+ "measured_at": "v3.338.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2048,7 +2048,32 @@
    "reason": "M4-O9(按事实可知性裁剪故事年鉴/玩家版输出):宿主增五个判决口成员(_o9Owners/_o9AliasIndex/_o9FactOf/_o9NamesIn/_o9Gate)+o9Sources+两出口改走可知性面(storyAnnualTwoVersions/storyAnnualForPlayer),成员 742→749、行数 19845→20104",
    "readings": {
     "total_lines": 20104,
-    "member_count": 749
+    "member_count": 749,
+    "duplicate_member_names": 25,
+    "top5_lines": 4998,
+    "top5_pct": 24.9,
+    "top40_lines": 10841,
+    "top40_pct": 53.9,
+    "prefix_rule_coverage_lines": 5401,
+    "prefix_rule_coverage_pct": 26.9,
+    "unclassified_lines": 13732,
+    "seam_distinct_modules": 75,
+    "seam_reference_sites": 107,
+    "seam_call_shape_sites": 111,
+    "members_over_80_lines": 36,
+    "low_coupling_members": 25,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.335.0",
+   "delta": {
+    "total_lines": 259,
+    "member_count": 7,
+    "top5_pct": -0.3
    }
   },
   "v3.337.0": {
@@ -2082,6 +2107,38 @@
     "member_count": 0,
     "top5_pct": -0.4
    }
+  },
+  "v3.338.0": {
+   "reason": "[v3.338.0] M4-O8 记忆控制中心处置类动作的生产方落地：宿主侧新增 _correctionOwners / _verifyCorrectionItem / applyCorrectionPlan / undoCorrection（纠错方案落笔与两路撤销）+ 面板取数口 correctionSourceFacts / correctionReextractFacts+ 单条撤回直写面 memoryCenterRevoke + 保存条件唯一出口 memoryCenterSaveQuery+ saved 真源注入点 _memoryCenterStateWithSaved；settings-ui 侧补齐 9 个 handler。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
+   "readings": {
+    "total_lines": 20563,
+    "member_count": 758,
+    "duplicate_member_names": 25,
+    "top5_lines": 4998,
+    "top5_pct": 24.3,
+    "top40_lines": 10928,
+    "top40_pct": 53.1,
+    "prefix_rule_coverage_lines": 5401,
+    "prefix_rule_coverage_pct": 26.3,
+    "unclassified_lines": 14191,
+    "seam_distinct_modules": 75,
+    "seam_reference_sites": 107,
+    "seam_call_shape_sites": 111,
+    "members_over_80_lines": 38,
+    "low_coupling_members": 27,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.337.0",
+   "delta": {
+    "total_lines": 404,
+    "member_count": 9,
+    "top5_pct": -0.5
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -2093,38 +2150,38 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 20159,
-  "member_count": 749,
+  "total_lines": 20563,
+  "member_count": 758,
   "duplicate_member_names": 25,
   "top5_lines": 4998,
-  "top5_pct": 24.8,
-  "top40_lines": 10878,
-  "top40_pct": 54.0,
+  "top5_pct": 24.3,
+  "top40_lines": 10928,
+  "top40_pct": 53.1,
   "prefix_rule_coverage_lines": 5401,
-  "prefix_rule_coverage_pct": 26.8,
-  "unclassified_lines": 13787,
+  "prefix_rule_coverage_pct": 26.3,
+  "unclassified_lines": 14191,
   "seam_distinct_modules": 75,
   "seam_reference_sites": 107,
   "seam_call_shape_sites": 111,
-  "members_over_80_lines": 37,
-  "low_coupling_members": 26,
+  "members_over_80_lines": 38,
+  "low_coupling_members": 27,
   "high_coupling_members": 7
  },
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 706,
-   "lines": 13787,
-   "lines_pct": 68.4,
-   "outside_refs": 6738,
-   "internal_refs": 2028,
-   "outside_ref_share_pct": 76.9
+   "members": 715,
+   "lines": 14191,
+   "lines_pct": 69,
+   "outside_refs": 6787,
+   "internal_refs": 2058,
+   "outside_ref_share_pct": 76.7
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
    "lines": 1912,
-   "lines_pct": 9.5,
+   "lines_pct": 9.3,
    "outside_refs": 5,
    "internal_refs": 76,
    "outside_ref_share_pct": 6.2
@@ -2133,16 +2190,16 @@
    "domain": "诊断与导出",
    "members": 10,
    "lines": 1686,
-   "lines_pct": 8.4,
-   "outside_refs": 375,
-   "internal_refs": 514,
-   "outside_ref_share_pct": 42.2
+   "lines_pct": 8.2,
+   "outside_refs": 382,
+   "internal_refs": 507,
+   "outside_ref_share_pct": 43
   },
   {
    "domain": "召回与注入",
    "members": 13,
    "lines": 1034,
-   "lines_pct": 5.1,
+   "lines_pct": 5,
    "outside_refs": 5,
    "internal_refs": 67,
    "outside_ref_share_pct": 6.9
@@ -2151,7 +2208,7 @@
    "domain": "配置与持久化",
    "members": 3,
    "lines": 476,
-   "lines_pct": 2.4,
+   "lines_pct": 2.3,
    "outside_refs": 22,
    "internal_refs": 0,
    "outside_ref_share_pct": 100
@@ -2299,6 +2356,11 @@
    "outside_refs": 0
   },
   {
+   "name": "applyCorrectionPlan",
+   "lines": 136,
+   "outside_refs": 2
+  },
+  {
    "name": "askMemoryQuestionAsync",
    "lines": 133,
    "outside_refs": 0
@@ -2306,11 +2368,6 @@
   {
    "name": "retryRepairItems",
    "lines": 132,
-   "outside_refs": 0
-  },
-  {
-   "name": "_repairOwners",
-   "lines": 127,
    "outside_refs": 0
   },
   {
@@ -2336,6 +2393,11 @@
   {
    "name": "getDegradationLedger",
    "lines": 122,
+   "outside_refs": 0
+  },
+  {
+   "name": "_repairOwners",
+   "lines": 116,
    "outside_refs": 0
   },
   {
@@ -2397,17 +2459,12 @@
    "name": "_runProjections",
    "lines": 76,
    "outside_refs": 1
-  },
-  {
-   "name": "_o6Chapters",
-   "lines": 75,
-   "outside_refs": 0
   }
  ],
  "split_candidates": {
   "threshold_lines": 80,
-  "total_over_threshold": 37,
-  "low_coupling_non_lifecycle": 26,
+  "total_over_threshold": 38,
+  "low_coupling_non_lifecycle": 27,
   "high_coupling_non_lifecycle": 7,
   "low_coupling_examples": [
    {
@@ -2465,6 +2522,12 @@
     "is_host_lifecycle": false
    },
    {
+    "name": "applyCorrectionPlan",
+    "lines": 136,
+    "outside_refs": 2,
+    "is_host_lifecycle": false
+   },
+   {
     "name": "askMemoryQuestionAsync",
     "lines": 133,
     "outside_refs": 0,
@@ -2473,12 +2536,6 @@
    {
     "name": "retryRepairItems",
     "lines": 132,
-    "outside_refs": 0,
-    "is_host_lifecycle": false
-   },
-   {
-    "name": "_repairOwners",
-    "lines": 127,
     "outside_refs": 0,
     "is_host_lifecycle": false
    }
@@ -2564,9 +2621,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 20245,
+  "ceiling": 20963,
   "maxSlack": 400,
-  "note": "[v3.337.0] M4-O7「长期压缩与遗忘保住不可替代证据」宿主侧增量:optimizeMemory() 接入证据判定器 _evJudge(显式保留/revoked优先不保/文本特征四类)+ _protectBudget 预算 + GC.runGc 六键注入 + _lastGcEvidence 收账+ getDegradationLedger 并入证据保护预算降级档。全为活跃功能增长、非死代码回流:宿主 20104 → 20159(+55 行),成员 749(未越界)。行上界 ceiling 20245 余量 86 <= maxSlack 400 仍在安全线内。",
+  "note": "[v3.338.0] M4-O8 记忆控制中心处置类动作的生产方落地：宿主侧新增 _correctionOwners / _verifyCorrectionItem / applyCorrectionPlan / undoCorrection（纠错方案落笔与两路撤销）+ 面板取数口 correctionSourceFacts / correctionReextractFacts+ 单条撤回直写面 memoryCenterRevoke + 保存条件唯一出口 memoryCenterSaveQuery+ saved 真源注入点 _memoryCenterStateWithSaved；settings-ui 侧补齐 9 个 handler。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
   "history": [
    {
     "ceiling": 15000,
@@ -2680,9 +2737,14 @@
     "ceiling": 20245,
     "reason": "[v3.337.0] M4-O7「长期压缩与遗忘保住不可替代证据」宿主侧增量:optimizeMemory() 接入证据判定器 _evJudge(显式保留/revoked优先不保/文本特征四类)+ _protectBudget 预算 + GC.runGc 六键注入 + _lastGcEvidence 收账+ getDegradationLedger 并入证据保护预算降级档。全为活跃功能增长、非死代码回流:宿主 20104 → 20159(+55 行),成员 749(未越界)。行上界 ceiling 20245 余量 86 <= maxSlack 400 仍在安全线内。",
     "member_ceiling": 753
+   },
+   {
+    "ceiling": 20963,
+    "reason": "[v3.338.0] M4-O8 记忆控制中心处置类动作的生产方落地：宿主侧新增 _correctionOwners / _verifyCorrectionItem / applyCorrectionPlan / undoCorrection（纠错方案落笔与两路撤销）+ 面板取数口 correctionSourceFacts / correctionReextractFacts+ 单条撤回直写面 memoryCenterRevoke + 保存条件唯一出口 memoryCenterSaveQuery+ saved 真源注入点 _memoryCenterStateWithSaved；settings-ui 侧补齐 9 个 handler。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回；成员面在线内不抬。",
+    "member_ceiling": 788
    }
   ],
-  "member_ceiling": 753,
+  "member_ceiling": 788,
   "member_max_slack": 30,
   "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
  }

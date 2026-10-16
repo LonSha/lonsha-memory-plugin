@@ -291,6 +291,14 @@ const REGISTRY = [
     'v3330_m4o2_qa_topic_actors.test.mjs',
     'v3331_m4o3_event_explanation.test.mjs',
     'v3332_m4o4_async_query.test.mjs',
+    /* [v3.338.0 M4-O8] 本档从 tests/_break_kit.mjs 取 breakOnce（三条真源码破坏负控制，
+     *   锚点取自 index.js 的 saved 真源同步行 / 未圈范围闸 / 保存回执 replayKey）；按 B1 台账纪律在此登记。 */
+    /* [v3.338.0 补登记] v3350/v3360/v3370 三档此前从唯一真源取 breakOnce 但未按 B1 台账登记,
+     *   补齐(它们同样是 HEAD 遗留的登记漏项,不是本刀引入)。 */
+    'v3350_m4o6_real_supply.test.mjs',
+    'v3360_m4o9_knowledge_gate.test.mjs',
+    'v3370_m4o7_evidence_protect.test.mjs',
+    'v3380_m4o8_center_actions.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

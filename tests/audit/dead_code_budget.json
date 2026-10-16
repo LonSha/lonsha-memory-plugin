@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 71414,
+  "ceiling": 72714,
   "maxSlack": 400,
-  "note": "[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)",
+  "note": "[v3.338.0] M4-O8 记忆控制中心处置类动作生产方落地：宿主纠错方案落笔/两路撤销/面板取数口/单条撤回直写面/保存条件唯一出口/saved 真源注入点 + settings-ui 侧 9 个 handler（活跃功能增长，非死代码回流）",
   "history": [
     {
       "ceiling": 21000,
@@ -309,7 +309,11 @@
     {
       "ceiling": 71414,
       "reason": "[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)"
+    },
+    {
+      "ceiling": 72714,
+      "reason": "[v3.338.0] M4-O8 记忆控制中心处置类动作生产方落地：宿主纠错方案落笔/两路撤销/面板取数口/单条撤回直写面/保存条件唯一出口/saved 真源注入点 + settings-ui 侧 9 个 handler（活跃功能增长，非死代码回流）"
     }
   ],
-  "_history_last": "ceiling 70904 → 71414（实测 71014 + slack 400）：[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)"
+  "_history_last": "ceiling 71414 → 72714（实测 72314 + slack 400）：[v3.338.0] M4-O8 记忆控制中心处置类动作生产方落地：宿主纠错方案落笔/两路撤销/面板取数口/单条撤回直写面/保存条件唯一出口/saved 真源注入点 + settings-ui 侧 9 个 handler（活跃功能增长，非死代码回流）"
 }

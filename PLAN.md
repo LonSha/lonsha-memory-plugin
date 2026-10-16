@@ -2,7 +2,7 @@
 
 > **第四期产品计划（2026-10-15，唯一现行提案）**：本仓优化9项＋拓展9项，双仓共36项；全部为待实施计划，不是功能交付声明。
 > [优化提升九项](.agents/notes/proposed/architecture/2026-10-15-product-optimization-v4.md) · [拓展新功能九项](.agents/notes/proposed/feature/2026-10-15-product-expansion-v4.md)。
-> **当前执行状态（2026-10-16，v3.337.0）**：规划基线 `main@0f2f7fd`。本版是第四期 **M4-O7**（长期压缩与遗忘保住不可替代证据；P1 / L）实施点:memory-gc 模块侧导出面 13→15,GC_VERSION 1→2,新增 evidenceScreen 保护筛(三态:judge缺席⇒旧行为照删;判keep⇒保前 budget 名,超额计 overBudget 降级删除;判不了/抛错⇒照删),capByForgetValue/capSummaries/orphanOpsOf 三路接入,runGc 汇总结算 evidence 读数;stm-ltm 侧 LTM 滚动淘汰最旧条目时将其 salient 收集去重前移追加至存活最老条目,受 SALIENT_TOTAL_CAP=8 约束后才丢本体,LOSS_KEYS 增 salientCarriedOver 计数,lookupSalient 查回;宿主侧 optimizeMemory 接入 _evJudge 判定器(显式保留 rank 100 > revoked 绝不保 > 文本特征 80/70/60/50),_protectBudget 默认 32,_lastGcEvidence 收账,getDegradationLedger 并档。专项套件 v3370 8 条全绿(含 F1/F2/F3 三条真源码破坏负控制 + G1 纯度 + H1 锚点)。宿主基线 20159/749(ceiling 20245 余量 86 在线内)。上一项 M4-O9(v3.336.0,可知性裁剪)专项 22 条。本版 v3.337.0 未全量实跑，当前 v3.337.0 **全量待验**。
+> **当前执行状态（2026-10-16，v3.338.0）**：规划基线 `main@0f2f7fd`。本版是第四期 **M4-O8**（记忆控制中心处置类动作的生产方落地；P0 / L）实施点:内核 `memory-center.js` 早声明 9 个动作（read/preview/write 三档）与「宿主没给 handler ⇒ 降级 unavailable、未给 availableHandlers ⇒ 只声明不判」两条纪律,而**面板一个 handler 都没接**（`_memoryCenterHandlers` 全仓零定义）⇒ 界面上所有处置按钮要么不存在、要么点了无声。本版四刀:① **宿主纠错落笔面**（`_correctionOwners`/`_verifyCorrectionItem`/`applyCorrectionPlan`/`undoCorrection`,四步顺序不可换:出提案(未圈范围即拒)⇒只落 selected⇒owner 改数据并读本行真账核验⇒落盘回读;回执含 applied/verified/persisted/readback/stale 与**两个互不触碰的撤销 token**）;② **面板取数口**（`correctionSourceFacts` 圈定范围取账上事实、`correctionReextractFacts` 向重提取管线要新一轮结果;提取器缺席 ⇒ 具名 extractor-absent,**不拿旧账当新结果**）;③ **单条撤回直写面**（`memoryCenterRevoke` 直走 `revokeFact`,不借道 `undoCorrection`——借道要伪造 journal,伪造会把「撤销这一批」的真流水覆盖掉）与**保存条件唯一出口**（`memoryCenterSaveQuery`:条件口径在内核 `buildSpec`、摘要口径在内核 `specLine`,面板各拼一份就成了第二套口径）;④ **saved 真源注入点**（`_memoryCenterStateWithSaved`:面板读 `state.saved` 而保存的真源在 `_evidenceSavedQueries`,两者此前**零同步** ⇒ 保存了却看不到、看不到却删不掉;浅拷贝注入,不反写调用方对象）。面板侧补齐 **9 个 handler**（`row.repair.preview`/`row.detail`/`row.revoke`/`row.dispute`/`row.export`/`query.save`/`query.reset`/`saved.remove`/`saved.replay`）,其中 `row.dispute` **如实报不可用**（事实账无「争议」写面,`disputed` 在 `fact-state.js` 是推导态）,**不编一个假写入**;旧「手写 state」三形态（伪造 journal token / `st.spec=hit.spec` / 第二张表 `_memoryCenterSaved`）全部清零。专项套件 v3380 16 条全绿(含 F1/F2/F3 三条真源码破坏负控制 + G1 纯度 + H1 锚点)。宿主基线 20563/758(ceiling 20963 余量 400)。上一项 M4-O7(v3.337.0,长期压缩保住证据)专项 8 条。本版 v3.338.0 未全量实跑，当前 v3.338.0 **全量待验**。
 > 产品主线是手机使用体验、记忆准确性与创作能力。**守卫、审计、台账、发布不独立占名额**；最小必要回归随功能，自动化通过不等于真实宿主/模型体验通过。
 > 新编号 M4-O1～O9 / M4-X1～X9，避免重复使用第三期编号。旧底座照用，只把明确增量列为本轮工作。
 
@@ -53,10 +53,10 @@
 
 | 量 | 读数 | 出处 |
 |---|---|---|
-| 版本 | **v3.337.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
-| 门禁 | 在役面 **317 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
+| 版本 | **v3.338.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
+| 门禁 | 在役面 **318 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
 | 全量快照 | 最近全量快照 **v3.328.0：309 测试文件 / 3528 断言 0 失败 / 审计 61/61**(上一快照 v3.318.0:299 / 3302 / 61/61;再上一份 v3.296.0:277 / 2986 / 59/59;更早 v3.284.0:264 / 2727 / 55/55);v3.328.0 已实跑并重绑读数 | `tests/audit/doc_readings.json` |
-| 体量 | `index.js` **20159 行**(探针读数;`wc -l` 20103) / **749** 成员 —— 原 A1 六刀后为 13883 / 521,v3.326.0 A1 第九刀后为 18398 / 688,v3.328.0 F 包两个产品项接线后为 18964 / 723,v3.330.0 结清 M4-O1(+139)+M4-O2(+53)两版宿主接线后为 19156 / 727,v3.331.0 M4-O3 宿主接线后为 19244 / 728,v3.332.0 M4-O4 异步出口后为 19412 / 730,v3.334.0 M4-O5 窗口解析出口后为 19443 / 731,v3.335.0 M4-O6 真实供数派生层后为 19845 / 742,v3.336.0 M4-O9 可知性裁剪判决口后为 20104 / 749;+ extra_js **106** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
+| 体量 | `index.js` **20563 行**(探针读数;`wc -l` 20562) / **758** 成员 —— 原 A1 六刀后为 13883 / 521,v3.326.0 A1 第九刀后为 18398 / 688,v3.328.0 F 包两个产品项接线后为 18964 / 723,v3.330.0 结清 M4-O1(+139)+M4-O2(+53)两版宿主接线后为 19156 / 727,v3.331.0 M4-O3 宿主接线后为 19244 / 728,v3.332.0 M4-O4 异步出口后为 19412 / 730,v3.334.0 M4-O5 窗口解析出口后为 19443 / 731,v3.335.0 M4-O6 真实供数派生层后为 19845 / 742,v3.336.0 M4-O9 可知性裁剪判决口后为 20104 / 749,v3.337.0 M4-O7 证据保护筛后为 20159 / 749,v3.338.0 M4-O8 控制中心处置动作生产方后为 20563 / 758;+ extra_js **106** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
 | 跨仓外供 | 正向 **7 面**（`open_face_registry.tsv`；v3.314.0 M-X6 新增 `phoneFactReceipt`（consumer `none@0`，手机侧回执面，下游接入属下一轮）；v3.305.0 M-X9 新增 `memoryToolsEnvelope`（consumer `none@0`，下游接入属下一轮））+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |
 
 ---
