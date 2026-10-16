@@ -71,16 +71,16 @@ const msgFpOf = (m) => 'fp:' + hash32(m.mes);
 
 /* ══════════════ 判据体(纯函数:吃 api / 源码表,返回问题列表) ══════════════ */
 
-/** A. 结构面 13 项导出 + 冻结 + 五键一份真源 + selfCheck。 */
+/** A. 结构面 15 项导出 + 冻结 + 五键一份真源 + selfCheck。 */
 function structureJudge(gc, src) {
     const P = [];
-    const want = ['GC_KIND', 'GC_VERSION', 'LEDGER_KEYS', 'blankLedger', 'capByForgetValue', 'capSummaries',
-        'cascadeReadout', 'dedupeByText', 'line', 'mergeDuplicateCharacters', 'orphanOpsOf', 'runGc', 'selfCheck'];
+    const want = ['GC_KIND', 'GC_VERSION', 'LEDGER_KEYS', 'blankEvidence', 'blankLedger', 'capByForgetValue', 'capSummaries',
+        'cascadeReadout', 'dedupeByText', 'evidenceScreen', 'line', 'mergeDuplicateCharacters', 'orphanOpsOf', 'runGc', 'selfCheck'];
     const got = Object.keys(gc).sort();
     if (got.join(',') !== want.join(',')) P.push('导出面变了:实测 [' + got.join(',') + ']');
     if (!Object.isFrozen(gc)) P.push('导出面未冻结(下游可改 = 面可被就地篡改)');
     if (gc.GC_KIND !== 'memory_gc') P.push('GC_KIND 不是 memory_gc:' + gc.GC_KIND);
-    if (gc.GC_VERSION !== 1) P.push('GC_VERSION 应为 1:' + gc.GC_VERSION);
+    if (gc.GC_VERSION !== 2) P.push('GC_VERSION 应为 2(v3.337.0 证据保护面):' + gc.GC_VERSION);
     const keys = gc.LEDGER_KEYS;
     if (!Array.isArray(keys) || keys.length !== 5) P.push('五路账本键须恰五个,实 ' + (keys || []).length);
     else if (keys.join(',') !== 'vecDup,vecCap,sumCap,orphanOps,graphDup') P.push('五路账本键名变了:' + keys.join(','));
@@ -260,13 +260,16 @@ function hostJudge(idx, mf) {
     if (!idx.includes('this._lastGcLedger' + ' = null;')) P.push('模块缺席时未把账本置 null(「没跑」与「跑了零删」会同形)');
     if (!/if \(!GC \|\| typeof GC\.runGc !== 'function'\) \{/.test(idx)) P.push('缺席判定未按能力探测(只看对象在场 ⇒ 半截模块会被当成可用)');
     /* E3 注入面五组键齐(全是**数据**,模块不读 this / 不读全局) */
-    const callM = /GC\.runGc\(\{([\s\S]{0,900}?)\}\)/.exec(idx);
+    const callM = /GC\.runGc\(\{([\s\S]{0,1400}?)\}\)/.exec(idx);
     if (!callM) P.push('缺 GC.runGc({...}) 调用');
     else {
         const body = callM[1];
         for (const k of ['vectors:', 'summarySummaries:', 'itemOps:', 'graphNodes:', 'graphEdges:',
             'vectorMaxCount:', 'summaryMaxCount:', 'nowMs:', 'chat:', 'msgFpOf:', 'hash32:',
-            'normalizeName:', 'dependencyClosure:']) {
+            'normalizeName:', 'dependencyClosure:',
+            // [M4-O7 · v3.337.0] 证据保护注入面:三路判定器 + 预算(缺了判定器=保护静默关闭)
+            'evidenceJudgeVec:', 'protectBudgetVec:', 'evidenceJudgeSum:', 'protectBudgetSum:',
+            'evidenceJudgeOps:', 'protectBudgetOps:']) {
             if (body.indexOf(k) < 0) P.push('注入面缺 ' + k);
         }
         if (!idx.includes('normalizeName: normalizeCharName' + ',')) P.push('注入面归一化名未接宿主唯一真源(跨模块会静默读旧值)');

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.336.0';
+    const VERSION = '3.337.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -7169,6 +7169,45 @@ timeAnchor: extracted?.time_anchor || null,
             }
             const _cfg = this.config.config || {};
             const _scopeOf = (o) => this._gcScopeKey(o);
+            /* [M4-O7 · v3.337.0] 证据保护判定器:三条容量删除路各一(只对**候选删除集**调用)。
+             *   判定器把「不可替代证据」从删除名单里摘出来。统一先看显式保留标记
+             *   (`pinned` / `retain` / `keep` / `userPinned` 任一为真)⇒ 最高优先级保;
+             *   再看**撤回标记**(`revoked === true`)⇒ 明确不保 —— **已撤回事实不得因保留
+             *   策略复活**(验收原文)。其余文本特征(未结承诺/身份转折/用户保留原话)
+             *   走 stm-ltm 的四个关键句正则(单一真源,宿主不重抄词表)。
+             *   `_stmLtmSalient` 为 null 时退化为**只认显式标记**:文本级判定「判不了」就
+             *   不保(保住错了不可逆,删了有账可查)。 */
+            const _stmLtmSalient = (typeof this.stmLtm?.keepSalient === 'function') ? this.stmLtm : null;
+            const _evJudge = (item) => {
+                if (!item || typeof item !== 'object') return null;
+                const m = (item.metadata && typeof item.metadata === 'object') ? item.metadata : null;
+                const explicit = (item.pinned === true) || (item.retain === true)
+                    || (item.keep === true) || (item.userPinned === true)
+                    || (!!(m && (m.pinned === true || m.retain === true)));
+                if (explicit) return { keep: true, rank: 100, reason: 'user-keep' };
+                if (item.revoked === true || !!(m && m.revoked === true)) return null;
+                const text = (typeof item.text === 'string' && item.text) ? item.text
+                    : (typeof item.summary === 'string' && item.summary) ? item.summary
+                    : (m && typeof m.text === 'string') ? m.text : '';
+                if (!text) return null;
+                const hits = (_stmLtmSalient && _stmLtmSalient.keepSalient)
+                    ? _stmLtmSalient.keepSalient([text], { maxPerKind: 1, maxTotal: 16 })
+                    : null;
+                if (!hits || !hits.length) return null;
+                const kinds = new Set(hits.map(x => x && x.kind));
+                if (kinds.has('open')) return { keep: true, rank: 80, reason: 'promise-open' };
+                if (kinds.has('turn')) return { keep: true, rank: 70, reason: 'identity-turn' };
+                if (kinds.has('quote')) return { keep: true, rank: 60, reason: 'user-quote' };
+                if (kinds.has('number')) return { keep: true, rank: 50, reason: 'key-number' };
+                return null;
+            };
+            /* 预算:未配置默认 32 条/轮(三条容量删除路各享一份);显式 `gcProtectBudget` 可覆盖,
+             *   含 0(=关保护,逐字旧行为)。预算不是「无限增库」:用尽即降级删除并计 overBudget。 */
+            const _protectBudget = (() => {
+                const v = Number(_cfg.gcProtectBudget);
+                if (Number.isFinite(v) && v >= 0) return Math.floor(v);
+                return 32;
+            })();
             const _r = GC.runGc({
                 vectors: this.vector.vectors, summarySummaries: this.summary.summaries,
                 itemOps: this.itemOps, graphNodes: this.graph.nodes, graphEdges: this.graph.edges,
@@ -7180,9 +7219,17 @@ timeAnchor: extracted?.time_anchor || null,
                  *   向量按 `metadata` 取范围、图谱按节点本身取范围。判不了范围(旧档条目)
                  *   时模块侧返回 null ⇒ **不参与**去重(误合不可逆,少合只是少省一点)。 */
                 vectorScopeOf: _scopeOf, nodeScopeOf: _scopeOf,
+                /* [v3.337.0 · M4-O7] 证据保护判定器与预算(三条容量删除路各一)。 */
+                evidenceJudgeVec: _evJudge, protectBudgetVec: _protectBudget,
+                evidenceJudgeSum: _evJudge, protectBudgetSum: _protectBudget,
+                evidenceJudgeOps: _evJudge, protectBudgetOps: _protectBudget,
             });
             const _gcLedger = _r.ledger;
             this._lastGcLedger = _gcLedger;
+            /* [M4-O7 · v3.337.0] 证据保护读数单独落 `_lastGcEvidence`(**不塞进五键账本**,
+             *   五键是「删了多少」,这里是「想删但保住了多少」—— 两件事分开报,
+             *   `getDegradationLedger` 按需并入「保护预算用尽」这一档)。 */
+            this._lastGcEvidence = _r.evidence || null;
             this.vector.vectors = _r.vectors;
             this.summary.summaries = _r.summaries;
             this.itemOps = _r.items;
@@ -7232,6 +7279,14 @@ timeAnchor: extracted?.time_anchor || null,
                 const gc = this._lastGcLedger;
                 push('记忆回收', gc ? (gc.vecDup || 0) + (gc.vecCap || 0) + (gc.sumCap || 0) + (gc.graphDup || 0) : 0,
                     gc ? `向量去重${gc.vecDup || 0}/向量上限${gc.vecCap || 0}/摘要上限${gc.sumCap || 0}/图谱合并${gc.graphDup || 0}` : '');
+                // [M4-O7 · v3.337.0] 证据保护读数并入总账：**想保但没额度**(overBudget)是
+                //   一种可见的降级 —— 唯一证据因预算不足被降级删除,必须与「本来就没保」分开。
+                //   protectedTotal 本身不是降级(保住了),只在 detail 里体现。
+                const ev = this._lastGcEvidence;
+                if (ev && (Number(ev.overBudget) > 0 || Number(ev.protectedTotal) > 0)) {
+                    push('证据保护预算', Number(ev.overBudget) || 0,
+                        `保住 ${ev.protectedTotal || 0} 条/超预算降级 ${ev.overBudget || 0} 条(配置 gcProtectBudget 可调)`);
+                }
                 const cal = this._lastRetentionCalibration;
                 push('睡眠积压', cal?.dormant || 0,
                     cal ? `高价值陈件${cal.ancientHighValue || 0}/低价值陈件${cal.lowValueStale || 0}` : '');

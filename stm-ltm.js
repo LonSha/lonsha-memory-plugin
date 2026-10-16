@@ -85,7 +85,10 @@ const LOSS_KEYS = Object.freeze([
   // [v3.321 · M3-O4] 保底句所引用的片段没有楼层号（无法回到出处）的句子数。
   //   摘要「保住了」承诺/转折/数字/原话，但如果它引用的楼层已被 removeByFloors 摘掉，
   //   那就只能报「不可恢复」—— 读侧不变量：不可回源必须计数，不许假装还能回源。
-  'unrecoverableSources'
+  'unrecoverableSources',
+  // [v3.337.0 · M4-O7] LTM 滚动淘汰条目时,被前移到存活条目上的保底句(未结/转折/原话/数字)数。
+  //   滚动不再连句带体一起丢 —— 句子还在(只是换了存储位置),数量必须能对上,不许假装没丢。
+  'salientCarriedOver'
 ]);
 
 // ── state 初始化/归一 ────────────────────────────────────────────────
@@ -507,12 +510,38 @@ async function _rolloverToLtm(s, stmList, opts) {
   // LTM 滚动窗口：超容量丢最旧 —— [v3.170] 丢弃必须落账。
   //   修前 ltm_counter 先前进、条目随后被丢：实测新建的 'ltm_24' 立刻不在库，
   //   而 state 上没有任何计数 —— 「新建了 24 条」与「新建了 500 条、丢了 476 条」同形。
+  // [v3.337.0 · M4-O7] 滚动不再「把最旧条目连同它的关键保底句一起丢」：
+  //   被淘汰条目的 salient(未结/转折/原话/数字)是**唯一证据**,前移到存活的最老条目
+  //   上继承(append 到其 salient 尾部,总量受 SALIENT_TOTAL_CAP 约束),再丢本体 ——
+  //   证据链不断,「存储位置」换了但「句子还在」;补一句 distinct 防链式复制。
   if (s.ltm_entries.length > MAX_LTM_ENTRIES) {
     const dropN = s.ltm_entries.length - MAX_LTM_ENTRIES;
-    const dropped = s.ltm_entries.slice(0, dropN).map(e => e && e.id);
-    s.ltm_entries = s.ltm_entries.slice(s.ltm_entries.length - MAX_LTM_ENTRIES);
+    const dropping = s.ltm_entries.slice(0, dropN);
+    const dropped = dropping.map(e => e && e.id);
+    let carriedOver = 0;
+    const carry = [];
+    for (const e of dropping) {
+      if (!e || !Array.isArray(e.salient) || !e.salient.length) continue;
+      for (const t of e.salient) carry.push(String(t));
+    }
+    const remaining = s.ltm_entries.slice(dropN);   // 存活条目(最老在前)
+    let survivor = null;
+    for (const e of remaining) if (e && typeof e === 'object' && Array.isArray(e.salient)) { survivor = e; break; }
+    if (carry.length && survivor) {
+      const seen = new Set(survivor.salient.map(x => String(x)));
+      const unique = carry.filter(t => !seen.has(t) && !survivor.summary.includes(t));
+      const merged = survivor.salient.concat(unique);
+      if (merged.length > SALIENT_TOTAL_CAP) {
+        merged.splice(0, merged.length - SALIENT_TOTAL_CAP);   // 保住最新一半
+      }
+      carriedOver = Math.max(0, merged.length - survivor.salient.length);
+      survivor.salient = merged;
+    }
+    s.ltm_entries = remaining;
     s.loss.ltmEvicted += dropN;
-    s.loss.lastDrop = { kind: 'ltmEvicted', at: Date.now(), ids: dropped };
+    // [M4-O7] 被淘汰条目的保底句转移数也落账：无句可转时是 0(与「忘了转」分得清)。
+    s.loss.salientCarriedOver = (Number(s.loss.salientCarriedOver) || 0) + carriedOver;
+    s.loss.lastDrop = { kind: 'ltmEvicted', at: Date.now(), ids: dropped, salientCarriedOver: carriedOver };
   }
   // ltm 游标推进
   s.cursor_state.ltm.position += stmList.length;
@@ -789,6 +818,7 @@ function selfReport(state) {
   nz('旧口径截断', L.legacyTrimOnSave);
   nz('输入侧丢弃', L.inputDropped);
   nz('源楼层不可回源', L.unrecoverableSources);
+  nz('滚动保底句已前移', L.salientCarriedOver);
   const cursorDocs = [];
   // D5 诚实登记：这两个字段被文档列为断点续跑核心，但实现全程只赋 []、从不写入。
   //   不凭空发明语义（那会是另一种谎报），而是让它**可见**。
@@ -830,7 +860,8 @@ function selfReport(state) {
       spanDropped: L.spanDropped, spanEmptied: L.spanEmptied, rawDropped: L.rawDropped,
       floorDropped: L.floorDropped, emptyEntriesDropped: L.emptyEntriesDropped,
       legacyTrimOnSave: L.legacyTrimOnSave,
-      unrecoverableSources: Number(L.unrecoverableSources) || 0
+      unrecoverableSources: Number(L.unrecoverableSources) || 0,
+      salientCarriedOver: Number(L.salientCarriedOver) || 0
     },
     cursor: {
       stmPosition: Number(s.cursor_state.stm.position) || 0,

@@ -45,7 +45,7 @@
 (function (root) {
     'use strict';
     /** 本面结构版本(形状一变必须抬这个数,防「旧下游配新面」静默错读)。 */
-    const GC_VERSION = 1;
+    const GC_VERSION = 2;
     /** 读数 kind(消费方可据此判「这是不是本面产出的读数」)。 */
     const GC_KIND = 'memory_gc';
     /**
@@ -56,6 +56,13 @@
     /** 新账本(**五键齐全的零值**):宿主每次回收前取一份,五路各自累加。 */
     function blankLedger() {
         return { vecDup: 0, vecCap: 0, sumCap: 0, orphanOps: 0, graphDup: 0 };
+    }
+    /** [M4-O7 · v3.337.0] 证据读数空形态(**与「有判定且全否」分形**):
+     *   judge 缺席的旧调用方也拿得到这一整副键,但 protectedCount 恒 0 ——
+     *   下游只凭形状分不出「没判定」与「判了都不保」,故宿主须连 judge 是否注入一起记。 */
+    function blankEvidence() {
+        return { deletable: [], protected: [], protectedCount: 0, overBudget: 0,
+            protectedByReason: {}, degradedByReason: {} };
     }
     /**
      * 保序去重:每键只留 timestamp 最大者(平手留后者),**原数组顺序不变**。
@@ -100,11 +107,16 @@
      * 按遗忘价值淘汰到上限。
      *   `nowMs` 由调用方给(**本模块不读时钟**:纯函数里读 Date.now 会让同一输入产生两种结果,
      *   判据无法复算)。`max` 非有限或 <= 0 时回退 500(与修前 `|| 500` 同口径)。
+     * [M4-O7 · v3.337.0] 第五参 `judge` / 第六参 `protectBudget`(可选):价值最低的
+     *   删除候选先过证据保护筛 —— 未结承诺/唯一原文被保住时主库**略超上限**也不删,
+     *   超预算部分走降级删除并计 overBudget(验收:容量不足明确降级,不静默无限增库)。
      */
-    function capByForgetValue(vectors, max, nowMs) {
+    function capByForgetValue(vectors, max, nowMs, judge, protectBudget) {
         const list = Array.isArray(vectors) ? vectors : [];
         const vMax = (Number.isFinite(max) && max > 0) ? max : 500;
-        if (list.length <= vMax) return { vectors: list, cut: 0 };
+        if (list.length <= vMax) {
+            return { vectors: list, cut: 0, evidence: blankEvidence() };
+        }
         const now = Number.isFinite(nowMs) ? nowMs : Date.now();
         const rv = (v) => {
             const ageH = Math.max(0.5, (now - (v.timestamp || now)) / 3600000);
@@ -115,19 +127,87 @@
         /* 与修前逐字等价:升序排 → 丢掉价值最低的 cut 个 → 保留 value 最高的 vMax 个。 */
         const sorted = list.slice().sort((a, b) => rv(a) - rv(b));
         const cut = sorted.length - vMax;
-        return { vectors: sorted.slice(cut), cut };
+        if (cut <= 0) return { vectors: list, cut: 0, evidence: blankEvidence() };
+        const candidates = sorted.slice(0, cut).map((v, i) => ({ item: v, order: i }));
+        const ev = evidenceScreen(candidates, judge, protectBudget);
+        /* 被保护的条目放回主库:顺序保持「价值降序 + 保底附尾」,与旧输出同为排序后序列。 */
+        const kept = ev.protected.length ? sorted.slice(cut).concat(ev.protected) : sorted.slice(cut);
+        return { vectors: kept, cut: ev.deletable.length, evidence: ev };
     }
-    /** 摘要硬上限:只删**已折叠**的(未折叠的宁可超限也不删 —— 那是没进过卷的正文)。 */
-    function capSummaries(summaries, max) {
+    /**
+     * [M4-O7 · v3.337.0] 证据保护筛(纯函数):对**候选删除集**逐条问宿主判定器,
+     *   把「不可替代证据」从删除名单里摘出来。
+     *   【为什么需要这一层】三条容量删除路(向量淘汰/摘要上限/孤儿 ops)修前**零保护**:
+     *   唯一证据(未结承诺、身份转折、用户明确保留的内容、别处没有副本的原文)
+     *   与普通缓存条目同场排序,价值分低就删 —— 「摘要压掉原文」再「回收删掉摘要」,
+     *   证据在两层之间无声蒸发。本层只回答「这一条要不要从删除名单里摘走」,**不写任何东西**;
+     *   摘出来的条目仍留在主库(或由宿主决定挪归档),删与不删的最终写回权仍在宿主。
+     *   【判据三档,不得塌格】
+     *     · judge 缺席 ⇒ 逐字旧行为(全部可删,protected 0 —— 与「有判定且全否」不同形);
+     *     · judge(item) 返回 `{keep:true}` ⇒ 进保护候选,按 rank 降序取前 budget 名保住;
+     *     · 其余(keep 非 true / 抛异常)⇒ 照删 —— 判不了就当普通条目,删了有账可查,
+     *       保住错了则是**不可逆**的越界,故「判不了⇒不保」是保守正确方向。
+     *   【降级纪律(验收:容量不足明确降级,不静默无限增库)】
+     *     保护不等于无限增库:超过 budget 的保护候选按 rank 升序**降级删除**并计
+     *     overBudget —— 「想保但没额度」必须看得见,不许默默让主库超过上限。
+     *   `candidates` 形如 `[{item, order}]`(order 是候选在**原删除集**里的位置,
+     *   调用方据此把保住的条目放回原序),返回的 `deletable` 保持原顺序。
+     */
+    function evidenceScreen(candidates, judge, budget) {
+        const list = Array.isArray(candidates) ? candidates : [];
+        const j = (typeof judge === 'function') ? judge : null;
+        const b = (Number.isFinite(budget) && budget >= 0) ? Math.floor(budget) : 0;
+        const protectedByReason = {};
+        const degradedByReason = {};
+        if (!j || !list.length) {
+            return { deletable: list, protected: [], protectedCount: 0, overBudget: 0,
+                protectedByReason, degradedByReason };
+        }
+        const judged = [];
+        for (let i = 0; i < list.length; i++) {
+            let r = null;
+            try { r = j(list[i].item); } catch (_e) { r = null; }
+            if (!r || r.keep !== true) continue;
+            const rank = Number(r.rank);
+            judged.push({ i, rank: Number.isFinite(rank) ? rank : 0, reason: String((r && r.reason) || 'evidence') });
+        }
+        judged.sort((a, c) => c.rank - a.rank);
+        const safe = Math.min(judged.length, b);
+        const protectIdx = new Set();
+        const protectedList = [];
+        for (let k = 0; k < judged.length; k++) {
+            const x = judged[k];
+            if (k < safe) {
+                protectIdx.add(x.i);
+                protectedList.push(list[x.i].item);
+                protectedByReason[x.reason] = (protectedByReason[x.reason] || 0) + 1;
+            } else {
+                degradedByReason[x.reason] = (degradedByReason[x.reason] || 0) + 1;
+            }
+        }
+        const deletable = list.filter((c, i) => !protectIdx.has(i));
+        return { deletable, protected: protectedList, protectedCount: protectedList.length,
+            overBudget: Math.max(0, judged.length - safe),
+            protectedByReason, degradedByReason };
+    }
+    /**
+     * 摘要硬上限:只删**已折叠**的(未折叠的宁可超限也不删 —— 那是没进过卷的正文)。
+     * [M4-O7 · v3.337.0] 第三参 `judge` / 第四参 `protectBudget`(可选):
+     *   折叠摘要是「原文已进卷」的浓缩,原证据在卷里 ⇒ 默认可删;但若折叠条目
+     *   自身是某未结承诺/转折的唯一载体(卷里没有副本),宿主可注入 judge 保住它。
+     */
+    function capSummaries(summaries, max, judge, protectBudget) {
         const list = Array.isArray(summaries) ? summaries : [];
         const sMax = (Number.isFinite(max) && max > 0) ? max : 400;
-        if (list.length <= sMax) return { summaries: list, removed: 0 };
+        if (list.length <= sMax) return { summaries: list, removed: 0, evidence: blankEvidence() };
         const foldedOld = list.filter(s => s && s.folded);
         const foldable = Math.min(list.length - sMax, foldedOld.length);
-        if (foldable <= 0) return { summaries: list, removed: 0 };
-        const removeIds = new Set(foldedOld.slice(0, foldable).map(s => s.floor));
+        if (foldable <= 0) return { summaries: list, removed: 0, evidence: blankEvidence() };
+        const candidates = foldedOld.slice(0, foldable).map((s, i) => ({ item: s, order: i }));
+        const ev = evidenceScreen(candidates, judge, protectBudget);
+        const removeIds = new Set(ev.deletable.map(c => c.item.floor));
         const kept = list.filter(s => !removeIds.has(s.floor));
-        return { summaries: kept, removed: foldable };
+        return { summaries: kept, removed: ev.deletable.length, evidence: ev };
     }
     /**
      * 孤儿物资 ops:fp 不在该楼任何 swipe 取值中的 ops 是**彻底废除的变体**。
@@ -137,10 +217,15 @@
      *     · 非对象 ⇒ 删;`carried === true` 或 无 fp ⇒ **留**(旧档与在途物资不动);
      *     · 该楼无 fps 读数 ⇒ 楼层越界才删(界限内的一律保,那是 pending 不是废除);
      *     · 有读数 ⇒ fp 必须在集合里。
+     * [M4-O7 · v3.337.0] 第六参 `judge` / 第七参 `protectBudget`(可选):
+     *   fp 判废的 ops 若竟是未结承诺/用户保留的唯一载体,由宿主注入 judge 保住,
+     *   并在返回值里给 `evidence` 读数 —— 删废款不是「必然删」,唯一证据要看得见。
      */
-    function orphanOpsOf(ops, chat, msgFpOf, hash32) {
+    function orphanOpsOf(ops, chat, msgFpOf, hash32, judge, protectBudget) {
         const list = Array.isArray(ops) ? ops : [];
-        if (!Array.isArray(chat) || !list.length) return { ops: list, dropped: 0, floorFpsKnown: Array.isArray(chat) };
+        if (!Array.isArray(chat) || !list.length) {
+            return { ops: list, dropped: 0, floorFpsKnown: Array.isArray(chat), evidence: blankEvidence() };
+        }
         const floorFps = new Map();
         chat.forEach((m, i) => {
             const set = new Set();
@@ -155,14 +240,25 @@
             }
             floorFps.set(i, set);
         });
-        const kept = list.filter(o => {
-            if (!o || typeof o !== 'object') return false;
-            if (o.carried === true || !o.fp) return true;
-            const set = floorFps.get(o.floor);
-            if (!set) return Math.floor(Number(o.floor) || 0) < chat.length;
-            return set.has(o.fp);
+        const kept = [];
+        const dropCandidates = [];
+        list.forEach(o => {
+            if (!o || typeof o !== 'object') { dropCandidates.push({ item: o, order: dropCandidates.length }); return; }
+            if (o.carried === true || !o.fp) { kept.push(o); return; }
+            const floor = Math.floor(Number(o.floor) || 0);
+            const set = floorFps.get(floor);
+            if (!set) {
+                if (floor < chat.length || floor < 0) { kept.push(o); return; }
+                dropCandidates.push({ item: o, order: dropCandidates.length });
+                return;
+            }
+            if (set.has(o.fp)) { kept.push(o); return; }
+            dropCandidates.push({ item: o, order: dropCandidates.length });
         });
-        return { ops: kept, dropped: list.length - kept.length, floorFpsKnown: true };
+        const ev = evidenceScreen(dropCandidates, judge, protectBudget);
+        const merged = kept.slice();
+        for (const c of ev.protected) merged.push(c);
+        return { ops: merged, dropped: ev.deletable.length, floorFpsKnown: true, evidence: ev };
     }
     /**
      * 图谱同名角色节点合并 + 边迁移。
@@ -270,6 +366,9 @@
      *   · `chat` / `msgFpOf` / `hash32` —— 第 4 路要的楼层读数与两个注入原语
      *   · `normalizeName` —— 第 5 路的归一化名(**唯一真源在宿主**)
      *   · `dependencyClosure` —— 可选;缺席 ⇒ cascade 为 null(如实记「没测」,不编 0)
+     *   · `evidenceJudge` / `protectBudget` —— [M4-O7 · v3.337.0] 可选。
+     *     三条容量删除路各配一个证据保护判定器与保护预算(缺省 0 = 不保护,逐字旧行为);
+     *     判定器性能敏感 ⇒ 只对**候选删除集**调用,不逐条扫全库。
      *
      * 返回 **新容器 + 五路读数 + removed 总数**(写回由宿主做)。
      * 各路彼此独立:第 4 路抛异常时前三路结果仍然有效(计数不丢)——
@@ -283,19 +382,23 @@
         const dedup = dedupeByText(d.vectors, d.vectorScopeOf);
         ledger.vecDup = dedup.dropped;
         removed += dedup.dropped;
-        /* 第 2 路:向量硬上限(超限按遗忘价值淘汰)。 */
-        const capped = capByForgetValue(dedup.vectors, d.vectorMaxCount, d.nowMs);
+        /* 第 2 路:向量硬上限(超限按遗忘价值淘汰,唯一证据先行保护)。 */
+        const capped = capByForgetValue(dedup.vectors, d.vectorMaxCount, d.nowMs,
+            d.evidenceJudgeVec, d.protectBudgetVec);
         ledger.vecCap = capped.cut;
         removed += capped.cut;
-        /* 第 3 路:摘要硬上限(只删已折叠的)。 */
-        const sums = capSummaries(d.summarySummaries, d.summaryMaxCount);
+        /* 第 3 路:摘要硬上限(只删已折叠的,折叠摘要自身是唯一载体时可保)。 */
+        const sums = capSummaries(d.summarySummaries, d.summaryMaxCount,
+            d.evidenceJudgeSum, d.protectBudgetSum);
         ledger.sumCap = sums.removed;
         removed += sums.removed;
         /* 第 4 路:孤儿物资 ops。异常不吞掉前三路读数。 */
         let opsKept = Array.isArray(d.itemOps) ? d.itemOps : [];
         let orphanThrew = null;
+        let orph = null;
         try {
-            const orph = orphanOpsOf(d.itemOps, d.chat, d.msgFpOf, d.hash32);
+            orph = orphanOpsOf(d.itemOps, d.chat, d.msgFpOf, d.hash32,
+                d.evidenceJudgeOps, d.protectBudgetOps);
             opsKept = orph.ops;
             ledger.orphanOps = orph.dropped;
             removed += orph.dropped;
@@ -343,6 +446,39 @@
                 nodeKnown: merged.scopeKnown || 0,
                 nodeUnknown: merged.blockedUnknownScope || 0,
             },
+            /* [M4-O7 · v3.337.0] 证据保护读数:三条容量删除路各自的保护/降级计数。
+             *   `judged` 恒等「注入过判定器」的路数(0~3)—— 与「判了都不保(protected 0)」
+             *   分开:下游只凭 protectedCount 分不出「没配判定」与「配了但没保住」。 */
+            evidence: {
+                judged: [d.evidenceJudgeVec, d.evidenceJudgeSum, d.evidenceJudgeOps]
+                    .filter((f) => typeof f === 'function').length,
+                protectedTotal: (capped.evidence.protectedCount || 0)
+                    + (sums.evidence.protectedCount || 0)
+                    + (orphanThrew ? 0 : (orph.evidence.protectedCount || 0)),
+                overBudget: (capped.evidence.overBudget || 0)
+                    + (sums.evidence.overBudget || 0)
+                    + (orphanThrew ? 0 : (orph.evidence.overBudget || 0)),
+                byRoute: {
+                    vecCap: {
+                        protected: capped.evidence.protectedCount || 0,
+                        overBudget: capped.evidence.overBudget || 0,
+                        byReason: capped.evidence.protectedByReason || {},
+                        degraded: capped.evidence.degradedByReason || {},
+                    },
+                    sumCap: {
+                        protected: sums.evidence.protectedCount || 0,
+                        overBudget: sums.evidence.overBudget || 0,
+                        byReason: sums.evidence.protectedByReason || {},
+                        degraded: sums.evidence.degradedByReason || {},
+                    },
+                    orphanOps: {
+                        protected: (orphanThrew || !orph.evidence) ? 0 : (orph.evidence.protectedCount || 0),
+                        overBudget: (orphanThrew || !orph.evidence) ? 0 : (orph.evidence.overBudget || 0),
+                        byReason: (orphanThrew || !orph.evidence) ? {} : (orph.evidence.protectedByReason || {}),
+                        degraded: (orphanThrew || !orph.evidence) ? {} : (orph.evidence.degradedByReason || {}),
+                    },
+                },
+            },
         };
     }
     /** 单行读数(**必须报五路各自的数**:合成一个「共删 N」等于「鳏了哪些」无从回答)。 */
@@ -356,7 +492,7 @@
     function selfCheck() {
         const problems = [];
         if (!Array.isArray(LEDGER_KEYS) || LEDGER_KEYS.length !== 5) problems.push('五路账本键须齐全(实 ' + (LEDGER_KEYS || []).length + ')');
-        const need = ['dedupeByText', 'capByForgetValue', 'capSummaries', 'orphanOpsOf', 'mergeDuplicateCharacters', 'cascadeReadout', 'runGc'];
+        const need = ['dedupeByText', 'capByForgetValue', 'capSummaries', 'orphanOpsOf', 'mergeDuplicateCharacters', 'cascadeReadout', 'runGc', 'evidenceScreen', 'blankEvidence'];
         for (const n of need) if (typeof api[n] !== 'function') problems.push('缺函数:' + n);
         return { ok: problems.length === 0, problems, version: GC_VERSION, kind: GC_KIND };
     }
@@ -365,6 +501,8 @@
         GC_KIND: GC_KIND,
         LEDGER_KEYS: LEDGER_KEYS,
         blankLedger: blankLedger,
+        blankEvidence: blankEvidence,
+        evidenceScreen: evidenceScreen,
         dedupeByText: dedupeByText,
         capByForgetValue: capByForgetValue,
         capSummaries: capSummaries,
