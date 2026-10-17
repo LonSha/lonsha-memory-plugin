@@ -220,7 +220,19 @@ test('v3227 N1. ★★ 负控制·仓根禁写：把一处 tmpdir 改回仓根 �
 
 test('v3227 N2. ★★ 负控制·隔离：往仓里写一个文件 ⇒ 快照比对必须抓到漂移', () => {
     const before = snapshot(ROOT);
-    const victim = path.join(ROOT, '.tmp_v3227_probe_' + Date.now() + '.js');
+    /* ★ [v3.345.0 加固] 本仓测试并发跑、单文件 120s 超时即被 kill ⇒ 仅靠 `finally`
+     *   会在被 kill 时留仓根残骸,而后续 v3116(死代码扫描)/ v3205(仓根文件数对账)
+     *   会因这条**残留**翻红(症状像产品坏了,实为负控制没清干净)。
+     *   三路齐备:1 写入前清扫上次残骸;2 写入后登记进程退出钩子;3 正常路径 finally 删。 */
+    const _tmpPrefix = '.tmp_v3227_probe_';
+    for (const f of fs.readdirSync(ROOT)) {
+        if (f.startsWith(_tmpPrefix)) { try { fs.unlinkSync(path.join(ROOT, f)); } catch { /* 已被清 */ } }
+    }
+    const victim = path.join(ROOT, _tmpPrefix + Date.now() + '.js');
+    const _sweep = () => { try { fs.unlinkSync(victim); } catch { /* 已清 */ } };
+    process.once('exit', _sweep);
+    process.once('SIGINT', _sweep);
+    process.once('SIGTERM', _sweep);
     fs.writeFileSync(victim, '// probe\n');
     try {
         const after = snapshot(ROOT);

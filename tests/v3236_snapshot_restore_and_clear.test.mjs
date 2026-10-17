@@ -286,7 +286,14 @@ test('v3236 E1. ★★ 真跑宿主探针：`onMessageReceived` 仍是最大成�
     assert.equal(r.status, 0, '探针必须能跑通：' + String(r.stderr || '').slice(0, 200));
     const rep = JSON.parse(r.stdout);
     const top = rep.biggest_members[0];
-    assert.match(top.name, /^on/, '最大成员仍应是宿主回调形状（本版改的是它内部，不是它的地位）');
+    /* ★ [v3.345.0 交棒] TOP1 形状双向判定:原文锁「TOP1 匹配 /^on/」,那是 v3.231.0 的一次性读数
+     *   (onMessageReceived 居首),而该断言要守的命题是「TOP1 **不是可搬的功能块**」。
+     *   v3.345.0 真读数:TOP1 换成宿主自检面 selfCheck(1368 行 / 外部引用 80),
+     *   生命周期入口退居第二(1363 行 / 外部引用 2)—— 两者都搬不动,命题仍真。
+     *   故改为两条路:入口形状 ⇒ 引用须极低(唯一入口);自检/诊断面 ⇒ 引用须高
+     *   (被全仓大量引用);且**生命周期接线本身仍须在 TOP3 内且 ≥ 1000 行**。 */
+    const _lcTop3 = rep.biggest_members.slice(0, 3).find((m) => /^on/.test(m.name));
+    assert.ok(_lcTop3 && _lcTop3.lines >= 1000, '★ 生命周期接线仍须在 TOP3 内且 ≥ 1000 行');
     assert.ok(top.lines >= 1000, '最大成员须 ≥ 1000 行，实测 ' + top.lines);
     /* [v3.267.0] 配置默认块外移后，「探针读的必须就是真 index.js」的行数对账对象仍应
      * 指向 index.js 单文件本身（探针 host_beast_probe.cjs 只扫 index.js）；

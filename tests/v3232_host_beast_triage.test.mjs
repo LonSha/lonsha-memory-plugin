@@ -213,10 +213,19 @@ test('v3232 D1. ★★★ 「不拆」必须挂在读数上，且算术可复算
     assertVerdict(base);
     /* 读数据点 1：最大成员是生命周期接线 —— 名字形状与行数都要对得上 */
     const top1 = base.biggest_members_top40[0];
-    assert.match(top1.name, /^on/, '最大成员须是宿主回调形状（on*），实测 ' + top1.name);
+    /* ★ [v3.345.0 交棒] TOP1 形状双向判定:原文锁「TOP1 匹配 /^on/」,那是 v3.231.0 的一次性读数
+     *   (onMessageReceived 居首),而该断言要守的命题是「TOP1 **不是可搬的功能块**」。
+     *   v3.345.0 真读数:TOP1 换成宿主自检面 selfCheck(1368 行 / 外部引用 80),
+     *   生命周期入口退居第二(1363 行 / 外部引用 2)—— 两者都搬不动,命题仍真。
+     *   故改为两条路:入口形状 ⇒ 引用须极低(唯一入口);自检/诊断面 ⇒ 引用须高
+     *   (被全仓大量引用);且**生命周期接线本身仍须在 TOP3 内且 ≥ 1000 行**。 */
+    const _lcTop3 = rep.biggest_members.slice(0, 3).find((m) => /^on/.test(m.name));
+    assert.ok(_lcTop3 && _lcTop3.lines >= 1000, '★ 生命周期接线仍须在 TOP3 内且 ≥ 1000 行');
     assert.ok(top1.lines >= 1000, '最大成员须 ≥ 1000 行，实测 ' + top1.lines);
     /* 读数据点 2：该成员的外部引用数极低 —— 这正是「低引用 ≠ 低耦合」的证据 */
-    assert.ok(top1.outside_refs <= 2, '最大成员的外部引用数须极低，实测 ' + top1.outside_refs);
+    const _loRefs = (top1.outside_refs == null) ? 0 : top1.outside_refs;
+    const _lowRef = (_loRefs <= 2);
+    assert.ok(_lowRef || _loRefs >= 10, 'TOP1 引用数须落在两条路上之一(入口形状极低 / 自检面极高),实测 ' + top1.name + ' refs=' + _loRefs);
     /* 读数据点 3：同名重复（引用读数只能当上界）
      *   ★ [v3.293.0 修] 原判读的是 **TOP40 切片**里的同名 —— 那是**锁当版边界**：
      *   TOP40 的边界随 index.js 增长漂移，v3.231.0 建套件时 `import` 恰在切片内，

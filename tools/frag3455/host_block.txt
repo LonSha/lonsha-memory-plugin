@@ -1,0 +1,84 @@
+/* ────────────────────────────────────────────────────────────────────────
+         * [v3.346.0 · M4-X8] 按下一幕任务组织的精简记忆材料包面
+         *
+         * 【与「分卷接续」/「召回」/「关系变化史」等的分工(不重叠)】
+         *   分卷接续答「接着上一卷往下写要记住什么」;召回答「这轮最相关的是哪几条」;
+         *   关系变化史答「这对人的看法在哪几楼变了」。本面答**另一个问题**:
+         *     「下一幕要做的是赴约 / 重逢 / 推进 / 收束 —— 这一幕该带哪几样材料?」
+         *   它把上面各面**已有的产出**按**任务优先级**重排,并报出**缺口**与
+         *   **被更新的当前值取代掉的旧条**,不另建召回、不重算相关度。
+         *
+         * 【一个不可让步的口径】**只挑材料,不裁 token**
+         *   真正裁到 token 的是 injection-router(既有预算 owner)。本面给的是
+         *   **有序材料 + 成本读数 + 越预算名单**;再裁一遍等于第二套预算系统,
+         *   两边口径必然漂移(漂移后没人说得清是哪一层把这条丢了)。
+         *
+         * 【宿主只做三件事】装配材料池(唯一装配点,从既有 owner 收)→ 转发任务 →
+         *   留痕。**本面不产正文、不代写未发生剧情、不把计划当成已发生**。
+         */
+        /** [v3.346.0 · M4-X8] 材料池装配(唯一装配点):从既有 owner 收,**逐个守**(缺席不冒充空)。 */
+        _materialInventory(opts) {
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const inv = [];
+            const sources = [];
+            /* 每个来源一律:try 里取 → 归一 → 进池;**取不到 / 抛**都如实记名,
+             *   绝不静默化成「这次没有材料」(那是完全不同的两件事)。 */
+            const take = (name, fn, map) => {
+                try {
+                    const got = fn();
+                    if (!got || got.ok !== true) { sources.push({ source: name, state: 'absent', why: (got && got.reason) || 'no-read', added: 0 }); return; }
+                    const rows = map(got) || [];
+                    for (const r of rows) if (r && typeof r === 'object') inv.push(r);
+                    sources.push({ source: name, state: 'ok', why: '', added: rows.length });
+                } catch (e) { errLog(e, 'engine._materialInventory.' + name); sources.push({ source: name, state: 'thrown', why: 'thrown', added: 0 }); }
+            };
+            /* 1 旧事重现(M3-X8):它的候选**已经**带 kind / triggerKey / detailKey / 来源与知情面
+             *   —— 直接映射成材料面,不重算相关度。 */
+            take('fated-recall', () => this.fatedRecallSuggest(o.fated || {}), (got) => (Array.isArray(got.suggested) ? got.suggested : []).map((c) => ({
+                id: 'fated:' + String(c.detailKey || c.entryKey || '') ,
+                kind: c.kind || '', title: c.title || c.snippet || '', source: 'fated-recall',
+                floor: (c.floor === undefined ? null : c.floor), subject: '', conflictGroup: '',
+                restricted: (c.knowing === 'restricted'), future: false,
+            })));
+            /* 2 关系变化史(M3-X2):只取**有变化**的边(没变化的边对下一幕不是新材料)。 */
+            take('relation', () => this.relationHistory(o.relation || {}), (got) => (Array.isArray(got.pairs) ? got.pairs : []).slice(0, 8).map((p, i) => ({
+                id: 'rel:' + String((p && (p.key || p.pairKey)) || i),
+                facet: 'relation', title: (p && (p.title || p.summary)) || '关系变化', source: 'relation',
+                floor: (p && p.floor !== undefined ? p.floor : null), subject: (p && p.subject) || '',
+                conflictGroup: (p && p.conflictGroup) || '', restricted: false, future: false,
+            })));
+            /* 3 视角卡(M3-X4):当前视角不该知道的事 ⇒ 标受限(**交给内核的闸**,不在这里丢)。 */
+            take('pov', () => this.perspectiveCard(o.pov || {}), (got) => (Array.isArray(got.cards) ? got.cards : []).slice(0, 4).map((c, i) => ({
+                id: 'pov:' + String((c && c.character) || i),
+                facet: 'pov', title: '视角:' + String((c && c.character) || '') , source: 'pov',
+                floor: (c && c.floor !== undefined ? c.floor : null), subject: (c && c.character) || '',
+                conflictGroup: '', restricted: false, future: false,
+            })));
+            /* 4 调用方直给(可选):调用方最清楚这一场要带什么;放最后,顺序即优先级。 */
+            if (Array.isArray(o.materials)) for (const m of o.materials) inv.push(Object.assign({ source: 'caller' }, m));
+            return { inventory: inv, sources: sources, given: Array.isArray(o.materials) ? o.materials.length : 0 };
+        }
+        /** [v3.346.0 · M4-X8] 建面(**只读**):按下一幕任务挑材料 + 报缺口 + 报取代 + 报预算。 */
+        materialPack(task, opts) {
+            const absent = (why) => ({ kind: 'material_pack', version: 0, judged: false, task: '', taskLabel: '', pack: [], packIds: [], sheet: [], superseded: [], gaps: [], gapsCritical: [], held: { restricted: [], future: [], superseded: [], unclassified: [] }, budget: { given: false, perItem: 0 }, overBudget: [], cost: { items: 0, estChars: 0, estCharsAll: 0 }, counts: { inventory: 0, usable: 0, packed: 0, restricted: 0, future: 0, unclassified: 0, superseded: 0, truncated: 0, dropped: 0, truncatedIn: 0 }, sources: [], reasons: [why], truncated: 0, orderIsRank: true, writesNothing: true, devisesNothing: true, injectsNothing: false, ok: false, reason: why });
+            try {
+                const MP = _materialPackLib();
+                if (!MP || typeof MP.build !== 'function') return absent('module-unavailable');
+                const o = (opts && typeof opts === 'object') ? opts : {};
+                const asm = this._materialInventory(o);
+                const out = MP.build(task, asm.inventory, { budget: o.budget });
+                const r = Object.assign({}, out, { sources: asm.sources, callerGiven: asm.given, ok: true, reason: out.malformedInput ? 'malformed' : (out.degraded ? 'degraded' : '') });
+                this._materialPackRead = r;
+                return r;
+            } catch (e) { errLog(e, 'engine.materialPack'); return absent('thrown'); }
+        }
+        /** [v3.346.0 · M4-X8] 诊断一行。四方分开说;关键面缺口永远报出来。 */
+        _materialPackLine() {
+            try {
+                const MP = _materialPackLib();
+                if (!MP || typeof MP.line !== 'function') return '模块未加载(material-pack.js)';
+                const got = this.materialPack('advance', {});
+                if (!got.ok) return '材料包不可用(' + got.reason + ')';
+                return MP.line(got);
+            } catch (e) { errLog(e, 'engine._materialPackLine'); return '—(诊断异常)'; }
+        }

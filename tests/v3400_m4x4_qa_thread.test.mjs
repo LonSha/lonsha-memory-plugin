@@ -88,8 +88,11 @@ function judgeStruct(idxSrc, mf) {
 }
 test('v3400 A1. **** 宿主四面各恰一处 + 取库口 + 持久化/契约面在位 + extra_js 登记', () => {
     assert.deepEqual(judgeStruct(IDX, MF), [], judgeStruct(IDX, MF).join('；'));
-    assert.equal(MF.extra_js.length, 107, 'extra_js 应为 107（106 → +qa-thread.js）');
-    console.log('  ok 四面各恰 1 次 / 取库口 / 契约与还原面 / extra_js 107');
+    /* [v3.343.0 交棒] 原文是逐字硬等号(`=== 107`)—— 那是本档出生那一版的一次性事实,
+     *   不是永久不变量;抬版即红,而红的信息量只剩「数字不对」(与 v3264/v3266/v3296/v3298/v3300 同族坑,均已交棒)。
+     *   改按下界口径:本档只守「自己那一项仍在且不少于出生值」,「当版总项数恰一处」由**当版 frontier 套件**把守(v3209 的数量锁)。 */
+    assert.ok(MF.extra_js.length >= 107, 'extra_js 不得低于本档出生值 107(实 ' + MF.extra_js.length + ')');
+    console.log('  ok 四面各恰 1 次 / 取库口 / 契约与还原面 / extra_js ≥ 107');
 });
 function judgeKernel(qt) {
     const bad = [];

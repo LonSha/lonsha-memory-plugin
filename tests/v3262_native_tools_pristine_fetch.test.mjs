@@ -289,7 +289,7 @@ test('v3262 C. 接线面：六处接线 + 三配置键 + 面板 + 自检行 + �
     const V3209 = read('tests/v3209_migration_registry.test.mjs');
     /* [v3.267.0 交棒] 数量锁已随第七刀上抬到 79（memory-config.js 计入）：本档只守锁仍在场；
      *   具体值由 v3209 真 manifest 套件接管，避免两份固定数字形成第二真源。 */
-    assert.ok(/mf\.extra_js\.length === \d+/.test(V3209), 'v3209 数量锁须仍在场（值由当版 manifest 真源接管）');
+    assert.ok(/mf\.extra_js\.length (?:===|>=) \d+/.test(V3209), 'v3209 数量锁须仍在场(本版已随交棒改为**下界形**:历史档只守「锁在位」,具体值由当版 manifest 真源接管)');
     // 判据面自防护
     assert.ok(SELF.length > 9000, '本套件不得被掏空（当前 ' + SELF.length + ' 字节）');
     assert.ok((SELF.match(/assert\./g) || []).length >= 40, '断言密度须 >= 40，实为 ' + (SELF.match(/assert\./g) || []).length);

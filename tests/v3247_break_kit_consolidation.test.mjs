@@ -308,6 +308,29 @@ const REGISTRY = [
     /* [v3.342.0 · M4-X3] 本档从 tests/_break_kit.mjs 取 breakOnce / BREAK_MSG
      *   （八条真源码破坏：内核落卷面五个锚点 + 宿主接线面三个锚点）；按 B1 台账纪律在此登记。 */
     'v3420_m4x3_canon_adoption.test.mjs',
+    /* [v3.343.0 · M4-X5] 本档从 tests/_break_kit.mjs 取 breakOnce
+     *   (六条真源码破坏:内核来源去重 / 对立判定 / 撤回命中 / 揭密分面四处
+     *   + 宿主取真源 / 撤回接线两处);按 B1 台账纪律在此登记。 */
+    'v3430_m4x5_testimony_board.test.mjs',
+    /* [v3.344.0 · M4-X6] 本档从 tests/_break_kit.mjs 取 breakOnce
+     *   (六条真源码破坏:内核四处 —— 显式标注判定 / 现实面隔离 / 计划落实闸 / 嵌套框架
+     *   + 宿主两处 —— 取数回落 / 现实面接线);按 B1 台账纪律在此登记。 */
+    'v3440_m4x6_narrative_layer.test.mjs',
+    /* [v3.345.0 · M4-X7] 本档从 tests/_break_kit.mjs 取 breakOnce
+     *   (八条真源码破坏:内核五处 —— 冷却只认 shown·used / 默认策略 hint-only /
+     *   重复轰炸闸 / pref-never 闸 / 注入面闸;宿主三处 —— 候选装配三态不塌 /
+     *   移交落 worldProg.returnGate / 持久化 export 面);按 B1 台账纪律在此登记。 */
+    'v3445_m4x7_return_gate.test.mjs',
+    /* [v3.346.0 · M4-X8] 本档从 tests/_break_kit.mjs 取 breakOnce
+     *   (八条真源码破坏:内核六处 —— 任务轴面序 / 同组矛盾取代 / 未发生闸 /
+     *   受限闸 / 未归面不硬塞 / 缺口收集;宿主两处 —— 装配点 / 任务转发);
+     *   按 B1 台账纪律在此登记。 */
+    'v3455_m4x8_material_pack.test.mjs',
+    /* [v3.347.0 · M4-X9] 本档从 tests/_break_kit.mjs 取 breakOnce
+     *   (九条真源码破坏:内核七处 —— 受控模式 / 未发生闸 / 偏离判定 / 同名跨资料 /
+     *   撤除闸 / 分区不硬塞 / 批注分列;宿主两处 —— 装配点 / 模式转发);
+     *   按 B1 台账纪律在此登记。 */
+    'v3470_m4x9_lore_crosscheck.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

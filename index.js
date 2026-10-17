@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.342.0';
+    const VERSION = '3.347.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3093,8 +3093,376 @@ function relativeTimeLabel(eventTime, nowTime) {
         return o;
         } catch (e) { errLog(e, 'engine.perspectiveCard'); return absent('thrown'); }
         }
+        /**
+         * [v3.343.0 · M4-X5] 真出口:同一事件的多方证词与争议档案(只读聚合投影)。
+         *   · 输入复用:this.worldProg.knowledgeTraces.traces(与 perspectiveCard 同源);
+         *   · event 只看该事件(不给则对每个事件各出一块);at 只收 floor <= at 的说法;
+         *   · side / statement / eventId 取自轨迹上的显式声明,不抽语义;
+         *   * 来源去重:同 evidenceKey 只算一份独立支持(转述如实计数并报同源对象)。
+         *   * 本面零写:writesNothing 恒 true;判不开给 undecided 并带具名 reason。
+         */
+        testimonyBoard(opts) {
+        const absent = (why) => ({ kind: 'testimony_board', version: 0, at: null, atKnown: false, event: '', boards: [], counts: {}, truncated: 0, malformedInput: false, writesNothing: true, degraded: false, ok: false, reason: why });
+        try {
+        const TB = _testimonyBoardLib();
+        if (!TB || typeof TB.build !== 'function') return absent('module-unavailable');
+        const traces = (this.worldProg && this.worldProg.knowledgeTraces && this.worldProg.knowledgeTraces.traces) || [];
+        const out = TB.build(traces, opts || {});
+        const o = Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        this._testimonyBoardRead = o;
+        return o;
+        } catch (e) { errLog(e, 'engine.testimonyBoard'); return absent('thrown'); }
+        }
+        /**
+         * [v3.343.0 · M4-X5] 出口:撤回证据后重算争议状态(喂被撤证据键,不删条目不静默)。
+         *   · 只认 evidenceKey / traceId(与被撤判定同一份口径);
+         *   · 命中条目标 revoked:true 并列进 revokedItems,随后重算事件状态;
+         *   · 状态变了就如实说变了(changed),不把「还剩一个没人能举证的对立」留在 contested。
+         */
+        testimonyRevoke(dropped, opts) {
+        const absent = (why) => ({ kind: 'testimony_board@withdrawal', version: 0, droppedCount: 0, revokedItems: [], unchanged: 0, stateBefore: '', stateAfter: '', changed: false, degraded: false, ok: false, reason: why, writesNothing: true });
+        try {
+        const TB = _testimonyBoardLib();
+        if (!TB || typeof TB.revokeEvidence !== 'function') return absent('module-unavailable');
+        const read = this.testimonyBoard(opts || {});
+        if (!read || read.ok !== true || !Array.isArray(read.boards)) return absent(read && read.reason ? read.reason : 'no-board');
+        const ev = read.event;
+        const board = read.boards.filter((b) => !ev || b.eventKey === ev)[0];
+        if (!board) return absent('no-board');
+        const res = TB.revokeEvidence({ testimonies: board.testimonies, state: board.state }, dropped);
+        return Object.assign({}, res, { ok: true, reason: '', writesNothing: true });
+        } catch (e) { errLog(e, 'engine.testimonyRevoke'); return absent('thrown'); }
+        }
+        /** [v3.343.0 · M4-X5] 诊断一行。四方分开说;未决争议与无事件键永远报出来。 */
+        _testimonyBoardLine() {
+        try {
+        const TB = _testimonyBoardLib();
+        if (!TB || typeof TB.line !== 'function') return '模块未加载(testimony-board.js)';
+        const got = this.testimonyBoard({});
+        if (!got.ok) return '证词面不可用(' + got.reason + ')';
+        return TB.line(got);
+        } catch (e) { errLog(e, 'engine._testimonyBoardLine'); return '—(诊断异常)'; }
+        }
         /** [v3.323.0 · M3-X4] 两人信息差对照（**误信侧单列**：那一格最需要被看见）。 */
-        perspectiveContrast(characterA, characterB, opts) {
+        /**
+         * [v3.344.0 · M4-X6] 叙事层建面(只读层判定):一条条目属于现实 / 梦境 / 假设 /
+         *   计划 / 引述哪一层,外加 unspecified(未标注 —— **不猜**)。
+         *   · 输入复用:opts.items(既有事实 / 摘要 / 轨迹条目),层标注落在条目 `modality` 上;
+         *   · at 只收 floor <= at 的条目;不重标老数据(无标注一律 unspecified);
+         *   * 本面零写:writesNothing 恒 true;唯一凭据是**显式标注**,不认关键词。
+         */
+        narrativeLayer(opts) {
+        const absent = (why) => ({ kind: 'narrative_layer', version: 0, at: null, atKnown: false, items: [], byLayer: {}, counts: {}, truncated: 0, malformedInput: false, writesNothing: true, degraded: false, ok: false, reason: why });
+        try {
+        const NL = _narrativeLayerLib();
+        if (!NL || typeof NL.build !== 'function') return absent('module-unavailable');
+        const o = opts || {};
+        const items = Array.isArray(o.items) ? o.items
+            : ((this._factVersionState && Array.isArray(this._factVersionState.facts)) ? this._factVersionState.facts : []);
+        const out = NL.build(items, o);
+        const r = Object.assign({}, out, { ok: true, reason: out.degraded ? 'degraded' : '' });
+        this._narrativeLayerRead = r;
+        return r;
+        } catch (e) { errLog(e, 'engine.narrativeLayer'); return absent('thrown'); }
+        }
+        /**
+         * [v3.344.0 · M4-X6] 出口:现实视图(**现实问答与生成的唯一合法输入**)。
+         *   只取 stated 且 modality===reality 的条目 —— 梦里的死、假设里的搬走、
+         *   一句「决定了」的计划、他人转述,一律**不进**这一面(修前缺口正解)。
+         */
+        narrativeReality(opts) {
+        try {
+        const NL = _narrativeLayerLib();
+        if (!NL || typeof NL.realityView !== 'function') return { kind: 'narrative_layer@reality', count: 0, items: [], realityOnly: true, excluded: 0, ok: false, reason: 'module-unavailable' };
+        const read = this.narrativeLayer(opts || {});
+        if (!read || read.ok !== true) return Object.assign({ kind: 'narrative_layer@reality', count: 0, items: [], realityOnly: true, excluded: 0, ok: false }, { reason: (read && read.reason) || 'no-read' });
+        const rv = NL.realityView(read);
+        return Object.assign({}, rv, { ok: true, reason: '' });
+        } catch (e) { errLog(e, 'engine.narrativeReality'); return { kind: 'narrative_layer@reality', count: 0, items: [], realityOnly: true, excluded: 0, ok: false, reason: 'thrown' }; }
+        }
+        /**
+         * [v3.344.0 · M4-X6] 出口:分层投影(**定向回看的唯一入口**)。
+         *   按层分面取 `opts.layer`(不给则五层 + 未标注全给),非现实层**不被并入现实面**
+         *   —— 于是「梦里到底发生了什么」「当初计划是什么」修后问得出来。
+         */
+        narrativeProject(opts) {
+        try {
+        const NL = _narrativeLayerLib();
+        if (!NL || typeof NL.projectOf !== 'function') return { kind: 'narrative_layer@project', layers: [], layerCount: 0, ok: false, reason: 'module-unavailable' };
+        const read = this.narrativeLayer(opts || {});
+        if (!read || read.ok !== true) return { kind: 'narrative_layer@project', layers: [], layerCount: 0, ok: false, reason: (read && read.reason) || 'no-read' };
+        const pj = NL.projectOf(read, opts || {});
+        return Object.assign({}, pj, { ok: true, reason: '' });
+        } catch (e) { errLog(e, 'engine.narrativeProject'); return { kind: 'narrative_layer@project', layers: [], layerCount: 0, ok: false, reason: 'thrown' }; }
+        }
+        /** [v3.344.0 · M4-X6] 诊断一行。四方分开说;非现实隔离与计划待关联永远报出来。 */
+        _narrativeLayerLine() {
+        try {
+        const NL = _narrativeLayerLib();
+        if (!NL || typeof NL.line !== 'function') return '模块未加载(narrative-layer.js)';
+        const got = this.narrativeLayer({});
+        if (!got.ok) return '叙事层不可用(' + got.reason + ')';
+        return NL.line(got);
+        } catch (e) { errLog(e, 'engine._narrativeLayerLine'); return '—(诊断异常)'; }
+        }
+        /* ────────────────────────────────────────────────────────────────────────
+         * [v3.345.0 · M4-X7] 旧事重现的生成控频闸面
+         *
+         * 【与「旧事重现面」(M3-X8)的关系(两个问题)】
+         *   那一面答「此刻**为什么**该想起来」(情境 → 触发键 → 候选 → 建议),
+         *   并刻意只到「建议 + 来源」为止;本面答「想起来的那些此刻**到底会不会
+         *   进生成**、会不会重复轰炸」—— 三通道(preview / shown / used)分列,
+         *   **冷却只按 shown / used 落定**。
+         *
+         * 【一个不可让步的口径】**预览不消耗冷却**:preview 标记照记,但不算冷却;
+         *   真正落冷却的是 shown(给过提示)与 used(真进了生成)。于是「预览了一下
+         *   就取消」不会把下一轮想提的旧事也堵死。
+         *
+         * 【宿主只做三件事】装配候选(缺省从 fated-recall 的 suggested 取)→ 转发 →
+         *   留痕。**本面不产正文、不删历史事实**:反馈只记呈现偏好(less / never)。
+         */
+        /** [v3.345.0 · M4-X7] 候选装配(唯一装配点):显式给 ⇒ 用它;否则取 fated-recall 的 suggested。 */
+        _returnGateCandidates(opts) {
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            /* ★ [v3.345.0 · M4-X7] 三态不可塌:显式给了(哪怕给错)⇒ **原样透传**给内核判畸形,
+             *   绝不回落 fated-recall —— 否则「给了畸形候选」与「没给候选」在宿主这一层同形,
+             *   下游一律读到「这一次没有候选」,查不出「调用方把候选喂错了」。
+             *   内核已有 malformedInput / judged:false 两态判据,宿主不该替它裁定。 */
+            if (o.candidates !== undefined && o.candidates !== null) return { candidates: o.candidates, source: 'given' };
+            const FR = _fatedRecallLib();
+            if (!FR || typeof FR.suggest !== 'function') return { candidates: [], source: 'no-fated' };
+            try {
+                const res = FR.suggest(this._fatedRecallDeps(), this._fatedRecallState || {}, o);
+                const cands = (Array.isArray(res && res.suggested) ? res.suggested : []).map((c) => ({
+                    kind: c.kind || '', triggerKey: c.triggerKey || '',
+                    detailKey: c.detailKey || c.entryKey || '',
+                    title: c.title || c.snippet || '', source: c.source || '',
+                    knowing: c.knowing || '', subjects: c.subjects || []
+                }));
+                return { candidates: cands, source: 'fated-recall' };
+            } catch (e) { errLog(e, 'engine._returnGateCandidates'); return { candidates: [], source: 'thrown' }; }
+        }
+        /** [v3.345.0 · M4-X7] 建面(**只读**):候选过闸 → 可提 / 押后 / 不出 / 可注入四方分列。 */
+        returnGate(opts) {
+            const absent = (why) => ({ kind: 'return_gate', version: 0, judged: false, policy: 'hint-only', policyLabel: '只给提示', now: null, gates: [], open: [], held: [], blocked: [], injectable: [], counts: { total: 0, open: 0, held: 0, blocked: 0, injectable: 0 }, cooldownUnjudged: 0, emotion: '', emotionUsed: false, prefsApplied: { less: 0, never: 0 }, reasons: [why], truncated: 0, writesNothing: true, devisesNothing: true, ok: false, reason: why });
+            try {
+                const RG = _returnGateLib();
+                if (!RG || typeof RG.build !== 'function') return absent('module-unavailable');
+                const o = (opts && typeof opts === 'object') ? opts : {};
+                const picked = this._returnGateCandidates(o);
+                const st = (this.worldProg && this.worldProg.returnGate && typeof this.worldProg.returnGate === 'object') ? this.worldProg.returnGate : {};
+                const out = RG.build(picked.candidates, { state: st, policy: o.policy, now: o.now, window: o.window, emotion: o.emotion });
+                const r = Object.assign({}, out, { ok: true, reason: out.malformedInput ? 'malformed' : (out.degraded ? 'degraded' : ''), candidateSource: picked.source });
+                this._returnGateRead = r;
+                return r;
+            } catch (e) { errLog(e, 'engine.returnGate'); return absent('thrown'); }
+        }
+        /** [v3.345.0 · M4-X7] **进入真实生成**的移交:返回本轮被允许进生成通道的旧事。
+         *   · **只读 + 不消耗冷却**:移交本身不算「用过」,调用方须在实际使用后调
+         *     returnGateMark('used', ...) 才落冷却(预览不消耗的同一口径);
+         *   · 只给**策略允许 + gate open + 冷却已判**的条目(冷却未判 ⇒ 不给,不猜)。 */
+        returnGateAdmit(opts) {
+            try {
+                const read = this.returnGate(opts || {});
+                if (!read || read.ok !== true) return { kind: 'return_gate@admit', admitted: [], count: 0, injectable: false, ok: false, reason: (read && read.reason) || 'no-read', writesNothing: true };
+                const adm = Array.isArray(read.injectable) ? read.injectable : [];
+                const out = { kind: 'return_gate@admit', admitted: adm, count: adm.length, injectable: read.policy === 'inject', policy: read.policy, policyLabel: read.policyLabel, cooldownUnjudged: read.cooldownUnjudged, ok: true, reason: adm.length ? '' : (read.policy === 'inject' ? 'nothing-open' : 'hint-only'), writesNothing: true, note: '移交不算已用:实际使用后须调 returnGateMark(used,...) 才落冷却' };
+                this._returnGateAdmit = out;
+                return out;
+            } catch (e) { errLog(e, 'engine.returnGateAdmit'); return { kind: 'return_gate@admit', admitted: [], count: 0, injectable: false, ok: false, reason: 'thrown', writesNothing: true }; }
+        }
+        /** [v3.345.0 · M4-X7] 登记一次动作(**三通道分列**);状态存 worldProg.returnGate(跨会话携带)。 */
+        returnGateMark(channel, rec) {
+            const RG = _returnGateLib();
+            if (!RG || typeof RG.markChannel !== 'function') return { ok: false, reason: 'module-absent', changed: false, state: (this.worldProg && this.worldProg.returnGate) || { marks: [], prefs: {} } };
+            try {
+                const cur = (this.worldProg && this.worldProg.returnGate) ? this.worldProg.returnGate : {};
+                const res = RG.markChannel(cur, Object.assign({}, rec || {}, { channel: channel }));
+                if (res.ok && res.changed) {
+                    if (!this.worldProg) this.worldProg = {};
+                    this.worldProg.returnGate = res.state;
+                }
+                return Object.assign({ kind: RG.RG_KIND + '_mark', version: RG.RG_VERSION }, res);
+            } catch (e) { errLog(e, 'engine.returnGateMark'); return { ok: false, reason: 'thrown', changed: false, state: (this.worldProg && this.worldProg.returnGate) || { marks: [], prefs: {} } }; }
+        }
+        /** [v3.345.0 · M4-X7] 设呈现偏好(**只记偏好,不删任何历史事实**)。 */
+        returnGatePrefer(detailKey, pref) {
+            const RG = _returnGateLib();
+            if (!RG || typeof RG.withPreference !== 'function') return { ok: false, reason: 'module-absent', changed: false, state: (this.worldProg && this.worldProg.returnGate) || { marks: [], prefs: {} } };
+            try {
+                const cur = (this.worldProg && this.worldProg.returnGate) ? this.worldProg.returnGate : {};
+                const res = RG.withPreference(cur, detailKey, pref);
+                if (res.ok && res.changed) {
+                    if (!this.worldProg) this.worldProg = {};
+                    this.worldProg.returnGate = res.state;
+                }
+                return Object.assign({ kind: RG.RG_KIND + '_prefer', version: RG.RG_VERSION }, res);
+            } catch (e) { errLog(e, 'engine.returnGatePrefer'); return { ok: false, reason: 'thrown', changed: false, state: (this.worldProg && this.worldProg.returnGate) || { marks: [], prefs: {} } }; }
+        }
+        /** [v3.345.0 · M4-X7] 诊断一行。四方分开说;三条真损失永远报出来。 */
+        _returnGateLine() {
+            try {
+                const RG = _returnGateLib();
+                if (!RG || typeof RG.line !== 'function') return '模块未加载(return-gate.js)';
+                const got = this.returnGate({});
+                if (!got.ok) return '控频闸不可用(' + got.reason + ')';
+                return RG.line(got);
+            } catch (e) { errLog(e, 'engine._returnGateLine'); return '—(诊断异常)'; }
+        }
+/* ────────────────────────────────────────────────────────────────────────
+         * [v3.346.0 · M4-X8] 按下一幕任务组织的精简记忆材料包面
+         *
+         * 【与「分卷接续」/「召回」/「关系变化史」等的分工(不重叠)】
+         *   分卷接续答「接着上一卷往下写要记住什么」;召回答「这轮最相关的是哪几条」;
+         *   关系变化史答「这对人的看法在哪几楼变了」。本面答**另一个问题**:
+         *     「下一幕要做的是赴约 / 重逢 / 推进 / 收束 —— 这一幕该带哪几样材料?」
+         *   它把上面各面**已有的产出**按**任务优先级**重排,并报出**缺口**与
+         *   **被更新的当前值取代掉的旧条**,不另建召回、不重算相关度。
+         *
+         * 【一个不可让步的口径】**只挑材料,不裁 token**
+         *   真正裁到 token 的是 injection-router(既有预算 owner)。本面给的是
+         *   **有序材料 + 成本读数 + 越预算名单**;再裁一遍等于第二套预算系统,
+         *   两边口径必然漂移(漂移后没人说得清是哪一层把这条丢了)。
+         *
+         * 【宿主只做三件事】装配材料池(唯一装配点,从既有 owner 收)→ 转发任务 →
+         *   留痕。**本面不产正文、不代写未发生剧情、不把计划当成已发生**。
+         */
+        /** [v3.346.0 · M4-X8] 材料池装配(唯一装配点):从既有 owner 收,**逐个守**(缺席不冒充空)。 */
+        _materialInventory(opts) {
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const inv = [];
+            const sources = [];
+            /* 每个来源一律:try 里取 → 归一 → 进池;**取不到 / 抛**都如实记名,
+             *   绝不静默化成「这次没有材料」(那是完全不同的两件事)。 */
+            const take = (name, fn, map) => {
+                try {
+                    const got = fn();
+                    if (!got || got.ok !== true) { sources.push({ source: name, state: 'absent', why: (got && got.reason) || 'no-read', added: 0 }); return; }
+                    const rows = map(got) || [];
+                    for (const r of rows) if (r && typeof r === 'object') inv.push(r);
+                    sources.push({ source: name, state: 'ok', why: '', added: rows.length });
+                } catch (e) { errLog(e, 'engine._materialInventory.' + name); sources.push({ source: name, state: 'thrown', why: 'thrown', added: 0 }); }
+            };
+            /* 1 旧事重现(M3-X8):它的候选**已经**带 kind / triggerKey / detailKey / 来源与知情面
+             *   —— 直接映射成材料面,不重算相关度。 */
+            take('fated-recall', () => this.fatedRecallSuggest(o.fated || {}), (got) => (Array.isArray(got.suggested) ? got.suggested : []).map((c) => ({
+                id: 'fated:' + String(c.detailKey || c.entryKey || '') ,
+                kind: c.kind || '', title: c.title || c.snippet || '', source: 'fated-recall',
+                floor: (c.floor === undefined ? null : c.floor), subject: '', conflictGroup: '',
+                restricted: (c.knowing === 'restricted'), future: false,
+            })));
+            /* 2 关系变化史(M3-X2):只取**有变化**的边(没变化的边对下一幕不是新材料)。 */
+            take('relation', () => this.relationHistory(o.relation || {}), (got) => (Array.isArray(got.pairs) ? got.pairs : []).slice(0, 8).map((p, i) => ({
+                id: 'rel:' + String((p && (p.key || p.pairKey)) || i),
+                facet: 'relation', title: (p && (p.title || p.summary)) || '关系变化', source: 'relation',
+                floor: (p && p.floor !== undefined ? p.floor : null), subject: (p && p.subject) || '',
+                conflictGroup: (p && p.conflictGroup) || '', restricted: false, future: false,
+            })));
+            /* 3 视角卡(M3-X4):当前视角不该知道的事 ⇒ 标受限(**交给内核的闸**,不在这里丢)。 */
+            take('pov', () => this.perspectiveCard(o.pov || {}), (got) => (Array.isArray(got.cards) ? got.cards : []).slice(0, 4).map((c, i) => ({
+                id: 'pov:' + String((c && c.character) || i),
+                facet: 'pov', title: '视角:' + String((c && c.character) || '') , source: 'pov',
+                floor: (c && c.floor !== undefined ? c.floor : null), subject: (c && c.character) || '',
+                conflictGroup: '', restricted: false, future: false,
+            })));
+            /* 4 调用方直给(可选):调用方最清楚这一场要带什么;放最后,顺序即优先级。 */
+            if (Array.isArray(o.materials)) for (const m of o.materials) inv.push(Object.assign({ source: 'caller' }, m));
+            return { inventory: inv, sources: sources, given: Array.isArray(o.materials) ? o.materials.length : 0 };
+        }
+        /** [v3.346.0 · M4-X8] 建面(**只读**):按下一幕任务挑材料 + 报缺口 + 报取代 + 报预算。 */
+        materialPack(task, opts) {
+            const absent = (why) => ({ kind: 'material_pack', version: 0, judged: false, task: '', taskLabel: '', pack: [], packIds: [], sheet: [], superseded: [], gaps: [], gapsCritical: [], held: { restricted: [], future: [], superseded: [], unclassified: [] }, budget: { given: false, perItem: 0 }, overBudget: [], cost: { items: 0, estChars: 0, estCharsAll: 0 }, counts: { inventory: 0, usable: 0, packed: 0, restricted: 0, future: 0, unclassified: 0, superseded: 0, truncated: 0, dropped: 0, truncatedIn: 0 }, sources: [], reasons: [why], truncated: 0, orderIsRank: true, writesNothing: true, devisesNothing: true, injectsNothing: false, ok: false, reason: why });
+            try {
+                const MP = _materialPackLib();
+                if (!MP || typeof MP.build !== 'function') return absent('module-unavailable');
+                const o = (opts && typeof opts === 'object') ? opts : {};
+                const asm = this._materialInventory(o);
+                const out = MP.build(task, asm.inventory, { budget: o.budget });
+                const r = Object.assign({}, out, { sources: asm.sources, callerGiven: asm.given, ok: true, reason: out.malformedInput ? 'malformed' : (out.degraded ? 'degraded' : '') });
+                this._materialPackRead = r;
+                return r;
+            } catch (e) { errLog(e, 'engine.materialPack'); return absent('thrown'); }
+        }
+        /** [v3.346.0 · M4-X8] 诊断一行。四方分开说;关键面缺口永远报出来。 */
+        _materialPackLine() {
+            try {
+                const MP = _materialPackLib();
+                if (!MP || typeof MP.line !== 'function') return '模块未加载(material-pack.js)';
+                const got = this.materialPack('advance', {});
+                if (!got.ok) return '材料包不可用(' + got.reason + ')';
+                return MP.line(got);
+            } catch (e) { errLog(e, 'engine._materialPackLine'); return '—(诊断异常)'; }
+        }
+        /** [v3.347.0 · M4-X9] 剧情侧取数(唯一装配点):从既有 owner 收**剧情事实行**。
+         *  逐源守 —— 取不到报 absent、抛异常报 thrown,**缺席绝不冒充空**。 */
+        _crosscheckChatRows(opts) {
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const out = [];
+            const sources = [];
+            /* `ok` 键面**逐源不同**:有的出口恒 `ok: true`,有的(结构化查询)是
+             *   `state` 键面 —— 故取样判据由调用方给,不硬写一个。 */
+            const take = (name, fn, map, isOk) => {
+                try {
+                    const got = fn();
+                    const good = (typeof isOk === 'function') ? isOk(got) : (!!got && got.ok === true);
+                    if (!good) { sources.push({ source: name, state: 'absent', why: (got && (got.reason || got.state)) || 'no-read', added: 0 }); return; }
+                    const rows = map(got) || [];
+                    for (const r of rows) if (r && typeof r === 'object') out.push(r);
+                    sources.push({ source: name, state: 'ok', why: '', added: rows.length });
+                } catch (e) { errLog(e, 'engine._crosscheckChatRows.' + name); sources.push({ source: name, state: 'thrown', why: 'thrown', added: 0 }); }
+            };
+            /* 1 结构化证据查询(既有 owner `searchEvidenceStructured`):按台账取行,
+             *   转成分区条目(partition 'chat')。只搬 ref / ledger / floor / title,
+             *   **不搬正文全文**(本面不缓存正文)。★ 这走的是**结构化组合筛选**那一口,
+             *   不是关键词打分口 —— 两者 `total` 含义不同,不合成一个口。 */
+            take('evidence-query', () => this.searchEvidenceStructured(o.query || {}, o.queryOpts || {}), (got) => {
+                const rows = Array.isArray(got.rows) ? got.rows : [];
+                return rows.slice(0, 120).map((r, i) => ({
+                    id: 'Q' + String(i) + ':' + String((r && (r.ref || r.key)) || ''),
+                    partition: 'chat', subject: (r && (r.title || r.subject)) || '',
+                    title: (r && (r.title || r.subject)) || '', detail: (r && (r.text || r.detail)) || '',
+                    status: (r && r.status) || '', ledger: (r && r.ledger) || '',
+                    floor: (r && r.floor !== undefined ? r.floor : null), ref: (r && (r.ref || r.key)) || '',
+                }));
+            }, (got) => !!got && Array.isArray(got.rows));
+            return { chat: out, sources: sources };
+        }
+        /** [v3.347.0 · M4-X9] 建面(**只读**):按 sourceMode 做分区联合查证。 */
+        loreCrosscheck(sourceMode, opts) {
+            const absent = (why) => ({ kind: 'lore_crosscheck', version: 0, judged: false, mode: '', modeLabel: '', judgements: [], needsConfirm: [], revoked: [], staleRefs: [], gaps: [], reasons: [why], counts: { lore: 0, chat: 0, note: 0, unknown: 0, judged: 0, matched: 0, divergent: 0, unrealized: 0, loreOnly: 0, chatOnly: 0, unchecked: 0, revoked: 0, dropped: 0, truncatedIn: 0, kept: 0 }, loreInCanon: false, admitted: false, noteIsNotSource: true, readsFullText: false, copiesFullText: false, online: false, writesNothing: true, devisesNothing: true, injectsNothing: false, ok: false, reason: why, sources: [] });
+            try {
+                const CX = _loreCrosscheckLib();
+                if (!CX || typeof CX.build !== 'function') return absent('module-unavailable');
+                const o = (opts && typeof opts === 'object') ? opts : {};
+                /* 资料侧:调用方直给(通常来自 lore-import 的解析读数)优先;
+                 *   剧情侧:调用方直给优先,缺则由装配点从既有 owner 收。 */
+                const loreItems = Array.isArray(o.lore) ? o.lore.slice() : [];
+                const noteItems = Array.isArray(o.note) ? o.note.slice() : [];
+                let chatItems = Array.isArray(o.chat) ? o.chat.slice() : null;
+                let sources = [];
+                if (chatItems === null) {
+                    const asm = this._crosscheckChatRows(o);
+                    chatItems = asm.chat; sources = asm.sources;
+                } else sources = [{ source: 'caller', state: 'ok', why: '', added: chatItems.length }];
+                const input = { lore: loreItems, chat: chatItems, note: noteItems };
+                const out = CX.build(sourceMode, input, {
+                    revokedKeys: o.revokedKeys, historyRefs: o.historyRefs, admitLore: o.admitLore,
+                });
+                const r = Object.assign({}, out, { sources: sources, ok: true, reason: out.malformedInput ? 'malformed' : (out.degraded ? 'degraded' : '') });
+                this._loreCrosscheckRead = r;
+                return r;
+            } catch (e) { errLog(e, 'engine.loreCrosscheck'); return absent('thrown'); }
+        }
+        /** [v3.347.0 · M4-X9] 诊断一行。四方分开说;三例计数与撤除永远报出来。 */
+        _loreCrosscheckLine() {
+            try {
+                const CX = _loreCrosscheckLib();
+                if (!CX || typeof CX.line !== 'function') return '模块未加载(lore-crosscheck.js)';
+                const got = this.loreCrosscheck('compare', {});
+                if (!got.ok) return '资料对照不可用(' + got.reason + ')';
+                return CX.line(got);
+            } catch (e) { errLog(e, 'engine._loreCrosscheckLine'); return '—(诊断异常)'; }
+        }        perspectiveContrast(characterA, characterB, opts) {
         try {
         const PC = _perspectiveCardLib();
         if (!PC || typeof PC.contrast !== 'function') return { ok: false, reason: 'module-unavailable', diff: { onlyLeft: [], onlyRight: [], shared: [], misledSide: [] } };
@@ -12368,7 +12736,105 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         } catch (e) { errLog(e, 'selfCheck.qaThread'); return ['追问线程', '—（诊断异常）'];
                         }
                     })(),
-                    // [v3.207] 账本实体契约：回答「六本账有多少条目、多少被替代过、有没有读不出修订号的」。
+                    /* [v3.343.0 · M4-X5] 证词面:回答「对同一事件,各方怎么说、争在哪里」。
+                     *   与「视角卡」「记忆问答」分列:那两行答「一个人手上有什么 / 最近一问答得怎样」,
+                     *   本行答「若干人对同一事件的说法摆在一起时,能不能下结论」。
+                     *   报警只认两条真损失:争议未决(不得写成已定论)与无事件键(说法未进任何事件)。 */
+                    (() => {
+                        try {
+                            const TB = _testimonyBoardLib();
+                            if (!TB || typeof TB.line !== 'function' || typeof this.testimonyBoard !== 'function') {
+                                return ['证词面', '模块未加载(testimony-board.js)'];
+                            }
+                            const got = this.testimonyBoard({});
+                            if (!got || got.ok !== true) return ['证词面', '待用(面在位 · ' + ((got && got.reason) || '无读数') + ')'];
+                            const c = got.counts || {};
+                            const bad = (Number(c.noEventKey) > 0) || (Array.isArray(got.boards) && got.boards.some((b) => b.state === 'contested'));
+                            return ['证词面', TB.line(got) + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.testimonyBoard'); return ['证词面', '—(诊断异常)'];
+                        }
+                    })(),
+                    /* [v3.344.0 · M4-X6] 叙事层:回答「手上的事实各自处在哪一层外壳、现实面剩几条」。
+                     *   与「证词面」分列:那一行答「若干人对同一事件怎么说」,本行答「这条事实
+                     *   是现实里发生的,还是梦 / 假设 / 计划 / 引述」。
+                     *   报警只认两条真损失:非现实条目混入面(说明层轴没生效)与计划说落实却无事件关联。 */
+                    (() => {
+                        try {
+                            const NL = _narrativeLayerLib();
+                            if (!NL || typeof NL.line !== 'function' || typeof this.narrativeLayer !== 'function') {
+                                return ['叙事层', '模块未加载(narrative-layer.js)'];
+                            }
+                            const got = this.narrativeLayer({});
+                            if (!got || got.ok !== true) return ['叙事层', '待用(面在位 · ' + ((got && got.reason) || '无读数') + ')'];
+                            const c = got.counts || {};
+                            const hasNonReality = (Number(c.dream) + Number(c.hypothesis) + Number(c.plan) + Number(c.quote)) > 0;
+                            const bad = (Number(c.planAwaitingEvent) > 0) || (Number(c.unspecified) > 0 && Number(c.hinted) > 0);
+                            const tag = hasNonReality ? '(层轴生效)' : '(暂无外壳)';
+                            return ['叙事层', tag + ' ' + NL.line(got) + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.narrativeLayer'); return ['叙事层', '—(诊断异常)'];
+                        }
+                    })(),
+                    /* [v3.345.0 · M4-X7] 控频闸:回答「旧事重现此刻会不会真的进生成、有没有被反复轰炸」。
+                     *   与「旧事重现」面分列:那一行答「该不该想起来」,本行答「想起来之后
+                     *   会不会真进生成、会不会重复轰炸」。报警只认三条真损失:只给提示却仍
+                     *   可注入(闸失效)、冷却未判却当无冷却(不猜)、预览误消耗冷却。 */
+                    (() => {
+                        try {
+                            const RG = _returnGateLib();
+                            if (!RG || typeof RG.line !== 'function' || typeof this.returnGate !== 'function') {
+                                return ['控频闸', '模块未加载(return-gate.js)'];
+                            }
+                            const got = this.returnGate({});
+                            if (!got || got.ok !== true) return ['控频闸', '待用(面在位 · ' + ((got && got.reason) || '无读数') + ')'];
+                            const c = got.counts || {};
+                            const bad = (got.policy === 'hint-only' && Number(c.injectable) > 0)
+                                || (Number(got.cooldownUnjudged) > 0);
+                            const tag = Number(c.injectable) > 0 ? '(可注入)' : '(仅提示)';
+                            return ['控频闸', tag + ' ' + RG.line(got) + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.returnGate'); return ['控频闸', '—(诊断异常)'];
+                        }
+                    })(),
+/* [v3.346.0 · M4-X8] 材料包:回答「下一幕该带哪几样材料、哪一面空着」。
+                     *   与「分卷接续」面分列:那一行答「接着往下写要记住什么」,本行答
+                     *   「按这一场的任务(赴约/重逢/推进/收束)该带哪几样、哪一面没取到」。
+                     *   报警只认两条真损失:关键面零材料(该带却没取到)、产出「注入物」
+                     *   (本面只读挑材,不得声称已注入 —— 裁剪是既有预算 owner 的事)。 */
+                    (() => {
+                        try {
+                            const MP = _materialPackLib();
+                            if (!MP || typeof MP.line !== 'function' || typeof this.materialPack !== 'function') {
+                                return ['材料包', '模块未加载(material-pack.js)'];
+                            }
+                            const got = this.materialPack('advance', {});
+                            if (!got || got.ok !== true) return ['材料包', '待用(面在位 · ' + ((got && got.reason) || '无读数') + ')'];
+                            const c = got.counts || {};
+                            const bad = (Array.isArray(got.gapsCritical) && got.gapsCritical.length > 0)
+                                || (got.injectsNothing === false);
+                            const tag = Number(c.packed) ? '(已挑材)' : '(暂无材料)';
+                            return ['材料包', tag + ' ' + MP.line(got) + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.materialPack'); return ['材料包', '—(诊断异常)'];
+                        }
+                    })(),
+                    /* [v3.347.0 · M4-X9] 资料对照:回答「设定怎么说、剧情实际是否做到」。
+                     *   与「资料导入」面分列:那一行答「这段资料是什么类别、来源哪一段」,本行答
+                     *   「这段资料在剧情里兑现了没有」(分区 + 六态判定 + 撤除)。报警只认两条真损失:
+                     *   **偏离设定**(divergent)/ **设定事件未发生**(unrealized)—— 都是「资料与
+                     *   剧情对不上」这件事,不报警的「判不了」与本面只读口径分列。 */
+                    (() => {
+                        try {
+                            const CX = _loreCrosscheckLib();
+                            if (!CX || typeof CX.line !== 'function' || typeof this.loreCrosscheck !== 'function') {
+                                return ['资料对照', '模块未加载(lore-crosscheck.js)'];
+                            }
+                            const got = this.loreCrosscheck('compare', {});
+                            if (!got || got.ok !== true) return ['资料对照', '待用(面在位 · ' + ((got && got.reason) || '无读数') + ')'];
+                            const c = got.counts || {};
+                            const bad = Number(c.divergent) > 0 || Number(c.unrealized) > 0;
+                            const tag = (Number(c.lore) || Number(c.chat)) ? '(已分区)' : '(暂无可查)';
+                            return ['资料对照', tag + ' ' + CX.line(got) + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.loreCrosscheck'); return ['资料对照', '—(诊断异常)'];
+                        }
+                    })(),                    // [v3.207] 账本实体契约：回答「六本账有多少条目、多少被替代过、有没有读不出修订号的」。
                     //   这行同时是 `item.revision` 的**首个真实读侧** —— 此前它写进去但全仓无人读。
                     //   三态可分：模块未加载 / 尚无条目 / 有账（未定型条目数 > 0 才亮 ⚠️）。
                     (() => {
@@ -19961,7 +20427,68 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     function _qaThreadLib() {
         return _moduleLib(() => window.LonShaQaThread, 'qa-thread.js');
     }
-    // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
+    // [v3.343.0 · M4-X5] 多方证词与争议档案(testimony-board.js)。为什么需要:
+    //   knowledge-trace 已区分亲历 / 听说 / 误信、perspective-card 已按角色 × 时点出卡,
+    //   但没有一处把若干角色对同一事件的说法摆在一起对照;「甲和乙对同一事件分别怎么说、
+    //   为何暂不能下结论」只能手工两两跑 contrast,而「谁跟谁同一来源」在比完之后又丢了。
+    //   本模块是只读聚合投影:复用事件 ID 与既有 evidenceKey 去重(三次转述
+    //   不算三份独立支持),不建平行证词库、不落盘。
+    function _testimonyBoardLib() {
+        return _moduleLib(() => window.LonShaTestimonyBoard, 'testimony-board.js');
+    }
+    // [v3.344.0 · M4-X6] 叙事层(modality:narrative-layer.js)。为什么需要:
+    //   memory-type 的 9 类是「这是什么性质的事实」,fact-version 记的是「哪个时态区间」,
+    //   knowledge-trace 记的是「谁怎么知道的」—— 但**没有一处**记「这条事实处在哪一层叙事外壳」
+    //   (现实 / 梦境 / 假设 / 计划 / 引述)。于是同一个 event-outcome「角色死亡」
+    //   在现实与在梦里**读数同形**:梦到的死会被现实问答当成真值吃进去;
+    //   一句「决定了搬走」会把 plan 事实直接读成已完成。
+    //   本模块是**只读层判定**:层标注落在既有条目上(modality 字段),不建平行时间线、
+    //   不落盘、老数据不批量重标(无标注一律 unspecified —— 不猜)。
+    function _narrativeLayerLib() {
+        return _moduleLib(() => window.LonShaNarrativeLayer, 'narrative-layer.js');
+    }
+    // [v3.345.0 · M4-X7] 旧事重现的生成控频闸(return-gate.js)。为什么需要:
+    //   fated-recall(M3-X8)交付了「该不该想起来」,并刻意只到「建议 + 来源」为止;
+    //   但「建议可注入」是一个**静态判断**,与「本轮真进了生成」在读数上同形;
+    //   「预览了一下就取消」会误消耗冷却;重开/切回会重复轰炸。
+    //   本模块是**只读控频闸**:三通道(preview/shown/used)分列,冷却只按 shown/used 落定;
+    //   默认 hint-only(显式 inject 才自动注入);状态由宿主持有(worldProg.returnGate 子键,
+    //   随世界进程一并跨会话携带 —— 这正是「重开/切回不重复轰炸」的载体)。
+    function _returnGateLib() {
+        return _moduleLib(() => window.LonShaReturnGate, 'return-gate.js');
+    }
+// [v3.346.0 · M4-X8] 按下一幕任务组织的精简记忆材料包(material-pack.js)。为什么需要:
+    //   getContinuityPack 偏**分卷接续**(上一卷收尾 → 下一卷开头);recall / scene-book /
+    //   relation / promise / pov / fated-recall 各自按**自己的面**给候选 —— 但没有一处回答
+    //   「下一幕要做的是赴约 / 重逢 / 推进 / 收束,这一幕该带哪几样材料」:
+    //   各面合并后**没有优先级**(不同任务的产物同形),矛盾当前值会**并列当真**,
+    //   未发生 / 受限材料会随候选进包,某一关键面空着也**不报缺口**。
+    //   本模块是**只读材料投影**:任务轴给面优先级(差异可解释)、矛盾当前值只留更新的一条
+    //   (被取代者**具名**)、未发生 / 受限默认不进包(如实计数)、缺面进 gaps(具名);
+    //   **不裁 token**(真裁仍由 injection-router 这个既有预算 owner 负责),故本面产出的是
+    //   「有序材料 + 成本读数 + 越预算名单」,不是「已裁好的包」。
+    function _materialPackLib() {
+        return _moduleLib(() => window.LonShaMaterialPack, 'material-pack.js');
+    }
+    // [v3.347.0 · M4-X9] 资料与剧情分区的联合查证(lore-crosscheck.js)。为什么需要:
+    //   M4-X9 点名的一问是「设定怎么说、剧情实际是否做到」——本仓已有 lore-import.js
+    //   (保存**段落来源与类别**:setting-rule / backstory-event / character-bg /
+    //   reference-only + ORIGIN 一律 imported-lore + settingAsHappened 标志位)与
+    //   evidence-query.js(按**账本**查询:参与者 / 时间 / 来源 / 状态),但前史片段、
+    //   正文资料、聊天事实来自**不同 owner**,两侧读数**不同形**(资料「N 段」/ 剧情
+    //   「N 条账行」)——并排看也说不清某条设定**在剧情里兑现了没有**;更坏的是资料里
+    //   写着「已经发生」的规则 / 前史一查就与聊天事实**同形**(参考小说的事件被当成
+    //   当前会话已发生),撤除某段资料后历史答案里仍留着它的正文(「来源失效」在读数上
+    //   没有落点),用户批注还能冒充原文或事实。
+    //   本模块是**只读分区投影**:受控 sourceMode(仅剧情 / 仅资料 / 对照)+ 来源分区
+    //   (chat / lore / note / unknown)+ 六态判定(matched / divergent / unrealized /
+    //   lore-only / chat-only / unchecked,穷尽且互不同形)+ 撤除闸(正文一格不带、
+    //   历史来源报 sourceStale)+ 同名跨资料**不硬合并**;**不联网**、**不建开放 RAG**、
+    //   **不复制全文到每轮上下文**、**不默认把资料并入正史**(loreInCanon 恒 false);
+    //   原文按需从 owner 读(本面只搬 sourceRef,不缓存正文)。
+    function _loreCrosscheckLib() {
+        return _moduleLib(() => window.LonShaLoreCrosscheck, 'lore-crosscheck.js');
+    }    // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
     //   M-X9 点名的五个 API 里，修前只有 explainRecall 有实现，其余四个名**全仓零命中** ——
     //   它们的能力早在盘上（evidence-query / volume-continuation / native-fact-admission /
     //   knowledge-trace 各自的出口），但没有任何一处把「下游可以按名调用的统一面」产出来。

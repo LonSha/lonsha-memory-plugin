@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.342.0';
+let VERSION = '3.347.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1155,6 +1155,13 @@ class WorldProgress {
         this.secretLedger = null; // [v3.196] 秘密账本：某角色此刻不该被知晓的事，keeper 点名持有
         this.recallEcho = null; // [v3.197] 前文回扣账本：五回合前的高价值细节候选
         this.echoLedger = null; // [v3.197] 回声账本：角色生活微场景的最近产出
+        /* [v3.345.0 · M4-X7] 旧事重现的控频闸状态(动作生命周期三通道标记 + 呈现偏好)。
+         *   为什么必须落进这张表:宿主把状态写在 worldProg.returnGate 上(跨会话携带),
+         *   而 worldProg 的子键是**逐项枚举**持久化的 —— 不登记 = 存盘即丢、读档即空。
+         *   形态:{ marks: [{ triggerKey, detailKey, channel, floor, at }], prefs: { [detailKey]: pref } }
+         *   ★ marks 带 floor ⇒ 必须同时挂进 removeByFloor / shiftFloorRefs(见该两处),
+         *     否则被删楼层的冷却命中会永久留着,把该条旧事在 REPEAT_WINDOW 内**永久押后**。 */
+        this.returnGate = null;
         // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
         this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
         /* [v3.219.0] R2-F 知情网络累计读数（knowledge-network.js 的判定计数）。
@@ -1745,6 +1752,15 @@ class WorldProgress {
             if (Number(a.lastActiveFloor) === f) a.lastActiveFloor = Math.max(0, f - 1);
             if (Number(a.resolutionFloor) === f) { a.status = 'active'; delete a.resolutionFloor; delete a.resolutionReason; }
         }
+        /* [v3.345.0 · M4-X7] 控频闸标记随删楼回滚:floor 精确命中的整条摘除。
+         *   为什么必须做:marks 是冷却判据的唯一输入,被删楼层的命中留着 ⇒
+         *   该条旧事在 REPEAT_WINDOW 内**永久 held**,而且账上查不出原因(「冷却中」)。
+         *   floor === null 的标记不参与命中(内核口径),故此处也不动它们。 */
+        if (this.returnGate && Array.isArray(this.returnGate.marks)) {
+            const beforeMarks = this.returnGate.marks.length;
+            this.returnGate.marks = this.returnGate.marks.filter((m) => Number(m && m.floor) !== f);
+            removed += beforeMarks - this.returnGate.marks.length;
+        }
         if (Number(this.pendingWrite?.floor) === f) this.pendingWrite = null;
         return removed;
     }
@@ -1769,6 +1785,16 @@ class WorldProgress {
             a.resolutionFloor = dec(a.resolutionFloor);
         }
         for (const key of Object.keys(this.active || {})) this.active[key].floor = dec(this.active[key].floor);
+        /* [v3.345.0 · M4-X7] 控频闸标记随删楼前移:floor > deleted 的减一。
+         *   为什么与 removeByFloor 成对:只摘不挪会让「第 8 楼的命中」在删掉第 3 楼后
+         *   仍记作 8,而它其实已经在第 7 楼 —— 窗口判据会把它算成**未来**的命中(冷却永不落地)。 */
+        if (this.returnGate && Array.isArray(this.returnGate.marks)) {
+            for (const m of this.returnGate.marks) {
+                const oldFloor = m.floor;
+                m.floor = dec(m.floor);
+                if (m.floor !== oldFloor) shifted++;
+            }
+        }
         if (this.pendingWrite) this.pendingWrite.floor = dec(this.pendingWrite.floor);
         return shifted;
     }
@@ -2043,6 +2069,12 @@ class WorldProgress {
              *   ★ `selected:false`（没选项目）也照样持久化：默认隔离是**产品状态**，
              *   不是「没有数据」，重启后必须还能读出「它一直是隔离的」。 */
             volumeContinuationRead: this._volumeContinuationRead || null,
+            /* [v3.345.0 · M4-X7] 控频闸状态随世界推进持久化。
+             *   为什么不挂在别的账本里:marks 的键是「触发键 × 旧事键 × 通道 × 楼层」,
+             *   与 recallEcho 的「细节 × 楼层」同域但**语义不同**(那边是回扣候选,
+             *   这边是「提过没有 / 算不算真用」);并进去会让冷却判据与回扣判据互相污染。
+             *   与既有同族一致:导出**状态本体**(不是读数)—— 冷却判定依赖逐条 marks。 */
+            returnGate: this.returnGate || null,
             plotArcs: this.plotArcs || []
         };
     }
@@ -2073,6 +2105,12 @@ class WorldProgress {
              *   接续包**不导入**（包由调用方持有；跨会话重新构建才符合「先预览再导入」）。 */
             this._volumeContinuationRead = (data.volumeContinuationRead && typeof data.volumeContinuationRead === 'object')
                 ? data.volumeContinuationRead : null;
+            /* [v3.345.0 · M4-X7] 控频闸状态导入:畸形一律回落 null(与同族口径)。
+             *   为什么不逐字段校验:marks 的合法性由内核 normState 在**每次读取时**归一
+             *   (非法通道 / 缺键条目丢弃并计数)—— 导入面职责只是「别把它当成别的形状」,
+             *   在这里再校一遍会变成第二套判据(两边不同步即静默漂移)。 */
+            this.returnGate = (data.returnGate && typeof data.returnGate === 'object')
+                ? data.returnGate : null;
             this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
         }
     }

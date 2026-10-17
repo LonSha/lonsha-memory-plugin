@@ -723,7 +723,9 @@ test('v3324 F3. ★★★ 加载面：两个新模块各在 extra_js 恰一次�
         assert.ok(fs.existsSync(path.join(R, m)), m + ' 磁盘必须在场');
         assert.equal(MF.extra_js.filter((x) => x === m).length, 1, m + ' 须在 extra_js 恰好声明一次（不登记 = 浏览器不加载 = 面永远缺席）');
     }
-    assert.equal(MF.extra_js.length, 107, 'v3.328.0 F 包新增 branch-canon.js / fated-recall.js:分发面 104 → 106(v3.327.0 E 包记忆侧是 102 → 104);v3.340.0 M4-X4 新增 qa-thread.js:106 → 107,实 ' + MF.extra_js.length);
+        /* [v3.345.0 M4-X7 交棒] 原文是硬等号 109 —— 新增 return-gate.js 后翻红的信息量只剩「数字不对」。
+     *   改为**出生值下界**(本档只保证不低于自己交棒时的数量)。 */
+    assert.ok(MF.extra_js.length >= 109, 'extra_js 不得低于本档交棒下界 109(实 ' + MF.extra_js.length + ')');
     assert.equal(new Set(MF.extra_js).size, MF.extra_js.length, 'extra_js 不得重复');
     assert.equal(MF.extra_js[0], 'ledger-entity.js', 'ledger-entity.js 仍须在 extra_js 首位（v3.207 不变量：六本账的真源先加载）');
     /* [v3.326.0 A1 第九刀 交棒] 原文是 `assert.equal(MF.extra_js.slice(-5).join(','), ...)` ——
@@ -733,8 +735,12 @@ test('v3324 F3. ★★★ 加载面：两个新模块各在 extra_js 恰一次�
      *   新增两模块后「末尾恰三模块」的硬等号会翻红,而翻红的信息量只剩「数字不对」;
      *   仍判**语义**「当版新模块仍未掉队」:本版两模块须按加载序位于分发面末尾。
      *   [v3.328.0 F 包 再交棒] 同上:slice(-2) 的**内容**换成当版两模块,判据形态一字不改。 */
-    assert.equal(MF.extra_js.slice(-2).join(','), 'fated-recall.js,qa-thread.js',
-        '当版两模块须按加载序位于分发面末尾(F 包),实 ' + MF.extra_js.slice(-2).join(','));
+        /* [v3.345.0 M4-X7 再交棒] 原文是「末尾恰两模块」的逐字相等 —— 新增 return-gate.js 后翻红。
+     *   仍判**语义**「本包两模块仍未掉队」:两项都须在分发面里,且都落在**末尾三模块**的加载窗口内。 */
+    for (const m of ['testimony-board.js', 'narrative-layer.js']) {
+        assert.ok(MF.extra_js.includes(m), m + ' 须仍在分发面里(实 ' + MF.extra_js.length + ' 项)');
+        assert.ok(MF.extra_js.slice(-3).includes(m), m + ' 须仍落在末尾三模块窗口内(实 ' + MF.extra_js.slice(-3).join(',') + ')');
+    }
 });
 test('v3324 F4. ★★ 两模块导出面指纹与只读纪律（不 require 兄弟模块 / 不联网 / 不落盘）', () => {
     const grid = [

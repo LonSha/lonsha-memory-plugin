@@ -182,7 +182,7 @@ const LEDGER = [
         + '那会把「指纹反映本模块导出面」这件事抹掉。三模块装载时机互不包含，同族理由同上。\n'
         + '★ **补登（v3.317.0 轮）**：本刀 M-X3 给 project-registry.js 加第三份（同形同值），\n'
         + '与簇同批落盘、同批登记（前两份为 v3.315.0 / v3.316.0 遗留，基线即红）。'],
-    ['oneLine', ['causal-chain.js', 'correction-plan.js', 'extraction-driver.js', 'perspective-card.js', 'relation-history.js', 'relation-mutual.js'], 'e41493e8',
+    ['oneLine', ['causal-chain.js', 'correction-plan.js', 'extraction-driver.js', 'narrative-layer.js', 'perspective-card.js', 'relation-history.js', 'relation-mutual.js', 'testimony-board.js'], 'e41493e8',
         '单行化文本原语(空白折叠 + trim)。' +
         '**为什么留六份**:与 text / numOrNull / _t 簇**同族** —— 它是**通用文本原语**,只吃一个值、' +
         '不认识任何账本字段;六模块的装载时机与存活期互不包含(关系史 / 因果链 / 视角卡 / 校正方案 /' +
@@ -191,12 +191,12 @@ const LEDGER = [
         '★ **补登(v3.326.0 轮)**:该簇由 v3.323.0(C 包三模块)+ v3.324.0(D 包两模块)+ 更早的' +
         'relation-mutual.js 共同累积而成,**前两次抬版都漏了同步本台账**(与 numOrNull / text /' +
         '_t 三次补登同族)。本行在干净基线 afb6071 上单跑本档同样翻红(取证:非本刀引入)。体 md5 与磁盘同源。'],
-    ['floorOrNull', ['causal-chain.js', 'correction-plan.js', 'extraction-driver.js', 'perspective-card.js', 'relation-history.js'], '245e905a',
+    ['floorOrNull', ['causal-chain.js', 'correction-plan.js', 'extraction-driver.js', 'perspective-card.js', 'relation-history.js', 'testimony-board.js'], '245e905a',
         '楼层归一原语(数字 / 非空数字串 ⇒ 截断;布尔 / 对象 / 空串 / 负数 ⇒ null,不拿 0 冒充「就是 0」' +
         '—— 0 在本插件是合法楼层,与本仓 floorOrNull 既有口径逐字同源)。' +
         '**为什么留五份**:与 numOrNull / numOf / _floorOf 簇同族 —— 通用数值原语,五模块装载时机互不包含。' +
         '★ **补登(v3.326.0 轮)**:与 oneLine 同批同源(前两次抬版漏同步,基线即红)。'],
-    ['clip', ['causal-chain.js', 'perspective-card.js'], '3a8dfbfa',
+    ['clip', ['causal-chain.js', 'material-pack.js', 'narrative-layer.js', 'perspective-card.js', 'return-gate.js', 'testimony-board.js'], '3a8dfbfa',
         '截断包装(先 oneLine 再按 n 截;n 假值即不截)。' +
         '**为什么留两份**:它**依赖同模块自持的 oneLine**,收拢成一份等于让两模块同时失去自足性。' +
         '两模块装载时机互不包含(因果链可缺席而视角卡在)。' +
@@ -219,6 +219,45 @@ const LEDGER = [
         '数组归一(非数组 ⇒ 空数组)。通用容器原语;三模块装载时机互不包含(memory-package 早于本两模块存在)。'
         + '★ 本行是当版自报:v3.327.0 · E 包两模块与 memory-package 同形同值,第三次成员由本刀引入并同批登记。'],
 
+    ['normOf', ['narrative-layer.js', 'testimony-board.js'], '6b485d94',
+        '事实取值归一的「取数口」(缺省回落自持口径,不引兄弟模块)。'
+        + '**为什么留两份**:与 oneLine / clip / numOrNull 同族 —— 通用取值原语;'
+        + '两模块装载时机与存活期互不包含(叙事层判定面可缺席而证词面在,反之亦然),'
+        + '收拢会把「本模块自足」换成「依赖另一个模块先挂载」(本仓反过的跨模块静默读旧值)。'
+        + '★ 本行是**当版自报**(与簇同批落盘、同批登记):v3.344.0 · M4-X6 的'
+        + 'narrative-layer.js 按仓内先例自持一份同形同值原语,体 md5 与磁盘同源。'],
+    ['hasPercentKey', ['lore-crosscheck.js', 'material-pack.js', 'narrative-layer.js', 'return-gate.js', 'testimony-board.js'], '680c21ac',
+        '自证用的「不许出现百分比键」递归探针(纯只读,不改调用方对象)。'
+        + '**为什么留两份**:它是**自检原语** —— 每个模块对**自己的**导出面各算一遍'
+        + '「有没有百分比读数」,收拢成一份等于让两个模块的自证变成一次共用判断;'
+        + '两模块装载时机互不包含。'
+        + '★ 本行是**当版自报**(与簇同批落盘、同批登记),体 md5 与磁盘同源。'],
+    /* [v3.346.0 · M4-X8] 内核 `material-pack.js`(按下一幕任务组织的材料包面)自持的**通用原语族**,
+     *   与 `return-gate.js` 逐字同源(体 md5 由 v3281 B1 从盘上实测枚举得出)。
+     *   **为什么留两份**:本面与 X7 同为**零依赖 IIFE**,按仓内先例自持通用原语
+     *   (不引兄弟模块 —— 跨模块引用会把两处抬版变成一处悄悄读旧值);
+     *   两模块装载时机与存活期互不包含(控频闸面可缺席而材料包面在,反之亦然)。
+     *   ★ 本批五簇是**当版自报**(与簇同批落盘、同批登记)。 */
+    ['numOr', ['lore-crosscheck.js', 'material-pack.js', 'return-gate.js'], '2c5e5673',
+        '数值归一(没给 / 布尔 / 对象 / 函数 ⇒ 缺省值,**不拿 0 冒充「就是 0」**)。同族理由见上。'],
+    ['hash32', ['lore-crosscheck.js', 'material-pack.js', 'return-gate.js'], 'f809e7a3',
+        'FNV-1a 32 位(与既有 hash32 三簇**体不同**,不并入那几簇)。同族理由见上。'],
+    ['floorOf', ['lore-crosscheck.js', 'material-pack.js', 'return-gate.js'], '4ae433b8',
+        '楼层归一(数字 / 非空整数串 ⇒ 截断;其余如实 null,**不编 0** —— 0 是合法楼层)。同族理由见上。'],
+    ['sameValue', ['lore-crosscheck.js', 'material-pack.js', 'return-gate.js'], '353f1dc1',
+        '同值判定(原始值直接比;对象按稳定序列化比)。同族理由见上。'],
+    ['safe', ['lore-crosscheck.js', 'material-pack.js', 'return-gate.js'], 'ba830733',
+        '试算(绝不外抛:坏实现一律回落 fallback)。同族理由见上。'],
+
+    /* [v3.347.0 · M4-X9] 内核 `lore-crosscheck.js`(资料与剧情分区的联合查证)自持的
+     *   **逐字符版**单行化原语 `oneLine`(体 md5 与 `material-pack.js` 逐字同源;
+     *   与既有正则版 `e41493e8` 簇**体不同,不并入那簇**)。
+     *   **为什么留两份**:本面与 X8 同为**零依赖 IIFE**,按仓内先例自持通用原语
+     *   (不引兄弟模块 —— 跨模块引用会把两处抬版变成一处悄悄读旧值);
+     *   两模块装载时机与存活期互不包含(材料包面可缺席而资料对照面在,反之亦然)。
+     *   ★ 本簇是**当版自报**(与簇同批落盘、同批登记),体 md5 由 v3281 B1 从盘上实测枚举得出。 */
+    ['oneLine', ['lore-crosscheck.js', 'material-pack.js'], '7bceeae5',
+        '单行化文本原语(**逐字符版**,非正则:零反斜杠构造)。同族理由见上。'],
 ];
 
 /* ---- 破坏锚点（逐条取自真源，禁改；本档须逐字持有） ---- */

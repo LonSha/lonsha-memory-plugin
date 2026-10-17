@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 74984,
+  "ceiling": 78672,
   "maxSlack": 400,
-  "note": "[v3.342.0] M4-X3 正史选择真正进入下一卷：内核 branch-canon.js 增落卷面（ADOPT/UNMAPPED 六张常量面 + adoptItemOf/adoptableItems/buildContinuePack/adoptionBrief/revokeGuard/adoptionLine/adoptProbeDeps/adoptProbePlan 八个新原语）+ 宿主 index.js 增六出口与落卷凭据四处契约面。全为活跃功能增长，非死代码回流。",
+  "note": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。",
   "history": [
     {
       "ceiling": 21000,
@@ -329,7 +329,27 @@
     {
       "ceiling": 74984,
       "reason": "[v3.342.0] M4-X3 正史选择真正进入下一卷：内核 branch-canon.js 增落卷面（ADOPT/UNMAPPED 六张常量面 + adoptItemOf/adoptableItems/buildContinuePack/adoptionBrief/revokeGuard/adoptionLine/adoptProbeDeps/adoptProbePlan 八个新原语）+ 宿主 index.js 增六出口与落卷凭据四处契约面。全为活跃功能增长，非死代码回流。"
+    },
+    {
+      "ceiling": 75691,
+      "reason": "[v3.343.0] M4-X5 同一事件的多方证词与争议档案:新增内核 testimony-board.js(来源去重 supportsOf / 争议三档 disputesOf / 四态 stateOfOf / 揭密分面 identitiesOf / 撤回重算 revokeEvidence + build·line·selfCheck,导出面 24)+ 宿主 index.js 取库口与三出口(纯只读聚合投影,复用 worldProg.knowledgeTraces.traces,不新增持久化键)。全为活跃功能增长,非死代码回流。"
+    },
+    {
+      "ceiling": 76359,
+      "reason": "v3.344.0 M4-X6 梦境、假设、计划与现实的叙事层记忆:新增内核 narrative-layer.js(五层判定 modalityOf / 嵌套链 frameOf / 计划闸 planStateOf / 现实面隔离 realityView / 提示读数 hintOf / 自证 selfCheck,导出面 22)+ 宿主 index.js 取库口、三出口与自检面行(纯只读层判定,层标注落在既有条目上,不新增持久化键)。全为活跃功能增长,非死代码回流。"
+    },
+    {
+      "ceiling": 77117,
+      "reason": "v3.345.0 M4-X7 旧事重现进入真实生成且由玩家控频:新增内核 return-gate.js(控频闸,585 行,导出面 38)+ 宿主 index.js 取库口、五出口与自检面行(零顶层落盘面,状态经 worldProg.returnGate 携带)。全为活跃功能增长,非死代码回流。"
+    },
+    {
+      "ceiling": 77900,
+      "reason": "v3.346.0 M4-X8 按下一幕任务生成精简记忆材料包:新增内核 material-pack.js(33124 字节,导出面 36,四任务轴 + 十面 + 未发生/受限两闸 + 缺口具名 + 越预算名单)+ 宿主 index.js 取库口、三法与自检面行(无状态只读面,不新增持久化键)。全为活跃功能增长,非死代码回流。"
+    },
+    {
+      "ceiling": 78672,
+      "reason": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。"
     }
   ],
-  "_history_last": "ceiling 74271 → 74984（实测 74584 + slack 400）：[v3.342.0] M4-X3 正史选择真正进入下一卷：内核 branch-canon.js 增落卷面（ADOPT/UNMAPPED 六张常量面 + adoptItemOf/adoptableItems/buildContinuePack/adoptionBrief/revokeGuard/adoptionLine/adoptProbeDeps/adoptProbePlan 八个新原语）+ 宿主 index.js 增六出口与落卷凭据四处契约面。全为活跃功能增长，非死代码回流。"
+  "_history_last": "ceiling 77900 → 78672（实测 78272 + slack 400）：[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。"
 }

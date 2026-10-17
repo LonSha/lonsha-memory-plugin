@@ -102,6 +102,43 @@ const CONST_LEDGER = [
      *   ★ 该对由 v3.310.0(记忆控制中心)+ v3.322.0(relation-history)
      *   两次抬版累积**未同步本台账**;干净基线 afb6071 上单跑本档同样翻红(取证:非本刀引入)。 */
     ['mutating', ['memory-tools-api.js', 'relation-history.js'], 87, 'ade6c7ce', '['],
+    /* [v3.343.0 · M4-X5] 内核 testimony-board.js 自持两张与兄弟模块**同形同值**的词表/档位表
+     *   —— `ORIGIN_TRUST`(与 fact-version.js 同字面量的信源档位表)与 `HEARD_VIA`(与 perspective-card.js 同字面量的转述通道词表)。
+     *   两者都是**通用词表原语**,而本面是**零依赖 IIFE**,故按仓内先例自持一份
+     *   (与 FACES / ACTION / SOURCE / LICENSE / PREVIEW 同族:跨模块引用常量会把两处抬版变成一处悄悄读旧值)。
+     *   ★ 本行是**当版自报**(与字典同批落盘、同批登记),两行的 len/md5 与磁盘同源。 */
+    ['ORIGIN_TRUST', ['fact-version.js', 'testimony-board.js'], 66, '7599e1f1', 'Object.freeze({'],
+    ['HEARD_VIA', ['perspective-card.js', 'testimony-board.js'], 59, '751b3035', 'Object.freeze(['],
+    /* [v3.344.0 · M4-X6] 内核 narrative-layer.js 的自证词表 `mutating` 与 testimony-board.js **同名同值**
+     *   (set/put/write/save/update/delete/clear/remove/commit/apply/persist/store 十二前缀)。
+     *   **为什么留两份**:它是**自检用的词表原语** —— 每个模块对自己的导出面各算一遍「写口数」,
+     *   收拢成一份等于让两个模块的自检变成一次共用判断;两模块装载时机互不包含。
+     *   ★ 本行是**当版自报**(与字典同批落盘、同批登记),len/md5 与磁盘同源。 */
+    ['mutating', ['narrative-layer.js', 'return-gate.js', 'testimony-board.js'], 107, 'e213741d', '['],
+    /* [v3.345.0 · M4-X7] 内核 `return-gate.js` 自持一份与 `fated-recall.js` **同名同值**的策略表
+     *   `POLICY`(off / hint-only / inject 三态)。**为什么留两份**:本面是**零依赖 IIFE**,
+     *   按仓内先例自持一份(不引兄弟模块:跨模块引用常量会把两处抬版变成一处悄悄读旧值);
+     *   且两模块装载时机互不包含(旧事重现面可缺席而召回建议面在,反之亦然)。
+     *   ★ 本行是**当版自报**(与字典同批落盘、同批登记),len/md5/decl 与磁盘同源。 */
+    ['POLICY', ['fated-recall.js', 'return-gate.js'], 47, '0f365575', 'Object.freeze({'],
+    /* [v3.345.0 · M4-X7] 内核 `return-gate.js` 自持一份与 `narrative-layer.js` **同名同值**的
+     *   「不许当置信百分比」键名表 `PERCENT_KEYS`。它是**自检原语** —— 每个模块对自己的导出面
+     *   各算一遍「有没有百分比读数」,收拢成一份等于让两个模块的自证变成一次共用判断;
+     *   两模块装载时机互不包含。
+     *   ★ 本行是**当版自报**(与字典同批落盘、同批登记),len/md5/decl 与磁盘同源。 */
+    /* [v3.346.0 · M4-X8] 内核 `material-pack.js` 自持一份与 `narrative-layer.js` / `return-gate.js`
+     *   **同名同值**的「不许当置信百分比」键名表 `PERCENT_KEYS`(体 md5 与磁盘同源)。
+     *   **为什么留三份**:它是**自检原语** —— 每个模块对自己的导出面各算一遍「有没有百分比读数」,
+     *   收拢成一份等于让三个模块的自证变成一次共用判断;三模块装载时机互不包含。
+     *   ★ 本行是**当版自报**(与字典同批落盘、同批登记)。 */
+    ['PERCENT_KEYS', ['lore-crosscheck.js', 'material-pack.js', 'narrative-layer.js', 'return-gate.js'], 55, '89619d30', 'Object.freeze(['],
+    /* [v3.347.0 · M4-X9] 内核 `lore-crosscheck.js` 自持一份与 `material-pack.js`
+     *   **同名同值**的写动词表 `mutating`(len/md5/decl 与磁盘同源)。
+     *   **为什么留两份**:它是**自检原语** —— 每个模块对自己的导出面各算一遍
+     *   「名字是不是写动词」,收拢成一份等于让两个模块的自证变成一次共用判断;
+     *   两模块装载时机互不包含。
+     *   ★ 本行是**当版自报**(与字典同批落盘、同批登记)。 */
+    ['mutating', ['lore-crosscheck.js', 'material-pack.js'], 142, '9b130006', '['],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

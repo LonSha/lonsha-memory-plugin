@@ -117,6 +117,28 @@ const ALIAS_LEDGER = [
      *   **两次都漏了同步本台账**;在干净基线 afb6071 上单跑本档
      *   同样翻红(取证:非本刀引入)。体 md5 与磁盘同源。 */
     ['tab', ['KINDS', 'TARGET_KINDS'], ['correction-plan.js', 'recall-explain.js'], 25, '96a6f5e8'],
+    /* [v3.343.0 · M4-X5] 内核 testimony-board.js 自持一份与
+     *   knowledge-network / knowledge-trace **逐字同源**的事实原文归一(`normFact`,体长 360)——它必须能判「两条说法是不是同一句」,
+     *   这是来源去重与事件聚合的前置;而本面是**零依赖 IIFE**,故按仓内先例自持一份
+     *   (不引兄弟模块:跨模块引用归一口径会把两处抬版变成一处悄悄读旧值)。
+     *   ★ 本行是**当版自报**(与簇同批落盘、同批登记),体 md5 与磁盘同源。 */
+    ['fn', ['normFact', 'normalizeFact'], ['knowledge-network.js', 'knowledge-trace.js', 'narrative-layer.js', 'testimony-board.js'], 360, 'f9ab8403'],
+    /* [v3.344.0 · M4-X6] 内核 narrative-layer.js 自持一份与 causal-chain / correction-plan /
+     *   extraction-driver / perspective-card / relation-history / testimony-board **逐字同源**的
+     *   楼层归一(`floorOf`,体长 234;别名 floorOrNull,与前者**同体不同名**,故归本档)。
+     *   本面是**零依赖 IIFE**,按仓内先例自持一份(不引兄弟模块:跨模块引用归一口径
+     *   会把两处抬版变成一处悄悄读旧值)。
+     *   ★ 本行是**当版自报**(与簇同批落盘、同批登记),体 md5 与磁盘同源。 */
+    ['fn', ['floorOf', 'floorOrNull'], ['causal-chain.js', 'correction-plan.js', 'extraction-driver.js', 'narrative-layer.js', 'perspective-card.js', 'relation-history.js', 'testimony-board.js'], 234, '245e905a'],
+    /* [v3.345.0 · M4-X7] 内核 `return-gate.js` 自持一份与 `fated-recall.js` **逐字同源**的触发键种类
+     *   词表(D 包侧叫 `KINDS`、本刀侧叫 `TRIGGERS`,体长 40 —— 名字不同,故按**名**配对的
+     *   三层判据(v3280 / v3281)整片看不见它,正落入本档射程)。
+     *   **为什么留两份**:与 PRECHECK/PREVIEW、keyOf/strOf 同族 —— 它是**通用词表原语**;
+     *   本面是**零依赖 IIFE**(档头声明能力一律经 deps 注入、不引兄弟模块的常量),
+     *   收拢会把「本模块自足」换成「依赖另一个模块先挂载」(本仓反过的跨模块静默读旧值)。
+     *   ★ 本行是**当版自报**(与簇同批落盘、同批登记):体长/md5 由判据体在真磁盘上复算得出,
+     *   非手抄。 */
+    ['tab', ['KINDS', 'TRIGGERS'], ['fated-recall.js', 'return-gate.js'], 40, '0247fd11'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

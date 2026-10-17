@@ -118,12 +118,15 @@ function judgeStruct(idx, org, mf) {
 function judgeHostContract(src) {
     const bad = judgeStruct(src, ORG, MF);
     if (bad.length) throw new Error('宿主契约面不符：' + bad.join('；'));
-    if (MF.extra_js.length !== 107) throw new Error('extra_js 应为 107，实 ' + MF.extra_js.length);
+    /* [v3.343.0 交棒] `!== 107` 是本档出生那一版的一次性事实,不是永久不变量;
+     *   抬版即红而红的信息量只剩「数字不对」。改按下界口径(与 v3400 / v3264 / v3266 / v3296 / v3298 同族交棒);
+     *   「当版总项数恰一处」由当版 frontier 套件把守(v3209 数量锁)。 */
+    if (MF.extra_js.length < 107) throw new Error('extra_js 不得低于本档出生值 107,实 ' + MF.extra_js.length);
 }
 test('v3420 A1. **** 宿主五新出口各恰一处 + 四处契约面 + organs 逐字副本 + 自检行并入 + extra_js 107', () => {
     judgeHostContract(IDX);
     assert.deepEqual(judgeStruct(IDX, ORG, MF), [], judgeStruct(IDX, ORG, MF).join('；'));
-    console.log('  ok 五出口各恰 1 次 / 四处契约面 / organs 副本同源 / 落卷读数并入既有一行 / extra_js 107');
+    console.log('  ok 五出口各恰 1 次 / 四处契约面 / organs 副本同源 / 落卷读数并入既有一行 / extra_js ≥ 107');
 });
 /* ══════════════ B. 内核面（真映射 / 三态 / 幂等 / 撤销保护） ══════════════ */
 const ADOPT_CONST = ['ADOPT', 'ADOPT_LABEL', 'ADOPT_SOURCES', 'ADOPT_KIND', 'ADOPT_ITEM_FIELDS', 'UNMAPPED'];

@@ -7,7 +7,7 @@
     "css": "style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.342.0",
+    "version": "3.347.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -118,7 +118,12 @@
         "story-annual.js",
         "branch-canon.js",
         "fated-recall.js",
-        "qa-thread.js"
+        "qa-thread.js",
+        "testimony-board.js",
+        "narrative-layer.js",
+        "return-gate.js",
+        "material-pack.js",
+        "lore-crosscheck.js"
     ],
     "extra_css": [
         "lonsha-design.css",

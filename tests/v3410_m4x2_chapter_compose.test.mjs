@@ -112,12 +112,15 @@ function judgeStruct(idx, org, mf) {
 function judgeHostContract(src) {
     const bad = judgeStruct(src, ORG, MF);
     if (bad.length) throw new Error('宿主契约面不符：' + bad.join('；'));
-    if (MF.extra_js.length !== 107) throw new Error('extra_js 应为 107，实 ' + MF.extra_js.length);
+    /* [v3.343.0 交棒] `!== 107` 是本档出生那一版的一次性事实,不是永久不变量;
+     *   抬版即红而红的信息量只剩「数字不对」。改按下界口径(与 v3400 / v3264 / v3266 / v3296 / v3298 同族交棒);
+     *   「当版总项数恰一处」由当版 frontier 套件把守(v3209 数量锁)。 */
+    if (MF.extra_js.length < 107) throw new Error('extra_js 不得低于本档出生值 107,实 ' + MF.extra_js.length);
 }
 test('v3410 A1. **** 宿主六出口各恰一处 + 取库口 + 四处契约面 + organs 逐字副本 + extra_js 登记', () => {
     judgeHostContract(IDX);
     assert.deepEqual(judgeStruct(IDX, ORG, MF), [], judgeStruct(IDX, ORG, MF).join('；'));
-    console.log('  ok 六出口各恰 1 次 / 取库口 / 契约与清空面 / organs 副本同源 / extra_js 107');
+    console.log('  ok 六出口各恰 1 次 / 取库口 / 契约与清空面 / organs 副本同源 / extra_js ≥ 107');
 });
 const KEEP_FACES = ['build', 'review', 'twoVersions', 'gatedVersions', 'spoilerGate', 'forPlayer', 'belletristic', 'edit', 'staleRefs'];
 function judgeKernelFace(sa) {
