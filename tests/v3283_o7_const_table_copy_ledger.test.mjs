@@ -17,7 +17,7 @@
 //     「减少实际重复实现」的反面 —— 重复实现没人守，就是两份会各自腐化的真源。
 //
 //   【本档登记（6 对同名常量表，实测值逐字相同；v3.293.0 口径，X6/X7 补 2 对）】
-//     ARCHIVE_TOP_LEVEL_KEYS   index.js ↔ memory-organs.js   661 字符  md5 36a755a4（v3.341.0 M4-X2 增 annualDrafts；上一刀为 661 / 127993d2）
+//     ARCHIVE_TOP_LEVEL_KEYS   index.js ↔ memory-organs.js   694 字符  md5 3b37d478（v3.342.0 M4-X3 增 canonAdoption；上一刀为 677 / 36a755a4）
 //     RELATION_CONFLICT_GROUPS index.js ↔ memory-core.js     134       md5 a2700f54
 //     STORAGE_FP_FIELDS        index.js ↔ memory-organs.js    65       md5 70a8fcd9
 //     FACES                    branch-semantics.js ↔ volume-continuation.js   67  md5 997c2e8b
@@ -78,7 +78,7 @@ const MIN_PAIRS = 2;
  * 「看起来像同一张表、其实包了一层生命周期不同的写法」也能被点名。
  */
 const CONST_LEDGER = [
-    ['ARCHIVE_TOP_LEVEL_KEYS', ['index.js', 'memory-organs.js'], 677, '36a755a4', 'Object.freeze(['],
+    ['ARCHIVE_TOP_LEVEL_KEYS', ['index.js', 'memory-organs.js'], 694, '3b37d478', 'Object.freeze(['],
     ['RELATION_CONFLICT_GROUPS', ['index.js', 'memory-core.js'], 134, 'a2700f54', '['],
     ['STORAGE_FP_FIELDS', ['index.js', 'memory-organs.js'], 65, '70a8fcd9', '['],
     ['FACES', ['branch-semantics.js', 'memory-package.js', 'volume-continuation.js'], 67, '997c2e8b', 'Object.freeze(['],

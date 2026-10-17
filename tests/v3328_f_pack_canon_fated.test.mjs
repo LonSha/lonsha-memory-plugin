@@ -112,10 +112,16 @@ function fatedDeps() {
 /** A. 结构面:导出面逐字 / 冻结 / 依赖面 / 自证。 */
 function structureJudge(bc, fr) {
     const P = [];
-    const bcWant = ['BC_KIND', 'BC_VERSION', 'CLASH', 'DECISION', 'DECISION_LABEL', 'MAX_OUTCOMES', 'PREVIEW', 'PROVENANCE',
-        'REQUIRED_DEPS', 'SECRET_BODY_KEYS', 'SECRET_MASK', 'arrOf', 'clip', 'collisionKeyOf', 'conflicts', 'describe',
-        'describePlan', 'entryKeyOf', 'filterByKeeper', 'hash32', 'keyOf', 'line', 'listOutcomes', 'maskSecretBody',
-        'numOr', 'outcomeOf', 'planCanon', 'previewHandoff', 'revokeScopeOf', 'selfCheck', 'setDecision', 'strOf'];
+    /* [v3.342.0 · M4-X3 交棒] 导出面 +14（落卷面：ADOPT 三态 / UNMAPPED 三缺因 /
+     *   buildContinuePack / adoptionBrief / revokeGuard / adoptItemOf / adoptableItems /
+     *   adoptionLine / adoptProbeDeps / adoptProbePlan / 两张标签与来源表）；既有 32 项逐字不动。 */
+    const bcWant = ['ADOPT', 'ADOPT_ITEM_FIELDS', 'ADOPT_KIND', 'ADOPT_LABEL', 'ADOPT_SOURCES', 'BC_KIND', 'BC_VERSION',
+        'CLASH', 'DECISION', 'DECISION_LABEL', 'MAX_OUTCOMES', 'PREVIEW', 'PROVENANCE', 'REQUIRED_DEPS',
+        'SECRET_BODY_KEYS', 'SECRET_MASK', 'UNMAPPED', 'adoptItemOf', 'adoptProbeDeps', 'adoptProbePlan',
+        'adoptableItems', 'adoptionBrief', 'adoptionLine', 'arrOf', 'buildContinuePack', 'clip', 'collisionKeyOf',
+        'conflicts', 'describe', 'describePlan', 'entryKeyOf', 'filterByKeeper', 'hash32', 'keyOf', 'line',
+        'listOutcomes', 'maskSecretBody', 'numOr', 'outcomeOf', 'planCanon', 'previewHandoff', 'revokeGuard',
+        'revokeScopeOf', 'selfCheck', 'setDecision', 'strOf'];
     const gotBc = Object.keys(bc).sort();
     if (gotBc.join(',') !== bcWant.join(',')) P.push('branch-canon 导出面变了:实测 [' + gotBc.join(',') + ']');
     const frWant = ['CANDIDATE', 'DEFAULT_COOLDOWN', 'FR_KIND', 'FR_VERSION', 'KNOWING', 'MAX_CANDIDATES', 'POLICY', 'POLICY_LABEL',
@@ -151,6 +157,12 @@ function structureJudge(bc, fr) {
     if (m2.depsComplete !== false || m2.missing.length !== 3) P.push('fated-recall 缺格宣报不满三格');
     /* 模块级自证探针:四个真探针必须成立(不是对常量自己断言)。 */
     if (s1.bothTerminalBlocked !== true) P.push('自证探针:两条终结声明未判成冲突');
+    /* [v3.342.0 · M4-X3] 落卷面七个真探针:形状可接 / 三态不同形 / 未选尽不出包 /
+     *   幂等键稳定 / 三缺因具名 / 撤销保护面 / 受限正文不进包。 */
+    for (const k of ['adoptShapeOk', 'adoptThreeStates', 'adoptBlockedNoPack', 'adoptIdStable',
+        'adoptUnmappedNamed', 'adoptRevokeGuards', 'adoptMaskFixed']) {
+        if (s1[k] !== true) P.push('自证探针未成立:' + k);
+    }
     if (s1.maskFixedLength !== true) P.push('自证探针:掩码不定长');
     if (s1.revokeTouchesNoBranch !== true) P.push('自证探针:撤销面动了原分支');
     for (const k of ['triggersExhaustive', 'blindByUnknown', 'policyGatesInjection', 'cooldownUnjudgedVisible', 'cooldownAfterMark', 'maskFixedLength']) {

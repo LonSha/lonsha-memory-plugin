@@ -305,6 +305,9 @@ const REGISTRY = [
      *   锚点取自 story-annual.js 的成稿面 / 三态读数 / 玩家版闸 / 整章过期 / 双向事实位过滤
      *   与 index.js 的存档契约面 / 落笔持久化；按 B1 台账纪律在此登记。 */
     'v3410_m4x2_chapter_compose.test.mjs',
+    /* [v3.342.0 · M4-X3] 本档从 tests/_break_kit.mjs 取 breakOnce / BREAK_MSG
+     *   （八条真源码破坏：内核落卷面五个锚点 + 宿主接线面三个锚点）；按 B1 台账纪律在此登记。 */
+    'v3420_m4x3_canon_adoption.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
