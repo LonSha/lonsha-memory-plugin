@@ -31,7 +31,7 @@
  * ============================================================ */
 (function (global) {
     'use strict';
-    const SA_VERSION = 2;
+    const SA_VERSION = 3;
     const SA_KIND = 'story_annual';
     const NL = String.fromCharCode(10);
     const ELLIPSIS = String.fromCharCode(8230);
@@ -56,6 +56,43 @@
     const SMOKE_WORDS = Object.freeze(['不禁', '顿时', '仿佛', '宛如', '缓缓', '微微', '轻轻地', '淡淡道', '略一沉吟', '一时间', '不由得']);
     /** 恶劣词表(泄漏检查:草稿不得沾上脏话 / 出戏字串)。 */
     const FOUL_WORDS = Object.freeze(['出戏', '圈内', '系统提示', 'token', 'prompt', 'NSFW']);
+    /* ────────────────────────────────────────────────────────────
+     * [v3.341.0 · M4-X2] **成稿面** —— 从真实剧情生成可编辑的章节回顾
+     *
+     * 【它补的是哪一格（M4-X2 验收原文逐条）】
+     *   本模块修前只做两件事：**按章提取四要素**（build/review）与**只报读数的词表面**
+     *   （belletristic 统计八股味，**不改写一个字**）。验收原文要的是「从真实剧情生成
+     *   **可编辑的章节回顾**」。修前实测三处缺口（不是「再加一个按钮」）：
+     *     1 **没有成稿** —— 四要素是结构、不是可读的回顾；没有一处「一段一段跳回原文」的成稿；
+     *     2 **没有按章重建** —— 改一章源文 ⇒ 修前只能整本重来（或什么也不做），
+     *       「重建**受影响**章节而非整本重写」无处可读；
+     *     3 **没调模型不许说通过** —— 此前不区分「离线结构成稿」与「过了真实模型」，
+     *       读者会把前者读成后者（本仓治过多轮的「声称与落地漂移」同族）。
+     *   ★ 与 belletristic 分工不同：belletristic 答「这段有几处八股味」，
+     *     compose 答「这一章的回顾长什么样、每一段能否跳回原文」。
+     *   ★ 本面**不写记忆库**：成稿落在**草稿**上（applyEdits 只管草稿，事实位出现即拒）。
+     */
+    /** 成稿段落类（**穷尽**）：一段 = 一句可读文本 + 一个证据位。 */
+    const SECTION_KINDS = Object.freeze(['title', 'summary', 'event', 'change', 'unfinished', 'quote']);
+    const SECTION_LABEL = Object.freeze({ title: '章题', summary: '章述', event: '关键事件', change: '人物变化', unfinished: '未了事项', quote: '精选原话' });
+    /** 成稿来源两态（**不得同形**）：未调真实模型 ⇒ structure-only 且 styleChecked:false。 */
+    const COMPOSE_SOURCES = Object.freeze(['structure-only', 'polished']);
+    /** 章身份串（同一处拼法；两边各拼一份必然漂移）。 */
+    function chapterKey(ref) {
+        const r = (ref && typeof ref === 'object') ? ref : {};
+        return keyOf(r.project) + '/' + keyOf(r.volume) + '/' + keyOf(r.chapter);
+    }
+    /** 成稿段落：一段 = 可读文本 + **一个证据位**（逐段可回源）。 */
+    function sectionOf(kind, text, ref, floor, chars, max) {
+        const t = strOf(text).replace(/^[\s:：-]+/, '').trim();
+        if (!t) return null;
+        return {
+            kind: kind, label: SECTION_LABEL[kind] || kind, text: clip(t, max || 400),
+            evidenceRef: keyOf(ref), floor: numOr(floor, 0), chars: arrOf(chars).map(keyOf).filter(Boolean),
+        };
+    }
+    /** 草稿册形态串（与 SA_KIND 分列：回顾是读数，草稿册是**作品**）。 */
+    const DRAFT_KIND = 'story_annual_drafts';
 
     const REQUIRED_DEPS = Object.freeze([
         { key: 'CHAPTERS', why: '卷章结构(哪些楼属于哪一章的唯一真源;缺席 ⇒ 报「章面未判」,**不猜章界**)' },
@@ -565,6 +602,351 @@
         return out;
     }
 
+    /**
+     * **章节成稿**（纯函数、零写）。[v3.341.0 · M4-X2]
+     *   吃 review() 的产物（或任何同形回顾），出一篇**可读的章节回顾**：
+     *     · sections[] 逐段带 kind 与 evidenceRef —— **逐段可跳回原文**；
+     *     · text 是同一批段落的可读编排（**不是**把结构再抄一遍）；
+     *     · source 两态：structure-only（离线结构成稿）/ polished（调用方给了真模型通道）；
+     *       ★ **未调用真实模型只能报结构成稿，不报文风通过**（styleChecked 保持 false，
+     *         且 styleNote 逐字写明）—— 这条正是验收原文点名要治的那一格。
+     */
+    function compose(rev, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const out = {
+            kind: 'story_annual_draft', version: SA_VERSION, ok: false, ref: {}, title: '',
+            sections: [], text: '', paragraphCount: 0, chars: 0,
+            source: 'structure-only', modelUsed: false, styleChecked: false, styleNote: '',
+            evidenceBound: 0, evidenceMissing: 0, evidenceUndecided: 0, evidenceTotal: 0,
+            memoryUntouched: true, writesNothing: true, why: [],
+        };
+        const r = (rev && typeof rev === 'object') ? rev : null;
+        if (!r || r.ok !== true) { out.why.push('no-review'); return out; }
+        out.ref = Object.assign({}, r.ref);
+        out.title = keyOf(r.title);
+        const maxPer = Math.max(1, numOr(o.maxPerSection, 8));
+        const secMax = numOr(o.sectionMax, 400);
+        const push = function (kind, text, ref, floor, chars) {
+            const s = sectionOf(kind, text, ref, floor, chars, secMax);
+            if (s) out.sections.push(s);
+        };
+        push('title', keyOf(r.title), '', 0, []);
+        push('summary', strOf(r.summary), '', 0, []);
+        const els = (r.elements && typeof r.elements === 'object') ? r.elements : {};
+        for (const it of arrOf(els.events).slice(0, maxPer)) {
+            push('event', strOf(it && it.text), keyOf(it && it.evidenceRef), it && it.floor, it && it.chars);
+        }
+        for (const it of arrOf(els.changes).slice(0, maxPer)) {
+            const c = keyOf(it && it.char);
+            const from = keyOf(it && it.from);
+            const to = keyOf(it && it.to);
+            push('change', c + (from || to ? '：' + (from || '？') + ' → ' + (to || '？') : ''),
+                keyOf(it && it.evidenceRef), it && it.floor, c ? [c] : []);
+        }
+        for (const it of arrOf(els.unfinished).slice(0, maxPer)) {
+            push('unfinished', strOf(it && it.text), keyOf(it && it.evidenceRef), it && it.floor, []);
+        }
+        for (const it of arrOf(els.quotes).slice(0, maxPer)) {
+            const sp = keyOf(it && it.speaker);
+            push('quote', (sp ? sp + '：' : '') + strOf(it && it.text), keyOf(it && it.evidenceRef), it && it.floor, sp ? [sp] : []);
+        }
+        /* 逐段对账证据位：**有号且能在回顾的证据面上找到**才算「可跳回原文」。
+         *   ★ 三条读数分开：bound（真对上）/ missing（段没号或对不上）/ undecided（证据面本身未判）。
+         *     把三者压成一条会让「没证据」与「没看证据面」同形（本仓治过多轮的错读数）。 */
+        const have = new Set(arrOf(r.evidence).map(function (e) { return keyOf(e && e.ref); }));
+        for (const s of out.sections) {
+            if (s.kind === 'title' || s.kind === 'summary') continue;   /* 章题 / 章述不是条目，无条目级证据位 */
+            out.evidenceTotal += 1;
+            if (!s.evidenceRef) { out.evidenceMissing += 1; continue; }
+            if (!have.size) { out.evidenceUndecided += 1; continue; }
+            if (have.has(s.evidenceRef)) out.evidenceBound += 1; else out.evidenceMissing += 1;
+        }
+        /* 可读编排：分节标题 + 逐段一行（**同一批段落**，不另造文本）。 */
+        const lines = [];
+        if (out.title) lines.push('# ' + out.title);
+        const sum = out.sections.filter(function (s) { return s.kind === 'summary'; });
+        for (const s of sum) lines.push(s.text);
+        for (const kind of ['event', 'change', 'unfinished', 'quote']) {
+            const list = out.sections.filter(function (s) { return s.kind === kind; });
+            if (!list.length) continue;
+            lines.push('## ' + (SECTION_LABEL[kind] || kind));
+            for (const s of list) lines.push('- ' + s.text);
+        }
+        out.text = lines.join(NL + NL);
+        out.paragraphCount = out.sections.length;
+        out.chars = out.text.length;
+        /* ★ 真实模型通道：**调用方给 polish（真模型）才算过模型**。
+         *   给不出来 ⇒ 如实说「结构成稿」（styleChecked 保持 false，不报文风通过）。 */
+        if (typeof o.polish === 'function') {
+            let polished = null;
+            try { polished = o.polish({ ref: out.ref, title: out.title, text: out.text, sections: out.sections.slice() }); }
+            catch (_e) { polished = null; }
+            const obj = (polished && typeof polished === 'object') ? polished : null;
+            const pt = obj ? strOf(obj.text) : strOf(polished);
+            if (pt && pt !== out.text) {
+                out.text = pt;
+                out.chars = pt.length;
+                out.source = 'polished';
+                out.modelUsed = true;
+                out.styleChecked = (obj && obj.styleOk === true);
+            } else {
+                out.why.push('polish-no-change');
+            }
+        }
+        out.styleNote = out.modelUsed
+            ? (out.styleChecked ? '已过真实模型（调用方回报文风通过）' : '已过真实模型（调用方**未**回报文风结论 ⇒ 不报通过）')
+            : '结构成稿：未调用真实模型 ⇒ **不报文风通过**';
+        out.ok = out.sections.length > 0;
+        if (!out.ok) out.why.push('no-sections');
+        return out;
+    }
+    /**
+     * **无剧透成稿**（纯函数、零写）。[v3.341.0 · M4-X2]
+     *   ★ 铁律与 forPlayer 同源：**绝不回退作者版**。去剧透未成立（未给可知性面 /
+     *     没回顾 / 整篇裁空）⇒ ok:false + reason，由调用方显示「这一章暂时不能给玩家看」。
+     *   ★ 且**不漏后续事实**：成稿只吃**本章放行后的面**，从不读载荷里的其他章
+     *     （futureFactsLeaked 因此恒 0，并作为读数如实外供 —— 不是「相信它没读」）。
+     */
+    function composeForPlayer(rev, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const bad = function (why) {
+            return {
+                kind: 'story_annual_draft', version: SA_VERSION, ok: false, playerVersion: null, reason: why,
+                ref: {}, title: '', sections: [], text: '', source: 'structure-only', styleChecked: false,
+                leakedChars: [], futureFactsLeaked: 0, chaptersRead: 1, memoryUntouched: true, writesNothing: true,
+                note: '不接作者版：去剧透未成立（' + why + '）',
+            };
+        };
+        const fp = forPlayer(rev, o);
+        if (!fp || fp.ok !== true) return bad((fp && fp.reason) || 'no-review');
+        const fv = fp.version;
+        if (!fv || typeof fv !== 'object') return bad('no-player-version');
+        /* 用**放行后的面**当回顾：不再回作者面取一行料。 */
+        const els = (fv.elements && typeof fv.elements === 'object') ? fv.elements : {};
+        const free = {
+            ok: true, ref: Object.assign({}, fv.ref), title: keyOf(fv.title), summary: strOf(fv.summary),
+            elements: {
+                events: arrOf(els.events).slice(), changes: arrOf(els.changes).slice(),
+                unfinished: arrOf(els.unfinished).slice(), quotes: arrOf(els.quotes).slice(),
+            },
+            evidence: arrOf(fv.evidence).slice(),
+        };
+        const d = compose(free, o);
+        if (d.ok !== true) return bad('no-sections');
+        d.playerVersion = 'spoiler-free';
+        d.note = '按事实可知性裁剪后的玩家版成稿（保留 ' + numOr(fp.kept, 0) + ' / 遮蔽 ' + numOr(fp.withheld, 0) + '）';
+        /* ★ 读数如实外供（不是「相信它没读」）：成稿只吃**本章放行后的面**,
+         *   从不读载荷里的其他章 ⇒ futureFactsLeaked 恒 0,并作为读数写出来。 */
+        d.futureFactsLeaked = 0;
+        d.chaptersRead = 1;
+        /* 泄漏扫描：玩家版成稿正文里出现**名册里未放行的角色名** ⇒ 逐条具名（与两版面同一口径）。 */
+        const known = arrOf(o.knownChars).map(keyOf).filter(Boolean);
+        const body = d.text;
+        const leaked = [];
+        for (const nm of known) {
+            let allowed = false;
+            const decide = (typeof o.isAllowed === 'function') ? o.isAllowed : null;
+            if (decide) { try { allowed = decide(nm) === true; } catch (_e) { allowed = false; } }
+            else {
+                const names = [];
+                const collect = function (list, pick) { for (const it of arrOf(list)) for (const x of arrOf(pick(it))) names.push(keyOf(x)); };
+                collect(els.events, function (x) { return x && x.chars; });
+                collect(els.changes, function (x) { return (x && x.char) ? [x.char] : []; });
+                collect(els.quotes, function (x) { return (x && x.speaker) ? [x.speaker] : []; });
+                allowed = names.indexOf(nm) >= 0;
+            }
+            if (!allowed && nm && body.indexOf(nm) >= 0) leaked.push(nm);
+        }
+        d.leakedChars = leaked;
+        if (leaked.length) d.why.push('leaked-chars');
+        return d;
+    }
+    /**
+     * **按章重建**（纯函数、零写）。[v3.341.0 · M4-X2]
+     *   吃「草稿册 + 过期读数（staleRefs 的输出）」，把每章分到四格里：
+     *     · rebuilt   —— 该章有证据段变了 ⇒ **需要重建**（逐条具名 ref 与理由）；
+     *     · kept      —— 该章在过期读数里被判过 fresh ⇒ **原样保留**（不重写）；
+     *     · gone      —— 该章不在新载荷里 ⇒ 整章过期，但**过期不等于删除**：草稿原样留着；
+     *     · untouched —— 过期读数没提到它（判不了 ⇒ 不动它，也不假装它是 fresh）。
+     *   ★ wholeBookRebuilt 恒 false：本函数**实现的就是**按章重建 —— 整本重写不在本面，
+     *     把它读成 true 会把「改一章」错报成「整本重来」（验收原文点名要治的那一格）。
+     */
+    function rebuildAffected(drafts, stale, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const out = {
+            kind: 'story_annual_rebuild', version: SA_VERSION, ok: false,
+            rebuilt: [], kept: [], gone: [], untouched: [], drafts: [], why: [],
+            staleCount: 0, missingChapters: 0, wholeBookRebuilt: false, writesNothing: true,
+        };
+        const list = Array.isArray(drafts) ? drafts : null;
+        if (!list) { out.why.push('no-drafts'); return out; }
+        const st = (stale && typeof stale === 'object') ? stale : null;
+        if (!st) { out.why.push('no-stale-read'); return out; }
+        if (!Array.isArray(st.staleRefs) && !Array.isArray(st.all)) { out.why.push('stale-face-absent'); return out; }
+        out.staleCount = numOr(st.stale, 0);
+        out.missingChapters = numOr(st.missingChapters, 0);
+        const dirty = new Map();     /* chapterId -> [{ref, why}] */
+        for (const s of arrOf(st.staleRefs)) {
+            const cid = keyOf(s && s.chapter);
+            if (!cid) continue;
+            if (!dirty.has(cid)) dirty.set(cid, []);
+            dirty.get(cid).push({ ref: keyOf(s && s.ref), why: keyOf(s && s.why) || 'hash-changed' });
+        }
+        const gone = new Set();
+        for (const a of arrOf(st.all)) {
+            if (keyOf(a && a.verdict) === 'missing') gone.add(keyOf(a && a.chapter));
+        }
+        /* 只报了「整章缺失」的条数、却没给具名章 ⇒ 判不了是哪一个 ⇒ 如实具名，不猜。 */
+        if (!gone.size && out.missingChapters > 0) out.why.push('missing-chapter-unnamed');
+        for (const d of list) {
+            const cid = chapterKey(d && d.ref);
+            if (!cid || cid === '//') { out.why.push('draft-without-ref'); continue; }
+            if (gone.has(cid)) {
+                out.gone.push({ chapter: cid, why: 'chapter-gone', note: '整章不在新载荷里：草稿原样保留（过期 != 删除）' });
+                continue;
+            }
+            if (dirty.has(cid)) {
+                const refs = dirty.get(cid);
+                out.rebuilt.push({ chapter: cid, staleRefs: refs.length, why: refs[0] ? refs[0].why : 'hash-changed', refs: refs.slice(0, 12) });
+                continue;
+            }
+            /* 该章在过期读数里有 fresh 记录 ⇒ 真判过「没变」，才进 kept。 */
+            const judged = arrOf(st.all).some(function (a) {
+                return keyOf(a && a.chapter) === cid && keyOf(a && a.verdict) === 'fresh';
+            });
+            if (judged) out.kept.push({ chapter: cid, why: 'no-stale-ref' });
+            else out.untouched.push({ chapter: cid, why: 'not-in-stale-read' });
+        }
+        /* 草稿按原序原样外供（本面**不改草稿** —— 重建由调用方拿 rebuilt 名单去重跑 compose）。 */
+        out.drafts = list.map(function (d) {
+            const n = {};
+            const src = (d && typeof d === 'object') ? d : {};
+            for (const k of Object.keys(src)) n[k] = src[k];
+            n.chapter = chapterKey(n.ref);
+            return n;
+        });
+        out.ok = true;
+        out.note = '按章重建：受影响 ' + out.rebuilt.length + ' / 未变 ' + out.kept.length
+            + ' / 整章过期 ' + out.gone.length + ' / 未判 ' + out.untouched.length
+            + '（**不做整本重写**：wholeBookRebuilt 恒 false）';
+        return out;
+    }
+    /** 成稿**段落面**的草稿白名单（正文可编辑 = 验收原文「可编辑的章节回顾」）。
+     *   与 `DRAFT_FIELDS`（作品元数据：题/述/选段/风格）分列，既有口径一字不动。 */
+    const DRAFT_SECTION_FIELDS = Object.freeze(['sections']);
+    /**
+     * **编辑成稿草稿**（纯函数、返回新草稿；不改入参、不写账）。[v3.341.0 · M4-X2]
+     *   · 事实位字段出现即 rejected 并逐字 draft-only（编辑的不是记忆）；
+     *   · 未登记字段同样拒（不静默丢弃）；
+     *   · ★ **段证据位不得被编辑掉**：改了正文而把 evidenceRef 抹掉 ⇒ 逐条报
+     *     evidence-dropped 且 evidenceIntact:false —— 这就是「改正文不篡改记忆」
+     *     的可机检形态（不是一句承诺）。
+     *   · ★ **入参草稿自己夹带的事实位也不流传下去**：只对 patch 设防的写法，
+     *     会让「记忆不被篡改」在 draft 这一侧只是句话（实测过：state 原样进 next）。
+     */
+    function applyEdits(draft, patch) {
+        const out = {
+            ok: false, state: null, changed: [], rejected: [], reason: '',
+            memoryUntouched: true, evidenceIntact: true, writesNothing: true,
+        };
+        const d = (draft && typeof draft === 'object' && !Array.isArray(draft)) ? draft : null;
+        const p = (patch && typeof patch === 'object' && !Array.isArray(patch)) ? patch : null;
+        if (!d) return Object.assign(out, { reason: 'no-draft' });
+        if (!p) return Object.assign(out, { reason: 'no-patch' });
+        const allowed = DRAFT_FIELDS.concat(DRAFT_SECTION_FIELDS);
+        const next = {};
+        for (const k of Object.keys(d)) {
+            if (FACT_FIELDS.indexOf(k) >= 0) {
+                out.rejected.push({ key: k, why: 'draft-only', note: '入参草稿夹带的事实位不随编辑流传（事实不属于草稿）' });
+                continue;
+            }
+            next[k] = d[k];
+        }
+        for (const k of Object.keys(p)) {
+            if (FACT_FIELDS.indexOf(k) >= 0) {
+                out.rejected.push({ key: k, why: 'draft-only', note: '事实位不属于草稿：改它得走记忆库的处置面' });
+                continue;
+            }
+            if (allowed.indexOf(k) < 0) {
+                out.rejected.push({ key: k, why: 'unknown-field', note: '未登记字段不得静默丢弃' });
+                continue;
+            }
+            if (JSON.stringify(next[k]) !== JSON.stringify(p[k])) { next[k] = p[k]; out.changed.push(k); }
+        }
+        /* ★ 编辑前的段证据位必须**一条不少**地留在编辑后（正文可改，回源凭证不可抹）。
+         *   逐条具名 ref ⇒「抹掉了哪一条」可查，不是只报一个 false。 */
+        const before = arrOf(d.sections).map(function (s) { return keyOf(s && s.evidenceRef); }).filter(Boolean);
+        const after = arrOf(next.sections).map(function (s) { return keyOf(s && s.evidenceRef); }).filter(Boolean);
+        for (const r of before) {
+            if (after.indexOf(r) < 0) {
+                out.evidenceIntact = false;
+                out.rejected.push({ key: 'sections', why: 'evidence-dropped', ref: r, note: '段证据位不得被编辑掉（改正文不篡改记忆的凭证）' });
+            }
+        }
+        out.state = next;
+        out.ok = out.changed.length > 0 || out.rejected.length > 0;
+        out.reason = out.changed.length ? 'edited' : (out.rejected.length ? 'rejected-only' : 'no-change');
+        return out;
+    }
+    /** 成稿面诊断一行（**四态分开**：没生成过 / 结构成稿 / 过了模型 / 玩家版被挡）。 */
+    function composeLine(read) {
+        try {
+            if (!read || typeof read !== 'object') return '尚未生成过（成稿面 · 逐段回源 · 未调模型只报结构成稿）';
+            if (read.blocked) return '玩家版被挡（去剧透未成立：' + keyOf(read.reason || '未知') + '）';
+            const parts = ['成稿 ' + (read.modelUsed
+                ? ('已过模型' + (read.styleChecked ? '(文风通过)' : '(文风未结论)'))
+                : '结构成稿(未过模型)')];
+            if (numOr(read.paragraphCount, null) !== null) parts.push('段 ' + numOr(read.paragraphCount, 0));
+            if (numOr(read.evidenceBound, 0)) parts.push('回源 ' + numOr(read.evidenceBound, 0));
+            if (numOr(read.evidenceMissing, 0)) parts.push('缺证 ' + numOr(read.evidenceMissing, 0));
+            if (numOr(read.evidenceUndecided, 0)) parts.push('证据面未判 ' + numOr(read.evidenceUndecided, 0));
+            if (numOr(read.rebuilt, 0)) parts.push('待重建章 ' + numOr(read.rebuilt, 0));
+            if (numOr(read.gone, 0)) parts.push('整章过期 ' + numOr(read.gone, 0));
+            if (arrOf(read.leakedChars).length) parts.push('泄露 ' + arrOf(read.leakedChars).length + ' 人');
+            return parts.join(' · ');
+        } catch (_e) { return '—(成稿面异常)'; }
+    }
+    /* ────────────────────────────────────────────────────────────
+     * 草稿册的**持久化形态**（唯一真源）。
+     *   「草稿按既有创作持久化方式保存」—— 但**形状不许由宿主现编**：
+     *   宿主只负责把它塞进存档键，形状（字段白名单 / 版本 / 逐条章身份）只在本处声明。
+     *   ★ 归一化**如实报丢弃数**（`drops`）：静默截断会让「草稿没存下来」与
+     *     「草稿本来就没有」同形（本仓治过多次的错读数）。
+     *   ★ 收的是**成稿形状**（title/summary/sections/style/note）：`applyEdits` 的白名单
+     *     写什么，这里就收什么 —— 两处口径不同会让「编辑得了的存不下来」，
+     *     而且这件事只在重开对话后才现形。
+     * ──────────────────────────────────────────────────────────── */
+    function normalizeDrafts(raw) {
+        const out = { kind: DRAFT_KIND, version: SA_VERSION, drafts: [], drops: 0, why: [], writesNothing: true };
+        const list = Array.isArray(raw) ? raw : ((raw && typeof raw === 'object' && Array.isArray(raw.drafts)) ? raw.drafts : null);
+        if (!list) { out.why.push('no-drafts'); return out; }
+        for (const d of list) {
+            if (!d || typeof d !== 'object' || Array.isArray(d)) { out.drops += 1; continue; }
+            const cid = chapterKey(d.ref);
+            if (!cid || cid === '//') { out.drops += 1; continue; }
+            const row = { chapter: cid, ref: Object.assign({}, d.ref) };
+            /* 只收**草稿白名单字段**：事实位一概不收（与 applyEdits 同一口径）。 */
+            for (const k of DRAFT_FIELDS.concat(DRAFT_SECTION_FIELDS)) if (d[k] !== undefined) row[k] = d[k];
+            if (Array.isArray(row.sections)) row.sections = row.sections.map(function (s) {
+                return { kind: keyOf(s && s.kind), text: strOf(s && s.text), evidenceRef: keyOf(s && s.evidenceRef) };
+            });
+            out.drafts.push(row);
+        }
+        out.ok = out.drafts.length > 0;
+        if (!out.ok) out.why.push('no-usable-drafts');
+        return out;
+    }
+    /** 草稿册诊断一行（**没存过 / 存了零条 / 存了若干**三态不同形）。 */
+    function draftLine(read) {
+        try {
+            if (!read || typeof read !== 'object') return '尚未保存过草稿册（成稿可编辑 · 事实位一律不收）';
+            const n = arrOf(read.drafts).length;
+            const parts = ['草稿册 ' + n + ' 章'];
+            if (numOr(read.drops, 0)) parts.push('⚠️ 丢弃 ' + numOr(read.drops, 0) + ' 条');
+            if (!n) parts.push('(空册不算已保存)');
+            return parts.join(' · ');
+        } catch (_e) { return '—(草稿册异常)'; }
+    }
     function describe(deps) {
         const d = (deps && typeof deps === 'object') ? deps : {};
         const missing = [];
@@ -573,6 +955,7 @@
             kind: SA_KIND, version: SA_VERSION, elements: ELEMENTS.slice(), elementLabels: ELEMENTS.map(function (e) { return ELEMENT_LABEL[e]; }),
             versions: VERSIONS.slice(), draftFields: DRAFT_FIELDS.slice(), factFields: FACT_FIELDS.slice(),
             smokeWords: SMOKE_WORDS.slice(), foulWords: FOUL_WORDS.slice(), itemMax: ITEM_MAX,
+            sectionKinds: SECTION_KINDS.slice(), composeSources: COMPOSE_SOURCES.slice(),
             present: REQUIRED_DEPS.length - missing.length, total: REQUIRED_DEPS.length, missing: missing,
             offline: true, writesNothing: true,
             /* ★ 两版真跑一遍真载荷,要求两版**字段集不同形**(不是对常量自断言)。 */
@@ -637,6 +1020,8 @@
         SMOKE_WORDS, FOUL_WORDS, REQUIRED_DEPS, ITEM_MAX,
         keyOf, strOf, arrOf, numOr, clip, hash32, splitPoints, evidenceOf,
         build, review, twoVersions, gatedVersions, spoilerGate, forPlayer, belletristic, edit, staleRefs,
+        DRAFT_KIND, DRAFT_SECTION_FIELDS, SECTION_KINDS, SECTION_LABEL, COMPOSE_SOURCES, chapterKey, sectionOf,
+        compose, composeForPlayer, rebuildAffected, applyEdits, composeLine, normalizeDrafts, draftLine,
         describe, selfCheck, line,
     });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

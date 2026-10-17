@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.340.0';
+    const VERSION = '3.341.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -181,6 +181,7 @@
     'producerVersion',
     'loreImportLedger',  // [v3.339.0 · M4-X1] 资料导入账（幂等键 + 人工校订决定）
     'qaThread',  // [v3.340.0 · M4-X4] 追问线程（主体 / 时点下界 / 分支 / scope；只存约束不存答案）
+    'annualDrafts',  // [v3.341.0 · M4-X2] 章节成稿草稿册（作品：题/述/段；事实位一概不收）
     'extensions',
     ]);
     const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);
@@ -221,6 +222,7 @@
         'recallSourceStats',  // 召回源命中统计：会话内诊断资产
         'loreImportLedger',   // [v3.339.0 · M4-X1] 资料导入账：importedText 与携带面 prequel 同源异名（携带会双写），seen/decisions 是会话内幂等与校订痕迹
         'qaThread',           // [v3.340.0 · M4-X4] 追问线程：主体/时点条件绑定当前会话的问题语境，跨对话继承会把 A 的追问答成 B 的（内核自身按 chatKey 作废重建，故此处刻意不带）
+        'annualDrafts',       // [v3.341.0 · M4-X2] 成稿草稿册：章身份绑定具体会话的卷章结构，且它是**作品**不是剧情事实——跨对话带上会把上一部的回顾接进新故事
         'ledger',             // 楼层账本：索引「该楼提取了什么」，新对话楼层重来
         'echo',               // 回响池：life 计数是会话内衰减器，跨对话不应延续衰减
         // 下列两键与携带面的既有键**同源异名**，重复携带会在承接时双写互相覆盖：
@@ -13013,6 +13015,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 prequel: this.prequel ? this.prequel.export() : { text: '' },   // [v3.87] 前情资料随聊天持久化
                 loreImportLedger: this._loreImportLedger || null,   // [v3.339.0 · M4-X1] 资料导入账
                 qaThread: this._qaThread || null,   // [v3.340.0 · M4-X4] 追问线程（只存约束）
+                annualDrafts: this._annualDrafts || null,   // [v3.341.0 · M4-X2] 章节成稿草稿册（作品；事实位不收）
                 supersede: window.LonShaSupersede ? this.supersede.export() : { supersededMap: {} },
                 narrativeEntropy: this._narrativeEntropy || 0,
                 stmLtm: this._stmLtmState || null,   // [v3.96] STM/LTM 游标巩固状态随聊天持久化
@@ -13184,6 +13187,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             _imp('prequel', !!engine.prequel, () => engine.prequel.import(data.prequel));
             _imp('loreImportLedger', true, () => { if (data.loreImportLedger) engine._loreImportLedger = data.loreImportLedger; });
             _imp('qaThread', true, () => { if (data.qaThread) engine._qaThread = data.qaThread; });
+            _imp('annualDrafts', true, () => { if (data.annualDrafts) engine._annualDrafts = data.annualDrafts; });
             _imp('supersede', !!engine.supersede, () => engine.supersede.import(data.supersede));
             _imp('reflection', !!engine.reflection, () => engine.reflection.import(data.reflection));
             _imp('charMem', !!engine.charMem, () => engine.charMem.import(data.charMem));
@@ -13480,6 +13484,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
              *   缺口 3「恢复面有、清空面没有」由 v3236 D1 当场照出）。 */
             A('direct', 'loreImportLedger', '资料导入账', true, () => { e._loreImportLedger = null; });
             A('direct', 'qaThread', '追问线程', true, () => { e._qaThread = null; });
+            A('direct', 'annualDrafts', '成稿草稿册', true, () => { e._annualDrafts = null; });
             res.ok = res.failed.length === 0;
             this._clearRuntimeReport = res;
             return res;
@@ -17861,6 +17866,135 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 return res;
             } catch (e) { errLog(e, 'plugin.storyAnnualStale'); return { stale: 0, fresh: 0, missingChapters: 0, staleRefs: [], why: ['thrown'], all: [] }; }
         }
+        /**
+         * [v3.341.0 · M4-X2] **章节成稿**（零写）。吃 `storyAnnualReview` 的产物，出可读回顾。
+         *   ★ 未给 `opts.polish`（真模型通道）⇒ 如实报结构成稿，**不报文风通过**
+         *     —— 这正是验收原文「未调用真实模型只能报告结构成稿不报文风通过」那一格。
+         */
+        storyAnnualCompose(rev, opts) {
+            const SA = _storyAnnualLib();
+            const absent = (why) => ({
+                kind: 'story_annual_draft', version: 0, ok: false, ref: {}, title: '', sections: [], text: '',
+                paragraphCount: 0, chars: 0, source: 'structure-only', modelUsed: false, styleChecked: false,
+                styleNote: '', evidenceBound: 0, evidenceMissing: 0, evidenceUndecided: 0, evidenceTotal: 0,
+                memoryUntouched: true, writesNothing: true, why: [why],
+            });
+            if (!SA || typeof SA.compose !== 'function') return absent('module-absent');
+            try {
+                const res = SA.compose(rev, opts || {});
+                this._lastAnnualCompose = {
+                    at: Date.now(), ok: res.ok === true, sections: (res.sections || []).length,
+                    source: res.source, modelUsed: res.modelUsed === true, styleChecked: res.styleChecked === true,
+                    evidenceBound: res.evidenceBound || 0, evidenceMissing: res.evidenceMissing || 0,
+                    evidenceUndecided: res.evidenceUndecided || 0,
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualCompose'); return absent('thrown'); }
+        }
+        /**
+         * [v3.341.0 · M4-X2] **玩家版成稿**（零写）。
+         *   ★ 与 `storyAnnualForPlayer` 同铁律：**绝不回退作者版**。去剧透未成立 ⇒ `ok:false`，
+         *     由调用方显示「这一章暂时不能给玩家看」；把作者面当兜底正是直接剧透。
+         *   ★ 可知性面与 `storyAnnualForPlayer` **同一装配口**（`_o9Gate()`），不建第二份。
+         */
+        storyAnnualComposeForPlayer(rev, opts) {
+            const SA = _storyAnnualLib();
+            const absent = (why) => ({
+                kind: 'story_annual_draft', version: 0, ok: false, playerVersion: null, reason: why, ref: {},
+                title: '', sections: [], text: '', source: 'structure-only', styleChecked: false, leakedChars: [],
+                futureFactsLeaked: 0, chaptersRead: 0, memoryUntouched: true, writesNothing: true,
+                note: '不接作者版：去剧透未成立（' + why + '）',
+            });
+            if (!SA || typeof SA.composeForPlayer !== 'function') return absent('module-absent');
+            try {
+                const o = Object.assign({}, opts || {});
+                if (!o.gate || typeof o.gate.resolve !== 'function') {
+                    try { o.gate = this._o9Gate(); } catch (e) { errLog(e, 'plugin.storyAnnualComposeForPlayer.gate'); }
+                }
+                const res = SA.composeForPlayer(rev, o);
+                this._lastAnnualPlayerDraft = {
+                    at: Date.now(), ok: res.ok === true, reason: res.reason || '',
+                    leaked: (res.leakedChars || []).length, futureFactsLeaked: res.futureFactsLeaked || 0,
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualComposeForPlayer'); return absent('thrown'); }
+        }
+        /** [v3.341.0 · M4-X2] **按章重建**（零写）。草稿册缺省取本会话已存的（`_annualDrafts`）。 */
+        storyAnnualRebuild(drafts, stale, opts) {
+            const SA = _storyAnnualLib();
+            const absent = (why) => ({
+                kind: 'story_annual_rebuild', version: 0, ok: false, rebuilt: [], kept: [], gone: [],
+                untouched: [], drafts: [], why: [why], staleCount: 0, missingChapters: 0,
+                wholeBookRebuilt: false, writesNothing: true,
+            });
+            if (!SA || typeof SA.rebuildAffected !== 'function') return absent('module-absent');
+            try {
+                const src = drafts || this._annualDrafts || [];
+                const res = SA.rebuildAffected(src, stale, opts || {});
+                this._lastAnnualRebuild = {
+                    at: Date.now(), rebuilt: (res.rebuilt || []).length, kept: (res.kept || []).length,
+                    gone: (res.gone || []).length, untouched: (res.untouched || []).length,
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualRebuild'); return absent('thrown'); }
+        }
+        /** [v3.341.0 · M4-X2] 编辑成稿草稿（**纯函数**；事实位一概拒 —— 编辑的不是记忆）。 */
+        storyAnnualApplyEdits(draft, patch) {
+            const SA = _storyAnnualLib();
+            const absent = (why) => ({
+                ok: false, state: null, changed: [], rejected: [], reason: why,
+                memoryUntouched: true, evidenceIntact: true, writesNothing: true,
+            });
+            if (!SA || typeof SA.applyEdits !== 'function') return absent('module-absent');
+            try {
+                const res = SA.applyEdits(draft, patch);
+                this._lastAnnualEdit = {
+                    at: Date.now(), changed: (res.changed || []).length, rejected: (res.rejected || []).length,
+                    evidenceIntact: res.evidenceIntact !== false, reason: res.reason,
+                };
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualApplyEdits'); return absent('thrown'); }
+        }
+        /**
+         * [v3.341.0 · M4-X2] **草稿册**（唯一落笔口；形状由内核 `normalizeDrafts` 定，宿主不现编）。
+         *   无参 ⇒ 读；给入参 ⇒ 归一化后落进 `_annualDrafts`（随聊天持久化，重开可查）。
+         */
+        storyAnnualDrafts(raw, opts) {
+            const SA = _storyAnnualLib();
+            const absent = (why) => ({ kind: 'story_annual_drafts', version: 0, ok: false, drafts: [], drops: 0, why: [why], writesNothing: true, persisted: false });
+            if (!SA || typeof SA.normalizeDrafts !== 'function') return absent('module-absent');
+            try {
+                if (raw === undefined || raw === null) {
+                    const cur = Array.isArray(this._annualDrafts) ? this._annualDrafts : [];
+                    const r = SA.normalizeDrafts(cur);
+                    r.persisted = Array.isArray(this._annualDrafts);
+                    return r;
+                }
+                const res = SA.normalizeDrafts(raw);
+                this._annualDrafts = res.ok ? res.drafts.slice() : [];
+                res.persisted = true;
+                return res;
+            } catch (e) { errLog(e, 'plugin.storyAnnualDrafts'); return absent('thrown'); }
+        }
+        /** [v3.341.0 · M4-X2] 成稿面诊断一行（四态分开；没生成过与生成了零段不同形）。 */
+        storyAnnualComposeLine() {
+            try {
+                const SA = _storyAnnualLib();
+                if (!SA || typeof SA.composeLine !== 'function') return '成稿模块未加载(story-annual.js)';
+                const lastEdit = this._lastAnnualEdit || null;
+                const body = SA.composeLine(this._lastAnnualCompose || null);
+                const parts = [body];
+                const pv = this._lastAnnualPlayerDraft || null;
+                if (pv && pv.ok !== true) parts.push('⚠️ 玩家版被挡(' + (pv.reason || '未知') + ')');
+                else if (pv && pv.leaked) parts.push('⚠️ 玩家版泄漏 ' + pv.leaked + ' 人');
+                if (lastEdit && lastEdit.evidenceIntact === false) parts.push('⚠️ 段证据位被编辑掉');
+                const rb = this._lastAnnualRebuild || null;
+                if (rb) parts.push('重建 受影响 ' + rb.rebuilt + ' / 未变 ' + rb.kept + ' / 整章过期 ' + rb.gone);
+                const n = Array.isArray(this._annualDrafts) ? this._annualDrafts.length : null;
+                if (n !== null) parts.push('草稿 ' + n + ' 章');
+                return parts.join(' · ');
+            } catch (e) { errLog(e, 'plugin.storyAnnualComposeLine'); return '—(成稿面异常)'; }
+        }
         /** [v3.327.0 · M3-X7] 面自述。 */
         storyAnnualDescribe() {
             const SA = _storyAnnualLib();
@@ -17895,6 +18029,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (st && st.stale) parts.push('⚠️ 过期段 ' + st.stale);
                 if (st && st.missingChapters) parts.push('整章过期 ' + st.missingChapters);
                 if (last.chaptersChecked === false) parts.push('章面未判');
+                /* [v3.341.0 · M4-X2] 成稿面读数并入本行（同一问题的两种尺度：结构 vs 成稿）。 */
+                const ce = this._lastAnnualCompose || null;
+                if (ce) parts.push('成稿 ' + (ce.modelUsed ? '已过模型' : '结构成稿') + ' ' + (ce.sections || 0) + ' 段');
+                else parts.push('成稿未生成');
                 return parts.join(' · ');
             } catch (e) { errLog(e, 'plugin.storyAnnualLine'); return '—(诊断异常)'; }
         }

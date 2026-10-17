@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 73742,
+  "ceiling": 74271,
   "maxSlack": 400,
-  "note": "[v3.340.0] M4-X4 带消歧与条件继承的多轮记忆问答：新增内核模块 qa-thread.js（422 行，对话状态 + 消歧 + 条件继承）+ 宿主 index.js 取库口与四方法（_qaThreadLib/_qaThreadState/askMemoryQuestionFollowUp/qaThreadResolve/qaThread）+ 四处契约与持久化接线 + 自检面诊断行；全为活跃功能增长、非死代码回流。",
+  "note": "[v3.341.0] M4-X2 面向读者的章节回顾与年鉴成稿：内核 story-annual.js 增成稿面（compose / composeForPlayer / rebuildAffected / applyEdits 等九个新原语，+387 行）+ 宿主 index.js 增六出口与草稿册四处契约面（+140 行）。全为活跃功能增长，非死代码回流。",
   "history": [
     {
       "ceiling": 21000,
@@ -321,7 +321,11 @@
     {
       "ceiling": 73742,
       "reason": "[v3.340.0] M4-X4 带消歧与条件继承的多轮记忆问答：新增内核模块 qa-thread.js（422 行，对话状态 + 消歧 + 条件继承）+ 宿主 index.js 取库口与四方法（_qaThreadLib/_qaThreadState/askMemoryQuestionFollowUp/qaThreadResolve/qaThread）+ 四处契约与持久化接线 + 自检面诊断行；全为活跃功能增长、非死代码回流。"
+    },
+    {
+      "ceiling": 74271,
+      "reason": "[v3.341.0] M4-X2 面向读者的章节回顾与年鉴成稿：内核 story-annual.js 增成稿面（compose / composeForPlayer / rebuildAffected / applyEdits 等九个新原语，+387 行）+ 宿主 index.js 增六出口与草稿册四处契约面（+140 行）。全为活跃功能增长，非死代码回流。"
     }
   ],
-  "_history_last": "ceiling 73101 → 73742（实测 73342 + slack 400）：[v3.340.0] M4-X4 带消歧与条件继承的多轮记忆问答：新增内核模块 qa-thread.js（422 行，对话状态 + 消歧 + 条件继承）+ 宿主 index.js 取库口与四方法（_qaThreadLib/_qaThreadState/askMemoryQuestionFollowUp/qaThreadResolve/qaThread）+ 四处契约与持久化接线 + 自检面诊断行；全为活跃功能增长、非死代码回流。"
+  "_history_last": "ceiling 73742 → 74271（实测 73871 + slack 400）：[v3.341.0] M4-X2 面向读者的章节回顾与年鉴成稿：内核 story-annual.js 增成稿面（compose / composeForPlayer / rebuildAffected / applyEdits 等九个新原语，+387 行）+ 宿主 index.js 增六出口与草稿册四处契约面（+140 行）。全为活跃功能增长，非死代码回流。"
 }

@@ -7,7 +7,7 @@
     "css": "style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.340.0",
+    "version": "3.341.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",

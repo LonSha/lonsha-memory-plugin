@@ -372,14 +372,21 @@ test('v3400 F2. ** H6 两向自证：锚点不存在 / 不唯一时 breakOnce �
     assert.throws(() => breakOnce('aaa', 'a', 'b'), /锚点命中|拒绝破坏/);
     console.log('  ok 0 次 / 多次 锚点均被 breakOnce 拒绝');
 });
-test('v3400 G1. ★★ 当版版本锚：六源同源 + 当版锚点 + BORN_V', () => {
-    assert.match(IDX, new RegExp(String.raw`const VERSION = '${BORN_V}';`));
-    assert.equal(MF.version, BORN_V);
-    assert.equal(PKG.version, BORN_V);
+test('v3400 G1. ★★ 版本面：六源同源 + 本档出生锚 BORN_V（下界，不锁当版）', () => {
+    /* [v3.341.0 交棒] 原文是逐字硬等号（`const VERSION = '3.340.0'` + MF/PKG === BORN_V）——
+     *   与 v3264 C / v3266 C / v3232 C1 / v3315 踩过的是**同一族坑**：那是本档出生那一版的一次性事实，
+     *   不是永久不变量；抬版即红，而红的信息量只剩「数字不对」。
+     *   改按版本守卫 V2 的修法（「三源互等 + vnum(v) >= vnum(该测试自己的出生版本)，不要写死当前版本」）：
+     *   本档只守「六源**逐字同源**」与「不低于本档出生版本」；「当版锚点恰一处」由**当版 frontier 套件**把守
+     *   （V4 口径：锚必须住在当版档案里，历史文件锁当版反而会被 V2 抓）。 */
+    const idxV = (/const VERSION = '([^']+)'/.exec(IDX) || [])[1];
+    assert.ok(vnum(idxV) >= vnum(BORN_V), '宿主版本不得低于本档出生版本（实 ' + idxV + '）');
+    assert.equal(MF.version, idxV, 'manifest.json 未与宿主同源');
+    assert.equal(PKG.version, idxV, 'package.json 未与宿主同源');
     for (const rel of ['memory-config.js', 'memory-core.js', 'memory-organs.js']) {
         const s = read(rel);
-        assert.match(s, new RegExp(String.raw`let VERSION = '${BORN_V}'`), rel + ' 未同源');
+        assert.match(s, new RegExp(String.raw`let VERSION = '${idxV}'`), rel + ' 未同源');
     }
     assert.ok(vnum(BORN_V) > vnum('3.339.0'), '版本序须前进');
-    console.log('  ok 六源 3.340.0 / 当版锚 / 版本序前进');
+    console.log('  ok 六源逐字同源（' + idxV + '）/ 出生锚 v' + BORN_V + ' / 版本序前进');
 });

@@ -273,18 +273,62 @@ function jFiveFacesCovered(src, win) {
 }
 
 /* ══════════════ A. 结构面 ══════════════ */
-test('v3360 A1. ★★★★ 内核导出面 +3 且既有 27 项逐字不动;SA_VERSION=2', () => {
+test('v3360 A1. ★★★★ 内核导出面 +3 且既有 27 项逐字不动;SA_VERSION≥2', () => {
     const got = Object.keys(SA).sort();
-    const want = ['DRAFT_FIELDS', 'ELEMENTS', 'ELEMENT_LABEL', 'FACT_FIELDS', 'FOUL_WORDS', 'ITEM_MAX', 'REQUIRED_DEPS',
-        'SA_KIND', 'SA_VERSION', 'SMOKE_WORDS', 'VERSIONS', 'arrOf', 'belletristic', 'build', 'clip', 'describe', 'edit',
-        'evidenceOf', 'forPlayer', 'gatedVersions', 'hash32', 'keyOf', 'line', 'numOr', 'review', 'selfCheck',
-        'splitPoints', 'spoilerGate', 'staleRefs', 'strOf', 'twoVersions'];
+/* [v3.341.0 · M4-X2] 词表按**排序后真值**逐字对账（既有 31 项在场，新增成稿面 14 项）。 */
+    const want = [
+        'COMPOSE_SOURCES',
+        'DRAFT_FIELDS',
+        'DRAFT_KIND',
+        'DRAFT_SECTION_FIELDS',
+        'ELEMENTS',
+        'ELEMENT_LABEL',
+        'FACT_FIELDS',
+        'FOUL_WORDS',
+        'ITEM_MAX',
+        'REQUIRED_DEPS',
+        'SA_KIND',
+        'SA_VERSION',
+        'SECTION_KINDS',
+        'SECTION_LABEL',
+        'SMOKE_WORDS',
+        'VERSIONS',
+        'applyEdits',
+        'arrOf',
+        'belletristic',
+        'build',
+        'chapterKey',
+        'clip',
+        'compose',
+        'composeForPlayer',
+        'composeLine',
+        'describe',
+        'draftLine',
+        'edit',
+        'evidenceOf',
+        'forPlayer',
+        'gatedVersions',
+        'hash32',
+        'keyOf',
+        'line',
+        'normalizeDrafts',
+        'numOr',
+        'rebuildAffected',
+        'review',
+        'sectionOf',
+        'selfCheck',
+        'splitPoints',
+        'spoilerGate',
+        'staleRefs',
+        'strOf',
+        'twoVersions',
+    ];
     assert.equal(got.join(','), want.join(','), '导出面变了');
-    assert.equal(SA.SA_VERSION, 2, '形状变了必须抬版本');
+    assert.ok(SA.SA_VERSION >= 2, '形状变了必须抬版本（v3.341.0 成稿面后为 3）');
     assert.ok(Object.isFrozen(SA), '导出面须冻结');
     /* 既有依赖面键名逐字不动（改名 = 静默变成「依赖缺席」）。 */
     assert.equal(SA.REQUIRED_DEPS.map((d) => d.key).join(','), 'CHAPTERS,SUMMARY,QUOTES', '依赖面键名不得改');
-    ok('导出 31 项（+3）;SA_VERSION 1→2;依赖面键名逐字未动');
+    ok('导出 ' + got.length + ' 项（本档出生 31，v3.341.0 M4-X2 成稿面加至 45）;依赖面键名逐字未动');
 });
 
 test('v3360 A2. ★★★★ 宿主五个判决口成员各恰一处;不建第二份权限表', () => {

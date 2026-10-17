@@ -301,6 +301,10 @@ const REGISTRY = [
     'v3380_m4o8_center_actions.test.mjs',
     'v3390_m4x1_lore_manual.test.mjs',
     'v3400_m4x4_qa_thread.test.mjs',
+    /* [v3.341.0 · M4-X2] 本档从唯一真源取 breakOnce（八条真源码破坏：内核六处 + 宿主两处），
+     *   锚点取自 story-annual.js 的成稿面 / 三态读数 / 玩家版闸 / 整章过期 / 双向事实位过滤
+     *   与 index.js 的存档契约面 / 落笔持久化；按 B1 台账纪律在此登记。 */
+    'v3410_m4x2_chapter_compose.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

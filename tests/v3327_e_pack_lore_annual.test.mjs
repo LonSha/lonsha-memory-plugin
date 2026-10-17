@@ -90,10 +90,54 @@ function structureJudge(li, sa) {
     if (gotLi.join(',') !== liWant.join(',')) P.push('lore-import 导出面变了:实测 [' + gotLi.join(',') + ']');
     /* [v3.336.0 · M4-O9] 导出面增 gatedVersions / spoilerGate / forPlayer（按事实可知性裁剪）。
      *   既有 27 项**逐字不动**：新路径是**加法**，旧口径与它的负控制锚点都得原样在场。 */
-    const saWant = ['DRAFT_FIELDS', 'ELEMENTS', 'ELEMENT_LABEL', 'FACT_FIELDS', 'FOUL_WORDS', 'ITEM_MAX', 'REQUIRED_DEPS',
-        'SA_KIND', 'SA_VERSION', 'SMOKE_WORDS', 'VERSIONS', 'arrOf', 'belletristic', 'build', 'clip', 'describe', 'edit',
-        'evidenceOf', 'forPlayer', 'gatedVersions', 'hash32', 'keyOf', 'line', 'numOr', 'review', 'selfCheck',
-        'splitPoints', 'spoilerGate', 'staleRefs', 'strOf', 'twoVersions'];
+/* [v3.341.0 · M4-X2] 同上，按排序后真值重建。 */
+    const saWant = [
+        'COMPOSE_SOURCES',
+        'DRAFT_FIELDS',
+        'DRAFT_KIND',
+        'DRAFT_SECTION_FIELDS',
+        'ELEMENTS',
+        'ELEMENT_LABEL',
+        'FACT_FIELDS',
+        'FOUL_WORDS',
+        'ITEM_MAX',
+        'REQUIRED_DEPS',
+        'SA_KIND',
+        'SA_VERSION',
+        'SECTION_KINDS',
+        'SECTION_LABEL',
+        'SMOKE_WORDS',
+        'VERSIONS',
+        'applyEdits',
+        'arrOf',
+        'belletristic',
+        'build',
+        'chapterKey',
+        'clip',
+        'compose',
+        'composeForPlayer',
+        'composeLine',
+        'describe',
+        'draftLine',
+        'edit',
+        'evidenceOf',
+        'forPlayer',
+        'gatedVersions',
+        'hash32',
+        'keyOf',
+        'line',
+        'normalizeDrafts',
+        'numOr',
+        'rebuildAffected',
+        'review',
+        'sectionOf',
+        'selfCheck',
+        'splitPoints',
+        'spoilerGate',
+        'staleRefs',
+        'strOf',
+        'twoVersions',
+    ];
     const gotSa = Object.keys(sa).sort();
     if (gotSa.join(',') !== saWant.join(',')) P.push('story-annual 导出面变了:实测 [' + gotSa.join(',') + ']');
     if (!Object.isFrozen(li)) P.push('lore-import 导出面未冻结');
@@ -358,7 +402,7 @@ function hostJudge(idx, mf) {
 /* ══════════════ A. 结构面 ══════════════ */
 test('v3327 A1. ★★★★ 两模块结构面:导出面逐字对账 / 冻结 / 依赖面键名 / 自证与缺格宣报', () => {
     assert.deepEqual(structureJudge(LI, SA), [], '结构面');
-    ok('lore-import 29 项导出 / story-annual 28 项导出,键名与宿主装配点逐字对齐');
+    ok('lore-import ' + Object.keys(LI).length + ' 项导出 / story-annual ' + Object.keys(SA).length + ' 项导出,键名与宿主装配点逐字对齐');
 });
 
 /* ══════════════ B. M3-X5 真跑 ══════════════ */
