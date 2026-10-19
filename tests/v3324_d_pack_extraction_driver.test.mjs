@@ -736,11 +736,21 @@ test('v3324 F3. ★★★ 加载面：两个新模块各在 extra_js 恰一次�
      *   仍判**语义**「当版新模块仍未掉队」:本版两模块须按加载序位于分发面末尾。
      *   [v3.328.0 F 包 再交棒] 同上:slice(-2) 的**内容**换成当版两模块,判据形态一字不改。 */
         /* [v3.345.0 M4-X7 再交棒] 原文是「末尾恰两模块」的逐字相等 —— 新增 return-gate.js 后翻红。
-     *   仍判**语义**「本包两模块仍未掉队」:两项都须在分发面里,且都落在**末尾三模块**的加载窗口内。 */
+     *   当时改判**语义**「本包两模块仍未掉队」:两项都须在分发面里,且都落在**末尾三模块**的加载窗口内。
+     *   [v3.348.0 第四期收口 再交棒] 该窗口已在 v3.346.0 / v3.347.0 连红两版,见下方块注释。 */
     for (const m of ['testimony-board.js', 'narrative-layer.js']) {
         assert.ok(MF.extra_js.includes(m), m + ' 须仍在分发面里(实 ' + MF.extra_js.length + ' 项)');
-        assert.ok(MF.extra_js.slice(-3).includes(m), m + ' 须仍落在末尾三模块窗口内(实 ' + MF.extra_js.slice(-3).join(',') + ')');
     }
+    /* [v3.348.0 第四期收口 交棒] 原文是「末尾三模块窗口」(slice(-3).includes) ——
+     *   该形态在**每版新增模块**后必然翻红:v3.346.0 material-pack.js 与 v3.347.0
+     *   lore-crosscheck.js 已把本包两模块顶出末尾三格,而翻红的信息量只剩「窗口大小不对」。
+     *   仍判**语义**「本包两模块未掉队且加载序未被打乱」:两者都须在场,且
+     *   testimony-board.js 仍加载在 narrative-layer.js 之前。
+     *   代价(写明):不再判「未落在分发面中间」—— 中间位置对加载序无语义,
+     *   当初用窗口只是想表达「没被后来的版本挤掉」,而那件事由上面的 includes 兜住。 */
+    assert.ok(MF.extra_js.indexOf('testimony-board.js') < MF.extra_js.indexOf('narrative-layer.js'),
+        '本包两模块的加载序必须保持 testimony-board 在 narrative-layer 之前(实 '
+        + MF.extra_js.indexOf('testimony-board.js') + ' < ' + MF.extra_js.indexOf('narrative-layer.js') + ')');
 });
 test('v3324 F4. ★★ 两模块导出面指纹与只读纪律（不 require 兄弟模块 / 不联网 / 不落盘）', () => {
     const grid = [

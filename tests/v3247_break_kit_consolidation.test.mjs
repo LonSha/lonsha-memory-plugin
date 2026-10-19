@@ -331,6 +331,10 @@ const REGISTRY = [
      *   撤除闸 / 分区不硬塞 / 批注分列;宿主两处 —— 装配点 / 模式转发);
      *   按 B1 台账纪律在此登记。 */
     'v3470_m4x9_lore_crosscheck.test.mjs',
+    /* [v3.348.0 第四期收口] 本档从 tests/_break_kit.mjs 取 breakOnce
+     *   (五条真源码破坏:VERSION 常量 / doc_readings 登记版本 / 基线 measured_at /
+     *   README 快照四元组 / 台账缺行);按 B1 台账纪律在此登记。 */
+    'v3480_closeout_fourth_phase.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

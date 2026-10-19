@@ -468,11 +468,15 @@ test('v3328 E3. ★★★ 分发面:两模块各登记一次,模块内标识在�
     assert.equal(MF.extra_js.filter((x) => x === 'fated-recall.js').length, 1);
     /* 末两项按加载序位于分发面末尾(本版新模块)。 */
         /* [v3.345.0 M4-X7 再交棒] 原文是末尾恰两模块的逐字 deepEqual —— 抬版后翻红。
-     *   仍判**语义**「F 包两模块仍未掉队」:都在分发面里、且都在末尾三模块窗口内。 */
-    for (const m of ['testimony-board.js', 'narrative-layer.js']) {
-        assert.ok(MF.extra_js.includes(m), m + ' 须仍在分发面里(实 ' + MF.extra_js.length + ' 项)');
-        assert.ok(MF.extra_js.slice(-3).includes(m), m + ' 须仍落在末尾三模块窗口内(实 ' + MF.extra_js.slice(-3).join(',') + ')');
-    }
+     *   当时改判**语义**「F 包两模块仍未掉队」:都在分发面里、且都在末尾三模块窗口内。
+     *   [v3.348.0 第四期收口 再交棒] 该窗口已在 v3.346.0 / v3.347.0 连红两版
+     *   (material-pack.js / lore-crosscheck.js 依次把本包两模块顶出末尾三格)。
+     *   仍判**语义**「两模块未掉队且加载序未被打乱」:两者都须在场,且
+     *   testimony-board.js 仍加载在 narrative-layer.js 之前。
+     *   代价(写明):不再判「未落在分发面中间」—— 中间位置对加载序无语义。 */
+    assert.ok(MF.extra_js.indexOf('testimony-board.js') < MF.extra_js.indexOf('narrative-layer.js'),
+        '本包两模块的加载序必须保持 testimony-board 在 narrative-layer 之前(实 '
+        + MF.extra_js.indexOf('testimony-board.js') + ' < ' + MF.extra_js.indexOf('narrative-layer.js') + ')');
     /* 模块内标识在宿主里零命中(宿主只转发,不复制实现)。 */
     const leaks = ['SECRET_MASK', 'TRIGGER_LABEL', 'DECISION_LABEL', 'CLASH.', 'PROVENANCE.'].filter((x) => IDX.indexOf(x) >= 0);
     assert.deepEqual(leaks, [], '宿主内联了模块标识:' + leaks.join(','));

@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.347.0",
+ "measured_at": "v3.348.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2427,6 +2427,38 @@
     "member_count": 3,
     "top5_pct": 0.1
    }
+  },
+  "v3.348.0": {
+   "reason": "v3.348.0 重建（读数由探针生成，零手抄）",
+   "readings": {
+    "total_lines": 21964,
+    "member_count": 798,
+    "duplicate_member_names": 25,
+    "top5_lines": 5180,
+    "top5_pct": 23.6,
+    "top40_lines": 11243,
+    "top40_pct": 51.2,
+    "prefix_rule_coverage_lines": 5520,
+    "prefix_rule_coverage_pct": 25.1,
+    "unclassified_lines": 15465,
+    "seam_distinct_modules": 81,
+    "seam_reference_sites": 115,
+    "seam_call_shape_sites": 119,
+    "members_over_80_lines": 42,
+    "low_coupling_members": 31,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.347.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -2911,7 +2943,7 @@
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
   "ceiling": 22364,
   "maxSlack": 400,
-  "note": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 chat-only / lore-only / compare、四分区 chat / lore / note / unknown、六态判定 matched / divergent / unrealized / lore-only / chat-only / unchecked、撤除与失效引用、批注分列,导出面 38);宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows(唯一装配点:从既有结构化查询 owner searchEvidenceStructured 收剧情事实行) / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是**无状态只读面**:不新增任何持久化键(不动 ARCHIVE_TOP_LEVEL_KEYS / CARRYOVER_EXEMPT_KEYS / collectExport / restoreFromPayload / clearRuntimeMemory 五面)。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回;成员面在线内不抬。",
+  "note": "[v3.348.0] 第四期计划收口:本版不新增产品面、不动宿主实现体(只改版本常量与当版注释),宿主读数与 v3.347.0 同(实测 21964 行 / 798 成员,由探针生成、零手抄)。行上界按「实测 + slack」贴回:实测未越上界 ⇒ 上界不抬(22364,余量 400);成员面在线内(823)⇒ 不抬。本版为收口登记刀,非死代码回流。",
   "history": [
    {
     "ceiling": 15000,
@@ -3086,6 +3118,12 @@
     "ceiling": 22364,
     "member_ceiling": 823,
     "reason": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 chat-only / lore-only / compare、四分区 chat / lore / note / unknown、六态判定 matched / divergent / unrealized / lore-only / chat-only / unchecked、撤除与失效引用、批注分列,导出面 38);宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows(唯一装配点:从既有结构化查询 owner searchEvidenceStructured 收剧情事实行) / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是**无状态只读面**:不新增任何持久化键(不动 ARCHIVE_TOP_LEVEL_KEYS / CARRYOVER_EXEMPT_KEYS / collectExport / restoreFromPayload / clearRuntimeMemory 五面)。全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回;成员面在线内不抬。"
+   },
+   {
+    "version": "v3.348.0",
+    "ceiling": 22364,
+    "member_ceiling": 823,
+    "reason": "[v3.348.0] 第四期计划收口:本版不新增产品面、不动宿主实现体(只改版本常量与当版注释),宿主读数与 v3.347.0 同(实测 21964 行 / 798 成员,由探针生成、零手抄)。行上界按「实测 + slack」贴回:实测未越上界 ⇒ 上界不抬(22364,余量 400);成员面在线内(823)⇒ 不抬。本版为收口登记刀,非死代码回流。"
    }
   ],
   "member_ceiling": 823,
