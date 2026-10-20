@@ -279,22 +279,122 @@
         return false;
     }
     /**
+     * [v3.350.0 · M5-O3] **否定与命题核**（零正则、零反斜杠：逐词剔除）。
+     *   修前缺口（M5-O3 现状证据原文）：`verdictOf` 只做**子串命中** ——
+     *   资料期望「归还」而剧情写「尚未归还」时，`hay.indexOf('归还') >= 0` 成立
+     *   ⇒ 判 matched，**把明确的反证读成了吻合**。
+     *   为什么用词表而不是语义模型：判定必须**可复算**（本仓对「重放一致」的纪律）；
+     *   否定在中文里由少量固定词承担，认字面就够 —— 而一旦要「理解」就会引入
+     *   版本化词典依赖（同一坑在 qa-thread 的标记词表上已声明过一次）。
+     *   ★ 长词在前：先剥「尚未 / 不再」这类双字词，免得留下「未 / 不」的残尾。
+     */
+    const NEG_WORDS = Object.freeze(['尚未', '未能', '没再', '不再', '否认', '放弃', '解除', '取消', '没有', '不', '没', '未', '无']);
+    /** 判否定的**窗口**：只在期望值（或其命题核）之前这么多字内找否定词 ——
+     *   对整行判会让「不安的夜」这类无关标题把正常命中误判成反证。 */
+    const NEG_WINDOW = 6;
+    /** 该串里有没有否定词（用于**期望侧**极性）。 */
+    function negOf(value) {
+        const t = String(value == null ? '' : value);
+        for (let i = 0; i < NEG_WORDS.length; i++) if (t.indexOf(NEG_WORDS[i]) >= 0) return true;
+        return false;
+    }
+    /** 剥掉否定词之后的**命题核**（「尚未归还」⇒「归还」）。全是否定词 ⇒ 空串。 */
+    function coreOf(value) {
+        let t = String(value == null ? '' : value);
+        for (let i = 0; i < NEG_WORDS.length; i++) {
+            const w = NEG_WORDS[i];
+            while (t.indexOf(w) >= 0) t = t.split(w).join('');
+        }
+        return t.trim();
+    }
+    /** 该串中 `needle` **紧邻之前**的窗口里有没有否定词（无 needle ⇒ false，不猜）。 */
+    function negNear(hay, needle) {
+        const at = hay.indexOf(needle);
+        if (at < 0) return false;
+        const from = (at - NEG_WINDOW) < 0 ? 0 : (at - NEG_WINDOW);
+        const win = hay.slice(from, at);
+        for (let i = 0; i < NEG_WORDS.length; i++) if (win.indexOf(NEG_WORDS[i]) >= 0) return true;
+        return false;
+    }
+    /**
      * 判定一条资料在剧情面**兑现了没有**(六态互不同形)。
      *   · 剧情侧**无对应** ⇒ 资料声称已发生(unrealized)/ 未声称(lore-only);
      *   · 剧情侧**有对应**但**没给一致性判据**(expect)⇒ unchecked(**不猜一致**);
      *   · 给了 expect ⇒ 剧情行正文含 expect ⇒ matched;都不含 ⇒ divergent。
      *   ★ 「未发生」与「判不了」**必须不同形**:前者是资料说发生了而剧情没有,
      *     后者是两侧都在但**没有可复算的判据**。
+     *
+     * [v3.350.0 · M5-O3] 两处口径补强(都在既有六态之内，**不新增态**):
+     *   ① **否定不当吻合**:命中还要**极性一致**才判 matched；核命中而极性相反
+     *      ⇒ 明确反证(divergent)。期望值自身带否定词时以它的极性为基准。
+     *   ② **覆盖与时间**:命中行若全部落在 `opts.atFloor` 之外，或调用方显式报
+     *      `opts.chatCoverage !== 'complete'`(读源失败 / 缺源) ⇒ 判 unchecked，
+     *      **不说「未发生」** —— 没查到与不存在必须可分。
+     *   ③ 不传 opts 时口径与修前**逐字相同**(既有套件与旧调用点零改动)。
      */
-    function verdictOf(loreItem, chats) {
+    function verdictOf(loreItem, chats, opts, out) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const at = floorOf(o.atFloor);
+        /* 覆盖:调用方显式报非 complete(缺源 / 读源失败)⇒ 本次**没看全**,不是「没有」。 */
+        const coverage = (o.chatCoverage === undefined || o.chatCoverage === null) ? 'complete' : keyOf(o.chatCoverage);
+        /* 时间范围:命中行若全在 atFloor 之外 ⇒ 这次没看到,不是「没发生」。 */
+        let rows = chats;
+        let outOfRange = 0;
+        if (at !== null && chats.length) {
+            const inRange = [];
+            for (let i = 0; i < chats.length; i++) {
+                const fl = floorOf(chats[i].floor);
+                if (fl === null || fl <= at) inRange.push(chats[i]); else outOfRange++;
+            }
+            rows = inRange;
+        }
+        if (out) { out.coverage = coverage; out.outOfRange = outOfRange; out.hitAt = ''; out.polarity = ''; }
+        /* 闸(**前置**):命中行全在时间范围外 / 覆盖不完整 ⇒ 判不了(unchecked),
+         *   而不是报「未发生」—— M5-O3 验收原文:「缺源、读源失败、覆盖完备但无证据三种状态可辨」。
+         *   放在下面那条既有未发生闸**之前**,是为了让它在覆盖充分时**逐字不变**。 */
+        if (!rows.length && (outOfRange > 0 || coverage !== 'complete')) {
+            if (out) out.why = (outOfRange > 0) ? '命中行全在时间范围外 ⇒ 判不了(不说「未发生」)' : '来源覆盖不完整(缺源 / 读源失败) ⇒ 判不了(不说「未发生」)';
+            return 'unchecked';
+        }
         if (!chats.length) return loreItem.settingAsHappened === true ? 'unrealized' : 'lore-only';
         const expect = keyOf(loreItem.expect);
-        if (!expect) return 'unchecked';
-        for (const r of chats) {
+        if (!expect) { if (out) out.why = '两侧命中同题但未给一致性判据(expect)⇒ 判不了,不猜一致'; return 'unchecked'; }
+        const negExpect = negOf(expect);
+        const core = coreOf(expect);
+        /* ★ 逐行比**极性**,不是只比子串:资料期望「归还」而剧情写「尚未归还」时,
+         *   子串命中成立却是**明确反证** —— 这正是 M5-O3 要修的读数(修前判 matched)。 */
+        let hasSupport = false;
+        let hasCounter = false;
+        let hitAt = '';
+        for (const r of rows) {
             const hay = strOf(r.text) + SP + strOf(r.title) + SP + strOf(r.status);
-            if (hay.indexOf(expect) >= 0) return 'matched';
+            let needle = '';
+            if (hay.indexOf(expect) >= 0) needle = expect;
+            else if (core.length >= 2 && hay.indexOf(core) >= 0) needle = core;
+            if (!needle) continue;
+            if (!hitAt) hitAt = (needle === expect) ? 'expect' : 'core';
+            /* ★ 极性 = 「命中串**前面**窗口里的否定」**或**「命中串**自身**带的否定」。
+             *   为什么两者都要看:期望值自身带否定时(expect='未归还'),否定词落在命中串
+             *   **内部**('尚未归还' 的 '未' 属于 needle),只看前面的窗口会把它漏掉 ——
+             *   于是「期望未归还 + 剧情尚未归还」(极性其实一致)会被误判成反证。 */
+            const textNeg = negNear(hay, needle) || negOf(needle);
+            if (textNeg === negExpect) hasSupport = true; else hasCounter = true;
         }
+        if (out) { out.hitAt = hitAt; out.polarity = hasCounter ? 'counter' : (hasSupport ? 'same' : ''); }
+        /* 支持与反证同时在范围内 ⇒ 判 divergent(**反证优先**,保守):把反证读成吻合正是要修的那条。 */
+        if (hasSupport && !hasCounter) return 'matched';
+        if (out) out.why = hasCounter ? '命中处**极性相反**(如「尚未归还」对期望「归还」)⇒ 明确反证,不读成吻合' : '两侧都在,但剧情行正文不含资料期望值(expect)';
         return 'divergent';
+    }
+    /**
+     * [v3.350.0 · M5-O3] 判定的**读数面**:判定值 + 依据(极性 / 命中位置 / 覆盖 / 范围外条数)。
+     *   判定值**只由 `verdictOf` 算一次**(不在这里再判一遍 —— 两处判会出现
+     *   「判 divergent 却报『没给判据』」这类自相矛盾的读数)。
+     */
+    function judgeOf(loreItem, chats, opts) {
+        const out = { verdict: '', why: '', polarity: '', outOfRange: 0, coverage: 'complete', hitAt: '' };
+        out.verdict = verdictOf(loreItem, chats, opts, out);
+        return out;
     }
     /**
      * 建面(统一入口)。**只读**:不写任何账、不产正文、不联网、不复制全文。
@@ -374,7 +474,8 @@
         for (const li of loreSide) {
             const hitsList = [];
             for (const ci of chatSide) if (hits(li, ci)) hitsList.push(ci);
-            const v = inChat ? verdictOf(li, hitsList) : 'lore-only';
+            const jd = inChat ? judgeOf(li, hitsList, { atFloor: o.atFloor, chatCoverage: o.chatCoverage }) : { verdict: 'lore-only', why: '', polarity: '', outOfRange: 0, coverage: 'complete', hitAt: '' };
+            const v = jd.verdict;
             for (const ci of hitsList) matchedChatIds[ci.id] = true;
             /* 同名跨资料**人物**:两侧同名(主体键相等)且都是人物类但**来源不同**
              *   ⇒ needsConfirm。★ 不硬合并:同名异人在本仓是既有口径
@@ -382,6 +483,11 @@
              *   本来就该并成一件事,不报确认。 */
             const crossSource = hitsList.length > 0 && li.subject && li.person
                 && hitsList.some((ci) => ci.subject === li.subject && ci.person);
+            const why = jd.why || ((v === 'unrealized') ? '资料声称已发生(settingAsHappened),剧情侧无对应'
+                : (v === 'lore-only') ? (inChat ? '资料未声称已发生,剧情侧也未涉及' : '本次模式未查剧情侧')
+                    : (v === 'unchecked') ? '两侧命中同题但未给一致性判据(expect)⇒ 判不了,不猜一致'
+                        : (v === 'divergent') ? '两侧都在,但剧情行正文不含资料期望值(expect)'
+                            : '剧情行正文含资料期望值(expect)⇒ 兑现');
             judgements.push({
                 subject: li.subject || li.title,
                 verdict: v, verdictLabel: VERDICT_LABEL[v],
@@ -389,11 +495,11 @@
                 chatRefs: hitsList.map((ci) => ci.ref || ci.id),
                 expect: li.expect, cls: li.cls, origin: li.origin,
                 crossSource: crossSource,
-                why: (v === 'unrealized') ? '资料声称已发生(settingAsHappened),剧情侧无对应'
-                    : (v === 'lore-only') ? (inChat ? '资料未声称已发生,剧情侧也未涉及' : '本次模式未查剧情侧')
-                        : (v === 'unchecked') ? '两侧命中同题但未给一致性判据(expect)⇒ 判不了,不猜一致'
-                            : (v === 'divergent') ? '两侧都在,但剧情行正文不含资料期望值(expect)'
-                                : '剧情行正文含资料期望值(expect)⇒ 兑现',
+                /* [v3.350.0 · M5-O3] 判定依据随条目外送（**与 verdict 同源**：都取自 judgeOf，
+                 *   不在这里再算一遍 —— 两处算会出现「判 divergent 却报『没给判据』」的读数）。
+                 *   于是「答案能打开支持句与反证句」有落点：hitAt 指命中位置、polarity 指极性。 */
+                polarity: jd.polarity, hitAt: jd.hitAt, coverage: jd.coverage, outOfRange: jd.outOfRange,
+                why: why,
             });
             if (crossSource && (v === 'matched' || v === 'divergent' || v === 'unchecked')) {
                 base.needsConfirm.push({
@@ -649,6 +755,12 @@
         partitionInMode: partitionInMode,
         hits: hits,
         verdictOf: verdictOf,
+        /* [v3.350.0 · M5-O3] 判定**唯一实现**与否定原语随面导出（调用方要依据时取同源，
+         *   不另抄一份否定词表 —— 本仓「单一真源」口径）。 */
+        judgeOf: judgeOf,
+        NEG_WORDS: NEG_WORDS,
+        negOf: negOf,
+        coreOf: coreOf,
         build: build,
         hasPercentKey: hasPercentKey,
         selfCheck: selfCheck,

@@ -58,6 +58,20 @@
     const QT_MARK_BRANCH = /另一个?(结局|分支|线)|如果(当时)?|假如|换条线|走另一条|要是/;
     const QT_MARK_AT = /那时候|那时呢|那会儿|回到(那|当)时|当年|当初|当时的/;
     const QT_MARK_CMP = /比(较)?(一下)?|相比|对比|跟.{0,6}比|和.{0,6}比/;
+    /* [v3.350.0 · M5-O1] **时间操作**三态 + 空(未定)：把「截至某时」「从此以后」
+     *   与既有的「时点下界」分开。为什么必须分列：旧口径只有 `atFloor` 一个数，
+     *   而「回到第20楼她当时说了什么」与「第20楼以后她做了什么」在**同一个数字**上
+     *   落出两种相反的查询方向 —— 合成一格就有一类问句必然答错(M5-O1 验收原文)。
+     *   方向只认**本句的字面标记**；两者都没标 ⇒ 沿用上一轮；都无 ⇒ 空(不猜方向)。 */
+    const QT_TIME_OPS = Object.freeze(['at', 'as-of', 'since', '']);
+    const QT_TIME_OP_LABEL = Object.freeze({ at: '时点下界', 'as-of': '截至当时(上界)', since: '从此以后(下界)', '': '' });
+    const QT_MARK_AS_OF = /截至|为止|之前|以前|当时|那时|那时候|当年|当初|回到(那|当)时/;
+    const QT_MARK_SINCE = /以后|之后|从此|后来|接下来|自那/;
+    /* [v3.350.0 · R5-O9] **可清轴表**：调用方（手机 R5-O9 那一屏）能点名撤掉的继承条件。
+     *   为什么要有这张表而不是「传什么清什么」：轴名是**跨仓契约** ——
+     *   手机侧写错的轴名若被静默接受，用户会看到「已清除」而条件其实还在（错读数）。
+     *   `time` 是**复合轴**（方向 + 锚一起清）：只清锚会留下一个没有数字的方向。 */
+    const QT_CLEAR_AXES = Object.freeze(['subject', 'atFloor', 'time', 'compare', 'branch', 'scope']);
     /** 代词:只在唯一主体下继承,多主体转消歧。 */
     const QT_MARK_PRONOUN = /她|他|它|那人|那个人|对方|这些人|那些人|两人|双方/;
     /* ── 时点锚(「第 N 楼」这类**有数值**的写法才折算成楼层) ──────────
@@ -116,6 +130,9 @@
             candidates: candidates,
             atFloor: atFloor,
             atHint: text(src.atHint, 40),
+            /* [v3.350.0 · M5-O1] 时间操作：只认三态 + 空，其余一律归空(**不猜方向** ——
+             *   把「不认识」读成 'at' 会让「从此以后」这类问句悄悄按上界查)。 */
+            timeOp: (QT_TIME_OPS.indexOf(text(src.timeOp, 12)) >= 0) ? text(src.timeOp, 12) : '',
             compareAxis: text(src.compareAxis, 40),
             scope: scope,
             turn: Math.max(0, numOrNull(src.turn) || 0),
@@ -164,6 +181,9 @@
             candidates: [],
             atFloor: atFloor,
             atHint: (marks.indexOf('at') >= 0) ? text(q, 40) : '',
+            /* [v3.350.0 · M5-O1] 首轮就带锚：方向按本句标记定（「截至第20楼」⇒ as-of，
+             *   「第20楼以后」⇒ since，无方向标记 ⇒ at）。无锚 ⇒ 空(不定)。 */
+            timeOp: (atFloor !== null) ? (QT_MARK_SINCE.test(q) ? 'since' : (QT_MARK_AS_OF.test(q) ? 'as-of' : 'at')) : '',
             compareAxis: (marks.indexOf('compare') >= 0 && actors.length >= 2) ? 'compare' : '',
             scope: o.scope,
             turn: 1,
@@ -297,6 +317,9 @@
         const anchor = atFloorOf(q);
         let atFloor = prev.atFloor;
         let atSet = false;
+        /* [v3.350.0 · R5-O9] 清除时点后 `atHint` 也要清：不清就会留下一个
+         *   「上一次为什么带了这个时点」的残迹，而那一轴已经不在了。 */
+        let atHintClear = false;
         if (anchor !== null) { atFloor = anchor; atSet = true; }
         else if (hasAt) {
             if (prev.atFloor === null) {
@@ -305,15 +328,76 @@
             /* 有锚点已定下时点 ⇒ 沿用(继承),不新猜。 */
         }
         const compareNow = (marks.indexOf('compare') >= 0 && subjects.length >= 2);
-        const compareAxis = compareNow ? 'compare' : (prev.compareAxis || '');
+        /* [v3.350.0 · R5-O9] 本轴可被调用方**清除** ⇒ 必须是 let（清除要把它置空）。 */
+        let compareAxis = compareNow ? 'compare' : (prev.compareAxis || '');
+        /* [v3.350.0 · M5-O1] 时间操作方向(与 atFloor 分列 —— 同一个数字两种方向)。
+         *   有锚 ⇒ 按**本句**标记定 as-of / since，都没有则按旧口径 'at'(时点下界);
+         *   无锚 ⇒ 沿用上一轮方向(「那时候呢」不新猜方向);两者都无 ⇒ 空(不定)。 */
+        const timeOpNow = QT_MARK_SINCE.test(q) ? 'since' : (QT_MARK_AS_OF.test(q) ? 'as-of' : '');
+        /* [v3.350.0 · R5-O9] 同 `compareAxis`：可被清除 ⇒ let。 */
+        let timeOp = atSet ? (timeOpNow || 'at') : (prev.timeOp || '');
         /* 分支:切分支标记须带 `opts.branchKey`;没给 ⇒ 保留旧分支并具名。 */
         let branchKey = prev.branchKey;
         if (marks.indexOf('branch') >= 0) {
             if (o.branchKey !== undefined && o.branchKey !== null && String(o.branchKey) !== '') branchKey = String(o.branchKey);
             else gaps.push({ kind: 'branch-key-absent', why: '问句含切分支的说法,但调用方未给 branchKey —— 保留当前分支「' + (prev.branchKey || '(未设)') + '」,不擅自另立一条线' });
         }
-        const scope = Object.assign({}, prev.scope);
+        let scope = Object.assign({}, prev.scope);
         if (o.scope && typeof o.scope === 'object') for (const k of Object.keys(o.scope)) { const t = text(o.scope[k], 60); if (t) scope[k] = t; }
+        /* ── [v3.350.0 · R5-O9] 条件**清除**（手机 R5-O9 的唯一委托口） ──────────
+         *   「这一轮不要再带某个继承条件」是一句**独立**的用户动作：它既不是新设条件
+         *   （用户没说「查第几楼」），也不是「沿用」（沿用正是他要撤掉的东西）。旧口径里
+         *   没有这个动作，于是「清除时点」在界面上只能靠人**重新问一遍全句** ——
+         *   而重问一句要么被线程继续继承、要么换掉主体（用户只想撤时间，不想换人）。
+         *
+         *   ★ 顺序：**先按本句算出新值，再按清除表抹掉该轴**。清除只作用于**继承**：
+         *     本句自己给出的新值（「清时点，看第30楼」）**优先于清除** ——
+         *     用户明说的那一句比一个界面动作更具体，被它盖掉才是错读数。
+         *   ★ 清不掉的轴**逐条具名**（不静默当作清过了）：不认识的名字、本会话本来
+         *     就没有那一轴，各自不同形 —— 「清掉了」与「本来就没有」压成同一句，
+         *     用户会以为自己的动作生效了。 */
+        const clearList = Array.isArray(o.clear) ? o.clear.map((x) => text(x, 20)).filter(Boolean) : [];
+        const clearedAxes = [];
+        for (const axis of clearList) {
+            if (QT_CLEAR_AXES.indexOf(axis) < 0) {
+                gaps.push({ kind: 'clear-axis-unknown', axis: axis, why: '清除条件「' + axis + '」不在可清轴表里（' + QT_CLEAR_AXES.join('/') + '）—— 未清除任何东西' });
+                continue;
+            }
+            /* 「本句新设」优先：这一轴若由**本句**给出，清除不生效并具名。 */
+            if (axis === 'subject' && (hasSwitch || actors.length)) {
+                gaps.push({ kind: 'clear-overridden', axis: axis, why: '本句自己认了人名 ⇒ 清除主体不生效（用户明说的人比一个界面动作更具体）' });
+                continue;
+            }
+            if ((axis === 'atFloor' || axis === 'time') && atSet) {
+                gaps.push({ kind: 'clear-overridden', axis: axis, why: '本句自己给了「第 N 楼」⇒ 清除时点条件不生效' });
+                continue;
+            }
+            if (axis === 'compare' && compareNow) {
+                gaps.push({ kind: 'clear-overridden', axis: axis, why: '本句自己要比对 ⇒ 清除比较轴不生效' });
+                continue;
+            }
+            /* `time` 一次清**方向 + 锚**两格：只清锚不清方向会留下一个没有数字的方向。 */
+            const targets = (axis === 'time') ? ['atFloor', 'timeOp'] : [axis];
+            for (const tg of targets) {
+                const had = (tg === 'subject') ? (subjects.length > 0)
+                    : (tg === 'atFloor') ? (atFloor !== null)
+                        : (tg === 'timeOp') ? !!timeOp
+                            : (tg === 'compare') ? !!compareAxis
+                                : (tg === 'branch') ? !!branchKey
+                                    : (tg === 'scope') ? (Object.keys(scope).length > 0) : false;
+                if (tg === 'subject') subjects = [];
+                else if (tg === 'atFloor') { atFloor = null; atHintClear = true; }
+                else if (tg === 'timeOp') timeOp = '';
+                else if (tg === 'compare') compareAxis = '';
+                else if (tg === 'branch') branchKey = '';
+                else if (tg === 'scope') scope = {};
+                clearedAxes.push(tg);
+                /* ★「清掉了」与「本来就没有」**必须不同形**：压成同一句，用户会以为
+                 *   自己那个动作生效了，而其实这一轴从来没被继承过。 */
+                if (!had) gaps.push({ kind: 'clear-nothing', axis: tg, why: '本会话本来就没有这一轴的条件（**不是**「已清除」）' });
+            }
+        }
+
         const t = normalizeThread({
             state: awaiting ? 'awaiting-disambig' : (subjects.length ? 'open' : 'idle'),
             chatKey: (o.chatKey !== undefined ? String(o.chatKey) : prev.chatKey),
@@ -321,7 +405,8 @@
             subjects: subjects,
             candidates: candidates,
             atFloor: atFloor,
-            atHint: atSet ? text(q, 40) : prev.atHint,
+            atHint: atHintClear ? '' : (atSet ? text(q, 40) : prev.atHint),
+            timeOp: timeOp,
             compareAxis: compareAxis,
             scope: scope,
             turn: prev.turn + 1,
@@ -329,10 +414,15 @@
         });
         t.marks = marks;
         t.subjectWhy = subjectWhy;
+        /* [v3.350.0 · R5-O9] 清除读数随本轮外送（与 gaps 分列：`cleared` 是**做成了什么**，
+         *   gaps 里的 `clear-nothing` / `clear-overridden` 是**没做成什么**）。
+         *   合成一格会让「清掉了」与「本来就没有」长得一样 —— 用户以为动作生效了。 */
+        t.cleared = clearedAxes.slice();
         return {
             thread: t, marks: marks,
             inherit: inheritOf(prev).filter((x) => (x.axis === 'subject' ? (!actors.length && !hasSwitch) : true)),
             condition: conditionOf(t, (hasSwitch || actors.length) ? actors : [], atSet ? anchor : null, compareNow ? 'compare' : ''),
+            cleared: clearedAxes.slice(),
             gaps: gaps, awaiting: awaiting, why: 'advanced'
         };
     }
@@ -365,13 +455,33 @@
     /**
      * spec 注入片段:**只含既有 FILTERS 键**(actors / floorFrom)。
      *   宿主把它并进 planQuestion 已产出的 spec 再交给 query —— 本模块不查东西。
+     *
+     * [v3.350.0 · M5-O1] 两处口径修正(都不新增条件键):
+     *   ① `existing` 传子计划**已有**的 spec ⇒ 只填缺省,**不覆盖**每个子问题。
+     *      修前宿主是 `Object.assign({}, p.spec, ts.spec)` —— 多人比较时
+     *      「苏晴和林一怎么认识的」两条子计划各查一人，却被线程主体一次盖成两人，
+     *      于是「各查一人」退化成「两条查同一坨」(M5-O1 验收原文的「两人比较仍各查一人」)。
+     *   ② 方向为 `as-of`(截至当时)时，上界走**独立一格** `specEx.floorTo`，
+     *      不往 `spec` 里塞第二个键 —— 本面键集合仍是既有两个键，
+     *      「本面不造第二份条件真源」这条口径一个字不改。
+     *   旧口径一字未动:`at`(时点下界)仍走 `spec.floorFrom`，`as-of` 时才另给 `floorTo`。
      */
-    function threadSpec(thread) {
+    function threadSpec(thread, existing) {
         const t = normalizeThread(thread);
+        const ex = (existing && typeof existing === 'object' && !Array.isArray(existing)) ? existing : null;
+        const hasOwnActors = !!(ex && Array.isArray(ex.actors) && ex.actors.length);
         const spec = {};
-        if (t.subjects.length) spec.actors = t.subjects.slice();
+        if (t.subjects.length && !hasOwnActors) spec.actors = t.subjects.slice();
         if (t.atFloor !== null) spec.floorFrom = t.atFloor;
-        return { spec: spec, from: Object.keys(spec), writesNothing: true };
+        const specEx = {};
+        if (t.atFloor !== null && t.timeOp === 'as-of') specEx.floorTo = t.atFloor;
+        return {
+            spec: spec, from: Object.keys(spec),
+            specEx: specEx, fromEx: Object.keys(specEx),
+            timeOp: t.timeOp, timeOpLabel: QT_TIME_OP_LABEL[t.timeOp] || '',
+            scope: Object.assign({}, t.scope), branchKey: t.branchKey,
+            skippedActors: hasOwnActors, writesNothing: true
+        };
     }
     /** 面自述。`drops` 如实报归一期的丢弃。 */
     function describe(raw) {
@@ -381,6 +491,8 @@
             maxSubjects: QT_MAX_SUBJECTS, maxTrace: QT_MAX_TRACE, maxCandidates: QT_MAX_CANDIDATES,
             state: t.state, subjects: t.subjects.length, candidates: t.candidates.length,
             atFloor: t.atFloor, branchKey: t.branchKey, turn: t.turn,
+            /* [v3.350.0 · M5-O1] 时间操作随面自述(方向与锚分列 —— 同一个数字两种方向)。 */
+            timeOp: t.timeOp, timeOpLabel: QT_TIME_OP_LABEL[t.timeOp] || '', timeOps: QT_TIME_OPS.slice(),
             drops: t.drops.slice(), writesNothing: true,
             reason: '对话状态只存结构化查询约束(主体 / 时点下界 / 分支 / scope),不存答案事实'
         };
@@ -394,6 +506,31 @@
         if (t.trace.length > QT_MAX_TRACE) bad.push('trace 越上界');
         /* 不变式:awaiting-disambig 必须**有候选**(无候选的待决就是死状态)。 */
         if (t.state === 'awaiting-disambig' && t.candidates.length < 2) bad.push('awaiting-disambig 但候选不足两个(待决必须有可选项)');
+        /* [v3.350.0 · M5-O1] 时间操作必须是三态之一或空。★ 判的是**归一前**的 raw：
+         *   归一化已把不认识的标记归空（不猜方向），故对归一后对象判会**恒真** ——
+         *   那是一条永远不响的空转判据（本仓明令）。对 raw 判才能如实报「调用方给的
+         *   方向名不认识、已被归空」，与本面「不静默」的口径一致。 */
+        const rawOp = (raw && typeof raw === 'object') ? raw.timeOp : '';
+        if (rawOp !== undefined && rawOp !== null && String(rawOp) !== '' && QT_TIME_OPS.indexOf(String(rawOp)) < 0) {
+            bad.push('timeOp「' + String(rawOp) + '」不在三态内(已归空，方向未施加)');
+        }
+        /* [v3.350.0 · R5-O9] 可清轴表自证：**每个可清轴都必须真的可清**（表与实现不得分叉）。
+         *   判据在**真实现**上跑一遍：拿一个带全部轴的 thread 逐个清，清不掉的轴具名。 */
+        /* ★ `turn` 必须 > 0：首轮走的是 `openThread`（没有「清除继承」这回事），
+         *   拿 turn=0 的 thread 探，测的是另一个分支 —— 判据会当场抛（本仓明令：
+         *   探针测错分支比不测更贵）。 */
+        const probe = normalizeThread({
+            state: 'open', turn: 3, subjects: ['甲'], atFloor: 20, timeOp: 'since',
+            compareAxis: 'compare', branchKey: 'b1', scope: { universe: 'u1' }
+        });
+        for (const axis of QT_CLEAR_AXES) {
+            const r = advanceThread(probe, { actors: [] }, { question: '继续', clear: [axis] });
+            if (!r.cleared.length) bad.push('可清轴「' + axis + '」在带该轴的 thread 上清不掉（表与实现分叉）');
+        }
+        /* 表外的名字必须**清不掉任何东西**且如实具名（静默接受就是错读数）。 */
+        const bogus = advanceThread(probe, { actors: [] }, { question: '继续', clear: ['nope'] });
+        if (bogus.cleared.length) bad.push('表外轴名不得清掉任何轴（实测清了 ' + bogus.cleared.join('/') + '）');
+        if (!bogus.gaps.some((g) => g.kind === 'clear-axis-unknown')) bad.push('表外轴名必须如实具名（不静默）');
         return { ok: bad.length === 0, bad: bad, distinct: QT_STATES.length === 4, writesNothing: true };
     }
     /** 诊断一行:把「沿用了什么 / 新设了什么 / 待决什么」写成三种可辨形态。 */
@@ -406,6 +543,9 @@
             if (t.state === 'awaiting-disambig') parts.push('待消歧（候选 ' + t.candidates.join('/') + '）');
             else parts.push('主体 ' + (t.subjects.length ? t.subjects.join('/') : '(无)'));
             if (t.atFloor !== null) parts.push('时点 ≥' + t.atFloor + '楼');
+            /* [v3.350.0 · M5-O1] 方向与锚**分列报**:「截至当时(上界)」与「时点 ≥N 楼」
+             *   合成一句就分不出这条问句到底按哪个方向查(M5-O1 验收要的就是可辨)。 */
+            if (t.timeOp && t.timeOp !== 'at') parts.push('时间操作 ' + (QT_TIME_OP_LABEL[t.timeOp] || t.timeOp));
             if (t.compareAxis) parts.push('轴 ' + t.compareAxis);
             if (Array.isArray(a.inherit) && a.inherit.length) parts.push('继承 ' + a.inherit.map((x) => x.axis).join('/'));
             if (Array.isArray(a.condition) && a.condition.length) parts.push('新设 ' + a.condition.map((x) => x.axis).join('/'));
@@ -414,6 +554,10 @@
     }
     const api = Object.freeze({
         QT_VERSION, QT_STATES, QT_MAX_SUBJECTS, QT_MAX_TRACE, QT_MAX_CANDIDATES,
+        /* [v3.350.0 · M5-O1] 时间操作三态与标签随面导出(调用方从本面取常量，不另抄一份)。 */
+        QT_TIME_OPS, QT_TIME_OP_LABEL,
+        /* [v3.350.0 · R5-O9] 可清轴表随面导出（手机侧从本面取口径，不另抄一份）。 */
+        QT_CLEAR_AXES,
         normalizeThread, marksOf, atFloorOf,
         openThread, advanceThread, resolveAmbiguity, threadSpec,
         describe, selfCheck, threadLine

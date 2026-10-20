@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 79152,
+  "ceiling": 79544,
   "maxSlack": 400,
-  "note": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。",
+  "note": "[v3.350.0] 第五期第一批四项（M5-O1 时间方向三态与多人比较不覆盖 / M5-O2 叙事层标注落账并进指纹 / M5-O3 极性判定与覆盖不足判 unchecked / M5-O8 容量优先保留未完成项且满了显式拒绝）+ 手机 R5-O9 的条件清除委托口（可清轴表 QT_CLEAR_AXES 与逐轴具名四形）。全为活跃功能增长、非死代码回流；本版无新模块（extra_js 仍 113）。行上界按「实测 + slack」贴回。",
   "history": [
     {
       "ceiling": 21000,
@@ -357,7 +357,11 @@
     {
       "ceiling": 79152,
       "reason": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。"
+    },
+    {
+      "ceiling": 79544,
+      "reason": "[v3.350.0] 第五期第一批四项（M5-O1 时间方向三态与多人比较不覆盖 / M5-O2 叙事层标注落账并进指纹 / M5-O3 极性判定与覆盖不足判 unchecked / M5-O8 容量优先保留未完成项且满了显式拒绝）+ 手机 R5-O9 的条件清除委托口（可清轴表 QT_CLEAR_AXES 与逐轴具名四形）。全为活跃功能增长、非死代码回流；本版无新模块（extra_js 仍 113）。行上界按「实测 + slack」贴回。"
     }
   ],
-  "_history_last": "ceiling 79151 → 79152（实测 78752 + slack 400）：[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。"
+  "_history_last": "ceiling 79152 → 79544（实测 79144 + slack 400）：[v3.350.0] 第五期第一批四项（M5-O1 时间方向三态与多人比较不覆盖 / M5-O2 叙事层标注落账并进指纹 / M5-O3 极性判定与覆盖不足判 unchecked / M5-O8 容量优先保留未完成项且满了显式拒绝）+ 手机 R5-O9 的条件清除委托口（可清轴表 QT_CLEAR_AXES 与逐轴具名四形）。全为活跃功能增长、非死代码回流；本版无新模块（extra_js 仍 113）。行上界按「实测 + slack」贴回。"
 }

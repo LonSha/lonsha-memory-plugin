@@ -38,6 +38,7 @@ const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const CP_SRC = read('condition-patch.js');
 const SELF = read(path.join('tests', 'v3490_condition_patch.test.mjs'));
+const idxVersionOf = (o) => (o && o.version) ? o.version : '';
 const BORN_V = '3.349.0';
 const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
 /** 在隔离 vm 里加载 IIFE 模块(与生产同形:window 即全局,module 缺席)。 */
@@ -256,8 +257,11 @@ test('v3490 A1. ★★ 本档是当版档案:头部同现本档名与当版号 +
     const head = SELF.split(String.fromCharCode(10)).slice(0, 12);
     const line = head.find((l) => l.includes('v3490_condition_patch') && l.includes('v' + BORN_V));
     assert.ok(line, '本档头部须同一行同时写清「本档名 + 当版号」(frontier 的结构性标志)');
-    assert.equal(vnum(BORN_V), vnum(MF.version), 'BORN_V 必须恰是当版(自锚常量不得漂到别版)');
-    assert.equal(vnum(BORN_V), vnum(PKG.version), 'package.json 必须与自锚同源');
+    /* [v3.350.0 交棒] 本档不再是 frontier ⇒ 当版锚退回**下界口径**（与 v3470 G1 / v3480 A1 同形）：
+     *   仍判「自锚常量在场」与「当版不早于出生版」，但不再锁死等于某一版 ——
+     *   硬等号留在历史档里跨版就变成「锁上一版的死数」。当版锚已交给 v3500 本档（version guard V4 计数）。 */
+    assert.ok(vnum(idxVersionOf(MF)) >= vnum(BORN_V), '当版不得早于本档出生版本');
+    assert.ok(vnum(idxVersionOf(PKG)) >= vnum(BORN_V), 'package.json 不得早于本档出生版本');
     console.log('  ok frontier 头在场,自锚 ' + BORN_V);
 });
 test('v3490 A2. ★★★★ 内核面:未列入片段原样保留(新伤不挤旧伤) + add 也不挤', () => {

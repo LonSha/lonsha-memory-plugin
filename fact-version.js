@@ -137,6 +137,14 @@
       //   否则类型清单会有两份拷贝（本仓治理过多轮的「改一处漏五处」）。
       //   空/缺省一律读回 null（不写空串：空串会让「没标注」与「标注为空」同形）。
       type: (f.type == null || f.type === '') ? null : text(f.type, 32),
+      /* [v3.350.0 · M5-O2] **叙事层标注**（narrative-layer.js 的层名）。本账同样**不校验**层名合法性
+       *   —— 层清单的单一真源在 narrative-layer.js，这里只当**不透明字符串**存（与 `type` 同规格）。
+       *   空/缺省一律读回 `null`（与空串不同形）：旧档没有该字段，语义本来就是「未标注」，
+       *   于是**不追认成现实**、也不凭「梦」字强分（M5-O2「不做」第一条）。
+       *   ★ 为什么要落进**账**而不是只在读侧分类：`copyFact` 是白名单逐字段重建，
+       *   不在这里登记 ⇒ 提取期给的标注活不过一次 normalize，保存重开后梦里的死
+       *   就与现实的死**同形**（M5-O2 现状证据原文）。 */
+      modality: (f.modality == null || f.modality === '') ? null : text(f.modality, 24),
       // [v3.211] 落账时的冲突策略（多值对键判断的依据）。缺/非法一律读回 'auto' ——
       //   v3.210 及更早的条目没有该字段，语义本来就是 auto，故这是**向后兼容的读回口径**，
       //   不是「默认值兜底」：写进去的一定是四态之一（assertFact 已过滤非法值）。
@@ -198,7 +206,13 @@
   function factFp(f) {
     return [text(f.subject).toLowerCase(), text(f.predicate).toLowerCase(), text(f.value).toLowerCase(),
       originOf(f.origin), f.from == null ? '*' : finiteFloor(f.from), f.to == null ? '*' : finiteFloor(f.to),
-      (f.type == null || f.type === '') ? '*' : text(f.type, 32).toLowerCase()].join('\u0001');
+      (f.type == null || f.type === '') ? '*' : text(f.type, 32).toLowerCase(),
+      /* [v3.350.0 · M5-O2] 叙事层也进指纹：**同一句话在两个层里是两件事** ——
+       *   「甲死了」（梦）与「甲死了」（现实）若共用指纹，后写的那条会被判成
+       *   「复述」而丢掉自己的层标注（M5-O2 验收原文要的正是三例重开后**仍分层**）。
+       *   向后兼容：旧档无该字段 ⇒ 一律 '*'(未标注)，与未标注的新条目同形，
+       *   于是「同值同楼层 ⇒ 幂等复述」这条既有契约在未标注面上**一字未变**。 */
+      (f.modality == null || f.modality === '') ? '*' : text(f.modality, 24).toLowerCase()].join('\u0001');
   }
   function nextId(state) {
     state.seq += 1;
@@ -247,6 +261,10 @@
     const value = text(i.value, 120);
     if (!subject || !predicate || !value) return reject(state, 'missing-fact');
     const type = (i.type == null || i.type === '') ? null : text(i.type, 32);
+    /* [v3.350.0 · M5-O2] 叙事层标注：与 `type` **同规格** —— 本账只当不透明字符串收，
+     *   合法性校验归 narrative-layer.js（层名清单的单一真源，本账不抄第二份）。
+     *   缺省/空 ⇒ null（「未标注」不是「现实」）。 */
+    const modality = (i.modality == null || i.modality === '') ? null : text(i.modality, 24);
     const policy = CONFLICT_POLICIES.includes(i.conflictPolicy) ? i.conflictPolicy : 'auto';
     // [v3.211] 对键**不按策略分流**（曾试行「coexist 把值并入对键」，实测有害，勿回退）：
     //   把值并入对键后，同一格的两条 coexist 落在**两个不同对键**上 ——
@@ -256,7 +274,7 @@
     //   正确做法是**语义在查询侧分**（ambiguous = 冲突未决 / multiple = 并列事实），
     //   存储侧对键保持既有口径不变（见 lookup 的 multiple 分支）。
     const pkey = pairKey(subject, predicate);
-    const fp = factFp({ subject: subject, predicate: predicate, value: value, origin: i.origin, from: i.from, to: i.to, type: type });
+    const fp = factFp({ subject: subject, predicate: predicate, value: value, origin: i.origin, from: i.from, to: i.to, type: type, modality: modality });
     const dup = state.facts.find(function (f) { return factFp(f) === fp; });
     if (dup) {
       const replayed = true;
@@ -298,6 +316,8 @@
     }                                                    // coexist ⇒ allSequenced 恒 false（只并存）
     const fact = copyFact({
       id: nextId(state), subject: subject, predicate: predicate, value: value, type: type,
+      /* [v3.350.0 · M5-O2] 层标注随新建条目落账（提取→原账→归一化→保存重开→查询 全链同一格）。 */
+      modality: modality,
       conflictPolicy: factConflict,
       origin: i.origin, from: i.from, to: i.to, floor: i.floor, source: i.source,
       evidence: i.evidence, revision: LE.REVISION.CREATE, history: []

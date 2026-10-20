@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.349.0';
+    const VERSION = '3.350.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3445,9 +3445,16 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const asm = this._crosscheckChatRows(o);
                     chatItems = asm.chat; sources = asm.sources;
                 } else sources = [{ source: 'caller', state: 'ok', why: '', added: chatItems.length }];
+                /* [v3.350.0 · M5-O3] **来源覆盖**下传：逐源任一不是 ok（缺源 / 读源失败）⇒
+                 *   「本次没看全」—— 查证侧据此判 unchecked，而**不是**说「未发生」。
+                 *   覆盖完备时该键是 undefined，查证侧读作 complete ⇒ 读数与修前**逐字同形**，
+                 *   既有套件与旧调用点零改动（下面这行字面量是当版判据的锁定锚点，不得改写）。 */
+                const covOpts = {};
+                if (sources.some((s) => s.state !== 'ok')) covOpts.chatCoverage = 'partial';
                 const input = { lore: loreItems, chat: chatItems, note: noteItems };
                 const out = CX.build(sourceMode, input, {
                     revokedKeys: o.revokedKeys, historyRefs: o.historyRefs, admitLore: o.admitLore,
+                    chatCoverage: covOpts.chatCoverage,
                 });
                 const r = Object.assign({}, out, { sources: sources, ok: true, reason: out.malformedInput ? 'malformed' : (out.degraded ? 'degraded' : '') });
                 this._loreCrosscheckRead = r;
@@ -16338,7 +16345,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (!this._qaThread || typeof this._qaThread !== 'object' || Array.isArray(this._qaThread)) {
                 this._qaThread = {
                     version: 1, state: 'idle', chatKey: '', branchKey: '',
-                    subjects: [], candidates: [], atFloor: null, atHint: '',
+                    subjects: [], candidates: [], atFloor: null, atHint: '', timeOp: '',
                     compareAxis: '', scope: {}, turn: 0, trace: []
                 };
             }
@@ -16372,6 +16379,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 readings: 0, covered: 0, dropped: 0, dedup: 0, events: [], keyPoints: 0, explain: null,
                 knownActors: 0, reason: reason, writesNothing: true,
                 followUp: true, turn: 0, threadState: 'idle', inherit: [], condition: [],
+                /* [v3.350.0 · R5-O9] 缺件降级时键面**必须与正常路径同形**：
+                 *   少一个键会让调用方在降级时读到 undefined，而那与「清除没发生」
+                 *   长得一样（本仓已登记的形态：缺件与空值不同形）。 */
+                timeOp: '', timeOpLabel: '', cleared: [], clearAxes: (QT && QT.QT_CLEAR_AXES) ? QT.QT_CLEAR_AXES.slice() : [],
                 awaiting: false, accepted: true, candidates: []
             });
             if (!Q || typeof Q.planQuestion !== 'function' || typeof Q.composeAnswer !== 'function') {
@@ -16387,12 +16398,23 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 const adv = QT.advanceThread(o.thread || this._qaThreadState(), plan, {
                     question: qText, chatKey: chatKey,
                     branchKey: (o.branchKey === undefined || o.branchKey === null) ? '' : String(o.branchKey),
-                    scope: o.scope
+                    scope: o.scope,
+                    /* [v3.350.0 · R5-O9] 条件清除下传（手机那一屏点名要撤掉哪一轴）。
+                     *   原样透传数组，**不在宿主侧先过滤**：轴名合法性只有内核那张表说了算，
+                     *   宿主再判一份就是第二个真源（判据实测抓过这类分叉）。 */
+                    clear: Array.isArray(o.clear) ? o.clear.slice() : undefined
                 });
                 const thread = adv.thread;
                 const base = {
                     followUp: true, turn: thread.turn, threadState: thread.state,
                     inherit: adv.inherit, condition: adv.condition,
+                    /* [v3.350.0 · M5-O1] 时间操作随回执外送（方向与锚分列：同一个数字两种方向，
+                     *   调用方据此可辨「截至当时」与「从此以后」）。 */
+                    timeOp: thread.timeOp, timeOpLabel: (QT.QT_TIME_OP_LABEL || {})[thread.timeOp] || '',
+                    /* [v3.350.0 · R5-O9] 清除读数随回执外送（做成了什么）+ 可清轴表
+                     *   （手机侧照这张表给按钮，不另抄一份轴名清单）。 */
+                    cleared: Array.isArray(adv.cleared) ? adv.cleared.slice() : [],
+                    clearAxes: (QT.QT_CLEAR_AXES || []).slice(),
                     awaiting: adv.awaiting === true, accepted: adv.awaiting !== true,
                     candidates: Array.isArray(thread.candidates) ? thread.candidates.slice() : []
                 };
@@ -16419,8 +16441,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                         knownActors: known.length, reason: '', writesNothing: true
                     }, base);
                 }
-                /* 合并 spec：thread 的既有 FILTERS 键并进每条计划（不新增条件键）。 */
-                const ts = QT.threadSpec(thread);
+                /* 合并 spec：thread 的既有 FILTERS 键并进每条计划（不新增条件键）。
+                 *   [v3.350.0 · M5-O1] 逐条把该子计划**已有**的 spec 交给内核 ⇒ 只填缺省：
+                 *   多人比较时两条子计划各查一人，不再被线程主体一次盖成两人；
+                 *   方向为 as-of（截至当时）时上界另走 `specEx.floorTo`（独立一格，不塞进本面键集合）。 */
                 const ledgers = _evidenceQueryLedgersOf();
                 const payload = {
                     ledgers: ledgers,
@@ -16431,11 +16455,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 const results = [];
                 const planReadings = [];
                 for (const p of plan.plans) {
+                    /* [v3.350.0 · M5-O1] 逐计划取片段：把该子计划**已有**的 spec 交给内核 ⇒ 只填缺省。
+                     *   修前是「一次算好线程片段、盖在每条计划上」—— 多人比较时
+                     *   「苏晴和林一怎么认识的」两条子计划各查一人，却被线程主体一次盖成两人，
+                     *   于是「各查一人」退化成「两条查同一坨」(M5-O1 验收原文那一条)。 */
+                    const ts = QT.threadSpec(thread, p.spec);
                     const spec = Object.assign({}, p.spec, ts.spec);
+                    /* as-of（截至当时）的上界另走 `specEx.floorTo`：**独立一格**，
+                     *   不往上面那行塞第二个键 —— 本面键集合仍是既有 FILTERS 键，口径一字不改。 */
+                    if (ts.fromEx.length) Object.assign(spec, ts.specEx);
                     const r = Q.query(this, spec, payload);
                     results.push({ id: p.id, spec: spec, query: r });
                     planReadings.push({
                         id: p.id, why: p.why, spec: spec,
+                        /* [v3.350.0 · M5-O1] 时间操作随每条计划回读（方向不落进 spec 键面，单独报）。 */
+                        timeOp: ts.timeOp, timeOpLabel: ts.timeOpLabel,
+                        specFrom: ts.from, specExFrom: ts.fromEx,
                         total: (r && typeof r.total === 'number') ? r.total : 0,
                         state: (r && r.state) || 'unknown',
                         scanned: (r && r.scanned) || 0,
@@ -16513,10 +16548,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 return {
                     version: t.version, state: t.state, subjects: t.subjects.slice(),
                     candidates: t.candidates.slice(), atFloor: t.atFloor, atHint: t.atHint,
+                    /* [v3.350.0 · M5-O1] 时间操作随读数外送（重开可查「这条追问按哪个方向查」）。 */
+                    timeOp: t.timeOp, timeOpLabel: (QT.QT_TIME_OP_LABEL || {})[t.timeOp] || '',
+                    /* [v3.350.0 · R5-O9] 清除读数与可清轴表也随 thread 读数外送（重开可查
+                     *   「这一场清过哪些条件」；缺件降级路径同键）。 */
+                    cleared: Array.isArray(t.cleared) ? t.cleared.slice() : [],
+                    clearAxes: (QT && QT.QT_CLEAR_AXES) ? QT.QT_CLEAR_AXES.slice() : [],
                     compareAxis: t.compareAxis, branchKey: t.branchKey, scope: Object.assign({}, t.scope),
                     turn: t.turn, reason: '', writesNothing: true
                 };
-            } catch (e) { errLog(e, 'plugin.qaThread'); return { version: 0, state: 'idle', subjects: [], candidates: [], atFloor: null, atHint: '', compareAxis: '', branchKey: '', scope: {}, turn: 0, reason: 'thrown', writesNothing: true }; }
+            } catch (e) { errLog(e, 'plugin.qaThread'); return { version: 0, state: 'idle', subjects: [], candidates: [], atFloor: null, atHint: '', timeOp: '', cleared: [], clearAxes: (QT && QT.QT_CLEAR_AXES) ? QT.QT_CLEAR_AXES.slice() : [], compareAxis: '', branchKey: '', scope: {}, turn: 0, reason: 'thrown', writesNothing: true }; }
         }
         /* ────────────────────────────────────────────────────────────────
          * [v3.305.0 · X9] 统一记忆工具 API（宿主接线，五出口 + 自述 + 一行诊断）
