@@ -208,7 +208,7 @@ function areLabelsInConflict(l1, l2) {
 
 const PLUGIN_NAME = 'LonSha记忆引擎';
 
-let VERSION = '3.348.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.349.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 
     // [v3.38] 关系多维共存与互斥演化（Zep/Graphiti 理念）——是 areLabelsInConflict 的判据表
 
@@ -1715,6 +1715,40 @@ class CharacterState {
         const A = this._ageAnchor();
         const _carry = (A && typeof A.carryAge === 'function' && patch.age !== undefined)
             ? A.carryAge(patch, this.protagonist) : null;
+        /* [v3.349.0 · 缝入上游 conditionPatch] 伤情/伤病状况的**编号片段补丁**。为什么放在**这一个口**：
+         *   setProtagonist 是主角档案的唯一写入面(主提取 / 补提取 / 跨会话 seed 三处均经此),
+         *   故施加点唯一,**不新增任何持久化键**(结果直接落成一串 condition 文本)。
+         *   修前的两个老问题(本仓逐字成立)：
+         *     ① **新伤挤掉旧伤** —— 整段覆盖,模型只提本轮新伤时尚未解除的旧伤被静默挤掉;
+         *     ② **痊愈即清光** —— 模型写空串时一次清掉**所有**伤情(等于自动回血)。
+         *   两条纪律(为何这样定,见 condition-patch.js 档头的「三条刻意与上游不同」)：
+         *     · 同批同时给 condition 与 conditionPatch ⇒ condition(含空串=清空)**优先**,补丁整体作废
+         *       并具名记账 —— 否则就是「先写文本、再按编号改一遍」两条口径打架;
+         *     · 补丁把片段删净时写成空串(**明确清空**),而不是不动 —— 否则「删净」会被静默当成
+         *       「没变化」,伤情永远删不掉(正是 ② 的另一种形态)。
+         *   读数经 this._lastConditionPatchRead 交给自检面「伤情补丁」行(实例内,不入导出载荷)。 */
+        let _cpRead = null;
+        if (patch.conditionPatch !== undefined && patch.conditionPatch !== null) {
+            const CP = this._conditionPatchLib();
+            if (CP && typeof CP.applyConditionPatchRead === 'function') {
+                if (patch.condition !== undefined) {
+                    const _c = (typeof CP.cleanConditionPatch === 'function') ? CP.cleanConditionPatch(patch.conditionPatch) : null;
+                    _cpRead = {
+                        applied: 0, replaced: 0, deleted: 0, added: 0, skipped: [],
+                        fragmentsBefore: 0, fragmentsAfter: 0, cleared: false, rewrote: false,
+                        opsDropped: (_c && _c.read && Array.isArray(_c.read.dropped)) ? _c.read.dropped.slice() : [],
+                        truncated: 0, normalized: false, shadowedByCondition: true
+                    };
+                } else {
+                    try {
+                        const _got = CP.applyConditionPatchRead(this.protagonist.condition, patch.conditionPatch);
+                        _cpRead = _got.read;
+                        patch = { ...patch, condition: (_got.condition === undefined ? '' : _got.condition) };
+                    } catch (e) { errLog(e, 'CharacterState.setProtagonist.conditionPatch'); _cpRead = null; }
+                }
+            }
+        }
+        if (_cpRead) this._lastConditionPatchRead = _cpRead;
         for (const key of ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition']) {
             if (patch[key] !== undefined) {
                 this.protagonist[key] = String(patch[key] ?? '').trim();
@@ -1825,6 +1859,25 @@ class CharacterState {
         } catch (e) { /* 忽略：全局不可读按未取到处理 */ }
         try {
             if (typeof require !== 'undefined') return require('./age-anchor.js');
+        } catch (e) { /* 忽略：require 不可用 / 文件缺失 */ }
+        return null;
+    }
+    /**
+     * [v3.349.0] condition-patch.js 取库口。与 _ageAnchor 同契约：**不抛**、不缓存、取不到返回 null。
+     *   为什么自包含回落（而不仅靠闭包取库口）：本方法可能跑在**被抽离的类副本**里
+     *   （测试把 CharacterState 整段抠进 new Function 重放，IIFE 闭包不在其作用域），
+     *   伤情补丁取不到库不该让整条主角档案写入连坐 —— 缺库时按「没有补丁」降级（与修前同结局）。
+     */
+    _conditionPatchLib() {
+        try {
+            if (typeof _moduleLib === 'function') return _moduleLib(() => window.LonShaConditionPatch, 'condition-patch.js');
+        } catch (e) { /* 隔离环境：闭包不在作用域，走回落 */ }
+        try {
+            const viaGlobal = (typeof window !== 'undefined') ? window.LonShaConditionPatch : null;
+            if (viaGlobal) return viaGlobal;
+        } catch (e) { /* 忽略：全局不可读按未取到处理 */ }
+        try {
+            if (typeof require !== 'undefined') return require('./condition-patch.js');
         } catch (e) { /* 忽略：require 不可用 / 文件缺失 */ }
         return null;
     }

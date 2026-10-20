@@ -102,7 +102,7 @@ function judgeStruct(idxSrc, mf) {
 test('v3470 A1. **** 宿主三出口各恰一处 + 取库口 + 自检行 + extra_js 登记 + **零落盘面**', () => {
     assert.deepEqual(judgeStruct(IDX, MF), [], judgeStruct(IDX, MF).join(';'));
     assert.ok(MF.extra_js.length >= 112, 'extra_js 不得低于本档出生值 112(实 ' + MF.extra_js.length + ')');
-    assert.equal(MF.extra_js[MF.extra_js.length - 1], 'lore-crosscheck.js', 'extra_js 末位应是本模块');
+    assert.ok(MF.extra_js.indexOf('lore-crosscheck.js') >= 0, 'extra_js 须登记本模块（身位由各当版档自持，后版追加会把它顶掉 —— 不是缺陷；v3.349.0 追加 condition-patch.js 即此形态）');
     console.log('  ok 三出口各恰 1 次 / 取库口 / 自检行 / extra_js ≥ 112(实 ' + MF.extra_js.length + ') / 无落盘键');
 });
 function judgeKernel(cx) {

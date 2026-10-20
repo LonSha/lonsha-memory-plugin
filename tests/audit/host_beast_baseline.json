@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.348.0",
+ "measured_at": "v3.349.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2459,6 +2459,38 @@
     "member_count": 0,
     "top5_pct": 0.0
    }
+  },
+  "v3.349.0": {
+   "reason": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 零落盘面、全为活跃功能增长。",
+   "readings": {
+    "total_lines": 21977,
+    "member_count": 799,
+    "duplicate_member_names": 25,
+    "top5_lines": 5192,
+    "top5_pct": 23.6,
+    "top40_lines": 11255,
+    "top40_pct": 51.2,
+    "prefix_rule_coverage_lines": 5520,
+    "prefix_rule_coverage_pct": 25.1,
+    "unclassified_lines": 15478,
+    "seam_distinct_modules": 82,
+    "seam_reference_sites": 116,
+    "seam_call_shape_sites": 120,
+    "members_over_80_lines": 42,
+    "low_coupling_members": 31,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.349.0",
+   "delta": {
+    "total_lines": 1,
+    "member_count": 1,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -2470,19 +2502,19 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 21964,
-  "member_count": 798,
+  "total_lines": 21977,
+  "member_count": 799,
   "duplicate_member_names": 25,
-  "top5_lines": 5180,
+  "top5_lines": 5192,
   "top5_pct": 23.6,
-  "top40_lines": 11243,
+  "top40_lines": 11255,
   "top40_pct": 51.2,
   "prefix_rule_coverage_lines": 5520,
   "prefix_rule_coverage_pct": 25.1,
-  "unclassified_lines": 15465,
-  "seam_distinct_modules": 81,
-  "seam_reference_sites": 115,
-  "seam_call_shape_sites": 119,
+  "unclassified_lines": 15478,
+  "seam_distinct_modules": 82,
+  "seam_reference_sites": 116,
+  "seam_call_shape_sites": 120,
   "members_over_80_lines": 42,
   "low_coupling_members": 31,
   "high_coupling_members": 7
@@ -2490,12 +2522,12 @@
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 755,
-   "lines": 15465,
+   "members": 756,
+   "lines": 15478,
    "lines_pct": 70.4,
-   "outside_refs": 7353,
-   "internal_refs": 2219,
-   "outside_ref_share_pct": 76.8
+   "outside_refs": 7448,
+   "internal_refs": 2216,
+   "outside_ref_share_pct": 77.1
   },
   {
    "domain": "宿主事件接线",
@@ -2511,9 +2543,9 @@
    "members": 10,
    "lines": 1805,
    "lines_pct": 8.2,
-   "outside_refs": 413,
-   "internal_refs": 497,
-   "outside_ref_share_pct": 45.4
+   "outside_refs": 418,
+   "internal_refs": 492,
+   "outside_ref_share_pct": 45.9
   },
   {
    "domain": "召回与注入",
@@ -2583,7 +2615,7 @@
   {
    "name": "selfCheck",
    "lines": 1408,
-   "outside_refs": 95
+   "outside_refs": 100
   },
   {
    "name": "onMessageReceived",
@@ -2602,7 +2634,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 611,
+   "lines": 623,
    "outside_refs": 0
   },
   {
@@ -2795,7 +2827,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 611,
+    "lines": 623,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -2864,7 +2896,7 @@
    {
     "name": "selfCheck",
     "lines": 1408,
-    "outside_refs": 95,
+    "outside_refs": 100,
     "is_host_lifecycle": false
    },
    {
@@ -2941,9 +2973,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 22364,
+  "ceiling": 22377,
   "maxSlack": 400,
-  "note": "[v3.348.0] 第四期计划收口:本版不新增产品面、不动宿主实现体(只改版本常量与当版注释),宿主读数与 v3.347.0 同(实测 21964 行 / 798 成员,由探针生成、零手抄)。行上界按「实测 + slack」贴回:实测未越上界 ⇒ 上界不抬(22364,余量 400);成员面在线内(823)⇒ 不抬。本版为收口登记刀,非死代码回流。",
+  "note": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。",
   "history": [
    {
     "ceiling": 15000,
@@ -3124,6 +3156,12 @@
     "ceiling": 22364,
     "member_ceiling": 823,
     "reason": "[v3.348.0] 第四期计划收口:本版不新增产品面、不动宿主实现体(只改版本常量与当版注释),宿主读数与 v3.347.0 同(实测 21964 行 / 798 成员,由探针生成、零手抄)。行上界按「实测 + slack」贴回:实测未越上界 ⇒ 上界不抬(22364,余量 400);成员面在线内(823)⇒ 不抬。本版为收口登记刀,非死代码回流。"
+   },
+   {
+    "version": "v3.349.0",
+    "ceiling": 22377,
+    "member_ceiling": 823,
+    "reason": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。"
    }
   ],
   "member_ceiling": 823,

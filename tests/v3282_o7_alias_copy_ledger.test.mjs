@@ -10,7 +10,7 @@
 //     把同一段实现换个名字抄过去，三层判据全部静默（这正是「判据的面漏一类」的第五处）。
 //
 //     实测（真源 tests/_audit_lib.mjs 的 stripComments 归一化口径，全 103 个根级 .js，
-//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **14 个簇**：
+//     3 种形态：function 声明 / 类方法 / 常量表与箭头常量，体长下限 30/20）⇒ **18 个簇**：
 //
 //       _numOrNull / numOrNull        index.js ↔ snapshot-checkpoint.js （258 字符）
 //       floorOrNull / toNum           ledger-replay.js ↔ archive-shift.js （208）
@@ -139,6 +139,15 @@ const ALIAS_LEDGER = [
      *   ★ 本行是**当版自报**(与簇同批落盘、同批登记):体长/md5 由判据体在真磁盘上复算得出,
      *   非手抄。 */
     ['tab', ['KINDS', 'TRIGGERS'], ['fated-recall.js', 'return-gate.js'], 40, '0247fd11'],
+    /* [v3.349.0 · 缝入上游 conditionPatch] 新内核 condition-patch.js 自持一份与
+     *   world-ledger-reader.js **逐字同源**的数组取值门(本刀侧叫 `arrOf`、前者叫 `arr`,体长 33)
+     *   —— 名字不同,故按**名**配对的三层判据(v3280 / v3281)整片看不见它,正落入本档射程。
+     *   为什么留两份:与 PRECHECK/PREVIEW、keyOf/strOf、normFact 同族 —— 它是**通用取值门原语**;
+     *   本面是**零依赖 IIFE**(档头声明能力一律经 deps 注入、不引兄弟模块的原语),
+     *   收拢会把「本模块自足」换成「依赖另一个模块先挂载」(本仓反过的跨模块静默读旧值)。
+     *   ★ 本行是**当版自报**(与簇同批落盘、同批登记):体长/md5 由判据体在真磁盘上复算得出,
+     *   非手抄。 */
+    ['fn', ['arr', 'arrOf'], ['condition-patch.js', 'world-ledger-reader.js'], 33, '6b39ffca'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

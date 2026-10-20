@@ -197,7 +197,7 @@ test('v3480 A1. ★★ 本档是当版档案:头部同现本档名与当版号 +
     const head = SELF.split('\n').slice(0, 12);
     const line = head.find((l) => l.includes('v3480_closeout_fourth_phase') && l.includes('v' + BORN_V));
     assert.ok(line, '本档头部须同一行同时写清「本档名 + 当版号」(frontier 的结构性标志)');
-    assert.equal(vnum(BORN_V), vnum(idxVersion(R)), 'BORN_V 必须恰是当版(自锚常量不得漂到别版)');
+    assert.ok(vnum(idxVersion(R)) >= vnum(BORN_V), 'BORN_V 是本档出生锚,当版只能 ≥ 它(下界口径:交棒给下一版后本档不再是 frontier,不得再锁当版 —— 同 v3470 G1 形态)');
     console.log('  ok frontier 头在场,自锚 ' + BORN_V);
 });
 
@@ -376,5 +376,5 @@ test('v3480 G1. ★★ 版本面:六源同源 + 本档出生锚 BORN_V（下界,
     assert.equal(RJ(R, 'manifest.json').version, cur, 'manifest.json 未与宿主同源');
     assert.equal(RJ(R, 'package.json').version, cur, 'package.json 未与宿主同源');
     assert.ok(vnum(BORN_V) > vnum('3.347.0'), '版本序须前进');
-    assert.equal(vnum(BORN_V), vnum(cur), 'BORN_V 须恰是当版(本档为当版档案)');
+    assert.ok(vnum(cur) >= vnum(BORN_V), 'BORN_V 是出生锚、当版只能 ≥ 它(下界口径:本档交棒后不得再锁当版)');
 });

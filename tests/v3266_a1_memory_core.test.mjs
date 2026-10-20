@@ -48,12 +48,12 @@ const CORE = ['MemoryGraph', 'SummarySystem', 'GameClock', 'CharacterState'];
 /** 宿主实例字段 -> 类名（刻意不同名，故不能按类名推字段名）。 */
 const FIELDS = { graph: 'MemoryGraph', summary: 'SummarySystem', clock: 'GameClock', status: 'CharacterState' };
 /** 类成员面（不含 constructor）：退路与真实现按方法名对账，也是「搬完整了没有」的抽样面。
- *  共 107 项（17 + 33 + 12 + 45）—— 数字写在 F 段，防清单被静默裁短。 */
+ *  共 108 项（17 + 33 + 12 + 46）—— 数字写在 F 段，防清单被静默裁短。 */
 const MEMBERS = {
     MemoryGraph: ['_logGraphOp', 'rebuildGraphFromOps', 'rollbackGraphFrom', 'snapshotGraph', 'truncateGraphFrom', 'addNode', 'addEdge', 'findByNames', 'findCharacterByName', 'rebuildNameIndex', 'findNodesMentionedIn', 'vacuum', 'rollupGroup', 'maintainGraph', 'autoRollup', 'export', 'import'],
     SummarySystem: ['_reportError', 'addLockedFact', 'removeLockedFact', 'getLockedFacts', 'lockedFactsForPrompt', 'updateSummaryText', 'addManualSummary', 'missingFloors', 'completeMissingFloors', 'smartTruncate', 'compressSummary', 'createSummary', 'generateAMIndex', 'resolveByAMCodes', 'getActiveSummaries', 'search', 'markDormant', 'awakenByEntities', 'maybeFold', 'foldHigherTiers', 'enqueueRetry', 'processRetryQueue', 'getTaskInbox', 'getTaskInboxReport', 'maybeFoldHistorical', 'verifyVolumesIntact', 'getIntactVolumes', 'getActiveVolumes', 'searchVolumes', 'addGrandChronicle', 'getGrandChroniclePrompt', 'export', 'import'],
     GameClock: ['parseStoryDate', 'calcAge', 'setTime', 'getSnapshot', 'syncFromNarrative', 'getContextPrompt', 'export', 'readWorldAxisClock', 'worldClockLine', 'readWorldLedger', 'worldLedgerLine', 'import'],
-    CharacterState: ['setBaseline', 'recordDrift', 'getEffectivePersona', 'registerTransientNpc', 'promoteNpc', 'isNpcTracked', 'setGeoLocation', 'getGeoLocation', 'getGeoPrompt', 'addNpcTie', 'setNpcTies', 'getNpcTies', 'getAllNpcTies', 'getNpcTiesRecords', 'setProtagonist', 'getEffectiveAge', '_clockHelpers', '_ageAnchor', 'getProtagonist', 'getProtagonistPrompt', '_normalizeDetailText', 'addLifeDetail', 'removeLifeDetail', 'removeLifeDetailByFloor', 'shiftLifeDetailFloors', 'removeProtagonistByFloor', 'shiftProtagonistFloor', 'shiftDriftFloors', 'removeDriftByFloor', 'shiftBaselineFloors', 'shiftGeoFloor', 'getLifeDetailsPrompt', '_logOp', 'rebuildFromOps', '_ensure', 'ageReadingPrompt', 'ageReading', 'exportAgeAnchors', 'applyChanges', 'addTodos', 'pruneTodos', 'getChangesSince', 'searchByNames', 'export', 'import'],
+    CharacterState: ['setBaseline', 'recordDrift', 'getEffectivePersona', 'registerTransientNpc', 'promoteNpc', 'isNpcTracked', 'setGeoLocation', 'getGeoLocation', 'getGeoPrompt', 'addNpcTie', 'setNpcTies', 'getNpcTies', 'getAllNpcTies', 'getNpcTiesRecords', 'setProtagonist', 'getEffectiveAge', '_clockHelpers', '_ageAnchor', '_conditionPatchLib', 'getProtagonist', 'getProtagonistPrompt', '_normalizeDetailText', 'addLifeDetail', 'removeLifeDetail', 'removeLifeDetailByFloor', 'shiftLifeDetailFloors', 'removeProtagonistByFloor', 'shiftProtagonistFloor', 'shiftDriftFloors', 'removeDriftByFloor', 'shiftBaselineFloors', 'shiftGeoFloor', 'getLifeDetailsPrompt', '_logOp', 'rebuildFromOps', '_ensure', 'ageReadingPrompt', 'ageReading', 'exportAgeAnchors', 'applyChanges', 'addTodos', 'pruneTodos', 'getChangesSince', 'searchByNames', 'export', 'import'],
 };
 /** 逐字副本：宿主函数符号（模块内必须与宿主逐字同源；errLog 是唯一非逐字的一份）。 */
 const VERBATIM_FNS = ['normalizeCharName', 'sanitizeJson', 'areLabelsInConflict'];
@@ -436,7 +436,7 @@ test('v3266 F. 判据面自防护：实现住在本档 + 走唯一破坏真源 +
     assert.equal(Object.keys(FIELDS).length, 4, '构造点对位表为四项');
     assert.equal(Object.keys(MEMBERS).length, 4, '成员面对账表为四项');
     const allMemberNames = Object.keys(MEMBERS).reduce((a, k) => a.concat(MEMBERS[k]), []);
-    assert.equal(allMemberNames.length, 107, '按类分别列合计 107 项（不得缩水）');
+    assert.equal(allMemberNames.length, 108, '按类分别列合计 108 项（不得缩水）');
     assert.equal(VERBATIM_FNS.length, 3, '逐字副本函数三项');
     assert.equal(VERBATIM_CONSTS.length, 3, '逐字副本常量三项');
     assert.equal(LIB_CHAIN.length, 4, '取库链副本四项');

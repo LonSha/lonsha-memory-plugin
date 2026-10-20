@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.348.0",
+  "version": "3.349.0",
   "version_sources": {
-    "manifest": "3.348.0",
-    "package": "3.348.0",
-    "index_const": "3.348.0"
+    "manifest": "3.349.0",
+    "package": "3.349.0",
+    "index_const": "3.349.0"
   },
   "version_same": true,
-  "human_index_version": "3.348.0",
+  "human_index_version": "3.349.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 112,
+    "extra_js": 113,
     "extra_js_list": [
       "ledger-entity.js",
       "settings-ui.js",
@@ -124,13 +124,14 @@
       "narrative-layer.js",
       "return-gate.js",
       "material-pack.js",
-      "lore-crosscheck.js"
+      "lore-crosscheck.js",
+      "condition-patch.js"
     ],
-    "root_js": 113,
+    "root_js": 114,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 328,
+    "test_files": 329,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -418,6 +419,7 @@
       "v3470_m4x9_lore_crosscheck.test.mjs",
       "v347_hc_mechanics.test.mjs",
       "v3480_closeout_fourth_phase.test.mjs",
+      "v3490_condition_patch.test.mjs",
       "v350_backfill.test.mjs",
       "v351_compress.test.mjs",
       "v353_panel_ethics_fix.test.mjs",
@@ -497,9 +499,9 @@
   },
   "full_run": {
     "status": "registered",
-    "registered_at": "3.348.0",
-    "tests_total": 328,
-    "assertions": 3910,
+    "registered_at": "3.349.0",
+    "tests_total": 329,
+    "assertions": 3935,
     "audit": "61/61",
     "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
@@ -520,15 +522,15 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "316e689f2913",
-      "package.json": "4376a271b9ea",
-      "index.js": "4e1ea738ea89",
+      "manifest.json": "7527b054753e",
+      "package.json": "88eee7fe335c",
+      "index.js": "d78059e4e3ae",
       "update-log.json": null,
-      "README.md": "9b456327b02c",
-      "PLAN.md": "8360f94255ab",
-      "CHANGELOG.md": "c6005c98ec05",
-      "TODO.md": "2a90b2c05d37",
-      "tests/audit/doc_readings.json": "c7f594e17f96"
+      "README.md": "f975d385c6de",
+      "PLAN.md": "e1a949305f3e",
+      "CHANGELOG.md": "bac8b4f98027",
+      "TODO.md": "b0bc5a8c4056",
+      "tests/audit/doc_readings.json": "76446b137ddb"
     }
   },
   "unknown": [],

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.348.0';
+    const VERSION = '3.349.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1499,6 +1499,7 @@
         getEffectiveAge() { return null; }
         _clockHelpers() { return null; }
         _ageAnchor() { return null; }
+        _conditionPatchLib() { return null; }
         getProtagonist() { return null; }
         getProtagonistPrompt() { return ''; }
         _normalizeDetailText() { return ''; }
@@ -4945,7 +4946,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     try {
                         if (extracted.protagonist && typeof extracted.protagonist === 'object') {
                             const keys = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
-                            const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '');
+                            const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '') || (extracted.protagonist.conditionPatch != null);
                             if (hasAny) {
                                 this.status.setProtagonist(extracted.protagonist, floor, this.clock?.date || this.getLatestStoryDate?.() || '');
                                 this.opLog?.log('status', 'update', 'protagonist', floor, keys.filter(k => extracted.protagonist[k] !== undefined).join(','));
@@ -7187,7 +7188,7 @@ timeAnchor: extracted?.time_anchor || null,
                                 if (this.config.config.protagonistTracking !== false && extracted) {
                                     if (extracted.protagonist && typeof extracted.protagonist === 'object') {
                                         const keys = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
-                                        const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '');
+                                        const hasAny = keys.some(k => extracted.protagonist[k] !== undefined && extracted.protagonist[k] !== null && String(extracted.protagonist[k]).trim() !== '') || (extracted.protagonist.conditionPatch != null);
                                         if (hasAny) this.status.setProtagonist(extracted.protagonist, idx, this.clock?.date || this.getLatestStoryDate?.() || '');
                                     }
                                     if (Array.isArray(extracted.life_details) && extracted.life_details.length) {
@@ -20488,6 +20489,18 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   原文按需从 owner 读(本面只搬 sourceRef,不缓存正文)。
     function _loreCrosscheckLib() {
         return _moduleLib(() => window.LonShaLoreCrosscheck, 'lore-crosscheck.js');
+    }
+    // [v3.349.0 · 缝入上游 conditionPatch] 主角伤情/伤病状况的**编号片段补丁**(condition-patch.js)。
+    //   为什么需要:主角档案六字段里,condition 是**唯一一个「旧值必须活着」的字段**,
+    //   而它在修前是整段覆盖型字符串 —— 上游实测过的两个老问题本仓逐字成立:
+    //     ① **新伤挤掉旧伤**:模型只提本轮新伤,尚未解除的旧伤/活动限制被静默挤掉;
+    //     ② **痊愈即清光**:模型写空串,一次清掉**所有**伤情(等于自动回血)。
+    //   根因同一个:整体覆盖没有「哪一条」的概念。切成编号片段后只允许**按编号**改,
+    //   未列入的片段原样保留(解 ①),清空只能靠显式空串(解 ②)。
+    //   施加点唯一在 CharacterState.setProtagonist(主角档案唯一写入面),本面只提供取库口
+    //   + 一条诊断行;**不新增任何持久化键**(结果落成一串 condition 文本)。
+    function _conditionPatchLib() {
+        return _moduleLib(() => window.LonShaConditionPatch, 'condition-patch.js');
     }    // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
     //   M-X9 点名的五个 API 里，修前只有 explainRecall 有实现，其余四个名**全仓零命中** ——
     //   它们的能力早在盘上（evidence-query / volume-continuation / native-fact-admission /

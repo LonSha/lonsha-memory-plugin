@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 78672,
+  "ceiling": 79152,
   "maxSlack": 400,
-  "note": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。",
+  "note": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。",
   "history": [
     {
       "ceiling": 21000,
@@ -349,7 +349,15 @@
     {
       "ceiling": 78672,
       "reason": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。"
+    },
+    {
+      "ceiling": 79151,
+      "reason": "[v3.349.0] 缝入上游 conditionPatch:新内核 condition-patch.js(414 行 / 26065 字节)+ 宿主 index.js 取库口 _conditionPatchLib 与两处 hasAny 键表补登 + memory-core.js setProtagonist 施加与取库口。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。"
+    },
+    {
+      "ceiling": 79152,
+      "reason": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。"
     }
   ],
-  "_history_last": "ceiling 77900 → 78672（实测 78272 + slack 400）：[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。"
+  "_history_last": "ceiling 79151 → 79152（实测 78752 + slack 400）：[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。"
 }
