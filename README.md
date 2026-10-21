@@ -5,7 +5,7 @@
 
 **当前版本**：`3.353.0`（版本四源同步由 `tests/audit/scan_version_guard.mjs` 把守）
 **运行形态**：SillyTavern 第三方扩展（`manifest.json` + `index.js`）
-**在役面读数**（磁盘枚举，**不代表已实跑**）：`npm test` 当前发现 **330 个测试文件**；`npm test -- --audit` 当前发现 **61/61** 审计脚本（`tests/audit/` 磁盘 **67** 个，6 个 `_` 前缀探针不进门禁扫描面）。逐条由 `tests/audit/scan_doc_truthfulness.mjs` 核回磁盘，不是手抄。
+**在役面读数**（磁盘枚举，**不代表已实跑**）：`npm test` 当前发现 **333 个测试文件**；`npm test -- --audit` 当前发现 **61/61** 审计脚本（`tests/audit/` 磁盘 **67** 个，6 个 `_` 前缀探针不进门禁扫描面）。逐条由 `tests/audit/scan_doc_truthfulness.mjs` 核回磁盘，不是手抄。
 **最近一次全量实跑快照**(`tests/audit/doc_readings.json`,由 `tools/_rebind_doc_readings.py` 消费 `TEST_SUMMARY_JSON` 零手抄写入：v3.349.0 · 329 个测试文件 · 3935 断言 · 0 失败 · 审计 61/61。这就是 **v3.349.0 第四期计划收口点**那一次的读数(`TEST_TIMEOUT=600000 node tests/run.mjs --audit --jobs 3 --audit-jobs 2`:**329/329 文件 · 3935 断言 · 0 失败 · 61/61 审计**;测试段 221.0s + 审计段 106.6s)。上一快照为 v3.348.0 · 328 · 3910 · 61/61(**第四期收口前的最后一版**);再上一份 v3.328.0 · 309 · 3528 · 61/61(**第三期 F 包收口点**);再上一份 v3.318.0 · 299 · 3302 · 61/61(**第二期计划收口点**:优化 M-O1~M-O9 / 拓展 M-X1~M-X9 全部交付);更早 v3.296.0 · 277 · 2986 · 59/59;v3.284.0 · 264 · 2727 · 55/55。两处读数**刻意分开**:合成一条就会把「盘上多了几个文件」写成「整片已通过」。
 **全量口径**:`npm test` 全量跑批以分钟计,本仓纪律是**计划收口点才跑一次**(实施期只跑单门 / 单套件,铁律见 `PLAN.md` 门禁纪律节);未登记期间一律标「**全量待验**」。当前版本 v3.353.0 **全量待验**（第五期第一批四项 M5-O1/M5-O2/M5-O3/M5-O8 + 手机 R5-O9 的清除委托口；实施期按铁律只跑定向判据与定点回归，全量待验）；上一版 v3.349.0 **已实跑并登记**(本版缝入上游 conditionPatch:新内核 `condition-patch.js` + 宿主取库口与两处 hasAny 接线、退路类同形补齐、两处键表恢复六字段共享形态;读数见上段快照。n-1 版 v3.348.0 亦为**已实跑并登记**(第四期计划收口点)。上一版 v3.348.0 **已实跑并登记**(第四期计划收口点的一次全量,读数见上段快照;收口前 v3.329.0~v3.347.0 各版在实施期只跑定向门禁与 v3445 / v3455 专项套件,不跑全量 —— 铁律见 `PLAN.md` 门禁纪律节)。
 以下旧口径保留，供追溯这些数字是怎么变的：截至 v3.266.0，`npm test` 为 246 个测试文件 · 0 失败；v3.267.0 起按用户纪律以定向口径复验（新增 `tests/v3267_fakegreen_hygiene.test.mjs` 15/15 与门禁 `tests/audit/scan_fakegreen_hygiene.mjs`，在役面 248 文件 / 54 审计脚本）；v3.268.0（B1 注入质量）249 文件；v3.270.0（B2/X1 注入容量预演）250 文件；v3.271.0（UI 运行时面）**251 文件 / 55 审计脚本**；v3.284.0 恢复全量实跑（264 / 2727 / 55）。
@@ -44,12 +44,12 @@
 ## 运行与验证
 
 ```bash
-npm test             # 全部用例：330 个测试文件（在役面，磁盘枚举），各自独立子进程（隔离全局态污染）
+npm test             # 全部用例：333 个测试文件（在役面，磁盘枚举），各自独立子进程（隔离全局态污染）
 npm run test:serial  # 串行执行（排查偶发时的口径）
 npm run test:audit   # 带审计面
 ```
 
-模块位于**根目录**：由 `manifest.json` 的 `extra_js`（113 项）按**文件名**加载，
+模块位于**根目录**：由 `manifest.json` 的 `extra_js`（117 项）按**文件名**加载，
 迁移目录即改变插件分发形态。**新增模块必须同时登记进 `extra_js`**
 （由 `tests/audit/scan_module_wiring.mjs` 监控）。
 
@@ -58,7 +58,7 @@ npm run test:audit   # 带审计面
 ```
 lonsha-memory-plugin/
 ├── index.js                  # 主入口（VERSION 唯一锚点 / 事件接线 / 注入汇总）
-├── manifest.json             # 插件清单（js / css / extra_js 113 / extra_css 2）
+├── manifest.json             # 插件清单（js / css / extra_js 117 / extra_css 2）
 ├── package.json              # 版本源之一（不参与运行时加载）
 ├── style.css | lonsha-design.css | visualizer.css
 │
@@ -110,7 +110,7 @@ lonsha-memory-plugin/
 ├── ── UI 与打包 ──
 ├── settings-ui.js        modules_combined.js
 │
-├── tests/                # 在役面：330 个测试文件 + 61 个审计脚本（磁盘 67，6 个 `_` 探针除外）
+├── tests/                # 在役面：333 个测试文件 + 61 个审计脚本（磁盘 67，6 个 `_` 探针除外）
 │   └── archived/         # 18 个退役测试（保留历史与理据，不参与跑批）
 ├── tools/                # 一次性修崩助手（_ 前缀不进门禁扫描面）
 └── archive/              # 历史存档（不参与运行时）
@@ -119,9 +119,9 @@ lonsha-memory-plugin/
     └── rust/             # pagerank.rs + Cargo.toml（未接入）
 ```
 
-**运行时模块**：114 个（根目录 `.js`，含入口 `index.js`；与 `extra_js` **112 项**是两个口径 —— 后者是分发清单项数）
-**载入面**：`index.js` + `extra_js` 113 项 + CSS 3 项
-**在役面**（磁盘枚举，不代表已实跑）：`tests/` 330 个测试文件（`*.test.mjs`，即 `npm test` 的扫描面）/ `tests/audit/` 61 个审计脚本（磁盘 67，6 个 `_` 探针不进门禁扫描面；**现值见行 8**）
+**运行时模块**：118 个（根目录 `.js`，含入口 `index.js`；与 `extra_js`（117 项）是两个口径 —— 后者是分发清单项数）
+**载入面**：`index.js` + `extra_js`（117 项）+ CSS 3 项
+**在役面**（磁盘枚举，不代表已实跑）：`tests/` 333 个测试文件（`*.test.mjs`，即 `npm test` 的扫描面）/ `tests/audit/` 61 个审计脚本（磁盘 67，6 个 `_` 探针不进门禁扫描面；**现值见行 8**）
 **当前版本**：见 `CHANGELOG.md` 顶节（版本四源同步由 `scan_version_guard` 把守）
 
 ## 安装

@@ -61,7 +61,7 @@
  *   未复制任何外部代码。
  * ======================================================== */(function (root) {
     'use strict';
-    const MP_VERSION = 2;
+    const MP_VERSION = 1;
     const MP_KIND = 'material_pack';
     /** [v3.351.0 M5-O4] 事实五态（与 fact-state.js 的 FS_STATES 同词表）。
      *   材料包消费裁决而不是自造裁决：superseded/revoked 的材料不进包，
@@ -358,7 +358,7 @@
             winnerOf[g] = win.id;
             for (const m of active) {
                 if (m.id === win.id) continue;
-                m.usable = false;
+                m.usable = false; /* superseded by conflict winner */
                 m.state = 'superseded';
                 m.supersededBy = win.id;
                 m.why = 'superseded';

@@ -60,7 +60,7 @@ const ANCHORS = Object.freeze({
     /* 内核·任务轴:置假 ⇒ 面优先级不再按任务走(实测红:B1 拿到四任务同序)。 */
     kRank: String.raw`function facetRankOf(facet, task) {`,
     /* 内核·矛盾取代:置假 ⇒ 同组两条当前值都留在包里(实测红:B2 拿到 packIds 2 条)。 */
-    kSupersede: String.raw`m.usable = false;`,
+    kSupersede: String.raw`m.usable = false; /* superseded by conflict winner */`,
     /* 内核·未发生闸:置假 ⇒ future 材料照进包(实测红:B3 拿到 future 计数 0 且包多一条)。 */
     kFuture: String.raw`const future = (futureRaw === true) || (keyOf(futureRaw) === 'true') || (keyOf(r.status) === 'future') || (keyOf(r.state) === 'planned');`,
     /* 内核·受限闸:置假 ⇒ restricted 材料照进包(实测红:B3 拿到 restricted 计数 0)。 */

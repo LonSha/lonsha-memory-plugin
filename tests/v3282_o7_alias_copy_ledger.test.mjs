@@ -148,6 +148,14 @@ const ALIAS_LEDGER = [
      *   ★ 本行是**当版自报**(与簇同批落盘、同批登记):体长/md5 由判据体在真磁盘上复算得出,
      *   非手抄。 */
     ['fn', ['arr', 'arrOf'], ['condition-patch.js', 'world-ledger-reader.js'], 33, '6b39ffca'],
+    /* [v3.350.0 · 预存补登] fact-state.js 的 STATES 与 material-pack.js 的 FACT_STATES
+     *   是同体不同名的「事实五态」词表(Object.freeze(['active','superseded','revoked','disputed','unknown'])) ——
+     *   名字不同,故按**名**配对的三层判据(v3280 / v3281)整片看不见它,正落入本档射程。
+     *   为什么留两份:与 PRECHECK/PREVIEW、KINDS/TARGET_KINDS 同族 —— 它是**通用词表原语**;
+     *   两模块装载时机与存活期互不包含(事实账可缺席而素材包在,反之亦然),
+     *   收拢会把「本模块自足」换成「依赖另一个模块先挂载」(本仓反过的跨模块静默读旧值)。
+     *   ★ 预存问题补登(非本刀引入):v3.346.0 落盘 material-pack.js 时已存在,至 v3.350.0 全量回归时被本档抓到。 */
+    ['tab', ['FACT_STATES', 'STATES'], ['fact-state.js', 'material-pack.js'], 56, 'eb79360e'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

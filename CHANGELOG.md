@@ -6,7 +6,7 @@
  · **M5-X7** 新模块 `hypothesis-workspace.js`（142行）：createWorkspace/discardWorkspace/completeWorkspace/listWorkspaces。临时假设只属工作区，退出后正文事实账 hash 不变。四态：draft/writing/completed/discarded，MAX_WORKSETS=8。
  · **M5-X9** 新模块 `research-collection.js`（165行）：createCollection/addCitation/addConclusion/markReviewNeeded/closeCollection。不复制全文只存引用；结论每句有来源；移除资料后标记需复核的结论。MAX_COLLECTIONS=10。
 ★ **宿主接线**：三个取库口 `_impactPreviewLib`/`_hypothesisWorkspaceLib`/`_researchCollectionLib`；五个宿主出口 `queryWhereabouts`/`queryImpactPreview`/`queryHypothesisWorkspace`/`queryResearchCollection`；selfCheck 面板新增影响预览/假设工作集/研究集合三行。manifest extra_js 114→117。
-★ **定向复验**：`tests/v3530_m5_x_batch.test.mjs` 34条全绿（A版本锚3 + B M5-X3 7 + C M5-X6 6 + D M5-X7 6 + E M5-X9 6 + F宿主接线3 + G判据纯度3）。
+★ **定向复验**：`tests/v3530_m5_x_batch.test.mjs`（≥34 条，A版本锚3 + B M5-X3 7 + C M5-X6 6 + D M5-X7 6 + E M5-X9 6 + F宿主接线3 + G判据纯度3）。
 · 退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移（本仓扫描器契约；本节同款声明供 D9 核对）。
 
 ## v3.352.0
