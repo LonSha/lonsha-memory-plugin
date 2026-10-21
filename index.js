@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.352.0';
+    const VERSION = '3.353.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -13068,6 +13068,33 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['目标跟踪', GT.line(sc) + (bad ? ' ⚠️' : '')];
                         } catch (e) { errLog(e, 'selfCheck.goalTracker'); return ['目标跟踪', '—（诊断异常）']; }
                     })(),
+                    /* [v3.353.0 · M5-X6/X7/X9] 三个研究面模块体检。
+                     *   impact-preview: 影响预览零写，回答"改这个事实影响哪些账"
+                     *   hypothesis-workspace: 假设推演工作集，回答"有几个工作集在跑"
+                     *   research-collection: 研究集合，回答"有几个专题、几条引用、几条结论" */
+                    (() => {
+                        try {
+                            const IP = _impactPreviewLib();
+                            if (!IP || typeof IP.line !== 'function') return ['影响预览', '模块未加载(impact-preview.js)'];
+                            return ['影响预览', IP.line()];
+                        } catch (e) { errLog(e, 'selfCheck.impactPreview'); return ['影响预览', '—（诊断异常）']; }
+                    })(),
+                    (() => {
+                        try {
+                            const HW = _hypothesisWorkspaceLib();
+                            if (!HW || typeof HW.line !== 'function') return ['假设工作集', '模块未加载(hypothesis-workspace.js)'];
+                            const rawState = (this.worldProg && this.worldProg.hypothesisWorkspaces) || { worksets: [] };
+                            return ['假设工作集', HW.line(rawState)];
+                        } catch (e) { errLog(e, 'selfCheck.hypothesisWorkspace'); return ['假设工作集', '—（诊断异常）']; }
+                    })(),
+                    (() => {
+                        try {
+                            const RC = _researchCollectionLib();
+                            if (!RC || typeof RC.line !== 'function') return ['研究集合', '模块未加载(research-collection.js)'];
+                            const rawState = (this.worldProg && this.worldProg.researchCollections) || { collections: [] };
+                            return ['研究集合', RC.line(rawState)];
+                        } catch (e) { errLog(e, 'selfCheck.researchCollection'); return ['研究集合', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.328.0 · F 包 M3-X6] 支线正史体检面:与「分支对照」**分列**。
                 //   对照行答「两条分支的面差在哪」,本行答「哪一条算数」——合成一行会让
@@ -16873,6 +16900,73 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 const ledger = (this.worldProg && this.worldProg.commitmentLedger) || { items: [] };
                 return CL.deriveInstances(ledger, ref, range);
             } catch (e) { errLog(e, 'plugin.queryPeriodicCommitments'); return { ok: false, instances: [], reason: 'thrown', degraded: true }; }
+        }
+        /**
+         * [v3.353.0 · M5-X3] 群像行踪与时空矛盾查询。
+         *   只读判定：不改库、不抛、不猜；复用 scene-book 的 whereIs + presence + coPresence 既有判据。
+         *   返回每个参与者在指定楼层范围内的位置、可能的碰面、以及行踪缺口。
+         */
+        queryWhereabouts(participants, fromFloor, toFloor) {
+            try {
+                if (!this.scene || typeof this.scene.whereaboutsOf !== 'function') {
+                    return { ok: false, reason: 'module-unavailable', degraded: true, whereabouts: [], overlaps: [], gaps: [] };
+                }
+                return this.scene.whereaboutsOf(participants, fromFloor, toFloor);
+            } catch (e) { errLog(e, 'plugin.queryWhereabouts'); return { ok: false, reason: 'thrown', degraded: true, whereabouts: [], overlaps: [], gaps: [] }; }
+        }
+        /**
+         * [v3.353.0 · M5-X6] 有意改设定的影响预览。
+         *   预览零写：不改库、不抛、不猜；只把"改这个事实会影响哪些账"算出来。
+         *   检查承诺账本、物品账本、事实版本派生关系。
+         */
+        queryImpactPreview(factId, opts) {
+            try {
+                const IP = _impactPreviewLib();
+                if (!IP || typeof IP.previewImpact !== 'function') return { ok: false, reason: 'module-unavailable', degraded: true, directlyAffected: [], possiblyAffected: [], unaffected: [] };
+                const ledgers = {
+                    commitmentLedger: (this.worldProg && this.worldProg.commitmentLedger) || { items: [] },
+                    itemLedger: (this.worldProg && this.worldProg.itemLedger) || { records: [] },
+                    factVersion: (this._factVersionState || {})
+                };
+                const factState = (typeof this._factVersionState === 'object' && this._factVersionState) ? this._factVersionState : {};
+                return IP.previewImpact(factState, factId, ledgers, opts);
+            } catch (e) { errLog(e, 'plugin.queryImpactPreview'); return { ok: false, reason: 'thrown', degraded: true, directlyAffected: [], possiblyAffected: [], unaffected: [] }; }
+        }
+        /**
+         * [v3.353.0 · M5-X7] 假设推演工作集操作。
+         *   临时假设只属工作区，退出后正文事实账 hash 不变。
+         *   操作类型：create / discard / complete / list
+         */
+        queryHypothesisWorkspace(op, payload) {
+            try {
+                const HW = _hypothesisWorkspaceLib();
+                if (!HW) return { ok: false, reason: 'module-unavailable', degraded: true };
+                const rawState = (this.worldProg && this.worldProg.hypothesisWorkspaces) || { worksets: [] };
+                if (op === 'create') return HW.createWorkspace(rawState, payload);
+                if (op === 'discard') return HW.discardWorkspace(rawState, payload);
+                if (op === 'complete') return HW.completeWorkspace(rawState, payload);
+                if (op === 'list') return { ok: true, workspaces: HW.listWorkspaces(rawState), line: HW.line(rawState) };
+                return { ok: false, reason: 'unknown-op', degraded: true };
+            } catch (e) { errLog(e, 'plugin.queryHypothesisWorkspace'); return { ok: false, reason: 'thrown', degraded: true }; }
+        }
+        /**
+         * [v3.353.0 · M5-X9] 研究集合操作。
+         *   不复制全文，只存引用；结论每句有来源；移除资料后标记需复核。
+         *   操作类型：create / addCitation / addConclusion / markReview / close / list
+         */
+        queryResearchCollection(op, payload) {
+            try {
+                const RC = _researchCollectionLib();
+                if (!RC) return { ok: false, reason: 'module-unavailable', degraded: true };
+                const rawState = (this.worldProg && this.worldProg.researchCollections) || { collections: [] };
+                if (op === 'create') return RC.createCollection(rawState, payload);
+                if (op === 'addCitation') return RC.addCitation(rawState, payload);
+                if (op === 'addConclusion') return RC.addConclusion(rawState, payload);
+                if (op === 'markReview') return RC.markReviewNeeded(rawState, payload);
+                if (op === 'close') return RC.closeCollection(rawState, payload);
+                if (op === 'list') return { ok: true, collections: RC.normalize(rawState).collections, line: RC.line(rawState) };
+                return { ok: false, reason: 'unknown-op', degraded: true };
+            } catch (e) { errLog(e, 'plugin.queryResearchCollection'); return { ok: false, reason: 'thrown', degraded: true }; }
         }
         /**
          * [v3.305.0 · X9] 诊断一行。**三种坏法分开写**（本仓九账治理后的纪律）：
@@ -20721,6 +20815,24 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   达成状态由事实状态计算（active→met, revoked/superseded→blocked, disputed→unknown）。
     function _goalTrackerLib() {
         return _moduleLib(() => window.LonShaGoalTracker, 'goal-tracker.js');
+    }
+    // [v3.353.0 · M5-X6] 有意改设定的影响预览（impact-preview.js）。
+    //   纯函数 IIFE，零依赖，挂 window.LonShaImpactPreview。
+    //   预览零写：不改库、不抛、不猜；只把"改这个事实会影响哪些账"算出来给用户看。
+    function _impactPreviewLib() {
+        return _moduleLib(() => window.LonShaImpactPreview, 'impact-preview.js');
+    }
+    // [v3.353.0 · M5-X7] 隔离于正史的假设推演工作集（hypothesis-workspace.js）。
+    //   纯函数 IIFE，零依赖，挂 window.LonShaHypothesisWorkspace。
+    //   临时假设只属工作区，退出后正文事实账 hash 不变。
+    function _hypothesisWorkspaceLib() {
+        return _moduleLib(() => window.LonShaHypothesisWorkspace, 'hypothesis-workspace.js');
+    }
+    // [v3.353.0 · M5-X9] 跨资料专题的证据集合与可追溯结论（research-collection.js）。
+    //   纯函数 IIFE，零依赖，挂 window.LonShaResearchCollection。
+    //   不复制全文，只存引用；结论每句有来源；移除资料后标记需复核。
+    function _researchCollectionLib() {
+        return _moduleLib(() => window.LonShaResearchCollection, 'research-collection.js');
     }
     // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
     //   M-X9 点名的五个 API 里，修前只有 explainRecall 有实现，其余四个名**全仓零命中** ——

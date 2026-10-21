@@ -656,6 +656,93 @@ class SceneBook {
         } catch (_e) { return { rows: [], count: 0, totalPresent: 0, skippedUnknownFloor: 0 }; }
     }
 
+    /* ─────────────── [v3.352.0 · M5-X3] 群像行踪与时空矛盾 ─────────────── */
+
+    /**
+     * [v3.352.0 · M5-X3] 多人物在时间区间的在场证据拼接。
+     *   给一组角色和一个楼层范围：回答每人各自在哪、谁与谁可能碰面、
+     *   哪些时段某人的行踪未知（不补脑）。
+     *   复用 whereIs + presence + coPresence 的既有判据，不新建第二份轨迹。
+     */
+    whereaboutsOf(participants, fromFloor, toFloor) {
+        try {
+            const names = (Array.isArray(participants) ? participants : [])
+                .map(n => String(n == null ? '' : n).trim())
+                .filter(Boolean);
+            if (!names.length) return { ok: false, reason: 'no-participants', whereabouts: [], overlaps: [], gaps: [] };
+
+            const from = numOrNull(fromFloor);
+            const to = numOrNull(toFloor);
+            const where = [];
+            const gaps = [];
+
+            for (const name of names) {
+                const rec = this.presence.get(name);
+                if (!rec) {
+                    gaps.push({ name, reason: 'never-present', range: [from, to] });
+                    where.push({ name, known: false, key: null, path: [], atFloor: null });
+                    continue;
+                }
+                const f = numOrNull(rec.atFloor);
+                const inRange = (from === null || (f !== null && f >= from)) && (to === null || (f !== null && f <= to));
+                if (!inRange && from !== null && to !== null) {
+                    gaps.push({ name, reason: 'outside-range', knownFloor: f, range: [from, to] });
+                    where.push({ name, known: false, key: null, path: [], atFloor: f });
+                } else {
+                    where.push({ name, known: true, key: rec.key, path: rec.path || [], atFloor: f });
+                }
+            }
+
+            /* 交叉：检查可能的碰面 */
+            const overlaps = [];
+            for (let i = 0; i < where.length; i++) {
+                if (!where[i].known) continue;
+                for (let j = i + 1; j < where.length; j++) {
+                    if (!where[j].known) continue;
+                    const a = where[i], b = where[j];
+                    /* 同楼层且地点层级包含 ⇒ 可能碰面 */
+                    if (a.atFloor !== null && a.atFloor === b.atFloor) {
+                        if (a.key === b.key || a.key.startsWith(b.key + '/') || b.key.startsWith(a.key + '/')) {
+                            overlaps.push({
+                                a: a.name, b: b.name, floor: a.atFloor,
+                                key: a.key === b.key ? a.key : (a.key.startsWith(b.key + '/') ? b.key : a.key),
+                                note: '同楼同地'
+                            });
+                        } else {
+                            overlaps.push({
+                                a: a.name, b: b.name, floor: a.atFloor,
+                                keyA: a.key, keyB: b.key,
+                                note: '同楼不同地'
+                            });
+                        }
+                    }
+                }
+            }
+
+            /* 检查行踪缺口：有登记但在范围内缺楼层的人 */
+            for (const name of names) {
+                const rec = this.presence.get(name);
+                if (!rec) continue;
+                const f = numOrNull(rec.atFloor);
+                if (f === null) {
+                    if (!gaps.find(g => g.name === name)) {
+                        gaps.push({ name, reason: 'floor-unknown', range: [from, to] });
+                    }
+                }
+            }
+
+            return {
+                ok: true,
+                whereabouts: where,
+                overlaps: overlaps,
+                gaps: gaps,
+                participants: names
+            };
+        } catch (_e) {
+            return { ok: false, reason: 'error', whereabouts: [], overlaps: [], gaps: [] };
+        }
+    }
+
     /* ─────────────── [v3.232.0] F-6：两条观察项的**口径自述** ─────────────── */
 
     /**
