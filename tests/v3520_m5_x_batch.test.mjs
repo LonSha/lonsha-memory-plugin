@@ -1,5 +1,5 @@
 /**
- * tests/v3520_m5_x_batch.test.mjs — v3.352.0 第三包验收
+ * tests/v3520_m5_x_batch.test.mjs — v3.353.0 第三包验收
  * M5-X1 借用关系字段 / M5-X2 目标跟踪器 / M5-X4 传闻佐证 / M5-X5 共通知情 / M5-X8 周期约定
  */
 import { test, describe } from 'node:test';
@@ -18,15 +18,15 @@ const idxSrc = fs.readFileSync('./index.js', 'utf8');
 /* ================================================================
  * A. 版本锚
  * ================================================================ */
-describe('v3.352.0 版本锚', () => {
-    test('VERSION 常量为 3.352.0', () => {
+describe('v3.353.0 版本锚', () => {
+    test('VERSION 常量为 3.353.0', () => {
         const m = VERSION_RE.exec(idxSrc);
         assert.ok(m, 'VERSION 常量未找到');
-        assert.equal(m[1], '3.352.0', `VERSION 应为 3.352.0，实际 ${m[1]}`);
+        assert.equal(m[1], '3.353.0', `VERSION 应为 3.353.0，实际 ${m[1]}`);
     });
-    test('manifest.json 版本为 3.352.0', () => {
+    test('manifest.json 版本为 3.353.0', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
-        assert.equal(man.version, '3.352.0');
+        assert.equal(man.version, '3.353.0');
     });
     test('goal-tracker.js 在 manifest extra_js 中', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
