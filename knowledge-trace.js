@@ -505,6 +505,215 @@
     }
 
     /* ---------------------------------------------------------------
+     * [v3.352.0 · M5-X4] 传闻的共同源头与独立佐证判别
+     *   给一条事实：回答「有几条独立佐证」。
+     *   判据（确定性、可复算）：
+     *     ① 按 evidenceKey 分组 → 每个 evidenceKey 是一个**潜在根**；
+     *     ② 在同一根内，同角色同动作的轨迹是转述（propagationSet 已去重），
+     *        不同角色 = 该根被多人独立获知（但仍是**同一个来源**）；
+     *     ③ 不同 evidenceKey = 不同来源 = 独立佐证；
+     *     ④ 循环转述（A←B, B←C, C←A）不增佐证：`from` 字段构成有向图，
+     *        若出现环 ⇒ circularHearsay 计数，环上的根**合并为一个**；
+     *     ⑤ 撤回源后（retract），依赖该源的根标 `retracted`，
+     *        rootCount 不计它，但传播历史**不抹去**（retractedRoots 列出）。
+     *   返回：roots（非撤回的独立根）、retractedRoots（被撤回的根）、
+     *         rootCount（独立佐证数）、circularHearsay（循环转述计数）、
+     *         transmittalChains（转述链可见列表）。
+     * --------------------------------------------------------------- */
+    function corroborationOf(raw, fact, opts) {
+        var out = {
+            kind: KT_KIND, fact: text(fact, 180), roots: [], retractedRoots: [],
+            rootCount: 0, circularHearsay: 0, transmittalChains: [],
+            degraded: false
+        };
+        try {
+            var trace = normalize(raw);
+            var norm = normalizeFact(fact);
+            if (!norm) { out.degraded = true; return out; }
+            var matching = trace.traces.filter(function (t) { return normalizeFact(t.fact) === norm; });
+            if (!matching.length) return out;
+
+            /* 按 evidenceKey 分组 */
+            var groups = new Map();
+            for (var i = 0; i < matching.length; i++) {
+                var t = matching[i];
+                var key = evidenceKeyOf(t);
+                if (!key) continue;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(t);
+            }
+
+            /* 检查每组的撤回状态 */
+            var roots = [];
+            var retractedRoots = [];
+            var chains = [];
+
+            var _keys = Array.from(groups.keys());
+            for (var gi = 0; gi < _keys.length; gi++) {
+                var key = _keys[gi];
+                var members = groups.get(key);
+                /* 是否有 retract 且 seq 最大 */
+                var hasRetract = false;
+                var maxSeq = 0;
+                var maxSeqRetract = false;
+                for (var mi = 0; mi < members.length; mi++) {
+                    if (members[mi].seq > maxSeq) { maxSeq = members[mi].seq; maxSeqRetract = (members[mi].action === 'retract'); }
+                }
+                if (maxSeqRetract) hasRetract = true;
+
+                /* 独立角色数（去重） */
+                var chars = new Set();
+                for (var ci = 0; ci < members.length; ci++) chars.add(members[ci].character);
+
+                var rootInfo = {
+                    evidenceKey: key,
+                    characters: Array.from(chars),
+                    characterCount: chars.size,
+                    retracted: hasRetract,
+                    traceIds: members.map(function (m) { return m.traceId; }),
+                    earliestFloor: members.reduce(function (a, b) {
+                        return (b.floor != null && (a == null || b.floor < a)) ? b.floor : a;
+                    }, null)
+                };
+
+                if (hasRetract) retractedRoots.push(rootInfo);
+                else roots.push(rootInfo);
+
+                /* 转述链：按 from 字段重建有向边 */
+                for (var ti = 0; ti < members.length; ti++) {
+                    if (members[ti].from) {
+                        chains.push({
+                            from: members[ti].from,
+                            to: members[ti].character,
+                            via: members[ti].via,
+                            floor: members[ti].floor,
+                            traceId: members[ti].traceId
+                        });
+                    }
+                }
+            }
+
+            /* 循环转述检测：from→to 有向图，检测环 */
+            var graph = new Map();
+            for (var ci2 = 0; ci2 < chains.length; ci2++) {
+                var from = chains[ci2].from;
+                var to = chains[ci2].to;
+                if (!graph.has(from)) graph.set(from, []);
+                graph.get(from).push(to);
+            }
+            var visited = new Set();
+            var inStack = new Set();
+            var cycleCount = 0;
+            function dfs(node) {
+                if (inStack.has(node)) { cycleCount++; return; }
+                if (visited.has(node)) return;
+                visited.add(node);
+                inStack.add(node);
+                var neighbors = graph.get(node) || [];
+                for (var ni = 0; ni < neighbors.length; ni++) dfs(neighbors[ni]);
+                inStack.delete(node);
+            }
+            var _graphKeys = Array.from(graph.keys());
+            for (var s = 0; s < _graphKeys.length; s++) {
+                if (!visited.has(_graphKeys[s])) dfs(_graphKeys[s]);
+            }
+
+            out.roots = roots;
+            out.retractedRoots = retractedRoots;
+            out.rootCount = roots.length;
+            out.circularHearsay = cycleCount;
+            out.transmittalChains = chains.slice(0, MAX_LIST);
+            return out;
+        } catch (_e) {
+            return Object.assign({}, out, { degraded: true });
+        }
+    }
+
+    /* ---------------------------------------------------------------
+     * [v3.352.0 · M5-X5] 多人共通知情与可共享往事材料
+     *   给一组参与者和一个时点（楼层）：回答「这群人**都知道**的事实」。
+     *   复用 stateOf 的判定逻辑：逐事实、逐角色检查在该时点是否 knows。
+     *   返回三个集合：
+     *     · shared   —— 所有参与者在该时点都知道的事实（可公开讨论）
+     *     · partial  —— 部分参与者知道的事实（各自知道但不宜公开）
+     *     · unknown  —— 无人在该时点之前有轨迹的事实
+     *   **不猜**：判不开的事实归 unknown，不归 partial（避免「没记过」变成「有人知道」）。
+     * --------------------------------------------------------------- */
+    function sharedKnowledgeOf(raw, participants, atFloor, opts) {
+        var out = {
+            kind: KT_KIND, participants: [], atFloor: floorOf(atFloor),
+            shared: [], partial: [], unknown: [],
+            degraded: false
+        };
+        try {
+            var trace = normalize(raw);
+            var f = floorOf(atFloor);
+            if (f == null) { out.degraded = true; return out; }
+            var o = (opts && typeof opts === 'object') ? opts : {};
+            var idFilter = pick(o.identity, IDENTITY, '');
+
+            /* 参与者名单归一 */
+            var who = [];
+            if (Array.isArray(participants)) {
+                for (var pi = 0; pi < participants.length; pi++) {
+                    var name = text(participants[pi], 40);
+                    if (name) who.push(name);
+                }
+            }
+            if (!who.length) { out.degraded = true; return out; }
+            out.participants = who;
+
+            /* 收集所有出现的事实（归一） */
+            var factSet = new Map(); /* norm → 原文 */
+            for (var i = 0; i < trace.traces.length; i++) {
+                var t = trace.traces[i];
+                var norm = normalizeFact(t.fact);
+                if (norm && !factSet.has(norm)) factSet.set(norm, t.fact);
+            }
+
+            var _facts = Array.from(factSet.keys());
+            for (var fi = 0; fi < _facts.length; fi++) {
+                var normFact = _facts[fi];
+                var originalFact = factSet.get(normFact);
+                var knowers = [];
+                var unknower = [];
+                var hasTrace = false;
+
+                for (var wi = 0; wi < who.length; wi++) {
+                    /* 在该时点之前该角色的轨迹 */
+                    var cutoff = [];
+                    for (var ti2 = 0; ti2 < trace.traces.length; ti2++) {
+                        var tt = trace.traces[ti2];
+                        if (tt.floor == null || tt.floor > f) continue;
+                        if (tt.character !== who[wi]) continue;
+                        if (normalizeFact(tt.fact) !== normFact) continue;
+                        if (idFilter && tt.identity !== idFilter) continue;
+                        cutoff.push(tt);
+                    }
+                    if (!cutoff.length) { unknower.push(who[wi]); continue; }
+                    hasTrace = true;
+                    var st = stateOf({ traces: cutoff }, who[wi], originalFact, o);
+                    if (st.state === 'knows') knowers.push(who[wi]);
+                    else unknower.push(who[wi]);
+                }
+
+                var entry = { fact: originalFact, knowers: knowers, unknowers: unknower };
+                if (!hasTrace) out.unknown.push(entry);
+                else if (unknower.length === 0) out.shared.push(entry);
+                else out.partial.push(entry);
+            }
+
+            /* 有界 */
+            if (out.shared.length > MAX_LIST) { out.shared = out.shared.slice(0, MAX_LIST); }
+            if (out.partial.length > MAX_LIST) { out.partial = out.partial.slice(0, MAX_LIST); }
+
+            return out;
+        } catch (_e) {
+            return Object.assign({}, out, { degraded: true });
+        }
+    }
+
+    /* ---------------------------------------------------------------
      * 读数一句话（供诊断/自检行）
      *   五态**分开说**；notRecorded 必须与 unknown 分列 —— 把两者并成「不知道」
      *   正是本模块要治的那句无据断言。全零读数不得被读成「机制正常」：
@@ -551,6 +760,8 @@
         provenanceOf: provenanceOf,
         dropByFloor: dropByFloor,
         listOf: listOf,
+        corroborationOf: corroborationOf,
+        sharedKnowledgeOf: sharedKnowledgeOf,
         line: line
     };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

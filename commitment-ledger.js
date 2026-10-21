@@ -47,7 +47,10 @@
       updatedFloor: finiteFloor(item.updatedFloor),
       source: text(item.source, 40),
       // [v3.207] 历史读回走契约（末 MAX_HISTORY 条 + 逐条 copyEvent）。
-      history: LE.copyHistory(item, MAX_HISTORY, copyEvent)
+      history: LE.copyHistory(item, MAX_HISTORY, copyEvent),
+      // [v3.352.0 · M5-X8] 周期性约定字段
+      periodic: copyPeriodic(item.periodic),
+      exceptions: Array.isArray(item.exceptions) ? item.exceptions.map(copyException).filter(Boolean) : []
     };
   }
   function copyEvent(event) {
@@ -169,7 +172,8 @@
       id: nextId(state), actor, content,
       counterpart: input?.counterpart, due: input?.due,
       status: 'open', revision: LE.REVISION.CREATE, floor: input?.floor,
-      updatedFloor: input?.floor, source: input?.source, history: []
+      updatedFloor: input?.floor, source: input?.source, history: [],
+      periodic: input?.periodic, exceptions: []
     });
     /* [v3.350.0 · M5-O8] **容量闸**：登记一条**未完成**约定而账本已满时，
      *   若这一条会把别的未完成项挤掉 ⇒ **显式拒绝**（reason:'capacity'），
@@ -224,6 +228,126 @@
     for (const item of normalize(rawState).items) counts[item.status] += 1;
     return counts;
   }
+  /* ---------------------------------------------------------------
+   * [v3.352.0 · M5-X8] 周期性约定：系列规则与单次实例
+   *   约定可以是**周期性**的（如"每周打扫"、"每月还息"），原约定存规则，
+   *   实例按规则派生，**只持久化例外/事实引用**（某次跳过/改期/已履行）。
+   *   设计纪律：
+   *     ① 系列约定在 copyItem 中带 `periodic` 字段（规则描述）和 `seriesId`（系列标识）；
+   *     ② 实例不另开条目，而是通过 `exceptions` 映射记录（key=实例标识，value=状态/偏移）；
+   *     ③ `deriveInstances` 按规则和给定范围（楼数/时间）派生实例列表，
+   *        合并 exceptions 后返回：哪些该履行、哪些已跳过/改期/已履行；
+   *     ④ 系列整体取消走原 `cancel`（状态改 cancelled），**不删**单次例外历史。
+   * --------------------------------------------------------------- */
+  function copyPeriodic(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const rule = text(raw.rule, 120);
+    if (!rule) return null;
+    return {
+      rule: rule,
+      interval: text(raw.interval, 20) || 'weekly',
+      anchor: raw.anchor == null ? null : text(raw.anchor, 40),
+      seriesId: text(raw.seriesId, 60)
+    };
+  }
+  function copyException(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const instKey = text(raw.instanceKey || raw.key, 60);
+    if (!instKey) return null;
+    const action = ACTIONS.includes(raw.action) ? raw.action : 'skip';
+    return {
+      instanceKey: instKey,
+      action: action,
+      reason: text(raw.reason, 120),
+      floor: finiteFloor(raw.floor),
+      eventKey: text(raw.eventKey, 120),
+      source: text(raw.source, 40),
+      revisedDue: raw.revisedDue == null ? null : text(raw.revisedDue, 40)
+    };
+  }
+
+  /** [M5-X8] 派生系列约定的实例列表（只读，不改账本） */
+  function deriveInstances(rawState, ref, range) {
+    const state = normalize(rawState);
+    const item = find(state, ref);
+    if (!item || !item.periodic) return { instances: [], degraded: true, reason: 'no-periodic-item' };
+    const p = item.periodic;
+    const exceptions = new Map();
+    for (const ex of (Array.isArray(item.exceptions) ? item.exceptions : [])) {
+      if (ex && ex.instanceKey) exceptions.set(ex.instanceKey, ex);
+    }
+    /* 从 range 派生实例键：range = { fromFloor, toFloor } 或 { count } */
+    const r = range && typeof range === 'object' ? range : {};
+    const fromF = finiteFloor(r.fromFloor) ?? item.floor ?? 0;
+    const toF = finiteFloor(r.toFloor) ?? (fromF + 100);
+    const maxCount = Math.min(finite(r.count) || 50, 50);
+    /* 间隔映射：weekly→7, biweekly→14, monthly→30, quarterly→90 */
+    const intervalMap = { daily: 1, weekly: 7, biweekly: 14, monthly: 30, quarterly: 90, yearly: 365 };
+    const step = intervalMap[p.interval] || 7;
+    const anchor = finiteFloor(p.anchor) ?? item.floor ?? 0;
+    const instances = [];
+    let count = 0;
+    for (let f = anchor; f <= toF && count < maxCount; f += step) {
+      if (f < fromF) continue;
+      count++;
+      const instKey = p.seriesId ? (p.seriesId + '#' + count) : (item.id + '#' + count);
+      const ex = exceptions.get(instKey);
+      instances.push({
+        instanceKey: instKey,
+        floor: f,
+        expected: true,
+        action: ex ? ex.action : 'pending',
+        reason: ex ? ex.reason : '',
+        revisedDue: ex ? ex.revisedDue : null,
+        fulfilled: ex && ex.action === 'fulfill',
+        skipped: ex && ex.action === 'skip',
+        broken: ex && ex.action === 'break',
+        source: ex ? ex.source : ''
+      });
+    }
+    /* 列出 range 外的例外（历史已记但不在派生范围内） */
+    const orphanedExceptions = [];
+    for (const [key, ex] of exceptions) {
+      if (!instances.find((i) => i.instanceKey === key)) {
+        orphanedExceptions.push(ex);
+      }
+    }
+    return {
+      instances: instances,
+      orphanedExceptions: orphanedExceptions,
+      seriesId: p.seriesId || item.id,
+      rule: p.rule,
+      interval: p.interval,
+      totalDerived: instances.length,
+      fulfilled: instances.filter((i) => i.fulfilled).length,
+      skipped: instances.filter((i) => i.skipped).length,
+      broken: instances.filter((i) => i.broken).length,
+      pending: instances.filter((i) => i.action === 'pending').length,
+      degraded: false
+    };
+  }
+
+  /** [M5-X8] 在系列约定上记录一次例外（跳过/改期/已履行） */
+  function recordException(rawState, ref, exception) {
+    const state = normalize(rawState);
+    const item = find(state, ref);
+    if (!item) return reject(state, 'not-found');
+    if (!item.periodic) return reject(state, 'not-periodic');
+    const ex = copyException(exception);
+    if (!ex) return reject(state, 'bad-exception');
+    if (!Array.isArray(item.exceptions)) item.exceptions = [];
+    /* 幂等：同 instanceKey 替换而非追加 */
+    const idx = item.exceptions.findIndex((e) => e && e.instanceKey === ex.instanceKey);
+    if (idx >= 0) {
+      item.exceptions[idx] = ex;
+    } else {
+      item.exceptions.push(ex);
+    }
+    /* 有界 */
+    if (item.exceptions.length > 60) item.exceptions = item.exceptions.slice(-60);
+    return result(state, { item: copyItem(item), changed: true });
+  }
+
   function render(rawState, limit) {
     const openItems = list(rawState, { status: 'open' }).slice(-(finite(limit) || 6));
     if (!openItems.length) return '';
@@ -243,7 +367,9 @@
     /* [v3.350.0 · M5-O8] 容量面随账导出：上限常量 + 容量读数 + 「再加一条会挤掉谁」的预演。
      *   调用方（宿主诊断面 / 下游 UI）从账侧取口径，不另抄一份 MAX_ITEMS=200
      *   （本仓「单一真源」口径：数字抄两处就会改一处漏一处）。 */
-    MAX_ITEMS, capItems, capacityOf, admitProbe
+    MAX_ITEMS, capItems, capacityOf, admitProbe,
+    /* [v3.352.0 · M5-X8] 周期性约定面 */
+    deriveInstances, recordException, copyPeriodic, copyException
   });
   root.LonShaCommitmentLedger = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

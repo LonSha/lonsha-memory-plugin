@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.351.0';
+    const VERSION = '3.352.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1899,7 +1899,9 @@ function relativeTimeLabel(eventTime, nowTime) {
     const LEDGER_REMOVE_STATES = ['丢失', '损毁', '已消耗', '消耗完毕', '丢弃', '已丢弃', '遗落'];
     const LEDGER_ITEM_LIMITS = Object.freeze({
         name: 40, desc: 80, holder: 20, state: 10, location: 40,
-        batch: 60            // 单批入账上限（防一次提取灌入数百条撑爆真源）
+        batch: 60,            // 单批入账上限（防一次提取灌入数百条撑爆真源）
+        // [v3.352.0 · M5-X1] 借用关系字段长度限制
+        lendTo: 20, borrowFrom: 20, returnDue: 40, ownerRef: 20
     });
     const LEDGER_HOLDER_PLACEHOLDERS = ['无', '地上', 'null', 'none', 'undefined'];
 
@@ -1996,7 +1998,19 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (op.carried === true) reasons.push('mutex_location_wins');
             op.carried = false;
         }
-
+        // [v3.352.0 · M5-X1] 借用关系字段（所有者 / 借出目标 / 借入来源 / 归还到期）
+        if (raw.lendTo !== undefined && raw.lendTo !== null && String(raw.lendTo).trim()) {
+            op.lendTo = ledgerClip(raw.lendTo, LEDGER_ITEM_LIMITS.lendTo);
+        }
+        if (raw.borrowFrom !== undefined && raw.borrowFrom !== null && String(raw.borrowFrom).trim()) {
+            op.borrowFrom = ledgerClip(raw.borrowFrom, LEDGER_ITEM_LIMITS.borrowFrom);
+        }
+        if (raw.returnDue !== undefined && raw.returnDue !== null && String(raw.returnDue).trim()) {
+            op.returnDue = ledgerClip(raw.returnDue, LEDGER_ITEM_LIMITS.returnDue);
+        }
+        if (raw.ownerRef !== undefined && raw.ownerRef !== null && String(raw.ownerRef).trim()) {
+            op.ownerRef = ledgerClip(raw.ownerRef, LEDGER_ITEM_LIMITS.ownerRef);
+        }
         return { ok: true, op: op, reasons: reasons };
     }
 
@@ -7012,6 +7026,11 @@ timeAnchor: extracted?.time_anchor || null,
                 } else if (clean.location) {
                     clean.carried = false;
                 }
+                // [v3.352.0 · M5-X1] 借用关系字段（透传，已在 validateLedgerItemOp 校验长度）
+                if (op.lendTo) clean.lendTo = String(op.lendTo).trim().slice(0, LEDGER_ITEM_LIMITS.lendTo);
+                if (op.borrowFrom) clean.borrowFrom = String(op.borrowFrom).trim().slice(0, LEDGER_ITEM_LIMITS.borrowFrom);
+                if (op.returnDue) clean.returnDue = String(op.returnDue).trim().slice(0, LEDGER_ITEM_LIMITS.returnDue);
+                if (op.ownerRef) clean.ownerRef = String(op.ownerRef).trim().slice(0, LEDGER_ITEM_LIMITS.ownerRef);
                 return clean;
             } catch (e) { errLog(e, 'DF3.sanitizeItemOp'); return null; }
         }
@@ -7050,7 +7069,12 @@ timeAnchor: extracted?.time_anchor || null,
                                 state: op.state || '完好',
                                 floor: op.floor,
                                 carried: op.carried !== undefined ? op.carried : (!op.location),
-                                location: op.location || ''
+                                location: op.location || '',
+                                // [v3.352.0 · M5-X1] 借用关系字段
+                                lendTo: op.lendTo || '',
+                                borrowFrom: op.borrowFrom || '',
+                                returnDue: op.returnDue || '',
+                                ownerRef: op.ownerRef || ''
                             });
                         }
                     } else {
@@ -13028,6 +13052,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                      *   修后两轮都展示：构造期（真实顺序下必定 module-missing，那是**时机**不是缺陷）
                      *   与模块装载后的重绑（这才是机制该生效的那一轮）。最终态以重绑为准。 */
                     _formatBindDepsRow(this._bindDepsRead, this._bindDepsRebindRead),
+                    /* [v3.352.0 · M5-X2] 目标跟踪器体检面：回答「有几个长期目标、几条前置、有无循环」。
+                     *   与「因果链」分列：因果链答「约定收没收口」，本行答「角色想达成的目标走到哪了」。
+                     *   报警只认两条真损失：循环依赖（目标A依赖B，B依赖A ⇒ 永远走不到）与前置被阻断
+                     *   （前置条件对应的事实已撤回/否定 ⇒ 这条路走不通了）。 */
+                    (() => {
+                        try {
+                            const GT = _goalTrackerLib();
+                            if (!GT || typeof GT.line !== 'function') return ['目标跟踪', '模块未加载(goal-tracker.js)'];
+                            const goals = (this.worldProg && Array.isArray(this.worldProg.goals)) ? this.worldProg.goals : [];
+                            if (!goals.length) return ['目标跟踪', '暂无（尚无目标登记）'];
+                            const factStates = (typeof this._factVersionState === 'object' && this._factVersionState) ? this._factVersionState : {};
+                            const sc = GT.selfCheck({ goals: goals, factStates: factStates });
+                            const bad = sc.cycleDetected > 0;
+                            return ['目标跟踪', GT.line(sc) + (bad ? ' ⚠️' : '')];
+                        } catch (e) { errLog(e, 'selfCheck.goalTracker'); return ['目标跟踪', '—（诊断异常）']; }
+                    })(),
                 ];
                 // [v3.328.0 · F 包 M3-X6] 支线正史体检面:与「分支对照」**分列**。
                 //   对照行答「两条分支的面差在哪」,本行答「哪一条算数」——合成一行会让
@@ -16768,6 +16808,71 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 if (!T || typeof T.getKnowledgeBoundary !== 'function') return this._memoryToolsAbsent('getKnowledgeBoundary', 'module-unavailable');
                 return T.getKnowledgeBoundary(this.memoryToolsSources(), raw, character, fact, opts);
             } catch (e) { errLog(e, 'plugin.getKnowledgeBoundary'); return this._memoryToolsAbsent('getKnowledgeBoundary', 'thrown'); }
+        }
+        /* ────────────────────────────────────────────────────────────────
+         * [v3.352.0 · M5-X1/X4/X5/X8] 拓展面宿主出口
+         *
+         * 【M5-X1 借用关系查询】回答「这个物品借给了谁/从谁借来/何时该还」。
+         *   只读投影：从 items.records 的 lendTo/borrowFrom/returnDue/ownerRef 取。
+         *   不做判定（判定在账本侧），只做查询出口。
+         * 【M5-X4 传闻佐证】回答「这条事实有几条独立佐证」。
+         *   转发 knowledge-trace.js 的 corroborationOf。
+         * 【M5-X5 共通知情】回答「这群人在此时点都知道什么」。
+         *   转发 knowledge-trace.js 的 sharedKnowledgeOf。
+         * 【M5-X8 周期约定】回答「系列约定有哪些实例、各自什么状态」。
+         *   转发 commitment-ledger.js 的 deriveInstances。
+         * ──────────────────────────────────────────────────────────────── */
+        /** [v3.352.0 · M5-X1] 借用关系查询出口 */
+        queryLendRelations(filter) {
+            try {
+                const records = (this.worldProg && this.worldProg.items && Array.isArray(this.worldProg.items.records))
+                    ? this.worldProg.items.records : [];
+                const f = filter || {};
+                const actor = String((f && f.actor) || '').toLowerCase();
+                const result = records.filter((r) => {
+                    if (actor) {
+                        const a = String(r.actor || '').toLowerCase();
+                        const lt = String(r.lendTo || '').toLowerCase();
+                        const bf = String(r.borrowFrom || '').toLowerCase();
+                        if (a !== actor && lt !== actor && bf !== actor) return false;
+                    }
+                    if (f.outstanding === true && !r.returnDue) return false;
+                    return !!r.lendTo || !!r.borrowFrom;
+                }).map((r) => ({
+                    id: r.id, actor: r.actor, content: r.content,
+                    lendTo: r.lendTo || '', borrowFrom: r.borrowFrom || '',
+                    returnDue: r.returnDue || '', ownerRef: r.ownerRef || '',
+                    status: r.status || ''
+                }));
+                return { ok: true, records: result, total: result.length };
+            } catch (e) { errLog(e, 'plugin.queryLendRelations'); return { ok: false, records: [], total: 0, reason: 'thrown' }; }
+        }
+        /** [v3.352.0 · M5-X4] 传闻佐证查询出口 */
+        queryCorroboration(fact, opts) {
+            try {
+                const KT = _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js');
+                if (!KT || typeof KT.corroborationOf !== 'function') return { ok: false, rootCount: 0, roots: [], retractedRoots: [], circularHearsay: 0, transmittalChains: [], reason: 'module-unavailable', degraded: true };
+                const traces = (this.worldProg && this.worldProg.knowledgeTraces) || { traces: [] };
+                return KT.corroborationOf(traces, fact, opts);
+            } catch (e) { errLog(e, 'plugin.queryCorroboration'); return { ok: false, rootCount: 0, roots: [], retractedRoots: [], circularHearsay: 0, transmittalChains: [], reason: 'thrown', degraded: true }; }
+        }
+        /** [v3.352.0 · M5-X5] 多人共通知情查询出口 */
+        querySharedKnowledge(participants, atFloor, opts) {
+            try {
+                const KT = _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js');
+                if (!KT || typeof KT.sharedKnowledgeOf !== 'function') return { ok: false, shared: [], partial: [], unknown: [], participants: [], reason: 'module-unavailable', degraded: true };
+                const traces = (this.worldProg && this.worldProg.knowledgeTraces) || { traces: [] };
+                return KT.sharedKnowledgeOf(traces, participants, atFloor, opts);
+            } catch (e) { errLog(e, 'plugin.querySharedKnowledge'); return { ok: false, shared: [], partial: [], unknown: [], participants: [], reason: 'thrown', degraded: true }; }
+        }
+        /** [v3.352.0 · M5-X8] 周期性约定实例查询出口 */
+        queryPeriodicCommitments(ref, range) {
+            try {
+                const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+                if (!CL || typeof CL.deriveInstances !== 'function') return { ok: false, instances: [], reason: 'module-unavailable', degraded: true };
+                const ledger = (this.worldProg && this.worldProg.commitmentLedger) || { items: [] };
+                return CL.deriveInstances(ledger, ref, range);
+            } catch (e) { errLog(e, 'plugin.queryPeriodicCommitments'); return { ok: false, instances: [], reason: 'thrown', degraded: true }; }
         }
         /**
          * [v3.305.0 · X9] 诊断一行。**三种坏法分开写**（本仓九账治理后的纪律）：
@@ -20609,7 +20714,15 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   + 一条诊断行;**不新增任何持久化键**(结果落成一串 condition 文本)。
     function _conditionPatchLib() {
         return _moduleLib(() => window.LonShaConditionPatch, 'condition-patch.js');
-    }    // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
+    }
+    // [v3.352.0 · M5-X2] 长期目标的前置条件与下一步记忆（goal-tracker.js）。
+    //   纯函数 IIFE，零依赖，挂 window.LonShaGoalTracker。
+    //   本面只读判定：不写库、不抛、不猜；循环依赖用 DFS 检测；
+    //   达成状态由事实状态计算（active→met, revoked/superseded→blocked, disputed→unknown）。
+    function _goalTrackerLib() {
+        return _moduleLib(() => window.LonShaGoalTracker, 'goal-tracker.js');
+    }
+    // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
     //   M-X9 点名的五个 API 里，修前只有 explainRecall 有实现，其余四个名**全仓零命中** ——
     //   它们的能力早在盘上（evidence-query / volume-continuation / native-fact-admission /
     //   knowledge-trace 各自的出口），但没有任何一处把「下游可以按名调用的统一面」产出来。
