@@ -431,8 +431,8 @@ test('v3320 C3. 裸 engine 容灾：宿主成员缺席时按「未给时点」�
 const broken = (src, anchor, replacement) => breakOnce(src, anchor, replacement);
 
 test('v3320 D1. ★★★ 破坏 M3-O2 检索面（searchText 退回 200 字）⇒ B1 判据必须转红', () => {
-  const bad = broken(UR_SRC, '].filter(Boolean).join(\' \'), SEARCH_TEXT_MAX);',
-    '].filter(Boolean).join(\' \'), 200);');
+  const bad = broken(UR_SRC, '_trunc(_fullSearchRaw, SEARCH_TEXT_MAX)',
+'_trunc(_fullSearchRaw, 200)');
   const UR2 = loadIIFE(bad, 'LonShaUnifiedRecall');
   let threw = false, msg = '';
   try { o2JudgeRecall(UR2); } catch (e) { threw = true; msg = String(e.message || e); }

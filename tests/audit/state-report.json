@@ -534,11 +534,11 @@
       "package.json": "cfa8b722b84c",
       "index.js": "6db526bd99e6",
       "update-log.json": null,
-      "README.md": "c3a50bc88398",
-      "PLAN.md": "06eab85d9838",
-      "CHANGELOG.md": "5a0a3e311fb2",
+      "README.md": "f5872e5ece36",
+      "PLAN.md": "1ec8a3bc783a",
+      "CHANGELOG.md": "ee58d50cea23",
       "TODO.md": "0460bb6c8d23",
-      "tests/audit/doc_readings.json": "76446b137ddb"
+      "tests/audit/doc_readings.json": "c9cd9c5a11f0"
     }
   },
   "unknown": [

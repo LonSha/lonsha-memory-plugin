@@ -15,6 +15,9 @@ const RC = require('../research-collection.js');
 
 const VERSION_RE = /const\s+VERSION\s*=\s*'([^']+)'/;
 const idxSrc = fs.readFileSync('./index.js', 'utf8');
+/* 【当版锚点】本档自锚常量 BORN_V + vnum（锚必须住在当版档案里，供版本守卫 V4 计数）。 */
+const BORN_V = '3.353.0';
+const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
 
 /* ================================================================
  * A. 版本锚
@@ -34,6 +37,10 @@ describe('v3.353.0 版本锚', () => {
         assert.ok(man.extra_js.includes('impact-preview.js'), 'extra_js 应含 impact-preview.js');
         assert.ok(man.extra_js.includes('hypothesis-workspace.js'), 'extra_js 应含 hypothesis-workspace.js');
         assert.ok(man.extra_js.includes('research-collection.js'), 'extra_js 应含 research-collection.js');
+    });
+    test('自锚常量 BORN_V 恰是当版（下界口径，不锁当版）', () => {
+        assert.ok(vnum(BORN_V) <= vnum('3.353.0'), '自锚不得承诺未来版');
+        assert.ok(vnum(BORN_V) >= vnum('3.353.0'), '自锚不得低于本档出生版本');
     });
 });
 
