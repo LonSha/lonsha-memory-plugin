@@ -547,30 +547,58 @@
      *   标题也找不到的旧段仍然计入 removed(不许静默丢)。
      */
     function changedSections(oldParsed, newParsed) {
-        const out = { added: [], removed: [], changed: [], same: [], counts: { added: 0, removed: 0, changed: 0, same: 0 }, oldChecked: false, why: [] };
+        const out = { added: [], removed: [], changed: [], moved: [], same: [], counts: { added: 0, removed: 0, changed: 0, moved: 0, same: 0 }, oldChecked: false, why: [] };
         const a = (oldParsed && Array.isArray(oldParsed.sections)) ? oldParsed.sections : null;
         const b = (newParsed && Array.isArray(newParsed.sections)) ? newParsed.sections : [];
         if (!a) { out.why.push('no-old-source'); out.counts.added = b.length; out.added = b.slice(); return out; }
         out.oldChecked = true;
         const usedNew = new Set();
-        const titleMap = new Map();
-        for (let i = 0; i < b.length; i++) {
-            const t = keyOf(b[i].title);
-            if (t && !titleMap.has(t)) titleMap.set(t, i);
+        /* [v3.351.0 · M5-O6] 段落身份判定三步：
+         *   ① 内容指纹(hash)完全相同 ⇒ 同一段（即使位置变了也是移动，非修改）；
+         *   ② 标题相同 + 位置相同 ⇒ 候选（再比 hash 判断 changed/same）；
+         *   ③ 标题相同 + 位置不同 ⇒ 回退候选（hash 不同 ⇒ changed，但标注位移）。
+         *   回退候选不与 ①/② 抢：先走 hash 全量匹配，再按位置+标题补。 */
+        const hashMap = new Map();
+        for (let j = 0; j < b.length; j++) {
+            const h = keyOf(b[j].hash);
+            if (h && !hashMap.has(h)) hashMap.set(h, j);
         }
+        const titleMap = new Map();
+        for (let j = 0; j < b.length; j++) {
+            const t = keyOf(b[j].title);
+            if (t && !titleMap.has(t)) titleMap.set(t, j);
+        }
+        /* 第一轮：hash 匹配（段落身份 = 内容指纹） */
         for (let i = 0; i < a.length; i++) {
             const oldSec = a[i];
-            let j = (i < b.length && keyOf(b[i].title) === keyOf(oldSec.title)) ? i : -1;
+            const h = keyOf(oldSec.hash);
+            const j = (h && hashMap.has(h) && !usedNew.has(hashMap.get(h))) ? hashMap.get(h) : -1;
+            if (j >= 0) {
+                usedNew.add(j);
+                if (i === j) out.same.push({ section: b[j].index, title: keyOf(b[j].title), hash: h });
+                else out.moved.push({ section: b[j].index, title: keyOf(b[j].title), hash: h, fromIndex: oldSec.index, toIndex: b[j].index });
+                continue;
+            }
+        }
+        /* 第二轮：对未匹配的旧段，按位置+标题或回退标题匹配 */
+        for (let i = 0; i < a.length; i++) {
+            const oldSec = a[i];
+            const h = keyOf(oldSec.hash);
+            /* 第一轮已处理（hash 在新源中存在且已被认领）⇒ 跳过 */
+            const matchedJ = h ? hashMap.get(h) : undefined;
+            if (matchedJ !== undefined && usedNew.has(matchedJ) && keyOf(b[matchedJ].hash) === h) continue;
+            let j = (i < b.length && keyOf(b[i].title) === keyOf(oldSec.title) && !usedNew.has(i)) ? i : -1;
             if (j < 0) { const k = titleMap.get(keyOf(oldSec.title)); if (k !== undefined && !usedNew.has(k)) j = k; }
-            if (j < 0) { out.removed.push({ section: oldSec.index, title: keyOf(oldSec.title), hash: keyOf(oldSec.hash) }); continue; }
+            if (j < 0) { out.removed.push({ section: oldSec.index, title: keyOf(oldSec.title), hash: h }); continue; }
             usedNew.add(j);
-            if (keyOf(b[j].hash) === keyOf(oldSec.hash)) out.same.push({ section: b[j].index, title: keyOf(b[j].title) });
-            else out.changed.push({ section: b[j].index, title: keyOf(b[j].title), fromHash: keyOf(oldSec.hash), toHash: keyOf(b[j].hash), clsFrom: keyOf(oldSec.cls), clsTo: keyOf(b[j].cls) });
+            if (keyOf(b[j].hash) === h) out.same.push({ section: b[j].index, title: keyOf(b[j].title), hash: h });
+            else out.changed.push({ section: b[j].index, title: keyOf(b[j].title), fromHash: h, toHash: keyOf(b[j].hash), clsFrom: keyOf(oldSec.cls), clsTo: keyOf(b[j].cls), moved: (i !== j) });
         }
         for (let j = 0; j < b.length; j++) if (!usedNew.has(j)) out.added.push({ section: b[j].index, title: keyOf(b[j].title), hash: keyOf(b[j].hash) });
         out.counts.added = out.added.length;
         out.counts.removed = out.removed.length;
         out.counts.changed = out.changed.length;
+        out.counts.moved = out.moved.length;
         out.counts.same = out.same.length;
         return out;
     }

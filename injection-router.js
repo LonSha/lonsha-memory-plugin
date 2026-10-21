@@ -31,6 +31,7 @@
         bm25: 'bm25Hits',
         memoryTree: 'treeNotes',
         dedup: 'dedupNotes',
+        'return-gate': 'summaries',
     });
 
     // source → 分区的包含匹配（source 带后缀修饰时，如 items_stored:xxx / volume:3 / pov:Alice）

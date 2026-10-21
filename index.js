@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.350.0';
+    const VERSION = '3.351.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3366,13 +3366,63 @@ function relativeTimeLabel(eventTime, nowTime) {
                 floor: (c && c.floor !== undefined ? c.floor : null), subject: (c && c.character) || '',
                 conflictGroup: '', restricted: false, future: false,
             })));
-            /* 4 调用方直给(可选):调用方最清楚这一场要带什么;放最后,顺序即优先级。 */
+            /* [v3.351.0 · M5-O5] 4a 场所图景:从 scene-book 的 summary() 取当前场所链，
+             *   映射成 place 面材料。模块缺席或无场所 ⇒ absent（不冒充空）。 */
+            take('scene', () => {
+                if (!this.scene || typeof this.scene.summary !== 'function') return { ok: false, reason: 'no-scene' };
+                const s = this.scene.summary();
+                if (!s || (!s.current && !s.currentChain?.length)) return { ok: false, reason: 'empty' };
+                return { ok: true, summary: s };
+            }, (got) => {
+                const s = got.summary;
+                const chain = Array.isArray(s.currentChain) ? s.currentChain : [];
+                return chain.slice(-3).map((n, i) => ({
+                    id: 'scene:' + String(n.key || n.name || ('node' + i)),
+                    facet: 'place', title: String(n.name || n.key || ''),
+                    source: 'scene', floor: (n.floor != null ? n.floor : null),
+                    subject: '', conflictGroup: '', restricted: false, future: false,
+                }));
+            });
+            /* [v3.351.0 · M5-O5] 4b 未完成约定:从 commitment-ledger 的 list() 取 open 条目，
+             *   映射成 promise 面材料。模块缺席或无约定 ⇒ absent。 */
+            take('commitment', () => {
+                const CL = (typeof window !== 'undefined' && window.LonShaCommitmentLedger) || null;
+                if (!CL || typeof CL.list !== 'function' || !this.worldProg) return { ok: false, reason: 'no-ledger' };
+                const items = CL.list(this.worldProg.commitmentLedger, { status: 'open' }) || [];
+                if (!items.length) return { ok: false, reason: 'empty' };
+                return { ok: true, items: items };
+            }, (got) => (Array.isArray(got.items) ? got.items : []).slice(0, 8).map((c) => ({
+                id: 'commit:' + String(c.id || ''),
+                facet: 'promise', title: String(c.content || c.actor || ''),
+                source: 'commitment', floor: (c.floor != null ? c.floor : null),
+                subject: String(c.actor || ''), conflictGroup: '', restricted: false, future: false,
+            })));
+            /* 5 调用方直给(可选):调用方最清楚这一场要带什么;放最后,顺序即优先级。 */
             if (Array.isArray(o.materials)) for (const m of o.materials) inv.push(Object.assign({ source: 'caller' }, m));
+            /* [v3.351.0 · M5-O4] 给每条材料附上事实状态：从 fact-state 的 readState 建 id→state 映射。
+             *   材料包不自造裁决，只消费 factState（superseded/revoked 不进包）。
+             *   模块缺席或无事实账 ⇒ 全部默认 active（不静默按新口径，也不静默丢弃）。 */
+            try {
+                const FS = _factStateLib();
+                if (FS && typeof FS.readState === 'function' && this._factVersionState) {
+                    const rs = FS.readState(this._factVersionState);
+                    if (rs && Array.isArray(rs.entries)) {
+                        const stateMap = {};
+                        for (const e of rs.entries) stateMap[e.id] = e.state;
+                        for (const m of inv) {
+                            if (m.factState === undefined) {
+                                const fid = String(m.id || '');
+                                m.factState = stateMap[fid] || 'active';
+                            }
+                        }
+                    }
+                }
+            } catch (e) { errLog(e, 'engine._materialInventory.factState'); }
             return { inventory: inv, sources: sources, given: Array.isArray(o.materials) ? o.materials.length : 0 };
         }
         /** [v3.346.0 · M4-X8] 建面(**只读**):按下一幕任务挑材料 + 报缺口 + 报取代 + 报预算。 */
         materialPack(task, opts) {
-            const absent = (why) => ({ kind: 'material_pack', version: 0, judged: false, task: '', taskLabel: '', pack: [], packIds: [], sheet: [], superseded: [], gaps: [], gapsCritical: [], held: { restricted: [], future: [], superseded: [], unclassified: [] }, budget: { given: false, perItem: 0 }, overBudget: [], cost: { items: 0, estChars: 0, estCharsAll: 0 }, counts: { inventory: 0, usable: 0, packed: 0, restricted: 0, future: 0, unclassified: 0, superseded: 0, truncated: 0, dropped: 0, truncatedIn: 0 }, sources: [], reasons: [why], truncated: 0, orderIsRank: true, writesNothing: true, devisesNothing: true, injectsNothing: false, ok: false, reason: why });
+            const absent = (why) => ({ kind: 'material_pack', version: 0, judged: false, task: '', taskLabel: '', pack: [], packIds: [], sheet: [], superseded: [], gaps: [], gapsCritical: [], held: { restricted: [], future: [], superseded: [], disputed: [], unclassified: [] }, budget: { given: false, perItem: 0 }, overBudget: [], cost: { items: 0, estChars: 0, estCharsAll: 0 }, counts: { inventory: 0, usable: 0, packed: 0, restricted: 0, future: 0, unclassified: 0, superseded: 0, disputed: 0, truncated: 0, dropped: 0, truncatedIn: 0 }, sources: [], reasons: [why], truncated: 0, orderIsRank: true, writesNothing: true, devisesNothing: true, injectsNothing: false, ok: false, reason: why });
             try {
                 const MP = _materialPackLib();
                 if (!MP || typeof MP.build !== 'function') return absent('module-unavailable');
@@ -6608,7 +6658,24 @@ timeAnchor: extracted?.time_anchor || null,
                     this._lastCandidateCount = (candidateItems || []).length;
                     this._lastSourceKinds = Array.from(_srcKinds).sort();
                 } catch (e) { errLog(e, 'onBeforeGeneration.入选id记录'); }
-                let inj2 = this.buildInjection(candidateItems);
+                /* [v3.351.0 · M5-O9] 旧事重现从准入返回值接到实际生成：
+                     *   把 returnGateAdmit 的 admitted 条目作为候选注入材料。
+                     *   移交不算已用：实际进入生成载荷后才调 returnGateMark('used', ...) 落冷却。
+                     *   策略为 hint-only 时不注入（只给提示，不进生成材料）。 */
+                    try {
+                        const _rgAdm = this.returnGateAdmit({});
+                        if (_rgAdm && _rgAdm.ok && _rgAdm.injectable && Array.isArray(_rgAdm.admitted)) {
+                            for (const item of _rgAdm.admitted) {
+                                candidateItems.push({
+                                    source: 'return-gate',
+                                    text: String(item?.title || item?.detail || item?.content || ''),
+                                    id: String(item?.detailKey || item?.entryKey || item?.id || ''),
+                                    _returnGateAdmit: true,
+                                });
+                            }
+                        }
+                    } catch (e) { errLog(e, 'onBeforeGeneration.returnGateAdmit'); }
+                    let inj2 = this.buildInjection(candidateItems);
                 if (_diaryChangeFloor != null) this._diaryInjectFloor = _diaryChangeFloor;
                 if (_timelineChangeFloor != null) this._timelineInjectFloor = _timelineChangeFloor;
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）

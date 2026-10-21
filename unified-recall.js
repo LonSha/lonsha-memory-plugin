@@ -108,13 +108,39 @@ function nodeToCandidate(node, opts = {}) {
     relation: _pick(['relation', 'relationFrom', 'relationTo', 'related', 'counterpart']),
     outcome: _pick(['result', 'outcome', 'effect', 'conclusion', 'status'])
   };
-  const searchText = _trunc([
+  /* [v3.351.0 · M5-O7] 搜索文本不再截断到 4000 字：改为分段索引。
+   *   修前缺陷：4500 字节点尾部的唯一事实不在 searchText 中，搜不到。
+   *   修后口径：searchText 仍截断（用于注入/显示），但新增 searchTextParts
+   *   按稳定片段（段落/分号/句号）切分，逐段进入检索面。
+   *   检索面消费 searchTextParts（任意一段命中即为候选），评分后按原节点合并。
+   *   显示摘要仍可用短的 content 字段（200 字），不把显示截断兼作检索截断。 */
+  const SEARCH_TEXT_PART_MAX = 2000;
+  const _fullSearchRaw = [
     name && '【' + type + '】' + name, d.title, d.summary || d.desc || d.description,
     d.content, d.persona, d.note, d.location && '@' + d.location,
     Array.isArray(d.tags) ? d.tags.join(' ') : '',
     Array.isArray(d.path) ? d.path.join(' ') : '',
     indexFields.time.join(' '), indexFields.relation.join(' '), indexFields.outcome.join(' ')
-  ].filter(Boolean).join(' '), SEARCH_TEXT_MAX);
+  ].filter(Boolean).join(' ');
+  const searchText = _trunc(_fullSearchRaw, SEARCH_TEXT_MAX);
+  /* 分段：按换行切，超长段再按句号切，每段不超过 SEARCH_TEXT_PART_MAX */
+  const searchTextParts = [];
+  {
+    const lines = _fullSearchRaw.split(/[\n\r]+/);
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      if (line.length <= SEARCH_TEXT_PART_MAX) { searchTextParts.push(line.trim()); continue; }
+      const sents = line.split(/[。；;！!？?．]/);
+      let buf = '';
+      for (const s of sents) {
+        if ((buf + s).length > SEARCH_TEXT_PART_MAX) {
+          if (buf) searchTextParts.push(buf.trim());
+          buf = s;
+        } else { buf += s; }
+      }
+      if (buf.trim()) searchTextParts.push(buf.trim());
+    }
+  }
   /* [M3-O2] 完整源 ref：候选被选中后要能回到出处（计划点名「保留完整源 ref」）。
    *   没有它，注入面只能给一句摘要，用户问「这条从哪来」时无从回答。 */
   const sourceRef = {
@@ -135,6 +161,7 @@ function nodeToCandidate(node, opts = {}) {
     comment: `[${type}] ${label}`,
     content,
     searchText,
+    searchTextParts,
     sourceRef,
     indexFields,
     constant: false,
@@ -427,6 +454,11 @@ function _similarity(a, b) {
 /** 候选的可比文本（检索面优先：它才是「这两条说的是不是同一件事」的证据面）。 */
 function _candText(c) {
   if (!c) return '';
+  /* [v3.351.0 · M5-O7] searchTextParts 兜底：searchText 截断时，
+   *   尾部事实仍可通过 searchTextParts 的任一段命中。 */
+  if (Array.isArray(c.searchTextParts) && c.searchTextParts.length) {
+    return c.searchTextParts.join(' ');
+  }
   return String(c.searchText || c.text || c.content || c.comment || c._label || '');
 }
 /**

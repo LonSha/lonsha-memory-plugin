@@ -61,8 +61,12 @@
  *   未复制任何外部代码。
  * ======================================================== */(function (root) {
     'use strict';
-    const MP_VERSION = 1;
+    const MP_VERSION = 2;
     const MP_KIND = 'material_pack';
+    /** [v3.351.0 M5-O4] 事实五态（与 fact-state.js 的 FS_STATES 同词表）。
+     *   材料包消费裁决而不是自造裁决：superseded/revoked 的材料不进包，
+     *   disputed 保留争议（两条都进包但标 disputed），只有同为 active 才按楼层决胜。 */
+    const FACT_STATES = Object.freeze(['active', 'superseded', 'revoked', 'disputed', 'unknown']);
     /* 转义一律用字符码拼:本仓写入通道处理反斜杠会污染源码(零反斜杠构造纪律)。 */
     const NL = String.fromCharCode(10);
     const SP = String.fromCharCode(32);
@@ -237,6 +241,8 @@
             version: numOr(r.version, null),
             restricted: restricted,
             future: future,
+            factState: keyOf(r.factState) || 'active',
+            factId: keyOf(r.factId) || '',
             usable: (f.facet !== '') && !restricted && !future,
             why: restricted ? 'restricted' : (future ? 'future' : (f.facet === '' ? 'unclassified' : '')),
         };
@@ -310,27 +316,58 @@
         }
         const winnerOf = {};
         const superseded = [];
+        const disputed = [];
         for (const g of Object.keys(groups)) {
             const arr = groups[g];
             if (arr.length < 2) continue;
-            let win = arr[0];
-            for (const m of arr) {
+            /* [v3.351.0 M5-O4] 事实裁决优先于楼层决胜：
+             *   superseded/revoked 的材料已被事实账裁定，不参与楼层决胜，
+             *   直接标不可用并具名（reason = fact-superseded / fact-revoked，
+             *   与楼层决胜的 superseded 不同形 —— 调用方可辨「事实账说换了」
+             *   与「材料包按楼层选了一条」）。 */
+            const active = arr.filter(function (m) { return m.factState === 'active' || m.factState === 'unknown' || m.factState === 'disputed'; });
+            const inactive = arr.filter(function (m) { return m.factState === 'superseded' || m.factState === 'revoked'; });
+            for (const m of inactive) {
+                m.usable = false;
+                m.state = m.factState;
+                m.why = m.factState === 'superseded' ? 'fact-superseded' : 'fact-revoked';
+                superseded.push({ id: m.id, conflictGroup: g, floor: m.floor, title: m.title, facet: m.facet, source: m.source, factState: m.factState, why: m.why });
+            }
+            if (active.length < 2) {
+                if (active.length === 1) winnerOf[g] = active[0].id;
+                continue;
+            }
+            /* disputed 保留争议：都进包但标 disputed（不按楼层淘汰） */
+            const hasDispute = active.some(function (m) { return m.factState === 'disputed'; });
+            if (hasDispute) {
+                for (const m of active) {
+                    m.state = 'disputed';
+                    if (!m.why) m.why = 'disputed';
+                }
+                disputed.push({ conflictGroup: g, count: active.length, ids: active.map(function (m) { return m.id; }) });
+                winnerOf[g] = active[0].id;
+                continue;
+            }
+            /* 同为 active 且无争议 -> 楼层决胜（旧口径不变） */
+            let win = active[0];
+            for (const m of active) {
                 const wf = (win.floor === null) ? -1 : win.floor;
                 const mf = (m.floor === null) ? -1 : m.floor;
                 if (mf > wf) win = m;
             }
             winnerOf[g] = win.id;
-            for (const m of arr) {
+            for (const m of active) {
                 if (m.id === win.id) continue;
                 m.usable = false;
                 m.state = 'superseded';
                 m.supersededBy = win.id;
                 m.why = 'superseded';
-                superseded.push({ id: m.id, conflictGroup: g, supersededBy: win.id, floor: m.floor, title: m.title, facet: m.facet, source: m.source });
+                superseded.push({ id: m.id, conflictGroup: g, supersededBy: win.id, floor: m.floor, title: m.title, facet: m.facet, source: m.source, factState: m.factState, why: m.why });
             }
         }
-        return { materials: list, superseded: superseded, winnerOf: winnerOf };
-    }/**
+        return { materials: list, superseded: superseded, winnerOf: winnerOf, disputed: disputed };
+    }
+    /**
      * 预算(与既有 owner 的分工说清):本模块**不裁到 token**,只按**条数**
      *   给出「包里带头几条」与**越预算名单**(哪些可用材料超出了调用方给的条数)。
      *   · 为什么不是「本模块直接裁好」:真正裁到 token 的是 injection-router
@@ -381,10 +418,10 @@
             priority: (TASK_PRIORITY[t] || TASK_PRIORITY.advance).slice(),
             criticalFacets: criticalFacetsOf(t),
             pack: [], packIds: [], sheet: [], superseded: [], gaps: [], gapsCritical: [],
-            held: { restricted: [], future: [], superseded: [], unclassified: [] },
+            held: { restricted: [], future: [], superseded: [], unclassified: [], disputed: [] },
             budget: { given: bud.given, perItem: bud.perItem },
             overBudget: [], cost: { items: 0, estChars: 0, estCharsAll: 0 },
-            counts: { inventory: 0, usable: 0, packed: 0, restricted: 0, future: 0, unclassified: 0, superseded: 0, truncated: 0, dropped: 0, truncatedIn: 0 },
+            counts: { inventory: 0, usable: 0, packed: 0, restricted: 0, future: 0, unclassified: 0, superseded: 0, disputed: 0, truncated: 0, dropped: 0, truncatedIn: 0 },
             reasons: [], truncated: 0, orderIsRank: true,
             writesNothing: true, devisesNothing: true, injectsNothing: false,
             note: '本面只挑材料;真正裁到 token 由既有预算 owner 负责',
@@ -402,6 +439,16 @@
         const list = Array.isArray(inventory) ? inventory : [];
         const nm = normalize(list);
         const rc = resolveConflicts(nm.materials);
+        /* [v3.351.0 M5-O4] 没有 conflictGroup 的 superseded/revoked 材料也标不可用 */
+        for (const m of rc.materials) {
+            if (m.usable && (m.factState === 'superseded' || m.factState === 'revoked')) {
+                m.usable = false;
+                m.state = m.factState;
+                m.why = m.factState === 'superseded' ? 'fact-superseded' : 'fact-revoked';
+                if (!rc.superseded) rc.superseded = [];
+                rc.superseded.push({ id: m.id, floor: m.floor, title: m.title, facet: m.facet, source: m.source, factState: m.factState, why: m.why });
+            }
+        }
         const usable = rc.materials.filter((m) => m.usable === true);
         const rk = rank(usable, t);
         const packed = rk.materials.slice(0, Math.min(bud.perItem, PACK_MAX));
@@ -430,6 +477,7 @@
         if (tv.why) reasons.push(tv.why);
         if (bud.why) reasons.push(bud.why);
         if (rc.superseded.length) reasons.push('同组当前值 ' + rc.superseded.length + ' 条被更新的那条取代(具名在 superseded,非静默丢弃)');
+        if ((rc.disputed || []).length) reasons.push('争议组 ' + rc.disputed.length + ' 组保留双条(事实账判 disputed,不按楼层淘汰)');
         if (restricted.length) reasons.push('受限材料 ' + restricted.length + ' 条 ⇒ 不进包(越界知情面不喂)');
         if (future.length) reasons.push('未发生材料 ' + future.length + ' 条 ⇒ 不进包(计划不当成已发生)');
         if (unclassified.length) reasons.push('未归面材料 ' + unclassified.length + ' 条 ⇒ 不进包(不硬塞成约束或设定)');
@@ -448,6 +496,7 @@
                 restricted: restricted.map((m) => ({ id: m.id, facet: m.facet, title: m.title, why: 'restricted' })),
                 future: future.map((m) => ({ id: m.id, facet: m.facet, title: m.title, why: 'future' })),
                 superseded: rc.superseded.slice(),
+                disputed: (rc.disputed || []).slice(),
                 unclassified: unclassified.map((m) => ({ id: m.id, facetRaw: m.facetRaw, title: m.title, why: 'unclassified' })),
             },
             budget: { given: bud.given, perItem: bud.perItem, budgetRaw: bud.budgetRaw },
@@ -456,7 +505,7 @@
             counts: {
                 inventory: list.length, usable: rk.materials.length, packed: packed.length,
                 restricted: restricted.length, future: future.length, unclassified: unclassified.length,
-                superseded: rc.superseded.length, truncated: overBudget.length,
+                superseded: rc.superseded.length, disputed: (rc.disputed || []).length, truncated: overBudget.length,
                 dropped: nm.dropped, truncatedIn: nm.truncatedIn,
             },
             reasons: reasons, truncated: overBudget.length,
@@ -535,6 +584,14 @@
         const gapsNamed = sp.gapsCritical.length === 3
             && sp.gapsCritical.every((g) => g.critical === true && g.facetLabel !== '')
             && sp.reasons.some((r) => r.indexOf('关键面零材料') >= 0);
+        /* 7b [M5-O4] 事实裁决优先于楼层决胜：superseded 的同组材料不进包（reason != 'superseded' 楼层淘汰）。 */
+        const FACT = [
+            { id: 'f1', facet: 'place', title: 'jiuquerenzaiA', floor: 10, conflictGroup: 'h1', factState: 'superseded', source: 'recall' },
+            { id: 'f2', facet: 'place', title: 'xinchuanwenzaiB', floor: 7, conflictGroup: 'h1', factState: 'active', source: 'recall' },
+        ];
+        const fc = build('meet', FACT, { budget: 5 });
+        const factStateFilters = fc.packIds.length === 1 && fc.packIds[0] === 'f2'
+            && fc.superseded.length === 1 && fc.superseded[0].id === 'f1' && fc.superseded[0].why === 'fact-superseded';
         /* 8 **入参畸形与池空不同形**(前者无从选材,后者是合法的「这次没有材料」)。 */
         const bad = build('meet', 'not-an-array', {});
         const empty = build('meet', [], {});
@@ -546,7 +603,7 @@
         try { serializable = JSON.parse(JSON.stringify(a)).task === 'meet'; } catch (_e) { serializable = false; }
         return {
             ok: deterministic && writeFaces === 0 && tasksComplete && taskAxisMoves && conflictNoParl
-                && gatesHold && gapsNamed && malformedDistinct && pctFree && serializable,
+                && gatesHold && gapsNamed && malformedDistinct && pctFree && serializable && factStateFilters,
             deterministic: deterministic,
             writeFaces: writeFaces,
             tasksComplete: tasksComplete,
@@ -557,6 +614,7 @@
             malformedDistinct: malformedDistinct,
             percentFree: pctFree,
             serializable: serializable,
+            factStateFilters: factStateFilters,
         };
     }
     /**
@@ -573,6 +631,7 @@
         if (c.truncated) parts.push('越预算 ' + c.truncated);
         if (r.gapsCritical && r.gapsCritical.length) parts.push('**关键面缺 ' + r.gapsCritical.length + '**');
         if (c.superseded) parts.push('被取代 ' + c.superseded);
+        if (c.disputed) parts.push('争议保留 ' + c.disputed);
         if (c.restricted) parts.push('受限 ' + c.restricted);
         if (c.future) parts.push('未发生 ' + c.future);
         if (c.unclassified) parts.push('未归面 ' + c.unclassified);
@@ -624,6 +683,7 @@
     const api = {
         MP_VERSION: MP_VERSION,
         MP_KIND: MP_KIND,
+        FACT_STATES: FACT_STATES,
         TASKS: TASKS,
         TASK_LABEL: TASK_LABEL,
         FACETS: FACETS,
