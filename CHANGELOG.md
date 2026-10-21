@@ -1,3 +1,30 @@
+## v3.353.0
+**第五期拓展第三~四批（M5-X3/X6/X7/X9）：群像行踪 / 影响预览 / 假设工作集 / 研究集合（P2 / L）**
+★ **本版做什么（四项拓展，全部纯函数 IIFE 零依赖，挂 window 全局）**：
+ · **M5-X3** `scene-book.js` 新增 `whereaboutsOf(participants, fromFloor, toFloor)`：复用 whereIs + presence + coPresence 既有判据，不新建第二份轨迹。检测同楼同地/同楼不同地的碰面可能，标记行踪缺口（never-present / outside-range / floor-unknown）。
+ · **M5-X6** 新模块 `impact-preview.js`（103行）：`previewImpact(factState, factId, ledgers, opts)` 检查承诺账本/物品账本/事实版本派生关系，分 directlyAffected / possiblyAffected / unaffected 三类。预览零写：不改库、不抛、不猜。
+ · **M5-X7** 新模块 `hypothesis-workspace.js`（142行）：createWorkspace/discardWorkspace/completeWorkspace/listWorkspaces。临时假设只属工作区，退出后正文事实账 hash 不变。四态：draft/writing/completed/discarded，MAX_WORKSETS=8。
+ · **M5-X9** 新模块 `research-collection.js`（165行）：createCollection/addCitation/addConclusion/markReviewNeeded/closeCollection。不复制全文只存引用；结论每句有来源；移除资料后标记需复核的结论。MAX_COLLECTIONS=10。
+★ **宿主接线**：三个取库口 `_impactPreviewLib`/`_hypothesisWorkspaceLib`/`_researchCollectionLib`；五个宿主出口 `queryWhereabouts`/`queryImpactPreview`/`queryHypothesisWorkspace`/`queryResearchCollection`；selfCheck 面板新增影响预览/假设工作集/研究集合三行。manifest extra_js 114→117。
+★ **定向复验**：`tests/v3530_m5_x_batch.test.mjs` 34条全绿（A版本锚3 + B M5-X3 7 + C M5-X6 6 + D M5-X7 6 + E M5-X9 6 + F宿主接线3 + G判据纯度3）。
+· 退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移（本仓扫描器契约；本节同款声明供 D9 核对）。
+
+## v3.352.0
+**第五期拓展第一~二批（M5-X1/X2/X4/X5/X8）：借用关系 / 目标跟踪 / 传闻佐证 / 共通知情 / 周期约定（P2 / L）**
+★ **本版做什么（五项拓展）**：
+ · **M5-X1** 借用关系字段：LEDGER_ITEM_LIMITS 新增 lendTo/borrowFrom/returnDue/ownerRef；validateLedgerItemOp/_sanitizeItemOp/rebuildItems 三处透传；新增 queryLendRelations 宿主出口。
+ · **M5-X2** 新模块 `goal-tracker.js`（281行）：normalizeGoal/normalizePrereq/detectCycle（DFS）/deriveStatuses/nextSteps/addGoal/closeGoal。MAX_GOALS=50, MAX_PREREQS=12。
+ · **M5-X4** `knowledge-trace.js` 新增 corroborationOf：按 evidenceKey 分组判根，循环转述 DFS 检测，撤回源移入 retractedRoots。
+ · **M5-X5** `knowledge-trace.js` 新增 sharedKnowledgeOf：逐事实逐角色检查在该时点之前是否 knows，分 shared/partial/unknown 三集合。
+ · **M5-X8** `commitment-ledger.js` 新增 copyPeriodic/copyException/deriveInstances/recordException：间隔映射 daily:1~yearly:365，recordException 幂等替换。
+★ **定向复验**：`tests/v3520_m5_x_batch.test.mjs` 30条全绿。
+· 退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
+
+## v3.351.0
+**第五期优化第二批（M5-O4/O5/O6/O7/O9）：事实冲突裁决 / 场景供数 / 留出解析 / 知情裁剪 / 准入回执（P0 / L）**
+★ **定向复验**：`tests/v3510_m5_o4.test.mjs` 31条全绿。
+· 退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
+
 ## v3.350.0
 *第五期第一批四项（M5-O1 / M5-O2 / M5-O3 / M5-O8）+ 手机 R5-O9 的条件清除委托口（P0 / L）**
 ★ **修的是什么（修前实测，读码可复算）** -------------------------------------------------------------

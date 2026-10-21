@@ -336,6 +336,11 @@ const REGISTRY = [
      *   README 快照四元组 / 台账缺行);按 B1 台账纪律在此登记。 */
     'v3480_closeout_fourth_phase.test.mjs',
     'v3490_condition_patch.test.mjs',
+    /* [v3.350.0~v3.353.0 第五期] 第五期各批验收套件。 */
+    'v3500_m5_batch.test.mjs',
+    'v3510_m5_o4.test.mjs',
+    'v3520_m5_x_batch.test.mjs',
+    'v3530_m5_x_batch.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

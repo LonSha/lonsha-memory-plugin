@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.349.0",
+  "version": "3.353.0",
   "version_sources": {
-    "manifest": "3.349.0",
-    "package": "3.349.0",
-    "index_const": "3.349.0"
+    "manifest": "3.353.0",
+    "package": "3.353.0",
+    "index_const": "3.353.0"
   },
   "version_same": true,
-  "human_index_version": "3.349.0",
+  "human_index_version": "3.353.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 113,
+    "extra_js": 116,
     "extra_js_list": [
       "ledger-entity.js",
       "settings-ui.js",
@@ -125,7 +125,10 @@
       "return-gate.js",
       "material-pack.js",
       "lore-crosscheck.js",
-      "condition-patch.js"
+      "condition-patch.js",
+      "impact-preview.js",
+      "hypothesis-workspace.js",
+      "research-collection.js"
     ],
     "root_js": 114,
     "missing_in_manifest": []
