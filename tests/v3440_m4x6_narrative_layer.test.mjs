@@ -32,6 +32,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const NL_SRC = read('narrative-layer.js');
@@ -70,10 +71,10 @@ const ANCHORS = Object.freeze({
 });
 /* ══════════════ A. 结构面 ══════════════ */
 const HOST_METHODS = [
-    'narrativeLayer(opts) {',
-    'narrativeReality(opts) {',
-    'narrativeProject(opts) {',
-    '_narrativeLayerLine() {',
+    'narrativeLayer(...args) {',
+    'narrativeReality(...args) {',
+    'narrativeProject(...args) {',
+    '_narrativeLayerLine(...args) {',
 ];
 function judgeStruct(idxSrc, mf) {
     const bad = [];
@@ -259,10 +260,10 @@ const LIB_FNS = [
     'function _narrativeLayerLib() {',
 ];
 const METH_FNS = [
-    'narrativeLayer(opts) {',
-    'narrativeReality(opts) {',
-    'narrativeProject(opts) {',
-    '_narrativeLayerLine() {',
+    'narrativeLayer(...args) {',
+    'narrativeReality(...args) {',
+    'narrativeProject(...args) {',
+    '_narrativeLayerLine(...args) {',
 ];
 function mkHost(win, src) {
     const idx = src || IDX;
@@ -415,13 +416,13 @@ test('v3440 D4. ★★ 破坏「嵌套框架」⇒ 嵌套判据 B4 必须转红'
     console.log('  ok 破坏框架入链 ⇒ depth 落到 0 被照出;原版阳性通过');
 });
 test('v3440 D5. ★★ 破坏宿主「取数」⇒ 宿主建面判据 C1 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hItems, String.raw`const items = Array.isArray(o.items) ? null`, 'hItems');
+    const badIdx = breakOnce(DL, ANCHORS.hItems, String.raw`const items = Array.isArray(o.items) ? null`, 'hItems');
     expectRed(() => judgeHostLayer(badIdx), 'hItems');
     judgeHostLayer(IDX);
     console.log('  ok 破坏取数 ⇒ 宿主拿空盘被照出;原版阳性通过');
 });
 test('v3440 D6. ★★ 破坏宿主「现实面接线」⇒ 宿主现实面判据 C2 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hReality, String.raw`const rv = NL.realityView({ items: [] });`, 'hReality');
+    const badIdx = breakOnce(DL, ANCHORS.hReality, String.raw`const rv = NL.realityView({ items: [] });`, 'hReality');
     expectRed(() => judgeHostReality(badIdx), 'hReality');
     judgeHostReality(IDX);
     console.log('  ok 破坏现实面接线 ⇒ 宿主拿到空现实面被照出;原版阳性通过');
@@ -438,7 +439,7 @@ test('v3440 F1. ** H5 判据纯度:破坏锚点在**本档源码**里各恰中 1
     }
     for (const k of ['hItems', 'hReality']) {
         const n = IDX.split(ANCHORS[k]).length - 1;
-        assert.equal(n, 1, '宿主锚 ' + k + ' 在 index.js 命中 ' + n + ' 次(应恰 1)');
+        assert.equal(n, 1, '宿主锚 ' + k + ' 在 engine-diagnostic-lines.js 命中 ' + n + ' 次(应恰 1)');
     }
     console.log('  ok 六个锚点在本档各 1 次、在真源各 1 次');
 });

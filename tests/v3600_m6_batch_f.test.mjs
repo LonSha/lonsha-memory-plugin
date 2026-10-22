@@ -62,8 +62,8 @@ test('A2: manifest.json version >= BORN_V', () => {
 test('A3: 两模块通过 globalThis 挂载', () => {
   assert.ok(typeof CE === 'object', 'CounterfactualExperimentLib not on globalThis');
   assert.ok(typeof EI === 'object', 'EraInheritanceLib not on globalThis');
-  assert.equal(CE.VERSION, BORN_V);
-  assert.equal(EI.VERSION, BORN_V);
+  assert.ok(vnum(CE.VERSION) >= vnum(BORN_V), `CE.VERSION ${CE.VERSION} < ${BORN_V}`);
+  assert.ok(vnum(EI.VERSION) >= vnum(BORN_V), `EI.VERSION ${EI.VERSION} < ${BORN_V}`);
 });
 
 test('A4: BORN_V 自锚', () => {

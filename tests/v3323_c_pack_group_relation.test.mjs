@@ -421,10 +421,10 @@ function sliceMember(src, header) {
 }
 const LIB_HEADS = ['function _moduleLib(getGlobal, fileName) {', 'function _relationHistoryLib() {',
     'function _causalChainLib() {', 'function _perspectiveCardLib() {'];
-const METH_HEADS = ['relationHistory(opts) {', 'relationHistoryAt(floor) {', '_relationHistoryLine() {',
-    'causalChainGraph(opts) {', 'causalChainTodos() {', 'causalChainTrace(id) {',
-    'causalChainProposals(opts) {', '_causalChainLine() {', 'perspectiveCard(opts) {',
-    'perspectiveContrast(characterA, characterB, opts) {', '_perspectiveCardLine() {'];
+const METH_HEADS = ['relationHistory(...args) {', 'relationHistoryAt(...args) {', '_relationHistoryLine(...args) {',
+    'causalChainGraph(...args) {', 'causalChainTodos(...args) {', 'causalChainTrace(...args) {',
+    'causalChainProposals(...args) {', '_causalChainLine(...args) {', 'perspectiveCard(...args) {',
+    'perspectiveContrast(...args) {', '_perspectiveCardLine(...args) {'];
 /** 装配真宿主出口（缺一即抛，不静默降级成空壳）。 */
 function mkHost(win, src) {
     const idx = src || IDX;

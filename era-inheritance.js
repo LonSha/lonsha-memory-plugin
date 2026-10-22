@@ -1,5 +1,5 @@
 /* ============================================================
- * era-inheritance.js — [v3.360.0 · 第六期 M6-X9]
+ * era-inheritance.js — [v3.361.0 · 第六期 M6-X9]
  *   「跨时代传承：世界进入新阶段，留下来的不只是摘要」
  *   IIFE 零依赖，globalThis 挂载 EraInheritanceLib
  * ------------------------------------------------------------
@@ -15,7 +15,7 @@
  *   4 undoTransition：撤销一次转场，旧卷保持可读
  * ============================================================ */
 (function () {
-  const VERSION = '3.360.0';
+  const VERSION = '3.361.0';
 
   var PROPOSAL_TYPES = ['still-valid', 'expired', 'author-decides', 'inherited'];
 

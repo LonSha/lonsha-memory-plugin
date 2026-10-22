@@ -34,6 +34,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const MP_SRC = read('material-pack.js');
@@ -77,9 +78,9 @@ const ANCHORS = Object.freeze({
 });
 /* ══════════════ A. 结构面 ══════════════ */
 const HOST_METHODS = [
-    'materialPack(task, opts) {',
-    '_materialInventory(opts) {',
-    '_materialPackLine() {',
+    'materialPack(...args) {',
+    '_materialInventory(...args) {',
+    '_materialPackLine(...args) {',
 ];
 function judgeStruct(idxSrc, mf) {
     const bad = [];
@@ -359,9 +360,9 @@ const LIB_FNS = [
     'function _materialPackLib() {',
 ];
 const METH_FNS = [
-    '_materialInventory(opts) {',
-    'materialPack(task, opts) {',
-    '_materialPackLine() {',
+    '_materialInventory(...args) {',
+    'materialPack(...args) {',
+    '_materialPackLine(...args) {',
 ];
 function mkHost(win, src) {
     const idx = src || IDX;
@@ -517,13 +518,13 @@ test('v3455 D6. ★★ 破坏「缺口」⇒ 缺口具名判据 B4 必须转红'
     console.log('  ok 破坏缺口收集 ⇒ 关键面空着也不报被照出;原版阳性通过');
 });
 test('v3455 D7. ★★ 破坏宿主「装配点」⇒ 装配判据 C1 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hTake, String.raw`/* taken away */;`, 'hTake');
+    const badIdx = breakOnce(DL, ANCHORS.hTake, String.raw`/* taken away */;`, 'hTake');
     expectRed(() => judgeHostAssemble(badIdx), 'hTake');
     judgeHostAssemble(IDX);
     console.log('  ok 破坏装配点 ⇒ 调用方直给的材料被丢被照出;原版阳性通过');
 });
 test('v3455 D8. ★★ 破坏宿主「任务转发」⇒ 转发判据 C2 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hTask, String.raw`const out = MP.build('advance', asm.inventory, { budget: o.budget });`, 'hTask');
+    const badIdx = breakOnce(DL, ANCHORS.hTask, String.raw`const out = MP.build('advance', asm.inventory, { budget: o.budget });`, 'hTask');
     expectRed(() => judgeHostTask(badIdx), 'hTask');
     judgeHostTask(IDX);
     console.log('  ok 破坏任务转发 ⇒ 宿主把任务写死成推进被照出;原版阳性通过');
@@ -540,7 +541,7 @@ test('v3455 F1. ** H5 判据纯度:破坏锚点在**本档源码**里各恰中 1
     }
     for (const k of ['hTake', 'hTask']) {
         const n = IDX.split(ANCHORS[k]).length - 1;
-        assert.equal(n, 1, '宿主锚 ' + k + ' 在 index.js 命中 ' + n + ' 次(应恰 1)');
+        assert.equal(n, 1, '宿主锚 ' + k + ' 在 engine-diagnostic-lines.js 命中 ' + n + ' 次(应恰 1)');
     }
     console.log('  ok 八个锚点在本档各 1 次、在真源各 1 次');
 });

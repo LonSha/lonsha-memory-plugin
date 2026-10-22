@@ -368,7 +368,7 @@ test('[6e] the changelog never declares a section ahead of the released version'
     const v = /const VERSION = '([0-9.]+)'/.exec(src)[1];
     const heads = changelog.split('\n').filter((l) => l.startsWith('## v'));
     assert.ok(heads.length > 0, 'the changelog has sections');
-    const top = heads.map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
+    const top = heads.map((l) => (/^## v([0-9.]+)/.exec(l) || [])[1] || '').sort((a, b) => vnum(b) - vnum(a))[0];
     assert.strictEqual(top, v, 'the highest section must be the released version');
     assert.ok(changelog.includes('## v' + v), 'the released version has a section');
 });

@@ -27,6 +27,7 @@ const require_ = createRequire(import.meta.url);
 const BS_SRC = fs.readFileSync(path.join(R, 'branch-semantics.js'), 'utf8');
 const ORG_SRC = fs.readFileSync(path.join(R, 'memory-organs.js'), 'utf8');
 const IDX_SRC = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
+const DL_SRC = fs.readFileSync(path.join(R, 'engine-diagnostic-lines.js'), 'utf8');
 const BS = require_(path.join(R, 'branch-semantics.js'));
 /** 两侧都「模块全在」的载荷工厂。 */
 const ALL = { factVersion: true, characterState: true, unfinished: true, money: true, storyTime: true };
@@ -447,6 +448,29 @@ function extractMethod(source, marker) {
     const lineStart = source.lastIndexOf('\n', start) + 1;
     return source.slice(lineStart, end + 1);
 }
+/** 从 engine-diagnostic-lines.js IIFE 模块提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    // funcMarker like: 'async function confirmBranchImport(engine, opts = {}) {'
+    const start = source.indexOf(funcMarker);
+    assert.ok(start > 0, '找不到模块方法定义 ' + funcMarker);
+    assert.equal(source.split(funcMarker).length - 1, 1, '模块方法定义签名必须唯一：' + funcMarker);
+    const bodyStart = start + funcMarker.length - 1;
+    assert.equal(source[bodyStart], '{', 'funcMarker 必须以 { 结尾：' + funcMarker);
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    assert.ok(end > 0, '方法花括号不闭合：' + funcMarker);
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine,\s*(.*)\)\s*\{/);
+    assert.ok(nm, '无法解析函数签名：' + funcMarker);
+    const mName = nm[1];
+    const params = nm[2];
+    return asyncP + mName + '(' + params + ') {' + body + '}';
+}
 /** 从真源码抽出 `_leaseValid` / `_leaseDrop` 两个依赖方法（本方法的栅栏判据靠它们）。 */
 const LEASE_BAG = [extractMethod(IDX_SRC, '_leaseValid(lease) {'), extractMethod(IDX_SRC, '_leaseDrop(lease, task, floor) {')].join(',\n');
 /** 真引擎夹具：真方法体 + 真 organ + 真 storage + 可控 epoch。 */
@@ -458,7 +482,7 @@ function makeHost(opts = {}) {
     };
     const factory = new Function('window', 'errLog', '_moduleLib', '_moduleLibFn', 'PLUGIN_NAME', 'console', `
         return ({
-            ${extractMethod(IDX_SRC, 'async confirmBranchImport(opts = {}) {')},
+            ${extractModuleMethod(DL_SRC, 'async function confirmBranchImport(engine, opts = {}) {')},
             ${LEASE_BAG},
             getCurrentChatId() { return this._cid === undefined ? 'c1' : this._cid; },
             collectExport() { return this._exp; }

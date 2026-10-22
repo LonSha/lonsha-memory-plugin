@@ -192,7 +192,7 @@ test('[3] version is synced across the four declaration sites', () => {
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
     // [v3.159] 已交新版接管：不再断言「本版占据 CHANGELOG 头」，改为版本无关不变量
     const heads = changelog.split('\n').filter((l) => l.startsWith('## v'));
-    const top = heads.map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
+    const top = heads.map((l) => (/^## v([0-9.]+)/.exec(l) || [])[1] || '').sort((a, b) => vnum(b) - vnum(a))[0];
     assert.strictEqual(top, v, 'the highest section must be the released version');
 });
 
@@ -226,6 +226,6 @@ test('[3e] no unreleased placeholder section is pre-declared', () => {
     const heads = changelog.split('\n').filter((l) => l.startsWith('## v'));
     assert.ok(heads.length > 0, 'the changelog has sections');
     // 版本无关不变量：最高节 == 已发布版本（预置下一版占位节会被捕）
-    const top = heads.map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
+    const top = heads.map((l) => (/^## v([0-9.]+)/.exec(l) || [])[1] || '').sort((a, b) => vnum(b) - vnum(a))[0];
     assert.strictEqual(top, v, 'the highest section must be the released version');
 });

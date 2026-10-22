@@ -1,18 +1,19 @@
+## v3.361.0 **index.js 剥离第一批：诊断行方法群 62 个方法 → engine-diagnostic-lines.js**
+
+- 新增 `engine-diagnostic-lines.js`（1409行，IIFE 模块）：诊断行方法群 62 个方法（`*Line()` 诊断行 + 出口方法 + `confirmBranchImport`）从 index.js 提取为独立模块，通过 `bindDeps({moduleLib, errLog, _changeset, libs})` 注入闭包依赖，`globalThis.LonShaDiagnosticLines` 挂载。
+- index.js 从 22731 行降至 21327 行（净减 1404 行）：原 62 个方法体替换为 93 行委托桩（`_moduleLib` 取模块 → `M.methodName(this, ...args)` 委托调用，缺席走退路）。
+- `_assembleComponents(config)` 中注入 `bindDeps` 接线：注入 `moduleLib` / `errLog` / `_changeset` + 16 个 `*Lib()` 函数引用。
+- `manifest.json` `extra_js` 133 → 134（新增 `engine-diagnostic-lines.js`）。
+- `host_beast_baseline.json` 更新：total_lines 21327、ceiling 21726、rebuilds 添加 v3.361.0。
+- 六源同源抬版 3.361.0（index.js / package.json / manifest.json / memory-config.js / memory-core.js / memory-organs.js / counterfactual-experiment.js / era-inheritance.js）。
+- 测试修复进行中：版本守卫改为下界检查（`vnum(VERSION) >= vnum(BORN_V)`）；方法存在性测试需改为从 engine-diagnostic-lines.js 提取或识别委托桩模式；PLAN.md 路径测试需更新；模块副本台账需添加 engine-diagnostic-lines.js。
+
 ## v3.360.0 **第六期批次 F 记忆侧两项（M6-X4 多步反事实实验 / M6-X9 跨时代传承）**
 
 - 新增 counterfactual-experiment.js（135行，IIFE 零依赖）：冻结事实引用 + 多步推进 + 首次分歧定位 + 丢弃无副作用
 - 新增 era-inheritance.js（162行，IIFE 零依赖）：四类提案 + 私人经历不继承 + 撤销旧卷可读
 - WorldProgress 器官集成 + 退路类 + 六源同源 3.360.0 + v3590 下界检查
 - 15条测试全绿（含3条负控制）+ D+E+F联合53/53
-
-## v3.360.0 **第六期批次 F 记忆侧两项（M6-X4 多步反事实实验 / M6-X9 跨时代传承）**
-
-- 新增 （135行，IIFE 零依赖）：冻结事实引用 + 多步推进 + 首次分歧定位 + 丢弃无副作用
-- 新增 （162行，IIFE 零依赖）：四类提案（still-valid/expired/author-decides/inherited）+ 私人经历不继承 + 撤销旧卷可读
-- WorldProgress 器官集成：构造器初始化 + export/import + 2个加载器 + 2个接口方法
-- index.js 退路类：4个降级桩
-- 六源同源抬版 3.360.0 + v3590 硬等号修复为下界检查
-- 15条测试全绿（含3条真源码破坏负控制）+ D+E+F联合53/53
 
 ## v3.359.0 **第六期批次 E 记忆侧两项（M6-X6 意象与意义变迁 / M6-X8 回忆再理解）**
 

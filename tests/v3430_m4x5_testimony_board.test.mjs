@@ -34,6 +34,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const TB_SRC = read('testimony-board.js');
@@ -72,9 +73,9 @@ const ANCHORS = Object.freeze({
 });
 /* ══════════════ A. 结构面 ══════════════ */
 const HOST_METHODS = [
-    'testimonyBoard(opts) {',
-    'testimonyRevoke(dropped, opts) {',
-    '_testimonyBoardLine() {',
+    'testimonyBoard(...args) {',
+    'testimonyRevoke(...args) {',
+    '_testimonyBoardLine(...args) {',
 ];
 function judgeStruct(idxSrc, mf) {
     const bad = [];
@@ -259,9 +260,9 @@ const LIB_FNS = [
     'function _testimonyBoardLib() {',
 ];
 const METH_FNS = [
-    'testimonyBoard(opts) {',
-    'testimonyRevoke(dropped, opts) {',
-    '_testimonyBoardLine() {',
+    'testimonyBoard(...args) {',
+    'testimonyRevoke(...args) {',
+    '_testimonyBoardLine(...args) {',
 ];
 function mkHost(win, src) {
     const idx = src || IDX;
@@ -372,13 +373,13 @@ test('v3430 D4. ★★ 破坏「揭密分面」⇒ 揭密判据 B4 必须转红'
     console.log('  ok 破坏揭密分面 ⇒ 前后视角不再分列被照出;原版阳性通过');
 });
 test('v3430 D5. ★★ 破坏宿主「取真源」⇒ 宿主出口判据 C1 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hBuild, String.raw`const out = TB.build([], opts || {});`, 'hBuild');
+    const badIdx = breakOnce(DL, ANCHORS.hBuild, String.raw`const out = TB.build([], opts || {});`, 'hBuild');
     expectRed(() => judgeHostBoard(badIdx), 'hBuild');
     judgeHostBoard(IDX);
     console.log('  ok 破坏取真源 ⇒ 宿主拿空盘被照出;原版阳性通过');
 });
 test('v3430 D6. ★★ 破坏宿主「撤回接线」⇒ 宿主撤回判据 C2 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hRevoke, String.raw`const res = TB.revokeEvidence({ testimonies: [], state: board.state }, dropped);`, 'hRevoke');
+    const badIdx = breakOnce(DL, ANCHORS.hRevoke, String.raw`const res = TB.revokeEvidence({ testimonies: [], state: board.state }, dropped);`, 'hRevoke');
     expectRed(() => judgeHostRevoke(badIdx), 'hRevoke');
     judgeHostRevoke(IDX);
     console.log('  ok 破坏撤回接线 ⇒ 宿主撤回不命中被照出;原版阳性通过');
@@ -395,7 +396,7 @@ test('v3430 F1. ** H5 判据纯度:破坏锚点在**本档源码**里各恰中 1
     }
     for (const k of ['hBuild', 'hRevoke']) {
         const n = IDX.split(ANCHORS[k]).length - 1;
-        assert.equal(n, 1, '宿主锚 ' + k + ' 在 index.js 命中 ' + n + ' 次(应恰 1)');
+        assert.equal(n, 1, '宿主锚 ' + k + ' 在 engine-diagnostic-lines.js 命中 ' + n + ' 次(应恰 1)');
     }
     console.log('  ok 六个锚点在本档各 1 次、在真源各 1 次');
 });

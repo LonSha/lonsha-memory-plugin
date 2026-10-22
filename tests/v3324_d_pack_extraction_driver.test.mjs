@@ -308,9 +308,9 @@ function sliceMember(src, header) {
 }
 const LIB_HEADS = ['function _moduleLib(getGlobal, fileName) {', 'function _extractionDriverLib() {',
     'function _correctionPlanLib() {'];
-const METH_HEADS = ['_extractionWindowFloors(message) {', 'extractionPlan(opts) {', '_extractionDriverLine() {',
-    'correctionPlanReextract(input, opts) {', 'correctionPlanConfig(feedback, trace, opts) {',
-    '_correctionPlanLine() {'];
+const METH_HEADS = ['_extractionWindowFloors(...args) {', 'extractionPlan(...args) {', '_extractionDriverLine(...args) {',
+    'correctionPlanReextract(...args) {', 'correctionPlanConfig(...args) {',
+    '_correctionPlanLine(...args) {'];
 /** 装配真宿主出口（缺一即抛，不静默降级成空壳）。 */
 function mkHost(win, src) {
     const idx = src || IDX;
@@ -442,7 +442,7 @@ function hostJudgeCallSite(src) {
 }
 /** 判据 C5：两诊断行**真跑出口**（出口必须有真实调用者 —— 本仓定性的功能级失效形态）。 */
 function hostJudgeLinesCallExits(src) {
-    for (const [header, called] of [['_extractionDriverLine() {', 'this.extractionPlan('],
+    for (const [header, called] of [['_extractionDriverLine(...args) {', 'this.extractionPlan('],
         ['_correctionPlanLine() {', 'this.correctionPlanReextract(']]) {
         const body = sliceMember(src, header);
         if (!body) throw new Error('诊断行切片缺失：' + header);

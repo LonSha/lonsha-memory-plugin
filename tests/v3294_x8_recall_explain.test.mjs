@@ -230,7 +230,7 @@ test('v3294 G. 反馈只记意见：纯函数、有界、显式声明不写历�
 });
 /* ========== H 宿主接线与模块注册 ========== */
 test('v3294 H. 宿主三出口 + 诊断行 + 模块注册 + 退路在场', () => {
-    for (const m of ['_recallExplainLib() {', 'explainRecallHost() {', 'suggestRecallFixes(explanation, opts) {', '_recallExplainLine() {']) {
+    for (const m of ['_recallExplainLib(...args) {', 'explainRecallHost(...args) {', 'suggestRecallFixes(...args) {', '_recallExplainLine(...args) {']) {
         assert.ok(IDX_SRC.indexOf(m) >= 0, '宿主缺出口：' + m);
     }
     assert.ok(IDX_SRC.indexOf("window.LonShaRecallExplain, 'recall-explain.js'") >= 0, '取库口须走 _moduleLib 契约');

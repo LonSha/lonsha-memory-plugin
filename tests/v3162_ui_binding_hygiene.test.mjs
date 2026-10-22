@@ -252,7 +252,7 @@ test('[4] version is synced across the declaration sites', () => {
     assert.ok(vnum(v) >= vnum('3.162.0'), 'index.js version ' + v + ' >= 3.162.0');
     const changelog = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8');
     const top = changelog.split('\n').filter((l) => l.startsWith('## v'))
-        .map((l) => l.slice(4).trim()).sort((a, b) => vnum(b) - vnum(a))[0];
+        .map((l) => (/^## v([0-9.]+)/.exec(l) || [])[1] || '').sort((a, b) => vnum(b) - vnum(a))[0];
     assert.strictEqual(top, v, 'the highest changelog section is the released version');
 });
 test('[4b] old anchors were taken over, not dropped', () => {

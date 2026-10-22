@@ -34,6 +34,7 @@ const require_ = createRequire(import.meta.url);
 const VC_SRC = fs.readFileSync(path.join(R, 'volume-continuation.js'), 'utf8');
 const ORG_SRC = fs.readFileSync(path.join(R, 'memory-organs.js'), 'utf8');
 const IDX_SRC = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
+const DL_SRC = fs.readFileSync(path.join(R, 'engine-diagnostic-lines.js'), 'utf8');
 const VC = require_(path.join(R, 'volume-continuation.js'));
 const BS = require_(path.join(R, 'branch-semantics.js'));
 const ORG = require_(path.join(R, 'memory-organs.js'));
@@ -498,6 +499,28 @@ function extractMethod(source, marker) {
     const lineStart = source.lastIndexOf('\n', start) + 1;
     return source.slice(lineStart, end + 1);
 }
+/** 从 engine-diagnostic-lines.js IIFE 模块提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    assert.ok(start > 0, '找不到模块方法定义 ' + funcMarker);
+    assert.equal(source.split(funcMarker).length - 1, 1, '模块方法定义签名必须唯一：' + funcMarker);
+    const bodyStart = start + funcMarker.length - 1;
+    assert.equal(source[bodyStart], '{', 'funcMarker 必须以 { 结尾：' + funcMarker);
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    assert.ok(end > 0, '方法花括号不闭合：' + funcMarker);
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine,\s*(.*)\)\s*\{/);
+    assert.ok(nm, '无法解析函数签名：' + funcMarker);
+    const mName = nm[1];
+    const params = nm[2];
+    return asyncP + mName + '(' + params + ') {' + body + '}';
+}
 const LEASE_BAG = [extractMethod(IDX_SRC, '_leaseValid(lease) {'), extractMethod(IDX_SRC, '_leaseDrop(lease, task, floor) {')].join(',\n');
 /** 真引擎夹具：真方法体 + 真器官 + 真 storage + 可控 epoch。 */
 function makeHost(opts = {}) {
@@ -508,8 +531,8 @@ function makeHost(opts = {}) {
     };
     const factory = new Function('window', 'errLog', '_moduleLib', 'PLUGIN_NAME', 'console', `
         return ({
-            ${extractMethod(IDX_SRC, 'async handoffVolumeContinuation(opts = {}) {')},
-            ${extractMethod(IDX_SRC, 'async revokeVolumeHandoff(opts = {}) {')},
+            ${extractModuleMethod(DL_SRC, 'async function handoffVolumeContinuation(engine, opts = {}) {')},
+            ${extractModuleMethod(DL_SRC, 'async function revokeVolumeHandoff(engine, opts = {}) {')},
             ${LEASE_BAG},
             getCurrentChatId() { return this._cid === undefined ? 'c1' : this._cid; },
             collectExport() { return this._exp; }
@@ -677,8 +700,8 @@ test('v3293 H1. 宿主接线完整：退路四法 + 真实实现 + 诊断行 + �
     const need = ['_volumeContinuation() { return null; }', 'buildVolumePack() { return null; }',
         'handoffVolumeContinuation() { return null; }', 'revokeVolumeHandoff() { return null; }'];
     for (const n of need) assert.ok(IDX_SRC.indexOf(n) >= 0, '退路缺失：' + n);
-    for (const n of ['async handoffVolumeContinuation(opts = {}) {', 'async revokeVolumeHandoff(opts = {}) {',
-        'buildVolumePack(opts = {}) {', '_volumeContinuationLine() {']) {
+    for (const n of ['handoffVolumeContinuation(...args) {', 'revokeVolumeHandoff(...args) {',
+        'buildVolumePack(...args) {', '_volumeContinuationLine(...args) {']) {
         assert.ok(IDX_SRC.indexOf(n) >= 0, '真实实现缺失：' + n);
     }
     assert.ok(IDX_SRC.indexOf("['分卷接续'") >= 0, '诊断行缺失');
@@ -733,24 +756,25 @@ test('v3293 H6. 工具两向自证：锚点缺失 / 不唯一须抛，破坏须�
     const why = jNameOnlyNotMerged(broken);
     assert.notEqual(why, '', '★ 拆掉同名候选闸门后 B 判据必须翻红');
     assert.equal(jNameOnlyNotMerged(VC), '', '原版上同判据必须通过（反向对照）');
-});
 test('v3293 H7. 宿主两处读数调用点都传「源侧缺面名」（接线不得只改一处）', () => {
-    /* 体检行的告警条件依赖 `absentFaces` 面名；只改一个调用点会让另一条路径静默回到
-     *   「只有计数」，而计数在少传时会被 noteVolumeContinuation 兜成 0 ⇒ 告警永假。 */
-    const calls = IDX_SRC.match(/absentFaces: /g) || [];
+    /* [v3.361.0 剥离] 方法体移至 engine-diagnostic-lines.js，从 DL_SRC 检查实现细节。 */
+    const SRC = DL_SRC;
+    const calls = SRC.match(/absentFaces: /g) || [];
     assert.ok(calls.length >= 2, '★ 两个读数调用点都必须传面名，实 ' + calls.length + ' 处');
     assert.ok(ORG_SRC.indexOf('absentFaces: absent') >= 0, '器官侧必须真的把面名存进读数');
 });
 test('v3293 H8. 落笔出口的异常分支必须留证（不得静默降级）', () => {
-    assert.ok(IDX_SRC.indexOf('_lastVolumeHandoff = {') >= 0, '★ 作废读数必须存在');
-    assert.ok(IDX_SRC.indexOf("why: 'threw'") >= 0, '归因须指向「抛了」');
+    /* [v3.361.0 剥离] 方法体移至 engine-diagnostic-lines.js，从 DL_SRC 检查实现细节。 */
+    const SRC = DL_SRC;
+    assert.ok(SRC.indexOf('_lastVolumeHandoff = {') >= 0, '★ 作废读数必须存在');
+    assert.ok(SRC.indexOf("why: 'threw'") >= 0, '归因须指向「抛了」');
     /* 留痕不得成为新的失败：登记块自身有 try 兜底（本仓纪律：登记的失败不得成为新的失败）。 */
-    const seg = IDX_SRC.slice(IDX_SRC.indexOf('_lastVolumeHandoff = {') - 400, IDX_SRC.indexOf('_lastVolumeHandoff = {'));
+    const seg = SRC.slice(SRC.indexOf('_lastVolumeHandoff = {') - 400, SRC.indexOf('_lastVolumeHandoff = {'));
     assert.ok(seg.indexOf('try {') >= 0, '留痕块必须自兜（try 包住）');
 });
 test('v3293 H9. 诊断行只读一个口径：告警条件与读数同源（不得一处算面名一处算计数）', () => {
-    /* 取**体检块整体**：锚点 `selfCheck.volumeContinuation` 在 catch 分支里（块尾），
-     *   所以窗口要向**前**取 —— 向后取会直接越出这个块，判据变成对无关代码断言（假绿）。 */
+    /* [v3.361.0 剥离] 体检块在 index.js 的 selfCheck 段（未被剥离），仍从 IDX_SRC 检查。
+     *   但 absentFaces 读数调用点在 engine-diagnostic-lines.js，从 DL_SRC 检查。 */
     const at = IDX_SRC.indexOf("selfCheck.volumeContinuation");
     assert.ok(at > 0, '诊断行必须在场');
     const head = IDX_SRC.lastIndexOf('[v3.293.0 · X7] 分卷接续体检面', at);
@@ -759,5 +783,6 @@ test('v3293 H9. 诊断行只读一个口径：告警条件与读数同源（不�
     assert.ok(seg.indexOf('absentFaceCount') >= 0, '告警条件须读器官读数');
     assert.ok(seg.indexOf('_volumeContinuationRead') >= 0, '读的必须是器官那一份（唯一真源）');
     /* 面名也必须在告警口径里可见：只数计数时，读数被截断/少传就没人能追是哪一面。 */
-    assert.ok(IDX_SRC.indexOf('absentFaces: r.absentFaces') >= 0 || IDX_SRC.indexOf('absentFaces: absent') >= 0, '面名入读数');
+    assert.ok(DL_SRC.indexOf('absentFaces: r.absentFaces') >= 0 || DL_SRC.indexOf('absentFaces: absent') >= 0, '面名入读数');
+});
 });

@@ -7,7 +7,7 @@
   "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.360.0",
+  "version": "3.361.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -144,7 +144,8 @@
     "symbolic-evolution.js",
     "recall-reinterpretation.js",
     "counterfactual-experiment.js",
-    "era-inheritance.js"
+    "era-inheritance.js",
+    "engine-diagnostic-lines.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

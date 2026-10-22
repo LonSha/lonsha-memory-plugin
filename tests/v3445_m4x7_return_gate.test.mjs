@@ -36,6 +36,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const RG_SRC = read('return-gate.js');
@@ -103,11 +104,11 @@ const ANCHORS = Object.freeze({
 });
 /* ══════════════ A. 结构面 ══════════════ */
 const HOST_METHODS = [
-    'returnGate(opts) {',
-    'returnGateAdmit(opts) {',
-    'returnGateMark(channel, rec) {',
-    'returnGatePrefer(detailKey, pref) {',
-    '_returnGateLine() {',
+    'returnGate(...args) {',
+    'returnGateAdmit(...args) {',
+    'returnGateMark(...args) {',
+    'returnGatePrefer(...args) {',
+    '_returnGateLine(...args) {',
 ];
 function judgeStruct(idxSrc, mf, orgSrc) {
     const bad = [];
@@ -422,12 +423,12 @@ const LIB_FNS = [
     'function _returnGateLib() {',
 ];
 const METH_FNS = [
-    '_returnGateCandidates(opts) {',
-    'returnGate(opts) {',
-    'returnGateAdmit(opts) {',
-    'returnGateMark(channel, rec) {',
-    'returnGatePrefer(detailKey, pref) {',
-    '_returnGateLine() {',
+    '_returnGateCandidates(...args) {',
+    'returnGate(...args) {',
+    'returnGateAdmit(...args) {',
+    'returnGateMark(...args) {',
+    'returnGatePrefer(...args) {',
+    '_returnGateLine(...args) {',
 ];
 function mkHost(win, src) {
     const idx = src || IDX;
@@ -626,7 +627,7 @@ test('v3445 D5. ★★ 破坏「关停档」⇒ 提示档不自动注入判据 B
 test('v3445 D6. ★★ 破坏宿主「候选装配」⇒ 宿主三态不塌判据 C1 必须转红', () => {
     /* ★ 破坏形态:退回「只认数组」的旧写法 ⇒ 显式喂的**畸形**候选又落回 fated-recall,
      *   与「根本没给」同形(这正是本版修掉的那一格)。 */
-    const badIdx = breakOnce(IDX, ANCHORS.hCands, String.raw`if (Array.isArray(o.candidates)) return { candidates: o.candidates, source: 'given' };`, 'hCands');
+    const badIdx = breakOnce(DL, ANCHORS.hCands, String.raw`if (Array.isArray(o.candidates)) return { candidates: o.candidates, source: 'given' };`, 'hCands');
     expectRed(() => {
         const self = rgSelf(RG_WIN(), badIdx);
         const r = self.returnGate({ candidates: 'nope', now: 10 });
@@ -637,7 +638,7 @@ test('v3445 D6. ★★ 破坏宿主「候选装配」⇒ 宿主三态不塌判�
     console.log('  ok 破坏候选装配(退回只认数组)⇒ 畸形候选与「没给」同形被照出;原版阳性通过');
 });
 test('v3445 D7. ★★ 破坏宿主「移交面」⇒ 移交只给开闸者判据 C3 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hAdmit, String.raw`const adm = Array.isArray(read.gates) ? read.gates : [];`, 'hAdmit');
+    const badIdx = breakOnce(DL, ANCHORS.hAdmit, String.raw`const adm = Array.isArray(read.gates) ? read.gates : [];`, 'hAdmit');
     expectRed(() => judgeAdmit(badIdx), 'hAdmit');
     judgeAdmit(IDX);
     console.log('  ok 破坏移交面 ⇒ 押后/不出条目漏进移交面被照出;原版阳性通过');
@@ -661,7 +662,7 @@ test('v3445 F1. ** H5 判据纯度:破坏锚点在**本档源码**里各恰中 1
     }
     for (const k of ['hCands', 'hAdmit']) {
         const n = IDX.split(ANCHORS[k]).length - 1;
-        assert.equal(n, 1, '宿主锚 ' + k + ' 在 index.js 命中 ' + n + ' 次(应恰 1)');
+        assert.equal(n, 1, '宿主锚 ' + k + ' 在 engine-diagnostic-lines.js 命中 ' + n + ' 次(应恰 1)');
     }
     const np = ORG_SRC.split(ANCHORS.kPersist).length - 1;
     assert.equal(np, 1, '器官锚 kPersist 在 memory-organs.js 命中 ' + np + ' 次(应恰 1)');

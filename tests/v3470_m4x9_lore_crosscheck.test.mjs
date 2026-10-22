@@ -34,6 +34,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const CX_SRC = read('lore-crosscheck.js');
@@ -78,9 +79,9 @@ const ANCHORS = Object.freeze({
 });
 /* ══════════════ A. 结构面 ══════════════ */
 const HOST_METHODS = [
-    'loreCrosscheck(sourceMode, opts) {',
-    '_crosscheckChatRows(opts) {',
-    '_loreCrosscheckLine() {',
+    'loreCrosscheck(...args) {',
+    '_crosscheckChatRows(...args) {',
+    '_loreCrosscheckLine(...args) {',
 ];
 function judgeStruct(idxSrc, mf) {
     const bad = [];
@@ -542,7 +543,7 @@ function judgeHostRows(idxSrc) {
     return asm.chat.length === 1 && asm.sources.some((s) => s.source === 'evidence-query' && s.state === 'ok');
 }
 test('v3470 D8. ★★ 破坏「宿主装配点(ok 键面判定)」⇒ 装配判据 C1 必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.hRows, String.raw`}, (got) => false);`, 'hRows');
+    const bad = breakOnce(DL, ANCHORS.hRows, String.raw`}, (got) => false);`, 'hRows');
     expectRed(() => { assert.ok(judgeHostRows(bad), 'ty'); }, 'hRows');
     assert.ok(judgeHostRows(IDX), '原版同判据必须过');
     console.log('  ok 破坏装配点 ⇒ 结构化查询行被丢被照出;原版阳性通过');
@@ -554,7 +555,7 @@ function judgeHostMode(idxSrc) {
     return got.ok === true && got.mode === 'lore-only';
 }
 test('v3470 D9. ★★ 破坏宿主「模式转发」⇒ 转发判据 C2 必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.hMode, String.raw`const out = CX.build('compare', input, {`, 'hMode');
+    const bad = breakOnce(DL, ANCHORS.hMode, String.raw`const out = CX.build('compare', input, {`, 'hMode');
     expectRed(() => { assert.ok(judgeHostMode(bad), 'ty'); }, 'hMode');
     assert.ok(judgeHostMode(IDX), '原版同判据必须过');
     console.log('  ok 破坏模式转发 ⇒ 宿主把模式写死成对照被照出;原版阳性通过');

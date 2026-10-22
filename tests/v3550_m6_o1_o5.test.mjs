@@ -35,14 +35,14 @@ const codeOnly = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/
  * A. 版本锚
  * ================================================================ */
 describe('v3.355.0 版本锚', () => {
-    test('VERSION 常量为 3.355.0', () => {
+    test('VERSION 常量 >= 3.355.0', () => {
         const m = VERSION_RE.exec(idxSrc);
         assert.ok(m, 'VERSION 常量未找到');
-        assert.equal(m[1], '3.355.0');
+        assert.ok(vnum(m[1]) >= vnum(BORN_V), `VERSION ${m[1]} < ${BORN_V}`);
     });
-    test('manifest.json 版本为 3.355.0 且登记两个新模块', () => {
+    test('manifest.json 版本 >= 3.355.0 且登记两个新模块', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
-        assert.equal(man.version, '3.355.0');
+        assert.ok(vnum(man.version) >= vnum(BORN_V), `manifest version ${man.version} < ${BORN_V}`);
         assert.ok(man.extra_js.includes('experience-rebuild.js'), 'extra_js 应含 experience-rebuild.js');
         assert.ok(man.extra_js.includes('dual-time.js'), 'extra_js 应含 dual-time.js');
     });
