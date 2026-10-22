@@ -1,3 +1,19 @@
+## v3.356.0
+**第六期批次 B 三项（M6-O2 记忆问题求解器 / M6-O3 可展开的多分辨率记忆 / M6-O6 场景上下文编排）**
+★ **本版做什么（三个纯函数内核 IIFE 零依赖 + 宿主三出口 + 持久化三子键，不建第二套账）**：
+ · **M6-O2** 新模块 `evidence-solver.js`：`normalizeEvidence` / `normalizeClaim` / `normalizeClaims` / `judgeClaim` / `linkOf` / `solve` / `revise` / `withRaw` / `solverLine` / `independentCount`。把一道复杂问题拆成多个子命题、连接支持与反证、缺环只给**条件结论**。★ **独立原文下限 3 只在整题层面施加，单命题不设** —— 这是本版修正的一处语义错位：若子命题层也卡 3，则「三个子命题各连一处」（整题恰 3 处）会被误判成 conditional 而吞掉答案。★ **去重键统一为 `refId`（不是 source+refId）** —— 「同一份原文经甲转乙」只算一处独立原文，三条转载永远凑不满下限；用 source+refId 会把同一份原文的两种转述数成两处，正好放跑计划原文点名的「按重复转载数投票」反模式。★ `revise` 把「应用 patch 后的新目标」写进 `result.__raw` 供宿主落盘（改时点/改命题后重开仍保持新范围，不退回旧目标）。
+ · **M6-O3** 新模块 `resolution-ladder.js`：`normalizeVerbatim` / `normalizeEntry(s)` / `expand` / `expandability` / `selectByBudget` / `reviseLevel` / `ladderLine`。同一段经历保留**概览 / 转折骨架 / 可定位原话**三层，按注入预算选层。★ **缺源（no-source）与「有源但尚未展开」（unexpanded）分列** —— 两者压平就无法回答「这段到底还能不能展开」。原话层回原 owner 取正文：`opts.sourceExists(v)` **返回正文字符串**（取不到返回 null），返回 true/false 会被当成正文写进 content。
+ · **M6-O6** 新模块 `scene-orchestrator.js`：`normalizeMaterial(s)` / `normalizeScene(s)` / `advance` / `cancel` / `releaseConstraint` / `materialsFor` / `scenePack` / `sceneLine`。把本幕参与者、各自可知、目标、硬约束、可调用旧事与未决问题编成**场景状态**。★ **硬约束只增不减**（只有 `releaseConstraint` 显式解除才 `released:true`）；★ **角色私有视角互不共享**（叙述者材料不给角色、甲的角色材料不给乙）；★ **取消即清场**（约束/材料/未决项全清，且取消后不得再推进）；★ 材料随轮次变化（`advance` 记新增/退役）。
+★ **宿主接线**：取库口 `_evidenceSolverLib` / `_resolutionLadderLib` / `_sceneOrchestratorLib`（走 `_moduleLib`）；宿主出口 `queryEvidenceSolver`（solve/revise/judge/line/list）/ `queryResolution`（put/expand/expandability/select/revise/line/list）/ `queryScene`（open/advance/release/cancel/pack/line/list），均带 `module-unavailable` / `thrown` / `unknown-op` 三态降级回执；新增 `_chatFloorText()`（从当前 chat 读楼层正文）与 `_sourceBody()`（楼层原话 / `sum_<floor>` 摘要 / `diary:<角色>:<floor>` 三路回源）；selfCheck 面板新增「求解器」「分辨率阶梯」「场景编排」三行（**模块未加载也点名文件**）；manifest `extra_js` **119 → 122**。
+★ **持久化面**：`WorldProgress` 逐项枚举子键 —— 本版在 `memory-organs.js` 三处成对补 `solverThreads` / `resolutionLadder` / `scenes`：构造器显式 `[]`、`export()` 导出状态本体、`import()` 用 `Array.isArray(data.X) ? data.X : []` 回落空账。
+★ **本版修正的三处真实缺陷（编码后审查抓出，测试前修复）**：① M6-O2 §“三处独立原文”原同时在单命题与整题施压 ⇒ 改为只由整题施加；② 转载专项自检用不同 source/同 refId 的数据但去重键是 source+refId ⇒ 去重键统一为 refId；③ 宿主 `queryEvidenceSolver('revise')` 在内核完成修订后又用**旧 `thread.raw`** 覆盖 `out.result.__raw` 并落盘旧 raw ⇒ 改为落盘**修订后的 `out.result.__raw`**（`newRaw`），否则改时点只活在当次返回值、重开退回旧目标。
+★ **定向复验**：`tests/v3560_m6_o2_o3_o6.test.mjs`（**38 条全绿**）：A 版本锚 4 / B M6-O2 内核 11（三处 answered、单命题不误判、两处 conditional、转载只算一处、反证分列、缺连接、undecided、范围过滤、revise 新 scope、缺双键、同源去重）/ C M6-O3 内核 8 / D M6-O6 内核 5 / E 宿主接线 7 / G 负控制 3（**真源码破坏 + 锚点恰中 1 次 + 在破坏副本上重跑同款真判据**）。
+★ **负控制的一处关键坑**：M6-O2 的「转载只算一处」判据必须用**跨命题共享同一 refId** 的数据 —— 命题内 `dedup` 会先把同源证据合并成一条，单命题内的重复根本到不了整题并集，故用单命题数据写负控制会**空转**（破坏对判据无反应 = 假绿）。
+★ **版本纪律**：六源同源（manifest / package / index.js / memory-core.js / memory-config.js / memory-organs.js）+ README 当前版本同步抬到 3.356.0。
+· 退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移（本仓扫描器契约；本节同款声明供 D9 核对）。
+★ **诚实边界**：真实 SillyTavern 宿主的 UI 点击流与真实模型问答**未跑**；三个内核是**无状态纯函数**（不联网、不落盘、不读宿主 `this`）。M6-O2 目前要求调用者提供已拆好的 claims/evidence，**尚未自动接入** qa-thread / evidence-query / testimony-board 检索面；M6-O3 尚未接入 unified-recall / 注入预算链 / 原生页面；M6-O6 尚未接入 materialPack / buildInjection 的材料消费。这些是**下一步**而非本版已交付。
+★ **全量实跑（v3.356.0 当版）**：见下方 README 快照登记（跑批读数由 `tools/_rebind_doc_readings.py` 消费结构化摘要零手抄写入）。
+
 ## v3.355.0
 **第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）**
 ★ **本版做什么（两个纯函数内核 IIFE 零依赖 + 宿主接线 + 持久化面，不建第二套账）**：

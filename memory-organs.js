@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.355.0';
+let VERSION = '3.356.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1184,6 +1184,12 @@ class WorldProgress {
          *     不初始化 = 首轮读到 undefined，而 undefined 与「真的没有」同形。 */
         this.experiences = [];
         this.timeCoords = [];
+        /* [v3.356.0 · M6-O2/M6-O3/M6-O6] 求解线程 / 分辨率阶梯 / 场景状态。
+         *   ★ 同样必须在此显式初始化：worldProg 子键是逐项枚举持久化的，
+         *     不初始化 = 首轮读到 undefined，而 undefined 与「真的没有」同形。 */
+        this.solverThreads = [];
+        this.resolutionLadder = [];
+        this.scenes = [];
     }
 
     // ===== 约定账本 (Promises Ledger) =====
@@ -2087,6 +2093,14 @@ class WorldProgress {
              *   ★ 两格导出**状态本体**（非读数）：重建与投影都依赖逐条引用/坐标。 */
             experiences: this.experiences || [],
             timeCoords: this.timeCoords || [],
+            /* [v3.356.0 · M6-O2/M6-O3/M6-O6] 三格随世界推进持久化。
+             *   求解线程：存**原料 + 结论**两者（raw 是 revise 的原料，result 是上次答成什么样）。
+             *   分辨率阶梯：存引用与派生层（正文不复制，展开时回原 owner 取）。
+             *   场景状态：存约束/材料/未决项本体（推进与取消都依赖逐条内容）。
+             *   ★ 三格导出**状态本体**（非读数）。 */
+            solverThreads: this.solverThreads || [],
+            resolutionLadder: this.resolutionLadder || [],
+            scenes: this.scenes || [],
             plotArcs: this.plotArcs || []
         };
     }
@@ -2129,6 +2143,12 @@ class WorldProgress {
              *   在此再校一遍即第二套判据（两边不同步就静默漂移）。 */
             this.experiences = Array.isArray(data.experiences) ? data.experiences : [];
             this.timeCoords = Array.isArray(data.timeCoords) ? data.timeCoords : [];
+            /* [v3.356.0 · M6-O2/M6-O3/M6-O6] 三格导入：畸形一律回落空账（与同族口径）。
+             *   不逐字段校验：合法性由内核 normalize 每次读取时归一，
+             *   在此再校一遍即第二套判据（两边不同步就静默漂移）。 */
+            this.solverThreads = Array.isArray(data.solverThreads) ? data.solverThreads : [];
+            this.resolutionLadder = Array.isArray(data.resolutionLadder) ? data.resolutionLadder : [];
+            this.scenes = Array.isArray(data.scenes) ? data.scenes : [];
         }
     }
 }

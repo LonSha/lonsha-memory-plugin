@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.355.0';
+    const VERSION = '3.356.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2575,6 +2575,32 @@ function relativeTimeLabel(eventTime, nowTime) {
             try {
                 return message?.extra?.lonsha_omit === true;
             } catch (e) { errLog(e, 'SF5.isOmittedFloor'); return false; }
+        }
+        /**
+         * [v3.356.0 · M6-O3] 取某一楼的**原话正文**（原话层的回源口）。
+         *
+         * 为什么需要：分辨率阶梯的 verbatim 层只存**引用**（source + refId），
+         *   不复制正文 —— 展开时必须回原 owner 取全文，否则「可展开」是空话。
+         *   取不到就返回 null（**不是空串**）：空串会被当成「源在但正文为空」，
+         *   与「源已丢失」同形 —— 那正是本项要求分列的两种状态。
+         *
+         * @param {number} floor 楼层号
+         * @returns {string|null} 正文；楼层不存在 / 是番外楼 / 取不到时为 null
+         */
+        _chatFloorText(floor) {
+            try {
+                const f = Number(floor);
+                if (!Number.isFinite(f) || f < 0) return null;
+                const chat = (typeof window !== 'undefined' && window.SillyTavern && typeof window.SillyTavern.getContext === 'function')
+                    ? (((window.SillyTavern.getContext() || {}).chat) || []) : [];
+                if (!Array.isArray(chat) || f >= chat.length) return null;
+                const m = chat[f];
+                if (!m) return null;
+                /* 番外楼对引擎不存在 ⇒ 同样不得回源（与「楼层不存在」同形，归 null）。 */
+                if (typeof this.isOmittedFloor === 'function' && this.isOmittedFloor(m)) return null;
+                const text = String(m.mes != null ? m.mes : (m.content != null ? m.content : '')).trim();
+                return text || null;
+            } catch (e) { errLog(e, 'engine._chatFloorText'); return null; }
         }
 
         // [v3.96] STM/LTM 游标巩固：摄入本轮净文本到 unconsolidated_stm，达阈值异步巩固
@@ -13115,6 +13141,37 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                                     return ['双时间', DT.line(rawList)];
                             } catch (e) { errLog(e, 'selfCheck.dualTime'); return ['双时间', '—（诊断异常）']; }
                         })(),
+                        /* [v3.356.0 · M6-O2/M6-O3/M6-O6] 三个新面的体检行。
+                         *   求解器：回答「有几个求解线程、最后答成什么样、连到几处独立原文」；
+                         *   分辨率阶梯：回答「几条经历、几层可展开、几个缺源」；
+                         *   场景编排：回答「几幕进行中、几条硬约束、几个未决项」。
+                         *   ★ 三行都读真存的状态本体（不造假读数）：空账就如实报「暂无」。 */
+                        (() => {
+                                try {
+                                    const SV = _evidenceSolverLib();
+                                    if (!SV || typeof SV.solverLine !== 'function') return ['求解器', '模块未加载(evidence-solver.js)'];
+                                    const threads = (this.worldProg && Array.isArray(this.worldProg.solverThreads)) ? this.worldProg.solverThreads : [];
+                                    const last = threads[threads.length - 1];
+                                    const line = last && last.result ? SV.solverLine(last.result) : '暂无求解线程';
+                                    return ['求解器', line];
+                            } catch (e) { errLog(e, 'selfCheck.evidenceSolver'); return ['求解器', '—（诊断异常）']; }
+                        })(),
+                        (() => {
+                                try {
+                                    const RL = _resolutionLadderLib();
+                                    if (!RL || typeof RL.ladderLine !== 'function') return ['分辨率阶梯', '模块未加载(resolution-ladder.js)'];
+                                    const rawList = (this.worldProg && Array.isArray(this.worldProg.resolutionLadder)) ? this.worldProg.resolutionLadder : [];
+                                    return ['分辨率阶梯', RL.ladderLine(rawList)];
+                            } catch (e) { errLog(e, 'selfCheck.resolutionLadder'); return ['分辨率阶梯', '—（诊断异常）']; }
+                        })(),
+                        (() => {
+                                try {
+                                    const SO = _sceneOrchestratorLib();
+                                    if (!SO || typeof SO.sceneLine !== 'function') return ['场景编排', '模块未加载(scene-orchestrator.js)'];
+                                    const rawList = (this.worldProg && Array.isArray(this.worldProg.scenes)) ? this.worldProg.scenes : [];
+                                    return ['场景编排', SO.sceneLine(rawList)];
+                            } catch (e) { errLog(e, 'selfCheck.sceneOrchestrator'); return ['场景编排', '—（诊断异常）']; }
+                        })(),
                 ];
                 // [v3.328.0 · F 包 M3-X6] 支线正史体检面:与「分支对照」**分列**。
                 //   对照行答「两条分支的面差在哪」,本行答「哪一条算数」——合成一行会让
@@ -17073,6 +17130,210 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.queryDualTime'); return { ok: false, reason: 'thrown', degraded: true }; }
         }
         /**
+         * [v3.356.0 · M6-O2] 记忆问题求解面。
+         *   把一个复杂问题拆成多个**子命题**，逐条独立求证，
+         *   支持与反证**分列**，缺关键环节只给**条件结论**。
+         *   ★ 「至少三处独立原文才可答」的下限由内核判定，宿主**不另写一份**。
+         *   ★ 「后续追问改目标而非清空全部工作」靠**保存原始输入**实现：
+         *     写侧把 raw（claims/links/scope）落到 worldProg.solverThreads，
+         *     revise 时取回 raw 整份重求 —— 不是把旧结论拼进新结论。
+         *   操作类型：solve / revise / judge / line / list
+         */
+        queryEvidenceSolver(op, payload) {
+            try {
+                const SV = _evidenceSolverLib();
+                if (!SV) return { ok: false, reason: 'module-unavailable', degraded: true };
+                const threads = (this.worldProg && Array.isArray(this.worldProg.solverThreads)) ? this.worldProg.solverThreads : [];
+                const p = (payload && typeof payload === 'object') ? payload : {};
+                /* ★ 线程落盘形状：{ id, raw, opts, result }。
+                 *   raw 是**求解输入**（claims/links/scope/question），
+                 *   result 是**上一次结论**。两者都必须存：
+                 *   只存结论 → revise 无原料（改目标变成清空）；
+                 *   只存原料 → 读档后看不到上次答成什么样。 */
+                const _commit = (res, thread) => {
+                    if (res && res.ok && thread) {
+                        if (!this.worldProg) this.worldProg = {};
+                        const arr = Array.isArray(this.worldProg.solverThreads) ? this.worldProg.solverThreads.slice() : [];
+                        const idx = arr.findIndex((t) => t && t.id === thread.id);
+                        const rec = { id: thread.id, raw: thread.raw, opts: thread.opts || {}, result: res };
+                        if (idx >= 0) arr[idx] = rec; else arr.push(rec);
+                        this.worldProg.solverThreads = arr;
+                    }
+                    return res;
+                };
+                if (op === 'solve') {
+                    const raw = p.raw || p;
+                    const opts = (p.opts && typeof p.opts === 'object') ? p.opts : {};
+                    const res = SV.solve(raw, opts);
+                    /* ★ withRaw：挂上原始输入，revise 才有原料。
+                     *   不挂则 revise 返回 bad-shape —— 那正是「改目标变成清空」的形态。 */
+                    SV.withRaw(res, raw, opts);
+                    const id = String(p.id || (raw && raw.id) || ('sv_' + Date.now()));
+                    return _commit(res, { id: id, raw: raw, opts: opts });
+                }
+                if (op === 'revise') {
+                    const thread = threads.find((t) => t && t.id === p.id) || null;
+                    if (!thread || !thread.raw) return { ok: false, reason: 'not-found', degraded: true };
+                    /* ★ 用**存回来的 raw** 整份重求，而不是拿旧结论改写。 */
+                    const base = SV.withRaw({ __raw: thread.raw, __opts: thread.opts || {} }, thread.raw, thread.opts || {});
+                    const out = SV.revise(base, p.patch || {});
+                    if (!out.ok) return { ok: false, reason: out.reason || 'bad-shape', degraded: true };
+                    /* ★ 落盘**修订后的 raw**（out.result.__raw），而不是旧 thread.raw。
+                     *   内核 revise 已把「应用 patch 后的新目标」写进 out.result.__raw；
+                     *   若再拿旧 thread.raw 覆盖，改时点/改命题只活在当次返回值，
+                     *   重开后线程会退回旧目标 —— 那正是「换时点后旧证据还在」的读档假象。 */
+                    const newRaw = (out.result && out.result.__raw) ? out.result.__raw : thread.raw;
+                    const newOpts = (out.result && out.result.__opts) ? out.result.__opts : (thread.opts || {});
+                    return _commit(out.result, { id: p.id, raw: newRaw, opts: newOpts });
+                }
+                if (op === 'judge') {
+                    const claim = SV.normalizeClaim(p.claim || p);
+                    if (!claim) return { ok: false, reason: 'bad-shape', degraded: true };
+                    const ctx = { claimById: {}, links: (p.links && typeof p.links === 'object') ? p.links : {}, minIndependent: SV.SOLVER_LIMITS.minIndependent };
+                    const j = SV.judgeClaim(claim, ctx);
+                    return { ok: true, state: j.state, strength: j.strength, independent: j.independent || 0, missing: j.missing, support: j.support, counter: j.counter };
+                }
+                if (op === 'line') {
+                    const t = threads[threads.length - 1] || null;
+                    return { ok: true, line: t && t.result ? SV.solverLine(t.result) : SV.solverLine({ ok: false, reason: 'no-thread' }), threads: threads.length };
+                }
+                if (op === 'list') {
+                    return {
+                        ok: true,
+                        threads: threads.map((t) => ({
+                            id: t && t.id,
+                            question: (t && t.result && t.result.question) || '',
+                            state: (t && t.result && t.result.conclusion && t.result.conclusion.state) || 'unknown',
+                            independent: (t && t.result && t.result.independent) || 0,
+                        })),
+                    };
+                }
+                return { ok: false, reason: 'unknown-op', degraded: true };
+            } catch (e) { errLog(e, 'plugin.queryEvidenceSolver'); return { ok: false, reason: 'thrown', degraded: true }; }
+        }
+        /**
+         * [v3.356.0 · M6-O3] 可展开的多分辨率记忆面。
+         *   同一段经历保留**概览 / 转折骨架 / 可定位原话**三层，
+         *   按注入预算选层；缺源与「有源但尚未展开」**分列**。
+         *   操作类型：put / expand / expandability / select / revise / line / list
+         *   ★ 展开的 verbatim 层需要**回原 owner 取正文**：
+         *     宿主在这里提供 sourceExists 回调（返回正文，不是布尔）。
+         */
+        queryResolution(op, payload) {
+            try {
+                const RL = _resolutionLadderLib();
+                if (!RL) return { ok: false, reason: 'module-unavailable', degraded: true };
+                const list = (this.worldProg && Array.isArray(this.worldProg.resolutionLadder)) ? this.worldProg.resolutionLadder : [];
+                const p = (payload && typeof payload === 'object') ? payload : {};
+                const _commit = (res) => {
+                    if (res && res.ok && Array.isArray(res.list)) {
+                        if (!this.worldProg) this.worldProg = {};
+                        this.worldProg.resolutionLadder = res.list;
+                    }
+                    return res;
+                };
+                /* ★ 原话正文回源回调：source/refId → 正文。
+                 *   契约（★ 固定下来，勿改）：**返回正文字符串**，取不到返回 null。
+                 *   返回 true/false 会被当成正文写进 content —— 那是「把存在当内容」的形态。 */
+                const _sourceBody = (v) => {
+                    try {
+                        const src = String(v && v.source || '');
+                        const ref = String(v && v.refId || '');
+                        if (!src || !ref) return null;
+                        /* ① 楼层原话：floor:12 / f_12 / floor#12 */
+                        const m = /^(?:floor|f|chat|floor#|f#)?#?(\d+)$/.exec(ref) || /^floor[#_]?(\d+)$/.exec(src + '_' + ref);
+                        const floor = v.floor != null ? Number(v.floor) : (m ? Number(m[1]) : null);
+                        if (Number.isFinite(floor) && this._chatFloorText) {
+                            const body = this._chatFloorText(floor);
+                            if (body) return body;
+                        }
+                        /* ② 摘要：sum_<floor> */
+                        const sm = /^sum[_-]?(\d+)$/.exec(ref);
+                        if (sm && this.summary) {
+                            const s = (this.summary.summaries || []).find((x) => x && x.floor === Number(sm[1]));
+                            if (s && s.text) return s.text;
+                        }
+                        /* ③ 角色日记：diary:<角色>:<floor> */
+                        const dm = /^diary:(.+):(\d+)$/.exec(ref);
+                        if (dm && this.diary) {
+                            const arr = (this.diary.diaries || {})[dm[1]] || [];
+                            const d = arr.find((x) => x && Number(x.floor) === Number(dm[2]));
+                            if (d && d.text) return d.text;
+                        }
+                        return null;
+                    } catch (e) { errLog(e, 'plugin.queryResolution.sourceBody'); return null; }
+                };
+                if (op === 'put') {
+                    const entry = RL.normalizeEntry(p.entry || p);
+                    if (!entry) return { ok: false, reason: 'bad-shape', degraded: true };
+                    const arr = list.slice();
+                    const idx = arr.findIndex((e) => e && e.id === entry.id);
+                    if (idx >= 0) arr[idx] = p.entry || p; else arr.push(p.entry || p);
+                    const res = { ok: true, reason: RL.RL_REASONS.OK, list: arr, entry: entry };
+                    return _commit(res);
+                }
+                if (op === 'expand') {
+                    const res = RL.expand(list, p.id, p.level || 'overview', { sourceExists: _sourceBody });
+                    return { ok: res.ok, state: res.state, level: res.level, content: res.content, missing: res.missing, orphan: res.orphan || false, reason: res.reason };
+                }
+                if (op === 'expandability') {
+                    const res = RL.expandability(list, p.id);
+                    return { ok: res.ok, state: res.state, levels: res.levels, reason: res.reason };
+                }
+                if (op === 'select') {
+                    const res = RL.selectByBudget(list, p.budget);
+                    return { ok: res.ok, level: res.level, chosen: res.chosen, skipped: res.skipped, used: res.used || 0, reason: res.reason };
+                }
+                if (op === 'revise') return _commit(RL.reviseLevel(list, p.id, p.level, p.patch || {}));
+                if (op === 'line') return { ok: true, line: RL.ladderLine(list) };
+                if (op === 'list') return { ok: true, entries: RL.normalizeEntries(list), line: RL.ladderLine(list) };
+                return { ok: false, reason: 'unknown-op', degraded: true };
+            } catch (e) { errLog(e, 'plugin.queryResolution'); return { ok: false, reason: 'thrown', degraded: true }; }
+        }
+        /**
+         * [v3.356.0 · M6-O6] 场景上下文编排面。
+         *   把本幕的参与者、各自可知、行动目标、硬约束、可调用旧事与未决问题
+         *   编排成**场景状态**；随玩家选择改编材料，**旧约束不凭空消失**，
+         *   不同角色的私有材料**互不共享**；取消本幕后**不留残留**。
+         *   操作类型：open / advance / release / cancel / pack / line / list
+         */
+        queryScene(op, payload) {
+            try {
+                const SO = _sceneOrchestratorLib();
+                if (!SO) return { ok: false, reason: 'module-unavailable', degraded: true };
+                const list = (this.worldProg && Array.isArray(this.worldProg.scenes)) ? this.worldProg.scenes : [];
+                const p = (payload && typeof payload === 'object') ? payload : {};
+                const _commit = (res) => {
+                    if (res && res.ok && Array.isArray(res.list)) {
+                        if (!this.worldProg) this.worldProg = {};
+                        this.worldProg.scenes = res.list;
+                    }
+                    return res;
+                };
+                if (op === 'open') {
+                    const scene = p.scene || p;
+                    const id = String(scene.id || p.id || '');
+                    if (!id) return { ok: false, reason: 'bad-shape', degraded: true };
+                    if (list.some((s) => s && s.id === id)) return { ok: false, reason: 'duplicate', degraded: true };
+                    const arr = list.concat([scene]);
+                    const res = { ok: true, reason: SO.SO_REASONS.OK, list: arr, scene: SO.normalizeScene(scene) };
+                    return _commit(res);
+                }
+                if (op === 'advance') return _commit(SO.advance(list, p.id, p.patch || {}));
+                if (op === 'release') return _commit(SO.releaseConstraint(list, p.id, p.text));
+                if (op === 'cancel') return _commit(SO.cancel(list, p.id));
+                if (op === 'pack') {
+                    const scene = SO.findScene(list, p.id);
+                    if (!scene) return { ok: false, reason: 'not-found', degraded: true };
+                    const res = SO.scenePack(scene, p.viewpoint || 'narrator', p.actor);
+                    return { ok: res.ok, pack: res.pack, reason: res.reason };
+                }
+                if (op === 'line') return { ok: true, line: SO.sceneLine(list) };
+                if (op === 'list') return { ok: true, scenes: SO.normalizeScenes(list), line: SO.sceneLine(list) };
+                return { ok: false, reason: 'unknown-op', degraded: true };
+            } catch (e) { errLog(e, 'plugin.queryScene'); return { ok: false, reason: 'thrown', degraded: true }; }
+        }
+        /**
          * [v3.305.0 · X9] 诊断一行。**三种坏法分开写**（本仓九账治理后的纪律）：
          *   模块没挂 / 能力缺一格 / 五格齐备 —— 后者报版本与自检读数。
          * 不在诊断行里跑真查询：查一次要扫九账全量，诊断面不许有这种副作用。
@@ -20951,6 +21212,27 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
      *   那会把「事实版本」与「时间坐标」两件事压成一件。故单独成模块。 */
     function _dualTimeLib() {
         return _moduleLib(() => window.LonShaDualTime, 'dual-time.js');
+    }
+    /* [v3.356.0 · M6-O2] 记忆问题求解器（evidence-solver.js）取库口。
+     *   为何不并进 qa-thread：qa-thread 管**问句条件继承**（代词、时点、比较轴），
+     *   本模块管**求解结构**（拆成多个子命题、连接支持与反证、缺环只给条件结论）。
+     *   两者口径不同域，并进去会让「继承来的条件」与「求出来的依据」互相覆盖。 */
+    function _evidenceSolverLib() {
+        return _moduleLib(() => window.LonShaEvidenceSolver, 'evidence-solver.js');
+    }
+    /* [v3.356.0 · M6-O3] 可展开的多分辨率记忆（resolution-ladder.js）取库口。
+     *   为何不并进 node-rollup / stm-ltm：那两者做的是**压缩**（把正文压成摘要），
+     *   本模块做的是**可逆展开协议**（概览/骨架/原话三层按预算选层、缺源与未展开分列）。
+     *   压缩决定「存什么」，展开决定「这一轮给哪一层」—— 判定对象不同。 */
+    function _resolutionLadderLib() {
+        return _moduleLib(() => window.LonShaResolutionLadder, 'resolution-ladder.js');
+    }
+    /* [v3.356.0 · M6-O6] 场景上下文编排（scene-orchestrator.js）取库口。
+     *   为何不并进 material-pack：material-pack 的四种任务是**静态选材**，
+     *   本模块管**幕次推进中的材料改编**（新增/退役、约束延续、私有视角隔离）。
+     *   前者是清单，后者是过程 —— 并进去会让「这一轮该有什么」与「这一幕怎么变」分不清。 */
+    function _sceneOrchestratorLib() {
+        return _moduleLib(() => window.LonShaSceneOrchestrator, 'scene-orchestrator.js');
     }
     // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
     //   M-X9 点名的五个 API 里，修前只有 explainRecall 有实现，其余四个名**全仓零命中** ——
