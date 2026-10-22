@@ -33,15 +33,15 @@ const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.p
  * A. 版本锚与契约基线
  * ================================================================ */
 describe('v3.357.0 版本锚', () => {
-    test('A1 index.js VERSION 常量升级为 3.357.0', () => {
+    test('A1 index.js VERSION 常量不低于 3.357.0', () => {
         const m = /const\s+VERSION\s*=\s*'([^']+)'/.exec(idxSrc);
         assert.ok(m, 'VERSION 未匹配');
-        assert.equal(m[1], '3.357.0');
+        assert.ok(vnum(m[1]) >= vnum('3.357.0'));
     });
 
-    test('A2 manifest.json 版本为 3.357.0 且登记 4 个批次 C 模块', () => {
+test('A2 manifest.json 版本不低于 3.357.0 且登记 4 个批次 C 模块', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
-        assert.equal(man.version, '3.357.0');
+        assert.ok(vnum(man.version) >= vnum('3.357.0'));
         assert.ok(man.extra_js.includes('autobiographical-memory.js'));
         assert.ok(man.extra_js.includes('relation-dynamics.js'));
         assert.ok(man.extra_js.includes('goal-reroute.js'));

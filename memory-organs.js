@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.357.0';
+let VERSION = '3.358.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1275,6 +1275,10 @@ class WorldProgress {
         this.solverThreads = [];
         this.resolutionLadder = [];
         this.scenes = [];
+        /* [v3.358.0 · M6-O8 / M6-X3 / M6-X5] 持续研究 / 条件推演 / 制度记忆。
+         *   ★ worldProg 子键是逐项枚举持久化的，不初始化 = 首轮读到 undefined。 */
+        this.researchInquiries = [];
+        this.institutions = [];
     }
 
     // ===== 约定账本 (Promises Ledger) =====
@@ -2186,6 +2190,9 @@ class WorldProgress {
             solverThreads: this.solverThreads || [],
             resolutionLadder: this.resolutionLadder || [],
             scenes: this.scenes || [],
+            /* [v3.358.0 · M6-O8 / M6-X5] 持续研究与制度记忆本体导出 */
+            researchInquiries: this.researchInquiries || [],
+            institutions: this.institutions || [],
             plotArcs: this.plotArcs || []
         };
     }
@@ -2234,7 +2241,61 @@ class WorldProgress {
             this.solverThreads = Array.isArray(data.solverThreads) ? data.solverThreads : [];
             this.resolutionLadder = Array.isArray(data.resolutionLadder) ? data.resolutionLadder : [];
             this.scenes = Array.isArray(data.scenes) ? data.scenes : [];
+            /* [v3.358.0 · M6-O8 / M6-X5] 持续研究与制度记忆导入 */
+            this.researchInquiries = Array.isArray(data.researchInquiries) ? data.researchInquiries : [];
+            this.institutions = Array.isArray(data.institutions) ? data.institutions : [];
         }
+    }
+    // [v3.358.0 · M6-O8] 持续研究记忆接口
+    _getResearchLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaContinuousResearch : (typeof globalThis !== 'undefined' ? globalThis.LonShaContinuousResearch : null)), 'continuous-research.js');
+    }
+    createResearchInquiry(spec) {
+        const lib = this._getResearchLib();
+        if (!lib || typeof lib.createInquiry !== 'function') return null;
+        const inq = lib.createInquiry(spec);
+        if (!Array.isArray(this.researchInquiries)) this.researchInquiries = [];
+        this.researchInquiries.push(inq);
+        return inq;
+    }
+    recomputeResearch(inquiryId, updateEvent) {
+        const lib = this._getResearchLib();
+        if (!lib || typeof lib.recomputeOnSourceUpdate !== 'function') return null;
+        const idx = this.researchInquiries.findIndex(x => x.inquiryId === inquiryId);
+        if (idx === -1) return null;
+        const updated = lib.recomputeOnSourceUpdate(this.researchInquiries[idx], updateEvent);
+        this.researchInquiries[idx] = updated;
+        return updated;
+    }
+    // [v3.358.0 · M6-X5] 群体与制度记忆接口
+    _getInstitutionLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaInstitutionalMemory : (typeof globalThis !== 'undefined' ? globalThis.LonShaInstitutionalMemory : null)), 'institutional-memory.js');
+    }
+    createInstitution(spec) {
+        const lib = this._getInstitutionLib();
+        if (!lib || typeof lib.createInstitution !== 'function') return null;
+        const inst = lib.createInstitution(spec);
+        if (!Array.isArray(this.institutions)) this.institutions = [];
+        this.institutions.push(inst);
+        return inst;
+    }
+    handoverInstitution(institutionId, handoverSpec) {
+        const lib = this._getInstitutionLib();
+        if (!lib || typeof lib.performLeaderHandover !== 'function') return null;
+        const idx = this.institutions.findIndex(x => x.institutionId === institutionId);
+        if (idx === -1) return null;
+        const updated = lib.performLeaderHandover(this.institutions[idx], handoverSpec);
+        this.institutions[idx] = updated;
+        return updated;
+    }
+    // [v3.358.0 · M6-X3] 条件后果推演接口
+    _getConsequenceLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaConditionalConsequence : (typeof globalThis !== 'undefined' ? globalThis.LonShaConditionalConsequence : null)), 'conditional-consequence.js');
+    }
+    projectActionConsequences(spec) {
+        const lib = this._getConsequenceLib();
+        if (!lib || typeof lib.projectActionConsequences !== 'function') return null;
+        return lib.projectActionConsequences(spec);
     }
 }
 

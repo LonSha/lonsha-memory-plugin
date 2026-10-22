@@ -1,3 +1,13 @@
+## v3.358.0
+**第六期批次 D 三项（M6-O8 持续研究记忆 / M6-X3 条件后果推演 / M6-X5 群体与制度记忆）**
+★ **本版做什么（三个纯函数/纯契约内核 IIFE 零依赖 + WorldProgress 器官集成 + 退路类全覆盖，不建第二套账）**：
+ · **M6-O8** 新模块 `continuous-research.js`：从整篇重写升级为将专题组织为问题—主张—证据/反证—未决条件网络。★ **局部依赖重算**：资料更新时仅标记并重算受影响的主张（通过 docId 与 sectionIds 匹配），无关主张保持原状；★ **作者论述正文保护**：用户编辑过的论述正文绝不被资料更新静默覆盖，新建议仅输出在 suggestedRevisions；★ **矛盾版本并存**：相互矛盾的不同版本资料在作者裁定前保持并存，系统不越俎代庖裁定；★ **断点接续**：重开后从研究问题与未决条件无缝继续。
+ · **M6-X3** 新模块 `conditional-consequence.js`：从自动续写确定未来，到在作者作选择前展示有依据的延迟影响。★ **动作后果投影**：输出直接变化、条件性后续、可能失去的选项与未知项；★ **承诺冲突张力模型**：接下两项冲突承诺时展示时间占用与风险，绝不提前判定为已违约（isBreached: false）；★ **动态解脱**：新证据解除冲突后张力自适应消除；★ **拒绝伪精确**：未提供规则的动作保持 unknown，不臆造虚假概率；★ **有界深度**：maxDepth 控制推演防组合爆炸。
+ · **M6-X5** 新模块 `institutional-memory.js`：从所有人知道同一件事，升级为以组织实体管理职责、任期、决议、惯例与换届。★ **组织实体与任期**：记录机构角色、职责与历史任期；★ **群体制度与私人秘密物理隔离**：组织事实与个人私密分开存储；★ **临时决议日落规则**：临时决议到期失效，严禁提升为永久规则；★ **换届交接防泄露**：交接公共职责与有效决议，严禁继承前任私人秘密；★ **同名分会独立隔离**：跨卷跨地域分会严格隔离。
+★ **宿主接线与器官集成**：在 `memory-organs.js` 为 `WorldProgress` 挂载 `createResearchInquiry` / `recomputeResearch` / `createInstitution` / `handoverInstitution` / `projectActionConsequences`；`researchInquiries` 与 `institutions` 纳入 export/import 原生持久化；在 `index.js` 退路类补齐 8 个相关方法降级桩（杜绝 TypeError）。
+★ **定向复验**：`tests/v3580_m6_batch_d.test.mjs`（**21 条全绿**）：A 版本锚 4 / B M6-O8 内核 4 / C M6-X3 内核 4 / D M6-X5 内核 4 / E WorldProgress 宿主集成 2 / F 负控制 3（真实源码破坏）。
+★ **版本纪律**：六源同源（manifest / package / index.js / memory-core.js / memory-config.js / memory-organs.js）同步抬到 3.358.0。
+
 ## v3.357.0
 **第六期批次 C 四项（M6-O4 人物自传式记忆 / M6-O7 关系动力记忆 / M6-O9 长期意图推进与改道 / M6-X1/X2/X7 心智与行动扩展）**
 ★ **本版做什么（四个纯函数/纯契约内核 IIFE 零依赖 + CharacterMemoryBank 器官集成 + 退路类全覆盖，不建第二套账）**：
