@@ -92,6 +92,12 @@ const ALIAS_LEDGER = [
     ['arr', ['_num', '_num0'], ['cost-forecast.js', 'projection-pipeline.js'], 60, '885d07fc'],
     ['fn', ['_text', 'txt'], ['sleep-awaken.js', 'world-ledger-reader.js'], 56, 'c590df35'],
     ['fn', ['normOp', 'normRef', 'normStr'], ['changeset.js', 'fuzzy-patch.js', 'index.js', 'relation-disclosure.js'], 34, '311c820d'],
+    /* [v3.355.0 · M6-O1/M6-O5] 同一个「文本化」体在五份模块里挂了**两个**名字：三个既有模块叫
+     *   `normStr`、两个新内核叫 `str` —— 名字不同，故按**名**配对的三层判据（v3280/v3281）整片看不见它，
+     *   正落入本档射程。★ 判据真抓到东西（B1 当场报「新增未登记的别名副本」），不是为过门禁而补登记。
+     *   **为什么留多份**：两个新内核是零依赖纯函数 IIFE，档头声明不引兄弟模块常量（理由与既有
+     *   PRECHECK/PREVIEW、keyOf/strOf 簇同族）—— 收拢即引入跨模块静默读旧值。 */
+    ['fn', ['normStr', 'str'], ['coverage-ledger.js', 'dual-time.js', 'experience-rebuild.js', 'recall-artifact.js', 'task-inbox.js'], 41, 'db249204'],
     /* X6/X7：同一个「预检三档」体在两个新模块里挂了两个名字 —— 名字不同，故三层按名配对的
      *   判据（v3280/v3281）整片看不见它，正落入本档射程。两模块刻意各持一份（见 v3281 同簇留痕）。 */
     /* [v3.327.0 · E 包记忆侧] lore-import.js / story-annual.js 各持一份与 X6/X7/X8 同形同值的

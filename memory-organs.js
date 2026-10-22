@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.353.0';
+let VERSION = '3.355.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1179,6 +1179,11 @@ class WorldProgress {
         this._secretRead = { rendered: 0, withheld: 0, known: 0, notKnower: 0, undecided: 0, noViewer: 0, malformed: 0, owners: 0 };
         // [v3.41] 吸收 Stitches: 剧情支线生命周期与衰减时钟 (Plot Arcs)
         this.plotArcs = []; // [{ id, title, clue, lastActiveFloor, status: 'active'|'shelved'|'resolved', interestedBy }]
+        /* [v3.355.0 · M6-O1/M6-O5] 连续经历单元 + 双时间坐标。
+         *   ★ 必须在此显式初始化：worldProg 子键是逐项枚举持久化的，
+         *     不初始化 = 首轮读到 undefined，而 undefined 与「真的没有」同形。 */
+        this.experiences = [];
+        this.timeCoords = [];
     }
 
     // ===== 约定账本 (Promises Ledger) =====
@@ -2075,6 +2080,13 @@ class WorldProgress {
              *   这边是「提过没有 / 算不算真用」);并进去会让冷却判据与回扣判据互相污染。
              *   与既有同族一致:导出**状态本体**(不是读数)—— 冷却判定依赖逐条 marks。 */
             returnGate: this.returnGate || null,
+            /* [v3.355.0 · M6-O1/M6-O5] 经历单元与双时间坐标随世界推进持久化。
+             *   为何不并进 promises / plotArcs：那两账的键是「约定」与「支线」，
+             *   本格的键是「一件被重建出来的事 + 逐段来源」，并进去会互相污染。
+             *   双时间同理：它多了「何时知道」这一维，与 knowledge 二维键不同域。
+             *   ★ 两格导出**状态本体**（非读数）：重建与投影都依赖逐条引用/坐标。 */
+            experiences: this.experiences || [],
+            timeCoords: this.timeCoords || [],
             plotArcs: this.plotArcs || []
         };
     }
@@ -2112,6 +2124,11 @@ class WorldProgress {
             this.returnGate = (data.returnGate && typeof data.returnGate === 'object')
                 ? data.returnGate : null;
             this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
+            /* [v3.355.0 · M6-O1/M6-O5] 两格导入：畸形一律回落空账（与同族口径）。
+             *   不逐字段校验：合法性由内核 normalize 每次读取时归一，
+             *   在此再校一遍即第二套判据（两边不同步就静默漂移）。 */
+            this.experiences = Array.isArray(data.experiences) ? data.experiences : [];
+            this.timeCoords = Array.isArray(data.timeCoords) ? data.timeCoords : [];
         }
     }
 }

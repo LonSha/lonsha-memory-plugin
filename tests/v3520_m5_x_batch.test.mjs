@@ -15,18 +15,28 @@ const CL = require('../commitment-ledger.js');
 const VERSION_RE = /const\s+VERSION\s*=\s*'([^']+)'/;
 const idxSrc = fs.readFileSync('./index.js', 'utf8');
 
+/* 【当版锚点】本档自锚常量 BORN_V + vnum（锚必须住在当版档案里，供版本守卫 V4 计数）。 */
+const BORN_V = '3.353.0';
+const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
+
 /* ================================================================
  * A. 版本锚
  * ================================================================ */
 describe('v3.353.0 版本锚', () => {
-    test('VERSION 常量为 3.353.0', () => {
+    test('VERSION 常量不低于本档出生版本', () => {
         const m = VERSION_RE.exec(idxSrc);
         assert.ok(m, 'VERSION 常量未找到');
-        assert.equal(m[1], '3.353.0', `VERSION 应为 3.353.0，实际 ${m[1]}`);
+        assert.ok(vnum(m[1]) >= vnum(BORN_V),
+            `VERSION 应 >= ${BORN_V}（本档出生版本），实际 ${m[1]}`);
     });
-    test('manifest.json 版本为 3.353.0', () => {
+    test('manifest.json 版本不低于本档出生版本', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
-        assert.equal(man.version, '3.353.0');
+        assert.ok(vnum(man.version) >= vnum(BORN_V),
+            `manifest 版本应 >= ${BORN_V}，实际 ${man.version}`);
+    });
+    test('自锚常量 BORN_V 恰是本档出生版本（下界口径，不锁当版）', () => {
+        assert.ok(vnum(BORN_V) <= vnum('3.353.0'), '自锚不得承诺未来版');
+        assert.ok(vnum(BORN_V) >= vnum('3.353.0'), '自锚不得低于本档出生版本');
     });
     test('goal-tracker.js 在 manifest extra_js 中', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));

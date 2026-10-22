@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 81074,
+  "ceiling": 82321,
   "maxSlack": 400,
-  "note": "v3.353.0 第四包新增 impact-preview.js(103行) + hypothesis-workspace.js(142行) + research-collection.js(165行) + scene-book.js whereaboutsOf(87行) + index.js 接线(114行)",
+  "note": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）：新增两个内核模块 experience-rebuild.js（33791B）与 dual-time.js（19651B），均为**活跃功能**（连续经历重建单元 / 三轴双时间坐标），宿主侧增两个取库口 + 两个宿主出口 + selfCheck 两行。属活跃功能增长、非死代码回流。",
   "history": [
     {
       "ceiling": 21000,
@@ -365,7 +365,11 @@
     {
       "ceiling": 81074,
       "reason": "v3.353.0 第四包新增 impact-preview.js(103行) + hypothesis-workspace.js(142行) + research-collection.js(165行) + scene-book.js whereaboutsOf(87行) + index.js 接线(114行)"
+    },
+    {
+      "ceiling": 82321,
+      "reason": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）：新增两个内核模块 experience-rebuild.js（33791B）与 dual-time.js（19651B），均为**活跃功能**（连续经历重建单元 / 三轴双时间坐标），宿主侧增两个取库口 + 两个宿主出口 + selfCheck 两行。属活跃功能增长、非死代码回流。"
     }
   ],
-  "_history_last": "ceiling 79544 → 81074（实测 80674 + slack 400）：v3.353.0 第四包新增 impact-preview.js(103行) + hypothesis-workspace.js(142行) + research-collection.js(165行) + scene-book.js whereaboutsOf(87行) + index.js 接线(114行)"
+  "_history_last": "ceiling 81074 → 82321（实测 81921 + slack 400）：[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）：新增两个内核模块 experience-rebuild.js（33791B）与 dual-time.js（19651B），均为**活跃功能**（连续经历重建单元 / 三轴双时间坐标），宿主侧增两个取库口 + 两个宿主出口 + selfCheck 两行。属活跃功能增长、非死代码回流。"
 }

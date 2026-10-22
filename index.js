@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.354.0';
+    const VERSION = '3.355.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -13095,6 +13095,26 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                             return ['研究集合', RC.line(rawState)];
                         } catch (e) { errLog(e, 'selfCheck.researchCollection'); return ['研究集合', '—（诊断异常）']; }
                     })(),
+                        /* [v3.355.0 · M6-O1/M6-O5] 两个新面的体检行。
+                         *   经历重建：回答「有几件事、几件完整、几处缺口」；
+                         *   双时间：回答「有几个坐标、几个轴不一致、几个版本冲突」。
+                         *   ★ 两行都读真存的状态本体（不造假读数）：空账就如实报「暂无」。 */
+                        (() => {
+                                try {
+                                    const ER = _experienceRebuildLib();
+                                    if (!ER || typeof ER.experienceLine !== 'function') return ['经历重建', '模块未加载(experience-rebuild.js)'];
+                                    const rawList = (this.worldProg && Array.isArray(this.worldProg.experiences)) ? this.worldProg.experiences : [];
+                                    return ['经历重建', ER.experienceLine(rawList)];
+                            } catch (e) { errLog(e, 'selfCheck.experienceRebuild'); return ['经历重建', '—（诊断异常）']; }
+                        })(),
+                        (() => {
+                                try {
+                                    const DT = _dualTimeLib();
+                                    if (!DT || typeof DT.line !== 'function') return ['双时间', '模块未加载(dual-time.js)'];
+                                    const rawList = (this.worldProg && Array.isArray(this.worldProg.timeCoords)) ? this.worldProg.timeCoords : [];
+                                    return ['双时间', DT.line(rawList)];
+                            } catch (e) { errLog(e, 'selfCheck.dualTime'); return ['双时间', '—（诊断异常）']; }
+                        })(),
                 ];
                 // [v3.328.0 · F 包 M3-X6] 支线正史体检面:与「分支对照」**分列**。
                 //   对照行答「两条分支的面差在哪」,本行答「哪一条算数」——合成一行会让
@@ -16969,6 +16989,90 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             } catch (e) { errLog(e, 'plugin.queryResearchCollection'); return { ok: false, reason: 'thrown', degraded: true }; }
         }
         /**
+         * [v3.355.0 · M6-O1] 连续经历重建面。
+         *   把散落往事召回成**一件完整的事**：逐段有出处、缺哪段能说出来、
+         *   用户拆开误并的经历后不再被下一条自动引用缝回。
+         *   操作类型：open / addRef / retract / confirm / mergeCandidates / applyMerge /
+         *            split / rebuild / expand / locate / line / list
+         *   ★ 宿主只做三件事：装配、转发、降级（与 queryResearchCollection 同口径）。
+         *   判据全在内核：「何时算完成」「何时算可提交候选」「拆开后往哪归」均不在此重写。
+         */
+        queryExperience(op, payload) {
+            try {
+                const ER = _experienceRebuildLib();
+                if (!ER) return { ok: false, reason: 'module-unavailable', degraded: true };
+                const list = (this.worldProg && Array.isArray(this.worldProg.experiences)) ? this.worldProg.experiences : [];
+                const p = (payload && typeof payload === 'object') ? payload : {};
+                const _commit = (res) => {
+                    if (res && res.ok && Array.isArray(res.list)) {
+                        if (!this.worldProg) this.worldProg = {};
+                        this.worldProg.experiences = res.list;
+                    }
+                    return res;
+                };
+                if (op === 'open') return _commit(ER.openExperience(list, p.title, p.seed || p, Date.now()));
+                if (op === 'addRef') return _commit(ER.addRef(list, p.id || p.expId, p.ref || p, Date.now()));
+                if (op === 'retract') return _commit(ER.retractRef(list, p.id || p.expId, p.refId, p.source));
+                if (op === 'confirm') return _commit(ER.confirmExperience(list, p.id || p.expId, Date.now()));
+                if (op === 'applyMerge') return _commit(ER.applyMerge(list, p.aId, p.bId));
+                if (op === 'split') return _commit(ER.splitExperience(list, p.id || p.expId, p.keepRefIds, Date.now()));
+                if (op === 'mergeCandidates') return { ok: true, candidates: ER.mergeCandidates(list) };
+                if (op === 'rebuild') return ER.rebuildOf(list, p.id || p.expId);
+                if (op === 'expand') return ER.expandExperience(list, p.id || p.expId);
+                if (op === 'locate') return { ok: true, hits: ER.locateExperiences(list, p.query || p) };
+                if (op === 'line') return { ok: true, line: ER.experienceLine(list) };
+                if (op === 'list') return { ok: true, experiences: ER.normalizeExperiences(list), line: ER.experienceLine(list) };
+                return { ok: false, reason: 'unknown-op', degraded: true };
+            } catch (e) { errLog(e, 'plugin.queryExperience'); return { ok: false, reason: 'thrown', degraded: true }; }
+        }
+        /**
+         * [v3.355.0 · M6-O5] 双时间经历面。
+         *   三个坐标：事件有效时间 occurred / 文本披露时间 disclosed / 角色获知时间 learned。
+         *   三者**可连接但不互相代替**：缺哪个就是缺哪个，不用另一个推。
+         *   操作类型：upsert / find / visibleAt / projectAt / orderOf / disclosedFromClock / line / list
+         *   ★ projectAt 是查询/年鉴/场景材料**共用的同一处投影**，宿主不另写一份。
+         */
+        queryDualTime(op, payload) {
+            try {
+                const DT = _dualTimeLib();
+                if (!DT) return { ok: false, reason: 'module-unavailable', degraded: true };
+                const list = (this.worldProg && Array.isArray(this.worldProg.timeCoords)) ? this.worldProg.timeCoords : [];
+                const p = (payload && typeof payload === 'object') ? payload : {};
+                const _commit = (res) => {
+                    if (res && res.ok && Array.isArray(res.list)) {
+                        if (!this.worldProg) this.worldProg = {};
+                        this.worldProg.timeCoords = res.list;
+                    }
+                    return res;
+                };
+                if (op === 'upsert') return _commit(DT.upsertCoord(list, p.coord || p));
+                if (op === 'find') return { ok: true, coord: DT.findCoord(list, p.subject, p.actor) };
+                if (op === 'visibleAt') {
+                    const c = p.coord || DT.findCoord(list, p.subject, p.actor);
+                    if (!c) return { ok: false, reason: 'not-found' };
+                    return { ok: true, at: DT.visibleAt(c, p.floor) };
+                }
+                if (op === 'projectAt') return Object.assign({ ok: true }, DT.projectAt(list, p.floor, { actor: p.actor }));
+                if (op === 'orderOf') {
+                    const ca = p.a || DT.findCoord(list, p.subjectA, p.actorA);
+                    const cb = p.b || DT.findCoord(list, p.subjectB, p.actorB);
+                    return { ok: true, order: DT.orderOf(ca, cb) };
+                }
+                if (op === 'disclosedFromClock') return { ok: true, key: DT.disclosedFromClock(p.clock || p) };
+                /* ★ 历史视角取「当时那一个版本」（本版判据抓到的真缺陷后补的出口）：
+                 *   只存版本字符串时，「第 110 楼当时读到哪个版本」无法回答；
+                 *   versionAt 三种回答分开：版本字符串 / not-yet（尚未获知）/ unknown（版本时间未知）。 */
+                if (op === 'versionAt') {
+                    const c = p.coord || DT.findCoord(list, p.subject, p.actor);
+                    if (!c) return { ok: false, reason: 'not-found' };
+                    return Object.assign({ ok: true }, DT.versionAt(c, p.floor));
+                }
+                if (op === 'line') return { ok: true, line: DT.line(list) };
+                if (op === 'list') return { ok: true, coords: DT.normalizeCoords(list), line: DT.line(list) };
+                return { ok: false, reason: 'unknown-op', degraded: true };
+            } catch (e) { errLog(e, 'plugin.queryDualTime'); return { ok: false, reason: 'thrown', degraded: true }; }
+        }
+        /**
          * [v3.305.0 · X9] 诊断一行。**三种坏法分开写**（本仓九账治理后的纪律）：
          *   模块没挂 / 能力缺一格 / 五格齐备 —— 后者报版本与自检读数。
          * 不在诊断行里跑真查询：查一次要扫九账全量，诊断面不许有这种副作用。
@@ -20833,6 +20937,20 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   不复制全文，只存引用；结论每句有来源；移除资料后标记需复核。
     function _researchCollectionLib() {
         return _moduleLib(() => window.LonShaResearchCollection, 'research-collection.js');
+    }
+    /* [v3.355.0 · M6-O1] 连续经历重建（experience-rebuild.js）取库口。
+     *   为何另开一个模块而不并进 event-completeness：那个模块答「单件事四段齐不齐」，
+     *   本模块答「几个段落是不是同一件事、能不能拼成一件完整的事」。
+     *   两者共用四段词汇（cause/action/result/followup）但**判定对象不同**：后者按楼层顺序，本模块按来源进来。 */
+    function _experienceRebuildLib() {
+        return _moduleLib(() => window.LonShaExperienceRebuild, 'experience-rebuild.js');
+    }
+    /* [v3.355.0 · M6-O5] 双时间坐标（dual-time.js）取库口。
+     *   为何不用 fact-version 的 occurredAt/learnedAt：它的 normalize 只保留 id/subject/predicate/value，
+     *   自造时间字段会在归一时被彻底丢掉（存盘即失）。又不能改它：
+     *   那会把「事实版本」与「时间坐标」两件事压成一件。故单独成模块。 */
+    function _dualTimeLib() {
+        return _moduleLib(() => window.LonShaDualTime, 'dual-time.js');
     }
     // [v3.305.0 · X9] 统一记忆工具 API（memory-tools-api.js）。为什么需要：
     //   M-X9 点名的五个 API 里，修前只有 explainRecall 有实现，其余四个名**全仓零命中** ——

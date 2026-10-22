@@ -1,7 +1,7 @@
 {
  "file": "tests/audit/host_beast_baseline.json",
  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
- "measured_at": "v3.353.0",
+ "measured_at": "v3.355.0",
  "rebuilds": {
   "v3.233.0": {
    "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2555,6 +2555,38 @@
     "member_count": 8,
     "top5_pct": 0.0
    }
+  },
+  "v3.355.0": {
+   "reason": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）的宿主接线：新增两个内核模块 experience-rebuild.js 与 dual-time.js（extra_js 117 -> 119），index.js 增两个取库口（_experienceRebuildLib / _dualTimeLib）、两个宿主出口（queryExperience 十二 op / queryDualTime 八 op，含 versionAt）、selfCheck 面板增「连续经历」「双时间」两行；memory-organs.js 的 WorldProgress 增 experiences / timeCoords 两子键（构造器 / export / import 三处成对登记，不登记即存盘即丢、读档即空）。本版增量为**活跃功能增长**、非死代码回流；新模块本体不进宿主基线（基线只量 index.js）。行上界按「实测 + slack」贴回。",
+   "readings": {
+    "total_lines": 22428,
+    "member_count": 809,
+    "duplicate_member_names": 25,
+    "top5_lines": 5295,
+    "top5_pct": 23.6,
+    "top40_lines": 11424,
+    "top40_pct": 50.9,
+    "prefix_rule_coverage_lines": 5614,
+    "prefix_rule_coverage_pct": 25.0,
+    "unclassified_lines": 15835,
+    "seam_distinct_modules": 88,
+    "seam_reference_sites": 124,
+    "seam_call_shape_sites": 128,
+    "members_over_80_lines": 43,
+    "low_coupling_members": 32,
+    "high_coupling_members": 7
+   },
+   "unchanged": [
+    "TOP40 头名仍是生命周期接线 `onMessageReceived`",
+    "本版只量不拆"
+   ],
+   "not_done": "本版仍未拆任何东西：只把新接线按读数并入基线。「按域拆」的形态决策沿用 v3.233.0 的按读数否掉。",
+   "delta_from": "v3.355.0",
+   "delta": {
+    "total_lines": 0,
+    "member_count": 0,
+    "top5_pct": 0.0
+   }
   }
  },
  "node_version": "v24.18.0",
@@ -2566,56 +2598,56 @@
   "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
  ],
  "readings": {
-  "total_lines": 22310,
-  "member_count": 807,
+  "total_lines": 22428,
+  "member_count": 809,
   "duplicate_member_names": 25,
-  "top5_lines": 5261,
+  "top5_lines": 5295,
   "top5_pct": 23.6,
-  "top40_lines": 11390,
-  "top40_pct": 51.1,
-  "prefix_rule_coverage_lines": 5520,
-  "prefix_rule_coverage_pct": 24.7,
-  "unclassified_lines": 15519,
-  "seam_distinct_modules": 82,
-  "seam_reference_sites": 116,
-  "seam_call_shape_sites": 120,
-  "members_over_80_lines": 42,
-  "low_coupling_members": 31,
+  "top40_lines": 11424,
+  "top40_pct": 50.9,
+  "prefix_rule_coverage_lines": 5614,
+  "prefix_rule_coverage_pct": 25.0,
+  "unclassified_lines": 15835,
+  "seam_distinct_modules": 88,
+  "seam_reference_sites": 124,
+  "seam_call_shape_sites": 128,
+  "members_over_80_lines": 43,
+  "low_coupling_members": 32,
   "high_coupling_members": 7
  },
  "domains": [
   {
    "domain": "（未归类）",
-   "members": 756,
-   "lines": 15519,
-   "lines_pct": 70.5,
-   "outside_refs": 7491,
-   "internal_refs": 2216,
-   "outside_ref_share_pct": 77.2
+   "members": 766,
+   "lines": 15835,
+   "lines_pct": 70.6,
+   "outside_refs": 7695,
+   "internal_refs": 2234,
+   "outside_ref_share_pct": 77.5
   },
   {
    "domain": "宿主事件接线",
    "members": 3,
-   "lines": 1912,
-   "lines_pct": 8.7,
+   "lines": 1929,
+   "lines_pct": 8.6,
    "outside_refs": 5,
-   "internal_refs": 76,
-   "outside_ref_share_pct": 6.2
+   "internal_refs": 77,
+   "outside_ref_share_pct": 6.1
   },
   {
    "domain": "诊断与导出",
    "members": 10,
-   "lines": 1805,
-   "lines_pct": 8.2,
-   "outside_refs": 418,
-   "internal_refs": 492,
-   "outside_ref_share_pct": 45.9
+   "lines": 1868,
+   "lines_pct": 8.3,
+   "outside_refs": 424,
+   "internal_refs": 493,
+   "outside_ref_share_pct": 46.2
   },
   {
    "domain": "召回与注入",
    "members": 13,
    "lines": 1034,
-   "lines_pct": 4.7,
+   "lines_pct": 4.6,
    "outside_refs": 5,
    "internal_refs": 67,
    "outside_ref_share_pct": 6.9
@@ -2623,7 +2655,7 @@
   {
    "domain": "配置与持久化",
    "members": 3,
-   "lines": 476,
+   "lines": 490,
    "lines_pct": 2.2,
    "outside_refs": 22,
    "internal_refs": 0,
@@ -2633,7 +2665,7 @@
    "domain": "桥/快照出口",
    "members": 2,
    "lines": 211,
-   "lines_pct": 1,
+   "lines_pct": 0.9,
    "outside_refs": 3,
    "internal_refs": 4,
    "outside_ref_share_pct": 42.9
@@ -2678,8 +2710,8 @@
  "biggest_members_top40": [
   {
    "name": "selfCheck",
-   "lines": 1451,
-   "outside_refs": 102
+   "lines": 1471,
+   "outside_refs": 106
   },
   {
    "name": "onMessageReceived",
@@ -2698,7 +2730,7 @@
   },
   {
    "name": "typedFactsBlocks",
-   "lines": 649,
+   "lines": 663,
    "outside_refs": 0
   },
   {
@@ -2859,7 +2891,7 @@
   {
    "name": "summary",
    "lines": 100,
-   "outside_refs": 284
+   "outside_refs": 292
   },
   {
    "name": "_materialInventory",
@@ -2879,8 +2911,8 @@
  ],
  "split_candidates": {
   "threshold_lines": 80,
-  "total_over_threshold": 42,
-  "low_coupling_non_lifecycle": 31,
+  "total_over_threshold": 43,
+  "low_coupling_non_lifecycle": 32,
   "high_coupling_non_lifecycle": 7,
   "low_coupling_examples": [
    {
@@ -2891,7 +2923,7 @@
    },
    {
     "name": "typedFactsBlocks",
-    "lines": 623,
+    "lines": 663,
     "outside_refs": 0,
     "is_host_lifecycle": false
    },
@@ -2959,8 +2991,8 @@
   "high_coupling_examples": [
    {
     "name": "selfCheck",
-    "lines": 1408,
-    "outside_refs": 100,
+    "lines": 1471,
+    "outside_refs": 106,
     "is_host_lifecycle": false
    },
    {
@@ -2971,7 +3003,7 @@
    },
    {
     "name": "saveConfig",
-    "lines": 474,
+    "lines": 488,
     "outside_refs": 12,
     "is_host_lifecycle": false
    },
@@ -2996,7 +3028,7 @@
    {
     "name": "summary",
     "lines": 100,
-    "outside_refs": 282,
+    "outside_refs": 292,
     "is_host_lifecycle": false
    }
   ]
@@ -3037,9 +3069,9 @@
  "line_budget": {
   "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
   "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-  "ceiling": 22710,
+  "ceiling": 22828,
   "maxSlack": 400,
-  "note": "[v3.353.0] M5-X3/X6/X7/X9: index.js +3 libPort +5 hostExit +3 selfCheck; new modules impact-preview/hypothesis-workspace/research-collection; scene-book whereaboutsOf. extra_js 113->117. Active growth. ceiling 22310+400=22710.",
+  "note": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）的宿主接线：新增两个内核模块 experience-rebuild.js 与 dual-time.js（extra_js 117 -> 119），index.js 增两个取库口（_experienceRebuildLib / _dualTimeLib）、两个宿主出口（queryExperience 十二 op / queryDualTime 八 op，含 versionAt）、selfCheck 面板增「连续经历」「双时间」两行；memory-organs.js 的 WorldProgress 增 experiences / timeCoords 两子键（构造器 / export / import 三处成对登记，不登记即存盘即丢、读档即空）。本版增量为**活跃功能增长**、非死代码回流；新模块本体不进宿主基线（基线只量 index.js）。行上界按「实测 + slack」贴回。",
   "history": [
    {
     "ceiling": 15000,
@@ -3243,6 +3275,16 @@
     "ceiling": 22710,
     "member_ceiling": 823,
     "reason": "[v3.353.0] M5-X3/X6/X7/X9: index.js +3 libPort +5 hostExit +3 selfCheck; new modules impact-preview/hypothesis-workspace/research-collection; scene-book whereaboutsOf. extra_js 113->117. Active growth. ceiling 22310+400=22710."
+   },
+   {
+    "ceiling": 22828,
+    "reason": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）的宿主接线：新增两个内核模块 experience-rebuild.js 与 dual-time.js（extra_js 117 -> 119），index.js 增两个取库口（_experienceRebuildLib / _dualTimeLib）、两个宿主出口（queryExperience 十二 op / queryDualTime 八 op，含 versionAt）、selfCheck 面板增「连续经历」「双时间」两行；memory-organs.js 的 WorldProgress 增 experiences / timeCoords 两子键（构造器 / export / import 三处成对登记，不登记即存盘即丢、读档即空）。本版增量为**活跃功能增长**、非死代码回流；新模块本体不进宿主基线（基线只量 index.js）。行上界按「实测 + slack」贴回。",
+    "member_ceiling": 823
+   },
+   {
+    "ceiling": 22828,
+    "reason": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）的宿主接线：新增两个内核模块 experience-rebuild.js 与 dual-time.js（extra_js 117 -> 119），index.js 增两个取库口（_experienceRebuildLib / _dualTimeLib）、两个宿主出口（queryExperience 十二 op / queryDualTime 八 op，含 versionAt）、selfCheck 面板增「连续经历」「双时间」两行；memory-organs.js 的 WorldProgress 增 experiences / timeCoords 两子键（构造器 / export / import 三处成对登记，不登记即存盘即丢、读档即空）。本版增量为**活跃功能增长**、非死代码回流；新模块本体不进宿主基线（基线只量 index.js）。行上界按「实测 + slack」贴回。",
+    "member_ceiling": 823
    }
   ],
   "member_ceiling": 823,
