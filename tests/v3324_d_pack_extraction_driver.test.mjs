@@ -39,6 +39,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const ED_SRC = read('extraction-driver.js');
@@ -306,20 +307,53 @@ function sliceMember(src, header) {
     }
     return null;
 }
+/** 从 engine-diagnostic-lines.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 const LIB_HEADS = ['function _moduleLib(getGlobal, fileName) {', 'function _extractionDriverLib() {',
     'function _correctionPlanLib() {'];
 const METH_HEADS = ['_extractionWindowFloors(...args) {', 'extractionPlan(...args) {', '_extractionDriverLine(...args) {',
     'correctionPlanReextract(...args) {', 'correctionPlanConfig(...args) {',
     '_correctionPlanLine(...args) {'];
 /** 装配真宿主出口（缺一即抛，不静默降级成空壳）。 */
-function mkHost(win, src) {
+function mkHost(win, src, dlSrc) {
+    /* [v3.361.0 剥离] 方法体从 DL 提取(engine.→this.)，*Lib() 从 window 取模块 */
     const idx = src || IDX;
-    const libs = LIB_HEADS.map((h) => sliceMember(idx, h));
-    if (libs.some((x) => !x)) throw new Error('取库口切片缺失：' + LIB_HEADS.filter((h, i) => !libs[i]).join(' / '));
-    const meths = METH_HEADS.map((h) => sliceMember(idx, h));
-    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失：' + METH_HEADS.filter((h, i) => !meths[i]).join(' / '));
+    const dl = dlSrc || DL;
+    const moduleLibFn = sliceMember(idx, 'function _moduleLib(getGlobal, fileName) {');
+    if (!moduleLibFn) throw new Error('取库口切片缺失：_moduleLib');
+    const dlFuncs = [
+        'function _extractionDriverLib() { return (typeof window !== "undefined" && window.LonShaExtractionDriver) ? window.LonShaExtractionDriver : null; }',
+        'function _correctionPlanLib() { return (typeof window !== "undefined" && window.LonShaCorrectionPlan) ? window.LonShaCorrectionPlan : null; }',
+    ];
+    const meths = [
+        extractModuleMethod(dl, 'function _extractionWindowFloors(engine, message) {'),
+        extractModuleMethod(dl, 'function extractionPlan(engine, opts) {'),
+        extractModuleMethod(dl, 'function _extractionDriverLine(engine) {'),
+        extractModuleMethod(dl, 'function correctionPlanReextract(engine, input, opts) {'),
+        extractModuleMethod(dl, 'function correctionPlanConfig(engine, feedback, trace, opts) {'),
+        extractModuleMethod(dl, 'function _correctionPlanLine(engine) {'),
+    ];
+    if (meths.some((x) => !x)) throw new Error('DL 方法体提取缺失');
     return new Function('errLog', 'window',
-        libs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });')(() => {}, win);
+        moduleLibFn + '\n' + dlFuncs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });')(() => {}, win);
 }
 const WIN_FULL = () => ({ LonShaExtractionDriver: ED, LonShaCorrectionPlan: CP });
 const HOST_CHAT = () => [
@@ -343,13 +377,13 @@ function winWith(chat, withLibs) {
     return w;
 }
 /** 装配「在场宿主」：真 window（含酒馆上下文）+ 方法侧状态。 */
-function mkSelf(src, chat, withLibs) {
-    return Object.assign(mkHost(winWith(chat, withLibs !== false), src), hostState());
+function mkSelf(src, chat, withLibs, dlSrc) {
+    return Object.assign(mkHost(winWith(chat, withLibs !== false), src, dlSrc), hostState());
 }
 /** 判据 C1：恒定键面（缺席与在场逐字同键）+ 缺席是真读数 + 不抛。 */
-function hostJudgeFace(src) {
-    const self = Object.assign(mkHost(WIN_FULL(), src), hostState());
-    const eng = Object.assign(mkHost({}, src), hostState());
+function hostJudgeFace(src, dlSrc) {
+    const self = Object.assign(mkHost(WIN_FULL(), src, dlSrc), hostState());
+    const eng = Object.assign(mkHost({}, src, dlSrc), hostState());
     const pairs = [
         [self.extractionPlan({ floor: 5, entries: [] }), eng.extractionPlan({ floor: 5, entries: [] }), 'extractionPlan'],
         [self.correctionPlanReextract({ range: { from: 1, to: 3 }, newFacts: [], oldFacts: [] }, {}),
@@ -441,19 +475,21 @@ function hostJudgeCallSite(src) {
     return { omrLen: omr.length };
 }
 /** 判据 C5：两诊断行**真跑出口**（出口必须有真实调用者 —— 本仓定性的功能级失效形态）。 */
-function hostJudgeLinesCallExits(src) {
-    for (const [header, called] of [['_extractionDriverLine(...args) {', 'this.extractionPlan('],
-        ['_correctionPlanLine() {', 'this.correctionPlanReextract(']]) {
-        const body = sliceMember(src, header);
+function hostJudgeLinesCallExits(src, dlSrc) {
+    const dl = dlSrc || DL;
+    for (const [header, called] of [['_extractionDriverLine(engine) {', 'engine.extractionPlan('],
+        ['_correctionPlanLine(engine) {', 'engine.correctionPlanReextract(']]) {
+        const body = sliceMember(dl, header);
         if (!body) throw new Error('诊断行切片缺失：' + header);
         if (body.indexOf(called) < 0) throw new Error('诊断行未真跑出口 ' + called + '（导出即摆设 ⇒ 该面在真实运行中永不产出）');
     }
-    const cpLine = sliceMember(src, '_correctionPlanLine() {');
-    if (cpLine.indexOf('this.correctionPlanConfig(') < 0) throw new Error('纠错方案诊断行只报一面（另一面在诊断台上不存在）');
+    const cpLine = sliceMember(dl, '_correctionPlanLine(engine) {');
+    if (cpLine.indexOf('engine.correctionPlanConfig(') < 0) throw new Error('纠错方案诊断行只报一面（另一面在诊断台上不存在）');
     return { ok: true };
 }
 /** 判据 C6：两体检面分列且各占一行、行名互不相同（既有面的早退三态本就多次出现，不算合并）。 */
-function hostJudgeFaces(src) {
+function hostJudgeFaces(src, dlSrc) {
+    const dl = dlSrc || DL;
     const names = ['门控读数', '提取反馈', '抽取节奏', '纠错方案'];
     const idx = names.map((n) => src.indexOf("['" + n + "'"));
     if (idx.some((i) => i < 0)) throw new Error('体检面缺行：' + names.filter((n, i) => idx[i] < 0).join('/'));
@@ -505,7 +541,7 @@ const ANCHORS = {
     /* 宿主：缺席面少一格键（恒定键面被破）。 */
     idxAbsentKeys: "        const absent = (why) => ({ kind: 'extraction_driver', version: 0, floor: null, profile: '', profileKnown: false, rules: {}, due: [], batched: [], batchThisRound: [], deferredTypes: [], nextBatchFloor: null, unreadable: [], noFloor: [], missed: { floors: [], count: 0, noFloor: 0, neverDropped: true, why: '' }, regen: { scoped: false, floors: [], types: [], untouched: 0, why: '' }, readings: {}, zeroWrite: true, malformedInput: false, degraded: false, ok: false, reason: why });",
     /* 宿主：诊断行不真跑出口（只吃缓存 ⇒ 出口零调用点）。 */
-    idxLineCallsExit: "        const got = this.extractionPlan({});\n        if (!got.ok) return '抽取节奏不可用（' + got.reason + '）';",
+    idxLineCallsExit: "        const got = engine.extractionPlan({});\n        if (!got.ok) return '抽取节奏不可用（' + got.reason + '）';",
     /* 宿主：真每轮调用点整段消失（导出即摆设）。 */
     idxCallSite: "                        const _win = this._extractionWindowFloors(message);",
     /* 宿主：体检面被并成一行（两个面共用一个提示位）。 */
@@ -662,19 +698,19 @@ test('v3324 E8. ★★★ 破坏「对照三态互不同形」⇒ B4 判据必�
     cpJudgeCompareStates(CP);
 });
 test('v3324 E9. ★★★ 破坏宿主缺席面的恒定键面 ⇒ C1 判据必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.idxAbsentKeys,
+    const bad = breakOnce(DL, ANCHORS.idxAbsentKeys,
         ANCHORS.idxAbsentKeys.replace('degraded: false, ok: false, reason: why }', 'reason: why }'), 'idx 缺席键面');
     let threw = false, msg = '';
-    try { hostJudgeFace(bad); } catch (e) { threw = true; msg = String(e.message || e); }
+    try { hostJudgeFace(IDX, bad); } catch (e) { threw = true; msg = String(e.message || e); }
     assert.ok(threw, '缺席面少一格键后，C1 判据必须转红（恒定键面是下游按键断言的前提）');
     assert.match(msg, /键面/);
     hostJudgeFace(IDX);
 });
 test('v3324 E10. ★★★ 破坏「诊断行真跑出口」⇒ C4 判据必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.idxLineCallsExit,
-        "        const got = this._extractionDriverRead || {};\n        if (!got.ok) return '抽取节奏不可用（缓存）';", 'idx 诊断行真跑');
+    const bad = breakOnce(DL, ANCHORS.idxLineCallsExit,
+        "        const got = engine._extractionDriverRead || {};\n        if (!got.ok) return '抽取节奏不可用（缓存）';", 'idx 诊断行真跑');
     let threw = false;
-    try { hostJudgeLinesCallExits(bad); } catch (e) { threw = true; }
+    try { hostJudgeLinesCallExits(IDX, bad); } catch (e) { threw = true; }
     assert.ok(threw, '诊断行改吃缓存后，C4 判据必须转红（出口零调用点 = 导出即摆设）');
     hostJudgeLinesCallExits(IDX);
 });
@@ -693,11 +729,11 @@ test('v3324 E12. ★★ 破坏「体检面分列」⇒ C5 判据必须转红', (
     hostJudgeFaces(IDX);
 });
 test('v3324 E13. ★★ 破坏宿主诊断行的数据面消费 ⇒ C4 判据必须转红（两面各须上诊断台）', () => {
-    const cpLine = sliceMember(IDX, '_correctionPlanLine() {');
-    assert.ok(cpLine.indexOf('this.correctionPlanReextract(') > 0, '前提：数据面消费点须在场');
-    const bad = IDX.replace(cpLine, cpLine.replace('        const data = this.correctionPlanReextract({}, {});\n', '        const data = { ok: false, reason: "module-unavailable" };\n'));
+    const cpLine = sliceMember(DL, 'function _correctionPlanLine(engine) {');
+    assert.ok(cpLine.indexOf('engine.correctionPlanReextract(') > 0, '前提：数据面消费点须在场');
+    const bad = DL.replace(cpLine, cpLine.replace('        const data = engine.correctionPlanReextract({}, {});\n', '        const data = { ok: false, reason: "module-unavailable" };\n'));
     let threw = false;
-    try { hostJudgeLinesCallExits(bad); } catch (e) { threw = true; }
+try { hostJudgeLinesCallExits(IDX, bad); } catch (e) { threw = true; }
     assert.ok(threw, '数据面消费被摘掉后，C4 判据必须转红');
     hostJudgeLinesCallExits(IDX);
 });

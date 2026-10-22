@@ -365,11 +365,39 @@ function sliceMember(src, header) {
     }
     return '';
 }
+/** 从 engine-diagnostic-lines.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 /** 从 index.js 真切片装载一个**最小宿主**(取库口 + 三法都取自真源,不另写桩)。 */
 function loadHost(idxSrc, cxApi, rowsOpt) {
-    const libs = ['function _loreCrosscheckLib() {', 'function _moduleLib(getGlobal, fileName) {'].map((h) => sliceMember(idxSrc, h));
-    const meths = HOST_METHODS.map((h) => sliceMember(idxSrc, h));
-    if (libs.some((s) => !s) || meths.some((s) => !s)) throw new Error('宿主切片缺失:取库口或三法在真源里取不到');
+    const moduleLibFn = sliceMember(idxSrc, 'function _moduleLib(getGlobal, fileName) {');
+    if (!moduleLibFn) throw new Error('宿主切片缺失:_moduleLib');
+    const dlFuncs = [
+        'function _loreCrosscheckLib() { return (typeof window !== "undefined" && window.LonShaLoreCrosscheck) ? window.LonShaLoreCrosscheck : null; }',
+    ];
+    const meths = [
+        extractModuleMethod(DL, 'function loreCrosscheck(engine, sourceMode, opts) {'),
+        extractModuleMethod(DL, 'function _crosscheckChatRows(engine, opts) {'),
+        extractModuleMethod(DL, 'function _loreCrosscheckLine(engine) {'),
+    ];
+    if (meths.some((s) => !s)) throw new Error('DL 方法体提取缺失');
     const rows = Array.isArray(rowsOpt) ? rowsOpt
         : [{ ref: 'commitment:c1', title: '婚约', text: '已解除婚约', status: 'released', ledger: 'commitment', floor: 30 }];
     const ctx = {
@@ -382,7 +410,7 @@ function loadHost(idxSrc, cxApi, rowsOpt) {
     ctx.__ROWS__ = rows;
     vm.createContext(ctx);
     /* ★ 成员之间**必须有逗号** —— 首尾相接会拼出语法错的宿主(本档修前实测的坑)。 */
-    const code = libs.join(LF) + LF + 'return ({ ' + meths.join(',' + LF) + ' });';
+    const code = moduleLibFn + LF + dlFuncs.join(LF) + LF + 'return ({ ' + meths.join(',' + LF) + ' });';
     const factory = vm.runInContext('(function (errLog, window, require) {' + LF + code + LF + '})', ctx, { filename: 'hostslice.js' });
     const obj = factory(() => {}, ctx, undefined);
     const host = {
@@ -571,7 +599,7 @@ test('v3470 F1. ** H5 判据纯度:破坏锚点在**本档源码**里各恰中 1
         assert.equal(n, 1, '内核锚点 ' + k + ' 在真源命中 ' + n + ' 次(应恰 1)');
     }
     for (const k of ['hRows', 'hMode']) {
-        const n = IDX.split(ANCHORS[k]).length - 1;
+        const n = DL.split(ANCHORS[k]).length - 1;
         assert.equal(n, 1, '宿主锚点 ' + k + ' 在真源命中 ' + n + ' 次(应恰 1)');
     }
     console.log('  ok 九锚点在本档各恰 1 次、真源各恰中 1 次');

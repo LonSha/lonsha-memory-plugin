@@ -364,13 +364,43 @@ const METH_FNS = [
     'materialPack(...args) {',
     '_materialPackLine(...args) {',
 ];
+
+/** 从 engine-diagnostic-lines.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
+
 function mkHost(win, src) {
+    /* [v3.361.0 剥离] 方法体从 DL 提取(engine.→this.)，*Lib() 从 window 取模块 */
     const idx = src || IDX;
-    const libs = LIB_FNS.map((h) => sliceMember(idx, h));
-    const meths = METH_FNS.map((h) => sliceMember(idx, h));
-    const miss = LIB_FNS.filter((h, i) => !libs[i]).concat(METH_FNS.filter((h, i) => !meths[i]));
-    if (miss.length) throw new Error('切片缺失:' + miss.join(' / '));
-    const code = libs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });';
+    const moduleLibFn = sliceMember(idx, 'function _moduleLib(getGlobal, fileName) {');
+    if (!moduleLibFn) throw new Error('切片缺失: _moduleLib');
+    const dlFuncs = [
+        'function _materialPackLib() { return (typeof window !== "undefined" && window.LonShaMaterialPack) ? window.LonShaMaterialPack : null; }',
+    ];
+    const meths = [
+        extractModuleMethod(DL, 'function _materialInventory(engine, opts) {'),
+        extractModuleMethod(DL, 'function materialPack(engine, task, opts) {'),
+        extractModuleMethod(DL, 'function _materialPackLine(engine) {'),
+    ];
+    if (meths.some((x) => !x)) throw new Error('DL 方法体提取缺失');
+    const code = moduleLibFn + '\n' + dlFuncs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });';
     return new Function('errLog', 'window', code)(() => {}, win);
 }
 const MP_WIN = () => ({ LonShaMaterialPack: MP });
@@ -540,7 +570,7 @@ test('v3455 F1. ** H5 判据纯度:破坏锚点在**本档源码**里各恰中 1
         assert.equal(n, 1, '内核锚 ' + k + ' 在 material-pack.js 命中 ' + n + ' 次(应恰 1)');
     }
     for (const k of ['hTake', 'hTask']) {
-        const n = IDX.split(ANCHORS[k]).length - 1;
+        const n = DL.split(ANCHORS[k]).length - 1;
         assert.equal(n, 1, '宿主锚 ' + k + ' 在 engine-diagnostic-lines.js 命中 ' + n + ' 次(应恰 1)');
     }
     console.log('  ok 八个锚点在本档各 1 次、在真源各 1 次');

@@ -46,6 +46,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const RH_SRC = read('relation-history.js');
@@ -419,6 +420,26 @@ function sliceMember(src, header) {
     }
     return null;
 }
+/** 从 engine-diagnostic-lines.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 const LIB_HEADS = ['function _moduleLib(getGlobal, fileName) {', 'function _relationHistoryLib() {',
     'function _causalChainLib() {', 'function _perspectiveCardLib() {'];
 const METH_HEADS = ['relationHistory(...args) {', 'relationHistoryAt(...args) {', '_relationHistoryLine(...args) {',
@@ -426,14 +447,33 @@ const METH_HEADS = ['relationHistory(...args) {', 'relationHistoryAt(...args) {'
     'causalChainProposals(...args) {', '_causalChainLine(...args) {', 'perspectiveCard(...args) {',
     'perspectiveContrast(...args) {', '_perspectiveCardLine(...args) {'];
 /** 装配真宿主出口（缺一即抛，不静默降级成空壳）。 */
-function mkHost(win, src) {
+function mkHost(win, src, dlSrc) {
+    /* [v3.361.0 剥离] 方法体从 DL 提取(engine.→this.)，*Lib() 从 window 取模块 */
     const idx = src || IDX;
-    const libs = LIB_HEADS.map((h) => sliceMember(idx, h));
-    if (libs.some((x) => !x)) throw new Error('取库口切片缺失：' + LIB_HEADS.filter((h, i) => !libs[i]).join(' / '));
-    const meths = METH_HEADS.map((h) => sliceMember(idx, h));
-    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失：' + METH_HEADS.filter((h, i) => !meths[i]).join(' / '));
+    const dl = dlSrc || DL;
+    const moduleLibFn = sliceMember(idx, 'function _moduleLib(getGlobal, fileName) {');
+    if (!moduleLibFn) throw new Error('取库口切片缺失：_moduleLib');
+    const dlFuncs = [
+        'function _relationHistoryLib() { return (typeof window !== "undefined" && window.LonShaRelationHistory) ? window.LonShaRelationHistory : null; }',
+        'function _causalChainLib() { return (typeof window !== "undefined" && window.LonShaCausalChain) ? window.LonShaCausalChain : null; }',
+        'function _perspectiveCardLib() { return (typeof window !== "undefined" && window.LonShaPerspectiveCard) ? window.LonShaPerspectiveCard : null; }',
+    ];
+    const meths = [
+        extractModuleMethod(dl, 'function relationHistory(engine, opts) {'),
+        extractModuleMethod(dl, 'function relationHistoryAt(engine, floor) {'),
+        extractModuleMethod(dl, 'function _relationHistoryLine(engine) {'),
+        extractModuleMethod(dl, 'function causalChainGraph(engine, opts) {'),
+        extractModuleMethod(dl, 'function causalChainTodos(engine) {'),
+        extractModuleMethod(dl, 'function causalChainTrace(engine, id) {'),
+        extractModuleMethod(dl, 'function causalChainProposals(engine, opts) {'),
+        extractModuleMethod(dl, 'function _causalChainLine(engine) {'),
+        extractModuleMethod(dl, 'function perspectiveCard(engine, opts) {'),
+        extractModuleMethod(dl, 'function perspectiveContrast(engine, characterA, characterB, opts) {'),
+        extractModuleMethod(dl, 'function _perspectiveCardLine(engine) {'),
+    ];
+    if (meths.some((x) => !x)) throw new Error('DL 方法体提取缺失');
     return new Function('errLog', 'window',
-        libs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });')(() => {}, win);
+        moduleLibFn + '\n' + dlFuncs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });')(() => {}, win);
 }
 const WIN_FULL = () => ({ LonShaRelationHistory: RH, LonShaCausalChain: CC, LonShaPerspectiveCard: PC });
 /** 在场宿主状态：真图边 + 真三账 + 真轨迹。 */
@@ -454,9 +494,9 @@ function hostState() {
     };
 }
 /** 判据：恒定键面（缺席与在场逐字同键）+ 缺席是真读数 + 不抛。 */
-function hostJudgeFace(src) {
-    const self = Object.assign(mkHost(WIN_FULL(), src), hostState());
-    const eng = mkHost({}, src);
+function hostJudgeFace(src, dlSrc) {
+    const self = Object.assign(mkHost(WIN_FULL(), src, dlSrc), hostState());
+    const eng = mkHost({}, src, dlSrc);
     const noState = Object.assign(eng, hostState());
     const pairs = [
         [self.relationHistory({}), noState.relationHistory({}), 'relationHistory'],
@@ -480,8 +520,8 @@ function hostJudgeFace(src) {
     return { keys: Object.keys(pairs[0][0]).length };
 }
 /** 判据：真跑通（真边集 → 真轨迹 / 真三账 → 真图 / 真轨迹 → 真卡）。 */
-function hostJudgeRun(src) {
-    const self = Object.assign(mkHost(WIN_FULL(), src), hostState());
+function hostJudgeRun(src, dlSrc) {
+    const self = Object.assign(mkHost(WIN_FULL(), src, dlSrc), hostState());
     const rh = self.relationHistory({});
     if (!rh.ok || rh.counts.pairs !== 1 || rh.counts.divergent !== 1) {
         throw new Error('关系变化史没跑通：' + JSON.stringify([rh.ok, rh.counts]));
@@ -673,10 +713,10 @@ test('v3323 E7. ★★★ 破坏宿主缺席面的恒定键面 ⇒ D1 判据必�
      *     键面与在场路径不同（缺 version/degraded，多 ok/reason），
      *     而「模块没加载」与「一个都没有」处置相反 ⇒ 下游只能判 undefined。
      *     与 v3.322.0 的 memoryQaAnswer 缺 knownActors 同族，见 tools/patch_3323_face.py。 */
-    const bad = breakOnce(IDX, ANCHORS.idxAbsentKeys,
+    const bad = breakOnce(DL, ANCHORS.idxAbsentKeys,
         ANCHORS.idxAbsentKeys.replace('degraded: false, ok: false, reason: why }', 'degraded: false }'), 'idx 缺席键面');
     let threw = false, msg = '';
-    try { hostJudgeFace(bad); } catch (e) { threw = true; msg = String(e.message || e); }
+    try { hostJudgeFace(IDX, bad); } catch (e) { threw = true; msg = String(e.message || e); }
     assert.ok(threw, '缺席面少一格键后，判据必须转红（恒定键面是下游按键断言的前提）');
     assert.match(msg, /键面/);
     hostJudgeFace(IDX);
