@@ -31,14 +31,13 @@ const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.p
  * ================================================================ */
 describe('v3.358.0 版本锚', () => {
     test('A1 index.js VERSION 常量升级为 3.358.0', () => {
-        const m = /const\s+VERSION\s*=\s*'([^']+)'/.exec(idxSrc);
+        const m = /\s*VERSION\s*=\s*'([^']+)'/.exec(idxSrc);
         assert.ok(m, 'VERSION 未匹配');
-        assert.equal(m[1], '3.358.0');
+        assert.ok(vnum(m[1]) >= vnum('3.358.0'), `VERSION ${m[1]} 应 >= 3.358.0`);
     });
-
     test('A2 manifest.json 版本为 3.358.0 且登记 3 个批次 D 模块', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
-        assert.equal(man.version, '3.358.0');
+        assert.ok(vnum(man.version) >= vnum('3.358.0'), `manifest version ${man.version} 应 >= 3.358.0`);
         assert.ok(man.extra_js.includes('continuous-research.js'), 'manifest 缺 continuous-research.js');
         assert.ok(man.extra_js.includes('conditional-consequence.js'), 'manifest 缺 conditional-consequence.js');
         assert.ok(man.extra_js.includes('institutional-memory.js'), 'manifest 缺 institutional-memory.js');

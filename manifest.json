@@ -7,7 +7,7 @@
   "css": "style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.358.0",
+  "version": "3.359.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -140,7 +140,9 @@
     "character-agency-contract.js",
     "continuous-research.js",
     "conditional-consequence.js",
-    "institutional-memory.js"
+    "institutional-memory.js",
+    "symbolic-evolution.js",
+    "recall-reinterpretation.js"
   ],
   "extra_css": [
     "lonsha-design.css",

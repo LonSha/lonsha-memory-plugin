@@ -1,3 +1,12 @@
+## v3.359.0 **第六期批次 E 记忆侧两项（M6-X6 意象与意义变迁 / M6-X8 回忆再理解）**
+
+- 新增 `symbolic-evolution.js`（v3.359.0，IIFE 零依赖）：意象实体三层分离（字面事实/作者确认/纯候选）、角色视角分轨（A的约定≠B的工具）、登场轨迹追踪、否定不删除（revoked 保留可查但不再注入）。
+- 新增 `recall-reinterpretation.js`（v3.359.0，IIFE 零依赖）：回忆讲述会话（带出处与讲述者）、解释类型分离（当时解释/后来再理解/事实修正/叙事省略）、时间轴对照（变化可查）、保护正史事实（回忆措辞不改出处）。
+- WorldProgress 器官集成：构造器初始化 `symbolicEntities` / `recallSessions`、export/import 持久化、`createSymbolicEntity` / `createRecallSession` 接口方法、`_getSymbolicLib` / `_getRecallReintLib` 加载器。
+- index.js OrganFallback 退路类补齐 4 个降级桩（createSymbolicEntity/_getSymbolicLib/createRecallSession/_getRecallReintLib）。
+- 测试 17 条全绿（含 3 条真源码破坏负控制），D+E 联合 38/38 全绿，版本守卫 0 问题。
+- 六源同源（manifest/package/index.js/memory-core.js/memory-config.js/memory-organs.js）同步抬到 3.359.0。
+
 ## v3.358.0
 **第六期批次 D 三项（M6-O8 持续研究记忆 / M6-X3 条件后果推演 / M6-X5 群体与制度记忆）**
 ★ **本版做什么（三个纯函数/纯契约内核 IIFE 零依赖 + WorldProgress 器官集成 + 退路类全覆盖，不建第二套账）**：
