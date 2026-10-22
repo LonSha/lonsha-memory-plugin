@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.359.0';
+    const VERSION = '3.360.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1296,6 +1296,10 @@
         _getSymbolicLib() { return null; }
         createRecallSession() { return null; }
         _getRecallReintLib() { return null; }
+        createCFExperiment() { return null; }
+        _getCounterfactualLib() { return null; }
+        createEraTransition() { return null; }
+        _getEraInheritanceLib() { return null; }
         resolvePromise() { return false; }
         markUnaware() { return false; }
         revealKnowledge() { return false; }

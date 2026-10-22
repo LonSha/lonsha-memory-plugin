@@ -42,14 +42,15 @@ function cleanup(tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }
 // ==============================
 // A 面：版本锚
 // ==============================
-test('A1 index.js VERSION = 3.359.0', () => {
+test('A1 index.js VERSION >= BORN_V', () => {
     const src = read('index.js');
-    assert.ok(src.includes("VERSION = '3.359.0'"));
+    const m = src.match(/\s*VERSION\s*=\s*['"]([^'"]+)['"]/);
+    assert.ok(m, 'VERSION not found');
+    assert.ok(vnum(m[1]) >= vnum(BORN_V), `VERSION ${m[1]} < ${BORN_V}`);
 });
-
-test('A2 manifest.json version + extra_js 含两新模块', () => {
+test('A2 manifest.json version >= BORN_V + extra_js 含两新模块', () => {
     const man = JSON.parse(read('manifest.json'));
-    assert.equal(man.version, BORN_V);
+    assert.ok(vnum(man.version) >= vnum(BORN_V), `manifest version ${man.version} < ${BORN_V}`);
     assert.ok(man.extra_js.includes('symbolic-evolution.js'));
     assert.ok(man.extra_js.includes('recall-reinterpretation.js'));
 });

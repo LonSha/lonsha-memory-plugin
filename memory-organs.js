@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.359.0';
+let VERSION = '3.360.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1283,6 +1283,8 @@ class WorldProgress {
          *   ★ worldProg 子键逐项枚举持久化（同族口径）。 */
         this.symbolicEntities = [];
         this.recallSessions = [];
+        this.cfExperiments = [];
+        this.eraTransitions = [];
     }
 
     // ===== 约定账本 (Promises Ledger) =====
@@ -2200,6 +2202,8 @@ class WorldProgress {
             /* [v3.359.0 · M6-X6 / M6-X8] 意象变迁与回忆再理解导出 */
             symbolicEntities: this.symbolicEntities || [],
             recallSessions: this.recallSessions || [],
+            cfExperiments: this.cfExperiments || [],
+            eraTransitions: this.eraTransitions || [],
             plotArcs: this.plotArcs || []
         };
     }
@@ -2254,6 +2258,9 @@ class WorldProgress {
             /* [v3.359.0 · M6-X6 / M6-X8] 意象变迁与回忆再理解导入 */
             this.symbolicEntities = Array.isArray(data.symbolicEntities) ? data.symbolicEntities : [];
             this.recallSessions = Array.isArray(data.recallSessions) ? data.recallSessions : [];
+            /* [v3.360.0 · M6-X4 / M6-X9] 反事实实验与跨时代传承导入 */
+            this.cfExperiments = Array.isArray(data.cfExperiments) ? data.cfExperiments : [];
+            this.eraTransitions = Array.isArray(data.eraTransitions) ? data.eraTransitions : [];
         }
     }
     // [v3.358.0 · M6-O8] 持续研究记忆接口
@@ -2328,6 +2335,28 @@ class WorldProgress {
         const session = lib.createRecallSession(spec);
         if (session && Array.isArray(this.recallSessions)) this.recallSessions.push(session);
         return session;
+    }
+    // [v3.360.0 · M6-X4] 反事实实验接口
+    _getCounterfactualLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.CounterfactualExperimentLib : (typeof globalThis !== 'undefined' ? globalThis.CounterfactualExperimentLib : null)), 'counterfactual-experiment.js');
+    }
+    createCFExperiment(spec) {
+        const lib = this._getCounterfactualLib();
+        if (!lib || typeof lib.createExperiment !== 'function') return null;
+        const exp = lib.createExperiment(spec);
+        if (exp && Array.isArray(this.cfExperiments)) this.cfExperiments.push(exp);
+        return exp;
+    }
+    // [v3.360.0 · M6-X9] 跨时代传承接口
+    _getEraInheritanceLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.EraInheritanceLib : (typeof globalThis !== 'undefined' ? globalThis.EraInheritanceLib : null)), 'era-inheritance.js');
+    }
+    createEraTransition(spec) {
+        const lib = this._getEraInheritanceLib();
+        if (!lib || typeof lib.createEraTransition !== 'function') return null;
+        const trans = lib.createEraTransition(spec);
+        if (trans && Array.isArray(this.eraTransitions)) this.eraTransitions.push(trans);
+        return trans;
     }
 }
 
