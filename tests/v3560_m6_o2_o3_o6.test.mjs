@@ -25,14 +25,14 @@ const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.p
 
 /* A. 版本锚 */
 describe('v3.356.0 版本锚', () => {
-    test('A1 VERSION 常量为 3.356.0', () => {
+    test('A1 VERSION 常量为 3.356.0 或更高', () => {
         const m = VERSION_RE.exec(idxSrc);
         assert.ok(m, 'VERSION 常量未找到');
-        assert.equal(m[1], '3.356.0');
+        assert.ok(vnum(m[1]) >= vnum('3.356.0'));
     });
-    test('A2 manifest.json 版本为 3.356.0 且登记三个新模块', () => {
+    test('A2 manifest.json 版本为 3.356.0 或更高且登记三个新模块', () => {
         const man = JSON.parse(fs.readFileSync('./manifest.json', 'utf8'));
-        assert.equal(man.version, '3.356.0');
+        assert.ok(vnum(man.version) >= vnum('3.356.0'));
         assert.ok(man.extra_js.includes('evidence-solver.js'));
         assert.ok(man.extra_js.includes('resolution-ladder.js'));
         assert.ok(man.extra_js.includes('scene-orchestrator.js'));

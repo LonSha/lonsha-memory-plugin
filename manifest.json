@@ -7,7 +7,7 @@
   "css": "style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.356.0",
+  "version": "3.357.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -133,7 +133,11 @@
     "dual-time.js",
     "evidence-solver.js",
     "resolution-ladder.js",
-    "scene-orchestrator.js"
+    "scene-orchestrator.js",
+    "autobiographical-memory.js",
+    "relation-dynamics.js",
+    "goal-reroute.js",
+    "character-agency-contract.js"
   ],
   "extra_css": [
     "lonsha-design.css",

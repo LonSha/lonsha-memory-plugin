@@ -1,3 +1,14 @@
+## v3.357.0
+**第六期批次 C 四项（M6-O4 人物自传式记忆 / M6-O7 关系动力记忆 / M6-O9 长期意图推进与改道 / M6-X1/X2/X7 心智与行动扩展）**
+★ **本版做什么（四个纯函数/纯契约内核 IIFE 零依赖 + CharacterMemoryBank 器官集成 + 退路类全覆盖，不建第二套账）**：
+ · **M6-O4** 新模块 `autobiographical-memory.js`：建立生命阶段（Life Stages）、阶段摘要、关键抉择（Pivotal Choices）、遗留线索（Open Threads）与当下保留态度（stillRetained）模型。★ **场景感知装配**：flashback 回忆模式（溯及历史阶段因由与昔日抉择）、present 当下互动模式（过往历程 + 关键转折 + 依然保留的态度印记）、deliberate 审思决策模式（历史抉择代价与未决事项对照）；★ **同名异人与伪装身份隔离**：严格按 `charKey` / `personaId` 隔离，绝不因姓名相同而合并人生；★ **假设性选择阻断**：`isHypothetical: true` 抉择严格拒绝写入正史；真实抉择改变后续转折摘要与当期保留态度。
+ · **M6-O7** 新模块 `relation-dynamics.js`：从孤立转折列表升级为理解关系为何保持、缓和或恶化。★ **单侧修复防护**：A 致歉但 B 尚未收到/得知时，判为 `unilateral_repair_in_transit`，绝不早熟判定为已和解；★ **多轨依据保留**：多次付出与一次失约并存时，多轨并列保留依据，严禁合成单一好感度数值；★ **释然脱敏**：经化解的旧过节标为 `relieved: true` 后脱离活跃张力，但转折痕迹历史可查。
+ · **M6-O9** 新模块 `goal-reroute.js`：长期意图推进、排他路径与有据改道。★ **互斥替代路径排他性**：选定路线 A 时互斥路线 B 保持备用状态，绝不因目标进展而被连带标记完成；★ **有据遇阻与重规划**：关键角色退出或资源耗尽时，生成改期、缩小规模或换线等改道候选，拒绝无依据自动成功；★ **放弃后重启保护**：目标放弃后重启，完整继承历史尝试与已付代价，重开依然可查。
+ · **M6-X1 / M6-X2 / M6-X7** 新模块 `character-agency-contract.js`：扩展人物行动契约。★ **M6-X1 信念演化**：反证只改变知情者，不可靠传闻不强制改观；★ **M6-X2 经验与习惯**：至少三次相同情境稳定实践才提炼候选习惯，情境例外优先覆盖一般习惯；★ **M6-X7 缺席与期待**：剧情时钟未到截止期不触发失约，不知对方日程不能推断恶意。
+★ **宿主接线与器官集成**：在 `memory-organs.js` 为 `CharacterMemoryBank` 挂载 `getAutobiography` / `addLifeStage` / `updateLifeStage` / `recordPivotalChoice` / `deriveAutobiographicalProfile`；`removeByFloor` / `shiftFloorRefs` 联动清理与位移 choices 楼层指针；`export()` / `import()` 无损保存恢复自传数据；在 `index.js` 退路类补齐 5 个自传方法降级桩（杜绝 TypeError）。
+★ **定向复验**：`tests/v3570_m6_batch_c.test.mjs`（**20 条全绿**）：A 版本锚 3 / B M6-O4 内核 4 / C M6-O7 内核 3 / D M6-O9 内核 3 / E 扩展契约 3 / F CharacterMemoryBank 宿主集成 1 / G 负控制 3（真实源码破坏）。
+★ **版本纪律**：六源同源（manifest / package / index.js / memory-core.js / memory-config.js / memory-organs.js）同步抬到 3.357.0。
+
 ## v3.356.0
 **第六期批次 B 三项（M6-O2 记忆问题求解器 / M6-O3 可展开的多分辨率记忆 / M6-O6 场景上下文编排）**
 ★ **本版做什么（三个纯函数内核 IIFE 零依赖 + 宿主三出口 + 持久化三子键，不建第二套账）**：

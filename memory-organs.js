@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.356.0';
+let VERSION = '3.357.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -956,6 +956,7 @@ class VectorStore {
 class CharacterMemoryBank {
     constructor() {
         this.memories = {};   // { charName: { core: [], recent: [] } }
+        this.autobiographies = {}; // [v3.357.0 · M6-O4] { charKey: autobiography }
         this.RECENT_KEEP = 3; // 近期记忆保留最近 3 个版本
     }
     // 追加核心记忆（永久，不自动删）
@@ -1026,6 +1027,50 @@ class CharacterMemoryBank {
             .slice(0, 6);
     }
     _c(char) { if (!this.memories[char]) this.memories[char] = { core: [], recent: [] }; return this.memories[char]; }
+    // [v3.357.0 · M6-O4] 人物自传式记忆接口
+    _getAutobioLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaAutobiographicalMemory : (typeof globalThis !== 'undefined' ? globalThis.LonShaAutobiographicalMemory : null)), 'autobiographical-memory.js');
+    }
+    getAutobiography(charKey) {
+        const key = String(charKey || '').trim();
+        if (!key) return null;
+        if (!this.autobiographies) this.autobiographies = {};
+        const lib = this._getAutobioLib();
+        if (!this.autobiographies[key] && lib && typeof lib.createAutobiography === 'function') {
+            this.autobiographies[key] = lib.createAutobiography({ charKey: key });
+        }
+        return this.autobiographies[key] || null;
+    }
+    addLifeStage(charKey, stageData) {
+        const ab = this.getAutobiography(charKey);
+        const lib = this._getAutobioLib();
+        if (!ab || !lib || typeof lib.addLifeStage !== 'function') return { ok: false, reason: 'unsupported' };
+        const res = lib.addLifeStage(ab, stageData);
+        if (res.ok) this.autobiographies[String(charKey).trim()] = res.autobiography;
+        return res;
+    }
+    updateLifeStage(charKey, stageId, patch) {
+        const ab = this.getAutobiography(charKey);
+        const lib = this._getAutobioLib();
+        if (!ab || !lib || typeof lib.updateLifeStage !== 'function') return { ok: false, reason: 'unsupported' };
+        const res = lib.updateLifeStage(ab, stageId, patch);
+        if (res.ok) this.autobiographies[String(charKey).trim()] = res.autobiography;
+        return res;
+    }
+    recordPivotalChoice(charKey, choiceData) {
+        const ab = this.getAutobiography(charKey);
+        const lib = this._getAutobioLib();
+        if (!ab || !lib || typeof lib.recordPivotalChoice !== 'function') return { ok: false, reason: 'unsupported' };
+        const res = lib.recordPivotalChoice(ab, choiceData);
+        if (res.ok) this.autobiographies[String(charKey).trim()] = res.autobiography;
+        return res;
+    }
+    deriveAutobiographicalProfile(charKey, sceneOptions) {
+        const ab = this.getAutobiography(charKey);
+        const lib = this._getAutobioLib();
+        if (!ab || !lib || typeof lib.deriveAutobiographicalProfile !== 'function') return null;
+        return lib.deriveAutobiographicalProfile(ab, sceneOptions);
+    }
     // [v3.22] 按楼层删除（rollbackFloor 联动）: 删楼后该楼记忆不残留
     removeByFloor(floor) {
         const f = Math.max(0, Math.round(Number(floor) || 0));
@@ -1036,6 +1081,14 @@ class CharacterMemoryBank {
             c.core = c.core.filter(x => x.floor !== f);
             c.recent = c.recent.filter(x => x.floor !== f);
             removed += (beforeCore - c.core.length) + (beforeRecent - c.recent.length);
+        }
+        if (this.autobiographies) {
+            for (const k of Object.keys(this.autobiographies)) {
+                const ab = this.autobiographies[k];
+                if (ab && Array.isArray(ab.choices)) {
+                    ab.choices = ab.choices.filter(c => c.floor !== f);
+                }
+            }
         }
         return removed;
     }
@@ -1051,10 +1104,42 @@ class CharacterMemoryBank {
                 }
             }
         }
+        if (this.autobiographies) {
+            for (const k of Object.keys(this.autobiographies)) {
+                const ab = this.autobiographies[k];
+                if (ab && Array.isArray(ab.choices)) {
+                    for (const c of ab.choices) {
+                        if (typeof c.floor === 'number' && c.floor > del) { c.floor -= 1; n++; }
+                    }
+                }
+            }
+        }
         return n;
     }
-    export() { return this.memories; }
-    import(data) { this.memories = (data && typeof data === 'object') ? data : {}; for (const k of Object.keys(this.memories)) { if (!this.memories[k].core) this.memories[k].core = []; if (!this.memories[k].recent) this.memories[k].recent = []; } }
+    export() {
+        return {
+            memories: this.memories,
+            autobiographies: this.autobiographies || {}
+        };
+    }
+    import(data) {
+        if (!data || typeof data !== 'object') {
+            this.memories = {};
+            this.autobiographies = {};
+            return;
+        }
+        if (data.memories && typeof data.memories === 'object') {
+            this.memories = data.memories;
+            this.autobiographies = (data.autobiographies && typeof data.autobiographies === 'object') ? data.autobiographies : {};
+        } else {
+            this.memories = data;
+            this.autobiographies = {};
+        }
+        for (const k of Object.keys(this.memories)) {
+            if (!this.memories[k].core) this.memories[k].core = [];
+            if (!this.memories[k].recent) this.memories[k].recent = [];
+        }
+    }
 }
 
 class EntityLexicon {
