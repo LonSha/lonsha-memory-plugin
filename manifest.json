@@ -4,7 +4,7 @@
   "requires": [],
   "optional": [],
   "js": "index.js",
-  "css": "style.css",
+  "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
   "version": "3.360.0",
@@ -147,7 +147,7 @@
     "era-inheritance.js"
   ],
   "extra_css": [
-    "lonsha-design.css",
-    "visualizer.css"
+    "css/lonsha-design.css",
+    "css/visualizer.css"
   ]
 }
