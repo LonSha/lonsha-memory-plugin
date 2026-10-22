@@ -17,7 +17,7 @@
  * 退出码：全部通过 0；任一失败 1。
  * 环境变量：
  *   TEST_JOBS     同 --jobs（命令行优先）
- *   TEST_TIMEOUT  单文件超时毫秒（默认 120000）
+ *   TEST_TIMEOUT  单文件超时毫秒（默认 300000）
  *   TEST_SUMMARY_JSON  机器读摘要落盘路径（汇总表的结构化形态）[v3.241.0]
  */
 import { readdirSync, existsSync, mkdirSync, writeFileSync, readFileSync as require$readFileSync } from 'node:fs';
@@ -47,7 +47,12 @@ if (!OPT.jobs) {
   const env = parseInt(process.env.TEST_JOBS || '', 10);
   OPT.jobs = Number.isFinite(env) && env > 0 ? env : Math.min(8, Math.max(2, os.cpus().length - 1));
 }
-const TIMEOUT = parseInt(process.env.TEST_TIMEOUT || '', 10) || 120000;
+/* [v3.354.0] 单文件超时默认 120000 → 300000：v3159（审计回退对等性）在 7 路并发下
+ *   单文件实测 103s（[2d] 健康树一项占 92.6s），单跑也贴近 120s 上限；
+ *   全量并发下内存压力推高耗时，120s 不再是安全余量（此前须以
+ *   V3159_AUDIT_TIMEOUT=300000 V3159_AUDIT_JOBS=4 手工绕行）。
+ *   抬默认不改环境变量覆写口（TEST_TIMEOUT 仍优先）。 */
+const TIMEOUT = parseInt(process.env.TEST_TIMEOUT || '', 10) || 300000;
 /* [v3.206.0] 审计段并发度：默认 min(4, 测试段并发)。
  *   实测审计段串行占 --audit 总耗时 64%（39 脚本 47.5s / 总 74.1s），故并行有实收；
  *   但审计脚本里有 15 个会自建 mkdtemp 镜像树、若干会再 spawn 子进程，
