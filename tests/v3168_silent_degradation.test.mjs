@@ -26,7 +26,7 @@ const idxRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
 /* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
  *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
  *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
-const idx = idxRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf8');
+const idx = idxRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf8') + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'engine-self-check.js'), 'utf8');
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));

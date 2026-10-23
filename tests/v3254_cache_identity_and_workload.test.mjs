@@ -45,7 +45,7 @@ const ok = (m) => console.log('  ✓ ' + m);
 
 const MANIFEST = JSON.parse(read('manifest.json'));
 const ENTRY = MANIFEST.js || 'index.js';
-const ENTRY_SRC = read(ENTRY);
+const ENTRY_SRC = read(ENTRY) + String.fromCharCode(10) + (fs.existsSync(path.join(ROOT, 'engine-self-check.js')) ? read('engine-self-check.js') : '');
 /* [v3.309.0] 破坏锚的**唯一上下文形态**：`_cacheIdentityOf()` 里 revision 位 + 下一行同缩进的
  *   historyFingerprint。裸串 `revision: null,` 在入口里已出现 2 次（第二处在回执面），
  *   拿它当锚会被工具按「须恰中 1 次」拒绝破坏（负控制空转）。 */

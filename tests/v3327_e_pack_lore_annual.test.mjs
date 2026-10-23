@@ -39,6 +39,7 @@ const ok = (m) => console.log('  ✓ ' + m);
 
 const IDX = read('index.js');
 const SA_OPS_SRC = read('engine-story-annual.js');
+const SC_OPS_SRC = read('engine-self-check.js');
 const LI_SRC = read('lore-import.js');
 const SA_SRC = read('story-annual.js');
 const MF = JSON.parse(read('manifest.json'));
@@ -368,9 +369,9 @@ function zeroWriteJudge(li, sa, liSrc, saSrc) {
 }
 
 /** E. 宿主接线。 */
-function hostJudge(idx, mf, saOpsSrc = SA_OPS_SRC) {
+function hostJudge(idx, mf, saOpsSrc = SA_OPS_SRC, scOpsSrc = SC_OPS_SRC) {
     const P = [];
-    const full = idx + '\n' + saOpsSrc;
+    const full = idx + '\n' + saOpsSrc + '\n' + scOpsSrc;
     if (idx.split(A_IDX1).length - 1 !== 1) P.push('取库口(lore-import)须恰一处');
     if (idx.split(A_IDX2).length - 1 !== 1) P.push('取库口(story-annual)须恰一处');
     /* 装配面键名:与模块 REQUIRED_DEPS 逐字一致(改名 = 静默变成「依赖缺席」)。 */
@@ -385,8 +386,8 @@ function hostJudge(idx, mf, saOpsSrc = SA_OPS_SRC) {
     /* 转发不改写:两处 describe 都必须把 reason 透传/标注,不得吞掉。 */
     if (full.indexOf("d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';") < 0) P.push('自述未标 deps-missing');
     /* 诊断两行 + 中文人读面。 */
-    if (idx.indexOf("['资料导入', this.loreImportLine()]") < 0) P.push('自检缺「资料导入」行');
-    if (idx.indexOf("['故事年鉴', this.storyAnnualLine()]") < 0) P.push('自检缺「故事年鉴」行');
+    if (full.indexOf("['资料导入', this.loreImportLine()]") < 0) P.push('自检缺「资料导入」行');
+    if (full.indexOf("['故事年鉴', this.storyAnnualLine()]") < 0) P.push('自检缺「故事年鉴」行');
     if (full.indexOf('资料导入模块未加载(lore-import.js)') < 0) P.push('人读面须中文(资料导入)');
     if (full.indexOf('年鉴模块未加载(story-annual.js)') < 0) P.push('人读面须中文(故事年鉴)');
     /* 登记面。 */

@@ -32,7 +32,7 @@ import { breakFile } from './_break_kit.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
-const idx = read(path.join(ROOT, 'index.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'memory-config.js')); // [v3.267.0] 配置默认块已外移 memory-config.js，合看两个真源
+const idx = read(path.join(ROOT, 'index.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'memory-config.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-self-check.js')); // [v3.267.0/v3.367.0] 合看外移模块
 const ui = read(path.join(ROOT, 'settings-ui.js'));
 
 /** 取一段源码（起点字面量 → 终点字面量）。**不**用正则：本仓的锚点里全是括号与引号。 */

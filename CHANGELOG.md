@@ -1,3 +1,11 @@
+## v3.367.0
+**index.js 剥离第七批：系统全景自检与健康诊断集群外提为 engine-self-check.js**
+- 新增 `engine-self-check.js`（1584行，IIFE 模块）：将原 `index.js` 内部规模最大的单个方法 `selfCheck()`（1499行，包含各子系统数据量统计、召回链路 dry-run、存档 schema 校验与深层不变量健康诊断等共 106 个诊断项）独立外提为专属模块，挂载 `window.LonShaEngineSelfCheck`，提供 `bindDeps` 注入。
+- `index.js` 从 17057 行进一步降至 15594 行（净减 1463 行，累计从 22731 行净削减 7137 行），原实现替换为轻量委托桩与安全降级回执 `_selfCheckAbsent`。
+- `manifest.json` `extra_js` 登记 `engine-self-check.js`（共 140 项）。
+- 适配历史切片夹具（`v3236`, `v3168`, `v3254`, `v3327`）使其合看诊断模块新真源并保持单真源负控制闭环。
+- 新增 `tests/v3367_engine_self_check_split.test.mjs`（8 条）。
+
 ## v3.366.0
 **index.js 剥离第六批：故事年度编年史与世界书导入集群外提为 engine-story-annual.js**
 - 新增 `engine-story-annual.js`（1439行，IIFE 模块）：将真实供数派生底座（`_o6*`）、世界书导入/解析/选入/覆盖/落笔（`loreImport*`）、故事年度编年史/审阅/可知性判决/成稿/重建（`_o9*`、`storyAnnual*`）等共 50 个业务方法（`_o6RealOwners`, `annualSources`, `_o6Chat`, `_o6Quotes`, `_o6Chapters`, `_o6Summary`, `_o6Outcomes`, `_o6PastDetails`, `_o6KnownFacts`, `_o6ConfirmedFacts`, `_o6KnownEntities`, `_loreImportDeps`, `_loreImportAbsent`, `loreImportParse`, `loreImportParseWindow`, `loreImportEntities`, `loreImportPreview`, `loreImportPlan`, `loreImportChanged`, `loreImportDescribe`, `loreImportLine`, `_loreImportOwners`, `_loreImportLedgerState`, `loreImportOverride`, `loreImportConfirmMapping`, `loreImportApply`, `loreImportLedger`, `_storyAnnualDeps`, `_o9Owners`, `_o9AliasIndex`, `_o9FactOf`, `_o9NamesIn`, `_o9Gate`, `o9Sources`, `_storyAnnualAbsent`, `storyAnnualBuild`, `storyAnnualReview`, `storyAnnualTwoVersions`, `storyAnnualForPlayer`, `storyAnnualBelletristic`, `storyAnnualEdit`, `storyAnnualStale`, `storyAnnualCompose`, `storyAnnualComposeForPlayer`, `storyAnnualRebuild`, `storyAnnualApplyEdits`, `storyAnnualDrafts`, `storyAnnualComposeLine`, `storyAnnualDescribe`, `storyAnnualLine`）从 `index.js` 完整外提为独立模块，挂载 `window.LonShaEngineStoryAnnual`，提供 `bindDeps` 注入。
