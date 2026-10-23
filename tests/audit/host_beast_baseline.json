@@ -1,6 +1,6 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
-  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。**",
+  "note": "v3.362.0 exportMemoryReport 剥离至 engine-report.js 后 index.js 降至 20950 行",
   "measured_at": "v3.361.0",
   "rebuilds": {
     "v3.233.0": {
@@ -3322,5 +3322,7 @@
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
   "total_lines": 21327,
-  "member_count": 807
+  "member_count": 807,
+  "index_total_lines": 20950,
+  "index_line_ceiling": 21350
 }

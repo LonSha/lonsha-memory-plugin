@@ -7,17 +7,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'fs';
 
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
+const reportSrc = readFileSync(new URL('../engine-report.js', import.meta.url), 'utf-8');
 const suSrc = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8');
-
 test('=== 1. exportMemoryReport 方法验证 ===', () => {
     assert.ok(src.includes('exportMemoryReport() {'), '方法定义');
-    // 11 板块
+    // 11 板块（在 engine-report.js 或 index.js）
+    const allSrc = src + '\n' + reportSrc;
     for (const sec of ['📊 概览', '🧍 主角档案', '🕸️ 角色羁绊网', '📚 章节卷摘要', '🏛️ 纪元史记',
                        '👥 群像共同记忆', '🧩 未结悬念', '📔 角色日记', '🎒 物品台账', '🎬 当前大纲', '🔍 审计统计']) {
-        assert.ok(src.includes(`'## ${sec}'`), `板块缺失: ${sec}`);
+        assert.ok(allSrc.includes(`'## ${sec}'`), `板块缺失: ${sec}`);
     }
     // helper 在 IIFE 内部
-    assert.ok(src.includes('function opLogStatsCompat(engine) {'), 'helper 函数');
+    assert.ok(allSrc.includes('function opLogStatsCompat(engine) {'), 'helper 函数');
     console.log('✓ exportMemoryReport 方法验证通过');
 });
 

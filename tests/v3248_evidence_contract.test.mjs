@@ -126,8 +126,9 @@ test('v3248 C3. ★★ 口径：只记计数与轮次身份，不记读数内容
     }
 });
 test('v3248 C4. ★★ 真实读侧：报告接进「记忆全景报告」（写完没人调 = 等于没写）', () => {
-    const idx = read(path.join(ROOT, 'index.js'));
-    const ex = idx.slice(idx.indexOf('exportMemoryReport() {'), idx.indexOf('exportMemoryReport() {') + 2500);
+    const repSrc = fs.existsSync(path.join(ROOT, 'engine-report.js')) ? read(path.join(ROOT, 'engine-report.js')) : read(path.join(ROOT, 'index.js'));
+    const a = repSrc.indexOf('exportMemoryReport(');
+    const ex = repSrc.slice(a, a + 4000);
     assert.ok(ex.includes('_ledgerViolationMarkdown('), '导出报告必须真调它 —— 否则又是一个零引用方法（被 scan_wiring A7.1 抓）');
 });
 test('v3248 C5. ★★★ 行为面：真跑一次 report/markdown（不是只读源码文本）', () => {

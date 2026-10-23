@@ -1,3 +1,9 @@
+## v3.362.0 **index.js 剥离第二批：exportMemoryReport 全景导出外提为 engine-report.js**
+- 新增 `engine-report.js`（IIFE 模块）：将 `exportMemoryReport` 全景导出方法（含 11 板块 Markdown 渲染与 `opLogStatsCompat` 账本兼容）从 `index.js` 外提为独立模块，通过 `window.LonShaEngineReport` 导出，提供 `bindDeps` 注入 `errLog`。
+- `index.js` 从 21327 行降至 20950 行（净减 377 行），原实现替换为委托桩。
+- `manifest.json` `extra_js` 登记 `engine-report.js`。
+- 六源同源抬版 3.362.0。
+
 ## v3.361.0 **index.js 剥离第一批：诊断行方法群 62 个方法 → engine-diagnostic-lines.js**
 
 - 新增 `engine-diagnostic-lines.js`（1409行，IIFE 模块）：诊断行方法群 62 个方法（`*Line()` 诊断行 + 出口方法 + `confirmBranchImport`）从 index.js 提取为独立模块，通过 `bindDeps({moduleLib, errLog, _changeset, libs})` 注入闭包依赖，`globalThis.LonShaDiagnosticLines` 挂载。

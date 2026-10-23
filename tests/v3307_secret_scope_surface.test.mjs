@@ -40,7 +40,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const EW_SRC = read('evidence-workbench.js');
 const EQ_SRC = read('evidence-query.js');
 const IDX_SRC = read('index.js');
-
+const ER_SRC = read('engine-report.js');
 const EW = require_(path.join(ROOT, 'evidence-workbench.js'));
 const EQ = require_(path.join(ROOT, 'evidence-query.js'));
 const K = require_(path.join(ROOT, 'secret-ledger.js'));
@@ -210,18 +210,25 @@ function judgeDiagLine(W, Q) {
 }
 
 /** F：导出面（验收④）—— 从 index.js **切真源码片段**跑，不手抄一份实现。 */
-function secretSliceOf(idxSrc) {
+function secretSliceOf(src) {
+    const s = (src !== undefined) ? src : ER_SRC;
     const startMark = '/* [v3.307.0 · M-O8 第二刀] 秘密账的导出面';
     const endMark = "} catch (e) { errLog(e, 'exportMemoryReport.secretScope'); }";
-    const a = idxSrc.indexOf(startMark);
-    const b = idxSrc.indexOf(endMark);
+    let a = s.indexOf(startMark);
+    let b = s.indexOf(endMark);
+    if ((a < 0 || b < 0 || b < a) && s === IDX_SRC) {
+        a = ER_SRC.indexOf(startMark);
+        b = ER_SRC.indexOf(endMark);
+        if (a < 0 || b < 0 || b < a) return null;
+        return ER_SRC.slice(a, b + endMark.length);
+    }
     if (a < 0 || b < 0 || b < a) return null;
-    return idxSrc.slice(a, b + endMark.length);
+    return s.slice(a, b + endMark.length);
 }
 function runSecretSlice(idxSrc) {
     const seg = secretSliceOf(idxSrc);
     if (!seg) return null;
-    const body = seg.replace(/\bthis\./g, 'self.');
+    const body = seg.replace(/\bthis\./g, 'self.').replace(/\bengine\./g, 'self.');
     /* 内层不声明 `push` 形参，也不重名：段体自己在 L 上 push，句尾统一取值。 */
     /* 形参只留段体真正需要的外部名（`self` / `window`）：与内部垫片同名会直接
      *   SyntaxError —— 抛错 ≠ 翻红，本档首跑即栽在这里。
@@ -238,7 +245,7 @@ function runSecretSlice(idxSrc) {
 }
 function judgeReport(idxSrc) {
     const P = [];
-    const r = runSecretSlice(idxSrc);
+    const r = runSecretSlice(idxSrc !== undefined ? idxSrc : ER_SRC);
     if (!r) return ['F 从 index.js 切不到秘密导出段（段被删/标记被改）—— 判据 fail-closed'];
     if (r.thrown) return ['F 秘密导出段真跑抛错：' + r.thrown];
     const txt = String(r.text || '');
@@ -380,32 +387,32 @@ test('v3307 G2. ★★★★★ 破坏③：查询面正文列写回 ⇒ row.tex
 });
 
 test('v3307 G3. ★★★★★ 破坏④：报告段把正文写进去 ⇒ 导出面判据必须转红（验收④不可豁免）', () => {
-    const broken = breakOnce(IDX_SRC, ANCHORS.idxReportHead,
+    const srcForG3 = (IDX_SRC.indexOf(ANCHORS.idxReportHead) >= 0) ? IDX_SRC : ER_SRC;
+    const broken = breakOnce(srcForG3, ANCHORS.idxReportHead,
         ANCHORS.idxReportHead + " push(_open[0].secret);", 'G3 把正文写进报告');
     let P;
     try { P = judgeReport(broken); }
     catch (e) { assert.fail('判据在破坏副本上抛错（抛错≠翻红）：' + e.message); }
     assert.ok(P.some((x) => x.indexOf('F') === 0), '★ 正文进报告后 F 必须点名，实：' + JSON.stringify(P));
-    assert.notEqual(broken, IDX_SRC, '破坏必须真的改变源码');
+    assert.notEqual(broken, srcForG3, '破坏必须真的改变源码');
     console.log('  ✓ ④导出面泄漏被抓');
 });
-
 test('v3307 G4. ★★★★ 破坏⑤：把导出段整段删掉 ⇒ 判据必须 fail-closed（不得静默跳过）', () => {
-    const seg = secretSliceOf(IDX_SRC);
+    const srcForG4 = (IDX_SRC.indexOf(ANCHORS.idxReportHead) >= 0) ? IDX_SRC : ER_SRC;
+    const seg = secretSliceOf(srcForG4);
     assert.ok(seg, '前置：真源上必须切得到该段');
-    const broken = IDX_SRC.split(seg).join('');
-    assert.notEqual(broken, IDX_SRC, '破坏必须真的改变源码');
+    const broken = srcForG4.split(seg).join('');
+    assert.notEqual(broken, srcForG4, '破坏必须真的改变源码');
     const P = judgeReport(broken);
     assert.deepEqual(P, ['F 从 index.js 切不到秘密导出段（段被删/标记被改）—— 判据 fail-closed'],
         '★ 段不在场时必须明确失败，而不是「没有正文 ⇒ 通过」');
     console.log('  ✓ ⑤结构漂移 fail-closed（删段不等于通过）');
 });
-
 /* ══════════ H. 锚点两向自证（工具自证：锚点必须恰中 1 次，打偏必抛） ══════════ */
 test('v3307 H1. ★★★★★ 锚点两向自证：源侧恰中 1 次；不存在 / 不唯一 / 同值替换必须抛', () => {
     /* 源侧：每个锚点在它所属的真源里必须恰中 1 次 */
     for (const [k, a] of Object.entries(ANCHORS)) {
-        const file = (k === 'eqTextFields') ? EQ_SRC : (k === 'idxReportHead' ? IDX_SRC : EW_SRC);
+        const file = (k === 'eqTextFields') ? EQ_SRC : (k === 'idxReportHead' ? (IDX_SRC.indexOf(a) >= 0 ? IDX_SRC : ER_SRC) : EW_SRC);
         assert.equal(file.split(a).length - 1, 1, '锚点 ' + k + ' 在其真源里必须恰中 1 次（漂移即本档静默失效）');
     }
     /* 判据层纯度：锚点字面量在本档源码里只准出现一次（即 ANCHORS 那一处声明） */

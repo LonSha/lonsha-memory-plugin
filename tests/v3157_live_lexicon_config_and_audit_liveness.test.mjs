@@ -20,7 +20,8 @@ const idxSrc = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
 /* [v3.267.0 A1 第七刀] ConfigManager 默认块与卡白名单声明已外移 memory-config.js；
  *   本档原 src 的用途就是配置声明面，故变量 src 直接改读合看（语义一字不改）。 */
 const cfgModSrc = readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
-const src = idxSrc + String.fromCharCode(10) + cfgModSrc;
+const repSrc = readFileSync(path.join(ROOT, 'engine-report.js'), 'utf-8');
+const src = idxSrc + String.fromCharCode(10) + cfgModSrc + String.fromCharCode(10) + repSrc;
 /* [v3.267.0 A1 第七刀] 类抽取/读取顺序判据必须以真定义的换行形态为锚：入口退路 `this.config = {};`
  *   是默认块签名前缀；只认 `{` 后换行可跳过退路，命中模块真默认块。 */
 const face = src;
