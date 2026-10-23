@@ -49,6 +49,7 @@ const require_ = createRequire(import.meta.url);
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const ok = (m) => console.log('  ✓ ' + m);
 const IDX = read('index.js');
+const QT_SRC = read('engine-qa-tools.js');
 const SELF = read(path.join('tests', 'v3350_m4o6_real_supply.test.mjs'));
 const MF = JSON.parse(read('manifest.json'));
 const BORN = '3.335.0';
@@ -74,6 +75,26 @@ const HOST_METHODS = [
     '_qaKnownActors(limit) {', '_storyAnnualDeps() {', '_branchCanonDeps() {',
     '_fatedRecallDeps() {', '_loreImportDeps() {'
 ];
+/** 从 engine-qa-tools.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 /** 方法体切片（花括号配平；与 v3312 / v3324 同款）。 */
 function methodBody(src, header) {
     const at = src.indexOf(header);
@@ -100,7 +121,12 @@ function engineFrom(src, win) {
     const J = String.fromCharCode(10);
     const libs = LIB_FNS.map((h) => methodBody(src, h));
     const missL = LIB_FNS.filter((h, i) => !libs[i]);
-    const meths = HOST_METHODS.map((h) => methodBody(src, h));
+    const meths = HOST_METHODS.map((h) => {
+        if (h === '_qaKnownActors(limit) {') {
+            return extractModuleMethod(QT_SRC, 'function _qaKnownActors(engine, limit) {');
+        }
+        return methodBody(src, h);
+    });
     const missM = HOST_METHODS.filter((h, i) => !meths[i]);
     if (missL.length || missM.length) throw new Error('切片缺失：取库口[' + missL.join('/') + '] 出口[' + missM.join('/') + ']');
     const code = libs.join(J) + J + 'return ({ ' + meths.join(',' + J) + ' });';

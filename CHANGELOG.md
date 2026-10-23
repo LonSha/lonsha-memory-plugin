@@ -1,3 +1,10 @@
+## v3.364.0
+**index.js 剥离第四批：QA问答管线与高级查询工具面外提为 engine-qa-tools.js**
+- 新增 `engine-qa-tools.js`（1235行，IIFE 模块）：将问答管线、问答消歧线程、工具面查询出口等共 32 个方法（`_qaKnownActors`, `_qaActorAliases`, `askMemoryQuestion`, `askMemoryQuestionAsync`, `askMemoryQuestionFollowUp`, `qaThreadResolve`, `qaThread`, `_qaThreadState`, `memoryQaLine`, `memoryToolsSources`, `_memoryToolsAbsent`, `queryEvidenceAsync`, `queryExperience`, `queryDualTime`, `queryEvidenceSolver`, `queryEventGraph`, `queryCausalTrace`, `queryPerspectiveMatrix` 等）从 `index.js` 完整外提为独立模块，挂载 `window.LonShaEngineQaTools`，提供 `bindDeps` 注入。
+- `index.js` 从 20249 行进一步降至 19156 行（净减 1093 行），原实现替换为轻量委托桩。
+- `manifest.json` `extra_js` 登记 `engine-qa-tools.js`（共 137 项）。
+- 修复切片测试夹具（`v3322`, `v3330`, `v3332`, `v3350`, `v3400`）适配新模块提取及破坏锚点。
+- 新增 `tests/v3364_engine_qa_tools_split.test.mjs`（7 条）。
 ## v3.363.0
 **index.js 剥离第三批：recallMemory 核心召回管线外提为 engine-recall.js**
 - 新增 `engine-recall.js`（IIFE 模块）：将 `recallMemory` 核心召回管线（718行）及 5 个纯函数（`numOr`, `normalizeCharName`, `relativePrefix`, `filterTimelineByConstraint`, `parseStoryTimeConstraint`）从 `index.js` 外提为独立模块，挂载 `window.LonShaEngineRecall`，提供 `bindDeps` 注入。

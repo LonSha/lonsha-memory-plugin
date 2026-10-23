@@ -15,7 +15,7 @@
  *   4 undoTransition：撤销一次转场，旧卷保持可读
  * ============================================================ */
 (function () {
-  const VERSION = '3.363.0';
+  const VERSION = '3.364.0';
 
   var PROPOSAL_TYPES = ['still-valid', 'expired', 'author-decides', 'inherited'];
 

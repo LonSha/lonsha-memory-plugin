@@ -40,6 +40,7 @@ const R = path.resolve(HERE, '..');
 const require_ = createRequire(import.meta.url);
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const QT_SRC = read('engine-qa-tools.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const EQ_SRC = read('evidence-query.js');
@@ -79,6 +80,26 @@ const ANCHORS = Object.freeze({
 const CL = require_(path.join(R, 'commitment-ledger.js'));
 /** 取成员体（模块级函数或类方法），配平跳过字符串与模板串。
  *  裸 `{` 计数会被判据里的正则字面量提前收口 —— 本仓为这条留过两次痕。 */
+/** 从 engine-qa-tools.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 function sliceMember(src, header) {
     const at = src.indexOf(header);
     if (at < 0) return null;
@@ -104,21 +125,23 @@ function sliceMember(src, header) {
     return null;
 }
 /** 装配真宿主出口：取库口 + 装配点 + 三个成员（缺一即抛，不静默降级成空壳）。 */
-function mkQaHost(win, src) {
+function mkQaHost(win, src, qtSrc) {
     const idx = src || IDX;
+    const qt = qtSrc || QT_SRC;
     const heads = ['function _moduleLib(getGlobal, fileName) {', 'function _evidenceQueryLib() {',
         'function _evidenceWorkbenchLib() {', 'function _evidenceQueryLedgersOf() {',
         'function _qaHelpDeps() {', 'function _ledgerApis() {', 'function _factVersionLib() {',
         'function _eventCompletenessLib() {', 'function _repairLoopLib() {'];
     const libs = heads.map((h) => sliceMember(idx, h));
     if (libs.some((x) => !x)) throw new Error('取库口切片缺失：' + heads.filter((h, i) => !libs[i]).join(' / '));
-    /* [v3.330.0 · M4-O2] `_qaActorAliases()` 是宿主出口的**新装配点** ——
-     *   `askMemoryQuestion()` 现在直接调用它,故夹具必须一并切片:
-     *   切片不全时宿主整段进 catch ⇒ 返回 version=0 的缺席回执
-     *   （实测症状:「在场路径须报内核版本号」先红,而真因是夹具装配不完整）。 */
-    const mHeads = ['_qaActorAliases() {', '_qaKnownActors(limit) {', 'askMemoryQuestion(question, opts) {', 'memoryQaLine() {'];
-    const meths = mHeads.map((h) => sliceMember(idx, h));
-    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失：' + mHeads.filter((h, i) => !meths[i]).join(' / '));
+    /* [v3.364.0 剥离] 方法体从 engine-qa-tools.js 提取(engine.→this.) */
+    const meths = [
+        extractModuleMethod(qt, 'function _qaActorAliases(engine) {'),
+        extractModuleMethod(qt, 'function _qaKnownActors(engine, limit) {'),
+        extractModuleMethod(qt, 'function askMemoryQuestion(engine, question, opts) {'),
+        extractModuleMethod(qt, 'function memoryQaLine(engine) {')
+    ];
+    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失');
     return new Function('errLog', 'window',
         libs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });')(() => {}, win);
 }
@@ -132,8 +155,8 @@ function qaHostState() {
     return { worldProg: { commitmentLedger: cs } };
 }
 /** 在场宿主：真内核 + 真工作台 + 真账本 + 两个来源的已知人名。 */
-function qaSelf(win, src) {
-    const eng = mkQaHost(win, src);
+function qaSelf(win, src, qtSrc) {
+    const eng = mkQaHost(win, src, qtSrc);
     return Object.assign({}, eng, {
         _entityIdByName: new Map([['林一', 'ent_lin'], ['王五', 'ent_wang']]),
         graph: { nodes: new Map([['n1', { type: 'character', name: '苏晴' }], ['n2', { type: 'event', name: '不该进来的事件' }]]) },
@@ -143,8 +166,8 @@ function qaSelf(win, src) {
 }
 const QA_WIN = () => ({ LonShaEvidenceQuery: EQ, LonShaEvidenceWorkbench: WB, LonShaCommitmentLedger: CL });
 /** G 判据一：出口面 —— 恒定键面 + 缺席是真读数 + 不扩权 + 只读。 */
-function x1JudgeHostFace(src) {
-    const self = qaSelf(QA_WIN(), src);
+function x1JudgeHostFace(src, qtSrc) {
+    const self = qaSelf(QA_WIN(), src, qtSrc);
     /* ① 已知人名装配：两来源并集 + 去重 + 只收 character（事件节点不得混进来）。 */
     const names = self._qaKnownActors();
     if (names.join(',') !== '林一,王五,苏晴') throw new Error('已知人名装配不对（实得 ' + names.join(',') + '）');
@@ -153,7 +176,7 @@ function x1JudgeHostFace(src) {
     if (one.join(',') !== '苏晴') throw new Error('单一来源失败把另一来源也带下去了（两处 try 必须各自独立）');
     /* ② 恒定键面：缺席路径与在场路径**逐字同键**。 */
     const r = self.askMemoryQuestion('苏晴答应了什么？', {});
-    const engNo = mkQaHost({}, src);
+    const engNo = mkQaHost({}, src, qtSrc);
     const noState = Object.assign({}, engNo, {
         _entityIdByName: self._entityIdByName, graph: self.graph, worldProg: self.worldProg
     });
@@ -180,8 +203,8 @@ function x1JudgeHostFace(src) {
     return r;
 }
 /** G 判据二：跑通面 —— 真账本 → 真答案（可回源 / 分档）→ 真诊断行 + 读侧缺口具名。 */
-function x1JudgeHostRun(src) {
-    const self = qaSelf(QA_WIN(), src);
+function x1JudgeHostRun(src, qtSrc) {
+    const self = qaSelf(QA_WIN(), src, qtSrc);
     const r = self.askMemoryQuestion('苏晴答应了什么？', {});
     if (r.actor !== '苏晴') throw new Error('问句里的人名没被认出（只应从 knownActors 认，不猜别名）');
     if (r.plans.length !== 1 || r.plans[0].id !== 'promise') throw new Error('规划面不对：' + JSON.stringify(r.plans.map((p) => p.id)));
@@ -201,28 +224,28 @@ function x1JudgeHostRun(src) {
     if (line.indexOf('按人 苏晴') < 0) throw new Error('诊断行没报「按谁筛」：' + line);
     const line0 = Object.assign({}, self, { _memoryQaLast: null }).memoryQaLine();
     if (line0.indexOf('待用') < 0) throw new Error('未问过时须说「待用」（不是「没有答案」）：' + line0);
-    const engNo = mkQaHost({}, src);
+    const engNo = mkQaHost({}, src, qtSrc);
     const lineNo = engNo.memoryQaLine.call(engNo);
     if (lineNo.indexOf('模块未加载') < 0) throw new Error('模块缺席时诊断行未如实归因：' + lineNo);
     return r;
 }
 test('v3322 G1. ★★★ M3-X1 宿主出口：恒定键面（缺席也是真读数）+ 不扩权 + 只读', () => {
-    const r = x1JudgeHostFace(IDX);
+    const r = x1JudgeHostFace(IDX, QT_SRC);
     /* [v3.330.0 · M4-O2 交棒] 原文锁 `1`;问答面抬到 2 后本档改守下界。 */
     assert.ok(r.version >= 1, '在场路径须报内核版本号（不低于 v3.322 收口读数）');
     console.log('  ✓ 缺席与在场同键（' + Object.keys(r).length + ' 键）；缺席的 knownActors 是真读数；rows 一格不外带');
 });
 test('v3322 G2. ★★★ M3-X1 宿主出口真跑通：真账本 → 真答案 → 真诊断行，且读侧缺口具名', () => {
-    x1JudgeHostRun(IDX);
+    x1JudgeHostRun(IDX, QT_SRC);
     console.log('  ✓ 真账本答出「谁答应了什么」：3 句 / 可回源 2；未参与的账具名（空账 8 本）');
 });
 test('v3322 G3. ★★★ 破坏宿主出口的恒定键面 ⇒ G1 判据必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.x1AbsentKnown, 'reason: reason, writesNothing: true', 'x1 缺席键面');
+    const bad = breakOnce(QT_SRC, ANCHORS.x1AbsentKnown, 'reason: reason, writesNothing: true', 'x1 缺席键面');
     let threw = false, msg = '';
-    try { x1JudgeHostFace(bad); } catch (e) { threw = true; msg = String(e.message || e); }
+    try { x1JudgeHostFace(IDX, bad); } catch (e) { threw = true; msg = String(e.message || e); }
     assert.ok(threw, '缺席路径少一格键后判据必须转红（否则「恒定键面」没有任何判决力）');
     assert.match(msg, /键面/);
-    x1JudgeHostFace(IDX);   // 反向对照：原版同判据必须过
+    x1JudgeHostFace(IDX, QT_SRC);   // 反向对照：原版同判据必须过
 });
 /* ══════════════ F. 锚点自证 + 版本锚 ══════════════ */
 test('v3322 F1. ★★ H5 判据纯度：破坏锚点在**本档源码**里恰中 1 次', () => {
@@ -235,7 +258,7 @@ test('v3322 F2. ★★ H6 工具两向自证：锚点不存在 / 不唯一 / 同
     assert.throws(() => breakOnce(IDX, '这段源码根本不存在', 'x', '不存在锚点'), /恰中 1 次|命中 0 次/);
     assert.throws(() => breakOnce(IDX, 'const ', 'x', '不唯一锚点'), /恰中 1 次|要求恰好 1 次/);
     /* [v3.334.0] 正则锚下的同值替换:替换串等于匹配原文(锚的 exec[0])才是真同值。 */
-    assert.throws(() => breakOnce(IDX, ANCHORS.x1AbsentKnown, ANCHORS.x1AbsentKnown.exec ? ANCHORS.x1AbsentKnown.exec(IDX)[0] : ANCHORS.x1AbsentKnown, '同值替换'), /必须真的改变源码/);
+    assert.throws(() => breakOnce(QT_SRC, ANCHORS.x1AbsentKnown, ANCHORS.x1AbsentKnown.exec ? ANCHORS.x1AbsentKnown.exec(QT_SRC)[0] : ANCHORS.x1AbsentKnown, '同值替换'), /必须真的改变源码/);
 });
 const vnum = (s) => { const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s).trim()); return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN; };
 const BORN = '3.322.0';

@@ -57,6 +57,7 @@ const R = path.resolve(HERE, '..');
 const require_ = createRequire(import.meta.url);
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const QT_SRC = read('engine-qa-tools.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const EQ_SRC = read('evidence-query.js');
@@ -325,6 +326,26 @@ function o2JudgeRelationState(E) {
     return co;
 }
 /* ══════════════ 宿主出口（真方法体 + 真内核 + 真账本） ══════════════ */
+/** 从 engine-qa-tools.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 function sliceMember(src, header) {
     const at = src.indexOf(header);
     if (at < 0) return null;
@@ -349,17 +370,22 @@ function sliceMember(src, header) {
     }
     return null;
 }
-function mkHost(win, src) {
+function mkHost(win, src, qtSrc) {
     const idx = src || IDX;
+    const qt = qtSrc || QT_SRC;
     const heads = ['function _moduleLib(getGlobal, fileName) {', 'function _evidenceQueryLib() {',
         'function _evidenceWorkbenchLib() {', 'function _evidenceQueryLedgersOf() {',
         'function _qaHelpDeps() {', 'function _ledgerApis() {', 'function _factVersionLib() {',
         'function _eventCompletenessLib() {', 'function _repairLoopLib() {'];
     const libs = heads.map((h) => sliceMember(idx, h));
     if (libs.some((x) => !x)) throw new Error('取库口切片缺失：' + heads.filter((h, i) => !libs[i]).join(' / '));
-    const mHeads = ['_qaActorAliases() {', '_qaKnownActors(limit) {', 'askMemoryQuestion(question, opts) {', 'memoryQaLine() {'];
-    const meths = mHeads.map((h) => sliceMember(idx, h));
-    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失：' + mHeads.filter((h, i) => !meths[i]).join(' / '));
+    const meths = [
+        extractModuleMethod(qt, 'function _qaActorAliases(engine) {'),
+        extractModuleMethod(qt, 'function _qaKnownActors(engine, limit) {'),
+        extractModuleMethod(qt, 'function askMemoryQuestion(engine, question, opts) {'),
+        extractModuleMethod(qt, 'function memoryQaLine(engine) {')
+    ];
+    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失');
     return new Function('errLog', 'window',
         libs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });')(() => {}, win);
 }
@@ -374,8 +400,8 @@ function hostState() {
 /** 在场宿主：真内核 + 真账本 + 图谱带别名（图谱节点的 `data.aliases` 是别名唯一真源）。
  *   ★ 事件节点名取**已知人名**「王五」：否则 `if (!known.has(c)) return;` 会先把事件节点
  *     挡掉，「只收 character」那道守卫就成了冗余第二道（破坏它读不出差异 —— 实测）。 */
-function qaSelf(win, src) {
-    const eng = mkHost(win, src);
+function qaSelf(win, src, qtSrc) {
+    const eng = mkHost(win, src, qtSrc);
     return Object.assign({}, eng, {
         _entityIdByName: new Map([['林一', 'ent_lin'], ['王五', 'ent_wang']]),
         graph: {
@@ -391,8 +417,8 @@ function qaSelf(win, src) {
 }
 const WIN = () => ({ LonShaEvidenceQuery: EQ, LonShaEvidenceWorkbench: require_(path.join(R, 'evidence-workbench.js')), LonShaCommitmentLedger: CL });
 /** ⑥ 宿主接线：别名表只出「别名 → 本名」一向、本名须在已知人名里、不上同名、只收 character。 */
-function o2JudgeHostAliases(src) {
-    const self = qaSelf(WIN(), src);
+function o2JudgeHostAliases(src, qtSrc) {
+    const self = qaSelf(WIN(), src, qtSrc);
     const al = self._qaActorAliases();
     const keys = Object.keys(al).sort().join(',');
     if (keys !== '小安,晴姐') throw new Error('别名表内容不对（事件节点 / 同名别名 / 未登记本名都不得进表）：' + keys);
@@ -410,8 +436,8 @@ function o2JudgeHostAliases(src) {
     return al;
 }
 /** ⑦ 宿主出口真跑：主题 / 多人物 / 别名 / 时点四读数都在**出口**上读到（不是只在核心里算过）。 */
-function o2JudgeHostExit(src) {
-    const self = qaSelf(WIN(), src);
+function o2JudgeHostExit(src, qtSrc) {
+    const self = qaSelf(WIN(), src, qtSrc);
     const r = self.askMemoryQuestion('苏晴答应送什么生日礼物？', {});
     if (r.version < 1) throw new Error('内核在场却报缺席：version=' + r.version);
     if (r.actor !== '苏晴') throw new Error('出口没认出人名：' + r.actor);
@@ -569,25 +595,25 @@ test('v3330 D10. ★★ 破坏时点缺口登记 ⇒ A5 判据必须转红', () 
     o2JudgeTime(EQ);
 });
 test('v3330 D11. ★★★ 破坏宿主别名类型守卫（事件节点混入）⇒ C1 判据必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.hostCharType, 'if (!nd) continue;', 'o2 宿主别名来源');
+    const bad = breakOnce(QT_SRC, ANCHORS.hostCharType, 'if (!nd) continue;', 'o2 宿主别名来源');
     let threw = false, msg = '';
-    try { o2JudgeHostAliases(bad); } catch (e) { threw = true; msg = String(e.message || e); }
+    try { o2JudgeHostAliases(IDX, bad); } catch (e) { threw = true; msg = String(e.message || e); }
     assert.ok(threw, '事件节点混入别名表后判据必须转红（否则「事件节点也算角色」抓不住）');
     assert.match(msg, /别名|事件|不进表|表内容/);
     o2JudgeHostAliases(IDX);
 });
 test('v3330 D12. ★★★ 破坏宿主别名方向（反向写表）⇒ C1 判据必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.hostAliasDir, 'out[c] = a;', 'o2 宿主别名方向');
+    const bad = breakOnce(QT_SRC, ANCHORS.hostAliasDir, 'out[c] = a;', 'o2 宿主别名方向');
     let threw = false, msg = '';
-    try { o2JudgeHostAliases(bad); } catch (e) { threw = true; msg = String(e.message || e); }
+    try { o2JudgeHostAliases(IDX, bad); } catch (e) { threw = true; msg = String(e.message || e); }
     assert.ok(threw, '写表方向反了后判据必须转红（否则「本名当别名键」抓不住）');
     assert.match(msg, /别名|方向|内容/);
     o2JudgeHostAliases(IDX);
 });
 test('v3330 D13. ★★★ 破坏宿主出口的主题外送 ⇒ C2 判据必须转红', () => {
-    const bad = breakOnce(IDX, ANCHORS.hostTopicOut, 'topics: [],', 'o2 出口主题外送');
+    const bad = breakOnce(QT_SRC, ANCHORS.hostTopicOut, 'topics: [],', 'o2 出口主题外送');
     let threw = false, msg = '';
-    try { o2JudgeHostExit(bad); } catch (e) { threw = true; msg = String(e.message || e); }
+    try { o2JudgeHostExit(IDX, bad); } catch (e) { threw = true; msg = String(e.message || e); }
     assert.ok(threw, '出口不再外送主题后判据必须转红（否则「核心算了但出口不报」抓不住）');
     assert.match(msg, /主题/);
     o2JudgeHostExit(IDX);
@@ -620,7 +646,7 @@ test('v3330 E3. ★★★ 真源锚活：十四个破坏锚在**真源码**里�
      *   而破坏能否成立取决于**真源码**里恰中一次。真源改了形态而锚点没同步时，
      *   D 段的 breakOnce 会自己抛（那是对的），但抛在 D 段里读起来像「实现坏了」。
      *   这条把「锚是否活着」单独报出来，归因立刻分明。 */
-    const SRC_OF = (k) => (k.indexOf('host') === 0 ? 'index.js' : 'evidence-query.js');
+    const SRC_OF = (k) => (k.indexOf('host') === 0 ? 'engine-qa-tools.js' : 'evidence-query.js');
     for (const k of Object.keys(ANCHORS)) {
         const rel = SRC_OF(k);
         const n = read(rel).split(ANCHORS[k]).length - 1;

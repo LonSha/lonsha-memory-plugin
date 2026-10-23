@@ -44,6 +44,7 @@ const require_ = createRequire(import.meta.url);
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const EQ_SRC = read('evidence-query.js');
 const IDX = read('index.js');
+const QT_SRC = read('engine-qa-tools.js');
 const MTA_SRC = read('memory-tools-api.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
@@ -83,6 +84,26 @@ function synthHost(n, apis) {
 const suSpec = () => ({ ledgers: ['commitment'], actors: ['苏晴'], kind: 'all' });
 
 /** 宿主切片：从真 index.js 切出宿主方法体（与 v3330 同款夹具纪律）。 */
+/** 从 engine-qa-tools.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 function sliceMember(src, header) {
     const at = src.indexOf(header);
     if (at < 0) return null;
@@ -130,29 +151,23 @@ const IDX_METH_HEADS = [
     '_qaCausalEdges() {'
 ];
 
-function mkHost(win, src) {
+function mkHost(win, src, qtSrc) {
     const idx = src || IDX;
+    const qt = qtSrc || QT_SRC;
     const libs = IDX_LIB_HEADS.map((h) => sliceMember(idx, h));
     if (libs.some((x) => !x)) throw new Error('取库口切片缺失：' + IDX_LIB_HEADS.filter((h, i) => !libs[i]).join(' / '));
-    /* async 方法体在 new Function 里要改成 Generator 化不划算 —— 剥掉 async 前缀、
-     *   返回值再由外层 Promise 化（await 语法在 new Function 里本就不允许，
-     *   而宿主方法体里只用了 `await T.queryEvidenceAsync(...)` 一处）。
-     *   改法：把 `async queryEvidenceAsync` / `async askMemoryQuestionAsync` 的
-     *   async 前缀剥掉，方法体里的 await 改成 .then 不可行 —— 唯一稳妥路径是
-     *   整段包进一个 async 包装器。 */
-    const stripAsync = (m) => m.replace(/async\s+([A-Za-z_$][\w$]*\()/, '$1');
-    const meths = IDX_METH_HEADS.map((h) => {
-        const raw = sliceMember(idx, h);
-        if (!raw) return null;
-        /* 头匹配不含 async 前缀（`queryEvidenceAsync(spec, opts) {` 会命中
-         *   `async queryEvidenceAsync(...)` 的内部起点），所以以体内是否含 await 为准。 */
-        if (/\bawait\s/.test(raw)) {
-            const stripped = stripAsync(raw);
-            return wrapAwaitBody(stripped);
-        }
-        return raw;
-    });
-    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失：' + IDX_METH_HEADS.filter((h, i) => !meths[i]).join(' / '));
+
+    const meths = [
+        extractModuleMethod(qt, 'function _qaActorAliases(engine) {'),
+        extractModuleMethod(qt, 'function _qaKnownActors(engine, limit) {'),
+        extractModuleMethod(qt, 'function askMemoryQuestion(engine, question, opts) {'),
+        extractModuleMethod(qt, 'async function askMemoryQuestionAsync(engine, question, opts) {'),
+        extractModuleMethod(qt, 'function memoryToolsSources(engine) {'),
+        extractModuleMethod(qt, 'function _memoryToolsAbsent(engine, api, reason) {'),
+        extractModuleMethod(qt, 'async function queryEvidenceAsync(engine, spec, opts) {'),
+        sliceMember(idx, '_qaCausalEdges() {')
+    ];
+    if (meths.some((x) => !x)) throw new Error('宿主出口切片缺失');
     return new Function('errLog', 'window',
         libs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });')(() => {}, win);
 }
@@ -306,8 +321,8 @@ function judgeHost() {
 }
 
 /** 判据 D（续）：await 后的键面/状态判读。 */
-async function judgeHostAsync() {
-    const H = mkHost(WIN_FULL());
+async function judgeHostAsync(src, qtSrc) {
+    const H = mkHost(WIN_FULL(), src, qtSrc);
     /* 异步问答要跑真账本：给宿主补 worldProg（mkHost 只带方法与库口）。 */
     const self = Object.assign({}, H, bigHost(20000));
     const qa = await self.askMemoryQuestionAsync('苏晴答应了什么？', { shardRows: 500 });
@@ -377,7 +392,7 @@ const ANCHORS = Object.freeze({
 
 /** 把破坏副本写到临时文件并 require 回来（真源码 → 真装载，不走 mock）。 */
 function loadBroken(tag, mod, anchor, repl) {
-    const src = (mod === 'evidence-query.js') ? EQ_SRC : (mod === 'memory-tools-api.js') ? MTA_SRC : IDX;
+    const src = (mod === 'evidence-query.js') ? EQ_SRC : (mod === 'memory-tools-api.js') ? MTA_SRC : (mod === 'engine-qa-tools.js') ? QT_SRC : IDX;
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3332-' + tag + '-'));
     const p = path.join(dir, mod);
     const broken = breakSource(src, anchor, repl, tag);
@@ -443,9 +458,9 @@ test('v3332 E1~E3 + F1 ★★★★★ 三条真源码破坏负控制 + 判据�
     assert.equal(progressB[progressB.length - 1][0], 20000, '破坏必须真的生效（最终进度停在 20000，读不到 20007）');
 
     /* E3：取消 gap 被摘 ⇒ 取消后的答案面不再点名「已处理部分」。 */
-    const e3 = loadBroken('qagap', 'index.js', ANCHORS.qaGap, ANCHORS.qaGapBroken);
+    const e3 = loadBroken('qagap', 'engine-qa-tools.js', ANCHORS.qaGap, ANCHORS.qaGapBroken);
     const IDX_B = fs.readFileSync(e3.path, 'utf8');
-    const HB = mkHost(WIN_FULL(), IDX_B);
+    const HB = mkHost(WIN_FULL(), IDX, IDX_B);
     const selfB = Object.assign({}, HB, bigHost(20000));
     let callsB = 0;
     const qaCB = await selfB.askMemoryQuestionAsync('苏晴答应了什么？', {
@@ -457,7 +472,7 @@ test('v3332 E1~E3 + F1 ★★★★★ 三条真源码破坏负控制 + 判据�
     /* F1 判据纯度：每个锚点在源文件里恰中 1 次（收成一处声明后的纯度才有内容）。 */
     assert.equal(EQ_SRC.split(ANCHORS.tailShard).length - 1, 1, 'tailShard 锚点在 evidence-query.js 里必须恰中 1 次');
     assert.equal(MTA_SRC.split(ANCHORS.envCanceled).length - 1, 1, 'envCanceled 锚点在 memory-tools-api.js 里必须恰中 1 次');
-    assert.equal(IDX.split(ANCHORS.qaGap).length - 1, 1, 'qaGap 锚点在 index.js 里必须恰中 1 次');
+    assert.equal(QT_SRC.split(ANCHORS.qaGap).length - 1, 1, 'qaGap 锚点在 engine-qa-tools.js 里必须恰中 1 次');
     /* fail-closed：判据函数对 null/undefined 宿主必须报问题而不是抛异常。 */
     let threw = null;
     try { await judgeCancel(null, SU_SPEC); } catch (e) { threw = e; }

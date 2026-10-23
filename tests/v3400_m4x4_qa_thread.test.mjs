@@ -32,6 +32,7 @@ const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const EQ_SRC = read('evidence-query.js');
 const QT_SRC = read('qa-thread.js');
+const EQT_SRC = read('engine-qa-tools.js');
 const SELF = read(path.join('tests', 'v3400_m4x4_qa_thread.test.mjs'));
 const BORN_V = '3.340.0';
 const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
@@ -183,6 +184,26 @@ function judgeIdentity(qt) {
 }
 test('v3400 B5. ** 身份不越界：换会话作废重建并具名 / 同会话正常推进', () => judgeIdentity(QT) === undefined && console.log('  ok chatKey 变更 ⇒ thread-identity-changed / 同会话照常'));
 /* ══════════════ C. 宿主出口（真方法体 + 真内核 + 真账本） ══════════════ */
+/** 从 engine-qa-tools.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
 function sliceMember(src, header) {
     const at = src.indexOf(header);
     if (at < 0) return null;
@@ -226,12 +247,21 @@ const METH_FNS = [
     'qaThreadResolve(picks, opts) {',
     'qaThread() {',
 ];
-function mkHost(win, src) {
+function mkHost(win, src, eqtSrc) {
     const idx = src || IDX;
+    const eqt = eqtSrc || EQT_SRC;
     const libs = LIB_FNS.map((h) => sliceMember(idx, h));
-    const meths = METH_FNS.map((h) => sliceMember(idx, h));
-    const miss = LIB_FNS.filter((h, i) => !libs[i]).concat(METH_FNS.filter((h, i) => !meths[i]));
-    if (miss.length) throw new Error('切片缺失：' + miss.join(' / '));
+    const meths = [
+        extractModuleMethod(eqt, 'function _qaActorAliases(engine) {'),
+        extractModuleMethod(eqt, 'function _qaKnownActors(engine, limit) {'),
+        extractModuleMethod(eqt, 'function _qaThreadState(engine) {'),
+        extractModuleMethod(eqt, 'function askMemoryQuestionFollowUp(engine, question, opts) {'),
+        extractModuleMethod(eqt, 'function qaThreadResolve(engine, picks, opts) {'),
+        extractModuleMethod(eqt, 'function qaThread(engine) {'),
+        extractModuleMethod(eqt, 'function askMemoryQuestion(engine, question, opts) {')
+    ];
+    const miss = LIB_FNS.filter((h, i) => !libs[i]);
+    if (miss.length || meths.some((x) => !x)) throw new Error('切片缺失：' + miss.join(' / '));
     const code = libs.join('\n') + '\nreturn ({ ' + meths.join(',\n') + ' });';
     return new Function('errLog', 'window', code)(() => {}, win);
 }
@@ -244,8 +274,8 @@ function qaHostState() {
     return { worldProg: { commitmentLedger: cs } };
 }
 const QA_WIN = () => ({ LonShaEvidenceQuery: EQ, LonShaQaThread: QT, LonShaEvidenceWorkbench: WB, LonShaCommitmentLedger: CL });
-function qaSelf(win, src, chatId) {
-    const eng = mkHost(win, src);
+function qaSelf(win, src, chatId, eqtSrc) {
+    const eng = mkHost(win, src, eqtSrc);
     return Object.assign({}, eng, {
         getCurrentChatId: () => (chatId === undefined ? 'chat-1' : chatId),
         _entityIdByName: new Map([['林一', 'ent_lin'], ['王五', 'ent_wang']]),
@@ -254,8 +284,8 @@ function qaSelf(win, src, chatId) {
         _lastInjection: 'SENTINEL'
     });
 }
-function judgeHostInherit(src) {
-    const self = qaSelf(QA_WIN(), src);
+function judgeHostInherit(src, eqtSrc) {
+    const self = qaSelf(QA_WIN(), src, undefined, eqtSrc);
     const r1 = self.askMemoryQuestionFollowUp('苏晴答应了什么？', {});
     if (r1.followUp !== true || r1.turn !== 1) throw new Error('首轮追问未建档（turn=' + r1.turn + '）');
     const r2 = self.askMemoryQuestionFollowUp('她后来呢', {});
@@ -271,8 +301,8 @@ test('v3400 C1. *** 宿主继承：代词追问继承主体并**并进 spec**（
     judgeHostInherit(IDX);
     console.log('  ok turn 1→2 / inherit[subject] / spec.actors 含继承主体 / 未动注入面');
 });
-function judgeHostAwait(src) {
-    const self = qaSelf(QA_WIN(), src);
+function judgeHostAwait(src, eqtSrc) {
+    const self = qaSelf(QA_WIN(), src, undefined, eqtSrc);
     self.askMemoryQuestionFollowUp('苏晴和林一怎么回事', {});
     const r = self.askMemoryQuestionFollowUp('她后来呢', {});
     if (r.awaiting !== true) throw new Error('多主体代词未进待决');
@@ -293,8 +323,8 @@ test('v3400 C2. *** 宿主待决闸：awaiting 时不跑查询 + 候选外送 + 
     judgeHostAwait(IDX);
     console.log('  ok awaiting ⇒ plans 0 / candidates 2 / 点选后主体落 spec');
 });
-function judgeHostIdentity(src) {
-    const self = qaSelf(QA_WIN(), src, 'chat-1');
+function judgeHostIdentity(src, eqtSrc) {
+    const self = qaSelf(QA_WIN(), src, 'chat-1', eqtSrc);
     self.askMemoryQuestionFollowUp('苏晴答应了什么？', {});
     /* 会话身份变化：宿主 getCurrentChatId 变 ⇒ 内核作废重建。 */
     const self2 = Object.assign({}, self, { getCurrentChatId: () => 'chat-2' });
@@ -303,8 +333,8 @@ function judgeHostIdentity(src) {
     if (r.turn !== 1) throw new Error('换会话后应重建为新 thread（turn 应 1，实 ' + r.turn + '）');
 }
 test('v3400 C3. ** 宿主身份：会话变更 ⇒ 作废重建（不跨会话暗中继承）', () => judgeHostIdentity(IDX) === undefined && console.log('  ok 换会话 ⇒ thread-identity-changed / turn 归 1'));
-function judgeHostReadout(src) {
-    const self = qaSelf(QA_WIN(), src);
+function judgeHostReadout(src, eqtSrc) {
+    const self = qaSelf(QA_WIN(), src, undefined, eqtSrc);
     const t = self.qaThread();
     if (t.turn !== 0 || t.state !== 'idle') throw new Error('未追问时读数应为 idle/0');
     self.askMemoryQuestionFollowUp('苏晴答应了什么？', {});
@@ -342,14 +372,14 @@ test('v3400 D3. ★★ 破坏「身份对账」⇒ 不越界判据 B5 必须转�
     console.log('  ok 破坏身份对账 ⇒ 跨会话暗中继承被照出；原版阳性通过');
 });
 test('v3400 D4. ★★ 破坏宿主「spec 合并」⇒ 宿主继承判据 C1 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hSpecMerge, String.raw`const spec = Object.assign({}, p.spec);`, 'hSpecMerge');
-    expectRed(() => judgeHostInherit(badIdx), 'hSpecMerge');
+    const bad = breakOnce(EQT_SRC, ANCHORS.hSpecMerge, String.raw`const spec = Object.assign({}, p.spec);`, 'hSpecMerge');
+    expectRed(() => judgeHostInherit(IDX, bad), 'hSpecMerge');
     judgeHostInherit(IDX);
     console.log('  ok 破坏 spec 合并 ⇒ 继承条件不落查询被照出；原版阳性通过');
 });
 test('v3400 D5. ★★ 破坏宿主「待决闸」⇒ 宿主待决判据 C2 必须转红', () => {
-    const badIdx = breakOnce(IDX, ANCHORS.hAwaitGate, String.raw`if (false) {`, 'hAwaitGate');
-    expectRed(() => judgeHostAwait(badIdx), 'hAwaitGate');
+    const bad = breakOnce(EQT_SRC, ANCHORS.hAwaitGate, String.raw`if (false) {`, 'hAwaitGate');
+    expectRed(() => judgeHostAwait(IDX, bad), 'hAwaitGate');
     judgeHostAwait(IDX);
     console.log('  ok 破坏待决闸 ⇒ 待决时仍跑查询被照出；原版阳性通过');
 });
@@ -365,8 +395,8 @@ test('v3400 F1. ** H5 判据纯度：破坏锚点在**本档源码**里各恰中
         assert.equal(n, 1, '内核锚 ' + k + ' 在 qa-thread.js 命中 ' + n + ' 次（应恰 1）');
     }
     for (const k of ['hSpecMerge', 'hAwaitGate']) {
-        const n = IDX.split(ANCHORS[k]).length - 1;
-        assert.equal(n, 1, '宿主锚 ' + k + ' 在 index.js 命中 ' + n + ' 次（应恰 1）');
+        const n = EQT_SRC.split(ANCHORS[k]).length - 1;
+        assert.equal(n, 1, '宿主锚 ' + k + ' 在 engine-qa-tools.js 命中 ' + n + ' 次（应恰 1）');
     }
     console.log('  ok 五个锚点在本档各 1 次、在真源各 1 次');
 });
