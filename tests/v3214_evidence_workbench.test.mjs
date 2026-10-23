@@ -32,7 +32,7 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -45,7 +45,7 @@ const IDX = join(ROOT, 'index.js');
 
 const require = createRequire(import.meta.url);
 const realWorkbench = require(WB);
-const realIdxSrc = readFileSync(IDX, 'utf-8');
+const realIdxSrc = (existsSync(join(ROOT, 'engine-injection-pipeline.js')) ? readFileSync(join(ROOT, 'engine-injection-pipeline.js'), 'utf-8') + '\n' : '') + readFileSync(IDX, 'utf-8'); // [v3.368.0] 合看外移持久化模块（buildBridgeSnapshot 所在）
 const realWbSrc = readFileSync(WB, 'utf-8');
 
 /** 九本真实账本模块（不是 stub：读数必须落在真账上） */

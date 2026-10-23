@@ -31,6 +31,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+/* [v3.370.0] 证据/记忆控制集群已外移：`host*` 锚点现在住在 engine-evidence-center.js，
+ *   判据须合看两源（只看 index.js 会把「已外移」误读成「接线丢了」，实测 4 条假红）。 */
+const HOST_SRC = IDX + String.fromCharCode(10) + read('engine-evidence-center.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const EQ_SRC = read('evidence-query.js');
@@ -308,7 +311,7 @@ test('v3331 D9. ★★ 破坏「未触顶不改序」⇒ A3 判据必须转红',
     assert.throws(() => withBroken('emitGate', (B) => o3JudgeNoReorder(B)), /触顶|挤掉/);
 });
 test('v3331 D10. ★★ 破坏「宿主裸 engine 容灾」⇒ 出口降级（真源码锚须在场）', () => {
-    const i = IDX.indexOf(ANCHORS.hostGuard);
+    const i = HOST_SRC.indexOf(ANCHORS.hostGuard);
     assert.ok(i > 0, '容灾守卫不在场（ANCHORS.hostGuard 未命中真源码）');
 });
 /* ══════════════ E. 正向与自证 ══════════════ */
@@ -354,9 +357,9 @@ test('v3331 C4. ★★★ 关系问句的两侧条数进读数池（不与证据
 test('v3331 F1. ★★★ 宿主出口两向：解释面在场且恒定键面不被破坏', () => {
     /* 恒定键面：缺席（模块未加载）与在场**逐字同键**（v3322 G1 的契约）。 */
     const absentKeys = (() => {
-        const at = IDX.indexOf('const absent = (reason) => {');
+        const at = HOST_SRC.indexOf('const absent = (reason) => {');
         assert.ok(at > 0, '缺席回执不在场');
-        const seg = IDX.slice(at, IDX.indexOf('};', IDX.indexOf('writesNothing: true', at)));
+        const seg = HOST_SRC.slice(at, HOST_SRC.indexOf('};', HOST_SRC.indexOf('writesNothing: true', at)));
         const keys = [];
         const re = /(\w+):/g;
         let m2;
@@ -365,15 +368,15 @@ test('v3331 F1. ★★★ 宿主出口两向：解释面在场且恒定键面不
     })();
     for (const k of ['readings', 'covered', 'dropped', 'dedup', 'keyPoints', 'explain']) {
         assert.ok(absentKeys.indexOf(k) >= 0, '缺席回执缺 O3 键「' + k + '」（恒定键面被破坏）');
-        assert.ok(IDX.indexOf(k + ': composed.') > 0 || IDX.indexOf(k + ': composed') > 0, '在场路径缺 O3 键「' + k + '」');
+        assert.ok(HOST_SRC.indexOf(k + ': composed.') > 0 || HOST_SRC.indexOf(k + ': composed') > 0, '在场路径缺 O3 键「' + k + '」');
     }
     console.log('  ✓ 缺席与在场的 O3 键面一致（' + absentKeys.length + ' 键）');
 });
 test('v3331 F2. ★★★ 键空间桥的缩写取自因果链**自己的** node.kind（不另立一份表）', () => {
-    assert.ok(IDX.indexOf(ANCHORS.hostAbbr) > 0, '缩写派生不在场');
+    assert.ok(HOST_SRC.indexOf(ANCHORS.hostAbbr) > 0, '缩写派生不在场');
     /* 反向：宿主不得硬编码 cmt:/evt:/seed: 这类对照表。 */
     for (const hard of ["'cmt:'", "'evt:'", "'seed:'"]) {
-        if (IDX.indexOf(hard) >= 0) throw new Error('宿主硬编码了因果链缩写表 ' + hard + '（第二份真源，会漂移）');
+        if (HOST_SRC.indexOf(hard) >= 0) throw new Error('宿主硬编码了因果链缩写表 ' + hard + '（第二份真源，会漂移）');
     }
     console.log('  ✓ 缩写从 node.kind 读，宿主无硬编码对照表');
 });
@@ -406,7 +409,7 @@ test('v3331 E2. ★★ H6 工具两向自证：锚点不存在 / 不唯一 / 同
 });
 test('v3331 E3. ★★★ 真源锚活：十三个破坏锚在**真源码**里各自恰中 1 次', () => {
     for (const k of Object.keys(ANCHORS)) {
-        const target = k.indexOf('host') === 0 ? IDX : EQ_SRC;
+        const target = k.indexOf('host') === 0 ? HOST_SRC : EQ_SRC;
         const n = target.split(ANCHORS[k]).length - 1;
         assert.equal(n, 1, '锚「' + k + '」在真源里出现 ' + n + ' 次（必须恰 1 次）');
     }

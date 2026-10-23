@@ -1,3 +1,13 @@
+## v3.370.0
+**index.js 剥离第十批：九账证据工作台、结构化检索、记忆控制中心、事实生命周期与记忆包准入集群外提为 engine-evidence-center.js**
+- 新增 `engine-evidence-center.js`（1053行，IIFE 模块）：将原 `index.js` 内的证据与记忆控制面集群（涵盖 `_evidenceWorkbench`、`_eventPlatformsFace`、`searchEvidence`、`searchEvidenceStructured`、`_qaCausalEdges`、`_evidenceQueryEmpty`、`evidenceQueryFacets`、`evidenceSavedQueries`、`saveEvidenceQuery`、`removeEvidenceQuery`、`replayEvidenceQuery`、`evidenceQueryLine`、`memoryCenterDeps`、`_memoryCenterAbsent`、`memoryCenterView`、`memoryCenterSourceText`、`memoryCenterStep`、`memoryCenterLoad`、`memoryCenterFactState`、`memoryCenterBlankState`、`memoryCenterSave`、`memoryCenterSheet`、`memoryCenterDescribe`、`memoryCenterLine`、`_factLifecycleDeps`、`_factLifecycleAbsent`、`factLifecyclePlan`、`factLifecycleDescribe`、`factLifecycleLine`、`_memoryPackageDeps`、`_memoryPackageAbsent`、`memoryPackageAdmit`、`memoryPackagePreview`、`memoryPackagePlan`、`memoryPackageDescribe`、`memoryPackageLine` 共 36 个方法）完整外提为独立模块，挂载 `window.LonShaEngineEvidenceCenter`，提供 `bindDeps` 注入通道、`bindWindow` 与安全降级。
+- `index.js` 从 12891 行降至 12122 行（净减 769 行，累计从 22731 行削减 10609 行），原实现替换为轻量委托桩与安全降级回执 `_evidenceCenterAbsent`。
+- **修一个真缺陷**：`ARCHIVE_TOP_LEVEL_KEYS` 在外移后不再是本模块的词法自由变量（它由 `index.js` 自己 `defineProperty` 挂到 `globalThis`，模块 `require` 加载时序下不可靠），裸用会被 `catch` 吞成 `reason='thrown'`。改为经模块内既有的 `_archiveKeys()` 三级解析（注入 → 宿主 → 全局），存档键面恢复为真判。
+- 36 处方法收口统一为 `}).apply(host, args);`，文档注释逐方法归属原位（外移抽取期曾出现 31 处注释被前一方法收口吞并的错位，本版以原 `index.js` 为真源重建修正）。
+- `manifest.json` `extra_js` 登记 `engine-evidence-center.js`（共 143 项）。
+- 适配历史切片夹具（`v3214`、`v3296`、`v3310`、`v3312`、`v3313`、`v3325`、`v3331`、`v3380`）的扫描面：方法体已外移的判据改为合看外移模块，模块装配经 `bindDeps` / 窗口注入。
+- 新增 `tests/v3370_engine_evidence_center_split.test.mjs`（10 条）。
+
 ## v3.369.0
 **index.js 剥离第九批：提示词注入装配管线与上下文快照集群外提为 engine-injection-pipeline.js**
 - 新增 `engine-injection-pipeline.js`（1987行，IIFE 模块）：将原 `index.js` 内部最具规模的提示词注入装配管线与桥快照核心（涵盖 `_worldbookOccupancy`、`_projectionPrediction`、`_projectionStrategyCompare`、`buildBridgeSnapshot`、`buildBridgeSnapshotJson`、`_summarizeRecallAudit`、`buildInjection`、`_injectionRecord`、`_injectionBlocksOf`、`_injectionStage`、`_injectionCommit`、`_injectionClose`、`_injectionEnd`、`_injectionRefOf`、`_injectionDiscardStale`、`_buildDiagnosticsInjection`、`buildInjectionReadout` 共 17 个方法）完整外提为独立模块，挂载 `window.LonShaEngineInjectionPipeline`，提供 `bindDeps` 注入通道与安全降级。

@@ -405,24 +405,29 @@ function judgeHost(src) {
         const n = src.split(s).length - 1;
         if (n !== 1) return '宿主口须恰好在场一次：' + s + '（实 ' + n + '）';
     }
-    /* **使用面**只需在场（读写点天然不止一处：定义、赋值、读取各算一次）。 */
+    /* **使用面**只需在场（读写点天然不止一处：定义、赋值、读取各算一次）。
+     *   [v3.370.0] 自检表与外移模块的读数摘要不在 index.js：合看 engine-self-check.js 与
+     *   engine-evidence-center.js（否则本判据在解耦后恒红，把「已外移」误读成「接线丢了」）。 */
+    const usageSrc = src + String.fromCharCode(10) + read('engine-self-check.js') + String.fromCharCode(10) + read('engine-evidence-center.js');
+    /* [v3.370.0] 方法体本体已外移：装配点/出口切片必须从外移模块取（否则切片命中委托桩、判据恒红）。 */
+    const bodySrc = read('engine-evidence-center.js') + String.fromCharCode(10) + src;
     for (const s of ["['事实生命周期', this.factLifecycleLine()]", '_lastFactLifecycle']) {
-        const n = src.split(s).length - 1;
+        const n = usageSrc.split(s).length - 1;
         if (n < 1) return '宿主口须在场：' + s + '（实 ' + n + '）';
     }
     /* ★ 装配点四件键名须与内核 REQUIRED_DEPS 逐字一致（判在装配点方法体切片里）。 */
-    const da = src.indexOf('_factLifecycleDeps(now) {');
-    const db = src.indexOf('factLifecyclePlan(opts) {');
+    const da = bodySrc.indexOf('_factLifecycleDeps(');
+    const db = bodySrc.indexOf('factLifecyclePlan(');
     if (da < 0 || db <= da) return '装配点方法体切片失败（判据失效）';
-    const depsSeg = src.slice(da, db);
+    const depsSeg = bodySrc.slice(da, db);
     for (const need of FL.REQUIRED_DEPS) {
         if (depsSeg.indexOf(need.key + ':') < 0) return '装配点缺依赖键：' + need.key;
     }
     /* ★ 出口不得自己落笔（写口归 owner：撤回走 fact-version.revokeFact、审计走审计账）。 */
-    const pa = src.indexOf('factLifecyclePlan(opts) {');
-    const pb = src.indexOf('factLifecycleDescribe() {');
+    const pa = bodySrc.indexOf('factLifecyclePlan(');
+    const pb = bodySrc.indexOf('factLifecycleDescribe(');
     if (pa < 0 || pb <= pa) return '出口方法体切片失败（判据失效）';
-    const planSeg = src.slice(pa, pb);
+    const planSeg = bodySrc.slice(pa, pb);
     for (const w of ['revokeFact', 'setOrigin', 'assertFact', 'collectExport', 'storage.save']) {
         if (planSeg.indexOf(w) >= 0) return '本面是纯函数面，出口不得落笔：' + w;
     }
@@ -433,7 +438,7 @@ function judgeHost(src) {
 /* ───────────────── 宿主夹具（真取库口 + 真模块，不走 mock） ───────────────── */
 const HOST_METHODS = [
     '_factLifecycleDeps(now) {', '_factLifecycleAbsent(reason) {', 'factLifecyclePlan(opts) {',
-    'factLifecycleDescribe() {', 'factLifecycleLine() {'
+    'factLifecycleDescribe() {', 'factLifecycleLine() {', '_evidenceCenterAbsent(reason) {'
 ];
 /** 模块级取库口（**不是** class 方法：它们定义在 IIFE 顶层，不提取就是自由变量）。 */
 const LIB_FNS = [
@@ -454,9 +459,26 @@ function methodBody(src, header) {
     }
     return end > 0 ? src.slice(at, end + 1) : null;
 }
+const EC = require_(path.join(R, 'engine-evidence-center.js'));
+if (EC && typeof EC.bindDeps === 'function') {
+    EC.bindDeps({
+        _moduleLib: (getGlobal, fileName) => {
+            if (fileName === 'fact-lifecycle.js') return FL;
+            if (fileName === 'fact-state.js') return FS;
+            if (fileName === 'fact-version.js') return FV;
+            if (fileName === 'branch-semantics.js') return { SECRET_BODY_KEYS: FL.SECRET_BODY_KEYS };
+            return null;
+        },
+        errLog: () => {},
+        _ledgerApis: () => ({}),
+        _evidenceQueryLedgersOf: () => [],
+        _qaHelpDeps: () => ({})
+    });
+}
 function libWindow() {
     return {
         LonShaFactState: FS, LonShaFactVersion: FV, LonShaFactLifecycle: FL,
+        LonShaEngineEvidenceCenter: EC,
         LonShaBranchSemantics: { SECRET_BODY_KEYS: FL.SECRET_BODY_KEYS }
     };
 }
@@ -474,6 +496,17 @@ function buildCode(src) {
     return libs + J + 'return ({ ' + body + ' });';
 }
 function engineFrom(src) {
+    EC.bindDeps({
+        _moduleLib: (getGlobal, fileName) => {
+            if (fileName === 'fact-lifecycle.js') return FL;
+            if (fileName === 'fact-state.js') return FS;
+            if (fileName === 'fact-version.js') return FV;
+            if (fileName === 'branch-semantics.js') return { SECRET_BODY_KEYS: FL.SECRET_BODY_KEYS };
+            return null;
+        },
+        errLog: () => {}
+    });
+    EC.bindWindow(libWindow());
     const code = buildCode(src);
     if (process.env.V3312_DUMP) fs.writeFileSync(process.env.V3312_DUMP, code);
     const eng = new Function('errLog', 'PLUGIN_NAME', 'window', code)(
@@ -564,9 +597,11 @@ test('v3312 W1. ★★★★★ 撤回后不进入召回与模型载荷（leaked
 test('v3312 H1. ★★★★★ 宿主接线逐符号在场（取库口 / 装配点 / 四出口 / 降级 / 诊断行 / 不落笔）', () => {
     assert.equal(judgeHost(IDX), '', '宿主接线判据');
     /* 本面刻意不进快照：快照构造里不得出现 factLifecycle*（每轮付一遍全量扫描的设计）。 */
-    const at = IDX.indexOf('const snap = {');
+    /* [v3.369.0] 快照构造点已随注入管线外移到 engine-injection-pipeline.js：合看该模块。 */
+    const SNAP_SRC = IDX + String.fromCharCode(10) + read('engine-injection-pipeline.js');
+    const at = SNAP_SRC.indexOf('const snap = {');
     assert.ok(at > 0, '快照构造点必须在场（否则本判据扫描面失效，会恒真）');
-    assert.equal(/factLifecycle|_lastFactLifecycle/.test(IDX.slice(at, at + 12000)), false, '事实生命周期面不得进快照（按需查询口 ≠ 每轮状态投影）');
+    assert.equal(/factLifecycle|_lastFactLifecycle/.test(SNAP_SRC.slice(at, at + 12000)), false, '事实生命周期面不得进快照（按需查询口 ≠ 每轮状态投影）');
 });
 
 /* ══════════════════ E 端到端 ══════════════════ */
@@ -600,6 +635,19 @@ test('v3312 E1. ★★★★★ 端到端：宿主真算一份计划 ⇒ 撤回�
 
 /** 用**替换后的 window**重装一次宿主（真取库口 + 真方法体，不走 mock）。 */
 function engineWith(win) {
+    /* [v3.370.0] 生命周期出口已外移到 engine-evidence-center.js：按本次 window 重绑取库口，
+     *   否则「拿掉某模块」这类负向场景在外移模块里看不到（夹具会给同一份常量）。 */
+    EC.bindDeps({
+        _moduleLib: (getGlobal, fileName) => {
+            if (fileName === 'fact-lifecycle.js') return win.LonShaFactLifecycle;
+            if (fileName === 'fact-state.js') return win.LonShaFactState;
+            if (fileName === 'fact-version.js') return win.LonShaFactVersion;
+            if (fileName === 'branch-semantics.js') return win.LonShaBranchSemantics;
+            return null;
+        },
+        errLog: () => {}
+    });
+    EC.bindWindow(win);
     const J = String.fromCharCode(10);
     const libs = LIB_FNS.map((h) => methodBody(IDX, h)).join(J);
     const body = HOST_METHODS.map((h) => methodBody(IDX, h)).join(',' + J);
@@ -630,7 +678,8 @@ test('v3312 E2. ★★★★★ 端到端：缺格如实报（不编空壳）；
     assert.equal(gone.writesNothing, true, '降级面也须自报零写');
     assert.equal(eng3.factLifecycleLine(), '模块未加载（fact-lifecycle.js）', '模块未挂的诊断行自成一体');
     /* 地基：依赖齐备的宿主不应受影响。 */
-    assert.equal(eng.factLifecycleDescribe().present, 4, '地基：依赖齐备宿主不受影响');
+    const engBase = engineFrom(IDX);
+    assert.equal(engBase.factLifecycleDescribe().present, 4, '地基：依赖齐备宿主不受影响');
 });
 
 /* ══════════════════ L 真源码破坏 -> 同一条判据必须翻红 ══════════════════ */

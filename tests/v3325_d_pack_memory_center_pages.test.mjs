@@ -360,34 +360,39 @@ function judgeDeclarations(Cx, deps) {
     if (Cx.timeBucketOf(25).label !== '第 20-39 楼') return '桶标签须与真跑读数一致';
     return '';
 }
-/** I：宿主接线。 */
+/** I：宿主接线。
+ *  [v3.370.0] 记忆控制中心集群已外移到 engine-evidence-center.js：
+ *    · 「宿主新口恰在场一次」仍判 index.js（那是委托桩，桩丢了就真断了）；
+ *    · 装配点键面 / 出口接线 / 诊断行读数都随方法体进了模块 ⇒ 判据须合看模块，
+ *      否则本判据在解耦后恒红，把「已外移」误读成「接线丢了」。 */
 function judgeHost(src) {
+    const full = src + String.fromCharCode(10) + read('engine-evidence-center.js');
     const once = ['memoryCenterSourceText(ref) {', 'memoryCenterFactState() {'];
     for (const s of once) {
         const n = src.split(s).length - 1;
         if (n !== 1) return '宿主新口须恰好在场一次：' + s + '（实 ' + n + '）';
     }
-    const depsAt = src.indexOf('memoryCenterDeps() {');
+    const depsAt = full.indexOf('memoryCenterDeps(host');
     if (depsAt < 0) return '装配点必须在场';
-    const seg = src.slice(depsAt, depsAt + 2400);
+    const seg = full.slice(depsAt, depsAt + 2400);
     for (const k of ['versionsOf:', 'factState:', 'FACT_STATE:', 'FACT_LIFECYCLE:']) {
         if (seg.indexOf(k) < 0) return '装配点缺可选依赖键：' + k;
     }
     if (seg.indexOf('memoryCenterFactState') < 0) return '事实账读口须经方法取（引用而非拷贝）';
-    if (!src.includes('textSource: (o.textSource !== undefined) ? o.textSource : ((r) => this.memoryCenterSourceText(r))')) {
+    if (!full.includes('textSource: (o.textSource !== undefined) ? o.textSource : ((r) => this.memoryCenterSourceText(r))')) {
         return 'view 出口须接真原文取数口（每次现取）';
     }
-    if (!src.includes('textSource: ((opts || {}).textSource !== undefined) ? opts.textSource : ((r) => this.memoryCenterSourceText(r))')) {
+    if (!full.includes('textSource: ((opts || {}).textSource !== undefined) ? opts.textSource : ((r) => this.memoryCenterSourceText(r))')) {
         return 'step 出口须接真原文取数口（否则翻页 / 选区后详情取不到原文）';
     }
-    if (src.split('profiles: (face.profiles || {}).count || 0').length - 1 !== 2) return '两出口的最近读数都须记组织层读数（2 处）';
-    if (!src.includes("bits2.push('资料页 ' + last.profiles)")) return '诊断行须报资料页读数';
-    if (!/bits2\.push\('详情 ' \+ last\.detail \+ \(last\.detailChannel/.test(src)) return '诊断行须报**正文通道**（projection 与真原文不同形）';
-    if (!src.includes("bits2.push('批量预览 ' + last.batch)")) return '诊断行须报批量预览态';
-    if (!src.includes('Q.FACETS.filter((f) => f && f.id === lid)[0]')) return '真原文取数口须走既有 facet 登记表（不另立字段口径）';
-    if (!src.includes('const fields = Array.isArray(facet.textFields) ? facet.textFields : [];')) return '正文列须取自 textFields 单一真源';
-    if (!src.includes("out.reason = 'not-found'; return out;")) return '取数口须逐态具名（not-found 等）';
-    const tsv = read('tests/audit/open_face_registry.tsv');
+    if (full.split('profiles: (face.profiles || {}).count || 0').length - 1 !== 2) return '两出口的最近读数都须记组织层读数（2 处）';
+    if (!full.includes("bits2.push('资料页 ' + last.profiles)")) return '诊断行须报资料页读数';
+    if (!/bits2\.push\('详情 ' \+ last\.detail \+ \(last\.detailChannel/.test(full)) return '诊断行须报**正文通道**（projection 与真原文不同形）';
+    if (!full.includes("bits2.push('批量预览 ' + last.batch)")) return '诊断行须报批量预览态';
+    if (!full.includes('Q.FACETS.filter((f) => f && f.id === lid)[0]')) return '真原文取数口须走既有 facet 登记表（不另立字段口径）';
+    if (!full.includes('const fields = Array.isArray(facet.textFields) ? facet.textFields : [];')) return '正文列须取自 textFields 单一真源';
+    if (!full.includes("out.reason = 'not-found'; return out;")) return '取数口须逐态具名（not-found 等）';
+const tsv = read('tests/audit/open_face_registry.tsv');
     if (/memoryCenterSource\w*\t/.test(tsv) || /memoryCenterPages\t/.test(tsv)) return '本版不新增跨仓外供面（真原文口是自包含的）';
     return '';
 }

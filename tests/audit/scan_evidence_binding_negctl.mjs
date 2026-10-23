@@ -29,7 +29,11 @@ const SCAN = path.join(HERE, 'scan_evidence_binding.mjs');
  *   但仍需显式一份 —— 因为门禁读的是「固定三件」，不是 manifest 派生的集合。
  *   自证：三件都必须存在，且 manifest 里的 extra_js 必须真含证据面（否则 R1 在夹具里
  *   必然先报「未登记」，那个红会被读成「判据工作正常」—— 空对空）。 */
-const GAUGED = ['evidence-workbench.js', 'index.js', 'manifest.json'];
+const GAUGED = ['evidence-workbench.js', 'index.js', 'manifest.json',
+    /* [v3.370.0] 证据工作台方法体已外移到 engine-evidence-center.js：
+     *   R7 现在优先读外移模块里的真方法体（宿主只剩委托桩）。夹具不搬它 ⇒
+     *   门禁在夹具里读不到方法体 ⇒ V0 原版对照恒红（负控制变成空对空）。 */
+    'engine-evidence-center.js'];
 /* [v3.248.0 首跑实测] 上面这份手抄清单**喂不满**门禁：R4 会逐个 `fs.existsSync` 九本账，
  *   夹具里没有它们 ⇒ V0 原版对照在夹具里 exit 1（R4 报「磁盘上不存在该文件」），
  *   而那个红与「真缺陷」同形 —— 负控制会**空对空**地「七组全绿」而 V0 永远红。

@@ -41,6 +41,8 @@ const MOD = 'memory-center.js';
 const MOD_SRC = read(MOD);
 const SELF = read(path.join('tests', 'v3310_memory_center.test.mjs'));
 const IDX = read('index.js');
+const EC_SRC = read('engine-evidence-center.js');
+const SC_SRC = fs.existsSync(path.join(R, 'engine-self-check.js')) ? read('engine-self-check.js') : '';
 const UI = read('settings-ui.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
@@ -330,7 +332,8 @@ function judgeRender(Cx, deps) {
     return '';
 }
 /** H1：宿主接线逐符号在场（取库口 + 唯一装配点 + 七出口 + 自述 + 诊断行）。 */
-function judgeHost(src) {
+function judgeHost(src, ecSrc = EC_SRC, scSrc = SC_SRC) {
+    const full = (ecSrc || '') + String.fromCharCode(10) + (scSrc || '') + String.fromCharCode(10) + src;
     const once = ['memoryCenterDeps() {', '_memoryCenterAbsent(state, reason) {', 'memoryCenterView(state, opts) {',
         'memoryCenterStep(state, action, payload, opts) {', 'memoryCenterLoad(raw) {', 'memoryCenterBlankState() {',
         'memoryCenterSave(state) {', 'memoryCenterSheet(face) {', 'memoryCenterDescribe() {', 'memoryCenterLine() {',
@@ -340,22 +343,22 @@ function judgeHost(src) {
         if (n !== 1) return '宿主口须恰好在场一次：' + s + '（实 ' + n + '）';
     }
     if (!src.includes("_moduleLib(() => window.LonShaMemoryCenter, 'memory-center.js')")) return '取库口须真读全局名 + 文件名';
-    if (!src.includes("['记忆控制', this.memoryCenterLine()]")) return '诊断行须接进 selfCheck 表';
-    if (!src.includes('_memoryCenterLast')) return '宿主须留最近一次读数（诊断行据此说「上次扫了多少」）';
+    if (!full.includes("['记忆控制', this.memoryCenterLine()]")) return '诊断行须接进 selfCheck 表';
+    if (!full.includes('_memoryCenterLast')) return '宿主须留最近一次读数（诊断行据此说「上次扫了多少」）';
     /* 不写账：这条链路上不得出现 save/import/clear 之类写动作。 */
-    const a = src.indexOf('memoryCenterView(state, opts) {');
-    const b = src.indexOf('memoryCenterLoad(raw) {');
+    const a = full.indexOf('memoryCenterView(');
+    const b = full.indexOf('memoryCenterLoad(');
     if (a < 0 || b <= a) return '宿主方法体切片失败（判据失效）';
-    const seg = src.slice(a, b);
+    const seg = full.slice(a, b);
     for (const banned of ['storage.save', '.import(', '.clear(']) {
         if (seg.indexOf(banned) >= 0) return '控制中心链路不得含写动作 `' + banned + '`';
     }
     /* 装配点七件键名须与内核 REQUIRED_DEPS 逐字一致（改名会静默变成「依赖缺席」）。
      *   判在**装配点方法体切片**里 —— 全文件搜键名会把别处同名常量也算进来（假绿第二形）。 */
-    const da = src.indexOf('memoryCenterDeps() {');
-    const db = src.indexOf('_memoryCenterAbsent(state, reason) {');
+    const da = full.indexOf('memoryCenterDeps(');
+    const db = full.indexOf('_memoryCenterAbsent(');
     if (da < 0 || db <= da) return '装配点方法体切片失败（判据失效）';
-    const depsSeg = src.slice(da, db);
+    const depsSeg = full.slice(da, db);
     for (const need of C.REQUIRED_DEPS) {
         if (depsSeg.indexOf(need.key + ':') < 0) return '装配点缺依赖键：' + need.key;
     }
@@ -453,9 +456,11 @@ test('v3310 G1. ★★★★ 渲染与视图同源：四态自证 + 属性转义
 test('v3310 H1. ★★★★★ 宿主接线逐符号在场（取库口 / 唯一装配点 / 七出口 / 自述 / 诊断行 / 无写动作）', () => {
     assert.equal(judgeHost(IDX), '', '宿主接线判据');
     /* 本面刻意不进快照：快照构造里不得出现 memoryCenter*（每轮付一遍九账扫描代价的那种设计）。 */
-    const at = IDX.indexOf('const snap = {');
+    /* [v3.369.0] 快照构造点已随注入管线外移到 engine-injection-pipeline.js：合看该模块。 */
+    const SNAP_SRC = IDX + String.fromCharCode(10) + read('engine-injection-pipeline.js');
+    const at = SNAP_SRC.indexOf('const snap = {');
     assert.ok(at > 0, '快照构造点必须在场（否则本判据扫描面失效，会恒真）');
-    assert.equal(/memoryCenter/.test(IDX.slice(at, at + 12000)), false, '控制中心不得进快照（按需查询口 ≠ 每轮状态投影）');
+    assert.equal(/memoryCenter/.test(SNAP_SRC.slice(at, at + 12000)), false, '控制中心不得进快照（按需查询口 ≠ 每轮状态投影）');
 });
 
 test('v3310 H2. ★★★★★ 面板薄接线：渲染与字段表都不许在面板里重写', () => {

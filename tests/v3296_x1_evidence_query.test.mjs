@@ -36,7 +36,7 @@ const R = process.cwd();
 const require_ = createRequire(import.meta.url);
 const Q_SRC = fs.readFileSync(path.join(R, 'evidence-query.js'), 'utf8');
 const WB_SRC = fs.readFileSync(path.join(R, 'evidence-workbench.js'), 'utf8');
-const IDX_SRC = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
+const IDX_SRC = fs.readFileSync(path.join(R, 'index.js'), 'utf8') + (fs.existsSync(path.join(R, 'engine-self-check.js')) ? '\n' + fs.readFileSync(path.join(R, 'engine-self-check.js'), 'utf8') : '') + (fs.existsSync(path.join(R, 'engine-evidence-center.js')) ? '\n' + fs.readFileSync(path.join(R, 'engine-evidence-center.js'), 'utf8') : ''); // [v3.367.0/v3.370.0] 合看自检与证据中心模块
 const MF = JSON.parse(fs.readFileSync(path.join(R, 'manifest.json'), 'utf8'));
 const PKG = JSON.parse(fs.readFileSync(path.join(R, 'package.json'), 'utf8')).version;
 const Q = require_(path.join(R, 'evidence-query.js'));
@@ -46,6 +46,14 @@ const LEDGERS = W.LEDGERS;
 const APIS = {};
 for (const s of LEDGERS) APIS[s.id] = {};
 const ALL = { ledgers: LEDGERS, apis: APIS };
+const EC_MOD = require_(path.join(R, 'engine-evidence-center.js'));
+if (EC_MOD && typeof EC_MOD.bindDeps === 'function') {
+    EC_MOD.bindDeps({
+        _ledgerApis: () => APIS,
+        _evidenceQueryLedgersOf: () => LEDGERS,
+        _qaHelpDeps: () => ({})
+    });
+}
 
 /**
  * 负控制锚点（**在判据层只声明一次**，见判据 6 的纯度检查 —— H5）。
@@ -512,10 +520,10 @@ test('v3296 9. 宿主行为面：真方法体在真模块上跑通（口径 / �
     assert.ok(apisFn && fv && ec && rl, '_ledgerApis 与它的三个助手都须可提取');
     const mEthods = ['searchEvidenceStructured(spec, opts) {', '_evidenceQueryEmpty(reason, spec, opts, ledgers) {',
         'evidenceQueryFacets() {', 'evidenceQueryLine() {', 'evidenceSavedQueries() {',
-        'saveEvidenceQuery(label, spec) {', 'removeEvidenceQuery(replayKey) {', 'replayEvidenceQuery(replayKey, opts) {']
+        'saveEvidenceQuery(label, spec) {', 'removeEvidenceQuery(replayKey) {', 'replayEvidenceQuery(replayKey, opts) {', '_evidenceCenterAbsent(reason) {']
         .map((h) => sliceMethod(IDX_SRC, h));
     assert.ok(mEthods.every(Boolean), '八个宿主方法体都须可提取');
-    const win = { LonShaEvidenceQuery: Q, LonShaEvidenceWorkbench: W, LonShaSeedLedger: {} };
+    const win = { LonShaEvidenceQuery: Q, LonShaEvidenceWorkbench: W, LonShaSeedLedger: {}, LonShaEngineEvidenceCenter: EC_MOD };
     const LIBS = lib + '\n' + qlib + '\n' + wblib + '\n' + ledOf + '\n' + apisFn + '\n' + fv + '\n' + ec + '\n' + rl + '\n';
     const eng = new Function('errLog', 'window',
         LIBS + 'return ({ ' + mEthods.join(',\n') + ' });')(() => {}, win);
@@ -551,7 +559,7 @@ test('v3296 9. 宿主行为面：真方法体在真模块上跑通（口径 / �
     assert.equal(rm.reason, 'not-found', '删不到须如实报');
     /* 模块没挂时的降级：键面完整、不抛、如实归因。 */
     const eng2 = new Function('errLog', 'window',
-        LIBS + 'return ({ ' + mEthods.join(',\n') + ' });')(() => {}, {});
+        LIBS + 'return ({ ' + mEthods.join(',\n') + ' });')(() => {}, { LonShaEngineEvidenceCenter: EC_MOD });
     const empty = eng2.searchEvidenceStructured.call(Object.assign(hostTiny(), eng2), {}, {});
     assert.equal(empty.state, 'absent');
     assert.equal(empty.reason, 'module-unavailable');

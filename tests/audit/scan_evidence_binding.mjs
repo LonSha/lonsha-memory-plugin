@@ -171,10 +171,23 @@ if (!cm) {
  *   而 `_evidenceWorkbench()` 是**类方法**（`_evidenceWorkbench() {`）⇒ 裸名取不到（实测 fail）。
  *   更贵的是：若改用 `_evidenceWorkbench()` 作 marker，先命中的是 7716 行的
  *   **调用点** `this._evidenceWorkbench()`（同 `_ledgerApis()` 那种「锚点落在调用点」的形态）。
- *   故 marker 必须带 `() {`，唯一命中定义行。 */
-const wbHost = bodyOf(idxCode, '_evidenceWorkbench() {') || '';
+ *   故 marker 必须带 `() {`，唯一命中定义行。
+ *   [v3.370.0] 方法体已外移到 engine-evidence-center.js：**判据对象跟着走**。
+ *     这里不能因为宿主只剩委托桩就判「找不到」—— 那是把「已解耦」读成「判据失效」；
+ *     也不能只看宿主（桩里当然没有 `_ledgerApis(`，会恒红）。判据口径改为：
+ *       · 工作台方法体在**任一侧**（宿主 or 外移模块）必须存在；
+ *       · 该方法体内必须调用 `_ledgerApis(`（单一真源），且不得内联 `window.<九键>`。
+ *     ★ 顺序有讲究：外移模块的**真方法体**优先于宿主的**委托桩**。宿主桩里必然
+ *       没有 `_ledgerApis(`（它只是转发），先取宿主会让本判据在解耦后恒红 ——
+ *       那就成了「门禁惩罚正确的重构」，正是本仓反复治的假红形态。 */
+const ecSrc = readOrNull(path.join(ROOT, 'engine-evidence-center.js'));
+const ecCode = ecSrc ? stripComments(ecSrc) : '';
+const wbHost = bodyOf(ecCode, '_evidenceWorkbench(host, ...args) {')
+    || bodyOf(ecCode, '_evidenceWorkbench(host) {')
+    || bodyOf(idxCode, '_evidenceWorkbench() {')
+    || '';
 if (!wbHost) {
-    defects.push('R7 找不到 `function _evidenceWorkbench(` 宿主方法：「九键内联」回潮与否无从判定');
+    defects.push('R7 找不到 `_evidenceWorkbench` 宿主方法体（index.js 与 engine-evidence-center.js 两侧都没有）：「九键内联」回潮与否无从判定');
 } else {
     for (const e of entries) {
         if (wbHost.indexOf('window.' + e.globalName) >= 0) {

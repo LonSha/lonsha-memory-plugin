@@ -41,6 +41,8 @@ const Q = require_(path.join(R, 'evidence-query.js'));
 const CP = require_(path.join(R, 'correction-plan.js'));
 const FV = require_(path.join(R, 'fact-version.js'));
 const W = require_(path.join(R, 'evidence-workbench.js'));
+/* [v3.370.0] 证据中心集群外移后的真模块（装配进沙箱窗口，见 libWindow）。 */
+const EC = require_(path.join(R, 'engine-evidence-center.js'));
 const LIB_FNS = [
     'function _moduleLib(getGlobal, fileName) {',
     'function _factVersionLib() {',
@@ -79,7 +81,10 @@ function methodBody(src, header) {
     return end > 0 ? src.slice(at, end + 1) : null;
 }
 function libWindow() {
-    return { LonShaEvidenceQuery: Q, LonShaCorrectionPlan: CP, LonShaFactVersion: FV, LonShaEvidenceWorkbench: W, LonShaMemoryCenter: C };
+    /* [v3.370.0] 记忆控制中心集群已外移到 engine-evidence-center.js：
+     *   委托桩经 _moduleLib 取 window.LonShaEngineEvidenceCenter，窗口里没有它
+     *   ⇒ 每次调用都落到 _evidenceCenterAbsent ⇒ 判据测不到真行为（假红）。 */
+    return { LonShaEvidenceQuery: Q, LonShaCorrectionPlan: CP, LonShaFactVersion: FV, LonShaEvidenceWorkbench: W, LonShaMemoryCenter: C, LonShaEngineEvidenceCenter: EC };
 }
 function engineFrom(idxSrc = IDX, roSrc = RO_SRC, win = null) {
     if (typeof idxSrc === 'string' && idxSrc.includes('LonShaEngineRepairOps = factory()')) {

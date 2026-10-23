@@ -384,24 +384,28 @@ function judgeHost(src) {
         const n = src.split(s).length - 1;
         if (n !== 1) return '宿主口须恰好在场一次：' + s + '（实 ' + n + '）';
     }
-    /* **使用面**只需在场（定义、赋值、读取各算一次）。 */
+    /* **使用面**只需在场（定义、赋值、读取各算一次）。
+     *   [v3.370.0] 自检表与读数摘要均可外移到 engine-self-check.js / engine-evidence-center.js：合看三源。 */
+    const usageSrc = src + String.fromCharCode(10) + read('engine-self-check.js') + String.fromCharCode(10) + read('engine-evidence-center.js');
     for (const s of ["['记忆包', this.memoryPackageLine()]", '_lastMemoryPackage']) {
-        const n = src.split(s).length - 1;
+        const n = usageSrc.split(s).length - 1;
         if (n < 1) return '宿主口须在场：' + s + '（实 ' + n + '）';
     }
     /* ★ 装配点三件键名须与内核 REQUIRED_DEPS 逐字一致（判在装配点方法体切片里）。 */
-    const da = src.indexOf('_memoryPackageDeps() {');
-    const db = src.indexOf('memoryPackageAdmit(pkg, opts) {');
+    /* [v3.370.0] 方法体本体已外移：切片从外移模块取。 */
+    const bodySrc = read('engine-evidence-center.js') + String.fromCharCode(10) + src;
+    const da = bodySrc.indexOf('_memoryPackageDeps(');
+    const db = bodySrc.indexOf('memoryPackageAdmit(');
     if (da < 0 || db <= da) return '装配点方法体切片失败（判据失效）';
-    const depsSeg = src.slice(da, db);
+    const depsSeg = bodySrc.slice(da, db);
     for (const need of MP.REQUIRED_DEPS) {
         if (depsSeg.indexOf(need.key + ':') < 0) return '装配点缺依赖键：' + need.key;
     }
     /* ★ 出口不得自己落笔（写口归 owner：导入落笔走 restoreFromPayload / 各账 record）。 */
-    const pa = src.indexOf('memoryPackageAdmit(pkg, opts) {');
-    const pb = src.indexOf('memoryPackageDescribe() {');
+    const pa = bodySrc.indexOf('memoryPackageAdmit(');
+    const pb = bodySrc.indexOf('memoryPackageDescribe(');
     if (pa < 0 || pb <= pa) return '出口方法体切片失败（判据失效）';
-    const outSeg = src.slice(pa, pb);
+    const outSeg = bodySrc.slice(pa, pb);
     for (const w of ['storage.save', 'restoreFromPayload(', 'collectExport(', 'localStorage', '_imp(']) {
         if (outSeg.indexOf(w) >= 0) return '本面是纯函数面，出口不得落笔：' + w;
     }
@@ -415,8 +419,28 @@ function judgeHost(src) {
 const HOST_METHODS = [
     '_memoryPackageDeps() {', '_memoryPackageAbsent(reason) {', 'memoryPackageAdmit(pkg, opts) {',
     'memoryPackagePreview(pkg, target, opts) {', 'memoryPackagePlan(pkg, preview, opts) {',
-    'memoryPackageDescribe() {', 'memoryPackageLine() {'
+    'memoryPackageDescribe() {', 'memoryPackageLine() {', '_evidenceCenterAbsent(reason) {'
 ];
+const EC = require_(path.join(R, 'engine-evidence-center.js'));
+function rebindEC(win, keys) {
+    if (!EC || typeof EC.bindDeps !== 'function') return;
+    EC.bindDeps({
+        /* [v3.370.0] 存档键契约与 index.js 的 EC.bindDeps 同口径注入：
+         *   不注入 ⇒ 内核 _archiveKeys() 恒 null ⇒ 键面永远「未判」（E1/E2 红）。 */
+        ARCHIVE_TOP_LEVEL_KEYS: keys === undefined ? ARCHIVE_KEYS_FIX : keys,
+        _moduleLib: (getGlobal, fileName) => {
+            if (fileName === 'memory-package.js') return win.LonShaMemoryPackage;
+            if (fileName === 'schema-migration.js') return win.LonShaSchemaMigration;
+            if (fileName === 'branch-semantics.js') return win.LonShaBranchSemantics;
+            return null;
+        },
+        errLog: () => {},
+        _ledgerApis: () => ({}),
+        _evidenceQueryLedgersOf: () => [],
+        _qaHelpDeps: () => ({})
+    });
+    EC.bindWindow(win);
+}
 /** 模块级取库口（**不是** class 方法：它们定义在 IIFE 顶层，不提取就是自由变量）。 */
 const LIB_FNS = [
     'function _moduleLib(getGlobal, fileName) {', 'function _schemaMigrationLib() {',
@@ -437,7 +461,7 @@ function methodBody(src, header) {
     return end > 0 ? src.slice(at, end + 1) : null;
 }
 function libWindow() {
-    return { LonShaMemoryPackage: MP, LonShaSchemaMigration: SM, LonShaBranchSemantics: { SECRET_BODY_KEYS: MP.SECRET_BODY_KEYS } };
+    return { LonShaMemoryPackage: MP, LonShaSchemaMigration: SM, LonShaEngineEvidenceCenter: EC, LonShaBranchSemantics: { SECRET_BODY_KEYS: MP.SECRET_BODY_KEYS } };
 }
 function makeHost() {
     return { config: { config: { debugMode: false } }, _lastMemoryPackage: null };
@@ -449,6 +473,7 @@ function buildCode(src) {
     return libs + J + 'return ({ ' + body + ' });';
 }
 function engineFrom(src) {
+    rebindEC(libWindow(), ARCHIVE_KEYS_FIX);
     const code = buildCode(src);
     if (process.env.V3313_DUMP) fs.writeFileSync(process.env.V3313_DUMP, code);
     const eng = new Function('errLog', 'PLUGIN_NAME', 'window', 'ARCHIVE_TOP_LEVEL_KEYS', code)(
@@ -456,6 +481,7 @@ function engineFrom(src) {
     return Object.assign(eng, makeHost());
 }
 function engineWith(win, keys) {
+    rebindEC(win, keys === undefined ? ARCHIVE_KEYS_FIX : keys);
     const J = String.fromCharCode(10);
     const libs = LIB_FNS.map((h) => methodBody(IDX, h)).join(J);
     const body = HOST_METHODS.map((h) => methodBody(IDX, h)).join(',' + J);
@@ -550,9 +576,11 @@ test('v3313 R1. ★★★★★ 撤销有来源边界：无范围即拒；范围
 test('v3313 H1. ★★★★★ 宿主接线逐符号在场（取库口 / 装配点 / 五出口 / 降级 / 诊断行 / 不落笔）', () => {
     assert.equal(judgeHost(IDX), '', '宿主接线判据');
     /* 本面刻意不进快照：快照构造里不得出现 memoryPackage*（导入是用户显式动作，不是每轮状态）。 */
-    const at = IDX.indexOf('const snap = {');
+    /* [v3.370.0] 快照构造点已随注入管线外移到 engine-injection-pipeline.js：合看该模块。 */
+    const SNAP_SRC = read('engine-injection-pipeline.js') + String.fromCharCode(10) + IDX;
+    const at = SNAP_SRC.indexOf('const snap = {');
     assert.ok(at > 0, '快照构造点必须在场（否则本判据扫描面失效，会恒真）');
-    assert.equal(/memoryPackage|_lastMemoryPackage/.test(IDX.slice(at, at + 12000)), false, '记忆包面不得进快照（用户显式导入 ≠ 每轮状态投影）');
+    assert.equal(/memoryPackage|_lastMemoryPackage/.test(SNAP_SRC.slice(at, at + 12000)), false, '记忆包面不得进快照（用户显式导入 ≠ 每轮状态投影）');
 });
 
 /* ══════════════════ E 端到端 ══════════════════ */
