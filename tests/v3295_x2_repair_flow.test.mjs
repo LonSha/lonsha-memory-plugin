@@ -40,6 +40,7 @@ const R = process.cwd();
 const require_ = createRequire(import.meta.url);
 const IDX_SRC = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
 const RL_SRC = fs.readFileSync(path.join(R, 'repair-loop.js'), 'utf8');
+const RO_SRC = fs.readFileSync(path.join(R, 'engine-repair-ops.js'), 'utf8');
 const RL = require_(path.join(R, 'repair-loop.js'));
 const PKG = JSON.parse(fs.readFileSync(path.join(R, 'package.json'), 'utf8')).version;
 const vnum = (v) => String(v).split('.').map(Number);
@@ -141,19 +142,52 @@ function makeLibWindow(rl, EC, CL, FV) {
 }
 const CLASS_HEAD = 'class MemoryEngine {';
 
-/** 造引擎：真宿主方法 + 真取库口（取库口注入真模块，不走 require 回落）。 */
-function engineFrom(src, rl, EC, CL, FV) {
-    const body = HOST_METHODS.map(h => {
-        /* 用 methodBody 而非 blockOf：`applyRepairPlan(opts = {})` 的签名里就有 `{}`，
-         *   从「第一个 `{`」起配平取到的是那个默认值 —— 拼出来的函数体是半截签名，
-         *   报错形式是 `SyntaxError: Unexpected token '('`，
-         *   而根因在提取器不在被测代码（本套件自己踩过）。 */
-        const s = methodBody(src, h);
-        assert.ok(s, '宿主方法在位：' + h);
-        return s;
-    }).join(',\n');
+/** 从 engine-repair-ops.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    body = body.replace(/\bconst self = engine;/g, 'const self = this;');
+    body = body.replace(/\bconst eng = engine;/g, 'const eng = this;');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\((.*?)\)\s*\{/);
+    if (!nm) return null;
+    let params = nm[2] || '';
+    params = params.replace(/^engine\s*,?\s*/, '');
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
+/** 造引擎：真宿主方法 + 外提模块方法 + 真取库口（取库口注入真模块，不走 require 回落）。 */
+function engineFrom(src, rl, EC, CL, FV, roSource) {
+    const ro = roSource || RO_SRC;
+    const idx = src || IDX_SRC;
+    const roMethods = [
+        extractModuleMethod(ro, 'function _repairPoolFor(engine, input) {'),
+        extractModuleMethod(ro, 'function _repairPool(engine) {'),
+        extractModuleMethod(ro, 'function requestRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function previewRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function settleRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function abandonRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function repairRevision(engine) {'),
+        extractModuleMethod(ro, 'function _repairOwners(engine) {'),
+        extractModuleMethod(ro, 'async function applyRepairPlan(engine, opts = {}) {'),
+        extractModuleMethod(ro, 'function _verifyRepairItem(engine, kind, key, note) {')
+    ];
+    const hostMethods = [
+        methodBody(idx, '_leaseValid(lease) {'),
+        methodBody(idx, '_leaseDrop(lease, task, floor) {')
+    ];
+    const body = roMethods.concat(hostMethods).join(',\n');
     const libs = LIB_FNS.map(h => {
-        const s = methodBody(src, h);
+        const s = methodBody(idx, h);
         assert.ok(s, '模块级取库口在位：' + h);
         return s;
     }).join('\n');
@@ -243,9 +277,9 @@ function makeHost(extra) {
  * @param hostSrc  宿主源码（默认 INDEX_SRC）。**负控制必须传破坏副本** ——
  *                 否则被判的其实是原版，判据「没现形」与「没跑过」同形。
  */
-function ctx(rl, hostSrc) {
+function ctx(rl, hostSrc, roSource) {
     const src = hostSrc || IDX_SRC;
-    const host = engineFrom(src, rl || RL, EC, CL, FV);
+    const host = engineFrom(src, rl || RL, EC, CL, FV, roSource);
     const bridge = bridgeFrom(src, { engine: host });
     return { host, bridge };
 }
@@ -384,8 +418,8 @@ function judgeEPlan(RLx) {
  * 判据 F：落笔链路（真宿主）—— 顺序 / 候选默认不动 / 回读 / 证据。
  * @param hostSrc 宿主源码（负控制传破坏副本；默认原版）。
  */
-async function judgeFApply(hostSrc) {
-    const c = ctx(undefined, hostSrc);
+async function judgeFApply(roSource) {
+    const c = ctx(undefined, undefined, roSource);
     const req = c.host.requestRepair({ action: 'revoke', subject: '苏晴', target: '苏晴', refId: 'f2', dedupeKey: 'k1' });
     if (!req.ok) return '登记必须成功';
     const id = req.repair.id;
@@ -451,16 +485,16 @@ test('v3295 2. affectedBy 新契约：返回 { items, coverage, dangling }（不
 test('v3295 3. 宿主侧口径对齐：refId 装配口 + info 按 kind 写 + supersededBy 透出', () => {
     /* ① 池的装配口必须在场，且三个判定入口都走它（否则「预览是候选、登记是引用」）。 */
     assert.ok(IDX_SRC.indexOf('_repairPoolFor(input) {') > 0, '池装配口在场');
-    const uses = IDX_SRC.match(/_repairPoolFor\(input\)/g) || [];
+    const uses = (RO_SRC.match(/_repairPoolFor\(input\)/g) || []).concat(IDX_SRC.match(/_repairPoolFor\(input\)/g) || []);
     assert.ok(uses.length >= 3, '三个入口都要走装配口（request/preview/plan），实 ' + uses.length);
-    assert.ok(IDX_SRC.indexOf('_repairPoolFor(input)') < IDX_SRC.indexOf('_repairPool() {'), '装配口必须在池本体之前（可读性：先看契约后看实现）');
+    assert.ok(RO_SRC.indexOf('_repairPoolFor(engine, input)') < RO_SRC.indexOf('_repairPool(engine) {'), '装配口必须在池本体之前（可读性：先看契约后看实现）');
     /* ② info 的键必须按 kind（单数）——写复数会让模块侧 meta 恒 null。 */
     for (const k of ['summary', 'event', 'relation', 'promise', 'fact', 'timeline']) {
-        assert.ok(IDX_SRC.indexOf('info.' + k + ' = {') > 0, 'info 键必须是 kind（单数）：' + k);
+        assert.ok(RO_SRC.indexOf('info.' + k + ' = {') > 0, 'info 键必须是 kind（单数）：' + k);
     }
-    assert.ok(IDX_SRC.indexOf('info.summaries = {') < 0, '不得再写复数的 info 键（静默取不到 = 截断永不触发）');
+    assert.ok(RO_SRC.indexOf('info.summaries = {') < 0, '不得再写复数的 info 键（静默取不到 = 截断永不触发）');
     /* ③ supersededBy 必须透出（ref 通路的真实来源）。 */
-    assert.ok(/facts = all\.map\([^)]*supersededBy/.test(IDX_SRC), 'facts 池必须透出 supersededBy');
+    assert.ok(/facts = all\.map\([^)]*supersededBy/.test(RO_SRC), 'facts 池必须透出 supersededBy');
     /* ④ 模块侧 refsOf 必须读真字段。 */
     assert.ok(/push\(it\.eventKey\)/.test(RL_SRC) && /push\(it\.supersededBy\)/.test(RL_SRC),
         'refsOf 必须读本仓真实存在的跨条引用（eventKey / supersededBy）');
@@ -468,9 +502,9 @@ test('v3295 3. 宿主侧口径对齐：refId 装配口 + info 按 kind 写 + sup
 });
 
 test('v3295 4. 落笔链路四步顺序不可换：改数据 → 核原数据 → 落盘回读 → 带证据 settle', () => {
-    const at = IDX_SRC.indexOf('async applyRepairPlan(opts = {}) {');
+    const at = RO_SRC.indexOf('async function applyRepairPlan(engine, opts = {}) {');
     assert.ok(at > 0, 'applyRepairPlan 在场');
-    const body = methodBody(IDX_SRC, 'async applyRepairPlan(opts = {}) {');
+    const body = extractModuleMethod(RO_SRC, 'async function applyRepairPlan(engine, opts = {}) {');
     assert.ok(body && body.length > 500, '取到方法体');
     const iOwner = body.indexOf('fn({ kind: step.kind');
     const iVerify = body.indexOf('this._verifyRepairItem(step.kind');
@@ -495,8 +529,8 @@ test('v3295 4. 落笔链路四步顺序不可换：改数据 → 核原数据 �
 });
 
 test('v3295 5. 落笔异常分支必须留证（不得静默降级成「没成」）', () => {
-    const at = IDX_SRC.indexOf('async applyRepairPlan(opts = {}) {');
-    const body = methodBody(IDX_SRC, 'async applyRepairPlan(opts = {}) {');
+    const at = RO_SRC.indexOf('async function applyRepairPlan(engine, opts = {}) {');
+    const body = extractModuleMethod(RO_SRC, 'async function applyRepairPlan(engine, opts = {}) {');
     assert.ok(body.indexOf('this._lastRepairApply = {') > 0, '作废读数必须在场');
     assert.ok(/why: 'threw'/.test(body), '异常归因须指向「抛了」');
     /* catch 分支必须在 return null 之前留痕（先后顺序：留痕然后在手前）。 */
@@ -510,8 +544,8 @@ test('v3295 5. 落笔异常分支必须留证（不得静默降级成「没成�
 });
 
 test('v3295 6. 栅栏失效如实计数：stale 时已落的条数不得被抹成 0', () => {
-    const at = IDX_SRC.indexOf('async applyRepairPlan(opts = {}) {');
-    const body = methodBody(IDX_SRC, 'async applyRepairPlan(opts = {}) {');
+    const at = RO_SRC.indexOf('async function applyRepairPlan(engine, opts = {}) {');
+    const body = extractModuleMethod(RO_SRC, 'async function applyRepairPlan(engine, opts = {}) {');
     assert.ok(body.indexOf('_leaseValid(lease)') > 0, '代际栅栏复核必须在场');
     assert.ok(/stale: stale/.test(body), 'stale 必须如实透出');
     assert.ok(/applied: applied/.test(body), '已落条数必须如实计数（作废不等于没落）');
@@ -619,13 +653,13 @@ test('v3295 N5. 负控制：拆「候选须人确认」⇒ 判据 E 翻红', () 
 });
 
 test('v3295 N6. 负控制：拆宿主「候选默认不动」⇒ 判据 F 翻红', async () => {
-    /* 宿主破坏：把候选闸门短路（候选会被当 ref 一样落笔）。 */
-    const brokenSrc = breakSource(IDX_SRC,
-        "                    if (step.basis === 'needle' && !allowCandidates) {",
-        "                    if (false) {",
+    /* 模块破坏：把候选闸门短路（候选会被当 ref 一样落笔）。 */
+    const brokenSrc = breakSource(RO_SRC,
+        "                if (step.basis === 'needle' && !allowCandidates) {",
+        "                if (false) {",
         'x2-host-candidate-gate');
-    const host = engineFrom(brokenSrc, RL, EC, CL, FV);
-    const bridge = bridgeFrom(brokenSrc, { engine: host });
+    const host = engineFrom(IDX_SRC, RL, EC, CL, FV, brokenSrc);
+    const bridge = bridgeFrom(IDX_SRC, { engine: host });
     const c = { host, bridge };
     const req = c.host.requestRepair({ action: 'revoke', subject: '苏晴', target: '苏晴', refId: 'f2', dedupeKey: 'k1' });
     assert.equal(req.ok, true, '登记成功');
@@ -633,9 +667,7 @@ test('v3295 N6. 负控制：拆宿主「候选默认不动」⇒ 判据 F 翻红
     assert.ok(r, '落笔必须给回执');
     const ndl = (r.items || []).filter(x => x.basis === 'needle');
     assert.ok(ndl.some(x => x.status === 'done'), '拆掉候选闸门后候选确实被落笔了（行为已改变）');
-    /* ★ 同一判据必须在**破坏副本**上跑（传 brokenSrc）。修前这里写的是无参调用
-     *   ⇒ `judgeFApply` 内部用原版源码造引擎，跑的是原版，「判据没现形」于是
-     *   与「判据根本没在副本上跑过」完全同形（负控制的典型假红）。 */
+    /* ★ 同一判据必须在**破坏副本**上跑（传 brokenSrc）。 */
     assert.notEqual(await judgeFApply(brokenSrc), '', '同一判据必须在破坏副本上现形（候选被动过）');
     assert.equal(await judgeFApply(), '', '原版同判据必须通过（反向对照）');
 });

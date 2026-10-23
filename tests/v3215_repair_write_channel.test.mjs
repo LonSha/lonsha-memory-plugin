@@ -27,6 +27,7 @@ import { breakText as breakSource } from './_break_kit.mjs';
 const R = process.cwd();
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
 const rlSrc = fs.readFileSync(path.join(R, 'repair-loop.js'), 'utf8');
+const roSrc = fs.readFileSync(path.join(R, 'engine-repair-ops.js'), 'utf8');
 const require_ = createRequire(import.meta.url);
 const RL = require_(path.join(R, 'repair-loop.js'));
 
@@ -69,13 +70,40 @@ const HOST_METHODS = [
     'settleRepair(input) {', 'abandonRepair(input) {', 'repairRevision() {'
 ];
 
-/** 用给定源码里的**真宿主方法**造引擎（破损副本上跑同一套判据时也走这里）。 */
-function engineFrom(src, rl) {
-    const body = HOST_METHODS.map(h => {
-        const s = blockOf(src, h);
-        assert.ok(s, '宿主方法在位：' + h);
-        return s;
-    }).join(',\n');
+/** 从 engine-repair-ops.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\((.*?)\)\s*\{/);
+    if (!nm) return null;
+    let params = nm[2] || '';
+    params = params.replace(/^engine\s*,?\s*/, '');
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
+
+/** 用外提模块里的**真宿主方法**造引擎（破损副本上跑同一套判据时也走这里）。 */
+function engineFrom(src, rl, roSource) {
+    const ro = roSource || roSrc;
+    const body = [
+        extractModuleMethod(ro, 'function _repairPoolFor(engine, input) {'),
+        extractModuleMethod(ro, 'function _repairPool(engine) {'),
+        extractModuleMethod(ro, 'function requestRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function previewRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function settleRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function abandonRepair(engine, input) {'),
+        extractModuleMethod(ro, 'function repairRevision(engine) {')
+    ].join(',\n');
     const eng = new Function(
         '_repairLoopLib', 'errLog', 'PLUGIN_NAME', 'window',
         `return ({ ${body} });`

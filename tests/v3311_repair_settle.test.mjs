@@ -332,10 +332,29 @@ function methodBody(src, header) {
 const EC = require_(path.join(R, 'event-completeness.js'));
 const CL = require_(path.join(R, 'commitment-ledger.js'));
 const FV = require_(path.join(R, 'fact-version.js'));
+const RO = require_(path.join(R, 'engine-repair-ops.js'));
+if (RO && typeof RO.bindDeps === 'function') {
+    RO.bindDeps({
+        moduleLib: (getGlobal, fileName) => {
+            if (fileName === 'repair-loop.js') return RL;
+            if (fileName === 'event-completeness.js') return EC;
+            if (fileName === 'commitment-ledger.js') return CL;
+            if (fileName === 'fact-version.js') return FV;
+            return null;
+        },
+        errLog: () => {},
+        libs: {
+            _repairLoopLib: () => RL,
+            _eventCompletenessLib: () => EC,
+            _factVersionLib: () => FV
+        }
+    });
+}
 function libWindow() {
     return {
         LonShaRepairLoop: RL, LonShaRepairSettle: RS, LonShaRecallArtifact: RA,
-        LonShaEventCompleteness: EC, LonShaFactVersion: FV, LonShaCommitmentLedger: CL
+        LonShaEventCompleteness: EC, LonShaFactVersion: FV, LonShaCommitmentLedger: CL,
+        LonShaEngineRepairOps: RO
     };
 }
 function makeHost() {

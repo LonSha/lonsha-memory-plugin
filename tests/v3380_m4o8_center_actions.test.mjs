@@ -33,6 +33,7 @@ const require_ = createRequire(import.meta.url);
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const ok = (m) => console.log('  ok ' + m);
 const IDX = read('index.js');
+const RO_SRC = read('engine-repair-ops.js');
 const UI = read('settings-ui.js');
 const SELF = read(path.join('tests', 'v3380_m4o8_center_actions.test.mjs'));
 const C = require_(path.join(R, 'memory-center.js'));
@@ -53,11 +54,6 @@ const LIB_FNS = [
     'function _repairLoopLib() {'
 ];
 const HOST_METHODS = [
-    'memoryCenterRevoke(id, note) {',
-    'memoryCenterSaveQuery(state) {',
-    '_memoryCenterStateWithSaved(state) {',
-    'correctionSourceFacts(range) {',
-    'correctionReextractFacts(opts = {}) {',
     'evidenceSavedQueries() {',
     'saveEvidenceQuery(label, spec) {',
     'removeEvidenceQuery(replayKey) {',
@@ -85,15 +81,32 @@ function methodBody(src, header) {
 function libWindow() {
     return { LonShaEvidenceQuery: Q, LonShaCorrectionPlan: CP, LonShaFactVersion: FV, LonShaEvidenceWorkbench: W, LonShaMemoryCenter: C };
 }
-function engineFrom(src, win) {
+function engineFrom(idxSrc = IDX, roSrc = RO_SRC, win = null) {
+    if (typeof idxSrc === 'string' && idxSrc.includes('LonShaEngineRepairOps = factory()')) {
+        roSrc = idxSrc;
+        idxSrc = IDX;
+    }
     const J = String.fromCharCode(10);
-    const libs = LIB_FNS.map((h) => methodBody(src, h));
+    const libs = LIB_FNS.map((h) => methodBody(idxSrc, h));
     const missL = LIB_FNS.filter((h, i) => !libs[i]);
-    const meths = HOST_METHODS.map((h) => methodBody(src, h));
+    const meths = HOST_METHODS.map((h) => methodBody(idxSrc, h));
     const missM = HOST_METHODS.filter((h, i) => !meths[i]);
     if (missL.length || missM.length) throw new Error('切片缺失：取库口[' + missL.join('/') + '] 出口[' + missM.join('/') + ']');
-    const code = libs.join(J) + J + 'return ({ ' + meths.join(',' + J) + ' });';
-    return new Function('errLog', 'window', code)(() => {}, win || libWindow());
+
+    const roWin = { LonShaFactVersion: FV, LonShaEvidenceQuery: Q, LonShaCorrectionPlan: CP, LonShaEvidenceWorkbench: W, LonShaMemoryCenter: C };
+    const ro = new Function('window', (roSrc || RO_SRC) + '\nreturn LonShaEngineRepairOps;')(roWin);
+    ro.bindDeps({ factVersion: FV, evidenceQuery: Q, correctionPlan: CP, evidenceWorkbench: W, memoryCenter: C });
+
+    const opsDelegates = [
+        'memoryCenterRevoke(id, note) { return ro.memoryCenterRevoke(this, id, note); }',
+        'memoryCenterSaveQuery(state) { return ro.memoryCenterSaveQuery(this, state); }',
+        '_memoryCenterStateWithSaved(state) { return ro._memoryCenterStateWithSaved(this, state); }',
+        'correctionSourceFacts(range) { return ro.correctionSourceFacts(this, range); }',
+        'correctionReextractFacts(opts = {}) { return ro.correctionReextractFacts(this, opts); }'
+    ];
+
+    const code = libs.join(J) + J + 'return ({ ' + meths.concat(opsDelegates).join(',' + J) + ' });';
+    return new Function('errLog', 'window', 'ro', code)(() => {}, win || libWindow(), ro);
 }
 function judgeA1(src) {
     const bad = [];
@@ -277,26 +290,26 @@ test('v3380 C2. *** row.dispute 如实报不可用（不编假写入）', () => 
     assert.deepEqual(judgeDispute(UI), [], judgeDispute(UI).join('；'));
     ok('争议面无任何写调用');
 });
-const F1 = String.raw`st.saved = this.evidenceSavedQueries();`;
+const F1 = String.raw`st.saved = engine.evidenceSavedQueries();`;
 const F2 = String.raw`if (sc.scoped !== true || sc.known !== true) { out.reason = sc.reason || 'unscoped'; return out; }`;
 const F3 = String.raw`out.replayKey = (r.list.length && r.list[r.list.length - 1].replayKey) || '';`;
 test('v3380 F1. *** 破坏真源同步 ⇒ 保存区零同步判据当场现形', () => {
-    const broken = breakOnce(IDX, F1, String.raw`st.saved = st.saved;`, 'F1');
-    assert.notEqual(broken, IDX, '破坏必须真改源码');
+    const broken = breakOnce(RO_SRC, F1, String.raw`st.saved = st.saved;`, 'F1');
+    assert.notEqual(broken, RO_SRC, '破坏必须真改源码');
     assert.notDeepEqual(judgeFaceSaved(broken), [], 'saved 不再与真源同步必须翻红');
     assert.deepEqual(judgeFaceSaved(IDX), [], '原版上同判据必须真成立');
     ok('负控制成立：同步被摘 ⇒ 面板 saved 面空');
 });
 test('v3380 F2. *** 破坏未圈范围闸 ⇒ 退回全量判据当场现形', () => {
-    const broken = breakOnce(IDX, F2, String.raw`if (false) { out.reason = sc.reason || 'unscoped'; return out; }`, 'F2');
-    assert.notEqual(broken, IDX, '破坏必须真改源码');
+    const broken = breakOnce(RO_SRC, F2, String.raw`if (false) { out.reason = sc.reason || 'unscoped'; return out; }`, 'F2');
+    assert.notEqual(broken, RO_SRC, '破坏必须真改源码');
     assert.notDeepEqual(judgeUnscoped(broken), [], '未圈范围闸被摘必须翻红');
     assert.deepEqual(judgeUnscoped(IDX), [], '原版上同判据必须真成立');
     ok('负控制成立：范围闸被摘 ⇒ 未圈范围退回全量');
 });
 test('v3380 F3. *** 破坏保存落笔 ⇒ 真源条数判据当场现形', () => {
-    const broken = breakOnce(IDX, F3, String.raw`out.replayKey = '';`, 'F3');
-    assert.notEqual(broken, IDX, '破坏必须真改源码');
+    const broken = breakOnce(RO_SRC, F3, String.raw`out.replayKey = '';`, 'F3');
+    assert.notEqual(broken, RO_SRC, '破坏必须真改源码');
     assert.notDeepEqual(judgeSave(broken), [], '保存回执不含 replayKey 必须翻红');
     assert.deepEqual(judgeSave(IDX), [], '原版上同判据必须真成立');
     ok('负控制成立：回执键被摘 ⇒ replayKey 缺失');
@@ -307,7 +320,7 @@ test('v3380 G1. *** H5 判据纯度：三个破坏锚点在本档各恰 1 次', 
         assert.equal(n, 1, nm + ' 在本档出现 ' + n + ' 次（纯度要求恰 1 次）');
     }
     for (const [nm, a] of [['F1', F1], ['F2', F2], ['F3', F3]]) {
-        assert.equal(IDX.split(a).length - 1, 1, nm + ' 在真源上须恰中 1 次');
+        assert.equal(RO_SRC.split(a).length - 1, 1, nm + ' 在真源上须恰中 1 次');
     }
     ok('三锚点：本档各 1 次、真源各恰中 1 次');
 });

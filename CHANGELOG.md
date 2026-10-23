@@ -1,3 +1,11 @@
+## v3.365.0
+**index.js 剥离第五批：派生件修复执行与纠错操作集群外提为 engine-repair-ops.js**
+- 新增 `engine-repair-ops.js`（1056行，IIFE 模块）：将派生件修复执行、候选覆盖、范围纠错、查询条件保存/撤回等共 19 个方法（`requestRepair`, `settleRepair`, `abandonRepair`, `repairRevision`, `previewRepair`, `_repairOwners`, `_correctionOwners`, `_verifyCorrectionItem`, `applyCorrectionPlan`, `undoCorrection`, `memoryCenterRevoke`, `memoryCenterSaveQuery`, `_memoryCenterStateWithSaved`, `correctionSourceFacts`, `correctionReextractFacts`, `applyRepairPlan`, `_verifyRepairItem`, `_repairPoolFor`, `_repairPool`）从 `index.js` 完整外提为独立模块，挂载 `window.LonShaEngineRepairOps`，提供 `bindDeps` 注入。
+- `index.js` 从 19156 行进一步降至 18268 行（净减 888 行），原实现替换为轻量委托桩。
+- `manifest.json` `extra_js` 登记 `engine-repair-ops.js`（共 138 项）。
+- 修复切片测试夹具（`v3194`, `v3215`, `v3295`, `v3311`, `v3380`）适配新模块提取及负控制破坏锚点。
+- 新增 `tests/v3365_engine_repair_ops_split.test.mjs`（8 条）。
+
 ## v3.364.0
 **index.js 剥离第四批：QA问答管线与高级查询工具面外提为 engine-qa-tools.js**
 - 新增 `engine-qa-tools.js`（1235行，IIFE 模块）：将问答管线、问答消歧线程、工具面查询出口等共 32 个方法（`_qaKnownActors`, `_qaActorAliases`, `askMemoryQuestion`, `askMemoryQuestionAsync`, `askMemoryQuestionFollowUp`, `qaThreadResolve`, `qaThread`, `_qaThreadState`, `memoryQaLine`, `memoryToolsSources`, `_memoryToolsAbsent`, `queryEvidenceAsync`, `queryExperience`, `queryDualTime`, `queryEvidenceSolver`, `queryEventGraph`, `queryCausalTrace`, `queryPerspectiveMatrix` 等）从 `index.js` 完整外提为独立模块，挂载 `window.LonShaEngineQaTools`，提供 `bindDeps` 注入。
