@@ -338,4 +338,11 @@ v3500_m5_batch.test.mjs		v3.350.0 第五期第一批四项（M5-O1 时点追问�
 v3510_m5_o4.test.mjs		v3.351.0 第五期第二批优化（M5-O4 事实冲突裁决 / M5-O5 场景供数 / M5-O6 留出解析 / M5-O7 知情裁剪 / M5-O9 准入回执）的成对套件（**31 条 test**）：A~F 六项判据 + 版本锚 + 负控制 + 判据纯度。
 v3520_m5_x_batch.test.mjs		v3.352.0 第五期第一~二批拓展（M5-X1 借用关系 / M5-X2 目标跟踪 / M5-X4 传闻佐证 / M5-X5 共通知情 / M5-X8 周期约定）的成对套件（**30 条 test**）：A 版本锚 + B M5-X1 + C M5-X2 + D M5-X4 + E M5-X5 + F M5-X8 + G 判据纯度。
 v3530_m5_x_batch.test.mjs		v3.353.0 第五期第三~四批拓展（M5-X3 群像行踪 / M5-X6 影响预览 / M5-X7 假设工作集 / M5-X9 研究集合）的成对套件（**34 条 test**）：A 版本锚 + B M5-X3 + C M5-X6 + D M5-X7 + E M5-X9 + F 宿主接线 + G 判据纯度与负控制。
-v3550_m6_o1_o5.test.mjs		v3.355.0 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）的成对套件（**34 条 test**）：A 版本锚 + B M6-O1 内核 5 条 + C M6-O5 内核 7 条 + D 验收下限 6 条 + E 宿主接线 7 条 + F 负控制与判据纯度 6 条（含真源码破坏负控制 F1~F4：破坏真锚点后必须观测到行为改变）。
+v3550_m6_o1_o5.test.mjs		第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）的成对套件（**34 条 test**）：A 版本锚 + B M6-O1 内核 5 条 + C M6-O5 内核 7 条 + D 验收下限 6 条 + E 宿主接线 7 条 + F 负控制与判据纯度 6 条（含真源码破坏负控制 F1~F4：破坏真锚点后必须观测到行为改变）。
+v3560_m6_o2_o3_o6.test.mjs		第六期批次 B（M6-O2 阶段性自白 / M6-O3 观念演化轨迹 / M6-O6 关系质变节点）验收测试
+v3570_m6_batch_c.test.mjs		第六期批次 C（M6-O4 自传 / M6-O7 关系动力 / M6-O9 意图推进 / M6-X1/X2/X7 行动心智契约）验收测试
+v3580_m6_batch_d.test.mjs		第六期批次 D（M6-O8 制度沿革 / M6-X3 连续研究 / M6-X5 条件因果）验收测试
+v3590_m6_batch_e.test.mjs		第六期批次 E（M6-X6 意象演变 / M6-X8 回忆再理解）验收测试
+v3600_m6_batch_f.test.mjs		第六期批次 F（M6-X4 反事实实验 / M6-X9 跨时代传承）验收测试
+v3362_engine_report_split.test.mjs		v3.362.0 index.js 剥离第二批（exportMemoryReport 外提至 engine-report.js）成对验收测试
+v3363_engine_recall_split.test.mjs		v3.363.0 index.js 剥离第三批（recallMemory 核心召回管线外提至 engine-recall.js）成对验收测试

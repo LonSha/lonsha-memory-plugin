@@ -1,11 +1,21 @@
-## v3.362.0 **index.js 剥离第二批：exportMemoryReport 全景导出外提为 engine-report.js**
+## v3.363.0
+**index.js 剥离第三批：recallMemory 核心召回管线外提为 engine-recall.js**
+- 新增 `engine-recall.js`（IIFE 模块）：将 `recallMemory` 核心召回管线（718行）及 5 个纯函数（`numOr`, `normalizeCharName`, `relativePrefix`, `filterTimelineByConstraint`, `parseStoryTimeConstraint`）从 `index.js` 外提为独立模块，挂载 `window.LonShaEngineRecall`，提供 `bindDeps` 注入。
+- `index.js` 从 20950 行降至 20249 行（净减 701 行），原实现替换为轻量委托桩。
+- `manifest.json` `extra_js` 登记 `engine-recall.js`（共 136 项）。
+- 修复相关历史测试（`v336`, `v386`, `v337`, `v338`, `v3235`, `v3200`, `v3185`, `v3149`, `v3150`）兼容外提模块与 `engine.` 上下文。
+- 新增 `tests/v3363_engine_recall_split.test.mjs`（8 条），登记至参考基准。
+- 扫描器契约：退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
+- 实施期按铁律只跑定向判据与定点回归，绝不跑全量。
+
+## v3.362.0
+**index.js 剥离第二批：exportMemoryReport 全景导出外提为 engine-report.js**
 - 新增 `engine-report.js`（IIFE 模块）：将 `exportMemoryReport` 全景导出方法（含 11 板块 Markdown 渲染与 `opLogStatsCompat` 账本兼容）从 `index.js` 外提为独立模块，通过 `window.LonShaEngineReport` 导出，提供 `bindDeps` 注入 `errLog`。
 - `index.js` 从 21327 行降至 20950 行（净减 377 行），原实现替换为委托桩。
 - `manifest.json` `extra_js` 登记 `engine-report.js`。
 - 六源同源抬版 3.362.0。
-
-## v3.361.0 **index.js 剥离第一批：诊断行方法群 62 个方法 → engine-diagnostic-lines.js**
-
+## v3.361.0
+**index.js 剥离第一批：诊断行方法群 62 个方法 → engine-diagnostic-lines.js**
 - 新增 `engine-diagnostic-lines.js`（1409行，IIFE 模块）：诊断行方法群 62 个方法（`*Line()` 诊断行 + 出口方法 + `confirmBranchImport`）从 index.js 提取为独立模块，通过 `bindDeps({moduleLib, errLog, _changeset, libs})` 注入闭包依赖，`globalThis.LonShaDiagnosticLines` 挂载。
 - index.js 从 22731 行降至 21327 行（净减 1404 行）：原 62 个方法体替换为 93 行委托桩（`_moduleLib` 取模块 → `M.methodName(this, ...args)` 委托调用，缺席走退路）。
 - `_assembleComponents(config)` 中注入 `bindDeps` 接线：注入 `moduleLib` / `errLog` / `_changeset` + 16 个 `*Lib()` 函数引用。
@@ -13,15 +23,14 @@
 - `host_beast_baseline.json` 更新：total_lines 21327、ceiling 21726、rebuilds 添加 v3.361.0。
 - 六源同源抬版 3.361.0（index.js / package.json / manifest.json / memory-config.js / memory-core.js / memory-organs.js / counterfactual-experiment.js / era-inheritance.js）。
 - 测试修复进行中：版本守卫改为下界检查（`vnum(VERSION) >= vnum(BORN_V)`）；方法存在性测试需改为从 engine-diagnostic-lines.js 提取或识别委托桩模式；PLAN.md 路径测试需更新；模块副本台账需添加 engine-diagnostic-lines.js。
-
-## v3.360.0 **第六期批次 F 记忆侧两项（M6-X4 多步反事实实验 / M6-X9 跨时代传承）**
-
+## v3.360.0
+**第六期批次 F 记忆侧两项（M6-X4 多步反事实实验 / M6-X9 跨时代传承）**
 - 新增 counterfactual-experiment.js（135行，IIFE 零依赖）：冻结事实引用 + 多步推进 + 首次分歧定位 + 丢弃无副作用
 - 新增 era-inheritance.js（162行，IIFE 零依赖）：四类提案 + 私人经历不继承 + 撤销旧卷可读
 - WorldProgress 器官集成 + 退路类 + 六源同源 3.360.0 + v3590 下界检查
 - 15条测试全绿（含3条负控制）+ D+E+F联合53/53
-
-## v3.359.0 **第六期批次 E 记忆侧两项（M6-X6 意象与意义变迁 / M6-X8 回忆再理解）**
+## v3.359.0
+**第六期批次 E 记忆侧两项（M6-X6 意象与意义变迁 / M6-X8 回忆再理解）**
 
 - 新增 `symbolic-evolution.js`（v3.359.0，IIFE 零依赖）：意象实体三层分离（字面事实/作者确认/纯候选）、角色视角分轨（A的约定≠B的工具）、登场轨迹追踪、否定不删除（revoked 保留可查但不再注入）。
 - 新增 `recall-reinterpretation.js`（v3.359.0，IIFE 零依赖）：回忆讲述会话（带出处与讲述者）、解释类型分离（当时解释/后来再理解/事实修正/叙事省略）、时间轴对照（变化可查）、保护正史事实（回忆措辞不改出处）。

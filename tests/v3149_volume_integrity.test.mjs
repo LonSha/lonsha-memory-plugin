@@ -3,7 +3,7 @@
 // 覆盖：写入侧指纹快照+volumeId / 校验侧降级+源摘要回活跃池 / 健全卷查询三消费点收口 / 开关门控
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -14,13 +14,17 @@ const srcRaw = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
-const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const src = srcRaw + String.fromCharCode(10) +
+    readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8') + String.fromCharCode(10) +
+    (existsSync(new URL('../memory-config.js', import.meta.url)) ? readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8') : '') + String.fromCharCode(10) +
+    (existsSync(new URL('../engine-recall.js', import.meta.url)) ? readFileSync(new URL('../engine-recall.js', import.meta.url), 'utf8') : '');
 
 /* [v3.279.0 O7] 抽取面改为**真模块装载**：修前本档从源码抠 SummarySystem 类体 + sanitizeJson 一起灌进
  *   new Function 的作用域重放，那是与 memory-core.js 真类**并行的第二实现**（类外符号还要靠抽取拼接）。
  *   现在直接 require 真模块拿真类 —— 语义一字不改，只换「被跑的对象」；静态面仍读「入口 + 该模块」合看。 */
 const require_ = createRequire(import.meta.url);
 const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
+
 test('=== 1. 结构断言（写入侧快照 + 校验方法存在） ===', () => {
     assert.ok(src.includes('volumeIntegrityGuard'), '配置开关');
     assert.ok(src.includes('verifyVolumesIntact'), '校验方法');
@@ -28,14 +32,18 @@ test('=== 1. 结构断言（写入侧快照 + 校验方法存在） ===', () => 
     assert.ok(src.includes('srcFps'), '指纹快照字段');
     assert.ok(src.includes('s.volumeId = _volId'), '源摘要打 volumeId');
     assert.ok(src.includes('degraded: false'), '新卷初始健全');
-    const recallIdx = src.indexOf('async recallMemory(query)');
-    const verifyIdx = src.indexOf('verifyVolumesIntact(this.config.config)', recallIdx);
+    const recallIdx = src.indexOf('async function recallMemory') > 0
+        ? src.indexOf('async function recallMemory')
+        : src.indexOf('async recallMemory(query)');
+    const verifyIdx = Math.max(
+        src.indexOf('verifyVolumesIntact(this.config.config)', recallIdx),
+        src.indexOf('verifyVolumesIntact(engine.config.config)', recallIdx)
+    );
     assert.ok(recallIdx > 0 && verifyIdx > recallIdx, 'recallMemory 先对账后召回');
     assert.ok(src.includes('getActiveVolumes() { return this.getIntactVolumes()'), 'getActiveVolumes 经 getIntactVolumes');
     assert.ok(src.includes('searchVolumes(limit = 2) { return this.getIntactVolumes()'), 'searchVolumes 经 getIntactVolumes');
     assert.ok(src.includes('maybeFoldHistorical(config, llm)'), '史记折叠存在');
 });
-
 test('=== 2. 降级语义：源指纹失效 → 整卷降级 + 源摘要回活跃池 ===', async () => {
     // [v3.279.0 O7] 真模块装载（修前是抠类体 + sanitizeJson 一起灌进 new Function 重放）
     const SummarySystem = MC.SummarySystem;
@@ -83,7 +91,9 @@ test('=== 3. 引擎闭包接线：指纹函数注入 + recallMemory 对账 ===',
     const wireIdx = src.indexOf("this.summary = _newCore('SummarySystem');");
     const fpIdx = src.indexOf('this.summary.fpOf = (m) =>', wireIdx);
     assert.ok(wireIdx > 0 && fpIdx > wireIdx && fpIdx < wireIdx + 200, 'fpOf 紧随 SummarySystem 构造注入');
-    const rmIdx = src.indexOf('async recallMemory(query)');
+    const rmIdx = src.indexOf('async function recallMemory') > 0
+        ? src.indexOf('async function recallMemory')
+        : src.indexOf('async recallMemory(query)');
     const guardIdx = src.indexOf('volumeIntegrityGuard !== false', rmIdx);
     assert.ok(rmIdx > 0 && guardIdx > rmIdx && guardIdx < rmIdx + 500, '对账受开关门控');
 });

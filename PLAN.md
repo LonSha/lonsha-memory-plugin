@@ -1,7 +1,7 @@
 # lonsha-memory-plugin 发展规划
 > **第六期产品计划（2026-10-22，唯一现行提案）**：本仓优化9项＋拓展9项，双仓共36项完整大更新，均为proposed。**本轮仅交付计划，未实施功能、未升版。**
 > [优化提升九项](.agents/notes/proposed/architecture/2026-10-22-product-optimization-v6.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-10-22-product-expansion-v6.md) · [源码证据、差异化与六批次](docs/planning/2026-10-22-product-evidence-v6.md) · [本轮交付检查](docs/planning/2026-10-22-plan-delivery-v6.md)。
-> **当前执行状态（2026-10-22，v3.355.0）**：生产基线 `main@a6025ba`；新项按完整用户旅程验收，守卫、审计、台账、发布不独立占名额，不用小修补或已有功能改名充数。
+> **当前执行状态（2026-10-23，v3.363.0）**：生产基线 `main@a6025ba`；新项按完整用户旅程验收，守卫、审计、台账、发布不独立占名额，不用小修补或已有功能改名充数。
 > **独有方向**：记忆侧从分散条目走向连续经历、人物认知与长期演化；手机侧从分散App走向持续通信、生活协作与跨媒介创作。开创性按本项目实质增量判，不宣称全球首创。
 
 | 编号 | 优化提升（待实施） | 编号 | 拓展创新（待实施） |
@@ -54,11 +54,11 @@
 
 | 量 | 读数 | 出处 |
 |---|---|---|
-| 版本 | **v3.355.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
-| 门禁 | 在役面 **334 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
+| 版本 | **v3.363.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
+| 门禁 | 在役面 **341 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
 | 全量快照 | 最近全量快照 **v3.355.0：334 测试文件 / 4066 断言 0 失败 / 审计 61/61**（当版 **已实跑并登记**;上一快照 v3.348.0:328 / 3910 / 61/61;再上一份 v3.328.0:309 / 3528 / 61/61;再上一份 v3.318.0:299 / 3302 / 61/61;**第二期计划收口点**:优化 M-O1~M-O9 / 拓展 M-X1~M-X9 全部交付;更早 v3.296.0:277 / 2986 / 59/59) | `tests/audit/doc_readings.json` |
-> 当前 v3.355.0 **已实跑并登记**（全量 `node tests/run.mjs --audit --jobs 3 --audit-jobs 2` ⇒ 334/334 文件 · 4066 断言 · 0 失败 · 审计 61/61；本版新增第六期批次 A 两项：M6-O1 连续经历重建 / M6-O5 双时间经历 —— 新内核 `experience-rebuild.js` 与 `dual-time.js` + 两个取库口 + 两个宿主出口（queryExperience 十二 op / queryDualTime 八 op，含 versionAt）+ WorldProgress 增 experiences / timeCoords 两子键（构造器 / export / import 三处成对登记）+ selfCheck 两行；extra_js 117 -> 119。实施期只跑定向判据与定点回归）；上一版 v3.349.0 **已实跑并登记**（读数由 tools/_rebind_doc_readings.py 消费结构化摘要零手抄重绑，见上表。本版缝入上游 conditionPatch —— 新内核 `condition-patch.js` + 宿主取库口与两处 hasAny 接线、退路类同形补齐、两处键表恢复六字段共享形态；全量 `node tests/run.mjs --audit --jobs 3 --audit-jobs 2` ⇒ 329/329 文件 · 3935 断言 · 0 失败 · 审计 61/61）。
-| 体量 | `index.js` **22428 行**(探针读数;`wc -l` 22427) / **809** 成员 —— 原 A1 六刀后为 13883 / 521,v3.326.0 A1 第九刀后为 18398 / 688,v3.328.0 F 包两个产品项接线后为 18964 / 723,v3.330.0 结清 M4-O1(+139)+M4-O2(+53)两版宿主接线后为 19156 / 727,v3.331.0 M4-O3 宿主接线后为 19244 / 728,v3.332.0 M4-O4 异步出口后为 19412 / 730,v3.334.0 M4-O5 窗口解析出口后为 19443 / 731,v3.335.0 M4-O6 真实供数派生层后为 19845 / 742,v3.336.0 M4-O9 可知性裁剪判决口后为 20104 / 749,v3.337.0 M4-O7 证据保护筛后为 20159 / 749,v3.338.0 M4-O8 控制中心处置动作生产方后为 20563 / 758,v3.339.0 M4-X1 可校订分层导入后为 20823 / 764,v3.340.0 M4-X4 带消歧与条件继承的多轮追问后为 21042 / 768,v3.341.0 M4-X2 面向读者的章节回顾与年鉴成稿后为 21180 / 774,v3.342.0 M4-X3 正史选择真正进入下一卷后为 21437 / 780,v3.343.0 M4-X5 证词面后为 21514 / 783,v3.344.0 M4-X6 叙事层记忆后为 21606 / 787,v3.345.0 M4-X7 控频闸后为 21740 / 793,v3.346.0 M4-X8 材料包后为 21855 / 795,v3.347.0 M4-X9 资料对照后为 21964 / 798,v3.349.0 缝入上游 conditionPatch(伤情编号片段补丁,宿主 index.js 接线)后为 21982 / 799,v3.355.0 第六期批次 A 两项接线(两个取库口 + 两个宿主出口 + selfCheck 两行)后为 22428 / 809;+ extra_js **119** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
+> 当前 v3.363.0 **全量待验**（实施期按铁律只跑定向判据与定点回归，绝不跑全量；本版新增 index.js 剥离第三批：recallMemory 核心召回管线 718 行外提为 engine-recall.js IIFE 模块；index.js 20950→20249 行，净减 701 行；manifest extra_js 136 项）；上一版 v3.355.0 **已实跑并登记**（全量 `node tests/run.mjs --audit --jobs 3 --audit-jobs 2` ⇒ 334/334 文件 · 4066 断言 · 0 失败 · 审计 61/61；读数由 tools/_rebind_doc_readings.py 消费结构化摘要零手抄重绑，见上表）。
+| 体量 | `index.js` **20249 行**(探针读数;`wc -l` 20249) / **807** 成员 —— 经诊断行外提(-1404)与召回管线外提(-701)后持续解耦降量;+ extra_js **136** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
 | 跨仓外供 | 正向 **7 面**（`open_face_registry.tsv`；v3.314.0 M-X6 新增 `phoneFactReceipt`（consumer `none@0`，手机侧回执面，下游接入属下一轮）；v3.305.0 M-X9 新增 `memoryToolsEnvelope`（consumer `none@0`，下游接入属下一轮））+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |
 
 ---

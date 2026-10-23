@@ -6,7 +6,7 @@ const idxSrcRaw = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
-const idxSrc = idxSrcRaw + String.fromCharCode(10) + (fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8'))
+const idxSrc = idxSrcRaw + String.fromCharCode(10) + (fs.readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8')) + String.fromCharCode(10) + (fs.existsSync(new URL('../engine-recall.js', import.meta.url)) ? fs.readFileSync(new URL('../engine-recall.js', import.meta.url), 'utf8') : '');
 /* [v3.258.0 A1 第三刀] 三个生成侧派生系统（DiarySystem / ReflectionSystem / OutlineDirector）
  *   已外迁到 narrative-generators.js。本文件里「真源已随类搬家」的锚改读该模块的全文件文本；
  *   仍留在入口的锚继续读 src —— 两处读的都是各自真源，不是再拄一份副本。 */

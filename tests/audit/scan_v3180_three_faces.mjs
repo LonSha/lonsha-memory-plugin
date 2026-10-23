@@ -45,8 +45,15 @@ const pub = fs.readFileSync(PUB, 'utf8');
 const idxRaw = fs.readFileSync(IDX, 'utf8');
 /* [v3.266.0 A1 第六刀] GameClock / CharacterState 已外移 memory-core.js：
  *   时钟委托与状态层助手这两面的真源随类搬走，判据面改为「入口 + 该模块」合看
- *   （语义一字不改；不放宽：每一条仍须在场）。 */
-const idx = idxRaw + String.fromCharCode(10) + fs.readFileSync(path.join(ROOT, 'memory-core.js'), 'utf8');
+ *   （语义一字不改；不放宽：每一条仍须在场）。
+ * [v3.361.0 / v3.363.0] 诊断行移至 engine-diagnostic-lines.js、召回移至 engine-recall.js：
+ *   扩大扫描面合看，保住真源不放宽。 */
+const idx = idxRaw + String.fromCharCode(10)
+    + fs.readFileSync(path.join(ROOT, 'memory-core.js'), 'utf8')
+    + String.fromCharCode(10)
+    + (fs.existsSync(path.join(ROOT, 'engine-diagnostic-lines.js')) ? fs.readFileSync(path.join(ROOT, 'engine-diagnostic-lines.js'), 'utf8') : '')
+    + String.fromCharCode(10)
+    + (fs.existsSync(path.join(ROOT, 'engine-recall.js')) ? fs.readFileSync(path.join(ROOT, 'engine-recall.js'), 'utf8') : '');
 
 const problems = [];
 const notes = [];
@@ -72,7 +79,7 @@ const consumers = [
     ['楼层落笔（物品）', /this\._stampFloorLedger\(message, \{ floor: floorNow, items: _lv\.items \}\)/],
     ['楼层落笔（摘要 · fresh）', /\{ fresh: true \}\)/],
     ['覆盖度入口', /_floorLedgerCoverage\(\)\s*\{/],
-    ['覆盖度一句话读数', /_floorLedgerLine\(\)\s*\{/],
+    ['覆盖度一句话读数', /_floorLedgerLine\([^)]*\)\s*\{/],
     ['诊断面·楼层落笔行', /\['楼层落笔', line/],
     ['诊断面·年龄锚点行', /\['年龄锚点', /],
     ['携带写侧 ageAnchors', /ageAnchors: this\.status\?\.exportAgeAnchors\?\.\(\) \|\| \{\}/],
@@ -80,7 +87,7 @@ const consumers = [
     ['契约键 ageAnchors', /'ageAnchors',/],
     ['对外注册调用点', /this\._registerPublicInterface\(\);/],
     ['对外注册延后一拍', /setTimeout\(\(\) => \{ run\(\); \}, 0\);/],
-    ['召回条目年龄读数', /age: this\.status\.ageReading\(r\.name, _ageOpts\)/]
+    ['召回条目年龄读数', /age: (?:this|engine)\.status\.ageReading\(r\.name, _ageOpts\)/]
 ];
 for (const [what, re] of consumers) {
     if (!re.test(idx)) problems.push('M1 ' + what + ' 不在位——声明了却没接在消费点（死声明）');

@@ -1,6 +1,6 @@
 // v3.36 确定性物品重放 + 结构化错误诊断人话库 测试
 import fs from 'node:fs';
-const idxSrc = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const idxSrc = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8') + '\n' + (fs.existsSync(new URL('../engine-recall.js', import.meta.url)) ? fs.readFileSync(new URL('../engine-recall.js', import.meta.url), 'utf8') : '');
 const suiSrc = fs.readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 const mftSrc = fs.readFileSync(new URL('../manifest.json', import.meta.url), 'utf8');
 

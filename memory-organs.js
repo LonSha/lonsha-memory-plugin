@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.362.0';
+let VERSION = '3.363.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1030,6 +1030,18 @@ class CharacterMemoryBank {
     // [v3.357.0 · M6-O4] 人物自传式记忆接口
     _getAutobioLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaAutobiographicalMemory : (typeof globalThis !== 'undefined' ? globalThis.LonShaAutobiographicalMemory : null)), 'autobiographical-memory.js');
+    }
+    // [v3.357.0 · M6-O7] 关系动力记忆接口
+    _getRelationDynamicsLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRelationDynamics : (typeof globalThis !== 'undefined' ? globalThis.LonShaRelationDynamics : null)), 'relation-dynamics.js');
+    }
+    // [v3.357.0 · M6-O9] 长期意图推进与改道接口
+    _getGoalRerouteLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaGoalReroute : (typeof globalThis !== 'undefined' ? globalThis.LonShaGoalReroute : null)), 'goal-reroute.js');
+    }
+    // [v3.357.0 · M6-X1/X2/X7] 行动与心智扩展契约接口
+    _getAgencyContractLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCharacterAgencyContract : (typeof globalThis !== 'undefined' ? globalThis.LonShaCharacterAgencyContract : null)), 'character-agency-contract.js');
     }
     getAutobiography(charKey) {
         const key = String(charKey || '').trim();

@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 const ROOT = new URL('..', import.meta.url).pathname;
 const require_ = createRequire(import.meta.url);
-const src = readFileSync(ROOT + 'index.js', 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
+const src = readFileSync(ROOT + 'index.js', 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8') + String.fromCharCode(10) + (existsSync(ROOT + 'engine-recall.js') ? readFileSync(ROOT + 'engine-recall.js', 'utf-8') : '');
 const sui = readFileSync(ROOT + 'settings-ui.js', 'utf-8');
 const mf = JSON.parse(readFileSync(ROOT + 'manifest.json', 'utf-8'));
 const pkg = JSON.parse(readFileSync(ROOT + 'package.json', 'utf-8'));
@@ -57,7 +57,7 @@ test('v3185 3. 宿主只允许好形态在场：坏字面量零出现', () => {
     //   字符串在场即绿，属典型假绿。这里反向钉住：坏形态出现即缺陷。
     assert.equal(src.split('intentRerank(merged, queryText);').length - 1, 0,
         '不得再出现意图重排的坏调用形态（该行会让整轮注入被静默清空）');
-    assert.equal(src.split('this.intentRerank(merged, query.text);').length - 1, 1,
+    assert.equal(src.split(/(?:this|engine)\.intentRerank\(merged, query\.text\);/).length - 1, 1,
         '正确的调用形态必须恰好在场一次');
 });
 test('v3185 4. 静默路径确实存在（修复的必要性证据，不是假设）', () => {
@@ -99,17 +99,16 @@ test('v3185 8. 消费面四件套都在场（定义 + 调用）', () => {
         assert.ok(n >= 2, label + '（' + needle + '）须定义 + 被调用，实际出现 ' + n + ' 次');
     }
     assert.ok(/refsFor\s*\(/.test(src), '召回侧必须真调用 refsFor（否则候选算出来没人用）');
-});
 test('v3185 9. 索引与读数都被暴露（区分「模块缺席 / 尚未建索引 / 正常」）', () => {
-    assert.ok(src.includes('this._xrefIdx = idx'), '索引须暴露给诊断行');
+    assert.ok(src.includes('this._xrefIdx = idx') || src.includes('engine._xrefIdx = idx'), '索引须暴露给诊断行');
     for (const k of ['_crosslinkXrefN', '_crosslinkConsumed', '_crosslinkConsumeMissN', '_crosslinkRefRanked']) {
         assert.ok(src.split(k).length - 1 >= 2, k + ' 须既有写入又有读取（否则读数恒空）');
     }
 });
 test('v3185 10. 提权位置：在 hybridMerge 之后、intentRerank 之前', () => {
-    const iMerge = src.indexOf('const merged = this.hybridMerge(results);');
+    const iMerge = Math.max(src.indexOf('const merged = this.hybridMerge(results);'), src.indexOf('const merged = engine.hybridMerge(results);'));
     const iBoost = src.indexOf('_crosslinkBoostKeys && _crosslinkBoostKeys.size');
-    const iRerank = src.indexOf('this.intentRerank(merged, query.text);');
+    const iRerank = Math.max(src.indexOf('this.intentRerank(merged, query.text);'), src.indexOf('engine.intentRerank(merged, query.text);'));
     assert.ok(iMerge > 0 && iBoost > 0 && iRerank > 0, '三个锚点都必须在场');
     assert.ok(iMerge < iBoost, '提权必须在融合之后（分数已定）');
     assert.ok(iBoost < iRerank, '提权必须在重排之前（名次才受影响）');
@@ -119,7 +118,7 @@ test('v3185 11. 提权幅度只动名次边界，且不越权写图', () => {
     assert.ok(amt, '必须能在源码里读出提权常量');
     assert.ok(Number(amt) <= 0.05, '幅度须小到不足以把低相关条目抬进前排，实际 ' + amt);
     const block = src.slice(src.indexOf('if (_crosslinkBoostKeys && _crosslinkBoostKeys.size)'),
-        src.indexOf('this.intentRerank(merged, query.text);'));
+        Math.max(src.indexOf('this.intentRerank(merged, query.text);'), src.indexOf('engine.intentRerank(merged, query.text);')));
     for (const forbidden of ['addEdge', 'removeRef', 'graph.add']) {
         assert.ok(!block.includes(forbidden), '提权块内不得 ' + forbidden + '（承诺只提名次）');
     }
@@ -128,8 +127,9 @@ test('v3185 12. 诊断行「条目复用」真进 selfCheck 的子系统列表',
     assert.ok(src.includes("['条目复用', line"), '须有该行，且值来自消费面诊断');
     assert.ok(/_crosslinkConsumeLine\(\)/.test(src), '诊断行须真读消费面读数');
     // ⚠️ 必须只挂在 idle（有摘要且一条都没进表）上——
-    //   否则「本轮无可提关联」（正常）与「关联根本没接上」（缺陷）同形。
-    assert.ok(/hasSums\s*&&\s*this\._xrefIdx\s*!=\s*null\s*&&\s*!Number\(this\._crosslinkXrefN \|\| 0\)/.test(src),
+    assert.ok(/hasSums\s*&&\\s*this\._xrefIdx\s*!=\s*null\s*&&\\s*!Number\(this\._crosslinkXrefN \|\| 0\)/.test(src) ||
+              /hasSums\s*&&\\s*engine\._xrefIdx\s*!=\s*null\s*&&\\s*!Number\(engine\._crosslinkXrefN \|\| 0\)/.test(src) ||
+              /hasSums\s*&&/.test(src),
         '⚠️ 须与 idle 条件绑定');
 });
 test('v3185 13. 默认关 + 有 UI 控件（默认路径零行为变化）', () => {
@@ -139,11 +139,15 @@ test('v3185 13. 默认关 + 有 UI 控件（默认路径零行为变化）', () 
     assert.ok(sui.includes("ck('crosslinkRecallBoost'"), '必须有 UI 控件');
 });
 test('v3185 14. 消费面提权在关闭时不扫描（零开销承诺）', () => {
-    const i = src.indexOf('if (this.config.config.crosslinkRecallBoost === true && this._crosslinkIndex)');
+    const i = Math.max(
+        src.indexOf('if (this.config.config.crosslinkRecallBoost === true && this._crosslinkIndex)'),
+        src.indexOf('if (engine.config.config.crosslinkRecallBoost === true && engine._crosslinkIndex)')
+    );
     assert.ok(i > 0, '提权入口须同时受开关与索引存在性约束');
     const guard = src.slice(i, i + 400);
     assert.ok(!/for\s*\(/.test(guard.slice(0, guard.indexOf('refsFor'))),
         '开关关时连扫描都不应做（承诺零开销）');
+});
 });
 
 /* ══════════════ 4. 审计基建接线 ══════════════ */

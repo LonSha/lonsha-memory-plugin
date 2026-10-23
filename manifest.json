@@ -1,5 +1,5 @@
 {
-    "display_name": "LonSha记忆引擎",
+    "display_name": "LonSha\u8bb0\u5fc6\u5f15\u64ce",
     "loading_order": 10,
     "requires": [],
     "optional": [],
@@ -7,7 +7,7 @@
     "css": "css/style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.362.0",
+    "version": "3.363.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -146,7 +146,8 @@
         "counterfactual-experiment.js",
         "era-inheritance.js",
         "engine-diagnostic-lines.js",
-        "engine-report.js"
+        "engine-report.js",
+        "engine-recall.js"
     ],
     "extra_css": [
         "css/lonsha-design.css",

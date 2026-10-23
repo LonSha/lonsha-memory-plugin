@@ -15,13 +15,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { breakSource } from './_break_kit.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const rel = (p) => path.join(ROOT, p);
 const read = (p) => fs.readFileSync(rel(p), 'utf8');
 const BORN_V = '3.360.0';
 const CE_REL = 'counterfactual-experiment.js';
 const EI_REL = 'era-inheritance.js';
-
 // IIFE 模块通过 globalThis 挂载
 const ceCode = read(CE_REL);
 const eiCode = read(EI_REL);
@@ -33,16 +33,7 @@ eval(ceCode);
 eval(eiCode);
 const CE = globalThis.CounterfactualExperimentLib;
 const EI = globalThis.EraInheritanceLib;
-
 function vnum(v) { return v.split('.').map(Number).reduce((a, b, i) => a + b * Math.pow(100, 2 - i), 0); }
-
-function breakSource(code, anchor, replacement) {
-  const idx = code.indexOf(anchor);
-  if (idx === -1) throw new Error(`Anchor not found: ${anchor}`);
-  const before = code.slice(0, idx);
-  const after = code.slice(idx + anchor.length);
-  return before + replacement + after;
-}
 
 /* ============================================================ */
 /* A 面：版本锚与结构自证                                       */

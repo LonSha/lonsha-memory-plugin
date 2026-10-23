@@ -128,7 +128,10 @@ async function runInScratch(mutate) {
         }
         for (const f of [...(mft.extra_css || [])]) {
             const p = path.join(ROOT, f);
-            if (existsSync(p)) writeFileSync(path.join(dir, f), readFileSync(p, 'utf-8'));
+            if (existsSync(p)) {
+                mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+                writeFileSync(path.join(dir, f), readFileSync(p, 'utf-8'));
+            }
         }
         // 入口与面板由调用方按需覆盖（退化用例会写入 '// gone'）
         writeFileSync(path.join(dir, 'index.js'), srcRaw);

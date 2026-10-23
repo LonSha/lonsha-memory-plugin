@@ -10,29 +10,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { breakSource } from './_break_kit.mjs';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const rel = (p) => path.join(ROOT, p);
 const read = (p) => fs.readFileSync(rel(p), 'utf8');
 const BORN_V = '3.359.0';
 const vnum = (v) => v.split('.').map(Number).reduce((a, b, i) => a + b * Math.pow(100, 2 - i), 0);
-
 // 加载内核模块（globalThis 挂载模式）
 await import(pathToFileURL(rel('symbolic-evolution.js')).href);
 await import(pathToFileURL(rel('recall-reinterpretation.js')).href);
 const SE = globalThis.SymbolicEvolutionLib;
 const RR = globalThis.RecallReinterpretationLib;
-
-// 负控制辅助
-function breakSource(filePath, anchor, replacement, suffix) {
-    const src = fs.readFileSync(rel(filePath), 'utf8');
-    const broken = src.replace(anchor, replacement);
-    const tmpPath = path.join(ROOT, 'tests', '_tmp_broken_' + suffix + '.js');
-    fs.writeFileSync(tmpPath, broken);
-    return tmpPath;
-}
 async function loadBroken(tmpPath) {
     // 清除缓存
     const url = pathToFileURL(tmpPath).href + '?t=' + Date.now();
+    await import(url);
+}
     delete globalThis['_broken_' + path.basename(tmpPath, '.js')];
     const mod = await import(url);
     return mod;
@@ -205,9 +198,11 @@ test('E1 负控制：破坏视角分轨（合并成一个视角）→ 可观测'
     // 破坏 addPerspectiveMeaning 中的分轨逻辑：把 aid 替换成 '_all'
     const anchor = "if (!entity.perspectives) entity.perspectives = {};\n    if (!Array.isArray(entity.perspectives[aid])) entity.perspectives[aid] = [];";
     const replacement = "if (!entity.perspectives) entity.perspectives = { '_all': [] };\n    entity.perspectives['_all'] = entity.perspectives['_all'] || [];\n    var _origAid = aid; aid = '_all';";
-    const tmpPath = breakSource('symbolic-evolution.js', anchor, replacement, 'se_e1');
+    const src = fs.readFileSync(rel('symbolic-evolution.js'), 'utf8');
+    const code = breakSource(src, anchor, replacement);
+    const tmpPath = path.join(ROOT, 'tests', '_tmp_broken_se_e1.js');
+    fs.writeFileSync(tmpPath, code);
     try {
-        const code = fs.readFileSync(tmpPath, 'utf8');
         const wrapped = code + '\nglobalThis.__brokenSE = SymbolicEvolutionLib;';
         const wrapPath = path.join(ROOT, 'tests', '_tmp_wrap_se_e1.js');
         fs.writeFileSync(wrapPath, wrapped);

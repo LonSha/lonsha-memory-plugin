@@ -22,7 +22,7 @@
 //   形态要求：破坏锚点必须恰好命中 1 次（多于 1 次说明锚点在别处也成立，判据会被稀释）。
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync, writeFileSync, mkdtempSync, cpSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, cpSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -38,7 +38,8 @@ const idxSrcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf8') + String.fro
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
-const idxSrc = idxSrcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const recSrc = existsSync(new URL('../engine-recall.js', import.meta.url)) ? readFileSync(new URL('../engine-recall.js', import.meta.url), 'utf8') : '';
+const idxSrc = idxSrcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8') + String.fromCharCode(10) + recSrc;
 const uiSrc = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const A = req(MOD);
@@ -235,12 +236,12 @@ test('v3235 10. 宿主接线：配置键 / UI 控件 / 取库口 / index.js 真�
 
 test('v3235 11. 接线纪律：默认关零行为 + 降级留名 + 不阻断主链路', () => {
     // 开关判定必须写成「严格 true 才开」，这样缺字段的旧档 = 与既有行为完全一致
-    assert.match(idxSrc, /if \(this\.config\.config\.sleepAwakenEnabled === true\)/, '严格 true 才开（旧档默认零行为）');
+    assert.match(idxSrc, /if \((?:this|engine)\.config\.config\.sleepAwakenEnabled === true\)/, '严格 true 才开（旧档默认零行为）');
     // 模块缺席要留名（降级必须可辨，不得静默）
     assert.ok(idxSrc.includes('模块缺席（降级放行）'), '取库失败留名');
     assert.match(idxSrc, /catch \(e\) \{ errLog\(e, 'recallMemory\.语义唤醒'\); \}/, '整块包 try/catch，不阻断召回主链路');
     // 唤醒结果要有诊断落点（读得出来「这次有没有跑、跑出什么」）
-    assert.ok(idxSrc.includes('this._sleepAwakenSt'), '唤醒状态有落点供诊断面直转');
+    assert.ok(idxSrc.includes('this._sleepAwakenSt') || idxSrc.includes('engine._sleepAwakenSt'), '唤醒状态有落点供诊断面直转');
 });
 
 test('v3235 12. 两条唤醒通道互不顶替：实体名唤醒仍只认 dormant，新块只认 archivedForSleep', () => {

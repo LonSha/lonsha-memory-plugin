@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
-  "note": "v3.362.0 exportMemoryReport 剥离至 engine-report.js 后 index.js 降至 20950 行",
-  "measured_at": "v3.361.0",
+  "note": "P-2 index.js 宿主巨兽分诊基线。读数由 tests/audit/host_beast_probe.cjs 生成（**读数零手抄**：本文件由脚本从探针输出直接落盘，避免转写漂移）。**只量，不拆。** [v3.363.0] index.js 剥离第三批：recallMemory 外提为 engine-recall.js 独立模块，宿主降至 20249 行。",
+  "measured_at": "v3.363.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2611,6 +2611,38 @@
         "缝合模块接线面不变"
       ],
       "not_done": "本版仅剥离诊断行+委托方法群，未动其他结构"
+    },
+    "v3.363.0": {
+      "reason": "[v3.363.0] index.js 剥离第三批：recallMemory 核心召回管线（718 行）及 5 个纯函数外提为独立 IIFE 模块 engine-recall.js，index.js 从 20950 降至 20249 行（净减 701 行）。全为活跃代码外移与减量，非死代码回流。",
+      "readings": {
+        "total_lines": 20254,
+        "member_count": 839,
+        "duplicate_member_names": 25,
+        "top5_lines": 5190,
+        "top5_pct": 25.6,
+        "top40_lines": 10492,
+        "top40_pct": 51.8,
+        "prefix_rule_coverage_lines": 4517,
+        "prefix_rule_coverage_pct": 22.3,
+        "unclassified_lines": 14758,
+        "seam_distinct_modules": 92,
+        "seam_reference_sites": 179,
+        "seam_call_shape_sites": 182,
+        "members_over_80_lines": 38,
+        "low_coupling_members": 27,
+        "high_coupling_members": 7
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆"
+      ],
+      "not_done": "本版仅剥离召回核心管线，未动其他结构",
+      "delta_from": "v3.362.0",
+      "delta": {
+        "total_lines": -701,
+        "member_count": 0,
+        "top5_pct": 0.0
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2622,74 +2654,74 @@
     "外部引用数＝该方法名在 index.js **之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用（同名方法会混在一起，见 corrections[1]）。"
   ],
   "readings": {
-    "total_lines": 21327,
-    "member_count": 809,
+    "total_lines": 20254,
+    "member_count": 839,
     "duplicate_member_names": 25,
-    "top5_lines": 5295,
-    "top5_pct": 23.6,
-    "top40_lines": 11424,
-    "top40_pct": 50.9,
-    "prefix_rule_coverage_lines": 5614,
-    "prefix_rule_coverage_pct": 25.0,
-    "unclassified_lines": 15835,
-    "seam_distinct_modules": 88,
-    "seam_reference_sites": 124,
-    "seam_call_shape_sites": 128,
-    "members_over_80_lines": 43,
-    "low_coupling_members": 32,
+    "top5_lines": 5190,
+    "top5_pct": 25.6,
+    "top40_lines": 10492,
+    "top40_pct": 51.8,
+    "prefix_rule_coverage_lines": 4517,
+    "prefix_rule_coverage_pct": 22.3,
+    "unclassified_lines": 14758,
+    "seam_distinct_modules": 92,
+    "seam_reference_sites": 179,
+    "seam_call_shape_sites": 182,
+    "members_over_80_lines": 38,
+    "low_coupling_members": 27,
     "high_coupling_members": 7
   },
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 766,
-      "lines": 15835,
-      "lines_pct": 70.6,
-      "outside_refs": 7695,
-      "internal_refs": 2234,
-      "outside_ref_share_pct": 77.5
+      "members": 796,
+      "lines": 14758,
+      "lines_pct": 72.9,
+      "outside_refs": 8446,
+      "internal_refs": 1829,
+      "outside_ref_share_pct": 82.2
     },
     {
       "domain": "宿主事件接线",
       "members": 3,
       "lines": 1929,
-      "lines_pct": 8.6,
-      "outside_refs": 5,
-      "internal_refs": 77,
-      "outside_ref_share_pct": 6.1
+      "lines_pct": 9.5,
+      "outside_refs": 6,
+      "internal_refs": 75,
+      "outside_ref_share_pct": 7.4
     },
     {
       "domain": "诊断与导出",
       "members": 10,
-      "lines": 1868,
-      "lines_pct": 8.3,
-      "outside_refs": 424,
-      "internal_refs": 493,
-      "outside_ref_share_pct": 46.2
-    },
-    {
-      "domain": "召回与注入",
-      "members": 13,
-      "lines": 1034,
-      "lines_pct": 4.6,
-      "outside_refs": 5,
-      "internal_refs": 67,
-      "outside_ref_share_pct": 6.9
+      "lines": 1516,
+      "lines_pct": 7.5,
+      "outside_refs": 436,
+      "internal_refs": 487,
+      "outside_ref_share_pct": 47.2
     },
     {
       "domain": "配置与持久化",
       "members": 3,
       "lines": 490,
-      "lines_pct": 2.2,
+      "lines_pct": 2.4,
       "outside_refs": 22,
       "internal_refs": 0,
       "outside_ref_share_pct": 100
     },
     {
+      "domain": "召回与注入",
+      "members": 13,
+      "lines": 289,
+      "lines_pct": 1.4,
+      "outside_refs": 38,
+      "internal_refs": 36,
+      "outside_ref_share_pct": 51.4
+    },
+    {
       "domain": "桥/快照出口",
       "members": 2,
       "lines": 211,
-      "lines_pct": 0.9,
+      "lines_pct": 1,
       "outside_refs": 3,
       "internal_refs": 4,
       "outside_ref_share_pct": 42.9
@@ -2699,9 +2731,9 @@
       "members": 7,
       "lines": 34,
       "lines_pct": 0.2,
-      "outside_refs": 101,
+      "outside_refs": 103,
       "internal_refs": 20,
-      "outside_ref_share_pct": 83.5
+      "outside_ref_share_pct": 83.7
     },
     {
       "domain": "世界账本读取",
@@ -2734,8 +2766,8 @@
   "biggest_members_top40": [
     {
       "name": "selfCheck",
-      "lines": 1471,
-      "outside_refs": 106
+      "lines": 1502,
+      "outside_refs": 105
     },
     {
       "name": "onMessageReceived",
@@ -2748,29 +2780,19 @@
       "outside_refs": 14
     },
     {
-      "name": "recallMemory",
-      "lines": 722,
-      "outside_refs": 1
-    },
-    {
       "name": "typedFactsBlocks",
-      "lines": 663,
+      "lines": 684,
       "outside_refs": 0
     },
     {
       "name": "onBeforeGeneration",
       "lines": 565,
-      "outside_refs": 1
+      "outside_refs": 2
     },
     {
       "name": "saveConfig",
       "lines": 488,
       "outside_refs": 12
-    },
-    {
-      "name": "exportMemoryReport",
-      "lines": 389,
-      "outside_refs": 1
     },
     {
       "name": "registerEvents",
@@ -2788,6 +2810,11 @@
       "outside_refs": 9
     },
     {
+      "name": "_assembleComponents",
+      "lines": 241,
+      "outside_refs": 0
+    },
+    {
       "name": "rollbackFloor",
       "lines": 202,
       "outside_refs": 14
@@ -2796,11 +2823,6 @@
       "name": "buildBridgeSnapshot",
       "lines": 196,
       "outside_refs": 3
-    },
-    {
-      "name": "_assembleComponents",
-      "lines": 192,
-      "outside_refs": 0
     },
     {
       "name": "askMemoryQuestion",
@@ -2858,11 +2880,6 @@
       "outside_refs": 0
     },
     {
-      "name": "explainRecallHost",
-      "lines": 124,
-      "outside_refs": 1
-    },
-    {
       "name": "_absorbFactVersions",
       "lines": 124,
       "outside_refs": 0
@@ -2888,11 +2905,6 @@
       "outside_refs": 0
     },
     {
-      "name": "handoffVolumeContinuation",
-      "lines": 110,
-      "outside_refs": 0
-    },
-    {
       "name": "_o9Gate",
       "lines": 108,
       "outside_refs": 0
@@ -2915,12 +2927,7 @@
     {
       "name": "summary",
       "lines": 100,
-      "outside_refs": 292
-    },
-    {
-      "name": "_materialInventory",
-      "lines": 92,
-      "outside_refs": 0
+      "outside_refs": 370
     },
     {
       "name": "_repairPool",
@@ -2931,35 +2938,48 @@
       "name": "_historyFingerprint",
       "lines": 85,
       "outside_refs": 2
+    },
+    {
+      "name": "packCarryover",
+      "lines": 85,
+      "outside_refs": 1
+    },
+    {
+      "name": "clearRuntimeMemory",
+      "lines": 85,
+      "outside_refs": 1
+    },
+    {
+      "name": "queryEvidenceSolver",
+      "lines": 80,
+      "outside_refs": 0
+    },
+    {
+      "name": "queryResolution",
+      "lines": 78,
+      "outside_refs": 0
+    },
+    {
+      "name": "rebuildItems",
+      "lines": 76,
+      "outside_refs": 9
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 43,
-    "low_coupling_non_lifecycle": 32,
+    "total_over_threshold": 38,
+    "low_coupling_non_lifecycle": 27,
     "high_coupling_non_lifecycle": 7,
     "low_coupling_examples": [
       {
-        "name": "recallMemory",
-        "lines": 722,
-        "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
         "name": "typedFactsBlocks",
-        "lines": 663,
+        "lines": 684,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
       {
-        "name": "exportMemoryReport",
-        "lines": 389,
-        "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
         "name": "_assembleComponents",
-        "lines": 192,
+        "lines": 241,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -3010,13 +3030,25 @@
         "lines": 133,
         "outside_refs": 0,
         "is_host_lifecycle": false
+      },
+      {
+        "name": "retryRepairItems",
+        "lines": 132,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "loreImportApply",
+        "lines": 126,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
       }
     ],
     "high_coupling_examples": [
       {
         "name": "selfCheck",
-        "lines": 1471,
-        "outside_refs": 106,
+        "lines": 1502,
+        "outside_refs": 105,
         "is_host_lifecycle": false
       },
       {
@@ -3052,7 +3084,7 @@
       {
         "name": "summary",
         "lines": 100,
-        "outside_refs": 292,
+        "outside_refs": 370,
         "is_host_lifecycle": false
       }
     ]
@@ -3093,9 +3125,9 @@
   "line_budget": {
     "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-    "ceiling": 21727,
+    "ceiling": 20649,
     "maxSlack": 400,
-    "note": "[v3.361.0] index.js 诊断行+委托方法群剥离至 engine-diagnostic-lines.js：62 个方法（1497 行）外提为 IIFE 模块，宿主保留委托桩（93 行）+ bindDeps 注入面。净减 1404 行。全为代码外移与减量，非死代码回流。行上界按「实测 + slack」贴回。",
+    "note": "[v3.363.0] index.js 剥离第三批：recallMemory 核心召回管线（718 行）外提为独立 IIFE 模块 engine-recall.js，index.js 净减 701 行降至 20249 行。",
     "history": [
       {
         "ceiling": 15000,
@@ -3315,14 +3347,35 @@
         "ceiling": 21727,
         "member_ceiling": 823,
         "reason": "[v3.361.0] index.js 诊断行+委托方法群剥离至 engine-diagnostic-lines.js：62 个方法（1497 行）外提为 IIFE 模块，宿主保留委托桩（93 行）+ bindDeps 注入面。净减 1404 行。全为代码外移与减量，非死代码回流。行上界按「实测 + slack」贴回。"
+      },
+      {
+        "version": "v3.363.0",
+        "ceiling": 20649,
+        "member_ceiling": 823,
+        "reason": "[v3.363.0] index.js 剥离第三批：recallMemory 核心召回管线（718行）及 5 个纯函数剥离至 engine-recall.js，宿主保留委托桩 + bindDeps 注入面。index.js 从 20950 降至 20249 行（净减 701 行）。"
+      },
+      {
+        "ceiling": 20649,
+        "reason": "[v3.363.0] index.js 剥离第三批：recallMemory 核心召回管线（718 行）外提为独立 IIFE 模块 engine-recall.js，index.js 净减 701 行降至 20249 行。",
+        "member_ceiling": 865
+      },
+      {
+        "ceiling": 20649,
+        "reason": "[v3.363.0] index.js 剥离第三批：recallMemory 核心召回管线（718 行）外提为独立 IIFE 模块 engine-recall.js，index.js 净减 701 行降至 20249 行。",
+        "member_ceiling": 865
+      },
+      {
+        "ceiling": 20649,
+        "reason": "[v3.363.0] index.js 剥离第三批：recallMemory 核心召回管线（718 行）外提为独立 IIFE 模块 engine-recall.js，index.js 净减 701 行降至 20249 行。",
+        "member_ceiling": 869
       }
     ],
-    "member_ceiling": 823,
+    "member_ceiling": 869,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 21327,
-  "member_count": 807,
-  "index_total_lines": 20950,
-  "index_line_ceiling": 21350
+  "total_lines": 20254,
+  "member_count": 839,
+  "index_total_lines": 20249,
+  "index_line_ceiling": 20649
 }

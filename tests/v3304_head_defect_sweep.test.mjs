@@ -90,7 +90,7 @@ test('B1 判据缺陷②：破坏「构造器注入」必须让三面门转红�
     /* 清单与负控制门自身的 GAUGED 逐字同形（floor-identity / age-anchor / public-interface /
      *   index.js / memory-core.js）—— 加内存面是**输入面缺失会 fail-closed**，多复制无害。 */
     const NEED = ['floor-ledger.js', 'age-anchor.js', 'public-interface.js', 'index.js',
-        'memory-core.js', 'memory-config.js', 'manifest.json'];
+        'memory-core.js', 'memory-config.js', 'manifest.json', 'engine-diagnostic-lines.js', 'engine-recall.js'];
     for (const f of NEED) {
         const src = path.join(REPO, f);
         assert.ok(fs.existsSync(src), '夹具输入面缺件（门会 fail-closed，测的不是判据）：' + f);

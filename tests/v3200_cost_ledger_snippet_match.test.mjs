@@ -16,7 +16,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -24,7 +24,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');
 const require = createRequire(import.meta.url);
 const CL = require(path.join(ROOT, 'cost-ledger.js'));
-const IDX = read('index.js');
+const IDX = read('index.js') + '\n' + (existsSync(path.join(ROOT, 'engine-recall.js')) ? read('engine-recall.js') : '');
 const COST = read('cost-ledger.js');
 
 function vnum(s) {
@@ -86,8 +86,8 @@ test('v3200【5】短片段（<4 字）不算可测依据，避免短词误匹�
 });
 
 test('v3200【6】接线：调用侧真的把片段带给账本', () => {
-  assert.ok(IDX.includes('this._emoOppositeSnippets = _emoSnippets;'), 'recallMemory 计算片段');
-  assert.ok(IDX.includes('promotedSnippets: this._emoOppositeSnippets'), 'buildInjection 把片段交给账本');
+  assert.ok(IDX.includes('this._emoOppositeSnippets = _emoSnippets;') || IDX.includes('engine._emoOppositeSnippets = _emoSnippets;'), 'recallMemory 计算片段');
+  assert.ok(IDX.includes('promotedSnippets: this._emoOppositeSnippets') || IDX.includes('promotedSnippets: engine._emoOppositeSnippets'), 'buildInjection 把片段交给账本');
   assert.ok(COST.includes('o.promotedSnippets'), '账本消费片段');
   assert.ok(COST.includes('measurable'), '账本区分可测/不可测');
 });

@@ -14,6 +14,8 @@ function vnum(s) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(__dirname, '../index.js'), 'utf-8');
+const recSrc = fs.existsSync(path.join(__dirname, '../engine-recall.js')) ? fs.readFileSync(path.join(__dirname, '../engine-recall.js'), 'utf-8') : '';
+const allSrc = src + '\n' + recSrc;
 // [v3.259.0 A1 第四刀] BM25 已外迁到 memory-books.js（类体与宿主逐字同形，只少一层缩进）。
 const bkSrc = fs.readFileSync(path.join(__dirname, '../memory-books.js'), 'utf-8');
 
@@ -130,9 +132,9 @@ test('=== 5. 静态检查：挂接完整性 ===', () => {
     assert.ok(src.includes("key: 'latestUser'"), 'buildQuery 有 latestUser 分支');
     assert.ok(src.includes("key: 'recentAssistant'"), 'buildQuery 有 recentAssistant 分支');
     assert.ok(src.includes("key: 'previousUser'"), 'buildQuery 有 previousUser 分支');
-    assert.ok(src.includes('query.branches'), 'buildQuery 返回 branches');
-    assert.ok(src.includes('this.bm25.searchBranches('), 'recallMemory 走 searchBranches');
-    assert.ok(src.includes('branchScores: d.branchScores'), '结果携带 branchScores');
+    assert.ok(allSrc.includes('query.branches'), 'buildQuery 返回 branches');
+    assert.ok(allSrc.includes('this.bm25.searchBranches(') || allSrc.includes('engine.bm25.searchBranches('), 'recallMemory 走 searchBranches');
+    assert.ok(allSrc.includes('branchScores: d.branchScores'), '结果携带 branchScores');
     assert.ok(bkSrc.includes("\\p{Script=Han}"), 'Unicode Han Script 分词');
     assert.ok(bkSrc.includes("normalize('NFKC')"), 'NFKC 归一化');
     // 旧分词正则绝迹（[a-z0-9]+ / [\u4e00-\u9fa5] 不再出现在 BM25 类内）

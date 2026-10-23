@@ -3,14 +3,16 @@
 // 覆盖：结构接线 / FloorLedger recallIds+recallHits 记账（导出对称）/ _auditRecall 命中分布与空结果判定
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8');
+const src = readFileSync(`${REPO_ROOT}/index.js`, 'utf-8') + String.fromCharCode(10) +
+    (existsSync(new URL('../memory-config.js', import.meta.url)) ? readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8') : '') + String.fromCharCode(10) +
+    (existsSync(new URL('../engine-recall.js', import.meta.url)) ? readFileSync(new URL('../engine-recall.js', import.meta.url), 'utf8') : '');
 /* [v3.258.0 A1 第二刀] FloorLedger 已抽为 memory-aux.js：真执行面读模块文件。 */
 const auxSrc = readFileSync(`${REPO_ROOT}/memory-aux.js`, 'utf-8');
 
@@ -30,8 +32,14 @@ test('=== 1. 结构断言：A 自检 + B 楼层召回账本接线 ===', () => {
     assert.ok(auxSrc.includes("if (patch.recallHits)"), 'B FloorLedger.record 命中分支');
     assert.ok(auxSrc.includes('recallIds: [],'), 'B beginFloor 带 recallIds 字段');
     // A 观测层接在 recallMemory 唯一收口（intentRerank 之后）
-    const irIdx = src.indexOf('const finalMerged = this.intentRerank(merged, query.text);');
-    const auditIdx = src.indexOf('this._auditRecall(query, results, finalMerged)', irIdx);
+    const irIdx = Math.max(
+        src.indexOf('const finalMerged = this.intentRerank(merged, query.text);'),
+        src.indexOf('const finalMerged = engine.intentRerank(merged, query.text);')
+    );
+    const auditIdx = Math.max(
+        src.indexOf('this._auditRecall(query, results, finalMerged)', irIdx),
+        src.indexOf('engine._auditRecall(query, results, finalMerged)', irIdx)
+    );
     /* [v3.322.0 交棒] 原判据带 `auditIdx < irIdx + 400` 坐桩窗口，B 包在两者之间合法插入
      *   M3-O1 召回融合块后窗口失效（读数只剩「数字不够小」）。改判真结构：审计须落在
      *   intentRerank 之后、**同一个收尾块**（_finalize 声明点）之内，且重排到收尾块之间无 await。 */
