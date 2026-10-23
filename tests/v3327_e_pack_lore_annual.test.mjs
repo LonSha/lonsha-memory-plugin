@@ -38,6 +38,7 @@ const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const ok = (m) => console.log('  ✓ ' + m);
 
 const IDX = read('index.js');
+const SA_OPS_SRC = read('engine-story-annual.js');
 const LI_SRC = read('lore-import.js');
 const SA_SRC = read('story-annual.js');
 const MF = JSON.parse(read('manifest.json'));
@@ -367,13 +368,14 @@ function zeroWriteJudge(li, sa, liSrc, saSrc) {
 }
 
 /** E. 宿主接线。 */
-function hostJudge(idx, mf) {
+function hostJudge(idx, mf, saOpsSrc = SA_OPS_SRC) {
     const P = [];
+    const full = idx + '\n' + saOpsSrc;
     if (idx.split(A_IDX1).length - 1 !== 1) P.push('取库口(lore-import)须恰一处');
     if (idx.split(A_IDX2).length - 1 !== 1) P.push('取库口(story-annual)须恰一处');
     /* 装配面键名:与模块 REQUIRED_DEPS 逐字一致(改名 = 静默变成「依赖缺席」)。 */
-    for (const k of ['KNOWN_ENTITIES', 'CONFIRMED_FACTS', 'SECRET_BODY_KEYS']) if (idx.indexOf(k + ':') < 0) P.push('宿主装配面缺键 ' + k);
-    for (const k of ['CHAPTERS', 'SUMMARY', 'QUOTES']) if (idx.indexOf(k + ':') < 0) P.push('宿主装配面缺键 ' + k);
+    for (const k of ['KNOWN_ENTITIES', 'CONFIRMED_FACTS', 'SECRET_BODY_KEYS']) if (full.indexOf(k + ':') < 0) P.push('宿主装配面缺键 ' + k);
+    for (const k of ['CHAPTERS', 'SUMMARY', 'QUOTES']) if (full.indexOf(k + ':') < 0) P.push('宿主装配面缺键 ' + k);
     /* 出口齐全。 */
     for (const m of ['loreImportParse', 'loreImportEntities', 'loreImportPreview', 'loreImportPlan', 'loreImportChanged',
         'loreImportDescribe', 'loreImportLine', 'storyAnnualBuild', 'storyAnnualReview', 'storyAnnualTwoVersions',
@@ -381,12 +383,12 @@ function hostJudge(idx, mf) {
         if (idx.indexOf(m + '(') < 0) P.push('宿主导出缺 ' + m);
     }
     /* 转发不改写:两处 describe 都必须把 reason 透传/标注,不得吞掉。 */
-    if (idx.indexOf("d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';") < 0) P.push('自述未标 deps-missing');
+    if (full.indexOf("d.reason = (d.missing && d.missing.length) ? 'deps-missing' : '';") < 0) P.push('自述未标 deps-missing');
     /* 诊断两行 + 中文人读面。 */
     if (idx.indexOf("['资料导入', this.loreImportLine()]") < 0) P.push('自检缺「资料导入」行');
     if (idx.indexOf("['故事年鉴', this.storyAnnualLine()]") < 0) P.push('自检缺「故事年鉴」行');
-    if (idx.indexOf('资料导入模块未加载(lore-import.js)') < 0) P.push('人读面须中文(资料导入)');
-    if (idx.indexOf('年鉴模块未加载(story-annual.js)') < 0) P.push('人读面须中文(故事年鉴)');
+    if (full.indexOf('资料导入模块未加载(lore-import.js)') < 0) P.push('人读面须中文(资料导入)');
+    if (full.indexOf('年鉴模块未加载(story-annual.js)') < 0) P.push('人读面须中文(故事年鉴)');
     /* 登记面。 */
     if (mf.extra_js.filter((x) => x === 'lore-import.js').length !== 1) P.push('extra_js 登记 lore-import.js 恰一次');
     if (mf.extra_js.filter((x) => x === 'story-annual.js').length !== 1) P.push('extra_js 登记 story-annual.js 恰一次');

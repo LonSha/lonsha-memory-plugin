@@ -243,36 +243,36 @@ test('D2 零写:输入容器与原文本一个字节不改', () => {
 
 /* ════════ E 宿主接线 ════════ */
 const IDX = read('index.js');
+const SA_SRC = read('engine-story-annual.js');
+const FULL_SRC = IDX + '\n' + SA_SRC;
 test('E1 宿主出口 loreImportParseWindow 在位且带完整度留痕', () => {
     assert.ok(IDX.includes('loreImportParseWindow(raw, opts)'), '出口方法在位');
-    assert.ok(IDX.includes('plugin.loreImportParseWindow'), 'errLog 点名');
-    assert.ok(IDX.includes("return _moduleLib(() => window.LonShaLoreImport, 'lore-import.js');"), '取库口在位');
+    assert.ok(FULL_SRC.includes('plugin.loreImportParseWindow'), 'errLog 点名');
+    assert.ok(FULL_SRC.includes("return _moduleLib(() => window.LonShaLoreImport, 'lore-import.js');"), '取库口在位');
     /* 留痕读数键 */
-    const m = /loreImportParseWindow\(raw, opts\) \{[\s\S]{0,2400}?this\._lastLoreImport = \{[\s\S]{0,500}?window:/;
-    assert.ok(m.test(IDX), '窗口留痕读数(window 键)在位');
+    const m = /loreImportParseWindow\(engine, raw, opts\) \{[\s\S]{0,2400}?engine\._lastLoreImport = \{[\s\S]{0,500}?window:/;
+    assert.ok(m.test(FULL_SRC), '窗口留痕读数(window 键)在位');
 });
 
-test('E2 模块缺席降级:出口返回同键面 + completeness.unknown(不是静默 null)', () => {
-    /* 从 index.js 抽 loreImportParseWindow 方法体,在模块缺席环境(无 LonShaLoreImport)重放 */
-    const bodyFn = (function () {
-        const m = /loreImportParseWindow\(raw, opts\) \{([\s\S]*?)\n        \}/.exec(IDX);
-        if (!m) throw new Error('未抽到方法体');
-        return m[1];
-    })();
+test('E2 模块缺席降级:出口返回同键面 + completeness.unknown(不是静默 null)', async () => {
     /* 构造最小宿主环境:_loreImportLib 返回 null(模块缺席) */
     const fakeHost = {
         _loreImportAbsent: (reason) => ({ ok: false, source: null, sections: [], items: [], classes: {}, why: [reason || 'module-absent'], reason: reason || 'module-absent', absent: true }),
         opts: { range: { from: 123 } },
     };
-    const fn = new Function('raw', 'opts', 'const _loreImportLib = () => null;' + bodyFn);
-    const out = fn.call(fakeHost, { text: 'x' }, fakeHost.opts);
+    let SA;
+    try {
+        SA = (await import('../engine-story-annual.js')).default;
+    } catch (_) {
+        SA = (await import('module')).createRequire(import.meta.url)('../engine-story-annual.js');
+    }
+    const out = SA.loreImportParseWindow(fakeHost, { text: 'x' }, fakeHost.opts);
     assert.equal(out.absent, true, '缺席面标记');
     assert.equal(out.reason, 'window-unsupported');
     assert.equal(out.completeness.state, 'unknown', '未知 ≠ 没读完');
     assert.equal(out.completeness.readChars, 123, '回显请求起点');
     assert.equal(out.window, null);
 });
-
 /* ════════ F 版本锚与负控制 ════════ */
 test('F1 版本锚:manifest/package 同源且不低于 ' + BORN, () => {
     assert.equal(vnum(BORN), 3334000, 'vnum 序数必须可数（当版锚点）');

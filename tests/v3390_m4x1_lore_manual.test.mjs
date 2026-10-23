@@ -32,6 +32,7 @@ const require_ = createRequire(import.meta.url);
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const ok = (m) => console.log('  ok ' + m);
 const IDX = read('index.js');
+const SA_OPS_SRC = read('engine-story-annual.js');
 const LI_SRC = read('lore-import.js');
 const SELF = read(path.join('tests', 'v3390_m4x1_lore_manual.test.mjs'));
 const MB = require_(path.join(R, 'memory-books.js'));
@@ -55,6 +56,26 @@ function loadIIFE(src, globalName) {
 const LI = loadIIFE(LI_SRC, 'LonShaLoreImport');
 
 /* ── 宿主切片：取新面 + 依赖的取库口，其余用桩 ── */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
+
 function methodBody(src, header) {
     const at = src.indexOf(header);
     if (at < 0) return null;
@@ -88,10 +109,17 @@ const HOST_METHODS = [
     'loreImportLedger() {',
 ];
 const HOST_HEADS = LIB_FNS.concat(HOST_METHODS);
-function engineFrom(src) {
+function engineFrom(src, saOpsSrc = SA_OPS_SRC) {
     const J = String.fromCharCode(10);
     const libs = LIB_FNS.map((h) => methodBody(src, h));
-    const meths = HOST_METHODS.map((h) => methodBody(src, h));
+    const meths = HOST_METHODS.map((h) => {
+        const fnName = h.replace(/^(async\s+)?/, '').split('(')[0];
+        const m = saOpsSrc.match(new RegExp('(?:async\\s+)?function\\s+' + fnName + '\\s*\\(engine(?:,\\s*(.*?))?\\)\\s*\\{'));
+        if (m) {
+            return extractModuleMethod(saOpsSrc, m[0]);
+        }
+        return methodBody(src, h);
+    });
     const missL = LIB_FNS.filter((h, i) => !libs[i]);
     const missM = HOST_METHODS.filter((h, i) => !meths[i]);
     if (missL.length || missM.length) throw new Error('切片缺失：取库口[' + missL.join('/') + '] 出口[' + missM.join('/') + ']');
@@ -206,9 +234,9 @@ test('v3390 B2. **** 选入面：给了 selected 只落选中段，未选段具�
 });
 
 /* ══════════════ C. 真跑（宿主落笔） ══════════════ */
-async function judgeApply(idxSrc) {
+async function judgeApply(idxSrc, saOpsSrc = SA_OPS_SRC) {
     const bad = [];
-    const eng = engineFrom(idxSrc);
+    const eng = engineFrom(idxSrc, saOpsSrc);
     const p = parsedOf();
     const pv = LI.diffPreview(p, null, {});
     const keys = p.items.map((x) => x.key);
@@ -252,9 +280,9 @@ test('v3390 C2. *** 敏感段不落：受限正文掩码不进前情', async () 
     assert.ok(r.rejected.some((x) => x.why === 'sensitive-body'), '敏感段须具名 sensitive-body');
     ok('敏感段具名拒落，掩码不进前情');
 });
-function judgeMapping(idxSrc) {
+function judgeMapping(idxSrc, saOpsSrc = SA_OPS_SRC) {
     const bad = [];
-    const eng = engineFrom(idxSrc);
+    const eng = engineFrom(idxSrc, saOpsSrc);
     const p = LI.parseSource({ file: 'a.md', text: '# 人物' + String.fromCharCode(10) + '甲与乙' }, {});
     const known = [{ name: '甲', owner: 'A' }, { name: '甲', owner: 'B' }];
     const r1 = eng.loreImportConfirmMapping(p, {}, { knownEntities: known });
@@ -275,9 +303,9 @@ const F2 = String.raw`if (selected && selected.indexOf(ek) < 0) { out.skipped.pu
 const F3 = String.raw`if (it.sensitive === true) { rejected.push({ key: a.key, why: 'sensitive-body' }); continue; }`;
 const F4 = String.raw`clsRule: keyOf(it.cls), judgeWhy: keyOf(it.judgeWhy), manual: false,`;
 test('v3390 F1. *** 破坏真账核验 ⇒ 落笔核验当场现形', async () => {
-    const broken = breakOnce(IDX, F1, String.raw`if (false) verified += 1;`, 'F1');
-    assert.notEqual(broken, IDX, '破坏必须真改源码');
-    const bad = await judgeApply(broken);
+    const broken = breakOnce(SA_OPS_SRC, F1, String.raw`if (false) verified += 1;`, 'F1');
+    assert.notEqual(broken, SA_OPS_SRC, '破坏必须真改源码');
+    const bad = await judgeApply(IDX, broken);
     assert.notDeepEqual(bad, [], '真账核验被摘必须翻红');
     assert.deepEqual(await judgeApply(IDX), [], '原版上同判据必须真成立');
     ok('负控制成立：真账核验被摘 ⇒ verified 归零');
@@ -290,9 +318,9 @@ test('v3390 F2. *** 破坏选入过滤 ⇒ 未选段不写判据当场现形', (
     ok('负控制成立：selected 过滤被摘 ⇒ 未选段照落');
 });
 test('v3390 F3. *** 破坏敏感段闸 ⇒ 掩码进前情判据当场现形', async () => {
-    const broken = breakOnce(IDX, F3, String.raw`if (false) { rejected.push({ key: a.key, why: 'sensitive-body' }); continue; }`, 'F3');
-    assert.notEqual(broken, IDX, '破坏必须真改源码');
-    const eng = engineFrom(broken);
+    const broken = breakOnce(SA_OPS_SRC, F3, String.raw`if (false) { rejected.push({ key: a.key, why: 'sensitive-body' }); continue; }`, 'F3');
+    assert.notEqual(broken, SA_OPS_SRC, '破坏必须真改源码');
+    const eng = engineFrom(IDX, broken);
     const p = LI.parseSource({ text: 'x' }, { secretBodyKeys: LI.SECRET_BODY_KEYS, carriers: [{ key: 'k', title: '秘密', secret: 'y' }] });
     const pv = LI.diffPreview(p, null, {});
     const r = await eng.loreImportApply(p, pv, { selected: p.items.map((x) => x.key) });
@@ -314,7 +342,7 @@ test('v3390 G1. *** H5 判据纯度：四个破坏锚点在本档各恰 1 次', 
         const n = SELF.split(a).length - 1;
         assert.equal(n, 1, nm + ' 在本档出现 ' + n + ' 次（纯度要求恰 1 次）');
     }
-    for (const [nm, a, src] of [['F1', F1, IDX], ['F2', F2, LI_SRC], ['F3', F3, IDX], ['F4', F4, LI_SRC]]) {
+    for (const [nm, a, src] of [['F1', F1, SA_OPS_SRC], ['F2', F2, LI_SRC], ['F3', F3, SA_OPS_SRC], ['F4', F4, LI_SRC]]) {
         assert.equal(src.split(a).length - 1, 1, nm + ' 在真源上须恰中 1 次');
     }
     ok('四锚点：本档各 1 次、真源各恰中 1 次');

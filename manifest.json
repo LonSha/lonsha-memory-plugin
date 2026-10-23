@@ -7,7 +7,7 @@
   "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.365.0",
+  "version": "3.366.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -149,7 +149,8 @@
     "engine-report.js",
     "engine-recall.js",
     "engine-qa-tools.js",
-    "engine-repair-ops.js"
+    "engine-repair-ops.js",
+    "engine-story-annual.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

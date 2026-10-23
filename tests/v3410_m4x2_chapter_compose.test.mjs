@@ -40,6 +40,7 @@ const ORG = read('memory-organs.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const SA_SRC = read('story-annual.js');
+const SA_OPS_SRC = read('engine-story-annual.js');
 const SELF = read(path.join('tests', 'v3410_m4x2_chapter_compose.test.mjs'));
 const BORN_V = '3.341.0';
 const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
@@ -75,9 +76,9 @@ const ANCHORS = Object.freeze({
     /* 宿主·存档契约面：换成常量 ⇒ 草稿册不再随聊天持久化（实测红：跨对话的草稿册读数丢失）。 */
     hDraftContract: String.raw`annualDrafts: this._annualDrafts || null,`,
     /* 宿主·落笔即持久化：置空 ⇒ 写进去读不回来（实测红：重开对话后草稿册空掉）。 */
-    hDraftPersist: String.raw`this._annualDrafts = res.ok ? res.drafts.slice() : [];`,
+    hDraftPersist: String.raw`engine._annualDrafts = res.ok ? res.drafts.slice() : [];`,
     /* 宿主·可知性自动装配：抹掉 ⇒ 真实会话里无人手动装配，玩家版永远判不了（实测红：结构面照出）。 */
-    hGateAuto: String.raw`try { o.gate = this._o9Gate(); } catch (e) { errLog(e, 'plugin.storyAnnualComposeForPlayer.gate'); }`,
+    hGateAuto: String.raw`try { o.gate = engine._o9Gate(); } catch (e) { errLog(e, 'plugin.storyAnnualComposeForPlayer.gate'); }`,
 });
 /* ══════════════ A. 结构面 ══════════════ */
 const HOST_METHODS = [
@@ -89,8 +90,9 @@ const HOST_METHODS = [
     'storyAnnualComposeLine() {',
 ];
 const CONTRACT_KEYS = ["'annualDrafts',", "_imp('annualDrafts'", "A('direct', 'annualDrafts'"];
-function judgeStruct(idx, org, mf) {
+function judgeStruct(idx, org, mf, saOpsSrc = SA_OPS_SRC) {
     const bad = [];
+    const FULL = idx + '\n' + saOpsSrc;
     for (const h of HOST_METHODS) {
         const n = idx.split(h).length - 1;
         if (n !== 1) bad.push(h + ' 命中 ' + n + ' 次（应恰 1）');
@@ -99,18 +101,18 @@ function judgeStruct(idx, org, mf) {
     for (const k of CONTRACT_KEYS) if (idx.split(k).length - 1 < 1) bad.push('持久化 / 契约面缺 ' + k);
     if (idx.split(ANCHORS.hDraftContract).length - 1 !== 1) bad.push('collectExport 的 annualDrafts 面应恰 1 处');
     /* 可知性装配口：真实会话里无人手动装配，缺这一行则玩家版永远判不了。 */
-    if (idx.split(ANCHORS.hGateAuto).length - 1 !== 1) bad.push('玩家版出口缺可知性自动装配口（真实会话里无人手动装配）');
+    if (FULL.split(ANCHORS.hGateAuto).length - 1 !== 1) bad.push('玩家版出口缺可知性自动装配口（真实会话里无人手动装配）');
     /* 成稿读数并入**既有**「故事年鉴」自检行（不新增行：新行会让既有判据读不到）。 */
     if (idx.split("['故事年鉴', this.storyAnnualLine()]").length - 1 !== 1) bad.push('自检面「故事年鉴」行不恰一处');
-    if (idx.split('const ce = this._lastAnnualCompose || null;').length - 1 !== 1) bad.push('成稿读数未并入既有自检行');
+    if (FULL.split('const ce = this._lastAnnualCompose || null;').length - 1 !== 1 && FULL.split('const ce = engine._lastAnnualCompose || null;').length - 1 !== 1) bad.push('成稿读数未并入既有自检行');
     /* 逐字副本：存档键白名单在 organs 侧有一份，两边不同步 = 跨对话把上一部的回顾接进新故事。 */
     if (org.split(CONTRACT_KEYS[0]).length - 1 !== 1) bad.push('memory-organs 的存档键副本未同源');
     if (!Array.isArray(mf.extra_js) || mf.extra_js.indexOf('story-annual.js') < 0) bad.push('manifest.extra_js 缺 story-annual.js');
     return bad;
 }
 /** 抛出版（负控制要在副本上重跑**同款真判据**，故判据必须自带出口）。 */
-function judgeHostContract(src) {
-    const bad = judgeStruct(src, ORG, MF);
+function judgeHostContract(src, saOpsSrc = SA_OPS_SRC) {
+    const bad = judgeStruct(src, ORG, MF, saOpsSrc);
     if (bad.length) throw new Error('宿主契约面不符：' + bad.join('；'));
     /* [v3.343.0 交棒] `!== 107` 是本档出生那一版的一次性事实,不是永久不变量;
      *   抬版即红而红的信息量只剩「数字不对」。改按下界口径(与 v3400 / v3264 / v3266 / v3296 / v3298 同族交棒);
@@ -388,6 +390,26 @@ test('v3410 B7. ** 草稿册：只收白名单 + 丢弃数如实 + 诊断行四�
     console.log('  ok 段落三键 / 事实位与未登记字段不入册 / 丢弃 1 条 / 成稿行四态与草稿行三态');
 });
 /* ══════════════ C. 宿主出口（真方法体 + 真内核） ══════════════ */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
+
 function sliceMember(src, header) {
     const at = src.indexOf(header);
     if (at < 0) return null;
@@ -415,18 +437,27 @@ function sliceMember(src, header) {
 const LIB_FNS = ['function _moduleLib(getGlobal, fileName) {', 'function _storyAnnualLib() {'];
 const METH_FNS = HOST_METHODS;
 const ALLOW_GATE = () => ({ resolve: () => ({ decision: 'allow', basis: 'known' }) });
-function mkHost(src, gateFn) {
+function mkHost(src, gateFn, saOpsSrc = SA_OPS_SRC, win = { LonShaStoryAnnual: SA }) {
     const idx = src || IDX;
     const libs = LIB_FNS.map((h) => sliceMember(idx, h));
-    const meths = METH_FNS.map((h) => sliceMember(idx, h));
+    const meths = METH_FNS.map((h) => {
+        const fnName = h.split('(')[0];
+        const m = saOpsSrc.match(new RegExp('(?:async\\s+)?function\\s+' + fnName + '\\s*\\(engine(?:,\\s*(.*?))?\\)\\s*\\{'));
+        if (m) {
+            return extractModuleMethod(saOpsSrc, m[0]);
+        }
+        return sliceMember(idx, h);
+    });
+    const absentFn = extractModuleMethod(saOpsSrc, 'function _storyAnnualAbsent(engine, why) {');
+    if (absentFn) meths.push(absentFn);
     const miss = LIB_FNS.filter((h, i) => !libs[i]).concat(METH_FNS.filter((h, i) => !meths[i]));
     if (miss.length) throw new Error('切片缺失：' + miss.join(' / '));
     const code = libs.join(NL) + NL + 'return ({ ' + meths.join(',' + NL) + ' });';
-    const eng = new Function('errLog', 'window', code)(() => {}, { LonShaStoryAnnual: SA });
+    const eng = new Function('errLog', 'window', code)(() => {}, win);
     return Object.assign(eng, { _o9Gate: gateFn || ALLOW_GATE, _annualDrafts: null });
 }
-function judgeHostCompose(src) {
-    const h = mkHost(src);
+function judgeHostCompose(src, saOpsSrc = SA_OPS_SRC) {
+    const h = mkHost(src, null, saOpsSrc);
     const r = h.storyAnnualCompose(revOf(SA));
     if (r.ok !== true || r.source !== 'structure-only' || r.sections.length !== 7) throw new Error('宿主成稿出口不符');
     if (r.evidenceBound !== 5) throw new Error('宿主成稿未外供回源读数');
@@ -440,8 +471,8 @@ test('v3410 C1. *** 宿主成稿出口：真方法体 + 真内核（成稿 / 玩
     judgeHostCompose(IDX);
     console.log('  ok 结构成稿 7 段 / 回源 5 / 玩家版 spoiler-free / 诊断行同源');
 });
-function judgeHostDrafts(src) {
-    const h = mkHost(src);
+function judgeHostDrafts(src, saOpsSrc = SA_OPS_SRC) {
+    const h = mkHost(src, null, saOpsSrc);
     const w = h.storyAnnualDrafts([{
         ref: { project: 'p', volume: 'v', chapter: '1' }, title: 'x',
         sections: [{ kind: 'event', text: 't', evidenceRef: 'r1' }],
@@ -462,8 +493,8 @@ test('v3410 C2. *** 宿主草稿册：落笔即持久化 + 读回 + 重建缺省
     judgeHostDrafts(IDX);
     console.log('  ok persisted true / 读回 1 章 / 重建取已存 / 诊断行报草稿 1 章');
 });
-function judgeHostEdits(src) {
-    const h = mkHost(src);
+function judgeHostEdits(src, saOpsSrc = SA_OPS_SRC) {
+    const h = mkHost(src, null, saOpsSrc);
     const e = h.storyAnnualApplyEdits({ title: 'a', sections: [{ evidenceRef: 'r1' }, { evidenceRef: 'r2' }] }, { sections: [{ evidenceRef: 'r1' }] });
     if (e.evidenceIntact !== false || e.rejected.filter((x) => x.ref === 'r2').length !== 1) throw new Error('宿主编辑出口未报证据位被抹');
     if (h.storyAnnualComposeLine().indexOf('段证据位被编辑掉') < 0) throw new Error('诊断行未报证据位被编辑掉');
@@ -472,9 +503,9 @@ test('v3410 C3. ** 宿主编辑出口：证据位被抹必须进诊断行（可�
     judgeHostEdits(IDX);
     console.log('  ok 证据位掉落 / 诊断行报「段证据位被编辑掉」');
 });
-function judgeHostPlayerGate(src) {
+function judgeHostPlayerGate(src, saOpsSrc = SA_OPS_SRC) {
     /* 未给 opts.gate ⇒ 自动装配 _o9Gate（与 storyAnnualForPlayer 同一判决口，不建第二份）。 */
-    const over = mkHost(src, () => ({ resolve: () => ({ decision: 'withhold', basis: 'unknown' }) })).storyAnnualComposeForPlayer(revOf(SA));
+    const over = mkHost(src, () => ({ resolve: () => ({ decision: 'withhold', basis: 'unknown' }) }), saOpsSrc).storyAnnualComposeForPlayer(revOf(SA));
     if (over.ok !== false || over.reason !== 'over-redacted') throw new Error('装配口未把可知性面接上');
     const h2 = mkHost(src, () => { throw new Error('absent'); });
     const none = h2.storyAnnualComposeForPlayer(revOf(SA));
@@ -492,14 +523,11 @@ test('v3410 C4. *** 宿主玩家版闸：自动装配同一判决口 + 失败如
     console.log('  ok 装配 withhold ⇒ over-redacted / 装配抛错 ⇒ knowledge-face-absent / 显式 gate 不被覆盖');
 });
 /** 模块缺席 ⇒ 同键降级（不是抛、不是 undefined）：宿主不能因为库没加载就把出口变成崩溃。 */
-function judgeAbsentDegrade(src) {
+function judgeAbsentDegrade(src, saOpsSrc = SA_OPS_SRC) {
     const idx = src || IDX;
     if (typeof mkHost(idx).storyAnnualCompose !== 'function') throw new Error('切片未取到出口');
     /* 换一个「库缺席」的宿主：window 上不挂 LonShaStoryAnnual。 */
-    const libs = LIB_FNS.map((h) => sliceMember(idx, h));
-    const meths = METH_FNS.map((h) => sliceMember(idx, h));
-    const abs = new Function('errLog', 'window', libs.join(NL) + NL + 'return ({ ' + meths.join(',' + NL) + ' });')(() => {}, {});
-    Object.assign(abs, { _o9Gate: ALLOW_GATE, _annualDrafts: null });
+    const abs = mkHost(idx, ALLOW_GATE, saOpsSrc, {});
     const d = abs.storyAnnualCompose(revOf(SA));
     if (d.ok !== false || d.why.indexOf('module-absent') < 0) throw new Error('内核缺席未同键降级（why=' + JSON.stringify(d.why) + '）');
     const w = abs.storyAnnualDrafts([{ ref: { chapter: '1' } }]);
@@ -565,14 +593,14 @@ test('v3410 D7. ★★ 破坏「宿主存档契约面」⇒ 宿主契约判据 A
     console.log('  ok 存档契约面被换成常量 ⇒ 契约面转红；原版阳性通过');
 });
 test('v3410 D8. ★★ 破坏「落笔即持久化」⇒ 宿主草稿册判据 C2 必须转红', () => {
-    const badIdx = KIT.breakOnce(IDX, ANCHORS.hDraftPersist, String.raw`void 0;`, 'hDraftPersist');
-    expectRed(() => judgeHostDrafts(badIdx), 'hDraftPersist');
+    const badSrc = KIT.breakOnce(SA_OPS_SRC, ANCHORS.hDraftPersist, String.raw`void 0;`, 'hDraftPersist');
+    expectRed(() => judgeHostDrafts(IDX, badSrc), 'hDraftPersist');
     judgeHostDrafts(IDX);
     console.log('  ok 写了不落地 ⇒ 重开对话读不回来被照出；原版阳性通过');
 });
 test('v3410 D9. ★★ 破坏「可知性自动装配」⇒ 宿主契约判据 A1 必须转红', () => {
-    const badIdx = KIT.breakOnce(IDX, ANCHORS.hGateAuto, String.raw`void 0;`, 'hGateAuto');
-    expectRed(() => judgeHostContract(badIdx), 'hGateAuto');
+    const badSrc = KIT.breakOnce(SA_OPS_SRC, ANCHORS.hGateAuto, String.raw`void 0;`, 'hGateAuto');
+    expectRed(() => judgeHostContract(IDX, badSrc), 'hGateAuto');
     judgeHostContract(IDX);
     console.log('  ok 装配口被抹 ⇒ 结构面照出（真实会话里无人手动装配）；原版阳性通过');
 });
@@ -587,10 +615,9 @@ test('v3410 F1. ** H5 判据纯度：破坏锚点在**本档源码**里各恰中
         const n = SA_SRC.split(ANCHORS[k]).length - 1;
         assert.equal(n, 1, '内核锚 ' + k + ' 在 story-annual.js 命中 ' + n + ' 次（应恰 1）');
     }
-    for (const k of ['hDraftContract', 'hDraftPersist', 'hGateAuto']) {
-        const m = IDX.split(ANCHORS[k]).length - 1;
-        assert.equal(m, 1, '宿主锚 ' + k + ' 在 index.js 命中 ' + m + ' 次（应恰 1）');
-    }
+    assert.equal(IDX.split(ANCHORS.hDraftContract).length - 1, 1, '宿主锚 hDraftContract 在 index.js 命中 1 次');
+    assert.equal(SA_OPS_SRC.split(ANCHORS.hDraftPersist).length - 1, 1, '宿主锚 hDraftPersist 在 engine-story-annual.js 命中 1 次');
+    assert.equal(SA_OPS_SRC.split(ANCHORS.hGateAuto).length - 1, 1, '宿主锚 hGateAuto 在 engine-story-annual.js 命中 1 次');
     console.log('  ok 九个锚点在本档各 1 次、在真源各 1 次');
 });
 test('v3410 F2. ** H6 两向自证：锚点不存在 / 不唯一 / 同值替换时破坏必须被拒', () => {

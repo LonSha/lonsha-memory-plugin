@@ -41,6 +41,9 @@ const ok = (m) => console.log('  ✓ ' + m);
 
 const IDX = read('index.js');
 const SA_SRC = read('story-annual.js');
+const QT_SRC = read('engine-qa-tools.js');
+const SA_OPS_SRC = read('engine-story-annual.js');
+const FULL_SRC = IDX + '\n' + SA_OPS_SRC;
 const SELF = read(path.join('tests', 'v3360_m4o9_knowledge_gate.test.mjs'));
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
@@ -65,6 +68,26 @@ const HOST_METHODS = [
     'currentStoryFloor() {', 'storyAnnualTwoVersions(rev, opts) {', 'storyAnnualForPlayer(rev, opts) {',
 ];
 /** 方法体切片（花括号配平；与 v3312 / v3324 / v3350 同款）。 */
+function extractModuleMethod(source, funcMarker) {
+    const start = source.indexOf(funcMarker);
+    if (start < 0) return null;
+    const bodyStart = start + funcMarker.length - 1;
+    if (source[bodyStart] !== '{') return null;
+    let depth = 0, end = -1;
+    for (let i = bodyStart; i < source.length; i++) {
+        if (source[i] === '{') depth++;
+        else if (source[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) return null;
+    let body = source.slice(bodyStart + 1, end);
+    body = body.replace(/\bengine\./g, 'this.');
+    const asyncP = funcMarker.startsWith('async ') ? 'async ' : '';
+    const nm = funcMarker.match(/(?:async\s+)?function\s+(\w+)\s*\(engine(?:,\s*(.*?))?\)\s*\{/);
+    if (!nm) return null;
+    const params = nm[2] !== undefined ? nm[2] : '';
+    return asyncP + nm[1] + '(' + params + ') {' + body + '}';
+}
+
 function methodBody(src, header) {
     const at = src.indexOf(header);
     if (at < 0) return null;
@@ -85,11 +108,24 @@ function libWindow(extra) {
         LonShaFactVersion: FV, LonShaBranchSemantics: BS,
     }, extra || {});
 }
-function engineFrom(src, win) {
+function engineFrom(src, win, saOpsSrc = SA_OPS_SRC) {
     const J = String.fromCharCode(10);
     const libs = LIB_FNS.map((h) => methodBody(src, h));
     const missL = LIB_FNS.filter((h, i) => !libs[i]);
-    const meths = HOST_METHODS.map((h) => methodBody(src, h));
+    const meths = HOST_METHODS.map((h) => {
+        if (h === '_qaKnownActors(limit) {') {
+            return extractModuleMethod(QT_SRC, 'function _qaKnownActors(engine, limit) {');
+        }
+        if (h === 'currentStoryFloor() {') {
+            return methodBody(src, h);
+        }
+        const fnName = h.split('(')[0];
+        const m = saOpsSrc.match(new RegExp('(?:async\\s+)?function\\s+' + fnName + '\\s*\\(engine(?:,\\s*(.*?))?\\)\\s*\\{'));
+        if (m) {
+            return extractModuleMethod(saOpsSrc, m[0]);
+        }
+        return methodBody(src, h);
+    });
     const missM = HOST_METHODS.filter((h, i) => !meths[i]);
     if (missL.length || missM.length) throw new Error('切片缺失：取库口[' + missL.join('/') + '] 出口[' + missM.join('/') + ']');
     const code = libs.join(J) + J + 'return ({ ' + meths.join(',' + J) + ' });';
@@ -136,10 +172,10 @@ function fakeRegistry(rows) {
 }
 
 /* ── 负控制锚点（每个在本档内必须恰好出现 1 次：见 F3） ── */
-const A_K1 = "                    if (atFloor === null) return say('withhold', 'no-verdict', 'no-at-floor');";
-const A_K1_BAD = "                    if (false) return say('withhold', 'no-verdict', 'no-at-floor');";
-const A_K2 = "                    if (!fact && !names.length) { read.noFactAnchor += 1; return say('withhold', 'no-verdict', 'no-fact-anchor'); }";
-const A_K2_BAD = "                    if (false) { read.noFactAnchor += 1; return say('withhold', 'no-verdict', 'no-fact-anchor'); }";
+const A_K1 = "                if (atFloor === null) return say('withhold', 'no-verdict', 'no-at-floor');";
+const A_K1_BAD = "                if (false) return say('withhold', 'no-verdict', 'no-at-floor');";
+const A_K2 = "                if (!fact && !names.length) { read.noFactAnchor += 1; return say('withhold', 'no-verdict', 'no-fact-anchor'); }";
+const A_K2_BAD = "                if (false) { read.noFactAnchor += 1; return say('withhold', 'no-verdict', 'no-fact-anchor'); }";
 const A_K3 = "        if (tv.gated !== true) return bad('knowledge-face-absent');";
 const A_K3_BAD = "        if (false) return bad('knowledge-face-absent');";
 const A_K4 = "        const keepList = function (kind, list) {\n            return arrOf(list).filter(function (it) { return decide(kind, it); });\n        };";
@@ -149,8 +185,8 @@ const A_K5_BAD = "        out.overRedacted = false;";
 
 /* ══════════════ 判据体（正负两跑共用同一份） ══════════════ */
 /** J1：时点读不到 ⇒ 判不了（**不得按名单放行**）。 */
-function jNoFloorIsUndecided(src, win) {
-    const eng = engineFrom(src, win);
+function jNoFloorIsUndecided(src, win, saOpsSrc = SA_OPS_SRC) {
+    const eng = engineFrom(src, win, saOpsSrc);
     eng.config = { config: {} };
     eng.worldProg = new ORGANS.WorldProgress();
     eng._factVersionState = null;
@@ -165,8 +201,8 @@ function jNoFloorIsUndecided(src, win) {
     return [];
 }
 /** J2:没有事实引用也没有实体名 ⇒ 判不了(修前这一格**默认放行**)。 */
-function jNoAnchorIsUndecided(src, win) {
-    const eng = engineFrom(src, win);
+function jNoAnchorIsUndecided(src, win, saOpsSrc = SA_OPS_SRC) {
+    const eng = engineFrom(src, win, saOpsSrc);
     eng.config = { config: {} };
     eng.worldProg = new ORGANS.WorldProgress();
     eng._factVersionState = null;
@@ -177,7 +213,7 @@ function jNoAnchorIsUndecided(src, win) {
      *   修前弱判据(只比 decision/basis)让这一格与兜底 no-verdict 同形 → 假绿)。
      *   故先开一张非空 chat 让 currentStoryFloor() 拿得到时点。 */
     const w = winWith(10, (win && win.__extra) || undefined);
-    const eng2 = engineFrom(src, w);
+    const eng2 = engineFrom(src, w, saOpsSrc);
     eng2.config = { config: {} };
     eng2.worldProg = new ORGANS.WorldProgress();
     eng2._factVersionState = null;
@@ -336,7 +372,7 @@ test('v3360 A2. ★★★★ 宿主五个判决口成员各恰一处;不建第�
         assert.equal(IDX.split(h).length - 1, 1, h + ' 须恰一处');
     }
     /* ★ 不建权限表：判决口里不得出现「白名单式」常量表字面量。 */
-    const gate = methodBody(IDX, '_o9Gate() {');
+    const gate = extractModuleMethod(SA_OPS_SRC, 'function _o9Gate(engine) {') || methodBody(IDX, '_o9Gate() {');
     assert.ok(gate && gate.length > 400, '判决口切片须非空');
     for (const banned of ['PERMISSION', 'ALLOWLIST', 'WHITELIST', '权限表']) {
         assert.ok(gate.indexOf(banned) < 0, '判决口不得持有第二份权限表：' + banned);
@@ -345,12 +381,12 @@ test('v3360 A2. ★★★★ 宿主五个判决口成员各恰一处;不建第�
 });
 
 test('v3360 A3. ★★★★ 判决口只读真源（三件依赖都在取数口里，零写）', () => {
-    const owners = methodBody(IDX, '_o9Owners() {');
+    const owners = extractModuleMethod(SA_OPS_SRC, 'function _o9Owners(engine) {') || methodBody(IDX, '_o9Owners() {');
     assert.ok(owners.indexOf("'secret-ledger.js'") >= 0, '秘密账本须在取数口');
     assert.ok(owners.indexOf("knowledgeTraces") >= 0, '知识轨迹须在取数口');
     assert.ok(owners.indexOf('_factVersionState') >= 0, '事实版本账须在取数口');
     assert.ok(owners.indexOf('currentStoryFloor') >= 0, '时点须由既有真源给');
-    const gate = methodBody(IDX, '_o9Gate() {');
+    const gate = extractModuleMethod(SA_OPS_SRC, 'function _o9Gate(engine) {') || methodBody(IDX, '_o9Gate() {');
     for (const w of ['this.worldProg.secretLedger =', 'this._factVersionState =', 'push(', 'splice(']) {
         assert.ok(gate.indexOf(w) < 0, '判决口不得写：' + w);
     }
@@ -622,14 +658,14 @@ test('v3360 F3. ★★★★ 真源码破坏负控制四条(各带原版阳性�
         return fn(ctx, ctx, ctx.module);
     };
     /* N1:拆宿主「时点读不到 ⇒ 判不了」⇒ 判据须序列化整条判决(否则兜底 no-verdict 与之同形)。 */
-    const b1 = breakOnce(IDX, A_K1, A_K1_BAD, 'N1');
-    assert.notEqual(b1, IDX, 'N1 破坏必须真改源码');
-    assert.notDeepEqual(jNoFloorIsUndecided(b1, W), [], 'N1 破坏必须翻红');
+    const b1 = breakOnce(SA_OPS_SRC, A_K1, A_K1_BAD, 'N1');
+    assert.notEqual(b1, SA_OPS_SRC, 'N1 破坏必须真改源码');
+    assert.notDeepEqual(jNoFloorIsUndecided(IDX, W, b1), [], 'N1 破坏必须翻红');
     assert.deepEqual(jNoFloorIsUndecided(IDX, W), [], '原版上同判据必须真成立');
     /* N2:拆宿主「无事实锚 ⇒ 判不了」⇒ 匿名条目重新默认放行当场现形。 */
-    const b2 = breakOnce(IDX, A_K2, A_K2_BAD, 'N2');
-    assert.notEqual(b2, IDX, 'N2 破坏必须真改源码');
-    assert.notDeepEqual(jNoAnchorIsUndecided(b2, W), [], 'N2 破坏必须翻红');
+    const b2 = breakOnce(SA_OPS_SRC, A_K2, A_K2_BAD, 'N2');
+    assert.notEqual(b2, SA_OPS_SRC, 'N2 破坏必须真改源码');
+    assert.notDeepEqual(jNoAnchorIsUndecided(IDX, W, b2), [], 'N2 破坏必须翻红');
     assert.deepEqual(jNoAnchorIsUndecided(IDX, W), [], '原版上同判据必须真成立');
     /* N3:拆内核「not gated ⇒ 拒答」⇒ 生成侧把旧口径产物递出去当场现形。 */
     const b3 = breakOnce(SA_SRC, A_K3, A_K3_BAD, 'N3');
@@ -672,10 +708,10 @@ test('v3360 F4. ★★★★ 内核侧真源码破坏：逐条判决与未了事
 /* ══════════════ G. 工具两向自证 + 判据纯度 + 版本锚 ══════════════ */
 test('v3360 G1. ★★★★ H6 工具两向自证：锚点 0 次 / 同值 / 不唯一均须抛', () => {
     const anchor = A_K1;
-    assert.equal(IDX.split(anchor).length - 1, 1, 'H5：破坏锚点在本档内须恰声明一次');
-    assert.throws(() => breakOnce(IDX, 'no-such-anchor-xyz', 'x', 'T1'), /锚点/, '锚点不存在必须抛');
-    assert.throws(() => breakOnce(IDX, anchor, anchor, 'T2'), /同值|相同|未改/, '同值替换必须抛');
-    assert.throws(() => breakOnce(IDX, '        ', 'x', 'T3'), /唯一|次数|命中/, '不唯一锚点必须抛');
+    assert.equal(SA_OPS_SRC.split(anchor).length - 1, 1, 'H5：破坏锚点在真源须恰出现一次');
+    assert.throws(() => breakOnce(SA_OPS_SRC, 'no-such-anchor-xyz', 'x', 'T1'), /锚点/, '锚点不存在必须抛');
+    assert.throws(() => breakOnce(SA_OPS_SRC, anchor, anchor, 'T2'), /同值|相同|未改/, '同值替换必须抛');
+    assert.throws(() => breakOnce(SA_OPS_SRC, '        ', 'x', 'T3'), /唯一|次数|命中/, '不唯一锚点必须抛');
     ok('工具两向自证：0 次 / 同值 / 不唯一三种用法均抛');
 });
 

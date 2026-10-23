@@ -50,6 +50,8 @@ const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const ok = (m) => console.log('  ✓ ' + m);
 const IDX = read('index.js');
 const QT_SRC = read('engine-qa-tools.js');
+const SA_OPS_SRC = read('engine-story-annual.js');
+const FULL_SRC = IDX + '\n' + SA_OPS_SRC;
 const SELF = read(path.join('tests', 'v3350_m4o6_real_supply.test.mjs'));
 const MF = JSON.parse(read('manifest.json'));
 const BORN = '3.335.0';
@@ -76,6 +78,17 @@ const HOST_METHODS = [
     '_fatedRecallDeps() {', '_loreImportDeps() {'
 ];
 /** 从 engine-qa-tools.js 提取方法体，转回类方法格式（engine.→this.）。 */
+function getMethodSeg(src, saOpsSrc, head) {
+    if (head === '_storyAnnualDeps() {' || head === '_loreImportDeps() {') {
+        const fnName = head.split('(')[0];
+        const m = saOpsSrc.match(new RegExp('(?:async\\s+)?function\\s+' + fnName + '\\s*\\(engine(?:,\\s*(.*?))?\\)\\s*\\{'));
+        if (m) {
+            return extractModuleMethod(saOpsSrc, m[0]);
+        }
+    }
+    return methodBody(src, head);
+}
+
 function extractModuleMethod(source, funcMarker) {
     const start = source.indexOf(funcMarker);
     if (start < 0) return null;
@@ -117,13 +130,21 @@ function libWindow(extra) {
     }, extra || {});
 }
 /** 按给定 index.js 源码装一个「只含本面所需方法」的引擎（破坏副本也走这里）。 */
-function engineFrom(src, win) {
+function engineFrom(src, win, saOpsSrc = SA_OPS_SRC) {
     const J = String.fromCharCode(10);
     const libs = LIB_FNS.map((h) => methodBody(src, h));
     const missL = LIB_FNS.filter((h, i) => !libs[i]);
     const meths = HOST_METHODS.map((h) => {
         if (h === '_qaKnownActors(limit) {') {
             return extractModuleMethod(QT_SRC, 'function _qaKnownActors(engine, limit) {');
+        }
+        if (h === '_branchCanonDeps() {' || h === '_fatedRecallDeps() {') {
+            return methodBody(src, h);
+        }
+        const fnName = h.split('(')[0];
+        const m = saOpsSrc.match(new RegExp('(?:async\\s+)?function\\s+' + fnName + '\\s*\\(engine(?:,\\s*(.*?))?\\)\\s*\\{'));
+        if (m) {
+            return extractModuleMethod(saOpsSrc, m[0]);
         }
         return methodBody(src, h);
     });
@@ -182,17 +203,17 @@ function seedStory(eng) {
 }
 
 /* ── 负控制锚点（每个在本档内必须恰好出现 1 次：见 F3） ── */
-const A_CF = "            if (factsOwner === null && lockedOwner === null) return null;";
-const A_CF_BAD = "            if (false) return null;";
-const A_CH = "            if (!chapters.length) return null;";
-const A_CH_BAD = "            if (false) return null;";
+const A_CF = "        if (factsOwner === null && lockedOwner === null) return null;";
+const A_CF_BAD = "        if (false) return null;";
+const A_CH = "        if (!chapters.length) return null;";
+const A_CH_BAD = "        if (false) return null;";
 const A_PRI = "                KNOWN_FACTS: (this._knownFacts && typeof this._knownFacts === 'object') ? this._knownFacts : this._o6KnownFacts(O),";
 const A_PRI_BAD = "                KNOWN_FACTS: (false) ? this._knownFacts : this._o6KnownFacts(O),";
 
 /* ══════════════ 判据体（正负两跑共用同一份） ══════════════ */
 /** J1：真源缺席 ⇒ 已确认事实面必须 null（不得把「没记过」写成「查过、没有」）。 */
-function jAbsentIsNotJudged(src, win) {
-    const eng = engineFrom(src, win);
+function jAbsentIsNotJudged(src, win, saOpsSrc = SA_OPS_SRC) {
+    const eng = engineFrom(src, win, saOpsSrc);
     eng.config = { config: {} };
     eng.summary = null; eng.worldProg = null; eng.timeline = null; eng.scene = null;
     eng.suspense = null; eng.deltaBook = null;
@@ -203,8 +224,8 @@ function jAbsentIsNotJudged(src, win) {
     return '';
 }
 /** J2：真源在场但零卷 ⇒ 章面必须 null（不许编出「查过、零章」）。 */
-function jNoVolumeNoChapters(src, win) {
-    const eng = engineFrom(src, win);
+function jNoVolumeNoChapters(src, win, saOpsSrc = SA_OPS_SRC) {
+    const eng = engineFrom(src, win, saOpsSrc);
     eng.config = { config: {} };
     eng.summary = new CORE.SummarySystem();      // 在场、零卷、零史记
     eng.worldProg = new ORGANS.WorldProgress(); eng.timeline = new BOOKS.PlotTimeline();
@@ -257,7 +278,7 @@ test('v3350 A2. ★★★★★ 四个装配点**真改走派生**且私有槽�
         ['_fatedRecallDeps() {', 'PAST_DETAILS', '_o6PastDetails(O)'],
         ['_loreImportDeps() {', 'CONFIRMED_FACTS', '_o6ConfirmedFacts(O)']
     ]) {
-        const seg = methodBody(IDX, head);
+        const seg = getMethodSeg(IDX, SA_OPS_SRC, head);
         assert.ok(seg, '装配点切片失败：' + head);
         assert.ok(seg.indexOf(key + ':') >= 0, head + ' 须仍给 ' + key);
         assert.ok(seg.indexOf(deri) >= 0, head + ' 须真调用派生 ' + deri);
@@ -270,7 +291,7 @@ test('v3350 A2. ★★★★★ 四个装配点**真改走派生**且私有槽�
         for (const k of keys) assert.ok(mod.REQUIRED_DEPS.some((d) => d.key === k), '内核声明面缺键 ' + k);
     }
     const segs = ['_storyAnnualDeps() {', '_branchCanonDeps() {', '_fatedRecallDeps() {', '_loreImportDeps() {']
-        .map((h) => methodBody(IDX, h)).join('\n');
+        .map((h) => getMethodSeg(IDX, SA_OPS_SRC, h)).join('\n');
     for (const k of ['CHAPTERS', 'SUMMARY', 'QUOTES', 'BRANCH_OUTCOMES', 'CONFIRMED_FACTS',
         'SECRET_BODY_KEYS', 'PAST_DETAILS', 'KNOWN_FACTS', 'COOLDOWN_DAYS', 'KNOWN_ENTITIES']) {
         assert.ok(segs.indexOf(k + ':') >= 0, '四装配点合起来须给全键：' + k);
@@ -541,17 +562,17 @@ test('v3350 E3. ★★★★ 重开不依赖上轮实例残留：新实例同状
 
 /* ══════════════ F 负控制 / 版本锚 / 工具自证 ══════════════ */
 test('v3350 F1. ★★★ 真源码破坏：缺数据不给空 ⇒ 同款判据当场现形（含原版阳性对照）', () => {
-    const broken = breakOnce(IDX, A_CF, A_CF_BAD, 'F1');
-    assert.notEqual(broken, IDX, '破坏必须真改源码');
-    assert.notEqual(jAbsentIsNotJudged(broken), '', '缺数据报空必须翻红');
+    const broken = breakOnce(SA_OPS_SRC, A_CF, A_CF_BAD, 'F1');
+    assert.notEqual(broken, SA_OPS_SRC, '破坏必须真改源码');
+    assert.notEqual(jAbsentIsNotJudged(IDX, null, broken), '', '缺数据报空必须翻红');
     assert.equal(jAbsentIsNotJudged(IDX), '', '原版上同判据必须真成立');
     ok('负控制成立：缺数据被写成「查过没有」即红，原版仍绿');
 });
 
 test('v3350 F2. ★★★ 真源码破坏：无卷也编章面 ⇒ 同款判据当场现形（含原版阳性对照）', () => {
-    const broken = breakOnce(IDX, A_CH, A_CH_BAD, 'F2');
-    assert.notEqual(broken, IDX, '破坏必须真改源码');
-    assert.notEqual(jNoVolumeNoChapters(broken), '', '无卷编章必须翻红');
+    const broken = breakOnce(SA_OPS_SRC, A_CH, A_CH_BAD, 'F2');
+    assert.notEqual(broken, SA_OPS_SRC, '破坏必须真改源码');
+    assert.notEqual(jNoVolumeNoChapters(IDX, null, broken), '', '无卷编章必须翻红');
     assert.equal(jNoVolumeNoChapters(IDX), '', '原版上同判据必须真成立');
     ok('负控制成立：零卷被写成「查过、零章」即红，原版仍绿');
 });
@@ -573,7 +594,9 @@ test('v3350 F4. ★★★★ 工具两向自证：锚点 0 次 / 不唯一 / 同
      *   恒不成立（`breakOnce` 正常返回、断言拿到 null）—— 判据自身缺陷，已改真多处锚点。 */
     assert.ok(thrower('return null;', 'return undefined;', 'F4c'), '多处命中须拒绝');
     /* 三个破坏锚点在真源上各恰中 1 次（判据纯度前提）。 */
-    for (const a of [A_CF, A_CH, A_PRI]) assert.equal(IDX.split(a).length - 1, 1, '锚点在真源须恰中 1 次：' + a.slice(0, 50));
+    assert.equal(SA_OPS_SRC.split(A_CF).length - 1, 1, '锚点在真源须恰中 1 次：A_CF');
+    assert.equal(SA_OPS_SRC.split(A_CH).length - 1, 1, '锚点在真源须恰中 1 次：A_CH');
+    assert.equal(IDX.split(A_PRI).length - 1, 1, '锚点在真源须恰中 1 次：A_PRI');
     /* H5 判据纯度：三个锚点字面量在本档内各只准声明**一次**（即只在常量定义处）。
      *   破坏调用一律走常量名（`breakOnce(IDX, A_CF, A_CF_BAD, …)`）—— 断言行不得复用锚点串，
      *   否则判据就变成了「引用被破坏的那串」的自我指涉形态（本仓 H5 的原话：判据不得引用锚点串）。 */

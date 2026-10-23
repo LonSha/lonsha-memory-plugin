@@ -1,3 +1,11 @@
+## v3.366.0
+**index.js 剥离第六批：故事年度编年史与世界书导入集群外提为 engine-story-annual.js**
+- 新增 `engine-story-annual.js`（1439行，IIFE 模块）：将真实供数派生底座（`_o6*`）、世界书导入/解析/选入/覆盖/落笔（`loreImport*`）、故事年度编年史/审阅/可知性判决/成稿/重建（`_o9*`、`storyAnnual*`）等共 50 个业务方法（`_o6RealOwners`, `annualSources`, `_o6Chat`, `_o6Quotes`, `_o6Chapters`, `_o6Summary`, `_o6Outcomes`, `_o6PastDetails`, `_o6KnownFacts`, `_o6ConfirmedFacts`, `_o6KnownEntities`, `_loreImportDeps`, `_loreImportAbsent`, `loreImportParse`, `loreImportParseWindow`, `loreImportEntities`, `loreImportPreview`, `loreImportPlan`, `loreImportChanged`, `loreImportDescribe`, `loreImportLine`, `_loreImportOwners`, `_loreImportLedgerState`, `loreImportOverride`, `loreImportConfirmMapping`, `loreImportApply`, `loreImportLedger`, `_storyAnnualDeps`, `_o9Owners`, `_o9AliasIndex`, `_o9FactOf`, `_o9NamesIn`, `_o9Gate`, `o9Sources`, `_storyAnnualAbsent`, `storyAnnualBuild`, `storyAnnualReview`, `storyAnnualTwoVersions`, `storyAnnualForPlayer`, `storyAnnualBelletristic`, `storyAnnualEdit`, `storyAnnualStale`, `storyAnnualCompose`, `storyAnnualComposeForPlayer`, `storyAnnualRebuild`, `storyAnnualApplyEdits`, `storyAnnualDrafts`, `storyAnnualComposeLine`, `storyAnnualDescribe`, `storyAnnualLine`）从 `index.js` 完整外提为独立模块，挂载 `window.LonShaEngineStoryAnnual`，提供 `bindDeps` 注入。
+- `index.js` 从 18268 行进一步降至 17057 行（净减 1211 行，累计从 22731 行净削减 5674 行，解耦进度过半），原实现替换为轻量委托桩。
+- `manifest.json` `extra_js` 登记 `engine-story-annual.js`（共 139 项）。
+- 修复切片测试夹具（`v3327`, `v3334`, `v3350`, `v3360`, `v3390`, `v3410`）适配新模块提取及负控制单真源破坏锚点。
+- 新增 `tests/v3366_engine_story_annual_split.test.mjs`（8 条）。
+
 ## v3.365.0
 **index.js 剥离第五批：派生件修复执行与纠错操作集群外提为 engine-repair-ops.js**
 - 新增 `engine-repair-ops.js`（1056行，IIFE 模块）：将派生件修复执行、候选覆盖、范围纠错、查询条件保存/撤回等共 19 个方法（`requestRepair`, `settleRepair`, `abandonRepair`, `repairRevision`, `previewRepair`, `_repairOwners`, `_correctionOwners`, `_verifyCorrectionItem`, `applyCorrectionPlan`, `undoCorrection`, `memoryCenterRevoke`, `memoryCenterSaveQuery`, `_memoryCenterStateWithSaved`, `correctionSourceFacts`, `correctionReextractFacts`, `applyRepairPlan`, `_verifyRepairItem`, `_repairPoolFor`, `_repairPool`）从 `index.js` 完整外提为独立模块，挂载 `window.LonShaEngineRepairOps`，提供 `bindDeps` 注入。
