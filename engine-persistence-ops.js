@@ -108,7 +108,7 @@
         'extensions',
     ]);
     const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);
-    let VERSION = '3.368.0';
+    let VERSION = '3.369.0';
     const PLUGIN_NAME = 'LonSha记忆引擎';
 
     class LonShaPersistenceOps {

@@ -51,7 +51,8 @@
     function _moduleFailureSnapshot() { return typeof _deps._moduleFailureSnapshot === 'function' ? _deps._moduleFailureSnapshot() : []; }
     function _formatBindDepsRow(c, r) { return typeof _deps._formatBindDepsRow === 'function' ? _deps._formatBindDepsRow(c, r) : ['依赖注入', '未注入']; }
 
-    async function selfCheck() {
+    class LonShaSelfCheckOps {
+        async selfCheck() {
         const VERSION = _deps.VERSION || '3.366.0';
         const errLog = _deps.errLog || function(e, tag) { try { console.error('[engine-self-check] ' + (tag ? tag + ': ' : ''), e); } catch(_) {} };
         const hintForError = _deps.hintForError || function(e) { return String(e?.message || e); };
@@ -1554,7 +1555,13 @@
             } catch (e) { report.schema = { ok: false, missing: ['collectExport异常: ' + (e?.message || e)], hint: hintForError(e) }; }
         } catch (e) { report.fatal = String(e?.message || e); }
         return report;
+        }
     }
+    const _scOps = new LonShaSelfCheckOps();
+    const selfCheck = function(engine, ...args) {
+        const target = engine || this;
+        return _scOps.selfCheck.apply(target, args);
+    };
 
 
     async function selfCheckExport(engine) {

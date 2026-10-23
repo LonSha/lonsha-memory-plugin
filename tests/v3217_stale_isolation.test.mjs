@@ -36,7 +36,7 @@ import { stripComments } from './_audit_lib.mjs';
 import { breakSource } from './_break_kit.mjs';
 
 const R = process.cwd();
-const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
+const idxSrc = (fs.existsSync(path.join(R, 'engine-injection-pipeline.js')) ? fs.readFileSync(path.join(R, 'engine-injection-pipeline.js'), 'utf8') + '\n' : '') + fs.readFileSync(path.join(R, 'index.js'), 'utf8');
 
 /* ───────────────── 源码提取（花括号配平；不做文本猜测） ───────────────── */
 

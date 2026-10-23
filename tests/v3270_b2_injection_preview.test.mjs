@@ -30,7 +30,7 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -44,7 +44,7 @@ const PROJ = join(ROOT, 'projection-pipeline.js');
 const IR = join(ROOT, 'injection-router.js');
 const IDX = join(ROOT, 'index.js');
 const require_ = createRequire(import.meta.url);
-const idxSrc = readFileSync(IDX, 'utf-8');
+const idxSrc = readFileSync(IDX, 'utf-8') + (existsSync(join(ROOT, 'engine-injection-pipeline.js')) ? '\n' + readFileSync(join(ROOT, 'engine-injection-pipeline.js'), 'utf-8') : '');
 const projMod = require_(PROJ);
 const irMod = require_(IR);
 

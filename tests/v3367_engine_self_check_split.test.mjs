@@ -31,7 +31,7 @@ test('v3367 A1. engine-self-check.js 独立存在且在 manifest 登记', () => 
 
 test('v3367 A2. selfCheck 与 _selfCheckAbsent 委托桩在 index.js 中存在且保持契约', () => {
     const idx = read('index.js');
-    assert.ok(idx.includes('async selfCheck() {'), 'selfCheck 委托桩签名必须在场');
+    assert.ok(idx.includes('async selfCheck('), 'selfCheck 委托桩签名必须在场');
     assert.ok(idx.includes('_selfCheckAbsent(reason) {'), '_selfCheckAbsent 委托桩签名必须在场');
     assert.ok(idx.includes('engine-self-check.js'), '委托桩必须引用 engine-self-check.js');
     assert.ok(idx.includes('LonShaEngineSelfCheck'), '委托桩必须引用 window.LonShaEngineSelfCheck');

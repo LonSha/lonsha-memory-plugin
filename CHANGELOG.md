@@ -1,3 +1,11 @@
+## v3.369.0
+**index.js 剥离第九批：提示词注入装配管线与上下文快照集群外提为 engine-injection-pipeline.js**
+- 新增 `engine-injection-pipeline.js`（1987行，IIFE 模块）：将原 `index.js` 内部最具规模的提示词注入装配管线与桥快照核心（涵盖 `_worldbookOccupancy`、`_projectionPrediction`、`_projectionStrategyCompare`、`buildBridgeSnapshot`、`buildBridgeSnapshotJson`、`_summarizeRecallAudit`、`buildInjection`、`_injectionRecord`、`_injectionBlocksOf`、`_injectionStage`、`_injectionCommit`、`_injectionClose`、`_injectionEnd`、`_injectionRefOf`、`_injectionDiscardStale`、`_buildDiagnosticsInjection`、`buildInjectionReadout` 共 17 个方法）完整外提为独立模块，挂载 `window.LonShaEngineInjectionPipeline`，提供 `bindDeps` 注入通道与安全降级。
+- `index.js` 从 14633 行锐降至 12892 行（净减 1741 行，累计从 22731 行净削减 9839 行，解耦进度达成 77.3%），原实现替换为轻量委托桩与安全降级回执 `_injectionPipelineAbsent`。
+- `manifest.json` `extra_js` 登记 `engine-injection-pipeline.js`（共 142 项）。
+- 适配历史切片夹具（`v3216`, `v3217`, `v3218`, `v3219`, `v3270` 等）并补全负向控制双向合看。
+- 新增 `tests/v3369_engine_injection_split.test.mjs`（8 条）。
+
 ## v3.368.0
 **index.js 剥离第八批：持久化、快照与检查点集群外提为 engine-persistence-ops.js**
 - 新增 `engine-persistence-ops.js`（1259行，IIFE 模块）：将原 `index.js` 内部规模庞大的持久化全家桶（涵盖 `collectExport`、`restoreFromPayload`、`restoreFromSnapshot`、`restoreSnapshotFlow`、`snapshotRestoreMenu`、`clearRuntimeMemory`、`snapshotClearCoverage`、`getCurrentChatId`、`_snapshotAnchorOf`、`checkpointStore`、`_checkpointLib`、`_numOrNull`、`_floorOrNull`、`saveCheckpoint`、`listCheckpoints`、`readCheckpoint`、`dropCheckpoint`、`previewCheckpointRestore`、`compareBranchCheckpoints`、`checkpointMenuItems`、`checkpointRestorePreviewLines`、`compareBranchCheckpointsDeep`、`checkpointContentDiffLines`、`checkpointDetailLines`、`checkpointBranchesDiffLines`、`recordSaveSource`、`recordSaveFailed`、`getSaveSourceReport` 共 28 个方法）完整外提为独立模块，挂载 `window.LonShaEnginePersistenceOps`，提供 `bindDeps` 注入通道与安全降级。
