@@ -38,7 +38,7 @@ import { stripComments } from './_audit_lib.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
-const IDX = read(path.join(ROOT, 'index.js'));
+const IDX = read(path.join(ROOT, 'engine-persistence-ops.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'index.js')); // [v3.368.0] 合看外移模块（模块在前：抽取方法体命中真实现）
 const UI = read(path.join(ROOT, 'settings-ui.js'));
 const CP_SRC = read(path.join(ROOT, 'snapshot-checkpoint.js'));
 /* 源码面判据一律做在**代码行**上（剥注释走唯一真源 tests/_audit_lib.mjs）。 */

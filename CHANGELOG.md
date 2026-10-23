@@ -1,3 +1,11 @@
+## v3.368.0
+**index.js 剥离第八批：持久化、快照与检查点集群外提为 engine-persistence-ops.js**
+- 新增 `engine-persistence-ops.js`（1259行，IIFE 模块）：将原 `index.js` 内部规模庞大的持久化全家桶（涵盖 `collectExport`、`restoreFromPayload`、`restoreFromSnapshot`、`restoreSnapshotFlow`、`snapshotRestoreMenu`、`clearRuntimeMemory`、`snapshotClearCoverage`、`getCurrentChatId`、`_snapshotAnchorOf`、`checkpointStore`、`_checkpointLib`、`_numOrNull`、`_floorOrNull`、`saveCheckpoint`、`listCheckpoints`、`readCheckpoint`、`dropCheckpoint`、`previewCheckpointRestore`、`compareBranchCheckpoints`、`checkpointMenuItems`、`checkpointRestorePreviewLines`、`compareBranchCheckpointsDeep`、`checkpointContentDiffLines`、`checkpointDetailLines`、`checkpointBranchesDiffLines`、`recordSaveSource`、`recordSaveFailed`、`getSaveSourceReport` 共 28 个方法）完整外提为独立模块，挂载 `window.LonShaEnginePersistenceOps`，提供 `bindDeps` 注入通道与安全降级。
+- `index.js` 从 15594 行进一步降至 14614 行（净减 980 行，累计从 22731 行净削减 8117 行，进度达成 63.8%），原实现替换为轻量委托桩与安全降级回执 `_persistenceOpsAbsent`。
+- `manifest.json` `extra_js` 登记 `engine-persistence-ops.js`（共 141 项）。
+- 适配历史切片夹具（`v3236`, `v3237`, `v3238`, `v3239`, `v3243`, `v3252` 等）并补全负向控制双向合看。
+- 新增 `tests/v3368_engine_persistence_split.test.mjs`（8 条）。
+
 ## v3.367.0
 **index.js 剥离第七批：系统全景自检与健康诊断集群外提为 engine-self-check.js**
 - 新增 `engine-self-check.js`（1584行，IIFE 模块）：将原 `index.js` 内部规模最大的单个方法 `selfCheck()`（1499行，包含各子系统数据量统计、召回链路 dry-run、存档 schema 校验与深层不变量健康诊断等共 106 个诊断项）独立外提为专属模块，挂载 `window.LonShaEngineSelfCheck`，提供 `bindDeps` 注入。

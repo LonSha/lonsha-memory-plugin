@@ -32,7 +32,7 @@ import { breakFile } from './_break_kit.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
-const idx = read(path.join(ROOT, 'index.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'memory-config.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-self-check.js')); // [v3.267.0/v3.367.0] 合看外移模块
+const idx = read(path.join(ROOT, 'memory-config.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-persistence-ops.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'index.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-self-check.js')); // [v3.267.0/v3.367.0/v3.368.0] 合看外移模块（持久化集群在前：抽取方法体命中真实现）
 const ui = read(path.join(ROOT, 'settings-ui.js'));
 
 /** 取一段源码（起点字面量 → 终点字面量）。**不**用正则：本仓的锚点里全是括号与引号。 */
@@ -328,8 +328,8 @@ test('v3236 N1. ★★★ 破坏清空载荷形态（人物状态回退成空对
     /* 锚点串在**运行时拼接**：判据层内不得再声明一遍被破坏的字面量（自指假绿的一种）。 */
     const FROM = "e.status.import({ characters: {} })";
     const TO = 'e.status.import(' + '{}' + ')';
-    withMirror((dir) => { breakFile(dir, 'index.js', FROM, TO); }, (dir) => {
-        const broken = read(path.join(dir, 'index.js'));
+    withMirror((dir) => { breakFile(dir, 'engine-persistence-ops.js', FROM, TO); }, (dir) => {
+        const broken = read(path.join(dir, 'engine-persistence-ops.js')) + String.fromCharCode(10) + read(path.join(dir, 'index.js'));
         assert.throws(() => assertClearPayloadShapes(broken), /人物状态/, '载荷形态判据必须抓到（否则 C1 是空跑）');
     });
 });
@@ -337,8 +337,8 @@ test('v3236 N1. ★★★ 破坏清空载荷形态（人物状态回退成空对
 test('v3236 N2. ★★★ 破坏锚点重置（身份不符时保留旧楼层）⇒ B1 同款判据必须转红', () => {
     const FROM = 'return { fresh: true, floor: 0, chatId: id };';
     const TO = 'return { fresh: ' + 'false' + ', floor: Number(this._snapshotAnchorFloor) || 0, chatId: id };';
-    withMirror((dir) => { breakFile(dir, 'index.js', FROM, TO); }, (dir) => {
-        const broken = read(path.join(dir, 'index.js'));
+    withMirror((dir) => { breakFile(dir, 'engine-persistence-ops.js', FROM, TO); }, (dir) => {
+        const broken = read(path.join(dir, 'engine-persistence-ops.js')) + String.fromCharCode(10) + read(path.join(dir, 'index.js'));
         assert.throws(() => assertSnapshotAnchorContract(broken), /fresh/, '锚点契约判据必须抓到（否则 B1 是空跑）');
     });
 });

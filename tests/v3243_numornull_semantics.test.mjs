@@ -188,7 +188,7 @@ test('v3243 C2. 契约须留下「更正留痕」而不是悄悄改掉', () => {
  *   manifest / 主入口 / 契约 / 九本账 / 登记表，缺一个门禁就在夹具里提前 fail-closed。
  *   但「九本账」那一截原先也是手抄 ⇒ 换成从唯一真源派生；
  *   manifest / index / 契约 / TSV 仍显式列出（它们不是账本级消费者，派生不出来）。 */
-const GAUGED = ['manifest.json', 'index.js', CONTRACT_REL,
+const GAUGED = ['manifest.json', 'index.js', 'engine-self-check.js', 'engine-persistence-ops.js', CONTRACT_REL,
     ...ledgerLevelConsumers(ROOT, JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8')).extra_js),
     'tests/audit/catalog_reference_consumers.tsv'];
 function mkTree() {

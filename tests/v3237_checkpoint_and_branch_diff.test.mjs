@@ -352,7 +352,7 @@ test('I1 三源同源且不低于本套件出生版本', () => {
 });
 
 test('I2 index.js 接线在场且取库口按本仓契约写', () => {
-    const idx = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+    const idx = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8') + String.fromCharCode(10) + fs.readFileSync(path.join(ROOT, 'engine-persistence-ops.js'), 'utf8'); // [v3.368.0] 合看外移模块
     for (const name of ['checkpointStore', 'saveCheckpoint', 'listCheckpoints', 'readCheckpoint',
         'dropCheckpoint', 'previewCheckpointRestore', 'compareBranchCheckpoints', '_checkpointLib']) {
         assert.ok(new RegExp('\\n\\s{8}' + name + '\\(').test(idx), `index.js 缺方法 ${name}`);

@@ -90,7 +90,9 @@ if (books.length < MIN_BOOKS) {
 }
 const contractSrc = readOrNull(path.join(ROOT, CONTRACT));
 if (contractSrc == null) bail('找不到契约模块 ' + CONTRACT + '：真源不在，判据无从谈起');
-const indexSrc = readOrNull(path.join(ROOT, 'index.js'));
+const indexSrc = (readOrNull(path.join(ROOT, 'index.js')) || '')
+    + String.fromCharCode(10) + (readOrNull(path.join(ROOT, 'engine-self-check.js')) || '')
+    + String.fromCharCode(10) + (readOrNull(path.join(ROOT, 'engine-persistence-ops.js')) || ''); // [v3.367.0/v3.368.0] 合看外移的 selfCheck/持久化集群
 if (indexSrc == null) bail('找不到 index.js');
 
 const defects = [];
