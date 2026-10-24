@@ -1,7 +1,7 @@
 # lonsha-memory-plugin 发展规划
-> **第七期产品计划（2026-10-24，现行提案）**：本仓优化9项＋拓展9项，双仓合计36项XL产品包。**本轮只制定计划，不代表功能已实施或升版。**
-> [优化提升九项](.agents/notes/proposed/architecture/2026-10-24-product-optimization-v7.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-10-24-product-expansion-v7.md) · [基线、差异化与验收边界](docs/planning/2026-10-24-product-evidence-v7.md)。
-> **规划基线**：`v3.371.0 / b0bbe72`。第六期 M6-O1~O9、M6-X1~X9 已在 v3.355~v3.360 提交链承接；第六期文件保留为历史，不再视为当前待办。实施时仍须按代码重算能力与接口。
+> **第八期产品计划（2026-10-24，现行提案）**：本仓优化9项＋拓展9项，双仓合计36项产品计划。**本轮只制定计划，不代表功能已实施或升版。**
+> [优化提升九项](.agents/notes/proposed/architecture/2026-10-24-product-optimization-v8.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-10-24-product-expansion-v8.md) · [基线、差异化与验收边界](docs/planning/2026-10-24-product-evidence-v8.md)。
+> **规划基线**：`v3.371.0 / c17c33b`。第七期已随当前主线提交交付，V7 文档保留为历史，不再视为待办；V8 项目实施前仍须按代码重算能力与接口。
 > **产品主轴**：优化记忆确认、修订、召回纠错、权限视角及生成前后闭环；拓展多声部档案、传承、策展和证据约束的叙事体验。守卫、审计、台账、发布和纯重构只随功能收口，不独立占36项名额。
 | 第六期编号（历史已承接） | 优化提升 | 第六期编号（历史已承接） | 拓展创新 |
 |---|---|---|---|
