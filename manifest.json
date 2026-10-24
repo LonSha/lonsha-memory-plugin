@@ -7,7 +7,7 @@
   "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.385.0",
+  "version": "3.387.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -185,7 +185,9 @@
     "memory-task-workbench.js",
     "memory-season-silence-manager.js",
     "meaning-evolution-map.js",
-    "memory-archaeology-gap-bench.js"
+    "memory-archaeology-gap-bench.js",
+    "counterfactual-experiment-bench.js",
+    "institutional-collective-memory.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",
