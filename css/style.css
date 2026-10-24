@@ -1,39 +1,95 @@
 /* ============================================================
-   LonSha 记忆引擎 · FAB 与主面板
-   依赖 lonsha-design.css 的 token（--ls-*）
+   LonSha 记忆引擎 · FAB 悬浮仪与核心面板 (v3.5)
+   美学特征：黑曜石星轨·物理仪器光晕与微双向倒角
+   依赖：lonsha-design.css token（--ls-*）
    ============================================================ */
 
-/* ---- FAB 悬浮按钮：玻璃拟态 + 强调描边 ---- */
+/* ---- FAB 悬浮按钮：星宿共振棱镜 · 物理仪器徽记 ---- */
 #lonsha-memory-fab {
+    position: fixed;
+    background: var(--ls-bg-glass) !important;
+    backdrop-filter: var(--ls-blur) !important;
+    -webkit-backdrop-filter: var(--ls-blur) !important;
+    border: 1px solid var(--ls-line-strong) !important;
+    border-radius: 50% !important;
+    box-shadow: var(--ls-sh-2), var(--ls-inner-rim) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: grab !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    touch-action: none !important;
+    z-index: 10000 !important;
     transition: transform var(--ls-t-med) var(--ls-ease),
                 box-shadow var(--ls-t-med) var(--ls-ease),
-                border-color var(--ls-t-med) var(--ls-ease);
+                border-color var(--ls-t-med) var(--ls-ease) !important;
 }
+
+#lonsha-memory-fab::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    border: 1px dashed rgba(56, 189, 248, 0.25);
+    pointer-events: none;
+    transition: border-color var(--ls-t-med) var(--ls-ease), transform var(--ls-t-med) var(--ls-ease);
+}
+
 #lonsha-memory-fab:hover {
-    transform: translateY(-2px) scale(1.06);
-    box-shadow: var(--ls-sh-accent-lg), var(--ls-sh-2);
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: var(--ls-sh-3), var(--ls-sh-accent-lg), var(--ls-inner-rim) !important;
     border-color: var(--ls-accent-line) !important;
 }
+
+#lonsha-memory-fab:hover::before {
+    border-color: var(--ls-accent);
+    transform: rotate(45deg);
+}
+
 #lonsha-memory-fab:active {
-    transform: scale(0.94);
+    transform: scale(0.95);
+    cursor: grabbing !important;
+    box-shadow: var(--ls-sh-1), inset 0 2px 4px rgba(0, 0, 0, 0.6) !important;
     transition-duration: var(--ls-t-fast);
 }
 
-/* ---- 主面板：深色玻璃拟态 ---- */
+/* 内部矢量徽记居中 */
+#lonsha-memory-fab svg,
+#lonsha-memory-fab .ls-fab-icon {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: var(--ls-accent);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.45));
+    transition: stroke var(--ls-t-fast) var(--ls-ease), filter var(--ls-t-fast) var(--ls-ease);
+}
+
+#lonsha-memory-fab:hover svg,
+#lonsha-memory-fab:hover .ls-fab-icon {
+    stroke: var(--ls-accent-hover);
+    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.75));
+}
+
+/* ---- 档案主面板：黑曜石星轨暗室 ---- */
 .lonsha-memory-panel {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 80%;
-    max-width: 600px;
+    width: 84%;
+    max-width: 620px;
     background: var(--ls-bg-1);
+    background-image: var(--ls-radial-glow);
     backdrop-filter: var(--ls-blur);
     -webkit-backdrop-filter: var(--ls-blur);
-    border: 1px solid var(--ls-line);
-    border-radius: var(--ls-r-xl);
-    box-shadow: var(--ls-sh-3);
-    padding: 24px;
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-lg);
+    box-shadow: var(--ls-sh-3), var(--ls-inner-rim);
+    padding: 24px 28px;
     z-index: 10001;
     color: var(--ls-text);
     font-family: var(--ls-font);
@@ -43,17 +99,18 @@
 .lonsha-memory-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(1, 4, 9, 0.62);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(4, 7, 12, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     z-index: 10000;
-    animation: ls-fade-in var(--ls-t-med) var(--ls-ease);
+    animation: ls-fade-in var(--ls-t-med) var(--ls-ease-out);
 }
 
 @keyframes ls-panel-in {
-    from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
-    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); filter: blur(4px); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
 }
+
 @keyframes ls-fade-in {
     from { opacity: 0; }
     to   { opacity: 1; }

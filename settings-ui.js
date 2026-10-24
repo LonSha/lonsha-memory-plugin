@@ -22,63 +22,70 @@
         // ========== 共享样式 ==========
         const style = document.createElement('style');
         style.textContent = `
-            /* ==== LonSha 设置面板 · 基于 lonsha-design.css token ==== */
-            .lonsha-overlay { position: fixed; inset: 0; background: rgba(1,4,9,0.62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 10002; display: flex; align-items: flex-end; justify-content: center; animation: ls-fade var(--ls-t-med,200ms) var(--ls-ease,ease); }
+            /* ==== LonSha 设置面板 · 精密档案室微质感 v3.5 ==== */
+            .lonsha-overlay { position: fixed; inset: 0; background: rgba(4, 7, 12, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 10002; display: flex; align-items: flex-end; justify-content: center; animation: ls-fade var(--ls-t-med,220ms) var(--ls-ease-out,ease); }
             @media (min-width: 600px) { .lonsha-overlay { align-items: center; } }
             @keyframes ls-fade { from { opacity: 0; } to { opacity: 1; } }
-            .lonsha-sheet { background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); width: 100%; max-width: 500px; max-height: 85vh; border-radius: var(--ls-r-lg,16px) var(--ls-r-lg,16px) 0 0; display: flex; flex-direction: column; border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); box-shadow: var(--ls-sh-3,0 24px 64px rgba(1,4,9,0.72)); color: var(--ls-text,#e6edf3); font-family: var(--ls-font,system-ui,sans-serif); animation: ls-sheet-up var(--ls-t-slow,320ms) var(--ls-ease,ease); }
-            @media (min-width: 600px) { .lonsha-sheet { border-radius: var(--ls-r-xl,20px); max-height: 80vh; animation: ls-sheet-pop var(--ls-t-slow,320ms) var(--ls-ease,ease); } }
-            @keyframes ls-sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-            @keyframes ls-sheet-pop { from { transform: scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
-            .lonsha-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--ls-line,rgba(240,246,252,0.10)); color: var(--ls-text,#e6edf3); font-size: 16px; font-weight: 600; letter-spacing: 0.2px; flex-shrink: 0; }
-            .lonsha-sheet-close { padding: 8px 12px; color: var(--ls-text-2,#9da7b3); font-size: 18px; cursor: pointer; border-radius: var(--ls-r-sm,8px); transition: background var(--ls-t-fast,120ms), color var(--ls-t-fast,120ms); }
-            .lonsha-sheet-close:hover { background: var(--ls-danger-soft,rgba(248,81,73,0.14)); color: var(--ls-danger,#f85149); }
-            .lonsha-sheet-body { padding: 14px 18px 26px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: var(--ls-text,#e6edf3); }
-            .ls-group { margin-bottom: 18px; }
-            .ls-group-title { font-size: 12px; color: var(--ls-accent,#58a6ff); margin: 10px 0 6px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; overflow-wrap: anywhere; word-break: break-word; }
-            .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--ls-line,rgba(240,246,252,0.10)); font-size: 15px; }
-            /* [v3.318.0] 320px 窄屏真浏览器实测：flex 子项默认 min-width:auto => 不允许收缩到内容以下，
-             *   说明文本里的长不可断 ASCII 串（SillyTavern.getContext()… / run_started->…）会把
-             *   整行撑到 474px，把 44px 的 checkbox 顶出视口（left=449 > 320）。
-             *   修法两处配套：容器 min-width:0（允许收缩）+ 任意位置断行（让长串真能断）。 */
+            .lonsha-sheet { background: var(--ls-bg-1, #0a0f18); background-image: var(--ls-radial-glow); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); width: 100%; max-width: 520px; max-height: 85vh; border-radius: var(--ls-r-lg, 14px) var(--ls-r-lg, 14px) 0 0; display: flex; flex-direction: column; border: 1px solid var(--ls-line-strong, rgba(255,255,255,0.14)); box-shadow: var(--ls-sh-3), var(--ls-inner-rim); color: var(--ls-text, #f1f5f9); font-family: var(--ls-font, system-ui, sans-serif); animation: ls-sheet-up var(--ls-t-slow, 360ms) var(--ls-ease); overflow: hidden; }
+            @media (min-width: 600px) { .lonsha-sheet { border-radius: var(--ls-r-lg, 14px); max-height: 82vh; animation: ls-sheet-pop var(--ls-t-slow, 360ms) var(--ls-ease); } }
+            @keyframes ls-sheet-up { from { transform: translateY(28px); opacity: 0; filter: blur(4px); } to { transform: none; opacity: 1; filter: blur(0); } }
+            @keyframes ls-sheet-pop { from { transform: scale(0.96); opacity: 0; filter: blur(4px); } to { transform: none; opacity: 1; filter: blur(0); } }
+            .lonsha-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--ls-bg-2, #111827); border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.07)); color: var(--ls-text, #f1f5f9); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex-shrink: 0; box-shadow: 0 1px 0 rgba(255,255,255,0.02); }
+            .lonsha-sheet-close { padding: 6px 10px; color: var(--ls-text-3, #64748b); font-size: 17px; cursor: pointer; border-radius: var(--ls-r-sm, 6px); border: 1px solid transparent; transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .lonsha-sheet-close:hover { background: var(--ls-danger-soft, rgba(248,113,113,0.12)); border-color: var(--ls-danger-line); color: var(--ls-danger, #f87171); }
+            .lonsha-sheet-body { padding: 16px 20px 28px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: var(--ls-text, #f1f5f9); }
+            .ls-group { margin-bottom: 20px; }
+            .ls-group-title { font-size: 11px; color: var(--ls-accent, #38bdf8); margin: 12px 0 8px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; overflow-wrap: anywhere; word-break: break-word; font-family: var(--ls-mono); display: flex; align-items: center; gap: 6px; }
+            .ls-group-title::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--ls-accent); box-shadow: 0 0 6px var(--ls-accent); }
+            .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.06)); font-size: 14px; border-radius: var(--ls-r-sm); transition: background var(--ls-t-fast) var(--ls-ease); }
+            .ls-row:hover { background: var(--ls-accent-softer); }
             .ls-row > div { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
             .ls-row:last-child { border-bottom: none; }
-            .ls-row input[type="checkbox"] { width: 44px; height: 44px; margin: 0; accent-color: var(--ls-accent,#58a6ff); }
-            .ls-slider { width: 100%; accent-color: var(--ls-accent,#58a6ff); height: 32px; }
-            .ls-slider-label { display: flex; justify-content: space-between; gap: 8px; min-width: 0; font-size: 14px; padding: 8px; color: var(--ls-text-2,#9da7b3); overflow-wrap: anywhere; word-break: break-word; }
-            .ls-slider-val { color: var(--ls-accent,#58a6ff); font-weight: 600; font-variant-numeric: tabular-nums; }
-            .ls-input { width: 100%; background: var(--ls-bg-2,#161b22); color: var(--ls-text,#e6edf3); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 12px; font-size: 14px; margin: 5px 0; box-sizing: border-box; transition: border-color var(--ls-t-fast,120ms), box-shadow var(--ls-t-fast,120ms); }
-            .ls-input:focus { outline: none; border-color: var(--ls-accent,#58a6ff); box-shadow: 0 0 0 3px var(--ls-accent-soft,rgba(56,139,253,0.15)); }
-            .ls-input::placeholder { color: var(--ls-text-3,#6e7681); }
-            .ls-textarea { width: 100%; min-height: 120px; background: var(--ls-bg-2,#161b22); color: var(--ls-text,#e6edf3); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 12px; font-size: 13px; font-family: var(--ls-mono,monospace); box-sizing: border-box; transition: border-color var(--ls-t-fast,120ms), box-shadow var(--ls-t-fast,120ms); }
-            .ls-textarea:focus { outline: none; border-color: var(--ls-accent,#58a6ff); box-shadow: 0 0 0 3px var(--ls-accent-soft,rgba(56,139,253,0.15)); }
-            .ls-btn { display: block; width: 100%; padding: 13px; margin: 8px 0; background: var(--ls-bg-3,#21262d); color: var(--ls-text,#e6edf3); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); font-size: 15px; text-align: center; cursor: pointer; transition: background var(--ls-t-fast,120ms), transform var(--ls-t-fast,120ms), border-color var(--ls-t-fast,120ms); }
-            .ls-btn:hover { background: var(--ls-bg-4,#30363d); border-color: var(--ls-line-strong,rgba(240,246,252,0.18)); }
-            .ls-btn:active { transform: scale(0.98); }
-            .ls-btn-primary { background: var(--ls-accent-strong,#1f6feb); border-color: transparent; color: var(--ls-on-accent,#fff); font-weight: 600; box-shadow: var(--ls-sh-accent,0 4px 14px rgba(56,139,253,0.35)); }
-            .ls-btn-primary:hover { background: var(--ls-accent,#58a6ff); }
-            .ls-btn-danger { background: var(--ls-danger-soft,rgba(248,81,73,0.14)); border-color: var(--ls-danger-line,rgba(248,81,73,0.35)); color: var(--ls-danger,#f85149); }
-            .ls-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 10px 0; }
-            .ls-stat-card { background: var(--ls-bg-2,#161b22); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 14px 4px; text-align: center; transition: transform var(--ls-t-med,200ms), border-color var(--ls-t-med,200ms); }
-            .ls-stat-card:hover { transform: translateY(-2px); border-color: var(--ls-accent-line,rgba(56,139,253,0.35)); }
-            .ls-stat-num { font-size: 20px; font-weight: 700; color: var(--ls-accent,#58a6ff); font-variant-numeric: tabular-nums; }
-            .ls-stat-label { font-size: 11px; color: var(--ls-text-2,#9da7b3); margin-top: 2px; }
-            .ls-hint { font-size: 12px; color: var(--ls-text-3,#6e7681); padding: 6px 8px; line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
-            .ls-clickable { cursor: pointer; transition: transform var(--ls-t-fast,120ms), border-color var(--ls-t-fast,120ms); }
-            .ls-clickable:active { transform: scale(0.97); }
-            .ls-item { background: var(--ls-bg-2,#161b22); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-md,12px); padding: 11px 13px; margin: 6px 0; }
-            .ls-item-meta { font-size: 11px; color: var(--ls-text-3,#6e7681); margin-bottom: 4px; }
-            .ls-item-text { font-size: 14px; color: var(--ls-text,#e6edf3); line-height: 1.6; word-break: break-word; }
-            .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: var(--ls-success,#3fb950); color: var(--ls-inverse,#0d1117); padding: 10px 20px; border-radius: var(--ls-r-pill,999px); font-size: 14px; font-weight: 600; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); z-index: 10003; animation: ls-toast-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
-            @keyframes ls-toast-in { from { transform: translate(-50%,8px); opacity: 0; } to { transform: translate(-50%,0); opacity: 1; } }
-            /* ==== Tab 选项卡导航（精简分层） ==== */
-            .ls-tabs-nav { display: flex; gap: 6px; border-bottom: 1px solid var(--ls-line,rgba(240,246,252,0.10)); padding: 0 0 10px 0; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+            .ls-row input[type="checkbox"] { width: 38px; height: 38px; margin: 0; accent-color: var(--ls-accent, #38bdf8); cursor: pointer; }
+            .ls-slider { width: 100%; accent-color: var(--ls-accent, #38bdf8); height: 28px; cursor: pointer; }
+            .ls-slider-label { display: flex; justify-content: space-between; gap: 8px; min-width: 0; font-size: 13px; padding: 8px 4px; color: var(--ls-text-2, #94a3b8); overflow-wrap: anywhere; word-break: break-word; }
+            .ls-slider-val { color: var(--ls-accent, #38bdf8); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--ls-mono); }
+            .ls-input { width: 100%; background: var(--ls-bg-2, #111827); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); padding: 10px 12px; font-size: 13px; margin: 5px 0; box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .ls-input:focus { outline: none; border-color: var(--ls-accent, #38bdf8); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
+            .ls-input::placeholder { color: var(--ls-text-4, #475569); }
+            .ls-textarea { width: 100%; min-height: 120px; background: var(--ls-bg-2, #111827); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); padding: 11px 12px; font-size: 13px; font-family: var(--ls-mono, monospace); box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); line-height: 1.5; }
+            .ls-textarea:focus { outline: none; border-color: var(--ls-accent, #38bdf8); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
+            .ls-btn { display: block; width: 100%; padding: 11px 14px; margin: 8px 0; background: var(--ls-bg-3, #1b2436); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); font-size: 14px; font-weight: 500; letter-spacing: 0.01em; text-align: center; cursor: pointer; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .ls-btn:hover { background: var(--ls-bg-4, #27334a); border-color: var(--ls-line-strong); color: #ffffff; }
+            .ls-btn:active { transform: translateY(1px); box-shadow: none; }
+            .ls-btn-primary { background: var(--ls-accent-strong, #0284c7); border-color: transparent; color: #ffffff; font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(255,255,255,0.22); }
+            .ls-btn-primary:hover { background: var(--ls-accent, #38bdf8); color: #04121e; box-shadow: var(--ls-sh-accent-lg); }
+            .ls-btn-danger { background: var(--ls-danger-soft, rgba(248,113,113,0.12)); border-color: var(--ls-danger-line); color: var(--ls-danger, #f87171); }
+            .ls-btn-danger:hover { background: var(--ls-danger); color: #04121e; border-color: transparent; }
+
+            .ls-stat-section-title { font-size: 11px; font-weight: 600; color: var(--ls-accent, #38bdf8); margin: 16px 0 6px 2px; letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--ls-mono); display: flex; align-items: center; gap: 6px; }
+            .ls-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+            .ls-stat-card { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-sm, 6px); padding: 14px 6px; text-align: center; position: relative; overflow: hidden; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-med, 220ms) var(--ls-ease); }
+            .ls-stat-card::before { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent); }
+            .ls-stat-card:hover { transform: translateY(-2px); border-color: var(--ls-accent-line); box-shadow: var(--ls-sh-2), 0 0 16px -4px rgba(56,189,248,0.2); }
+            .ls-stat-num { font-size: 20px; font-weight: 700; color: var(--ls-text, #f1f5f9); font-variant-numeric: tabular-nums; font-family: var(--ls-mono); letter-spacing: -0.02em; }
+            .ls-stat-label { font-size: 11px; color: var(--ls-text-2, #94a3b8); margin-top: 3px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 500; }
+            .ls-hint { font-size: 12px; color: var(--ls-text-3, #64748b); padding: 6px 4px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }
+            .ls-clickable { cursor: pointer; transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .ls-clickable:active { transform: scale(0.98); }
+            .ls-item { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-sm, 6px); padding: 12px 14px; margin: 8px 0; box-shadow: var(--ls-inner-rim); }
+            .ls-item-meta { font-size: 11px; color: var(--ls-text-3, #64748b); margin-bottom: 5px; font-family: var(--ls-mono); }
+            .ls-item-text { font-size: 14px; color: var(--ls-text, #f1f5f9); line-height: 1.6; word-break: break-word; }
+            .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: var(--ls-bg-glass); backdrop-filter: var(--ls-blur); -webkit-backdrop-filter: var(--ls-blur); color: var(--ls-text); border: 1px solid var(--ls-accent-line); padding: 10px 22px; border-radius: var(--ls-r-pill, 999px); font-size: 13px; font-weight: 600; letter-spacing: 0.02em; box-shadow: var(--ls-sh-3), var(--ls-sh-accent); z-index: 10003; animation: ls-toast-in var(--ls-t-med, 220ms) var(--ls-ease); }
+            @keyframes ls-toast-in { from { transform: translate(-50%,10px); opacity: 0; } to { transform: translate(-50%,0); opacity: 1; } }
+            /* ==== Tab 选项卡导航（微刻度分段芯片） ==== */
+            .ls-tabs-nav { display: flex; gap: 6px; border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.07)); padding: 0 0 10px 0; margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
             .ls-tabs-nav::-webkit-scrollbar { display: none; }
-            .ls-tab-btn { background: var(--ls-bg-2,#161b22); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); color: var(--ls-text-2,#9da7b3); padding: 8px 12px; border-radius: var(--ls-r-md,12px); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all var(--ls-t-fast,120ms); flex-shrink: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
-            .ls-tab-btn:hover { color: var(--ls-text,#e6edf3); background: var(--ls-bg-3,#21262d); border-color: var(--ls-line-strong,rgba(240,246,252,0.18)); }
-            .ls-tab-btn.active { color: var(--ls-accent,#58a6ff); background: var(--ls-bg-3,#21262d); border-color: var(--ls-accent-line,rgba(56,139,253,0.35)); font-weight: 600; box-shadow: 0 0 0 1px var(--ls-accent-line,rgba(56,139,253,0.2)); }
+            .ls-tab-btn { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); color: var(--ls-text-2, #94a3b8); padding: 7px 13px; border-radius: var(--ls-r-sm, 6px); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all var(--ls-t-fast, 140ms); flex-shrink: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+            .ls-tab-btn:hover { color: var(--ls-text, #f1f5f9); background: var(--ls-bg-3, #1b2436); border-color: var(--ls-line-strong); }
+            .ls-tab-btn.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-4, #27334a); border-color: var(--ls-accent-line); font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(56,189,248,0.3); }
             .ls-tab-pane { display: none; }
             .ls-tab-pane.active { display: block; animation: ls-fade var(--ls-t-fast,150ms) var(--ls-ease,ease); }
+            .ls-mode-banner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 16px 0; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); }
+            .ls-mode-pill { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ls-text-2, #94a3b8); border-radius: 4px; cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
+            .ls-mode-pill:hover { color: var(--ls-text, #f1f5f9); background: rgba(255,255,255,0.04); }
+            .ls-mode-pill.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-3, #1b2436); box-shadow: var(--ls-inner-rim), 0 0 12px rgba(56,189,248,0.15); }
+
         `;
         document.head.appendChild(style);
 
@@ -122,37 +129,46 @@
                 else if (window.VirtualPhone?.memoryCore) phoneStatus = '⚠️ 桥未挂载';
             } catch (e) { reportUiError(e, 'nonfatal') }
             const body = `
+                <div class="ls-stat-section-title">◈ 沉淀史记与编年</div>
                 <div class="ls-stat-grid">
-                    <div class="ls-stat-card ls-clickable" data-view="graph"><div class="ls-stat-num">${s.graph.nodes.size}</div><div class="ls-stat-label">图谱节点 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="relations"><div class="ls-stat-num">${s.graph.edges.size}</div><div class="ls-stat-label">关系边 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="summaries"><div class="ls-stat-num">${s.summary.summaries.length}</div><div class="ls-stat-label">摘要 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="vectors"><div class="ls-stat-num">${s.vector.vectors.length}</div><div class="ls-stat-label">向量 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="diaries"><div class="ls-stat-num">${Object.keys(s.diary.diaries).length}</div><div class="ls-stat-label">角色日记 👁</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${cfg.enabled ? '✅' : '⛔'}</div><div class="ls-stat-label">插件状态</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="povs"><div class="ls-stat-num">${s.pov?.povs?.length || 0}</div><div class="ls-stat-label">POV私密记忆 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="volumes"><div class="ls-stat-num">${s.summary?.volumes?.length || 0}</div><div class="ls-stat-label">卷摘要 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="suspense"><div class="ls-stat-num">${s.suspense?.openItems?.().length || 0}</div><div class="ls-stat-label">悬念簿 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="scene"><div class="ls-stat-num">${s.scene?.nodes?.size || 0}</div><div class="ls-stat-label">场景树 👁</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${s.bm25?.N || 0}</div><div class="ls-stat-label">BM25 索引</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色状态 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="protagonist"><div class="ls-stat-num">${['gender','age','identity','appearance','outfit','condition'].filter(k => s.status?.protagonist?.[k]).length}</div><div class="ls-stat-label">主角档案 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品台账 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="oplog" title="${(s.opLog?._truncated || s.opLog?._trimFields) ? '账本已发生淘汰或字段裁剪，点击查看自述' : '事件审计链（窗口/累计/损失）'}"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}${(s.opLog?._truncated || s.opLog?._trimFields) ? '<span title="账本有损失" style="font-size:12px;color:var(--ls-warn,#e3b341)">※</span>' : ''}</div><div class="ls-stat-label">事件审计 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">🔒 锁定事实 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="prequel"><div class="ls-stat-num">${s.prequel?.text ? '👁' : '—'}</div><div class="ls-stat-label">📜 前情导入 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">⚔️ 未决矛盾 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="deltas"><div class="ls-stat-num">${s.deltaBook?.deltas?.length || 0}</div><div class="ls-stat-label">📒 正史增量 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="pulse"><div class="ls-stat-num">${s.pulse?.beats?.length || 0}</div><div class="ls-stat-label">💓 叙事心电图 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '👁' : '—'}</div><div class="ls-stat-label">注入预览 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">🔍</div><div class="ls-stat-label">记忆控制中心 👁</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">📄</div><div class="ls-stat-label">全景报告 ⬇</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${Object.keys(s.ledger?.floors || {}).length}</div><div class="ls-stat-label">楼层账本</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="archive"><div class="ls-stat-num">${s._lastArchiveAudit ? (s._lastArchiveAudit.verdict === 'classified' ? ((s._lastArchiveAudit.cleanup || 0) > 0 ? (s._lastArchiveAudit.cleanup + ' ⚠️') : '✓') : '—') : '—'}</div><div class="ls-stat-label">🧾 存档体检 👁</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num">${s.mutex?.locked ? '🔒' : '🟢'}</div><div class="ls-stat-label">提取锁 ${s.mutex?.queueLength ? `(队列${s.mutex.queueLength})` : ''}</div></div>
-                    <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="summaries"><div class="ls-stat-num">${s.summary.summaries.length}</div><div class="ls-stat-label">事件摘要</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="deltas"><div class="ls-stat-num">${s.deltaBook?.deltas?.length || 0}</div><div class="ls-stat-label">正史增量</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="volumes"><div class="ls-stat-num">${s.summary?.volumes?.length || 0}</div><div class="ls-stat-label">分卷史记</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="lockedfacts"><div class="ls-stat-num">${s.summary?.getLockedFacts?.().length || 0}</div><div class="ls-stat-label">锁定史实</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="pulse"><div class="ls-stat-num">${s.pulse?.beats?.length || 0}</div><div class="ls-stat-label">叙事张力</div></div>
                 </div>
-                <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
+
+                <div class="ls-stat-section-title">◷ 角色心绪与羁绊</div>
+                <div class="ls-stat-grid">
+                    <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色心境</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="povs"><div class="ls-stat-num">${s.pov?.povs?.length || 0}</div><div class="ls-stat-label">私密心声 (POV)</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="diaries"><div class="ls-stat-num">${Object.keys(s.diary.diaries).length}</div><div class="ls-stat-label">角色日记</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="protagonist"><div class="ls-stat-num">${['gender','age','identity','appearance','outfit','condition'].filter(k => s.status?.protagonist?.[k]).length}</div><div class="ls-stat-label">主角档案</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="relations"><div class="ls-stat-num">${s.graph.edges.size}</div><div class="ls-stat-label">关系网络</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">未决矛盾</div></div>
+                </div>
+
+                <div class="ls-stat-section-title">⬡ 世界、道具与拓扑</div>
+                <div class="ls-stat-grid">
+                    <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品流转</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="suspense"><div class="ls-stat-num">${s.suspense?.openItems?.().length || 0}</div><div class="ls-stat-label">未解之谜</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="scene"><div class="ls-stat-num">${s.scene?.nodes?.size || 0}</div><div class="ls-stat-label">场景地点</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="graph"><div class="ls-stat-num">${s.graph.nodes.size}</div><div class="ls-stat-label">认知节点</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="vectors"><div class="ls-stat-num">${s.vector.vectors.length}</div><div class="ls-stat-label">语义向量</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="prequel"><div class="ls-stat-num">${s.prequel?.text ? '已导入' : '—'}</div><div class="ls-stat-label">前情设定</div></div>
+                </div>
+
+                <div class="ls-stat-section-title">⚙ 档案体检与协同</div>
+                <div class="ls-stat-grid">
+                    <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '就绪' : '—'}</div><div class="ls-stat-label">本轮注入预览</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">调阅</div><div class="ls-stat-label">记忆控制台</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">生成</div><div class="ls-stat-label">全景档案报告</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="archive"><div class="ls-stat-num">${s._lastArchiveAudit ? (s._lastArchiveAudit.verdict === 'classified' ? ((s._lastArchiveAudit.cleanup || 0) > 0 ? (s._lastArchiveAudit.cleanup + ' 项') : '正常') : '—') : '—'}</div><div class="ls-stat-label">存档健康体检</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="oplog" title="${(s.opLog?._truncated || s.opLog?._trimFields) ? '账本已发生淘汰或字段裁剪，点击查看自述' : '事件审计链（窗口/累计/损失）'}"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}${(s.opLog?._truncated || s.opLog?._trimFields) ? '<span title="账本有损失" style="font-size:12px;color:var(--ls-warn,#e3b341)">※</span>' : ''}</div><div class="ls-stat-label">操作审计日志</div></div>
+                    <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:13px;line-height:24px;">${phoneStatus}</div><div class="ls-stat-label">RubyPhone 协同</div></div>
+                </div>
+                <div class="ls-hint" style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ls-accent);font-size:14px;">◈</span> 点击卡片可查看对应档案的条目明细与演进事实。数据自动与对话快照安全绑定。</div>
                 <details style="margin-top:14px;border:1px solid var(--ls-line,rgba(240,246,252,0.10));border-radius:var(--ls-r-md,12px);padding:8px 12px;background:var(--ls-bg-2,#161b22);">
                     <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:4px 0;">🔍 展开查看底层运行轨迹与诊断指标</summary>
                     <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--ls-line,rgba(240,246,252,0.10));">
@@ -162,7 +178,7 @@
                     </div>
                 </details>
             `;
-            const ov = makeSheet('lonsha-stats-overlay', '📊 状态总览', body);
+            const ov = makeSheet('lonsha-stats-overlay', '◈ 记忆档案全貌', body);
             ov.querySelectorAll('.ls-clickable').forEach(card => {
                 card.addEventListener('click', () => plugin.showBrowser(card.dataset.view));
             });
@@ -196,7 +212,7 @@
                     <button class="ls-btn" id="ls-extract-cancel">取消</button>
                     <button class="ls-btn ls-btn-primary" id="ls-extract-apply">✅ 写入 ${roles.length} 个</button>
                 </div>`;
-            const overlay = makeSheet('lonsha-extract-overlay', '📚 从世界书提取角色', body);
+            const overlay = makeSheet('lonsha-extract-overlay', '⬡ 角色谱系提取', body);
             overlay.querySelector('#ls-extract-cancel').addEventListener('click', () => { overlay.remove(); });
             overlay.querySelector('#ls-extract-apply').addEventListener('click', async () => {
                 const sel = Array.from(overlay.querySelectorAll('.ls-extract-cb:checked')).map(cb => roles[Number(cb.dataset.idx)]);
@@ -995,15 +1011,20 @@
                 </label>`;
             const body = `
                 <div class="ls-tabs-nav">
-                    <button type="button" class="ls-tab-btn active" data-tab="general">🚀 常用</button>
-                    <button type="button" class="ls-tab-btn" data-tab="narrative">🎭 剧情与角色</button>
-                    <button type="button" class="ls-tab-btn" data-tab="retrieval">🔍 检索与模型</button>
-                    <button type="button" class="ls-tab-btn" data-tab="advanced">🛠️ 高级与数据</button>
+                    <button type="button" class="ls-tab-btn active" data-tab="general">◈ 核心体验</button>
+                    <button type="button" class="ls-tab-btn" data-tab="narrative">◷ 剧情与认知</button>
+                    <button type="button" class="ls-tab-btn" data-tab="retrieval">⬡ 联想与世界</button>
+                    <button type="button" class="ls-tab-btn" data-tab="advanced">⚙ 进阶与维护</button>
+                </div>
+                <div class="ls-mode-banner">
+                    <div class="ls-mode-pill active">◈ 沉浸叙事推荐</div>
+                    <div class="ls-mode-pill">◷ 深度推演模式</div>
+                    <div class="ls-mode-pill">⬡ 极简轻量模式</div>
                 </div>
                 <div class="ls-tab-pane active" data-tab-pane="general">
                 <div class="ls-group">
-                    <div class="ls-group-title">基础开关</div>
-                    ${ck('preferModuleFiles', 'extra_js 自装载', '本仓模块按 manifest 顺序自行装载（关闭则全部走 CJS 回落，机制不生效）')}
+                    <div class="ls-group-title">[CORE] 核心运转与自装载</div>
+                    ${ck('preferModuleFiles', 'extra_js 自装载', '模块按清单顺序自动加载，保障所有记忆机制生效')}
                     ${ck('enabled', '启用插件', '总开关，关闭后不提取也不注入')}
                     ${ck('extractionEnabled', '自动提取', '每条 AI 回复后自动用 LLM 提取记忆')}
                     ${ck('vectorEnabled', '向量检索', '需要 Embedding API，关闭则只用关键词+图谱')}
@@ -1012,7 +1033,7 @@
                     ${ck('debugMode', '调试模式', 'console 显示召回分数与提取详情')}
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">召回与注入</div>
+                    <div class="ls-group-title">[RECALL] 回忆强度与注入容量</div>
                     <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
                     <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
@@ -1022,8 +1043,8 @@
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🛡️ 稳定性 + 预算 + 节日</div>
-                    ${ck('extractionLockEnabled', '提取互斥锁', '防并发提取写坏数据（抄 hcdiary）')}
+                    <div class="ls-group-title">[STABILITY] 上下文预算与保护</div>
+                    ${ck('extractionLockEnabled', '提取互斥锁', '并发保护：快速连续对话时防止记忆写入冲突')}
                     ${ck('holidayAware', '节日感知', '剧情日期临近节日时召回相关记忆（圣诞/情人节/七夕等）')}
                     <div class="ls-slider-label"><span>注入预算（字符）</span><span class="ls-slider-val" id="ls-v-budget">${c.injectionBudget || 3000}</span></div>
                     <input type="range" class="ls-slider" min="1000" max="6000" step="200" value="${c.injectionBudget || 3000}" data-cfg-num="injectionBudget">
@@ -1032,13 +1053,13 @@
                 </div>
                 <div class="ls-tab-pane" data-tab-pane="narrative">
                 <div class="ls-group">
-                     <div class="ls-group-title">🎮 角色状态 + 待办 + 楼层账本</div>
+                     <div class="ls-group-title">[CHARACTER] 角色状态与心绪追踪</div>
                      ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
-                     ${ck('cseEnabled', 'CSE 人物状态引擎（自研）', '分层建模人物心理：核心人设/逐渐适应/当下情绪 + toward 对象绑定 + 私密/幕后可见性 + 证据链置信度（待证项注入时标注，防推测当事实）')}
-                     ${ck('narrativePulseEnabled', '叙事心电图（完全原创）', '情感极性曲线 + 张力节奏 + 角色弧光阶段 + 自反性节奏建议（连续高压提醒放缓呼吸拍，连续平淡提醒掀起波澜），纯文本启发式零额外 API')}
+                     ${ck('cseEnabled', 'CSE 人物状态引擎', '分层建模人物心理：核心人设/逐渐适应/当下情绪 + toward 对象绑定 + 私密/幕后可见性 + 证据链置信度（待证项注入时标注，防推测当事实）')}
+                     ${ck('narrativePulseEnabled', '叙事心电图', '情感极性曲线 + 张力节奏 + 角色弧光阶段 + 自反性节奏建议（连续高压提醒放缓呼吸拍，连续平淡提醒掀起波澜），纯文本启发式零额外 API')}
                      ${ck('todoTrackingEnabled', '待办追踪', '提取角色待办事项，剧情时间过期自动清理')}
                      ${ck('floorLedgerEnabled', '楼层账本', '删楼/重生成时自动回滚该楼层产生的记忆')}
-                    <div class="ls-slider-label"><span>楼层账本保留上限（anima #31）</span><span class="ls-slider-val" id="ls-v-flret">${c.floorLedgerRetention || 400}</span></div>
+                    <div class="ls-slider-label"><span>楼层账本保留上限</span><span class="ls-slider-val" id="ls-v-flret">${c.floorLedgerRetention || 400}</span></div>
                     <input type="range" class="ls-slider" min="50" max="2000" step="50" value="${c.floorLedgerRetention || 400}" data-cfg-num="floorLedgerRetention" oninput="document.getElementById('ls-v-flret').textContent=this.value">
                     <div class="ls-hint" style="padding:0 8px;">原硬编码 400 且超限静默删除最旧楼层——被删楼层的回滚能力就此静默失效（该楼产生的图谱/POV/时间线条目再也无法按楼撤销）。超限淘汰现在记入 op-log 与诊断面板「已淘汰」计数，长线连载可上调。</div>
                     ${ck('floorLedgerEvictionDebug', '楼层账本淘汰调试日志', '开启后楼层账本淘汰、以及「回滚请求命中已淘汰楼层」时在控制台 warn（默认关）')}
@@ -1046,25 +1067,25 @@
                  </div>
                 <div class="ls-tab-pane" data-tab-pane="advanced">
                 <div class="ls-group">
-                    <div class="ls-group-title">📚 层级摘要折叠 + BM25 稀疏检索</div>
+                    <div class="ls-group-title">[CHRONO] 记忆折叠与检索</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
-                    <div class="ls-slider-label"><span>卷摘要保留上限（anima #31）</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
+                    <div class="ls-slider-label"><span>卷摘要保留上限</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
                     <input type="range" class="ls-slider" min="4" max="200" step="2" value="${c.volumeRetention || 40}" data-cfg-num="volumeRetention" oninput="document.getElementById('ls-v-volret').textContent=this.value">
                     <div class="ls-hint" style="padding:0 8px;">超上限时不再静默丢卷，而是把被淘汰卷折叠的源摘要解折叠回活跃池（叙事可重新参与召回），并记入 op-log。</div>
-                    <div class="ls-slider-label"><span>史记保留上限（anima #31）</span><span class="ls-slider-val" id="ls-v-hisret">${c.historicalRetention || 24}</span></div>
+                    <div class="ls-slider-label"><span>史记保留上限</span><span class="ls-slider-val" id="ls-v-hisret">${c.historicalRetention || 24}</span></div>
                     <input type="range" class="ls-slider" min="2" max="100" step="1" value="${c.historicalRetention || 24}" data-cfg-num="historicalRetention" oninput="document.getElementById('ls-v-hisret').textContent=this.value">
                     <div class="ls-hint" style="padding:0 8px;">最高层纪史上限；淘汰同样显式记日志，不再静默 shift。</div>
                     ${ck('bm25Enabled', 'BM25 关键词检索', '词频×逆文档频率稀疏检索，比纯包含匹配更准')}
                     ${ck('sessionLeaseGuardEnabled', '会话租约校验', '异步提取/补提取/STM 巩固跨 await 后若已切换聊天，旧任务结果作废，防跨聊天记忆污染')}
                     ${ck('atomicRestoreEnabled', '恢复原子提交', '导入/嵌入恢复部分失败时自动回滚到恢复前状态，不留半套记忆（快照仅对用户发起的恢复抓取）')}
                     ${ck('swipeFingerprintGuard', 'swipe 指纹校验', '召回缓存命中前验证末楼消息指纹：翻变体自动失效重算，翻回旧变体则到变体级复用')}
-                    ${ck('volumeIntegrityGuard', '卷摘要 intact 判定', '折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前对账源楼层指纹，失效整卷降级并展开源摘要回活跃池（柏宝书 #13）')}
-                    ${ck('aliasQueryExpansion', '别名查询扩展', '查询命中角色别名/昵称时自动附加主名词条参与 BM25 检索：喊昵称也能召回主名记忆（吸收 MyriadKnots entity-identity）')}
-                    ${ck('termLexiconEnabled', '术语词典', '聊天内非角色实体术语（物品/地名/招式/组织等）沉淀成词典；查询命中术语时自动附加规范名参与检索（吸收 anima 词典方案）')}
+                    ${ck('volumeIntegrityGuard', '卷摘要 intact 判定', '折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前对账源楼层指纹，失效整卷降级并展开源摘要回活跃池')}
+                    ${ck('aliasQueryExpansion', '别名查询扩展', '查询命中角色别名/昵称时自动附加主名词条参与 BM25 检索：喊昵称也能召回主名记忆')}
+                    ${ck('termLexiconEnabled', '术语词典', '聊天内非角色实体术语（物品/地名/招式/组织等）沉淀成词典；查询命中术语时自动附加规范名参与检索')}
                     ${ck('bm25LexiconNormalizeEnabled', 'BM25 词典归一', '文档端把术语别名统一为规范名、查询端附加规范名+释义短语，两侧同词典对齐')}
                     ${ck('statusAwareQuotaEnabled', '感知检索配额', '剧情状态调制检索条数：高压期(surge)多喂记忆、余波期降噪、未决矛盾/开放悬念密集期加量（默认关）')}
                     ${ck('swipeAwareRecallEnabled', 'swipe 重绘感知', '当前回复处于重绘(swipe)态时上调召回配额，给模型更宽候选（需先开启感知检索配额总开关，默认关）')}
-                    ${ck('ledgerAwareQuotaEnabled', '物品台账感知臂', '近 6 楼内物品台账发生变动时上调召回配额（anima 智能感知轻量版，需先开启感知检索配额总开关，默认关）')}
+                    ${ck('ledgerAwareQuotaEnabled', '物品台账感知臂', '近 6 楼内物品台账发生变动时上调召回配额（感知物品变动自动调节召回，默认关）')}
                     <div class="ls-slider-label"><span>词典条目上限</span><span class="ls-slider-val" id="ls-v-lexmax">${c.termLexiconMax ?? 40}</span></div>
                     <input type="range" class="ls-slider" min="10" max="120" step="10" value="${c.termLexiconMax ?? 40}" data-cfg-num="termLexiconMax">
                     ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}
@@ -1074,40 +1095,40 @@
                     <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🧠 POV 认知边界 + 剧情时间线</div>
-                    ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密认知/秘密单独存储，只注入当前登场角色的，防剧透')}
-                    ${ck('plotTimeline', '剧情时间线', '按剧情日期整理摘要，召回时优先取当前剧情时间附近')}
+                    <div class="ls-group-title">[BOUNDARY] 认知边界与时间线</div>
+                    ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密心事与暗线单独隔离，只展示当前在场角色知晓的事实')}
+                    ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🪞 反思 + 物品台账 + 注入深度</div>
-                    ${ck('reflectionEnabled', '反思节点（抄stbme，需API）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
+                    <div class="ls-group-title">[LEDGER] 道具物品与深层洞察</div>
+                    ${ck('reflectionEnabled', '反思节点（需额外模型支持）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
                     <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
-                    ${ck('itemLedgerEnabled', '物品台账（抄yuzuki）', '提取物品获得/转移/损坏流转，注入"谁持有什么、什么状态"，防物品凭空消失又出现')}
-                    ${ck('ledgerWriteValidationEnabled', '台账写入校验（anima #30）', '入账前对 LLM 提取/携带包的物品 op 逐项宽容校验：action 枚举、name/desc/holder/state/location 长度上限、floor 非负整数、holder 占位归「地上/遗落」、carried 与 location 互斥自愈。能修就修、修不了才丢，绝不因一项脏丢整批；关闭则逐位回退旧行为')}
-                    ${ck('carryoverContractStrict', '携带契约严格模式', '导入旧格式携带包时校验契约键是否齐全，缺键则打告警并计入「静默降级」总账（不阻断导入）；关闭则不校验。由 v3.160/v3.161 两条配置不变量强制必须可达')}
+                    ${ck('itemLedgerEnabled', '物品台账', '提取物品获得/转移/损坏流转，注入"谁持有什么、什么状态"，防物品凭空消失又出现')}
+                    ${ck('ledgerWriteValidationEnabled', '台账写入校验', '入账前对 LLM 提取/携带包的物品 op 逐项宽容校验：action 枚举、name/desc/holder/state/location 长度上限、floor 非负整数、holder 占位归「地上/遗落」、carried 与 location 互斥自愈。能修就修、修不了才丢，绝不因一项脏丢整批；关闭则逐位回退旧行为')}
+                    ${ck('carryoverContractStrict', '携带契约严格模式', '导入旧格式携带包时校验契约键是否齐全，缺键则打告警并计入「静默降级」总账（不阻断导入）；关闭则不校验。保障旧版本携带包向后兼容')}
                     ${ck('ledgerWriteValidationDebug', '台账校验调试日志', '开启后每次写入校验有违规时在控制台 warn 输出逐项原因（默认关）')}
-                    ${ck('moneyLedgerEnabled', '钱财账本（hcdiary）', '跟踪角色金额与变动流水，注入防凭空暴富；配合下方单笔幅度上限可 clamp 异常改值')}
+                    ${ck('moneyLedgerEnabled', '钱财账本', '跟踪角色金额与变动流水，注入防凭空暴富；配合下方单笔幅度上限可 clamp 异常改值')}
                     <div class="ls-slider-label"><span>💰 钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="100000" step="1000" value="${c.maxMoneyDelta || 0}" data-cfg-num="maxMoneyDelta" oninput="document.getElementById('ls-v-mmd').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">覆盖式改值与旧金额差超过该上限时按 旧值±上限 clamp（anima zod 式校验，防 LLM 幻觉一键清零/暴富家产）；delta 式增减不受限。</div>
+                    <div class="ls-hint" style="padding:0 8px;">覆盖式改值与旧金额差超过该上限时按 旧值±上限 clamp（防数值异常突变）；delta 式增减不受限。</div>
                     <div class="ls-hint" style="padding:0 8px; margin-top:6px;">🎬 番外楼：控制台执行 <code>SillyTavern.getContext().chat[N].extra.lonsha_omit = true</code> 可将该楼排除出记忆系统（小剧场/玩梗楼用）。</div>
                     <div class="ls-hint" style="padding:0 8px; margin-top:6px;">📦 记忆优化：每 ${c.optimizeEveryFloors || 50} 楼自动去重+淘汰最旧（向量上限 ${c.vectorMaxCount || 500} / 摘要上限 ${c.summaryMaxCount || 400}）；🗄️ 每 ${c.snapshotEveryFloors || 50} 楼自动快照（保留最近5份，IndexedDB）。</div>
-                    ${ck('maintenancePipelineEnabled', '维护流水线（抄engram）', '把归档休眠→优化去重→节奏分诊编排为一次可诊断流水线：单步失败可重试，长期未维护自动跳回优化补做。默认关（关时走既有逐条维护路径，行为不变）')}
+                    ${ck('maintenancePipelineEnabled', '维护流水线', '把归档休眠→优化去重→节奏分诊编排为一次可诊断流水线：单步失败可重试，长期未维护自动跳回优化补做。默认关（关时走既有逐条维护路径，行为不变）')}
                     <div class="ls-slider-label"><span>维护超期提醒（天）</span><span class="ls-slider-val" id="ls-v-mntd">${c.maintenanceOverdueWarnDays || 45}</span></div>
                     <input type="range" class="ls-slider" min="7" max="120" step="1" value="${c.maintenanceOverdueWarnDays || 45}" data-cfg-num="maintenanceOverdueWarnDays">
                     <div class="ls-hint" style="padding:0 8px;">距上次维护超过该天数 → 流水线跳回优化步骤补做一次（防长篇长时间挂机后记忆长期未整理）。</div>
-                    ${ck('pristineFetchEnabled', '绕包装取数（抄shujuku）', '宿主预设脚本（如 Kemini 伴生面板）会 patch 页面 fetch 并改写内部请求的请求体/响应流，轻则混入外来注入文本、重则工具调用被剥且静默发生。打开后内部取数改走「剥离已知包装 → 专用隐藏同源 iframe 原生 fetch」，拿回未改写的原始响应。默认开：纯传输层防御，不改请求/响应语义，拿不到原生 fetch 时逐字回退全局 fetch')}
-                     ${ck('nativeToolExtractEnabled', '原生函数调用协议（抄shujuku）', '内部模型调用改带 tools 请求，回包里的 tool_calls 被真执行（search_memory 关键词检索 / write_memory 写显式摘要 / vector_search 语义检索）并以 role=tool 回灌，最多 nativeToolMaxRounds 轮后取最终正文。关闭时逐字节走旧文本路径。默认关（实验）')}
+                    ${ck('pristineFetchEnabled', '绕包装取数', '宿主预设脚本（如 Kemini 伴生面板）会 patch 页面 fetch 并改写内部请求的请求体/响应流，轻则混入外来注入文本、重则工具调用被剥且静默发生。打开后内部取数改走「剥离已知包装 → 专用隐藏同源 iframe 原生 fetch」，拿回未改写的原始响应。默认开：纯传输层防御，不改请求/响应语义，拿不到原生 fetch 时逐字回退全局 fetch')}
+                     ${ck('nativeToolExtractEnabled', '原生函数调用协议', '内部模型调用改带 tools 请求，回包里的 tool_calls 被真执行（search_memory 关键词检索 / write_memory 写显式摘要 / vector_search 语义检索）并以 role=tool 回灌，最多 nativeToolMaxRounds 轮后取最终正文。关闭时逐字节走旧文本路径。默认关（实验）')}
                     <div class="ls-slider-label"><span>工具回合上限（1~5）</span><span class="ls-slider-val" id="ls-v-ntmr">${c.nativeToolMaxRounds ?? 3}</span></div>
                     <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.nativeToolMaxRounds ?? 3}" data-cfg-num="nativeToolMaxRounds" oninput="document.getElementById('ls-v-ntmr').textContent=this.value">
                     <div class="ls-hint" style="padding:0 8px;">模型在一轮内最多连续调用几次工具（检索→精读→作答 三轮够用）。引擎侧另夹一道 Math.min(5, …)，此处填超过 5 也不会被采纳。</div>
-                     ${ck('llmEventChainEnabled', 'LLM 调用事件链审计（抄engram/bionic）', '为每次模型调用记录事件链并校验迁移不变量（run_started→model_requested→assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
-                    ${ck('recallArtifactEnabled', '召回产物持久化（抄bionic）', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 → 自动拒绝复用陈旧注入。默认关')}
-                    ${ck('smartTriggerEnabled', '事件性门控（抄bionic）', '先判断本楼有没有事件性（关键词/自定义正则/多轮往返/情绪波动/疑似新实体），达不到阈值就跳过 LLM 提取、降级为本地廉价摘要——省下大量平淡楼的 API 调用，绝不丢楼层。默认关')}
-                    ${ck('vectorTailRecoveryEnabled', '掉队候选补召回（抄bionic）', '把因「无向量/零向量/维度不符」而永远进不了向量检索的条目，低分补进候选池交由正常评分与预算裁剪决定去留（防「记忆在库里却召不回」）。默认关')}
-                    ${ck('coverageLedgerEnabled', '覆盖账本重算（抄AnchorNote）', '归档隐藏改为「由当前有效覆盖者推导」：卷摘要/折叠被撤销或删除时，被它覆盖的楼层自动恢复可见，不再留下没人认领的孤儿隐藏楼；用户手动隐藏的楼层绝不接管。默认关')}
+                     ${ck('llmEventChainEnabled', 'LLM 调用事件链审计', '为每次模型调用记录事件链并校验迁移不变量（run_started→model_requested→assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
+                    ${ck('recallArtifactEnabled', '召回产物持久化', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 → 自动拒绝复用陈旧注入。默认关')}
+                    ${ck('smartTriggerEnabled', '事件性门控', '先判断本楼有没有事件性（关键词/自定义正则/多轮往返/情绪波动/疑似新实体），达不到阈值就跳过 LLM 提取、降级为本地廉价摘要——省下大量平淡楼的 API 调用，绝不丢楼层。默认关')}
+                    ${ck('vectorTailRecoveryEnabled', '掉队候选补召回', '把因「无向量/零向量/维度不符」而永远进不了向量检索的条目，低分补进候选池交由正常评分与预算裁剪决定去留（防「记忆在库里却召不回」）。默认关')}
+                    ${ck('coverageLedgerEnabled', '覆盖账本重算', '归档隐藏改为「由当前有效覆盖者推导」：卷摘要/折叠被撤销或删除时，被它覆盖的楼层自动恢复可见，不再留下没人认领的孤儿隐藏楼；用户手动隐藏的楼层绝不接管。默认关')}
                     <div class="ls-slider-label"><span>门控阈值</span><span class="ls-slider-val" id="ls-v-stg">${c.smartTriggerThreshold ?? 2}</span></div>
                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.smartTriggerThreshold ?? 2}" data-cfg-num="smartTriggerThreshold">
                     <div class="ls-hint" style="padding:0 8px;">达到该分才判为值得抽取 LLM；bionic 缺省 2。调低更容易触发（省得少），调高更省（可能漏事件）。</div>
@@ -1121,8 +1142,8 @@
                     <div class="ls-hint" style="padding:0 8px;">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">📢 回响池 + 日记 + 提取节流</div>
-                    ${ck('echoEnabled', '回响池（抄anima）', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
+                    <div class="ls-group-title">[RESONANCE] 心声回响与日记节流</div>
+                    ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
                     ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
                     ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
                     ${ck('timeChangeDrivenInjection', '时间锚点变化注入', '复用现有剧情时间线，只将上次游标之后且与当前剧情时间相关的新事件加入本轮上下文')}
@@ -1136,13 +1157,13 @@
                     <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🗺️ 场景树 + 在场分档</div>
+                    <div class="ls-group-title">[WORLD] 场景地理与空间在场</div>
                     ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
                     ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现（v3.91 修复：此前门控键断裂导致该功能从未生效）')}
                     ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🔖 悬念簿 + 相对时间</div>
+                    <div class="ls-group-title">[SUSPENSE] 约定与未解之谜</div>
                     ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
                     ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；[v2.6] 支持架空日历（霜月3日）与全角分隔符，解析失败自动降级不标')}
                     <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
@@ -1153,7 +1174,7 @@
                     <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">📱 RubyPhone 联动</div>
+                    <div class="ls-group-title">[DEVICE] 虚拟手机双向协同</div>
                     ${ck('rubyPhoneBridge', '回填手机记忆', 'LLM 提取结果（摘要/事件/关系）写入 RubyPhone 手机"记忆"App')}
                     ${ck('rubyPhoneRecall', '手机记忆参与召回', 'RubyPhone 记忆库（感官/空间/时间池）作为一路召回源注入简报')}
                     <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN ?? 3}</span></div>
@@ -1162,7 +1183,7 @@
                 </div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🧩 记忆域开关（v3.160 补齐）</div>
+                    <div class="ls-group-title">[DOMAIN] 记忆域精准分流</div>
                     ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
                     ${ck('clockSyncEnabled', '剧情时钟权威同步', '正文时间锚点回填手机时钟；关闭后手机时钟不被剧情时间改写')}
                     ${ck('pairMemoryEnabled', '配对记忆', '从 relationships 提取双人关系记忆；关闭后只保留单角色记忆')}
@@ -1178,7 +1199,7 @@
                     <input type="range" class="ls-slider" min="10" max="500" step="10" value="${c.snapshotEveryFloors ?? 50}" data-cfg-num="snapshotEveryFloors">
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🧭 推理调优（v3.161 补齐）</div>
+                    <div class="ls-group-title">[INFERENCE] 推理与多路策略</div>
                     <div class="ls-row">
                         <div><div>预算裁剪策略</div><div class="ls-hint">balanced=常驻全保留+触发截断到剩余预算；relevance=触发只保留 RRF 前 60%；recency=触发只保留时间/状态类分区</div></div>
                         <select class="ls-input" data-cfg-text="budgetStrategy">
@@ -1204,7 +1225,7 @@
                     <div class="ls-hint">可选任务键：extract / summarize / embed / select / rerank / rewrite / state。未配的任务回落主通道；JSON 解析失败时保留原值并提示。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🏛️ 工业级体系化增强（前沿架构演进）</div>
+                    <div class="ls-group-title">[TOPOLOGY] 时态因果拓扑与分流</div>
                     ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
                     ${ck('entropyReflectionEnabled', '自适应叙事熵反思', '根据事件重要度与剧情惊奇度动态蓄力，冲顶时提前触发反思提炼，告别机械固定轮数')}
@@ -1213,7 +1234,7 @@
                 </div>
                 <div class="ls-tab-pane" data-tab-pane="retrieval">
                 <div class="ls-group">
-                    <div class="ls-group-title">API 配置（可选）</div>
+                    <div class="ls-group-title">[API] 专用接口配置（可选）</div>
                     <label class="ls-row">
                         <div><div>使用独立提取接口</div><div class="ls-hint">开启后提取走下方 API，不再蹭正文接口。关闭则用宿主接口。</div></div>
                         <input type="checkbox" data-cfg="apiProviderCustom" ${c.apiProviderCustom ? 'checked' : ''}>
@@ -1238,7 +1259,7 @@
                     </div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🎯 Rerank 精排（可选，抄 baibai 两阶段检索）</div>
+                    <div class="ls-group-title">[RERANK] 语义重排与候选精炼（可选）</div>
                     ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
                     <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
                     <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
@@ -1247,7 +1268,7 @@
                      <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
                  </div>
                  <div class="ls-group">
-                     <div class="ls-group-title">🧠 [v3.96] 智能记忆升级（缝合 ai-worldbook-router + NE-Memory）</div>
+                     <div class="ls-group-title">[INTELLIGENCE] 短期/长期巩固与精选</div>
                      ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选→前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
                      <div class="ls-slider-label"><span>精选候选上限</span><span class="ls-slider-val" id="ls-v-aiselcand">${c.aiSelectMaxCandidates || 20}</span></div>
                      <input type="range" class="ls-slider" min="8" max="40" step="4" value="${c.aiSelectMaxCandidates || 20}" data-cfg-num="aiSelectMaxCandidates">
@@ -1260,21 +1281,21 @@
                      <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
                  </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">提取提示词</div>
+                    <div class="ls-group-title">[PROMPT] 记忆提炼提示词模板</div>
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
                     <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
-                    <button class="ls-btn" id="ls-prompt-reset">↩️ 恢复默认提示词</button>
+                    <button class="ls-btn" id="ls-prompt-reset">↩ 恢复默认提示词</button>
                 </div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">数据管理</div>
-                    <button class="ls-btn" id="ls-export">📤 导出记忆数据 (JSON)</button>
-                    <button class="ls-btn" id="ls-import">📥 导入记忆数据</button>
-                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻️ 恢复嵌入存档（跨设备迁移）</button>
-                    <button class="ls-btn ls-btn-danger" id="ls-clear">🗑️ 清空当前对话记忆</button>
-                    <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载（抄 baibai carryover）。</div>
-                    <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（带去新对话）</button>
-                    <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新对话开局用）</button>
+                    <div class="ls-group-title">[DATA] 记忆数据归档与迁移</div>
+                    <button class="ls-btn" id="ls-export">📤 导出档案 (JSON)</button>
+                    <button class="ls-btn" id="ls-import">📥 导入档案</button>
+                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻ 恢复嵌入存档（跨设备迁移）</button>
+                    <button class="ls-btn ls-btn-danger" id="ls-clear">🗑 清空当前对话记忆</button>
+                    <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载。</div>
+                    <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（跨会话携带）</button>
+                    <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新故事开局）</button>
                 </div>
                 <div class="ls-group">
                     <details id="ls-advanced" style="padding:0 8px;">
@@ -1335,7 +1356,7 @@
                     </details>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">🧩 功能开关（默认开但此前无法关闭的功能）</div>
+                    <div class="ls-group-title">[ADVANCED] 引擎底层机制微调</div>
                     ${ck('protagonistTracking', '主角档案追踪', 'baibai 主角客观档案与生活习惯癖好追踪')}
                     ${ck('dualTimeAnchorEnabled', '正文时间锚点', 'baibai 正文起止时间锚点（故事内时间推演）')}
                     ${ck('charMemEnabled', '角色记忆银行', '两层记忆（短期/长期）按角色隔离')}
@@ -1376,16 +1397,16 @@
                 </div>
                 </div>
                 <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
-                    <button class="ls-btn ls-btn-primary" id="ls-save" style="margin:0;">💾 保存设置</button>
+                    <button class="ls-btn ls-btn-primary" id="ls-save" style="margin:0;">◈ 保存配置</button>
                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-                        <button class="ls-btn" id="ls-snap-restore" style="padding:9px 4px;font-size:12px;margin:0;">🗄️ 快照恢复</button>
-                        <button class="ls-btn" id="ls-backfill" style="padding:9px 4px;font-size:12px;margin:0;">🔧 补提取缺失</button>
-                        <button class="ls-btn" id="ls-extract-roles" style="padding:9px 4px;font-size:12px;margin:0;">📚 提取角色</button>
+                        <button class="ls-btn" id="ls-snap-restore" style="padding:9px 4px;font-size:12px;margin:0;">◷ 快照还原</button>
+                        <button class="ls-btn" id="ls-backfill" style="padding:9px 4px;font-size:12px;margin:0;">⊕ 补提取缺失</button>
+                        <button class="ls-btn" id="ls-extract-roles" style="padding:9px 4px;font-size:12px;margin:0;">⬡ 提取角色</button>
                     </div>
                 </div>
             `;
 
-            const overlay = makeSheet('lonsha-settings-overlay', '⚙️ 记忆引擎设置', body);
+            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 记忆控制台与偏好', body);
             overlay.querySelectorAll('.ls-tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const tab = btn.dataset.tab;
@@ -1442,7 +1463,7 @@
                     if (models.includes(this.engine.config.config.apiModel)) sel.value = this.engine.config.config.apiModel;
                     sel.style.display = 'block';
                     overlay.querySelector('#ls-model-input').style.display = 'none';
-                    status.textContent = `✅ 已加载 ${models.length} 个模型`; 
+                    status.textContent = `✅ 已加载 ${models.length} 个模型`;
                 } catch (e) {
                     status.textContent = '❌ 抓取失败: ' + e.message + '（可手动填模型名）';
                 }
@@ -1452,7 +1473,7 @@
             overlay.querySelector('#ls-carry-pack').addEventListener('click', () => {
                 const pack = this.engine.packCarryover();
                 if (!pack) { toast('打包失败'); return; }
-                // [v3.77] B: 携带预览（抄 baibai CarryoverPlan——先预览「将携带多少」，确认后才落盘下载）
+                // [v3.77] B: 携带预览（确认后落盘下载）
                 try {
                     const c = pack.counts || {};
                     const prevMsg = '🚚 携带包预览\n\n摘要 ' + (c.summaries ?? pack.summaries?.length ?? 0) + ' 条\n悬念 ' + (c.suspense ?? pack.suspense?.length ?? 0) + ' 条\n图谱节点 ' + (c.graphNodes ?? 0) + '\n日记 ' + (c.diaries ?? 0) + '\n向量 ' + (c.vectors ?? 0) + '\n\n确认打包？（打包后新对话点「导入携带包」无缝续写）';
@@ -1641,7 +1662,7 @@
             });
         };
 
-        // [v3.77] A: 版本更新检测（抄 baibai update.ts——对比远端 manifest，结果不缓存防「更新完仍提示」）
+        // [v3.77] A: 版本更新检测
         plugin.checkUpdate = async function() {
             const cur = plugin.VERSION || '3.77.0';
             toast('🔄 正在检查更新...');
@@ -1694,20 +1715,33 @@
             menu.id = 'lonsha-fab-menu';
             menu.style.cssText = `position:fixed;left:${menuLeft}px;top:${menuTop}px;`;
             menu.innerHTML = `
-                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));margin-bottom:4px;">LonSha记忆引擎</div>
-                <div class="lsm-item" data-act="stats">📊 状态总览</div>
-                <div class="lsm-item" data-act="timeline">📅 剧情时间线</div>
-                <div class="lsm-item" data-act="viz">🕸️ 记忆图谱</div>
-                <div class="lsm-item" data-act="settings">⚙️ 设置</div>
-                <div class="lsm-item" data-act="diag">🩺 一键诊断</div>
-                <div class="lsm-item" data-act="ckpt">🔖 检查点</div>
-                <div class="lsm-item" data-act="update">🔄 检查更新</div>
+                <div class="lsm-brand-bar">
+                    <span class="lsm-brand-dot"></span>
+                    <span class="lsm-brand-text">LONSHA CHRONO-ARCHIVE</span>
+                    <span class="lsm-brand-ver">v3.5</span>
+                </div>
+                <div class="lsm-item" data-act="stats"><span class="lsm-glyph">◈</span><span class="lsm-name">状态总览</span><span class="lsm-tag">STATUS</span></div>
+                <div class="lsm-item" data-act="timeline"><span class="lsm-glyph">◷</span><span class="lsm-name">剧情时间线</span><span class="lsm-tag">CHRONO</span></div>
+                <div class="lsm-item" data-act="viz"><span class="lsm-glyph">⬡</span><span class="lsm-name">记忆图谱</span><span class="lsm-tag">ATLAS</span></div>
+                <div class="lsm-item" data-act="settings"><span class="lsm-glyph">⚙</span><span class="lsm-name">控制台设置</span><span class="lsm-tag">CONFIG</span></div>
+                <div class="lsm-item" data-act="diag"><span class="lsm-glyph">⊕</span><span class="lsm-name">一键诊断</span><span class="lsm-tag">DIAGNOSE</span></div>
+                <div class="lsm-item" data-act="ckpt"><span class="lsm-glyph">⚑</span><span class="lsm-name">时间检查点</span><span class="lsm-tag">CHECKPOINT</span></div>
+                <div class="lsm-item" data-act="update"><span class="lsm-glyph">↻</span><span class="lsm-name">检查更新</span><span class="lsm-tag">SYNC</span></div>
                 <style>
-                    #lonsha-fab-menu { background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 200px; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
-                    @keyframes ls-menu-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
-                    .lsm-item { padding: 13px 14px; color: var(--ls-text,#e6edf3); font-size: 15px; border-radius: var(--ls-r-md,12px); cursor: pointer; transition: background var(--ls-t-fast,120ms); }
-                    .lsm-item:hover { background: var(--ls-bg-3,#21262d); }
-                    .lsm-item:active { background: var(--ls-bg-4,#30363d); }
+                    #lonsha-fab-menu { background: var(--ls-bg-glass, rgba(10,15,24,0.92)); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); border: 1px solid var(--ls-line-strong, rgba(255,255,255,0.14)); border-radius: var(--ls-r-md, 10px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-3), var(--ls-inner-rim); min-width: 220px; animation: ls-menu-in var(--ls-t-med,220ms) var(--ls-ease,ease); overflow: hidden; }
+                    @keyframes ls-menu-in { from { opacity: 0; transform: translateY(8px) scale(0.97); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
+                    .lsm-brand-bar { display: flex; align-items: center; gap: 8px; padding: 7px 12px 8px; border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.07)); margin-bottom: 4px; }
+                    .lsm-brand-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ls-accent, #38bdf8); box-shadow: 0 0 6px var(--ls-accent); }
+                    .lsm-brand-text { font-size: 10px; font-weight: 600; color: var(--ls-text-2, #94a3b8); letter-spacing: 0.12em; font-family: var(--ls-mono); flex: 1; }
+                    .lsm-brand-ver { font-size: 9px; color: var(--ls-accent, #38bdf8); font-family: var(--ls-mono); background: var(--ls-accent-soft); padding: 1px 4px; border-radius: 3px; }
+                    .lsm-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; color: var(--ls-text, #f1f5f9); font-size: 13px; border-radius: var(--ls-r-sm, 6px); cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
+                    .lsm-glyph { font-size: 13px; color: var(--ls-accent, #38bdf8); width: 14px; text-align: center; }
+                    .lsm-name { flex: 1; font-weight: 500; letter-spacing: 0.01em; }
+                    .lsm-tag { font-size: 9px; color: var(--ls-text-3, #64748b); font-family: var(--ls-mono); letter-spacing: 0.06em; font-weight: 600; }
+                    .lsm-item:hover { background: var(--ls-bg-3, #1b2436); color: #ffffff; }
+                    .lsm-item:hover .lsm-glyph { color: var(--ls-accent-hover, #7dd3fc); transform: scale(1.15); }
+                    .lsm-item:hover .lsm-tag { color: var(--ls-accent, #38bdf8); }
+                    .lsm-item:active { background: var(--ls-bg-4, #27334a); transform: scale(0.98); }
                 </style>
             `;
             menu.querySelectorAll('.lsm-item').forEach(item => {
@@ -1758,7 +1792,7 @@
             if (!chatId) { toast('无可用对话'); return; }
 
             const open = (html, onClick) => {
-                const ov = makeSheet('lonsha-ckpt-overlay', '🔖 检查点', html);
+                const ov = makeSheet('lonsha-ckpt-overlay', '◷ 时间轴检查点', html);
                 onClick(ov);
                 return ov;
             };
@@ -1867,7 +1901,7 @@
             const menu = document.createElement('div');
             menu.id = 'lonsha-snap-menu';
             menu.innerHTML = `
-                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">🗄️ 快照恢复（选择要恢复的楼层）</div>
+                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">◷ 快照还原（选择要恢复的楼层）</div>
                 ${body}
                 <!-- [v3.238.0] R4-D：恢复是**破坏性动作**，故在这里给「先留一手」的入口 —— 检查点面板 -->
                 <div class="lsm-item" id="ls-ckpt-from-snap" style="border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));">🔖 先存一份检查点再恢复…</div>
@@ -1961,7 +1995,7 @@
                 <div id="ls-cp-out"></div>
                 <div id="ls-cp-undo"></div>
             `;
-            const ov = makeSheet('lonsha-correction-sheet', '🛠 纠错方案（原生确认 / 写入 / 撤销）', body);
+            const ov = makeSheet('lonsha-correction-sheet', '⬡ 记忆审计与自愈', body);
             const out = ov.querySelector('#ls-cp-out');
             const undoBox = ov.querySelector('#ls-cp-undo');
             const applyBtn = ov.querySelector('#ls-cp-apply');
@@ -2455,7 +2489,7 @@
                 ${pipeHTML}${schemaHTML}
                 <div style="padding:6px 8px;font-size:12px;color:var(--ls-text-2,#9da7b3);border-top:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));margin-top:6px;">最近错误（环形缓冲，最多50条）</div>
                 <div style="max-height:30vh;overflow-y:auto;">${errRows}</div>`;
-            const overlay = makeSheet('lonsha-diag-overlay', '🩺 一键诊断', body);
+            const overlay = makeSheet('lonsha-diag-overlay', '⚙ 记忆内核全景诊断', body);
         };
 
         console.log('[LonSha记忆引擎] ✓ 设置面板模块已挂载 (点击🧠 → ⚙️设置)');

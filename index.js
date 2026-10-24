@@ -7340,7 +7340,25 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 getContinuityPack: _moduleLib(() => window.LonShaVolumeContinuation, 'volume-continuation.js'),
                 previewFactAdmission: _moduleLib(() => window.LonShaNativeFactAdmission, 'native-fact-admission.js'),
                 explainRecall: _moduleLib(() => window.LonShaRecallExplain, 'recall-explain.js'),
-                getKnowledgeBoundary: _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js')
+                getKnowledgeBoundary: _moduleLib(() => window.LonShaKnowledgeTrace, 'knowledge-trace.js'),
+                memoryInbox: _moduleLib(() => window.LonShaMemoryInbox, 'memory-inbox.js'),
+                factCorrectionBench: _moduleLib(() => window.LonShaFactCorrectionBench, 'fact-correction-bench.js'),
+                recallCorrection: _moduleLib(() => window.LonShaRecallCorrection, 'recall-correction.js'),
+                perspectivePreview: _moduleLib(() => window.LonShaPerspectivePreview, 'perspective-preview.js'),
+                generationMemoryPlan: _moduleLib(() => window.LonShaGenerationMemoryPlan, 'generation-memory-plan.js'),
+                generationFactReceipt: _moduleLib(() => window.LonShaGenerationFactReceipt, 'generation-fact-receipt.js'),
+                memoryMaintenanceSession: _moduleLib(() => window.LonShaMemoryMaintenanceSession, 'memory-maintenance-session.js'),
+                profileDossierView: _moduleLib(() => window.LonShaProfileDossierView, 'profile-dossier-view.js'),
+                memoryMigrationBoundary: _moduleLib(() => window.LonShaMemoryMigrationBoundary, 'memory-migration-boundary.js'),
+                oralHistoryArchive: _moduleLib(() => window.LonShaOralHistoryArchive, 'oral-history-archive.js'),
+                boundedInterview: _moduleLib(() => window.LonShaBoundedInterview, 'bounded-interview.js'),
+                relationshipRepairTheater: _moduleLib(() => window.LonShaRelationshipRepairTheater, 'relationship-repair-theater.js'),
+                unfinishedPledgeTheater: _moduleLib(() => window.LonShaUnfinishedPledgeTheater, 'unfinished-pledge-theater.js'),
+                lineageHeritageTree: _moduleLib(() => window.LonShaLineageHeritageTree, 'lineage-heritage-tree.js'),
+                collectiveMemoryDeliberation: _moduleLib(() => window.LonShaCollectiveMemoryDeliberation, 'collective-memory-deliberation.js'),
+                curatedExhibitionBench: _moduleLib(() => window.LonShaCuratedExhibitionBench, 'curated-exhibition-bench.js'),
+                memoryInspirationDesk: _moduleLib(() => window.LonShaMemoryInspirationDesk, 'memory-inspiration-desk.js'),
+                playableArchiveEngine: _moduleLib(() => window.LonShaPlayableArchiveEngine, 'playable-archive-engine.js')
             };
         }
         _memoryToolsAbsent(api, reason) { const M = _moduleLib(() => window.LonShaEngineQaTools, 'engine-qa-tools.js'); return M ? M._memoryToolsAbsent(this, api, reason) : null; }
@@ -10655,7 +10673,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             if (typeof document === 'undefined' || document.getElementById('lonsha-memory-fab')) return;
             const fab = document.createElement('div');
             fab.id = 'lonsha-memory-fab';
-            fab.innerHTML = '🧠';
+            fab.innerHTML = '<svg viewBox="0 0 24 24" class="ls-fab-icon"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="3 2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
             fab.setAttribute('title', 'LonSha 记忆引擎（按住可拖动，点击展开菜单）');
 
             const size = 52;

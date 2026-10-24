@@ -1,76 +1,93 @@
 /* ============================================================
-   LonSha 记忆引擎 · 设计系统 Token（Design Tokens）
-   单一事实源：全部 UI 颜色 / 阴影 / 圆角 / 间距 / 动效 / 层级
-   设计语言：石墨冷灰底 + 单一青蓝强调，克制、专业、高级
+   LonSha 记忆引擎 · 设计系统 Token（Design Tokens）v3.5
+   单一事实源：全部 UI 颜色 / 阴影 / 圆角 / 间距 / 动效 / 深度质感
+   设计语言：黑曜石星轨·记忆精密档案室（Obsidian Chrono-Archive）
+   美学特征：冷黛钛灰底 + 极光冰蓝微光 + 历史刻印金石点睛 + 精密物理倒角
    加载顺序：须在 style.css / visualizer.css / settings-ui 之前
    ============================================================ */
+
 :root {
-    /* ---- 强调色（唯一品牌色：青蓝） ---- */
-    --ls-accent:        #58a6ff;
-    --ls-accent-strong: #1f6feb;   /* 实心主按钮底 */
-    --ls-accent-hover:  #79c0ff;
-    --ls-accent-soft:   rgba(56, 139, 253, 0.15);  /* 强调底 */
-    --ls-accent-softer: rgba(56, 139, 253, 0.08);
-    --ls-accent-line:   rgba(56, 139, 253, 0.35);  /* 强调描边 */
-    --ls-on-accent:     #ffffff;
+    /* ---- 核心主色：极光冰蓝（深邃、清冽、精密仪器感，告别廉价饱和蓝） ---- */
+    --ls-accent:        #38bdf8;
+    --ls-accent-strong: #0284c7;   /* 实心主按钮底 */
+    --ls-accent-hover:  #7dd3fc;
+    --ls-accent-soft:   rgba(56, 189, 248, 0.10);  /* 强调底 */
+    --ls-accent-softer: rgba(56, 189, 248, 0.05);
+    --ls-accent-line:   rgba(56, 189, 248, 0.28);  /* 强调微光描边 */
+    --ls-on-accent:     #04121e;
 
-    /* ---- 中性面（石墨冷灰分层，由深到浅） ---- */
-    --ls-bg-0:   #010409;   /* 最深层（画布/代码底） */
-    --ls-bg-1:   #0d1117;   /* 面板底 */
-    --ls-bg-2:   #161b22;   /* 卡片/输入底 */
-    --ls-bg-3:   #21262d;   /* 悬浮/按钮底 */
-    --ls-bg-4:   #30363d;   /* hover 底 */
+    /* ---- 叙事专属辅色：历史刻印金（金石铭文、传承、重大检查点） ---- */
+    --ls-gold:          #fbbf24;
+    --ls-gold-soft:     rgba(251, 191, 36, 0.10);
+    --ls-gold-line:     rgba(251, 191, 36, 0.30);
+    --ls-gold-hover:    #fde68a;
 
-    /* ---- 描边 ---- */
-    --ls-line:        rgba(240, 246, 252, 0.10);
-    --ls-line-strong: rgba(240, 246, 252, 0.18);
+    /* ---- 中性阶梯（黑曜石冷黛色阶，赋予深邃景深） ---- */
+    --ls-bg-0:   #06080d;   /* 底层空间（画布底/极深暗室） */
+    --ls-bg-1:   #0a0f18;   /* 档案面板主背景（冷黛灰透隐幽微光） */
+    --ls-bg-2:   #111827;   /* 卡片/输入框/槽位底色 */
+    --ls-bg-3:   #1b2436;   /* 常态按键/悬浮块底色 */
+    --ls-bg-4:   #27334a;   /* 交互 hover/选中态 */
+    --ls-bg-glass: rgba(10, 15, 24, 0.88); /* 毛玻璃混配底 */
 
-    /* ---- 文本 ---- */
-    --ls-text:    #e6edf3;
-    --ls-text-2:  #9da7b3;
-    --ls-text-3:  #6e7681;
-    --ls-inverse: #0d1117;   /* 亮底上的深字（toast） */
+    /* ---- 描边与微物理结构（精密机械切割倒角） ---- */
+    --ls-line:        rgba(255, 255, 255, 0.07);
+    --ls-line-strong: rgba(255, 255, 255, 0.14);
+    --ls-line-subtle: rgba(255, 255, 255, 0.04);
+    --ls-inner-rim:   inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 -1px 0 rgba(0, 0, 0, 0.40); /* 双向精密金属倒角 */
+    --ls-inner-glow:  inset 0 0 16px rgba(56, 189, 248, 0.04);
 
-    /* ---- 语义色（冷调克制） ---- */
-    --ls-success:      #3fb950;
-    --ls-success-soft: rgba(63, 185, 80, 0.12);
-    --ls-warn:         #d29922;
-    --ls-warn-soft:    rgba(210, 153, 34, 0.12);
-    --ls-danger:       #f85149;
-    --ls-danger-soft:  rgba(248, 81, 73, 0.14);
-    --ls-danger-line:  rgba(248, 81, 73, 0.35);
-    --ls-info:         #58a6ff;
-    --ls-info-soft:    rgba(56, 139, 253, 0.12);
+    /* ---- 排版与文字层次（微高对比度、清晰字阶） ---- */
+    --ls-text:    #f1f5f9;   /* 极浅钛白主字 */
+    --ls-text-2:  #94a3b8;   /* 亚光冷灰副字 */
+    --ls-text-3:  #64748b;   /* 刻度/注释暗字 */
+    --ls-text-4:  #475569;   /* 禁用/背景微痕 */
+    --ls-inverse: #06080d;   /* 亮底反差字 */
 
-    /* ---- 圆角 ---- */
-    --ls-r-sm: 8px;
-    --ls-r-md: 12px;
-    --ls-r-lg: 16px;
-    --ls-r-xl: 20px;
-    --ls-r-pill: 999px;
+    /* ---- 语义状态色（冷峻克制、不刺目） ---- */
+    --ls-success:      #34d399;   /* 翡翠绿 */
+    --ls-success-soft: rgba(52, 211, 153, 0.10);
+    --ls-warn:         #fbbf24;   /* 琥珀金 */
+    --ls-warn-soft:    rgba(251, 191, 36, 0.10);
+    --ls-danger:       #f87171;   /* 胭脂朱红 */
+    --ls-danger-soft:  rgba(248, 113, 113, 0.12);
+    --ls-danger-line:  rgba(248, 113, 113, 0.30);
+    --ls-info:         #38bdf8;
+    --ls-info-soft:    rgba(56, 189, 248, 0.10);
 
-    /* ---- 阴影（冷调分层） ---- */
-    --ls-sh-1: 0 1px 0 rgba(240, 246, 252, 0.04) inset, 0 8px 24px rgba(1, 4, 9, 0.55);
-    --ls-sh-2: 0 12px 32px rgba(1, 4, 9, 0.60), 0 4px 12px rgba(1, 4, 9, 0.40);
-    --ls-sh-3: 0 24px 64px rgba(1, 4, 9, 0.72), 0 8px 24px rgba(1, 4, 9, 0.50);
-    --ls-sh-accent: 0 4px 14px rgba(56, 139, 253, 0.35);
-    --ls-sh-accent-lg: 0 8px 28px rgba(56, 139, 253, 0.45);
+    /* ---- 精密微圆角（告别大片臃肿大圆角，采用紧凑坚毅的精密半径） ---- */
+    --ls-r-xs: 4px;
+    --ls-r-sm: 6px;
+    --ls-r-md: 10px;
+    --ls-r-lg: 14px;
+    --ls-r-xl: 18px;
+    --ls-r-pill: 9999px;
 
-    /* ---- 动效 ---- */
-    --ls-t-fast: 120ms;
-    --ls-t-med:  200ms;
-    --ls-t-slow: 320ms;
-    --ls-ease:   cubic-bezier(0.4, 0, 0.2, 1);
+    /* ---- 多层景深光影系统（物理仪器暗室分层） ---- */
+    --ls-sh-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
+    --ls-sh-2: 0 4px 20px -2px rgba(0, 0, 0, 0.65), 0 12px 32px -4px rgba(2, 6, 23, 0.55);
+    --ls-sh-3: 0 20px 50px -10px rgba(0, 0, 0, 0.85), 0 10px 24px -5px rgba(0, 0, 0, 0.65);
+    --ls-sh-accent: 0 2px 14px rgba(56, 189, 248, 0.28);
+    --ls-sh-accent-lg: 0 6px 28px rgba(56, 189, 248, 0.38);
+    --ls-glow-gold: 0 2px 14px rgba(251, 191, 36, 0.25);
 
-    /* ---- 字体 ---- */
-    --ls-font: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    --ls-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    /* ---- 动态曲线：精密机械阻尼回弹，去除机械死板移动 ---- */
+    --ls-t-fast: 140ms;
+    --ls-t-med:  220ms;
+    --ls-t-slow: 360ms;
+    --ls-ease:   cubic-bezier(0.16, 1, 0.3, 1); /* Apple/Linear 风格丝滑阻尼 */
+    --ls-ease-out: cubic-bezier(0, 0, 0.2, 1);
 
-    /* ---- 毛玻璃参数（可由 JS 依据性能开关禁用） ---- */
-    --ls-blur: saturate(140%) blur(18px);
+    /* ---- 高阶字体混排序列（字偶紧凑、数字等宽微调） ---- */
+    --ls-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --ls-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
+
+    /* ---- 毛玻璃与环境光晕 ---- */
+    --ls-blur: saturate(160%) blur(20px);
+    --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 75%);
 }
 
-/* 降低动效：系统级偏好 → 关闭一切过渡/动画（性能底线：动效可关） */
+/* 降低动效保护：系统开启减少动效时彻底关停过渡，极佳的可访问性支持 */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: 0.01ms !important;
