@@ -152,9 +152,11 @@ export function judgeConsumersInbound(rows, root) {
         try {
             code = stripComments(fs.readFileSync(p, 'utf-8'));
             if (spec.file === 'index.js') {
-                const recPath = path.join(root, 'engine-recall.js');
-                if (fs.existsSync(recPath)) {
-                    code += '\n' + stripComments(fs.readFileSync(recPath, 'utf-8'));
+                for (const ef of ['engine-recall.js', 'engine-execution-pipeline.js']) {
+                    const epPath = path.join(root, ef);
+                    if (fs.existsSync(epPath)) {
+                        code += '\n' + stripComments(fs.readFileSync(epPath, 'utf-8'));
+                    }
                 }
             }
         }

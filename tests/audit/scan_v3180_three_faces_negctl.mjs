@@ -29,6 +29,7 @@ const FLOOR = 'floor-ledger.js';
 const AGE = 'age-anchor.js';
 const PUB = 'public-interface.js';
 const IDX = 'index.js';
+const EP = 'engine-execution-pipeline.js';
 /* [v3.266.0 A1 第六刀] 门禁把 idx 判据面改为「入口 + memory-core.js」合看：
  *   GameClock / CharacterState 的真源随类外移，门禁必须读到该模块才能判（缺文件会走 fail-closed）。
  *   故负控制夹具的搬运清单必须同步补上 —— 否则 V0 原版对照在 fixture 里就 exit 2，
@@ -63,7 +64,7 @@ const CASES = [
         'slice(0, 100000)',
         1, 1,
         '附注挂在用户楼层上会无界膨胀，M6 必须翻红'],
-    ['V5-落笔点脱钩', IDX,
+    ['V5-落笔点脱钩', EP,
         'this._stampFloorLedger(message, { floor: floorNow, items: _lv.items });',
         '/* 破坏：不再落笔 */',
         1, 1,

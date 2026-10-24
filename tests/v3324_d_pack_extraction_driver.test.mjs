@@ -38,7 +38,10 @@ import { breakOnce } from './_break_kit.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
-const IDX = read('index.js');
+const IDX_RAW = read('index.js');
+const SC_OPS_SRC = read('engine-self-check.js');
+/* [v3.367.0] selfCheck 已外移 engine-self-check.js，合看以保持 C5/E12 判据生效 */
+const IDX = IDX_RAW + '\n' + SC_OPS_SRC;
 const DL = read('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
@@ -545,7 +548,7 @@ const ANCHORS = {
     /* 宿主：真每轮调用点整段消失（导出即摆设）。 */
     idxCallSite: "                        const _win = this._extractionWindowFloors(message);",
     /* 宿主：体检面被并成一行（两个面共用一个提示位）。 */
-    idxFaceMerged: "                        return ['抽取节奏', line + (bad ? ' ⚠️' : '')];\n                        } catch (e) { errLog(e, 'selfCheck.extractionDriver'); return ['抽取节奏', '—（诊断异常）']; }",
+    idxFaceMerged: "                    return ['抽取节奏', line + (bad ? ' ⚠️' : '')];\n                    } catch (e) { errLog(e, 'selfCheck.extractionDriver'); return ['抽取节奏', '—（诊断异常）']; }",
 };
 
 /* ══════════════ C. 宿主接线（真装配） ══════════════ */

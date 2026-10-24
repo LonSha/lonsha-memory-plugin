@@ -1,3 +1,11 @@
+## v3.371.0
+**index.js 剥离第十一批：提取后执行、图谱与各子系统状态写入管线外提为 engine-execution-pipeline.js**
+- 新增 `engine-execution-pipeline.js`（1190行，IIFE 模块）：将原 `index.js` 内部 `onMessageReceived` 后半段的巨型状态写入与系统分发管线（涵盖图谱节点/边建立、状态变更、伦理冲突检测、剧情时钟维护、剧情时间线写入、POV私密记忆存储、角色记忆银行写入、世界钟与世界账本对账等共 1099 行逻辑）完整外提为独立执行管线模块，挂载 `window.LonShaEngineExecutionPipeline`，提供 `bindDeps` 注入通道与安全降级。
+- `index.js` 从 12122 行进一步压降至 11055 行（净减 1067 行，累计从 22731 行净削减 11676 行，总削减量突破 51.3%），原巨型实现替换为委托桩 `applyExtractedPayload`。
+- `manifest.json` `extra_js` 登记 `engine-execution-pipeline.js`（共 144 项）。
+- 新增 `tests/v3371_engine_execution_pipeline_split.test.mjs`（7 条，含真源码破坏负控制）。
+- 扫描器契约：退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
+
 ## v3.370.0
 **index.js 剥离第十批：九账证据工作台、结构化检索、记忆控制中心、事实生命周期与记忆包准入集群外提为 engine-evidence-center.js**
 - 新增 `engine-evidence-center.js`（1053行，IIFE 模块）：将原 `index.js` 内的证据与记忆控制面集群（涵盖 `_evidenceWorkbench`、`_eventPlatformsFace`、`searchEvidence`、`searchEvidenceStructured`、`_qaCausalEdges`、`_evidenceQueryEmpty`、`evidenceQueryFacets`、`evidenceSavedQueries`、`saveEvidenceQuery`、`removeEvidenceQuery`、`replayEvidenceQuery`、`evidenceQueryLine`、`memoryCenterDeps`、`_memoryCenterAbsent`、`memoryCenterView`、`memoryCenterSourceText`、`memoryCenterStep`、`memoryCenterLoad`、`memoryCenterFactState`、`memoryCenterBlankState`、`memoryCenterSave`、`memoryCenterSheet`、`memoryCenterDescribe`、`memoryCenterLine`、`_factLifecycleDeps`、`_factLifecycleAbsent`、`factLifecyclePlan`、`factLifecycleDescribe`、`factLifecycleLine`、`_memoryPackageDeps`、`_memoryPackageAbsent`、`memoryPackageAdmit`、`memoryPackagePreview`、`memoryPackagePlan`、`memoryPackageDescribe`、`memoryPackageLine` 共 36 个方法）完整外提为独立模块，挂载 `window.LonShaEngineEvidenceCenter`，提供 `bindDeps` 注入通道、`bindWindow` 与安全降级。

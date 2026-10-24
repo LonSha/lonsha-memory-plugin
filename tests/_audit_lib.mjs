@@ -215,7 +215,7 @@ export function braceMatch(text, openIdx) {
 // ============================================================
 /** 默认并入的外移模块（逐个试读，缺失即跳过，不报错） */
 export const HOST_MODULES = [
-    'engine-diagnostic-lines.js', 'engine-evidence-center.js', 'engine-injection-pipeline.js',
+    'engine-diagnostic-lines.js', 'engine-evidence-center.js', 'engine-execution-pipeline.js', 'engine-injection-pipeline.js',
     'engine-persistence-ops.js', 'engine-qa-tools.js', 'engine-recall.js', 'engine-repair-ops.js',
     'engine-report.js', 'engine-self-check.js', 'engine-story-annual.js',
     'memory-core.js',

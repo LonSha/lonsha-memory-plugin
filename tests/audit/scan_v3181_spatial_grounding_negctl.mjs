@@ -33,6 +33,7 @@ const REPO = path.resolve(HERE, '..', '..');
 const SCAN = path.join(HERE, 'scan_v3181_spatial_grounding.mjs');
 const SB = 'scene-book.js';
 const IDX = 'index.js';
+const EP = 'engine-execution-pipeline.js';
 const PUB = 'public-interface.js';
 // [v3.190] 位移收口后，场景面的单出口重建在登记表模块里：
 //   N1 会读 ledger-replay.js，故 fixture 必须连它一起搬，
@@ -84,7 +85,7 @@ const CASES = [
         "        return { state: 'ok', broken, warnings };",
         1, 1,
         'broken/warn 两态被并进 ok（三态塌两态，本仓库缺陷族），N3 必须翻红'],
-    ['W8-提取落位脱钩', IDX,
+    ['W8-提取落位脱钩', EP,
         'const _moved = this.scene.setLocation(message.index || 0, extracted.location);',
         'const _moved = null;   // 破坏：不再落位',
         1, 1,
