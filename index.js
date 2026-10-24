@@ -10652,13 +10652,144 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             this.eventHandlers = [];
         }
         createUI() {
+            if (typeof document === 'undefined' || document.getElementById('lonsha-memory-fab')) return;
             const fab = document.createElement('div');
-            fab.id = 'lonsha-memory-fab'; fab.innerHTML = '🧠';
-            fab.style.cssText = 'position:fixed;bottom:80px;right:20px;width:52px;height:52px;background:var(--ls-bg-2,#161b22);backdrop-filter:var(--ls-blur,none);-webkit-backdrop-filter:var(--ls-blur,none);color:var(--ls-accent,#58a6ff);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:var(--ls-sh-2,0 8px 24px rgba(1,4,9,0.6));z-index:10000;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;';
-            fab.addEventListener('click', () => this.showPanel());
-            fab.addEventListener('mouseenter', () => fab.style.transform = 'scale(1.1) rotate(5deg)');
-            fab.addEventListener('mouseleave', () => fab.style.transform = 'scale(1)');
+            fab.id = 'lonsha-memory-fab';
+            fab.innerHTML = '🧠';
+            fab.setAttribute('title', 'LonSha 记忆引擎（按住可拖动，点击展开菜单）');
+
+            const size = 52;
+            const pad = 8;
+            const vw = (typeof window !== 'undefined' && window.innerWidth) || (document.documentElement?.clientWidth || 360);
+            const vh = (typeof window !== 'undefined' && window.innerHeight) || (document.documentElement?.clientHeight || 640);
+            const posKey = 'lonsha_memory_fab_position';
+
+            let savedPos = null;
+            try {
+                const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(posKey) : null;
+                if (raw) savedPos = JSON.parse(raw);
+            } catch (_e) {}
+
+            let curLeft, curTop;
+            if (savedPos && typeof savedPos.left === 'number' && typeof savedPos.top === 'number') {
+                curLeft = Math.min(Math.max(pad, savedPos.left), Math.max(pad, vw - size - pad));
+                curTop = Math.min(Math.max(pad, savedPos.top), Math.max(pad, vh - size - pad));
+            } else {
+                curLeft = Math.max(pad, vw - size - 20);
+                // 默认位置避让：避开常见底部 80px 的其他项目悬浮球，默认错开至偏上位置
+                curTop = Math.max(pad, vh - 148 - size);
+            }
+
+            fab.style.cssText = `position:fixed;left:${curLeft}px;top:${curTop}px;width:${size}px;height:${size}px;`
+                + `background:var(--ls-bg-2,#161b22);backdrop-filter:var(--ls-blur,none);-webkit-backdrop-filter:var(--ls-blur,none);`
+                + `color:var(--ls-accent,#58a6ff);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:50%;`
+                + `display:flex;align-items:center;justify-content:center;font-size:24px;cursor:grab;`
+                + `box-shadow:var(--ls-sh-2,0 8px 24px rgba(1,4,9,0.6));z-index:10000;`
+                + `user-select:none;-webkit-user-select:none;touch-action:none;`
+                + `transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s;`;
+
+            this._bindFabDrag(fab, posKey, size, pad);
+
+            fab.addEventListener('click', (e) => {
+                if (this._fabMoved) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+                this.showPanel();
+            });
+            fab.addEventListener('mouseenter', () => { if (!this._fabDragging) fab.style.transform = 'scale(1.1) rotate(5deg)'; });
+            fab.addEventListener('mouseleave', () => { if (!this._fabDragging) fab.style.transform = 'scale(1)'; });
             document.body.appendChild(fab);
+        }
+
+        _bindFabDrag(fab, posKey, size, pad) {
+            let pointerId = null;
+            let startX = 0, startY = 0;
+            let startLeft = 0, startTop = 0;
+            let moved = false;
+            const DRAG_MIN = 6;
+
+            const clamp = (left, top) => {
+                const vw = (typeof window !== 'undefined' && window.innerWidth) || (document.documentElement?.clientWidth || 360);
+                const vh = (typeof window !== 'undefined' && window.innerHeight) || (document.documentElement?.clientHeight || 640);
+                return {
+                    left: Math.min(Math.max(pad, left), Math.max(pad, vw - size - pad)),
+                    top: Math.min(Math.max(pad, top), Math.max(pad, vh - size - pad))
+                };
+            };
+
+            const onPointerDown = (e) => {
+                if (e.button !== undefined && e.button !== 0) return;
+                pointerId = e.pointerId;
+                startX = e.clientX;
+                startY = e.clientY;
+                const rect = fab.getBoundingClientRect?.() || { left: parseFloat(fab.style.left) || 0, top: parseFloat(fab.style.top) || 0 };
+                startLeft = rect.left;
+                startTop = rect.top;
+                moved = false;
+                try { fab.setPointerCapture?.(pointerId); } catch (_e) {}
+            };
+
+            const onPointerMove = (e) => {
+                if (pointerId === null || e.pointerId !== pointerId) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                if (!moved && (Math.abs(dx) > DRAG_MIN || Math.abs(dy) > DRAG_MIN)) {
+                    moved = true;
+                    this._fabDragging = true;
+                    fab.style.cursor = 'grabbing';
+                    fab.style.transition = 'none';
+                }
+                if (moved) {
+                    const next = clamp(startLeft + dx, startTop + dy);
+                    fab.style.left = `${next.left}px`;
+                    fab.style.top = `${next.top}px`;
+                    fab.style.right = 'auto';
+                    fab.style.bottom = 'auto';
+                }
+            };
+
+            const onPointerUp = (e) => {
+                if (pointerId === null || e.pointerId !== pointerId) return;
+                try { fab.releasePointerCapture?.(pointerId); } catch (_e) {}
+                pointerId = null;
+                fab.style.cursor = 'grab';
+                fab.style.transition = 'transform 0.2s,box-shadow 0.2s,border-color 0.2s';
+
+                if (moved) {
+                    this._fabMoved = true;
+                    const rect = fab.getBoundingClientRect?.() || { left: parseFloat(fab.style.left) || 0, top: parseFloat(fab.style.top) || 0 };
+                    const next = clamp(rect.left, rect.top);
+                    try {
+                        if (typeof localStorage !== 'undefined') {
+                            localStorage.setItem(posKey, JSON.stringify({ left: next.left, top: next.top }));
+                        }
+                    } catch (_e) {}
+                    setTimeout(() => {
+                        this._fabMoved = false;
+                        this._fabDragging = false;
+                    }, 80);
+                } else {
+                    this._fabDragging = false;
+                }
+            };
+
+            if (typeof fab.addEventListener === 'function') {
+                fab.addEventListener('pointerdown', onPointerDown);
+                fab.addEventListener('pointermove', onPointerMove);
+                fab.addEventListener('pointerup', onPointerUp);
+                fab.addEventListener('pointercancel', onPointerUp);
+            }
+
+            if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+                window.addEventListener('resize', () => {
+                    const rect = fab.getBoundingClientRect?.() || { left: parseFloat(fab.style.left) || 0, top: parseFloat(fab.style.top) || 0 };
+                    const next = clamp(rect.left, rect.top);
+                    fab.style.left = `${next.left}px`;
+                    fab.style.top = `${next.top}px`;
+                });
+            }
         }
         showPanel() {
             // 设置面板模块 (settings-ui.js) 会覆盖 showFabMenu 提供完整菜单；

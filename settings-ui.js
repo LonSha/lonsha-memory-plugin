@@ -71,6 +71,14 @@
             .ls-item-text { font-size: 14px; color: var(--ls-text,#e6edf3); line-height: 1.6; word-break: break-word; }
             .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: var(--ls-success,#3fb950); color: var(--ls-inverse,#0d1117); padding: 10px 20px; border-radius: var(--ls-r-pill,999px); font-size: 14px; font-weight: 600; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); z-index: 10003; animation: ls-toast-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
             @keyframes ls-toast-in { from { transform: translate(-50%,8px); opacity: 0; } to { transform: translate(-50%,0); opacity: 1; } }
+            /* ==== Tab 选项卡导航（精简分层） ==== */
+            .ls-tabs-nav { display: flex; gap: 6px; border-bottom: 1px solid var(--ls-line,rgba(240,246,252,0.10)); padding: 0 0 10px 0; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+            .ls-tabs-nav::-webkit-scrollbar { display: none; }
+            .ls-tab-btn { background: var(--ls-bg-2,#161b22); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); color: var(--ls-text-2,#9da7b3); padding: 8px 12px; border-radius: var(--ls-r-md,12px); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all var(--ls-t-fast,120ms); flex-shrink: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+            .ls-tab-btn:hover { color: var(--ls-text,#e6edf3); background: var(--ls-bg-3,#21262d); border-color: var(--ls-line-strong,rgba(240,246,252,0.18)); }
+            .ls-tab-btn.active { color: var(--ls-accent,#58a6ff); background: var(--ls-bg-3,#21262d); border-color: var(--ls-accent-line,rgba(56,139,253,0.35)); font-weight: 600; box-shadow: 0 0 0 1px var(--ls-accent-line,rgba(56,139,253,0.2)); }
+            .ls-tab-pane { display: none; }
+            .ls-tab-pane.active { display: block; animation: ls-fade var(--ls-t-fast,150ms) var(--ls-ease,ease); }
         `;
         document.head.appendChild(style);
 
@@ -145,9 +153,14 @@
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:15px;">${phoneStatus}</div><div class="ls-stat-label">📱 RubyPhone 联动</div></div>
                 </div>
                 <div class="ls-hint">点击带 👁 的卡片可查看记忆内容详情。数据保存在当前对话的 chatMetadata 中，随对话自动持久化。</div>
+                <details style="margin-top:14px;border:1px solid var(--ls-line,rgba(240,246,252,0.10));border-radius:var(--ls-r-md,12px);padding:8px 12px;background:var(--ls-bg-2,#161b22);">
+                    <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:4px 0;">🔍 展开查看底层运行轨迹与诊断指标</summary>
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--ls-line,rgba(240,246,252,0.10));">
                 ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title">🎯 最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:var(--ls-warn,#d29922)">⚠️ 触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint">🎯 最近召回监控：生成过一次后显示命中来源分布。</div>'}
                 ${s._lastChangeTrace || s._timelineInjectFloor != null || s._diaryInjectFloor != null || s.storage?._lastWrite?.status === 'failed' || s._lastRestore?.failed?.length || s._staleTaskDropped || s._epochDropped || s.mutex?._foreignRelease ? (() => {   /* [v3.145] 栅栏作废/越权释放也强制可见 */ /* [v3.140] 写入失败/恢复失败必须无条件可见（坏了有人知道吗） */  const ct = s._lastChangeTrace || {}; const seg = (o) => o ? `${o.found ?? 0} 找到${o.added != null ? ` / ${o.added} 新增` : ''}` : '—'; return `<div class="ls-group"><div class="ls-group-title">⏳ 变化注入（Horae/HCDiary 诊断）</div><div class="ls-item"><div class="ls-item-meta">楼层 ${ct.floor ?? '—'} · 游标 ${ct.cursor ?? '—'} · 锚点「${ct.anchorDate || '—'}」${ct.ts ? ' · ' + new Date(ct.ts).toLocaleTimeString('zh-CN') : ''}${s._timeWentBack ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 时间倒跳 ${s._timeWentBack.from}→${s._timeWentBack.to}(第${s._timeWentBack.floor}楼)</span>` : ''}</div><div class="ls-item-text">时间线 ${seg(ct.timeline)} · 状态 ${seg(ct.status)} · 关系 ${seg(ct.pair)} · 物品 ${seg(ct.items)} · 日记 ${seg(ct.diary)}</div><div class="ls-item-meta">游标持久化: timeline=${s._timelineInjectFloor ?? '未初始化'} diary=${s._diaryInjectFloor ?? '未初始化'} · chat=${s._timelineCursorChatId ?? '—'}${(() => { const c = s.clock || s._clock; const t = c?.timeTagStats; if (!t) return ''; const warn = t.total > 0 && t.calibrated === 0 ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 标签从未成功校准，检查正文格式</span>` : ''; return `</div><div class="ls-item-meta">🕐 时间标签协议: 共${t.total}楼 · 成对${t.paired} · 校准${t.calibrated}${t.unparseable ? ` · 无法解析${t.unparseable}` : ''}${warn}`; })()}</div><div class="ls-item-meta">💾 保存地面真源: ${(() => { const g = s._lastSaveGroundTruth; if (!g || !g.ts) return '尚未保存'; return `${new Date(g.ts).toLocaleString('zh-CN')} · 楼层 ${g.floor} · 来源 ${Object.entries(g.sources || {}).map(([k, v]) => `${k}×${v}`).join(' /') || '—'}`; })()}</div>${(() => { const w = s.storage?._lastWrite, r = s._lastRestore; const parts = []; if (w && w.ts) { const bad = w.status !== 'confirmed'; parts.push(`💾 写入 ${w.status}${bad ? ' <span style="color:var(--ls-warn,#d29922)">' + (w.error || '未落地') + '</span>' : ''} · rev ${w.revision} · ${new Date(w.ts).toLocaleTimeString('zh-CN')}`); } if (s._staleTaskDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)">⏸️ 会话租约作废 ${s._staleTaskDropped} 次${s._lastStaleDrop ? `（最近 ${s._lastStaleDrop.task || '提取'}：${s._lastStaleDrop.from} → ${s._lastStaleDrop.to}）` : ''}</span>`); if (s._epochDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)">🚧 状态变更栅栏作废 ${s._epochDropped} 次${s._lastEpochBump ? `（最近 ${s._lastEpochBump.reason} → 栅栏 ${s._lastEpochBump.epoch}）` : ''}</span>`); if (s.mutex?._foreignRelease) parts.push(`<span style="color:var(--ls-warn,#d29922)">🔒 拒绝越权释放锁 ${s.mutex._foreignRelease} 次</span>`); if (r && r.at) { const f = (r.failed || []).length; parts.push(`♻️ 最近恢复(${r.source}${r.loadedProducer ? ' ← v' + r.loadedProducer : ''}) ${new Date(r.at).toLocaleTimeString('zh-CN')} · ${r.count} 字段${f ? ' <span style="color:var(--ls-warn,#d29922)">失败 ' + r.failed.map(x => x.key).join('/') + '</span>' : ''}${r.rolledBack ? ' <span style="color:var(--ls-warn,#d29922)">已自动回滚原状态</span>' : (f ? ' <span style="color:#f85149">未回滚（保留半套，可紧急备份恢复）</span>' : '')}${r.rollbackWarning ? ' <span style="color:#f85149">' + r.rollbackWarning + '</span>' : ''}`); } return parts.length ? '<div class="ls-item-meta">' + parts.join(' · ') + '</div>' : ''; })()}</div></div>`; })() : ''}
                 ${(s._recallSourceStats && s._recallSourceStats.total > 0) ? `<div class="ls-group"><div class="ls-group-title">📈 召回源命中率（最近 ${s._recallSourceStats.total} 轮）</div><div class="ls-item">${Object.entries(s._recallSourceStats.bySource || {}).sort((a, b) => b[1].hits - a[1].hits).map(([k, v]) => { const pct = Math.min(100, Math.round((v.hits / Math.max(1, v.rounds)) * 100)); const bar = '█'.repeat(Math.max(1, Math.round(pct / 10))); return `<div class="ls-item-text" style="margin:2px 0"><b>${k}</b> ${bar} ${pct}%（${v.hits} 次/${v.rounds} 轮）</div>`; }).join('')}</div><div class="ls-hint">💡 长期 0% 的召回源可在设置中关闭以省资源；命中率数据 200 轮半衰，反映近期状态。</div></div>` : ''}
+                    </div>
+                </details>
             `;
             const ov = makeSheet('lonsha-stats-overlay', '📊 状态总览', body);
             ov.querySelectorAll('.ls-clickable').forEach(card => {
@@ -981,6 +994,13 @@
                     <input type="checkbox" data-cfg="${key}" ${c[key] ? 'checked' : ''}>
                 </label>`;
             const body = `
+                <div class="ls-tabs-nav">
+                    <button type="button" class="ls-tab-btn active" data-tab="general">🚀 常用</button>
+                    <button type="button" class="ls-tab-btn" data-tab="narrative">🎭 剧情与角色</button>
+                    <button type="button" class="ls-tab-btn" data-tab="retrieval">🔍 检索与模型</button>
+                    <button type="button" class="ls-tab-btn" data-tab="advanced">🛠️ 高级与数据</button>
+                </div>
+                <div class="ls-tab-pane active" data-tab-pane="general">
                 <div class="ls-group">
                     <div class="ls-group-title">基础开关</div>
                     ${ck('preferModuleFiles', 'extra_js 自装载', '本仓模块按 manifest 顺序自行装载（关闭则全部走 CJS 回落，机制不生效）')}
@@ -1009,7 +1029,9 @@
                     <input type="range" class="ls-slider" min="1000" max="6000" step="200" value="${c.injectionBudget || 3000}" data-cfg-num="injectionBudget">
                     <div class="ls-hint" style="padding:0 8px;">注入简报超预算时自动裁剪，保护上下文窗口。</div>
                 </div>
-<div class="ls-group">
+                </div>
+                <div class="ls-tab-pane" data-tab-pane="narrative">
+                <div class="ls-group">
                      <div class="ls-group-title">🎮 角色状态 + 待办 + 楼层账本</div>
                      ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
                      ${ck('cseEnabled', 'CSE 人物状态引擎（自研）', '分层建模人物心理：核心人设/逐渐适应/当下情绪 + toward 对象绑定 + 私密/幕后可见性 + 证据链置信度（待证项注入时标注，防推测当事实）')}
@@ -1022,6 +1044,7 @@
                     ${ck('floorLedgerEvictionDebug', '楼层账本淘汰调试日志', '开启后楼层账本淘汰、以及「回滚请求命中已淘汰楼层」时在控制台 warn（默认关）')}
                      <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
                  </div>
+                <div class="ls-tab-pane" data-tab-pane="advanced">
                 <div class="ls-group">
                     <div class="ls-group-title">📚 层级摘要折叠 + BM25 稀疏检索</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
@@ -1137,6 +1160,7 @@
                     <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN ?? 3}" data-cfg-num="rubyPhoneRecallTopN">
                     <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
                 </div>
+                </div>
                 <div class="ls-group">
                     <div class="ls-group-title">🧩 记忆域开关（v3.160 补齐）</div>
                     ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
@@ -1187,6 +1211,7 @@
                     ${ck('timeTagAnchorEnabled', '正文时间标签物理锚点', '识别回复正文中的 <time>/<date> 标签作为绝对剧情时间，零API同步且自动剥离隐藏')}
                     ${ck('cacheFriendlyInjection', 'Prompt Cache 友好型分流', '顶槽锁定绝对稳定的史记前缀，动态周记下沉，使 Claude/DeepSeek/Kimi 持续命中 Prefix Caching')}
                 </div>
+                <div class="ls-tab-pane" data-tab-pane="retrieval">
                 <div class="ls-group">
                     <div class="ls-group-title">API 配置（可选）</div>
                     <label class="ls-row">
@@ -1239,6 +1264,7 @@
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
                     <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
                     <button class="ls-btn" id="ls-prompt-reset">↩️ 恢复默认提示词</button>
+                </div>
                 </div>
                 <div class="ls-group">
                     <div class="ls-group-title">数据管理</div>
@@ -1348,14 +1374,25 @@
                     ${ck('worldProgressEnabled', '世界推进', '世界状态随剧情推进（默认关，需观察效果后开）')}
                     ${ck('vectorChunkEnabled', '长文本分块向量化', '超阈值字符的长文本切块后再向量化（默认关，短文本不受影响）')}
                 </div>
-                <button class="ls-btn" id="ls-snap-restore">🗄️ 快照恢复</button>
-                <!-- [v3.236.0] R4-B：清空只清运行时内存；快照/嵌入存档/紧急备份是恢复退路，刻意不动 -->
-                <button class="ls-btn" id="ls-backfill">🔧 补提取缺失楼层</button>
-            <button class="ls-btn" id="ls-extract-roles">📚 从世界书提取角色</button>
-                <button class="ls-btn ls-btn-primary" id="ls-save">💾 保存设置</button>
+                </div>
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
+                    <button class="ls-btn ls-btn-primary" id="ls-save" style="margin:0;">💾 保存设置</button>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+                        <button class="ls-btn" id="ls-snap-restore" style="padding:9px 4px;font-size:12px;margin:0;">🗄️ 快照恢复</button>
+                        <button class="ls-btn" id="ls-backfill" style="padding:9px 4px;font-size:12px;margin:0;">🔧 补提取缺失</button>
+                        <button class="ls-btn" id="ls-extract-roles" style="padding:9px 4px;font-size:12px;margin:0;">📚 提取角色</button>
+                    </div>
+                </div>
             `;
 
             const overlay = makeSheet('lonsha-settings-overlay', '⚙️ 记忆引擎设置', body);
+            overlay.querySelectorAll('.ls-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.dataset.tab;
+                    overlay.querySelectorAll('.ls-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+                    overlay.querySelectorAll('.ls-tab-pane').forEach(p => p.classList.toggle('active', p.dataset.tabPane === tab));
+                });
+            });
             // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
             overlay.querySelector('#ls-snap-restore').addEventListener('click', () => { plugin.showSnapshotRestore(); });
             // [v3.5] 补提取缺失楼层
@@ -1635,8 +1672,27 @@
             const existing = document.getElementById('lonsha-fab-menu');
             if (existing) { existing.remove(); return; }
 
+            const fab = document.querySelector('#lonsha-memory-fab');
+            const vw = (typeof window !== 'undefined' && window.innerWidth) || (document.documentElement?.clientWidth || 360);
+            const vh = (typeof window !== 'undefined' && window.innerHeight) || (document.documentElement?.clientHeight || 640);
+            const fabRect = fab?.getBoundingClientRect?.() || { left: vw - 72, top: vh - 132, right: vw - 20, bottom: vh - 80, width: 52, height: 52 };
+
+            const menuWidth = 200;
+            const menuHeight = 310;
+            let menuLeft = fabRect.left;
+            if (fabRect.left + menuWidth > vw - 10) {
+                menuLeft = Math.max(10, fabRect.right - menuWidth);
+            }
+            menuLeft = Math.max(10, Math.min(menuLeft, vw - menuWidth - 10));
+
+            let menuTop = fabRect.bottom + 8;
+            if (menuTop + menuHeight > vh - 10) {
+                menuTop = Math.max(10, fabRect.top - menuHeight - 8);
+            }
+
             const menu = document.createElement('div');
             menu.id = 'lonsha-fab-menu';
+            menu.style.cssText = `position:fixed;left:${menuLeft}px;top:${menuTop}px;`;
             menu.innerHTML = `
                 <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));margin-bottom:4px;">LonSha记忆引擎</div>
                 <div class="lsm-item" data-act="stats">📊 状态总览</div>
@@ -1647,7 +1703,7 @@
                 <div class="lsm-item" data-act="ckpt">🔖 检查点</div>
                 <div class="lsm-item" data-act="update">🔄 检查更新</div>
                 <style>
-                    #lonsha-fab-menu { position: fixed; bottom: 145px; right: 20px; background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 200px; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
+                    #lonsha-fab-menu { background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 200px; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }
                     @keyframes ls-menu-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
                     .lsm-item { padding: 13px 14px; color: var(--ls-text,#e6edf3); font-size: 15px; border-radius: var(--ls-r-md,12px); cursor: pointer; transition: background var(--ls-t-fast,120ms); }
                     .lsm-item:hover { background: var(--ls-bg-3,#21262d); }
