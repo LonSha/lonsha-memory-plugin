@@ -7,7 +7,7 @@
   "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.376.0",
+  "version": "3.379.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -176,7 +176,10 @@
     "playable-archive-engine.js",
     "fact-unified-lifecycle-bench.js",
     "evidence-conflict-adjudication-bench.js",
-    "unified-narrative-clock-axis.js"
+    "unified-narrative-clock-axis.js",
+    "recall-route-feedback-bench.js",
+    "generation-material-budget-plan.js",
+    "fact-postgen-replay-receipt.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",
