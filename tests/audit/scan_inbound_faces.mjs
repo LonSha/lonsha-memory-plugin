@@ -149,7 +149,15 @@ export function judgeConsumersInbound(rows, root) {
             continue;
         }
         let code;
-        try { code = stripComments(fs.readFileSync(p, 'utf-8')); }
+        try {
+            code = stripComments(fs.readFileSync(p, 'utf-8'));
+            if (spec.file === 'index.js') {
+                const recPath = path.join(root, 'engine-recall.js');
+                if (fs.existsSync(recPath)) {
+                    code += '\n' + stripComments(fs.readFileSync(recPath, 'utf-8'));
+                }
+            }
+        }
         catch (_e) { problems.push('I2 ' + r.face + ' 读不到消费面：' + spec.file); continue; }
         for (const name of spec.names) {
             /* 三种真在场形态：成员访问 `?.name` / `.name`；方法定义简写 `name(`；赋值 `name =`。

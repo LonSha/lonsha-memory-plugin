@@ -38,8 +38,12 @@ for (const [p, what] of [[MOD, 'world-ledger-reader.js'], [CLOCK, 'world-clock-r
         process.exit(2);
     }
 }
+import { hostSurface } from '../_audit_lib.mjs';
 const mod = fs.readFileSync(MOD, 'utf8');
-const idx = fs.readFileSync(IDX, 'utf8') + String.fromCharCode(10) + fs.readFileSync(MEMCORE, 'utf8');
+/* [v3.361.0→v3.370.0] 快照构造与诊断读数行逐批外移（engine-injection-pipeline / engine-self-check）：
+ *   消费面合看由 hostSurface 统一产出，判据原样跑在新面上。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+const idx = HOST.raw;   // 原实现读原文
 
 const problems = [];
 const notes = [];

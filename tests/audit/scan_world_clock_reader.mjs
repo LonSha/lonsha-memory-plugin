@@ -43,6 +43,7 @@ for (const [p, what] of [[MOD, 'world-clock-reader.js'], [IDX, 'index.js'], [MEM
         process.exit(2);
     }
 }
+import { hostSurface } from '../_audit_lib.mjs';
 const mod = fs.readFileSync(MOD, 'utf8');
 const idx = fs.readFileSync(IDX, 'utf8');
 /* [v3.245.0] 文本判据一律在**剥注释后的源码**上跑（本仓宪法：判据该看代码不看注释）。
@@ -52,7 +53,10 @@ const idx = fs.readFileSync(IDX, 'utf8');
  *   （那是源码内的声明，不是解释性文字），故 W4 仍用 mod。stripComments 等长等换行，
  *   故 W6 的行数判据用原文与剥后同值。 */
 const modCode = stripComments(mod);
-const idxCode = stripComments(idx) + String.fromCharCode(10) + stripComments(fs.readFileSync(MEMCORE, 'utf8'));
+/* [v3.361.0→v3.370.0] 诊断读数行随 selfCheck 表外移到 engine-self-check.js：
+ *   消费面合看由 hostSurface 统一产出（memory-core 也含在内），判据原样跑在新面上。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+const idxCode = HOST.code;
 
 const problems = [];
 const notes = [];

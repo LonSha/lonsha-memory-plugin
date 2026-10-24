@@ -346,3 +346,10 @@ v3590_m6_batch_e.test.mjs		第六期批次 E（M6-X6 意象演变 / M6-X8 回忆
 v3600_m6_batch_f.test.mjs		第六期批次 F（M6-X4 反事实实验 / M6-X9 跨时代传承）验收测试
 v3362_engine_report_split.test.mjs		v3.362.0 index.js 剥离第二批（exportMemoryReport 外提至 engine-report.js）成对验收测试
 v3363_engine_recall_split.test.mjs		v3.363.0 index.js 剥离第三批（recallMemory 核心召回管线外提至 engine-recall.js）成对验收测试
+v3364_engine_qa_tools_split.test.mjs		v3.364.0 index.js 剥离第四批（QA问答与高级查询工具面外提至 engine-qa-tools.js）成对验收测试
+v3365_engine_repair_ops_split.test.mjs		v3.365.0 index.js 剥离第五批（维护修剪与修复运维操作外提至 engine-repair-ops.js）成对验收测试
+v3366_engine_story_annual_split.test.mjs		v3.366.0 index.js 剥离第六批（编年史年鉴与剧情大纲导出外提至 engine-story-annual.js）成对验收测试
+v3367_engine_self_check_split.test.mjs		v3.367.0 index.js 剥离第七批（系统自检与状态诊断外提至 engine-self-check.js）成对验收测试
+v3368_engine_persistence_split.test.mjs		v3.368.0 index.js 剥离第八批（快照归档持久化与清理外提至 engine-persistence.js）成对验收测试
+v3369_engine_injection_split.test.mjs		v3.369.0 index.js 剥离第九批（提示词注入与装配管线外提至 engine-injection.js）成对验收测试
+v3370_engine_evidence_center_split.test.mjs		v3.370.0 index.js 剥离第十批（证据中心/追踪索引/时间轴/悬念链外提至 engine-evidence-center.js）成对验收测试

@@ -31,6 +31,7 @@ import fs from 'fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { hostSurface } from '../_audit_lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
@@ -90,9 +91,12 @@ if (books.length < MIN_BOOKS) {
 }
 const contractSrc = readOrNull(path.join(ROOT, CONTRACT));
 if (contractSrc == null) bail('找不到契约模块 ' + CONTRACT + '：真源不在，判据无从谈起');
-const indexSrc = (readOrNull(path.join(ROOT, 'index.js')) || '')
-    + String.fromCharCode(10) + (readOrNull(path.join(ROOT, 'engine-self-check.js')) || '')
-    + String.fromCharCode(10) + (readOrNull(path.join(ROOT, 'engine-persistence-ops.js')) || ''); // [v3.367.0/v3.368.0] 合看外移的 selfCheck/持久化集群
+/* [v3.370.1] 消费面统一由 hostSurface 派生（不再逐个手抄模块名）：
+ *   原先只并了 engine-self-check / engine-persistence-ops 两个，后续几刀的外移模块
+ *   不在面上 ⇒ R4 会误报「index.js 没有真正读账本实体读数」（实测真读数在
+ *   engine-self-check.js:1245 `return ['账本实体', LE.line(books)];`）。
+ *   名册与扫描面同源是本仓治理过多轮的不变量，此处一并收口。 */
+const indexSrc = hostSurface(ROOT, { fs: fs, path: path }).code;
 if (indexSrc == null) bail('找不到 index.js');
 
 const defects = [];

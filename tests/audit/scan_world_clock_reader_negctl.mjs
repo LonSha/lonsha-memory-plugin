@@ -29,6 +29,7 @@ import os from 'os';
 import path from 'node:path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
@@ -38,7 +39,11 @@ const IDX = 'index.js';
 /* [v3.266.0 A1 第六刀] GameClock 外移 memory-core.js：L2 破坏的真源也搬了，
  *   夹具必须同步搬运，否则锚点在 index.js 里命中 0 次 ⇒ 本组作废。 */
 const MEMCORE = 'memory-core.js';
-const GAUGED = [MOD, IDX, MEMCORE];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生，不得手抄：否则 V0 原版对照在夹具里必红（模块缺席），
+ *   整组负控制失效 —— 这正是「名册与扫描面不同源」的老形态。
+ *   HOST_MODULES 不含 index.js（它是 hostSurface 的 entry），故 IDX 逐个保留。 */
+const GAUGED = [MOD, IDX].concat(HOST_MODULES);
 
 // (名字, 编辑序列 | 'DELETE', 期望退出码, 期望归因串 | null, 说明)
 //   编辑 = [目标文件, 锚点, 替换为, 期望命中数]

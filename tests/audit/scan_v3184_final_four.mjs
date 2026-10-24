@@ -26,7 +26,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { stripComments } from '../_audit_lib.mjs';
+import { stripComments, hostSurface } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 // 本文件源码（R0 自证用：上报点数与读数行都从源码实测，避免「判据被删改而结论不变」）
@@ -55,11 +55,21 @@ for (const k of ['rd', 'nr', 'fp', 'cs', 'idx', 'sui', 'mf', 'mem', 'cfg']) {
 const idxRaw = fs.readFileSync(path.join(ROOT, FILES.idx), 'utf8');
 const sui = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已收口」不算收口）。
+/* [v3.370.1] 四模块消费点（关系披露/图谱汇总/提示词填充/行级变更）随诊断行与 selfCheck 表
+ *   逐批外移到 engine-*.js：宿主消费面合看由 hostSurface 统一产出。
+ *   idxHost 的语义是「宿主侧契约面」——外移模块仍是宿主的一部分（同一插件作用域），
+ *   故一并纳入；但「index.js 退化」判据继续读 idxRaw 单文件。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+/* [v3.370.1] idxHost 必须保持**入口单文件**语义：它判的是「宿主侧取库口契约」，
+ *   而外移模块里有同串的逐字副本（engine-self-check.js:37/50 的 _changeset 取库链），
+ *   扩面会让「宿主取库口被换名」的破坏不可观测 —— 负控制当场假绿（本轮实测踩到）。
+ *   合并面另存 idxAll，给「消费点是否真在」这类判据用。 */
 const idxHost = stripComments(idxRaw);
+const idxAll = HOST.code;
 const memSrc = stripComments(fs.readFileSync(path.join(ROOT, FILES.mem), 'utf8'));
 const cfgSrc = stripComments(fs.readFileSync(path.join(ROOT, FILES.cfg), 'utf8'));
 const cfgFace = stripComments(idxRaw) + String.fromCharCode(10) + cfgSrc;
-const idx = stripComments(idxRaw) + String.fromCharCode(10) + memSrc + String.fromCharCode(10) + cfgSrc;
+const idx = idxAll + String.fromCharCode(10) + cfgSrc;
 if (idxRaw.length < 500000) {
     console.error('[final-four] index.js 退化（' + idxRaw.length + ' 字节），审计需同步结构变化');
     process.exit(2);
@@ -100,17 +110,39 @@ try {
         if (!ex.includes(FILES[k])) defects.push('R2 manifest.extra_js 未登记 ' + FILES[k] + '（取库必返回 module-unavailable）');
     }
 } catch (e) { defects.push('R2 manifest.json 读取失败：' + e.message); }
+/* [v3.370.1] 取库口判据必须**按模块指定扫描面**：
+ *   · 全用合并面 ⇒ 假绿：模块里的逐字副本（engine-self-check.js:37/50 的 _changeset 包装链）
+ *     会把同串带进合看文本，「宿主取库口被换名」的破坏不再可观测（本轮实测踩到）；
+ *   · 全用入口单文件 ⇒ 假红：relation-disclosure / node-rollup 的取库口
+ *     **本来就不在 index.js**（实测 engine-diagnostic-lines.js:230/:211、
+ *     engine-injection-pipeline.js:749），十批剥离已把它们搬走。
+ *   故每条判据显式声明「该取库口真正该在哪个文件」，逐字在位，一个都不许少。 */
 const libs = [
-    ['relation-disclosure', /_moduleLib\(\(\) => window\.LonShaRelationDisclosure,\s*'relation-disclosure\.js'\)/],
-    ['node-rollup', /_moduleLib\(\(\) => window\.LonShaNodeRollup,\s*'node-rollup\.js'\)/],
-    ['fuzzy-patch', /_moduleLib\(\(\) => window\.LonShaFuzzyPatch,\s*'fuzzy-patch\.js'\)/],
-    ['changeset', /_moduleLib\(\(\) => window\.LonShaChangeset,\s*'changeset\.js'\)/],
+    ['relation-disclosure',
+        /_moduleLib\(\(\) => window\.LonShaRelationDisclosure,\s*'relation-disclosure\.js'\)/,
+        ['engine-diagnostic-lines.js', 'engine-injection-pipeline.js']],
+    ['node-rollup',
+        /_moduleLib\(\(\) => window\.LonShaNodeRollup,\s*'node-rollup\.js'\)/,
+        ['engine-diagnostic-lines.js']],
+    ['fuzzy-patch',
+        /_moduleLib\(\(\) => window\.LonShaFuzzyPatch,\s*'fuzzy-patch\.js'\)/,
+        ['index.js', 'engine-diagnostic-lines.js']],
+    ['changeset',
+        /_moduleLib\(\(\) => window\.LonShaChangeset,\s*'changeset\.js'\)/,
+        ['index.js']],
 ];
-/* [v3.266.0 A1 第六刀] 取库口是**宿主侧契约**：只读宿主自身的源码（idxHost）。
- *   判据面合看变宽后，模块里的**逐字副本**（_changeset / _moduleLib 链）会把同串带进合看文本，
- *   使「宿主取库口被换名」这类破坏不再可观测（负控制当场假绿）。
+/* 取库口是**宿主侧契约**：逐条在它该在的那份文件里判（见上）。
  *   模块侧副本另有专门判据（第六刀套件 A 段「取库链副本」），此处不得放宽。 */
-for (const [name, re] of libs) if (!re.test(idxHost)) defects.push('R2 宿主未按契约取库：' + name);
+const _fileCode = (name) => {
+    const f = HOST.files.find((x) => x.name === name);
+    return f ? f.code : '';
+};
+for (const [name, re, where] of libs) {
+    const missing = where.filter((f) => !re.test(_fileCode(f)));
+    if (missing.length === where.length) {
+        defects.push('R2 宿主未按契约取库：' + name + '（' + where.join(' / ') + ' 全部不含该取库口）');
+    }
+}
 const calls = [
     ['关系披露 partition', /_RD\.partition\(/],
     ['关系过滤后循环', /_relKept\.forEach\(/],
@@ -228,11 +260,25 @@ try {
 
 // ── R5 读数可分辨 ──
 {
-    const sc = idx.indexOf('async selfCheck(');
-    if (sc < 0) defects.push('R5 找不到 selfCheck');
+    /* [v3.370.1] 合并面里 index.js 的 selfCheck 是**委托桩**（index.js:8088），
+     *   真实现与 rows 子系统列表在 engine-self-check.js。判据必须问真源：
+     *   定位「含 const rows = [ 的那个 selfCheck」，而不是第一个 indexOf ——
+     *   否则桩在前、实现在后，会把「表里有没有这四行」判成「桩里没有」。
+     *   这条不是放宽：仍然要求四行逐个在 rows 列表里、且四个 entry 函数在方法体内被调用。 */
+    /* [v3.370.1] rows 子系统列表在 engine-self-check.js 的**单文件**里定位：
+     *   合并面上 `const rows = [` 的首个命中是 index.js:691 的另一处无关代码，
+     *   用合并面会把「桩」当成「真实现」。故取该模块的原文单独定位。 */
+    const scModRaw = (() => {
+        const f = HOST.files.find((x) => x.name === 'engine-self-check.js');
+        return f ? f.code : '';
+    })();
+    const rowsMarker = 'const rows = [';
+    const sc = scModRaw.indexOf('async selfCheck(');
+    if (!scModRaw) defects.push('R5 engine-self-check.js 不在扫描面（结构漂移）');
+    else if (sc < 0) defects.push('R5 找不到 selfCheck 真实现（结构漂移）');
     else {
-        const scBody = idx.slice(sc);
-        const rowsIdx = scBody.indexOf('const rows = [');
+        const scBody = scModRaw.slice(sc);
+        const rowsIdx = scBody.indexOf(rowsMarker);
         let lit = '';
         if (rowsIdx < 0) defects.push('R5 selfCheck 未构建子系统列表 rows');
         else {

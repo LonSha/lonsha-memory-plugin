@@ -66,8 +66,10 @@ if (!bridgeLiteral) {
     console.error('[bridge-reader] 桥对象字面量解析失败（花括号不平衡）——结构漂移');
     process.exit(2);
 }
-const snapM = extractMethod(src, 'buildBridgeSnapshot');
-const jsonM = extractMethod(src, 'buildBridgeSnapshotJson');
+const injPipePath = path.join(ROOT, 'engine-injection-pipeline.js');
+const injPipeSrc = fs.existsSync(injPipePath) ? fs.readFileSync(injPipePath, 'utf8') : '';
+const snapM = extractMethod(injPipeSrc || src, 'buildBridgeSnapshot') || extractMethod(src, 'buildBridgeSnapshot');
+const jsonM = extractMethod(injPipeSrc || src, 'buildBridgeSnapshotJson') || extractMethod(src, 'buildBridgeSnapshotJson');
 if (!snapM || !jsonM) {
     console.error('[bridge-reader] 快照方法缺失（buildBridgeSnapshot / buildBridgeSnapshotJson）——结构漂移');
     process.exit(2);

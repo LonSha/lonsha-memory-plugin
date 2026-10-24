@@ -35,8 +35,13 @@ for (const [p, what] of [[SB, 'scene-book.js'], [IDX, 'index.js'], [PUB, 'public
         process.exit(2);
     }
 }
+import { hostSurface } from '../_audit_lib.mjs';
 const sb = fs.readFileSync(SB, 'utf8');
-const idx = fs.readFileSync(IDX, 'utf8');
+const idxEntry = fs.readFileSync(IDX, 'utf8');
+/* [v3.361.0→v3.370.0] 快照构造 / 诊断行逐批外移：消费面合看由 hostSurface 统一产出。
+ *   仍保留 idxEntry（入口单文件）给「不得有第二份 SceneBook 实现」这类**问入口自己**的判据。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+const idx = HOST.raw;   // 原实现读原文：N1 有一条判据锚在注释上
 const pub = fs.readFileSync(PUB, 'utf8');
 // [v3.190] 位移收口后，场景面的单出口重建在登记表模块里——N1 需要连它一起看
 const lrp = path.join(ROOT, 'ledger-replay.js');
@@ -260,7 +265,7 @@ for (const m of ['setLocation', 'whereIs', 'presenceAt', 'samePlace', 'findByLea
 }
 if (!/_absent = true/.test(idx)) problems.push('N6 退路未标记缺席（读数会被误当成「真实现说没有」）');
 if (!/this\.scene\._absent/.test(idx)) problems.push('N6 缺席标记未被诊断面消费（缺席了也没人知道）');
-if (/class SceneBook\s*\{/.test(idx)) problems.push('N6 ★ index.js 里仍有第二份 SceneBook 实现（两份实现必然漂移）');
+if (/class SceneBook\s*\{/.test(idxEntry)) problems.push('N6 ★ index.js 里仍有第二份 SceneBook 实现（两份实现必然漂移）');
 
 /* ---------- N7 结构健康与负向自证 ---------- */
 if (!FIXTURE_MODE) {

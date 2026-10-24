@@ -46,7 +46,10 @@ const SRC = process.cwd();
 const LIB_REL = 'tests/_audit_lib.mjs';
 const AUDIT_REL = 'tests/audit';
 const RUN_REL = 'tests/run.mjs';
-const EXPECT_LIB_MD5 = '2d7413e5839f8fe3fbd62d1c5063cd2f';
+// [v3.370.1] 指纹显式复核并同步：本轮唯一真源新增 hostSurface / HOST_MODULES
+//   （十批剥离后「入口 + 外移模块」合并面的唯一派生点），自证仍通过（node tests/_audit_lib.mjs）。
+//   复核结论：新增的是公共派生辅助，未改动 stripComments/bodyOf/braceMatch/codeLines 的任何口径。
+const EXPECT_LIB_MD5 = 'cb1be35586e9bc41897023612070c5e0';
 const MIN_AUDIT_SCRIPTS = 25;
 const MIN_LIB_BYTES = 8000;
 const MIN_IMPORTERS = 8;

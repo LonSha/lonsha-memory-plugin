@@ -7,6 +7,7 @@
 - `manifest.json` `extra_js` 登记 `engine-evidence-center.js`（共 143 项）。
 - 适配历史切片夹具（`v3214`、`v3296`、`v3310`、`v3312`、`v3313`、`v3325`、`v3331`、`v3380`）的扫描面：方法体已外移的判据改为合看外移模块，模块装配经 `bindDeps` / 窗口注入。
 - 新增 `tests/v3370_engine_evidence_center_split.test.mjs`（10 条）。
+- 扫描器契约：退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
 
 ## v3.369.0
 **index.js 剥离第九批：提示词注入装配管线与上下文快照集群外提为 engine-injection-pipeline.js**

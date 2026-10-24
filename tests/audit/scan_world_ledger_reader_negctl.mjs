@@ -22,6 +22,7 @@ import os from 'os';
 import path from 'node:path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
@@ -32,13 +33,19 @@ const IDX = 'index.js';
 /* [v3.266.0 A1 第六刀] GameClock 外移 memory-core.js：V6 破坏的真源（类声明）随类搬走，
  *   夹具必须同步搬运，否则锚点在 index.js 里命中 0 次 ⇒ 本组作废。 */
 const MEMCORE = 'memory-core.js';
-const GAUGED = [MOD, CLK, IDX, MEMCORE];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生，不得手抄：否则 V0 原版对照在夹具里必红（模块缺席），
+ *   整组负控制失效 —— 这正是「名册与扫描面不同源」的老形态。
+ *   HOST_MODULES 不含 index.js（它是 hostSurface 的 entry），故 IDX 逐个保留。 */
+const GAUGED = [MOD, CLK, IDX].concat(HOST_MODULES);
 
 // (名字, 目标文件 | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 说明)
 const CASES = [
     ['V0-原版对照', null, null, null, null, 0,
         '不破坏：同 fixture 机制下 M 必须 exit 0（否则后面所有「翻红」都不可归因）'],
-    ['V1-快照不携带读数', IDX,
+    /* [v3.370.1] 快照构造随 engine-injection-pipeline.js 外移：破坏必须打在真源码所在文件上。
+     *   原先写死 IDX 会让锚点命中 0 次 ⇒ 该组作废（防静默跳过的纪律本身对，不许放宽）。 */
+    ['V1-快照不携带读数', 'engine-injection-pipeline.js',
         'worldLedgerRead: deep(rawLedgerRead)', 'worldLedgerRead: undefined', 1, 1,
         '快照不再携带对读结果 ⇒ M1「快照携带」消费点脱钩'],
     ['V2-缺口两态塌缩', MOD,

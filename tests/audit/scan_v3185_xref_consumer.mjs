@@ -33,7 +33,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { stripComments } from '../_audit_lib.mjs';
+import { stripComments, hostSurface } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 const P = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
@@ -52,7 +52,12 @@ const suiRaw = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 const mf = JSON.parse(fs.readFileSync(path.join(ROOT, FILES.mf), 'utf8'));
 
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已接消费者」不算接上）。
-const idx = stripComments(idxRaw);
+/* [v3.370.1] 跨条目提权开关（crosslinkRecallBoost）随召回管线外移到 engine-recall.js，
+ *   诊断行随 selfCheck 表外移到 engine-self-check.js：消费面合看由 hostSurface 统一产出。
+ *   「index.js 退化」判据继续读 idxRaw 单文件。
+ *   注：本注释刻意不写两个 NEEDLE 常量的整串字面（R0 纯度自检会当场拦下）。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+const idx = HOST.code;
 const cfgFace = idx + String.fromCharCode(10) + stripComments(cfgRaw);
 const sui = stripComments(suiRaw);
 if (idxRaw.length < 500000) {
@@ -166,16 +171,23 @@ if (!/refsFor\s*\(/.test(idx)) bad('R2 召回侧未消费', '宿主未调用 ref
 
 // ── R3 位置纪律 ──
 const posOf = (needle) => idx.indexOf(needle);
-const pMerge = posOf('this.hybridMerge(results)');
+/* [v3.370.1] 剥离第三批把召回管线外提为独立函数：宿主从 this 变 engine。
+ *   位置纪律（提权在 merge 后、rerank 前）一字不改，判据认两种宿主形态。 */
+const pMerge = (() => {
+    const a = posOf('this.hybridMerge(results)');
+    return a >= 0 ? a : posOf('engine.hybridMerge(results)');
+})();
 const pBoost = posOf('_crosslinkBoostKeys && _crosslinkBoostKeys.size');
 // 锚点要兼容「正确形态」与「历史坏形态」两种调用：坏形态须能落到 R3 自由变量判据，
 //   而不是因为找不到锚点先报 R3 锚点缺失（归因错位会让负控制失去判别力）。
 const pRerank = (() => {
-    const good = idx.indexOf('this.intentRerank(merged, query.text);');
-    const badLit2 = idx.indexOf('this.intentRerank(merged, queryText);');
-    if (good < 0) return badLit2;
-    if (badLit2 < 0) return good;
-    return Math.min(good, badLit2);
+    const cands = [
+        idx.indexOf('this.intentRerank(merged, query.text);'),
+        idx.indexOf('engine.intentRerank(merged, query.text);'),
+        idx.indexOf('this.intentRerank(merged, queryText);'),
+        idx.indexOf('engine.intentRerank(merged, queryText);'),
+    ].filter((x) => x >= 0);
+    return cands.length ? Math.min.apply(null, cands) : -1;
 })();
 if (pMerge < 0 || pBoost < 0 || pRerank < 0) {
     bad('R3 锚点缺失', 'hybridMerge=' + pMerge + ' boost=' + pBoost + ' rerank=' + pRerank);
@@ -266,11 +278,19 @@ if (!idx.includes(NEEDLE_A)) bad('R5 诊断行缺失', 'selfCheck 无「' + NEED
 else ok('R5 诊断行在场');
 // 取诊断行实现的**方法体**：定义行 → 下一个方法定义行之间。
 // 取段必须靠定义行定位，不能靠「找第二次出现」——调用点也在同一文件里。
-const _defLine = (name) => new RegExp('^\\s{4,}' + name + '\\s*\\(').exec(idxRaw);
+/* [v3.370.1] 诊断行实现已随 engine-diagnostic-lines.js 外移，方法头形态从
+ *   类方法简写 `_crosslinkConsumeLine() {` 变为 `function _crosslinkConsumeLine(engine) {`。
+ *   方法体必须从**外移模块原文**取，否则 lineBody 恒空、五条读数判据全成假红
+ *   （判据读残了实现，再报实现缺东西）。 */
+const diagRaw = (() => {
+    const f = HOST.files.find((x) => x.name === 'engine-diagnostic-lines.js');
+    return f ? f.raw : '';
+})();
+if (!diagRaw) bad('R5 实现不可取', 'engine-diagnostic-lines.js 不在扫描面（结构漂移）');
 const lineBody = (() => {
-    const lines = idxRaw.split('\n');
+    const lines = diagRaw.split('\n');
     for (let i = 0; i < lines.length; i++) {
-        if (/^\s{4,}_crosslinkConsumeLine\s*\(/.test(lines[i])) {
+        if (/^\s*(?:function\s+)?_crosslinkConsumeLine\s*\(/.test(lines[i])) {
             const out = [lines[i]];
             for (let j = i + 1; j < lines.length && j < i + 40; j++) {
                 if (out.length > 1 && /^\s{4,}[A-Za-z_$][\w$]*\s*\([^)]*\)\s*\{/.test(lines[j])) break;

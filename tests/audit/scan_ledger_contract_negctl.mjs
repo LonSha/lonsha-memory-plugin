@@ -119,8 +119,10 @@ const CASES = [
         '      history: LE.copyHistory(item, MAX_HISTORY, copyEvent)', '      history: [],', 1, 1,
         'R2 secret-ledger.js 的历史读回未走契约',
         '某本账不再走契约的历史读回 ⇒ R2 必须点名该账（判据是逐账的，不是「有一本委派就够了」）'],
-    ['V5-index 消费面被摘', 'index.js',
-        'return [\'账本实体\', LE.line(books)];', 'return [\'账本实体\', \'—\'];', 1, 1,
+    // [v3.370.1] 唯一读侧已外移到 engine-self-check.js:1245（十批剥离的 selfCheck 表）。
+    //   锚点必须打在真源码所在文件上——打在 index.js 上会命中 0 次，本组就作废了。
+    ['V5-index 消费面被摘', 'engine-self-check.js',
+        "return ['账本实体', LE.line(books)];", "return ['账本实体', '—'];", 1, 1,
         'R4 index.js 没有真正读账本实体读数',
         '唯一读侧被摘掉 ⇒ `revision` 退回「写进去没人读」，R4 必须点名'],
     ['V6-契约模块消失', 'DELETE', CONTRACT, null, null, 2,

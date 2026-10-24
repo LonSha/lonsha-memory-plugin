@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 86960,
+  "ceiling": 88744,
   "maxSlack": 400,
-  "note": "v3.361.0 index.js剥离第一批：诊断行方法群62方法提取为engine-diagnostic-lines.js IIFE模块，index.js净减1404行但新增模块1409行，活跃总量微增",
+  "note": "十批剥离新增7个engine子模块及委托桩，代码量实测88344行，合规抬升ceiling",
   "history": [
     {
       "ceiling": 21000,
@@ -373,7 +373,11 @@
     {
       "ceiling": 86960,
       "reason": "v3.361.0 index.js剥离第一批：诊断行方法群62方法提取为engine-diagnostic-lines.js IIFE模块，index.js净减1404行但新增模块1409行，活跃总量微增"
+    },
+    {
+      "ceiling": 88744,
+      "reason": "十批剥离新增7个engine子模块及委托桩，代码量实测88344行，合规抬升ceiling"
     }
   ],
-  "_history_last": "ceiling 82321 → 86960（实测 86560 + slack 400）：v3.361.0 index.js剥离第一批：诊断行方法群62方法提取为engine-diagnostic-lines.js IIFE模块，index.js净减1404行但新增模块1409行，活跃总量微增"
+  "_history_last": "ceiling 86960 → 88744（实测 88344 + slack 400）：十批剥离新增7个engine子模块及委托桩，代码量实测88344行，合规抬升ceiling"
 }

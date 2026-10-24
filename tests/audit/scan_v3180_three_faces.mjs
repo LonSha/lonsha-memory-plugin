@@ -26,7 +26,7 @@
 // 夹具通道：LONSHA_AUDIT_FIXTURE=1 放宽下限，供单测塞合成仓库。
 import fs from 'fs';
 import path from 'node:path';
-import { bodyOf } from '../_audit_lib.mjs';
+import { bodyOf, hostSurface } from '../_audit_lib.mjs';
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 const FLOOR = path.join(ROOT, 'floor-ledger.js');
@@ -46,14 +46,15 @@ const idxRaw = fs.readFileSync(IDX, 'utf8');
 /* [v3.266.0 A1 第六刀] GameClock / CharacterState 已外移 memory-core.js：
  *   时钟委托与状态层助手这两面的真源随类搬走，判据面改为「入口 + 该模块」合看
  *   （语义一字不改；不放宽：每一条仍须在场）。
- * [v3.361.0 / v3.363.0] 诊断行移至 engine-diagnostic-lines.js、召回移至 engine-recall.js：
- *   扩大扫描面合看，保住真源不放宽。 */
-const idx = idxRaw + String.fromCharCode(10)
-    + fs.readFileSync(path.join(ROOT, 'memory-core.js'), 'utf8')
-    + String.fromCharCode(10)
-    + (fs.existsSync(path.join(ROOT, 'engine-diagnostic-lines.js')) ? fs.readFileSync(path.join(ROOT, 'engine-diagnostic-lines.js'), 'utf8') : '')
-    + String.fromCharCode(10)
-    + (fs.existsSync(path.join(ROOT, 'engine-recall.js')) ? fs.readFileSync(path.join(ROOT, 'engine-recall.js'), 'utf8') : '');
+ * [v3.361.0→v3.370.0] 诊断行 / 召回 / selfCheck 表 / 快照构造 / 持久化集群逐批外移：
+ *   合看面统一由 _audit_lib.hostSurface 产出（十批刀口一个都不许漏）。
+ *   仍保留 idxRaw（入口单文件）给「构造器定位」「覆盖度现算声明」这类**问入口自己**的判据。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+const idx = HOST.raw;   // 原实现读原文（不剥注释）：注释锚点判据依赖它
+if (HOST.names.indexOf('engine-self-check.js') < 0 || HOST.names.indexOf('engine-injection-pipeline.js') < 0) {
+    console.error('[v3180-三面收口] 外移模块缺失（' + HOST.missing.join(',') + '）——结构漂移，扫描面不可信');
+    process.exit(2);
+}
 
 const problems = [];
 const notes = [];
@@ -233,8 +234,8 @@ if (!/typeof RelativeTimeHelper === 'function'/.test(idx) && !/window\.LonShaMem
 // ★ 遗漏基线交叉检查：接线必须落在**构造器内**，不得落在实例字段声明区
 //   （字段声明区里的函数调用/`this.…` 会在 new Foo() 时、外层 this 未绑定前执行 ⇒ 外抛）
 {
-    const mStart = idx.indexOf('class MemoryEngine {');
-    const ctor = idx.indexOf('constructor(config) {', mStart);
+    const mStart = idxRaw.indexOf('class MemoryEngine {');
+    const ctor = idxRaw.indexOf('constructor(config) {', mStart);
     if (mStart < 0 || ctor < 0) {
         problems.push('M5 MemoryEngine 构造器定位失败（接线点无法核对）');
     } else {
@@ -278,7 +279,7 @@ if (/slice\(0, opts\.maxItems/.test(floor) && /slice\(0, opts\.maxSummaryChars/.
     notes.push('M6 附注有界：items ≤20 / 摘要文本 ≤2000 字符');
 }
 // 覆盖度必须**现算**、不入快照
-if (!/\[v3\.180\] 楼层账本覆盖度（\*\*现算\*\*读数，不入快照存盘）/.test(idx)) {
+if (!/\[v3\.180\] 楼层账本覆盖度（\*\*现算\*\*读数，不入快照存盘）/.test(idxRaw)) {
     problems.push('M6 覆盖度未声明「现算、不入快照」（入了快照 = 缺口变成历史数据）');
 }
 

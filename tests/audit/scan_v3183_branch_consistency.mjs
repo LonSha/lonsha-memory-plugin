@@ -23,7 +23,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
-import { stripComments } from '../_audit_lib.mjs';
+import { stripComments, hostSurface } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 
@@ -41,7 +41,12 @@ for (const k of ['sp', 'bg', 'xl', 'idx']) {
 }
 const idx = fs.readFileSync(path.join(ROOT, FILES.idx), 'utf8');
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已过滤」不算过滤）。
-const idxCode = stripComments(idx);
+/* [v3.370.1] 召回主路径与 selfCheck 表逐批外移：
+ *   消费面合看由 hostSurface 统一产出（实测真调用点 engine-recall.js:203
+ *   `results.summary = r.kept;` / engine-recall.js:202 `PV.filterForRecall(...)`，
+ *   selfCheck 表在 engine-self-check.js）。判据原样跑在新面上。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+const idxCode = HOST.code;
 if (idx.length < 500000) {
     console.error('[branch-consistency] index.js 退化（' + idx.length + ' 字节），审计需同步结构变化');
     process.exit(2);

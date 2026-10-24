@@ -21,13 +21,17 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFileSync } from 'child_process';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 
 const SRC = process.cwd();
 const SCAN = path.join(SRC, 'tests/audit/scan_v3184_final_four.mjs');
 /* [v3.266.0 A1 第六刀] GameClock / CharacterState 外移 memory-core.js ⇒
  *   夹具必须同步搬该模块，否则被破坏的真源根本不在 mirror 里。
  *   [v3.267.0 A1 第七刀] memory-config.js 加入声明/迁移判定面，也必须同步进 mirror。 */
-const FILES = ['relation-disclosure.js', 'node-rollup.js', 'fuzzy-patch.js', 'changeset.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-core.js', 'memory-config.js'];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生，不得手抄：否则原版对照在夹具里必红（模块缺席），
+ *   且破坏锚点已搬进外移模块、打不到 index.js ⇒ 整组负控制失效。 */
+const FILES = ['relation-disclosure.js', 'node-rollup.js', 'fuzzy-patch.js', 'changeset.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'].concat(HOST_MODULES);
 
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
@@ -119,8 +123,12 @@ group('R2-manifest 未登记',
 // ── R2 宿主取库口被拆 ──
 group('R2-取库口被换名',
     'index.js',
-    "_moduleLib(() => window.LonShaChangeset, 'changeset.js')",
-    "_moduleLib(() => window.LonShaChangesetX, 'changeset.js')",
+    /* [v3.370.1] 锚点加上宿主变量名 `const CS = `：合并面上 engine-self-check.js 里
+     *   另有两处同形 `_moduleLib(() => window.LonShaChangeset, 'changeset.js')`，
+     *   只破坏 index.js 那处会被它们满足 ⇒ 破坏不可归因（假绿）。
+     *   带宿主变量名的整行在面上恰中 1 次。 */
+    "const CS = _moduleLib(() => window.LonShaChangeset, 'changeset.js')",
+    "const CS = _moduleLib(() => window.LonShaChangesetX, 'changeset.js')",
     'R2 宿主未按契约取库：changeset');
 
 // ── R2 宿主关键调用点被摘 ──
@@ -187,7 +195,8 @@ group('R4d-before 冻结被拆',
     //   改名后 rowsKeys 里仍有「行级变更」，归因不成立（本轮踩到的假绿）。
     //   改为破坏**调用点**——触发「只有定义、没人念」那条归因。
     group('R5-诊断行调用点被摘（只有定义没人念）',
-        'index.js',
+        /* [v3.370.1] selfCheck 表随 engine-self-check.js 外移：调用点在 :830，不在 index.js。 */
+        'engine-self-check.js',
         "const line = (typeof this._changesetLine === 'function') ? this._changesetLine() : '—';",
         "const line = '—';",
         'R5 _changesetLine 在 selfCheck 内无调用点');

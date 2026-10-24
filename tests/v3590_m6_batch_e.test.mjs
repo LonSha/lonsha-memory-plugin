@@ -24,8 +24,6 @@ const RR = globalThis.RecallReinterpretationLib;
 async function loadBroken(tmpPath) {
     // 清除缓存
     const url = pathToFileURL(tmpPath).href + '?t=' + Date.now();
-    await import(url);
-}
     delete globalThis['_broken_' + path.basename(tmpPath, '.js')];
     const mod = await import(url);
     return mod;

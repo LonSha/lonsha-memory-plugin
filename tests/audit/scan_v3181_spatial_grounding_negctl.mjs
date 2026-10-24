@@ -27,6 +27,7 @@ import os from 'os';
 import path from 'node:path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const SCAN = path.join(HERE, 'scan_v3181_spatial_grounding.mjs');
@@ -37,7 +38,11 @@ const PUB = 'public-interface.js';
 //   N1 会读 ledger-replay.js，故 fixture 必须连它一起搬，
 //   否则「原版对照」会因缺文件而误报（判据本身没问题，是夹具没跟上判据）。
 const REP = 'ledger-replay.js';
-const GAUGED = [SB, IDX, PUB, REP];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生，不得手抄：否则 V0 原版对照在夹具里必红（模块缺席），
+ *   整组负控制失效 —— 这正是「名册与扫描面不同源」的老形态。
+ *   HOST_MODULES 不含 index.js（它是 hostSurface 的 entry），故 IDX 逐个保留。 */
+const GAUGED = [SB, IDX, PUB, REP].concat(HOST_MODULES);
 // (名字, 目标文件 | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 说明)
 const CASES = [
     ['W0-原版对照', null, null, null, null, 0,

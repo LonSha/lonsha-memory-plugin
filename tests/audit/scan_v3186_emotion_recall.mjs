@@ -27,7 +27,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { stripComments } from '../_audit_lib.mjs';
+import { stripComments, hostSurface } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
 const P = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
@@ -47,7 +47,11 @@ const suiRaw = fs.readFileSync(path.join(ROOT, FILES.sui), 'utf8');
 const mf = JSON.parse(fs.readFileSync(path.join(ROOT, FILES.mf), 'utf8'));
 
 // 形态判据一律在剥注释后的文本上下结论（注释里写「已接消费者」不算接上）。
-const idx = stripComments(idxRaw);
+/* [v3.370.1] 情绪反向召回随召回管线外移到 engine-recall.js，诊断行随 selfCheck 表外移：
+ *   消费面合看由 hostSurface 统一产出（实测 engine-recall.js:760 读 emotionOppositeRecall 配置、
+ *   engine-recall.js:771 调 recallByOppositeEmotion）。「index.js 退化」判据继续读 idxRaw。 */
+const HOST = hostSurface(ROOT, { fs: fs, path: path });
+const idx = HOST.code;
 const cfgFace = idx + String.fromCharCode(10) + stripComments(cfgRaw);
 const sui = stripComments(suiRaw);
 const npc = stripComments(npRaw);
@@ -194,35 +198,54 @@ const CONSUMER_ANCHORS = [
     ['EL.recallByOppositeEmotion({ queryText: query.text', 1, '召回侧真调用'],
     ['let _emoOppositeKeys = null;', 1, '线索集合声明'],
     ['if (_emoOppositeKeys && _emoOppositeKeys.size) {', 1, '提权块入口'],
-    ['this._emoOppositeRead = {', 1, '读数落账'],
-    ['_emotionOppositeLine() {', 1, '诊断行定义'],
+    /* [v3.370.1] 剥离第三批把召回管线外提为独立函数：宿主从 this 变成 engine，
+     *   诊断行定义也从类方法简写变成 IIFE 内的 `function _emotionOppositeLine(engine) {`。
+     *   判据问的是「这两处是否真在」，形态随刀口变，故两态都认（都不是才红）。 */
+    [['this._emoOppositeRead = {', 'engine._emoOppositeRead = {'], 1, '读数落账'],
+    [['_emotionOppositeLine() {', 'function _emotionOppositeLine(engine) {'], 1, '诊断行定义'],
     ['this._emotionOppositeLine()', 1, '诊断行调用（selfCheck 读取）'],
     ["['" + NEEDLE_ROW + "', line", 1, 'selfCheck 子系统行'],
 ];
-for (const [needle, min, label] of CONSUMER_ANCHORS) {
-    const n = idx.split(needle).length - 1;
-    if (n < min) bad('R3 消费面缺失', label + '「' + needle + '」出现 ' + n + ' 次（需 ≥' + min + '）');
-    else ok('R3 ' + label);
+for (const [needleSpec, min, label] of CONSUMER_ANCHORS) {
+    /* needle 可以是单串（唯一形态）或多态数组（随剥离刀口变形的同一接线） */
+    const forms = Array.isArray(needleSpec) ? needleSpec : [needleSpec];
+    const n = forms.reduce((s, nd) => s + (idx.split(nd).length - 1), 0);
+    if (n < min) {
+        bad('R3 消费面缺失', label + '「' + forms.join(' | ') + '」合计出现 ' + n + ' 次（需 ≥' + min + '）');
+    } else ok('R3 ' + label);
 }
 if (!/EL\.recallByOppositeEmotion\s*\(/.test(idx)) bad('R3 召回侧未消费', '宿主未调用 recallByOppositeEmotion（线索算出来没人用）');
 else ok('R3 recallByOppositeEmotion 调用');
-if (!/this\._emoOppositeRounds = Number\(/.test(idx)) bad('R3 生效轮数未累加', '没有生效轮数读数，诊断面的「长期空转」判不出来');
+if (!/(?:this|engine)\._emoOppositeRounds = Number\(/.test(idx)) bad('R3 生效轮数未累加', '没有生效轮数读数，诊断面的「长期空转」判不出来');
 else ok('R3 生效轮数累加');
-if (!/this\._emoOppositeBoosted = Number\(/.test(idx)) bad('R3 提权计数未累加', '没有提权条数读数，无法分辨「扫到了」与「提上了」');
+if (!/(?:this|engine)\._emoOppositeBoosted = Number\(/.test(idx)) bad('R3 提权计数未累加', '没有提权条数读数，无法分辨「扫到了」与「提上了」');
 else ok('R3 提权计数累加');
 if (!/CONSUMER_ANCHORS|_emotionOppositeLine/.test(idx)) bad('R3 诊断行缺失', 'selfCheck 无' + NEEDLE_ROW + '子系统行');
 else ok('R3 诊断行接线');
 
 // ── R4 位置纪律 ──
 const posOf = (needle) => idx.indexOf(needle);
-const pMerge = posOf('const merged = this.hybridMerge(results);');
+/* [v3.370.1] 剥离第三批把召回管线外提为独立函数后，调用形态从
+ *   `const merged = this.hybridMerge(results);` 变为 `const merged = engine.hybridMerge(results);`
+ *   （不再有 this）。位置纪律（提权必须在 merge 之后、rerank 之前）一字不改，
+ *   判据须认两种形态；两态都不在才判「锚点缺失」。 */
+const pMerge = (() => {
+    const a = posOf('const merged = this.hybridMerge(results);');
+    if (a >= 0) return a;
+    return posOf('const merged = engine.hybridMerge(results);');
+})();
 const pEmo = posOf('if (_emoOppositeKeys && _emoOppositeKeys.size) {');
+/* [v3.370.1] 剥离第三批把召回管线外提为独立函数：宿主从 this 变 engine，
+ *   rerank 调用形态 `this.intentRerank(merged, query.text);` → `engine.intentRerank(...)`。
+ *   位置纪律（提权在 merge 后、rerank 前）一字不改，判据认两种宿主形态。 */
 const pRerank = (() => {
-    const good = idx.indexOf('this.intentRerank(merged, query.text);');
-    const badLit2 = idx.indexOf('this.intentRerank(merged, queryText);');
-    if (good < 0) return badLit2;
-    if (badLit2 < 0) return good;
-    return Math.min(good, badLit2);
+    const cands = [
+        idx.indexOf('this.intentRerank(merged, query.text);'),
+        idx.indexOf('engine.intentRerank(merged, query.text);'),
+        idx.indexOf('this.intentRerank(merged, queryText);'),
+        idx.indexOf('engine.intentRerank(merged, queryText);'),
+    ].filter((x) => x >= 0);
+    return cands.length ? Math.min.apply(null, cands) : -1;
 })();
 if (pMerge < 0 || pEmo < 0 || pRerank < 0) {
     bad('R4 锚点缺失', 'hybridMerge=' + pMerge + ' emo=' + pEmo + ' rerank=' + pRerank);
@@ -236,7 +259,10 @@ if (pMerge < 0 || pEmo < 0 || pRerank < 0) {
 const emoBlock = (() => {
     const i = idx.indexOf('if (_emoOppositeKeys && _emoOppositeKeys.size) {');
     if (i < 0) return '';
-    const j = idx.indexOf('this.intentRerank(merged, query.text)', i);
+    const jThis = idx.indexOf('this.intentRerank(merged, query.text)', i);
+    const jEng = idx.indexOf('engine.intentRerank(merged, query.text)', i);
+    const cands = [jThis, jEng].filter((x) => x > i);
+    const j = cands.length ? Math.min.apply(null, cands) : -1;
     return idx.slice(i, j > i ? j : i + 3000);
 })();
 for (const forbidden of ['addEdge', 'removeRef', 'deleteEdge', '.splice(', 'graph.add']) {
@@ -258,12 +284,19 @@ else ok('R4 键匹配在场');
 //   于是方法体被截在首个 return 分支之前，「生效读数」「无线索态」两条判据全成假红。
 //   「判据把实现读残了，然后报实现缺东西」正是本仓最忌的假归因，故改为**花括号配平**提取：
 //   只认「缩进相同的方法头 + 花括号直到配平」，不被内部语句的形状误导。
+/* [v3.370.1] 诊断行实现已随 engine-diagnostic-lines.js 外移：
+ *   方法体必须从**外移模块原文**取（HOST.files 里那份），不能再用入口单文件 idxRaw ——
+ *   否则 lineBody 恒空，「三态不可分辨」全成假红（判据读残了实现，然后报实现缺东西）。 */
+const diagRaw = (() => {
+    const f = HOST.files.find((x) => x.name === 'engine-diagnostic-lines.js');
+    return f ? f.raw : '';
+})();
+if (!diagRaw) bad('R5 实现不可取', 'engine-diagnostic-lines.js 不在扫描面（结构漂移）');
 const lineBody = (() => {
-    const lines = idxRaw.split('\n');
+    const lines = diagRaw.split('\n');
     for (let i = 0; i < lines.length; i++) {
-        const m = /^(\s{4,})_emotionOppositeLine\s*\(/.exec(lines[i]);
+        const m = /^\s*(?:function\s+)?_emotionOppositeLine\s*\(/.exec(lines[i]);
         if (!m) continue;
-        const indent = m[1];
         const out = [];
         let depth = 0, started = false;
         for (let j = i; j < lines.length; j++) {

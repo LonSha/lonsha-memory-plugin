@@ -24,9 +24,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFileSync } from 'child_process';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 const SRC = process.cwd();
 const SCAN = path.join(SRC, 'tests/audit/scan_v3185_xref_consumer.mjs');
-const FILES = ['crosslink.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生，不得手抄：否则原版对照在夹具里必红（模块缺席），
+ *   且破坏锚点已搬进外移模块、打不到 index.js ⇒ 整组负控制失效。 */
+const FILES = ['crosslink.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'].concat(HOST_MODULES);
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
 const bad = (m) => { fail++; console.error('  ✗ ' + m); };
@@ -78,7 +82,7 @@ function mutate(file, anchor, repl, label, expectAttr) {
 }
 
 // ── N-R2 消费面：生产接上、消费拆掉 ⇒ 必须翻红 ──
-mutate('index.js', 'this._crosslinkIndex.refsFor(query.text);', 'void 0;',
+mutate('engine-recall.js', 'engine._crosslinkIndex.refsFor(query.text);', 'void 0;',
     'N-R2a 拆掉召回侧消费（refsFor 调用）', 'R2 召回侧未消费');
 
 // ── N-R3 位置纪律：让 rerank 先于提权 ⇒ 必须翻红 ──
@@ -86,12 +90,12 @@ mutate('index.js', 'this._crosslinkIndex.refsFor(query.text);', 'void 0;',
 //   落在提权块之前，`merge < boost < rerank` 的偏序被破坏。
 //   （试过「删掉原 rerank、在提权块之后再补一次」——那种破坏两向偏序都成立，扫不出来，
 //     属于破坏本身选错，不是扫描器漏检。）
-mutate('index.js', 'const merged = this.hybridMerge(results);',
+mutate('engine-recall.js', 'const merged = engine.hybridMerge(results);',
     'const merged = this.hybridMerge(results);\n            const _early = this.intentRerank(merged, query.text);',
     'N-R3a 提权落到 rerank 之后', 'R3 位置错');
 
 // ── N-R3b 自由变量回归：把修好的调用还原成历史缺陷形态 ⇒ 必须翻红 ──
-mutate('index.js', 'this.intentRerank(merged, query.text);', 'this.intentRerank(merged, queryText);',
+mutate('engine-recall.js', 'engine.intentRerank(merged, query.text);', 'engine.intentRerank(merged, queryText);',
     'N-R3b 还原 queryText 自由变量（历史缺陷形态）', 'R3 自由变量');
 
 // ── N-R4 边界纪律：提权块内越权写图 ⇒ 必须翻红 ──
@@ -102,18 +106,18 @@ mutate('index.js', 'this.intentRerank(merged, query.text);', 'this.intentRerank(
 //   这样两个同款块各自唯一，且**语义更强**——破坏的必须是本机制自己的那一块。
 //   （同类改动在 v3.185 提交里也有先例：宿主形态一变，旧锚点由当版同步收窄。）
 const XL_ANCHOR = 'if (_crosslinkBoostKeys.has(_k1) || (_k2 && _crosslinkBoostKeys.has(_k2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;';
-mutate('index.js', XL_ANCHOR, XL_ANCHOR.replace('+ 0.006;', "+ 0.006;\n                            this.graph.addEdge('X');"),
+mutate('engine-recall.js', XL_ANCHOR, XL_ANCHOR.replace('+ 0.006;', "+ 0.006;\n                            engine.graph.addEdge('X');"),
     'N-R4a 提权块内越权写图', 'R4 越权写图');
 
 // ── N-R4b 提权幅度越界：把 0.006 换成 0.5 ⇒ 必须翻红 ──
-mutate('index.js', XL_ANCHOR, XL_ANCHOR.replace('+ 0.006;', '+ 0.5;'),
+mutate('engine-recall.js', XL_ANCHOR, XL_ANCHOR.replace('+ 0.006;', '+ 0.5;'),
     'N-R4b 提权幅度越界（0.5）', 'R4 分值越界');
 
 // ── N-R5 读数可分辨：把 idle 警示条件拆掉 ⇒ 必须翻红 ──
 //   锚点唯一化（同 N-R4）：`idle ? ' ⚠️' : ''` 这个形态 v3.186 的情绪行也有一份，
 //   故带上归属键（crosslink 行的 idle 变量由 _crosslinkXrefN 推出，情绪行由 _emoOppositeRounds 推出）。
 const XL_IDLE_ANCHOR = "return ['条目复用', line + (idle ? ' ⚠️' : '')];";
-mutate('index.js', XL_IDLE_ANCHOR, "return ['条目复用', line];",
+mutate('engine-self-check.js', XL_IDLE_ANCHOR, "return ['条目复用', line];",
     'N-R5a 拆掉 idle 警示绑定', 'R5 idle 警示不可分辨');
 
 // ── N-R6 配置面：默认值从 false 改成 true ⇒ 必须翻红（零行为变化承诺被破坏） ──
@@ -193,9 +197,9 @@ mutate('settings-ui.js', "ck('crosslinkRecallBoost'", "ck('crosslinkRecallBoostX
         const t = fs.readFileSync(path.join(dir, file), 'utf8');
         return t.split(anchor).length - 1;
     };
-    if (probe('index.js', XL_ANCHOR) === 1) ok('工具两向自证：锚点存在时恰中 1 次（可破坏）');
+    if (probe('engine-recall.js', XL_ANCHOR) === 1) ok('工具两向自证：锚点存在时恰中 1 次（可破坏）');
     else bad('工具两向自证：本应存在的锚点未恰中 1 次');
-    if (probe('index.js', 'THIS_ANCHOR_DOES_NOT_EXIST_AT_ALL') === 0) ok('工具两向自证：锚点不存在时探测为 0 ⇒ 拒绝破坏（不静默通过）');
+    if (probe('engine-recall.js', 'THIS_ANCHOR_DOES_NOT_EXIST_AT_ALL') === 0) ok('工具两向自证：锚点不存在时探测为 0 ⇒ 拒绝破坏（不静默通过）');
     else bad('工具两向自证：不存在的锚点竟有命中');
     fs.rmSync(dir, { recursive: true, force: true });
 }
@@ -233,7 +237,7 @@ if (!EXPECT_ATTRIB || !EXPECT_ATTRIB.length) {
 
 // ── 还原自证：破坏副本用完即删，原版目录未被触碰 ──
 {
-    const s = fs.readFileSync(path.join(SRC, 'index.js'), 'utf8');
+    const s = fs.readFileSync(path.join(SRC, 'engine-recall.js'), 'utf8');
     const cfg = fs.readFileSync(path.join(SRC, 'memory-config.js'), 'utf8');
     if (!s.includes('intentRerank(merged, query.text);')) bad('原版 index.js 被污染（破坏泄漏到工作区）');
     else if (!cfg.includes('crosslinkRecallBoost: false')) bad('原版 memory-config.js 配置默认值被污染');

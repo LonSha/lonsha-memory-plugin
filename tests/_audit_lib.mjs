@@ -186,6 +186,86 @@ export function braceMatch(text, openIdx) {
 //   交接项：tests/audit/scan_v3182_ledger_replay.mjs 的 R2 仍是形态判据。
 // ============================================================
 // ============================================================
+// 宿主消费面合并读取（hostSurface）
+// ------------------------------------------------------------
+// 为什么存在（本轮实测，不是「整洁性偏好」）：
+//   v3.361.0→v3.370.0 十批剥离把宿主方法体搬进了 engine-*.js（诊断行 / 快照 / 召回 /
+//   selfCheck 表 / 持久化集群 …）。那之后 13 组门禁仍只读 index.js 一个文件，于是集体报
+//   「消费点缺失 / 诊断行不在位 / 快照外供不在位」。实测 27 个红里 20+ 个是**判据面过期**
+//   而非真缺陷，决定性证据（都在外移模块里，不在 index.js）：
+//     · engine-self-check.js:582          this._relationDisclosureLine()
+//     · engine-self-check.js:1245         return ['账本实体', LE.line(books)];
+//     · engine-self-check.js:503          return ['楼层落笔', line + …]
+//     · engine-injection-pipeline.js:379  scene: deep(rawScene)
+//     · engine-injection-pipeline.js:378  worldLedgerRead: deep(rawLedgerRead)
+//     · engine-recall.js:202              PV.filterForRecall(results.summary, _chat)
+//     · engine-recall.js:718              engine.config.config.crosslinkRecallBoost === true
+//
+//   判据该怎么改，是这一节的纪律：
+//     · 不许放宽（删判据 / 把「必须有」改成「有就行」都是假绿）；
+//     · 不许每处手抄一份合并逻辑（13 份必然漂移）；
+//     · 只把**扫描面**扩到「入口 + 其外移模块」，每条判据原样跑在新面上。
+//     · 「入口单文件」的判据（VERSION 常量 / 行数 / 退化阈值 / 防第二份实现的漂移检查）
+//       **不得**改用合并面 —— 那些判据问的就是入口自己，扩面会把结构漂移判成通过。
+//       本函数因此把逐文件原文一并交出（files[]），需要单文件语义的判据继续取它。
+//
+// 拼接形态：段间插入 `\n// ==== <文件名> ====\n` 分隔注释。
+//   · 换行分隔保证不会把上一文件末行的 `this.` 与下一文件首行的 `foo()` 粘成 `this.foo()`；
+//   · 分隔注释在 stripComments 后变空白但保留换行，故 code 面不会出现假命中。
+// ============================================================
+/** 默认并入的外移模块（逐个试读，缺失即跳过，不报错） */
+export const HOST_MODULES = [
+    'engine-diagnostic-lines.js', 'engine-evidence-center.js', 'engine-injection-pipeline.js',
+    'engine-persistence-ops.js', 'engine-qa-tools.js', 'engine-recall.js', 'engine-repair-ops.js',
+    'engine-report.js', 'engine-self-check.js', 'engine-story-annual.js',
+    'memory-core.js',
+];
+/**
+ * 把「宿主入口 + 外移模块」拼成一个统一扫描面。
+ *
+ * @param {string} root 仓库根
+ * @param {{fs: any, path: any, entry?: string, modules?: string[], includeEntry?: boolean}} opts
+ *        fs / path    —— 必传（本文件是纯 ESM，不做同步 require 兜底，避免隐式环境依赖）
+ *        entry        —— 入口文件名，默认 'index.js'
+ *        modules      —— 并入的外移模块；默认 HOST_MODULES；传 [] 表示只读入口
+ *        includeEntry —— 默认 true；传 false 表示只要模块面
+ * @returns {{raw: string, code: string,
+ *            files: Array<{name: string, raw: string, code: string}>,
+ *            names: string[], missing: string[]}}
+ *          读不到的文件进 missing（不抛）——缺失点名由各门禁自己的结构预检负责。
+ */
+export function hostSurface(root, opts) {
+    const o = opts || {};
+    const fs = o.fs;
+    const path = o.path;
+    if (!fs || !path) throw new Error('[audit-lib] hostSurface 需要 { fs, path }');
+    const entry = o.entry || 'index.js';
+    const modules = Array.isArray(o.modules) ? o.modules : HOST_MODULES;
+    const includeEntry = o.includeEntry !== false;
+    const want = (includeEntry ? [entry] : []).concat(modules);
+    const files = [];
+    const missing = [];
+    const chunks = [];
+    for (const name of want) {
+        let raw = null;
+        try {
+            const p = path.join(root, name);
+            if (fs.existsSync(p)) raw = fs.readFileSync(p, 'utf8');
+        } catch (_e) { raw = null; }
+        if (raw == null) { missing.push(name); continue; }
+        files.push({ name: name, raw: raw, code: stripComments(raw) });
+        chunks.push('\n// ==== ' + name + ' ====\n' + raw);
+    }
+    const raw = chunks.join('');
+    return {
+        raw: raw,
+        code: stripComments(raw),
+        files: files,
+        names: files.map((f) => f.name),
+        missing: missing,
+    };
+}
+// ============================================================
 // CLI 自证（仅直接执行时运行）
 // ------------------------------------------------------------
 // 为什么库文件也要能自证：本轮的缺陷正是「判据错了不报错、只给错结论」，

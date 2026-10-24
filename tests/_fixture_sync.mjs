@@ -39,7 +39,7 @@
  * ============================================================ */
 import fs from 'node:fs';
 import path from 'node:path';
-import { stripComments } from './_audit_lib.mjs';
+import { stripComments, HOST_MODULES } from './_audit_lib.mjs';
 
 /** 文件名候选：引号里的仓内相对路径（含扩展名）。刻意不认反引号 —— 路径拼接出来的名字不是清单。 */
 export const FILE_RE = /'([A-Za-z0-9_][A-Za-z0-9_\-./]*\.(?:js|json|tsv|mjs))'/g;
@@ -158,6 +158,17 @@ export function effectiveCopies(root, negPath, gatePath) {
     if (/'manifest\.json'/.test(src) && /extra_js/.test(src) && /\.concat\(/.test(src)) {
         const mf = readManifest(root);
         if (mf) for (const f of [mf.js].concat(mf.extra_js || [])) if (f && repoExists(root, f)) out.add(f);
+    }
+    /* ④ 从 HOST_MODULES 派生（v3.370.1）：`.concat(HOST_MODULES)` 与 `for (const f of HOST_MODULES)`
+     *   是本轮十批剥离之后负控制与门禁同源的**标准写法** —— 门禁扫描面 = hostSurface() = 入口 + HOST_MODULES，
+     *   负控制搬同一份名册。名字在 tests/_audit_lib.mjs 里，字面量口径同样看不见，
+     *   若不算进来就会对「结构上不可能有缺口」的夹具报缺口（本仓 v3.245.0 踩过的同一形态）。
+     *   判据仍是结构性的，且**只认「真的把名册并进搬运清单」这两种写法**：
+     *   仅提到 HOST_MODULES 这个名字（如只在注释/断言里读它）不算覆盖 —— 那正是「看起来同源」。 */
+    const concatHost = /\.concat\(\s*HOST_MODULES\s*\)/.test(src);
+    const iterHost = /(?:for\s*\(\s*const\s+\w+\s+of\s+HOST_MODULES\s*\)|\.\.\.\s*HOST_MODULES\b)/.test(src);
+    if (concatHost || iterHost) {
+        for (const f of HOST_MODULES) if (repoExists(root, f)) out.add(f);
     }
     return out;
 }

@@ -29,9 +29,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFileSync } from 'child_process';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 const SRC = process.cwd();
 const SCAN = path.join(SRC, 'tests/audit/scan_v3186_emotion_recall.mjs');
-const FILES = ['narrative-pulse.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生，不得手抄：否则原版对照在夹具里必红（模块缺席），
+ *   且破坏锚点已搬进外移模块、打不到 index.js ⇒ 整组负控制失效。 */
+const FILES = ['narrative-pulse.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'].concat(HOST_MODULES);
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
 const bad = (m) => { fail++; console.error('  ✗ ' + m); };
@@ -89,13 +93,13 @@ function mutate(file, anchor, repl, label, expectAttr) {
 //   破坏根本没发生，扫描器跑绿，整组测试会伪装成「扫描器抓不住」——先钉住前提，
 //   后面每条失败才能被正确归因。
 const ANCHORS = [
-    ['index.js', 'const merged = this.hybridMerge(results);'],
-    ['index.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;'],
-    ['index.js', 'Number(this._emoOppositeRounds || 0) >= 5'],
-    ['index.js', '待本轮（尚无召回）'],
-    ['index.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });'],
+    ['engine-recall.js', 'const merged = engine.hybridMerge(results);'],
+    ['engine-recall.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;'],
+    ['engine-self-check.js', 'Number(this._emoOppositeRounds || 0) >= 5'],
+    ['engine-diagnostic-lines.js', '待本轮（尚无召回）'],
+    ['engine-recall.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });'],
     ['memory-config.js', 'emotionOppositeRecall: false'],
-    ['index.js', "['情绪反向', line + (idle ? ' ⚠️' : '')]"],
+    ['engine-self-check.js', "['情绪反向', line + (idle ? ' ⚠️' : '')]"],
     ['settings-ui.js', "ck('emotionOppositeRecall'"],
     ['narrative-pulse.js', 'for (const p of (EMOTION_OPPOSITES[w] || [])) out.add(p);'],
     ['narrative-pulse.js', 'let dominant = null, best = 0;'],
@@ -134,35 +138,35 @@ mutate('narrative-pulse.js', 'for (const p of (EMOTION_OPPOSITES[w] || [])) out.
     'N-R2a 反向词并集被拆掉（四维皆空）', 'R2 维无反向词');
 
 // ── N-R3 消费面：生产接上、消费拆掉 ⇒ 必须翻红 ──
-mutate('index.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });',
+mutate('engine-recall.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });',
     "const _er = { reason: 'empty', dominant: null, opposite: [], scanned: 0 };",
     'N-R3a 拆掉召回侧真调用（线索算出来没人用）', 'R3 召回侧未消费');
 
 // ── N-R4 位置纪律：让 rerank 先于提权 ⇒ 必须翻红 ──
 //   破坏方式：在 hybridMerge 之后**立刻**插一次 rerank 调用，于是首次出现的 rerank
 //   落在提权块之前，`merge < boost < rerank` 的偏序被破坏。
-mutate('index.js', 'const merged = this.hybridMerge(results);',
-    'const merged = this.hybridMerge(results);\n            const _early = this.intentRerank(merged, query.text);',
+mutate('engine-recall.js', 'const merged = engine.hybridMerge(results);',
+    'const merged = engine.hybridMerge(results);\n            const _early = engine.intentRerank(merged, query.text);',
     'N-R4a 提权落到 rerank 之后', 'R4 位置错');
 
 // ── N-R4b 边界纪律：提权块内越权写图 ⇒ 必须翻红 ──
-mutate('index.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;',
-    "if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;\n                            this.graph.addEdge('X');",
+mutate('engine-recall.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;',
+    "if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;\n                            engine.graph.addEdge('X');",
     'N-R4b 提权块内越权写图', 'R4 越权写图');
 
 // ── N-R4c 幅度越界：把 0.006 换成 0.5 ⇒ 必须翻红 ──
-mutate('index.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;',
+mutate('engine-recall.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;',
     'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.5;',
     'N-R4c 提权幅度越界（0.5）', 'R4 分值越界');
 
 // ── N-R5 读数可分辨：三态之一被抹掉 ⇒ 必须翻红 ──
 //   注意替换文本不能含原 needle 子串（`待本轮XX` 仍包含 `待本轮`，那样判据照样能命中，
 //   破坏等于没做——这类「破坏写法本身失效」是负控制的常见假绿来源）。
-mutate('index.js', '待本轮（尚无召回）', '本轮尚无召回',
+mutate('engine-diagnostic-lines.js', '待本轮（尚无召回）', '本轮尚无召回',
     'N-R5a 抹掉「待本轮」态（三态不可分）', 'R5 三态不可分辨');
 
 // ── N-R5b idle 警示绑定被拆 ⇒ 必须翻红 ──
-mutate('index.js', 'Number(this._emoOppositeRounds || 0) >= 5', 'Number(this._emoOppositeRounds || 0) >= 0',
+mutate('engine-self-check.js', 'Number(this._emoOppositeRounds || 0) >= 5', 'Number(this._emoOppositeRounds || 0) >= 0',
     'N-R5b 拆掉 idle 的「≥5 轮」绑定', 'R5 idle 警示不可分辨');
 
 // ── N-R6 默认值：false → true ⇒ 必须翻红（零行为变化承诺被破坏）──
@@ -279,13 +283,20 @@ if (!EXPECT_ATTRIB || !EXPECT_ATTRIB.length) {
 
 // ── 还原自证：破坏副本用完即删，原版目录未被触碰 ──
 {
-    const s = fs.readFileSync(path.join(SRC, 'index.js'), 'utf8');
-    const cfg = fs.readFileSync(path.join(SRC, 'memory-config.js'), 'utf8');
-    const n = fs.readFileSync(path.join(SRC, 'narrative-pulse.js'), 'utf8');
-    if (!cfg.includes('emotionOppositeRecall: false')) bad('原版 memory-config.js 被污染（破坏泄漏到工作区）');
-    else if (!s.includes("['情绪反向', line + (idle ? ' ⚠️' : '')]")) bad('原版 index.js 诊断行被污染');
-    else if (!n.includes('for (const p of (EMOTION_OPPOSITES[w] || [])) out.add(p);')) bad('原版 narrative-pulse.js 被污染');
-    else ok('原版工作区未被触碰（破坏只在临时副本里发生）');
+    /* [v3.370.1] 自证对象改为**真正被破坏的那几个文件**（判据与破坏同源）：
+     *   诊断行已外移到 engine-self-check.js、提权块在 engine-recall.js，
+     *   写死 index.js 会让自证查一个根本没被碰过的文件（假绿），
+     *   或者像修前那样查一个已不含该行的文件（假红）。 */
+    const checks = [
+        ['memory-config.js', 'emotionOppositeRecall: false'],
+        ['engine-self-check.js', "['情绪反向', line + (idle ? ' ⚠️' : '')]"],
+        ['engine-recall.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });'],
+        ['engine-diagnostic-lines.js', '待本轮（尚无召回）'],
+        ['narrative-pulse.js', 'for (const p of (EMOTION_OPPOSITES[w] || [])) out.add(p);'],
+    ];
+    const dirty = checks.filter(([f, needle]) => !fs.readFileSync(path.join(SRC, f), 'utf8').includes(needle));
+    if (dirty.length) bad('原版被污染（破坏泄漏到工作区）：' + dirty.map(([f]) => f).join(', '));
+    else ok('原版工作区未被触碰（' + checks.length + ' 个被破坏过的文件全部原样）');
 }
 
 console.log('\n[v3.186 负控制] ' + pass + ' 组成立 / ' + fail + ' 组失败');

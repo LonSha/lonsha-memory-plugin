@@ -21,6 +21,7 @@ import os from 'os';
 import path from 'node:path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const SCAN = path.join(HERE, 'scan_v3180_three_faces.mjs');
@@ -33,7 +34,11 @@ const IDX = 'index.js';
  *   故负控制夹具的搬运清单必须同步补上 —— 否则 V0 原版对照在 fixture 里就 exit 2，
  *   而那个 exit 2 会被本档读成「破坏后翻红」（空对空、归因不成立）。 */
 const MEMCORE = 'memory-core.js';
-const GAUGED = [FLOOR, AGE, PUB, IDX, MEMCORE];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生，不得手抄：否则 V0 原版对照在夹具里必红（模块缺席），
+ *   整组负控制失效 —— 这正是「名册与扫描面不同源」的老形态。
+ *   HOST_MODULES 不含 index.js（它是 hostSurface 的 entry），故 IDX 逐个保留。 */
+const GAUGED = [FLOOR, AGE, PUB, IDX].concat(HOST_MODULES);
 // (名字, 目标文件 | 'DELETE', 锚点, 替换为, 期望命中数, 期望退出码, 说明)
 const CASES = [
     ['V0-原版对照', null, null, null, null, 0,

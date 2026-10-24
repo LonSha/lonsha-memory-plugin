@@ -28,6 +28,7 @@
 import fs from 'fs';
 import vm from 'node:vm';
 import path from 'node:path';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
@@ -215,8 +216,11 @@ const entryCode = fs.readFileSync(path.join(ROOT, entry), 'utf8');
 /* [v3.266.0 A1 第六刀] 刀口模块又多了 memory-core.js（四个内核数据模型类的消费点随类一同搬过去）。
  *   [v3.267.0 A1 第七刀] memory-config.js 也纳入同族消费载体：ConfigManager 配置/迁移路径随类外移。
  *   同族载体清单必须随每一刀扩面：否则新刀口下的真接线会被误报成「零消费」（假红）。 */
-const A1_CARRIERS = ['memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js', 'memory-organs.js', 'memory-core.js', 'memory-config.js', 'engine-diagnostic-lines.js', 'engine-report.js', 'engine-recall.js']
-    .filter((f) => loadOrder.includes(f));
+const A1_CARRIERS = Array.from(new Set([
+    'memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js',
+    'memory-organs.js', 'memory-core.js', 'memory-config.js', 'engine-diagnostic-lines.js',
+    'engine-report.js', 'engine-recall.js', ...HOST_MODULES
+])).filter((f) => loadOrder.includes(f));
 const consumptionCode = [entryCode].concat(
     A1_CARRIERS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))).join(String.fromCharCode(10));
 const referenced = new Set();

@@ -30,7 +30,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
-import { stripComments } from '../_audit_lib.mjs';
+import { stripComments, hostSurface } from '../_audit_lib.mjs';
 const require = createRequire(import.meta.url);
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
@@ -183,7 +183,11 @@ function replayBehaviorProbe() {
 
 
 // 剥注释（保留换行），形态判据一律在剥注释后的文本上下结论。
-const idxStripped = stripComments(idx);
+/* [v3.370.1] 回放诊断行随 selfCheck 表外移到 engine-self-check.js：
+ *   消费面合看由 hostSurface 统一产出（原实现只读 index.js ⇒ R3 报「selfCheck 没读回放诊断行」，
+ *   实测真调用点在 engine-self-check.js:156 `_lr.diagnoseLine(this._lastReplayReport)`）。
+ *   R2b 的行为探针仍真加载 index.js 到 vm（那条判据问的是「会不会执行」，不扩面）。 */
+const idxStripped = hostSurface(ROOT, { fs: fs, path: path }).code;
 
 // ── R1 登记表结构健康 ──
 const owners = Array.isArray(LR.FLOOR_OWNERS) ? LR.FLOOR_OWNERS : [];

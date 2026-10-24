@@ -13,6 +13,7 @@ import os from 'os';
 import path from 'node:path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { HOST_MODULES, hostSurface } from '../_audit_lib.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const SCAN = path.join(HERE, 'scan_v3183_branch_consistency.mjs');
@@ -25,12 +26,17 @@ const BG = 'branch-guard.js';
 const XL = 'crosslink.js';
 const IDX = 'index.js';
 const MF = 'manifest.json';
-const COPY = [SP, BG, XL, IDX, MF];
+/* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
+ *   夹具名册必须同源派生：否则原版对照在夹具里必红（模块缺席），
+ *   且破坏锚点已搬进外移模块、打不到 index.js ⇒ 整组负控制失效。 */
+const COPY = [SP, BG, XL, IDX, MF].concat(HOST_MODULES);
 
 // 每组都带「期望缺陷归因」（第 8 个元素）：只验退出码是不够的——
 //   破坏可能因为**另一条无关缺陷**而翻红，那样这组负控制对它声称的规则是空转的。
 //   故要求判据的缺陷输出里必须出现该条规则的归因串（R1/R2/... 会出现在缺陷行里）。
 // (名字, 目标文件|null, 锚点, 替换为, 期望命中数, 期望退出码, 说明, 期望归因)
+// 目标文件也可以是 [[文件, 锚点, 替换为, 期望命中], ...]：十批剥离后同一个名字散落在
+//   「入口 + 外移模块」多个文件里，只改一处是假破坏（其余文本仍带着名字，名字判据照样命中）。
 const CASES = [
     ['N0-原版对照', null, null, null, null, 0,
         '不破坏：同 fixture 机制下必须 exit 0（否则后续翻红不可归因）', null],
@@ -40,13 +46,13 @@ const CASES = [
         1, 1,
         '模块未登记 → _moduleLib 永远拿不到，R2 必须翻红', 'R2 manifest.extra_js 未登记 crosslink.js'],
 
-    ['N2-删掉召回过滤调用', IDX,
+    ['N2-删掉召回过滤调用', 'engine-recall.js',
         'const r = PV.filterForRecall(results.summary, _chat);',
         'const r = { kept: results.summary, counts: {}, dropped: [] };',
         1, 1,
         '过滤变成空转（结果照旧注入），R2 必须翻红', 'R2 宿主未调用：召回过滤 filterForRecall'],
 
-    ['N3-过滤结果不回写', IDX,
+    ['N3-过滤结果不回写', 'engine-recall.js',
         'results.summary = r.kept;', 'void r.kept;',
         1, 1,
         '过滤了但不回写 = 一条都没滤掉，R3 必须翻红', 'R3 过滤结果没有回写'],
@@ -63,24 +69,29 @@ const CASES = [
         1, 1,
         '「判不了就放行」被反转 → 首次提取全被拦，R5 必须翻红', 'R5 「判不了」没有放行'],
 
-    // 破坏「入口整体消失」：必须把该名字的**全部**出现点一起抹掉
-    //   （定义 1 + selfCheck 调用 1 + errLog 标签 1 + 注释 2 = 5）。
-    //   只改定义处是假破坏：调用文本与 errLog 标签仍带着名字，名字判据照样命中；
-    //   只改 `()` 两处也是假破坏：errLog 标签还在（这正是本组第一次跑出来的真实差别）。
-    ['N6-删掉诊断入口（全名抹除）', IDX,
-        '_branchGuardLine', '_branchGuardDiagRenamed',
-        5, 1,
+    // 破坏「入口整体消失」：必须把该名字的**全部**出现点一起抹掉。
+    //   [v3.370.1] 十批剥离后该名字横跨三个文件：入口委托桩 2 + engine-diagnostic-lines.js 3
+    //   （定义 / errLog 标签 / api 导出表）+ engine-self-check.js 2（typeof 探测 + 调用）= 7。
+    //   只抹一处是假破坏：残留文本仍带着名字，R6 的名字判据照样绿（本组历史教训）。
+    ['N6-删掉诊断入口（全名抹除）', [
+        { file: IDX, anchor: '_branchGuardLine', expectHits: 2 },
+        { file: 'engine-diagnostic-lines.js', anchor: '_branchGuardLine', expectHits: 3 },
+        { file: 'engine-self-check.js', anchor: '_branchGuardLine', expectHits: 2 },
+    ], null, '_branchGuardDiagRenamed',
+        7, 1,
         '入口彻底消失 → 名字判据与调用点判据都必须翻红', 'R6 缺诊断入口：分支守护读数'],
 
     // 入口还在、只是没人念 —— 本仓式失效（函数写好了、零调用点），必须与「入口消失」分开验。
-    ['N6b-摘掉 selfCheck 内的调用点', IDX,
+    //   [v3.370.1] selfCheck 表已外移到 engine-self-check.js:557，锚点必须打在真源码上。
+    ['N6b-摘掉 selfCheck 内的调用点', 'engine-self-check.js',
         'this._crosslinkLine()', "'—'",
         1, 1,
         '入口还在但 selfCheck 不再念它 → 用户侧不可见，R6 必须翻红',
         '_crosslinkLine 在 selfCheck 内无调用点'],
 
-    // 诊断行有**两个** '['键', 出现点（正常返回 + catch 返回），两处都要改才算这行改名。
-    ['N6c-诊断行键被改名', IDX,
+    // 诊断行有**两个** '['键', 出现点（正常返回 + catch 返回），两处都要改才算这次改名。
+    //   [v3.370.1] 摘要来源行已外移到 engine-self-check.js:539/540。
+    ['N6c-诊断行键被改名', 'engine-self-check.js',
         "['摘要来源', ", "['来源溯源（改名）', ",
         2, 1,
         '行键改名 = 诊断行不再是「摘要来源」这条，R6 的列表成员判定必须翻红',
@@ -89,29 +100,48 @@ const CASES = [
 
 function runCase(c) {
     const [name, file, anchor, replacement, expectHits, expectExit, note, expectReason] = c;
+    // [v3.370.1] 目标支持两种形态：
+    //   单文件（file 是字符串）—— 判据锚点只落在入口或只落在一个外移模块；
+    //   多文件（file 是 [{file, anchor, expectHits}, ...]）—— 同一个名字横跨入口委托桩与
+    //     外移实现，必须全部打掉才算真破坏（否则「名字仍在」的残留让名字判据照样绿）。
+    //     替换体由本组第 4 个元素统一给出。
+    const targets = Array.isArray(file)
+        ? file.map((t) => ({ file: t.file, anchor: t.anchor, replacement: replacement, hits: t.expectHits }))
+        : (file ? [{ file: file, anchor: anchor, replacement: replacement, hits: expectHits }] : []);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bc-neg-'));
     try {
         for (const f of COPY) {
             const from = path.join(REPO, f);
             if (fs.existsSync(from)) fs.copyFileSync(from, path.join(dir, f));
         }
-        if (file) {
-            const fp = path.join(dir, file);
+        for (const t of targets) {
+            const fp = path.join(dir, t.file);
+            if (!fs.existsSync(fp)) {
+                return { name, ok: false, why: '夹具里没有 ' + t.file + '（名册与判据扫描面不同源）' };
+            }
             const src = fs.readFileSync(fp, 'utf8');
-            const hits = src.split(anchor).length - 1;
+            const hits = src.split(t.anchor).length - 1;
             // 期望命中 0 次时该组无破坏力，直接作废（防「锚点已被改动、负控制静默空转」）。
-            if (expectHits === 0) {
+            if (t.hits === 0) {
                 return { name, ok: false, why: 'witness 组：锚点命中 0 次（该组无破坏力，仅记录）', witness: true };
             }
-            if (hits !== expectHits) {
-                return { name, ok: false, why: '锚点命中 ' + hits + ' 次（期望 ' + expectHits + '），该组作废' };
+            if (hits !== t.hits) {
+                return { name, ok: false, why: t.file + ' 锚点命中 ' + hits + ' 次（期望 ' + t.hits + '），该组作废' };
             }
-            fs.writeFileSync(fp, src.split(anchor).join(replacement));
-            if (file.endsWith('.js')) {
+            fs.writeFileSync(fp, src.split(t.anchor).join(t.replacement));
+            if (t.file.endsWith('.js')) {
                 const chk = spawnSync(process.execPath, ['--check', fp], { encoding: 'utf8' });
                 if (chk.status !== 0) {
                     return { name, ok: false, why: '破坏后解析失败（退出码不可归因于判据）：' + (chk.stderr || '').slice(0, 200) };
                 }
+            }
+        }
+        // 多文件组：逐文件命中各自核对后，合计必须等于该组声明的总命中数
+        //   （防「漏了一处仍是假破坏」——残留的名字文本让名字判据照样绿）。
+        if (Array.isArray(file) && expectHits != null) {
+            const total = targets.reduce((s, t) => s + t.hits, 0);
+            if (total !== expectHits) {
+                return { name, ok: false, why: '本组声明总命中 ' + expectHits + ' 次，但逐文件期望合计 ' + total + ' 次（名册自相矛盾，该组作废）' };
             }
         }
         const r = spawnSync(process.execPath, [SCAN], {
@@ -161,11 +191,16 @@ for (const c of CASES.slice(1)) {
     console.log((r.ok ? '  ok ' : '  FAIL ') + r.name + (r.why ? ' — ' + r.why : ''));
 }
 // witness 组：单独判定「锚点是否存在」，不作破坏。
+//   [v3.370.1] 判据扫描面已扩到「入口 + 外移模块」，witness 必须同面核对：
+//   _provRecallFilter 的真落点在 engine-recall.js（5 处）与 engine-diagnostic-lines.js（1 处），
+//   入口 index.js 里已一处不剩——只查入口会得出「判据与源码脱节」的假红。
 {
-    const src = fs.readFileSync(path.join(REPO, IDX), 'utf8');
-    const hits = src.split('_provRecallFilter').length - 1;
+    const H = hostSurface(REPO, { fs: fs, path: path });
+    const hits = H.code.split('_provRecallFilter').length - 1;
+    const where = H.files.filter((f) => f.code.includes('_provRecallFilter')).map((f) => f.name);
     const okW = hits > 0;
-    console.log((okW ? '  ok ' : '  FAIL ') + 'N7-读数锚点存在性（witness）' + (okW ? '' : ' — 锚点 0 次，判据与源码已脱节'));
+    console.log((okW ? '  ok ' : '  FAIL ') + 'N7-读数锚点存在性（witness）'
+        + (okW ? '（' + where.join(' + ') + '）' : ' — 锚点 0 次，判据与源码已脱节'));
     results.push({ name: 'N7', ok: okW });
 }
 

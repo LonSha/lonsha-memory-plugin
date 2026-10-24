@@ -1,7 +1,7 @@
 # lonsha-memory-plugin 发展规划
 > **第六期产品计划（2026-10-22，唯一现行提案）**：本仓优化9项＋拓展9项，双仓共36项完整大更新，均为proposed。**本轮仅交付计划，未实施功能、未升版。**
 > [优化提升九项](.agents/notes/proposed/architecture/2026-10-22-product-optimization-v6.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-10-22-product-expansion-v6.md) · [源码证据、差异化与六批次](docs/planning/2026-10-22-product-evidence-v6.md) · [本轮交付检查](docs/planning/2026-10-22-plan-delivery-v6.md)。
-> **当前执行状态（2026-10-23，v3.363.0）**：生产基线 `main@a6025ba`；新项按完整用户旅程验收，守卫、审计、台账、发布不独立占名额，不用小修补或已有功能改名充数。
+> **当前执行状态（2026-10-23，v3.370.0）**：生产基线 `main@a6025ba`；新项按完整用户旅程验收，守卫、审计、台账、发布不独立占名额，不用小修补或已有功能改名充数。
 > **独有方向**：记忆侧从分散条目走向连续经历、人物认知与长期演化；手机侧从分散App走向持续通信、生活协作与跨媒介创作。开创性按本项目实质增量判，不宣称全球首创。
 
 | 编号 | 优化提升（待实施） | 编号 | 拓展创新（待实施） |
@@ -54,11 +54,11 @@
 
 | 量 | 读数 | 出处 |
 |---|---|---|
-| 版本 | **v3.363.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
-| 门禁 | 在役面 **341 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
+| 版本 | **v3.370.0**（四源同源；本表原为 v3.266.0） | `scan_version_guard.mjs` |
+| 门禁 | 在役面 **348 测试文件 / 61 个 audit 脚本**（磁盘 67）—— 磁盘枚举读数，由 `scan_doc_truthfulness.mjs` 核回 | `tests/` 与 `tests/audit/` 实读 |
 | 全量快照 | 最近全量快照 **v3.355.0：334 测试文件 / 4066 断言 0 失败 / 审计 61/61**（当版 **已实跑并登记**;上一快照 v3.348.0:328 / 3910 / 61/61;再上一份 v3.328.0:309 / 3528 / 61/61;再上一份 v3.318.0:299 / 3302 / 61/61;**第二期计划收口点**:优化 M-O1~M-O9 / 拓展 M-X1~M-X9 全部交付;更早 v3.296.0:277 / 2986 / 59/59) | `tests/audit/doc_readings.json` |
-> 当前 v3.363.0 **全量待验**（实施期按铁律只跑定向判据与定点回归，绝不跑全量；本版新增 index.js 剥离第三批：recallMemory 核心召回管线 718 行外提为 engine-recall.js IIFE 模块；index.js 20950→20249 行，净减 701 行；manifest extra_js 136 项）；上一版 v3.355.0 **已实跑并登记**（全量 `node tests/run.mjs --audit --jobs 3 --audit-jobs 2` ⇒ 334/334 文件 · 4066 断言 · 0 失败 · 审计 61/61；读数由 tools/_rebind_doc_readings.py 消费结构化摘要零手抄重绑，见上表）。
-| 体量 | `index.js` **20249 行**(探针读数;`wc -l` 20249) / **807** 成员 —— 经诊断行外提(-1404)与召回管线外提(-701)后持续解耦降量;+ extra_js **136** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
+> 当前 v3.370.0 **全量待验**（实施期按铁律只跑定向判据与定点回归，绝不跑全量；本版完成 index.js 剥离第十批：证据中心/追踪索引/时间轴/悬念链外提至 engine-evidence-center.js，index.js 降至 12122 行；manifest extra_js 143 项）；上一版 v3.355.0 **已实跑并登记**（全量 `node tests/run.mjs --audit --jobs 3 --audit-jobs 2` ⇒ 334/334 文件 · 4066 断言 · 0 失败 · 审计 61/61；读数由 tools/_rebind_doc_readings.py 消费结构化摘要零手抄重绑，见上表）。
+| 体量 | `index.js` **12122 行**(探针读数;`wc -l` 12122) / **723** 成员 —— 十批剥离后持续解耦降量;+ extra_js **143** 项 | `wc -l` / `manifest.json` / `host_beast_baseline.json` |
 | 跨仓外供 | 正向 **7 面**（`open_face_registry.tsv`；v3.314.0 M-X6 新增 `phoneFactReceipt`（consumer `none@0`，手机侧回执面，下游接入属下一轮）；v3.305.0 M-X9 新增 `memoryToolsEnvelope`（consumer `none@0`，下游接入属下一轮））+ 反向 **1 面**（`open_face_registry_inbound.tsv`，下游产出 / 本仓消费） | v3.253.0 建表 / v3.258.0 建反向表 |
 
 ---

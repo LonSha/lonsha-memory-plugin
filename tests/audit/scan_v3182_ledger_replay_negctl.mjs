@@ -19,6 +19,7 @@ import os from 'os';
 import path from 'node:path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { HOST_MODULES } from '../_audit_lib.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
 const SCAN = path.join(HERE, 'scan_v3182_ledger_replay.mjs');
@@ -99,8 +100,13 @@ function runCase(c) {
     const [name, file, anchor, replacement, expectHits, expectExit] = c;
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lr-neg-'));
     try {
+        /* [v3.370.1] 主门禁扫描面 = 入口 + 外移模块（hostSurface），夹具必须同源派生。 */
         fs.copyFileSync(path.join(REPO, LR), path.join(dir, LR));
         fs.copyFileSync(path.join(REPO, IDX), path.join(dir, IDX));
+        for (const f of HOST_MODULES) {
+            const from = path.join(REPO, f);
+            if (fs.existsSync(from)) fs.copyFileSync(from, path.join(dir, f));
+        }
         if (file) {
             const fp = path.join(dir, file);
             const src = fs.readFileSync(fp, 'utf8');

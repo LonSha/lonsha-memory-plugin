@@ -56,7 +56,7 @@
     }
     function _ledgerApis() {
         if (_libs._ledgerApis) return _libs._ledgerApis();
-        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaLedgerApis : null), 'commitment-ledger.js');
+        return null;
     }
     function _qaThreadLib() {
         if (_libs._qaThreadLib) return _libs._qaThreadLib();
