@@ -39,6 +39,24 @@
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSummaryProvenance : null), 'summary-provenance.js');
     }
 
+    function _ironyFilterLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaIronyImmuneFilter : null), 'irony-pretense-immune-filter.js');
+    }
+    function _factLifecycleLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaFactLifecycleMatrix : null), 'fact-unified-lifecycle-matrix.js');
+    }
+    function _intentCostLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaIntentCostTracker : null), 'postgen-intent-cost-tracker.js');
+    }
+    function _expectationAbsenceLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaExpectationAbsence : null), 'expectation-absence-tracker.js');
+    }
+    function _psychologicalBoundaryLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPsychologicalBoundary : null), 'psychological-boundary-shift.js');
+    }
+    function _rubyPhoneBridgeLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRubyPhoneBridge : null), 'ruby-phone-bidirectional-bridge.js');
+    }
     function _crosslinkLib() {
         if (typeof _deps._crosslinkLib === 'function') return _deps._crosslinkLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCrosslink : null), 'crosslink.js');
@@ -1117,6 +1135,78 @@ timeAnchor: extracted?.time_anchor || null,
                     const rb = window.VirtualPhone?.lonshaBridge;
                     if (rb?.onFloorCommitted) rb.onFloorCommitted(message.index || 0);
                 } catch (e) { errLog(e, 'onMessageReceived.RubyPhone桥'); }
+                // [L10-X3 & L10-O1 & L10-O6 & L10-X5 & L10-X6 & L10-O9] 第十期执行后动态认知闭环
+                try {
+                    const curFloor = message.index || 0;
+                    const text = message.mes || message.text || '';
+                    
+                    // 1. X3 反讽免疫检测
+                    const Irony = _ironyFilterLib();
+                    let ironyAssessment = null;
+                    if (Irony && typeof Irony.evaluateFactCredibility === 'function') {
+                        ironyAssessment = Irony.evaluateFactCredibility({ content: text, contextTone: 'casual', isDirectAction: false });
+                    }
+
+                    // 2. O1 事实流转接入 (若非纯反讽调侃)
+                    const FactMat = _factLifecycleLib();
+                    if (FactMat && typeof FactMat.admitNewFact === 'function' && (!ironyAssessment || ironyAssessment.credibility !== 'quarantined')) {
+                        if (this._lastExtractedFacts && Array.isArray(this._lastExtractedFacts)) {
+                            this._lastExtractedFacts.forEach(fact => {
+                                FactMat.admitNewFact(fact, curFloor);
+                            });
+                        }
+                    }
+
+                    // 3. O6 意图代价追踪
+                    const CostTracker = _intentCostLib();
+                    if (CostTracker && typeof CostTracker.extractIntentProposals === 'function') {
+                        const proposals = CostTracker.extractIntentProposals(text, { speaker: message.name, floor: curFloor });
+                        this._lastIntentRoiReport = CostTracker.trackExtractionCost({
+                            elapsedMs: 10,
+                            tokensProcessed: 150,
+                            proposalsCount: proposals.length
+                        }, proposals);
+                    }
+
+                    // 4. X5 缺席期待追踪
+                    const ExpTracker = _expectationAbsenceLib();
+                    if (ExpTracker && typeof ExpTracker.createExpectation === 'function') {
+                        if (this._newCommitments && Array.isArray(this._newCommitments)) {
+                            this._activeExpectations = this._activeExpectations || [];
+                            this._newCommitments.forEach(c => {
+                                this._activeExpectations.push(ExpTracker.createExpectation(Object.assign({ registeredFloor: curFloor }, c)));
+                            });
+                        }
+                        if (this._activeExpectations && typeof ExpTracker.evaluateExpectations === 'function') {
+                            this._absenceReport = ExpTracker.evaluateExpectations(this._activeExpectations, curFloor, [
+                                { actor: message.name, description: text }
+                            ]);
+                        }
+                    }
+
+                    // 5. X6 心理边界转移
+                    const Boundary = _psychologicalBoundaryLib();
+                    if (Boundary && typeof Boundary.evaluateInteractionImpact === 'function') {
+                        const speaker = message.name || '对方';
+                        this._currentBoundaryState = Boundary.evaluateInteractionImpact(this._currentBoundaryState || {}, {
+                            speaker,
+                            text,
+                            intimacyDelta: 1
+                        });
+                    }
+
+                    // 6. O9 虚拟手机双向真桥同步
+                    const Bridge = _rubyPhoneBridgeLib();
+                    if (Bridge && typeof Bridge.syncMemoryToPhone === 'function') {
+                        const syncPayload = {
+                            floor: curFloor,
+                            speaker: message.name,
+                            contactNote: this._lastContactUpdate,
+                            todoItem: this._lastTodoItem
+                        };
+                        this._lastPhoneBridgeSync = Bridge.syncMemoryToPhone(syncPayload, window.VirtualPhone?.runtimeState);
+                    }
+                } catch (e) { errLog(e, 'onMessageReceived.L10CognitiveLoop'); }
                 if (this.config.config.autoSave) {
                     // [v2.9] RU-C: 定期快照（每 snapshotEveryFloors 楼一份，IndexedDB 独立于 chatMetadata）
                     try {

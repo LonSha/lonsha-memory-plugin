@@ -50,6 +50,15 @@
         if (_libs._sleepAwakenLib) return _libs._sleepAwakenLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSleepAwaken : null), 'sleep-awaken.js');
     }
+    function _recallRouteFeedbackHubLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallRouteFeedbackHub : null), 'dynamic-recall-route-feedback-hub.js');
+    }
+    function _epistemicParallaxLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaEpistemicParallax : null), 'epistemic-parallax-theater-engine.js');
+    }
+    function _counterfactualSandboxLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCounterfactualSandbox : null), 'counterfactual-branching-sandbox.js');
+    }
     function _summaryProvenanceLib() {
         if (_libs._summaryProvenanceLib) return _libs._summaryProvenanceLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSummaryProvenance : null), 'summary-provenance.js');
@@ -823,6 +832,23 @@
             //   意图重排的入参就是查询文本，与 buildQuery 的既有口径一致（query.text）。
             // [v3.249.0] M-O1：重排结果**就地**落在 `finalMerged`（不另建数组），
             //   于是「收尾顺序 = 上游最后一次重排的顺序」这条语义对四条路径是同一份。
+            // [L10-O4 & L10-X7 & L10-X8] 第十期召回自适应重排与情境投影
+            try {
+                const Hub = _recallRouteFeedbackHubLib();
+                if (Hub && typeof Hub.rankCandidatesByRoute === 'function') {
+                    const activeRoute = engine.config?.config?.recallRoutePreference || Hub.RECALL_ROUTES.BALANCED_HYBRID;
+                    const weights = engine._recallRouteWeights || {};
+                    merged = Hub.rankCandidatesByRoute(merged, activeRoute, weights);
+                }
+                const Para = _epistemicParallaxLib();
+                if (Para && typeof Para.resolvePerspectiveGuidance === 'function' && engine._currentSpeaker) {
+                    engine._parallaxGuidance = Para.resolvePerspectiveGuidance(engine._parallaxEntry, engine._currentSpeaker);
+                }
+                const Cf = _counterfactualSandboxLib();
+                if (Cf && typeof Cf.evaluateCounterfactualAwakening === 'function' && engine._lastSceneTriggers) {
+                    engine._counterfactualAwakenings = Cf.evaluateCounterfactualAwakening(engine._activeBranchSandboxes || [], engine._lastSceneTriggers);
+                }
+            } catch (e) { errLog(e, 'recallMemory.L10RecallEnhancements'); }
             const finalMerged = engine.intentRerank(merged, query.text);
             /* [v3.321.0 · M3-O1] 融合优化（语义重复抑制 / 角色事件覆盖 / 未结保底）。
              *   位置：**intentRerank 之后、_finalize 之前** —— 上游三条提权（crosslink /

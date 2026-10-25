@@ -82,6 +82,27 @@
     let _projectionLib = function () {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaProjectionPipeline : null), 'projection-pipeline.js');
     };
+    let _privyFenceLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPrivySecurityFence : null), 'privy-clearance-security-fence.js');
+    };
+    let _chronologyAxisLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaUnifiedChronologyAxis : null), 'unified-chronology-axis-engine.js');
+    };
+    let _conflictArbitrationLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaConflictArbitration : null), 'conflict-group-arbitration-workbench.js');
+    };
+    let _autobiographicalLensLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaAutobiographicalLens : null), 'autobiographical-lens-narrative.js');
+    };
+    let _microAtmosphereLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMicroAtmosphere : null), 'micro-atmosphere-residual-tracker.js');
+    };
+    let _attentionPrimingLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaAttentionPriming : null), 'attention-priming-verification-anchor.js');
+    };
+    let _budgetReceiptLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaBudgetAllocationReceipt : null), 'transparent-budget-allocation-receipt.js');
+    };
     let _relationHistoryLib = function () {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRelationHistory : null), 'relation-history.js');
     };
@@ -520,6 +541,14 @@
              *   那么「本轮召回为空」就会带着上一轮的 kept/stages 一起被读出去 ——
              *   正是 R2-A 治过的「同形」在回执面的翻版。 */
             this._injectionTraceDraft = null;
+            // [L10-O7] 私密知情权安全围栏硬过滤
+            try {
+                const Fence = _privyFenceLib();
+                if (Fence && typeof Fence.filterMemoriesForSpeaker === 'function' && this._currentSpeaker) {
+                    const userCircles = this._currentUserCircles || [];
+                    recalled = Fence.filterMemoriesForSpeaker(recalled, this._currentSpeaker, userCircles);
+                }
+            } catch (e) { errLog(e, 'buildInjection.privyFence'); }
             if (!recalled?.length) return '';
             const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
@@ -1001,6 +1030,52 @@
                 });
             }
             
+            // [L10-O3 & L10-O2 & L10-X4 & L10-X1 & L10-X2 & L10-O5] 第十期认知增强块注入
+            try {
+                // 1. O3 双时间时钟轴说明
+                const Chrono = _chronologyAxisLib();
+                if (Chrono && typeof Chrono.projectChronologySnapshot === 'function' && this._currentStoryTime) {
+                    const snap = Chrono.projectChronologySnapshot(this._chronologyItems || [], this._currentStoryTime);
+                    const cp = Chrono.formatChronologyPrompt(snap);
+                    if (cp) blocks.push(cp);
+                }
+                // 2. O2 冲突裁决约束注入
+                const Arb = _conflictArbitrationLib();
+                if (Arb && typeof Arb.formatArbitrationPrompt === 'function' && this._activeArbitrationRecord) {
+                    const ap = Arb.formatArbitrationPrompt(this._activeArbitrationRecord);
+                    if (ap) blocks.push(ap);
+                }
+                // 3. X4 自传透镜主观重构
+                const Lens = _autobiographicalLensLib();
+                if (Lens && typeof Lens.reframeFactThroughLens === 'function' && this._activeLens && this._keyFactStatements) {
+                    for (const kf of this._keyFactStatements) {
+                        const ref = Lens.reframeFactThroughLens(kf, this._activeLens);
+                        if (ref && ref.reframedNarrative) blocks.push('〔内心独白透镜〕' + ref.reframedNarrative);
+                    }
+                }
+                // 4. X1 微观氛围残差
+                const Atmo = _microAtmosphereLib();
+                if (Atmo && typeof Atmo.attachAtmosphereToRecall === 'function' && this._currentAtmosphereResidual) {
+                    const atmoBlock = Atmo.attachAtmosphereToRecall(this._currentAtmosphereResidual, this._currentSpeaker || '对方');
+                    if (atmoBlock) blocks.push(atmoBlock);
+                }
+                // 5. X2 注意力预热锚点插桩
+                const Prime = _attentionPrimingLib();
+                if (Prime && typeof Prime.buildPrimingAnchors === 'function' && this._primingFocusFacts) {
+                    const pAnchors = Prime.buildPrimingAnchors(this._primingFocusFacts);
+                    this._currentPrimingAnchors = pAnchors;
+                    const pp = Prime.formatPrimingPrompt(pAnchors.anchors || pAnchors);
+                    if (pp) blocks.unshift(pp); // 前置潜意识置顶
+                }
+                // 6. O5 预算透明回执与分层裁切
+                const Alloc = _budgetReceiptLib();
+                if (Alloc && typeof Alloc.allocateBudgetWithReceipt === 'function') {
+                    const materialItems = blocks.map((b, i) => ({ id: 'b-' + i, content: b, priority: 50 }));
+                    this._lastBudgetAllocationReceipt = Alloc.allocateBudgetWithReceipt(materialItems, {
+                        maxTotalTokens: Number(this.config?.config?.memoryTokenBudget || 2048)
+                    });
+                }
+            } catch (e) { errLog(e, 'buildInjection.L10CognitiveBlocks'); }
             if (!blocks.length) return '';
             let full = `\n\n${NOTE}\n${blocks.join('\n')}\n${END}\n`;
             // [v3.25] 召回类型分级 + token 预算双层（MemoryPilot + 记忆库v5）:

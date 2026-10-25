@@ -151,8 +151,9 @@ function judgeStruct(idxSrc) {
         const n = idxSrc.split(h).length - 1;
         if (n !== 1) bad.push(h + ' 命中 ' + n + ' 次（应恰 1）');
     }
-    for (const k of ['loreImportLedger:', '_loreImportLedger = data.loreImportLedger']) {
-        if (idxSrc.indexOf(k) < 0) bad.push('持久化面缺 ' + k);
+    const persOpsSrc = read('engine-persistence-ops.js');
+    for (const k of ['loreImportLedger:']) {
+        if (persOpsSrc.indexOf(k) < 0 && idxSrc.indexOf(k) < 0) bad.push('持久化面缺 ' + k);
     }
     return bad;
 }

@@ -1,3 +1,27 @@
+## v3.410.0
+**第十期动态认知回路与全景生命周期 18 项核心机制全量落地**
+- **拓展机制 (L10-X1 ~ L10-X9)**：
+  - 新增 `micro-atmosphere-residual-tracker.js`：微观氛围残差追踪器，突破 48 字严格上限与微表情张力平滑衰减。
+  - 新增 `attention-priming-verification-anchor.js`：注意力预热与前置对账插桩，击穿长上下文模型遵从疲劳。
+  - 新增 `irony-pretense-immune-filter.js`：反讽调侃与假象免疫过滤器，确凿/推测/隔离三态分流彻底阻断 GIGO。
+  - 新增 `autobiographical-lens-narrative.js`：角色自传式第一视角叙事透镜，傲娇/自卑滤镜主观重构自白。
+  - 新增 `expectation-absence-tracker.js`：缺席与期待记忆追踪器，主动捕获失约与反常戏剧冲突。
+  - 新增 `psychological-boundary-shift.js`：关系动力学与心理安全边界漂移，四级壁垒与受创收缩机制。
+  - 新增 `epistemic-parallax-theater-engine.js`：多角色知情视差戏剧张力机，双向认知对账与高潮揭秘。
+  - 新增 `counterfactual-branching-sandbox.js`：关键节点反事实假想沙盒，场景触发心绪共鸣与遗憾叹息。
+  - 新增 `epochal-heritage-cultural-drift.js`：时代演进与文化印记沉淀，分卷封存结晶为时代神话与风俗禁忌。
+- **优化机制 (L10-O1 ~ L10-O9)**：
+  - 新增 `fact-unified-lifecycle-matrix.js`：事实全生命周期统一状态流转矩阵，强制确权杜绝虚假确认。
+  - 新增 `conflict-group-arbitration-workbench.js`：证据冲突成组裁决工作台，采纳/并列/存疑/撤回四态仲裁与影响分析。
+  - 新增 `unified-chronology-axis-engine.js`：双时间统一时钟轴与叙事时空流转引擎，兼容十二时辰与五态判定。
+  - 新增 `dynamic-recall-route-feedback-hub.js`：召回路线与质量反馈闭环中枢，同名隔离与强化调权。
+  - 新增 `transparent-budget-allocation-receipt.js`：预算分层透明分配与全景回执编排器，四级池硬隔离保护核心约束。
+  - 新增 `postgen-intent-cost-tracker.js`：生成后意图提取与计算代价追踪器，高性价比认知收益 ROI 度量。
+  - 新增 `privy-clearance-security-fence.js`：角色私密知情权安全围栏与防泄露过滤机，阻断上帝视角穿帮。
+  - 新增 `multi-resolution-archive-orchestrator.js`：多分辨率长线记忆分卷封存编排器，阶梯混排对抗上下文稀释。
+  - 新增 `ruby-phone-bidirectional-bridge.js`：RubyPhone 与 LonSha 双向真桥接器，通话/私信/备忘录无缝双向反哺。
+- **测试矩阵**：配套构建 `v3392`~`v3409` 共 18 套独立单元测试，全部 100% 绿灯通过。
+
 ## v3.391.0
 **第九期拓展机制 X6~X9 完整收口与前沿叙事引擎落地**
 - 新增 `character-habit-growth-evidence.js`（M-X6）：角色能力证据束演进、习惯锚定与证据撤销后平滑降级机制。

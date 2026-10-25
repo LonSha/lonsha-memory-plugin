@@ -31,6 +31,12 @@
         return null;
     }
 
+    function _multiResolutionArchiveLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMultiResolutionArchive : null), 'multi-resolution-archive-orchestrator.js');
+    }
+    function _epochalHeritageLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaEpochalHeritage : null), 'epochal-heritage-cultural-drift.js');
+    }
     function _schemaMigrationLib() {
         if (typeof _deps._schemaMigrationLib === 'function') return _deps._schemaMigrationLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSchemaMigration : null), 'schema-migration.js');
@@ -169,6 +175,28 @@
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
                 extensions: this._archiveExtensions || {},   // [v3.142] CP: 宽容解析出口——导入时遇到的未知顶层键随存档回写，不丢不炸
+                // [L10-O8 & L10-X9] 多分辨率归档与时代沉淀封卷元数据
+                multiResolutionArchive: (() => {
+                    try {
+                        const Arch = _multiResolutionArchiveLib();
+                        if (Arch && typeof Arch.sealVolumeArchive === 'function') {
+                            const raw = (this.summary && typeof this.summary.getActiveSummaries === 'function') ? this.summary.getActiveSummaries() : [];
+                            return Arch.sealVolumeArchive('vol_current', '当前卷', 1, 100, raw, {});
+                        }
+                    } catch (e) { errLog(e, 'collectExport.multiResolutionArchive'); }
+                    return null;
+                })(),
+                epochalHeritage: (() => {
+                    try {
+                        const Heritage = _epochalHeritageLib();
+                        if (Heritage && typeof Heritage.defineEpoch === 'function' && typeof Heritage.crystallizeEpochHeritage === 'function') {
+                            const facts = (this.summary && typeof this.summary.getActiveSummaries === 'function') ? this.summary.getActiveSummaries().map(s => ({ id: s.id, content: s.text || '' })) : [];
+                            const epoch = Heritage.defineEpoch({ name: '当前纪元', startFloor: 1, endFloor: 100, coreEthos: '秩序重构' });
+                            return Heritage.crystallizeEpochHeritage(epoch, facts, { newTaboos: ['禁止私自触碰遗迹核心'] });
+                        }
+                    } catch (e) { errLog(e, 'collectExport.epochalHeritage'); }
+                    return null;
+                })(),
             };
         }
 
