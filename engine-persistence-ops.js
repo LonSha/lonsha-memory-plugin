@@ -34,6 +34,18 @@
     function _multiResolutionArchiveLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMultiResolutionArchive : null), 'multi-resolution-archive-orchestrator.js');
     }
+    function _memoryAnnealingLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryAnnealing : null), 'adaptive-memory-annealing-curve.js');
+    }
+    function _phaseSafeguardLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPhaseSafeguard : null), 'phase-transition-shift-safeguard.js');
+    }
+    function _epilogueSynthesizerLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaEpilogueSynthesizer : null), 'life-epilogue-retrospective-synthesizer.js');
+    }
+    function _totemTreeLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaTotemTree : null), 'intergenerational-mental-totem-tree.js');
+    }
     function _epochalHeritageLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaEpochalHeritage : null), 'epochal-heritage-cultural-drift.js');
     }
@@ -175,6 +187,43 @@
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
                 extensions: this._archiveExtensions || {},   // [v3.142] CP: 宽容解析出口——导入时遇到的未知顶层键随存档回写，不丢不炸
+                // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化
+                memoryAnnealingCurve: (() => {
+                    try {
+                        const Anneal = _memoryAnnealingLib();
+                        if (Anneal && typeof Anneal.computeAnnealingState === 'function') {
+                            return Anneal.computeAnnealingState({ id: 'm1', createdFloor: 1, recallCount: 2, importance: 0.7 }, 50, []);
+                        }
+                    } catch (e) { errLog(e, 'collectExport.memoryAnnealingCurve'); }
+                    return null;
+                })(),
+                phaseTransitionSafeguard: (() => {
+                    try {
+                        const Phase = _phaseSafeguardLib();
+                        if (Phase && typeof Phase.lockPhaseTransition === 'function') {
+                            return Phase.lockPhaseTransition({ targetId: 'entity_target' }, { type: 'IRREVERSIBLE_RUPTURE', cause: '背叛盟约', floor: 100 });
+                        }
+                    } catch (e) { errLog(e, 'collectExport.phaseTransitionSafeguard'); }
+                    return null;
+                })(),
+                epilogueRetrospective: (() => {
+                    try {
+                        const Epilogue = _epilogueSynthesizerLib();
+                        if (Epilogue && typeof Epilogue.composeLifeEpilogue === 'function') {
+                            return Epilogue.composeLifeEpilogue('hero', [{ id: 'm1', content: '序幕展开' }], 'DEPARTURE');
+                        }
+                    } catch (e) { errLog(e, 'collectExport.epilogueRetrospective'); }
+                    return null;
+                })(),
+                intergenerationalTotem: (() => {
+                    try {
+                        const Totem = _totemTreeLib();
+                        if (Totem && typeof Totem.crystallizeMentalTotem === 'function') {
+                            return Totem.crystallizeMentalTotem({ name: 'hero', coreBelief: '永不妥协', totemArtifact: '龙纹勋章' });
+                        }
+                    } catch (e) { errLog(e, 'collectExport.intergenerationalTotem'); }
+                    return null;
+                })(),
                 // [L10-O8 & L10-X9] 多分辨率归档与时代沉淀封卷元数据
                 multiResolutionArchive: (() => {
                     try {

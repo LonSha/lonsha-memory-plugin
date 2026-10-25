@@ -50,6 +50,15 @@
         if (_libs._sleepAwakenLib) return _libs._sleepAwakenLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSleepAwaken : null), 'sleep-awaken.js');
     }
+    function _sensoryMeshLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSensoryMesh : null), 'episodic-sensory-anchor-mesh.js');
+    }
+    function _foreshadowingEchoLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaForeshadowingEcho : null), 'narrative-foreshadowing-dramatic-echo.js');
+    }
+    function _dejaVuChamberLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaDejaVuChamber : null), 'cross-branch-deja-vu-resonance-chamber.js');
+    }
     function _recallRouteFeedbackHubLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallRouteFeedbackHub : null), 'dynamic-recall-route-feedback-hub.js');
     }
@@ -849,6 +858,21 @@
                     engine._counterfactualAwakenings = Cf.evaluateCounterfactualAwakening(engine._activeBranchSandboxes || [], engine._lastSceneTriggers);
                 }
             } catch (e) { errLog(e, 'recallMemory.L10RecallEnhancements'); }
+                // [L11-O4 & L11-X5 & L11-X6] 第十一期召回情境感官共振、伏笔引爆与跨支既视感
+                try {
+                    const Sm = _sensoryMeshLib();
+                    if (Sm && typeof Sm.resonateSensoryCues === 'function' && engine._currentSceneDescription) {
+                        engine._sensoryResonance = Sm.resonateSensoryCues(engine._currentSceneDescription, engine._sensoryMemoryBank || []);
+                    }
+                    const Fe = _foreshadowingEchoLib();
+                    if (Fe && typeof Fe.findAndDetonateEcho === 'function') {
+                        engine._climaxEcho = Fe.findAndDetonateEcho(engine._plantedClues || [], { currentFloor: engine._currentFloor || 1, isClimax: engine._isClimaxScene });
+                    }
+                    const Dv = _dejaVuChamberLib();
+                    if (Dv && typeof Dv.resonateDejaVu === 'function' && engine._currentSceneDescription) {
+                        engine._dejaVuEcho = Dv.resonateDejaVu(engine._currentSceneDescription, engine._phantomVault || []);
+                    }
+                } catch (e) { errLog(e, 'recallMemory.L11RecallEnhancements'); }
             const finalMerged = engine.intentRerank(merged, query.text);
             /* [v3.321.0 · M3-O1] 融合优化（语义重复抑制 / 角色事件覆盖 / 未结保底）。
              *   位置：**intentRerank 之后、_finalize 之前** —— 上游三条提权（crosslink /

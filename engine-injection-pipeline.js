@@ -103,6 +103,21 @@
     let _budgetReceiptLib = function () {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaBudgetAllocationReceipt : null), 'transparent-budget-allocation-receipt.js');
     };
+    let _cognitiveInertiaLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCognitiveInertia : null), 'cognitive-inertia-damping-dynamics.js');
+    };
+    let _retinalAttentionLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRetinalAttention : null), 'retinal-attention-steering-arranger.js');
+    };
+    let _confrontationWorkbenchLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaConfrontationWorkbench : null), 'cross-examination-confrontation-workbench.js');
+    };
+    let _subconsciousEngineLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSubconsciousEngine : null), 'subconscious-undercurrent-engine.js');
+    };
+    let _espionageTheaterLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaEspionageTheater : null), 'double-identity-espionage-theater.js');
+    };
     let _relationHistoryLib = function () {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRelationHistory : null), 'relation-history.js');
     };
@@ -1066,6 +1081,52 @@
                     this._currentPrimingAnchors = pAnchors;
                     const pp = Prime.formatPrimingPrompt(pAnchors.anchors || pAnchors);
                     if (pp) blocks.unshift(pp); // 前置潜意识置顶
+                }
+
+                // [L11-O1] 心理阻尼与心理摩擦力
+                const Inertia = _cognitiveInertiaLib();
+                if (Inertia && typeof Inertia.applyDampingStep === 'function' && this._currentAttitudeDynamics) {
+                    const mass = Inertia.computePsychologicalMass(this._characterProfile || {}, this._traumaEvents || []);
+                    const dRes = Inertia.applyDampingStep(
+                        this._currentAttitudeDynamics,
+                        this._attitudeStimulus || { valence: 0.5, intensity: 0.5 },
+                        mass
+                    );
+                    if (dRes && dRes.promptDirective) {
+                        blocks.push(dRes.promptDirective);
+                    }
+                }
+                // [L11-O7] 虚假指控与证据对质
+                const CrossExam = _confrontationWorkbenchLib();
+                if (CrossExam && typeof CrossExam.buildConfrontationChain === 'function' && this._allegedClaim) {
+                    const cRes = CrossExam.buildConfrontationChain(this._allegedClaim, recalled || []);
+                    if (cRes && cRes.hasContradiction && cRes.guidancePrompt) {
+                        blocks.push(cRes.guidancePrompt);
+                    }
+                }
+                // [L11-X1] 潜意识暗涌流
+                const Subconscious = _subconsciousEngineLib();
+                if (Subconscious && typeof Subconscious.deduceUndercurrent === 'function' && this._observedDialogue) {
+                    const subRes = Subconscious.deduceUndercurrent(this._characterProfile || {}, this._observedDialogue);
+                    if (subRes && subRes.undercurrentDirective) {
+                        blocks.push(subRes.undercurrentDirective);
+                    }
+                }
+                // [L11-X7] 双重伪装剧场
+                const Espionage = _espionageTheaterLib();
+                if (Espionage && typeof Espionage.synthesizeEspionageDirective === 'function' && this._activeEspionageCharacter) {
+                    const espDirective = Espionage.synthesizeEspionageDirective(this._activeEspionageCharacter, { isPublic: true });
+                    if (espDirective) {
+                        blocks.push(espDirective);
+                    }
+                }
+                // [L11-O2] 视网膜注意力引导 (在最终组装前重排)
+                const Retinal = _retinalAttentionLib();
+                if (Retinal && typeof Retinal.arrangeRetinalAttention === 'function' && blocks.length > 2) {
+                    const retinalResult = Retinal.arrangeRetinalAttention(blocks.map((b, i) => ({ id: 'b-' + i, content: b })), 2000, {});
+                    if (retinalResult && Array.isArray(retinalResult.arrangedBlocks)) {
+                        blocks = retinalResult.arrangedBlocks.map(item => item.content);
+                    }
                 }
                 // 6. O5 预算透明回执与分层裁切
                 const Alloc = _budgetReceiptLib();

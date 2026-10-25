@@ -54,6 +54,24 @@
     function _psychologicalBoundaryLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPsychologicalBoundary : null), 'psychological-boundary-shift.js');
     }
+    function _causalCircuitLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCausalCircuit : null), 'proactive-causal-verification-circuit.js');
+    }
+    function _channelOsmosisLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaChannelOsmosis : null), 'embodied-multi-channel-osmosis-hub.js');
+    }
+    function _personaSynthesizerLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPersonaSynthesizer : null), 'dynamic-persona-crystallization-substrate.js');
+    }
+    function _rumorNetworkLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRumorNetwork : null), 'social-rumor-drift-network.js');
+    }
+    function _tokenTrackerLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaTokenTracker : null), 'physical-token-spatial-trace-tracker.js');
+    }
+    function _dissociationSandboxLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaDissociationSandbox : null), 'traumatic-dissociation-dissonance-sandbox.js');
+    }
     function _rubyPhoneBridgeLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRubyPhoneBridge : null), 'ruby-phone-bidirectional-bridge.js');
     }
@@ -1195,6 +1213,49 @@ timeAnchor: extracted?.time_anchor || null,
                         });
                     }
 
+
+                    // [L11-O3] 因果熔断校验
+                    const Causal = _causalCircuitLib();
+                    if (Causal && typeof Causal.runCircuitBreakerPipeline === 'function') {
+                        const verifiedFacts = Causal.runCircuitBreakerPipeline(this._pendingCausalFacts || [], []);
+                        if (verifiedFacts && verifiedFacts.admittedFacts) {
+                            this._lastVerifiedCausalFacts = verifiedFacts.admittedFacts;
+                        }
+                    }
+                    // [L11-O6] 多通道具身生活渗透
+                    const Osmosis = _channelOsmosisLib();
+                    if (Osmosis && typeof Osmosis.synthesizeDigitalToRealityGuidance === 'function') {
+                        const guidance = Osmosis.synthesizeDigitalToRealityGuidance([{ body: '未发出的心事：其实我一直很在乎' }], message.name || '');
+                        if (guidance) this._lastSensoryOsmosis = guidance;
+                    }
+                    // [L11-O9] 动态人设结晶
+                    const PersonaSub = _personaSynthesizerLib();
+                    if (PersonaSub && typeof PersonaSub.crystallizePersonaDelta === 'function') {
+                        this._crystallizedPersona = PersonaSub.crystallizePersonaDelta(
+                            this._crystallizedPersona || {},
+                            [{ speaker: message.name, text }]
+                        );
+                    }
+                    // [L11-X2] 流言漂移网络
+                    const RumorNet = _rumorNetworkLib();
+                    if (RumorNet && typeof RumorNet.propagateRumorHop === 'function' && this._activeRumor) {
+                        this._activeRumor = RumorNet.propagateRumorHop(this._activeRumor.id || 'rumor_1', this._activeRumor, 'whisper', 'hostile');
+                    }
+                    // [L11-X3] 实体信物追踪
+                    const TokenTrack = _tokenTrackerLib();
+                    if (TokenTrack && typeof TokenTrack.interactWithToken === 'function' && this._trackedToken) {
+                        const tokenRes = TokenTrack.interactWithToken(this._trackedToken, 'touch');
+                        if (tokenRes && tokenRes.promptDirective) this._lastTokenInteraction = tokenRes;
+                    }
+                    // [L11-X4] 创伤解离与认知失调
+                    const Dissociation = _dissociationSandboxLib();
+                    if (Dissociation && typeof Dissociation.triggerDissociationSandbox === 'function') {
+                        this._dissociationState = Dissociation.triggerDissociationSandbox(
+                            message.name || 'char',
+                            'betrayal',
+                            { text }
+                        );
+                    }
                     // 6. O9 虚拟手机双向真桥同步
                     const Bridge = _rubyPhoneBridgeLib();
                     if (Bridge && typeof Bridge.syncMemoryToPhone === 'function') {
