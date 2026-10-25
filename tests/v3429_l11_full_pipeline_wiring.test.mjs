@@ -185,6 +185,16 @@ test('第十一期端到端宿主管线全量真实接线与闭环驱动验证',
     // 4. 验证持久化管线中的记忆退火(O5)、相变锁(O8)、岁月史诗(X8)、代际图腾(X9)
     await t.test('4. 持久化管线 engine-persistence-ops 真实导出与落地 L11-O5, O8, X8, X9', () => {
         const persCtx = new Proxy({
+            status: {
+                characters: {
+                    hero: { name: 'hero' }
+                },
+                export: () => ({ characters: { hero: { name: 'hero' } } })
+            },
+            items: {
+                records: [{ name: '龙纹勋章' }],
+                export: () => ({ records: [{ name: '龙纹勋章' }] })
+            },
             summary: {
                 export: () => ({}),
                 getActiveSummaries: () => [
@@ -207,7 +217,7 @@ test('第十一期端到端宿主管线全量真实接线与闭环驱动验证',
         assert.ok(exported.epilogueRetrospective !== undefined, '应持久化 L11-X8 岁月史诗回顾');
         assert.ok(exported.intergenerationalTotem !== undefined, '应持久化 L11-X9 代际精神图腾');
 
-        assert.equal(exported.phaseTransitionSafeguard.targetId, 'entity_target', '相变门禁契约应一致');
-        assert.equal(exported.intergenerationalTotem.founderName, 'hero', '代际图腾标识应一致');
+        assert.equal(exported.phaseTransitionSafeguard.targetId, 'hero', '相变门禁契约应真实感知角色上下文');
+        assert.equal(exported.intergenerationalTotem.founderName, 'hero', '代际图腾标识应真实感知角色创始人');
     });
 });

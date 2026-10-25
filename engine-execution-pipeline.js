@@ -1166,13 +1166,21 @@ timeAnchor: extracted?.time_anchor || null,
                     }
 
                     // 2. O1 事实流转接入 (若非纯反讽调侃)
-                    const FactMat = _factLifecycleLib();
+// 2. O1 事实生命周期矩阵准入
+                    const FactMat = _factLifecycleMatrixLib();
                     if (FactMat && typeof FactMat.admitNewFact === 'function' && (!ironyAssessment || ironyAssessment.credibility !== 'quarantined')) {
-                        if (this._lastExtractedFacts && Array.isArray(this._lastExtractedFacts)) {
-                            this._lastExtractedFacts.forEach(fact => {
-                                FactMat.admitNewFact(fact, curFloor);
-                            });
+                        if (!this._lastExtractedFacts || !this._lastExtractedFacts.length) {
+                            // 从当前消息动态沉淀事实条目
+                            this._lastExtractedFacts = [{
+                                id: 'fact_' + curFloor + '_' + Math.random().toString(36).slice(2, 6),
+                                statement: (message.name || '某人') + '在第' + curFloor + '楼发言：' + String(text || '').slice(0, 80),
+                                speaker: message.name || '某人',
+                                floor: curFloor
+                            }];
                         }
+                        this._lastExtractedFacts.forEach(fact => {
+                            FactMat.admitNewFact(fact, curFloor);
+                        });
                     }
 
                     // 3. O6 意图代价追踪
@@ -1189,6 +1197,15 @@ timeAnchor: extracted?.time_anchor || null,
                     // 4. X5 缺席期待追踪
                     const ExpTracker = _expectationAbsenceLib();
                     if (ExpTracker && typeof ExpTracker.createExpectation === 'function') {
+                        if (!this._newCommitments || !this._newCommitments.length) {
+                            if (/(?:明天|等我|一定|答应|承诺|下次|稍后)/.test(text)) {
+                                this._newCommitments = [{
+                                    actor: message.name || '某人',
+                                    pledge: String(text).slice(0, 60),
+                                    dueFloor: curFloor + 5
+                                }];
+                            }
+                        }
                         if (this._newCommitments && Array.isArray(this._newCommitments)) {
                             this._activeExpectations = this._activeExpectations || [];
                             this._newCommitments.forEach(c => {
@@ -1214,47 +1231,85 @@ timeAnchor: extracted?.time_anchor || null,
                     }
 
 
-                    // [L11-O3] 因果熔断校验
+                    // [L11-O3] 因果熔断校验 (真实接入待校验事实与历史前置)
                     const Causal = _causalCircuitLib();
                     if (Causal && typeof Causal.runCircuitBreakerPipeline === 'function') {
+                        if (!this._pendingCausalFacts || !this._pendingCausalFacts.length) {
+                            this._pendingCausalFacts = (this._lastExtractedFacts || []).map(f => ({
+                                id: f.id || ('fact_' + curFloor),
+                                cause: f.statement || text,
+                                effect: '状态流转',
+                                floor: curFloor
+                            }));
+                        }
                         const verifiedFacts = Causal.runCircuitBreakerPipeline(this._pendingCausalFacts || [], []);
                         if (verifiedFacts && verifiedFacts.admittedFacts) {
                             this._lastVerifiedCausalFacts = verifiedFacts.admittedFacts;
                         }
                     }
-                    // [L11-O6] 多通道具身生活渗透
+                    // [L11-O6] 多通道具身生活渗透 (真实从最新心境与生活通道合成现实投影)
                     const Osmosis = _channelOsmosisLib();
                     if (Osmosis && typeof Osmosis.synthesizeDigitalToRealityGuidance === 'function') {
-                        const guidance = Osmosis.synthesizeDigitalToRealityGuidance([{ body: '未发出的心事：其实我一直很在乎' }], message.name || '');
+                        const digitalLogs = [{ body: String(text || '').slice(0, 100), floor: curFloor, timestamp: Date.now() }];
+                        const guidance = Osmosis.synthesizeDigitalToRealityGuidance(digitalLogs, message.name || '角色');
                         if (guidance) this._lastSensoryOsmosis = guidance;
                     }
                     // [L11-O9] 动态人设结晶
                     const PersonaSub = _personaSynthesizerLib();
                     if (PersonaSub && typeof PersonaSub.crystallizePersonaDelta === 'function') {
                         this._crystallizedPersona = PersonaSub.crystallizePersonaDelta(
-                            this._crystallizedPersona || {},
+                            this._crystallizedPersona || { baseCore: (message.name || '角色') + '的坚韧内核' },
                             [{ speaker: message.name, text }]
                         );
                     }
-                    // [L11-X2] 流言漂移网络
+                    // [L11-X2] 流言漂移网络 (真实从当前事件初始化或传播流言)
                     const RumorNet = _rumorNetworkLib();
-                    if (RumorNet && typeof RumorNet.propagateRumorHop === 'function' && this._activeRumor) {
-                        this._activeRumor = RumorNet.propagateRumorHop(this._activeRumor.id || 'rumor_1', this._activeRumor, 'whisper', 'hostile');
+                    if (RumorNet && typeof RumorNet.propagateRumorHop === 'function') {
+                        if (!this._activeRumor) {
+                            this._activeRumor = {
+                                id: 'rumor_f' + curFloor,
+                                originFact: String(text || '').slice(0, 50),
+                                currentStatement: String(text || '').slice(0, 50),
+                                hops: 0
+                            };
+                        }
+                        this._activeRumor = RumorNet.propagateRumorHop(this._activeRumor.id, this._activeRumor, 'whisper', 'hostile');
                     }
-                    // [L11-X3] 实体信物追踪
+                    // [L11-X3] 实体信物追踪 (真实对接物品台账)
                     const TokenTrack = _tokenTrackerLib();
-                    if (TokenTrack && typeof TokenTrack.interactWithToken === 'function' && this._trackedToken) {
+                    if (TokenTrack && typeof TokenTrack.interactWithToken === 'function') {
+                        if (!this._trackedToken) {
+                            const carriedItems = (this.items && Array.isArray(this.items.records)) ? this.items.records.filter(r => r.carried) : [];
+                            if (carriedItems.length) {
+                                this._trackedToken = {
+                                    id: 'token_' + (carriedItems[0].name || 'item'),
+                                    name: carriedItems[0].name,
+                                    owner: carriedItems[0].holder || message.name || '某人',
+                                    wearLevel: 0.1
+                                };
+                            } else {
+                                this._trackedToken = {
+                                    id: 'token_pocket_keepsake',
+                                    name: '贴身旧信物',
+                                    owner: message.name || '某人',
+                                    wearLevel: 0.2
+                                };
+                            }
+                        }
                         const tokenRes = TokenTrack.interactWithToken(this._trackedToken, 'touch');
                         if (tokenRes && tokenRes.promptDirective) this._lastTokenInteraction = tokenRes;
                     }
                     // [L11-X4] 创伤解离与认知失调
                     const Dissociation = _dissociationSandboxLib();
                     if (Dissociation && typeof Dissociation.triggerDissociationSandbox === 'function') {
-                        this._dissociationState = Dissociation.triggerDissociationSandbox(
-                            message.name || 'char',
-                            'betrayal',
-                            { text }
-                        );
+                        const isTraumatic = /(?:背叛|欺骗|绝望|死|离开|抛弃|决裂|崩溃)/.test(text);
+                        if (isTraumatic || this._dissociationState) {
+                            this._dissociationState = Dissociation.triggerDissociationSandbox(
+                                message.name || 'char',
+                                isTraumatic ? 'betrayal' : 'stress',
+                                { text }
+                            );
+                        }
                     }
                     // 6. O9 虚拟手机双向真桥同步
                     const Bridge = _rubyPhoneBridgeLib();

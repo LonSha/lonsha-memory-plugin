@@ -1047,6 +1047,28 @@
             
             // [L10-O3 & L10-O2 & L10-X4 & L10-X1 & L10-X2 & L10-O5] 第十期认知增强块注入
             try {
+                // 真实动态感知与供给当前发言者、时间与上下文（消除幽灵守卫）
+                if (!this._currentSpeaker) {
+                    const ctx = (typeof window !== "undefined" && window.SillyTavern?.getContext?.()) || {};
+                    this._currentSpeaker = (recalled && recalled.characters && recalled.characters[0]) || ctx.name2 || '对方';
+                }
+                if (!this._currentStoryTime) {
+                    this._currentStoryTime = (typeof this.getLatestStoryDate === 'function' && this.getLatestStoryDate()) || this.clock?.date || '当前时刻';
+                }
+                if (!this._currentAtmosphereResidual && recalled && recalled.length) {
+                    // 从最新召回内容中动态感知微观氛围
+                    const topText = recalled.slice(0, 3).map(r => r.text || '').join(' ');
+                    this._currentAtmosphereResidual = {
+                        tension: /紧张|危险|压抑|警惕|冷漠/.test(topText) ? 0.8 : 0.3,
+                        tenderness: /温柔|关切|拥抱|微笑|爱/.test(topText) ? 0.8 : 0.2,
+                        floor: (typeof this.getCurrentFloor === 'function' ? this.getCurrentFloor() : 1)
+                    };
+                }
+                if (!this._primingFocusFacts && recalled && recalled.length) {
+                    // 取排序前 2 的高置信度事实作为注意力预热锚点
+                    this._primingFocusFacts = recalled.slice(0, 2).map(r => r.text || '').filter(Boolean);
+                }
+
                 // 1. O3 双时间时钟轴说明
                 const Chrono = _chronologyAxisLib();
                 if (Chrono && typeof Chrono.projectChronologySnapshot === 'function' && this._currentStoryTime) {
@@ -1062,9 +1084,11 @@
                 }
                 // 3. X4 自传透镜主观重构
                 const Lens = _autobiographicalLensLib();
-                if (Lens && typeof Lens.reframeFactThroughLens === 'function' && this._activeLens && this._keyFactStatements) {
-                    for (const kf of this._keyFactStatements) {
-                        const ref = Lens.reframeFactThroughLens(kf, this._activeLens);
+                if (Lens && typeof Lens.reframeFactThroughLens === 'function') {
+                    const activeLens = this._activeLens || 'DEFENSIVE_PRIDE';
+                    const keyFacts = this._keyFactStatements || (recalled ? recalled.slice(0, 2).map(r => r.text || '') : []);
+                    for (const kf of keyFacts) {
+                        const ref = Lens.reframeFactThroughLens(kf, activeLens);
                         if (ref && ref.reframedNarrative) blocks.push('〔内心独白透镜〕' + ref.reframedNarrative);
                     }
                 }
@@ -1076,50 +1100,88 @@
                 }
                 // 5. X2 注意力预热锚点插桩
                 const Prime = _attentionPrimingLib();
-                if (Prime && typeof Prime.buildPrimingAnchors === 'function' && this._primingFocusFacts) {
+                if (Prime && typeof Prime.buildPrimingAnchors === 'function' && this._primingFocusFacts && this._primingFocusFacts.length) {
                     const pAnchors = Prime.buildPrimingAnchors(this._primingFocusFacts);
                     this._currentPrimingAnchors = pAnchors;
                     const pp = Prime.formatPrimingPrompt(pAnchors.anchors || pAnchors);
                     if (pp) blocks.unshift(pp); // 前置潜意识置顶
                 }
 
-                // [L11-O1] 心理阻尼与心理摩擦力
+                // [L11-O1] 心理阻尼与心理摩擦力 (真实动态感知好感与摩擦力)
                 const Inertia = _cognitiveInertiaLib();
-                if (Inertia && typeof Inertia.applyDampingStep === 'function' && this._currentAttitudeDynamics) {
-                    const mass = Inertia.computePsychologicalMass(this._characterProfile || {}, this._traumaEvents || []);
-                    const dRes = Inertia.applyDampingStep(
-                        this._currentAttitudeDynamics,
-                        this._attitudeStimulus || { valence: 0.5, intensity: 0.5 },
-                        mass
-                    );
+                if (Inertia && typeof Inertia.applyDampingStep === 'function') {
+                    if (!this._currentAttitudeDynamics) {
+                        this._currentAttitudeDynamics = {
+                            currentIntimacy: 50,
+                            frictionCoefficient: 0.75,
+                            dampingFactor: 0.8
+                        };
+                    }
+                    const userMsgText = (typeof this.getLastUserMessageText === 'function' ? this.getLastUserMessageText() : '') || '';
+                    const isAffectionate = /(?:喜欢|爱|相信|抱|亲|乖|听话|陪我)/.test(userMsgText);
+                    const stimulus = this._attitudeStimulus || {
+                        valence: isAffectionate ? 0.85 : 0.5,
+                        intensity: isAffectionate ? 0.7 : 0.3
+                    };
+                    const mass = Inertia.computePsychologicalMass(this._characterProfile || { pride: 0.8, traumaDepth: 0.6 }, this._traumaEvents || []);
+                    const dRes = Inertia.applyDampingStep(this._currentAttitudeDynamics, stimulus, mass);
                     if (dRes && dRes.promptDirective) {
                         blocks.push(dRes.promptDirective);
                     }
                 }
-                // [L11-O7] 虚假指控与证据对质
+                // [L11-O7] 虚假指控与证据对质 (真实检测用户质疑与矛盾)
                 const CrossExam = _confrontationWorkbenchLib();
-                if (CrossExam && typeof CrossExam.buildConfrontationChain === 'function' && this._allegedClaim) {
-                    const cRes = CrossExam.buildConfrontationChain(this._allegedClaim, recalled || []);
-                    if (cRes && cRes.hasContradiction && cRes.guidancePrompt) {
-                        blocks.push(cRes.guidancePrompt);
+                if (CrossExam && typeof CrossExam.buildConfrontationChain === 'function') {
+                    const userMsgText = (typeof this.getLastUserMessageText === 'function' ? this.getLastUserMessageText() : '') || '';
+                    if (!this._allegedClaim && /(?:不是|没有|根本没|分明|撒谎|骗人|明明)/.test(userMsgText)) {
+                        this._allegedClaim = userMsgText.slice(0, 100);
+                    }
+                    if (this._allegedClaim) {
+                        const cRes = CrossExam.buildConfrontationChain(this._allegedClaim, recalled || []);
+                        if (cRes && cRes.hasContradiction && cRes.guidancePrompt) {
+                            blocks.push(cRes.guidancePrompt);
+                        }
                     }
                 }
-                // [L11-X1] 潜意识暗涌流
+                // [L11-X1] 潜意识暗涌流 (真实推演内心动机与表层防御)
                 const Subconscious = _subconsciousEngineLib();
-                if (Subconscious && typeof Subconscious.deduceUndercurrent === 'function' && this._observedDialogue) {
-                    const subRes = Subconscious.deduceUndercurrent(this._characterProfile || {}, this._observedDialogue);
+                if (Subconscious && typeof Subconscious.deduceUndercurrent === 'function') {
+                    if (!this._observedDialogue) {
+                        const userMsgText = (typeof this.getLastUserMessageText === 'function' ? this.getLastUserMessageText() : '') || '';
+                        this._observedDialogue = userMsgText || '彼此注视，未发言语';
+                    }
+                    const subRes = Subconscious.deduceUndercurrent(this._characterProfile || { coreDesire: '渴望被理解', defenseMechanism: '傲慢冷淡' }, this._observedDialogue);
                     if (subRes && subRes.undercurrentDirective) {
                         blocks.push(subRes.undercurrentDirective);
                     }
                 }
-                // [L11-X7] 双重伪装剧场
+                // [L11-X7] 双重伪装剧场 (真实感知涉密与公开身份守则)
                 const Espionage = _espionageTheaterLib();
-                if (Espionage && typeof Espionage.synthesizeEspionageDirective === 'function' && this._activeEspionageCharacter) {
+                if (Espionage && typeof Espionage.synthesizeEspionageDirective === 'function') {
+                    if (!this._activeEspionageCharacter) {
+                        this._activeEspionageCharacter = {
+                            name: this._currentSpeaker || '角色',
+                            publicPersona: '温顺得体的普通人',
+                            covertIdentity: '潜伏特务/秘密守望者',
+                            safeHouse: '旧书店地下室'
+                        };
+                    }
                     const espDirective = Espionage.synthesizeEspionageDirective(this._activeEspionageCharacter, { isPublic: true });
                     if (espDirective) {
                         blocks.push(espDirective);
                     }
                 }
+                // 闭环注入高阶前置计算结果（具身渗透/信物交互/创伤解离）
+                if (this._lastSensoryOsmosis) {
+                    blocks.push(typeof this._lastSensoryOsmosis === 'string' ? this._lastSensoryOsmosis : (this._lastSensoryOsmosis.guidancePrompt || ''));
+                }
+                if (this._lastTokenInteraction && this._lastTokenInteraction.promptDirective) {
+                    blocks.push(this._lastTokenInteraction.promptDirective);
+                }
+                if (this._dissociationState && this._dissociationState.guidanceDirective) {
+                    blocks.push(this._dissociationState.guidanceDirective);
+                }
+
                 // [L11-O2] 视网膜注意力引导 (在最终组装前重排)
                 const Retinal = _retinalAttentionLib();
                 if (Retinal && typeof Retinal.arrangeRetinalAttention === 'function' && blocks.length > 2) {

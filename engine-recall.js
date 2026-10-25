@@ -843,6 +843,32 @@
             //   于是「收尾顺序 = 上游最后一次重排的顺序」这条语义对四条路径是同一份。
             // [L10-O4 & L10-X7 & L10-X8] 第十期召回自适应重排与情境投影
             try {
+                // 真实动态感知与供给当前发言者与场景描述（消除幽灵守卫）
+                if (!engine._currentSpeaker) {
+                    const ctx = (typeof window !== "undefined" && window.SillyTavern?.getContext?.()) || {};
+                    engine._currentSpeaker = (query.characters && query.characters[0]) || ctx.name2 || '对方';
+                }
+                if (!engine._currentSceneDescription) {
+                    const latestDate = (typeof engine.getLatestStoryDate === 'function' && engine.getLatestStoryDate()) || '';
+                    const recentQuery = String(query.text || '').slice(0, 150);
+                    engine._currentSceneDescription = [latestDate, recentQuery].filter(Boolean).join(' · ') || '当前互动场景';
+                }
+                if (!engine._sensoryMemoryBank || !engine._sensoryMemoryBank.length) {
+                    const activeSums = (engine.summary && typeof engine.summary.getActiveSummaries === 'function') ? engine.summary.getActiveSummaries() : [];
+                    engine._sensoryMemoryBank = activeSums.slice(-10).map(s => ({ id: 'sum_' + s.floor, text: s.text || '', floor: s.floor }));
+                }
+                if (!engine._plantedClues || !engine._plantedClues.length) {
+                    const suspenseClues = (engine.suspense && typeof engine.suspense.openItems === 'function') ? engine.suspense.openItems() : [];
+                    engine._plantedClues = suspenseClues.map(c => ({ id: 'sus_' + c.id, text: c.content || '', floor: c.floor || 1 }));
+                }
+                if (typeof engine._isClimaxScene !== 'boolean') {
+                    engine._isClimaxScene = /(?:决战|崩溃|真相|死亡|杀|绝望|毁灭|拔枪|决裂|背叛|危机|警报|决死|绝境)/.test(query.text || '');
+                }
+                if (!engine._phantomVault || !engine._phantomVault.length) {
+                    const vols = (engine.summary && Array.isArray(engine.summary.volumes)) ? engine.summary.volumes : [];
+                    engine._phantomVault = vols.map(v => ({ id: 'vol_' + v.id, text: v.text || '', floor: v.floorStart }));
+                }
+
                 const Hub = _recallRouteFeedbackHubLib();
                 if (Hub && typeof Hub.rankCandidatesByRoute === 'function') {
                     const activeRoute = engine.config?.config?.recallRoutePreference || Hub.RECALL_ROUTES.BALANCED_HYBRID;
@@ -851,11 +877,12 @@
                 }
                 const Para = _epistemicParallaxLib();
                 if (Para && typeof Para.resolvePerspectiveGuidance === 'function' && engine._currentSpeaker) {
-                    engine._parallaxGuidance = Para.resolvePerspectiveGuidance(engine._parallaxEntry, engine._currentSpeaker);
+                    engine._parallaxGuidance = Para.resolvePerspectiveGuidance(engine._parallaxEntry || { defaultPerspective: engine._currentSpeaker }, engine._currentSpeaker);
                 }
                 const Cf = _counterfactualSandboxLib();
-                if (Cf && typeof Cf.evaluateCounterfactualAwakening === 'function' && engine._lastSceneTriggers) {
-                    engine._counterfactualAwakenings = Cf.evaluateCounterfactualAwakening(engine._activeBranchSandboxes || [], engine._lastSceneTriggers);
+                if (Cf && typeof Cf.evaluateCounterfactualAwakening === 'function') {
+                    const triggers = engine._lastSceneTriggers || [query.text || ''];
+                    engine._counterfactualAwakenings = Cf.evaluateCounterfactualAwakening(engine._activeBranchSandboxes || [], triggers);
                 }
             } catch (e) { errLog(e, 'recallMemory.L10RecallEnhancements'); }
                 // [L11-O4 & L11-X5 & L11-X6] 第十一期召回情境感官共振、伏笔引爆与跨支既视感
@@ -863,14 +890,43 @@
                     const Sm = _sensoryMeshLib();
                     if (Sm && typeof Sm.resonateSensoryCues === 'function' && engine._currentSceneDescription) {
                         engine._sensoryResonance = Sm.resonateSensoryCues(engine._currentSceneDescription, engine._sensoryMemoryBank || []);
+                        if (engine._sensoryResonance && Array.isArray(engine._sensoryResonance.resonatedCues)) {
+                            for (const cue of engine._sensoryResonance.resonatedCues.slice(0, 3)) {
+                                merged.push({
+                                    id: 'sensory_' + (cue.id || Math.random().toString(36).slice(2)),
+                                    text: `【感官共振·${cue.modality || '感知'}】${cue.text || cue.content || ''}`,
+                                    source: 'sensoryMesh',
+                                    score: 0.95,
+                                    rrfScore: 0.85
+                                });
+                            }
+                        }
                     }
                     const Fe = _foreshadowingEchoLib();
                     if (Fe && typeof Fe.findAndDetonateEcho === 'function') {
                         engine._climaxEcho = Fe.findAndDetonateEcho(engine._plantedClues || [], { currentFloor: engine._currentFloor || 1, isClimax: engine._isClimaxScene });
+                        if (engine._climaxEcho && engine._climaxEcho.detonated) {
+                            merged.unshift({
+                                id: 'climax_echo_' + (engine._climaxEcho.clueId || 'detonated'),
+                                text: `【戏剧伏笔·高潮回响】${engine._climaxEcho.revelationPrompt || engine._climaxEcho.content || ''}`,
+                                source: 'foreshadowingEcho',
+                                score: 1.0,
+                                rrfScore: 0.99
+                            });
+                        }
                     }
                     const Dv = _dejaVuChamberLib();
                     if (Dv && typeof Dv.resonateDejaVu === 'function' && engine._currentSceneDescription) {
                         engine._dejaVuEcho = Dv.resonateDejaVu(engine._currentSceneDescription, engine._phantomVault || []);
+                        if (engine._dejaVuEcho && engine._dejaVuEcho.hasDejaVu) {
+                            merged.push({
+                                id: 'dejavu_' + (engine._dejaVuEcho.echoId || 'phantom'),
+                                text: `【跨世界线残影·既视感】${engine._dejaVuEcho.dejaVuDirective || engine._dejaVuEcho.phantomMemory || ''}`,
+                                source: 'dejaVuChamber',
+                                score: 0.92,
+                                rrfScore: 0.88
+                            });
+                        }
                     }
                 } catch (e) { errLog(e, 'recallMemory.L11RecallEnhancements'); }
             const finalMerged = engine.intentRerank(merged, query.text);

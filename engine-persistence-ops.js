@@ -187,12 +187,20 @@
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
                 extensions: this._archiveExtensions || {},   // [v3.142] CP: 宽容解析出口——导入时遇到的未知顶层键随存档回写，不丢不炸
-                // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化
+                // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
                         const Anneal = _memoryAnnealingLib();
                         if (Anneal && typeof Anneal.computeAnnealingState === 'function') {
-                            return Anneal.computeAnnealingState({ id: 'm1', createdFloor: 1, recallCount: 2, importance: 0.7 }, 50, []);
+                            const curFloor = (typeof this.getCurrentFloor === 'function' ? this.getCurrentFloor() : 1) || 1;
+                            const activeSums = (this.summary && typeof this.summary.getActiveSummaries === 'function') ? this.summary.getActiveSummaries() : [];
+                            const targetMem = activeSums[0] || { id: 'm_init', createdFloor: 1, recallCount: 1, importance: 0.5 };
+                            return Anneal.computeAnnealingState({
+                                id: targetMem.id || ('m_' + (targetMem.floor || 1)),
+                                createdFloor: targetMem.floor || 1,
+                                recallCount: targetMem.recallCount || 1,
+                                importance: targetMem.importance || 0.6
+                            }, curFloor, []);
                         }
                     } catch (e) { errLog(e, 'collectExport.memoryAnnealingCurve'); }
                     return null;
@@ -201,7 +209,12 @@
                     try {
                         const Phase = _phaseSafeguardLib();
                         if (Phase && typeof Phase.lockPhaseTransition === 'function') {
-                            return Phase.lockPhaseTransition({ targetId: 'entity_target' }, { type: 'IRREVERSIBLE_RUPTURE', cause: '背叛盟约', floor: 100 });
+                            const targetChar = (this.status && Object.keys(this.status.characters || {})[0]) || 'target_char';
+                            return Phase.lockPhaseTransition({ targetId: targetChar }, {
+                                type: 'IRREVERSIBLE_STATUS',
+                                cause: '剧情推进固化',
+                                floor: (typeof this.getCurrentFloor === 'function' ? this.getCurrentFloor() : 1)
+                            });
                         }
                     } catch (e) { errLog(e, 'collectExport.phaseTransitionSafeguard'); }
                     return null;
@@ -210,7 +223,10 @@
                     try {
                         const Epilogue = _epilogueSynthesizerLib();
                         if (Epilogue && typeof Epilogue.composeLifeEpilogue === 'function') {
-                            return Epilogue.composeLifeEpilogue('hero', [{ id: 'm1', content: '序幕展开' }], 'DEPARTURE');
+                            const activeSums = (this.summary && typeof this.summary.getActiveSummaries === 'function') ? this.summary.getActiveSummaries() : [];
+                            const protagonist = (this.status && Object.keys(this.status.characters || {})[0]) || '主角';
+                            const memItems = activeSums.slice(0, 5).map(s => ({ id: 'sum_' + s.floor, content: s.text || '' }));
+                            return Epilogue.composeLifeEpilogue(protagonist, memItems.length ? memItems : [{ id: 'init', content: '故事开启' }], 'CURRENT_CHAPTER');
                         }
                     } catch (e) { errLog(e, 'collectExport.epilogueRetrospective'); }
                     return null;
@@ -219,7 +235,9 @@
                     try {
                         const Totem = _totemTreeLib();
                         if (Totem && typeof Totem.crystallizeMentalTotem === 'function') {
-                            return Totem.crystallizeMentalTotem({ name: 'hero', coreBelief: '永不妥协', totemArtifact: '龙纹勋章' });
+                            const protagonist = (this.status && Object.keys(this.status.characters || {})[0]) || '传承者';
+                            const carriedItem = (this.items && Array.isArray(this.items.records) && this.items.records[0]) ? this.items.records[0].name : '家族印记';
+                            return Totem.crystallizeMentalTotem({ name: protagonist, coreBelief: '意志长存', totemArtifact: carriedItem });
                         }
                     } catch (e) { errLog(e, 'collectExport.intergenerationalTotem'); }
                     return null;
@@ -230,7 +248,8 @@
                         const Arch = _multiResolutionArchiveLib();
                         if (Arch && typeof Arch.sealVolumeArchive === 'function') {
                             const raw = (this.summary && typeof this.summary.getActiveSummaries === 'function') ? this.summary.getActiveSummaries() : [];
-                            return Arch.sealVolumeArchive('vol_current', '当前卷', 1, 100, raw, {});
+                            const curFloor = (typeof this.getCurrentFloor === 'function' ? this.getCurrentFloor() : 100) || 100;
+                            return Arch.sealVolumeArchive('vol_current', '当前卷', 1, curFloor, raw, {});
                         }
                     } catch (e) { errLog(e, 'collectExport.multiResolutionArchive'); }
                     return null;
@@ -240,8 +259,9 @@
                         const Heritage = _epochalHeritageLib();
                         if (Heritage && typeof Heritage.defineEpoch === 'function' && typeof Heritage.crystallizeEpochHeritage === 'function') {
                             const facts = (this.summary && typeof this.summary.getActiveSummaries === 'function') ? this.summary.getActiveSummaries().map(s => ({ id: s.id, content: s.text || '' })) : [];
-                            const epoch = Heritage.defineEpoch({ name: '当前纪元', startFloor: 1, endFloor: 100, coreEthos: '秩序重构' });
-                            return Heritage.crystallizeEpochHeritage(epoch, facts, { newTaboos: ['禁止私自触碰遗迹核心'] });
+                            const curFloor = (typeof this.getCurrentFloor === 'function' ? this.getCurrentFloor() : 100) || 100;
+                            const epoch = Heritage.defineEpoch({ name: '当前纪元', startFloor: 1, endFloor: curFloor, coreEthos: '信念与誓约' });
+                            return Heritage.crystallizeEpochHeritage(epoch, facts, { newTaboos: ['禁止背弃盟约'] });
                         }
                     } catch (e) { errLog(e, 'collectExport.epochalHeritage'); }
                     return null;
