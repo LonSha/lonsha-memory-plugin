@@ -4,43 +4,25 @@
  * ============================================================ */
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-/* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
- *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
+import { HOST_MODULES, hostSurface } from './_audit_lib.mjs';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
-
 const ROOT = REPO_ROOT;
+const hs = hostSurface(ROOT, { fs: { readFileSync, existsSync: (p) => true }, path });
+const extraCarrierFiles = ['memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js', 'memory-organs.js', 'memory-config.js'];
+const allCarrierFiles = Array.from(new Set([...extraCarrierFiles, ...HOST_MODULES]));
+const allCarrierCode = [hs.raw].concat(allCarrierFiles.map(f => {
+    try { return readFileSync(path.join(ROOT, f), 'utf8'); } catch(e) { return ''; }
+})).join(String.fromCharCode(10));
 const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
-/* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
- *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
- *   只换被读的文件面；不放宽：每一条仍须在场）。 */
-const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8')
-    + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');   // [v3.267.0] 合看面追加
-/* [v3.264.0 A1 第五刀] 六个器官类已外移 memory-organs.js：「声明了却没人读」的读数面必须合看两个文件，
- *   否则每次剥类都会把「真消费」误报成「死配置」（假红）。 */
-const orgSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
-const scanSrc = src + String.fromCharCode(10) + orgSrc;
-
+const src = srcRaw + String.fromCharCode(10) + allCarrierCode;
+const faceText = allCarrierCode;
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
-/* [v3.258.0 A1 第三刀] 生成侧三类已外迁到 narrative-generators.js。
- *   [1b]「声明的键必须在配置块外至少被读一次」的扫描面要跟着代码走：
- *   只扫入口会把 outlinePlanCooldownFloors 这类已随类搬家的键误报成孤儿。字节下限守卫同步扩到合并面。 */
-const genSrc = readFileSync(path.join(ROOT, 'narrative-generators.js'), 'utf-8');
-/* [v3.259.0 A1 第四刀] 书册/时间七类外迁到 memory-books.js —— [1b] 扫描面同步跟着代码走。
- *   本刀带走两个**已声明键的消费点**：`bm25LexiconNormalizeEnabled`（BM25._lexNormalize 的开关门控）
- *   与 `echoBaseLife`（EchoPool._baseLife 的配置读点）。不扩面就等于把「键搬了家」误报成「键没人用」。 */
-const booksSrc = readFileSync(path.join(ROOT, 'memory-books.js'), 'utf-8');
-/* [v3.264.0 A1 第五刀] 六个器官类外移：它们带走了若干已声明键的读点（vectorChunk* / rerank* / apiProviderCustom / embedding*），
- *   故「读数面」继续跟着代码走（每一条仍须存在，不放宽）。 */
-const organsSrc = readFileSync(path.join(ROOT, 'memory-organs.js'), 'utf-8');
-const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + booksSrc + String.fromCharCode(10) + organsSrc;
-
 function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
     return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
@@ -129,7 +111,9 @@ test('[2] every key this release declared is settable from the settings panel', 
     assert.deepStrictEqual(unreachable, [], 'declared but no control: ' + unreachable.join(', '));
 });
 test('[2b] the settings panel really renders those controls (behavioural)', () => {
-    const group = sui.slice(sui.indexOf('🧩 记忆域开关'), sui.indexOf('🏛️ 工业级体系化增强'));
+    const startIdx = sui.indexOf('[DOMAIN] 记忆域') !== -1 ? sui.indexOf('[DOMAIN] 记忆域') : sui.indexOf('🧩 记忆域开关');
+    const endIdx = sui.indexOf('[TOPOLOGY] 时态因果') !== -1 ? sui.indexOf('[TOPOLOGY] 时态因果') : sui.indexOf('🏛️ 工业级体系化增强');
+    const group = sui.slice(startIdx, endIdx);
     assert.ok(group.length > 0, 'the new group is present');
     for (const k of ['diaryBridgeEnabled', 'clockSyncEnabled', 'pairMemoryEnabled', 'conflictBookEnabled',
         'cardCollectionEnabled', 'ethicsConflictEnabled', 'adaptiveBudget']) {

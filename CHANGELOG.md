@@ -1,3 +1,11 @@
+## v3.391.0
+**第九期拓展机制 X6~X9 完整收口与前沿叙事引擎落地**
+- 新增 `character-habit-growth-evidence.js`（M-X6）：角色能力证据束演进、习惯锚定与证据撤销后平滑降级机制。
+- 新增 `multi-perspective-theater-bench.js`（M-X7）：多知情视角事件剧场、材料投影与私密事实边界阻断。
+- 新增 `memory-action-symbiosis-circuit.js`（M-X8）：记忆—行动共生回路、连续拒绝偏好自适应与动作候选推荐。
+- 新增 `era-continuation-inheritance-tree.js`（M-X9）：时代接续传承演变树、家族/代际秘密断代阻断机制。
+- 同步补齐 4 套配套验收测试（`v3388`~`v3391`），通过率 100%。
+
 ## v3.371.0
 **index.js 剥离第十一批：提取后执行、图谱与各子系统状态写入管线外提为 engine-execution-pipeline.js**
 - 新增 `engine-execution-pipeline.js`（1190行，IIFE 模块）：将原 `index.js` 内部 `onMessageReceived` 后半段的巨型状态写入与系统分发管线（涵盖图谱节点/边建立、状态变更、伦理冲突检测、剧情时钟维护、剧情时间线写入、POV私密记忆存储、角色记忆银行写入、世界钟与世界账本对账等共 1099 行逻辑）完整外提为独立执行管线模块，挂载 `window.LonShaEngineExecutionPipeline`，提供 `bindDeps` 注入通道与安全降级。

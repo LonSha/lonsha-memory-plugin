@@ -23,7 +23,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const SCANNER = path.join(HERE, 'audit', 'scan_module_wiring.mjs');
 
-const idx = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+import { HOST_MODULES, hostSurface } from './_audit_lib.mjs';
+const hs = hostSurface(ROOT, { fs: { readFileSync, existsSync: () => true }, path });
+const idx = hs.raw;
 const ga = readFileSync(path.join(ROOT, 'graph_algorithms.js'), 'utf8');
 const mc = readFileSync(path.join(ROOT, 'modules_combined.js'), 'utf8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
@@ -272,7 +274,7 @@ test('【3】修复证据：冲突已消除且增强版成为唯一实现', () =
     assert.ok(/\bperformance\.now\(\)/.test(ga), 'graph_algorithms.js 必须保留计时埋点');
     // 3d 4 参签名（pageRankDamping 的接线前提）
     assert.ok(/personalizedPageRank\(seedNodes, hops = 3, topK = 10, dampingFactor = 0\.85\)/.test(ga), '签名必须接受第 4 参');
-    assert.ok(idx.includes('this.config.config.pageRankDamping'), 'index.js 调用点必须传入阻尼配置');
+    assert.ok(/(?:this|engine)\.config\.config\.pageRankDamping/.test(idx), '宿主调用点必须传入阻尼配置');
     // 3e 个性化 PageRank 必须绕过不含种子键的通用缓存
     assert.ok(/useCache:\s*false/.test(ga), 'personalizedPageRank 必须传 useCache:false（否则 60s 内跨轮返回陈旧种子结果）');
     // 3f manifest 加载顺序：增强版仍然后于朴素版所在文件（回归守卫）

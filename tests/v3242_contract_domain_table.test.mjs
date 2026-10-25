@@ -29,6 +29,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ledgerLevelConsumers } from './_fixture_sync.mjs';
+import { HOST_MODULES } from './_audit_lib.mjs';
 import { breakText } from './_break_kit.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -179,7 +180,7 @@ test('v3242 D1. -0 归一到 +0，且 +0 与其它数不受影响（两向自证
  *   manifest / index / 契约 / TSV 仍显式列出（它们不是账本级消费者，派生不出来）。 */
 const GAUGED = ['manifest.json', 'index.js', CONTRACT_REL,
     ...ledgerLevelConsumers(ROOT, JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8')).extra_js),
-    'tests/audit/catalog_reference_consumers.tsv'];
+    'tests/audit/catalog_reference_consumers.tsv', ...HOST_MODULES];
 function mkTree() {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3242-gate-'));
     for (const f of GAUGED) {

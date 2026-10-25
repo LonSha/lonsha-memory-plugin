@@ -22,7 +22,14 @@ const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
 /* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
  *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
  *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
-const src = srcRaw + String.fromCharCode(10) + readFileSync(path.join(ROOT, 'memory-config.js'), 'utf-8');
+import { HOST_MODULES, hostSurface } from './_audit_lib.mjs';
+const hs = hostSurface(ROOT, { fs: { readFileSync, existsSync: (p) => true }, path });
+const extraCarrierFiles = ['memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js', 'memory-organs.js', 'memory-config.js'];
+const allCarrierFiles = Array.from(new Set([...extraCarrierFiles, ...HOST_MODULES]));
+const allCarrierCode = [hs.raw].concat(allCarrierFiles.map(f => {
+    try { return readFileSync(path.join(ROOT, f), 'utf8'); } catch(e) { return ''; }
+})).join(String.fromCharCode(10));
+const src = srcRaw + String.fromCharCode(10) + allCarrierCode;
 const sui = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf-8');
 const manifest = JSON.parse(readFileSync(path.join(ROOT, 'manifest.json'), 'utf-8'));
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
@@ -99,8 +106,8 @@ test('[1c] the two secret / global keys are deliberately kept out of the card', 
 });
 // ================= 2. the shipped controls =================
 test('[2] the new reasoning group renders every one of the nine', () => {
-    const g0 = sui.indexOf('🧭 推理调优');
-    const g1 = sui.indexOf('🏛️ 工业级体系化增强');
+    const g0 = sui.indexOf('[INFERENCE] 推理') !== -1 ? sui.indexOf('[INFERENCE] 推理') : sui.indexOf('🧭 推理调优');
+    const g1 = sui.indexOf('[TOPOLOGY] 时态因果') !== -1 ? sui.indexOf('[TOPOLOGY] 时态因果') : sui.indexOf('🏛️ 工业级体系化增强');
     assert.ok(g0 > 0 && g1 > g0, 'the reasoning group sits before the industrial group');
     const group = sui.slice(g0, g1);
     for (const k of ['memoryTreeEnabled', 'aiRecallOpsDebug']) {
