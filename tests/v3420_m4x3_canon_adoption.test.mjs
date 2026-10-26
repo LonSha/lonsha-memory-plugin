@@ -38,6 +38,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+const PERSIST_SRC = read('engine-persistence-ops.js');
+const SELFCHECK_SRC = read('engine-self-check.js');
+const ALL_HOST_SRC = IDX + NL + PERSIST_SRC + NL + SELFCHECK_SRC;
 const ORG = read('memory-organs.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
@@ -124,8 +127,8 @@ function judgeHostContract(src) {
     if (MF.extra_js.length < 107) throw new Error('extra_js 不得低于本档出生值 107,实 ' + MF.extra_js.length);
 }
 test('v3420 A1. **** 宿主五新出口各恰一处 + 四处契约面 + organs 逐字副本 + 自检行并入 + extra_js 107', () => {
-    judgeHostContract(IDX);
-    assert.deepEqual(judgeStruct(IDX, ORG, MF), [], judgeStruct(IDX, ORG, MF).join('；'));
+    judgeHostContract(ALL_HOST_SRC);
+    assert.deepEqual(judgeStruct(ALL_HOST_SRC, ORG, MF), [], judgeStruct(ALL_HOST_SRC, ORG, MF).join('；'));
     console.log('  ok 五出口各恰 1 次 / 四处契约面 / organs 副本同源 / 落卷读数并入既有一行 / extra_js ≥ 107');
 });
 /* ══════════════ B. 内核面（真映射 / 三态 / 幂等 / 撤销保护） ══════════════ */
@@ -506,9 +509,9 @@ test('v3420 D6. ★★ 破坏「凭据持久化判幂等」⇒ 重启后重复�
     console.log('  ok 重启后认不出同一件事 ⇒ 再落一遍被照出；原版阳性通过');
 });
 test('v3420 D7. ★★ 破坏「存档契约面」⇒ 宿主契约判据 A1 必须转红', () => {
-    const badIdx = KIT.breakOnce(IDX, ANCHORS.hContract, String.raw`canonAdoption: null,`, 'hContract');
-    expectRed(() => judgeHostContract(badIdx), 'hContract');
-    judgeHostContract(IDX);
+    const badHost = KIT.breakOnce(ALL_HOST_SRC, ANCHORS.hContract, String.raw`canonAdoption: null,`, 'hContract');
+    expectRed(() => judgeHostContract(badHost), 'hContract');
+    judgeHostContract(ALL_HOST_SRC);
     console.log('  ok 凭据不随存档走 ⇒ 契约面转红；原版阳性通过');
 });
 test('v3420 D8. ★★ 破坏「凭据只在确认后落」⇒ 落盘闸门判据 C3 必须转红', async () => {
@@ -530,8 +533,8 @@ test('v3420 F1. ** H5 判据纯度：破坏锚点在**本档源码**里各恰中
         assert.equal(n, 1, '内核锚 ' + k + ' 在 branch-canon.js 命中 ' + n + ' 次（应恰 1）');
     }
     for (const k of ['hPersistIdem', 'hContract', 'hCommit']) {
-        const m = IDX.split(ANCHORS[k]).length - 1;
-        assert.equal(m, 1, '宿主锚 ' + k + ' 在 index.js 命中 ' + m + ' 次（应恰 1）');
+        const m = ALL_HOST_SRC.split(ANCHORS[k]).length - 1;
+        assert.equal(m, 1, '宿主锚 ' + k + ' 在宿主源码中命中 ' + m + ' 次（应恰 1）');
     }
     console.log('  ok 八个锚点在本档各 1 次、在真源各 1 次');
 });

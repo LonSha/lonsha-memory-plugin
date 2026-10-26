@@ -33,6 +33,9 @@ const PKG = JSON.parse(read('package.json'));
 const EQ_SRC = read('evidence-query.js');
 const QT_SRC = read('qa-thread.js');
 const EQT_SRC = read('engine-qa-tools.js');
+const PERSIST_SRC = read('engine-persistence-ops.js');
+const NL = '\n';
+const ALL_HOST_SRC = IDX + NL + PERSIST_SRC + NL + EQT_SRC;
 const SELF = read(path.join('tests', 'v3400_m4x4_qa_thread.test.mjs'));
 const BORN_V = '3.340.0';
 const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
@@ -74,21 +77,21 @@ const HOST_METHODS = [
     'qaThreadResolve(picks, opts) {',
     'qaThread() {',
 ];
-function judgeStruct(idxSrc, mf) {
+function judgeStruct(hostSrc, mf) {
     const bad = [];
     for (const h of HOST_METHODS) {
-        const n = idxSrc.split(h).length - 1;
+        const n = hostSrc.split(h).length - 1;
         if (n !== 1) bad.push(h + ' 命中 ' + n + ' 次（应恰 1）');
     }
-    if (idxSrc.indexOf('function _qaThreadLib() {') < 0) bad.push('缺取库口 _qaThreadLib');
+    if (hostSrc.indexOf('function _qaThreadLib() {') < 0) bad.push('缺取库口 _qaThreadLib');
     for (const k of ['qaThread:', '_qaThread = data.qaThread', "'qaThread',"]) {
-        if (idxSrc.indexOf(k) < 0) bad.push('持久化 / 契约面缺 ' + k);
+        if (hostSrc.indexOf(k) < 0) bad.push('持久化 / 契约面缺 ' + k);
     }
     if (!Array.isArray(mf.extra_js) || mf.extra_js.indexOf('qa-thread.js') < 0) bad.push('manifest.extra_js 缺 qa-thread.js');
     return bad;
 }
 test('v3400 A1. **** 宿主四面各恰一处 + 取库口 + 持久化/契约面在位 + extra_js 登记', () => {
-    assert.deepEqual(judgeStruct(IDX, MF), [], judgeStruct(IDX, MF).join('；'));
+    assert.deepEqual(judgeStruct(ALL_HOST_SRC, MF), [], judgeStruct(ALL_HOST_SRC, MF).join('；'));
     /* [v3.343.0 交棒] 原文是逐字硬等号(`=== 107`)—— 那是本档出生那一版的一次性事实,
      *   不是永久不变量;抬版即红,而红的信息量只剩「数字不对」(与 v3264/v3266/v3296/v3298/v3300 同族坑,均已交棒)。
      *   改按下界口径:本档只守「自己那一项仍在且不少于出生值」,「当版总项数恰一处」由**当版 frontier 套件**把守(v3209 的数量锁)。 */

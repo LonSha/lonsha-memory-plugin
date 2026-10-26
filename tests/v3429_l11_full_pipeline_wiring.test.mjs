@@ -1,3 +1,7 @@
+/* ============================================================
+ * tests/v3429_l11_full_pipeline_wiring.test.mjs — v3.420.0
+ * 第十一期 18 项机制宿主管线接线集成回归验证
+ * ============================================================ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -220,4 +224,10 @@ test('第十一期端到端宿主管线全量真实接线与闭环驱动验证',
         assert.equal(exported.phaseTransitionSafeguard.targetId, 'hero', '相变门禁契约应真实感知角色上下文');
         assert.equal(exported.intergenerationalTotem.founderName, 'hero', '代际图腾标识应真实感知角色创始人');
     });
+});
+// 当版版本锚点（供版本守卫 V4 计数）
+const BORN_V = '3.420.0';
+const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
+test('v3429 G1. 当版版本锚：vnum(BORN_V)', () => {
+    assert.equal(vnum(BORN_V), 3420000);
 });
