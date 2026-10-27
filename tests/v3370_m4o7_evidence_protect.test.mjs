@@ -158,7 +158,10 @@ async function stmLtmJudge(stm) {
 function hostJudge(idx) {
     const P = [];
     /* C1 判定器必须存在且含「撤回不保」分支 */
-    const m = /const _evJudge = \((item)\) => \{[\s\S]{0,2400}?\n\s*\};/.exec(idx);
+    /* [v3.421.0] 窗口 2400 → 2800：本批给判定器加了治理锁定分支与注释，体内已 2468 字符，原窗口把收尾行顶出去、整条匹配不上。
+     *   窗口只用来把检查限定在判定器体内，不是长度判据。
+     *   非贪婪 + 收尾锚在，窗口给宽不会吞到隔壁函数。 */
+    const m = /const _evJudge = \((item)\) => \{[\s\S]{0,2800}?\n\s*\};/.exec(idx);
     if (!m) P.push('缺 _evJudge 判定器');
     else {
         const body = m[0];
@@ -179,7 +182,9 @@ function hostJudge(idx) {
 }
 
 /* ══════════════ 负控制锚点(判据层只声明一次 —— H5) ══════════════ */
-const A_GC_EV = "const safe = Math.min(judged.length, b);";
+/* [v3.421.0] 锚点跟随：真源保护项已拆成 exemptList/normalList 两路，
+ *   容量式改吃 normalList.length。破坏点仍是同一个（把 safe 抹平）。 */
+const A_GC_EV = "const safe = Math.min(normalList.length, b);";
 const A_STM_CARRY = "for (const t of e.salient) carry.push(String(t));";
 const A_IDX_REVOKED = "item.revoked === true";
 

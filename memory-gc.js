@@ -61,7 +61,7 @@
      *   judge 缺席的旧调用方也拿得到这一整副键,但 protectedCount 恒 0 ——
      *   下游只凭形状分不出「没判定」与「判了都不保」,故宿主须连 judge 是否注入一起记。 */
     function blankEvidence() {
-        return { deletable: [], protected: [], protectedCount: 0, overBudget: 0,
+        return { deletable: [], protected: [], protectedCount: 0, overBudget: 0, exemptCount: 0,
             protectedByReason: {}, degradedByReason: {} };
     }
     /**
@@ -169,14 +169,25 @@
             try { r = j(list[i].item); } catch (_e) { r = null; }
             if (!r || r.keep !== true) continue;
             const rank = Number(r.rank);
-            judged.push({ i, rank: Number.isFinite(rank) ? rank : 0, reason: String((r && r.reason) || 'evidence') });
+            judged.push({ i, rank: Number.isFinite(rank) ? rank : 0, reason: String((r && r.reason) || 'evidence'),
+                /* [v3.421.0 · 缝合 E1] 免预算标记：治理锁定的条目是人已付过代价的决定，
+                 *   预算满时**不得**被降级删除（否则「锁定」只在预算没满时成立，是半句承诺）。 */
+                exempt: r.exemptBudget === true });
         }
         judged.sort((a, c) => c.rank - a.rank);
-        const safe = Math.min(judged.length, b);
+        /* 先扣免预算项，再按剩余预算放普通保护项 —— 顺序反了会让锁定条目和白名单条目抢同一份额度。 */
+        const exemptList = judged.filter(x => x.exempt);
+        const normalList = judged.filter(x => !x.exempt);
+        const safe = Math.min(normalList.length, b);
         const protectIdx = new Set();
         const protectedList = [];
-        for (let k = 0; k < judged.length; k++) {
-            const x = judged[k];
+        for (const x of exemptList) {
+            protectIdx.add(x.i);
+            protectedList.push(list[x.i].item);
+            protectedByReason[x.reason] = (protectedByReason[x.reason] || 0) + 1;
+        }
+        for (let k = 0; k < normalList.length; k++) {
+            const x = normalList[k];
             if (k < safe) {
                 protectIdx.add(x.i);
                 protectedList.push(list[x.i].item);
@@ -187,7 +198,8 @@
         }
         const deletable = list.filter((c, i) => !protectIdx.has(i));
         return { deletable, protected: protectedList, protectedCount: protectedList.length,
-            overBudget: Math.max(0, judged.length - safe),
+            overBudget: Math.max(0, normalList.length - safe),
+            exemptCount: exemptList.length,
             protectedByReason, degradedByReason };
     }
     /**

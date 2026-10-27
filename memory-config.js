@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.420.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.421.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -266,6 +266,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             aiSelectMaxSelect: 6,          // AI 最多精选条数
             stmLtmEnabled: false,          // STM/LTM 游标巩固（unconsolidated→stm→ltm 分层，断点续跑）
             stmLtmThreshold: 5,            // 巩固触发阈值（待巩固片段数）
+            stmLtmCloseMinKeep: 3,         // [v3.421.0] 批末主动销项的保底留存条目数（销后不得低于此数）
             unifiedRecallEnabled: false,   // 统一召回管线（图谱节点候选化走同一套评分，类型保底）
             secondaryApis: {},             // 副API通道表 { [task]: {endpoint,apiKey,model,enabled} }，task: extract/summarize/embed/select/rerank/rewrite/state
             // [v3.95] 缝合 vectors-enhanced 智能分块（长文本向量化按语义边界切块+重叠）

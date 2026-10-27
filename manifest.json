@@ -7,7 +7,7 @@
   "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.420.0",
+  "version": "3.421.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -23,6 +23,7 @@
     "cse-engine.js",
     "narrative-pulse.js",
     "ai-select.js",
+    "stm-close-quota.js",
     "stm-ltm.js",
     "unified-recall.js",
     "api-channels.js",
@@ -227,7 +228,9 @@
     "cross-branch-deja-vu-resonance-chamber.js",
     "double-identity-espionage-theater.js",
     "life-epilogue-retrospective-synthesizer.js",
-    "intergenerational-mental-totem-tree.js"
+    "intergenerational-mental-totem-tree.js",
+    "strength-policy.js",
+    "strength-proposal.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

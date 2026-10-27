@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.420.0';
+    const VERSION = '3.421.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -129,6 +129,37 @@
      */
     function _cacheWorkloadLib() {
         return _moduleLib(() => window.LonShaCacheWorkload, 'cache-workload.js');
+    }
+    /**
+     * [v3.421.0 · 缝合 E1/E2] 记忆强度治理双模块取库口（`strength-policy.js` / `strength-proposal.js`）。
+     *
+     * 为什么拆两个文件而不是一个：策略面（建议值怎么算、人工改值、锁定）是**幂等纯算**，
+     *   提案面（双钥匙生命周期、乐观版本锁、回滚快照）是**有状态流程**。二者的失效形态完全不同
+     *   （前者算错顶多建议偏一点；后者判错会让不该落地的变更落地），混在一个文件里会让
+     *   「策略改了」与「闸门改了」共用一份 diff 与一份单测面。用户明确要求两者分开。
+     *
+     * 两者都可缺席（返回 null），调用方必须给出各自的降级形态：
+     *   · 策略面缺席 ⇒ 治理面板只报不可用，仍走原来的裸 importance；
+     *   · 提案面缺席 ⇒ 高风险变更退回「直接改」并**在读数里标明无钥匙**（不假装钥匙已验）。
+     * 不在构造期缓存：extra_js 后加载。
+     */
+    function _strengthPolicyLib() {
+        return _moduleLib(() => window.LonShaStrengthPolicy, 'strength-policy.js');
+    }
+    function _strengthProposalLib() {
+        return _moduleLib(() => window.LonShaStrengthProposal, 'strength-proposal.js');
+    }
+    /**
+     * [v3.421.0 · 缝合 E3] 销项额度判据（`stm-close-quota.js`）的宿主取库口。
+     *
+     * 为什么宿主也要取一次，而不是只让 stm-ltm 自己取：额度是**跨模块判据** —— 它裁定
+     *   「这批能销几条」，宿主是唯一的批边界持有者（只有它知道本批 appended 多少）。
+     *   宿主也取一份，才能在批末除了执行销项还**预演**一次（面板/诊断先看到会拦什么），
+     *   并且在模块缺席时把「走的是兜底」报进总账，而不是让 stm-ltm 内部的兜底静默生效。
+     * 缺席返回 null，调用方按「stm-ltm 内部同算法兜底」处理（行为不变、仅可归因性下降）。
+     */
+    function _stmCloseQuotaLib() {
+        return _moduleLib(() => window.LonShaStmCloseQuota, 'stm-close-quota.js');
     }
     // [v3.139] CP-L3 快照冻结键契约（stbme: GRAPH_SNAPSHOT_TOP_LEVEL_KEYS 纪律移植）。
     // 演化纪律：只在 record 内加字段；顶层键新增/删除必须同步本清单（守卫测试 v3139 强制 collectExport 键 == 本清单）。
@@ -2880,6 +2911,48 @@ function relativeTimeLabel(eventTime, nowTime) {
                 return r;
             }
             this._stmLtmState = r.state;
+            /* [v3.421.0 · 缝合 E3] 批末**主动销项**：本批 raw 的楼层已经巩固（事办完了），
+             *   对应 stm 条目该销。修前这条通路根本不存在 —— 条目只能等容量淘汰滚进 LTM，
+             *   「办完的」与「还悬着的」在库里同寿，于是可变区只涨不缩，一旦缩就只能是大销
+             *   （源实现记录过一天四次大销把可变区销到 0 行的事故）。
+             *
+             *   额度由 `stm-close-quota.js` 单一真源裁定（保底留 minKeep + 不得超过本批新增），
+             *   故「命中 12 条只销 3 条」不会被读成「销了 3 条」，`blocked` 时一行不销并具名回报。
+             *   失败不连坐巩固结果：销项是增强面，出错只落诊断。 */
+            let _close = null;
+            try {
+                const _fl = Array.isArray(r.floors) ? r.floors : [];
+                if (_fl.length && typeof this.stmLtm?.closeEntries === 'function') {
+                    /* 命中面按**楼层交集**算，不按 id 全销：本批楼层关联的条目才是「这批办完的」。 */
+                    const _want = new Set(_fl.map(String));
+                    const _hits = (this._stmLtmState.stm_entries || [])
+                        .filter((e) => Array.isArray(e.floors) && e.floors.some((f) => _want.has(String(f))))
+                        .map((e) => e.id);
+                    const _cr = this.stmLtm.closeEntries(this._stmLtmState, _hits, {
+                        minKeep: Math.max(1, Number(this.config.config.stmLtmCloseMinKeep) || 3),
+                        appended: _fl.length
+                    });
+                    /* 预演与执行必须同一判据：这里用宿主侧取到的真源复核一遍额度。
+                     *   两者不一致说明 stm-ltm 走的是内联兜底或版本漂移 —— 落进 `_stmLtmClose.mismatch`
+                     *   让读数自己承认，而不是「预演说能销 5、实际销了 2」无人解释。 */
+                    try {
+                        const Q = _stmCloseQuotaLib();
+                        if (Q && typeof Q.closeQuota === 'function' && _hits.length) {
+                            const _pre = Q.closeQuota({ before: _hits.length + 0, minKeep: 0, appended: _fl.length, hits: _hits.length });
+                            if (_cr && _pre && Number(_pre.quota) !== Number(_cr.quota?.quota)) {
+                                this._stmLtmClose = Object.assign(this._stmLtmClose || {}, {
+                                    mismatch: { predicted: Number(_pre.quota) || 0, actual: Number(_cr.quota?.quota) || 0 }
+                                });
+                            }
+                        }
+                    } catch (_e2) { /* 预演失败不影响已执行的销项 */ }
+                    if (_cr && _cr.state) {
+                        this._stmLtmState = _cr.state;
+                        _close = { removed: _cr.removed, blocked: _cr.blocked === true, reasons: _cr.reasons || [], shortfall: _cr.shortfall || 0, line: _cr.line || '' };
+                        if (_cr.blocked || _cr.shortfall) this._stmLtmClose = { at: Date.now(), ..._close };
+                    }
+                }
+            } catch (e) { errLog(e, 'stmLtm.close'); }
             // 落盘（复用主持久化通道）
             try {
                 if (r.consolidated > 0) {
@@ -2889,7 +2962,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                     this.recordSaveFailed('stmLtm', _ok === true, this.storage?._lastWrite?.error || '未落盘');
                 }
             } catch (e) { errLog(e, 'stmLtm.save'); }
-            if (this.config.config.debugMode && r.consolidated > 0) console.log(`[${PLUGIN_NAME}] STM巩固: ${r.consolidated}片段→stm (usedAI=${r.usedAI})`);
+            if (this.config.config.debugMode && r.consolidated > 0) console.log(`[${PLUGIN_NAME}] STM巩固: ${r.consolidated}片段→stm (usedAI=${r.usedAI})`
+                + (_close ? ` | 销项${_close.blocked ? '被拦：' + _close.line : '：' + _close.line}` : ' | 无命中不销'));
+            r.close = _close;   // 只增不换：老调用方拿 consolidated/state 不受影响
             return r;
         }
 
@@ -5392,6 +5467,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                     || (item.keep === true) || (item.userPinned === true)
                     || (!!(m && (m.pinned === true || m.retain === true)));
                 if (explicit) return { keep: true, rank: 100, reason: 'user-keep' };
+                /* [v3.421.0 · 缝合 E1] 治理锁定即**硬豁免**（rank 抬到 110，高于 user-keep）。
+                 *   修前 `importance` 是一个没人敢改的裸数字：人手工把一条记忆调到高价值之后，
+                 *   下一轮 GC 照样按同一公式把它排到删除端 —— 因为「人定过」没被记下来。
+                 *   现在锁在 `governance.strength_locked` 上，且**与保护预算无关**（见下面的
+                 *   locked 分支）：预算满时锁定条目也可以继续保，它是人已经付过代价的。
+                 *   `importance_scale` 一并读：宿主 0-1 / 1-5 / 0-10 三种旧语义并存，
+                 *   不按条目自带尺度换算会把 5 分制的「4」读成 core。 */
+                const _gov = (item.governance && typeof item.governance === 'object') ? item.governance
+                    : (m && m.governance && typeof m.governance === 'object') ? m.governance : null;
+                if (_gov && _gov.strength_locked === true) {
+                    return { keep: true, rank: 110, reason: 'strength-locked', exemptBudget: true };
+                }
                 if (item.revoked === true || !!(m && m.revoked === true)) return null;
                 const text = (typeof item.text === 'string' && item.text) ? item.text
                     : (typeof item.summary === 'string' && item.summary) ? item.summary
@@ -5461,7 +5548,291 @@ function relativeTimeLabel(eventTime, nowTime) {
                 }
             } catch (e) { errLog(e, 'nonfatal') }
             if (_r.removed && _cfg.debugMode) console.log('[' + PLUGIN_NAME + '] 记忆优化: 清理 ' + _r.removed + ' 条冗余');
+            /* [v3.421.0 · 缝合 E2] 收尾自动应用**低风险且已 ready** 的提案。
+             *   为什么放在这里：`optimizeMemory` 是懒散条目唯一的回收时机，提案若只停在
+             *   待办里就永远不会落地（面板不会自己跑）；而低风险提案按定义不需要第二把钥匙
+             *   （提案者自己那把已在 signatures 内），自动应用不会绕过治理。
+             *   **只应用 ready**：pending_review 一律等人，绝不在这里替人签字。 */
+            try { this._strengthAutoApplyReady(); } catch (e) { errLog(e, 'strength.autoApply'); }
+            /* 治理读数一并落诊断面（`strengthGovernanceReport` 的**首个消费点**）：
+             *   待会签积压与锁定条数若不随优化周期被读到，就只能靠人想起来去点面板。 */
+            try { this._lastStrengthGovernance = this.strengthGovernanceReport(); } catch (e) { errLog(e, 'strength.govReport'); }
             return _r.removed;
+        }
+        /** [v3.421.0 · 缝合 E2] 应用全部 ready 提案（收尾批处理；逐条失败不连坐其余）。 */
+        _strengthAutoApplyReady() {
+            const store = Array.isArray(this._strengthProposals) ? this._strengthProposals : [];
+            const ready = store.filter(p => p && p.status === 'ready');
+            if (!ready.length) return 0;
+            let n = 0;
+            for (const p of ready) {
+                const r = this.applyStrengthChange(p.proposal_id);
+                if (r && r.ok) n += 1;
+                else if (r) { p.status = 'apply-failed'; p.applyReason = r.reason; }
+            }
+            if (n && this.config.config.debugMode) console.log('[' + PLUGIN_NAME + '] 强度治理: 自动应用 ' + n + ' 条低风险提案');
+            return n;
+        }
+        // ================================================================
+        // [v3.421.0 · 缝合 E1/E2] 记忆强度治理面（策略 + 双钥匙提案）
+        // ----------------------------------------------------------------
+        // 设计边界（对调用方必须成立）：
+        //   · 全部方法**不持久化**——返回 record 与提案，写回与落盘仍由既有 storage 口径负责；
+        //   · 全部方法**不抛**（治理面板不可用不该炸整轮注入），失败返回 `{ok:false, error}`；
+        //   · 模块缺席时各自如实降级：策略面缺席 ⇒ ok:false + reason='module-absent'；
+        //     提案面缺席 ⇒ `proposeStrengthChange` 直通返回 `no-key` 形态的 ready 提案
+        //     （**不假装钥匙已验**，`keyMissing: true`）。
+        // ================================================================
+        /** 内部：按 id 在向量库/摘要库中找条目（两库都查，治理面不区分来源）。 */
+        _strengthFindItem(id) {
+            const key = String(id == null ? '' : id);
+            if (!key) return null;
+            try {
+                const v = (this.vector?.vectors || []).find(x => x && String(x.id) === key);
+                if (v) return v;
+            } catch (e) { /* 落到摘要库 */ }
+            try {
+                const s = (this.summary?.summaries || []).find(x => x && String(x.id) === key);
+                if (s) return s;
+            } catch (e) { /* 两库都没有 */ }
+            return null;
+        }
+        /** 内部：把改后的 record 写回它原来所在的库（按 id 原地替换，找不到则不动）。 */
+        _strengthWriteBack(record) {
+            if (!record || record.id == null) return false;
+            const key = String(record.id);
+            try {
+                const vs = this.vector?.vectors;
+                if (Array.isArray(vs)) {
+                    const i = vs.findIndex(x => x && String(x.id) === key);
+                    if (i >= 0) { vs[i] = record; return true; }
+                }
+            } catch (e) { /* 落到摘要库 */ }
+            try {
+                const ss = this.summary?.summaries;
+                if (Array.isArray(ss)) {
+                    const i = ss.findIndex(x => x && String(x.id) === key);
+                    if (i >= 0) { ss[i] = record; return true; }
+                }
+            } catch (e) { /* 两库都没有 */ }
+            return false;
+        }
+        /** 治理面版本号：`import_ts` 不存在时退到条目的 `updatedAt|ts`，都没有则 `'0'`。
+         *  只用于**乐观锁比对**，不参与任何打分 —— 两端都是本方法产出，口径一致即可。 */
+        _strengthVersion(item) {
+            if (!item) return '0';
+            const v = item._govVersion != null ? item._govVersion
+                : (item.updatedAt != null ? item.updatedAt : (item.ts != null ? item.ts : 0));
+            return String(v);
+        }
+        /** 内部：改完后推进版本号（每次治理写入必推，否则第二张提案会拿旧锁通过）。 */
+        _strengthBumpVersion(record) {
+            if (!record) return record;
+            try { record._govVersion = Number(record._govVersion || 0) + 1; } catch (e) { /* 非数值就重置 */ }
+            return record;
+        }
+        /** 只读：对单条给强度建议（策略面缺席 ⇒ ok:false，不退化成瞎猜）。 */
+        suggestStrength(id) {
+            const P = _strengthPolicyLib();
+            if (!P || typeof P.suggestStrength !== 'function') {
+                return { ok: false, reason: 'module-absent', module: 'strength-policy.js' };
+            }
+            const item = this._strengthFindItem(id);
+            if (!item) return { ok: false, reason: 'item-not-found', id: String(id == null ? '' : id) };
+            try {
+                return { ok: true, suggestion: P.suggestStrength(item), band: P.bandFor(item.importance) };
+            } catch (e) {
+                errLog(e, 'strength.suggest');
+                return { ok: false, reason: 'threw', error: String(e && e.message || e) };
+            }
+        }
+        /** 只读：全库重估预演（不落盘、不改任何条目）。 */
+        simulateStrengths() {
+            const P = _strengthPolicyLib();
+            if (!P || typeof P.simulateStrengths !== 'function') {
+                return { ok: false, reason: 'module-absent', module: 'strength-policy.js' };
+            }
+            try {
+                const all = []
+                    .concat(Array.isArray(this.vector?.vectors) ? this.vector.vectors : [])
+                    .concat(Array.isArray(this.summary?.summaries) ? this.summary.summaries : []);
+                return Object.assign({ ok: true }, P.simulateStrengths(all));
+            } catch (e) {
+                errLog(e, 'strength.simulate');
+                return { ok: false, reason: 'threw', error: String(e && e.message || e) };
+            }
+        }
+        /**
+         * 人工改值（可同时上锁）。锁定只许 core 档，由策略面判定；这里只负责找条目与写回。
+         * @param {string} id 条目 id
+         * @param {number} strength 目标强度 0-100
+         * @param {{actor:string, reason:string, lock?:boolean, writeBack?:boolean}} opts
+         */
+        setStrengthManually(id, strength, opts = {}) {
+            const P = _strengthPolicyLib();
+            if (!P || typeof P.manualStrengthChange !== 'function') {
+                return { ok: false, reason: 'module-absent', module: 'strength-policy.js' };
+            }
+            const item = this._strengthFindItem(id);
+            if (!item) return { ok: false, reason: 'item-not-found', id: String(id == null ? '' : id) };
+            try {
+                const r = P.manualStrengthChange(item, strength, {
+                    actor: opts.actor, reason: opts.reason, now: opts.now || new Date().toISOString(),
+                    lock: opts.lock === true
+                });
+                const record = this._strengthBumpVersion(r.record);
+                const written = (opts.writeBack === false) ? false : this._strengthWriteBack(record);
+                try { this.opLog?.log?.('strength', opts.lock === true ? 'lock' : 'manual',
+                    String(id).slice(0, 12), this._currentFloor ?? null, String(opts.reason || '').slice(0, 40)); } catch (e) { /* 账本非致命 */ }
+                return { ok: true, record: record, written: written, requires_review: r.requires_review !== false };
+            } catch (e) {
+                /* 锁定态/档位不符都从这里出去：都是**可判的拒绝**，不是故障。 */
+                return { ok: false, reason: 'rejected', error: String(e && e.message || e) };
+            }
+        }
+        /** 解锁。 */
+        unlockStrength(id, opts = {}) {
+            const P = _strengthPolicyLib();
+            if (!P || typeof P.unlockStrength !== 'function') {
+                return { ok: false, reason: 'module-absent', module: 'strength-policy.js' };
+            }
+            const item = this._strengthFindItem(id);
+            if (!item) return { ok: false, reason: 'item-not-found', id: String(id == null ? '' : id) };
+            try {
+                const r = P.unlockStrength(item, {
+                    actor: opts.actor, reason: opts.reason, now: opts.now || new Date().toISOString()
+                });
+                const record = this._strengthBumpVersion(r.record);
+                const written = (opts.writeBack === false) ? false : this._strengthWriteBack(record);
+                try { this.opLog?.log?.('strength', 'unlock', String(id).slice(0, 12), this._currentFloor ?? null, String(opts.reason || '').slice(0, 40)); } catch (e) { /* 账本非致命 */ }
+                return { ok: true, record: record, written: written };
+            } catch (e) {
+                return { ok: false, reason: 'rejected', error: String(e && e.message || e) };
+            }
+        }
+        /** 内部：提案登记表（惰性建，只留尾部 100 张，免长线跑团里无限攒）。 */
+        _strengthProposalStore() {
+            if (!Array.isArray(this._strengthProposals)) this._strengthProposals = [];
+            if (this._strengthProposals.length > 100) this._strengthProposals = this._strengthProposals.slice(-100);
+            return this._strengthProposals;
+        }
+        /**
+         * 发起强度变更提案。高风险（上锁 / 进 core / 变动 ≥ 20）自动变 `pending_review`。
+         * 提案面缺席 ⇒ 直通 ready 且 `keyMissing: true`（不静默假装验过钥匙）。
+         */
+        proposeStrengthChange(id, strength, opts = {}) {
+            const item = this._strengthFindItem(id);
+            if (!item) return { ok: false, reason: 'item-not-found', id: String(id == null ? '' : id) };
+            const R = _strengthProposalLib();
+            const now = opts.now || new Date().toISOString();
+            if (!R || typeof R.createStrengthProposal !== 'function') {
+                return {
+                    ok: false, reason: 'module-absent', module: 'strength-proposal.js', keyMissing: true,
+                    fallback: { id: String(id), to_strength: Number(strength), lock: opts.lock === true }
+                };
+            }
+            try {
+                const p = R.createStrengthProposal(item, strength, {
+                    actor: opts.actor || 'machine', actor_role: opts.actor_role || 'machine',
+                    reason: opts.reason, now: now, lock: opts.lock === true,
+                    expected_version: opts.expected_version != null ? opts.expected_version : this._strengthVersion(item)
+                });
+                this._strengthProposalStore().push(p);
+                try { this.opLog?.log?.('strength', 'propose', String(p.proposal_id).slice(0, 20), this._currentFloor ?? null, p.status); } catch (e) { /* 账本非致命 */ }
+                return { ok: true, proposal: p, describe: R.describeProposal(p) };
+            } catch (e) {
+                return { ok: false, reason: 'rejected', error: String(e && e.message || e) };
+            }
+        }
+        /** 会签。必须换角色（同角色自审由提案面抛回）。 */
+        reviewStrengthChange(proposalId, opts = {}) {
+            const R = _strengthProposalLib();
+            if (!R || typeof R.reviewStrengthProposal !== 'function') {
+                return { ok: false, reason: 'module-absent', module: 'strength-proposal.js', keyMissing: true };
+            }
+            const store = this._strengthProposalStore();
+            const idx = store.findIndex(p => p && String(p.proposal_id) === String(proposalId));
+            if (idx < 0) return { ok: false, reason: 'proposal-not-found', proposal_id: String(proposalId) };
+            try {
+                const p = R.reviewStrengthProposal(store[idx], {
+                    actor: opts.actor, actor_role: opts.actor_role,
+                    decision: opts.decision || 'approve', now: opts.now || new Date().toISOString()
+                });
+                store[idx] = p;
+                return { ok: true, proposal: p, describe: R.describeProposal(p) };
+            } catch (e) {
+                return { ok: false, reason: 'rejected', error: String(e && e.message || e) };
+            }
+        }
+        /** 应用提案（四道闸在提案面）。成功后返回可回滚的应用包，并把它登记在 `_strengthApplied`。 */
+        applyStrengthChange(proposalId, opts = {}) {
+            const R = _strengthProposalLib();
+            if (!R || typeof R.applyStrengthProposal !== 'function') {
+                return { ok: false, reason: 'module-absent', module: 'strength-proposal.js', keyMissing: true };
+            }
+            const store = this._strengthProposalStore();
+            const p = store.find(x => x && String(x.proposal_id) === String(proposalId));
+            if (!p) return { ok: false, reason: 'proposal-not-found', proposal_id: String(proposalId) };
+            const item = this._strengthFindItem(p.memory_id);
+            if (!item) return { ok: false, reason: 'item-not-found', id: String(p.memory_id) };
+            try {
+                const r = R.applyStrengthProposal(item, p, {
+                    current_version: opts.current_version != null ? opts.current_version : this._strengthVersion(item),
+                    now: opts.now || new Date().toISOString()
+                });
+                const record = this._strengthBumpVersion(r.record);
+                this._strengthWriteBack(record);
+                if (!Array.isArray(this._strengthApplied)) this._strengthApplied = [];
+                this._strengthApplied.push(Object.assign({ proposal_id: p.proposal_id, memory_id: p.memory_id }, r));
+                if (this._strengthApplied.length > 50) this._strengthApplied = this._strengthApplied.slice(-50);
+                const pi = store.findIndex(x => x && x.proposal_id === p.proposal_id);
+                if (pi >= 0) store[pi] = Object.assign({}, store[pi], { status: 'applied' });
+                try { this.opLog?.log?.('strength', 'apply', String(p.proposal_id).slice(0, 20), this._currentFloor ?? null, 'v' + String(p.to_strength)); } catch (e) { /* 账本非致命 */ }
+                return { ok: true, record: record, proposal_id: p.proposal_id, rollback_available: true };
+            } catch (e) {
+                return { ok: false, reason: 'rejected', error: String(e && e.message || e) };
+            }
+        }
+        /** 回滚一次已应用的变更（按 proposal_id 找应用包）。 */
+        rollbackStrengthChange(proposalId) {
+            const R = _strengthProposalLib();
+            if (!R || typeof R.rollbackStrengthChange !== 'function') {
+                return { ok: false, reason: 'module-absent', module: 'strength-proposal.js' };
+            }
+            const list = Array.isArray(this._strengthApplied) ? this._strengthApplied : [];
+            const found = list.slice().reverse().find(a => a && String(a.proposal_id) === String(proposalId));
+            if (!found) return { ok: false, reason: 'no-applied-record', proposal_id: String(proposalId) };
+            try {
+                const r = R.rollbackStrengthChange(found);
+                this._strengthWriteBack(r.record);
+                try { this.opLog?.log?.('strength', 'rollback', String(proposalId).slice(0, 20), this._currentFloor ?? null, 'restored'); } catch (e) { /* 账本非致命 */ }
+                return { ok: true, record: r.record, restored: true };
+            } catch (e) {
+                return { ok: false, reason: 'rejected', error: String(e && e.message || e) };
+            }
+        }
+        /** 治理面自述（诊断用，永不抛）：模块缺席/提案积压/锁定条数三项必须能看见。 */
+        strengthGovernanceReport() {
+            const P = _strengthPolicyLib(), R = _strengthProposalLib();
+            const store = Array.isArray(this._strengthProposals) ? this._strengthProposals : [];
+            let locked = 0;
+            try {
+                for (const it of [].concat(this.vector?.vectors || [], this.summary?.summaries || [])) {
+                    const g = it && it.governance;
+                    if (g && g.strength_locked === true) locked += 1;
+                }
+            } catch (e) { /* 读数失败按 0，不抛 */ }
+            return {
+                policyModule: P ? 'ok' : 'absent',
+                proposalModule: R ? 'ok' : 'absent',
+                policySelfCheck: (P && typeof P.selfCheck === 'function') ? P.selfCheck() : null,
+                proposalSelfCheck: (R && typeof R.selfCheck === 'function') ? R.selfCheck() : null,
+                lockedCount: locked,
+                pendingReview: store.filter(p => p && p.status === 'pending_review').length,
+                ready: store.filter(p => p && p.status === 'ready').length,
+                returned: store.filter(p => p && p.status === 'returned').length,
+                applied: (Array.isArray(this._strengthApplied) ? this._strengthApplied : []).length
+            };
         }
 
         /** [v3.168] 静默降级总账：把散落各处的「退到次优路径」计数聚成一张表。
@@ -5493,6 +5864,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (ev && (Number(ev.overBudget) > 0 || Number(ev.protectedTotal) > 0)) {
                     push('证据保护预算', Number(ev.overBudget) || 0,
                         `保住 ${ev.protectedTotal || 0} 条/超预算降级 ${ev.overBudget || 0} 条(配置 gcProtectBudget 可调)`);
+                }
+                /* [v3.421.0 · 缝合 E1] 治理锁定读数：锁定条目**免预算**保住，必须与证据保护
+                 *   分开报 —— 它们不吃 gcProtectBudget，混进去会让人以为预算还够。
+                 *   value 恒 0（不是降级），detail 里报条数与被拦下的提案数。 */
+                if (ev && Number(ev.exemptCount) > 0) {
+                    push('治理锁定豁免', 0,
+                        `锁定保住 ${ev.exemptCount} 条(不计入保护预算)；待会签提案 ${(this._strengthProposals || []).filter(p => p && p.status === 'pending_review').length} 条`);
                 }
                 const cal = this._lastRetentionCalibration;
                 push('睡眠积压', cal?.dormant || 0,
@@ -5526,6 +5904,20 @@ function relativeTimeLabel(eventTime, nowTime) {
                     const _incoh = (Array.isArray(_sl.incoherent) && _sl.incoherent.length) ? _sl.incoherent.length : 0;
                     if (_lost || _incoh) push('巩固账本有损', _lost + _incoh, (_sl.row || '') + (_incoh ? ' ⚠️读数矛盾' : ''));
                 }
+                /* [v3.421.0 · 缝合 E3] 销项面进总账。两类缺口各自可见：
+                 *   ① 「想销没销成」（被保底/额度拦下、额度不够截断）—— 与「没什么可销」同形，
+                 *      不报出去就会读成「销项机制没在工作」或反之；② 判据取到的是内联兜底而非
+                 *      `stm-close-quota.js` 真源 —— 算法相同，但缺席导致的可归因性变差必须能看见。 */
+                const _cl = this._stmLtmClose;
+                if (_cl && (_cl.blocked || _cl.shortfall)) {
+                    push('加固销项受阻', (_cl.blocked ? 1 : 0) + (Number(_cl.shortfall) || 0),
+                        (_cl.blocked ? '被护栏拦下' : '额度不足截断') + (_cl.reasons?.length ? `(${_cl.reasons.join('/')})` : '') + ' ' + (_cl.line || ''));
+                }
+                try {
+                    if (this.stmLtm?.closeQuotaSource?.() === 'inline-fallback') {
+                        push('销项判据降级', 1, 'stm-close-quota.js 未取到，走同算法内联兜底');
+                    }
+                } catch (_e) { /* 读数失败不作为缺口（selfCheck 本身自兜） */ }
                 // [v3.171] 门控读数面：smart-trigger 的读侧缺口并入总账。与巩固账本同族
                 //   （I5/I6）——「判不了（非法规则）/ 没读到（空读）/ 被丢弃（上限 + 环形淘汰）」
                 //   都必须可计数。只报「评估 N 楼、省下 M 次」会让这三类缺口全部隐身。

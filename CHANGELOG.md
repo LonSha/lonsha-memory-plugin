@@ -1,3 +1,13 @@
+## v3.421.0
+**记忆强度治理（策略 + 双钥匙提案）与 STM 主动销项额度：把「人定过」变成可治理、可回滚、可拦的硬事实**
+- **强度治理·策略面**：新增 `strength-policy.js`（缝合 ceniran/moraine-home `governance.py`，PolyForm Noncommercial ⇒ 搬算法不搬代码，sha256→FNV-1a 64）。`suggestStrength` 只看元数据给出带理由链的建议与五档 band；`automatic_ceiling = 79` 使**机器永远爬不进 core**（identity 基准 70 + 保护 15 + 满权重仍封在 79）；`manualStrengthChange`/`unlockStrength` 强制 actor+reason+now 三件套、锁定只许 core、审计只留尾部 50。修前 `importance` 是没人敢改的裸数字：人调过之后下一轮 GC 照样按同一公式把它排到删除端，因为「人定过」没被记下来。
+- **强度治理·提案面**：新增 `strength-proposal.js`（同源，**与策略面分开**：失效形态不同、diff 与单测面不能共用）。高风险三判据（上锁 / 进 core / 变动 ≥ 20）⇒ `pending_review` + 必须**换角色**会签，同角色换 id 也不算（抛 `the proposer cannot provide the second key`）；四道闸 G1 目标一致 / G2 版本乐观锁 / G3 必须 ready / G4 双钥匙成对；回滚是**逐字入参快照**而不是从 to 反算（反算会丢掉同时被改的治理字段）。
+- **STM 主动销项额度**：新增 `stm-close-quota.js`（MIT，按宿主约定重写）。额度 = `max(0, min(存量−保底, 本批新增))`，零新增或触保底 ⇒ **一行不销**并具名 `no-append` / `keep-floor`；`shortfall` 让「命中 12 只销 3」不被读成「销了 3」。修前两条删除路的删除量只由当前状态算，与「这一批带来多少新内容」无关，于是「零新增却大批删除」在结构上无法察觉（源实现记录过一天四次大销把可变区销到 0 行）。
+- **宿主接线（真消费点，非只挂全局）**：`_evJudge` 增治理锁定硬豁免（rank 110 > user-keep 100，且 `exemptBudget` 免保护预算）；`memory-gc` 的 `exemptList` 先于 `normalList` 扣账、`overBudget` 只统计普通项、`blankEvidence` 补 `exemptCount`；`stm-ltm.consolidate` 只增不换地回报本批 `floors`，宿主批末按**楼层交集**调 `closeEntries` 并把受阻/截断/判据兜底三态报进降级总账（新增「加固销项受阻」「销项判据降级」两行，锁定豁免单独成行不吃预算）；新增 `stmLtmCloseMinKeep`（缺省 3）。
+- 判据 `tests/v34210_m4x10_strength_governance.test.mjs`（34 条，含 8 条真源码破坏负控制 + H5 判据纯度 + H6 工具两向自证）；`stm-close-quota.js` 在 manifest 中排在被消耗的 `stm-ltm.js` 之前。
+- **本版自己抓到的回归两条（提交前实跑抓到，均已修）**：① 新配置 `stmLtmCloseMinKeep` 声明了、引擎也读了，却没有控件也不在白名单里，回退值不可达 —— v3161 [1] 的可达性不变量直接点名；补一档滑块（走通用 `data-cfg-num` 收集器，真能写回）。② 保护判定器 `_evJudge` 体内因新增锁定分支涨到 2468 字符，v3370 C1 那个 2400 字符的窗口把收尾行顶出去，整条匹配不上，C1/F3 连带红 —— 窗口放宽到 2800（窗口只用来把检查限定在体内，不是长度判据）。另：`v3370` 的负控制锚点 `const safe = Math.min(judged.length, b)` 随保护项拆成 exempt/normal 两路而失效，换成 `normalList.length` 同一点位，破坏语义不变。
+- ★ **诚实边界**：真实 SillyTavern 宿主的 UI 点击流与真实模型问答**未跑**（宿主面以真装载宿主切片验证调用口径与降级形态）；上游 Python 实现未逐行比对（判的是本仓行为契约）；提案承载 UI 未判。
+
 ## v3.420.0
 **第十一期深层认知惯性阻尼与叙事既视感史诗 18 项核心机制全量落地**
 - **深度优化机制 (L11-O1 ~ L11-O9)**：

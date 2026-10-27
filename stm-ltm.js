@@ -88,8 +88,60 @@ const LOSS_KEYS = Object.freeze([
   'unrecoverableSources',
   // [v3.337.0 · M4-O7] LTM 滚动淘汰条目时,被前移到存活条目上的保底句(未结/转折/原话/数字)数。
   //   滚动不再连句带体一起丢 —— 句子还在(只是换了存储位置),数量必须能对上,不许假装没丢。
-  'salientCarriedOver'
+  'salientCarriedOver',
+  // [v3.421.0 · 缝合 E3] 主动销项护栏（`stm-close-quota.js`）。
+  //   修前本模块只有两条删除路（删楼级联 / 滚动淘汰），两条都**只按当前状态**算删除量、
+  //   与「这一批到底带进来多少新内容」无关：于是「零新增却销掉一大片」在结构上无法察觉。
+  //   close 与淘汰的关键差别是——淘汰把条目挪进 LTM（有副本），销项是直接删（无副本）。
+  //   closeBlocked —— 被护栏整体拦下（一行未销）的次数
+  //   closeTruncated —— 有命中但受额度所限没销成的条数（「销了 1 条」≠「命中 9 条只销了 1 条」）
+  'closeBlocked',
+  'closeTruncated',
+  // [v3.421.0] LTM 滚动一次性丢掉的条数峰值：单批丢得比带进来的还多时是「批量清算」的形态，
+  //   逐次累加看不出来，峰值能。
+  'ltmEvictBurst'
 ]);
+/**
+ * [v3.421.0 · 缝合 E3] 销项额度判据的取库口（`stm-close-quota.js`）。
+ *   与全仓缝合模块同形：浏览器走全局（extra_js 后加载）、Node 走 require，两边都取不到时
+ *   **不静默降级成「无限额度」**（那等于护栏装而不用），而是落一个内联兜底并在 selfReport 里可见。
+ *   兜底与模块同算法（keep-floor / no-append 两支取小），只为「模块缺席时仍然拦得住」。
+ */
+let _closeQuotaLib = null;
+function closeQuotaApi() {
+  if (_closeQuotaLib) return _closeQuotaLib;
+  let lib = null;
+  try {
+    if (typeof window !== 'undefined' && window && window.LonShaStmCloseQuota) lib = window.LonShaStmCloseQuota;
+  } catch (e) { lib = null; }
+  if (!lib) {
+    try { if (typeof require === 'function') lib = require('./stm-close-quota.js'); } catch (e) { lib = null; }
+  }
+  if (lib && typeof lib.closeQuota === 'function') { _closeQuotaLib = lib; return lib; }
+  /* 内联兜底（同算法、同读数形状）。标记 `fallback: true` 让调用方知道走的不是真源。 */
+  lib = {
+    fallback: true,
+    DEFAULT_MIN_KEEP: 3,
+    closeQuota: function (input) {
+      const i = (input && typeof input === 'object') ? input : {};
+      const n = (v, f) => (Number.isFinite(Number(v)) ? Math.max(0, Math.floor(Number(v))) : f);
+      const before = n(i.before, 0), minKeep = n(i.minKeep, 3), appended = n(i.appended, 0), hits = n(i.hits, 0);
+      const byKeep = Math.max(0, before - minKeep);
+      const quota = Math.max(0, Math.min(byKeep, appended));
+      const reasons = [];
+      if (appended <= 0) reasons.push('no-append');
+      if (byKeep <= 0) reasons.push('keep-floor');
+      return { quota: quota, blocked: quota <= 0, reasons: reasons, byKeep: byKeep, byAppend: appended,
+        before: before, minKeep: minKeep, appended: appended, hits: hits, shortfall: Math.max(0, hits - quota) };
+    }
+  };
+  _closeQuotaLib = lib;
+  return lib;
+}
+/** 销项额度（走真源或同算法兜底）。 */
+function closeQuota(input) { return closeQuotaApi().closeQuota(input); }
+/** 本模块走的是真源还是兜底（诊断用；兜底不改变行为，只改变可归因性）。 */
+function closeQuotaSource() { return closeQuotaApi().fallback === true ? 'inline-fallback' : 'module'; }
 
 // ── state 初始化/归一 ────────────────────────────────────────────────
 function defaultCursor() {
@@ -247,11 +299,14 @@ async function consolidate(state, opts = {}) {
   const pending = s.unconsolidated_stm;
   const threshold = s.consolidate_threshold;
   if (!opts.force && pending.length < threshold) {
-    return { state: s, consolidated: 0, usedAI: false, droppedStart: 0, legacyTrimmed: 0 };
+    return { state: s, consolidated: 0, usedAI: false, droppedStart: 0, legacyTrimmed: 0, floors: [] };
   }
-  if (!pending.length) return { state: s, consolidated: 0, usedAI: false, droppedStart: 0, legacyTrimmed: 0 };
-
+  if (!pending.length) return { state: s, consolidated: 0, usedAI: false, droppedStart: 0, legacyTrimmed: 0, floors: [] };
   const texts = pending.map(p => p.text);
+  /* [v3.421.0 · 缝合 E3] 本批 raw 的楼层要在 raw 被清空前取出：它是「这批事办完了」的
+   *   唯一凭据 —— 宿主据此在批末**主动销项**（closeEntries），没有它就退化成按时间瞎销。
+   *   返回形状只增不换（老调用方拿 5 个字段照样工作）。 */
+  const pendingFloors = pending.map(p => p.floor).filter(v => v != null);
   let usedAI = false;
   let distilled;
   if (typeof opts.summarize === 'function') {
@@ -314,7 +369,7 @@ async function consolidate(state, opts = {}) {
     s.loss.stmEvicted += overflow;   // [v3.170] 滚进 LTM（不是丢失，但仍是容量动作）
     await _rolloverToLtm(s, toLtm, opts);
   }
-  return { state: s, consolidated: pending.length, usedAI, droppedStart: 0, legacyTrimmed };
+  return { state: s, consolidated: pending.length, usedAI, droppedStart: 0, legacyTrimmed, floors: pendingFloors };
 }
 
 // ── [v3.321 · M3-O4] 关键保底：承诺 / 转折 / 数字 / 原话 ──────────────────
@@ -539,6 +594,15 @@ async function _rolloverToLtm(s, stmList, opts) {
     }
     s.ltm_entries = remaining;
     s.loss.ltmEvicted += dropN;
+    /* [v3.421.0 · 缝合 E3] 单批丢弃量峰值 + 与本批带入量的对比读数。
+     *   修前 `ltmEvicted` 只累加、看不出「这一批丢了 12 条却只带进来 1 条」这种批量清算形态。
+     *   burst 记峰值，`lastEvict` 记本批的「丢/带」两数，两者合起来才看得出比例。
+     *   刻意**不**让额度把滚动拦死（容量是硬约束，拦了会无限增库），只让它可观测、
+     *   并在超过本批带入量时额外记一笔 `ltmEvictOverAppend`。 */
+    if (dropN > Number(s.loss.ltmEvictBurst || 0)) s.loss.ltmEvictBurst = dropN;
+    const broughtIn = Math.max(1, stmList.length);
+    s.loss.lastEvict = { at: Date.now(), dropped: dropN, broughtIn: broughtIn, overAppend: dropN > broughtIn };
+    if (dropN > broughtIn) s.loss.ltmEvictOverAppend = Number(s.loss.ltmEvictOverAppend || 0) + 1;
     // [M4-O7] 被淘汰条目的保底句转移数也落账：无句可转时是 0(与「忘了转」分得清)。
     s.loss.salientCarriedOver = (Number(s.loss.salientCarriedOver) || 0) + carriedOver;
     s.loss.lastDrop = { kind: 'ltmEvicted', at: Date.now(), ids: dropped, salientCarriedOver: carriedOver };
@@ -549,6 +613,83 @@ async function _rolloverToLtm(s, stmList, opts) {
   return s;
 }
 
+// ── 8) 主动销项：带可销额度的「真删除」通路 [v3.421.0 · 缝合 E3] ──────────
+/**
+ * [v3.421.0] 主动销项（close）—— 与容量淘汰**不是一条路**，调用方必须分清：
+ *   · 容量淘汰（`_rolloverToLtm` 的滚动窗口）负责「必须降到容量内」，可以把条目挪进 LTM（有副本）；
+ *   · 本函数负责「这批事办完了，把对应条目销掉」，是**直接删**，删掉的不进 LTM、无副本。
+ *
+ * 【修前缺口（实测）】本模块两条删除路（`removeByFloors` / 滚动淘汰）的删除量**只由当前状态算**，
+ *   与「这一批到底带进来多少新内容」无关。于是「零新增却销掉一大片」在结构上无法察觉 ——
+ *   这正是源实现（zyy0463/rolling-memory）记录过的事故形态：一天四次大销把可变区销到 0 行，
+ *   两天二十来行话题永久消失。
+ *
+ * 【两道硬拦（判据在 `stm-close-quota.js`，单一真源，本函数只喂数）】
+ *   ① 销后不得低于 `minKeep`（缺省 3）；② 一次销项不得超过本批 `appended` 条。
+ *   额度为 0 ⇒ 一行不销，且 `blocked` 具名回报是哪条护栏拦下的（不许沉默返回 0）。
+ *
+ * @param {object} state 归一化前的 state（不改入参，返回新 state）
+ * @param {Array} targets 待销条目 id 或条目对象（按 id 匹配）
+ * @param {object} opts {minKeep=3, appended=0}
+ * @returns {{state:object, removed:number, dropped:string[], blocked:boolean,
+ *            reasons:string[], quota:object, line:string, shortfall:number}}
+ */
+function closeEntries(state, targets, opts = {}) {
+  const s = normalizeState(state);
+  const wants = new Set();
+  const list = Array.isArray(targets) ? targets : (targets == null ? [] : [targets]);
+  for (const t of list) {
+    if (t == null) continue;
+    if (typeof t === 'object') { if (t.id != null) wants.add(String(t.id)); }
+    else wants.add(String(t));
+  }
+  const isHit = (e) => e && e.id != null && wants.has(String(e.id));
+  const before = s.stm_entries.length;
+  let hits = 0;
+  for (const e of s.stm_entries) if (isHit(e)) hits += 1;
+  const quota = closeQuota({ before: before, minKeep: opts.minKeep, appended: opts.appended, hits: hits });
+  /* 从最旧端销（与容量淘汰同向，不打乱时间序）；额度不足时截断，截断量单独落账。 */
+  const remove = new Set();
+  let left = quota.quota;
+  if (left > 0) {
+    for (const e of s.stm_entries) {
+      if (left <= 0) break;
+      if (isHit(e)) { remove.add(e); left -= 1; }
+    }
+  }
+  const dropped = [];
+  if (remove.size) {
+    s.stm_entries = s.stm_entries.filter((e) => { if (remove.has(e)) { dropped.push(String(e.id)); return false; } return true; });
+    s.loss.floorDropped += dropped.length;   // 销项也是条目消失，且**不进 LTM**，与删楼同级计。
+    s.loss.lastDrop = { kind: 'closeEntries', at: Date.now(), ids: dropped, quota: quota.quota };
+  }
+  if (quota.blocked) s.loss.closeBlocked += 1;
+  const truncated = Math.max(0, hits - dropped.length);
+  if (truncated) s.loss.closeTruncated += truncated;
+  const line = (quota.blocked
+    ? `销项被护栏拦下，一行未销（命中 ${hits} 条目；` + quotaDetail(quota) + '）'
+    : `已销 ${dropped.length} 条目（命中 ${hits}；` + quotaDetail(quota) + (truncated ? `；受额度所限 ${truncated} 条未销` : '') + '）');
+  return {
+    state: s, removed: dropped.length, dropped, blocked: quota.blocked,
+    reasons: quota.reasons.slice(), quota, line, shortfall: truncated
+  };
+}
+/** 额度读数片段（closeEntries 的自述行用；不与 stm-close-quota 的 line 重复造词）。 */
+function quotaDetail(q) {
+  const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  return `可销额度 ${n(q.quota)} = min(保底留 ${n(q.minKeep)} → ${n(q.byKeep)}, 本批新增 ${n(q.appended)})`;
+}
+/** 只算额度、不动状态（面板/预演用）。 */
+function closeCapacity(state, hits, opts = {}) {
+  const s = normalizeState(state);
+  const n = Number(hits);
+  return closeQuota({
+    before: s.stm_entries.length,
+    minKeep: opts.minKeep,
+    appended: opts.appended,
+    hits: Number.isFinite(n) && n > 0 ? n : 0
+  });
+}
 // ── 4) 断点续跑：返回尚未巩固进 STM 的 raw 片段（崩溃恢复用）─────────
 function pendingRaw(state) {
   return normalizeState(state).unconsolidated_stm;
@@ -819,6 +960,11 @@ function selfReport(state) {
   nz('输入侧丢弃', L.inputDropped);
   nz('源楼层不可回源', L.unrecoverableSources);
   nz('滚动保底句已前移', L.salientCarriedOver);
+  /* [v3.421.0 · 缝合 E3] 销项护栏读数：被拦下的次数与截断条数都算有损面（拦下=该销的没销掉，
+   *   截断=只销了一部分），必须进 reasons 才能让 selfReport 的 ok 翻假。 */
+  nz('销项被护栏拦下', L.closeBlocked);
+  nz('销项受额度截断', L.closeTruncated);
+  nz('滚动丢弃超本批带入', L.ltmEvictOverAppend);
   const cursorDocs = [];
   // D5 诚实登记：这两个字段被文档列为断点续跑核心，但实现全程只赋 []、从不写入。
   //   不凭空发明语义（那会是另一种谎报），而是让它**可见**。
@@ -861,7 +1007,15 @@ function selfReport(state) {
       floorDropped: L.floorDropped, emptyEntriesDropped: L.emptyEntriesDropped,
       legacyTrimOnSave: L.legacyTrimOnSave,
       unrecoverableSources: Number(L.unrecoverableSources) || 0,
-      salientCarriedOver: Number(L.salientCarriedOver) || 0
+      salientCarriedOver: Number(L.salientCarriedOver) || 0,
+      /* [v3.421.0 · 缝合 E3] 销项面（见 LOSS_KEYS 注释）。`closeQuotaSource` 报的是
+       *   判据取的是真源还是内联兜底 —— 兜底仍是同算法，但它缺席时行为不变而可归因性变差，
+       *   属于「必须能看见」的降级，故随读数一起出。 */
+      closeBlocked: Number(L.closeBlocked) || 0,
+      closeTruncated: Number(L.closeTruncated) || 0,
+      ltmEvictBurst: Number(L.ltmEvictBurst) || 0,
+      ltmEvictOverAppend: Number(L.ltmEvictOverAppend) || 0,
+      closeQuotaSource: closeQuotaSource()
     },
     cursor: {
       stmPosition: Number(s.cursor_state.stm.position) || 0,
@@ -895,7 +1049,13 @@ const api = {
   LTM_SUMMARY_CAP, LOSS_KEYS,
   normalizeDetail, stateProvenance, selfReport, lossSummary,
   // [v3.321 · M3-O4] 追加（只增不换，既有键与签名不动）
-  keepSalient, renderSalient, salienceIndex, lookupSalient
+  keepSalient, renderSalient, salienceIndex, lookupSalient,
+  // [v3.421.0 · 缝合 E3] 主动销项（带可销额度）：与容量淘汰分开的通路，见函数头注
+  closeEntries, closeCapacity, closeQuotaSource,
+  LOSS_KEYS_CLOSE: Object.freeze(['closeBlocked', 'closeTruncated', 'ltmEvictBurst', 'ltmEvictOverAppend']),
+  /* [v3.421.0 · 缝合 E3] 额度判据的**自述**：宿主把 `closeQuotaSource()` 与
+   *   `stm-close-quota.js` 的加载状态一起报进总账，模块缺席时也不静默。 */
+  closeQuotaFallback: () => (_closeQuotaLib && _closeQuotaLib.fallback === true)
 };
 if (typeof window !== 'undefined') window.LonShaStmLtm = api;
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

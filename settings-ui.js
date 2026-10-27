@@ -1277,6 +1277,9 @@
                      ${ck('stmLtmEnabled', 'STM/LTM 分层巩固', '短期记忆逐条积累→达阈值巩固→溢出滚入长期摘要。游标断点续跑，新消息从上次进度继续，崩溃可恢复')}
                      <div class="ls-slider-label"><span>巩固触发阈值</span><span class="ls-slider-val" id="ls-v-stmth">${c.stmLtmThreshold || 5}</span></div>
                      <input type="range" class="ls-slider" min="3" max="10" step="1" value="${c.stmLtmThreshold || 5}" data-cfg-num="stmLtmThreshold">
+                     <!-- [v3.421.0] 批末主动销项的保底留存：巩固完的 stm 条目该在批末销掉，但销到 0 行等于把可变区清空、下批又从零积。这一格就是「销后至少留几条」。 -->
+                     <div class="ls-slider-label"><span>销项保底留存</span><span class="ls-slider-val" id="ls-v-stmkeep">${c.stmLtmCloseMinKeep || 3}</span></div>
+                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.stmLtmCloseMinKeep || 3}" data-cfg-num="stmLtmCloseMinKeep">
                      ${ck('unifiedRecallEnabled', '统一召回管线', '图谱记忆节点候选化成统一 keys 结构，与世界书条目走同一套评分召回；event/quest/character/location 类型保底入选')}
                      <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
                  </div>
