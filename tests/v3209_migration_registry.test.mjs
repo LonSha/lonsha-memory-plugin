@@ -49,6 +49,42 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -66,7 +102,7 @@ const bad = (m) => { fail++; console.error('  ✗ ' + m); };
 /** 断言包装：失败不断链（本套件风格与 v3208 一致，最后统一 exitCode）。 */
 const A = (cond, msg) => { if (cond) ok(msg); else bad(msg); };
 
-const idxSrc = readFileSync(IDX, 'utf-8');
+const idxSrc = __hostSurface();
 const mf = JSON.parse(readFileSync(MF, 'utf-8'));
 const smSrc = readFileSync(SMF, 'utf-8');
 const mrSrc = readFileSync(MRF, 'utf-8');
@@ -76,10 +112,14 @@ const SM = req(SMF);
 const MR = req(MRF);
 
 /** 真源码切段：a 之后到 b 之前（a、b 各须恰好命中一次，否则抛）。 */
-function seg(src, a, b, label) {
+function seg(src, a, b, label, opt) {
+    /* [v3.421.0] `multiA`：模块体十批外提后，外提模块各自带一份同名的局部助手
+     *   （`function _moduleLib(...)` 在合并面里有 8 份）。凡取「入口那份」的调用点
+     *   可按 multiA 允许 a 多义、取**首次**命中（合并面入口在前）；b 仍须唯一。 */
+    const multiA = !!(opt && opt.multiA);
     const ia = src.split(a).length - 1;
     const ib = src.split(b).length - 1;
-    if (ia !== 1 || ib !== 1) throw new Error('[seg] ' + label + ' 锚点命中 a=' + ia + ' b=' + ib + '（须各 1）');
+    if ((multiA ? ia < 1 : ia !== 1) || ib !== 1) throw new Error('[seg] ' + label + ' 锚点命中 a=' + ia + ' b=' + ib + (multiA ? '（须 a≥1、b 各 1）' : '（须各 1）'));
     const i = src.indexOf(a), j = src.indexOf(b);
     if (!(i < j)) throw new Error('[seg] ' + label + ' 顺序不符');
     return src.slice(i, j);
@@ -348,7 +388,7 @@ test('v3209 10. index.js 接线面：取库口 / 吞错已修 / 恢复旧档方�
     A(/_moduleRegistryLib\(\)\s*\{[\s\S]{0,140}?window\.LonShaModuleRegistry[\s\S]{0,80}?'module-registry\.js'/.test(idxSrc),
         '_moduleRegistryLib 同上');
     // 10b 静默吞错已修（真源码切段：catch 体内必须登记，且不得裸 return null）
-    const lib = seg(idxSrc, '    function _moduleLib(getGlobal, fileName) {', '\n    // [v3.209.0] 模块取库失败登记', '_moduleLib 段');
+    const lib = seg(idxSrc, '    function _moduleLib(getGlobal, fileName) {', '\n    // [v3.209.0] 模块取库失败登记', '_moduleLib 段', { multiA: true });
     // ★ 判据须把**注释行**剔掉再判：段内第 49 行有一句「此处原为 `catch (e) { return null; }`」——
     //   那是留痕用的历史说明，不是活代码。本条初版直接扫整段，于是被自己的注释判红
     //   （「假绿」的镜像形态：假红）。凡按文本判代码，先剔注释。

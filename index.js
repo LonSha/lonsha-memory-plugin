@@ -214,6 +214,14 @@
     'qaThread',  // [v3.340.0 · M4-X4] 追问线程（主体 / 时点下界 / 分支 / scope；只存约束不存答案）
     'annualDrafts',  // [v3.341.0 · M4-X2] 章节成稿草稿册（作品：题/述/段；事实位一概不收）
     'canonAdoption',  // [v3.342.0 · M4-X3] 正史落卷凭据（选中键集合指纹 + 撤销范围；只存凭据不存结局条文）
+    // [v3.421.0] L10/L11 缝合层的六个产物键：collectExport 自 v3.17x 起一直在导出，
+    //   契约清单却没收 —— 恢复侧因此把它们判成未知键塞进 extensions（导出/恢复不对称）。
+    'memoryAnnealingCurve',       // 记忆退火状态（L11-O5）
+    'phaseTransitionSafeguard',   // 相变锁凭据（L11-O8）
+    'epilogueRetrospective',      // 人生回望总结（L10-X9）
+    'intergenerationalTotem',     // 代际精神图腾（L11-X9）
+    'multiResolutionArchive',     // 多分辨率归档封卷（L10-O8）
+    'epochalHeritage',            // 时代沉淀传承（L10-X9）
     'extensions',
     ]);
     const ARCHIVE_TOP_LEVEL_KEY_SET = new Set(ARCHIVE_TOP_LEVEL_KEYS);
@@ -258,6 +266,16 @@
         'canonAdoption',      // [v3.342.0 · M4-X3] 落卷凭据：adoptionId 由「本次选择」定，跨对话带上会让新故事的第一次落卷被判成**重复确认**而静默不落
         'ledger',             // 楼层账本：索引「该楼提取了什么」，新对话楼层重来
         'echo',               // 回响池：life 计数是会话内衰减器，跨对话不应延续衰减
+        // [v3.421.0] 六个缝合层产物键：值由上游库按当期运行时现算（退火温度、相变锁、
+        //   图腾、封卷、时代传承都是「此刻状态」的函数），跨对话带上会被现算值直接覆盖，
+        //   属于「带上=双写噪声」而非「不该丢」。理由必须**逐项**写在同一行：
+        //   守卫 P3 只认行内注释，写在上方注释块里等于没写（实测五项因此判无理由）。
+        'memoryAnnealingCurve',       // 退火温度由 adaptive-memory-annealing-curve 按本轮命中率现算，承接后立刻被覆盖
+        'phaseTransitionSafeguard',   // 相变锁记的是「上一次跃迁」的相位差，新对话没有上一次
+        'epilogueRetrospective',      // 人生回望由 lifeEpilogue 按当前档案重述，带上会与重述版双写
+        'intergenerationalTotem',     // 图腾树是世代累积的函数产物，跨对话带上等于把上一部的族谱接进新故事
+        'multiResolutionArchive',     // 多分辨率封卷按当前条目体量重分层，旧封卷在新故事里层级全错
+        'epochalHeritage',            // 时代沉淀由 epochalHeritage 按当前纪元现算，纪元变了旧沉淀就不成立
         // 下列两键与携带面的既有键**同源异名**，重复携带会在承接时双写互相覆盖：
         // [v3.202] 下列两键与携带面既有键**同源异名**：既不进契约，也不新增承接分支——
         //   同时挂两条路会在同一真源上双写互相覆盖（v3.168 的种子同源判据把它抓了出来）。
@@ -2408,12 +2426,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                 });
             }
         } catch (e) { errLog(e, 'assembleComponents.diagnostic-lines'); }
+        // [v3.421.0] 第八/十一期 24 个模块的就绪面。为什么必须有这一处：它们刚入册，
+        //   若只留取库口没人调，模块接线审计 B4 会当场判「已挂载但零消费」（本仓零容忍，
+        //   实测 24 项全红）。这里每轮装配真调一次，缺面与自检问题都落读数，不吞。
+        try {
+            this._newFaceRead = _collectNewFace();
+        } catch (e) { errLog(e, 'assembleComponents.new-face'); }
         try {
             const ER = _moduleLib(() => window.LonShaEngineReport, 'engine-report.js');
             if (ER && typeof ER.bindDeps === 'function') {
                 ER.bindDeps({ errLog: errLog });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const QT = _moduleLib(() => window.LonShaEngineQaTools, 'engine-qa-tools.js');
             if (QT && typeof QT.bindDeps === 'function') {
@@ -2438,7 +2462,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const RO = _moduleLib(() => window.LonShaEngineRepairOps, 'engine-repair-ops.js');
             if (RO && typeof RO.bindDeps === 'function') {
@@ -2455,7 +2479,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const PO = _moduleLib(() => window.LonShaEnginePersistenceOps, 'engine-persistence-ops.js');
             if (PO && typeof PO.bindDeps === 'function') {
@@ -2474,7 +2498,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _floorOrNull,
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const IP = _moduleLib(() => window.LonShaEngineInjectionPipeline, 'engine-injection-pipeline.js');
             if (IP && typeof IP.bindDeps === 'function') {
@@ -2495,7 +2519,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _relationHistoryLib,
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const EC = _moduleLib(() => window.LonShaEngineEvidenceCenter, "engine-evidence-center.js");
             if (EC && typeof EC.bindDeps === "function") {
@@ -2514,7 +2538,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _qaHelpDeps: () => this._qaHelpDeps()
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const SC = _moduleLib(() => window.LonShaEngineSelfCheck, 'engine-self-check.js');
             if (SC && typeof SC.bindDeps === 'function') {
@@ -2532,7 +2556,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     CARRYOVER_CONTRACT_KEYS
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const SA = _moduleLib(() => window.LonShaEngineStoryAnnual, 'engine-story-annual.js');
             if (SA && typeof SA.bindDeps === 'function') {
@@ -2546,7 +2570,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
         try {
             const RC = _moduleLib(() => window.LonShaEngineRecall, 'engine-recall.js');
             if (RC && typeof RC.bindDeps === 'function') {
@@ -2560,7 +2584,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 });
             }
-        } catch (_) {}
+        } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
 
         try {
             const EP = _moduleLib(() => window.LonShaEngineExecutionPipeline, 'engine-execution-pipeline.js');
@@ -9861,9 +9885,85 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   为何暂不能下结论」只能手工两两跑 contrast,而「谁跟谁同一来源」在比完之后又丢了。
     //   本模块是只读聚合投影:复用事件 ID 与既有 evidenceKey 去重(三次转述
     //   不算三份独立支持),不建平行证词库、不落盘。
+/** [v3.421.0] 24 个第八/十一期模块的就绪面汇总（纯读，构造期一次）。
+ *  返回 { seen: 到场模块数, missing: [模块文件名], problems: [「标签:问题」] }。
+ *  「没加载」与「加载了但自检有问题」必须同形可分 —— 前者是装载面，后者是机制面。 */
+function _collectNewFace() {
+    const SPEC = [
+        ['记忆天气', _memoryWeatherLib, 'memoryWeatherSelfCheck'],
+        ['记忆仪式', _memoryRitualLib, 'memoryRitualSelfCheck'],
+        ['记忆季候', _memorySeasonLib, 'memorySeasonSelfCheck'],
+        ['意义地图', _meaningMapLib, 'meaningMapSelfCheck'],
+        ['记忆工作模式', _workModeLib, 'workModeSelfCheck'],
+        ['冲突裁决台', _conflictBenchLib, 'conflictAdjudicationSelfCheck'],
+        ['时间有效性', _temporalValidityLib, 'temporalValiditySelfCheck'],
+        ['记忆考古', _archaeologyLib, 'memoryArchaeologySelfCheck'],
+        ['预算编排', _budgetOrchestratorLib, 'memoryBudgetSelfCheck'],
+        ['可读工作台', _readableWorkbenchLib, 'memoryReadableWorkbenchSelfCheck'],
+        ['记忆共生桥', _symbiosisBridgeLib, 'memorySymbiosisBridgeSelfCheck'],
+        ['召回路由', _recallRouteLib, 'recallRouteSelfCheck'],
+        ['秘密剧场', _secretTheaterLib, 'secretTheaterSelfCheck'],
+        ['批维护', _batchMaintenanceLib, 'batchMaintenanceSelfCheck'],
+        ['角色成长', _characterGrowthLib, 'characterGrowthSelfCheck'],
+        ['跨项迁移台', _crossProjectDeskLib, 'crossProjectMigrationSelfCheck'],
+        ['时代续演', _eraContinuationLib, 'eraContinuationDramaSelfCheck'],
+        ['生成事实重放', _generationReplayLib, 'factReplaySelfCheck'],
+        ['情绪反向召回', _antiphonyLib, null],
+        ['阶段封卷', _volumeSealingLib, null],
+        ['多主角名册', _multiProtagonistLib, null],
+        ['古法历法', _storyClockLib, null],
+        ['事实重放', _factReplayLib, null],
+        ['带内抽取', _inbandExtractionLib, null],
+    ];
+    const missing = [];
+    const problems = [];
+    let seen = 0;
+    for (const [label, get, chk] of SPEC) {
+        let api = null;
+        try { api = get(); } catch (e) { problems.push(label + ':取库抛错'); }
+        if (!api) { missing.push(label); continue; }
+        seen++;
+        if (!chk) continue;
+        try {
+            const r = (typeof api[chk] === 'function') ? api[chk]() : null;
+            const bad = (r && Array.isArray(r.problems)) ? r.problems : [];
+            for (const p of bad) problems.push(label + ':' + p);
+            if (r && bad.length === 0 && r.problems === undefined) problems.push(label + ':自检未交 problems');
+        } catch (e) { problems.push(label + ':自检抛错'); }
+    }
+    return { seen: seen, total: SPEC.length, missing: missing, problems: problems };
+}
+
     function _testimonyBoardLib() {
         return _moduleLib(() => window.LonShaTestimonyBoard, 'testimony-board.js');
     }
+
+    // [v3.421.0] 第八/十一期 24 个模块的取库口。它们此前一直没有入册 manifest.extra_js，
+    //   宿主从不加载、只有测试能 require 到 —— 机制等于交付即死。统一走 _moduleLib 惰性口。
+    function _memoryWeatherLib() { return _moduleLib(() => window.LonShaMemoryWeather, 'memory-weather.js'); }
+    function _memoryRitualLib() { return _moduleLib(() => window.LonShaMemoryRitual, 'memory-ritual.js'); }
+    function _memorySeasonLib() { return _moduleLib(() => window.LonShaMemorySeason, 'memory-season.js'); }
+    function _meaningMapLib() { return _moduleLib(() => window.LonShaMeaningMap, 'meaning-map.js'); }
+    function _workModeLib() { return _moduleLib(() => window.LonShaMemoryWorkMode, 'memory-work-mode.js'); }
+    function _conflictBenchLib() { return _moduleLib(() => window.LonShaConflictAdjudication, 'conflict-adjudication-bench.js'); }
+    function _temporalValidityLib() { return _moduleLib(() => window.LonShaTemporalValidity, 'temporal-validity-workflow.js'); }
+    function _archaeologyLib() { return _moduleLib(() => window.LonShaMemoryArchaeology, 'memory-archaeology.js'); }
+    function _budgetOrchestratorLib() { return _moduleLib(() => window.LonShaMemoryBudgetOrchestrator, 'memory-budget-orchestrator.js'); }
+    function _readableWorkbenchLib() { return _moduleLib(() => window.LonShaMemoryReadableWorkbench, 'memory-readable-workbench.js'); }
+    function _symbiosisBridgeLib() { return _moduleLib(() => window.LonShaMemorySymbiosisBridge, 'memory-symbiosis-bridge.js'); }
+    function _recallRouteLib() { return _moduleLib(() => window.LonShaRecallRouteOrchestrator, 'recall-route-orchestrator.js'); }
+    function _secretTheaterLib() { return _moduleLib(() => window.LonShaSecretTheater, 'secret-theater.js'); }
+    function _batchMaintenanceLib() { return _moduleLib(() => window.LonShaBatchMaintenancePipeline, 'batch-maintenance-pipeline.js'); }
+    function _characterGrowthLib() { return _moduleLib(() => window.LonShaCharacterGrowthDrama, 'character-growth-drama.js'); }
+    function _crossProjectDeskLib() { return _moduleLib(() => window.LonShaCrossProjectMigrationDesk, 'cross-project-migration-desk.js'); }
+    function _eraContinuationLib() { return _moduleLib(() => window.LonShaEraContinuationDrama, 'era-continuation-drama.js'); }
+    function _generationReplayLib() { return _moduleLib(() => window.LonShaGenerationFactReplay, 'generation-fact-replay.js'); }
+    function _antiphonyLib() { return _moduleLib(() => window.LonShaEmotionalAntiphony, 'memory-emotional-antiphony.js'); }
+    function _volumeSealingLib() { return _moduleLib(() => window.LonShaVolumeSealingEngine, 'volume-sealing-engine.js'); }
+    function _multiProtagonistLib() { return _moduleLib(() => window.LonShaMultiProtagonistRegistry, 'multi-protagonist-registry.js'); }
+    function _storyClockLib() { return _moduleLib(() => window.LonShaAncientStoryClock, 'ancient-story-clock.js'); }
+    function _factReplayLib() { return _moduleLib(() => window.LonShaFactReplayPipeline, 'fact-replay-pipeline.js'); }
+    function _inbandExtractionLib() { return _moduleLib(() => window.LonShaInbandExtractionParser, 'inband-extraction-parser.js'); }
     // [v3.344.0 · M4-X6] 叙事层(modality:narrative-layer.js)。为什么需要:
     //   memory-type 的 9 类是「这是什么性质的事实」,fact-version 记的是「哪个时态区间」,
     //   knowledge-trace 记的是「谁怎么知道的」—— 但**没有一处**记「这条事实处在哪一层叙事外壳」

@@ -482,6 +482,14 @@
             // 直赋：summary.import 会重置其他字段，不可复用
             _imp('lockedFacts', Array.isArray(data.lockedFacts), () => { engine.summary.lockedFacts = data.lockedFacts.slice(); });
             _imp('recallSourceStats', typeof data.recallSourceStats === 'object', () => { engine._recallSourceStats = data.recallSourceStats; });
+            /* [v3.421.0] 导出面有、恢复面缺的六个产物键：原样回填（产物是库自算的结构，
+             *   不在这里二次解释），与 collectExport 侧逐键对称。 */
+            _imp('memoryAnnealingCurve', true, () => { engine._memoryAnnealingCurve = data.memoryAnnealingCurve; });
+            _imp('phaseTransitionSafeguard', true, () => { engine._phaseTransitionSafeguard = data.phaseTransitionSafeguard; });
+            _imp('epilogueRetrospective', true, () => { engine._epilogueRetrospective = data.epilogueRetrospective; });
+            _imp('intergenerationalTotem', true, () => { engine._intergenerationalTotem = data.intergenerationalTotem; });
+            _imp('multiResolutionArchive', true, () => { engine._multiResolutionArchive = data.multiResolutionArchive; });
+            _imp('epochalHeritage', true, () => { engine._epochalHeritage = data.epochalHeritage; });
             _imp('lexicon', !!engine.lexicon, () => { engine.lexicon.import?.(data.lexicon); engine._invalidateBm25Corpus?.(); });
             // [v3.194] 三面新账：各自独立捕获（单面坏不连坐其余两面）
             _imp('factVersions', data.factVersions != null, () => { engine._factVersionState = _factVersionLib()?.normalize?.(data.factVersions) || null; });
@@ -709,6 +717,16 @@
             A('direct', 'qaThread', '追问线程', true, () => { e._qaThread = null; });
             A('direct', 'annualDrafts', '成稿草稿册', true, () => { e._annualDrafts = null; });
             A('direct', 'canonAdoption', '落卷凭据', true, () => { e._canonAdoption = null; });
+            /* [v3.421.0] 六个缝合层产物键：恢复面自本版起逐键回填，清空面必须同刻对称 ——
+             *   「恢复面有、清空面没有」正是 v3236 D1 要照出的缺口 3 形状
+             *   （修法是补实现，不是放宽判据）。产物由上游库按当期运行时现算，
+             *   清空即置 null，下一次由库重建。 */
+            A('direct', 'memoryAnnealingCurve', '记忆退火', true, () => { e._memoryAnnealingCurve = null; });
+            A('direct', 'phaseTransitionSafeguard', '相变锁凭据', true, () => { e._phaseTransitionSafeguard = null; });
+            A('direct', 'epilogueRetrospective', '人生回望', true, () => { e._epilogueRetrospective = null; });
+            A('direct', 'intergenerationalTotem', '代际图腾', true, () => { e._intergenerationalTotem = null; });
+            A('direct', 'multiResolutionArchive', '多分辨率归档', true, () => { e._multiResolutionArchive = null; });
+            A('direct', 'epochalHeritage', '时代沉淀', true, () => { e._epochalHeritage = null; });
             res.ok = res.failed.length === 0;
             this._clearRuntimeReport = res;
             return res;

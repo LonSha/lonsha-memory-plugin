@@ -6,6 +6,10 @@
  * 任何被宿主管线（engine-recall / engine-injection-pipeline / engine-execution-pipeline / engine-persistence-ops）
  * 在条件判定 (if) 中读取的私有实例属性 (this._xxx)，必须在非测试源码中存在至少一次写操作（赋值/解构/传参写入），
  * 杜绝“声明了属性守卫但全仓 0 次写入导致分支 100% 被静默旁路”的虚假接线假绿。
+ *
+ * 退出码：0 卫生 / 1 真缺陷（有幽灵守卫）/ 2 结构漂移（管道文件缺失、扫描面塌陷）。
+ *   [v3.421.0] 2 是补上的：此前只有 0 / 1，扫描面塌陷时会报「幽灵守卫 0」并 exit 0，
+ *   与「真的全都有写入源」完全同形。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,7 +40,23 @@ function getAllSourceFiles(dir) {
     return results;
 }
 
+/* [v3.421.0] 结构预检（fail-closed）。此前本脚本只有 0 / 1 两态：
+ *   管道文件被改名 / 扫描面塌陷时，守卫属性集为空 ⇒ 「幽灵守卫 0」⇒ exit 0，
+ *   与「真的全都有写入源」同形（本仓反复点名的「审计失效 = 报告正常」）。
+ *   这里补两道结构闸：管道文件必须逐个在场、全仓扫描面必须越过下限，否则 exit 2。 */
+const MIN_SOURCES = 80;
+const MIN_GUARD_PROPS = 5;
+for (const pFile of PIPELINE_FILES) {
+    if (!fs.existsSync(path.join(REPO, pFile))) {
+        console.error('[scan_live_wiring_dataflow] 结构漂移：管道文件缺失 ' + pFile);
+        process.exit(2);
+    }
+}
 const allSources = getAllSourceFiles(REPO);
+if (allSources.length < MIN_SOURCES) {
+    console.error('[scan_live_wiring_dataflow] 结构漂移：全仓源码只扫到 ' + allSources.length + ' 个（下限 ' + MIN_SOURCES + '）');
+    process.exit(2);
+}
 const sourceContents = new Map();
 for (const f of allSources) {
     const rel = path.relative(REPO, f);
@@ -57,6 +77,10 @@ for (const pFile of PIPELINE_FILES) {
     }
 }
 
+if (guardProps.size < MIN_GUARD_PROPS) {
+    console.error('[scan_live_wiring_dataflow] 结构漂移：守卫属性只抽到 ' + guardProps.size + ' 个（下限 ' + MIN_GUARD_PROPS + '）—— 守卫正则与管道源码形态已脱节');
+    process.exit(2);
+}
 // 2. 扫描全仓写入源
 const ghostGuards = [];
 for (const prop of guardProps) {

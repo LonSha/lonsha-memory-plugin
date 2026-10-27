@@ -48,6 +48,42 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { breakSource, assertSingleHit } from './_break_kit.mjs';
 import { stripComments } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -72,6 +108,15 @@ const LEDGER = [
     ['hash32', 'branch-guard.js', '双 hash 原语（模块侧自带一份，避免读宿主闭包）'],
     ['hash32', 'floor-ledger.js', '双 hash 原语（同上）'],
     ['hash32', 'summary-provenance.js', '双 hash 原语（同上）'],
+    /* [v3.421.0] 以下 6 条是因本档改读宿主**合并面**才暴露出来的：
+     *   这些实现落在 engine-recall.js / engine-report.js，与入口那份逐字相同。
+     *   同样是「模块侧自足 + 入口为活代码真源」的理由 —— 发现第二份实现就登记。 */
+    ['numOr', 'engine-recall.js', '数值兜底原语（召回面自足，避免跨文件取闭包）'],
+    ['normalizeCharName', 'engine-recall.js', '角色名归一（召回面对角色名做同一套归一）'],
+    ['relativePrefix', 'engine-recall.js', '相对时间前缀（召回排序要用，模块侧自带一份）'],
+    ['filterTimelineByConstraint', 'engine-recall.js', '时间线按约束过滤（召回侧同一份实现）'],
+    ['parseStoryTimeConstraint', 'engine-recall.js', '剧情时间约束解析（与上一条成对使用）'],
+    ['opLogStatsCompat', 'engine-report.js', '运维统计读数兼容层（报告面自足）'],
 ];
 
 /* ---- 破坏锚点（逐条取自两侧真源，禁改；本档须逐字持有） ---- */
@@ -87,7 +132,12 @@ const MODULES = fs.readdirSync(ROOT)
     .filter((f) => f.endsWith('.js') && !f.endsWith('.bak'))
     .sort();
 
-const INDEX_SRC = read('index.js');
+const INDEX_SRC = __hostSurface();
+/* [v3.421.0] 判据的**宿主侧**只认入口单文件。
+ *   合并面把模块面也包了进来，而模块侧本来就是那些文件 —— 两边同一份源码
+ *   互相一比，什么都是「逐字相同」，登记表会被 180 余项恒等副本冲垮。
+ *   本档口径一直是「入口 vs 模块」两套维护面，入口侧就该只有 index.js。 */
+const IDX_ENTRY = read('index.js');
 
 /* ══════════════ 判据体（纯函数：吃文本，返回问题列表） ══════════════ */
 
@@ -208,7 +258,7 @@ function readAllModules() {
 
 /* ══════════════ A. 结构面 ══════════════ */
 test('v3280 A1. ★★ 枚举面与登记表都在场（枚举失效时「0 漂移」是空对空）', () => {
-    const hostFns = funcBodies(INDEX_SRC);
+    const hostFns = funcBodies(IDX_ENTRY);
     assert.ok(hostFns.size >= 50, '宿主 function 声明枚举数须 >= 50（实 ' + hostFns.size + '）');
     /* 两侧都要能取到配平块 —— 取不到时 funcBodies 会静默跳过，于是「一致」变成空对空。 */
     for (const s of ["function a() { return /\\s{2,}/.test('x'); }", INDEX_SRC.slice(0, 200)]) {
@@ -225,7 +275,7 @@ test('v3280 A1. ★★ 枚举面与登记表都在场（枚举失效时「0 漂�
 
 /* ══════════════ B. 读盘实测 ══════════════ */
 test('v3280 B1. ★★★ 9 对逐字副本两侧仍逐字相同，且与登记表双向一致', () => {
-    const problems = judge(INDEX_SRC, readAllModules(), LEDGER);
+    const problems = judge(IDX_ENTRY, readAllModules(), LEDGER);
     assert.deepEqual(problems, [], '盘上真源必须卫生：' + problems.join(' | '));
     ok('枚举/登记双向一致；无新增未登记副本，无漂移');
 });
@@ -239,7 +289,7 @@ test('v3280 B2. ★★ 漂移可归因（第一处差异会说出来，不是「
     assert.ok(idx > 0, '锚点须在模块侧在场');
     const tail = modSrc.slice(idx, idx + 400).replace('return String(name', 'return String(<b>name');
     broken['memory-core.js'] = modSrc.slice(0, idx) + tail + modSrc.slice(idx + 400);
-    const problems = judge(INDEX_SRC, broken, LEDGER);
+    const problems = judge(IDX_ENTRY, broken, LEDGER);
     assert.ok(problems.some((p) => p.includes('漂移')), '必须点名漂移：' + problems.join(' | '));
     assert.ok(problems.some((p) => p.includes('normalizeCharName@memory-core.js')),
         '归因必须点名具体那一对：' + problems.join(' | '));
@@ -250,7 +300,7 @@ test('v3280 B2. ★★ 漂移可归因（第一处差异会说出来，不是「
 test('v3280 C1. ★★ 改宿主侧 ⇒ 同一条 judge 翻红（副本第二套维护面必须有人守着）', () => {
     /* 替换文本刻意**不包含** A_HOST 作为前缀：A_HOST 无右边界，若写成 `A_HOST + 后缀`，
      *   `!includes(A_HOST)` 恒假（原串仍在新串里），可观察性断言会自相矛盾。 */
-    const brokenHost = breakSource(INDEX_SRC, A_HOST,
+    const brokenHost = breakSource(IDX_ENTRY, A_HOST,
         '        const key = opts?.apiKey || (init?.headers?.AuthorizatioX', 'v3280_host');
     assert.ok(brokenHost.includes('AuthorizatioX'), '破坏必须可观察（替换文本进场）');
     assert.equal(brokenHost.includes(A_HOST), false, '破坏必须可观察（原锚点退出）');
@@ -264,7 +314,7 @@ test('v3280 C2. ★★ 改模块侧 ⇒ 同一条 judge 翻红（另一侧同样
     const broken = Object.assign({}, mods);
     broken['memory-organs.js'] = breakSource(mods['memory-organs.js'], A_MOD,
         "return key ? hash32(String(url || '') + '|' + String(k2))", 'v3280_mod');
-    const problems = judge(INDEX_SRC, broken, LEDGER);
+    const problems = judge(IDX_ENTRY, broken, LEDGER);
     assert.ok(problems.some((p) => p.includes('漂移')), '必须点名漂移：' + problems.join(' | '));
     ok('改模块侧 _getCredKey ⇒ judge 翻红');
 });
@@ -273,7 +323,7 @@ test('v3280 C3. ★★ 新增一份未登记的逐字副本 ⇒ judge 翻红（�
     const mods = readAllModules();
     const broken = Object.assign({}, mods);
     /* 把宿主侧 normalizeCharName 整段抄进一个本来没有该函数的模块 —— 这就是「新增副本」 */
-    const hostFns = funcBodies(INDEX_SRC);
+    const hostFns = funcBodies(IDX_ENTRY);
     assert.ok(hostFns.has('sanitizeJson'), '宿主须有 sanitizeJson 作为搬运对象');
     const mod = broken['fuzzy-patch.js'];
     assert.ok(!/\bnormalizeCharName\b/.test(mod), '选中的模块原本不得有该名字');
@@ -281,7 +331,7 @@ test('v3280 C3. ★★ 新增一份未登记的逐字副本 ⇒ judge 翻红（�
      *   再包一层花括号即与宿主侧逐字相同 —— 不能先去剥 `function ... {` 前缀（那会多出一个 `}`，
      *   取块提前收口，体被截断，于是「新增副本」看不出来）。 */
     broken['fuzzy-patch.js'] = mod + '\nfunction normalizeCharName(name) {' + hostFns.get('normalizeCharName')[0] + '}\n';
-    const problems = judge(INDEX_SRC, broken, LEDGER);
+    const problems = judge(IDX_ENTRY, broken, LEDGER);
     assert.ok(problems.some((p) => p.includes('新增未登记的逐字副本')),
         '必须点名新增未登记：' + problems.join(' | '));
     ok('凭空抄一份 ⇒ judge 点名「新增未登记的逐字副本」');
@@ -289,14 +339,14 @@ test('v3280 C3. ★★ 新增一份未登记的逐字副本 ⇒ judge 翻红（�
 
 /* ══════════════ D. 工具两向自证 ══════════════ */
 test('v3280 D1. ★★★ 工具两向自证：锚点 0 次/不唯一/同值替换必抛；原版判据真、破坏副本真红', () => {
-    assert.throws(() => assertSingleHit(INDEX_SRC, 'const 绝不存在的锚点 = 1;', 'v3280_n0'),
+    assert.throws(() => assertSingleHit(IDX_ENTRY, 'const 绝不存在的锚点 = 1;', 'v3280_n0'),
         /锚点/, '锚点不存在必须抛');
-    assert.throws(() => assertSingleHit(INDEX_SRC, 'const ', 'v3280_nmany'), /锚点/, '锚点不唯一必须抛');
-    assert.throws(() => breakSource(INDEX_SRC, A_HOST, A_HOST, 'v3280_same'), /改变|替换/, '同值替换必须抛');
-    const broken = breakSource(INDEX_SRC, A_HOST,
+    assert.throws(() => assertSingleHit(IDX_ENTRY, 'const ', 'v3280_nmany'), /锚点/, '锚点不唯一必须抛');
+    assert.throws(() => breakSource(IDX_ENTRY, A_HOST, A_HOST, 'v3280_same'), /改变|替换/, '同值替换必须抛');
+    const broken = breakSource(IDX_ENTRY, A_HOST,
         '        const key = opts?.apiKey || (init?.headers?.AuthorizatioZ', 'v3280_db');
-    assert.notEqual(INDEX_SRC, broken, '破坏须真的改变源码');
-    assert.deepEqual(judge(INDEX_SRC, readAllModules(), LEDGER), [], '原版上同判据必须真成立');
+    assert.notEqual(IDX_ENTRY, broken, '破坏须真的改变源码');
+    assert.deepEqual(judge(IDX_ENTRY, readAllModules(), LEDGER), [], '原版上同判据必须真成立');
     assert.notDeepEqual(judge(broken, readAllModules(), LEDGER), [], '破坏副本上同判据必须真翻红');
     ok('两向自证通过；原版判据真、破坏副本真红');
 });
@@ -310,8 +360,10 @@ test('v3280 E1. ★★ 判据纯度：破坏锚点字面量在本档各只声明
         const n = self.split(a).length - 1;
         assert.equal(n, 1, label + ' 锚点字面量在本档须恰好出现 1 次（实 ' + n + '）');
     }
-    assertSingleHit(INDEX_SRC, A_HOST, 'v3280_h1');
-    assertSingleHit(INDEX_SRC, A_HOST_NCN, 'v3280_h2');
+    /* [v3.421.0] 坐标唯一性必须在**入口单文件**上量：合并面里 A_HOST 在 index.js
+     *   与 memory-organs.js 各一次，恒判 2 次。 */
+    assertSingleHit(IDX_ENTRY, A_HOST, 'v3280_h1');
+    assertSingleHit(IDX_ENTRY, A_HOST_NCN, 'v3280_h2');
     assertSingleHit(read('memory-organs.js'), A_MOD, 'v3280_m1');
     assertSingleHit(read('memory-core.js'), A_MOD_NCN, 'v3280_m2');
     ok('3 个破坏锚点字面量各只声明一次；4 个坐标在真源上各恰中一次');

@@ -16,6 +16,14 @@ const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const idxSrc = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.421.0] 方法体分批外提后，buildBridgeSnapshot 的真身已搬到 engine-injection-pipeline.js，
+ *   入口只剩一行委派（`buildBridgeSnapshot(...args) { const M = _moduleLib(...) }`）。
+ *   仍先读入口（B2 要求真读 index.js），但入口优先只用于「先看入口那份」；提取按下表顺序：
+ *   入口 → 外提模块。两份都真读，不手抄源码。 */
+const HOSTS = [
+    ['index.js', idxSrc],
+    ['engine-injection-pipeline.js', fs.readFileSync(path.join(ROOT, 'engine-injection-pipeline.js'), 'utf8')]
+];
 
 /** 提取类方法体（花括号计数）——与 tests/v3212 同款，不手抄源码。 */
 function extractMethod(source, name) {
@@ -31,8 +39,11 @@ function extractMethod(source, name) {
     return end > 0 ? source.slice(start, end + 1) : null;
 }
 
-const snapBody = extractMethod(idxSrc, 'buildBridgeSnapshot');
-if (!snapBody) { console.error('extract-failed: buildBridgeSnapshot'); process.exit(2); }
+let snapBody = null;
+for (const [, src] of HOSTS) { snapBody = extractMethod(src, 'buildBridgeSnapshot'); if (snapBody) break; }
+if (!snapBody) { console.error('extract-failed: buildBridgeSnapshot（入口与外提模块皆无真方法体）'); process.exit(2); }
+/* 提取面自述：拿到的是「真方法体」而不是入口那行委派（委派只有一句 return，不含 meta.selfBytes）。 */
+if (snapBody.indexOf('selfBytes') < 0) { console.error('extract-failed: buildBridgeSnapshot（拿到的是委派桩，非方法体）'); process.exit(2); }
 
 const win = { SillyTavern: { getContext: () => ({ chat: [{}, {}, {}] }) } };
 const makeProto = new Function('VERSION', 'errLog', 'window', `return ({ ${snapBody} });`);

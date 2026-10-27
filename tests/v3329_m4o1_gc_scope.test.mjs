@@ -43,6 +43,42 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { breakSource, assertSingleHit } from './_break_kit.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -69,7 +105,17 @@ function loadBroken(tag, rel, anchor, repl) {
     return fs.readFileSync(fp, 'utf8');
 }
 
-const IDX = read('index.js');
+const IDX = __hostSurface();
+/* [v3.421.0] 合并面显名别名（与 IDX 是同一份扫描面，避免二次 set 面不同步）。
+ *   为什么需要它：本档两处锚点在十二批外提后**已不在入口里**——
+ *     · A_IDX_STAMP（向量写入点打戳）随消息接收路径进了 engine-execution-pipeline.js；
+ *     · 第三处 `data: this._scopeData(`（开新项目那条路）同样外提。
+ *   实测：A_IDX_STAMP 入口 0 次 / 合并面 1 次；三处 _scopeData 入口 2 次 / 合并面 3 次。
+ *   hostJudge 其余条目（m.metadata / m.scope / 范围回调 / 项目轴 / 分支轴 / 显式判不了）
+ *   两面读数一致（已核对），故判定面整体走合并面，只有这两条需要按面取源。
+ *   反向约束：入口仍须留 2 处 _scopeData（节点派生点分布在装配面与开项目路上），
+ *   该「入口 2 / 合并 3」的分布由 B 组就地钉住，防下一轮把两处都搬回入口还没人发现。 */
+const HOST_FACE = IDX;
 const GC_SRC = read('memory-gc.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
@@ -398,7 +444,12 @@ const A_IDX_UNKNOWN = "if (b && Object.prototype.hasOwnProperty.call(b, 'scope')
  *     但「向量写入点打戳」住在消息接收路径(`onMessageReceived`,数千行)里 ——
  *     把它整段抽出来跑等于把宿主主循环抬进判据,且那条路径的依赖面远超本刀主题。
  *     故该项按**在场 + 表达式逐字**判,并配真源码破坏负控制(F1/F2)。 */
-function hostJudge(src) {
+function hostJudge(src, rel) {
+    /* rel 默认 'host'：**合并面**语义——A_IDX_STAMP / _scopeData 计数取 HOST_FACE（__hostSurface 约定）。
+     *   显式传 'self' 表示「src 就是那份文件本身」——F2 的破坏副本把自己写进只含 index.js 的
+     *   临时目录，十二模块一律 missing，故那份副本就是它自己的面，判据须读 src 而不是 HOST_FACE。
+     *   不这样分面的后果：踩错面会把「破坏已生效」看成「锚点从未存在」，负控制假红。 */
+    rel = rel || 'host';
     const P = [];
     for (const box of ['m.metadata', 'm.scope', 'm.data']) {
         if (src.indexOf(box) < 0) P.push('范围线索未兜取 ' + box);
@@ -407,10 +458,12 @@ function hostJudge(src) {
     if (src.indexOf(A_IDX_INJECT) < 0) P.push('两路范围回调未注入(算法接口悬空 = 产品面仍按旧口径删)');
     const stampUses = src.split('_currentScopeStamp').length - 1;
     if (stampUses < 4) P.push('会话戳写入点不足(定义 1 + 派生层 1 + 向量 1 + 说明),实 ' + stampUses);
-    if (src.indexOf(A_IDX_STAMP) < 0) P.push('向量未打会话戳(换会话后第 0 楼会对撞另一个会话的第 0 楼)');
+    const _stampFace = (rel === 'self') ? src : HOST_FACE;
+    if (_stampFace.indexOf(A_IDX_STAMP) < 0) P.push('向量未打会话戳(换会话后第 0 楼会对撞另一个会话的第 0 楼)');
     if (src.indexOf("universe: (np.project && np.project.universe) || '',") < 0) P.push('项目读数未携带宇宙(细界少了唯一的真源)');
     /* v3.329.0 补:三处建角色节点都必须走**同一个派生点**(少一处 ⇒ 那类节点退回按名合)。 */
-    const scopeDataUses = src.split('data: this._scopeData(').length - 1;
+    const _sdFace = (rel === 'self') ? src : HOST_FACE;
+    const scopeDataUses = _sdFace.split('data: this._scopeData(').length - 1;
     if (scopeDataUses !== 3) P.push('三处角色节点须都走 _scopeData,实 ' + scopeDataUses);
     /* 项目轴(条目自身的项目出处)与分支轴(同楼重生成)必须在键里各占一格。 */
     if (src.indexOf(A_IDX_PROJ) < 0) P.push('范围键缺项目轴(同会话内两个项目的同名角色仍会被合)');
@@ -455,6 +508,13 @@ test('v3329 S8. ★★★★★ 项目轴与分支轴是两个分开的维度:�
 
 /* ══════════════ 宿主接线(源码面 + 真跑) ══════════════ */
 test('v3329 H1. ★★★★★ 宿主接线:四层线索兜取 + 两路注入同一份口径 + 会话戳写入三处 + 项目读数带宇宙', () => {
+    /* 分布读数就地钉住（合并面 = 入口 + 十二模块）：
+     *   · A_IDX_STAMP：入口 0（已外提）/ 合并面 1（向量写入点）—— 0 也合法，故不写死入口。
+     *   · data: this._scopeData(：入口 2 / 合并面 3 —— 外提的是「开新项目」那条派生路。 */
+    assert.equal(read('index.js').split(A_IDX_STAMP).length - 1, 0, '入口面不该有戳（已随消息接收路径外提）');
+    assert.equal(HOST_FACE.split(A_IDX_STAMP).length - 1, 1, '合并面须恰 1 处戳（向量写入点）');
+    assert.equal(read('index.js').split('data: this._scopeData(').length - 1, 2, '入口面须留 2 处节点派生点');
+    assert.equal(HOST_FACE.split('data: this._scopeData(').length - 1, 3, '合并面须恰 3 处节点派生点');
     assert.deepEqual(hostJudge(IDX), [], '宿主接线判据');
     ok('四层兜取 / 两路注入 / 三处写入 / 项目读数带宇宙');
 });
@@ -487,8 +547,11 @@ test('v3329 F1. ★★★★ 破坏「向量范围注入」⇒ 跨分支同文�
     ok('负控制成立:注入被摘即红,原版仍绿');
 });
 test('v3329 F2. ★★★★ 破坏向量侧会话戳 ⇒ 跨会话第 0 楼相撞的形态当场现形', () => {
-    const broken = loadBroken('F2', 'index.js', A_IDX_STAMP, '/* 戳被摘 */');
-    assert.notDeepEqual(hostJudge(broken), [], '向量写入点不带戳必须翻红');
+        /* 破坏面＝合并面就地破坏（v3490 D8 同规）：锚点在 engine-execution-pipeline.js（随消息接收路径外提），
+     *   单文件 index.js 上打不中（入口 0 次，loadBroken 落盘链对纯源码面判据也不需要 ——
+     *   broken 只喂 hostJudge（文本面），不进 engineFrom，故不走落盘）。 */
+    const broken = breakSource(HOST_FACE, A_IDX_STAMP, '/* 戳被摘 */', 'F2');
+    assert.notDeepEqual(hostJudge(broken, 'self'), [], '向量写入点不带戳必须翻红');
     assert.deepEqual(hostJudge(IDX), [], '原版上同判据必须真成立');
     /* 补一条真行为面:有戳/无戳的两种条目在**真 GC** 上确实分得开(判据不是纯文本在场)。 */
     const v = (extra) => Object.assign({ text: '同文', timestamp: 1, metadata: { floor: 0 } }, extra || {});
@@ -579,7 +642,7 @@ test('v3329 F8. ★★★★ 破坏「显式判不了」⇒ 无会话的新条�
         graphEdges: new Map(), normalizeName: normName,
     });
     assert.equal(ru.ledger.graphDup, 1, '破坏后身份判不了的两条同名节点被合了(旧口径)');
-    assert.notDeepEqual(hostJudge(broken), [], '源码面必须翻红');
+    assert.notDeepEqual(hostJudge(broken, 'self'), [], '源码面必须翻红');
     /* 对照:原版同输入必须拒绝合并(判据非空)。 */
     const noneOk = engineFrom(IDX, { chatId: '' })._scopeData({ source: 's' });
     const ruOk = gcRun(engineFrom(IDX, { chatId: '' }), {
@@ -597,7 +660,7 @@ test('v3329 F8. ★★★★ 破坏「显式判不了」⇒ 无会话的新条�
 /* ══════════════ H5 判据纯度 + H6 工具两向自证 ══════════════ */
 const ANCHORS = [
     ['A_GC_VEC', A_GC_VEC, GC_SRC], ['A_GC_NODE', A_GC_NODE, GC_SRC], ['A_GC_UNK', A_GC_UNK, GC_SRC],
-    ['A_IDX_INJECT', A_IDX_INJECT, IDX], ['A_IDX_STAMP', A_IDX_STAMP, IDX],
+    ['A_IDX_INJECT', A_IDX_INJECT, IDX], ['A_IDX_STAMP', A_IDX_STAMP, HOST_FACE],
     ['A_IDX_PROJ', A_IDX_PROJ, IDX], ['A_IDX_BRANCH', A_IDX_BRANCH, IDX], ['A_IDX_UNKNOWN', A_IDX_UNKNOWN, IDX],
 ];
 test('v3329 G1. ★★★ H5 判据纯度:八个破坏锚点在真源各恰中 1 次,且判据层各只绑定一次', () => {

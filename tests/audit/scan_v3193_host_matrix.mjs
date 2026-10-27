@@ -162,7 +162,9 @@ function makeSandbox(opts) {
 /** 在给定沙箱里加载一个文件，返回 {ok, err}。 */
 function loadInto(env, file, code) {
     try {
-        vm.runInContext(code !== undefined ? code : fs.readFileSync(path.join(ROOT, file), 'utf8'), env.sandbox, { filename: file });
+        // 带 code 的场合是「改写后重试」的个别用例，源码只此一份，现编即可；其余走预编译表。
+        if (code !== undefined) vm.runInContext(code, env.sandbox, { filename: file });
+        else scripts[file].runInContext(env.sandbox);
         return { ok: true, err: null };
     } catch (e) { return { ok: false, err: e.constructor.name + ': ' + e.message }; }
 }
@@ -177,6 +179,14 @@ function globalsOf(env) {
 }
 const codes = {};
 for (const f of loadOrder) codes[f] = fs.readFileSync(path.join(ROOT, f), 'utf8');
+/* [v3.421.0] 提速（本档曾 114s / 门禁超时阈值 120s，并发下一碰就 SIGTERM）：
+ *   本档会真跑 244 个脚本的加载链 **数百次**（M2 段是逐个抽掉一个脚本再跑全链 = 243 × 244 次加载），
+ *   而 `vm.runInContext(code)` 吃字符串时**每次调用都重新编译**，同一份源码被编译了近六万遍。
+ *   实测（同机同仓）：现形 5 轮全链 147ms → 预编译后 40ms，编译占七成耗时。
+ *   这里预编译一次 `vm.Script` 后复用，等价性不变（源码同一份、报错仍带 filename、
+ *   每次仍是**新沙箱**里的真执行），M4 的「临时改写后重试」走 codes 覆盖路径自己编译。 */
+const scripts = {};
+for (const f of loadOrder) scripts[f] = new vm.Script(codes[f], { filename: f });
 // ── M1 正常按 extra_js 加载 ──
 const mountedBy = {};   // file -> Set(挂载目标)
 let env1 = null;

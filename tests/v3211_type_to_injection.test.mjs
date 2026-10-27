@@ -38,6 +38,42 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { stripComments, braceMatch as libBraceMatch } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -63,7 +99,7 @@ const FS = req(FSF);
 /* [v3.267.0 A1 第七刀] 类抽取面改读「入口 + memory-config.js」合看：
  *   ConfigManager（loadConfig / _applyCardOverrides / 默认块 / 三个锚点常量）已外移，
  *   语义一字不改、不放宽（每一条仍须在场）。 */
-const idxFileSrc = readFileSync(IDX_PATH, 'utf-8');
+const idxFileSrc = __hostSurface();
 const idxConfigSrc = readFileSync(join(ROOT, 'memory-config.js'), 'utf-8');
 const idxSrc = idxFileSrc + String.fromCharCode(10) + idxConfigSrc;
 const fvSrc = readFileSync(FVF, 'utf-8');
@@ -98,14 +134,26 @@ function seg(src, a, b, label) {
     if (!(i < j)) throw new Error('[seg] ' + label + ' 顺序不符');
     return src.slice(i, j);
 }
-/** 取类体内的方法体（含首尾花括号）。方法签名须在类体内恰好命中一次。 */
+/** 取类体内的方法体（含首尾花括号）。方法签名须在**扫描面**内恰好命中一次，否则抛。
+ *  [v3.421.0] 两段式：先只在 `class X` 体里找（首选，防落到同名自由函数上）；类体里 0 次时
+ *  回退到整面唯一命中。回退为什么必须存在：方法体分批外提后，方法的**归属容器**已经不只类体
+ *  —— `buildInjection` 落在 engine-injection-pipeline.js 的对象字面量里，入口只剩一行委派，
+ *  而合并面把委派行先剥掉了（见 __hostSurface），于是「类体内 0、整面 1」成为常态。
+ *  回退仍要求整面**唯一**：不唯一就抛，不吃首命中（否则会抠到另一个同名方法的体）。 */
 function classMethodBody(src, sig, label, className) {
     const cn = className || 'MemoryEngine';
     const cls = src.indexOf('class ' + cn + ' {');
     if (cls < 0) throw new Error('[classMethodBody] 找不到 class ' + cn);
-    const body = braceMatch(src, src.indexOf('{', cls), cn);
-    const n = body.split(sig).length - 1;
-    if (n !== 1) throw new Error('[classMethodBody] ' + label + ' 签名在类体内命中 ' + n + ' 次（须 1）');
+    let body = braceMatch(src, src.indexOf('{', cls), cn);
+    let n = body.split(sig).length - 1;
+    if (n === 0) {
+        const gn = src.split(sig).length - 1;
+        if (gn !== 1) throw new Error('[classMethodBody] ' + label + ' 签名类体内 0 次、扫描面 ' + gn + ' 次（回退须唯一）');
+        body = src;
+        n = gn;
+    } else if (n !== 1) {
+        throw new Error('[classMethodBody] ' + label + ' 签名在类体内命中 ' + n + ' 次（须 1）');
+    }
     const at = body.indexOf(sig);
     return braceMatch(body, body.indexOf('{', at), label);
 }
@@ -410,6 +458,11 @@ test('v3211 10. 判据纯度：负控制是真源码破坏 + 同款真判据重�
     A(thrower(() => seg(idxSrc, '不存在的锚点XYZ', 'const VERSION', 'x')) !== null, '★ seg：起点锚点缺失必须抛');
     A(thrower(() => seg(idxSrc, 'const VERSION', 'NEVER_XYZ', 'x')) !== null, '★ seg：终点锚点缺失必须抛');
     A(thrower(() => classMethodBody(idxSrc, '_noSuchMethodXyz() {', 'x')) !== null, '★ classMethodBody：签名不存在必须抛');
+    A(classMethodBody(idxSrc, 'buildInjection(recalled) {', 'x').includes('typedFactsBlocks'), '★ classMethodBody：类体外的方法（外提模块里的对象字面量方法）按整面唯一命中回退可取');
+    /* 多义必须抛用**合成源码**自证：真 class 体内每个方法名都只剩 1 份（外提已把重名搬去模块面），
+     *   拿真源码举不出多义例；合成面还顺带证明判据不受真源码演化影响。 */
+    A(thrower(() => classMethodBody('class MemoryEngine { a() { } a() { } }', 'a() {', 'x')) !== null, '★ classMethodBody：类体内签名多义必须抛，不吃首命中');
+    A(classMethodBody('class MemoryEngine { a() { return 1; } }', 'a() {', 'x').includes('return 1'), 'classMethodBody 合成正例（类体内唯一命中可取）');
     A(thrower(() => braceMatch('{ a ', 0, 'x')) !== null, '★ braceMatch：未闭合必须抛');
     A(braceMatch('{ "}" }', 0, 'x') === '{ "}" }', '★ braceMatch 跳过字符串里的花括号');
 

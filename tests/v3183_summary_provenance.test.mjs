@@ -17,6 +17,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 // 本仓缝合模块是 IIFE + CJS 双导出（floor-ledger.js 同款），故用 require 取库，
@@ -133,10 +169,10 @@ function sumWith(chat, floor, text) {
 
 // ========== 4. 指纹口径与 index.js msgFpOf 同构 ==========
 {
-  const src = read('index.js');
+  const src = __hostSurface();
   // index.js 的 msgFpOf 实现（逐字摘出，保证口径比对的是真源码）
   ok('index.js 有 msgFpOf', /function msgFpOf\(m\)/.test(src));
-  const idxSrc = read('index.js');
+  const idxSrc = __hostSurface();
   const m = idxSrc.match(/function msgFpOf\(m\) \{[\s\S]*?\n {4}\}/);
   ok('取到 msgFpOf 实现', !!m);
   // 在本测试里复刻同一实现，逐字段比对
@@ -329,7 +365,7 @@ function sumWith(chat, floor, text) {
 
 // ========== 9. 接线自证 ==========
 {
-  const src = read('index.js');
+  const src = __hostSurface();
   ok('index.js 引用 LonShaSummaryProvenance', /LonShaSummaryProvenance/.test(src));
   ok('通过 _moduleLib 取库（与 floor-ledger 同款接线）',
     /_moduleLib\(\(\) => window\.LonShaSummaryProvenance, 'summary-provenance\.js'\)/.test(src));
@@ -390,7 +426,7 @@ function sumWith(chat, floor, text) {
   eq('9b-15 畸形 chat 不抛且保留', P.filterForRecall([s0], null).kept.length, 1);
   ok('9b-16 counts 有 checked', P.filterForRecall([s0], chat).counts.checked === 1);
   // 接线自证：index.js 真的用它过滤召回结果
-  const isrc = read('index.js');
+  const isrc = __hostSurface();
   ok('9b-17 index.js 调 filterForRecall', /filterForRecall\(/.test(isrc));
   ok('9b-18 过滤结果回写 results.summary', /results\.summary = r\.kept/.test(isrc));
   ok('9b-19 有开关可关', /recallProvenanceFilter/.test(isrc));
@@ -401,7 +437,7 @@ function sumWith(chat, floor, text) {
 //   定位 selfCheck 方法体 → 取 rows 列表字面量（含 rows.push 型追加）→ 要求本行的键在场，
 //   且方法体内**真有 this._xxxLine( 的调用点**。
 {
-  const isrc = read('index.js');
+  const isrc = __hostSurface();
   const scStart = isrc.indexOf('async selfCheck() {');
   ok('11a selfCheck 方法存在', scStart > 0);
   let _d = 0, scEnd = -1;

@@ -15,3 +15,4 @@ node_modules/
 /tools/patch_v3267_*.py
 # Release package output (built by tools/release_zip.py; attached to GitHub releases, not committed)
 dist/
+.tmp/

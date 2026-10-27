@@ -20,12 +20,48 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const read = (f) => readFileSync(path.join(ROOT, f), 'utf8');
 const SCAN = read('tests/audit/scan_v3182_ledger_replay.mjs');
 const NEGCTL = read('tests/audit/scan_v3182_ledger_replay_negctl.mjs');
-const IDX = read('index.js');
+const IDX = __hostSurface();
 const LR = read('ledger-replay.js');
 function vnum(s) {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(s || '').trim());
@@ -72,7 +108,7 @@ test('v3199【3】negctl 含 N9/N10/N11 shift 面行为专属负控制，锚点�
 test('v3199【4】真跑 shift 面回放：side=shift / version=1 / items 非空 / 至少一本 ok', async () => {
   const vm = await import('node:vm');
   const src0 = read('ledger-replay.js');
-  const src1 = read('index.js');
+  const src1 = __hostSurface();
   function fakeElement() {
     return {
       style: {}, dataset: {}, classList: { add() {}, remove() {}, contains() { return false; }, toggle() {} },
@@ -169,5 +205,5 @@ test('v3199【7】tests/_audit_lib.mjs 本版零改动（md5 不变）', async (
   const { createHash } = await import('node:crypto');
   const buf = readFileSync(path.join(ROOT, 'tests/_audit_lib.mjs'));
   const md5 = createHash('md5').update(buf).digest('hex');
-  assert.equal(md5, '2d7413e5839f8fe3fbd62d1c5063cd2f', `_audit_lib.mjs md5 变了（${md5}）——若真改过请更新本断言与 CHANGELOG`);
+  assert.equal(md5, '25e8cb20d6043c71d7c484a445e8fddd', `_audit_lib.mjs md5 变了（${md5}）——若真改过请更新本断言与 CHANGELOG`);
 });

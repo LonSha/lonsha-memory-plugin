@@ -29,10 +29,53 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { breakOnce } from './_break_kit.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = read('index.js');
+/* [v3.421.0] 宿主合并面。两处 hasAny 调用点自十二批外提后**分居两个面**：
+ *   主提取留在入口（index.js:5120），补提取随执行管线外提到 engine-execution-pipeline.js:689。
+ *   只读入口会把第二处判成缺失（锚点漂移型假红）。故「两处调用点」只能在合并面上观测。
+ *   反向约束：取库口那条判据（window 符号「恰一处」）**必须留在入口单面** ——
+ *   该符号在模块面另有 2 处（取库/装载），合并面会把「恰一处」判成假红。
+ *   两面分工写在这里，免得下一轮又把它整段搬回 index.js。 */
+const HOST_FACE = __hostSurface();
 const MC = read('memory-core.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
@@ -303,10 +346,17 @@ test('v3490 B2. ★★★★★ 宿主面:同批给 condition 即作废补丁(�
     console.log('  ok condition(含空串)优先;被顶掉的补丁具名记账且不算已施加');
 });
 test('v3490 B3. ★★★★ 宿主面:两处调用点的 hasAny 都认 conditionPatch', () => {
-    assert.deepEqual(judgeHostKeys(IDX), [], 'hasAny 判据不合格:' + judgeHostKeys(IDX).join(' | '));
+    /* [v3.421.0] 两面读数就地钉住：入口恰 1 处（主提取）、合并面恰 2 处（主提取 + 补提取）。
+     *   只钉合并面会让「两处都挤在同一文件」也算过；只钉入口则正是本档此前假红的来源。 */
+    const _fk = mkOneLine(ANCHORS.hKeys);
+    assert.equal(mkOneLine(IDX).split(_fk).length - 1, 1, '入口面须恰 1 处 hasAny 认补丁（主提取）');
+    assert.equal(mkOneLine(HOST_FACE).split(_fk).length - 1, 2, '宿主合并面须恰 2 处（主提取 + 补提取）');
+    assert.deepEqual(judgeHostKeys(HOST_FACE), [], 'hasAny 判据不合格:' + judgeHostKeys(HOST_FACE).join(' | '));
     console.log('  ok 主提取 / 补提取两处都在位');
 });
 test('v3490 B4. ★★★★ 宿主面:取库口在场 + 缺库有条 require 回落', () => {
+    /* [v3.421.0] 此处**故意**仍旧读入口单面：`window.LonShaConditionPatch` 在模块面另有取库/装载 2 处，
+     *   合并面会让「全局符号名恰一处」这条判据变成假红。判据的命题（宿主只有一个装配点）在入口上成立。 */
     assert.deepEqual(judgeHostFace(IDX, MC), [], '取库面判据不合格:' + judgeHostFace(IDX, MC).join(' | '));
     console.log('  ok 取库口恰一处;缺库降级成「没有补丁」(不连坐)');
 });
@@ -320,7 +370,7 @@ test('v3490 B6. ★★★ 落盘面:零新增持久化键(不混 ARCHIVE / CARRY
     const mo = read('memory-organs.js');
     assert.ok(mo.indexOf('ARCHIVE_TOP_LEVEL_KEYS') >= 0, '读不到 ARCHIVE_TOP_LEVEL_KEYS(判据错位)');
     assert.ok(mo.indexOf('conditionPatch') < 0, 'memory-organs.js 不得出现 conditionPatch(零落盘面)');
-    assert.ok(read('index.js').indexOf('conditionPatch') >= 0, '宿主侧反向对照:取库口与 hasAny 必须在位');
+    assert.ok(__hostSurface().indexOf('conditionPatch') >= 0, '宿主侧反向对照:取库口与 hasAny 必须在位');
     assert.ok(read('memory-core.js').indexOf("'conditionPatch'") < 0 || read('memory-core.js').indexOf("patch.conditionPatch") >= 0, 'memory-core 只准读入参键、不得把它写进档案');
     console.log('  ok 归档面/携带面无 conditionPatch 痕迹');
 });
@@ -373,12 +423,14 @@ test('v3490 D8. ★★★ 破坏宿主「hasAny 认补丁」⇒ B3 判据必须�
      *   每一步都显式核对「恰中 1 次 + 真的改了源码」,不靠工具替我们把关。 */
     const FLAT = mkOneLine(ANCHORS.hKeys);
     const joined = (s) => mkOneLine(s).split(FLAT).length - 1;
-    assert.equal(joined(IDX), 2, '真源里该字面量必须恰 2 次(主提取 / 补提取两处调用点)');
-    const badIdx = IDX.split(ANCHORS.hKeys).join("'condition'];");
-    assert.notEqual(badIdx, IDX, '破坏必须真的改变源码');
+    assert.equal(joined(HOST_FACE), 2, '真源里该字面量必须恰 2 次(主提取 / 补提取两处调用点)');
+    /* [v3.421.0] 破坏面必须与判据面一致：判据读合并面，就地破坏也得打在合并面上。
+     *   打在入口上只能摘掉 1 处（第二处已外提），「两处都必须被破坏」这句话就成了空话。 */
+    const badIdx = HOST_FACE.split(ANCHORS.hKeys).join("'condition'];");
+    assert.notEqual(badIdx, HOST_FACE, '破坏必须真的改变源码');
     assert.equal(joined(badIdx), 0, '两处都必须被破坏(否则判据只看到一半)');
     expectRed(() => judgeHostKeys(badIdx), 'hKeys');
-    assert.deepEqual(judgeHostKeys(IDX), [], '原版同判据必须过');
+    assert.deepEqual(judgeHostKeys(HOST_FACE), [], '原版同判据必须过');
     console.log('  ok 只有补丁的载荷被当成空 ⇒ 判据照出;原版阳性通过');
 });
 /* ══════════ F. 判据纯度(H5) + 工具两向自证(H6) ══════════ */

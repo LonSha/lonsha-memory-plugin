@@ -27,6 +27,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -92,7 +128,11 @@ test('v3231 B1. ★★★ 探针必须 setup 不计时（不得重演 O-5 的 29
 });
 
 test('v3231 B2. ★★ 探针必须真从 index.js 提取方法体（不得手抄一份快照实现）', () => {
-    assert.ok(/extractMethod\(idxSrc, 'buildBridgeSnapshot'\)/.test(probeSrc), '必须提取真方法体');
+    /* [v3.421.0] 方法体已外提到 engine-injection-pipeline.js，入口只剩一行委派：不再要求「从 idxSrc 直提」这一种写法，
+     *   改为要求「按面表提取 + 面表真含 index.js」两条，且提取结果不得是委派桩（selfBytes 在场）。 */
+    assert.ok(/extractMethod\(src, 'buildBridgeSnapshot'\)|extractMethod\(idxSrc, 'buildBridgeSnapshot'\)/.test(probeSrc), '必须提取真方法体');
+    assert.ok(/\['index\.js', idxSrc\]/.test(probeSrc), '提取面表必须含 index.js 本体（不得绕过入口只看模块）');
+    assert.ok(/indexOf\(.[]?selfBytes.\) < 0/.test(probeSrc) || probeSrc.includes("snapBody.indexOf('selfBytes') < 0"), '须有「拿到的不是委派桩」的自证（委派不含 selfBytes）');
     assert.ok(/readFileSync\(path.join\(ROOT, 'index.js'\)/.test(probeSrc), '必须读真 index.js');
     assert.ok(/makeProto = new Function/.test(probeSrc), '必须用真方法体构造实例');
     /* 位置无关：探针不得写死绝对路径（本仓 scan_cross_repo_binding P1 就拦这个） */
@@ -214,7 +254,7 @@ test('v3231 F1. ★ 版本锚（下限形，当版精确判定交当版 frontier
     /* [v3.231.0] 抬版即交棒：本套件保持下限锚（出生版本 3.230.0），当版精确判定交 v3232 F1。 */
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')));
     const manifest = JSON.parse(read(path.join(ROOT, 'manifest.json')));
-    const codeVer = (/const VERSION = '([^']+)'/.exec(read(path.join(ROOT, 'index.js'))) || [])[1];
+    const codeVer = (/const VERSION = '([^']+)'/.exec(__hostSurface()) || [])[1];
     assert.ok(codeVer, '入口版本常量在场');
     assert.equal(pkg.version, codeVer, 'package 同源');
     assert.equal(manifest.version, codeVer, 'manifest 同源');

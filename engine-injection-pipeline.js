@@ -1195,7 +1195,7 @@
                 if (Alloc && typeof Alloc.allocateBudgetWithReceipt === 'function') {
                     const materialItems = blocks.map((b, i) => ({ id: 'b-' + i, content: b, priority: 50 }));
                     this._lastBudgetAllocationReceipt = Alloc.allocateBudgetWithReceipt(materialItems, {
-                        maxTotalTokens: Number(this.config?.config?.memoryTokenBudget || 2048)
+                        maxTotalTokens: Number(this.config?.config?.memoryTokenBudget || 2700)   // [v3.421.0] 回退值与 memory-config 声明默认对齐（v3.135 重校准后应为 2700，原 2048 是陈迹）
                     });
                 }
             } catch (e) { errLog(e, 'buildInjection.L10CognitiveBlocks'); }

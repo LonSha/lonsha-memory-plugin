@@ -6,6 +6,8 @@
 - **宿主接线（真消费点，非只挂全局）**：`_evJudge` 增治理锁定硬豁免（rank 110 > user-keep 100，且 `exemptBudget` 免保护预算）；`memory-gc` 的 `exemptList` 先于 `normalList` 扣账、`overBudget` 只统计普通项、`blankEvidence` 补 `exemptCount`；`stm-ltm.consolidate` 只增不换地回报本批 `floors`，宿主批末按**楼层交集**调 `closeEntries` 并把受阻/截断/判据兜底三态报进降级总账（新增「加固销项受阻」「销项判据降级」两行，锁定豁免单独成行不吃预算）；新增 `stmLtmCloseMinKeep`（缺省 3）。
 - 判据 `tests/v34210_m4x10_strength_governance.test.mjs`（34 条，含 8 条真源码破坏负控制 + H5 判据纯度 + H6 工具两向自证）；`stm-close-quota.js` 在 manifest 中排在被消耗的 `stm-ltm.js` 之前。
 - **本版自己抓到的回归两条（提交前实跑抓到，均已修）**：① 新配置 `stmLtmCloseMinKeep` 声明了、引擎也读了，却没有控件也不在白名单里，回退值不可达 —— v3161 [1] 的可达性不变量直接点名；补一档滑块（走通用 `data-cfg-num` 收集器，真能写回）。② 保护判定器 `_evJudge` 体内因新增锁定分支涨到 2468 字符，v3370 C1 那个 2400 字符的窗口把收尾行顶出去，整条匹配不上，C1/F3 连带红 —— 窗口放宽到 2800（窗口只用来把检查限定在体内，不是长度判据）。另：`v3370` 的负控制锚点 `const safe = Math.min(judged.length, b)` 随保护项拆成 exempt/normal 两路而失效，换成 `normalList.length` 同一点位，破坏语义不变。
+- 扫描器契约：退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。
+- 实施期按铁律只跑定向判据与定点回归，绝不跑全量。
 - ★ **诚实边界**：真实 SillyTavern 宿主的 UI 点击流与真实模型问答**未跑**（宿主面以真装载宿主切片验证调用口径与降级形态）；上游 Python 实现未逐行比对（判的是本仓行为契约）；提案承载 UI 未判。
 
 ## v3.420.0

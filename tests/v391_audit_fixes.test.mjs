@@ -6,10 +6,46 @@ import fs from 'fs';
 import { createRequire } from 'node:module';
 import { breakSource } from './_break_kit.mjs';
 import { loadBroken } from './_negative_util.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const require_ = createRequire(import.meta.url);
 const MB = require_('../memory-books.js');
 
-const srcRaw = fs.readFileSync('index.js', 'utf8');
+const srcRaw = __hostSurface();
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
@@ -77,7 +113,8 @@ function objOf(methodSrc, deps = {}) {
 // ═══════════ 1. presenceInjection：键名断裂修复 ═══════════
 test('【1】presenceInjection 门控键统一（原 presenceTier 恒 undefined 导致功能死锁）', () => {
     assert.ok(!src.includes('this.config.config.presenceTier'), '旧断裂键 presenceTier 已清除');
-    assert.ok(src.includes('this.config.config.presenceInjection !== false'), '门控改用 presenceInjection 容灾式判断');
+    /* [v3.421.0] 读点已外提至 engine-recall.js：持有者是形参 engine，不再是 this。 */
+    assert.match(src, /(?:this|engine)\.config\.config\.presenceInjection !== false/, '门控改用 presenceInjection 容灾式判断');
     assert.ok(/presenceInjection:\s*true/.test(src), 'presenceInjection 有默认值');
     assert.ok(/presenceMaxCandidates:\s*8/.test(src), '新增候选上限默认值');
     // 行为：候选上限生效
@@ -155,7 +192,8 @@ test('【3】createSummary 兜底截断读 config.maxSummaryLength', () => {
 test('【4】personalizedPageRank 接受 dampingFactor 且调用点传入', () => {
     assert.ok(/personalizedPageRank\(seedNodes, hops = 3, topK = 10, dampingFactor = 0\.85\)/.test(ga), '库函数已加第 4 参');
     assert.ok(!/dampingFactor:\s*0\.85,\n\s*maxIterations/.test(ga), '不再无条件硬编码 0.85');
-    assert.ok(src.includes('this.config.config.pageRankDamping'), 'index.js 调用点已传入配置');
+    /* [v3.421.0] 调用点已外提至 engine-recall.js（持有者 engine）。 */
+    assert.match(src, /(?:this|engine)\.config\.config\.pageRankDamping/, '调用点已传入配置');
     // 行为：越界值回落
     const pick = d => (Number.isFinite(Number(d)) && Number(d) > 0 && Number(d) < 1) ? Number(d) : 0.85;
     assert.strictEqual(pick(0.5), 0.5, '合法值生效');
@@ -232,7 +270,8 @@ test('【7】WorldProgress.select 接受 maxCandidates', () => {
 test('【8】recallTierEnabled 与 temporalGraphEnabled 门控接入', () => {
     assert.ok(src.includes('this.config.config.recallTierEnabled !== false'), 'recallTier 有门控');
     assert.ok(src.includes('_tierOn ? blocks.filter'), '关闭时不做常驻/触发分区');
-    assert.ok(src.includes('this.config.config.temporalGraphEnabled !== false'), 'temporalGraph 有门控');
+    /* [v3.421.0] 门控已外提至 engine-recall.js（持有者 engine）。 */
+    assert.match(src, /(?:this|engine)\.config\.config\.temporalGraphEnabled !== false/, 'temporalGraph 有门控');
     assert.ok(src.includes('_temporalOn && isHistorical'), '关闭时不回溯历史边');
     // 行为：分级关闭时全部块进 trigger（统一裁剪）
     const blocks = ['[前情摘要]x', '[其他]y'];

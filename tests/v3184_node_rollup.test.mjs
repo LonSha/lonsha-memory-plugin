@@ -20,6 +20,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 // IIFE + CJS 双导出：必须用 require 取库（import 拿到的是空命名空间）。
@@ -226,7 +262,7 @@ const nodesOf = (arr) => new Map(arr.map((n) => [String(n.id), n]));
 }
 
 // ========== 6/7/8. MemoryGraph 接线 ==========
-const isrc0 = read('index.js');
+const isrc0 = __hostSurface();
 /* [v3.266.0 A1 第六刀] MemoryGraph 真源已外移 memory-core.js：该面在本档被两处消费（类抽取 + 锚点唯一性），故在顶层定义一次。 */
 const core0 = read('memory-core.js');
 function braceEnd(s, open) {
@@ -517,7 +553,7 @@ const src = read('node-rollup.js');
 
 // ========== 10. 接线自证 ==========
 {
-  const isrc = read('index.js');
+  const isrc = __hostSurface();
   ok('10a index.js 引用 LonShaNodeRollup', /LonShaNodeRollup/.test(isrc));
   ok('10b 通过 _moduleLib 取库（模块接线审计的消费判据）', /_moduleLib\(\(\) => window\.LonShaNodeRollup, 'node-rollup\.js'\)/.test(isrc));
   const mf = JSON.parse(read('manifest.json'));
@@ -533,7 +569,7 @@ const src = read('node-rollup.js');
 }
 // 维护管线接线：步骤存在、在 optimize 之后、在 cadence-triage 之前、标记 ignoreFailure
 {
-  const isrc = read('index.js');
+  const isrc = __hostSurface();
   const at = isrc.indexOf('async _maintenancePipeline(');
   ok('10i _maintenancePipeline 存在', at > 0);
   const body = isrc.slice(at, braceEnd(isrc, isrc.indexOf('{', at)) + 1);
@@ -551,7 +587,7 @@ const src = read('node-rollup.js');
 }
 // 配置声明纪律（v3.160）：读取点用 config.config.KEY 的键必须在默认配置块声明
 {
-  const isrc = read('index.js');
+  const isrc = __hostSurface();
   /* [v3.267.0 A1 第七刀] 默认块随 ConfigManager 外移 memory-config.js ⇒ 本块改读合看面。
    *   isrc 仍指入口（本档其余方法体块按入口面判），只有声明面扩到模块。
    *   判别锚加换行：入口退路的 `this.config = {};` 是裸锚的前缀，会先命中（键数 0）。 */
@@ -572,7 +608,7 @@ const src = read('node-rollup.js');
 
 // ========== 11. 诊断行真进 selfCheck ==========
 {
-  const isrc = read('index.js');
+  const isrc = __hostSurface();
   const scStart = isrc.indexOf('async selfCheck() {');
   ok('11a selfCheck 方法存在', scStart > 0);
   const scBody = isrc.slice(scStart, braceEnd(isrc, isrc.indexOf('{', scStart)) + 1);

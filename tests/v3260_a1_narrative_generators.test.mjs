@@ -32,6 +32,48 @@ import { breakSource } from './_break_kit.mjs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import { stripComments } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
+/* 宿主入口原文（未剥委派、不含模块面）。基线台账记的是**这一个**的行数。 */
+function __hostEntry() {
+    /* 直读入口原文：hostSurface 即便 modules:[] 也会在段首插入两行 `// ==== name ====` 分节头，
+     *   基线台账记的是物理行，多出的这两行会与 readings 差 2（实测 11613 vs 11615）。 */
+    return fs.readFileSync(__hostPath.join(__hostFu(new URL('..', import.meta.url)), 'index.js'), 'utf8');
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -169,7 +211,9 @@ test('v3260 C. 加载面与基线：manifest 恰 1 项 + 基线读数随本刀�
     const mf = JSON.parse(read('manifest.json'));
     assert.equal(mf.extra_js.filter((f) => f === MOD_REL).length, 1, MOD_REL + ' 须在 extra_js 恰好 1 次');
     const b = JSON.parse(read('tests/audit/host_beast_baseline.json'));
-    assert.equal(b.readings.total_lines, IDX.split(NL).length, '基线行数须等于真 index.js 行数');
+    /* [v3.421.0] 台账读数按**宿主入口**行数记（不是合并面）：IDX 已是入口+12 模块的
+     *   合并面（约 2.7 万行），与 readings/ceiling 量纲不符。改用 __hostEntry() 只取入口原文。 */
+    assert.equal(b.readings.total_lines, __hostEntry().split(NL).length, '基线行数须等于真 index.js 行数');
     const _cur = b.measured_at;
     assert.ok(b.rebuilds[_cur], '当版须在 rebuilds 面留读数（每次重建才可回溯）');
     assert.equal(b.rebuilds[_cur].readings.member_count, b.readings.member_count, 'rebuilds 与 readings 同读数');
@@ -246,7 +290,7 @@ test('v3260 F. 判据面自防护：实现住在本档 + 走唯一破坏真源 +
     assert.equal(GEN.length, 3, '本刀剥走的类面为三项，不得缩水');
     assert.equal(Object.keys(FIELDS).length, 3, '构造点对位表为三项');
     assert.ok(SELF.length > 6000, '本档不得被掏空');
-    assert.ok(SELF.includes('read(' + SQ + 'index.js' + SQ + ')') && SELF.includes('read(MOD_REL)'), '真源必须从磁盘读');
+    assert.ok(SELF.includes('__hostSurface()') && SELF.includes('read(MOD_REL)'), '真源必须从磁盘读');
     ok('判据实现 / 破坏真源 / 清单规模三者自洽');
 });
 

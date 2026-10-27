@@ -55,7 +55,22 @@ function fail(msg) {
 }
 
 /* ---------- 1. 抽方法体（花括号配平）；抽不出即 null，调用方 fail-closed ---------- */
-const idxSrc = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.421.0] 抽方法体的真源从「只读入口」改成「读宿主面」：十二批外提之后
+ *   buildBridgeSnapshot / buildBridgeSnapshotJson / _summarizeRecallAudit 的真身
+ *   都住在 engine-injection-pipeline.js，入口只剩一行 `name(...args) { … _moduleLib(…) }` 委派 ——
+ *   只读入口时三条路径齐刷刷报 method-body-not-found（measured_paths=1/4），
+ *   而那不是「产品没收益」，是**探针读错了面**（与 v3232 C2 / v3236 E1 同族）。
+ *   合并面顺序：入口在前、模块在后；委派串是 `name(...args) {`（带参数），
+ *   与 `name() {` 不同串，故 indexOf 自然落到模块面的真身，无需额外剥委派。 */
+const HOST_MODULES = (() => {
+    const lib = fs.readFileSync(path.join(ROOT, 'tests', '_audit_lib.mjs'), 'utf8');
+    const m = /export const HOST_MODULES = \[([\s\S]*?)\];/.exec(lib);
+    if (!m) throw new Error('取不到 tests/_audit_lib.mjs 的 HOST_MODULES');
+    return (m[1].match(/'([^']+)'/g) || []).map((x) => x.slice(1, -1));
+})();
+const idxSrc = ['index.js'].concat(HOST_MODULES)
+    .map((f) => { try { return fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { return ''; } })
+    .join('\n');
 function methodBody(src, name) {
     const at = src.indexOf(name + '() {');
     if (at < 0) return null;

@@ -28,11 +28,47 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { breakFile } from './_break_kit.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (p) => fs.readFileSync(p, 'utf8');
-const idx = read(path.join(ROOT, 'memory-config.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-persistence-ops.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'index.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-self-check.js')); // [v3.267.0/v3.367.0/v3.368.0] 合看外移模块（持久化集群在前：抽取方法体命中真实现）
+const idx = read(path.join(ROOT, 'memory-config.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-persistence-ops.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'index.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-self-check.js')) + String.fromCharCode(10) + read(path.join(ROOT, 'engine-execution-pipeline.js')); // [v3.267.0/v3.367.0/v3.368.0/v3.421.0] 合看外移模块（持久化集群在前：抽取方法体命中真实现；执行管线在末：定期快照分支的锚点调用点住在那里）
 const ui = read(path.join(ROOT, 'settings-ui.js'));
 
 /** 取一段源码（起点字面量 → 终点字面量）。**不**用正则：本仓的锚点里全是括号与引号。 */
@@ -292,13 +328,25 @@ test('v3236 E1. ★★ 真跑宿主探针：`onMessageReceived` 仍是最大成�
      *   生命周期入口退居第二(1363 行 / 外部引用 2)—— 两者都搬不动,命题仍真。
      *   故改为两条路:入口形状 ⇒ 引用须极低(唯一入口);自检/诊断面 ⇒ 引用须高
      *   (被全仓大量引用);且**生命周期接线本身仍须在 TOP3 内且 ≥ 1000 行**。 */
-    const _lcTop3 = rep.biggest_members.slice(0, 3).find((m) => /^on/.test(m.name));
-    assert.ok(_lcTop3 && _lcTop3.lines >= 1000, '★ 生命周期接线仍须在 TOP3 内且 ≥ 1000 行');
+    /* ★ [v3.421.0 交棒] 原文是「生命周期接线仍须在 TOP3 内且**单成员** ≥ 1000 行」——
+     *   那是 v3.345.0 的单成员读数（当时 onMessageReceived 在入口里 1217 行）。宿主面外提之后
+     *   入口最长的 on* 只剩 onBeforeGeneration 565 行，「单成员 ≥1000」不再成立；而要守的命题
+     *   （生命周期接线本身仍是巨兽一大块、且搬不动）依然真 ⇒ 改**合计口径**（与 v3232 D1 同源）。 */
+    const _lcNames = ['onBeforeGeneration', 'registerEvents', 'onMessageReceived'];
+    const _lcHit = _lcNames.map((n) => rep.biggest_members.find((m) => m.name === n && m.file === 'index.js'));
+    assert.deepEqual(_lcHit.map((x) => !!x), [true, true, true], '★ 三个生命周期入口都须在 TOP40 内');
+    const _lcSum = _lcHit.reduce((a, m) => a + m.lines, 0);
+    assert.ok(_lcSum >= 1000, '★ 生命周期接线合计仍须 ≥ 1000 行，实测 ' + _lcSum);
     assert.ok(top.lines >= 1000, '最大成员须 ≥ 1000 行，实测 ' + top.lines);
     /* [v3.267.0] 配置默认块外移后，「探针读的必须就是真 index.js」的行数对账对象仍应
      * 指向 index.js 单文件本身（探针 host_beast_probe.cjs 只扫 index.js）；
      * idx 真源已合看 memory-config.js，行数口径若用它会被配置文件抬高。 */
-    assert.equal(rep.total_lines, read(path.join(ROOT, 'index.js')).split('\n').length, '★ 探针读的必须就是真 index.js');
+    /* ★ [v3.421.0 修] 原文拿 rep.total_lines 比 __hostSurface() 行数 —— 两个面（入口 / 合并面）。
+     *   各面对各的真源：入口比真 index.js 物理行（行预算守的那个数），合并面比 hostSurface。 */
+    assert.equal(rep.entry_lines, read(path.join(ROOT, 'index.js')).split('\n').length,
+        '★ 探针的入口行数必须就是真 index.js');
+    assert.equal(rep.surface_lines, __hostSurface().split('\n').length,
+        '★ 合并面行数须与判据侧 hostSurface 逐行一致');
 });
 
 test('v3236 E2. ★★ 三源同源（index.js VERSION / manifest / package.json）', () => {
@@ -350,7 +398,7 @@ test('v3236 N3. ★★★ 破坏单真源（面板换回手抄 import）⇒ A1 �
     const TO = '_fr = ' + 'engine' + '.graph.import(data.graph) || await engine.restoreSnapshotFlow(chatId, floor);';
     withMirror((dir) => { breakFile(dir, 'settings-ui.js', FROM, TO); }, (dir) => {
         const broken = read(path.join(dir, 'settings-ui.js'));
-        assert.throws(() => assertSnapshotRestoreSingleSource(broken, read(path.join(dir, 'index.js'))),
+        assert.throws(() => assertSnapshotRestoreSingleSource(broken, __hostSurface()),
             /不得再手抄/, '单真源判据必须抓到（否则 A1 是空跑）');
     });
 });

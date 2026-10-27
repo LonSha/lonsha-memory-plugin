@@ -8,6 +8,12 @@
  * 允许不可比时间并存，杜绝将模糊叙事时间机械硬转为虚假 ISO 时间。
  */
 
+/* 单次装载包装（[v3.421.0] 修）：本文件在宿主页是按 extra_js 逐个 eval 的经典脚本，
+ *   顶层 `class`/`const` 落在同一个脚本作用域里；同一页重复加载一次就会 `Identifier ...
+ *   has already been declared`。故与仓内既有模块同形，收进 IIFE。
+ *   导出仍是双通道：IIFE 内 `module.exports` 供 tests 具名 import，`root.*` 供宿主消费。 */
+(function (root) {
+'use strict';
 const SHICHEN_MAP = {
     '子': { modernHour: 23, span: '23:00~01:00' },
     '丑': { modernHour: 1, span: '01:00~03:00' },
@@ -23,7 +29,7 @@ const SHICHEN_MAP = {
     '亥': { modernHour: 21, span: '21:00~23:00' }
 };
 
-export class AncientStoryClock {
+class AncientStoryClock {
     constructor() {}
 
     /**
@@ -130,3 +136,7 @@ export class AncientStoryClock {
         };
     }
 }
+
+root.LonShaAncientStoryClock = { AncientStoryClock };
+if (typeof module !== 'undefined' && module.exports) module.exports = { AncientStoryClock };
+})(typeof globalThis !== 'undefined' ? globalThis : window);

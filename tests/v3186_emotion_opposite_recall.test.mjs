@@ -14,9 +14,45 @@ import { createRequire } from 'module';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { stripComments } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const ROOT = new URL('..', import.meta.url).pathname;
 const require_ = createRequire(import.meta.url);
-const src = readFileSync(ROOT + 'index.js', 'utf-8') + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
+const src = __hostSurface() + String.fromCharCode(10) + readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
 const sui = readFileSync(ROOT + 'settings-ui.js', 'utf-8');
 const mf = JSON.parse(readFileSync(ROOT + 'manifest.json', 'utf-8'));
 const pkg = JSON.parse(readFileSync(ROOT + 'package.json', 'utf-8'));
@@ -147,16 +183,16 @@ test('v3186 12. 召回侧真调用：线索算得出、且有人在用', () => {
     assert.ok(/_emoOppositeKeys\.has\(/.test(cleanSrc), '提权块必须真对键集合求值（否则块内什么都没干）');
 });
 test('v3186 13. 位置纪律：提权落在 hybridMerge 之后、intentRerank 之前', () => {
-    const pMerge = cleanSrc.indexOf('const merged = this.hybridMerge(results);');
+    const pMerge = cleanSrc.search(/const merged = (?:this|engine)\.hybridMerge\(results\);/);
     const pEmo = cleanSrc.indexOf('if (_emoOppositeKeys && _emoOppositeKeys.size) {');
-    const pRerank = cleanSrc.indexOf('this.intentRerank(merged, query.text);');
+    const pRerank = cleanSrc.search(/(?:this|engine)\.intentRerank\(merged, query\.text\);/);
     assert.ok(pMerge > 0 && pEmo > 0 && pRerank > 0, '三个锚点都必须在场');
     assert.ok(pMerge < pEmo, '情绪提权必须在 hybridMerge 之后（否则改的是不存在的名次）');
     assert.ok(pEmo < pRerank, '情绪提权必须在 intentRerank 之前（否则重排会覆盖提权效果）');
 });
 test('v3186 14. 边界纪律：提权块内不写图、不删边、幅度只动名次边界', () => {
     const i = cleanSrc.indexOf('if (_emoOppositeKeys && _emoOppositeKeys.size) {');
-    const j = cleanSrc.indexOf('this.intentRerank(merged, query.text)', i);
+    const j = cleanSrc.search(/(?:this|engine)\.intentRerank\(merged, query\.text\)/);
     const block = cleanSrc.slice(i, j > i ? j : i + 3000);
     for (const f of ['addEdge', 'removeRef', 'deleteEdge', '.splice(', 'graph.add']) {
         assert.ok(!block.includes(f), '提权块内不得出现 ' + f + '（承诺只提名次，不写图/不删边）');
@@ -174,7 +210,8 @@ test('v3186 15. 诊断行五态齐（否则「机制不在场」与「本轮无�
     for (let i = 0; i < lines.length; i++) {
         // 花括号配平提取方法体：不用「遇到下一个方法头就停」的启发式——
         //   那会被方法体内部的 `if (r.reason === 'ok') {` 误判（本版正控实测踩过）。
-        const m = /^(\s{4,})_emotionOppositeLine\s*\(/.exec(lines[i]);
+        // [v3.421.0] 实现已外提到 engine-diagnostic-lines.js 且形参为 engine —— 两形态同认。
+        const m = /^(\s*)(?:_emotionOppositeLine|function _emotionOppositeLine)\s*\(/.exec(lines[i]);
         if (!m) continue;
         const out = [];
         let depth = 0, started = false;
@@ -213,11 +250,14 @@ test('v3186 17. 配置面：默认关（false）+ 有 UI 控件 + 有消费点',
     assert.ok(sui.includes("ck('" + KEY + "'"), KEY + ' 缺 settings-ui 控件（v3.160 纪律）');
 });
 test('v3186 18. 关闭时零开销：扫描被包在开关守卫内（关时连词表都不读）', () => {
-    const i = cleanSrc.indexOf(KEY + ' === true');
-    assert.ok(i > 0, '必须存在开关键守卫');
+    /* [v3.421.0] 开关键有两处消费：注入管线把它折进账本口径、召回侧才是真正的扫描守卫。
+     *   全文 `indexOf` 会先命中前者（与调用点隔着几十万字符），故改成**从调用点向前**找
+     *   最近的那道守卫 —— 判据本意（调用必须在守卫块内）与距离阈值都保持原样。 */
     const callIdx = cleanSrc.indexOf('EL.recallByOppositeEmotion({');
+    assert.ok(callIdx > 0, '必须有真调用点');
+    const i = cleanSrc.lastIndexOf(KEY + ' === true', callIdx);
+    assert.ok(i > 0, '必须存在开关键守卫');
     assert.ok(callIdx > i, '调用必须落在开关守卫之后（否则关着也在扫词表）');
-    // 守卫与调用之间的距离须在同一块内（不被别的方法隔开）。
     assert.ok(callIdx - i < 800, '守卫与调用之间距离过大（' + (callIdx - i) + '），形态可能已漂移');
 });
 test('v3186 19. 口径守卫：未引入原库注入路线，本仓 setExtensionPrompt 路线在场', () => {

@@ -10,13 +10,49 @@ import { readFileSync } from 'fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const require = createRequire(import.meta.url);
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
-const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const srcRaw = __hostSurface();
 /* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
  *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
  *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
@@ -189,25 +225,27 @@ test('[1d] numOr consumption sites reach expected count', () => {
     assert.ok(n >= 14, 'numOr call sites ' + n + ' >= 14');
     const PROBES = [
         'numOr(cfg.vectorChunkOverlap, 10)',
-        'numOr(this.config.config.aiRecallOpsMaxPerFloor, 12)',
+        /numOr\((?:this|engine)\.config\.config\.aiRecallOpsMaxPerFloor, 12\)/,
         // [v3.159] 回退值由 0 改为 6：与默认配置声明一致（原 0 会在配置缺失时把所有楼层吐掉）
-        'numOr(preserveRecent != null ? preserveRecent : this.config.config.archivePreserveRecent, 6)',
-        'numOr(this.config.config.diaryEveryFloors, 3)',
+        /numOr\(preserveRecent != null \? preserveRecent : (?:this|engine)\.config\.config\.archivePreserveRecent, 6\)/,
+        /numOr\((?:this|engine)\.config\.config\.diaryEveryFloors, 3\)/,
         'numOr(config.diaryEveryFloors, 3)',
-        'numOr(this.config.config.echoMaxCount, 10)',
-        'numOr(this.config.config.vectorTailRecoveryLimit, 8)',
-        'numOr(this.config.config.rubyPhoneRecallTopN, 3)',
-        'numOr(this.config.config.hybridAlpha, 0.7)',
-        'numOr(this.config.config.keepRecentTokenReserve, 0)',
-        'numOr(this.config.config.maxMoneyDelta, 0)',
-        'numOr(this.engine.config.config.injectionDepth, 0)',
-        'numOr(plugin.engine.config.config.injectionDepth, 0)'
+        /numOr\((?:this|engine)\.config\.config\.echoMaxCount, 10\)/,
+        /* [v3.421.0] 补召回上限消费点已随召回方法外提到 engine-recall.js（持有者形参 engine）——
+         *   改成「任一面任一种持有者」的形态，不再逐字绑 `this`。 */
+        /numOr\((?:this|engine)\.config\.config\.vectorTailRecoveryLimit, 8\)/,
+        /numOr\((?:this|engine)\.config\.config\.rubyPhoneRecallTopN, 3\)/,
+        /numOr\((?:this|engine)\.config\.config\.hybridAlpha, 0\.7\)/,
+        /numOr\((?:this|engine)\.config\.config\.keepRecentTokenReserve, 0\)/,
+        /numOr\((?:this|engine)\.config\.config\.maxMoneyDelta, 0\)/,
+        /numOr\((?:(?:this|engine)\.engine|engine)\.config\.config\.injectionDepth, 0\)/,
+        /numOr\(plugin\.engine\.config\.config\.injectionDepth, 0\)/
     ];
     /* [v3.258.0 A1 第三刀] PROBES 是混合面清单：多数锚留在入口，而
      *   `numOr(config.diaryEveryFloors, 3)` 的真源已随 DiarySystem 外迁。
      *   逐锚按「真源所在面」取值（任一面在场即算消费点在场），不再一律读 src。 */
     /* [v3.264.0 A1 第五刀] `numOr(cfg.vectorChunkOverlap, 10)`（VectorStore 分块）已随 VectorStore 外移 memory-organs.js。 */
-    for (const p of PROBES) assert.ok(faceText.includes(p), 'consumption site present: ' + p);
+    for (const p of PROBES) assert.ok((p instanceof RegExp) ? p.test(faceText) : faceText.includes(p), 'consumption site present: ' + p);
 });
 test('[1e] vectorChunkSize was not widened (it is not a min=0 key)', () => {
     assert.ok(allSrc.includes('Number(cfg.vectorChunkSize) || 800'), 'chunkSize keeps its original form（[v3.264.0] 已随 VectorStore 外移）');
@@ -395,7 +433,7 @@ test('[6b] the engine accumulates both counters instead of dropping them', () =>
     assert.strictEqual(countOf(src, '_recallArtifactEvictions = { byAge: 0, byCap: 0, lastFloor: null, lastRemoved: 0, lastAt: 0 };'), 3, 'declared once and reset in both cleanup paths');
 });
 test('[6c] the diagnostics panel surfaces the eviction ledger', () => {
-    assert.ok(src.includes('const _ev = this._recallArtifactEvictions || {};'), 'ledger read in the panel');
+    assert.ok(/const _ev = (?:this|engine)\._recallArtifactEvictions \|\| \{\};/.test(src), 'ledger read in the panel');
     assert.ok(src.includes('本会话淘汰 '), 'panel line present and scoped to the session');
     assert.ok(src.includes('老化 ${_evAge} / 超容量 ${_evCap}'), 'panel splits age vs cap');
     assert.ok(src.includes('最近一次在第 '), 'panel reports the last eviction floor');

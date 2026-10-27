@@ -24,9 +24,45 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { braceMatch } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const ROOT = new URL('..', import.meta.url).pathname;
 const require_ = createRequire(import.meta.url);
-const rawRaw = readFileSync(ROOT + 'index.js', 'utf-8');
+const rawRaw = __hostSurface();
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
@@ -52,12 +88,24 @@ function extractMethod(src, needle) {
 // harness：从 index.js 提取真实方法体，注入假 engine/依赖，真跑。
 //   「假读数防不住」的形态是运行期行为，只有真跑才验得了三态。
 const d1 = (() => {
-    const method = extractMethod(raw, '_emotionOppositeLine() {');
+    /* [v3.421.0] 实现已外提到 engine-diagnostic-lines.js，且那边形参就叫 engine
+     *   （`function _emotionOppositeLine(engine) {`），入口只剩一行 `this` 形态的委派桩。
+     *   抽取面故**先**命中模块面的真实现，桩只当退路（桩被剥到了扫描面尾部，正常抽不到）；
+     *   调用形态随之分叉：模块面是裸函数、桩是挂 this 的方法 —— 源码同一份，判据不动。 */
+    const method = extractMethod(raw, 'function _emotionOppositeLine(engine) {')
+        || extractMethod(raw, '_emotionOppositeLine() {');
     assert.ok(method, '必须定位到 _emotionOppositeLine 方法体（结构漂移）');
+    const isModule = method.startsWith('function ');
     const make = (np, broken) => {
+        const src = broken || method;
         const factory = new Function('NP', 'errLog',
-            'const _emotionOppositeLib = () => NP;\nconst obj = { ' + (broken || method) + ' };\nreturn obj._emotionOppositeLine;');
-        return factory(np, () => {});
+            'const _emotionOppositeLib = () => NP;\n'
+            + (isModule
+                ? src.replace(/^function _emotionOppositeLine/, 'function _eol') + '\nreturn _eol;'
+                : 'const obj = { ' + src + ' };\nreturn obj._emotionOppositeLine;'));
+        const fn = factory(np, () => {});
+        // 统一成「收一个 engine」的调用形态：模块面直接传形参，桩则绑到 this。
+        return isModule ? (eng) => fn(eng) : (eng) => fn.call(eng);
     };
     return { method, make };
 })();
@@ -69,21 +117,21 @@ const d1Engine = (over) => Object.assign({
 }, over || {});
 
 test('v3201 1. D1 三态：账本缺席 → 待账本（不是编 0）', () => {
-    const s = d1.make(NP).call(d1Engine({ _lastCostLedger: null }));
+    const s = d1.make(NP)(d1Engine({ _lastCostLedger: null }));
     assert.ok(s.includes('真进注入 待账本'), '账本未生成时必须报「待账本」：' + s);
     assert.ok(!/真进注入 0\//.test(s), '不得把「账本缺席」写成 0/N：' + s);
 });
 test('v3201 2. D1 三态：measurable=false → 不可测（不写 0/N）', () => {
-    const s = d1.make(NP).call(d1Engine({ _lastCostLedger: { opposite: { measurable: false, injectedEstimate: null, promotedCount: 2 } } }));
+    const s = d1.make(NP)(d1Engine({ _lastCostLedger: { opposite: { measurable: false, injectedEstimate: null, promotedCount: 2 } } }));
     assert.ok(s.includes('真进注入 不可测'), '不可测的读数必须写「不可测」：' + s);
     assert.ok(!s.includes('0/2'), '不得把不可测写成 0/2：' + s);
 });
 test('v3201 3. D1 三态：可测 → X/Y 真读数', () => {
-    const s = d1.make(NP).call(d1Engine({ _lastCostLedger: { opposite: { measurable: true, injectedEstimate: 1, promotedCount: 2 } } }));
+    const s = d1.make(NP)(d1Engine({ _lastCostLedger: { opposite: { measurable: true, injectedEstimate: 1, promotedCount: 2 } } }));
     assert.ok(s.includes('真进注入 1/2 条'), '可测时必须报真读数：' + s);
 });
 test('v3201 4. D1 既有读数不缩水：主导维/提数/轮数/提权/扫描数仍在场', () => {
-    const s = d1.make(NP).call(d1Engine({ _lastCostLedger: { opposite: { measurable: true, injectedEstimate: 2, promotedCount: 2 } } }));
+    const s = d1.make(NP)(d1Engine({ _lastCostLedger: { opposite: { measurable: true, injectedEstimate: 2, promotedCount: 2 } } }));
     for (const [label, needle] of [
         ['主导维', '悲主导 → 本轮提 2 条'],
         ['生效轮数', '生效 2 轮'],
@@ -92,13 +140,13 @@ test('v3201 4. D1 既有读数不缩水：主导维/提数/轮数/提权/扫描�
     ]) assert.ok(s.includes(needle), '缺「' + label + '」：' + s);
 });
 test('v3201 5. D1 五态守门：未启用 / 模块未加载 / 无反向线索 仍可分辨', () => {
-    const off = d1.make(NP).call(d1Engine({ config: { config: { emotionOppositeRecall: false } } }));
+    const off = d1.make(NP)(d1Engine({ config: { config: { emotionOppositeRecall: false } } }));
     assert.equal(off, '未启用（默认关）', '未启用态');
-    const noMod = d1.make(null).call(d1Engine());
+    const noMod = d1.make(null)(d1Engine());
     assert.ok(noMod.includes('模块未加载'), '模块缺席态：' + noMod);
-    const noLead = d1.make(NP).call(d1Engine({ _emoOppositeRead: { reason: 'no-emotion', dominant: '—' } }));
+    const noLead = d1.make(NP)(d1Engine({ _emoOppositeRead: { reason: 'no-emotion', dominant: '—' } }));
     assert.ok(noLead.includes('无反向线索') && noLead.includes('无情绪词'), '无线索态须带成因：' + noLead);
-    const empty = d1.make(NP).call(d1Engine({ _emoOppositeRead: { reason: 'empty', dominant: null } }));
+    const empty = d1.make(NP)(d1Engine({ _emoOppositeRead: { reason: 'empty', dominant: null } }));
     assert.ok(empty.includes('无查询文本或无候选'), 'empty 与 no-emotion 不得同形：' + empty);
 });
 test('v3201 6. D1 负控制：抽掉 measurable 分支 → 「不可测」判据转红', () => {
@@ -106,12 +154,13 @@ test('v3201 6. D1 负控制：抽掉 measurable 分支 → 「不可测」判据
     const hits = d1.method.split(anchor).length - 1;
     assert.equal(hits, 1, '锚点恰中 1 次');
     const broken = d1.method.replace(anchor, 'false');
-    const s = d1.make(NP, broken).call(d1Engine({ _lastCostLedger: { opposite: { measurable: false, injectedEstimate: null, promotedCount: 2 } } }));
+    const s = d1.make(NP, broken)(d1Engine({ _lastCostLedger: { opposite: { measurable: false, injectedEstimate: null, promotedCount: 2 } } }));
     assert.ok(!s.includes('不可测'), '破坏后必须不再报「不可测」（判据转红）：' + s);
     assert.ok(s.includes('0/2'), '破坏后暴露为假 0——这正是本版要防的形态：' + s);
 });
 test('v3201 6b. D1 静态：诊断行真消费账本对象（非另算一遍）', () => {
-    assert.ok(d1.method.includes('this._lastCostLedger && this._lastCostLedger.opposite'), '必须读账本对象');
+    // 模块面读的是形参 engine、桩读的是 this —— 两种持有者形态都算「真读了账本对象」。
+    assert.ok(/(?:this|engine)\._lastCostLedger && (?:this|engine)\._lastCostLedger\.opposite/.test(d1.method), '必须读账本对象');
     assert.ok(d1.method.includes("'待账本'"), '三态之一在场');
     assert.ok(d1.method.includes("'不可测'"), '三态之二在场');
     assert.ok(d1.method.includes('Number(_iop.injectedEstimate) || 0}'), '三态之三在场（X/Y 条）');
@@ -226,7 +275,8 @@ test('v3201 15. D2 双口径提取在场：正文标签 end 优先', () => {
 /* ══════════════ 4. D3 queryText 残留复核 ══════════════ */
 test('v3201 16. D3 queryText 残留复核：坏字面量零出现、好调用恰一次', () => {
     assert.equal(raw.split('intentRerank(merged, queryText);').length - 1, 0, '坏形态零出现（本版零改动，复核无回归）');
-    assert.equal(raw.split('this.intentRerank(merged, query.text);').length - 1, 1, '好形态恰好一次');
+    // [v3.421.0] 调用点已随 rec.php 外提到 engine-recall.js，持有者从 this 变 engine —— 两形态同认。
+    assert.equal((raw.match(/(?:this|engine)\.intentRerank\(merged, query\.text\);/g) || []).length, 1, '好形态恰好一次');
 });
 
 /* ══════════════ 5. 发布卫生 ══════════════ */

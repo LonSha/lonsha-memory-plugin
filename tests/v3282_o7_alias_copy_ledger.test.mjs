@@ -63,6 +63,42 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { breakSource, assertSingleHit } from './_break_kit.mjs';
 import { stripComments } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -84,10 +120,10 @@ const MIN_CLUSTERS = 6;
  * 名字互不相同 ⇒ 它天然是别名簇；同名簇归 v3280 / v3281。
  */
 const ALIAS_LEDGER = [
-    ['meth', ['_numOrNull', 'numOrNull'], ['index.js', 'snapshot-checkpoint.js'], 258, '2ea9877b'],
+    ['meth', ['_numOrNull', 'numOrNull'], ['engine-persistence-ops.js', 'snapshot-checkpoint.js'], 258, '2ea9877b'],
     ['fn', ['floorOrNull', 'toNum'], ['archive-shift.js', 'ledger-replay.js'], 208, 'b3a7cfaf'],
-    ['tab', ['RESIDENT_FALLBACK', 'RESIDENT_MARKERS'], ['cost-ledger.js', 'index.js'], 159, '61d3358a'],
-    ['tab', ['keys', 'pFields'], ['index.js', 'settings-ui.js'], 64, '0b16baa8'],
+    ['tab', ['RESIDENT_FALLBACK', 'RESIDENT_MARKERS'], ['cost-ledger.js', 'engine-injection-pipeline.js'], 159, '61d3358a'],
+    ['tab', ['keys', 'pFields'], ['engine-execution-pipeline.js', 'index.js', 'settings-ui.js'], 64, '0b16baa8'],
     ['fn', ['_trunc', 'truncateText'], ['ai-select.js', 'unified-recall.js'], 61, 'f7c9c6b4'],
     ['arr', ['_num', '_num0'], ['cost-forecast.js', 'projection-pipeline.js'], 60, '885d07fc'],
     ['fn', ['_text', 'txt'], ['sleep-awaken.js', 'world-ledger-reader.js'], 56, 'c590df35'],
@@ -97,7 +133,7 @@ const ALIAS_LEDGER = [
      *   正落入本档射程。★ 判据真抓到东西（B1 当场报「新增未登记的别名副本」），不是为过门禁而补登记。
      *   **为什么留多份**：两个新内核是零依赖纯函数 IIFE，档头声明不引兄弟模块常量（理由与既有
      *   PRECHECK/PREVIEW、keyOf/strOf 簇同族）—— 收拢即引入跨模块静默读旧值。 */
-    ['fn', ['normStr', 'str'], ['coverage-ledger.js', 'dual-time.js', 'experience-rebuild.js', 'recall-artifact.js', 'task-inbox.js'], 41, 'db249204'],
+    ['fn', ['normStr', 'safeStr', 'str'], ['batch-maintenance-pipeline.js', 'character-growth-drama.js', 'conflict-adjudication-bench.js', 'coverage-ledger.js', 'cross-project-migration-desk.js', 'dual-time.js', 'era-continuation-drama.js', 'evidence-solver.js', 'experience-rebuild.js', 'fact-correction-bench.js', 'generation-fact-receipt.js', 'generation-fact-replay.js', 'generation-memory-plan.js', 'meaning-map.js', 'memory-archaeology.js', 'memory-budget-orchestrator.js', 'memory-inbox.js', 'memory-readable-workbench.js', 'memory-ritual.js', 'memory-season.js', 'memory-symbiosis-bridge.js', 'memory-work-mode.js', 'perspective-preview.js', 'recall-artifact.js', 'recall-correction.js', 'recall-route-orchestrator.js', 'resolution-ladder.js', 'scene-orchestrator.js', 'secret-theater.js', 'task-inbox.js', 'temporal-validity-workflow.js'], 41, 'db249204'],
     /* X6/X7：同一个「预检三档」体在两个新模块里挂了两个名字 —— 名字不同，故三层按名配对的
      *   判据（v3280/v3281）整片看不见它，正落入本档射程。两模块刻意各持一份（见 v3281 同簇留痕）。 */
     /* [v3.327.0 · E 包记忆侧] lore-import.js / story-annual.js 各持一份与 X6/X7/X8 同形同值的
@@ -153,7 +189,6 @@ const ALIAS_LEDGER = [
      *   收拢会把「本模块自足」换成「依赖另一个模块先挂载」(本仓反过的跨模块静默读旧值)。
      *   ★ 本行是**当版自报**(与簇同批落盘、同批登记):体长/md5 由判据体在真磁盘上复算得出,
      *   非手抄。 */
-    ['fn', ['arr', 'arrOf'], ['condition-patch.js', 'world-ledger-reader.js'], 33, '6b39ffca'],
     /* [v3.350.0 · 预存补登] fact-state.js 的 STATES 与 material-pack.js 的 FACT_STATES
      *   是同体不同名的「事实五态」词表(Object.freeze(['active','superseded','revoked','disputed','unknown'])) ——
      *   名字不同,故按**名**配对的三层判据(v3280 / v3281)整片看不见它,正落入本档射程。
@@ -162,12 +197,25 @@ const ALIAS_LEDGER = [
      *   收拢会把「本模块自足」换成「依赖另一个模块先挂载」(本仓反过的跨模块静默读旧值)。
      *   ★ 预存问题补登(非本刀引入):v3.346.0 落盘 material-pack.js 时已存在,至 v3.350.0 全量回归时被本档抓到。 */
     ['tab', ['FACT_STATES', 'STATES'], ['fact-state.js', 'material-pack.js'], 56, 'eb79360e'],
+    /* ── [v3.421.0] 补登：以下簇由 v3.361.0–v3.421.0 连续新内核累积，
+     *   同一份通用原语被不同模块起了不同名（本档射程正是这种同体不同名）。
+     *   留多份的理由与既有各条同族：零依赖 IIFE 自持原语，收拢即让「本模块自足」
+     *   变成「依赖兄弟模块先挂载」。体长与 md5 由盘上实测枚举得出。 */
+    ['tab', ['STRENGTHS', 'TB_STRENGTH'], ['evidence-solver.js', 'testimony-board.js'], 34, '15138df4', '证词强度档词表。证词面与证据求解面同形同源，各自自持一份词表。'],
+    ['fn', ['num', 'safeNum'], ['generation-fact-receipt.js', 'generation-memory-plan.js', 'memory-inbox.js', 'memory-weather.js', 'retrieval-audit.js', 'temporal-validity-workflow.js'], 62, '35412d94', '数值兜底原语（非法 ⇒ 缺省，不编 0）。与 safeNum 簇同族，成员见上。'],
+    ['fn', ['_arr', 'arr', 'arrOf', 'safeArr'], ['batch-maintenance-pipeline.js', 'character-growth-drama.js', 'condition-patch.js', 'conditional-consequence.js', 'conflict-adjudication-bench.js', 'continuous-research.js', 'cross-project-migration-desk.js', 'era-continuation-drama.js', 'generation-fact-replay.js', 'institutional-memory.js', 'meaning-map.js', 'memory-archaeology.js', 'memory-budget-orchestrator.js', 'memory-readable-workbench.js', 'memory-ritual.js', 'memory-season.js', 'memory-work-mode.js', 'recall-route-orchestrator.js', 'secret-theater.js', 'temporal-validity-workflow.js', 'world-ledger-reader.js'], 33, '6b39ffca', '数组归一原语（非数组 ⇒ 空数组）。多模块同批落盘、各自自持，收拢即跨模块读旧值。'],
+    ['fn', ['_str', 'strOf'], ['autobiographical-memory.js', 'character-agency-contract.js', 'conditional-consequence.js', 'continuous-research.js', 'goal-reroute.js', 'goal-tracker.js', 'institutional-memory.js', 'relation-dynamics.js'], 43, 'ae1368bf', '文本化原语（缺省空串）。两人格制记忆面各自自持，装载时机互不包含。'],
+    ['fn', ['_num', 'numOr'], ['sleep-awaken.js', 'stm-close-quota.js'], 56, 'ee0d41d9', '数值兜底原语（缺省值必填）。睡眠唤醒面与 STM 截断配额面同批落盘、各自自持。'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */
 /* 取两条短而唯一的**声明行**做破坏坐标：体级多行锚点在真源里的缩进形态易漂（本轮已踩两次）。 */
 const A_NUM = 'function numOrNull(v) ';                                    // snapshot-checkpoint.js（fn）
-const A_NUM2 = '        _numOrNull(v) ';                                   // index.js（meth）
+/* 体十批外提后 `_numOrNull` 的实现已搬到 engine-persistence-ops.js、index.js 只剩一行同字面量的
+ *   委派桩（`_numOrNull(v) { const M = _moduleLib(…) }`）—— 故锚点改认**持有实现的那一侧**，
+ *   否则 `__hostSurface()` 合并面上恒中 2 次（E1 唯一性红），而破坏 index.js 的桩又不改体、
+ *   簇成员集合原地不动（C2 静默假绿）。 */
+const A_NUM2 = '        _numOrNull(v) ';                                   // engine-persistence-ops.js（meth，另一成员）
 const A_TO = '    function toNum(v) ';                                     // archive-shift.js（fn）
 const A_PF = "const pFields = ['gender'";                                  // settings-ui.js（tab）
 const A_SELF_LEN = 'assert.ok(self.length > 6000';
@@ -430,9 +478,9 @@ test('v3282 C1. ★★ 改「取值门」簇成员（snapshot-checkpoint.js 的 
     ok('改 snapshot-checkpoint.js 的 numOrNull ⇒ judge 翻红（该簇成员缩水）');
 });
 
-test('v3282 C2. ★★ 改另一族成员（index.js 的 _numOrNull / settings-ui.js 的 pFields）⇒ 同一条 judge 翻红', () => {
+test('v3282 C2. ★★ 改另一族成员（engine-persistence-ops.js 的 _numOrNull / archive-shift.js 的 toNum）⇒ 同一条 judge 翻红', () => {
     const mods = readAll();
-    mods['index.js'] = breakSource(mods['index.js'], A_NUM2, '        _numOrNullX(v) ', 'v3282_c2');
+    mods['engine-persistence-ops.js'] = breakSource(mods['engine-persistence-ops.js'], A_NUM2, '        _numOrNullX(v) ', 'v3282_c2');
     let problems = judge(mods, ALIAS_LEDGER);
     assert.ok(problems.some((p) => p.includes('_numOrNull')), '必须点名 _numOrNull：' + problems.join(' | '));
 
@@ -440,7 +488,7 @@ test('v3282 C2. ★★ 改另一族成员（index.js 的 _numOrNull / settings-u
     mods2['archive-shift.js'] = breakSource(mods2['archive-shift.js'], A_TO, '    function toNumX(v) ', 'v3282_c2b');
     problems = judge(mods2, ALIAS_LEDGER);
     assert.ok(problems.some((p) => p.includes('toNum')), '必须点名 toNum：' + problems.join(' | '));
-    ok('改 index.js 的 _numOrNull / archive-shift.js 的 toNum ⇒ judge 均翻红');
+    ok('改 engine-persistence-ops.js 的 _numOrNull / archive-shift.js 的 toNum ⇒ judge 均翻红');
 });
 
 test('v3282 C3. ★★ 凭空把同一段体抄到两个新名字下 ⇒ judge 点名「新增未登记别名簇」', () => {
@@ -483,7 +531,7 @@ test('v3282 E1. ★★ 判据纯度：破坏锚点字面量在本档各只声明
     }
     /* 坐标在各被破坏文件里唯一 —— E1 与 C1/C2/C3 用的是同一批常量，故下面也是那几段的定点证明。 */
     assertSingleHit(read('snapshot-checkpoint.js'), A_NUM, 'v3282_h1');
-    assertSingleHit(read('index.js'), A_NUM2, 'v3282_h2');
+    assertSingleHit(read('engine-persistence-ops.js'), A_NUM2, 'v3282_h2');
     assertSingleHit(read('archive-shift.js'), A_TO, 'v3282_h3');
     assertSingleHit(read('settings-ui.js'), A_PF, 'v3282_h4');
     ok('4 个破坏锚点字面量各只声明一次；4 个坐标在真源上各恰中一次');
@@ -491,8 +539,8 @@ test('v3282 E1. ★★ 判据纯度：破坏锚点字面量在本档各只声明
 
 /* ══════════════ F. 自防护 + 三源 + 当版锚点 ══════════════ */
 test('v3282 F1. ★ 自防护：登记表与判据自身不得被摘掉；O7 既有真源特征仍在场', () => {
-    assert.ok(read('index.js').includes('const VERSION = '), 'index.js 版本常量在场');
-    assert.ok(read('index.js').includes('rebindModuleDeps'), 'O7 第一批真源特征仍在场');
+    assert.ok(__hostSurface().includes('const VERSION = '), 'index.js 版本常量在场');
+    assert.ok(__hostSurface().includes('rebindModuleDeps'), 'O7 第一批真源特征仍在场');
     assert.ok(read('snapshot-checkpoint.js').includes('numOrNull'), '本档第一簇的真源成员仍在场');
     const self = read(SELF_REL);
     const selfLen = self.length;
@@ -508,7 +556,7 @@ test('v3282 F2. ★ 三源同源，且本档恰锚当版（供版本守卫 V4 �
     const SQ = String.fromCharCode(39);
     const vnum = (s) => String(s).split('.').map((x) => Number(x)).join('.');
     assert.equal(pkg, man, 'package.json 与 manifest.json 版本一致');
-    assert.ok(read('index.js').includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
+    assert.ok(__hostSurface().includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
     /* [v3.283.0 交棒] 本档写于 3.282.0；转下限锚：后续版本须 >= 它，不得把历史档锁成恰好等于当版。 */
     assert.ok(vnum(pkg) >= vnum('3.282.0'), '本档版本下界 3.282.0 不得被绕过（实 ' + pkg + '）');
     ok('三源同源；本档锚 v3.282.0');

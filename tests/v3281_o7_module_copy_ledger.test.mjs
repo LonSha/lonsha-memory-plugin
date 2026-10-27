@@ -61,6 +61,42 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { breakSource, assertSingleHit } from './_break_kit.mjs';
 import { stripComments } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -120,7 +156,7 @@ const LEDGER = [
         '名字/键归一（去首尾空白；非串给空串）。同上：刻意各持一份，收拢会引入跨模块静默读旧值。\n'
         + '★ **第三次补登（v3.313.0 轮）**：成员加 memory-package.js —— M-X8 自持一份（档头声明\n'
         + '与 X6/X7 同形同值），与「依赖模块先挂载」的静默读旧值形态同族，故不合并；体 md5 未变。'],
-    ['numOrNull', ['evidence-query.js', 'fact-lifecycle.js', 'memory-center.js', 'memory-package.js', 'memory-tools-api.js', 'qa-thread.js', 'repair-settle.js'], 'fe297bb9',
+    ['numOrNull', ['evidence-query.js', 'evidence-solver.js', 'fact-lifecycle.js', 'memory-center.js', 'memory-package.js', 'memory-tools-api.js', 'qa-thread.js', 'repair-settle.js', 'resolution-ladder.js', 'scene-orchestrator.js'], 'fe297bb9',
         '数值归一（没给 ⇒ null；布尔/对象/函数 ⇒ null，不拿 0 冒充「就是 0」）。\n'
         + '**为什么留两份**：与 text 簇同族 —— 它是**通用数值原语**，不是账本条目结构的取值代码。\n'
         + '两模块的装载时机与存活期互不包含（统一信封层可缺席而内核查询在，反之亦然），\n'
@@ -280,6 +316,25 @@ const LEDGER = [
         + '**为什么留三份**：与 text / oneLine / numOrNull 族同形 —— 通用文本原语,\\n'
         + '三模块装载时机互不包含(假设工作集可缺席而影响预览在,反之亦然)。\\n'
         + '★ **当版自报(v3.353.0 轮)**:三新模块同批落盘、同批登记,体 md5 由 v3281 B1 从盘上实测枚举得出。'],
+    /* ── [v3.421.0] 补登：以下 15 簇是 v3.361.0–v3.421.0 连续十余批新内核累积出来的，
+     *   台账长期没跟上（B1 一直在报）。体 md5 与成员集合全部由盘上实测枚举得出。
+     *   共同理由与既有各条同族：零依赖 IIFE 自持通用原语，收拢即让「本模块自足」
+     *   变成「依赖兄弟模块先挂载」—— 那正是本仓反过的跨模块静默读旧值形态。 */
+    ['_clone', ['conditional-consequence.js', 'continuous-research.js', 'institutional-memory.js'], '66b1b557', '深拷贝原语（JSON 往返 + 类型兜底）。三人格剧场面各自零依赖自持一份。'],
+    ['_evidenceQueryLib', ['engine-qa-tools.js', 'engine-repair-ops.js'], '808771e0', '取库口（证据查询面）。与 engine-repair-ops 同批外提，各自自持一份取库口。'],
+    ['_moduleLib', ['engine-qa-tools.js', 'engine-repair-ops.js'], '7d15b80f', '**外提批次的基础设施桩**：同批被拆出的 engine-*.js 各自要一份 `_moduleLib` 才能取库，而模块面拿不到宿主闭包 ⇒ 按先例自持。收拢会让每个 engine 模块都依赖某个兄弟模块先挂载。'],
+    ['_moduleLib', ['engine-execution-pipeline.js', 'engine-persistence-ops.js'], '827094c0', '**外提批次的基础设施桩**：同批被拆出的 engine-*.js 各自要一份 `_moduleLib` 才能取库，而模块面拿不到宿主闭包 ⇒ 按先例自持。收拢会让每个 engine 模块都依赖某个兄弟模块先挂载。'],
+    ['_s', ['recall-reinterpretation.js', 'symbolic-evolution.js'], 'f1010b60', '文本化原语（缺省空串）。召回重释面与符号演化面各自自持。'],
+    ['bindDeps', ['engine-execution-pipeline.js', 'engine-persistence-ops.js'], '83cac060', '同上的依赖绑定桩（`_moduleLib` 的成对件，绑 errLog/log/PLUGIN_NAME）。同族理由见上。'],
+    ['bindDeps', ['engine-qa-tools.js', 'engine-repair-ops.js', 'engine-story-annual.js'], 'ae725efd', '同上的依赖绑定桩（`_moduleLib` 的成对件，绑 errLog/log/PLUGIN_NAME）。同族理由见上。'],
+    ['clampStrength', ['strength-policy.js', 'strength-proposal.js'], '0c506089', '强度裁剪原语（夹在 0..1 并保底）。策略面与提案面同批落盘、各自自持。'],
+    ['cloneDeep', ['curated-exhibition-bench.js', 'memory-inspiration-desk.js', 'playable-archive-engine.js'], '42973229', '深拷贝原语（递归 + 环检测）。三人格剧场面装载时机互不包含，收拢即跨模块读旧值。'],
+    ['governanceOf', ['strength-policy.js', 'strength-proposal.js'], '73c714bf', '治理态取值口（按档位与读数给出治理结论）。与 clampStrength 同批同族。'],
+    ['normalizeCharName', ['engine-recall.js', 'memory-core.js'], '352d4488', '角色名归一（召回面要对角色名做与状态层同一套归一）。模块侧自足，不引兄弟模块。'],
+    ['safeNum', ['generation-fact-receipt.js', 'generation-memory-plan.js', 'memory-inbox.js', 'memory-weather.js', 'temporal-validity-workflow.js'], '35412d94', '数值兜底原语（非法 ⇒ 缺省，不拿 0 冒充「就是 0」；0 是合法楼层）。同族理由见上。'],
+    ['safeNum', ['lineage-heritage-tree.js', 'memory-maintenance-session.js', 'memory-migration-boundary.js', 'profile-dossier-view.js'], 'd8bcc558', '数值兜底原语（非法 ⇒ 缺省，不拿 0 冒充「就是 0」；0 是合法楼层）。同族理由见上。'],
+    ['safeStr', ['bounded-interview.js', 'collective-memory-deliberation.js', 'curated-exhibition-bench.js', 'lineage-heritage-tree.js', 'memory-inspiration-desk.js', 'oral-history-archive.js', 'playable-archive-engine.js', 'relationship-repair-theater.js', 'unfinished-pledge-theater.js'], '4a8e210d', '文本兜底原语（非串 ⇒ 空串）。第九批三人格剧场族九模块同批落盘、各自自持。'],
+    ['strList', ['evidence-solver.js', 'scene-orchestrator.js'], 'aaeaf29c', '字符串列表归一（逐项文本化 + 去重 + 上限截断）。两模块零依赖 IIFE，装载时机互不包含。'],
 ];
 
 /* ---- 破坏锚点（逐条取自真源，禁改；本档须逐字持有） ---- */
@@ -580,8 +635,8 @@ test('v3281 E1. ★★ 判据纯度：破坏锚点字面量在本档各只声明
 
 /* ══════════════ F. 自防护 + 三源 + 当版锚点 ══════════════ */
 test('v3281 F1. ★ 自防护：登记表与判据自身不得被摘掉；O7 既有真源特征仍在场', () => {
-    assert.ok(read('index.js').includes('const VERSION = '), 'index.js 版本常量在场');
-    assert.ok(read('index.js').includes('rebindModuleDeps'), 'O7 第一批真源特征仍在场');
+    assert.ok(__hostSurface().includes('const VERSION = '), 'index.js 版本常量在场');
+    assert.ok(__hostSurface().includes('rebindModuleDeps'), 'O7 第一批真源特征仍在场');
     assert.ok(read('ledger-entity.js').includes('账本实体契约'), '族 A 的现成载体（契约模块）仍在场');
     const self = read(SELF_REL);
     const selfLen = self.length;
@@ -598,7 +653,7 @@ test('v3281 F2. ★ 三源同源，且本档恰锚当版（供版本守卫 V4 �
     const SQ = String.fromCharCode(39);
     const vnum = (s) => String(s).split('.').map((x) => Number(x)).join('.');
     assert.equal(pkg, man, 'package.json 与 manifest.json 版本一致');
-    assert.ok(read('index.js').includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
+    assert.ok(__hostSurface().includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
     /* [v3.282.0 交棒] 本档写于 3.281.0；转下限锚：后续版本须 >= 它，不得把历史档锁成恰好等于当版。 */
     assert.ok(vnum(pkg) >= vnum('3.281.0'), '本档版本下界 3.281.0 不得被绕过（实 ' + pkg + '）');
     ok('三源同源；本档锚 v3.281.0');

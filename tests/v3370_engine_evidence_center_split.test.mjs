@@ -10,6 +10,42 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 const require_ = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -42,7 +78,7 @@ test('v3370 A1. engine-evidence-center.js 独立存在且在 manifest 登记恰�
     assert.ok(mf.extra_js.length >= 143, 'extra_js 当前总项数应 >= 143（本批 +1 后实 143）');
 });
 test('v3370 A2. 36 个委托桩与降级桩在 index.js 中存在且保持契约', () => {
-    const idx = read('index.js');
+    const idx = __hostSurface();
     /* ★ 判据必须判「委托桩形态」，不能只判名字出现：名字在装配点、诊断行、调用点都会出现，
      *   把桩改名后全文件仍能命中 ⇒ 恒绿（负控制当场抓出过这一形）。
      *   这里逐行取「宿主方法定义 + 取库口 + 透传」三件同时成立的行，再从行首提方法名。 */
@@ -72,7 +108,7 @@ test('v3370 A2. 36 个委托桩与降级桩在 index.js 中存在且保持契约
     assert.ok(idx.includes('LonShaEngineEvidenceCenter'), '委托桩必须引用 window.LonShaEngineEvidenceCenter');
 });
 test('v3370 A3. 方法体已真外移：index.js 不再持有 36 个方法体', () => {
-    const idx = read('index.js');
+    const idx = __hostSurface();
     /* 外移的判据不是「行数变少」，而是「方法体头不再以宿主方法形态出现在 index.js」。 */
     const leftovers = MOVED.filter((n) => idx.includes('        ' + n + '(host'));
     assert.deepEqual(leftovers, [], '这些方法体仍在 index.js（外移未完成）：' + leftovers.join(','));
@@ -91,18 +127,29 @@ test('v3370 A4. 模块导出健全：自述 + bindDeps + 36 个方法键', () =>
     assert.deepEqual(notExported, [], '这些方法未从模块导出：' + notExported.join(','));
 });
 test('v3370 A5. 宿主装配接线：_assembleComponents 中注入 EC.bindDeps', () => {
-    const idx = read('index.js');
+    const idx = __hostSurface();
     assert.ok(idx.includes('const EC = _moduleLib(() => window.LonShaEngineEvidenceCenter, "engine-evidence-center.js")'),
         '装配中须取 LonShaEngineEvidenceCenter');
     assert.ok(idx.includes('EC.bindDeps({'), '装配中必须调用 EC.bindDeps');
 });
 test('v3370 A6. 六源同源版本锚', () => {
     const BORN_V = '3.370.0';
-    assert.equal(vnum(BORN_V), 3370000, '当版数值锚');
-    const mf = JSON.parse(read('manifest.json'));
-    assert.equal(mf.version, BORN_V, 'manifest 版本');
-    const pkg = JSON.parse(read('package.json'));
-    assert.equal(pkg.version, BORN_V, 'package.json 版本');
+    assert.equal(vnum(BORN_V), 3370000, '出生版本数值锚（本条不随抬版上抬）');
+    /* ★ 六源同源：判「各源与 index.js 的 VERSION 常量逐字相同」，不是「等于出生版本」。
+     *   修前写成 `=== BORN_V`，抬到 v3.421.0 后 manifest / package 双双假红 ——
+     *   名字叫同源、实现却绑出生版本，是本档的真缺陷。出生版本只保留两处用途：
+     *   上面的 vnum 自检、下面的「运行版本不得低于出生版本」下界（与 v3298 E5 同形）。 */
+    const idxSrc = __hostSurface();
+    const idxVer = (/const VERSION = '([0-9.]+)'/.exec(idxSrc) || [])[1];
+    assert.ok(idxVer, 'index.js 必须有 VERSION 常量');
+    assert.ok(vnum(idxVer) >= vnum(BORN_V), '运行版本不得低于本档出生版本 ' + BORN_V + '，实 ' + idxVer);
+    assert.equal(JSON.parse(read('manifest.json')).version, idxVer, 'manifest.json 与 index.js 版本必须同源');
+    assert.equal(JSON.parse(read('package.json')).version, idxVer, 'package.json 与 index.js 版本必须同源');
+    for (const f of ['memory-config.js', 'memory-core.js', 'memory-organs.js']) {
+        const m = /let VERSION = '([0-9.]+)'/.exec(read(f));
+        assert.ok(m, f + ' 应有 `let VERSION` 副本');
+        assert.equal(m[1], idxVer, f + ' 的版本副本必须与 index.js 同源');
+    }
 });
 test('v3370 B1. 模块在 Node 环境下真加载并具备导出形态', () => {
     const mod = require_(path.join(ROOT, EC_FILE));
@@ -132,7 +179,7 @@ test('v3370 B2. 降级安全回执契约：_evidenceCenterAbsent 保护机制', 
     assert.ok(rep.reason.includes(EC_FILE));
 });
 test('v3370 B3. 模块缺席时宿主走降级而不是抛：委托桩的 absent 分支真被执行', () => {
-    const idx = read('index.js');
+    const idx = __hostSurface();
     /* 取一个委托桩的真源码，在无模块环境下跑：必须落到 _evidenceCenterAbsent，不得抛。 */
     const at = idx.indexOf('searchEvidenceStructured(spec, opts) {');
     assert.ok(at > 0, '委托桩切片点必须在场');

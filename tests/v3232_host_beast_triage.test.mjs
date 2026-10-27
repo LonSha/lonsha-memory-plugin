@@ -28,6 +28,42 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw, HOST_MODULES } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -37,7 +73,7 @@ const PROBE = path.join(AUDIT, 'host_beast_probe.cjs');
 const read = (p) => fs.readFileSync(p, 'utf8');
 const base = JSON.parse(read(BASE));
 const probeSrc = read(PROBE);
-const IDX_SRC = read(path.join(ROOT, 'index.js'));
+const IDX_SRC = __hostSurface();
 
 /** 真跑探针（每套件一次，多组判据复用同一份输出） */
 function runProbe() {
@@ -65,6 +101,15 @@ function assertProbeNumbers(r) {
     /* 成员切分必须落在合理量级（首版切出 4 个 —— 那是把 if / const 当成了方法） */
     assert.ok(r.member_count > 100 && r.member_count < 5000, '成员数须落在合理量级，实测 ' + r.member_count);
     assert.ok(r.total_lines > 10000, 'index.js 行数须 > 10000，实测 ' + r.total_lines);
+    /* ★ [v3.421.0] 面覆盖：宿主面的**每个文件**都必须切出成员。
+     *   这一条才是「单一缩进档」真正要防的形态 —— 外提模块把原方法体整段搬过来，
+     *   签名与体内语句同缩进（engine-self-check.js 签名 8 行号 / 体内也 8），
+     *   只认 8 空格时那 12 个模块里 11 个整段被吞进上一个成员（实测各切出 0 个成员）。 */
+    const zeroFaces = r.surface_files.filter((f) => !(r.members_by_file[f] > 0));
+    assert.deepEqual(zeroFaces, [], '★ 宿主面每个文件都必须切出成员（否则该面整段被吞）：' + zeroFaces.join(', '));
+    /* ★ 两个面必须分开报：入口（行预算守的）与合并面（成员占比分母）。 */
+    assert.equal(r.total_lines, r.entry_lines, 'total_lines 必须保持入口语义（行上界预算守的就是入口文件）');
+    assert.ok(r.surface_lines >= r.entry_lines, '合并面行数不得小于入口，实测 ' + r.surface_lines + ' vs ' + r.entry_lines);
     /* TOP40 逐条可读且行数单调不增 */
     assert.equal(r.biggest_members.length, 40, 'TOP40 必须给满 40 条');
     for (let i = 1; i < r.biggest_members.length; i++) {
@@ -73,9 +118,12 @@ function assertProbeNumbers(r) {
     /* 缝合模块接线面不得是假零（首版因匹配形状错算出 0） */
     assert.ok(r.seam_modules.distinct_modules > 0, '★ 缝合模块数不得为 0（假零）');
     assert.ok(r.seam_modules.reference_sites > 0, '★ 引用点数不得为 0（假零）');
-    /* 域账必须自洽：各域行数之和不得超过文件总行数 */
+    /* 域账必须自洽：各域行数之和不得超过**成员所属的那个面**的行数。
+     *   ★ [v3.421.0 修] 原文比的是 r.total_lines（入口）—— 域账是在合并面上分的，
+     *   拿入口行数当上限会算出「147%」的假红（实测各域之和 27467 vs 入口 11696）。 */
     const sumDomains = r.domains.reduce((a, d) => a + d.lines, 0);
-    assert.ok(sumDomains <= r.total_lines, '各域行数之和不得超过总行数（' + sumDomains + ' vs ' + r.total_lines + '）');
+    assert.ok(sumDomains <= r.surface_lines,
+        '各域行数之和不得超过合并面行数（' + sumDomains + ' vs ' + r.surface_lines + '）');
 }
 
 function assertVerdict(b) {
@@ -110,7 +158,12 @@ test('v3232 A2. ★★★ 口径必须写明「只量不拆」与「读数零手
 });
 
 test('v3232 A3. ★★★ 形状读数自洽：TOP5 / TOP40 / 前缀覆盖率与明细一致', () => {
-    const t = R.total_lines;
+    /* ★ [v3.421.0 修] 原文 `const t = R.total_lines` —— 探针只量入口时两个面同源，看不出问题；
+     *   改读宿主面之后 TOP40 里绝大多数成员住在外提模块，拿入口行数当分母会算出 107%
+     *   （占比超过 100% 的读数）。分母必须跟着成员走 ⇒ 用 surface_lines。
+     *   同时把「入口面仍然只守入口」这条留住（total_lines === entry_lines 由 C2 把守）。 */
+    const t = R.surface_lines;
+    assert.ok(t > R.total_lines, '形状分母须是合并面（成员所属的面），实测 ' + t + ' vs 入口 ' + R.total_lines);
     assert.equal(R.top5_lines, base.biggest_members_top40.slice(0, 5).reduce((a, x) => a + x.lines, 0), 'TOP5 行数须与明细一致');
     assert.equal(R.top40_lines, base.biggest_members_top40.reduce((a, x) => a + x.lines, 0), 'TOP40 行数须与明细一致');
     const classified = base.domains.filter((d) => d.domain !== '（未归类）').reduce((a, d) => a + d.lines, 0);
@@ -123,9 +176,17 @@ test('v3232 A3. ★★★ 形状读数自洽：TOP5 / TOP40 / 前缀覆盖率与
 });
 
 /* ══════════ B 探针口径自证 ══════════ */
-test('v3232 B1. ★★★ 成员切分必须按 8 空格并排除控制流关键字（首版按 4 空格切出 4 个方法）', () => {
-    assert.match(probeSrc, /const MEMBER_RE = \/\^ \{8\}/, '必须按 8 空格切分');
-    assert.match(probeSrc, /if \(\/\^\(if\|for\|while\|switch\|catch/, '必须显式排除控制流关键字');
+test('v3232 B1. ★★★ 成员切分必须双档并存 + 按父容器判层级（首版单一缩进档切出 4 个方法 / 后续各版都被真读数打回）', () => {
+    /* 源码面：两档签名正则都必须在 —— 入口类体成员 8 空格、外提模块成员 4 空格。
+     *   ★ 本条原文是「必须按 8 空格切分」（`const MEMBER_RE = /^ {8}/`）。宿主面外提之后
+     *   它是**双档**的：模块是把原方法体整段搬过来的搬运体，签名与体内语句同缩进，
+     *   只认 8 就会把模块面整段吞掉（12 个模块里 11 个切出 0 个成员）。
+     *   而「按缩进切」这件事本身已被真读数否掉四次（记载在基线的 corrections 里），
+     *   故判据同时要求「按父容器」这条结构判据在场。 */
+    assert.match(probeSrc, /const SIG4 = sigRe\(4\), SIG8 = sigRe\(8\);/, '必须双档并存：入口类体 8 空格 + 外提模块 4 空格');
+    assert.match(probeSrc, /!stack\[stack\.length - 1\]\.isMember/, '必须按「父容器本身是成员就不算成员」判层级（嵌套闭包内的同名不算）');
+    assert.match(probeSrc, /stack\[stack\.length - 1\]\.depth === depth - 1/, '签名必须挂在直接父容器上（不数缩进、不猜层级）');
+    assert.match(probeSrc, /const CTL = \/\^\(if\|for\|while\|switch\|catch/, '必须显式排除控制流关键字（具名表 + CTL.test 双档共用）');
     /* 行为面：切出来的成员名里不得混进控制流词 */
     const bad = rep.biggest_members.filter((m) => /^(if|for|while|switch|catch|return|typeof|function)$/.test(m.name));
     assert.deepEqual(bad, [], '成员名里不得混进控制流关键字');
@@ -174,8 +235,18 @@ test('v3232 C1. ★★★ 真跑探针：TOP40 逐条在场（本版起不再锁
 });
 
 test('v3232 C2. ★★★ index.js 的真实规模必须被分诊（不许基线在一个不存在的文件上成立）', () => {
-    const idxLines = IDX_SRC.split('\n').length;
-    assert.equal(rep.total_lines, idxLines, '★ 探针读的必须就是真 index.js（实测 ' + rep.total_lines + ' vs ' + idxLines + '）');
+    /* ★ [v3.421.0 修] 原文是 `const idxLines = IDX_SRC.split('\n').length` 再拿 rep.total_lines 比它 ——
+     *   这条在探针改成读宿主面之后成了**假红**：IDX_SRC 是合并面（约 2.8 万行），
+     *   而 rep.total_lines 守的是入口（1.1 万行）。两个面各自对各自的真源，
+     *   「探针读的就是真源码」这条命题才被证明（否则它在两个不同文件上各自成立）。
+     *   · 入口面：rep.entry_lines === 真 index.js 物理行数（行上界预算守这个数）
+     *   · 合并面：rep.surface_lines === 判据侧 hostSurface 的合并文本行数 */
+    const idxLines = read(path.join(ROOT, 'index.js')).split('\n').length;
+    assert.equal(rep.entry_lines, idxLines, '★ 探针的入口行数必须就是真 index.js（实测 ' + rep.entry_lines + ' vs ' + idxLines + '）');
+    assert.equal(rep.surface_lines, IDX_SRC.split('\n').length,
+        '★ 合并面行数须与判据侧 hostSurface 逐行一致（实测 ' + rep.surface_lines + ' vs ' + IDX_SRC.split('\n').length + '）');
+    assert.ok(rep.surface_lines > rep.entry_lines * 1.5,
+        '合并面须显著大于入口（否则外提模块没被算进来）：' + rep.surface_lines + ' vs ' + rep.entry_lines);
     /* [v3.264.0 交棒] 原句是「> 16000」（v3.231.0 的当版量级）；A1 连剥五刀后它失效，而「仍是巨兽」这个命题本身仍真（仍占全仓四成以上）。
      *   下界改为「A1 首刀后的真读数不得回涨到剥前水平」—— 它才是不随抬版失效的不变量。 */
     assert.ok(idxLines > 10000, 'index.js 须仍在巨兽量级（> 10000），实测 ' + idxLines);
@@ -219,8 +290,19 @@ test('v3232 D1. ★★★ 「不拆」必须挂在读数上，且算术可复算
      *   生命周期入口退居第二(1363 行 / 外部引用 2)—— 两者都搬不动,命题仍真。
      *   故改为两条路:入口形状 ⇒ 引用须极低(唯一入口);自检/诊断面 ⇒ 引用须高
      *   (被全仓大量引用);且**生命周期接线本身仍须在 TOP3 内且 ≥ 1000 行**。 */
-    const _lcTop3 = rep.biggest_members.slice(0, 3).find((m) => /^on/.test(m.name));
-    assert.ok(_lcTop3 && _lcTop3.lines >= 1000, '★ 生命周期接线仍须在 TOP3 内且 ≥ 1000 行');
+    /* ★ [v3.421.0 交棒] 原文是「生命周期接线仍须在 TOP3 内且**单成员** ≥ 1000 行」——
+     *   那是 v3.345.0 当版的单成员读数（当时 onMessageReceived 在入口里 1217 行）。
+     *   宿主面外提之后入口最长的 on* 只剩 onBeforeGeneration 565 行，「单成员 ≥1000」不再成立；
+     *   而这条要守的命题（生命周期接线本身仍是巨兽的一大块、且搬不动）依然真 ——
+     *   故改**合计口径**：入口的三个生命周期入口（onBeforeGeneration / registerEvents /
+     *   onMessageReceived）合计须 ≥ 1000 行，且三个都还在 TOP40 内（不随抬版漂出边界）。 */
+    const _lcNames = ['onBeforeGeneration', 'registerEvents', 'onMessageReceived'];
+    const _lcHit = _lcNames.map((n) => rep.biggest_members.find((m) => m.name === n && m.file === 'index.js'));
+    assert.deepEqual(_lcHit.map((x) => !!x), [true, true, true],
+        '★ 三个生命周期入口都须在 TOP40 内（是否有成员被搬走 / 改名）');
+    const _lcSum = _lcHit.reduce((a, m) => a + m.lines, 0);
+    assert.ok(_lcSum >= 1000, '★ 生命周期接线合计仍须 ≥ 1000 行，实测 ' + _lcSum
+        + '（' + _lcHit.map((m) => m.name + ' ' + m.lines).join(' / ') + '）');
     assert.ok(top1.lines >= 1000, '最大成员须 ≥ 1000 行，实测 ' + top1.lines);
     /* 读数据点 2：该成员的外部引用数极低 —— 这正是「低引用 ≠ 低耦合」的证据 */
     const _loRefs = (top1.outside_refs == null) ? 0 : top1.outside_refs;
@@ -266,7 +348,15 @@ function withBrokenProbe(mutate, fn) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3232-neg-'));
     try {
         fs.mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
-        fs.writeFileSync(path.join(dir, 'index.js'), IDX_SRC);
+        /* ★ [v3.421.0] 镜像必须与真仓**同形**：探针改读宿主面之后会去读 tests/_audit_lib.mjs
+         *   的 HOST_MODULES 与那 12 个外提模块 —— 只写 index.js 的旧镜像会让探针在启动阶段
+         *   就抛（「取不到 HOST_MODULES」），于是「破坏副本跑不通」被错报成判据失效。
+         *   这里逐个复制真文件，探针在镜像里读到的面与真仓逐字节一致。 */
+        for (const f of ['index.js', 'tests/_audit_lib.mjs'].concat(HOST_MODULES)) {
+            const to = path.join(dir, f);
+            fs.mkdirSync(path.dirname(to), { recursive: true });
+            fs.copyFileSync(path.join(ROOT, f), to);
+        }
         const brokenSrc = mutate(probeSrc);
         assert.notEqual(brokenSrc, probeSrc, '破坏必须真发生');
         const p = path.join(dir, 'tests', 'audit', 'probe.cjs');
@@ -277,13 +367,17 @@ function withBrokenProbe(mutate, fn) {
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-test('v3232 N1. ★★★ 破坏「成员切分层级」（把 8 空格改回 4 空格）⇒ B1 同款判据必须转红', () => {
-    const anchor = 'const MEMBER_RE = /^ {8}';
+test('v3232 N1. ★★★ 破坏「双档切分」（把 4 空格那一档摘掉，只剩入口的 8 空格）⇒ B1 同款判据必须转红', () => {
+    /* 破坏面：`const m = (m8 && …) ? m8 : ((m4 && …) ? m4 : null)` → 只留 m8。
+     *   这才是本仓真实的失效形态（首版「按 4 空格切出 4 个方法」是同族反方向）：
+     *   外提模块的成员全在 4 空格，摘掉这一档 ⇒ 12 个模块里 11 个整段被吞。 */
+    const anchor = 'const m = (m8 && !CTL.test(m8[1])) ? m8 : ((m4 && !CTL.test(m4[1])) ? m4 : null);';
     assert.equal(probeSrc.split(anchor).length - 1, 1, '锚点须恰中 1 次');
-    withBrokenProbe((s) => s.replace(anchor, 'const MEMBER_RE = /^ {4}'), (got) => {
+    withBrokenProbe((s) => s.replace(anchor, 'const m = (m8 && !CTL.test(m8[1])) ? m8 : null;'), (got) => {
         assert.throws(() => assertProbeNumbers(got), isAssertionFailure,
-            'B1 同款判据在破坏副本上必须抛（4 空格把 if / const 当成了方法）');
-        assert.ok(got.member_count < 100, '（破坏已生效：切出 ' + got.member_count + ' 个成员）');
+            'B1 同款判据（面覆盖）在破坏副本上必须抛（4 空格那一档摘掉后模块面整段被吞）');
+        const _zero = got.surface_files.filter((f) => !(got.members_by_file[f] > 0));
+        assert.ok(_zero.length > 0, '（破坏已生效：' + _zero.length + ' 个面切出 0 个成员，如 ' + _zero[0] + '）');
     });
 });
 

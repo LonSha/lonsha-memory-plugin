@@ -93,8 +93,14 @@ const ABS = /(?:^|[^A-Za-z0-9_$.])\/home\/|(?:^|[^A-Za-z0-9_$.])\/tmp\/|(?:^|[\s
  *   原因：正则字面量里的 `\/home\/` 属于「检测绝对路径」的词表，不是自己绑路径；
  *   把两者混为一谈会让守卫退化成「不准写检测词」。 */
 const ABS_STRICT = /(?:^|[^A-Za-z0-9_$.\\])\/(?:home|tmp)\//;
-/* 兄弟仓库标记 */
-const SIBLING = /ruby-phone-work|ruby-phone(?!-work)/;
+/* 兄弟仓库标记。
+ *   [v3.421.0] 必须排除仓内文件名 `ruby-phone-bidirectional-bridge.js` —— 它以 `ruby-phone-`
+ *   打头，原正则会把 `require('../ruby-phone-bidirectional-bridge.js')` 判成跨仓绑定。
+ *   该文件确在本仓根下（`ls ruby-phone-bidirectional-bridge.js` 有），是六源之一，
+ *   故不是「兄弟树不存在就必红」的对象；而真兄弟树的引用形态是 `ruby-phone/…`（目录）
+ *   与历史树 `ruby-phone-work`，两者仍全部在面内。
+ *   注意别顺手放宽成 `ruby-phone(?!-)`：`ruby-phone/` 后面就是 `/`，那样会把真兄弟树放过。 */
+const SIBLING = /ruby-phone-work|ruby-phone(?!-work|-bidirectional-bridge)/;
 /* 逃出本仓的相对读取：../.. 及以上，且目标不是 tests/ 内（测试本来就可引 ../index.js） */
 const ESCAPE = /['"`]\.\.\/\.\.[^'"`]*['"`]/;
 

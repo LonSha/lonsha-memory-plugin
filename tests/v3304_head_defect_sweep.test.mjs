@@ -37,10 +37,46 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
-const IDX = read('index.js');
+const IDX = __hostSurface();
 const SUI = read('settings-ui.js');
 const CUR = (/const VERSION = '([0-9.]+)'/.exec(IDX) || [])[1];
 
@@ -87,10 +123,10 @@ test('B1 判据缺陷②：破坏「构造器注入」必须让三面门转红�
     /* 夹具必须铺**完整输入面**：门在缺件时 fail-closed exit 2，而那证明的是「输入面缺失」
      *   不是「判据会响」（本仓登记过的踩坑）。故逐项复制门真正会读的那批文件。 */
     const dir = scratch('b1');
-    /* 清单与负控制门自身的 GAUGED 逐字同形（floor-identity / age-anchor / public-interface /
-     *   index.js / memory-core.js）—— 加内存面是**输入面缺失会 fail-closed**，多复制无害。 */
-    const NEED = ['floor-ledger.js', 'age-anchor.js', 'public-interface.js', 'index.js',
-        'memory-core.js', 'memory-config.js', 'manifest.json', 'engine-diagnostic-lines.js', 'engine-recall.js'];
+    /* [v3.421.0] 输入面不再手抄清单：门走 hostSurface 合看面，缺任一 engine-*.js 都会
+     *   「结构漂移 exit 2」。手抄的 NEED 在十批外提之后必然过期（本次就是这么红的），
+     *   故把仓根真 *.js / *.json 全数铺过去 —— 多复制无害，缺件才是假红来源。 */
+    const NEED = fs.readdirSync(REPO).filter((f) => /\.(js|json)$/.test(f));
     for (const f of NEED) {
         const src = path.join(REPO, f);
         assert.ok(fs.existsSync(src), '夹具输入面缺件（门会 fail-closed，测的不是判据）：' + f);
@@ -119,7 +155,9 @@ test('B2 判据缺陷②的负控制自身仍成立：真实源码上三面门�
 test('B3 登记面⑤：基线 measured_at 与当版同源，行数等于真 index.js', () => {
     const b = JSON.parse(read('tests/audit/host_beast_baseline.json'));
     assert.equal(b.measured_at, 'v' + CUR, '基线当版读数必须与真源同源（本版修的陈旧登记）');
-    assert.equal(b.readings.total_lines, IDX.split('\n').length, '基线行数必须等于真 index.js 行数');
+    /* 基线记的是**入口单文件**行数；IDX 是 hostSurface 的合并面（含全部模块），
+     *   用 IDX 计行等于拿合并面去比入口读数。这里读真 index.js 原文。 */
+    assert.equal(b.readings.total_lines, read('index.js').split('\n').length, '基线行数必须等于真 index.js 行数');
     assert.ok(b.rebuilds[b.measured_at], '当版必须在 rebuilds 面留读数');
     assert.equal(b.rebuilds[b.measured_at].readings.total_lines, b.readings.total_lines, 'rebuilds 与 readings 同读数');
 });

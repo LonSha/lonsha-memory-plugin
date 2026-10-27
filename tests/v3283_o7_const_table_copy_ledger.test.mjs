@@ -17,7 +17,7 @@
 //     「减少实际重复实现」的反面 —— 重复实现没人守，就是两份会各自腐化的真源。
 //
 //   【本档登记（6 对同名常量表，实测值逐字相同；v3.293.0 口径，X6/X7 补 2 对）】
-//     ARCHIVE_TOP_LEVEL_KEYS   index.js ↔ memory-organs.js   694 字符  md5 3b37d478（v3.342.0 M4-X3 增 canonAdoption；上一刀为 677 / 36a755a4）
+//     ARCHIVE_TOP_LEVEL_KEYS   engine-persistence-ops.js ↔ memory-organs.js   694 字符  md5 3b37d478（v3.342.0 M4-X3 增 canonAdoption；宿主份随十二批外提独自演化为 842/a30dc8d4 单文件体，不再逐字成对）
 //     RELATION_CONFLICT_GROUPS index.js ↔ memory-core.js     134       md5 a2700f54
 //     STORAGE_FP_FIELDS        index.js ↔ memory-organs.js    65       md5 70a8fcd9
 //     FACES                    branch-semantics.js ↔ volume-continuation.js   67  md5 997c2e8b
@@ -55,6 +55,42 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { breakSource, assertSingleHit } from './_break_kit.mjs';
 import { stripComments } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -78,7 +114,7 @@ const MIN_PAIRS = 2;
  * 「看起来像同一张表、其实包了一层生命周期不同的写法」也能被点名。
  */
 const CONST_LEDGER = [
-    ['ARCHIVE_TOP_LEVEL_KEYS', ['index.js', 'memory-organs.js'], 694, '3b37d478', 'Object.freeze(['],
+    ['ARCHIVE_TOP_LEVEL_KEYS', ['engine-persistence-ops.js', 'memory-organs.js'], 694, '3b37d478', 'Object.freeze(['],
     ['RELATION_CONFLICT_GROUPS', ['index.js', 'memory-core.js'], 134, 'a2700f54', '['],
     ['STORAGE_FP_FIELDS', ['index.js', 'memory-organs.js'], 65, '70a8fcd9', '['],
     ['FACES', ['branch-semantics.js', 'memory-package.js', 'volume-continuation.js'], 67, '997c2e8b', 'Object.freeze(['],
@@ -139,6 +175,14 @@ const CONST_LEDGER = [
      *   两模块装载时机互不包含。
      *   ★ 本行是**当版自报**(与字典同批落盘、同批登记)。 */
     ['mutating', ['lore-crosscheck.js', 'material-pack.js'], 142, '9b130006', '['],
+    /* [宿主外提后补登记] 三个随十二批外提迁出的字面量副本，按仓内先例当版自报（len/md5/decl 与磁盘同源）：
+     *   · lease（变更租约戳）：三个引擎模块各持一份同形同值对象字面量；
+     *   · keys（主角面键名表）：补提取留在 engine-execution-pipeline.js，主提取留在 index.js；
+     *   · cnMonths（中文月表）：召回面外提到 engine-recall.js，入口留一份。
+     *   三者都是通用词表/字面量原语，模块零依赖自足 —— 与 FACES / PREVIEW / mutating 同族。 */
+    ['lease', ['engine-diagnostic-lines.js', 'engine-repair-ops.js', 'engine-story-annual.js'], 63, '1f1532f4', '{'],
+    ['keys', ['engine-execution-pipeline.js', 'index.js'], 64, '0b16baa8', '['],
+    ['cnMonths', ['engine-recall.js', 'index.js'], 61, '5d34e745', '['],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */
@@ -323,15 +367,15 @@ test('v3283 B2. ★★ 值级漂移可归因（点名是哪一对、差在哪一
 });
 
 /* ══════════════ C. 真源码破坏（三向） ══════════════ */
-test('v3283 C1. ★★ 改宿主侧成员（index.js 的 ARCHIVE_TOP_LEVEL_KEYS）⇒ 同一条 judge 翻红', () => {
+test('v3283 C1. ★★ 改登记对成员（engine-persistence-ops.js 的 ARCHIVE_TOP_LEVEL_KEYS）⇒ 同一条 judge 翻红', () => {
     /* 替换文本刻意**不包含** A_ARCHIVE 作为前缀：锚点无右边界，
      *   写成 `A_ARCHIVE + 后缀` 会让 `!includes(锚点)` 恒假，可观察性断言自相矛盾。 */
-    const broken = breakSource(read('index.js'), A_ARCHIVE,
+    const broken = breakSource(read('engine-persistence-ops.js'), A_ARCHIVE,
         'const ARCHIVE_TOP_LEVEL_KEYS_PROBE = Object.freeze([', 'v3283_c1a');
     assert.ok(broken.includes('ARCHIVE_TOP_LEVEL_KEYS_PROBE'), '破坏必须可观察（替换文本进场）');
     assert.equal(broken.includes(A_ARCHIVE), false, '破坏必须可观察（原锚点退出）');
     const mods = readAll();
-    mods['index.js'] = broken;
+    mods['engine-persistence-ops.js'] = broken;
     const problems = judge(mods, CONST_LEDGER);
     assert.ok(problems.some((p) => p.includes('ARCHIVE_TOP_LEVEL_KEYS')), '必须点名该常量：' + problems.join(' | '));
 
@@ -342,7 +386,7 @@ test('v3283 C1. ★★ 改宿主侧成员（index.js 的 ARCHIVE_TOP_LEVEL_KEYS�
     const problems2 = judge(mods2, CONST_LEDGER);
     assert.ok(problems2.some((p) => p.includes('ARCHIVE_TOP_LEVEL_KEYS')),
         '模块侧同一坐标也要翻红：' + problems2.join(' | '));
-    ok('改 index.js 或 memory-organs.js 的同形声明行 ⇒ judge 均翻红（该对成员缩水）');
+    ok('改 engine-persistence-ops.js 或 memory-organs.js 的同形声明行 ⇒ judge 均翻红（该对成员缩水）');
 });
 
 test('v3283 C2. ★★ 改模块侧成员（memory-core.js 的 RELATION_CONFLICT_GROUPS / memory-organs.js 的 STORAGE_FP_FIELDS）⇒ 翻红', () => {
@@ -362,13 +406,13 @@ test('v3283 C2. ★★ 改模块侧成员（memory-core.js 的 RELATION_CONFLICT
 
 test('v3283 C3. ★★ 把宿主侧那张表整体复制到本无该常量的模块 ⇒ judge 点名「新增未登记」', () => {
     const mods = readAll();
-    /* 取宿主真表整体（含 freeze 包装），整份复制进 age-anchor.js：名字与值都在，只是多了一处 */
-    const m = /const ARCHIVE_TOP_LEVEL_KEYS = Object\.freeze\(\[[\s\S]*?\]\);/.exec(read('index.js'));
-    assert.ok(m, '宿主侧 ARCHIVE_TOP_LEVEL_KEYS 必须存在（判据自身不得失效）');
+    /* 取登记对成员的真表整体（含 freeze 包装），整份复制进 age-anchor.js：名字与值都在，只是多了一处 */
+    const m = /const ARCHIVE_TOP_LEVEL_KEYS = Object\.freeze\(\[[\s\S]*?\]\);/.exec(read('engine-persistence-ops.js'));
+    assert.ok(m, '登记成员侧 ARCHIVE_TOP_LEVEL_KEYS 必须存在（判据自身不得失效）');
     mods['age-anchor.js'] = mods['age-anchor.js'] + String.fromCharCode(10) + m[0] + String.fromCharCode(10);
     const problems = judge(mods, CONST_LEDGER);
     assert.ok(problems.some((p) => p.includes('ARCHIVE_TOP_LEVEL_KEYS')), '必须点名该常量：' + problems.join(' | '));
-    ok('宿主表整份复制进 age-anchor.js ⇒ judge 点名该对成员集合变化（新增未登记成员）');
+    ok('成员表整份复制进 age-anchor.js ⇒ judge 点名该对成员集合变化（新增未登记成员）');
 });
 
 /* ══════════════ D. 工具两向自证 ══════════════ */
@@ -414,7 +458,7 @@ test('v3283 E1. ★★ 判据纯度：每个破坏锚点字面量在本档只有
         '本档锚点常量的声明序须稳定（防漏抄/错抄）');
     /* 坐标在各被破坏文件里唯一 —— 与 C1/C2/C3/D1 同用这批常量，故下面也是那几段的定点证明。
      *   同一串字面量在两份源码里各恰中一次，这比声明两个同形常量更强：它顺带钉住「两侧声明同形」这一登记前提。 */
-    assertSingleHit(read('index.js'), A_ARCHIVE, 'v3283_h1');
+    assertSingleHit(read('engine-persistence-ops.js'), A_ARCHIVE, 'v3283_h1');
     assertSingleHit(read('memory-organs.js'), A_ARCHIVE, 'v3283_h2');
     assertSingleHit(read('memory-organs.js'), A_MOD_TAIL, 'v3283_h3');
     assertSingleHit(read('memory-core.js'), A_MOD_RELATION, 'v3283_h4');
@@ -425,8 +469,8 @@ test('v3283 E1. ★★ 判据纯度：每个破坏锚点字面量在本档只有
 
 /* ══════════════ F. 自防护 + 三源 + 当版锚点 ══════════════ */
 test('v3283 F1. ★ 自防护：登记表与判据自身不得被摘掉；O7 既有真源特征仍在场', () => {
-    assert.ok(read('index.js').includes('const VERSION = '), 'index.js 版本常量在场');
-    assert.ok(read('index.js').includes('rebindModuleDeps'), 'O7 第一批真源特征仍在场');
+    assert.ok(__hostSurface().includes('const VERSION = '), 'index.js 版本常量在场');
+    assert.ok(__hostSurface().includes('rebindModuleDeps'), 'O7 第一批真源特征仍在场');
     assert.ok(read('memory-organs.js').includes(A_ARCHIVE),
         '本档第一对的真源成员仍在场（含 freeze 形态）');
     const self = read(SELF_REL);
@@ -444,7 +488,7 @@ test('v3283 F2. ★ 三源同源，且本档恰锚当版（供版本守卫 V4 �
     const SQ = String.fromCharCode(39);
     const vnum = (s) => String(s).split('.').map((x) => Number(x)).join('.');
     assert.equal(pkg, man, 'package.json 与 manifest.json 版本一致');
-    assert.ok(read('index.js').includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
+    assert.ok(__hostSurface().includes('const VERSION = ' + SQ + pkg + SQ + ';'), 'index.js 版本常量与 package.json 一致');
     /* [v3.284.0 交棒] 本档写于 3.283.0；转下限锚：后续版本须 >= 它，不得把历史档锁成恰好等于当版。 */
     assert.ok(vnum(pkg) >= vnum('3.283.0'), '本档版本下界 3.283.0 不得被绕过（实 ' + pkg + '）');
     ok('三源同源；本档锚 v3.283.0');

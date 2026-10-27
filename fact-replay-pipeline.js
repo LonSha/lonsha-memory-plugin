@@ -8,7 +8,13 @@
  * 严格支持单事件标记删除过滤、人工整线状态覆盖与断链防御。
  */
 
-export class FactReplayPipeline {
+/* 单次装载包装（[v3.421.0] 修）：本文件在宿主页是按 extra_js 逐个 eval 的经典脚本，
+ *   顶层 `class`/`const` 落在同一个脚本作用域里；同一页重复加载一次就会 `Identifier ...
+ *   has already been declared`。故与仓内既有模块同形，收进 IIFE。
+ *   导出仍是双通道：IIFE 内 `module.exports` 供 tests 具名 import，`root.*` 供宿主消费。 */
+(function (root) {
+'use strict';
+class FactReplayPipeline {
     constructor() {}
 
     /**
@@ -98,3 +104,7 @@ export class FactReplayPipeline {
         };
     }
 }
+
+root.LonShaFactReplayPipeline = { FactReplayPipeline };
+if (typeof module !== 'undefined' && module.exports) module.exports = { FactReplayPipeline };
+})(typeof globalThis !== 'undefined' ? globalThis : window);

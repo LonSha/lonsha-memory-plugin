@@ -8,6 +8,12 @@
  * 誓言承诺或初体验记忆，赋予 AI 复杂的心理拉扯与戏剧和解契机。
  */
 
+/* 单次装载包装（[v3.421.0] 修）：本文件在宿主页是按 extra_js 逐个 eval 的经典脚本，
+ *   顶层 `class`/`const` 落在同一个脚本作用域里；同一页重复加载一次就会 `Identifier ...
+ *   has already been declared`。故与仓内既有模块同形，收进 IIFE。
+ *   导出仍是双通道：IIFE 内 `module.exports` 供 tests 具名 import，`root.*` 供宿主消费。 */
+(function (root) {
+'use strict';
 const POLAR_SPECTRUM = {
     anger: ['warmth', 'tenderness', 'shared_secret'],
     conflict: ['promise', 'intimacy', 'first_encounter'],
@@ -19,7 +25,7 @@ const POLAR_SPECTRUM = {
     fear: ['protection', 'rescue', 'warmth']
 };
 
-export class EmotionalAntiphonyEngine {
+class EmotionalAntiphonyEngine {
     constructor(config = {}) {
         this.minBondThreshold = config.minBondThreshold ?? 35;
         this.maxAntiphonalRecalls = config.maxAntiphonalRecalls ?? 2;
@@ -140,3 +146,7 @@ export class EmotionalAntiphonyEngine {
         };
     }
 }
+
+root.LonShaEmotionalAntiphony = { EmotionalAntiphonyEngine };
+if (typeof module !== 'undefined' && module.exports) module.exports = { EmotionalAntiphonyEngine };
+})(typeof globalThis !== 'undefined' ? globalThis : window);

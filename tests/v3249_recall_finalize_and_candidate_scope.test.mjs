@@ -12,18 +12,59 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: fs.readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.join(__dirname, '..');
-const idxSrc = fs.readFileSync(path.join(REPO, 'index.js'), 'utf8');
+const idxSrc = __hostSurface();
 const urSrc = fs.readFileSync(path.join(REPO, 'unified-recall.js'), 'utf8');
 
-/* ══════════ 抽块：index.js 的召回收尾 ══════════ */
+/* ══════════ 抽块：召回收尾 ══════════ */
+/* [v3.421.0] 收尾块已随召回实现外提到 engine-recall.js：那边持有者是形参 `engine`，
+ *   入口只剩单行委派（本文件的 harness 又专把委派剥到扫描面尾部 ⇒ index.js 里抽不到）。
+ *   改读 engine-recall.js 的真实现面，并把 `engine.` 统一换成 `this.`（替换只落在本次读到的整串上），
+ *   这样 mkRunner 的 `run.call(engine)` 与既有锚点/断言逐字不动。 */
+const recSrc = fs.readFileSync(path.join(REPO, 'engine-recall.js'), 'utf8').replace(/\bengine\./g, 'this.');
 const IR_ANCHOR = 'const finalMerged = this.intentRerank(merged, query.text);';
 const TAIL_ANCHOR = "this._rerankPath = 'local';\n            return _finalize();";
-assert.equal(idxSrc.split(IR_ANCHOR).length - 1, 1, '收尾块起点锚点须恰中 1 次');
-assert.equal(idxSrc.split(TAIL_ANCHOR).length - 1, 1, '收尾块终点锚点须恰中 1 次');
-const FINALIZE_REGION = idxSrc.slice(idxSrc.indexOf(IR_ANCHOR), idxSrc.indexOf(TAIL_ANCHOR) + TAIL_ANCHOR.length);
+assert.equal(recSrc.split(IR_ANCHOR).length - 1, 1, '收尾块起点锚点须恰中 1 次');
+assert.equal(recSrc.split(TAIL_ANCHOR).length - 1, 1, '收尾块终点锚点须恰中 1 次');
+const FINALIZE_REGION = recSrc.slice(recSrc.indexOf(IR_ANCHOR), recSrc.indexOf(TAIL_ANCHOR) + TAIL_ANCHOR.length);
 
 function mkRunner(regionCode) {
     // regionCode 内只依赖 this / query / results / merged / errLog / PLUGIN_NAME
@@ -136,9 +177,9 @@ test('【A5】短名单不触发精排（merged.length <= 3 的既有门控不�
 
 /* ══════════ B 结构面：位置三段不破 ══════════ */
 test('【B1】收尾三段顺序：本地重排 → 审计 → 精排（v3150 的窗口判据不破）', () => {
-    const ir = idxSrc.indexOf(IR_ANCHOR);
-    const au = idxSrc.indexOf('const rec = this._auditRecall(query, results, finalMerged);', ir);
-    const rr = idxSrc.indexOf('const order = await this.llm.rerank(_rq, candidates);', ir);
+    const ir = recSrc.indexOf(IR_ANCHOR);
+    const au = recSrc.indexOf('const rec = this._auditRecall(query, results, finalMerged);', ir);
+    const rr = recSrc.indexOf('const order = await this.llm.rerank(_rq, candidates);', ir);
     assert.ok(ir > 0 && au > ir && rr > au, `三段顺序必须为 重排@${ir} < 审计@${au} < 精排@${rr}`);
     /* [v3.322.0 交棒] 原文是 `au - ir < 400` —— 一个**坐桩距离**。B 包在 intentRerank 与
      *   审计之间合法插入了 M3-O1 召回融合块（30 行），距离涨到 1.4k；翻红读数只剩「数字不够小」，
@@ -146,18 +187,18 @@ test('【B1】收尾三段顺序：本地重排 → 审计 → 精排（v3150 �
      *   本档真正要守的是三件事，改判真结构：①收尾块声明点落在重排与审计之间；②重排到收尾块
      *   之间不存在 `await`（有则审计已被挪到异步之后，属真缺陷）；③审计在收尾块声明点之后
      *   （即仍在块内，而不是游离到块外的第二处调用）。 */
-    const fz = idxSrc.indexOf('const _finalize = () => {', ir);
+    const fz = recSrc.indexOf('const _finalize = () => {', ir);
     assert.ok(fz > ir && fz < au,
         `收尾块声明点须落在重排@${ir} 与审计@${au} 之间（实得 fz=${fz}）`);
-    assert.ok(!/await\s/.test(idxSrc.slice(ir, fz)),
+    assert.ok(!/await\s/.test(recSrc.slice(ir, fz)),
         '重排到收尾块之间不得出现 await（审计一旦被挪到异步之后即脱离收尾块）');
-    assert.equal(idxSrc.split(IR_ANCHOR).length - 1, 1, '收尾只有一处');
+    assert.equal(recSrc.split(IR_ANCHOR).length - 1, 1, '收尾只有一处');
 });
 
 test('【B2】精排块内的 splice 与 _finalize 两处都在场（形态自证）', () => {
-    assert.equal(idxSrc.split('finalMerged.splice(0, candidates.length, ...head);').length - 1, 1, '就地重排');
-    assert.equal(idxSrc.split('return _finalize();').length - 1, 2, '_finalize 两个出口（精排成功 / 收尾）');
-    assert.ok(/const _finalize = \(\) => \{/.test(idxSrc), '_finalize 定义在场');
+    assert.equal(recSrc.split('finalMerged.splice(0, candidates.length, ...head);').length - 1, 1, '就地重排');
+    assert.equal(recSrc.split('return _finalize();').length - 1, 2, '_finalize 两个出口（精排成功 / 收尾）');
+    assert.ok(/const _finalize = \(\) => \{/.test(recSrc), '_finalize 定义在场');
 });
 
 /* ══════════ C 负控制：真源码破坏 → 同判据必须翻红 ══════════ */
@@ -189,7 +230,7 @@ test('【C1】负控制：破坏副本上同款判据必翻红，原版上必为
     assert.equal(exitsIn(FINALIZE_REGION), 2, '原块必须恰有两条收口出口（精排成功 / 本地路径）');
     for (const { label, anchor, broken, witness } of NC) {
         assert.equal(FINALIZE_REGION.split(anchor).length - 1, 1, label + '：锚点在本块内须恰中 1 次');
-        assert.equal(idxSrc.split(anchor).length - 1, 1, label + '：锚点在真源码（磁盘）里须恰中 1 次');
+        assert.equal(recSrc.split(anchor).length - 1, 1, label + '：锚点在真源码（磁盘）里须恰中 1 次');
         assert.notEqual(broken, anchor, label + '：破坏文本不得等于锚点原文');
         const brokenRegion = FINALIZE_REGION.replace(anchor, broken);
         assert.notEqual(brokenRegion, FINALIZE_REGION, label + '：破坏必须真改到源码');
@@ -281,11 +322,12 @@ test('【D4】负控制：模块破坏（includeDeferred 失效）→ 同判据�
 
 /* ══════════ E 宿主接线：两处改动的字面形态 ══════════ */
 test('【E1】宿主接线：全量候选 + 精排路径入账', () => {
-    assert.ok(idxSrc.includes('graphToCandidates(this.graph.nodes, { includeDeferred: true }, _urCarry)'), '图谱路取全量候选');
-    assert.ok(idxSrc.includes('_funnel.graphDeferred'), 'deferred 入漏斗台账');
-    assert.ok(idxSrc.includes("_funnel.rerankPath = 'llm'"), '精排路径入漏斗台账（有条件，不破坏空读轮次语义）');
-    assert.ok(idxSrc.includes('rec.rerankPath = String(this._rerankPath'), '审计记录路径归因');
-    assert.ok(idxSrc.includes('rec.injectedIds = finalMerged.slice(0, 8)'), '审计记录最终注入顺序');
+    const implSrc = idxSrc + String.fromCharCode(10) + recSrc;   // 形态在两面上分布不一，合看
+    assert.ok(implSrc.includes('graphToCandidates(this.graph.nodes, { includeDeferred: true }, _urCarry)'), '图谱路取全量候选');
+    assert.ok(implSrc.includes('_funnel.graphDeferred'), 'deferred 入漏斗台账');
+    assert.ok(implSrc.includes("_funnel.rerankPath = 'llm'"), '精排路径入漏斗台账（有条件，不破坏空读轮次语义）');
+    assert.ok(implSrc.includes('rec.rerankPath = String(this._rerankPath'), '审计记录路径归因');
+    assert.ok(implSrc.includes('rec.injectedIds = finalMerged.slice(0, 8)'), '审计记录最终注入顺序');
 });
 
 test('【E2】版本与注册（四源同源 + 本套件出生锚）', () => {

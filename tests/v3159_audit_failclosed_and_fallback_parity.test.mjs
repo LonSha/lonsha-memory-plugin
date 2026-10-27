@@ -13,6 +13,43 @@ import { fileURLToPath } from 'node:url';
  *   「哪些退出码真的能到」这件事此前靠正则猜源码结构，本轮收编后改走真源读数 ——
  *   猜结构对「换了书写形态但语义没变」的脚本必然误判（本段下面就有一处实例）。 */
 import { reachableCodes } from './_exit_codes.mjs';
+import { breakSource } from './_break_kit.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 /* [v3.204.0] 路径去绝对化：原「本机绝对路径」字面量只在开发机上成立，
  *   任何其他 checkout 位置都必红。「仓库根」按本文件位置推导（tests/ 的上一级）。 */
@@ -20,7 +57,7 @@ const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 const ROOT = REPO_ROOT;
 const AUDIT_DIR = path.join(ROOT, 'tests/audit');
-const srcRaw = readFileSync(path.join(ROOT, 'index.js'), 'utf-8');
+const srcRaw = __hostSurface();
 /* [v3.267.0 A1 第七刀] ConfigManager（默认配置块 + loadConfig 迁移段 + _applyCardOverrides +
  *   saveConfig + 三个 _FACTS_PROMPT_ANCHOR_* 常量）已外移 memory-config.js；
  *   本文件的类抽取面 / 静态面改读「入口 + memory-config.js」合看（语义一字不改、不放宽）。 */
@@ -134,7 +171,11 @@ async function runInScratch(mutate) {
             }
         }
         // 入口与面板由调用方按需覆盖（退化用例会写入 '// gone'）
-        writeFileSync(path.join(dir, 'index.js'), srcRaw);
+        /* [v3.421.0] 此前写的是 hostSurface 的**合并面**（入口 + 全部外提模块拼成的大串）。
+         *   模块体十批外提之后，合并面已远大于真 index.js：健康树上 dead_code_budget 读到
+         *   12.2 万行（真值 10.6 万）而越界翻红 —— 夹具形状失真，判据没错。
+         *   模块已按 manifest 逐个物化，入口就该写**真入口字节**。 */
+        writeFileSync(path.join(dir, 'index.js'), readFileSync(path.join(ROOT, 'index.js'), 'utf-8'));
         writeFileSync(path.join(dir, 'settings-ui.js'), sui);
         /* [v3.293.0] 根级**人读面**也要物化：v3.285.0 起 scan_doc_truthfulness /
          *   scan_plan_currency 读 README.md / PLAN.md / CHANGELOG.md，
@@ -240,6 +281,50 @@ test('[2c] a truncated UI file is caught even though its size is over the floor'
         return ['scan_wiring.mjs'];
     });
     assert.strictEqual(r['scan_wiring.mjs'].status, 2, 'wiring must notice the vanished controls');
+});
+/* [v3.421.0] scan_live_wiring_dataflow 的观测点。
+ *   scan_fixture_sync 的 E4 要求每个门禁「要么有配对负控制、要么在套件里被真源码破坏」——
+ *   它此前零引用，判据恒绿与否没人看得见（E4 逐条点名）。这里补两条真源码破坏：
+ *   ① 守卫读取指向一个全仓从不写入的属性 ⇒ 必须报「幽灵守卫」并 exit 1；
+ *   ② 管道文件缺失 ⇒ 结构漂移 exit 2（v3.421.0 才补的第二态，此前会静默报「幽灵守卫 0」）。 */
+test('[2f] a ghost guard is caught, and a missing pipeline file is structural drift', async () => {
+    const r = await runInScratch((dir) => {
+        const t = path.join(dir, 'engine-recall.js');
+        writeFileSync(t, breakSource(readFileSync(t, 'utf-8'),
+            'if (engine.config.config.vectorTailRecoveryEnabled === true',
+            'if (engine._ghostGuardProbe === true)', 'v3159_ghost'));
+        return ['scan_live_wiring_dataflow.mjs'];
+    });
+    assert.strictEqual(r['scan_live_wiring_dataflow.mjs'].status, 1,
+        '幽灵守卫必须 exit 1，got ' + r['scan_live_wiring_dataflow.mjs'].status);
+    const r2 = await runInScratch((dir) => {
+        rmSync(path.join(dir, 'engine-recall.js'));
+        return ['scan_live_wiring_dataflow.mjs'];
+    });
+    assert.strictEqual(r2['scan_live_wiring_dataflow.mjs'].status, 2,
+        '管道文件缺失必须 exit 2（结构漂移），got ' + r2['scan_live_wiring_dataflow.mjs'].status);
+});
+/* [v3.421.0] scan_live_wiring_dataflow 的观测点。
+ *   scan_fixture_sync 的 E4 要求每个门禁「要么有配对负控制、要么在套件里被真源码破坏」——
+ *   它此前零引用，判据恒绿与否没人看得见（E4 逐条点名）。这里补两条真源码破坏：
+ *   ① 守卫读取指向一个全仓从不写入的属性 ⇒ 必须报「幽灵守卫」并 exit 1；
+ *   ② 管道文件缺失 ⇒ 结构漂移 exit 2（v3.421.0 才补的第二态，此前会静默报「幽灵守卫 0」）。 */
+test('[2f] a ghost guard is caught, and a missing pipeline file is structural drift', async () => {
+    const r = await runInScratch((dir) => {
+        const t = path.join(dir, 'engine-recall.js');
+        writeFileSync(t, breakSource(readFileSync(t, 'utf-8'),
+            'if (engine.config.config.vectorTailRecoveryEnabled === true',
+            'if (engine._ghostGuardProbe === true)', 'v3159_ghost'));
+        return ['scan_live_wiring_dataflow.mjs'];
+    });
+    assert.strictEqual(r['scan_live_wiring_dataflow.mjs'].status, 1,
+        '幽灵守卫必须 exit 1，got ' + r['scan_live_wiring_dataflow.mjs'].status);
+    const r2 = await runInScratch((dir) => {
+        rmSync(path.join(dir, 'engine-recall.js'));
+        return ['scan_live_wiring_dataflow.mjs'];
+    });
+    assert.strictEqual(r2['scan_live_wiring_dataflow.mjs'].status, 2,
+        '管道文件缺失必须 exit 2（结构漂移），got ' + r2['scan_live_wiring_dataflow.mjs'].status);
 });
 test('[2d] a healthy tree still passes every audit script', async () => {
     const r = await runInScratch(() => auditScripts);

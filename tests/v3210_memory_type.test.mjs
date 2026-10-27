@@ -49,6 +49,42 @@ import { dirname, join } from 'node:path';
 //   切出的长度映射回**原文**，注释与格式原样保留（判据要看原文）。
 //   本文件与真源同在 tests/ 下，故用 './'（tests/audit/ 下的扫描器才用 '../'）。
 import { stripComments, braceMatch as libBraceMatch } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -62,7 +98,7 @@ const MF = join(ROOT, 'manifest.json');
 
 const MT = createRequire(import.meta.url)(MTF);
 const FV = createRequire(import.meta.url)(FVF);
-const idxSrc = readFileSync(IDX, 'utf-8');
+const idxSrc = __hostSurface();
 const mtSrc = readFileSync(MTF, 'utf-8');
 const fvSrc = readFileSync(FVF, 'utf-8');
 const mf = JSON.parse(readFileSync(MF, 'utf-8'));
@@ -89,12 +125,19 @@ function braceMatch(src, i, label) {
     if (chunk == null) throw new Error('[braceMatch] ' + (label || '') + ' 未闭合');
     return src.slice(i, i + chunk.length);
 }
-/** 真源码切段：a 之后到 b 之前（a、b 各须恰好命中一次，否则抛）。 */
-function seg(src, a, b, label) {
+/** 真源码切段：a 之后到 b 之前（a、b 各须恰好命中一次，否则抛）。
+ *  [v3.421.0] `multiB`：模块体分批外提后，**局部助手名**在合并面里会重复
+ *  （`function _eventCompletenessLib() {` 在 entrance 与两个外提模块里共 3 份，长度还不一致：
+ *  engine-evidence-center 是一行委派、engine-repair-ops 是完整实现）。凡 a 本身已唯一的调用点，
+ *  按 multiB 允许 b 多义并取 **a 之后的首次** 命中；a 仍须唯一。b 多义时不加 multiB 必须抛，
+ *  否则默认取全文首个 b 可能落在 a 之前（假段）。 */
+function seg(src, a, b, label, opt) {
+    const multiB = !!(opt && opt.multiB);
     const ia = src.split(a).length - 1;
     const ib = src.split(b).length - 1;
-    if (ia !== 1 || ib !== 1) throw new Error('[seg] ' + label + ' 锚点命中 a=' + ia + ' b=' + ib + '（须各 1）');
-    const i = src.indexOf(a), j = src.indexOf(b);
+    if (ia !== 1 || (multiB ? ib < 1 : ib !== 1)) throw new Error('[seg] ' + label + ' 锚点命中 a=' + ia + ' b=' + ib + (multiB ? '（须 a=1、b≥1）' : '（须各 1）'));
+    const i = src.indexOf(a);
+    const j = multiB ? src.indexOf(b, i + a.length) : src.indexOf(b);
     if (!(i < j)) throw new Error('[seg] ' + label + ' 顺序不符');
     return src.slice(i, j);
 }
@@ -570,7 +613,8 @@ test('v3210 13. 判据纯度与工具两向自证', () => {
     A(thrower(() => seg(idxSrc, '不存在的锚点XYZ', 'const VERSION', 'x')) !== null, '★ seg：起点锚点缺失必须抛');
     A(thrower(() => seg(idxSrc, 'const VERSION', 'TYPES_NEVER_XYZ', 'x')) !== null, '★ seg：终点锚点缺失必须抛');
     A(thrower(() => seg(idxSrc, 'class MemoryEngine', 'const VERSION', 'x')) !== null, '★ seg：顺序倒挂必须抛（起点在终点之后）');
-    A(seg(idxSrc, 'function _memoryTypeLib() {', 'function _eventCompletenessLib() {', 'ok').includes('LonShaMemoryType'), 'seg 正例可用（两端各自唯一）');
+    A(thrower(() => seg(idxSrc, 'class MemoryEngine', 'function _eventCompletenessLib() {', 'x')) !== null, '★ seg：终点多义且未给 multiB 必须抛（否则可能取到起点之前的假段落）');
+    A(seg(idxSrc, 'function _memoryTypeLib() {', 'function _eventCompletenessLib() {', 'ok', { multiB: true }).includes('LonShaMemoryType'), 'seg 正例可用（起点唯一、终点按 multiB 取其后首次）');
     // 13b braceMatch：失配必须抛
     A(thrower(() => braceMatch('{ a ', 0, 'x')) !== null, '★ braceMatch：未闭合必须抛');
     A(braceMatch('{ a }', 0, 'x') === '{ a }', 'braceMatch 正例');

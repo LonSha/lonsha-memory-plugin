@@ -47,6 +47,42 @@ import * as KIT from './_break_kit.mjs';
 import { breakText } from './_break_kit.mjs';
 import { pairDiff } from './_fixture_sync.mjs';
 import { stripComments } from './_audit_lib.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -339,6 +375,17 @@ const REGISTRY = [
     /* [v3.350.0~v3.351.0 第五期] 第五期各批验收套件（从 _break_kit 取 breakOnce）。 */
     'v3500_m5_batch.test.mjs',
     'v3510_m5_o4.test.mjs',
+    /* [v3.421.0] 接入面台账双向对差的**补登记**：下列七档都真从 tests/_break_kit.mjs
+     *   静态 import（breakSource / breakOnce），却漏进本台账 —— 磁盘实测 135 个接收方、
+     *   台账 128 个，差的就是它们。判据（双向差集皆空）本身是对的，修法是**补登记**，
+     *   不是放宽判据：漏登记正是「下一步就是接入面与判据面不同源」的那种形状。 */
+    'v3159_audit_failclosed_and_fallback_parity.test.mjs',
+    'v34210_m4x10_strength_governance.test.mjs',
+    'v3560_m6_o2_o3_o6.test.mjs',
+    'v3570_m6_batch_c.test.mjs',
+    'v3580_m6_batch_d.test.mjs',
+    'v3590_m6_batch_e.test.mjs',
+    'v3600_m6_batch_f.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把
@@ -674,7 +721,7 @@ test('v3247 E1. ★★ 判据面自防护：断言密度与关键指纹不得缩
 });
 
 test('v3247 E2. ★ 版本锚（下限锚，不随抬版漂移；三源同源）', () => {
-    const codeVer = (/const VERSION = '([^']+)'/.exec(read('index.js')) || [])[1];
+    const codeVer = (/const VERSION = '([^']+)'/.exec(__hostSurface()) || [])[1];
     assert.ok(vnum(codeVer) >= vnum('3.247.0'), '本套件只在 3.247.0 及以后成立；当前 ' + codeVer);
     assert.equal(JSON.parse(read('manifest.json')).version, codeVer, 'manifest 与入口同源');
     assert.equal(JSON.parse(read('package.json')).version, codeVer, 'package.json 与入口同源');

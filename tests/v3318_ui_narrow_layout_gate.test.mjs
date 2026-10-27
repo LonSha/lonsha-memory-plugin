@@ -47,8 +47,8 @@ const ok = (m) => console.log('  ✓ ' + m);
 const NL = String.fromCharCode(10);
 
 /* ---- 破坏锚点（逐字取自真源，禁改；全部按单行片段持有）---- */
-const A_HINT = '            .ls-hint { font-size: 12px; color: var(--ls-text-3,#6e7681); padding: 6px 8px; line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }';
-const R_HINT = '            .ls-hint { font-size: 12px; color: var(--ls-text-3,#6e7681); padding: 6px 8px; line-height: 1.5; }';
+const A_HINT = '            .ls-hint { font-size: 12px; color: var(--ls-text-3, #64748b); padding: 6px 4px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }';
+const R_HINT = '            .ls-hint { font-size: 12px; color: var(--ls-text-3, #64748b); padding: 6px 4px; line-height: 1.55; }';
 const A_CHILD = '            .ls-row > div { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }';
 const R_CHILD = '            .ls-row > div { overflow-wrap: anywhere; word-break: break-word; }';
 

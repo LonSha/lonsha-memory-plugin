@@ -33,6 +33,42 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { ledgerLevelConsumers, LE_BLOCK, NON_BOOK_CONSUMERS, RUNTIME_DEPS } from './_fixture_sync.mjs';
 import { breakText } from './_break_kit.mjs';
+/* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
+ *   入口只剩一行委派。只读入口的测试因此两重受害 ——
+ *   ① 方法体根本不在入口里（断言找不到）；
+ *   ② 抠出来的片段没有闭包作用域（_moduleLib / errLog …）→ ReferenceError。
+ *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
+ *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
+ *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
+import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import __hostPath from 'node:path';
+import { fileURLToPath as __hostFu } from 'node:url';
+/* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
+ *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
+function __hostSurface() {
+    const __root = __hostFu(new URL('..', import.meta.url));
+    const __face = __hostSurfaceRaw(__root, {
+        fs: { readFileSync: readFileSync, existsSync: () => true },
+        path: __hostPath,
+    });
+    /* 单行委派形如 `foo(a) { const M = _moduleLib(...); return M ? ... ; }` —— 从正文里**移走**。
+     *   两行以上的委派很少，且那种形态抽取助手本来就抠不全，留给模块面兜。
+     *   [v3.421.0] 但**不能丢弃**：一批「宿主出口各恰一处」的判据问的就是这些委派桩本身
+     *   （`foo(...args) {` 只存在于入口的委派行里，模块面是 `function foo(engine, ...)`）。
+     *   故剥下来的行收集到扫描面**最末**：抽取助手仍先命中模块面的真实现（委派在尾部），
+     *   而字符串在场判据照旧命中。丢弃会让那批判据整片假红。 */
+    const __deleg = [];
+    const __squeeze = (raw) => raw.split(String.fromCharCode(10))
+        .filter((ln) => {
+            const __isDeleg = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/.test(ln);
+            if (__isDeleg) __deleg.push(ln);
+            return !__isDeleg;
+        })
+        .join(String.fromCharCode(10));
+    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
+        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
+        + __deleg.join(String.fromCharCode(10));
+}
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -113,9 +149,18 @@ test('v3246 B2. ★★★ GAUGED 是**同名异义**：只把九账那一截派�
     for (const [name, src] of [['v3242', v3242Src], ['v3243', v3243Src]]) {
         assert.ok(!/'seed-ledger\.js', 'secret-ledger\.js'/.test(src),
             name + ' 的 GAUGED 不得再手抄九账');
-        assert.match(src, /const GAUGED = \['manifest\.json', 'index\.js', CONTRACT_REL,\s*\n\s*\.\.\.ledgerLevelConsumers\(/,
+        /* ★ [v3.421.0 修] 原文把**显式头段锁成三项并逐字锁序**（`['manifest.json', 'index.js', CONTRACT_REL,`
+         *   + 换行 + `...ledgerLevelConsumers(`）—— 那是 v3.242.0 当版的头段形状。宿主面合并读之后
+         *   v3243 的头段变成四项（把 engine-self-check / engine-persistence-ops 也铺进夹具树），
+         *   项数或顺序一变它就假红。要守的命题是「九账那一截由真源派生」，
+         *   断言落在「GAUGED 里确实展开了 ledgerLevelConsumers(...)」这一句上，
+         *   不锁头段的项数与顺序。 */
+        assert.match(src, /const GAUGED = \[[\s\S]{0,400}?\.\.\.ledgerLevelConsumers\(/,
             name + ' 的 GAUGED 须由真源派生九账那一截');
-        assert.match(src, /'tests\/audit\/catalog_reference_consumers\.tsv'\];/,
+        /* ★ [v3.421.0 修] 原文锁 `…tsv'];`（登记表**恰是末项**）—— 那是 v3.246.0 的列表形状；
+         *   宿主面合并读之后 v3242 的 GAUGED 追加了 `...HOST_MODULES`（要把 12 个外提模块铺进夹具树），
+         *   末项随之变化。要守的命题是「登记表仍在**显式**列表里（派生不出来）」，不是它恰好排最后。 */
+        assert.match(src, /'tests\/audit\/catalog_reference_consumers\.tsv'/,
             name + ' 的 GAUGED 须仍显式保留登记表（它不是账本级消费者，派生不出来）');
         assert.match(src, /同名异义/, name + ' 须留痕说明「GAUGED 不是账本名册」');
     }
@@ -195,7 +240,11 @@ test('v3246 D5. ★★★ 破坏工具两向自证：锚点不存在 / 不唯一
 test('v3246 D6. ★★★ 运行时依赖清单是两项（按加载图，不按改动）', () => {
     assert.deepEqual(RUNTIME_DEPS, ['tests/_audit_lib.mjs', 'tests/_fixture_sync.mjs'],
         'RUNTIME_DEPS 必须含真源**自己**的依赖（只列新加那个 import 会让夹具跑不起来）');
-    assert.match(LIB_SRC, /import \{ stripComments \} from '\.\/_audit_lib\.mjs';/,
+    /* ★ [v3.421.0 修] 原文锁 `import { stripComments } from './_audit_lib.mjs';` —— 真源本版改成了
+     *   `import { stripComments, HOST_MODULES } from './_audit_lib.mjs';`（同一条 import 扩了名字）。
+     *   要守的命题是「真源确实从 _audit_lib 里 import 东西」（清单与加载图同源），
+     *   不锁参数列表的字面。 */
+    assert.match(LIB_SRC, /import \{[^}]*\bstripComments\b[^}]*\} from '\.\/_audit_lib\.mjs';/,
         '真源确实依赖 _audit_lib（清单与加载图同源）');
     ok('RUNTIME_DEPS 两项，与加载图一致');
 });
@@ -211,7 +260,7 @@ test('v3246 E1. ★★ 判据面自防护：断言密度与关键指纹不得缩
     ok('断言 ' + asserts + ' 条，指纹齐全');
 });
 test('v3246 E2. ★ 版本锚（下限锚，不随抬版漂移；三源同源）', () => {
-    const codeVer = (/const VERSION = '([^']+)'/.exec(read('index.js')) || [])[1];
+    const codeVer = (/const VERSION = '([^']+)'/.exec(__hostSurface()) || [])[1];
     assert.ok(vnum(codeVer) >= vnum('3.246.0'), '本套件只在 3.246.0 及以后成立；当前 ' + codeVer);
     assert.equal(JSON.parse(read('manifest.json')).version, codeVer, 'manifest 与入口同源');
     assert.equal(JSON.parse(read('package.json')).version, codeVer, 'package.json 与入口同源');
