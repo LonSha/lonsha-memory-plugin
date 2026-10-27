@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.421.0] 度量面交棒：探针从「只读入口」改为「读宿主面合并面（入口 + 12 个已外提模块，模块清单取自 tests/_audit_lib.mjs 的 HOST_MODULES，不另立真源）」，入口单行委派先剥走附末；成员切分同步从「只看 8 空格缩进」改成「双档签名 + 父容器栈」。读数分工：total_lines 守入口（行上界预算守的就是这个文件），surface_lines 才是成员占比分母。入口实测 11696 行 / 合并面 28275 行 / 成员 1160。",
-  "measured_at": "v3.421.0",
+  "measured_at": "v3.423.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2670,6 +2670,33 @@
         "本版只改度量面口径与切分口径，不动实现"
       ],
       "not_done": "本版只把探针与基线搬到宿主面上，未拆任何东西"
+    },
+    "v3.423.0": {
+      "reason": "[v3.423.0] 玩家面板重构版：本版只动 settings-ui.js（UI 层）与测试/文档，宿主入口 index.js 零变化 —— total_lines 11696 / 合并面 28275 / 成员 1160 与 v3.421.0 完全一致（探针重跑复核）；行上界 12096 不动，余量 400 = maxSlack 贴线合规，成员上界 1190 同步不动。",
+      "readings": {
+        "total_lines": 11696,
+        "surface_lines": 28275,
+        "member_count": 1160,
+        "duplicate_member_names": 160,
+        "top5_lines": 5611,
+        "top5_pct": 19.8,
+        "top40_lines": 12602,
+        "top40_pct": 44.6,
+        "prefix_rule_coverage_lines": 4904,
+        "prefix_rule_coverage_pct": 17.3,
+        "unclassified_lines": 22563,
+        "seam_distinct_modules": 147,
+        "seam_reference_sites": 416,
+        "seam_call_shape_sites": 544,
+        "members_over_80_lines": 51,
+        "low_coupling_members": 18,
+        "high_coupling_members": 16
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只改度量面口径与切分口径，不动实现"
+      ],
+      "not_done": "本版只把探针与基线搬到宿主面上，未拆任何东西"
     }
   },
   "node_version": "v24.18.0",
@@ -3264,7 +3291,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.421.0] 度量面交棒：探针从「只读入口」改为「读宿主面合并面（入口 + 12 个已外提模块，模块清单取自 tests/_audit_lib.mjs 的 HOST_MODULES，不另立真源）」，入口单行委派先剥走附末；成员切分同步从「只看 8 空格缩进」改成「双档签名 + 父容器栈」。读数分工：total_lines 守入口（行上界预算守的就是这个文件），surface_lines 才是成员占比分母。入口实测 11696 行 / 合并面 28275 行 / 成员 1160。",
+    "note": "[v3.423.0] 玩家面板重构版：本版只动 settings-ui.js（UI 层）与测试/文档，宿主入口 index.js 零变化 —— total_lines 11696 / 合并面 28275 / 成员 1160 与 v3.421.0 完全一致（探针重跑复核）；行上界 12096 不动，余量 400 = maxSlack 贴线合规，成员上界 1190 同步不动。",
     "history": [
       {
         "ceiling": 15000,
@@ -3533,6 +3560,12 @@
         "ceiling": 12096,
         "member_ceiling": 1190,
         "reason": "[v3.421.0] 度量面交棒：探针从「只读入口」改为「读宿主面合并面（入口 + 12 个已外提模块，模块清单取自 tests/_audit_lib.mjs 的 HOST_MODULES，不另立真源）」，入口单行委派先剥走附末；成员切分同步从「只看 8 空格缩进」改成「双档签名 + 父容器栈」。读数分工：total_lines 守入口（行上界预算守的就是这个文件），surface_lines 才是成员占比分母。入口实测 11696 行 / 合并面 28275 行 / 成员 1160。"
+      },
+      {
+        "version": "v3.423.0",
+        "ceiling": 12096,
+        "member_ceiling": 1190,
+        "reason": "[v3.423.0] 玩家面板重构版：本版只动 settings-ui.js（UI 层）与测试/文档，宿主入口 index.js 零变化 —— total_lines 11696 / 合并面 28275 / 成员 1160 与 v3.421.0 完全一致（探针重跑复核）；行上界 12096 不动，余量 400 = maxSlack 贴线合规，成员上界 1190 同步不动。"
       }
     ],
     "member_ceiling": 1190,

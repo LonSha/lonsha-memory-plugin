@@ -23,7 +23,8 @@ test('=== 1. A: 版本真值 + 更新检测 静态特征 ===', () => {
     assert.ok(su.includes('plugin.checkUpdate = async function()'), 'checkUpdate 定义');
     assert.ok(su.includes('raw.githubusercontent.com/LonSha/lonsha-memory-plugin'), '远端 manifest URL');
     assert.ok(su.includes('data-act="update"'), 'FAB 菜单项');
-    assert.ok(su.includes("else if (act === 'update') plugin.checkUpdate();"), 'dispatch');
+    // [v3.423] FAB 菜单重构为玩家主页直达：update 项从旧菜单 dispatch 移到主页底部按钮
+    assert.ok(su.includes("plugin.checkUpdate();"), 'dispatch');
     // 不缓存设计（柏宝书：防「更新完仍提示」）
     assert.ok(su.includes("cache: 'no-store'"), 'no-store 防缓存');
 });

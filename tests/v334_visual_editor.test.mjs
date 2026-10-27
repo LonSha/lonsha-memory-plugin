@@ -16,7 +16,7 @@ assert('povs 绑定 opkind', uiSrc.includes('data-opkind="pov"'));
 assert('vectors 绑定 opkind', uiSrc.includes('data-opkind="vector"'));
 assert('suspense 绑定 opkind', uiSrc.includes('data-opkind="suspense"'));
 assert('点击条目操作提示', uiSrc.includes('点击条目可操作'));
-assert('FAB 包含时间线入口', uiSrc.includes('data-act="timeline"'));
+assert('FAB 包含时间线入口', uiSrc.includes('data-home-act="timeline"'));
 assert('VERSION 存在有效', /const VERSION = '[3-9]\.[0-9]+\.[0-9]+'/.test(idxSrc));
 assert('manifest 版本有效', /"version": "[3-9]\.[0-9]+\.[0-9]+"/.test(mftSrc));
 // ===== 2. 行为模拟：timeline 操作 =====

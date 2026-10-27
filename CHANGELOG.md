@@ -1,3 +1,12 @@
+## v3.423.0
+**玩家面板重构：FAB 直达玩家主页 + 设置全面去黑话（三件事原则）**
+- **产品定位**（用户拍板）：玩家只关心三件事——记忆能力在不在跑、这里的人是谁、过去发生了什么。旧 FAB 七项菜单（CHRONO-ARCHIVE 品牌条 + 7 个开发者视角入口）退役，点 FAB 直达「玩家主页」：运行状态卡（运转中/已暂停 + 已记住 N 段剧情 + 接口连接态）、三个模式快捷切换（沉浸叙事/深度推演/极简轻量，点击即写 `extractionProfile` 并落盘）、最近发生的事（最近 5 段摘要）、登场人物 chips、三个入口（记忆总览/故事时间线/设置）+ 底部检查点与检查更新。
+- **API 前置**：「AI 接口连接」组（地址/Key/模型抓取/Embedding 三键）从第 3 个 tab 搬到「常用」页顶部——玩家第一件事就是连 API，不再考古。
+- **去黑话**：18 个 `[TAG]` 组标题全部翻成玩家语言（如「认知边界与时间线」→「时间线」、「引擎底层机制微调」→「高级调整」）；四个 tab 改名（核心体验→常用、剧情与认知→故事与人物、联想与世界→记录与世界、进阶与维护→高级）；总览分区翻新（沉淀史记与编年→发生的故事等）；面板标题翻新（记忆控制台与偏好→设置、记忆档案全貌→记忆总览）。
+- **旧菜单退役的判据同步**：v377（update 项）/ v3238（ckpt 项）的 FAB 分派判据改指主页新分派点；v3161/v3162 的组标题位置锚点同步新组名。 判据当版套件 `tests/v34230_player_home_refactor.test.mjs`（6 条：A 主页落地+旧菜单退役 / B API 前置+Embedding 三键 / C 18 组标题去黑话 / D pill 与 token 作用域化不丢失 / E 六源同源 / F 当版锚点）。 扫描器契约：退出码三档：0 卫生 / 1 真缺陷 / 2 结构漂移。**能力零删除**：诊断/图谱/快照等全部专业入口保留在总览与设置内。
+- v3161 [1] 抓到并修复一次真实回归：搬 API 组时 Embedding 三控件（embeddingUrl/embeddingKey/embeddingModel）被误删导致回退值不可达，已补回「常用」页 API 组内。
+- 实施期按铁律只跑定向判据与 UI 五门（runtime/interaction/binding/panel_drive/narrow_layout 全绿），全量 `npm test` 收尾验证。
+
 ## v3.421.0
 **记忆强度治理（策略 + 双钥匙提案）与 STM 主动销项额度：把「人定过」变成可治理、可回滚、可拦的硬事实**
 - **强度治理·策略面**：新增 `strength-policy.js`（缝合 ceniran/moraine-home `governance.py`，PolyForm Noncommercial ⇒ 搬算法不搬代码，sha256→FNV-1a 64）。`suggestStrength` 只看元数据给出带理由链的建议与五档 band；`automatic_ceiling = 79` 使**机器永远爬不进 core**（identity 基准 70 + 保护 15 + 满权重仍封在 79）；`manualStrengthChange`/`unlockStrength` 强制 actor+reason+now 三件套、锁定只许 core、审计只留尾部 50。修前 `importance` 是没人敢改的裸数字：人调过之后下一轮 GC 照样按同一公式把它排到删除端，因为「人定过」没被记下来。

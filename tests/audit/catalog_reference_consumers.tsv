@@ -424,3 +424,4 @@ v3426_double_identity_espionage.test.mjs		[v3.421.0] 补登记：v3.372~v3.429 �
 v3427_life_epilogue_retrospective.test.mjs		[v3.421.0] 补登记：v3.372~v3.429 期交付时漏登记（守卫 P3 直接点名）
 v3428_intergenerational_totem_tree.test.mjs		[v3.421.0] 补登记：v3.372~v3.429 期交付时漏登记（守卫 P3 直接点名）
 v3429_l11_full_pipeline_wiring.test.mjs		[v3.421.0] 补登记：v3.372~v3.429 期交付时漏登记（守卫 P3 直接点名）
+v34230_player_home_refactor.test.mjs		[v3.423.0] 当版套件：玩家面板重构（玩家主页/API前置/去黑话）

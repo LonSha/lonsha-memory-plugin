@@ -84,7 +84,7 @@ assert('onMessageReceived 优先盖章 timeTagFound', idxSrc.includes('extracted
 assert('config 拥有 cacheFriendlyInjection', idxSrc.includes('cacheFriendlyInjection: true'));
 assert('buildVolumeInjection 顶槽锁定绝对静态史记', idxSrc.includes('isCacheFriendly ? [] :'));
 assert('buildInjection 动态渲染阶段周记', idxSrc.includes('[阶段进展·周记]'));
-assert('settings-ui 包含五大前沿支柱设置面板', suiSrc.includes('[TOPOLOGY] 时态因果拓扑与分流') && suiSrc.includes('hippoDiffusionEnabled'));
+assert('settings-ui 包含五大前沿支柱设置面板', suiSrc.includes('[TOPOLOGY] 因果追踪') && suiSrc.includes('hippoDiffusionEnabled'));
 
 // ===== 3. 行为模拟：时态图谱（Temporal Graph）=====
 {

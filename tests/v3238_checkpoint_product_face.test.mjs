@@ -226,7 +226,8 @@ test('A1. ★★★ 8 个引擎成员逐个从面板可达（两跳闭包，禁�
 
 test('A2. ★★ 面板入口三处在场（FAB / 面板本体 / 快照恢复内的留一手）', () => {
     assert.ok(UI.includes("data-act=\"ckpt\""), 'FAB 菜单必须有检查点项');
-    assert.ok(UI.includes("act === 'ckpt'"), 'FAB 分派必须认 ckpt');
+    // [v3.423] FAB 菜单重构为玩家主页直达：ckpt 入口与分派移到主页底部
+    assert.ok(UI.includes("plugin.showCheckpoints();"), 'FAB ckpt 分派');
     assert.ok(UI.includes('plugin.showCheckpoints = function()'), '检查点面板本体');
     assert.ok(UI.includes('ls-ckpt-from-snap'), '快照恢复菜单里必须有「先存一份检查点再恢复」的入口');
     /* 为什么这一条值得单列：恢复是破坏性动作，入口离危险动作最近才有意义。 */

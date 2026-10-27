@@ -23,6 +23,42 @@
         const style = document.createElement('style');
         style.textContent = `
             /* ==== LonSha 设置面板 · 精密档案室微质感 v3.5 ==== */
+            /* [v3.422] 缺陷修复：设计 token 就地作用域化。此前 --ls-* 只声明在 :root（css/lonsha-design.css），
+               宿主 SillyTavern 的主题变量 / 样式注入时序一旦在 :root 层改写同名变量，面板就会退化成
+               「白底 + 淡色字」完全不可读。现把全套 token 重声明到 .lonsha-overlay（覆盖其内 .lonsha-sheet 及全部后代）
+               与 .ls-toast（直接挂在 body 上，不经过 sheet）两种容器上：
+               自定义属性按「就近继承」解析，面板内部全部 var(--ls-*) 以容器层为准，宿主 :root 改写无法穿透。
+               本清单与 css/lonsha-design.css 严格同步（单一事实源仍在那边，此处为防御性副本）。 */
+            .lonsha-overlay,
+            .ls-toast,
+            #lonsha-memory-fab {
+                --ls-accent: #38bdf8; --ls-accent-strong: #0284c7; --ls-accent-hover: #7dd3fc;
+                --ls-accent-soft: rgba(56,189,248,0.10); --ls-accent-softer: rgba(56,189,248,0.05);
+                --ls-accent-line: rgba(56,189,248,0.28); --ls-on-accent: #04121e;
+                --ls-gold: #fbbf24; --ls-gold-soft: rgba(251,191,36,0.10); --ls-gold-line: rgba(251,191,36,0.30); --ls-gold-hover: #fde68a;
+                --ls-bg-0: #06080d; --ls-bg-1: #0a0f18; --ls-bg-2: #111827; --ls-bg-3: #1b2436; --ls-bg-4: #27334a;
+                --ls-bg-glass: rgba(10,15,24,0.88);
+                --ls-line: rgba(255,255,255,0.07); --ls-line-strong: rgba(255,255,255,0.14); --ls-line-subtle: rgba(255,255,255,0.04);
+                --ls-inner-rim: inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.40);
+                --ls-inner-glow: inset 0 0 16px rgba(56,189,248,0.04);
+                --ls-text: #f1f5f9; --ls-text-2: #94a3b8; --ls-text-3: #64748b; --ls-text-4: #475569; --ls-inverse: #06080d;
+                --ls-success: #34d399; --ls-success-soft: rgba(52,211,153,0.10);
+                --ls-warn: #fbbf24; --ls-warn-soft: rgba(251,191,36,0.10);
+                --ls-danger: #f87171; --ls-danger-soft: rgba(248,113,113,0.12); --ls-danger-line: rgba(248,113,113,0.30);
+                --ls-info: #38bdf8; --ls-info-soft: rgba(56,189,248,0.10);
+                --ls-r-xs: 4px; --ls-r-sm: 6px; --ls-r-md: 10px; --ls-r-lg: 14px; --ls-r-xl: 18px; --ls-r-pill: 9999px;
+                --ls-sh-1: 0 1px 2px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.35);
+                --ls-sh-2: 0 4px 20px -2px rgba(0,0,0,0.65), 0 12px 32px -4px rgba(2,6,23,0.55);
+                --ls-sh-3: 0 20px 50px -10px rgba(0,0,0,0.85), 0 10px 24px -5px rgba(0,0,0,0.65);
+                --ls-sh-accent: 0 2px 14px rgba(56,189,248,0.28); --ls-sh-accent-lg: 0 6px 28px rgba(56,189,248,0.38);
+                --ls-glow-gold: 0 2px 14px rgba(251,191,36,0.25);
+                --ls-t-fast: 140ms; --ls-t-med: 220ms; --ls-t-slow: 360ms;
+                --ls-ease: cubic-bezier(0.16, 1, 0.3, 1); --ls-ease-out: cubic-bezier(0, 0, 0.2, 1);
+                --ls-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+                --ls-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
+                --ls-blur: saturate(160%) blur(20px);
+                --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(56,189,248,0.08) 0%, transparent 75%);
+            }
             .lonsha-overlay { position: fixed; inset: 0; background: rgba(4, 7, 12, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 10002; display: flex; align-items: flex-end; justify-content: center; animation: ls-fade var(--ls-t-med,220ms) var(--ls-ease-out,ease); }
             @media (min-width: 600px) { .lonsha-overlay { align-items: center; } }
             @keyframes ls-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -85,6 +121,20 @@
             .ls-mode-pill { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ls-text-2, #94a3b8); border-radius: 4px; cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
             .ls-mode-pill:hover { color: var(--ls-text, #f1f5f9); background: rgba(255,255,255,0.04); }
             .ls-mode-pill.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-3, #1b2436); box-shadow: var(--ls-inner-rim), 0 0 12px rgba(56,189,248,0.15); }
+            /* ==== [v3.423] 玩家主页（FAB 直达） ==== */
+            .ls-home-status { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-md, 10px); padding: 14px; margin-bottom: 16px; box-shadow: var(--ls-inner-rim); }
+            .ls-home-status-main { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+            .ls-home-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+            .ls-home-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); }
+            .ls-home-section { margin-bottom: 18px; }
+            .ls-home-title { font-size: 13px; font-weight: 600; color: var(--ls-text-2, #94a3b8); margin: 0 0 8px 2px; letter-spacing: 0.04em; display: flex; align-items: center; justify-content: space-between; }
+            .ls-home-more { font-size: 12px; color: var(--ls-accent, #38bdf8); cursor: pointer; font-weight: 500; }
+            .ls-home-event { padding: 10px 12px; background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); border-radius: var(--ls-r-sm, 6px); margin-bottom: 6px; font-size: 13px; color: var(--ls-text, #f1f5f9); line-height: 1.5; position: relative; }
+            .ls-home-event-meta { display: block; font-size: 11px; color: var(--ls-text-3, #64748b); margin-top: 3px; font-family: var(--ls-mono, monospace); }
+            .ls-home-chip { display: inline-block; padding: 6px 14px; margin: 0 6px 6px 0; background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-pill, 999px); font-size: 13px; color: var(--ls-text, #f1f5f9); cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
+            .ls-home-chip:hover { border-color: var(--ls-accent-line); color: var(--ls-accent, #38bdf8); }
+            .ls-home-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px; }
+            .ls-home-actions .ls-btn { margin: 0; width: 100%; box-sizing: border-box; }
 
         `;
         document.head.appendChild(style);
@@ -129,7 +179,7 @@
                 else if (window.VirtualPhone?.memoryCore) phoneStatus = '⚠️ 桥未挂载';
             } catch (e) { reportUiError(e, 'nonfatal') }
             const body = `
-                <div class="ls-stat-section-title">◈ 沉淀史记与编年</div>
+                <div class="ls-stat-section-title">◷ 发生的故事</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="summaries"><div class="ls-stat-num">${s.summary.summaries.length}</div><div class="ls-stat-label">事件摘要</div></div>
@@ -139,17 +189,17 @@
                     <div class="ls-stat-card ls-clickable" data-view="pulse"><div class="ls-stat-num">${s.pulse?.beats?.length || 0}</div><div class="ls-stat-label">叙事张力</div></div>
                 </div>
 
-                <div class="ls-stat-section-title">◷ 角色心绪与羁绊</div>
+                <div class="ls-stat-section-title">◈ 人物</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色心境</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="povs"><div class="ls-stat-num">${s.pov?.povs?.length || 0}</div><div class="ls-stat-label">私密心声 (POV)</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="povs"><div class="ls-stat-num">${s.pov?.povs?.length || 0}</div><div class="ls-stat-label">私密心声</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="diaries"><div class="ls-stat-num">${Object.keys(s.diary.diaries).length}</div><div class="ls-stat-label">角色日记</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="protagonist"><div class="ls-stat-num">${['gender','age','identity','appearance','outfit','condition'].filter(k => s.status?.protagonist?.[k]).length}</div><div class="ls-stat-label">主角档案</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="relations"><div class="ls-stat-num">${s.graph.edges.size}</div><div class="ls-stat-label">关系网络</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">未决矛盾</div></div>
                 </div>
 
-                <div class="ls-stat-section-title">⬡ 世界、道具与拓扑</div>
+                <div class="ls-stat-section-title">⬡ 世界与物品</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品流转</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="suspense"><div class="ls-stat-num">${s.suspense?.openItems?.().length || 0}</div><div class="ls-stat-label">未解之谜</div></div>
@@ -159,10 +209,10 @@
                     <div class="ls-stat-card ls-clickable" data-view="prequel"><div class="ls-stat-num">${s.prequel?.text ? '已导入' : '—'}</div><div class="ls-stat-label">前情设定</div></div>
                 </div>
 
-                <div class="ls-stat-section-title">⚙ 档案体检与协同</div>
+                <div class="ls-stat-section-title">⚙ 维护</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '就绪' : '—'}</div><div class="ls-stat-label">本轮注入预览</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">调阅</div><div class="ls-stat-label">记忆控制台</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">调阅</div><div class="ls-stat-label">详细设置</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">生成</div><div class="ls-stat-label">全景档案报告</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="archive"><div class="ls-stat-num">${s._lastArchiveAudit ? (s._lastArchiveAudit.verdict === 'classified' ? ((s._lastArchiveAudit.cleanup || 0) > 0 ? (s._lastArchiveAudit.cleanup + ' 项') : '正常') : '—') : '—'}</div><div class="ls-stat-label">存档健康体检</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="oplog" title="${(s.opLog?._truncated || s.opLog?._trimFields) ? '账本已发生淘汰或字段裁剪，点击查看自述' : '事件审计链（窗口/累计/损失）'}"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}${(s.opLog?._truncated || s.opLog?._trimFields) ? '<span title="账本有损失" style="font-size:12px;color:var(--ls-warn,#e3b341)">※</span>' : ''}</div><div class="ls-stat-label">操作审计日志</div></div>
@@ -178,7 +228,7 @@
                     </div>
                 </details>
             `;
-            const ov = makeSheet('lonsha-stats-overlay', '◈ 记忆档案全貌', body);
+            const ov = makeSheet('lonsha-stats-overlay', '📖 记忆总览', body);
             ov.querySelectorAll('.ls-clickable').forEach(card => {
                 card.addEventListener('click', () => plugin.showBrowser(card.dataset.view));
             });
@@ -1011,19 +1061,48 @@
                 </label>`;
             const body = `
                 <div class="ls-tabs-nav">
-                    <button type="button" class="ls-tab-btn active" data-tab="general">◈ 核心体验</button>
-                    <button type="button" class="ls-tab-btn" data-tab="narrative">◷ 剧情与认知</button>
-                    <button type="button" class="ls-tab-btn" data-tab="retrieval">⬡ 联想与世界</button>
-                    <button type="button" class="ls-tab-btn" data-tab="advanced">⚙ 进阶与维护</button>
+                    <button type="button" class="ls-tab-btn active" data-tab="general">◈ 常用</button>
+                    <button type="button" class="ls-tab-btn" data-tab="narrative">◷ 故事与人物</button>
+                    <button type="button" class="ls-tab-btn" data-tab="retrieval">⬡ 记录与世界</button>
+                    <button type="button" class="ls-tab-btn" data-tab="advanced">⚙ 高级</button>
                 </div>
-                <div class="ls-mode-banner">
-                    <div class="ls-mode-pill active">◈ 沉浸叙事推荐</div>
-                    <div class="ls-mode-pill">◷ 深度推演模式</div>
-                    <div class="ls-mode-pill">⬡ 极简轻量模式</div>
+                <div class="ls-mode-banner" id="ls-mode-banner">
+                    <!-- [v3.422] 缺陷修复：三个模式 pill 此前是纯装饰（无事件、active 硬编码），点击毫无反应。
+                         现接入真实配置 extractionProfile（quality/balanced/low-cost 三档抽取节奏，与「联想与世界」页的档位下拉同源），
+                         active 态从配置实读；点击立即写回 config + saveConfig + 同步档位下拉，无需点保存。 -->
+                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'balanced' ? ' active' : ''}" data-profile="balanced" role="button" title="均衡档：每 3 楼攒批提取，叙事与记忆成本平衡">◈ 沉浸叙事推荐</div>
+                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'quality' ? ' active' : ''}" data-profile="quality" role="button" title="质量档：每楼都提取，记忆最完整（API 消耗最高）">◷ 深度推演模式</div>
+                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'low-cost' ? ' active' : ''}" data-profile="low-cost" role="button" title="省流档：每 5 楼攒批且只抽核心类型（API 消耗最低）">⬡ 极简轻量模式</div>
                 </div>
                 <div class="ls-tab-pane active" data-tab-pane="general">
                 <div class="ls-group">
-                    <div class="ls-group-title">[CORE] 核心运转与自装载</div>
+                    <!-- [v3.423] API 连接前置：玩家第一件事就是连 API，不再埋在第 3 个 tab 里 -->
+                    <div class="ls-group-title">🔗 AI 接口连接</div>
+                    <label class="ls-row">
+                        <div><div>使用自己的 AI 接口</div><div class="ls-hint">关闭 = 直接用游戏当前对话的接口（推荐，零配置）。开启 = 填下方专用接口。</div></div>
+                        <input type="checkbox" data-cfg="apiProviderCustom" ${c.apiProviderCustom ? 'checked' : ''}>
+                    </label>
+                    <div style="padding: 4px 8px;">
+                        <input type="text" class="ls-input" placeholder="API 地址（如 https://api.xxx.com/v1）" value="${c.apiUrl || ''}" data-cfg-text="apiUrl" autocomplete="off">
+                        <input type="password" class="ls-input" placeholder="API Key" value="${c.apiKey || ''}" data-cfg-text="apiKey" autocomplete="off">
+                        <div style="display:flex;gap:6px;">
+                            <select class="ls-input" id="ls-model-select" data-cfg-text="apiModel" style="flex:1;display:none;"><option value="${c.apiModel || ''}">${c.apiModel || '点击右侧抓取模型'}</option></select>
+                            <input type="text" class="ls-input" id="ls-model-input" placeholder="模型名（或点右侧抓取列表）" value="${c.apiModel || ''}" style="flex:1;display:block;" autocomplete="off">
+                            <button class="ls-btn" id="ls-fetch-models" style="width:auto;padding:0 14px;margin:5px 0;white-space:nowrap;">🔄</button>
+                        <div class="ls-hint" id="ls-model-status"></div>
+                        <div class="ls-hint">兼容 OpenAI 格式；地址填 base 即可（自动补 /chat/completions）</div>
+                    </div>
+                    <div style="padding: 0 8px;"><div class="ls-group-title" style="margin-top:10px">Embedding（向量检索用）</div></div>
+                    <div style="padding: 4px 8px;">
+                        <input type="text" class="ls-input" placeholder="Embedding 地址（留空=同提取API）" value="${c.embeddingUrl || ''}" data-cfg-text="embeddingUrl" autocomplete="off">
+                        <input type="password" class="ls-input" placeholder="Embedding Key（留空=用提取Key）" value="${c.embeddingKey || ''}" data-cfg-text="embeddingKey" autocomplete="off">
+                        <input type="text" class="ls-input" placeholder="Embedding 模型（如 text-embedding-3-small）" value="${c.embeddingModel || ''}" data-cfg-text="embeddingModel" autocomplete="off">
+                        <div class="ls-hint">不配置时向量功能用简化算法（弱但免费），配置后为真语义检索</div>
+                    </div>
+                </div>
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">[CORE] 记忆开关</div>
                     ${ck('preferModuleFiles', 'extra_js 自装载', '模块按清单顺序自动加载，保障所有记忆机制生效')}
                     ${ck('enabled', '启用插件', '总开关，关闭后不提取也不注入')}
                     ${ck('extractionEnabled', '自动提取', '每条 AI 回复后自动用 LLM 提取记忆')}
@@ -1033,7 +1112,7 @@
                     ${ck('debugMode', '调试模式', 'console 显示召回分数与提取详情')}
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[RECALL] 回忆强度与注入容量</div>
+                    <div class="ls-group-title">[RECALL] 回忆多少</div>
                     <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
                     <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
@@ -1043,7 +1122,7 @@
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[STABILITY] 上下文预算与保护</div>
+                    <div class="ls-group-title">[STABILITY] 用量与保护</div>
                     ${ck('extractionLockEnabled', '提取互斥锁', '并发保护：快速连续对话时防止记忆写入冲突')}
                     ${ck('holidayAware', '节日感知', '剧情日期临近节日时召回相关记忆（圣诞/情人节/七夕等）')}
                     <div class="ls-slider-label"><span>注入预算（字符）</span><span class="ls-slider-val" id="ls-v-budget">${c.injectionBudget || 3000}</span></div>
@@ -1053,7 +1132,7 @@
                 </div>
                 <div class="ls-tab-pane" data-tab-pane="narrative">
                 <div class="ls-group">
-                     <div class="ls-group-title">[CHARACTER] 角色状态与心绪追踪</div>
+                     <div class="ls-group-title">[CHARACTER] 人物状态记录</div>
                      ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
                      ${ck('cseEnabled', 'CSE 人物状态引擎', '分层建模人物心理：核心人设/逐渐适应/当下情绪 + toward 对象绑定 + 私密/幕后可见性 + 证据链置信度（待证项注入时标注，防推测当事实）')}
                      ${ck('narrativePulseEnabled', '叙事心电图', '情感极性曲线 + 张力节奏 + 角色弧光阶段 + 自反性节奏建议（连续高压提醒放缓呼吸拍，连续平淡提醒掀起波澜），纯文本启发式零额外 API')}
@@ -1067,7 +1146,7 @@
                  </div>
                 <div class="ls-tab-pane" data-tab-pane="advanced">
                 <div class="ls-group">
-                    <div class="ls-group-title">[CHRONO] 记忆折叠与检索</div>
+                    <div class="ls-group-title">[CHRONO] 故事整理</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
                     <div class="ls-slider-label"><span>卷摘要保留上限</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
                     <input type="range" class="ls-slider" min="4" max="200" step="2" value="${c.volumeRetention || 40}" data-cfg-num="volumeRetention" oninput="document.getElementById('ls-v-volret').textContent=this.value">
@@ -1095,13 +1174,13 @@
                     <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[BOUNDARY] 认知边界与时间线</div>
+                    <div class="ls-group-title">[BOUNDARY] 时间线</div>
                     ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密心事与暗线单独隔离，只展示当前在场角色知晓的事实')}
                     ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[LEDGER] 道具物品与深层洞察</div>
+                    <div class="ls-group-title">[LEDGER] 物品记录</div>
                     ${ck('reflectionEnabled', '反思节点（需额外模型支持）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
                     <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
@@ -1142,7 +1221,7 @@
                     <div class="ls-hint" style="padding:0 8px;">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[RESONANCE] 心声回响与日记节流</div>
+                    <div class="ls-group-title">[RESONANCE] 人物心声</div>
                     ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
                     ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
                     ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
@@ -1157,13 +1236,13 @@
                     <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[WORLD] 场景地理与空间在场</div>
+                    <div class="ls-group-title">[WORLD] 地点记录</div>
                     ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
                     ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现（v3.91 修复：此前门控键断裂导致该功能从未生效）')}
                     ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[SUSPENSE] 约定与未解之谜</div>
+                    <div class="ls-group-title">[SUSPENSE] 伏笔追踪</div>
                     ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
                     ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；[v2.6] 支持架空日历（霜月3日）与全角分隔符，解析失败自动降级不标')}
                     <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
@@ -1174,7 +1253,7 @@
                     <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[DEVICE] 虚拟手机双向协同</div>
+                    <div class="ls-group-title">[DEVICE] 虚拟手机联动</div>
                     ${ck('rubyPhoneBridge', '回填手机记忆', 'LLM 提取结果（摘要/事件/关系）写入 RubyPhone 手机"记忆"App')}
                     ${ck('rubyPhoneRecall', '手机记忆参与召回', 'RubyPhone 记忆库（感官/空间/时间池）作为一路召回源注入简报')}
                     <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN ?? 3}</span></div>
@@ -1183,7 +1262,7 @@
                 </div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[DOMAIN] 记忆域精准分流</div>
+                    <div class="ls-group-title">[DOMAIN] 分类记录</div>
                     ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
                     ${ck('clockSyncEnabled', '剧情时钟权威同步', '正文时间锚点回填手机时钟；关闭后手机时钟不被剧情时间改写')}
                     ${ck('pairMemoryEnabled', '配对记忆', '从 relationships 提取双人关系记忆；关闭后只保留单角色记忆')}
@@ -1225,7 +1304,7 @@
                     <div class="ls-hint">可选任务键：extract / summarize / embed / select / rerank / rewrite / state。未配的任务回落主通道；JSON 解析失败时保留原值并提示。</div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[TOPOLOGY] 时态因果拓扑与分流</div>
+                    <div class="ls-group-title">[TOPOLOGY] 因果追踪</div>
                     ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
                     ${ck('entropyReflectionEnabled', '自适应叙事熵反思', '根据事件重要度与剧情惊奇度动态蓄力，冲顶时提前触发反思提炼，告别机械固定轮数')}
@@ -1234,32 +1313,7 @@
                 </div>
                 <div class="ls-tab-pane" data-tab-pane="retrieval">
                 <div class="ls-group">
-                    <div class="ls-group-title">[API] 专用接口配置（可选）</div>
-                    <label class="ls-row">
-                        <div><div>使用独立提取接口</div><div class="ls-hint">开启后提取走下方 API，不再蹭正文接口。关闭则用宿主接口。</div></div>
-                        <input type="checkbox" data-cfg="apiProviderCustom" ${c.apiProviderCustom ? 'checked' : ''}>
-                    </label>
-                    <div style="padding: 4px 8px;">
-                        <input type="text" class="ls-input" placeholder="API 地址（如 https://api.xxx.com/v1）" value="${c.apiUrl || ''}" data-cfg-text="apiUrl" autocomplete="off">
-                        <input type="password" class="ls-input" placeholder="API Key" value="${c.apiKey || ''}" data-cfg-text="apiKey" autocomplete="off">
-                        <div style="display:flex;gap:6px;">
-                            <select class="ls-input" id="ls-model-select" data-cfg-text="apiModel" style="flex:1;display:none;"><option value="${c.apiModel || ''}">${c.apiModel || '点击右侧抓取模型'}</option></select>
-                            <input type="text" class="ls-input" id="ls-model-input" placeholder="模型名（或点右侧抓取列表）" value="${c.apiModel || ''}" style="flex:1;display:block;" autocomplete="off">
-                            <button class="ls-btn" id="ls-fetch-models" style="width:auto;padding:0 14px;margin:5px 0;white-space:nowrap;">🔄</button>
-                        </div>
-                        <div class="ls-hint" id="ls-model-status"></div>
-                        <div class="ls-hint">兼容 OpenAI 格式；地址填 base 即可（自动补 /chat/completions）</div>
-                    </div>
-                    <div style="padding: 0 8px;"><div class="ls-group-title" style="margin-top:10px">Embedding（向量检索用）</div></div>
-                    <div style="padding: 4px 8px;">
-                        <input type="text" class="ls-input" placeholder="Embedding 地址（留空=同提取API）" value="${c.embeddingUrl || ''}" data-cfg-text="embeddingUrl" autocomplete="off">
-                        <input type="password" class="ls-input" placeholder="Embedding Key（留空=用提取Key）" value="${c.embeddingKey || ''}" data-cfg-text="embeddingKey" autocomplete="off">
-                        <input type="text" class="ls-input" placeholder="Embedding 模型（如 text-embedding-3-small）" value="${c.embeddingModel || ''}" data-cfg-text="embeddingModel" autocomplete="off">
-                        <div class="ls-hint">不配置时向量功能用简化算法（弱但免费），配置后为真语义检索</div>
-                    </div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[RERANK] 语义重排与候选精炼（可选）</div>
+                    <div class="ls-group-title">[RERANK] 回忆排序优化（可选）</div>
                     ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
                     <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
                     <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
@@ -1268,7 +1322,7 @@
                      <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
                  </div>
                  <div class="ls-group">
-                     <div class="ls-group-title">[INTELLIGENCE] 短期/长期巩固与精选</div>
+                     <div class="ls-group-title">[INTELLIGENCE] 记忆巩固</div>
                      ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选→前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
                      <div class="ls-slider-label"><span>精选候选上限</span><span class="ls-slider-val" id="ls-v-aiselcand">${c.aiSelectMaxCandidates || 20}</span></div>
                      <input type="range" class="ls-slider" min="8" max="40" step="4" value="${c.aiSelectMaxCandidates || 20}" data-cfg-num="aiSelectMaxCandidates">
@@ -1284,14 +1338,14 @@
                      <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
                  </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[PROMPT] 记忆提炼提示词模板</div>
+                    <div class="ls-group-title">[PROMPT] 提取规则模板（高级）</div>
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
                     <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
                     <button class="ls-btn" id="ls-prompt-reset">↩ 恢复默认提示词</button>
                 </div>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[DATA] 记忆数据归档与迁移</div>
+                    <div class="ls-group-title">[DATA] 备份与迁移</div>
                     <button class="ls-btn" id="ls-export">📤 导出档案 (JSON)</button>
                     <button class="ls-btn" id="ls-import">📥 导入档案</button>
                     <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻ 恢复嵌入存档（跨设备迁移）</button>
@@ -1359,7 +1413,7 @@
                     </details>
                 </div>
                 <div class="ls-group">
-                    <div class="ls-group-title">[ADVANCED] 引擎底层机制微调</div>
+                    <div class="ls-group-title">[ADVANCED] 高级调整</div>
                     ${ck('protagonistTracking', '主角档案追踪', 'baibai 主角客观档案与生活习惯癖好追踪')}
                     ${ck('dualTimeAnchorEnabled', '正文时间锚点', 'baibai 正文起止时间锚点（故事内时间推演）')}
                     ${ck('charMemEnabled', '角色记忆银行', '两层记忆（短期/长期）按角色隔离')}
@@ -1409,12 +1463,35 @@
                 </div>
             `;
 
-            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 记忆控制台与偏好', body);
+            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 设置', body);
             overlay.querySelectorAll('.ls-tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const tab = btn.dataset.tab;
                     overlay.querySelectorAll('.ls-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
                     overlay.querySelectorAll('.ls-tab-pane').forEach(p => p.classList.toggle('active', p.dataset.tabPane === tab));
+                });
+            });
+            // [v3.422] 缺陷修复：模式 pill 接线。此前三个 .ls-mode-pill 是纯装饰 div（全文件零监听、active 硬编码），
+            //   点击毫无反应。现映射到真实配置 extractionProfile（quality/balanced/low-cost）：
+            //   点击 → 立即写 config + saveConfig 落盘 + 同步「联想与世界」页的档位下拉与 active 高亮，无需再点保存。
+            const VALID_PROFILES = ['balanced', 'quality', 'low-cost'];
+            overlay.querySelectorAll('.ls-mode-pill').forEach(pill => {
+                pill.addEventListener('click', () => {
+                    const profile = pill.dataset.profile;
+                    if (!VALID_PROFILES.includes(profile)) return;
+                    this.engine.config.config.extractionProfile = profile;
+                    this.engine.config.saveConfig();
+                    overlay.querySelectorAll('.ls-mode-pill').forEach(p => p.classList.toggle('active', p === pill));
+                    const profSel = overlay.querySelector('select[data-cfg-text="extractionProfile"]');
+                    if (profSel) {
+                        profSel.value = profile;
+                        // 档位读数 = 档位下拉紧邻的前一个 .ls-slider-label 里的 .ls-slider-val
+                        //   （不能全局 querySelector('.ls-slider-val')，那会抓到 vectorTopK 等首个滑杆的读数）
+                        const labelDiv = profSel.previousElementSibling;
+                        const profLabel = labelDiv ? labelDiv.querySelector('.ls-slider-val') : null;
+                        if (profLabel) profLabel.textContent = profile;
+                    }
+                    toast('✅ 已切换到「' + pill.textContent.trim() + '」（抽取档位 ' + profile + '，已保存）');
                 });
             });
             // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
@@ -1692,87 +1769,76 @@
         };
 
         // ========== FAB 快捷菜单 ==========
-        plugin.showFabMenu = function() {
-            const existing = document.getElementById('lonsha-fab-menu');
-            if (existing) { existing.remove(); return; }
-
-            const fab = document.querySelector('#lonsha-memory-fab');
-            const vw = (typeof window !== 'undefined' && window.innerWidth) || (document.documentElement?.clientWidth || 360);
-            const vh = (typeof window !== 'undefined' && window.innerHeight) || (document.documentElement?.clientHeight || 640);
-            const fabRect = fab?.getBoundingClientRect?.() || { left: vw - 72, top: vh - 132, right: vw - 20, bottom: vh - 80, width: 52, height: 52 };
-
-            const menuWidth = 200;
-            const menuHeight = 310;
-            let menuLeft = fabRect.left;
-            if (fabRect.left + menuWidth > vw - 10) {
-                menuLeft = Math.max(10, fabRect.right - menuWidth);
-            }
-            menuLeft = Math.max(10, Math.min(menuLeft, vw - menuWidth - 10));
-
-            let menuTop = fabRect.bottom + 8;
-            if (menuTop + menuHeight > vh - 10) {
-                menuTop = Math.max(10, fabRect.top - menuHeight - 8);
-            }
-
-            const menu = document.createElement('div');
-            menu.id = 'lonsha-fab-menu';
-            menu.style.cssText = `position:fixed;left:${menuLeft}px;top:${menuTop}px;`;
-            menu.innerHTML = `
-                <div class="lsm-brand-bar">
-                    <span class="lsm-brand-dot"></span>
-                    <span class="lsm-brand-text">LONSHA CHRONO-ARCHIVE</span>
-                    <span class="lsm-brand-ver">v3.5</span>
+        // ========== [v3.423] 玩家主页：FAB 点开即达 ==========
+        // 产品定位（用户拍板）：玩家只关心三件事——记忆能力在不在跑、这里的人是谁、过去发生了什么。
+        // 引擎名/召回源/BM25 等开发者黑话一律不上主页；专业视图仍可从总览与设置进入。
+        plugin.showPlayerHome = function() {
+            const s = this.engine;
+            const cfg = s.config.config;
+            const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const running = cfg.enabled !== false && cfg.extractionEnabled !== false;
+            const hasApi = !!(cfg.apiUrl && cfg.apiKey) || cfg.apiProviderCustom !== true; // 未配独立API时默认走宿主接口，视为可用
+            const apiLabel = cfg.apiProviderCustom ? (cfg.apiUrl ? '✅ 已连接' : '⚠️ 未配置') : '✅ 用游戏自带接口';
+            const modeName = { balanced: '◈ 沉浸叙事', quality: '◷ 深度推演', 'low-cost': '⬡ 极简轻量' }[cfg.extractionProfile || 'balanced'] || '◈ 沉浸叙事';
+            const chars = Object.keys(s.status?.characters || {});
+            const recent = (s.summary.summaries || []).slice(-5).reverse();
+            const memoryCount = (s.summary.summaries || []).length;
+            const body = `
+                <div class="ls-home-status">
+                    <div class="ls-home-status-main">
+                        <span class="ls-home-dot" style="background:${running && hasApi ? 'var(--ls-success,#34d399)' : 'var(--ls-warn,#fbbf24)'};box-shadow:0 0 8px ${running && hasApi ? 'var(--ls-success,#34d399)' : 'var(--ls-warn,#fbbf24)'};"></span>
+                        <div>
+                            <div style="font-size:15px;font-weight:600;color:var(--ls-text,#f1f5f9);">${running && hasApi ? '记忆正在运转' : (running ? '记忆在运转，接口未连' : '记忆已暂停')}</div>
+                            <div class="ls-hint" style="margin:2px 0 0;">已记住 ${memoryCount} 段剧情 · 接口 ${apiLabel}</div>
+                        </div>
+                    </div>
+                    <div class="ls-home-modes">
+                        ${['balanced','quality','low-cost'].map(p => `<div class="ls-mode-pill${(cfg.extractionProfile || 'balanced') === p ? ' active' : ''}" data-home-profile="${p}" role="button">${ {balanced:'◈ 沉浸叙事',quality:'◷ 深度推演','low-cost':'⬡ 极简轻量'}[p] }</div>`).join('')}
+                    </div>
                 </div>
-                <div class="lsm-item" data-act="stats"><span class="lsm-glyph">◈</span><span class="lsm-name">状态总览</span><span class="lsm-tag">STATUS</span></div>
-                <div class="lsm-item" data-act="timeline"><span class="lsm-glyph">◷</span><span class="lsm-name">剧情时间线</span><span class="lsm-tag">CHRONO</span></div>
-                <div class="lsm-item" data-act="viz"><span class="lsm-glyph">⬡</span><span class="lsm-name">记忆图谱</span><span class="lsm-tag">ATLAS</span></div>
-                <div class="lsm-item" data-act="settings"><span class="lsm-glyph">⚙</span><span class="lsm-name">控制台设置</span><span class="lsm-tag">CONFIG</span></div>
-                <div class="lsm-item" data-act="diag"><span class="lsm-glyph">⊕</span><span class="lsm-name">一键诊断</span><span class="lsm-tag">DIAGNOSE</span></div>
-                <div class="lsm-item" data-act="ckpt"><span class="lsm-glyph">⚑</span><span class="lsm-name">时间检查点</span><span class="lsm-tag">CHECKPOINT</span></div>
-                <div class="lsm-item" data-act="update"><span class="lsm-glyph">↻</span><span class="lsm-name">检查更新</span><span class="lsm-tag">SYNC</span></div>
-                <style>
-                    #lonsha-fab-menu { background: var(--ls-bg-glass, rgba(10,15,24,0.92)); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); border: 1px solid var(--ls-line-strong, rgba(255,255,255,0.14)); border-radius: var(--ls-r-md, 10px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-3), var(--ls-inner-rim); min-width: 220px; animation: ls-menu-in var(--ls-t-med,220ms) var(--ls-ease,ease); overflow: hidden; }
-                    @keyframes ls-menu-in { from { opacity: 0; transform: translateY(8px) scale(0.97); filter: blur(3px); } to { opacity: 1; transform: none; filter: blur(0); } }
-                    .lsm-brand-bar { display: flex; align-items: center; gap: 8px; padding: 7px 12px 8px; border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.07)); margin-bottom: 4px; }
-                    .lsm-brand-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ls-accent, #38bdf8); box-shadow: 0 0 6px var(--ls-accent); }
-                    .lsm-brand-text { font-size: 10px; font-weight: 600; color: var(--ls-text-2, #94a3b8); letter-spacing: 0.12em; font-family: var(--ls-mono); flex: 1; }
-                    .lsm-brand-ver { font-size: 9px; color: var(--ls-accent, #38bdf8); font-family: var(--ls-mono); background: var(--ls-accent-soft); padding: 1px 4px; border-radius: 3px; }
-                    .lsm-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; color: var(--ls-text, #f1f5f9); font-size: 13px; border-radius: var(--ls-r-sm, 6px); cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
-                    .lsm-glyph { font-size: 13px; color: var(--ls-accent, #38bdf8); width: 14px; text-align: center; }
-                    .lsm-name { flex: 1; font-weight: 500; letter-spacing: 0.01em; }
-                    .lsm-tag { font-size: 9px; color: var(--ls-text-3, #64748b); font-family: var(--ls-mono); letter-spacing: 0.06em; font-weight: 600; }
-                    .lsm-item:hover { background: var(--ls-bg-3, #1b2436); color: #ffffff; }
-                    .lsm-item:hover .lsm-glyph { color: var(--ls-accent-hover, #7dd3fc); transform: scale(1.15); }
-                    .lsm-item:hover .lsm-tag { color: var(--ls-accent, #38bdf8); }
-                    .lsm-item:active { background: var(--ls-bg-4, #27334a); transform: scale(0.98); }
-                </style>
+                <div class="ls-home-section">
+                    <div class="ls-home-title">◷ 最近发生的事</div>
+                    ${recent.length === 0 ? '<div class="ls-hint">还没有故事记录。继续聊天，这里会自动写下发生过的事。</div>'
+                      : recent.map(m => `<div class="ls-home-event">${esc(String(m.text || m.summary || '').slice(0, 60))}${String(m.text || m.summary || '').length > 60 ? '…' : ''}<span class="ls-home-event-meta">第 ${m.floor ?? '?'} 楼</span></div>`).join('')}
+                </div>
+                <div class="ls-home-section">
+                    <div class="ls-home-title">◈ 这里的人 <span class="ls-home-more" data-home-jump="status">${chars.length} 人 ›</span></div>
+                    ${chars.length === 0 ? '<div class="ls-hint">登场人物出现后会自动记录。</div>'
+                      : chars.slice(0, 6).map(n => `<div class="ls-home-chip" data-home-jump="status">${esc(n)}</div>`).join('')}
+                </div>
+                <div class="ls-home-actions">
+                    <button class="ls-btn" data-home-act="overview">📖 记忆总览</button>
+                    <button class="ls-btn" data-home-act="timeline">◷ 故事时间线</button>
+                    <button class="ls-btn ls-btn-primary" data-home-act="settings">⚙ 设置</button>
+                </div>
+                <div class="ls-hint" style="text-align:center;margin-top:12px;"><span class="lsm-item" data-act="ckpt" style="cursor:pointer;color:var(--ls-text-3,#64748b);">⚑ 时间检查点</span> · <span class="lsm-item" data-act="update" style="cursor:pointer;color:var(--ls-text-3,#64748b);">↻ 检查更新</span></div>
             `;
-            menu.querySelectorAll('.lsm-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    menu.remove();
-                    const act = item.dataset.act;
-                    if (act === 'stats') plugin.showStatsPanel();
-                    else if (act === 'viz') {
-                        if (plugin.visualizer) plugin.visualizer.createPanel();
-                        else plugin.showStatsPanel();
-                    }
-                    else if (act === 'settings') plugin.showSettingsPanel();
-                    else if (act === 'timeline') plugin.showBrowser('timeline');
-                    else if (act === 'diag') plugin.showDiagnose();
-                    else if (act === 'ckpt') plugin.showCheckpoints();
-                    else if (act === 'update') plugin.checkUpdate();
-                });
-            });
-            document.body.appendChild(menu);
-            setTimeout(() => {
-                const closer = (e) => {
-                    if (!menu.contains(e.target) && e.target.id !== 'lonsha-memory-fab') {
-                        menu.remove();
-                        document.removeEventListener('click', closer);
-                    }
-                };
-                document.addEventListener('click', closer);
-            }, 50);
+            const ov = makeSheet('lonsha-home-overlay', '🧠 记忆', body);
+            const profileWrite = (profile) => {
+                if (!['balanced','quality','low-cost'].includes(profile)) return;
+                this.engine.config.config.extractionProfile = profile;
+                this.engine.config.saveConfig();
+                ov.querySelectorAll('[data-home-profile]').forEach(p => p.classList.toggle('active', p.dataset.homeProfile === profile));
+                toast('✅ 已切换到「' + {balanced:'沉浸叙事',quality:'深度推演','low-cost':'极简轻量'}[profile] + '」');
+            };
+            ov.querySelectorAll('[data-home-profile]').forEach(p => p.addEventListener('click', () => profileWrite(p.dataset.homeProfile)));
+            ov.querySelectorAll('[data-home-jump]').forEach(el => el.addEventListener('click', () => {
+                closeOverlay('lonsha-home-overlay');
+                plugin.showBrowser(el.dataset.homeJump);
+            }));
+            ov.querySelectorAll('[data-home-act]').forEach(el => el.addEventListener('click', () => {
+                closeOverlay('lonsha-home-overlay');
+                const act = el.dataset.homeAct;
+                if (act === 'overview') plugin.showStatsPanel();
+                else if (act === 'timeline') plugin.showBrowser('timeline');
+                else if (act === 'settings') plugin.showSettingsPanel();
+            }));
+            ov.querySelector('.lsm-item[data-act="update"]').addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.checkUpdate(); });
+            ov.querySelector('.lsm-item[data-act="ckpt"]').addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.showCheckpoints(); });
+        };
+        plugin.showFabMenu = function() {
+            // [v3.423] FAB 直达玩家主页；旧七项菜单退役（功能全部保留在总览/设置内）。
+            plugin.showPlayerHome();
         };
 
         /**

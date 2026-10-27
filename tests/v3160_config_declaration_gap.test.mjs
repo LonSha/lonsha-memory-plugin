@@ -111,8 +111,8 @@ test('[2] every key this release declared is settable from the settings panel', 
     assert.deepStrictEqual(unreachable, [], 'declared but no control: ' + unreachable.join(', '));
 });
 test('[2b] the settings panel really renders those controls (behavioural)', () => {
-    const startIdx = sui.indexOf('[DOMAIN] 记忆域') !== -1 ? sui.indexOf('[DOMAIN] 记忆域') : sui.indexOf('🧩 记忆域开关');
-    const endIdx = sui.indexOf('[TOPOLOGY] 时态因果') !== -1 ? sui.indexOf('[TOPOLOGY] 时态因果') : sui.indexOf('🏛️ 工业级体系化增强');
+    const startIdx = sui.indexOf('[DOMAIN] 分类记录') !== -1 ? sui.indexOf('[DOMAIN] 分类记录') : sui.indexOf('🧩 记忆域开关');
+    const endIdx = sui.indexOf('[TOPOLOGY] 因果追踪') !== -1 ? sui.indexOf('[TOPOLOGY] 因果追踪') : sui.indexOf('🏛️ 工业级体系化增强');
     const group = sui.slice(startIdx, endIdx);
     assert.ok(group.length > 0, 'the new group is present');
     for (const k of ['diaryBridgeEnabled', 'clockSyncEnabled', 'pairMemoryEnabled', 'conflictBookEnabled',

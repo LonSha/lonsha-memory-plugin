@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.421.0",
+  "version": "3.423.0",
   "version_sources": {
-    "manifest": "3.421.0",
-    "package": "3.421.0",
-    "index_const": "3.421.0"
+    "manifest": "3.423.0",
+    "package": "3.423.0",
+    "index_const": "3.423.0"
   },
   "version_same": true,
-  "human_index_version": "3.421.0",
+  "human_index_version": "3.423.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 243,
@@ -261,7 +261,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 419,
+    "test_files": 420,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -610,6 +610,7 @@
       "v34210_m4x10_strength_governance.test.mjs",
       "v3421_social_rumor_drift.test.mjs",
       "v3422_physical_token_tracker.test.mjs",
+      "v34230_player_home_refactor.test.mjs",
       "v3423_traumatic_dissociation_sandbox.test.mjs",
       "v3424_narrative_foreshadowing_echo.test.mjs",
       "v3425_cross_branch_deja_vu.test.mjs",
@@ -723,7 +724,7 @@
     "tests_total": 334,
     "assertions": 4066,
     "audit": "61/61",
-    "reason": "登记版本 3.355.0 ≠ 当前 3.421.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.355.0 ≠ 当前 3.423.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -742,19 +743,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "ceac4585b8eb",
-      "package.json": "780fc9664d59",
-      "index.js": "620c4db0dc68",
+      "manifest.json": "5c0d1e1cd2c2",
+      "package.json": "05d451a9bc07",
+      "index.js": "e52ad7366597",
       "update-log.json": null,
-      "README.md": "cd6aa2ee0827",
-      "PLAN.md": "5cdd93e979dd",
-      "CHANGELOG.md": "46cd14726133",
-      "TODO.md": "329956f08a4f",
+      "README.md": "12459c8cf34b",
+      "PLAN.md": "7f22c56ab63a",
+      "CHANGELOG.md": "901f73935ef6",
+      "TODO.md": "167246ac43aa",
       "tests/audit/doc_readings.json": "320c4f5c5af7"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.355.0，当前 3.421.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.355.0，当前 3.423.0"
   ],
   "unknown_count": 1
 }

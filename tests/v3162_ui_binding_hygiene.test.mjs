@@ -254,16 +254,16 @@ test('[3] the duplicated injectionDepth slider is gone from the reflection group
     assert.strictEqual((sui.match(/id="ls-v-injdepth"/g) || []).length, 1, 'exactly one value label');
     /* [v3.421.0] 分组标题已换名为 `[LEDGER]` 词条制（emoji 前缀撤掉）。
      *   「反射组」= 承载反思节点那一段，终点仍是回响组起点。 */
-    const g0 = sui.indexOf('[LEDGER] 道具物品与深层洞察');
-    const g1 = sui.indexOf('[RESONANCE] 心声回响与日记节流');
+    const g0 = sui.indexOf('[LEDGER] 物品记录');
+    const g1 = sui.indexOf('[RESONANCE] 人物心声');
     assert.ok(g0 > 0 && g1 > g0, 'both groups are present');
     assert.ok(!sui.slice(g0, g1).includes('injectionDepth'), 'the reflection group no longer carries it');
 });
 test('[3b] the duplicated reflectionEnabled checkbox is gone from the echo group', () => {
     assert.strictEqual((sui.match(/\bck\('reflectionEnabled'/g) || []).length, 1,
         'exactly one reflectionEnabled checkbox');
-    const g0 = sui.indexOf('[RESONANCE] 心声回响与日记节流');
-    const g1 = sui.indexOf('[WORLD] 场景地理与空间在场');
+    const g0 = sui.indexOf('[RESONANCE] 人物心声');
+    const g1 = sui.indexOf('[WORLD] 地点记录');
     assert.ok(g0 > 0 && g1 > g0, 'both groups are present');
     assert.ok(!sui.slice(g0, g1).includes("ck('reflectionEnabled'"),
         'the echo group no longer carries the duplicate copy');

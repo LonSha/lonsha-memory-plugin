@@ -107,7 +107,7 @@ test('[1c] the two secret / global keys are deliberately kept out of the card', 
 // ================= 2. the shipped controls =================
 test('[2] the new reasoning group renders every one of the nine', () => {
     const g0 = sui.indexOf('[INFERENCE] 推理') !== -1 ? sui.indexOf('[INFERENCE] 推理') : sui.indexOf('🧭 推理调优');
-    const g1 = sui.indexOf('[TOPOLOGY] 时态因果') !== -1 ? sui.indexOf('[TOPOLOGY] 时态因果') : sui.indexOf('🏛️ 工业级体系化增强');
+    const g1 = sui.indexOf('[TOPOLOGY] 因果追踪') !== -1 ? sui.indexOf('[TOPOLOGY] 因果追踪') : sui.indexOf('🏛️ 工业级体系化增强');
     assert.ok(g0 > 0 && g1 > g0, 'the reasoning group sits before the industrial group');
     const group = sui.slice(g0, g1);
     for (const k of ['memoryTreeEnabled', 'aiRecallOpsDebug']) {
