@@ -4,17 +4,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [十二批外提同步] restoreFromPayload / collectExport / ARCHIVE_TOP_LEVEL_KEYS 已随持久化面
+ *   外提进 engine-persistence-ops.js（入口只剩单行委派），判据改从该模块抠方法体。 */
+const psrc = readFileSync(new URL('../engine-persistence-ops.js', import.meta.url), 'utf8');
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
-function extractBraced(marker) {
-    const start = src.indexOf(marker);
+function extractBraced(marker, which) {
+    const body = (which === 'persistence') ? psrc : src;
+    const start = body.indexOf(marker);
     assert.ok(start >= 0, `${marker} 存在`);
-    let depth = 0, i = src.indexOf('{', start + marker.length - 1);
+    let depth = 0, i = body.indexOf('{', start + marker.length - 1);
     const open = i;
-    for (; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) break; }
+    for (; i < body.length; i++) {
+        if (body[i] === '{') depth++;
+        else if (body[i] === '}') { depth--; if (depth === 0) break; }
     }
-    return src.slice(open + 1, i);
+    return body.slice(open + 1, i);
 }
 const KEYS = ['version', 'graph', 'summaries', 'clock', 'schemaVersion', 'producerVersion', 'extensions', 'exportedAt', 'thirdPartyThing'];
 function mkFn() {
@@ -28,7 +32,7 @@ function mkFn() {
         clock: { import: () => calls.push('clock') },
     };
     const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET',
-        `return function (data) { ${extractBraced('restoreFromPayload(data) {')} }`)(
+        `return function (data) { ${extractBraced('restoreFromPayload(data) {', 'persistence')} }`)(
         () => {}, 1, new Set(KEYS.filter(k => k !== 'thirdPartyThing')));
     return { eng, fn, calls };
 }
@@ -54,9 +58,9 @@ test('v3.142 未知顶层键 round-trip：收进 extensions 且随 collectExport
     assert.equal(r.unknownPreserved, 1);
     assert.deepEqual(eng._archiveExtensions.thirdPartyThing, { keep: 1 }, '未知键收容');
     assert.equal(eng._archiveExtensions.fromBag, 2, '存档自带 extensions 合并回流');
-    const ce = extractBraced('collectExport() {');
+    const ce = extractBraced('collectExport() {', 'persistence');
     assert.match(ce, /extensions: this\._archiveExtensions \|\| \{\}/, 'collectExport 回写收容袋（round-trip 出口）');
-    const contract = /Object\.freeze\(\[([\s\S]*?)\]\);/.exec(src)[1];
+    const contract = /const ARCHIVE_TOP_LEVEL_KEYS = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(psrc)[1];
     assert.match(contract, /'extensions',/, '契约登记 extensions 键');
 });
 test('v3.142 missing 与 skipped 分离：有数据但引擎无模块不再被误报为「无数据」', () => {
@@ -69,7 +73,7 @@ test('v3.142 missing 与 skipped 分离：有数据但引擎无模块不再被�
         // 故意不装配 clock / timeline：payload 给了这两个键的数据
     };
     const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET',
-        `return function (data) { ${extractBraced('restoreFromPayload(data) {')} }`)(() => {}, 1, new Set(KEYS));
+        `return function (data) { ${extractBraced('restoreFromPayload(data) {', 'persistence')} }`)(() => {}, 1, new Set(KEYS));
     const r = fn.call(eng, { graph: {}, summaries: [], clock: { t: 1 }, timeline: [1] }, { source: 't' });
     assert.ok(r.missing.includes('clock'), '有数据但引擎缺模块 → missing');
     assert.ok(r.missing.includes('timeline'), '同上：timeline 数据存在但引擎未装配');

@@ -213,7 +213,18 @@ test('v3279 C7. ★★★ 捆绑未测副本：ref 一旦失效，**真被使用
      *   真跑扫描器，读它真打出来的 A7.2 名单。对照组与破坏组都是同一次真跑。 */
     const listOf = (dir) => {
         const { status, out } = runScan(dir);
-        assert.equal(status, 0, '两组都必须 exit 0（否则读不到 A7.2 名单）: ' + out.slice(-300));
+        /* [十二批外提同步] 破坏组摘掉「裸标识符算真引用」后，24 个 _xxxLib 取库口函数
+         *   （引用形态恰是裸标识符，如 `_schemaMigrationLib()`）会掉进 A7.1 硬失败 ⇒ exit 1。
+         *   故 exit≠0 不再一票否决，但归因必须可验证：硬缺陷须且仅须是「A7.1 新增零引用」
+         *   且名单全为取库口 Lib 形态 —— 否则 exit≠0 是别的病，照旧断言失败。 */
+        if (status !== 0) {
+            const m = /A7\.1 新增零引用[^\n]*?(\d+) 个: ([^\n]*)/.exec(out);
+            assert.ok(m, 'exit≠0 必须由「A7.1 新增零引用」触发（否则读不到 A7.2 名单的归因不成立）: '
+                + out.slice(-300));
+            const names = m[2].split(',').map((s) => s.trim()).filter(Boolean);
+            assert.ok(names.length === Number(m[1]) && names.every((n) => /^_\w+Lib$/.test(n)),
+                'A7.1 名单必须全是 _xxxLib 取库口形态（裸标识符摘除的次生效应）: ' + m[2].slice(0, 240));
+        }
         const a = out.indexOf('=== A7.2');
         const b = out.indexOf('=== A8');
         assert.ok(a >= 0 && b > a, '必须能切出 A7.2 段: ' + out.slice(-300));

@@ -49,9 +49,12 @@ function __hostSurface() {
             return !__isDeleg;
         })
         .join(String.fromCharCode(10));
-    return __face.files.map((f) => __squeeze(f.raw)).join(String.fromCharCode(10))
-        + String.fromCharCode(10) + '// ==== 剥下的单行委派（入口原文，供「出口在场」判据） ====' + String.fromCharCode(10)
-        + __deleg.join(String.fromCharCode(10));
+    /* [vm 执行面修正] 本档把合并面整份放进 vm 真跑：单行委派必须留在类体内原位 ——
+     *   挪到顶层（通用壳为「出口在场」判据所做）在顶层是方法简写语法，vm 编译直接
+     *   SyntaxError（实测 _floorLedgerLine 一行炸整个 Script）；整段剥掉又会让
+     *   rollbackFloor 等委派方法消失、真跑面直接断。字符串判据不受影响：
+     *   委派行数不因位置改变，锚点计数与首个命中序均不变。 */
+    return __face.files.map((f) => f.raw).join(String.fromCharCode(10));
 }
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');

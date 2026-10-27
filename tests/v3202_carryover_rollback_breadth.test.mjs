@@ -272,11 +272,14 @@ test('v3202 9. 契约表从 26 键扩到 38 键，12 个新键逐项在场', () 
     assert.equal(new Set(contract).size, contract.length, '契约键不得重复');
 });
 
-test('v3202 10. 豁免表在场：14 键、每键带理由、与契约零重叠', () => {
+test('v3202 10. 豁免表在场：24 键、每键带理由、与契约零重叠', () => {
     const contract = arrOf('CARRYOVER_CONTRACT_KEYS');
     const exempt = arrOf('CARRYOVER_EXEMPT_KEYS');
     assert.ok(exempt, '必须存在显式豁免表（不得静默豁免）');
-    assert.equal(exempt.length, 18, '豁免表本版应为 18 键（v3.342.0 M4-X3 新增 canonAdoption；上一刀 17），实际 ' + exempt.length);
+    /* [十二批外提同步] v3.421.0 新增六个缝合层产物键（memoryAnnealingCurve / phaseTransitionSafeguard /
+     *   epilogueRetrospective / intergenerationalTotem / multiResolutionArchive / epochalHeritage）：
+     *   值由上游库按当期运行时现算，跨对话承接即被覆盖（带上=双写噪声），逐项行内理由已由 P3 守卫钉住。 */
+    assert.equal(exempt.length, 24, '豁免表本版应为 24 键（v3.421.0 六个缝合层产物键；上一刀 18），实际 ' + exempt.length);
     assert.equal(exempt.filter((k) => contract.includes(k)).length, 0, '同一键不得既带走又豁免');
     // 每键必须在豁免表行区间内有 >= 4 字符的行内理由（「同上」这种不足 4 字符会被 D3 扫描器抓）
     const lines = raw.split('\n');

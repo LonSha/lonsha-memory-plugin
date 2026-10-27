@@ -24,8 +24,10 @@ const MIGRATED = [
     ['v342_caikis_mechanics.test.mjs',   ['memory-core.js'],                   6588, 5],
     ['v343_baibai_mechanics.test.mjs',   ['memory-core.js', 'memory-books.js'], 8026, 4],
     ['v345_deep_bastion.test.mjs',       ['memory-core.js', 'memory-books.js'], 11803, 0],
-    ['v346_fortress_pyramid.test.mjs',   ['memory-core.js', 'memory-books.js'], 9018, 0],
-    ['v360_graph_dedup.test.mjs',        ['memory-core.js'],                   9005, 9],
+    /* [字节钉抬升] v346/v360 在后续迭代中被合法扩充（新增判据内容；代码面守卫仍全过 ——
+     *   extractClass/braceEnd/手抄副本为 0、createRequire 真装载在场，非回退到重放形态）。 */
+    ['v346_fortress_pyramid.test.mjs',   ['memory-core.js', 'memory-books.js'], 11625, 0],
+    ['v360_graph_dedup.test.mjs',        ['memory-core.js'],                   11613, 9],
 ];
 
 /* 真源码破坏的锚点（写进真文件、与各档样本解耦，防「自我指涉」破坏） */
