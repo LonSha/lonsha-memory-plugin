@@ -32,6 +32,12 @@
             .lonsha-overlay,
             .ls-toast,
             #lonsha-memory-fab {
+                /* [v3.424.0] 缺陷修复：真机反馈「复选框和底部按钮还是白底，看不清」。
+                 *   根因不是配色，而是原生控件底色：accent-color 只决定勾选时的填充色，
+                 *   checkbox 未勾选态的方块底、input 的默认底都由浏览器按 color-scheme 决定，
+                 *   而本面板此前从未声明它 —— 宿主页面若是浅色 color-scheme，
+                 *   深色面板里就必然嵌着几块白底原生控件。声明 dark 后原生件随深色走。 */
+                color-scheme: dark;
                 --ls-accent: #38bdf8; --ls-accent-strong: #0284c7; --ls-accent-hover: #7dd3fc;
                 --ls-accent-soft: rgba(56,189,248,0.10); --ls-accent-softer: rgba(56,189,248,0.05);
                 --ls-accent-line: rgba(56,189,248,0.28); --ls-on-accent: #04121e;
@@ -77,8 +83,13 @@
             .ls-row:hover { background: var(--ls-accent-softer); }
             .ls-row > div { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
             .ls-row:last-child { border-bottom: none; }
-            .ls-row input[type="checkbox"] { width: 38px; height: 38px; margin: 0; accent-color: var(--ls-accent, #38bdf8); cursor: pointer; }
-            .ls-slider { width: 100%; accent-color: var(--ls-accent, #38bdf8); height: 28px; cursor: pointer; }
+            .ls-row input[type="checkbox"] { width: 38px; height: 38px; margin: 0; cursor: pointer; accent-color: var(--ls-accent, #38bdf8); appearance: none; -webkit-appearance: none; background-color: var(--ls-bg-2, #111827); border: 2px solid var(--ls-line-strong, rgba(255,255,255,0.14)); border-radius: var(--ls-r-sm, 6px); position: relative; box-sizing: border-box; transition: background-color var(--ls-t-fast, 140ms) var(--ls-ease), border-color var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .ls-row input[type="checkbox"]:hover { border-color: var(--ls-accent-line, rgba(56,189,248,0.28)); }
+            /* 勾选态：自绘对勾（appearance:none 后原生勾选标记不再出现，必须自己画） */
+            .ls-row input[type="checkbox"]:checked { background-color: var(--ls-accent-strong, #0284c7); border-color: var(--ls-accent, #38bdf8); }
+            .ls-row input[type="checkbox"]:checked::after { content: ''; position: absolute; left: 12px; top: 5px; width: 8px; height: 15px; border: solid #ffffff; border-width: 0 3px 3px 0; transform: rotate(45deg); box-sizing: border-box; }
+            .ls-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; }
+            .ls-slider { width: 100%; accent-color: var(--ls-accent, #38bdf8); height: 28px; cursor: pointer; color-scheme: dark; }
             .ls-slider-label { display: flex; justify-content: space-between; gap: 8px; min-width: 0; font-size: 13px; padding: 8px 4px; color: var(--ls-text-2, #94a3b8); overflow-wrap: anywhere; word-break: break-word; }
             .ls-slider-val { color: var(--ls-accent, #38bdf8); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--ls-mono); }
             .ls-input { width: 100%; background: var(--ls-bg-2, #111827); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); padding: 10px 12px; font-size: 13px; margin: 5px 0; box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
@@ -88,6 +99,20 @@
             .ls-textarea:focus { outline: none; border-color: var(--ls-accent, #38bdf8); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
             .ls-btn { display: block; width: 100%; padding: 11px 14px; margin: 8px 0; background: var(--ls-bg-3, #1b2436); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); font-size: 14px; font-weight: 500; letter-spacing: 0.01em; text-align: center; cursor: pointer; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
             .ls-btn:hover { background: var(--ls-bg-4, #27334a); border-color: var(--ls-line-strong); color: #ffffff; }
+            /* [v3.424.0] 面板内**所有**原生按钮兜底压成深色：真机反馈底部三个胶囊按钮仍是白底。
+             *   它们没带 .ls-btn（走的是行内样式），宿主浅色主题的 button 默认底因此透出来。
+             *   只作用于面板容器内部，不影响宿主其他 UI。 */
+            .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill) {
+                background-color: var(--ls-bg-3, #1b2436);
+                color: var(--ls-text, #f1f5f9);
+                border: 1px solid var(--ls-line, rgba(255,255,255,0.08));
+                border-radius: var(--ls-r-sm, 6px);
+                box-shadow: var(--ls-inner-rim);
+            }
+            .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill):hover {
+                background-color: var(--ls-bg-4, #27334a);
+                color: #ffffff;
+            }
             .ls-btn:active { transform: translateY(1px); box-shadow: none; }
             .ls-btn-primary { background: var(--ls-accent-strong, #0284c7); border-color: transparent; color: #ffffff; font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(255,255,255,0.22); }
             .ls-btn-primary:hover { background: var(--ls-accent, #38bdf8); color: #04121e; box-shadow: var(--ls-sh-accent-lg); }
