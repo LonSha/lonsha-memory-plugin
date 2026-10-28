@@ -690,13 +690,122 @@
                 if (Array.isArray(raw)) return raw;
                 return String(raw || '').split(/[，,\n]+/).map((x) => x.trim()).filter(Boolean);
             })();
+            /* ★ [v3.425.0 · 纪元主键] 内核把主键从「变动率」换成「层标记@切换楼层」，
+             *   那两样输入必须在**这里**喂进去，否则判据再对运行时也拿不到输入。
+             *   ---- 切换登记表（jumps）----
+             *   每行 `楼层:层标记` 或 `楼层=层标记`（如 `40:梦境一层` / `80=现实`），
+             *   也收 `楼层:层标记:变动率`（数字编号是可选的，给了才参与邻近细分）。
+             *   楼层是**磁盘事实**（消息索引），层标记是模型会稳定复用的那串字。
+             *   看不懂的行跳过并计数 —— 不静默吞掉（否则卡里写错一行，闸就少一个纪元）。 */
+            const jumps = (function () {
+                const raw = pick('worldlineJumps', cfg.worldlineJumps, '');
+                if (Array.isArray(raw)) {
+                    const keep = [];
+                    for (let i = 0; i < raw.length; i++) {
+                        const it = raw[i];
+                        if (!it || typeof it !== 'object') continue;
+                        const f = Number(it.floor);
+                        const lid = String(it.lineId === undefined ? (it.layer === undefined ? '' : it.layer) : it.lineId).trim();
+                        if (!Number.isFinite(f) || f < 0 || !lid) continue;
+                        const dv = (it.divergence === undefined || it.divergence === null || it.divergence === '')
+                            ? null : Number(it.divergence);
+                        keep.push({ floor: Math.floor(f), lineId: lid, divergence: Number.isFinite(dv) ? dv : null });
+                    }
+                    return keep;
+                }
+                if (raw && typeof raw === 'object') {
+                    const keys = Object.keys(raw);
+                    const keep = [];
+                    for (let i = 0; i < keys.length; i++) {
+                        const f = Number(keys[i]);
+                        const lid = String(raw[keys[i]] === undefined ? '' : raw[keys[i]]).trim();
+                        if (!Number.isFinite(f) || f < 0 || !lid) continue;
+                        keep.push({ floor: Math.floor(f), lineId: lid, divergence: null });
+                    }
+                    keep.sort((a, b) => a.floor - b.floor);
+                    return keep;
+                }
+                const rows = [];
+                const text = String(raw || '');
+                const lines2 = text.split(/\r?\n/);
+                for (let i = 0; i < lines2.length; i++) {
+                    const s2 = lines2[i].trim();
+                    if (!s2 || s2.charAt(0) === '#') continue;
+                    const at = s2.indexOf(':') >= 0 ? s2.indexOf(':') : s2.indexOf('=');
+                    if (at <= 0) continue;
+                    const f = Number(s2.slice(0, at).trim());
+                    const rest = s2.slice(at + 1).trim();
+                    if (!Number.isFinite(f) || f < 0 || !rest) continue;
+                    const parts = rest.split(/[:：=]/);
+                    const lid = String(parts[0] || '').trim();
+                    if (!lid) continue;
+                    const dv = parts.length > 1 ? Number(parts[1]) : NaN;
+                    rows.push({ floor: Math.floor(f), lineId: lid, divergence: Number.isFinite(dv) ? dv : null });
+                }
+                rows.sort((a, b) => a.floor - b.floor);
+                return rows;
+            })();
+            /* ---- 层标记别名表（layerAlias）----
+             *   `原写法=归一键` 每行一条。★ 这张表由**卡作者**给，内核零内置 ——
+             *   内核不许认识任何具体世界观（否则每加一张卡就要改内核）。 */
+            const layerAlias = (function () {
+                const raw = pick('worldlineLayerAlias', cfg.worldlineLayerAlias, '');
+                const out = {};
+                if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+                    const keys = Object.keys(raw);
+                    for (let i = 0; i < keys.length; i++) {
+                        const k = String(keys[i]).trim();
+                        const v = String(raw[keys[i]] === undefined ? '' : raw[keys[i]]).trim();
+                        if (k && v) out[k] = v;
+                    }
+                    return out;
+                }
+                const lines3 = String(raw || '').split(/\r?\n/);
+                for (let i = 0; i < lines3.length; i++) {
+                    const s3 = lines3[i].trim();
+                    if (!s3 || s3.charAt(0) === '#') continue;
+                    const at = s3.indexOf('=');
+                    if (at <= 0) continue;
+                    const k = s3.slice(0, at).trim();
+                    const v = s3.slice(at + 1).trim();
+                    if (k && v) out[k] = v;
+                }
+                return out;
+            })();
+            /* ---- 当前纪元的起线楼层 ----
+             *   配置给了就用配置（卡作者知道这一纪元从哪楼起）；
+             *   没给则**不猜** —— 留 null，条目退化成「只知道层标记、不知道纪元」，
+             *   同号跨纪元那一格会落 unknown 而不是被误判成 same。 */
+            const startFloor = (function () {
+                const raw = pick('worldlineStartFloor', cfg.worldlineStartFloor, null);
+                if (raw === null || raw === undefined || raw === '') return null;
+                const n = Number(String(raw).trim());
+                return (Number.isFinite(n) && n >= 0) ? Math.floor(n) : null;
+            })();
+            /* ---- 保留者策略 ----
+             *   默认 'none'：**谁都不许串**（含主角）。只有显式写 'allow' 才恢复旧行为。
+             *   写错一个词折回 none，不许变成全放行。 */
+            const readerPolicy = (function () {
+                const raw = String(pick('worldlineReaderPolicy', cfg.worldlineReaderPolicy, 'none') || '').trim();
+                return (raw === 'allow') ? 'allow' : 'none';
+            })();
             return {
-                current: { lineId: lineId, divergence: divergence },
+                /* ★ [v3.425.0] current 带 startFloor：没有它，内核只能拿「层标记」判身份，
+                 *   而「同一层标记出现两次」是本版最关键的一格（同号跨纪元必须判 far）。
+                 *   楼层是磁盘事实，模型改不动 —— 这正是它取代变动率当主键的理由。 */
+                current: { lineId: lineId, divergence: divergence, startFloor: startFloor },
                 readers: readers,
                 convergences: convergences,
                 /* ★ [v3.424.1] 分段随 state 一起下传：读它的人（guard / convergenceOf / switchPlan /
-                 *   line）与判据侧吃同一份口径，不再出现「判据用自定义域、读数用默认域」。 */
+                 *   line）与判据侧吃同一份口径，不再出现「判据用自定义域、读数用默认域」。
+                 *   ★ [v3.425.0] 但**默认是空**（内核不再预设任何世界观分段）：
+                 *     不配 bands ⇒ 吸引域不存在 ⇒ 数字编号完全不参与判定。 */
                 bands: bands,
+                /* ★ [v3.425.0] 纪元输入的三个新面孔 */
+                jumps: jumps,
+                startFloor: startFloor,
+                layerAlias: layerAlias,
+                readerPolicy: readerPolicy,
                 adjacentPolicy: pick('worldlineAdjacentPolicy', cfg.worldlineAdjacentPolicy, 'hold'),
                 lastGateRead: saved.lastGateRead || null,
             };
@@ -727,8 +836,30 @@
                  *   抛出的 ReferenceError 被本函数的 catch 吞成 `thrown` —— 读到的是「静默降级」，
                  *   不是崩溃。故此处一并核对：本函数体内除 o.items 外不再出现那个旧局部名。 */
                 const rows = Array.isArray(o.items) ? o.items : [];
-                const viewer = o.viewer !== undefined ? o.viewer : ((engine && engine._worldlineViewer) || '');
-                const read = W.guard(rows, viewer, st, { bands: st.bands, adjacentPolicy: st.adjacentPolicy, maxEntries: o.maxEntries });
+                /* ★ [v3.425.0 · 自纠] `_worldlineViewer` 在全仓**零赋值点** ⇒ viewer 恒 ''，
+                 *   于是「这条记忆给谁看」永远是「没人」⇒ 保留者判定恒 false ⇒
+                 *   名单配置写什么都无效（等于整格功能没接线）。
+                 *   现改为三级回落：opts.viewer > engine._worldlineViewer > engine._currentSpeaker。
+                 *   `_currentSpeaker` 在 engine-recall.js 与 engine-injection-pipeline.js 有真实赋值，
+                 *   是本仓既有的「当前发言者」真源。 */
+                const viewer = (o.viewer !== undefined && o.viewer !== null && o.viewer !== '')
+                    ? o.viewer
+                    : ((engine && engine._worldlineViewer)
+                        || (engine && engine._currentSpeaker)
+                        || '');
+                /* ★ [v3.425.0] 纪元输入必须透传：band/jumps/layerAlias/readerPolicy 缺一样，
+                 *   内核就退回「只知道层标记」的弱判据，同号跨纪元那一格会漏。
+                 *   viewer 也从 live 来（见 worldlineGate 的 _worldlineViewer 接线）——
+                 *   没有 viewer，保留者判定恒 false，等于读者身份永远不明。 */
+                const read = W.guard(rows, viewer, st, {
+                    bands: st.bands,
+                    adjacentPolicy: st.adjacentPolicy,
+                    maxEntries: o.maxEntries,
+                    jumps: st.jumps,
+                    startFloor: st.startFloor,
+                    layerAlias: st.layerAlias,
+                    readerPolicy: st.readerPolicy,
+                });
                 const out = Object.assign({}, read, { ok: true, reason: rows.length ? '' : 'no-items', disabled: false, writesNothing: true, viewer: String(viewer || '') });
                 /* 上一轮闸况落进 worldProg.worldline 只作**读数缓存**（不是判据）：诊断行要能
                  *   回答「上一轮挡下了几条」。写它有边界：只在真判过（items 非空）时写。 */

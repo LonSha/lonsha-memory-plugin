@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 107197,
+  "ceiling": 107910,
   "maxSlack": 400,
-  "note": "v3.424.0 M7-X1 新增 worldline-memory.js 内核(691行)与宿主接线面：世界线归属四态判定/跨线污染闸/收束三态/换线计划，属真实功能增长而非死代码回溯",
+  "note": "v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长",
   "history": [
     {
       "ceiling": 21000,
@@ -389,7 +389,11 @@
     {
       "ceiling": 107197,
       "reason": "v3.424.0 M7-X1 新增 worldline-memory.js 内核(691行)与宿主接线面：世界线归属四态判定/跨线污染闸/收束三态/换线计划，属真实功能增长而非死代码回溯"
+    },
+    {
+      "ceiling": 107910,
+      "reason": "v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长"
     }
   ],
-  "_history_last": "ceiling 106054 → 107197（实测 106797 + slack 400）：v3.424.0 M7-X1 新增 worldline-memory.js 内核(691行)与宿主接线面：世界线归属四态判定/跨线污染闸/收束三态/换线计划，属真实功能增长而非死代码回溯"
+  "_history_last": "ceiling 107197 → 107910（实测 107510 + slack 400）：v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长"
 }

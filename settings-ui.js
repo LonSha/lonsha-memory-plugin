@@ -1339,12 +1339,26 @@
 
                 <div class="ls-group">
                     <div class="ls-group-title">[WORLDLINE] 世界线记忆（多世界线题材）</div>
-                    ${ck('worldlineMemoryEnabled', '世界线记忆与跨线污染闸', '命运石之门这一类不是「分支」而是「哪条世界线」：同一角色在 α 线与 β 线是两个人生，只有跨线保留者才有别的线的记忆。开启后每条记忆按归属判四态（本线 / 邻近 / 异线 / 判不了）：本线可当事实，邻近默认只作预感，异线默认挡下（保留者除外且仍带标注），没标线的一律判不了、绝不冒充本线。默认关——只有多世界线题材才需要。')}
-                    <input type="text" class="ls-input" placeholder="当前世界线号（如 1.048596 或 alpha；留空=未设定，条目一律判不了）" value="${c.worldlineId || ''}" data-cfg-text="worldlineId" autocomplete="off">
-                    <div class="ls-slider-label"><span>当前变动率（divergence，可大于 1）</span></div>
-                    <input type="text" class="ls-input" placeholder="如 1.130205 / 0.571024（留空=1.048596 默认）" value="${c.worldlineDivergence ?? 1.048596}" data-cfg-num="worldlineDivergence" autocomplete="off">
-                    <div class="ls-slider-label"><span>吸引域分段（每行 域名&lt;上界；空=内核默认 alpha&lt;1 / beta&lt;2）</span></div>
-                    <textarea class="ls-textarea" data-cfg-text="worldlineBands" style="min-height:56px;" placeholder="例：alpha&lt;1.0&#10;beta&lt;2.0">${esc(c.worldlineBands || '')}</textarea>
+                    ${ck('worldlineMemoryEnabled', '分层记忆与跨层污染闸', '适用于任何一种「同一角色不止一段人生」的机制：梦境层级、时间循环轮次、平行宇宙、存档读档、位面、世界线……插件不认识任何具体世界观，只认两件抽象事实：① 层标记（当前在哪一层，名字由你的卡自己定）② 切换楼层（第几楼切过去的）。两者合起来叫「纪元」。开启后每条记忆按归属判：同纪元可当事实；异纪元默认挡下（谁都不例外，主角也不给特权）；连楼层都没有的判不了、绝不冒充本纪元。另有一道「未来纪元」闸：起线楼层比你晚的记忆，对任何角色都不可见（防剧透）。默认关。')}
+                    <div class="ls-slider-label"><span>当前层标记（名字由你的卡定，如 现实 / 梦一 / 第二轮 / 平行A）</span></div>
+                    <input type="text" class="ls-input" placeholder="留空 = 未设定，条目一律判不了" value="${c.worldlineId || ''}" data-cfg-text="worldlineId" autocomplete="off">
+                    <div class="ls-slider-label"><span>当前纪元从哪一楼起（消息索引；留空 = 不猜）</span></div>
+                    <input type="text" class="ls-input" placeholder="如 45 = 第 45 楼切到本层" value="${c.worldlineStartFloor ?? ''}" data-cfg-text="worldlineStartFloor" autocomplete="off">
+                    <div class="ls-slider-label"><span>切换登记表（每行 楼层:层标记；只有楼层没有层标记的记忆靠它反推纪元）</span></div>
+                    <textarea class="ls-textarea" data-cfg-text="worldlineJumps" style="min-height:72px;" placeholder="例：1:现实&#10;20:梦境一层&#10;45:现实&#10;70:梦境二层">${esc(c.worldlineJumps || '')}</textarea>
+                    <div class="ls-slider-label"><span>层标记别名表（每行 原写法=归一键；同一层有多种写法时才需要）</span></div>
+                    <textarea class="ls-textarea" data-cfg-text="worldlineLayerAlias" style="min-height:56px;" placeholder="例：的梦=梦境一层">${esc(c.worldlineLayerAlias || '')}</textarea>
+                    <div class="ls-row">
+                        <div><div>跨层保留者特权</div><div class="ls-hint">默认 none：<b>谁都不许串</b>，名单内的人（含主角）也看不到别的纪元的记忆 —— 那本身就是串。allow=名单内可见异纪元（题材需要「保留记忆」时才开）。写错任何值都折回 none。</div></div>
+                        <select class="ls-input" data-cfg-text="worldlineReaderPolicy">
+                            <option value="none" ${c.worldlineReaderPolicy !== 'allow' ? 'selected' : ''}>none（谁都不许串，推荐）</option>
+                            <option value="allow" ${c.worldlineReaderPolicy === 'allow' ? 'selected' : ''}>allow（名单内可见）</option>
+                        </select>
+                    </div>
+                    <div class="ls-slider-label"><span>层编号（可选读数，如 1.130205 / 0.571024；不参与判定除非配了下面的分段）</span></div>
+                    <input type="text" class="ls-input" placeholder="留空 = 1.048596 默认" value="${c.worldlineDivergence ?? 1.048596}" data-cfg-num="worldlineDivergence" autocomplete="off">
+                    <div class="ls-slider-label"><span>层编号分段（每行 域名&lt;上界；<b>留空 = 没有分段</b>，数字完全不参与判定）</span></div>
+                    <textarea class="ls-textarea" data-cfg-text="worldlineBands" style="min-height:56px;" placeholder="留空即可。确有编号体系才填，例：低位&lt;1.0&#10;高位&lt;2.0">${esc(c.worldlineBands || '')}</textarea>
                     <div class="ls-row">
                         <div><div>邻近世界线记忆怎么处置</div><div class="ls-hint">邻近 = 同一吸引域且变动率够近。hold=只作预感（默认，不得当事实）；allow=可以当事实用；block=一律不进。</div></div>
                         <select class="ls-input" data-cfg-text="worldlineAdjacentPolicy">
@@ -1353,11 +1367,11 @@
                             <option value="block" ${c.worldlineAdjacentPolicy === 'block' ? 'selected' : ''}>block（不进）</option>
                         </select>
                     </div>
-                    <div class="ls-slider-label"><span>跨线保留者名单（逗号分隔；空 = 无人保留，异线一律挡下）</span></div>
-                    <textarea class="ls-textarea" data-cfg-text="worldlineReaders" style="min-height:56px;" placeholder="例：冈部伦太郎，桥田至">${esc(c.worldlineReaders || '')}</textarea>
-                    <div class="ls-slider-label"><span>收束事件登记（每行一条：事件键=all 或 事件键=alpha,beta）</span></div>
-                    <textarea class="ls-textarea" data-cfg-text="worldlineConvergences" style="min-height:72px;" placeholder="例：真由理之死=alpha&#10;助手存活=steins-gate">${esc(c.worldlineConvergences || '')}</textarea>
-                    <div class="ls-hint" style="padding:0 8px;">⭐ 未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给吸引域的行，等于「登记过但本域不收束」。</div>
+                    <div class="ls-slider-label"><span>跨层保留者名单（逗号分隔；须把上面策略改成 allow 才生效）</span></div>
+                    <textarea class="ls-textarea" data-cfg-text="worldlineReaders" style="min-height:56px;" placeholder="例：主角名，配角名">${esc(c.worldlineReaders || '')}</textarea>
+                    <div class="ls-slider-label"><span>收束事件登记（每行一条：事件键=all 或 事件键=域A,域B）</span></div>
+                    <textarea class="ls-textarea" data-cfg-text="worldlineConvergences" style="min-height:72px;" placeholder="例：某人之死=all&#10;某事件=高位">${esc(c.worldlineConvergences || '')}</textarea>
+                    <div class="ls-hint" style="padding:0 8px;">⭐ 未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给域的行，等于「登记过但本域不收束」。</div>
                 </div>
                 <div class="ls-tab-pane" data-tab-pane="retrieval">
                 <div class="ls-group">

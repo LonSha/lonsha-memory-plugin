@@ -929,12 +929,16 @@
                         }
                     }
                 } catch (e) { errLog(e, 'recallMemory.L11RecallEnhancements'); }
-            /* [v3.424.0 · M7-X1] 跨线污染闸：把「已证明不属于本线」的记忆从本轮召回里摘掉。
-             *   ★ 只摘「判得出」的两档：blocked（异吸引域，默认不进）与 held（邻近但策略为
+            /* [v3.424.0 · M7-X1] 跨层污染闸：把「已证明不属于本层（纪元）」的记忆从本轮召回里摘掉。
+             *   ★ 只摘「判得出」的两档：blocked（异纪元，默认不进）与 held（邻近但策略为
              *     hold：只能当预感、不得当事实）；两者不进普通召回。
-             *   ★ undecided（没标线 / 判不了）**一律放行** —— 那是「没标」不是「异线」。
-             *     把未标注条目当成异线会一次性清空所有历史记忆（本仓既有数据全都没标线），
-             *     这正是本模块在「四态穷尽」里把 unknown 单列一态、且恒 undecided 的用意。
+             *   ★ undecided（判不了）**仍然放行**，但理由在 v3.425.0 变了，必须说清：
+             *     旧理由是「没标线不等于异线，全挡会清空历史」。这个理由在旧模型（变动率主键）
+             *     下成立 —— 那时真实条目几乎全无标，挡住了等于全灭。
+             *     v3.425.0 起条目只要带 `floor` 就能从跳跃表反推出纪元，「判不了」从此专指
+             *     **连楼层都没有**的条目。故口径保持放行（不清空历史），但不再是黑箱：
+             *     明细逐条记进 _worldlineRecallFilter.undecidedSample，诊断面能直接看见
+             *     「这一轮有多少条没身份」。静默放行 = 假安全面，可查放行才是判据。
              *   ★ 开关默认关：关着的时候本段零开销、零行为变化。 */
             try {
                 const _cfgWL = (engine.config && engine.config.config) || {};
@@ -953,6 +957,18 @@
                                 before: _before, after: merged.length, dropped: _before - merged.length,
                                 blocked: _wl.counts.blocked, held: _wl.counts.held,
                                 undecidedPassed: _wl.counts.undecided, counts: _wl.counts,
+                                /* ★ [v3.425.0] 放行了哪些「判不了」的，逐条留证（至多 20 条）。
+                                 *   不改变放行口径，只是把「静默」变成「可查」。 */
+                                undecidedSample: (function () {
+                                    const out = [];
+                                    const src = Array.isArray(_wl.undecided) ? _wl.undecided : [];
+                                    for (let i = 0; i < src.length && out.length < 20; i++) {
+                                        const r = src[i];
+                                        if (!r) continue;
+                                        out.push({ key: String(r.key || ''), why: String(r.why || '') });
+                                    }
+                                    return out;
+                                })(),
                             };
                         }
                     } else if (_wl) {
@@ -960,6 +976,16 @@
                             before: merged.length, after: merged.length, dropped: 0,
                             blocked: _wl.counts.blocked, held: _wl.counts.held,
                             undecidedPassed: _wl.counts.undecided, counts: _wl.counts,
+                            undecidedSample: (function () {
+                                const out = [];
+                                const src = Array.isArray(_wl.undecided) ? _wl.undecided : [];
+                                for (let i = 0; i < src.length && out.length < 20; i++) {
+                                    const r = src[i];
+                                    if (!r) continue;
+                                    out.push({ key: String(r.key || ''), why: String(r.why || '') });
+                                }
+                                return out;
+                            })(),
                         };
                     }
                 }

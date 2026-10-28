@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.424.1';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.425.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -461,16 +461,38 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
              *   只有跨线保留者（Reading Steiner）记得别的线。修前没有一处判「这条记忆属于哪条线」，
              *   于是异线记忆被一视同仁注入给所有角色 —— 角色凭空知道「另一条世界里」的事。
              *   默认**关**：它是给特定题材的开关，普通线性故事开了只会多一层判不了的读数。 */
-            worldlineMemoryEnabled: false,   // 世界线记忆总开关（默认关：只有多世界线题材才需要）
-            worldlineId: '',                 // 当前世界线号（如 `1.048596` / `alpha`）；空 = 未设定，条目一律判不了
-            worldlineDivergence: 1.048596,      // 当前变动率（>1 合法：命运石之门 β 线就是 1.xxxxxx；不截断）
-            /* ★ [v3.424.1] 吸引域分段（每行 `域名<上界` 或 `域名=上界`；空 = 用内核默认。
-             *   注意上界是**开区间**：`alpha<1.0` 表示 alpha 吃 [0,1)，1.x 自动落下一段。 */
+            worldlineMemoryEnabled: false,   // 分层记忆总开关（默认关：只有多层/多轮/多线题材才需要）
+            /* ★ [v3.425.0 · 纪元主键] 身份 = **层标记 + 切换楼层**（纪元），不再是变动率。
+             *   层标记完全由卡自定：`梦一` / `第二轮` / `平行A` / `存档3` / `现实` —— 插件不解释它。
+             *   楼层是消息索引（磁盘事实，模型改不动）；层标记是模型会稳定复用的那串字。
+             *   两者合起来 = `层标记@起线楼层`，这就是「纪元」。同一层标记出现两次
+             *   （跳出去又跳回来）是两个不同纪元，不许互相冒充。 */
+            worldlineId: '',                 // 当前层标记（如 `梦境一层` / `现实`）；空 = 未设定，条目一律判不了
+            /* ★ [v3.425.0] 当前纪元从哪一楼开始（消息索引）。不填 = 不猜：
+             *   条目只知道层标记、不知道纪元，同号跨纪元那一格会落 unknown 而不是被误判同线。 */
+            worldlineStartFloor: '',
+            /* ★ [v3.425.0] 切换登记表（每行 `楼层:层标记` 或 `楼层=层标记`）。
+             *   每次「切到哪一层」发生在哪一楼，由卡作者登记；只有楼层没有层标记的条目
+             *   靠它反推自己属于哪个纪元 —— 这是酒馆里最常见的形态（抽取出来的记忆只有 floor）。 */
+            worldlineJumps: '',
+            /* ★ [v3.425.0] 层标记别名表（每行 `原写法=归一键`）。内核**零内置**：
+             *   不许认识任何具体世界观，否则每加一张卡就要改内核。这张表由卡作者给。 */
+            worldlineLayerAlias: '',
+            worldlineDivergence: 1.048596,      // 当前层编号（可选读数；>1 合法，不截断）
+            /* ★ [v3.425.0] 数字分段：**默认空 = 没有这回事**。
+             *   内核不再预设任何世界观分段（原来默认 alpha/beta/gamma 已删）。不配则数字
+             *   编号完全不参与判定，「残影/邻近」这一档也自动关闭（只留 同纪元 / 异纪元 / 判不了）。
+             *   若卡里确有编号体系，每行 `域名<上界` 或 `域名=上界`（上界是开区间）。 */
             worldlineBands: '',
-            worldlineAdjacentPolicy: 'hold', // 邻近线记忆处置：hold（只作预感）/ allow（可当事实）/ block（不进）
-            /* 跨线保留者名单（逗号分隔）：只有名单内的人记得别的线。空 = 无人保留，异线一律挡下。 */
+            worldlineAdjacentPolicy: 'hold', // 邻近记忆处置：hold（只作预感）/ allow（可当事实）/ block（不进）
+            /* 跨层保留者名单（逗号分隔）。★ [v3.425.0] 但**特权默认关闭**：
+             *   名单内的人也看不到别的纪元的记忆 —— 那本身就是「串」，主角也不例外。
+             *   要让保留者成立，须把下面的 worldlineReaderPolicy 显式改成 allow。 */
             worldlineReaders: '',
-            /* 收束事件登记（每行一条：`key=all` 或 `key=alpha,beta`）。
+            /* ★ [v3.425.0] 保留者策略：none（默认，谁都不许串）/ allow（名单内可见异纪元）。
+             *   写错任何值都折回 none —— 拼错一个字母不能变成全放行。 */
+            worldlineReaderPolicy: 'none',
+            /* 收束事件登记（每行一条：`key=all` 或 `key=域A,域B`）。
              *   空白 ≠ 不会发生：未登记的 key 一律报 unregistered（判不了），不静默当否定。 */
             worldlineConvergences: '',
         };
@@ -626,8 +648,15 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                  *   且不含任何密钥或全局提示词资产，可以随卡分发。 */
                 'worldlineMemoryEnabled', 'worldlineId', 'worldlineDivergence',
                 'worldlineAdjacentPolicy', 'worldlineReaders', 'worldlineConvergences',
-                /* [v3.424.1] 吸引域分段：同样由卡题材决定（α/β 边界因卡而异），无密钥、可随卡分发。 */
+                /* [v3.424.1] 吸引域分段：同样由卡题材决定（边界因卡而异），无密钥、可随卡分发。 */
                 'worldlineBands',
+                /* [v3.425.0 · 纪元主键] 五个新键全部进卡白名单：
+                 *   层标记 / 起线楼层 / 切换登记表 / 别名表 / 保留者策略 ——
+                 *   它们**全部由卡题材决定**（梦境层级还是时间循环、哪一楼跳到哪一层、
+                 *   同一层有几种写法、这张卡要不要保留者题材），换一张卡就必须换一套值。
+                 *   都无密钥、非全局提示词资产，可随卡分发。 */
+                'worldlineStartFloor', 'worldlineJumps', 'worldlineLayerAlias',
+                'worldlineReaderPolicy',
                 // [v3.161] 召回调优五键（仅策略/数值/命名；提示词 extractRolesPrompt 与含密钥的
                 //   secondaryApis 刻意不进卡——前者是全局资产，后者会随卡泄露 API Key）
                 'budgetStrategy', 'pageRankDamping', 'dppLambda', 'memoryTreeEnabled', 'pyramidTiers',

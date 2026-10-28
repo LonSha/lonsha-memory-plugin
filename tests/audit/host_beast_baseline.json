@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.424.1] M7-X1 世界线记忆**自纠**版：本版在宿主面里**真加了代码** —— engine-diagnostic-lines.js 的 _worldlineState 新增 worldlineBands 解析段（文本/数组/对象三形态 + 注释与坏行跳过，+41 行），并让 guard / convergenceOf / switchPlan / _worldlineLine 四个出口把 state.bands 透传下去（约 +9 行），世界线读数与判据从此同口径。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28556 行 / 成员 1168。line_budget 行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.424.1",
+  "measured_at": "v3.425.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2738,6 +2738,43 @@
         "宿主入口 index.js 11719 行与成员面 1168 个成员均零变化（本版只动 engine-diagnostic-lines.js 与配置/UI 层）"
       ],
       "not_done": "本版未拆任何东西；worldlineBands 的浏览器真点击与真实模型问答仍未跑，世界线闸门行为读数由当版套件 38 条与五跳模拟给出"
+    },
+    "v3.425.0": {
+      "reason": "[v3.425.0] 世界线记忆主键换血（去世界观化）：内核主键从「变动率」改为「纪元 = 层标记@切换楼层」。宿主侧 ① engine-diagnostic-lines.js 的 _worldlineState 新增四张表的解析（jumps / startFloor / layerAlias / readerPolicy）⇒ 该成员 208 行新进 TOP40；② engine-recall.js 的 recallMemory 给召回闸加「判不了逐条留证」（_worldlineRecallFilter.undecidedSample，至多 20 条）⇒ 849 行增至 875 行（+26）。两条都是活跃功能增长，非死代码回流；入口 index.js 行数不变（11719），故行上界与成员上界均不动。",
+      "readings": {
+        "total_lines": 11719,
+        "surface_lines": 28713,
+        "member_count": 1168,
+        "duplicate_member_names": 160,
+        "top5_lines": 5685,
+        "top5_pct": 19.8,
+        "top40_lines": 12779,
+        "top40_pct": 44.5,
+        "prefix_rule_coverage_lines": 4965,
+        "prefix_rule_coverage_pct": 17.3,
+        "unclassified_lines": 22933,
+        "seam_distinct_modules": 148,
+        "seam_reference_sites": 424,
+        "seam_call_shape_sites": 552,
+        "members_over_80_lines": 52,
+        "low_coupling_members": 18,
+        "high_coupling_members": 16
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "入口 index.js 行数不变（11719）⇒ line_budget.ceiling 不动",
+        "宿主成员数不变（1168）⇒ member_ceiling 不动",
+        "本版只量不拆"
+      ],
+      "not_done": "本版仅换世界线判定主键，未拆任何宿主巨兽成员",
+      "delta_from": "v3.424.1",
+      "delta": {
+        "total_lines": 0,
+        "surface_lines": 0,
+        "member_count": 0,
+        "top40_lines": 0,
+        "top5_pct": -28.7
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2752,20 +2789,20 @@
   ],
   "readings": {
     "total_lines": 11719,
-    "surface_lines": 28498,
+    "surface_lines": 28713,
     "member_count": 1168,
     "duplicate_member_names": 160,
-    "top5_lines": 5659,
-    "top5_pct": 19.9,
-    "top40_lines": 12651,
-    "top40_pct": 44.4,
-    "prefix_rule_coverage_lines": 4939,
+    "top5_lines": 5685,
+    "top5_pct": 19.8,
+    "top40_lines": 12779,
+    "top40_pct": 44.5,
+    "prefix_rule_coverage_lines": 4965,
     "prefix_rule_coverage_pct": 17.3,
-    "unclassified_lines": 22744,
+    "unclassified_lines": 22933,
     "seam_distinct_modules": 148,
     "seam_reference_sites": 424,
     "seam_call_shape_sites": 552,
-    "members_over_80_lines": 51,
+    "members_over_80_lines": 52,
     "low_coupling_members": 18,
     "high_coupling_members": 16
   },
@@ -2773,9 +2810,9 @@
     {
       "domain": "（未归类）",
       "members": 1105,
-      "lines": 22744,
-      "lines_pct": 79.8,
-      "outside_refs": 22438,
+      "lines": 22933,
+      "lines_pct": 79.9,
+      "outside_refs": 22476,
       "internal_refs": 8562,
       "outside_ref_share_pct": 72.4
     },
@@ -2783,7 +2820,7 @@
       "domain": "诊断与导出",
       "members": 20,
       "lines": 1990,
-      "lines_pct": 7,
+      "lines_pct": 6.9,
       "outside_refs": 1477,
       "internal_refs": 290,
       "outside_ref_share_pct": 83.6
@@ -2791,8 +2828,8 @@
     {
       "domain": "召回与注入",
       "members": 18,
-      "lines": 1268,
-      "lines_pct": 4.4,
+      "lines": 1294,
+      "lines_pct": 4.5,
       "outside_refs": 127,
       "internal_refs": 75,
       "outside_ref_share_pct": 62.9
@@ -2892,7 +2929,7 @@
     {
       "name": "recallMemory",
       "file": "engine-recall.js",
-      "lines": 849,
+      "lines": 875,
       "outside_refs": 28
     },
     {
@@ -2954,6 +2991,12 @@
       "file": "index.js",
       "lines": 252,
       "outside_refs": 9
+    },
+    {
+      "name": "_worldlineState",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 208,
+      "outside_refs": 6
     },
     {
       "name": "rollbackFloor",
@@ -3104,17 +3147,11 @@
       "file": "index.js",
       "lines": 106,
       "outside_refs": 0
-    },
-    {
-      "name": "handoffVolumeContinuation",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 106,
-      "outside_refs": 4
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 51,
+    "total_over_threshold": 52,
     "low_coupling_non_lifecycle": 18,
     "high_coupling_non_lifecycle": 16,
     "low_coupling_examples": [
@@ -3221,7 +3258,7 @@
       {
         "name": "recallMemory",
         "file": "engine-recall.js",
-        "lines": 849,
+        "lines": 875,
         "outside_refs": 28,
         "is_host_lifecycle": false
       },
@@ -3334,7 +3371,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.424.1] 世界线记忆自纠：吸引域分段可配置（worldlineBands 解析 + 四出口透传）。入口 11719 行 / 合并面 28556 行 / 成员 1168，均在上界内，上界不抬（余量 377 / 22 仍足够）。",
+    "note": "[v3.425.0] 世界线记忆主键换血（变动率 → 纪元 = 层标记@切换楼层）并去世界观化：宿主 _worldlineState 新增 jumps / startFloor / layerAlias / readerPolicy 四表解析（该成员 208 行新进 TOP40），engine-recall 的 recallMemory 增 undecidedSample 留证（849 → 875 行）。入口 index.js 11719 行**不变**，成员数 1168 **不变** ⇒ 行上界 12096 与成员上界 1190 **均不抬**（余量 377 / 22 仍分别在 slack 400 / 30 内）。合并面 28556 → 28713。",
     "history": [
       {
         "ceiling": 15000,
@@ -3621,6 +3658,12 @@
         "member_ceiling": 1190,
         "milestone_version": "v3.424.1",
         "reason": "[v3.424.1] 世界线记忆自纠：吸引域分段可配置（worldlineBands 解析 + 四出口透传）。入口 11719 行 / 合并面 28556 行 / 成员 1168，均在上界内，上界不抬（余量 377 / 22 仍足够）。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1190,
+        "milestone_version": "v3.425.0",
+        "reason": "[v3.425.0] 世界线记忆主键换血（变动率 → 纪元 = 层标记@切换楼层）并去世界观化：宿主 _worldlineState 新增 jumps / startFloor / layerAlias / readerPolicy 四表解析（该成员 208 行新进 TOP40），engine-recall 的 recallMemory 增 undecidedSample 留证（849 → 875 行）。入口 index.js 11719 行**不变**，成员数 1168 **不变** ⇒ 行上界 12096 与成员上界 1190 **均不抬**（余量 377 / 22 仍分别在 slack 400 / 30 内）。合并面 28556 → 28713。"
       }
     ],
     "member_ceiling": 1190,
