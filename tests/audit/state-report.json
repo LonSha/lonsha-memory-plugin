@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.423.0",
+  "version": "3.424.0",
   "version_sources": {
-    "manifest": "3.423.0",
-    "package": "3.423.0",
-    "index_const": "3.423.0"
+    "manifest": "3.424.0",
+    "package": "3.424.0",
+    "index_const": "3.424.0"
   },
   "version_same": true,
-  "human_index_version": "3.423.0",
+  "human_index_version": "3.424.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 243,
+    "extra_js": 244,
     "extra_js_list": [
       "ledger-entity.js",
       "settings-ui.js",
@@ -255,13 +255,14 @@
       "multi-protagonist-registry.js",
       "ancient-story-clock.js",
       "fact-replay-pipeline.js",
-      "inband-extraction-parser.js"
+      "inband-extraction-parser.js",
+      "worldline-memory.js"
     ],
-    "root_js": 244,
+    "root_js": 245,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 419,
+    "test_files": 420,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -611,6 +612,7 @@
       "v3422_physical_token_tracker.test.mjs",
       "v34230_player_home_refactor.test.mjs",
       "v3423_traumatic_dissociation_sandbox.test.mjs",
+      "v34240_worldline_memory.test.mjs",
       "v3424_narrative_foreshadowing_echo.test.mjs",
       "v3425_cross_branch_deja_vu.test.mjs",
       "v3426_double_identity_espionage.test.mjs",
@@ -719,9 +721,9 @@
   },
   "full_run": {
     "status": "registered",
-    "registered_at": "3.423.0",
-    "tests_total": 419,
-    "assertions": 4474,
+    "registered_at": "3.424.0",
+    "tests_total": 420,
+    "assertions": 4504,
     "audit": "61/61",
     "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
@@ -742,15 +744,15 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "5c0d1e1cd2c2",
-      "package.json": "05d451a9bc07",
-      "index.js": "e52ad7366597",
+      "manifest.json": "a25753784fe5",
+      "package.json": "03cfeed6f0aa",
+      "index.js": "f9f061a6eb49",
       "update-log.json": null,
-      "README.md": "094680da047c",
-      "PLAN.md": "31d97bd4b7e9",
-      "CHANGELOG.md": "901f73935ef6",
-      "TODO.md": "167246ac43aa",
-      "tests/audit/doc_readings.json": "246ef3e9c0cf"
+      "README.md": "576f9a26ad8c",
+      "PLAN.md": "6ab44719021f",
+      "CHANGELOG.md": "a2be13257d51",
+      "TODO.md": "89dd5597313f",
+      "tests/audit/doc_readings.json": "c1ab963b2c5f"
     }
   },
   "unknown": [],

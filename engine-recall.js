@@ -929,6 +929,41 @@
                         }
                     }
                 } catch (e) { errLog(e, 'recallMemory.L11RecallEnhancements'); }
+            /* [v3.424.0 · M7-X1] 跨线污染闸：把「已证明不属于本线」的记忆从本轮召回里摘掉。
+             *   ★ 只摘「判得出」的两档：blocked（异吸引域，默认不进）与 held（邻近但策略为
+             *     hold：只能当预感、不得当事实）；两者不进普通召回。
+             *   ★ undecided（没标线 / 判不了）**一律放行** —— 那是「没标」不是「异线」。
+             *     把未标注条目当成异线会一次性清空所有历史记忆（本仓既有数据全都没标线），
+             *     这正是本模块在「四态穷尽」里把 unknown 单列一态、且恒 undecided 的用意。
+             *   ★ 开关默认关：关着的时候本段零开销、零行为变化。 */
+            try {
+                const _cfgWL = (engine.config && engine.config.config) || {};
+                if (_cfgWL.worldlineMemoryEnabled === true && typeof engine.worldlineGate === 'function' && merged.length) {
+                    const _wl = engine.worldlineGate({ items: merged, viewer: engine._worldlineViewer || '' });
+                    if (_wl && _wl.ok === true && (_wl.counts.blocked + _wl.counts.held) > 0) {
+                        const _drop = new Set();
+                        for (const r of _wl.blocked) if (r && r.item) _drop.add(r.item);
+                        for (const r of _wl.held) if (r && r.item) _drop.add(r.item);
+                        if (_drop.size) {
+                            const _before = merged.length;
+                            const _keptMerged = merged.filter((x) => !_drop.has(x));
+                            merged.length = 0;
+                            for (const x of _keptMerged) merged.push(x);
+                            engine._worldlineRecallFilter = {
+                                before: _before, after: merged.length, dropped: _before - merged.length,
+                                blocked: _wl.counts.blocked, held: _wl.counts.held,
+                                undecidedPassed: _wl.counts.undecided, counts: _wl.counts,
+                            };
+                        }
+                    } else if (_wl) {
+                        engine._worldlineRecallFilter = {
+                            before: merged.length, after: merged.length, dropped: 0,
+                            blocked: _wl.counts.blocked, held: _wl.counts.held,
+                            undecidedPassed: _wl.counts.undecided, counts: _wl.counts,
+                        };
+                    }
+                }
+            } catch (e) { errLog(e, 'recallMemory.worldlineGate'); }
             const finalMerged = engine.intentRerank(merged, query.text);
             /* [v3.321.0 · M3-O1] 融合优化（语义重复抑制 / 角色事件覆盖 / 未结保底）。
              *   位置：**intentRerank 之后、_finalize 之前** —— 上游三条提权（crosslink /

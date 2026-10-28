@@ -7,7 +7,7 @@
     "css": "css/style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.423.0",
+    "version": "3.424.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -254,7 +254,8 @@
         "multi-protagonist-registry.js",
         "ancient-story-clock.js",
         "fact-replay-pipeline.js",
-        "inband-extraction-parser.js"
+        "inband-extraction-parser.js",
+        "worldline-memory.js"
     ],
     "extra_css": [
         "css/lonsha-design.css",

@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.423.0';
+let VERSION = '3.424.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1259,6 +1259,12 @@ class WorldProgress {
          *   ★ marks 带 floor ⇒ 必须同时挂进 removeByFloor / shiftFloorRefs(见该两处),
          *     否则被删楼层的冷却命中会永久留着,把该条旧事在 REPEAT_WINDOW 内**永久押后**。 */
         this.returnGate = null;
+        /* [v3.424.0 · M7-X1] 世界线记忆的存储面（当前线号 / 变动率 / 保留者 /
+         *   收束登记 / 上轮闸况）。与 returnGate 同理：worldProg 子键是逐项枚举持久化的，
+         *   不登记 = 存盘即丢、读档即空；而世界线丢了会把**异线记忆当成本线**。
+         *   形态：{ lineId, divergence, readers, convergences, lastGateRead }
+         *   ★ lastGateRead 带 ts 不带 floor（它是读数缓存不是判据），故不需要 removeByFloor / shiftFloorRefs。 */
+        this.worldline = null;
         // [v3.41] 吸收 Stitches: 认知隔离 (Cognitive Horizon)
         this.knowledge = {}; // { [charName]: { known: string[], unaware: string[] } }
         /* [v3.219.0] R2-F 知情网络累计读数（knowledge-network.js 的判定计数）。
@@ -2193,6 +2199,7 @@ class WorldProgress {
              *   这边是「提过没有 / 算不算真用」);并进去会让冷却判据与回扣判据互相污染。
              *   与既有同族一致:导出**状态本体**(不是读数)—— 冷却判定依赖逐条 marks。 */
             returnGate: this.returnGate || null,
+            worldline: this.worldline || null,
             /* [v3.355.0 · M6-O1/M6-O5] 经历单元与双时间坐标随世界推进持久化。
              *   为何不并进 promises / plotArcs：那两账的键是「约定」与「支线」，
              *   本格的键是「一件被重建出来的事 + 逐段来源」，并进去会互相污染。
@@ -2252,6 +2259,8 @@ class WorldProgress {
              *   在这里再校一遍会变成第二套判据(两边不同步即静默漂移)。 */
             this.returnGate = (data.returnGate && typeof data.returnGate === 'object')
                 ? data.returnGate : null;
+            this.worldline = (data.worldline && typeof data.worldline === 'object')
+                ? data.worldline : null;
             this.plotArcs = Array.isArray(data.plotArcs) ? data.plotArcs : [];
             /* [v3.355.0 · M6-O1/M6-O5] 两格导入：畸形一律回落空账（与同族口径）。
              *   不逐字段校验：合法性由内核 normalize 每次读取时归一，

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.423.0';
+    const VERSION = '3.424.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2422,6 +2422,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _returnGateLib: _returnGateLib,
                         _summaryProvenanceLib: _summaryProvenanceLib,
                         _testimonyBoardLib: _testimonyBoardLib,
+                        _worldlineMemoryLib: _worldlineMemoryLib,
                     },
                 });
             }
@@ -3101,6 +3102,15 @@ function relativeTimeLabel(eventTime, nowTime) {
         returnGateMark(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.returnGateMark(this, ...args) : null; }
         returnGatePrefer(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.returnGatePrefer(this, ...args) : null; }
         _returnGateLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._returnGateLine(this, ...args) : ''; }
+        // [v3.424.0 · M7-X1] 世界线记忆宿主出口。全部转发 engine-diagnostic-lines 的实现，
+        //   本文件只留一行转发（与既有 returnGate* 五出口同形），不在这里拼业务。
+        _worldlineState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlineState(this, ...args) : null; }
+        _worldlineRead(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlineRead(this, ...args) : null; }
+        worldlineGate(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineGate(this, ...args) : null; }
+        worldlineConvergence(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineConvergence(this, ...args) : null; }
+        worldlineSwitchPlan(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineSwitchPlan(this, ...args) : null; }
+        worldlineDiff(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineDiff(this, ...args) : null; }
+        _worldlineLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlineLine(this, ...args) : ''; }
         _materialInventory(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._materialInventory(this, ...args) : ''; }
         materialPack(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.materialPack(this, ...args) : null; }
         _materialPackLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._materialPackLine(this, ...args) : ''; }
@@ -10016,6 +10026,19 @@ function _collectNewFace() {
     //   原文按需从 owner 读(本面只搬 sourceRef,不缓存正文)。
     function _loreCrosscheckLib() {
         return _moduleLib(() => window.LonShaLoreCrosscheck, 'lore-crosscheck.js');
+    }
+    // [v3.424.0 · M7-X1] 世界线记忆与跨线污染闸(worldline-memory.js)。为什么需要:
+    //   命运石之门这一类**不是分支问题**,是「哪条世界线」问题:同一角色在 α 线与 β 线
+    //   是两个人生,只有跨线保留者(Reading Steiner)记得别的线。既有 branch-guard(楼层归属)、
+    //   branch-semantics(同会话分支对照)、branch-canon(支线正史)、cross-branch-deja-vu
+    //   (八前缀既视感匹配)**没有一处判「这条记忆属于哪条线」**,于是异线记忆被一视同仁
+    //   注入给所有角色 —— 角色凭空知道「另一条世界里」的事。
+    //   本模块是**只读归属判定 + 跨线污染闸**:四态穷尽互斥(native/adjacent/foreign/unknown)、
+    //   同号超差判不了(不猜同线)、邻近只由「同吸引域 + 够近」产生、收束三态(未登记 ≠ 不会发生)、
+    //   换线计划五桶(同键异值单列 conflict)。**不碰正史选择**(归 branch-canon)、
+    //   **不建第二套时间库**(归 dual-time)。
+    function _worldlineMemoryLib() {
+        return _moduleLib(() => window.LonShaWorldlineMemory, 'worldline-memory.js');
     }
     // [v3.349.0 · 缝入上游 conditionPatch] 主角伤情/伤病状况的**编号片段补丁**(condition-patch.js)。
     //   为什么需要:主角档案六字段里,condition 是**唯一一个「旧值必须活着」的字段**,

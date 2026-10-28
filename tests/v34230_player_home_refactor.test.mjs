@@ -87,15 +87,27 @@ test('v34230 D. pill 接真实配置 + token 作用域化仍在', () => {
 });
 
 /* ---------- E. 四源 + 三副本同源（六面抬版） ---------- */
-test('v34230 E. 六源同源抬版 3.423.0', () => {
-    assert.equal(MF.version, BORN_V);
-    assert.equal(JSON.parse(read('package.json')).version, BORN_V);
-    assert.equal((/const VERSION = '([^']+)'/.exec(IDX) || [])[1], BORN_V);
+test('v34230 E. 六源同源（各自 >= 出生版本 3.423.0）', () => {
+    /* [v3.424.0 交棒] 原文是 `assert.equal(..., BORN_V)` ——【硬锁当版】。本档出生于 v3.423.0，
+     *   那一刀六源真的都是 3.423.0；但跨版后它会变红，翻红的信息量只剩「数字不一样」。
+     *   与 v3264 C / v3266 C 踩过的是同一族坑。交棒**不弱化**：仍要求六源**互相同源**（这才是原判据的实质），
+     *   且都不得低于本档出生版本。当版锚点交给当版自己的档案（版本守卫 V4 只数 frontier）。 */
+    const six = [
+        MF.version,
+        JSON.parse(read('package.json')).version,
+        (/const VERSION = '([^']+)'/.exec(IDX) || [])[1],
+    ];
     for (const rel of ['memory-config.js', 'memory-core.js', 'memory-organs.js']) {
-        assert.match(read(rel), new RegExp("let VERSION = '" + BORN_V + "'"), rel + ' 未同源');
+        six.push((/let VERSION = '([^']+)'/.exec(read(rel)) || [])[1]);
+    }
+    assert.deepStrictEqual(six, six.map(() => six[0]), '六源必须同源，实测 ' + JSON.stringify(six));
+    for (const v of six) {
+        assert.ok(vnum(v) >= vnum(BORN_V), '六源不得低于本档出生版本 ' + BORN_V + '（实测 ' + v + '）');
     }
     const cl = read('CHANGELOG.md');
-    assert.ok(cl.startsWith('## v3.423.0'), 'CHANGELOG 顶节就是当版');
+    const clv = (/^## v([0-9.]+)/.exec(cl) || [])[1];
+    assert.ok(clv, 'CHANGELOG 顶节必须是某一版的实节');
+    assert.ok(vnum(clv) >= vnum(BORN_V), 'CHANGELOG 顶节不得低于出生版本');
 });
 
 /* ---------- F. 当版锚点（版本守卫 V4 计数形态） ---------- */

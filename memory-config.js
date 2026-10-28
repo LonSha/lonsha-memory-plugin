@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.423.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.424.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -456,6 +456,20 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             entropyThreshold: 15,            // 触发自适应反思的惊奇度累积阈值
             timeTagAnchorEnabled: true,      // 正文时间标签物理锚点快速提取
             cacheFriendlyInjection: true,    // Prompt Cache 友好型冷热槽位分流
+            /* [v3.424.0 · M7-X1] 世界线记忆与跨线污染闸（worldline-memory.js）。
+             *   为什么需要：命运石之门这一类**不是分支问题**。同一角色在 α 线与 β 线是两个人生，
+             *   只有跨线保留者（Reading Steiner）记得别的线。修前没有一处判「这条记忆属于哪条线」，
+             *   于是异线记忆被一视同仁注入给所有角色 —— 角色凭空知道「另一条世界里」的事。
+             *   默认**关**：它是给特定题材的开关，普通线性故事开了只会多一层判不了的读数。 */
+            worldlineMemoryEnabled: false,   // 世界线记忆总开关（默认关：只有多世界线题材才需要）
+            worldlineId: '',                 // 当前世界线号（如 `1.048596` / `alpha`）；空 = 未设定，条目一律判不了
+            worldlineDivergence: 1.0,        // 当前变动率（0~1，用于吸引域归属）
+            worldlineAdjacentPolicy: 'hold', // 邻近线记忆处置：hold（只作预感）/ allow（可当事实）/ block（不进）
+            /* 跨线保留者名单（逗号分隔）：只有名单内的人记得别的线。空 = 无人保留，异线一律挡下。 */
+            worldlineReaders: '',
+            /* 收束事件登记（每行一条：`key=all` 或 `key=alpha,beta`）。
+             *   空白 ≠ 不会发生：未登记的 key 一律报 unregistered（判不了），不静默当否定。 */
+            worldlineConvergences: '',
         };
         // [v3.166] 配置迁移台账（loadConfig 填充；诊断面读取）
         this._lastMigrationReport = null;
@@ -604,6 +618,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 'floorLedgerRetention', 'floorLedgerEvictionDebug',
                 // [v3.160] 归档节奏三键：此前只被引擎内部回退值兜着，卡作者无法按卡调节奏
                 'sleepEveryN', 'snapshotEveryFloors', 'adaptiveBudgetDecayFloors',
+                /* [v3.424.0 M7-X1] 世界线记忆：开关 / 线号 / 变动率 / 邻近策略 / 保留者 / 收束表
+                 *   全部进卡白名单 —— 它们都是卡题材决定的参数（多世界线题材的卡才有意义），
+                 *   且不含任何密钥或全局提示词资产，可以随卡分发。 */
+                'worldlineMemoryEnabled', 'worldlineId', 'worldlineDivergence',
+                'worldlineAdjacentPolicy', 'worldlineReaders', 'worldlineConvergences',
                 // [v3.161] 召回调优五键（仅策略/数值/命名；提示词 extractRolesPrompt 与含密钥的
                 //   secondaryApis 刻意不进卡——前者是全局资产，后者会随卡泄露 API Key）
                 'budgetStrategy', 'pageRankDamping', 'dppLambda', 'memoryTreeEnabled', 'pyramidTiers',

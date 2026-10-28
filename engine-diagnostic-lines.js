@@ -41,6 +41,7 @@
     function _returnGateLib() { return _libs._returnGateLib ? _libs._returnGateLib.apply(null, arguments) : null; }
     function _summaryProvenanceLib() { return _libs._summaryProvenanceLib ? _libs._summaryProvenanceLib.apply(null, arguments) : null; }
     function _testimonyBoardLib() { return _libs._testimonyBoardLib ? _libs._testimonyBoardLib.apply(null, arguments) : null; }
+    function _worldlineMemoryLib() { return _libs._worldlineMemoryLib ? _libs._worldlineMemoryLib.apply(null, arguments) : null; }
 
     function _floorLedgerLine(engine) {
 
@@ -603,8 +604,174 @@
             } catch (e) { errLog(e, 'engine._returnGateLine'); return '—(诊断异常)'; }
         
     }
+    function _worldlineState(engine, opts) {
+            /* ★ [v3.424.0 · M7-X1] 世界线状态的**唯一装配点**。
+             *   配置三个键（worldlineId / worldlineDivergence / worldlineAdjacentPolicy）与名单/
+             *   收束登记表在这里被归一成内核吃的 state 形状；别处一律不自己拼 state ——
+             *   拼两处就会出现「诊断面读 A、闸门读 B」两套真源。 */
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const cfg = (engine && engine.config && engine.config.config) || {};
+            const wp = (engine && engine.worldProg && typeof engine.worldProg === 'object') ? engine.worldProg : {};
+            const saved = (wp.worldline && typeof wp.worldline === 'object') ? wp.worldline : {};
+            /* ★ [v3.424.0 · M7-X1 自纠] 原版用 `pick('worldlineId', …)` 这种**字符串键**取配置，
+             *   功能上没错，但 v3160 [1b]「声明了就得有人按成员读」是按 `.KEY` 成员读形态判的 ⇒
+             *   五个键全被判成「declared but never consumed」。两条路：给判据开例外，或让宿主真的读成员。
+             *   选后者 —— 例外会把「字符串键读取」变成永久的判据盲区，而这个盲区正是「配置声明了但没人用」
+             *   最想抓的形态。三级取值语义一个字不改：opts > 已存档 worldProg.worldline > 配置 > 默认。 */
+            const has = (obj, k) => !!obj && Object.prototype.hasOwnProperty.call(obj, k);
+            const pick = (k, cfgVal, fb) => (has(o, k) ? o[k] : (saved[k] !== undefined ? saved[k] : (cfgVal !== undefined ? cfgVal : fb)));
+            const lineId = String(pick('worldlineId', cfg.worldlineId, '') || '').trim();
+            const divergence = pick('worldlineDivergence', cfg.worldlineDivergence, 1.0);
+            const convergences = (function () {
+                const raw = pick('worldlineConvergences', cfg.worldlineConvergences, '');
+                if (Array.isArray(raw)) return raw;
+                if (raw && typeof raw === 'object') {
+                    return Object.keys(raw).map((k) => ({ key: k, scope: raw[k] }));
+                }
+                const rows = [];
+                const text = String(raw || '');
+                const lines = text.split(/\r?\n/);
+                for (let i = 0; i < lines.length; i++) {
+                    const s = lines[i].trim();
+                    if (!s || s.charAt(0) === '#') continue;
+                    const at = s.indexOf('=');
+                    if (at <= 0) { rows.push({ key: s, scope: [] }); continue; }   // 只给 key ⇒ scope 为空（不收束，但登记过）
+                    const key = s.slice(0, at).trim();
+                    const rhs = s.slice(at + 1).trim();
+                    if (!key) continue;
+                    if (rhs === 'all') { rows.push({ key: key, scope: 'all' }); continue; }
+                    rows.push({ key: key, scope: rhs.split(/[，,\s]+/).filter(Boolean) });
+                }
+                return rows;
+            })();
+            const readers = (function () {
+                const raw = pick('worldlineReaders', cfg.worldlineReaders, '');
+                if (Array.isArray(raw)) return raw;
+                return String(raw || '').split(/[，,\n]+/).map((x) => x.trim()).filter(Boolean);
+            })();
+            return {
+                current: { lineId: lineId, divergence: divergence },
+                readers: readers,
+                convergences: convergences,
+                adjacentPolicy: pick('worldlineAdjacentPolicy', cfg.worldlineAdjacentPolicy, 'hold'),
+                lastGateRead: saved.lastGateRead || null,
+            };
+        
+    }
+
+    function _worldlineRead(engine, opts) {
+            /* 只读归属判定：给了 items 就逐条判，没给就只报当前线读数。
+             *   ★ 开关默认关 —— 关着的时候**不判也不猜**，如实报 disabled，
+             *     绝不返回一个「全 kept」的假安全面（那是把「没开闸」读成「都放行」）。 */
+            const cfg = (engine && engine.config && engine.config.config) || {};
+            const W = _worldlineMemoryLib();
+            const st = engine._worldlineState(opts);
+            const absent = (why) => ({
+                kind: 'worldline_memory', version: 0, judged: false, disabled: true,
+                current: null, reader: false, policy: '', counts: { total: 0, kept: 0, held: 0, blocked: 0, undecided: 0, malformed: 0, truncated: 0 },
+                byState: { native: 0, adjacent: 0, foreign: 0, unknown: 0 }, kept: [], held: [], blocked: [], undecided: [],
+                why: [why], ok: false, reason: why, writesNothing: true,
+            });
+            if (cfg.worldlineMemoryEnabled !== true) return absent('disabled');
+            if (!W || typeof W.guard !== 'function') return absent('module-unavailable');
+            try {
+                const o = (opts && typeof opts === 'object') ? opts : {};
+                /* ★ 局部名刻意不叫 items（叫 rows）：同文件 narrativeLayer 已有一处按 o.items 取数组的
+                 *   同形语句，v3440 的真源码破坏锚点逐字取的就是那句 ⇒ 撞名会把那条负控制的
+                 *   「锚点恰中 1 次」判据打红（本版实测踩到）。判据没错，是新代码该避让。
+                 *   ★ 另一条自纠：改名必须**改全**。首改只换了下标名，下面「写缓存」那句仍读旧名，
+                 *   抛出的 ReferenceError 被本函数的 catch 吞成 `thrown` —— 读到的是「静默降级」，
+                 *   不是崩溃。故此处一并核对：本函数体内除 o.items 外不再出现那个旧局部名。 */
+                const rows = Array.isArray(o.items) ? o.items : [];
+                const viewer = o.viewer !== undefined ? o.viewer : ((engine && engine._worldlineViewer) || '');
+                const read = W.guard(rows, viewer, st, { adjacentPolicy: st.adjacentPolicy, maxEntries: o.maxEntries });
+                const out = Object.assign({}, read, { ok: true, reason: rows.length ? '' : 'no-items', disabled: false, writesNothing: true, viewer: String(viewer || '') });
+                /* 上一轮闸况落进 worldProg.worldline 只作**读数缓存**（不是判据）：诊断行要能
+                 *   回答「上一轮挡下了几条」。写它有边界：只在真判过（items 非空）时写。 */
+                if (rows.length && engine.worldProg) {
+                    if (!engine.worldProg.worldline || typeof engine.worldProg.worldline !== 'object') engine.worldProg.worldline = {};
+                    engine.worldProg.worldline.lastGateRead = { ts: Date.now(), counts: out.counts, byState: out.byState, policy: out.policy };
+                }
+                /* ★ 写回的键**不得与方法同名**：类实例上的赋值会遮蔽原型方法，
+                 *   写成 engine._worldlineRead 会让第二次调用变成「把对象当函数调」。参照 returnGate 写 _returnGateRead。 */
+                engine._worldlineReadOut = out;
+                return out;
+            } catch (e) { errLog(e, 'engine._worldlineRead'); return absent('thrown'); }
+        
+    }
+
+    function worldlineGate(engine, opts) {
+            /* 召回/注入侧用的便利出口：只回四桶 + 读数，调用方按 kept 取条目。
+             *   ★ held（邻近可由保留者当预感）与 blocked 分列 —— 合成一个「不可用」桶
+             *     会把「有资格当预感」与「完全不许提」抹成同形。 */
+            const read = engine._worldlineRead(opts || {});
+            if (!read.ok) return { kind: 'worldline_gate', gates: [], kept: [], held: [], blocked: [], undecided: [], counts: read.counts, byState: read.byState, policy: read.policy, ok: false, reason: read.reason, disabled: !!read.disabled, writesNothing: true };
+            return {
+                kind: 'worldline_gate', gates: read.kept, kept: read.kept, held: read.held, blocked: read.blocked, undecided: read.undecided,
+                counts: read.counts, byState: read.byState, policy: read.policy, reader: read.reader, current: read.current,
+                ok: true, reason: read.reason, disabled: false, writesNothing: true,
+            };
+        
+    }
+
+    function worldlineConvergence(engine, key, opts) {
+            /* 收束查询：三态（converged / not-converged / unregistered）。
+             *   ★ 开关关着也照答 —— 收束是**设定问题**，与「要不要开闸」无关；
+             *     但会如实标 gated:false，防调用方把「关着闸时问的」当成「闸开着时的结论」。 */
+            const cfg = (engine && engine.config && engine.config.config) || {};
+            const W = _worldlineMemoryLib();
+            if (!W || typeof W.convergenceOf !== 'function') return { kind: 'worldline_convergence', state: 'unregistered', why: 'module-unavailable', scope: [], ok: false, gated: false };
+            try {
+                const st = engine._worldlineState(opts);
+                const r = W.convergenceOf(key, st, {});
+                return Object.assign({ kind: 'worldline_convergence', ok: true, gated: cfg.worldlineMemoryEnabled === true, policy: st.adjacentPolicy }, r);
+            } catch (e) { errLog(e, 'engine.worldlineConvergence'); return { kind: 'worldline_convergence', state: 'unregistered', why: 'thrown', scope: [], ok: false, gated: false }; }
+        
+    }
+
+    function worldlineSwitchPlan(engine, target, opts) {
+            /* 换线计划：五桶（carry / shadow / invalidate / conflict / undecided）。
+             *   ★ 只出计划不落盘 —— 「打算换到哪条线」与「已经换了」必须不同形。 */
+            const W = _worldlineMemoryLib();
+            if (!W || typeof W.switchPlan !== 'function') return { kind: 'worldline_switch_plan', ok: false, reason: 'module-unavailable', counts: {}, buckets: {}, writesNothing: true };
+            try {
+                const o = (opts && typeof opts === 'object') ? opts : {};
+                const st = engine._worldlineState(o);
+                const entries = Array.isArray(o.entries) ? o.entries : ((engine._worldlineEntries && engine._worldlineEntries()) || []);
+                const r = W.switchPlan(target, { current: st.current, entries: entries, targetEntries: o.targetEntries }, {});
+                return Object.assign({ kind: 'worldline_switch_plan', ok: true, writesNothing: true }, r);
+            } catch (e) { errLog(e, 'engine.worldlineSwitchPlan'); return { kind: 'worldline_switch_plan', ok: false, reason: 'thrown', counts: {}, buckets: {}, writesNothing: true }; }
+        
+    }
+
+    function worldlineDiff(engine, itemsA, itemsB) {
+            /* 两线差异：五态（same / changed / only-a / only-b / uncompared）。 */
+            const W = _worldlineMemoryLib();
+            if (!W || typeof W.diffEntries !== 'function') return { kind: 'worldline_diff', ok: false, reason: 'module-unavailable', counts: {}, rows: [] };
+            try { return Object.assign({ kind: 'worldline_diff', ok: true }, W.diffEntries(itemsA, itemsB)); }
+            catch (e) { errLog(e, 'engine.worldlineDiff'); return { kind: 'worldline_diff', ok: false, reason: 'thrown', counts: {}, rows: [] }; }
+        
+    }
+
+    function _worldlineLine(engine) {
+            try {
+                const cfg = (engine && engine.config && engine.config.config) || {};
+                if (cfg.worldlineMemoryEnabled !== true) return '未启用（世界线记忆开关为关）';
+                const W = _worldlineMemoryLib();
+                if (!W || typeof W.line !== 'function') return '模块未加载(worldline-memory.js)';
+                const base = W.line(engine._worldlineState({}));
+                /* 召回侧的过滤读数（engine-recall 写入）：它回答「上一轮召回里真被挡下几条」。
+                 *   没有这一行，「闸被真用过」与「闸从未生效」在诊断面上同形。 */
+                const rf = engine._worldlineRecallFilter;
+                if (!rf) return base + ' · 召回侧尚未过闸';
+                return base + ' · 上轮召回 ' + rf.before + '→' + rf.after
+                    + '（挡下 ' + rf.blocked + ' / 押后 ' + rf.held + ' / 判不了放行 ' + rf.undecidedPassed + '）';
+            } catch (e) { errLog(e, 'engine._worldlineLine'); return '—(诊断异常)'; }
+        
+    }
 
     function _materialInventory(engine, opts) {
+
 
             const o = (opts && typeof opts === 'object') ? opts : {};
             const inv = [];
@@ -1403,7 +1570,7 @@
         
     }
 
-    var api = Object.freeze({ bindDeps, _floorLedgerLine, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    var api = Object.freeze({ bindDeps, _floorLedgerLine, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     global.LonShaDiagnosticLines = api;
 })(typeof window !== 'undefined' ? window : globalThis);
