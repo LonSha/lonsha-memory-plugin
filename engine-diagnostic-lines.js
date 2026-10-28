@@ -621,7 +621,48 @@
             const has = (obj, k) => !!obj && Object.prototype.hasOwnProperty.call(obj, k);
             const pick = (k, cfgVal, fb) => (has(o, k) ? o[k] : (saved[k] !== undefined ? saved[k] : (cfgVal !== undefined ? cfgVal : fb)));
             const lineId = String(pick('worldlineId', cfg.worldlineId, '') || '').trim();
-            const divergence = pick('worldlineDivergence', cfg.worldlineDivergence, 1.0);
+            const divergence = pick('worldlineDivergence', cfg.worldlineDivergence, 1.048596);
+            /* ★ [v3.424.1 · 自纠] 吸引域分段此前**没有任何配置入口**（全仓 grep 'bands' 除内核外 0 命中），
+             *   宿主 current 只给 {lineId, divergence}，七个出口传的也是 {} ⇒ 必然吃内核 DEFAULT_BANDS。
+             *   使用者想按原作 α/β 分域无从下手，且内核旧默认把 1.x 全塞进 gamma。
+             *   现开一个文本键：每行 `域名<上界` 或 `域名=上界`；看不懂就退回默认（不猜、不静默成空分段）。 */
+            const bands = (function () {
+                const raw = pick('worldlineBands', cfg.worldlineBands, '');
+                if (Array.isArray(raw)) {
+                    const keep = [];
+                    for (let i = 0; i < raw.length; i++) {
+                        const it = raw[i];
+                        if (!it || typeof it !== 'object') continue;
+                        const name = String(it.name === undefined ? '' : it.name).trim();
+                        const hi = Number(it.hi);
+                        if (name && Number.isFinite(hi)) keep.push({ name: name, hi: hi });
+                    }
+                    return keep;
+                }
+                if (raw && typeof raw === 'object') {
+                    const keys = Object.keys(raw);
+                    const keep = [];
+                    for (let i = 0; i < keys.length; i++) {
+                        const hi = Number(raw[keys[i]]);
+                        if (Number.isFinite(hi)) keep.push({ name: String(keys[i]).trim(), hi: hi });
+                    }
+                    return keep;
+                }
+                const rows = [];
+                const lines = String(raw || '').split(/\r?\n/);
+                for (let i = 0; i < lines.length; i++) {
+                    const s = lines[i].trim();
+                    if (!s || s.charAt(0) === '#') continue;
+                    /* 两种写法都收：`alpha<1.0`（区间上界语义，最直观）与 `alpha=1.0`（与收束表同形） */
+                    const at = s.indexOf('<') >= 0 ? s.indexOf('<') : s.indexOf('=');
+                    if (at <= 0) continue;
+                    const name = s.slice(0, at).trim();
+                    const hi = Number(s.slice(at + 1).trim());
+                    if (!name || !Number.isFinite(hi)) continue;
+                    rows.push({ name: name, hi: hi });
+                }
+                return rows;
+            })();
             const convergences = (function () {
                 const raw = pick('worldlineConvergences', cfg.worldlineConvergences, '');
                 if (Array.isArray(raw)) return raw;
@@ -653,6 +694,9 @@
                 current: { lineId: lineId, divergence: divergence },
                 readers: readers,
                 convergences: convergences,
+                /* ★ [v3.424.1] 分段随 state 一起下传：读它的人（guard / convergenceOf / switchPlan /
+                 *   line）与判据侧吃同一份口径，不再出现「判据用自定义域、读数用默认域」。 */
+                bands: bands,
                 adjacentPolicy: pick('worldlineAdjacentPolicy', cfg.worldlineAdjacentPolicy, 'hold'),
                 lastGateRead: saved.lastGateRead || null,
             };
@@ -684,7 +728,7 @@
                  *   不是崩溃。故此处一并核对：本函数体内除 o.items 外不再出现那个旧局部名。 */
                 const rows = Array.isArray(o.items) ? o.items : [];
                 const viewer = o.viewer !== undefined ? o.viewer : ((engine && engine._worldlineViewer) || '');
-                const read = W.guard(rows, viewer, st, { adjacentPolicy: st.adjacentPolicy, maxEntries: o.maxEntries });
+                const read = W.guard(rows, viewer, st, { bands: st.bands, adjacentPolicy: st.adjacentPolicy, maxEntries: o.maxEntries });
                 const out = Object.assign({}, read, { ok: true, reason: rows.length ? '' : 'no-items', disabled: false, writesNothing: true, viewer: String(viewer || '') });
                 /* 上一轮闸况落进 worldProg.worldline 只作**读数缓存**（不是判据）：诊断行要能
                  *   回答「上一轮挡下了几条」。写它有边界：只在真判过（items 非空）时写。 */
@@ -723,7 +767,7 @@
             if (!W || typeof W.convergenceOf !== 'function') return { kind: 'worldline_convergence', state: 'unregistered', why: 'module-unavailable', scope: [], ok: false, gated: false };
             try {
                 const st = engine._worldlineState(opts);
-                const r = W.convergenceOf(key, st, {});
+                const r = W.convergenceOf(key, st, { bands: st.bands });
                 return Object.assign({ kind: 'worldline_convergence', ok: true, gated: cfg.worldlineMemoryEnabled === true, policy: st.adjacentPolicy }, r);
             } catch (e) { errLog(e, 'engine.worldlineConvergence'); return { kind: 'worldline_convergence', state: 'unregistered', why: 'thrown', scope: [], ok: false, gated: false }; }
         
@@ -738,7 +782,7 @@
                 const o = (opts && typeof opts === 'object') ? opts : {};
                 const st = engine._worldlineState(o);
                 const entries = Array.isArray(o.entries) ? o.entries : ((engine._worldlineEntries && engine._worldlineEntries()) || []);
-                const r = W.switchPlan(target, { current: st.current, entries: entries, targetEntries: o.targetEntries }, {});
+                const r = W.switchPlan(target, { current: st.current, entries: entries, targetEntries: o.targetEntries }, { bands: st.bands });
                 return Object.assign({ kind: 'worldline_switch_plan', ok: true, writesNothing: true }, r);
             } catch (e) { errLog(e, 'engine.worldlineSwitchPlan'); return { kind: 'worldline_switch_plan', ok: false, reason: 'thrown', counts: {}, buckets: {}, writesNothing: true }; }
         
@@ -759,7 +803,9 @@
                 if (cfg.worldlineMemoryEnabled !== true) return '未启用（世界线记忆开关为关）';
                 const W = _worldlineMemoryLib();
                 if (!W || typeof W.line !== 'function') return '模块未加载(worldline-memory.js)';
-                const base = W.line(engine._worldlineState({}));
+                const st0 = engine._worldlineState({});
+                /* [v3.424.1] 读数与判据同口径：把分段一并交给 line()，不传就退回默认。 */
+                const base = W.line(st0, { bands: st0.bands });
                 /* 召回侧的过滤读数（engine-recall 写入）：它回答「上一轮召回里真被挡下几条」。
                  *   没有这一行，「闸被真用过」与「闸从未生效」在诊断面上同形。 */
                 const rf = engine._worldlineRecallFilter;

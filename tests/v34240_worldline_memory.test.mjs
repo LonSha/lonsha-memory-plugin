@@ -1,6 +1,8 @@
 /* ============================================================
- * tests/v34240_worldline_memory.test.mjs — v3.424.0
+ * tests/v34240_worldline_memory.test.mjs — v3.424.1
  * M7-X1 世界线记忆与跨线污染闸（worldline-memory.js）
+ *   本档出生在 v3.424.0；v3.424.1 自纠（`>1` 段变动率不得被压平）就地续写，
+ *   故文件头版本随当前版走，但锚点仍是 vnum 恰好对应当版（见 H2 段 SELF_VERSION）。
  *
  * 修的是什么（修前实测，读码可复算）：
  *   命运石之门这一类**不是分支问题**，是「哪条世界线」问题。同一角色在 α 线与 β 线
@@ -191,11 +193,13 @@ test('B7 换线计划同键异值单列冲突；纯只读不动入参', () => {
     assert.strictEqual(JSON.stringify(frozen), snap, '纯只读');
 });
 
-test('B8 内核九项自证全绿', () => {
+test('B8 内核十二项自证全绿', () => {
     const r = WM.selfCheck();
     assert.strictEqual(r.ok, true);
     assert.strictEqual(r.failed, 0);
-    assert.strictEqual(r.checks.length, 9);
+    /* [v3.424.1] 9 -> 12：新增「超一变动率不被压平 / 超一段同号超差仍判不了 /
+     *   超一读数不冒充百分百」三条 —— 它们钉的正是 v3.424.0 clamp01 压平那个缺陷。 */
+    assert.strictEqual(r.checks.length, 12);
 });
 
 /* ================= C 宿主接线真跑 ================= */
@@ -332,12 +336,19 @@ test('F1 六个配置键都有 UI 控件（v3161 可达性）', () => {
         assert.ok(uiSrc.includes(k), 'UI 有控件: ' + k);
         assert.ok(cfgSrc.includes(k + ':'), '默认块已声明: ' + k);
     }
-    assert.strictEqual(uiSrc.match(/data-cfg-num="worldlineDivergence"/g).length, 1, '滑块恰一处');
-    assert.ok(uiSrc.includes('id="ls-v-wldiv"'), '滑块数值标签存在');
+    /* [v3.424.1] 原判据锁的是「range 滑块 + ls-v-wldiv 数值标签」，而 range 被 min=0/max=1
+     *   写死，等于在 UI 层又一次规定「变动率只能是 0~1」—— 与内核 clamp 同源的错误。
+     *   改判形态而不改实质：控件仍恰一处，但必须是**能输 >1** 的文本框。 */
+    assert.strictEqual(uiSrc.match(/data-cfg-num="worldlineDivergence"/g).length, 1, '控件恰一处');
+    assert.ok(/<input type="text"[^>]*data-cfg-num="worldlineDivergence"/.test(uiSrc), '为可输 >1 的文本框');
+    assert.ok(!/<input type="range"[^>]*worldlineDivergence/.test(uiSrc), '不得再用 range 锁死 0~1');
+    assert.ok(uiSrc.includes('data-cfg-text="worldlineBands"'), '吸引域分段有控件（v3.424.1 新增）');
 });
 
-test('F2 min=0 的变动率滑块用 ?? 不用 ||', () => {
-    assert.ok(uiSrc.includes('value="${c.worldlineDivergence ?? 1.0}"'));
+test('F2 变动率用 ?? 不用 ||（0 是合法值），默认取 β 线锚点', () => {
+    /* [v3.424.1] 默认值 1.0 -> 1.048596（Steins;Gate 线）：旧默认 1.0 恰好落在「>1 才算 β」
+     *   的边界上，配合旧 clamp 会让使用者永远看不到 β 段。 */
+    assert.ok(uiSrc.includes('value="${c.worldlineDivergence ?? 1.048596}"'));
     assert.ok(!/worldlineDivergence \|\| /.test(uiSrc), '0 是合法变动率，不得被 || 吃掉');
 });
 
@@ -440,5 +451,112 @@ test('H2 版本锚：六源同源 + 出生版本下界', () => {
         const t = readFileSync(path.join(ROOT, f), 'utf8');
         assert.strictEqual(/let VERSION = '([0-9.]+)'/.exec(t)[1], v, f + ' 与入口同源');
     }
-    assert.ok(vnum(v) >= vnum('3.424.0'), 'index.js 版本下界 3.424.0（实测 ' + v + '）');
+    /* [v3.424.1] 自锚常量形（scan_version_guard V4「本档自锚常量」）：本档出生 3.424.0，
+     *   续写至 3.424.1；下界仍写出生版本，等号锚单独用 SELF_VERSION 指出「本档就是当版」。 */
+    const BIRTH_VERSION = '3.424.0';
+    const SELF_VERSION = '3.424.1';
+    assert.ok(vnum(v) >= vnum(BIRTH_VERSION), 'index.js 版本下界 ' + BIRTH_VERSION + '（实测 ' + v + '）');
+    assert.strictEqual(vnum(v), vnum(SELF_VERSION), '本档即当版（自锚）');
+});
+
+/* ================= I v3.424.1 自纠：>1 段变动率不得被压平 ================= */
+/* 这一段的由来（实测，非整洁性偏好）：
+ *   v3.424.0 对变动率调 clamp01 压进 [0,1]，而《命运石之门》的 β 线正是 1.130205 / 1.048596
+ *   这种 **大于 1** 的编号。压平后 1.130205 与 1.900000 都变成 1：
+ *     · relationOf 里 distance 恒 0 ⇒ 「同号超差判不了」这条**本模块最核心的判据在 >1 段永不触发**；
+ *     · 实测 byState = {native:4, adjacent:0, foreign:0, unknown:0} —— 四条真实相距 0.85 的
+ *       不同世界线全部落 native，普通角色会拿到异线记忆（正是本模块要防的那个错误）；
+ *     · 读数面把 113.02% 显示成 100%，使用者无从察觉。
+ * 本段每条判据都对准那个缺陷，且锚点字面量在本档内只声明一次。 */
+
+test('I1 超一变动率原样保留，不再被压成 1', () => {
+    const L = WM.normalizeLine({ lineId: 'B', divergence: 1.130205 });
+    assert.strictEqual(L.ok, true);
+    assert.strictEqual(L.divergence, 1.130205, '1.130205 必须原样保留（clamp01 会压成 1）');
+    assert.strictEqual(L.why, 'ok', '未被截断时 why 应为 ok，不报 clamped');
+    const H = WM.normalizeLine({ lineId: 'B', divergence: 1.9 });
+    assert.strictEqual(H.divergence, 1.9);
+    /* 负值仍折 0：变动率没有负数语义，但这不是「上界截断」 */
+    assert.strictEqual(WM.normalizeLine({ lineId: 'B', divergence: -0.5 }).divergence, 0);
+    /* 非法值仍如实报，不猜 */
+    assert.strictEqual(WM.normalizeLine({ lineId: 'B', divergence: 'abc' }).ok, false);
+});
+
+test('I2 同 lineId 在 >1 段相差超容差 ⇒ 仍判 unknown（核心判据不得在 >1 段失效）', () => {
+    const rel = WM.relationOf({ lineId: 'B', divergence: 1.130205 }, { lineId: 'B', divergence: 1.9 });
+    assert.strictEqual(rel.relation, WM.RELATION.UNKNOWN, '同号超差必须判不了，不许猜同线');
+    assert.strictEqual(rel.why, 'same-line-id-divergence-gap');
+    assert.strictEqual(rel.distance, 0.77, 'distance 必须是真实差值 0.77（clamp 压平后会是 0）');
+    /* 容差内的同号线仍判 same —— 修正不得把判据整体打死 */
+    const same = WM.relationOf({ lineId: 'B', divergence: 1.130205 }, { lineId: 'B', divergence: 1.135 });
+    assert.strictEqual(same.relation, WM.RELATION.SAME);
+});
+
+test('I3 >1 段的不同世界线不得被认成本线（普通角色会因此拿到异线记忆）', () => {
+    /* 粗粒度 lineId（'beta'）是最可能的真实用法：线号相同、变动率不同 */
+    const cur = { lineId: 'beta', divergence: 1.130205 };
+    const pool = [1.048596, 1.130205, 1.6, 1.9].map((d, i) => ({ id: 'm' + i, worldline: { lineId: 'beta', divergence: d } }));
+    const g = WM.guard(pool, '椎名真由理', { current: cur });
+    const states = WM.guard(pool, '椎名真由理', { current: cur }).byState;
+    assert.ok(states.native <= 1, '至多一条能在容差内算本线，实测 native=' + states.native);
+    assert.ok(states.unknown >= 3, '其余一律判不了，实测 unknown=' + states.unknown);
+    assert.strictEqual(g.counts.kept, states.native, 'kept 数必须等于 native 数（不许把判不了的放进注入面）');
+    assert.ok(g.counts.kept < 4, '绝不能四条全 kept（v3.424.0 实测就是 4/4）');
+});
+
+test('I4 读数面不得把 113.02% 显示成 100%', () => {
+    const s = WM.line({ current: { lineId: 'beta', divergence: 1.130205 } });
+    assert.ok(s.indexOf('113.02%') >= 0, '读数须显示真实变动率，实测：' + s);
+    assert.ok(s.indexOf('100%') < 0, '任一位显示 100% 即说明被压平');
+});
+
+test('I5 line() 接受分段参数，读数域与判据域同口径', () => {
+    /* 自定义分段：0.x=α，1.x=β */
+    const bands = [{ name: 'alpha', hi: 1.0 }, { name: 'beta', hi: 2.0 }, { name: 'gamma', hi: 1e9 }];
+    const st = { current: { lineId: 'beta', divergence: 1.130205 } };
+    const withBands = WM.line(st, { bands: bands });
+    assert.ok(withBands.indexOf('beta') >= 0, '带分段读数应显示 beta，实测：' + withBands);
+    /* 与判据侧同一份分段必须给同一答案 */
+    assert.strictEqual(WM.attractorOf(1.130205, { bands: bands }), 'beta');
+    /* 不传 opts 时行为与旧版一致（兼容式增强，不是破坏性改签） */
+    assert.ok(typeof WM.line(st) === 'string' && WM.line(st).length > 0);
+});
+
+test('I6 默认分段按原作语义：0~1 为 alpha、1~2 为 beta（旧默认把 1.x 全塞进 gamma）', () => {
+    assert.strictEqual(WM.attractorOf(0.571024), 'alpha', '命运石之门 α 线 0.571024 应落 alpha');
+    assert.strictEqual(WM.attractorOf(1.130205), 'beta', 'β 线 1.130205 应落 beta，不再落 gamma 兜底');
+    assert.strictEqual(WM.attractorOf(1.048596), 'beta');
+    assert.strictEqual(WM.attractorOf(2.5), 'gamma', '越界值仍由最后一段兜底');
+    assert.strictEqual(WM.attractorOf('abc'), '', '非法变动率不猜成第一段');
+});
+
+test('I7 宿主贯通：worldlineBands 从配置解析并下传，且不传时退回默认', () => {
+    const e = makeEngine({
+        worldlineMemoryEnabled: true, worldlineId: 'beta', worldlineDivergence: 1.130205,
+        worldlineBands: 'alpha<1.0\nbeta<2.0',
+        worldlineReaders: '冈部伦太郎',
+    });
+    const st = e._worldlineState({});
+    assert.deepStrictEqual(st.bands, [{ name: 'alpha', hi: 1.0 }, { name: 'beta', hi: 2.0 }],
+        '两行分段须被解析成 [{name,hi}]');
+    /* `域名=上界` 写法与 `域名<上界` 等价（与收束表同形，便于卡作者记忆） */
+    const e2 = makeEngine({ worldlineMemoryEnabled: true, worldlineBands: 'a=1.5\nb=3' });
+    assert.deepStrictEqual(e2._worldlineState({}).bands, [{ name: 'a', hi: 1.5 }, { name: 'b', hi: 3 }]);
+    /* 空配置 ⇒ 空数组（由内核退回默认），不静默造分段 */
+    assert.deepStrictEqual(makeEngine({})._worldlineState({}).bands, []);
+    /* 注释行与坏行被跳过，不污染分段 */
+    const e3 = makeEngine({ worldlineMemoryEnabled: true, worldlineBands: '# 注释\nbadline\nalpha<1' });
+    assert.deepStrictEqual(e3._worldlineState({}).bands, [{ name: 'alpha', hi: 1 }]);
+    /* 诊断行读数与判据同口径 */
+    const line = e._worldlineLine();
+    assert.ok(line.indexOf('beta') >= 0, '诊断行须用配置的分段，实测：' + line);
+});
+
+test('I8 worldlineBands 是已声明的配置键，且 UI 可达（v3160 两条不变量）', () => {
+    assert.ok(cfgSrc.includes('worldlineBands:'), '默认块已声明');
+    assert.ok(uiSrc.includes('data-cfg-text="worldlineBands"'), 'UI 有控件');
+    assert.ok(/const CARD_CFG_KEYS = \[[\s\S]*'worldlineBands'/.test(cfgSrc), '进卡白名单');
+    /* [1b] 声明了就得有人按成员读：配置块外必须至少一处 .worldlineBands */
+    const readSites = (cfgSrc + diagSrc).match(/\.worldlineBands(?![A-Za-z0-9_$])/g) || [];
+    assert.ok(readSites.length >= 1, '必须有一处按成员读取，实测 ' + readSites.length);
 });

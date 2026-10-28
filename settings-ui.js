@@ -1341,8 +1341,10 @@
                     <div class="ls-group-title">[WORLDLINE] 世界线记忆（多世界线题材）</div>
                     ${ck('worldlineMemoryEnabled', '世界线记忆与跨线污染闸', '命运石之门这一类不是「分支」而是「哪条世界线」：同一角色在 α 线与 β 线是两个人生，只有跨线保留者才有别的线的记忆。开启后每条记忆按归属判四态（本线 / 邻近 / 异线 / 判不了）：本线可当事实，邻近默认只作预感，异线默认挡下（保留者除外且仍带标注），没标线的一律判不了、绝不冒充本线。默认关——只有多世界线题材才需要。')}
                     <input type="text" class="ls-input" placeholder="当前世界线号（如 1.048596 或 alpha；留空=未设定，条目一律判不了）" value="${c.worldlineId || ''}" data-cfg-text="worldlineId" autocomplete="off">
-                    <div class="ls-slider-label"><span>当前变动率（divergence，0~1）</span><span class="ls-slider-val" id="ls-v-wldiv">${c.worldlineDivergence ?? 1.0}</span></div>
-                    <input type="range" class="ls-slider" min="0" max="1" step="0.001" value="${c.worldlineDivergence ?? 1.0}" data-cfg-num="worldlineDivergence">
+                    <div class="ls-slider-label"><span>当前变动率（divergence，可大于 1）</span></div>
+                    <input type="text" class="ls-input" placeholder="如 1.130205 / 0.571024（留空=1.048596 默认）" value="${c.worldlineDivergence ?? 1.048596}" data-cfg-num="worldlineDivergence" autocomplete="off">
+                    <div class="ls-slider-label"><span>吸引域分段（每行 域名&lt;上界；空=内核默认 alpha&lt;1 / beta&lt;2）</span></div>
+                    <textarea class="ls-textarea" data-cfg-text="worldlineBands" style="min-height:56px;" placeholder="例：alpha&lt;1.0&#10;beta&lt;2.0">${esc(c.worldlineBands || '')}</textarea>
                     <div class="ls-row">
                         <div><div>邻近世界线记忆怎么处置</div><div class="ls-hint">邻近 = 同一吸引域且变动率够近。hold=只作预感（默认，不得当事实）；allow=可以当事实用；block=一律不进。</div></div>
                         <select class="ls-input" data-cfg-text="worldlineAdjacentPolicy">
@@ -1752,6 +1754,10 @@
                 overlay.querySelectorAll('[data-cfg-num]').forEach(el => {
                     const raw = parseFloat(el.value);
                     const step = parseFloat(el.step) || 1;
+                    /* [v3.424.1] NaN 不是合法配置值：文本框留空时 parseFloat('') 会给出 NaN，
+                     *   直接写进 config 会让后续所有数值判据静默失效（NaN 与任何数比较都 false）。
+                     *   保留原值并跳过，不静默归零。 */
+                    if (!Number.isFinite(raw)) return;
                     const v = Number.isInteger(step) ? Math.round(raw) : raw;
                     this.engine.config.config[el.dataset.cfgNum] = v;
                     if (el.dataset.cfgNum === 'vectorTopK' || el.dataset.cfgNum === 'maxSummaryLength') {

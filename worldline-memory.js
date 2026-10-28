@@ -77,11 +77,16 @@
         CARRY: 'carry', SHADOW: 'shadow', INVALIDATE: 'invalidate', CONFLICT: 'conflict', UNDECIDED: 'undecided',
     });
     /* 吸引域默认分段（可被 opts.bands 覆盖）。hi 是**上界开区间**：
-     *   d < hi 即落该域。最后一段吃掉剩余，故 d=1 也有归属。 */
+     *   d < hi 即落该域。最后一段吃掉剩余，故任意大的 d 也有归属。
+     * ★ [v3.424.1 · 自纠] 原默认是三段 0.4/0.8/1.0001，等于把「变动率是 0~1 的比例」写死进默认值。
+     *   《命运石之门》的变动率恰恰是 1.048596 / 1.130205 / 1.900000 这种**大于 1 的编号**：
+     *   按旧默认，α 段被压成 0~0.4、β 段 0.4~0.8、而所有 1.x 线全落进最后的 gamma 兜底段，
+     *   使用者不自定义 bands 就永远分不出 α/β。现按原作语义重排：低位段（α）0~1，高位段（β）1~MAX。
+     *   注意 gamma 仍是**兜底命名**，不是「第三条线」——它只负责吃掉 2 以上的越界值。 */
     const DEFAULT_BANDS = Object.freeze([
-        { name: 'alpha', hi: 0.4 },
-        { name: 'beta', hi: 0.8 },
-        { name: 'gamma', hi: 1.0001 },
+        { name: 'alpha', hi: 1.0 },
+        { name: 'beta', hi: 2.0 },
+        { name: 'gamma', hi: 1e9 },
     ]);
     const DEFAULT_EPSILON = 0.02;          // 同线容差：同 lineId 且变动率差在容差内才算同线
     const DEFAULT_ADJACENT_EPSILON = 0.15; // 邻近容差：同吸引域内「够近」才算残影
@@ -149,11 +154,26 @@
         out.sort(function (a, b) { return a.hi - b.hi; });
         return out;
     }
+    /**
+     * 变动率合法化。**不做 0~1 截断**。
+     * ★ [v3.424.1 · 自纠·本版最重要的一刀] 原实现对变动率调 clamp01 压进 [0,1]：
+     *   《命运石之门》的 β 线是 1.130205 / 1.048596 / 1.900000 这种 >1 的编号，
+     *   压平后 **1.130205 与 1.900000 都变成 1**，于是 relationOf 里
+     *   distance 恒为 0 ⇒ `same-line-id-divergence-gap`（同号超差判不了）这条
+     *   **本模块最核心的判据在 >1 段永不触发**：两条真实相距 0.77 的不同世界线
+     *   被判成 same/native，普通角色会拿到异线记忆 —— 正是本版要防的那个错误。
+     *   同一处压平还让读数面把「113.02%」显示成「100%」，使用者无从察觉。
+     * 现规则：只用有限性把关，负值折 0（变动率没有负数语义），上不封顶。
+     */
+    function normDivergence(v) {
+        const n = numOr(v, NaN);
+        if (!Number.isFinite(n)) return NaN;
+        return n < 0 ? 0 : n;
+    }
     /** 变动率 → 吸引域名。非法变动率返回空串（**不猜成第一段**）。 */
     function attractorOf(divergence, opts) {
-        let d = numOr(divergence, NaN);
+        let d = normDivergence(divergence);
         if (!Number.isFinite(d)) return '';
-        d = clamp01(d);
         const bands = bandsOf(opts);
         for (let i = 0; i < bands.length; i++) {
             if (d < bands[i].hi) return bands[i].name;
@@ -178,7 +198,9 @@
             if (!id) return bad('no-line-id');
             const dv = numOr(raw.divergence, NaN);
             if (!Number.isFinite(dv)) return bad('no-divergence');
-            const d = clamp01(dv);
+            /* ★ [v3.424.1] 不再 clamp01 压平：>1 的变动率（命运石之门 β 线）必须原样保留，
+             *   否则 distance 恒 0，「同号超差判不了」在 >1 段永不触发。 */
+            const d = normDivergence(dv);
             const att = txt(raw.attractor).trim() || attractorOf(d, opts);
             return {
                 ok: true, why: dv === d ? 'ok' : 'clamped',
@@ -567,10 +589,17 @@
     }
 
     /* ---------- 读数串 ---------- */
-    /** 一行读数（诊断面用）。四态 / 缺席 / 未设定分列，不合并成一句话。 */
-    function line(state) {
+    /**
+     * 一行读数（诊断面用）。四态 / 缺席 / 未设定分列，不合并成一句话。
+     * ★ [v3.424.1 · 自纠] 原签名只有 (state)，内部按 DEFAULT_BANDS 是否使用、
+     *   以及调用方是否自定义 bands 完全不知情 —— 于是「判据用 alpha、读数显示 beta」
+     *   两套口径并存，使用者按读数排查会得到反的结论。
+     *   现补第二参数 opts：与 tagOf / relationOf / convergenceOf 吃同一份分段。
+     *   不传时行为与旧版一致（用当前默认分段），故属**兼容式增强**而非破坏性改签。
+     */
+    function line(state, opts) {
         try {
-            const cur = normalizeLine(state && state.current ? state.current : state, null);
+            const cur = normalizeLine(state && state.current ? state.current : state, opts);
             if (!cur.ok) {
                 if (!state || (!state.current && !state.lineId)) return '尚未设定世界线';
                 return '线号非法（' + cur.why + '）';
@@ -661,6 +690,22 @@
             switchPlan(L2, frozen);
             diffEntries(frozen.entries, []);
             push('纯只读不改入参', JSON.stringify(frozen) === snap, 'snapshot-stable');
+            /* 9 ★ [v3.424.1] >1 段的变动率必须原样保留（命运石之门 β 线是 1.xxxxxx）。
+             *   旧实现 clamp01 把 1.13 与 1.90 都压成 1 ⇒ distance 恒 0 ⇒
+             *   本模块最核心的「同号超差判不了」在 >1 段永不触发。 */
+            const hi1 = { lineId: 'B', divergence: 1.130205 };
+            const hi2 = { lineId: 'B', divergence: 1.900000 };
+            const hiRel = relationOf(hi1, hi2);
+            const hiKept = normalizeLine(hi1).divergence;
+            push('超一变动率不被压平',
+                hiKept === 1.130205 && hiRel.distance === 0.77,
+                'kept=' + hiKept + '/dist=' + hiRel.distance);
+            push('超一段同号超差仍判不了',
+                hiRel.relation === RELATION.UNKNOWN && hiRel.why === 'same-line-id-divergence-gap',
+                hiRel.relation + '/' + hiRel.why);
+            /* 10 ★ 超一段的读数面不得说谎：113.02% 不许显示成 100% */
+            const hiLine = line({ current: hi1 });
+            push('超一读数不冒充百分百', hiLine.indexOf('113.02%') >= 0 && hiLine.indexOf('100%') < 0, hiLine);
         } catch (e) {
             push('自证不抛', false, String((e && e.message) || e));
         }
@@ -674,7 +719,7 @@
         WM_VERSION, WM_KIND,
         LINE_STATE, RELATION, CONVERGE, GATE, PLAN,
         DEFAULT_BANDS, DEFAULT_EPSILON, DEFAULT_ADJACENT_EPSILON, ADJACENT_POLICIES, MARK_FIELDS, MAX_ENTRIES,
-        numOr, normName, pct, clamp01,
+        numOr, normName, pct, clamp01, normDivergence,
         bandsOf, attractorOf, normalizeLine, relationOf, tagOf,
         readerSet, decideGate, guard, keptItems,
         convergenceOf, switchPlan, diffEntries, stamp, line, selfCheck,

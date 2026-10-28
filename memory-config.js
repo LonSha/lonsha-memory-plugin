@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.424.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.424.1';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -463,7 +463,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
              *   默认**关**：它是给特定题材的开关，普通线性故事开了只会多一层判不了的读数。 */
             worldlineMemoryEnabled: false,   // 世界线记忆总开关（默认关：只有多世界线题材才需要）
             worldlineId: '',                 // 当前世界线号（如 `1.048596` / `alpha`）；空 = 未设定，条目一律判不了
-            worldlineDivergence: 1.0,        // 当前变动率（0~1，用于吸引域归属）
+            worldlineDivergence: 1.048596,      // 当前变动率（>1 合法：命运石之门 β 线就是 1.xxxxxx；不截断）
+            /* ★ [v3.424.1] 吸引域分段（每行 `域名<上界` 或 `域名=上界`；空 = 用内核默认。
+             *   注意上界是**开区间**：`alpha<1.0` 表示 alpha 吃 [0,1)，1.x 自动落下一段。 */
+            worldlineBands: '',
             worldlineAdjacentPolicy: 'hold', // 邻近线记忆处置：hold（只作预感）/ allow（可当事实）/ block（不进）
             /* 跨线保留者名单（逗号分隔）：只有名单内的人记得别的线。空 = 无人保留，异线一律挡下。 */
             worldlineReaders: '',
@@ -623,6 +626,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                  *   且不含任何密钥或全局提示词资产，可以随卡分发。 */
                 'worldlineMemoryEnabled', 'worldlineId', 'worldlineDivergence',
                 'worldlineAdjacentPolicy', 'worldlineReaders', 'worldlineConvergences',
+                /* [v3.424.1] 吸引域分段：同样由卡题材决定（α/β 边界因卡而异），无密钥、可随卡分发。 */
+                'worldlineBands',
                 // [v3.161] 召回调优五键（仅策略/数值/命名；提示词 extractRolesPrompt 与含密钥的
                 //   secondaryApis 刻意不进卡——前者是全局资产，后者会随卡泄露 API Key）
                 'budgetStrategy', 'pageRankDamping', 'dppLambda', 'memoryTreeEnabled', 'pyramidTiers',

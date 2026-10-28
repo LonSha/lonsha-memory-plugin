@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.424.0",
+  "version": "3.424.1",
   "version_sources": {
-    "manifest": "3.424.0",
-    "package": "3.424.0",
-    "index_const": "3.424.0"
+    "manifest": "3.424.1",
+    "package": "3.424.1",
+    "index_const": "3.424.1"
   },
   "version_same": true,
-  "human_index_version": "3.424.0",
+  "human_index_version": "3.424.1",
   "triple_consistent": true,
   "loading": {
     "extra_js": 244,
@@ -721,9 +721,9 @@
   },
   "full_run": {
     "status": "registered",
-    "registered_at": "3.424.0",
+    "registered_at": "3.424.1",
     "tests_total": 420,
-    "assertions": 4504,
+    "assertions": 4512,
     "audit": "61/61",
     "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
@@ -744,15 +744,15 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "a25753784fe5",
-      "package.json": "03cfeed6f0aa",
-      "index.js": "f9f061a6eb49",
+      "manifest.json": "03c295578205",
+      "package.json": "b6c744af0c05",
+      "index.js": "768229fa1daa",
       "update-log.json": null,
-      "README.md": "576f9a26ad8c",
-      "PLAN.md": "6ab44719021f",
-      "CHANGELOG.md": "a2be13257d51",
-      "TODO.md": "89dd5597313f",
-      "tests/audit/doc_readings.json": "c1ab963b2c5f"
+      "README.md": "e66edeb6b5bc",
+      "PLAN.md": "8c589549da9f",
+      "CHANGELOG.md": "329b07b49bfc",
+      "TODO.md": "0dbf0ffe091b",
+      "tests/audit/doc_readings.json": "9baf398be610"
     }
   },
   "unknown": [],

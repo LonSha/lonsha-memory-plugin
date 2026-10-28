@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
-  "note": "[v3.424.0] M7-X1 世界线记忆版：本版在宿主面里**真加了代码** —— engine-recall.js 的 recallMemory 插入跨线污染闸（recallMemory 从 814 行增至 849 行）、engine-diagnostic-lines.js 新增七个世界线函数、index.js 新增取库口与七个转发出口。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28498 行 / 成员 1168。行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.424.0",
+  "note": "[v3.424.1] M7-X1 世界线记忆**自纠**版：本版在宿主面里**真加了代码** —— engine-diagnostic-lines.js 的 _worldlineState 新增 worldlineBands 解析段（文本/数组/对象三形态 + 注释与坏行跳过，+41 行），并让 guard / convergenceOf / switchPlan / _worldlineLine 四个出口把 state.bands 透传下去（约 +9 行），世界线读数与判据从此同口径。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28556 行 / 成员 1168。line_budget 行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。",
+  "measured_at": "v3.424.1",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2724,6 +2724,20 @@
         "成员上界 member_ceiling 1190 不动（余量 22 <= member_max_slack 30）"
       ],
       "not_done": "本版未拆任何东西；世界线记忆的闸门行为读数由当版套件与端到端脚本给出"
+    },
+    "v3.424.1": {
+      "reason": "[v3.424.1] M7-X1 世界线记忆**自纠**版：本版在宿主面里**真加了代码** —— engine-diagnostic-lines.js 的 _worldlineState 新增 worldlineBands 解析段（文本/数组/对象三形态 + 注释与坏行跳过，+41 行），并让 guard / convergenceOf / switchPlan / _worldlineLine 四个出口把 state.bands 透传下去（约 +9 行），世界线读数与判据从此同口径。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28556 行 / 成员 1168。line_budget 行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。",
+      "readings": {
+        "total_lines": 11719,
+        "surface_lines": 28556,
+        "member_count": 1168
+      },
+      "unchanged": [
+        "行上界 ceiling 12096 不动（余量 377 <= maxSlack 400）",
+        "成员上界 member_ceiling 1190 不动（余量 22 <= member_max_slack 30）",
+        "宿主入口 index.js 11719 行与成员面 1168 个成员均零变化（本版只动 engine-diagnostic-lines.js 与配置/UI 层）"
+      ],
+      "not_done": "本版未拆任何东西；worldlineBands 的浏览器真点击与真实模型问答仍未跑，世界线闸门行为读数由当版套件 38 条与五跳模拟给出"
     }
   },
   "node_version": "v24.18.0",
@@ -3320,7 +3334,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.424.0] M7-X1 世界线记忆版：本版在宿主面里**真加了代码** —— engine-recall.js 的 recallMemory 插入跨线污染闸（recallMemory 从 814 行增至 849 行）、engine-diagnostic-lines.js 新增七个世界线函数、index.js 新增取库口与七个转发出口。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28498 行 / 成员 1168。行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。",
+    "note": "[v3.424.1] 世界线记忆自纠：吸引域分段可配置（worldlineBands 解析 + 四出口透传）。入口 11719 行 / 合并面 28556 行 / 成员 1168，均在上界内，上界不抬（余量 377 / 22 仍足够）。",
     "history": [
       {
         "ceiling": 15000,
@@ -3601,6 +3615,12 @@
         "ceiling": 12096,
         "member_ceiling": 1190,
         "reason": "[v3.424.0] M7-X1 世界线记忆版：本版在宿主面里**真加了代码** —— engine-recall.js 的 recallMemory 插入跨线污染闸（recallMemory 从 814 行增至 849 行）、engine-diagnostic-lines.js 新增七个世界线函数、index.js 新增取库口与七个转发出口。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28498 行 / 成员 1168。行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1190,
+        "milestone_version": "v3.424.1",
+        "reason": "[v3.424.1] 世界线记忆自纠：吸引域分段可配置（worldlineBands 解析 + 四出口透传）。入口 11719 行 / 合并面 28556 行 / 成员 1168，均在上界内，上界不抬（余量 377 / 22 仍足够）。"
       }
     ],
     "member_ceiling": 1190,
