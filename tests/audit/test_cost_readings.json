@@ -1,97 +1,97 @@
 {
  "file": "tests/audit/test_cost_readings.json",
  "note": "测试成本读数登记。**读数零手抄**：由 tools/_rebind_test_cost.py 消费 TEST_SUMMARY_JSON=<path> node tests/run.mjs 的结构化摘要后写入（summary.tests.slowest / wall / total 与 summary.scope 即真源）。scan_cost_truthfulness.mjs 只核对「文档 ↔ 本文件」，自己不跑全量。**覆盖范围必须自述**：scope.full=true 才代表一次全量实跑；定向采样（full=false）不得作为全量读数使用。",
- "measured_at": "3.318.0",
+ "measured_at": "3.423.0",
  "latest": {
-  "version": "3.318.0",
+  "version": "3.423.0",
   "scope": {
    "full": true,
    "patterns": [],
-   "jobs": 4
+   "jobs": 3
   },
-  "tests_total": 299,
-  "tests_wall_s": 109.8,
+  "tests_total": 419,
+  "tests_wall_s": 275.9,
   "slowest_top": [
    {
     "file": "tests/v3159_audit_failclosed_and_fallback_parity.test.mjs",
-    "duration": 64195,
+    "duration": 90664,
     "status": 0
    },
    {
     "file": "tests/v3230_dead_method_disposal.test.mjs",
-    "duration": 30816,
+    "duration": 67526,
     "status": 0
    },
    {
     "file": "tests/v3279_o7_scanner_decl_surface.test.mjs",
-    "duration": 28282,
-    "status": 0
-   },
-   {
-    "file": "tests/v3204_no_cross_repo_binding.test.mjs",
-    "duration": 17838,
+    "duration": 58746,
     "status": 0
    },
    {
     "file": "tests/v3228_dead_methods_ledger.test.mjs",
-    "duration": 16594,
+    "duration": 37614,
     "status": 0
    },
    {
-    "file": "tests/v3285_o7_doc_truthfulness.test.mjs",
-    "duration": 12857,
-    "status": 0
-   },
-   {
-    "file": "tests/v3206_process_reaping.test.mjs",
-    "duration": 11881,
+    "file": "tests/v3204_no_cross_repo_binding.test.mjs",
+    "duration": 35165,
     "status": 0
    },
    {
     "file": "tests/v3161_config_reachability.test.mjs",
-    "duration": 11587,
-    "status": 0
-   },
-   {
-    "file": "tests/v3235_rollback_preview.test.mjs",
-    "duration": 9629,
-    "status": 0
-   },
-   {
-    "file": "tests/v3203_version_guard_handover.test.mjs",
-    "duration": 9472,
-    "status": 0
-   },
-   {
-    "file": "tests/v3225_replay_floor_gate.test.mjs",
-    "duration": 9454,
+    "duration": 24644,
     "status": 0
    },
    {
     "file": "tests/v3207_ledger_entity_contract.test.mjs",
-    "duration": 9036,
+    "duration": 22174,
     "status": 0
    },
    {
-    "file": "tests/v3286_cost_truthfulness.test.mjs",
-    "duration": 8053,
+    "file": "tests/v3206_process_reaping.test.mjs",
+    "duration": 20118,
     "status": 0
    },
    {
-    "file": "tests/v3131_ground_truth.test.mjs",
-    "duration": 6606,
+    "file": "tests/v3203_version_guard_handover.test.mjs",
+    "duration": 17389,
     "status": 0
    },
    {
     "file": "tests/v3236_snapshot_restore_and_clear.test.mjs",
-    "duration": 6110,
+    "duration": 15577,
+    "status": 0
+   },
+   {
+    "file": "tests/v3319_ci_faithful_probe_and_attribution.test.mjs",
+    "duration": 14747,
+    "status": 0
+   },
+   {
+    "file": "tests/v3116_dead_code.test.mjs",
+    "duration": 14097,
+    "status": 0
+   },
+   {
+    "file": "tests/v3235_rollback_preview.test.mjs",
+    "duration": 14081,
+    "status": 0
+   },
+   {
+    "file": "tests/v3131_ground_truth.test.mjs",
+    "duration": 13775,
+    "status": 0
+   },
+   {
+    "file": "tests/v3227_gate_isolation_and_timing.test.mjs",
+    "duration": 13194,
     "status": 0
    }
   ],
   "audit_passed": 61,
   "audit_total": 61,
   "source": "node tests/run.mjs --audit",
-  "rebound_at": "2026-10-11T06:11:28.792Z"
+  "rebound_at": "2026-10-28T08:40:05.248Z"
  },
  "rebinds": [
   {
@@ -328,6 +328,216 @@
    "audit_total": 61,
    "source": "node tests/run.mjs --audit",
    "rebound_at": "2026-10-11T06:11:28.792Z"
+  },
+  {
+   "version": "3.423.0",
+   "scope": {
+    "full": false,
+    "patterns": [
+     "v3286"
+    ],
+    "jobs": 2
+   },
+   "tests_total": 2,
+   "tests_wall_s": 9.9,
+   "slowest_top": [
+    {
+     "file": "tests/v3286_cost_truthfulness.test.mjs",
+     "duration": 9874,
+     "status": 0
+    },
+    {
+     "file": "tests/v3286_plan_currency.test.mjs",
+     "duration": 2140,
+     "status": 0
+    }
+   ],
+   "audit_passed": null,
+   "audit_total": null,
+   "source": "node tests/run.mjs  v3286",
+   "rebound_at": "2026-10-28T08:13:44.715Z"
+  },
+  {
+   "version": "3.423.0",
+   "scope": {
+    "full": true,
+    "patterns": [],
+    "jobs": 3
+   },
+   "tests_total": 419,
+   "tests_wall_s": 278.9,
+   "slowest_top": [
+    {
+     "file": "tests/v3159_audit_failclosed_and_fallback_parity.test.mjs",
+     "duration": 93177,
+     "status": 0
+    },
+    {
+     "file": "tests/v3230_dead_method_disposal.test.mjs",
+     "duration": 67466,
+     "status": 0
+    },
+    {
+     "file": "tests/v3279_o7_scanner_decl_surface.test.mjs",
+     "duration": 58469,
+     "status": 0
+    },
+    {
+     "file": "tests/v3228_dead_methods_ledger.test.mjs",
+     "duration": 36483,
+     "status": 0
+    },
+    {
+     "file": "tests/v3204_no_cross_repo_binding.test.mjs",
+     "duration": 34937,
+     "status": 0
+    },
+    {
+     "file": "tests/v3161_config_reachability.test.mjs",
+     "duration": 25810,
+     "status": 0
+    },
+    {
+     "file": "tests/v3207_ledger_entity_contract.test.mjs",
+     "duration": 21992,
+     "status": 0
+    },
+    {
+     "file": "tests/v3206_process_reaping.test.mjs",
+     "duration": 20344,
+     "status": 0
+    },
+    {
+     "file": "tests/v3203_version_guard_handover.test.mjs",
+     "duration": 17829,
+     "status": 0
+    },
+    {
+     "file": "tests/v3116_dead_code.test.mjs",
+     "duration": 16779,
+     "status": 0
+    },
+    {
+     "file": "tests/v3131_ground_truth.test.mjs",
+     "duration": 16058,
+     "status": 0
+    },
+    {
+     "file": "tests/v3319_ci_faithful_probe_and_attribution.test.mjs",
+     "duration": 15933,
+     "status": 0
+    },
+    {
+     "file": "tests/v3225_replay_floor_gate.test.mjs",
+     "duration": 14295,
+     "status": 0
+    },
+    {
+     "file": "tests/v3236_snapshot_restore_and_clear.test.mjs",
+     "duration": 14023,
+     "status": 0
+    },
+    {
+     "file": "tests/v3235_rollback_preview.test.mjs",
+     "duration": 12921,
+     "status": 0
+    }
+   ],
+   "audit_passed": 61,
+   "audit_total": 61,
+   "source": "node tests/run.mjs --audit",
+   "rebound_at": "2026-10-28T08:25:07.839Z"
+  },
+  {
+   "version": "3.423.0",
+   "scope": {
+    "full": true,
+    "patterns": [],
+    "jobs": 3
+   },
+   "tests_total": 419,
+   "tests_wall_s": 275.9,
+   "slowest_top": [
+    {
+     "file": "tests/v3159_audit_failclosed_and_fallback_parity.test.mjs",
+     "duration": 90664,
+     "status": 0
+    },
+    {
+     "file": "tests/v3230_dead_method_disposal.test.mjs",
+     "duration": 67526,
+     "status": 0
+    },
+    {
+     "file": "tests/v3279_o7_scanner_decl_surface.test.mjs",
+     "duration": 58746,
+     "status": 0
+    },
+    {
+     "file": "tests/v3228_dead_methods_ledger.test.mjs",
+     "duration": 37614,
+     "status": 0
+    },
+    {
+     "file": "tests/v3204_no_cross_repo_binding.test.mjs",
+     "duration": 35165,
+     "status": 0
+    },
+    {
+     "file": "tests/v3161_config_reachability.test.mjs",
+     "duration": 24644,
+     "status": 0
+    },
+    {
+     "file": "tests/v3207_ledger_entity_contract.test.mjs",
+     "duration": 22174,
+     "status": 0
+    },
+    {
+     "file": "tests/v3206_process_reaping.test.mjs",
+     "duration": 20118,
+     "status": 0
+    },
+    {
+     "file": "tests/v3203_version_guard_handover.test.mjs",
+     "duration": 17389,
+     "status": 0
+    },
+    {
+     "file": "tests/v3236_snapshot_restore_and_clear.test.mjs",
+     "duration": 15577,
+     "status": 0
+    },
+    {
+     "file": "tests/v3319_ci_faithful_probe_and_attribution.test.mjs",
+     "duration": 14747,
+     "status": 0
+    },
+    {
+     "file": "tests/v3116_dead_code.test.mjs",
+     "duration": 14097,
+     "status": 0
+    },
+    {
+     "file": "tests/v3235_rollback_preview.test.mjs",
+     "duration": 14081,
+     "status": 0
+    },
+    {
+     "file": "tests/v3131_ground_truth.test.mjs",
+     "duration": 13775,
+     "status": 0
+    },
+    {
+     "file": "tests/v3227_gate_isolation_and_timing.test.mjs",
+     "duration": 13194,
+     "status": 0
+    }
+   ],
+   "audit_passed": 61,
+   "audit_total": 61,
+   "source": "node tests/run.mjs --audit",
+   "rebound_at": "2026-10-28T08:40:05.248Z"
   }
  ]
 }

@@ -261,7 +261,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 420,
+    "test_files": 419,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -465,7 +465,6 @@
       "v3282_o7_alias_copy_ledger.test.mjs",
       "v3283_o7_const_table_copy_ledger.test.mjs",
       "v3284_o7_audit_copy_ledger.test.mjs",
-      "v3285_o7_doc_truthfulness.test.mjs",
       "v3286_cost_truthfulness.test.mjs",
       "v3286_plan_currency.test.mjs",
       "v3287_ui_interaction.test.mjs",
@@ -685,7 +684,7 @@
       "v39_shift_floors.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 65,
+    "audit_gated": 64,
     "audit_probes": 6,
     "tiers": {
       "schema": "gate-tiers@1",
@@ -719,12 +718,12 @@
     }
   },
   "full_run": {
-    "status": "stale",
-    "registered_at": "3.355.0",
-    "tests_total": 334,
-    "assertions": 4066,
+    "status": "registered",
+    "registered_at": "3.423.0",
+    "tests_total": 419,
+    "assertions": 4474,
     "audit": "61/61",
-    "reason": "登记版本 3.355.0 ≠ 当前 3.423.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
   "host_run": {
     "status": "not-executed",
@@ -747,15 +746,13 @@
       "package.json": "05d451a9bc07",
       "index.js": "e52ad7366597",
       "update-log.json": null,
-      "README.md": "12459c8cf34b",
-      "PLAN.md": "7f22c56ab63a",
+      "README.md": "094680da047c",
+      "PLAN.md": "31d97bd4b7e9",
       "CHANGELOG.md": "901f73935ef6",
       "TODO.md": "167246ac43aa",
-      "tests/audit/doc_readings.json": "320c4f5c5af7"
+      "tests/audit/doc_readings.json": "246ef3e9c0cf"
     }
   },
-  "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.355.0，当前 3.423.0"
-  ],
-  "unknown_count": 1
+  "unknown": [],
+  "unknown_count": 0
 }

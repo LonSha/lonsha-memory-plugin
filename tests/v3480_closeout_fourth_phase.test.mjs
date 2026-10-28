@@ -5,7 +5,7 @@
  * 【本档要证明的五件事(不是「文件在场」)】
  *   a) **收口读数真的登记了**:tests/audit/doc_readings.json 与本版同源,
  *      且四元组(测试文件 / 断言 / 审计通过 / 审计总数)全为真读数 —— 不是空壳;
- *   b) **人读面与登记逐项一致**:README / PLAN 的快照四元组必须与登记逐位相等,
+ *   b) **人读面与登记逐项一致**:PLAN 的快照四元组必须与登记逐位相等(README 自 v3.424.0 起定位玩家门面,不载工程读数),
  *      且「登记已对齐当版却仍标全量待验」必须当场翻红(把已实跑说成没跑);
  *   c) **上界与基线当版有账**:line_budget.history 必须留当版条目、
  *      ceiling 与末条 history 同源;基线 measured_at 与当版同源且 rebuilds 留读数;
@@ -85,19 +85,10 @@ function judgeReadingsRegistered(root) {
     return bad;
 }
 
-/** ③ 人读面快照与登记逐位一致（README / PLAN 两处）。 */
+/** ③ 人读面快照与登记逐位一致（PLAN 面；README 自 v3.424.0 起定位玩家门面，不载工程读数）。 */
 function judgeDocSnapshot(root) {
     const bad = [];
     const reg = RJ(root, 'tests/audit/doc_readings.json');
-    const readme = RD(root, 'README.md');
-    const rm = /\*\*最近一次全量实跑快照\*\*[^\n]*?：v([0-9.]+) · (\d+) 个测试文件 · (\d+) 断言 · 0 失败 · 审计 (\d+)\/(\d+)/.exec(readme);
-    if (!rm) bad.push('README 缺「最近一次全量实跑快照」四元组');
-    else if (rm[1] !== reg.version || +rm[2] !== reg.tests_total || +rm[3] !== reg.assertions
-        || +rm[4] !== reg.audit_passed || +rm[5] !== reg.audit_total) {
-        bad.push('README 快照 v' + rm[1] + ' · ' + rm[2] + '/' + rm[3] + '/' + rm[4] + '/' + rm[5]
-            + ' !! 登记 v' + reg.version + ' · ' + reg.tests_total + '/' + reg.assertions
-            + '/' + reg.audit_passed + '/' + reg.audit_total);
-    }
     const plan = RD(root, 'PLAN.md');
     const pm = /最近全量快照 \*\*v([0-9.]+)：(\d+) 测试文件 \/ (\d+) 断言 0 失败 \/ 审计 (\d+)\/(\d+)\*\*/.exec(plan);
     if (!pm) bad.push('PLAN 缺「最近全量快照 **vX：N 测试文件 / M 断言 0 失败 / 审计 P/Q**」');
@@ -113,13 +104,10 @@ function judgePendingMarker(root) {
     const bad = [];
     const cur = idxVersion(root);
     const reg = RJ(root, 'tests/audit/doc_readings.json');
-    const rp = /当前版本 v([0-9.]+) \*\*全量待验\*\*/.exec(RD(root, 'README.md'));
     const pp = /当前 v([0-9.]+) \*\*全量待验\*\*/.exec(RD(root, 'PLAN.md'));
     if (reg.version === cur) {
-        if (rp) bad.push('README 仍标「当前版本 v' + rp[1] + ' 全量待验」,而登记已对齐 ' + cur + '(把已实跑说成没跑,同属读数不实)');
         if (pp) bad.push('PLAN 仍标「当前 v' + pp[1] + ' 全量待验」,而登记已对齐 ' + cur);
     } else {
-        if (!rp || rp[1] !== cur) bad.push('README 缺「当前版本 v' + cur + ' **全量待验**」(登记停在 v' + reg.version + ')');
         if (!pp || pp[1] !== cur) bad.push('PLAN 缺「当前 v' + cur + ' **全量待验**」(登记停在 v' + reg.version + ')');
     }
     return bad;
@@ -214,7 +202,7 @@ test('v3480 B1. ★★★★★ 收口读数已登记且与当版同源（doc_re
         + ' 断言 / 审计 ' + reg.audit_passed + '/' + reg.audit_total);
 });
 
-test('v3480 B2. ★★★★★ 人读面快照与登记逐位一致（README + PLAN 两处）', () => {
+test('v3480 B2. ★★★★★ 人读面快照与登记逐位一致（PLAN 面）', () => {
     const bad = judgeDocSnapshot(R);
     assert.deepEqual(bad, [], '快照与登记脱节:' + bad.join(' | '));
 });
@@ -291,7 +279,6 @@ const regVersion = () => RJ(R, REG_REL).version;
 const A_IDX = () => "const VERSION = '" + idxVersion(R) + "';";
 const A_REG = () => '"version": "' + regVersion() + '"';
 const A_BASE = () => '"measured_at": "' + RJ(R, BASE_REL).measured_at + '"';
-const A_RM = () => '**最近一次全量实跑快照**';
 const A_PLAN = () => '最近全量快照 **v' + regVersion() + '：';
 const A_TSV = () => DISK[DISK.length - 1];
 
@@ -322,12 +309,8 @@ test('v3480 D3. ★★★★ 破坏基线的 measured_at ⇒ 当版同源判据�
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('v3480 D4. ★★★★ 破坏 README 快照行 / PLAN 快照行 ⇒ 文档判据必须翻红（原版必绿）', () => {
+test('v3480 D4. ★★★★ 破坏 PLAN 快照行 ⇒ 文档判据必须翻红（原版必绿；README 面已于 v3.424.0 卸载）', () => {
     assert.deepEqual(judgeDocSnapshot(R), [], '原版阳性对照:文档快照判据必须通过');
-    const d1 = withTree((d) => wreck(d, 'README.md', A_RM(), '**最近一次全量实跑快照(已改坏)**'));
-    try {
-        assert.ok(judgeDocSnapshot(d1).some((x) => x.includes('README')), 'README 快照缺失必须现形');
-    } finally { fs.rmSync(d1, { recursive: true, force: true }); }
     const d2 = withTree((d) => wreck(d, 'PLAN.md', A_PLAN(), '最近全量快照 **v9.999.0：'));
     try {
         assert.ok(judgeDocSnapshot(d2).some((x) => x.includes('PLAN')), 'PLAN 快照错位必须现形');
@@ -355,7 +338,6 @@ test('v3480 F1. ★★★ H5 判据纯度:派生锚点在**目标真源**里各�
         ['A_IDX', A_IDX(), 'index.js'],
         ['A_REG', A_REG(), REG_REL],
         ['A_BASE', A_BASE(), BASE_REL],
-        ['A_RM', A_RM(), 'README.md'],
         ['A_PLAN', A_PLAN(), 'PLAN.md'],
         ['A_TSV', A_TSV(), 'tests/audit/catalog_reference_consumers.tsv'],
     ];

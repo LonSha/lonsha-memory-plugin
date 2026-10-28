@@ -205,10 +205,6 @@ const REGISTRY = [
     'v3283_o7_const_table_copy_ledger.test.mjs',
     /* [v3.284.0 O7 第四项续四] 审计面副本（tests/audit/*.mjs 此前不在任何一档的枚举面内） */
     'v3284_o7_audit_copy_ledger.test.mjs',
-    /* [v3.285.0 O8 第一刀] 本档从 tests/_break_kit.mjs 取 breakSource / assertSingleHit
-     *   （六处真源码破坏：摘 D1 比较 / 摘 D3 自相矛盾 / 摘 D6 快照滞后整支 / 摘 D6 反向判据 /
-     *   摘 D2b 时点豁免 / 拔面下限，锚点取自 tests/audit/scan_doc_truthfulness.mjs）；按 B1 台账纪律在此登记。 */
-    'v3285_o7_doc_truthfulness.test.mjs',
     /* [v3.286.0 O8 第二刀] 两个新套件都从唯一真源取 breakSource / assertSingleHit，
      *   故按台账纪律（接入面 == 磁盘事实）在此登记。 */
     'v3286_cost_truthfulness.test.mjs',
