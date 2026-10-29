@@ -368,8 +368,31 @@
                 distance: distR, basis: 'epoch', epochA: A.epoch, epochB: B.epoch,
             };
         }
-        /* ══ 2) 线号相同、纪元不全：用变动率细分（这一格仍可能判不了）══ */
+        /* ══ 2) 线号相同、纪元不全：先看证据是否对称，再谈变动率 ══ */
         if (A.lineId === B.lineId) {
+            /* ★ [v3.426.0 · 仿真自纠] 证据不对称 ⇒ 判不了（**不许判 same**）。
+             * 【修前实测】当前 = α线@47（第三纪元），条目 = { worldline:'α线' }（无纪元，
+             *   因为它所在楼层早于跳跃表首次登记）。改前走下面那支 `same-line-id-no-divergence`
+             *   ⇒ SAME ⇒ native ⇒ 被当成「这一纪元的经历」注入。
+             *   这不是「差不多就放行」，而是用条目那句粗线标去冒充一个更细的纪元——
+             *   正是本格要防的猜法：**一侧说「α线」，另一侧说「α线@47的α线」，
+             *   二者相等只是因为粗的那侧没说是哪一个 α线**。
+             * 【为什么落 UNKNOWN 而不是 FAR】缺证据不等于相反证据。判 far 会给出
+             *   「已知的远」这个假身份，还可能让保留者以为「记得但被挡了」。
+             *   本仓铁律：判不了 ≠ 否。
+             * 【代价与出路】这条改动会让「没楼层的旧条目 vs 有纪元的当前」从 native 降为
+             *   undecided。recall 口径不变（undecided 仍放行、逐条留证），
+             *   但注入侧不再把它当事实。要走严格判定，给条目补 floor，或把首跳登记在第 1 楼。 */
+            if (!!A.epoch !== !!B.epoch) {
+                return {
+                    relation: RELATION.UNKNOWN,
+                    why: 'epoch-asymmetry',
+                    distance: distR,
+                    basis: 'epoch',
+                    epochA: A.epoch || '',
+                    epochB: B.epoch || '',
+                };
+            }
             if (!bothDiv) {
                 /* 同号但都没变动率：身份相同、距离无据 ⇒ 同线（same）。
                  * 这不是「猜」：线号相等就是同一条线；变动率只回答「这条线内多远」。 */

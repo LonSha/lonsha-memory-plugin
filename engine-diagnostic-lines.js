@@ -620,7 +620,9 @@
              *   最想抓的形态。三级取值语义一个字不改：opts > 已存档 worldProg.worldline > 配置 > 默认。 */
             const has = (obj, k) => !!obj && Object.prototype.hasOwnProperty.call(obj, k);
             const pick = (k, cfgVal, fb) => (has(o, k) ? o[k] : (saved[k] !== undefined ? saved[k] : (cfgVal !== undefined ? cfgVal : fb)));
-            const lineId = String(pick('worldlineId', cfg.worldlineId, '') || '').trim();
+            /* ★ [v3.426.0 · 仿真自纠] 原来是 const —— 下面「当前纪元自动推进」要在缺配时回填，
+             *   故改 let。语义一个字不改：仍是 opts > 存档 > 配置 > ''。 */
+            let lineId = String(pick('worldlineId', cfg.worldlineId, '') || '').trim();
             const divergence = pick('worldlineDivergence', cfg.worldlineDivergence, 1.048596);
             /* ★ [v3.424.1 · 自纠] 吸引域分段此前**没有任何配置入口**（全仓 grep 'bands' 除内核外 0 命中），
              *   宿主 current 只给 {lineId, divergence}，七个出口传的也是 {} ⇒ 必然吃内核 DEFAULT_BANDS。
@@ -773,14 +775,73 @@
                 return out;
             })();
             /* ---- 当前纪元的起线楼层 ----
-             *   配置给了就用配置（卡作者知道这一纪元从哪楼起）；
-             *   没给则**不猜** —— 留 null，条目退化成「只知道层标记、不知道纪元」，
-             *   同号跨纪元那一格会落 unknown 而不是被误判成 same。 */
-            const startFloor = (function () {
+             *   优先用配置（卡作者知道这一纪元从哪楼起）；
+             *   没配则**不猜数字**，改为从跳跃登记表反推 —— 见下面 epochAdvance。
+             *   ★ 两条途径都失效（无配置 + 无跳跃表）时留 null，
+             *     条目退化成「只知道层标记、不知道纪元」，同号跨纪元那一格会落 unknown
+             *     而不是被误判成 same。 */
+            let startFloor = (function () {
                 const raw = pick('worldlineStartFloor', cfg.worldlineStartFloor, null);
                 if (raw === null || raw === undefined || raw === '') return null;
                 const n = Number(String(raw).trim());
                 return (Number.isFinite(n) && n >= 0) ? Math.floor(n) : null;
+            })();
+            /* ══ 当前纪元自动推进（v3.426.0 · 仿真自纠）════
+             * 【修前实测】卡作者按 v3.425.0 的文档**只**登记 jumps、不填 worldlineStartFloor
+             *   （这是文档里推荐的口径：楼层反推优先，手工配置是可选兜底）。结果：
+             *   `_worldlineState({}).current = { lineId:'', divergence:1.048596, startFloor:null }`
+             *   ⇒ epoch 为空 ⇒ guard 的「同号跨纪元」判据在整场对话里**永不触发**
+             *   ⇒ 第 60 楼（α线@47）会把第 5 楼（α线@3）的第一纪元记忆当成自己的经历放行。
+             *   即：**正确登记了跳跃表的卡反而失效**，而「跨纪元不串」正是本格存在的理由。
+             * 【为什么这是宿主该做的事】jumps 是磁盘事实（楼层），当前楼层也是磁盘事实
+             *   （`_currentFloor` / `currentStoryFloor()` 都有真实赋值点）。两张磁盘事实一起
+             *   能算出的东西，不该反过来要卡作者手抄一遍 —— 手抄值会随剧情推进过期。
+             * 【纪律】只在「当前纪元完全没配」时生效：
+             *   ① 作者显式配了 worldlineStartFloor ⇒ 一个字不动（尊重手工口径，可覆盖反推）；
+             *   ② 反推不出（无跳跃表 / 楼层早于首次跳跃 / 拿不到当前楼层）⇒ 保持 null，不猜；
+             *   ③ 反推出的层标记与配置的 lineId 冲突 ⇒ 记 conflict，**不覆盖**作者配置的层标记
+             *      （层标记是作者的命名，比楼层更可能是有意为之；冲突本身要可查）。 */
+            const epochAdvance = (function () {
+                const out = { applied: false, floor: null, why: '', conflict: '' };
+                try {
+                    if (startFloor !== null) { out.why = 'configured'; return out; }
+                    if (!Array.isArray(jumps) || !jumps.length) { out.why = 'no-jumps'; return out; }
+                    /* 当前楼层：opts > 宿主真源。两个真源都读不到就**不猜**（返回 null）。 */
+                    let cf = null;
+                    if (o.floor !== undefined && o.floor !== null && o.floor !== '') {
+                        const n = Number(String(o.floor).trim());
+                        if (Number.isFinite(n) && n >= 0) cf = Math.floor(n);
+                    }
+                    if (cf === null && engine && Number.isFinite(Number(engine._currentFloor)) && Number(engine._currentFloor) >= 0) {
+                        cf = Math.floor(Number(engine._currentFloor));
+                    }
+                    if (cf === null && engine && typeof engine.currentStoryFloor === 'function') {
+                        try {
+                            const n2 = Number(engine.currentStoryFloor());
+                            if (Number.isFinite(n2) && n2 >= 0) cf = Math.floor(n2);
+                        } catch (_e) { /* 宿主成员缺席不是错误：退回不猜 */ }
+                    }
+                    if (cf === null) { out.why = 'no-current-floor'; return out; }
+                    out.floor = cf;
+                    /* 复用内核的 epochAt（**唯一**允许按楼层推身份的地方），不在此另写一份。 */
+                    const WM = _worldlineMemoryLib();
+                    if (!WM || typeof WM.epochAt !== 'function') { out.why = 'module-unavailable'; return out; }
+                    const at = WM.epochAt(cf, jumps, { layerAlias: layerAlias });
+                    if (!at || !at.epoch) { out.why = (at && at.why) || 'no-epoch'; return out; }
+                    if (lineId && at.lineId && lineId !== at.lineId) {
+                        /* 作者配置的层标记与楼层反推不一致：记因，但**保留作者配置的层标记**。
+                         * 说的是一件真事：要么 jumps 少登记了一次回跳，要么 worldlineId 该更新了。 */
+                        out.conflict = 'current-line-id-vs-jump-conflict';
+                        out.why = 'conflict';
+                        startFloor = at.startFloor;
+                        return out;
+                    }
+                    if (!lineId) lineId = at.lineId;
+                    startFloor = at.startFloor;
+                    out.applied = true;
+                    out.why = at.why;
+                    return out;
+                } catch (_e) { out.why = 'threw'; return out; }
             })();
             /* ---- 保留者策略 ----
              *   默认 'none'：**谁都不许串**（含主角）。只有显式写 'allow' 才恢复旧行为。
@@ -808,6 +869,11 @@
                 readerPolicy: readerPolicy,
                 adjacentPolicy: pick('worldlineAdjacentPolicy', cfg.worldlineAdjacentPolicy, 'hold'),
                 lastGateRead: saved.lastGateRead || null,
+                /* ★ [v3.426.0] 当前纪元是「配置」还是「按楼层推出来的」必须可查：
+                 *   两者得出同一个 epoch 时行为一致，但**可信度不同** ——
+                 *   推出来的那一份依赖 jumps 登记得对，配的那一份依赖卡作者当时写对。
+                 *   诊断面看到 applied:true 而读数仍落 unknown，就知道该去查 jumps 了。 */
+                epochAdvance: epochAdvance,
             };
         
     }

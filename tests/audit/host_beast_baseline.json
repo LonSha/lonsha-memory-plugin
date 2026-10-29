@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.424.1] M7-X1 世界线记忆**自纠**版：本版在宿主面里**真加了代码** —— engine-diagnostic-lines.js 的 _worldlineState 新增 worldlineBands 解析段（文本/数组/对象三形态 + 注释与坏行跳过，+41 行），并让 guard / convergenceOf / switchPlan / _worldlineLine 四个出口把 state.bands 透传下去（约 +9 行），世界线读数与判据从此同口径。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28556 行 / 成员 1168。line_budget 行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.425.0",
+  "measured_at": "v3.426.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2775,6 +2775,42 @@
         "top40_lines": 0,
         "top5_pct": -28.7
       }
+    },
+    "v3.426.0": {
+      "reason": "[v3.426.0] 仿真自纠（世界线跳跃卡端到端真跑打出来的两处缺陷）：① engine-diagnostic-lines.js 的 _worldlineState 新增「当前纪元自动推进」段 —— 卡作者只登记 worldlineJumps、不填 worldlineStartFloor（v3.425.0 文档推荐口径）时，用当前楼层（opts.floor > _currentFloor > currentStoryFloor()）+ jumps 表走内核 epochAt 反推当前纪元；含四条纪律（手工配置优先 / 拿不到楼层不猜 / 无 jumps 不推进 / 冲突记因不夺权）与读数 epochAdvance。该成员因此继续增长。② worldline-memory.js 的 relationOf 新增「证据不对称 ⇒ unknown」一支（粗线标不得冒充细纪元）。两条都是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11719,
+        "surface_lines": 28779,
+        "member_count": 1168,
+        "duplicate_member_names": 160,
+        "top5_lines": 5685,
+        "top5_pct": 19.8,
+        "top40_lines": 12845,
+        "top40_pct": 44.6,
+        "prefix_rule_coverage_lines": 4965,
+        "prefix_rule_coverage_pct": 17.3,
+        "unclassified_lines": 22999,
+        "seam_distinct_modules": 148,
+        "seam_reference_sites": 424,
+        "seam_call_shape_sites": 552,
+        "members_over_80_lines": 52,
+        "low_coupling_members": 18,
+        "high_coupling_members": 17
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只修世界线纪元推进与证据不对称判定，未拆任何宿主巨兽成员",
+      "delta_from": "v3.425.0",
+      "delta": {
+        "total_lines": 0,
+        "surface_lines": 66,
+        "member_count": 0,
+        "top40_lines": 66,
+        "top5_pct": 0.0,
+        "top40_pct": 0.1
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2789,30 +2825,30 @@
   ],
   "readings": {
     "total_lines": 11719,
-    "surface_lines": 28713,
+    "surface_lines": 28779,
     "member_count": 1168,
     "duplicate_member_names": 160,
     "top5_lines": 5685,
     "top5_pct": 19.8,
-    "top40_lines": 12779,
-    "top40_pct": 44.5,
+    "top40_lines": 12845,
+    "top40_pct": 44.6,
     "prefix_rule_coverage_lines": 4965,
     "prefix_rule_coverage_pct": 17.3,
-    "unclassified_lines": 22933,
+    "unclassified_lines": 22999,
     "seam_distinct_modules": 148,
     "seam_reference_sites": 424,
     "seam_call_shape_sites": 552,
     "members_over_80_lines": 52,
     "low_coupling_members": 18,
-    "high_coupling_members": 16
+    "high_coupling_members": 17
   },
   "domains": [
     {
       "domain": "（未归类）",
       "members": 1105,
-      "lines": 22933,
+      "lines": 22999,
       "lines_pct": 79.9,
-      "outside_refs": 22476,
+      "outside_refs": 22484,
       "internal_refs": 8562,
       "outside_ref_share_pct": 72.4
     },
@@ -2981,6 +3017,12 @@
       "outside_refs": 40
     },
     {
+      "name": "_worldlineState",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 274,
+      "outside_refs": 7
+    },
+    {
       "name": "onMessageReceived",
       "file": "index.js",
       "lines": 270,
@@ -2991,12 +3033,6 @@
       "file": "index.js",
       "lines": 252,
       "outside_refs": 9
-    },
-    {
-      "name": "_worldlineState",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 208,
-      "outside_refs": 6
     },
     {
       "name": "rollbackFloor",
@@ -3153,7 +3189,7 @@
     "threshold_lines": 80,
     "total_over_threshold": 52,
     "low_coupling_non_lifecycle": 18,
-    "high_coupling_non_lifecycle": 16,
+    "high_coupling_non_lifecycle": 17,
     "low_coupling_examples": [
       {
         "name": "typedFactsBlocks",
@@ -3284,6 +3320,13 @@
         "is_host_lifecycle": false
       },
       {
+        "name": "_worldlineState",
+        "file": "engine-diagnostic-lines.js",
+        "lines": 274,
+        "outside_refs": 7,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "refresh",
         "file": "index.js",
         "lines": 252,
@@ -3316,13 +3359,6 @@
         "file": "engine-persistence-ops.js",
         "lines": 143,
         "outside_refs": 49,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "applyCorrectionPlan",
-        "file": "engine-repair-ops.js",
-        "lines": 139,
-        "outside_refs": 11,
         "is_host_lifecycle": false
       }
     ]
@@ -3371,7 +3407,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.425.0] 世界线记忆主键换血（变动率 → 纪元 = 层标记@切换楼层）并去世界观化：宿主 _worldlineState 新增 jumps / startFloor / layerAlias / readerPolicy 四表解析（该成员 208 行新进 TOP40），engine-recall 的 recallMemory 增 undecidedSample 留证（849 → 875 行）。入口 index.js 11719 行**不变**，成员数 1168 **不变** ⇒ 行上界 12096 与成员上界 1190 **均不抬**（余量 377 / 22 仍分别在 slack 400 / 30 内）。合并面 28556 → 28713。",
+    "note": "[v3.426.0] _worldlineState 新增「当前纪元自动推进」段（epochAdvance，四条纪律 + 新读数），relationOf 新增「证据不对称 ⇒ unknown」一支。入口 index.js 11719 行、成员数 1168；行上界与成员上界**均不抬**（仍在 slack 内）（余量 377 / 22）。合并面 28779 行，TOP5 占 19.8%、TOP40 占 44.6%。",
     "history": [
       {
         "ceiling": 15000,
@@ -3664,6 +3700,12 @@
         "member_ceiling": 1190,
         "milestone_version": "v3.425.0",
         "reason": "[v3.425.0] 世界线记忆主键换血（变动率 → 纪元 = 层标记@切换楼层）并去世界观化：宿主 _worldlineState 新增 jumps / startFloor / layerAlias / readerPolicy 四表解析（该成员 208 行新进 TOP40），engine-recall 的 recallMemory 增 undecidedSample 留证（849 → 875 行）。入口 index.js 11719 行**不变**，成员数 1168 **不变** ⇒ 行上界 12096 与成员上界 1190 **均不抬**（余量 377 / 22 仍分别在 slack 400 / 30 内）。合并面 28556 → 28713。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1190,
+        "milestone_version": "v3.426.0",
+        "reason": "[v3.426.0] _worldlineState 新增「当前纪元自动推进」段（epochAdvance，四条纪律 + 新读数），relationOf 新增「证据不对称 ⇒ unknown」一支。入口 index.js 11719 行、成员数 1168；行上界与成员上界**均不抬**（仍在 slack 内）（余量 377 / 22）。合并面 28779 行，TOP5 占 19.8%、TOP40 占 44.6%。"
       }
     ],
     "member_ceiling": 1190,

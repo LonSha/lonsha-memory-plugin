@@ -1,8 +1,9 @@
 /* ============================================================
- * tests/v34240_worldline_memory.test.mjs — v3.425.0
+ * tests/v34240_worldline_memory.test.mjs — v3.426.0
  * M7-X1 世界线记忆与跨线污染闸（worldline-memory.js）
  *   本档出生在 v3.424.0；v3.424.1 自纠（`>1` 段变动率不得被压平）就地续写，
- *   v3.425.0 主键换血（变动率 → 纪元）就地续写，故文件头版本随当前版走，
+ *   v3.425.0 主键换血（变动率 → 纪元）就地续写，v3.426.0 仿真自纠
+ *   （宿主推进当前纪元 + 证据不对称判不了）就地续写，故文件头版本随当前版走，
  *   但锚点仍是 vnum 恰好对应当版（见 H2 段 SELF_VERSION）。
  *
  * 修的是什么（修前实测，读码可复算）：
@@ -542,10 +543,175 @@ test('G4 破坏「关着报 disabled」⇒ 关闸被读成全放行（行为真�
     bindReal();
 });
 
+/* ================= M 仿真发现的第十/第十一处自纠（v3.426.0） =================
+ * 来由（实测，不是整洁性偏好）：拿一张「命运石之门式」的世界线跳跃卡端到端跑一遍，
+ *   主角三生在第 1→39 楼 α线、40→46 β线、47→87 回跳 α线、88+ Steins;Gate线。
+ *   两处缺陷都**不是靠读码看出来的**，是全量判据全绿之后被真实跑动打出来的：
+ *
+ *   ① 宿主不推进当前纪元。卡作者按 v3.425.0 的文档**只**登记 worldlineJumps、
+ *      不填 worldlineStartFloor（文档推荐口径：楼层反推优先，手工配置是可选兜底）。
+ *      实测 `_worldlineState({}).current = { lineId:'', startFloor:null }` ⇒ epoch 空
+ *      ⇒「同号跨纪元」在整场对话里**永不触发** ⇒ 第 60 楼把第 5 楼（α线@3）的第一纪元
+ *      记忆当成自己的经历放行。**登记得越规范的卡反而失效**，这是最坏的一种错。
+ *   ② 证据不对称被判成 same。当前 α线@47，条目只有粗线标 `worldline:'α线'`
+ *      （它所在楼层早于首跳登记，推不出纪元）⇒ 走 `same-line-id-no-divergence` ⇒
+ *      SAME ⇒ native。这正是「用粗标冒充细纪元」，本格要防的猜法。
+ *
+ * 下面 M 段每条都对准这两处，锚点字面量在本档内只声明一次（见 H1）。
+ */
+const ANCHOR_EPOCH_ADVANCE = 'const at = WM.epochAt(cf, jumps, { layerAlias: layerAlias });';
+const ANCHOR_ADVANCE_CONFIGURED = "if (startFloor !== null) { out.why = 'configured'; return out; }";
+const ANCHOR_EPOCH_ASYM = 'if (!!A.epoch !== !!B.epoch) {';
+test('M1 只登记 jumps 不填 startFloor：当前纪元必须按当前楼层自动推进', () => {
+    /* 修前实测：current={lineId:'',startFloor:null} ⇒ epoch 空 ⇒ 跨纪元判据整场不触发。
+     * 修后：第 45 楼推得 β线@40，第 60 楼推得 α线@47，第 90 楼推得 SG@88。 */
+    const e = makeEngine({ worldlineMemoryEnabled: true, worldlineJumps: '1:α线\n40:β线\n47:α线\n88:Steins;Gate线' });
+    const seen = {};
+    for (const f of [45, 60, 90]) {
+        e._currentFloor = f;
+        const st = e._worldlineState({});
+        assert.strictEqual(st.epochAdvance.applied, true, '第 ' + f + ' 楼应已按楼层推进（实测 ' + st.epochAdvance.why + '）');
+        seen[f] = st.current.lineId + '@' + st.current.startFloor;
+    }
+    assert.deepStrictEqual(seen, { 45: 'β线@40', 60: 'α线@47', 90: 'Steins;Gate线@88' });
+    /* 端到端：第 60 楼必须把第一纪元（α线@3）的同层标记记忆挡下来 */
+    e._currentFloor = 60;
+    const g = e.worldlineGate({
+        items: [
+            { id: 'epoch1', floor: 5, worldline: 'α线' },
+            { id: 'epoch3', floor: 50, worldline: 'α线' },
+        ],
+    });
+    assert.strictEqual(g.current.epoch, 'α线@47');
+    assert.strictEqual(g.kept.length, 1);
+    assert.strictEqual(g.kept[0].key, 'epoch3');
+    assert.strictEqual(g.blocked[0].why, 'same-line-id-cross-epoch',
+        '第 5 楼与当前同层标记但异纪元，必须具名挡下（实测 ' + g.blocked[0].why + '）');
+});
+test('M2 自动推进的三条纪律：手工配置优先 / 拿不到楼层不猜 / 冲突记因不夺权', () => {
+    const JT = '1:α线\n40:β线\n47:α线\n88:Steins;Gate线';
+    /* ① 作者显式填了 startFloor：反推一个字都不许动（哪怕按楼层算出来是另一个纪元） */
+    const e1 = makeEngine({
+        worldlineMemoryEnabled: true, worldlineJumps: JT,
+        worldlineId: 'α线', worldlineStartFloor: '47',
+    });
+    e1._currentFloor = 90;                      /* 反推会得 SG@88 */
+    const st1 = e1._worldlineState({});
+    assert.strictEqual(st1.current.lineId, 'α线', '手动配置的层标记不得被反推覆盖');
+    assert.strictEqual(st1.current.startFloor, 47, '手动配置的起线楼不得被反推覆盖');
+    assert.strictEqual(st1.epochAdvance.applied, false);
+    assert.strictEqual(st1.epochAdvance.why, 'configured');
+    /* ② 拿不到当前楼层：保持 null，不猜（宁可判不了） */
+    const e2 = makeEngine({ worldlineMemoryEnabled: true, worldlineJumps: JT });
+    const st2 = e2._worldlineState({});
+    assert.strictEqual(st2.current.startFloor, null, '没有当前楼层就不许编一个');
+    assert.strictEqual(st2.current.lineId, '');
+    assert.strictEqual(st2.epochAdvance.why, 'no-current-floor');
+    /* ③ 配置的层标记与反推冲突：记因，但保留作者配置的层标记（命名权在人手上） */
+    const e3 = makeEngine({ worldlineMemoryEnabled: true, worldlineJumps: JT, worldlineId: 'β线' });
+    e3._currentFloor = 60;                      /* 反推 α线@47 */
+    const st3 = e3._worldlineState({});
+    assert.strictEqual(st3.current.lineId, 'β线', '冲突时保留作者命名');
+    assert.strictEqual(st3.epochAdvance.conflict, 'current-line-id-vs-jump-conflict');
+    /* ④ opts.floor 是最高优先的真源（调用方显式指定时不吃宿主字段） */
+    const e4 = makeEngine({ worldlineMemoryEnabled: true, worldlineJumps: JT });
+    e4._currentFloor = 10;                      /* 宿主说 α线@1 */
+    const st4 = e4._worldlineState({ floor: 60 });
+    assert.strictEqual(st4.current.startFloor, 47, 'opts.floor 优先于 _currentFloor');
+    /* ⑤ 无跳跃表：不推进（没有可推的依据） */
+    const e5 = makeEngine({ worldlineMemoryEnabled: true });
+    e5._currentFloor = 60;
+    const st5 = e5._worldlineState({});
+    assert.strictEqual(st5.epochAdvance.why, 'no-jumps');
+    assert.strictEqual(st5.current.startFloor, null);
+});
+test('M3 证据不对称 = 判不了：粗线标不得冒充细纪元（不许判 same）', () => {
+    /* 修前实测：relationOf({lineId:'α线'}, {lineId:'α线',startFloor:47}) 返回
+     *   same/same-line-id-no-divergence/native —— 条目的「α线」被当成「α线@47」。
+     * 修后：unknown/epoch-asymmetry/basis=epoch —— 判不了 ≠ 否（不给它「已知的远」的假身份）。 */
+    const rel = WM.relationOf({ lineId: 'α线' }, { lineId: 'α线', startFloor: 47 });
+    assert.strictEqual(rel.relation, WM.RELATION.UNKNOWN, '证据不对称必须判不了，实测 ' + rel.relation);
+    assert.strictEqual(rel.why, 'epoch-asymmetry');
+    assert.strictEqual(rel.basis, 'epoch');
+    /* 对称的两侧仍按原口径走（修正不得把判据整体打死） */
+    const both = WM.relationOf({ lineId: 'α线' }, { lineId: 'α线' });
+    assert.strictEqual(both.relation, WM.RELATION.SAME, '两侧都只有粗标：线号相等就是同一条线');
+    assert.strictEqual(both.why, 'same-line-id-no-divergence');
+    /* 条目自带纪元且与当前一致 ⇒ 仍 native（不许把正常条目也打降级） */
+    const ok = WM.relationOf({ lineId: '现实', startFloor: 45 }, { lineId: '现实', startFloor: 45 });
+    assert.strictEqual(ok.relation, WM.RELATION.SAME);
+    assert.strictEqual(ok.why, 'same-epoch');
+    /* 端到端：首跳登记在第 3 楼 ⇒ 第 1/2 楼推不出纪元 ⇒ undecided（仍放行、但不当事实） */
+    const jumps = [{ floor: 3, lineId: 'α线' }, { floor: 47, lineId: 'α线' }];
+    const g = WM.guard([
+        { id: 'pre1', floor: 1, worldline: 'α线' },     /* 早于首跳，推不出纪元 */
+        { id: 'now', floor: 50, worldline: 'α线' },
+    ], '', { current: { lineId: 'α线', startFloor: 47 }, jumps: jumps });
+    assert.strictEqual(g.undecided.length, 1, '前史条目落 undecided');
+    assert.strictEqual(g.undecided[0].why, 'epoch-asymmetry');
+    assert.strictEqual(g.kept.length, 1);
+    assert.strictEqual(g.kept[0].key, 'now');
+    /* 出路可验证：把首跳登记在第 1 楼，前史就有纪元了 ⇒ 由 undecided 变 blocked（旧纪元） */
+    const jumps2 = [{ floor: 1, lineId: 'α线' }, { floor: 47, lineId: 'α线' }];
+    const g2 = WM.guard([{ id: 'pre1', floor: 1, worldline: 'α线' }], '',
+        { current: { lineId: 'α线', startFloor: 47 }, jumps: jumps2 });
+    assert.strictEqual(g2.blocked.length, 1, '登记首跳后前史可判（落旧纪元被挡）');
+    assert.strictEqual(g2.blocked[0].why, 'same-line-id-cross-epoch');
+});
+test('M4 负控制：真源码破坏后行为必须真变（两条修复各有牙）', () => {
+    /* ① 破坏「按楼层推当前纪元」那行 ⇒ 当前纪元退回空 ⇒ 跨纪元判据不再触发 */
+    const e = makeEngine({ worldlineMemoryEnabled: true, worldlineJumps: '1:α线\n40:β线\n47:α线' });
+    e._currentFloor = 60;
+    assert.strictEqual(e._worldlineState({}).current.startFloor, 47, '原版：推到 47');
+    withBrokenCopy('engine-diagnostic-lines.js', ANCHOR_EPOCH_ADVANCE,
+        'const at = { epoch: "", lineId: "", startFloor: null, why: "broken" };', (target) => {
+            delete require_.cache[target];
+            const broken = require_(target);
+            broken.bindDeps({
+                moduleLib: () => null, errLog: () => {},
+                libs: { _worldlineMemoryLib: () => WM },
+            });
+            const st = broken._worldlineState(e, {});
+            assert.strictEqual(st.current.startFloor, null, '破坏后不再推进（证明原版真的走了这条路）');
+        });
+    delete require_.cache[path.join(ROOT, 'engine-diagnostic-lines.js')];
+    bindReal();
+    /* ② 破坏「证据不对称判不了」⇒ 粗线标又被当成细纪元（退回修前行为） */
+    const asym = () => WM.relationOf({ lineId: 'α线' }, { lineId: 'α线', startFloor: 47 }).relation;
+    assert.strictEqual(asym(), 'unknown');
+    withBrokenCopy('worldline-memory.js', ANCHOR_EPOCH_ASYM, 'if (false) {', (target) => {
+        delete require_.cache[target];
+        const broken = require_(target);
+        assert.strictEqual(broken.relationOf({ lineId: 'α线' }, { lineId: 'α线', startFloor: 47 }).relation,
+            'same', '破坏后粗标被判成同一纪元（证明原始判据真的在读这条路径）');
+    });
+    delete require_.cache[path.join(ROOT, 'worldline-memory.js')];
+    bindReal();
+    /* ③ 破坏「手动配置优先」⇒ 反推反过来夺走作者的配置 */
+    const e2 = makeEngine({
+        worldlineMemoryEnabled: true, worldlineJumps: '1:α线\n47:α线',
+        worldlineId: 'α线', worldlineStartFloor: '47',
+    });
+    e2._currentFloor = 1;                       /* 反推会得 α线@1 */
+    assert.strictEqual(e2._worldlineState({}).current.startFloor, 47, '原版：手工配置生效');
+    withBrokenCopy('engine-diagnostic-lines.js', ANCHOR_ADVANCE_CONFIGURED, 'if (false) return out;', (target) => {
+        delete require_.cache[target];
+        const broken = require_(target);
+        broken.bindDeps({
+            moduleLib: () => null, errLog: () => {},
+            libs: { _worldlineMemoryLib: () => WM },
+        });
+        assert.strictEqual(broken._worldlineState(e2, {}).current.startFloor, 1,
+            '破坏后反推夺权（证明「手工配置优先」这条纪律真的被这条分支守住）');
+    });
+    delete require_.cache[path.join(ROOT, 'engine-diagnostic-lines.js')];
+    bindReal();
+});
 /* ================= H 判据纯度与版本锚 ================= */
 test('H1 判据纯度：本档破坏锚点在本档内只声明一次', () => {
     const self = readFileSync(fileURLToPath(import.meta.url), 'utf8');
-    for (const anchor of [ANCHOR_NO_MARK, ANCHOR_SAME_ID_GAP, ANCHOR_NOT_REGISTERED, ANCHOR_DISABLED]) {
+    for (const anchor of [ANCHOR_NO_MARK, ANCHOR_SAME_ID_GAP, ANCHOR_NOT_REGISTERED, ANCHOR_DISABLED,
+        ANCHOR_EPOCH_ADVANCE, ANCHOR_ADVANCE_CONFIGURED, ANCHOR_EPOCH_ASYM]) {
         assert.strictEqual(self.split(anchor).length - 1, 1, '锚点在本档恰一次: ' + anchor.slice(0, 40));
     }
 });
@@ -561,7 +727,7 @@ test('H2 版本锚：六源同源 + 出生版本下界', () => {
     /* [v3.424.1] 自锚常量形（scan_version_guard V4「本档自锚常量」）：本档出生 3.424.0，
      *   续写至 3.424.1；下界仍写出生版本，等号锚单独用 SELF_VERSION 指出「本档就是当版」。 */
     const BIRTH_VERSION = '3.424.0';
-    const SELF_VERSION = '3.425.0';
+    const SELF_VERSION = '3.426.0';
     assert.ok(vnum(v) >= vnum(BIRTH_VERSION), 'index.js 版本下界 ' + BIRTH_VERSION + '（实测 ' + v + '）');
     assert.strictEqual(vnum(v), vnum(SELF_VERSION), '本档即当版（自锚）');
 });

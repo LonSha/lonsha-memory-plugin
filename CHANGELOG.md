@@ -1,3 +1,40 @@
+## v3.426.0
+**仿真打出来的两处自纠：宿主不推进当前纪元 / 证据不对称被判成同一纪元**
+- **怎么发现的**：按要求拿一张「命运石之门式」的世界线跳跃卡端到端跑一遍 —— 原创主角**三生**不断跳线：第 1→39 楼 `α线`、40→46 `β线`、47→87 **回跳 `α线`**、88+ `Steins;Gate线`；记忆条目是酒馆真实形态（`{worldline:'α线', floor:5}`，有标记也有楼层，没有 `startFloor`）。**v3.425.0 的 54 条判据当时全绿**，但真实跑动立刻露出两处「判据绿、运行时错」：
+  1. **宿主从不推进当前纪元** ⇒ 卡作者按 v3.425.0 文档**只登记 `worldlineJumps`、不填 `worldlineStartFloor`**（文档推荐口径：楼层反推优先，手工配置是可选兜底）时，实测 `_worldlineState({}).current = { lineId:'', divergence:1.048596, startFloor:null }` ⇒ `epoch` 为空 ⇒ **「同号跨纪元不串」在整场对话里永不触发**。第 60 楼（`α线@47`）把第 5 楼（`α线@3`）的第一纪元记忆判成 `native/same-line-id-no-divergence` **当事实注入**。**登记得越规范的卡反而失效** —— 这是最坏的一种错。
+  2. **证据不对称被判成 `same`**。即使当前纪元已成立，条目若只有**粗线标**（`worldline:'α线'`，所在楼层早于首跳登记、推不出纪元），旧口径走 `same-line-id-no-divergence` ⇒ `SAME` ⇒ `native`。这不是「差不多就放行」，是**用粗标冒充细纪元**：一侧说「α线」，另一侧说「α线@47 的 α线」，二者相等只因为粗的那侧没说是哪一个 α线。
+- **修法一：当前纪元自动推进（宿主侧）**。`_worldlineState` 在「作者没有显式配 `worldlineStartFloor`」时，用**当前楼层**（`opts.floor` > `engine._currentFloor` > `engine.currentStoryFloor()`，全部是磁盘事实）+ **jumps 表**，走内核既有的 `epochAt` 反推出当前纪元（不另写一份推断逻辑）。四条纪律：
+  - 作者显式配了 `worldlineStartFloor` ⇒ **一个字不动**（手工口径可覆盖反推，`epochAdvance.why='configured'`）；
+  - 拿不到当前楼层 ⇒ **保持 `null` 不猜**（`why='no-current-floor'`，宁可判不了）；
+  - 无 jumps ⇒ 不推进（`why='no-jumps'`）；
+  - 反推出的层标记与作者配的 `lineId` 冲突 ⇒ 记 `conflict='current-line-id-vs-jump-conflict'`，**保留作者的层标记**（命名权在人手上），只把起线楼按楼层钉准。冲突本身要可查 —— 它说明「要么 jumps 少登记了一次回跳，要么 `worldlineId` 该更新了」。
+  - 新增读数 `epochAdvance = { applied, floor, why, conflict }`：`current` 是**配的**还是**推的**必须可查，两者可信度不同。
+- **修法二：证据不对称 ⇒ `unknown`（内核侧）**。`relationOf` 在「线号相同、纪元不全」这一格里，先判 `!!A.epoch !== !!B.epoch`：不对称就返回 `unknown / epoch-asymmetry / basis='epoch'`。**为什么落 `unknown` 而不是 `far`**：缺证据不等于相反证据；判 `far` 会给出「已知的远」这个假身份，还可能让保留者以为「记得但被挡了」。本仓铁律：**判不了 ≠ 否**。对称的两侧口径不变（都只有粗标 ⇒ `same-line-id-no-divergence`；都有纪元 ⇒ `same-epoch`），修正**不得把正常条目一起打降级**。
+- **代价与出路（如实写）**：修法二会让「没有纪元的前史条目 vs 有纪元的当前」从 `native` 降为 `undecided`。recall 口径**未变**（`undecided` 仍放行、仍逐条留证到 `undecidedSample`），但注入侧不再把它当事实。要走严格判定有两条路：给条目补 `floor`，或**把首次跳跃登记在第 1 楼**（M3 已把这条出路本身变成判据：登记首跳后，同一条目由 `undecided` 变 `blocked`）。
+- **仿真读数（修前 → 修后，同一张卡同一批数据）**：
+  | 场景 | 修前 | 修后 |
+  |---|---|---|
+  | 第 45 楼（剧情在 β线）当前纪元 | `α线@3`（配的、过期） | `β线@40`（推的） |
+  | 第 60 楼看第 5 楼（α线@3） | `kept / native` | `blocked / same-line-id-cross-epoch` |
+  | 第 90 楼看第 5 楼 | `kept`（旧纪元被当本线） | `blocked / cross-line-cross-epoch` |
+  | 三生作保留者 + `allow` @90 | 只记得本纪元（120 条中本纪元 33 条） | 记得全部**已历**纪元（120 条），**未来纪元仍挡** |
+  | 首跳登记在第 3 楼 ⇒ 第 1/2 楼 | `kept / native`（冒充本纪元） | `undecided / epoch-asymmetry` |
+- **保留者方向复核（用户约束「不给任何人跨线特权」仍然成立）**：默认 `none` 下，三生（含任何主角）的跨纪元记忆**一律 blocked**；只有显式 `allow` 才恢复「记得别的纪元」。且 `allow` **也不给未来**：第 60 楼的三生仍拿不到 `Steins;Gate线@88`（`future-epoch`）。另记一处**已接线但易误读**的点：`allow` 依赖 `viewer` 认人，`viewer` 三级回落里 `_currentSpeaker` 只有在真实召回路径上才被赋值；探针里手工造引擎时若不设 `_currentSpeaker`，保留者判定为 `false`（默认安全方向，宁可少放行）。
+- **判据 `tests/v34240_worldline_memory.test.mjs`（54 → 58）**：新增 **M 段 4 条**
+  - `M1` 只登记 jumps 不填 `startFloor` ⇒ 当前纪元按楼层自动推进（45/60/90 三处读数 + 端到端跨纪元挡下）；
+  - `M2` 自动推进的四条纪律（手工配置优先 / 拿不到楼层不猜 / 冲突记因不夺权 / `opts.floor` 最高优先 / 无 jumps 不推进）；
+  - `M3` 证据不对称即判不了，并钉住「两侧都只有粗标仍 `same`」「两侧都有纪元仍 `same-epoch`」两条不倒退，以及「登记首跳 ⇒ 由 undecided 变 blocked」这条出路；
+  - `M4` **负控制三条**（真源码破坏 → 行为必须真变）：破坏 `epochAt` 反推行 ⇒ 当前纪元退回 null；破坏 `epoch-asymmetry` 分支 ⇒ 粗标又被判成同一纪元；破坏「`configured` 早退」⇒ 反推夺走作者的配置。
+  - `H1` 锚点纯度清单扩到 7 条（新增 3 个锚点，各在本档恰一次）。
+- **诚实边界（本版新增）**：
+  1. 自动推进依赖「当前楼层」这一真源在场。无头探针须手工给 `_currentFloor` 或 `opts.floor`；真实运行时由 `onBeforeGeneration` 的 `_currentFloor = chat.length - 1` 提供。
+  2. 前史条目（楼层早于首次跳跃登记）**无法**从 jumps 推纪元 ⇒ 永远是 `undecided/epoch-asymmetry`。这是信息缺失，不是判据失误；补法是把首跳登记在第 1 楼。
+  3. 本版**仍未跑真实 SillyTavern UI**；证据是无头模块契约 + 端到端仿真脚本真跑 + 三向负控制破坏验证。
+  4. `WM_VERSION` 仍为 `2`（只改判定口径与宿主接线，不改数据结构形状；`epochAdvance` 是 `_worldlineState` 的新读数，不落盘）。
+- **台账重绑（零手抄，读数由重建脚本从探针输出直接落盘）**：`host_beast_baseline.json` 新增 `rebuilds["v3.426.0"]` 与第 55 条 `line_budget.history`；`_worldlineState` 的自动推进段 +63/−4 行使合并面 28713 → **28779**、TOP40 12845 行（44.6%）。入口 `index.js` 11719 行**不变** ⇒ 行上界 12096 与成员上界 1190 **均不抬**（余量 377 / 22 仍在 slack 400 / 30 内）。
+  - 重建时自纠两处：① 首版把「何时抬上界」的判据**写反**（写成「余量 < slack 就抬」，而既有判据 `v3232 C2` / `v3257 C` 读的是 `读数 <= ceiling` 且 `ceiling - 读数 <= slack`，余量小才是常态、余量大反而是「上界与实测脱节」）；② `line_budget.note` 必须**逐字等于**末条 history 的 reason（`v3266 :402` / `v3261 :424`「防理由与数脱节」），首版只追加 history 不换 note ⇒ 当场翻红。两处都已改。
+- **全量实跑（本版已登记）**：`TEST_SUMMARY_JSON=<path> node tests/run.mjs --audit --jobs 3 --audit-jobs 2` ⇒ **420/420 文件 · 4532 断言 · 0 失败 · 审计 61/61**（读数由 `tools/_rebind_doc_readings.py` 消费结构化摘要写入 `tests/audit/doc_readings.json`，判据 54 → 58 是本版断言 +4 的来源）。全量首轮曾红 3 档，逐条归因后全修：① `v3159` 的 `scan_plan_currency` 健康树自检 —— PLAN「当前执行状态」仍写 v3.425.0（**合计门槛真的抓到了陈旧口径**）；② `v3297 S2` —— README「当前版本」未抬（`tools/gen_state_report.mjs --write` 的摘要随之刷新）；③ `v3480 B3` —— PLAN 未标「全量待验」（登记尚未对齐时的中间态必须留标，对齐后必须摘标，双向守）。
+
 ## v3.425.0
 **世界线记忆主键换血：从「变动率」到「纪元」，并彻底去世界观化**
 - **为什么换**：v3.424.0/1 的判定主键是**变动率**（模型即兴编的数字）。用户带的原创卡是**梦境层级 / 时间循环 / 平行宇宙 / 存档点 / 位面**任意一种，很多根本没有数字，或者数字毫无语义。更根本的是 v3.424.x 把《命运石之门》的 `alpha/beta/gamma` 写进了内核默认值 —— **内核认识了一个具体世界**，于是每加一张卡就得改内核。
