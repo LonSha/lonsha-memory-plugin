@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.430.0",
+  "version": "3.431.0",
   "version_sources": {
-    "manifest": "3.430.0",
-    "package": "3.430.0",
-    "index_const": "3.430.0"
+    "manifest": "3.431.0",
+    "package": "3.431.0",
+    "index_const": "3.431.0"
   },
   "version_same": true,
-  "human_index_version": "3.430.0",
+  "human_index_version": "3.431.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 244,
@@ -262,7 +262,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 429,
+    "test_files": 430,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -630,6 +630,7 @@
       "v3430_l12_x1_x9_extensions.test.mjs",
       "v3430_l12_x6_unload_drill.test.mjs",
       "v3430_m4x5_testimony_board.test.mjs",
+      "v3431_tmpdir_not_on_ramdisk.test.mjs",
       "v343_baibai_mechanics.test.mjs",
       "v3440_m4x6_narrative_layer.test.mjs",
       "v3445_m4x7_return_gate.test.mjs",
@@ -730,9 +731,9 @@
   },
   "full_run": {
     "status": "registered",
-    "registered_at": "3.430.0",
-    "tests_total": 429,
-    "assertions": 4646,
+    "registered_at": "3.431.0",
+    "tests_total": 430,
+    "assertions": 4658,
     "audit": "68/68",
     "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
@@ -753,15 +754,15 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "d336671c9a03",
-      "package.json": "1f00ac63f1de",
-      "index.js": "2eea4dfbba71",
+      "manifest.json": "add35b6542e2",
+      "package.json": "695bceba906e",
+      "index.js": "d2a20c9bec74",
       "update-log.json": null,
-      "README.md": "f4729723ee9e",
-      "PLAN.md": "c3fa1912745f",
-      "CHANGELOG.md": "43d8670fa704",
-      "TODO.md": "d04a89aa549f",
-      "tests/audit/doc_readings.json": "f204358fe73f"
+      "README.md": "2d36f8b3c5bb",
+      "PLAN.md": "7afe0287b0e6",
+      "CHANGELOG.md": "038f9712def3",
+      "TODO.md": "4bb5296806c6",
+      "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
   "unknown": [],

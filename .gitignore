@@ -16,3 +16,6 @@ node_modules/
 # Release package output (built by tools/release_zip.py; attached to GitHub releases, not committed)
 dist/
 .tmp/
+# [v3.431.0] tests/run.mjs 的临时根落盘目录（本机 /tmp 是 tmpfs，回归镜像树
+#   改落仓库同级磁盘目录；每条 run 一个 lonsha-run-* 子目录，收尾自动整棵删）
+.lonsha-test-tmp/

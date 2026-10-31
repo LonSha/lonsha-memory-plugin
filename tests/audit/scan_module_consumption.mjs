@@ -49,7 +49,17 @@ const LEDGER_PATH = path.join(ROOT, 'tests/audit/module_consumption_ledger.json'
 
 const MIN_MODULES = FIXTURE_MODE ? 1 : 200;
 
-function getProdFiles(dir) {
+/* [v3.431.0] `base` 必须跟随**传入的 root**，不能钉死模块级 ROOT：
+ *   getProdFiles 的返回值会被 auditModuleConsumption 用 `path.join(rootDir, pf)`
+ *   再拼回去读文件，两处必须用同一个基准。
+ *   修前用全局 ROOT ⇒ 只在「customRoot 恰好能相对 ROOT 还原」时偶然成立：
+ *   夹具在 /tmp 下时 relative 结果带 ../../../tmp/… 恰好还原；
+ *   一旦夹具落在别的盘位（如仓库同级目录 /home/user X/.lonsha-test-tmp/…
+ *   那种与 ROOT 同前缀的路径），relative 会给出 ../.lonsha-test-tmp/…
+ *   而 join(rootDir, ../.lonsha-test-tmp/…) 会拼出不存在的路径 ⇒ 生产代码全部读空
+ *   ⇒ 每个模块的 prodCallSites 都退化成 0 ⇒ 判据对**有消费**的模块报「零消费」。
+ *   这正是把测试临时根从 /tmp 挪到磁盘后当场炸出来的（v34270 两连红）。 */
+function getProdFiles(dir, base = dir) {
   let res = [];
   let entries;
   try { entries = fs.readdirSync(dir); } catch (_e) { return []; }
@@ -59,9 +69,9 @@ function getProdFiles(dir) {
     let st;
     try { st = fs.statSync(p); } catch (_e) { continue; }
     if (st.isDirectory()) {
-      res = res.concat(getProdFiles(p));
+      res = res.concat(getProdFiles(p, base));
     } else if (n.endsWith('.js') || n.endsWith('.mjs') || n.endsWith('.cjs')) {
-      res.push(path.relative(ROOT, p));
+      res.push(path.relative(base, p));
     }
   }
   return res;

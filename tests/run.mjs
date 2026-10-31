@@ -20,7 +20,7 @@
  *   TEST_TIMEOUT  单文件超时毫秒（默认 300000）
  *   TEST_SUMMARY_JSON  机器读摘要落盘路径（汇总表的结构化形态）[v3.241.0]
  */
-import { readdirSync, existsSync, mkdirSync, writeFileSync, readFileSync as require$readFileSync } from 'node:fs';
+import { readdirSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync as require$readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -29,6 +29,59 @@ import os from 'node:os';
 const HERE = dirname(fileURLToPath(import.meta.url)); // tests/
 const REPO = dirname(HERE);                            // repo 根
 const AUDIT_DIR = join(HERE, 'audit');
+
+/* [v3.431.0] 临时根改落磁盘：本机 /tmp 是 tmpfs（占 RAM，上限 5.6G）。
+ *   全量回归里 114 个测试/审计探针各自 mkdtemp 镜像树，一次全量实测累积
+ *   4.3G · 3 万目录 · 12 万文件，把内存挤到 free 只剩 600MB；而清理只写在
+ *   各自的 finally 里 —— 被杀 / 超时 / 阻断就永久留在 **RAM** 里，下一轮继续叠。
+ *   修法：由 runner 统一决定临时根并写回 process.env.TMPDIR，子进程一律继承
+ *   （runOne 用的是 env: process.env，故单改此处即覆盖全部 mkdtemp 调用点，
+ *   不必逐文件改 114 处）。
+ *   取值顺序：LONSHA_TEST_TMP → 仓库同级目录（磁盘）→ os.tmpdir()。
+ *   路径一律按 REPO 推导，脚本里不出现任何绝对路径字面量
+ *   （scan_cross_repo_binding 的 P1/P7 口径）。 */
+function pickTmpBase() {
+  const cands = [];
+  if (process.env.LONSHA_TEST_TMP) cands.push(process.env.LONSHA_TEST_TMP);
+  cands.push(join(dirname(REPO), '.lonsha-test-tmp'));
+  cands.push(os.tmpdir());
+  for (const base of cands) {
+    try {
+      mkdirSync(base, { recursive: true });
+      const probe = mkdtempSync(join(base, 'probe-'));
+      rmSync(probe, { recursive: true, force: true });
+      return base;
+    } catch { /* 试下一个候选 */ }
+  }
+  return os.tmpdir();
+}
+
+/* 每轮一个独立 run 根，收尾整棵删；顺手清掉历史崩溃遗留的 run 根。
+ * 老化阈值取 6h：一轮全量约 5~8 分钟，并发跑同一仓库两轮也不会超过；
+ * 而 kill -9（exit handler 不跑）留下的残留在下一轮就被收掉。 */
+const STALE_RUN_MS = 6 * 60 * 60 * 1000;
+function makeRunTmp() {
+  const base = pickTmpBase();
+  let reaped = 0;
+  try {
+    for (const d of readdirSync(base)) {
+      if (!d.startsWith('lonsha-run-')) continue;
+      const p = join(base, d);
+      try {
+        if (Date.now() - statSync(p).mtimeMs > STALE_RUN_MS) {
+          rmSync(p, { recursive: true, force: true });
+          reaped++;
+        }
+      } catch { /* 单个删不掉不阻断 */ }
+    }
+  } catch { /* base 读不到就不扫 */ }
+  const dir = mkdtempSync(join(base, 'lonsha-run-'));
+  process.env.TMPDIR = dir;
+  process.env.TMP = dir;
+  process.env.TEMP = dir;
+  if (reaped) console.log(`[run] 已回收 ${reaped} 个历史遗留临时根（>6h）`);
+  return dir;
+}
 
 // ---------- 参数解析 ----------
 const args = process.argv.slice(2);
@@ -277,7 +330,18 @@ async function main() {
     console.error('[run] 未匹配到任何测试文件');
     process.exit(1);
   }
-  console.log(`[run] ${tests.length} 个测试文件 | 并发 ${OPT.jobs} | 单文件超时 ${TIMEOUT}ms\n`);
+  /* [v3.431.0] 临时根落磁盘：必须在任何 spawn 之前建立，子进程才会继承。
+   *   收尾（正常/异常/被信号打断）统一整棵删除；删除本身失败不影响判定。 */
+  const runTmp = makeRunTmp();
+  const dropRunTmp = () => {
+    try { rmSync(runTmp, { recursive: true, force: true }); } catch { /* 忽略 */ }
+  };
+  process.once('exit', dropRunTmp);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(sig, () => { dropRunTmp(); process.exit(1); });
+  }
+  console.log(`[run] ${tests.length} 个测试文件 | 并发 ${OPT.jobs} | 单文件超时 ${TIMEOUT}ms`);
+  console.log(`[run] 临时根 ${runTmp}（不在内存盘上）\n`);
   const t0 = Date.now();
   const results = await pool(tests, OPT.jobs, runWithRetry);
 

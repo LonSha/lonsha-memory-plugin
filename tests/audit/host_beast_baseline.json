@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.430.0",
+  "measured_at": "v3.431.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2943,6 +2943,42 @@
         "top5_pct": -0.5,
         "top40_pct": -1.2
       }
+    },
+    "v3.431.0": {
+      "reason": "[v3.431.0] 回归临时根从内存盘搬到磁盘 + 抓出 getProdFiles 相对路径基准缺陷。本版**不动宿主产品代码规模**（不改 index.js / engine-* 的任何行数），改的是 tests/run.mjs（临时根决策）与 tests/audit/scan_module_consumption.mjs（getProdFiles 的 base 基准跟随 root），外加两份判据套件。因此本版读数的正确形态是**与上一版持平**；若出现明显漂移，说明基线公式或探针被误改。",
+      "readings": {
+        "total_lines": 11862,
+        "surface_lines": 30728,
+        "member_count": 1218,
+        "duplicate_member_names": 160,
+        "top5_lines": 5796,
+        "top5_pct": 18.9,
+        "top40_lines": 13024,
+        "top40_pct": 42.4,
+        "prefix_rule_coverage_lines": 5018,
+        "prefix_rule_coverage_pct": 16.3,
+        "unclassified_lines": 24863,
+        "seam_distinct_modules": 156,
+        "seam_reference_sites": 465,
+        "seam_call_shape_sites": 593,
+        "members_over_80_lines": 58,
+        "low_coupling_members": 18,
+        "high_coupling_members": 18
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做九项拓展的接线与判据，未拆任何宿主巨兽成员",
+      "delta_from": "v3.430.0",
+      "delta": {
+        "total_lines": 0,
+        "surface_lines": 6,
+        "member_count": 0,
+        "top40_lines": 0,
+        "top5_pct": 0.0,
+        "top40_pct": 0.0
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2957,7 +2993,7 @@
   ],
   "readings": {
     "total_lines": 11862,
-    "surface_lines": 30722,
+    "surface_lines": 30728,
     "member_count": 1218,
     "duplicate_member_names": 160,
     "top5_lines": 5796,
@@ -2966,7 +3002,7 @@
     "top40_pct": 42.4,
     "prefix_rule_coverage_lines": 5018,
     "prefix_rule_coverage_pct": 16.3,
-    "unclassified_lines": 24857,
+    "unclassified_lines": 24863,
     "seam_distinct_modules": 156,
     "seam_reference_sites": 465,
     "seam_call_shape_sites": 593,
@@ -2978,7 +3014,7 @@
     {
       "domain": "（未归类）",
       "members": 1154,
-      "lines": 24857,
+      "lines": 24863,
       "lines_pct": 80.9,
       "outside_refs": 23102,
       "internal_refs": 8626,
@@ -3539,7 +3575,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.430.0] L12-X1~X9 九项拓展接线：index.js +86 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**上抬至 1248**（余量 30 <= member_slack 30）。合并面 30722 行，TOP5 占 18.9%、TOP40 占 42.4%。",
+    "note": "[v3.431.0] 临时根搬家（不改产品行数）：index.js +0 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**不抬，仍为 1248**（余量 30 <= member_slack 30）。合并面 30728 行，TOP5 占 18.9%、TOP40 占 42.4%。",
     "history": [
       {
         "ceiling": 15000,
@@ -3865,6 +3901,12 @@
         "member_ceiling": 1248,
         "milestone_version": "v3.430.0",
         "reason": "[v3.430.0] L12-X1~X9 九项拓展接线：index.js +86 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**上抬至 1248**（余量 30 <= member_slack 30）。合并面 30722 行，TOP5 占 18.9%、TOP40 占 42.4%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1248,
+        "milestone_version": "v3.431.0",
+        "reason": "[v3.431.0] 临时根搬家（不改产品行数）：index.js +0 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**不抬，仍为 1248**（余量 30 <= member_slack 30）。合并面 30728 行，TOP5 占 18.9%、TOP40 占 42.4%。"
       }
     ],
     "member_ceiling": 1248,
