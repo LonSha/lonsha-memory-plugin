@@ -192,6 +192,16 @@ async function runInScratch(mutate) {
         //   tests/_audit_lib.mjs 与 tests/run.mjs 是否在场——缺了就 fail-closed 判结构漂移。
         //   健康树夹具必须真的像健康树；判据不因此放宽。
         cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true });
+        /* [v3.427.0] 再镜像 docs/：v3.427.0 的 scan_module_consumption 把「生产消费面」定义为
+         *   「非 tests / 非 tools / 非点目录的全部 .js/.mjs/.cjs」，docs/planning/ 下的计划探针
+         *   因此也在面内，并且实测**确实是某些模块唯一的消费点**（unified-recall.js 全仓仅
+         *   docs/planning/2026-10-20-product-probe.mjs 一处 require ⇒ 夹具里没有 docs 时它的
+         *   消费点归零 ⇒ 被判成未登记的零消费模块 ⇒ 健康树假红）。
+         *   这与上一条同族：夹具缺件被读成「门禁不过」。判据不因此放宽，镜子要照全。
+         *   （该口径本身的问题另记在门禁文件头的留痕里，不在夹具里解决。） */
+        if (existsSync(path.join(ROOT, 'docs'))) {
+            cpSync(path.join(ROOT, 'docs'), path.join(dir, 'docs'), { recursive: true });
+        }
         const which = mutate(dir);
         // [v3.205.0] 受控并发（见 runAuditBatch 注释）。语义与串行逐位等价：结果仍按文件名索引。
         return await runAuditBatch(dir, (which || auditScripts));

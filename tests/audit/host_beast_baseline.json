@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
-  "note": "[v3.424.1] M7-X1 世界线记忆**自纠**版：本版在宿主面里**真加了代码** —— engine-diagnostic-lines.js 的 _worldlineState 新增 worldlineBands 解析段（文本/数组/对象三形态 + 注释与坏行跳过，+41 行），并让 guard / convergenceOf / switchPlan / _worldlineLine 四个出口把 state.bands 透传下去（约 +9 行），世界线读数与判据从此同口径。故按当版真读数重绑（零手抄，全部来自 host_beast_probe.cjs）：入口 11719 行 / 合并面 28556 行 / 成员 1168。line_budget 行上界 12096 与成员上界 1190 **不动**（余量 377 / 22 均在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.426.0",
+  "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
+  "measured_at": "v3.427.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2811,6 +2811,30 @@
         "top5_pct": 0.0,
         "top40_pct": 0.1
       }
+    },
+    "v3.427.0": {
+      "reason": "[v3.427.0] 本版只改审计面（守门脚本 / 台账 / 负控制 / 判据 / 文档），**宿主面一行未动** —— 入口 11719 行 / 合并面 28779 行 / 成员 1168 与 v3.426.0 逐字相同。仍按当版重绑，因为本基线是「读数锁当版」形态（v3266 / v3304 B3 / v3480 B5 都要求 measured_at 与真源同源）。",
+      "readings": {
+        "total_lines": 11719,
+        "surface_lines": 28779,
+        "member_count": 1168,
+        "duplicate_member_names": 160,
+        "top5_lines": 5685,
+        "top5_pct": 19.8,
+        "top40_lines": 12845,
+        "top40_pct": 44.6,
+        "prefix_rule_coverage_lines": 4965,
+        "prefix_rule_coverage_pct": 17.3,
+        "unclassified_lines": 22999,
+        "seam_distinct_modules": 148,
+        "seam_reference_sites": 424,
+        "seam_call_shape_sites": 552,
+        "members_over_80_lines": 52,
+        "low_coupling_members": 18,
+        "high_coupling_members": 17
+      },
+      "unchanged": "line_budget 行上界 None 与成员上界 1190 均未抬；readings 17 项逐字段与 v3.426.0 相同（探针复核 total_lines / member_count 一致，本版一行宿主代码未动）。",
+      "not_done": "未做的：没有重跑 index.js 外提（本版只改审计面）；没有重测 seam 模块拆合（拆本身的形状属后续版本，本版连一行实现都不动）。"
     }
   },
   "node_version": "v24.18.0",
@@ -3407,7 +3431,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.426.0] _worldlineState 新增「当前纪元自动推进」段（epochAdvance，四条纪律 + 新读数），relationOf 新增「证据不对称 ⇒ unknown」一支。入口 index.js 11719 行、成员数 1168；行上界与成员上界**均不抬**（仍在 slack 内）（余量 377 / 22）。合并面 28779 行，TOP5 占 19.8%、TOP40 占 44.6%。",
+    "note": "[v3.427.0] 本版只改审计面（守门脚本 / 台账 / 负控制 / 判据 / 文档），**宿主一行未动**：index.js 仍 11719 行、成员仍 1168，行上界 12096 与成员上界均**不抬**（余量 377 / 22 仍在 slack 400 内）。本条留痕只为回答「当版有账」——抬升不是默认动作，不涨就明写不涨。",
     "history": [
       {
         "ceiling": 15000,
@@ -3706,6 +3730,15 @@
         "member_ceiling": 1190,
         "milestone_version": "v3.426.0",
         "reason": "[v3.426.0] _worldlineState 新增「当前纪元自动推进」段（epochAdvance，四条纪律 + 新读数），relationOf 新增「证据不对称 ⇒ unknown」一支。入口 index.js 11719 行、成员数 1168；行上界与成员上界**均不抬**（仍在 slack 内）（余量 377 / 22）。合并面 28779 行，TOP5 占 19.8%、TOP40 占 44.6%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1190,
+        "reason": "[v3.427.0] 本版只改审计面（守门脚本 / 台账 / 负控制 / 判据 / 文档），**宿主一行未动**：index.js 仍 11719 行、成员仍 1168，行上界 12096 与成员上界均**不抬**（余量 377 / 22 仍在 slack 400 内）。本条留痕只为回答「当版有账」——抬升不是默认动作，不涨就明写不涨。",
+        "measured": {
+          "total_lines": 11719,
+          "member_count": 1168
+        }
       }
     ],
     "member_ceiling": 1190,

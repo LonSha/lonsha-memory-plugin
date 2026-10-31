@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.426.0",
+  "version": "3.427.0",
   "version_sources": {
-    "manifest": "3.426.0",
-    "package": "3.426.0",
-    "index_const": "3.426.0"
+    "manifest": "3.427.0",
+    "package": "3.427.0",
+    "index_const": "3.427.0"
   },
   "version_same": true,
-  "human_index_version": "3.426.0",
+  "human_index_version": "3.427.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 244,
@@ -262,7 +262,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 420,
+    "test_files": 423,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -616,6 +616,9 @@
       "v3424_narrative_foreshadowing_echo.test.mjs",
       "v3425_cross_branch_deja_vu.test.mjs",
       "v3426_double_identity_espionage.test.mjs",
+      "v34270_module_consumption_binding.test.mjs",
+      "v34271_plan_baseline.test.mjs",
+      "v3427_l11_audit_face_repair.test.mjs",
       "v3427_life_epilogue_retrospective.test.mjs",
       "v3428_intergenerational_totem_tree.test.mjs",
       "v3429_l11_full_pipeline_wiring.test.mjs",
@@ -686,7 +689,7 @@
       "v39_shift_floors.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 64,
+    "audit_gated": 70,
     "audit_probes": 6,
     "tiers": {
       "schema": "gate-tiers@1",
@@ -721,10 +724,10 @@
   },
   "full_run": {
     "status": "registered",
-    "registered_at": "3.426.0",
-    "tests_total": 420,
-    "assertions": 4532,
-    "audit": "61/61",
+    "registered_at": "3.427.0",
+    "tests_total": 423,
+    "assertions": 4545,
+    "audit": "67/67",
     "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
   "host_run": {
@@ -744,15 +747,15 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "57003b857d8d",
-      "package.json": "84366b301a0a",
-      "index.js": "31f80b400e29",
+      "manifest.json": "601d7ca88033",
+      "package.json": "6394712950c2",
+      "index.js": "1a9d10e945d8",
       "update-log.json": null,
-      "README.md": "b88efcd6599d",
-      "PLAN.md": "35f97cab0bfc",
-      "CHANGELOG.md": "d34acb82ba7b",
-      "TODO.md": "e4b93218c792",
-      "tests/audit/doc_readings.json": "bb55ec843d1e"
+      "README.md": "afae5eb89239",
+      "PLAN.md": "15bc88cfeeb9",
+      "CHANGELOG.md": "14029b249b25",
+      "TODO.md": "02e48c55cf6a",
+      "tests/audit/doc_readings.json": "9ad33a53f8f6"
     }
   },
   "unknown": [],

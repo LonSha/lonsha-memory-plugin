@@ -425,3 +425,6 @@ v3428_intergenerational_totem_tree.test.mjs		[v3.421.0] 补登记：v3.372~v3.42
 v3429_l11_full_pipeline_wiring.test.mjs		[v3.421.0] 补登记：v3.372~v3.429 期交付时漏登记（守卫 P3 直接点名）
 v34230_player_home_refactor.test.mjs		[v3.423.0] 当版套件：玩家面板重构（玩家主页/API前置/去黑话）
 v34240_worldline_memory.test.mjs		[v3.424.0] 当版套件：世界线记忆与跨线污染闸（四态/收束三态/污染闸四档/换线五桶 + 四条真源码破坏负控制）
+v34270_module_consumption_binding.test.mjs
+v34271_plan_baseline.test.mjs
+v3427_l11_audit_face_repair.test.mjs

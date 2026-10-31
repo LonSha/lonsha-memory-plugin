@@ -1,0 +1,2204 @@
+{
+  "schema": "module-consumption-ledger@1",
+  "generated_at": "2026-10-29T17:17:35.296Z",
+  "total_modules": 244,
+  "zero_consumption_count": 24,
+  "modules": {
+    "ledger-entity.js": {
+      "module": "ledger-entity.js",
+      "surface": [
+        "ledger-entity"
+      ],
+      "prod_call_sites": 11,
+      "allowed": 1,
+      "why": "active"
+    },
+    "settings-ui.js": {
+      "module": "settings-ui.js",
+      "surface": [
+        "settings-ui"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "modules_combined.js": {
+      "module": "modules_combined.js",
+      "surface": [
+        "modules_combined"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "graph_algorithms.js": {
+      "module": "graph_algorithms.js",
+      "surface": [
+        "graph_algorithms"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "memory-supersede.js": {
+      "module": "memory-supersede.js",
+      "surface": [
+        "window.LonShaSupersede"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "story-clock-parse.js": {
+      "module": "story-clock-parse.js",
+      "surface": [
+        "window.LonShaStoryClock"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "world-clock-reader.js": {
+      "module": "world-clock-reader.js",
+      "surface": [
+        "world-clock-reader"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "world-ledger-reader.js": {
+      "module": "world-ledger-reader.js",
+      "surface": [
+        "world-ledger-reader"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "cse-engine.js": {
+      "module": "cse-engine.js",
+      "surface": [
+        "window.LonShaCSE"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "narrative-pulse.js": {
+      "module": "narrative-pulse.js",
+      "surface": [
+        "window.LonShaNarrativePulse"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "ai-select.js": {
+      "module": "ai-select.js",
+      "surface": [
+        "window.LonShaAISelect"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "stm-close-quota.js": {
+      "module": "stm-close-quota.js",
+      "surface": [
+        "stm-close-quota"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "stm-ltm.js": {
+      "module": "stm-ltm.js",
+      "surface": [
+        "window.LonShaStmLtm"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "unified-recall.js": {
+      "module": "unified-recall.js",
+      "surface": [
+        "window.LonShaUnifiedRecall"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "api-channels.js": {
+      "module": "api-channels.js",
+      "surface": [
+        "window.LonShaApiChannels"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "text-chunk.js": {
+      "module": "text-chunk.js",
+      "surface": [
+        "window.LonShaTextChunk"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "entity-semantic.js": {
+      "module": "entity-semantic.js",
+      "surface": [
+        "entity-semantic"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "floor-range.js": {
+      "module": "floor-range.js",
+      "surface": [
+        "floor-range"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "extraction-cadence.js": {
+      "module": "extraction-cadence.js",
+      "surface": [
+        "extraction-cadence"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "npc-ties.js": {
+      "module": "npc-ties.js",
+      "surface": [
+        "npc-ties"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "canonical-stringify.js": {
+      "module": "canonical-stringify.js",
+      "surface": [
+        "canonical-stringify"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "loose-json.js": {
+      "module": "loose-json.js",
+      "surface": [
+        "loose-json"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "model-response.js": {
+      "module": "model-response.js",
+      "surface": [
+        "model-response"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "dependency-closure.js": {
+      "module": "dependency-closure.js",
+      "surface": [
+        "dependency-closure"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "stale-guard.js": {
+      "module": "stale-guard.js",
+      "surface": [
+        "stale-guard"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "turn-reconciler.js": {
+      "module": "turn-reconciler.js",
+      "surface": [
+        "turn-reconciler"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "step-pipeline.js": {
+      "module": "step-pipeline.js",
+      "surface": [
+        "step-pipeline"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "task-inbox.js": {
+      "module": "task-inbox.js",
+      "surface": [
+        "task-inbox"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "event-chain.js": {
+      "module": "event-chain.js",
+      "surface": [
+        "event-chain"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "recall-artifact.js": {
+      "module": "recall-artifact.js",
+      "surface": [
+        "recall-artifact"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "smart-trigger.js": {
+      "module": "smart-trigger.js",
+      "surface": [
+        "smart-trigger"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "retrieval-audit.js": {
+      "module": "retrieval-audit.js",
+      "surface": [
+        "retrieval-audit"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "coverage-ledger.js": {
+      "module": "coverage-ledger.js",
+      "surface": [
+        "coverage-ledger"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "injection-router.js": {
+      "module": "injection-router.js",
+      "surface": [
+        "injection-router"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "archive-shift.js": {
+      "module": "archive-shift.js",
+      "surface": [
+        "archive-shift"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "floor-ledger.js": {
+      "module": "floor-ledger.js",
+      "surface": [
+        "floor-ledger"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "age-anchor.js": {
+      "module": "age-anchor.js",
+      "surface": [
+        "age-anchor"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "public-interface.js": {
+      "module": "public-interface.js",
+      "surface": [
+        "public-interface"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "ledger-replay.js": {
+      "module": "ledger-replay.js",
+      "surface": [
+        "ledger-replay"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "scene-book.js": {
+      "module": "scene-book.js",
+      "surface": [
+        "scene-book"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "summary-provenance.js": {
+      "module": "summary-provenance.js",
+      "surface": [
+        "summary-provenance"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "branch-guard.js": {
+      "module": "branch-guard.js",
+      "surface": [
+        "branch-guard"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "crosslink.js": {
+      "module": "crosslink.js",
+      "surface": [
+        "crosslink"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "node-rollup.js": {
+      "module": "node-rollup.js",
+      "surface": [
+        "node-rollup"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "relation-disclosure.js": {
+      "module": "relation-disclosure.js",
+      "surface": [
+        "relation-disclosure"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "relation-mutual.js": {
+      "module": "relation-mutual.js",
+      "surface": [
+        "relation-mutual"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "knowledge-network.js": {
+      "module": "knowledge-network.js",
+      "surface": [
+        "knowledge-network"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "knowledge-trace.js": {
+      "module": "knowledge-trace.js",
+      "surface": [
+        "knowledge-trace"
+      ],
+      "prod_call_sites": 9,
+      "allowed": 1,
+      "why": "active"
+    },
+    "branch-semantics.js": {
+      "module": "branch-semantics.js",
+      "surface": [
+        "branch-semantics"
+      ],
+      "prod_call_sites": 10,
+      "allowed": 1,
+      "why": "active"
+    },
+    "volume-continuation.js": {
+      "module": "volume-continuation.js",
+      "surface": [
+        "volume-continuation"
+      ],
+      "prod_call_sites": 20,
+      "allowed": 1,
+      "why": "active"
+    },
+    "recall-explain.js": {
+      "module": "recall-explain.js",
+      "surface": [
+        "recall-explain"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fuzzy-patch.js": {
+      "module": "fuzzy-patch.js",
+      "surface": [
+        "fuzzy-patch"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "changeset.js": {
+      "module": "changeset.js",
+      "surface": [
+        "changeset"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "commitment-ledger.js": {
+      "module": "commitment-ledger.js",
+      "surface": [
+        "commitment-ledger"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "seed-ledger.js": {
+      "module": "seed-ledger.js",
+      "surface": [
+        "seed-ledger"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "secret-ledger.js": {
+      "module": "secret-ledger.js",
+      "surface": [
+        "secret-ledger"
+      ],
+      "prod_call_sites": 7,
+      "allowed": 1,
+      "why": "active"
+    },
+    "parallel-ledger.js": {
+      "module": "parallel-ledger.js",
+      "surface": [
+        "parallel-ledger"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cost-ledger.js": {
+      "module": "cost-ledger.js",
+      "surface": [
+        "window.LonShaCostLedger"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-version.js": {
+      "module": "fact-version.js",
+      "surface": [
+        "fact-version"
+      ],
+      "prod_call_sites": 18,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-type.js": {
+      "module": "memory-type.js",
+      "surface": [
+        "memory-type"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "event-completeness.js": {
+      "module": "event-completeness.js",
+      "surface": [
+        "event-completeness"
+      ],
+      "prod_call_sites": 13,
+      "allowed": 1,
+      "why": "active"
+    },
+    "repair-loop.js": {
+      "module": "repair-loop.js",
+      "surface": [
+        "repair-loop"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "recall-echo.js": {
+      "module": "recall-echo.js",
+      "surface": [
+        "recall-echo"
+      ],
+      "prod_call_sites": 6,
+      "allowed": 1,
+      "why": "active"
+    },
+    "echo-ledger.js": {
+      "module": "echo-ledger.js",
+      "surface": [
+        "echo-ledger"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "evidence-workbench.js": {
+      "module": "evidence-workbench.js",
+      "surface": [
+        "evidence-workbench"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "evidence-query.js": {
+      "module": "evidence-query.js",
+      "surface": [
+        "evidence-query"
+      ],
+      "prod_call_sites": 13,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cost-forecast.js": {
+      "module": "cost-forecast.js",
+      "surface": [
+        "window.LonShaCostForecast"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "injection-receipt.js": {
+      "module": "injection-receipt.js",
+      "surface": [
+        "injection-receipt"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "projection-pipeline.js": {
+      "module": "projection-pipeline.js",
+      "surface": [
+        "window.LonShaProjectionPipeline"
+      ],
+      "prod_call_sites": 6,
+      "allowed": 1,
+      "why": "active"
+    },
+    "native-fact-admission.js": {
+      "module": "native-fact-admission.js",
+      "surface": [
+        "window.LonShaNativeFactAdmission"
+      ],
+      "prod_call_sites": 9,
+      "allowed": 1,
+      "why": "active"
+    },
+    "schema-migration.js": {
+      "module": "schema-migration.js",
+      "surface": [
+        "schema-migration"
+      ],
+      "prod_call_sites": 6,
+      "allowed": 1,
+      "why": "active"
+    },
+    "module-registry.js": {
+      "module": "module-registry.js",
+      "surface": [
+        "module-registry"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "sleep-awaken.js": {
+      "module": "sleep-awaken.js",
+      "surface": [
+        "sleep-awaken"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "snapshot-checkpoint.js": {
+      "module": "snapshot-checkpoint.js",
+      "surface": [
+        "snapshot-checkpoint"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cache-identity.js": {
+      "module": "cache-identity.js",
+      "surface": [
+        "cache-identity"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cache-workload.js": {
+      "module": "cache-workload.js",
+      "surface": [
+        "cache-workload"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-ledgers.js": {
+      "module": "memory-ledgers.js",
+      "surface": [
+        "memory-ledgers"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-aux.js": {
+      "module": "memory-aux.js",
+      "surface": [
+        "memory-aux"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "narrative-generators.js": {
+      "module": "narrative-generators.js",
+      "surface": [
+        "narrative-generators"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-books.js": {
+      "module": "memory-books.js",
+      "surface": [
+        "memory-books"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "native-tools.js": {
+      "module": "native-tools.js",
+      "surface": [
+        "native-tools"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "pristine-fetch.js": {
+      "module": "pristine-fetch.js",
+      "surface": [
+        "pristine-fetch"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "floor-identity.js": {
+      "module": "floor-identity.js",
+      "surface": [
+        "floor-identity"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "archive-audit.js": {
+      "module": "archive-audit.js",
+      "surface": [
+        "archive-audit"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-organs.js": {
+      "module": "memory-organs.js",
+      "surface": [
+        "memory-organs"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-core.js": {
+      "module": "memory-core.js",
+      "surface": [
+        "memory-core"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-config.js": {
+      "module": "memory-config.js",
+      "surface": [
+        "memory-config"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-state.js": {
+      "module": "fact-state.js",
+      "surface": [
+        "fact-state"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-tools-api.js": {
+      "module": "memory-tools-api.js",
+      "surface": [
+        "memory-tools-api"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-center.js": {
+      "module": "memory-center.js",
+      "surface": [
+        "memory-center"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "repair-settle.js": {
+      "module": "repair-settle.js",
+      "surface": [
+        "repair-settle"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-lifecycle.js": {
+      "module": "fact-lifecycle.js",
+      "surface": [
+        "fact-lifecycle"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-package.js": {
+      "module": "memory-package.js",
+      "surface": [
+        "memory-package"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "phone-fact-bridge.js": {
+      "module": "phone-fact-bridge.js",
+      "surface": [
+        "window.LonShaPhoneFactBridge"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "knowledge-preview.js": {
+      "module": "knowledge-preview.js",
+      "surface": [
+        "knowledge-preview"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "extract-feedback.js": {
+      "module": "extract-feedback.js",
+      "surface": [
+        "extract-feedback"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "project-registry.js": {
+      "module": "project-registry.js",
+      "surface": [
+        "project-registry"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "relation-history.js": {
+      "module": "relation-history.js",
+      "surface": [
+        "relation-history"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "causal-chain.js": {
+      "module": "causal-chain.js",
+      "surface": [
+        "causal-chain"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "perspective-card.js": {
+      "module": "perspective-card.js",
+      "surface": [
+        "perspective-card"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "extraction-driver.js": {
+      "module": "extraction-driver.js",
+      "surface": [
+        "extraction-driver"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "correction-plan.js": {
+      "module": "correction-plan.js",
+      "surface": [
+        "correction-plan"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-gc.js": {
+      "module": "memory-gc.js",
+      "surface": [
+        "memory-gc"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "lore-import.js": {
+      "module": "lore-import.js",
+      "surface": [
+        "lore-import"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "story-annual.js": {
+      "module": "story-annual.js",
+      "surface": [
+        "story-annual"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "branch-canon.js": {
+      "module": "branch-canon.js",
+      "surface": [
+        "branch-canon"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fated-recall.js": {
+      "module": "fated-recall.js",
+      "surface": [
+        "fated-recall"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "qa-thread.js": {
+      "module": "qa-thread.js",
+      "surface": [
+        "qa-thread"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "testimony-board.js": {
+      "module": "testimony-board.js",
+      "surface": [
+        "testimony-board"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "narrative-layer.js": {
+      "module": "narrative-layer.js",
+      "surface": [
+        "narrative-layer"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "return-gate.js": {
+      "module": "return-gate.js",
+      "surface": [
+        "return-gate"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "material-pack.js": {
+      "module": "material-pack.js",
+      "surface": [
+        "material-pack"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "lore-crosscheck.js": {
+      "module": "lore-crosscheck.js",
+      "surface": [
+        "lore-crosscheck"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "condition-patch.js": {
+      "module": "condition-patch.js",
+      "surface": [
+        "condition-patch"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "goal-tracker.js": {
+      "module": "goal-tracker.js",
+      "surface": [
+        "window.LonShaGoalTracker"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "impact-preview.js": {
+      "module": "impact-preview.js",
+      "surface": [
+        "impact-preview"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "hypothesis-workspace.js": {
+      "module": "hypothesis-workspace.js",
+      "surface": [
+        "hypothesis-workspace"
+      ],
+      "prod_call_sites": 3,
+      "allowed": 1,
+      "why": "active"
+    },
+    "research-collection.js": {
+      "module": "research-collection.js",
+      "surface": [
+        "research-collection"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "experience-rebuild.js": {
+      "module": "experience-rebuild.js",
+      "surface": [
+        "experience-rebuild"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "dual-time.js": {
+      "module": "dual-time.js",
+      "surface": [
+        "window.LonShaDualTime"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "evidence-solver.js": {
+      "module": "evidence-solver.js",
+      "surface": [
+        "evidence-solver"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "resolution-ladder.js": {
+      "module": "resolution-ladder.js",
+      "surface": [
+        "resolution-ladder"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "scene-orchestrator.js": {
+      "module": "scene-orchestrator.js",
+      "surface": [
+        "scene-orchestrator"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "autobiographical-memory.js": {
+      "module": "autobiographical-memory.js",
+      "surface": [
+        "autobiographical-memory"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "relation-dynamics.js": {
+      "module": "relation-dynamics.js",
+      "surface": [
+        "relation-dynamics"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "goal-reroute.js": {
+      "module": "goal-reroute.js",
+      "surface": [
+        "goal-reroute"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "character-agency-contract.js": {
+      "module": "character-agency-contract.js",
+      "surface": [
+        "character-agency-contract"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "continuous-research.js": {
+      "module": "continuous-research.js",
+      "surface": [
+        "continuous-research"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "conditional-consequence.js": {
+      "module": "conditional-consequence.js",
+      "surface": [
+        "conditional-consequence"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "institutional-memory.js": {
+      "module": "institutional-memory.js",
+      "surface": [
+        "institutional-memory"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "symbolic-evolution.js": {
+      "module": "symbolic-evolution.js",
+      "surface": [
+        "globalThis.SymbolicEvolutionLib"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "recall-reinterpretation.js": {
+      "module": "recall-reinterpretation.js",
+      "surface": [
+        "globalThis.RecallReinterpretationLib"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "counterfactual-experiment.js": {
+      "module": "counterfactual-experiment.js",
+      "surface": [
+        "globalThis.CounterfactualExperimentLib"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "era-inheritance.js": {
+      "module": "era-inheritance.js",
+      "surface": [
+        "globalThis.EraInheritanceLib"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-diagnostic-lines.js": {
+      "module": "engine-diagnostic-lines.js",
+      "surface": [
+        "engine-diagnostic-lines"
+      ],
+      "prod_call_sites": 71,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-report.js": {
+      "module": "engine-report.js",
+      "surface": [
+        "engine-report"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-recall.js": {
+      "module": "engine-recall.js",
+      "surface": [
+        "engine-recall"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-qa-tools.js": {
+      "module": "engine-qa-tools.js",
+      "surface": [
+        "engine-qa-tools"
+      ],
+      "prod_call_sites": 32,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-repair-ops.js": {
+      "module": "engine-repair-ops.js",
+      "surface": [
+        "engine-repair-ops"
+      ],
+      "prod_call_sites": 20,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-story-annual.js": {
+      "module": "engine-story-annual.js",
+      "surface": [
+        "engine-story-annual"
+      ],
+      "prod_call_sites": 51,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-self-check.js": {
+      "module": "engine-self-check.js",
+      "surface": [
+        "engine-self-check"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-persistence-ops.js": {
+      "module": "engine-persistence-ops.js",
+      "surface": [
+        "engine-persistence-ops"
+      ],
+      "prod_call_sites": 29,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-injection-pipeline.js": {
+      "module": "engine-injection-pipeline.js",
+      "surface": [
+        "engine-injection-pipeline"
+      ],
+      "prod_call_sites": 18,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-evidence-center.js": {
+      "module": "engine-evidence-center.js",
+      "surface": [
+        "window.LonShaEngineEvidenceCenter"
+      ],
+      "prod_call_sites": 74,
+      "allowed": 1,
+      "why": "active"
+    },
+    "engine-execution-pipeline.js": {
+      "module": "engine-execution-pipeline.js",
+      "surface": [
+        "engine-execution-pipeline"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-inbox.js": {
+      "module": "memory-inbox.js",
+      "surface": [
+        "memory-inbox"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-correction-bench.js": {
+      "module": "fact-correction-bench.js",
+      "surface": [
+        "fact-correction-bench"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "recall-correction.js": {
+      "module": "recall-correction.js",
+      "surface": [
+        "recall-correction"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "perspective-preview.js": {
+      "module": "perspective-preview.js",
+      "surface": [
+        "perspective-preview"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "generation-memory-plan.js": {
+      "module": "generation-memory-plan.js",
+      "surface": [
+        "generation-memory-plan"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "generation-fact-receipt.js": {
+      "module": "generation-fact-receipt.js",
+      "surface": [
+        "generation-fact-receipt"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-maintenance-session.js": {
+      "module": "memory-maintenance-session.js",
+      "surface": [
+        "memory-maintenance-session"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "profile-dossier-view.js": {
+      "module": "profile-dossier-view.js",
+      "surface": [
+        "profile-dossier-view"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-migration-boundary.js": {
+      "module": "memory-migration-boundary.js",
+      "surface": [
+        "memory-migration-boundary"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "oral-history-archive.js": {
+      "module": "oral-history-archive.js",
+      "surface": [
+        "oral-history-archive"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "bounded-interview.js": {
+      "module": "bounded-interview.js",
+      "surface": [
+        "bounded-interview"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "relationship-repair-theater.js": {
+      "module": "relationship-repair-theater.js",
+      "surface": [
+        "relationship-repair-theater"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "unfinished-pledge-theater.js": {
+      "module": "unfinished-pledge-theater.js",
+      "surface": [
+        "unfinished-pledge-theater"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "lineage-heritage-tree.js": {
+      "module": "lineage-heritage-tree.js",
+      "surface": [
+        "lineage-heritage-tree"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "collective-memory-deliberation.js": {
+      "module": "collective-memory-deliberation.js",
+      "surface": [
+        "collective-memory-deliberation"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "curated-exhibition-bench.js": {
+      "module": "curated-exhibition-bench.js",
+      "surface": [
+        "curated-exhibition-bench"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-inspiration-desk.js": {
+      "module": "memory-inspiration-desk.js",
+      "surface": [
+        "memory-inspiration-desk"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "playable-archive-engine.js": {
+      "module": "playable-archive-engine.js",
+      "surface": [
+        "playable-archive-engine"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-unified-lifecycle-bench.js": {
+      "module": "fact-unified-lifecycle-bench.js",
+      "surface": [
+        "fact-unified-lifecycle-bench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "evidence-conflict-adjudication-bench.js": {
+      "module": "evidence-conflict-adjudication-bench.js",
+      "surface": [
+        "evidence-conflict-adjudication-bench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "unified-narrative-clock-axis.js": {
+      "module": "unified-narrative-clock-axis.js",
+      "surface": [
+        "unified-narrative-clock-axis"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "recall-route-feedback-bench.js": {
+      "module": "recall-route-feedback-bench.js",
+      "surface": [
+        "recall-route-feedback-bench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "generation-material-budget-plan.js": {
+      "module": "generation-material-budget-plan.js",
+      "surface": [
+        "generation-material-budget-plan"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "fact-postgen-replay-receipt.js": {
+      "module": "fact-postgen-replay-receipt.js",
+      "surface": [
+        "fact-postgen-replay-receipt"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "maintenance-cold-warm-session.js": {
+      "module": "maintenance-cold-warm-session.js",
+      "surface": [
+        "maintenance-cold-warm-session"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "project-migration-boundary-bench.js": {
+      "module": "project-migration-boundary-bench.js",
+      "surface": [
+        "project-migration-boundary-bench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "memory-task-workbench.js": {
+      "module": "memory-task-workbench.js",
+      "surface": [
+        "memory-task-workbench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "memory-season-silence-manager.js": {
+      "module": "memory-season-silence-manager.js",
+      "surface": [
+        "memory-season-silence-manager"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "meaning-evolution-map.js": {
+      "module": "meaning-evolution-map.js",
+      "surface": [
+        "meaning-evolution-map"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "memory-archaeology-gap-bench.js": {
+      "module": "memory-archaeology-gap-bench.js",
+      "surface": [
+        "memory-archaeology-gap-bench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "counterfactual-experiment-bench.js": {
+      "module": "counterfactual-experiment-bench.js",
+      "surface": [
+        "counterfactual-experiment-bench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "institutional-collective-memory.js": {
+      "module": "institutional-collective-memory.js",
+      "surface": [
+        "institutional-collective-memory"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "character-habit-growth-evidence.js": {
+      "module": "character-habit-growth-evidence.js",
+      "surface": [
+        "character-habit-growth-evidence"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "multi-perspective-theater-bench.js": {
+      "module": "multi-perspective-theater-bench.js",
+      "surface": [
+        "multi-perspective-theater-bench"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "memory-action-symbiosis-circuit.js": {
+      "module": "memory-action-symbiosis-circuit.js",
+      "surface": [
+        "memory-action-symbiosis-circuit"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "era-continuation-inheritance-tree.js": {
+      "module": "era-continuation-inheritance-tree.js",
+      "surface": [
+        "era-continuation-inheritance-tree"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+    },
+    "micro-atmosphere-residual-tracker.js": {
+      "module": "micro-atmosphere-residual-tracker.js",
+      "surface": [
+        "micro-atmosphere-residual-tracker"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "attention-priming-verification-anchor.js": {
+      "module": "attention-priming-verification-anchor.js",
+      "surface": [
+        "attention-priming-verification-anchor"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "irony-pretense-immune-filter.js": {
+      "module": "irony-pretense-immune-filter.js",
+      "surface": [
+        "irony-pretense-immune-filter"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "autobiographical-lens-narrative.js": {
+      "module": "autobiographical-lens-narrative.js",
+      "surface": [
+        "autobiographical-lens-narrative"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "expectation-absence-tracker.js": {
+      "module": "expectation-absence-tracker.js",
+      "surface": [
+        "expectation-absence-tracker"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "psychological-boundary-shift.js": {
+      "module": "psychological-boundary-shift.js",
+      "surface": [
+        "psychological-boundary-shift"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "epistemic-parallax-theater-engine.js": {
+      "module": "epistemic-parallax-theater-engine.js",
+      "surface": [
+        "epistemic-parallax-theater-engine"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "counterfactual-branching-sandbox.js": {
+      "module": "counterfactual-branching-sandbox.js",
+      "surface": [
+        "counterfactual-branching-sandbox"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "epochal-heritage-cultural-drift.js": {
+      "module": "epochal-heritage-cultural-drift.js",
+      "surface": [
+        "epochal-heritage-cultural-drift"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-unified-lifecycle-matrix.js": {
+      "module": "fact-unified-lifecycle-matrix.js",
+      "surface": [
+        "fact-unified-lifecycle-matrix"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "conflict-group-arbitration-workbench.js": {
+      "module": "conflict-group-arbitration-workbench.js",
+      "surface": [
+        "conflict-group-arbitration-workbench"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "unified-chronology-axis-engine.js": {
+      "module": "unified-chronology-axis-engine.js",
+      "surface": [
+        "unified-chronology-axis-engine"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "dynamic-recall-route-feedback-hub.js": {
+      "module": "dynamic-recall-route-feedback-hub.js",
+      "surface": [
+        "dynamic-recall-route-feedback-hub"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "transparent-budget-allocation-receipt.js": {
+      "module": "transparent-budget-allocation-receipt.js",
+      "surface": [
+        "transparent-budget-allocation-receipt"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "postgen-intent-cost-tracker.js": {
+      "module": "postgen-intent-cost-tracker.js",
+      "surface": [
+        "postgen-intent-cost-tracker"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "privy-clearance-security-fence.js": {
+      "module": "privy-clearance-security-fence.js",
+      "surface": [
+        "privy-clearance-security-fence"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "multi-resolution-archive-orchestrator.js": {
+      "module": "multi-resolution-archive-orchestrator.js",
+      "surface": [
+        "multi-resolution-archive-orchestrator"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "ruby-phone-bidirectional-bridge.js": {
+      "module": "ruby-phone-bidirectional-bridge.js",
+      "surface": [
+        "ruby-phone-bidirectional-bridge"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cognitive-inertia-damping-dynamics.js": {
+      "module": "cognitive-inertia-damping-dynamics.js",
+      "surface": [
+        "cognitive-inertia-damping-dynamics"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "retinal-attention-steering-arranger.js": {
+      "module": "retinal-attention-steering-arranger.js",
+      "surface": [
+        "retinal-attention-steering-arranger"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "proactive-causal-verification-circuit.js": {
+      "module": "proactive-causal-verification-circuit.js",
+      "surface": [
+        "proactive-causal-verification-circuit"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "episodic-sensory-anchor-mesh.js": {
+      "module": "episodic-sensory-anchor-mesh.js",
+      "surface": [
+        "episodic-sensory-anchor-mesh"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "adaptive-memory-annealing-curve.js": {
+      "module": "adaptive-memory-annealing-curve.js",
+      "surface": [
+        "adaptive-memory-annealing-curve"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "embodied-multi-channel-osmosis-hub.js": {
+      "module": "embodied-multi-channel-osmosis-hub.js",
+      "surface": [
+        "embodied-multi-channel-osmosis-hub"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cross-examination-confrontation-workbench.js": {
+      "module": "cross-examination-confrontation-workbench.js",
+      "surface": [
+        "cross-examination-confrontation-workbench"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "phase-transition-shift-safeguard.js": {
+      "module": "phase-transition-shift-safeguard.js",
+      "surface": [
+        "phase-transition-shift-safeguard"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "dynamic-persona-crystallization-substrate.js": {
+      "module": "dynamic-persona-crystallization-substrate.js",
+      "surface": [
+        "dynamic-persona-crystallization-substrate"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "subconscious-undercurrent-engine.js": {
+      "module": "subconscious-undercurrent-engine.js",
+      "surface": [
+        "subconscious-undercurrent-engine"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "social-rumor-drift-network.js": {
+      "module": "social-rumor-drift-network.js",
+      "surface": [
+        "social-rumor-drift-network"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "physical-token-spatial-trace-tracker.js": {
+      "module": "physical-token-spatial-trace-tracker.js",
+      "surface": [
+        "physical-token-spatial-trace-tracker"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "traumatic-dissociation-dissonance-sandbox.js": {
+      "module": "traumatic-dissociation-dissonance-sandbox.js",
+      "surface": [
+        "traumatic-dissociation-dissonance-sandbox"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "narrative-foreshadowing-dramatic-echo.js": {
+      "module": "narrative-foreshadowing-dramatic-echo.js",
+      "surface": [
+        "narrative-foreshadowing-dramatic-echo"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cross-branch-deja-vu-resonance-chamber.js": {
+      "module": "cross-branch-deja-vu-resonance-chamber.js",
+      "surface": [
+        "cross-branch-deja-vu-resonance-chamber"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "double-identity-espionage-theater.js": {
+      "module": "double-identity-espionage-theater.js",
+      "surface": [
+        "double-identity-espionage-theater"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "life-epilogue-retrospective-synthesizer.js": {
+      "module": "life-epilogue-retrospective-synthesizer.js",
+      "surface": [
+        "life-epilogue-retrospective-synthesizer"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "intergenerational-mental-totem-tree.js": {
+      "module": "intergenerational-mental-totem-tree.js",
+      "surface": [
+        "intergenerational-mental-totem-tree"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "strength-policy.js": {
+      "module": "strength-policy.js",
+      "surface": [
+        "strength-policy"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "strength-proposal.js": {
+      "module": "strength-proposal.js",
+      "surface": [
+        "strength-proposal"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-weather.js": {
+      "module": "memory-weather.js",
+      "surface": [
+        "memory-weather"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-ritual.js": {
+      "module": "memory-ritual.js",
+      "surface": [
+        "memory-ritual"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-season.js": {
+      "module": "memory-season.js",
+      "surface": [
+        "memory-season"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "meaning-map.js": {
+      "module": "meaning-map.js",
+      "surface": [
+        "meaning-map"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-work-mode.js": {
+      "module": "memory-work-mode.js",
+      "surface": [
+        "memory-work-mode"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "conflict-adjudication-bench.js": {
+      "module": "conflict-adjudication-bench.js",
+      "surface": [
+        "conflict-adjudication-bench"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "temporal-validity-workflow.js": {
+      "module": "temporal-validity-workflow.js",
+      "surface": [
+        "temporal-validity-workflow"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-archaeology.js": {
+      "module": "memory-archaeology.js",
+      "surface": [
+        "memory-archaeology"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-budget-orchestrator.js": {
+      "module": "memory-budget-orchestrator.js",
+      "surface": [
+        "memory-budget-orchestrator"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-readable-workbench.js": {
+      "module": "memory-readable-workbench.js",
+      "surface": [
+        "memory-readable-workbench"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-symbiosis-bridge.js": {
+      "module": "memory-symbiosis-bridge.js",
+      "surface": [
+        "memory-symbiosis-bridge"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "recall-route-orchestrator.js": {
+      "module": "recall-route-orchestrator.js",
+      "surface": [
+        "recall-route-orchestrator"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "secret-theater.js": {
+      "module": "secret-theater.js",
+      "surface": [
+        "secret-theater"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "batch-maintenance-pipeline.js": {
+      "module": "batch-maintenance-pipeline.js",
+      "surface": [
+        "batch-maintenance-pipeline"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "character-growth-drama.js": {
+      "module": "character-growth-drama.js",
+      "surface": [
+        "character-growth-drama"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "cross-project-migration-desk.js": {
+      "module": "cross-project-migration-desk.js",
+      "surface": [
+        "cross-project-migration-desk"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "era-continuation-drama.js": {
+      "module": "era-continuation-drama.js",
+      "surface": [
+        "era-continuation-drama"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "generation-fact-replay.js": {
+      "module": "generation-fact-replay.js",
+      "surface": [
+        "generation-fact-replay"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-emotional-antiphony.js": {
+      "module": "memory-emotional-antiphony.js",
+      "surface": [
+        "memory-emotional-antiphony"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "volume-sealing-engine.js": {
+      "module": "volume-sealing-engine.js",
+      "surface": [
+        "volume-sealing-engine"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "multi-protagonist-registry.js": {
+      "module": "multi-protagonist-registry.js",
+      "surface": [
+        "multi-protagonist-registry"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "ancient-story-clock.js": {
+      "module": "ancient-story-clock.js",
+      "surface": [
+        "ancient-story-clock"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-replay-pipeline.js": {
+      "module": "fact-replay-pipeline.js",
+      "surface": [
+        "fact-replay-pipeline"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "inband-extraction-parser.js": {
+      "module": "inband-extraction-parser.js",
+      "surface": [
+        "inband-extraction-parser"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "worldline-memory.js": {
+      "module": "worldline-memory.js",
+      "surface": [
+        "window.LonShaWorldlineMemory"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    }
+  }
+}

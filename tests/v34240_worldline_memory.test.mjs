@@ -725,11 +725,13 @@ test('H2 版本锚：六源同源 + 出生版本下界', () => {
         assert.strictEqual(/let VERSION = '([0-9.]+)'/.exec(t)[1], v, f + ' 与入口同源');
     }
     /* [v3.424.1] 自锚常量形（scan_version_guard V4「本档自锚常量」）：本档出生 3.424.0，
-     *   续写至 3.424.1；下界仍写出生版本，等号锚单独用 SELF_VERSION 指出「本档就是当版」。 */
+     *   续写至 3.424.1；下界仍写出生版本，等号锚单独用 SELF_VERSION 指出「本档就是当版」。
+     * [v3.427.0 交棒] 当版锚已交给 tests/v3427_l11_audit_face_repair.test.mjs。
+     *   本档从 frontier 退回**出生版本下界**形：等号锁「当版」在抬版后必然转红，
+     *   而历史档不该替当版把锚凑数（V2 判「历史文件不得锁当版」正是为此）。
+     *   下界不承诺未来，故只判「现版 >= 出生版本」。 */
     const BIRTH_VERSION = '3.424.0';
-    const SELF_VERSION = '3.426.0';
     assert.ok(vnum(v) >= vnum(BIRTH_VERSION), 'index.js 版本下界 ' + BIRTH_VERSION + '（实测 ' + v + '）');
-    assert.strictEqual(vnum(v), vnum(SELF_VERSION), '本档即当版（自锚）');
 });
 
 /* ================= I v3.424.1 自纠：>1 段变动率不得被压平 ================= */
