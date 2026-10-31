@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.427.0';
+    const VERSION = '3.430.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2423,6 +2423,24 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _summaryProvenanceLib: _summaryProvenanceLib,
                         _testimonyBoardLib: _testimonyBoardLib,
                         _worldlineMemoryLib: _worldlineMemoryLib,
+                        /* [v3.428.0 · L12-O1] 五件零消费内核注入（engine-diagnostic-lines 的业务面用）。
+                         *   取库口在本文件下方（与 _narrativeLayerLib 同级），此处只做**引用**，
+                         *   业务判断全在诊断层 → 宿主不重写规则。 */
+                        _institutionLib: _institutionLib,
+                        _relationDynamicsLib: _relationDynamicsLib,
+                        _agencyContractLib: _agencyContractLib,
+                        _symbolicEvolutionLib: _symbolicEvolutionLib,
+                        _eraInheritanceLib: _eraInheritanceLib,
+                        /* [v3.430.0 · L12-X] X 系列七个取库口（4 新 + 3 已有未注入）。
+                         *   修前实测：memory-season / meaning-map / memory-symbiosis-bridge
+                         *   三件的取库口在本文件里**存在但零消费**（B4 形态），故一并注入。 */
+                        _institutionalCollectiveLib: _institutionalCollectiveLib,
+                        _seasonSilenceLib: _seasonSilenceLib,
+                        _recallEchoLib: _recallEchoLib,
+                        _factCorrectionBenchLib: _factCorrectionBenchLib,
+                        _memorySeasonLib: _memorySeasonLib,
+                        _meaningMapLib: _meaningMapLib,
+                        _symbiosisBridgeLib: _symbiosisBridgeLib,
                     },
                 });
             }
@@ -3111,6 +3129,48 @@ function relativeTimeLabel(eventTime, nowTime) {
         worldlineSwitchPlan(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineSwitchPlan(this, ...args) : null; }
         worldlineDiff(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineDiff(this, ...args) : null; }
         _worldlineLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlineLine(this, ...args) : ''; }
+        // [v3.429.0 · L12-O8] 跳跃表编辑器的取数口：**只回解析与读数，不写配置**。
+        //   面板拿它把「哪一行会被闸丢掉」当场标红，故解析单源必须在诊断线模块里（与闸同一段）。
+        worldlineJumpDraft(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineJumpDraft(this, ...args) : null; }
+        // [v3.428.0 · L12-O1] 五件零消费内核的宿主出口。与 returnGate* / worldline* 同形：
+        //   本文件只留一行转发，业务全在 engine-diagnostic-lines.js，不在这里拼。
+        //   每件三件套：读（*State，只读+落 _xxxRead 读数）/ 动作（*Act，纯内核调用 + 落状态）/ 诊断行（_xxxLine）。
+        institutionState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.institutionState(this, ...args) : null; }
+        institutionAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.institutionAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _institutionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._institutionLine(this, ...args) : ''; }
+        relationDynamicsState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.relationDynamicsState(this, ...args) : null; }
+        relationDynamicsAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.relationDynamicsAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _relationDynamicsLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._relationDynamicsLine(this, ...args) : ''; }
+        agencyContractState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.agencyContractState(this, ...args) : null; }
+        agencyContractAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.agencyContractAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _agencyContractLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._agencyContractLine(this, ...args) : ''; }
+        symbolicEvolutionState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.symbolicEvolutionState(this, ...args) : null; }
+        symbolicEvolutionAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.symbolicEvolutionAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _symbolicEvolutionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._symbolicEvolutionLine(this, ...args) : ''; }
+        eraInheritanceState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.eraInheritanceState(this, ...args) : null; }
+        eraInheritanceAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.eraInheritanceAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _eraInheritanceLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._eraInheritanceLine(this, ...args) : ''; }
+        // [v3.430.0 · L12-X] X 系列六个业务面的宿主出口。与本文件既有的 *State/*Act/_*Line
+        //   同形：这一行只做转发，业务与判据全在 engine-diagnostic-lines.js ——
+        //   宿主不许重写规则（重写一次就等于第二份真源）。
+        //   X1 组织规则谱系 · X2 意义视图 · X3 世界线前史体检 · X4 证据裁决影响回放
+        //   X5 行动回执链   · X9 沉默四问
+        institutionRuleState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.institutionRuleState(this, ...args) : null; }
+        institutionRuleAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.institutionRuleAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _institutionRuleLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._institutionRuleLine(this, ...args) : ''; }
+        meaningViewState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.meaningViewState(this, ...args) : null; }
+        meaningViewAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.meaningViewAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, touchesFactOwner: false }; }
+        _meaningViewLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._meaningViewLine(this, ...args) : ''; }
+        worldlinePrehistory(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlinePrehistory(this, ...args) : null; }
+        _worldlinePrehistoryLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlinePrehistoryLine(this, ...args) : ''; }
+        evidenceImpactReplay(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceImpactReplay(this, ...args) : null; }
+        _evidenceImpactLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._evidenceImpactLine(this, ...args) : ''; }
+        actionReceiptState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.actionReceiptState(this, ...args) : null; }
+        actionReceiptAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.actionReceiptAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _actionReceiptLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._actionReceiptLine(this, ...args) : ''; }
+        silenceExplainState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.silenceExplainState(this, ...args) : null; }
+        silenceExplainAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.silenceExplainAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _silenceExplainLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._silenceExplainLine(this, ...args) : ''; }
         _materialInventory(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._materialInventory(this, ...args) : ''; }
         materialPack(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.materialPack(this, ...args) : null; }
         _materialPackLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._materialPackLine(this, ...args) : ''; }
@@ -3575,11 +3635,33 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
         
         // [v1.5] 抄 HCDiary cdCaptureCast：从最近楼层捕获登场角色（词边界正则，防误匹配）
+        // [v3.430.0 L12-X6] 修「TDZ 自炸」：原实现第 2 行读 window、第 4 行才 `const window = ...`，
+        //   同一函数作用域内 `const window` 会**遮蔽全局 window 并产生暂时性死区**，
+        //   于是 `const ctx = window.SillyTavern?...` 必然抛
+        //   `ReferenceError: Cannot access 'window' before initialization`。
+        //   危害面（20 个调用点，逐一 grep 可复算，**全部无 try/catch**）：
+        //     engine-recall.js:244/366/561/646/669 —— 召回主路径当场炸穿；
+        //     engine-injection-pipeline.js:705/911/949 —— 注入主路径；
+        //     index.js:4329/4341/4383/4426/4433/6638 —— 日记与自动变更。
+        //   即：本仓「角色登场捕获」这条功能**从来没有真正跑通过**，一直在抛。
+        //   修法：内层窗口变量改名 `win8`（与 `const ctx` 的写法同性），消除遮蔽。
+        /* [v3.430.0 · L12-X6] 登场角色捕获失败的**唯一记账口**（召回侧 _safeCast 与注入侧共用）。
+         *   与「静默降级」总账联动：selfCheck 会把它念成「登场角色捕获 N ⚠️」。
+         *   故意做成「记一次失败、永不抛」——记账本身不得成为新的失败源。 */
+        _noteCaptureCastFail(err, where) {
+            try {
+                const st = this._captureCastFail = this._captureCastFail || { rounds: 0, lastErr: '', where: '' };
+                st.rounds++;
+                st.lastErr = String((err && err.message) || err || '').slice(0, 160);
+                if (where) st.where = String(where);
+            } catch (e) { /* 记账失败不作为缺口 */ }
+            return [];
+        }
         captureCast() {
             const ctx = window.SillyTavern?.getContext?.();
             const chat = ctx?.chat || [];
-            const window = chat.slice(-8); // 最近8楼判定窗口
-            const sceneText = window.map(m => (m?.mes || '')).join('\n');
+            const win8 = chat.slice(-8); // 最近8楼判定窗口
+            const sceneText = win8.map(m => (m?.mes || '')).join('\n');
             if (!sceneText) return [];
             const cast = [];
             for (const name of this.getKnownCharacters()) {
@@ -5915,6 +5997,18 @@ function relativeTimeLabel(eventTime, nowTime) {
                 push('人物状态上限压力', cse?.nearCapChars || 0, cse?.nearCapChars ? `${cse.nearCapChars} 人顶格` : '');
                 const lv = this._ledgerViolationSummary?.();
                 if (typeof lv === 'string' && lv && lv !== '—') push('台账写入违规', 1, lv);
+                /* [v3.430.0 · L12-X6] 登场角色捕获降级读数。
+                 *   背景：`captureCast()` 自 v1.5 起因 `const window` 遮蔽全局而**必抛 TDZ**
+                 *   （修法与危害面见 index.js captureCast 处注释）。它被 20 个调用点消费，
+                 *   其中召回主路径此前无兜底 —— 这条链一直在抛，却没有任何一处把它记成
+                 *   「降级」：每轮都在退化运行，而「静默降级」总账上永远是「全部正常」。
+                 *   本行把它并进总账：捕获失败 → 角色过滤降级为「不过滤」，
+                 *   value 是失败轮数、detail 带末次原因，不再隐身。 */
+                const _ccFail = this._captureCastFail;
+                if (_ccFail && Number(_ccFail.rounds) > 0) {
+                    push('登场角色捕获', Number(_ccFail.rounds),
+                        `已降级为「不做角色过滤」·末次：${String(_ccFail.lastErr || 'unknown').slice(0, 90)}`);
+                }
                 const mig = this.config?._lastMigrationReport;
                 push('配置迁移跳过', mig?.skipped?.length || 0, mig?.skipped?.join('/') || '');
                 // [v3.169] 账本自述面：审计账本本身也得进这张表——它是全部诊断的载体，
@@ -9984,6 +10078,55 @@ function _collectNewFace() {
     //   不落盘、老数据不批量重标(无标注一律 unspecified —— 不猜)。
     function _narrativeLayerLib() {
         return _moduleLib(() => window.LonShaNarrativeLayer, 'narrative-layer.js');
+    }
+    /* [v3.428.0 · L12-O1] 五件零消费内核的取库口。
+     *   修前实测：这五件在 index.js 里 `grep -c` **全为 0** —— 登记在册、真被加载、
+     *   单测全绿，而产品端一次都没调用（V12 计划 Problem 第 1 条的现场）。
+     *   本处只取库不算业务：业务在 engine-diagnostic-lines.js（宿主只留取库口 + 转发）。
+     *   ★ 与 _narrativeLayerLib 同形：`_moduleLib` 惰性、缺席回 null、不抛。 */
+    function _institutionLib() {
+        return _moduleLib(() => window.LonShaInstitutionalMemory, 'institutional-memory.js');
+    }
+    function _relationDynamicsLib() {
+        return _moduleLib(() => window.LonShaRelationDynamics, 'relation-dynamics.js');
+    }
+    function _agencyContractLib() {
+        return _moduleLib(() => window.LonShaCharacterAgencyContract, 'character-agency-contract.js');
+    }
+    /* [v3.428.0 · L12-O1 自纠] 别名窗口名 `LonShaSymbolicEvolution` **从来没被供给过**：
+     *   symbolic-evolution.js 只挂 `globalThis.SymbolicEvolutionLib`（见其文件末尾），
+     *   memory-organs.js 取库口也只认 `SymbolicEvolutionLib`。
+     *   修前本行的取库表达式写成「不存在的别名名 || SymbolicEvolutionLib」双取 ——
+     *   左侧恒 undefined（扫描器连注释里的 window 点号写法也会匹配，故此处不用代码形书写），
+     *   于是 B3 判据当场点名「运行时恒 undefined，功能静默降级到兜底实现」。
+     *   ★ 修法是**删掉不存在的那个名字**，不是给审计加豁免：豁免会让下一个写错名字的人更安全。
+     *   取库口保留 `_moduleLib` 的惰性 + 缺席回 null 契约不变。 */
+    function _symbolicEvolutionLib() {
+        return _moduleLib(() => window.SymbolicEvolutionLib, 'symbolic-evolution.js');
+    }
+    function _eraInheritanceLib() {
+        return _moduleLib(() => window.EraInheritanceLib, 'era-inheritance.js');
+    }
+    /* [v3.430.0 · L12-X] X 系列六面的四件**新**内核取库口。
+     *   修前实测：这四件在 manifest.extra_js 里都已登记（真被加载）、单测也有，
+     *   而 index.js 里一次取库都没有 ⇒ 诊断层的 X 面恒报 module-unavailable。
+     *   ★ 窗口名两件**没有 LonSha 前缀**（institutional-collective-memory.js 挂
+     *     `root.InstitutionalCollectiveMemory`、memory-season-silence-manager.js 挂
+     *     `root.MemorySeasonSilenceManager`）—— 这里按各自文件末尾的真实挂载名写，
+     *     不按「本仓习惯用 LonSha 前缀」去猜；猜错的下场是恒 undefined（v3.428.0 已踩过一次）。
+     *   另三件（memory-season / meaning-map / memory-symbiosis-bridge）取库口本仓早已有，
+     *   但从未注入诊断层 —— 本轮只做**注入**，不重复造口子。 */
+    function _institutionalCollectiveLib() {
+        return _moduleLib(() => window.InstitutionalCollectiveMemory, 'institutional-collective-memory.js');
+    }
+    function _seasonSilenceLib() {
+        return _moduleLib(() => window.MemorySeasonSilenceManager, 'memory-season-silence-manager.js');
+    }
+    function _recallEchoLib() {
+        return _moduleLib(() => window.LonShaRecallEcho, 'recall-echo.js');
+    }
+    function _factCorrectionBenchLib() {
+        return _moduleLib(() => window.LonShaFactCorrectionBench, 'fact-correction-bench.js');
     }
     // [v3.345.0 · M4-X7] 旧事重现的生成控频闸(return-gate.js)。为什么需要:
     //   fated-recall(M3-X8)交付了「该不该想起来」,并刻意只到「建议 + 来源」为止;

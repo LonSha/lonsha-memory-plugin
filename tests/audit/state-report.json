@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.427.0",
+  "version": "3.430.0",
   "version_sources": {
-    "manifest": "3.427.0",
-    "package": "3.427.0",
-    "index_const": "3.427.0"
+    "manifest": "3.430.0",
+    "package": "3.430.0",
+    "index_const": "3.430.0"
   },
   "version_same": true,
-  "human_index_version": "3.427.0",
+  "human_index_version": "3.430.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 244,
@@ -262,7 +262,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 423,
+    "test_files": 429,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -621,8 +621,14 @@
       "v3427_l11_audit_face_repair.test.mjs",
       "v3427_life_epilogue_retrospective.test.mjs",
       "v3428_intergenerational_totem_tree.test.mjs",
+      "v3428_l12_o1_kernel_wiring.test.mjs",
+      "v3428_l12_o4_face_three_states.test.mjs",
+      "v3428_l12_o5_realhost_suite.test.mjs",
       "v3429_l11_full_pipeline_wiring.test.mjs",
+      "v3429_l12_o8_worldline_editor.test.mjs",
       "v342_caikis_mechanics.test.mjs",
+      "v3430_l12_x1_x9_extensions.test.mjs",
+      "v3430_l12_x6_unload_drill.test.mjs",
       "v3430_m4x5_testimony_board.test.mjs",
       "v343_baibai_mechanics.test.mjs",
       "v3440_m4x6_narrative_layer.test.mjs",
@@ -689,8 +695,8 @@
       "v39_shift_floors.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 70,
-    "audit_probes": 6,
+    "audit_gated": 71,
+    "audit_probes": 8,
     "tiers": {
       "schema": "gate-tiers@1",
       "tiers": [
@@ -724,10 +730,10 @@
   },
   "full_run": {
     "status": "registered",
-    "registered_at": "3.427.0",
-    "tests_total": 423,
-    "assertions": 4545,
-    "audit": "67/67",
+    "registered_at": "3.430.0",
+    "tests_total": 429,
+    "assertions": 4646,
+    "audit": "68/68",
     "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
   "host_run": {
@@ -747,15 +753,15 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "601d7ca88033",
-      "package.json": "6394712950c2",
-      "index.js": "1a9d10e945d8",
+      "manifest.json": "d336671c9a03",
+      "package.json": "1f00ac63f1de",
+      "index.js": "2eea4dfbba71",
       "update-log.json": null,
-      "README.md": "afae5eb89239",
-      "PLAN.md": "15bc88cfeeb9",
-      "CHANGELOG.md": "14029b249b25",
-      "TODO.md": "02e48c55cf6a",
-      "tests/audit/doc_readings.json": "9ad33a53f8f6"
+      "README.md": "f4729723ee9e",
+      "PLAN.md": "c3fa1912745f",
+      "CHANGELOG.md": "43d8670fa704",
+      "TODO.md": "d04a89aa549f",
+      "tests/audit/doc_readings.json": "f204358fe73f"
     }
   },
   "unknown": [],

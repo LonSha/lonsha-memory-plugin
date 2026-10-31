@@ -908,7 +908,13 @@
             }
             // [v3.49] P5: 群像共同记忆注入（只注入在场角色相关的关系对）
             if (this.pairMem) {
-                const pairPrompt = this.pairMem.toPrompt(extracted?.characters || this.captureCast());
+                /* [v3.430.0 · L12-X6] 兜底：captureCast 曾因 TDZ 必抛（见 index.js 处注释），
+                 *   而这里没有外层 try（块内直接取用）——注入主路径会被一条非致命失败炸掉。
+                 *   语义：捕获不到登场角色 ⇒ 退回 scanned 里的 extracted.characters，再退空数组。 */
+                let _pairCast = null;
+                try { _pairCast = this.captureCast(); }
+                catch (e) { errLog(e, 'buildInjection.pairCast'); this._noteCaptureCastFail?.(e); }
+                const pairPrompt = this.pairMem.toPrompt(extracted?.characters || _pairCast || []);
                 if (pairPrompt) blocks.push(pairPrompt);
             }
             if (timelines.length) {
@@ -946,7 +952,11 @@
                 dedupNotes.forEach(i => blocks.push(`- ${i.text || ''}`));
             }
             if (povs.length) {
-                const present = this.captureCast();
+                /* [v3.430.0 · L12-X6] 同上：此处无外层 try，捕获失败必须降级为「不做视界过滤」
+                 *   （保留全部 pov 条目）而不是炸掉整轮注入。 */
+                let present = [];
+                try { present = this.captureCast() || []; }
+                catch (e) { errLog(e, 'buildInjection.povCast'); this._noteCaptureCastFail?.(e); present = []; }
                 const presentSet = new Set(present.map(p => this.resolveCharacterName(p)));
                 // [v3.46] 视界隔离与全知禁令：当前有在场角色时，滤除不在场角色的私密心声防隔空读心透视
                 const validPovs = (present.length > 0)

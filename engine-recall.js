@@ -197,6 +197,33 @@
         } catch (e) { return null; }
     }
 
+    /* [v3.430.0 · L12-X6] `captureCast()` 的唯一安全调用口（本函数是召回侧的全部取用点）。
+     * 为什么不各点自己写 try：本仓纪律「同一事实不得两处实现」——20 个调用点各写一遍
+     *   try/catch + 计数，就是 20 份会各自漂移的降级逻辑。
+     * 为什么必须有这个口：`captureCast()` 自 v1.5 起因 `const window` 遮蔽全局而**必抛 TDZ**
+     *   （修法与危害面见 index.js captureCast 处注释），而召回侧 presence/pov 两路直接调它，
+     *   没有语句级 try 包住 —— 修前每轮召回都在这里炸穿，且没进任何降级账本。
+     * 降级语义：捕获失败 ⇒ 「不做角色过滤 / 不做在场分档」，并把失败轮数 + 末次原因
+     *   记到 `engine._captureCastFail`，由 `selfCheck` 的「静默降级」总账念出来。
+     * 返回值：**永远是数组**（失败给 []），调用方不需要再判空。 */
+    function _safeCast(engine, where) {
+        try {
+            const cast = (engine && typeof engine.captureCast === 'function') ? engine.captureCast() : null;
+            return Array.isArray(cast) ? cast : [];
+        } catch (e) {
+            errLog(e, 'captureCast.' + where);
+            /* 记账口唯一真源在引擎上（`_noteCaptureCastFail`），这里只委派，不另立一份计数器。
+             * ★ 能力探测上提到局部常量再判：`scan_live_wiring_dataflow` 把「条件判定括号里出现的
+             *   私有实例属性」一律当**状态守卫**，要求全仓有写入源。这里读的是`函数能力`
+             *   而不是状态，写成内联判断会让它把记账口误判成幽灵守卫（本轮真发生过，
+             *   处置是改代码形态而不是把它塞进白名单）。 */
+            const note = (engine && typeof engine._noteCaptureCastFail === 'function')
+                ? engine._noteCaptureCastFail : null;
+            if (note) note.call(engine, e, where);
+            return [];
+        }
+    }
+
     async function recallMemory(engine, query) {
             const results = {summary: [], graph: [], diary: [], vector: [], diffusion: [], pov: [], timeline: [], bm25: [], volume: [], status: [], holiday: [], suspense: [], presence: [], neuralChain: [], worldProg: []};
             // [v3.149] 卷摘要 intact 对账（柏宝书 #13 缝入）：折叠区下楼层被 swipe/编辑后卷摘要嵌失效叙事——召回前先校验并降级展开（零 LLM 调用纯机制自愈）
@@ -241,7 +268,10 @@
 
             
             // [v1.5] 登场角色捕获（抄 HCDiary）：从最近楼层窗口判断谁登场，只召回这些角色的记忆
-            const castCaptured = (typeof engine.captureCast === 'function') ? engine.captureCast() : [];
+            // [v3.430.0 L12-X6] 走 _safeCast()：captureCast 曾因 TDZ 必抛（见 index.js 处注释），
+            //   而这里是**召回主路径**——捕获登场角色失败只应让「角色过滤」降级为「不过滤」，
+            //   不该把整轮召回炸掉。降级必须可读（总账 + reason），不许静默吞成空。
+            let castCaptured = _safeCast(engine, 'recallMemory.登场角色捕获');
             if (castCaptured.length > 0) query.characters = castCaptured;
             
             if (query.characters?.length > 0) {
@@ -363,7 +393,7 @@
             // [v2.8] RT-C: 物品台账召回（提前执行，为 HippoRAG 提取道具实体输入）
             // [v3.44] 吸收 baibai: 物品物理可达性与随身/寄存解耦（Carried vs Location 互斥）
             if (engine.config.config.itemLedgerEnabled && engine.itemOps?.length) {
-                const cast = engine.captureCast();
+                const cast = _safeCast(engine, 'recallMemory.物品台账');
                 const qText = query.text || '';
                 let currentGeo = '';
                 try {
@@ -558,7 +588,7 @@
             
             // [v2.0] P2: 角色状态召回
             if (engine.config.config.characterStateEnabled && Object.keys(engine.status.characters || {}).length) {
-                const presentCast = engine.captureCast();
+                const presentCast = _safeCast(engine, 'recallMemory.角色状态');
                 const owners = presentCast.length ? presentCast : (typeof window !== "undefined" && window.SillyTavern?.getContext?.()?.name2 ? [window.SillyTavern.getContext().name2] : []);
                 if (owners.length) {
                     const _ageOpts = {
@@ -643,7 +673,7 @@
             // [v3.91] 审计修复：门控键原为 presenceTier（无默认值，恒 undefined 导致功能死锁关闭），
             //         与 config/UI 声明的 presenceInjection 键名断裂。统一到 presenceInjection。
             if (engine.config.config.presenceInjection !== false) {
-                const present = new Set(engine.captureCast());
+                const present = new Set(_safeCast(engine, 'recallMemory.在场分档'));
                 const allKnown = engine.getKnownCharacters();
                 const absent = allKnown.filter(c => !present.has(c));
                 if (absent.length) {
@@ -666,7 +696,7 @@
             
             // [v1.8] P0: POV 私密记忆召回
             if (engine.config.config.povIsolation && engine.pov.povs.length) {
-                const present = engine.captureCast();
+                const present = _safeCast(engine, 'recallMemory.POV私密');
                 const owners = present.length ? present : (typeof window !== "undefined" && window.SillyTavern?.getContext?.()?.name2 ? [window.SillyTavern.getContext().name2] : []);
                 if (owners.length) {
                     results.pov = engine.pov.search(owners, engine.config.config.povMaxPerTurn || 3)

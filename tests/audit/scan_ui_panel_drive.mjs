@@ -50,6 +50,15 @@
  *      DOM 基准（直读属性）与文本基准（序列化回标记再解析一遍，即浏览器的叙述路径）各一条。
  *   W5 提示诚实：`opHint` 的出现必须与"本面板真有 `[data-opkind]` 条目"一致（不得无条件挂）。
  *   W6 面板级触达面（非零下限）：本门真的开过 ≥ N 个内容视图、≥ M 个诊断面，否则 exit 2。
+ *   W7 [v3.428.0 · L12-O4] **三态不同形**：空 / 缺席 / 失败三态必须逐字不同形，
+ *      且「缺席」绝不许说成「0 条」，「失败」必须留重试。【为什么要扩到这一面】
+ *      修前本门只覆盖「诊断面板」与「条目浏览」两条路径，而 `showBrowser` 有 22 个视图、
+ *      每个视图都有一句「暂无X」—— 那句话把三种完全不同的成因压成同形：
+ *        ① 服务缺席（模块没装上）· ② 取数抛错 · ③ 真的没有。
+ *      压成同形的代价是：用户看到「暂无摘要」会去聊十轮，而真相是模块根本没加载。
+ *      判据做法（**驱动不可替代**）：对同一批视图跑三种环境 ——
+ *        真环境（有数据 ⇒ 应出明细）· 摘模块（⇒ `absent`）· 取数抛错（⇒ `failed` + 重试），
+ *      并要求三态**标记与文案都不同形**，同时**不允许有任何视图把缺席渲染成「暂无/0 条」**。
  *
  * 实现约束（勿凭直觉改动）：
  *   · 本仓**零运行时依赖**，审计脚本也不得 require 第三方 —— 故自带**最小 DOM shim**
@@ -552,6 +561,194 @@ if (attrProblems.length) {
     DEFECTS.push('W4 属性同一性问题 ' + attrProblems.length + ' 处：' + attrProblems.join(' / '));
 } else if (totalClickable > 0) {
     NOTES.push('W4 寻址口在册：' + totalClickable + ' 个条目的 data-opid 均可读且非空（转义判据见 W4b）');
+}
+
+/* ══════════ W7 [v3.428.0 · L12-O4] 三态不同形（空 / 缺席 / 失败）══════════
+ * 三档驱动，同一批视图：
+ *   A. 真环境 —— 有数据必须出明细，且**不得**出现任何三态标记（否则三态标记就退化成
+ *      永远挂着的装饰，读者再也分不出「有数据」与「取不到」）；
+ *   B. 摘模块 —— 把 `engine.<svc>` 整个摘掉（这是真实退化：模块没装上 / 精简快照），
+ *      渲染必须落 `data-ls-face="absent"`，且文案里**不许出现「暂无」**；
+ *   C. 取数抛错 —— 把取数口换成 `throw`（真实退化：底层存储读失败），
+ *      渲染必须落 `data-ls-face="failed"`，且必须留 `.ls-face-retry`。
+ *
+ *   ★ C 档怎么写很关键（首版在此翻车，实测读数留痕）：首版写成 `e.summary.summaries =
+ *     undefined` / `= null` —— 那**不是抛错**，只是把值赋空。视图接着走 `X.length` /
+ *     `Object.keys(X)`，异常在**别处**抛，落成的不是 failed 态。实测后果：首跑 C 档只抽到
+ *     3 个样本、面自证 exit 2（「该档没真跑」）。
+ *     正确驱动是**读取即抛**：在服务键上装 throwing getter（`throwOn`），让「取数」这个
+ *     动作本身失败 —— 这才是底层存储读失败的真实形状。
+ * 遍历面 ≥ 8 个视图（本档取 14 个带空态的视图）。三档缺一 ⇒ 本门拒绝给结论（exit 2），
+ * 因为「只验了空态」是本门要治的形态本身。 */
+/* [v3.428.0 · L12-O4 二次修] B 档摘模块 / C 档装 throwing getter —— 两档驱动都由
+ *   「引擎服务键」这一列派生，不各写一份：B 档是「键没了」，C 档是「键在但一读就炸」，
+ *   两者正是用户真能遇到的两种退化（精简快照 / 底层存储读失败）。 */
+const throwOn = (obj, key, why) => {
+    Object.defineProperty(obj, key, {
+        configurable: true,
+        get() { throw new Error(why); },
+    });
+};
+/* 夹具真相（第 4 列）：这三档夹具里**本来是什么**，必须逐视图声明，不许笼统假定「都有数据」。
+ *   首跑实测（W7 A 档 4 红）：把 A 档写成「所有视图都必须无标记」是**判据自己错了**——
+ *   夹具里 `diary.diaries = {}`、`summary.volumes = []`、`graph.edges = 空 Map` 就是真的没有，
+ *   `scene` 服务在夹具里根本不存在。它们各自挂对应的标记是**正确行为**，不是装饰。
+ *   故 A 档按声明分派核验：data ⇒ 无标记且出明细；empty ⇒ 必须 empty 且说「真的没有」；
+ *   absent ⇒ 必须 absent 且说「不可用」。这样标记才被证明「随事实变」，而不是恒挂。 */
+const FACE_VIEWS = [
+    /* [视图, 引擎服务键, C 档驱动（读取即抛）, 夹具真相] */
+    ['summaries', 'summary', (e, k) => throwOn(e, k, '摘要存储读失败'), 'data'],
+    ['diaries', 'diary', (e, k) => throwOn(e, k, '日记存储读失败'), 'empty'],
+    ['graph', 'graph', (e, k) => throwOn(e, k, '图谱存储读失败'), 'data'],
+    ['povs', 'pov', (e, k) => throwOn(e, k, 'POV 存储读失败'), 'data'],
+    ['timeline', 'timeline', (e, k) => throwOn(e, k, '时间线存储读失败'), 'data'],
+    ['volumes', 'summary', (e, k) => throwOn(e, k, '卷摘要存储读失败'), 'empty'],
+    ['suspense', 'suspense', (e, k) => throwOn(e, k, '悬念簿存储读失败'), 'data'],
+    ['relations', 'graph', (e, k) => throwOn(e, k, '关系边存储读失败'), 'empty'],
+    ['vectors', 'vector', (e, k) => throwOn(e, k, '向量存储读失败'), 'data'],
+    ['items', 'items', (e, k) => throwOn(e, k, '物品台账存储读失败'), 'data'],
+    ['oplog', 'opLog', (e, k) => throwOn(e, k, 'OpLog 存储读失败'), 'data'],
+    ['lockedfacts', 'summary', (e, k) => throwOn(e, k, '锁定事实存储读失败'), 'data'],
+    ['deltas', 'deltaBook', (e, k) => throwOn(e, k, '正史增量存储读失败'), 'data'],
+    ['scene', 'scene', (e, k) => throwOn(e, k, '场景树存储读失败'), 'absent'],
+];
+const FACE_MARK = 'data-ls-face=';
+const faceOf = (ov) => {
+    const el = ov.querySelector('[data-ls-face]');
+    return el ? String(el.getAttribute('data-ls-face')) : '';
+};
+{
+    const OBSERVED_FACE = { ok: 0, empty: 0, absent: 0, failed: 0 };
+    /* --- A 档：真环境按夹具真相分派核验（三态必须随事实变，不许恒挂某一种）--- */
+    for (const [vt, , , truth] of FACE_VIEWS) {
+        const ctxA = boot();
+        if (ctxA.loadError) { DEFECTS.push('W7 A 档 UI 加载即抛：' + ctxA.loadError.message); break; }
+        let threw = null;
+        try { ctxA.plugin.showBrowser.call(ctxA.plugin, vt); } catch (e) { threw = e; }
+        if (threw) { DEFECTS.push('W7 A 档 showBrowser("' + vt + '") 抛错：' + threw.message); continue; }
+        const ovA = ctxA.document.getElementById('lonsha-browser-overlay');
+        if (!ovA) { DEFECTS.push('W7 A 档 showBrowser("' + vt + '") 未挂进文档'); continue; }
+        const got = faceOf(ovA);
+        const atxt = (ovA.textContent || '');
+        if (truth === 'data') {
+            if (got) {
+                DEFECTS.push('W7 A 档 视图 "' + vt + '" 夹具真有数据却挂了三态标记 ' + got +
+                    ' —— 标记退化成装饰后，读者再也分不出「有数据」与「取不到」');
+            } else OBSERVED_FACE.ok++;
+        } else if (truth === 'empty') {
+            if (got !== 'empty') {
+                DEFECTS.push('W7 A 档 视图 "' + vt + '" 夹具里是真空盘，标记却是 ' + JSON.stringify(got) +
+                    '（应为 empty）—— 「真的没有」被说成了别的状态');
+            } else if (atxt.indexOf('真的没有') < 0) {
+                DEFECTS.push('W7 A 档 视图 "' + vt + '" 落的是 empty 但没写「真的没有」（读者读不出是真没有）');
+            } else if (atxt.indexOf('不可用') >= 0) {
+                DEFECTS.push('W7 A 档 视图 "' + vt + '" 是真空盘却写了「不可用」—— 把「没有」说成了「没装上」');
+            } else OBSERVED_FACE.empty++;
+        } else {
+            if (got !== 'absent') {
+                DEFECTS.push('W7 A 档 视图 "' + vt + '" 夹具里该服务根本不存在，标记却是 ' + JSON.stringify(got) +
+                    '（应为 absent）—— 「没装上」被说成了「没有」');
+            } else if (atxt.indexOf('不可用') < 0) {
+                DEFECTS.push('W7 A 档 视图 "' + vt + '" 落的是 absent 但没写「不可用」');
+            } else OBSERVED_FACE.absent++;
+        }
+    }
+    /* --- B 档：摘模块 ⇒ absent，且文案不得出现「暂无」 --- */
+    for (const [vt, svcKey] of FACE_VIEWS.map((x) => [x[0], x[1]])) {
+        const ctxB = boot();
+        if (ctxB.loadError) { DEFECTS.push('W7 B 档 UI 加载即抛：' + ctxB.loadError.message); break; }
+        delete ctxB.engine[svcKey];
+        let threw = null;
+        try { ctxB.plugin.showBrowser.call(ctxB.plugin, vt); } catch (e) { threw = e; }
+        if (threw) { DEFECTS.push('W7 B 档 摘掉 engine.' + svcKey + ' 后 showBrowser("' + vt + '") 抛错：' + threw.message); continue; }
+        const ovB = ctxB.document.getElementById('lonsha-browser-overlay');
+        if (!ovB) { DEFECTS.push('W7 B 档 showBrowser("' + vt + '") 未挂进文档'); continue; }
+        const st = faceOf(ovB);
+        if (st !== 'absent') {
+            DEFECTS.push('W7 B 档 摘掉 engine.' + svcKey + ' 后视图 "' + vt + '" 的三态标记是 ' +
+                JSON.stringify(st) + '（应为 absent）—— 把「没装上」读成了「没有」');
+        } else {
+            OBSERVED_FACE.absent++;
+            const txt = (ovB.textContent || '');
+            if (txt.indexOf('暂无') >= 0) {
+                DEFECTS.push('W7 B 档 视图 "' + vt + '" 落的是 absent 但正文仍写着「暂无」—— 三态同形，等于没分');
+            }
+            if (txt.indexOf('不可用') < 0) {
+                DEFECTS.push('W7 B 档 视图 "' + vt + '" 的缺席态没写「不可用」三个字（读者读不出这是缺件）');
+            }
+        }
+    }
+    /* --- C 档：取数抛错 ⇒ failed + 重试 --- */
+    for (const [vt, svcKey, mutate] of FACE_VIEWS) {
+        const ctxC = boot();
+        if (ctxC.loadError) { DEFECTS.push('W7 C 档 UI 加载即抛：' + ctxC.loadError.message); break; }
+        /* 夹具本身抛错不算源码缺陷 —— 但也不许静默：真装不上 getter 就点名，别让 C 档白跑 */
+        try { mutate(ctxC.engine, svcKey); } catch (fe) {
+            DEFECTS.push('W7 C 档 夹具装配失败（' + svcKey + '）：' + fe.message);
+            continue;
+        }
+        let threw = null;
+        try { ctxC.plugin.showBrowser.call(ctxC.plugin, vt); } catch (e) { threw = e; }
+        if (threw) {
+            DEFECTS.push('W7 C 档 取数抛错后 showBrowser("' + vt + '") 直接抛出面板外（' + threw.message +
+                '）—— 抛错必须落成 failed 态，不许把异常扔给宿主');
+            continue;
+        }
+        const ovC = ctxC.document.getElementById('lonsha-browser-overlay');
+        if (!ovC) { DEFECTS.push('W7 C 档 showBrowser("' + vt + '") 未挂进文档'); continue; }
+        const st = faceOf(ovC);
+        if (st !== 'failed') {
+            DEFECTS.push('W7 C 档 视图 "' + vt + '" 取数抛错后的三态标记是 ' + JSON.stringify(st) +
+                '（应为 failed）—— 抛错被吞成空列表，读者看到的是「暂无」');
+        } else {
+            OBSERVED_FACE.failed++;
+            if (!ovC.querySelector('.ls-face-retry')) {
+                DEFECTS.push('W7 C 档 视图 "' + vt + '" 落的是 failed 但没有重试按钮 —— 可恢复的失败没给恢复入口');
+            }
+            /* 失败态必须说清「取数失败」（不是「没有」），且原因要可读 */
+            const ftxt = (ovC.textContent || '');
+            if (ftxt.indexOf('取数失败') < 0) {
+                DEFECTS.push('W7 C 档 视图 "' + vt + '" 的失败态没写「取数失败」（读者读不出这是失败）');
+            }
+            if (ftxt.indexOf('暂无') >= 0) {
+                DEFECTS.push('W7 C 档 视图 "' + vt + '" 落的是 failed 但正文仍写着「暂无」—— 失败被说成了没有');
+            }
+        }
+    }
+    /* --- 面自证：三档都必须真的抽到样本，缺一即拒绝给结论 ---
+     * ★ 首跑被本档自己咬到：C 档源码一旦真把异常外抛，failed 样本会掉到 0，
+     *   若直接 drift，读者只看到「探测器失效」，看不到真正原因（「抛错被扔给宿主」）。
+     *   归因面与结论面必须一致 ⇒ drift 之前先把**已检出的具体缺陷**念一遍。 */
+    if (DEFECTS.length) {
+        console.error('[ui-panel-drive] W7 已检出 ' + DEFECTS.length + ' 处具体缺陷（下面再判档位是否跑满）：');
+        DEFECTS.forEach((d) => console.error('  ✗ ' + d));
+    }
+    const MIN_FACE_VIEWS = 8;
+    if (FACE_VIEWS.length < MIN_FACE_VIEWS) {
+        drift('W7 只遍历 ' + FACE_VIEWS.length + ' 个视图（下限 ' + MIN_FACE_VIEWS + '）⇒ 覆盖塌陷');
+    }
+    /* 下限按「夹具真有几个」算，不按「我希望有几个」算：
+     *   data 档要够 8（这是「有数据不出标记」这条口径的样本量）；
+     *   empty / absent 在夹具里本来就少（各 3 / 各 1），要求各 8 等于逼夹具造假数据 ——
+     *   那会把「本来没有」的视图硬塞数据，判据从此测的是夹具不是源码。
+     *   故这两档改为「≥ 1 且与声明数相等」：一个都没抽到才说明该档没真跑。 */
+    const declared = { data: 0, empty: 0, absent: 0 };
+    for (const x of FACE_VIEWS) declared[x[3]] = (declared[x[3]] || 0) + 1;
+    if (declared.data < MIN_FACE_VIEWS) {
+        drift('W7 声明有数据的视图只有 ' + declared.data + ' 个（下限 ' + MIN_FACE_VIEWS + '）⇒ 有数据这一档样本不足');
+    }
+    for (const k of ['ok', 'empty', 'absent', 'failed']) {
+        const need = (k === 'ok') ? MIN_FACE_VIEWS : 1;
+        if (OBSERVED_FACE[k] < need) {
+            drift('W7 ' + k + ' 档只抽到 ' + OBSERVED_FACE[k] + ' 个样本（下限 ' + need + '）⇒ 该档没真跑');
+        }
+    }
+    if (OBSERVED_FACE.failed < MIN_FACE_VIEWS) {
+        drift('W7 failed 档只抽到 ' + OBSERVED_FACE.failed + ' 个样本（下限 ' + MIN_FACE_VIEWS + '）⇒ 该档没真跑');
+    }
+    NOTES.push('W7 三态不同形：有数据 ' + OBSERVED_FACE.ok + ' / 真没有 ' + OBSERVED_FACE.empty + ' / 缺席 ' +
+        OBSERVED_FACE.absent + ' / 失败 ' + OBSERVED_FACE.failed +
+        '（有数据与失败两档各 ≥ ' + MIN_FACE_VIEWS + '；缺席态不含「暂无」、失败态带重试、真没有说「真的没有」）');
 }
 
 /* ══════════ W6 面自证（非零下限；抽到 0 不得算通过）══════════ */

@@ -382,6 +382,29 @@ const REGISTRY = [
     'v3580_m6_batch_d.test.mjs',
     'v3590_m6_batch_e.test.mjs',
     'v3600_m6_batch_f.test.mjs',
+    /* [v3.428.0] L12-O1 五件零消费内核接线判据：本档从 `tests/_break_kit.mjs` 取 `breakOnce`
+     *   （十二条真源码破坏：取库口 / 业务面读口 / 动作面 / 诊断行 / 装配点 逐件各一条）。
+     *   按 B1 台账纪律在此登记 —— 漏登记正是「接入面与判据面不同源」的那种形状。 */
+    'v3428_l12_o1_kernel_wiring.test.mjs',
+    /* [v3.428.0] L12-O4 三态出口判据：本档从 `tests/_break_kit.mjs` 取 `breakSource` /
+     *   `assertSingleHit`（四条真源码破坏：缺席标记 / 重试按钮 / 空态措辞 / catch 吞错）。 */
+    'v3428_l12_o4_face_three_states.test.mjs',
+    /* [v3.428.0] L12-O5 真宿主最小回归集判据：本档从 `tests/_break_kit.mjs` 取 `breakSource` /
+     *   `assertSingleHit`（三条真源码破坏：下限比较 / 字节级错档比较 / 缺读数当无异常；
+     *   破坏副本经动态 import 在合成读数上重跑同款负控，证明判据真承重）。 */
+    'v3428_l12_o5_realhost_suite.test.mjs',
+    /* [v3.429.0] L12-O8 世界线跳跃表编辑器判据：本档从 `tests/_break_kit.mjs` 取 `breakSource` /
+     *   `assertSingleHit`（六条真源码破坏：解析单源 / 面板自算纪元 / 缺口分支失效 / 坏行丢成因 /
+     *   摘掉自动推进 / 逐行监听直接写配置；每条各配原版对照，破坏副本在真仓合成树上重跑同款门）。 */
+    'v3429_l12_o8_worldline_editor.test.mjs',
+    /* [v3.430.0] L12-X6 卸载演练判据：本档从 `tests/_break_kit.mjs` 取 `breakSource` /
+     *   `assertSingleHit`（三条真源码破坏：召回吞 null / 面板抛错 / 整模块注册失败；
+     *   破坏副本在真仓合成树上重跑同款演练，证明判据真承重）。 */
+    'v3430_l12_x6_unload_drill.test.mjs',
+    /* [v3.430.0] L12-X1/X2/X3/X4/X5/X9 六项拓展产品面判据：本档从 `tests/_break_kit.mjs` 取
+     *   `breakSource` / `assertSingleHit`（三条真源码破坏：传闻进表决 / 反例识别失效 / 秘密不再排除；
+     *   每条各配原版对照，破坏副本在同一 shim 上重新装载后必须现形）。 */
+    'v3430_l12_x1_x9_extensions.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

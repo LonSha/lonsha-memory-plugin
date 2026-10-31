@@ -1,164 +1,164 @@
 {
   "schema": "test-budget@1",
-  "version": "3.426.0",
+  "version": "3.430.0",
   "policy": {
     "slack_ratio": 1.1,
     "enforcement": "fail-open-warn-only",
     "note": "超预算只输出警告不改变退出码；测试面与审计面分开计；预算缺项只报耗时并说明原因"
   },
-  "tests_total": 422,
-  "tests_wall_s": 363.5,
+  "tests_total": 429,
+  "tests_wall_s": 317.3,
   "top_20_slowest": [
     {
       "file": "tests/v3159_audit_failclosed_and_fallback_parity.test.mjs",
-      "ms": 122455,
-      "limit_ms": 134701
+      "ms": 102895,
+      "limit_ms": 113185
     },
     {
       "file": "tests/v3230_dead_method_disposal.test.mjs",
-      "ms": 83062,
-      "limit_ms": 91368
+      "ms": 72942,
+      "limit_ms": 80236
     },
     {
       "file": "tests/v3279_o7_scanner_decl_surface.test.mjs",
-      "ms": 73019,
-      "limit_ms": 80321
-    },
-    {
-      "file": "tests/v3204_no_cross_repo_binding.test.mjs",
-      "ms": 46316,
-      "limit_ms": 50948
+      "ms": 64470,
+      "limit_ms": 70917
     },
     {
       "file": "tests/v3228_dead_methods_ledger.test.mjs",
-      "ms": 45294,
-      "limit_ms": 49823
+      "ms": 39544,
+      "limit_ms": 43498
     },
     {
       "file": "tests/v3161_config_reachability.test.mjs",
-      "ms": 35470,
-      "limit_ms": 39017
+      "ms": 32253,
+      "limit_ms": 35478
+    },
+    {
+      "file": "tests/v3204_no_cross_repo_binding.test.mjs",
+      "ms": 31689,
+      "limit_ms": 34858
     },
     {
       "file": "tests/v3207_ledger_entity_contract.test.mjs",
-      "ms": 26652,
-      "limit_ms": 29317
+      "ms": 22956,
+      "limit_ms": 25252
     },
     {
       "file": "tests/v34271_plan_baseline.test.mjs",
-      "ms": 25454,
-      "limit_ms": 27999
-    },
-    {
-      "file": "tests/v3206_process_reaping.test.mjs",
-      "ms": 24998,
-      "limit_ms": 27498
-    },
-    {
-      "file": "tests/v3203_version_guard_handover.test.mjs",
-      "ms": 24527,
-      "limit_ms": 26980
-    },
-    {
-      "file": "tests/v3116_dead_code.test.mjs",
-      "ms": 22354,
-      "limit_ms": 24589
+      "ms": 22548,
+      "limit_ms": 24803
     },
     {
       "file": "tests/v3131_ground_truth.test.mjs",
-      "ms": 22138,
-      "limit_ms": 24352
+      "ms": 19636,
+      "limit_ms": 21600
     },
     {
-      "file": "tests/v3319_ci_faithful_probe_and_attribution.test.mjs",
-      "ms": 19586,
-      "limit_ms": 21545
+      "file": "tests/v3427_l11_audit_face_repair.test.mjs",
+      "ms": 19188,
+      "limit_ms": 21107
+    },
+    {
+      "file": "tests/v3203_version_guard_handover.test.mjs",
+      "ms": 18715,
+      "limit_ms": 20587
+    },
+    {
+      "file": "tests/v3206_process_reaping.test.mjs",
+      "ms": 17988,
+      "limit_ms": 19787
+    },
+    {
+      "file": "tests/v3116_dead_code.test.mjs",
+      "ms": 16970,
+      "limit_ms": 18667
     },
     {
       "file": "tests/v3236_snapshot_restore_and_clear.test.mjs",
-      "ms": 18326,
-      "limit_ms": 20159
+      "ms": 16627,
+      "limit_ms": 18290
     },
     {
-      "file": "tests/v3235_rollback_preview.test.mjs",
-      "ms": 17150,
-      "limit_ms": 18865
+      "file": "tests/v3319_ci_faithful_probe_and_attribution.test.mjs",
+      "ms": 15712,
+      "limit_ms": 17283
     }
   ],
   "suites": {
     "tests/v3159_audit_failclosed_and_fallback_parity.test.mjs": {
-      "ms": 122455,
-      "limit_ms": 134701,
+      "ms": 102895,
+      "limit_ms": 113185,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v3230_dead_method_disposal.test.mjs": {
-      "ms": 83062,
-      "limit_ms": 91368,
+      "ms": 72942,
+      "limit_ms": 80236,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v3279_o7_scanner_decl_surface.test.mjs": {
-      "ms": 73019,
-      "limit_ms": 80321,
-      "why": "历史全量回归实测热点采样 (余量 10%)"
-    },
-    "tests/v3204_no_cross_repo_binding.test.mjs": {
-      "ms": 46316,
-      "limit_ms": 50948,
+      "ms": 64470,
+      "limit_ms": 70917,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v3228_dead_methods_ledger.test.mjs": {
-      "ms": 45294,
-      "limit_ms": 49823,
+      "ms": 39544,
+      "limit_ms": 43498,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v3161_config_reachability.test.mjs": {
-      "ms": 35470,
-      "limit_ms": 39017,
+      "ms": 32253,
+      "limit_ms": 35478,
+      "why": "历史全量回归实测热点采样 (余量 10%)"
+    },
+    "tests/v3204_no_cross_repo_binding.test.mjs": {
+      "ms": 31689,
+      "limit_ms": 34858,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v3207_ledger_entity_contract.test.mjs": {
-      "ms": 26652,
-      "limit_ms": 29317,
+      "ms": 22956,
+      "limit_ms": 25252,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v34271_plan_baseline.test.mjs": {
-      "ms": 25454,
-      "limit_ms": 27999,
-      "why": "历史全量回归实测热点采样 (余量 10%)"
-    },
-    "tests/v3206_process_reaping.test.mjs": {
-      "ms": 24998,
-      "limit_ms": 27498,
-      "why": "历史全量回归实测热点采样 (余量 10%)"
-    },
-    "tests/v3203_version_guard_handover.test.mjs": {
-      "ms": 24527,
-      "limit_ms": 26980,
-      "why": "历史全量回归实测热点采样 (余量 10%)"
-    },
-    "tests/v3116_dead_code.test.mjs": {
-      "ms": 22354,
-      "limit_ms": 24589,
+      "ms": 22548,
+      "limit_ms": 24803,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v3131_ground_truth.test.mjs": {
-      "ms": 22138,
-      "limit_ms": 24352,
+      "ms": 19636,
+      "limit_ms": 21600,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
-    "tests/v3319_ci_faithful_probe_and_attribution.test.mjs": {
-      "ms": 19586,
-      "limit_ms": 21545,
+    "tests/v3427_l11_audit_face_repair.test.mjs": {
+      "ms": 19188,
+      "limit_ms": 21107,
+      "why": "历史全量回归实测热点采样 (余量 10%)"
+    },
+    "tests/v3203_version_guard_handover.test.mjs": {
+      "ms": 18715,
+      "limit_ms": 20587,
+      "why": "历史全量回归实测热点采样 (余量 10%)"
+    },
+    "tests/v3206_process_reaping.test.mjs": {
+      "ms": 17988,
+      "limit_ms": 19787,
+      "why": "历史全量回归实测热点采样 (余量 10%)"
+    },
+    "tests/v3116_dead_code.test.mjs": {
+      "ms": 16970,
+      "limit_ms": 18667,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
     "tests/v3236_snapshot_restore_and_clear.test.mjs": {
-      "ms": 18326,
-      "limit_ms": 20159,
+      "ms": 16627,
+      "limit_ms": 18290,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     },
-    "tests/v3235_rollback_preview.test.mjs": {
-      "ms": 17150,
-      "limit_ms": 18865,
+    "tests/v3319_ci_faithful_probe_and_attribution.test.mjs": {
+      "ms": 15712,
+      "limit_ms": 17283,
       "why": "历史全量回归实测热点采样 (余量 10%)"
     }
   }

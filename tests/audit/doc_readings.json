@@ -1,12 +1,12 @@
 {
  "file": "tests/audit/doc_readings.json",
  "note": "README / PLAN 里「需要一次全量实跑才可信」的读数登记。**读数零手抄**：由 tools/_rebind_doc_readings.py 消费 TEST_SUMMARY_JSON=<path> node tests/run.mjs --audit 的摘要写入。scan_doc_truthfulness.mjs 只核对「文档 ↔ 本文件」，自己不跑全量（审计段跑全量会自指）。",
- "measured_at": "v3.427.0",
- "version": "3.427.0",
- "tests_total": 423,
- "assertions": 4545,
- "audit_passed": 67,
- "audit_total": 67,
+ "measured_at": "v3.430.0",
+ "version": "3.430.0",
+ "tests_total": 429,
+ "assertions": 4646,
+ "audit_passed": 68,
+ "audit_total": 68,
  "source": "node tests/run.mjs --audit（TEST_SUMMARY_JSON 落盘的结构化摘要）",
  "rebinds": {
   "v3.296.0": {
@@ -68,6 +68,16 @@
    "tests_total": 423,
    "assertions": 4545,
    "audit": "67/67"
+  },
+  "v3.429.0": {
+   "tests_total": 427,
+   "assertions": 4609,
+   "audit": "68/68"
+  },
+  "v3.430.0": {
+   "tests_total": 429,
+   "assertions": 4646,
+   "audit": "68/68"
   }
  }
 }

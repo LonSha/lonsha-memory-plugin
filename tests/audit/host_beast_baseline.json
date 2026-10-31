@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.427.0",
+  "measured_at": "v3.430.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2835,6 +2835,114 @@
       },
       "unchanged": "line_budget 行上界 None 与成员上界 1190 均未抬；readings 17 项逐字段与 v3.426.0 相同（探针复核 total_lines / member_count 一致，本版一行宿主代码未动）。",
       "not_done": "未做的：没有重跑 index.js 外提（本版只改审计面）；没有重测 seam 模块拆合（拆本身的形状属后续版本，本版连一行实现都不动）。"
+    },
+    "v3.428.0": {
+      "reason": "[v3.428.0] L12-O1「五件零消费内核」接管产品面：此前 institutional-memory / relation-dynamics / character-agency-contract / symbolic-evolution / era-inheritance 五件登记在册、真加载、单测全绿，而 index.js 里 grep 计数**全为 0** —— 产品端一次都没调用。本版给五件各接一套「读 / 动作 / 诊断行」宿主出口（index.js +53 行，只留一行转发），业务全部落在 engine-diagnostic-lines.js（+650 行），selfCheck 新增两行自检（+49 行，该成员 1512 → 1561）。三条都是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11773,
+        "surface_lines": 29530,
+        "member_count": 1188,
+        "duplicate_member_names": 160,
+        "top5_lines": 5762,
+        "top5_pct": 19.5,
+        "top40_lines": 12930,
+        "top40_pct": 43.8,
+        "prefix_rule_coverage_lines": 5014,
+        "prefix_rule_coverage_pct": 17.0,
+        "unclassified_lines": 23686,
+        "seam_distinct_modules": 153,
+        "seam_reference_sites": 444,
+        "seam_call_shape_sites": 572,
+        "members_over_80_lines": 53,
+        "low_coupling_members": 18,
+        "high_coupling_members": 17
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做「零消费内核接管产品面」的接线与判据，未拆任何宿主巨兽成员",
+      "delta_from": "v3.427.0",
+      "delta": {
+        "total_lines": 54,
+        "surface_lines": 751,
+        "member_count": 20,
+        "top40_lines": 85,
+        "top5_pct": -0.3,
+        "top40_pct": -0.8
+      }
+    },
+    "v3.429.0": {
+      "reason": "[v3.429.0] L12-O8 世界线跳跃表结构化编辑器 + 实时读数：本版把「写错一行被闸静默丢弃、当前纪元只在诊断行可见」这两个产品面真欠账收掉 —— engine-diagnostic-lines.js 新增解析单源 parseJumpsText（rows / rejects / warns / entries 四桶，坏行带 1 基行号与可读成因）与 预览读数 worldlineJumpDraft（writesNothing:true，供面板读而不写配置），闸侧 _worldlineState 改为消费同一解析结果（行为逐字不变：坏行跳过 + 楼层升序，区别是坏行**有名字**了）；settings-ui.js 把裸 textarea 换成结构化行区 + 三态读数行（none / gap / ok，另加 unwired / bad / conflict）+ 坏行具名区，原始文本折叠保留并**仍绑同一个配置键**；index.js 只加一行 worldlineJumpDraft 转发。三条都是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11776,
+        "surface_lines": 29632,
+        "member_count": 1190,
+        "duplicate_member_names": 160,
+        "top5_lines": 5762,
+        "top5_pct": 19.4,
+        "top40_lines": 12919,
+        "top40_pct": 43.6,
+        "prefix_rule_coverage_lines": 5014,
+        "prefix_rule_coverage_pct": 16.9,
+        "unclassified_lines": 23787,
+        "seam_distinct_modules": 153,
+        "seam_reference_sites": 445,
+        "seam_call_shape_sites": 573,
+        "members_over_80_lines": 53,
+        "low_coupling_members": 18,
+        "high_coupling_members": 17
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做「零消费内核接管产品面」的接线与判据，未拆任何宿主巨兽成员",
+      "delta_from": "v3.428.0",
+      "delta": {
+        "total_lines": 3,
+        "surface_lines": 102,
+        "member_count": 2,
+        "top40_lines": -11,
+        "top5_pct": -0.1,
+        "top40_pct": -0.2
+      }
+    },
+    "v3.430.0": {
+      "reason": "[v3.430.0] L12-X1~X9 九项拓展接线：本版把九件「登记在册、真加载、单测全绿，而产品端一次都没调用」的拓展各接一套宿主出口 —— 组织与制度记忆的真入口、意义的演化与释义漂移、前世线回填（前史）、事实纠错的可解释面、世界线跳转草稿、上下文卸载演练、反对意见的对象化反例、秘密事实的排除面、记忆沉默状态的可解释。业务全部落在 engine-diagnostic-lines.js（+1742 行），index.js 只留转发桩（+146 行），settings-ui.js 承担面板各面（+661 行），engine-self-check.js 承担自检行（+49 行），memory-organs.js / memory-config.js 承担登记面（+25 / +1 行）。九条都是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11862,
+        "surface_lines": 30722,
+        "member_count": 1218,
+        "duplicate_member_names": 160,
+        "top5_lines": 5796,
+        "top5_pct": 18.9,
+        "top40_lines": 13024,
+        "top40_pct": 42.4,
+        "prefix_rule_coverage_lines": 5018,
+        "prefix_rule_coverage_pct": 16.3,
+        "unclassified_lines": 24857,
+        "seam_distinct_modules": 156,
+        "seam_reference_sites": 465,
+        "seam_call_shape_sites": 593,
+        "members_over_80_lines": 58,
+        "low_coupling_members": 18,
+        "high_coupling_members": 18
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做九项拓展的接线与判据，未拆任何宿主巨兽成员",
+      "delta_from": "v3.429.0",
+      "delta": {
+        "total_lines": 86,
+        "surface_lines": 1090,
+        "member_count": 28,
+        "top40_lines": 105,
+        "top5_pct": -0.5,
+        "top40_pct": -1.2
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2848,57 +2956,57 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 11719,
-    "surface_lines": 28779,
-    "member_count": 1168,
+    "total_lines": 11862,
+    "surface_lines": 30722,
+    "member_count": 1218,
     "duplicate_member_names": 160,
-    "top5_lines": 5685,
-    "top5_pct": 19.8,
-    "top40_lines": 12845,
-    "top40_pct": 44.6,
-    "prefix_rule_coverage_lines": 4965,
-    "prefix_rule_coverage_pct": 17.3,
-    "unclassified_lines": 22999,
-    "seam_distinct_modules": 148,
-    "seam_reference_sites": 424,
-    "seam_call_shape_sites": 552,
-    "members_over_80_lines": 52,
+    "top5_lines": 5796,
+    "top5_pct": 18.9,
+    "top40_lines": 13024,
+    "top40_pct": 42.4,
+    "prefix_rule_coverage_lines": 5018,
+    "prefix_rule_coverage_pct": 16.3,
+    "unclassified_lines": 24857,
+    "seam_distinct_modules": 156,
+    "seam_reference_sites": 465,
+    "seam_call_shape_sites": 593,
+    "members_over_80_lines": 58,
     "low_coupling_members": 18,
-    "high_coupling_members": 17
+    "high_coupling_members": 18
   },
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1105,
-      "lines": 22999,
-      "lines_pct": 79.9,
-      "outside_refs": 22484,
-      "internal_refs": 8562,
-      "outside_ref_share_pct": 72.4
+      "members": 1154,
+      "lines": 24857,
+      "lines_pct": 80.9,
+      "outside_refs": 23102,
+      "internal_refs": 8626,
+      "outside_ref_share_pct": 72.8
     },
     {
       "domain": "诊断与导出",
       "members": 20,
-      "lines": 1990,
-      "lines_pct": 6.9,
-      "outside_refs": 1477,
+      "lines": 2039,
+      "lines_pct": 6.6,
+      "outside_refs": 1491,
       "internal_refs": 290,
-      "outside_ref_share_pct": 83.6
+      "outside_ref_share_pct": 83.7
     },
     {
       "domain": "召回与注入",
-      "members": 18,
-      "lines": 1294,
-      "lines_pct": 4.5,
-      "outside_refs": 127,
-      "internal_refs": 75,
-      "outside_ref_share_pct": 62.9
+      "members": 19,
+      "lines": 1298,
+      "lines_pct": 4.2,
+      "outside_refs": 141,
+      "internal_refs": 77,
+      "outside_ref_share_pct": 64.7
     },
     {
       "domain": "宿主事件接线",
       "members": 3,
       "lines": 836,
-      "lines_pct": 2.9,
+      "lines_pct": 2.7,
       "outside_refs": 50,
       "internal_refs": 33,
       "outside_ref_share_pct": 60.2
@@ -2907,7 +3015,7 @@
       "domain": "配置与持久化",
       "members": 3,
       "lines": 490,
-      "lines_pct": 1.7,
+      "lines_pct": 1.6,
       "outside_refs": 33,
       "internal_refs": 0,
       "outside_ref_share_pct": 100
@@ -2935,9 +3043,9 @@
       "members": 8,
       "lines": 42,
       "lines_pct": 0.1,
-      "outside_refs": 138,
+      "outside_refs": 144,
       "internal_refs": 7,
-      "outside_ref_share_pct": 95.2
+      "outside_ref_share_pct": 95.4
     },
     {
       "domain": "事件链/完整性",
@@ -2971,8 +3079,8 @@
     {
       "name": "selfCheck",
       "file": "engine-self-check.js",
-      "lines": 1512,
-      "outside_refs": 217
+      "lines": 1561,
+      "outside_refs": 224
     },
     {
       "name": "applyExtractedPayload",
@@ -2983,19 +3091,19 @@
     {
       "name": "buildInjection",
       "file": "engine-injection-pipeline.js",
-      "lines": 1238,
-      "outside_refs": 39
+      "lines": 1248,
+      "outside_refs": 41
     },
     {
       "name": "recallMemory",
       "file": "engine-recall.js",
-      "lines": 875,
-      "outside_refs": 28
+      "lines": 878,
+      "outside_refs": 33
     },
     {
       "name": "typedFactsBlocks",
       "file": "index.js",
-      "lines": 773,
+      "lines": 822,
       "outside_refs": 2
     },
     {
@@ -3019,7 +3127,7 @@
     {
       "name": "_assembleComponents",
       "file": "index.js",
-      "lines": 397,
+      "lines": 415,
       "outside_refs": 0
     },
     {
@@ -3041,16 +3149,16 @@
       "outside_refs": 40
     },
     {
-      "name": "_worldlineState",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 274,
-      "outside_refs": 7
-    },
-    {
       "name": "onMessageReceived",
       "file": "index.js",
       "lines": 270,
       "outside_refs": 44
+    },
+    {
+      "name": "_worldlineState",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 263,
+      "outside_refs": 14
     },
     {
       "name": "refresh",
@@ -3083,28 +3191,28 @@
       "outside_refs": 4
     },
     {
+      "name": "extractMemoryWithLLM",
+      "file": "index.js",
+      "lines": 155,
+      "outside_refs": 0
+    },
+    {
+      "name": "getDegradationLedger",
+      "file": "index.js",
+      "lines": 155,
+      "outside_refs": 1
+    },
+    {
       "name": "applyRepairPlan",
       "file": "engine-repair-ops.js",
       "lines": 153,
       "outside_refs": 10
     },
     {
-      "name": "getDegradationLedger",
-      "file": "index.js",
-      "lines": 143,
-      "outside_refs": 1
-    },
-    {
       "name": "collectExport",
       "file": "engine-persistence-ops.js",
       "lines": 143,
       "outside_refs": 49
-    },
-    {
-      "name": "extractMemoryWithLLM",
-      "file": "index.js",
-      "lines": 142,
-      "outside_refs": 0
     },
     {
       "name": "showPanel",
@@ -3117,6 +3225,12 @@
       "file": "engine-repair-ops.js",
       "lines": 139,
       "outside_refs": 11
+    },
+    {
+      "name": "silenceExplainState",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 137,
+      "outside_refs": 5
     },
     {
       "name": "retryRepairItems",
@@ -3185,6 +3299,12 @@
       "outside_refs": 0
     },
     {
+      "name": "institutionRuleAct",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 112,
+      "outside_refs": 7
+    },
+    {
       "name": "maybeFold",
       "file": "memory-core.js",
       "lines": 111,
@@ -3195,30 +3315,18 @@
       "file": "engine-story-annual.js",
       "lines": 109,
       "outside_refs": 9
-    },
-    {
-      "name": "backfillFloors",
-      "file": "index.js",
-      "lines": 107,
-      "outside_refs": 1
-    },
-    {
-      "name": "storyCanonAdoptConfirm",
-      "file": "index.js",
-      "lines": 106,
-      "outside_refs": 0
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 52,
+    "total_over_threshold": 58,
     "low_coupling_non_lifecycle": 18,
-    "high_coupling_non_lifecycle": 17,
+    "high_coupling_non_lifecycle": 18,
     "low_coupling_examples": [
       {
         "name": "typedFactsBlocks",
         "file": "index.js",
-        "lines": 773,
+        "lines": 822,
         "outside_refs": 2,
         "is_host_lifecycle": false
       },
@@ -3232,22 +3340,22 @@
       {
         "name": "_assembleComponents",
         "file": "index.js",
-        "lines": 397,
+        "lines": 415,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "extractMemoryWithLLM",
+        "file": "index.js",
+        "lines": 155,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
       {
         "name": "getDegradationLedger",
         "file": "index.js",
-        "lines": 143,
+        "lines": 155,
         "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "extractMemoryWithLLM",
-        "file": "index.js",
-        "lines": 142,
-        "outside_refs": 0,
         "is_host_lifecycle": false
       },
       {
@@ -3304,22 +3412,22 @@
       {
         "name": "selfCheck",
         "file": "engine-self-check.js",
-        "lines": 1512,
-        "outside_refs": 217,
+        "lines": 1561,
+        "outside_refs": 224,
         "is_host_lifecycle": false
       },
       {
         "name": "buildInjection",
         "file": "engine-injection-pipeline.js",
-        "lines": 1238,
-        "outside_refs": 39,
+        "lines": 1248,
+        "outside_refs": 41,
         "is_host_lifecycle": false
       },
       {
         "name": "recallMemory",
         "file": "engine-recall.js",
-        "lines": 875,
-        "outside_refs": 28,
+        "lines": 878,
+        "outside_refs": 33,
         "is_host_lifecycle": false
       },
       {
@@ -3346,8 +3454,8 @@
       {
         "name": "_worldlineState",
         "file": "engine-diagnostic-lines.js",
-        "lines": 274,
-        "outside_refs": 7,
+        "lines": 263,
+        "outside_refs": 14,
         "is_host_lifecycle": false
       },
       {
@@ -3431,7 +3539,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.427.0] 本版只改审计面（守门脚本 / 台账 / 负控制 / 判据 / 文档），**宿主一行未动**：index.js 仍 11719 行、成员仍 1168，行上界 12096 与成员上界均**不抬**（余量 377 / 22 仍在 slack 400 内）。本条留痕只为回答「当版有账」——抬升不是默认动作，不涨就明写不涨。",
+    "note": "[v3.430.0] L12-X1~X9 九项拓展接线：index.js +86 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**上抬至 1248**（余量 30 <= member_slack 30）。合并面 30722 行，TOP5 占 18.9%、TOP40 占 42.4%。",
     "history": [
       {
         "ceiling": 15000,
@@ -3739,14 +3847,32 @@
           "total_lines": 11719,
           "member_count": 1168
         }
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1190,
+        "milestone_version": "v3.428.0",
+        "reason": "[v3.428.0] L12-O1 五件零消费内核接管产品面：index.js +54 行（五个取库口 + 十五个三件套出口）、engine-diagnostic-lines.js 承担业务、selfCheck +49 行。入口 index.js 11773 行、成员数 1188；行上界与成员上界**均不抬**（仍在 slack 内）（余量 323 / 2）。合并面 29530 行，TOP5 占 19.5%、TOP40 占 43.8%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1190,
+        "milestone_version": "v3.429.0",
+        "reason": "[v3.429.0] L12-O8 世界线跳跃表结构化编辑器：index.js +3 行（世界线预览读数的单行转发）、解析单源与预览读数承担业务、settings-ui.js 承担编辑器 UI。入口 index.js 11776 行、成员数 1190；行上界与成员上界**均不抬**（仍在 slack 内）（余量 320 / 0）。合并面 29632 行，TOP5 占 19.4%、TOP40 占 43.6%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1248,
+        "milestone_version": "v3.430.0",
+        "reason": "[v3.430.0] L12-X1~X9 九项拓展接线：index.js +86 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**上抬至 1248**（余量 30 <= member_slack 30）。合并面 30722 行，TOP5 占 18.9%、TOP40 占 42.4%。"
       }
     ],
-    "member_ceiling": 1190,
+    "member_ceiling": 1248,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 11719,
-  "member_count": 1168,
+  "total_lines": 11862,
+  "member_count": 1218,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
 }

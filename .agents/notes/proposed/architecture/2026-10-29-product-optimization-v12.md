@@ -1,7 +1,7 @@
 # Agent Note: LonSha 第十一期优化提升计划
 Status: proposed
 
-> **期号口径（先说清，免得后人误读）**：V9（2026-10-24）是「第九期」提案；仓内 CHANGELOG 里的「第十期」已由 v3.410.0 承接（动态认知回路 18 项）。本份为**第十一期**，故文件名取 v11 而非 v10 —— v10 已被 v3.410.0 占用，不换名重报。
+> **期号口径（本版修正，2026-10-31）**：原文自称「第十一期」并把编号取作 `L11-O*/L11-X*` —— **这是撞号，已在本版改正**。事实核对：`CHANGELOG.md:166` 的 v3.420.0 一节标题是「**第十一期**深层认知惯性阻尼与叙事既视感史诗 18 项核心机制全量落地」，并且**已经用掉整套 `L11-O1~O9 / L11-X1~X9` 指另外十八件完全不同的模块**（心理阻尼 / 视网膜注意力 / 潜意识暗涌 等，见 `CHANGELOG.md:168-186`）。编号在本仓是**判据的寻址依据**（`index.js:219` 的注释就以 `L11-O5` / `L11-O8` / `L11-X9` 指那批模块），两套计划共用同一串编号会让「L11-O1 是哪个」永不唯一。故本份改号为**第十二期**：文件 `v11 → v12`、编号 `L11-* → L12-*`，正文其余内容一字未动。期号序列因此为：第九期 = V9（`L9-*`）、第十期 = v3.410.0（`L10-*`）、**第十一期 = v3.420.0（`L11-*`，已交付）**、第十二期 = 本份（`L12-*`）。
 
 ## Problem
 
@@ -22,7 +22,7 @@ Status: proposed
 
 每项至少包含：真实现场证据（可复算命令或读数）、现有 owner 接线点、用户可见入口、撤销/降级路径、定向回归。**不把守卫扩建当产品项**，守卫只作为该项的最小收口证据。
 
-### L11-O1 · 零消费内核的接线清算（七件逐个定生死）
+### L12-O1 · 零消费内核的接线清算（七件逐个定生死）
 
 - **真实现场**：`for m in ...; do echo "$m=$(grep -c "$m" index.js)"; done` ⇒ `memory-supersede=0`、`institutional-memory=0`、`symbolic-evolution=0`、`knowledge-network=0`、`relation-dynamics=0`、`character-agency-contract=0`、`era-inheritance=0`。另记一处**拼写异体**：`memory-suppersede`（双 p）在 `index.js` 同样为 0 —— 当初接线尝试留下的痕迹本身就是错的。
 - **工作包**：对每个模块做三选一并留证：
@@ -34,7 +34,7 @@ Status: proposed
 - **验收**：七件的 `grep -c` 全部落在「接线」或「已删」两类；破坏任一接线点后对应套件必须红（负控制）。
 - **规模**：七件 × (侦察 + 接线 + 面板 + 判据 + 负控制) ≈ **3~4 天**。
 
-### L11-O2 · 死代码预算从「行数」升级到「消费面」
+### L12-O2 · 死代码预算从「行数」升级到「消费面」
 
 - **真实现场**：`python3 -c "import json;print(list(json.load(open('tests/audit/dead_code_budget.json'))))"` ⇒ 全是行数口径；`knowledge-network in budget = True`，其余六件 `False`。
 - **工作包**：新增**消费面台账** `tests/audit/module_consumption_ledger.json`（每模块一行：`module / surface / prod_call_sites / allowed / why`），并写审计脚本 `scan_module_consumption.mjs`：
@@ -46,7 +46,7 @@ Status: proposed
 - **验收**：把任一已接线模块的调用点归零 → 红且点名模块；台账 `allowed:0` 项变成有消费 → 只提示；拆掉扫描面 → `exit 2` 而非 `exit 0`。
 - **规模**：**1.5~2 天**（含三向负控制）。
 
-### L11-O3 · 消费判定必须按「模块解析后的绑定」，不按名字
+### L12-O3 · 消费判定必须按「模块解析后的绑定」，不按名字
 
 - **真实现场（跨仓实测）**：ruby-phone `config/diff-review-pipeline.js:21 computeParagraphDiff` 是真孤儿，但 `config/diff-editor-desk.js:47` 有同名函数被消费 ⇒ 零消费门按名字判绿；把 desk 那个改名（`computeParagraphDiffX`）后门立刻报出两条未登记零消费，其中一条就是那个真孤儿。同一判据缺陷会在本仓复现。
 - **工作包**：把消费判定单位从「标识符名」改为「`import` 解析后的模块内绑定」：
@@ -56,14 +56,14 @@ Status: proposed
 - **验收**：夹具里造「A 有同名孤儿、B 的同名函数被消费」→ 旧口径绿、新口径红；反方向（真接线但同名）→ 两口径都绿，不许误杀。
 - **规模**：**1 天**。
 
-### L11-O4 · 玩家面板的空 / 缺席 / 失败三态统一
+### L12-O4 · 玩家面板的空 / 缺席 / 失败三态统一
 
 - **真实现场**：`settings-ui.js` 41 处 `show*` 出口；`scan_ui_panel_drive.mjs` 六条判据只覆盖诊断面板与条目浏览两条路径。
 - **工作包**：定义统一三态出口（`absent / empty / failed`，**三态不同形**，不许压成一句「暂无数据」），落到面板各列表；`scan_ui_panel_drive.mjs` 的 W 段扩到覆盖 ≥8 个面板，其中至少两处是「故意把模块摘掉」的驱动。
 - **验收**：摘掉内核模块 ⇒ 面板显示「不可用 + 原因」，不是「0 条」；造一个抛错取数口 ⇒ 失败态 + 保留「重试」；空盘 ⇒ 「真的没有」并给「怎么开始」一句话。
 - **规模**：**2 天**。
 
-### L11-O5 · 真实宿主最小回归集（把一次性探针变成可复跑的门）
+### L12-O5 · 真实宿主最小回归集（把一次性探针变成可复跑的门）
 
 - **真实现场**：诚实边界连四版写「仍未跑真实 ST UI」；但 `tests/audit/_mo1_realhost_probe.mjs`（零依赖 CDP，Node 自带 WebSocket 直连 Chromium）**已在真 ST 1.19.0 上跑过 23 条读数并全成立**。问题在于它手工跑、没有入口、没有读数落盘。
 - **工作包**：整理成 `tests/audit/_realhost_suite.mjs`，一条命令跑三条最小回归：
@@ -74,21 +74,21 @@ Status: proposed
 - **验收**：一条命令、三个读数块、退出码三档（0 全成立 / 1 有真缺陷 / 2 环境缺失）。
 - **规模**：**2~3 天**（真宿主调时序最费时）。
 
-### L11-O6 · 文档体量读数直接由探针生成（消灭 PLAN 第 57 行的手抄）
+### L12-O6 · 文档体量读数直接由探针生成（消灭 PLAN 第 57 行的手抄）
 
 - **真实现场**：`PLAN.md:57` = `index.js 12122 行 / 723 成员`；实测 `wc -l index.js` = **11718**、探针成员 = **1168**、`extra_js` = **244**。该表自身声明「没有判据看守」。
 - **工作包**：写 `tools/gen_plan_baseline.py`（或复用 `gen_state_report.mjs` 的取数函数），消费 `host_beast_probe.cjs` 输出**直接改写** PLAN 的版本/体量/快照三行；加一条轻判据：表内数字与探针读数不一致即红。
 - **验收**：手工改表里任一数字 → 红；`--write` 后 `--check` 通过；v3.426.0 的三处陈旧读数（12122 / 723 / 243）修正。
 - **规模**：**0.5 天**。
 
-### L11-O7 · extra_js 与宿主 seam 的耦合账
+### L12-O7 · extra_js 与宿主 seam 的耦合账
 
 - **真实现场**：`manifest.extra_js` = **244** 项；`host_beast_probe.cjs` 的 `seam_modules` = `distinct_modules 148 / reference_sites 424 / call_shape_sites 552`。即 **96 个模块被加载但不在 seam 引用面**。其中多少是「被别的模块内部用」（正常）、多少是「纯挂着」（O1 的七件就属这类），当前没有任何一面说得清。
 - **工作包**：出对账表 `tests/audit/extra_js_seam_ledger.tsv`（`module / loaded / seam_referenced / referenced_by / verdict`），`verdict` 三值：`host-seam`（宿主直接引用）/ `module-internal`（被别的模块引用）/ `orphan`（两者皆无 ⇒ 交给 O1）。
 - **验收**：`orphan` 计数为 0 或全部在 `module_consumption_ledger.json` 里带理由；探针面塌陷时 `exit 2`。
 - **规模**：**1 天**。
 
-### L11-O8 · 世界线记忆对卡作者可用（口径对了，作者还摸不到）
+### L12-O8 · 世界线记忆对卡作者可用（口径对了，作者还摸不到）
 
 - **真实现场**：v3.425.0 换主键、v3.426.0 修自动推进，两版都把**口径**改对了；但卡作者要落地得读 CHANGELOG 才知道有五个键，`worldlineJumps` 还得手写「每行 `楼层:层标记`」。这些键已进 `CARD_CFG_KEYS` + 有 UI 控件，但**跳跃表编辑器与实时读数没有**。
 - **工作包**：
@@ -97,7 +97,7 @@ Status: proposed
 - **验收**：面板里造三次跳线（含一次回跳）⇒ 读数与内核 `epochAt` 一致；删掉首跳行 ⇒ 前史条目读数从 `blocked` 退回 `undecided`，且面板给出「信息缺失」而非「安全」。
 - **规模**：**1.5 天**。
 
-### L11-O9 · 全量回归成本剖面与预算
+### L12-O9 · 全量回归成本剖面与预算
 
 - **真实现场**：v3.426.0 全量 = **420 文件 / 4532 断言 / 审计 61**，测试 ~323s + 审计 ~133s ≈ **8 分钟**（`--jobs 3 --audit-jobs 2`）。已有 `tests/audit/test_cost_readings.json` 与 `scan_cost_truthfulness.mjs`（量「覆盖范围是否自述」），但**没有逐档耗时的预算表**。
 - **工作包**：出 `tests/audit/test_budget.json`（逐档 `ms / limit_ms / why`，余量 `limit = round(ms × 1.1)`、fail-open 不阻发布、告警不改退出码），并给一条「最慢 20 档」读数行。

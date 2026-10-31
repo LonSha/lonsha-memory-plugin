@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 107910,
+  "ceiling": 110629,
   "maxSlack": 400,
-  "note": "v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长",
+  "note": "[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -393,7 +393,19 @@
     {
       "ceiling": 107910,
       "reason": "v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长"
+    },
+    {
+      "ceiling": 108969,
+      "reason": "v3.428.0 L12-O1 五件零消费内核接管产品面：engine-diagnostic-lines.js 新增五件内核的读/动作/诊断行业务（+650 行）、index.js 新增五个取库口与十五个三件套出口（+53 行）、engine-self-check.js 新增两行自检（+49 行）、settings-ui.js 三态出口（+4080 字节）。均为活跃功能增长，非死代码回流"
+    },
+    {
+      "ceiling": 109378,
+      "reason": "[v3.429.0] L12-O8 世界线跳跃表结构化编辑器：engine-diagnostic-lines.js 新增解析单源 parseJumpsText 与预览读数 worldlineJumpDraft（坏行具名 + 逐行原文 1:1），settings-ui.js 新增结构化行编辑器与三态读数行；均为活跃功能增长，非死代码回流"
+    },
+    {
+      "ceiling": 110629,
+      "reason": "[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流"
     }
   ],
-  "_history_last": "ceiling 107197 → 107910（实测 107510 + slack 400）：v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长"
+  "_history_last": "ceiling 109378 → 110629（实测 110229 + slack 400）：[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流"
 }

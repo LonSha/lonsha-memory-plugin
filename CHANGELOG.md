@@ -1,3 +1,134 @@
+## v3.430.0
+**L12-X 九项拓展收口：六面产品判据 + 卸载演练 + 缺陷索引 + 卡作者口径表**
+
+- **这一版修的是什么（修前实测，读码可复算）**：L12 的 O1/O4/O5/O8 四件把「内核建好了、产品面没进去过」这个病治了第一轮，但 X 面九项**一件都没开工**。开工前先量现场：
+  - `grep -c institutional-memory index.js` = **0**、`symbolic-evolution` = **0** —— 组织制度、意义演化两件在宿主侧**零入口**，玩家永远碰不到（与 v3.428.0 同一种「功能级失效」，只是换了模块）；
+  - `grep -rn drill package.json` = **无此入口**，`tools/` 下无任何卸载演练脚本 —— 而 O1 正要摘/删七个模块，**那恰好是最需要安全网的时刻**；
+  - `worldlineJumps` 五个键的口径只活在 CHANGELOG 里，卡作者要落地得先读 changelog 才知道有五个键（v3.429.0 修了「作者不可达」，但**口径本身仍无对照表**）；
+  - 「本版自己抓到的缺陷」散落在每节正文的 `★ 本版自纠` 段里，**没有一个地方能一次读完** —— 于是同一族缺陷被反复重犯（本轮自己就重犯了 11 次，见下）。
+- **九项的落地形态（逐项点名产物，不写「已实现」了事）**：
+  | 项 | 产物 | 现场复算 |
+  |---|---|---|
+  | X1 组织与制度记忆真入口 | `engine-diagnostic-lines.js` 的 `institutionRuleState`（2620）/ `institutionRuleAct`（2678）+ `index.js` 两个宿主委派桩（3158 / 3159）+ 面板渲染 | `grep -c institutionRuleState settings-ui.js` = 1 |
+  | X2 意义演化可解释面 | `meaningViewState`（2807）/ `meaningViewAct`（2888）+ 宿主 3161 / 3162 + 面板 | 同上，面板 1 处 |
+  | X3 世界线前史作者工具 | `worldlinePrehistory`（3023）+ 宿主 3164 + 面板 2 处（含建议按钮） | 三态 `unregistered/covered/gap` |
+  | X4 证据裁决影响回放 | `evidenceImpactReplay`（3151）+ 宿主 3166 + 面板 1 处 | `EVIDENCE_IMPACT_VERDICTS` 四裁决 |
+  | X5 跨仓回执链 | `actionReceiptState`（3238）+ 宿主 3168 + 面板 1 处 | `RECEIPT_OUTCOMES` 五词冻结 |
+  | X6 卸载可逆演练 | `tools/drill_unload.mjs`（474 行）+ `tests/v3430_l12_x6_unload_drill.test.mjs`（379 行） | `npm run drill:unload` |
+  | X7 本版缺陷自动归档 | `tools/gen_defect_index.py`（150 行）+ `docs/archive/defect-index.md`（514 行）+ `.json` | `npm run index:defects` |
+  | X8 卡作者口径对照表 | `docs/worldline-authoring.md`（131 行，每条读数附可复算命令） | 十一键各 2 次 / `worldlineReaderPolicy` 3 次 |
+  | X9 沉默可解释 | `silenceExplainState`（3349）+ 宿主 3171 + 面板 1 处 | 四问四桶 `blocked/muted/notRecalled/trimmed` |
+- **这一版的实质：不是「写了九个功能」，是「把九个功能的验收语句翻译成能翻红的读数」**。核心判据 `tests/v3430_l12_x1_x9_extensions.test.mjs`（19 条，真跑 2293ms）：
+  - **A 结构面**钉「唯一真源」：六面各只有一份实现 —— 宿主侧八处全是 `_moduleLib(() => window.LonShaDiagnosticLines, …)` 委派桩（A2 用正则收全部桩名再对照 `FACES`，桩名漏一个就红），且内核实现体**不直读宿主全局**（只吃注入）。这两条合起来钉的是本仓最贵的病：一处逻辑两份实现。
+  - **A3 三态纪律（本档第 11/13 处自伤修出来的口径）**：六面缺席出口**不是同形**，而是三档 —— X1/X2/X4/X5 用局部 `absent(why)`（`ok:false + reason`）；X9 也有 `absent()` 但缺席态是 `state:'unavailable'`；X3 **没有** `absent()`，靠 `base` 模板的 `state` 三态（`unregistered/covered/gap`）承载、`ok` 恒 `true`。判据要钉的是「每一面都有一条不与健康读数混淆的缺席出口」，不是「六面写法一致」—— 后者是整洁性诉求冒充判据。
+  - **B 「判不了」与「没有」必须可区分**：真仓六面 reason 实测 `empty / empty / no-jumps / fact-key-required / empty / no-topics`，其中 `evidenceImpactReplay().ok === false`（缺事实键 ⇒ 判不了）而 `institutionRuleState().ok === true`（空表 ⇒ 有读数、只是 0 条）。X3/X5/X9 三面的空态理由**三种不同形**。
+  - **C/D/E 逐项业务回路**：X1 四类来源分桶各 1、**传闻不进表决三态**（`active+proposed+repealed === 3` 而非 4，`active === 1` 而非 2）、`previousContent` 只在显式 `withHistory` 时给；X2 多义并列在场、历史逐条带 `floor`（[3,20,45]）与 `trigger`、反例单列（含 `（不认同）` 前缀视角）、`touchesFactOwner === false`；X3 三态不同形、`gapFrom=1`/`gapTo=首跳-1`、调前后真配置**逐字不变**、建议恒 `writes:false`；X4 四裁决四个下游词、`revoke → pending`、`secretsExcluded` 计数且秘密**不进** `affected`、未受影响项与秘密都**不进** `recomputed`；X5 空链 `downstream:'absent'` 且 `receipts:0`（不伪造）、四态齐、`chain` 可审阅、`sessionOnly` 可读；X9 四问**恰是且仅是** `blocked/muted/notRecalled/trimmed`、`surfacing` 与 `notFound` 分列、`state:'not-found' ≠ 'unavailable'`、静音不删除且 `reversible`、**两条静音真源**（`ctx.mutedTopicIds` 本轮 / `seasonState.userActions.mute` 持久）各自生效。
+  - **F 三条真源码破坏，每条各配原版对照**（只断破坏侧 = 假绿第二形，只断原版侧 = 假绿第一形；破坏副本还必须**仍能装载**，否则测到的是语法错）：传闻进表决 ⇒ `active` 1→2；反例识别失效 ⇒ `objectionActors` 空且 `byActor['丙']` 多出一人；秘密不再排除 ⇒ `secretsExcluded` 1→0 且 `h1` 漏进 `affected`。
+  - **G 当版锚 + 两处登记面 + H5 纯度 + 工具两向自证**：三枚锚点在本档各只声明一次（`A_RUMOR` / `A_OBJVIEW` / `A_SECRET`），且在真源上各恰中 1 次。
+- **X6 卸载演练（`tools/drill_unload.mjs`）**：独立入口、**不进 `npm test`**（方案原文否决「写成守卫」—— 写成门会让「降级对不对」退化成「有没有写 catch」）。四条判据 D1~D4 + 三档退出码；真仓 `--json` 实测 `verdict='degraded-honestly'`、`control.defects=[]`、`drilled.defects=[]`、`drilled.initOk=true`、`ms=141`。成对套件 18 条全绿（8212ms），含三条真源码破坏（召回吞 null / 面板抛错 / **整模块注册失败**）。
+- **X7 缺陷索引（`tools/gen_defect_index.py` → `docs/archive/defect-index.md`）**：**不是新台账，只从 CHANGELOG 单一真源抽取**（抽出即索引，先写完再抽，永不手抄）。关键词 `缺陷/踩到的坑/自伤/假绿/判据自身`；实测 **298 版本节 / 67 命中子小节 / 165 条目**，`byKeyword = {缺陷:59, 踩到的坑:3, 自伤:6, 假绿:3, 判据自身:16}`，`CHANGELOG.md` ≈ 83.6 万字符 ⇒ md 35368 字符 / 515 行（md 面的字符数由 298 节 / 67 小节 / 165 条目决定，不随本节文字微调而变；CHANGELOG 自身的字符数则每写一段就变，故只记量级不记末位）。三档退出码 `0` 生成 / `1` 抽取结构异常（版本节低于 `MIN_VER_LINE = 50`）/ `2` CHANGELOG 不在场或读不出。
+- **X8 卡作者口径表（`docs/worldline-authoring.md`）**：十一个世界线卡键 + 纪元口径 + 坏行四桶。**每条读数都附可复算命令**（§1 的 for 循环实测输出 10 行 `2` + 1 行 `3`；§3 的 `node -e` 实测输出 `0/30 → no-jump-before` / `40 → β线@40 own-jump` / `50 → α线@47 carried`，与表格逐字一致）。
+- **★ 本版自己抓到的缺陷 12 处（逐条，这是本节最该读的一段）**：
+  - **真产品缺陷 1 处 —— `tools/drill_unload.mjs` 的 `LONSHA_DRILL_FIXTURE` 是死开关**：第 42 行 `const FIXTURE = process.env.LONSHA_DRILL_FIXTURE === '1';`，第 78 行先 `if (ORDER.length < 50) drift(...)`，第 79 行才 `const MIN_ORDER = FIXTURE ? 1 : 50;` —— **死数字先杀、开关后定义**，故 fixture 模式永不可达（实测 `LONSHA_DRILL_FIXTURE=1` 与不设完全同结果）。处置按纪律走完三步：先接线 → 验证「接线后仍零调用点」（`--only` 未传时 `DEFAULT_NINE` 不在塌陷 manifest 里 ⇒ 正确的 `notInOrder` drift）→ **删掉整个开关**，只留 `const MIN_ORDER = 50;`，并在注释写明「它没有任何真实调用方，留着就是下一个陷阱」。这是本版**第二类反复出现的缺陷形状**（「声明了但没接线」，与上一版「面板挂载判据把装载失败当合法降级」同族）。
+  - **判据自伤 11 处**（前 5 处来自 O1/O4：TDZ 误判 / `module-unavailable` 漏跑 `init()` / `selfCheck` 漏 `await` / 把健康报告当静默吞空 / `recallMemory` 返回数组却被当零键对象；本轮新增 6 处，逐条如下）：
+    ⑥ **`mkTree` 只造 3 个文件**，被演练的 `MIN_ORDER = 50` 当场判成 `structural-drift` ⇒ C1~C3 全部拿到 exit 2 而不是 exit 1。判据看起来是「C1~C3 全红」，实际是**我的夹具不成立**。正确修法是让夹具**满足下限**（拷满 245 文件 / 6.33MB / 单次拷贝 220ms），**不是把下限关掉** —— 关掉下限等于把演练自己的安全网剪了。
+    ⑦ **C3 锚点打偏**：原先拿 `plugin.showSettingsPanel = function() {` 当锚点改其体首，那样方法**仍然存在**（只是调用时抛）⇒ 演练走 `threw: top-level-broken` 分支，压根没走到 `module-not-registered`。正确锚点是 `const mount = () => {`（`settings-ui.js` 第 7 行，IIFE 内），让整块挂载**一步都不执行**。并补一条**反向断言** `!/threw: top-level-broken/`：注册面失效不许被读成运行时抛错（两者不同形）。
+    ⑧ **F3 的锚点数组里 `\'` 落成字面反斜杠** ⇒ `SyntaxError: Invalid or unexpected token`。根因是在 Python 三引号里写转义、期望它到 JS 里变单引号 —— 结果反斜杠原样落盘。修法是那一行写正常单引号。
+    ⑨ **`gen_defect_index.py` 用 JS 注释头** ⇒ Python `SyntaxError: invalid character '—'`；换 Python docstring 后又因 `^\s*([-·*]…` 触发 `SyntaxWarning: invalid escape sequence '\s'` ⇒ 改 `r"""` 原始 docstring 后零警告。两处都是「跨语言照搬写法」。
+    ⑩ **`worldline-authoring.md` 三处文案照记忆写而非按源码写**：把楼层判据说成「正整数」实为「非负数字」；把「缺层标记」当成唯一坏行、漏掉「缺分隔符」「层标记为空」两桶；把第三列忽略写成「编号列被忽略」实为「第三列（数字编号）不是数字，已忽略；该行仍按层标记生效」。已按 `engine-diagnostic-lines.js:661~707` 与 `worldline-memory.js:439` 逐字改写。
+    （⑪ 即上面那条真产品缺陷，单列在前。）
+    ⑭ **`catalog_reference_consumers.tsv` 的套件条数是手抄的，四条已漂移**：`v3286_plan_currency` 12→**13**、`v3287_ui_interaction` 14→**17**、`v3292_x6_branch_semantics` 36→**46**、`v3428_l12_o5_realhost_suite` 21→**23**（逐个 `node --test` 实跑对账，不看注释、不数注释里的 `test(`）。更进一步一层：我写纠偏脚本时的**后置断言**假定「（19 个 test）」全局唯一 —— 但该 tsv 偏移 48843 处本就有另一处同串（属别的档），断言自己翻红。**判据的判据也会自伤**：后置断言的口径必须限定在**目标行内**，不得假设跨行唯一性。
+- **这一轮把「判据自伤」的**修法纪律**推进了一步**：跨 realm 比较（⑫ 顺带记一条：`assert.deepStrictEqual` 比原型链，vm 里的数组打印相同却失败 —— 改比 JSON 文本）、读数层级（⑬ `objectionActors` 挂在 `items[i]` 上而非顶层）、形状假设（⑪ A3 假设六面同形）三类，统一归到一句话：**判据必须按源码的真实形状写，而不是按「我以为它应该长什么样」写**。
+- **诚实边界（与结论一起读）**：
+  1. `drill_unload.mjs` 与 X1~X9 判据跑在 vm + 最小 DOM shim 上，摘的是**加载顺序里的文件**而非真 `<script>` 标签 —— **不证明**真浏览器行为与观感；
+  2. 摘九件时 9 个下游文件装载失败（`ledger-entity.js` 被摘触发下游顶层硬断言），是**预期内的显式失败**，不是缺陷；
+  3. `settings-ui.js` 异步挂载（`setTimeout(mount, 300)`）使「`init()` 返回 ≠ 面板挂上」，演练与判据用 `flushTimers(8)` 显式放行；
+  4. 缺陷索引只证明「CHANGELOG 里有这些条目、可一次读完」，**不证明每条都写对了**；
+  5. 世界线口径表不证明真浏览器排版观感与真机触摸命中，「一键首跳」的点击流需真 ST；
+  6. X1~X5/X9 判据在 shim 上**真装载真调**，不证明真浏览器 UI 与跨会话持久化（那是 L12-O5 边界）；
+  7. `tests/audit/audit_scan_probe_matrix.tsv` **本版未登记本批套件** —— 那张表只收 `tests/audit/*.mjs` 扫描器，且由 `v3226` 的「登记集合 == 在役扫描器集合」双向判据常驻校验；把测试套件写进去会让 `v3226 A1/B1` 立刻转红。本批是**判据套件**不是扫描器，故按口径不登记（这是判定，不是遗漏）。
+  8. **首轮全量的 `audit` 字段为空**（摘要是 `tests/audit` 段未完成时的中间态）：那一轮的审计读数不可用，故本版审计读数一律取**最终轮**（`audit 68/68`）；把空字段读成「审计 0 通过」是另一形态的假绿。
+  9. **`tests/v3264_a1_memory_organs.test.mjs` 打印的 `ReferenceError: localStorage is not defined` 是降级路径的预期日志**，不是失败：该档真跑 **6/6 绿**（`node --test tests/v3264_a1_memory_organs.test.mjs` ⇒ pass 6），日志来自 `VectorStore.getEmbedding` 在无浏览器 shim 下的 embedding 降级分支 —— 它**被记为降级、不静默吞**，正是设计意图；首轮把它列进「17 红」是我的归因表读到了 stderr 首行，已在收口时纠正（不放宽任何判据）。
+  10. **改完 `CHANGELOG.md` / `PLAN.md` / `README.md` / `TODO.md` 必须重跑 `node tools/gen_state_report.mjs --write`**：`tests/audit/state-report.json` 冻结了这四份文档的 sha 摘要，`tests/v3297_state_report.test.mjs` 的 S7 就是拿现场比它。本轮实证：收口后在 CHANGELOG 里再改一个字（把 `node tools/gen_defect_index.py` 写成 `python3 …`），f5 全量就报了**唯一一红** `v3297（落盘报告的摘要必须与现场一致）` —— 重跑 `--write` 后 10/10 绿。所以「最后一轮全量」之前**必须先把所有文字面改完、重生成状态报告**，否则会把一个顺序错读成「改文案弄坏了判据」。
+- **★ 本版读数（定向判据实跑，非手抄）**：`tests/v3430_l12_x1_x9_extensions.test.mjs` **19/19 全绿 2293.2ms**；`tests/v3430_l12_x6_unload_drill.test.mjs` **18/18 全绿 8212.3ms**；`npm run drill:unload` exit 0（`degraded-honestly`）；`npm run index:defects` exit 0（298/67/165）；六源同源抬版 `3.429.0 → 3.430.0`（`index.js` / `memory-core.js` / `memory-config.js` / `memory-organs.js` 四个版本行 + `manifest.json` / `package.json`），历史留痕 `index.js` 1 处 / `settings-ui.js` 4 处 / `engine-diagnostic-lines.js` 2 处**原样保留**，`WM_VERSION` 仍为 `2`（不动）。- **收口：全量回归与六份读数重绑（真读数，零手抄）**
+  - 命令：`TEST_SUMMARY_JSON=<summary> node tests/run.mjs --audit --jobs 3 --audit-jobs 2` ⇒ **429/429 文件 · 4646 断言 · 0 失败 · 审计 68/68**（测试段与审计段的**绝对耗时随并发抖动**：`--jobs 3` 同一台机器同一批文件，多轮实测测试段相差可达百秒级 —— 所以本节的判据只认**四元组**（文件 / 断言 / 失败 / 审计），不认秒数；**耗时登记值不手抄、也不在这段里写具体数字**，由 `tools/_rebind_test_cost.py` 从最后一轮摘要写进 `tests/audit/test_cost_readings.json`，`scan_cost_truthfulness.mjs` 只核对「文档 ↔ 登记」而不自己跑全量）；读数由 `python3 tools/_rebind_doc_readings.py <summary>` 与 `python3 tools/_rebind_test_cost.py <summary>` 消费摘要写入，`node tools/gen_test_budget.mjs` 同步刷新预算，`node tools/gen_state_report.mjs --write` 刷新状态报告。
+  - **八轮全量的过程如实记（不是「跑了几次就绿了」）**：
+    ① 首轮 **17 文件红**：`dead_code_budget` 越界 8 份连带（110229 vs 上界 109378，实测活跃功能增长 ⇒ `--bump` 到 **110629**）、host_beast 基线连带 8 份（入口 11773→11862 / 成员 1188→1218）、状态报告与 PLAN 同源 4 份、收口标记 1 份 —— 逐条归因后全部是**读数欠账**，由脚本重绑收口；
+    ② 次轮 **1 文件红**：`tests/v3229_perf_evidence.test.mjs` 报「replayShift 1000 楼实测 3.36ms 超基线 0.34ms 的 5 倍」—— 单独重跑 **9/9 全绿**，判为 `--jobs 3` 并发下的**计时抖动**（该判据是量级门，5 倍阈值，合成探针无实机口径），不当产品缺陷、也不放宽阈值；
+    ③ 三轮 **429/429 全绿**（并发同参数复现通过，验证的是「抖动」而非「随机绿」）；
+    ④ **收口后的复验轮（f4）**：把三处文字面修正（CHANGELOG 两处旧时长 / tsv 四条 test 条数 / 状态报告重生成）做完后再跑一次全量 ⇒ **429/429 · 4646 断言 · 0 失败 · 审计 68/68 · 测试段 346.6s**，证明「改文案」没把任何判据面碰坏；
+    ⑤ **f5 唯一一红是「改完文档忘了重生成快照」**：f4 之后我又把 CHANGELOG 里一处 `node tools/gen_defect_index.py` 改写成 `python3 …`，f5 立刻报 `tests/v3297_state_report.test.mjs` 的 S7（**落盘报告的摘要必须与现场一致**）—— 该档冻结着四份文档的 sha，改字不改快照必红。重跑 `node tools/gen_state_report.mjs --write` 后 10/10 绿。这条不是产品缺陷，是**工序缺陷**（收在边界第 10 条）；
+    ⑥ **此后每一轮都是「改完就复跑」**：把文字面改完、`gen_defect_index` / `gen_state_report --write` / `_rebind_doc_readings` / `_rebind_test_cost` / `gen_test_budget` 全部重生成，再跑一轮全量确认没有任何判据面被文案碰坏 —— 从 f6 起已连做五轮，**每轮都是 429/429 文件 · 4646 断言 · 0 失败 · 审计 68/68**（秒数逐轮不同，正因为如此本节不拿秒数当判据）。**这道工序是必须的**：`tests/v3297` 的 S7 冻结着四份文档的 sha，改字不重生成快照必红（f5 就是这么红的）。
+  - **宿主基线**：`rebind v3.430.0 done: entry=11862 surface=30722 members=1218 top40=13024 (42.4%)`，行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**上抬至 1248**（余量 30 <= member_slack 30）；`measured_at` = `v3.430.0`，`rebuilds` 面留当版读数，`line_budget.note` 逐字复述末条 history。
+  - **死代码预算**：`ceiling 110629`（末条 history 同源，`note` 为其理由复述）。
+  - **状态报告 / PLAN / 测试成本 / 测试预算 / 缺陷索引**：五处全部重生成 —— `node tools/gen_state_report.mjs --check` ✓ 一致；`node tools/gen_plan_baseline.mjs --check` ✓ 一致（`index.js` **11862 行** / **1218 成员**）；`python3 tools/gen_defect_index.py` ⇒ 版本节 298 / 命中 67 / 条目 165。
+  - **版本守卫**：`当版锚点 1（仅当版档案）/ 问题 0`，frontier 2（`v3430_l12_x1_x9_extensions` + `v3430_l12_x6_unload_drill`）。
+  - **★ 收口期又抓到两条真缺陷（都写在这里，不藏在正文）**：
+    （a）**`engine-recall.js` 的 `_safeCast` 被 `scan_live_wiring_dataflow` 判成幽灵守卫**：能力探测写成内联 `if (engine && typeof engine._noteCaptureCastFail === ...)`，被「条件括号里的私有属性必有写入源」的规则读成状态守卫（全仓 0 次写入）。**处置是改代码形态**（探测上提为局部常量 `note`，再 `if (note) note.call(...)`），而不是把它加进 `ALLOWED_HISTORICAL_GHOSTS` 白名单 —— 加白名单等于把门禁剪个口子。修后 `scan_live_wiring_dataflow` 从「44 守卫 / 1 幽灵」变「43 守卫 / 0 幽灵」，exit 0。
+    （b）**`rebind_host_beast_v3429.py` 的 `VER` 是硬编码**：本批直接复用它，把 v3.430.0 的读数挂在 `v3.429.0` 名下（覆盖了上一版真记录、还多留一条假 history）。处置：**不改历史脚本**（历史留痕），复制出 `tools/rebind_host_beast_v3430.py`（只改 VER 与理由文案），先用 `/tmp/prep_hb3430.py` 从 `/tmp/probe3429.json` 把上一版读数**原样恢复**（同一脚本是「探针+基线」的纯函数，故可重算不靠猜），再重跑。另发现该脚本把「其一上抬」写成「**均上抬**」（与 `ceiling` 12096→12096 相反），一并改为两面分开说 —— 理由文字是判据面（`v3480 B5` 要求 `note` 逐字复述末条 history），文案错就是读数错。
+
+
+## v3.429.0
+**L12-O8：世界线跳跃表从「裸 textarea」变成「卡作者摸得到的结构化编辑器 + 实时读数」**
+
+- **修的是什么（修前实测，读码可复算）**：v3.425.0 把内核主键从「变动率」换成「纪元 = 层标记@切换楼层」，v3.426.0 补上「当前纪元自动推进」—— 两版把**口径**都改对了，但卡作者要落地得先读 CHANGELOG 才知道有五个键，而 `worldlineJumps` 在面板里只是**一个裸 textarea**：
+  - 写错一行 ⇒ 闸**静默丢掉**那一行（`_worldlineState` 只回结果，从不告诉人哪一行没生效）⇒ 「卡里少一个纪元」这件事没有任何出口；
+  - 「当前纪元到底推成了什么」只出现在诊断行，面板里看不到 ⇒ 作者配完不知道有没有生效；
+  - v3.426.0 的 M3 把「把首跳登记在第 1 楼」做成了判据，但那条出路**只存在于文档里**，作者只能手改文本。
+
+  一句话：口径对了，产品面没跟上 —— 这是本仓治过的「功能级失效」的另一种形态（**判据可达、作者不可达**）。
+- **交付的产品面**：
+  - `engine-diagnostic-lines.js` 抽出 `parseJumpsText(raw)` 作为跳跃表文本的**唯一解析**（返回 `rows` / `rejects`（带行号 + 可读成因）/ `warns`（某列被忽略）/ `entries`（逐原文行，行号 1:1）），并让 `_worldlineState` 的 `jumps` 装配**改走它**（`jumpsSrc` ⇒ `jumps = jumpsSrc.rows`）。闸侧行为逐字不变（坏行跳过 + 楼层升序），区别是坏行现在**有名字**了；
+  - 新增取数口 `worldlineJumpDraft(engine, draft)`（宿主 `index.js` 一行转发）：给一段草稿文本回解析结果 + 每行纪元 + `prehistoryGap`，**一个字节都不写配置**（`writesNothing: true`）—— 预览与已生效必须不同形；
+  - `settings-ui.js` 世界线配置区把裸 textarea 换成 **结构化编辑器**：一条跳线一行三格（楼层 / 层标记 / 数字编号），可增可删；坏行**当场标红**并把解析器给的成因逐行念出来；`↥ 首跳移到第 1 楼` 一键把 M3 那条出路变成可点的动作；原生 textarea 保留在「原始文本」折叠里、**同一个 `data-cfg-text="worldlineJumps"` 键**（一个配置键仍只有一个控件，A1 不破，保存仍走既有通用收集器）；
+  - **实时读数行**（`#ls-wl-readout`，六属性 `data-wl-readout/epoch/why/floor/conflict/rejects`）：当前推算纪元（`线@楼层`）+ `epochAdvance.why` 的人话解释 + 冲突提示 + **前史缺口**。三态不同形（L12-O4 同一条纪律的下一处应用）：`none`（还没登记 ⇒「同号跨纪元不串」整场不会触发，**不是「都安全」**）/ `gap`（登记了但前史推不出纪元 ⇒ 那批条目落「判不了」，**信息缺失不是「安全」**，并给「把首跳登记在第 1 楼」的出路）/ `ok`（首跳在第 1 楼，前史已覆盖）。另有 `unwired`（宿主未接线，独立一态）与 `bad`（有坏行）/ `conflict`。
+- **判据 `tests/v3429_l12_o8_worldline_editor.test.mjs`（17 条）+ 门 `tests/audit/scan_ui_worldline_editor.mjs`（X1~X6）**：
+  - **X2 解析单源**是本刀的核心判据：面板拿到的坏行清单与闸消费的行必须出自**同一段解析**（混合文本 3 好行 + 4 种坏行 + 1 注释 ⇒ 面板 `rejects=4` 且逐条带行号与成因；闸 `jumps=3` 且与编辑器口径逐字相同）。两套正则一旦漂移（面板说没问题、闸默默丢掉），作者会被引到错误方向排查 —— 那正是本仓反复治过的「两套真源」。
+  - **X4 读数与内核一致**：造三次跳线含一次回跳（`1:α线 / 40:β线 / 47:α线`，第 50 楼）⇒ 面板 `data-wl-epoch` 必须**逐字等于**内核 `WM.epochAt(50, jumps)` 的 `epoch`（`α线@47`）、`data-wl-why` 等于内核 `why`。判据读机器可读属性，不比文案。
+  - **X5 前史三态**：三档（无跳线 / 首跳第 40 楼 / 首跳第 1 楼）必须产出三种不同的 `data-wl-readout`，且 `gap` 档**不许出现「安全」**、必须给「把首跳登记在第 1 楼」的出路；`↥` 按钮点了之后读数必须转 `ok`（否则「出路」只是文档里的一句话）。
+  - **X6 保存闭环 + 预览不写配置**：改格子但**不点保存** ⇒ 配置一字不动；点 `#ls-save` ⇒ 配置等于编辑器序列化结果。
+  - 负控制六条（各配原版对照，破坏副本在真仓合成树上重跑同款门）：闸绕过解析单源 / 面板自算纪元 / 缺口分支失效 / 坏行丢成因 / 摘掉自动推进 / 逐行监听里直接写配置。fail-closed 两档：缺 `settings-ui.js`、掏空 ⇒ exit 2。
+- **★ 本刀自纠两处（都是「门红了但红的不是它守的那条」）**：
+  1. **门的 `drift` 会吞掉已发现的缺陷**。C1 负控制实测：破坏解析单源后 X2 已记下「闸消费了 0 条」，但流程走到 X4 时因为「内核给不出纪元」先 `drift` 退出 2 ⇒ 缺陷清单随进程一起丢了，读输出的人只看到「结构漂移」。修法：`drift` 退出前先把 `defects` 逐条吐出来。
+  2. **`<textarea>` 的初值必须显式赋 `value`**。本仓 UI 门的最小 DOM shim 只认 `value` 属性、不把元素内容反射成 value ⇒ 编辑器在 shim 里恒读到空表，面板会显示「还没有跳线」而闸里其实有。真浏览器里是同值 no-op，故两条路径都对才叫修好。
+- **诚实边界（与结论一起读）**：门跑在最小 DOM shim 上，拦的是**编辑器逻辑**（解析单源 / 三态不同形 / 读数与内核一致 / 保存闭环）；它**不证明**真浏览器里的排版观感、真机触摸命中、真实 localStorage 跨会话行为 —— 那些仍只有真 Chromium + 真 ST 能证（见 L12-O5 的 `_realhost_suite.mjs`，本版未新增其块）。
+- **本版读数（全量实跑，`TEST_SUMMARY_JSON=<path> node tests/run.mjs --audit --jobs 3 --audit-jobs 2`）**：**427/427 测试文件 · 4609 断言 · 0 失败 · 审计 68/68**（耗时 300.3s）；`scan_ui_binding` 194 声明键 / 189 渲染控件 / 189 键 / 112 DOM id；`scan_ui_interaction` 通过（V5 保存落地 4 次、V6 重开保留、V7 展开 2/2）；`scan_ui_panel_drive` 通过（W7 四档：有数据 10 / 真没有 3 / 缺席 15 / 失败 14）；`scan_ui_worldline_editor` 通过（X4 点名「第 50 楼 α线@47（why=carried）」/ X6 保存后 `[{"floor":1,"lineId":"γ线"},{"floor":40,"lineId":"β线"}]`）；`scan_config_liveness` 死配置 0；`scan_version_guard` 当版锚 1 处；`scan_exit_codes` 68 份；`scan_syntax` 793 文件全解析；`scan_module_consumption` 244 模块 / 220 活跃 / 24 留存 / 零未登记孤儿。
+- **★ 全量首跑 17 文件红，逐条归因为「读数欠账」而非产品缺陷（这是本节最该记的一段）**：本书交付时只跑了定向判据，全量首跑暴露的全是本刀改动的**连带读数** ——
+  1. **host_beast 基线**（入口 11773 → 11776 行 / 成员 1188 → 1190）带着 **6 份 A1 套件**连锁红（v3257 / v3259 / v3260 / v3261 / v3262 / v3263 / v3264 / v3266 一族的「基线行数须等于真 index.js 行数」+ v3232 的「`_worldlineState` 行数漂移 274 → 263」+ v3304「基线当版读数须与真源同源」）；修法走既有脚本 `tools/rebind_host_beast_v3429.py`（**零手抄**：全部读数从 `host_beast_probe.cjs` 输出直接落盘；行上界 12096 与成员上界 1190 **均不抬**，余量 320 / 0 仍在 slack 内）；
+  2. **`dead_code_budget` 越线 9 行**（108978 vs 上界 108969）⇒ 连红 v3116 / v3159 / v3205 三份。判据判得对：本刀在 `parseJumpsText` 与编辑器 IIFE 上是**活跃功能增长**，故按纪律 `--bump --reason=…` 抬到 109378（实测 + slack 400），不是删代码凑数；
+  3. **`audit_scan_probe_matrix.tsv` 漏登新门**（v3226 的「登记条数须等于在役扫描器数」当场点名 `scan_ui_worldline_editor.mjs`）⇒ **先实测 H/G/T 三档再登记**（镜像树 + `LONSHA_AUDIT_ROOT`：H=0 / G=2（缺 `settings-ui.js` ⇒ fail-closed）/ T=0（shim 借自 `scan_ui_interaction.mjs`，在 `audit/` 下不在 T 档掏空范围）），G 列已非 0 ⇒ 不是恒绿探测器；
+  4. **`test_budget.json` 停在 3.426.0**（落后当版 3 个次版本，超 toleranted 2）⇒ 先 `gen_test_budget.mjs` 从 `test_cost_readings.json` 刷新，再在全量绿后用 `_rebind_test_cost.py` 消费真摘要重绑；
+  5. **PLAN 陈旧**（执行状态停在 v3.428.0 / 快照行停在 v3.427.0 / 缺「当前 v3.429.0 全量待验」）⇒ `scan_plan_currency` + v3480 双向判据同时点名；`gen_state_report.mjs --write` 重生成后再 `--check` 一致；
+  6. **`v3427`「健康树上不得误红（H 必须 0）」** —— 根因同 4：`scan_test_budget` 在健康树上仍报版本落后。这条正是「门禁红了但红的不是它守的那条」的反向验证：修好读数它自己就绿了，没有去动判据。
+  全部由**脚本重绑收口，零手抄**（`_rebind_doc_readings.py` / `_rebind_test_cost.py` / `gen_test_budget.mjs` / `gen_state_report.mjs` / `gen_plan_baseline.mjs` / `rebind_host_beast_v3429.py`）。重跑全量 ⇒ **427/427 · 4609 断言 · 0 失败 · 审计 68/68**，`doc_readings.json` 对齐 v3.429.0。
+  ★ 一点诚实：**首跑 17 红并不说明判据错，说明「交付时没跑全量」这件事本身就是欠账**；本仓的纪律是「读数对齐当版之后才算收口」，本节按此执行。
+
+## v3.428.0
+**L12-O1：五件零消费内核从「登记在册」变成「产品可达」——并当场被自己的判据抓出 13 处静默假绿**
+
+- **修的是什么（修前实测，读码可复算）**：`institutional-memory` / `relation-dynamics` / `character-agency-contract` / `symbolic-evolution` / `era-inheritance` 五件内核早就写好、单测全绿、`manifest.extra_js` 在册，但**产品端一次都没调用过** —— 宿主 `index.js` 里对这五个文件名的 `grep -c` **全为 0**。这是本仓治过多次的「功能级失效」形态：有实现、有登记、有自检，**没有入口**，玩家永远碰不到。
+- **交付的接线面（不是「导出了函数」，是「面板里点得开」）**：
+  - `engine-diagnostic-lines.js` 新增五个读面 + 五个动作面 + 五条诊断行（`institutionState/Act` · `relationDynamicsState/Act` · `agencyContractState/Act` · `symbolicEvolutionState/Act` · `eraInheritanceState/Act` + `_institutionLine` 等五行）；
+  - `index.js` 十五个宿主出口全部走取库口转发（`_moduleLib` 拿不到即缺席形），外加自检面五行「组织记忆 / 关系动力 / 心智扩展 / 意象变迁 / 时代传承」；
+  - `memory-organs.js` 的 WorldProgress 三处成对补 `institutions` / `relationDynamics` / `beliefs` / `habitRepos` / `absenceExpectations` / `symbolicEntities` / `eraTransitions`（construct / export / import —— 不初始化则首轮 `undefined` 与「真的没有」同形，不登记则存盘即丢）；
+  - `settings-ui.js` 新增「组织与心智」卡片（`data-view="organs"`，读数直取 `worldProg`、不额外触发内核）+ `organs` 视图，五面**三态显式分开**：面没装上 ⇒ `⚠️ 不可用 · 原因码`；真没有 ⇒ `真的没有。`+ 一句怎么开始；有数据 ⇒ 明细 + 该面的口径脚注（例：关系动力面写「A 道歉但 B 尚未得知 ⇒ 只算单侧修复待确认，绝不判已和解」）。
+- **判据 `tests/v3428_l12_o1_kernel_wiring.test.mjs`（16 条）**：A1 结构面（15 出口各 1 次 / 5 取库口 / 5 文件名 / `extra_js` 在册 / 自检五行 / 面板卡片 + 视图）/ B1 **缺席形与在场形逐字同键**（五面各跑在场+缺席两份，缺席 `ok:false + module-unavailable`，空盘 `ok:true + reason:'empty'`）/ B2 缺席时动作面一律 `ok:false / writes:false` / C1~C6 五件各自「建 → 改 → 读」真业务回路 / D1 五条诊断行现算（不吃别人的 `_xxxRead`）/ E1~E3 **三条真源码破坏负控制**（双向归一键 / 私人视角判定 / 缺席形判定）+ 原版阳性对照 / F1 H5 判据纯度 / F2 H6 工具两向自证 / G1 版本面。
+- **★ 本版最值得记的一段：判据首跑 7 过 9 红，红的全是我自己的实现，不是判据**。13 处静默假绿逐条（这是 O1 真正的产出，比接线本身重要）：
+  1. 制度记忆 `create` 错误要求宿主有 `wp.createInstitution` 才肯干 —— 而 `IM.createInstitution(spec)` 才是内核契约，包装方法只是便捷壳；无头测试 / 精简快照 / 跨仓引用全跑不动，动作面**直接报 `host-create-missing`**。
+  2. `handover` 同款依赖 `wp.handoverInstitution`，且 `IM.performLeaderHandover` **缺 `incomingLeader` 会 throw**（不是返回失败）。
+  3. 关系动力四个 `record*` 返回的是**信封** `{ok, dynamics, …}`，修前把信封写回 `wp.relationDynamics[pairKey]` ⇒ 第二次动作 `createRelationDynamics(信封)` 归一出空账，**期待 / 付出 / 修复全丢，而每次都报 `ok:true`** —— 这一类「信封写回存储」是本仓最隐蔽的假绿：读数有、校验过、数据没了。
+  4. 信念演化 `evolveBelief` 返回 `{ok, belief, changed}`（本体在 `.belief`），且 `observerActor !== belief.actor` 时**拒绝演化**；修前一律报 `evolved`。
+  5. 习惯库内核键是 **`actor`** 不是 `charKey` —— `createHabitRepo` 静默丢弃未识别键 ⇒ 库永远 `actor:''`，按角色寻址一律落空。
+  6. 意象变迁四个动作都是**原地改实体**并返回信封，修前把信封写回 `wp.symbolicEntities[idx]` ⇒ 实体整个被换成 `{ok,reason,entry}`，第二次动作立刻 `entity-not-found`。
+  7. 读面 `getActiveMeaning` 返回的字段是 **`perspectives`** 不是 `byActor`（修前恒空 ⇒ 多义永远计 0、视角持有者永不显示）；反例应取 `confirmed/candidate` 里 `revoked===true` 的条目（修前从视角层找 `layer==='objection'`，而视角层条目结构 `{meaning, appearanceIndex, at}` **没有 layer 字段** ⇒ 反例永远计 0）。**「读面按自己以为的字段名取数」比不接线更坏：面板有数、数是零。**
+  8. 缺席期待的状态取值域是 **`waiting`** / `unconfirmed_delay` / `confirmed_absence` / `delayed_received`，修前只认 `pending` ⇒ 「观察窗口未过」那批既不计待确认也不计延迟/缺席，三态加总对不上总数。
+  9. 时代传承 `create` 同款错误依赖 `wp.createEraTransition`；`propose` 把内核返回的**提案数组**当 `{transition, proposals}` 信封读 ⇒ 恒报「提案 0」；`apply` 的 choice 键是 `{itemId, action}`，修前原样透传 `{id, inherit}` ⇒ `appliedCount` 恒 0 却报 `ok:true`。
+  10. `expect` 动作面没做字段映射（内核 `holder/targetActor/expectedAction/deadlineStoryClock` vs 自然名 `expecter/target/content/dueClock`）⇒ 四个字段被 `_str(undefined)` 洗成 `''`，每条期待都变成「无主无对象 deadline=0」的空壳。
+  11. `createBelief` 的「解释」键是 `interpretation`，修前透传 `belief` ⇒ 信念只有主语没有内容；证据裸字符串会让 `content` 被洗成空。
+- **夹具自纠（两处，写在档内）**：`evolveBelief` 只在**反证**（`isCounterEvidence` + `primary`/`witness`）时才真的改观，普通证据按设计就是 `changed:false`（「不因一句话就改观」是口径不是缺陷）⇒ 夹具拆成「普通证据不改观且不新增条目」+「反证才 evolved」两段；期待三态只认 `observerContext.receivedDelayedMessage` / `knowsCounterpartSchedule`，修前传的 `{ excused: true }` 是不存在的键（等于什么都没说，三条全落 `unconfirmed_delay`）。
+- **设计纪律（本批新增，后续沿用）**：动作面只做**纯内核调用 + 落状态**，绝不依赖宿主的便捷包装方法；内核返回信封时**本体字段**才是状态；原地修改型内核不得把返回值写回实体槽位；读面字段名与状态名必须**照内核实际返回/取值域**取；诊断行**现算**；缺席形必须键面与在场逐字同键；只读动作 `writes` 必须 `false` 且状态逐字不变。
+- **诚实边界**：本版完成 L12-O1 一件；O4（面板三态统一）/ O5（真宿主回归集）/ O8（`worldlineJumps` 结构化编辑器）与 X 面九项**仍未开工**，全量回归按计划留到全部落地后跑一次。本节读数**未跑全量**，故 `doc_readings.json` 仍停 v3.427.0（`state-report` 会如实标 `stale`，不写 pass）。
+
 ## v3.427.0
 **L11 遗留审计面收口：两个「恒绿探测器」被当场抓住并修掉**
 

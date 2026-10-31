@@ -608,6 +608,55 @@
                         return ['知情网络', line + (bad ? ' ⚠️' : '')];
                     } catch (e) { errLog(e, 'selfCheck.knowledgeNetwork'); return ['知情网络', '—（诊断异常）']; }
                 })(),
+                /* [v3.428.0 · L12-O1] 五件零消费内核的体检面（**逐件一行，不合并**）。
+                 *   为什么不并成一行「七件已接线」：那会把五种完全不同的缺席归因
+                 *   （组织没登记 / 关系账空 / 心智账空 / 意象没登记 / 没做过时代转场）
+                 *   压成一个「0」，读者分不清「还没开始」与「模块没装」。
+                 *   报警口径：只有 ok===false（模块缺席 / 抛错 / 面塌陷）才标 ⚠️；
+                 *   reason==='empty'（真的没有）**不报警** —— 空不是错。
+                 *   ★ 与 _institutionLine 等共用同一取数口径：诊断行现算，不吃别人的缓存。 */
+                (() => {
+                    try {
+                        const line = (typeof this._institutionLine === 'function') ? this._institutionLine() : '—';
+                        const r = this._institutionRead;
+                        const bad = !!(r && r.ok === false);
+                        return ['组织记忆', line + (bad ? ' ⚠️' : '')];
+                    } catch (e) { errLog(e, 'selfCheck.institution'); return ['组织记忆', '—（诊断异常）']; }
+                })(),
+                (() => {
+                    try {
+                        const line = (typeof this._relationDynamicsLine === 'function') ? this._relationDynamicsLine() : '—';
+                        const r = this._relationDynamicsRead;
+                        /* ⚠️ 只认两件真损失：**单侧修复待确认**（道歉了对方还没得知 —— 这时显示
+                         *   「已和解」是错的）与**畸形账**。已和解不报警：那是好消息。 */
+                        const bad = !!(r && (r.ok === false || r.unilateral > 0 || r.degraded));
+                        return ['关系动力', line + (bad ? ' ⚠️' : '')];
+                    } catch (e) { errLog(e, 'selfCheck.relationDynamics'); return ['关系动力', '—（诊断异常）']; }
+                })(),
+                (() => {
+                    try {
+                        const line = (typeof this._agencyContractLine === 'function') ? this._agencyContractLine() : '—';
+                        const r = this._agencyContractRead;
+                        const bad = !!(r && r.ok === false);
+                        return ['心智扩展', line + (bad ? ' ⚠️' : '')];
+                    } catch (e) { errLog(e, 'selfCheck.agencyContract'); return ['心智扩展', '—（诊断异常）']; }
+                })(),
+                (() => {
+                    try {
+                        const line = (typeof this._symbolicEvolutionLine === 'function') ? this._symbolicEvolutionLine() : '—';
+                        const r = this._symbolicEvolutionRead;
+                        const bad = !!(r && (r.ok === false || r.degraded));
+                        return ['意象变迁', line + (bad ? ' ⚠️' : '')];
+                    } catch (e) { errLog(e, 'selfCheck.symbolicEvolution'); return ['意象变迁', '—（诊断异常）']; }
+                })(),
+                (() => {
+                    try {
+                        const line = (typeof this._eraInheritanceLine === 'function') ? this._eraInheritanceLine() : '—';
+                        const r = this._eraInheritanceRead;
+                        const bad = !!(r && r.ok === false);
+                        return ['时代传承', line + (bad ? ' ⚠️' : '')];
+                    } catch (e) { errLog(e, 'selfCheck.eraInheritance'); return ['时代传承', '—（诊断异常）']; }
+                })(),
                 // [v3.291.0 · X5] 知识轨迹体检面：与「知情网络」**分列**。
                 //   知情网络答「是不是同一件事」（判定），本行答「这条知识在第几楼、
                 //   从谁、经哪条证据取得的」（轨迹）—— 合成一行会让「判不开」与

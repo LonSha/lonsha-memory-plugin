@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.427.0';
+let VERSION = '3.430.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1303,6 +1303,16 @@ class WorldProgress {
         this.recallSessions = [];
         this.cfExperiments = [];
         this.eraTransitions = [];
+        /* [v3.428.0 · L12-O1] 关系动力 / 心智扩展三账的**存储格**。
+         *   为什么必须在这里显式初始化：worldProg 的子键是**逐项枚举**持久化的，
+         *   不初始化 = 首轮读到 undefined，而 undefined 与「真的没有」同形
+         *   —— 正是本仓反复点名的「判不了被写成没有」。
+         *   relationDynamics 用**双向归一键**（字典序拼接 charA|charB）：
+         *   「甲对乙」与「乙对甲」是同一条关系，两键会在往返中漂成两对。 */
+        this.relationDynamics = {};
+        this.beliefs = [];
+        this.habitRepos = [];
+        this.absenceExpectations = [];
     }
 
     // ===== 约定账本 (Promises Ledger) =====
@@ -2223,6 +2233,13 @@ class WorldProgress {
             recallSessions: this.recallSessions || [],
             cfExperiments: this.cfExperiments || [],
             eraTransitions: this.eraTransitions || [],
+            /* [v3.428.0 · L12-O1] 关系动力与心智扩展三账随世界推进持久化。
+             *   导出的都是**状态本体**（不是读数）：deriveRelationDynamics 需要逐条
+             *   期待/付出/修复/违约，重建不回来就等于每次读都从零开始。 */
+            relationDynamics: this.relationDynamics || {},
+            beliefs: this.beliefs || [],
+            habitRepos: this.habitRepos || [],
+            absenceExpectations: this.absenceExpectations || [],
             plotArcs: this.plotArcs || []
         };
     }
@@ -2282,6 +2299,13 @@ class WorldProgress {
             /* [v3.360.0 · M6-X4 / M6-X9] 反事实实验与跨时代传承导入 */
             this.cfExperiments = Array.isArray(data.cfExperiments) ? data.cfExperiments : [];
             this.eraTransitions = Array.isArray(data.eraTransitions) ? data.eraTransitions : [];
+            /* [v3.428.0 · L12-O1] 关系动力与心智扩展三账导入：畸形一律回落空账（与同族口径）。
+             *   不逐字段校验：合法性由内核每次 derive / evaluate 时归一，
+             *   在此再校一遍即第二套判据（两边不同步就静默漂移）。 */
+            this.relationDynamics = (data.relationDynamics && typeof data.relationDynamics === 'object' && !Array.isArray(data.relationDynamics)) ? data.relationDynamics : {};
+            this.beliefs = Array.isArray(data.beliefs) ? data.beliefs : [];
+            this.habitRepos = Array.isArray(data.habitRepos) ? data.habitRepos : [];
+            this.absenceExpectations = Array.isArray(data.absenceExpectations) ? data.absenceExpectations : [];
         }
     }
     // [v3.358.0 · M6-O8] 持续研究记忆接口
