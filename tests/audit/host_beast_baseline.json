@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.431.0",
+  "measured_at": "v3.433.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -2979,6 +2979,42 @@
         "top5_pct": 0.0,
         "top40_pct": 0.0
       }
+    },
+    "v3.433.0": {
+      "reason": "[v3.433.0] L13-X2 反事实推演面：扩展 counterfactual-experiment-bench.js 的 counterfactualImpact（只读影响面推演），index.js 新增 counterfactualWhatIf / _counterfactualLine 转发桩，engine-diagnostic-lines.js 承担业务，settings-ui.js 承担 whatif 面板视图；同版修复 settings-ui.js timeline 分支缺右括号存量缺陷（面板加载即炸级，历史全量绿下隐形）。",
+      "readings": {
+        "total_lines": 11866,
+        "surface_lines": 30819,
+        "member_count": 1224,
+        "duplicate_member_names": 160,
+        "top5_lines": 5796,
+        "top5_pct": 18.8,
+        "top40_lines": 13024,
+        "top40_pct": 42.3,
+        "prefix_rule_coverage_lines": 5018,
+        "prefix_rule_coverage_pct": 16.3,
+        "unclassified_lines": 24950,
+        "seam_distinct_modules": 157,
+        "seam_reference_sites": 470,
+        "seam_call_shape_sites": 599,
+        "members_over_80_lines": 58,
+        "low_coupling_members": 18,
+        "high_coupling_members": 18
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做反事实推演面接线与判据，未拆任何宿主巨兽成员",
+      "delta_from": "v3.431.0",
+      "delta": {
+        "total_lines": 4,
+        "surface_lines": 91,
+        "member_count": 6,
+        "top40_lines": 0,
+        "top5_pct": -0.1,
+        "top40_pct": -0.1
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -2992,20 +3028,20 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 11862,
-    "surface_lines": 30728,
-    "member_count": 1218,
+    "total_lines": 11866,
+    "surface_lines": 30819,
+    "member_count": 1224,
     "duplicate_member_names": 160,
     "top5_lines": 5796,
-    "top5_pct": 18.9,
+    "top5_pct": 18.8,
     "top40_lines": 13024,
-    "top40_pct": 42.4,
+    "top40_pct": 42.3,
     "prefix_rule_coverage_lines": 5018,
     "prefix_rule_coverage_pct": 16.3,
-    "unclassified_lines": 24863,
-    "seam_distinct_modules": 156,
-    "seam_reference_sites": 465,
-    "seam_call_shape_sites": 593,
+    "unclassified_lines": 24950,
+    "seam_distinct_modules": 157,
+    "seam_reference_sites": 470,
+    "seam_call_shape_sites": 599,
     "members_over_80_lines": 58,
     "low_coupling_members": 18,
     "high_coupling_members": 18
@@ -3013,11 +3049,11 @@
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1154,
-      "lines": 24863,
-      "lines_pct": 80.9,
-      "outside_refs": 23102,
-      "internal_refs": 8626,
+      "members": 1160,
+      "lines": 24950,
+      "lines_pct": 81,
+      "outside_refs": 23223,
+      "internal_refs": 8668,
       "outside_ref_share_pct": 72.8
     },
     {
@@ -3079,7 +3115,7 @@
       "members": 8,
       "lines": 42,
       "lines_pct": 0.1,
-      "outside_refs": 144,
+      "outside_refs": 146,
       "internal_refs": 7,
       "outside_ref_share_pct": 95.4
     },
@@ -3575,7 +3611,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.431.0] 临时根搬家（不改产品行数）：index.js +0 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**不抬，仍为 1248**（余量 30 <= member_slack 30）。合并面 30728 行，TOP5 占 18.9%、TOP40 占 42.4%。",
+    "note": "[v3.433.0] L13-X2 反事实推演面接线：index.js 新增 2 个转发桩成员。入口 index.js 11866 行、成员数 1224；行上界**不抬，仍为 12096**（余量 230 <= slack 400）、成员上界**不抬，仍为 1248**（余量 24 <= member_slack 30）。合并面 30819 行，TOP5 占 18.8%、TOP40 占 42.3%。",
     "history": [
       {
         "ceiling": 15000,
@@ -3907,14 +3943,20 @@
         "member_ceiling": 1248,
         "milestone_version": "v3.431.0",
         "reason": "[v3.431.0] 临时根搬家（不改产品行数）：index.js +0 行（九面各留一行转发桩）、业务落在 engine-diagnostic-lines.js、settings-ui.js 承担面板九面。入口 index.js 11862 行、成员数 1218；行上界**不抬，仍为 12096**（余量 234 <= slack 400）、成员上界**不抬，仍为 1248**（余量 30 <= member_slack 30）。合并面 30728 行，TOP5 占 18.9%、TOP40 占 42.4%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1248,
+        "milestone_version": "v3.433.0",
+        "reason": "[v3.433.0] L13-X2 反事实推演面接线：index.js 新增 2 个转发桩成员。入口 index.js 11866 行、成员数 1224；行上界**不抬，仍为 12096**（余量 230 <= slack 400）、成员上界**不抬，仍为 1248**（余量 24 <= member_slack 30）。合并面 30819 行，TOP5 占 18.8%、TOP40 占 42.3%。"
       }
     ],
     "member_ceiling": 1248,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 11862,
-  "member_count": 1218,
+  "total_lines": 11866,
+  "member_count": 1224,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
 }

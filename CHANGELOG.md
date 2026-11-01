@@ -1,3 +1,27 @@
+## v3.433.0
+**L13-X2 反事实推演面：如果一件事没发生，谁会被波及（既有内核扩展 + 宿主接线 + whatif 面板视图）**
+
+- **真实现场（取证于 2026-10-31 证据页 Problem 2）**：`counterfactual-experiment-bench.js` 此前 `prod_call_sites=0`，产品零入口。三个既有反事实内核实测能力边界：bench 只管隔离分支记账与三层分离（`cannotPromoteToCanon` 铁律）、experiment 只管多步路线对比（`locateFirstDivergence`）、sandbox 只管情感共鸣 —— **三者都不回答**「给定已发生事实 + 一个假设改动 → 返回受影响的事实/关系/记忆集合」。
+- **核心交付：扩展既有内核 `counterfactualImpact(hypothesis, ctx)`（+153 行，不新开内核）**：
+  - 输入锚点事实 id（或描述式假设），在**既有槽位**里找锚点（fact/locked/node/memory/ctx-fact/ctx-item 六池），绝不新建事实库；
+  - 锚点词项优先取事实的 subject/predicate/value/evidence，自由文本则拆词取最长 8 个；
+  - 全池扫描：条目文本包含锚点词项即入受影响集合，按池分两层 —— `fact_bound`（fact/locked 池，铁律层）/ `plausible_deduction`（node/memory 池，推演层），排序铁律优先、同层按命中词长降序；
+  - 每条受影响条目带真实 `id`（可点开核对）+ `hypothetical: true` 标注；返回体根级 `writesNothing: true`，全程零写入；
+  - **冒烟首测抓到一处自伤并修复**：`lockedFacts` 条目文本在 `text` 字段，首版 `cfTextOf` 对 locked 池只取 subject/predicate/value，join 出空串导致**整池静默漏扫**（`lf_9` 含锚词却没进受影响集合）—— 已修为 locked 单独分支取 `it.text`，判据 B 段把这条钉住。
+- **宿主与诊断行接线**：`index.js` 新增 `counterfactualWhatIf` / `_counterfactualLine` 转发桩；`engine-diagnostic-lines.js` 实现取库口 `_counterfactualBenchLib` 与业务 `counterfactualWhatIf`（模块缺席 / 抛错均返回 `hypothetical: true` 的 absent 形态，命中后写 `engine._counterfactualLastRead` 缓存）与状态行 `_counterfactualLine`（输出「锚点 … · 受影响 N 条（铁律 X / 推演 Y）· 全部为 hypothetical，未写回任何槽位」）。
+- **面板 whatif 视图（`settings-ui.js`）**：统计卡「推演 · 如果没发生」（`data-view="whatif"`，插在 xseries 卡前）；视图分支列出 `worldProg.facts` + `lockedFacts` 供选锚点；交互绑定走 `eng.counterfactualWhatIf({ factId })`，受影响条目每条带 `data-cf-ref` 可点开由 `renderLineageSheet` 展示沿革；宿主不可用时渲染 `data-ls-cf-face="absent"` 三态提示并 toast 原因。渲染块与绑定块分离（与 xseries 同口径）。
+- **本版顺手抓到并修掉一处存量真产品缺陷**：`settings-ui.js` timeline 分支**缺一个右括号**（v3.432.0 时代已存在），`node --check` / `vm.Script` 均报 `Unexpected token ';'`。因该文件是经典 `<script>` 动态注入脚本（非 ESM、不被 `node --test` 加载），历史测试从不编译它，**全量绿也不能证明它能跑** —— 即「设置面板加载即炸」级别。修复为 `.join(''));` 后 `vm.Script` 编译通过，并新增判据 E 段把「四文件必须可编译」钉成回归守卫。
+- **台账与登记面**：`counterfactual-experiment-bench.js` 在 `module_consumption_ledger.json` 从 `{prod_call_sites: 0, allowed: 0}` 更新为 `{surface: ['CounterfactualExperimentBench.counterfactualImpact'], prod_call_sites: 1, allowed: 1}`，`zero_consumption_count` 24 → 23；连带刷新 `memory-season-silence-manager.js` 与 `institutional-collective-memory.js` 两条 `allowed:0` 但已消费的提示项；盘面 `{allowed=1: 224, allowed=0: 21}` 与门禁扫描读数一致，零警告通过。
+- **单测与负控制验收（`tests/v3433_l13_x2_whatif.test.mjs`，9 条全绿）**：
+  - A 基础输入校验与边界三态（空假设 `hypothesis-required` / 锚点不存在 `fact-not-found` / 描述式假设可推演且拒绝形态也带 `hypothetical: true`）；
+  - B 核心验收：受影响集合覆盖四池（同主体事实 / lockedFacts text 字段路径 / Map.values 图节点 / core 记忆池），无关事实与锚点自身不得混入，层级计数与铁律优先排序；
+  - C 只读铁律（**本条最重要**）：推演前后 `worldProg` / `memories` / `lockedFacts` / 引擎整体 JSON 逐字不变；
+  - D 宿主与面板接线一致性断言；
+  - E 语法回归守卫：四文件（bench / diag / index / settings-ui）`vm.Script` 必须可编译；
+  - F/G/H 三组真源码破坏负控制：破坏 `hypothetical` 标注 / 让推演写回槽位（`eng._cfLeak`）/ 破坏影响面计算（`hitTerm = null`）各自必须被原版断言当场翻红；
+  - I 当版锚点：`vnum(CUR) === 3433000` 锁定当版 frontier。
+- **六源同源抬版 3.432.0 → 3.433.0**：`index.js` / `manifest.json` / `package.json` / `memory-organs.js` / `memory-config.js` / `memory-core.js`，每处 `src.count(old) == 1` 校验通过。
+
 ## v3.432.0
 **L13-X1 记忆沿革回放：一条记忆是怎么变成现在这样的（纯函数内核 + 宿主导出 + 面板同页挂载）**
 

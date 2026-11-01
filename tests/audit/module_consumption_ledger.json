@@ -2,7 +2,7 @@
   "schema": "module-consumption-ledger@1",
   "generated_at": "2026-10-29T17:17:35.296Z",
   "total_modules": 244,
-  "zero_consumption_count": 24,
+  "zero_consumption_count": 21,
   "modules": {
     "ledger-entity.js": {
       "module": "ledger-entity.js",
@@ -1557,9 +1557,9 @@
       "surface": [
         "memory-season-silence-manager"
       ],
-      "prod_call_sites": 0,
-      "allowed": 0,
-      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active [v3.433.0 账本刷新：门禁实测 prod_call_sites>=1（文件名字符串消费点），原 allowed:0 为账本滞后]"
     },
     "meaning-evolution-map.js": {
       "module": "meaning-evolution-map.js",
@@ -1582,20 +1582,20 @@
     "counterfactual-experiment-bench.js": {
       "module": "counterfactual-experiment-bench.js",
       "surface": [
-        "counterfactual-experiment-bench"
+        "CounterfactualExperimentBench.counterfactualImpact"
       ],
-      "prod_call_sites": 0,
-      "allowed": 0,
-      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active [v3.433.0 L13-X2 接入反事实推演面：engine-diagnostic-lines 取库口 + counterfactualWhatIf 转发 + settings-ui whatif 视图]"
     },
     "institutional-collective-memory.js": {
       "module": "institutional-collective-memory.js",
       "surface": [
         "institutional-collective-memory"
       ],
-      "prod_call_sites": 0,
-      "allowed": 0,
-      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active [v3.433.0 账本刷新：门禁实测 prod_call_sites>=1（文件名字符串消费点），原 allowed:0 为账本滞后]"
     },
     "character-habit-growth-evidence.js": {
       "module": "character-habit-growth-evidence.js",

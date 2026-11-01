@@ -78,6 +78,10 @@
     function _meaningMapLib() { return _libs._meaningMapLib ? _libs._meaningMapLib.apply(null, arguments) : null; }
     function _symbiosisBridgeLib() { return _libs._symbiosisBridgeLib ? _libs._symbiosisBridgeLib.apply(null, arguments) : null; }
     function _memoryLineageLib() { return _libs._memoryLineageLib ? _libs._memoryLineageLib.apply(null, arguments) : _moduleLib(() => window.LonShaMemoryLineageReplay, 'memory-lineage-replay.js'); }
+    /* [v3.433.0 · L13-X2] 反事实推演面取库口：bench 模块是 UMD，挂 globalThis.CounterfactualExperimentBench
+     *   （不是 LonSha 前缀独占名，_moduleLib 的「路径字面量/_moduleLib 调用」两类命中都能登记）。
+     *   _libs 注入优先、globalThis 回落，与 _memoryLineageLib 同形。 */
+    function _counterfactualBenchLib() { return _libs._counterfactualBenchLib ? _libs._counterfactualBenchLib.apply(null, arguments) : _moduleLib(() => (typeof window !== 'undefined' ? window.CounterfactualExperimentBench : null), 'counterfactual-experiment-bench.js'); }
 
     function _floorLedgerLine(engine) {
 
@@ -3572,7 +3576,48 @@
         }
     }
 
-    var api = Object.freeze({ memoryLineageReplay, _memoryLineageLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, evidenceImpactReplay, _evidenceImpactLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    
+/* ===============================================================
+     * [v3.433.0 · L13-X2] 反事实推演面：如果它没发生，谁会被波及
+     * =============================================================== */
+    function counterfactualWhatIf(engine, opts) {
+        const absent = (why) => ({
+            kind: 'counterfactual_whatif', ok: false, reason: why,
+            hypothetical: true, writesNothing: true,
+            factId: '', matchedFact: null, terms: [], affected: [],
+            poolsScanned: 0, scannedCount: 0,
+            layers: { FACT_BOUND: 0, PLAUSIBLE_DEDUCTION: 0, FREE_PERFORMANCE: 0 }
+        });
+        try {
+            const CB = _counterfactualBenchLib();
+            if (!CB || typeof CB.counterfactualImpact !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const res = CB.counterfactualImpact(o, { engine });
+            if (engine) engine._counterfactualLastRead = res;
+            return res;
+        } catch (e) {
+            errLog(e, 'engine.counterfactualWhatIf');
+            return absent('thrown: ' + ((e && e.message) || e));
+        }
+    }
+
+    function _counterfactualLine(engine) {
+        try {
+            const cached = engine && engine._counterfactualLastRead;
+            const r = cached || counterfactualWhatIf(engine, {});
+            if (!r || !r.ok) {
+                return `【反事实推演】未选定推演锚点 (${(r && r.reason) || 'no-anchor'})`;
+            }
+            const L = r.layers || {};
+            return `【反事实推演】锚点 ${r.factId || '(描述式)'} · 受影响 ${r.affected.length} 条`
+                + ` (铁律 ${L.FACT_BOUND || 0} / 推演 ${L.PLAUSIBLE_DEDUCTION || 0})`
+                + ' · 全部为 hypothetical，未写回任何槽位';
+        } catch (e) {
+            return '【反事实推演】不可用 (thrown)';
+        }
+    }
+
+    var api = Object.freeze({ memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, evidenceImpactReplay, _evidenceImpactLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     global.LonShaDiagnosticLines = api;
 })(typeof window !== 'undefined' ? window : globalThis);

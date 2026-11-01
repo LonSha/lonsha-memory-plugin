@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 110629,
+  "ceiling": 111332,
   "maxSlack": 400,
-  "note": "[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流",
+  "note": "L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复",
   "history": [
     {
       "ceiling": 21000,
@@ -405,7 +405,11 @@
     {
       "ceiling": 110629,
       "reason": "[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流"
+    },
+    {
+      "ceiling": 111332,
+      "reason": "L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复"
     }
   ],
-  "_history_last": "ceiling 109378 → 110629（实测 110229 + slack 400）：[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流"
+  "_history_last": "ceiling 110629 → 111332（实测 110932 + slack 400）：L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复"
 }

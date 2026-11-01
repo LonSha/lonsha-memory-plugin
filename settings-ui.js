@@ -224,6 +224,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="conflicts"><div class="ls-stat-num">${s.conflicts?.conflicts?.length || 0}</div><div class="ls-stat-label">未决矛盾</div></div>
                     <!-- [v3.430.0 · L12-X] 机制面入口。数值只取六面里真能数的两项（规则条数 + 沉默主题数），
      其余四面是「体检 / 回放 / 链 / 四问」，本就不是计数量 —— 硬凑一个和会让这张卡撒谎。 -->
+<div class="ls-stat-card ls-clickable" data-view="whatif" title="反事实推演：如果一件事没发生，谁会被波及（只读，不写回）"><div class="ls-stat-num">推演</div><div class="ls-stat-label">如果没发生</div></div>
 <div class="ls-stat-card ls-clickable" data-view="xseries" title="规则谱系 / 意义视图 / 前史体检 / 影响回放 / 行动回执 / 沉默四问"><div class="ls-stat-num">${(s.worldProg?.institutionRules?.length || 0) + (s.worldProg?.topicSeasons?.length || 0)}</div><div class="ls-stat-label">机制面</div></div>
 <div class="ls-stat-card ls-clickable" data-view="organs" title="组织制度 / 关系动力 / 心智契约 / 意义变迁 / 时代传承"><div class="ls-stat-num">${(s.worldProg?.institutions?.length || 0) + Object.keys(s.worldProg?.relationDynamics || {}).length + (s.worldProg?.symbolicEntities?.length || 0) + (s.worldProg?.eraTransitions?.length || 0)}</div><div class="ls-stat-label">组织与心智</div></div>
                 </div>
@@ -441,7 +442,7 @@
                         <div class="ls-item ls-clickable" data-opkind="timeline" data-opid="${escAttr(e.id)}">
                             <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · ⭐${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''} · <a href="javascript:void(0)" class="ls-lineage-link" data-lid="${escAttr(e.id)}" style="color:var(--ls-accent,#58a6ff);text-decoration:none;">📜 沿革</a></div>
                             <div class="ls-item-text">${esc(e.text)}</div>
-                        </div>`).join('');
+                        </div>`).join(''));
             }
             else if (viewType === 'volumes') {
                 title = '📚 卷摘要（高层剧情概括）';
@@ -649,6 +650,28 @@
 
                 body = instHtml + relHtml + agcHtml + symHtml + eraHtml
                     + `<div class="ls-hint" style="margin-top:8px;">📌 上述五面只读展示：写入一律经 institutionAct / relationDynamicsAct / agencyContractAct / symbolicEvolutionAct / eraInheritanceAct（业务判断全在内核，面板不重判）。</div>`;
+            }
+            /* ===== [v3.433.0 · L13-X2] 反事实推演面（whatif） =====
+             *   选一个已发生的事实做「如果它没发生」，看受影响面。三条纪律：
+             *   ① 只读推演 —— 结果标 hypothetical: true，绝不写回任何槽位；
+             *   ② 每条受影响条目带真实 id，可点开核对；
+             *   ③ 三态同形：bench 模块缺席是「不可用」，不是「受影响 0 条」。 */
+            else if (viewType === 'whatif') {
+                title = '🌀 反事实推演 · 如果它没发生';
+                const cfAllFacts = []
+                    .concat((s && s.worldProg && Array.isArray(s.worldProg.facts)) ? s.worldProg.facts : [])
+                    .concat((s && Array.isArray(s.lockedFacts)) ? s.lockedFacts : []);
+                const cfPreview = (it) => esc(String(it.text || [it.subject, it.predicate, it.value].filter(Boolean).join(' ') || it.id || ''));
+                let cfHtml = '<div class="ls-hint" style="margin-bottom:6px;">选一条已发生的事实，推演「如果它没发生」会影响哪些记忆与事实。<b>推演是只读的</b>：结果全部标注 hypothetical，不会改写任何数据。</div>';
+                cfHtml += '<div style="max-height:220px;overflow-y:auto;margin-bottom:8px;">'
+                    + (cfAllFacts.length === 0 ? '<div class="ls-hint">暂无可选事实（尚无 worldProg 事实或锁定事实）。</div>' : '')
+                    + cfAllFacts.map(f => `
+                        <div class="ls-item ls-clickable" data-cf-fact="${escAttr(String(f.id || f.key || ''))}">
+                            <div class="ls-item-meta">${esc(String(f.id || f.key || '?'))} ${f.from != null ? '· 自楼层 ' + esc(String(f.from)) : ''}</div>
+                            <div class="ls-item-text">${cfPreview(f)}</div>
+                        </div>`).join('')
+                    + '</div><div id="ls-cf-result"></div>';
+                body = cfHtml;
             }
             else if (viewType === 'xseries') {
                 /* [v3.430.0 · L12-X] X 系列六面的产品可达面。
@@ -1135,6 +1158,50 @@
                     });
                 });
             });
+
+            /* [v3.433.0 · L13-X2] whatif 交互绑定：选锚点 → 只读推演 → 受影响条目可点开核对。
+             *   绑定块与视图渲染分离（与 xseries 同口径：先渲染再绑定，改一半必炸）。 */
+            if (viewType === 'whatif') {
+                const cfRun = (factId) => {
+                    const cfCall = (typeof eng.counterfactualWhatIf === 'function')
+                        ? eng.counterfactualWhatIf({ factId })
+                        : null;
+                    if (!cfCall || !cfCall.ok) {
+                        const why = (cfCall && cfCall.reason) || 'engine-unavailable';
+                        toast('⚠️ 推演未生效：' + why);
+                        const box0 = ov.querySelector('#ls-cf-result');
+                        if (box0) box0.innerHTML = '<div class="ls-hint" data-ls-cf-face="absent">⚠️ 不可用 · ' + esc(why) + '</div>';
+                        return;
+                    }
+                    const terms = cfCall.terms || [];
+                    const layers = cfCall.layers || {};
+                    let rh = '<div class="ls-hint" data-ls-cf-face="ok" style="margin-bottom:4px;">🔎 假设：<b>「' + esc(String(factId)) + '」没有发生</b>（hypothetical · 未写回）</div>';
+                    rh += '<div style="font-size:11px;color:var(--ls-muted,#8b949e);margin-bottom:6px;">扫描 ' + esc(String(cfCall.poolsScanned)) + ' 个数据池 / ' + esc(String(cfCall.scannedCount)) + ' 条 · 锚词: '
+                        + terms.slice(0, 5).map(t => esc(t)).join('、') + '</div>';
+                    rh += '<div style="font-size:12px;margin-bottom:6px;">受影响 <b>' + esc(String(cfCall.affected.length)) + '</b> 条'
+                        + '（铁律层 ' + esc(String(layers.FACT_BOUND || 0)) + ' / 推演层 ' + esc(String(layers.PLAUSIBLE_DEDUCTION || 0)) + '）</div>';
+                    rh += (cfCall.affected.length === 0
+                        ? '<div class="ls-hint">真的没有 —— 没有任何既有条目提到这条事实的词项。</div>'
+                        : cfCall.affected.map(a => `
+                            <div class="ls-item ls-clickable" data-cf-ref="${escAttr(a.ref)}" title="点开核对这条记录">
+                                <div class="ls-item-meta">[${esc(a.pool)}] ${esc(a.layer)} · 命中词「${esc(a.term)}」 · hypothetical</div>
+                                <div class="ls-item-text">${esc(a.preview)}</div>
+                            </div>`).join(''));
+                    const box = ov.querySelector('#ls-cf-result');
+                    if (box) box.innerHTML = rh;
+                    box.querySelectorAll('[data-cf-ref]').forEach(el => {
+                        el.addEventListener('click', () => {
+                            const rid = el.dataset.cfRef;
+                            ov.remove();
+                            plugin.showBrowser('oplog');
+                            try { renderLineageSheet(rid); } catch (e) { toast('沿革回放失败：' + ((e && e.message) || e)); }
+                        });
+                    });
+                };
+                ov.querySelectorAll('[data-cf-fact]').forEach(el => {
+                    el.addEventListener('click', () => cfRun(el.dataset.cfFact));
+                });
+            }
             /* [v3.430.0 · L12-X] 机制面动作绑定。五个动词是**封闭集**（与 xseries 视图里
              *   xbtn 生成的选择器一一对应）：表决通过 / 废止 / 删掉某人理解 / 静音 / 重开。
              *   ★ 三条口径：① 先写再刷新（刷新走同一视图重建，不就地改 DOM —— 就地改会让
