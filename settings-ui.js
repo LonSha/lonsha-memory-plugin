@@ -18,6 +18,20 @@
         };
 
         const VERSION = plugin.VERSION || '3.77.0';   // [v3.77] A: 版本真值（原硬编码 '1.3.0' 假版本，自检/展示全用真值）
+        const configEffects = window.LonShaMemoryConfigEffects || null;
+        const effectFeedback = (keys) => {
+            try {
+                if (!configEffects || typeof configEffects.buildEffectFeedback !== 'function') {
+                    return '⚠️ 生效时机登记缺失';
+                }
+                const list = Array.isArray(keys) ? keys : [];
+                const groups = configEffects.buildEffectFeedback(list);
+                const known = new Set(groups.flatMap(g => g.keys || []));
+                const missing = list.filter(k => !known.has(k));
+                const text = groups.map(g => g.label).join('；');
+                return (text || '已保存') + (missing.length ? '；⚠️ 未登记：' + Array.from(new Set(missing)).join(',') : '');
+            } catch (e) { reportUiError(e, 'config-effects'); return '⚠️ 生效时机判定失败'; }
+        };
 
         // ========== 共享样式 ==========
         const style = document.createElement('style');
@@ -816,7 +830,7 @@
                     //   locked_fact / worldprogress / cse / delta / gc / ledger 六类变更
                     //   在「事件审计链」里显示为英文原始 key。呈现层与账本的**类型集合**
                     //   不同步，等于账本自己没被完整读出来。补齐后由测试锁定集合关系。
-                    const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚', locked_fact: '🔒锁定事实', worldprogress: '🌍世界进度', cse: '🧠人物状态', delta: '📒正史增量', gc: '🧹回收账本', ledger: '📚楼层账本' };
+                    const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚', locked_fact: '🔒锁定事实', worldprogress: '🌍世界进度', cse: '🧠人物状态', delta: '📒正史增量', gc: '🧹回收账本', ledger: '📚楼层账本', tombstone: '🪦已删除' };
                     const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`
                         + `<div class="ls-hint" style="${(st.truncated || st.trimFields) ? 'color:var(--ls-warn,#e3b341)' : ''}">📒 账本自述：${esc(opLog.auditSummary?.() || ('窗口 ' + st.total))}${(st.truncated || st.trimFields) ? '　（下方类型统计只覆盖当前窗口；已淘汰事件不计入，且其类型会从统计中整体消失）' : ''}</div>`;
                     // [v3.59] B: 楼层过滤输入框（输入楼层号只显示该楼事件；空=全部）
@@ -826,7 +840,11 @@
                             <div class="ls-item-meta">#${e.seq} · ${typeCn[e.type] || e.type} · ${esc(e.op)} · ${e.floor !== null && e.floor !== undefined ? `第${e.floor}楼` : '—'} · ${fmtTime(e.ts)}</div>
                             <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:var(--ls-text-2,#9da7b3)">— ${esc(e.meta)}</span>` : ''}</div>
                         </div>`).join('');
-                    body = head + floorInput + `<div id="lonsha-oplog-rows">${rows}</div>`;
+                    const tombstones = typeof s.charMem?.getTombstones === 'function' ? s.charMem.getTombstones() : [];
+                    const tombRows = tombstones.length
+                        ? tombstones.slice().reverse().map(t => `<div class="ls-item"><div class="ls-item-meta">🪦 ${esc(t.char || '角色')} · 已删除 · ${fmtTime(t.deletedAt)} · ${esc(t.reason || 'manual-delete')}</div><div class="ls-item-text">${esc(t.item?.text || t.item?.id || '')} <button class="ls-btn ls-tomb-restore" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;">↺ 恢复</button> <button class="ls-btn ls-tomb-purge" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;color:var(--ls-danger,#f85149);">彻底清除</button></div></div>`).join('')
+                        : '<div class="ls-hint">暂无软删记忆。</div>';
+                    body = head + floorInput + `<div id="lonsha-oplog-rows">${rows}</div><div class="ls-hint" style="margin-top:10px;">🪦 已删除记忆（可恢复）</div><div id="lonsha-tombstone-rows">${tombRows}</div>`;
                 }
             }
 
@@ -1372,6 +1390,23 @@
             // [v3.59] B2: OpLog 楼层过滤交互（输入楼层号实时过滤该楼事件）
             const floorFilter = ov.querySelector('#lonsha-oplog-floor-filter');
             const oplogRows = ov.querySelector('#lonsha-oplog-rows');
+            if (viewType === 'oplog') {
+                ov.querySelectorAll('.ls-tomb-restore').forEach((btn) => btn.addEventListener('click', () => {
+                    const char = btn.dataset.tombChar || '';
+                    const id = btn.dataset.tombId || '';
+                    const ok = s.charMem?.restoreMemory?.(char, id);
+                    toast(ok ? '↺ 已恢复记忆（原 id 保留）' : '恢复失败：找不到软删条目');
+                    if (ok) { try { plugin._memPersist?.(); } catch (_) {} ov.remove(); plugin.showBrowser('oplog'); }
+                }));
+                ov.querySelectorAll('.ls-tomb-purge').forEach((btn) => btn.addEventListener('click', () => {
+                    const char = btn.dataset.tombChar || '';
+                    const id = btn.dataset.tombId || '';
+                    if (!window.confirm('彻底清除后无法恢复，确认继续？')) return;
+                    const ok = s.charMem?.purgeTombstone?.(char, id, { confirm: true });
+                    toast(ok ? '已彻底清除软删记录' : '清除失败：找不到软删条目');
+                    if (ok) { try { plugin._memPersist?.(); } catch (_) {} ov.remove(); plugin.showBrowser('oplog'); }
+                }));
+            }
             if (floorFilter && oplogRows && viewType === 'oplog' && s.opLog?.entries) {
                 const allRows = Array.from(oplogRows.children);
                 floorFilter.addEventListener('input', () => {
@@ -1507,6 +1542,7 @@
             //   一进入模板串即抛 ReferenceError: esc is not defined，设置面板整块打不开。
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             const c = this.engine.config.config;
+            const beforeConfig = JSON.parse(JSON.stringify(c));
             const ck = (key, label, hint) => `
                 <label class="ls-row">
                     <div><div>${label}</div>${hint ? `<div class="ls-hint">${hint}</div>` : ''}</div>
@@ -2497,8 +2533,16 @@
 
             // 保存
             overlay.querySelector('#ls-save').addEventListener('click', () => {
+                const changedKeys = new Set();
+                const markChanged = (key) => {
+                    if (!key) return;
+                    try {
+                        if (JSON.stringify(beforeConfig[key]) !== JSON.stringify(this.engine.config.config[key])) changedKeys.add(key);
+                    } catch (e) { changedKeys.add(key); }
+                };
                 overlay.querySelectorAll('[data-cfg]').forEach(el => {
                     this.engine.config.config[el.dataset.cfg] = el.checked;
+                    markChanged(el.dataset.cfg);
                 });
                 overlay.querySelectorAll('[data-cfg-num]').forEach(el => {
                     const raw = parseFloat(el.value);
@@ -2512,33 +2556,44 @@
                     if (el.dataset.cfgNum === 'vectorTopK' || el.dataset.cfgNum === 'maxSummaryLength') {
                         this.engine.config.config[el.dataset.cfgNum] = parseInt(el.value);
                     }
+                    markChanged(el.dataset.cfgNum);
                 });
                 overlay.querySelectorAll('[data-cfg-text]').forEach(el => {
                     this.engine.config.config[el.dataset.cfgText] = el.value.trim();
+                    markChanged(el.dataset.cfgText);
                 });
                 const promptEl = overlay.querySelector('#ls-prompt');
                 if (promptEl && promptEl.value.trim()) {
                     this.engine.config.config.extractionPrompt = promptEl.value;
+                    markChanged('extractionPrompt');
                 }
                 // [v3.161] 专用控件的保存路径：结构型 / 长文本类配置不能走通用 data-cfg 收集
                 const tiersEl = overlay.querySelector('#ls-pyramid-tiers');
                 if (tiersEl) {
                     const arr = tiersEl.value.split(/[，,\n]/).map(x => x.trim()).filter(Boolean);
-                    if (arr.length >= 3) this.engine.config.config.pyramidTiers = arr;
-                    else toast('⚠️ 金字塔层级至少 3 层，已保留原值');
+                    if (arr.length >= 3) {
+                        this.engine.config.config.pyramidTiers = arr;
+                        markChanged('pyramidTiers');
+                    } else toast('⚠️ 金字塔层级至少 3 层，已保留原值');
                 }
                 const rolesEl = overlay.querySelector('#ls-roles-prompt');
-                if (rolesEl && rolesEl.value.trim()) this.engine.config.config.extractRolesPrompt = rolesEl.value;
+                if (rolesEl && rolesEl.value.trim()) {
+                    this.engine.config.config.extractRolesPrompt = rolesEl.value;
+                    markChanged('extractRolesPrompt');
+                }
                 const chanEl = overlay.querySelector('#ls-secondary-apis');
                 if (chanEl) {
                     try {
                         const v = JSON.parse(chanEl.value.trim() || '{}');
-                        if (v && typeof v === 'object' && !Array.isArray(v)) this.engine.config.config.secondaryApis = v;
-                        else toast('⚠️ 副API通道需为 JSON 对象，已保留原值');
+                        if (v && typeof v === 'object' && !Array.isArray(v)) {
+                            this.engine.config.config.secondaryApis = v;
+                            markChanged('secondaryApis');
+                        } else toast('⚠️ 副API通道需为 JSON 对象，已保留原值');
                     } catch (e) { toast('⚠️ 副API通道 JSON 解析失败，已保留原值'); }
                 }
                 this.engine.config.saveConfig();
-                toast('✅ 设置已保存');
+                const effectText = effectFeedback(Array.from(changedKeys));
+                toast('✅ 设置已保存：' + effectText);
                 closeOverlay('lonsha-settings-overlay');
             });
         };

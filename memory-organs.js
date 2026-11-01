@@ -957,7 +957,15 @@ class CharacterMemoryBank {
     constructor() {
         this.memories = {};   // { charName: { core: [], recent: [] } }
         this.autobiographies = {}; // [v3.357.0 · M6-O4] { charKey: autobiography }
+        this.tombstones = {}; // [L13-O8] { charName: [{ item, deletedAt, deletedBy, reason }] }
+        this.opLog = null;    // 由宿主装配；模块缺席时仍可独立运行
         this.RECENT_KEEP = 3; // 近期记忆保留最近 3 个版本
+    }
+    bindOpLog(opLog) { this.opLog = opLog && typeof opLog.log === 'function' ? opLog : null; return !!this.opLog; }
+    getTombstones(char) { return this.listTombstones(char); }
+    _tombList(char) { const key = String(char || ''); if (!this.tombstones[key]) this.tombstones[key] = []; return this.tombstones[key]; }
+    _logDelete(char, item, reason, deletedBy) {
+        try { this.opLog?.log?.('tombstone', 'delete', item.id, item.floor ?? null, `${String(char)}${reason ? ' · ' + String(reason).slice(0, 50) : ''}`); } catch (_) {}
     }
     // 追加核心记忆（永久，不自动删）
     _detId(char, text) {
@@ -1008,10 +1016,45 @@ class CharacterMemoryBank {
     // 手动升降级（核心 ↔ 近期）
     promoteToCore(char, id) { const c = this._c(char); const i = c.recent.findIndex(m => m.id === id); if (i < 0) return false; const [m] = c.recent.splice(i, 1); m.ts = Date.now(); c.core.push(m); return true; }
     demoteToRecent(char, id) { const c = this._c(char); const i = c.core.findIndex(m => m.id === id); if (i < 0) return false; const [m] = c.core.splice(i, 1); m.ts = Date.now(); c.recent.push(m); if (c.recent.length > this.RECENT_KEEP) c.recent.shift(); return true; }
-    // 删除单条
-    deleteMemory(char, id) { const c = this._c(char); c.core = c.core.filter(m => m.id !== id); c.recent = c.recent.filter(m => m.id !== id); return true; }
+    // 删除单条：软删入 tombstones；默认 of() 仍只返回可召回的 core/recent。
+    deleteMemory(char, id, opts = {}) {
+        const c = this._c(char);
+        const idxCore = c.core.findIndex(m => m.id === id);
+        const idxRecent = idxCore < 0 ? c.recent.findIndex(m => m.id === id) : -1;
+        const bucket = idxCore >= 0 ? c.core : c.recent;
+        const index = idxCore >= 0 ? idxCore : idxRecent;
+        if (index < 0) return false;
+        const [item] = bucket.splice(index, 1);
+        const tomb = { item: JSON.parse(JSON.stringify(item)), deletedAt: Date.now(), deletedBy: String(opts.deletedBy || 'user'), reason: String(opts.reason || 'manual-delete') };
+        this._tombList(char).push(tomb);
+        this._logDelete(char, item, tomb.reason, tomb.deletedBy);
+        return true;
+    }
+    listTombstones(char) {
+        if (char !== undefined && char !== null) return JSON.parse(JSON.stringify(this._tombList(char)));
+        return Object.entries(this.tombstones || {}).flatMap(([charName, rows]) => (rows || []).map((row) => ({ char: charName, ...JSON.parse(JSON.stringify(row)) })));
+    }
+    restoreMemory(char, id) {
+        const list = this._tombList(char);
+        const idx = list.findIndex(x => x?.item?.id === id);
+        if (idx < 0) return false;
+        const [tomb] = list.splice(idx, 1);
+        const c = this._c(char);
+        const item = JSON.parse(JSON.stringify(tomb.item));
+        const target = String(item.id || '').startsWith('cm_') ? c.core : c.recent;
+        target.push(item);
+        try { this.opLog?.log?.('tombstone', 'restore', item.id, item.floor ?? null, String(char)); } catch (_) {}
+        return true;
+    }
+    purgeTombstone(char, id, opts = {}) {
+        if (opts.confirm !== true) return false;
+        const list = this._tombList(char);
+        const before = list.length;
+        this.tombstones[String(char || '')] = list.filter(x => x?.item?.id !== id);
+        return this.tombstones[String(char || '')].length < before;
+    }
     // 该角色全部记忆
-    of(char) { return this._c(char); }
+    of(char) { const c = this._c(char); return { core: c.core, recent: c.recent }; }
     // 召回（链1/链2 用）: 匹配查询词，按相关性+时间衰减排序
     search(char, query) {
         const c = this._c(char);
@@ -1131,21 +1174,25 @@ class CharacterMemoryBank {
     export() {
         return {
             memories: this.memories,
-            autobiographies: this.autobiographies || {}
+            autobiographies: this.autobiographies || {},
+            tombstones: this.tombstones || {}
         };
     }
     import(data) {
         if (!data || typeof data !== 'object') {
             this.memories = {};
             this.autobiographies = {};
+            this.tombstones = {};
             return;
         }
         if (data.memories && typeof data.memories === 'object') {
             this.memories = data.memories;
             this.autobiographies = (data.autobiographies && typeof data.autobiographies === 'object') ? data.autobiographies : {};
+            this.tombstones = (data.tombstones && typeof data.tombstones === 'object') ? data.tombstones : {};
         } else {
             this.memories = data;
             this.autobiographies = {};
+            this.tombstones = {};
         }
         for (const k of Object.keys(this.memories)) {
             if (!this.memories[k].core) this.memories[k].core = [];

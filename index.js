@@ -1317,6 +1317,11 @@
         promoteToCore() { return false; }
         demoteToRecent() { return false; }
         deleteMemory() { return false; }
+        restoreMemory() { return false; }
+        listTombstones() { return []; }
+        getTombstones() { return []; }
+        purgeTombstone() { return false; }
+        bindOpLog() { return false; }
         of() { return { core: [], recent: [] }; }
         getAutobiography() { return null; }
         addLifeStage() { return { ok: false, reason: 'stub' }; }
@@ -2383,6 +2388,9 @@ function relativeTimeLabel(eventTime, nowTime) {
             })();
             this.pairMem = _newMemoryLedger('PairMemory');
             this.opLog = _newMemoryAux('OpLog');  // [v3.54] 事件溯源日志
+            // [L13-O8] CharacterMemoryBank 的软删事件与宿主 OpLog 同源；模块缺席时安全降级。
+            try { this.charMem?.bindOpLog?.(this.opLog); } catch (e) { errLog(e, 'charMem.bindOpLog'); }
+            try { this.opLog?.queryByType?.('tombstone'); } catch (e) { errLog(e, 'opLog.tombstone-read'); }
             // [v3.96] 缝合四模块实例化（降级为空实现，缺 window 全局时不影响主链路）
             // ① 前置 AI 精选（ai-select.js）：候选语义精选，注入 llm.callAPI 走独立API+宿主双通道
             this.aiSelect = new (this._winModule('LonShaAISelect', 'AISelect') || function() {
