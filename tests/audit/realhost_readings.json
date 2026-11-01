@@ -1,1 +1,8 @@
-{"verdict": "environment-unavailable", "timestamp": "2026-11-01T20:25:00Z", "note": "ST not running on 127.0.0.1:8123, execution bail triggered"}
+{
+  "schema": "realhost-readings@1",
+  "generatedAt": "2026-11-01T14:54:26.345Z",
+  "version": "3.433.0",
+  "verdict": "environment-unavailable",
+  "reason": "ST 未就绪（http://127.0.0.1:1/ ⇒ 0）—— 先起 SillyTavern",
+  "source": "tests/audit/_realhost_suite.mjs bail"
+}

@@ -64,11 +64,9 @@ const ST_URL = process.env.LONSHA_ST_URL || 'http://127.0.0.1:8123/';
 const EXT = process.env.LONSHA_EXT_DIR || '/tmp/st/data/default-user/extensions/lonsha-memory-plugin';
 const PROFILE = '/tmp/realhost_suite_profile';
 const OUT_JSON = path.join(HERE, 'realhost_readings.json');
-
 const readings = [];
 const defects = [];
 let cdpProc = null;
-
 /** 进程组收割（⑥）：组杀 + 直接子进程兜底，可重复调用。 */
 function reap() {
     if (!cdpProc) return;
@@ -76,9 +74,32 @@ function reap() {
     try { cdpProc.kill('SIGKILL'); } catch { /* 兜底 */ }
     cdpProc = null;
 }
-/** 环境缺失 / 探针失效 ⇒ exit 2（**不给结论**）。 */
+/**
+ * 环境缺失 / 探针失效 ⇒ exit 2（**不给结论**）。
+ *
+ * 失败也要留下机器可读的尝试记录，但这不是成功读数：`verdict` 明确为
+ * `environment-unavailable`，并且仍保持 exit 2。负控制调用探针时可设置
+ * `LONSHA_REALHOST_NO_WRITE=1`，避免测试夹具覆盖工作树上的最新证据。
+ */
+let repoVersion = '';
+function recordUnavailable(msg) {
+    if (process.env.LONSHA_REALHOST_NO_WRITE === '1') return;
+    try {
+        fs.writeFileSync(OUT_JSON, JSON.stringify({
+            schema: 'realhost-readings@1',
+            generatedAt: new Date().toISOString(),
+            version: repoVersion || null,
+            verdict: 'environment-unavailable',
+            reason: String(msg),
+            source: 'tests/audit/_realhost_suite.mjs bail',
+        }, null, 2) + '\n', 'utf8');
+    } catch (e) {
+        console.error('[realhost] 环境失败记录落盘失败：' + String((e && e.message) || e));
+    }
+}
 function bail(msg) {
     console.error('[realhost] 环境缺失或探针失效：' + msg);
+    recordUnavailable(msg);
     reap();
     process.exit(2);
 }
@@ -88,7 +109,6 @@ const flag = (block, msg) => defects.push({ block, msg });
 const nap = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ── 0. 前置：仓库 / 部署 / 浏览器 / ST 四件都在，否则 exit 2（不猜） ── */
-let repoVersion = '';
 try {
     repoVersion = String(JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8')).version);
 } catch (_e) { bail('仓库 manifest.json 读不到（工作目录可能不对：' + ROOT + '）'); }
@@ -201,16 +221,26 @@ while (Date.now() < BOOT_DEADLINE) {
                 hasOrgans: !!g.LonShaMemoryOrgans,
                 hasPlugin: !!plug,
                 hasStorage: !!(eng && eng.storage && typeof eng.storage.save === 'function'),
+                initialized: !!(plug && plug.initialized === true),
+                extraJsStatus: plug && plug._extraJsLoad ? plug._extraJsLoad.status : null,
                 hasUI: !!(plug && typeof plug.showSettingsPanel === 'function'),
             };
         })()`);
     } catch (_e) { boot = null; }
-    if (boot && boot.hasST && boot.hasOrgans && boot.hasPlugin && boot.hasStorage) break;
+    /*
+     * window.LonShaMemory 在 index.js 末尾挂上，但 init() 是异步的；
+     * 只等到 constructor 面（storage.save 在构造期就存在）会抢跑到
+     * ensureExtraJs/rebuildComponents 之前，造成「真实页面已加载、模块读数却
+     * undefined」的假现场。O1 的三块都依赖 init 完成后的真实装配面，因此
+     * ready 必须包含 initialized，而不是只看对象和方法是否存在。
+     */
+    if (boot && boot.hasST && boot.hasOrgans && boot.hasPlugin && boot.hasStorage && boot.initialized) break;
 }
 if (!boot || !boot.hasST) bail('真页面里 SillyTavern 上下文不可用（60s 轮询内未就绪）');
 if (!boot.hasPlugin) bail('真页面里 window.LonShaMemory 不在场 —— 插件未装/未装载');
 if (!boot.hasOrgans) bail('真页面里 LonShaMemoryOrgans 不在场 —— 内存器官未装载');
 if (!boot.hasStorage) bail('真页面里 window.LonShaMemory.engine.storage.save 不可用');
+if (!boot.initialized) bail('真页面里 LonShaMemory.init 未完成（60s 轮询内未完成真实装配）');
 
 /* ═══════════ 块 ① 装载面 ═══════════ */
 if (!ONE || ONE === 'load') {
@@ -373,14 +403,22 @@ if (!ONE || ONE === 'worldline') {
                 { id: 'beta', floor: 42, worldline: 'β线' },      /* 中间纪元 */
                 { id: 'nolocate', text: '既无楼层也无线标' },      /* 判不了 */
             ];
-            const gate = eng.worldlineGate({ items: items, viewer: '', floor: 60 });
+            const gate = (typeof eng.worldlineGate === 'function')
+                ? eng.worldlineGate({ items: items, viewer: '', floor: 60 }) : null;
+            /* fail-closed：模块/依赖未装配时，真实页面可能返回 null；探针必须把它
+             * 记录为不可用而不是在 gate[b] 上自抛 TypeError。这样 exit 2 的原因仍然
+             * 来自真实宿主契约，而不是探针自身的异常形状。 */
+            if (!gate || typeof gate !== 'object') {
+                out.err = 'worldlineGate returned ' + String(gate);
+                return out;
+            }
             const buckets = {};
             for (const b of ['kept', 'held', 'blocked', 'undecided']) {
-                for (const row of (gate[b] || [])) {
+                for (const row of (Array.isArray(gate[b]) ? gate[b] : [])) {
                     buckets[String(row.key)] = { bucket: b, state: row.state, why: row.why, epoch: row.epoch };
                 }
             }
-            out.epochAdvance = eng._worldlineState({ floor: 60 }).epochAdvance;
+            out.epochAdvance = (typeof eng._worldlineState === 'function' && eng._worldlineState({ floor: 60 }) || {}).epochAdvance;
             out.current = gate.current;
             out.counts = gate.counts;
             out.buckets = buckets;
@@ -418,6 +456,7 @@ const report = {
     defects,
     pageErrors: pageErrors.slice(0, 5),
     ok: defects.length === 0,
+    verdict: defects.length === 0 ? 'success' : 'product-defect',
 };
 /* 读数落盘（计划验收：`tests/audit/realhost_readings.json`）——
  *   写失败要**如实报**并 exit 2：一份「跑了但没留下证据」的读数，比没跑更容易被当成跑过。 */

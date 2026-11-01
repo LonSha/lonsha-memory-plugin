@@ -1,6 +1,6 @@
 # Agent Note: LonSha 第十三期优化提升计划
 
-Status: proposed
+Status: implemented
 
 > **期号口径（本份首次启用，写在此处防再次撞号）**：本仓期号序列为
 > 第九期 = V9（`L9-*`）/ 第十期 = v3.410.0（`L10-*`）/ 第十一期 = v3.420.0（`L11-*`，已交付）/
@@ -94,7 +94,7 @@ Status: proposed
 **产品面建成、玩家只能看不能动**；而唯一能证明「动了之后真没问题」的真宿主门，
 建好就没人跑。本期九项全部对准这两条，**不开新内核、不加新机制**。
 
-## Proposal
+## Decision
 
 ### L13-O1 · 真宿主门从「建好」到「真跑一次」（一次真跑，不是再建门）
 
@@ -113,6 +113,12 @@ Status: proposed
   起不来时仍 exit 2（**未执行 ≠ 通过**）；`PLAN.md` 诚实边界段不再出现「仍未跑真实 SillyTavern UI」
   这句无版本的话。
 - **规模**：**2~3 天**（主要成本在 ST 壳与浏览器拉起，不在判据）。
+
+### L13-O1 implementation record
+
+O1 is implemented as an explicit, opt-in real-host workflow rather than an `npm test` dependency. `tools/realhost_up.mjs` assembles an isolated SillyTavern 1.19.0 data root and deploys the repository under `default-user/extensions/lonsha-memory-plugin`; `_realhost_suite.mjs` owns the CDP measurements and remains outside the normal test runner. The probe waits for the plugin asynchronous `initialized` state, treats a missing/non-object worldline gate as environment-unavailable, and uses `LONSHA_REALHOST_NO_WRITE=1` for negative controls so a failed fixture cannot overwrite successful evidence. The success evidence is versioned in `tests/audit/realhost_readings.json`.
+
+This keeps the real host as a separate, reproducible gate: a real run is required for O1 evidence, but browser/process availability is never silently converted into a normal unit-test pass. The accompanying `v3433_l13_o1_realhost.test.mjs` verifies the launcher contract, fail-closed guards, evidence immutability under negative control, and the committed success evidence without manufacturing a real-host result.
 
 ### L13-O2 · 记忆条目级编辑面（玩家第一次能改一条记忆）
 
