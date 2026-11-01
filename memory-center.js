@@ -773,7 +773,7 @@
                 + '<div class="ls-item-meta">' + esc(meta) + ' · <span class="ls-mc-ref">' + esc(r.ref) + '</span></div>'
                 + '<div class="ls-item-text">' + esc(r.title) + (r.detail ? ' — ' + esc(r.detail) : '') + '</div>'
                 + masked
-                + '<div class="ls-mc-actions">' + actionButtons(face.actions, 'row', r.ref) + '</div>'
+                + '<div class="ls-mc-actions">' + '<button class="ls-btn ls-btn-sm ls-mc-lineage-btn" data-mc="lineage" data-ref="' + escAttr(r.ref) + '">📜 沿革</button> ' + actionButtons(face.actions, 'row', r.ref) + '</div>'
                 + '</div>';
         }).join('');
     }

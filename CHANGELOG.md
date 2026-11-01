@@ -1,3 +1,28 @@
+## v3.432.0
+**L13-X1 记忆沿革回放：一条记忆是怎么变成现在这样的（纯函数内核 + 宿主导出 + 面板同页挂载）**
+
+- **真实现场（取证于 2026-10-31 证据页 Problem 1）**：面板中虽然有 `timeline` / `deltas` / `conflicts` / `archive` 等 25 视图，但全属当前状态的静态陈列；`oplog` 是全局操作流水，并非针对某条特定记忆的沿革。当玩家或模型追问「这段记忆是怎么变成现在这样的」、「为什么该角色记得此事却撤回了那件事」时，此前系统无法给出结构化的溯源链。
+- **核心交付：新内核 `memory-lineage-replay.js`（本面仅有的两件新内核之一）**：
+  - 输入条目 `itemId` 与宿主既有槽位（`opLog` / 证据账 / 条目本体），按时序输出结构化沿革链（`lineage`）：创建（`create`）-> 演变修改（`update`）-> 事实裁决（`verdict`）-> 裁决撤回（`revoke`）-> 当前态（`current`）；
+  - 每节严谨保留时间戳（`at`）、楼层（`floor`）、触发源（`by`）、成因（`why`）以及键级变更差异（`diff`）；
+  - **零新事实库**：数据全部消费既有槽位，不另起存储；
+  - **真实不编**：某层数据（如 oplog 超窗淘汰或证据账记录丢失）被抹掉时，该节标为 `available: false` 并具名 `missingLayer`（如 `'oplog'`），绝不静默消失或伪造；
+  - **严格只读**：`writesNothing: true`，回放过程零副作用。
+- **宿主与诊断行出口接线**：
+  - `index.js` 新增宿主导出 `memoryLineageReplay` 与状态行 `_memoryLineageLine`；
+  - `engine-diagnostic-lines.js` 实现取库口 `_memoryLineageLib` 与诊断业务 `memoryLineageReplay` / `_memoryLineageLine`，挂入只读导出面；
+  - 模块登记：纳入 `manifest.json` `extra_js`（245 项），并在 `module_consumption_ledger.json` 与 `extra_js_seam_ledger.tsv` 中规范双向建档，活跃消费门禁零未登记孤儿。
+- **UI 面板双入口挂载（`settings-ui.js` & `memory-center.js`）**：
+  - `timeline` 视图顶部新增「挑一条记忆看沿革」交互栏，支持手动输入条目 ID 或点击时间线条目上的「📜 沿革」超链接弹窗查阅；
+  - `memorycenter` 记忆控制中心每行条目操作区补齐「📜 沿革」按钮（`data-mc="lineage"`），实现点对点即时调阅。
+- **单测与负控制验收（`tests/v3432_l13_x1_memory_lineage.test.mjs`）**：
+  - A 基础输入校验与边界三态（空 ID 必拒 `item-id-required` / 未知条目 `item-not-found` / `writesNothing: true`）；
+  - B 核心验收：构造「创建 -> 改两次 -> 撤一次」条目历史，沿革恰好 4 节且类型与时序严格有序；
+  - C 缺层保真：数据层被抹掉时该节标 `unavailable: true`、点名 `missingLayer: 'oplog'`，节不消失；
+  - D 宿主集成：`engine-diagnostic-lines` 与 `index.js` 导出一致性断言；
+  - E 负控制真源码破坏：将 `computeDiff` 中的 `changedKeys` 强行清空，阳性断言必须当场翻红捕获；
+  - F 当版锚点：以 `vnum(CUR) === 3432000` 锁定当版 frontier。
+
 ## v3.431.0
 **回归临时根从内存盘搬到磁盘，并在搬家路上抓到一个躲在路径巧合后面的真缺陷**
 

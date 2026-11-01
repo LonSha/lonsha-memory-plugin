@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.431.0';
+    const VERSION = '3.432.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3165,6 +3165,8 @@ function relativeTimeLabel(eventTime, nowTime) {
         _worldlinePrehistoryLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlinePrehistoryLine(this, ...args) : ''; }
         evidenceImpactReplay(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceImpactReplay(this, ...args) : null; }
         _evidenceImpactLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._evidenceImpactLine(this, ...args) : ''; }
+        memoryLineageReplay(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.memoryLineageReplay(this, ...args) : null; }
+        _memoryLineageLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._memoryLineageLine(this, ...args) : ''; }
         actionReceiptState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.actionReceiptState(this, ...args) : null; }
         actionReceiptAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.actionReceiptAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
         _actionReceiptLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._actionReceiptLine(this, ...args) : ''; }

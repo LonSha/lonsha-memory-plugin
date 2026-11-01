@@ -2199,6 +2199,15 @@
       "prod_call_sites": 2,
       "allowed": 1,
       "why": "active"
+    },
+    "memory-lineage-replay.js": {
+      "module": "memory-lineage-replay.js",
+      "surface": [
+        "window.LonShaMemoryLineageReplay"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
     }
   }
 }

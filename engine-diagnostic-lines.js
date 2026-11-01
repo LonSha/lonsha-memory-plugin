@@ -77,6 +77,7 @@
     function _memorySeasonLib() { return _libs._memorySeasonLib ? _libs._memorySeasonLib.apply(null, arguments) : null; }
     function _meaningMapLib() { return _libs._meaningMapLib ? _libs._meaningMapLib.apply(null, arguments) : null; }
     function _symbiosisBridgeLib() { return _libs._symbiosisBridgeLib ? _libs._symbiosisBridgeLib.apply(null, arguments) : null; }
+    function _memoryLineageLib() { return _libs._memoryLineageLib ? _libs._memoryLineageLib.apply(null, arguments) : _moduleLib(() => window.LonShaMemoryLineageReplay, 'memory-lineage-replay.js'); }
 
     function _floorLedgerLine(engine) {
 
@@ -3530,7 +3531,48 @@
     }
 
 
-    var api = Object.freeze({ bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, evidenceImpactReplay, _evidenceImpactLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    /* ===============================================================
+     * [v3.432.0 · L13-X1] 记忆沿革回放：一条记忆是怎么变成现在这样的
+     * =============================================================== */
+    function memoryLineageReplay(engine, opts) {
+        const absent = (why) => ({
+            kind: 'memory_lineage', itemId: '', itemFound: false,
+            lineage: [], currentState: null,
+            summary: { totalSteps: 0, creates: 0, updates: 0, verdicts: 0, revokes: 0, unavailableCount: 0 },
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const MLR = _memoryLineageLib();
+            if (!MLR || typeof MLR.buildMemoryLineage !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const itemId = String(o.itemId || (typeof opts === 'string' ? opts : '')).trim();
+            if (!itemId) return absent('item-id-required');
+            const res = MLR.buildMemoryLineage(itemId, engine, o);
+            if (engine) engine._memoryLineageLastRead = res;
+            return res;
+        } catch (e) {
+            errLog(e, 'engine.memoryLineageReplay');
+            return Object.assign(absent('thrown'), {});
+        }
+    }
+
+    function _memoryLineageLine(engine) {
+        try {
+            const cached = engine && engine._memoryLineageLastRead;
+            const r = cached || memoryLineageReplay(engine, {});
+            if (!r || !r.ok) {
+                const why = (r && r.reason) || 'no-item';
+                return `【记忆沿革】暂无回放 (${why})`;
+            }
+            const s = r.summary || {};
+            return `【记忆沿革】条目 ${r.itemId} · ${s.totalSteps || 0} 节 (建 ${s.creates || 0} / 改 ${s.updates || 0} / 裁 ${s.verdicts || 0} / 撤 ${s.revokes || 0})`
+                + (s.unavailableCount ? ` · 缺失 ${s.unavailableCount} 节` : ' · 完整');
+        } catch (e) {
+            return '【记忆沿革】不可用 (thrown)';
+        }
+    }
+
+    var api = Object.freeze({ memoryLineageReplay, _memoryLineageLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, evidenceImpactReplay, _evidenceImpactLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     global.LonShaDiagnosticLines = api;
 })(typeof window !== 'undefined' ? window : globalThis);

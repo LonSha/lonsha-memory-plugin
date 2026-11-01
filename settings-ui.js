@@ -431,10 +431,15 @@
             else if (viewType === 'timeline') {
                 title = '📅 剧情时间线';
                 const tl = faceRead(() => (s.timeline ? '' : '时间线服务缺席'), () => s.timeline.entries || []);
-                body = tl.length === 0 ? faceHTML('剧情中出现明确日期时会自动记录。') :
+                const lineageHeader = `<div class="ls-hint" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;">`
+                    + `<span>挑一条记忆看沿革:</span>`
+                    + `<input class="ls-input ls-input-sm" id="ls-tl-lineage-id" placeholder="条目 ID 或点击条目" style="flex:1;max-width:220px;">`
+                    + `<button class="ls-btn ls-btn-sm" id="ls-tl-lineage-btn">📜 查看沿革</button>`
+                    + `</div>`;
+                body = lineageHeader + (tl.length === 0 ? faceHTML('剧情中出现明确日期时会自动记录。') :
                     tl.slice().reverse().map(e => `
                         <div class="ls-item ls-clickable" data-opkind="timeline" data-opid="${escAttr(e.id)}">
-                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · ⭐${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''}</div>
+                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · ⭐${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''} · <a href="javascript:void(0)" class="ls-lineage-link" data-lid="${escAttr(e.id)}" style="color:var(--ls-accent,#58a6ff);text-decoration:none;">📜 沿革</a></div>
                             <div class="ls-item-text">${esc(e.text)}</div>
                         </div>`).join('');
             }
@@ -1089,6 +1094,33 @@
              *   这正是本刀要清的形态（把「不可用」说成「可用」，比不提示更坏）。
              *   判据从**已渲染的 HTML 自身**取（`body` 里有没有 `data-opkind=` 标记），
              *   而不是另立一份「哪些视图可点」的名单 —— 名单会与渲染面漂移。 */
+                        const renderLineageSheet = (targetId) => {
+                const r = (typeof plugin.engine?.memoryLineageReplay === 'function')
+                    ? plugin.engine.memoryLineageReplay({ itemId: targetId })
+                    : null;
+                if (!r || !r.ok) {
+                    toast('⚠️ 无法生成沿革：' + ((r && r.reason) || '引擎不可用'));
+                    return;
+                }
+                const sm = r.summary || {};
+                let html = `<div style="padding:10px;">`
+                    + `<div style="font-weight:bold;margin-bottom:6px;">📜 记忆条目沿革：${esc(r.itemId)}</div>`
+                    + `<div class="ls-hint" style="margin-bottom:8px;">共 ${sm.totalSteps} 步 (创建 ${sm.creates} · 修改 ${sm.updates} · 裁决 ${sm.verdicts} · 撤销 ${sm.revokes}) · ${sm.unavailableCount ? '⚠️ 存在缺失数据层' : '✅ 链路完整'}</div>`;
+                if (!r.lineage.length) {
+                    html += `<div class="ls-hint">该条目暂无历史变动记录。</div>`;
+                } else {
+                    html += r.lineage.map(step => `
+                        <div style="border-left:2px solid var(--ls-accent,#58a6ff);padding-left:8px;margin-bottom:8px;">
+                            <div style="font-size:11px;color:var(--ls-muted,#8b949e);">第 ${step.step} 步 · [${esc(step.kind)}] · ${step.at ? new Date(step.at).toLocaleTimeString() : '初始'} · 由 ${esc(step.by)} 触发</div>
+                            <div style="font-size:12px;margin:2px 0;">${esc(step.why)}</div>
+                            <div style="font-size:11px;color:var(--ls-muted,#8b949e);">${esc(step.diff?.summary || '')}</div>
+                            ${step.available === false ? `<div style="font-size:10px;color:var(--ls-warn,#d29922);">⚠️ 原始数据缺失（缺层: ${esc(step.missingLayer || '未知')}）</div>` : ''}
+                        </div>
+                    `).join('');
+                }
+                html += `</div>`;
+                makeSheet('lonsha-lineage-overlay', '📜 记忆沿革回放', html);
+            };
             const opHint = /\sdata-opkind=/.test(body || '') ? '<div class="ls-hint" style="color:var(--ls-accent,#58a6ff);margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>' : '';
             const ov = makeSheet('lonsha-browser-overlay', title, body ? (opHint + body) : '<div class="ls-hint">暂无数据</div>');
             /* [v3.428.0 · L12-O4] 失败态留重试：抛错是可恢复的，不给按钮等于让人关面板重开。 */
@@ -1345,6 +1377,12 @@
                 ov.querySelectorAll('[data-mc="profile"]').forEach((b2) => b2.addEventListener('click', () => {
                     stepOrg('profile', { to: 'profile', profile: b2.dataset.profile });
                 }));
+                ov.querySelectorAll('[data-mc="lineage"]').forEach((btn) => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        renderLineageSheet(btn.dataset.ref);
+                    });
+                });
                 ov.querySelectorAll('[data-mc="select"]').forEach((cb) => cb.addEventListener('click', (ev) => {
                     /* 阻止标签点击再触发一次 change（否则同一次点击会来回翻转两遍 = 看上去「点不动」）。 */
                     if (ev) ev.stopPropagation();

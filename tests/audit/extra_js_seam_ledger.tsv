@@ -243,3 +243,4 @@ ancient-story-clock.js	yes	yes	none	host-seam
 fact-replay-pipeline.js	yes	yes	none	host-seam
 inband-extraction-parser.js	yes	yes	none	host-seam
 worldline-memory.js	yes	yes	none	host-seam
+memory-lineage-replay.js	yes	yes	none	host-seam
