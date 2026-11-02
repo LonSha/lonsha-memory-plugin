@@ -184,6 +184,17 @@ const LEDGER = [
      + 'M6-O1 连续经历两模块各自持一份（两模块零依赖 IIFE，装载时机与存活期互不包含）。\n'
      + '**为什么留多份**：与既有 numOrNull 簇同族 —— 它是**通用数值原语**，不是账本条目结构的取值代码；\n'
      + '收拢会把「本模块自足」换成「依赖另一个模块先挂载」，即本仓反过的「跨模块静默读旧值」形态。'],
+    /* [v3.439.0 · L13 期内] **第二个** strList 簇：evidence-solver.js 与 scene-orchestrator.js
+     *   各持一份「字符串列表归一」，体与上面 dual-time/experience-rebuild 那一簇**不同源**
+     *   （那一簇带 `cap` 上限截断，这一簇不吃 cap），故是**独立簇**而不是既有一簇加成员。
+     *   两者同为**零依赖 IIFE**，档头声明不引兄弟模块的原语 —— 收拢会把「本模块自足」换成
+     *   「依赖另一块先挂载」，即本仓反过的跨模块静默读旧值形态。
+     *   ★ 判据真抓到东西：本簇由既有两模块（非本期新增代码）构成，此前未登记，B1 当场点名。 */
+    ['strList', ['evidence-solver.js', 'scene-orchestrator.js'], 'aaeaf29c',
+     '字符串列表归一（逐项文本化 + 去重；非数组 ⇒ 空列表）。\n'
+     + '**为什么留两份**：与 numOrNull / strOf 同族 —— 通用取值原语，两模块装载时机互不包含\n'
+     + '（命题裁决面可缺席而场景编排在，反之亦然），收拢即引入跨模块静默读旧值。\n'
+     + '★ 与上面 dual-time/experience-rebuild 的 strList **不是同一体**（那一版带上限截断），已实测分开登记。'],
     ['strList', ['dual-time.js', 'experience-rebuild.js'], 'f811248b',
      '字符串列表归一（逐项文本化 + 去重 + 上限截断；非数组 ⇒ 空列表）。\n'
      + '★ **当版新登（v3.355.0 轮）**：由 M6-O1/M6-O5 两个新内核引入，此前全仓无同体副本，\n'
@@ -334,7 +345,18 @@ const LEDGER = [
     ['safeNum', ['generation-fact-receipt.js', 'generation-memory-plan.js', 'memory-inbox.js', 'memory-weather.js', 'temporal-validity-workflow.js'], '35412d94', '数值兜底原语（非法 ⇒ 缺省，不拿 0 冒充「就是 0」；0 是合法楼层）。同族理由见上。'],
     ['safeNum', ['lineage-heritage-tree.js', 'memory-maintenance-session.js', 'memory-migration-boundary.js', 'profile-dossier-view.js'], 'd8bcc558', '数值兜底原语（非法 ⇒ 缺省，不拿 0 冒充「就是 0」；0 是合法楼层）。同族理由见上。'],
     ['safeStr', ['bounded-interview.js', 'collective-memory-deliberation.js', 'curated-exhibition-bench.js', 'lineage-heritage-tree.js', 'memory-inspiration-desk.js', 'oral-history-archive.js', 'playable-archive-engine.js', 'relationship-repair-theater.js', 'unfinished-pledge-theater.js'], '4a8e210d', '文本兜底原语（非串 ⇒ 空串）。第九批三人格剧场族九模块同批落盘、各自自持。'],
-    ['strList', ['evidence-solver.js', 'scene-orchestrator.js'], 'aaeaf29c', '字符串列表归一（逐项文本化 + 去重 + 上限截断）。两模块零依赖 IIFE，装载时机互不包含。'],
+    /* ── [v3.439.0] 补登一簇：本版新内核 `pov-projection.js` 与 `knowledge-trace.js` 逐字同源。
+     *   ★ 判据**真抓到东西**（不是为过门禁而补登记）：v3439 落盘当版 B1 立刻报
+     *   「新增未登记的模块↔模块逐字副本：floorOf#6fe7a611（成员 knowledge-trace.js,pov-projection.js）」，
+     *   同时 D1「原版上同判据必须真成立」也跟着红 —— 两条判据从两侧同时点名，属按设计生效。
+     *   为什么留两份：pov-projection 是**零依赖 IIFE**（要能被单独 require、也要能在 CDN 加载面同形），
+     *   它的时点过滤要在「楼层读不到 ⇒ return null」上与 knowledge-trace 走同一口径
+     *   （本仓 §取数门：`Number.isFinite` / 数字串才认，其余如实 null，**绝不编 0** ——
+     *   0 是「第 0 楼」这个真实读数）。收拢成跨模块引用会让「投影面自足」变成
+     *   「依赖知识轨迹先挂载」，正是本仓反过的跨模块静默读旧值形态。
+     *   体 md5 由 v3281 B1 从盘上实测枚举得出，非手抄。 */
+    ['floorOf', ['knowledge-trace.js', 'pov-projection.js'], '6fe7a611',
+        '楼层取数原语：只认 number 与非空数字串，其余如实 null（不拿 0 冒充「就是 0」）。同族理由见上。'],
 ];
 
 /* ---- 破坏锚点（逐条取自真源，禁改；本档须逐字持有） ---- */

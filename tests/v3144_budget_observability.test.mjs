@@ -66,5 +66,17 @@ test('v3.144 head 声明必须是 let（+= 对 const 抛 TypeError，语法门�
     const m = declRe.exec(ui);
     assert.ok(m, '注入预览 head 声明可定位');
     assert.equal(m[1], 'let', 'head 必须为 let：面板实测条用 head += 追加，const 会在运行时抛 TypeError');
-    assert.ok(ui.slice(m.index, m.index + 3000).includes('head +='), '确实存在 += 追加（若删除 += 则本断言提示可同步简化）');
+    /* [v3.439.0] 原写法用「声明点起 3000 字符窗口」找 `head +=` —— 那是**脆弱的度量**：
+     *   O6 逐条清单在声明与第一处追加之间加了大段注释，窗口被注释撑破，于是「确实存在 +=」
+     *   这条真判据变成假红。改判**语义同一性**（更强，且与字符距离无关）：
+     *   ① 声明之后必须真有一处 `head +=`；
+     *   ② 从声明到那处 `+=` 之间不得出现对 head 的**重新赋值**（`head = ` 不带 +），
+     *      否则 += 追加的不是这个 let（换名字/换作用域都会在这里现形）。 */
+    const firstPlus = ui.indexOf('head +=', m.index);
+    assert.ok(firstPlus > m.index, '确实存在 += 追加（若删除 += 则本断言提示可同步简化）');
+    /* 起点必须落在**声明之后**（m[0] 是整条声明本身，含 `head = `）：从 m.index 起切会把
+     *   声明自己当成「重新赋值」，那是把判据写成恒真/恒假的老毛病。 */
+    const between = ui.slice(m.index + m[0].length, firstPlus);
+    assert.equal(/head\s*=[^=]/.test(between), false,
+        '声明与第一处 += 之间不得有 head 重新赋值（否则 += 追加的不是这个 let）');
 });

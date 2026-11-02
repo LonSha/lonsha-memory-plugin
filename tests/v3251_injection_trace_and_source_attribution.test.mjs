@@ -196,7 +196,24 @@ test('v3251 B1. 回执五阶段：合并/最终保留是真读数，测得出来
     assert.ok(st.merged > 0);
     assert.ok(Number.isFinite(st.finalKept) && st.finalKept > 0, '最终保留 = 真读数，实 ' + st.finalKept);
     assert.ok(Number.isFinite(st.budgetTrimmed) && st.budgetTrimmed > 0, '被裁块数 = 真读数，实 ' + st.budgetTrimmed);
-    assert.strictEqual(st.budgetTrimmed, r.trace.blockCount - st.finalKept, '两格与块总数自洽');
+    /* [L13-O6] **判据口径换过，理由必须留在这里**：
+     *   修前这条写的是 `budgetTrimmed === blockCount - finalKept`。它只在一件事成立时才等价 ——
+     *   「裁剪输入里每一块都是一个条目」。实测不成立：`_allB` 里混着**空文本块**，
+     *   而逐块读数在 `if (!text) continue;` 处根本不为空块成行。于是旧等式的差额里
+     *   混着「空块」与「真被裁的条目」两种东西，而面板读的是逐条那份 ⇒
+     *   用户看到「被裁 17」却只能点开 11 条，中间 6 条永远查不到（O6 点名的静默损失）。
+     *   现在账四格分开、可逐项对平（空块既不是保留也不是被裁 —— 它们不是条目）：
+     *     finalKept + budgetTrimmed + partialBlocks + emptyBlocks === blockCount
+     *   这不是放宽断言（旧式子仍然会在「差额全是空块」时通过），而是让差额**归因到格**。 */
+    assert.ok(Number.isFinite(r.trace.emptyBlocks), '空块数必须单列成格（旧口径的差额就藏在这里）');
+    assert.ok(Number.isFinite(st.partialBlocks), '被切半的块数必须单列成格');
+    const _sum = st.finalKept + st.budgetTrimmed + st.partialBlocks + r.trace.emptyBlocks;
+    assert.strictEqual(_sum, r.trace.blockCount,
+        '★ 四格必须与块总数对平（保留 ' + st.finalKept + ' + 被裁 ' + st.budgetTrimmed
+        + ' + 半段 ' + st.partialBlocks + ' + 空块 ' + r.trace.emptyBlocks + ' = ' + _sum
+        + ' vs ' + r.trace.blockCount + '）');
+    assert.strictEqual(r.trace.stageNotes.budgetTrimmed, '', '对平时不得留「账不平」留痕，实 '
+        + JSON.stringify(r.trace.stageNotes.budgetTrimmed));
 });
 
 test('v3251 B2. 不可测的格子写 null 并在 stageNotes 写明为什么（绝不编 0）', () => {

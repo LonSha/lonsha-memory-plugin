@@ -1,3 +1,153 @@
+## v3.444.0
+**L13-X9 Cross-generation Inheritance Roster: the inheritance-artifact roster (accept/reject/reform/lost + 5th pending axis) plus per-state readable cause + secret boundary, exposed as a readable/declarable surface inside the prequel view.**
+- **Directs seam fact (code-readable): kernel era-continuation-inheritance-tree.js was registered in manifest.extra_js, really loaded, unit-green, yet product-end zero-call (prod_call_sites=0); this release wires it into a readable/declarable surface. Corresponding suite: `tests/v3444_l13_x9_inheritance_roster.test.mjs` (33 条).**
+
+## v3.443.0
+**L13-X8 本轮生成的可撤销快照：把「这一轮到底新塞进了哪些条目」做成一个可对拍、可只撤新增的面**
+- **起点是一条读码事实，不是偏好**：本仓能「撤」的只有一种 —— `row.revoke` 撤的是**证据裁决**（那条结论作废）；`snapshot-checkpoint` 做的是**整份载荷**级检查点（取个名字存下来、整份对照）。**中间那一层是空的**：一轮生成可能往图谱加 3 个节点、往锁定事实加 1 条、往摘要加 2 条，用户发现「这轮抽错了」时只能去各面对着手删，或者整份回滚（把同轮别的正确写入一起吞掉）。于是「这轮加错了」与「整份都废了」被压成同一种处置 —— 这正是 Problem 8。
+- **新内核 `round-entry-snapshot.js`（360 行，零依赖、CJS/IIFE 双导出）**，五条边界逐条写进文件头：① **不复制正文**（摘要只记 `id` + 指纹，复制正文等于绕开各账 owner 另建一份真源，之后两边不再同步）；② **不新建存储**（快照挂 `engine._roundSnapshots`，随引擎存档走，不碰 localStorage、不建表）；③ **不回退「本轮修改」**（只标待复核 —— 回退修改会吞掉别的动作：同一格可能被后一轮合法改动，回退即覆盖别人的结果）；④ **不猜条目身份**（id 由调用方给的 `collect` 提供，取不到就不入摘要并计入 `skippedNoId`，不按索引对齐装成「按 id 对齐了」）；⑤ **无跨账强制清空**（`undoRound` 撤的是**一轮**，但仍逐账逐 id 走各账自己的删除口）。
+- **指纹只出 `{len, head(24字), tail(24字), h(32位FNV-1a)}`**。长度单列的理由：`head/tail/h` 看得出「同长度不同内容」，而「长度变了」靠 `len` 立刻看得见。`fpEqual` **三态**：`true` / `false` / `'unknown-fingerprint'` —— 拿不到判据**既不算改过、也不算没改**（把没比过的读成「改过」会让待复核清单掺进假条目）。
+- **`idOf` 只认白名单键** `id/uid/key/mid/factId/nodeId/summaryId`，值必须非空（空白串不等于有 id），数字 id 一律转字符串（同一 id 在两侧必须同一形）。
+- **采集三态（absent ≠ empty）**：拿不到账 / `list` 抛异常 ⇒ `ok:false` + `reason`（`no-ledgers` / `ledger-unreadable:<key>` / `no-readable-ledger`，逐条点名是哪本账读不出）；真正的「空账」⇒ `ok:true` + `counts` 0。超 `MAX_ENTRIES_PER_LEDGER=400` 置 `truncatedOnto`（**截断自报**，静默截断会让「本轮新增」凭空少算）。
+- **`recordSnapshot` 拒绝记假快照**：`summary.ok !== true` 时直接拒绝并把理由串上 —— 记了就等于宣布「本轮新增 0 条」这个编出来的结论。快照环 `MAX_ROUNDS=12`（更早的连 id 列表也不留：回滚太久以前的一轮没有意义）。
+- **一对一号（本版自测抓到的一处真缺陷）**：首版按「上一条 seq + 1」编号，实测 `before=1 / after=2` —— 而面板与 `roundUndoState` 报的是 `after.seq`，用户会看到「第 2 轮」而实际只跑过一轮。修成「最后一条是 before ⇒ after 复用它那个 seq」，自测输出 `before seq 1 / after seq 1 / next before seq 2`。
+- **`roundUndoState` 四态互不同形**：`no-round`（一对都没有）/ `half-round`（只有半对，`missing` 数组点名缺 `before` 还是 `after` —— 采集断在半路不许装成「没有」）/ `ok`（有可撤）/ `undone`（这一轮已撤过，带 `undoneAt`）。**`undone` 是自测抓到的第二处真缺陷补出来的**：首版 `undoRound` 会写 `undone:true` 但 `roundUndoState` 从不读它 —— 撤完再点一次，面板照样报「新增 3 条可撤」，然后拿三个已不存在的 id 去删，报三个 failed，用户看到「撤销失败」而事实是上次已撤成功（本仓反复治过的「写了不读」族）。
+- **`lastRoundPair` 两段扫（判据 D3/F3 首跑抓到的第三处真缺陷）**：首版第二个 `if` 带 `after &&` 前置 —— 只有先找到 `after` 才去找 `before`，于是「记了 before、after 还没记」被判成 `missing=['before','after'] ⇒ no-round`。两者对用户意义相反（「你还没跑过一轮」vs「采集断在半路，得查」）。修成两段扫：先找最近一条 `after`，再**只在它之前**找 `before`（否则会跟下一轮刚记的 `before` 错配：`[B1,A1,B2]` 必须报 B1/A1 这一对）。
+- **`undoRound` 撤销语义（唯一写入口）**：`confirm !== true` ⇒ `confirm-required` **硬门槛**（缺 / `false` / 字符串 `'true'` / 数字 `1` 全拒，且**连删除口都不调** —— 判据 E1 钉住 `touched === 0`）；**只删 `added`**：`removed` 不可撤（`why:'content-not-kept'` —— 正文没存，撤回来等于编造）、`modified` 恒 `undoable:false` + `pendingReview:true`（结构上就没有回退路径）；没有删除口的账 `skipped` 单列（`why:'no-remover'`），删不掉 ⇒ `failed` + `reason:'partial'` + `ok:false`（不静默算成功）；本轮没有新增 ⇒ `nothing-to-undo` + `writes:false`（与「撤成功」不同形）。**`removers` 由调用方给** —— 本模块不自己删账（各账删除口归各账 owner）。`nothing-to-undo` 分支的返回形状在本版补齐了 `counts`（其余每条返回路径都带它，缺一条就是「同一函数返回不同键」，调用方统一按 `r.counts` 读时会在这一条上拿到 `undefined`）。
+- **宿主 `index.js` 五桩两清单（+60 行）**：取库口 `_roundSnapshotLib()` + libs 注入 + 五个转发桩（`roundSnapshotBefore` / `roundSnapshotAfter` / `roundUndoState` / `roundUndo` / `_roundUndoLine`）。`_roundLedgers()` 纳入**五本账**：`lockedFacts`（走 `summary.getLockedFacts()`）/ `graphNodes` / `graphEdges`（`Array.from(graph.nodes.values())`）/ `summaries` / `deltas`（`deltaBook.export().deltas`）。`_roundRemovers()` **只给三本**：`lockedFacts` 走 `summary.removeLockedFact(id)` 后**回读确认**（`!still` 才算成功）；`graphNodes` 走 `graph.nodes.delete(id)` 后**若删成功且节点有 name 就 `rebuildNameIndex()`**（否则「删了节点却还能按名字查到」）；`graphEdges` 走 `graph.edges.delete(id)`。**`summaries` 与 `deltas` 如实不给删除口**：删摘要会牵动卷/折叠账（属摘要面自己的处置），DeltaBook 是 append-only 账、没有单条删除口。**宿主不 `splice` 别人的数组**（那等于绕开 owner），判据 G2 有反向断言。
+- **诊断层 `engine-diagnostic-lines.js`（+120 行）**：取库口 + 四出口 + 诊断行。`roundUndo` **先判 `confirm` 再读账**（连「要不要撤」都没确认时不去读账 —— 读也算一次动作，判据 G4 用调用点位置钉住这个次序）；成功后清 `engine._roundUndoRead`（不清的话面板会继续报旧的可撤销清单）。`_roundUndoLine` 四态措辞互不重叠：不可用 / 还没有一轮完整快照 / 只有半对（缺 X，采集断在半路）/ 新增 N 条可撤 · 删除 M 条不可撤（正文未留），另附「另有 K 条本轮被改过（只标待复核，不回退）」；`undone` 单独一态，说清**是哪一轮、什么时候撤的**。
+- **面板 `settings-ui.js`（+82 行）**：`oplog` 视图顶部新增「↩️ 撤销本轮写入」块（四态各自措辞 + 可撤条目逐条点名「账/id」+ `data-round-undo` 按钮）+ 绑定（`window.confirm` 二次确认 → `s._roundRemovers()` 取删除口 → `s.roundUndo({confirm:true, removers})` → 成功 toast 报告撤了几条 → **审计链记一条** `s.opLog.log('rollback','undo-round','seq N · 撤 N 失败 M', floor, reason)` → `plugin._memPersist()` → 按同一视图重建）。**记账失败不回滚已完成的撤销**（`try/catch` 只吞记账异常）。二次确认是**两层**：面板问一次、内核再卡一次。
+- **判据 `tests/v3443_l13_x8_round_snapshot.test.mjs` 25 条**（A 指纹与 id 3 / B 采集三态 3 / C 对拍三类 3 / D 记录与四态 4 / E 撤销 4 / F 负控制 3 / G 接线面+当版锚 5），含**三条真源码破坏各配原版对照**：① 把 `modified` 也塞进 `added`（撤销顺手回退修改）；② 指纹 `head` 退化成整段正文（疑似另建真源）；③ 删掉 `missing` 分支（半对当全对）。
+- **首跑 11 红，逐条归因（3 产品侧真缺陷 + 1 形状不一致 + 6 判据侧夹具 + 1 抬版前预期内）**：
+  1. **产品侧真缺陷** —— `lastRoundPair` 丢 `before`（半对判成 `no-round`），见上，已修。
+  2. **产品侧真缺陷** —— `undone` 写了没人读（重放报一堆 failed），见上，已补第四态。
+  3. **形状不一致** —— `nothing-to-undo` 分支缺 `counts`，见上，已补齐。
+  4. **判据侧夹具（6 条集体假红）** —— 加载器用 `vm.runInNewContext`，那是**另一个 realm**，沙箱内 `Array.prototype` / `Object.prototype` 与主 realm 不同，而 `assert.deepEqual` 是含原型的严格深比 ⇒ `['f1','f2']` 被判成不等于 `['f1','f2']`。红在夹具上等于判据自己没被测到。改用 `new Function`（同 realm、仍是磁盘上那一份真源码，负控制传破坏副本时加载的就是破坏副本）。
+  5. **判据侧写错（假绿，最隐蔽的一条）** —— F1 的破坏把循环上界改成 `st.added.concat(st.modified).length`：循环体里 `st.added[i]` 取到 `undefined` ⇒ `removers[row.ledger]` 抛异常 ⇒ 被内核 `safe()` 吞掉算 `failed` ⇒ **改过的条目其实没被删**（破坏没有真的改行为），判据只能读到「f1 还在、值也对」于是不翻红。换成在 diff 层把 `modified` 也塞进 `added` —— 这才是「撤销顺手回退修改」的真形态。
+  6. **判据侧钉错位置** —— G4 的「先判 confirm 再读账」原先用 `ur.indexOf('RS.undoRound')`，先命中的是前面那句 `typeof RS.undoRound !== 'function'`（**取库**检查，本来就该早于 confirm）。改成盯调用点 `RS.undoRound(engine, p)`。
+  7. **抬版前预期内** —— G5 当版锚（3.442.0 vs 3.443.0），抬版后转绿。
+- **接线条数**：`manifest.extra_js` 247 → **248**（`round-entry-snapshot.js` 入册），`tests/audit/module_consumption_ledger.json` 重生成（248 模块 / 228 活跃 / 20 已登记留存 / **零未登记孤儿**）；`scan_ui_view_reach` 视图总数仍 27（本面挂在既有 `oplog` 视图内，不新开视图 —— 它回答的是「这一轮」而不是「所有轮」，与审计链同页才看得见上下文）。
+- **诚实边界**：
+  1. 计划验收里「**真跑一轮生成新增 3 条 → 撤销 → 恰好少这 3 条、已有的逐字不动**」这一条：本版用**夹具真跑**（内核自测与判据 E2 都是真记账、真删、真回读）证到了行为，但**没有在真实 SillyTavern 会话里跑过一次真生成**。如实登记为「夹具真跑 + 真机未跑」，不写成真机通过。
+  2. 真机 SillyTavern 的触摸 / 窄屏 / 刷新后加载**未执行**（`realhost_readings.json` 本版仍 `environment-unavailable`）。
+  3. 全量回归**未跑**：按用户指令「做完计划全部内容前别跑全量」，本版只跑单门 / 单套件；全量读数登记仍停在 v3.431.0，显式标待验。
+  4. 快照只在**调用方记得记 before/after** 时才有内容：本版**没有**把 `roundSnapshotBefore/After` 挂进主生成链路（那是改动生成主路径，风险与本面的收益不成比例；先交付「可对拍 + 可只撤新增」这层能力，挂载点留待实测到具体调用位置后再接）。这一点写在这里，防止后来者以为「装了就有快照」。
+  5. `summaries` / `deltas` 两本账**纳入摘要但不给删除口**：撤销它们时报 `skipped: no-remover`，面板逐条点名。这不是缺陷，是「各账删除口归各账 owner」的直接后果 —— 但用户确实会在 `skipped` 里看到没被撤掉的条目，故如实写明。
+## v3.442.0
+**L13-X6 静音清单面：把「我现在把什么静音了」做成一个常驻可解的面 —— 但在画面之前，先补上「有地方存」**
+- **本版起点是两条硬读数，第二条比第一条更要紧**：① 全仓零常驻静音清单 —— `silenceExplainState` 只在「问为什么召不回」时才被调用，没有任何一面回答「我现在把什么静音了」；② `seasonState` / `topicSeasons` 在 `index.js` / `memory-organs.js` / `memory-core.js` 三个文件里**一次都没出现**（除诊断层读它之外零写入点），也不在 `WorldProgress` 的**构造 / 导出 / 导入**三处枚举里 —— 而对照组 `institutionRules` / `symbolicEntities` / `eraTransitions` / `growthBundles` 三处都在。也就是说：**静音存盘即丢、读档即空**。所以本版不是「再画一个视图」，而是先补「有地方存」，再画面。
+- **持久化三处（memory-organs.js）**：构造处显式落格 `this.seasonState = null;` 与 `this.topicSeasons = [];`（不靠「反正后面会赋」），导出面带类型守卫（`seasonState` 必须是对象且非数组，否则落 `null`），导入面畸形回落空账（`topicSeasons` 走 `Array.isArray`）。**两格语义不同、不许合并成一个**：`seasonState` 是**动作表**（`topicId → 'mute'|'defer'|'embrace'|'probe'`，由 `memory-season.js` 的 `applySeasonAction` 写）、`topicSeasons` 是**主题本体表**（`id` / `location` / `actors` / `evidenceCount` / `isSecret` / `title`）。导入面**不逐字段校验** —— 合法性由内核归一，在这里再校一遍就是第二套判据。
+- **两源分列，永不合并（本面最容易被「优化」掉的一条）**：`ctx`（本轮上下文 `mutedTopicIds`，重开对话即失效）与 `season`（持久存档 `userActions[mid] === 'mute'`，跨楼跨存档都在）各成一列；同一 `topicId` 在两源都出现时**两列都保留** —— 「持久静音 + 本轮又静了一次」本身就是两条信息，去重合并就把它压成一条。`counts` 的 `ctx + season = total` 是**条数不是主题数**（实测现场：4 条去重后是 3 个主题），面板文案逐字自述「**不相加成「当前被静音的主题数」**」，本档把这两个数写死成断言防后来者互换。
+- **三态不同形**：不可用（`ok:false` + `reason:'module-unavailable'` + `state:'unavailable'`，面板明写「**不是「你没有静音任何东西」**，是这个面没装上」）/ 真的没有（`ok:true` + `total 0` + 说明「怎么才会有」）/ 有静音（两源分列 + 逐条可解）。缺席面与在场面**逐字同键**（面板才能用同一套渲染而不猜）。另有一个 `listable: {ctx, season}`：`season === false` 表示「**没有这份账**」，与「这份账是空的」不同形。
+- **`since` / `until` 口径（最容易被读错的一处）**：内核 `applySeasonAction` 只写动作词、**不记时间**，`seasonState` 只有一个全局 `updatedAt`。故持久源只能报 `sinceKind: 'last-season-action'` + `since: updatedAt`，并**自报这是哪一种**（本轮源是 `this-run` + `since: null`，取不到就 `unknown`）—— 把全局时间冒充「这一条的静音起点」是本仓治过的错读数。`until` **恒 `null`**：本仓没有静音到期机制，写一个时间就是凭空承诺。
+- **解除面只有「逐条」一个动作，且没有「全部解除」**：`silenceLift` 只认一个 `topicId`，**内核层与面板层都不存在批量入口**（判据有反向断言，`data-silence-(all|bulk|lift-all)` 一个都不许出现）。理由不是风格 —— 一键全解会掩盖误操作（事后分不清「原本就一条」与「刚被全解」）。解除走 `applySeasonAction(st, tid, 'embrace')`，**不 delete 键**：删键会让「曾经因用户意愿静音过」这段历史消失，而 `embrace` 是内核本来就认的动作词，落在同一张动作表里可审计。
+- **五个失败原因码互不同形**：`topic-id-required` / `not-muted`（本来就没静音，`defer` 项也算这一类 —— 延后不是静音）/ `ctx-only-muted`（**只在轮上下文里静音，本面改不动调用方的 ctx**，如实报「要重开对话或让调用方移除」而**不假装已解除** —— 假承诺会让下一轮它还在）/ `module-unavailable` / `no-world-progress`。失败路径**一个字都不写账**（判据 D2 前后逐字比对 `seasonState`）。
+- **只读自证抓到一处真缺陷**：`silenceListState` 的 `echo`（把四问的静音读数挂上来对账）原本直接调 `silenceExplainState(engine, { ctx })`，而该函数末尾要写 `engine._silenceExplainCtx`（它需要记住判定输入）—— 于是「列一次清单」就把调用方的判定输入覆盖成本面装配的那份 ctx（键序变 + 多出三个默认字段），状态行下一次归因会按被覆盖的输入走。修法：echo 用 `Object.create(engine)` 的**一次性代理**跑四问 —— 读（`worldProg` / `_silenceExplainCtx` / `_worldlineRecallFilter`）走原型链与真跑同源，写（`_silenceExplainRead` / `_silenceExplainCtx`）只落代理，真 engine 一格不沾。不用 `{ worldProg: wp }` 平面对象：那会丢掉 `_worldlineRecallFilter`，让 echo 的静音数与真跑不同源。
+- **面板**：新增 `data-view="silence"` 入口卡（读数取 `s.silenceListState({})`，`ok !== true` 时显示 `—` 而**不是 0`）+ 渲染分支（+65 行，`slHead` / `slRow` 带 `data-silence-src` / `data-silence-id` / `data-silence-lift`，不可解条目明写「本轮静音改不动…要重开对话或让调用方移除」，有静音时念「本轮 N 条 · 持久 M 条 · 合计 T 条」+ 四问 `echo` 对账）+ 交互绑定（+36 行，逐条 `ov.querySelectorAll('[data-silence-lift]')` → `s.silenceLift({topicId})`，成功 toast「🔓 已解除…（mute → embrace，其它静音不受影响）」后 `showBrowser('silence')` 按同一视图重建，不在 DOM 上就地改）。视图总数 26 → **27**，`scan_ui_view_reach` **27 视图全导航可达 / 零可达 0**（nav 里含 `silence`）。
+- **判据 `tests/v3442_l13_x6_silence_list.test.mjs` 14 条**（A 两源分列 3 / B 三态与面板 2 / C 只读自证 1 / D 逐条解除 3 / E 负控制 3 / F 接线面+当版锚 2），含**三条真源码破坏各配原版对照**：① 把两源合并成一列（`items = seasonItems.slice()`）；② 摘掉 ctx-only 短路（本轮静音会被报成已解除）；③ 解除时整表重建（`seasonState = { userActions: {} }`，等于全部解除）。
+- **首跑 4 红，逐条归因（2 产品侧 / 1 判据侧 / 1 抬版前预期内）**：
+  1. **B1 产品侧真缺陷** —— 缺席态 `state` 被写成字面量 `'ok'`，与 `noKernel` 无关 ⇒「内核没装上」与「你真没静音」在 `state` 上同形。修成 `state: noKernel ? 'unavailable' : 'ok'`（与 `absent()` 的 `state:'unavailable'` 对齐，同一语义只许一种写法）。
+  2. **C1 产品侧真缺陷** —— 就是上面「只读自证抓到的那一处」：echo 回写了 `_silenceExplainCtx`。用一次性代理隔离后 `before/after` 逐字相同。
+  3. **E3 判据侧写错（假绿）** —— 破坏注入写的是 `wp.seasonState = { userActions: {} };`，而判据只认 `userActions = {}` 这种独立赋值（真源里实测 count=0）⇒ 破坏注进去后判据仍返回 `[]`。这是**判据自己漏判**，不是产品缺陷。修法：整表重建认两种写法（独立赋值 / 对象字面量），并补一条「解除路径不得整对象重写 `seasonState`」。
+  4. **F2 当版锚** —— 抬版前预期内（3.441.0 vs 3.442.0），抬版后转绿。
+- **诚实边界**：
+  1. 计划验收里「**召回面验证被解除条目真能召回**」一条**未执行**：本版只做到面板与账层（解除后 `userActions[tid]` 从 `mute` 变 `embrace`，账层可验），**没有真跑一次召回**证明它确实回到了候选里。如实登记为未执行，不写成通过。
+  2. 真机 SillyTavern 的触摸 / 窄屏 / 刷新后加载**未执行**（`realhost_readings.json` 本版仍 `environment-unavailable`，reason 已写「本版未执行真机复核（按纪律不写成通过）」）。
+  3. 全量回归**未跑**：按用户指令「做完计划全部内容前别跑全量」，本版只跑单门 / 单套件；全量读数登记仍停在 v3.431.0，显式标待验。
+  4. `ctx` 源的静音**本面改不动**（那是调用方给的输入）：面板对该类条目只显示「不可解 + 原因」，不提供按钮 —— 提供一个点了没反应的按钮比不提供更坏。
+## v3.441.0
+**L13-X4 证据缺口工作台：把「我这些结论里哪些证据其实薄得撑不住」做成一个可审阅的面**
+- **本版起点仍是一条硬读数**：`memory-archaeology-gap-bench.js` 登记在 `manifest.extra_js`、真被加载、`v3385` 单测绿，而 `module_consumption_ledger` 里 `prod_call_sites = 0` —— 产品端一次都没调用。它的能力此前只到「手工造线索树 + 单条准入」，**没有任何一面回答「哪些结论证据薄」**。于是「这条事实可不可信」在面板上只剩「有值 / 没值」一种读数；而「没值」被读成「没有这个事实」还是「没记过」，谁也说不清。
+- **三档成因穷尽且互不同形（本版最核心的判定口径）**：`no-source`（从没证据：证据文本为空，且历史里也没有带来源的登记）/ `source-lost`（证据被删或裁：账上**写着**证据引用，但它在当前正文里已经找不到）/ `contradicted`（证据互相矛盾：同主语在未决矛盾账里有多版本）。计划原文点名「三档不许合成一个『缺证据』」，故：面板**分四格渲染**（矛盾 → 失效 → 从没 → 判不了），每格独立计数、独立人话，三档 `note` 逐档不同文；负控制就拆这一条。
+- **「判不了」不是第四种成因，而是两个布尔**：`sourceChecked` / `conflictChecked`。内核 `resolveSource` 严格三态 —— `true` 找到 / `false` 找不到 / **`null` 判不了**（`sourceChecked` 留 false，**绝不凑一档**）。诊断层再套一道长度门槛：`evidence` 常是极短时间标签（「清晨」「第3天」），这类在正文里逐字找不到是**常态**，一律判 `source-lost` 会把几乎所有条目栽赃成「证据丢了」。故 `< 6` 字只做「找得到 → true」，找不到一律 `null`。同理 `conflictsAvailable === false`（宿主根本没这本账）时绝不报「查过没矛盾」。
+- **双表并存（本仓最容易悄悄退化的那类口径）**：`counts` 按**主因**计数（一条只进一格，总和 = 薄条目数）、`hitCounts` 按**命中**计数（多因条目在多格出现，总和可 > 薄条目数）。只看 `counts` 会漏掉「这条也矛盾」，只看 `hitCounts` 会以为总条数变多了 —— 两张都出，各有各的读者。条目的 `causes` 保留全部命中（去重、按严重度降序），`cause` 只取最严重的一条当主因用于排序与徽章。
+- **动作面只有两个，且没有「一键补全」**：`去补证` 只是**跳转**到 `lockedfacts` 让人手打一条正文事实（本面无法代劳 —— 代劳就是计划明令禁止的「由模型无凭捏造补全」）；`降级为推测` 是**逐条**（批量会掩盖误操作），走宿主 `evidenceGapDowngrade`，**不新开写入口**：落笔仍走既有两个 owner —— `fact-version.setOrigin`（改可信来源，`stated 0.8 → inferred 0.3` 低于 `DEFAULT_MIN_TRUST 0.5`，于是该条自动被「现状查询」挡住）与 `DeltaBook.add(summary, 'uncertain', floor)`（人读侧留痕，落进既有 `deltas` 视图）。②失败**不回滚**①（回滚会让「改了但没留痕」变成「什么都没发生」，比漏记更难查），但必须如实报 `skipped:<why>`。
+- **只读面自证只读**：`evidenceGapBench` **不落任何缓存**（连 `_evidenceGapRead` 都不写）—— 缓存本身也是一次写，验收要求的「操作前后既有槽位逐字不变」会把缓存记成违规。判据 C1 双向核对：读数前后 `facts` / `seq` / `conflicts` 三段 JSON 逐字相同、engine 的键集合不变、重复读两次仍不改账。
+- **已撤销条目单列不静默跳过**：`revoked === true` 不进缺口盘（撤销本身就是一次处置，再列一遍会催人做第二遍处置），但 `skippedRevoked` 单列计数 —— 静默跳过等于把它们藏了。这条有独立负控制（E4）。
+- **面板 `archive` 视图改造成「🧾 证据缺口 · 存档体检」**：缺口面在上（内容体检）、存档体检在下（容器体检），`body = gapBlock + archiveBody` 拼装。三种态各有机读标记且**不同形**：缺席 `data-ls-face="absent"` + 文案明写「**不是「证据都齐了」**，是这个面没装上」；空态 `data-ls-gap-face="empty"` 且**必须念出** `scanned` / `thick` / `threshold`（只说「没有缺口」会让一次空扫（0 条事实）与一次真扫（扫了 40 条都够厚）同形）；有缺口按四格 `data-gap-group="<cause>"` 分列，条目带 `data-gap-fact` / `data-gap-cause`，多因条目显示「同时命中 X/Y」。两侧核验状态行常驻（`chk.source` / `chk.conflict`），整行颜色随是否双绿切换。
+- **判据 `tests/v3441_l13_x4_evidence_gap.test.mjs` 18 条**（A 内核三档 5 / B 面板 3 / C 只读自证 2 / D 降级 3 / E 负控制 4 / F 当版锚 1），含**四条真源码破坏各配原版对照**：① 判不了被写成证据丢了；② 矛盾被并进从没证据；③ 矛盾账不在却当「查过」；④ 已撤销条目被静默跳过。
+- **首跑 4 红，逐条归因为判据侧写错（内核与产品面零缺陷）**：
+  1. A4「阈值抬到 2 就一条不剩」—— 阈值口径是「证据数 **<=** 阈值即入盘」，`2 > 2` 不成立 ⇒ f_thick 仍入盘。我把「<=」误读成「<」。改为断言可观测差异：threshold 1 → thick 1 / thin 4；threshold 2 → thick 0 / thin 5。
+  2. C2「engine 传 null 就是面没装上」—— 实际语义是：`engine` 为 null 时本面照样能扫（事实账读成空、矛盾账读成不在），给的是 `ok:true / scanned:0` 的**空账**，不是缺席。这两态本来就该不同形（缺席 = 模块取不到 ⇒ `ok:false` + reason）。改为核实「不抛 + 空账如实报 0」，缺席态另用真·无库的 `bindDeps` 造。
+  3. D3 切片起点错 —— 我从 `function _gapBenchLib() {` 起切，而口径注释写在函数**之前**，于是「与 memory-archaeology.js 的分野」那句被切在片外。起点改为注释块首行（本文件唯一），并补一条「真取数口必须在片内」防止只切到注释。
+  4. F1 当版锚 —— 抬版前预期内（3.440.0 vs 3.441.0），抬版后转绿。
+- **台账与基线（读数零手抄，全部由脚本从探针/生成器落盘）**：`tools/gen_module_consumption_ledger.mjs` 重生成后该模块 `prod_call_sites 0 → 1` / `allowed 0 → 1` / `why: active`，零消费 **21 → 20**；`scan_module_consumption` 复跑 **247 模块 / 227 活跃 / 20 合规留存 / 零未登记孤儿**；`host_beast_baseline.json` 由 `tools/rebind_host_beast_v3441.py` 抬到当版真读数（入口 11906 → **11927** 行、成员 1249 → **1256**、合并面 31420 → **31646** 行、TOP40 **41.8%**），行上界与成员上界**均不抬**（12096 / 1279 不动 —— 余量仍在 slack 内，不抬即是不给增长开口子）。
+- **诚实边界**：
+  1. 真机 SillyTavern 的触摸 / 窄屏 / 刷新后加载**未执行**（`realhost_readings.json` 本版仍是 `environment-unavailable`，reason 已写「本版未执行真机复核（按纪律不写成通过）」），**不写成真机通过**。
+  2. 全量回归**未跑**：按用户指令「做完计划全部内容前别跑全量」，本版只跑单门 / 单套件；全量读数登记仍停在 v3.431.0，显式标待验。
+  3. `skip / 降级` 的落笔面只在 `archive` 视图提供，**未**做批量入口、**未**做撤销降级（`setOrigin` 回改仍是既有 `fact-version` 面的能力，本面不重造）。
+  4. 证据引用核验依赖宿主聊天正文可读；不可读时本面报「来源侧未核验」而**不猜** —— 故离线/无聊天现场会看到大量「判不了」，这是正确读数，不是缺陷。
+
+## v3.440.0
+**L13-X7 习惯与成长证据面：把一个「登记在册但产品端零调用」的内核接成可读面，并顺势修掉两处真缺陷**
+- **本版起点是一条硬读数，不是计划勾选**：`character-habit-growth-evidence.js` 在 `manifest.extra_js` 里登记（第 178 项）、真被加载、单测全绿，而 `prod_call_sites = 0` —— 产品端一次都没调用过。这就是本仓 L13 一直在清的那一类「功能级失效」：**模块活着，功能没接上**。而产品侧「他有这个习惯」这件事在两处都对不上：`habitRepos` 只记「形成了什么习惯 + 成形次数」，四阶段证迹（尝试 / 在特定条件下有效 / 遭遇过失败 / 迁移到新场景）没有任何读面。
+- **两块账必须分开（本版最核心的架构决定）**：习惯本体在 `worldProg.habitRepos`（按 `context + approach` 二元组认人，累计 3 次 `success` 成形、`failure` 转 `under_review`）；成长证据束新建 `worldProg.growthBundles`（`habitKey` = `context|approach`，逐条记录 `stage / evidenceId / description / contextCondition`）。**分开存、分开报、不互相充抵** —— 并成一块就会让「形成了习惯」冒充「有据可查」。读面因此同时给出两组差额：`unproven`（本体在、证迹缺 ⇒ 成形待证）与 `orphan`（证迹在、本体缺 ⇒ 无主束），两者各自单列，互不合并。
+- **写入同源（不新开写入口）**：证迹由**既有** `agencyContractAct(engine, 'practice', payload)` 分支顺带产出，返回值多一个 `evidence` 字段（`'recorded'` 或 `'skipped:<why>'`）。**没有** `habitGrowthAct` / `habitGrowthAppend` / `habitGrowthRecord` —— 在这里再开一个写入口就等于第二套习惯账。三条理由写进代码注：① 本体与证迹必须由同一次动作产出（分两入口会出现「本体记了、证迹漏了」）；② 证据 id 缺省取练习 id（能回查到那一楼）；③ **证据写入失败不得回滚本体**，但必须如实报 `skipped:<why>` —— 静默漏记比漏记更坏。
+- **内核补三样（83 → 185 行，均为读面所需、不改既有语义）**：① `habitKey` 原样透传（旧 bundle 无该字段时读面回落 `skillOrHabit`，不迁移历史数据）；② `describeGrowth` 纯读摘要（四阶段计数 / 最远阶段 / 可读名 / 证据 id 去重 / 最近一条 / `degraded`），完全不改入参、不抛；③ `STAGE_LABELS` 与 `STAGE_ORDER`（面板与诊断行都从这里取可读名，不许各自写一份中文 —— 两份会漂）。`STAGE_ORDER` 只用于回答「最远到过哪一阶段」，**不求和、不加权**。
+- **本版自己抓到并修掉的真缺陷：两处，都在内核/判据链上**：
+  1. **`evaluateCompetencyAfterRevocation` 的产物进了读面就成了空束**。它返回 `validRecords` 而 `describeGrowth` 读 `records` —— 于是「撤回证据」这一步的结果交给读面时 `total: 0`、`status: 'empty'`，把本模块最核心的承诺（**绝不静默归零**）在链条上破了个口。修法：返回值补 `records: validRecords`（`validRecords` 原名保留，既有调用方与判据按它断言）。这条是判据档 A 段当场抓出来的，不是事后想到的。
+  2. **负控制假绿第二形两处，改的是夹具与破坏点，不是放宽判据**。① N1 原把守卫写成 `st = "attempted"`，而 `st` 是 `const` ⇒ 破坏副本一进来就抛 `TypeError`、被 `describeGrowth` 自己的 `catch` 兜成 `degraded` 空摘要，断言确实翻红了，但红的原因是「破坏把自己弄崩了」。改为 `counts.attempted += 1`（行为真变）。② N2 原挑 `provenKeys.has(...) continue` 作破坏点，而该处只在「有本体而无 items」时才走到，夹具里 `growthBundles` 为空 ⇒ 守卫永假、破坏等于没写。改为挑 `if (!d.total) continue;`（只要有一束就必然执行），并给夹具补一条**零证迹的束**，让「空束不得进证据列表」这条断言真的可被破坏。
+- **判据侧另外两处自伤（同样是当场改，不静默放宽）**：① E 档窗口原从「面标题」起算 5200 字符，而读数点（`hg.groups` / `counts.unproven`）在标题**前** 3589 字符 —— 判据在看拼装段而不是整块，对「面板其实没按分组渲染」这种真缺陷什么都不说（假绿）。改为「分区注释头 → `hgBlock;`」整块。② 该整块里写着「不做『经验值 / 等级』类展示」这句**口径声明**，对未剥注释的原文判，等于禁止在代码里写清自己不做数值条（判据反咬自己）。改为先 `stripComments` 再判；且起点必须回退到**该注释块的开始标记**（分区标记落在块注释内部，从标记处起切会把注释剖成两半，`stripComments` 认不出这半段，剥完长度不减、口径句仍命中 —— 实测抓到过）。
+- **面板 `protagonist` 视图新增「🌱 习惯与成长证据」三态分区**：有据（按角色分组，逐条 `data-habit-key` / `data-habit-status`，凭据行列出 `evidenceIds`，无凭据编号时黄字警告「只记了次数，回不到那一楼」）/ `empty`（`faceHTML(...)` 带「怎么开始」一句话）/ `absent`（`data-ls-face="absent"` + `data-face-why`，文案明写「**不是『没有习惯』，是这个面没装上**」）。**不走 `faceRead`** —— 那是有意给列表用的：抛错回落空数组，于是「取数失败」与「模块缺席」在这里会同形，而本块必须把两件事分开报。块标题右侧带 `_habitGrowthLine()` 诊断行；底部口径句写明「只留有凭据的习惯；凭据被撤回 ⇒ 转「待复验」而不是静默归零；『学会了』只留凭据，不折算成任何数值」。
+- **读面契约（与仓内十来个投影面同一条）**：absent 形与在场形**逐字同键**（全零 + `ok:false` + `reason`），`reason` 取值 `'' / 'degraded' / 'empty' / 'module-unavailable' / 'thrown: …'`；`version: 0` 且注明「内核 VERSION 不进读面 —— 自造的数会被当成第二份真源」。
+- **判据 `tests/v3440_l13_x7_habit_growth.test.mjs` 7 条全绿**（A 内核四阶段摘要 / B 两块账分离 / C 写入同源 / D 只读面 / E 面板三态 / F 三条真源码破坏含原版对照 / G 当版锚）。首跑 4 红，全部红在**判据侧与内核侧**（见上四条），产品行为面在首跑即全绿。
+- **台账与基线（读数零手抄，全部由脚本从探针/生成器落盘）**：`module_consumption_ledger.json` 里该模块按 R3 从 `allowed:0` 转 `allowed:1`（零消费 22 → 21）；`scan_module_consumption` 复跑 247 模块 / 226 活跃 / 21 合规留存 / 零未登记孤儿；`scan_module_wiring` 通过（248 脚本全加载、已挂载未消费 0）；`scan_ui_binding` 通过（194 键 / 189 控件 / 无重复 id）；`host_beast_baseline.json` 由 `tools/rebind_host_beast_v3440.py` 抬到当版真读数（入口 11889 → **11906** 行、成员 1246 → **1249**、合并面 31420 行、TOP40 42.0%），成员上界 1248 → 1279，行上界不抬（12096 不动 —— 余量仍在 slack 内，不抬即是不给增长开口子）；`v3232_host_beast_triage` 14/14 转绿。
+- **顺带修掉一个工具缺陷**：上一版 `tools/rebind_host_beast_v3439.py` 里 `if lb['ceiling'] != ...:` 的分支体缩进错位（`print` 顶格），一旦真进入该分支会 `IndentationError` —— 那道加固校验本来是**死代码**，等于「看起来有校验」。v3440 脚本里补齐（并新增 `member_ceiling` 的同源校验）。
+- **本版还清掉一笔历史欠账（红档清零，不是本计划项）**：`scan_ui_view_reach.mjs` 原只有「零可达 > 0 ⇒ exit 1」与隐式 exit 0 两个出口，**没有 fail-closed 的 exit 2** —— 而它的结论（「零可达 = 0」）是一条**否定式读数**：文件被截断 / 改名 / 正则失配时，视图盘面会塌成个位数，而「零可达 0」这句话依旧成立，即**审计失效被声明成一切正常**。本版给它补了 `MIN_VIEWS = 20` 下限、三态自述与两条 `exit 2` 通道（读不到面板源码 / 视图盘面塌陷），并在 `v3436_l13_o4_view_reach` 里补了 F 段三向观测（真源码 exit 0 / 22000 字符注释但盘面塌陷 exit 2 / 缺 `settings-ui.js` exit 2）。补完后 `/tmp/retest_summary.json` 里记录的 33 个历史红档**整批复验 33/33 全绿**。
+- **诚实边界**：
+  1. 真机 SillyTavern 的触摸 / 窄屏 / 刷新后加载**未执行**（`realhost_readings.json` 本版仍是 `environment-unavailable`），**不写成真机通过**。
+  2. 全量回归**未跑**：按用户指令「做完计划全部内容前别跑全量」，本版只跑单门 / 单套件；全量读数登记仍停在 v3.431.0，显式标待验。
+  3. `growthBundles` 的持久化只做到「导出/导入两向 + 畸形回落空账」，**未**做逐字段校验与版本迁移；历史快照里没有该字段时按空账读（不伪造）。
+  4. 本版**不新增**经验值 / 等级 / 熟练度任何形式的数值条：`STAGE_ORDER` 只是推进序，读面不得据它算分。
+## v3.439.0
+**L13-X3 视角投影面：从「列名单」到「用他的眼睛看这一轮」**
+- **真实缺口**：`povs` 视图此前是一份**名单**（谁的私密心声、第几楼、触发几次），答的是「记过什么」；作者真正要问的那一问 —— 「现在用这个角色的眼睛看这一轮，他会知道哪些、不知道哪些、以为什么」—— 无处可看。底座其实都在盘上（`knowledge-trace.stateOf` 五态 / `secret-ledger.knowledgeOf` 名单 / PovMemory 六本账 / 视角剧场 bench 的**类型**投影），缺的是把三者按**一个人**聚合起来的投影。
+- **新内核 `pov-projection.js`（零依赖、CJS/IIFE 双导出，~640 行）**：五档 `knows / suspects / believes / blind / undecided`；每档中文标签互不相同，且「不知道」自称正文不对外提供、「判不了」自称本模块不知道 —— 两者压成一格就再也分不出该怎么写。
+- **本面最贵的一条纪律：有据判定与判不了永不同形**。`blind` 是**有据的**（keeper 名单点名 / 知情名单给了却不含他 / 显式 unaware / 撤回晚于一切有效动作），`undecided` 是**本模块没记录过或名单没覆盖他**。把后者并进前者，就是「我们没记过」被读成「他确实不知道」。
+- **与 `secret-ledger.knowledgeOf` 的关系是「单向可推」而非一一映射**（档头 22 行注释 + 判据 B4 钉死）：`knower⇒knows`、`listed⇒blind`、`unlisted⇒不得 knows`；反向不成立（`blind ≠ listed`，keeper 显式点名是比名单缺席更强的一条证据）。这条分工写进源码的理由很直接：后来者看到「两边不一致」时要能分辨这是分工还是漂移。
+- **秘密三刀（逐条可判）**：① 盲档只报存在性 + 依据，正文换 `SECRET_MASK` 站位串（与 evidence-workbench 刻意**不同字面**，下游据此分辨来源）；② 遮蔽发生在**行构造那一刻**（`mkRow` 的 `title:` 赋值行），不是渲染时再遮；③ `leakScan()` 自证口，来源覆盖**全部**可能进档的正文（pov.content + secret.secret + trace.fact），命中只报位置不报正文。
+- **两道互补防线（首跑负控制当场翻出的事实，比原设想更好）**：防线甲在上游（三条账构造 blind 行时根本不传 title）、防线乙在 `mkRow`。单拆任意一道都不会漏 —— 判据 E1 因此改成三段：拆乙必红、只拆甲仍绿（证明乙在岗）、甲乙全拆必红。
+- **首跑抓到的内核真缺陷一处**：`leakScan` 的 catch 分支缺 `tooShort` 键 ⇒ 降级面与正常面**键面不恒定**，下游读到 `undefined` 会在面板上被写成 0（「扫过且干净」被凭空断言）。已补齐。
+- **宿主装配/转发/留痕三件事分工**（`engine-diagnostic-lines.js` + `index.js`）：装配从 `engine.pov.export()` / `worldProg.secretLedger` / `worldProg.knowledgeTraces` 原样取数，**不引入任何新存储**；`opts` 原样交内核；只留 `_povProjectionLastRead` 读数摘要。缺席面与在场面**逐字同键**（带 `ok:false` + `reason`，`version:0`），缺席判定早于装配。
+- **面板 `povs` 视图重做**：三种渲染态 `data-pov-state="absent|empty|pick"`（缺席态**显式否掉**「他什么都不知道」这条误读）、视角按钮 `data-pov-pick`、容器 `data-pov-viewers` + `#ls-pov-result`、逐行 `data-pov-row`/`data-pov-tier`（盲档额外 `data-pov-masked`）、分组 `data-pov-group`、结果面 `data-pov-face`。四档**不相加成一个数**；「判不了 N 条**不等于**他不知道」与误信档「不得当世界真相写」两条自述常驻。入口卡读数从 `povs.length` 改为「可投影视角数」，读不到显示 `—` 而不是 0。
+- **验收 `tests/v3439_l13_x3_pov_projection.test.mjs` 20 条全绿**：A1~A4（五档互不同形 / 三视角三种不同形 / 缺席面逐字同键含 counts 嵌套层 / 与 `stateOf` 五态逐格对齐 + retract 不许被读成 knows 的历史事故锚）、B1~B5（盲档整行必须是站位串 / 遮蔽行唯一且写在 `mkRow` 内 / 三档 basis 互不同形 / 三条硬边且三边都真走过 / 矛盾账不许两边都算）、C1~C2（注册+装配+转发三处齐备且只算一次 / 缺席不塌成空投影）、D1~D3（三态+逐档+盲档自述+标记齐全 / 面板不重算不合成 / 渲染与绑定一一对应）、E1~E4（四条真源码破坏负控制，含三段式双防线）、F1~F2（只读纯函数 + 当版锚点）。
+- **首跑 8 红全部红在判据侧**（逐条留痕在套件头注）：锚点被 27 个面共用、把注释算进字面量次数、夹具自身自相矛盾、切片终点落在起点之前、渲染块与绑定块切错块、把「拆调用点」当成「拆取样面」、把 0 断言成 undefined、以及「拿来源比 title」在盲档上判不了「整行是不是站位串」。
+- **台账同版登记**：`extra_js` 246 → **247**（`pov-projection.js` 插在 `memory-lineage-replay.js` 之后）；`extra_js_seam_ledger.tsv` 与 `module_consumption_ledger.json` 由生成器重跑（247 模块 / 22 零消费）；顺带补齐前几批遗留的三处欠账 —— `catalog_reference_consumers.tsv` 补登 7 个测试档（含 O3~O9 与前批遗漏）、`audit_scan_probe_matrix.tsv` 补登 `scan_ui_view_reach.mjs`（实测 H/G/T = 0/1/0）、`test_cost_readings.json` 与 `test_budget.json` 按当版真实全量耗时复测（不再量旧数）。
+- **未做**：真机 SillyTavern 触摸/刷新流程未执行，故不把本版结构与单元证据写成真机通过。
+
+## v3.438.0
+**L13-O6 注入面「这一轮用了什么」可复算**
+- 生成回执逐条记录条目 id / 来源面 / 占多少字符 / 是否被裁（含理由码）；`injection` 视图改成列表 + 逐条可展开，每条给「凭什么进来」。
+- 新增「这一轮有没有条目因为预算被裁」的显式读数；面板**不按预算自己重算**，一律读回执（回执少一条 ⇒ 判据报「回执与注入不一致」，而不是面板悄悄多出来）。
+- 判据 `tests/v3438_l13_o6_injection_receipt_face.test.mjs`：造一轮「预算刚好不够」的注入，被裁条目必须**同时**出现在面板与被裁计数里；禁止只显示总数、禁止把「被裁」当「没命中」。
+
+## v3.437.0
+**L13-O5 世界线口径对玩家的可读化：「我受影响的是哪几条」**
+- v3.429.0 的 `data-wl-readout` 六属性是给卡作者读的机器读数；普通玩家只看到 `alpha线@47`，既不懂含义，也不知道「没生效」跟「安全」不是一回事。
+- 三态（none / gap / ok）各有人话解释且两两不同；**none 态文案不出现「安全」二字**（「保护没生效」不许说成「安全」）。
+- 归属判定走内核读口 `worldlineAffected`，面板不自己判；该读口三态不同形（no-source / disabled / has-undecided），不压成「0 条」。
+
+## v3.436.0
+**L13-O4 面板视图入口可达性：从「没人守着」到「有读数 + 有判据 + 有负控制」**
+- 实测背景：`settings-ui.js` 有 26 个 `viewType === 'x'` 渲染分支，此前**没有任何判据**在问「这个视图玩家点不点得到」；`scan_ui_binding` 判的是「声明键 ↔ 渲染控件」，视图写好但零入口在全绿下完全隐形。
+- 新增扫描器 `tests/audit/scan_ui_view_reach.mjs`：从卡片真源（`ls-clickable` + `data-view`）与绑定真源（`showBrowser(card.dataset.view)`）判 nav/code/zero 三档，`zero > 0 ⇒ exit 1`。盘面读数：26 视图全部导航可达、零可达 0。
+- 本版补登记进 `audit_scan_probe_matrix.tsv`（实测 H/G/T = 0/1/0；T 档不敏感是因为本门只读 `settings-ui.js`，不读 tests/ 下的测试体，已在台账正文明写这条边界）。
+
+## v3.435.0
+**L13-O3 只读视图的机器可读四态 + L13-O8 记忆软删闭环**
+- **O3**：根节点**统一**带 `data-face-state` / `data-face-why`，把 absent / blocked / failed / empty / ok 五种语义分开 —— 尤其「你去配一下」（blocked）不许说成「本来就没有」（empty），抛错是 `failed`（可重试）也不许与两者混形。reason code 一律短横线英文（机器可判），不用中文散文。vector 视图的「零向量」四态分流同样处理：「配置读不到」不许说成「没配置」。
+- **O8**：记忆软删可查（tombstone 保留原 id 与来源）、可恢复（回到原 id 与原槽位）、可彻底清除；provenance 记 `tombstone`，导出/导入与召回排除共用同一实现，不另造一套。
+
+## v3.434.0
+**L13-O2 记忆条目级编辑面：玩家第一次能改一条角色记忆**
+- **真实缺口**：memory-center 原有 9 个动作全部是证据查询/裁决动作；角色记忆银行只有内部 `addCore` / `addRecent` / 硬删 owner，没有面板级正文编辑、置顶或可撤销遗忘入口。
+- **owner slot 接入**：`memory-organs.js` 的 `CharacterMemoryBank` 新增 `memoryCenterRows()` 读槽、`editMemory` / `undoMemoryEdit`、`pinMemory` / `undoMemoryPin`。编辑保留原 id 与 core/recent 槽位，只改正文并增加 `memoryRevision`；置顶直接写原条目 `pinned` 字段，绝不另存 UI 缓存。
+- **控制中心与宿主**：`memory-center.js` 新增 `row.edit` / `row.pin` / `row.forget` 三个 `write + undo` 动作；角色记忆行使用 `char-mem:<encoded-char>:<encoded-id>` 引用键。`index.js` 只增加三个薄转发桩，业务仍归控制中心，事实仍归 memory-organs。
+- **遗忘复用 O8 owner**：`row.forget` 调既有 `deleteMemory` 软删进 tombstone，撤销调既有 `restoreMemory`；召回排除、恢复原 id、export/import 和 `tombstone` OpLog provenance 不另造实现。
+- **面板**：`settings-ui.js` 为角色记忆行提供行内展开 textarea（不抢 overlay 焦点），接入三个 `_memoryCenterHandlers`；成功动作复用 `_memPersist()`，并写入既有 `_auditStack`。OpLog 显示新增 `char_mem` 类型；行内编辑初值取 owner 原文（见下方截断缺陷一条）。
+- **本版实装时抓到并修掉一处真数据损坏（不是显示问题）**：面板行内 textarea 的初值原先取 DOM `.ls-item-text`，而那是 memory-center 经 `text(title, MAX_TEXT=160)` 截断（且尾部补「…」）后的**显示串**；owner slot 的 `addCore`/`addRecent`/`editMemory` 统一按 200 字落库。⇒ 任何 >160 字的记忆只要点「编辑→保存」，尾部就会被静默截掉并**写回 owner slot**。修法：初值改取 `face.memoryRows` 里`memoryItem.text`（owner 原文），仅 face 缺席才退回 DOM 并在控制台点名降级。判据 F 段把两面钉死：同一行长记忆的 `title` 必须已截断带省略号、`memoryItem.text` 必须仍 200 字，用 owner 原文编辑后尾部逐字仍在；并以「误用显示串必丢尾部」做负控制，证明这条判据非恒真。
+- **验收**：新增 `tests/v3434_l13_o2_memory_edit.test.mjs` **6** 条（A 声明/接线、B owner-slot 编辑与 undo 与导出导入、C 置顶/遗忘/恢复 provenance、D 读槽渲染与三动作隔离、E 三条真源码破坏负控制、F 长记忆截断守卫）；与 `v3310` / `v3325` / `v3380` / `v34340` 定向回归合计 **56/56** 通过。真实 SillyTavern 触摸/刷新流程尚未执行，不把本版结构与单元证据写成真机通过。
+
 ## v3.433.0
 **L13-X2 反事实推演面：如果一件事没发生，谁会被波及（既有内核扩展 + 宿主接线 + whatif 面板视图）**
 

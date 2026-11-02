@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.433.0';
+    const VERSION = '3.444.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1318,6 +1318,11 @@
         demoteToRecent() { return false; }
         deleteMemory() { return false; }
         restoreMemory() { return false; }
+        memoryCenterRows() { return []; }
+        editMemory() { return { ok: false, reason: 'stub', changed: false }; }
+        undoMemoryEdit() { return { ok: false, reason: 'stub', changed: false }; }
+        pinMemory() { return { ok: false, reason: 'stub', changed: false }; }
+        undoMemoryPin() { return { ok: false, reason: 'stub', changed: false }; }
         listTombstones() { return []; }
         getTombstones() { return []; }
         purgeTombstone() { return false; }
@@ -1436,6 +1441,9 @@
         _detId() { return ''; }
         _gcCore() { return undefined; }
         _c() { return { core: [], recent: [] }; }
+        _tombList() { return []; }
+        _logDelete() { return undefined; }
+        _memoryItem() { return null; }
         _hitBoundary() { return false; }
         _register() { return null; }
         _knowledgeNet() { return null; }
@@ -2439,6 +2447,17 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _agencyContractLib: _agencyContractLib,
                         _symbolicEvolutionLib: _symbolicEvolutionLib,
                         _eraInheritanceLib: _eraInheritanceLib,
+                        /* [v3.444.0 · L13-X9] 跨代传承谱系树（传承物四态 + 秘密断代）。
+                         *   与上面 `_eraInheritanceLib` 并列注入 —— 两件不同物，别合并。 */
+                        _eraContinuationTreeLib: _eraContinuationTreeLib,
+                        /* [v3.440.0 · L13-X7] 习惯与成长证据面（只读）：诊断层读它做四阶段摘要。
+                         *   与上面五件同形注入 —— 宿主不重写规则，业务判断全在诊断层。 */
+                        _habitGrowthLib: _habitGrowthLib,
+                        /* [v3.441.0 · L13-X4] 证据缺口工作台 + 事实版本账（降级落笔的既有 owner）。
+                         *   版本账此前只注入过 `_factStateLib`（准入面），没有账本身 ——
+                         *   降级必须走 `setOrigin`，故一并注入。 */
+                        _gapBenchLib: _gapBenchLib,
+                        _factVersionLib: _factVersionLib,
                         /* [v3.430.0 · L12-X] X 系列七个取库口（4 新 + 3 已有未注入）。
                          *   修前实测：memory-season / meaning-map / memory-symbiosis-bridge
                          *   三件的取库口在本文件里**存在但零消费**（B4 形态），故一并注入。 */
@@ -2448,6 +2467,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _factCorrectionBenchLib: _factCorrectionBenchLib,
                         _memorySeasonLib: _memorySeasonLib,
                         _meaningMapLib: _meaningMapLib,
+                        /* [v3.443.0 · L13-X8] 本轮条目集合摘要（只记 id + 指纹，不复制正文）。
+                         *   账本清单与删除口由宿主给（见 _roundLedgers / _roundRemovers），
+                         *   诊断层只做采集 / 对拍 / 撤销编排。 */
+                        _roundSnapshotLib: _roundSnapshotLib,
                         _symbiosisBridgeLib: _symbiosisBridgeLib,
                     },
                 });
@@ -3133,6 +3156,8 @@ function relativeTimeLabel(eventTime, nowTime) {
         _worldlineState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlineState(this, ...args) : null; }
         _worldlineRead(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._worldlineRead(this, ...args) : null; }
         worldlineGate(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineGate(this, ...args) : null; }
+        /* [L13-O5] 「我受影响的是哪几条」只读读口（面板的按钮走这里，不自己判归属）。 */
+        worldlineAffected(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineAffected(this, ...args) : { kind: 'worldline_affected', state: 'failed', reason: 'module-absent', undecided: [], blocked: [], items: [], writesNothing: true, ok: false }; }
         worldlineConvergence(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineConvergence(this, ...args) : null; }
         worldlineSwitchPlan(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineSwitchPlan(this, ...args) : null; }
         worldlineDiff(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.worldlineDiff(this, ...args) : null; }
@@ -3158,6 +3183,25 @@ function relativeTimeLabel(eventTime, nowTime) {
         eraInheritanceState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.eraInheritanceState(this, ...args) : null; }
         eraInheritanceAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.eraInheritanceAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
         _eraInheritanceLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._eraInheritanceLine(this, ...args) : ''; }
+        /* [v3.444.0 · L13-X9] 跨代传承面：一个只读清单 + 一个写入口 + 一个撤销口 + 一条诊断行。
+         *   ★ 写入口只有 `inheritanceDeclare`（落在既有 eraTransitions 槽的 declarations 上），
+         *     撤销口 `inheritanceRevokeDeclare` 撤完回**推导值**而不是 pending。 */
+        inheritanceRosterState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.inheritanceRosterState(this, ...args) : { ok: false, reason: 'module-unavailable', writesNothing: true, items: [], counts: {}, boundary: {}, undecided: [] }; }
+        inheritanceDeclare(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.inheritanceDeclare(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, declared: false }; }
+        inheritanceRevokeDeclare(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.inheritanceRevokeDeclare(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, revoked: false }; }
+        _inheritanceRosterLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._inheritanceRosterLine(this, ...args) : ''; }
+        // [v3.440.0 · L13-X7] 习惯与成长证据面（只读面：只有读与诊断行，**没有 act**）。
+        //   X7 的口径是「只显示有证据的」，任何写入仍走既有 agencyContractAct('practice') ——
+        //   在这里再开一个写入口就是第二套习惯账。
+        habitGrowthState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.habitGrowthState(this, ...args) : null; }
+        _habitGrowthLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._habitGrowthLine(this, ...args) : ''; }
+        // [v3.441.0 · L13-X4] 证据缺口工作台（读 + 逐条降级）。
+        //   ★ `evidenceGapBench` 是**只读**（不落任何缓存，见诊断层注释）；
+        //   ★ `evidenceGapDowngrade` 是本期唯一的写入动作，只做**逐条**降级 ——
+        //     没有批量、没有「一键补全」（计划明令禁止由模型无凭捏造补全）。
+        evidenceGapBench(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceGapBench(this, ...args) : null; }
+        evidenceGapDowngrade(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceGapDowngrade(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _evidenceGapBenchLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._evidenceGapBenchLine(this, ...args) : ''; }
         // [v3.430.0 · L12-X] X 系列六个业务面的宿主出口。与本文件既有的 *State/*Act/_*Line
         //   同形：这一行只做转发，业务与判据全在 engine-diagnostic-lines.js ——
         //   宿主不许重写规则（重写一次就等于第二份真源）。
@@ -3177,11 +3221,110 @@ function relativeTimeLabel(eventTime, nowTime) {
         counterfactualWhatIf(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.counterfactualWhatIf(this, ...args) : null; }
         _counterfactualLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._counterfactualLine(this, ...args) : null; }
         _memoryLineageLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._memoryLineageLine(this, ...args) : ''; }
+        povProject(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.povProject(this, ...args) : null; }
+        _povProjectionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._povProjectionLine(this, ...args) : ''; }
         actionReceiptState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.actionReceiptState(this, ...args) : null; }
         actionReceiptAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.actionReceiptAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
         _actionReceiptLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._actionReceiptLine(this, ...args) : ''; }
         silenceExplainState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.silenceExplainState(this, ...args) : null; }
         silenceExplainAct(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.silenceExplainAct(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        /* [v3.442.0 · L13-X6] 静音清单面三桩：读 / 逐条解除 / 诊断行。
+         *   ★ 只有 `silenceLift` 会写，且它逐条（只认一个 topicId、没有批量入口）——
+         *     「全部解除」会掩盖误操作，本仓口径里那是缺陷不是便利。 */
+        silenceListState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.silenceListState(this, ...args) : null; }
+        silenceLift(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.silenceLift(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, lifted: false }; }
+        _silenceListLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._silenceListLine(this, ...args) : ''; }
+        /* [v3.443.0 · L13-X8] 本轮生成的可撤销快照（三桩 + 两个账本清单口）。
+         *   ★ 账本清单在这里给，是因为**只有宿主知道**本仓有哪几本账、每本怎么读、怎么删；
+         *     诊断层若自己猜一遍就是第二套真源。删除口也一律走各账自己的方法，
+         *     宿主不 splice 别人的数组（那是绕开 owner）。 */
+        _roundLedgers() {
+            const self = this;
+            const out = [];
+            /* 锁定事实（memory-core 的 SummaryManager.lockedFacts，带 id）。 */
+            out.push({ key: 'lockedFacts', label: '锁定事实', list: () => (self.summary && typeof self.summary.getLockedFacts === 'function') ? (self.summary.getLockedFacts() || []) : [] });
+            /* 图谱节点 / 边（MemoryGraph 的 Map，转成带 id 的数组）。 */
+            out.push({
+                key: 'graphNodes', label: '图谱节点',
+                list: () => { try { return Array.from((self.graph && self.graph.nodes && self.graph.nodes.values()) || []); } catch (_e) { return []; } },
+            });
+            out.push({
+                key: 'graphEdges', label: '图谱关系',
+                list: () => { try { return Array.from((self.graph && self.graph.edges && self.graph.edges.values()) || []); } catch (_e) { return []; } },
+            });
+            /* 摘要（summaries，带 id）。 */
+            /* ★ 摘要行**没有 id 键**（`{floor, text, level, timestamp, folded}`）——
+             *   直接交出去会被 idOf 全判成 skippedNoId（实测：两行摘要采到 0 条、skipped 涨 2）。
+             *   故在宿主侧投影成带**位置键**的只读视图：摘要的天然唯一键就是 floor
+             *   （addSummary 对同楼层幂等拒绝重复）。这是位置键，不是账内核发的 id。
+             *   投影只带指纹所需的正文格，不复制整条进快照（内核只算 len/head/tail/h）。 */
+            out.push({
+                key: 'summaries', label: '楼层摘要',
+                list: () => {
+                    try {
+                        var arr = Array.isArray(self.summary && self.summary.summaries) ? self.summary.summaries : [];
+                        return arr.map(function (s) { return { id: 'sum_' + String(s && s.floor), text: String((s && s.text) || '') }; });
+                    } catch (_e) { return []; }
+                },
+            });
+            /* 正史增量（DeltaBook.entries）。 */
+            /* ★ 正史增量行同样没有 id（`{summary, status, evidenceFloor, timestamp}`），
+             *   且账是 append + shift(>60) —— **数组下标会漂**，拿下标当 id 会把「老的一条换位」
+             *   读成「删一条加一条」。故 id 取该账自己的天然唯一键：(evidenceFloor, summary)
+             *   （DeltaBook.add 对同 floor 同 summary 幂等拒绝重复）。这是位置键，不是账内核发的 id。 */
+            out.push({
+                key: 'deltas', label: '正史增量',
+                list: () => {
+                    try {
+                        var rows = (self.deltaBook && typeof self.deltaBook.export === 'function') ? ((self.deltaBook.export() || {}).deltas || []) : [];
+                        return rows.map(function (d) {
+                            var t = String((d && d.summary) || '');
+                            return { id: 'delta_' + String((d && d.evidenceFloor) || 0) + '_' + t.slice(0, 16), text: t };
+                        });
+                    } catch (_e) { return []; }
+                },
+            });
+            return out;
+        }
+        _roundRemovers() {
+            const self = this;
+            const map = {};
+            /* 锁定事实：走 memory-core 自己的 removeLockedFact（不 splice）。 */
+            map.lockedFacts = (id) => {
+                try {
+                    if (!self.summary || typeof self.summary.removeLockedFact !== 'function') return false;
+                    self.summary.removeLockedFact(id);
+                    const still = (self.summary.getLockedFacts() || []).some((f) => String(f && f.id) === String(id));
+                    return !still;
+                } catch (_e) { return false; }
+            };
+            /* 图谱节点：从 Map 删（本仓没有 removeNode —— 图谱节点只能靠 Map 删，
+             *   同时要清 nameIndex，否则「删了节点却还能按名字查到」）。 */
+            map.graphNodes = (id) => {
+                try {
+                    if (!self.graph || !self.graph.nodes || typeof self.graph.nodes.delete !== 'function') return false;
+                    const node = self.graph.nodes.get(id);
+                    const ok = self.graph.nodes.delete(id);
+                    if (ok && node && node.name && typeof self.graph.rebuildNameIndex === 'function') self.graph.rebuildNameIndex();
+                    return ok === true;
+                } catch (_e) { return false; }
+            };
+            /* 图谱边：从 Map 删。 */
+            map.graphEdges = (id) => {
+                try {
+                    if (!self.graph || !self.graph.edges || typeof self.graph.edges.delete !== 'function') return false;
+                    return self.graph.edges.delete(id) === true;
+                } catch (_e) { return false; }
+            };
+            /* 摘要：本面**不删**（删摘要会牵动卷/折叠账，属于摘要面自己的处置）——如实不给删除口。 */
+            /* 正史增量：DeltaBook 没有单条删除口（它是 append-only 账）——如实不给。 */
+            return map;
+        }
+        roundSnapshotBefore(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotBefore(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'before' }; }
+        roundSnapshotAfter(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotAfter(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'after' }; }
+        roundUndoState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundUndoState(this, ...args) : null; }
+        roundUndo(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundUndo(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, removed: [], failed: [], skipped: [], counts: { removed: 0, failed: 0, skipped: 0 } }; }
+        _roundUndoLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._roundUndoLine(this, ...args) : ''; }
         _silenceExplainLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._silenceExplainLine(this, ...args) : ''; }
         _materialInventory(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._materialInventory(this, ...args) : ''; }
         materialPack(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.materialPack(this, ...args) : null; }
@@ -3447,11 +3590,40 @@ function relativeTimeLabel(eventTime, nowTime) {
                     }
                 }
                 
+                // [v3.443.0 · L13-X8] 本轮生成的可撤销快照：**写入前**记一次条目集合摘要。
+                //   ★ 修前这两个出口只挂在宿主与诊断层上、全仓零调用 —— 于是面板永远报
+                //     no-round「还没有一轮完整快照」，用户装了这个面却从来不会有可撤的东西。
+                //   ★ 位置就是「提取完成、写入开始」这条线上：更早会把清洗/门控/降级摘要
+                //     也算进本轮，更晚会把 finally 里锁释放后的补提取算进来（那是另一批楼）。
+                //   ★ 失败不得连坐记忆写入：整块吞异常，只把读数留给诊断。
+                try {
+                    if (typeof this.roundSnapshotBefore === 'function') {
+                        const _rsB = this.roundSnapshotBefore({
+                            ledgers: (typeof this._roundLedgers === 'function') ? this._roundLedgers() : null,
+                            floor: message.index || 0,
+                        });
+                        this._roundSnapBeforeRead = _rsB || null;
+                    }
+                } catch (_e) { this._roundSnapBeforeRead = { ok: false, reason: 'thrown' }; }
                 // [v3.371.0] 提取后执行、图谱与各子系统状态写入管线外移至 engine-execution-pipeline.js (-1099行)
                 const _payloadResult = await this.applyExtractedPayload(extracted, message, {
                     rawForSynopsis: _rawForSynopsis,
                     chatId
                 });
+                // [v3.443.0 · L13-X8] 写入完成后记一次 after（同一个 seq —— 一对一号由内核保证）。
+                //   ★ before 没记成时**不补记 after**：只有半对的配对会被判 half-round，
+                //     那是"采集断在半路"的如实读数；凭空补一个 after 会把 0 条新增说成结论。
+                try {
+                    const _beforeOk = !!(this._roundSnapBeforeRead && this._roundSnapBeforeRead.ok === true);
+                    if (_beforeOk && typeof this.roundSnapshotAfter === 'function') {
+                        const _rsA = this.roundSnapshotAfter({
+                            ledgers: (typeof this._roundLedgers === 'function') ? this._roundLedgers() : null,
+                            floor: message.index || 0,
+                            seq: this._roundSnapBeforeRead.seq,
+                        });
+                        this._roundSnapAfterRead = _rsA || null;
+                    }
+                } catch (_e) { this._roundSnapAfterRead = { ok: false, reason: 'thrown' }; }
                 const _savePersisted = _payloadResult?.saved === true;
                 // [v3.165] 成功声称由事实驱动：提取成功与保存落地是两件事。此前这行只报「完成」+ 提取到的
                 //   角色/事件数（连向量数都是读全局，不是本楼产物），从不提保存被拒 —— 用户看到
@@ -7794,6 +7966,9 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         undoCorrection(opts = {}) { const M = _moduleLib(() => window.LonShaEngineRepairOps, 'engine-repair-ops.js'); return M ? M.undoCorrection(this, opts) : Promise.resolve(null); }
         memoryCenterRevoke(id, note) { const M = _moduleLib(() => window.LonShaEngineRepairOps, 'engine-repair-ops.js'); return M ? M.memoryCenterRevoke(this, id, note) : { ok: false, reason: 'engine-repair-ops-absent' }; }
         memoryCenterSaveQuery(state) { const M = _moduleLib(() => window.LonShaEngineRepairOps, 'engine-repair-ops.js'); return M ? M.memoryCenterSaveQuery(this, state) : { ok: false, reason: 'engine-repair-ops-absent' }; }
+        memoryCenterEdit(ref, text, opts) { const M = _memoryCenterLib(); return M && typeof M.editRow === 'function' ? M.editRow(this, ref, text, opts) : { ok: false, reason: 'memory-center-absent', changed: false }; }
+        memoryCenterPin(ref, opts) { const M = _memoryCenterLib(); return M && typeof M.pinRow === 'function' ? M.pinRow(this, ref, opts) : { ok: false, reason: 'memory-center-absent', changed: false }; }
+        memoryCenterForget(ref, opts) { const M = _memoryCenterLib(); return M && typeof M.forgetRow === 'function' ? M.forgetRow(this, ref, opts) : { ok: false, reason: 'memory-center-absent', changed: false }; }
         _memoryCenterStateWithSaved(state) { const M = _moduleLib(() => window.LonShaEngineRepairOps, 'engine-repair-ops.js'); return M ? M._memoryCenterStateWithSaved(this, state) : Object.assign({}, state); }
         correctionSourceFacts(range) { const M = _moduleLib(() => window.LonShaEngineRepairOps, 'engine-repair-ops.js'); return M ? M.correctionSourceFacts(this, range) : { ok: false, reason: 'engine-repair-ops-absent', facts: [] }; }
         correctionReextractFacts(opts = {}) { const M = _moduleLib(() => window.LonShaEngineRepairOps, 'engine-repair-ops.js'); return M ? M.correctionReextractFacts(this, opts) : { ok: false, reason: 'engine-repair-ops-absent', facts: [] }; }
@@ -10119,6 +10294,35 @@ function _collectNewFace() {
     function _eraInheritanceLib() {
         return _moduleLib(() => window.EraInheritanceLib, 'era-inheritance.js');
     }
+
+    /* [v3.444.0 · L13-X9] 跨代传承谱系树取库口（era-continuation-inheritance-tree.js）。
+     *   ★ 与上一行的 `_eraInheritanceLib`（era-inheritance.js）**不是同一件**，别合并：
+     *     前者是「时代转场 + 逐项继承 + 撤销转场」（L12-O1 已接管）；
+     *     本件是「传承物四态 + 秘密断代」（L13-X9）。
+     *   挂载名 **EraContinuationInheritanceTree**（无 LonSha 前缀，UMD 出厂即此名 ——
+     *   迁就既有事实，不给模块改名：改名会让既有判据与卡内快照全断）。
+     *   与同族取库口同形：_moduleLib 惰性、缺席回 null、不抛。 */
+    function _eraContinuationTreeLib() {
+        return _moduleLib(() => window.EraContinuationInheritanceTree, 'era-continuation-inheritance-tree.js');
+    }
+    /* [v3.440.0 · L13-X7] 习惯与成长证据面的取库口。
+     *   本模块此前 `prod_call_sites=0`（登记在册 / 真被加载 / 单测全绿，产品端零调用）。
+     *   挂载全局名是 **CharacterHabitGrowthEvidence**（无 LonSha 前缀，与 SymbolicEvolutionLib 同族），
+     *   取库口迁就既有事实，不给模块改名 —— 改名会让既有卡与快照全断。
+     *   与同批取库口同形：_moduleLib 惰性、缺席回 null、不抛。
+     */
+    function _habitGrowthLib() {
+        return _moduleLib(() => window.CharacterHabitGrowthEvidence, 'character-habit-growth-evidence.js');
+    }
+    /* [v3.441.0 · L13-X4] 证据缺口工作台的取库口。
+     *   本模块此前 `prod_call_sites=0`（登记在册 / 真被加载 / 单测绿，产品端零调用）。
+     *   挂载名 **MemoryArchaeologyGapBench**（无 LonSha 前缀，与 CharacterHabitGrowthEvidence 同族）。
+     *   ★ 与 `_archaeologyLib`（memory-archaeology.js）**不是同一件**：那是「沿革叙述」，
+     *     本件是「证据缺口盘点」。两件名字像，用途不同，别合并。
+     */
+    function _gapBenchLib() {
+        return _moduleLib(() => window.MemoryArchaeologyGapBench, 'memory-archaeology-gap-bench.js');
+    }
     /* [v3.430.0 · L12-X] X 系列六面的四件**新**内核取库口。
      *   修前实测：这四件在 manifest.extra_js 里都已登记（真被加载）、单测也有，
      *   而 index.js 里一次取库都没有 ⇒ 诊断层的 X 面恒报 module-unavailable。
@@ -10136,6 +10340,10 @@ function _collectNewFace() {
     }
     function _recallEchoLib() {
         return _moduleLib(() => window.LonShaRecallEcho, 'recall-echo.js');
+    }
+    /* [v3.443.0 · L13-X8] 本轮条目集合摘要内核取库口。 */
+    function _roundSnapshotLib() {
+        return _moduleLib(() => window.LonShaRoundEntrySnapshot, 'round-entry-snapshot.js');
     }
     function _factCorrectionBenchLib() {
         return _moduleLib(() => window.LonShaFactCorrectionBench, 'fact-correction-bench.js');

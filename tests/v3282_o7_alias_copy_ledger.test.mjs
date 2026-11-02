@@ -133,7 +133,7 @@ const ALIAS_LEDGER = [
      *   正落入本档射程。★ 判据真抓到东西（B1 当场报「新增未登记的别名副本」），不是为过门禁而补登记。
      *   **为什么留多份**：两个新内核是零依赖纯函数 IIFE，档头声明不引兄弟模块常量（理由与既有
      *   PRECHECK/PREVIEW、keyOf/strOf 簇同族）—— 收拢即引入跨模块静默读旧值。 */
-    ['fn', ['normStr', 'safeStr', 'str'], ['batch-maintenance-pipeline.js', 'character-growth-drama.js', 'conflict-adjudication-bench.js', 'coverage-ledger.js', 'cross-project-migration-desk.js', 'dual-time.js', 'era-continuation-drama.js', 'evidence-solver.js', 'experience-rebuild.js', 'fact-correction-bench.js', 'generation-fact-receipt.js', 'generation-fact-replay.js', 'generation-memory-plan.js', 'meaning-map.js', 'memory-archaeology.js', 'memory-budget-orchestrator.js', 'memory-inbox.js', 'memory-readable-workbench.js', 'memory-ritual.js', 'memory-season.js', 'memory-symbiosis-bridge.js', 'memory-work-mode.js', 'perspective-preview.js', 'recall-artifact.js', 'recall-correction.js', 'recall-route-orchestrator.js', 'resolution-ladder.js', 'scene-orchestrator.js', 'secret-theater.js', 'task-inbox.js', 'temporal-validity-workflow.js'], 41, 'db249204'],
+    ['fn', ['normStr', 'safeStr', 'str'], ['batch-maintenance-pipeline.js', 'character-growth-drama.js', 'conflict-adjudication-bench.js', 'coverage-ledger.js', 'cross-project-migration-desk.js', 'dual-time.js', 'era-continuation-drama.js', 'evidence-solver.js', 'experience-rebuild.js', 'fact-correction-bench.js', 'generation-fact-receipt.js', 'generation-fact-replay.js', 'generation-memory-plan.js', 'meaning-map.js', 'memory-archaeology.js', 'memory-budget-orchestrator.js', 'memory-inbox.js', 'memory-lineage-replay.js', 'memory-readable-workbench.js', 'memory-ritual.js', 'memory-season.js', 'memory-symbiosis-bridge.js', 'memory-work-mode.js', 'perspective-preview.js', 'recall-artifact.js', 'recall-correction.js', 'recall-route-orchestrator.js', 'resolution-ladder.js', 'scene-orchestrator.js', 'secret-theater.js', 'task-inbox.js', 'temporal-validity-workflow.js'], 41, 'db249204'],
     /* X6/X7：同一个「预检三档」体在两个新模块里挂了两个名字 —— 名字不同，故三层按名配对的
      *   判据（v3280/v3281）整片看不见它，正落入本档射程。两模块刻意各持一份（见 v3281 同簇留痕）。 */
     /* [v3.327.0 · E 包记忆侧] lore-import.js / story-annual.js 各持一份与 X6/X7/X8 同形同值的
@@ -148,7 +148,11 @@ const ALIAS_LEDGER = [
     ['fn', ['keyOf', 'strOf'], ['branch-canon.js', 'branch-semantics.js', 'fated-recall.js', 'lore-import.js', 'memory-package.js', 'recall-explain.js', 'story-annual.js', 'volume-continuation.js'], 100, 'cb4883eb'],
     /* [v3.313.0 · M-X8] 两簇各多一个成员 memory-package.js：M-X8 自持与 X6/X7 同形同值的原语/词表\n     *   （档头声明「不引兄弟模块」），故不合并成一份；登记 + 留痕理由，与上两条同处理。\n     *   ★ 判据真抓到东西（不是为过门禁而补登记）：既有两模块的簇成员集合确实变了。 */
     ['fn', ['_t', 'text'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 142, 'bc94705d'],
-    ['fn', ['_floorOf', 'floorOf'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js'], 228, '6fe7a611'],
+    /* [v3.439.0 · L13-X3] 新内核 pov-projection.js 自持一份与 extract-feedback /
+     *   knowledge-preview / knowledge-trace **逐字同源**的楼层归一(`floorOf`)——本面是**零依赖 IIFE**,
+     *   档头声明不引兄弟模块的原语(理由与 v3281 同簇留痕一致:收拢会把「本模块自足」换成
+     *   「依赖另一个模块先挂载」)。★ 判据真抓到东西:成员集合确实多了一处。 */
+    ['fn', ['_floorOf', 'floorOf'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js', 'pov-projection.js'], 228, '6fe7a611'],
     ['fn', ['_isPlain', 'isPlainObject'], ['extract-feedback.js', 'project-registry.js', 'projection-pipeline.js'], 57, 'dd6bb22c'],
     /* [v3.326.0 · A1 第九刀] 两模块各持一份「建议目标三态」词表(config / data / rerun)。
      *   D 包侧叫 `KINDS`、C 包侧叫 `TARGET_KINDS` —— 名字不同,故按**名**配对的三层判据(v3280 / v3281)整片看不见它。

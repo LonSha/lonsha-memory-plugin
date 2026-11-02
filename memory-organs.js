@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.433.0';
+let VERSION = '3.444.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1016,6 +1016,80 @@ class CharacterMemoryBank {
     // 手动升降级（核心 ↔ 近期）
     promoteToCore(char, id) { const c = this._c(char); const i = c.recent.findIndex(m => m.id === id); if (i < 0) return false; const [m] = c.recent.splice(i, 1); m.ts = Date.now(); c.core.push(m); return true; }
     demoteToRecent(char, id) { const c = this._c(char); const i = c.core.findIndex(m => m.id === id); if (i < 0) return false; const [m] = c.core.splice(i, 1); m.ts = Date.now(); c.recent.push(m); if (c.recent.length > this.RECENT_KEEP) c.recent.shift(); return true; }
+    /** [L13-O2] 控制中心的**唯一角色记忆读槽**：只吐副本，不把 UI 缓存变成第二事实库。 */
+    memoryCenterRows() {
+        const out = [];
+        for (const char of Object.keys(this.memories || {})) {
+            const c = this._c(char);
+            for (const bucket of ['core', 'recent']) {
+                for (const item of (Array.isArray(c[bucket]) ? c[bucket] : [])) {
+                    out.push({ char: String(char), bucket, item: JSON.parse(JSON.stringify(item)) });
+                }
+            }
+        }
+        return out;
+    }
+    _memoryItem(char, id) {
+        const c = this._c(char);
+        const hit = (bucket) => {
+            const index = c[bucket].findIndex((item) => String(item && item.id) === String(id));
+            return index < 0 ? null : { c, bucket, index, item: c[bucket][index] };
+        };
+        return hit('core') || hit('recent');
+    }
+    /** [L13-O2] 编辑正文：保留原 id / 槽位，只改变 owner 持有的正文。 */
+    editMemory(char, id, nextText, opts = {}) {
+        const hit = this._memoryItem(char, id);
+        if (!hit) return { ok: false, reason: 'not-found', changed: false };
+        const next = String(nextText == null ? '' : nextText).trim().slice(0, 200);
+        if (!next) return { ok: false, reason: 'empty-text', changed: false };
+        const before = String(hit.item.text == null ? '' : hit.item.text);
+        if (before === next) return { ok: true, reason: 'unchanged', changed: false, item: JSON.parse(JSON.stringify(hit.item)) };
+        hit.item.text = next;
+        hit.item.editedAt = Date.now();
+        hit.item.memoryRevision = Math.max(0, Number(hit.item.memoryRevision) || 0) + 1;
+        const floor = hit.item.floor ?? null;
+        try { this.opLog?.log?.('char_mem', 'edit', hit.item.id, floor, `${String(char)} · ${before} → ${next}`); } catch (_) {}
+        return {
+            ok: true, reason: 'edited', changed: true, char: String(char), id: String(id), bucket: hit.bucket,
+            before, after: next, item: JSON.parse(JSON.stringify(hit.item)), floor
+        };
+    }
+    /** [L13-O2] 编辑撤销：乐观核验，避免把用户在撤销前的新改动覆盖掉。 */
+    undoMemoryEdit(char, id, beforeText, expectedAfter) {
+        const hit = this._memoryItem(char, id);
+        if (!hit) return { ok: false, reason: 'not-found', changed: false };
+        const current = String(hit.item.text == null ? '' : hit.item.text);
+        if (expectedAfter !== undefined && current !== String(expectedAfter)) return { ok: false, reason: 'stale-current', changed: false };
+        const before = String(beforeText == null ? '' : beforeText);
+        if (!before) return { ok: false, reason: 'empty-before', changed: false };
+        hit.item.text = before;
+        hit.item.editedAt = Date.now();
+        hit.item.memoryRevision = Math.max(0, Number(hit.item.memoryRevision) || 0) + 1;
+        try { this.opLog?.log?.('char_mem', 'undo', hit.item.id, hit.item.floor ?? null, `${String(char)} · 恢复正文`); } catch (_) {}
+        return { ok: true, reason: 'undone', changed: true, item: JSON.parse(JSON.stringify(hit.item)) };
+    }
+    /** [L13-O2] 置顶走同一 owner 槽，不在控制中心另存 pinned 表。 */
+    pinMemory(char, id, pinned, opts = {}) {
+        const hit = this._memoryItem(char, id);
+        if (!hit) return { ok: false, reason: 'not-found', changed: false };
+        const before = hit.item.pinned === true;
+        const after = pinned === undefined ? !before : pinned === true;
+        if (before === after) return { ok: true, reason: 'unchanged', changed: false, pinned: after, item: JSON.parse(JSON.stringify(hit.item)) };
+        hit.item.pinned = after;
+        hit.item.editedAt = Date.now();
+        try { this.opLog?.log?.('char_mem', 'pin', hit.item.id, hit.item.floor ?? null, `${String(char)} · ${after ? '置顶' : '取消置顶'}`); } catch (_) {}
+        return { ok: true, reason: after ? 'pinned' : 'unpinned', changed: true, before, after, pinned: after, item: JSON.parse(JSON.stringify(hit.item)) };
+    }
+    undoMemoryPin(char, id, beforePinned, expectedAfter) {
+        const hit = this._memoryItem(char, id);
+        if (!hit) return { ok: false, reason: 'not-found', changed: false };
+        const current = hit.item.pinned === true;
+        if (expectedAfter !== undefined && current !== (expectedAfter === true)) return { ok: false, reason: 'stale-current', changed: false };
+        hit.item.pinned = beforePinned === true;
+        try { this.opLog?.log?.('char_mem', 'undo-pin', hit.item.id, hit.item.floor ?? null, `${String(char)} · 恢复置顶状态`); } catch (_) {}
+        return { ok: true, reason: 'undone', changed: true, pinned: hit.item.pinned, item: JSON.parse(JSON.stringify(hit.item)) };
+    }
     // 删除单条：软删入 tombstones；默认 of() 仍只返回可召回的 core/recent。
     deleteMemory(char, id, opts = {}) {
         const c = this._c(char);
@@ -1360,6 +1434,24 @@ class WorldProgress {
         this.beliefs = [];
         this.habitRepos = [];
         this.absenceExpectations = [];
+        /* [v3.440.0 · L13-X7] 习惯**成长证据束**的存储格（与上面 habitRepos 不是同一件事）。
+         *   habitRepos 存的是「习惯本体」（context+approach 二元组 + 成形次数 + 状态）；
+         *   growthBundles 存的是「这条习惯是怎么被证明的」四阶段证据轨迹。
+         *   两块账**分开存、分开报**：把证据并进本体就等于让「形成了习惯」冒充「有据可查」。
+         *   显式初始化是必须的 —— undefined 与「真的没有」同形（本仓反复点名的那一类）。 */
+        this.growthBundles = [];
+        /* [v3.442.0 · L13-X6] 静音清单面的两条真源存储格。
+         *   ★ 现场实测（本版起点）：`seasonState` / `topicSeasons` 在全仓**除诊断层外零写入点**，
+         *     也不在构造 / 导出 / 导入三处枚举里 ⇒ **存盘即丢、读档即空**。
+         *     而 X6 的验收要「制造两条不同源静音，解除一条后另一条仍在」——
+         *     解除不了的另一半原因是：重开之后状态根本没地方存。
+         *   两格语义**不同**，不许合并成一个：
+         *     · seasonState —— 用户**持久**的季候动作（mute / defer / embrace / probe），
+         *       值是字符串动作词（由 memory-season.js 的 applySeasonAction 写）；
+         *     · topicSeasons —— 被登记的主题本体（地点 / 在场人 / 证据数 / 是否秘密），
+         *       是**主题表**不是动作表，静音清单要拿它才能把 id 说成人能认的名字。 */
+        this.seasonState = null;
+        this.topicSeasons = [];
     }
 
     // ===== 约定账本 (Promises Ledger) =====
@@ -2287,6 +2379,15 @@ class WorldProgress {
             beliefs: this.beliefs || [],
             habitRepos: this.habitRepos || [],
             absenceExpectations: this.absenceExpectations || [],
+            /* [v3.440.0 · L13-X7] 成长证据束随世界推进持久化。导出的是**状态本体**：
+             *   四阶段轨迹与证据 id 重建不回来，就等于每次读都从零开始（同一形态 v3.428.0 已治过）。 */
+            growthBundles: this.growthBundles || [],
+            /* [v3.442.0 · L13-X6] 静音清单两条真源随世界推进持久化。
+             *   导出的是**状态本体**：seasonState 里的动作词与 topicSeasons 里的主题表
+             *   重建不回来，静音清单读档后就是空的（同一形态 v3.428.0 / v3.440.0 已治过）。 */
+            seasonState: (this.seasonState && typeof this.seasonState === 'object' && !Array.isArray(this.seasonState))
+                ? this.seasonState : null,
+            topicSeasons: this.topicSeasons || [],
             plotArcs: this.plotArcs || []
         };
     }
@@ -2353,6 +2454,16 @@ class WorldProgress {
             this.beliefs = Array.isArray(data.beliefs) ? data.beliefs : [];
             this.habitRepos = Array.isArray(data.habitRepos) ? data.habitRepos : [];
             this.absenceExpectations = Array.isArray(data.absenceExpectations) ? data.absenceExpectations : [];
+            /* [v3.440.0 · L13-X7] 畸形一律回落空账（与同族口径一致：不逐字段校验，
+             *   合法性由内核读面归一，在此再校一遍即第二套判据）。 */
+            this.growthBundles = Array.isArray(data.growthBundles) ? data.growthBundles : [];
+            /* [v3.442.0 · L13-X6] 静音清单两条真源导入。畸形一律回落空账（同族口径）：
+             *   seasonState 必须是**普通对象**（数组/null/字符串都不是动作表），
+             *   topicSeasons 必须是数组。不逐字段校验 —— 合法性由内核每次
+             *   evaluateTopicSeason 归一，在此再校一遍即第二套判据（两边不同步就静默漂移）。 */
+            this.seasonState = (data.seasonState && typeof data.seasonState === 'object' && !Array.isArray(data.seasonState))
+                ? data.seasonState : null;
+            this.topicSeasons = Array.isArray(data.topicSeasons) ? data.topicSeasons : [];
         }
     }
     // [v3.358.0 · M6-O8] 持续研究记忆接口

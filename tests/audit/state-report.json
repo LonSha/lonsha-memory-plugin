@@ -1,19 +1,20 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.431.0",
+  "version": "3.444.0",
   "version_sources": {
-    "manifest": "3.431.0",
-    "package": "3.431.0",
-    "index_const": "3.431.0"
+    "manifest": "3.444.0",
+    "package": "3.444.0",
+    "index_const": "3.444.0"
   },
   "version_same": true,
-  "human_index_version": "3.431.0",
+  "human_index_version": "3.444.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 244,
+    "extra_js": 247,
     "extra_js_list": [
       "ledger-entity.js",
+      "config-effect-registry.js",
       "settings-ui.js",
       "modules_combined.js",
       "graph_algorithms.js",
@@ -256,13 +257,15 @@
       "ancient-story-clock.js",
       "fact-replay-pipeline.js",
       "inband-extraction-parser.js",
-      "worldline-memory.js"
+      "worldline-memory.js",
+      "memory-lineage-replay.js",
+      "pov-projection.js"
     ],
-    "root_js": 245,
+    "root_js": 248,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 430,
+    "test_files": 441,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -631,6 +634,17 @@
       "v3430_l12_x6_unload_drill.test.mjs",
       "v3430_m4x5_testimony_board.test.mjs",
       "v3431_tmpdir_not_on_ramdisk.test.mjs",
+      "v3432_l13_x1_memory_lineage.test.mjs",
+      "v3433_l13_o1_realhost.test.mjs",
+      "v3433_l13_x2_whatif.test.mjs",
+      "v34340_l13_o8_tombstone.test.mjs",
+      "v3434_l13_o2_memory_edit.test.mjs",
+      "v34355_l13_o9_effect_at.test.mjs",
+      "v3435_l13_o3_face_state.test.mjs",
+      "v3436_l13_o4_view_reach.test.mjs",
+      "v3437_l13_o5_worldline_plain.test.mjs",
+      "v3438_l13_o6_injection_receipt_face.test.mjs",
+      "v3439_l13_x3_pov_projection.test.mjs",
       "v343_baibai_mechanics.test.mjs",
       "v3440_m4x6_narrative_layer.test.mjs",
       "v3445_m4x7_return_gate.test.mjs",
@@ -696,7 +710,7 @@
       "v39_shift_floors.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 71,
+    "audit_gated": 72,
     "audit_probes": 8,
     "tiers": {
       "schema": "gate-tiers@1",
@@ -730,12 +744,12 @@
     }
   },
   "full_run": {
-    "status": "registered",
+    "status": "stale",
     "registered_at": "3.431.0",
     "tests_total": 430,
     "assertions": 4658,
     "audit": "68/68",
-    "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
+    "reason": "登记版本 3.431.0 ≠ 当前 3.439.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -754,17 +768,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "add35b6542e2",
-      "package.json": "695bceba906e",
-      "index.js": "d2a20c9bec74",
+      "manifest.json": "63a78951e9cf",
+      "package.json": "32d9fdf6534b",
+      "index.js": "bc3daa424c11",
       "update-log.json": null,
-      "README.md": "2d36f8b3c5bb",
-      "PLAN.md": "7afe0287b0e6",
-      "CHANGELOG.md": "038f9712def3",
-      "TODO.md": "4bb5296806c6",
+      "README.md": "61e73151f817",
+      "PLAN.md": "d747c63df9df",
+      "CHANGELOG.md": "21ff9bb6b5f9",
+      "TODO.md": "a55ac426c1da",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
-  "unknown": [],
-  "unknown_count": 0
+  "unknown": [
+    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.439.0"
+  ],
+  "unknown_count": 1
 }

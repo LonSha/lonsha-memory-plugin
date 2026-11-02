@@ -217,8 +217,14 @@ function vnum(s) {
     return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
 }
 
-test('I: 当版锚点 —— 锁当版 3.433.0', () => {
-    assert.equal(vnum(CUR), 3433000);
-    assert.equal(vnum('3.433.0'), vnum(CUR));
-    assert.ok(HOST_SRC.includes("'3.433.0'"), 'index.js 当版版本号必须是 3.433.0');
+/* [v3.439.0 改形：锁当版 → 出生下界形] 原写法把当版硬锁成 3.433.0（`HOST_SRC.includes("'3.433.0'")`），
+ *   每抬一次版必红一次 —— 那不是「防漂移」，是把「抬版」本身当成缺陷。仓内既有同族口径
+ *   （见 v3428O4 D1）已改为**下界形**：本档出生版本不得被绕过，且当版字面量必须与 VERSION 真值同源。
+ *   ★ 版本守卫 V4 要的「恰有一处以 vnum 锚着当版」由当版档案（v3439）承担，不由本档承担。 */
+test('I: 出生版本下界 3.433.0（不锁当版）', () => {
+    assert.equal(vnum(CUR), 3433000, 'CUR 必须仍可被 vnum 解析（自锚常量不得被改写成非版本串）');
+    const live = (/const VERSION = '([0-9]+\.[0-9]+\.[0-9]+)'/.exec(HOST_SRC) || [])[1];
+    assert.ok(live, 'index.js 的 VERSION 真源必须可读');
+    assert.ok(vnum(live) >= vnum(CUR), '当版 ' + live + ' 不得低于本档出生版本 ' + CUR);
+    assert.ok(HOST_SRC.includes("'" + live + "'"), 'index.js 当版版本号必须与 VERSION 真值同源');
 });

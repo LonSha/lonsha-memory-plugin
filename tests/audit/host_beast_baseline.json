@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.433.0",
+  "measured_at": "v3.444.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3015,6 +3015,263 @@
         "top5_pct": -0.1,
         "top40_pct": -0.1
       }
+    },
+    "v3.434.0": {
+      "reason": "[v3.434.0] L13-O2 记忆条目级编辑面：memory-organs.js 的 CharacterMemoryBank 新增 owner slot （memoryCenterRows / editMemory / undoMemoryEdit / pinMemory / undoMemoryPin），正文编辑保留原 id 与 core/recent 槽位并递增 memoryRevision；memory-center.js 新增 row.edit / row.pin / row.forget 三个 write+undo 动作与 char-mem 引用键，index.js 新增 memoryCenterEdit / memoryCenterPin / memoryCenterForget 三个薄转发桩，engine-evidence-center.js 按需生成 memoryRows 摘要，settings-ui.js 提供行内编辑与撤销闭包；遗忘/恢复复用既有 tombstone（O8 owner），不造第二套删除逻辑。",
+      "readings": {
+        "total_lines": 11885,
+        "surface_lines": 30850,
+        "member_count": 1240,
+        "duplicate_member_names": 160,
+        "top5_lines": 5796,
+        "top5_pct": 18.8,
+        "top40_lines": 13027,
+        "top40_pct": 42.2,
+        "prefix_rule_coverage_lines": 5018,
+        "prefix_rule_coverage_pct": 16.3,
+        "unclassified_lines": 24981,
+        "seam_distinct_modules": 157,
+        "seam_reference_sites": 470,
+        "seam_call_shape_sites": 599,
+        "members_over_80_lines": 58,
+        "low_coupling_members": 18,
+        "high_coupling_members": 18
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做记忆条目级编辑面接线与判据，未拆任何宿主巨兽成员",
+      "delta_from": "v3.433.0",
+      "delta": {
+        "total_lines": 19,
+        "surface_lines": 31,
+        "member_count": 16,
+        "top40_lines": 3,
+        "top5_pct": 0.0,
+        "top40_pct": -0.1
+      }
+    },
+    "v3.439.0": {
+      "reason": "[v3.439.0] L13-X3 视角投影面接线：新内核 pov-projection.js（零依赖纯函数，extra_js 第 247 项）；engine-diagnostic-lines.js 新增 povProject 装配口与 _povProjectionLine 诊断行（只装配 / 原样转发 / 留读数摘要，取数全部来自既有三账 pov / secretLedger / knowledgeTraces，不引入任何新存储）；index.js 新增 povProject / _povProjectionLine 两个薄转发桩；settings-ui.js 的 povs 视图由列名单改为三态投影面。同期 O3~O6 的增面也落在本区间（O3 四态 / O4 可达性扫描器 / O5 世界线读口 / O6 注入回执），全部是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11889,
+        "surface_lines": 31218,
+        "member_count": 1246,
+        "duplicate_member_names": 160,
+        "top5_lines": 5902,
+        "top5_pct": 18.9,
+        "top40_lines": 13133,
+        "top40_pct": 42.1,
+        "prefix_rule_coverage_lines": 5088,
+        "prefix_rule_coverage_pct": 16.3,
+        "unclassified_lines": 25276,
+        "seam_distinct_modules": 157,
+        "seam_reference_sites": 473,
+        "seam_call_shape_sites": 603,
+        "members_over_80_lines": 60,
+        "low_coupling_members": 18,
+        "high_coupling_members": 20
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做视角投影面（X3）与 O3~O6 增面接线，未拆任何宿主巨兽成员",
+      "delta_from": "v3.434.0",
+      "delta": {
+        "total_lines": 4,
+        "surface_lines": 368,
+        "member_count": 6,
+        "top40_lines": 106,
+        "top5_pct": 0.1,
+        "top40_pct": -0.1
+      }
+    },
+    "v3.440.0": {
+      "reason": "[v3.440.0] L13-X7 习惯与成长证据面接线：character-habit-growth-evidence.js 从「登记在册但零消费」接成产品面（新增 describeGrowth 只读摘要 / STAGE_LABELS / STAGE_ORDER / habitKey 透传）；engine-diagnostic-lines.js 新增接收口与 habitGrowthState 读面 + _habitGrowthLine 诊断行，证迹由既有 agencyContractAct('practice') 分支**顺带**产出（不新开写入口）；index.js 新增 _habitGrowthLib 取库口与 habitGrowthState / _habitGrowthLine 两个薄转发桩；memory-organs.js 新增 growthBundles 存储格与导出导入两向；settings-ui.js 的 protagonist 视图新增「🌱 习惯与成长证据」三态分区。全部是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11906,
+        "surface_lines": 31420,
+        "member_count": 1249,
+        "duplicate_member_names": 160,
+        "top5_lines": 5911,
+        "top5_pct": 18.8,
+        "top40_lines": 13201,
+        "top40_pct": 42.0,
+        "prefix_rule_coverage_lines": 5088,
+        "prefix_rule_coverage_pct": 16.2,
+        "unclassified_lines": 25476,
+        "seam_distinct_modules": 158,
+        "seam_reference_sites": 476,
+        "seam_call_shape_sites": 606,
+        "members_over_80_lines": 61,
+        "low_coupling_members": 18,
+        "high_coupling_members": 20
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做习惯与成长证据面（X7）接线，未拆任何宿主巨兽成员",
+      "delta_from": "v3.439.0",
+      "delta": {
+        "total_lines": 17,
+        "surface_lines": 202,
+        "member_count": 3,
+        "top40_lines": 68,
+        "top5_pct": -0.1,
+        "top40_pct": -0.1
+      }
+    },
+    "v3.441.0": {
+      "reason": "[v3.441.0] L13-X4 证据缺口工作台接线：memory-archaeology-gap-bench.js 从「登记在册但零消费」接成产品面（新增 evidenceCountOf 两处计 / auditGaps 三档主因 + 双表 / downgradePayload 只出载荷 / line 三档分开念）；engine-diagnostic-lines.js 新增 _gapBenchLib / _factVersionLib 两个取库口、evidenceGapBench 只读面（不落任何缓存）、evidenceGapDowngrade 唯一写入口（逐条、走既有 fact-version.setOrigin 与 DeltaBook.add 两个 owner）、_evidenceGapBenchLine 诊断行；index.js 新增两个取库口与 evidenceGapBench / evidenceGapDowngrade / _evidenceGapBenchLine 三个薄转发桩；settings-ui.js 的 archive 视图改造成「🧾 证据缺口 · 存档体检」（四档分列 / 空态念 scanned-thick-threshold / 缺席态明写「不是证据都齐了」）并补 data-gap-refill 与 data-gap-down 两个动作绑定。全部是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11927,
+        "surface_lines": 31646,
+        "member_count": 1256,
+        "duplicate_member_names": 160,
+        "top5_lines": 5920,
+        "top5_pct": 18.7,
+        "top40_lines": 13215,
+        "top40_pct": 41.8,
+        "prefix_rule_coverage_lines": 5088,
+        "prefix_rule_coverage_pct": 16.1,
+        "unclassified_lines": 25699,
+        "seam_distinct_modules": 159,
+        "seam_reference_sites": 480,
+        "seam_call_shape_sites": 611,
+        "members_over_80_lines": 61,
+        "low_coupling_members": 18,
+        "high_coupling_members": 20
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做证据缺口工作台（X4）接线，未拆任何宿主巨兽成员",
+      "delta_from": "v3.440.0",
+      "delta": {
+        "total_lines": 21,
+        "surface_lines": 226,
+        "member_count": 7,
+        "top40_lines": 14,
+        "top5_pct": -0.1,
+        "top40_pct": -0.2
+      }
+    },
+    "v3.442.0": {
+      "reason": "[v3.442.0] L13-X6 静音清单面接线：把「我现在把什么静音了」做成常驻可解的面，且在画面之前先补「有地方存」。engine-diagnostic-lines.js 新增 silenceListState 只读面（ctx / season 两源分列永不合并、counts 不相加成主题数、sinceKind 自报 this-run / last-season-action / unknown、until 恒 null、echo 走 Object.create(engine) 一次性代理不回写调用方的判定输入）、silenceLift 唯一写入口（只认一个 topicId / 无批量 / 不删键 / 五态失败码 / 失败路径零写账）、_silenceListLine 诊断行，三个出口挂 api 冻结表；memory-organs.js 新增 seasonState 与 topicSeasons 三处持久化（构造显式落格 / 导出带类型守卫 / 导入畸形回落空账）—— 此前这两格不在 WorldProgress 的构造·导出·导入枚举里，**存盘即丢、读档即空**；index.js 新增 silenceListState / silenceLift / _silenceListLine 三个薄转发桩；settings-ui.js 新增 data-view=\"silence\" 入口卡 + 渲染分支（逐条 data-silence-lift）+ 逐条解除绑定（成功 toast 后按同一视图重建，不在 DOM 上就地改），视图数 26 -> 27。全部是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 11933,
+        "surface_lines": 31816,
+        "member_count": 1259,
+        "duplicate_member_names": 160,
+        "top5_lines": 5920,
+        "top5_pct": 18.6,
+        "top40_lines": 13215,
+        "top40_pct": 41.5,
+        "prefix_rule_coverage_lines": 5088,
+        "prefix_rule_coverage_pct": 16.0,
+        "unclassified_lines": 25866,
+        "seam_distinct_modules": 159,
+        "seam_reference_sites": 483,
+        "seam_call_shape_sites": 614,
+        "members_over_80_lines": 62,
+        "low_coupling_members": 18,
+        "high_coupling_members": 22
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做证据缺口工作台（X4）接线，未拆任何宿主巨兽成员",
+      "delta_from": "v3.441.0",
+      "delta": {
+        "total_lines": 6,
+        "surface_lines": 170,
+        "member_count": 3,
+        "top40_lines": 0,
+        "top5_pct": -0.1,
+        "top40_pct": -0.3
+      }
+    },
+    "v3.443.0": {
+      "reason": "[v3.443.0] L13-X8 本轮生成的可撤销快照接线：把「这一轮到底新塞进了哪些条目」做成可对拍、可只撤新增的面。新内核 round-entry-snapshot.js（360 行，零依赖双导出）—— 条目集合摘要只记 id + 指纹 {len/head/tail/h}，**不复制正文**（复制正文等于绕开各账 owner 另建真源）；对拍三类 added / removed / modified，其中 unknown-fingerprint **单列**（拿不到判据既不算改过、也不算没改）；recordSnapshot 在 summary.ok!==true 时拒绝记假快照；同一轮 before/after 共享同一个 seq（一对一号）；roundUndoState 四态 no-round / half-round / ok / undone（missing 数组点名缺哪半，撤销过的那一轮不重放）；undoRound 是唯一写入口，confirm!==true 即拒且**连删除口都不调**，只删 added（removed 因正文未留而不可撤、modified 恒只标待复核 —— 结构上没有回退路径），无删除口的账 skipped 单列、删不掉报 partial。engine-diagnostic-lines.js 新增取库口 + 四出口（roundSnapshotBefore / roundSnapshotAfter / roundUndoState / roundUndo，undo 侧先判 confirm 再读账）与 _roundUndoLine 四态诊断行。index.js 在 libs 注入块新增 _roundSnapshotLib，并新增两个账本清单口 _roundLedgers（lockedFacts / graphNodes / graphEdges / summaries / deltas 五本账）与 _roundRemovers（只给三本：摘要删了会牵动卷/折叠账、DeltaBook 是 append-only —— 如实不给删除口；删图谱节点后 rebuildNameIndex，否则「删了节点还能按名字查到」），加五个薄转发桩。settings-ui.js 在既有 oplog 视图内新增「撤销本轮写入」块 + window.confirm 二次确认 + 撤销后审计链记一条 rollback/undo-round（不新开视图：这一面回答「这一轮」而非「所有轮」，与审计链同页才看得见上下文）。全部是活跃功能增长，非死代码回流。\n【同版收尾补测】首绑后又修了两处**真缺陷**，读数随之变化，故重测一次（不是新版本）：① 账本清单口的两本无 id 账（摘要 / 正史增量）必须投影出位置键 —— 修前这两本账「采集成功但一条也采不到」，面板显示新增 0 条像这轮没写入；② 快照 before/after 真接进生成链路（修前全仓零调用，面板永远 no-round）。读这条的理由：同一版出现两条 history 是因为首绑现场与收尾现场都必须留痕，抹掉首绑那条就丢了「先绑成什么样」。",
+      "readings": {
+        "total_lines": 12061,
+        "surface_lines": 32076,
+        "member_count": 1267,
+        "duplicate_member_names": 160,
+        "top5_lines": 5924,
+        "top5_pct": 18.5,
+        "top40_lines": 13252,
+        "top40_pct": 41.3,
+        "prefix_rule_coverage_lines": 5117,
+        "prefix_rule_coverage_pct": 16.0,
+        "unclassified_lines": 26092,
+        "seam_distinct_modules": 160,
+        "seam_reference_sites": 489,
+        "seam_call_shape_sites": 620,
+        "members_over_80_lines": 62,
+        "low_coupling_members": 18,
+        "high_coupling_members": 22
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做证据缺口工作台（X4）接线，未拆任何宿主巨兽成员",
+      "delta_from": "v3.442.0",
+      "delta": {
+        "total_lines": 128,
+        "surface_lines": 260,
+        "member_count": 8,
+        "top40_lines": 37,
+        "top5_pct": -0.1,
+        "top40_pct": -0.2
+      },
+      "remeasured_from": {
+        "total_lines": 12004,
+        "member_count": 1267,
+        "note": "首绑现场（同版补测前）。两次读数之差 = 两处真缺陷修复带来的净增量。"
+      }
+    },
+    "v3.444.0": {
+      "reason": "[v3.444.0] L13-X9 跨代传承面接线：把一个「登记在册 / 真被加载 / 单测全绿但产品端零调用」的内核接成可读可声明的面。内核 era-continuation-inheritance-tree.js 补三件：① FATE_CAUSES 每态成因表（同是 lost，「被明确宣告遗失」与「传接跑完了它却没被处置」读数分得开）；② buildInheritanceRoster 直接吃 worldProg.eraTransitions 原样（**不新开存储、不建第二套事实库**，输出逐条四态 + 成因 + 秘密边界）；③ 第五档 pending（**未到结果**，与四态这条「结果轴」分列 —— lost 与 pending 若同形，用户会看到「家传玉佩遗失了」而事实只是「还没走到那一段」）。秘密边界四档且判定一律调既有账自己的 knowledgeOf（注入式，本模块不另写一套「该不该给他看」）：disclosed 这一代知道了 / withheld 在册但没给这一代 / undecided 判不了 / absent 秘密账里没有这条（undecided 与 absent 处置相反，压成一个布尔会让「秘密账漏记」永远看不见）。engine-diagnostic-lines.js 新增取库口 _eraContinuationTreeLib（**与既有 _eraContinuationLib 分名** —— 同名会让「时代续演」自检拿到错误的库）与三出口（inheritanceRosterState 只读 writesNothing / inheritanceDeclare 唯一写入口 confirm!==true 即拒且 pending 不可声明 / inheritanceRevokeDeclare 撤完回**推导值**而非 pending）+ _inheritanceRosterLine（四态与「还没传」分开报）。index.js 新增取库口、libs 注入键与四个转发桩。settings-ui.js 在既有 prequel 视图内新增「跨代传承」块（四态分列 + 秘密边界 + 逐条声明/撤销，window.confirm 二次确认，面板问一层内核再卡一层）。全部是活跃功能增长，非死代码回流。",
+      "readings": {
+        "total_lines": 12082,
+        "surface_lines": 32285,
+        "member_count": 1273,
+        "duplicate_member_names": 160,
+        "top5_lines": 5935,
+        "top5_pct": 18.4,
+        "top40_lines": 13266,
+        "top40_pct": 41.1,
+        "prefix_rule_coverage_lines": 5117,
+        "prefix_rule_coverage_pct": 15.8,
+        "unclassified_lines": 26297,
+        "seam_distinct_modules": 161,
+        "seam_reference_sites": 496,
+        "seam_call_shape_sites": 627,
+        "members_over_80_lines": 62,
+        "low_coupling_members": 18,
+        "high_coupling_members": 22
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版只做跨代传承面（X9）接线，未拆任何宿主巨兽成员",
+      "delta_from": "v3.443.0",
+      "delta": {
+        "total_lines": 21,
+        "surface_lines": 209,
+        "member_count": 6,
+        "top40_lines": 14,
+        "top5_pct": -0.1,
+        "top40_pct": -0.2
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3028,56 +3285,56 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 11866,
-    "surface_lines": 30819,
-    "member_count": 1224,
+    "total_lines": 12082,
+    "surface_lines": 32285,
+    "member_count": 1273,
     "duplicate_member_names": 160,
-    "top5_lines": 5796,
-    "top5_pct": 18.8,
-    "top40_lines": 13024,
-    "top40_pct": 42.3,
-    "prefix_rule_coverage_lines": 5018,
-    "prefix_rule_coverage_pct": 16.3,
-    "unclassified_lines": 24950,
-    "seam_distinct_modules": 157,
-    "seam_reference_sites": 470,
-    "seam_call_shape_sites": 599,
-    "members_over_80_lines": 58,
+    "top5_lines": 5935,
+    "top5_pct": 18.4,
+    "top40_lines": 13266,
+    "top40_pct": 41.1,
+    "prefix_rule_coverage_lines": 5117,
+    "prefix_rule_coverage_pct": 15.8,
+    "unclassified_lines": 26297,
+    "seam_distinct_modules": 161,
+    "seam_reference_sites": 496,
+    "seam_call_shape_sites": 627,
+    "members_over_80_lines": 62,
     "low_coupling_members": 18,
-    "high_coupling_members": 18
+    "high_coupling_members": 22
   },
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1160,
-      "lines": 24950,
-      "lines_pct": 81,
-      "outside_refs": 23223,
-      "internal_refs": 8668,
-      "outside_ref_share_pct": 72.8
+      "members": 1208,
+      "lines": 26297,
+      "lines_pct": 81.5,
+      "outside_refs": 24020,
+      "internal_refs": 9000,
+      "outside_ref_share_pct": 72.7
     },
     {
       "domain": "诊断与导出",
       "members": 20,
       "lines": 2039,
-      "lines_pct": 6.6,
-      "outside_refs": 1491,
-      "internal_refs": 290,
-      "outside_ref_share_pct": 83.7
+      "lines_pct": 6.3,
+      "outside_refs": 1532,
+      "internal_refs": 301,
+      "outside_ref_share_pct": 83.6
     },
     {
       "domain": "召回与注入",
-      "members": 19,
-      "lines": 1298,
+      "members": 20,
+      "lines": 1368,
       "lines_pct": 4.2,
-      "outside_refs": 141,
+      "outside_refs": 146,
       "internal_refs": 77,
-      "outside_ref_share_pct": 64.7
+      "outside_ref_share_pct": 65.5
     },
     {
       "domain": "宿主事件接线",
       "members": 3,
-      "lines": 836,
+      "lines": 865,
       "lines_pct": 2.7,
       "outside_refs": 50,
       "internal_refs": 33,
@@ -3087,7 +3344,7 @@
       "domain": "配置与持久化",
       "members": 3,
       "lines": 490,
-      "lines_pct": 1.6,
+      "lines_pct": 1.5,
       "outside_refs": 33,
       "internal_refs": 0,
       "outside_ref_share_pct": 100
@@ -3152,19 +3409,19 @@
       "name": "selfCheck",
       "file": "engine-self-check.js",
       "lines": 1561,
-      "outside_refs": 224
+      "outside_refs": 228
+    },
+    {
+      "name": "buildInjection",
+      "file": "engine-injection-pipeline.js",
+      "lines": 1354,
+      "outside_refs": 44
     },
     {
       "name": "applyExtractedPayload",
       "file": "engine-execution-pipeline.js",
       "lines": 1287,
       "outside_refs": 3
-    },
-    {
-      "name": "buildInjection",
-      "file": "engine-injection-pipeline.js",
-      "lines": 1248,
-      "outside_refs": 41
     },
     {
       "name": "recallMemory",
@@ -3175,7 +3432,7 @@
     {
       "name": "typedFactsBlocks",
       "file": "index.js",
-      "lines": 822,
+      "lines": 855,
       "outside_refs": 2
     },
     {
@@ -3199,7 +3456,7 @@
     {
       "name": "_assembleComponents",
       "file": "index.js",
-      "lines": 415,
+      "lines": 433,
       "outside_refs": 0
     },
     {
@@ -3215,16 +3472,16 @@
       "outside_refs": 1
     },
     {
+      "name": "onMessageReceived",
+      "file": "index.js",
+      "lines": 299,
+      "outside_refs": 44
+    },
+    {
       "name": "restoreFromPayload",
       "file": "engine-persistence-ops.js",
       "lines": 284,
       "outside_refs": 40
-    },
-    {
-      "name": "onMessageReceived",
-      "file": "index.js",
-      "lines": 270,
-      "outside_refs": 44
     },
     {
       "name": "_worldlineState",
@@ -3249,6 +3506,12 @@
       "file": "engine-injection-pipeline.js",
       "lines": 196,
       "outside_refs": 12
+    },
+    {
+      "name": "agencyContractAct",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 165,
+      "outside_refs": 6
     },
     {
       "name": "askMemoryQuestion",
@@ -3284,7 +3547,7 @@
       "name": "collectExport",
       "file": "engine-persistence-ops.js",
       "lines": 143,
-      "outside_refs": 49
+      "outside_refs": 50
     },
     {
       "name": "showPanel",
@@ -3302,7 +3565,7 @@
       "name": "silenceExplainState",
       "file": "engine-diagnostic-lines.js",
       "lines": 137,
-      "outside_refs": 5
+      "outside_refs": 10
     },
     {
       "name": "retryRepairItems",
@@ -3381,24 +3644,18 @@
       "file": "memory-core.js",
       "lines": 111,
       "outside_refs": 5
-    },
-    {
-      "name": "_o9Gate",
-      "file": "engine-story-annual.js",
-      "lines": 109,
-      "outside_refs": 9
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 58,
+    "total_over_threshold": 62,
     "low_coupling_non_lifecycle": 18,
-    "high_coupling_non_lifecycle": 18,
+    "high_coupling_non_lifecycle": 22,
     "low_coupling_examples": [
       {
         "name": "typedFactsBlocks",
         "file": "index.js",
-        "lines": 822,
+        "lines": 855,
         "outside_refs": 2,
         "is_host_lifecycle": false
       },
@@ -3412,7 +3669,7 @@
       {
         "name": "_assembleComponents",
         "file": "index.js",
-        "lines": 415,
+        "lines": 433,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -3485,14 +3742,14 @@
         "name": "selfCheck",
         "file": "engine-self-check.js",
         "lines": 1561,
-        "outside_refs": 224,
+        "outside_refs": 228,
         "is_host_lifecycle": false
       },
       {
         "name": "buildInjection",
         "file": "engine-injection-pipeline.js",
-        "lines": 1248,
-        "outside_refs": 41,
+        "lines": 1354,
+        "outside_refs": 44,
         "is_host_lifecycle": false
       },
       {
@@ -3562,7 +3819,7 @@
         "name": "collectExport",
         "file": "engine-persistence-ops.js",
         "lines": 143,
-        "outside_refs": 49,
+        "outside_refs": 50,
         "is_host_lifecycle": false
       }
     ]
@@ -3611,7 +3868,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 12096,
     "maxSlack": 400,
-    "note": "[v3.433.0] L13-X2 反事实推演面接线：index.js 新增 2 个转发桩成员。入口 index.js 11866 行、成员数 1224；行上界**不抬，仍为 12096**（余量 230 <= slack 400）、成员上界**不抬，仍为 1248**（余量 24 <= member_slack 30）。合并面 30819 行，TOP5 占 18.8%、TOP40 占 42.3%。",
+    "note": "[v3.444.0] L13-X9 跨代传承面接线：index.js 新增 1 个取库口 _eraContinuationTreeLib、1 个 libs 注入键与 4 个转发桩成员（inheritanceRosterState / inheritanceDeclare / inheritanceRevokeDeclare / _inheritanceRosterLine）。入口 index.js 12082 行、成员数 1273；行上界**不抬，仍为 12096**（余量 14 <= slack 400）、成员上界**不抬，仍为 1279**（余量 6 <= member_slack 30）。合并面 32285 行，TOP5 占 18.4%，TOP40 占 41.1%。",
     "history": [
       {
         "ceiling": 15000,
@@ -3949,14 +4206,62 @@
         "member_ceiling": 1248,
         "milestone_version": "v3.433.0",
         "reason": "[v3.433.0] L13-X2 反事实推演面接线：index.js 新增 2 个转发桩成员。入口 index.js 11866 行、成员数 1224；行上界**不抬，仍为 12096**（余量 230 <= slack 400）、成员上界**不抬，仍为 1248**（余量 24 <= member_slack 30）。合并面 30819 行，TOP5 占 18.8%、TOP40 占 42.3%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1248,
+        "milestone_version": "v3.434.0",
+        "reason": "[v3.434.0] L13-O2 记忆条目级编辑面接线：index.js 新增 3 个转发桩成员。入口 index.js 11885 行、成员数 1240；行上界**不抬，仍为 12096**（余量 211 <= slack 400）、成员上界**不抬，仍为 1248**（余量 8 <= member_slack 30）。合并面 30850 行，TOP5 占 18.8%、TOP40 占 42.2%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1248,
+        "milestone_version": "v3.439.0",
+        "reason": "[v3.439.0] L13-X3 视角投影面接线：index.js 新增 2 个转发桩成员（povProject / _povProjectionLine）。入口 index.js 11889 行、成员数 1246；行上界**不抬，仍为 12096**（余量 207 <= slack 400）、成员上界**不抬，仍为 1248**（余量 2 <= member_slack 30）。合并面 31218 行，TOP5 占 18.9%，TOP40 占 42.1%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1279,
+        "milestone_version": "v3.440.0",
+        "reason": "[v3.440.0] L13-X7 习惯与成长证据面接线：index.js 新增取库口与 2 个转发桩成员（habitGrowthState / _habitGrowthLine）。入口 index.js 11906 行、成员数 1249；行上界**不抬，仍为 12096**（余量 190 <= slack 400）、成员上界**上抬至 1279**（余量 30 <= member_slack 30）。合并面 31420 行，TOP5 占 18.8%，TOP40 占 42.0%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1279,
+        "milestone_version": "v3.441.0",
+        "reason": "[v3.441.0] L13-X4 证据缺口工作台接线：index.js 新增 2 个取库口（_gapBenchLib / _factVersionLib）与 3 个转发桩成员（evidenceGapBench / evidenceGapDowngrade / _evidenceGapBenchLine）。入口 index.js 11927 行、成员数 1256；行上界**不抬，仍为 12096**（余量 169 <= slack 400）、成员上界**不抬，仍为 1279**（余量 23 <= member_slack 30）。合并面 31646 行，TOP5 占 18.7%，TOP40 占 41.8%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1279,
+        "milestone_version": "v3.442.0",
+        "reason": "[v3.442.0] L13-X6 静音清单面接线：index.js 新增 3 个转发桩成员（无新增取库口）；另有 3 个转发桩成员（silenceListState / silenceLift / _silenceListLine）。入口 index.js 11933 行、成员数 1259；行上界**不抬，仍为 12096**（余量 163 <= slack 400）、成员上界**不抬，仍为 1279**（余量 20 <= member_slack 30）。合并面 31816 行，TOP5 占 18.6%，TOP40 占 41.5%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1279,
+        "milestone_version": "v3.443.0",
+        "reason": "[v3.443.0] L13-X8 可撤销快照接线：index.js 新增 1 个取库口 _roundSnapshotLib、2 个账本清单口（_roundLedgers / _roundRemovers）与 5 个转发桩成员（roundSnapshotBefore / roundSnapshotAfter / roundUndoState / roundUndo / _roundUndoLine）。入口 index.js 12004 行、成员数 1267；行上界**不抬，仍为 12096**（余量 92 <= slack 400）、成员上界**不抬，仍为 1279**（余量 12 <= member_slack 30）。合并面 32019 行，TOP5 占 18.5%，TOP40 占 41.3%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1279,
+        "milestone_version": "v3.443.0",
+        "reason": "[v3.443.0] 同版收尾补测（两处真缺陷修复后重测）：入口 index.js 12061 行、成员数 1267；行上界**不抬，仍为 12096**（余量 35 <= slack 400）、成员上界**不抬，仍为 1279**（余量 12 <= member_slack 30）。合并面 32076 行，TOP5 占 18.5%，TOP40 占 41.3%。"
+      },
+      {
+        "ceiling": 12096,
+        "member_ceiling": 1279,
+        "milestone_version": "v3.444.0",
+        "reason": "[v3.444.0] L13-X9 跨代传承面接线：index.js 新增 1 个取库口 _eraContinuationTreeLib、1 个 libs 注入键与 4 个转发桩成员（inheritanceRosterState / inheritanceDeclare / inheritanceRevokeDeclare / _inheritanceRosterLine）。入口 index.js 12082 行、成员数 1273；行上界**不抬，仍为 12096**（余量 14 <= slack 400）、成员上界**不抬，仍为 1279**（余量 6 <= member_slack 30）。合并面 32285 行，TOP5 占 18.4%，TOP40 占 41.1%。"
       }
     ],
-    "member_ceiling": 1248,
+    "member_ceiling": 1279,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 11866,
-  "member_count": 1224,
+  "total_lines": 12082,
+  "member_count": 1273,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
 }

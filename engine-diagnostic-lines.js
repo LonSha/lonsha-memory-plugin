@@ -40,6 +40,13 @@
     function _emotionOppositeLib() { return _libs._emotionOppositeLib ? _libs._emotionOppositeLib.apply(null, arguments) : null; }
     function _extractionDriverLib() { return _libs._extractionDriverLib ? _libs._extractionDriverLib.apply(null, arguments) : null; }
     function _factStateLib() { return _libs._factStateLib ? _libs._factStateLib.apply(null, arguments) : null; }
+    /* [v3.441.0 · L13-X4] 事实版本账的取库口（注入优先，缺席回落 _moduleLib 直取）。
+     *   为什么 X4 要它：降级的落笔必须走 `fact-version.setOrigin`（既有 owner），
+     *   而本文件此前只注入过 `_factStateLib`（准入面），没有版本账本身。 */
+    function _factVersionLib() {
+        if (_libs._factVersionLib) return _libs._factVersionLib.apply(null, arguments);
+        return _moduleLib(function () { return (typeof window !== 'undefined' ? window.LonShaFactVersion : null); }, 'fact-version.js');
+    }
     function _fatedRecallLib() { return _libs._fatedRecallLib ? _libs._fatedRecallLib.apply(null, arguments) : null; }
     function _loreCrosscheckLib() { return _libs._loreCrosscheckLib ? _libs._loreCrosscheckLib.apply(null, arguments) : null; }
     function _materialPackLib() { return _libs._materialPackLib ? _libs._materialPackLib.apply(null, arguments) : null; }
@@ -58,8 +65,19 @@
     function _institutionLib() { return _libs._institutionLib ? _libs._institutionLib.apply(null, arguments) : null; }
     function _relationDynamicsLib() { return _libs._relationDynamicsLib ? _libs._relationDynamicsLib.apply(null, arguments) : null; }
     function _agencyContractLib() { return _libs._agencyContractLib ? _libs._agencyContractLib.apply(null, arguments) : null; }
+    /* [v3.440.0 · L13-X7] 习惯与成长证据面（只读）。取库口在 index.js（宿主侧），此处只做接收。
+     *   与 _agencyContractLib 同形：缺席即 null，读面据此落 absent 而不是「0 条」。
+     */
+    function _habitGrowthLib() { return _libs._habitGrowthLib ? _libs._habitGrowthLib.apply(null, arguments) : null; }
     function _symbolicEvolutionLib() { return _libs._symbolicEvolutionLib ? _libs._symbolicEvolutionLib.apply(null, arguments) : null; }
     function _eraInheritanceLib() { return _libs._eraInheritanceLib ? _libs._eraInheritanceLib.apply(null, arguments) : null; }
+    /* [v3.444.0 · L13-X9] 跨代传承谱系树取库口（era-continuation-inheritance-tree.js）。
+     *   ★ 与 `_eraInheritanceLib`（era-inheritance.js）**不是同一件**：那是「时代转场 +
+     *     逐项继承 + 撤销转场」（L12-O1 已接管）；本件是「传承物四态 + 秘密断代」（L13-X9）。
+     *     两件名字像、用途不同，别合并 —— 合并会把「转场跑没跑」与「东西留下来没有」压成一层。
+     *   与全文件 `_xxxLib()` 同形：走 _libs 注入（不在构造期缓存 —— extra_js 后加载），
+     *   缺席即 null，调用方据此落 absent 而不是「0 条」。 */
+    function _eraContinuationTreeLib() { return _libs._eraContinuationTreeLib ? _libs._eraContinuationTreeLib.apply(null, arguments) : null; }
     /* [v3.430.0 · L12-X1~X9] 第十二期拓展侧四件内核的取库口。
      *   ⚠️ 四件的**挂载全局名各不相同**（实测，不是猜）：
      *     institutional-collective-memory.js → `InstitutionalCollectiveMemory`（无 LonSha 前缀）
@@ -75,6 +93,9 @@
      *   只是从未注入进诊断层 ⇒ 本文件里一处也调不到。本处补的是**接收侧**的三个口，
      *   不是第二个取库实现（真源仍是 index.js 那三个函数，宿主侧注入过来）。 */
     function _memorySeasonLib() { return _libs._memorySeasonLib ? _libs._memorySeasonLib.apply(null, arguments) : null; }
+    /* [v3.443.0 · L13-X8] 本轮条目集合摘要内核（round-entry-snapshot.js）取库口。
+     *   与 _memorySeasonLib 同形：走 _libs 注入（不在构造期缓存 —— extra_js 后加载）。 */
+    function _roundSnapshotLib() { return _libs._roundSnapshotLib ? _libs._roundSnapshotLib.apply(null, arguments) : null; }
     function _meaningMapLib() { return _libs._meaningMapLib ? _libs._meaningMapLib.apply(null, arguments) : null; }
     function _symbiosisBridgeLib() { return _libs._symbiosisBridgeLib ? _libs._symbiosisBridgeLib.apply(null, arguments) : null; }
     function _memoryLineageLib() { return _libs._memoryLineageLib ? _libs._memoryLineageLib.apply(null, arguments) : _moduleLib(() => window.LonShaMemoryLineageReplay, 'memory-lineage-replay.js'); }
@@ -82,6 +103,10 @@
      *   （不是 LonSha 前缀独占名，_moduleLib 的「路径字面量/_moduleLib 调用」两类命中都能登记）。
      *   _libs 注入优先、globalThis 回落，与 _memoryLineageLib 同形。 */
     function _counterfactualBenchLib() { return _libs._counterfactualBenchLib ? _libs._counterfactualBenchLib.apply(null, arguments) : _moduleLib(() => (typeof window !== 'undefined' ? window.CounterfactualExperimentBench : null), 'counterfactual-experiment-bench.js'); }
+    /* [v3.439.0 · L13-X3] 视角投影内核取库口（pov-projection.js）。
+     *   与全文件的 `_xxxLib()` 同形：**就地取库**（不在加载期缓存 —— extra_js 是后加载的），
+     *   缺席一律 null（调用方按「面不可用」上报，绝不回落成一个空投影 —— 那会被读成「他什么都不知道」）。 */
+    function _povProjectionLib() { return _libs._povProjectionLib ? _libs._povProjectionLib.apply(null, arguments) : _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPovProjection : null), 'pov-projection.js'); }
 
     function _floorLedgerLine(engine) {
 
@@ -1092,6 +1117,112 @@
                 ok: true, reason: read.reason, disabled: false, writesNothing: true,
             };
         
+    }
+
+    /* ---- L13-O5 「我受影响的是哪几条」只读读口 -------------------------------
+     * 问题现场：v3.429.0 已交付 `data-wl-readout` 六属性机器读数，人看不懂；
+     *   卡作者读文档能懂，玩家打开面板只看到一串 `alpha线@47`，不知道「判不了」
+     *   具体落在哪些记忆上、也不知道那批记忆会不会被当事实用。
+     *
+     * 本读口的边界（三条，缺一条就会变成第二套真源）：
+     *   ① **只读**：一字节不写配置、不写条目、不写缓存；`writesNothing` 恒 true。
+     *   ② **不自己判归属**：逐条判定一律走 `_worldlineRead`（它再走 worldline-memory
+     *      的 `guard`）。面板与本函数都不重算纪元 —— 重算就是「面板猜」。
+     *   ③ **判不了单独成档**：`undecided`（信息缺失）绝不合进 `blocked`（被闸挡下）。
+     *      两者对玩家的含义完全相反：前者「你得补楼层」，后者「这条本来就不该看」。
+     *
+     * 取条目：优先 `opts.items`；否则从角色记忆本体取（`charMem.memoryCenterRows()`，
+     *   即 memory-organs 的唯一读槽），不碰 UI 缓存。 */
+    function worldlineAffected(engine, opts) {
+        const o = (opts && typeof opts === 'object') ? opts : {};
+        const base = {
+            kind: 'worldline_affected', state: 'unknown', count: 0, undecided: [], blocked: [],
+            items: [], why: [], writesNothing: true, ok: true, reason: '',
+        };
+        try {
+            /* 条目来源：显式传入 > 角色记忆本体。两者都拿不到 ⇒ 如实报 no-items（不装作「没有」）。 */
+            let rows = null;
+            if (Array.isArray(o.items)) rows = o.items;
+            else {
+                const cm = (engine && engine.charMem) || null;
+                if (cm && typeof cm.memoryCenterRows === 'function') {
+                    try {
+                        const raw = cm.memoryCenterRows();
+                        if (Array.isArray(raw)) {
+                            rows = raw.map((x, i) => {
+                                const it = (x && x.item && typeof x.item === 'object') ? x.item : null;
+                                if (!it) return null;
+                                return {
+                                    id: String(it.id || ('row_' + i)),
+                                    text: String(it.text || ''),
+                                    floor: (it.floor === undefined ? null : it.floor),
+                                    char: String((x && x.char) || ''),
+                                    bucket: String((x && x.bucket) || ''),
+                                };
+                            }).filter(Boolean);
+                        }
+                    } catch (e) { errLog(e, 'worldlineAffected.charMem'); rows = null; }
+                }
+            }
+            /* 真从角色记忆取时，必须同时把世界线闸打开才判得出东西 —— 关着闸时
+             *   `_worldlineRead` 会如实回 disabled，不许把它读成「全都没事」。 */
+            const cfg = (engine && engine.config && engine.config.config) || {};
+            if (rows === null) {
+                return Object.assign(base, {
+                    state: 'no-source', reason: 'no-items',
+                    why: ['取不到条目清单（charMem 缺席且未显式传 items）⇒ 说不了「哪几条受影响」，不是「一条都没有」'],
+                });
+            }
+            if (cfg.worldlineMemoryEnabled !== true) {
+                /* 闸没开：此时「跨世界线记忆不串味」整格不生效，报 disabled 而非 0 条。 */
+                return Object.assign(base, {
+                    state: 'disabled', reason: 'gate-disabled', count: rows.length,
+                    items: rows,
+                    why: ['世界线闸当前是关闭状态 ⇒ 下面这些条目一条都没被判定过（不是「都没有问题」）'],
+                });
+            }
+            const read = (typeof engine.worldlineGate === 'function')
+                ? engine.worldlineGate(Object.assign({}, o, { items: rows }))
+                : null;
+            if (!read || read.ok !== true) {
+                return Object.assign(base, {
+                    state: 'failed', reason: (read && read.reason) || 'gate-threw', count: rows.length,
+                    why: ['闸门读数取不回来 ⇒ 判不了（可重试；这不是「没有受影响条目」）'],
+                });
+            }
+            const undecided = Array.isArray(read.undecided) ? read.undecided : [];
+            const blocked = Array.isArray(read.blocked) ? read.blocked : [];
+            const brief = (r) => ({
+                key: String((r && r.key) || ''),
+                floor: (r && r.item && r.item.floor !== undefined) ? r.item.floor : null,
+                text: String((r && r.item && r.item.text) || '').slice(0, 80),
+                why: String((r && r.why) || ''),
+                state: String((r && r.state) || ''),
+            });
+            const und = undecided.map(brief);
+            const blk = blocked.map(brief);
+            return Object.assign(base, {
+                state: und.length ? 'has-undecided' : 'clean',
+                count: rows.length,
+                total: Number((read.counts && read.counts.total) || rows.length) || rows.length,
+                undecided: und,
+                blocked: blk,
+                counts: read.counts || null,
+                items: rows,
+                reason: '',
+            });
+        } catch (e) { errLog(e, 'worldlineAffected'); return Object.assign(base, { state: 'failed', reason: 'thrown' }); }
+    }
+
+    /* 一行读数（诊断行用）：条数**逐字取自 worldlineAffected**，不另算。 */
+    function _worldlineAffectedLine(engine, opts) {
+        try {
+            const r = worldlineAffected(engine, opts);
+            if (r.state === 'disabled') return '受影响：闸未开（未判定）';
+            if (r.state === 'no-source') return '受影响：取不到条目清单';
+            if (r.state === 'failed') return '受影响：判不了（' + (r.reason || 'thrown') + '）';
+            return '受影响：判不了 ' + r.undecided.length + ' 条 / 挡下 ' + r.blocked.length + ' 条（共 ' + r.count + ' 条）';
+        } catch (e) { errLog(e, 'engine._worldlineAffectedLine'); return '—（诊断异常）'; }
     }
 
     function worldlineConvergence(engine, key, opts) {
@@ -2306,8 +2437,54 @@
                 if (!out || out.ok !== true) return bad('kernel-refused:' + ((out && out.reason) || 'unknown'));
                 const ri = wp.habitRepos.findIndex(x => x && String(x.actor) === ck);
                 if (ri >= 0) wp.habitRepos[ri] = out.repo;
+                /* [v3.440.0 · L13-X7] 每次练习**顺带留一条成长证据**。
+                 *   为什么不是另开一个写入口：本体（habitRepos）与证迹（growthBundles）
+                 *   必须由**同一次动作**产出 —— 分两个入口就会出现「本体记了、证迹漏了」，
+                 *   而那正是 X7 要治的形态（面板说「他有这个习惯」，谁也说不清凭据是什么）。
+                 *   证据 id 缺省取练习 id：练习本身就是凭据，且能回查到那一楼。
+                 *   ★ 证据写入**失败不得回滚本体**，但必须在返回值里如实报出
+                 *   （`evidence: 'skipped:<why>'`）—— 静默漏记比漏记更坏。
+                 */
+                let evidenceState = 'recorded';
+                try {
+                    const HG = _habitGrowthLib();
+                    const prac = (out && out.practice) ? out.practice : null;
+                    if (!HG || typeof HG.recordGrowthEvidence !== 'function') {
+                        evidenceState = 'skipped:module-unavailable';
+                    } else if (!prac) {
+                        evidenceState = 'skipped:no-practice';
+                    } else {
+                        if (!Array.isArray(wp.growthBundles)) wp.growthBundles = [];
+                        /* 寻址键 = context|approach（与 habitRepos 同一套二元组） */
+                        const hkey = String(prac.context || '') + '|' + String(prac.approach || '');
+                        const bi = wp.growthBundles.findIndex(x => x && typeof x === 'object'
+                            && String(x.actorId || '') === ck && String(x.habitKey || '') === hkey);
+                        const base = (bi >= 0) ? wp.growthBundles[bi]
+                            : { actorId: ck, skillOrHabit: String(prac.approach || ''), habitKey: hkey, records: [], status: 'active' };
+                        /* 阶段由**结果**定，不由调用方随口定：失败一律 failed_case；
+                         *   成功默认 effective_condition；显式 stage 只在它是合法四阶段时胜出
+                         *   （迁移到新场景这种只能由调用方声明）。 */
+                        const legal = HG.STAGES && typeof HG.STAGES === 'object'
+                            ? Object.keys(HG.STAGES).map((k) => HG.STAGES[k]) : [];
+                        const outcome = String(prac.outcome || 'success');
+                        let stage = HG.STAGES ? HG.STAGES.EFFECTIVE : 'effective_condition';
+                        if (outcome === 'failure') stage = HG.STAGES ? HG.STAGES.FAILED : 'failed_case';
+                        if (p.stage && legal.indexOf(String(p.stage)) >= 0) stage = String(p.stage);
+                        const bun = HG.recordGrowthEvidence(base, {
+                            stage,
+                            evidenceId: String(p.evidenceId || prac.id || ''),
+                            description: String(p.description || p.evidence || ('练习：' + String(prac.approach || '')).slice(0, 120)),
+                            contextCondition: String(prac.context || 'general'),
+                            actorId: ck,
+                            skillOrHabit: String(prac.approach || ''),
+                            habitKey: hkey
+                        });
+                        if (bi >= 0) wp.growthBundles[bi] = bun; else wp.growthBundles.push(bun);
+                        engine._habitGrowthRead = null;
+                    }
+                } catch (e) { evidenceState = 'skipped:' + ((e && e.message) || 'thrown'); }
                 engine._agencyContractRead = null;
-                return { ok: true, reason: '', writes: true };
+                return { ok: true, reason: '', writes: true, evidence: evidenceState };
             }
             if (act === 'expect') {
                 if (typeof AC.createAbsenceExpectation !== 'function') return bad('kernel-missing');
@@ -2344,6 +2521,141 @@
             }
             return bad('unknown-action');
         } catch (e) { errLog(e, 'engine.agencyContractAct'); return { ok: false, reason: 'thrown', writes: false }; }
+    }
+
+
+    /* ---- ③b 习惯与成长证据（character-habit-growth-evidence.js · L13-X7）------
+     * 【两块账为什么必须分开】**习惯本体**在 `worldProg.habitRepos`（由
+     *   `character-agency-contract.recordPractice` 按 context+approach 二元组数满 3 次 success 成形），
+     *   **证据束**在 `worldProg.growthBundles`（四阶段轨迹 + 证据 id）。
+     *   把它们并成一块，就会让「形成了习惯」冒充「有据可查」——
+     *   而那正是 X7 要治的形态：面板说「他有这个习惯」，谁也说不清凭据是什么。
+     *
+     * 【只显示有证据的】证据列表里**只出现 records 非空的证据束**。
+     *   成形但零证据的习惯不并进这个列表，而是在 `unproven` 里**如实单列条数**——
+     *   「没留证据」与「没有这个习惯」是两件事，压在一起就变成撒谎（本仓三态纪律）。
+     *
+     * 【只读面】本面只有读与诊断行，**没有 act**：写入仍走既有 agencyContractAct('practice')。
+     *   在这里再开一个写入口 = 第二套习惯账。
+     */
+    function habitGrowthState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'habit_growth', version: 0, bundles: 0, habits: 0,
+            items: [], groups: [], unproven: [], orphan: [],
+            counts: { records: 0, active: 0, needsReverification: 0, actors: 0, unproven: 0, orphan: 0 },
+            writesNothing: true, degraded: false, ok: false, reason: why
+        });
+        try {
+            const HG = _habitGrowthLib();
+            if (!HG || typeof HG.describeGrowth !== 'function') return absent('module-unavailable');
+            const wp = engine && engine.worldProg;
+            const bundles = (wp && Array.isArray(wp.growthBundles)) ? wp.growthBundles : [];
+            const repos = (wp && Array.isArray(wp.habitRepos)) ? wp.habitRepos : [];
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const only = String(o.actor || '').trim();
+            let degraded = false;
+            /* 证据面：逐束走内核摘要（**面板不自己数阶段** —— 各数一遍就有各数一遍的口径） */
+            const items = [];
+            for (const b of bundles) {
+                if (!b || typeof b !== 'object') { degraded = true; continue; }
+                const d = HG.describeGrowth(b);
+                if (d.degraded) degraded = true;
+                if (!d.total) continue;
+                const actorId = String(d.actorId || '');
+                if (only && actorId !== only) continue;
+                items.push({
+                    actorId,
+                    /* key = 习惯本体的寻址键（context|approach）；旧束无该字段时回落 skillOrHabit。
+                     *   回落是**如实**的：那束证据本来就只记得住一个名字。 */
+                    key: String(d.habitKey || d.skillOrHabit || ''),
+                    keySource: d.habitKey ? 'habitKey' : 'skillOrHabit',
+                    status: String(d.status || 'active'),
+                    total: d.total,
+                    counts: d.counts,
+                    reachedStage: String(d.reachedStage || ''),
+                    reachedLabel: String(d.reachedLabel || ''),
+                    latest: d.latest,
+                    evidenceIds: d.evidenceIds
+                });
+            }
+            /* 按角色分组（面板按角色列，**不按习惯名聚合** —— 不同角色可能同名不同事） */
+            const byActor = {};
+            for (const it of items) {
+                const k = it.actorId || '（未署名）';
+                (byActor[k] = byActor[k] || []).push(it);
+            }
+            const groups = Object.keys(byActor).sort().map((a) => ({ actor: a, count: byActor[a].length, items: byActor[a] }));
+            /* 对账一：成形但零证据（**不并进证据列表**，只报出来） */
+            const provenKeys = new Set(items.map((x) => x.actorId + '|' + x.key));
+            const unproven = [];
+            let habits = 0;
+            for (const repo of repos) {
+                if (!repo || typeof repo !== 'object') { degraded = true; continue; }
+                const actor = String(repo.actor || '');
+                const hs = Array.isArray(repo.habits) ? repo.habits : [];
+                for (const h of hs) {
+                    if (!h || typeof h !== 'object') { degraded = true; continue; }
+                    habits += 1;
+                    const key = String(h.context || '') + '|' + String(h.approach || '');
+                    if (only && actor !== only) continue;
+                    if (provenKeys.has(actor + '|' + key)) continue;
+                    unproven.push({
+                        actorId: actor, key,
+                        status: String(h.status || 'active'),
+                        formedAtPractices: Number(h.formedAtPractices || 0),
+                        exceptionCondition: String(h.exceptionCondition || '')
+                    });
+                }
+            }
+            /* 对账二：有证据束但找不到本体（**不猜对应**，如实报出来） */
+            const knownKeys = new Set();
+            for (const repo of repos) {
+                if (!repo || typeof repo !== 'object') continue;
+                const actor = String(repo.actor || '');
+                for (const h of (Array.isArray(repo.habits) ? repo.habits : [])) {
+                    if (h && typeof h === 'object') knownKeys.add(actor + '|' + String(h.context || '') + '|' + String(h.approach || ''));
+                }
+            }
+            const orphan = items
+                .filter((x) => !knownKeys.has(x.actorId + '|' + x.key))
+                .map((x) => ({ actorId: x.actorId, key: x.key, total: x.total }));
+            let records = 0, active = 0, needsRev = 0;
+            for (const it of items) {
+                records += it.total;
+                if (it.status === 'needs_reverification') needsRev += 1; else active += 1;
+            }
+            const r = {
+                kind: 'habit_growth',
+                /* 内核 VERSION 不进读面（本模块没有 VERSION 常量）：版本由 manifest 与
+                 *   判据侧统一过问，读面不自造一个数 —— 自造的数会被当成第二份真源。 */
+                version: 0,
+                bundles: items.length,
+                habits,
+                items, groups, unproven, orphan,
+                counts: { records, active, needsReverification: needsRev, actors: groups.length, unproven: unproven.length, orphan: orphan.length },
+                /* 阶段可读名以**内核**为准（面板不许自己写一份中文，两份会漂） */
+                stageLabels: (HG.STAGE_LABELS && typeof HG.STAGE_LABELS === 'object') ? HG.STAGE_LABELS : {},
+                writesNothing: true,
+                degraded,
+                ok: true,
+                reason: items.length ? (degraded ? 'degraded' : '') : 'empty'
+            };
+            if (engine) engine._habitGrowthRead = r;
+            return r;
+        } catch (e) { errLog(e, 'engine.habitGrowthState'); return absent('thrown: ' + ((e && e.message) || e)); }
+    }
+    /* 诊断行：只一行、只报读数，不带正文（证据描述可能很长且会进注入）。 */
+    function _habitGrowthLine(engine) {
+        try {
+            const HG = _habitGrowthLib();
+            if (!HG || typeof HG.describeGrowth !== 'function') return '模块未加载（character-habit-growth-evidence.js）';
+            const cached = engine && engine._habitGrowthRead;
+            const r = (cached && cached.ok === true) ? cached : habitGrowthState(engine, {});
+            if (!r || r.ok !== true) return '不可用 · ' + ((r && r.reason) || 'unknown');
+            if (r.bundles === 0) return '尚无成长证据束' + (r.unproven ? '（成形待证 ' + r.unproven + ' 条）' : '');
+            return '证据束 ' + r.bundles + ' 条 / ' + r.counts.records + ' 条证迹 · 待复验 ' + r.counts.needsReverification
+                + ' · 成形待证 ' + r.counts.unproven + (r.counts.orphan ? ' · 无主束 ' + r.counts.orphan : '');
+        } catch (e) { errLog(e, 'engine._habitGrowthLine'); return '—（诊断异常）'; }
     }
 
     function _agencyContractLine(engine) {
@@ -3225,6 +3537,204 @@
         } catch (e) { errLog(e, 'engine._evidenceImpactLine'); return '—（诊断异常）'; }
     }
 
+    /* ---- L13-X4 证据缺口工作台（memory-archaeology-gap-bench.js）-------------
+     * ⚠️ 不要与上面的 `evidenceImpactReplay` 混为一谈：那是 **L12-X4**（证据裁决影响回放），
+     *   本段是 **L13-X4**（证据缺口工作台）。期号不同、内核不同、问题也不同：
+     *     L12-X4 问「一次裁决之后哪些下游要重算」；
+     *     L13-X4 问「我这些结论里，哪些的证据其实薄得撑不住」。
+     *
+     * 产品形态：`archive` 视图列出「有结论但证据薄」的事实，按缺口严重度排序，
+     *   三档成因**分列**（no-source / source-lost / contradicted），动作只有两个：
+     *   去补证（跳去证据面）与降级（把该条从事实降为推测，落进既有 deltas 视图）。
+     *
+     * 三条口径（缺一条就会退化成本仓治过的错读数）：
+     *   ① **三档不许合成一个「缺证据」**。计划原文点名这是验收项，负控制就拆这一条；
+     *   ② **「判不了」不是成因，是两个布尔**（sourceChecked / conflictChecked）。
+     *      正文不可读 ⇒ 来源侧判不了 ⇒ 不许写 source-lost（那会把「没核验」栽赃成「证据丢了」）；
+     *      矛盾账没装上 ⇒ 矛盾侧判不了 ⇒ 不许写「查过没矛盾」；
+     *   ③ **只读面自证只读**：`evidenceGapBench` 前后既有槽位逐字不变（判据会双向核对）。
+     *      降级是唯一写入动作，且**不自己改状态** —— 走 fact-version.setOrigin（改可信来源）
+     *      与 DeltaBook.add（人读侧留痕）两个既有 owner，理由是：在这里直改 `_factVersionState`
+     *      就是第二套事实账（本仓治过多次的形态）。
+     */
+    function _gapBenchLib() { return _libs._gapBenchLib ? _libs._gapBenchLib.apply(null, arguments) : null; }
+
+    /* 正文可读性探针：返回 **楼层正文数组** 或 null。
+     *   为什么返回 null 而不返回 []：空数组会被下游读成「查过、一楼都没有」（判成 source-lost），
+     *   而真实情况是「这台宿主没有聊天可读」（判不了）。这两件事处置相反。 */
+    function _gapChatTexts() {
+        try {
+            const c = (typeof window !== 'undefined' && window.SillyTavern
+                && typeof window.SillyTavern.getContext === 'function')
+                ? (window.SillyTavern.getContext() || {}) : null;
+            const chat = (c && Array.isArray(c.chat)) ? c.chat : null;
+            if (!chat) return null;
+            const out = [];
+            for (const m of chat) {
+                if (!m || typeof m !== 'object') continue;
+                const sw = Math.max(0, Math.round(Number(m.swipe_id) || 0));
+                const t = (Array.isArray(m.swipes) && typeof m.swipes[sw] === 'string')
+                    ? m.swipes[sw]
+                    : String(m.mes || m.content || m.text || '');
+                if (t) out.push(t);
+            }
+            return out;
+        } catch (_e) { return null; }
+    }
+
+    /* 证据引用核验器工厂。语义严格三态：true 找到 / false 找不到 / **null 判不了**。
+     *   ★ 为什么要「长度门槛」而不是一律判 false：事实账里 `evidence` 常是**正文片段**
+     *   （extract 落笔写 storyTime），也常是极短的时间标签（「清晨」「第3天」）。后者在正文里
+     *   逐字找不到是**常态**，把它判成 source-lost 会把几乎所有条目栽赃成「证据丢了」。
+     *   故：短引用（< 6 字）只做「找得到 → true」，找不到一律 null（判不了）—— 不猜。
+     *   这条规则是本面最容易写错、也最容易被后续改动悄悄放宽的一处，故写在这里，不散在调用点。 */
+    function _gapSourceResolver(texts) {
+        if (!texts || !texts.length) return null;
+        const hay = texts.join('\n');
+        return function (ref) {
+            const s = String(ref || '').trim();
+            if (!s) return null;
+            if (hay.indexOf(s) >= 0) return true;
+            if (s.length >= 6) return false;
+            return null;
+        };
+    }
+
+    function evidenceGapBench(engine, opts) {
+        const absent = (why) => ({
+            kind: 'evidence_gap', version: 0, thin: [], counts: {},
+            hitCounts: {}, threshold: 0,
+            checked: { source: false, conflict: false },
+            scanned: 0, thick: 0, skippedRevoked: 0, skippedMalformed: 0,
+            writesNothing: true, degraded: false, ok: false, reason: why,
+        });
+        try {
+            const GB = _gapBenchLib();
+            if (!GB || typeof GB.auditGaps !== 'function') return absent('module-unavailable');
+            const wp = (engine && engine.worldProg) || {};
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            /* 事实账：**只用** fact-version 那一份（`engine._factVersionState`）。
+             *   为什么不另取 `worldProg.facts`：那是另一格（老版本留下的占位），两处并存时
+             *   取哪一份都会被当成「我的事实都在这儿」。本面只认有时间轴的那一份。 */
+            const facts = (engine && engine._factVersionState
+                && Array.isArray(engine._factVersionState.facts)) ? engine._factVersionState.facts : [];
+            /* 矛盾账：ConflictBook 在宿主上叫 `conflicts`（classes 里 `conflicts` 容器）。
+             *   「这本账在不在」与「账是空的」必须分开 —— 见 conflictsAvailable。 */
+            const cb = (engine && engine.conflicts) ? engine.conflicts : null;
+            const conflicts = (cb && Array.isArray(cb.conflicts)) ? cb.conflicts : [];
+            const conflictsAvailable = !!(cb && Array.isArray(cb.conflicts));
+
+            const texts = _gapChatTexts();
+            const resolveSource = (o.resolveSource === false) ? null : _gapSourceResolver(texts);
+            const r = GB.auditGaps(
+                { facts: facts, conflicts: conflicts, conflictsAvailable: conflictsAvailable },
+                { thinThreshold: o.thinThreshold, resolveSource: resolveSource }
+            );
+            const out = Object.assign({}, r, { kind: 'evidence_gap' });
+            /* ★ 只读自证的另一半：本面**不写** engine 上任何缓存（连 `_evidenceGapRead` 都不落）。
+             *   理由：缓存本身也是一次写，判据的「前后逐字不变」会把缓存记成违规；
+             *   而本面板重跑成本只是线性扫一遍事实账（上限 MAX_FACTS=400），不值得为它破口径。 */
+            return out;
+        } catch (e) { errLog(e, 'engine.evidenceGapBench'); return absent('thrown: ' + ((e && e.message) || e)); }
+    }
+
+    /* 降级：把一条「证据薄」的事实从「事实」降为「推测」。
+     *   两个动作面里唯一的写入，且**逐条**：计划明令不做「一键补全」，也没有批量降级 ——
+     *   批量会掩盖误操作（与本期主轴「可撤销、可审阅」相反）。
+     *   落笔走既有两个 owner（顺序有意义）：
+     *     ① `fact-version.setOrigin`：改可信来源，信任门槛从此挡住它进「现状查询」；
+     *     ② `DeltaBook.add(..., 'uncertain', floor)`：在人读侧留一条，`deltas` 视图看得到
+     *        （计划验收原文：降级后条目出现在 deltas 视图）。
+     *   ②失败不回滚①，但必须如实报（`delta: 'skipped:<why>'`）—— 静默漏记比漏记更坏。
+     */
+    function evidenceGapDowngrade(engine, opts) {
+        const bad = (why) => ({
+            kind: 'evidence_gap_downgrade', ok: false, writes: false, factId: '',
+            fromOrigin: '', toOrigin: '', delta: 'skipped:not-run', reason: why,
+        });
+        try {
+            const GB = _gapBenchLib();
+            if (!GB || typeof GB.downgradePayload !== 'function') return bad('module-unavailable');
+            const FV = _factVersionLib();
+            if (!FV || typeof FV.setOrigin !== 'function') return bad('fact-version-unavailable');
+            if (!engine || !engine._factVersionState) return bad('fact-ledger-absent');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const id = String(o.factId || o.id || '').trim();
+            if (!id) return bad('fact-id-required');
+            const facts = Array.isArray(engine._factVersionState.facts) ? engine._factVersionState.facts : [];
+            const fact = facts.find((f) => f && String(f.id) === id);
+            if (!fact) return bad('fact-not-found');
+
+            const pay = GB.downgradePayload(fact, {
+                reason: String(o.why || o.reason || '证据薄'),
+            });
+            if (!pay || pay.ok !== true) return bad((pay && pay.reason) || 'payload-refused');
+
+            /* 已是推测 ⇒ 幂等返回，**不重复落一次 origin 事件**（每次重放都会留一条历史）。 */
+            if (pay.reason === 'already-inferred') {
+                return {
+                    kind: 'evidence_gap_downgrade', ok: true, writes: false, factId: id,
+                    fromOrigin: pay.fromOrigin, toOrigin: pay.toOrigin,
+                    delta: 'skipped:already-inferred', reason: 'already-inferred',
+                };
+            }
+
+            const floor = Number.isFinite(Number(o.floor)) ? Number(o.floor)
+                : (Number.isFinite(Number(fact.floor)) ? Number(fact.floor) : null);
+            let r = null;
+            try {
+                r = FV.setOrigin(engine._factVersionState, {
+                    id: id, origin: pay.toOrigin,
+                    reason: 'x4-gap:' + String(o.why || 'thin-evidence').slice(0, 40),
+                    source: 'x4-gap-bench', floor: floor, at: Date.now(),
+                });
+            } catch (e) { return bad('thrown: ' + ((e && e.message) || e)); }
+            if (!r || r.ok !== true) return bad('kernel-refused:' + ((r && r.reason) || 'unknown'));
+            engine._factVersionState = r.state;
+
+            /* 人读侧留痕。②失败**不回滚**① —— 事实来源已改是既成事实，
+             *   回滚会让「改了但没留痕」变成「什么都没发生」，比漏记更难查。 */
+            let delta = 'recorded';
+            try {
+                if (!engine.deltaBook || typeof engine.deltaBook.add !== 'function') {
+                    delta = 'skipped:delta-book-absent';
+                } else {
+                    const added = engine.deltaBook.add(pay.deltaSummary, pay.deltaStatus, floor);
+                    /* DeltaBook.add 返回布尔（幂等命中/太短 → false）。false **不等于**失败吗？
+                     *   不等于 —— 它意味着「这条已经在账上了（或短于 4 字被拒）」。两种都如实报。 */
+                    delta = added ? 'recorded' : 'skipped:duplicate-or-too-short';
+                }
+            } catch (e) { delta = 'skipped:' + ((e && e.message) || 'thrown'); }
+
+            return {
+                kind: 'evidence_gap_downgrade',
+                ok: true,
+                writes: r.changed === true,
+                factId: id,
+                fromOrigin: pay.fromOrigin,
+                toOrigin: pay.toOrigin,
+                /* 信任度**从账侧取**，不在本层抄一份门槛表（那是第二份真源）。 */
+                trust: (typeof FV.originTrustOf === 'function') ? FV.originTrustOf(pay.toOrigin) : null,
+                floor: floor,
+                delta: delta,
+                deltaSummary: pay.deltaSummary,
+                reason: '',
+            };
+        } catch (e) { errLog(e, 'engine.evidenceGapDowngrade'); return bad('thrown: ' + ((e && e.message) || e)); }
+    }
+
+    /* 诊断行：三档分开念。判不了与「账不在」都要念出来 —— 一行里把「没查到」与
+     *   「没查」写成一个读数，正是本面要治的形态。 */
+    function _evidenceGapBenchLine(engine) {
+        try {
+            const GB = _gapBenchLib();
+            if (!GB || typeof GB.line !== 'function') return '模块未加载（memory-archaeology-gap-bench.js）';
+            const r = evidenceGapBench(engine, {});
+            if (!r || r.ok !== true) return '不可用 · ' + ((r && r.reason) || 'unknown');
+            return GB.line(r);
+        } catch (e) { errLog(e, 'engine._evidenceGapBenchLine'); return '—（诊断异常）'; }
+    }
+
     /* ---- X5 行动回执链（memory-symbiosis-bridge.js）-------------------------
      * 产品形态：每一笔「建议—行动—结果—下次偏好」记成可审阅的链。
      * 三条口径：
@@ -3533,6 +4043,480 @@
             return `沉默：未召回 ${c['not-recalled'] || 0} · 被挡 ${c.blocked || 0} · 被裁 ${c.trimmed || 0} · 静音 ${c.muted || 0} · 浮现 ${c.surfacing || 0}`;
         } catch (e) { errLog(e, 'engine._silenceExplainLine'); return '—（诊断异常）'; }
     }
+    /* ===============================================================
+     * [v3.442.0 · L13-X6] 静音清单面：我现在把什么静音了
+     * ---------------------------------------------------------------
+     * 【真实现场（本版起点，读码可复算）】
+     *   `silenceExplainState` 只在「问为什么召不回」时才用，**没有**一张常驻的静音清单；
+     *   更关键的是 `seasonState` / `topicSeasons` 全仓**除诊断层外零写入点**，
+     *   且不在 WorldProgress 构造 / 导出 / 导入三处枚举里 ⇒ 静音存盘即丢。
+     *   所以本面不只是「再画一个视图」，它先把「静音有地方存」这条补上（见 memory-organs.js）。
+     *
+     * 【两条真源**分列**，永不合并】
+     *   · ctx    —— 本轮上下文里的静音（`ctx.mutedTopicIds`）：只在这一次跑里有效，
+     *              重开对话就没有。它是**调用方给的**，本面不许替它编 since。
+     *   · season —— 持久静音（`seasonState.userActions[tid] === 'mute'`）：跨楼跨存档都在。
+     *   把两源并成一列是本仓反复治过的那类错读数：用户会以为「我静音的还在」，
+     *   而其实那只是本轮上下文顺手带上的。
+     *
+     * 【为什么没有「全部解除」】
+     *   一键全解会掩盖误操作 —— 用户再也分不清「我原本就只静音了一条」还是
+     *   「我刚刚把三条都解了」。所以动作面**只有逐条**，且 `silenceLift` 只认一个 topicId。
+     *
+     * 【since / until 的诚实口径】
+     *   内核 `applySeasonAction` 只写动作词（`userActions[mid] = action`），**不记时间**。
+     *   本面不伪造 since：能读到 `seasonState.updatedAt` 就报它（并明确标注这是「最近一次
+     *   季候动作时间」而不是「这一条的静音起点」），读不到就报 `unknown`。
+     *   同理 `until` 一律 `null` —— 本仓没有「静音到某时自动解除」的机制，
+     *   写一个时间出去就是凭空的承诺。
+     * =============================================================== */
+    var SILENCE_SOURCES = Object.freeze(['ctx', 'season']);
+    var SILENCE_LIFTABLE = Object.freeze({ ctx: false, season: true });
+    function silenceListState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'silence_list', version: 0, state: 'unavailable',
+            sources: { ctx: [], season: [] }, counts: { ctx: 0, season: 0, total: 0 },
+            items: [], listable: { ctx: false, season: false }, echo: null,
+            writesNothing: true, ok: false, reason: why,
+        });
+        try {
+            const SM = _seasonSilenceLib();
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const wp = (engine && engine.worldProg) || {};
+            const seasonState = (wp && wp.seasonState && typeof wp.seasonState === 'object') ? wp.seasonState : null;
+            /* ctx 与 silenceExplainState 同一条三级回落：opts.ctx > engine._silenceExplainCtx > 默认。
+             *   理由一样 —— 调用方在别处判过一次的 ctx 是真输入，重跑 {} 会把它丢掉。 */
+            const ctxSaved = (engine && engine._silenceExplainCtx && typeof engine._silenceExplainCtx === 'object')
+                ? engine._silenceExplainCtx : null;
+            const ctx = Object.assign({ mutedTopicIds: [] }, ctxSaved || {}, (o.ctx && typeof o.ctx === 'object') ? o.ctx : {});
+            const ctxIds = Array.isArray(ctx.mutedTopicIds) ? ctx.mutedTopicIds.map(String).filter(Boolean) : [];
+            const seasonActions = (seasonState && seasonState.userActions && typeof seasonState.userActions === 'object')
+                ? seasonState.userActions : {};
+            const seasonMuted = Object.keys(seasonActions).filter((k) => String(seasonActions[k] || '') === 'mute');
+            /* 主题本体表：只是**加名字**用，不是真源的替代。
+             *   ★ 读不到主题表时如实报 name=null（≠「名字就叫 id」）。 */
+            const topicRows = Array.isArray(wp.topicSeasons) ? wp.topicSeasons : [];
+            const titleOf = (tid) => {
+                for (const t of topicRows) {
+                    if (t && typeof t === 'object' && String(t.id || '').trim() === tid) {
+                        const nm = String(t.title || t.name || t.theme || '').trim();
+                        if (nm) return nm;
+                        break;
+                    }
+                }
+                return null;
+            };
+            /* 季候动作时间：只有一个全局时间戳。**不许**把它当逐条 since —— 见档头。 */
+            const seasonAt = (seasonState && typeof seasonState.updatedAt === 'number') ? seasonState.updatedAt : null;
+            const mk = (tid, source) => ({
+                topicId: tid,
+                title: titleOf(tid),
+                source,
+                /* since 语义逐源不同，机器可读地写清楚： */
+                sinceKind: source === 'season' ? (seasonAt === null ? 'unknown' : 'last-season-action') : 'this-run',
+                since: source === 'season' ? seasonAt : null,
+                /* until 恒 null：本仓没有静音到期机制。写时间 = 凭空承诺。 */
+                until: null,
+                /* 能不能在这一源上解除：ctx 是调用方给的，本面改不动它。 */
+                liftable: SILENCE_LIFTABLE[source] === true,
+                why: source === 'season' ? '你在这份存档里把这条静音了' : '本轮上下文把这条静音了（重开对话即失效）',
+            });
+            const ctxItems = ctxIds.map((t) => mk(t, 'ctx'));
+            const seasonItems = seasonMuted.map((t) => mk(t, 'season'));
+            /* ★ 两源同 id 时**两列都保留**（不去重合并）：这是本面最容易被"优化"掉的一条。
+             *   同 id 同时出现在两源，本身就是一条信息：「持久静音 + 本轮又静了一次」。 */
+            const items = ctxItems.concat(seasonItems);
+            const noKernel = !SM || typeof SM.evaluateTopicSeason !== 'function';
+            const r = {
+                kind: 'silence_list', version: (SM && SM.VERSION) || 1, state: noKernel ? 'unavailable' : 'ok',
+                sources: { ctx: ctxItems, season: seasonItems },
+                counts: { ctx: ctxItems.length, season: seasonItems.length, total: items.length },
+                /* listable 说明「这一源现在能不能列」：ctx 恒可列（有就是有）；
+                 *   season 只有在 seasonState 是对象时才可列 —— 否则是「没有这份账」，
+                 *   与「这份账是空的」不同形。 */
+                listable: { ctx: true, season: seasonState !== null },
+                items,
+                /* 挂上四问的静音读数，供面板显示「面板上的静音数」与「四问里的静音数」是否一致。
+                 *   两处不一致本身是缺陷信号，必须可观测。 */
+                echo: (function () {
+                    try {
+                        /* ★ echo 用 `Object.create(engine)` 的一次性代理跑四问，绝不回写真 engine。
+                         *   silenceExplainState 末尾要写 `_silenceExplainCtx`（记住判定输入）
+                         *   和 `_silenceExplainRead`；本面是只读面，借它算一次静音数
+                         *   就把调用方的判定输入覆盖掉 => 状态行下一次归因按被覆盖的输入走。
+                         *   代理走原型链：读得到 worldProg / _worldlineRecallFilter，写只落代理。 */
+                        const probe = Object.create(engine || null);
+                        const ex = silenceExplainState(probe, { ctx });
+                        return (ex && ex.ok === true) ? { muted: (ex.counts && ex.counts.muted) || 0, scanned: (ex.counts && (ex.counts['not-recalled'] || 0) + (ex.counts.blocked || 0) + (ex.counts.trimmed || 0) + (ex.counts.muted || 0) + (ex.counts.surfacing || 0)) || 0 } : null;
+                    } catch (_e) { return null; }
+                })(),
+                writesNothing: true,
+                /* ★ 缺席不许装成「你什么都没静音」：内核缺席 ⇒ ok:false + module-unavailable。 */
+                ok: !noKernel,
+                reason: noKernel ? 'module-unavailable' : '',
+            };
+            if (engine) engine._silenceListRead = r;
+            return r;
+        } catch (e) { errLog(e, 'engine.silenceListState'); return absent('thrown'); }
+    }
+    /* 逐条解除静音。**只认一个 topicId**，没有批量入口（见档头「为什么没有全部解除」）。 */
+    function silenceLift(engine, payload) {
+        const bad = (why) => ({ ok: false, reason: why, writes: false, lifted: false });
+        try {
+            const MS = _memorySeasonLib();
+            if (!MS || typeof MS.applySeasonAction !== 'function') return bad('module-unavailable');
+            const wp = engine && engine.worldProg;
+            if (!wp) return bad('no-world-progress');
+            const p = (payload && typeof payload === 'object') ? payload : {};
+            const tid = String(p.topicId || '').trim();
+            if (!tid) return bad('topic-id-required');
+            const st = (wp.seasonState && typeof wp.seasonState === 'object') ? wp.seasonState : null;
+            const ua = (st && st.userActions && typeof st.userActions === 'object') ? st.userActions : {};
+            const cur = String(ua[tid] || '');
+            /* ★ 三态必须不同形：
+             *   · not-muted       —— 这条本来就没静音（重放无意义，但不是失败）；
+             *   · ctx-only-muted  —— 只在**本轮上下文**里静音；本面改不动调用方的 ctx，
+             *                        如实报「要重开对话或让调用方撤掉」而不假装解除了；
+             *   · module-unavailable —— 内核缺席。 */
+            if (cur !== 'mute') {
+                const ctxSaved = (engine && engine._silenceExplainCtx && typeof engine._silenceExplainCtx === 'object')
+                    ? engine._silenceExplainCtx : null;
+                const ids = (ctxSaved && Array.isArray(ctxSaved.mutedTopicIds)) ? ctxSaved.mutedTopicIds.map(String) : [];
+                if (ids.indexOf(tid) >= 0) return bad('ctx-only-muted');
+                return bad('not-muted');
+            }
+            /* 解除 = 把动作从 mute 改成 embrace（内核语义：接纳唤醒）。
+             *   ★ 不 delete 键：删键会让「曾经因用户意愿静音过」这段历史消失，
+             *     而 embrace 是内核本来就认的动作词，落在同一张动作表里可审计。 */
+            const out = MS.applySeasonAction(st, tid, 'embrace');
+            if (!out || out.success !== true) return bad('kernel-refused:' + ((out && out.reason) || 'unknown'));
+            wp.seasonState = out.state;
+            /* 读缓存必须清：不清的话行读数与面板会继续报旧静音数（这是本仓治过多次的形态）。 */
+            if (engine) { engine._silenceExplainRead = null; engine._silenceListRead = null; }
+            return { ok: true, reason: '', writes: true, lifted: true, topicId: tid, from: 'mute', to: 'embrace' };
+        } catch (e) { errLog(e, 'engine.silenceLift'); return { ok: false, reason: 'thrown', writes: false, lifted: false }; }
+    }
+    /* ============================================================
+     * [v3.443.0 · L13-X8] 本轮生成的可撤销快照
+     * ------------------------------------------------------------
+     * 【计划原文的真实现场（Problem 8）】
+     *   `row.revoke` 撤的是**证据裁决**；`snapshot-checkpoint` 是**整份载荷**级检查点。
+     *   中间那一层空着：**「这一轮生成到底新塞进了哪些条目」**。
+     *   于是「这轮加错了」只能在各面对着手删，或者整份回滚 —— 后者会把同轮的
+     *   正确写入也一起吞掉。两件事被压成同一种处置，正是本条要拆开的。
+     *
+     * 【四条硬纪律（每条都配判据）】
+     *   (1) **不复制正文**：摘要只记 id + 指纹（长度 / 首尾 24 字 / 哈希）；
+     *       复制正文等于绕开各账 owner 另建一份真源，之后两边不再同步。
+     *   (2) **只回滚新增**：`added` 可撤，`modified` 只标 **待复核**，
+     *       `removed` **不可撤**（正文没存，撤回来就是编造）。回退修改会吞掉别的动作。
+     *   (3) **二次确认是硬门槛**：`confirm !== true` 一律拒绝（误点一次就抹掉整轮写入）。
+     *   (4) **半对与全缺不同形**：只有 before 没有 after ⇒ `half-round`，
+     *       一对都没有 ⇒ `no-round`。合成一个「没有可撤销的」会掩盖「采集断在半路」。
+     *
+     * 【账本清单由宿主给，内核不猜】
+     *   `ledgers` 是 `[{key, label?, list}]`；哪个账该被纳入由宿主决定，
+     *   本层只负责采集 / 对拍 / 撤销编排，**不自己删除任何账**（removers 也由宿主给）。
+     * ============================================================ */
+
+    /**
+     * 记一次「本轮开始前」的条目集合摘要。
+     * @param {object} engine
+     * @param {{ledgers:Array, floor?:number, seq?:number}} payload
+     */
+    function roundSnapshotBefore(engine, payload) {
+        var bad = function (why) { return { ok: false, reason: why, writes: false, seq: null, phase: 'before' }; };
+        try {
+            var RS = _roundSnapshotLib();
+            if (!RS || typeof RS.collectSummary !== 'function' || typeof RS.recordSnapshot !== 'function') return bad('module-unavailable');
+            var p = (payload && typeof payload === 'object') ? payload : {};
+            var sum = RS.collectSummary(p.ledgers);
+            if (!sum || sum.ok !== true) {
+                /* ★ 采集不成 ⇒ **不记假快照**（记了就等于宣布「本轮新增 0 条」这个编出来的结论）。 */
+                return { ok: false, reason: 'summary-unavailable:' + ((sum && sum.reason) || 'absent'), writes: false, seq: null, phase: 'before', counts: {}, skippedNoId: (sum && sum.skippedNoId) || 0 };
+            }
+            var r = RS.recordSnapshot(engine, { phase: 'before', floor: p.floor, seq: p.seq, summary: sum });
+            if (!r || r.ok !== true) return bad((r && r.reason) || 'record-failed');
+            return Object.assign({}, r, { counts: sum.counts, skippedNoId: sum.skippedNoId, ledgerCount: sum.ledgerCount });
+        } catch (e) { errLog(e, 'engine.roundSnapshotBefore'); return bad('thrown'); }
+    }
+
+    /** 记一次「本轮结束后」的条目集合摘要（同形）。 */
+    function roundSnapshotAfter(engine, payload) {
+        var bad = function (why) { return { ok: false, reason: why, writes: false, seq: null, phase: 'after' }; };
+        try {
+            var RS = _roundSnapshotLib();
+            if (!RS || typeof RS.collectSummary !== 'function' || typeof RS.recordSnapshot !== 'function') return bad('module-unavailable');
+            var p = (payload && typeof payload === 'object') ? payload : {};
+            var sum = RS.collectSummary(p.ledgers);
+            if (!sum || sum.ok !== true) {
+                return { ok: false, reason: 'summary-unavailable:' + ((sum && sum.reason) || 'absent'), writes: false, seq: null, phase: 'after', counts: {}, skippedNoId: (sum && sum.skippedNoId) || 0 };
+            }
+            var r = RS.recordSnapshot(engine, { phase: 'after', floor: p.floor, seq: p.seq, summary: sum });
+            if (!r || r.ok !== true) return bad((r && r.reason) || 'record-failed');
+            return Object.assign({}, r, { counts: sum.counts, skippedNoId: sum.skippedNoId, ledgerCount: sum.ledgerCount });
+        } catch (e) { errLog(e, 'engine.roundSnapshotAfter'); return bad('thrown'); }
+    }
+
+    /**
+     * 本轮可撤销清单（**只读**：`writesNothing:true`）。
+     * 缺席面与在场面**逐字同键**（面板才能用同一套渲染而不猜）。
+     */
+    function roundUndoState(engine) {
+        var absent = function (why) {
+            return {
+                kind: 'round_undo', version: 0, state: 'unavailable',
+                seq: null, floor: null, counts: { added: 0, removed: 0, modified: 0 },
+                added: [], modified: [], removed: [],
+                writesNothing: true, ok: false, reason: why,
+            };
+        };
+        try {
+            var RS = _roundSnapshotLib();
+            if (!RS || typeof RS.roundUndoState !== 'function') return absent('module-unavailable');
+            var r = RS.roundUndoState(engine);
+            if (!r || typeof r !== 'object') return absent('bad-shape');
+            if (engine && typeof engine === 'object') engine._roundUndoRead = r;
+            return r;
+        } catch (e) { errLog(e, 'engine.roundUndoState'); return absent('thrown'); }
+    }
+
+    /**
+     * 撤销本轮**新增**条目（唯一写入口）。
+     * @param {object} engine
+     * @param {{removers:Object<string,(id:string)=>boolean>, confirm?:boolean}} payload
+     * 失败原因码：`confirm-required` / `module-unavailable` / `removers-required` /
+     *   `engine-absent` / `no-round:*` / `state-unavailable` / `partial` / `thrown`。
+     */
+    function roundUndo(engine, payload) {
+        var bad = function (why) { return { ok: false, reason: why, writes: false, seq: null, removed: [], failed: [], skipped: [], counts: { removed: 0, failed: 0, skipped: 0 } }; };
+        try {
+            var RS = _roundSnapshotLib();
+            if (!RS || typeof RS.undoRound !== 'function') return bad('module-unavailable');
+            var p = (payload && typeof payload === 'object') ? payload : {};
+            /* ★ 二次确认先判：连「要不要撤」都没确认时，不去读账（读也算一次动作）。 */
+            if (p.confirm !== true) return bad('confirm-required');
+            if (!p.removers || typeof p.removers !== 'object') return bad('removers-required');
+            var r = RS.undoRound(engine, p);
+            if (!r || typeof r !== 'object') return bad('bad-shape');
+            /* 撤销后清读缓存：不清的话面板会继续报旧的可撤销清单（本仓治过多次的形态）。 */
+            if (engine && typeof engine === 'object') engine._roundUndoRead = null;
+            return r;
+        } catch (e) { errLog(e, 'engine.roundUndo'); return bad('thrown'); }
+    }
+
+    /** 诊断行：三态措辞互不同形（模块缺席 / 还没有一轮 / 有可撤条目）。 */
+    function _roundUndoLine(engine) {
+        try {
+            var r = (engine && engine._roundUndoRead && typeof engine._roundUndoRead === 'object')
+                ? engine._roundUndoRead : roundUndoState(engine);
+            if (!r.ok) return '本轮可撤销：不可用 · ' + r.reason;
+            if (r.state === 'no-round') return '本轮可撤销：还没有一轮完整快照（生成本身没记过前后）';
+            if (r.state === 'half-round') return '本轮可撤销：快照只有半对（缺 ' + (r.missing || []).join('+') + '，采集断在半路）';
+            /* 第四态：撤过的那一轮要**说清是哪一轮、什么时候撤的** ——
+             *   与「本轮没有新增」（ok + added 0）不同形，否则用户分不清「撤成功了」和「本来就没写」。 */
+            if (r.state === 'undone') {
+                var when = r.undoneAt ? new Date(r.undoneAt).toLocaleString() : '时间未知';
+                return '本轮可撤销：第 ' + String(r.seq === null || r.seq === undefined ? '—' : r.seq) + ' 轮已于 ' + when + ' 撤销过（不重放）';
+            }
+            var c = r.counts || {};
+            var tail = (c.modified || 0) > 0 ? ('，另有 ' + c.modified + ' 条本轮被改过（只标待复核，不回退）') : '';
+            return '本轮可撤销：新增 ' + (c.added || 0) + ' 条可撤 · 删除 ' + (c.removed || 0) + ' 条不可撤（正文未留）' + tail;
+        } catch (e) { errLog(e, 'engine._roundUndoLine'); return '—（诊断异常）'; }
+    }
+
+    /* ============================================================
+     * [v3.444.0 · L13-X9] 跨代传承面（把「传承物四态 + 秘密断代」接到产品）
+     * ------------------------------------------------------------
+     * 【计划原文的两条硬要求，逐条落在下面】
+     *   ① 列出跨代物品/规矩及其四态，**`lost` 档必须与「还没传」区分**
+     *      （前者是遗失，后者是未发生）；
+     *   ② 秘密断代：新一代**绝不自动获知**前代未公开秘密，
+     *      **沿用既有 scope 判定，不新写一套**。
+     *
+     * 【第②条怎么落的（本面的核心，不许偷懒）】
+     *   本层**不实现任何「该不该给他看」的逻辑**，只把既有
+     *   `secret-ledger.js` 的 `knowledgeOf(item, who)` 原函数注入内核
+     *   （`opts.knowledgeOf`）。内核只做三件事：调它、读三态字符串、分四档。
+     *   秘密账缺席 ⇒ 整面 ok:false（module-unavailable），**绝不**退化成
+     *   「都判不了所以都不给看」—— 那是猜，且会把「面没装上」伪装成「判定结果」。
+     *
+     * 【为什么秘密边界是四档而不是一个布尔】
+     *   `absent`（不是秘密 / 秘密账里没这条）与 `undecided`（判不了）处置相反：
+     *   前者不用遮蔽，后者要人去看。压成一个 false 会让「秘密账漏记」永远看不见。
+     *
+     * 【写入面（四态声明）怎么撤】
+     *   声明落在**既有槽** `eraTransitions[i].declarations[artifactId]`
+     *   （不新开存储、不建第二套事实库 —— 它随 worldProg 一并存档）。
+     *   两个硬门槛：
+     *     · `confirm !== true` ⇒ 拒绝（连状态都不读）；
+     *     · `inheritanceRevokeDeclare` 逐条撤销，撤完该条回到**推导值**
+     *       （不是回到「pending」—— 那会把「本来就是 lost」改成「还没传」，
+     *        正是本面第①条要防的形态）。
+     * ============================================================ */
+
+    /** 从既有秘密账里按 id / 正文找条目（找不到返回 null，**不新建**占位条目）。 */
+    function _inheritanceSecretLookup(engine) {
+        return function (artifactId, item) {
+            try {
+                const SL = _moduleLib(() => window.LonShaSecretLedger, 'secret-ledger.js');
+                if (!SL || typeof SL.knowledgeOf !== 'function') return null;
+                const wp = engine && engine.worldProg;
+                const st = wp && wp.secretLedger;
+                const rows = (st && Array.isArray(st.items)) ? st.items : [];
+                if (!rows.length) return null;
+                const id = String(artifactId || '');
+                const byId = rows.find((r) => r && String(r.id || '') === id);
+                if (byId) return byId;
+                /* 按正文匹配：传承物的 label 与秘密条目的 secret 常常是同一句话
+                 *   （「养女实为仇家之后」这类），故拿 label 精确比（小写、去首尾空白）。 */
+                const keys = [];
+                const push = (v) => { const s = String(v || '').trim().toLowerCase(); if (s) keys.push(s); };
+                if (item && typeof item === 'object') { push(item.content); push(item.name); push(item.title); }
+                if (!keys.length) return null;
+                return rows.find((r) => r && keys.indexOf(String(r.secret || '').trim().toLowerCase()) >= 0) || null;
+            } catch (_e) { return null; }
+        };
+    }
+
+    /**
+     * 传承清单（**只读**：`writesNothing:true`）。
+     * 数据源就是 `worldProg.eraTransitions` 原样 —— 本面不新建任何账。
+     */
+    function inheritanceRosterState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'inheritance_roster', version: 0, state: 'unavailable',
+            items: [], counts: { accepted: 0, rejected: 0, reformed: 0, lost: 0, pending: 0, unknown: 0, total: 0 },
+            boundary: { disclosed: 0, withheld: 0, undecided: 0, absent: 0 },
+            undecided: [], successorActorId: '', writesNothing: true, ok: false, reason: why,
+        });
+        try {
+            const EC = _eraContinuationTreeLib();
+            if (!EC || typeof EC.buildInheritanceRoster !== 'function') return absent('module-unavailable');
+            const SL = _moduleLib(() => window.LonShaSecretLedger, 'secret-ledger.js');
+            if (!SL || typeof SL.knowledgeOf !== 'function') {
+                /* ★ 秘密账缺席 ⇒ 整面不可用。不许「反正判不了就都不给看」地降级 ——
+                 *   那会让用户以为「这一代什么都不知道」，而事实是**判定口没装上**。 */
+                return absent('secret-ledger-unavailable');
+            }
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const wp = engine && engine.worldProg;
+            const transitions = (wp && Array.isArray(wp.eraTransitions)) ? wp.eraTransitions : null;
+            /* successorActorId：opts 优先，回落 engine 的当前扮演者（与既有面同源）。 */
+            let successor = String(o.successorActorId || '').trim();
+            if (!successor) {
+                try { successor = String((engine && engine._currentSpeakerName) || '').trim(); } catch (_e) { successor = ''; }
+            }
+            const r = EC.buildInheritanceRoster(transitions, {
+                successorActorId: successor,
+                knowledgeOf: SL.knowledgeOf,
+                secretLookup: _inheritanceSecretLookup(engine),
+            });
+            const out = Object.assign({ kind: 'inheritance_roster', state: (r && r.ok === true) ? 'ok' : 'unavailable', successorActorId: successor }, r);
+            if (engine) engine._inheritanceRosterRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.inheritanceRosterState'); return absent('thrown'); }
+    }
+
+    /** 声明某件传承物的四态（**唯一写入口**，落在既有 eraTransitions 槽）。 */
+    function inheritanceDeclare(engine, payload) {
+        const bad = (why) => ({ ok: false, reason: why, writes: false, declared: false });
+        try {
+            const EC = _eraContinuationTreeLib();
+            if (!EC || !EC.INHERITANCE_FATE) return bad('module-unavailable');
+            const p = (payload && typeof payload === 'object') ? payload : {};
+            /* ★ 二次确认先判：没确认时连状态都不读（读也算一次动作）。 */
+            if (p.confirm !== true) return bad('confirm-required');
+            const wp = engine && engine.worldProg;
+            if (!wp) return bad('no-world-progress');
+            const tid = String(p.transitionId || '').trim();
+            const aid = String(p.artifactId || '').trim();
+            if (!tid) return bad('transition-id-required');
+            if (!aid) return bad('artifact-id-required');
+            const fate = String(p.fate || '').trim();
+            /* ★ 只认四态：`pending` **不可声明** —— 它是「还没发生」，
+             *   人能声明的只有已经发生的结果。允许声明 pending 等于
+             *   把「遗失」改写成「还没传」，正是本面第①条要防的形态。 */
+            if (!Object.values(EC.INHERITANCE_FATE).includes(fate)) return bad('bad-fate:' + fate);
+            const list = Array.isArray(wp.eraTransitions) ? wp.eraTransitions : null;
+            if (!list) return bad('transitions-not-array');
+            const tr = list.find((x) => x && String(x.transitionId || '') === tid);
+            if (!tr) return bad('transition-not-found');
+            const items = Array.isArray(tr.items) ? tr.items : [];
+            if (!items.some((it) => it && String(it.id || '') === aid)) return bad('artifact-not-found');
+            /* 写在既有槽里（不是新存储）：随 worldProg 一并存档。 */
+            if (!tr.declarations || typeof tr.declarations !== 'object') tr.declarations = {};
+            const before = tr.declarations[aid] || null;
+            tr.declarations[aid] = { fate: fate, at: Date.now(), note: String(p.note || '').slice(0, 120) };
+            if (engine) engine._inheritanceRosterRead = null;
+            return {
+                ok: true, reason: '', writes: true, declared: true,
+                transitionId: tid, artifactId: aid, fate: fate,
+                /* 覆盖了旧声明就如实报（不静默吞掉前一次）。 */
+                replaced: before ? { fate: String(before.fate || '') } : null,
+            };
+        } catch (e) { errLog(e, 'engine.inheritanceDeclare'); return bad('thrown'); }
+    }
+
+    /** 撤销一次声明 —— 该条回到**推导值**（不是回到 pending）。 */
+    function inheritanceRevokeDeclare(engine, payload) {
+        const bad = (why) => ({ ok: false, reason: why, writes: false, revoked: false });
+        try {
+            const p = (payload && typeof payload === 'object') ? payload : {};
+            if (p.confirm !== true) return bad('confirm-required');
+            const wp = engine && engine.worldProg;
+            if (!wp) return bad('no-world-progress');
+            const tid = String(p.transitionId || '').trim();
+            const aid = String(p.artifactId || '').trim();
+            if (!tid || !aid) return bad('keys-required');
+            const list = Array.isArray(wp.eraTransitions) ? wp.eraTransitions : null;
+            if (!list) return bad('transitions-not-array');
+            const tr = list.find((x) => x && String(x.transitionId || '') === tid);
+            if (!tr) return bad('transition-not-found');
+            const d = (tr.declarations && typeof tr.declarations === 'object') ? tr.declarations : null;
+            if (!d || !d[aid]) return bad('not-declared');
+            const was = String((d[aid] && d[aid].fate) || '');
+            delete d[aid];
+            if (engine) engine._inheritanceRosterRead = null;
+            return { ok: true, reason: '', writes: true, revoked: true, transitionId: tid, artifactId: aid, was: was };
+        } catch (e) { errLog(e, 'engine.inheritanceRevokeDeclare'); return bad('thrown'); }
+    }
+
+    /** 诊断行：四态 + 还没传**分开报**（合成一个数就分不出「遗失了」和「还没走到」）。 */
+    function _inheritanceRosterLine(engine) {
+        try {
+            const cached = (engine && engine._inheritanceRosterRead && typeof engine._inheritanceRosterRead === 'object')
+                ? engine._inheritanceRosterRead : null;
+            const r = cached || inheritanceRosterState(engine, {});
+            if (!r || r.ok !== true) return '传承清单：不可用 · ' + ((r && r.reason) || 'module-unavailable');
+            const c = r.counts || {};
+            if (!c.total) return '传承清单：账在但一条跨代物件都没有（不是「面没装上」）';
+            const b = r.boundary || {};
+            const parts = [
+                '接纳 ' + (c.accepted || 0), '拒绝 ' + (c.rejected || 0),
+                '改造 ' + (c.reformed || 0), '**遗失 ' + (c.lost || 0) + '**',
+                '还没传 ' + (c.pending || 0),
+            ];
+            if (c.unknown) parts.push('判不了 ' + c.unknown);
+            const secretTail = (b.disclosed || b.withheld || b.undecided)
+                ? (' · 秘密：这一代可知 ' + (b.disclosed || 0) + ' / 遮蔽 ' + (b.withheld || 0)
+                    + (b.undecided ? (' / **判不了 ' + b.undecided + '**') : ''))
+                : '';
+            return '传承清单：' + parts.join(' · ') + secretTail;
+        } catch (e) { errLog(e, 'engine._inheritanceRosterLine'); return '—（诊断异常）'; }
+    }
+
+    function _silenceListLine(engine) {
+        try {
+            const cached = (engine && engine._silenceListRead && typeof engine._silenceListRead === 'object')
+                ? engine._silenceListRead : null;
+            const r = cached || silenceListState(engine, {});
+            if (!r || r.ok !== true) return '静音清单：不可用 · ' + ((r && r.reason) || 'module-unavailable');
+            const c = r.counts || {};
+            if (!c.total) return '静音清单：当前没有静音（本轮 0 / 持久 0）';
+            return `静音清单：本轮 ${c.ctx || 0} · 持久 ${c.season || 0}（共 ${c.total || 0}）`;
+        } catch (e) { errLog(e, 'engine._silenceListLine'); return '—（诊断异常）'; }
+    }
 
 
     /* ===============================================================
@@ -3617,7 +4601,70 @@
         }
     }
 
-    var api = Object.freeze({ memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, evidenceImpactReplay, _evidenceImpactLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    /* ===============================================================
+     * [v3.439.0 · L13-X3] 视角投影面：用这个角色的眼睛看这一轮
+     * ---------------------------------------------------------------
+     * 【宿主只做三件事，绞不自己算】
+     *   ① **装配**：从既有三账原样取数（pov / secretLedger / knowledgeTraces），一个字段都不改；
+     *   ② **转发**：把 opts 原样交给内核，**不改写返回值**；
+     *   ③ **留痕**：只留读数摘要（存整份投影 = 第二份知识库）。
+     *
+     * 【为什么三账要在这里取、而不是让内核去 engine 上找】
+     *   内核是零依赖纯函数（要能被单独 require、也要能在测试面与 CDN 加载面同形）；
+     *   一旦它开始认 `engine.worldProg.secretLedger` 这种宿主路径，它就不再是纯函数了。
+     *   故「取数」这一层必须留在宿主 —— 这也是全仓十来个投影面的同一条分工线。
+     *
+     * 【缺席面与在场面**逐字同键**】
+     *   缺席时返回的形状与在场面逐字同键。同一份字面量在这里写两遍是有意的：
+     *   它是**契约**，不是可以互相引用的实现 —— 判据 A3 会逐键比对两边。
+     */
+    function povProject(engine, opts) {
+        const absent = (why) => ({
+            kind: 'pov_projection', version: 0, viewer: '', viewerKnown: false,
+            at: null, atKnown: false,
+            tiers: { knows: [], suspects: [], believes: [], blind: [], undecided: [] },
+            counts: { knows: 0, suspects: 0, believes: 0, blind: 0, undecided: 0, total: 0, viewers: 0, masked: 0, input: { povs: 0, secrets: 0, traces: 0 }, malformed: 0, offTime: 0, noFloor: 0, truncated: 0 },
+            viewers: [], writesNothing: true, degraded: false, notes: [],
+            ok: false, reason: why
+        });
+        try {
+            const PP = _povProjectionLib();
+            if (!PP || typeof PP.project !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const wp = engine && engine.worldProg;
+            const secretLedger = wp && wp.secretLedger ? wp.secretLedger : null;
+            const knowledgeTraces = wp && wp.knowledgeTraces ? wp.knowledgeTraces : null;
+            const povExport = (engine && engine.pov && typeof engine.pov.export === 'function') ? engine.pov.export() : null;
+            const src = {
+                povs: povExport || [],
+                secrets: secretLedger || { items: [] },
+                traces: knowledgeTraces || { traces: [] },
+                /* 显式名单（可选）：面板可以把「当前登场角色」传进来，
+                 *   这样即使三账里一条都没提他，他也会出现在可选视角里。 */
+                characters: Array.isArray(o.characters) ? o.characters : []
+            };
+            const res = PP.project(src, o);
+            const out = Object.assign({}, res, { ok: true, reason: res && res.degraded ? 'degraded' : '' });
+            if (engine) engine._povProjectionLastRead = out;
+            return out;
+        } catch (e) {
+            errLog(e, 'engine.povProject');
+            return absent('thrown: ' + ((e && e.message) || e));
+        }
+    }
+    /* 诊断行：**只一行、不给正文**（盲档的正文连诊断行都不许过 —— 诊断行会进注入与 oplog）。 */
+    function _povProjectionLine(engine) {
+        try {
+            const PP = _povProjectionLib();
+            if (!PP || typeof PP.line !== 'function') return '模块未加载（pov-projection.js）';
+            const cached = engine && engine._povProjectionLastRead;
+            const r = cached || povProject(engine, {});
+            if (r && r.ok === false && r.reason === 'module-unavailable') return '模块未加载（pov-projection.js）';
+            if (r && r.ok === false) return `【视角投影】不可用 (${r.reason || 'unknown'})`;
+            return PP.line(r);
+        } catch (e) { errLog(e, 'engine._povProjectionLine'); return '—（诊断异常）'; }
+    }
+    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     global.LonShaDiagnosticLines = api;
 })(typeof window !== 'undefined' ? window : globalThis);

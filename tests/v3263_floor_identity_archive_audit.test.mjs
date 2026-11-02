@@ -122,7 +122,7 @@ function judgeSlice(idxSrc, uiSrc, fiSrc, aaSrc) {
     if (!idx.includes("if (!c) return ['物品认领'")) defects.push('物品认领自检行缺「待导入」态');
     // 5) 面板面：卡片 + 视图（面板真调用，不是只留引擎出口）
     if (!ui.includes('data-view="archive"')) defects.push('settings-ui 缺存档体检卡片');
-    if (!ui.includes("viewType === 'archive'")) defects.push('settings-ui 缺存档体检视图分支');
+    if (!ui.includes("else if (viewType === 'archive') {")) defects.push('settings-ui 缺存档体检视图分支');
     if (!ui.includes('const aa = s._lastArchiveAudit;')) defects.push('存档体检视图未真读 _lastArchiveAudit');
     if (!ui.includes('const cl = s._lastItemOpsClaim;')) defects.push('存档体检视图未真读 _lastItemOpsClaim');
     // 6) 模块侧：IIFE 双导出 + 全局挂载名 + 零依赖
@@ -284,7 +284,7 @@ test('v3263 C. 接线面：消费点 + 面板 + 自检行 + 加载序 + 数量�
     assert.ok(IDX.includes('this._lastItemOpsClaim'), 'selfCheck 须读 _lastItemOpsClaim 台账');
     // 面板：卡片 + 视图（面板真调用，不是只留引擎出口）
     assert.ok(UI_SRC.includes('data-view="archive"'), 'settings-ui 缺存档体检卡片');
-    assert.ok(UI_SRC.includes("viewType === 'archive'"), 'settings-ui 缺存档体检视图分支');
+    assert.ok(UI_SRC.includes("else if (viewType === 'archive') {"), 'settings-ui 缺存档体检视图分支');
     // 只读纪律：认领证明不得改数据（不写回 itemOps）
     const _c0 = IDX.indexOf('忠实认领**证明**');
     const _c1 = IDX.indexOf('engine._lastItemOpsClaim = _claim;');
@@ -322,7 +322,7 @@ test('v3263 D. 负控制：真源码破坏后同一条判据必须翻红', () =>
         { label: '楼层侧 _entries 构造被摘', f: 'idx', anchor: 'const _entries = _chat.map((m, i) => {', repl: 'const _entriesXXXX = _chat.map((m, i) => {', want: /缺物品认领的楼层侧 _entries 构造/ },
         { label: '候选指纹读取被摘', f: 'idx', anchor: "const _fp = String(o?.fp || '');", repl: "const _fpXXXX = String(o?.fp || '');", want: /缺候选侧指纹读取/ },
         // —— 面板面 ——
-        { label: '存档体检视图被摘', f: 'ui', anchor: "viewType === 'archive'", repl: "viewType === 'archiveXX'", want: /缺存档体检视图分支/ },
+        { label: '存档体检视图被摘', f: 'ui', anchor: "else if (viewType === 'archive') {", repl: "else if (viewType === 'archiveXX') {", want: /缺存档体检视图分支/ },
         { label: '存档体检卡片被摘', f: 'ui', anchor: 'data-view="archive"', repl: 'data-view="archiveXX"', want: /缺存档体检卡片/ },
         // —— 身份面四段 ——
         { label: '段 1 标记预留被摘', f: 'fi', anchor: "if (marker?.status === 'none') continue;", repl: "if (marker?.status === 'noneXX') continue;", want: /缺段 1 标记预留/ },

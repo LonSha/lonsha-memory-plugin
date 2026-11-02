@@ -1,6 +1,6 @@
 /* ============================================================
  * tests/v3380_m4o8_center_actions.test.mjs — v3.338.0 · M4-O8
- * 记忆控制中心**处置类动作的生产方落地**（面板 9 handler + 宿主真源出口）
+ * 记忆控制中心**处置类动作的生产方落地**（面板 12 handler + 宿主真源出口）
  *
  * 【本档要证明的四件事（不是「函数返回了对象」）】
  *   a) **保存区零同步缺陷已闭合**：面板「保存的查询条件」此前读的是 `state.saved`，
@@ -129,7 +129,7 @@ function judgeA1(src) {
 function judgeA2(uiSrc) {
     const bad = [];
     const ids = ['row.repair.preview', 'row.detail', 'row.revoke', 'row.dispute', 'row.export',
-        'query.save', 'query.reset', 'saved.remove', 'saved.replay'];
+        'row.edit', 'row.pin', 'row.forget', 'query.save', 'query.reset', 'saved.remove', 'saved.replay'];
     for (const id of ids) {
         const n = uiSrc.split("_memoryCenterHandlers['" + id + "']").length - 1;
         if (n !== 1) bad.push("handler '" + id + "' 命中 " + n + ' 次（应恰 1）');
@@ -149,7 +149,7 @@ function judgeA3(Cx, uiSrc) {
     if (JSON.stringify(declared) !== JSON.stringify(provided)) {
         return ['声明面 ' + declared.join('/') + ' != 面板提供面 ' + provided.join('/')];
     }
-    if (declared.length !== 9) return ['动作声明数 ' + declared.length + '（应 9）'];
+    if (declared.length !== 12) return ['动作声明数 ' + declared.length + '（应 12）'];
     return [];
 }
 function judgeSave(idxSrc) {
@@ -255,13 +255,13 @@ test('v3380 A1. ** 宿主六个新出口 + 三个纠错出口在真源各恰一�
     assert.deepEqual(judgeA1(IDX), [], '声明面漂移：' + judgeA1(IDX).join('；'));
     ok('九处声明各恰 1 次');
 });
-test('v3380 A2. *** 面板 9 handler 全在场 + 旧手写 state 模式清零', () => {
+test('v3380 A2. *** 面板 12 handler 全在场 + 旧手写 state 模式清零', () => {
     assert.deepEqual(judgeA2(UI), [], judgeA2(UI).join('；'));
-    ok('9 handler 各恰 1 次 / 旧伪造模式 0 处');
+    ok('12 handler 各恰 1 次 / 旧伪造模式 0 处');
 });
-test('v3380 A3. ** 内核声明 9 动作与面板提供面逐字相等', () => {
+test('v3380 A3. ** 内核声明 12 动作与面板提供面逐字相等', () => {
     assert.deepEqual(judgeA3(C, UI), [], judgeA3(C, UI).join('；'));
-    ok('声明面 == 提供面（9）');
+    ok('声明面 == 提供面（12）');
 });
 test('v3380 B1. *** 保存条件真落宿主真源（同条件覆盖）', () => {
     assert.deepEqual(judgeSave(IDX), [], judgeSave(IDX).join('；'));

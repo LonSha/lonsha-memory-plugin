@@ -338,12 +338,18 @@ test('v3216 9. `buildInjectionReadout`：无读数如实 null，有读数形状�
     assert.strictEqual(c.buildInjectionReadout(), null, '未跑过 ⇒ null（不是空壳对象）');
     const r = generate(c, [{ source: 'summary', text: '一块记忆' }]);
     const out = c.buildInjectionReadout();
+    /* [L13-O6] 键面 10 → 11（多 `trace`）：外供面**必须**能回答「这一轮用了什么」，
+     *   而它此前只能给出逐块 id/kept —— 那正是 O6 禁止的「只显示总数」。
+     *   本断言随之接管新键面（判据要锁的是「形状确定」而不是「永不扩展」）：
+     *   多一格必须在**这里**被看见，不能靠「反正没断言」偷偷长出来。
+     *   新格的语义判据在 `tests/v3438_l13_o6_injection_receipt_face.test.mjs`。 */
     assert.deepStrictEqual(Object.keys(out).sort(),
-        ['blocks', 'chars', 'html', 'kept', 'origin', 'outcome', 'round', 'tokens', 'total', 'ts'].sort(),
-        '外供面键面恒定 10 项（v3.218.0 R2-E 起含 outcome）');
+        ['blocks', 'chars', 'html', 'kept', 'origin', 'outcome', 'round', 'tokens', 'total', 'trace', 'ts'].sort(),
+        '外供面键面恒定 11 项（v3.218.0 R2-E 起含 outcome；L13-O6 起含 trace）');
     assert.strictEqual(out.chars, r.html.length, 'chars 与 html 同源');
     assert.deepStrictEqual(Object.keys(out.blocks[0]).sort(),
-        ['chars', 'id', 'kept', 'label', 'reason', 'ref'].sort(), '逐块键面恒定 6 项');
+        ['chars', 'id', 'kept', 'label', 'partial', 'reason', 'ref', 'src', 'via'].sort(),
+        '逐块键面恒定 9 项（L13-O6 起含 src/partial/via）');
 });
 
 /* ══════════ T10 UI 与诊断行必须说清「这是哪一路」 ══════════ */

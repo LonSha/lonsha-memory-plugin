@@ -619,10 +619,25 @@
              *       「某源被禁用 ⇒ 它贡献 0 块」是一条可在回执上直接断言的判据，
              *       而不是事后从块文本反推（M-O3 第 ⑦ 条）。 */
             const _srcBlocks = {};
+            /* [L13-O6] 逐块来源面：与 `blocks` **下标对齐**的一格一格来源键。
+             *   为什么现在才补：`_srcBlocks` 只有各源**计数**（谁贡献了几块），
+             *   面板因此只能报「某源 3 块」，回答不了「这一条是哪来的」。
+             *   归属手法与边界（如实写死，别处不得再解释一遍）：
+             *     · `_countSource` 的调用点全部紧跟在**本段的 push 之后**，且 n 恰等于本段
+             *       push 的块数 ⇒ 用「上一段结束下标 → 本次 blocks.length」这段区间标源；
+             *     · 这是**拼装顺序推定**，不是语义归属：某段 push 了却没调 `_countSource`
+             *       （全局块），它的块会被并入下一段 —— 故回执上标 `attribution:'by-order'`，
+             *       面板据此不把来源面当成结论，只当成线索。 */
+            const _blockSrc = [];
+            let _srcSegEnd = 0;
             const _stageCnt = { relationGated: null, povOffstage: null, povScoped: false, relationScoped: false };
             const _countSource = (key, n) => {
                 const _n = Number(n);
                 _srcBlocks[key] = (_srcBlocks[key] || 0) + (Number.isFinite(_n) && _n > 0 ? Math.floor(_n) : 0);
+                /* 先把中间新增的块补成「未归属」，再把本段（上一段结束 → 现在）标成本源。 */
+                while (_blockSrc.length < blocks.length) _blockSrc.push('unattributed');
+                for (let _i = _srcSegEnd; _i < blocks.length; _i++) _blockSrc[_i] = key;
+                _srcSegEnd = blocks.length;
             };
             /* [v3.251.0] M-O3 第 ⑦ 条的**单一真源**：召回侧开关表。
              *   修前这张表只在下方的 cost-ledger 调用处**就地写死一份**（10 键），
@@ -1327,6 +1342,14 @@
                  *     · validityFiltered 构建期被**有效性规则**挡下的条数（分项见 byRule）。
                  *     · budgetTrimmed 预算裁剪丢掉的块数（裁剪回执给出；硬截断时不可测）。
                  *     · finalKept     最终进载荷的块数（裁剪回执给出）。 */
+                /* [L13-O6] **空文本块**计数：裁剪输入里会混进空串（各源分支只在有值时才
+                 *   push 内容，但 `blocks` 也可能被别的分支塞进空段），而逐块读数在
+                 *   `if (!text) continue;` 处**不成行**。两件事都对，合起来却让账对不平：
+                 *   `blockCount - finalKept` 会把空块算成「被裁的条目」。
+                 *   单列一格之后账才闭合（可在回执上直接验）：
+                 *     finalKept + budgetTrimmed + partialBlocks + emptyBlocks === blockCount
+                 *   空块既不是保留也不是被裁 —— 它们**不是条目**。 */
+                emptyBlocks: null,
                 stages: {
                     rawHits: (_auditLastRec && Number.isFinite(_auditLastRec.totalHits))
                         ? Number(_auditLastRec.totalHits)
@@ -1372,6 +1395,9 @@
                  *   现在在**拼装现场**逐源记贡献块数（谁 push 的谁记账），于是
                  *   「禁用 ⇒ 该源块数为 0」是一条可在回执上直接断言的判据，而不是事后推断。 */
                 sourceBlocks: _srcBlocks,
+                /* [L13-O6] 逐块来源面 + 归属手法自述。与 `blocks`（拼装顺序）下标对齐；
+                 *   `attribution` 明写「按拼装顺序推定」，不许被读成语义归属结论。 */
+                blockSources: { attribution: 'by-order', keys: _blockSrc.slice() },
                 /* 融合源（在召回侧生效、构建期不可分）单独一格：**不假装能拆**。
                  *   `recallPerSource` 是召回自检账本里各源命中数 —— 它是「召回给了几条」，
                  *   不是「注入里几条」；两件事分开摆，读的人自己不会混。 */
@@ -1546,9 +1572,18 @@
             if (_trace && _trace.stages) {
                 const _st = _trace.stages;
                 if (Array.isArray(_trace.keptIdxInAll) && Number.isFinite(_trace.blockCount)) {
+                    /* [L13-O6] 块级两格**不在这里定稿**：`blockCount - keptIdxInAll.length`
+                     *   看似自洽，实测会多报 —— 裁剪输入里混着**空文本块**（各源分支
+                     *   `if (x) blocks.push(...)` 之外仍有空白段），而逐块读数在 `!text` 处
+                     *   `continue`（空块根本不成行）。于是同一轮里会同时出现
+                     *   「stages 报被裁 17 块」与「逐条读数只列出 14 行、被裁 11 条」，
+                     *   而面板读的是逐条那份 ⇒ 读者看到「被裁 17」却只能点开 11 条，
+                     *   差额是一团永远查不到的黑洞。这正是 O6 点名的「被裁要看得见」。
+                     *   故这里只记「清单已可用」，数字留到逐块读数生成之后按**同一份草稿**收口
+                     *   （见下方 `_st` 二次收口）。空块不算被裁，也不算保留 —— 它们不是条目。 */
                     _st.finalKept = _trace.keptIdxInAll.length;
-                    _st.budgetTrimmed = Math.max(0, _trace.blockCount - _trace.keptIdxInAll.length);
-                    _trace.stageNotes.budgetTrimmed = '';
+                    _st.budgetTrimmed = null;
+                    _trace.stageNotes.budgetTrimmed = '待逐块读数收口（块级两格与逐条清单必须同源，见 L13-O6）';
                 } else if (_trace.hardTruncated === true) {
                     _st.budgetTrimmed = null; _st.finalKept = null;
                     _trace.stageNotes.budgetTrimmed = '硬截断（切口落在块内部，块级保留清单不成立）⇒ 裁剪丢了几块 / 最终留了几块均不可测';
@@ -1576,12 +1611,47 @@
             // 丢了几块/丢多少字符/命中哪个策略全部无处可查，调预算只能靠猜。
             try {
                 const _allB = _tierOn ? [...residentBlocks, ...triggerBlocks] : blocks;
+                /* [L13-O6] 逐块来源面对 **`blocks`** 下标对齐，而裁剪输入是 `_allB`
+                 *   （`[...常驻, ...触发]` —— 一次重排）。来源面必须跟着**同一个重排**走，
+                 *   否则会把「A 源的块」标成「B 源」：错读数，且从面板上看不出来。
+                 *   这里不另立常驻口径：判据仍是 RESIDENT_MARKERS（与上面同一真源）；
+                 *   两桶按**原下标**收集，再按 `[...常驻, ...触发]` 拼 —— 与上面两次 `filter`
+                 *   的保序结果逐位一致（同文重复块也因此不会被合并掉）。
+                 *   长度对不上 ⇒ 整批标 `unattributed`（不猜、不错位）。 */
+                const _allSrc = (() => {
+                    if (!Array.isArray(_blockSrc) || _blockSrc.length !== blocks.length) {
+                        return _allB.map(() => 'unattributed');
+                    }
+                    const _resI = [], _trigI = [];
+                    for (let _i = 0; _i < blocks.length; _i++) {
+                        const _b = String(blocks[_i] == null ? '' : blocks[_i]);
+                        if (_tierOn && RESIDENT_MARKERS.some((m) => _b.startsWith(m))) _resI.push(_i);
+                        else _trigI.push(_i);
+                    }
+                    const _idx = _tierOn ? _resI.concat(_trigI) : _trigI;
+                    return _idx.map((_i) => _blockSrc[_i] || 'unattributed');
+                })();
                 // [v3.215.0] R2-A：逐块读数草稿 —— 「谁进了 / 谁被裁」的**唯一来源**。
                 //   放在这里的原因：`_allB` 正是本次裁剪的输入全集（常驻 + 触发），
                 //   而 `full` 是裁剪后的最终载荷。两者的差集就是被裁掉的那些块。
                 //   修前这两件事都无处可查：`_lastBudgetStats` 只报聚合数
                 //   （丢了几块 / 多少字符），回答不了「丢的是哪一块」。
                 //   非致命：失败时不写草稿（读数会如实报 0 块），不连坐注入本身。
+                /* [L13-O6] 来源面**先**落进回执，再派生逐块读数 —— 顺序不能反。
+                 *   为什么：`_injectionBlocksOf` 只负责「谁进了 / 谁被裁」，来源面它自己不算；
+                 *   让它从**同一份回执**里读来源（下面按 `blockCount` 规模自证后才用），
+                 *   于是「块是否保留」与「块来自哪个源」永远出自同一份清单，不可能一个一轮、一个另一轮。
+                 *   `byOrder` 对 `blocks`（拼装顺序），`byInjectionOrder` 对 `_allB`（裁剪输入顺序，
+                 *   即逐块读数那份清单）。两格各对各的，读的人不会拿错表。
+                 *   长度不等 ⇒ 这段代码里有一处重排没被跟上，如实留痕而不是静默对齐。 */
+                try {
+                    if (_trace && _trace.blockSources) {
+                        _trace.blockSources.byOrderLen = _blockSrc.length;
+                        _trace.blockSources.byInjectionOrder = _allSrc.slice();
+                        _trace.blockSources.byInjectionOrderLen = _allB.length;
+                        _trace.blockSources.aligned = (_allSrc.length === _allB.length);
+                    }
+                } catch (e) { errLog(e, 'buildInjection.来源面对齐留痕'); }
                 try { this._lastInjectionDraft = this._injectionBlocksOf(_allB, full); } catch (e) { errLog(e, 'buildInjection.逐块读数'); }
                 /* [v3.274.0] O4：**块级聚合数改为从逐块读数导出**，不再拿最终文本 
                  *   `full.includes(块)` 反推。
@@ -1620,6 +1690,42 @@
                     ? _draft.reduce((a, x) => a + ((x && !x.kept && !x.partial && Number.isFinite(x.chars)) ? x.chars : 0), 0) : null;
                 const _partialBlockChars = (_keptFrom === 'trace-span')
                     ? _draft.reduce((a, x) => a + ((x && x.partial && Number.isFinite(x.chars)) ? x.chars : 0), 0) : null;
+                /* [L13-O6] stages 块级两格的**最终收口**：与逐条清单同一份草稿（`_draft`）。
+                 *   口径写死一次（别处不得再算一遍）：
+                 *     · finalKept      = 草稿里 kept 的条数（真进载荷的**条目**数）；
+                 *     · budgetTrimmed = 草稿里「整块被丢」的条数（排除被切半 —— 半段进了载荷）。
+                 *   过不了可测门槛（混合判据 / 回执缺席 / 内联回落）⇒ 两格保持 null 并写明原因，
+                 *   不倒推成数字：那正是「把测不了写成读数」。
+                 *   为什么必须在**这里**收口：上面对 stages 的赋值发生在逐块读数生成之前，
+                 *   那时拿不到「哪些块真的是条目」；在这里收口，两件事出自同一个 `_draft`。 */
+                try {
+                    if (_trace && _trace.stages) {
+                        /* 空块数：**与逐块读数同一判据**（`if (!text) continue;` 处不成行）。
+                         *   同一轮里两处各自判「空」，迟早漂移 —— 故这里用同一个表达式：
+                         *   `String(b == null ? '' : b)` 为空即空块。 */
+                        const _emptyN = _allB.reduce((a, b) => a + ((String(b == null ? '' : b)) ? 0 : 1), 0);
+                        _trace.emptyBlocks = _emptyN;
+                        if (_keptMeasurable) {
+                            const _keptN2 = _draft.filter(x => x && x.kept).length;
+                            const _dropN2 = _draft.filter(x => x && !x.kept && !x.partial).length;
+                            const _partN2 = _draft.filter(x => x && x.partial).length;
+                            _trace.stages.finalKept = _keptN2;
+                            _trace.stages.budgetTrimmed = _dropN2;
+                            _trace.stages.partialBlocks = _partN2;
+                            _trace.stageNotes.budgetTrimmed = '';
+                            /* 账必须对平：四格之和 = 裁剪输入块数。对不平 ⇒ 说明「有条目没被
+                             *   任何一格认领」（例如逐块读数跳过了非空块），如实留痕而不静默。 */
+                            const _sum = _keptN2 + _dropN2 + _partN2 + _emptyN;
+                            if (Array.isArray(_allB) && _sum !== _allB.length) {
+                                _trace.stageNotes.budgetTrimmed = '块级账不平：保留 ' + _keptN2 + ' + 被裁 ' + _dropN2
+                                    + ' + 半段 ' + _partN2 + ' + 空块 ' + _emptyN + ' = ' + _sum
+                                    + ' ≠ 裁剪输入 ' + _allB.length + ' ⇒ 有块未被任何一格认领（不得据本轮回执下结论）';
+                            }
+                        } else if (_trace.stageNotes && !_trace.stageNotes.budgetTrimmed) {
+                            _trace.stageNotes.budgetTrimmed = '逐块读数不可测（回执缺席 / 内联回落 / 判据混合）⇒ 块级两格记 null';
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.stages二次收口'); }
                 const _candChars = _allB.reduce((a, b) => a + String(b == null ? '' : b).length, 0);
                 const _ro = (_trace && _trace.residentOverflow && typeof _trace.residentOverflow === 'object')
                     ? _trace.residentOverflow : null;
@@ -1854,6 +1960,11 @@
             //   互斥（那时回执把 keptIdxInAll 显式置 null），故两态的先后不影响判定。
             const hardCut = traceUsable && tr.hardTruncated === true;
             const keptSet = idxOk ? new Set(tr.keptIdxInAll) : null;
+            /* [L13-O6] 逐块来源面：只有「回执对得上本批清单（`blockCount` 规模自证）」且
+             *   「来源面长度也对得上」时才用 —— 两道都对上，来源与 kept 才出自同一批块。
+             *   缺一条即整片 `unattributed`：宁可报「没归属」，也不报一条错位的来源。 */
+            const _srcFace = (traceUsable && tr.blockSources && Array.isArray(tr.blockSources.byInjectionOrder)
+                && tr.blockSources.byInjectionOrder.length === list.length) ? tr.blockSources.byInjectionOrder : null;
             const sliceAt = hardCut ? Number(tr.sliceAt) : NaN;
             const out = [];
             for (let i = 0; i < list.length; i++) {
@@ -1893,6 +2004,13 @@
                     // 半段：块的下标在切点之前、末尾在切点之后 —— 真实发生过的「裁剪半段」，
                     //   修前它与「整块被丢」同形（两者都只是 includes=false）。
                     partial: partial,
+                    /* [L13-O6] 「这一条是哪来的」。来源面取自**同一份回执**（`tr.blockSources`），
+                     *   且必须过下面这道规模自证才可用 —— 与上面 kept 判据同一门槛，
+                     *   不是另立一套：`byInjectionOrder` 的下标就是 `list`（`_allB`）的下标。
+                     *   过不了 ⇒ 'unattributed'（不是「无来源」，是「本条没被归属」），
+                     *   读取方据此不把它当成某个源的证据。
+                     *   语义边界：`by-order` 是按拼装顺序推定，不是语义归属 —— 见 trace.blockSources。 */
+                    src: _srcFace ? String(_srcFace[i] || 'unattributed') : 'unattributed',
                 });
             }
             return out;
@@ -1914,6 +2032,15 @@
                 total: Number.isFinite(p.total) ? p.total : blocks.length,
                 kept: Number.isFinite(p.kept) ? p.kept : blocks.filter(b => b && b.kept).length,
                 gen: Number.isFinite(p.gen) ? p.gen : (Number(this._genSeq) || 0),
+                /* [L13-O6] 暂存的同时把**本轮回执**一并快照下来。
+                 *   为什么必须在这里快照、而不是面板现读 `_injectionTraceDraft`：
+                 *   draft 每次 `buildInjection` 都被原地重写（诊断 dry-run 也会调它），
+                 *   面板若现读，拿到的可能是**另一条路**那轮的回执 —— 于是「这一轮用了什么」
+                 *   会拿别人的回执作证。快照属于本次载荷，随暂存/提交走，代际纪律照样生效
+                 *   （过期载荷被丢弃时，它的 trace 跟着一起不落地）。
+                 *   形状不锁进 record 的 11 键/外供面 10 键：那两处键面是本仓对外契约
+                 *   （v3216 T3/T9 守着），新面另开一格，避免把老契约撑破。 */
+                trace: this._injectionTraceProjection(),
                 stagedAt: Date.now(),
             };
             this._injectionPending = rec;
@@ -1929,6 +2056,51 @@
          *     也**不会默默落一个别的代的载荷** —— 不符即返回 null，由留痕口处置。
          *   ③ 提交后清空暂存：不清则下一轮若没暂存，会被误认为「本轮的载荷」。
          */
+        /**
+         * [L13-O6] 本轮回执的**窄投影**（面板/外供唯一的「这一轮用了什么」来源）。
+         *   为什么不直接把 `_injectionTraceDraft` 整份交出去：
+         *     · 它含 `keptTexts` / `blockSpans` 这类**大数组**，进读数会把面板撑成转储；
+         *     · 它是会被下次构建**原地重写**的对象，交引用等于交一个会变的答案。
+         *   投影只挑读得懂的格子，且**一格不自己算** —— 凡是本仓测不出的（宿主请求体、
+         *   融合源拆分、内联回落的 kept 清单），原样搬 `null` / 自述理由，不补 0。
+         *   `blockSources.attribution` 一路带着走：读者必须知道来源面是**按拼装顺序推定**。
+         */
+        _injectionTraceProjection() {
+            const tr = this._injectionTraceDraft;
+            if (!tr || typeof tr !== 'object') return null;
+            const _bs = tr.blockSources || {};
+            const _byOrder = Array.isArray(_bs.byInjectionOrder) ? _bs.byInjectionOrder.slice() : null;
+            return {
+                version: Number(tr.version) || 0,
+                strategy: String(tr.strategy == null ? '' : tr.strategy),
+                /* 三态：false=真没超预算 / true=裁过且可测 / null=裁了但不可测（内联回落）。
+                 *   `=== false` 才算「没裁」，null 不许被读成「全部留下」。 */
+                trimmed: (tr.trimmed === false) ? false : ((tr.trimmed === true) ? true : null),
+                hardTruncated: tr.hardTruncated === true,
+                budget: Number.isFinite(tr.budget) ? tr.budget : null,
+                tierOn: tr.tierOn !== false,
+                blockCount: Number.isFinite(tr.blockCount) ? tr.blockCount : null,
+                stages: (tr.stages && typeof tr.stages === 'object') ? Object.assign({}, tr.stages) : null,
+                stageNotes: (tr.stageNotes && typeof tr.stageNotes === 'object') ? Object.assign({}, tr.stageNotes) : null,
+                tokenSource: String(tr.tokenSource == null ? '' : tr.tokenSource),
+                layer: (tr.layer && typeof tr.layer === 'object') ? Object.assign({}, tr.layer) : null,
+                sourceBlocks: (tr.sourceBlocks && typeof tr.sourceBlocks === 'object') ? Object.assign({}, tr.sourceBlocks) : null,
+                blockedSources: Array.isArray(tr.disabledSources) ? tr.disabledSources.slice() : null,
+                blockSources: {
+                    attribution: String(_bs.attribution || 'by-order'),
+                    aligned: _bs.aligned === true,
+                    byOrderLen: Number.isFinite(_bs.byOrderLen) ? _bs.byOrderLen : null,
+                    byInjectionOrderLen: Number.isFinite(_bs.byInjectionOrderLen) ? _bs.byInjectionOrderLen : null,
+                    byInjectionOrder: _byOrder,
+                },
+                fusedSourceBlocks: (tr.fusedSourceBlocks && typeof tr.fusedSourceBlocks === 'object')
+                    ? {
+                        keys: Array.isArray(tr.fusedSourceBlocks.keys) ? tr.fusedSourceBlocks.keys.slice() : [],
+                        separable: false,
+                        why: String(tr.fusedSourceBlocks.why || ''),
+                    } : null,
+            };
+        }
         _injectionCommit(myGen) {
             const p = this._injectionPending;
             const gen = Number.isFinite(myGen) ? myGen : (Number(this._genSeq) || 0);
@@ -1950,6 +2122,10 @@
                 total: p.total, kept: p.kept,
                 round: this._injectionRound, gen: p.gen,
             });
+            /* [L13-O6] 回执快照与读数**同代同落**：上面两道代际核对都已通过才走到这里，
+             *   故这两件事不可能一个新一个旧。落在 record 之外的独立字段上，
+             *   是为了不动 `_injectionRecord` 的 11 键契约（v3216 T3 守着）。 */
+            try { this._lastInjectionTrace = p.trace || null; } catch (e) { errLog(e, '注入提交.回执快照'); }
             this._injectionPending = null;   // ③
             return rec;
         }
@@ -2100,7 +2276,22 @@
                     kept: !!(b && b.kept),
                     chars: Number.isFinite(b && b.chars) ? b.chars : 0,
                     reason: String((b && b.reason) || ''),
+                    /* [L13-O6] 外供面逐块键面 6 → 9：补「这一条是哪来的 / 凭什么判 / 是不是半段」。
+                     *   为什么必须补到**外供面**、而不是只留在内部 `_lastInjection`：
+                     *   O6 的产品承诺是「玩家能看到这一轮模型到底吃进了哪几条记忆」，
+                     *   面板之外的读取方只拿得到外供面；键只留一份在内部，下游就只能拿到
+                     *   id/kept —— 那正好是 O6 明令禁止的「只显示总数」。
+                     *   三格缺省值都不是编出来的数字：`src` 缺省 `unattributed`
+                     *   （「没被归属」≠「无来源」），`partial` 缺省 false，`via` 缺省 `unknown`
+                     *   （判据来源不明时不许写成任何一种精确判据）。 */
+                    src: String((b && b.src) || 'unattributed'),
+                    partial: !!(b && b.partial),
+                    via: String((b && b.via) || 'unknown'),
                 })),
+                /* [L13-O6] 本轮回执的窄投影（与被裁读数**同源**：都出自同一次提交的快照）。
+                 *   外供面多一格而不是把整份 draft 塞进来 —— 见 `_injectionTraceProjection`。 */
+                trace: (this._lastInjectionTrace && typeof this._lastInjectionTrace === 'object')
+                    ? this._lastInjectionTrace : null,
             };
         }
 

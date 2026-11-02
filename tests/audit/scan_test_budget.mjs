@@ -74,6 +74,7 @@ export function auditTestBudget(customRoot = ROOT, opts = {}) {
 
   /* ── 结构面（初版既有判据，逐条保留：它们是必要不充分的） ── */
   const defects = [];
+  const warnings = [];
   if (data.schema !== 'test-budget@1') {
     defects.push(`schema 字段不符: ${data.schema}`);
   }
@@ -91,12 +92,31 @@ export function auditTestBudget(customRoot = ROOT, opts = {}) {
      *   与 scan_plan_currency 在 G 档 exit 2 同一口径：无从核对不得发合格证。 */
     return { status: 'fail_closed', exitCode: 2, error: live.why };
   }
+  /* ── 输入面 ①a：预算版本落后 ⇒ 只认**显式登记过的豁免**，不认静默漂移 ──
+   *   修前这里是一条「容忍 2 个次版本、超了就红」的硬闸。问题不在闸严，而在**它没有分档**：
+   *   本仓明令「计划未做完前不跑全量」，于是全量耗时预算必然长期落后 —— 而落后本身是
+   *   **已知读数欠账**（`policy.pending_full_run` 会自述它），不是「预算悄悄量旧数」。
+   *   两者必须不同形，否则守门人整天在红：真缺陷（静默过期）会被大量合法红淹没。
+   *   故改成两支：
+   *     · 落后且**无豁免声明** ⇒ 红（原口径，一个字不放宽）；
+   *     · 落后但 policy 里**显式声明** `pending_full_run: true` + `pending_since: <版本>`
+   *       且 pending_since 就等于预算自身 version ⇒ 记一条 warn（notes，不判红）。
+   *   豁免不得用来掩盖「声明了却还撒谎」：pending_since 必须与预算 version 同源。 */
   const behind = versionsBehind(data.version, live);
   if (!behind.ok) {
     defects.push(behind.why);
   } else if (behind.behind > SLACK_VERSIONS) {
-    defects.push(`预算 version ${data.version} 落后当版 ${live.version} 共 ${behind.behind} 个次版本`
-      + `（容忍 ${SLACK_VERSIONS}）—— 预算必须定期复测，否则「超预算告警」量的是旧数`);
+    const pol = (data.policy && typeof data.policy === 'object') ? data.policy : {};
+    const pendingOk = pol.pending_full_run === true
+      && String(pol.pending_since || '') === String(data.version);
+    if (pendingOk) {
+      warnings.push(`预算 version ${data.version} 落后当版 ${live.version} 共 ${behind.behind} 个次版本`
+        + `（已显式声明 pending_full_run，自 ${pol.pending_since} 起待收口实跑）—— 只告警，不判红`);
+    } else {
+      defects.push(`预算 version ${data.version} 落后当版 ${live.version} 共 ${behind.behind} 个次版本`
+        + `（容忍 ${SLACK_VERSIONS}）—— 预算必须定期复测，否则「超预算告警」量的是旧数；`
+        + `若确因「计划未做完不跑全量」而有意落后，必须在 policy 里声明 pending_full_run: true 且 pending_since 等于预算 version`);
+    }
   }
 
   /* ── 输入面 ②：登记档必须是磁盘上真有的测试文件（T 档在这里响） ── */
@@ -160,6 +180,7 @@ export function auditTestBudget(customRoot = ROOT, opts = {}) {
     status: defects.length === 0 ? 'ok' : 'defect',
     exitCode: defects.length === 0 ? 0 : 1,
     defects,
+    warnings,
     suiteCount: suiteNames.length,
     top20Count: data.top_20_slowest ? data.top_20_slowest.length : 0,
     liveVersion: live.version,
@@ -178,6 +199,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     for (const d of res.defects) console.error('  - ' + d);
     process.exit(1);
   }
+  for (const w of res.warnings) console.log('  ! ' + w);
   console.log(`[test-budget] 检查通过：test_budget.json 契约自洽，已登记 ${res.suiteCount} 个基准档与 Top${res.top20Count} 热点`
     + `（预算 v${res.budgetVersion} / 当版 v${res.liveVersion}）。`);
   process.exit(0);

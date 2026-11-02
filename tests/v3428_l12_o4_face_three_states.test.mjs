@@ -134,9 +134,12 @@ const R_ABSENT = 'class="ls-hint ls-face-absent"';
 /* C2 重试按钮：摘掉即失败态没有恢复入口。 */
 const A_RETRY = '<button class="ls-btn ls-face-retry"';
 const R_RETRY = '<button class="ls-btn"';
-/* C3 空态措辞：退回单句空态（改造前的老形态）。 */
-const A_EMPTY = 'class="ls-hint ls-face-empty" data-ls-face="empty">真的没有。';
-const R_EMPTY = 'class="ls-hint ls-face-empty" data-ls-face="empty">暂无数据。';
+/* C3 空态措辞：退回单句空态（改造前的老形态）。
+ *   [v3.439.0 锚点同步] 空态标记在 O9/X3 那一刀补了 `data-face-why`（三态都要能答「为什么是这个态」），
+ *   原锚点 `data-ls-face="empty">真的没有。` 因此被打断（实 0 命中）。锚点是**观测点**，不是判据口径：
+ *   真源合法演进后必须同步锚点，否则 C3 会静默空转（本档 D1 的锚点纯度自证就是为了当场抓这个）。 */
+const A_EMPTY = 'data-ls-face="empty" data-face-why="\' + escAttr(faceState.code) + \'">真的没有。';
+const R_EMPTY = 'data-ls-face="empty" data-face-why="\' + escAttr(faceState.code) + \'">暂无数据。';
 /* C4 faceRead 的 catch：把「吞错并落 failed」换成「原样外抛」。
  *   ★ 这里必须两行拼装（同 v3303 的 A_ESC 写法）：单行 `} catch (e) {` 在真源里有 13 处
  *   （每个视图各一个），只锚它必撞多命中、破坏点不再定点。两段各自单行 ⇒ H5 计数口径不变，

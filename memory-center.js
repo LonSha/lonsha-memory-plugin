@@ -93,6 +93,9 @@
         { id: 'row.revoke', label: '撤回', kind: 'write', writes: true, undo: true, scope: 'row' },
         { id: 'row.dispute', label: '标记争议', kind: 'write', writes: true, undo: true, scope: 'row' },
         { id: 'row.export', label: '导出本条', kind: 'read', writes: false, undo: false, scope: 'row' },
+        { id: 'row.edit', label: '编辑正文', kind: 'write', writes: true, undo: true, scope: 'row' },
+        { id: 'row.pin', label: '置顶 / 取消置顶', kind: 'write', writes: true, undo: true, scope: 'row' },
+        { id: 'row.forget', label: '遗忘（可恢复）', kind: 'write', writes: true, undo: true, scope: 'row' },
         { id: 'query.save', label: '保存查询条件', kind: 'write', writes: true, undo: false, scope: 'query' },
         { id: 'query.reset', label: '清空条件', kind: 'read', writes: false, undo: false, scope: 'query' },
         { id: 'saved.replay', label: '回放', kind: 'read', writes: false, undo: false, scope: 'saved' },
@@ -255,7 +258,7 @@
         const d = (deps && typeof deps === 'object') ? deps : {};
         const base = {
             version: CENTER_VERSION, state: st, spec: buildSpec(st),
-            rows: [], actions: [], saved: [], pager: { page: st.page, pageSize: st.pageSize, pages: 0, total: 0 },
+            rows: [], memoryRows: [], actions: [], saved: [], pager: { page: st.page, pageSize: st.pageSize, pages: 0, total: 0 },
             /* [v3.325.0 · M3-O8] 三格新增（**恒定键面**：缺席面与在场产出逐字同键） */
             profiles: null, detailFace: null, revisionChain: null, selection: [],
             notes: [], uiFields: UI_FIELDS.map((f) => ({ ui: f.ui, label: f.label, value: st[f.ui] }))
@@ -286,6 +289,16 @@
         if (v.detail) base.detail = v.detail;
         base.query = q;
         base.rows = Array.isArray(q.rows) ? q.rows : [];
+        /* [L13-O2] 角色记忆正文不属于九账证据投影；由 memory-organs 的 owner slot
+         * 单独读出，避免把 UI 拼出的副本混入 evidence-query 的事实口径。 */
+        base.memoryRows = Array.isArray(o.memoryRows) ? o.memoryRows.map((x) => ({
+            ref: text(x && x.ref, 180), ledger: 'char-mem', ledgerLabel: '角色记忆',
+            title: text(x && x.title, MAX_TEXT), detail: text(x && x.detail, MAX_TEXT),
+            status: text(x && x.status, 20), floor: numOrNull(x && x.floor), updatedFloor: numOrNull(x && x.updatedFloor),
+            source: 'charMem', revision: numOrNull(x && x.revision), revisionKnown: true,
+            actors: Array.isArray(x && x.actors) ? x.actors : [], text: text(x && x.text, 200),
+            masked: false, scope: null, memory: true, memoryItem: x && x.memoryItem ? x.memoryItem : null
+        })).filter((x) => x.ref) : [];
         base.selection = st.selection.slice();
         base.pager = { page: q.page, pageSize: q.pageSize, pages: q.pages, total: q.total, outOfRange: q.pageOutOfRange === true };
         base.saved = Array.isArray(st.saved) ? st.saved : [];
@@ -746,10 +759,12 @@
         parts.push('</div>');
         return parts.join('');
     }
-    function actionButtons(actions, scope, ref) {
+    function actionButtons(actions, scope, ref, memory) {
         const out = [];
         for (const a of actions) {
             if (a.scope !== scope) continue;
+            const memoryAction = a.id === 'row.edit' || a.id === 'row.pin' || a.id === 'row.forget';
+            if (memory ? !memoryAction : memoryAction) continue;
             const dis = a.unavailable ? ' disabled aria-disabled="true"' : '';
             out.push('<button class="ls-btn' + (a.kind === 'write' ? ' ls-btn-danger' : '') + '"'
                 + dis + ' data-action="' + escAttr(a.handlerId) + '"'
@@ -773,9 +788,22 @@
                 + '<div class="ls-item-meta">' + esc(meta) + ' · <span class="ls-mc-ref">' + esc(r.ref) + '</span></div>'
                 + '<div class="ls-item-text">' + esc(r.title) + (r.detail ? ' — ' + esc(r.detail) : '') + '</div>'
                 + masked
-                + '<div class="ls-mc-actions">' + '<button class="ls-btn ls-btn-sm ls-mc-lineage-btn" data-mc="lineage" data-ref="' + escAttr(r.ref) + '">📜 沿革</button> ' + actionButtons(face.actions, 'row', r.ref) + '</div>'
+                + '<div class="ls-mc-actions">' + '<button class="ls-btn ls-btn-sm ls-mc-lineage-btn" data-mc="lineage" data-ref="' + escAttr(r.ref) + '">📜 沿革</button> ' + actionButtons(face.actions, 'row', r.ref, r.memory === true) + '</div>'
                 + '</div>';
         }).join('');
+    }
+    function memoryRowsHtml(face) {
+        const rows = Array.isArray(face && face.memoryRows) ? face.memoryRows : [];
+        if (!rows.length) return '';
+        return '<div class="ls-group ls-mc-memory-bank"><div class="ls-group-title">🧠 角色记忆银行（单条编辑）</div>' + rows.map((r) => {
+            const meta = ['角色记忆', r.detail || '', '楼层 ' + (r.floor == null ? '—' : r.floor), r.status || ''].filter(Boolean).join(' · ');
+            const pinned = r.memoryItem && r.memoryItem.pinned === true ? ' · 📌已置顶' : '';
+            return '<div class="ls-item ls-mc-row" data-ref="' + escAttr(r.ref) + '" data-memory="true">'
+                + '<div class="ls-item-meta">' + esc(meta + pinned) + ' · <span class="ls-mc-ref">' + esc(r.ref) + '</span></div>'
+                + '<div class="ls-item-text">' + esc(r.title) + '</div>'
+                + '<div class="ls-mc-actions">' + actionButtons(face.actions, 'row', r.ref, true) + '</div>'
+                + '</div>';
+        }).join('') + '</div>';
     }
     function savedHtml(face) {
         const saved = Array.isArray(face.saved) ? face.saved : [];
@@ -843,6 +871,7 @@
             batchHtml(f),
             pagerHtml(f.pager),
             '<div class="ls-mc-rows">' + rowsHtml(f) + '</div>',
+            memoryRowsHtml(f),
             '<div class="ls-group"><div class="ls-group-title">保存的查询条件</div>' + savedHtml(f) + '</div>',
             (f.notes && f.notes.length) ? '<div class="ls-hint">' + f.notes.map(esc).join('<br>') + '</div>' : ''
         ];
@@ -946,6 +975,62 @@
         return face;
     }
 
+    function parseMemoryRef(ref) {
+        const s = String(ref == null ? '' : ref);
+        if (s.indexOf('char-mem:') !== 0) return null;
+        const rest = s.slice(9);
+        const at = rest.indexOf(':');
+        if (at < 1) return null;
+        try { return { char: decodeURIComponent(rest.slice(0, at)), id: decodeURIComponent(rest.slice(at + 1)) }; }
+        catch (_e) { return null; }
+    }
+    function memorySlot(host) { return host && host.charMem && typeof host.charMem === 'object' ? host.charMem : null; }
+    function editRow(host, ref, nextText, opts) {
+        const p = parseMemoryRef(ref), o = opts || {}, slot = memorySlot(host);
+        const out = { ok: false, reason: '', changed: false, ref: String(ref == null ? '' : ref), undo: null };
+        if (!p) { out.reason = 'not-memory-row'; return out; }
+        if (!slot) { out.reason = 'memory-slot-absent'; return out; }
+        try {
+            const r = o.undo === true
+                ? slot.undoMemoryEdit?.(p.char, p.id, o.before === undefined ? nextText : o.before, o.expectedAfter)
+                : slot.editMemory?.(p.char, p.id, nextText, { by: 'memory-center' });
+            if (!r) { out.reason = 'memory-edit-absent'; return out; }
+            Object.assign(out, r, { ref: String(ref) });
+            if (r.ok && r.changed && o.undo !== true) out.undo = { char: p.char, id: p.id, before: r.before, after: r.after };
+            return out;
+        } catch (_e) { out.reason = 'thrown'; return out; }
+    }
+    function pinRow(host, ref, opts) {
+        const p = parseMemoryRef(ref), o = opts || {}, slot = memorySlot(host);
+        const out = { ok: false, reason: '', changed: false, ref: String(ref == null ? '' : ref), undo: null };
+        if (!p) { out.reason = 'not-memory-row'; return out; }
+        if (!slot) { out.reason = 'memory-slot-absent'; return out; }
+        try {
+            const r = o.undo === true
+                ? slot.undoMemoryPin?.(p.char, p.id, o.beforePinned, o.expectedAfter)
+                : slot.pinMemory?.(p.char, p.id, o.pinned);
+            if (!r) { out.reason = 'memory-pin-absent'; return out; }
+            Object.assign(out, r, { ref: String(ref) });
+            if (r.ok && r.changed && o.undo !== true) out.undo = { char: p.char, id: p.id, beforePinned: r.before, after: r.after };
+            return out;
+        } catch (_e) { out.reason = 'thrown'; return out; }
+    }
+    function forgetRow(host, ref, opts) {
+        const p = parseMemoryRef(ref), o = opts || {}, slot = memorySlot(host);
+        const out = { ok: false, reason: '', changed: false, ref: String(ref == null ? '' : ref), undo: null };
+        if (!p) { out.reason = 'not-memory-row'; return out; }
+        if (!slot) { out.reason = 'memory-slot-absent'; return out; }
+        try {
+            if (o.undo === true) {
+                const ok = slot.restoreMemory?.(p.char, p.id);
+                out.ok = ok === true; out.changed = out.ok; out.reason = out.ok ? 'restored' : 'not-found'; return out;
+            }
+            const ok = slot.deleteMemory?.(p.char, p.id, { deletedBy: 'memory-center', reason: 'manual-forget' });
+            out.ok = ok === true; out.changed = out.ok; out.reason = out.ok ? 'forgotten' : 'not-found';
+            if (out.ok) out.undo = { char: p.char, id: p.id };
+            return out;
+        } catch (_e) { out.reason = 'thrown'; return out; }
+    }
     /** 自述：缺哪一格、缺了会怎样（只读、不抛）。 */
     function describe(deps) {
         const d = (deps && typeof deps === 'object') ? deps : {};
@@ -1017,6 +1102,7 @@
         profileHtml, detailHtml, batchHtml,
         PROFILE_KINDS, TIME_BUCKET, EVENT_LEDGERS, BATCH_ACTIONS, OPTIONAL_DEPS,
         buildProfiles, timeBucketOf, detailOf, revisionChain, batchPreview, navigate,
+        editRow, pinRow, forgetRow, parseMemoryRef,
         describe, selfCheck, line
     });
     root.LonShaMemoryCenter = api;

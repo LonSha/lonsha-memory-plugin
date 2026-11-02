@@ -580,7 +580,13 @@ function errLog(e, tag) {
                     textSource: (o.textSource !== undefined) ? o.textSource : ((r) => this.memoryCenterSourceText(r)),
                     factState: (o.factState !== undefined) ? o.factState : this._factVersionState,
                     batchSelection: o.batchSelection,
-                    profileKinds: o.profileKinds
+                    profileKinds: o.profileKinds,
+                    memoryRows: (this.charMem && typeof this.charMem.memoryCenterRows === 'function') ? this.charMem.memoryCenterRows().map((x) => ({
+                        ref: 'char-mem:' + encodeURIComponent(x.char) + ':' + encodeURIComponent(x.item.id),
+                        title: x.item.text, detail: x.char + ' · ' + x.bucket, status: x.item.pinned === true ? 'pinned' : 'active',
+                        floor: x.item.floor, updatedFloor: x.item.editedAt || x.item.ts, revision: x.item.memoryRevision || 0,
+                        actors: [{ field: 'char', name: x.char }], text: x.item.text, memoryItem: x.item
+                    })) : []
                 });
                 /* 只留**读数摘要**，不留 rows —— 存 rows 就是第二份证据库。 */
                 this._memoryCenterLast = {
@@ -677,7 +683,13 @@ function errLog(e, tag) {
                     textSource: ((opts || {}).textSource !== undefined) ? opts.textSource : ((r) => this.memoryCenterSourceText(r)),
                     factState: ((opts || {}).factState !== undefined) ? opts.factState : this._factVersionState,
                     batchSelection: (opts || {}).batchSelection,
-                    profileKinds: (opts || {}).profileKinds
+                    profileKinds: (opts || {}).profileKinds,
+                    memoryRows: (this.charMem && typeof this.charMem.memoryCenterRows === 'function') ? this.charMem.memoryCenterRows().map((x) => ({
+                        ref: 'char-mem:' + encodeURIComponent(x.char) + ':' + encodeURIComponent(x.item.id),
+                        title: x.item.text, detail: x.char + ' · ' + x.bucket, status: x.item.pinned === true ? 'pinned' : 'active',
+                        floor: x.item.floor, updatedFloor: x.item.editedAt || x.item.ts, revision: x.item.memoryRevision || 0,
+                        actors: [{ field: 'char', name: x.char }], text: x.item.text, memoryItem: x.item
+                    })) : []
                 });
                 this._memoryCenterLast = {
                     at: Date.now(), view: face.view, reason: face.reason,

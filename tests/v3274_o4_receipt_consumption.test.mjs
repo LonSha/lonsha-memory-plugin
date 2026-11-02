@@ -293,8 +293,17 @@ test('v3274 B2. 词表同源：`keptFrom` 与逐块读数的 `via` 是同一套�
     /* 结构面：聚合段**不再有可执行**的 `includes(块)` 反推。
      *   注意必须剔掉注释行 —— 修前那段旧代码的**字面量被有意保留在注释里**
      *   （说明「删掉的是什么」），拿整段文本扫会把它当成残留代码误判。 */
+    /* [L13-O6] 切片起点由**固定字符窗口**改为**真实锚点**。
+     *   修前写的是 `at - 4200`（一个魔法数）：它只在「聚合段恰好不超过 4200 字符」时成立。
+     *   L13-O6 在聚合段里插入了块级账二次收口（stages 两格改用同一份草稿收口 + 空块格），
+     *   段长当场跨过 4200 ⇒ 起点切进了段中间，`_keptFrom` 声明被切出视野，判据假红。
+     *   魔法数的坏处正在此：它把「段有多长」这件无关事实偷偷变成判据的一部分，
+     *   于是任何正当的段内改动都会以「词表不同源」的名义报错 —— 而归因完全指错方向。
+     *   现在起点取聚合段的**第一行**（`_draft` 声明，锚点在真源码里唯一），段走到聚合面为止。 */
     const at = IDX_SRC.indexOf('_lastBudgetStats = {');
-    const seg = IDX_SRC.slice(at - 4200, at);
+    const _segAt = IDX_SRC.lastIndexOf('const _draft = Array.isArray(this._lastInjectionDraft)', at);
+    assert.ok(_segAt > 0 && _segAt < at, '聚合段起点锚点必须在聚合面之前（锚点失配即切错段）');
+    const seg = IDX_SRC.slice(_segAt, at);
     const segCode = seg.split('\n').filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
     assert.ok(!/full\.includes\(/.test(segCode), '★ 聚合段不得残留可执行的 `full.includes(块)` 反推');
     assert.ok(/const _keptFrom = /.test(segCode), '聚合数由 `_keptFrom` 分态导出');

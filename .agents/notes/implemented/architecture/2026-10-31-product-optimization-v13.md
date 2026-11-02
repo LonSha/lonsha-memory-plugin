@@ -140,6 +140,14 @@ This keeps the real host as a separate, reproducible gate: a real run is require
   `scan_ui_panel_drive` 的 W7 对新增三态各有一档。
 - **规模**：**3 天**（含 oplog 接线与撤销回环）。
 
+### L13-O2 implementation record
+
+L13-O2 is implemented in the existing memory-center path without adding a second memory store. `CharacterMemoryBank` now exposes a read-only `memoryCenterRows()` projection plus owner-slot writers for `editMemory`, `pinMemory`, `deleteMemory`/`restoreMemory`, and optimistic undo slots for text and pin state. The memory center receives those rows from `engine-evidence-center.js`, marks them as `char-mem` rows, and declares `row.edit`, `row.pin`, and `row.forget` as writeable and undoable actions. Evidence rows keep the old action set; the three new actions are only rendered for character-memory rows.
+
+The host adds only three thin `memoryCenterEdit` / `memoryCenterPin` / `memoryCenterForget` delegates. Business mutation remains in `memory-center.js`, while actual data mutation remains in `memory-organs.js`. Text edits preserve the original id and bucket, write an `char_mem/edit` OpLog event, and use an expected-after guard for undo. Pinning uses the same owner slot. Forgetting reuses the existing tombstone owner, so recall exclusion, restoration, export/import, and provenance remain O8 behavior rather than a second delete implementation. The settings panel adds inline expansion for editing and three `_memoryCenterHandlers`; successful writes call the existing persistence helper and push undo closures onto the existing audit stack.
+
+The dedicated `tests/v3434_l13_o2_memory_edit.test.mjs` suite proves the action contract, owner-slot mutation, id preservation, export/import persistence, OpLog edit/undo and tombstone provenance, row rendering, and three true-source negative controls. Existing memory-center, memory-organs, M4-O8 action, and O8 tombstone suites remain green. This proves the in-process contract and DOM string path; a real SillyTavern touch-flow for O2 remains a separate boundary from the O1 host boot evidence and must not be described as completed here.
+
 ### L13-O3 · 只读视图的机器可读三态（把「为什么没有」变成属性）
 
 - **真实现场**：Problem 5。`relations` / `vectors` / `volumes` 等 20+ 视图的空态是散文

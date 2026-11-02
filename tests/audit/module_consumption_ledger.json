@@ -1,8 +1,8 @@
 {
   "schema": "module-consumption-ledger@1",
-  "generated_at": "2026-10-29T17:17:35.296Z",
-  "total_modules": 244,
-  "zero_consumption_count": 21,
+  "generated_at": "2026-11-02T01:49:59.273Z",
+  "total_modules": 248,
+  "zero_consumption_count": 19,
   "modules": {
     "ledger-entity.js": {
       "module": "ledger-entity.js",
@@ -12,6 +12,15 @@
       "prod_call_sites": 11,
       "allowed": 1,
       "why": "active"
+    },
+    "config-effect-registry.js": {
+      "module": "config-effect-registry.js",
+      "surface": [
+        "config-effect-registry"
+      ],
+      "prod_call_sites": 0,
+      "allowed": 0,
+      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
     },
     "settings-ui.js": {
       "module": "settings-ui.js",
@@ -504,7 +513,7 @@
       "surface": [
         "secret-ledger"
       ],
-      "prod_call_sites": 7,
+      "prod_call_sites": 9,
       "allowed": 1,
       "why": "active"
     },
@@ -531,7 +540,7 @@
       "surface": [
         "fact-version"
       ],
-      "prod_call_sites": 18,
+      "prod_call_sites": 19,
       "allowed": 1,
       "why": "active"
     },
@@ -567,7 +576,7 @@
       "surface": [
         "recall-echo"
       ],
-      "prod_call_sites": 6,
+      "prod_call_sites": 8,
       "allowed": 1,
       "why": "active"
     },
@@ -1125,7 +1134,7 @@
       "surface": [
         "relation-dynamics"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 2,
       "allowed": 1,
       "why": "active"
     },
@@ -1143,7 +1152,7 @@
       "surface": [
         "character-agency-contract"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 2,
       "allowed": 1,
       "why": "active"
     },
@@ -1170,7 +1179,7 @@
       "surface": [
         "institutional-memory"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 2,
       "allowed": 1,
       "why": "active"
     },
@@ -1179,7 +1188,7 @@
       "surface": [
         "globalThis.SymbolicEvolutionLib"
       ],
-      "prod_call_sites": 2,
+      "prod_call_sites": 3,
       "allowed": 1,
       "why": "active"
     },
@@ -1206,7 +1215,7 @@
       "surface": [
         "globalThis.EraInheritanceLib"
       ],
-      "prod_call_sites": 2,
+      "prod_call_sites": 3,
       "allowed": 1,
       "why": "active"
     },
@@ -1215,7 +1224,7 @@
       "surface": [
         "engine-diagnostic-lines"
       ],
-      "prod_call_sites": 71,
+      "prod_call_sites": 127,
       "allowed": 1,
       "why": "active"
     },
@@ -1323,7 +1332,7 @@
       "surface": [
         "fact-correction-bench"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 2,
       "allowed": 1,
       "why": "active"
     },
@@ -1559,7 +1568,7 @@
       ],
       "prod_call_sites": 1,
       "allowed": 1,
-      "why": "active [v3.433.0 账本刷新：门禁实测 prod_call_sites>=1（文件名字符串消费点），原 allowed:0 为账本滞后]"
+      "why": "active"
     },
     "meaning-evolution-map.js": {
       "module": "meaning-evolution-map.js",
@@ -1575,18 +1584,18 @@
       "surface": [
         "memory-archaeology-gap-bench"
       ],
-      "prod_call_sites": 0,
-      "allowed": 0,
-      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
     },
     "counterfactual-experiment-bench.js": {
       "module": "counterfactual-experiment-bench.js",
       "surface": [
-        "CounterfactualExperimentBench.counterfactualImpact"
+        "counterfactual-experiment-bench"
       ],
       "prod_call_sites": 1,
       "allowed": 1,
-      "why": "active [v3.433.0 L13-X2 接入反事实推演面：engine-diagnostic-lines 取库口 + counterfactualWhatIf 转发 + settings-ui whatif 视图]"
+      "why": "active"
     },
     "institutional-collective-memory.js": {
       "module": "institutional-collective-memory.js",
@@ -1595,16 +1604,16 @@
       ],
       "prod_call_sites": 1,
       "allowed": 1,
-      "why": "active [v3.433.0 账本刷新：门禁实测 prod_call_sites>=1（文件名字符串消费点），原 allowed:0 为账本滞后]"
+      "why": "active"
     },
     "character-habit-growth-evidence.js": {
       "module": "character-habit-growth-evidence.js",
       "surface": [
         "character-habit-growth-evidence"
       ],
-      "prod_call_sites": 0,
-      "allowed": 0,
-      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
     },
     "multi-perspective-theater-bench.js": {
       "module": "multi-perspective-theater-bench.js",
@@ -1629,9 +1638,9 @@
       "surface": [
         "era-continuation-inheritance-tree"
       ],
-      "prod_call_sites": 0,
-      "allowed": 0,
-      "why": "存量独立算法库或工作台套件（待后续阶段接线或降级）"
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
     },
     "micro-atmosphere-residual-tracker.js": {
       "module": "micro-atmosphere-residual-tracker.js",
@@ -2203,7 +2212,25 @@
     "memory-lineage-replay.js": {
       "module": "memory-lineage-replay.js",
       "surface": [
-        "window.LonShaMemoryLineageReplay"
+        "memory-lineage-replay"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "pov-projection.js": {
+      "module": "pov-projection.js",
+      "surface": [
+        "pov-projection"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "round-entry-snapshot.js": {
+      "module": "round-entry-snapshot.js",
+      "surface": [
+        "round-entry-snapshot"
       ],
       "prod_call_sites": 1,
       "allowed": 1,

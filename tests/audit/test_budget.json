@@ -4,7 +4,10 @@
   "policy": {
     "slack_ratio": 1.1,
     "enforcement": "fail-open-warn-only",
-    "note": "超预算只输出警告不改变退出码；测试面与审计面分开计；预算缺项只报耗时并说明原因"
+    "note": "超预算只输出警告不改变退出码；测试面与审计面分开计；预算缺项只报耗时并说明原因",
+    "pending_full_run": true,
+    "pending_since": "3.431.0",
+    "pending_note": "用户指令「做完全部计划内容之前不要跑全量」有效期内，全量耗时预算不重绑；本字段显式声明这一状态，供 scan_test_budget 分档（只告警不判红）。收口实跑后必须删掉本条、由 tools/gen_test_budget.mjs 刷新 version 与读数。"
   },
   "tests_total": 430,
   "tests_wall_s": 377.2,

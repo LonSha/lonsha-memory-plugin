@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 111332,
+  "ceiling": 116058,
   "maxSlack": 400,
-  "note": "L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复",
+  "note": "v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。",
   "history": [
     {
       "ceiling": 21000,
@@ -409,7 +409,15 @@
     {
       "ceiling": 111332,
       "reason": "L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复"
+    },
+    {
+      "ceiling": 113338,
+      "reason": "v3.435.0~v3.439.0 五版活跃功能增长：O3 四态/O8 软删闭环/O4 可达性扫描器/O5 世界线读口/O6 注入回执 + X3 视角投影面新内核 pov-projection.js（642 行）与面板三态投影"
+    },
+    {
+      "ceiling": 116058,
+      "reason": "v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。"
     }
   ],
-  "_history_last": "ceiling 110629 → 111332（实测 110932 + slack 400）：L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复"
+  "_history_last": "ceiling 113338 → 116058（实测 115658 + slack 400）：v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。"
 }

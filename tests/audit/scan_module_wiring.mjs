@@ -216,10 +216,17 @@ const entryCode = fs.readFileSync(path.join(ROOT, entry), 'utf8');
 /* [v3.266.0 A1 第六刀] 刀口模块又多了 memory-core.js（四个内核数据模型类的消费点随类一同搬过去）。
  *   [v3.267.0 A1 第七刀] memory-config.js 也纳入同族消费载体：ConfigManager 配置/迁移路径随类外移。
  *   同族载体清单必须随每一刀扩面：否则新刀口下的真接线会被误报成「零消费」（假红）。 */
+/* [v3.439.0 · L13-O9] 消费面还必须认**独立注册的面板模块**。
+ *   `config-effect-registry.js` 挂 `window.LonShaMemoryConfigEffects` 之后，唯一的消费点是
+ *   `settings-ui.js` 的 `const configEffects = window.LonShaMemoryConfigEffects` —— 面板模块
+ *   从来不在 index.js 里被引用（它是宿主页直接注入的独立脚本），于是 B4 把这条**真接线**
+ *   报成「已挂载但零消费」。判据量错了对象，与上面 A1 刀口那串假红同族：
+ *   修法是让消费面认这类宿主直挂模块，不是把符号塞进账本（记账会把真接线记成腐烂）。 */
+const HOST_FACE_CONSUMERS = ['settings-ui.js'].filter((f) => loadOrder.includes(f));
 const A1_CARRIERS = Array.from(new Set([
     'memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js',
     'memory-organs.js', 'memory-core.js', 'memory-config.js', 'engine-diagnostic-lines.js',
-    'engine-report.js', 'engine-recall.js', ...HOST_MODULES
+    'engine-report.js', 'engine-recall.js', ...HOST_MODULES, ...HOST_FACE_CONSUMERS
 ])).filter((f) => loadOrder.includes(f));
 const consumptionCode = [entryCode].concat(
     A1_CARRIERS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))).join(String.fromCharCode(10));

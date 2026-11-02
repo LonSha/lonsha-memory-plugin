@@ -1,5 +1,6 @@
 module	loaded	seam_referenced	referenced_by	verdict
 ledger-entity.js	yes	yes	commitment-ledger.js;docs/planning/2026-10-22-product-probe-v6.mjs;echo-ledger.js	host-seam
+config-effect-registry.js	yes	no	none	orphan
 settings-ui.js	yes	yes	none	host-seam
 modules_combined.js	yes	no	none	orphan
 graph_algorithms.js	yes	no	none	orphan
@@ -173,13 +174,13 @@ project-migration-boundary-bench.js	yes	no	none	orphan
 memory-task-workbench.js	yes	no	none	orphan
 memory-season-silence-manager.js	yes	yes	none	host-seam
 meaning-evolution-map.js	yes	no	none	orphan
-memory-archaeology-gap-bench.js	yes	no	none	orphan
+memory-archaeology-gap-bench.js	yes	yes	none	host-seam
 counterfactual-experiment-bench.js	yes	yes	none	host-seam
 institutional-collective-memory.js	yes	yes	none	host-seam
-character-habit-growth-evidence.js	yes	no	none	orphan
+character-habit-growth-evidence.js	yes	yes	none	host-seam
 multi-perspective-theater-bench.js	yes	no	none	orphan
 memory-action-symbiosis-circuit.js	yes	no	none	orphan
-era-continuation-inheritance-tree.js	yes	no	none	orphan
+era-continuation-inheritance-tree.js	yes	yes	none	host-seam
 micro-atmosphere-residual-tracker.js	yes	yes	none	host-seam
 attention-priming-verification-anchor.js	yes	yes	none	host-seam
 irony-pretense-immune-filter.js	yes	yes	none	host-seam
@@ -244,3 +245,5 @@ fact-replay-pipeline.js	yes	yes	none	host-seam
 inband-extraction-parser.js	yes	yes	none	host-seam
 worldline-memory.js	yes	yes	none	host-seam
 memory-lineage-replay.js	yes	yes	none	host-seam
+pov-projection.js	yes	yes	none	host-seam
+round-entry-snapshot.js	yes	yes	none	host-seam

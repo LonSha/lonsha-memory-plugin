@@ -51,16 +51,30 @@ test('L13-O7: 负控制 — 版本、门禁、体量任一行被篡改都必须�
 });
 
 test('L13-O7: 版本判据确实读取 index.js，而不是写死版本号', () => {
+  /* 【本判据自己付过的学费（v3.439.0 抬版时当场翻红）】
+   *   原写法把「改造用的锚」写死成 `const VERSION = '3.433.0'`，于是**每次抬版这条判据就失效** ——
+   *   replace 匹配不到 → index.js 没被改 → VERSION 仍是当版 → PLAN 却写成 9.9.9 → 判据转红。
+   *   红得对（判据真的在比），但红的原因是**判据自己在抬版时坏掉**，这属于「抬版仪式」反模式。
+   *   修法：锚从**当版真值**现场派生，任何版本号都能跑；且必须自证锚恰中 1 次（否则破坏没发生，
+   *   这条自证会退化成恒绿）。 */
   const indexFile = path.join(ROOT, 'index.js');
   const originalIndex = fs.readFileSync(indexFile, 'utf8');
   const originalPlan = fs.readFileSync(PLAN_FILE, 'utf8');
+  const cur = (/const VERSION = '([^']+)'/.exec(originalIndex) || [])[1];
+  assert.ok(cur, 'index.js VERSION 真源必须在场');
+  const anchor = "const VERSION = '" + cur + "'";
+  assert.equal(originalIndex.split(anchor).length - 1, 1, '改造锚必须在真源里恰中 1 次（否则下面的破坏不会发生）');
   try {
-    fs.writeFileSync(indexFile, originalIndex.replace("const VERSION = '3.433.0'", "const VERSION = '9.9.9'"), 'utf8');
+    fs.writeFileSync(indexFile, originalIndex.replace(anchor, "const VERSION = '9.9.9'"), 'utf8');
+    assert.ok(fs.readFileSync(indexFile, 'utf8').indexOf("const VERSION = '9.9.9'") > 0, 'index.js 必须真的被改成 9.9.9');
     const tamperedPlan = originalPlan.replace(/\| 版本 \|.*\|/, '| 版本 | **v9.9.9**（index.js VERSION 真源） | index.js |');
     fs.writeFileSync(PLAN_FILE, tamperedPlan, 'utf8');
-    assert.equal(checkPlanBaseline().ok, true, '改动 VERSION 后，匹配的新版本行应通过');
+    assert.equal(checkPlanBaseline().ok, true, '改动 VERSION 后，匹配的新版本行应通过（证明判据读的是 index.js 而不是常量）');
   } finally {
     fs.writeFileSync(indexFile, originalIndex, 'utf8');
     fs.writeFileSync(PLAN_FILE, originalPlan, 'utf8');
   }
+  // 复原自证：两个文件必须逐字回到原样（否则这条判据会污染后续套件）
+  assert.equal(fs.readFileSync(indexFile, 'utf8'), originalIndex, 'index.js 必须逐字复原');
+  assert.equal(fs.readFileSync(PLAN_FILE, 'utf8'), originalPlan, 'PLAN.md 必须逐字复原');
 });

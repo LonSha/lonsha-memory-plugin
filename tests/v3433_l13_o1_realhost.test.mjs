@@ -103,15 +103,38 @@ test('L13-O1 E. 两个关键 fail-closed 锚点各有有效负控制', () => {
         '摘掉 null/非对象保护后，负控制必须能观察到 fail-closed 契约缺席');
 });
 
-test('L13-O1 F. 证据版本与当前仓库版本一致，且三块均为成功读数', () => {
+/* [v3.439.0 改形：一条断言拆成两支，且都不许「未执行报到通过」]
+ *   原写法无条件要求 `verdict === 'success'`。在没有真实 SillyTavern 现场的开发机上，
+ *   探针只会落 `environment-unavailable`（本仓 `_realhost_suite.mjs` 的 bail 路径）——
+ *   那不是缺陷，是**未执行**。本仓纪律明写「未执行不报通过」：既不许把它当通过，
+ *   也不该把它记成产品缺陷。故改成两支：
+ *     ① 环境未就绪 ⇒ 断言「未执行态自述完整」（schema / version / reason / source 齐，
+ *        且**不得**出现 ok / blocks / readings 这些成功读数键 —— 那是伪装成成功的形态），
+ *        然后用 `t.skip()` 如实标跳过（Node 的 skipped 不计 pass，读数上看得见）；
+ *     ② 环境就绪 ⇒ 走原来那套全判（success + 三块 + 读数条数 + 无 pageErrors）。
+ *   版本断言同时由「锁 3.433.0」改为**下界形**（同本档 I 段的理由：锁当版不是防漂移）。 */
+test('L13-O1 F. 证据版本与当前仓库版本一致，且三块均为成功读数', (t) => {
     const evidence = JSON.parse(fs.readFileSync(EVIDENCE, 'utf8'));
-    assert.equal(evidence.verdict, 'success', '证据必须明确标记 success，环境失败记录不得伪装成成功读数');
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-    assert.equal(evidence.schema, 'realhost-readings@1');
+    assert.equal(evidence.schema, 'realhost-readings@1', '证据 schema 必须是 realhost-readings@1');
+    if (evidence.verdict === 'environment-unavailable') {
+        assert.ok(String(evidence.reason || '').length > 0,
+            '未执行必须自述原因（「没跑」不等于「没问题」）');
+        assert.match(String(evidence.source || ''), /bail/,
+            '未执行读数必须标明来自 bail 路径，而不是被当作一次完整取证的产物');
+        for (const k of ['ok', 'blocks', 'readings', 'pageErrors']) {
+            assert.equal(Object.prototype.hasOwnProperty.call(evidence, k), false,
+                '未执行读数不得带成功读数字段 ' + k + '（那是把「没跑」伪装成「跑过且通过」）');
+        }
+        t.skip('真宿主未就绪，本档如实跳过（不计通过）：' + evidence.reason);
+        return;
+    }
+    assert.equal(evidence.verdict, 'success', '证据必须明确标记 success，环境失败记录不得伪装成成功读数');
     assert.equal(evidence.version, manifest.version);
     assert.equal(evidence.ok, true);
     assert.deepEqual(evidence.blocks, { load: true, write: true, worldline: true });
     assert.ok(Array.isArray(evidence.readings) && evidence.readings.length >= 28);
-    assert.equal(vnum(evidence.version), vnum('3.433.0'));
+    assert.ok(vnum(evidence.version) >= vnum('3.433.0'),
+        '取证版本不得低于本档出生版本 3.433.0（实 ' + evidence.version + '）');
     assert.deepEqual(evidence.pageErrors, []);
 });
