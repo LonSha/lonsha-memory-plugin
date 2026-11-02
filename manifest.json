@@ -7,7 +7,7 @@
     "css": "css/style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.444.0",
+    "version": "3.445.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -259,7 +259,8 @@
         "worldline-memory.js",
         "memory-lineage-replay.js",
         "pov-projection.js",
-        "round-entry-snapshot.js"
+        "round-entry-snapshot.js",
+        "memory-migrate-pack.js"
     ],
     "extra_css": [
         "css/lonsha-design.css",

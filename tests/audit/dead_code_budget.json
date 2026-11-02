@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 116058,
+  "ceiling": 116788,
   "maxSlack": 400,
-  "note": "v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。",
+  "note": "v3.445.0 L13-X5 迁移包接线：新增 memory-migrate-pack.js（宿主三桩+取库口）、面板双按钮双 handler、前作按钮硬化，均为活跃功能增长，非死代码回流",
   "history": [
     {
       "ceiling": 21000,
@@ -417,7 +417,11 @@
     {
       "ceiling": 116058,
       "reason": "v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。"
+    },
+    {
+      "ceiling": 116788,
+      "reason": "v3.445.0 L13-X5 迁移包接线：新增 memory-migrate-pack.js（宿主三桩+取库口）、面板双按钮双 handler、前作按钮硬化，均为活跃功能增长，非死代码回流"
     }
   ],
-  "_history_last": "ceiling 113338 → 116058（实测 115658 + slack 400）：v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。"
+  "_history_last": "ceiling 116058 → 116788（实测 116388 + slack 400）：v3.445.0 L13-X5 迁移包接线：新增 memory-migrate-pack.js（宿主三桩+取库口）、面板双按钮双 handler、前作按钮硬化，均为活跃功能增长，非死代码回流"
 }

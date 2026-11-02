@@ -111,27 +111,44 @@
             .ls-input::placeholder { color: var(--ls-text-4, #475569); }
             .ls-textarea { width: 100%; min-height: 120px; background: var(--ls-bg-2, #111827); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); padding: 11px 12px; font-size: 13px; font-family: var(--ls-mono, monospace); box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); line-height: 1.5; }
             .ls-textarea:focus { outline: none; border-color: var(--ls-accent, #38bdf8); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
-            .ls-btn { display: block; width: 100%; padding: 11px 14px; margin: 8px 0; background: var(--ls-bg-3, #1b2436); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); font-size: 14px; font-weight: 500; letter-spacing: 0.01em; text-align: center; cursor: pointer; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
-            .ls-btn:hover { background: var(--ls-bg-4, #27334a); border-color: var(--ls-line-strong); color: #ffffff; }
+            /* [v3.445.0] 真机红点修复：底部三个胶囊按钮变白底浅字。
+             *   根因不是配色，而是宿主选择器特异性：SillyTavern 主题里 「#chat button」
+             *   一类带 ID 的规则特异性为 (1,0,1)，高于本面板 「.ls-btn」 的 (0,1,0)，
+             *   于是深色底被宿主白底盖掉、而文字色（同一条规则里）又没被盖，
+             *   就成了白底 + 浅色字 —— 几乎不可读。
+             *   修法：面板内按钮一律 !important。!important 不只拼特异性，
+             *   宿主那些 ID 选择器没带 !important 时本面板必胜。
+             *   background 拆成 color + image 两格：宿主若用渐变做面板底，
+             *   只写 background 简写会被它的 background-image 透回来。 */
+            .ls-btn { display: block; width: 100%; padding: 11px 14px; margin: 8px 0; background-color: var(--ls-bg-3, #1b2436) !important; background-image: none !important; color: var(--ls-text, #f1f5f9) !important; border: 1px solid var(--ls-line, rgba(255,255,255,0.08)) !important; border-radius: var(--ls-r-sm, 6px); font-size: 14px; font-weight: 500; letter-spacing: 0.01em; text-align: center; cursor: pointer; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); -webkit-text-fill-color: var(--ls-text, #f1f5f9) !important; }
+            .ls-btn:hover { background-color: var(--ls-bg-4, #27334a) !important; background-image: none !important; border-color: var(--ls-line-strong) !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
             /* [v3.424.0] 面板内**所有**原生按钮兜底压成深色：真机反馈底部三个胶囊按钮仍是白底。
              *   它们没带 .ls-btn（走的是行内样式），宿主浅色主题的 button 默认底因此透出来。
              *   只作用于面板容器内部，不影响宿主其他 UI。 */
             .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill) {
-                background-color: var(--ls-bg-3, #1b2436);
-                color: var(--ls-text, #f1f5f9);
-                border: 1px solid var(--ls-line, rgba(255,255,255,0.08));
+                background-color: var(--ls-bg-3, #1b2436) !important;
+                background-image: none !important;
+                color: var(--ls-text, #f1f5f9) !important;
+                -webkit-text-fill-color: var(--ls-text, #f1f5f9) !important;
+                border: 1px solid var(--ls-line, rgba(255,255,255,0.08)) !important;
                 border-radius: var(--ls-r-sm, 6px);
                 box-shadow: var(--ls-inner-rim);
             }
             .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill):hover {
-                background-color: var(--ls-bg-4, #27334a);
-                color: #ffffff;
+                background-color: var(--ls-bg-4, #27334a) !important;
+                background-image: none !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
             }
             .ls-btn:active { transform: translateY(1px); box-shadow: none; }
-            .ls-btn-primary { background: var(--ls-accent-strong, #0284c7); border-color: transparent; color: #ffffff; font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(255,255,255,0.22); }
-            .ls-btn-primary:hover { background: var(--ls-accent, #38bdf8); color: #04121e; box-shadow: var(--ls-sh-accent-lg); }
-            .ls-btn-danger { background: var(--ls-danger-soft, rgba(248,113,113,0.12)); border-color: var(--ls-danger-line); color: var(--ls-danger, #f87171); }
-            .ls-btn-danger:hover { background: var(--ls-danger); color: #04121e; border-color: transparent; }
+            /* [v3.445.0] hover 反馈改走 filter：底色已被 inline !important 固定，
+             *   :hover 改 background-color 对已硬化的按钮不再生效（但对未硬化的仍然生效）。 */
+            .ls-btn:hover { filter: brightness(1.18); }
+            .ls-btn.ls-btn-primary:hover { filter: brightness(1.12); }
+            .ls-btn-primary { background-color: var(--ls-accent-strong, #0284c7) !important; background-image: none !important; border-color: transparent !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(255,255,255,0.22); }
+            .ls-btn-primary:hover { background-color: var(--ls-accent, #38bdf8) !important; background-image: none !important; color: #04121e !important; -webkit-text-fill-color: #04121e !important; box-shadow: var(--ls-sh-accent-lg); }
+            .ls-btn-danger { background-color: var(--ls-danger-soft, rgba(248,113,113,0.12)) !important; background-image: none !important; border-color: var(--ls-danger-line) !important; color: var(--ls-danger, #f87171) !important; -webkit-text-fill-color: var(--ls-danger, #f87171) !important; }
+            .ls-btn-danger:hover { background-color: var(--ls-danger) !important; background-image: none !important; color: #04121e !important; -webkit-text-fill-color: #04121e !important; border-color: transparent !important; }
 
             .ls-stat-section-title { font-size: 11px; font-weight: 600; color: var(--ls-accent, #38bdf8); margin: 16px 0 6px 2px; letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--ls-mono); display: flex; align-items: center; gap: 6px; }
             .ls-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
@@ -174,12 +191,88 @@
             .ls-home-chip:hover { border-color: var(--ls-accent-line); color: var(--ls-accent, #38bdf8); }
             .ls-home-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px; }
             .ls-home-actions .ls-btn { margin: 0; width: 100%; box-sizing: border-box; }
+            /* [v3.445.0] 总闸：面板内按钮的最后一道保护。
+             *   为何需要第二道：上方 .ls-btn 已带 !important，但它的特异性仅 (0,1,0)。
+             *   宿主若用带 ID 且带 !important 的选择器（如某些主题的全局按钮底），
+             *   单凭 !important 仍会输。本块把特异性拉到 (0,3,1)（两层容器 + button 类），
+             *   并保持在样式表末尾声明（同特异性时后者胜）。
+             *   同时显式抹掉主题常用的几个白底来源：background-image / filter / text-shadow。 */
+            .lonsha-overlay .lonsha-sheet .ls-btn,
+            .lonsha-overlay .lonsha-sheet button.ls-btn {
+                background-color: var(--ls-bg-3, #1b2436) !important;
+                background-image: none !important;
+                color: var(--ls-text, #f1f5f9) !important;
+                -webkit-text-fill-color: var(--ls-text, #f1f5f9) !important;
+                border: 1px solid var(--ls-line, rgba(255,255,255,0.08)) !important;
+                text-shadow: none !important;
+                opacity: 1 !important;
+            }
+            .lonsha-overlay .lonsha-sheet .ls-btn:hover,
+            .lonsha-overlay .lonsha-sheet button.ls-btn:hover {
+                background-color: var(--ls-bg-4, #27334a) !important;
+                background-image: none !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+            }
+            .lonsha-overlay .lonsha-sheet .ls-btn.ls-btn-primary,
+            .lonsha-overlay .lonsha-sheet button.ls-btn.ls-btn-primary {
+                background-color: var(--ls-accent-strong, #0284c7) !important;
+                background-image: none !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+                border-color: transparent !important;
+            }
+            .lonsha-overlay .lonsha-sheet .ls-btn.ls-btn-danger,
+            .lonsha-overlay .lonsha-sheet button.ls-btn.ls-btn-danger {
+                background-color: var(--ls-danger-soft, rgba(248,113,113,0.12)) !important;
+                background-image: none !important;
+                color: var(--ls-danger, #f87171) !important;
+                -webkit-text-fill-color: var(--ls-danger, #f87171) !important;
+                border-color: var(--ls-danger-line) !important;
+            }
 
         `;
         document.head.appendChild(style);
 
         // ========== 工具 ==========
         const closeOverlay = (id) => document.getElementById(id)?.remove();
+        /* [v3.445.0] 面板按钮硬化：用 inline !important 写入底色与字色。
+         *   为何不能只靠样式表：宿主主题若用带 ID 且带 !important 的选择器
+         *   写按钮底，特异性高于本面板任何类选择器，样式表怎么加都会输；
+         *   而「style 属性上的 !important」在层叠里排在所有作者样式表声明之前，不论对方特异性。
+         *   为何保留三类分支：主按钮/危险按钮有自己的配色，
+         *   若一律成深色底就把「清空记忆」混成普通按钮。
+         *   若元素已有行内底色（番外标记/批量补齐等）则沿用它，
+         *   否则会把这些“有意为之的差异化”一次抹平。
+         *   hover 反馈改用 filter：行内 !important 会把 :hover 的背景变化顶掉，
+         *   而 filter 不在被硬化的属性集里，不会冲突。 */
+        const hardenButtons = (root) => {
+            if (!root || typeof root.querySelectorAll !== 'function') return 0;
+            let n = 0;
+            root.querySelectorAll('.ls-btn').forEach((el) => {
+                try {
+                    let bg;
+                    let fg;
+                    if (el.classList.contains('ls-btn-primary')) {
+                        bg = 'var(--ls-accent-strong, #0284c7)';
+                        fg = '#ffffff';
+                    } else if (el.classList.contains('ls-btn-danger')) {
+                        bg = 'var(--ls-danger-soft, rgba(248,113,113,0.12))';
+                        fg = 'var(--ls-danger, #f87171)';
+                    } else {
+                        bg = el.style.backgroundColor || 'var(--ls-bg-3, #1b2436)';
+                        fg = 'var(--ls-text, #f1f5f9)';
+                    }
+                    el.style.setProperty('background-color', bg, 'important');
+                    el.style.setProperty('background-image', 'none', 'important');
+                    el.style.setProperty('color', fg, 'important');
+                    el.style.setProperty('-webkit-text-fill-color', fg, 'important');
+                    el.dataset.lsHardened = '1';
+                    n++;
+                } catch (_e) { /* 单个按钮失败不影响其余 */ }
+            });
+            return n;
+        };
         const makeSheet = (id, title, bodyHTML) => {
             closeOverlay(id);
             const overlay = document.createElement('div');
@@ -192,6 +285,14 @@
                 </div>
             `;
             overlay.querySelector('.lonsha-sheet-close').addEventListener('click', () => closeOverlay(id));
+            /* [v3.445.0] 开启时先硬化一次，再挂观察器：面板内部视图切换是
+             * 整段 body.innerHTML 重写的（不是局部补节点），不挂观察器就只有首屏可读。 */
+            hardenButtons(overlay);
+            try {
+                const _mo = new MutationObserver(() => { hardenButtons(overlay); });
+                _mo.observe(overlay, { childList: true, subtree: true });
+                overlay._lsButtonGuard = _mo;
+            } catch (_e) { /* 环境无 MutationObserver 时不影响主流程 */ }
             overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(id); });
             document.body.appendChild(overlay);
             return overlay;
@@ -421,12 +522,12 @@
                     <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
                     <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
                     <button id="ls-ms-add" class="ls-btn" style="padding:6px 14px;">+ 补摘</button>
-                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background:var(--ls-line-strong,rgba(240,246,252,0.18));" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）">🔧 批量补齐</button>
+                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-line-strong,rgba(240,246,252,0.18))!important;background-image:none!important;" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）">🔧 批量补齐</button>
                 </div>
                 <div style="display:flex;gap:6px;margin:0 0 8px 0;">
                     <input id="ls-omit-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
-                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background:var(--ls-bg-3,#21262d);" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）">🎬 标记番外</button>
-                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background:var(--ls-bg-3,#21262d);" title="取消番外标记，恢复该楼记忆处理">↩️ 取消番外</button>
+                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）">🎬 标记番外</button>
+                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="取消番外标记，恢复该楼记忆处理">↩️ 取消番外</button>
                 </div><div class="ls-hint" style="font-size:11px;color:var(--ls-text-3,#6e7681);margin:4px 0;">💡 若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置 → 正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
                 body = addForm + (list.length === 0 ? faceHTML('去聊几句，AI 回复后会自动生成。') :
                     list.slice().reverse().map(m => `
@@ -2750,6 +2851,8 @@
                     <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载。</div>
                     <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（跨会话携带）</button>
                     <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新故事开局）</button>
+                    <button class="ls-btn" id="ls-migrate-pack">📦 记忆迁移包（按角色打包·可校验）</button>
+                    <button class="ls-btn" id="ls-migrate-apply">🧬 导入迁移包（预检+冲突决策）</button>
                 </div>
                 <div class="ls-group">
                     <details id="ls-advanced" style="padding:0 8px;">
@@ -3375,6 +3478,77 @@
                     const f = input.files[0]; if (!f) return;
                     const r = new FileReader();
                     r.onload = () => { try { apply(JSON.parse(r.result)); } catch (e) { toast('文件解析失败'); } };
+                    r.readAsText(f);
+                };
+                input.click();
+            });
+            // [v3.445.0 · L13-X5] 迁移包：打包（exportMigratePack 宿主桩 + 预览 + localStorage/文件双备份）
+            overlay.querySelector('#ls-migrate-pack').addEventListener('click', () => {
+                let r = null;
+                try { r = this.engine.exportMigratePack(); } catch (e) { reportUiError(e, 'ls-migrate-pack'); return; }
+                if (!r || !r.ok) { toast('❌ 打包失败: ' + ((r && r.reason) || '未知原因')); return; }
+                try {
+                    const c = r.pack.counts || {};
+                    const sk = (r.pack.skipped || []).length;
+                    const prevMsg = '📦 迁移包预览\n\n条目 ' + (c.entries ?? 0) + ' 条（核心 ' + (c.layers?.core ?? 0) + ' / 近期 ' + (c.layers?.recent ?? 0) + '）\n角色 ' + (c.chars ?? 0) + ' 个'
+                        + (sk ? '\n跳过 ' + sk + ' 条（缺 id/text 或超长）' : '')
+                        + '\n\n确认打包？（此后在目标对话点「导入迁移包」）';
+                    if (!confirm(prevMsg)) { toast('已取消打包'); return; }
+                } catch (e) { reportUiError(e, 'nonfatal') }
+                try {
+                    localStorage.setItem('lonsha_migrate_pack', JSON.stringify(r.pack));
+                    const blob = new Blob([JSON.stringify(r.pack, null, 2)], { type: 'application/json' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `lonsha-migrate-pack-${Date.now()}.json`;
+                    a.click();
+                    toast(`✅ 迁移包已生成：${r.pack.counts?.entries ?? 0} 条 / ${r.pack.counts?.chars ?? 0} 角色（本地+文件双备份，headSha 校验随包）`);
+                } catch (e) { toast('❌ 打包失败: ' + e.message); }
+            });
+            // [v3.445.0 · L13-X5] 迁移包：导入（先文件预检 → 冲突逐条决策 → applyMigrateImport → 存盘）
+            overlay.querySelector('#ls-migrate-apply').addEventListener('click', () => {
+                const input = document.createElement('input');
+                input.type = 'file'; input.accept = '.json';
+                input.onchange = () => {
+                    const f = input.files[0]; if (!f) return;
+                    const r = new FileReader();
+                    r.onload = async () => {
+                        let pack = null;
+                        try { pack = JSON.parse(r.result); } catch (e) { toast('❌ 文件解析失败'); return; }
+                        let pre = null;
+                        try { pre = this.engine.precheckMigrateImport(pack); } catch (e) { reportUiError(e, 'ls-migrate-apply'); return; }
+                        if (!pre || !pre.ok) { toast('❌ 包校验失败（' + ((pre && pre.reason) || '损坏或格式不符') + '），原记忆保持不变'); return; }
+                        if (pre.identical.length === pre.counts.total && pre.counts.total > 0) { toast('ℹ️ 包内全部条目与本地相同，无需导入'); return; }
+                        const decisions = {};
+                        for (const cf of (pre.conflicts || [])) {
+                            const localText = (cf.local && cf.local.text) || '';
+                            const packText = (cf.item && cf.item.text) || '';
+                            const ans = prompt(
+                                '冲突：' + (cf.char || '?') + ' · ' + (cf.layer || '?') + ' · ' + (cf.item && cf.item.id || '?') + '\n\n'
+                                + '本地：' + localText.slice(0, 60) + '\n包内：' + packText.slice(0, 60) + '\n\n'
+                                + '输入：1=保留本地 / 2=用包内 / 3=两个都要（直接确定=保留本地）',
+                                '1');
+                            const pick = String(ans || '').trim();
+                            if (pick === '2') decisions[cf.key] = 'use-pack';
+                            else if (pick === '3') decisions[cf.key] = 'keep-both';
+                            else decisions[cf.key] = 'keep-local';
+                        }
+                        let out = null;
+                        try { out = this.engine.applyMigrateImport(pack, decisions); } catch (e) { reportUiError(e, 'ls-migrate-apply'); return; }
+                        if (!out || !out.ok) { toast('❌ 导入失败: ' + ((out && out.reason) || '未知原因')); return; }
+                        try {
+                            const chatId = this.engine.getCurrentChatId();
+                            if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
+                            const rp = out.report || {};
+                            const pend = (out.pending || []).length;
+                            toast('✅ 迁移包导入：新增 ' + (rp.added || 0) + ' / 替换 ' + (rp.replaced || 0)
+                                + ' / 保留本地 ' + (rp.keptLocal || 0) + ' / 两存 ' + (rp.keptBoth || 0)
+                                + ' / 相同 ' + (rp.identical || 0)
+                                + (rp.unrecognized ? ' / 未知 ' + rp.unrecognized : '')
+                                + (rp.tombstoned ? ' / 墓碑 ' + rp.tombstoned : '')
+                                + (pend ? ' / 待决 ' + pend : ''));
+                        } catch (e) { reportUiError(e, 'ls-migrate-apply'); }
+                    };
                     r.readAsText(f);
                 };
                 input.click();
@@ -4365,6 +4539,14 @@
             ov.className = "lonsha-overlay";
             ov.innerHTML = `<div class="lonsha-sheet" style="max-width:400px;"><div class="lonsha-sheet-header"><span>✏️ 记忆操作</span><span class="lonsha-sheet-close" id="memops-close">✕</span></div><div class="lonsha-sheet-body"><div class="ls-item" style="margin-bottom:10px;"><div class="ls-item-text">${label}</div></div>${actions.map((a, i) => `<div class="ls-btn ${a.danger ? "ls-btn-danger" : ""}" data-ai="${i}" style="margin:6px 0;">${a.t}</div>`).join("")}</div></div>`;
             document.body.appendChild(ov);
+            /* [v3.445.0] 第二条 overlay 路径同样硬化：本面板的“按钮”是
+             * div.ls-btn（不是 button 元素），宿主那条 button 选择器管不到它们，
+             * 但第一道颜色仍需硬化（主题可能设了全局 div 底色）。 */
+            hardenButtons(ov);
+            try {
+                const _mo2 = new MutationObserver(() => { hardenButtons(ov); });
+                _mo2.observe(ov, { childList: true, subtree: true });
+            } catch (_e) { /* 同上 */ }
             ov.querySelector("#memops-close").addEventListener("click", () => ov.remove());
             ov.addEventListener("click", (e) => { if (e.target === ov) ov.remove(); });
             ov.querySelectorAll("[data-ai]").forEach(btn => {

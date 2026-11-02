@@ -1,7 +1,7 @@
 {
   "schema": "module-consumption-ledger@1",
-  "generated_at": "2026-11-02T01:49:59.273Z",
-  "total_modules": 248,
+  "generated_at": "2026-11-02T10:15:21.787Z",
+  "total_modules": 249,
   "zero_consumption_count": 19,
   "modules": {
     "ledger-entity.js": {
@@ -2231,6 +2231,15 @@
       "module": "round-entry-snapshot.js",
       "surface": [
         "round-entry-snapshot"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "memory-migrate-pack.js": {
+      "module": "memory-migrate-pack.js",
+      "surface": [
+        "memory-migrate-pack"
       ],
       "prod_call_sites": 1,
       "allowed": 1,

@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.444.0';
+    const VERSION = '3.445.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3319,6 +3319,41 @@ function relativeTimeLabel(eventTime, nowTime) {
             /* 摘要：本面**不删**（删摘要会牵动卷/折叠账，属于摘要面自己的处置）——如实不给删除口。 */
             /* 正史增量：DeltaBook 没有单条删除口（它是 append-only 账）——如实不给。 */
             return map;
+        }
+        /* [v3.445.0 · L13-X5] 迁移包导出桩：面板不直接摸模块，一律走宿主方法取数。
+         *   fail-closed 形——模块缺席与 charMem 器官缺席各自显式报因，不静默。 */
+        exportMigratePack(opts) {
+            const M = _migratePackLib();
+            if (!M) return { ok: false, reason: 'module-unavailable' };
+            const src = this.charMem ? this.charMem.export() : null;
+            if (!src || (typeof src !== 'object')) return { ok: false, reason: 'charmem-unavailable' };
+            const packed = M.packMemory({ source: src, ...(opts || {}) });
+            /* [v3.445.0] packMemory 返回**裸包**（契约面），面板 handler 统一按 {ok, pack} 取数——
+             *   成功路径在此包装，失败（异常/空对象）fail-closed，不把裸包漏给面板造成误判。 */
+            if (!packed || (typeof packed !== 'object') || !packed.headSha) return { ok: false, reason: 'pack-failed' };
+            return { ok: true, pack: packed, skipped: Array.isArray(packed.skipped) ? packed.skipped : [] };
+        }
+        /* [v3.445.0 · L13-X5] 迁移包预检桩：零副作用，面板据此做冲突决策。 */
+        precheckMigrateImport(pack) {
+            const M = _migratePackLib();
+            if (!M) return { ok: false, rejected: true, reason: 'module-unavailable', counts: { add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, total: 0 }, conflicts: [] };
+            const src = this.charMem ? this.charMem.export() : null;
+            if (!src || (typeof src !== 'object')) return { ok: false, rejected: true, reason: 'charmem-unavailable', counts: { add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, total: 0 }, conflicts: [] };
+            return M.precheckImport(pack, src);
+        }
+        /* [v3.445.0 · L13-X5] 迁移包导入桩：决策落地与器官回写都在宿主侧（面板只拿报告去存盘）。
+         *   applyImport 返回的 state 是本地全量+合并结果（保留 autobiographies/tombstones），
+         *   喂给 charMem.import 的全量替换语义安全，不会抹掉自查史/墓碑。 */
+        applyMigrateImport(pack, decisions) {
+            const M = _migratePackLib();
+            if (!M) return { ok: false, rejected: true, reason: 'module-unavailable', state: null, report: null, pending: [] };
+            const src = this.charMem ? this.charMem.export() : null;
+            if (!src || (typeof src !== 'object')) return { ok: false, rejected: true, reason: 'charmem-unavailable', state: null, report: null, pending: [] };
+            const r = M.applyImport(pack, src, decisions);
+            if (r && r.ok && r.state && this.charMem && typeof this.charMem.import === 'function') {
+                this.charMem.import(r.state);
+            }
+            return r;
         }
         roundSnapshotBefore(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotBefore(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'before' }; }
         roundSnapshotAfter(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotAfter(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'after' }; }
@@ -10342,6 +10377,11 @@ function _collectNewFace() {
         return _moduleLib(() => window.LonShaRecallEcho, 'recall-echo.js');
     }
     /* [v3.443.0 · L13-X8] 本轮条目集合摘要内核取库口。 */
+    /* [v3.445.0 · L13-X5] 可携带记忆迁移包取库口（memory-migrate-pack.js）。
+     *   与同族取库口同形：_moduleLib 惰性、缺席回 null、不抛。 */
+    function _migratePackLib() {
+        return _moduleLib(() => window.LonShaMigratePack, 'memory-migrate-pack.js');
+    }
     function _roundSnapshotLib() {
         return _moduleLib(() => window.LonShaRoundEntrySnapshot, 'round-entry-snapshot.js');
     }

@@ -476,7 +476,7 @@ test('G2: 宿主接线 —— 取库口 / libs 注入 / 五桩 / 两清单；摘
         assert.ok(HOST_SRC.includes("key: '" + k + "'"), '账本清单必须纳入 ' + k);
     }
     /* ★ 如实不给删除口的两本：删摘要会牵动卷/折叠账；DeltaBook 是 append-only。 */
-    const rm = seg(HOST_SRC, '        _roundRemovers() {', '        roundSnapshotBefore(...args) {', 'removers');
+    const rm = seg(HOST_SRC, '        _roundRemovers() {', '        exportMigratePack(opts) {', 'removers');
     assert.ok(!/map\.summaries\s*=/.test(rm), '摘要账不许给删除口（删摘要会牵动卷/折叠账）');
     assert.ok(!/map\.deltas\s*=/.test(rm), '正史增量账不许给删除口（append-only）');
     /* 删图谱节点后必须清 nameIndex，否则「删了节点却还能按名字查到」。 */
@@ -524,22 +524,26 @@ test('G4: 诊断层 —— 取库口 / 四出口 / 四态措辞 / api 冻结表�
     }
 });
 
-test('G5: 当版锚点 —— 锁当版 3.443.0（vnum 形，守卫认得这一形）', () => {
-    /* ★ 当版锚必须是**可机检的 vnum 形**：`hasAnchorFor()` 认 `vnum('<当版>')`，
-     *   只比字面量串会让守卫报「当版档案里没有任何测试以 vnum 恰好锚着当版」。 */
-    const CUR = '3.443.0';
+test('G5: 出生版本下界锚点（vnum 形，守卫认得这一形）—— 当版锚已交棒 v3445 档', () => {
+    /* ★ [v3.445.0 接管] 历史文件锁回**自己的出生版本**（交棒链口径，同 v3440 X7-G 先例）。
+     *   改前形态是 `const CUR = '3.443.0'` + 四处 assert.equal(live, CUR)，
+     *   抬到 3.444.0 当天就红 —— 这不是产品缺陷，是历史档案把「当版」写死成「永恒当版」的欠账。
+     *   现状：下界 = 出生版本 3.443.0（本档不得低于它），上界 = 「不承诺高于现版」；
+     *   当版锚的职责已交棒给当版档案 tests/v3445_l13_x5_migrate_pack.test.mjs 的 G5。 */
+    const BORN_V = '3.443.0';
     const vnum = (v) => {
         const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(v || '').trim());
         return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
     };
-    assert.equal(vnum(CUR), 3443000, '当版锚（vnum 形）：3.443.0 ⇒ 3443000');
+    assert.equal(vnum(BORN_V), 3443000, '出生版本锚（vnum 形）：3.443.0 ⇒ 3443000');
     const live = (/const VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/.exec(HOST_SRC) || [])[1];
-    assert.equal(live, CUR, 'index.js VERSION 必须与当版同源（实 ' + live + '）');
-    assert.equal(MANIFEST.version, CUR);
-    assert.equal(PKG.version, CUR);
-    /* 内核与诊断层各自的版本串必须已抬到当版（防「测了旧版」）。 */
+    assert.equal(live, MANIFEST.version, 'index.js VERSION 与 manifest 必须互等（实 ' + live + ' / ' + MANIFEST.version + '）');
+    assert.equal(MANIFEST.version, PKG.version, 'manifest 与 package 必须互等');
+    /* 上界：不承诺未来（现版可以更高，但不得低于本档出生版本）。 */
+    assert.ok(vnum(live) >= vnum(BORN_V), '当版不得低于本档出生版本 ' + BORN_V + '（实 ' + live + '）');
+    /* 内核版本串同样走下界形（round 内核生于 3.443.0，此后允许抬升）。 */
     const kernV = (/var VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/.exec(KER_SRC) || [])[1];
-    assert.equal(kernV, CUR, '内核 VERSION 必须与当版同源（实 ' + kernV + '）');
+    assert.ok(vnum(kernV) >= vnum(BORN_V), '内核版本不得低于本档出生版本（实 ' + kernV + '）');
     /* 本档专有标记在场。 */
     assert.ok(KER_SRC.includes('L13-X8'), '内核必须留 L13-X8 标记');
     assert.ok(DIAG_SRC.includes('L13-X8'), '诊断层必须留 L13-X8 标记');
@@ -636,7 +640,9 @@ test('H3: 真跑一轮 —— before → 写入 3 条 → after → 撤销（同
     const RS = loadKernel();
     const host = mkHost();
     const lBlock = hostBlock('        _roundLedgers() {', '\n        _roundRemovers() {');
-    const rBlock = hostBlock('        _roundRemovers() {', '\n        roundSnapshotBefore(...args) {');
+    /* [v3.445.0 接管] 终点锚原为 roundSnapshotBefore(...args) {，本版在其前插入了迁移包三桩，
+    抽块终点随接线面同步前移到新桩起点，抽取的仍是 _roundRemovers 单方法体。 */
+    const rBlock = hostBlock('        _roundRemovers() {', '\n        exportMigratePack(opts) {');
     const ledgers = () => makeLedgerFn(lBlock, '_roundLedgers')(host);
     const removers = () => makeLedgerFn(rBlock, '_roundRemovers')(host);
 
@@ -678,7 +684,9 @@ test('H3: 真跑一轮 —— before → 写入 3 条 → after → 撤销（同
 test('H4: 删除口与清单一一对应 —— 删除口的键都在清单内，且恰两本如实无删除口', () => {
     const host = mkHost();
     const lBlock = hostBlock('        _roundLedgers() {', '\n        _roundRemovers() {');
-    const rBlock = hostBlock('        _roundRemovers() {', '\n        roundSnapshotBefore(...args) {');
+    /* [v3.445.0 接管] 终点锚原为 roundSnapshotBefore(...args) {，本版在其前插入了迁移包三桩，
+    抽块终点随接线面同步前移到新桩起点，抽取的仍是 _roundRemovers 单方法体。 */
+    const rBlock = hostBlock('        _roundRemovers() {', '\n        exportMigratePack(opts) {');
     const keys = makeLedgerFn(lBlock, '_roundLedgers')(host).map((l) => l.key);
     const rm = makeLedgerFn(rBlock, '_roundRemovers')(host);
     const rmKeys = Object.keys(rm);

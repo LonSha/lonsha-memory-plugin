@@ -1,3 +1,9 @@
+## v3.445.0
+**L13-X5 记忆迁移包接线：把 memory-migrate-pack.js 从「登记在册、真加载、单测绿、产品端零调用」接成真实产品面（宿主三桩 + 面板双按钮双 handler）。**
+- **接线条数**：宿主 `index.js` 新增取库口 `_migratePackLib()`（与既有缝合模块取库口同形：全局优先 + require 回落、不在构造期缓存）与三桩 `exportMigratePack` / `precheckMigrateImport` / `applyMigrateImport`（fail-closed：模块缺席与 charMem 器官缺席各自显式报因，不静默）；apply 成功后宿主侧 `charMem.import(state)` 全量替换（state 为本地全量+合并结果，自查史/墓碑不丢）。面板 `settings-ui.js` 新增 📦 打包（写 localStorage + 下载 json）与 🧬 导入（预检 + 逐冲突三选一决策、全同跳过、改内存必回写存档）双按钮双 handler。对应判据：`tests/v3445_l13_x5_migrate_pack.test.mjs`。
+- **同版修掉一处接线真缺陷**：`exportMigratePack` 成功路径原样返回 `packMemory` 的**裸包**，而面板 handler 按 `{ok, pack}` 取数——成功会被误判为「打包失败」。修为宿主侧包装 `{ok:true, pack, skipped}` 并 fail-closed（缺 `headSha` 报 `pack-failed`），面板契约三桩统一。- **判据面（34 条 test，含 5 条真源码破坏负控制）**：A 包本身即账（改一字节整包作废、不做部分信任、五分类相加恰等于 total）；B 预检只读；C 冲突绝不默认覆盖（无决策/非法决策一律 pending、三决策各落各账、keep-both 确定性 id 幂等、墓碑永不写入、state 保留自查史与墓碑）；D 宿主三桩经同一取库口且两处缺席闸显式报因；E 面板双按钮三档决策映射 + 全同跳过 + 回写存档；F 三张台账同版（消费台账 prod_call_sites≥1 且 why=active、seam 台账 host-seam、state-report 同版且装载面含本模块）；G 五条真源码破坏负控制各配原版阳性对照（无决策改判覆盖 / pending 不记账 / 两存副本不记 conflictOf / 摘掉裸包守卫 / 面板 keep-both 通路改映射）。
+- **边界（如实登记）**：真实 SillyTavern 会话未跑真机 —— 面板触摸、窄屏、刷新后重载未执行；全量 `npm test` 与 `--audit` 按既定纪律（做完计划全部内容前不跑全量）未跑，state-report 中 `doc_readings` 全量实跑读数仍停 3.431.0，已在 `unknown` 中显式点名而非隐去。
+
 ## v3.444.0
 **L13-X9 Cross-generation Inheritance Roster: the inheritance-artifact roster (accept/reject/reform/lost + 5th pending axis) plus per-state readable cause + secret boundary, exposed as a readable/declarable surface inside the prequel view.**
 - **Directs seam fact (code-readable): kernel era-continuation-inheritance-tree.js was registered in manifest.extra_js, really loaded, unit-green, yet product-end zero-call (prod_call_sites=0); this release wires it into a readable/declarable surface. Corresponding suite: `tests/v3444_l13_x9_inheritance_roster.test.mjs` (33 条).**

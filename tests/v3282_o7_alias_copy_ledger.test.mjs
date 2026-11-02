@@ -153,7 +153,12 @@ const ALIAS_LEDGER = [
      *   档头声明不引兄弟模块的原语(理由与 v3281 同簇留痕一致:收拢会把「本模块自足」换成
      *   「依赖另一个模块先挂载」)。★ 判据真抓到东西:成员集合确实多了一处。 */
     ['fn', ['_floorOf', 'floorOf'], ['extract-feedback.js', 'knowledge-preview.js', 'knowledge-trace.js', 'pov-projection.js'], 228, '6fe7a611'],
-    ['fn', ['_isPlain', 'isPlainObject'], ['extract-feedback.js', 'project-registry.js', 'projection-pipeline.js'], 57, 'dd6bb22c'],
+    ['fn', ['_isObj', '_isPlain', 'isPlainObject'], ['extract-feedback.js', 'memory-migrate-pack.js', 'project-registry.js', 'projection-pipeline.js'], 57, 'dd6bb22c'],
+    /* [v3.445.0 · L13-X5] memory-migrate-pack.js 是**零依赖纯函数 IIFE**（档头声明不引兄弟模块、
+     *   能力一律由宿主注入），故自持一份与 extract-feedback 等同形同值的 _isObj 原语并入了上行；
+     *   另自持空值文本化原语 _s（与 worldline-memory.js 的 txt 同体异名）—— 收拢即引入跨模块
+     *   静默读旧值，与 v3281 同簇留痕一致。体 md5/体长由判据体在真磁盘上复算得出（非手抄）。 */
+    ['fn', ['_s', 'txt'], ['memory-migrate-pack.js', 'worldline-memory.js'], 56, '3d93fa2f'],
     /* [v3.326.0 · A1 第九刀] 两模块各持一份「建议目标三态」词表(config / data / rerun)。
      *   D 包侧叫 `KINDS`、C 包侧叫 `TARGET_KINDS` —— 名字不同,故按**名**配对的三层判据(v3280 / v3281)整片看不见它。
      *   **为什么留两份**:与 PRECHECK/PREVIEW、keyOf/strOf 同族 —— 它是**通用词表原语**,

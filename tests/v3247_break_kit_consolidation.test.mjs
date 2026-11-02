@@ -416,6 +416,16 @@ const REGISTRY = [
     'v3432_l13_x1_memory_lineage.test.mjs',
     'v3433_l13_o1_realhost.test.mjs',
     'v3433_l13_x2_whatif.test.mjs',
+    /* [v3.445.0 补登记] L13-X7/X4/X6/X8/X9 五档此前从唯一真源取 `breakSource`/`breakOnce`
+     *   却漏进本台账（v3.440~v3.444 五次抬版累积欠账，基线即红）。修法是补登记，不是放宽判据。 */
+    'v3440_l13_x7_habit_growth.test.mjs',
+    'v3441_l13_x4_evidence_gap.test.mjs',
+    'v3442_l13_x6_silence_list.test.mjs',
+    'v3443_l13_x8_round_snapshot.test.mjs',
+    'v3444_l13_x9_inheritance_roster.test.mjs',
+    /* [v3.445.0 · L13-X5] 迁移包判据：本档从 `tests/_break_kit.mjs` 取 `breakSource` /
+     *   `assertSingleHit`（真源码破坏：stub 摘除后 fail-closed 必须显式报因、头锚漂移须翻红）。 */
+    'v3445_l13_x5_migrate_pack.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

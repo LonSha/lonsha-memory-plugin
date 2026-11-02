@@ -27,6 +27,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { breakSource } from './_break_kit.mjs';
 import { stripComments } from './_audit_lib.mjs';
+import os from 'node:os';
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -256,7 +257,7 @@ test('X7-F 真源码破坏：三条各自在原版对照下必红', () => {
     const kSrc = fs.readFileSync(KERNEL, 'utf8');
     const n1 = breakSource(kSrc, 'if (!Object.prototype.hasOwnProperty.call(counts, st)) { degraded = true; continue; }',
         'if (!Object.prototype.hasOwnProperty.call(counts, st)) { counts.attempted += 1; continue; }', 'x7_n1');
-    const tmp1 = path.join(ROOT, '.tmp_x7_n1.cjs');
+    const tmp1 = path.join(os.tmpdir(), 'lonsha_x7_n1_' + process.pid + '.cjs');
     fs.writeFileSync(tmp1, n1);
     try {
         delete require.cache[require.resolve(tmp1)];
@@ -274,7 +275,7 @@ test('X7-F 真源码破坏：三条各自在原版对照下必红', () => {
      *   时才走到，夹具里只要 items 非空就永假，破坏等于没写（负控制假绿第二形）。
      *   改成「空束照样进 items」，B 档「空束不得进证据列表」当场翻红。 */
     const n2 = breakSource(diagSrc, 'if (!d.total) continue;', 'if (!d.total && false) continue;', 'x7_n2');
-    const tmp2 = path.join(ROOT, '.tmp_x7_n2.cjs');
+    const tmp2 = path.join(os.tmpdir(), 'lonsha_x7_n2_' + process.pid + '.cjs');
     fs.writeFileSync(tmp2, n2);
     try {
         delete require.cache[require.resolve(tmp2)];

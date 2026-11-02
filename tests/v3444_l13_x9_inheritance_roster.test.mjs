@@ -580,30 +580,32 @@ test('H5: 面板「面没装上」与「账空」文案不同形（两条都必�
     assert.ok(occ(UI_SRC, a) >= 1 && occ(UI_SRC, b) >= 1);
 });
 
-test('H6: 当版锚 v3.444.0（内核 / 诊断层注释 / 面板注释 / manifest / package 一致）', () => {
+test('H6: 出生版本标记（内核 / 诊断层注释 / 面板注释在场即可）—— 版本串互等已交棒 v3445 档', () => {
+    /* [v3.445.0 接管] 历史档只验「本档标记在场」；四源互等与当版锁交给当版档案。 */
     for (const [name, src] of [['内核', KER_SRC], ['诊断层', DIAG_SRC], ['面板', UI_SRC]]) {
         assert.ok(src.includes('v3.444.0'), name + ' 必须带 v3.444.0 标记（否则改动无法按版本归因）');
     }
-    assert.equal(PKG.version, '3.444.0');
-    assert.equal(MANIFEST.version, '3.444.0');
 });
-test('G5: 当版锚点 —— 锁当版 3.444.0（vnum 形，守卫认得这一形）', () => {
-    /* ★ 当版锚必须是**可机检的 vnum 形**：`hasAnchorFor()` 认 `vnum('<当版>')`，
-     *   只比字面量串会让守卫报「当版档案里没有任何测试以 vnum 恰好锚着当版」。
-     *   H6 只比字面量，不构成锚点 —— 两条各司其职，不互相代替。 */
-    const CUR = '3.444.0';
+test('G5: 出生版本下界锚点（vnum 形，守卫认得这一形）—— 当版锚已交棒 v3445 档', () => {
+    /* ★ [v3.445.0 接管] 历史文件锁回**自己的出生版本**（交棒链口径，同 v3440 X7-G 先例）。
+     *   改前形态是 `const CUR = '3.444.0'` + 四处 assert.equal(live, CUR)，
+     *   抬到 3.445.0 当天就红 —— 这不是产品缺陷，是历史档案把「当版」写死成「永恒当版」的欠账。
+     *   现状：下界 = 出生版本 3.444.0（本档不得低于它），上界 = 「不承诺高于现版」；
+     *   当版锚的职责已交棒给当版档案 tests/v3445_l13_x5_migrate_pack.test.mjs 的 G5。 */
+    const BORN_V = '3.444.0';
     const vnum = (v) => {
         const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(v || '').trim());
         return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
     };
-    assert.equal(vnum(CUR), 3444000, '当版锚（vnum 形）：3.444.0 ⇒ 3444000');
+    assert.equal(vnum(BORN_V), 3444000, '出生版本锚（vnum 形）：3.444.0 ⇒ 3444000');
     const live = (/const VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/.exec(HOST_SRC) || [])[1];
-    assert.equal(live, CUR, 'index.js VERSION 必须与当版同源（实 ' + live + '）');
-    assert.equal(MANIFEST.version, CUR);
-    assert.equal(PKG.version, CUR);
-    /* 内核自带的 VERSION 必须已抬到当版（防「测了旧内核」）。 */
+    assert.equal(live, MANIFEST.version, 'index.js VERSION 与 manifest 必须互等（实 ' + live + ' / ' + MANIFEST.version + '）');
+    assert.equal(MANIFEST.version, PKG.version, 'manifest 与 package 必须互等');
+    /* 上界：不承诺未来（现版可以更高，但不得低于本档出生版本）。 */
+    assert.ok(vnum(live) >= vnum(BORN_V), '当版不得低于本档出生版本 ' + BORN_V + '（实 ' + live + '）');
+    /* 内核版本串同样走下界形（era 内核生于 3.444.0，此后允许抬升）。 */
     const kernV = (/var VERSION = '([0-9]+[.][0-9]+[.][0-9]+)'/.exec(KER_SRC) || [])[1];
-    assert.equal(kernV, CUR, '内核 VERSION 必须与当版同源（实 ' + kernV + '）');
+    assert.ok(vnum(kernV) >= vnum(BORN_V), '内核版本不得低于本档出生版本（实 ' + kernV + '）');
     /* 本档专有标记在场。 */
     assert.ok(KER_SRC.includes('L13-X9'), '内核必须留 L13-X9 标记');
     assert.ok(DIAG_SRC.includes('L13-X9'), '诊断层必须留 L13-X9 标记');

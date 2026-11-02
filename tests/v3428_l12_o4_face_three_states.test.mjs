@@ -129,8 +129,12 @@ function runGate(root) {
 
 /* ---- 破坏锚点：逐字取自真源，全部单行（H5 计数口径） ---- */
 /* C1 absent 态的标记属性：摘掉即「没装上」与「没有」在 DOM 上同形。 */
-const A_ABSENT = 'class="ls-hint ls-face-absent" data-ls-face="absent"';
-const R_ABSENT = 'class="ls-hint ls-face-absent"';
+/* [v3.445.0 接管] L13-X7/X4 新增两处 absent 面复用了同一 class 串，
+ *   旧锚 class+attr 组合已撞成 3 命中。本档要测的是 faceHTML 主分支（三态驱动本体），
+ *   故锚延伸到该分支独有的取数表达式 escAttr(faceState.code)，恢复恰中 1 次；
+ *   破坏语义不变：仍然只摘 data-ls-face="absent" 标记。 */
+const A_ABSENT = 'class="ls-hint ls-face-absent" data-ls-face="absent" data-face-why="\' + escAttr(faceState.code)';
+const R_ABSENT = 'class="ls-hint ls-face-absent" data-face-why="\' + escAttr(faceState.code)';
 /* C2 重试按钮：摘掉即失败态没有恢复入口。 */
 const A_RETRY = '<button class="ls-btn ls-face-retry"';
 const R_RETRY = '<button class="ls-btn"';

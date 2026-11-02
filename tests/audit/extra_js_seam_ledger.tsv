@@ -247,3 +247,4 @@ worldline-memory.js	yes	yes	none	host-seam
 memory-lineage-replay.js	yes	yes	none	host-seam
 pov-projection.js	yes	yes	none	host-seam
 round-entry-snapshot.js	yes	yes	none	host-seam
+memory-migrate-pack.js	yes	yes	none	host-seam
