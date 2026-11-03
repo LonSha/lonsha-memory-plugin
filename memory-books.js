@@ -747,16 +747,63 @@ class BM25 {
         try {
             this._lexFp = (this._lexRef?.items || []).map(x => x.canon + ':' + x.count + ':' + (x.terms || []).length + ':' + (x.desc ? 1 : 0)).join('|');
         } catch (e) { this._lexFp = ''; }
-        this.docTerms = this.docs.map(d => {
-            const terms = this._tokenize(this._lexNormalize(d.text));
-            const map = new Map();
-            terms.forEach(t => map.set(t, (map.get(t) || 0) + 1));
-            return map;
-        });
+        this.docTerms = this.docs.map(d => this._termsForDoc(d));
         this.df = new Map();
         for (const tm of this.docTerms) for (const t of tm.keys()) this.df.set(t, (this.df.get(t) || 0) + 1);
-        this.avgLen = this.N ? this.docTerms.reduce((a, m) => a + m.size, 0) / this.N : 0;
+        this._totalLen = this.docTerms.reduce((a, m) => a + m.size, 0);
+        this.avgLen = this.N ? this._totalLen / this.N : 0;
     }
+    _termsForDoc(doc) {
+        const terms = this._tokenize(this._lexNormalize(doc?.text));
+        const map = new Map();
+        terms.forEach(t => map.set(t, (map.get(t) || 0) + 1));
+        return map;
+    }
+    _adjustDf(termMap, delta) {
+        for (const t of termMap.keys()) {
+            const next = (this.df.get(t) || 0) + delta;
+            if (next > 0) this.df.set(t, next);
+            else this.df.delete(t);
+        }
+    }
+    /* [L14-O7] 局部摘要变更只重算一个文档；bulk 替换仍走 rebuild。 */
+    upsert(doc, lexicon = null) {
+        const nextDoc = doc && typeof doc === 'object' ? doc : {};
+        if (lexicon) this._lexRef = lexicon;
+        const id = String(nextDoc.id ?? '');
+        const index = id ? this.docs.findIndex(d => String(d?.id ?? '') === id) : -1;
+        const nextTerms = this._termsForDoc(nextDoc);
+        if (index >= 0) {
+            const previousTerms = this.docTerms[index] || new Map();
+            this._adjustDf(previousTerms, -1);
+            this._adjustDf(nextTerms, 1);
+            this._totalLen = (this._totalLen || 0) - previousTerms.size + nextTerms.size;
+            this.docs[index] = nextDoc;
+            this.docTerms[index] = nextTerms;
+        } else {
+            this.docs.push(nextDoc);
+            this.docTerms.push(nextTerms);
+            this._adjustDf(nextTerms, 1);
+            this.N++;
+            this._totalLen = (this._totalLen || 0) + nextTerms.size;
+        }
+        this.avgLen = this.N ? this._totalLen / this.N : 0;
+        return nextDoc;
+    }
+    remove(id) {
+        const wanted = String(id ?? '');
+        const index = this.docs.findIndex(d => String(d?.id ?? '') === wanted);
+        if (index < 0) return false;
+        const previousTerms = this.docTerms[index] || new Map();
+        this._adjustDf(previousTerms, -1);
+        this._totalLen = Math.max(0, (this._totalLen || 0) - previousTerms.size);
+        this.docs.splice(index, 1);
+        this.docTerms.splice(index, 1);
+        this.N = this.docs.length;
+        this.avgLen = this.N ? this._totalLen / this.N : 0;
+        return true;
+    }
+    // [v3.23] 断崖截断
     // [v3.23] 断崖截断（NE-Memory retrieval-filter 分数断崖）: 相邻分 3x 且低于首项 15% → 自然截断
     // 弱相关长尾截掉，minResults 保底防空洞
     _cliffCut(scored, topK, opts = {}) {
