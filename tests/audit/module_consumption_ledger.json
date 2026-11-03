@@ -2050,11 +2050,16 @@
     "temporal-validity-workflow.js": {
       "module": "temporal-validity-workflow.js",
       "surface": [
-        "temporal-validity-workflow"
+        "temporal-validity-workflow",
+        "explainFact",
+        "selectFacts",
+        "readAt",
+        "resolveQuery",
+        "line"
       ],
-      "prod_call_sites": 1,
-      "allowed": 1,
-      "why": "active"
+      "prod_call_sites": 7,
+      "allowed": 7,
+      "why": "active: unified temporal interpretation for detail, verification, recall and injection"
     },
     "memory-archaeology.js": {
       "module": "memory-archaeology.js",

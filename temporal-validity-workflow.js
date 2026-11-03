@@ -26,7 +26,14 @@
         return Number.isFinite(n) ? n : fallback;
     }
     function safeArr(v) { return Array.isArray(v) ? v : []; }
-
+    function finiteOrNull(v) {
+        if (v == null || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    }
+    function ownNumber(o, key) {
+        return o && Object.prototype.hasOwnProperty.call(o, key) ? finiteOrNull(o[key]) : null;
+    }
     /**
      * 根据故事时间判定单条事实的时间有效性状态
      */
@@ -41,7 +48,9 @@
         const currentStoryFloor = typeof storyTimelineMarker === 'number' ? storyTimelineMarker : null;
         const validUntilFloor = typeof fact.validUntilFloor === 'number' ? fact.validUntilFloor : null;
         const validFromFloor = typeof fact.validFromFloor === 'number' ? fact.validFromFloor : null;
-
+        if (validFromFloor == null && validUntilFloor == null && !TEMPORAL_STATUS[Object.keys(TEMPORAL_STATUS).find(k => TEMPORAL_STATUS[k] === fact.status)]) {
+            return { status: TEMPORAL_STATUS.UNCERTAIN, reason: 'no-validity-range' };
+        }
         if (currentStoryFloor == null) {
             // 没有提供故事参照点时，若有明确状态则返回，否则标为 uncertain
             return {
@@ -80,11 +89,135 @@
             if (verdict.status === TEMPORAL_STATUS.PLANNED) return allowPlanned;
             if (verdict.status === TEMPORAL_STATUS.HISTORICAL) return allowHistorical;
             if (verdict.status === TEMPORAL_STATUS.CANCELLED) return false;
-            // uncertain 事实默认按当前有效宽松放行，避免全盘断崖
-            return true;
+            // 未知不能冒充当前有效；调用方必须显式选择 allowUncertain。
+            return options.allowUncertain === true;
         });
     }
-
+    function factRange(fact) {
+        const f = fact && typeof fact === 'object' ? fact : {};
+        return {
+            from: ownNumber(f, 'from') != null ? ownNumber(f, 'from') : ownNumber(f, 'validFromFloor'),
+            to: ownNumber(f, 'to') != null ? ownNumber(f, 'to') : ownNumber(f, 'validUntilFloor')
+        };
+    }
+    function coordForFact(fact, coords, actor) {
+        const f = fact && typeof fact === 'object' ? fact : {};
+        const ids = [f.id, f.factId, f.subject].filter(v => v != null && String(v) !== '');
+        const wantActor = safeStr(actor);
+        for (const c of safeArr(coords)) {
+            if (!c || typeof c !== 'object') continue;
+            if (wantActor && safeStr(c.actor) !== wantActor) continue;
+            if (ids.some(id => safeStr(c.subject) === safeStr(id))) return c;
+        }
+        return null;
+    }
+    function rowFacts(row) { return row && Array.isArray(row.values) ? row.values : []; }
+    function factId(fact) { return fact && fact.id != null ? String(fact.id) : ''; }
+    function stateRows(state, at, opts) {
+        const o = opts || {};
+        const FV = o.factVersion;
+        if (!FV || typeof FV.readAt !== 'function') return null;
+        try {
+            const result = FV.readAt(state, at == null ? null : at, o.factVersionOptions);
+            return result && Array.isArray(result.rows) ? result.rows : [];
+        } catch (_e) { return null; }
+    }
+    function versionEvidence(fact, rows) {
+        const id = factId(fact);
+        for (const row of safeArr(rows)) {
+            const values = rowFacts(row);
+            if (values.some(f => factId(f) === id)) return { state: row.state, row: row, matched: true };
+            if (!id && safeStr(row.subject) === safeStr(fact && fact.subject)
+                && safeStr(row.predicate) === safeStr(fact && fact.predicate)) {
+                return { state: row.state, row: row, matched: true };
+            }
+        }
+        return { state: null, row: null, matched: false };
+    }
+    function dualEvidence(fact, opts, at) {
+        const o = opts || {};
+        const DT = o.dualTime;
+        const coord = o.coord || coordForFact(fact, o.coords, o.actor);
+        if (!coord || !DT || typeof DT.visibleAt !== 'function') {
+            return { state: coord ? 'unavailable' : 'not-tracked', known: 'unknown', coord: coord || null };
+        }
+        const point = finiteOrNull(at);
+        const visible = point == null ? { known: 'unknown', why: 'no-story-time' } : DT.visibleAt(coord, point);
+        return { state: visible.known, known: visible.known, why: visible.why, learnedAt: visible.learnedAt, coord: coord };
+    }
+    /** 统一组合 fact-version 与 dual-time 的只读解释，不复制底层判据。 */
+    function explainFact(fact, opts = {}) {
+        const f = fact && typeof fact === 'object' ? fact : {};
+        const at = ownNumber(opts, 'at');
+        const range = factRange(f);
+        const lifecycleFact = Object.assign({}, f, { validFromFloor: range.from, validUntilFloor: range.to });
+        let validity = classifyFactValidity(lifecycleFact, at);
+        const rows = stateRows(opts.state, at, opts);
+        const version = versionEvidence(f, rows);
+        if (version.state === 'current' && (range.from != null || range.to != null || f.status === TEMPORAL_STATUS.CURRENT_VALID)) validity = { status: TEMPORAL_STATUS.CURRENT_VALID, reason: 'version-current' };
+        else if (version.state === 'historical') validity = { status: TEMPORAL_STATUS.HISTORICAL, reason: 'version-historical' };
+        else if (version.state === 'none-at' || version.state === 'none-current') validity = { status: TEMPORAL_STATUS.HISTORICAL, reason: 'version-not-selected' };
+        const dual = dualEvidence(f, opts, at);
+        const historicalQuery = at != null;
+        let eligible = validity.status === TEMPORAL_STATUS.CURRENT_VALID
+            || (historicalQuery && validity.status === TEMPORAL_STATUS.HISTORICAL && opts.allowHistorical === true)
+            || (validity.status === TEMPORAL_STATUS.PLANNED && opts.allowPlanned === true)
+            || (validity.status === TEMPORAL_STATUS.UNCERTAIN && opts.allowUncertain === true);
+        let reason = eligible ? validity.reason : 'temporal-' + validity.status;
+        if (opts.actor != null && dual.known !== 'yes') {
+            eligible = false;
+            reason = dual.known === 'no' ? 'not-yet-known' : 'knowledge-unknown';
+        }
+        if (version.state === 'ambiguous') { eligible = false; reason = 'version-ambiguous'; }
+        if (version.state === 'none-trusted' || version.state === 'none-revoked') { eligible = false; reason = 'version-' + version.state; }
+        return { ok: !!fact && typeof fact === 'object', id: f.id == null ? null : String(f.id), fact: f, at: at,
+            range: range, validity: validity, version: { state: version.state || 'unread', row: version.row },
+            dualTime: dual, eligible: eligible, reason: reason };
+    }
+    /** 当前选择只收当前版本；历史选择必须显式给时点并允许历史。 */
+    function selectFacts(facts, opts = {}) {
+        const list = safeArr(facts);
+        const at = ownNumber(opts, 'at');
+        const rows = stateRows(opts.state, at, opts);
+        const selected = [], excluded = [];
+        for (const fact of list) {
+            const evidence = versionEvidence(fact, rows);
+            const explanation = explainFact(fact, Object.assign({}, opts, { at: at }));
+            if (rows && !evidence.matched) {
+                explanation.eligible = false;
+                explanation.reason = at == null ? 'not-current-version' : 'not-at-version';
+            }
+            if (explanation.eligible) selected.push(fact);
+            else excluded.push({ fact: fact, reason: explanation.reason, explanation: explanation });
+        }
+        return { ok: true, at: at, selected: selected, excluded: excluded,
+            explanations: list.map(f => explainFact(f, Object.assign({}, opts, { at: at }))) };
+    }
+    function readAt(rawState, at, opts = {}) {
+        const rows = stateRows(rawState, at, opts);
+        if (rows == null) return { ok: false, reason: 'fact-version-unavailable', at: at == null ? null : at, rows: [] };
+        const enriched = rows.map(row => {
+            const explanations = rowFacts(row).map(f => explainFact(f, Object.assign({}, opts, { at: at })));
+            if (opts.unknownTime === true) {
+                explanations.forEach(e => { e.eligible = false; e.reason = 'unknown-time'; });
+            }
+            return Object.assign({}, row, { explanations: explanations, eligible: explanations.some(e => e.eligible) });
+        });
+        return { ok: true, at: at == null ? null : at, rows: enriched, unknownTime: at == null && opts.unknownTime === true };
+    }
+    function resolveQuery(rawState, text, opts = {}) {
+        const FV = opts.factVersion;
+        if (!FV || typeof FV.resolveQuery !== 'function') return { ok: false, reason: 'fact-version-unavailable', rows: [] };
+        const base = FV.resolveQuery(rawState, text, { at: opts.at == null ? null : opts.at });
+        const out = readAt(rawState, base.at, Object.assign({}, opts, { unknownTime: base.unknownTime }));
+        return Object.assign(out, { intent: base.intent, intentCue: base.intentCue, unknownTime: !!base.unknownTime });
+    }
+    function line(rawState, opts = {}) {
+        const parts = [];
+        try { if (opts.factVersion && typeof opts.factVersion.line === 'function') parts.push(opts.factVersion.line(rawState)); } catch (_e) { parts.push('事实账异常'); }
+        try { if (opts.dualTime && typeof opts.dualTime.line === 'function') parts.push(opts.dualTime.line(opts.coords)); } catch (_e) { parts.push('时间坐标异常'); }
+        return parts.length ? parts.join(' · ') : '时间模块未加载';
+    }
     function temporalValiditySelfCheck() {
         const problems = [];
         if (Object.keys(TEMPORAL_STATUS).length !== 5) problems.push('TEMPORAL_STATUS 必须恰好为 5 项');
@@ -95,6 +228,7 @@
         TEMPORAL_STATUS,
         classifyFactValidity,
         filterFactsByTemporalWindow,
+        explainFact, selectFacts, readAt, resolveQuery, line,
         temporalValiditySelfCheck
     });
 

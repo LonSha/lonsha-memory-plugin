@@ -9772,8 +9772,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         timeRead(at) {
             try {
                 const FV = _factVersionLib();
-                if (!FV || typeof FV.readAt !== 'function') return { ok: false, reason: 'module-unavailable', rows: [] };
-                return FV.readAt(this._factVersionState, (at == null ? null : at));
+                const TV = _temporalValidityLib();
+                const DT = _dualTimeLib();
+                if (!TV || typeof TV.readAt !== 'function' || !FV) return { ok: false, reason: 'module-unavailable', rows: [] };
+                return TV.readAt(this._factVersionState, (at == null ? null : at), {
+                    factVersion: FV, dualTime: DT,
+                    coords: this.worldProg && this.worldProg.timeCoords,
+                    allowHistorical: at != null
+                });
             } catch (e) { errLog(e, 'engine.timeRead'); return { ok: false, reason: 'thrown', rows: [] }; }
         }
         /** 查询意图解析（现在 / 当时 / 回忆）。判不出来报 unspecified，**不补现实日期**。 */
@@ -9788,8 +9794,16 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
         resolveFactsByTime(text, at) {
             try {
                 const FV = _factVersionLib();
-                if (!FV || typeof FV.resolveQuery !== 'function') return { ok: false, reason: 'module-unavailable', rows: [] };
-                return FV.resolveQuery(this._factVersionState, text, { at: (at == null ? null : at) });
+                const TV = _temporalValidityLib();
+                const DT = _dualTimeLib();
+                if (!TV || typeof TV.resolveQuery !== 'function' || !FV) return { ok: false, reason: 'module-unavailable', rows: [] };
+                const intent = typeof FV.classifyIntent === 'function' ? FV.classifyIntent(text) : null;
+                return TV.resolveQuery(this._factVersionState, text, {
+                    at: (at == null ? null : at), factVersion: FV, dualTime: DT,
+                    coords: this.worldProg && this.worldProg.timeCoords,
+                    allowHistorical: !!(intent && intent.intent !== 'now'),
+                    unknownTime: !!(intent && intent.unknownTime)
+                });
             } catch (e) { errLog(e, 'engine.resolveFactsByTime'); return { ok: false, reason: 'thrown', rows: [] }; }
         }
         /** [v3.194] 事实按时间点查询（「现在去哪里找她」/「回忆大学时生活」）。不抛。 */
@@ -9797,8 +9811,46 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             try {
                 const FV = _factVersionLib();
                 if (!FV || typeof FV.lookup !== 'function' || !this._factVersionState) return { ok: false, reason: 'module-unavailable' };
-                return FV.lookup(this._factVersionState, ref);
+                const result = FV.lookup(this._factVersionState, ref);
+                const TV = _temporalValidityLib();
+                const DT = _dualTimeLib();
+                if (!TV || typeof TV.explainFact !== 'function') return result;
+                const explain = (f) => TV.explainFact(f, {
+                    at: ref && ref.at != null ? ref.at : null,
+                    state: this._factVersionState, factVersion: FV, dualTime: DT,
+                    coords: this.worldProg && this.worldProg.timeCoords,
+                    allowHistorical: !!(ref && ref.at != null)
+                });
+                if (result && result.fact) result.temporal = explain(result.fact);
+                if (result && Array.isArray(result.facts)) result.temporalFacts = result.facts.map(explain);
+                return result;
             } catch (e) { errLog(e, 'engine.lookupFact'); return { ok: false, reason: 'thrown' }; }
+        }
+        /** [L14-O5] 统一事实选择面，供查证/召回工具复用，不在调用方复制时间判据。 */
+        selectFactsByTime(facts, opts) {
+            try {
+                const TV = _temporalValidityLib();
+                const FV = _factVersionLib();
+                const DT = _dualTimeLib();
+                if (!TV || typeof TV.selectFacts !== 'function') return { ok: false, reason: 'module-unavailable', selected: [], excluded: [] };
+                return TV.selectFacts(facts, Object.assign({}, opts || {}, {
+                    state: this._factVersionState, factVersion: FV, dualTime: DT,
+                    coords: this.worldProg && this.worldProg.timeCoords
+                }));
+            } catch (e) { errLog(e, 'engine.selectFactsByTime'); return { ok: false, reason: 'thrown', selected: [], excluded: [] }; }
+        }
+        /** [L14-O5] 详情、查证、召回与注入共用的时间诊断行。 */
+        temporalValidityLine() {
+            try {
+                const TV = _temporalValidityLib();
+                const FV = _factVersionLib();
+                const DT = _dualTimeLib();
+                if (!TV || typeof TV.line !== 'function') return '模块未加载(temporal-validity-workflow.js)';
+                return TV.line(this._factVersionState, {
+                    factVersion: FV, dualTime: DT,
+                    coords: this.worldProg && this.worldProg.timeCoords
+                });
+            } catch (e) { errLog(e, 'engine.temporalValidityLine'); return '—（时间有效性诊断异常）'; }
         }
         /**
          * [v3.211] 类型化事实的**注入面**（把「登记」接到「注入」）。
@@ -9859,11 +9911,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                  *   拆成两行会让那条负控制找不到锚点而**静默失效**（门空转比门红危险得多）。
                  *   故 stale 过滤作为**第二道**挂在过滤链上，两道各自独立可测。 */
                 const gatedStale = (f) => !staleIds || !staleIds.has(String(f && f.id != null ? f.id : ''));
+                const TV = _temporalValidityLib();
+                const FVForTime = _factVersionLib();
+                const DTForTime = _dualTimeLib();
+                const timeGate = (f) => {
+                    if (!TV || typeof TV.explainFact !== 'function' || !FVForTime) return true;
+                    const verdict = TV.explainFact(f, {
+                        at: null, state: this._factVersionState, factVersion: FVForTime,
+                        dualTime: DTForTime, coords: this.worldProg && this.worldProg.timeCoords
+                    });
+                    return verdict.eligible;
+                };
                 const rawBuckets = MT.typedBuckets(this._factVersionState);
                 const buckets = {};
                 for (const k of Object.keys(rawBuckets)) {
                     const list = rawBuckets[k];
-                    buckets[k] = Array.isArray(list) ? list.filter(gated).filter(gatedStale) : list;
+                    buckets[k] = Array.isArray(list) ? list.filter(gated).filter(gatedStale).filter(timeGate) : list;
                 }
                 const stableGroups = [];
                 const volatileGroups = [];
