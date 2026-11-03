@@ -56,6 +56,11 @@
     function _relationHistoryLib() { return _libs._relationHistoryLib ? _libs._relationHistoryLib.apply(null, arguments) : null; }
     function _returnGateLib() { return _libs._returnGateLib ? _libs._returnGateLib.apply(null, arguments) : null; }
     function _summaryProvenanceLib() { return _libs._summaryProvenanceLib ? _libs._summaryProvenanceLib.apply(null, arguments) : null; }
+    function _evidenceSourceLocatorLib() {
+        if (_libs._evidenceSourceLocatorLib) return _libs._evidenceSourceLocatorLib.apply(null, arguments);
+        return _moduleLib(function () { return (typeof window !== 'undefined' ? window.LonShaEvidenceSourceLocator : null); }, 'evidence-source-locator.js');
+    }
+
     function _testimonyBoardLib() { return _libs._testimonyBoardLib ? _libs._testimonyBoardLib.apply(null, arguments) : null; }
     function _worldlineMemoryLib() { return _libs._worldlineMemoryLib ? _libs._worldlineMemoryLib.apply(null, arguments) : null; }
     /* [v3.428.0 · L12-O1] 七件零消费内核的取库口（宿主侧只留转发，业务不在 index.js 里拼）。
@@ -3537,6 +3542,147 @@
         } catch (e) { errLog(e, 'engine._evidenceImpactLine'); return '—（诊断异常）'; }
     }
 
+    /* ---- L14-O8 evidence source locator -----------------------------------
+     * Read-only locator plus one-item confirmed rebind. The workbench ledger
+     * registry remains the only source of ledger state and ref construction.
+     */
+    function _ledgerEntityLib() {
+        if (_libs._ledgerEntityLib) return _libs._ledgerEntityLib.apply(null, arguments);
+        return _moduleLib(function () { return (typeof window !== 'undefined' ? window.LonShaLedgerEntity : null); }, 'ledger-entity.js');
+    }
+    function _evidenceSourceSpecs() {
+        try { return _libs._evidenceQueryLedgersOf ? _libs._evidenceQueryLedgersOf() : []; }
+        catch (_e) { return []; }
+    }
+    function _evidenceSourceApis() {
+        try { return _libs._ledgerApis ? _libs._ledgerApis() : {}; }
+        catch (_e) { return {}; }
+    }
+    function _evidenceSourceChat(opts) {
+        if (opts && Array.isArray(opts.chat)) return opts.chat;
+        try {
+            const c = (typeof window !== 'undefined' && window.SillyTavern
+                && typeof window.SillyTavern.getContext === 'function')
+                ? (window.SillyTavern.getContext() || {}) : null;
+            return c && Array.isArray(c.chat) ? c.chat : null;
+        } catch (_e) { return null; }
+    }
+    function _evidenceSourceKey(spec, item, index) {
+        let p = {};
+        try { p = spec.project ? (spec.project(item, null) || {}) : {}; } catch (_e) { p = {}; }
+        let key = '';
+        try { key = item && (item.id || item.key || (typeof spec.keyOf === 'function' ? spec.keyOf(item) : '') || p.title); }
+        catch (_e) { key = ''; }
+        return String(key || ('#' + index));
+    }
+    function _evidenceSourceItem(ref, engine) {
+        const s = String(ref || '').trim();
+        const at = s.indexOf(':');
+        if (at <= 0) return { ok: false, reason: 'bad-ref', item: null, spec: null, ledger: '' };
+        const id = s.slice(0, at);
+        const key = s.slice(at + 1);
+        const spec = _evidenceSourceSpecs().find((x) => x && x.id === id);
+        if (!spec) return { ok: false, reason: 'unknown-ledger', item: null, spec: null, ledger: id };
+        const apis = _evidenceSourceApis();
+        let state;
+        try { state = typeof spec.state === 'function' ? spec.state(engine) : undefined; } catch (_e) { state = undefined; }
+        let items = [];
+        try { items = spec.pick ? (spec.pick(apis[id] || null, state) || []) : []; } catch (_e) { items = []; }
+        if (!Array.isArray(items)) items = [];
+        for (let i = 0; i < items.length; i++) {
+            if (_evidenceSourceKey(spec, items[i], i) === key) return { ok: true, reason: 'ok', item: items[i], spec, ledger: id, index: i, ref: s };
+        }
+        return { ok: false, reason: state == null ? 'ledger-absent' : 'not-found', item: null, spec, ledger: id, ref: s };
+    }
+    function _evidenceSourceRows(engine, opts) {
+        const o = opts && typeof opts === 'object' ? opts : {};
+        const specs = _evidenceSourceSpecs();
+        const apis = _evidenceSourceApis();
+        const refs = Array.isArray(o.refs) ? o.refs.map(String) : (o.ref ? [String(o.ref)] : null);
+        const rows = [];
+        if (refs) {
+            for (const ref of refs) {
+                const hit = _evidenceSourceItem(ref, engine);
+                rows.push(hit.ok ? hit : { ok: false, ref, reason: hit.reason, ledger: hit.ledger || '' });
+            }
+            return rows;
+        }
+        for (const spec of specs) {
+            let state;
+            try { state = spec.state ? spec.state(engine) : undefined; } catch (_e) { state = undefined; }
+            let items = [];
+            try { items = spec.pick ? (spec.pick(apis[spec.id] || null, state) || []) : []; } catch (_e) { items = []; }
+            if (!Array.isArray(items)) continue;
+            for (let i = 0; i < items.length; i++) rows.push({ ok: true, item: items[i], spec, ledger: spec.id, index: i, ref: spec.id + ':' + _evidenceSourceKey(spec, items[i], i) });
+        }
+        return rows;
+    }
+    function evidenceSourceBench(engine, opts) {
+        const bad = (reason) => ({ kind: 'evidence_source', version: 1, ok: false, reason, writesNothing: true, scanned: 0, rows: [], counts: {} });
+        try {
+            const L = _evidenceSourceLocatorLib();
+            if (!L || typeof L.locate !== 'function') return bad('module-unavailable');
+            const chat = _evidenceSourceChat(opts);
+            if (!Array.isArray(chat)) return bad('chat-unavailable');
+            const rows = [];
+            const counts = {};
+            for (const entry of _evidenceSourceRows(engine, opts)) {
+                if (!entry.ok) { rows.push({ ref: entry.ref || '', ledger: entry.ledger || '', ok: false, reason: entry.reason }); continue; }
+                const result = L.locate(entry.item, chat, opts);
+                const row = { ref: entry.ref, ledger: entry.ledger, ok: true, state: result.state, reason: result.reason, floor: result.floor, expectedFloor: result.expectedFloor, checked: result.checked, source: result.source, recovery: result.recovery };
+                rows.push(row);
+                counts[result.state] = (counts[result.state] || 0) + 1;
+            }
+            return { kind: 'evidence_source', version: 1, ok: true, reason: '', writesNothing: true, scanned: rows.length, rows, counts };
+        } catch (e) { errLog(e, 'engine.evidenceSourceBench'); return bad('thrown: ' + ((e && e.message) || e)); }
+    }
+    function evidenceSourceRebind(engine, opts) {
+        const bad = (reason, extra) => Object.assign({ kind: 'evidence_source_rebind', version: 1, ok: false, writes: false, reason, preview: null }, extra || {});
+        try {
+            const L = _evidenceSourceLocatorLib();
+            if (!L || typeof L.findRecoverable !== 'function' || typeof L.previewRebind !== 'function') return bad('module-unavailable');
+            const o = opts && typeof opts === 'object' ? opts : {};
+            const hit = _evidenceSourceItem(o.ref, engine);
+            if (!hit.ok) return bad(hit.reason, { ref: o.ref || '' });
+            const chat = _evidenceSourceChat(o);
+            if (!Array.isArray(chat)) return bad('chat-unavailable', { ref: hit.ref });
+            let candidate = o.candidate || null;
+            if (!candidate && o.candidateFloor !== undefined) {
+                const floor = Number(o.candidateFloor);
+                const message = Number.isInteger(floor) && floor >= 0 ? chat[floor] : null;
+                candidate = message ? { floor, message, fp: L.msgFpOf(message) } : null;
+            }
+            if (!candidate) {
+                const found = L.findRecoverable(hit.item, chat, o);
+                if (found.state !== 'unique') return bad(found.state === 'ambiguous' ? 'ambiguous-candidate' : 'no-recoverable-candidate', { ref: hit.ref, candidates: found.candidates || [] });
+                candidate = found.candidate;
+            }
+            const preview = L.previewRebind(hit.item, candidate, o);
+            if (!preview.ok) return bad(preview.reason, { ref: hit.ref, preview });
+            if (o.confirm !== true) return { kind: 'evidence_source_rebind', version: 1, ok: true, writes: false, confirmed: false, reason: 'confirm-required', ref: hit.ref, preview };
+            const LE = _ledgerEntityLib();
+            if (!LE || typeof LE.reanchor !== 'function') return bad('ledger-entity-unavailable', { ref: hit.ref, preview });
+            const eventKey = String(o.eventKey || ('l14-o8:' + hit.ref + ':' + preview.newFloor + ':' + preview.newFp)).slice(0, 180);
+            const changed = LE.reanchor(hit.item, {
+                floor: preview.newFloor, eventKey, source: 'evidence-source-locator',
+                note: String(o.note || 'L14-O8 source rebind').slice(0, 120),
+                opts: { maxHistory: Number(o.maxHistory) > 0 ? Number(o.maxHistory) : 20, stampFloor: true }
+            });
+            if (!changed) return bad('ledger-reanchor-refused', { ref: hit.ref, preview, eventKey });
+            if ('fp' in hit.item || preview.newFp) hit.item.fp = preview.newFp;
+            if ('textHash' in hit.item || preview.newTextHash) hit.item.textHash = preview.newTextHash;
+            return { kind: 'evidence_source_rebind', version: 1, ok: true, writes: true, confirmed: true, changed: true, reason: '', ref: hit.ref, eventKey, preview };
+        } catch (e) { errLog(e, 'engine.evidenceSourceRebind'); return bad('thrown: ' + ((e && e.message) || e)); }
+    }
+    function _evidenceSourceLine(engine, opts) {
+        try {
+            const r = evidenceSourceBench(engine, opts || {});
+            if (!r || r.ok !== true) return '证据回源不可用 · ' + ((r && r.reason) || 'unknown');
+            const c = r.counts || {};
+            return '证据回源 ' + (c.verified || 0) + ' verified · ' + (c.located || 0) + ' located · ' + (c.edited || 0) + ' edited · ' + (c.missing || 0) + ' missing · ' + (c['unknown-floor'] || 0) + ' unknown-floor';
+        } catch (e) { errLog(e, 'engine._evidenceSourceLine'); return '证据回源诊断异常'; }
+    }
+
     /* ---- L13-X4 证据缺口工作台（memory-archaeology-gap-bench.js）-------------
      * ⚠️ 不要与上面的 `evidenceImpactReplay` 混为一谈：那是 **L12-X4**（证据裁决影响回放），
      *   本段是 **L13-X4**（证据缺口工作台）。期号不同、内核不同、问题也不同：
@@ -4666,5 +4812,7 @@
     }
     var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
-    global.LonShaDiagnosticLines = api;
+    var _l14o8Api = Object.assign({}, api, { evidenceSourceBench, evidenceSourceRebind, _evidenceSourceLine });
+    global.LonShaDiagnosticLines = _l14o8Api;
+    if (typeof module !== 'undefined' && module.exports) module.exports = _l14o8Api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -2438,6 +2438,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _relationHistoryLib: _relationHistoryLib,
                         _returnGateLib: _returnGateLib,
                         _summaryProvenanceLib: _summaryProvenanceLib,
+                        _evidenceSourceLocatorLib: _evidenceSourceLocatorLib,
+                        _ledgerEntityLib: _ledgerEntityLib,
+                        _evidenceQueryLedgersOf: _evidenceQueryLedgersOf,
+                        _ledgerApis: _ledgerApis,
                         _testimonyBoardLib: _testimonyBoardLib,
                         _worldlineMemoryLib: _worldlineMemoryLib,
                         /* [v3.428.0 · L12-O1] 五件零消费内核注入（engine-diagnostic-lines 的业务面用）。
@@ -3203,6 +3207,9 @@ function relativeTimeLabel(eventTime, nowTime) {
         evidenceGapBench(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceGapBench(this, ...args) : null; }
         evidenceGapDowngrade(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceGapDowngrade(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
         _evidenceGapBenchLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._evidenceGapBenchLine(this, ...args) : ''; }
+        evidenceSourceBench(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceSourceBench(this, ...args) : { ok: false, reason: 'module-unavailable', writesNothing: true, rows: [], counts: {} }; }
+        evidenceSourceRebind(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.evidenceSourceRebind(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false }; }
+        _evidenceSourceLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._evidenceSourceLine(this, ...args) : ''; }
         // [v3.430.0 · L12-X] X 系列六个业务面的宿主出口。与本文件既有的 *State/*Act/_*Line
         //   同形：这一行只做转发，业务与判据全在 engine-diagnostic-lines.js ——
         //   宿主不许重写规则（重写一次就等于第二份真源）。
@@ -9934,6 +9941,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   现在把「来源」本身变成可查的字段，六态判定把「旧档」与「真失效」分开。
     function _summaryProvenanceLib() {
         return _moduleLib(() => window.LonShaSummaryProvenance, 'summary-provenance.js');
+    }
+    // [v3.445.0 · L14-O8] 跨楼来源定位与改绑内核。
+    function _evidenceSourceLocatorLib() {
+        return _moduleLib(() => window.LonShaEvidenceSourceLocator, 'evidence-source-locator.js');
     }
     // [v3.183] 分支守护（Branch Guard）：把「翻页 / 重生成之后这一楼归谁」变成可查的三态队列。
     //   与 summary-provenance 的分工：prov 回答「这条摘要的来源现在还对不对」，

@@ -1,7 +1,7 @@
 {
   "schema": "module-consumption-ledger@1",
-  "generated_at": "2026-11-02T10:15:21.787Z",
-  "total_modules": 249,
+  "generated_at": "2026-11-03T13:46:19.352Z",
+  "total_modules": 250,
   "zero_consumption_count": 19,
   "modules": {
     "ledger-entity.js": {
@@ -9,7 +9,16 @@
       "surface": [
         "ledger-entity"
       ],
-      "prod_call_sites": 11,
+      "prod_call_sites": 12,
+      "allowed": 1,
+      "why": "active"
+    },
+    "evidence-source-locator.js": {
+      "module": "evidence-source-locator.js",
+      "surface": [
+        "evidence-source-locator"
+      ],
+      "prod_call_sites": 3,
       "allowed": 1,
       "why": "active"
     },
@@ -1224,7 +1233,7 @@
       "surface": [
         "engine-diagnostic-lines"
       ],
-      "prod_call_sites": 127,
+      "prod_call_sites": 130,
       "allowed": 1,
       "why": "active"
     },

@@ -1368,6 +1368,34 @@
                         + '动作只有「去补证」与「逐条降级」——**没有一键补全**：本仓不许由模型无凭捏造补全。'
                         + '降级只把该条从「事实」降为「推测」，原值与历史仍可查，且在「正史增量」页留一条。</div></div>';
                 }
+                let sourceBlock = '';
+                let sourceRaw = null;
+                try {
+                    sourceRaw = (typeof s.evidenceSourceBench === 'function')
+                        ? s.evidenceSourceBench({})
+                        : { ok: false, reason: 'host-method-missing' };
+                } catch (e) { sourceRaw = { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
+                if (!sourceRaw || sourceRaw.ok !== true) {
+                    sourceBlock = '<div class="ls-group"><div class="ls-group-title">⌖ 原文回源</div>'
+                        + '<div class="ls-hint ls-face-absent">⚠️ 不可用 · ' + esc((sourceRaw && sourceRaw.reason) || 'module-unavailable') + '</div></div>';
+                } else {
+                    const sourceRows = (sourceRaw.rows || []).filter((r) => r && (r.state === 'edited' || r.state === 'missing' || r.state === 'unknown-floor'));
+                    const sourceCounts = sourceRaw.counts || {};
+                    const sourceHead = '扫描 ' + (sourceRaw.scanned || 0) + ' 条 · verified ' + (sourceCounts.verified || 0)
+                        + ' · located ' + (sourceCounts.located || 0) + ' · edited ' + (sourceCounts.edited || 0)
+                        + ' · missing ' + (sourceCounts.missing || 0) + ' · unknown-floor ' + (sourceCounts['unknown-floor'] || 0);
+                    const sourceRowsHtml = sourceRows.length ? sourceRows.map((r) => {
+                        const recoverable = r.recovery && r.recovery.state === 'unique';
+                        return '<div class="ls-item" data-source-row="' + escAttr(r.ref || '') + '">'
+                            + '<div class="ls-item-meta">' + esc(r.state || 'unknown') + ' · ' + esc(r.ref || '') + '</div>'
+                            + '<div class="ls-item-text">' + esc(r.reason || '来源未定位') + '</div>'
+                            + (recoverable ? '<button class="ls-btn ls-source-rebind" data-source-ref="' + escAttr(r.ref || '') + '" style="padding:2px 8px;font-size:12px;">⌖ 预览改绑</button>' : '<div class="ls-hint">无唯一恢复候选，不自动跳邻楼。</div>')
+                            + '</div>';
+                    }).join('') : '<div class="ls-hint">当前没有失效或待确认的来源。</div>';
+                    sourceBlock = '<div class="ls-group"><div class="ls-group-title">⌖ 原文回源</div>'
+                        + '<div class="ls-hint" data-source-summary="1">' + esc(sourceHead) + '</div>'
+                        + sourceRowsHtml + '</div>';
+                }
                 let archiveBody = '';
                 if (!aa) {
                     archiveBody = '<div class="ls-hint">尚无恢复记录。导入一次存档（或恢复快照）后，此处显示该档的三分判定：活真源 / 可清理候选 / 保留。</div>';
@@ -1393,7 +1421,7 @@
                 /* 拼装：缺口面在上、存档体检在下。
                  *   顺序有意义 —— 缺口面回答「我的结论靠不靠得住」（内容），
                  *   存档体检回答「这份档结构干不干净」（容器）；先内容后容器。 */
-                body = gapBlock + archiveBody;
+                body = sourceBlock + gapBlock + archiveBody;
             }
 
             else if (viewType === 'lockedfacts') {
@@ -2020,6 +2048,37 @@
              *   ③ 失败必须报原因，**不许静默**：点下去没反应与「点了但被拒」是两种事。
              */
             if (viewType === 'archive') {
+                ov.querySelectorAll('[data-source-ref]').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const ref = String(btn.dataset.sourceRef || '');
+                        if (!ref) { toast('⚠️ 改绑未生效：缺少证据引用'); return; }
+                        let preview = null;
+                        try {
+                            preview = (typeof s.evidenceSourceRebind === 'function')
+                                ? s.evidenceSourceRebind({ ref })
+                                : { ok: false, reason: 'host-method-missing' };
+                        } catch (e) { preview = { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
+                        if (!preview || preview.ok !== true) {
+                            toast('⚠️ 无法预览改绑：' + ((preview && preview.reason) || 'unknown'));
+                            return;
+                        }
+                        const p = preview.preview || {};
+                        const fields = (p.changes || []).map((x) => String(x.field) + ' ' + String(x.from) + ' → ' + String(x.to)).join('；');
+                        const promptText = '确认把 ' + ref + ' 改绑到第 ' + String(p.newFloor) + ' 楼？' + (fields ? '\\n差异：' + fields : '');
+                        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(promptText)) return;
+                        let applied = null;
+                        try {
+                            applied = s.evidenceSourceRebind({ ref, confirm: true });
+                        } catch (e) { applied = { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
+                        if (!applied || applied.ok !== true || applied.writes !== true) {
+                            toast('⚠️ 改绑未生效：' + ((applied && applied.reason) || 'unknown'));
+                            return;
+                        }
+                        toast('⌖ 已改绑：' + ref + ' → 第' + String((applied.preview || {}).newFloor) + '楼');
+                        ov.remove();
+                        plugin.showBrowser('archive');
+                    });
+                });
                 /* 「去补证」只是**跳转**，不写任何东西：补证是人在 lockedfacts 页手打一条
                  *   正文事实，本面无法代劳（代劳就是模型无凭捏造补全）。 */
                 ov.querySelectorAll('[data-gap-refill]').forEach((btn) => {

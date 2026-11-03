@@ -322,6 +322,32 @@
    *   故由 v3207 用例把两种写法分开钉住。
    * opts.prepare     push 前的归一化（如某账的 copyEvent）；不给则原样入账。
    */
+  /**
+   * [v3.445.0 · L14-O8] 改绑事件：条目的出处楼层因删楼/重排失效后，把它重新锚定到
+   *   恢复出的新楼层。与 recordEvent 同走**本契约单源**（幂等 eventKey / history 截断 /
+   *   revision 递增一样不少），且 `floor` 与 `updatedFloor` **同戳** ——
+   *   只改 updatedFloor 会让「条目本身写在哪一楼」与「最后一次动它是哪一楼」两格读数分叉。
+   * 拒绝形态（与 recordEvent 一致：返回 false 且什么都没改）：
+   *   · 新楼层不是有限数（改绑必须落到可定位的具体楼上，floor:null 的条目是「出处未知」，
+   *     改绑它等于把「未知」改成「第 undefined 楼」）；
+   *   · 同一 eventKey 幂等命中（重复确认不重复落事件）。
+   */
+  function reanchor(item, opts) {
+    const o = opts || {};
+    const floor = finiteFloor(o.floor);
+    if (floor === null) return false;
+    const ev = {
+      action: 'reanchor',
+      eventKey: text(o.eventKey, 120),
+      floor: floor,
+      source: text(o.source, 40),
+      note: text(o.note, 120),
+      prevFloor: (item && typeof item === 'object') ? finiteFloor(item.floor) : null,
+    };
+    if (!recordEvent(item, ev, o.opts || { maxHistory: o.maxHistory || 0, stampFloor: true })) return false;
+    item.floor = floor;
+    return true;
+  }
   function recordEvent(item, event, opts) {
     const o = opts || {};
     const max = Number(o.maxHistory) > 0 ? Number(o.maxHistory) : 0;
@@ -395,7 +421,7 @@
     REVISION, DEFAULT_BOX,
     text, finite, finiteFloor, finiteNum, numOrNull, names,
     FINITE_DOMAINS, NUM_OR_NULL_DOMAINS, TEXT_DOMAINS,
-    revisionOf, bumpRevision, recordEvent, copyHistory,
+    revisionOf, bumpRevision, recordEvent, reanchor, copyHistory,
     scanBook, line
   });
   root.LonShaLedgerEntity = api;
