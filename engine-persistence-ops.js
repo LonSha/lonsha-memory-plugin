@@ -53,7 +53,10 @@
         if (typeof _deps._schemaMigrationLib === 'function') return _deps._schemaMigrationLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSchemaMigration : null), 'schema-migration.js');
     }
-
+    function _archiveAuditLib() {
+        if (typeof _deps._archiveAuditLib === 'function') return _deps._archiveAuditLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaArchiveAudit : null), 'archive-audit.js');
+    }
     function errLog(err, tag) {
         if (typeof _deps.errLog === 'function') return _deps.errLog(err, tag);
         try { console.error('[LonShaPersistenceOps]', tag, err); } catch (_) {}
@@ -117,6 +120,7 @@
         'timeWentBack',
         'lastSave',
         'roundSnapshots',   /* [L14-O1] 本轮条目快照环随存档走（模块头口径「随引擎存档一起走」的兑现） */
+        'migrateImportRecovery', /* [L14-O6] 迁移包指纹、已应用决策与未决游标 */
         'packedAt',
         'schemaVersion',
         'producerVersion',
@@ -185,6 +189,7 @@
                 timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
                 lastSave: this._lastSaveGroundTruth ? { ...this._lastSaveGroundTruth, sources: { ...(this._lastSaveGroundTruth.sources || {}) } } : null,
                 roundSnapshots: Array.isArray(this._roundSnapshots) ? this._roundSnapshots : [],   // [L14-O1] 快照环只存 id+指纹，体积可忽略；写入侧已被 MAX_ROUNDS 封顶   // [v3.130] 保存地面真源
+                migrateImportRecovery: this._migrateImportRecovery ? JSON.parse(JSON.stringify(this._migrateImportRecovery)) : null, // [L14-O6]
                 packedAt: new Date().toISOString(),
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
@@ -496,6 +501,10 @@
                 engine._roundSnapshots = data.roundSnapshots
                     .filter((r) => r && typeof r === 'object' && (r.phase === 'before' || r.phase === 'after') && typeof r.seq === 'number' && isFinite(r.seq))
                     .slice(-12);
+            });
+            _imp('migrateImportRecovery', true, () => {
+                engine._migrateImportRecovery = data.migrateImportRecovery && typeof data.migrateImportRecovery === 'object'
+                    ? JSON.parse(JSON.stringify(data.migrateImportRecovery)) : null;
             });
             _imp('multiResolutionArchive', true, () => { engine._multiResolutionArchive = data.multiResolutionArchive; });
             _imp('epochalHeritage', true, () => { engine._epochalHeritage = data.epochalHeritage; });

@@ -150,14 +150,45 @@
         return sha256(canon({ char: _s(char), layer: _s(layer), item: item }));
     }
     function _headSha(pack) {
-        return sha256(canon({
+        const body = {
             format: FORMAT,
             schema: pack.schema,
             counts: pack.counts,
             entries: pack.entries
-        }));
+        };
+        const identity = _identityOf(pack.meta);
+        if (Object.keys(identity).length) body.identity = identity;
+        return sha256(canon(body));
     }
-
+    function _identityOf(meta) {
+        const raw = _isObj(meta) && _isObj(meta.identity) ? meta.identity : {};
+        const out = {};
+        ['character', 'project', 'branch', 'chatId'].forEach(function (key) {
+            const value = _s(raw[key]).trim();
+            if (value) out[key] = value.slice(0, 160);
+        });
+        return out;
+    }
+    function _identityCheck(pack, local) {
+        const source = _identityOf(pack && pack.meta);
+        const target = _identityOf(local && local.migrationIdentity ? { identity: local.migrationIdentity } : local && local.meta);
+        const compared = [];
+        const mismatches = [];
+        ['character', 'project', 'branch'].forEach(function (key) {
+            if (source[key] && target[key]) {
+                compared.push(key);
+                if (source[key] !== target[key]) mismatches.push(key);
+            }
+        });
+        return {
+            source: source,
+            target: target,
+            compared: compared,
+            mismatches: mismatches,
+            comparable: compared.length > 0,
+            ok: mismatches.length === 0
+        };
+    }
     // ---------- item normalization / shape checks ----------
     function _normItem(item) {
         if (!_isObj(item)) { return { ok: false, reason: 'item-not-object' }; }
@@ -344,12 +375,21 @@
         if (!v.ok) {
             return {
                 ok: false, rejected: true, reason: v.reason, at: v.at,
-                counts: { add: 0, conflict: 0, identical: 0, unrecognized: 0, total: 0 },
+                counts: { add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, total: 0 },
+                summary: { total: 0, add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, identity: null },
                 added: [], conflicts: [], identical: [], unrecognized: [],
                 tombstoned: []
             };
         }
-
+        const identity = _identityCheck(pack, local);
+        if (!identity.ok) {
+            return {
+                ok: false, rejected: true, reason: 'identity-mismatch', at: -1,
+                counts: { add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, total: pack.entries.length },
+                summary: { total: pack.entries.length, add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, identity: identity },
+                added: [], conflicts: [], identical: [], unrecognized: [], tombstoned: [], identity: identity
+            };
+        }
         const state = _normState(local);
         const out = { added: [], conflicts: [], identical: [], unrecognized: [], tombstoned: [] };
         const dead = {};
@@ -394,6 +434,16 @@
                 tombstoned: out.tombstoned.length,
                 total: pack.entries.length
             },
+            summary: {
+                total: pack.entries.length,
+                add: out.added.length,
+                conflict: out.conflicts.length,
+                identical: out.identical.length,
+                unrecognized: out.unrecognized.length,
+                tombstoned: out.tombstoned.length,
+                identity: identity
+            },
+            identity: identity,
             added: out.added,
             conflicts: out.conflicts,
             identical: out.identical,
@@ -411,10 +461,11 @@
             return {
                 ok: false, rejected: true, reason: pre.reason,
                 state: null, pending: [], decisionsApplied: [],
-                report: { written: 0, added: 0, replaced: 0, keptLocal: 0, keptBoth: 0, identical: 0, unrecognized: 0, tombstoned: 0, pending: 0 }
+                report: { written: 0, added: 0, replaced: 0, keptLocal: 0, keptBoth: 0, identical: 0, unrecognized: 0, tombstoned: 0, pending: 0 },
+                summary: pre.summary || null,
+                identity: pre.identity || null
             };
         }
-
         const d = _isObj(decisions) ? decisions : {};
         const next = _normState(local);
         const report = { written: 0, added: 0, replaced: 0, keptLocal: 0, keptBoth: 0, identical: 0, unrecognized: 0, tombstoned: 0, pending: 0 };
@@ -483,7 +534,12 @@
             state: next,
             pending: pending,
             decisionsApplied: decisionsApplied,
-            report: report
+            report: report,
+            summary: Object.assign({}, pre.summary || {}, {
+                pending: report.pending,
+                written: report.written
+            }),
+            identity: pre.identity || null
         };
     }
 

@@ -3548,8 +3548,9 @@
                 if (!r || !r.ok) { toast('❌ 打包失败: ' + ((r && r.reason) || '未知原因')); return; }
                 try {
                     const c = r.pack.counts || {};
+                    const ident = r.pack.meta?.identity || {};
                     const sk = (r.pack.skipped || []).length;
-                    const prevMsg = '📦 迁移包预览\n\n条目 ' + (c.entries ?? 0) + ' 条（核心 ' + (c.layers?.core ?? 0) + ' / 近期 ' + (c.layers?.recent ?? 0) + '）\n角色 ' + (c.chars ?? 0) + ' 个'
+                    const prevMsg = '📦 迁移包预览\n\n来源 chat ' + (ident.chatId || '未知') + '\n条目 ' + (c.entries ?? 0) + ' 条（核心 ' + (c.layers?.core ?? 0) + ' / 近期 ' + (c.layers?.recent ?? 0) + '）\n角色 ' + (c.chars ?? 0) + ' 个'
                         + (sk ? '\n跳过 ' + sk + ' 条（缺 id/text 或超长）' : '')
                         + '\n\n确认打包？（此后在目标对话点「导入迁移包」）';
                     if (!confirm(prevMsg)) { toast('已取消打包'); return; }
@@ -3576,9 +3577,16 @@
                         try { pack = JSON.parse(r.result); } catch (e) { toast('❌ 文件解析失败'); return; }
                         let pre = null;
                         try { pre = this.engine.precheckMigrateImport(pack); } catch (e) { reportUiError(e, 'ls-migrate-apply'); return; }
-                        if (!pre || !pre.ok) { toast('❌ 包校验失败（' + ((pre && pre.reason) || '损坏或格式不符') + '），原记忆保持不变'); return; }
+                        if (!pre || !pre.ok) {
+                            const why = (pre && pre.reason) || '损坏或格式不符';
+                            const idText = pre?.identity?.mismatches?.length ? '（身份不符: ' + pre.identity.mismatches.join('/') + '）' : '';
+                            toast('❌ 迁移包预检拒绝：' + why + idText + '，原记忆保持不变'); return;
+                        }
+                        const sm = pre.summary || pre.counts || {};
+                        const replay = pre.replayed ? '\n该包已在此会话完成过，重复导入不会重放写入。' : '';
+                        if (!confirm('🧬 迁移包预检\n\n新增 ' + (sm.add || 0) + ' / 冲突 ' + (sm.conflict || 0) + ' / 相同 ' + (sm.identical || 0) + ' / 未知 ' + (sm.unrecognized || 0) + ' / 墓碑 ' + (sm.tombstoned || 0) + replay + '\n\n继续处理冲突？')) return;
                         if (pre.identical.length === pre.counts.total && pre.counts.total > 0) { toast('ℹ️ 包内全部条目与本地相同，无需导入'); return; }
-                        const decisions = {};
+                        const decisions = Object.fromEntries((pre.recovery?.decisionsApplied || []).map((x) => [x.key, x.decision]));
                         for (const cf of (pre.conflicts || [])) {
                             const localText = (cf.local && cf.local.text) || '';
                             const packText = (cf.item && cf.item.text) || '';

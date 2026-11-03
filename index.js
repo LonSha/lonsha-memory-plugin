@@ -208,6 +208,7 @@
     'timeWentBack',
     'lastSave',
     'roundSnapshots',    // [L14-O1] 本轮快照环随存档走（与 engine-persistence-ops.js 冻结清单同键）
+    'migrateImportRecovery', // [L14-O6] 迁移包指纹、已应用决策与未决游标
     'packedAt',
     'schemaVersion',
     'producerVersion',
@@ -3328,39 +3329,100 @@ function relativeTimeLabel(eventTime, nowTime) {
             /* 正史增量：DeltaBook 没有单条删除口（它是 append-only 账）——如实不给。 */
             return map;
         }
-        /* [v3.445.0 · L13-X5] 迁移包导出桩：面板不直接摸模块，一律走宿主方法取数。
-         *   fail-closed 形——模块缺席与 charMem 器官缺席各自显式报因，不静默。 */
+        /* [v3.445.0 · L13-X5 / L14-O6] 迁移身份只取宿主能证明的字段；chatId 仅作来源记录，
+         *   不把「不同聊天」误当成冲突，也不把缺失的 project/branch 猜成同一条线。 */
+        _migrateIdentity() {
+            try {
+                const c = window.SillyTavern?.getContext?.() || {};
+                const project = c.projectId || c.project?.projectId || c.project?.id || '';
+                const branch = c.branchId || c.branch?.id || '';
+                const character = c.characterName || c.name1 || '';
+                return {
+                    chatId: this.getCurrentChatId ? this.getCurrentChatId() : (c.chatId || c.chatMetadata?.file_name || ''),
+                    character: String(character || '').trim().slice(0, 160),
+                    project: String(project || '').trim().slice(0, 160),
+                    branch: String(branch || '').trim().slice(0, 160)
+                };
+            } catch (_e) { return {}; }
+        }
+        _migrateRecovery() {
+            return this._migrateImportRecovery && typeof this._migrateImportRecovery === 'object'
+                ? this._migrateImportRecovery : null;
+        }
+        _setMigrateRecovery(record) {
+            this._migrateImportRecovery = record && typeof record === 'object'
+                ? JSON.parse(JSON.stringify(record)) : null;
+            return this._migrateImportRecovery;
+        }
+        /* [v3.445.0 · L13-X5] 迁移包导出桩：面板不直接摸模块，一律走宿主方法取数。 */
         exportMigratePack(opts) {
             const M = _migratePackLib();
             if (!M) return { ok: false, reason: 'module-unavailable' };
             const src = this.charMem ? this.charMem.export() : null;
             if (!src || (typeof src !== 'object')) return { ok: false, reason: 'charmem-unavailable' };
-            const packed = M.packMemory({ source: src, ...(opts || {}) });
-            /* [v3.445.0] packMemory 返回**裸包**（契约面），面板 handler 统一按 {ok, pack} 取数——
-             *   成功路径在此包装，失败（异常/空对象）fail-closed，不把裸包漏给面板造成误判。 */
+            const o = opts && typeof opts === 'object' ? opts : {};
+            const meta = Object.assign({}, o.meta || {}, { identity: this._migrateIdentity() });
+            const packed = M.packMemory({ source: src, ...o, meta: meta });
             if (!packed || (typeof packed !== 'object') || !packed.headSha) return { ok: false, reason: 'pack-failed' };
             return { ok: true, pack: packed, skipped: Array.isArray(packed.skipped) ? packed.skipped : [] };
         }
-        /* [v3.445.0 · L13-X5] 迁移包预检桩：零副作用，面板据此做冲突决策。 */
+        /* [v3.445.0 · L13-X5 / L14-O6] 预检返回长包摘要、身份边界和恢复游标。 */
         precheckMigrateImport(pack) {
             const M = _migratePackLib();
-            if (!M) return { ok: false, rejected: true, reason: 'module-unavailable', counts: { add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, total: 0 }, conflicts: [] };
-            const src = this.charMem ? this.charMem.export() : null;
-            if (!src || (typeof src !== 'object')) return { ok: false, rejected: true, reason: 'charmem-unavailable', counts: { add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, total: 0 }, conflicts: [] };
-            return M.precheckImport(pack, src);
+            const empty = { add: 0, conflict: 0, identical: 0, unrecognized: 0, tombstoned: 0, total: 0 };
+            if (!M) return { ok: false, rejected: true, reason: 'module-unavailable', counts: empty, summary: { total: 0 }, conflicts: [] };
+            let src = this.charMem ? this.charMem.export() : null;
+            if (!src || (typeof src !== 'object')) return { ok: false, rejected: true, reason: 'charmem-unavailable', counts: empty, summary: { total: 0 }, conflicts: [] };
+            src = Object.assign({}, src, { migrationIdentity: this._migrateIdentity() });
+            const r = M.precheckImport(pack, src);
+            const recovery = this._migrateRecovery();
+            if (r && r.ok && recovery && recovery.headSha === pack?.headSha && recovery.status === 'applied') {
+                r.replayed = true;
+                r.reason = 'already-applied';
+                r.summary = Object.assign({}, r.summary || {}, { replayed: true });
+            }
+            if (r) r.recovery = recovery && recovery.headSha === pack?.headSha ? recovery : null;
+            return r;
         }
-        /* [v3.445.0 · L13-X5] 迁移包导入桩：决策落地与器官回写都在宿主侧（面板只拿报告去存盘）。
-         *   applyImport 返回的 state 是本地全量+合并结果（保留 autobiographies/tombstones），
-         *   喂给 charMem.import 的全量替换语义安全，不会抹掉自查史/墓碑。 */
+        /* [v3.445.0 · L13-X5 / L14-O6] 器官写入失败时恢复导入前快照，并把原始错误交给宿主上层。 */
+        _writeMigrateImport(write, original) {
+            try {
+                write();
+                return { ok: true };
+            } catch (e) {
+                try {
+                    if (this.charMem && typeof this.charMem.import === 'function') this.charMem.import(original);
+                } catch (_rollback) {}
+                return { ok: false, error: e };
+            }
+        }
+        /* [v3.445.0 · L13-X5 / L14-O6] 导入只回写一次；异常时用同一器官快照回滚。 */
         applyMigrateImport(pack, decisions) {
             const M = _migratePackLib();
             if (!M) return { ok: false, rejected: true, reason: 'module-unavailable', state: null, report: null, pending: [] };
-            const src = this.charMem ? this.charMem.export() : null;
+            let src = this.charMem ? this.charMem.export() : null;
             if (!src || (typeof src !== 'object')) return { ok: false, rejected: true, reason: 'charmem-unavailable', state: null, report: null, pending: [] };
-            const r = M.applyImport(pack, src, decisions);
-            if (r && r.ok && r.state && this.charMem && typeof this.charMem.import === 'function') {
-                this.charMem.import(r.state);
+            const recovery = this._migrateRecovery();
+            if (recovery && recovery.headSha === pack?.headSha && recovery.status === 'applied') {
+                return { ok: true, replayed: true, reason: 'already-applied', state: src, pending: [], decisionsApplied: recovery.decisionsApplied || [], report: recovery.report || { written: 0, pending: 0 }, summary: recovery.summary || null };
             }
+            src = Object.assign({}, src, { migrationIdentity: this._migrateIdentity() });
+            const r = M.applyImport(pack, src, decisions);
+            if (!r || !r.ok) return r;
+            if (r && r.ok && r.state && this.charMem && typeof this.charMem.import === 'function') {
+                const writeResult = this._writeMigrateImport(() => this.charMem.import(r.state), src);
+                if (!writeResult.ok) {
+                    return { ok: false, rejected: true, reason: 'apply-write-failed', error: String(writeResult.error?.message || writeResult.error), state: null, pending: r.pending || [], report: r.report || null };
+                }
+            }
+            const previous = recovery && recovery.headSha === pack?.headSha ? recovery : null;
+            const prior = Array.isArray(previous?.decisionsApplied) ? previous.decisionsApplied : [];
+            const applied = prior.concat(r.decisionsApplied || []).filter((x, i, a) => a.findIndex(y => y.key === x.key) === i);
+            this._setMigrateRecovery({
+                version: 1, headSha: pack.headSha, status: r.pending?.length ? 'pending' : 'applied',
+                identity: r.identity || null, decisionsApplied: applied, pending: r.pending || [],
+                report: r.report || null, summary: r.summary || null, chatId: this._migrateIdentity().chatId || null, at: Date.now()
+            });
             return r;
         }
         roundSnapshotBefore(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotBefore(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'before' }; }
