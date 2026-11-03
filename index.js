@@ -207,6 +207,7 @@
     'timelineCursorFingerprint',
     'timeWentBack',
     'lastSave',
+    'roundSnapshots',    // [L14-O1] 本轮快照环随存档走（与 engine-persistence-ops.js 冻结清单同键）
     'packedAt',
     'schemaVersion',
     'producerVersion',

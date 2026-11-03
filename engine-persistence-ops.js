@@ -116,6 +116,7 @@
         'timelineCursorFingerprint',
         'timeWentBack',
         'lastSave',
+        'roundSnapshots',   /* [L14-O1] 本轮条目快照环随存档走（模块头口径「随引擎存档一起走」的兑现） */
         'packedAt',
         'schemaVersion',
         'producerVersion',
@@ -182,7 +183,8 @@
                 timelineCursorChatId: this._timelineCursorChatId,
                 timelineCursorFingerprint: this._timelineCursorFingerprint,
                 timeWentBack: this._timeWentBack ? { ...this._timeWentBack } : null,
-                lastSave: this._lastSaveGroundTruth ? { ...this._lastSaveGroundTruth, sources: { ...(this._lastSaveGroundTruth.sources || {}) } } : null,   // [v3.130] 保存地面真源
+                lastSave: this._lastSaveGroundTruth ? { ...this._lastSaveGroundTruth, sources: { ...(this._lastSaveGroundTruth.sources || {}) } } : null,
+                roundSnapshots: Array.isArray(this._roundSnapshots) ? this._roundSnapshots : [],   // [L14-O1] 快照环只存 id+指纹，体积可忽略；写入侧已被 MAX_ROUNDS 封顶   // [v3.130] 保存地面真源
                 packedAt: new Date().toISOString(),
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
@@ -488,6 +490,13 @@
             _imp('phaseTransitionSafeguard', true, () => { engine._phaseTransitionSafeguard = data.phaseTransitionSafeguard; });
             _imp('epilogueRetrospective', true, () => { engine._epilogueRetrospective = data.epilogueRetrospective; });
             _imp('intergenerationalTotem', true, () => { engine._intergenerationalTotem = data.intergenerationalTotem; });
+            /* [L14-O1] 本轮快照环：逐条过滤非法形（phase/seq 必在），封顶 12（与内核 MAX_ROUNDS 一致）。
+             *   快照里只有 id+指纹，没有正文 —— 原样回填不构成第二真源。 */
+            _imp('roundSnapshots', Array.isArray(data.roundSnapshots), () => {
+                engine._roundSnapshots = data.roundSnapshots
+                    .filter((r) => r && typeof r === 'object' && (r.phase === 'before' || r.phase === 'after') && typeof r.seq === 'number' && isFinite(r.seq))
+                    .slice(-12);
+            });
             _imp('multiResolutionArchive', true, () => { engine._multiResolutionArchive = data.multiResolutionArchive; });
             _imp('epochalHeritage', true, () => { engine._epochalHeritage = data.epochalHeritage; });
             _imp('lexicon', !!engine.lexicon, () => { engine.lexicon.import?.(data.lexicon); engine._invalidateBm25Corpus?.(); });
@@ -727,6 +736,9 @@
             A('direct', 'intergenerationalTotem', '代际图腾', true, () => { e._intergenerationalTotem = null; });
             A('direct', 'multiResolutionArchive', '多分辨率归档', true, () => { e._multiResolutionArchive = null; });
             A('direct', 'epochalHeritage', '时代沉淀', true, () => { e._epochalHeritage = null; });
+            /* [L14-O1] 本轮快照环与恢复面对称：清运行时记忆必须连「哪几条是这轮加的」
+             *   的撤销账一起清，否则清空后面板仍报上一轮的旧 id，点撤销是打空炮。 */
+            A('direct', 'roundSnapshots', '本轮快照环', true, () => { e._roundSnapshots = []; });
             res.ok = res.failed.length === 0;
             this._clearRuntimeReport = res;
             return res;
