@@ -383,9 +383,76 @@ test('E4: 本轮没有新增 ⇒ nothing-to-undo，与「撤成功」不同形',
     assert.equal(r.counts.removed, 0);
 });
 
-// ═══════════════════════════════════════════════════════════════════════
-// F 组：真源码破坏负控制（各配原版对照）
-// ═══════════════════════════════════════════════════════════════════════
+test('E5: [L14-O1] partial 撤销重试 —— 只标已撤 id，failed/skipped 可重试，撤完最后一粒才 undone', () => {
+    const RS = loadKernel();
+    /* 场景 A：两本账，alpha 有删除口、beta 没有 ⇒ 首撤 removed=1 / skipped=1，且不得 undone。 */
+    const engine = {};
+    let a = [{ id: 'a1', text: 'x' }];
+    let b = [{ id: 'b1', text: 'y' }];
+    const mk = () => RS.collectSummary([ledger('alpha', a), ledger('beta', b)]);
+    RS.recordSnapshot(engine, { phase: 'before', summary: mk() });
+    a = [{ id: 'a1', text: 'x' }, { id: 'a2', text: 'x2' }];
+    b = [{ id: 'b1', text: 'y' }, { id: 'b2', text: 'y2' }];
+    RS.recordSnapshot(engine, { phase: 'after', summary: mk() });
+    const remA = { alpha: (id) => { const i = a.findIndex((x) => x.id === id); if (i < 0) return false; a.splice(i, 1); return true; } };
+    const r1 = RS.undoRound(engine, { confirm: true, removers: remA });
+    assert.equal(r1.ok, true, '只有 skipped 没有 failed ⇒ 不算失败（E3 口径：partial 仅指 failed）');
+    assert.equal(r1.counts.removed, 1);
+    assert.equal(r1.counts.skipped, 1);
+    /* ★ 核心判据：partial 后不得整轮 undone —— 剩余 id 必须仍可撤。 */
+    const st1 = RS.roundUndoState(engine);
+    assert.equal(st1.state, 'ok', 'partial 后必须仍报 ok（实 ' + st1.state + ' + ' + (st1.reason || '') + '）');
+    assert.equal(st1.counts.added, 1, '剩余可撤必须恰 1 条（beta 的 b2）');
+    assert.deepEqual(st1.added.map((x) => x.id), ['b2'], '已撤的 a2 不许再出现在清单里');
+    /* 补上 beta 删除口后重试：撤掉 b2 ⇒ 才整轮 undone。 */
+    const remB = { beta: (id) => { const i = b.findIndex((x) => x.id === id); if (i < 0) return false; b.splice(i, 1); return true; } };
+    const r2 = RS.undoRound(engine, { confirm: true, removers: remB });
+    assert.equal(r2.ok, true);
+    assert.equal(r2.counts.removed, 1, '重试只撤剩余的 b2，不重放 a2');
+    assert.deepEqual(b.map((x) => x.id), ['b1'], 'b2 真从账上消失');
+    const st2 = RS.roundUndoState(engine);
+    assert.equal(st2.state, 'undone', '撤完最后一粒才 undone');
+    assert.equal(st2.reason, 'already-undone');
+    /* 场景 B：failed 同样不吞可撤性。 */
+    const engine2 = {};
+    let c = [{ id: 'c1', text: 'z' }];
+    const mk2 = () => RS.collectSummary([ledger('gamma', c)]);
+    RS.recordSnapshot(engine2, { phase: 'before', summary: mk2() });
+    c = [{ id: 'c1', text: 'z' }, { id: 'c2', text: 'z2' }];
+    RS.recordSnapshot(engine2, { phase: 'after', summary: mk2() });
+    let refuse = true;
+    const r3 = RS.undoRound(engine2, { confirm: true, removers: { gamma: () => !refuse } });
+    assert.equal(r3.reason, 'partial');
+    assert.equal(r3.counts.failed, 1);
+    const st3 = RS.roundUndoState(engine2);
+    assert.equal(st3.state, 'ok', 'failed 后仍可重试（实 ' + st3.state + '）');
+    assert.equal(st3.counts.added, 1);
+    refuse = false;
+    const r4 = RS.undoRound(engine2, { confirm: true, removers: { gamma: (id) => { const i = c.findIndex((x) => x.id === id); if (i < 0) return false; c.splice(i, 1); return true; } } });
+    assert.equal(r4.ok, true, '修好原因后重试必须成功（修前会撞 already-undone）');
+    assert.equal(RS.roundUndoState(engine2).state, 'undone');
+});
+
+test('E6: [L14-O1] 全撤成功语义不变 —— 一次撤完直接 undone（D4/H3 场景的补充口径）', () => {
+    const RS = loadKernel();
+    const engine = {};
+    let facts = [{ id: 'f1', text: 'a' }];
+    const mk = () => RS.collectSummary([ledger('facts', facts)]);
+    RS.recordSnapshot(engine, { phase: 'before', summary: mk() });
+    facts = [{ id: 'f1', text: 'a' }, { id: 'f2', text: 'b' }, { id: 'f3', text: 'c' }];
+    RS.recordSnapshot(engine, { phase: 'after', summary: mk() });
+    const rem = { facts: (id) => { const i = facts.findIndex((x) => x.id === id); if (i < 0) return false; facts.splice(i, 1); return true; } };
+    const r = RS.undoRound(engine, { confirm: true, removers: rem });
+    assert.equal(r.ok, true);
+    assert.equal(r.counts.removed, 2, '本轮新增恰 2 条（f2/f3；f1 是轮前就有的）');
+    const st = RS.roundUndoState(engine);
+    assert.equal(st.state, 'undone', '全撤成功 ⇒ undone（与修前一致）');
+    assert.equal(st.undoneAt > 0, true, 'undoneAt 必须留下');
+    const again = RS.undoRound(engine, { confirm: true, removers: rem });
+    assert.equal(again.reason, 'already-undone');
+});
+
+
 /** 在破坏副本上重跑「撤销只删新增、改过的保留改后值」这条判据。 */
 function judgeUndoKeepsModified(RS) {
     const bad = [];

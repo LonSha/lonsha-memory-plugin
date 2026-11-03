@@ -286,27 +286,47 @@
                     writesNothing: true, ok: true, reason: pair.missing.length === 2 ? '' : 'half-round:' + pair.missing.join('+'),
                 };
             }
-            /* ★ 第四态 `undone`：这一轮已经撤过一次了。
-             *   修前这个标志只被写、从不被读 —— 于是撤销完再点一次，面板照样报
+            /* ★ 第四态 `undone`：这一轮已经**全部**撤过。
+             *   [L14-O1] 与 undoRound 的 undoneIds 配套：只把**没有剩余可撤 id** 的轮
+             *   报成 undone；还剩的继续走 ok + 剩余 added（已撤 id 不再进清单）。
+             *   修前这个标志只被写、从不被读 —— 撤销完再点一次，面板照样报
              *   「新增 3 条可撤」，然后拿三个已不存在的 id 去删，报三个 failed。
              *   用户看到「撤销失败」，而事实是上一次已撤成功。四态必须互不同形。 */
             if (pair.after && pair.after.undone === true) {
-                return {
-                    kind: 'round_undo', version: 1, state: 'undone',
-                    seq: pair.after.seq, floor: pair.after.floor,
-                    undoneAt: pair.after.undoneAt || null,
-                    counts: { added: 0, removed: 0, modified: 0 },
-                    added: [], modified: [], removed: [],
-                    writesNothing: true, ok: true, reason: 'already-undone',
-                };
+                var _d0 = diffSummaries(pair.before, pair.after);
+                var _undoneIds = pair.after.undoneIds || {};
+                var _remaining = [];
+                if (_d0 && _d0.ok) {
+                    for (var _i = 0; _i < _d0.added.length; _i++) {
+                        var _x = _d0.added[_i];
+                        if (!_undoneIds[_x.ledger + '|' + _x.id]) _remaining.push(_x);
+                    }
+                }
+                if (_remaining.length === 0) {
+                    return {
+                        kind: 'round_undo', version: 1, state: 'undone',
+                        seq: pair.after.seq, floor: pair.after.floor,
+                        undoneAt: pair.after.undoneAt || null,
+                        counts: { added: 0, removed: 0, modified: 0 },
+                        added: [], modified: [], removed: [],
+                        writesNothing: true, ok: true, reason: 'already-undone',
+                    };
+                }
+                /* 还有剩余 ⇒ 不落 undone 态，落到下面 ok 分支只报剩余 id。 */
             }
             var d = diffSummaries(pair.before, pair.after);
             if (!d.ok) return absent(d.reason || 'diff-failed');
+            /* [L14-O1] counts 与清单都是**剩余可撤**口径：已撤掉的 id 从 added 中剔除，
+             *   面板不能再把上一次已撤成功的条目报成「还可撤」。
+             *   removed/modified 不受 undoneIds 影响（本面从不撤销它们）。 */
+            var _leftIds = (pair.after && pair.after.undoneIds) || {};
+            var _addedLeft = d.added.filter(function (x) { return !_leftIds[x.ledger + '|' + x.id]; });
+            var _countsLeft = { added: _addedLeft.length, removed: d.counts.removed, modified: d.counts.modified };
             return {
                 kind: 'round_undo', version: 1, state: 'ok',
                 seq: pair.after.seq, floor: pair.after.floor,
-                counts: d.counts,
-                added: d.added.map(function (x) { return { ledger: x.ledger, id: x.id, undoable: true }; }),
+                counts: _countsLeft,
+                added: _addedLeft.map(function (x) { return { ledger: x.ledger, id: x.id, undoable: true }; }),
                 /* ★ removed 不可"撤"回来（正文没存，撤回来等于编造）—— 如实标不可撤销。 */
                 removed: d.removed.map(function (x) { return { ledger: x.ledger, id: x.id, undoable: false, why: 'content-not-kept' }; }),
                 /* ★ modified 只待复核，**不提供旧值**：结构上就没有回退路径。 */
@@ -359,11 +379,29 @@
                 else failed.push({ ledger: row.ledger, id: row.id, why: out === false ? 'refused' : 'thrown-or-missing' });
             }
             /* ★ 撤销后必须把最近这一轮标成已撤销：否则再点一次会拿同一批 id 重放，
-             *   而那时 id 已经不存在 —— 报一堆 failed 反而像是缺陷。 */
+             *   而那时 id 已经不存在 —— 报一堆 failed 反而像是缺陷。
+             *   [L14-O1] 但只标**已成功移除的 id**（undoneIds）；撤完最后一粒才置
+             *   undone。修前 removed.length 非零就把整轮标 undone，partial 后
+             *   用户修好原因重试会永远撞 already-undone —— 失败的 id 从此无法
+             *   撤销，违背 E3「partial 不静默算成功」口径。 */
             if (removed.length) {
                 var rounds = readRounds(engine).slice();
                 for (var k = rounds.length - 1; k >= 0; k--) {
-                    if (rounds[k].phase === 'after' && rounds[k].seq === st.seq) { rounds[k].undone = true; rounds[k].undoneAt = Date.now(); break; }
+                    if (rounds[k].phase === 'after' && rounds[k].seq === st.seq) {
+                        var rec = rounds[k];
+                        rec.undoneIds = rec.undoneIds || {};
+                        for (var m = 0; m < removed.length; m++) {
+                            rec.undoneIds[removed[m].ledger + '|' + removed[m].id] = true;
+                        }
+                        rec.undoneAt = Date.now();
+                        /* [L14-O1] totalAdded 取 max：partial 重试时 st.added 已是剩余口径，
+                         *   直接赋值会缩水，导致「撤完剩余却不算撤完」。 */
+                        rec.totalAdded = Math.max(rec.totalAdded || 0, st.added.length);
+                        var undoneCount = 0;
+                        for (var kk in rec.undoneIds) { if (rec.undoneIds[kk]) undoneCount++; }
+                        if (undoneCount >= rec.totalAdded) rec.undone = true;
+                        break;
+                    }
                 }
                 engine._roundSnapshots = rounds;
             }
