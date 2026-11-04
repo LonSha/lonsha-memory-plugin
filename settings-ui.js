@@ -174,7 +174,8 @@
             .ls-tab-pane { display: none; }
             .ls-tab-pane.active { display: block; animation: ls-fade var(--ls-t-fast,150ms) var(--ls-ease,ease); }
             .ls-mode-banner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 16px 0; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); }
-            .ls-mode-pill { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ls-text-2, #94a3b8); border-radius: 4px; cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
+            .ls-tab-btn:focus-visible, .ls-mode-pill:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; }
+            .ls-mode-pill { font: inherit; border: 0; background: transparent; padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ls-text-2, #94a3b8); border-radius: 4px; cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
             .ls-mode-pill:hover { color: var(--ls-text, #f1f5f9); background: rgba(255,255,255,0.04); }
             .ls-mode-pill.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-3, #1b2436); box-shadow: var(--ls-inner-rim), 0 0 12px rgba(56,189,248,0.15); }
             /* ==== [v3.423] 玩家主页（FAB 直达） ==== */
@@ -2579,21 +2580,21 @@
                     <input type="checkbox" data-cfg="${key}" ${c[key] ? 'checked' : ''}>
                 </label>`;
             const body = `
-                <div class="ls-tabs-nav">
-                    <button type="button" class="ls-tab-btn active" data-tab="general">◈ 常用</button>
-                    <button type="button" class="ls-tab-btn" data-tab="narrative">◷ 故事与人物</button>
-                    <button type="button" class="ls-tab-btn" data-tab="retrieval">⬡ 记录与世界</button>
-                    <button type="button" class="ls-tab-btn" data-tab="advanced">⚙ 高级</button>
+                <div class="ls-tabs-nav" role="tablist" aria-label="设置分区">
+                    <button type="button" class="ls-tab-btn active" data-tab="general" role="tab" id="ls-tab-general" aria-controls="ls-pane-general" aria-selected="true" tabindex="0">◈ 常用</button>
+                    <button type="button" class="ls-tab-btn" data-tab="narrative" role="tab" id="ls-tab-narrative" aria-controls="ls-pane-narrative" aria-selected="false" tabindex="-1">◷ 故事与人物</button>
+                    <button type="button" class="ls-tab-btn" data-tab="retrieval" role="tab" id="ls-tab-retrieval" aria-controls="ls-pane-retrieval" aria-selected="false" tabindex="-1">⬡ 记录与世界</button>
+                    <button type="button" class="ls-tab-btn" data-tab="advanced" role="tab" id="ls-tab-advanced" aria-controls="ls-pane-advanced" aria-selected="false" tabindex="-1">⚙ 高级</button>
                 </div>
-                <div class="ls-mode-banner" id="ls-mode-banner">
+                <div class="ls-mode-banner" id="ls-mode-banner" role="radiogroup" aria-label="抽取节奏">
                     <!-- [v3.422] 缺陷修复：三个模式 pill 此前是纯装饰（无事件、active 硬编码），点击毫无反应。
                          现接入真实配置 extractionProfile（quality/balanced/low-cost 三档抽取节奏，与「联想与世界」页的档位下拉同源），
                          active 态从配置实读；点击立即写回 config + saveConfig + 同步档位下拉，无需点保存。 -->
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'balanced' ? ' active' : ''}" data-profile="balanced" role="button" title="均衡档：每 3 楼攒批提取，叙事与记忆成本平衡">◈ 沉浸叙事推荐</div>
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'quality' ? ' active' : ''}" data-profile="quality" role="button" title="质量档：每楼都提取，记忆最完整（API 消耗最高）">◷ 深度推演模式</div>
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'low-cost' ? ' active' : ''}" data-profile="low-cost" role="button" title="省流档：每 5 楼攒批且只抽核心类型（API 消耗最低）">⬡ 极简轻量模式</div>
+                    <button type="button" class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'balanced' ? ' active' : ''}" data-profile="balanced" role="radio" aria-checked="${(c.extractionProfile || 'balanced') === 'balanced'}" title="均衡档：每 3 楼攒批提取，叙事与记忆成本平衡">◈ 沉浸叙事推荐</button>
+                    <button type="button" class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'quality' ? ' active' : ''}" data-profile="quality" role="radio" aria-checked="${(c.extractionProfile || 'balanced') === 'quality'}" title="质量档：每楼都提取，记忆最完整（API 消耗最高）">◷ 深度推演模式</button>
+                    <button type="button" class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'low-cost' ? ' active' : ''}" data-profile="low-cost" role="radio" aria-checked="${(c.extractionProfile || 'balanced') === 'low-cost'}" title="省流档：每 5 楼攒批且只抽核心类型（API 消耗最低）">⬡ 极简轻量模式</button>
                 </div>
-                <div class="ls-tab-pane active" data-tab-pane="general">
+                <div class="ls-tab-pane active" data-tab-pane="general" role="tabpanel" id="ls-pane-general" aria-labelledby="ls-tab-general" tabindex="0">
                 <div class="ls-group">
                     <!-- [v3.423] API 连接前置：玩家第一件事就是连 API，不再埋在第 3 个 tab 里 -->
                     <div class="ls-group-title">🔗 AI 接口连接</div>
@@ -2649,7 +2650,7 @@
                     <div class="ls-hint" style="padding:0 8px;">注入简报超预算时自动裁剪，保护上下文窗口。</div>
                 </div>
                 </div>
-                <div class="ls-tab-pane" data-tab-pane="narrative">
+                <div class="ls-tab-pane" data-tab-pane="narrative" role="tabpanel" id="ls-pane-narrative" aria-labelledby="ls-tab-narrative" tabindex="0">
                 <div class="ls-group">
                      <div class="ls-group-title">[CHARACTER] 人物状态记录</div>
                      ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
@@ -2663,7 +2664,7 @@
                     ${ck('floorLedgerEvictionDebug', '楼层账本淘汰调试日志', '开启后楼层账本淘汰、以及「回滚请求命中已淘汰楼层」时在控制台 warn（默认关）')}
                      <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
                  </div>
-                <div class="ls-tab-pane" data-tab-pane="advanced">
+                <div class="ls-tab-pane" data-tab-pane="advanced" role="tabpanel" id="ls-pane-advanced" aria-labelledby="ls-tab-advanced" tabindex="0">
                 <div class="ls-group">
                     <div class="ls-group-title">[CHRONO] 故事整理</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
@@ -2892,7 +2893,7 @@
                     <textarea class="ls-textarea" data-cfg-text="worldlineConvergences" style="min-height:72px;" placeholder="例：某人之死=all&#10;某事件=高位">${esc(c.worldlineConvergences || '')}</textarea>
                     <div class="ls-hint" style="padding:0 8px;">⭐ 未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给域的行，等于「登记过但本域不收束」。</div>
                 </div>
-                <div class="ls-tab-pane" data-tab-pane="retrieval">
+                <div class="ls-tab-pane" data-tab-pane="retrieval" role="tabpanel" id="ls-pane-retrieval" aria-labelledby="ls-tab-retrieval" tabindex="0">
                 <div class="ls-group">
                     <div class="ls-group-title">[RERANK] 回忆排序优化（可选）</div>
                     ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
@@ -3050,9 +3051,27 @@
             overlay.querySelectorAll('.ls-tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const tab = btn.dataset.tab;
-                    overlay.querySelectorAll('.ls-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+                    overlay.querySelectorAll('.ls-tab-btn').forEach(b => {
+                        const on = b === btn;
+                        b.classList.toggle('active', on);
+                        b.setAttribute('aria-selected', on ? 'true' : 'false');
+                        b.tabIndex = on ? 0 : -1;
+                    });
                     overlay.querySelectorAll('.ls-tab-pane').forEach(p => p.classList.toggle('active', p.dataset.tabPane === tab));
                 });
+            });
+            // 标签页键盘导航（WAI-ARIA tabs）：左右/Home/End 切换并聚焦
+            const tabList = overlay.querySelector('.ls-tabs-nav');
+            if (tabList) tabList.addEventListener('keydown', (e) => {
+                const tabs = [...tabList.querySelectorAll('.ls-tab-btn')];
+                const i = tabs.indexOf(document.activeElement);
+                if (i < 0) return;
+                const next = { ArrowRight: (i + 1) % tabs.length, ArrowLeft: (i - 1 + tabs.length) % tabs.length,
+                    Home: 0, End: tabs.length - 1 }[e.key];
+                if (next === undefined) return;
+                e.preventDefault();
+                tabs[next].focus();
+                tabs[next].click();
             });
             // [v3.422] 缺陷修复：模式 pill 接线。此前三个 .ls-mode-pill 是纯装饰 div（全文件零监听、active 硬编码），
             //   点击毫无反应。现映射到真实配置 extractionProfile（quality/balanced/low-cost）：
@@ -3064,7 +3083,7 @@
                     if (!VALID_PROFILES.includes(profile)) return;
                     this.engine.config.config.extractionProfile = profile;
                     this.engine.config.saveConfig();
-                    overlay.querySelectorAll('.ls-mode-pill').forEach(p => p.classList.toggle('active', p === pill));
+                    overlay.querySelectorAll('.ls-mode-pill').forEach(p => { p.classList.toggle('active', p === pill); p.setAttribute('aria-checked', p === pill ? 'true' : 'false'); });
                     const profSel = overlay.querySelector('select[data-cfg-text="extractionProfile"]');
                     if (profSel) {
                         profSel.value = profile;
@@ -3872,8 +3891,8 @@
                             <div class="ls-hint" style="margin:2px 0 0;">已记住 ${memoryCount} 段剧情 · 接口 ${apiLabel}</div>
                         </div>
                     </div>
-                    <div class="ls-home-modes">
-                        ${['balanced','quality','low-cost'].map(p => `<div class="ls-mode-pill${(cfg.extractionProfile || 'balanced') === p ? ' active' : ''}" data-home-profile="${p}" role="button">${ {balanced:'◈ 沉浸叙事',quality:'◷ 深度推演','low-cost':'⬡ 极简轻量'}[p] }</div>`).join('')}
+                    <div class="ls-home-modes" role="radiogroup" aria-label="抽取节奏">
+                        ${['balanced','quality','low-cost'].map(p => `<button type="button" class="ls-mode-pill${(cfg.extractionProfile || 'balanced') === p ? ' active' : ''}" data-home-profile="${p}" role="radio" aria-checked="${(cfg.extractionProfile || 'balanced') === p}">${ {balanced:'◈ 沉浸叙事',quality:'◷ 深度推演','low-cost':'⬡ 极简轻量'}[p] }</button>`).join('')}
                     </div>
                 </div>
                 <div class="ls-home-section">
@@ -3898,7 +3917,7 @@
                 if (!['balanced','quality','low-cost'].includes(profile)) return;
                 this.engine.config.config.extractionProfile = profile;
                 this.engine.config.saveConfig();
-                ov.querySelectorAll('[data-home-profile]').forEach(p => p.classList.toggle('active', p.dataset.homeProfile === profile));
+                ov.querySelectorAll('[data-home-profile]').forEach(p => { const on = p.dataset.homeProfile === profile; p.classList.toggle('active', on); p.setAttribute('aria-checked', on ? 'true' : 'false'); });
                 toast('✅ 已切换到「' + {balanced:'沉浸叙事',quality:'深度推演','low-cost':'极简轻量'}[profile] + '」');
             };
             ov.querySelectorAll('[data-home-profile]').forEach(p => p.addEventListener('click', () => profileWrite(p.dataset.homeProfile)));
