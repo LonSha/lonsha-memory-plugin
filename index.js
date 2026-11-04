@@ -2572,6 +2572,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _costLedgerLib,
                     _injectionReceiptLib,
                     _generationMaterialReconcileLib,
+                    _recallRouteFeedbackHubLib,
                     _projectionLib,
                     _relationHistoryLib,
                 });
@@ -8160,6 +8161,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 perspectivePreview: _moduleLib(() => window.LonShaPerspectivePreview, 'perspective-preview.js'),
                 generationMemoryPlan: _moduleLib(() => window.LonShaGenerationMemoryPlan, 'generation-memory-plan.js'),
                 generationMaterialReconcile: _generationMaterialReconcileLib(),
+                recallRouteFeedbackHub: _recallRouteFeedbackHubLib(),
                 generationFactReceipt: _moduleLib(() => window.LonShaGenerationFactReceipt, 'generation-fact-receipt.js'),
                 memoryMaintenanceSession: _moduleLib(() => window.LonShaMemoryMaintenanceSession, 'memory-maintenance-session.js'),
                 profileDossierView: _moduleLib(() => window.LonShaProfileDossierView, 'profile-dossier-view.js'),
@@ -10139,6 +10141,10 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     function _generationMaterialReconcileLib() {
         return _moduleLib(() => window.LonShaGenerationMaterialReconcile, 'generation-material-reconcile.js');
     }
+    // [L14-O4] 动态召回路由反馈、偏好控制与同名/世界线消歧中枢。
+    function _recallRouteFeedbackHubLib() {
+        return _moduleLib(() => window.LonShaRecallRouteFeedbackHub, 'dynamic-recall-route-feedback-hub.js');
+    }
     // [v3.208.0] 投影管线（projection-pipeline.js）。为什么需要：
     //   v3.176 的本地投影只有两次手工调用（人物位置 / 事实键），加一个投影就要再改一遍宿主
     //   函数体，且「加没加」无从判定；更糟的是缺席不可归因（收集失败与「源里本就没有」同形，
@@ -10382,6 +10388,7 @@ function _collectNewFace() {
         ['修复回应', _repairResponseLib, 'repairResponseSelfCheck'],
         ['纠错事务', _factCorrectionTxLib, 'factCorrectionTransactionSelfCheck'],
         ['生成材料对拍', _generationMaterialReconcileLib, 'generationMaterialReconcileSelfCheck'],
+        ['召回路由偏好反馈', _recallRouteFeedbackHubLib, 'recallRouteFeedbackHubSelfCheck'],
         ['生成事实重放', _generationReplayLib, 'factReplaySelfCheck'],
         ['情绪反向召回', _antiphonyLib, null],
         ['阶段封卷', _volumeSealingLib, null],

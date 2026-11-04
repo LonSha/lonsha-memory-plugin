@@ -901,9 +901,30 @@
 
                 const Hub = _recallRouteFeedbackHubLib();
                 if (Hub && typeof Hub.rankCandidatesByRoute === 'function') {
-                    const activeRoute = engine.config?.config?.recallRoutePreference || Hub.RECALL_ROUTES.BALANCED_HYBRID;
-                    const weights = engine._recallRouteWeights || {};
+                    // [L14-O4] 召回偏好与人物消歧闭环
+                    const activeRoute = query.recallRouteOverride || engine.config?.config?.recallRoutePreference || Hub.RECALL_ROUTES.BALANCED_HYBRID;
+                    let weights = engine._recallRouteWeights || {};
+                    if (query.transientRouteOverrides && typeof Hub.applyTransientRouteOverrides === 'function') {
+                        weights = Hub.applyTransientRouteOverrides({ weights: weights }, query.transientRouteOverrides).weights;
+                    }
+                    if (typeof Hub.disambiguateEntities === 'function') {
+                        const disambiguateOpts = {
+                            targetModule: query.targetModule,
+                            characterAge: query.characterAge,
+                            cleanNickname: query.cleanNickname,
+                            targetWorldline: query.targetWorldline || engine._currentWorldline || engine._worldlineViewer,
+                            excludeIds: query.excludeIds,
+                            temporaryExclusions: query.temporaryExclusions
+                        };
+                        merged = Hub.disambiguateEntities(merged, disambiguateOpts);
+                    }
                     merged = Hub.rankCandidatesByRoute(merged, activeRoute, weights);
+                    if (typeof Hub.explainRecallHit === 'function') {
+                        engine._lastRecallHitExplanations = merged.slice(0, 10).map(it => Hub.explainRecallHit(it, activeRoute, weights, {
+                            targetWorldline: query.targetWorldline || engine._currentWorldline || engine._worldlineViewer,
+                            characterAge: query.characterAge
+                        }));
+                    }
                 }
                 const Para = _epistemicParallaxLib();
                 if (Para && typeof Para.resolvePerspectiveGuidance === 'function' && engine._currentSpeaker) {

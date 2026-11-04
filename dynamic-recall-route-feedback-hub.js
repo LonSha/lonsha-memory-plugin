@@ -88,37 +88,51 @@
   }
 
   /**
-   * 同名消歧过滤器：防止同名异人或不同时期跨模块串扰
+   * 同名消歧过滤器：防止同名异人、跨世界线串扰或不同时期跨模块串扰
    * @param {Array<Object>} candidates
-   * @param {Object} contextOptions { targetModule, characterAge, cleanNickname }
+   * @param {Object} contextOptions { targetModule, characterAge, cleanNickname, targetWorldline, excludeIds, temporaryExclusions }
    * @returns {Array<Object>}
    */
   function disambiguateEntities(candidates, contextOptions) {
     if (!Array.isArray(candidates)) return [];
     var opts = contextOptions || {};
+    var excludedSet = {};
+    if (Array.isArray(opts.excludeIds)) {
+      for (var e = 0; e < opts.excludeIds.length; e++) excludedSet[opts.excludeIds[e]] = true;
+    }
+    if (Array.isArray(opts.temporaryExclusions)) {
+      for (var t = 0; t < opts.temporaryExclusions.length; t++) excludedSet[opts.temporaryExclusions[t]] = true;
+    }
 
     return candidates.filter(function (it) {
+      if (!it) return false;
+      // 0. 一次性排除或显式指定排除
+      if (it.id && excludedSet[it.id]) return false;
+
       // 1. 所属模块过滤
       if (opts.targetModule && it.moduleName) {
         if (it.moduleName !== opts.targetModule && !it.isSharedCrossModule) {
           return false;
         }
       }
-
       // 2. 年龄/版本隔离 (例如 17 岁县城版 vs 27 岁十年后版)
       if (opts.characterAge !== undefined && it.characterAge !== undefined) {
         if (Math.abs(Number(opts.characterAge) - Number(it.characterAge)) > 5) {
           return false;
         }
       }
-
       // 3. 干净昵称严格匹配 (如 萧太太 vs 萧忆柔)
       if (opts.cleanNickname && it.cleanNickname) {
         if (opts.cleanNickname !== it.cleanNickname) {
           return false;
         }
       }
-
+      // 4. 世界线/平行分支隔离 (同名两人分属不同世界线时不串命中)
+      if (opts.targetWorldline !== undefined && it.worldline !== undefined) {
+        if (String(opts.targetWorldline) !== String(it.worldline) && !it.isUniversalWorldline) {
+          return false;
+        }
+      }
       return true;
     });
   }
@@ -157,11 +171,133 @@
     return state;
   }
 
+  /**
+   * 创建偏好状态快照以支持回退与隔离
+   * @param {Object} feedbackState
+   * @returns {Object} 独立深拷贝的偏好快照
+   */
+  function snapshotFeedbackState(feedbackState) {
+    if (!feedbackState) return { weights: {}, history: [] };
+    var copyWeights = {};
+    if (feedbackState.weights) {
+      for (var k in feedbackState.weights) {
+        if (Object.prototype.hasOwnProperty.call(feedbackState.weights, k)) {
+          copyWeights[k] = feedbackState.weights[k];
+        }
+      }
+    }
+    var copyHistory = [];
+    if (Array.isArray(feedbackState.history)) {
+      for (var i = 0; i < feedbackState.history.length; i++) {
+        var h = feedbackState.history[i];
+        copyHistory.push({
+          timestamp: h.timestamp,
+          route: h.route,
+          rating: h.rating,
+          newWeight: h.newWeight
+        });
+      }
+    }
+    return {
+      weights: copyWeights,
+      history: copyHistory
+    };
+  }
+
+  /**
+   * 应用单次临时偏好微调（不修改持久化偏好状态，支持回退原排序）
+   * @param {Object} baseState 基础全局状态
+   * @param {Object} transientOverrides 单次临时权重覆盖或一次性排除
+   * @returns {Object} 仅供本轮查询使用的临时状态对象
+   */
+  function applyTransientRouteOverrides(baseState, transientOverrides) {
+    var snap = snapshotFeedbackState(baseState);
+    if (!transientOverrides) return snap;
+    if (transientOverrides.weights) {
+      for (var r in transientOverrides.weights) {
+        if (Object.prototype.hasOwnProperty.call(transientOverrides.weights, r)) {
+          snap.weights[r] = transientOverrides.weights[r];
+        }
+      }
+    }
+    if (transientOverrides.routeBoost && transientOverrides.route) {
+      var w = snap.weights[transientOverrides.route] !== undefined ? snap.weights[transientOverrides.route] : 1.0;
+      snap.weights[transientOverrides.route] = Number((w * Number(transientOverrides.routeBoost)).toFixed(2));
+    }
+    snap.isTransient = true;
+    return snap;
+  }
+
+  /**
+   * 生成召回条目的命中与消歧解释
+   * @param {Object} item 召回候选条目
+   * @param {string} activeRoute 当前路由
+   * @param {Object} weights 当前偏好权重
+   * @param {Object} contextOptions 消歧选项
+   * @returns {Object} 解释详情 { hitReason, disambiguationPassed, scoreBreakdown }
+   */
+  function explainRecallHit(item, activeRoute, weights, contextOptions) {
+    if (!item) return { hitReason: 'none', disambiguationPassed: false };
+    var opts = contextOptions || {};
+    var type = String(item.type || item.category || 'UNKNOWN').toUpperCase();
+    var route = activeRoute || RECALL_ROUTES.BALANCED_HYBRID;
+    var baseScore = Number(item.relevanceScore || item.score || 0.5);
+    var routeMod = (weights && weights[route] !== undefined) ? weights[route] : 1.0;
+
+    var matchedWorldline = true;
+    if (opts.targetWorldline !== undefined && item.worldline !== undefined) {
+      matchedWorldline = (String(opts.targetWorldline) === String(item.worldline) || !!item.isUniversalWorldline);
+    }
+    var isAgeMatched = true;
+    if (opts.characterAge !== undefined && item.characterAge !== undefined) {
+      isAgeMatched = Math.abs(Number(opts.characterAge) - Number(item.characterAge)) <= 5;
+    }
+
+    return {
+      itemId: item.id,
+      title: item.title || item.name || '',
+      type: type,
+      activeRoute: route,
+      routeWeight: routeMod,
+      baseScore: baseScore,
+      finalScore: computeItemRouteScore(item, route, weights || {}),
+      worldline: item.worldline || 'main',
+      disambiguation: {
+        passed: matchedWorldline && isAgeMatched,
+        matchedWorldline: matchedWorldline,
+        matchedAge: isAgeMatched,
+        cleanNickname: item.cleanNickname || null
+      },
+      reason: '匹配路由 [' + route + ']，基础分 ' + baseScore + '，权重系数 ' + routeMod
+    };
+  }
+
+  function recallRouteFeedbackHubSelfCheck(hub) {
+    if (!hub) return { ok: false, reason: 'module-absent' };
+    const routesOk = !!(hub.RECALL_ROUTES && hub.RECALL_ROUTES.BALANCED_HYBRID);
+    const disambiguateOk = typeof hub.disambiguateEntities === 'function';
+    const snapshotOk = typeof hub.snapshotFeedbackState === 'function';
+    const transientOk = typeof hub.applyTransientRouteOverrides === 'function';
+    const explainOk = typeof hub.explainRecallHit === 'function';
+    return {
+      ok: routesOk && disambiguateOk && snapshotOk && transientOk && explainOk,
+      routesOk,
+      disambiguateOk,
+      snapshotOk,
+      transientOk,
+      explainOk
+    };
+  }
+
   return {
     RECALL_ROUTES: RECALL_ROUTES,
     FEEDBACK_RATINGS: FEEDBACK_RATINGS,
     rankCandidatesByRoute: rankCandidatesByRoute,
     disambiguateEntities: disambiguateEntities,
-    recordFeedbackAndAdjust: recordFeedbackAndAdjust
+    recordFeedbackAndAdjust: recordFeedbackAndAdjust,
+    snapshotFeedbackState: snapshotFeedbackState,
+    applyTransientRouteOverrides: applyTransientRouteOverrides,
+    explainRecallHit: explainRecallHit,
+    recallRouteFeedbackHubSelfCheck: recallRouteFeedbackHubSelfCheck
   };
 });
