@@ -232,7 +232,30 @@
                 border-color: var(--ls-danger-line) !important;
             }
 
-        `;
+        
+            /* ==== U4 工具类（内联样式收编）与窄屏断点 ==== */
+            .ls-pad-h { padding: 0 8px; }
+            .ls-pad-sm { padding: 4px 8px; }
+            .ls-text-warn { color: var(--ls-warn, #d29922); }
+            .ls-text-muted { color: var(--ls-text-3, #6e7681); }
+            .ls-text-success { color: var(--ls-success, #3fb950); }
+            .ls-text-danger { color: var(--ls-danger, #f85149); }
+            .ls-adv-search-wrap { margin-bottom: 12px; }
+            .ls-adv-group { border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); border-radius: var(--ls-r-md, 10px); padding: 4px 10px 8px; background: var(--ls-bg-2, #111827); margin-bottom: 12px; transition: border-color var(--ls-t-fast, 140ms); }
+            .ls-adv-group[open] { border-color: var(--ls-line-strong, rgba(255,255,255,0.12)); }
+            .ls-adv-group > summary.ls-group-title { cursor: pointer; user-select: none; margin: 6px 0; outline: none; list-style: none; }
+            .ls-adv-group > summary.ls-group-title::-webkit-details-marker { display: none; }
+            .ls-adv-group > summary.ls-group-title::before { content: "▸ "; display: inline-block; transition: transform var(--ls-t-fast, 140ms); color: var(--ls-accent); }
+            .ls-adv-group[open] > summary.ls-group-title::before { transform: rotate(90deg); }
+            @media (max-width: 480px) {
+                .lonsha-sheet { max-width: 100vw; max-height: 92vh; border-radius: var(--ls-r-lg, 14px) var(--ls-r-lg, 14px) 0 0; }
+                .ls-tabs-nav { gap: 4px; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+                .ls-tab-btn { padding: 6px 10px; font-size: 11.5px; }
+                .ls-mode-banner { flex-wrap: wrap; gap: 4px; }
+                .ls-mode-pill { flex: 1 1 100%; text-align: center; }
+                .ls-row { padding: 10px 6px; }
+            }
+`;
         document.head.appendChild(style);
 
         // ========== 工具 ==========
@@ -2682,7 +2705,7 @@
                         <div class="ls-hint" id="ls-model-status"></div>
                         <div class="ls-hint">兼容 OpenAI 格式；地址填 base 即可（自动补 /chat/completions）</div>
                     </div>
-                    <div style="padding: 0 8px;"><div class="ls-group-title" style="margin-top:10px">Embedding（向量检索用）</div></div>
+                    <div class="ls-pad-h"><div class="ls-group-title" style="margin-top:10px">Embedding（向量检索用）</div></div>
                     <div style="padding: 4px 8px;">
                         <input type="text" class="ls-input" placeholder="Embedding 地址（留空=同提取API）" value="${c.embeddingUrl || ''}" data-cfg-text="embeddingUrl" autocomplete="off">
                         <input type="password" class="ls-input" placeholder="Embedding Key（留空=用提取Key）" value="${c.embeddingKey || ''}" data-cfg-text="embeddingKey" autocomplete="off">
@@ -2717,7 +2740,7 @@
                     ${ck('holidayAware', '节日感知', '剧情日期临近节日时召回相关记忆（圣诞/情人节/七夕等）')}
                     <div class="ls-slider-label"><span>注入预算（字符）</span><span class="ls-slider-val" id="ls-v-budget">${c.injectionBudget || 3000}</span></div>
                     <input type="range" class="ls-slider" min="1000" max="6000" step="200" value="${c.injectionBudget || 3000}" data-cfg-num="injectionBudget">
-                    <div class="ls-hint" style="padding:0 8px;">注入简报超预算时自动裁剪，保护上下文窗口。</div>
+                    <div class="ls-hint" class="ls-pad-h">注入简报超预算时自动裁剪，保护上下文窗口。</div>
                 </div>
                 </div>
                 <div class="ls-tab-pane" data-tab-pane="narrative" role="tabpanel" id="ls-pane-narrative" aria-labelledby="ls-tab-narrative" tabindex="0">
@@ -2730,20 +2753,23 @@
                      ${ck('floorLedgerEnabled', '楼层账本', '删楼/重生成时自动回滚该楼层产生的记忆')}
                     <div class="ls-slider-label"><span>楼层账本保留上限</span><span class="ls-slider-val" id="ls-v-flret">${c.floorLedgerRetention || 400}</span></div>
                     <input type="range" class="ls-slider" min="50" max="2000" step="50" value="${c.floorLedgerRetention || 400}" data-cfg-num="floorLedgerRetention" oninput="document.getElementById('ls-v-flret').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">原硬编码 400 且超限静默删除最旧楼层——被删楼层的回滚能力就此静默失效（该楼产生的图谱/POV/时间线条目再也无法按楼撤销）。超限淘汰现在记入 op-log 与诊断面板「已淘汰」计数，长线连载可上调。</div>
+                    <div class="ls-hint" class="ls-pad-h">原硬编码 400 且超限静默删除最旧楼层——被删楼层的回滚能力就此静默失效（该楼产生的图谱/POV/时间线条目再也无法按楼撤销）。超限淘汰现在记入 op-log 与诊断面板「已淘汰」计数，长线连载可上调。</div>
                     ${ck('floorLedgerEvictionDebug', '楼层账本淘汰调试日志', '开启后楼层账本淘汰、以及「回滚请求命中已淘汰楼层」时在控制台 warn（默认关）')}
-                     <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
+                     <div class="ls-hint" class="ls-pad-h">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
                  </div>
                 <div class="ls-tab-pane" data-tab-pane="advanced" role="tabpanel" id="ls-pane-advanced" aria-labelledby="ls-tab-advanced" tabindex="0">
-                <div class="ls-group">
-                    <div class="ls-group-title">[CHRONO] 故事整理</div>
+                <div class="ls-adv-search-wrap" style="padding:4px 8px 12px;">
+                    <input type="text" class="ls-input" id="ls-adv-search" placeholder="🔍 搜索高级配置项（输入关键词即时过滤）" autocomplete="off">
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[CHRONO] 故事整理</summary>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
                     <div class="ls-slider-label"><span>卷摘要保留上限</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
                     <input type="range" class="ls-slider" min="4" max="200" step="2" value="${c.volumeRetention || 40}" data-cfg-num="volumeRetention" oninput="document.getElementById('ls-v-volret').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">超上限时不再静默丢卷，而是把被淘汰卷折叠的源摘要解折叠回活跃池（叙事可重新参与召回），并记入 op-log。</div>
+                    <div class="ls-hint" class="ls-pad-h">超上限时不再静默丢卷，而是把被淘汰卷折叠的源摘要解折叠回活跃池（叙事可重新参与召回），并记入 op-log。</div>
                     <div class="ls-slider-label"><span>史记保留上限</span><span class="ls-slider-val" id="ls-v-hisret">${c.historicalRetention || 24}</span></div>
                     <input type="range" class="ls-slider" min="2" max="100" step="1" value="${c.historicalRetention || 24}" data-cfg-num="historicalRetention" oninput="document.getElementById('ls-v-hisret').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">最高层纪史上限；淘汰同样显式记日志，不再静默 shift。</div>
+                    <div class="ls-hint" class="ls-pad-h">最高层纪史上限；淘汰同样显式记日志，不再静默 shift。</div>
                     ${ck('bm25Enabled', 'BM25 关键词检索', '词频×逆文档频率稀疏检索，比纯包含匹配更准')}
                     ${ck('sessionLeaseGuardEnabled', '会话租约校验', '异步提取/补提取/STM 巩固跨 await 后若已切换聊天，旧任务结果作废，防跨聊天记忆污染')}
                     ${ck('atomicRestoreEnabled', '恢复原子提交', '导入/嵌入恢复部分失败时自动回滚到恢复前状态，不留半套记忆（快照仅对用户发起的恢复抓取）')}
@@ -2761,16 +2787,16 @@
                     ${ck('bridgeEnabled', '公开快照桥', '在 window.lonsha_memory_bridge_v1 暴露只读状态快照（主角/NPC账本/大纲/世界推进），供外部脚本读取')}
                     <div class="ls-slider-label"><span>折叠阈值（条）</span><span class="ls-slider-val" id="ls-v-fold">${c.summaryFoldThreshold || 30}</span></div>
                     <input type="range" class="ls-slider" min="15" max="80" step="5" value="${c.summaryFoldThreshold || 30}" data-cfg-num="summaryFoldThreshold">
-                    <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[BOUNDARY] 时间线</div>
+                    <div class="ls-hint" class="ls-pad-h">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[BOUNDARY] 时间线</summary>
                     ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密心事与暗线单独隔离，只展示当前在场角色知晓的事实')}
                     ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
-                    <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[LEDGER] 物品记录</div>
+                    <div class="ls-hint" class="ls-pad-h">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[LEDGER] 物品记录</summary>
                     ${ck('reflectionEnabled', '反思节点（需额外模型支持）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
                     <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
@@ -2781,18 +2807,18 @@
                     ${ck('moneyLedgerEnabled', '钱财账本', '跟踪角色金额与变动流水，注入防凭空暴富；配合下方单笔幅度上限可 clamp 异常改值')}
                     <div class="ls-slider-label"><span>💰 钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="100000" step="1000" value="${c.maxMoneyDelta || 0}" data-cfg-num="maxMoneyDelta" oninput="document.getElementById('ls-v-mmd').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">覆盖式改值与旧金额差超过该上限时按 旧值±上限 clamp（防数值异常突变）；delta 式增减不受限。</div>
+                    <div class="ls-hint" class="ls-pad-h">覆盖式改值与旧金额差超过该上限时按 旧值±上限 clamp（防数值异常突变）；delta 式增减不受限。</div>
                     <div class="ls-hint" style="padding:0 8px; margin-top:6px;">🎬 番外楼：控制台执行 <code>SillyTavern.getContext().chat[N].extra.lonsha_omit = true</code> 可将该楼排除出记忆系统（小剧场/玩梗楼用）。</div>
                     <div class="ls-hint" style="padding:0 8px; margin-top:6px;">📦 记忆优化：每 ${c.optimizeEveryFloors || 50} 楼自动去重+淘汰最旧（向量上限 ${c.vectorMaxCount || 500} / 摘要上限 ${c.summaryMaxCount || 400}）；🗄️ 每 ${c.snapshotEveryFloors || 50} 楼自动快照（保留最近5份，IndexedDB）。</div>
                     ${ck('maintenancePipelineEnabled', '维护流水线', '把归档休眠→优化去重→节奏分诊编排为一次可诊断流水线：单步失败可重试，长期未维护自动跳回优化补做。默认关（关时走既有逐条维护路径，行为不变）')}
                     <div class="ls-slider-label"><span>维护超期提醒（天）</span><span class="ls-slider-val" id="ls-v-mntd">${c.maintenanceOverdueWarnDays || 45}</span></div>
                     <input type="range" class="ls-slider" min="7" max="120" step="1" value="${c.maintenanceOverdueWarnDays || 45}" data-cfg-num="maintenanceOverdueWarnDays">
-                    <div class="ls-hint" style="padding:0 8px;">距上次维护超过该天数 → 流水线跳回优化步骤补做一次（防长篇长时间挂机后记忆长期未整理）。</div>
+                    <div class="ls-hint" class="ls-pad-h">距上次维护超过该天数 → 流水线跳回优化步骤补做一次（防长篇长时间挂机后记忆长期未整理）。</div>
                     ${ck('pristineFetchEnabled', '绕包装取数', '宿主预设脚本（如 Kemini 伴生面板）会 patch 页面 fetch 并改写内部请求的请求体/响应流，轻则混入外来注入文本、重则工具调用被剥且静默发生。打开后内部取数改走「剥离已知包装 → 专用隐藏同源 iframe 原生 fetch」，拿回未改写的原始响应。默认开：纯传输层防御，不改请求/响应语义，拿不到原生 fetch 时逐字回退全局 fetch')}
                      ${ck('nativeToolExtractEnabled', '原生函数调用协议', '内部模型调用改带 tools 请求，回包里的 tool_calls 被真执行（search_memory 关键词检索 / write_memory 写显式摘要 / vector_search 语义检索）并以 role=tool 回灌，最多 nativeToolMaxRounds 轮后取最终正文。关闭时逐字节走旧文本路径。默认关（实验）')}
                     <div class="ls-slider-label"><span>工具回合上限（1~5）</span><span class="ls-slider-val" id="ls-v-ntmr">${c.nativeToolMaxRounds ?? 3}</span></div>
                     <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.nativeToolMaxRounds ?? 3}" data-cfg-num="nativeToolMaxRounds" oninput="document.getElementById('ls-v-ntmr').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">模型在一轮内最多连续调用几次工具（检索→精读→作答 三轮够用）。引擎侧另夹一道 Math.min(5, …)，此处填超过 5 也不会被采纳。</div>
+                    <div class="ls-hint" class="ls-pad-h">模型在一轮内最多连续调用几次工具（检索→精读→作答 三轮够用）。引擎侧另夹一道 Math.min(5, …)，此处填超过 5 也不会被采纳。</div>
                      ${ck('llmEventChainEnabled', 'LLM 调用事件链审计', '为每次模型调用记录事件链并校验迁移不变量（run_started→model_requested→assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
                     ${ck('recallArtifactEnabled', '召回产物持久化', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 → 自动拒绝复用陈旧注入。默认关')}
                     ${ck('smartTriggerEnabled', '事件性门控', '先判断本楼有没有事件性（关键词/自定义正则/多轮往返/情绪波动/疑似新实体），达不到阈值就跳过 LLM 提取、降级为本地廉价摘要——省下大量平淡楼的 API 调用，绝不丢楼层。默认关')}
@@ -2800,7 +2826,7 @@
                     ${ck('coverageLedgerEnabled', '覆盖账本重算', '归档隐藏改为「由当前有效覆盖者推导」：卷摘要/折叠被撤销或删除时，被它覆盖的楼层自动恢复可见，不再留下没人认领的孤儿隐藏楼；用户手动隐藏的楼层绝不接管。默认关')}
                     <div class="ls-slider-label"><span>门控阈值</span><span class="ls-slider-val" id="ls-v-stg">${c.smartTriggerThreshold ?? 2}</span></div>
                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.smartTriggerThreshold ?? 2}" data-cfg-num="smartTriggerThreshold">
-                    <div class="ls-hint" style="padding:0 8px;">达到该分才判为值得抽取 LLM；bionic 缺省 2。调低更容易触发（省得少），调高更省（可能漏事件）。</div>
+                    <div class="ls-hint" class="ls-pad-h">达到该分才判为值得抽取 LLM；bionic 缺省 2。调低更容易触发（省得少），调高更省（可能漏事件）。</div>
                     <textarea class="ls-textarea" data-cfg-text="smartTriggerPatterns" placeholder="自定义触发规则（每行一条正则，命中即加权 2 分）">${c.smartTriggerPatterns || ''}</textarea>
                     <div class="ls-slider-label" style="margin-top:8px;"><span>抽取节奏档位</span><span class="ls-slider-val">${c.extractionProfile || 'balanced'}</span></div>
                     <select class="ls-input" data-cfg-text="extractionProfile">
@@ -2808,51 +2834,51 @@
                         <option value="balanced" ${(c.extractionProfile || 'balanced') === 'balanced' ? 'selected' : ''}>balanced（每 3 楼攒批一次，默认）</option>
                         <option value="low-cost" ${(c.extractionProfile || 'balanced') === 'low-cost' ? 'selected' : ''}>low-cost（每 5 楼攒批，且只抽核心类型）</option>
                     </select>
-                    <div class="ls-hint" style="padding:0 8px;">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[RESONANCE] 人物心声</div>
+                    <div class="ls-hint" class="ls-pad-h">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[RESONANCE] 人物心声</summary>
                     ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
                     ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
                     ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
                     ${ck('timeChangeDrivenInjection', '时间锚点变化注入', '复用现有剧情时间线，只将上次游标之后且与当前剧情时间相关的新事件加入本轮上下文')}
-                    <div class="ls-hint" style="padding:0 8px;">时间变化注入同时覆盖时间线、在场角色状态、关系对及物品变化。</div>
+                    <div class="ls-hint" class="ls-pad-h">时间变化注入同时覆盖时间线、在场角色状态、关系对及物品变化。</div>
                     <div class="ls-slider-label"><span>回响停留轮数</span><span class="ls-slider-val" id="ls-v-echo">${c.echoBaseLife || 2}</span></div>
                     <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.echoBaseLife || 2}" data-cfg-num="echoBaseLife">
                     <div class="ls-slider-label"><span>每N楼写一次日记</span><span class="ls-slider-val" id="ls-v-df">${c.diaryEveryFloors ?? 3}</span></div>
                     <input type="range" class="ls-slider" min="0" max="10" step="1" value="${c.diaryEveryFloors ?? 3}" data-cfg-num="diaryEveryFloors">
                     <div class="ls-slider-label"><span>时间线变化注入条数</span><span class="ls-slider-val">${c.timeChangeMaxCandidates || 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.timeChangeMaxCandidates || 5}" data-cfg-num="timeChangeMaxCandidates">
-                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[WORLD] 地点记录</div>
+                    <div class="ls-hint" class="ls-pad-h">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[WORLD] 地点记录</summary>
                     ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
                     ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现（v3.91 修复：此前门控键断裂导致该功能从未生效）')}
                     ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[SUSPENSE] 伏笔追踪</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[SUSPENSE] 伏笔追踪</summary>
                     ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
                     ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；[v2.6] 支持架空日历（霜月3日）与全角分隔符，解析失败自动降级不标')}
                     <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
-                    <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入（默认）；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
+                    <div class="ls-hint" class="ls-pad-h">D0=紧邻最新输入（默认）；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
                     <div class="ls-slider-label"><span>悬念追踪上限（条）</span><span class="ls-slider-val" id="ls-v-susmax">${c.suspenseMaxOpen || 20}</span></div>
                     <input type="range" class="ls-slider" min="5" max="40" step="5" value="${c.suspenseMaxOpen || 20}" data-cfg-num="suspenseMaxOpen">
-                    <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[DEVICE] 虚拟手机联动</div>
+                    <div class="ls-hint" class="ls-pad-h">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[DEVICE] 虚拟手机联动</summary>
                     ${ck('rubyPhoneBridge', '回填手机记忆', 'LLM 提取结果（摘要/事件/关系）写入 RubyPhone 手机"记忆"App')}
                     ${ck('rubyPhoneRecall', '手机记忆参与召回', 'RubyPhone 记忆库（感官/空间/时间池）作为一路召回源注入简报')}
                     <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN ?? 3}</span></div>
                     <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN ?? 3}" data-cfg-num="rubyPhoneRecallTopN">
-                    <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
+                    <div class="ls-hint" class="ls-pad-h">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
                 </div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[DOMAIN] 分类记录</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[DOMAIN] 分类记录</summary>
                     ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
                     ${ck('clockSyncEnabled', '剧情时钟权威同步', '正文时间锚点回填手机时钟；关闭后手机时钟不被剧情时间改写')}
                     ${ck('pairMemoryEnabled', '配对记忆', '从 relationships 提取双人关系记忆；关闭后只保留单角色记忆')}
@@ -2866,9 +2892,9 @@
                     <input type="range" class="ls-slider" min="1" max="100" step="1" value="${c.sleepEveryN ?? 10}" data-cfg-num="sleepEveryN">
                     <div class="ls-slider-label"><span>定期快照间隔（楼）</span><span class="ls-slider-val" id="ls-v-snapevery">${c.snapshotEveryFloors ?? 50}</span></div>
                     <input type="range" class="ls-slider" min="10" max="500" step="10" value="${c.snapshotEveryFloors ?? 50}" data-cfg-num="snapshotEveryFloors">
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[INFERENCE] 推理与多路策略</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[INFERENCE] 推理与多路策略</summary>
                     <div class="ls-row">
                         <div><div>预算裁剪策略</div><div class="ls-hint">balanced=常驻全保留+触发截断到剩余预算；relevance=触发只保留 RRF 前 60%；recency=触发只保留时间/状态类分区</div></div>
                         <select class="ls-input" data-cfg-text="budgetStrategy">
@@ -2892,9 +2918,9 @@
                     <div class="ls-slider-label"><span>副API通道（JSON，按任务配独立端点）</span></div>
                     <textarea class="ls-textarea" id="ls-secondary-apis" style="min-height:150px;" placeholder='{"summarize":{"endpoint":"https://...","apiKey":"sk-...","model":"gpt-4o-mini"},"rerank":{...}}'>${esc(JSON.stringify(c.secondaryApis || {}, null, 2))}</textarea>
                     <div class="ls-hint">可选任务键：extract / summarize / embed / select / rerank / rewrite / state。未配的任务回落主通道；JSON 解析失败时保留原值并提示。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[TOPOLOGY] 因果追踪</div>
+                </details>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[TOPOLOGY] 因果追踪</summary>
                     ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
                     ${ck('entropyReflectionEnabled', '自适应叙事熵反思', '根据事件重要度与剧情惊奇度动态蓄力，冲顶时提前触发反思提炼，告别机械固定轮数')}
@@ -2902,8 +2928,8 @@
                     ${ck('cacheFriendlyInjection', 'Prompt Cache 友好型分流', '顶槽锁定绝对稳定的史记前缀，动态周记下沉，使 Claude/DeepSeek/Kimi 持续命中 Prefix Caching')}
                 </div>
 
-                <div class="ls-group">
-                    <div class="ls-group-title">[WORLDLINE] 世界线记忆（多世界线题材）</div>
+                <details class="ls-group ls-adv-group" open>
+                    <summary class="ls-group-title" style="cursor:pointer;list-style:none;">[WORLDLINE] 世界线记忆（多世界线题材）</summary>
                     ${ck('worldlineMemoryEnabled', '分层记忆与跨层污染闸', '适用于任何一种「同一角色不止一段人生」的机制：梦境层级、时间循环轮次、平行宇宙、存档读档、位面、世界线……插件不认识任何具体世界观，只认两件抽象事实：① 层标记（当前在哪一层，名字由你的卡自己定）② 切换楼层（第几楼切过去的）。两者合起来叫「纪元」。开启后每条记忆按归属判：同纪元可当事实；异纪元默认挡下（谁都不例外，主角也不给特权）；连楼层都没有的判不了、绝不冒充本纪元。另有一道「未来纪元」闸：起线楼层比你晚的记忆，对任何角色都不可见（防剧透）。默认关。')}
                     <div class="ls-slider-label"><span>当前层标记（名字由你的卡定，如 现实 / 梦一 / 第二轮 / 平行A）</span></div>
                     <input type="text" class="ls-input" placeholder="留空 = 未设定，条目一律判不了" value="${c.worldlineId || ''}" data-cfg-text="worldlineId" autocomplete="off">
@@ -2914,7 +2940,7 @@
                          data-cfg-text 键、同一个通用保存器），编辑器只是它的**结构化视图**：
                          增删行/改格子都写回它的 value ⇒ 一个键仍然只有一个控件（A1 不破），
                          而坏行会由宿主解析器点名，不再被静默吞掉。 -->
-                    <div id="ls-wl-jumps" style="padding:0 8px;">
+                    <div id="ls-wl-jumps" class="ls-pad-h">
                         <div class="ls-hint" style="padding:1px 0 5px;">每行一条：<b>楼层</b>（消息索引，如 40）→ <b>层标记</b>（这一层的名字，如 梦境一层）→ <b>数字编号</b>（可选）。写错的行会当场标红并说明成因 —— <b>否则闸会悄悄少一个纪元</b>。</div>
                         <div id="ls-wl-rows"></div>
                         <div style="display:flex;gap:6px;">
@@ -2961,8 +2987,8 @@
                     <textarea class="ls-textarea" data-cfg-text="worldlineReaders" style="min-height:56px;" placeholder="例：主角名，配角名">${esc(c.worldlineReaders || '')}</textarea>
                     <div class="ls-slider-label"><span>收束事件登记（每行一条：事件键=all 或 事件键=域A,域B）</span></div>
                     <textarea class="ls-textarea" data-cfg-text="worldlineConvergences" style="min-height:72px;" placeholder="例：某人之死=all&#10;某事件=高位">${esc(c.worldlineConvergences || '')}</textarea>
-                    <div class="ls-hint" style="padding:0 8px;">⭐ 未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给域的行，等于「登记过但本域不收束」。</div>
-                </div>
+                    <div class="ls-hint" class="ls-pad-h">⭐ 未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给域的行，等于「登记过但本域不收束」。</div>
+                </details>
                 <div class="ls-tab-pane" data-tab-pane="retrieval" role="tabpanel" id="ls-pane-retrieval" aria-labelledby="ls-tab-retrieval" tabindex="0">
                 <div class="ls-group">
                     <div class="ls-group-title">[RERANK] 回忆排序优化（可选）</div>
@@ -3002,14 +3028,14 @@
                     <button class="ls-btn" id="ls-import">📥 导入档案</button>
                     <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻ 恢复嵌入存档（跨设备迁移）</button>
                     <button class="ls-btn ls-btn-danger" id="ls-clear">🗑 清空当前对话记忆</button>
-                    <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载。</div>
+                    <div class="ls-hint" class="ls-pad-h">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载。</div>
                     <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（跨会话携带）</button>
                     <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新故事开局）</button>
                     <button class="ls-btn" id="ls-migrate-pack">📦 记忆迁移包（按角色打包·可校验）</button>
                     <button class="ls-btn" id="ls-migrate-apply">🧬 导入迁移包（预检+冲突决策）</button>
                 </div>
                 <div class="ls-group">
-                    <details id="ls-advanced" style="padding:0 8px;">
+                    <details id="ls-advanced" class="ls-pad-h">
                         <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;">🧪 高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
                         <div class="ls-hint" style="padding:6px 0 2px;">⚠️ 这些参数影响资源消耗与召回精度。默认值经过长期验证，非必要不调；改出问题直接点「恢复默认」。</div>
                         <div class="ls-slider-label"><span>注入 token 预算</span><span class="ls-slider-val" id="ls-v-mtb">${c.memoryTokenBudget ?? 2700}</span></div>
@@ -3083,13 +3109,13 @@
             ck('snapshotPrecheckEnabled', '快照恢复前预检', '从快照恢复前先做一次只读预检：快照无可恢复内容时直接拦住、不落盘，避免把「恢复了个空」写进存档（默认开）。'),
                      <div class="ls-slider-label"><span>条目关联停用词</span></div>
                      <textarea class="ls-textarea" data-cfg-text="crosslinkStopwords" placeholder="逗号分隔，如：主角,系统,旁白">${c.crosslinkStopwords || ''}</textarea>
-                     <div class="ls-hint" style="padding:0 8px;">条目关联（Aho-Corasick）扫正文找共享关键词时忽略这些通用词——否则「主角」「系统」这类词会把所有条目串成一团（v3.183）。</div>
+                     <div class="ls-hint" class="ls-pad-h">条目关联（Aho-Corasick）扫正文找共享关键词时忽略这些通用词——否则「主角」「系统」这类词会把所有条目串成一团（v3.183）。</div>
                      ${ck('crosslinkRecallBoost', '条目关联·召回提权', '按当前查询扫关联词表，命中的摘要键在召回融合里加一个固定小分（只提名次，不换条目、不写图、不删边）。默认关：关闭时不扫词表、零开销、零行为变化（v3.185）')}
                      ${ck('emotionOppositeRecall', '情绪反向召回', '负面的当下把「相对的那一面」也带进上下文：难过时想起温柔相待、恐惧时想起安然相伴、绝境里想起承诺。命中项在召回融合里加固定小分（只提名次，不换条目、不写图、不删边）。默认关：关闭时不扫词表、零开销、零行为变化（v3.186）')}
                      ${ck('graphRollupEnabled', '图谱语义汇总', '长线对话下把「同类型、未被认领」的散节点每 N 个压成一层父节点（+ semantic_contains 边），父节点不删除任何子节点；同时把此前零调用点的图压缩（vacuum）接进周期维护（v3.184）')}
                      <div class="ls-slider-label"><span>汇总每层节点数</span><span class="ls-slider-val" id="ls-v-grmc">${c.graphRollupMinChildren ?? 4}</span></div>
                      <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.graphRollupMinChildren ?? 4}" data-cfg-num="graphRollupMinChildren">
-                     <div class="ls-hint" style="padding:0 8px;">每几个散节点压成一层（默认 4）。调小压得更狠、层更多；调大则只压大簇。</div>
+                     <div class="ls-hint" class="ls-pad-h">每几个散节点压成一层（默认 4）。调小压得更狠、层更多；调大则只压大簇。</div>
                      ${ck('relationDisclosureEnabled', '关系披露条件', '关系边可带「何时才给模型看」的触发条件（提取时按当前剧情形如「告白|结婚」）。未触发的关系本轮不进注入，但仍留在图与召回池里，情境对了下轮照常出现。没写条件的关系一律照常注入（v3.184）')}
                     ${ck('fuzzyPatchEnabled', '提示词宽容填充', '模板占位符（如 {{KNOWN_CHARS}}）被编辑成全角括号/多空格形态后仍能被认出并填上；未命中时退回精确匹配，填完仍残留的占位符进自检告警。无占位符残留时逐字节等同旧行为（v3.184）')}
                     ${ck('floorRecallLedgerEnabled', '楼层召回账本', '把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度，让楼层账本从记写入扩展到记召回（v3.150）')}
@@ -3130,6 +3156,24 @@
                     overlay.querySelectorAll('.ls-tab-pane').forEach(p => p.classList.toggle('active', p.dataset.tabPane === tab));
                 });
             });
+            // 高级面板搜索框即时过滤
+            const advSearch = overlay.querySelector('#ls-adv-search');
+            if (advSearch) {
+                advSearch.addEventListener('input', () => {
+                    const q = advSearch.value.trim().toLowerCase();
+                    const groups = overlay.querySelectorAll('#ls-pane-advanced .ls-adv-group');
+                    groups.forEach(g => {
+                        if (!q) {
+                            g.style.display = '';
+                            return;
+                        }
+                        const text = (g.textContent || '').toLowerCase();
+                        const match = text.includes(q);
+                        g.style.display = match ? '' : 'none';
+                        if (match) g.open = true;
+                    });
+                });
+            }
             // 标签页键盘导航（WAI-ARIA tabs）：左右/Home/End 切换并聚焦
             const tabList = overlay.querySelector('.ls-tabs-nav');
             if (tabList) tabList.addEventListener('keydown', (e) => {
