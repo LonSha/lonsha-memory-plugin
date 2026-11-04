@@ -1,7 +1,7 @@
 {
   "schema": "module-consumption-ledger@1",
-  "generated_at": "2026-11-03T13:46:19.352Z",
-  "total_modules": 250,
+  "generated_at": "2026-11-04T04:11:34.579Z",
+  "total_modules": 255,
   "zero_consumption_count": 19,
   "modules": {
     "ledger-entity.js": {
@@ -774,7 +774,7 @@
       "surface": [
         "archive-audit"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 2,
       "allowed": 1,
       "why": "active"
     },
@@ -1372,6 +1372,15 @@
       "allowed": 1,
       "why": "active"
     },
+    "generation-material-reconcile.js": {
+      "module": "generation-material-reconcile.js",
+      "surface": [
+        "generation-material-reconcile"
+      ],
+      "prod_call_sites": 2,
+      "allowed": 1,
+      "why": "active"
+    },
     "generation-fact-receipt.js": {
       "module": "generation-fact-receipt.js",
       "surface": [
@@ -1646,6 +1655,33 @@
       "module": "era-continuation-inheritance-tree.js",
       "surface": [
         "era-continuation-inheritance-tree"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "era-handoff-draft.js": {
+      "module": "era-handoff-draft.js",
+      "surface": [
+        "era-handoff-draft"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "relationship-repair-response.js": {
+      "module": "relationship-repair-response.js",
+      "surface": [
+        "relationship-repair-response"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
+    "fact-correction-transaction.js": {
+      "module": "fact-correction-transaction.js",
+      "surface": [
+        "fact-correction-transaction"
       ],
       "prod_call_sites": 1,
       "allowed": 1,
@@ -2011,6 +2047,15 @@
       "allowed": 1,
       "why": "active"
     },
+    "memory-revisit-schedule.js": {
+      "module": "memory-revisit-schedule.js",
+      "surface": [
+        "memory-revisit-schedule"
+      ],
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
+    },
     "memory-season.js": {
       "module": "memory-season.js",
       "surface": [
@@ -2050,16 +2095,11 @@
     "temporal-validity-workflow.js": {
       "module": "temporal-validity-workflow.js",
       "surface": [
-        "temporal-validity-workflow",
-        "explainFact",
-        "selectFacts",
-        "readAt",
-        "resolveQuery",
-        "line"
+        "temporal-validity-workflow"
       ],
-      "prod_call_sites": 7,
-      "allowed": 7,
-      "why": "active: unified temporal interpretation for detail, verification, recall and injection"
+      "prod_call_sites": 1,
+      "allowed": 1,
+      "why": "active"
     },
     "memory-archaeology.js": {
       "module": "memory-archaeology.js",

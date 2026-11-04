@@ -2571,6 +2571,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _costForecastLib,
                     _costLedgerLib,
                     _injectionReceiptLib,
+                    _generationMaterialReconcileLib,
                     _projectionLib,
                     _relationHistoryLib,
                 });
@@ -8158,6 +8159,7 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
                 recallCorrection: _moduleLib(() => window.LonShaRecallCorrection, 'recall-correction.js'),
                 perspectivePreview: _moduleLib(() => window.LonShaPerspectivePreview, 'perspective-preview.js'),
                 generationMemoryPlan: _moduleLib(() => window.LonShaGenerationMemoryPlan, 'generation-memory-plan.js'),
+                generationMaterialReconcile: _generationMaterialReconcileLib(),
                 generationFactReceipt: _moduleLib(() => window.LonShaGenerationFactReceipt, 'generation-fact-receipt.js'),
                 memoryMaintenanceSession: _moduleLib(() => window.LonShaMemoryMaintenanceSession, 'memory-maintenance-session.js'),
                 profileDossierView: _moduleLib(() => window.LonShaProfileDossierView, 'profile-dossier-view.js'),
@@ -10132,6 +10134,11 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     function _injectionReceiptLib() {
         return _moduleLib(() => window.LonShaInjectionReceipt, 'injection-receipt.js');
     }
+    // [L14-O3] 生成前材料计划与真实注入逐条对拍。只消费既有计划/注入回执，缺少稳定
+    // materialId 时显式降级为 unknown，不按文本 includes 猜身份，也不写任何 owner。
+    function _generationMaterialReconcileLib() {
+        return _moduleLib(() => window.LonShaGenerationMaterialReconcile, 'generation-material-reconcile.js');
+    }
     // [v3.208.0] 投影管线（projection-pipeline.js）。为什么需要：
     //   v3.176 的本地投影只有两次手工调用（人物位置 / 事实键），加一个投影就要再改一遍宿主
     //   函数体，且「加没加」无从判定；更糟的是缺席不可归因（收集失败与「源里本就没有」同形，
@@ -10374,6 +10381,7 @@ function _collectNewFace() {
         ['交接草案', _eraHandoffDraftLib, 'handoffDraftSelfCheck'],
         ['修复回应', _repairResponseLib, 'repairResponseSelfCheck'],
         ['纠错事务', _factCorrectionTxLib, 'factCorrectionTransactionSelfCheck'],
+        ['生成材料对拍', _generationMaterialReconcileLib, 'generationMaterialReconcileSelfCheck'],
         ['生成事实重放', _generationReplayLib, 'factReplaySelfCheck'],
         ['情绪反向召回', _antiphonyLib, null],
         ['阶段封卷', _volumeSealingLib, null],

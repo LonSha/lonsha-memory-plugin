@@ -1680,6 +1680,30 @@
                             ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn,#d29922);">常驻溢出 ${_bs.residentOverflowOver} 字符（关键事实保护：常驻块优先于预算上限）</div>` : '';
                         head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta">📊 预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars} → 实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${_blkPhrase}</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_keptKnown ? _bs.keptBlocks : '不可测'}${_keptKnown ? '' : '（' + String(_bs.keptFrom || 'unknown') + '）'}${_bs.droppedChars > 0 && _keptKnown ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div>${_partialLine}${_roLine}${_whyLine}</div>`;
                     }
+                    /* [L14-O3] 生成前计划 ↔ 实际注入对拍：只读消费宿主已落的
+                     * materialReconcile，不在面板重算预算/权限；取消、临时排除、预算裁剪、
+                     * 权限拒绝、计划外和未知映射保持不同形态。 */
+                    const _mr = (_bs && _bs.materialReconcile && typeof _bs.materialReconcile === 'object') ? _bs.materialReconcile : null;
+                    if (_mr) {
+                        const _mrNames = {
+                            injected: '已注入', 'temporarily-excluded': '本轮排除',
+                            'budget-trimmed': '预算裁剪', 'permission-rejected': '权限拒绝',
+                            'outside-plan': '计划外进入', unknown: '无法归因',
+                            'plan-missing': '缺少计划', cancelled: '已取消'
+                        };
+                        const _mrEntries = Array.isArray(_mr.entries) ? _mr.entries : [];
+                        const _mrUnknown = Array.isArray(_mr.unknown) ? _mr.unknown : [];
+                        const _mrRows = _mrEntries.slice(0, 24).map(x => {
+                            const st = String(x && x.state || 'unknown');
+                            const label = _mrNames[st] || st;
+                            const tone = st === 'injected' ? 'var(--ls-success,#3fb950)' : (st === 'unknown' ? 'var(--ls-danger,#f85149)' : 'var(--ls-warn,#d29922)');
+                            return `<div class="ls-item-text" style="border-left:2px solid ${tone};padding-left:6px;"><b style="color:${tone};">${esc(label)}</b> <code>${esc(String(x.materialId || '(无 materialId)'))}</code> · ${esc(String(x.why || ''))}</div>`;
+                        }).join('');
+                        head += `<div class="ls-item" style="margin:6px 0" data-material-reconcile="${escAttr(String(_mr.status || 'unknown'))}">`
+                            + `<div class="ls-item-meta">🪞 生成材料逐条对拍 · 状态 <b>${esc(String(_mr.status || 'unknown'))}</b> · 可测 ${_mr.measurable === true ? '是' : '否'} · 计划修订 ${esc(String(_mr.planRevision || '未提供'))}</div>`
+                            + `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3,#6e7681);">${esc(String(_mr.note || ''))}${_mrUnknown.length ? ' · 未知映射 ' + _mrUnknown.length + ' 条（不按文本猜身份）' : ''}</div>`
+                            + _mrRows + `</div>`;
+                    }
                     // 分块渲染：按区块标题拆分便于阅读
                     const blocks = inj.html.split('\n').filter(l => l.trim());
                     // [v3.59] D2: diff 高亮——对比上一轮注入，新增行标绿色边框

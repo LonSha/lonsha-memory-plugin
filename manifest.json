@@ -164,6 +164,7 @@
         "recall-correction.js",
         "perspective-preview.js",
         "generation-memory-plan.js",
+        "generation-material-reconcile.js",
         "generation-fact-receipt.js",
         "memory-maintenance-session.js",
         "profile-dossier-view.js",

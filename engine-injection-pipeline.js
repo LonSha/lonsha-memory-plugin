@@ -79,6 +79,9 @@
     let _injectionReceiptLib = function () {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaInjectionReceipt : null), 'injection-receipt.js');
     };
+    let _generationMaterialReconcileLib = function () {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaGenerationMaterialReconcile : null), 'generation-material-reconcile.js');
+    };
     let _projectionLib = function () {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaProjectionPipeline : null), 'projection-pipeline.js');
     };
@@ -136,6 +139,7 @@
         if (typeof deps._costForecastLib === 'function') _costForecastLib = deps._costForecastLib;
         if (typeof deps._costLedgerLib === 'function') _costLedgerLib = deps._costLedgerLib;
         if (typeof deps._injectionReceiptLib === 'function') _injectionReceiptLib = deps._injectionReceiptLib;
+        if (typeof deps._generationMaterialReconcileLib === 'function') _generationMaterialReconcileLib = deps._generationMaterialReconcileLib;
         if (typeof deps._projectionLib === 'function') _projectionLib = deps._projectionLib;
         if (typeof deps._relationHistoryLib === 'function') _relationHistoryLib = deps._relationHistoryLib;
     }
@@ -1873,6 +1877,28 @@
                         this._lastBudgetStats.receipt = null;
                     }
                 } catch (e) { errLog(e, 'buildInjection.回执派生'); }
+                /* [L14-O3] 生成前计划与真实注入逐条对拍：只在调用方提供本轮
+                 * generationMaterialPlan 时启用；实际块取自刚刚生成的 _lastInjectionDraft，
+                 * 不复制预算/权限算法，不写 owner。缺 materialId 显式降级，不用文本猜身份。 */
+                try {
+                    const _MR = _generationMaterialReconcileLib();
+                    const _gp = _opt && _opt.generationMaterialPlan;
+                    if (_MR && _gp && typeof _MR.reconcileGenerationConsumption === 'function') {
+                        const _ex = new Set(Array.isArray(_opt.generationMaterialExcludeIds) ? _opt.generationMaterialExcludeIds.map(String) : []);
+                        this._lastBudgetStats.materialReconcile = _MR.reconcileGenerationConsumption(_gp, {
+                            blocks: Array.isArray(this._lastInjectionDraft) ? this._lastInjectionDraft : []
+                        }, {
+                            excludeIds: _ex,
+                            materialIdsByInjectionOrder: _opt.materialIdsByInjectionOrder || null,
+                            cancelled: _opt.generationMaterialCancelled === true
+                        });
+                    } else {
+                        this._lastBudgetStats.materialReconcile = null;
+                    }
+                } catch (e) {
+                    this._lastBudgetStats.materialReconcile = { writes: false, status: 'unavailable', reason: 'reconcile-threw' };
+                    errLog(e, 'buildInjection.生成材料对拍');
+                }
             } catch (e) { errLog(e, 'buildInjection.预算实测'); }
             return full;
         }
