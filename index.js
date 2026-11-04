@@ -10372,6 +10372,7 @@ function _collectNewFace() {
         ['跨项迁移台', _crossProjectDeskLib, 'crossProjectMigrationSelfCheck'],
         ['时代续演', _eraContinuationLib, 'eraContinuationDramaSelfCheck'],
         ['交接草案', _eraHandoffDraftLib, 'handoffDraftSelfCheck'],
+        ['修复回应', _repairResponseLib, 'repairResponseSelfCheck'],
         ['生成事实重放', _generationReplayLib, 'factReplaySelfCheck'],
         ['情绪反向召回', _antiphonyLib, null],
         ['阶段封卷', _volumeSealingLib, null],
@@ -10413,6 +10414,11 @@ function _collectNewFace() {
      *     `_eraContinuationInheritanceTree`（只读 roster 推导）**三件不同物，别合并**：
      *     本件只负责「草案」这一段 —— 逐项指定继承者、按继承人预览、可撤回、未确认零写入。 */
     function _eraHandoffDraftLib() { return _moduleLib(() => window.LonShaEraHandoffDraft, 'era-handoff-draft.js'); }
+    /* [v3.447.0 · L14-X7] 关系修复回应取库口（relationship-repair-response.js）。
+     *   ★ 与 `_repairTheaterLib`（relationship-repair-theater.js：四条整路径推演）
+     *     和 `repair-loop.js`（数据修复账）**三件不同物，别合并**：
+     *     本件只做「提议 → 逐条回应（含拒绝/延期/部分接受）→ 后续行为证据回链」。 */
+    function _repairResponseLib() { return _moduleLib(() => window.LonShaRelationshipRepairResponse, 'relationship-repair-response.js'); }
     function _memorySeasonLib() { return _moduleLib(() => window.LonShaMemorySeason, 'memory-season.js'); }
     function _meaningMapLib() { return _moduleLib(() => window.LonShaMeaningMap, 'meaning-map.js'); }
     function _workModeLib() { return _moduleLib(() => window.LonShaMemoryWorkMode, 'memory-work-mode.js'); }
