@@ -10371,6 +10371,7 @@ function _collectNewFace() {
         ['角色成长', _characterGrowthLib, 'characterGrowthSelfCheck'],
         ['跨项迁移台', _crossProjectDeskLib, 'crossProjectMigrationSelfCheck'],
         ['时代续演', _eraContinuationLib, 'eraContinuationDramaSelfCheck'],
+        ['交接草案', _eraHandoffDraftLib, 'handoffDraftSelfCheck'],
         ['生成事实重放', _generationReplayLib, 'factReplaySelfCheck'],
         ['情绪反向召回', _antiphonyLib, null],
         ['阶段封卷', _volumeSealingLib, null],
@@ -10407,6 +10408,11 @@ function _collectNewFace() {
     function _memoryWeatherLib() { return _moduleLib(() => window.LonShaMemoryWeather, 'memory-weather.js'); }
     function _memoryRitualLib() { return _moduleLib(() => window.LonShaMemoryRitual, 'memory-ritual.js'); }
     function _memoryRevisitScheduleLib() { return _moduleLib(() => window.LonShaMemoryRevisitSchedule, 'memory-revisit-schedule.js'); }
+    /* [v3.446.0 · L14-X8] 跨代传承交接草案取库口（era-handoff-draft.js）。
+     *   ★ 与 `_eraInheritanceLib`（era-inheritance.js：转场/提案）和
+     *     `_eraContinuationInheritanceTree`（只读 roster 推导）**三件不同物，别合并**：
+     *     本件只负责「草案」这一段 —— 逐项指定继承者、按继承人预览、可撤回、未确认零写入。 */
+    function _eraHandoffDraftLib() { return _moduleLib(() => window.LonShaEraHandoffDraft, 'era-handoff-draft.js'); }
     function _memorySeasonLib() { return _moduleLib(() => window.LonShaMemorySeason, 'memory-season.js'); }
     function _meaningMapLib() { return _moduleLib(() => window.LonShaMeaningMap, 'meaning-map.js'); }
     function _workModeLib() { return _moduleLib(() => window.LonShaMemoryWorkMode, 'memory-work-mode.js'); }
