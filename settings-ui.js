@@ -305,6 +305,76 @@
             document.body.appendChild(t);
             setTimeout(() => t.remove(), 1800);
         };
+        // 插件面板内建无侵入对话框 (Alert / Confirm / Prompt)
+        const showPluginDialog = ({ title = '提示', message = '', type = 'alert', defaultValue = '', confirmText = '确定', cancelText = '取消' } = {}) => {
+            return new Promise((resolve) => {
+                if (typeof document === 'undefined' || !document.createElement) {
+                    if (type === 'confirm') return resolve(false);
+                    if (type === 'prompt') return resolve(null);
+                    return resolve(undefined);
+                }
+                const overlayId = 'ls-dialog-' + Math.random().toString(36).slice(2, 9);
+                const ov = document.createElement('div');
+                ov.id = overlayId;
+                ov.className = 'lonsha-overlay';
+                ov.style.zIndex = '10006';
+
+                const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '"');
+                const isPrompt = type === 'prompt';
+                const isConfirm = type === 'confirm' || isPrompt;
+
+                ov.innerHTML = `
+                    <div class="lonsha-sheet" style="max-width: 420px; border-radius: 14px; margin: auto; padding: 20px;">
+                        <div style="font-weight: 700; font-size: 16px; margin-bottom: 12px; color: var(--ls-text, #f1f5f9); display: flex; justify-content: space-between; align-items: center;">
+                            <span>${escHtml(title)}</span>
+                        </div>
+                        <div style="font-size: 14px; line-height: 1.5; color: var(--ls-text-muted, #94a3b8); margin-bottom: 16px; white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow-y: auto;">${escHtml(message)}</div>
+                        ${isPrompt ? `<input type="text" class="ls-dialog-input" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.12)); border-radius: 8px; color: #fff; margin-bottom: 16px; font-size: 14px;" value="${escHtml(defaultValue)}" />` : ''}
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            ${isConfirm ? `<button type="button" class="ls-btn ls-dialog-cancel" style="padding: 6px 14px; font-size: 13px; border-radius: 6px; cursor: pointer;">${escHtml(cancelText)}</button>` : ''}
+                            <button type="button" class="ls-btn ls-btn-primary ls-dialog-ok" style="padding: 6px 14px; font-size: 13px; border-radius: 6px; cursor: pointer;">${escHtml(confirmText)}</button>
+                        </div>
+                    </div>
+                `;
+
+                const close = (val) => {
+                    ov.remove();
+                    resolve(val);
+                };
+
+                const inputEl = ov.querySelector('.ls-dialog-input');
+                const okBtn = ov.querySelector('.ls-dialog-ok');
+                const cancelBtn = ov.querySelector('.ls-dialog-cancel');
+
+                okBtn?.addEventListener('click', () => {
+                    close(isPrompt ? (inputEl?.value ?? '') : true);
+                });
+                cancelBtn?.addEventListener('click', () => {
+                    close(isPrompt ? null : false);
+                });
+                if (inputEl) {
+                    inputEl.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') okBtn?.click();
+                        else if (e.key === 'Escape') cancelBtn?.click();
+                    });
+                }
+                ov.addEventListener('click', (e) => {
+                    if (e.target === ov) close(isPrompt ? null : false);
+                });
+
+                document.body.appendChild(ov);
+                hardenButtons(ov);
+                if (inputEl) {
+                    inputEl.focus();
+                    inputEl.select?.();
+                } else {
+                    okBtn?.focus();
+                }
+            });
+        };
+        const pluginAlert = (msg, title = '提示') => showPluginDialog({ type: 'alert', message: msg, title });
+        const pluginConfirm = (msg, title = '请确认') => showPluginDialog({ type: 'confirm', message: msg, title });
+        const pluginPrompt = (msg, def = '', title = '请输入') => showPluginDialog({ type: 'prompt', message: msg, defaultValue: def, title });
 
         // ========== 状态总览 ==========
         plugin.showStatsPanel = function() {
@@ -2074,7 +2144,7 @@
              */
             if (viewType === 'archive') {
                 ov.querySelectorAll('[data-source-ref]').forEach((btn) => {
-                    btn.addEventListener('click', () => {
+                    btn.addEventListener('click', async () => {
                         const ref = String(btn.dataset.sourceRef || '');
                         if (!ref) { toast('⚠️ 改绑未生效：缺少证据引用'); return; }
                         let preview = null;
@@ -2198,10 +2268,10 @@
                     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
                 }
                 ov.querySelectorAll('.ls-lf-del').forEach(btn => {
-                    btn.addEventListener('click', () => {
+                    btn.addEventListener('click', async () => {
                         const id = btn.dataset.lfid;
                         const fact = (s.summary.getLockedFacts() || []).find(f => f.id === id);
-                        if (fact && confirm('解除锁定并从摘要保护中移除？\n\n' + fact.text)) {
+                        if (fact && await pluginConfirm('解除锁定并从摘要保护中移除？\n\n' + fact.text)) {
                             s.unlockFact ? s.unlockFact(id) : s.summary.removeLockedFact(id);
                             toast('已解除锁定');
                             plugin.showBrowser('lockedfacts');
@@ -2226,7 +2296,7 @@
                         const word = kind === 'revoke'
                             ? '撤销这条人工声明（撤完回到按转场记录推导出来的结果）'
                             : ('把这条声明为「' + (NAME[fate] || fate) + '」（会覆盖先前声明）');
-                        if (!window.confirm('确定要' + word + '吗？')) return;
+                        if (!await pluginConfirm('确定要' + word + '吗？')) return;
                         try {
                             let r;
                             if (kind === 'revoke') {
@@ -2296,7 +2366,7 @@
                         let missingN = 0;
                         try { missingN = s.summary.missingFloors((window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1).length; } catch (e) { reportUiError(e, 'nonfatal') }
                         if (!missingN) { toast('✅ 无缺失楼层'); return; }
-                        if (!confirm('发现 ' + missingN + ' 个缺失楼层（不含番外/用户楼）。\n将调用 LLM 批量补齐（每批最多 5 楼，本批补完后可再次点击续补）。\n继续？')) return;
+                        if (!await pluginConfirm('发现 ' + missingN + ' 个缺失楼层（不含番外/用户楼）。\n将调用 LLM 批量补齐（每批最多 5 楼，本批补完后可再次点击续补）。\n继续？')) return;
                         compBtn.disabled = true; compBtn.textContent = '⏳ 补齐中…';
                         try {
                             const chat = window.SillyTavern?.getContext?.()?.chat || [];
@@ -2362,10 +2432,10 @@
                     toast(ok ? '↺ 已恢复记忆（原 id 保留）' : '恢复失败：找不到软删条目');
                     if (ok) { try { plugin._memPersist?.(); } catch (_) {} ov.remove(); plugin.showBrowser('oplog'); }
                 }));
-                ov.querySelectorAll('.ls-tomb-purge').forEach((btn) => btn.addEventListener('click', () => {
+                ov.querySelectorAll('.ls-tomb-purge').forEach((btn) => btn.addEventListener('click', async () => {
                     const char = btn.dataset.tombChar || '';
                     const id = btn.dataset.tombId || '';
-                    if (!window.confirm('彻底清除后无法恢复，确认继续？')) return;
+                    if (!await pluginConfirm('彻底清除后无法恢复，确认继续？')) return;
                     const ok = s.charMem?.purgeTombstone?.(char, id, { confirm: true });
                     toast(ok ? '已彻底清除软删记录' : '清除失败：找不到软删条目');
                     if (ok) { try { plugin._memPersist?.(); } catch (_) {} ov.remove(); plugin.showBrowser('oplog'); }
@@ -2379,8 +2449,8 @@
              */
             if (viewType === 'oplog') {
                 ov.querySelectorAll('[data-round-undo]').forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                        if (!window.confirm('撤销本轮生成新增的记忆条目？\n\n· 只回滚本轮**新增**的条目；\n· 本轮**修改**过的条目不会被改回去（只标待复核）；\n· 本轮删除过的条目不可恢复（正文未留）。\n\n确认继续？')) return;
+                    btn.addEventListener('click', async () => {
+                        if (!await pluginConfirm('撤销本轮生成新增的记忆条目？\n\n· 只回滚本轮**新增**的条目；\n· 本轮**修改**过的条目不会被改回去（只标待复核）；\n· 本轮删除过的条目不可恢复（正文未留）。\n\n确认继续？')) return;
                         let removers = null;
                         try { removers = (typeof s._roundRemovers === 'function') ? s._roundRemovers() : null; } catch (_e) { removers = null; }
                         if (!removers) { toast('⚠️ 撤销未执行：宿主没提供删除口（本面不自己删账）'); return; }
@@ -3105,7 +3175,7 @@
                 const missing = engine.scanMissingFloors();
                 if (!missing.length) { toast('✅ 没有缺失楼层，记忆全覆盖'); return; }
                 const preview = missing.slice(0, 10).join(', ') + (missing.length > 10 ? ` … 共 ${missing.length} 楼` : '');
-                if (!confirm(`发现 ${missing.length} 个楼层无记忆（AI 楼）。补提取将调用 API 逐楼提取，是否继续？\n\n楼层: ${preview}`)) return;
+                if (!await pluginConfirm(`发现 ${missing.length} 个楼层无记忆（AI 楼）。补提取将调用 API 逐楼提取，是否继续？\n\n楼层: ${preview}`)) return;
                 toast(`🔧 补提取中…（${Math.min(missing.length, 30)} 楼，需一些时间）`);
                 const done = await engine.backfillFloors(missing, (idx, d) => {
                     if ((d.ok + d.fail) % 5 === 0) toast(`🔧 补提取进度: ${d.ok + d.fail}/${Math.min(missing.length, 30)}`);
@@ -3543,14 +3613,14 @@
             });
 
             // [v2.3] 携带背包: 打包 → localStorage + 文件下载; 导入 → 应用到当前对话
-            overlay.querySelector('#ls-carry-pack').addEventListener('click', () => {
+            overlay.querySelector('#ls-carry-pack').addEventListener('click', async () => {
                 const pack = this.engine.packCarryover();
                 if (!pack) { toast('打包失败'); return; }
                 // [v3.77] B: 携带预览（确认后落盘下载）
                 try {
                     const c = pack.counts || {};
                     const prevMsg = '🚚 携带包预览\n\n摘要 ' + (c.summaries ?? pack.summaries?.length ?? 0) + ' 条\n悬念 ' + (c.suspense ?? pack.suspense?.length ?? 0) + ' 条\n图谱节点 ' + (c.graphNodes ?? 0) + '\n日记 ' + (c.diaries ?? 0) + '\n向量 ' + (c.vectors ?? 0) + '\n\n确认打包？（打包后新对话点「导入携带包」无缝续写）';
-                    if (!confirm(prevMsg)) { toast('已取消打包'); return; }
+                    if (!await pluginConfirm(prevMsg)) { toast('已取消打包'); return; }
                 } catch (e) { reportUiError(e, 'nonfatal') }
                 try {
                     localStorage.setItem('lonsha_carryover_pack', JSON.stringify(pack));
@@ -3585,7 +3655,7 @@
                 input.click();
             });
             // [v3.445.0 · L13-X5] 迁移包：打包（exportMigratePack 宿主桩 + 预览 + localStorage/文件双备份）
-            overlay.querySelector('#ls-migrate-pack').addEventListener('click', () => {
+            overlay.querySelector('#ls-migrate-pack').addEventListener('click', async () => {
                 let r = null;
                 try { r = this.engine.exportMigratePack(); } catch (e) { reportUiError(e, 'ls-migrate-pack'); return; }
                 if (!r || !r.ok) { toast('❌ 打包失败: ' + ((r && r.reason) || '未知原因')); return; }
@@ -3596,7 +3666,7 @@
                     const prevMsg = '📦 迁移包预览\n\n来源 chat ' + (ident.chatId || '未知') + '\n条目 ' + (c.entries ?? 0) + ' 条（核心 ' + (c.layers?.core ?? 0) + ' / 近期 ' + (c.layers?.recent ?? 0) + '）\n角色 ' + (c.chars ?? 0) + ' 个'
                         + (sk ? '\n跳过 ' + sk + ' 条（缺 id/text 或超长）' : '')
                         + '\n\n确认打包？（此后在目标对话点「导入迁移包」）';
-                    if (!confirm(prevMsg)) { toast('已取消打包'); return; }
+                    if (!await pluginConfirm(prevMsg)) { toast('已取消打包'); return; }
                 } catch (e) { reportUiError(e, 'nonfatal') }
                 try {
                     localStorage.setItem('lonsha_migrate_pack', JSON.stringify(r.pack));
@@ -3627,13 +3697,13 @@
                         }
                         const sm = pre.summary || pre.counts || {};
                         const replay = pre.replayed ? '\n该包已在此会话完成过，重复导入不会重放写入。' : '';
-                        if (!confirm('🧬 迁移包预检\n\n新增 ' + (sm.add || 0) + ' / 冲突 ' + (sm.conflict || 0) + ' / 相同 ' + (sm.identical || 0) + ' / 未知 ' + (sm.unrecognized || 0) + ' / 墓碑 ' + (sm.tombstoned || 0) + replay + '\n\n继续处理冲突？')) return;
+                        if (!await pluginConfirm('🧬 迁移包预检\n\n新增 ' + (sm.add || 0) + ' / 冲突 ' + (sm.conflict || 0) + ' / 相同 ' + (sm.identical || 0) + ' / 未知 ' + (sm.unrecognized || 0) + ' / 墓碑 ' + (sm.tombstoned || 0) + replay + '\n\n继续处理冲突？')) return;
                         if (pre.identical.length === pre.counts.total && pre.counts.total > 0) { toast('ℹ️ 包内全部条目与本地相同，无需导入'); return; }
                         const decisions = Object.fromEntries((pre.recovery?.decisionsApplied || []).map((x) => [x.key, x.decision]));
                         for (const cf of (pre.conflicts || [])) {
                             const localText = (cf.local && cf.local.text) || '';
                             const packText = (cf.item && cf.item.text) || '';
-                            const ans = prompt(
+                            const ans = await pluginPrompt(
                                 '冲突：' + (cf.char || '?') + ' · ' + (cf.layer || '?') + ' · ' + (cf.item && cf.item.id || '?') + '\n\n'
                                 + '本地：' + localText.slice(0, 60) + '\n包内：' + packText.slice(0, 60) + '\n\n'
                                 + '输入：1=保留本地 / 2=用包内 / 3=两个都要（直接确定=保留本地）',
@@ -3748,7 +3818,7 @@
             //   顺序上**先清后存**是刻意的：存的是清空之后的状态，一旦顺序颠倒，
             //   用户在「清空失败」时会把清空前的数据再写一遍（该覆盖的没覆盖）。
             overlay.querySelector('#ls-clear').addEventListener('click', async () => {
-                if (!confirm('确定清空当前对话的所有记忆数据？此操作不可恢复。')) return;
+                if (!await pluginConfirm('确定清空当前对话的所有记忆数据？此操作不可恢复。')) return;
                 const _cr = this.engine.clearRuntimeMemory();
                 const chatId = this.engine.getCurrentChatId();
                 // [v3.11] 存盘统一走 collectExport（原 '2.0.0' 块字段不全——itemOps/reflection/suspense/scene/echo 残留）
@@ -3996,9 +4066,9 @@
             };
             const wire = (ov) => {
                 const saveBtn = ov.querySelector('#ls-ckpt-save');
-                if (saveBtn) saveBtn.addEventListener('click', () => {
+                if (saveBtn) saveBtn.addEventListener('click', async () => {
                     let nm;
-                    try { nm = prompt('给这份检查点取个名字（最长 32 字，同名会覆盖并如实报出）：', '备份'); }
+                    try { nm = await pluginPrompt('给这份检查点取个名字（最长 32 字，同名会覆盖并如实报出）：', '备份'); }
                     catch (e) { toast('当前环境不支持输入框'); return; }
                     if (nm === null || nm === undefined) return;
                     const r = engine.saveCheckpoint(nm);
@@ -4011,9 +4081,9 @@
                     plugin.showCheckpoints();
                 });
                 const diffBtn = ov.querySelector('#ls-ckpt-diff');
-                if (diffBtn) diffBtn.addEventListener('click', () => {
+                if (diffBtn) diffBtn.addEventListener('click', async () => {
                     let a, b;
-                    try { a = prompt('对照：A 的名字', ''); b = prompt('对照：B 的名字', ''); }
+                    try { a = await pluginPrompt('对照：A 的名字', ''); b = await pluginPrompt('对照：B 的名字', ''); }
                     catch (e) { toast('当前环境不支持输入框'); return; }
                     if (!a || !b) return;
                     const lines = engine.checkpointBranchesDiffLines(a, b);
@@ -4025,12 +4095,12 @@
                      *   三态：深比较出口不存在时 checkpointContentDiffLines 仍会返回键面文案
                      *   （并明说「本版无深比较」），故这里只判 null（= 读不到）。 */
                     const deepLines = engine.checkpointContentDiffLines(a, b);
-                    alert(deepLines === null ? lines : (lines + '\n\n── 内容级 ──\n' + deepLines));
+                    await pluginAlert(deepLines === null ? lines : (lines + '\n\n── 内容级 ──\n' + deepLines));
                 });
                 const dropBtn = ov.querySelector('#ls-ckpt-drop');
-                if (dropBtn) dropBtn.addEventListener('click', () => {
+                if (dropBtn) dropBtn.addEventListener('click', async () => {
                     let nm;
-                    try { nm = prompt('要删除哪一份？（必须写全名；删除不可恢复）', ''); }
+                    try { nm = await pluginPrompt('要删除哪一份？（必须写全名；删除不可恢复）', ''); }
                     catch (e) { toast('当前环境不支持输入框'); return; }
                     if (!nm) return;
                     const r = engine.dropCheckpoint(nm);
@@ -4041,13 +4111,13 @@
                     plugin.showCheckpoints();
                 });
                 ov.querySelectorAll('.lsm-item[data-name]').forEach(item => {
-                    item.addEventListener('click', () => {
+                    item.addEventListener('click', async () => {
                         const nm = item.getAttribute('data-name');
                         const detail = engine.checkpointDetailLines(nm);
                         if (detail === null) { toast('❌ 这份检查点读不到或记录已损坏'); return; }
                         const lines = engine.checkpointRestorePreviewLines(nm);
                         if (lines === null) { toast('❌ 预览失败：这份检查点读不到或载荷已损坏'); return; }
-                        if (!confirm(detail + '\n\n── 恢复后会差什么 ──\n' + lines
+                        if (!await pluginConfirm(detail + '\n\n── 恢复后会差什么 ──\n' + lines
                             + '\n\n（这只是预览，不会改动当前记忆；真要恢复请用「设置 → 快照恢复」那一条管线）')) return;
                         /* 预览归预览：这里**刻意不执行恢复** —— 真落地只走 restoreFromPayload 单真源。 */
                         toast('ℹ️ 以上为预览；本面板不执行恢复');
@@ -4452,8 +4522,8 @@
                 if (!m) return;
                 label = esc(m.text).substring(0, 60);
                 actions = [
-                    { t: "✏ 编辑该摘要", fn: () => {
-                        const nt = prompt('编辑第 ' + id + ' 楼摘要（可直接修改文本）：', m.text);
+                    { t: "✏ 编辑该摘要", fn: async () => {
+                        const nt = await pluginPrompt('编辑第 ' + id + ' 楼摘要（可直接修改文本）：', m.text);
                         if (nt === null) return;
                         if (!eng.summary?.updateSummaryText) { toast('引擎版本过旧'); return; }
                         if (eng.summary.updateSummaryText(Number(key), nt)) {
@@ -4503,10 +4573,10 @@
                 if (!rec) return;
                 label = esc(ch) + " · " + esc(field) + " = " + esc(String(rec.fields?.[field] ?? ""));
                 actions = [
-                    { t: "✏️ 修改数值", fn: () => {
+                    { t: "✏️ 修改数值", fn: async () => {
                         const cur = rec.fields?.[field] ?? 0;
                         let nv = null;
-                        try { nv = prompt("新值（支持 +5 / -3 / 绝对值 / 文本）:", String(cur)); } catch (e) { console.warn("prompt unavailable:", e); }
+                        try { nv = await pluginPrompt("新值（支持 +5 / -3 / 绝对值 / 文本）:", String(cur)); } catch (e) { console.warn("prompt unavailable:", e); }
                         if (nv === null) return null;
                         const val = nv.trim(); if (!val) return null;
                         if (/^[+-]\d+([.]\d+)?$/.test(val)) {
@@ -4526,9 +4596,9 @@
                 if (!labels[field]) return;
                 label = "🧍 " + labels[field] + " = " + esc(String(p[field] || "（未登记）"));
                 actions = [
-                    { t: "✏️ 编辑", fn: () => {
+                    { t: "✏️ 编辑", fn: async () => {
                         let nv = null;
-                        try { nv = prompt(labels[field] + "（留空清除）:", String(p[field] || "")); } catch (e) { console.warn("prompt unavailable:", e); }
+                        try { nv = await pluginPrompt(labels[field] + "（留空清除）:", String(p[field] || "")); } catch (e) { console.warn("prompt unavailable:", e); }
                         if (nv === null) return null;
                         const old = String(p[field] || "");
                         const curFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
@@ -4550,9 +4620,9 @@
                     { t: "📌 置顶常驻", fn: setTier("pinned", "置顶") },
                     { t: "🔹 常规", fn: setTier("active", "设为常规") },
                     { t: "📦 沉降", fn: setTier("archive", "沉降") },
-                    { t: "✏️ 编辑内容", fn: () => {
+                    { t: "✏️ 编辑内容", fn: async () => {
                         let nv = null;
-                        try { nv = prompt("编辑生活小档案:", ld.text); } catch (e) { console.warn("prompt unavailable:", e); }
+                        try { nv = await pluginPrompt("编辑生活小档案:", ld.text); } catch (e) { console.warn("prompt unavailable:", e); }
                         if (nv === null) return null;
                         const next = String(nv).trim();
                         if (!next) return null;
@@ -4582,9 +4652,9 @@
                 if (!rec) return;
                 label = esc(rec.name) + "（" + esc(rec.holder || "无主") + " · " + esc(rec.state || "完好") + "）";
                 actions = [
-                    { t: "👤 变更持有者", fn: () => {
+                    { t: "👤 变更持有者", fn: async () => {
                         let nh = null;
-                        try { nh = prompt("新持有者名称（置空填 '地上'）:", String(rec.holder || "")); } catch (e) { reportUiError(e, 'nonfatal') }
+                        try { nh = await pluginPrompt("新持有者名称（置空填 '地上'）:", String(rec.holder || "")); } catch (e) { reportUiError(e, 'nonfatal') }
                         if (nh === null) return null;
                         const holder = nh.trim() || "地上";
                         eng.itemOps = eng.itemOps || [];
@@ -4601,9 +4671,9 @@
                             }
                         };
                     } },
-                    { t: "📦 变更状态", fn: () => {
+                    { t: "📦 变更状态", fn: async () => {
                         let ns = null;
-                        try { ns = prompt("新状态（完好 / 损坏 / 消耗完毕 / 丢失）:", String(rec.state || "完好")); } catch (e) { reportUiError(e, 'nonfatal') }
+                        try { ns = await pluginPrompt("新状态（完好 / 损坏 / 消耗完毕 / 丢失）:", String(rec.state || "完好")); } catch (e) { reportUiError(e, 'nonfatal') }
                         if (ns === null) return null;
                         const state = ns.trim() || "完好";
                         eng.itemOps = eng.itemOps || [];
@@ -4663,7 +4733,7 @@
                 btn.addEventListener("click", async () => {
                     const a = actions[Number(btn.dataset.ai)];
                     let res;
-                    try { res = a.fn(); } catch (e2) { res = null; console.error(e2); }
+                    try { res = await a.fn(); } catch (e2) { res = null; console.error(e2); }
                     if (res === null || res === undefined) return;
                     const msg = typeof res === 'object' ? res.label : String(res);
                     if (typeof res === 'object' && typeof res.undo === 'function') {
