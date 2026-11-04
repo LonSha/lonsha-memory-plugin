@@ -10373,6 +10373,7 @@ function _collectNewFace() {
         ['时代续演', _eraContinuationLib, 'eraContinuationDramaSelfCheck'],
         ['交接草案', _eraHandoffDraftLib, 'handoffDraftSelfCheck'],
         ['修复回应', _repairResponseLib, 'repairResponseSelfCheck'],
+        ['纠错事务', _factCorrectionTxLib, 'factCorrectionTransactionSelfCheck'],
         ['生成事实重放', _generationReplayLib, 'factReplaySelfCheck'],
         ['情绪反向召回', _antiphonyLib, null],
         ['阶段封卷', _volumeSealingLib, null],
@@ -10419,6 +10420,11 @@ function _collectNewFace() {
      *     和 `repair-loop.js`（数据修复账）**三件不同物，别合并**：
      *     本件只做「提议 → 逐条回应（含拒绝/延期/部分接受）→ 后续行为证据回链」。 */
     function _repairResponseLib() { return _moduleLib(() => window.LonShaRelationshipRepairResponse, 'relationship-repair-response.js'); }
+    /* [v3.448.0 · L14-O2] 纠错事务取库口（fact-correction-transaction.js）。
+     *   ★ 与 `_factCorrectionBenchLib`（fact-correction-bench.js：纯函数修订台/影响图）
+     *     和 `recall-correction.js`（召回候选过滤账）**三件不同物，别合并**：
+     *     本件只做「一次纠错跨四面 owner 的事务编排 + 版本可用性判据 + 撤销/回执」。 */
+    function _factCorrectionTxLib() { return _moduleLib(() => window.LonShaFactCorrectionTransaction, 'fact-correction-transaction.js'); }
     function _memorySeasonLib() { return _moduleLib(() => window.LonShaMemorySeason, 'memory-season.js'); }
     function _meaningMapLib() { return _moduleLib(() => window.LonShaMeaningMap, 'meaning-map.js'); }
     function _workModeLib() { return _moduleLib(() => window.LonShaMemoryWorkMode, 'memory-work-mode.js'); }

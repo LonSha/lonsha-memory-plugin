@@ -197,6 +197,7 @@
         "era-continuation-inheritance-tree.js",
         "era-handoff-draft.js",
         "relationship-repair-response.js",
+        "fact-correction-transaction.js",
         "micro-atmosphere-residual-tracker.js",
         "attention-priming-verification-anchor.js",
         "irony-pretense-immune-filter.js",
