@@ -235,6 +235,7 @@
         "strength-proposal.js",
         "memory-weather.js",
         "memory-ritual.js",
+        "memory-revisit-schedule.js",
         "memory-season.js",
         "meaning-map.js",
         "memory-work-mode.js",

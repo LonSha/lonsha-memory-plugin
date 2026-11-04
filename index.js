@@ -10355,6 +10355,7 @@ function _collectNewFace() {
     const SPEC = [
         ['记忆天气', _memoryWeatherLib, 'memoryWeatherSelfCheck'],
         ['记忆仪式', _memoryRitualLib, 'memoryRitualSelfCheck'],
+        ['回访日程', _memoryRevisitScheduleLib, 'revisitScheduleSelfCheck'],
         ['记忆季候', _memorySeasonLib, 'memorySeasonSelfCheck'],
         ['意义地图', _meaningMapLib, 'meaningMapSelfCheck'],
         ['记忆工作模式', _workModeLib, 'workModeSelfCheck'],
@@ -10405,6 +10406,7 @@ function _collectNewFace() {
     //   宿主从不加载、只有测试能 require 到 —— 机制等于交付即死。统一走 _moduleLib 惰性口。
     function _memoryWeatherLib() { return _moduleLib(() => window.LonShaMemoryWeather, 'memory-weather.js'); }
     function _memoryRitualLib() { return _moduleLib(() => window.LonShaMemoryRitual, 'memory-ritual.js'); }
+    function _memoryRevisitScheduleLib() { return _moduleLib(() => window.LonShaMemoryRevisitSchedule, 'memory-revisit-schedule.js'); }
     function _memorySeasonLib() { return _moduleLib(() => window.LonShaMemorySeason, 'memory-season.js'); }
     function _meaningMapLib() { return _moduleLib(() => window.LonShaMeaningMap, 'meaning-map.js'); }
     function _workModeLib() { return _moduleLib(() => window.LonShaMemoryWorkMode, 'memory-work-mode.js'); }
