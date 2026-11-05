@@ -164,6 +164,14 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPastEventNarrationCompare : null), 'past-event-narration-compare.js');
     };
+    let _knowledgeRelayLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaKnowledgeRelayChain : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./knowledge-relay-chain.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaKnowledgeRelayChain : null), 'knowledge-relay-chain.js');
+    };
     function bindDeps(deps) {
         if (!deps || typeof deps !== 'object') return;
         if (deps.VERSION) VERSION = deps.VERSION;
@@ -186,6 +194,7 @@
         if (typeof deps._commitmentLifecycleLib === 'function') _commitmentLifecycleLib = deps._commitmentLifecycleLib;
         if (typeof deps._loreConclusionReconcileLib === 'function') _loreConclusionReconcileLib = deps._loreConclusionReconcileLib;
         if (typeof deps._narrationCompareLib === 'function') _narrationCompareLib = deps._narrationCompareLib;
+        if (typeof deps._knowledgeRelayLib === 'function') _knowledgeRelayLib = deps._knowledgeRelayLib;
     }
 
     class LonShaInjectionPipeline {
@@ -1225,6 +1234,51 @@
                 blocks.push('〔不在场角色｜未经剧情发展不得让他们凭空出现或立即知晓场内发生的事〕');
                 presenceList.forEach(i => blocks.push(`- ${i.text || ''}`));
             }
+
+            /* ============================================================
+             * [v3.448.0 · 第十四期 L14-X1]
+             * 消息转告链知情边界提示注入 (knowledge-relay-chain.js)
+             * 防范未被转告或迟到消息的角色产生“时间穿越/全知视角”
+             * ============================================================ */
+            try {
+                const Relay = _knowledgeRelayLib();
+                const rawChains = Array.isArray(this._relayChains)
+                    ? this._relayChains
+                    : (this._relayChain ? [this._relayChain] : []);
+                if (Relay && rawChains.length > 0) {
+                    const relayNotices = [];
+                    const currentFloor = typeof this.getCurrentFloor === 'function' ? this.getCurrentFloor() : Infinity;
+                    rawChains.forEach(ch => {
+                        if (!ch || !ch.factId) return;
+                        const factDesc = ch.factId;
+                        const hops = Array.isArray(ch.hops) ? ch.hops : [];
+                        const informed = [];
+                        const uninformedOrRetracted = [];
+                        hops.forEach(h => {
+                            if (h.status === 'retracted') {
+                                uninformedOrRetracted.push(`${h.to}(已撤回)`);
+                            } else if (h.floor > currentFloor) {
+                                uninformedOrRetracted.push(`${h.to}(未到时/第${h.floor}层)`);
+                            } else {
+                                const secretTag = h.hasSecret ? '含机密' : '仅传闻';
+                                informed.push(`${h.to}(${secretTag})`);
+                            }
+                        });
+                        if (informed.length > 0 || uninformedOrRetracted.length > 0) {
+                            let line = `- 事实「${factDesc}」知情链路：已获知[${informed.join('、') || '无'}]`;
+                            if (uninformedOrRetracted.length > 0) {
+                                line += `；严格保密/未准得知[${uninformedOrRetracted.join('、')}]`;
+                            }
+                            relayNotices.push(line);
+                        }
+                    });
+                    if (relayNotices.length > 0) {
+                        blocks.push('[消息转告链·知情边界提示]');
+                        relayNotices.slice(0, 5).forEach(line => blocks.push(line));
+                        this._lastKnowledgeRelayInjection = relayNotices;
+                    }
+                }
+            } catch (e) { errLog(e, 'buildInjection.消息转告链'); }
             if (suspenses.length) {
                 blocks.push('[悬念簿]');
                 const seenS = new Set();

@@ -140,3 +140,92 @@ test('L14-X1: cascading relay and retraction preserves historical audit', () => 
     assert.equal(retractedChain.hops[1].status, 'retracted');
     assert.equal(retractedChain.hops[2].status, 'retracted');
 });
+
+test('L14-X1: cross-layer vertical integration (diagnostics, injection pipeline, settings-ui) with negative controls', async () => {
+    const DiagMod = await import('../engine-diagnostic-lines.js');
+    const Diag = DiagMod.default || DiagMod;
+    const PipelineMod = await import('../engine-injection-pipeline.js');
+    const pipelineLib = PipelineMod.default || PipelineMod;
+
+    // 1. Diagnostic state test
+    const dummyEngine = {
+        _relayChains: []
+    };
+    const emptyState = Diag.knowledgeRelayState(dummyEngine);
+    assert.equal(emptyState.ok, true);
+    assert.equal(emptyState.state, 'no-chains');
+    const emptyLine = Diag._knowledgeRelayLine(dummyEngine);
+    assert.match(emptyLine, /尚未登记消息转告链/);
+
+    const root = Relay.createRelayChain({
+        factId: 'fact-amber-box',
+        originSpeaker: 'Alice',
+        secret: '琥珀盒里的暗号是 9900',
+        floor: 10
+    }).chain;
+    const hop1 = Relay.appendRelayHop(root, {
+        from: 'Alice',
+        to: 'Bob',
+        floor: 12,
+        rumorText: '听说有神秘琥珀盒',
+        passSecret: false
+    }).chain;
+    const hop2 = Relay.appendRelayHop(hop1, {
+        from: 'Alice',
+        to: 'Charlie',
+        floor: 15,
+        rumorText: '琥珀盒在地下二层',
+        passSecret: true
+    }).chain;
+
+    dummyEngine._relayChains = [hop2];
+    dummyEngine._relayChainRead = null;
+
+    const populatedState = Diag.knowledgeRelayState(dummyEngine);
+    assert.equal(populatedState.ok, true);
+    assert.equal(populatedState.state, 'ok');
+    assert.equal(populatedState.counts.totalChains, 1);
+    assert.equal(populatedState.counts.totalHops, 3);
+    assert.equal(populatedState.counts.activeHops, 3);
+    assert.equal(populatedState.counts.retractedHops, 0);
+
+    const populatedLine = Diag._knowledgeRelayLine(dummyEngine);
+    assert.match(populatedLine, /事实 1 条/);
+    assert.match(populatedLine, /传导 3 跃/);
+    assert.match(populatedLine, /严防时间穿越/);
+
+    // 2. Main generation injection pipeline test
+    const fakeEngine = {
+        config: { config: { memoryTokenBudget: 2700, vectorTopK: 5, sceneEnabled: true, npcTierInjection: false, cacheFriendlyInjection: false } },
+        _relayChains: [hop2],
+        scene: {
+            currentKey: () => 'underground',
+            chainOf: () => [{ path: ['underground'], desc: '地下' }],
+            headerLine: () => ''
+        },
+        captureCast: () => [],
+        resolveCharacterName: (n) => n
+    };
+    const recalled = [{ text: '探寻线索' }];
+    const injectionResult = pipelineLib.buildInjection(fakeEngine, recalled);
+    assert.ok(injectionResult.includes('[消息转告链·知情边界提示]'), '转告链提示块必须被注入');
+    assert.ok(injectionResult.includes('fact-amber-box'), '事实描述必须包含');
+    assert.ok(injectionResult.includes('Charlie(含机密)'), '应提示Charlie掌握机密');
+    assert.ok(injectionResult.includes('Bob(仅传闻)'), '应提示Bob仅获知传闻');
+
+    // 3. Settings UI integration verification
+    const fs = await import('fs');
+    const settingsUiSrc = fs.readFileSync('settings-ui.js', 'utf8');
+    assert.ok(settingsUiSrc.includes("s.knowledgeRelayState"), 'settings-ui 必须调用 knowledgeRelayState');
+    assert.ok(settingsUiSrc.includes("s._knowledgeRelayLine"), 'settings-ui 必须调用 _knowledgeRelayLine');
+    assert.ok(settingsUiSrc.includes("📡 消息多跳转告链"), 'settings-ui 必须渲染工作台标题');
+
+    // 4. Negative controls: break code and assert failure
+    const mutatedSrc = settingsUiSrc.replaceAll("s.knowledgeRelayState", "s.nonExistentRelayState");
+    assert.ok(!mutatedSrc.includes("s.knowledgeRelayState"), '负控制变异成功');
+    assert.throws(() => {
+        if (!mutatedSrc.includes("s.knowledgeRelayState")) {
+            throw new Error('negative-control: knowledgeRelayState call site missing');
+        }
+    }, /negative-control/);
+});

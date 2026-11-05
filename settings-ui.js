@@ -1547,7 +1547,8 @@
 
             else if (viewType === 'lockedfacts') {
                 // [v3.63] 锁定事实管理（dsh lockedFacts）：查看/新增/删除，逐字保护
-                title = '🔒 用户锁定剧情事实';
+                // [L14-X1] 融合 消息多跳转告链 工作台
+                title = '🔒 用户锁定剧情事实 + 消息多跳转告链';
                 const list = faceRead(() => ((s.summary && typeof s.summary.getLockedFacts === 'function') ? '' : '锁定事实服务缺席'), () => s.summary.getLockedFacts() || []);
                 const head = `<div class="ls-hint">锁定的剧情事实会<b>逐字</b>进入每轮摘要与注入流，永不因压缩丢失。摘要生成后有校验器防遗漏。适用于：关键约定、物品归属、重要转折、你不想被 AI 忘记的一切。</div>`;
                 const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
@@ -1564,7 +1565,33 @@
                             </div>
                             <button class="ls-btn ls-lf-del" data-lfid="${escAttr(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✕</button>
                         </div>`).join('');
-                body = head + addForm + '<div style="margin-top:8px;">' + items + '</div>';
+                const factsHtml = head + addForm + '<div style="margin-top:8px;">' + items + '</div>';
+
+                /* [L14-X1] 消息转告链工作台 */
+                let relayHtml = '';
+                try {
+                    const rState = (typeof s.knowledgeRelayState === 'function')
+                        ? s.knowledgeRelayState({})
+                        : { ok: false, reason: 'host-method-missing' };
+                    const rLine = (typeof s._knowledgeRelayLine === 'function') ? s._knowledgeRelayLine() : '';
+                    if (!rState || rState.ok !== true) {
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">📡 消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 消息转告链工作台不可用 · ${esc((rState && rState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
+                    } else if (rState.state === 'no-chains' || !rState.chains || rState.chains.length === 0) {
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">📡 消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-hint">暂无消息转告链。当某条消息被角色A告诉B、再传给C时，此处记录逐跳传播时刻、机密授权与撤回影响，严防时间穿越与超前全知。</div></div>`;
+                    } else {
+                        const chainCards = rState.chains.map(ch => {
+                            const chChars = ch.characters && ch.characters.length ? ch.characters.join(' → ') : '无节点';
+                            return `<div class="ls-item">
+                                <div class="ls-item-meta"><b>${esc(ch.factId)}</b> · 起源: ${esc(ch.originSpeaker)} · 第${ch.rootFloor}楼 · 传导: ${esc(chChars)}</div>
+                                <div class="ls-item-text">跳转总数: ${ch.hopCount} 跃（生效 ${ch.activeHops} · 撤回 ${ch.retractedHops}）· 迟到消息严禁穿越时间</div>
+                            </div>`;
+                        }).join('');
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">📡 消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div>${chainCards}</div>`;
+                    }
+                } catch (e) {
+                    relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">转告链面板异常 · ${esc(e.message || e)}</div></div></div>`;
+                }
+                body = factsHtml + relayHtml;
             }
             else if (viewType === 'deltas') {
                 // [v3.68] A: 正史增量视图（established/uncertain 分状态，手动确证）
