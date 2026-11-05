@@ -200,6 +200,7 @@
         "relationship-repair-response.js",
         "knowledge-relay-chain.js",
         "past-event-narration-compare.js",
+        "commitment-instance-lifecycle.js",
         "fact-correction-transaction.js",
         "micro-atmosphere-residual-tracker.js",
         "attention-priming-verification-anchor.js",

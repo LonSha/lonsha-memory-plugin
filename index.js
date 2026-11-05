@@ -10388,6 +10388,7 @@ function _collectNewFace() {
         ['修复回应', _repairResponseLib, 'repairResponseSelfCheck'],
         ['转告链条', _knowledgeRelayLib, 'knowledgeRelaySelfCheck'],
         ['讲述对照', _narrationCompareLib, 'pastEventCompareSelfCheck'],
+        ['约定实例周期', _commitmentLifecycleLib, 'commitmentInstanceSelfCheck'],
         ['纠错事务', _factCorrectionTxLib, 'factCorrectionTransactionSelfCheck'],
         ['生成材料对拍', _generationMaterialReconcileLib, 'generationMaterialReconcileSelfCheck'],
         ['召回路由偏好反馈', _recallRouteFeedbackHubLib, 'recallRouteFeedbackHubSelfCheck'],
@@ -10443,6 +10444,9 @@ function _collectNewFace() {
     /* [L14-X2] 往事讲述比对取库口（past-event-narration-compare.js）。
      *   ★ 建立原始物理证据 → 各角色主观讲述 → 差异句对照。 */
     function _narrationCompareLib() { return _moduleLib(() => window.LonShaPastEventNarrationCompare, 'past-event-narration-compare.js'); }
+    /* [L14-X4] 约定实例与生命周期取库口（commitment-instance-lifecycle.js）。
+     *   ★ 长期承诺与具体单次实例解耦、部分履行与单次豁免。 */
+    function _commitmentLifecycleLib() { return _moduleLib(() => window.LonShaCommitmentInstanceLifecycle, 'commitment-instance-lifecycle.js'); }
     /* [v3.448.0 · L14-O2] 纠错事务取库口（fact-correction-transaction.js）。
      *   ★ 与 `_factCorrectionBenchLib`（fact-correction-bench.js：纯函数修订台/影响图）
      *     和 `recall-correction.js`（召回候选过滤账）**三件不同物，别合并**：
