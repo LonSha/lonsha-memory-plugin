@@ -1,4 +1,6 @@
 module	loaded	seam_referenced	referenced_by	verdict
+scene-state-tracker.js	yes	yes	none	host-seam
+presence-routing-guard.js	yes	yes	none	host-seam
 ledger-entity.js	yes	yes	commitment-ledger.js;docs/planning/2026-10-22-product-probe-v6.mjs;echo-ledger.js	host-seam
 evidence-source-locator.js	yes	yes	none	host-seam
 config-effect-registry.js	yes	no	none	orphan

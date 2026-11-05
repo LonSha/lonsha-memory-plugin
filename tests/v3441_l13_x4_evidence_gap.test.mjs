@@ -303,7 +303,7 @@ test('B2: 交互绑定与渲染选择器一一对应（点了没反应是本仓�
 
 test('B3: 缺口面与存档体检合并展示 —— 缺口在上、容器在下，且两段都在 body 里', () => {
     const view = seg(UI_SRC, A_UI_VIEW, A_UI_VIEW_END, 'archive 视图');
-    assert.ok(view.indexOf('body = gapBlock + archiveBody;') >= 0, '两块必须拼进同一 body（只算不拼 = 白做）');
+    assert.ok(view.indexOf('body = sourceBlock + gapBlock + archiveBody;') >= 0, '两块必须拼进同一 body（只算不拼 = 白做）');
     assert.equal(/^\s*body\s*=\s*head \+ warn/m.test(view), false,
         '存档体检那段不得再直接写 body（否则会把缺口面整块盖掉）');
     assert.ok(view.indexOf('archiveBody') >= 0, '存档体检必须落到独立变量再拼装');

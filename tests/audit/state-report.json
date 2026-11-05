@@ -1,19 +1,22 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.445.0",
+  "version": "3.446.0",
   "version_sources": {
-    "manifest": "3.445.0",
-    "package": "3.445.0",
-    "index_const": "3.445.0"
+    "manifest": "3.446.0",
+    "package": "3.446.0",
+    "index_const": "3.446.0"
   },
   "version_same": true,
   "human_index_version": "3.445.0",
-  "triple_consistent": true,
+  "triple_consistent": false,
   "loading": {
-    "extra_js": 249,
+    "extra_js": 263,
     "extra_js_list": [
+      "scene-state-tracker.js",
+      "presence-routing-guard.js",
       "ledger-entity.js",
+      "evidence-source-locator.js",
       "config-effect-registry.js",
       "settings-ui.js",
       "modules_combined.js",
@@ -164,6 +167,7 @@
       "recall-correction.js",
       "perspective-preview.js",
       "generation-memory-plan.js",
+      "generation-material-reconcile.js",
       "generation-fact-receipt.js",
       "memory-maintenance-session.js",
       "profile-dossier-view.js",
@@ -195,6 +199,15 @@
       "multi-perspective-theater-bench.js",
       "memory-action-symbiosis-circuit.js",
       "era-continuation-inheritance-tree.js",
+      "era-handoff-draft.js",
+      "relationship-repair-response.js",
+      "knowledge-relay-chain.js",
+      "past-event-narration-compare.js",
+      "character-reinterpretation-versions.js",
+      "lore-version-conclusion-reconcile.js",
+      "scene-character-seating-partition.js",
+      "commitment-instance-lifecycle.js",
+      "fact-correction-transaction.js",
       "micro-atmosphere-residual-tracker.js",
       "attention-priming-verification-anchor.js",
       "irony-pretense-immune-filter.js",
@@ -235,6 +248,7 @@
       "strength-proposal.js",
       "memory-weather.js",
       "memory-ritual.js",
+      "memory-revisit-schedule.js",
       "memory-season.js",
       "meaning-map.js",
       "memory-work-mode.js",
@@ -263,11 +277,11 @@
       "round-entry-snapshot.js",
       "memory-migrate-pack.js"
     ],
-    "root_js": 250,
+    "root_js": 264,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 447,
+    "test_files": 467,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -655,8 +669,28 @@
       "v3443_l13_x8_round_snapshot.test.mjs",
       "v3444_l13_x9_inheritance_roster.test.mjs",
       "v3445_l13_x5_migrate_pack.test.mjs",
+      "v3445_l14_o5_temporal_validity.test.mjs",
+      "v3445_l14_o6_migrate_recovery.test.mjs",
+      "v3445_l14_o7_bounded_recall.test.mjs",
+      "v3445_l14_o8_evidence_source.test.mjs",
+      "v3445_l14_o9_scoped_maintenance.test.mjs",
+      "v3445_l14_x9_revisit_schedule.test.mjs",
       "v3445_m4x7_return_gate.test.mjs",
+      "v3446_l14_x8_handoff_draft.test.mjs",
+      "v3446_scene_presence_integration.test.mjs",
+      "v3447_l14_x7_repair_response.test.mjs",
+      "v3448_l14_o1_round_lifecycle.test.mjs",
+      "v3448_l14_o2_correction_transaction.test.mjs",
+      "v3448_l14_x1_relay_chain.test.mjs",
+      "v3448_l14_x2_narration_compare.test.mjs",
+      "v3448_l14_x3_character_reinterpretation.test.mjs",
+      "v3448_l14_x4_commitment_instance.test.mjs",
+      "v3448_l14_x5_lore_conclusion_reconcile.test.mjs",
+      "v3448_l14_x6_scene_seating_partition.test.mjs",
+      "v3448_l14_x7_x8_x9_vertical.test.mjs",
+      "v3449_l14_o3_generation_material_reconcile.test.mjs",
       "v344_ultimate_bastion.test.mjs",
+      "v3450_l14_o4_recall_disambiguate.test.mjs",
       "v3455_m4x8_material_pack.test.mjs",
       "v345_deep_bastion.test.mjs",
       "v346_fortress_pyramid.test.mjs",
@@ -757,7 +791,7 @@
     "tests_total": 430,
     "assertions": 4658,
     "audit": "68/68",
-    "reason": "登记版本 3.431.0 ≠ 当前 3.445.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.431.0 ≠ 当前 3.446.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -776,19 +810,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "de03cf19edc4",
-      "package.json": "8ef3eaaecb00",
-      "index.js": "2dcdb1f47102",
+      "manifest.json": "165c6100dd2e",
+      "package.json": "8a8b615b1040",
+      "index.js": "7131410864c8",
       "update-log.json": null,
       "README.md": "1c41078f18de",
-      "PLAN.md": "72d9201d50f9",
+      "PLAN.md": "32f2799a8a5f",
       "CHANGELOG.md": "15b64ba7c49f",
-      "TODO.md": "1df4cf523592",
+      "TODO.md": "6bf8274b86a7",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.445.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.446.0"
   ],
   "unknown_count": 1
 }

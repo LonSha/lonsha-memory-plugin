@@ -543,7 +543,7 @@ test('G2: 宿主接线 —— 取库口 / libs 注入 / 五桩 / 两清单；摘
         assert.ok(HOST_SRC.includes("key: '" + k + "'"), '账本清单必须纳入 ' + k);
     }
     /* ★ 如实不给删除口的两本：删摘要会牵动卷/折叠账；DeltaBook 是 append-only。 */
-    const rm = seg(HOST_SRC, '        _roundRemovers() {', '        exportMigratePack(opts) {', 'removers');
+    const rm = seg(HOST_SRC, '        _roundRemovers() {', '        _migrateIdentity() {', 'removers');
     assert.ok(!/map\.summaries\s*=/.test(rm), '摘要账不许给删除口（删摘要会牵动卷/折叠账）');
     assert.ok(!/map\.deltas\s*=/.test(rm), '正史增量账不许给删除口（append-only）');
     /* 删图谱节点后必须清 nameIndex，否则「删了节点却还能按名字查到」。 */
@@ -709,7 +709,7 @@ test('H3: 真跑一轮 —— before → 写入 3 条 → after → 撤销（同
     const lBlock = hostBlock('        _roundLedgers() {', '\n        _roundRemovers() {');
     /* [v3.445.0 接管] 终点锚原为 roundSnapshotBefore(...args) {，本版在其前插入了迁移包三桩，
     抽块终点随接线面同步前移到新桩起点，抽取的仍是 _roundRemovers 单方法体。 */
-    const rBlock = hostBlock('        _roundRemovers() {', '\n        exportMigratePack(opts) {');
+    const rBlock = hostBlock('        _roundRemovers() {', '\n        _migrateIdentity() {');
     const ledgers = () => makeLedgerFn(lBlock, '_roundLedgers')(host);
     const removers = () => makeLedgerFn(rBlock, '_roundRemovers')(host);
 
@@ -753,7 +753,7 @@ test('H4: 删除口与清单一一对应 —— 删除口的键都在清单内�
     const lBlock = hostBlock('        _roundLedgers() {', '\n        _roundRemovers() {');
     /* [v3.445.0 接管] 终点锚原为 roundSnapshotBefore(...args) {，本版在其前插入了迁移包三桩，
     抽块终点随接线面同步前移到新桩起点，抽取的仍是 _roundRemovers 单方法体。 */
-    const rBlock = hostBlock('        _roundRemovers() {', '\n        exportMigratePack(opts) {');
+    const rBlock = hostBlock('        _roundRemovers() {', '\n        _migrateIdentity() {');
     const keys = makeLedgerFn(lBlock, '_roundLedgers')(host).map((l) => l.key);
     const rm = makeLedgerFn(rBlock, '_roundRemovers')(host);
     const rmKeys = Object.keys(rm);

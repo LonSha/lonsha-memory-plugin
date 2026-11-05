@@ -45,7 +45,7 @@
     else { root.LonShaMigratePack = factory(); }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
-    var VERSION = '3.445.0';
+    var VERSION = '3.446.0';
     const FORMAT = 'lonsha-memory-pack';
     const PACK_SCHEMA = 1;
     const MAX_TEXT = 200;

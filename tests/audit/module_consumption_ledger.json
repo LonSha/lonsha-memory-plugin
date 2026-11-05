@@ -1,9 +1,27 @@
 {
   "schema": "module-consumption-ledger@1",
-  "generated_at": "2026-11-04T04:11:34.579Z",
-  "total_modules": 255,
+  "generated_at": "2026-11-05T20:57:47.056Z",
+  "total_modules": 263,
   "zero_consumption_count": 19,
   "modules": {
+    "scene-state-tracker.js": {
+      "module": "scene-state-tracker.js",
+      "surface": [
+        "scene-state-tracker"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "presence-routing-guard.js": {
+      "module": "presence-routing-guard.js",
+      "surface": [
+        "presence-routing-guard"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
     "ledger-entity.js": {
       "module": "ledger-entity.js",
       "surface": [
@@ -1233,7 +1251,7 @@
       "surface": [
         "engine-diagnostic-lines"
       ],
-      "prod_call_sites": 130,
+      "prod_call_sites": 142,
       "allowed": 1,
       "why": "active"
     },
@@ -1665,7 +1683,7 @@
       "surface": [
         "era-handoff-draft"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 4,
       "allowed": 1,
       "why": "active"
     },
@@ -1674,7 +1692,61 @@
       "surface": [
         "relationship-repair-response"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "knowledge-relay-chain.js": {
+      "module": "knowledge-relay-chain.js",
+      "surface": [
+        "knowledge-relay-chain"
+      ],
+      "prod_call_sites": 4,
+      "allowed": 1,
+      "why": "active"
+    },
+    "past-event-narration-compare.js": {
+      "module": "past-event-narration-compare.js",
+      "surface": [
+        "past-event-narration-compare"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "character-reinterpretation-versions.js": {
+      "module": "character-reinterpretation-versions.js",
+      "surface": [
+        "character-reinterpretation-versions"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "lore-version-conclusion-reconcile.js": {
+      "module": "lore-version-conclusion-reconcile.js",
+      "surface": [
+        "lore-version-conclusion-reconcile"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "scene-character-seating-partition.js": {
+      "module": "scene-character-seating-partition.js",
+      "surface": [
+        "scene-character-seating-partition"
+      ],
+      "prod_call_sites": 5,
+      "allowed": 1,
+      "why": "active"
+    },
+    "commitment-instance-lifecycle.js": {
+      "module": "commitment-instance-lifecycle.js",
+      "surface": [
+        "commitment-instance-lifecycle"
+      ],
+      "prod_call_sites": 5,
       "allowed": 1,
       "why": "active"
     },
@@ -1800,7 +1872,7 @@
       "surface": [
         "dynamic-recall-route-feedback-hub"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 2,
       "allowed": 1,
       "why": "active"
     },
@@ -2052,7 +2124,7 @@
       "surface": [
         "memory-revisit-schedule"
       ],
-      "prod_call_sites": 1,
+      "prod_call_sites": 4,
       "allowed": 1,
       "why": "active"
     },
