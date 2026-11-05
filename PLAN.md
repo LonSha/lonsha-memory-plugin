@@ -1,5 +1,5 @@
 # lonsha-memory-plugin 发展规划
-> **第十四期产品计划（2026-11-03，现行提案）**：优化9项＋拓展9项（`L14-O*` / `L14-X*`），双仓合计36项。规划基线v3.445.0 / `ff2d5da`；仅制定计划，未实施、未升版。
+> **第十四期产品计划（2026-11-03，现行提案）**：优化9项＋拓展9项（`L14-O*` / `L14-X*`），双仓合计36项。规划基线v3.445.0 / `ff2d5da`；优化9项与拓展9项共18项纯函数契约内核、宿主对接与专项验证套件已全部实施完成。
 > [优化提升九项](.agents/notes/proposed/architecture/2026-11-03-product-optimization-v14.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-11-03-product-expansion-v14.md) · [源码证据与六个大批次](docs/planning/2026-11-03-product-evidence-v14.md)。
 > 第十三期及更早内容为历史留痕，未完成项与交付声明均须按第十四期证据页复核，不直接当施工单。
 
