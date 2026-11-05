@@ -152,6 +152,77 @@
     PHONE_EVENT_TYPES: PHONE_EVENT_TYPES,
     ingestPhoneInteraction: ingestPhoneInteraction,
     projectMemoriesToPhoneState: projectMemoriesToPhoneState,
-    verifyBridgeHealth: verifyBridgeHealth
+    verifyBridgeHealth: verifyBridgeHealth,
+
+    /**
+     * [v3.446.0] 物理现场快照同步到手机端 (向手机推送地点、在场角色与防偷窥规则)
+     */
+    syncSceneToPhone: function (sceneState) {
+      if (!sceneState || typeof sceneState !== 'object') {
+        return { ok: false, reason: 'invalid-scene-state' };
+      }
+      var location = String(sceneState.location || '').trim();
+      var inScene = sceneState.inSceneCharacters;
+      var privacyMode = 'NORMAL';
+      if (Array.isArray(inScene) && inScene.length > 0) {
+        privacyMode = 'CO_PRESENT_PRIVACY'; // 现场有其他角色在场，开启防偷窥/当面模式
+      } else if (Array.isArray(inScene) && inScene.length === 0) {
+        privacyMode = 'SOLITARY'; // 现场空无一人
+      }
+
+      return {
+        ok: true,
+        location: location || '未知地点',
+        time: String(sceneState.time || ''),
+        action: String(sceneState.action || ''),
+        inSceneCharacters: inScene,
+        privacyMode: privacyMode,
+        hudDisplayLine: (location ? '📍' + location : '📍当前现场') + (inScene && inScene.length ? ' · 同场: ' + inScene.join('、') : ''),
+        timestamp: Date.now()
+      };
+    },
+
+    /**
+     * [v3.446.0] 现场交互拦截裁决 (当角色就在眼前时，拦截违和的远程私聊/电话，建议当面交互)
+     */
+    interceptPhoneActionForPresence: function (actionType, targetCharacter, sceneState) {
+      var act = String(actionType || '').toUpperCase();
+      var target = String(targetCharacter || '').trim();
+      var inScene = sceneState && sceneState.inSceneCharacters;
+
+      if (Array.isArray(inScene) && inScene.includes(target)) {
+        if (act === 'CHAT_MESSAGE' || act === 'CALL_LOG') {
+          return {
+            intercepted: true,
+            suggestedAction: 'FACE_TO_FACE',
+            reason: 'co-present-in-scene',
+            notice: '角色「' + target + '」就在你身旁物理现场，建议直接当面交谈，已转为防窥当面记录。'
+          };
+        }
+      }
+      return {
+        intercepted: false,
+        actionType: act,
+        targetCharacter: target
+      };
+    },
+
+    /**
+     * [v3.446.0] 双向楼层剪枝与回滚同步
+     */
+    rollbackPhoneBridgeToFloor: function (phoneEvents, targetFloor) {
+      var events = Array.isArray(phoneEvents) ? phoneEvents : [];
+      var limit = Number(targetFloor || 0);
+      var validEvents = events.filter(function (e) {
+        return Number(e.floor || 0) <= limit;
+      });
+      return {
+        targetFloor: limit,
+        originalCount: events.length,
+        remainingCount: validEvents.length,
+        prunedCount: events.length - validEvents.length,
+        remainingEvents: validEvents
+      };
+    }
   };
 });

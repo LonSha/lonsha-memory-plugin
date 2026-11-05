@@ -172,6 +172,22 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaKnowledgeRelayChain : null), 'knowledge-relay-chain.js');
     };
+    let _sceneTrackerLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaSceneStateTracker : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./scene-state-tracker.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSceneStateTracker : null), 'scene-state-tracker.js');
+    };
+    let _presenceGuardLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaPresenceRoutingGuard : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./presence-routing-guard.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPresenceRoutingGuard : null), 'presence-routing-guard.js');
+    };
     let _repairResponseLib = function () {
         const mod = (typeof window !== 'undefined' ? window.LonShaRelationshipRepairResponse : null);
         if (mod) return mod;
@@ -648,6 +664,16 @@
                     recalled = Fence.filterMemoriesForSpeaker(recalled, this._currentSpeaker, userCircles);
                 }
             } catch (e) { errLog(e, 'buildInjection.privyFence'); }
+            /* [v3.446.0 · Presence Routing 在场权限防穿透与知情隔离过滤] */
+            try {
+                const PresenceGuard = _presenceGuardLib();
+                if (PresenceGuard && typeof PresenceGuard.filterMemoriesByPresence === 'function') {
+                    const inScene = this._sceneState ? this._sceneState.inSceneCharacters : (this._inSceneCharacters);
+                    const filterRes = PresenceGuard.filterMemoriesByPresence(recalled, inScene, this._currentSpeaker);
+                    recalled = filterRes.allowed;
+                    this._lastPresenceFilterStats = filterRes.stats;
+                }
+            } catch (e) { errLog(e, 'buildInjection.presenceGuard'); }
             if (!recalled?.length) return '';
             const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
@@ -1096,6 +1122,20 @@
                 reflectRecs.forEach(i => blocks.push(`- ${i.text || ''}`));
             }
             if (this.config.config.sceneEnabled) {
+                /* [v3.446.0 · L0 Scene State 现场即时快照与在场三态注入]
+                 * 吸收自 ST-Persistent-Memory，受独立硬 Token 预算上限保护 (~150 tok)
+                 */
+                try {
+                    const Tracker = _sceneTrackerLib();
+                    const rawScene = this._sceneState || (this._getSceneState ? this._getSceneState() : null);
+                    if (Tracker && rawScene) {
+                        const scenePrompt = Tracker.formatSceneStatePrompt(rawScene, 150);
+                        if (scenePrompt) {
+                            blocks.push(scenePrompt);
+                            this._lastSceneStateInjection = scenePrompt;
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.L0现场快照'); }
                 try {
                     let _sceneN = 0;
                     const cur = this.scene.currentKey();

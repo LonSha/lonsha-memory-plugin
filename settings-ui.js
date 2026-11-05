@@ -1666,7 +1666,30 @@
                 } catch (e) {
                     relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">转告链面板异常 · ${esc(e.message || e)}</div></div></div>`;
                 }
-                body = factsHtml + relayHtml;
+                /* [v3.446.0] 融合 现场即时快照与在场权限状态 */
+                let sceneHtml = '';
+                try {
+                    const scState = (typeof s.sceneStateTrackerState === 'function')
+                        ? s.sceneStateTrackerState({})
+                        : { ok: false, reason: 'host-method-missing' };
+                    const scLine = (typeof s._sceneStateTrackerLine === 'function') ? s._sceneStateTrackerLine() : '';
+                    if (!scState || scState.ok !== true) {
+                        sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🎭 物理现场快照与在场权限<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 现场快照服务不可用 · ${esc((scState && scState.reason) || 'module-unavailable')}</div></div></div>`;
+                    } else {
+                        const sceneObj = scState.scene || {};
+                        const castStr = scState.inSceneCharacters === undefined ? '未指定（全开）' : (scState.inSceneCharacters.length === 0 ? '【全员离场无人】' : scState.inSceneCharacters.join('、'));
+                        sceneHtml = `<div class="ls-group" style="margin-top:14px;">
+                            <div class="ls-group-title">🎭 物理现场快照 (L0 Scene State)<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div>
+                            <div class="ls-item">
+                                <div class="ls-item-meta">地点: ${esc(sceneObj.location || '未知')} · 气氛: ${esc(sceneObj.tension || '正常')} · 在场角色: ${esc(castStr)}</div>
+                                <div class="ls-item-text">动作: ${esc(sceneObj.action || '无焦点动作')} · 未决: ${esc(sceneObj.unresolved || '无悬念')}</div>
+                            </div>
+                        </div>`;
+                    }
+                } catch (e) {
+                    sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">现场快照面板异常 · ${esc(e.message || e)}</div></div></div>`;
+                }
+                body = factsHtml + sceneHtml + relayHtml;
             }
             else if (viewType === 'deltas') {
                 // [v3.68] A: 正史增量视图（established/uncertain 分状态，手动确证）

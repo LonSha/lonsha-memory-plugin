@@ -5333,6 +5333,77 @@
      * 往事讲述比对与逐段对照诊断面 (past-event-narration-compare.js)
      * ============================================================ */
     /* ============================================================
+     * [v3.446.0 · 具身现场快照与在场三态权限诊断面]
+     * scene-state-tracker.js & presence-routing-guard.js
+     * ============================================================ */
+    function _sceneTrackerLib() {
+        if (_libs._sceneTrackerLib) return _libs._sceneTrackerLib.apply(null, arguments);
+        if (typeof window !== 'undefined' && window.LonShaSceneStateTracker) return window.LonShaSceneStateTracker;
+        if (typeof LonShaSceneStateTracker !== 'undefined') return LonShaSceneStateTracker;
+        try { return require('./scene-state-tracker.js'); } catch (e) { return null; }
+    }
+    function _presenceGuardLib() {
+        if (_libs._presenceGuardLib) return _libs._presenceGuardLib.apply(null, arguments);
+        if (typeof window !== 'undefined' && window.LonShaPresenceRoutingGuard) return window.LonShaPresenceRoutingGuard;
+        if (typeof LonShaPresenceRoutingGuard !== 'undefined') return LonShaPresenceRoutingGuard;
+        try { return require('./presence-routing-guard.js'); } catch (e) { return null; }
+    }
+    function sceneStateTrackerState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'scene_state_tracker', version: 0, state: 'unavailable',
+            scene: null, presence: null,
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const Tracker = _sceneTrackerLib();
+            const Guard = _presenceGuardLib();
+            if (!Tracker || !Guard) return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            const curScene = (o.scene && typeof o.scene === 'object')
+                ? o.scene
+                : ((engine && engine._sceneState && typeof engine._sceneState === 'object') ? engine._sceneState : Tracker.createDefaultSceneState());
+            const inScene = curScene.inSceneCharacters;
+            let presenceMode = 'unknown-tri-state';
+            if (inScene === undefined) presenceMode = 'undefined-unrestricted';
+            else if (Array.isArray(inScene) && inScene.length === 0) presenceMode = 'empty-deserted';
+            else if (Array.isArray(inScene)) presenceMode = 'active-cast';
+            return {
+                kind: 'scene_state_tracker',
+                version: 1,
+                state: 'ok',
+                scene: curScene,
+                presenceMode,
+                inSceneCharacters: inScene,
+                location: curScene.location || '',
+                action: curScene.action || '',
+                tension: curScene.tension || '',
+                writesNothing: true,
+                ok: true
+            };
+        } catch (e) {
+            errLog(e, 'engine.sceneStateTrackerState');
+            return absent('thrown');
+        }
+    }
+    function _sceneStateTrackerLine(engine) {
+        try {
+            const cached = sceneStateTrackerState(engine, {});
+            if (!cached || cached.ok !== true) {
+                return '现场即时快照：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            const s = cached.scene || {};
+            const chars = cached.inSceneCharacters === undefined
+                ? '默认全开'
+                : (cached.inSceneCharacters.length === 0 ? '全员离场无人' : cached.inSceneCharacters.join('、'));
+            const loc = s.location || '未知地点';
+            const act = s.action ? ` · 动作: ${s.action}` : '';
+            return `现场快照：${loc}（在场: ${chars}）${act} · 独立防穿透硬预算保护`;
+        } catch (e) {
+            errLog(e, 'engine._sceneStateTrackerLine');
+            return '—（诊断异常）';
+        }
+    }
+    /* ============================================================
      * [v3.448.0 · 第十四期 L14-X1]
      * 消息转告链诊断面 (knowledge-relay-chain.js)
      * ============================================================ */
@@ -5692,7 +5763,7 @@
             return PP.line(r);
         } catch (e) { errLog(e, 'engine._povProjectionLine'); return '—（诊断异常）'; }
     }
-    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, commitmentInstanceState, _commitmentInstanceLine, loreConclusionState, _loreConclusionLine, narrationCompareState, _narrationCompareLine, knowledgeRelayState, _knowledgeRelayLine, repairResponseState, _repairResponseLine, eraHandoffDraftState, _eraHandoffDraftLine, revisitScheduleState, _revisitScheduleLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    var api = Object.freeze({ sceneStateTrackerState, _sceneStateTrackerLine, povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, commitmentInstanceState, _commitmentInstanceLine, loreConclusionState, _loreConclusionLine, narrationCompareState, _narrationCompareLine, knowledgeRelayState, _knowledgeRelayLine, repairResponseState, _repairResponseLine, eraHandoffDraftState, _eraHandoffDraftLine, revisitScheduleState, _revisitScheduleLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     var _l14o8Api = Object.assign({}, api, { evidenceSourceBench, evidenceSourceRebind, _evidenceSourceLine });
     global.LonShaDiagnosticLines = _l14o8Api;

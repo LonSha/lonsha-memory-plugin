@@ -2488,6 +2488,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _loreConclusionReconcileLib: _loreConclusionReconcileLib,
                         /* [L14-X2] 往事讲述对照注入诊断层 */
                         _narrationCompareLib: _narrationCompareLib,
+                        /* [v3.446.0] 具身现场快照注入诊断层 */
+                        _sceneTrackerLib: _sceneTrackerLib,
+                        /* [v3.446.0] 在场权限防穿透注入诊断层 */
+                        _presenceGuardLib: _presenceGuardLib,
                         /* [L14-X1] 消息转告链注入诊断层 */
                         _knowledgeRelayLib: _knowledgeRelayLib,
                         /* [L14-X7] 关系修复回应注入诊断层 */
@@ -10484,6 +10488,12 @@ function _collectNewFace() {
      *     和 `repair-loop.js`（数据修复账）**三件不同物，别合并**：
      *     本件只做「提议 → 逐条回应（含拒绝/延期/部分接受）→ 后续行为证据回链」。 */
     function _repairResponseLib() { return _moduleLib(() => window.LonShaRelationshipRepairResponse, 'relationship-repair-response.js'); }
+    /* [v3.446.0] 具身现场快照取库口（scene-state-tracker.js）。
+     *   ★ 维护地点、时间、动作、气氛张力与在场角色三态。 */
+    function _sceneTrackerLib() { return _moduleLib(() => window.LonShaSceneStateTracker, 'scene-state-tracker.js'); }
+    /* [v3.446.0] 在场权限防穿透取库口（presence-routing-guard.js）。
+     *   ★ world/shared/character 知情分流与 Fail-Closed 闭环保护。 */
+    function _presenceGuardLib() { return _moduleLib(() => window.LonShaPresenceRoutingGuard, 'presence-routing-guard.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
      *   ★ 消息多跳转告链：逐跳来源、得知时刻、授权范围与撤回影响。 */
     function _knowledgeRelayLib() { return _moduleLib(() => window.LonShaKnowledgeRelayChain, 'knowledge-relay-chain.js'); }
