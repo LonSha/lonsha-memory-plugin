@@ -4799,6 +4799,109 @@
         } catch (e) { errLog(e, 'engine._seatingPartitionLine'); return '—（诊断异常）'; }
     }
     /* ============================================================
+     * [v3.448.0 · 第十四期 L14-X3]
+     * 认知改观与解释版本对照诊断面 (character-reinterpretation-versions.js)
+     * ============================================================ */
+    function _characterReinterpretationLib() {
+        if (_libs._characterReinterpretationLib) return _libs._characterReinterpretationLib.apply(null, arguments);
+        const mod = (typeof window !== 'undefined' ? window.LonShaCharacterReinterpretation : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./character-reinterpretation-versions.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCharacterReinterpretation : null), 'character-reinterpretation-versions.js');
+    }
+
+    /**
+     * 读取认知改观账本状态（只读，不写盘）
+     */
+    function characterReinterpretationState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'character_reinterpretation', version: 0, state: 'unavailable',
+            ledgers: [], counts: { totalLedgers: 0, totalVersions: 0, accepted: 0, draft: 0, superseded: 0, rejected: 0 },
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const CR = _characterReinterpretationLib();
+            if (!CR || typeof CR.createReinterpretationLedger !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            let rawLedgers = [];
+            if (Array.isArray(o.ledgers)) rawLedgers = o.ledgers;
+            else if (o.ledger && typeof o.ledger === 'object') rawLedgers = [o.ledger];
+            else if (engine && Array.isArray(engine._reinterpretationLedgers)) rawLedgers = engine._reinterpretationLedgers;
+            else if (engine && engine._reinterpretationLedger && typeof engine._reinterpretationLedger === 'object') rawLedgers = [engine._reinterpretationLedger];
+
+            if (!rawLedgers.length) {
+                return {
+                    kind: 'character_reinterpretation', version: 1, state: 'no-ledgers',
+                    ledgers: [], counts: { totalLedgers: 0, totalVersions: 0, accepted: 0, draft: 0, superseded: 0, rejected: 0 },
+                    writesNothing: true, ok: true, reason: 'no-ledgers'
+                };
+            }
+
+            let totalVersions = 0;
+            let accepted = 0;
+            let draft = 0;
+            let superseded = 0;
+            let rejected = 0;
+            const ledgerSummaries = rawLedgers.map(l => {
+                const vers = Array.isArray(l.versions) ? l.versions : [];
+                totalVersions += vers.length;
+                vers.forEach(v => {
+                    if (v.status === CR.INTERPRETATION_STATUS.ACCEPTED) accepted++;
+                    else if (v.status === CR.INTERPRETATION_STATUS.DRAFT) draft++;
+                    else if (v.status === CR.INTERPRETATION_STATUS.SUPERSEDED) superseded++;
+                    else if (v.status === CR.INTERPRETATION_STATUS.REJECTED) rejected++;
+                });
+                const active = vers.find(v => v.versionId === l.activeVersionId) || null;
+                const initial = vers.find(v => v.versionNumber === 1) || null;
+                return {
+                    characterId: l.characterId,
+                    targetEntityId: l.targetEntityId,
+                    factSummary: l.originalEventRef?.canonicalFactSummary || '',
+                    activeVersionId: l.activeVersionId,
+                    activeText: active?.interpretationText || '',
+                    initialText: initial?.interpretationText || '',
+                    versionCount: vers.length,
+                    versions: vers
+                };
+            });
+
+            const out = {
+                kind: 'character_reinterpretation', version: 1,
+                state: 'ok',
+                ledgers: ledgerSummaries,
+                counts: {
+                    totalLedgers: ledgerSummaries.length,
+                    totalVersions,
+                    accepted,
+                    draft,
+                    superseded,
+                    rejected
+                },
+                writesNothing: true,
+                ok: true,
+                reason: ''
+            };
+            if (engine && typeof engine === 'object') engine._characterReinterpretationRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.characterReinterpretationState'); return absent('thrown'); }
+    }
+
+    function _characterReinterpretationLine(engine) {
+        try {
+            const cached = (engine && engine._characterReinterpretationRead && typeof engine._characterReinterpretationRead === 'object')
+                ? engine._characterReinterpretationRead : characterReinterpretationState(engine, {});
+            if (!cached || cached.ok !== true) {
+                return '认知改观版本：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            if (cached.state === 'no-ledgers') return '认知改观版本：尚未登记改观账本（不是「面没装上」）';
+            const c = cached.counts || {};
+            return `认知改观版本：账本 ${c.totalLedgers || 0} 本 · 解释 ${c.totalVersions || 0} 版（采纳 ${c.accepted || 0} · 提议 ${c.draft || 0} · 归档 ${c.superseded || 0}）· 物理事实受保护`;
+        } catch (e) { errLog(e, 'engine._characterReinterpretationLine'); return '—（诊断异常）'; }
+    }
+
+    /* ============================================================
      * [v3.448.0 · 第十四期 L14-X5]
      * 资料换版结论重构诊断面 (lore-version-conclusion-reconcile.js)
      * ============================================================ */
@@ -5041,7 +5144,7 @@
             return PP.line(r);
         } catch (e) { errLog(e, 'engine._povProjectionLine'); return '—（诊断异常）'; }
     }
-    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, loreConclusionState, _loreConclusionLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, loreConclusionState, _loreConclusionLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     var _l14o8Api = Object.assign({}, api, { evidenceSourceBench, evidenceSourceRebind, _evidenceSourceLine });
     global.LonShaDiagnosticLines = _l14o8Api;

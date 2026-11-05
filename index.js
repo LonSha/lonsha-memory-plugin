@@ -2480,6 +2480,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _symbiosisBridgeLib: _symbiosisBridgeLib,
                         /* [L14-X6] 场景角色分席材料编排注入诊断层 */
                         _seatingPartitionLib: _sceneSeatingPartitionLib,
+                        /* [L14-X3] 认知改观与解释版本对照注入诊断层 */
+                        _characterReinterpretationLib: _characterReinterpretationLib,
                         /* [L14-X5] 设定资料换版结论重构注入诊断层 */
                         _loreConclusionReconcileLib: _loreConclusionReconcileLib,
                     },
@@ -2579,6 +2581,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _recallRouteFeedbackHubLib,
                     _projectionLib,
                     _relationHistoryLib,
+                    _sceneSeatingPartitionLib,
+                    _characterReinterpretationLib,
+                    _loreConclusionReconcileLib,
                 });
             }
         } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
@@ -3207,6 +3212,9 @@ function relativeTimeLabel(eventTime, nowTime) {
         //   ★ 三种「空」不同形：module-unavailable / no-seats / ok+四池全空。
         seatingPartitionState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.seatingPartitionState(this, ...args) : { kind: 'seating_partition', state: 'unavailable', reason: 'module-unavailable', activeSeats: [], sharedPool: [], partialSubsets: [], privatePockets: {}, embargoedSecrets: [], counts: { shared: 0, partial: 0, private: 0, embargoed: 0 }, perspectives: null, writesNothing: true, ok: false }; }
         _seatingPartitionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._seatingPartitionLine(this, ...args) : ''; }
+        // [L14-X3] 认知改观与解释版本对照宿主转发接口
+        characterReinterpretationState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.characterReinterpretationState(this, ...args) : { kind: 'character_reinterpretation', state: 'unavailable', reason: 'module-unavailable', ledgers: [], counts: { totalLedgers: 0, totalVersions: 0, accepted: 0, draft: 0, superseded: 0, rejected: 0 }, writesNothing: true, ok: false }; }
+        _characterReinterpretationLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._characterReinterpretationLine(this, ...args) : ''; }
         // [L14-X5] 设定资料换版结论重构宿主转发接口
         loreConclusionState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.loreConclusionState(this, ...args) : { kind: 'lore_conclusion_reconcile', state: 'unavailable', reason: 'module-unavailable', docId: '', olderVersion: '', newerVersion: '', diff: [], conclusions: [], counts: { total: 0, fresh: 0, stale: 0, accepted: 0, kept_original: 0 }, writesNothing: true, ok: false }; }
         _loreConclusionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._loreConclusionLine(this, ...args) : ''; }

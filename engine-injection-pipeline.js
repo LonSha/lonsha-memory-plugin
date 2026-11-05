@@ -140,7 +140,14 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaLoreVersionConclusionReconcile : null), 'lore-version-conclusion-reconcile.js');
     };
-
+    let _characterReinterpretationLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaCharacterReinterpretation : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./character-reinterpretation-versions.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCharacterReinterpretation : null), 'character-reinterpretation-versions.js');
+    };
     function bindDeps(deps) {
         if (!deps || typeof deps !== 'object') return;
         if (deps.VERSION) VERSION = deps.VERSION;
@@ -159,6 +166,7 @@
         if (typeof deps._projectionLib === 'function') _projectionLib = deps._projectionLib;
         if (typeof deps._relationHistoryLib === 'function') _relationHistoryLib = deps._relationHistoryLib;
         if (typeof deps._sceneSeatingPartitionLib === 'function') _sceneSeatingPartitionLib = deps._sceneSeatingPartitionLib;
+        if (typeof deps._characterReinterpretationLib === 'function') _characterReinterpretationLib = deps._characterReinterpretationLib;
         if (typeof deps._loreConclusionReconcileLib === 'function') _loreConclusionReconcileLib = deps._loreConclusionReconcileLib;
     }
 
@@ -1093,6 +1101,32 @@
                         }
                     }
                 } catch (e) { errLog(e, 'buildInjection.资料换版结论'); }
+                /* [L14-X3] 角色认知改观演进注入（区分历史旧识与当前采纳认知） */
+                try {
+                    const CR = _characterReinterpretationLib();
+                    const ledgers = Array.isArray(this._reinterpretationLedgers)
+                        ? this._reinterpretationLedgers
+                        : (this._reinterpretationLedger ? [this._reinterpretationLedger] : []);
+                    if (CR && typeof CR.createReinterpretationLedger === 'function' && ledgers.length > 0) {
+                        const activeList = [];
+                        ledgers.forEach(l => {
+                            if (!l || !Array.isArray(l.versions) || !l.activeVersionId) return;
+                            const active = l.versions.find(v => v.versionId === l.activeVersionId);
+                            const initial = l.versions.find(v => v.versionNumber === 1);
+                            if (active && active.interpretationText) {
+                                const diffNote = (initial && initial.versionId !== active.versionId)
+                                    ? `（从初始认识「${initial.interpretationText.length > 30 ? initial.interpretationText.slice(0, 30) + '...' : initial.interpretationText}」改观）`
+                                    : '';
+                                activeList.push(`- ${l.characterId} 对 ${l.targetEntityId}：${active.interpretationText}${diffNote}`);
+                            }
+                        });
+                        if (activeList.length > 0) {
+                            blocks.push('[角色改观·当前采纳认知]');
+                            activeList.slice(0, 4).forEach(line => blocks.push(line));
+                            this._lastReinterpretationInjection = activeList;
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.角色认知改观'); }
             } else { _countSource('scene', 0); }
             if (scenesList.length) {
                 blocks.push('[相关地点]');

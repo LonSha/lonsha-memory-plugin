@@ -830,14 +830,63 @@
                     '</div>';
             }
             else if (viewType === 'relations') {
-                title = '🔗 关系边';
-                const nameOf = (id) => s.graph.nodes.get(id)?.name || id;
-                const edges = faceRead(() => (s.graph ? '' : '图谱服务缺席'), () => Array.from(s.graph.edges.values()));
-                body = edges.length === 0 ? faceHTML('人物同场出现且关系被提取后会自动连边。') :
+                title = '🔗 关系边与改观';
+                const nameOf = (id) => s.graph?.nodes?.get?.(id)?.name || id;
+                const edges = faceRead(() => (s.graph ? '' : '图谱服务缺席'), () => Array.from(s.graph?.edges?.values?.() || []));
+                let edgeHtml = edges.length === 0 ? faceHTML('人物同场出现且关系被提取后会自动连边。') :
                     edges.map(e => `
                         <div class="ls-item">
                             <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:var(--ls-accent,#58a6ff)">—[${esc(e.label || '相关')}]→</span> ${esc(nameOf(e.to))}</div>
                         </div>`).join('');
+
+                /* [v3.448.0 · 第十四期 L14-X3] 认知改观与解释版本对照工作台 */
+                let reinterpHtml = '';
+                try {
+                    const reinterpState = (typeof s.characterReinterpretationState === 'function')
+                        ? s.characterReinterpretationState()
+                        : { ok: false, reason: 'host-method-missing' };
+                    const lineText = (typeof s._characterReinterpretationLine === 'function')
+                        ? String(s._characterReinterpretationLine() || '') : '';
+
+                    if (!reinterpState || reinterpState.ok !== true) {
+                        reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">🔄 认知改观与解释版本对照</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 认知改观工作台不可用 · ${esc(reinterpState?.reason || 'module-unavailable')}</div>
+                        </div>`;
+                    } else if (reinterpState.state === 'no-ledgers') {
+                        reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">🔄 认知改观与解释版本对照 · <span>${esc(lineText)}</span></div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无角色改观账本（人物对往事态度产生认知转变并记录触发证据后，版本对照将在此呈现）。</div>
+                        </div>`;
+                    } else {
+                        const ledgers = reinterpState.ledgers || [];
+                        const cardList = ledgers.map(l => {
+                            const vList = (l.versions || []).map(v => {
+                                const stBadge = v.status === 'accepted' ? '✅ 采纳' : (v.status === 'draft' ? '📝 草案' : (v.status === 'superseded' ? '📦 归档' : '🚫 拒绝'));
+                                const ev = v.triggerEvidence ? ` · 触发证据: ${esc(v.triggerEvidence.summary || v.triggerEvidence.evidenceId)} (第${v.triggerEvidence.floor}楼)` : '';
+                                return `<div style="margin:2px 0 2px 8px;padding-left:4px;border-left:2px solid var(--ls-border,#30363d);font-size:11px;">
+                                    <b>v${v.versionNumber}</b> [${stBadge}] 第${v.floor}楼 (${esc(v.perspective || 'view')})：${esc(v.interpretationText)}${ev}
+                                </div>`;
+                            }).join('');
+                            return `<div class="ls-item" style="margin-bottom:6px;background:rgba(255,255,255,0.02);padding:6px;border-radius:4px;">
+                                <div class="ls-item-meta"><b>${esc(l.characterId)}</b> 对 <b>${esc(l.targetEntityId)}</b> · 事实: <i>${esc(l.factSummary || '未记录事实')}</i></div>
+                                <div class="ls-item-text" style="margin:4px 0;">当前认识: <b>${esc(l.activeText || '—')}</b></div>
+                                <details style="cursor:pointer;font-size:11px;color:var(--ls-text-3,#6e7681);">
+                                    <summary>查看解释版本链 (${l.versionCount || 0} 版)</summary>
+                                    <div style="margin-top:4px;">${vList}</div>
+                                </details>
+                            </div>`;
+                        }).join('');
+                        reinterpHtml = `<div class="ls-group" data-face="reinterpretation" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-group-title">🔄 认知改观与解释版本对照 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
+                            ${cardList}
+                        </div>`;
+                    }
+                } catch (e) {
+                    reinterpHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">认知改观工作台渲染异常: ${esc(e.message || String(e))}</div>`;
+                }
+
+                body = edgeHtml + reinterpHtml;
             }
             else if (viewType === 'vectors') {
                 title = '🧲 向量记忆';
