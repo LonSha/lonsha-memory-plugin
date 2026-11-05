@@ -10390,6 +10390,7 @@ function _collectNewFace() {
         ['讲述对照', _narrationCompareLib, 'pastEventCompareSelfCheck'],
         ['认知改观版本', _characterReinterpretationLib, 'characterReinterpretationSelfCheck'],
         ['资料换版结论重构', _loreConclusionReconcileLib, 'loreConclusionReconcileSelfCheck'],
+        ['角色分席编排', _sceneSeatingPartitionLib, 'sceneSeatingPartitionSelfCheck'],
         ['约定实例周期', _commitmentLifecycleLib, 'commitmentInstanceSelfCheck'],
         ['纠错事务', _factCorrectionTxLib, 'factCorrectionTransactionSelfCheck'],
         ['生成材料对拍', _generationMaterialReconcileLib, 'generationMaterialReconcileSelfCheck'],
@@ -10452,6 +10453,9 @@ function _collectNewFace() {
     /* [L14-X5] 资料换版与结论更新对照库口（lore-version-conclusion-reconcile.js）。
      *   ★ 按段落比对资料变动、标记受影响陈旧结论并保护人工校订正本。 */
     function _loreConclusionReconcileLib() { return _moduleLib(() => window.LonShaLoreVersionConclusionReconcile, 'lore-version-conclusion-reconcile.js'); }
+    /* [L14-X6] 场景角色分席材料编排库口（scene-character-seating-partition.js）。
+     *   ★ 依在场角色拆分公共知晓、单人独享私密与部分知情材料池。 */
+    function _sceneSeatingPartitionLib() { return _moduleLib(() => window.LonShaSceneSeatingPartition, 'scene-character-seating-partition.js'); }
     /* [L14-X4] 约定实例与生命周期取库口（commitment-instance-lifecycle.js）。
      *   ★ 长期承诺与具体单次实例解耦、部分履行与单次豁免。 */
     function _commitmentLifecycleLib() { return _moduleLib(() => window.LonShaCommitmentInstanceLifecycle, 'commitment-instance-lifecycle.js'); }

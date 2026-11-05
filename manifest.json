@@ -202,6 +202,7 @@
         "past-event-narration-compare.js",
         "character-reinterpretation-versions.js",
         "lore-version-conclusion-reconcile.js",
+        "scene-character-seating-partition.js",
         "commitment-instance-lifecycle.js",
         "fact-correction-transaction.js",
         "micro-atmosphere-residual-tracker.js",
