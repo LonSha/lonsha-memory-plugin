@@ -10386,6 +10386,7 @@ function _collectNewFace() {
         ['时代续演', _eraContinuationLib, 'eraContinuationDramaSelfCheck'],
         ['交接草案', _eraHandoffDraftLib, 'handoffDraftSelfCheck'],
         ['修复回应', _repairResponseLib, 'repairResponseSelfCheck'],
+        ['转告链条', _knowledgeRelayLib, 'knowledgeRelaySelfCheck'],
         ['纠错事务', _factCorrectionTxLib, 'factCorrectionTransactionSelfCheck'],
         ['生成材料对拍', _generationMaterialReconcileLib, 'generationMaterialReconcileSelfCheck'],
         ['召回路由偏好反馈', _recallRouteFeedbackHubLib, 'recallRouteFeedbackHubSelfCheck'],
@@ -10435,6 +10436,9 @@ function _collectNewFace() {
      *     和 `repair-loop.js`（数据修复账）**三件不同物，别合并**：
      *     本件只做「提议 → 逐条回应（含拒绝/延期/部分接受）→ 后续行为证据回链」。 */
     function _repairResponseLib() { return _moduleLib(() => window.LonShaRelationshipRepairResponse, 'relationship-repair-response.js'); }
+    /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
+     *   ★ 消息多跳转告链：逐跳来源、得知时刻、授权范围与撤回影响。 */
+    function _knowledgeRelayLib() { return _moduleLib(() => window.LonShaKnowledgeRelayChain, 'knowledge-relay-chain.js'); }
     /* [v3.448.0 · L14-O2] 纠错事务取库口（fact-correction-transaction.js）。
      *   ★ 与 `_factCorrectionBenchLib`（fact-correction-bench.js：纯函数修订台/影响图）
      *     和 `recall-correction.js`（召回候选过滤账）**三件不同物，别合并**：
