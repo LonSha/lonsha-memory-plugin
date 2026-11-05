@@ -10388,6 +10388,7 @@ function _collectNewFace() {
         ['修复回应', _repairResponseLib, 'repairResponseSelfCheck'],
         ['转告链条', _knowledgeRelayLib, 'knowledgeRelaySelfCheck'],
         ['讲述对照', _narrationCompareLib, 'pastEventCompareSelfCheck'],
+        ['认知改观版本', _characterReinterpretationLib, 'characterReinterpretationSelfCheck'],
         ['约定实例周期', _commitmentLifecycleLib, 'commitmentInstanceSelfCheck'],
         ['纠错事务', _factCorrectionTxLib, 'factCorrectionTransactionSelfCheck'],
         ['生成材料对拍', _generationMaterialReconcileLib, 'generationMaterialReconcileSelfCheck'],
@@ -10444,6 +10445,9 @@ function _collectNewFace() {
     /* [L14-X2] 往事讲述比对取库口（past-event-narration-compare.js）。
      *   ★ 建立原始物理证据 → 各角色主观讲述 → 差异句对照。 */
     function _narrationCompareLib() { return _moduleLib(() => window.LonShaPastEventNarrationCompare, 'past-event-narration-compare.js'); }
+    /* [L14-X3] 认知改观与解释版本对照库口（character-reinterpretation-versions.js）。
+     *   ★ 记录同一事件在不同时期的理解演变与触发证据。 */
+    function _characterReinterpretationLib() { return _moduleLib(() => window.LonShaCharacterReinterpretation, 'character-reinterpretation-versions.js'); }
     /* [L14-X4] 约定实例与生命周期取库口（commitment-instance-lifecycle.js）。
      *   ★ 长期承诺与具体单次实例解耦、部分履行与单次豁免。 */
     function _commitmentLifecycleLib() { return _moduleLib(() => window.LonShaCommitmentInstanceLifecycle, 'commitment-instance-lifecycle.js'); }
