@@ -105,3 +105,78 @@ test('L14-X5: reconcileConclusionsWithDiff marks stale without overwriting, and 
   assert.equal(accepted.status, Reconcile.CONCLUSION_REVIEW_STATUS.ACCEPTED);
   assert.equal(accepted.text, 'Forbidden arts rules are revoked; cult relies on illusion.');
 });
+
+test('L14-X5: cross-layer vertical integration (diagnostic lines, injection pipeline, settings-ui)', async () => {
+  // 1. 验证诊断层 loreConclusionState 与 _loreConclusionLine
+  const diagLib = (await import('../engine-diagnostic-lines.js')).default;
+  assert.ok(typeof diagLib.loreConclusionState === 'function', 'loreConclusionState exists');
+  assert.ok(typeof diagLib._loreConclusionLine === 'function', '_loreConclusionLine exists');
+
+  // 空段落状态：state 必须为 no-docs
+  const emptyState = diagLib.loreConclusionState({}, {});
+  assert.equal(emptyState.state, 'no-docs');
+  assert.equal(emptyState.ok, false);
+
+  // 正常换版与结论核验
+  const mockEngine = {
+    _loreDocId: 'arcane_grimoire',
+    _loreOldSections: [
+      { sectionId: 's1', content: 'Sulfur is required' },
+      { sectionId: 's2', content: 'Water requires clouds' }
+    ],
+    _loreNewSections: [
+      { sectionId: 's1', content: 'Sulfur is required' }, // unchanged
+      { sectionId: 's2', content: 'Water requires spiritual mana' } // modified
+    ],
+    _loreConclusions: [
+      { conclusionId: 'c1', text: 'Water magic needs clouds', dependsOnSectionIds: ['s2'], isManuallyEdited: true }
+    ]
+  };
+
+  const validState = diagLib.loreConclusionState(mockEngine);
+  assert.equal(validState.ok, true);
+  assert.equal(validState.counts.total, 1);
+  assert.equal(validState.counts.stale, 1);
+  assert.equal(validState.conclusions[0].status, 'stale');
+  assert.equal(validState.conclusions[0].isManuallyEdited, true);
+
+  const line = diagLib._loreConclusionLine(mockEngine);
+  assert.ok(line.includes('设定换版更新'));
+  assert.ok(line.includes('待复核 1'));
+
+  // 2. 验证注入主链路 engine-injection-pipeline.js 调用
+  const pipelineLib = (await import('../engine-injection-pipeline.js')).default;
+  assert.ok(typeof pipelineLib.buildInjection === 'function', 'buildInjection exists');
+
+  const fakeEngine = {
+    config: { config: { memoryTokenBudget: 2700, vectorTopK: 5, sceneEnabled: true, npcTierInjection: false, cacheFriendlyInjection: false } },
+    _loreOldSections: [{ sectionId: 's1', content: 'A' }],
+    _loreNewSections: [{ sectionId: 's1', content: 'A' }],
+    _loreConclusions: [{ conclusionId: 'c1', text: 'Ancient kingdom fell in 1000' }],
+    scene: {
+      currentKey: () => 'library',
+      chainOf: () => [{ path: ['library'], desc: '图书馆' }],
+      headerLine: () => ''
+    },
+    captureCast: () => [],
+    resolveCharacterName: (n) => n
+  };
+
+  const recalled = [{ text: '查阅历史典籍' }];
+  const injectionResult = pipelineLib.buildInjection(fakeEngine, recalled);
+  assert.ok(injectionResult.includes('[设定换版·有效结论]'), 'injection must contain lore conclusion prompt');
+  assert.ok(injectionResult.includes('Ancient kingdom fell in 1000'), 'injection must contain conclusion text');
+  assert.ok(fakeEngine._lastLoreConclusionReconcile, 'engine must record _lastLoreConclusionReconcile');
+
+  // 3. 验证 settings-ui.js 中的面板消费
+  const fs = await import('node:fs');
+  const uiSrc = fs.readFileSync('settings-ui.js', 'utf-8');
+  assert.ok(uiSrc.includes('loreConclusionState'), 'settings-ui must call loreConclusionState');
+  assert.ok(uiSrc.includes('_loreConclusionLine'), 'settings-ui must call _loreConclusionLine');
+  assert.ok(uiSrc.includes('📑 设定换版与结论更新对照工作台'), 'settings-ui must render lore reconcile title');
+
+  // 4. 负控制：模拟破坏注入逻辑或面板入口
+  const brokenPipeSrc = (await fs.promises.readFile('engine-injection-pipeline.js', 'utf-8'))
+    .replace("blocks.push('[设定换版·有效结论]')", "// suppressed");
+  assert.ok(!brokenPipeSrc.includes("blocks.push('[设定换版·有效结论]')"), 'negative control: injection suppressed');
+});

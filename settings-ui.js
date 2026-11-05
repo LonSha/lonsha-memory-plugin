@@ -1827,6 +1827,48 @@
                     <textarea class="ls-textarea" id="ls-pq-text" style="min-height:200px;" placeholder="在此粘贴前情资料…">${esc(cur)}</textarea>
                     <div class="ls-hint" id="ls-pq-stat">当前 ${cur.length} 字符${pq?.importedAt ? ' · 导入于 ' + new Date(pq.importedAt).toLocaleString('zh-CN') : ''}</div>
                     <button class="ls-btn ls-btn-primary" id="ls-pq-save">💾 保存前情资料</button>` + _inhHtml;
+
+                /* [L14-X5] 资料换版结论重构工作台面板渲染 */
+                const _loreConc = (function () {
+                    try {
+                        if (typeof s.loreConclusionState !== 'function') return { ok: false, reason: 'host-method-missing' };
+                        const r = s.loreConclusionState();
+                        return (r && typeof r === 'object') ? r : { ok: false, reason: 'null-state' };
+                    } catch (e) { return { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
+                })();
+                const _loreConcLine = (function () {
+                    try { return typeof s._loreConclusionLine === 'function' ? String(s._loreConclusionLine() || '') : ''; } catch (e) { return ''; }
+                })();
+                const _loreConcHtml = (function () {
+                    const head = `<div class="ls-group-title" style="margin-top:14px;">📑 设定换版与结论更新对照工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_loreConcLine)}</span></div>`;
+                    if (!_loreConc || _loreConc.ok !== true) {
+                        if (_loreConc && _loreConc.state === 'no-docs') {
+                            return `<div class="ls-group">${head}<div class="ls-hint">尚未配置换版段落：当前设定资料尚未发生跨版更新。当设定资料更新后，系统将自动对比段落差异并找出受影响的陈旧结论。</div></div>`;
+                        }
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用 · ${esc(String(_loreConc && _loreConc.reason || 'module-unavailable'))}</div></div></div>`;
+                    }
+                    const c = _loreConc.counts || {};
+                    const concRows = (_loreConc.conclusions || []).map(function (conc) {
+                        const isStale = conc.status === 'stale';
+                        const badgeColor = isStale ? 'var(--ls-warn,#d29922)' : 'var(--ls-success,#3fb950)';
+                        const statusLabel = isStale ? '⚠️ 陈旧待核验' : (conc.status === 'accepted' ? '✅ 已采纳新版' : (conc.status === 'kept_original' ? '🛡️ 保留人工结论' : '🟢 有效'));
+                        const manualTag = conc.isManuallyEdited ? ' · <span style="color:var(--ls-info,#58a6ff);">✍️ 人工校订保护</span>' : '';
+                        const draftHtml = isStale && conc.reconciledDraft ? `<div class="ls-hint" style="color:var(--ls-text-2,#8b949e);">新版建议草案：${esc(conc.reconciledDraft)}</div>` : '';
+                        return `<div class="ls-item">` +
+                            `<div class="ls-item-meta"><span style="color:${badgeColor};font-weight:bold;">${esc(statusLabel)}</span>${manualTag} · 结论ID: ${esc(conc.conclusionId)}</div>` +
+                            `<div class="ls-item-text">${esc(conc.text)}</div>` +
+                            draftHtml +
+                            `</div>`;
+                    }).join('') || '<div class="ls-hint">无衍生结论条目。</div>';
+
+                    return `<div class="ls-group">${head}` +
+                        `<div class="ls-item-meta">文档：${esc(_loreConc.docId || '默认设定')} · 段落差异 ${_loreConc.diff?.length || 0} 项 · 结论总计 ${c.total || 0} 条（有效 ${c.fresh || 0} · 待复核 ${c.stale || 0} · 采纳 ${c.accepted || 0} · 保留原版 ${c.kept_original || 0}）</div>` +
+                        concRows +
+                        `<div class="ls-hint" style="margin-top:6px;">口径：设定资料换版绝不粗暴全量覆盖，依赖变更段落的结论标为 stale；用户手动校订过的结论内容享有第一优先级保护。</div>` +
+                        `</div>`;
+                })();
+
+                body += _loreConcHtml;
             }
             else if (viewType === 'memorycenter') {
                 title = '🔍 记忆控制中心';

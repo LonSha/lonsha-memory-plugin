@@ -132,6 +132,14 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSceneSeatingPartition : null), 'scene-character-seating-partition.js');
     };
+    let _loreConclusionReconcileLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaLoreVersionConclusionReconcile : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./lore-version-conclusion-reconcile.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaLoreVersionConclusionReconcile : null), 'lore-version-conclusion-reconcile.js');
+    };
 
     function bindDeps(deps) {
         if (!deps || typeof deps !== 'object') return;
@@ -151,6 +159,7 @@
         if (typeof deps._projectionLib === 'function') _projectionLib = deps._projectionLib;
         if (typeof deps._relationHistoryLib === 'function') _relationHistoryLib = deps._relationHistoryLib;
         if (typeof deps._sceneSeatingPartitionLib === 'function') _sceneSeatingPartitionLib = deps._sceneSeatingPartitionLib;
+        if (typeof deps._loreConclusionReconcileLib === 'function') _loreConclusionReconcileLib = deps._loreConclusionReconcileLib;
     }
 
     class LonShaInjectionPipeline {
@@ -1069,6 +1078,21 @@
                         }
                     }
                 } catch (e) { errLog(e, 'buildInjection.角色分席'); }
+                /* [L14-X5] 设定资料换版结论更新注入 */
+                try {
+                    const LR = _loreConclusionReconcileLib();
+                    if (LR && typeof LR.diffLoreSections === 'function' && Array.isArray(this._loreOldSections) && Array.isArray(this._loreNewSections)) {
+                        const diff = LR.diffLoreSections(this._loreOldSections, this._loreNewSections);
+                        const existingConcs = Array.isArray(this._loreConclusions) ? this._loreConclusions : [];
+                        const reconciled = LR.reconcileConclusionsWithDiff(diff, existingConcs);
+                        this._lastLoreConclusionReconcile = { diff, conclusions: reconciled };
+                        const freshOrAccepted = reconciled.filter(c => c.status === LR.CONCLUSION_REVIEW_STATUS.FRESH || c.status === LR.CONCLUSION_REVIEW_STATUS.ACCEPTED || c.status === LR.CONCLUSION_REVIEW_STATUS.KEPT_ORIGINAL);
+                        if (freshOrAccepted.length > 0) {
+                            blocks.push('[设定换版·有效结论]');
+                            freshOrAccepted.slice(0, 5).forEach(c => blocks.push(`- ${c.text}`));
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.资料换版结论'); }
             } else { _countSource('scene', 0); }
             if (scenesList.length) {
                 blocks.push('[相关地点]');
