@@ -4902,6 +4902,100 @@
     }
 
     /* ============================================================
+     * [v3.448.0 · 第十四期 L14-X4]
+     * 约定实例与生命周期诊断面 (commitment-instance-lifecycle.js)
+     * ============================================================ */
+    function _commitmentLifecycleLib() {
+        if (_libs._commitmentLifecycleLib) return _libs._commitmentLifecycleLib.apply(null, arguments);
+        const mod = (typeof window !== 'undefined' ? window.LonShaCommitmentInstanceLifecycle : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./commitment-instance-lifecycle.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCommitmentInstanceLifecycle : null), 'commitment-instance-lifecycle.js');
+    }
+
+    /**
+     * 读取约定实例生命周期状态（只读，不写盘）
+     */
+    function commitmentInstanceState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'commitment_instance_lifecycle', version: 0, state: 'unavailable',
+            instances: [], counts: { total: 0, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0 },
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const CL = _commitmentLifecycleLib();
+            if (!CL || typeof CL.createCommitmentInstance !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            let rawInstances = [];
+            if (Array.isArray(o.instances)) rawInstances = o.instances;
+            else if (o.instance && typeof o.instance === 'object') rawInstances = [o.instance];
+            else if (engine && Array.isArray(engine._commitmentInstances)) rawInstances = engine._commitmentInstances;
+            else if (engine && engine._commitmentInstance && typeof engine._commitmentInstance === 'object') rawInstances = [engine._commitmentInstance];
+
+            if (!rawInstances.length) {
+                return {
+                    kind: 'commitment_instance_lifecycle', version: 1, state: 'no-instances',
+                    instances: [], counts: { total: 0, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0 },
+                    writesNothing: true, ok: true, reason: 'no-instances'
+                };
+            }
+
+            const counts = { total: rawInstances.length, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0 };
+            const currentFloor = o.currentFloor != null ? o.currentFloor : (engine?.currentFloor || null);
+            const currentTimestamp = o.currentTimestamp != null ? o.currentTimestamp : Date.now();
+
+            const instanceRows = rawInstances.map(inst => {
+                let effectiveStatus = inst.status;
+                if (typeof CL.evaluateOverdue === 'function') {
+                    const evalRes = CL.evaluateOverdue(inst, currentFloor, currentTimestamp);
+                    if (evalRes && evalRes.isOverdue) effectiveStatus = CL.INSTANCE_STATUS.OVERDUE;
+                }
+                if (counts[effectiveStatus] != null) counts[effectiveStatus]++;
+                return {
+                    instanceId: inst.instanceId,
+                    commitmentId: inst.commitmentId,
+                    actor: inst.actor,
+                    counterpart: inst.counterpart,
+                    content: inst.content,
+                    sequence: inst.sequence,
+                    dueFloor: inst.dueFloor,
+                    dueTimestamp: inst.dueTimestamp,
+                    status: effectiveStatus,
+                    completionRatio: inst.completionRatio || 0,
+                    receiptCount: Array.isArray(inst.receipts) ? inst.receipts.length : 0
+                };
+            });
+
+            const out = {
+                kind: 'commitment_instance_lifecycle', version: 1,
+                state: 'ok',
+                instances: instanceRows,
+                counts: counts,
+                writesNothing: true,
+                ok: true,
+                reason: ''
+            };
+            if (engine && typeof engine === 'object') engine._commitmentInstanceRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.commitmentInstanceState'); return absent('thrown'); }
+    }
+
+    function _commitmentInstanceLine(engine) {
+        try {
+            const cached = (engine && engine._commitmentInstanceRead && typeof engine._commitmentInstanceRead === 'object')
+                ? engine._commitmentInstanceRead : commitmentInstanceState(engine, {});
+            if (!cached || cached.ok !== true) {
+                return '约定履约周期：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            if (cached.state === 'no-instances') return '约定履约周期：尚未登记单次履约实例（不是「面没装上」）';
+            const c = cached.counts || {};
+            return `约定履约周期：实例 ${c.total || 0} 项（待办 ${c.pending || 0} · 逾期 ${c.overdue || 0} · 部分 ${c.partially_fulfilled || 0} · 豁免 ${c.waived || 0} · 履约 ${c.fulfilled || 0}）`;
+        } catch (e) { errLog(e, 'engine._commitmentInstanceLine'); return '—（诊断异常）'; }
+    }
+
+    /* ============================================================
      * [v3.448.0 · 第十四期 L14-X5]
      * 资料换版结论重构诊断面 (lore-version-conclusion-reconcile.js)
      * ============================================================ */
@@ -5144,7 +5238,7 @@
             return PP.line(r);
         } catch (e) { errLog(e, 'engine._povProjectionLine'); return '—（诊断异常）'; }
     }
-    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, loreConclusionState, _loreConclusionLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, commitmentInstanceState, _commitmentInstanceLine, loreConclusionState, _loreConclusionLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     var _l14o8Api = Object.assign({}, api, { evidenceSourceBench, evidenceSourceRebind, _evidenceSourceLine });
     global.LonShaDiagnosticLines = _l14o8Api;

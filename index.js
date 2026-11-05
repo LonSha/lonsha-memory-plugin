@@ -2482,6 +2482,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _seatingPartitionLib: _sceneSeatingPartitionLib,
                         /* [L14-X3] 认知改观与解释版本对照注入诊断层 */
                         _characterReinterpretationLib: _characterReinterpretationLib,
+                        /* [L14-X4] 约定实例与生命周期注入诊断层 */
+                        _commitmentLifecycleLib: _commitmentLifecycleLib,
                         /* [L14-X5] 设定资料换版结论重构注入诊断层 */
                         _loreConclusionReconcileLib: _loreConclusionReconcileLib,
                     },
@@ -3215,6 +3217,9 @@ function relativeTimeLabel(eventTime, nowTime) {
         // [L14-X3] 认知改观与解释版本对照宿主转发接口
         characterReinterpretationState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.characterReinterpretationState(this, ...args) : { kind: 'character_reinterpretation', state: 'unavailable', reason: 'module-unavailable', ledgers: [], counts: { totalLedgers: 0, totalVersions: 0, accepted: 0, draft: 0, superseded: 0, rejected: 0 }, writesNothing: true, ok: false }; }
         _characterReinterpretationLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._characterReinterpretationLine(this, ...args) : ''; }
+        // [L14-X4] 约定实例与生命周期宿主转发接口
+        commitmentInstanceState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.commitmentInstanceState(this, ...args) : { kind: 'commitment_instance_lifecycle', state: 'unavailable', reason: 'module-unavailable', instances: [], counts: { total: 0, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0 }, writesNothing: true, ok: false }; }
+        _commitmentInstanceLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._commitmentInstanceLine(this, ...args) : ''; }
         // [L14-X5] 设定资料换版结论重构宿主转发接口
         loreConclusionState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.loreConclusionState(this, ...args) : { kind: 'lore_conclusion_reconcile', state: 'unavailable', reason: 'module-unavailable', docId: '', olderVersion: '', newerVersion: '', diff: [], conclusions: [], counts: { total: 0, fresh: 0, stale: 0, accepted: 0, kept_original: 0 }, writesNothing: true, ok: false }; }
         _loreConclusionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._loreConclusionLine(this, ...args) : ''; }

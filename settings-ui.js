@@ -665,10 +665,10 @@
                         </div>`).join('');
             }
             else if (viewType === 'status') {
-                title = '🎮 角色状态 + 待办';
+                title = '🎮 角色状态 + 待办与履约';
                 const chars = s.status?.characters || {};
                 const names = Object.keys(chars);
-                body = names.length === 0 ? '<div class="ls-hint">暂无角色状态。聊几句后 LLM 会自动提取数值变化。</div>' :
+                let charHtml = names.length === 0 ? '<div class="ls-hint">暂无角色状态。聊几句后 LLM 会自动提取数值变化。</div>' :
                     names.map(n => {
                         const rec = chars[n];
                         const fields = Object.entries(rec.fields || {}).map(([k, v]) => `<span class="ls-item-text">${esc(k)}:${esc(String(v))}</span>`).join(' | ');
@@ -679,6 +679,46 @@
                             ${todos ? `<div class="ls-item"><div class="ls-item-meta">待办</div>${todos}</div>` : ''}
                         </div>`;
                     }).join('');
+
+                /* [v3.448.0 · 第十四期 L14-X4] 约定履约周期与单次实例工作台 */
+                let commitHtml = '';
+                try {
+                    const commitState = (typeof s.commitmentInstanceState === 'function')
+                        ? s.commitmentInstanceState()
+                        : { ok: false, reason: 'host-method-missing' };
+                    const lineText = (typeof s._commitmentInstanceLine === 'function')
+                        ? String(s._commitmentInstanceLine() || '') : '';
+
+                    if (!commitState || commitState.ok !== true) {
+                        commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">🤝 约定履约与生命周期</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 约定履约面不可用 · ${esc(commitState?.reason || 'module-unavailable')}</div>
+                        </div>`;
+                    } else if (commitState.state === 'no-instances') {
+                        commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">🤝 约定履约与生命周期 · <span>${esc(lineText)}</span></div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无具体约定履约实例（约定生成单次实例、豁免或部分履约时在此跟踪）。</div>
+                        </div>`;
+                    } else {
+                        const insts = commitState.instances || [];
+                        const instRows = insts.map(inst => {
+                            const badge = inst.status === 'overdue' ? '⚠️ 逾期' : (inst.status === 'partially_fulfilled' ? `⏳ 部分(${Math.round(inst.completionRatio * 100)}%)` : (inst.status === 'waived' ? '🕊️ 本次豁免' : (inst.status === 'fulfilled' ? '✅ 完成' : '📌 待办')));
+                            const due = inst.dueFloor != null ? ` · 截止第${inst.dueFloor}楼` : '';
+                            return `<div class="ls-item" style="margin-bottom:4px;">
+                                <div class="ls-item-meta"><b>${esc(inst.actor)} ↔ ${esc(inst.counterpart)}</b> [${badge}] #${inst.sequence}${due}</div>
+                                <div class="ls-item-text">${esc(inst.content)}</div>
+                            </div>`;
+                        }).join('');
+                        commitHtml = `<div class="ls-group" data-face="commitments" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-group-title">🤝 约定履约与生命周期 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
+                            ${instRows}
+                        </div>`;
+                    }
+                } catch (e) {
+                    commitHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">约定履约面板渲染异常: ${esc(e.message || String(e))}</div>`;
+                }
+
+                body = charHtml + commitHtml;
             }
             else if (viewType === 'protagonist') {
                 title = '🧍 主角档案 + 生活小档案';

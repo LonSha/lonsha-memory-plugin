@@ -148,6 +148,14 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCharacterReinterpretation : null), 'character-reinterpretation-versions.js');
     };
+    let _commitmentLifecycleLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaCommitmentInstanceLifecycle : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./commitment-instance-lifecycle.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCommitmentInstanceLifecycle : null), 'commitment-instance-lifecycle.js');
+    };
     function bindDeps(deps) {
         if (!deps || typeof deps !== 'object') return;
         if (deps.VERSION) VERSION = deps.VERSION;
@@ -167,6 +175,7 @@
         if (typeof deps._relationHistoryLib === 'function') _relationHistoryLib = deps._relationHistoryLib;
         if (typeof deps._sceneSeatingPartitionLib === 'function') _sceneSeatingPartitionLib = deps._sceneSeatingPartitionLib;
         if (typeof deps._characterReinterpretationLib === 'function') _characterReinterpretationLib = deps._characterReinterpretationLib;
+        if (typeof deps._commitmentLifecycleLib === 'function') _commitmentLifecycleLib = deps._commitmentLifecycleLib;
         if (typeof deps._loreConclusionReconcileLib === 'function') _loreConclusionReconcileLib = deps._loreConclusionReconcileLib;
     }
 
@@ -1127,6 +1136,36 @@
                         }
                     }
                 } catch (e) { errLog(e, 'buildInjection.角色认知改观'); }
+                /* [L14-X4] 约定单次履约实例注入（待办、部分履约与逾期提示，不假冒完全履行） */
+                try {
+                    const CL = _commitmentLifecycleLib();
+                    const rawInsts = Array.isArray(this._commitmentInstances)
+                        ? this._commitmentInstances
+                        : (this._commitmentInstance ? [this._commitmentInstance] : []);
+                    if (CL && rawInsts.length > 0) {
+                        const curFloor = this.currentFloor != null ? this.currentFloor : null;
+                        const curTs = Date.now();
+                        const pendingOrOverdue = [];
+                        rawInsts.forEach(inst => {
+                            if (!inst || !inst.instanceId) return;
+                            let effStatus = inst.status;
+                            if (typeof CL.evaluateOverdue === 'function') {
+                                const ev = CL.evaluateOverdue(inst, curFloor, curTs);
+                                if (ev && ev.isOverdue) effStatus = CL.INSTANCE_STATUS.OVERDUE;
+                            }
+                            if (effStatus === CL.INSTANCE_STATUS.PENDING || effStatus === CL.INSTANCE_STATUS.OVERDUE || effStatus === CL.INSTANCE_STATUS.PARTIALLY_FULFILLED) {
+                                const stTag = effStatus === CL.INSTANCE_STATUS.OVERDUE ? '⚠️ 逾期' : (effStatus === CL.INSTANCE_STATUS.PARTIALLY_FULFILLED ? `⏳ 部分履约(${Math.round((inst.completionRatio || 0) * 100)}%)` : '📌 待履约');
+                                const dueTag = inst.dueFloor != null ? `（限第${inst.dueFloor}楼前）` : '';
+                                pendingOrOverdue.push(`- [${stTag}] ${inst.actor} ↔ ${inst.counterpart}：${inst.content}${dueTag}`);
+                            }
+                        });
+                        if (pendingOrOverdue.length > 0) {
+                            blocks.push('[约定待办与履约跟踪]');
+                            pendingOrOverdue.slice(0, 4).forEach(line => blocks.push(line));
+                            this._lastCommitmentInstanceInjection = pendingOrOverdue;
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.约定实例'); }
             } else { _countSource('scene', 0); }
             if (scenesList.length) {
                 blocks.push('[相关地点]');
