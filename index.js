@@ -2478,6 +2478,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                          *   诊断层只做采集 / 对拍 / 撤销编排。 */
                         _roundSnapshotLib: _roundSnapshotLib,
                         _symbiosisBridgeLib: _symbiosisBridgeLib,
+                        /* [L14-X6] 场景角色分席材料编排注入诊断层 */
+                        _seatingPartitionLib: _sceneSeatingPartitionLib,
                     },
                 });
             }
@@ -3198,6 +3200,11 @@ function relativeTimeLabel(eventTime, nowTime) {
         inheritanceDeclare(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.inheritanceDeclare(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, declared: false }; }
         inheritanceRevokeDeclare(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.inheritanceRevokeDeclare(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, revoked: false }; }
         _inheritanceRosterLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._inheritanceRosterLine(this, ...args) : ''; }
+        // [v3.449.0 · L14-X6] 场景分席面：一个只读读数 + 一条诊断行。
+        //   ★ 只读面（writesNothing）：排席与写材料仍走各自既有 owner，这里不落盘。
+        //   ★ 三种「空」不同形：module-unavailable / no-seats / ok+四池全空。
+        seatingPartitionState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.seatingPartitionState(this, ...args) : { kind: 'seating_partition', state: 'unavailable', reason: 'module-unavailable', activeSeats: [], sharedPool: [], partialSubsets: [], privatePockets: {}, embargoedSecrets: [], counts: { shared: 0, partial: 0, private: 0, embargoed: 0 }, perspectives: null, writesNothing: true, ok: false }; }
+        _seatingPartitionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._seatingPartitionLine(this, ...args) : ''; }
         // [v3.440.0 · L13-X7] 习惯与成长证据面（只读面：只有读与诊断行，**没有 act**）。
         //   X7 的口径是「只显示有证据的」，任何写入仍走既有 agencyContractAct('practice') ——
         //   在这里再开一个写入口就是第二套习惯账。

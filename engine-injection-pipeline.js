@@ -124,6 +124,14 @@
     let _relationHistoryLib = function () {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRelationHistory : null), 'relation-history.js');
     };
+    let _sceneSeatingPartitionLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaSceneSeatingPartition : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./scene-character-seating-partition.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSceneSeatingPartition : null), 'scene-character-seating-partition.js');
+    };
 
     function bindDeps(deps) {
         if (!deps || typeof deps !== 'object') return;
@@ -142,6 +150,7 @@
         if (typeof deps._generationMaterialReconcileLib === 'function') _generationMaterialReconcileLib = deps._generationMaterialReconcileLib;
         if (typeof deps._projectionLib === 'function') _projectionLib = deps._projectionLib;
         if (typeof deps._relationHistoryLib === 'function') _relationHistoryLib = deps._relationHistoryLib;
+        if (typeof deps._sceneSeatingPartitionLib === 'function') _sceneSeatingPartitionLib = deps._sceneSeatingPartitionLib;
     }
 
     class LonShaInjectionPipeline {
@@ -1034,6 +1043,32 @@
                     if (_hdr) { blocks.push(_hdr); _sceneN += 1; }
                     _countSource('scene', _sceneN);   // sceneEnabled 关 ⇒ 整块不进 ⇒ 恒 0
                 } catch (e) { errLog(e, 'buildInjection.场景链'); _countSource('scene', 0); }
+                /* [L14-X6] 下一幕多角色分席材料编排注入 */
+                try {
+                    const SP = _sceneSeatingPartitionLib();
+                    if (SP && typeof SP.partitionMaterialsForSeats === 'function') {
+                        const seats = Array.isArray(this._activeSeats) && this._activeSeats.length
+                            ? this._activeSeats
+                            : ((this.captureCast ? this.captureCast() : []) || []);
+                        const rawMaterials = Array.isArray(this._seatingMaterials) ? this._seatingMaterials : [];
+                        if (seats.length > 0 && rawMaterials.length > 0) {
+                            const sess = SP.createSeatingSession({
+                                sceneId: this._seatingSceneId || 'scene_next',
+                                sceneTitle: this._seatingSceneTitle || '下一幕',
+                                activeSeats: seats
+                            });
+                            const partitioned = SP.partitionMaterialsForSeats(sess, rawMaterials);
+                            const currentTarget = this._currentSpeaker || seats[0];
+                            if (currentTarget && typeof SP.buildCharacterPerspectivePrompt === 'function') {
+                                const seatingPrompt = SP.buildCharacterPerspectivePrompt(partitioned, currentTarget);
+                                if (seatingPrompt) {
+                                    blocks.push('[下一幕分席准备]\n' + seatingPrompt);
+                                }
+                            }
+                            this._lastSeatingPartition = partitioned;
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.角色分席'); }
             } else { _countSource('scene', 0); }
             if (scenesList.length) {
                 blocks.push('[相关地点]');

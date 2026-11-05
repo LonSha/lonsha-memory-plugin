@@ -770,7 +770,7 @@
                     hgBlock;
             }
             else if (viewType === 'scene') {
-                title = '🗺️ 场景树';
+                title = '🗺️ 场景树与多角色分席';
                 /* [v3.428.0 · L12-O4] 与其余 13 面收口成形：本视图有**两处**取数口
                  *   （当前位置 `currentKey()` / 全部地点 `nodes.values()`），只加一个守卫就会
                  *   漏掉另一处 —— 故两处一起进同一个 faceRead：一处抛错即整面落 failed，
@@ -780,11 +780,42 @@
                     cur = (s.scene.currentKey ? s.scene.currentKey() : null);
                     return Array.from(s.scene.nodes ? s.scene.nodes.values() : []);
                 });
-                body = (nodes.length === 0) ? faceHTML('LLM 提取到地点后会自动登记层级。') :
+
+                /* [L14-X6] 下一幕多角色分席准备面板渲染（真实消费 seatingPartitionState / _seatingPartitionLine） */
+                const _seat = (function () {
+                    try {
+                        if (typeof s.seatingPartitionState !== 'function') return { ok: false, reason: 'host-method-missing' };
+                        const r = s.seatingPartitionState();
+                        return (r && typeof r === 'object') ? r : { ok: false, reason: 'null-state' };
+                    } catch (e) { return { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
+                })();
+                const _seatLine = (function () {
+                    try { return typeof s._seatingPartitionLine === 'function' ? String(s._seatingPartitionLine() || '') : ''; } catch (e) { return ''; }
+                })();
+                const _seatHtml = (function () {
+                    const head = `<div class="ls-group-title" style="margin-top:14px;">🎭 下一幕多角色分席准备<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_seatLine)}</span></div>`;
+                    if (!_seat || _seat.ok !== true) {
+                        if (_seat && _seat.state === 'no-seats') {
+                            return `<div class="ls-group">${head}<div class="ls-hint">尚未排定席位：当前场景暂无活跃角色登场。当有角色进入席位后，将自动根据各人知情链完成公共池与私密口袋切分。</div></div>`;
+                        }
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用 · ${esc(String(_seat && _seat.reason || 'module-unavailable'))}</div></div></div>`;
+                    }
+                    const c = _seat.counts || {};
+                    const seats = (_seat.activeSeats || []).join('、') || '无';
+                    const privKeys = Object.keys(_seat.privatePockets || {});
+                    const privDetails = privKeys.map(k => `${k}: ${(_seat.privatePockets[k] || []).length} 条独享私密`).join('； ') || '无';
+                    return `<div class="ls-group">${head}` +
+                        `<div class="ls-item-meta">活跃席位：${esc(seats)} · 公共材料 ${c.shared || 0} 条 · 部分知晓 ${c.partial || 0} 条 · 私有口袋 ${c.private || 0} 条 · 禁运秘密 ${c.embargoed || 0} 条</div>` +
+                        `<div class="ls-hint">私密隔离分布：${esc(privDetails)}</div>` +
+                        `<div class="ls-hint">口径：严格无污染隔离。公共材料绝不混杂单个角色私密心事；仅在场者皆知的信息才进入全员可见公共池。</div>` +
+                        `</div>`;
+                })();
+
+                body = (nodes.length === 0 ? faceHTML('LLM 提取到地点后会自动登记层级。') :
                     (cur ? `<div class="ls-group"><div class="ls-group-title">当前位置</div><div class="ls-item"><div class="ls-item-text">${esc(cur.split('/').join(' › '))}</div></div></div>` : '') +
                     `<div class="ls-group"><div class="ls-group-title">全部地点 (${nodes.length})</div>` +
                     nodes.map(n => `<div class="ls-item"><div class="ls-item-meta">第${n.floor ?? '?'}楼</div><div class="ls-item-text">${esc(n.path.join(' › '))}${n.desc ? ' — ' + esc(n.desc) : ''}</div></div>`).join('') +
-                    '</div>';
+                    '</div>') + _seatHtml;
             }
             else if (viewType === 'suspense') {
                 title = '🔖 悬念簿';

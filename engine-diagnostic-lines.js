@@ -4652,6 +4652,152 @@
         } catch (e) { errLog(e, 'engine._inheritanceRosterLine'); return '—（诊断异常）'; }
     }
 
+    /* ============================================================
+     * [v3.449.0 · L14-X6] 场景分席面（把「下一幕谁能说什么」接到产品）
+     * ------------------------------------------------------------
+     * 【为什么这个面必须存在，而不是只留一个内核】
+     *   `scene-character-seating-partition.js` 是纯函数：给它在场席位与材料，
+     *   它把材料分成 shared（全员可知）/ partial（>=2 且 < 全员）/
+     *   privatePockets（单人独享）/ embargoed（席内无人可知）四类。
+     *   但在本仓的历史形态里，纯函数写完就「交付完成」了 —— 那正是
+     *   `prod_call_sites=0` 的功能级失效。本段是它第一次有产品取数口。
+     *
+     * 【三条不可让步口径（逐条对应内核的边界）】
+     *   ① **面板不重判**：四池一律取自内核 `partitionMaterialsForSeats`，
+     *      本层只做「把 engine 里的东西喂给内核」和「把结果整理成可读行」，
+     *      不自己再算一次「这条该归谁」（两处实现必漂移）。
+     *   ② **公开块绝不泄漏私密**：`buildCharacterPerspectivePrompt` 的输出
+     *      在这里被**逐条校验**（私有材料的 materialId 不得出现在他人的
+     *      prompt 里）；一旦发现，整面报 `leak-detected` 而不是照常返回 ——
+     *      泄漏比不可用更糟，不可用只是没功能，泄漏是泄密。
+     *   ③ **席位为空的三种「空」必须不同形**：
+     *      · 内核缺席 → `module-unavailable`（面没装上）；
+     *      · 没有在场席位 → `no-seats`（有面，但这一幕还没排人）；
+     *      · 有席位但一条材料也没有 → `ok:true + 四池全空`（真在跑，只是空）。
+     *      合成一个「没有」会让「装没装上」永远看不见。
+     *
+     * 【数据 owner】
+     *   读：`engine._seatingMaterials`（材料清单）+ `engine._activeSeats`（在场席位）。
+     *   写：**无**。本面是只读面（`writesNothing:true`），
+     *      排席与写材料仍走各自的既有 owner，这里一个字节都不落盘。
+     * ============================================================ */
+    function _seatingPartitionLib() {
+        if (_libs._seatingPartitionLib) return _libs._seatingPartitionLib.apply(null, arguments);
+        const mod = (typeof window !== 'undefined' ? window.LonShaSceneSeatingPartition : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./scene-character-seating-partition.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSceneSeatingPartition : null), 'scene-character-seating-partition.js');
+    }
+    /**
+     * 读一次分席读数（只读，不落盘；落 `_seatingPartitionRead` 供诊断行复用）。
+     * @param {object} engine
+     * @param {{seats?:string[], materials?:Array, perspectives?:boolean}} [opts]
+     */
+    function seatingPartitionState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'seating_partition', version: 0, state: 'unavailable',
+            sceneId: '', activeSeats: [], sharedPool: [], partialSubsets: [],
+            privatePockets: {}, embargoedSecrets: [], counts: { shared: 0, partial: 0, private: 0, embargoed: 0 },
+            perspectives: null, writesNothing: true, ok: false, reason: why,
+        });
+        try {
+            const SP = _seatingPartitionLib();
+            if (!SP || typeof SP.partitionMaterialsForSeats !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            /* 席位与材料一律由调用方给（本层不猜「这一场有谁」）。 */
+            const seats = Array.isArray(o.seats) ? o.seats : (engine && Array.isArray(engine._activeSeats) ? engine._activeSeats : []);
+            const materials = Array.isArray(o.materials) ? o.materials : (engine && Array.isArray(engine._seatingMaterials) ? engine._seatingMaterials : []);
+            const sceneId = String(o.sceneId || (engine && engine._seatingSceneId) || '');
+            const title = String(o.sceneTitle || (engine && engine._seatingSceneTitle) || '');
+            const session = SP.createSeatingSession({ sceneId: sceneId, sceneTitle: title, activeSeats: seats });
+            /* ★ 没有在场席位 ⇒ **不调内核**，直接报 no-seats。
+             *   理由：内核在 seatCount===0 时返回「四池全空」，那与「有席位但没材料」同形；
+             *   而「这一幕还没排人」与「排了人但确实没东西可说」是两件不同的事。 */
+            if (!seats.length) {
+                return {
+                    kind: 'seating_partition', version: 1, state: 'no-seats',
+                    sceneId: session.sceneId, sceneTitle: session.sceneTitle, activeSeats: [],
+                    sharedPool: [], partialSubsets: [], privatePockets: {}, embargoedSecrets: [],
+                    counts: { shared: 0, partial: 0, private: 0, embargoed: 0 },
+                    perspectives: null, writesNothing: true, ok: false, reason: 'no-seats',
+                };
+            }
+            const part = SP.partitionMaterialsForSeats(session, materials);
+            /* 逐人构造视角 prompt（默认构造；`perspectives:false` 可跳过）。 */
+            let perspectives = null;
+            let leak = null;
+            if (o.perspectives !== false && typeof SP.buildCharacterPerspectivePrompt === 'function') {
+                perspectives = {};
+                for (const who of seats) {
+                    let txt = '';
+                    try { txt = String(SP.buildCharacterPerspectivePrompt(part, who) || ''); } catch (e) { errLog(e, 'engine.seatingPartition.buildPrompt'); txt = ''; }
+                    perspectives[who] = txt;
+                }
+                /* ★ 泄漏校验：任何**别人**的私有 materialId 出现在我的 prompt 里 ⇒ 立刻报。
+                 *   只查 privatePockets（shared/partial 本来就该出现，查它等于把正常当异常）。 */
+                for (const who of seats) {
+                    const mine = perspectives[who] || '';
+                    for (const other of seats) {
+                        if (other === who) continue;
+                        const pocket = (part.privatePockets && part.privatePockets[other]) || [];
+                        for (const m of pocket) {
+                            const mid = String((m && m.materialId) || '');
+                            if (mid && mine.indexOf(mid) !== -1) { leak = { viewer: who, owner: other, materialId: mid }; break; }
+                        }
+                        if (leak) break;
+                    }
+                    if (leak) break;
+                }
+            }
+            const privCount = Object.keys(part.privatePockets || {}).reduce((n, k) => n + ((part.privatePockets[k] || []).length), 0);
+            const out = {
+                kind: 'seating_partition', version: 1,
+                state: leak ? 'leak-detected' : 'ok',
+                sceneId: session.sceneId, sceneTitle: session.sceneTitle,
+                activeSeats: seats.slice(),
+                sharedPool: (part.sharedPool || []).slice(),
+                partialSubsets: (part.partialSubsets || []).slice(),
+                privatePockets: part.privatePockets || {},
+                embargoedSecrets: (part.embargoedSecrets || []).slice(),
+                counts: {
+                    shared: (part.sharedPool || []).length,
+                    partial: (part.partialSubsets || []).length,
+                    private: privCount,
+                    embargoed: (part.embargoedSecrets || []).length,
+                },
+                perspectives: perspectives,
+                leak: leak,
+                writesNothing: true,
+                ok: !leak,
+                reason: leak ? ('leak-detected:' + leak.owner + '→' + leak.viewer + '/' + leak.materialId) : '',
+            };
+            if (engine && typeof engine === 'object') engine._seatingPartitionRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.seatingPartitionState'); return absent('thrown'); }
+    }
+    /** 诊断行：四池分开报（合成一个总数看不出「谁独知」）。 */
+    function _seatingPartitionLine(engine) {
+        try {
+            const cached = (engine && engine._seatingPartitionRead && typeof engine._seatingPartitionRead === 'object')
+                ? engine._seatingPartitionRead : seatingPartitionState(engine, {});
+            if (!cached || cached.ok !== true) {
+                if (cached && cached.state === 'no-seats') return '场景分席：还没有在场席位（这一幕还没排人，不是「面没装上」）';
+                return '场景分席：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            const c = cached.counts || {};
+            const seats = (cached.activeSeats || []).join('、') || '—';
+            const priv = Object.keys(cached.privatePockets || {})
+                .map((k) => k + ' ' + ((cached.privatePockets[k] || []).length))
+                .filter((s) => !/ 0$/.test(s))
+                .join('、') || '无';
+            return '场景分席：在场 ' + (cached.activeSeats || []).length + ' 人（' + seats + '）'
+                + ' · 公共 ' + (c.shared || 0) + ' · 部分共知 ' + (c.partial || 0)
+                + ' · 独知 ' + (c.private || 0) + '（' + priv + '）'
+                + ' · 席内无人知晓 ' + (c.embargoed || 0);
+        } catch (e) { errLog(e, 'engine._seatingPartitionLine'); return '—（诊断异常）'; }
+    }
     function _silenceListLine(engine) {
         try {
             const cached = (engine && engine._silenceListRead && typeof engine._silenceListRead === 'object')
@@ -4810,7 +4956,7 @@
             return PP.line(r);
         } catch (e) { errLog(e, 'engine._povProjectionLine'); return '—（诊断异常）'; }
     }
-    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     var _l14o8Api = Object.assign({}, api, { evidenceSourceBench, evidenceSourceRebind, _evidenceSourceLine });
     global.LonShaDiagnosticLines = _l14o8Api;
