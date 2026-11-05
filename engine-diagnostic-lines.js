@@ -5080,6 +5080,112 @@
         } catch (e) { errLog(e, 'engine._loreConclusionLine'); return '—（诊断异常）'; }
     }
 
+    /* ============================================================
+     * [v3.448.0 · 第十四期 L14-X2]
+     * 往事讲述比对与逐段对照诊断面 (past-event-narration-compare.js)
+     * ============================================================ */
+    function _narrationCompareLib() {
+        if (_libs._narrationCompareLib) return _libs._narrationCompareLib.apply(null, arguments);
+        const mod = (typeof window !== 'undefined' ? window.LonShaPastEventNarrationCompare : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./past-event-narration-compare.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPastEventNarrationCompare : null), 'past-event-narration-compare.js');
+    }
+
+    /**
+     * 读取往事讲述多方对照状态（只读，不写盘）
+     */
+    function narrationCompareState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'past_event_narration_compare', version: 0, state: 'unavailable',
+            sessions: [], counts: { totalSessions: 0, totalNarrations: 0, totalSegments: 0, concordant: 0, disputed: 0, evasive: 0, unsubstantiated: 0 },
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const NC = _narrationCompareLib();
+            if (!NC || typeof NC.createNarrationCompareSession !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            let rawSessions = [];
+            if (Array.isArray(o.sessions)) rawSessions = o.sessions;
+            else if (o.session && typeof o.session === 'object') rawSessions = [o.session];
+            else if (engine && Array.isArray(engine._narrationSessions)) rawSessions = engine._narrationSessions;
+            else if (engine && engine._narrationSession && typeof engine._narrationSession === 'object') rawSessions = [engine._narrationSession];
+
+            if (!rawSessions.length) {
+                return {
+                    kind: 'past_event_narration_compare', version: 1, state: 'no-sessions',
+                    sessions: [], counts: { totalSessions: 0, totalNarrations: 0, totalSegments: 0, concordant: 0, disputed: 0, evasive: 0, unsubstantiated: 0 },
+                    writesNothing: true, ok: true, reason: 'no-sessions'
+                };
+            }
+
+            let totalNarrations = 0;
+            let totalSegments = 0;
+            let concordant = 0;
+            let disputed = 0;
+            let evasive = 0;
+            let unsubstantiated = 0;
+
+            const sessionSummaries = rawSessions.map(sess => {
+                const narrs = Array.isArray(sess.narrations) ? sess.narrations : [];
+                totalNarrations += narrs.length;
+                narrs.forEach(n => {
+                    const segs = Array.isArray(n.segments) ? n.segments : [];
+                    totalSegments += segs.length;
+                    segs.forEach(s => {
+                        if (s.status === NC.SEGMENT_STATUS.CONCORDANT) concordant++;
+                        else if (s.status === NC.SEGMENT_STATUS.DISPUTED) disputed++;
+                        else if (s.status === NC.SEGMENT_STATUS.EVASIVE) evasive++;
+                        else if (s.status === NC.SEGMENT_STATUS.UNSUBSTANTIATED) unsubstantiated++;
+                    });
+                });
+                return {
+                    eventId: sess.eventId,
+                    title: sess.title || '',
+                    canonicalCount: Array.isArray(sess.canonicalEvidence) ? sess.canonicalEvidence.length : 0,
+                    narrationCount: narrs.length,
+                    speakers: narrs.map(n => n.speaker),
+                    hasDispute: sess.segmentsDiff ? sess.segmentsDiff.some(d => d.hasDispute) : false
+                };
+            });
+
+            const out = {
+                kind: 'past_event_narration_compare', version: 1,
+                state: 'ok',
+                sessions: sessionSummaries,
+                counts: {
+                    totalSessions: rawSessions.length,
+                    totalNarrations,
+                    totalSegments,
+                    concordant,
+                    disputed,
+                    evasive,
+                    unsubstantiated
+                },
+                writesNothing: true,
+                ok: true,
+                reason: ''
+            };
+            if (engine && typeof engine === 'object') engine._narrationCompareRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.narrationCompareState'); return absent('thrown'); }
+    }
+
+    function _narrationCompareLine(engine) {
+        try {
+            const cached = (engine && engine._narrationCompareRead && typeof engine._narrationCompareRead === 'object')
+                ? engine._narrationCompareRead : narrationCompareState(engine, {});
+            if (!cached || cached.ok !== true) {
+                return '往事讲述对照：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            if (cached.state === 'no-sessions') return '往事讲述对照：尚未登记多方讲述对照会话（不是「面没装上」）';
+            const c = cached.counts || {};
+            return `往事讲述对照：会话 ${c.totalSessions || 0} 场 · 讲述 ${c.totalNarrations || 0} 篇 · 差异句 ${c.totalSegments || 0} 段（分歧 ${c.disputed || 0} · 回避 ${c.evasive || 0} · 臆测 ${c.unsubstantiated || 0}）· 物理正史受保护`;
+        } catch (e) { errLog(e, 'engine._narrationCompareLine'); return '—（诊断异常）'; }
+    }
+
     function _silenceListLine(engine) {
         try {
             const cached = (engine && engine._silenceListRead && typeof engine._silenceListRead === 'object')
@@ -5238,7 +5344,7 @@
             return PP.line(r);
         } catch (e) { errLog(e, 'engine._povProjectionLine'); return '—（诊断异常）'; }
     }
-    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, commitmentInstanceState, _commitmentInstanceLine, loreConclusionState, _loreConclusionLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, commitmentInstanceState, _commitmentInstanceLine, loreConclusionState, _loreConclusionLine, narrationCompareState, _narrationCompareLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     var _l14o8Api = Object.assign({}, api, { evidenceSourceBench, evidenceSourceRebind, _evidenceSourceLine });
     global.LonShaDiagnosticLines = _l14o8Api;

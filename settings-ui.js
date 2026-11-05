@@ -1641,22 +1641,52 @@
              }
              else if (viewType === 'conflicts') {
                 // [v3.65] C: 未决矛盾视图（severity 严重度分级展示）
-                title = '⚔️ 未决矛盾账本';
+                title = '⚔️ 未决矛盾账本 + 往事多方讲述对照';
                 const list = s.conflicts?.conflicts || [];
+                let conflictHtml = '';
                 if (!list.length) {
-                    body = '<div class="ls-hint">暂无未决矛盾。LLM 检测到同一事实两个版本对不上时自动登记（矛盾是剧情资产，AI 不会擅自裁决）。</div>';
+                    conflictHtml = '<div class="ls-hint">暂无未决矛盾。LLM 检测到同一事实两个版本对不上时自动登记（矛盾是剧情资产，AI 不会擅自裁决）。</div>';
                 } else {
                     const sevBadge = (sev) => {
                         if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:var(--ls-danger,#f85149);background:var(--ls-danger-soft,rgba(248,81,73,0.14));border-radius:4px;padding:1px 6px;">🔴高</span>';
                         if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:var(--ls-info,#58a6ff);background:var(--ls-info-soft,rgba(56,139,253,0.12));border-radius:4px;padding:1px 6px;">🔵低</span>';
                         return '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;">🟡中</span>';
                     };
-                    body = list.slice().reverse().map(c => `
+                    conflictHtml = list.slice().reverse().map(c => `
                         <div class="ls-item">
                             <div class="ls-item-meta">${sevBadge(c.severity)} <b>${esc(c.subject)}</b> · 第${c.floor}楼${c.time ? ' · ' + esc(c.time) : ''}</div>
                             <div class="ls-item-text">版本A「${esc(c.versionA)}」 ↔ 版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:var(--ls-text-3,#6e7681);">' + esc(c.note) + '</span>' : ''}</div>
                         </div>`).join('');
                 }
+
+                /* [L14-X2] 同一往事的多方讲述逐段对照工作台 */
+                let narrationHtml = '';
+                try {
+                    const nState = (typeof s.narrationCompareState === 'function')
+                        ? s.narrationCompareState({})
+                        : { ok: false, reason: 'host-method-missing' };
+                    const nLine = (typeof s._narrationCompareLine === 'function') ? s._narrationCompareLine() : '';
+
+                    if (!nState || nState.ok !== true) {
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🗣️ 往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 讲述对照工作台不可用 · ${esc((nState && nState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
+                    } else if (nState.state === 'no-sessions' || !nState.sessions || nState.sessions.length === 0) {
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🗣️ 往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-hint">暂无多方讲述对照会话。当不同角色对同一过去事件产生讲述分歧时，此处自动列出逐段对比与物理证据反查。</div></div>`;
+                    } else {
+                        const sessCards = nState.sessions.map(sess => {
+                            const dispTag = sess.hasDispute ? '<span style="color:var(--ls-danger,#f85149);font-weight:700;">⚠️ 存在分歧</span>' : '<span style="color:var(--ls-success,#3fb950);">✅ 多方吻合</span>';
+                            const spkStr = sess.speakers.length ? sess.speakers.join('、') : '无讲述者';
+                            return `<div class="ls-item">
+                                <div class="ls-item-meta"><b>${esc(sess.title || sess.eventId)}</b> · 讲述人: ${esc(spkStr)} · 物理证据: ${sess.canonicalCount} 条 · ${dispTag}</div>
+                                <div class="ls-item-text">讲述篇数: ${sess.narrationCount} 篇 · 讲述绝不篡改物理正史</div>
+                            </div>`;
+                        }).join('');
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🗣️ 往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div>${sessCards}</div>`;
+                    }
+                } catch (e) {
+                    narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">讲述对照面板异常 · ${esc(e.message || e)}</div></div></div>`;
+                }
+
+                body = conflictHtml + narrationHtml;
             }
             else if (viewType === 'injection') {
                 // [v3.57] P19: 注入内容预览（AI 实际看到的完整上下文）

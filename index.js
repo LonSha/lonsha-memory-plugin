@@ -2486,6 +2486,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _commitmentLifecycleLib: _commitmentLifecycleLib,
                         /* [L14-X5] 设定资料换版结论重构注入诊断层 */
                         _loreConclusionReconcileLib: _loreConclusionReconcileLib,
+                        /* [L14-X2] 往事讲述对照注入诊断层 */
+                        _narrationCompareLib: _narrationCompareLib,
                     },
                 });
             }
@@ -2586,6 +2588,7 @@ function relativeTimeLabel(eventTime, nowTime) {
                     _sceneSeatingPartitionLib,
                     _characterReinterpretationLib,
                     _loreConclusionReconcileLib,
+                    _narrationCompareLib,
                 });
             }
         } catch (_e2) { errLog(_e2, 'assembleComponents.ready-face'); }
@@ -3223,6 +3226,9 @@ function relativeTimeLabel(eventTime, nowTime) {
         // [L14-X5] 设定资料换版结论重构宿主转发接口
         loreConclusionState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.loreConclusionState(this, ...args) : { kind: 'lore_conclusion_reconcile', state: 'unavailable', reason: 'module-unavailable', docId: '', olderVersion: '', newerVersion: '', diff: [], conclusions: [], counts: { total: 0, fresh: 0, stale: 0, accepted: 0, kept_original: 0 }, writesNothing: true, ok: false }; }
         _loreConclusionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._loreConclusionLine(this, ...args) : ''; }
+        // [L14-X2] 往事讲述比对与逐段对照宿主转发接口
+        narrationCompareState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.narrationCompareState(this, ...args) : { kind: 'past_event_narration_compare', state: 'unavailable', reason: 'module-unavailable', sessions: [], counts: { totalSessions: 0, totalNarrations: 0, totalSegments: 0, concordant: 0, disputed: 0, evasive: 0, unsubstantiated: 0 }, writesNothing: true, ok: false }; }
+        _narrationCompareLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._narrationCompareLine(this, ...args) : ''; }
         // [v3.440.0 · L13-X7] 习惯与成长证据面（只读面：只有读与诊断行，**没有 act**）。
         //   X7 的口径是「只显示有证据的」，任何写入仍走既有 agencyContractAct('practice') ——
         //   在这里再开一个写入口就是第二套习惯账。

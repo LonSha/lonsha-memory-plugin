@@ -156,6 +156,14 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCommitmentInstanceLifecycle : null), 'commitment-instance-lifecycle.js');
     };
+    let _narrationCompareLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaPastEventNarrationCompare : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./past-event-narration-compare.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPastEventNarrationCompare : null), 'past-event-narration-compare.js');
+    };
     function bindDeps(deps) {
         if (!deps || typeof deps !== 'object') return;
         if (deps.VERSION) VERSION = deps.VERSION;
@@ -177,6 +185,7 @@
         if (typeof deps._characterReinterpretationLib === 'function') _characterReinterpretationLib = deps._characterReinterpretationLib;
         if (typeof deps._commitmentLifecycleLib === 'function') _commitmentLifecycleLib = deps._commitmentLifecycleLib;
         if (typeof deps._loreConclusionReconcileLib === 'function') _loreConclusionReconcileLib = deps._loreConclusionReconcileLib;
+        if (typeof deps._narrationCompareLib === 'function') _narrationCompareLib = deps._narrationCompareLib;
     }
 
     class LonShaInjectionPipeline {
@@ -1166,6 +1175,37 @@
                         }
                     }
                 } catch (e) { errLog(e, 'buildInjection.约定实例'); }
+                /* [L14-X2] 往事多方讲述分歧与差异句对照注入（提示模型各自主观叙述偏差，保护客观物理证据） */
+                try {
+                    const NC = _narrationCompareLib();
+                    const rawSessions = Array.isArray(this._narrationSessions)
+                        ? this._narrationSessions
+                        : (this._narrationSession ? [this._narrationSession] : []);
+                    if (NC && rawSessions.length > 0) {
+                        const diffNotices = [];
+                        rawSessions.forEach(sess => {
+                            if (!sess || !sess.eventId) return;
+                            const diffRows = Array.isArray(sess.segmentsDiff) ? sess.segmentsDiff : [];
+                            const disputedRows = diffRows.filter(r => r.hasDispute || r.hasUnsubstantiated);
+                            if (disputedRows.length > 0) {
+                                diffNotices.push(`- 事件「${sess.title || sess.eventId}」多方讲述存在分歧：`);
+                                disputedRows.slice(0, 3).forEach(r => {
+                                    const spkEntries = Object.entries(r.bySpeaker || {}).map(([spk, seg]) => {
+                                        const segStatus = seg ? seg.status : '未提及';
+                                        const segText = seg ? seg.text : '—';
+                                        return `${spk}(${segStatus}): "${segText}"`;
+                                    });
+                                    diffNotices.push(`  * 段落#${r.segmentIndex}: ${spkEntries.join(' vs ')}`);
+                                });
+                            }
+                        });
+                        if (diffNotices.length > 0) {
+                            blocks.push('[往事多方讲述对照·分歧提示]');
+                            diffNotices.slice(0, 5).forEach(line => blocks.push(line));
+                            this._lastNarrationCompareInjection = diffNotices;
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.讲述对照'); }
             } else { _countSource('scene', 0); }
             if (scenesList.length) {
                 blocks.push('[相关地点]');
