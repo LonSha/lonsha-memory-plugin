@@ -2490,6 +2490,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _narrationCompareLib: _narrationCompareLib,
                         /* [L14-X1] 消息转告链注入诊断层 */
                         _knowledgeRelayLib: _knowledgeRelayLib,
+                        /* [L14-X7] 关系修复回应注入诊断层 */
+                        _repairResponseLib: _repairResponseLib,
+                        /* [L14-X8] 跨代交接草案注入诊断层 */
+                        _eraHandoffDraftLib: _eraHandoffDraftLib,
+                        /* [L14-X9] 记忆回访日程注入诊断层 */
+                        _revisitScheduleLib: _memoryRevisitScheduleLib,
                     },
                 });
             }

@@ -5081,6 +5081,254 @@
     }
 
     /* ============================================================
+     * [v3.448.0 · 第十四期 L14-X7]
+     * 关系修复回应诊断面 (relationship-repair-response.js)
+     * ============================================================ */
+    function _repairResponseLib() {
+        if (_libs._repairResponseLib) return _libs._repairResponseLib.apply(null, arguments);
+        if (typeof window !== 'undefined' && window.LonShaRelationshipRepairResponse) return window.LonShaRelationshipRepairResponse;
+        if (typeof LonShaRelationshipRepairResponse !== 'undefined') return LonShaRelationshipRepairResponse;
+        try { return require('./relationship-repair-response.js'); } catch (e) { return null; }
+    }
+    function repairResponseState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'relationship_repair_response', version: 0, state: 'unavailable',
+            records: [], counts: { totalRecords: 0, responded: 0, awaiting: 0, demonstrated: 0, broken: 0 },
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const Resp = _repairResponseLib();
+            if (!Resp || typeof Resp.createRepairResponseRecord !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            let rawRecords = [];
+            if (Array.isArray(o.records)) rawRecords = o.records;
+            else if (o.record && typeof o.record === 'object') rawRecords = [o.record];
+            else if (engine && Array.isArray(engine._repairRecords)) rawRecords = engine._repairRecords;
+            else if (engine && engine._repairRecord && typeof engine._repairRecord === 'object') rawRecords = [engine._repairRecord];
+
+            if (!rawRecords.length) {
+                return {
+                    kind: 'relationship_repair_response', version: 1, state: 'no-records',
+                    records: [], counts: { totalRecords: 0, responded: 0, awaiting: 0, demonstrated: 0, broken: 0 },
+                    writesNothing: true, ok: true, reason: 'no-records'
+                };
+            }
+
+            let responded = 0;
+            let awaiting = 0;
+            let demonstrated = 0;
+            let broken = 0;
+
+            const recordSummaries = rawRecords.map(rec => {
+                const prog = Resp.computeProgress(rec);
+                if (rec.state === 'responded') responded++;
+                else awaiting++;
+                if (prog.progress === 'demonstrated') demonstrated++;
+                else if (prog.progress === 'broken') broken++;
+                return {
+                    proposalId: rec.proposalId,
+                    state: rec.state,
+                    progress: prog.progress,
+                    progressLabel: prog.progressLabel,
+                    asksTotal: prog.asksTotal,
+                    asksKept: prog.asksKept,
+                    asksBroken: prog.asksBroken,
+                    oldEventsCleared: prog.oldEventsCleared
+                };
+            });
+
+            const out = {
+                kind: 'relationship_repair_response', version: 1,
+                state: 'ok',
+                records: recordSummaries,
+                counts: {
+                    totalRecords: rawRecords.length,
+                    responded,
+                    awaiting,
+                    demonstrated,
+                    broken
+                },
+                writesNothing: true,
+                ok: true,
+                reason: ''
+            };
+            if (engine && typeof engine === 'object') engine._repairResponseRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.repairResponseState'); return absent('thrown'); }
+    }
+    function _repairResponseLine(engine) {
+        try {
+            const cached = (engine && engine._repairResponseRead && typeof engine._repairResponseRead === 'object')
+                ? engine._repairResponseRead : repairResponseState(engine, {});
+            if (!cached || cached.ok !== true) {
+                return '修复回应：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            if (cached.state === 'no-records') return '修复回应：尚未登记修复回应记录（不是「面没装上」）';
+            const c = cached.counts || {};
+            return `修复回应：提议 ${c.totalRecords || 0} 案（已回应 ${c.responded || 0} · 等待中 ${c.awaiting || 0}）· 履约证实 ${c.demonstrated || 0} · 违背 ${c.broken || 0} · 旧事不予抹除`;
+        } catch (e) { errLog(e, 'engine._repairResponseLine'); return '—（诊断异常）'; }
+    }
+
+    /* ============================================================
+     * [v3.448.0 · 第十四期 L14-X8]
+     * 跨代交接草案诊断面 (era-handoff-draft.js)
+     * ============================================================ */
+    function _eraHandoffDraftLib() {
+        if (_libs._eraHandoffDraftLib) return _libs._eraHandoffDraftLib.apply(null, arguments);
+        if (typeof window !== 'undefined' && window.LonShaEraHandoffDraft) return window.LonShaEraHandoffDraft;
+        if (typeof LonShaEraHandoffDraft !== 'undefined') return LonShaEraHandoffDraft;
+        try { return require('./era-handoff-draft.js'); } catch (e) { return null; }
+    }
+    function eraHandoffDraftState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'era_handoff_draft', version: 0, state: 'unavailable',
+            drafts: [], counts: { totalDrafts: 0, itemsAssigned: 0, heirsCount: 0 },
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const Handoff = _eraHandoffDraftLib();
+            if (!Handoff || typeof Handoff.createHandoffDraft !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            let rawDrafts = [];
+            if (Array.isArray(o.drafts)) rawDrafts = o.drafts;
+            else if (o.draft && typeof o.draft === 'object') rawDrafts = [o.draft];
+            else if (engine && Array.isArray(engine._handoffDrafts)) rawDrafts = engine._handoffDrafts;
+            else if (engine && engine._handoffDraft && typeof engine._handoffDraft === 'object') rawDrafts = [engine._handoffDraft];
+
+            if (!rawDrafts.length) {
+                return {
+                    kind: 'era_handoff_draft', version: 1, state: 'no-drafts',
+                    drafts: [], counts: { totalDrafts: 0, itemsAssigned: 0, heirsCount: 0 },
+                    writesNothing: true, ok: true, reason: 'no-drafts'
+                };
+            }
+
+            let itemsAssigned = 0;
+            const heirSet = new Set();
+            const draftSummaries = rawDrafts.map(d => {
+                const assigned = d.assignedItems || {};
+                const keys = Object.keys(assigned);
+                itemsAssigned += keys.length;
+                keys.forEach(k => {
+                    const it = assigned[k];
+                    if (it && it.heirId) heirSet.add(it.heirId);
+                });
+                return {
+                    eraTransitionId: d.eraTransitionId,
+                    assignedCount: keys.length,
+                    heirs: Array.from(heirSet)
+                };
+            });
+
+            const out = {
+                kind: 'era_handoff_draft', version: 1,
+                state: 'ok',
+                drafts: draftSummaries,
+                counts: {
+                    totalDrafts: rawDrafts.length,
+                    itemsAssigned,
+                    heirsCount: heirSet.size
+                },
+                writesNothing: true,
+                ok: true,
+                reason: ''
+            };
+            if (engine && typeof engine === 'object') engine._eraHandoffDraftRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.eraHandoffDraftState'); return absent('thrown'); }
+    }
+    function _eraHandoffDraftLine(engine) {
+        try {
+            const cached = (engine && engine._eraHandoffDraftRead && typeof engine._eraHandoffDraftRead === 'object')
+                ? engine._eraHandoffDraftRead : eraHandoffDraftState(engine, {});
+            if (!cached || cached.ok !== true) {
+                return '跨代交接：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            if (cached.state === 'no-drafts') return '跨代交接：尚未登记跨代交接草案（不是「面没装上」）';
+            const c = cached.counts || {};
+            return `跨代交接：草案 ${c.totalDrafts || 0} 份 · 分配遗留 ${c.itemsAssigned || 0} 件 · 继承人 ${c.heirsCount || 0} 位 · 秘密边界与原正文隔离`;
+        } catch (e) { errLog(e, 'engine._eraHandoffDraftLine'); return '—（诊断异常）'; }
+    }
+
+    /* ============================================================
+     * [v3.448.0 · 第十四期 L14-X9]
+     * 记忆回访日程诊断面 (memory-revisit-schedule.js)
+     * ============================================================ */
+    function _revisitScheduleLib() {
+        if (_libs._revisitScheduleLib) return _libs._revisitScheduleLib.apply(null, arguments);
+        if (typeof window !== 'undefined' && window.LonShaMemoryRevisitSchedule) return window.LonShaMemoryRevisitSchedule;
+        if (typeof LonShaMemoryRevisitSchedule !== 'undefined') return LonShaMemoryRevisitSchedule;
+        try { return require('./memory-revisit-schedule.js'); } catch (e) { return null; }
+    }
+    function revisitScheduleState(engine, opts) {
+        const absent = (why) => ({
+            kind: 'memory_revisit_schedule', version: 0, state: 'unavailable',
+            sessions: [], counts: { totalSessions: 0, scheduledCards: 0, receipts: 0 },
+            writesNothing: true, ok: false, reason: why
+        });
+        try {
+            const Revisit = _revisitScheduleLib();
+            if (!Revisit || typeof Revisit.createRevisitSession !== 'function') return absent('module-unavailable');
+            const o = (opts && typeof opts === 'object') ? opts : {};
+            let rawSessions = [];
+            if (Array.isArray(o.sessions)) rawSessions = o.sessions;
+            else if (o.session && typeof o.session === 'object') rawSessions = [o.session];
+            else if (engine && Array.isArray(engine._revisitSessions)) rawSessions = engine._revisitSessions;
+            else if (engine && engine._revisitSession && typeof engine._revisitSession === 'object') rawSessions = [engine._revisitSession];
+
+            if (!rawSessions.length) {
+                return {
+                    kind: 'memory_revisit_schedule', version: 1, state: 'no-sessions',
+                    sessions: [], counts: { totalSessions: 0, scheduledCards: 0, receipts: 0 },
+                    writesNothing: true, ok: true, reason: 'no-sessions'
+                };
+            }
+
+            let scheduledCards = 0;
+            let receipts = 0;
+            const sessionSummaries = rawSessions.map(s => {
+                const seq = Array.isArray(s.sequence) ? s.sequence : [];
+                const rec = Array.isArray(s.receipts) ? s.receipts : [];
+                scheduledCards += seq.length;
+                receipts += rec.length;
+                return {
+                    sessionId: s.sessionId || s.id || '',
+                    sequenceCount: seq.length,
+                    receiptCount: rec.length
+                };
+            });
+
+            const out = {
+                kind: 'memory_revisit_schedule', version: 1,
+                state: 'ok',
+                sessions: sessionSummaries,
+                counts: {
+                    totalSessions: rawSessions.length,
+                    scheduledCards,
+                    receipts
+                },
+                writesNothing: true,
+                ok: true,
+                reason: ''
+            };
+            if (engine && typeof engine === 'object') engine._revisitScheduleRead = out;
+            return out;
+        } catch (e) { errLog(e, 'engine.revisitScheduleState'); return absent('thrown'); }
+    }
+    function _revisitScheduleLine(engine) {
+        try {
+            const cached = (engine && engine._revisitScheduleRead && typeof engine._revisitScheduleRead === 'object')
+                ? engine._revisitScheduleRead : revisitScheduleState(engine, {});
+            if (!cached || cached.ok !== true) {
+                return '回访日程：不可用 · ' + ((cached && cached.reason) || 'module-unavailable');
+            }
+            if (cached.state === 'no-sessions') return '回访日程：尚未登记回访日程会话（不是「面没装上」）';
+            const c = cached.counts || {};
+            return `回访日程：会话 ${c.totalSessions || 0} 场 · 待回访 ${c.scheduledCards || 0} 张 · 回执 ${c.receipts || 0} 笔 · 凭真证据不捏造事实`;
+        } catch (e) { errLog(e, 'engine._revisitScheduleLine'); return '—（诊断异常）'; }
+    }
+
+    /* ============================================================
      * [v3.448.0 · 第十四期 L14-X2]
      * 往事讲述比对与逐段对照诊断面 (past-event-narration-compare.js)
      * ============================================================ */
@@ -5444,7 +5692,7 @@
             return PP.line(r);
         } catch (e) { errLog(e, 'engine._povProjectionLine'); return '—（诊断异常）'; }
     }
-    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, commitmentInstanceState, _commitmentInstanceLine, loreConclusionState, _loreConclusionLine, narrationCompareState, _narrationCompareLine, knowledgeRelayState, _knowledgeRelayLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
+    var api = Object.freeze({ povProject, _povProjectionLine, memoryLineageReplay, _memoryLineageLine, counterfactualWhatIf, _counterfactualLine,  bindDeps, _floorLedgerLine, institutionState, institutionAct, _institutionLine, relationDynamicsState, relationDynamicsAct, _relationDynamicsLine, agencyContractState, agencyContractAct, _agencyContractLine, habitGrowthState, _habitGrowthLine, symbolicEvolutionState, symbolicEvolutionAct, _symbolicEvolutionLine, eraInheritanceState, eraInheritanceAct, _eraInheritanceLine, institutionRuleState, institutionRuleAct, _institutionRuleLine, meaningViewState, meaningViewAct, _meaningViewLine, worldlinePrehistory, _worldlinePrehistoryLine, worldlineAffected, _worldlineAffectedLine, evidenceImpactReplay, _evidenceImpactLine, evidenceGapBench, evidenceGapDowngrade, _evidenceGapBenchLine, actionReceiptState, actionReceiptAct, _actionReceiptLine, silenceExplainState, silenceExplainAct, _silenceExplainLine, silenceListState, silenceLift, _silenceListLine, roundSnapshotBefore, roundSnapshotAfter, roundUndoState, roundUndo, _roundUndoLine, inheritanceRosterState, inheritanceDeclare, inheritanceRevokeDeclare, _inheritanceRosterLine, seatingPartitionState, _seatingPartitionLine, characterReinterpretationState, _characterReinterpretationLine, commitmentInstanceState, _commitmentInstanceLine, loreConclusionState, _loreConclusionLine, narrationCompareState, _narrationCompareLine, knowledgeRelayState, _knowledgeRelayLine, repairResponseState, _repairResponseLine, eraHandoffDraftState, _eraHandoffDraftLine, revisitScheduleState, _revisitScheduleLine, SILENCE_SOURCES, SILENCE_LIFTABLE, RULE_TIERS, RULE_STATUSES, RECEIPT_OUTCOMES, SILENCE_QUESTIONS, EVIDENCE_IMPACT_VERDICTS, _summaryProvenanceLine, _branchGuardLine, _crosslinkLine, _crosslinkConsumePair, _crosslinkConsumeAlive, _crosslinkConsumeLine, _emotionOppositeLine, _graphRollupLine, _relationDisclosureLine, _relationMutualLine, _knowledgeNetworkLine, _knowledgeTraceLine, relationHistory, relationHistoryAt, _relationHistoryLine, causalChainGraph, causalChainTodos, causalChainTrace, causalChainProposals, _causalChainLine, perspectiveCard, testimonyBoard, testimonyRevoke, _testimonyBoardLine, narrativeLayer, narrativeReality, narrativeProject, _narrativeLayerLine, _returnGateCandidates, returnGate, returnGateAdmit, returnGateMark, returnGatePrefer, _returnGateLine, _worldlineState, _worldlineRead, worldlineGate, worldlineConvergence, worldlineSwitchPlan, worldlineDiff, _worldlineLine, worldlineJumpDraft, _materialInventory, materialPack, _materialPackLine, _crosscheckChatRows, loreCrosscheck, _loreCrosscheckLine, perspectiveContrast, _perspectiveCardLine, _extractionWindowFloors, extractionPlan, _extractionDriverLine, correctionPlanReextract, correctionPlanConfig, _correctionPlanLine, _secretIsolationLine, _branchSemanticsLine, confirmBranchImport, _volumeContinuationLine, _recallExplainLib, explainRecallHost, _recallExplainLine, suggestRecallFixes, buildVolumePack, handoffVolumeContinuation, revokeVolumeHandoff, _promptFillLine, _changesetLine });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     var _l14o8Api = Object.assign({}, api, { evidenceSourceBench, evidenceSourceRebind, _evidenceSourceLine });
     global.LonShaDiagnosticLines = _l14o8Api;

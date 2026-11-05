@@ -718,7 +718,42 @@
                     commitHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">约定履约面板渲染异常: ${esc(e.message || String(e))}</div>`;
                 }
 
-                body = charHtml + commitHtml;
+                /* [v3.448.0 · 第十四期 L14-X9] 记忆回访日程工作台面板渲染 */
+                let revisitHtml = '';
+                try {
+                    const revState = (typeof s.revisitScheduleState === 'function')
+                        ? s.revisitScheduleState()
+                        : { ok: false, reason: 'host-method-missing' };
+                    const revLine = (typeof s._revisitScheduleLine === 'function')
+                        ? String(s._revisitScheduleLine() || '') : '';
+                    if (!revState || revState.ok !== true) {
+                        revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">📅 记忆回访日程工作台</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 记忆回访工作台不可用 · ${esc(revState?.reason || 'module-unavailable')}</div>
+                        </div>`;
+                    } else if (revState.state === 'no-sessions') {
+                        revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">📅 记忆回访日程工作台 · <span>${esc(revLine)}</span></div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无已登记回访日程会话（主题序列回顾与纪念卡将在此呈现，不生成伪造事实）。</div>
+                        </div>`;
+                    } else {
+                        const sess = revState.sessions || [];
+                        const sessRows = sess.map(se => {
+                            return `<div class="ls-item" style="margin-bottom:4px;">
+                                <div class="ls-item-meta">会话「${esc(se.sessionId || '默认')}」· 待回访 ${esc(se.sequenceCount || 0)} 张 · 留存回执 ${esc(se.receiptCount || 0)} 笔</div>
+                            </div>`;
+                        }).join('');
+                        revisitHtml = `<div class="ls-group" data-face="revisit-schedule" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-group-title">📅 记忆回访日程工作台 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(revLine)}</span></div>
+                            ${sessRows}
+                            <div class="ls-hint" style="margin-top:4px;">口径：只读回顾有据记忆卡片，浏览与暂缓不产生事实，绝不代角色私自发言。</div>
+                        </div>`;
+                    }
+                } catch (e) {
+                    revisitHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">记忆回访日程工作台渲染异常: ${esc(e.message || String(e))}</div>`;
+                }
+
+                body = charHtml + commitHtml + revisitHtml;
             }
             else if (viewType === 'protagonist') {
                 title = '🧍 主角档案 + 生活小档案';
@@ -926,7 +961,47 @@
                     reinterpHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">认知改观工作台渲染异常: ${esc(e.message || String(e))}</div>`;
                 }
 
-                body = edgeHtml + reinterpHtml;
+                /* [v3.448.0 · 第十四期 L14-X7] 关系修复回应与行为回链工作台 */
+                let repairHtml = '';
+                try {
+                    const repairState = (typeof s.repairResponseState === 'function')
+                        ? s.repairResponseState()
+                        : { ok: false, reason: 'host-method-missing' };
+                    const repLine = (typeof s._repairResponseLine === 'function')
+                        ? String(s._repairResponseLine() || '') : '';
+                    if (!repairState || repairState.ok !== true) {
+                        repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">🩹 关系修复回应与行为回链</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 关系修复工作台不可用 · ${esc(repairState?.reason || 'module-unavailable')}</div>
+                        </div>`;
+                    } else if (repairState.state === 'no-records') {
+                        repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-item-meta">🩹 关系修复回应与行为回链 · <span>${esc(repLine)}</span></div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无关系修复记录（发生道歉、求和或设界提议并逐条回应后在此呈现履约证据链）。</div>
+                        </div>`;
+                    } else {
+                        const recs = repairState.records || [];
+                        const cardList = recs.map(r => {
+                            const ansMap = r.responses || {};
+                            const respList = Object.keys(ansMap).map(k => {
+                                const ans = ansMap[k];
+                                const vBadge = (ans && ans.verdict === 'accepted') ? '✅ 接受' : ((ans && ans.verdict === 'rejected') ? '🚫 拒绝' : '⏳ 暂缓');
+                                return `<div style="margin:2px 0 2px 8px;font-size:11px;">[${vBadge}] ${esc(k)}：${esc(ans?.note || '无说明')}</div>`;
+                            }).join('');
+                            return `<div class="ls-item" style="margin-bottom:8px;">
+                                <div class="ls-item-meta">提议「${esc(r.proposalId)}」· 达成 ${esc(r.respondedCount || 0)} 项 · 履约证明 ${esc(r.demonstratedCount || 0)} 笔</div>
+                                <div class="ls-item-text">${respList}</div>
+                            </div>`;
+                        }).join('');
+                        repairHtml = `<div class="ls-group" data-face="repair-response" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                            <div class="ls-group-title">🩹 关系修复回应与行为回链 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(repLine)}</span></div>
+                            ${cardList}
+                        </div>`;
+                    }
+                } catch (e) {
+                    repairHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">关系修复工作台渲染异常: ${esc(e.message || String(e))}</div>`;
+                }
+                body = edgeHtml + reinterpHtml + repairHtml;
             }
             else if (viewType === 'vectors') {
                 title = '🧲 向量记忆';
@@ -2015,6 +2090,39 @@
                 })();
 
                 body += _loreConcHtml;
+
+                /* [v3.448.0 · 第十四期 L14-X8] 跨代交接草案工作台面板渲染 */
+                const _eraHandoff = (function () {
+                    try {
+                        if (typeof s.eraHandoffDraftState !== 'function') return { ok: false, reason: 'host-method-missing' };
+                        const r = s.eraHandoffDraftState();
+                        return (r && typeof r === 'object') ? r : { ok: false, reason: 'null-state' };
+                    } catch (e) { return { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
+                })();
+                const _eraHandoffLine = (function () {
+                    try { return typeof s._eraHandoffDraftLine === 'function' ? String(s._eraHandoffDraftLine() || '') : ''; } catch (e) { return ''; }
+                })();
+                const _eraHandoffHtml = (function () {
+                    const head = `<div class="ls-group-title" style="margin-top:14px;">📜 跨代传承交接草案工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_eraHandoffLine)}</span></div>`;
+                    if (!_eraHandoff || _eraHandoff.ok !== true) {
+                        if (_eraHandoff && _eraHandoff.state === 'no-drafts') {
+                            return `<div class="ls-group">${head}<div class="ls-hint">尚未登记跨代交接草案：上一代传承物可在此逐项指定继承人与取舍方案，草案未提交前零写入。</div></div>`;
+                        }
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用 · ${esc(String(_eraHandoff && _eraHandoff.reason || 'module-unavailable'))}</div></div></div>`;
+                    }
+                    const c = _eraHandoff.counts || {};
+                    const dList = (_eraHandoff.drafts || []).map(d => {
+                        return `<div class="ls-item">
+                            <div class="ls-item-meta">过渡：${esc(d.eraTransitionId || '默认')} · 分配遗留 ${esc(d.assignedCount || 0)} 件 · 继承人: ${esc((d.heirs || []).join('、') || '无')}</div>
+                        </div>`;
+                    }).join('');
+                    return `<div class="ls-group">${head}` +
+                        `<div class="ls-item-meta">草案总计 ${c.totalDrafts || 0} 份 · 分配遗留 ${c.itemsAssigned || 0} 件 · 继承人 ${c.heirsCount || 0} 位</div>` +
+                        dList +
+                        `<div class="ls-hint" style="margin-top:6px;">口径：交接草案独占保护，未列名继承者不可提前预览机密内容，草案未确认零写入。</div>` +
+                        `</div>`;
+                })();
+                body += _eraHandoffHtml;
             }
             else if (viewType === 'memorycenter') {
                 title = '🔍 记忆控制中心';

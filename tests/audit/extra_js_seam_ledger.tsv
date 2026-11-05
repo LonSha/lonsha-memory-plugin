@@ -1,5 +1,6 @@
 module	loaded	seam_referenced	referenced_by	verdict
 ledger-entity.js	yes	yes	commitment-ledger.js;docs/planning/2026-10-22-product-probe-v6.mjs;echo-ledger.js	host-seam
+evidence-source-locator.js	yes	yes	none	host-seam
 config-effect-registry.js	yes	no	none	orphan
 settings-ui.js	yes	yes	none	host-seam
 modules_combined.js	yes	no	none	orphan
@@ -150,6 +151,7 @@ fact-correction-bench.js	yes	yes	none	host-seam
 recall-correction.js	yes	yes	none	host-seam
 perspective-preview.js	yes	yes	none	host-seam
 generation-memory-plan.js	yes	yes	none	host-seam
+generation-material-reconcile.js	yes	yes	none	host-seam
 generation-fact-receipt.js	yes	yes	none	host-seam
 memory-maintenance-session.js	yes	yes	none	host-seam
 profile-dossier-view.js	yes	yes	none	host-seam
@@ -181,6 +183,15 @@ character-habit-growth-evidence.js	yes	yes	none	host-seam
 multi-perspective-theater-bench.js	yes	no	none	orphan
 memory-action-symbiosis-circuit.js	yes	no	none	orphan
 era-continuation-inheritance-tree.js	yes	yes	none	host-seam
+era-handoff-draft.js	yes	yes	none	host-seam
+relationship-repair-response.js	yes	yes	none	host-seam
+knowledge-relay-chain.js	yes	yes	none	host-seam
+past-event-narration-compare.js	yes	yes	none	host-seam
+character-reinterpretation-versions.js	yes	yes	none	host-seam
+lore-version-conclusion-reconcile.js	yes	yes	none	host-seam
+scene-character-seating-partition.js	yes	yes	none	host-seam
+commitment-instance-lifecycle.js	yes	yes	none	host-seam
+fact-correction-transaction.js	yes	yes	none	host-seam
 micro-atmosphere-residual-tracker.js	yes	yes	none	host-seam
 attention-priming-verification-anchor.js	yes	yes	none	host-seam
 irony-pretense-immune-filter.js	yes	yes	none	host-seam
@@ -221,6 +232,7 @@ strength-policy.js	yes	yes	none	host-seam
 strength-proposal.js	yes	yes	none	host-seam
 memory-weather.js	yes	yes	none	host-seam
 memory-ritual.js	yes	yes	none	host-seam
+memory-revisit-schedule.js	yes	yes	none	host-seam
 memory-season.js	yes	yes	none	host-seam
 meaning-map.js	yes	yes	none	host-seam
 memory-work-mode.js	yes	yes	none	host-seam

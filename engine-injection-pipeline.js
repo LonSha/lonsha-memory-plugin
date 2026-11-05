@@ -172,6 +172,30 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaKnowledgeRelayChain : null), 'knowledge-relay-chain.js');
     };
+    let _repairResponseLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaRelationshipRepairResponse : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./relationship-repair-response.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRelationshipRepairResponse : null), 'relationship-repair-response.js');
+    };
+    let _eraHandoffDraftLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaEraHandoffDraft : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./era-handoff-draft.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaEraHandoffDraft : null), 'era-handoff-draft.js');
+    };
+    let _revisitScheduleLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaMemoryRevisitSchedule : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./memory-revisit-schedule.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryRevisitSchedule : null), 'memory-revisit-schedule.js');
+    };
     function bindDeps(deps) {
         if (!deps || typeof deps !== 'object') return;
         if (deps.VERSION) VERSION = deps.VERSION;
@@ -195,6 +219,9 @@
         if (typeof deps._loreConclusionReconcileLib === 'function') _loreConclusionReconcileLib = deps._loreConclusionReconcileLib;
         if (typeof deps._narrationCompareLib === 'function') _narrationCompareLib = deps._narrationCompareLib;
         if (typeof deps._knowledgeRelayLib === 'function') _knowledgeRelayLib = deps._knowledgeRelayLib;
+        if (typeof deps._repairResponseLib === 'function') _repairResponseLib = deps._repairResponseLib;
+        if (typeof deps._eraHandoffDraftLib === 'function') _eraHandoffDraftLib = deps._eraHandoffDraftLib;
+        if (typeof deps._revisitScheduleLib === 'function') _revisitScheduleLib = deps._revisitScheduleLib;
     }
 
     class LonShaInjectionPipeline {
@@ -1279,6 +1306,132 @@
                     }
                 }
             } catch (e) { errLog(e, 'buildInjection.消息转告链'); }
+            /* ============================================================
+             * [v3.448.0 · 第十四期 L14-X7]
+             * 关系修复回应与行为证据提示注入 (relationship-repair-response.js)
+             * 道歉不自动清空历史，区分已证实行为与未履约承诺
+             * ============================================================ */
+            try {
+                const Resp = _repairResponseLib();
+                const rawRepairs = Array.isArray(this._repairRecords)
+                    ? this._repairRecords
+                    : (this._repairRecord ? [this._repairRecord] : []);
+                if (Resp && rawRepairs.length > 0) {
+                    const repairNotices = [];
+                    rawRepairs.forEach(rec => {
+                        if (!rec || !rec.proposalId) return;
+                        const pId = rec.proposalId;
+                        const prog = typeof Resp.computeProgress === 'function' ? Resp.computeProgress(rec) : null;
+                        const evList = Array.isArray(rec.behaviorEvidence) ? rec.behaviorEvidence : (Array.isArray(rec.occurredEvidence) ? rec.occurredEvidence : []);
+                        const demonstratedAsks = new Set(evList.filter(e => e.verdict === 'kept').map(e => e.askId).filter(Boolean));
+                        const parts = [];
+                        const askList = Array.isArray(rec.asks) ? rec.asks : [];
+                        const resp = rec.response || {};
+                        const acceptedSet = new Set(Array.isArray(resp.acceptedAskIds) ? resp.acceptedAskIds : []);
+                        const rejectedSet = new Set(Array.isArray(resp.rejectedAskIds) ? resp.rejectedAskIds : []);
+                        const deferredSet = new Set(Array.isArray(resp.deferredAskIds) ? resp.deferredAskIds : []);
+
+                        if (askList.length > 0) {
+                            askList.forEach(a => {
+                                const aId = a.askId || a.id || 'ask';
+                                const hasEv = demonstratedAsks.has(aId);
+                                let tag = '等待回应';
+                                if (acceptedSet.has(aId) || resp.kind === 'accept') {
+                                    tag = hasEv ? '已履约' : '已答应(待行动验证)';
+                                } else if (rejectedSet.has(aId) || resp.kind === 'reject') {
+                                    tag = '已拒绝(不强求)';
+                                } else if (deferredSet.has(aId) || resp.kind === 'defer') {
+                                    tag = '暂缓决定';
+                                }
+                                parts.push(`${aId}:${tag}`);
+                            });
+                        } else if (rec.responses && typeof rec.responses === 'object') {
+                            Object.keys(rec.responses).forEach(k => {
+                                const ans = rec.responses[k];
+                                const verdict = (ans && ans.verdict) || 'pending';
+                                const hasEv = demonstratedAsks.has(k);
+                                let tag = verdict;
+                                if (verdict === 'accepted') {
+                                    tag = hasEv ? '已履约' : '已答应(待行动验证)';
+                                } else if (verdict === 'rejected') {
+                                    tag = '已拒绝(不强求)';
+                                } else if (verdict === 'deferred') {
+                                    tag = '暂缓决定';
+                                }
+                                parts.push(`${k}:${tag}`);
+                            });
+                        }
+                        let line = `- 修复提议「${pId}」：回应进展[${parts.join('、') || '处理中'}]（旧事实不自动清空，勿假冒和好如初）`;
+                        repairNotices.push(line);
+                    });
+                    if (repairNotices.length > 0) {
+                        blocks.push('[关系修复·履约回链提示]');
+                        repairNotices.slice(0, 4).forEach(line => blocks.push(line));
+                        this._lastRepairResponseInjection = repairNotices;
+                    }
+                }
+            } catch (e) { errLog(e, 'buildInjection.关系修复回应'); }
+            /* ============================================================
+             * [v3.448.0 · 第十四期 L14-X8]
+             * 跨代交接草案与正本隔离提示注入 (era-handoff-draft.js)
+             * 未确认草案零写入，仅分配给指定继承人，秘密未披露不可外泄
+             * ============================================================ */
+            try {
+                const Handoff = _eraHandoffDraftLib();
+                const rawDrafts = Array.isArray(this._handoffDrafts)
+                    ? this._handoffDrafts
+                    : (this._handoffDraft ? [this._handoffDraft] : []);
+                if (Handoff && rawDrafts.length > 0) {
+                    const handoffNotices = [];
+                    rawDrafts.forEach(d => {
+                        if (!d || !d.eraTransitionId) return;
+                        const assigned = d.assignedItems || {};
+                        const keys = Object.keys(assigned);
+                        const heirMap = {};
+                        keys.forEach(k => {
+                            const it = assigned[k];
+                            if (it && it.heirId) {
+                                heirMap[it.heirId] = (heirMap[it.heirId] || 0) + 1;
+                            }
+                        });
+                        const heirDesc = Object.keys(heirMap).map(h => `${h}(${heirMap[h]}项)`).join('、');
+                        let line = `- 跨代过渡「${d.eraTransitionId}」交接草案：继承分配[${heirDesc || '未定'}]（草案未生效前禁止跨代穿透）`;
+                        handoffNotices.push(line);
+                    });
+                    if (handoffNotices.length > 0) {
+                        blocks.push('[跨代交接·草案隔离提示]');
+                        handoffNotices.slice(0, 3).forEach(line => blocks.push(line));
+                        this._lastEraHandoffInjection = handoffNotices;
+                    }
+                }
+            } catch (e) { errLog(e, 'buildInjection.跨代交接草案'); }
+            /* ============================================================
+             * [v3.448.0 · 第十四期 L14-X9]
+             * 记忆回访日程提示注入 (memory-revisit-schedule.js)
+             * 凭真实凭证适度回访，绝不捏造未发生情节或替角色代言
+             * ============================================================ */
+            try {
+                const Revisit = _revisitScheduleLib();
+                const rawSessions = Array.isArray(this._revisitSessions)
+                    ? this._revisitSessions
+                    : (this._revisitSession ? [this._revisitSession] : []);
+                if (Revisit && rawSessions.length > 0) {
+                    const revisitNotices = [];
+                    rawSessions.forEach(s => {
+                        if (!s) return;
+                        const seq = Array.isArray(s.sequence) ? s.sequence : [];
+                        const pendingTopics = seq.slice(0, 3).map(it => it.topicId || it.id || '主题');
+                        if (pendingTopics.length > 0) {
+                            revisitNotices.push(`- 回访会话「${s.sessionId || '默认'}」：待梳理要点[${pendingTopics.join('、')}]（只读回顾，不捏造事实）`);
+                        }
+                    });
+                    if (revisitNotices.length > 0) {
+                        blocks.push('[记忆回访·日程参考提示]');
+                        revisitNotices.slice(0, 3).forEach(line => blocks.push(line));
+                        this._lastRevisitScheduleInjection = revisitNotices;
+                    }
+                }
+            } catch (e) { errLog(e, 'buildInjection.记忆回访日程'); }
             if (suspenses.length) {
                 blocks.push('[悬念簿]');
                 const seenS = new Set();
