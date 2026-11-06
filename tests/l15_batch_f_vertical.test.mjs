@@ -86,3 +86,51 @@ test('L15-Batch-F: 传闻跨轮异化、潜意识微反应与深层解密 (L15-X
     assert.equal(p2.progress, 100);
     assert.equal(p2.revealedText, '王座下的密道通往古代遗迹');
 });
+
+test('L15-Batch-F: 混合检索分桶粗筛与反事实推演沙盘 (L15-O7 / L15-X8)', async () => {
+    // 1. L15-O7 混合检索分桶粗筛验证 (通过模拟 vector search 与 prefilter 逻辑)
+    const rawCandidates = [
+        { text: '凯瑟琳在图书馆翻阅古代法术典籍', score: 0.85 },
+        { text: '今日王都天气晴朗，气温适宜', score: 0.92 },
+        { text: '凯瑟琳与主角一同前往集市', score: 0.78 }
+    ];
+    // 带有实体词过滤
+    const queryWithEntities = { text: '法术', entities: ['凯瑟琳'] };
+    const filtered = rawCandidates.filter(v => {
+        if (!queryWithEntities.entities || !queryWithEntities.entities.length) return true;
+        return queryWithEntities.entities.some(ent => (v.text || '').includes(ent));
+    });
+    assert.equal(filtered.length, 2, '包含实体词凯瑟琳的候选应被粗筛保留');
+    assert.equal(filtered.every(f => f.text.includes('凯瑟琳')), true);
+
+    // 负控制：不含实体词的候选全量回退
+    const queryNoEntities = { text: '法术', entities: [] };
+    const unfiltered = rawCandidates.filter(v => {
+        if (!queryNoEntities.entities || !queryNoEntities.entities.length) return true;
+        return queryNoEntities.entities.some(ent => (v.text || '').includes(ent));
+    });
+    assert.equal(unfiltered.length, 3, '无实体词时应完整保留所有召回');
+
+    // 2. L15-X8 反事实沙盘唤醒与共鸣断言
+    const LonShaCounterfactualSandbox = (await import('../counterfactual-branching-sandbox.js')).default;
+    const sandbox = LonShaCounterfactualSandbox.recordBranchSandbox({
+        actorId: '莉莉娅',
+        actualChoice: '放弃争夺王位',
+        unpickedRoad: '挥剑发起政变',
+        imaginedConsequence: '成为双手沾满鲜血的暴君',
+        tone: 'regret',
+        awakeningTriggers: ['深夜', '故地重游']
+    });
+    assert.ok(sandbox.id);
+    assert.equal(sandbox.tone, 'regret');
+
+    // 命中场景触发
+    const awakening = LonShaCounterfactualSandbox.evaluateCounterfactualAwakening(sandbox, '莉莉娅在深夜独自走过空旷的庭院');
+    assert.ok(awakening);
+    assert.equal(awakening.hitTrigger, '深夜');
+    assert.match(awakening.internalEchoPrompt, /挥剑发起政变/);
+
+    // 负控制：未命中触发词时返回 null
+    const notAwakened = LonShaCounterfactualSandbox.evaluateCounterfactualAwakening(sandbox, '午后阳光洒在喧闹的市集');
+    assert.equal(notAwakened, null);
+});

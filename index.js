@@ -3487,6 +3487,18 @@ function relativeTimeLabel(eventTime, nowTime) {
             }
             return res;
         }
+        /** [v3.453.0 · L15-X8] 分支命运反事实推演沙盘宿主入口 */
+        evaluateCounterfactualBranch(sandboxData, sceneContext) {
+            const M = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCounterfactualSandbox : null), 'counterfactual-branching-sandbox.js');
+            if (!M || typeof M.evaluateCounterfactualAwakening !== 'function') return { ok: false, reason: 'module-unavailable' };
+            const sandbox = M.recordBranchSandbox(sandboxData);
+            const awakening = M.evaluateCounterfactualAwakening(sandbox, sceneContext);
+            return {
+                ok: true,
+                sandbox,
+                awakening
+            };
+        }
         roundSnapshotBefore(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotBefore(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'before' }; }
         roundSnapshotAfter(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotAfter(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'after' }; }
         roundUndoState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundUndoState(this, ...args) : null; }
