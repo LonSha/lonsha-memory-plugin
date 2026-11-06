@@ -2711,6 +2711,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                 });
             }
         } catch (e) { errLog(e, 'assemble.executionPipeline'); }
+        try {
+            const registry = _moduleLib(() => window.LonShaOptionalEngineRegistry, 'optional-engine-registry.js');
+            this.optionalEngines = Object.freeze(registry?.loadAll?.() || {});
+            this.optionalEngineStatus = registry?.status?.() || [];
+        } catch (e) {
+            this.optionalEngines = Object.freeze({});
+            this.optionalEngineStatus = [{ name: 'registry', loaded: false, reason: String(e?.message || e) }];
+            errLog(e, 'assemble.optionalEngineRegistry');
+        }
             return this;
         }
         /** [v3.301.0 · M-O2 第二刀] 装载之后的重建：先冻用户数据面 → 重装配 → 回灌。
