@@ -226,13 +226,16 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             memorySymphonyEnabled: true,
             antiConfusionEnabled: true,
             antiConfusionDirectivesEnabled: true,
-            /* [v3.458.0 · V20 史诗级双计划] 心理防御、超图因果与自愈免疫、反事实沙盒防火墙、视差博弈矩阵与宏观纪元 */
+            /* [v3.458.0 · V20 史诗级双计划] 心理防御、超图因果、自愈免疫、反事实沙盒、视差矩阵、宏观纪元、特工潜伏、创伤禁忌与契约反噬 */
             psychologicalDefenseEnabled: true,
             hypergraphCausalEnabled: true,
             memoryHealingImmunityEnabled: true,
             counterfactualFirewallEnabled: true,
             epistemicParallaxMatrixEnabled: true,
             macroEpochDriftEnabled: true,
+            covertEspionageEnabled: true,
+            obsessiveTraumaEnabled: true,
+            dynamicCovenantEnabled: true,
             debugMode: false,
             // [v1.7] RubyPhone 双向联动
             rubyPhoneBridge: true,      // 回填: LLM 提取结果 → RubyPhone 手机记忆
@@ -656,7 +659,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             const cardCfg = ctx?.character?.data?.extensions?.LonShaMemory;
             if (!cardCfg || typeof cardCfg !== 'object') return 0;
             const CARD_CFG_KEYS = [
-                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'resonanceConsolidationEnabled', 'resonanceHops', 'resonanceDecay', 'resonanceRescoreBound', 'pyramidEvolutionEnabled', 'pyramidFanInThreshold', 'pyramidEvolutionSimThreshold', 'sleepEvolutionArchival', 'memorySymphonyEnabled', 'antiConfusionEnabled', 'antiConfusionDirectivesEnabled', 'psychologicalDefenseEnabled', 'hypergraphCausalEnabled', 'memoryHealingImmunityEnabled', 'counterfactualFirewallEnabled', 'epistemicParallaxMatrixEnabled', 'macroEpochDriftEnabled', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
+                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'resonanceConsolidationEnabled', 'resonanceHops', 'resonanceDecay', 'resonanceRescoreBound', 'pyramidEvolutionEnabled', 'pyramidFanInThreshold', 'pyramidEvolutionSimThreshold', 'sleepEvolutionArchival', 'memorySymphonyEnabled', 'antiConfusionEnabled', 'antiConfusionDirectivesEnabled', 'psychologicalDefenseEnabled', 'hypergraphCausalEnabled', 'memoryHealingImmunityEnabled', 'counterfactualFirewallEnabled', 'epistemicParallaxMatrixEnabled', 'macroEpochDriftEnabled', 'covertEspionageEnabled', 'obsessiveTraumaEnabled', 'dynamicCovenantEnabled', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
                 'summaryFoldThreshold', 'diaryEveryFloors', 'reflectEveryFloors', 'echoBaseLife', 'echoMaxCount',
                 'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
                 'suspenseMaxOpen', 'recallCacheEnabled', 'diaryChangeDrivenInjection',

@@ -2677,7 +2677,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _memoryHealingImmunityLib: _memoryHealingImmunityLib,
                         _counterfactualFirewallLib: _counterfactualFirewallLib,
                         _epistemicParallaxLib: _epistemicParallaxLib,
-                        _macroEpochLib: _macroEpochLib
+                        _macroEpochLib: _macroEpochLib,
+                        _covertEspionageLib: _covertEspionageLib,
+                        _obsessiveTraumaLib: _obsessiveTraumaLib,
+                        _dynamicCovenantLib: _dynamicCovenantLib
                     }
                 });
             }
@@ -10605,6 +10608,9 @@ function _collectNewFace() {
     function _counterfactualFirewallLib() { return _moduleLib(() => window.LonShaCounterfactualFirewall, 'counterfactual-firewall-engine.js'); }
     function _epistemicParallaxLib() { return _moduleLib(() => window.LonShaEpistemicMatrix, 'epistemic-parallax-asymmetry-matrix.js'); }
     function _macroEpochLib() { return _moduleLib(() => window.LonShaMacroEpochDrift, 'macro-epoch-cultural-drift-engine.js'); }
+    function _covertEspionageLib() { return _moduleLib(() => window.LonShaCovertEspionage, 'covert-espionage-exposure-hub.js'); }
+    function _obsessiveTraumaLib() { return _moduleLib(() => window.LonShaObsessiveTrauma, 'obsessive-trauma-taboo-engine.js'); }
+    function _dynamicCovenantLib() { return _moduleLib(() => window.LonShaCovenantEngine, 'dynamic-covenant-consequence-engine.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11516,6 +11522,30 @@ function _collectNewFace() {
                     this._moduleStatus.macroEpoch = true;
                     console.log(`[${PLUGIN_NAME}] ✓ 宏观纪元演进与世界观文化漂移引擎模块已加载`);
                 } catch (e) { errLog(e, 'loadModules.MacroEpoch'); }
+            }
+            const _CEH = _covertEspionageLib();
+            if (_CEH && typeof _CEH.createInitialEspionageState === 'function') {
+                try {
+                    if (!this.engine._covertEspionageState) this.engine._covertEspionageState = _CEH.createInitialEspionageState();
+                    this._moduleStatus.covertEspionage = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 特工双重身份潜伏与暴露博弈模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.CovertEspionage'); }
+            }
+            const _OTE = _obsessiveTraumaLib();
+            if (_OTE && typeof _OTE.createInitialTraumaState === 'function') {
+                try {
+                    if (!this.engine._obsessiveTraumaState) this.engine._obsessiveTraumaState = _OTE.createInitialTraumaState();
+                    this._moduleStatus.obsessiveTrauma = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 角色深层创伤禁忌与应激失控模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.ObsessiveTrauma'); }
+            }
+            const _DCE = _dynamicCovenantLib();
+            if (_DCE && typeof _DCE.createInitialCovenantState === 'function') {
+                try {
+                    if (!this.engine._dynamicCovenantState) this.engine._dynamicCovenantState = _DCE.createInitialCovenantState();
+                    this._moduleStatus.dynamicCovenant = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 动态契约誓言与因果反噬引擎模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.DynamicCovenant'); }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

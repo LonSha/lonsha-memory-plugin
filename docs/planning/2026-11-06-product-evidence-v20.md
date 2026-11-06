@@ -7,79 +7,57 @@
 
 ---
 
-### 一、首批交付核心架构机制（非纯函数、全链路垂直贯通）
+### 一、交付核心架构机制（非纯函数、全链路垂直贯通）
 
 1. **`psychological-defense-engine.js`（认知心理防御与移情扭曲引擎 · L20-1）**
-   - 实现了对重大创伤节点的 4 级防御机制响应：`DENIAL`（否认合理化）、`PROJECTION`（内疚外化投射）、`REPRESSION`（高痛苦阻抗压抑剪枝）、`REACTION_FORMATION`（反向形成过度代偿）；
-   - 支持跨角色潜意识移情投射（`Transference Models`），引导模型微表情与深层心声动态扭曲；
-   - 垂直嵌入交响编排中枢（阶段 3.5），并向简报合流高阶心智指令。
+   - 实现了对重大创伤节点的 4 级防御机制响应：`DENIAL`、`PROJECTION`、`REPRESSION`、`REACTION_FORMATION`；
+   - 支持跨角色潜意识移情投射（`Transference Models`），引导模型微表情与深层心声动态扭曲。
 
 2. **`hypergraph-causal-backtracking-hub.js`（超图多跳联合因果推演中枢 · L20-2）**
-   - 突破二元二阶图关联，提供多因一果（`conjoint_causes`）与一因多果（`cascade_effects`）的超边（Hyperedges）结构；
-   - 提供拓扑回溯推演算法 `backtrackCausalClosure`，自动推导深层伏笔根源闭包。
+   - 突破二元二阶图关联，提供多因一果与一因多果超边结构并支持拓扑回溯必要因果闭包。
 
 3. **`memory-healing-immunity-adjudicator.js`（记忆自愈免疫与抗幻觉冲突仲裁器 · L20-5）**
-   - 在线拦截模型生成的死者复生、物品凭空重现等不变量违背幻觉；
-   - 自动生成轻量自愈补丁，并在注入管线头部生成 `【记忆自愈免疫接种】` 指令实施在线免疫。
+   - 在线拦截死者复生与物品重现幻觉，生成自愈补丁实施免疫接种，守卫正史不变量。
 
 4. **`counterfactual-firewall-engine.js`（反事实假想沙盒防火墙与正史隔离网关 · L20-3）**
-   - 解决长程叙事中“如果当初”假设渗透污染客观事实时间线的问题；
-   - 实行严格沙盒隔离，仅在特定心理自省时以副文本折射回响，绝不混入正史事实库。
+   - 解决长程叙事中“如果当初”假设渗透污染客观事实时间线的问题；实行严格沙盒隔离与安全折射回响。
 
 5. **`epistemic-parallax-asymmetry-matrix.js`（多视角视差对比矩阵与非对称情报博弈网络 · L20-4）**
-   - 建立知情（`VERIFIED`）、误解（`MISINFORMED`）、怀疑（`SUSPECTING`）、受蒙蔽（`DECEIVED`）认知四元态；
-   - 为各视角定制差异化守秘与合理误判提示，彻底终结“全员全知”无戏剧张力问题。
+   - 建立知情、误解、怀疑、受蒙蔽四元认知态，分角色生成守秘与试探指令。
 
 6. **`macro-epoch-cultural-drift-engine.js`（宏观纪元演进与世界观文化漂移引擎 · L20-6）**
-   - 支持多时代阶段演进，注入时代禁忌、主导思潮与语言风尚，为超长程叙事赋予岁月质感。
+   - 随时代阶段切换社会思潮、禁忌与语言风尚，赋予长程叙事岁月质感。
 
-7. **`darknet-dual-domain-vault.js`（手机虚拟环境双域空间与加密暗网保险箱 · R20-4）**
-   - 虚拟手机提供日常公共空间与加密暗网空间的物理隔离，暗号唤醒与紧急恐慌伪装降级。
+7. **`covert-espionage-exposure-hub.js`（双重身份深度潜伏与暴露风险博弈中枢 · L20-7）**
+   - 双轨伪装/真实人设账本，破绽累积暴露风险模型（0.0~1.0），极危状态触发断尾求生与极限掩饰指令。
 
-8. **`hardware-signal-sensor-simulator.js`（拟真硬件底层环境与无线信号传感器仿真引擎 · R20-5）**
-   - 仿真现实射频衰减（5G/4G/2G/无服务）、电池过热掉电与剧烈跌落冲击传感器上报。
+8. **`obsessive-trauma-taboo-engine.js`（角色心理执念、创伤禁忌与应激失控阈值机 · L20-8）**
+   - 监控创伤敏感词与心理压力计（0~100），突破阈值触发冷酷失控、躯体化震颤与歇斯底里。
 
-9. **`npc-autonomous-notification-synthesizer.js`（离线世界演化与NPC自主演化动态通知生成器 · R20-3）**
-   - 随离线流逝时间自动演化 NPC 动态，合成微信未读关怀与情报预警推送。
+9. **`dynamic-covenant-consequence-engine.js`（动态契约誓言、违约噬心与因果反噬引擎 · L20-9）**
+   - 缔结神圣同盟血誓，在线监控背叛违约并触发因果反噬与噬心惩戒指令。
+
+10. **`darknet-dual-domain-vault.js`（手机虚拟环境双域空间与加密暗网保险箱 · R20-4）**
+    - 虚拟手机日常公共空间与加密暗网空间物理隔离，暗号唤醒与紧急恐慌伪装降级。
+
+11. **`hardware-signal-sensor-simulator.js`（拟真硬件底层环境与无线信号传感器仿真引擎 · R20-5）**
+    - 仿真现实射频衰减（5G/4G/2G/无服务）、电池过热掉电与剧烈跌落冲击传感器上报。
+
+12. **`npc-autonomous-notification-synthesizer.js`（离线世界演化与NPC自主演化动态通知生成器 · R20-3）**
+    - 随离线流逝时间自动演化 NPC 动态，合成微信未读关怀与情报预警推送。
+
+13. **`cross-app-evidence-chain-matrix.js`（跨应用侦探证据链与物理物证网拓扑分析机 · R20-6）**
+    - 聚合聊天、相册、钱包账单物证，自动对比分析不在场证明时空冲突，生成对质审讯指令。
 
 ---
 
 ### 二、定向验证与测试读数
 
-- **LonSha 批次1单测（`tests/l20_epic_architecture.test.mjs`）**：
-  ```bash
-  node tests/l20_epic_architecture.test.mjs
-  ✔ L20-O1 认知心理防御与潜意识移情扭曲引擎 (4.111461ms)
-  ✔ L20-O2 超图多跳联合因果推演拓扑中枢 (3.617538ms)
-  ✔ L20-O3 记忆自愈免疫与抗幻觉冲突仲裁 (2.339077ms)
-  ℹ tests 3, pass 3, fail 0
-  ```
-- **LonSha 批次2单测（`tests/l20_epic_batch2.test.mjs`）**：
-  ```bash
-  node tests/l20_epic_batch2.test.mjs
-  ✔ L20-O4 反事实假想沙盒防火墙隔离与安全折射回响 (1.188616ms)
-  ✔ L20-O5 多视角视差对比矩阵与非对称情报戏剧张力 (0.458692ms)
-  ✔ L20-O6 宏观纪元更迭与世界观文化漂移约束 (0.30423ms)
-  ℹ tests 3, pass 3, fail 0
-  ```
-- **LonSha 主管线全域编排真跑（`tests/l19_vertical_symphony_recall.test.mjs`）**：
-  ```bash
-  node tests/l19_vertical_symphony_recall.test.mjs
-  ✔ L19-Vertical-1 真实 recallMemory 全域交响与防混淆消歧真跑贯通 (56.524ms)
-  ℹ tests 1, pass 1, fail 0
-  ```
-- **RubyPhone 批次1单测（`tests/r20_epic_architecture.test.mjs`）**：
-  ```bash
-  node tests/r20_epic_architecture.test.mjs
-  ✔ R20-O1 全息双向共生总线事件发射、落盘与排队消费 (19.946231ms)
-  ℹ tests 1, pass 1, fail 0
-  ```
-- **RubyPhone 批次2单测（`tests/r20_epic_batch2.test.mjs`）**：
-  ```bash
-  node tests/r20_epic_batch2.test.mjs
-  ✔ R20-O2 暗网双域空间隔离、暗号唤醒与紧急恐慌伪装 (0.676923ms)
-  ✔ R20-O3 拟真无线基站信号与硬件传感器跌落仿真 (0.260308ms)
-  ✔ R20-O4 NPC自主演化推送通知合成与排空 (3.199154ms)
-  ℹ tests 3, pass 3, fail 0
-  ```
+- **LonSha 批次1单测（`tests/l20_epic_architecture.test.mjs`）**：3 passed, 0 failed
+- **LonSha 批次2单测（`tests/l20_epic_batch2.test.mjs`）**：3 passed, 0 failed
+- **LonSha 批次3单测（`tests/l20_epic_batch3.test.mjs`）**：3 passed, 0 failed
+- **LonSha 主管线全域编排真跑（`tests/l19_vertical_symphony_recall.test.mjs`）**：1 passed, 0 failed
+- **RubyPhone 批次1单测（`tests/r20_epic_architecture.test.mjs`）**：1 passed, 0 failed
+- **RubyPhone 批次2单测（`tests/r20_epic_batch2.test.mjs`）**：3 passed, 0 failed
+- **RubyPhone 批次3单测（`tests/r20_epic_batch3.test.mjs`）**：1 passed, 0 failed
 - **语法静态检查**：全量代码 `node --check` 100% 通过，无语法错误。

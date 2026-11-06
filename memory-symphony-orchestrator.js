@@ -255,6 +255,52 @@
             }
         } catch (e) {}
 
+        // ---------------- [阶段 3.8: V20 特工潜伏、心理创伤与誓约反噬] ----------------
+        const espionageOn = cfg.covertEspionageEnabled !== false;
+        try {
+            const espLib = (typeof engine._covertEspionageLib === 'function')
+                ? engine._covertEspionageLib()
+                : (typeof LonShaCovertEspionage !== 'undefined' ? LonShaCovertEspionage : (typeof require !== 'undefined' ? (() => { try { return require('./covert-espionage-exposure-hub.js'); } catch { return null; } })() : null));
+            if (espionageOn && espLib && typeof espLib.resolveEspionageDirectives === 'function' && engine._covertEspionageState) {
+                const espDirs = espLib.resolveEspionageDirectives(engine._covertEspionageState, currentSpeaker, knownCharacters);
+                if (espDirs && espDirs.length > 0) {
+                    const eTxt = espDirs.join('\n');
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${eTxt}` : eTxt;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
+        const traumaOn = cfg.obsessiveTraumaEnabled !== false;
+        try {
+            const traumaLib = (typeof engine._obsessiveTraumaLib === 'function')
+                ? engine._obsessiveTraumaLib()
+                : (typeof LonShaObsessiveTrauma !== 'undefined' ? LonShaObsessiveTrauma : (typeof require !== 'undefined' ? (() => { try { return require('./obsessive-trauma-taboo-engine.js'); } catch { return null; } })() : null));
+            if (traumaOn && traumaLib && typeof traumaLib.resolveTraumaDirectives === 'function' && engine._obsessiveTraumaState) {
+                const tDirs = traumaLib.resolveTraumaDirectives(engine._obsessiveTraumaState, currentSpeaker, query.text || '');
+                if (tDirs && tDirs.length > 0) {
+                    const tTxt = tDirs.join('\n');
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${tTxt}` : tTxt;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
+        const covenantOn = cfg.dynamicCovenantEnabled !== false;
+        try {
+            const covLib = (typeof engine._dynamicCovenantLib === 'function')
+                ? engine._dynamicCovenantLib()
+                : (typeof LonShaCovenantEngine !== 'undefined' ? LonShaCovenantEngine : (typeof require !== 'undefined' ? (() => { try { return require('./dynamic-covenant-consequence-engine.js'); } catch { return null; } })() : null));
+            if (covenantOn && covLib && typeof covLib.resolveCovenantDirectives === 'function' && engine._dynamicCovenantState) {
+                const cDirs = covLib.resolveCovenantDirectives(engine._dynamicCovenantState, currentSpeaker);
+                if (cDirs && cDirs.length > 0) {
+                    const cTxt = cDirs.join('\n');
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${cTxt}` : cTxt;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
         let finalCandidates = firewallSanitized;
         try {
