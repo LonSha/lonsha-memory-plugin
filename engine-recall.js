@@ -579,6 +579,37 @@
                 results.volume = engine.summary.searchVolumes(2)
                     .map(v => ({id: v.id, text: `【卷${v.floorStart}-${v.floorEnd}】${v.text}`, floor: v.floorStart, source: 'volume'}));
             }
+            // [v3.456.0 · V18] 演化去重与相关链动态补充召回 (STBME #18 evolution edge link)
+            if (engine.config.config.pyramidEvolutionEnabled && engine._pyramidEvolutionState?.links?.length && results.summary?.length) {
+                try {
+                    const links = engine._pyramidEvolutionState.links;
+                    const sumIds = new Set(results.summary.map(s => s.id || ('sum_' + s.floor)));
+                    const relatedToAdd = [];
+                    for (const s of results.summary) {
+                        const sid = s.id || ('sum_' + s.floor);
+                        for (const l of links) {
+                            if (l.fromId === sid && !sumIds.has(l.toId)) {
+                                const target = (engine.summary?.summaries || []).find(x => x && (x.id || ('sum_' + x.floor)) === l.toId);
+                                if (target && !target.archivedForSleep) {
+                                    relatedToAdd.push({
+                                        id: target.id || ('sum_' + target.floor),
+                                        text: `【演化关联】${target.text}`,
+                                        floor: target.floor,
+                                        source: 'summary:evolution',
+                                        evolutionType: l.type,
+                                        sim: l.sim
+                                    });
+                                    sumIds.add(l.toId);
+                                }
+                            }
+                        }
+                    }
+                    if (relatedToAdd.length) {
+                        results.summary.push(...relatedToAdd.slice(0, 3));
+                        if (engine.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 🧬 演化链路联想补充 ${relatedToAdd.length} 条记忆`);
+                    }
+                } catch (e) { errLog(e, 'recallMemory.演化链补充'); }
+            }
             
             // [v2.1] P3: 节日感知召回
             if (engine.config.config.holidayAware) {
@@ -790,7 +821,7 @@
                 } catch (e) { errLog(e, 'recallMemory.crosslink提权'); }
             }
             // [v2.3] RD: 两阶段精排
-            const merged = engine.hybridMerge(results);
+            let merged = engine.hybridMerge(results);
             // [v3.185] 提权落点：hybridMerge 是「分数 + 排序」的唯一收口，故在它之后、rerank 之前追加小分。
             //   0.006 是「只动名次边界」的量级：不足以把一条低相关的条目抬进前排，
             //   但足以在同分/相邻名次上做出稳定区分。命中不到任何关联键时逐字节等同旧行为。

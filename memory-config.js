@@ -215,6 +215,13 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             resonanceHops: 2,
             resonanceDecay: 0.6,
             resonanceRescoreBound: 0.01,
+            /* [v3.456.0 · V18] 记忆能力超级加强：分层记忆折叠金字塔与整合去重演化引擎 (STBME #18/#19/#21)。
+             *   pyramidEvolutionEnabled = 总闸；fanInThreshold = 聚集折叠阈值；
+             *   evolutionSimThreshold = 去重演化相似度阈值；sleepEvolutionArchival = 睡眠演化联动。 */
+            pyramidEvolutionEnabled: true,
+            pyramidFanInThreshold: 3,
+            pyramidEvolutionSimThreshold: 0.80,
+            sleepEvolutionArchival: true,
             debugMode: false,
             // [v1.7] RubyPhone 双向联动
             rubyPhoneBridge: true,      // 回填: LLM 提取结果 → RubyPhone 手机记忆
@@ -638,7 +645,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             const cardCfg = ctx?.character?.data?.extensions?.LonShaMemory;
             if (!cardCfg || typeof cardCfg !== 'object') return 0;
             const CARD_CFG_KEYS = [
-                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'resonanceConsolidationEnabled', 'resonanceHops', 'resonanceDecay', 'resonanceRescoreBound', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
+                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'resonanceConsolidationEnabled', 'resonanceHops', 'resonanceDecay', 'resonanceRescoreBound', 'pyramidEvolutionEnabled', 'pyramidFanInThreshold', 'pyramidEvolutionSimThreshold', 'sleepEvolutionArchival', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
                 'summaryFoldThreshold', 'diaryEveryFloors', 'reflectEveryFloors', 'echoBaseLife', 'echoMaxCount',
                 'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
                 'suspenseMaxOpen', 'recallCacheEnabled', 'diaryChangeDrivenInjection',

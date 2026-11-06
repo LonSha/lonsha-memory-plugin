@@ -193,10 +193,11 @@
                 packedAt: new Date().toISOString(),
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
-                /* [v3.455.0 · V17] 共振访问热表随存档落盘：走既有 extensions 命名空间，
+                /* [v3.455.0 · V17 & v3.456.0 · V18] 共振热表与分层演化状态随存档落盘：走既有 extensions 命名空间，
                  *   绝不新增/改动 ARCHIVE_TOP_LEVEL_KEYS 冻结顶层键（STBME 快照契约纪律）。 */
                 extensions: Object.assign({}, this._archiveExtensions || {},
-                    this._resonanceState ? { lonshaResonanceState: this._resonanceState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._resonanceState ? { lonshaResonanceState: this._resonanceState } : {},
+                    this._pyramidEvolutionState ? { lonshaPyramidEvolutionState: this._pyramidEvolutionState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -375,6 +376,18 @@
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaResonanceState', error: String(e?.message || e) });
                     errLog(e, 'restoreFromPayload.resonanceState');
+                }
+            }
+            /* [v3.456.0 · V18] 分层演化状态恢复（upgrade-on-read 宽容解析）。 */
+            if (!dry && _ext && _ext.lonshaPyramidEvolutionState) {
+                try {
+                    const _HPE = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPyramidEvolution : null), 'hierarchical-pyramid-evolution.js');
+                    this._pyramidEvolutionState = (_HPE && typeof _HPE.hydrateState === 'function')
+                        ? _HPE.hydrateState(_ext.lonshaPyramidEvolutionState) : _ext.lonshaPyramidEvolutionState;
+                    res.restored.push('extensions.lonshaPyramidEvolutionState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaPyramidEvolutionState', error: String(e?.message || e) });
+                    errLog(e, 'restoreFromPayload.pyramidEvolutionState');
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

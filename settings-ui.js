@@ -1702,6 +1702,7 @@
                         </div>
                         <div class="ls-group" style="margin-top:14px;">
                             <div class="ls-group-title">🧠 仿生记忆共振巩固与多跳推演<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._resonanceConsolidationLine === 'function') ? s._resonanceConsolidationLine() : '')}</span></div>
+                            <div class="ls-group-title" style="margin-top:6px;">🧬 分层折叠金字塔与整合去重演化<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._pyramidEvolutionLine === 'function') ? s._pyramidEvolutionLine() : '')}</span></div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">PEDSA 激活扩散: 2 跳 · 衰减 0.6 · 时序合成边 0.2 · 矛盾边负能量 ×2.0 · 访问强化正反馈: 活跃</div>
                                 <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">跨实体时空关联形成动态多级激活；旧记忆 0.8 封底不清零，可被重新引燃。访问热表随会话存档落盘，酒馆多角色/群聊通用，不绑定任何特定角色。</div>
@@ -3011,6 +3012,8 @@
                     <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha ?? 0.7}" data-cfg-num="hybridAlpha">
                     ${ck('hybridMergeWeighted', 'α 加权融合（v3.156）', '打开后上面的 α 滑块才真正生效（α=1 偏向量 / α=0 偏图谱）；关闭=RRF 融合，α 仅记录不参与排序。默认关。')}
                     ${ck('resonanceConsolidationEnabled', '🧠 记忆共振巩固（V17 超级加强）', 'PEDSA 多跳激活扩散 + 时序合成边 + 抑制边降权；被真正注入的记忆自动强化访问热度与重要度，形成「越用越强」的仿生生态闭环。零额外 LLM 调用。')}
+                    ${ck('pyramidEvolutionEnabled', '🧬 分层演化金字塔（V18 超级加强）', '提取与访问强度驱动的主动分层折叠（日记→场景→周记卷）+ 演化关联边构建 + 睡眠遗忘联动加速。零额外 LLM 调用。')}
+                    ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>

@@ -5623,35 +5623,59 @@ function relativeTimeLabel(eventTime, nowTime) {
             const now = Date.now();
             const threshold = Number(cfg.sleepForgetThreshold) || 0.5;
             let archived = 0;
+            let evolvedArchived = 0;
             try {
-                // 对摘要系统执行睡眠：活跃摘要中低保留价值条目归档
                 const sums = this.summary.summaries || [];
-                for (const s of sums) {
-                    if (!s || s.archivedForSleep) continue;
-                    if (s.importance >= 8) continue;  // 高重要度豁免
-                    const created = Number(s.createdAt || s.timestamp || 0);
-                    if (!created || (now - created) < 3600 * 1000) continue;  // 创建不足1小时豁免
-                    const ageHours = Math.max(0.1, (now - created) / 3600000);
-                    const recency = 1 / (1 + Math.log10(1 + ageHours));
-                    const access = Number(s.accessCount);  // 修 NaN：undefined → NaN → || 0
-                    const accessCount = Number.isFinite(access) ? access : 0;
-                    const accessFreq = accessCount / Math.max(1, ageHours / 24);
-                    const imp = Number(s.importance);
-                    const importance = Number.isFinite(imp) ? imp : 5;
-                    const retentionValue = (importance / 10) * recency * (1 + accessFreq);
-                    if (retentionValue < threshold) {
-                        s.archivedForSleep = true;
-                        s.archivedAt = now;
-                        archived++;
+                const _HPE = _pyramidEvolutionLib();
+                if (cfg.pyramidEvolutionEnabled && cfg.sleepEvolutionArchival && _HPE && typeof _HPE.planSleepEvolutionArchival === 'function') {
+                    // [v3.456.0 · V18] 演化去重与睡眠遗忘联动安全归档
+                    const evolutionLinks = (this._pyramidEvolutionState && this._pyramidEvolutionState.links) || [];
+                    const plan = _HPE.planSleepEvolutionArchival(sums, evolutionLinks, {
+                        sleepForgetThreshold: threshold,
+                        minAgeHoursForSleep: 1.0
+                    });
+                    for (const item of (plan.toArchive || [])) {
+                        const s = sums.find(x => x && (x.id || ('sum_' + x.floor)) === item.id);
+                        if (s && !s.archivedForSleep) {
+                            s.archivedForSleep = true;
+                            s.archivedAt = now;
+                            s.retentionValue = item.retentionValue;
+                            s.sleepReason = item.reason;
+                            archived++;
+                            if (item.reason && item.reason.includes('演化')) evolvedArchived++;
+                        }
+                    }
+                    if (this._pyramidEvolutionState) {
+                        this._pyramidEvolutionState.archivedByEvolution = (this._pyramidEvolutionState.archivedByEvolution || 0) + evolvedArchived;
+                    }
+                } else {
+                    // 既有兜底归档逻辑
+                    for (const s of sums) {
+                        if (!s || s.archivedForSleep) continue;
+                        if (s.importance >= 8) continue;  // 高重要度豁免
+                        const created = Number(s.createdAt || s.timestamp || 0);
+                        if (!created || (now - created) < 3600 * 1000) continue;  // 创建不足1小时豁免
+                        const ageHours = Math.max(0.1, (now - created) / 3600000);
+                        const recency = 1 / (1 + Math.log10(1 + ageHours));
+                        const access = Number(s.accessCount);
+                        const accessCount = Number.isFinite(access) ? access : 0;
+                        const accessFreq = accessCount / Math.max(1, ageHours / 24);
+                        const imp = Number(s.importance);
+                        const importance = Number.isFinite(imp) ? imp : 5;
+                        const retentionValue = (importance / 10) * recency * (1 + accessFreq);
+                        if (retentionValue < threshold) {
+                            s.archivedForSleep = true;
+                            s.archivedAt = now;
+                            s.retentionValue = retentionValue;
+                            archived++;
+                        }
                     }
                 }
-                if (archived && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 😴 睡眠周期: 归档 ${archived} 条低价值记忆`);
-                // [v3.168] 睡眠校准臂（清点非破坏）：睡眠周期只**标记** archivedForSleep，
-                //   从不回收。长线运行下「已睡但仍在库」的条目会持续积压，而旧实现无任何
-                //   出口看得出积压程度（它们仍参与召回遍历，只是被过滤）。校准器只统计不删除。
+                this._lastSleepStats = { archived, evolvedArchived, timestamp: now };
+                if (archived && this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] 😴 睡眠周期: 归档 ${archived} 条低价值记忆（含演化加速 ${evolvedArchived} 条）`);
                 try { this.calibrateRetention(); } catch (e) { errLog(e, 'sleepCycle.calibrate'); }
             } catch (e) { errLog(e, 'sleepCycle'); }
-            return { archived };
+            return { archived, evolvedArchived };
         }
         /** [v3.168] 睡眠校准器（纯清点）。返回 {dormant, ancientHighValue, lowValueStale, total}。
          *  - dormant：已标记睡眠、仍留在库的条目（遗忘积压量）
@@ -5746,6 +5770,31 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 }
                             }
                         } catch (e) { errLog(e, 'maintenance.graphRollup'); }
+                    },
+                },
+                {
+                    name: 'pyramid-evolution',
+                    ignoreFailure: true,   // [v3.456.0 · V18] 分层折叠集群探测与演化边构建
+                    run: async () => {
+                        try {
+                            if (cfg.pyramidEvolutionEnabled !== false) {
+                                const _HPE = _pyramidEvolutionLib();
+                                if (_HPE && typeof _HPE.planEvolutionLinks === 'function') {
+                                    const sums = (eng.summary?.summaries || []).slice(-100);
+                                    const links = _HPE.planEvolutionLinks(sums, {
+                                        evolutionSimThreshold: Number(cfg.pyramidEvolutionSimThreshold) || 0.80,
+                                        relatedSimThreshold: 0.62,
+                                        evolutionEdgeWeight: 0.70
+                                    });
+                                    if (links.length && eng._pyramidEvolutionState) {
+                                        const added = _HPE.applyEvolutionEdges(eng._pyramidEvolutionState, links);
+                                        if (added && cfg.debugMode) {
+                                            console.log(`[${PLUGIN_NAME}] 🧬 演化金字塔: 捕获并沉淀 ${added} 条演化/关联边`);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) { errLog(e, 'maintenance.pyramidEvolution'); }
                     },
                 },
                 {
@@ -10532,6 +10581,9 @@ function _collectNewFace() {
     /* [v3.455.0 · V17-O1] 仿生记忆共振巩固与多跳推演引擎取库口（memory-resonance-consolidation.js）。
       *   ★ PEDSA 多跳激活扩散 + 访问强化生态循环 + 混合评分共振重排。 */
     function _resonanceLib() { return _moduleLib(() => window.LonShaMemoryResonance, 'memory-resonance-consolidation.js'); }
+    /* [v3.456.0 · V18-O1] 分层记忆折叠金字塔与整合去重演化引擎取库口（hierarchical-pyramid-evolution.js）。
+     *   ★ 提取驱动分层折叠金字塔 + 演化/关联边构建 + 睡眠遗忘联动。 */
+    function _pyramidEvolutionLib() { return _moduleLib(() => window.LonShaPyramidEvolution, 'hierarchical-pyramid-evolution.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
      *   ★ 消息多跳转告链：逐跳来源、得知时刻、授权范围与撤回影响。 */
@@ -11349,7 +11401,7 @@ function _collectNewFace() {
             //   在模块缺失时**什么都不做** —— 日志里只有成功，没有失败。而「模块没加载」
             //   恰好是最需要看见的那件事（特征静默降级：图扩散/可视化静默变兜底路径，
             //   功能变差但没有任何迹象）。凡以成功结尾的路径都必须有失败出口。
-            this._moduleStatus = { diffusion: false, visualizer: false, resonance: false };
+            this._moduleStatus = { diffusion: false, visualizer: false, resonance: false, pyramidEvolution: false };
             // [v3.455.0 · V17] 成功声称面必须有失败出口：共振模块缺席不静默降级，惰性建状态并留痕。
             const _RS = _resonanceLib();
             if (_RS && typeof _RS.createState === 'function') {
@@ -11360,6 +11412,17 @@ function _collectNewFace() {
                 } catch (e) { errLog(e, 'loadModules.Resonance'); console.warn(`[${PLUGIN_NAME}] ⚠️ 共振状态初始化失败：${(e && e.message) || e}`); }
             } else {
                 console.warn(`[${PLUGIN_NAME}] ⚠️ 记忆共振巩固模块未加载（LonShaMemoryResonance 未定义）：共振重排与访问强化将降级`);
+            }
+            // [v3.456.0 · V18] 成功声称面：分层折叠金字塔与整合去重演化模块加载与状态建构
+            const _HPE = _pyramidEvolutionLib();
+            if (_HPE && typeof _HPE.createState === 'function') {
+                try {
+                    if (!this.engine._pyramidEvolutionState) this.engine._pyramidEvolutionState = _HPE.createState();
+                    this._moduleStatus.pyramidEvolution = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 分层折叠金字塔与整合演化模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.PyramidEvolution'); console.warn(`[${PLUGIN_NAME}] ⚠️ 分层金字塔状态初始化失败：${(e && e.message) || e}`); }
+            } else {
+                console.warn(`[${PLUGIN_NAME}] ⚠️ 分层折叠金字塔与整合演化模块未加载（LonShaPyramidEvolution 未定义）：将降级传统折叠`);
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {
