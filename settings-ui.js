@@ -3028,6 +3028,8 @@
                     ${ck('dreamMetaphorEnabled', '🌌 梦境解析与潜意识隐喻合成器（V20 史诗级双计划）', '深度睡眠或独处时解构未决压力源，将冷酷事实升华为超现实主义梦境直觉余波。')}
                     ${ck('somaticReflexEnabled', '💓 生理反射与微表情神经自律引擎（V20 史诗级双计划）', '模拟瞳孔、呼吸骤停、指尖震颤等不由自主的微表情，赋予肢体真实生理学质感。')}
                     ${ck('multiAgentGameTheoryEnabled', '♟️ 多智能体博弈均衡与动态撕裂（V20 史诗级双计划）', '建模多方对抗收益矩阵与背叛诱惑，驱动同盟暗潮涌动与试探性背刺算计。')}
+                    ${ck('deepMemoryAtlasEnabled', '🗺️ 深层记忆蒸馏图谱与概念抽象（V20 史诗级双计划）', '低层离散事件向上聚合为哲学信条与行动定式，以高密度认知图谱约束长程抉择。')}
+                    ${ck('factionTerritoryEnabled', '🚩 动态势力版图与地理拓扑控制（V20 史诗级双计划）', '建模宏观城邦领土控制力与治安管制等级，受所处地理势力的哨卡法度严格制约。')}
                     ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">

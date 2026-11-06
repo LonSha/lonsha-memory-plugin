@@ -211,7 +211,9 @@
                     this._dynamicCovenantState ? { lonshaDynamicCovenantState: this._dynamicCovenantState } : {},
                     this._dreamMetaphorState ? { lonshaDreamMetaphorState: this._dreamMetaphorState } : {},
                     this._somaticReflexState ? { lonshaSomaticReflexState: this._somaticReflexState } : {},
-                    this._gameTheoryState ? { lonshaGameTheoryState: this._gameTheoryState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._gameTheoryState ? { lonshaGameTheoryState: this._gameTheoryState } : {},
+                    this._deepMemoryAtlasState ? { lonshaDeepMemoryAtlasState: this._deepMemoryAtlasState } : {},
+                    this._factionTerritoryState ? { lonshaFactionTerritoryState: this._factionTerritoryState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -546,6 +548,26 @@
                     res.restored.push('extensions.lonshaGameTheoryState');
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaGameTheoryState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaDeepMemoryAtlasState) {
+                try {
+                    const _DMA = _moduleLib(() => (typeof window !== 'undefined' ? window.DeepMemoryDistillationAtlas : null), 'deep-memory-distillation-atlas.js');
+                    this._deepMemoryAtlasState = (_DMA && typeof _DMA.hydrateAtlasState === 'function')
+                        ? _DMA.hydrateAtlasState(_ext.lonshaDeepMemoryAtlasState) : _ext.lonshaDeepMemoryAtlasState;
+                    res.restored.push('extensions.lonshaDeepMemoryAtlasState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaDeepMemoryAtlasState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaFactionTerritoryState) {
+                try {
+                    const _FTH = _moduleLib(() => (typeof window !== 'undefined' ? window.DynamicFactionTerritoryTopologyHub : null), 'dynamic-faction-territory-topology-hub.js');
+                    this._factionTerritoryState = (_FTH && typeof _FTH.hydrateTerritoryState === 'function')
+                        ? _FTH.hydrateTerritoryState(_ext.lonshaFactionTerritoryState) : _ext.lonshaFactionTerritoryState;
+                    res.restored.push('extensions.lonshaFactionTerritoryState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaFactionTerritoryState', error: String(e?.message || e) });
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

@@ -47,6 +47,8 @@
         "dreamMetaphorEnabled": "immediate",
         "somaticReflexEnabled": "immediate",
         "multiAgentGameTheoryEnabled": "immediate",
+        "deepMemoryAtlasEnabled": "immediate",
+        "factionTerritoryEnabled": "immediate",
         "debugMode": "immediate",
         "rubyPhoneBridge": "immediate",
         "rubyPhoneRecall": "immediate",

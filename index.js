@@ -2683,7 +2683,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _dynamicCovenantLib: _dynamicCovenantLib,
                         _dreamMetaphorLib: _dreamMetaphorLib,
                         _somaticReflexLib: _somaticReflexLib,
-                        _gameTheoryLib: _gameTheoryLib
+                        _gameTheoryLib: _gameTheoryLib,
+                        _deepMemoryAtlasLib: _deepMemoryAtlasLib,
+                        _factionTerritoryLib: _factionTerritoryLib
                     }
                 });
             }
@@ -10617,6 +10619,8 @@ function _collectNewFace() {
     function _dreamMetaphorLib() { return _moduleLib(() => window.DreamSubconsciousMetaphorSynthesizer, 'dream-subconscious-metaphor-synthesizer.js'); }
     function _somaticReflexLib() { return _moduleLib(() => window.SomaticMicroExpressionReflexEngine, 'somatic-micro-expression-reflex-engine.js'); }
     function _gameTheoryLib() { return _moduleLib(() => window.MultiAgentGameTheoryCoordinator, 'multi-agent-game-theory-coordinator.js'); }
+    function _deepMemoryAtlasLib() { return _moduleLib(() => window.DeepMemoryDistillationAtlas, 'deep-memory-distillation-atlas.js'); }
+    function _factionTerritoryLib() { return _moduleLib(() => window.DynamicFactionTerritoryTopologyHub, 'dynamic-faction-territory-topology-hub.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11576,6 +11580,22 @@ function _collectNewFace() {
                     this._moduleStatus.gameTheory = true;
                     console.log(`[${PLUGIN_NAME}] ✓ 多智能体博弈均衡与动态同盟撕裂协调器已加载`);
                 } catch (e) { errLog(e, 'loadModules.GameTheory'); }
+            }
+            const _DMA = _deepMemoryAtlasLib();
+            if (_DMA && typeof _DMA.createInitialAtlasState === 'function') {
+                try {
+                    if (!this.engine._deepMemoryAtlasState) this.engine._deepMemoryAtlasState = _DMA.createInitialAtlasState();
+                    this._moduleStatus.deepMemoryAtlas = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 深层记忆蒸馏图谱与分层概念抽象机已加载`);
+                } catch (e) { errLog(e, 'loadModules.DeepMemoryAtlas'); }
+            }
+            const _FTH = _factionTerritoryLib();
+            if (_FTH && typeof _FTH.createInitialTerritoryState === 'function') {
+                try {
+                    if (!this.engine._factionTerritoryState) this.engine._factionTerritoryState = _FTH.createInitialTerritoryState();
+                    this._moduleStatus.factionTerritory = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 动态势力版图与地理拓扑控制中枢已加载`);
+                } catch (e) { errLog(e, 'loadModules.FactionTerritory'); }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

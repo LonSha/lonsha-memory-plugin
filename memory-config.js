@@ -226,7 +226,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             memorySymphonyEnabled: true,
             antiConfusionEnabled: true,
             antiConfusionDirectivesEnabled: true,
-            /* [v3.458.0 · V20 史诗级双计划] 心理防御、超图因果、自愈免疫、反事实沙盒、视差矩阵、宏观纪元、特工潜伏、创伤禁忌、契约反噬、梦境隐喻、生理微表情与多方博弈 */
+            /* [v3.458.0 · V20 史诗级双计划] 心理防御、超图因果、自愈免疫、反事实沙盒、视差矩阵、宏观纪元、特工潜伏、创伤禁忌、契约反噬、梦境隐喻、生理微表情、多方博弈、深层蒸馏图谱与动态势力版图 */
             psychologicalDefenseEnabled: true,
             hypergraphCausalEnabled: true,
             memoryHealingImmunityEnabled: true,
@@ -239,6 +239,8 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             dreamMetaphorEnabled: true,
             somaticReflexEnabled: true,
             multiAgentGameTheoryEnabled: true,
+            deepMemoryAtlasEnabled: true,
+            factionTerritoryEnabled: true,
             debugMode: false,
             // [v1.7] RubyPhone 双向联动
             rubyPhoneBridge: true,      // 回填: LLM 提取结果 → RubyPhone 手机记忆

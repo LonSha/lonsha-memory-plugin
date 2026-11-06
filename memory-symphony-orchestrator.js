@@ -349,6 +349,34 @@
             }
         } catch (e) {}
 
+        const atlasOn = cfg.deepMemoryAtlasEnabled !== false;
+        try {
+            const atlasLib = (typeof engine._deepMemoryAtlasLib === 'function')
+                ? engine._deepMemoryAtlasLib()
+                : (typeof DeepMemoryDistillationAtlas !== 'undefined' ? DeepMemoryDistillationAtlas : (typeof require !== 'undefined' ? (() => { try { return require('./deep-memory-distillation-atlas.js'); } catch { return null; } })() : null));
+            if (atlasOn && atlasLib && typeof atlasLib.generateAtlasDirectives === 'function' && engine._deepMemoryAtlasState) {
+                const aDir = atlasLib.generateAtlasDirectives(engine._deepMemoryAtlasState, currentSpeaker);
+                if (aDir) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${aDir}` : aDir;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
+        const territoryOn = cfg.factionTerritoryEnabled !== false;
+        try {
+            const terrLib = (typeof engine._factionTerritoryLib === 'function')
+                ? engine._factionTerritoryLib()
+                : (typeof DynamicFactionTerritoryTopologyHub !== 'undefined' ? DynamicFactionTerritoryTopologyHub : (typeof require !== 'undefined' ? (() => { try { return require('./dynamic-faction-territory-topology-hub.js'); } catch { return null; } })() : null));
+            if (territoryOn && terrLib && typeof terrLib.generateTerritoryDirectives === 'function' && engine._factionTerritoryState) {
+                const tDir = terrLib.generateTerritoryDirectives(engine._factionTerritoryState);
+                if (tDir) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${tDir}` : tDir;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
         let finalCandidates = firewallSanitized;
         try {
