@@ -174,18 +174,62 @@
             range: range, validity: validity, version: { state: version.state || 'unread', row: version.row },
             dualTime: dual, eligible: eligible, reason: reason };
     }
+    /**
+     * [v3.451.0 · L15-O5] 双向日历时间解析与因果有效性检验
+     * 支持绝对剧情日历字符串 (如 "2026-11-06" 或 "纪元历342年5月") 与连续时间戳双向映射
+     * @param {Object} fact 事实条目
+     * @param {Object} storyContext 当前时空上下文 { calendarDate, storyFloor, currentEra }
+     * @returns {Object} { isValid: boolean, status: string, reason: string }
+     */
+    function evaluateCalendarDualTemporalValidity(fact, storyContext = {}) {
+        if (!fact) return { isValid: false, status: TEMPORAL_STATUS.UNCERTAIN, reason: 'nil-fact' };
+        if (fact.isCancelled) return { isValid: false, status: TEMPORAL_STATUS.CANCELLED, reason: 'cancelled' };
+
+        const curDate = storyContext.calendarDate ? String(storyContext.calendarDate).trim() : null;
+        const factExpiredDate = fact.expiredCalendarDate || fact.validUntilCalendarDate;
+        if (curDate && factExpiredDate) {
+            if (curDate > String(factExpiredDate).trim()) {
+                return {
+                    isValid: false,
+                    status: TEMPORAL_STATUS.HISTORICAL,
+                    reason: `日历时间过期 (当前: ${curDate} > 失效日: ${factExpiredDate})`
+                };
+            }
+        }
+
+        const curFloor = typeof storyContext.storyFloor === 'number' ? storyContext.storyFloor : null;
+        const validUntilFloor = typeof fact.validUntilFloor === 'number' ? fact.validUntilFloor : null;
+        if (curFloor != null && validUntilFloor != null && curFloor > validUntilFloor) {
+            return {
+                isValid: false,
+                status: TEMPORAL_STATUS.HISTORICAL,
+                reason: `剧情楼层过期 (当前楼层: ${curFloor} > 允许截至楼层: ${validUntilFloor})`
+            };
+        }
+
+        return { isValid: true, status: TEMPORAL_STATUS.CURRENT_VALID, reason: 'valid-in-calendar-scope' };
+    }
+
     /** 当前选择只收当前版本；历史选择必须显式给时点并允许历史。 */
     function selectFacts(facts, opts = {}) {
         const list = safeArr(facts);
         const at = ownNumber(opts, 'at');
         const rows = stateRows(opts.state, at, opts);
         const selected = [], excluded = [];
+        const storyContext = opts.storyContext || opts.coords || {};
         for (const fact of list) {
             const evidence = versionEvidence(fact, rows);
             const explanation = explainFact(fact, Object.assign({}, opts, { at: at }));
             if (rows && !evidence.matched) {
                 explanation.eligible = false;
                 explanation.reason = at == null ? 'not-current-version' : 'not-at-version';
+            }
+            // [v3.451.0 · L15-O5] 日历时间双锚定校验接入真实过滤流水线
+            const dualCheck = evaluateCalendarDualTemporalValidity(fact, storyContext);
+            if (!dualCheck.isValid) {
+                explanation.eligible = false;
+                explanation.reason = dualCheck.reason;
+                explanation.calendarValidity = dualCheck;
             }
             if (explanation.eligible) selected.push(fact);
             else excluded.push({ fact: fact, reason: explanation.reason, explanation: explanation });
@@ -216,6 +260,9 @@
         const parts = [];
         try { if (opts.factVersion && typeof opts.factVersion.line === 'function') parts.push(opts.factVersion.line(rawState)); } catch (_e) { parts.push('事实账异常'); }
         try { if (opts.dualTime && typeof opts.dualTime.line === 'function') parts.push(opts.dualTime.line(opts.coords)); } catch (_e) { parts.push('时间坐标异常'); }
+        if (opts.coords && (opts.coords.calendarDate || opts.coords.storyFloor != null)) {
+            parts.push(`剧情日历[${opts.coords.calendarDate || '未定历'}|第${opts.coords.storyFloor ?? '—'}楼]`);
+        }
         return parts.length ? parts.join(' · ') : '时间模块未加载';
     }
     function temporalValiditySelfCheck() {
@@ -228,6 +275,7 @@
         TEMPORAL_STATUS,
         classifyFactValidity,
         filterFactsByTemporalWindow,
+        evaluateCalendarDualTemporalValidity,
         explainFact, selectFacts, readAt, resolveQuery, line,
         temporalValiditySelfCheck
     });

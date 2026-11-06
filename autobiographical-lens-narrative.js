@@ -101,9 +101,34 @@
         });
     }
 
+    /**
+     * [v3.451.0 · L15-X2] 记录并生成自传式第一人称心路重述沙盘
+     * @param {Object} fact 客观事实
+     * @param {Object} restatement 重述参数 { narrator, restatedText, emotionalBias, stanceReason }
+     * @returns {Object} 包含客观与主观双轨记录的自传心路条目
+     */
+    function recordAutobiographicalRestatement(fact, restatement = {}) {
+        if (!fact) throw new Error('recordAutobiographicalRestatement requires valid fact');
+        const narrator = restatement.narrator || '我';
+        const subjectiveTone = restatement.emotionalBias || 'defensive';
+        const restatedText = restatement.restatedText || fact.content || fact.text || '';
+        
+        return {
+            factId: fact.id || fact.factId,
+            narrator,
+            objectiveFact: fact.content || fact.text,
+            restatedNarrative: restatedText,
+            subjectiveBias: subjectiveTone,
+            stanceReason: restatement.stanceReason || '重大转折心境演变',
+            injectedMemoryText: `【${narrator}的心路自传重述】“${restatedText}” (出于${subjectiveTone}心境，客观事实被其主观重构)`,
+            updatedAt: Date.now()
+        };
+    }
+
     return Object.freeze({
         LENS_TRAITS,
         reframeFactThroughLens,
-        applyAutobiographicalPerspective
+        applyAutobiographicalPerspective,
+        recordAutobiographicalRestatement
     });
 }));

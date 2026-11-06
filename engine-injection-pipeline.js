@@ -1540,6 +1540,14 @@
                         if (ref && ref.reframedNarrative) blocks.push('〔内心独白透镜〕' + ref.reframedNarrative);
                     }
                 }
+                // [v3.451.0 · L15-X2] 注入自传心路重述沙盘事实（主观认知覆盖）
+                if (this._activeRestatements && Array.isArray(this._activeRestatements) && this._activeRestatements.length) {
+                    for (const ar of this._activeRestatements) {
+                        if (ar.injectedMemoryText) {
+                            blocks.push('〔角色第一人称心路重述〕' + ar.injectedMemoryText);
+                        }
+                    }
+                }
                 // 4. X1 微观氛围残差
                 const Atmo = _microAtmosphereLib();
                 if (Atmo && typeof Atmo.attachAtmosphereToRecall === 'function' && this._currentAtmosphereResidual) {
