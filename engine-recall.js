@@ -516,9 +516,16 @@
             }
             
             // [v2.4] RE: 多查询召回——主查询 + rewriteQuery 改写的查询分别检索
+            // [v3.452.0 · L15-O7] 符号与向量混合检索的分桶粗筛前置过滤
             if (engine.config.config.vectorEnabled && query.text) {
                 const vectorResults = await engine.vector.search(query.text, Math.round(engine.config.config.vectorTopK * engine.computeRecallQuota()));
-                results.vector = vectorResults.map(v => ({
+                // 分桶粗筛：优先保留包含实体词或相关标签的条目
+                const prefiltered = (vectorResults || []).filter(v => {
+                    if (!query.entities || !query.entities.length) return true;
+                    return query.entities.some(ent => (v.text || '').includes(ent));
+                });
+                const finalCandidates = prefiltered.length ? prefiltered : vectorResults;
+                results.vector = finalCandidates.map(v => ({
                     text: v.text,
                     score: v.score,
                     metadata: v.metadata,

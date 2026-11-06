@@ -818,9 +818,58 @@
       return parts2.join(' · ');
     } catch (e) { return '—（事实账异常）'; }
   }
+  /**
+   * [v3.452.0 · L15-O9] 记忆健康主动巡检与逻辑矛盾探测
+   * @param {Array<Object>} facts 事实列表
+   * @returns {Object} 巡检体检报告
+   */
+  function inspectMemoryHealth(facts = []) {
+    const list = Array.isArray(facts) ? facts : [];
+    const conflicts = [];
+    const aliveMap = new Map();
+
+    for (const f of list) {
+      if (!f || f.revoked || f.isCancelled) continue;
+      const text = String(f.content || f.text || '');
+      const subjectMatch = text.match(/^([\u4e00-\u9fa5a-zA-Z0-9_-]{2,6}?)(?:已|正在|在|正|是|\s)/);
+      const subject = subjectMatch ? subjectMatch[1].trim() : text.slice(0, 2);
+
+      if (text.includes('已阵亡') || text.includes('死亡') || text.includes('牺牲')) {
+        if (aliveMap.has(subject) && aliveMap.get(subject).status === 'alive') {
+          conflicts.push({
+            type: 'life_death_conflict',
+            subject,
+            factA: aliveMap.get(subject).fact,
+            factB: f,
+            description: `角色【${subject}】同时存在生死互斥状态事实`
+          });
+        }
+        aliveMap.set(subject, { status: 'dead', fact: f });
+      } else if (text.includes('正在') || text.includes('存活') || text.includes('健康')) {
+        if (aliveMap.has(subject) && aliveMap.get(subject).status === 'dead') {
+          conflicts.push({
+            type: 'life_death_conflict',
+            subject,
+            factA: aliveMap.get(subject).fact,
+            factB: f,
+            description: `角色【${subject}】同时存在生死互斥状态事实`
+          });
+        }
+        aliveMap.set(subject, { status: 'alive', fact: f });
+      }
+    }
+
+    return {
+      healthy: conflicts.length === 0,
+      totalScanned: list.length,
+      conflicts,
+      healthScore: Math.max(0, 100 - conflicts.length * 25)
+    };
+  }
+
   const api = Object.freeze({
     normalize, assertFact, revokeFact, setOrigin, lookup, timeline, versionsOf, line,
-    traceCorrectionTree, applyCascadeCorrection,
+    traceCorrectionTree, applyCascadeCorrection, inspectMemoryHealth,
     ORIGINS, ORIGIN_TRUST, DEFAULT_MIN_TRUST, REASONS, FACT_VERSION,
     // [v3.210] 冲突策略清单随账导出：断言方（memory-type.assertTyped / index.js 接线）
     //   从账侧取常量，避免在外部再抄一份四态清单（本仓治理：单一真源）。

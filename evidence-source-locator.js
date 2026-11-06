@@ -286,6 +286,35 @@
         return reason ? state + ': ' + reason : state;
     }
 
+    /**
+     * [v3.452.0 · L15-O8] 跨楼层证据引用的正文局部编辑自愈重新锚定
+     * @param {string} fullMessageText 楼层当前最新正文
+     * @param {string} originalQuote 历史引证引文
+     * @returns {Object} 自愈对齐结果
+     */
+    function healEvidenceQuote(fullMessageText, originalQuote) {
+        const full = text(fullMessageText);
+        const quote = text(originalQuote).trim();
+        if (!quote) return { healed: false, reason: 'empty-quote', matchedText: '' };
+        if (full.includes(quote)) {
+            return { healed: true, reason: 'exact-match', matchedText: quote, offset: full.indexOf(quote) };
+        }
+        // 局部前缀匹配自愈 (允许原引文被轻微改写或插入前缀)
+        const subLen = Math.max(MIN_ANCHOR_LENGTH, Math.floor(quote.length * 0.6));
+        const prefix = quote.slice(0, subLen);
+        if (full.includes(prefix)) {
+            const idx = full.indexOf(prefix);
+            const candidate = full.slice(idx, idx + quote.length);
+            return {
+                healed: true,
+                reason: 'prefix-healed',
+                matchedText: candidate,
+                offset: idx
+            };
+        }
+        return { healed: false, reason: 'drift-too-far', matchedText: '' };
+    }
+
     const api = Object.freeze({
         MIN_ANCHOR_LENGTH,
         STATES,
@@ -305,6 +334,7 @@
         findRecoverable,
         previewRebind,
         statusLine,
+        healEvidenceQuote
     });
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     if (global) {

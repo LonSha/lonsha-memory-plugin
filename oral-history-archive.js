@@ -388,6 +388,36 @@
         };
     }
 
+    /**
+     * [v3.452.0 · L15-X5] 二手传闻跨轮转述衰减与异化
+     * @param {Object} rumor 原始传闻条目 { text, originSpeaker, hops }
+     * @param {number} additionalHops 增量转述轮数/跳数
+     */
+    function driftRumorAcrossHops(rumor = {}, additionalHops = 1) {
+        const text = String(rumor.text || rumor.content || '').trim();
+        const baseHops = Number(rumor.hops || 0) + additionalHops;
+        let drifted = text;
+        
+        if (baseHops >= 1) {
+            drifted = drifted.replace(/据说是|可能|据某人称/g, '绝对是');
+        }
+        if (baseHops >= 2) {
+            drifted = drifted.replace(/微小|少许|轻微/g, '巨大');
+            drifted = `【骇人传闻】${drifted}（细节已被街巷多轮曲解夸大）`;
+        }
+        if (baseHops >= 3) {
+            drifted = `【全城狂热异化谣言】传言变质为：${drifted}！各方势力已严阵以待！`;
+        }
+
+        return {
+            originalText: text,
+            driftedText: drifted,
+            totalHops: baseHops,
+            isExaggerated: baseHops >= 2,
+            injectedRumorBlock: `〔多轮转述异化传闻 · 第${baseHops}手〕${drifted}`
+        };
+    }
+
     const OralHistoryArchive = Object.freeze({
         VISIBILITY_SCOPE,
         PERSPECTIVE_STATUS,
@@ -400,6 +430,7 @@
         analyzeGapsAndOverlaps,
         generateFollowupInquiries,
         formatPerspectiveDiscrepancyPrompt,
+        driftRumorAcrossHops,
         oralHistoryArchiveSelfCheck
     });
 

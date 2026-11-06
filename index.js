@@ -3474,6 +3474,19 @@ function relativeTimeLabel(eventTime, nowTime) {
             });
             return r;
         }
+        /** [v3.452.0 · L15-O6] 周目差异比对与增量挑拣合并宿主调用入口 */
+        compareAndMergeMigrate(pack, selectedKeys) {
+            const M = _migratePackLib();
+            if (!M || typeof M.compareAndMergePacks !== 'function') return { ok: false, reason: 'module-unavailable' };
+            let src = this.charMem ? this.charMem.export() : null;
+            if (!src || (typeof src !== 'object')) return { ok: false, reason: 'charmem-unavailable' };
+            src = Object.assign({}, src, { migrationIdentity: this._migrateIdentity() });
+            const res = M.compareAndMergePacks(pack, src, selectedKeys);
+            if (res.ok && res.applied && res.applied.state && this.charMem && typeof this.charMem.import === 'function') {
+                this.charMem.import(res.applied.state);
+            }
+            return res;
+        }
         roundSnapshotBefore(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotBefore(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'before' }; }
         roundSnapshotAfter(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundSnapshotAfter(this, ...args) : { ok: false, reason: 'module-unavailable', writes: false, seq: null, phase: 'after' }; }
         roundUndoState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.roundUndoState(this, ...args) : null; }

@@ -174,12 +174,45 @@
         }
     }
 
+    /**
+     * [v3.452.0 · L15-X7] 长期互动沉淀的角色潜意识微动作与微反应触发
+     * @param {Object} characterProfile 角色特征配置
+     * @param {Object} emotionalState 当前心理状态 { stressLevel, isDeceiving, tension }
+     */
+    function triggerSubconsciousQuirks(characterProfile = {}, emotionalState = {}) {
+        const quirks = [];
+        const stress = Number(emotionalState.stressLevel || 0);
+        const deceiving = emotionalState.isDeceiving === true;
+
+        if (deceiving) {
+            quirks.push({
+                trigger: '掩饰/撒谎',
+                action: '视线不自觉移向右下方，手指无意识地摩挲衣角',
+                subconsciousCue: '〔潜意识微动作〕说话时目光偏转，右手食指微颤。'
+            });
+        }
+        if (stress >= 3) {
+            quirks.push({
+                trigger: '高度心理压力',
+                action: '呼吸微促，指节收紧泛白',
+                subconsciousCue: '〔潜意识微反应〕下颌微微绷紧，极力压抑呼吸节奏。'
+            });
+        }
+
+        return {
+            triggered: quirks.length > 0,
+            quirks,
+            injectedPromptText: quirks.map(q => q.subconsciousCue).join(' ')
+        };
+    }
+
     return {
         STAGES,
         STAGE_LABELS,
         STAGE_ORDER,
         recordGrowthEvidence,
         evaluateCompetencyAfterRevocation,
-        describeGrowth
+        describeGrowth,
+        triggerSubconsciousQuirks
     };
 }));

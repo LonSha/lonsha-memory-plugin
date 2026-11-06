@@ -543,6 +543,44 @@
         };
     }
 
+    /**
+     * [v3.452.0 · L15-O6] 周目差异比对与增量挑拣合并
+     * @param {Object} pack 外部周目迁移包
+     * @param {Object} local 本地事实状态
+     * @param {Array<string>} selectedKeys 用户挑拣选中的条目 Key 列表 (若为空或未传则默认全部合入)
+     */
+    function compareAndMergePacks(pack, local, selectedKeys = null) {
+        const pre = precheckImport(pack, local);
+        if (!pre.ok) return { ok: false, reason: pre.reason };
+
+        const diffReport = {
+            totalEntries: pack.entries?.length || 0,
+            added: pre.added || [],
+            conflicts: pre.conflicts || [],
+            identical: pre.identical || [],
+            unrecognized: pre.unrecognized || []
+        };
+
+        const decisions = {};
+        const allowed = Array.isArray(selectedKeys) ? new Set(selectedKeys) : null;
+
+        for (const cf of diffReport.conflicts) {
+            const key = cf.key || entryKeyOf(cf.incoming.char, cf.incoming.layer, cf.incoming.item.id);
+            if (!allowed || allowed.has(key)) {
+                decisions[key] = 'use-pack'; // 默认勾选挑拣项进行覆盖合入
+            } else {
+                decisions[key] = 'keep-local'; // 未勾选则保留本地
+            }
+        }
+
+        const applied = applyImport(pack, local, decisions);
+        return {
+            ok: true,
+            diffReport,
+            applied
+        };
+    }
+
     return {
         FORMAT: FORMAT,
         PACK_SCHEMA: PACK_SCHEMA,
@@ -558,6 +596,7 @@
         packMemory: packMemory,
         verifyPack: verifyPack,
         precheckImport: precheckImport,
-        applyImport: applyImport
+        applyImport: applyImport,
+        compareAndMergePacks: compareAndMergePacks
     };
 });

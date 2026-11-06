@@ -355,11 +355,36 @@
     return parts.join(' · ');
   }
 
+  /**
+   * [v3.452.0 · L15-X9] 代际/卷宗交替时深层隐秘记忆的尘封与解密契机
+   * @param {Object} sealedSecret 带锁尘封记忆 { id, clueKey, progress, secretText }
+   * @param {Object} clueContext 触发解密的信物/剧情线索 { clueKey, solvedScore }
+   */
+  function evaluateDecryptionProgress(sealedSecret = {}, clueContext = {}) {
+    if (!sealedSecret || !sealedSecret.id) return { unlocked: false, progress: 0, reason: 'invalid-secret' };
+    const curProgress = Number(sealedSecret.progress || 0);
+    const hasMatchedClue = sealedSecret.clueKey && sealedSecret.clueKey === clueContext.clueKey;
+    const addScore = hasMatchedClue ? Number(clueContext.solvedScore || 50) : 0;
+    const newProgress = Math.min(100, curProgress + addScore);
+    const unlocked = newProgress >= 100;
+
+    return {
+      id: sealedSecret.id,
+      unlocked,
+      progress: newProgress,
+      revealedText: unlocked ? (sealedSecret.secretText || sealedSecret.text) : '【尘封隐秘·尚未解密】',
+      injectedBlock: unlocked 
+        ? `〔上代尘封隐秘·彻底揭晓〕${sealedSecret.secretText || sealedSecret.text}`
+        : `〔深层密封档案·解析度 ${newProgress}%〕关键信物：${sealedSecret.clueKey || '未知'}`
+    };
+  }
+
   const api = Object.freeze({
     MAX_OPEN,
     normalize, seal, advance, reveal, drop, remove, sweep, list, render,
     // [v3.306.0 · M-O8] 知识范围面：注入/诊断/下游导出共用的单一真源
     knowledgeOf, filterForViewer, renderForViewer,
+    evaluateDecryptionProgress,
     line
   });
   root.LonShaSecretLedger = api;
