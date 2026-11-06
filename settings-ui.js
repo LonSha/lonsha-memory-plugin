@@ -3019,6 +3019,9 @@
                     ${ck('psychologicalDefenseEnabled', '🎭 认知心理防御与移情扭曲（V20 史诗级双计划）', '模拟创伤否认、投射、压抑与移情投射机制，赋予记忆动态戏剧张力与潜意识心声扭曲。')}
                     ${ck('hypergraphCausalEnabled', '🕸️ 超图多跳联合因果推演中枢（V20 史诗级双计划）', '支持多因一果与一因多果超边拓扑，反向回溯因果必要闭包，牢牢锁定伏笔链条。')}
                     ${ck('memoryHealingImmunityEnabled', '💉 记忆自愈免疫与抗幻觉冲突仲裁（V20 史诗级双计划）', '实时拦截虚构与死者复生幻觉，自动生成自愈补丁实施免疫接种，守卫正史不变量。')}
+                    ${ck('counterfactualFirewallEnabled', '🧱 反事实假想沙盒防火墙（V20 史诗级双计划）', '严格隔离平行假想/悔恨假设流入正史世界，受控透出心智折射回响，彻底阻断历史污染。')}
+                    ${ck('epistemicParallaxMatrixEnabled', '👥 多视角视差博弈矩阵（V20 史诗级双计划）', '度量知情/误解/怀疑/受蒙蔽认知四元态，提供分视角戏剧张力与守秘刺探指引。')}
+                    ${ck('macroEpochDriftEnabled', '⏳ 宏观纪元演进与文化漂移（V20 史诗级双计划）', '支撑超长程纪元更迭、社会主导思潮演化与时代禁忌漂移，为岁月沉淀真实质感。')}
                     ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">

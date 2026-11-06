@@ -202,7 +202,10 @@
                     this._antiConfusionState ? { lonshaAntiConfusionState: this._antiConfusionState } : {},
                     this._psychologicalDefenseState ? { lonshaPsychologicalDefenseState: this._psychologicalDefenseState } : {},
                     this._hypergraphCausalState ? { lonshaHypergraphCausalState: this._hypergraphCausalState } : {},
-                    this._memoryHealingImmunityState ? { lonshaMemoryHealingImmunityState: this._memoryHealingImmunityState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._memoryHealingImmunityState ? { lonshaMemoryHealingImmunityState: this._memoryHealingImmunityState } : {},
+                    this._counterfactualFirewallState ? { lonshaCounterfactualFirewallState: this._counterfactualFirewallState } : {},
+                    this._epistemicParallaxState ? { lonshaEpistemicParallaxState: this._epistemicParallaxState } : {},
+                    this._macroEpochState ? { lonshaMacroEpochState: this._macroEpochState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -447,6 +450,36 @@
                     res.restored.push('extensions.lonshaMemoryHealingImmunityState');
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaMemoryHealingImmunityState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaCounterfactualFirewallState) {
+                try {
+                    const _CFW = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCounterfactualFirewall : null), 'counterfactual-firewall-engine.js');
+                    this._counterfactualFirewallState = (_CFW && typeof _CFW.hydrateFirewallState === 'function')
+                        ? _CFW.hydrateFirewallState(_ext.lonshaCounterfactualFirewallState) : _ext.lonshaCounterfactualFirewallState;
+                    res.restored.push('extensions.lonshaCounterfactualFirewallState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaCounterfactualFirewallState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaEpistemicParallaxState) {
+                try {
+                    const _EPM = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaEpistemicMatrix : null), 'epistemic-parallax-asymmetry-matrix.js');
+                    this._epistemicParallaxState = (_EPM && typeof _EPM.hydrateParallaxMatrixState === 'function')
+                        ? _EPM.hydrateParallaxMatrixState(_ext.lonshaEpistemicParallaxState) : _ext.lonshaEpistemicParallaxState;
+                    res.restored.push('extensions.lonshaEpistemicParallaxState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaEpistemicParallaxState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaMacroEpochState) {
+                try {
+                    const _MED = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMacroEpochDrift : null), 'macro-epoch-cultural-drift-engine.js');
+                    this._macroEpochState = (_MED && typeof _MED.hydrateEpochState === 'function')
+                        ? _MED.hydrateEpochState(_ext.lonshaMacroEpochState) : _ext.lonshaMacroEpochState;
+                    res.restored.push('extensions.lonshaMacroEpochState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaMacroEpochState', error: String(e?.message || e) });
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

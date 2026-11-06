@@ -194,8 +194,69 @@
             trace.stages.psychologicalDefense = { error: String(e && e.message) };
         }
 
+        // ---------------- [阶段 3.6: V20 反事实假想沙盒防火墙隔离] ----------------
+        let firewallSanitized = psychologicallyDistorted;
+        const firewallOn = cfg.counterfactualFirewallEnabled !== false;
+        try {
+            const fwLib = (typeof engine._counterfactualFirewallLib === 'function')
+                ? engine._counterfactualFirewallLib()
+                : (typeof LonShaCounterfactualFirewall !== 'undefined' ? LonShaCounterfactualFirewall : (typeof require !== 'undefined' ? (() => { try { return require('./counterfactual-firewall-engine.js'); } catch { return null; } })() : null));
+            if (firewallOn && fwLib && typeof fwLib.sanitizeCanonicalCandidates === 'function') {
+                if (!engine._counterfactualFirewallState || typeof engine._counterfactualFirewallState !== 'object') {
+                    engine._counterfactualFirewallState = fwLib.createInitialFirewallState();
+                }
+                const fwRes = fwLib.sanitizeCanonicalCandidates(engine._counterfactualFirewallState, psychologicallyDistorted, {
+                    query: query.text || '',
+                    actorName: currentSpeaker
+                });
+                firewallSanitized = fwRes.cleanMemories || psychologicallyDistorted;
+                if (Array.isArray(fwRes.echoDirectives) && fwRes.echoDirectives.length > 0) {
+                    const fwTxt = fwRes.echoDirectives.join('\n');
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${fwTxt}` : fwTxt;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+                trace.stages.counterfactualFirewall = {
+                    quarantinedCount: fwRes.quarantinedCount || 0
+                };
+            } else {
+                trace.stages.counterfactualFirewall = { status: firewallOn ? 'skipped_or_unavailable' : 'disabled' };
+            }
+        } catch (e) {
+            trace.stages.counterfactualFirewall = { error: String(e && e.message) };
+        }
+
+        // ---------------- [阶段 3.7: V20 视差博弈矩阵与宏观纪元文化漂移] ----------------
+        const parallaxOn = cfg.epistemicParallaxMatrixEnabled !== false;
+        try {
+            const paraLib = (typeof engine._epistemicParallaxLib === 'function')
+                ? engine._epistemicParallaxLib()
+                : (typeof LonShaEpistemicMatrix !== 'undefined' ? LonShaEpistemicMatrix : (typeof require !== 'undefined' ? (() => { try { return require('./epistemic-parallax-asymmetry-matrix.js'); } catch { return null; } })() : null));
+            if (parallaxOn && paraLib && typeof paraLib.resolvePerspectiveDirectives === 'function' && engine._epistemicParallaxState) {
+                const paraDirs = paraLib.resolvePerspectiveDirectives(engine._epistemicParallaxState, currentSpeaker, knownCharacters);
+                if (paraDirs && paraDirs.length > 0) {
+                    const pTxt = paraDirs.join('\n');
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${pTxt}` : pTxt;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
+        const epochOn = cfg.macroEpochDriftEnabled !== false;
+        try {
+            const epochLib = (typeof engine._macroEpochLib === 'function')
+                ? engine._macroEpochLib()
+                : (typeof LonShaMacroEpochDrift !== 'undefined' ? LonShaMacroEpochDrift : (typeof require !== 'undefined' ? (() => { try { return require('./macro-epoch-cultural-drift-engine.js'); } catch { return null; } })() : null));
+            if (epochOn && epochLib && typeof epochLib.resolveEpochCulturalDirectives === 'function' && engine._macroEpochState) {
+                const epDir = epochLib.resolveEpochCulturalDirectives(engine._macroEpochState);
+                if (epDir) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${epDir}` : epDir;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
-        let finalCandidates = psychologicallyDistorted;
+        let finalCandidates = firewallSanitized;
         try {
             const horizonLib = (typeof engine._cognitiveHorizonLib === 'function') 
                 ? engine._cognitiveHorizonLib() 

@@ -5863,7 +5863,8 @@
             const outCount = tr?.outputCount || 0;
             const psychCount = psychSt?.totalDefensesTriggered || 0;
             const immCount = immSt?.totalInoculations || 0;
-            return `【全域记忆交响·V20】输入${inCount}条 → 经心理/因果/消歧编排输出${outCount}条 · 实体锚定${disCount} · 互斥仲裁${confCount} · 心理防御${psychCount} · 免疫接种${immCount}`;
+            const fwQuarantine = tr?.stages?.counterfactualFirewall?.quarantinedCount || 0;
+            return `【全域记忆交响·V20】输入${inCount}条 → 经心理/因果/消歧编排输出${outCount}条 · 实体锚定${disCount} · 互斥仲裁${confCount} · 心理防御${psychCount} · 免疫接种${immCount} · 沙盒隔离${fwQuarantine}`;
         } catch (e) {
             errLog(e, 'engine._memorySymphonyLine');
             return '—（全域记忆交响诊断异常）';

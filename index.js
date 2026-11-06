@@ -2674,7 +2674,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _antiConfusionLib: _antiConfusionLib,
                         _psychologicalDefenseLib: _psychologicalDefenseLib,
                         _hypergraphCausalHubLib: _hypergraphCausalHubLib,
-                        _memoryHealingImmunityLib: _memoryHealingImmunityLib
+                        _memoryHealingImmunityLib: _memoryHealingImmunityLib,
+                        _counterfactualFirewallLib: _counterfactualFirewallLib,
+                        _epistemicParallaxLib: _epistemicParallaxLib,
+                        _macroEpochLib: _macroEpochLib
                     }
                 });
             }
@@ -10595,10 +10598,13 @@ function _collectNewFace() {
     /* [v3.457.0 · V19-O2] 多维防混淆与实体认知锚定矩阵引擎取库口（anti-confusion-matrix-disambiguator.js）。
      *   ★ 实体指代消歧 + 事实互斥冲突仲裁 + 显式锚定前缀 + 防混淆结构化约束。 */
     function _antiConfusionLib() { return _moduleLib(() => window.LonShaAntiConfusion, 'anti-confusion-matrix-disambiguator.js'); }
-    /* [v3.458.0 · V20-L1/L2/L5] 认知心理防御、超图因果推演与自愈免疫取库口 */
+    /* [v3.458.0 · V20-L1/L2/L5/L3/L4/L6] 认知心理防御、超图因果推演、自愈免疫、反事实沙盒防火墙、视差博弈矩阵与宏观纪元文化漂移取库口 */
     function _psychologicalDefenseLib() { return _moduleLib(() => window.LonShaPsychologicalDefense, 'psychological-defense-engine.js'); }
     function _hypergraphCausalHubLib() { return _moduleLib(() => window.LonShaHypergraphCausalHub, 'hypergraph-causal-backtracking-hub.js'); }
     function _memoryHealingImmunityLib() { return _moduleLib(() => window.LonShaMemoryHealingImmunity, 'memory-healing-immunity-adjudicator.js'); }
+    function _counterfactualFirewallLib() { return _moduleLib(() => window.LonShaCounterfactualFirewall, 'counterfactual-firewall-engine.js'); }
+    function _epistemicParallaxLib() { return _moduleLib(() => window.LonShaEpistemicMatrix, 'epistemic-parallax-asymmetry-matrix.js'); }
+    function _macroEpochLib() { return _moduleLib(() => window.LonShaMacroEpochDrift, 'macro-epoch-cultural-drift-engine.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11484,8 +11490,32 @@ function _collectNewFace() {
                 try {
                     if (!this.engine._memoryHealingImmunityState) this.engine._memoryHealingImmunityState = _MHIA.createState();
                     this._moduleStatus.memoryHealingImmunity = true;
-                    console.log(`[${PLUGIN_NAME}] ✓ 记忆自愈免疫与抗幻觉仲裁器模块已加载`);
+                    console.log(`[${PLUGIN_NAME}] ✓ 记忆自愈免疫与抗幻觉冲突仲裁器模块已加载`);
                 } catch (e) { errLog(e, 'loadModules.MemoryHealingImmunity'); }
+            }
+            const _CFW = _counterfactualFirewallLib();
+            if (_CFW && typeof _CFW.createInitialFirewallState === 'function') {
+                try {
+                    if (!this.engine._counterfactualFirewallState) this.engine._counterfactualFirewallState = _CFW.createInitialFirewallState();
+                    this._moduleStatus.counterfactualFirewall = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 反事实假想沙盒防火墙与正史隔离网关模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.CounterfactualFirewall'); }
+            }
+            const _EPM = _epistemicParallaxLib();
+            if (_EPM && typeof _EPM.createInitialParallaxMatrixState === 'function') {
+                try {
+                    if (!this.engine._epistemicParallaxState) this.engine._epistemicParallaxState = _EPM.createInitialParallaxMatrixState();
+                    this._moduleStatus.epistemicParallax = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 多视角视差对比矩阵与非对称情报博弈网络模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.EpistemicParallax'); }
+            }
+            const _MED = _macroEpochLib();
+            if (_MED && typeof _MED.createInitialEpochState === 'function') {
+                try {
+                    if (!this.engine._macroEpochState) this.engine._macroEpochState = _MED.createInitialEpochState();
+                    this._moduleStatus.macroEpoch = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 宏观纪元演进与世界观文化漂移引擎模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.MacroEpoch'); }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {
