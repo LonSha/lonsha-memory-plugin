@@ -213,7 +213,9 @@
                     this._somaticReflexState ? { lonshaSomaticReflexState: this._somaticReflexState } : {},
                     this._gameTheoryState ? { lonshaGameTheoryState: this._gameTheoryState } : {},
                     this._deepMemoryAtlasState ? { lonshaDeepMemoryAtlasState: this._deepMemoryAtlasState } : {},
-                    this._factionTerritoryState ? { lonshaFactionTerritoryState: this._factionTerritoryState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._factionTerritoryState ? { lonshaFactionTerritoryState: this._factionTerritoryState } : {},
+                    this._longTailFlashbackState ? { lonshaLongTailFlashbackState: this._longTailFlashbackState } : {},
+                    this._reputationSocialGraphState ? { lonshaReputationSocialGraphState: this._reputationSocialGraphState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -568,6 +570,26 @@
                     res.restored.push('extensions.lonshaFactionTerritoryState');
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaFactionTerritoryState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaLongTailFlashbackState) {
+                try {
+                    const _LTF = _moduleLib(() => (typeof window !== 'undefined' ? window.LongTailFlashbackResonanceHub : null), 'long-tail-flashback-resonance-hub.js');
+                    this._longTailFlashbackState = (_LTF && typeof _LTF.hydrateResonanceState === 'function')
+                        ? _LTF.hydrateResonanceState(_ext.lonshaLongTailFlashbackState) : _ext.lonshaLongTailFlashbackState;
+                    res.restored.push('extensions.lonshaLongTailFlashbackState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaLongTailFlashbackState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaReputationSocialGraphState) {
+                try {
+                    const _RSG = _moduleLib(() => (typeof window !== 'undefined' ? window.MultiDimensionalReputationSocialGraph : null), 'multi-dimensional-reputation-social-graph.js');
+                    this._reputationSocialGraphState = (_RSG && typeof _RSG.hydrateReputationState === 'function')
+                        ? _RSG.hydrateReputationState(_ext.lonshaReputationSocialGraphState) : _ext.lonshaReputationSocialGraphState;
+                    res.restored.push('extensions.lonshaReputationSocialGraphState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaReputationSocialGraphState', error: String(e?.message || e) });
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

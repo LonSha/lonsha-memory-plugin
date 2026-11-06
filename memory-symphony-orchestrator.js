@@ -377,6 +377,38 @@
             }
         } catch (e) {}
 
+        const flashbackOn = cfg.longTailFlashbackEnabled !== false;
+        try {
+            const fbLib = (typeof engine._longTailFlashbackLib === 'function')
+                ? engine._longTailFlashbackLib()
+                : (typeof LongTailFlashbackResonanceHub !== 'undefined' ? LongTailFlashbackResonanceHub : (typeof require !== 'undefined' ? (() => { try { return require('./long-tail-flashback-resonance-hub.js'); } catch { return null; } })() : null));
+            if (flashbackOn && fbLib && typeof fbLib.evaluateFlashbackResonance === 'function' && engine._longTailFlashbackState) {
+                const curFlr = (typeof engine.getCurrentFloor === 'function' ? engine.getCurrentFloor() : 100) || 100;
+                const awakened = fbLib.evaluateFlashbackResonance(engine._longTailFlashbackState, { text: queryText, currentFloor: curFlr, speaker: currentSpeaker });
+                if (awakened && awakened.length > 0) {
+                    const fbDir = fbLib.generateFlashbackDirectives(awakened, currentSpeaker);
+                    if (fbDir) {
+                        generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${fbDir}` : fbDir;
+                        trace.antiConfusionDirectives = generatedDirectives;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        const reputationOn = cfg.multiDimensionalReputationEnabled !== false;
+        try {
+            const repLib = (typeof engine._reputationSocialGraphLib === 'function')
+                ? engine._reputationSocialGraphLib()
+                : (typeof MultiDimensionalReputationSocialGraph !== 'undefined' ? MultiDimensionalReputationSocialGraph : (typeof require !== 'undefined' ? (() => { try { return require('./multi-dimensional-reputation-social-graph.js'); } catch { return null; } })() : null));
+            if (reputationOn && repLib && typeof repLib.generateReputationDirectives === 'function' && engine._reputationSocialGraphState) {
+                const repDir = repLib.generateReputationDirectives(engine._reputationSocialGraphState, currentSpeaker, knownCharacters);
+                if (repDir) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${repDir}` : repDir;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
         let finalCandidates = firewallSanitized;
         try {

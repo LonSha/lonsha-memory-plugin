@@ -52,23 +52,32 @@
 14. **`dynamic-faction-territory-topology-hub.js`（动态势力版图与地理拓扑控制中枢 · L20-14）**
     - 建模宏观城邦地理与派系统治控制力（0%~100%），动态注入戒严法度与民间敌友视线约束。
 
-15. **`darknet-dual-domain-vault.js`（手机虚拟环境双域空间与加密暗网保险箱 · R20-4）**
+15. **`long-tail-flashback-resonance-hub.js`（长尾伏笔沉睡唤醒与闪回共鸣中枢 · L20-15）**
+    - 标记长达50轮以上的超长沉睡记忆，语境契合时以宿命闪回唤醒，彻底解决重要伏笔永寂问题。
+
+16. **`multi-dimensional-reputation-social-graph.js`（多维声誉声望与动态社交拓扑图谱 · L20-16）**
+    - 突破单一好感度，综合武勇威名、背信恶名与阶层正统性，生成高保真社交威压与戒备指令。
+
+17. **`darknet-dual-domain-vault.js`（手机虚拟环境双域空间与加密暗网保险箱 · R20-4）**
     - 虚拟手机日常公共空间与加密暗网空间物理隔离，暗号唤醒与紧急恐慌伪装降级。
 
-16. **`hardware-signal-sensor-simulator.js`（拟真硬件底层环境与无线信号传感器仿真引擎 · R20-5）**
+18. **`hardware-signal-sensor-simulator.js`（拟真硬件底层环境与无线信号传感器仿真引擎 · R20-5）**
     - 仿真现实射频衰减（5G/4G/2G/无服务）、电池过热掉电与剧烈跌落冲击传感器上报。
 
-17. **`npc-autonomous-notification-synthesizer.js`（离线世界演化与NPC自主演化动态通知生成器 · R20-3）**
+19. **`npc-autonomous-notification-synthesizer.js`（离线世界演化与NPC自主演化动态通知生成器 · R20-3）**
     - 随离线流逝时间自动演化 NPC 动态，合成微信未读关怀与情报预警推送。
 
-18. **`cross-app-evidence-chain-matrix.js`（跨应用侦探证据链与物理物证网拓扑分析机 · R20-6）**
+20. **`cross-app-evidence-chain-matrix.js`（跨应用侦探证据链与物理物证网拓扑分析机 · R20-6）**
     - 聚合聊天、相册、钱包账单物证，自动对比分析不在场证明时空冲突，生成对质审讯指令。
 
-19. **`offline-mesh-beacon-transceiver.js`（离线近场自组网与信标广播收发器 · R20-7）**
+21. **`offline-mesh-beacon-transceiver.js`（离线近场自组网与信标广播收发器 · R20-7）**
     - 在蜂窝基站失联下仿真短距蓝牙/Mesh物理自组网，物理近场通信与跳点延迟约束。
 
-20. **`cross-device-forensic-timeline-reconstructor.js`（跨设备电子取证与时序行为拓扑重构器 · R20-8）**
+22. **`cross-device-forensic-timeline-reconstructor.js`（跨设备电子取证与时序行为拓扑重构器 · R20-8）**
     - 交叉对比多设备（手表心率暴增、车载紧急刹车、手机关机）毫秒级时序矛盾，导出无法推脱的数字铁证。
+
+23. **`sandbox-file-encryption-leak-tracer.js`（沙盒绝密文件分级加密与泄露溯源机 · R20-9）**
+    - 虚拟手机内部绝密文件分级管理，捕获非法转存与截屏外泄行为，计算泄露指数并注入反谍追责警报。
 
 ---
 
@@ -78,10 +87,12 @@
 - **LonSha 批次3单测（`tests/l20_epic_batch3.test.mjs`）**：3 passed, 0 failed
 - **LonSha 批次4单测（`tests/l20_epic_batch4.test.mjs`）**：3 passed, 0 failed
 - **LonSha 批次5单测（`tests/l20_epic_batch5.test.mjs`）**：2 passed, 0 failed
+- **LonSha 批次6单测（`tests/l20_epic_batch6.test.mjs`）**：2 passed, 0 failed
 - **LonSha 主管线全域编排真跑（`tests/l19_vertical_symphony_recall.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次1单测（`tests/r20_epic_architecture.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次2单测（`tests/r20_epic_batch2.test.mjs`）**：3 passed, 0 failed
 - **RubyPhone 批次3单测（`tests/r20_epic_batch3.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次4单测（`tests/r20_epic_batch4.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次5单测（`tests/r20_epic_batch5.test.mjs`）**：1 passed, 0 failed
+- **RubyPhone 批次6单测（`tests/r20_epic_batch6.test.mjs`）**：1 passed, 0 failed
 - **全量改动文件语法检查**：`node --check` 100% 通过。

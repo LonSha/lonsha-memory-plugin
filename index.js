@@ -2685,7 +2685,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _somaticReflexLib: _somaticReflexLib,
                         _gameTheoryLib: _gameTheoryLib,
                         _deepMemoryAtlasLib: _deepMemoryAtlasLib,
-                        _factionTerritoryLib: _factionTerritoryLib
+                        _factionTerritoryLib: _factionTerritoryLib,
+                        _longTailFlashbackLib: _longTailFlashbackLib,
+                        _reputationSocialGraphLib: _reputationSocialGraphLib
                     }
                 });
             }
@@ -10621,6 +10623,8 @@ function _collectNewFace() {
     function _gameTheoryLib() { return _moduleLib(() => window.MultiAgentGameTheoryCoordinator, 'multi-agent-game-theory-coordinator.js'); }
     function _deepMemoryAtlasLib() { return _moduleLib(() => window.DeepMemoryDistillationAtlas, 'deep-memory-distillation-atlas.js'); }
     function _factionTerritoryLib() { return _moduleLib(() => window.DynamicFactionTerritoryTopologyHub, 'dynamic-faction-territory-topology-hub.js'); }
+    function _longTailFlashbackLib() { return _moduleLib(() => window.LongTailFlashbackResonanceHub, 'long-tail-flashback-resonance-hub.js'); }
+    function _reputationSocialGraphLib() { return _moduleLib(() => window.MultiDimensionalReputationSocialGraph, 'multi-dimensional-reputation-social-graph.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11596,6 +11600,22 @@ function _collectNewFace() {
                     this._moduleStatus.factionTerritory = true;
                     console.log(`[${PLUGIN_NAME}] ✓ 动态势力版图与地理拓扑控制中枢已加载`);
                 } catch (e) { errLog(e, 'loadModules.FactionTerritory'); }
+            }
+            const _LTF = _longTailFlashbackLib();
+            if (_LTF && typeof _LTF.createInitialResonanceState === 'function') {
+                try {
+                    if (!this.engine._longTailFlashbackState) this.engine._longTailFlashbackState = _LTF.createInitialResonanceState();
+                    this._moduleStatus.longTailFlashback = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 长尾伏笔沉睡唤醒与闪回共鸣中枢已加载`);
+                } catch (e) { errLog(e, 'loadModules.LongTailFlashback'); }
+            }
+            const _RSG = _reputationSocialGraphLib();
+            if (_RSG && typeof _RSG.createInitialReputationState === 'function') {
+                try {
+                    if (!this.engine._reputationSocialGraphState) this.engine._reputationSocialGraphState = _RSG.createInitialReputationState();
+                    this._moduleStatus.reputationSocialGraph = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 多维声誉声望与动态社交拓扑图谱已加载`);
+                } catch (e) { errLog(e, 'loadModules.ReputationSocialGraph'); }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

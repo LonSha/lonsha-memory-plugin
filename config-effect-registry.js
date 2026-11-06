@@ -49,6 +49,8 @@
         "multiAgentGameTheoryEnabled": "immediate",
         "deepMemoryAtlasEnabled": "immediate",
         "factionTerritoryEnabled": "immediate",
+        "longTailFlashbackEnabled": "immediate",
+        "multiDimensionalReputationEnabled": "immediate",
         "debugMode": "immediate",
         "rubyPhoneBridge": "immediate",
         "rubyPhoneRecall": "immediate",
