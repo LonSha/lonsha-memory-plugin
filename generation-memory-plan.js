@@ -118,6 +118,38 @@
     /**
      * 应用 Token 预算约束（优先保障必需材料，裁剪可选材料）
      */
+    /**
+     * [v3.449.0 · L15-O4] 动态长篇选材注意力弹性预算
+     * 根据场景紧张度 tension 与剧情节奏自动调整最大可用预算上限与精炼系数
+     * @param {Object} plan 记忆计划
+     * @param {number} baseBudgetTokens 基础预算
+     * @param {string|number} tension 紧张度（如 'high', 'low', 'crisis', 0.8 等）
+     */
+    function applyElasticBudget(plan, baseBudgetTokens, tension = 'normal') {
+        if (!plan || typeof plan !== 'object') return plan;
+        const base = Math.max(100, safeNum(baseBudgetTokens, 800));
+        let scale = 1.0;
+        const tStr = String(tension || '').toLowerCase();
+
+        if (tStr.includes('crisis') || tStr.includes('绝境') || tStr.includes('生死') || tStr === '0.9' || tStr === '1.0') {
+            scale = 0.55; // 极高张力：大幅精炼收敛，只保留最核心命题
+        } else if (tStr.includes('high') || tStr.includes('紧张') || tStr.includes('警惕') || tStr.includes('冲突')) {
+            scale = 0.75; // 高张力：紧凑聚焦
+        } else if (tStr.includes('low') || tStr.includes('松弛') || tStr.includes('闲聊') || tStr.includes('茶歇')) {
+            scale = 1.35; // 松弛场景：自适应扩充预算，召回背景与回忆
+        }
+
+        const elasticBudget = Math.round(base * scale);
+        const budgetedPlan = applyBudgetLimit(plan, elasticBudget);
+        return Object.freeze({
+            ...budgetedPlan,
+            elasticTension: tension,
+            elasticScale: scale,
+            baseBudget: base,
+            effectiveBudget: elasticBudget
+        });
+    }
+
     function applyBudgetLimit(plan, maxBudgetTokens) {
         if (!plan || typeof plan !== 'object') return plan;
         const budget = safeNum(maxBudgetTokens, Infinity);
@@ -202,6 +234,7 @@
         removePlanItem,
         addPlanItem,
         applyBudgetLimit,
+        applyElasticBudget,
         comparePlanConsumption,
         generationMemoryPlanSelfCheck
     });

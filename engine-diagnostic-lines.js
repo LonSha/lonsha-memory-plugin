@@ -5410,7 +5410,9 @@
             const loc = s.location || '未知地点';
             const act = s.action ? ` · 动作: ${s.action}` : '';
             const persistTag = cached.isPersisted ? ' · 已落盘' : ' · 待落盘';
-            return `现场快照：${loc}（在场: ${chars}）${act}${persistTag} · 独立防穿透硬预算保护`;
+            // [v3.449.0 · L15-O4 & L15-X6] 弹性预算与地点禁忌标记
+            const tens = s.tension ? ` · 张力: ${s.tension}` : '';
+            return `现场快照：${loc}（在场: ${chars}）${act}${tens}${persistTag} · 独立防穿透弹性硬预算保护`;
         } catch (e) {
             errLog(e, 'engine._sceneStateTrackerLine');
             return '—（诊断异常）';
