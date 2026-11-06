@@ -2671,7 +2671,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _summaryProvenanceLib: _summaryProvenanceLib,
                         _resonanceLib: _resonanceLib,
                         _memorySymphonyLib: _memorySymphonyLib,
-                        _antiConfusionLib: _antiConfusionLib
+                        _antiConfusionLib: _antiConfusionLib,
+                        _psychologicalDefenseLib: _psychologicalDefenseLib,
+                        _hypergraphCausalHubLib: _hypergraphCausalHubLib,
+                        _memoryHealingImmunityLib: _memoryHealingImmunityLib
                     }
                 });
             }
@@ -10592,6 +10595,10 @@ function _collectNewFace() {
     /* [v3.457.0 · V19-O2] 多维防混淆与实体认知锚定矩阵引擎取库口（anti-confusion-matrix-disambiguator.js）。
      *   ★ 实体指代消歧 + 事实互斥冲突仲裁 + 显式锚定前缀 + 防混淆结构化约束。 */
     function _antiConfusionLib() { return _moduleLib(() => window.LonShaAntiConfusion, 'anti-confusion-matrix-disambiguator.js'); }
+    /* [v3.458.0 · V20-L1/L2/L5] 认知心理防御、超图因果推演与自愈免疫取库口 */
+    function _psychologicalDefenseLib() { return _moduleLib(() => window.LonShaPsychologicalDefense, 'psychological-defense-engine.js'); }
+    function _hypergraphCausalHubLib() { return _moduleLib(() => window.LonShaHypergraphCausalHub, 'hypergraph-causal-backtracking-hub.js'); }
+    function _memoryHealingImmunityLib() { return _moduleLib(() => window.LonShaMemoryHealingImmunity, 'memory-healing-immunity-adjudicator.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11454,6 +11461,31 @@ function _collectNewFace() {
                 } catch (e) { errLog(e, 'loadModules.AntiConfusion'); console.warn(`[${PLUGIN_NAME}] ⚠️ 防混淆状态初始化失败：${(e && e.message) || e}`); }
             } else {
                 console.warn(`[${PLUGIN_NAME}] ⚠️ 防混淆消歧矩阵未加载（LonShaAntiConfusion 未定义）：候选记忆将不做互斥消歧`);
+            }
+            // [v3.458.0 · V20] 成功声称面：心理防御、超图因果中枢与自愈免疫加载
+            const _PDE = _psychologicalDefenseLib();
+            if (_PDE && typeof _PDE.createState === 'function') {
+                try {
+                    if (!this.engine._psychologicalDefenseState) this.engine._psychologicalDefenseState = _PDE.createState();
+                    this._moduleStatus.psychologicalDefense = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 认知心理防御与移情扭曲引擎模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.PsychologicalDefense'); }
+            }
+            const _HCH = _hypergraphCausalHubLib();
+            if (_HCH && typeof _HCH.createState === 'function') {
+                try {
+                    if (!this.engine._hypergraphCausalState) this.engine._hypergraphCausalState = _HCH.createState();
+                    this._moduleStatus.hypergraphCausal = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 超图多跳联合因果推演中枢模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.HypergraphCausal'); }
+            }
+            const _MHIA = _memoryHealingImmunityLib();
+            if (_MHIA && typeof _MHIA.createState === 'function') {
+                try {
+                    if (!this.engine._memoryHealingImmunityState) this.engine._memoryHealingImmunityState = _MHIA.createState();
+                    this._moduleStatus.memoryHealingImmunity = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 记忆自愈免疫与抗幻觉仲裁器模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.MemoryHealingImmunity'); }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

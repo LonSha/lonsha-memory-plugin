@@ -193,13 +193,16 @@
                 packedAt: new Date().toISOString(),
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
-                /* [v3.455.0 · V17 & v3.456.0 · V18 & v3.457.0 · V19] 共振热表、分层演化与交响防混淆状态随存档落盘：走既有 extensions 命名空间，
+                /* [v3.455.0 · V17 & v3.456.0 · V18 & v3.457.0 · V19 & v3.458.0 · V20] 共振热表、分层演化、交响防混淆、心理防御、超图因果与自愈免疫状态随存档落盘：走既有 extensions 命名空间，
                  *   绝不新增/改动 ARCHIVE_TOP_LEVEL_KEYS 冻结顶层键（STBME 快照契约纪律）。 */
                 extensions: Object.assign({}, this._archiveExtensions || {},
                     this._resonanceState ? { lonshaResonanceState: this._resonanceState } : {},
                     this._pyramidEvolutionState ? { lonshaPyramidEvolutionState: this._pyramidEvolutionState } : {},
                     this._symphonyState ? { lonshaSymphonyState: this._symphonyState } : {},
-                    this._antiConfusionState ? { lonshaAntiConfusionState: this._antiConfusionState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._antiConfusionState ? { lonshaAntiConfusionState: this._antiConfusionState } : {},
+                    this._psychologicalDefenseState ? { lonshaPsychologicalDefenseState: this._psychologicalDefenseState } : {},
+                    this._hypergraphCausalState ? { lonshaHypergraphCausalState: this._hypergraphCausalState } : {},
+                    this._memoryHealingImmunityState ? { lonshaMemoryHealingImmunityState: this._memoryHealingImmunityState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -413,6 +416,37 @@
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaAntiConfusionState', error: String(e?.message || e) });
                     errLog(e, 'restoreFromPayload.antiConfusionState');
+                }
+            }
+            /* [v3.458.0 · V20] 心理防御、超图因果与自愈免疫状态恢复 */
+            if (!dry && _ext && _ext.lonshaPsychologicalDefenseState) {
+                try {
+                    const _PDE = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPsychologicalDefense : null), 'psychological-defense-engine.js');
+                    this._psychologicalDefenseState = (_PDE && typeof _PDE.hydrateState === 'function')
+                        ? _PDE.hydrateState(_ext.lonshaPsychologicalDefenseState) : _ext.lonshaPsychologicalDefenseState;
+                    res.restored.push('extensions.lonshaPsychologicalDefenseState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaPsychologicalDefenseState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaHypergraphCausalState) {
+                try {
+                    const _HCH = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaHypergraphCausalHub : null), 'hypergraph-causal-backtracking-hub.js');
+                    this._hypergraphCausalState = (_HCH && typeof _HCH.hydrateState === 'function')
+                        ? _HCH.hydrateState(_ext.lonshaHypergraphCausalState) : _ext.lonshaHypergraphCausalState;
+                    res.restored.push('extensions.lonshaHypergraphCausalState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaHypergraphCausalState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaMemoryHealingImmunityState) {
+                try {
+                    const _MHIA = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryHealingImmunity : null), 'memory-healing-immunity-adjudicator.js');
+                    this._memoryHealingImmunityState = (_MHIA && typeof _MHIA.hydrateState === 'function')
+                        ? _MHIA.hydrateState(_ext.lonshaMemoryHealingImmunityState) : _ext.lonshaMemoryHealingImmunityState;
+                    res.restored.push('extensions.lonshaMemoryHealingImmunityState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaMemoryHealingImmunityState', error: String(e?.message || e) });
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

@@ -5848,18 +5848,22 @@
         }
     }
 
-    /* [v3.457.0 · V19 记忆专版] 全域记忆交响编排与多维防混淆诊断行（真实读数） */
+    /* [v3.457.0 · V19 记忆专版 & v3.458.0 · V20 史诗级双计划] 全域记忆交响编排、防混淆、心理防御与自愈免疫诊断行（真实读数） */
     function _memorySymphonyLine(engine) {
         try {
             const tr = engine?._lastSymphonyTrace;
             const st = engine?._antiConfusionState;
+            const psychSt = engine?._psychologicalDefenseState;
+            const immSt = engine?._memoryHealingImmunityState;
             if (!tr && !st) return '【全域记忆交响】未激活（未执行全域编排）';
             if (tr?.active === false) return `【全域记忆交响】已跳过（原因：${tr.reason || '未启用'}）`;
             const disCount = st?.disambiguatedCount || tr?.disambiguatedCount || 0;
             const confCount = st?.conflictResolvedCount || tr?.resolvedConflicts || 0;
             const inCount = tr?.inputCount || 0;
             const outCount = tr?.outputCount || 0;
-            return `【全域记忆交响·防混淆】输入候选${inCount}条 → 经因果/消歧/视界编排输出${outCount}条 · 实体锚定${disCount}处 · 互斥仲裁${confCount}起`;
+            const psychCount = psychSt?.totalDefensesTriggered || 0;
+            const immCount = immSt?.totalInoculations || 0;
+            return `【全域记忆交响·V20】输入${inCount}条 → 经心理/因果/消歧编排输出${outCount}条 · 实体锚定${disCount} · 互斥仲裁${confCount} · 心理防御${psychCount} · 免疫接种${immCount}`;
         } catch (e) {
             errLog(e, 'engine._memorySymphonyLine');
             return '—（全域记忆交响诊断异常）';

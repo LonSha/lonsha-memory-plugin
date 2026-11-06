@@ -715,6 +715,18 @@
             if (this._lastSymphonyDirectives && this.config.config.antiConfusionDirectivesEnabled !== false) {
                 NOTE = `${NOTE}\n\n【防混淆认知矩阵约束】\n${this._lastSymphonyDirectives}`;
             }
+            // [v3.458.0 · V20-L5] 记忆自愈免疫接种指令合流
+            if (this.config.config.memoryHealingImmunityEnabled !== false && this._memoryHealingImmunityState) {
+                try {
+                    const ImmunityMod = (typeof _memoryHealingImmunityLib === 'function') ? _memoryHealingImmunityLib() : (typeof LonShaMemoryHealingImmunity !== 'undefined' ? LonShaMemoryHealingImmunity : null);
+                    if (ImmunityMod && typeof ImmunityMod.buildImmunizationDirectives === 'function') {
+                        const immuneDirectives = ImmunityMod.buildImmunizationDirectives(this._memoryHealingImmunityState);
+                        if (immuneDirectives) {
+                            NOTE = `${NOTE}\n\n${immuneDirectives}`;
+                        }
+                    }
+                } catch (e) { errLog(e, 'buildInjection.memoryHealingImmunity'); }
+            }
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）

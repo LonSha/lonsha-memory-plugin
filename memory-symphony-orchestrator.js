@@ -160,8 +160,42 @@
             trace.stages.antiConfusion = { error: String(e && e.message) };
         }
 
+        // ---------------- [阶段 3.5: V20 认知心理防御与潜意识移情扭曲] ----------------
+        let psychologicallyDistorted = disambiguatedCandidates;
+        const psychOn = cfg.psychologicalDefenseEnabled !== false;
+        try {
+            const psychLib = (typeof engine._psychologicalDefenseLib === 'function')
+                ? engine._psychologicalDefenseLib()
+                : (typeof LonShaPsychologicalDefense !== 'undefined' ? LonShaPsychologicalDefense : (typeof require !== 'undefined' ? (() => { try { return require('./psychological-defense-engine.js'); } catch { return null; } })() : null));
+            if (psychOn && psychLib && typeof psychLib.evaluatePsychologicalDistortion === 'function') {
+                if (!engine._psychologicalDefenseState || typeof engine._psychologicalDefenseState !== 'object') {
+                    engine._psychologicalDefenseState = psychLib.createState();
+                }
+                const psychRes = psychLib.evaluatePsychologicalDistortion(disambiguatedCandidates, {
+                    currentSpeaker,
+                    inSceneCharacters: knownCharacters,
+                    queryText: query.text || ''
+                }, engine._psychologicalDefenseState);
+
+                psychologicallyDistorted = psychRes.candidates || disambiguatedCandidates;
+                if (psychRes.directives) {
+                    generatedDirectives = generatedDirectives 
+                        ? `${generatedDirectives}\n${psychRes.directives}` 
+                        : psychRes.directives;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+                trace.stages.psychologicalDefense = {
+                    distortedCount: psychRes.distortedCount || 0
+                };
+            } else {
+                trace.stages.psychologicalDefense = { status: psychOn ? 'skipped_or_unavailable' : 'disabled' };
+            }
+        } catch (e) {
+            trace.stages.psychologicalDefense = { error: String(e && e.message) };
+        }
+
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
-        let finalCandidates = disambiguatedCandidates;
+        let finalCandidates = psychologicallyDistorted;
         try {
             const horizonLib = (typeof engine._cognitiveHorizonLib === 'function') 
                 ? engine._cognitiveHorizonLib() 
