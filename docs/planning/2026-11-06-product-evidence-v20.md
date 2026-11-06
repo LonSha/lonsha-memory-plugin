@@ -37,27 +37,40 @@
 9. **`dynamic-covenant-consequence-engine.js`（动态契约誓言、违约噬心与因果反噬引擎 · L20-9）**
    - 缔结神圣同盟血誓，在线监控背叛违约并触发因果反噬与噬心惩戒指令。
 
-10. **`darknet-dual-domain-vault.js`（手机虚拟环境双域空间与加密暗网保险箱 · R20-4）**
+10. **`dream-subconscious-metaphor-synthesizer.js`（梦境解析与潜意识超现实隐喻合成器 · L20-10）**
+    - 深度睡眠时解构当日未决压力，将冷酷现实升华为抽象意象符号（如断裂十字架、倒流沙漏），次日晨起折射直觉余波。
+
+11. **`somatic-micro-expression-reflex-engine.js`（生理反射与微表情神经自律引擎 · L20-11）**
+    - 仿真瞳孔放大、呼吸锁死、指尖震颤、喉结吞咽等非自愿生理反应，强压撒谎时生成生理真实动作旁白。
+
+12. **`multi-agent-game-theory-coordinator.js`（多智能体博弈均衡与动态同盟撕裂协调器 · L20-12）**
+    - 建模多方博弈对抗收益矩阵与背叛利益驱动，驱动同盟内部暗流涌动与试探性背刺算计。
+
+13. **`darknet-dual-domain-vault.js`（手机虚拟环境双域空间与加密暗网保险箱 · R20-4）**
     - 虚拟手机日常公共空间与加密暗网空间物理隔离，暗号唤醒与紧急恐慌伪装降级。
 
-11. **`hardware-signal-sensor-simulator.js`（拟真硬件底层环境与无线信号传感器仿真引擎 · R20-5）**
+14. **`hardware-signal-sensor-simulator.js`（拟真硬件底层环境与无线信号传感器仿真引擎 · R20-5）**
     - 仿真现实射频衰减（5G/4G/2G/无服务）、电池过热掉电与剧烈跌落冲击传感器上报。
 
-12. **`npc-autonomous-notification-synthesizer.js`（离线世界演化与NPC自主演化动态通知生成器 · R20-3）**
+15. **`npc-autonomous-notification-synthesizer.js`（离线世界演化与NPC自主演化动态通知生成器 · R20-3）**
     - 随离线流逝时间自动演化 NPC 动态，合成微信未读关怀与情报预警推送。
 
-13. **`cross-app-evidence-chain-matrix.js`（跨应用侦探证据链与物理物证网拓扑分析机 · R20-6）**
+16. **`cross-app-evidence-chain-matrix.js`（跨应用侦探证据链与物理物证网拓扑分析机 · R20-6）**
     - 聚合聊天、相册、钱包账单物证，自动对比分析不在场证明时空冲突，生成对质审讯指令。
+
+17. **`offline-mesh-beacon-transceiver.js`（离线近场自组网与信标广播收发器 · R20-7）**
+    - 在蜂窝基站失联下仿真短距蓝牙/Mesh物理自组网，物理近场通信与跳点延迟约束。
 
 ---
 
 ### 二、定向验证与测试读数
-
 - **LonSha 批次1单测（`tests/l20_epic_architecture.test.mjs`）**：3 passed, 0 failed
 - **LonSha 批次2单测（`tests/l20_epic_batch2.test.mjs`）**：3 passed, 0 failed
 - **LonSha 批次3单测（`tests/l20_epic_batch3.test.mjs`）**：3 passed, 0 failed
+- **LonSha 批次4单测（`tests/l20_epic_batch4.test.mjs`）**：3 passed, 0 failed
 - **LonSha 主管线全域编排真跑（`tests/l19_vertical_symphony_recall.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次1单测（`tests/r20_epic_architecture.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次2单测（`tests/r20_epic_batch2.test.mjs`）**：3 passed, 0 failed
 - **RubyPhone 批次3单测（`tests/r20_epic_batch3.test.mjs`）**：1 passed, 0 failed
-- **语法静态检查**：全量代码 `node --check` 100% 通过，无语法错误。
+- **RubyPhone 批次4单测（`tests/r20_epic_batch4.test.mjs`）**：1 passed, 0 failed
+- **全量改动文件语法检查**：`node --check` 100% 通过。

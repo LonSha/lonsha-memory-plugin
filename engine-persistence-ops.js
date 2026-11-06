@@ -208,7 +208,10 @@
                     this._macroEpochState ? { lonshaMacroEpochState: this._macroEpochState } : {},
                     this._covertEspionageState ? { lonshaCovertEspionageState: this._covertEspionageState } : {},
                     this._obsessiveTraumaState ? { lonshaObsessiveTraumaState: this._obsessiveTraumaState } : {},
-                    this._dynamicCovenantState ? { lonshaDynamicCovenantState: this._dynamicCovenantState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._dynamicCovenantState ? { lonshaDynamicCovenantState: this._dynamicCovenantState } : {},
+                    this._dreamMetaphorState ? { lonshaDreamMetaphorState: this._dreamMetaphorState } : {},
+                    this._somaticReflexState ? { lonshaSomaticReflexState: this._somaticReflexState } : {},
+                    this._gameTheoryState ? { lonshaGameTheoryState: this._gameTheoryState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -513,6 +516,36 @@
                     res.restored.push('extensions.lonshaDynamicCovenantState');
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaDynamicCovenantState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaDreamMetaphorState) {
+                try {
+                    const _DME = _moduleLib(() => (typeof window !== 'undefined' ? window.DreamSubconsciousMetaphorSynthesizer : null), 'dream-subconscious-metaphor-synthesizer.js');
+                    this._dreamMetaphorState = (_DME && typeof _DME.hydrateDreamState === 'function')
+                        ? _DME.hydrateDreamState(_ext.lonshaDreamMetaphorState) : _ext.lonshaDreamMetaphorState;
+                    res.restored.push('extensions.lonshaDreamMetaphorState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaDreamMetaphorState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaSomaticReflexState) {
+                try {
+                    const _SRE = _moduleLib(() => (typeof window !== 'undefined' ? window.SomaticMicroExpressionReflexEngine : null), 'somatic-micro-expression-reflex-engine.js');
+                    this._somaticReflexState = (_SRE && typeof _SRE.hydrateSomaticState === 'function')
+                        ? _SRE.hydrateSomaticState(_ext.lonshaSomaticReflexState) : _ext.lonshaSomaticReflexState;
+                    res.restored.push('extensions.lonshaSomaticReflexState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaSomaticReflexState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaGameTheoryState) {
+                try {
+                    const _GTC = _moduleLib(() => (typeof window !== 'undefined' ? window.MultiAgentGameTheoryCoordinator : null), 'multi-agent-game-theory-coordinator.js');
+                    this._gameTheoryState = (_GTC && typeof _GTC.hydrateGameTheoryState === 'function')
+                        ? _GTC.hydrateGameTheoryState(_ext.lonshaGameTheoryState) : _ext.lonshaGameTheoryState;
+                    res.restored.push('extensions.lonshaGameTheoryState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaGameTheoryState', error: String(e?.message || e) });
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

@@ -301,6 +301,54 @@
             }
         } catch (e) {}
 
+        // ---------------- [阶段 3.9: V20 梦境隐喻、生理微表情与多方博弈张力] ----------------
+        const dreamOn = cfg.dreamMetaphorEnabled !== false;
+        try {
+            const dreamLib = (typeof engine._dreamMetaphorLib === 'function')
+                ? engine._dreamMetaphorLib()
+                : (typeof DreamSubconsciousMetaphorSynthesizer !== 'undefined' ? DreamSubconsciousMetaphorSynthesizer : (typeof require !== 'undefined' ? (() => { try { return require('./dream-subconscious-metaphor-synthesizer.js'); } catch { return null; } })() : null));
+            if (dreamOn && dreamLib && typeof dreamLib.generateDreamEchoDirective === 'function' && engine._dreamMetaphorState) {
+                const dEcho = dreamLib.generateDreamEchoDirective({ dreamState: engine._dreamMetaphorState, speaker: currentSpeaker });
+                if (dEcho) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${dEcho}` : dEcho;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
+        const somaticOn = cfg.somaticReflexEnabled !== false;
+        try {
+            const somaticLib = (typeof engine._somaticReflexLib === 'function')
+                ? engine._somaticReflexLib()
+                : (typeof SomaticMicroExpressionReflexEngine !== 'undefined' ? SomaticMicroExpressionReflexEngine : (typeof require !== 'undefined' ? (() => { try { return require('./somatic-micro-expression-reflex-engine.js'); } catch { return null; } })() : null));
+            if (somaticOn && somaticLib && typeof somaticLib.evaluateSomaticReflex === 'function' && typeof somaticLib.generateSomaticDirective === 'function') {
+                const stress = (engine._obsessiveTraumaState && engine._obsessiveTraumaState.characterProfiles && engine._obsessiveTraumaState.characterProfiles[currentSpeaker])
+                    ? engine._obsessiveTraumaState.characterProfiles[currentSpeaker].stressMeter : 0;
+                const somaticReport = somaticLib.evaluateSomaticReflex({ character: currentSpeaker, stressLevel: stress, text: queryText });
+                if (somaticReport) {
+                    const sTxt = somaticLib.generateSomaticDirective({ somaticReport });
+                    if (sTxt) {
+                        generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${sTxt}` : sTxt;
+                        trace.antiConfusionDirectives = generatedDirectives;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        const gameTheoryOn = cfg.multiAgentGameTheoryEnabled !== false;
+        try {
+            const gameLib = (typeof engine._gameTheoryLib === 'function')
+                ? engine._gameTheoryLib()
+                : (typeof MultiAgentGameTheoryCoordinator !== 'undefined' ? MultiAgentGameTheoryCoordinator : (typeof require !== 'undefined' ? (() => { try { return require('./multi-agent-game-theory-coordinator.js'); } catch { return null; } })() : null));
+            if (gameTheoryOn && gameLib && typeof gameLib.evaluateGameBalance === 'function' && engine._gameTheoryState) {
+                const gDir = gameLib.evaluateGameBalance({ state: engine._gameTheoryState, speaker: currentSpeaker, others: knownCharacters });
+                if (gDir) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${gDir}` : gDir;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
         let finalCandidates = firewallSanitized;
         try {

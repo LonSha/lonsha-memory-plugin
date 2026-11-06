@@ -3025,6 +3025,9 @@
                     ${ck('covertEspionageEnabled', '🕵️ 特工潜伏与双重身份暴露博弈（V20 史诗级双计划）', '度量潜伏破绽积累与暴露风险模型，触发临界销毁证据与极限圆谎张力。')}
                     ${ck('obsessiveTraumaEnabled', '💔 角色深层创伤禁忌与应激失控阈值（V20 史诗级双计划）', '监控触及禁忌雷区后的心理压力计，突破阈值强制触发躯体化失控与理智崩溃。')}
                     ${ck('dynamicCovenantEnabled', '📜 动态契约誓言与因果反噬引擎（V20 史诗级双计划）', '记录同盟立誓与违誓代价，背叛或撕毁契约时引发天地因果反噬与噬心惩戒。')}
+                    ${ck('dreamMetaphorEnabled', '🌌 梦境解析与潜意识隐喻合成器（V20 史诗级双计划）', '深度睡眠或独处时解构未决压力源，将冷酷事实升华为超现实主义梦境直觉余波。')}
+                    ${ck('somaticReflexEnabled', '💓 生理反射与微表情神经自律引擎（V20 史诗级双计划）', '模拟瞳孔、呼吸骤停、指尖震颤等不由自主的微表情，赋予肢体真实生理学质感。')}
+                    ${ck('multiAgentGameTheoryEnabled', '♟️ 多智能体博弈均衡与动态撕裂（V20 史诗级双计划）', '建模多方对抗收益矩阵与背叛诱惑，驱动同盟暗潮涌动与试探性背刺算计。')}
                     ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">

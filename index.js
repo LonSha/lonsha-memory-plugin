@@ -2680,7 +2680,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _macroEpochLib: _macroEpochLib,
                         _covertEspionageLib: _covertEspionageLib,
                         _obsessiveTraumaLib: _obsessiveTraumaLib,
-                        _dynamicCovenantLib: _dynamicCovenantLib
+                        _dynamicCovenantLib: _dynamicCovenantLib,
+                        _dreamMetaphorLib: _dreamMetaphorLib,
+                        _somaticReflexLib: _somaticReflexLib,
+                        _gameTheoryLib: _gameTheoryLib
                     }
                 });
             }
@@ -10611,6 +10614,9 @@ function _collectNewFace() {
     function _covertEspionageLib() { return _moduleLib(() => window.LonShaCovertEspionage, 'covert-espionage-exposure-hub.js'); }
     function _obsessiveTraumaLib() { return _moduleLib(() => window.LonShaObsessiveTrauma, 'obsessive-trauma-taboo-engine.js'); }
     function _dynamicCovenantLib() { return _moduleLib(() => window.LonShaCovenantEngine, 'dynamic-covenant-consequence-engine.js'); }
+    function _dreamMetaphorLib() { return _moduleLib(() => window.DreamSubconsciousMetaphorSynthesizer, 'dream-subconscious-metaphor-synthesizer.js'); }
+    function _somaticReflexLib() { return _moduleLib(() => window.SomaticMicroExpressionReflexEngine, 'somatic-micro-expression-reflex-engine.js'); }
+    function _gameTheoryLib() { return _moduleLib(() => window.MultiAgentGameTheoryCoordinator, 'multi-agent-game-theory-coordinator.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11546,6 +11552,30 @@ function _collectNewFace() {
                     this._moduleStatus.dynamicCovenant = true;
                     console.log(`[${PLUGIN_NAME}] ✓ 动态契约誓言与因果反噬引擎模块已加载`);
                 } catch (e) { errLog(e, 'loadModules.DynamicCovenant'); }
+            }
+            const _DME = _dreamMetaphorLib();
+            if (_DME && typeof _DME.createInitialDreamState === 'function') {
+                try {
+                    if (!this.engine._dreamMetaphorState) this.engine._dreamMetaphorState = _DME.createInitialDreamState();
+                    this._moduleStatus.dreamMetaphor = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 梦境解析与潜意识超现实隐喻合成器已加载`);
+                } catch (e) { errLog(e, 'loadModules.DreamMetaphor'); }
+            }
+            const _SRE = _somaticReflexLib();
+            if (_SRE && typeof _SRE.createInitialSomaticState === 'function') {
+                try {
+                    if (!this.engine._somaticReflexState) this.engine._somaticReflexState = _SRE.createInitialSomaticState();
+                    this._moduleStatus.somaticReflex = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 生理反射与微表情神经自律引擎已加载`);
+                } catch (e) { errLog(e, 'loadModules.SomaticReflex'); }
+            }
+            const _GTC = _gameTheoryLib();
+            if (_GTC && typeof _GTC.createInitialGameTheoryState === 'function') {
+                try {
+                    if (!this.engine._gameTheoryState) this.engine._gameTheoryState = _GTC.createInitialGameTheoryState();
+                    this._moduleStatus.gameTheory = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 多智能体博弈均衡与动态同盟撕裂协调器已加载`);
+                } catch (e) { errLog(e, 'loadModules.GameTheory'); }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {
