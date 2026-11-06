@@ -215,7 +215,9 @@
                     this._deepMemoryAtlasState ? { lonshaDeepMemoryAtlasState: this._deepMemoryAtlasState } : {},
                     this._factionTerritoryState ? { lonshaFactionTerritoryState: this._factionTerritoryState } : {},
                     this._longTailFlashbackState ? { lonshaLongTailFlashbackState: this._longTailFlashbackState } : {},
-                    this._reputationSocialGraphState ? { lonshaReputationSocialGraphState: this._reputationSocialGraphState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._reputationSocialGraphState ? { lonshaReputationSocialGraphState: this._reputationSocialGraphState } : {},
+                    this._soulBrandReincarnationState ? { lonshaSoulBrandReincarnationState: this._soulBrandReincarnationState } : {},
+                    this._fateClimaxLoomState ? { lonshaFateClimaxLoomState: this._fateClimaxLoomState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -590,6 +592,26 @@
                     res.restored.push('extensions.lonshaReputationSocialGraphState');
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaReputationSocialGraphState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaSoulBrandReincarnationState) {
+                try {
+                    const _SBR = _moduleLib(() => (typeof window !== 'undefined' ? window.SoulBrandReincarnationHub : null), 'soul-brand-reincarnation-hub.js');
+                    this._soulBrandReincarnationState = (_SBR && typeof _SBR.hydrateReincarnationState === 'function')
+                        ? _SBR.hydrateReincarnationState(_ext.lonshaSoulBrandReincarnationState) : _ext.lonshaSoulBrandReincarnationState;
+                    res.restored.push('extensions.lonshaSoulBrandReincarnationState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaSoulBrandReincarnationState', error: String(e?.message || e) });
+                }
+            }
+            if (!dry && _ext && _ext.lonshaFateClimaxLoomState) {
+                try {
+                    const _FCL = _moduleLib(() => (typeof window !== 'undefined' ? window.FateConvergenceClimaxLoom : null), 'fate-convergence-climax-loom.js');
+                    this._fateClimaxLoomState = (_FCL && typeof _FCL.hydrateLoomState === 'function')
+                        ? _FCL.hydrateLoomState(_ext.lonshaFateClimaxLoomState) : _ext.lonshaFateClimaxLoomState;
+                    res.restored.push('extensions.lonshaFateClimaxLoomState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaFateClimaxLoomState', error: String(e?.message || e) });
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

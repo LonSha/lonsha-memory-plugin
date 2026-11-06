@@ -409,6 +409,34 @@
             }
         } catch (e) {}
 
+        const soulBrandOn = cfg.soulBrandReincarnationEnabled !== false;
+        try {
+            const soulLib = (typeof engine._soulBrandReincarnationLib === 'function')
+                ? engine._soulBrandReincarnationLib()
+                : (typeof SoulBrandReincarnationHub !== 'undefined' ? SoulBrandReincarnationHub : (typeof require !== 'undefined' ? (() => { try { return require('./soul-brand-reincarnation-hub.js'); } catch { return null; } })() : null));
+            if (soulBrandOn && soulLib && typeof soulLib.evaluateSoulBrandResonance === 'function' && engine._soulBrandReincarnationState) {
+                const sDir = soulLib.evaluateSoulBrandResonance(engine._soulBrandReincarnationState, { speaker: currentSpeaker, presentCharacters: knownCharacters, currentContext: queryText });
+                if (sDir) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${sDir}` : sDir;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
+        const climaxLoomOn = cfg.fateClimaxLoomEnabled !== false;
+        try {
+            const loomLib = (typeof engine._fateClimaxLoomLib === 'function')
+                ? engine._fateClimaxLoomLib()
+                : (typeof FateConvergenceClimaxLoom !== 'undefined' ? FateConvergenceClimaxLoom : (typeof require !== 'undefined' ? (() => { try { return require('./fate-convergence-climax-loom.js'); } catch { return null; } })() : null));
+            if (climaxLoomOn && loomLib && typeof loomLib.evaluateClimaxConvergence === 'function' && engine._fateClimaxLoomState) {
+                const cDir = loomLib.evaluateClimaxConvergence(engine._fateClimaxLoomState, { speaker: currentSpeaker, presentCharacters: knownCharacters });
+                if (cDir) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${cDir}` : cDir;
+                    trace.antiConfusionDirectives = generatedDirectives;
+                }
+            }
+        } catch (e) {}
+
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
         let finalCandidates = firewallSanitized;
         try {

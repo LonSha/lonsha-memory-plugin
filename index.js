@@ -2687,7 +2687,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _deepMemoryAtlasLib: _deepMemoryAtlasLib,
                         _factionTerritoryLib: _factionTerritoryLib,
                         _longTailFlashbackLib: _longTailFlashbackLib,
-                        _reputationSocialGraphLib: _reputationSocialGraphLib
+                        _reputationSocialGraphLib: _reputationSocialGraphLib,
+                        _soulBrandReincarnationLib: _soulBrandReincarnationLib,
+                        _fateClimaxLoomLib: _fateClimaxLoomLib
                     }
                 });
             }
@@ -10625,6 +10627,8 @@ function _collectNewFace() {
     function _factionTerritoryLib() { return _moduleLib(() => window.DynamicFactionTerritoryTopologyHub, 'dynamic-faction-territory-topology-hub.js'); }
     function _longTailFlashbackLib() { return _moduleLib(() => window.LongTailFlashbackResonanceHub, 'long-tail-flashback-resonance-hub.js'); }
     function _reputationSocialGraphLib() { return _moduleLib(() => window.MultiDimensionalReputationSocialGraph, 'multi-dimensional-reputation-social-graph.js'); }
+    function _soulBrandReincarnationLib() { return _moduleLib(() => window.SoulBrandReincarnationHub, 'soul-brand-reincarnation-hub.js'); }
+    function _fateClimaxLoomLib() { return _moduleLib(() => window.FateConvergenceClimaxLoom, 'fate-convergence-climax-loom.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11616,6 +11620,22 @@ function _collectNewFace() {
                     this._moduleStatus.reputationSocialGraph = true;
                     console.log(`[${PLUGIN_NAME}] ✓ 多维声誉声望与动态社交拓扑图谱已加载`);
                 } catch (e) { errLog(e, 'loadModules.ReputationSocialGraph'); }
+            }
+            const _SBR = _soulBrandReincarnationLib();
+            if (_SBR && typeof _SBR.createInitialReincarnationState === 'function') {
+                try {
+                    if (!this.engine._soulBrandReincarnationState) this.engine._soulBrandReincarnationState = _SBR.createInitialReincarnationState();
+                    this._moduleStatus.soulBrandReincarnation = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 跨周目灵魂烙印与代际记忆转生中枢已加载`);
+                } catch (e) { errLog(e, 'loadModules.SoulBrandReincarnation'); }
+            }
+            const _FCL = _fateClimaxLoomLib();
+            if (_FCL && typeof _FCL.createInitialLoomState === 'function') {
+                try {
+                    if (!this.engine._fateClimaxLoomState) this.engine._fateClimaxLoomState = _FCL.createInitialLoomState();
+                    this._moduleStatus.fateClimaxLoom = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 命运交汇纺织机与叙事高潮熵中枢已加载`);
+                } catch (e) { errLog(e, 'loadModules.FateClimaxLoom'); }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

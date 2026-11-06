@@ -78,7 +78,10 @@
 
 23. **`sandbox-file-encryption-leak-tracer.js`（沙盒绝密文件分级加密与泄露溯源机 · R20-9）**
     - 虚拟手机内部绝密文件分级管理，捕获非法转存与截屏外泄行为，计算泄露指数并注入反谍追责警报。
-
+24. **`soul-brand-reincarnation-hub.js`（跨周目灵魂烙印与代际记忆转生中枢 · L20-17）**
+    - 突破单一周目或生命周期局限，提炼未了誓言与宿怨为灵魂烙印，在新周目以既视感本能唤醒跨代际叙事张力。
+25. **`fate-convergence-climax-loom.js`（命运交汇纺织机与叙事高潮熵中枢 · L20-18）**
+    - 编织与追踪多线宿命因果，度量戏剧张力熵（0..100），在临界点强力收束多方冲突，触发破局大高潮。
 ---
 
 ### 二、定向验证与测试读数
@@ -88,11 +91,13 @@
 - **LonSha 批次4单测（`tests/l20_epic_batch4.test.mjs`）**：3 passed, 0 failed
 - **LonSha 批次5单测（`tests/l20_epic_batch5.test.mjs`）**：2 passed, 0 failed
 - **LonSha 批次6单测（`tests/l20_epic_batch6.test.mjs`）**：2 passed, 0 failed
+- **LonSha 批次7收官单测（`tests/l20_epic_batch7.test.mjs`）**：2 passed, 0 failed
 - **LonSha 主管线全域编排真跑（`tests/l19_vertical_symphony_recall.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次1单测（`tests/r20_epic_architecture.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次2单测（`tests/r20_epic_batch2.test.mjs`）**：3 passed, 0 failed
 - **RubyPhone 批次3单测（`tests/r20_epic_batch3.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次4单测（`tests/r20_epic_batch4.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次5单测（`tests/r20_epic_batch5.test.mjs`）**：1 passed, 0 failed
+- **RubyPhone 批次6单测（`tests/r20_epic_batch6.test.mjs`）**：1 passed, 0 failed
 - **RubyPhone 批次6单测（`tests/r20_epic_batch6.test.mjs`）**：1 passed, 0 failed
 - **全量改动文件语法检查**：`node --check` 100% 通过。

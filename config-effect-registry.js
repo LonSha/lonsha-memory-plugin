@@ -51,6 +51,8 @@
         "factionTerritoryEnabled": "immediate",
         "longTailFlashbackEnabled": "immediate",
         "multiDimensionalReputationEnabled": "immediate",
+        "soulBrandReincarnationEnabled": "immediate",
+        "fateClimaxLoomEnabled": "immediate",
         "debugMode": "immediate",
         "rubyPhoneBridge": "immediate",
         "rubyPhoneRecall": "immediate",

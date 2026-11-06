@@ -3032,6 +3032,8 @@
                     ${ck('factionTerritoryEnabled', '🚩 动态势力版图与地理拓扑控制（V20 史诗级双计划）', '建模宏观城邦领土控制力与治安管制等级，受所处地理势力的哨卡法度严格制约。')}
                     ${ck('longTailFlashbackEnabled', '⚡ 长尾伏笔沉睡唤醒与闪回共鸣（V20 史诗级双计划）', '监控百轮前沉睡伏笔，语境契合时以宿命闪回唤醒记忆，防止重要设定永寂。')}
                     ${ck('multiDimensionalReputationEnabled', '👑 多维声誉声望与动态社交拓扑（V20 史诗级双计划）', '突破单一好感度，综合武勇威名、恶名狼藉与正统性生成阶层威压与警备对话引导。')}
+                    ${ck('soulBrandReincarnationEnabled', '🌀 跨周目灵魂烙印与代际记忆转生（V20 史诗级双计划）', '提炼前世/上一周目未了誓言与宿命因果，以既视感本能唤醒跨代际叙事张力。')}
+                    ${ck('fateClimaxLoomEnabled', '🧶 命运交汇纺织机与叙事高潮熵（V20 史诗级双计划）', '编织多线命运线索并度量戏剧张力熵，临界点强力收束多方冲突，爆发破局高潮。')}
                     ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
