@@ -188,6 +188,14 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPresenceRoutingGuard : null), 'presence-routing-guard.js');
     };
+    let _cognitiveHorizonLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaCognitiveHorizonFilter : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./cognitive-horizon-bucket-filter.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCognitiveHorizonFilter : null), 'cognitive-horizon-bucket-filter.js');
+    };
     let _repairResponseLib = function () {
         const mod = (typeof window !== 'undefined' ? window.LonShaRelationshipRepairResponse : null);
         if (mod) return mod;
@@ -674,8 +682,25 @@
                     this._lastPresenceFilterStats = filterRes.stats;
                 }
             } catch (e) { errLog(e, 'buildInjection.presenceGuard'); }
+            /* [v3.454.0 · L16-O1] 仿生认知边界四桶动态过滤与防全知封口引擎 */
+            let _cognitiveStats = null;
+            let _antiOmniHeader = '';
+            try {
+                const CogFilter = _cognitiveHorizonLib();
+                if (CogFilter && typeof CogFilter.filterAndPartitionCognitiveHorizon === 'function') {
+                    const inScene = this._sceneState ? this._sceneState.inSceneCharacters : (this._inSceneCharacters);
+                    const activeChar = this._currentSpeaker || (this._sceneState && this._sceneState.focusCharacter);
+                    const cogRes = CogFilter.filterAndPartitionCognitiveHorizon(recalled, activeChar, inScene);
+                    recalled = [...cogRes.directLived, ...cogRes.sharedScene, ...cogRes.rumorUnverified];
+                    this._lastCognitiveStats = cogRes.stats;
+                    _cognitiveStats = cogRes.stats;
+                    if (typeof CogFilter.buildAntiOmniscienceSealHeader === 'function') {
+                        _antiOmniHeader = CogFilter.buildAntiOmniscienceSealHeader(activeChar);
+                    }
+                }
+            } catch (e) { errLog(e, 'buildInjection.cognitiveHorizon'); }
             if (!recalled?.length) return '';
-            const NOTE = '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
+            const NOTE = _antiOmniHeader || '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）

@@ -3532,6 +3532,9 @@ function relativeTimeLabel(eventTime, nowTime) {
         revokeVolumeHandoff(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.revokeVolumeHandoff(this, ...args) : null; }
         _promptFillLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._promptFillLine(this, ...args) : ''; }
         _changesetLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._changesetLine(this, ...args) : ''; }
+        _perspectiveDiscrepancyLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._perspectiveDiscrepancyLine(this, ...args) : ''; }
+        _autobiographicalRestatementLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._autobiographicalRestatementLine(this, ...args) : ''; }
+        _cognitiveHorizonLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._cognitiveHorizonLine(this, ...args) : ''; }
         async onMessageReceived(message, messageId = null) {
             // [v3.10] 生成结束（新回复落层=本轮生成闭环），复位生成标志
             this._generationActive = false;
@@ -10519,6 +10522,9 @@ function _collectNewFace() {
     /* [v3.446.0] 在场权限防穿透取库口（presence-routing-guard.js）。
      *   ★ world/shared/character 知情分流与 Fail-Closed 闭环保护。 */
     function _presenceGuardLib() { return _moduleLib(() => window.LonShaPresenceRoutingGuard, 'presence-routing-guard.js'); }
+    /* [v3.454.0 · L16-O1] 仿生认知边界四桶动态过滤与防全知封口引擎取库口（cognitive-horizon-bucket-filter.js）。
+     *   ★ 亲历/共历/传闻/禁区四桶分流 + 物理级0-Token阻断 + 封口指令锁。 */
+    function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
      *   ★ 消息多跳转告链：逐跳来源、得知时刻、授权范围与撤回影响。 */
     function _knowledgeRelayLib() { return _moduleLib(() => window.LonShaKnowledgeRelayChain, 'knowledge-relay-chain.js'); }

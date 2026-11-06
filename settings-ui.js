@@ -1692,6 +1692,13 @@
                                 <div class="ls-item-meta">级联演化树状态: 就绪 (支持根事实追溯、派生下溯与撤销重构) · 誓约创伤烙印: 深度追踪</div>
                                 <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">当根事实被修改时，派生推论自动标记 deprecated 并从生成注入中隔离。</div>
                             </div>
+                        </div>
+                        <div class="ls-group" style="margin-top:14px;">
+                            <div class="ls-group-title">🛡️ 防全知视界隔离与认知边界四桶动态滤镜<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._cognitiveHorizonLine === 'function') ? s._cognitiveHorizonLine() : '')}</span></div>
+                            <div class="ls-item">
+                                <div class="ls-item-meta">机制: STBME 仿生四桶 (亲历/共历/传闻/禁区) · 封口指令锁: 活跃 · 隔空读心防御: 物理级0-Token阻断</div>
+                                <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">酒馆多角色通用：按聚焦发言角色进行视界动态投影，严格切断不在场角色私密心声，防止大模型上帝视角出戏剧透。</div>
+                            </div>
                         </div>`;
                     }
                 } catch (e) {
