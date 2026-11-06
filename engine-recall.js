@@ -73,7 +73,15 @@
         if (_libs._resonanceLib) return _libs._resonanceLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryResonance : null), 'memory-resonance-consolidation.js');
     }
-
+    /* [v3.457.0 · V19] 全域交响与防混淆消歧取库口 */
+    function _memorySymphonyLib() {
+        if (_libs._memorySymphonyLib) return _libs._memorySymphonyLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemorySymphony : null), 'memory-symphony-orchestrator.js');
+    }
+    function _antiConfusionLib() {
+        if (_libs._antiConfusionLib) return _libs._antiConfusionLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaAntiConfusion : null), 'anti-confusion-matrix-disambiguator.js');
+    }
     function _summaryProvenanceLib() {
         if (_libs._summaryProvenanceLib) return _libs._summaryProvenanceLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSummaryProvenance : null), 'summary-provenance.js');
@@ -1150,6 +1158,29 @@
                 errLog(e, 'recallMemory.resonance');
                 engine._lastResonanceStats = { active: false, reason: 'threw:' + String(e?.message || e) };
             }
+
+            /* [v3.457.0 · V19-O1] 全引擎防混淆交响编排中枢：
+             *   多维防混淆消歧、互斥事实冲突仲裁、认知锚定前缀强化与全域链路闭环。
+             *   位置纪律：共振重排就地改序后，在最终收尾 _finalize 之前统一编排治理。 */
+            try {
+                const MSO = _memorySymphonyLib();
+                if (MSO && engine.config.config.memorySymphonyEnabled !== false) {
+                    const symphonyRes = MSO.orchestrateMemorySymphony(engine, finalMerged, query, {
+                        antiConfusionEnabled: engine.config.config.antiConfusionEnabled !== false
+                    });
+                    if (symphonyRes && Array.isArray(symphonyRes.candidates)) {
+                        finalMerged.splice(0, finalMerged.length, ...symphonyRes.candidates);
+                        engine._lastSymphonyDirectives = symphonyRes.directives || '';
+                        engine._lastSymphonyTrace = symphonyRes.trace || null;
+                    }
+                } else {
+                    engine._lastSymphonyTrace = { active: false, reason: MSO ? 'disabled' : 'module-missing' };
+                }
+            } catch (e) {
+                errLog(e, 'recallMemory.memorySymphony');
+                engine._lastSymphonyTrace = { active: false, reason: 'threw:' + String(e?.message || e) };
+            }
+
             const _finalize = () => {
                 if (engine.config.config.recallAuditEnabled) {
                     try {

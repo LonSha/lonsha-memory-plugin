@@ -193,11 +193,13 @@
                 packedAt: new Date().toISOString(),
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
-                /* [v3.455.0 · V17 & v3.456.0 · V18] 共振热表与分层演化状态随存档落盘：走既有 extensions 命名空间，
+                /* [v3.455.0 · V17 & v3.456.0 · V18 & v3.457.0 · V19] 共振热表、分层演化与交响防混淆状态随存档落盘：走既有 extensions 命名空间，
                  *   绝不新增/改动 ARCHIVE_TOP_LEVEL_KEYS 冻结顶层键（STBME 快照契约纪律）。 */
                 extensions: Object.assign({}, this._archiveExtensions || {},
                     this._resonanceState ? { lonshaResonanceState: this._resonanceState } : {},
-                    this._pyramidEvolutionState ? { lonshaPyramidEvolutionState: this._pyramidEvolutionState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._pyramidEvolutionState ? { lonshaPyramidEvolutionState: this._pyramidEvolutionState } : {},
+                    this._symphonyState ? { lonshaSymphonyState: this._symphonyState } : {},
+                    this._antiConfusionState ? { lonshaAntiConfusionState: this._antiConfusionState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -388,6 +390,29 @@
                 } catch (e) {
                     res.failed.push({ key: 'extensions.lonshaPyramidEvolutionState', error: String(e?.message || e) });
                     errLog(e, 'restoreFromPayload.pyramidEvolutionState');
+                }
+            }
+            /* [v3.457.0 · V19 记忆专版] 全域交响编排与多维防混淆状态恢复（upgrade-on-read 宽容解析）。 */
+            if (!dry && _ext && _ext.lonshaSymphonyState) {
+                try {
+                    const _MSO = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemorySymphony : null), 'memory-symphony-orchestrator.js');
+                    this._symphonyState = (_MSO && typeof _MSO.hydrateState === 'function')
+                        ? _MSO.hydrateState(_ext.lonshaSymphonyState) : _ext.lonshaSymphonyState;
+                    res.restored.push('extensions.lonshaSymphonyState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaSymphonyState', error: String(e?.message || e) });
+                    errLog(e, 'restoreFromPayload.symphonyState');
+                }
+            }
+            if (!dry && _ext && _ext.lonshaAntiConfusionState) {
+                try {
+                    const _ACMD = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaAntiConfusion : null), 'anti-confusion-matrix-disambiguator.js');
+                    this._antiConfusionState = (_ACMD && typeof _ACMD.hydrateState === 'function')
+                        ? _ACMD.hydrateState(_ext.lonshaAntiConfusionState) : _ext.lonshaAntiConfusionState;
+                    res.restored.push('extensions.lonshaAntiConfusionState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaAntiConfusionState', error: String(e?.message || e) });
+                    errLog(e, 'restoreFromPayload.antiConfusionState');
                 }
             }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');

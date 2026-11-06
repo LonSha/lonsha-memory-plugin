@@ -710,7 +710,11 @@
                 }
             } catch (e) { errLog(e, 'buildInjection.cognitiveHorizon'); }
             if (!recalled?.length) return '';
-            const NOTE = _antiOmniHeader || '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
+            let NOTE = _antiOmniHeader || '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
+            // [v3.457.0 · V19-O3] 编排指令合流：若交响编排产出了防混淆高阶指令，将其优雅融入私密简报头部
+            if (this._lastSymphonyDirectives && this.config.config.antiConfusionDirectivesEnabled !== false) {
+                NOTE = `${NOTE}\n\n【防混淆认知矩阵约束】\n${this._lastSymphonyDirectives}`;
+            }
             const END = '〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。';
             
             // 分区：剧情摘要 / 角色关系 / 角色日记 / 手机记忆（抄 HCDiary 的分类注入）

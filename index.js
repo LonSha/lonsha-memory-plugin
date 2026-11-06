@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.446.0';
+    const VERSION = '3.457.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2669,7 +2669,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _factAdmissionLib: _factAdmissionLib,
                         _sleepAwakenLib: _sleepAwakenLib,
                         _summaryProvenanceLib: _summaryProvenanceLib,
-                        _resonanceLib: _resonanceLib
+                        _resonanceLib: _resonanceLib,
+                        _memorySymphonyLib: _memorySymphonyLib,
+                        _antiConfusionLib: _antiConfusionLib
                     }
                 });
             }
@@ -10584,6 +10586,13 @@ function _collectNewFace() {
     /* [v3.456.0 · V18-O1] 分层记忆折叠金字塔与整合去重演化引擎取库口（hierarchical-pyramid-evolution.js）。
      *   ★ 提取驱动分层折叠金字塔 + 演化/关联边构建 + 睡眠遗忘联动。 */
     function _pyramidEvolutionLib() { return _moduleLib(() => window.LonShaPyramidEvolution, 'hierarchical-pyramid-evolution.js'); }
+    /* [v3.457.0 · V19-O1] 全引擎防混淆交响编排中枢取库口（memory-symphony-orchestrator.js）。
+     *   ★ 现场感知 + 因果前摄校验 + PEDSA共振 + 演化金字塔 + 防混淆矩阵 + 认知视界垂直贯通。 */
+    function _memorySymphonyLib() { return _moduleLib(() => window.LonShaMemorySymphony, 'memory-symphony-orchestrator.js'); }
+    /* [v3.457.0 · V19-O2] 多维防混淆与实体认知锚定矩阵引擎取库口（anti-confusion-matrix-disambiguator.js）。
+     *   ★ 实体指代消歧 + 事实互斥冲突仲裁 + 显式锚定前缀 + 防混淆结构化约束。 */
+    function _antiConfusionLib() { return _moduleLib(() => window.LonShaAntiConfusion, 'anti-confusion-matrix-disambiguator.js'); }
+    function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
      *   ★ 消息多跳转告链：逐跳来源、得知时刻、授权范围与撤回影响。 */
@@ -11401,7 +11410,7 @@ function _collectNewFace() {
             //   在模块缺失时**什么都不做** —— 日志里只有成功，没有失败。而「模块没加载」
             //   恰好是最需要看见的那件事（特征静默降级：图扩散/可视化静默变兜底路径，
             //   功能变差但没有任何迹象）。凡以成功结尾的路径都必须有失败出口。
-            this._moduleStatus = { diffusion: false, visualizer: false, resonance: false, pyramidEvolution: false };
+            this._moduleStatus = { diffusion: false, visualizer: false, resonance: false, pyramidEvolution: false, memorySymphony: false, antiConfusion: false };
             // [v3.455.0 · V17] 成功声称面必须有失败出口：共振模块缺席不静默降级，惰性建状态并留痕。
             const _RS = _resonanceLib();
             if (_RS && typeof _RS.createState === 'function') {
@@ -11423,6 +11432,28 @@ function _collectNewFace() {
                 } catch (e) { errLog(e, 'loadModules.PyramidEvolution'); console.warn(`[${PLUGIN_NAME}] ⚠️ 分层金字塔状态初始化失败：${(e && e.message) || e}`); }
             } else {
                 console.warn(`[${PLUGIN_NAME}] ⚠️ 分层折叠金字塔与整合演化模块未加载（LonShaPyramidEvolution 未定义）：将降级传统折叠`);
+            }
+            // [v3.457.0 · V19] 成功声称面：全域记忆交响编排中枢加载与状态建构
+            const _MSO = _memorySymphonyLib();
+            if (_MSO && typeof _MSO.createState === 'function') {
+                try {
+                    if (!this.engine._symphonyState) this.engine._symphonyState = _MSO.createState();
+                    this._moduleStatus.memorySymphony = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 全域记忆交响编排中枢模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.MemorySymphony'); console.warn(`[${PLUGIN_NAME}] ⚠️ 记忆交响状态初始化失败：${(e && e.message) || e}`); }
+            } else {
+                console.warn(`[${PLUGIN_NAME}] ⚠️ 记忆交响编排中枢未加载（LonShaMemorySymphony 未定义）：多引擎串联将退回独立流水线`);
+            }
+            // [v3.457.0 · V19] 成功声称面：多维防混淆与实体认知锚定矩阵模块加载
+            const _ACMD = _antiConfusionLib();
+            if (_ACMD && typeof _ACMD.createState === 'function') {
+                try {
+                    if (!this.engine._antiConfusionState) this.engine._antiConfusionState = _ACMD.createState();
+                    this._moduleStatus.antiConfusion = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 多维防混淆消歧与实体认知锚定矩阵模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.AntiConfusion'); console.warn(`[${PLUGIN_NAME}] ⚠️ 防混淆状态初始化失败：${(e && e.message) || e}`); }
+            } else {
+                console.warn(`[${PLUGIN_NAME}] ⚠️ 防混淆消歧矩阵未加载（LonShaAntiConfusion 未定义）：候选记忆将不做互斥消歧`);
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

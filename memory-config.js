@@ -222,6 +222,10 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             pyramidFanInThreshold: 3,
             pyramidEvolutionSimThreshold: 0.80,
             sleepEvolutionArchival: true,
+            /* [v3.457.0 · V19 记忆专版] 全引擎防混淆交响编排中枢与认知消歧矩阵 */
+            memorySymphonyEnabled: true,
+            antiConfusionEnabled: true,
+            antiConfusionDirectivesEnabled: true,
             debugMode: false,
             // [v1.7] RubyPhone 双向联动
             rubyPhoneBridge: true,      // 回填: LLM 提取结果 → RubyPhone 手机记忆
@@ -645,7 +649,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             const cardCfg = ctx?.character?.data?.extensions?.LonShaMemory;
             if (!cardCfg || typeof cardCfg !== 'object') return 0;
             const CARD_CFG_KEYS = [
-                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'resonanceConsolidationEnabled', 'resonanceHops', 'resonanceDecay', 'resonanceRescoreBound', 'pyramidEvolutionEnabled', 'pyramidFanInThreshold', 'pyramidEvolutionSimThreshold', 'sleepEvolutionArchival', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
+                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'resonanceConsolidationEnabled', 'resonanceHops', 'resonanceDecay', 'resonanceRescoreBound', 'pyramidEvolutionEnabled', 'pyramidFanInThreshold', 'pyramidEvolutionSimThreshold', 'sleepEvolutionArchival', 'memorySymphonyEnabled', 'antiConfusionEnabled', 'antiConfusionDirectivesEnabled', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
                 'summaryFoldThreshold', 'diaryEveryFloors', 'reflectEveryFloors', 'echoBaseLife', 'echoMaxCount',
                 'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
                 'suspenseMaxOpen', 'recallCacheEnabled', 'diaryChangeDrivenInjection',

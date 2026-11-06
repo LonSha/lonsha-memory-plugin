@@ -3013,6 +3013,9 @@
                     ${ck('hybridMergeWeighted', 'α 加权融合（v3.156）', '打开后上面的 α 滑块才真正生效（α=1 偏向量 / α=0 偏图谱）；关闭=RRF 融合，α 仅记录不参与排序。默认关。')}
                     ${ck('resonanceConsolidationEnabled', '🧠 记忆共振巩固（V17 超级加强）', 'PEDSA 多跳激活扩散 + 时序合成边 + 抑制边降权；被真正注入的记忆自动强化访问热度与重要度，形成「越用越强」的仿生生态闭环。零额外 LLM 调用。')}
                     ${ck('pyramidEvolutionEnabled', '🧬 分层演化金字塔（V18 超级加强）', '提取与访问强度驱动的主动分层折叠（日记→场景→周记卷）+ 演化关联边构建 + 睡眠遗忘联动加速。零额外 LLM 调用。')}
+                    ${ck('memorySymphonyEnabled', '🎼 全域记忆交响编排中枢（V19 记忆专版）', '将现场感知、因果熔断、多路检索、共振扩散、演化折叠、防混淆消歧与认知视界深度串联调用，全链路彻底解决记忆混乱。零额外 LLM 调用。')}
+                    ${ck('antiConfusionEnabled', '🛡️ 多维防混淆与实体认知锚定（V19 记忆专版）', '严格消歧代词（他/她/对方）、实体指代锚定归属、事实互斥与时空矛盾仲裁，严防多角色复杂互动下的张冠李戴。')}
+                    ${ck('antiConfusionDirectivesEnabled', '📜 防混淆结构化高阶提示约束', '在生成注入私密简报头部自动合流防混淆指令，使模型严格恪守角色身份边界与时空一致性。')}
                     ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
