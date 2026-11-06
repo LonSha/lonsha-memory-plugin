@@ -14,7 +14,23 @@
         ['FactPostgenReplayReceipt', 'fact-postgen-replay-receipt.js'],
         ['MeaningEvolutionMap', 'meaning-evolution-map.js'],
         ['MemoryActionSymbiosisCircuit', 'memory-action-symbiosis-circuit.js'],
+        ['LonShaSceneTabooReflector', 'scene-taboo-reflector.js'],
         ['SceneTabooReflector', 'scene-taboo-reflector.js'],
+        ['CounterfactualFirewall', 'counterfactual-firewall-engine.js'],
+        ['CovenantEngine', 'dynamic-covenant-consequence-engine.js'],
+        ['CovertEspionage', 'covert-espionage-exposure-hub.js'],
+        ['EpistemicMatrix', 'epistemic-parallax-asymmetry-matrix.js'],
+        ['MacroEpochDrift', 'macro-epoch-cultural-drift-engine.js'],
+        ['ObsessiveTrauma', 'obsessive-trauma-taboo-engine.js'],
+        ['DeepMemoryDistillationAtlas', 'deep-memory-distillation-atlas.js'],
+        ['DreamSubconsciousMetaphorSynthesizer', 'dream-subconscious-metaphor-synthesizer.js'],
+        ['DynamicFactionTerritoryTopologyHub', 'dynamic-faction-territory-topology-hub.js'],
+        ['FateConvergenceClimaxLoom', 'fate-convergence-climax-loom.js'],
+        ['LongTailFlashbackResonanceHub', 'long-tail-flashback-resonance-hub.js'],
+        ['MultiAgentGameTheoryCoordinator', 'multi-agent-game-theory-coordinator.js'],
+        ['MultiDimensionalReputationSocialGraph', 'multi-dimensional-reputation-social-graph.js'],
+        ['SomaticMicroExpressionReflexEngine', 'somatic-micro-expression-reflex-engine.js'],
+        ['SoulBrandReincarnationHub', 'soul-brand-reincarnation-hub.js'],
         ['CSE', 'cse-engine.js']
     ];
     function loadOne(globalName, fileName) {

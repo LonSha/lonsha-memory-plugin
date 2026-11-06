@@ -1,3 +1,9 @@
+## v3.458.0
+**V20 超级引擎接入：补齐反事实防火墙、契约因果、潜伏暴露、视差矩阵、宏观纪元与创伤禁忌等生产脚本清单，并纳入统一可选引擎注册、运行时装配和状态诊断。**
+- 统一注册器覆盖 20 个引擎符号，支持浏览器全局优先、CommonJS 回落、单模块失败隔离和运行时状态读取。
+- manifest 新增 6 个此前未进入生产加载队列的增强引擎，修复 module-wiring B3 静默降级风险。
+- 新增生产装配与注册器回归测试，验证全部引擎可加载、可发现、可诊断。
+
 ## v3.445.0
 **L13-X5 记忆迁移包接线：把 memory-migrate-pack.js 从「登记在册、真加载、单测绿、产品端零调用」接成真实产品面（宿主三桩 + 面板双按钮双 handler）。**
 - **接线条数**：宿主 `index.js` 新增取库口 `_migratePackLib()`（与既有缝合模块取库口同形：全局优先 + require 回落、不在构造期缓存）与三桩 `exportMigratePack` / `precheckMigrateImport` / `applyMigrateImport`（fail-closed：模块缺席与 charMem 器官缺席各自显式报因，不静默）；apply 成功后宿主侧 `charMem.import(state)` 全量替换（state 为本地全量+合并结果，自查史/墓碑不丢）。面板 `settings-ui.js` 新增 📦 打包（写 localStorage + 下载 json）与 🧬 导入（预检 + 逐冲突三选一决策、全同跳过、改内存必回写存档）双按钮双 handler。对应判据：`tests/v3445_l13_x5_migrate_pack.test.mjs`。
