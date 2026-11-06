@@ -46,7 +46,9 @@
         PARTIALLY_FULFILLED: 'partially_fulfilled',
         WAIVED: 'waived',
         POSTPONED: 'postponed',
-        OVERDUE: 'overdue'
+        OVERDUE: 'overdue',
+        // [v3.448.0 · L15-X4] 誓约决裂与断绝状态
+        RUPTURED: 'ruptured'
     });
 
     function text(val, maxLen = 120) {
@@ -241,6 +243,63 @@
     }
 
     /**
+     * [v3.448.0 · L15-X4] 登记誓约决裂并沉淀违约心理烙印
+     * 规则：决裂一旦生效，不仅标记当前实例为 RUPTURED，还产出不可逆的心理创伤烙印与长效警惕加权
+     * @param {Object} instance 履约实例
+     * @param {Object} opts { reason, betrayer, betrayed, floor, timestamp, evidence }
+     */
+    function recordRupture(instance, opts) {
+        if (!instance || typeof instance !== 'object') {
+            return { ok: false, reason: 'missing-instance' };
+        }
+        const o = opts || {};
+        const reason = text(o.reason, 120) || '誓约公然决裂与背叛';
+        const betrayer = text(o.betrayer || instance.actor, 40);
+        const betrayed = text(o.betrayed || instance.counterpart, 40);
+        const fl = num(o.floor, null);
+        const ts = num(o.timestamp, Date.now());
+
+        const updated = Object.assign({}, instance, {
+            status: INSTANCE_STATUS.RUPTURED,
+            ruptureReason: reason,
+            ruptureAt: ts,
+            ruptureFloor: fl
+        });
+
+        // 生成不可磨灭的违约烙印 (Psychological Stigma)
+        const stigma = {
+            stigmaId: 'stg_' + ts + '_' + Math.random().toString(36).slice(2, 6),
+            commitmentId: instance.commitmentId,
+            instanceId: instance.instanceId,
+            betrayer: betrayer,
+            betrayed: betrayed,
+            severity: 'irreversible',
+            vigilancePenalty: 0.85, // 信任封死与高度戒备加权
+            summary: `【誓约决裂烙印】${betrayed} 对 ${betrayer} 产生永久性违约创伤戒备（事由: ${reason}）`,
+            timestamp: ts,
+            floor: fl
+        };
+
+        const receipt = {
+            action: 'rupture',
+            instanceId: instance.instanceId,
+            commitmentId: instance.commitmentId,
+            stigmaId: stigma.stigmaId,
+            timestamp: ts,
+            reason: reason,
+            actor: betrayer,
+            counterpart: betrayed
+        };
+
+        return {
+            ok: true,
+            instance: updated,
+            stigma: stigma,
+            fulfillmentReceipt: receipt
+        };
+    }
+
+    /**
      * 自检函数
      */
     function commitmentInstanceSelfCheck() {
@@ -248,6 +307,8 @@
         if (!createRes.ok) return { ok: false, reason: 'selfcheck-create-fail' };
         const waiveRes = waiveInstance(createRes.instance, { reason: '外出采风' });
         if (!waiveRes.ok || !waiveRes.nextInstancePlan) return { ok: false, reason: 'selfcheck-waive-fail' };
+        const rupRes = recordRupture(createRes.instance, { reason: '公然毁约' });
+        if (!rupRes.ok || rupRes.instance.status !== INSTANCE_STATUS.RUPTURED) return { ok: false, reason: 'selfcheck-rupture-fail' };
         return { ok: true, version: LIFECYCLE_VERSION };
     }
 
@@ -258,6 +319,7 @@
         createCommitmentInstance: createCommitmentInstance,
         waiveInstance: waiveInstance,
         recordPartialFulfillment: recordPartialFulfillment,
+        recordRupture: recordRupture,
         evaluateOverdue: evaluateOverdue,
         commitmentInstanceSelfCheck: commitmentInstanceSelfCheck
     };

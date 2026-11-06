@@ -4921,7 +4921,7 @@
     function commitmentInstanceState(engine, opts) {
         const absent = (why) => ({
             kind: 'commitment_instance_lifecycle', version: 0, state: 'unavailable',
-            instances: [], counts: { total: 0, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0 },
+            instances: [], stigmas: [], counts: { total: 0, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0, ruptured: 0 },
             writesNothing: true, ok: false, reason: why
         });
         try {
@@ -4934,21 +4934,25 @@
             else if (engine && Array.isArray(engine._commitmentInstances)) rawInstances = engine._commitmentInstances;
             else if (engine && engine._commitmentInstance && typeof engine._commitmentInstance === 'object') rawInstances = [engine._commitmentInstance];
 
-            if (!rawInstances.length) {
+            let rawStigmas = [];
+            if (Array.isArray(o.stigmas)) rawStigmas = o.stigmas;
+            else if (engine && Array.isArray(engine._commitmentStigmas)) rawStigmas = engine._commitmentStigmas;
+
+            if (!rawInstances.length && !rawStigmas.length) {
                 return {
                     kind: 'commitment_instance_lifecycle', version: 1, state: 'no-instances',
-                    instances: [], counts: { total: 0, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0 },
+                    instances: [], stigmas: [], counts: { total: 0, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0, ruptured: 0 },
                     writesNothing: true, ok: true, reason: 'no-instances'
                 };
             }
 
-            const counts = { total: rawInstances.length, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0 };
+            const counts = { total: rawInstances.length, pending: 0, fulfilled: 0, partially_fulfilled: 0, waived: 0, postponed: 0, overdue: 0, ruptured: 0 };
             const currentFloor = o.currentFloor != null ? o.currentFloor : (engine?.currentFloor || null);
             const currentTimestamp = o.currentTimestamp != null ? o.currentTimestamp : Date.now();
 
             const instanceRows = rawInstances.map(inst => {
                 let effectiveStatus = inst.status;
-                if (typeof CL.evaluateOverdue === 'function') {
+                if (typeof CL.evaluateOverdue === 'function' && inst.status !== CL.INSTANCE_STATUS.RUPTURED) {
                     const evalRes = CL.evaluateOverdue(inst, currentFloor, currentTimestamp);
                     if (evalRes && evalRes.isOverdue) effectiveStatus = CL.INSTANCE_STATUS.OVERDUE;
                 }
@@ -4964,6 +4968,7 @@
                     dueTimestamp: inst.dueTimestamp,
                     status: effectiveStatus,
                     completionRatio: inst.completionRatio || 0,
+                    ruptureReason: inst.ruptureReason || '',
                     receiptCount: Array.isArray(inst.receipts) ? inst.receipts.length : 0
                 };
             });
@@ -4991,7 +4996,8 @@
             }
             if (cached.state === 'no-instances') return '约定履约周期：尚未登记单次履约实例（不是「面没装上」）';
             const c = cached.counts || {};
-            return `约定履约周期：实例 ${c.total || 0} 项（待办 ${c.pending || 0} · 逾期 ${c.overdue || 0} · 部分 ${c.partially_fulfilled || 0} · 豁免 ${c.waived || 0} · 履约 ${c.fulfilled || 0}）`;
+            const rupTag = (c.ruptured && c.ruptured > 0) ? ` · 💔 决裂烙印 ${c.ruptured}` : '';
+            return `约定履约周期：实例 ${c.total || 0} 项（待办 ${c.pending || 0} · 逾期 ${c.overdue || 0} · 部分 ${c.partially_fulfilled || 0} · 豁免 ${c.waived || 0} · 履约 ${c.fulfilled || 0}${rupTag}）`;
         } catch (e) { errLog(e, 'engine._commitmentInstanceLine'); return '—（诊断异常）'; }
     }
 

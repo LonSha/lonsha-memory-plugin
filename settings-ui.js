@@ -1685,6 +1685,13 @@
                                 <div class="ls-item-meta">地点: ${esc(sceneObj.location || '未知')} · 气氛: ${esc(sceneObj.tension || '正常')} · 在场角色: ${esc(castStr)} · 存档状态: ${persistStr}</div>
                                 <div class="ls-item-text">动作: ${esc(sceneObj.action || '无焦点动作')} · 未决: ${esc(sceneObj.unresolved || '无悬念')}</div>
                             </div>
+                        </div>
+                        <div class="ls-group" style="margin-top:14px;">
+                            <div class="ls-group-title">🌲 事实纠错影响扩散树 & 💔 誓约决裂烙印</div>
+                            <div class="ls-item">
+                                <div class="ls-item-meta">级联演化树状态: 就绪 (支持根事实追溯、派生下溯与撤销重构) · 誓约创伤烙印: 深度追踪</div>
+                                <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">当根事实被修改时，派生推论自动标记 deprecated 并从生成注入中隔离。</div>
+                            </div>
                         </div>`;
                     }
                 } catch (e) {

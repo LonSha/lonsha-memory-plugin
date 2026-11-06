@@ -161,6 +161,10 @@
       source: text(f.source, 40),
       evidence: text(f.evidence, 120),
       supersededBy: text(f.supersededBy, 48) || null,
+      // [v3.448.0 · L15-O3] 事实纠错影响扩散与派生演化树：记录本事实的根事实源头、派生子事实列表与纠错状态
+      derivedFrom: text(f.derivedFrom, 48) || null,
+      derivedFacts: Array.isArray(f.derivedFacts) ? f.derivedFacts.map(function (x) { return text(x, 48); }).filter(Boolean) : [],
+      correctionState: (f.correctionState === 'deprecated_by_root' || f.correctionState === 'corrected_root') ? f.correctionState : 'normal',
       revoked: f.revoked === true,
       revokeReason: text(f.revokeReason, 80),
       // [v3.207] 修订号读回走契约。
@@ -320,8 +324,18 @@
       modality: modality,
       conflictPolicy: factConflict,
       origin: i.origin, from: i.from, to: i.to, floor: i.floor, source: i.source,
-      evidence: i.evidence, revision: LE.REVISION.CREATE, history: []
+      evidence: i.evidence, revision: LE.REVISION.CREATE, history: [],
+      derivedFrom: i.derivedFrom || null,
+      derivedFacts: Array.isArray(i.derivedFacts) ? i.derivedFacts : [],
+      correctionState: 'normal'
     });
+    // 如果指定了 derivedFrom 根节点，自动把本条事实加入根节点的 derivedFacts 列表中
+    if (fact.derivedFrom) {
+      const rootFact = state.facts.find(function (f) { return f.id === fact.derivedFrom; });
+      if (rootFact && Array.isArray(rootFact.derivedFacts) && !rootFact.derivedFacts.includes(fact.id)) {
+        rootFact.derivedFacts.push(fact.id);
+      }
+    }
     record(fact, { action: 'assert', eventKey: i.eventKey, floor: i.floor, source: i.source, origin: fact.origin, reason: '', from: fact.from, to: fact.to, at: i.at });
     const superseded = [];
     if (allSequenced) {
@@ -371,6 +385,117 @@
     state.facts[idx].trust = trustOf(next);
     record(state.facts[idx], { action: 'origin', eventKey: i.eventKey, floor: i.floor, source: i.source, origin: next, reason: prev + '->' + next, from: null, to: null, at: i.at });
     return result(state, { fact: copyFact(state.facts[idx]), replayed: false, changed: true, from: prev });
+  }
+
+  /**
+   * [v3.448.0 · L15-O3] 事实纠错影响扩散：构建依赖该根事实的派生版本演化树
+   * @param {Object} rawState 事实账状态
+   * @param {string} rootFactId 根事实 ID
+   * @returns {{ok:boolean, rootFact:Object, tree:Array, totalAffected:number}}
+   */
+  function traceCorrectionTree(rawState, rootFactId) {
+    const state = normalize(rawState);
+    const rootId = text(rootFactId, 48);
+    const rootFact = state.facts.find(function (f) { return f.id === rootId; });
+    if (!rootFact) return { ok: false, reason: 'root-not-found', rootFact: null, tree: [], totalAffected: 0 };
+
+    const visited = new Set();
+    function buildSubTree(currentId, depth) {
+      if (visited.has(currentId) || depth > 8) return [];
+      visited.add(currentId);
+      const directChildren = state.facts.filter(function (f) { return f.derivedFrom === currentId; });
+      return directChildren.map(function (child) {
+        return {
+          id: child.id,
+          subject: child.subject,
+          predicate: child.predicate,
+          value: child.value,
+          correctionState: child.correctionState || 'normal',
+          revoked: !!child.revoked,
+          depth: depth,
+          children: buildSubTree(child.id, depth + 1)
+        };
+      });
+    }
+
+    const tree = buildSubTree(rootId, 1);
+    return {
+      ok: true,
+      rootFact: copyFact(rootFact),
+      tree: tree,
+      totalAffected: visited.size - 1
+    };
+  }
+
+  /**
+   * [v3.448.0 · L15-O3] 执行事实纠错并级联废弃/撤销派生条目
+   * @param {Object} rawState
+   * @param {{rootFactId:string, newValue?:string, reason:string, floor?:number}} input
+   */
+  function applyCascadeCorrection(rawState, input) {
+    const state = normalize(rawState);
+    const i = input || {};
+    const rootId = text(i.rootFactId, 48);
+    const rootIdx = state.facts.findIndex(function (f) { return f.id === rootId; });
+    if (rootIdx < 0) return reject(state, 'root-not-found');
+
+    const reason = text(i.reason, 80) || '根事实纠错级联撤销';
+    const fl = finiteFloor(i.floor);
+    const affectedIds = [];
+
+    // 递归标记派生节点
+    const queue = [rootId];
+    const visited = new Set();
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      for (let j = 0; j < state.facts.length; j++) {
+        if (state.facts[j].derivedFrom === cur && !visited.has(state.facts[j].id)) {
+          queue.push(state.facts[j].id);
+          affectedIds.push(state.facts[j].id);
+          state.facts[j].correctionState = 'deprecated_by_root';
+          state.facts[j].revoked = true;
+          state.facts[j].revokeReason = reason + ' [依赖: ' + rootId + ']';
+          record(state.facts[j], {
+            action: 'cascade_revoke',
+            eventKey: i.eventKey,
+            floor: fl,
+            source: 'cascade_correction',
+            origin: null,
+            reason: state.facts[j].revokeReason,
+            from: null,
+            to: null,
+            at: null
+          });
+        }
+      }
+    }
+
+    // 更新根事实状态
+    state.facts[rootIdx].correctionState = 'corrected_root';
+    if (i.newValue && text(i.newValue, 120) !== state.facts[rootIdx].value) {
+      const oldVal = state.facts[rootIdx].value;
+      state.facts[rootIdx].value = text(i.newValue, 120);
+      record(state.facts[rootIdx], {
+        action: 'correct_value',
+        eventKey: i.eventKey,
+        floor: fl,
+        source: 'cascade_correction',
+        origin: state.facts[rootIdx].origin,
+        reason: '纠错修正: ' + oldVal + ' -> ' + state.facts[rootIdx].value,
+        from: state.facts[rootIdx].from,
+        to: state.facts[rootIdx].to,
+        at: null
+      });
+    }
+
+    return result(state, {
+      changed: true,
+      rootFact: copyFact(state.facts[rootIdx]),
+      affectedCount: affectedIds.length,
+      affectedFactIds: affectedIds
+    });
   }
   function coversAt(f, at) {
     if (f.from == null && f.to == null) return null;       // 无区间：判不了，不猜
@@ -695,6 +820,7 @@
   }
   const api = Object.freeze({
     normalize, assertFact, revokeFact, setOrigin, lookup, timeline, versionsOf, line,
+    traceCorrectionTree, applyCascadeCorrection,
     ORIGINS, ORIGIN_TRUST, DEFAULT_MIN_TRUST, REASONS, FACT_VERSION,
     // [v3.210] 冲突策略清单随账导出：断言方（memory-type.assertTyped / index.js 接线）
     //   从账侧取常量，避免在外部再抄一份四态清单（本仓治理：单一真源）。
