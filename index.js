@@ -2689,7 +2689,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _longTailFlashbackLib: _longTailFlashbackLib,
                         _reputationSocialGraphLib: _reputationSocialGraphLib,
                         _soulBrandReincarnationLib: _soulBrandReincarnationLib,
-                        _fateClimaxLoomLib: _fateClimaxLoomLib
+                        _fateClimaxLoomLib: _fateClimaxLoomLib,
+                        _sceneTabooReflectorLib: _sceneTabooReflectorLib
                     }
                 });
             }
@@ -10623,6 +10624,7 @@ function _collectNewFace() {
     function _psychologicalDefenseLib() { return _moduleLib(() => window.LonShaPsychologicalDefense, 'psychological-defense-engine.js'); }
     function _hypergraphCausalHubLib() { return _moduleLib(() => window.LonShaHypergraphCausalHub, 'hypergraph-causal-backtracking-hub.js'); }
     function _memoryHealingImmunityLib() { return _moduleLib(() => window.LonShaMemoryHealingImmunity, 'memory-healing-immunity-adjudicator.js'); }
+    function _sceneTabooReflectorLib() { return _moduleLib(() => window.LonShaSceneTabooReflector, 'scene-taboo-reflector.js'); }
     function _counterfactualFirewallLib() { return _moduleLib(() => window.LonShaCounterfactualFirewall, 'counterfactual-firewall-engine.js'); }
     function _epistemicParallaxLib() { return _moduleLib(() => window.LonShaEpistemicMatrix, 'epistemic-parallax-asymmetry-matrix.js'); }
     function _macroEpochLib() { return _moduleLib(() => window.LonShaMacroEpochDrift, 'macro-epoch-cultural-drift-engine.js'); }
