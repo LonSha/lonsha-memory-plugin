@@ -466,6 +466,19 @@
             trace.stages.cognitiveHorizon = { error: String(e && e.message) };
         }
 
+        if (cfg.hypergraphCausalEnabled !== false && engine._hypergraphCausalState) {
+            const hub = typeof LonShaHypergraphCausalHub !== 'undefined' ? LonShaHypergraphCausalHub : (typeof require === 'function' ? require('./hypergraph-causal-backtracking-hub.js') : null);
+            if (hub) {
+                const summaries = [];
+                const queryText = String(query.text || query.queryText || '');
+                const targets = Object.keys(engine._hypergraphCausalState.nodes || {}).filter(id => id && queryText.includes(id)).slice(0, 3);
+                for (const target of targets) {
+                    const closure = hub.backtrackCausalClosure(engine._hypergraphCausalState, target, 3);
+                    if (closure.rationaleSummary) summaries.push(closure.rationaleSummary.slice(0, 1200));
+                }
+                if (summaries.length) generatedDirectives += '\n' + summaries.join('\n');
+            }
+        }
         trace.outputCount = finalCandidates.length;
         trace.durationMs = Date.now() - trace.startTime;
 

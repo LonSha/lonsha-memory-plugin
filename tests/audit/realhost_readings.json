@@ -1,8 +1,8 @@
 {
   "schema": "realhost-readings@1",
-  "generatedAt": "2026-11-01T18:00:01.208Z",
-  "version": "3.444.0",
+  "generatedAt": "2026-11-06T16:25:58.667Z",
+  "version": "3.458.0",
   "verdict": "environment-unavailable",
-  "reason": "本版未执行真机复核（按纪律不写成通过）—— 全量回归按用户指令「做完计划全部内容前别跑全量」亦未跑",
+  "reason": "ST 未就绪（http://127.0.0.1:1/ ⇒ 0）—— 先起 SillyTavern",
   "source": "tests/audit/_realhost_suite.mjs bail"
 }

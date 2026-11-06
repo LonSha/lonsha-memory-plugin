@@ -73,12 +73,13 @@
         const violations = [];
 
         for (const inv of establishedInvariants) {
+            if (!inv || typeof inv !== 'object') continue;
             const ruleText = String(inv.rule || inv.fact || inv.text || '');
             const character = String(inv.character || inv.entity || '');
 
             // 规则1：死亡/阵亡不变量违背（死者复生）
-            if (ruleText.includes('已死亡') || ruleText.includes('阵亡') || ruleText.includes('逝世')) {
-                const alivePattern = new RegExp(`${character}[^。？！\n]*(?:说话|大笑|拔剑|跑向|微笑着说|神情严肃)`);
+            if (character && (ruleText.includes('已死亡') || ruleText.includes('阵亡') || ruleText.includes('逝世'))) {
+                const alivePattern = new RegExp(`${character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^。？！\n]*(?:说话|大笑|拔剑|跑向|微笑着说|神情严肃)`);
                 if (alivePattern.test(text) && !text.includes('回忆') && !text.includes('幻觉') && !text.includes('梦见')) {
                     violations.push({
                         type: 'mortality_violation',
@@ -92,7 +93,7 @@
             // 规则2：物品彻底销毁/遗失不变量违背
             if (ruleText.includes('彻底损毁') || ruleText.includes('焚毁') || ruleText.includes('沉入渊薮')) {
                 const item = inv.item || inv.entity || '';
-                if (item && text.includes(`拿出${item}`) || text.includes(`佩戴${item}`)) {
+                if (item && (text.includes(`拿出${item}`) || text.includes(`佩戴${item}`))) {
                     violations.push({
                         type: 'item_persistence_violation',
                         item,

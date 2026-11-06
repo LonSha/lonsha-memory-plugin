@@ -120,6 +120,17 @@
         return (async function() {
             let _savePersisted = false;
                 const messageText = message.mes || '';
+                // Check existing authority before any graph or memory mutation.
+                if (this.config?.config?.memoryHealingImmunityEnabled !== false) {
+                    const lib = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryHealingImmunity : null), 'memory-healing-immunity-adjudicator.js');
+                    if (lib) {
+                        this._memoryHealingImmunityState = lib.hydrateState(this._memoryHealingImmunityState);
+                        const invariants = [...(this.invariants?.items || []), ...(this.summary?.getLockedFacts?.() || [])];
+                        const verdict = lib.adjudicateAndHeal(messageText, invariants, this._memoryHealingImmunityState, message.index || 0);
+                        if (!verdict.healthy) return { saved: false, characters: 0, events: 0, quarantined: true, violations: verdict.violations };
+                    }
+                }
+
                 
                 if (extracted?.characters) {
                     // [v3.6] 图谱膨胀修复: 先查后建（原实现每楼新 id——同角色 N 楼 = N 个重复节点，长对话无限膨胀）
@@ -1245,6 +1256,24 @@ timeAnchor: extracted?.time_anchor || null,
                         const verifiedFacts = Causal.runCircuitBreakerPipeline(this._pendingCausalFacts || [], []);
                         if (verifiedFacts && verifiedFacts.admittedFacts) {
                             this._lastVerifiedCausalFacts = verifiedFacts.admittedFacts;
+                            const hub = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaHypergraphCausalHub : null), 'hypergraph-causal-backtracking-hub.js');
+                            if (hub && this.config.config.hypergraphCausalEnabled !== false) {
+                                this._hypergraphCausalState = hub.hydrateState(this._hypergraphCausalState);
+                                for (const fact of verifiedFacts.admittedFacts.slice(0, 100)) {
+                                    // Do not turn the legacy synthetic state-transition placeholder into evidence.
+                                    if (!fact.cause || !fact.effect || fact.effect === '状态流转') continue;
+                                    const causes = (Array.isArray(fact.cause) ? fact.cause : [fact.cause]).map(String).slice(0, 20);
+                                    const effects = (Array.isArray(fact.effect) ? fact.effect : [fact.effect]).map(String).slice(0, 20);
+                                    for (const id of [...causes, ...effects]) hub.registerNode(this._hypergraphCausalState, { id, label: id, floor: curFloor });
+                                    const id = String(fact.id || JSON.stringify([causes, effects]));
+                                    this._hypergraphCausalState.hyperedges = this._hypergraphCausalState.hyperedges.filter(e => e.id !== id);
+                                    hub.registerHyperedge(this._hypergraphCausalState, { id, causes, effects, floor: curFloor, rationale: fact.rationale || '' });
+                                }
+                                this._hypergraphCausalState.hyperedges = this._hypergraphCausalState.hyperedges.slice(-200);
+                                const ids = new Set(this._hypergraphCausalState.hyperedges.flatMap(e => [...e.causes, ...e.effects]));
+                                this._hypergraphCausalState.nodes = Object.fromEntries(Object.entries(this._hypergraphCausalState.nodes).filter(([id]) => ids.has(id)));
+                            }
+
                         }
                     }
                     // [L11-O6] 多通道具身生活渗透 (真实从最新心境与生活通道合成现实投影)
@@ -1363,11 +1392,25 @@ timeAnchor: extracted?.time_anchor || null,
                     // 且 revision 未落后）才允许覆写。恢复管线正在半途导入时、或确认状态被并发破坏时拒绝覆盖，
                     // 防止半初始化的内存态把已落地的完整记忆洗掉（stbme: 让"pending 卡住写入"结构上不可能）。
                     const _omrPayload = await this.collectExport();
+                    // Stage device metadata in this save payload, not in the live engine.
+                    const deviceBridge = typeof window !== 'undefined' ? window.VirtualPhone?.lonshaBridge : null;
+                    const deviceBatch = deviceBridge?.peekHolographicEvents?.();
+                    const sameChat = () => typeof this.getCurrentChatId === 'function' && this.getCurrentChatId() === chatId;
+                    if (deviceBatch?.conversationId && sameChat()) {
+                        const previous = _omrPayload.extensions?.rubyPhoneDeviceEvents || [];
+                        const accepted = (deviceBatch.events || []).filter(e => e?.type === 'DEVICE_STATE_CHANGED' && e.payload?.source === 'narrative-device-simulation').map(e => ({
+                            id: String(e.id).slice(0, 100), action: String(e.payload.action || '').slice(0, 80),
+                            revision: Number(e.payload.revision) || 0, floor: message.index || 0
+                        }));
+                        const rows = [...new Map([...previous, ...accepted].map(e => [e.id, e])).values()].slice(-50);
+                        _omrPayload.extensions = { ...(_omrPayload.extensions || {}), rubyPhoneDeviceEvents: rows };
+                    }
+
                     // [v3.140] CP 确认状态机（重写 v3.138 版）：v3.138 判据方向是错的——_confirmed 为 null
                     // （恰恰是最危险的未装载态）时反而放行，且 _revision 比较在写入合流下恒真会误拒正常保存。
                     // 新判据用可观测身份：磁盘存档属于当前聊天且内存确实装载过它才允许覆写；
                     // 连续拒绝超阈则降级放行（stbme：陈旧挂起必须自动解除，不许永久卡死写入）。
-                    let _savePersisted = false;   // [v3.165] 成功声称的事实来源（见下方 if/else 之后）
+                    // [v3.165] 成功声称的事实来源（见下方 if/else 之后）
                     const _disk = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions?.[this.storage.STORAGE_KEY];
                     const _diskOk = !_disk?.data || _disk.chatId == null || String(_disk.chatId) === String(chatId);
                     const _loadedOk = this._loadedChatId === chatId || !_disk?.data;
@@ -1384,7 +1427,12 @@ timeAnchor: extracted?.time_anchor || null,
                         this.recordSaveFailed('realtime', _rtOk === true, this.storage?._lastWrite?.error || '未落盘');
                         // [v3.165] 保存是否真落地：下面的成功声明必须由这个事实驱动。
                         //   此前它落在 if/else 之外，连「被确认状态机拒绝、根本没写盘」也照样报「✓ 完成」。
-                        _savePersisted = true;
+                        _savePersisted = _rtOk === true;
+                        if (_savePersisted && sameChat() && deviceBatch?.conversationId) {
+                            this._archiveExtensions = { ...(this._archiveExtensions || {}), rubyPhoneDeviceEvents: _omrPayload.extensions.rubyPhoneDeviceEvents };
+                            deviceBridge.acknowledgeHolographicEvents?.(deviceBatch);
+                        }
+
                     }
                 }
                 
