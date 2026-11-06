@@ -68,6 +68,12 @@
     function _counterfactualSandboxLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCounterfactualSandbox : null), 'counterfactual-branching-sandbox.js');
     }
+    /* [v3.455.0 · V17] 共振巩固取库口（由 index.js assembleComponents 经 bindDeps 注入，Node 单测走 require 回退）。 */
+    function _resonanceLib() {
+        if (_libs._resonanceLib) return _libs._resonanceLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryResonance : null), 'memory-resonance-consolidation.js');
+    }
+
     function _summaryProvenanceLib() {
         if (_libs._summaryProvenanceLib) return _libs._summaryProvenanceLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSummaryProvenance : null), 'summary-provenance.js');
@@ -1071,6 +1077,48 @@
                 }
             } catch (e) { errLog(e, 'recall.fuseCandidates'); engine._fusionCarry = null; }
             // [v3.249.0] M-O1 唯一收尾出口：LLM 精排成功不再提前 return（原因见 CHANGELOG）
+            /* [v3.455.0 · V17-O1] 记忆共振巩固：**召回主链路的真实消费点**。
+             *   位置纪律：intentRerank / crosslink / 情绪反向 / fuseCandidates 全部落位之后、
+             *   _finalize 之前 —— 本机制改的是「最终名次」，放在上游会被后续重排覆盖。
+             *   种子完全由宿主动态供给（图谱命中实体 + BM25 命中条目），绝不硬编码任何角色名。 */
+            try {
+                const RS = _resonanceLib();
+                engine._lastResonanceStats = null;
+                if (RS && engine.config.config.resonanceConsolidationEnabled !== false) {
+                    const seedIds = [];
+                    for (const g of (results.graph || []).slice(0, 8)) {
+                        const k = g && (g.id ?? g.key ?? g.name);
+                        if (k != null && k !== '') seedIds.push(String(k));
+                    }
+                    for (const b of (results.bm25 || []).slice(0, 5)) {
+                        const k = b && (b.id ?? b.key);
+                        if (k != null && k !== '') seedIds.push(String(k));
+                    }
+                    const edges = (engine.graph && engine.graph.edges && typeof engine.graph.edges.values === 'function')
+                        ? Array.from(engine.graph.edges.values()) : [];
+                    const nodeFloors = finalMerged.slice(0, 24).map(x => ({
+                        id: String((x && (x.id ?? x.key)) ?? String(x?.text ?? '').slice(0, 120)),
+                        floor: Number(x && x.floor) || 0
+                    }));
+                    const energy = RS.diffuseActivationEnergy(seedIds, edges, nodeFloors, {
+                        hops: engine.config.config.resonanceHops,
+                        decay: engine.config.config.resonanceDecay
+                    });
+                    if (!engine._resonanceState || typeof engine._resonanceState !== 'object') engine._resonanceState = RS.createState();
+                    const rr = RS.rescoreByResonance(finalMerged, energy, engine._resonanceState, Date.now(), {
+                        rescoreBound: engine.config.config.resonanceRescoreBound
+                    });
+                    finalMerged.splice(0, finalMerged.length, ...rr.ordered);   // 就地改序，引用不换
+                    engine._lastResonanceStats = Object.assign({}, rr.stats, {
+                        active: true, seedsFed: seedIds.length, edgesFed: edges.length
+                    });
+                } else {
+                    engine._lastResonanceStats = { active: false, reason: RS ? 'disabled' : 'module-missing' };
+                }
+            } catch (e) {
+                errLog(e, 'recallMemory.resonance');
+                engine._lastResonanceStats = { active: false, reason: 'threw:' + String(e?.message || e) };
+            }
             const _finalize = () => {
                 if (engine.config.config.recallAuditEnabled) {
                     try {

@@ -2170,6 +2170,9 @@ function relativeTimeLabel(eventTime, nowTime) {
             this._diffusionFatigue = new Map();   // { nodeId/name: fatigueCount }
             this._diffusionFatigueTopN = 5;
             this._diffusionFatigueTimeout = 3;    // 疲劳标记保留轮数（防永久封印）
+            // [v3.455.0 · V17] 共振巩固状态（访问强化热表）。由 assembleComponents 惰性 createState，
+            //   随 collectExport→extensions 落盘、restoreFromPayload→hydrateState 恢复；绝不新增冻结顶层键。
+            this._resonanceState = null;
             // [v3.25] 归档隐藏状态（Bakemono archive-controller）
             this._archivedFloorIds = new Set();   // 已被插件归档隐藏的楼层（可恢复）
             /* [v3.275.0] O5：**归档处置的审计 provenance**（有界，最近 20 条）。
@@ -2665,7 +2668,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _emotionOppositeLib: _emotionOppositeLib,
                         _factAdmissionLib: _factAdmissionLib,
                         _sleepAwakenLib: _sleepAwakenLib,
-                        _summaryProvenanceLib: _summaryProvenanceLib
+                        _summaryProvenanceLib: _summaryProvenanceLib,
+                        _resonanceLib: _resonanceLib
                     }
                 });
             }
@@ -3534,6 +3538,7 @@ function relativeTimeLabel(eventTime, nowTime) {
         _changesetLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._changesetLine(this, ...args) : ''; }
         _perspectiveDiscrepancyLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._perspectiveDiscrepancyLine(this, ...args) : ''; }
         _autobiographicalRestatementLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._autobiographicalRestatementLine(this, ...args) : ''; }
+        _resonanceConsolidationLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._resonanceConsolidationLine(this, ...args) : ''; }
         _cognitiveHorizonLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._cognitiveHorizonLine(this, ...args) : ''; }
         async onMessageReceived(message, messageId = null) {
             // [v3.10] 生成结束（新回复落层=本轮生成闭环），复位生成标志
@@ -10524,6 +10529,9 @@ function _collectNewFace() {
     function _presenceGuardLib() { return _moduleLib(() => window.LonShaPresenceRoutingGuard, 'presence-routing-guard.js'); }
     /* [v3.454.0 · L16-O1] 仿生认知边界四桶动态过滤与防全知封口引擎取库口（cognitive-horizon-bucket-filter.js）。
      *   ★ 亲历/共历/传闻/禁区四桶分流 + 物理级0-Token阻断 + 封口指令锁。 */
+    /* [v3.455.0 · V17-O1] 仿生记忆共振巩固与多跳推演引擎取库口（memory-resonance-consolidation.js）。
+      *   ★ PEDSA 多跳激活扩散 + 访问强化生态循环 + 混合评分共振重排。 */
+    function _resonanceLib() { return _moduleLib(() => window.LonShaMemoryResonance, 'memory-resonance-consolidation.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
      *   ★ 消息多跳转告链：逐跳来源、得知时刻、授权范围与撤回影响。 */
@@ -11341,7 +11349,18 @@ function _collectNewFace() {
             //   在模块缺失时**什么都不做** —— 日志里只有成功，没有失败。而「模块没加载」
             //   恰好是最需要看见的那件事（特征静默降级：图扩散/可视化静默变兜底路径，
             //   功能变差但没有任何迹象）。凡以成功结尾的路径都必须有失败出口。
-            this._moduleStatus = { diffusion: false, visualizer: false };
+            this._moduleStatus = { diffusion: false, visualizer: false, resonance: false };
+            // [v3.455.0 · V17] 成功声称面必须有失败出口：共振模块缺席不静默降级，惰性建状态并留痕。
+            const _RS = _resonanceLib();
+            if (_RS && typeof _RS.createState === 'function') {
+                try {
+                    if (!this.engine._resonanceState) this.engine._resonanceState = _RS.createState();
+                    this._moduleStatus.resonance = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 记忆共振巩固模块已加载`);
+                } catch (e) { errLog(e, 'loadModules.Resonance'); console.warn(`[${PLUGIN_NAME}] ⚠️ 共振状态初始化失败：${(e && e.message) || e}`); }
+            } else {
+                console.warn(`[${PLUGIN_NAME}] ⚠️ 记忆共振巩固模块未加载（LonShaMemoryResonance 未定义）：共振重排与访问强化将降级`);
+            }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {
                 try {

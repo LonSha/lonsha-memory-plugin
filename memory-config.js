@@ -208,6 +208,13 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             hybridMergeWeighted: false,
             pageRankDamping: 0.85,
             dppLambda: 0.5,
+            /* [v3.455.0 · V17] 记忆能力超级加强：仿生共振巩固（默认开，零 LLM 额外调用）。
+             *   resonanceConsolidationEnabled = 总闸；hops/decay 控 PEDSA 多跳激活深度；
+             *   resonanceRescoreBound = 叠加到 RRF 名次分的有界量（只动名次边界，不推翻主排序）。 */
+            resonanceConsolidationEnabled: true,
+            resonanceHops: 2,
+            resonanceDecay: 0.6,
+            resonanceRescoreBound: 0.01,
             debugMode: false,
             // [v1.7] RubyPhone 双向联动
             rubyPhoneBridge: true,      // 回填: LLM 提取结果 → RubyPhone 手机记忆
@@ -631,7 +638,7 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             const cardCfg = ctx?.character?.data?.extensions?.LonShaMemory;
             if (!cardCfg || typeof cardCfg !== 'object') return 0;
             const CARD_CFG_KEYS = [
-                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
+                'vectorTopK', 'hybridAlpha', 'hybridMergeWeighted', 'resonanceConsolidationEnabled', 'resonanceHops', 'resonanceDecay', 'resonanceRescoreBound', 'injectionBudget', 'memoryTokenBudget', 'injectionDepth',
                 'summaryFoldThreshold', 'diaryEveryFloors', 'reflectEveryFloors', 'echoBaseLife', 'echoMaxCount',
                 'timeChangeMaxCandidates', 'timelineWindowDays', 'maxMoneyDelta', 'smartTriggerThreshold',
                 'suspenseMaxOpen', 'recallCacheEnabled', 'diaryChangeDrivenInjection',

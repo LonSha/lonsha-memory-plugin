@@ -188,6 +188,16 @@
         }
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaPresenceRoutingGuard : null), 'presence-routing-guard.js');
     };
+    /* [v3.455.0 · V17-O2] 共振巩固取库口（window 优先 → require 回退 → _moduleLib） */
+    let _resonanceLib = function () {
+        const mod = (typeof window !== 'undefined' ? window.LonShaMemoryResonance : null);
+        if (mod) return mod;
+        if (typeof require !== 'undefined') {
+            try { return require('./memory-resonance-consolidation.js'); } catch (_) {}
+        }
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryResonance : null), 'memory-resonance-consolidation.js');
+    };
+
     let _cognitiveHorizonLib = function () {
         const mod = (typeof window !== 'undefined' ? window.LonShaCognitiveHorizonFilter : null);
         if (mod) return mod;
@@ -2352,6 +2362,31 @@
                     errLog(e, 'buildInjection.生成材料对拍');
                 }
             } catch (e) { errLog(e, 'buildInjection.预算实测'); }
+            /* [v3.455.0 · V17-O2] 访问强化生态循环：**只在真正进入最终提示词时回写**。
+             *   判据用最终裁剪后的 full 文本（不是 recalled 候选），于是「被预算裁掉 / 被四桶封禁」
+             *   的条目绝不会被误算成「用过」。这是 召回→注入→强化→下轮更易召回 的闭环收口。 */
+            try {
+                const RS = _resonanceLib();
+                if (RS && this.config.config.resonanceConsolidationEnabled !== false) {
+                    const injected = [];
+                    for (const it of (recalled || [])) {
+                        const t = String((it && (it.text ?? it.content)) ?? '').trim();
+                        if (!t) continue;
+                        const probe = t.slice(0, 24);
+                        if (probe && full.includes(probe)) injected.push(RS.identityOf(it));
+                    }
+                    if (!this._resonanceState || typeof this._resonanceState !== 'object') this._resonanceState = RS.createState();
+                    this._lastResonanceReinforce = Object.assign(
+                        RS.reinforceOnAccess(this._resonanceState, injected, Date.now()),
+                        { active: true, injectedChecked: injected.length }
+                    );
+                } else {
+                    this._lastResonanceReinforce = { active: false, touched: 0, reason: RS ? 'disabled' : 'module-missing' };
+                }
+            } catch (e) {
+                errLog(e, 'buildInjection.resonanceReinforce');
+                this._lastResonanceReinforce = { active: false, touched: 0, reason: 'threw:' + String(e?.message || e) };
+            }
             return full;
         }
         

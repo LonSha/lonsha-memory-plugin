@@ -193,7 +193,10 @@
                 packedAt: new Date().toISOString(),
                 schemaVersion: ARCHIVE_SCHEMA_VERSION,   // [v3.140] CP: 判旧用整数结构版本（与插件版本解耦）
                 producerVersion: VERSION,   // [v3.140] CP: 生成本存档的插件版本（v3.138 的 dataVersion 与本键同值，已合并废除）
-                extensions: this._archiveExtensions || {},   // [v3.142] CP: 宽容解析出口——导入时遇到的未知顶层键随存档回写，不丢不炸
+                /* [v3.455.0 · V17] 共振访问热表随存档落盘：走既有 extensions 命名空间，
+                 *   绝不新增/改动 ARCHIVE_TOP_LEVEL_KEYS 冻结顶层键（STBME 快照契约纪律）。 */
+                extensions: Object.assign({}, this._archiveExtensions || {},
+                    this._resonanceState ? { lonshaResonanceState: this._resonanceState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -361,6 +364,19 @@
             // [v3.142] CP 宽容解析（stbme round-trip 纪律）：未知顶层键不丢不炸，收进 extensions 命名空间随存档回写。
             const _ext = data.extensions && typeof data.extensions === 'object' ? data.extensions : null;
             if (!dry && _ext) { this._archiveExtensions = Object.assign({}, this._archiveExtensions || {}, _ext); }
+            /* [v3.455.0 · V17] 共振状态恢复（upgrade-on-read 宽容解析，与 collectExport 逐键对称）。
+             *   失败必须点名、跳过必须计数 —— 不静默吞成「空状态」，否则诊断行会把「没恢复」读成「没用过」。 */
+            if (!dry && _ext && _ext.lonshaResonanceState) {
+                try {
+                    const _RS = _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryResonance : null), 'memory-resonance-consolidation.js');
+                    this._resonanceState = (_RS && typeof _RS.hydrateState === 'function')
+                        ? _RS.hydrateState(_ext.lonshaResonanceState) : _ext.lonshaResonanceState;
+                    res.restored.push('extensions.lonshaResonanceState');
+                } catch (e) {
+                    res.failed.push({ key: 'extensions.lonshaResonanceState', error: String(e?.message || e) });
+                    errLog(e, 'restoreFromPayload.resonanceState');
+                }
+            }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');
             res.unknown = _unknown;
             // [v3.261.0 缝合 MyriadKnots] 存档体检：在恢复现场就地做**三分判定**
