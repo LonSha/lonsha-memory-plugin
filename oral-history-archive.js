@@ -355,6 +355,39 @@
         return { problems };
     }
 
+    /**
+     * [v3.450.0 · L15-X3] 针对不可调和的争议性视角冲突生成并列结构化提示词注入块
+     * @param {Object} eventRecord 口述史或多视角争议事件
+     * @param {Object} options { maxPerspectives, emphasizeDiscrepancy }
+     * @returns {Object} { hasConflict: boolean, promptBlock: string, perspectiveCount: number }
+     */
+    function formatPerspectiveDiscrepancyPrompt(eventRecord, options = {}) {
+        if (!eventRecord || !Array.isArray(eventRecord.perspectives) || eventRecord.perspectives.length < 2) {
+            return { hasConflict: false, promptBlock: '', perspectiveCount: 0 };
+        }
+        const activePerspectives = eventRecord.perspectives.filter(p => p.visibility !== 'retracted');
+        if (activePerspectives.length < 2) {
+            return { hasConflict: false, promptBlock: '', perspectiveCount: activePerspectives.length };
+        }
+        const title = eventRecord.title || '焦点冲突事件';
+        const lines = [
+            `【多视角针锋相对并列记忆 · 严禁折中调和】`,
+            `争议事件: 《${title}》 (各当事人各执一词，请如实体现认知割裂与言语针锋)`
+        ];
+        activePerspectives.slice(0, options.maxPerspectives || 4).forEach((p, idx) => {
+            const witness = p.witnessName || p.witnessId || `陈述方${idx + 1}`;
+            const claim = p.narrative || p.statement || (p.details ? p.details.map(d => d.statement).join('; ') : '');
+            lines.push(`· [${witness}视角/立场]: "${claim}"`);
+        });
+        lines.push(`[指导原则]: 切勿将各方说法合并为中立事实；角色对话中必须保留各自所坚持的叙述真相。`);
+        return {
+            hasConflict: true,
+            title: title,
+            promptBlock: lines.join('\n'),
+            perspectiveCount: activePerspectives.length
+        };
+    }
+
     const OralHistoryArchive = Object.freeze({
         VISIBILITY_SCOPE,
         PERSPECTIVE_STATUS,
@@ -366,6 +399,7 @@
         retractPerspectivePublicity,
         analyzeGapsAndOverlaps,
         generateFollowupInquiries,
+        formatPerspectiveDiscrepancyPrompt,
         oralHistoryArchiveSelfCheck
     });
 

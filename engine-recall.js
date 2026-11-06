@@ -914,7 +914,9 @@
                             cleanNickname: query.cleanNickname,
                             targetWorldline: query.targetWorldline || engine._currentWorldline || engine._worldlineViewer,
                             excludeIds: query.excludeIds,
-                            temporaryExclusions: query.temporaryExclusions
+                            temporaryExclusions: query.temporaryExclusions,
+                            currentSpeaker: engine._currentSpeaker || query.speaker,
+                            graphEdges: engine.graph?.edges || []
                         };
                         merged = Hub.disambiguateEntities(merged, disambiguateOpts);
                     }

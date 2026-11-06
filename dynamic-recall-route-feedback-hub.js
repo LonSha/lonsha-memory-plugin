@@ -104,11 +104,14 @@
       for (var t = 0; t < opts.temporaryExclusions.length; t++) excludedSet[opts.temporaryExclusions[t]] = true;
     }
 
-    return candidates.filter(function (it) {
+    // [v3.450.0 · L15-O2] 检索消歧的人际图谱动态加权计算
+    var graphEdges = Array.isArray(opts.graphEdges) ? opts.graphEdges : [];
+    var speaker = opts.currentSpeaker ? String(opts.currentSpeaker).trim().toLowerCase() : null;
+
+    var filtered = candidates.filter(function (it) {
       if (!it) return false;
       // 0. 一次性排除或显式指定排除
       if (it.id && excludedSet[it.id]) return false;
-
       // 1. 所属模块过滤
       if (opts.targetModule && it.moduleName) {
         if (it.moduleName !== opts.targetModule && !it.isSharedCrossModule) {
@@ -135,6 +138,37 @@
       }
       return true;
     });
+
+    if (speaker && graphEdges.length > 0) {
+      // 提取与 speaker 有关的直接关系网络与亲密权重
+      var affinityMap = {};
+      for (var gi = 0; gi < graphEdges.length; gi++) {
+        var edge = graphEdges[gi];
+        if (!edge) continue;
+        var s = String(edge.source || edge.from || '').toLowerCase();
+        var t = String(edge.target || edge.to || '').toLowerCase();
+        var w = Number(edge.weight || edge.intimacy || edge.closeness || 1.0);
+        if (s === speaker && t) {
+          affinityMap[t] = Math.max(affinityMap[t] || 0, w);
+        } else if (t === speaker && s) {
+          affinityMap[s] = Math.max(affinityMap[s] || 0, w);
+        }
+      }
+
+      // 对过滤后的条目根据与当前主谈角色的人际亲密动态增权
+      filtered.forEach(function (it) {
+        var charName = String(it.character || it.characterName || it.entity || it.source || '').toLowerCase();
+        var affinity = affinityMap[charName];
+        if (affinity !== undefined && affinity > 0) {
+          it.graphAffinityBoost = Number((1.0 + Math.min(1.0, affinity * 0.2)).toFixed(2));
+          var oldScore = Number(it.relevanceScore || it.score || 0.5);
+          it.relevanceScore = Number((oldScore * it.graphAffinityBoost).toFixed(3));
+          it.graphDisambiguationReason = '人际图谱强关联加成 x' + it.graphAffinityBoost;
+        }
+      });
+    }
+
+    return filtered;
   }
 
   /**
