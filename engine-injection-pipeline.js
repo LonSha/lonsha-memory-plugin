@@ -697,9 +697,10 @@
             let _antiOmniHeader = '';
             try {
                 const CogFilter = _cognitiveHorizonLib();
-                if (CogFilter && typeof CogFilter.filterAndPartitionCognitiveHorizon === 'function') {
-                    const inScene = this._sceneState ? this._sceneState.inSceneCharacters : (this._inSceneCharacters);
-                    const activeChar = this._currentSpeaker || (this._sceneState && this._sceneState.focusCharacter);
+                const inScene = this._sceneState ? this._sceneState.inSceneCharacters : (this._inSceneCharacters);
+                const activeChar = this._currentSpeaker || (this._sceneState && this._sceneState.focusCharacter);
+                // 仅在明确指定了当前发言角色或现场角色时才启用四桶严格过滤，避免通用离线单测/全局回放中缺失上下文导致被全部封锁
+                if (CogFilter && typeof CogFilter.filterAndPartitionCognitiveHorizon === 'function' && (activeChar || inScene)) {
                     const cogRes = CogFilter.filterAndPartitionCognitiveHorizon(recalled, activeChar, inScene);
                     recalled = [...cogRes.directLived, ...cogRes.sharedScene, ...cogRes.rumorUnverified];
                     this._lastCognitiveStats = cogRes.stats;
@@ -1334,6 +1335,10 @@
                     }
                 } catch (e) { errLog(e, 'buildInjection.讲述对照'); }
             } else { _countSource('scene', 0); }
+            /* ============================================================
+             * [v3.448.0 · 第十四期 L14-X1 ~ X9] 移至 sceneEnabled 块外，
+             * 保证即便场景开关未开启或场景分支结束，全局知情链与履约提示仍正常注入
+             * ============================================================ */
             if (scenesList.length) {
                 blocks.push('[相关地点]');
                 scenesList.forEach(i => blocks.push(`- ${i.text || ''}`));
