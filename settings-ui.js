@@ -1678,10 +1678,11 @@
                     } else {
                         const sceneObj = scState.scene || {};
                         const castStr = scState.inSceneCharacters === undefined ? '未指定（全开）' : (scState.inSceneCharacters.length === 0 ? '【全员离场无人】' : scState.inSceneCharacters.join('、'));
+                        const persistStr = scState.isPersisted ? `✅已落盘（第${scState.scene?.floor ?? 0}楼）` : '⏳待随会话保存';
                         sceneHtml = `<div class="ls-group" style="margin-top:14px;">
                             <div class="ls-group-title">🎭 物理现场快照 (L0 Scene State)<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div>
                             <div class="ls-item">
-                                <div class="ls-item-meta">地点: ${esc(sceneObj.location || '未知')} · 气氛: ${esc(sceneObj.tension || '正常')} · 在场角色: ${esc(castStr)}</div>
+                                <div class="ls-item-meta">地点: ${esc(sceneObj.location || '未知')} · 气氛: ${esc(sceneObj.tension || '正常')} · 在场角色: ${esc(castStr)} · 存档状态: ${persistStr}</div>
                                 <div class="ls-item-text">动作: ${esc(sceneObj.action || '无焦点动作')} · 未决: ${esc(sceneObj.unresolved || '无悬念')}</div>
                             </div>
                         </div>`;

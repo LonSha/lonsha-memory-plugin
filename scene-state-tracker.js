@@ -30,8 +30,7 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const VERSION = '3.446.0';
-
+  const VERSION = '3.447.0';
   /**
    * 默认初始快照
    */
@@ -47,7 +46,8 @@
       inSceneCharacters: undefined, // 严格三态：undefined | [] | ['Name']
       floor: 0,
       updatedAt: 0,
-      revision: 0
+      revision: 0,
+      persistedAt: 0
     };
   }
 
@@ -97,10 +97,58 @@
         : base.inSceneCharacters,
       floor: curFloor,
       updatedAt: Date.now(),
-      revision: (Number(base.revision) || 0) + 1
+      revision: (Number(base.revision) || 0) + 1,
+      persistedAt: Number(patch.persistedAt || base.persistedAt || 0)
     };
-
     return next;
+  }
+
+  /**
+   * [L15-O1] 快照落盘封装：将现场快照封卷为持久化记录
+   */
+  function snapshotSceneForPersistence(sceneState) {
+    if (!sceneState || typeof sceneState !== 'object') {
+      return { ok: false, reason: 'invalid-scene-state' };
+    }
+    const snap = {
+      version: 1,
+      sceneId: _cleanStr(sceneState.sceneId, 60) || 'scene_' + Date.now(),
+      location: _cleanStr(sceneState.location, 100),
+      time: _cleanStr(sceneState.time, 60),
+      action: _cleanStr(sceneState.action, 150),
+      tension: _cleanStr(sceneState.tension, 80),
+      unresolved: _cleanStr(sceneState.unresolved, 150),
+      inSceneCharacters: normalizeInSceneCharacters(sceneState.inSceneCharacters),
+      floor: Number(sceneState.floor || 0),
+      updatedAt: Number(sceneState.updatedAt || Date.now()),
+      revision: Number(sceneState.revision || 0),
+      persistedAt: Date.now()
+    };
+    return { ok: true, snapshot: snap };
+  }
+
+  /**
+   * [L15-O1] 从持久化记录中恢复现场快照
+   */
+  function restoreSceneFromPersistence(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') {
+      return { ok: false, sceneState: createDefaultSceneState(), reason: 'empty-snapshot' };
+    }
+    const restored = {
+      version: 1,
+      sceneId: _cleanStr(snapshot.sceneId, 60) || 'scene_restored',
+      location: _cleanStr(snapshot.location, 100),
+      time: _cleanStr(snapshot.time, 60),
+      action: _cleanStr(snapshot.action, 150),
+      tension: _cleanStr(snapshot.tension, 80),
+      unresolved: _cleanStr(snapshot.unresolved, 150),
+      inSceneCharacters: normalizeInSceneCharacters(snapshot.inSceneCharacters),
+      floor: Number(snapshot.floor || 0),
+      updatedAt: Number(snapshot.updatedAt || 0),
+      revision: Number(snapshot.revision || 0),
+      persistedAt: Number(snapshot.persistedAt || 0)
+    };
+    return { ok: true, sceneState: restored };
   }
 
   /**
@@ -191,6 +239,8 @@
     normalizeInSceneCharacters,
     estimateTokens,
     formatSceneStatePrompt,
-    rollbackSceneHistory
+    rollbackSceneHistory,
+    snapshotSceneForPersistence,
+    restoreSceneFromPersistence
   };
 }));

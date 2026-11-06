@@ -23,20 +23,33 @@
   }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-
-  const VERSION = '3.446.0';
-
+  const VERSION = '3.447.0';
   const SCOPES = Object.freeze({
     WORLD: 'world',
     SHARED: 'shared',
-    CHARACTER: 'character'
+    CHARACTER: 'character',
+    WHISPER: 'whisper' // [L15-X1] 密谈耳语知情分级
   });
-
   /**
    * 字符串清洗
    */
   function _cleanStr(s) {
     return typeof s === 'string' ? s.trim() : '';
+  }
+
+  /**
+   * [L15-X1] 启发式生成耳语断续模糊碎片
+   */
+  function obfuscateWhisperText(text) {
+    const raw = _cleanStr(text);
+    if (!raw) return '……（压低声音的私语，听不真切）……';
+    if (raw.length <= 12) {
+      return `……听见低语提及「${raw.slice(0, 3)}……」……`;
+    }
+    const part1 = raw.slice(0, Math.min(4, Math.floor(raw.length * 0.2)));
+    const midIdx = Math.floor(raw.length * 0.5);
+    const part2 = raw.slice(midIdx, midIdx + Math.min(4, Math.floor(raw.length * 0.2)));
+    return `……（隐约听见断续耳语）「${part1}……${part2}……」……`;
   }
 
   /**
@@ -46,14 +59,27 @@
     if (!memory || typeof memory !== 'object') {
       return { ok: false, reason: 'invalid-memory-object' };
     }
-
     const scope = _cleanStr(memory.scope || SCOPES.WORLD).toLowerCase();
     const character = _cleanStr(memory.character || memory.owner || '');
-    const knownBy = Array.isArray(memory.knownBy)
+    let knownBy = Array.isArray(memory.knownBy)
       ? memory.knownBy.map(_cleanStr).filter(Boolean)
       : (character ? [character] : []);
 
-    if (scope === SCOPES.CHARACTER) {
+    let whisperWith = [];
+    if (scope === SCOPES.WHISPER) {
+      if (Array.isArray(memory.whisperWith)) {
+        whisperWith = memory.whisperWith.map(_cleanStr).filter(Boolean);
+      } else if (memory.whisperWith && typeof memory.whisperWith === 'string') {
+        whisperWith = [memory.whisperWith.trim()];
+      }
+      if (character && !whisperWith.includes(character)) {
+        whisperWith.unshift(character);
+      }
+      if (whisperWith.length < 2) {
+        return { ok: false, reason: 'whisper-scope-requires-at-least-two-participants', scope };
+      }
+      knownBy = Array.from(new Set([...knownBy, ...whisperWith]));
+    } else if (scope === SCOPES.CHARACTER) {
       if (!character) {
         return { ok: false, reason: 'character-scope-requires-owner', scope };
       }
@@ -69,7 +95,8 @@
       ok: true,
       scope,
       character,
-      knownBy
+      knownBy,
+      whisperWith
     };
   }
 
@@ -84,8 +111,7 @@
     if (!audit.ok) {
       return { permitted: false, reason: 'fail-closed-audit-rejected', detail: audit.reason };
     }
-
-    const { scope, character, knownBy } = audit;
+    const { scope, character, knownBy, whisperWith } = audit;
 
     // 1. 世界公共常识：全员通用
     if (scope === SCOPES.WORLD) {
@@ -97,7 +123,41 @@
       return { permitted: false, reason: 'empty-scene-embargo', scope };
     }
 
-    // 2. 角色私密记忆 (CHARACTER)
+    // 2. 密谈耳语分级 (WHISPER)
+    if (scope === SCOPES.WHISPER) {
+      // 至少一名密谈参与者需在场
+      const isAnyParticipantInScene = inSceneCharacters === undefined || whisperWith.some(p => inSceneCharacters.includes(p));
+      if (!isAnyParticipantInScene) {
+        return { permitted: false, reason: 'whisper-participants-absent', whisperWith };
+      }
+
+      // 若聚焦视角角色就是密谈参与者之一：获得完整耳语知情权限
+      const isParticipant = focusCharacter ? whisperWith.includes(focusCharacter) : true;
+      if (isParticipant) {
+        return {
+          permitted: true,
+          scope: SCOPES.WHISPER,
+          whisperRole: 'participant',
+          whisperWith
+        };
+      }
+
+      // 若聚焦视角角色不是参与者，但活跃在同一现场：仅能捕获断续模糊碎片 (overhearer)
+      const isOverhearerPresent = inSceneCharacters === undefined || (focusCharacter && inSceneCharacters.includes(focusCharacter));
+      if (isOverhearerPresent) {
+        return {
+          permitted: true,
+          scope: SCOPES.WHISPER,
+          whisperRole: 'overhearer',
+          whisperWith,
+          fragmentText: memory.fragment || obfuscateWhisperText(memory.text || '')
+        };
+      }
+
+      return { permitted: false, reason: 'whisper-unheard-absent', whisperWith };
+    }
+
+    // 3. 角色私密记忆 (CHARACTER)
     if (scope === SCOPES.CHARACTER) {
       // 若当前在场名单未知 (undefined)，仅检查是否为 focusCharacter 或放行
       if (inSceneCharacters === undefined) {
@@ -106,34 +166,29 @@
         }
         return { permitted: true, scope: SCOPES.CHARACTER, character };
       }
-
       // 明确名单：该角色必须在现场
       const isPresent = inSceneCharacters.includes(character);
       if (!isPresent) {
         return { permitted: false, reason: 'private-character-absent', character };
       }
-
       // 若同时指定了当前对话的另一焦点角色，且不含该角色，防偷窥拦截
       if (focusCharacter && focusCharacter !== character && !inSceneCharacters.includes(focusCharacter)) {
         return { permitted: false, reason: 'private-character-cross-leak-prevention', character };
       }
-
       return { permitted: true, scope: SCOPES.CHARACTER, character };
     }
 
-    // 3. 现场共享记忆 (SHARED)
+    // 4. 现场共享记忆 (SHARED)
     if (scope === SCOPES.SHARED) {
       // 若在场名单未知，只要有知情者即可放行
       if (inSceneCharacters === undefined) {
         return { permitted: true, scope: SCOPES.SHARED, knownBy };
       }
-
       // 必须至少有一名知情者在现场活跃，才能公开谈论该经历
       const hasKnownWitness = knownBy.some(k => inSceneCharacters.includes(k));
       if (!hasKnownWitness) {
         return { permitted: false, reason: 'no-known-witness-in-scene', knownBy };
       }
-
       return { permitted: true, scope: SCOPES.SHARED, knownBy };
     }
 
@@ -145,19 +200,34 @@
    */
   function filterMemoriesByPresence(memories, inSceneCharacters, focusCharacter) {
     if (!Array.isArray(memories)) {
-      return { allowed: [], blocked: [], stats: { total: 0, allowed: 0, blocked: 0 } };
+      return { allowed: [], blocked: [], stats: { total: 0, allowed: 0, blocked: 0, whisperFull: 0, whisperFragment: 0 } };
     }
-
     const allowed = [];
     const blocked = [];
     let blockedPrivate = 0;
     let blockedShared = 0;
     let blockedAudit = 0;
+    let whisperFull = 0;
+    let whisperFragment = 0;
 
     for (const mem of memories) {
       const decision = isMemoryPermittedInScene(mem, inSceneCharacters, focusCharacter);
       if (decision.permitted) {
-        allowed.push(mem);
+        if (decision.scope === SCOPES.WHISPER && decision.whisperRole === 'overhearer') {
+          // 产生耳语碎片副本，不破坏原记忆对象
+          const fragmentMem = Object.assign({}, mem, {
+            text: decision.fragmentText,
+            isWhisperFragment: true,
+            originalScope: SCOPES.WHISPER
+          });
+          allowed.push(fragmentMem);
+          whisperFragment++;
+        } else {
+          if (decision.scope === SCOPES.WHISPER) {
+            whisperFull++;
+          }
+          allowed.push(mem);
+        }
       } else {
         blocked.push({ memory: mem, decision });
         if (decision.reason === 'fail-closed-audit-rejected') blockedAudit++;
@@ -165,7 +235,6 @@
         else blockedShared++;
       }
     }
-
     return {
       allowed,
       blocked,
@@ -175,7 +244,9 @@
         blocked: blocked.length,
         blockedPrivate,
         blockedShared,
-        blockedAudit
+        blockedAudit,
+        whisperFull,
+        whisperFragment
       }
     };
   }
@@ -183,6 +254,7 @@
   return {
     VERSION,
     SCOPES,
+    obfuscateWhisperText,
     auditMemoryScope,
     isMemoryPermittedInScene,
     filterMemoriesByPresence

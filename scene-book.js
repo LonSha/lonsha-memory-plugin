@@ -186,6 +186,8 @@ class SceneBook {
         this.presence = new Map();
         /** [v3.195] 场景头：floor → {date, period, weather}。只记调用方给的快照，不从正文猜。 */
         this.headers = new Map();
+        /** [L15-O1] 跨轮持久化现场快照：{location, action, tension, unresolved, inSceneCharacters, floor, updatedAt, persistedAt} */
+        this.lastSnapshot = null;
         /** 最近一次 apply 的读数（供诊断行/自检读，不参与重建） */
         this.lastApply = null;
         /** 有界性台账：本对象生命周期内裁剪过的节点数（自述用，不进存档） */
@@ -439,6 +441,25 @@ class SceneBook {
         const rec = this.presence.get(trim(name));
         if (!rec) return null;
         return { name: trim(name), key: rec.key, path: rec.path || [], atFloor: rec.atFloor };
+    }
+
+    /**
+     * [L15-O1] 更新并保存具身现场快照
+     */
+    setSnapshot(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') {
+            this.lastSnapshot = null;
+            return false;
+        }
+        this.lastSnapshot = { ...snapshot, persistedAt: Date.now() };
+        return true;
+    }
+
+    /**
+     * [L15-O1] 获取最近保存的具身现场快照
+     */
+    getSnapshot() {
+        return (this.lastSnapshot && typeof this.lastSnapshot === 'object') ? { ...this.lastSnapshot } : null;
     }
 
     /**
@@ -896,6 +917,10 @@ class SceneBook {
         this.track = this.track.filter(t => { const f = numOrNull(t && t.floor); return f == null || f < cut; });
         // [v3.221.0] R3-D：级联回滚是「该楼及以上全弃」，场景头同语义（>= floor 一并撤）。
         for (const hf of [...this.headers.keys()]) { const f = numOrNull(hf); if (f != null && f >= fl) this.headers.delete(hf); }
+        // [L15-O1] 快照回退：若当前保存的快照楼层高于或等于回滚楼层，重置为回滚前状态
+        if (this.lastSnapshot && numOrNull(this.lastSnapshot.floor) != null && Number(this.lastSnapshot.floor) >= fl) {
+            this.lastSnapshot = null;
+        }
         return this._rebuild(fl);
     }
 
@@ -1049,6 +1074,7 @@ class SceneBook {
             visits: Array.from(this.visits.entries()),
             presence: Array.from(this.presence.entries()),
             headers: Array.from(this.headers.entries()),
+            snapshot: (this.lastSnapshot && typeof this.lastSnapshot === 'object') ? { ...this.lastSnapshot } : null,
             capacity: { ...this.capacity }
         };
     }
@@ -1073,6 +1099,7 @@ class SceneBook {
             .filter(o => o && isArr(o.ops))
             .map(o => ({ floor: numOrNull(o.floor), ops: o.ops }))
             .slice(-MAX_OPS);
+        this.lastSnapshot = (data.snapshot && typeof data.snapshot === 'object') ? { ...data.snapshot } : null;
         this.visits = new Map();
         if (isArr(data.visits) && data.visits.length) {
             for (const [k, v] of data.visits) {
@@ -1236,6 +1263,8 @@ class SceneBook {
             // [v3.232.0] F-3：同楼同刻 ≥2 在场（事实面；不含冲突激烈程度）。
             //   与 tree/visits/header 同一读取时刻、同一实例 ⇒ 同修订下必然自洽。
             coPresence: this.coPresence(),
+            // [L15-O1] 诊断与外供现场快照
+            snapshot: (this.lastSnapshot && typeof this.lastSnapshot === 'object') ? { ...this.lastSnapshot } : null,
             // [v3.232.0] F-6：两条观察项的口径自述（下游可在自己的诊断页如实转述）。
             observationNotes: this.observationNotes(),
             header: (() => {

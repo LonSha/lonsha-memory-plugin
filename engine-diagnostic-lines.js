@@ -5361,7 +5361,11 @@
             const o = (opts && typeof opts === 'object') ? opts : {};
             const curScene = (o.scene && typeof o.scene === 'object')
                 ? o.scene
-                : ((engine && engine._sceneState && typeof engine._sceneState === 'object') ? engine._sceneState : Tracker.createDefaultSceneState());
+                : ((engine && engine._sceneState && typeof engine._sceneState === 'object')
+                    ? engine._sceneState
+                    : ((engine && engine.scene && typeof engine.scene.getSnapshot === 'function' && engine.scene.getSnapshot())
+                        ? engine.scene.getSnapshot()
+                        : Tracker.createDefaultSceneState()));
             const inScene = curScene.inSceneCharacters;
             let presenceMode = 'unknown-tri-state';
             if (inScene === undefined) presenceMode = 'undefined-unrestricted';
@@ -5377,6 +5381,8 @@
                 location: curScene.location || '',
                 action: curScene.action || '',
                 tension: curScene.tension || '',
+                persistedAt: curScene.persistedAt || 0,
+                isPersisted: !!(curScene.persistedAt && curScene.persistedAt > 0),
                 writesNothing: true,
                 ok: true
             };
@@ -5397,7 +5403,8 @@
                 : (cached.inSceneCharacters.length === 0 ? '全员离场无人' : cached.inSceneCharacters.join('、'));
             const loc = s.location || '未知地点';
             const act = s.action ? ` · 动作: ${s.action}` : '';
-            return `现场快照：${loc}（在场: ${chars}）${act} · 独立防穿透硬预算保护`;
+            const persistTag = cached.isPersisted ? ' · 已落盘' : ' · 待落盘';
+            return `现场快照：${loc}（在场: ${chars}）${act}${persistTag} · 独立防穿透硬预算保护`;
         } catch (e) {
             errLog(e, 'engine._sceneStateTrackerLine');
             return '—（诊断异常）';
