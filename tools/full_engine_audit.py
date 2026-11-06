@@ -13,7 +13,7 @@ for name,p in sorted(files.items()):
     text=p.read_text(errors='ignore')
     if name in ('index.js','optional-engine-registry.js'): continue
     exported=bool(re.search(r'module\.exports|window\.LonSha|root\.[A-Za-z]',text))
-    production_refs=len(re.findall(r'\b'+re.escape(name)+r'\b',alltext))-1
+    production_refs=alltext.count(name)-1
     test_refs=testtext.count(name)
     rows.append((name, name in extra, exported, production_refs, test_refs, len(text)))
 
