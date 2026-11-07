@@ -2954,21 +2954,26 @@
                 </label>`;
             const body = `
                 <div class="ls-tabs-nav">
-                    <button type="button" class="ls-tab-btn active" data-tab="general">◈ 常用</button>
-                    <button type="button" class="ls-tab-btn" data-tab="narrative">◷ 故事与人物</button>
-                    <button type="button" class="ls-tab-btn" data-tab="retrieval">⬡ 记录与世界</button>
-                    <button type="button" class="ls-tab-btn" data-tab="advanced">⚙ 高级</button>
+                    <button type="button" class="ls-tab-btn active" data-tab="general">🚀 开始使用</button>
+                    <button type="button" class="ls-tab-btn" data-tab="narrative">📖 人物与故事</button>
+                    <button type="button" class="ls-tab-btn" data-tab="retrieval">🔧 进阶设置</button>
+                    <button type="button" class="ls-tab-btn" data-tab="advanced">🧪 高级实验室</button>
+                </div>
+                <div style="margin:10px 8px;padding:12px 14px;border-radius:10px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.22);line-height:1.75;">
+                    <div style="font-size:14px;font-weight:600;margin-bottom:4px;">👋 开箱即用，只需两步</div>
+                    <div style="font-size:12px;opacity:0.9;">① 在下方「AI 接口连接」填好接口（或直接用游戏当前接口，零配置）；② 选一个记忆档位。<br>其余底层能力已<b>默认全部开启并配好最佳实践数值</b>，普通玩家完全不用碰。想看人物心境、关系与剧情，随时打开「统计」面板即可。</div>
                 </div>
                 <div class="ls-mode-banner" id="ls-mode-banner">
-                    <!-- [v3.422] 缺陷修复：三个模式 pill 此前是纯装饰（无事件、active 硬编码），点击毫无反应。
-                         现接入真实配置 extractionProfile（quality/balanced/low-cost 三档抽取节奏，与「联想与世界」页的档位下拉同源），
-                         active 态从配置实读；点击立即写回 config + saveConfig + 同步档位下拉，无需点保存。 -->
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'balanced' ? ' active' : ''}" data-profile="balanced" role="button" title="均衡档：每 3 楼攒批提取，叙事与记忆成本平衡">◈ 沉浸叙事推荐</div>
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'quality' ? ' active' : ''}" data-profile="quality" role="button" title="质量档：每楼都提取，记忆最完整（API 消耗最高）">◷ 深度推演模式</div>
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'low-cost' ? ' active' : ''}" data-profile="low-cost" role="button" title="省流档：每 5 楼攒批且只抽核心类型（API 消耗最低）">⬡ 极简轻量模式</div>
+                    <!-- [v3.422] 三档抽取节奏预设：点击立即写回 extractionProfile 并保存，无需再点保存。
+                         [v3.458] 极简重构：文案通俗化，保留 .ls-mode-pill / data-profile 契约（事件绑定依赖）。 -->
+                    <div style="font-size:12px;opacity:0.85;padding:4px 8px 2px;">记忆档位（点一下即可，随时可改）：</div>
+                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'balanced' ? ' active' : ''}" data-profile="balanced" role="button" title="均衡档：每 3 楼攒批提取，叙事与记忆成本平衡">⚖️ 平衡（推荐）</div>
+                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'quality' ? ' active' : ''}" data-profile="quality" role="button" title="质量档：每楼都提取，记忆最完整（API 消耗最高）">🌌 深度沉浸</div>
+                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'low-cost' ? ' active' : ''}" data-profile="low-cost" role="button" title="省流档：每 5 楼攒批且只抽核心类型（API 消耗最低）">⚡ 轻量省流</div>
                 </div>
-                <div class="ls-tab-pane active" data-tab-pane="general">
-                <div class="ls-group">
+                
+<div class="ls-tab-pane active" data-tab-pane="general">
+<div class="ls-group">
                     <!-- [v3.423] API 连接前置：玩家第一件事就是连 API，不再埋在第 3 个 tab 里 -->
                     <div class="ls-group-title">🔗 AI 接口连接</div>
                     <label class="ls-row">
@@ -2994,8 +2999,8 @@
                     </div>
                 </div>
                 </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[CORE] 记忆开关</div>
+<div class="ls-group">
+                    <div class="ls-group-title">🔘 基础开关（已默认开好）</div>
                     ${ck('preferModuleFiles', 'extra_js 自装载', '模块按清单顺序自动加载，保障所有记忆机制生效')}
                     ${ck('enabled', '启用插件', '总开关，关闭后不提取也不注入')}
                     ${ck('extractionEnabled', '自动提取', '每条 AI 回复后自动用 LLM 提取记忆')}
@@ -3004,52 +3009,22 @@
                     ${ck('autoSave', '自动保存', '每次提取后自动写入对话存档')}
                     ${ck('debugMode', '调试模式', 'console 显示召回分数与提取详情')}
                 </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[RECALL] 回忆多少</div>
-                    <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
-                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
-                    <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
-                    <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha ?? 0.7}" data-cfg-num="hybridAlpha">
-                    ${ck('hybridMergeWeighted', 'α 加权融合（v3.156）', '打开后上面的 α 滑块才真正生效（α=1 偏向量 / α=0 偏图谱）；关闭=RRF 融合，α 仅记录不参与排序。默认关。')}
-                    ${ck('resonanceConsolidationEnabled', '🧠 记忆共振巩固（V17 超级加强）', 'PEDSA 多跳激活扩散 + 时序合成边 + 抑制边降权；被真正注入的记忆自动强化访问热度与重要度，形成「越用越强」的仿生生态闭环。零额外 LLM 调用。')}
-                    ${ck('pyramidEvolutionEnabled', '🧬 分层演化金字塔（V18 超级加强）', '提取与访问强度驱动的主动分层折叠（日记→场景→周记卷）+ 演化关联边构建 + 睡眠遗忘联动加速。零额外 LLM 调用。')}
-                    ${ck('memorySymphonyEnabled', '🎼 全域记忆交响编排中枢（V19 记忆专版）', '将现场感知、因果熔断、多路检索、共振扩散、演化折叠、防混淆消歧与认知视界深度串联调用，全链路彻底解决记忆混乱。零额外 LLM 调用。')}
-                    ${ck('antiConfusionEnabled', '🛡️ 多维防混淆与实体认知锚定（V19 记忆专版）', '严格消歧代词（他/她/对方）、实体指代锚定归属、事实互斥与时空矛盾仲裁，严防多角色复杂互动下的张冠李戴。')}
-                    ${ck('antiConfusionDirectivesEnabled', '📜 防混淆结构化高阶提示约束', '在生成注入私密简报头部自动合流防混淆指令，使模型严格恪守角色身份边界与时空一致性。')}
-                    ${ck('psychologicalDefenseEnabled', '🎭 认知心理防御与移情扭曲（V20 史诗级双计划）', '模拟创伤否认、投射、压抑与移情投射机制，赋予记忆动态戏剧张力与潜意识心声扭曲。')}
-                    ${ck('hypergraphCausalEnabled', '🕸️ 超图多跳联合因果推演中枢（V20 史诗级双计划）', '支持多因一果与一因多果超边拓扑，反向回溯因果必要闭包，牢牢锁定伏笔链条。')}
-                    ${ck('memoryHealingImmunityEnabled', '💉 记忆自愈免疫与抗幻觉冲突仲裁（V20 史诗级双计划）', '实时拦截虚构与死者复生幻觉，自动生成自愈补丁实施免疫接种，守卫正史不变量。')}
-                    ${ck('counterfactualFirewallEnabled', '🧱 反事实假想沙盒防火墙（V20 史诗级双计划）', '严格隔离平行假想/悔恨假设流入正史世界，受控透出心智折射回响，彻底阻断历史污染。')}
-                    ${ck('epistemicParallaxMatrixEnabled', '👥 多视角视差博弈矩阵（V20 史诗级双计划）', '度量知情/误解/怀疑/受蒙蔽认知四元态，提供分视角戏剧张力与守秘刺探指引。')}
-                    ${ck('macroEpochDriftEnabled', '⏳ 宏观纪元演进与文化漂移（V20 史诗级双计划）', '支撑超长程纪元更迭、社会主导思潮演化与时代禁忌漂移，为岁月沉淀真实质感。')}
-                    ${ck('covertEspionageEnabled', '🕵️ 特工潜伏与双重身份暴露博弈（V20 史诗级双计划）', '度量潜伏破绽积累与暴露风险模型，触发临界销毁证据与极限圆谎张力。')}
-                    ${ck('obsessiveTraumaEnabled', '💔 角色深层创伤禁忌与应激失控阈值（V20 史诗级双计划）', '监控触及禁忌雷区后的心理压力计，突破阈值强制触发躯体化失控与理智崩溃。')}
-                    ${ck('dynamicCovenantEnabled', '📜 动态契约誓言与因果反噬引擎（V20 史诗级双计划）', '记录同盟立誓与违誓代价，背叛或撕毁契约时引发天地因果反噬与噬心惩戒。')}
-                    ${ck('dreamMetaphorEnabled', '🌌 梦境解析与潜意识隐喻合成器（V20 史诗级双计划）', '深度睡眠或独处时解构未决压力源，将冷酷事实升华为超现实主义梦境直觉余波。')}
-                    ${ck('somaticReflexEnabled', '💓 生理反射与微表情神经自律引擎（V20 史诗级双计划）', '模拟瞳孔、呼吸骤停、指尖震颤等不由自主的微表情，赋予肢体真实生理学质感。')}
-                    ${ck('multiAgentGameTheoryEnabled', '♟️ 多智能体博弈均衡与动态撕裂（V20 史诗级双计划）', '建模多方对抗收益矩阵与背叛诱惑，驱动同盟暗潮涌动与试探性背刺算计。')}
-                    ${ck('deepMemoryAtlasEnabled', '🗺️ 深层记忆蒸馏图谱与概念抽象（V20 史诗级双计划）', '低层离散事件向上聚合为哲学信条与行动定式，以高密度认知图谱约束长程抉择。')}
-                    ${ck('factionTerritoryEnabled', '🚩 动态势力版图与地理拓扑控制（V20 史诗级双计划）', '建模宏观城邦领土控制力与治安管制等级，受所处地理势力的哨卡法度严格制约。')}
-                    ${ck('longTailFlashbackEnabled', '⚡ 长尾伏笔沉睡唤醒与闪回共鸣（V20 史诗级双计划）', '监控百轮前沉睡伏笔，语境契合时以宿命闪回唤醒记忆，防止重要设定永寂。')}
-                    ${ck('multiDimensionalReputationEnabled', '👑 多维声誉声望与动态社交拓扑（V20 史诗级双计划）', '突破单一好感度，综合武勇威名、恶名狼藉与正统性生成阶层威压与警备对话引导。')}
-                    ${ck('soulBrandReincarnationEnabled', '🌀 跨周目灵魂烙印与代际记忆转生（V20 史诗级双计划）', '提炼前世/上一周目未了誓言与宿命因果，以既视感本能唤醒跨代际叙事张力。')}
-                    ${ck('fateClimaxLoomEnabled', '🧶 命运交汇纺织机与叙事高潮熵（V20 史诗级双计划）', '编织多线命运线索并度量戏剧张力熵，临界点强力收束多方冲突，爆发破局高潮。')}
-                    ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
-                    <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
-                    <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[STABILITY] 用量与保护</div>
+<div class="ls-group">
+                    <div class="ls-group-title">🛡️ 用量与保护</div>
                     ${ck('extractionLockEnabled', '提取互斥锁', '并发保护：快速连续对话时防止记忆写入冲突')}
                     ${ck('holidayAware', '节日感知', '剧情日期临近节日时召回相关记忆（圣诞/情人节/七夕等）')}
                     <div class="ls-slider-label"><span>注入预算（字符）</span><span class="ls-slider-val" id="ls-v-budget">${c.injectionBudget || 3000}</span></div>
                     <input type="range" class="ls-slider" min="1000" max="6000" step="200" value="${c.injectionBudget || 3000}" data-cfg-num="injectionBudget">
                     <div class="ls-hint" style="padding:0 8px;">注入简报超预算时自动裁剪，保护上下文窗口。</div>
                 </div>
-                </div>
-                <div class="ls-tab-pane" data-tab-pane="narrative">
-                <div class="ls-group">
-                     <div class="ls-group-title">[CHARACTER] 人物状态记录</div>
+<div style="margin:10px 8px;padding:12px 14px;border-radius:10px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.22);line-height:1.75;">
+<div style="font-size:13px;font-weight:600;margin-bottom:4px;">✅ 其余的都替你配好了</div>
+<div style="font-size:12px;opacity:0.9;">自动记忆、防串角色、防胡说、因果关联、人物心境与关系追踪……全部默认开启，参数已调到最佳实践，不用再动。<br>想看人物好感 / 心境变化 / 剧情时间线 / 物品归属？关掉本窗口，打开「统计」面板即可，随时可查。</div>
+</div>
+</div>
+<div class="ls-tab-pane" data-tab-pane="narrative">
+<div class="ls-group">
+                     <div class="ls-group-title">💗 人物心境与好感</div>
                      ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
                      ${ck('cseEnabled', 'CSE 人物状态引擎', '分层建模人物心理：核心人设/逐渐适应/当下情绪 + toward 对象绑定 + 私密/幕后可见性 + 证据链置信度（待证项注入时标注，防推测当事实）')}
                      ${ck('narrativePulseEnabled', '叙事心电图', '情感极性曲线 + 张力节奏 + 角色弧光阶段 + 自反性节奏建议（连续高压提醒放缓呼吸拍，连续平淡提醒掀起波澜），纯文本启发式零额外 API')}
@@ -3061,8 +3036,68 @@
                     ${ck('floorLedgerEvictionDebug', '楼层账本淘汰调试日志', '开启后楼层账本淘汰、以及「回滚请求命中已淘汰楼层」时在控制台 warn（默认关）')}
                      <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
                  </div>
-                <div class="ls-tab-pane" data-tab-pane="advanced">
-                <div class="ls-group">
+<div class="ls-group">
+                    <div class="ls-group-title">🕰️ 私密心事与故事时间线</div>
+                    ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密心事与暗线单独隔离，只展示当前在场角色知晓的事实')}
+                    ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
+                    <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
+                </div>
+<div class="ls-group">
+                    <div class="ls-group-title">📔 角色日记与心声</div>
+                    ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
+                    ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
+                    ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
+                    ${ck('timeChangeDrivenInjection', '时间锚点变化注入', '复用现有剧情时间线，只将上次游标之后且与当前剧情时间相关的新事件加入本轮上下文')}
+                    <div class="ls-hint" style="padding:0 8px;">时间变化注入同时覆盖时间线、在场角色状态、关系对及物品变化。</div>
+                    <div class="ls-slider-label"><span>回响停留轮数</span><span class="ls-slider-val" id="ls-v-echo">${c.echoBaseLife || 2}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.echoBaseLife || 2}" data-cfg-num="echoBaseLife">
+                    <div class="ls-slider-label"><span>每N楼写一次日记</span><span class="ls-slider-val" id="ls-v-df">${c.diaryEveryFloors ?? 3}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="10" step="1" value="${c.diaryEveryFloors ?? 3}" data-cfg-num="diaryEveryFloors">
+                    <div class="ls-slider-label"><span>时间线变化注入条数</span><span class="ls-slider-val">${c.timeChangeMaxCandidates || 5}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.timeChangeMaxCandidates || 5}" data-cfg-num="timeChangeMaxCandidates">
+                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
+                </div>
+<div class="ls-group">
+                    <div class="ls-group-title">📍 场景与在场角色</div>
+                    ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
+                    ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现（v3.91 修复：此前门控键断裂导致该功能从未生效）')}
+                    ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
+                </div>
+<div class="ls-group">
+                    <div class="ls-group-title">🧩 约定与伏笔</div>
+                    ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
+                    ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；[v2.6] 支持架空日历（霜月3日）与全角分隔符，解析失败自动降级不标')}
+                    <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
+                    <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入（默认）；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
+                    <div class="ls-slider-label"><span>悬念追踪上限（条）</span><span class="ls-slider-val" id="ls-v-susmax">${c.suspenseMaxOpen || 20}</span></div>
+                    <input type="range" class="ls-slider" min="5" max="40" step="5" value="${c.suspenseMaxOpen || 20}" data-cfg-num="suspenseMaxOpen">
+                    <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
+                </div>
+<div class="ls-group">
+                    <div class="ls-group-title">📱 虚拟手机联动（可选）</div>
+                    ${ck('rubyPhoneBridge', '回填手机记忆', 'LLM 提取结果（摘要/事件/关系）写入 RubyPhone 手机"记忆"App')}
+                    ${ck('rubyPhoneRecall', '手机记忆参与召回', 'RubyPhone 记忆库（感官/空间/时间池）作为一路召回源注入简报')}
+                    <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN ?? 3}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN ?? 3}" data-cfg-num="rubyPhoneRecallTopN">
+                    <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
+                </div>
+</div>
+<div class="ls-tab-pane" data-tab-pane="retrieval">
+<div class="ls-group">
+                    <div class="ls-group-title">💾 备份与迁移</div>
+                    <button class="ls-btn" id="ls-export">📤 导出档案 (JSON)</button>
+                    <button class="ls-btn" id="ls-import">📥 导入档案</button>
+                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻ 恢复嵌入存档（跨设备迁移）</button>
+                    <button class="ls-btn ls-btn-danger" id="ls-clear">🗑 清空当前对话记忆</button>
+                    <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载。</div>
+                    <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（跨会话携带）</button>
+                    <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新故事开局）</button>
+                    <button class="ls-btn" id="ls-migrate-pack">📦 记忆迁移包（按角色打包·可校验）</button>
+                    <button class="ls-btn" id="ls-migrate-apply">🧬 导入迁移包（预检+冲突决策）</button>
+                </div>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">⚙️ 进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
+<div class="ls-group">
                     <div class="ls-group-title">[CHRONO] 故事整理</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
                     <div class="ls-slider-label"><span>卷摘要保留上限</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
@@ -3090,13 +3125,7 @@
                     <input type="range" class="ls-slider" min="15" max="80" step="5" value="${c.summaryFoldThreshold || 30}" data-cfg-num="summaryFoldThreshold">
                     <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
                 </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[BOUNDARY] 时间线</div>
-                    ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密心事与暗线单独隔离，只展示当前在场角色知晓的事实')}
-                    ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
-                    <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
-                </div>
-                <div class="ls-group">
+<div class="ls-group">
                     <div class="ls-group-title">[LEDGER] 物品记录</div>
                     ${ck('reflectionEnabled', '反思节点（需额外模型支持）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
                     <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
@@ -3137,48 +3166,7 @@
                     </select>
                     <div class="ls-hint" style="padding:0 8px;">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
                 </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[RESONANCE] 人物心声</div>
-                    ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
-                    ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
-                    ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
-                    ${ck('timeChangeDrivenInjection', '时间锚点变化注入', '复用现有剧情时间线，只将上次游标之后且与当前剧情时间相关的新事件加入本轮上下文')}
-                    <div class="ls-hint" style="padding:0 8px;">时间变化注入同时覆盖时间线、在场角色状态、关系对及物品变化。</div>
-                    <div class="ls-slider-label"><span>回响停留轮数</span><span class="ls-slider-val" id="ls-v-echo">${c.echoBaseLife || 2}</span></div>
-                    <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.echoBaseLife || 2}" data-cfg-num="echoBaseLife">
-                    <div class="ls-slider-label"><span>每N楼写一次日记</span><span class="ls-slider-val" id="ls-v-df">${c.diaryEveryFloors ?? 3}</span></div>
-                    <input type="range" class="ls-slider" min="0" max="10" step="1" value="${c.diaryEveryFloors ?? 3}" data-cfg-num="diaryEveryFloors">
-                    <div class="ls-slider-label"><span>时间线变化注入条数</span><span class="ls-slider-val">${c.timeChangeMaxCandidates || 5}</span></div>
-                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.timeChangeMaxCandidates || 5}" data-cfg-num="timeChangeMaxCandidates">
-                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[WORLD] 地点记录</div>
-                    ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
-                    ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现（v3.91 修复：此前门控键断裂导致该功能从未生效）')}
-                    ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[SUSPENSE] 伏笔追踪</div>
-                    ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
-                    ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；[v2.6] 支持架空日历（霜月3日）与全角分隔符，解析失败自动降级不标')}
-                    <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
-                    <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
-                    <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入（默认）；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
-                    <div class="ls-slider-label"><span>悬念追踪上限（条）</span><span class="ls-slider-val" id="ls-v-susmax">${c.suspenseMaxOpen || 20}</span></div>
-                    <input type="range" class="ls-slider" min="5" max="40" step="5" value="${c.suspenseMaxOpen || 20}" data-cfg-num="suspenseMaxOpen">
-                    <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[DEVICE] 虚拟手机联动</div>
-                    ${ck('rubyPhoneBridge', '回填手机记忆', 'LLM 提取结果（摘要/事件/关系）写入 RubyPhone 手机"记忆"App')}
-                    ${ck('rubyPhoneRecall', '手机记忆参与召回', 'RubyPhone 记忆库（感官/空间/时间池）作为一路召回源注入简报')}
-                    <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN ?? 3}</span></div>
-                    <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN ?? 3}" data-cfg-num="rubyPhoneRecallTopN">
-                    <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
-                </div>
-                </div>
-                <div class="ls-group">
+<div class="ls-group">
                     <div class="ls-group-title">[DOMAIN] 分类记录</div>
                     ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
                     ${ck('clockSyncEnabled', '剧情时钟权威同步', '正文时间锚点回填手机时钟；关闭后手机时钟不被剧情时间改写')}
@@ -3194,7 +3182,7 @@
                     <div class="ls-slider-label"><span>定期快照间隔（楼）</span><span class="ls-slider-val" id="ls-v-snapevery">${c.snapshotEveryFloors ?? 50}</span></div>
                     <input type="range" class="ls-slider" min="10" max="500" step="10" value="${c.snapshotEveryFloors ?? 50}" data-cfg-num="snapshotEveryFloors">
                 </div>
-                <div class="ls-group">
+<div class="ls-group">
                     <div class="ls-group-title">[INFERENCE] 推理与多路策略</div>
                     <div class="ls-row">
                         <div><div>预算裁剪策略</div><div class="ls-hint">balanced=常驻全保留+触发截断到剩余预算；relevance=触发只保留 RRF 前 60%；recency=触发只保留时间/状态类分区</div></div>
@@ -3220,7 +3208,76 @@
                     <textarea class="ls-textarea" id="ls-secondary-apis" style="min-height:150px;" placeholder='{"summarize":{"endpoint":"https://...","apiKey":"sk-...","model":"gpt-4o-mini"},"rerank":{...}}'>${esc(JSON.stringify(c.secondaryApis || {}, null, 2))}</textarea>
                     <div class="ls-hint">可选任务键：extract / summarize / embed / select / rerank / rewrite / state。未配的任务回落主通道；JSON 解析失败时保留原值并提示。</div>
                 </div>
-                <div class="ls-group">
+<div class="ls-group">
+                    <div class="ls-group-title">[RERANK] 回忆排序优化（可选）</div>
+                    ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
+                    <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
+                    <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
+                    <input type="text" class="ls-input" placeholder="精排模型（建议快而便宜的小模型）" value="${c.rerankModel || ''}" data-cfg-text="rerankModel" autocomplete="off">
+<div class="ls-slider-label"><span>精排候选数</span><span class="ls-slider-val" id="ls-v-rerank">${c.rerankCandidates || 12}</span></div>
+                     <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
+                 </div>
+<div class="ls-group">
+                     <div class="ls-group-title">[INTELLIGENCE] 记忆巩固</div>
+                     ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选→前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
+                     <div class="ls-slider-label"><span>精选候选上限</span><span class="ls-slider-val" id="ls-v-aiselcand">${c.aiSelectMaxCandidates || 20}</span></div>
+                     <input type="range" class="ls-slider" min="8" max="40" step="4" value="${c.aiSelectMaxCandidates || 20}" data-cfg-num="aiSelectMaxCandidates">
+                     <div class="ls-slider-label"><span>AI 精选条数</span><span class="ls-slider-val" id="ls-v-aiselsel">${c.aiSelectMaxSelect || 6}</span></div>
+                     <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.aiSelectMaxSelect || 6}" data-cfg-num="aiSelectMaxSelect">
+                     ${ck('stmLtmEnabled', 'STM/LTM 分层巩固', '短期记忆逐条积累→达阈值巩固→溢出滚入长期摘要。游标断点续跑，新消息从上次进度继续，崩溃可恢复')}
+                     <div class="ls-slider-label"><span>巩固触发阈值</span><span class="ls-slider-val" id="ls-v-stmth">${c.stmLtmThreshold || 5}</span></div>
+                     <input type="range" class="ls-slider" min="3" max="10" step="1" value="${c.stmLtmThreshold || 5}" data-cfg-num="stmLtmThreshold">
+                     <!-- [v3.421.0] 批末主动销项的保底留存：巩固完的 stm 条目该在批末销掉，但销到 0 行等于把可变区清空、下批又从零积。这一格就是「销后至少留几条」。 -->
+                     <div class="ls-slider-label"><span>销项保底留存</span><span class="ls-slider-val" id="ls-v-stmkeep">${c.stmLtmCloseMinKeep || 3}</span></div>
+                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.stmLtmCloseMinKeep || 3}" data-cfg-num="stmLtmCloseMinKeep">
+                     ${ck('unifiedRecallEnabled', '统一召回管线', '图谱记忆节点候选化成统一 keys 结构，与世界书条目走同一套评分召回；event/quest/character/location 类型保底入选')}
+                     <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
+                 </div>
+<div class="ls-group">
+                    <div class="ls-group-title">[PROMPT] 提取规则模板（高级）</div>
+                    <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
+                    <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
+                    <button class="ls-btn" id="ls-prompt-reset">↩ 恢复默认提示词</button>
+                </div>
+</details>
+</div>
+<div class="ls-tab-pane" data-tab-pane="advanced">
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">🧪 底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
+<div class="ls-group">
+                    <div class="ls-group-title">[RECALL] 回忆多少</div>
+                    <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
+                    <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
+                    <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
+                    <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha ?? 0.7}" data-cfg-num="hybridAlpha">
+                    ${ck('hybridMergeWeighted', 'α 加权融合（v3.156）', '打开后上面的 α 滑块才真正生效（α=1 偏向量 / α=0 偏图谱）；关闭=RRF 融合，α 仅记录不参与排序。默认关。')}
+                    ${ck('resonanceConsolidationEnabled', '🧠 记忆共振巩固（V17 超级加强）', 'PEDSA 多跳激活扩散 + 时序合成边 + 抑制边降权；被真正注入的记忆自动强化访问热度与重要度，形成「越用越强」的仿生生态闭环。零额外 LLM 调用。')}
+                    ${ck('pyramidEvolutionEnabled', '🧬 分层演化金字塔（V18 超级加强）', '提取与访问强度驱动的主动分层折叠（日记→场景→周记卷）+ 演化关联边构建 + 睡眠遗忘联动加速。零额外 LLM 调用。')}
+                    ${ck('memorySymphonyEnabled', '🎼 全域记忆交响编排中枢（V19 记忆专版）', '将现场感知、因果熔断、多路检索、共振扩散、演化折叠、防混淆消歧与认知视界深度串联调用，全链路彻底解决记忆混乱。零额外 LLM 调用。')}
+                    ${ck('antiConfusionEnabled', '🛡️ 多维防混淆与实体认知锚定（V19 记忆专版）', '严格消歧代词（他/她/对方）、实体指代锚定归属、事实互斥与时空矛盾仲裁，严防多角色复杂互动下的张冠李戴。')}
+                    ${ck('antiConfusionDirectivesEnabled', '📜 防混淆结构化高阶提示约束', '在生成注入私密简报头部自动合流防混淆指令，使模型严格恪守角色身份边界与时空一致性。')}
+                    ${ck('psychologicalDefenseEnabled', '🎭 认知心理防御与移情扭曲（V20 史诗级双计划）', '模拟创伤否认、投射、压抑与移情投射机制，赋予记忆动态戏剧张力与潜意识心声扭曲。')}
+                    ${ck('hypergraphCausalEnabled', '🕸️ 超图多跳联合因果推演中枢（V20 史诗级双计划）', '支持多因一果与一因多果超边拓扑，反向回溯因果必要闭包，牢牢锁定伏笔链条。')}
+                    ${ck('memoryHealingImmunityEnabled', '💉 记忆自愈免疫与抗幻觉冲突仲裁（V20 史诗级双计划）', '实时拦截虚构与死者复生幻觉，自动生成自愈补丁实施免疫接种，守卫正史不变量。')}
+                    ${ck('counterfactualFirewallEnabled', '🧱 反事实假想沙盒防火墙（V20 史诗级双计划）', '严格隔离平行假想/悔恨假设流入正史世界，受控透出心智折射回响，彻底阻断历史污染。')}
+                    ${ck('epistemicParallaxMatrixEnabled', '👥 多视角视差博弈矩阵（V20 史诗级双计划）', '度量知情/误解/怀疑/受蒙蔽认知四元态，提供分视角戏剧张力与守秘刺探指引。')}
+                    ${ck('macroEpochDriftEnabled', '⏳ 宏观纪元演进与文化漂移（V20 史诗级双计划）', '支撑超长程纪元更迭、社会主导思潮演化与时代禁忌漂移，为岁月沉淀真实质感。')}
+                    ${ck('covertEspionageEnabled', '🕵️ 特工潜伏与双重身份暴露博弈（V20 史诗级双计划）', '度量潜伏破绽积累与暴露风险模型，触发临界销毁证据与极限圆谎张力。')}
+                    ${ck('obsessiveTraumaEnabled', '💔 角色深层创伤禁忌与应激失控阈值（V20 史诗级双计划）', '监控触及禁忌雷区后的心理压力计，突破阈值强制触发躯体化失控与理智崩溃。')}
+                    ${ck('dynamicCovenantEnabled', '📜 动态契约誓言与因果反噬引擎（V20 史诗级双计划）', '记录同盟立誓与违誓代价，背叛或撕毁契约时引发天地因果反噬与噬心惩戒。')}
+                    ${ck('dreamMetaphorEnabled', '🌌 梦境解析与潜意识隐喻合成器（V20 史诗级双计划）', '深度睡眠或独处时解构未决压力源，将冷酷事实升华为超现实主义梦境直觉余波。')}
+                    ${ck('somaticReflexEnabled', '💓 生理反射与微表情神经自律引擎（V20 史诗级双计划）', '模拟瞳孔、呼吸骤停、指尖震颤等不由自主的微表情，赋予肢体真实生理学质感。')}
+                    ${ck('multiAgentGameTheoryEnabled', '♟️ 多智能体博弈均衡与动态撕裂（V20 史诗级双计划）', '建模多方对抗收益矩阵与背叛诱惑，驱动同盟暗潮涌动与试探性背刺算计。')}
+                    ${ck('deepMemoryAtlasEnabled', '🗺️ 深层记忆蒸馏图谱与概念抽象（V20 史诗级双计划）', '低层离散事件向上聚合为哲学信条与行动定式，以高密度认知图谱约束长程抉择。')}
+                    ${ck('factionTerritoryEnabled', '🚩 动态势力版图与地理拓扑控制（V20 史诗级双计划）', '建模宏观城邦领土控制力与治安管制等级，受所处地理势力的哨卡法度严格制约。')}
+                    ${ck('longTailFlashbackEnabled', '⚡ 长尾伏笔沉睡唤醒与闪回共鸣（V20 史诗级双计划）', '监控百轮前沉睡伏笔，语境契合时以宿命闪回唤醒记忆，防止重要设定永寂。')}
+                    ${ck('multiDimensionalReputationEnabled', '👑 多维声誉声望与动态社交拓扑（V20 史诗级双计划）', '突破单一好感度，综合武勇威名、恶名狼藉与正统性生成阶层威压与警备对话引导。')}
+                    ${ck('soulBrandReincarnationEnabled', '🌀 跨周目灵魂烙印与代际记忆转生（V20 史诗级双计划）', '提炼前世/上一周目未了誓言与宿命因果，以既视感本能唤醒跨代际叙事张力。')}
+                    ${ck('fateClimaxLoomEnabled', '🧶 命运交汇纺织机与叙事高潮熵（V20 史诗级双计划）', '编织多线命运线索并度量戏剧张力熵，临界点强力收束多方冲突，爆发破局高潮。')}
+                    ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
+                    <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
+                    <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
+                </div>
+<div class="ls-group">
                     <div class="ls-group-title">[TOPOLOGY] 因果追踪</div>
                     ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
@@ -3228,8 +3285,7 @@
                     ${ck('timeTagAnchorEnabled', '正文时间标签物理锚点', '识别回复正文中的 <time>/<date> 标签作为绝对剧情时间，零API同步且自动剥离隐藏')}
                     ${ck('cacheFriendlyInjection', 'Prompt Cache 友好型分流', '顶槽锁定绝对稳定的史记前缀，动态周记下沉，使 Claude/DeepSeek/Kimi 持续命中 Prefix Caching')}
                 </div>
-
-                <div class="ls-group">
+<div class="ls-group">
                     <div class="ls-group-title">[WORLDLINE] 世界线记忆（多世界线题材）</div>
                     ${ck('worldlineMemoryEnabled', '分层记忆与跨层污染闸', '适用于任何一种「同一角色不止一段人生」的机制：梦境层级、时间循环轮次、平行宇宙、存档读档、位面、世界线……插件不认识任何具体世界观，只认两件抽象事实：① 层标记（当前在哪一层，名字由你的卡自己定）② 切换楼层（第几楼切过去的）。两者合起来叫「纪元」。开启后每条记忆按归属判：同纪元可当事实；异纪元默认挡下（谁都不例外，主角也不给特权）；连楼层都没有的判不了、绝不冒充本纪元。另有一道「未来纪元」闸：起线楼层比你晚的记忆，对任何角色都不可见（防剧透）。默认关。')}
                     <div class="ls-slider-label"><span>当前层标记（名字由你的卡定，如 现实 / 梦一 / 第二轮 / 平行A）</span></div>
@@ -3290,52 +3346,7 @@
                     <textarea class="ls-textarea" data-cfg-text="worldlineConvergences" style="min-height:72px;" placeholder="例：某人之死=all&#10;某事件=高位">${esc(c.worldlineConvergences || '')}</textarea>
                     <div class="ls-hint" style="padding:0 8px;">⭐ 未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给域的行，等于「登记过但本域不收束」。</div>
                 </div>
-                <div class="ls-tab-pane" data-tab-pane="retrieval">
-                <div class="ls-group">
-                    <div class="ls-group-title">[RERANK] 回忆排序优化（可选）</div>
-                    ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
-                    <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
-                    <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
-                    <input type="text" class="ls-input" placeholder="精排模型（建议快而便宜的小模型）" value="${c.rerankModel || ''}" data-cfg-text="rerankModel" autocomplete="off">
-<div class="ls-slider-label"><span>精排候选数</span><span class="ls-slider-val" id="ls-v-rerank">${c.rerankCandidates || 12}</span></div>
-                     <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
-                 </div>
-                 <div class="ls-group">
-                     <div class="ls-group-title">[INTELLIGENCE] 记忆巩固</div>
-                     ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选→前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
-                     <div class="ls-slider-label"><span>精选候选上限</span><span class="ls-slider-val" id="ls-v-aiselcand">${c.aiSelectMaxCandidates || 20}</span></div>
-                     <input type="range" class="ls-slider" min="8" max="40" step="4" value="${c.aiSelectMaxCandidates || 20}" data-cfg-num="aiSelectMaxCandidates">
-                     <div class="ls-slider-label"><span>AI 精选条数</span><span class="ls-slider-val" id="ls-v-aiselsel">${c.aiSelectMaxSelect || 6}</span></div>
-                     <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.aiSelectMaxSelect || 6}" data-cfg-num="aiSelectMaxSelect">
-                     ${ck('stmLtmEnabled', 'STM/LTM 分层巩固', '短期记忆逐条积累→达阈值巩固→溢出滚入长期摘要。游标断点续跑，新消息从上次进度继续，崩溃可恢复')}
-                     <div class="ls-slider-label"><span>巩固触发阈值</span><span class="ls-slider-val" id="ls-v-stmth">${c.stmLtmThreshold || 5}</span></div>
-                     <input type="range" class="ls-slider" min="3" max="10" step="1" value="${c.stmLtmThreshold || 5}" data-cfg-num="stmLtmThreshold">
-                     <!-- [v3.421.0] 批末主动销项的保底留存：巩固完的 stm 条目该在批末销掉，但销到 0 行等于把可变区清空、下批又从零积。这一格就是「销后至少留几条」。 -->
-                     <div class="ls-slider-label"><span>销项保底留存</span><span class="ls-slider-val" id="ls-v-stmkeep">${c.stmLtmCloseMinKeep || 3}</span></div>
-                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.stmLtmCloseMinKeep || 3}" data-cfg-num="stmLtmCloseMinKeep">
-                     ${ck('unifiedRecallEnabled', '统一召回管线', '图谱记忆节点候选化成统一 keys 结构，与世界书条目走同一套评分召回；event/quest/character/location 类型保底入选')}
-                     <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
-                 </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[PROMPT] 提取规则模板（高级）</div>
-                    <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
-                    <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
-                    <button class="ls-btn" id="ls-prompt-reset">↩ 恢复默认提示词</button>
-                </div>
-                </div>
-                <div class="ls-group">
-                    <div class="ls-group-title">[DATA] 备份与迁移</div>
-                    <button class="ls-btn" id="ls-export">📤 导出档案 (JSON)</button>
-                    <button class="ls-btn" id="ls-import">📥 导入档案</button>
-                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻ 恢复嵌入存档（跨设备迁移）</button>
-                    <button class="ls-btn ls-btn-danger" id="ls-clear">🗑 清空当前对话记忆</button>
-                    <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载。</div>
-                    <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（跨会话携带）</button>
-                    <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新故事开局）</button>
-                    <button class="ls-btn" id="ls-migrate-pack">📦 记忆迁移包（按角色打包·可校验）</button>
-                    <button class="ls-btn" id="ls-migrate-apply">🧬 导入迁移包（预检+冲突决策）</button>
-                </div>
-                <div class="ls-group">
+<div class="ls-group">
                     <details id="ls-advanced" style="padding:0 8px;">
                         <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;">🧪 高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
                         <div class="ls-hint" style="padding:6px 0 2px;">⚠️ 这些参数影响资源消耗与召回精度。默认值经过长期验证，非必要不调；改出问题直接点「恢复默认」。</div>
@@ -3393,7 +3404,7 @@
                         <input type="range" class="ls-slider" min="0" max="30" step="1" value="${c.archivePreserveRecent ?? 6}" data-cfg-num="archivePreserveRecent">
                     </details>
                 </div>
-                <div class="ls-group">
+<div class="ls-group">
                     <div class="ls-group-title">[ADVANCED] 高级调整</div>
                     ${ck('protagonistTracking', '主角档案追踪', 'baibai 主角客观档案与生活习惯癖好追踪')}
                     ${ck('dualTimeAnchorEnabled', '正文时间锚点', 'baibai 正文起止时间锚点（故事内时间推演）')}
@@ -3433,8 +3444,9 @@
                     ${ck('worldProgressEnabled', '世界推进', '世界状态随剧情推进（默认关，需观察效果后开）')}
                     ${ck('vectorChunkEnabled', '长文本分块向量化', '超阈值字符的长文本切块后再向量化（默认关，短文本不受影响）')}
                 </div>
-                </div>
-                <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
+</details>
+</div>
+<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
                     <button class="ls-btn ls-btn-primary" id="ls-save" style="margin:0;">◈ 保存配置</button>
                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
                         <button class="ls-btn" id="ls-snap-restore" style="padding:9px 4px;font-size:12px;margin:0;">◷ 快照还原</button>
