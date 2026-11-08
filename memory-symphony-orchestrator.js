@@ -552,6 +552,77 @@
                 }
             }
         } catch (e) {}
+
+        // ---------------- [阶段 3.13: 第十八期灵魂深潜主观认知失真引擎] ----------------
+        // L18-X1: 闪光灯主观时间膨胀与情绪像素定格
+        try {
+            if (engine.flashbulbDilationEngine && typeof engine.flashbulbDilationEngine.formatPromptInjection === 'function') {
+                const flashPrompt = engine.flashbulbDilationEngine.formatPromptInjection(2);
+                if (flashPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${flashPrompt}` : flashPrompt;
+            }
+        } catch (e) {}
+        // L18-X2: 伪装面具与多重解离人格视界防火墙
+        try {
+            if (engine.dissociativeMaskMatrix && typeof engine.dissociativeMaskMatrix.formatMaskStatusPrompt === 'function') {
+                const maskPrompt = engine.dissociativeMaskMatrix.formatMaskStatusPrompt();
+                if (maskPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${maskPrompt}` : maskPrompt;
+            }
+        } catch (e) {}
+        // L18-X3: 曼德拉记忆二次重构与自愈虚构
+        try {
+            if (engine.mandelaConfabulationEngine && typeof engine.mandelaConfabulationEngine.formatConfabulationInjection === 'function') {
+                const confabPrompt = engine.mandelaConfabulationEngine.formatConfabulationInjection();
+                if (confabPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${confabPrompt}` : confabPrompt;
+            }
+        } catch (e) {}
+        // L18-X4: 普鲁斯特感官通感诱发反射
+        try {
+            if (engine.proustianSynesthesiaEngine) {
+                const probeFn = engine.proustianSynesthesiaEngine.probeSensoryTriggers || engine.proustianSynesthesiaEngine.triggerBySensoryStimulus;
+                if (typeof probeFn === 'function') {
+                    const triggered = probeFn.call(engine.proustianSynesthesiaEngine, queryText);
+                    if (triggered && triggered.length > 0) {
+                        const proustPrompt = engine.proustianSynesthesiaEngine.formatProustianPrompt(triggered);
+                        if (proustPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${proustPrompt}` : proustPrompt;
+                    }
+                }
+            }
+        } catch (e) {}
+        // L18-X5: 蔡格尼克未闭合执念与潜意识反刍回路
+        try {
+            if (engine.zeigarnikLoopEngine && typeof engine.zeigarnikLoopEngine.formatRuminationPrompt === 'function') {
+                const zeigPrompt = engine.zeigarnikLoopEngine.formatRuminationPrompt();
+                if (zeigPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${zeigPrompt}` : zeigPrompt;
+            }
+        } catch (e) {}
+        // L18-X6: 反事实推演与懊悔/侥幸代偿
+        try {
+            if (engine.whatIfRegretMatrix && typeof engine.whatIfRegretMatrix.formatCounterfactualPrompt === 'function') {
+                const whatIfPrompt = engine.whatIfRegretMatrix.formatCounterfactualPrompt();
+                if (whatIfPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${whatIfPrompt}` : whatIfPrompt;
+            }
+        } catch (e) {}
+        // L18-X7: 群体流言熵增失真与 NPC 社交传染
+        try {
+            if (engine.rumorEntropyDiffusion && typeof engine.rumorEntropyDiffusion.formatRumorPrompt === 'function') {
+                const rumorPrompt = engine.rumorEntropyDiffusion.formatRumorPrompt();
+                if (rumorPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${rumorPrompt}` : rumorPrompt;
+            }
+        } catch (e) {}
+        // L18-X8: 认知盲点与防御性选择性失聪守卫
+        try {
+            if (engine.cognitiveScatomaGuard && typeof engine.cognitiveScatomaGuard.formatScatomaPrompt === 'function') {
+                const scatomaPrompt = engine.cognitiveScatomaGuard.formatScatomaPrompt();
+                if (scatomaPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${scatomaPrompt}` : scatomaPrompt;
+            }
+        } catch (e) {}
+        // L18-X9: 独处走神白日梦与潜意识心象漂移
+        try {
+            if (engine.daydreamWanderingEngine && typeof engine.daydreamWanderingEngine.formatDaydreamPrompt === 'function') {
+                const daydreamPrompt = engine.daydreamWanderingEngine.formatDaydreamPrompt();
+                if (daydreamPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${daydreamPrompt}` : daydreamPrompt;
+            }
+        } catch (e) {}
         try {
             // L17-X2: 宿命伏笔与草蛇灰线主动提问
             const foresLib = (typeof LonShaLatentForeshadowing !== "undefined" ? LonShaLatentForeshadowing : (typeof require !== "undefined" ? (() => { try { return require("./latent-plot-foreshadowing-engine.js"); } catch { return null; } })() : null));

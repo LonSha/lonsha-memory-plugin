@@ -58,7 +58,26 @@
         ['LonShaRoutineRhythm', 'everyday-shared-routine-rhythm-engine.js'],
         ['HierarchicalPyramidEvolution', 'hierarchical-pyramid-evolution.js'],
         ['SubconsciousUndercurrentEngine', 'subconscious-undercurrent-engine.js'],
-        ['RoundEntrySnapshot', 'round-entry-snapshot.js']
+        ['RoundEntrySnapshot', 'round-entry-snapshot.js'],
+        // [v18] 第十八期灵魂深潜主观认知失真引擎
+        ['TemporalFlashbulbDilationEngine', 'temporal-flashbulb-dilation-engine.js'],
+        ['DissociativePersonaMaskMatrix', 'dissociative-persona-mask-matrix.js'],
+        ['ConfabulationMandelaReconstructEngine', 'confabulation-mandela-reconstruct-engine.js'],
+        ['ProustianSynesthesiaRecallEngine', 'proustian-synesthesia-recall-engine.js'],
+        ['ZeigarnikUnresolvedGestaltLoop', 'zeigarnik-unresolved-gestalt-loop.js'],
+        ['CounterfactualWhatIfRegretMatrix', 'counterfactual-whatif-regret-matrix.js'],
+        ['RumorEntropyGossipDiffusion', 'rumor-entropy-gossip-diffusion.js'],
+        ['CognitiveScatomaDenialGuard', 'cognitive-scatoma-denial-guard.js'],
+        ['DaydreamSpontaneousWanderingEngine', 'daydream-spontaneous-wandering-engine.js'],
+        ['VectorSemanticSparseHybridRetrieval', 'vector-semantic-sparse-hybrid-retrieval.js'],
+        ['TieredStorageTieredCompactionLedger', 'tiered-storage-tiered-compaction-ledger.js'],
+        ['RealtimeConflictGraphRollback', 'realtime-conflict-graph-rollback.js'],
+        ['MemorySalienceDecayCurator', 'memory-salience-decay-curator.js'],
+        ['CrossSessionIdentityReconciliation', 'cross-session-identity-reconciliation.js'],
+        ['PromptBudgetDynamicAllocator', 'prompt-budget-dynamic-allocator.js'],
+        ['EpistemicBoundaryAuditor', 'epistemic-boundary-auditor.js'],
+        ['AsyncIndexingPipelineDebouncer', 'async-indexing-pipeline-debouncer.js'],
+        ['StateMachineChaosMonkeyResilience', 'state-machine-chaos-monkey-resilience.js']
     ];
     function loadOne(globalName, fileName) {
         try {
