@@ -1,7 +1,7 @@
 {
   "schema": "realhost-readings@1",
-  "generatedAt": "2026-11-06T16:25:58.667Z",
-  "version": "3.458.0",
+  "generatedAt": "2026-11-07T10:07:26.296Z",
+  "version": "3.459.0",
   "verdict": "environment-unavailable",
   "reason": "ST 未就绪（http://127.0.0.1:1/ ⇒ 0）—— 先起 SillyTavern",
   "source": "tests/audit/_realhost_suite.mjs bail"

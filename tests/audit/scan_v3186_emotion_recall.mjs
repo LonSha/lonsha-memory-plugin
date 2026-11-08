@@ -229,10 +229,17 @@ const posOf = (needle) => idx.indexOf(needle);
  *   `const merged = this.hybridMerge(results);` 变为 `const merged = engine.hybridMerge(results);`
  *   （不再有 this）。位置纪律（提权必须在 merge 之后、rerank 之前）一字不改，
  *   判据须认两种形态；两态都不在才判「锚点缺失」。 */
+/* [v3.459.0] 锚点形态再扩一种：召回管线里该行已从 `const merged` 变为 `let merged`
+ *   （后续有就地重排/追加，故用 let）。位置纪律一字不改，判据须认这三种形态，
+ *   否则「宿主写法一改，守卫就报锚点缺失」——那会把真缺陷埋在假红里。 */
 const pMerge = (() => {
-    const a = posOf('const merged = this.hybridMerge(results);');
-    if (a >= 0) return a;
-    return posOf('const merged = engine.hybridMerge(results);');
+    const cands = [
+        idx.indexOf('const merged = this.hybridMerge(results);'),
+        idx.indexOf('const merged = engine.hybridMerge(results);'),
+        idx.indexOf('let merged = this.hybridMerge(results);'),
+        idx.indexOf('let merged = engine.hybridMerge(results);'),
+    ].filter((x) => x >= 0);
+    return cands.length ? Math.min.apply(null, cands) : -1;
 })();
 const pEmo = posOf('if (_emoOppositeKeys && _emoOppositeKeys.size) {');
 /* [v3.370.1] 剥离第三批把召回管线外提为独立函数：宿主从 this 变 engine，

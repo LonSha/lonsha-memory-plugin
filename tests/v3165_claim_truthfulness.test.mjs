@@ -260,8 +260,23 @@ test('【3】修复证据：四处成功声明 + 复合能力均由事实驱动'
     assert.ok(/\$\{wired\s*\?\s*'\u2713 事件监听已注册'\s*:\s*'\u26a0\ufe0f 事件监听注册不完整'\}/.test(idx),
         '接线日志不得无条件报成功');
     assert.ok(/_savePersisted\s*\?\s*'\u2713 完成'\s*:\s*'\u26a0\ufe0f 提取完成但未落盘'/.test(idx), '提取日志按落盘事实分支');
-    assert.ok(/this\._moduleStatus\s*=\s*\{\s*diffusion:\s*false,\s*visualizer:\s*false\s*\}/.test(idx),
-        '模块加载必须有实测状态表');
+    /* [v3.459.0 · 判据重述为结构性不变式] 原文逐字锁 `{ diffusion: false, visualizer: false }` ——
+     *   硬锁当版形状：V17~V20 各引擎（共振 / 分层演化 / 交响 / 防混淆 / 心理防御 / 超图因果 /
+     *   自愈免疫 / 反事实防火墙 / 视差矩阵 / 宏观纪元 …）逐个加进状态表后，这行字面量必然对不上。
+     *   改判三条结构性不变式（比原判据更强，覆盖全部状态位，不止那两个）：
+     *   ① 状态表存在且初始**全部为假**（不许「先默认 true 再补测」——那就是「未执行报通过」）；
+     *   ② 表里每个键都必有至少一处置 true 的实测赋值点（否则是永久假的幽灵位）；
+     *   ③ 能力自述面必须读这张表（不是另抄一份结论）。 */
+    const mStatus = /this\._moduleStatus\s*=\s*\{([^}]*)\}/.exec(idx);
+    assert.ok(mStatus, '模块加载必须有实测状态表');
+    const statusKv = [...mStatus[1].matchAll(/([A-Za-z_$][\w$]*)\s*:\s*(true|false)/g)];
+    assert.ok(statusKv.length >= 2, '状态表至少两位（实测 ' + statusKv.length + '）');
+    const truthy = statusKv.filter((kv) => kv[2] === 'true').map((kv) => kv[1]);
+    assert.deepStrictEqual(truthy, [], '状态表初始必须全部为假（未执行不得报通过）：' + truthy.join(', '));
+    const neverSet = statusKv.filter((kv) => !new RegExp('this\\._moduleStatus\\.' + kv[1] + '\\s*=\\s*true').test(idx))
+        .map((kv) => kv[1]);
+    assert.deepStrictEqual(neverSet, [], '状态表每位都必须有置真的实测赋值点（永久假的幽灵位）：' + neverSet.join(', '));
+    assert.ok(/this\._moduleStatus\s*&&\s*this\._moduleStatus\./.test(idx), '能力自述面必须读这张实测表');
     assert.ok(/this\._lastCarryoverImport\s*=\s*\{\s*applied:/.test(idx), '导入必须有生效字段事实来源');
     assert.ok(/_settingsUILoadError\s*=/.test(idx), '设置面板加载失败必须留痕');
     // 复合能力声称：剥掉全部插值后，剩余字面文本里不得再出现能力名
@@ -447,12 +462,30 @@ test('【3】行为验证：loadModules 模块缺失时有失败出口，不再�
     const m = extractNamed(idx, '        loadModules() {');
     const logs = [];
     const fakeConsole = { log: (s) => logs.push(['log', s]), warn: (s) => logs.push(['warn', s]), error: (s) => logs.push(['error', s]) };
-    const obj = objOf(m, { errLog: () => {}, PLUGIN_NAME: 'T', console: fakeConsole });
+    /* [v3.459.0] 夹具补桩：loadModules 现在逐个探测 V17~V20 各引擎的取库口
+     *   （_resonanceLib / _pyramidEvolutionLib / _memorySymphonyLib …），而 objOf 只注入
+     *   声明的依赖 ⇒ 缺桩时直接 ReferenceError（判据惩罚夹具而不是缺陷）。
+     *   按方法体里出现的 **取库口形态** 统一补 null 桩：语义正是「这些模块都没加载」，
+     *   也正好是本条想测的那个场景。 */
+    const _libStubs = {};
+    for (const mm of m.matchAll(/\b([A-Za-z_$][\w$]*Lib)\(\)/g)) _libStubs[mm[1]] = () => null;
+    const obj = objOf(m, Object.assign({ errLog: () => {}, PLUGIN_NAME: 'T', console: fakeConsole }, _libStubs));
     obj.engine = { graph: {} };
     // 两个模块都未定义（真机上就是 extra_js 没加载）：状态表必须是 false，且必须有 warn
     obj.loadModules.call(obj);
-    assert.deepStrictEqual(obj._moduleStatus, { diffusion: false, visualizer: false },
-        '模块未加载时状态表必须如实为 false（不得默认 true）');
+    /* [v3.459.0 · 判据重述] 原文 deepStrictEqual 到 { diffusion, visualizer } 两键 —— 硬锁当版键集：
+     *   V17~V20 各引擎逐个进状态表后（共振 / 分层演化 / 交响 / 防混淆 / 心理防御 / 超图因果 /
+     *   自愈免疫 / 反事实防火墙 / 视差矩阵 / 宏观纪元 / 特工潜伏 / 创伤禁忌 / 动态契约 / 梦境隐喻 /
+     *   生理微反射 / 多方博弈 / 深层图谱 / 势力版图 / 长尾闪回 / 声誉拓扑 / 灵魂烙印 / 命运纺织 …），
+     *   逐字键集必然对不上。改判**语义**（更强，覆盖全部位）：全部未加载时**每一位都必须为 false**，
+     *   且 diffusion / visualizer 这两位必须在场（它们是本档两个失败出口的被测对象）。 */
+    const st = obj._moduleStatus;
+    assert.ok(st && typeof st === 'object', '状态表必须存在');
+    const stillTrue = Object.keys(st).filter((k) => st[k] !== false);
+    assert.deepStrictEqual(stillTrue, [], '模块未加载时状态表必须如实为 false（不得默认 true）：' + stillTrue.join(', '));
+    for (const k of ['diffusion', 'visualizer']) {
+        assert.ok(k in st, '状态表必须含被测位 ' + k);
+    }
     const warns = logs.filter(([k]) => k === 'warn');
     assert.ok(warns.length >= 2, `模块缺失必须各有一条失败出口，实际 ${warns.length} 条`);
     assert.ok(warns.some(([, s]) => /GraphDiffusion/.test(s)), '图扩散缺失必须被点名');
@@ -554,7 +587,7 @@ test('【5】判据面自防护：断言数量 / 关键判据指纹 / 结构下�
         ['行为验证：宿主缺项不得误导告警', 'assert.strictEq' + "ual(b._controlInfo.failed.length, 0,"],
         ['行为验证：空种子返回 false', 'assert.strictEq' + 'ual(r1, false,'],
         ['行为验证：生效字段数 = 2', 'assert.strictEq' + 'ual(obj2._lastCarryoverImport.applied, 2,'],
-        ['行为验证：模块缺失状态为 false', 'assert.deepStrictEq' + 'ual(obj._moduleStatus, { diffusion: false, visualizer: false },'],
+        ['行为验证：模块缺失状态为 false', 'assert.deepStrictEq' + 'ual(stillTrue, [],'],
         ['行为验证：模块缺失有失败出口', 'assert.ok(warns.length >= 2,'],
         ['静态：校验必须早于 on', 'assert.ok(atTypeCheck < atOn && atHandlerCheck < atOn,'],
         ['静态：登记在 on 之后', "assert.ok(wrapperSrc.indexOf('this.eventHandlers.push(') > atOn,"],

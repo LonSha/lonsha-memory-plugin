@@ -93,7 +93,7 @@ function mutate(file, anchor, repl, label, expectAttr) {
 //   破坏根本没发生，扫描器跑绿，整组测试会伪装成「扫描器抓不住」——先钉住前提，
 //   后面每条失败才能被正确归因。
 const ANCHORS = [
-    ['engine-recall.js', 'const merged = engine.hybridMerge(results);'],
+    ['engine-recall.js', 'let merged = engine.hybridMerge(results);'],
     ['engine-recall.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;'],
     ['engine-self-check.js', 'Number(this._emoOppositeRounds || 0) >= 5'],
     ['engine-diagnostic-lines.js', '待本轮（尚无召回）'],
@@ -145,8 +145,8 @@ mutate('engine-recall.js', 'const _er = EL.recallByOppositeEmotion({ queryText: 
 // ── N-R4 位置纪律：让 rerank 先于提权 ⇒ 必须翻红 ──
 //   破坏方式：在 hybridMerge 之后**立刻**插一次 rerank 调用，于是首次出现的 rerank
 //   落在提权块之前，`merge < boost < rerank` 的偏序被破坏。
-mutate('engine-recall.js', 'const merged = engine.hybridMerge(results);',
-    'const merged = engine.hybridMerge(results);\n            const _early = engine.intentRerank(merged, query.text);',
+mutate('engine-recall.js', 'let merged = engine.hybridMerge(results);',
+    'let merged = engine.hybridMerge(results);\n            const _early = engine.intentRerank(merged, query.text);',
     'N-R4a 提权落到 rerank 之后', 'R4 位置错');
 
 // ── N-R4b 边界纪律：提权块内越权写图 ⇒ 必须翻红 ──

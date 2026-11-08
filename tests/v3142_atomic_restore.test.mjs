@@ -59,7 +59,18 @@ test('v3.142 未知顶层键 round-trip：收进 extensions 且随 collectExport
     assert.deepEqual(eng._archiveExtensions.thirdPartyThing, { keep: 1 }, '未知键收容');
     assert.equal(eng._archiveExtensions.fromBag, 2, '存档自带 extensions 合并回流');
     const ce = extractBraced('collectExport() {', 'persistence');
-    assert.match(ce, /extensions: this\._archiveExtensions \|\| \{\}/, 'collectExport 回写收容袋（round-trip 出口）');
+    /* [v3.459.0 · 判据重述] 原文逐字锁 `extensions: this._archiveExtensions || {}`。
+     *   v3.445~v3.459 起，同一处扩成 `Object.assign({}, this._archiveExtensions || {}, ...)`
+     *   —— 后面那串是 V17~V20 各引擎状态（共振热表 / 分层演化 / 交响 / 心理防御 / 超图因果 …）
+     *   走 extensions 命名空间落盘的语义（**绝不新增冻结顶层键**，这正是本条要守的东西）。
+     *   逐字正则于是假红。判据实质是「收容袋必须仍是 extensions 的**基底**」：
+     *   ① extensions 的值必须以 this._archiveExtensions（带 `|| {}` 兜底）开头；
+     *   ② 收容袋不得被后来者覆盖掉（不得出现「先解构再整体替换」的形态）。 */
+    assert.match(ce, /extensions: (?:Object\.assign\(\{\}, )?this\._archiveExtensions \|\| \{\}/,
+        'collectExport 回写收容袋（round-trip 出口）');
+    assert.ok(!/extensions:\s*\{[^}]*\.\.\.[^}]*\}\s*,\s*\n\s*exportedAt/.test(ce)
+        || /Object\.assign\(\{\}, this\._archiveExtensions/.test(ce),
+        '收容袋必须是基底（不得被后续扩展整体替换）');
     const contract = /const ARCHIVE_TOP_LEVEL_KEYS = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(psrc)[1];
     assert.match(contract, /'extensions',/, '契约登记 extensions 键');
 });

@@ -148,10 +148,26 @@ test('v3185 9. 索引与读数都被暴露（区分「模块缺席 / 尚未建�
     }
 });
 test('v3185 10. 提权位置：在 hybridMerge 之后、intentRerank 之前', () => {
-    const iMerge = Math.max(src.indexOf('const merged = this.hybridMerge(results);'), src.indexOf('const merged = engine.hybridMerge(results);'));
-    const iBoost = src.indexOf('_crosslinkBoostKeys && _crosslinkBoostKeys.size');
-    const iRerank = Math.max(src.indexOf('this.intentRerank(merged, query.text);'), src.indexOf('engine.intentRerank(merged, query.text);'));
-    assert.ok(iMerge > 0 && iBoost > 0 && iRerank > 0, '三个锚点都必须在场');
+    /* [v3.459.0 · 判据重述] 原三条锚点把**声明关键字**也写死进来了：
+     *   'const merged = engine.hybridMerge(results);' / 'this.intentRerank(merged, query.text);'。
+     *   实测宿主侧早已是 let merged = …（两阶段精排里要重排，必须 let）；
+     *   rerank 那一句也被包进了 const finalMerged = engine.intentRerank(…)。
+     *   于是三个锚点里两个恒为 -1 ⇒ 「三个锚点都必须在场」恒假。
+     *   这是「锚点写成整句字面量」的假红，判据本意只是**三者的相对顺序**。
+     *   改为按「赋值目标可有可无 + 调用形态」定位，语义一字不放宽：
+     *   ① 融合那一句仍必须是 hybridMerge(results) 且结果被接住；
+     *   ② 提权块仍必须是「关联键集合非空」才进；
+     *   ③ 重排那一句仍必须吃 merged 与 query.text。 */
+    const reMerge = /(?:const|let|var)\s+\w+\s*=\s*(?:this|engine)\.hybridMerge\(results\)\s*;/g;
+    const reRerank = /(?:const|let|var)?\s*\w*\s*=?\s*(?:this|engine)\.intentRerank\(merged,\s*query\.text\)\s*;/g;
+    const mMerge = reMerge.exec(src);
+    const mBoost = /if\s*\(_crosslinkBoostKeys\s*&&\s*_crosslinkBoostKeys\.size\)/.exec(src);
+    reRerank.lastIndex = 0;
+    const mRerank = reRerank.exec(src);
+    assert.ok(mMerge && mBoost && mRerank, '三个锚点都必须在场（融合 / 提权块 / 重排）');
+    const iMerge = mMerge.index;
+    const iBoost = mBoost.index;
+    const iRerank = mRerank.index;
     assert.ok(iMerge < iBoost, '提权必须在融合之后（分数已定）');
     assert.ok(iBoost < iRerank, '提权必须在重排之前（名次才受影响）');
 });

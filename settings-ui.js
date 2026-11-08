@@ -924,9 +924,12 @@
                         ? String(s._characterReinterpretationLine() || '') : '';
 
                     if (!reinterpState || reinterpState.ok !== true) {
+                        /* [v3.459.0] 用词与三态口径对齐：本页上方关系边已落「真的没有」(empty)，
+                         *   这里若写「不可用」会让整页读成「关系面没装上」——把「没有」说成「没装上」。
+                         *   故点名是哪一块没装上、并说清它不影响关系边读数。 */
                         reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
                             <div class="ls-item-meta">🔄 认知改观与解释版本对照</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 认知改观工作台不可用 · ${esc(reinterpState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 认知改观工作台没装上（关系边读数不受影响） · ${esc(reinterpState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (reinterpState.state === 'no-ledgers') {
                         reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
@@ -970,9 +973,11 @@
                     const repLine = (typeof s._repairResponseLine === 'function')
                         ? String(s._repairResponseLine() || '') : '';
                     if (!repairState || repairState.ok !== true) {
+                        /* [v3.459.0] 同「认知改观」那条：本页上游三态是「真的没有」，
+                         *   这里写「不可用」会让整页被读成关系面没装上。改为点名这块没装上。 */
                         repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
                             <div class="ls-item-meta">🩹 关系修复回应与行为回链</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 关系修复工作台不可用 · ${esc(repairState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 关系修复工作台没装上（关系边读数不受影响） · ${esc(repairState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (repairState.state === 'no-records') {
                         repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
@@ -3095,6 +3100,8 @@
                     <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新故事开局）</button>
                     <button class="ls-btn" id="ls-migrate-pack">📦 记忆迁移包（按角色打包·可校验）</button>
                     <button class="ls-btn" id="ls-migrate-apply">🧬 导入迁移包（预检+冲突决策）</button>
+                    <button class="ls-btn" id="ls-migrate-merge">🔀 周目差异挑拣合并（只挑你想带走的）</button>
+                    <button class="ls-btn" id="ls-cf-branch">🧪 反事实分支沙盘（当初若走另一条路）</button>
                 </div>
 <details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">⚙️ 进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
 <div class="ls-group">
@@ -4053,6 +4060,75 @@
                     r.readAsText(f);
                 };
                 input.click();
+            });
+            // [v3.459.0] 迁移包：周目差异挑拣合并（compareAndMergeMigrate 宿主入口此前零引用）
+            overlay.querySelector('#ls-migrate-merge').addEventListener('click', () => {
+                const input = document.createElement('input');
+                input.type = 'file'; input.accept = '.json';
+                input.onchange = () => {
+                    const f = input.files[0]; if (!f) return;
+                    const rd = new FileReader();
+                    rd.onload = async () => {
+                        let pack = null;
+                        try { pack = JSON.parse(rd.result); } catch (e) { toast('❌ 文件解析失败'); return; }
+                        let pre = null;
+                        try { pre = this.engine.precheckMigrateImport(pack); } catch (e) { reportUiError(e, 'ls-migrate-merge'); return; }
+                        if (!pre || !pre.ok) { toast('❌ 预检拒绝：' + ((pre && pre.reason) || '损坏或格式不符') + '，原记忆保持不变'); return; }
+                        const conflicts = pre.conflicts || [];
+                        if (!conflicts.length) { toast('ℹ️ 没有需要挑拣的冲突（新增/相同条目走「导入迁移包」即可）'); return; }
+                        const lines = conflicts.slice(0, 8).map((cf, i) => (i + 1) + '. ' + (cf.char || '?') + ' · ' + (cf.layer || '?') + ' · ' + ((cf.item && cf.item.id) || '?'));
+                        const tip = '🔀 周目差异挑拣合并\n\n以下 ' + conflicts.length + ' 条与本地冲突（' + (lines.length < conflicts.length ? '仅列前 8 条' : '全列') + '）：\n'
+                            + lines.join('\n')
+                            + '\n\n输入要「用包内版本覆盖」的序号（逗号分隔，如 1,3）；直接确定 = 一条都不覆盖（全保留本地）。';
+                        const ans = String(prompt(tip, '') || '').trim();
+                        const picked = new Set();
+                        for (const part of ans.split(/[,，\s]+/)) {
+                            const n = Number(part);
+                            if (Number.isInteger(n) && n >= 1 && n <= conflicts.length) {
+                                const cf = conflicts[n - 1];
+                                const key = cf.key || (cf.char + ':' + cf.layer + ':' + ((cf.item && cf.item.id) || ''));
+                                picked.add(key);
+                            }
+                        }
+                        let res = null;
+                        try { res = this.engine.compareAndMergeMigrate(pack, Array.from(picked)); } catch (e) { reportUiError(e, 'ls-migrate-merge'); return; }
+                        if (!res || !res.ok) { toast('❌ 合并失败：' + ((res && res.reason) || '未知原因')); return; }
+                        try {
+                            const dr = res.diffReport || {};
+                            const ap = (res.applied && res.applied.report) || {};
+                            if (picked.size) {
+                                const chatId = this.engine.getCurrentChatId();
+                                if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
+                            }
+                            toast('✅ 挑拣合并：覆盖 ' + picked.size + ' 条 / 保留本地 ' + Math.max(0, (dr.conflicts || []).length - picked.size)
+                                + ' 条' + (ap.added ? ' / 顺带新增 ' + ap.added : '') + (picked.size ? '（已存盘）' : '（未改动，未存盘）'));
+                        } catch (e) { reportUiError(e, 'ls-migrate-merge'); }
+                    };
+                    rd.readAsText(f);
+                };
+                input.click();
+            });
+            // [v3.459.0] 反事实分支沙盘（evaluateCounterfactualBranch 宿主入口此前零引用）
+            overlay.querySelector('#ls-cf-branch').addEventListener('click', () => {
+                const road = String(prompt('🧪 反事实分支沙盘\n\n写下「当初没走的那条路」（一句即可）：', '') || '').trim();
+                if (!road) { toast('已取消'); return; }
+                const actual = String(prompt('实际发生的抉择（可留空）：', '') || '').trim();
+                const scene = String(prompt('当前场景描述（用来判断是否被触景唤起，可留空）：', '') || '').trim();
+                let res = null;
+                try {
+                    res = this.engine.evaluateCounterfactualBranch({
+                        actorId: (this.engine._currentSpeaker && (this.engine._currentSpeaker.name || this.engine._currentSpeaker)) || '我',
+                        anchorFloor: (typeof this.engine.getCurrentFloor === 'function' ? this.engine.getCurrentFloor() : 0),
+                        actualChoice: actual,
+                        unpickedRoad: road,
+                        imaginedConsequence: road
+                    }, scene);
+                } catch (e) { reportUiError(e, 'ls-cf-branch'); return; }
+                if (!res || !res.ok) { toast('❌ 沙盘不可用：' + ((res && res.reason) || '未知原因')); return; }
+                const aw = res.awakening;
+                toast(aw && aw.internalEchoPrompt
+                    ? '🧪 已记录这条「另一条路」，且当前场景触发了心境共鸣：\n' + aw.internalEchoPrompt.slice(0, 120)
+                    : '🧪 已记录这条「另一条路」（当前场景未触发共鸣，日后再遇相关情境会唤起）');
             });
             // [v3.138] CP-L2: 嵌入存档恢复闭环——v3.23 起只写 _embeddedVaultReady 标志、toast 指路“设置→导入恢复”，
             // 但按钮从未存在，跨设备迁移恢复路径断裂。按钮由 checkEmbeddedMigration 按检测结果显示。

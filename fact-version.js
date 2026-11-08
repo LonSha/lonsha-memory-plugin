@@ -830,11 +830,14 @@
 
     for (const f of list) {
       if (!f || f.revoked || f.isCancelled) continue;
-      const text = String(f.content || f.text || '');
-      const subjectMatch = text.match(/^([\u4e00-\u9fa5a-zA-Z0-9_-]{2,6}?)(?:已|正在|在|正|是|\s)/);
-      const subject = subjectMatch ? subjectMatch[1].trim() : text.slice(0, 2);
+      /* [v3.459.0] 文本归一走契约（R3c）：此前这里自己拼了份字符串再就地剥空白，
+       *   等于在账本内又写了一份「什么算空白」的口径（ZWSP / NBSP / BOM 清不掉）。
+       *   契约给的文本归一器才是全仓唯一那份，此处只用它。 */
+      const body = text(f.content || f.text || '');
+      const subjectMatch = body.match(/^([\u4e00-\u9fa5a-zA-Z0-9_-]{2,6}?)(?:已|正在|在|正|是|\s)/);
+      const subject = subjectMatch ? text(subjectMatch[1], 24) : text(body.slice(0, 2), 24);
 
-      if (text.includes('已阵亡') || text.includes('死亡') || text.includes('牺牲')) {
+      if (body.includes('已阵亡') || body.includes('死亡') || body.includes('牺牲')) {
         if (aliveMap.has(subject) && aliveMap.get(subject).status === 'alive') {
           conflicts.push({
             type: 'life_death_conflict',
@@ -845,7 +848,7 @@
           });
         }
         aliveMap.set(subject, { status: 'dead', fact: f });
-      } else if (text.includes('正在') || text.includes('存活') || text.includes('健康')) {
+      } else if (body.includes('正在') || body.includes('存活') || body.includes('健康')) {
         if (aliveMap.has(subject) && aliveMap.get(subject).status === 'dead') {
           conflicts.push({
             type: 'life_death_conflict',

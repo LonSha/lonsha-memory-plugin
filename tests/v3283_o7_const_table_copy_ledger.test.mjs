@@ -114,7 +114,7 @@ const MIN_PAIRS = 2;
  * 「看起来像同一张表、其实包了一层生命周期不同的写法」也能被点名。
  */
 const CONST_LEDGER = [
-    ['ARCHIVE_TOP_LEVEL_KEYS', ['engine-persistence-ops.js', 'memory-organs.js'], 694, '3b37d478', 'Object.freeze(['],
+    ['ARCHIVE_TOP_LEVEL_KEYS', ['engine-persistence-ops.js', 'memory-organs.js'], 737, 'e1c9e03e', 'Object.freeze(['],
     ['RELATION_CONFLICT_GROUPS', ['index.js', 'memory-core.js'], 134, 'a2700f54', '['],
     ['STORAGE_FP_FIELDS', ['index.js', 'memory-organs.js'], 65, '70a8fcd9', '['],
     ['FACES', ['branch-semantics.js', 'memory-package.js', 'volume-continuation.js'], 67, '997c2e8b', 'Object.freeze(['],

@@ -90,9 +90,9 @@ mutate('engine-recall.js', 'engine._crosslinkIndex.refsFor(query.text);', 'void 
 //   落在提权块之前，`merge < boost < rerank` 的偏序被破坏。
 //   （试过「删掉原 rerank、在提权块之后再补一次」——那种破坏两向偏序都成立，扫不出来，
 //     属于破坏本身选错，不是扫描器漏检。）
-mutate('engine-recall.js', 'const merged = engine.hybridMerge(results);',
-    'const merged = this.hybridMerge(results);\n            const _early = this.intentRerank(merged, query.text);',
-    'N-R3a 提权落到 rerank 之后', 'R3 位置错');
+mutate('engine-recall.js', 'let merged = engine.hybridMerge(results);',
+    'let merged = this.hybridMerge(results);\n            const _early = this.intentRerank(merged, query.text);',
+'N-R3a 提权落到 rerank 之后', 'R3 位置错');
 
 // ── N-R3b 自由变量回归：把修好的调用还原成历史缺陷形态 ⇒ 必须翻红 ──
 mutate('engine-recall.js', 'engine.intentRerank(merged, query.text);', 'engine.intentRerank(merged, queryText);',

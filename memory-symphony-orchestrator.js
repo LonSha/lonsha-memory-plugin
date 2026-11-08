@@ -84,6 +84,7 @@
 
         let candidates = Array.isArray(recallCandidates) ? recallCandidates.slice() : [];
         const cfg = (engine.config && engine.config.config) || {};
+        const queryText = String(query.text || query.queryText || '');
 
         // ---------------- [阶段 1: 现场实体与发言人感知] ----------------
         const knownCharacters = (typeof engine.getKnownCharacters === 'function') 
@@ -436,6 +437,172 @@
                 }
             }
         } catch (e) {}
+
+        // ---------------- [阶段 3.10: V21 史诗级心智扩展引擎指令注入] ----------------
+        try {
+            // L21-X1: WorldAxis 客观世界快照主观折射
+            const waLib = (typeof LonShaWorldAxisAssimilator !== 'undefined' ? LonShaWorldAxisAssimilator : (typeof require !== 'undefined' ? (() => { try { return require('./worldaxis-objective-to-subjective-assimilator.js'); } catch { return null; } })() : null));
+            if (waLib && engine._worldaxisAssimilatorState) {
+                const waDir = waLib.generateAssimilatorDirectives(engine._worldaxisAssimilatorState, currentSpeaker);
+                if (waDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${waDir}` : waDir;
+            }
+        } catch (e) {}
+        try {
+            // L21-X2: 闲暇梦境与反刍隐喻
+            const dreamLib = (typeof LonShaRuminationDream !== 'undefined' ? LonShaRuminationDream : (typeof require !== 'undefined' ? (() => { try { return require('./autonomous-rumination-dream-engine.js'); } catch { return null; } })() : null));
+            if (dreamLib && engine._ruminationDreamState) {
+                const dDir = dreamLib.generateRuminationDirectives(engine._ruminationDreamState, currentSpeaker);
+                if (dDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${dDir}` : dDir;
+            }
+        } catch (e) {}
+        try {
+            // L21-X4: 自律神经与躯体微表情爆发
+            const flareLib = (typeof LonShaSomaticFlare !== 'undefined' ? LonShaSomaticFlare : (typeof require !== 'undefined' ? (() => { try { return require('./autonomic-nervous-somatic-flare-engine.js'); } catch { return null; } })() : null));
+            if (flareLib && engine._somaticFlareState) {
+                const fDir = flareLib.generateSomaticFlareDirectives(engine._somaticFlareState, currentSpeaker);
+                if (fDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${fDir}` : fDir;
+            }
+        } catch (e) {}
+        try {
+            // L21-X7: 隐秘特工身份暴露风险矩阵
+            const riskLib = (typeof LonShaExposureRisk !== 'undefined' ? LonShaExposureRisk : (typeof require !== 'undefined' ? (() => { try { return require('./dual-identity-exposure-risk-matrix.js'); } catch { return null; } })() : null));
+            if (riskLib && engine._exposureRiskState) {
+                const rDir = riskLib.generateRiskDirectives(engine._exposureRiskState, currentSpeaker);
+                if (rDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${rDir}` : rDir;
+            }
+        } catch (e) {}
+        try {
+            // L21-X8: 心理耗竭与抗逆韧性衰减
+            const burnLib = (typeof LonShaBurnoutDecay !== 'undefined' ? LonShaBurnoutDecay : (typeof require !== 'undefined' ? (() => { try { return require('./psychological-burnout-resilience-decay.js'); } catch { return null; } })() : null));
+            if (burnLib && engine._burnoutDecayState) {
+                const bDir = burnLib.generateBurnoutDirectives(engine._burnoutDecayState, currentSpeaker);
+                if (bDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${bDir}` : bDir;
+            }
+        } catch (e) {}
+
+        // ---------------- [阶段 3.11: V22 第十六期全新日常生活与心流互动引擎] ----------------
+        try {
+            // L16-X1: 对话动量与心流势头维持
+            const momentumLib = (typeof LonShaNarrativeMomentum !== 'undefined' ? LonShaNarrativeMomentum : (typeof require !== 'undefined' ? (() => { try { return require('./narrative-momentum-flow-inertia-engine.js'); } catch { return null; } })() : null));
+            if (momentumLib) {
+                if (!engine._narrativeMomentumState) engine._narrativeMomentumState = momentumLib.createState();
+                engine._narrativeMomentumState = momentumLib.updateMomentum(engine._narrativeMomentumState, { text: queryText, speaker: currentSpeaker, floor: activeFloor });
+                const mDir = momentumLib.generateMomentumDirectives(engine._narrativeMomentumState);
+                if (mDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${mDir}` : mDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X2: 隐性人情羁绊与互惠张力
+            const bondLib = (typeof LonShaSocialBondReciprocity !== 'undefined' ? LonShaSocialBondReciprocity : (typeof require !== 'undefined' ? (() => { try { return require('./latent-social-bond-reciprocity-engine.js'); } catch { return null; } })() : null));
+            if (bondLib && engine._socialBondState) {
+                const bondDir = bondLib.generateReciprocityDirectives(engine._socialBondState, currentSpeaker);
+                if (bondDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${bondDir}` : bondDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X3: 角色默契心领神会与未言明暗号
+            const tacitLib = (typeof LonShaTacitUnderstanding !== 'undefined' ? LonShaTacitUnderstanding : (typeof require !== 'undefined' ? (() => { try { return require('./character-tacit-understanding-engine.js'); } catch { return null; } })() : null));
+            if (tacitLib && engine._tacitUnderstandingState) {
+                const tDir = tacitLib.generateTacitDirectives(engine._tacitUnderstandingState, currentSpeaker, queryText);
+                if (tDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${tDir}` : tDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X4: 欲言又止与潜台词心机
+            const hesitLib = (typeof LonShaUnspokenHesitation !== 'undefined' ? LonShaUnspokenHesitation : (typeof require !== 'undefined' ? (() => { try { return require('./unspoken-hesitation-subtext-engine.js'); } catch { return null; } })() : null));
+            if (hesitLib && engine._unspokenHesitationState) {
+                const hDir = hesitLib.generateHesitationDirectives(engine._unspokenHesitationState);
+                if (hDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${hDir}` : hDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X5: 长期承诺与约定里程碑追踪
+            const cmtLib = (typeof LonShaCommitmentMilestone !== 'undefined' ? LonShaCommitmentMilestone : (typeof require !== 'undefined' ? (() => { try { return require('./long-term-commitment-milestone-engine.js'); } catch { return null; } })() : null));
+            if (cmtLib && engine._commitmentMilestoneState) {
+                const cDir = cmtLib.generateCommitmentDirectives(engine._commitmentMilestoneState);
+                if (cDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${cDir}` : cDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X6: 日常生活习惯共生与节律共鸣
+            const routineLib = (typeof LonShaRoutineRhythm !== 'undefined' ? LonShaRoutineRhythm : (typeof require !== 'undefined' ? (() => { try { return require('./everyday-shared-routine-rhythm-engine.js'); } catch { return null; } })() : null));
+            if (routineLib) {
+                const rDir = routineLib.generateRoutineDirectives();
+                if (rDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${rDir}` : rDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X7: 誓约心锚与背弃反噬共振中心
+            const anchorLib = (typeof LonShaEmotionalAnchor !== 'undefined' ? LonShaEmotionalAnchor : (typeof require !== 'undefined' ? (() => { try { return require('./emotional-anchor-binding-resonance-hub.js'); } catch { return null; } })() : null));
+            if (anchorLib && engine._emotionalAnchorState) {
+                const aDir = anchorLib.generateAnchorDirectives(engine._emotionalAnchorState, currentSpeaker);
+                if (aDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${aDir}` : aDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X8: 创伤禁忌三层渐进心理防线
+            const multiTabooLib = (typeof LonShaMultiTierDefense !== 'undefined' ? LonShaMultiTierDefense : (typeof require !== 'undefined' ? (() => { try { return require('./obsessive-taboo-multi-tier-defense.js'); } catch { return null; } })() : null));
+            if (multiTabooLib && engine._multiTierDefenseState) {
+                const defenseRes = multiTabooLib.evaluatePsychologicalDefense(engine._multiTierDefenseState, currentSpeaker, queryText);
+                if (defenseRes && defenseRes.directive) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${defenseRes.directive}` : defenseRes.directive;
+                }
+            }
+        } catch (e) {}
+
+        try {
+            // L16-X9: 客观世界因果桥主观折射摄入引擎
+            const assimLib = (typeof LonShaWorldAxisAssimilator !== 'undefined' ? LonShaWorldAxisAssimilator : (typeof require !== 'undefined' ? (() => { try { return require('./worldaxis-objective-to-subjective-assimilator.js'); } catch { return null; } })() : null));
+            if (assimLib && engine._worldAxisAssimilatorState) {
+                const asDir = assimLib.generateAssimilatorDirectives(engine._worldAxisAssimilatorState, currentSpeaker);
+                if (asDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${asDir}` : asDir;
+            }
+        } catch (e) {}
+
+        try {
+            // L16-O1: 全引擎交响总线波纹级联驱动 (Ripple Bus Dispatch)
+            const rippleBusLib = (typeof LonShaEngineOrchestration !== 'undefined' ? LonShaEngineOrchestration : (typeof require !== 'undefined' ? (() => { try { return require('./engine-orchestration-ripple-bus.js'); } catch { return null; } })() : null));
+            if (rippleBusLib && engine._rippleBusState) {
+                const busResult = rippleBusLib.dispatchRippleEvent(engine._rippleBusState, {
+                    type: 'symphony_round',
+                    speaker: currentSpeaker,
+                    queryText,
+                    floor: activeFloor
+                }, { engine, directives: generatedDirectives });
+                trace.stages.rippleBus = { ok: busResult.ok, dispatched: busResult.dispatched };
+            }
+        } catch (e) {}
+
+        try {
+            // L16-O4: 分层折叠金字塔与演化替代处理 (Hierarchical Pyramid Evolution)
+            const pyramidLib = (typeof HierarchicalPyramidEvolution !== 'undefined' ? HierarchicalPyramidEvolution : (typeof require !== 'undefined' ? (() => { try { return require('./hierarchical-pyramid-evolution.js'); } catch { return null; } })() : null));
+            if (pyramidLib && engine._pyramidEvolutionState && candidates.length > 5) {
+                const plan = pyramidLib.planHierarchicalClusters(candidates, engine._pyramidEvolutionState);
+                if (plan && plan.clusters && plan.clusters.length > 0) {
+                    trace.stages.pyramidClusters = plan.clusters.length;
+                }
+            }
+        } catch (e) {}
+
+        try {
+            // L16-O8: 潜意识未明言动机暗涌推演 (Subconscious Undercurrent)
+            const undercurrentLib = (typeof SubconsciousUndercurrentEngine !== 'undefined' ? SubconsciousUndercurrentEngine : (typeof require !== 'undefined' ? (() => { try { return require('./subconscious-undercurrent-engine.js'); } catch { return null; } })() : null));
+            if (undercurrentLib && engine._subconsciousProfile) {
+                const uRes = undercurrentLib.deduceUndercurrent(engine._subconsciousProfile, queryText);
+                if (uRes && uRes.undercurrentDirective) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${uRes.undercurrentDirective}` : uRes.undercurrentDirective;
+                }
+            }
+        } catch (e) {}
+
+        trace.antiConfusionDirectives = generatedDirectives;
 
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
         let finalCandidates = firewallSanitized;

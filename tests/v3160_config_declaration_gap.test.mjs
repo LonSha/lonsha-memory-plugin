@@ -12,7 +12,18 @@ import { HOST_MODULES, hostSurface } from './_audit_lib.mjs';
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
 const hs = hostSurface(ROOT, { fs: { readFileSync, existsSync: (p) => true }, path });
-const extraCarrierFiles = ['memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js', 'memory-organs.js', 'memory-config.js'];
+/* [v3.459.0 · 扫描面从硬编码改为 manifest 派生] 原文是一张手写的载体文件清单
+ *   （memory-ledgers / memory-aux / narrative-generators / memory-books / memory-organs / memory-config
+ *   + HOST_MODULES）。v3.459.0 起新增引擎模块（memory-symphony-orchestrator / hypergraph-causal-backtracking-hub
+ *   / psychological-defense-engine …）都**真加载、真读配置**，但它们不在那张手写清单里，
+ *   于是 [1b]「declared but never consumed」把 dreamMetaphorEnabled / somaticReflexEnabled /
+ *   deepMemoryAtlasEnabled / multiAgentGameTheoryEnabled / counterfactualFirewallEnabled 等
+ *   判成**幽灵配置** —— 判据面漏报的假红，不是产品缺陷（交响编排器里真写着 cfg.dreamMetaphorEnabled !== false）。
+ *   与 scan_config_liveness.mjs 同一范式：扫描面 = manifest.js（入口，强制首位）+ manifest.extra_js，
+ *   面随清单自动生长，永不因「新模块没进手写名单」而假红。语义（每键必须有块外读取点）一字不放宽。 */
+const _mfForFace = JSON.parse(readFileSync(path.join(REPO_ROOT, 'manifest.json'), 'utf-8'));
+const extraCarrierFiles = Array.from(new Set([_mfForFace.js || 'index.js'].concat(_mfForFace.extra_js || [])))
+    .filter((f) => f && f !== 'index.js');
 const allCarrierFiles = Array.from(new Set([...extraCarrierFiles, ...HOST_MODULES]));
 const allCarrierCode = [hs.raw].concat(allCarrierFiles.map(f => {
     try { return readFileSync(path.join(ROOT, f), 'utf8'); } catch(e) { return ''; }
@@ -30,16 +41,23 @@ function vnum(s) {
 
 /** the default config block, plus its character offsets in index.js */
 function configBlock() {
-    const at = src.indexOf('this.config = {' + String.fromCharCode(10));
+    /* [v3.459.0] 在**真源模块**里定位默认块，不在合并面里首次搜索：
+     *   合并面里 memory-supersede.js 的类体也有同名行且排在真源之前，首次命中会抠到空壳。
+     *   默认块真源唯一 = memory-config.js（本档第 290 行那段既有注释已经写明这一点）。 */
+    const CFG_SRC = readFileSync(path.join(REPO_ROOT, 'memory-config.js'), 'utf-8');
+    const at = CFG_SRC.indexOf('this.config = {' + String.fromCharCode(10));
     assert.ok(at > 0, 'the default config block exists');
-    const open = src.indexOf('{', at);
+    assert.strictEqual(CFG_SRC.split('this.config = {' + String.fromCharCode(10)).length - 1, 1,
+        '默认块在真源里必须恰出现一次（多处出现会让定位静默取错）');
+    const cfgSrcLocal = CFG_SRC;
+    const open = cfgSrcLocal.indexOf('{', at);
     let depth = 0, close = -1;
-    for (let i = open; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) { close = i; break; } }
+    for (let i = open; i < cfgSrcLocal.length; i++) {
+        if (cfgSrcLocal[i] === '{') depth++;
+        else if (cfgSrcLocal[i] === '}') { depth--; if (depth === 0) { close = i; break; } }
     }
     assert.ok(close > open, 'the default config block is balanced');
-    return { text: src.slice(open, close + 1), open, close };
+    return { text: cfgSrcLocal.slice(open, close + 1), open, close };
 }
 const CFG = configBlock();
 const declaredKeys = new Set([...CFG.text.matchAll(/\n\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/g)].map((m) => m[1]));
@@ -61,7 +79,13 @@ function whitelist() {
 // ================= 1. declaration / reachability invariants =================
 test('[1] no config key is read by the engine without being declared', () => {
     const read = new Set([...src.matchAll(/config\.config\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]));
-    const undeclared = [...read].filter((k) => !declaredKeys.has(k)).sort();
+    /* [v3.459.0] 排除 `_` 前缀的**运行时标志**：它们不是可配置键，写进默认块反而是缺陷
+     *   （用户能存一个内部标志进 localStorage，然后跨版本带过去）。
+     *   实例：_embeddedVaultReady —— 嵌入存档就绪标志，由宿主在挂载后置 true、
+     *   settings-ui 读它决定「♻ 恢复嵌入存档」按钮显隐、恢复成功后 delete 掉。
+     *   它与 #hidden 配置项的区别是**没有默认值语义**（未置 = 未就绪），故判据只认默认块里的键。 */
+    const _isRuntimeFlag = (k) => k.startsWith('_');
+    const undeclared = [...read].filter((k) => !_isRuntimeFlag(k) && !declaredKeys.has(k)).sort();
     assert.deepStrictEqual(undeclared, [],
         'these keys are read via config.config.KEY but never declared — the engine falls back to a '
         + 'hardcoded value and nobody can set them: ' + undeclared.join(', '));

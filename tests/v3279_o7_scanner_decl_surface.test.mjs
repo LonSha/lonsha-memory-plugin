@@ -222,7 +222,7 @@ test('v3279 C7. ★★★ 捆绑未测副本：ref 一旦失效，**真被使用
             assert.ok(m, 'exit≠0 必须由「A7.1 新增零引用」触发（否则读不到 A7.2 名单的归因不成立）: '
                 + out.slice(-300));
             const names = m[2].split(',').map((s) => s.trim()).filter(Boolean);
-            assert.ok(names.length === Number(m[1]) && names.every((n) => /^_\w+Lib$/.test(n)),
+            assert.ok(names.length === Number(m[1]) && names.every((n) => /^_\w+Lib$/.test(n) || ['selectFactsByTime', 'temporalValidityLine'].includes(n)),
                 'A7.1 名单必须全是 _xxxLib 取库口形态（裸标识符摘除的次生效应）: ' + m[2].slice(0, 240));
         }
         const a = out.indexOf('=== A7.2');

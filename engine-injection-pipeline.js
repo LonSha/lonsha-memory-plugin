@@ -713,7 +713,7 @@
             if (!recalled?.length) return '';
             let NOTE = _antiOmniHeader || '〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。';
             // [v3.457.0 · V19-O3] 编排指令合流：若交响编排产出了防混淆高阶指令，将其优雅融入私密简报头部
-            if (this._lastSymphonyDirectives && this.config.config.antiConfusionDirectivesEnabled !== false) {
+            if (typeof this._lastSymphonyDirectives === 'string' && this._lastSymphonyDirectives.trim() && this.config.config.antiConfusionDirectivesEnabled !== false) {
                 NOTE = `${NOTE}\n\n【防混淆认知矩阵约束】\n${this._lastSymphonyDirectives}`;
             }
             // [v3.458.0 · V20-L5] 记忆自愈免疫接种指令合流
@@ -1594,6 +1594,21 @@
                     for (const kf of keyFacts) {
                         const ref = Lens.reframeFactThroughLens(kf, activeLens);
                         if (ref && ref.reframedNarrative) blocks.push('〔内心独白透镜〕' + ref.reframedNarrative);
+                    }
+                }
+                if (!this._activeRestatements && recalled && recalled.length && Lens && typeof Lens.recordAutobiographicalRestatement === 'function') {
+                    const topFact = recalled[0];
+                    if (topFact && (topFact.content || topFact.text)) {
+                        try {
+                            const restated = Lens.recordAutobiographicalRestatement(topFact, {
+                                narrator: this._currentSpeaker || '对方',
+                                emotionalBias: 'reminiscent',
+                                stanceReason: '召回上下文主观自传映射'
+                            });
+                            if (restated) this._activeRestatements = [restated];
+                        } catch (e) {
+                            this._activeRestatements = null;
+                        }
                     }
                 }
                 // [v3.451.0 · L15-X2] 注入自传心路重述沙盘事实（主观认知覆盖）

@@ -108,6 +108,7 @@ const LEDGER = [
     ['hash32', 'branch-guard.js', '双 hash 原语（模块侧自带一份，避免读宿主闭包）'],
     ['hash32', 'floor-ledger.js', '双 hash 原语（同上）'],
     ['hash32', 'summary-provenance.js', '双 hash 原语（同上）'],
+    ['hash32', 'evidence-source-locator.js', '双 hash 原语（模块侧自带一份）'],
     /* [v3.421.0] 以下 6 条是因本档改读宿主**合并面**才暴露出来的：
      *   这些实现落在 engine-recall.js / engine-report.js，与入口那份逐字相同。
      *   同样是「模块侧自足 + 入口为活代码真源」的理由 —— 发现第二份实现就登记。 */

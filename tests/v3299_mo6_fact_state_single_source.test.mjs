@@ -91,9 +91,12 @@ function mke(src, fsLib) {
     const body = blockAt(stripComments(src), src ? stripComments(src).indexOf('typedFactsBlocks() {') : -1);
     assert.ok(body, 'typedFactsBlocks 方法体必须可提取（缺失即接线不全）');
     const inner = body.slice(body.indexOf('{') + 1, body.length - 1);
-    const fn = new Function('_memoryTypeLib', '_factStateLib', 'errLog',
+    // [v3.459.0] 时态取库口是自由变量，须作为形参补齐；只隔离状态准入，其余模块显式缺席。
+    const extra = [...new Set([...inner.matchAll(/\b([A-Za-z_$][\w$]*Lib)\s*\(\s*\)/g)]
+        .map(m => m[1]).filter(n => !['_memoryTypeLib', '_factStateLib'].includes(n)))];
+    const fn = new Function('_memoryTypeLib', '_factStateLib', 'errLog', ...extra,
         'const m = function(){ ' + inner + ' }; return m;');
-    return fn(() => MT, () => fsLib, () => {});
+    return fn(() => MT, () => fsLib, () => {}, ...extra.map(() => () => null));
 }
 /** 真账：A 所在 北京@1 楼 → A 所在 上海@5 楼（location-state 是 auto 策略，两侧都有 from 即换代）。 */
 function buildState() {

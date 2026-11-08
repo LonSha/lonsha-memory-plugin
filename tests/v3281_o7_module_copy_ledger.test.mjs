@@ -117,6 +117,13 @@ const MIN_CLUSTERS = 12;
  * 本档 A/B 段会当场翻红（簇级双向判据）。
  */
 const LEDGER = [
+    ['safeStr', ['era-handoff-draft.js', 'fact-correction-transaction.js', 'relationship-repair-response.js'], 'dc385445', '字符串安全转换原语；三模块自足避免跨模块静默读旧值'],
+    ['_sanitizeStr', ['character-reinterpretation-versions.js', 'lore-version-conclusion-reconcile.js', 'scene-character-seating-partition.js'], '757a290a', '字符串净化原语；三模块各自持有独立作用域'],
+    ['text', ['commitment-instance-lifecycle.js', 'knowledge-relay-chain.js', 'past-event-narration-compare.js'], '4dd05e42', '通用文本提取原语；各模块零依赖运行独立自足'],
+    ['num', ['commitment-instance-lifecycle.js', 'knowledge-relay-chain.js'], 'd8bcc558', '通用数值归一原语；各模块独立运行避免跨模块耦合'],
+    ['isObject', ['era-handoff-draft.js', 'fact-correction-transaction.js', 'relationship-repair-response.js'], '08ccd009', '纯对象校验原语；模块各自持有保持单文件自足性'],
+    ['copy', ['era-handoff-draft.js', 'fact-correction-transaction.js', 'relationship-repair-response.js'], '28aebebd', '浅层对象复制原语；各模块独立使用不引全局共享'],
+
     ['reject', ['commitment-ledger.js', 'echo-ledger.js', 'parallel-ledger.js', 'recall-echo.js', 'secret-ledger.js', 'seed-ledger.js'], '8eb6fe95',
         '六账拒绝形状 {ok:false, reason, changed:false, state:normalize(state)}；契约 ledger-entity.js 的六项里没有它'],
     ['result', ['commitment-ledger.js', 'echo-ledger.js', 'parallel-ledger.js', 'recall-echo.js', 'secret-ledger.js', 'seed-ledger.js'], 'c1b0fedc',
@@ -129,7 +136,7 @@ const LEDGER = [
         '三账拒绝形状（多一个 changed:false、键序不同）—— **与六账版是两种语义，不得合并成簇**'],
     ['result', ['event-completeness.js', 'fact-version.js', 'repair-loop.js'], '297d1a0d',
         '三账成功形状 Object.assign({ok:true, changed:false, state:normalize(state)}, extra||{})'],
-    ['hash32', ['branch-guard.js', 'floor-ledger.js', 'summary-provenance.js'], '6b78dbb6',
+    ['hash32', ['branch-guard.js', 'evidence-source-locator.js', 'floor-ledger.js', 'summary-provenance.js'], '6b78dbb6',
         'FNV-1a 32 位双 hash；模块注释自称「与 index.js hash32 逐字同构……两端口径必须一致」，是**刻意声明**的副本'],
     ['fnv1a', ['model-response.js', 'stale-guard.js', 'turn-reconciler.js'], '3b85b86c',
         'FNV-1a（另一套：Math.imul 演进式常数），三个 SSE/陈旧守卫模块各一份'],

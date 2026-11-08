@@ -88,9 +88,25 @@ const genSrc = fs.readFileSync('narrative-generators.js', 'utf8');
 const bkSrc = fs.readFileSync('memory-books.js', 'utf8');
 /* [v3.264.0 A1 第五刀] 「块外是否有引用」的扫描面必须含本刀外移的器官模块，
  *   否则己搬家的消费点会被判成零引用（幽灵配置假报）。 */
-/* [v3.267.0] 世界进度等配置读点随 `memory-organs.js` 外移；幽灵配置扫描面追加该现有模块。 */
+/* [v3.267.0] 世界进度等配置读点随 memory-organs.js 外移；幽灵配置扫描面追加该现有模块。 */
+/* [v3.459.0 · 扫描面从手写清单改为 manifest 派生] 上面 genSrc/bkSrc/orgSrc 是逐版手加的，
+ *   每加一个引擎模块就得记得再加一行 —— v3.445~v3.459 接入的 memory-symphony-orchestrator /
+ *   psychological-defense-engine / hypergraph-causal-backtracking-hub 等模块真读配置却不在清单里，
+ *   [9]「幽灵配置」于是把 dreamMetaphorEnabled / somaticReflexEnabled / deepMemoryAtlasEnabled /
+ *   multiAgentGameTheoryEnabled / counterfactualFirewallEnabled / factionTerritory… 判成零引用。
+ *   这是**判据面漏报**（不是产品缺陷）：交响编排器里真写着 cfg.dreamMetaphorEnabled !== false。
+ *   改成 manifest 派生：面 = manifest.js + manifest.extra_js，随清单自动生长。
+ *   语义（每键必须有默认块外的读取点）一字不放宽，只是不再靠人记名单。 */
+const __mfFace = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+/* [v3.459.0] 必须**排除 memory-config.js**：本判据问的是「默认块之外有没有读取点」，
+ *   把配置真源本身（尤其是它的默认块）算进消费面，等于让每个键都自证有引用 —— 判据会永久失效。
+ *   另有几处结构性排除同理：index.js 已在 srcRaw 里、其余重复文件已在上面的 references 里。 */
+const __manifestFace = Array.from(new Set([__mfFace.js || 'index.js'].concat(__mfFace.extra_js || [])))
+    .filter((f) => f && f !== 'memory-config.js')
+    .map((f) => { try { return fs.readFileSync(f, 'utf8'); } catch (e) { return ''; } })
+    .join(String.fromCharCode(10));
 const faceText = src + String.fromCharCode(10) + genSrc + String.fromCharCode(10) + bkSrc
-    + String.fromCharCode(10) + orgSrc + String.fromCharCode(10) + fs.readFileSync('memory-organs.js', 'utf8');
+    + String.fromCharCode(10) + orgSrc + String.fromCharCode(10) + __manifestFace;
 
 // ---------- 提取工具（复用 v388/v390 花括号计数法） ----------
 function extractNamed(text, marker) {
@@ -297,7 +313,11 @@ test('【9】回归门：不得再出现「有默认值但全项目零引用」�
     assert.ok(cfgRawBlockStart >= 0 && cfgRawBlockEnd < cfgSrc.length, 'default-block coordinates resolve in memory-config.js');
     const references = srcRaw.split('\n').concat(coreSrc.split('\n'),
         cfgSrc.slice(0, cfgRawBlockStart).split('\n'), cfgSrc.slice(cfgRawBlockEnd + 1).split('\n'),
-        genSrc.split('\n'), fs.readFileSync('memory-organs.js', 'utf8').split('\n'));
+        genSrc.split('\n'), fs.readFileSync('memory-organs.js', 'utf8').split('\n'),
+        /* [v3.459.0] 追加 manifest 全载面（已排除配置真源本身）：消费面随装载清单自动生长，
+         *   不再靠这里逐版手加模块名 —— 那正是本条曾把交响编排器里真实存在的
+         *   cfg.dreamMetaphorEnabled !== false 判成「幽灵配置」的原因。 */
+        __manifestFace.split('\n'));
     const externalOccurrences = new Map();
     for (const line of references) {
         for (const k of new Set(keys)) {

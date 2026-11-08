@@ -1,5 +1,40 @@
+## v3.460.0
+**第十六期重大跃升：【双项目贯通·心智与手机双核跃升计划】。融会贯通存量引擎，研发全新日常生活心智与心流体系，全面告别黑话与冷场。**
+### 心智跃升与全新引擎
+- **L16-X1 对话动量与心流势头维持引擎**（`narrative-momentum-flow-inertia-engine.js`）：根据最近多轮语义张力维持聊天热度，告别话题骤然冷场与机械硬答。
+- **L16-X2 隐性人情羁绊与互惠张力引擎**（`latent-social-bond-reciprocity-engine.js`）：记录日常关怀、小恩惠与隐秘内疚，产生真实的人情牵引与主动补偿心理。
+- **L16-X3 角色默契心领神会与未言明暗号引擎**（`character-tacit-understanding-engine.js`）：相熟角色无需点破即可会意，激发专属暗号与心照不宣。
+- **L16-X4 欲言又止与潜台词心机引擎**（`unspoken-hesitation-subtext-engine.js`）：话到嘴边留半句，细腻捕捉神情停顿与未尽之意。
+- **L16-X5 长期承诺与约定里程碑追踪引擎**（`long-term-commitment-milestone-engine.js`）：跨数百轮不忘长远期许，时机契合主动提起。
+- **L16-X6 日常生活习惯共生与节律共鸣引擎**（`everyday-shared-routine-rhythm-engine.js`）：随现实时间流转感知晨起、午后、深夜的起居生活细节。
+- **L16-X7 誓约心锚与背弃反噬共振中心**（`emotional-anchor-binding-resonance-hub.js`）：坚守誓约时筑牢灵魂心锚，背弃违约时触发永久性信任冰川与反噬。
+- **L16-X8 创伤禁忌三层渐进心理防线**（`obsessive-taboo-multi-tier-defense.js`）：按轻微回避、掩饰合理化、应激破防三层渐进递进。
+- **L16-X9 客观世界因果桥主观折射摄入引擎**（`worldaxis-objective-to-subjective-assimilator.js`）：将客观世界的物理变化化为角色的第一人称感触。
+### 中枢调度与融会贯通
+- `optional-engine-registry.js` 受管引擎总数扩充至 56 个。
+- `memory-symphony-orchestrator.js` 扩展阶段 3.11，全量级联接入新增心智引擎，并级联波纹总线与潜意识暗涌推演。
+- 自动化测试 `tests/l16_mind_leap.test.mjs` 10 项全绿通过。
+
 ## v3.459.0
-**设置面板极简重构（借鉴 WorldAxis 玩家动线）**：修复四个标签页面板互相嵌套导致的参数堆叠；按「开始使用 / 人物与故事 / 进阶设置 / 高级实验室」重划动线；30+ 学术算法开关与微观滑块默认折叠、保持底层默认开启与最佳实践数值；API 连接 + 三档记忆预设开箱即用；213 个配置控件契约零丢失。
+**设置面板极简重构（借鉴 WorldAxis 玩家动线）+ 全量门禁修复轮：面板动线重划，同时把此前长期红的 14 个 `scan_*.mjs` 全部修绿（68 个门禁 0 红）。**
+### 面板侧
+- 修复四个 `ls-tab-pane` 的 `<div>` 嵌套破损：`advanced` 与 `retrieval` 曾被错误嵌进 `narrative` 内，点标签页时几十个参数堆成一坨。已重建为四个彼此独立、正确闭合的面板。
+- 按玩家动线重划为「🚀 开始使用 / 📖 人物与故事 / 🔧 进阶设置 / 🧪 高级实验室」；30+ 学术算法开关与微观滑块默认折叠进 `<details>`，底层默认开启与最佳实践数值不变；API 连接 + 三档记忆预设开箱即用；9 处 group 标题文案通俗化。
+- 控件契约零丢失：`ck` 131 / `data-cfg*` 82 / 关键 id 全在册（门禁读 213 控件 / 223 声明键 / 124 DOM id）。
+### 门禁侧（14 红 → 0 红）
+- `scan_cross_repo_binding`：参考基准补登记 46 个测试文件，`catalog_reference_consumers.tsv` 493 行 = 磁盘全集（此前误记 447）。
+- `scan_extra_js_seam` + negctl：按 manifest 用 `tools/gen_extra_js_seam_ledger.mjs` 重生成 `extra_js_seam_ledger.tsv`，289 模块全覆盖（此前 26 个未登记）。
+- `scan_ledger_contract` + negctl：`fact-version.js` 的两处就地文本归一（本地字符串拼接 + 就地剥空白）改为走契约 `LE.text`，R3c 判据转绿。
+- `scan_live_wiring_dataflow`：`_activeRestatements` 此前全仓 0 次写入、判定分支 100% 跳过（幽灵守卫）。已用 `recordAutobiographicalRestatement` 契约从召回事实生成条目并写回实例位，数据流闭环。
+- `scan_wiring`：两个零引用宿主方法接上产品面 —— `compareAndMergeMigrate` → 面板「🔀 周目差异挑拣合并」按钮；`evaluateCounterfactualBranch` → 面板「🧪 反事实分支沙盘」按钮（含序号挑拣、未勾选即保留本地、改动才存盘）。
+- `scan_v3202_carryover_archive_diff` + negctl：`roundSnapshots` / `migrateImportRecovery` 显式登记进 `CARRYOVER_EXEMPT_KEYS` 并逐项写明理由（两者都是绑定旧对话身份的游标/快照，携带即改判）。
+- `scan_v3185_xref_consumer_negctl` / `scan_v3186_emotion_recall` + negctl：三处门禁锚点随宿主形态更新（召回管线该行已从 `const merged` 变为 `let merged`），位置纪律判据一字不改、只认的形态多一种。
+- `scan_plan_currency`：PLAN 第十四/十五期两个排序型批次表补「陈旧节 · 勿当排序读」标记并登记进 `plan_currency.tsv`；「当前执行状态」版本抬到 v3.459.0。
+- `scan_ui_panel_drive`：relations 视图里「认知改观」与「关系修复」两块工作台的缺席文案从「不可用」改为「没装上（关系边读数不受影响）」——把「没有」与「没装上」区分开，不再整页读成关系面没装。
+### 台账与版本
+- 四源同源 `3.459.0`（`index.js` / `manifest.json` / `package.json` / 三副本）；`state-report.json` 重生成（ver 3.459.0 / 测试 493 / 审计 72 / extra_js 289）。
+- 判据 `tests/v3459_settings_ui_simplify.test.mjs`（3 条：四源同版 / 四面板独立闭合 / 折叠与控件契约）。
+- **边界**：真机 SillyTavern 未执行（面板触摸、窄屏、刷新后重载）；`doc_readings` 全量实跑读数仍停 3.431.0，已在 state-report `unknown` 显式点名。
 ## v3.458.0
 **V20 超级引擎接入：补齐反事实防火墙、契约因果、潜伏暴露、视差矩阵、宏观纪元与创伤禁忌等生产脚本清单，并纳入统一可选引擎注册、运行时装配和状态诊断。**
 - 统一注册器覆盖 20 个引擎符号，支持浏览器全局优先、CommonJS 回落、单模块失败隔离和运行时状态读取。

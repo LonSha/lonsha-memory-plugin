@@ -169,9 +169,25 @@ test('【4】BM25 词典归一（文档端 + 查询端 + 归一指纹参与语�
     /* [v3.259.0 A1 第四刀] BM25 类体（含 rebuild / searchBranches / _lexFp）已外迁 memory-books.js：
      *   本段的七条锚点随之换源（只换被读的文件，语义一字不改）；
      *   只有最后一条 **宿主侧**（_invalidateBm25Corpus 的置空通路）仍读 index.js。 */
+    /* [v3.459.0 · 判据重述为两跳不变式] 原文要求在 rebuild 的**前 2000 字符内**直接看到
+     *   _lexNormalize(d.text)。BM25 类体重构后，文档端归一被收进 _termsForDoc（rebuild 只调它），
+     *   归一调用点于是搬出 rebuild 窗口 —— 判据假红，而「文档端必须过词典归一」这条实质没变。
+     *   改判**可达性**：① rebuild 必须用 _termsForDoc 构建 docTerms；② _termsForDoc 必须调
+     *   _lexNormalize（且喂的是 doc 的正文）；③ _lexNormalize 必须仍走 _lexExpand。
+     *   三段串起来才成立，比原来「字面量落在某窗口里」更强（任一环断开都翻红）。 */
     const rb = bkSrc.indexOf('rebuild(docs, lexicon = null) {');
-    const docNorm = bkSrc.indexOf('_lexNormalize(d.text)', rb);
-    assert.ok(rb > 0 && docNorm > rb && docNorm < rb + 2000, '文档端归一在 rebuild 内（_lexNormalize）');
+    assert.ok(rb > 0, 'rebuild 存在');
+    const rbBody = bkSrc.slice(rb, rb + 2000);
+    assert.ok(/\.map\(\s*(?:\(?d\)?|doc)\s*=>\s*this\._termsForDoc\(/.test(rbBody),
+        'rebuild 用 _termsForDoc 构建 docTerms（文档端入口）');
+    const tfd = bkSrc.indexOf('_termsForDoc(doc) {');
+    assert.ok(tfd > 0, '_termsForDoc 存在');
+    const tfdBody = bkSrc.slice(tfd, tfd + 600);
+    assert.ok(/_lexNormalize\(\s*doc\??\.text\s*\)/.test(tfdBody),
+        '文档端归一在 _termsForDoc 内（_lexNormalize(doc.text)）');
+    const ln = bkSrc.indexOf('_lexNormalize(text) {');
+    assert.ok(ln > 0 && /_lexExpand\(/.test(bkSrc.slice(ln, ln + 300)),
+        '_lexNormalize 必须仍走 _lexExpand（不得另写一套归一）');
     assert.ok(bkSrc.includes('normalizeQueryByLexicon(text, lx) { return this._lexExpand(text, lx, true); }'), 'BM25.normalizeQueryByLexicon 方法存在');
     // 查询端：searchBranches 的 active 分支构建处经 _expandAliases 链
     const sb = bkSrc.indexOf('searchBranches(branches, topK = 5, opts = {}) {');

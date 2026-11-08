@@ -341,6 +341,8 @@ const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'timelineCursorFingerprint',
 'timeWentBack',
 'lastSave',
+'roundSnapshots',   /* [L14-O1] 本轮条目快照环随存档走（模块头口径「随引擎存档一起走」的兑现） */
+'migrateImportRecovery', /* [L14-O6] 迁移包指纹、已应用决策与未决游标 */
 'packedAt',
 'schemaVersion',
 'producerVersion',

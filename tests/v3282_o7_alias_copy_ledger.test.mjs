@@ -120,6 +120,10 @@ const MIN_CLUSTERS = 6;
  * 名字互不相同 ⇒ 它天然是别名簇；同名簇归 v3280 / v3281。
  */
 const ALIAS_LEDGER = [
+    ['fn', ['num', 'safeNum'], ['commitment-instance-lifecycle.js', 'knowledge-relay-chain.js', 'lineage-heritage-tree.js', 'memory-maintenance-session.js', 'memory-migration-boundary.js', 'profile-dossier-view.js'], 64, 'd8bcc558'],
+    ['fn', ['finiteOrNull', 'numOrNull'], ['dual-time.js', 'experience-rebuild.js', 'temporal-validity-workflow.js'], 98, 'dbac9c0d'],
+    ['arr', ['safeStr', 'trim'], ['generation-material-reconcile.js', 'scene-book.js'], 34, '2f6d2657'],
+
     ['meth', ['_numOrNull', 'numOrNull'], ['engine-persistence-ops.js', 'snapshot-checkpoint.js'], 258, '2ea9877b'],
     ['fn', ['floorOrNull', 'toNum'], ['archive-shift.js', 'ledger-replay.js'], 208, 'b3a7cfaf'],
     ['tab', ['RESIDENT_FALLBACK', 'RESIDENT_MARKERS'], ['cost-ledger.js', 'engine-injection-pipeline.js'], 159, '61d3358a'],
@@ -212,9 +216,9 @@ const ALIAS_LEDGER = [
      *   变成「依赖兄弟模块先挂载」。体长与 md5 由盘上实测枚举得出。 */
     ['tab', ['STRENGTHS', 'TB_STRENGTH'], ['evidence-solver.js', 'testimony-board.js'], 34, '15138df4', '证词强度档词表。证词面与证据求解面同形同源，各自自持一份词表。'],
     ['fn', ['num', 'safeNum'], ['generation-fact-receipt.js', 'generation-memory-plan.js', 'memory-inbox.js', 'memory-weather.js', 'retrieval-audit.js', 'temporal-validity-workflow.js'], 62, '35412d94', '数值兜底原语（非法 ⇒ 缺省，不编 0）。与 safeNum 簇同族，成员见上。'],
-    ['fn', ['_arr', 'arr', 'arrOf', 'safeArr'], ['batch-maintenance-pipeline.js', 'character-growth-drama.js', 'condition-patch.js', 'conditional-consequence.js', 'conflict-adjudication-bench.js', 'continuous-research.js', 'cross-project-migration-desk.js', 'era-continuation-drama.js', 'generation-fact-replay.js', 'institutional-memory.js', 'meaning-map.js', 'memory-archaeology.js', 'memory-budget-orchestrator.js', 'memory-readable-workbench.js', 'memory-ritual.js', 'memory-season.js', 'memory-work-mode.js', 'recall-route-orchestrator.js', 'secret-theater.js', 'temporal-validity-workflow.js', 'world-ledger-reader.js'], 33, '6b39ffca', '数组归一原语（非数组 ⇒ 空数组）。多模块同批落盘、各自自持，收拢即跨模块读旧值。'],
+    ['fn', ['_arr', 'arr', 'arrOf', 'safeArr'], ['batch-maintenance-pipeline.js', 'character-growth-drama.js', 'condition-patch.js', 'conditional-consequence.js', 'conflict-adjudication-bench.js', 'continuous-research.js', 'cross-project-migration-desk.js', 'era-continuation-drama.js', 'era-handoff-draft.js', 'fact-correction-transaction.js', 'generation-fact-replay.js', 'institutional-memory.js', 'meaning-map.js', 'memory-archaeology.js', 'memory-budget-orchestrator.js', 'memory-readable-workbench.js', 'memory-ritual.js', 'memory-season.js', 'memory-work-mode.js', 'recall-route-orchestrator.js', 'relationship-repair-response.js', 'secret-theater.js', 'temporal-validity-workflow.js', 'world-ledger-reader.js'], 33, '6b39ffca', '数组归一原语（非数组 ⇒ 空数组）。多模块同批落盘、各自自持，收拢即跨模块读旧值。'],
     ['fn', ['_str', 'strOf'], ['autobiographical-memory.js', 'character-agency-contract.js', 'conditional-consequence.js', 'continuous-research.js', 'goal-reroute.js', 'goal-tracker.js', 'institutional-memory.js', 'relation-dynamics.js'], 43, 'ae1368bf', '文本化原语（缺省空串）。两人格制记忆面各自自持，装载时机互不包含。'],
-    ['fn', ['_num', 'numOr'], ['sleep-awaken.js', 'stm-close-quota.js'], 56, 'ee0d41d9', '数值兜底原语（缺省值必填）。睡眠唤醒面与 STM 截断配额面同批落盘、各自自持。'],
+    ['fn', ['_num', 'numOr'], ['hierarchical-pyramid-evolution.js', 'sleep-awaken.js', 'stm-close-quota.js'], 56, 'ee0d41d9', '数值兜底原语（缺省值必填）。睡眠唤醒面与 STM 截断配额面同批落盘、各自自持。'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

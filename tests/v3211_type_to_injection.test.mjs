@@ -167,6 +167,37 @@ function constStr(src, name) {
 }
 
 /* ══════════ 0. 版本锚 ══════════ */
+/* [v3.459.0 · 夹具补齐] typedFactsBlocks 自 v3.299 起陆续新增取库口依赖
+ *   （现为 5 个：_memoryTypeLib / _factStateLib / _factVersionLib / _temporalValidityLib / _dualTimeLib）。
+ *   夹具原先「逐个手写注入」，每加一个就漏一个 ⇒ 方法体抛 ReferenceError，
+ *   被方法自身的 try/catch 吞成 { stable:'', volatile:'' } ⇒ 第 7 段 7a~7d 与负控制段集体假红，
+ *   而红的样子看起来像「产品坏了」。这是**夹具缺件**，不是产品缺陷。
+ *   修法不再手抄名字：按方法体里真实出现的 xxxLib() 取库口自动补 () => null，
+ *   语义正是「这些模块都没加载」—— 恰好就是 v3.299 M-O6 那条降级分支要测的场景。
+ *   ★ 取库口在方法体里是**自由变量**（不是 this 属性），故必须以 new Function 的**形参**注入；
+ *     塞进 m.call(...) 的对象里闭包取不到（实测仍 ReferenceError）。 */
+function __getterNames(bodyText, skip) {
+    const seen = new Set();
+    const re = /\b([A-Za-z_$][\w$]*Lib)\s*\(\s*\)/g;
+    let m;
+    while ((m = re.exec(String(bodyText))) !== null) {
+        if (!skip.includes(m[1])) seen.add(m[1]);
+    }
+    return [...seen].sort();
+}
+/* 调用形态与原夹具一致（4 个入参）；追加的取库口一律 () => null。 */
+function __makeTypedFactsRunner(bodyText) {
+    const extra = __getterNames(bodyText, ['_memoryTypeLib', '_factStateLib', '_factVersionState']);
+    const params = ['_memoryTypeLib', '_factStateLib', '_factVersionState', 'errLog'].concat(extra);
+    const src = 'const m = function()' + bodyText + '; return m.call({'
+        + ' _memoryTypeLib: _memoryTypeLib, _factStateLib: _factStateLib,'
+        + ' _factVersionState: _factVersionState });';
+    const fn = new Function(...params, src);
+    return function (_mt, _fs, _st, _err) {
+        return fn(_mt, _fs, _st, _err, ...extra.map(() => () => null));
+    };
+}
+
 test('v3211 0. 版本锚：出生版本 + 三源互等 + 当版锚点', () => {
     A(SELF.includes('v3.211.0'), '★ 本套件必须锁自己的出生版本 v3.211.0（不随抬版上抬）');
     const vIdx = (idxSrc.match(/const VERSION = '([^']+)'/) || [])[1];
@@ -365,9 +396,7 @@ test('v3211 7. typedFactsBlocks 真跑：稳定/波动两块可分（抽真方�
      *   于是本档 7a~7d **全部转红**，而根因看起来像「产品坏了」（实测首跑正是这么红的）。
      *   这里是**夹具缺件**，不是产品缺陷：故 `_factStateLib` 按**真实模块**传入
      *   （`FS` 就是产品那份 fact-state.js），使本档继续测到真行为 —— 不另造 stub。 */
-    const mk = new Function('_memoryTypeLib', '_factStateLib', '_factVersionState', 'errLog',
-        'const m = function()' + body + '; return m.call({ _memoryTypeLib: _memoryTypeLib,'
-        + ' _factStateLib: _factStateLib, _factVersionState: _factVersionState });');
+    const mk = __makeTypedFactsRunner(body);
     const LIB = { typedBuckets: MT.typedBuckets, routeForType: MT.routeForType, policyOfType: MT.policyOfType };
     // 7a 稳定块：long/permanent 类型（人物状态 / 世界规则）
     let st = MT.assertTyped(FV, S(), T('A', '好感', '高', 'character-state', 1)).state;
@@ -476,9 +505,7 @@ test('v3211 10. 判据纯度：负控制是真源码破坏 + 同款真判据重�
         const body = classMethodBody(src, 'typedFactsBlocks() {', 'typedFactsBlocks');
         /* [v3.299.0 M-O6] 与第 7 段同款：方法体现在还依赖取库口 `_factStateLib`，夹具须一并注入
          *   （漏注入 ⇒ 方法体抛错被自身吞成空块 ⇒ 本条负控制的「原版为真」半边会假红）。 */
-        return new Function('_memoryTypeLib', '_factStateLib', '_factVersionState', 'errLog',
-            'const m = function()' + body + '; return m.call({ _memoryTypeLib: _memoryTypeLib,'
-            + ' _factStateLib: _factStateLib, _factVersionState: _factVersionState });');
+        return __makeTypedFactsRunner(body);
     };
     const LIB = { typedBuckets: MT.typedBuckets, routeForType: MT.routeForType, policyOfType: MT.policyOfType };
     let st = MT.assertTyped(FV, S(), T('世界', '规则', '夜晚禁行', 'world-rule', 1)).state;

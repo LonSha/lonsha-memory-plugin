@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.444.0",
+  "measured_at": "v3.459.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3272,6 +3272,42 @@
         "top5_pct": -0.1,
         "top40_pct": -0.2
       }
+    },
+    "v3.459.0": {
+      "reason": "[v3.459.0 · 同版重绑] 设置面板极简重构 + 全量门禁修复轮：① 面板侧按玩家动线重划四面板（故事整理 / 物品记录 / 分类记录 / 推理与多路策略 …），控件契约 223 键 / 213 控件 / 124 id，扫描器全绿；② 门禁侧逐项修绿（参考基准重登记、seam 台账重生成、账本文本归一改走 LE.text、幽灵守卫补真实写入源、两个零引用宿主方法接上面板按钮、两处锚点扩形以认得 let merged、两个「承接即误判」的键进豁免表、PLAN 陈旧节登记、relations 视图三态用词纠偏）；③ 新增 tests/v3459_gates_green.test.mjs 把上述修复点逐条锁死；④ 本版第二批真实产品修复：pyramidFanInThreshold 零消费接进 pyramid-evolution 维护步骤（planHierarchicalClusters 规划 pendingClusters，+19 行）、MemoryBooksFallback 补齐 BM25 四个方法（+8 行）、L16 认知四桶把「未声明归属」从禁区改判共同基线（修复匿名记忆导致整段注入清空）。入口 index.js 12082 → 12739 行，全部真实计入读数。",
+      "readings": {
+        "total_lines": 12739,
+        "surface_lines": 35163,
+        "member_count": 1340,
+        "duplicate_member_names": 161,
+        "top5_lines": 6657,
+        "top5_pct": 18.9,
+        "top40_lines": 14479,
+        "top40_pct": 41.2,
+        "prefix_rule_coverage_lines": 5510,
+        "prefix_rule_coverage_pct": 15.7,
+        "unclassified_lines": 28655,
+        "seam_distinct_modules": 203,
+        "seam_reference_sites": 557,
+        "seam_call_shape_sites": 738,
+        "members_over_80_lines": 64,
+        "low_coupling_members": 19,
+        "high_coupling_members": 23
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版做面板重划与门禁修复，未拆任何宿主巨兽成员",
+      "delta_from": "v3.459.0(同版重绑)",
+      "delta": {
+        "total_lines": 0,
+        "surface_lines": 15,
+        "member_count": 0,
+        "top40_lines": 15,
+        "top5_pct": 0.0,
+        "top40_pct": 0.0
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3285,57 +3321,57 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 12082,
-    "surface_lines": 32285,
-    "member_count": 1273,
-    "duplicate_member_names": 160,
-    "top5_lines": 5935,
-    "top5_pct": 18.4,
-    "top40_lines": 13266,
-    "top40_pct": 41.1,
-    "prefix_rule_coverage_lines": 5117,
-    "prefix_rule_coverage_pct": 15.8,
-    "unclassified_lines": 26297,
-    "seam_distinct_modules": 161,
-    "seam_reference_sites": 496,
-    "seam_call_shape_sites": 627,
-    "members_over_80_lines": 62,
-    "low_coupling_members": 18,
-    "high_coupling_members": 22
+    "total_lines": 12739,
+    "surface_lines": 35163,
+    "member_count": 1340,
+    "duplicate_member_names": 161,
+    "top5_lines": 6657,
+    "top5_pct": 18.9,
+    "top40_lines": 14479,
+    "top40_pct": 41.2,
+    "prefix_rule_coverage_lines": 5510,
+    "prefix_rule_coverage_pct": 15.7,
+    "unclassified_lines": 28655,
+    "seam_distinct_modules": 203,
+    "seam_reference_sites": 557,
+    "seam_call_shape_sites": 738,
+    "members_over_80_lines": 64,
+    "low_coupling_members": 19,
+    "high_coupling_members": 23
   },
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1208,
-      "lines": 26297,
+      "members": 1267,
+      "lines": 28655,
       "lines_pct": 81.5,
-      "outside_refs": 24020,
-      "internal_refs": 9000,
-      "outside_ref_share_pct": 72.7
+      "outside_refs": 26139,
+      "internal_refs": 9959,
+      "outside_ref_share_pct": 72.4
     },
     {
       "domain": "诊断与导出",
-      "members": 20,
-      "lines": 2039,
-      "lines_pct": 6.3,
-      "outside_refs": 1532,
-      "internal_refs": 301,
-      "outside_ref_share_pct": 83.6
+      "members": 21,
+      "lines": 2051,
+      "lines_pct": 5.8,
+      "outside_refs": 1558,
+      "internal_refs": 323,
+      "outside_ref_share_pct": 82.8
     },
     {
       "domain": "召回与注入",
       "members": 20,
-      "lines": 1368,
+      "lines": 1494,
       "lines_pct": 4.2,
-      "outside_refs": 146,
-      "internal_refs": 77,
+      "outside_refs": 152,
+      "internal_refs": 80,
       "outside_ref_share_pct": 65.5
     },
     {
       "domain": "宿主事件接线",
       "members": 3,
       "lines": 865,
-      "lines_pct": 2.7,
+      "lines_pct": 2.5,
       "outside_refs": 50,
       "internal_refs": 33,
       "outside_ref_share_pct": 60.2
@@ -3344,8 +3380,8 @@
       "domain": "配置与持久化",
       "members": 3,
       "lines": 490,
-      "lines_pct": 1.5,
-      "outside_refs": 33,
+      "lines_pct": 1.4,
+      "outside_refs": 32,
       "internal_refs": 0,
       "outside_ref_share_pct": 100
     },
@@ -3353,10 +3389,37 @@
       "domain": "桥/快照出口",
       "members": 2,
       "lines": 211,
-      "lines_pct": 0.7,
+      "lines_pct": 0.6,
       "outside_refs": 16,
       "internal_refs": 3,
       "outside_ref_share_pct": 84.2
+    },
+    {
+      "domain": "承诺账本",
+      "members": 11,
+      "lines": 150,
+      "lines_pct": 0.4,
+      "outside_refs": 166,
+      "internal_refs": 10,
+      "outside_ref_share_pct": 94.3
+    },
+    {
+      "domain": "场所/场景",
+      "members": 4,
+      "lines": 78,
+      "lines_pct": 0.2,
+      "outside_refs": 22,
+      "internal_refs": 4,
+      "outside_ref_share_pct": 84.6
+    },
+    {
+      "domain": "业务状态面",
+      "members": 2,
+      "lines": 74,
+      "lines_pct": 0.2,
+      "outside_refs": 9,
+      "internal_refs": 0,
+      "outside_ref_share_pct": 100
     },
     {
       "domain": "世界账本读取",
@@ -3368,15 +3431,6 @@
       "outside_ref_share_pct": 58.3
     },
     {
-      "domain": "承诺账本",
-      "members": 8,
-      "lines": 42,
-      "lines_pct": 0.1,
-      "outside_refs": 146,
-      "internal_refs": 7,
-      "outside_ref_share_pct": 95.4
-    },
-    {
       "domain": "事件链/完整性",
       "members": 4,
       "lines": 29,
@@ -3384,27 +3438,15 @@
       "outside_refs": 26,
       "internal_refs": 14,
       "outside_ref_share_pct": 65
-    },
-    {
-      "domain": "场所/场景",
-      "members": 1,
-      "lines": 4,
-      "lines_pct": 0,
-      "outside_refs": 5,
-      "internal_refs": 2,
-      "outside_ref_share_pct": 71.4
-    },
-    {
-      "domain": "业务状态面",
-      "members": 1,
-      "lines": 1,
-      "lines_pct": 0,
-      "outside_refs": 3,
-      "internal_refs": 0,
-      "outside_ref_share_pct": 100
     }
   ],
   "biggest_members_top40": [
+    {
+      "name": "buildInjection",
+      "file": "engine-injection-pipeline.js",
+      "lines": 1785,
+      "outside_refs": 59
+    },
     {
       "name": "selfCheck",
       "file": "engine-self-check.js",
@@ -3412,27 +3454,21 @@
       "outside_refs": 228
     },
     {
-      "name": "buildInjection",
-      "file": "engine-injection-pipeline.js",
-      "lines": 1354,
-      "outside_refs": 44
-    },
-    {
       "name": "applyExtractedPayload",
       "file": "engine-execution-pipeline.js",
-      "lines": 1287,
+      "lines": 1335,
       "outside_refs": 3
     },
     {
       "name": "recallMemory",
       "file": "engine-recall.js",
-      "lines": 878,
-      "outside_refs": 33
+      "lines": 1004,
+      "outside_refs": 36
     },
     {
       "name": "typedFactsBlocks",
       "file": "index.js",
-      "lines": 855,
+      "lines": 972,
       "outside_refs": 2
     },
     {
@@ -3442,10 +3478,22 @@
       "outside_refs": 4
     },
     {
+      "name": "restoreFromPayload",
+      "file": "engine-persistence-ops.js",
+      "lines": 524,
+      "outside_refs": 44
+    },
+    {
+      "name": "_assembleComponents",
+      "file": "index.js",
+      "lines": 497,
+      "outside_refs": 0
+    },
+    {
       "name": "saveConfig",
       "file": "index.js",
       "lines": 488,
-      "outside_refs": 22
+      "outside_refs": 21
     },
     {
       "name": "extractThinkingChain",
@@ -3454,16 +3502,10 @@
       "outside_refs": 0
     },
     {
-      "name": "_assembleComponents",
-      "file": "index.js",
-      "lines": 433,
-      "outside_refs": 0
-    },
-    {
       "name": "exportMemoryReport",
       "file": "engine-report.js",
       "lines": 396,
-      "outside_refs": 14
+      "outside_refs": 15
     },
     {
       "name": "registerEvents",
@@ -3478,12 +3520,6 @@
       "outside_refs": 44
     },
     {
-      "name": "restoreFromPayload",
-      "file": "engine-persistence-ops.js",
-      "lines": 284,
-      "outside_refs": 40
-    },
-    {
       "name": "_worldlineState",
       "file": "engine-diagnostic-lines.js",
       "lines": 263,
@@ -3496,6 +3532,12 @@
       "outside_refs": 9
     },
     {
+      "name": "loadModules",
+      "file": "index.js",
+      "lines": 222,
+      "outside_refs": 0
+    },
+    {
       "name": "rollbackFloor",
       "file": "index.js",
       "lines": 202,
@@ -3506,6 +3548,18 @@
       "file": "engine-injection-pipeline.js",
       "lines": 196,
       "outside_refs": 12
+    },
+    {
+      "name": "_maintenancePipeline",
+      "file": "index.js",
+      "lines": 169,
+      "outside_refs": 1
+    },
+    {
+      "name": "collectExport",
+      "file": "engine-persistence-ops.js",
+      "lines": 169,
+      "outside_refs": 53
     },
     {
       "name": "agencyContractAct",
@@ -3544,12 +3598,6 @@
       "outside_refs": 10
     },
     {
-      "name": "collectExport",
-      "file": "engine-persistence-ops.js",
-      "lines": 143,
-      "outside_refs": 50
-    },
-    {
       "name": "showPanel",
       "file": "index.js",
       "lines": 140,
@@ -3566,6 +3614,12 @@
       "file": "engine-diagnostic-lines.js",
       "lines": 137,
       "outside_refs": 10
+    },
+    {
+      "name": "_stmCloseQuotaLib",
+      "file": "index.js",
+      "lines": 134,
+      "outside_refs": 0
     },
     {
       "name": "retryRepairItems",
@@ -3586,22 +3640,10 @@
       "outside_refs": 3
     },
     {
-      "name": "_stmCloseQuotaLib",
-      "file": "index.js",
-      "lines": 128,
-      "outside_refs": 0
-    },
-    {
       "name": "loreImportApply",
       "file": "engine-story-annual.js",
       "lines": 127,
       "outside_refs": 10
-    },
-    {
-      "name": "_maintenancePipeline",
-      "file": "index.js",
-      "lines": 125,
-      "outside_refs": 1
     },
     {
       "name": "_absorbFactVersions",
@@ -3638,25 +3680,26 @@
       "file": "engine-diagnostic-lines.js",
       "lines": 112,
       "outside_refs": 7
-    },
-    {
-      "name": "maybeFold",
-      "file": "memory-core.js",
-      "lines": 111,
-      "outside_refs": 5
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 62,
-    "low_coupling_non_lifecycle": 18,
-    "high_coupling_non_lifecycle": 22,
+    "total_over_threshold": 64,
+    "low_coupling_non_lifecycle": 19,
+    "high_coupling_non_lifecycle": 23,
     "low_coupling_examples": [
       {
         "name": "typedFactsBlocks",
         "file": "index.js",
-        "lines": 855,
+        "lines": 972,
         "outside_refs": 2,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "_assembleComponents",
+        "file": "index.js",
+        "lines": 497,
+        "outside_refs": 0,
         "is_host_lifecycle": false
       },
       {
@@ -3667,10 +3710,17 @@
         "is_host_lifecycle": false
       },
       {
-        "name": "_assembleComponents",
+        "name": "loadModules",
         "file": "index.js",
-        "lines": 433,
+        "lines": 222,
         "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "_maintenancePipeline",
+        "file": "index.js",
+        "lines": 169,
+        "outside_refs": 1,
         "is_host_lifecycle": false
       },
       {
@@ -3695,24 +3745,17 @@
         "is_host_lifecycle": false
       },
       {
+        "name": "_stmCloseQuotaLib",
+        "file": "index.js",
+        "lines": 134,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "retryRepairItems",
         "file": "index.js",
         "lines": 132,
         "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "_stmCloseQuotaLib",
-        "file": "index.js",
-        "lines": 128,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "_maintenancePipeline",
-        "file": "index.js",
-        "lines": 125,
-        "outside_refs": 1,
         "is_host_lifecycle": false
       },
       {
@@ -3728,16 +3771,16 @@
         "lines": 123,
         "outside_refs": 1,
         "is_host_lifecycle": false
-      },
-      {
-        "name": "importCarryoverSeed",
-        "file": "index.js",
-        "lines": 113,
-        "outside_refs": 0,
-        "is_host_lifecycle": false
       }
     ],
     "high_coupling_examples": [
+      {
+        "name": "buildInjection",
+        "file": "engine-injection-pipeline.js",
+        "lines": 1785,
+        "outside_refs": 59,
+        "is_host_lifecycle": false
+      },
       {
         "name": "selfCheck",
         "file": "engine-self-check.js",
@@ -3746,38 +3789,31 @@
         "is_host_lifecycle": false
       },
       {
-        "name": "buildInjection",
-        "file": "engine-injection-pipeline.js",
-        "lines": 1354,
-        "outside_refs": 44,
+        "name": "recallMemory",
+        "file": "engine-recall.js",
+        "lines": 1004,
+        "outside_refs": 36,
         "is_host_lifecycle": false
       },
       {
-        "name": "recallMemory",
-        "file": "engine-recall.js",
-        "lines": 878,
-        "outside_refs": 33,
+        "name": "restoreFromPayload",
+        "file": "engine-persistence-ops.js",
+        "lines": 524,
+        "outside_refs": 44,
         "is_host_lifecycle": false
       },
       {
         "name": "saveConfig",
         "file": "index.js",
         "lines": 488,
-        "outside_refs": 22,
+        "outside_refs": 21,
         "is_host_lifecycle": false
       },
       {
         "name": "exportMemoryReport",
         "file": "engine-report.js",
         "lines": 396,
-        "outside_refs": 14,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "restoreFromPayload",
-        "file": "engine-persistence-ops.js",
-        "lines": 284,
-        "outside_refs": 40,
+        "outside_refs": 15,
         "is_host_lifecycle": false
       },
       {
@@ -3809,17 +3845,17 @@
         "is_host_lifecycle": false
       },
       {
+        "name": "collectExport",
+        "file": "engine-persistence-ops.js",
+        "lines": 169,
+        "outside_refs": 53,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "applyRepairPlan",
         "file": "engine-repair-ops.js",
         "lines": 153,
         "outside_refs": 10,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "collectExport",
-        "file": "engine-persistence-ops.js",
-        "lines": 143,
-        "outside_refs": 50,
         "is_host_lifecycle": false
       }
     ]
@@ -3866,9 +3902,9 @@
   "line_budget": {
     "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-    "ceiling": 12096,
+    "ceiling": 13112,
     "maxSlack": 400,
-    "note": "[v3.444.0] L13-X9 跨代传承面接线：index.js 新增 1 个取库口 _eraContinuationTreeLib、1 个 libs 注入键与 4 个转发桩成员（inheritanceRosterState / inheritanceDeclare / inheritanceRevokeDeclare / _inheritanceRosterLine）。入口 index.js 12082 行、成员数 1273；行上界**不抬，仍为 12096**（余量 14 <= slack 400）、成员上界**不抬，仍为 1279**（余量 6 <= member_slack 30）。合并面 32285 行，TOP5 占 18.4%，TOP40 占 41.1%。",
+    "note": "[v3.459.0 同版重绑] 入口 index.js 12739 行、成员数 1340；行上界**不抬，仍为 13112**（余量 373 <= slack 400）、成员上界**不抬，仍为 1366**（余量 26 <= member_slack 30）。合并面 35163 行，TOP5 占 18.9%，TOP40 占 41.2%。",
     "history": [
       {
         "ceiling": 15000,
@@ -4254,14 +4290,38 @@
         "member_ceiling": 1279,
         "milestone_version": "v3.444.0",
         "reason": "[v3.444.0] L13-X9 跨代传承面接线：index.js 新增 1 个取库口 _eraContinuationTreeLib、1 个 libs 注入键与 4 个转发桩成员（inheritanceRosterState / inheritanceDeclare / inheritanceRevokeDeclare / _inheritanceRosterLine）。入口 index.js 12082 行、成员数 1273；行上界**不抬，仍为 12096**（余量 14 <= slack 400）、成员上界**不抬，仍为 1279**（余量 6 <= member_slack 30）。合并面 32285 行，TOP5 占 18.4%，TOP40 占 41.1%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.459.0",
+        "reason": "[v3.459.0] 面板极简重构 + 门禁修复轮：入口 index.js 12712 行、成员数 1336；行上界**上抬至 13112**（余量 400 <= slack 400）、成员上界**上抬至 1366**（余量 30 <= member_slack 30）。合并面 35136 行，TOP5 占 19.0%，TOP40 占 41.2%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.459.0",
+        "reason": "[v3.459.0 同版重绑] 入口 index.js 12739 行、成员数 1340；行上界**不抬，仍为 13112**（余量 373 <= slack 400）、成员上界**不抬，仍为 1366**（余量 26 <= member_slack 30）。合并面 35163 行，TOP5 占 18.9%，TOP40 占 41.2%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.459.0",
+        "reason": "[v3.459.0 同版重绑] 入口 index.js 12739 行、成员数 1340；行上界**不抬，仍为 13112**（余量 373 <= slack 400）、成员上界**不抬，仍为 1366**（余量 26 <= member_slack 30）。合并面 35148 行，TOP5 占 18.9%，TOP40 占 41.2%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.459.0",
+        "reason": "[v3.459.0 同版重绑] 入口 index.js 12739 行、成员数 1340；行上界**不抬，仍为 13112**（余量 373 <= slack 400）、成员上界**不抬，仍为 1366**（余量 26 <= member_slack 30）。合并面 35163 行，TOP5 占 18.9%，TOP40 占 41.2%。"
       }
     ],
-    "member_ceiling": 1279,
+    "member_ceiling": 1366,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 12082,
-  "member_count": 1273,
+  "total_lines": 12739,
+  "member_count": 1340,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
 }

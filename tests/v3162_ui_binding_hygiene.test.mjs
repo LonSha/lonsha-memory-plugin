@@ -248,27 +248,40 @@ test('[2g] the scanner passes on the real tree', () => {
 });
 
 // ============ 3. the fixed defects must not come back ============
+/* [v3.459.0 · 判据重述] 这两条原写作「按两个特定分组标题切片，断言该键不在另一片里」。
+ *   v3.459.0 按玩家动线重排了分组（标题 emoji 通俗化 + 控件归位），标题与相邻关系全变了，
+ *   切片取不到 ⇒ 判据自己假红（`g0>0 && g1>g0` 恒假），与实现健康度无关。
+ *   重述为**与排序/改名解耦**的口径：把面板按 `ls-group` 切块，统计「含该键的组数」，
+ *   并直接断言「这两个键不得同处一组」。语义仍是原来那句「重复控件已被摘掉，
+ *   剩下的那份待在自己组里」，只是不再依赖任何标题字符串 —— 下次改文案也不会假红。 */
+function __lsGroupBlocks(s) {
+    const re = /<div class="ls-group"/g;
+    const marks = [];
+    let m;
+    while ((m = re.exec(s))) marks.push(m.index);
+    return marks.map((from, i) => s.slice(from, i + 1 < marks.length ? marks[i + 1] : s.length));
+}
+function __lsGroupCountOf(s, needle) {
+    return __lsGroupBlocks(s).filter((b) => b.includes(needle)).length;
+}
 test('[3] the duplicated injectionDepth slider is gone from the reflection group', () => {
     assert.strictEqual((sui.match(/data-cfg-num="injectionDepth"/g) || []).length, 1,
         'exactly one injectionDepth slider');
     assert.strictEqual((sui.match(/id="ls-v-injdepth"/g) || []).length, 1, 'exactly one value label');
-    /* [v3.421.0] 分组标题已换名为 `[LEDGER]` 词条制（emoji 前缀撤掉）。
-     *   「反射组」= 承载反思节点那一段，终点仍是回响组起点。 */
-    const g0 = sui.indexOf('[LEDGER] 物品记录');
-    const g1 = sui.indexOf('[RESONANCE] 人物心声');
-    assert.ok(g0 > 0 && g1 > g0, 'both groups are present');
-    assert.ok(!sui.slice(g0, g1).includes('injectionDepth'), 'the reflection group no longer carries it');
+    assert.strictEqual(__lsGroupCountOf(sui, 'injectionDepth'), 1,
+        'injectionDepth lives in exactly one group');
+    // 反射组 = 承载 reflectionEnabled 的那一组；注入深度不得再出现在它里面。
+    const refl = __lsGroupBlocks(sui).filter((b) => b.includes("ck('reflectionEnabled'"));
+    assert.strictEqual(refl.length, 1, 'the reflection group is identifiable');
+    assert.ok(!refl[0].includes('injectionDepth'), 'the reflection group no longer carries it');
 });
 test('[3b] the duplicated reflectionEnabled checkbox is gone from the echo group', () => {
     assert.strictEqual((sui.match(/\bck\('reflectionEnabled'/g) || []).length, 1,
         'exactly one reflectionEnabled checkbox');
-    const g0 = sui.indexOf('[RESONANCE] 人物心声');
-    const g1 = sui.indexOf('[WORLD] 地点记录');
-    assert.ok(g0 > 0 && g1 > g0, 'both groups are present');
-    assert.ok(!sui.slice(g0, g1).includes("ck('reflectionEnabled'"),
-        'the echo group no longer carries the duplicate copy');
+    assert.strictEqual(__lsGroupCountOf(sui, "ck('reflectionEnabled'"), 1,
+        'reflectionEnabled lives in exactly one group');
     // 被保留的是反思分组里那份「与日记独立节流」的说明。
-    assert.ok(sui.includes("与日记独立节流"), 'the surviving copy is the reflection-group one');
+    assert.ok(sui.includes('与日记独立节流'), 'the surviving copy is the reflection-group one');
 });
 test('[3c] the stale "reserved, not yet effective" hint is gone', () => {
     assert.strictEqual(sui.includes('预留位暂不生效'), false,

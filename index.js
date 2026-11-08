@@ -283,6 +283,10 @@
         //   同时挂两条路会在同一真源上双写互相覆盖（v3.168 的种子同源判据把它抓了出来）。
         'diaries',            // = 携带面既有 'diary'（diary.export() 的结果同形）
         'status',             // 结构化全量；携带面既有 'statusFlat' 是 v2.3 定的携带形态
+        // [v3.459.0] 两个 L14 存档面键补登记（scan_v3202 此前一直在报 P2 差集非空）：
+        //   两者都是「绑定旧对话身份的游标/快照」，跨对话带上不是补齐而是**改判**。
+        'roundSnapshots',     // 本轮快照环记的是「本对话这一轮新塞了哪些条目」的 id 指纹与撤销游标；楼层与 id 在新对话全部重来，带上只会让第一轮撤销误删新条目
+        'migrateImportRecovery', // 迁移包幂等游标（headSha + 已应用决策 + 未决段）：带上会让新对话把「同一个包」判成已导入过而静默拒绝重放，属 canonAdoption 同族的「承接即误判」
     ]);
     // [v3.140] CP: 存档结构版本（整数，只在顶层键语义变更时递增）+ 生产者插件版本（字符串）分离。
     // 存在理由：v3.138 的 _dataVersion 用 Number() 比较插件版本字符串恒得 NaN→0（判旧恒假），
@@ -1248,6 +1252,14 @@
         search() { return []; }
         _expandAliases() { return ''; }
         searchBranches() { return []; }
+        /* [v3.459.0] 增量维护面补齐：真实现（memory-books.js 的 BM25）有 upsert / remove
+         *   与它们依赖的两条词表簿记 _termsForDoc / _adjustDf —— 退路类体此前缺这四个，
+         *   于是「模块缺席」时任何走增量索引的调用点都会撞 TypeError（退路与真实现不同形）。
+         *   空实现一律如实回报「没有」：词表为空、df 不维护、不写任何东西。 */
+        _termsForDoc() { return {}; }
+        _adjustDf() { return undefined; }
+        upsert() { return false; }
+        remove() { return false; }
         /* ── 多方共用名（一个形状覆盖全部：如实回报「没有」）── */
         export() { return {}; }
         import() { return undefined; }
@@ -2690,7 +2702,26 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _reputationSocialGraphLib: _reputationSocialGraphLib,
                         _soulBrandReincarnationLib: _soulBrandReincarnationLib,
                         _fateClimaxLoomLib: _fateClimaxLoomLib,
-                        _sceneTabooReflectorLib: _sceneTabooReflectorLib
+                        _sceneTabooReflectorLib: _sceneTabooReflectorLib,
+                        /* [v3.460.0 · V21] 18项心智引擎库口全量接入 ready-face */
+                        _rippleBusLib: _rippleBusLib,
+                        _causalityLockLib: _causalityLockLib,
+                        _graphPrunerLib: _graphPrunerLib,
+                        _tabooDefenseLib: _tabooDefenseLib,
+                        _parallaxIsolationLib: _parallaxIsolationLib,
+                        _resonanceRecallFunnelLib: _resonanceRecallFunnelLib,
+                        _butterflySandboxLib: _butterflySandboxLib,
+                        _diagnosticsTelemetryLib: _diagnosticsTelemetryLib,
+                        _soulBrandSynthesisLib: _soulBrandSynthesisLib,
+                        _worldaxisAssimilatorLib: _worldaxisAssimilatorLib,
+                        _ruminationDreamLib: _ruminationDreamLib,
+                        _emotionalAnchorLib: _emotionalAnchorLib,
+                        _somaticFlareLib: _somaticFlareLib,
+                        _amnesiaPuzzleLib: _amnesiaPuzzleLib,
+                        _stylisticDriftLib: _stylisticDriftLib,
+                        _gaslightingNeutralizerLib: _gaslightingNeutralizerLib,
+                        _exposureRiskLib: _exposureRiskLib,
+                        _burnoutDecayLib: _burnoutDecayLib
                     }
                 });
             }
@@ -3313,6 +3344,7 @@ function relativeTimeLabel(eventTime, nowTime) {
         counterfactualWhatIf(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.counterfactualWhatIf(this, ...args) : null; }
         _counterfactualLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._counterfactualLine(this, ...args) : null; }
         _memoryLineageLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._memoryLineageLine(this, ...args) : ''; }
+        _v21EpicDiagnosticsLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._v21EpicDiagnosticsLine(this, ...args) : ''; }
         povProject(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.povProject(this, ...args) : null; }
         _povProjectionLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._povProjectionLine(this, ...args) : ''; }
         actionReceiptState(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M.actionReceiptState(this, ...args) : null; }
@@ -5811,6 +5843,25 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 const _HPE = _pyramidEvolutionLib();
                                 if (_HPE && typeof _HPE.planEvolutionLinks === 'function') {
                                     const sums = (eng.summary?.summaries || []).slice(-100);
+                                    /* [v3.459.0 · V18 折叠面接线] 此前只调了 planEvolutionLinks（演化边），
+                                     *   而同一内核里的 planHierarchicalClusters（分层折叠集群识别，fanIn 阈值
+                                     *   驱动的「同主题/密集访问聚集 → 折叠为上一层」）**全仓零调用** ——
+                                     *   配置键 pyramidFanInThreshold 因此声明了却无任何读取点（幽灵配置），
+                                     *   用户调它不会有任何反应。本处把它接进同一条维护步骤：只**规划**不落盘，
+                                     *   读数进 _pyramidEvolutionState.pendingClusters（下一轮折叠取用），
+                                     *   与 evolutionLinks 同一写法（内核只算，宿主只记）。 */
+                                    if (typeof _HPE.planHierarchicalClusters === 'function') {
+                                        const clusters = _HPE.planHierarchicalClusters(sums, {
+                                            fanInThreshold: Number(cfg.pyramidFanInThreshold) || 3,
+                                        });
+                                        if (eng._pyramidEvolutionState) {
+                                            eng._pyramidEvolutionState.pendingClusters = clusters;
+                                            eng._pyramidEvolutionState.clustersPlanned = clusters.length;
+                                        }
+                                        if (clusters.length && cfg.debugMode) {
+                                            console.log(`[${PLUGIN_NAME}] 🧬 分层折叠: 识别出 ${clusters.length} 个可折叠集群`);
+                                        }
+                                    }
                                     const links = _HPE.planEvolutionLinks(sums, {
                                         evolutionSimThreshold: Number(cfg.pyramidEvolutionSimThreshold) || 0.80,
                                         relatedSimThreshold: 0.62,
@@ -10640,6 +10691,25 @@ function _collectNewFace() {
     function _reputationSocialGraphLib() { return _moduleLib(() => window.MultiDimensionalReputationSocialGraph, 'multi-dimensional-reputation-social-graph.js'); }
     function _soulBrandReincarnationLib() { return _moduleLib(() => window.SoulBrandReincarnationHub, 'soul-brand-reincarnation-hub.js'); }
     function _fateClimaxLoomLib() { return _moduleLib(() => window.FateConvergenceClimaxLoom, 'fate-convergence-climax-loom.js'); }
+    /* [v3.460.0 · V21 史诗级双计划] 新增 18 项可选认知与心智引擎取库口 */
+    function _rippleBusLib() { return _moduleLib(() => window.LonShaRippleBus, 'engine-orchestration-ripple-bus.js'); }
+    function _causalityLockLib() { return _moduleLib(() => window.LonShaCausalityLock, 'spatiotemporal-causality-lock.js'); }
+    function _graphPrunerLib() { return _moduleLib(() => window.LonShaGraphPruner, 'sleep-consolidation-graph-pruner.js'); }
+    function _tabooDefenseLib() { return _moduleLib(() => window.LonShaTabooDefense, 'obsessive-taboo-multi-tier-defense.js'); }
+    function _parallaxIsolationLib() { return _moduleLib(() => window.LonShaParallaxIsolation, 'intersubjective-parallax-isolation.js'); }
+    function _resonanceRecallFunnelLib() { return _moduleLib(() => window.LonShaResonanceFunnel, 'tri-modal-resonance-recall-funnel.js'); }
+    function _butterflySandboxLib() { return _moduleLib(() => window.LonShaButterflySandbox, 'counterfactual-butterfly-sandbox.js'); }
+    function _diagnosticsTelemetryLib() { return _moduleLib(() => window.LonShaDiagnosticsDashboard, 'engine-diagnostics-telemetry-dashboard.js'); }
+    function _soulBrandSynthesisLib() { return _moduleLib(() => window.LonShaSoulBrandSynthesis, 'transgenerational-soul-brand-synthesis.js'); }
+    function _worldaxisAssimilatorLib() { return _moduleLib(() => window.LonShaWorldAxisAssimilator, 'worldaxis-objective-to-subjective-assimilator.js'); }
+    function _ruminationDreamLib() { return _moduleLib(() => window.LonShaRuminationDream, 'autonomous-rumination-dream-engine.js'); }
+    function _emotionalAnchorLib() { return _moduleLib(() => window.LonShaEmotionalAnchor, 'emotional-anchor-binding-resonance-hub.js'); }
+    function _somaticFlareLib() { return _moduleLib(() => window.LonShaSomaticFlare, 'autonomic-nervous-somatic-flare-engine.js'); }
+    function _amnesiaPuzzleLib() { return _moduleLib(() => window.LonShaAmnesiaPuzzle, 'dissociative-amnesia-puzzle-workbench.js'); }
+    function _stylisticDriftLib() { return _moduleLib(() => window.LonShaStylisticDrift, 'stylistic-drift-emotional-lexicon-modulator.js'); }
+    function _gaslightingNeutralizerLib() { return _moduleLib(() => window.LonShaGaslightingNeutralizer, 'unreliable-narrator-gaslighting-neutralizer.js'); }
+    function _exposureRiskLib() { return _moduleLib(() => window.LonShaExposureRisk, 'dual-identity-exposure-risk-matrix.js'); }
+    function _burnoutDecayLib() { return _moduleLib(() => window.LonShaBurnoutDecay, 'psychological-burnout-resilience-decay.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11647,6 +11717,37 @@ function _collectNewFace() {
                     this._moduleStatus.fateClimaxLoom = true;
                     console.log(`[${PLUGIN_NAME}] ✓ 命运交汇纺织机与叙事高潮熵中枢已加载`);
                 } catch (e) { errLog(e, 'loadModules.FateClimaxLoom'); }
+            }
+            /* [v3.460.0 · V21 史诗级双计划] 18项心智引擎初始状态与宿主生命周期融合挂载 */
+            const v21Initializers = [
+                ['rippleBus', _rippleBusLib, 'createInitialRippleState', '_rippleBusState', '统一事件波纹编排总线'],
+                ['causalityLock', _causalityLockLib, 'createInitialLockState', '_causalityLockState', '全时态因果一致性锁与防死者行动锁'],
+                ['graphPruner', _graphPrunerLib, 'createInitialPrunerState', '_graphPrunerState', '深度睡眠遗忘与图谱修剪机'],
+                ['tabooDefense', _tabooDefenseLib, 'createInitialDefenseState', '_tabooDefenseState', '创伤禁忌三层渐进心理防线'],
+                ['parallaxIsolation', _parallaxIsolationLib, 'createInitialParallaxState', '_parallaxIsolationState', '主体间认知视差物理隔离墙'],
+                ['resonanceRecallFunnel', _resonanceRecallFunnelLib, 'createInitialFunnelState', '_resonanceRecallFunnelState', '三模态仿生共振检索漏斗'],
+                ['butterflySandbox', _butterflySandboxLib, 'createInitialSandboxState', '_butterflySandboxState', '反事实推演沙盒蝴蝶效应隔离舱'],
+                ['diagnosticsTelemetry', _diagnosticsTelemetryLib, 'createInitialTelemetryState', '_diagnosticsTelemetryState', '全景诊断遥测面板'],
+                ['soulBrandSynthesis', _soulBrandSynthesisLib, 'createInitialSynthesisState', '_soulBrandSynthesisState', '代际灵魂烙印深度合成机'],
+                ['worldaxisAssimilator', _worldaxisAssimilatorLib, 'createInitialAssimilatorState', '_worldaxisAssimilatorState', 'WorldAxis 客观世界快照主观折射摄入中枢'],
+                ['ruminationDream', _ruminationDreamLib, 'createInitialDreamState', '_ruminationDreamState', '闲暇反刍梦境与隐喻编织机'],
+                ['emotionalAnchor', _emotionalAnchorLib, 'createInitialAnchorState', '_emotionalAnchorState', '誓约信物与情感心锚共鸣中枢'],
+                ['somaticFlare', _somaticFlareLib, 'createInitialFlareState', '_somaticFlareState', '植物神经与躯体微表情爆发机'],
+                ['amnesiaPuzzle', _amnesiaPuzzleLib, 'createInitialPuzzleState', '_amnesiaPuzzleState', '记忆迷雾与心因性解离考古工作台'],
+                ['stylisticDrift', _stylisticDriftLib, 'createInitialDriftState', '_stylisticDriftState', '长期关系演变文风词表动态漂移调制机'],
+                ['gaslightingNeutralizer', _gaslightingNeutralizerLib, 'createInitialNeutralizerState', '_gaslightingNeutralizerState', '不可靠叙事与煤气灯效应真伪中和判定仪'],
+                ['exposureRisk', _exposureRiskLib, 'createInitialRiskState', '_exposureRiskState', '隐秘双重身份暴露风险矩阵'],
+                ['burnoutDecay', _burnoutDecayLib, 'createInitialBurnoutState', '_burnoutDecayState', '心理耗竭与抗逆韧性动态衰减机']
+            ];
+            for (const [key, getLib, initFn, stateProp, label] of v21Initializers) {
+                const lib = getLib();
+                if (lib && typeof lib[initFn] === 'function') {
+                    try {
+                        if (!this.engine[stateProp]) this.engine[stateProp] = lib[initFn]();
+                        this._moduleStatus[key] = true;
+                        console.log(`[${PLUGIN_NAME}] ✓ ${label}已加载`);
+                    } catch (e) { errLog(e, `loadModules.${key}`); }
+                }
             }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

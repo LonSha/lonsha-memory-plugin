@@ -183,7 +183,12 @@ test('v3186 12. 召回侧真调用：线索算得出、且有人在用', () => {
     assert.ok(/_emoOppositeKeys\.has\(/.test(cleanSrc), '提权块必须真对键集合求值（否则块内什么都没干）');
 });
 test('v3186 13. 位置纪律：提权落在 hybridMerge 之后、intentRerank 之前', () => {
-    const pMerge = cleanSrc.search(/const merged = (?:this|engine)\.hybridMerge\(results\);/);
+    /* [v3.459.0 · 判据重述] 原融合锚点把声明关键字写死成 `const merged = `。
+     *   宿主两阶段精排里必须 let（提权后要 merged.sort 重排），早已是 let merged = …，
+     *   于是 pMerge 恒为 -1 ⇒ 「三个锚点都必须在场」恒假。
+     *   判据本意只是**三者的相对顺序**，与声明关键字无关，故只把关键字放开为
+     *   const|let|var 并保留「结果必须被接住 + 调用形态不变」这两层约束（不放宽）。 */
+    const pMerge = cleanSrc.search(/(?:const|let|var)\s+\w+\s*=\s*(?:this|engine)\.hybridMerge\(results\);/);
     const pEmo = cleanSrc.indexOf('if (_emoOppositeKeys && _emoOppositeKeys.size) {');
     const pRerank = cleanSrc.search(/(?:this|engine)\.intentRerank\(merged, query\.text\);/);
     assert.ok(pMerge > 0 && pEmo > 0 && pRerank > 0, '三个锚点都必须在场');

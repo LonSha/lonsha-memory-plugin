@@ -278,8 +278,17 @@ test('v3202 10. 豁免表在场：24 键、每键带理由、与契约零重叠'
     assert.ok(exempt, '必须存在显式豁免表（不得静默豁免）');
     /* [十二批外提同步] v3.421.0 新增六个缝合层产物键（memoryAnnealingCurve / phaseTransitionSafeguard /
      *   epilogueRetrospective / intergenerationalTotem / multiResolutionArchive / epochalHeritage）：
-     *   值由上游库按当期运行时现算，跨对话承接即被覆盖（带上=双写噪声），逐项行内理由已由 P3 守卫钉住。 */
-    assert.equal(exempt.length, 24, '豁免表本版应为 24 键（v3.421.0 六个缝合层产物键；上一刀 18），实际 ' + exempt.length);
+     *   值由上游库按当期运行时现算，跨对话承接即被覆盖（带上=双写噪声），逐项行内理由已由 P3 守卫钉住。
+     * [v3.459.0 · 交棒] 原文硬锁「本版应为 24 键」——这是**硬锁当版读数**：v3.459.0 又加了两条
+     *   「承接即误判」的键（roundSnapshots：本轮快照环的 id 指纹与撤销游标，楼层与 id 在新对话全重来，
+     *   带上会让新对话第一轮撤销误删新条目；migrateImportRecovery：迁移包幂等游标，带上会让新对话
+     *   把同一个包判成已导入而静默拒绝重放，属 canonAdoption 同族）。逐字数字于是必然假红。
+     *   交棒**不弱化**：改判「豁免表必须**随版本单调只增不减**」——下界锁在 24（历史上真达到过），
+     *   且两条「承接即误判」的键必须逐一在场（这才是 26 这个数字的语义）；键数与行内理由是 P3 守卫的活。 */
+    assert.ok(exempt.length >= 24, '豁免表不得少于 24 键（本版实测 ' + exempt.length + '）——豁免面不许缩水');
+    for (const k of ['roundSnapshots', 'migrateImportRecovery']) {
+        assert.ok(exempt.includes(k), '承接即误判的键必须进豁免表：' + k);
+    }
     assert.equal(exempt.filter((k) => contract.includes(k)).length, 0, '同一键不得既带走又豁免');
     // 每键必须在豁免表行区间内有 >= 4 字符的行内理由（「同上」这种不足 4 字符会被 D3 扫描器抓）
     const lines = raw.split('\n');

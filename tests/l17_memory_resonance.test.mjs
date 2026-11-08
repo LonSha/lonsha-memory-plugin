@@ -85,7 +85,12 @@ test('L17-O3 全链路垂直贯通 + 真 buildInjection 回写 + 存档对称 + 
   const ui = read('settings-ui.js'), cfg = read('memory-config.js'), reg = read('config-effect-registry.js');
   const mf = JSON.parse(read('manifest.json'));
 
-  assert.equal(mf.version, '3.455.0');
+  // [v3.459.0] 出生版本是下限，不锁未来发布；三源版本仍必须互等。
+  const born = [3, 455, 0], cur = mf.version.split('.').map(Number);
+  assert.ok(cur.length === 3 && cur.every(Number.isInteger));
+  assert.ok(cur[0] > born[0] || (cur[0] === born[0] && (cur[1] > born[1] || (cur[1] === born[1] && cur[2] >= born[2]))));
+  assert.ok(idx.includes("VERSION = '" + mf.version + "'"));
+  assert.equal(JSON.parse(read('package.json')).version, mf.version);
   assert.ok(mf.extra_js.includes('memory-resonance-consolidation.js'), '模块必须在宿主加载清单里');
   assert.ok(cfg.includes('resonanceConsolidationEnabled: true') && reg.includes('"resonanceConsolidationEnabled"'), '配置与生效注册表必须登记');
   assert.ok(idx.includes('_resonanceLib') && idx.includes('_resonanceState = null') && idx.includes('_resonanceConsolidationLine'), '宿主取库口/状态/诊断代理必须齐备');

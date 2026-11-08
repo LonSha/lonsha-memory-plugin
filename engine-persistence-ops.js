@@ -217,7 +217,26 @@
                     this._longTailFlashbackState ? { lonshaLongTailFlashbackState: this._longTailFlashbackState } : {},
                     this._reputationSocialGraphState ? { lonshaReputationSocialGraphState: this._reputationSocialGraphState } : {},
                     this._soulBrandReincarnationState ? { lonshaSoulBrandReincarnationState: this._soulBrandReincarnationState } : {},
-                    this._fateClimaxLoomState ? { lonshaFateClimaxLoomState: this._fateClimaxLoomState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._fateClimaxLoomState ? { lonshaFateClimaxLoomState: this._fateClimaxLoomState } : {},
+                    /* [v3.460.0 · V21 史诗级双计划] 新增 18 项可选引擎持久化状态接入 */
+                    this._rippleBusState ? { lonshaRippleBusState: this._rippleBusState } : {},
+                    this._causalityLockState ? { lonshaCausalityLockState: this._causalityLockState } : {},
+                    this._graphPrunerState ? { lonshaGraphPrunerState: this._graphPrunerState } : {},
+                    this._tabooDefenseState ? { lonshaTabooDefenseState: this._tabooDefenseState } : {},
+                    this._parallaxIsolationState ? { lonshaParallaxIsolationState: this._parallaxIsolationState } : {},
+                    this._resonanceRecallFunnelState ? { lonshaResonanceRecallFunnelState: this._resonanceRecallFunnelState } : {},
+                    this._butterflySandboxState ? { lonshaButterflySandboxState: this._butterflySandboxState } : {},
+                    this._diagnosticsTelemetryState ? { lonshaDiagnosticsTelemetryState: this._diagnosticsTelemetryState } : {},
+                    this._soulBrandSynthesisState ? { lonshaSoulBrandSynthesisState: this._soulBrandSynthesisState } : {},
+                    this._worldaxisAssimilatorState ? { lonshaWorldaxisAssimilatorState: this._worldaxisAssimilatorState } : {},
+                    this._ruminationDreamState ? { lonshaRuminationDreamState: this._ruminationDreamState } : {},
+                    this._emotionalAnchorState ? { lonshaEmotionalAnchorState: this._emotionalAnchorState } : {},
+                    this._somaticFlareState ? { lonshaSomaticFlareState: this._somaticFlareState } : {},
+                    this._amnesiaPuzzleState ? { lonshaAmnesiaPuzzleState: this._amnesiaPuzzleState } : {},
+                    this._stylisticDriftState ? { lonshaStylisticDriftState: this._stylisticDriftState } : {},
+                    this._gaslightingNeutralizerState ? { lonshaGaslightingNeutralizerState: this._gaslightingNeutralizerState } : {},
+                    this._exposureRiskState ? { lonshaExposureRiskState: this._exposureRiskState } : {},
+                    this._burnoutDecayState ? { lonshaBurnoutDecayState: this._burnoutDecayState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -614,6 +633,41 @@
                     res.failed.push({ key: 'extensions.lonshaFateClimaxLoomState', error: String(e?.message || e) });
                 }
             }
+            /* [v3.460.0 · V21 史诗级双计划] 新增 18 项可选引擎存档水合恢复 */
+            const v21Engines = [
+                ['lonshaRippleBusState', '_rippleBusState', 'LonShaRippleBus', 'engine-orchestration-ripple-bus.js', 'hydrateRippleState'],
+                ['lonshaCausalityLockState', '_causalityLockState', 'LonShaCausalityLock', 'spatiotemporal-causality-lock.js', 'hydrateLockState'],
+                ['lonshaGraphPrunerState', '_graphPrunerState', 'LonShaGraphPruner', 'sleep-consolidation-graph-pruner.js', 'hydratePrunerState'],
+                ['lonshaTabooDefenseState', '_tabooDefenseState', 'LonShaTabooDefense', 'obsessive-taboo-multi-tier-defense.js', 'hydrateDefenseState'],
+                ['lonshaParallaxIsolationState', '_parallaxIsolationState', 'LonShaParallaxIsolation', 'intersubjective-parallax-isolation.js', 'hydrateParallaxState'],
+                ['lonshaResonanceRecallFunnelState', '_resonanceRecallFunnelState', 'LonShaResonanceFunnel', 'tri-modal-resonance-recall-funnel.js', 'hydrateFunnelState'],
+                ['lonshaButterflySandboxState', '_butterflySandboxState', 'LonShaButterflySandbox', 'counterfactual-butterfly-sandbox.js', 'hydrateSandboxState'],
+                ['lonshaDiagnosticsTelemetryState', '_diagnosticsTelemetryState', 'LonShaDiagnosticsDashboard', 'engine-diagnostics-telemetry-dashboard.js', 'hydrateTelemetryState'],
+                ['lonshaSoulBrandSynthesisState', '_soulBrandSynthesisState', 'LonShaSoulBrandSynthesis', 'transgenerational-soul-brand-synthesis.js', 'hydrateSynthesisState'],
+                ['lonshaWorldaxisAssimilatorState', '_worldaxisAssimilatorState', 'LonShaWorldAxisAssimilator', 'worldaxis-objective-to-subjective-assimilator.js', 'hydrateAssimilatorState'],
+                ['lonshaRuminationDreamState', '_ruminationDreamState', 'LonShaRuminationDream', 'autonomous-rumination-dream-engine.js', 'hydrateDreamState'],
+                ['lonshaEmotionalAnchorState', '_emotionalAnchorState', 'LonShaEmotionalAnchor', 'emotional-anchor-binding-resonance-hub.js', 'hydrateAnchorState'],
+                ['lonshaSomaticFlareState', '_somaticFlareState', 'LonShaSomaticFlare', 'autonomic-nervous-somatic-flare-engine.js', 'hydrateFlareState'],
+                ['lonshaAmnesiaPuzzleState', '_amnesiaPuzzleState', 'LonShaAmnesiaPuzzle', 'dissociative-amnesia-puzzle-workbench.js', 'hydratePuzzleState'],
+                ['lonshaStylisticDriftState', '_stylisticDriftState', 'LonShaStylisticDrift', 'stylistic-drift-emotional-lexicon-modulator.js', 'hydrateDriftState'],
+                ['lonshaGaslightingNeutralizerState', '_gaslightingNeutralizerState', 'LonShaGaslightingNeutralizer', 'unreliable-narrator-gaslighting-neutralizer.js', 'hydrateNeutralizerState'],
+                ['lonshaExposureRiskState', '_exposureRiskState', 'LonShaExposureRisk', 'dual-identity-exposure-risk-matrix.js', 'hydrateRiskState'],
+                ['lonshaBurnoutDecayState', '_burnoutDecayState', 'LonShaBurnoutDecay', 'psychological-burnout-resilience-decay.js', 'hydrateBurnoutState']
+            ];
+            if (!dry && _ext) {
+                for (const [extKey, propKey, globalName, modFile, hydrator] of v21Engines) {
+                    if (_ext[extKey]) {
+                        try {
+                            const mod = _moduleLib(() => (typeof window !== 'undefined' ? window[globalName] : null), modFile);
+                            this[propKey] = (mod && typeof mod[hydrator] === 'function')
+                                ? mod[hydrator](_ext[extKey]) : _ext[extKey];
+                            res.restored.push(`extensions.${extKey}`);
+                        } catch (e) {
+                            res.failed.push({ key: `extensions.${extKey}`, error: String(e?.message || e) });
+                        }
+                    }
+                }
+            }
             const _unknown = Object.keys(data).filter(k => !ARCHIVE_TOP_LEVEL_KEY_SET.has(k) && k !== 'exportedAt');
             res.unknown = _unknown;
             // [v3.261.0 缝合 MyriadKnots] 存档体检：在恢复现场就地做**三分判定**
@@ -1001,6 +1055,8 @@
             /* [L14-O1] 本轮快照环与恢复面对称：清运行时记忆必须连「哪几条是这轮加的」
              *   的撤销账一起清，否则清空后面板仍报上一轮的旧 id，点撤销是打空炮。 */
             A('direct', 'roundSnapshots', '本轮快照环', true, () => { e._roundSnapshots = []; });
+            /* [L14-O6] 迁移包指纹、已应用决策与未决游标与恢复面对称 */
+            A('direct', 'migrateImportRecovery', '迁移包恢复状态', true, () => { e._migrateImportRecovery = null; });
             res.ok = res.failed.length === 0;
             this._clearRuntimeReport = res;
             return res;

@@ -13,7 +13,7 @@ import { createRequire } from 'node:module';
  *   改读 hostSurface 的合并面（v3160/v3161/v3163 同一机制）。变量名与下游断言一字不改。
  *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
  *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
-import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+import { hostSurface as __hostSurfaceRaw, bodyOf as __bodyOf } from './_audit_lib.mjs';
 import __hostPath from 'node:path';
 import { fileURLToPath as __hostFu } from 'node:url';
 /* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
@@ -178,12 +178,18 @@ test('=== 5. 增量卷摘要 prompt 结构检查 ===', () => {
 
 test('=== 6. 注入流锁定区块位置正确（静态锚定区，Prompt Cache A区） ===', () => {
     // 锁定事实注入应在 buildInjection 内且在主角档案之前（静态区靠前，字典序稳定）
-    // [v3.78] 作用域修复：protagonistTracking 在提取应用区也有引用，须限定在 buildInjection 体内搜索
-    const injIdx = src.indexOf('buildInjection(recalled)');
-    const injSeg = src.slice(injIdx, injIdx + 12000);
-    const lfIdx = injSeg.indexOf('[用户锁定剧情事实]');
-    const protIdx = injSeg.indexOf('protagonistTracking !== false');
-    assert.ok(injIdx > 0 && lfIdx > 0, '注入块在 buildInjection 内');
+    /* [v3.459.0 · 判据重述] 原写「取 buildInjection(recalled) 起 12000 字符窗口」。
+     *   v3.361~v3.370 十批剥离把 buildInjection 搬进 engine-injection-pipeline.js 并持续增厚，
+     *   方法体早已超过 12000 字符：实测 [用户锁定剧情事实] 在 +11968（窗口内）、
+     *   protagonistTracking !== false 在 +12348（超窗 348）⇒ protIdx > 0 恒假。
+     *   这是「窗口宽度硬编码」造成的假红 —— 判据本意是「两个标记都在 buildInjection 体内、
+     *   且锁定块在前」，与窗口宽度无关。改为按花括号配对取**真方法体**（bodyOf），
+     *   语义一字不改且覆盖面更严：方法体外的同名串不再能被误命中。 */
+    const injBody = __bodyOf(src, 'buildInjection(recalled)');
+    assert.ok(injBody && injBody.length > 1000, 'buildInjection 方法体可定位');
+    const lfIdx = injBody.indexOf('[用户锁定剧情事实]');
+    const protIdx = injBody.indexOf('protagonistTracking !== false');
+    assert.ok(lfIdx > 0, '注入块在 buildInjection 内');
     assert.ok(protIdx > 0, '主角档案块在 buildInjection 内');
     assert.ok(lfIdx < protIdx, '在主角档案（静态锚定区）之前');
 });

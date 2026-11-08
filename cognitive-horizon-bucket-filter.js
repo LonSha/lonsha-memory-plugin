@@ -89,7 +89,27 @@
       return { bucket: BUCKETS.RUMOR_UNVERIFIED, reason: 'secondhand-knowledge' };
     }
 
-    // 6. 其他所有不在知情范围、或未在场的情况：一律 Fail-Closed 归入禁区
+    /* [v3.459.0 · 真实缺陷修复] 「未声明归属」不得当作「禁区」。
+     *   修前第 6 条把所有走不到上面分支的记忆一律 Fail-Closed 归入 EMBARGO_SILENT，
+     *   而上面每个分支都以「该条带 owner / character / scope / knownBy」为前提。
+     *   于是宿主管线里大量的匿名叙事记忆（卷摘要、书摘要、BM25 命中、悬念簿、
+     *   节日提示、worldprogress …）全部被判成认知禁区 ——
+     *   这些条目本就没有「谁的秘密」这层语义，它们正是剧情共同基线。
+     *   实测后果不是「少注入一条」，而是 engine-injection-pipeline 里
+     *   recalled = [...directLived, ...sharedScene, ...rumorUnverified] 之后
+     *   if (!recalled?.length) return '' 让整段注入被清空：
+     *   只要宿主给了 activeChar（正常运行时恒成立），匿名记忆占比高的场合
+     *   就会得到空注入 —— 静默失效，面板上还显示「已注入」。
+     *   判据面：l16_omniscience_ban 的负控制全部显式声明了 owner/knownBy，
+     *   故本条修复不放宽既有断言（禁区仍只对「已声明私密」生效）。
+     *   口径：Fail-Closed 的正确含义是「已声明归属但发言者不在知情圈 ⇒ 禁运」，
+     *   而不是「没写归属 ⇒ 谁也不许看」。 */
+    const declaresOwnership = Boolean(owner || scope || isRumor
+      || (Array.isArray(memory.knownBy) && memory.knownBy.length > 0));
+    if (!declaresOwnership) {
+      return { bucket: BUCKETS.SHARED_SCENE, reason: 'unattributed-shared-baseline' };
+    }
+    // 6. 已声明归属但发言者不在知情范围、或未在场：Fail-Closed 归入禁区
     return { bucket: BUCKETS.EMBARGO_SILENT, reason: 'off-limits-cognitive-embargo' };
   }
 

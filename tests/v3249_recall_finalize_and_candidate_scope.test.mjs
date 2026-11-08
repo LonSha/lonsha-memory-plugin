@@ -70,7 +70,11 @@ function mkRunner(regionCode) {
     // regionCode 内只依赖 this / query / results / merged / errLog / PLUGIN_NAME
     const factory = new Function('query', 'results', 'merged', 'errLog', 'PLUGIN_NAME',
         'return (async function(){\n' + regionCode + '\n});');
-    return factory;
+    // [v3.459.0] 抽取段新增共振取库口；本套件隔离测试收尾，明确模拟共振模块缺席，不能吞 ReferenceError。
+    const extra = [...new Set([...regionCode.matchAll(/\b([A-Za-z_$][\w$]*Lib)\s*\(\s*\)/g)].map(m => m[1]))];
+    const bound = new Function('query', 'results', 'merged', 'errLog', 'PLUGIN_NAME', ...extra,
+        'return (async function(){\n' + regionCode + '\n});');
+    return (...args) => bound(...args, ...extra.map(() => () => null));
 }
 function mkEngine(opt = {}) {
     const calls = { audit: 0, record: 0, intent: 0, rerank: 0, auditInjected: null, rerankPathAtAudit: null };

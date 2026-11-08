@@ -57,20 +57,36 @@ test('v34230 B. AI 接口连接前置 + Embedding 三键在场', () => {
 
 /* ---------- C. 去黑话：18 组标题 + tab + 面板标题 ---------- */
 test('v34230 C. 组标题全面玩家语言', () => {
-    const mustHave = [
-        '[CORE] 记忆开关', '[RECALL] 回忆多少', '[STABILITY] 用量与保护',
-        '[CHARACTER] 人物状态记录', '[CHRONO] 故事整理', '[BOUNDARY] 时间线',
-        '[LEDGER] 物品记录', '[RESONANCE] 人物心声', '[WORLD] 地点记录',
-        '[SUSPENSE] 伏笔追踪', '[DEVICE] 虚拟手机联动', '[DOMAIN] 分类记录',
-        '[TOPOLOGY] 因果追踪', '[RERANK] 回忆排序优化', '[INTELLIGENCE] 记忆巩固',
-        '[PROMPT] 提取规则模板', '[DATA] 备份与迁移', '[ADVANCED] 高级调整',
-    ];
-    for (const t of mustHave) assert.ok(SUI.includes(t), '新组标题在场：' + t);
+    /* [v3.459.0 · 判据重述] 原文是「点名 18 个具体标题字符串 + 四个旧 tab 文案」，属**硬锁当版文案**：
+     *   v3.459.0 按玩家动线把分组改成 emoji 白话（🔗 AI 接口连接 / 🔘 基础开关 / 💾 备份与迁移 …），
+     *   旧 tab 也从 `◈ 常用|◷ 故事与人物|⬡ 记录与世界|⚙ 高级` 换成
+     *   `🚀 开始使用|📖 人物与故事|🔧 进阶设置|🧪 高级实验室`。
+     *   逐字点名于是全片假红，翻红的信息量只剩「文案换了」——与 v3264 C / v3266 C 同一族坑。
+     *   交棒**不弱化**，改锚到「去黑话」这条判据的**实质**，两向都判：
+     *   ① 反向：旧黑话标题与旧 tab 文案必须**不在场**（这条是原文真意，一条不删）；
+     *   ② 正向（结构性）：每个 `ls-group-title` 都必须**含中文**——纯英文/纯方括号标签/纯符号标题
+     *      正是「开发者黑话回到玩家路径」的形态，这条比点名更强（覆盖全部组，不止 18 个）；
+     *   ③ 正向（语义面）：四个 tab 必须覆盖玩家三件事（记忆在跑 / 这里有谁 / 过去发生什么）+ 高级面。 */
     const banned = ['[CORE] 核心运转与自装载', '[RECALL] 回忆强度与注入容量', '[STABILITY] 上下文预算与保护',
         '[TOPOLOGY] 时态因果拓扑与分流', '[ADVANCED] 引擎底层机制微调', '记忆控制台与偏好', '记忆档案全貌'];
     for (const t of banned) assert.ok(!SUI.includes(t), '旧黑话标题退役：' + t);
-    assert.ok(SUI.includes('◈ 常用') && SUI.includes('◷ 故事与人物') && SUI.includes('⬡ 记录与世界') && SUI.includes('⚙ 高级'),
-        '四个 tab 玩家语言');
+    // ① 旧 tab 文案整批退役（不允许「新旧并存」的过渡态长期留着）
+    for (const t of ['◈ 常用', '◷ 故事与人物', '⬡ 记录与世界', '⚙ 高级']) {
+        assert.ok(!SUI.includes('>' + t + '<'), '旧 tab 文案退役：' + t);
+    }
+    // ② 每个**静态**组标题都必须含中文（结构性禁黑话）。
+    //    模板字面量标题（`📓 ${esc(name)}` / `'\n + b.cls + ...'` 这类拼接）不在此判：
+    //    它们的中文来自运行时变量，静态扫描看不见，强行点名只会让判据自己假红。
+    const titles = [...SUI.matchAll(/class="ls-group-title"[^>]*>([^<]*)/g)]
+        .map((m) => m[1].trim())
+        .filter((t) => t && !/[$`'\n]/.test(t));
+    assert.ok(titles.length >= 20, '静态组标题样本量足够（实测 ' + titles.length + '）');
+    const noHan = titles.filter((t) => !/[\u4e00-\u9fa5]/.test(t));
+    assert.deepStrictEqual(noHan, [], '静态组标题必须含中文白话（实测黑话残留：' + JSON.stringify(noHan) + '）');
+    // ③ 四个 tab 覆盖玩家三件事 + 高级面
+    const tabs = [...SUI.matchAll(/data-tab="([a-z]+)">([^<]+)</g)].map((m) => m[2].trim());
+    assert.deepStrictEqual(tabs.map((t) => t.split(' ').pop()), ['开始使用', '人物与故事', '进阶设置', '高级实验室'],
+        '四个 tab 玩家语言（实测 ' + JSON.stringify(tabs) + '）');
     assert.ok(SUI.includes("'⚙ 设置'"), '设置面板标题翻新');
     assert.ok(SUI.includes("'📖 记忆总览'"), '总览面板标题翻新');
 });
