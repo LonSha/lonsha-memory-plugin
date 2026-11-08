@@ -842,6 +842,27 @@
                 engine._mindBarometerState.lastWeather = weather;
             }
         } catch (e) {}
+        // [L18-O7] 认识论边界审计与防全知终审
+        try {
+            const auditorLib = (typeof EpistemicBoundaryAuditor !== "undefined" ? EpistemicBoundaryAuditor : (typeof require !== "undefined" ? (() => { try { return require("./epistemic-boundary-auditor.js").default || require("./epistemic-boundary-auditor.js"); } catch { return null; } })() : null));
+            if (auditorLib) {
+                const auditor = new (auditorLib.EpistemicBoundaryAuditor || auditorLib)();
+                const auditRes = auditor.auditAndSanitize(generatedDirectives, currentSpeaker);
+                if (auditRes && auditRes.text) {
+                    generatedDirectives = auditRes.text;
+                }
+            }
+        } catch (e) {}
+
+        // [L18-O6] 提示词预算动态弹性竞价分配
+        try {
+            const allocLib = (typeof PromptBudgetDynamicAllocator !== "undefined" ? PromptBudgetDynamicAllocator : (typeof require !== "undefined" ? (() => { try { return require("./prompt-budget-dynamic-allocator.js").default || require("./prompt-budget-dynamic-allocator.js"); } catch { return null; } })() : null));
+            if (allocLib && generatedDirectives) {
+                const allocator = new (allocLib.PromptBudgetDynamicAllocator || allocLib)();
+                generatedDirectives = allocator.enforceBudget(generatedDirectives, 1200);
+            }
+        } catch (e) {}
+
         // 更新交响状态留痕
         if (!engine._symphonyState || typeof engine._symphonyState !== 'object') {
             engine._symphonyState = createState();
