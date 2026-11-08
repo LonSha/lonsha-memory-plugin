@@ -3037,7 +3037,7 @@
                      ${ck('floorLedgerEnabled', '楼层账本', '删楼/重生成时自动回滚该楼层产生的记忆')}
                     <div class="ls-slider-label"><span>楼层账本保留上限</span><span class="ls-slider-val" id="ls-v-flret">${c.floorLedgerRetention || 400}</span></div>
                     <input type="range" class="ls-slider" min="50" max="2000" step="50" value="${c.floorLedgerRetention || 400}" data-cfg-num="floorLedgerRetention" oninput="document.getElementById('ls-v-flret').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">原硬编码 400 且超限静默删除最旧楼层——被删楼层的回滚能力就此静默失效（该楼产生的图谱/POV/时间线条目再也无法按楼撤销）。超限淘汰现在记入 op-log 与诊断面板「已淘汰」计数，长线连载可上调。</div>
+                    <div class="ls-hint" style="padding:0 8px;">楼层账本保留深度。超限时自动淘汰最旧楼层的回滚记录，长线长篇剧情可适当上调。</div>
                     ${ck('floorLedgerEvictionDebug', '楼层账本淘汰调试日志', '开启后楼层账本淘汰、以及「回滚请求命中已淘汰楼层」时在控制台 warn（默认关）')}
                      <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
                  </div>
@@ -3047,10 +3047,11 @@
                     ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">📖 更多故事细节（日记/场景/伏笔/手机联动）· 默认已配置好，展开可微调</summary>
 <div class="ls-group">
                     <div class="ls-group-title">📔 角色日记与心声</div>
                     ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
-                    ${ck('livingDiary', '活人感日记（抄hcdiary）', '第一人称心声+没说出口的秘密，替代旧版摘要副本日记')}
+                    ${ck('livingDiary', '第一人称心声日记', '角色真实内心独白与未说出口的秘密，增强角色活人感')}
                     ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
                     ${ck('timeChangeDrivenInjection', '时间锚点变化注入', '复用现有剧情时间线，只将上次游标之后且与当前剧情时间相关的新事件加入本轮上下文')}
                     <div class="ls-hint" style="padding:0 8px;">时间变化注入同时覆盖时间线、在场角色状态、关系对及物品变化。</div>
@@ -3060,18 +3061,18 @@
                     <input type="range" class="ls-slider" min="0" max="10" step="1" value="${c.diaryEveryFloors ?? 3}" data-cfg-num="diaryEveryFloors">
                     <div class="ls-slider-label"><span>时间线变化注入条数</span><span class="ls-slider-val">${c.timeChangeMaxCandidates || 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.timeChangeMaxCandidates || 5}" data-cfg-num="timeChangeMaxCandidates">
-                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>，v3.156 起真正生效），省API额度；生成失败自动跳过不影响主流程。</div>
+                    <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>），节省 API 额度；生成失败自动跳过不影响主流程。</div>
                 </div>
 <div class="ls-group">
                     <div class="ls-group-title">📍 场景与在场角色</div>
                     ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
-                    ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现（v3.91 修复：此前门控键断裂导致该功能从未生效）')}
+                    ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现')}
                     ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
                 </div>
 <div class="ls-group">
                     <div class="ls-group-title">🧩 约定与伏笔</div>
                     ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
-                    ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；[v2.6] 支持架空日历（霜月3日）与全角分隔符，解析失败自动降级不标')}
+                    ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；支持架空日历解析')}
                     <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="2" step="1" value="${c.injectionDepth || 0}" data-cfg-num="injectionDepth">
                     <div class="ls-hint" style="padding:0 8px;">D0=紧邻最新输入（默认）；D1/D2=插到更早位置缓解近因偏误（经 setExtensionPrompt depth 参数生效）。</div>
@@ -3087,6 +3088,7 @@
                     <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN ?? 3}" data-cfg-num="rubyPhoneRecallTopN">
                     <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
                 </div>
+</details>
 </div>
 <div class="ls-tab-pane" data-tab-pane="retrieval">
 <div class="ls-group">
@@ -3127,7 +3129,7 @@
                     <div class="ls-slider-label"><span>词典条目上限</span><span class="ls-slider-val" id="ls-v-lexmax">${c.termLexiconMax ?? 40}</span></div>
                     <input type="range" class="ls-slider" min="10" max="120" step="10" value="${c.termLexiconMax ?? 40}" data-cfg-num="termLexiconMax">
                     ${ck('prequelEnabled', '前情资料注入', '用户导入的前情原文按相关性选段注入（预算 30%）')}
-                    ${ck('bridgeEnabled', '公开快照桥', '在 window.lonsha_memory_bridge_v1 暴露只读状态快照（主角/NPC账本/大纲/世界推进），供外部脚本读取')}
+                    ${ck('bridgeEnabled', '公开快照桥', '开放只读状态快照（主角/NPC账本/大纲/世界推进），供外部扩展联动读取')}
                     <div class="ls-slider-label"><span>折叠阈值（条）</span><span class="ls-slider-val" id="ls-v-fold">${c.summaryFoldThreshold || 30}</span></div>
                     <input type="range" class="ls-slider" min="15" max="80" step="5" value="${c.summaryFoldThreshold || 30}" data-cfg-num="summaryFoldThreshold">
                     <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
@@ -3139,7 +3141,7 @@
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
                     ${ck('itemLedgerEnabled', '物品台账', '提取物品获得/转移/损坏流转，注入"谁持有什么、什么状态"，防物品凭空消失又出现')}
                     ${ck('ledgerWriteValidationEnabled', '台账写入校验', '入账前对 LLM 提取/携带包的物品 op 逐项宽容校验：action 枚举、name/desc/holder/state/location 长度上限、floor 非负整数、holder 占位归「地上/遗落」、carried 与 location 互斥自愈。能修就修、修不了才丢，绝不因一项脏丢整批；关闭则逐位回退旧行为')}
-                    ${ck('carryoverContractStrict', '携带契约严格模式', '导入旧格式携带包时校验契约键是否齐全，缺键则打告警并计入「静默降级」总账（不阻断导入）；关闭则不校验。保障旧版本携带包向后兼容')}
+                    ${ck('carryoverContractStrict', '携带契约严格模式', '导入携带包时校验结构是否规范完整，保障跨版本或旧存档向后兼容')}
                     ${ck('ledgerWriteValidationDebug', '台账校验调试日志', '开启后每次写入校验有违规时在控制台 warn 输出逐项原因（默认关）')}
                     ${ck('moneyLedgerEnabled', '钱财账本', '跟踪角色金额与变动流水，注入防凭空暴富；配合下方单笔幅度上限可 clamp 异常改值')}
                     <div class="ls-slider-label"><span>💰 钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
@@ -3256,37 +3258,37 @@
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
                     <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
                     <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha ?? 0.7}" data-cfg-num="hybridAlpha">
-                    ${ck('hybridMergeWeighted', 'α 加权融合（v3.156）', '打开后上面的 α 滑块才真正生效（α=1 偏向量 / α=0 偏图谱）；关闭=RRF 融合，α 仅记录不参与排序。默认关。')}
-                    ${ck('resonanceConsolidationEnabled', '🧠 记忆共振巩固（V17 超级加强）', 'PEDSA 多跳激活扩散 + 时序合成边 + 抑制边降权；被真正注入的记忆自动强化访问热度与重要度，形成「越用越强」的仿生生态闭环。零额外 LLM 调用。')}
-                    ${ck('pyramidEvolutionEnabled', '🧬 分层演化金字塔（V18 超级加强）', '提取与访问强度驱动的主动分层折叠（日记→场景→周记卷）+ 演化关联边构建 + 睡眠遗忘联动加速。零额外 LLM 调用。')}
-                    ${ck('memorySymphonyEnabled', '🎼 全域记忆交响编排中枢（V19 记忆专版）', '将现场感知、因果熔断、多路检索、共振扩散、演化折叠、防混淆消歧与认知视界深度串联调用，全链路彻底解决记忆混乱。零额外 LLM 调用。')}
-                    ${ck('antiConfusionEnabled', '🛡️ 多维防混淆与实体认知锚定（V19 记忆专版）', '严格消歧代词（他/她/对方）、实体指代锚定归属、事实互斥与时空矛盾仲裁，严防多角色复杂互动下的张冠李戴。')}
+                    ${ck('hybridMergeWeighted', 'α 检索权重加权融合', '开启后上方 α 滑块参与融合排序（偏向语义检索或图谱检索）；关闭则使用平衡排位融合。默认关。')}
+                    ${ck('resonanceConsolidationEnabled', '🧠 记忆共振巩固', '关联激活扩散与重要度自然演化；高频被唤醒的记忆自动提升热度，形成越用越深刻的长效记忆。零额外 API 消耗。')}
+                    ${ck('pyramidEvolutionEnabled', '🧬 分层演化金字塔', '剧情记忆自动按时间跨度提炼归纳（日记→场景回顾→阶段史记），保持长线脉络清晰。零额外 API 消耗。')}
+                    ${ck('memorySymphonyEnabled', '🎼 全域记忆协调中枢', '将现场感知、多路检索、因果关联与防混淆深度串联，全链路防止记忆错乱。零额外 API 消耗。')}
+                    ${ck('antiConfusionEnabled', '🛡️ 多维角色防混淆与认知锚定', '精确区分他/她/对方等代词指向，锁定各角色专属事实与所有权，严防多角色互动时张冠李戴。')}
                     ${ck('antiConfusionDirectivesEnabled', '📜 防混淆结构化高阶提示约束', '在生成注入私密简报头部自动合流防混淆指令，使模型严格恪守角色身份边界与时空一致性。')}
-                    ${ck('psychologicalDefenseEnabled', '🎭 认知心理防御与移情扭曲（V20 史诗级双计划）', '模拟创伤否认、投射、压抑与移情投射机制，赋予记忆动态戏剧张力与潜意识心声扭曲。')}
-                    ${ck('hypergraphCausalEnabled', '🕸️ 超图多跳联合因果推演中枢（V20 史诗级双计划）', '支持多因一果与一因多果超边拓扑，反向回溯因果必要闭包，牢牢锁定伏笔链条。')}
-                    ${ck('memoryHealingImmunityEnabled', '💉 记忆自愈免疫与抗幻觉冲突仲裁（V20 史诗级双计划）', '实时拦截虚构与死者复生幻觉，自动生成自愈补丁实施免疫接种，守卫正史不变量。')}
-                    ${ck('counterfactualFirewallEnabled', '🧱 反事实假想沙盒防火墙（V20 史诗级双计划）', '严格隔离平行假想/悔恨假设流入正史世界，受控透出心智折射回响，彻底阻断历史污染。')}
-                    ${ck('epistemicParallaxMatrixEnabled', '👥 多视角视差博弈矩阵（V20 史诗级双计划）', '度量知情/误解/怀疑/受蒙蔽认知四元态，提供分视角戏剧张力与守秘刺探指引。')}
-                    ${ck('macroEpochDriftEnabled', '⏳ 宏观纪元演进与文化漂移（V20 史诗级双计划）', '支撑超长程纪元更迭、社会主导思潮演化与时代禁忌漂移，为岁月沉淀真实质感。')}
-                    ${ck('covertEspionageEnabled', '🕵️ 特工潜伏与双重身份暴露博弈（V20 史诗级双计划）', '度量潜伏破绽积累与暴露风险模型，触发临界销毁证据与极限圆谎张力。')}
-                    ${ck('obsessiveTraumaEnabled', '💔 角色深层创伤禁忌与应激失控阈值（V20 史诗级双计划）', '监控触及禁忌雷区后的心理压力计，突破阈值强制触发躯体化失控与理智崩溃。')}
-                    ${ck('dynamicCovenantEnabled', '📜 动态契约誓言与因果反噬引擎（V20 史诗级双计划）', '记录同盟立誓与违誓代价，背叛或撕毁契约时引发天地因果反噬与噬心惩戒。')}
-                    ${ck('dreamMetaphorEnabled', '🌌 梦境解析与潜意识隐喻合成器（V20 史诗级双计划）', '深度睡眠或独处时解构未决压力源，将冷酷事实升华为超现实主义梦境直觉余波。')}
-                    ${ck('somaticReflexEnabled', '💓 生理反射与微表情神经自律引擎（V20 史诗级双计划）', '模拟瞳孔、呼吸骤停、指尖震颤等不由自主的微表情，赋予肢体真实生理学质感。')}
-                    ${ck('multiAgentGameTheoryEnabled', '♟️ 多智能体博弈均衡与动态撕裂（V20 史诗级双计划）', '建模多方对抗收益矩阵与背叛诱惑，驱动同盟暗潮涌动与试探性背刺算计。')}
-                    ${ck('deepMemoryAtlasEnabled', '🗺️ 深层记忆蒸馏图谱与概念抽象（V20 史诗级双计划）', '低层离散事件向上聚合为哲学信条与行动定式，以高密度认知图谱约束长程抉择。')}
-                    ${ck('factionTerritoryEnabled', '🚩 动态势力版图与地理拓扑控制（V20 史诗级双计划）', '建模宏观城邦领土控制力与治安管制等级，受所处地理势力的哨卡法度严格制约。')}
-                    ${ck('longTailFlashbackEnabled', '⚡ 长尾伏笔沉睡唤醒与闪回共鸣（V20 史诗级双计划）', '监控百轮前沉睡伏笔，语境契合时以宿命闪回唤醒记忆，防止重要设定永寂。')}
-                    ${ck('multiDimensionalReputationEnabled', '👑 多维声誉声望与动态社交拓扑（V20 史诗级双计划）', '突破单一好感度，综合武勇威名、恶名狼藉与正统性生成阶层威压与警备对话引导。')}
-                    ${ck('soulBrandReincarnationEnabled', '🌀 跨周目灵魂烙印与代际记忆转生（V20 史诗级双计划）', '提炼前世/上一周目未了誓言与宿命因果，以既视感本能唤醒跨代际叙事张力。')}
-                    ${ck('fateClimaxLoomEnabled', '🧶 命运交汇纺织机与叙事高潮熵（V20 史诗级双计划）', '编织多线命运线索并度量戏剧张力熵，临界点强力收束多方冲突，爆发破局高潮。')}
+                    ${ck('psychologicalDefenseEnabled', '🎭 心理防御与潜意识扭曲', '模拟角色在面对压力时的否认、投射与心绪起伏，赋予心智真实的戏剧张力。')}
+                    ${ck('hypergraphCausalEnabled', '🕸️ 复杂因果网络推演中枢', '梳理多因一果与多重连锁反应，深层回溯前因后果，牢牢锁定剧情伏笔与因果链条。')}
+                    ${ck('memoryHealingImmunityEnabled', '💉 设定防冲突与抗幻觉自愈', '自动拦截与已知设定冲突的虚构或死者复生等幻觉，守护剧情既定事实的一致性。')}
+                    ${ck('counterfactualFirewallEnabled', '🧱 假想与真实世界防火墙', '严格隔离角色假设/后悔脑补与正史现实，仅允许合理心绪折射，杜绝记忆污染。')}
+                    ${ck('epistemicParallaxMatrixEnabled', '👥 多视角信息差与心智博弈', '追踪各角色知情、误解、怀疑或被蒙蔽的状态，呈现信息差带来的戏剧张力与保守秘密。')}
+                    ${ck('macroEpochDriftEnabled', '⏳ 时代变迁与风气演进', '长线支持宏观岁月更迭、社会风尚演变与时代习俗变迁，沉淀厚重的故事史诗感。')}
+                    ${ck('covertEspionageEnabled', '🕵️ 双重身份与伪装暴露危机', '模拟角色掩饰身份时的破绽积累与暴露风险，触发掩盖真相与圆谎的紧张情节。')}
+                    ${ck('obsessiveTraumaEnabled', '💔 创伤雷区与情感应激反应', '监控触及心底禁忌雷区后的心理承受度，达临界点时触发情绪失控与生理应激。')}
+                    ${ck('dynamicCovenantEnabled', '📜 契约誓言与违誓代价引擎', '记录结盟立誓与违誓代价，背叛或违背承诺时触发剧情因果反噬与内疚惩戒。')}
+                    ${ck('dreamMetaphorEnabled', '🌌 梦境隐喻与潜意识直觉合成', '睡眠或独处时将白天的经历与未决情绪转化为超现实梦境，带来神秘的直觉启示。')}
+                    ${ck('somaticReflexEnabled', '💓 生理微反应与微表情自律感知', '展现心慌骤停、瞳孔微缩、指尖轻颤等不由自主的细微神态，赋予角色真实肢体质感。')}
+                    ${ck('multiAgentGameTheoryEnabled', '♟️ 多方阵营博弈与利益平衡', '模拟多方势力的利益取舍与立场变迁，呈现阵营间的微妙试探与暗流涌动。')}
+                    ${ck('deepMemoryAtlasEnabled', '🗺️ 核心信念与深层人生阅历提炼', '将零散的过往经历升华为角色的人生信条与行事准则，指引长程人生抉择。')}
+                    ${ck('factionTerritoryEnabled', '🚩 势力版图与地界法度感知', '模拟各地城邦势力的管辖范围与盘查严格度，角色行动受所处地域规矩制约。')}
+                    ${ck('longTailFlashbackEnabled', '⚡ 遥远伏笔唤醒与宿命闪回', '捕捉数十轮前埋下的线索与尘封往事，语境契合时以宿命感闪回，防止伏笔遗忘。')}
+                    ${ck('multiDimensionalReputationEnabled', '👑 多维声望与社会威望地位', '超越单纯好感，综合威名、恶名与江湖声望，决定他人对你的敬畏或警惕态度。')}
+                    ${ck('soulBrandReincarnationEnabled', '🌀 跨周目灵魂羁绊与宿命既视感', '延续上一周目或前世未了的誓约与羁绊，在关键剧情引发心有灵犀的宿命感。')}
+                    ${ck('fateClimaxLoomEnabled', '🧶 命运交织与故事高潮收束', '汇聚各方支线与人物矛盾，在时机成熟时推向破局高潮，迎来震撼的情节收束。')}
                     ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>
 <div class="ls-group">
                     <div class="ls-group-title">🔗 故事因果脉络追踪</div>
-                    ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
+                    ${ck('hippoDiffusionEnabled', '关键道具与线索联合联想', '将关键道具、地点与在场角色联动唤醒，由物及人触发深层回忆连锁')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
                     ${ck('entropyReflectionEnabled', '自适应叙事熵反思', '根据事件重要度与剧情惊奇度动态蓄力，冲顶时提前触发反思提炼，告别机械固定轮数')}
                     ${ck('timeTagAnchorEnabled', '正文时间标签物理锚点', '识别回复正文中的 <time>/<date> 标签作为绝对剧情时间，零API同步且自动剥离隐藏')}
@@ -3413,31 +3415,31 @@
                 </div>
 <div class="ls-group">
                     <div class="ls-group-title">⚙️ 内核底层微调</div>
-                    ${ck('protagonistTracking', '主角档案追踪', 'baibai 主角客观档案与生活习惯癖好追踪')}
-                    ${ck('dualTimeAnchorEnabled', '正文时间锚点', 'baibai 正文起止时间锚点（故事内时间推演）')}
+                    ${ck('protagonistTracking', '主角档案追踪', '追踪主角客观档案、个人喜好与生活习惯')}
+                    ${ck('dualTimeAnchorEnabled', '正文时间锚点', '通过正文内容识别起止时间，推演故事内的时间流逝')}
                     ${ck('charMemEnabled', '角色记忆银行', '两层记忆（短期/长期）按角色隔离')}
                     ${ck('neuralChainEnabled', '神经链召回', '链1+链2 关联链式召回')}
                     ${ck('npcTierInjection', 'NPC 分档注入', '按重要度分档注入 NPC 信息')}
                     ${ck('npcTiesInjection', 'NPC 关系注入', '注入 NPC 间关系网络')}
                     ${ck('recallCacheEnabled', '召回缓存', '同查询短期复用召回结果（省 API）')}
                     ${ck('heatOnRecallEnabled', '召回加热', '被召回的记忆提升活跃度（防冷启动丢失）')}
-                    ${ck('recallAuditEnabled', '召回命中自检', '每轮召回后记录 查询/命中分布/空结果 到环形账本，诊断面板「召回效果自检」可见——召回是唯一无自检防线的核心机制（v3.150）')}
-                     ${ck('recallProvenanceFilter', '分支感知召回过滤', '摘要来源楼被翻页(source_changed)后不再注入——防旧分支叙事与当前分支一起进模型。只剔这一态：判不了、缺源（删楼与前移不可区分）、正文改写的都放行（v3.183）')}
-                     ${ck('sleepAwakenEnabled', '睡眠语义唤醒', '低保留价值被归档(archivedForSleep)的摘要，在相似情景再次出现时回程——此前归档是单向门：注释承诺「需要时可唤醒」而全仓归零点为 0。与「实体名唤醒」分工：那条按名字逐字命中，本条按语义相似。默认开（v3.234.0）')}
+                    ${ck('recallAuditEnabled', '召回命中自检', '每轮召回后记录查询与命中分布，在诊断面板「召回效果自检」中随时可查')}
+                     ${ck('recallProvenanceFilter', '分支感知召回过滤', '当故事发生分支切换（如回退重选）时，自动屏蔽已被放弃的分支记忆，防止平行故事记忆穿帮')}
+                     ${ck('sleepAwakenEnabled', '睡眠语义唤醒', '平时较少用到的归档记忆，在相似情景再次发生时自动唤醒重现')}
             ck('rollbackPreviewEnabled', '回滚预览（破坏前先算）', '删除楼层前先算出「会撤掉多少条 / 其后多少面随之重定位」，只读不落地；预告与实撤不符时在诊断面板留痕（默认开）。'),
             ck('snapshotPrecheckEnabled', '快照恢复前预检', '从快照恢复前先做一次只读预检：快照无可恢复内容时直接拦住、不落盘，避免把「恢复了个空」写进存档（默认开）。'),
                      <div class="ls-slider-label"><span>条目关联停用词</span></div>
                      <textarea class="ls-textarea" data-cfg-text="crosslinkStopwords" placeholder="逗号分隔，如：主角,系统,旁白">${c.crosslinkStopwords || ''}</textarea>
                      <div class="ls-hint" style="padding:0 8px;">条目关联（Aho-Corasick）扫正文找共享关键词时忽略这些通用词——否则「主角」「系统」这类词会把所有条目串成一团（v3.183）。</div>
-                     ${ck('crosslinkRecallBoost', '条目关联·召回提权', '按当前查询扫关联词表，命中的摘要键在召回融合里加一个固定小分（只提名次，不换条目、不写图、不删边）。默认关：关闭时不扫词表、零开销、零行为变化（v3.185）')}
-                     ${ck('emotionOppositeRecall', '情绪反向召回', '负面的当下把「相对的那一面」也带进上下文：难过时想起温柔相待、恐惧时想起安然相伴、绝境里想起承诺。命中项在召回融合里加固定小分（只提名次，不换条目、不写图、不删边）。默认关：关闭时不扫词表、零开销、零行为变化（v3.186）')}
-                     ${ck('graphRollupEnabled', '图谱语义汇总', '长线对话下把「同类型、未被认领」的散节点每 N 个压成一层父节点（+ semantic_contains 边），父节点不删除任何子节点；同时把此前零调用点的图压缩（vacuum）接进周期维护（v3.184）')}
+                     ${ck('crosslinkRecallBoost', '条目关联·召回提权', '根据当前话题相关词条，为直接命中的过往经历适当提升召回优先级。默认关')}
+                     ${ck('emotionOppositeRecall', '情绪反向召回', '角色难过时更容易回忆起温柔时刻，恐惧时想起坚强后盾，为情绪注入细腻反差。默认关')}
+                     ${ck('graphRollupEnabled', '图谱语义汇总', '长线故事中自动将相似零散线索聚纳整理，保持记忆结构紧凑有序')}
                      <div class="ls-slider-label"><span>汇总每层节点数</span><span class="ls-slider-val" id="ls-v-grmc">${c.graphRollupMinChildren ?? 4}</span></div>
                      <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.graphRollupMinChildren ?? 4}" data-cfg-num="graphRollupMinChildren">
                      <div class="ls-hint" style="padding:0 8px;">每几个散节点压成一层（默认 4）。调小压得更狠、层更多；调大则只压大簇。</div>
-                     ${ck('relationDisclosureEnabled', '关系披露条件', '关系边可带「何时才给模型看」的触发条件（提取时按当前剧情形如「告白|结婚」）。未触发的关系本轮不进注入，但仍留在图与召回池里，情境对了下轮照常出现。没写条件的关系一律照常注入（v3.184）')}
-                    ${ck('fuzzyPatchEnabled', '提示词宽容填充', '模板占位符（如 {{KNOWN_CHARS}}）被编辑成全角括号/多空格形态后仍能被认出并填上；未命中时退回精确匹配，填完仍残留的占位符进自检告警。无占位符残留时逐字节等同旧行为（v3.184）')}
-                    ${ck('floorRecallLedgerEnabled', '楼层召回账本', '把「哪楼剧情被哪轮召回」回记进楼层账本 + 向量命中续热度，让楼层账本从记写入扩展到记召回（v3.150）')}
+                     ${ck('relationDisclosureEnabled', '关系披露条件', '允许角色关系附带暴露条件（如特定表白或定情事件后才公开），未到时机时保持暗中维系')}
+                    ${ck('fuzzyPatchEnabled', '提示词宽容填充', '手改提示词时不小心敲错括号或多打空格也能智能容错识别，保护配置不失效')}
+                    ${ck('floorRecallLedgerEnabled', '楼层召回账本', '记录哪一楼的经历被哪一轮唤醒过，持续保持重要剧情的高活跃度')}
                     ${ck('recallTierEnabled', '分层召回', '按记忆层分级召回')}
                     ${ck('synopsisFastPath', '摘要快速通道', '短消息跳过完整 LLM 摘要')}
                     ${ck('aiRecallOps', 'AI 召回操作', '允许 AI 在回复中发起召回操作指令')}
@@ -3447,7 +3449,7 @@
                     ${ck('outlineDirectorEnabled', '大纲导演', '解析 AI 回复中的大纲标签')}
                     ${ck('outlineAutoPlan', '大纲自动规划', '无大纲时自动生成剧情规划')}
                     ${ck('trailMonitor', '召回轨迹监控', '记录最近一次召回来源供状态面板展示')}
-                    ${ck('autoArchiveCovered', '归档隐藏旧楼层', '被卷摘要覆盖的旧楼层自动隐藏（v3.25，默认关）')}
+                    ${ck('autoArchiveCovered', '归档隐藏旧楼层', '已被长篇大纲概括的历史楼层自动折叠隐藏，保持界面清爽。默认关')}
                     ${ck('worldProgressEnabled', '世界推进', '世界状态随剧情推进（默认关，需观察效果后开）')}
                     ${ck('vectorChunkEnabled', '长文本分块向量化', '超阈值字符的长文本切块后再向量化（默认关，短文本不受影响）')}
                 </div>
