@@ -925,6 +925,163 @@
             }
         } catch (e) {}
 
+        
+        // ============================================================
+        // [LonSha 36项演化双计划 · 18大新引擎管线接线装配]
+        // ============================================================
+        // 1. [L-X1] 触景生情主动顿悟 (Active Reminiscence Epiphany)
+        try {
+            const EpiphanyLib = (typeof ActiveReminiscenceEpiphanyEngine !== "undefined" ? ActiveReminiscenceEpiphanyEngine : (typeof require !== "undefined" ? (() => { try { return require("./active-reminiscence-epiphany-engine.js"); } catch { return null; } })() : null));
+            if (EpiphanyLib) {
+                if (!engine._activeReminiscenceEngine) engine._activeReminiscenceEngine = new (EpiphanyLib.default || EpiphanyLib)();
+                const epiRes = engine._activeReminiscenceEngine.probeCuesInDialogue(queryText, (engine.getCurrentFloor && engine.getCurrentFloor()) || 1);
+                if (epiRes && epiRes.triggered && epiRes.promptDirective) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${epiRes.promptDirective}` : epiRes.promptDirective;
+                }
+            }
+        } catch (e) {}
+
+        // 2. [L-X2] 情绪余震滞后阻尼与心境残余 (Emotional Inertia Mood Residue)
+        try {
+            const MoodResidueLib = (typeof EmotionalInertiaMoodResidueEngine !== "undefined" ? EmotionalInertiaMoodResidueEngine : (typeof require !== "undefined" ? (() => { try { return require("./emotional-inertia-mood-residue-engine.js"); } catch { return null; } })() : null));
+            if (MoodResidueLib) {
+                if (!engine._moodResidueEngine) engine._moodResidueEngine = new (MoodResidueLib.default || MoodResidueLib)();
+                const residueRes = engine._moodResidueEngine.getCurrentResidueSummary();
+                if (residueRes && residueRes.promptDirective) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${residueRes.promptDirective}` : residueRes.promptDirective;
+                }
+            }
+        } catch (e) {}
+
+        // 3. [L-X3] 隐性人情亏欠补偿网络 (Latent Social Debt Reciprocity)
+        try {
+            const DebtMatrixLib = (typeof LatentSocialDebtReciprocityMatrix !== "undefined" ? LatentSocialDebtReciprocityMatrix : (typeof require !== "undefined" ? (() => { try { return require("./latent-social-debt-reciprocity-matrix.js"); } catch { return null; } })() : null));
+            if (DebtMatrixLib) {
+                if (!engine._socialDebtEngine) engine._socialDebtEngine = new (DebtMatrixLib.default || DebtMatrixLib)();
+                const debtRes = engine._socialDebtEngine.assessReciprocityTension(currentSpeaker, knownCharacters[0] || "你");
+                if (debtRes && debtRes.promptDirective) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${debtRes.promptDirective}` : debtRes.promptDirective;
+                }
+            }
+        } catch (e) {}
+
+        // 4. [L-X4] 欲言又止微流潜台词 (Hesitation Subtext Microflow)
+        try {
+            const SubtextLib = (typeof HesitationSubtextMicroflowEngine !== "undefined" ? HesitationSubtextMicroflowEngine : (typeof require !== "undefined" ? (() => { try { return require("./hesitation-subtext-microflow-engine.js"); } catch { return null; } })() : null));
+            if (SubtextLib) {
+                if (!engine._hesitationSubtextEngine) engine._hesitationSubtextEngine = new (SubtextLib.default || SubtextLib)();
+                if (queryText.includes("...") || queryText.includes("……") || queryText.length > 50) {
+                    const subtextRes = engine._hesitationSubtextEngine.synthesizeSubtext(currentSpeaker, queryText, "心防拉扯");
+                    if (subtextRes && subtextRes.formattedInjection) {
+                        generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${subtextRes.formattedInjection}` : subtextRes.formattedInjection;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // 5. [L-X5] 长期誓约碎裂冰川共鸣 (Long-term Covenant Breach Resonator)
+        try {
+            const CovenantBreachLib = (typeof LongTermCovenantBreachResonator !== "undefined" ? LongTermCovenantBreachResonator : (typeof require !== "undefined" ? (() => { try { return require("./long-term-covenant-breach-resonator.js"); } catch { return null; } })() : null));
+            if (CovenantBreachLib) {
+                if (!engine._covenantBreachEngine) engine._covenantBreachEngine = new (CovenantBreachLib.default || CovenantBreachLib)();
+                const activeCovs = engine._covenantBreachEngine.getActiveCovenants();
+                if (activeCovs && activeCovs.length > 0) {
+                    const firstCov = activeCovs[0];
+                    if (queryText.includes("违背") || queryText.includes("背叛") || queryText.includes("泄漏")) {
+                        const covRes = engine._covenantBreachEngine.judgeBreachOrFulfill(firstCov.id, "breach", queryText);
+                        if (covRes && covRes.promptDirective) {
+                            generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${covRes.promptDirective}` : covRes.promptDirective;
+                        }
+                    }
+                }
+                if (covRes && covRes.promptDirective) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${covRes.promptDirective}` : covRes.promptDirective;
+                }
+            }
+        } catch (e) {}
+
+        // 6. [L-X6] 角色专属口癖习惯微动作 (Embodied Micro Mannerism Habits)
+        try {
+            const MannerismLib = (typeof EmbodiedMicroMannerismHabits !== "undefined" ? EmbodiedMicroMannerismHabits : (typeof require !== "undefined" ? (() => { try { return require("./embodied-micro-mannerism-habits.js"); } catch { return null; } })() : null));
+            if (MannerismLib) {
+                if (!engine._mannerismHabitsEngine) engine._mannerismHabitsEngine = new (MannerismLib.default || MannerismLib)();
+                const mannerRes = engine._mannerismHabitsEngine.synthesizeEmbodiedCue(currentSpeaker, queryText);
+                if (mannerRes && mannerRes.directive) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${mannerRes.directive}` : mannerRes.directive;
+                }
+            }
+        } catch (e) {}
+
+        // 7. [L-X7] 戏剧性高潮揭露中枢 (Dramatic Reveal Catharsis Hub)
+        try {
+            const CatharsisLib = (typeof DramaticRevealCatharsisHub !== "undefined" ? DramaticRevealCatharsisHub : (typeof require !== "undefined" ? (() => { try { return require("./dramatic-reveal-catharsis-hub.js"); } catch { return null; } })() : null));
+            if (CatharsisLib) {
+                if (!engine._catharsisEngine) engine._catharsisEngine = new (CatharsisLib.default || CatharsisLib)();
+                const cathRes = engine._catharsisEngine.triggerClimaxIfReady();
+                if (cathRes && cathRes.promptDirective) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${cathRes.promptDirective}` : cathRes.promptDirective;
+                }
+            }
+        } catch (e) {}
+
+        // 8. [L-X8] 潜意识超现实残梦隐喻 (Metaphorical Dream Synthesizer)
+        try {
+            const DreamSynthLib = (typeof MetaphoricalDreamSynthesizer !== "undefined" ? MetaphoricalDreamSynthesizer : (typeof require !== "undefined" ? (() => { try { return require("./metaphorical-dream-synthesizer.js"); } catch { return null; } })() : null));
+            if (DreamSynthLib) {
+                if (!engine._dreamSynthesizerEngine) engine._dreamSynthesizerEngine = new (DreamSynthLib.default || DreamSynthLib)();
+                const dreamRes = engine._dreamSynthesizerEngine.synthesizeDream(currentSpeaker, queryText);
+                if (dreamRes && dreamRes.promptDirective) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${dreamRes.promptDirective}` : dreamRes.promptDirective;
+                }
+            }
+        } catch (e) {}
+
+        // 9. [L-X9] 多方暗流同盟博弈 (Multi-Faction Game Conspiracy Coordinator)
+        try {
+            const FactionCoordLib = (typeof MultiFactionGameConspiracyCoordinator !== "undefined" ? MultiFactionGameConspiracyCoordinator : (typeof require !== "undefined" ? (() => { try { return require("./multi-faction-game-conspiracy-coordinator.js"); } catch { return null; } })() : null));
+            if (FactionCoordLib) {
+                if (!engine._factionConspiracyEngine) engine._factionConspiracyEngine = new (FactionCoordLib.default || FactionCoordLib)();
+                const standing = engine._factionConspiracyEngine.getFactionStanding(currentSpeaker);
+                if (standing && standing.allies && standing.allies.length > 0) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+【阵营博弈立场】当前依附阵营结盟方: ${standing.allies.join(", ")}` : `【阵营博弈立场】当前依附阵营结盟方: ${standing.allies.join(", ")}`;
+                }
+            }
+        } catch (e) {}
+
+        // 10. [L-O3] 多主体时空连续性校验与代词消歧 (Multi-Agent Spatial Temporal Resolver)
+        try {
+            const SpatialResolverLib = (typeof MultiAgentSpatialTemporalResolver !== "undefined" ? MultiAgentSpatialTemporalResolver : (typeof require !== "undefined" ? (() => { try { return require("./multi-agent-spatial-temporal-resolver.js"); } catch { return null; } })() : null));
+            if (SpatialResolverLib) {
+                if (!engine._spatialTemporalResolver) engine._spatialTemporalResolver = new (SpatialResolverLib.default || SpatialResolverLib)();
+                const spatialDirectives = engine._spatialTemporalResolver.formatDisambiguationDirectives([currentSpeaker, ...(knownCharacters || [])]);
+                if (spatialDirectives) {
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
+${spatialDirectives}` : spatialDirectives;
+                }
+            }
+        } catch (e) {}
+
+        // 11. [L-O2] 动态注意力与Token弹性平衡 (Adaptive Attention Budget Balancer)
+        try {
+            const BudgetBalancerLib = (typeof AdaptiveAttentionBudgetBalancer !== "undefined" ? AdaptiveAttentionBudgetBalancer : (typeof require !== "undefined" ? (() => { try { return require("./adaptive-attention-budget-balancer.js"); } catch { return null; } })() : null));
+            if (BudgetBalancerLib && generatedDirectives) {
+                if (!engine._budgetBalancer) engine._budgetBalancer = new (BudgetBalancerLib.default || BudgetBalancerLib)();
+                const budgetAlloc = engine._budgetBalancer.allocateBudget(generatedDirectives.length, 1200);
+                if (budgetAlloc && budgetAlloc.maxChars && generatedDirectives.length > budgetAlloc.maxChars) {
+                    generatedDirectives = generatedDirectives.slice(0, budgetAlloc.maxChars) + "[...弹性预算截断]";
+                }
+            }
+        } catch (e) {}
+
         // [L18-O6] 提示词预算动态弹性竞价分配
         try {
             const allocLib = (typeof PromptBudgetDynamicAllocator !== "undefined" ? PromptBudgetDynamicAllocator : (typeof require !== "undefined" ? (() => { try { return require("./prompt-budget-dynamic-allocator.js").default || require("./prompt-budget-dynamic-allocator.js"); } catch { return null; } })() : null));
