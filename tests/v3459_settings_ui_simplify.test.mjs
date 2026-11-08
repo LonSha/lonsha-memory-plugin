@@ -24,10 +24,9 @@ function settingsBody() {
     return lines.slice(a, b + 1).join('\n');
 }
 
-test('当版锚点：v3.459.0 与四源同源', () => {
-    assert.equal(vnum('3.459.0'), 3459000);
+test('当版锚点：版本与四源同源', () => {
     const cur = /const VERSION = '([0-9.]+)'/.exec(read('index.js'))[1];
-    assert.equal(cur, '3.459.0');
+    assert.ok(vnum(cur) >= 3459000);
     assert.equal(JSON.parse(read('manifest.json')).version, cur);
     assert.equal(JSON.parse(read('package.json')).version, cur);
 });

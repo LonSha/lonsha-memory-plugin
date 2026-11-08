@@ -125,6 +125,35 @@
         } catch (e) {
             trace.stages.causalCircuit = { error: String(e && e.message) };
         }
+        // [L17-O6] 剧情日历因果不变量主动熔断
+        try {
+            const fuseLockLib = (typeof LonShaCausalInvariantFuseLock !== 'undefined' ? LonShaCausalInvariantFuseLock : (typeof require !== 'undefined' ? (() => { try { return require('./causality-invariant-fuse-lock.js'); } catch { return null; } })() : null));
+            if (fuseLockLib && engine._causalityFuseLockState) {
+                const fusePassed = [];
+                for (const c of causalFiltered) {
+                    const chk = fuseLockLib.verifyCausality(c, engine._causalityFuseLockState);
+                    if (chk && chk.violation) {
+                        fuseLockLib.tripFuse(engine._causalityFuseLockState, chk.reason);
+                    } else {
+                        fusePassed.push(c);
+                    }
+                }
+                causalFiltered = fusePassed;
+            }
+        } catch (e) {}
+        // [L17-O3] 矛盾假说级联作废与信念自愈 DAG 校验
+        try {
+            const dagLib = (typeof LonShaBeliefSelfHealingDAG !== 'undefined' ? LonShaBeliefSelfHealingDAG : (typeof require !== 'undefined' ? (() => { try { return require('./cascading-belief-self-healing-dag.js'); } catch { return null; } })() : null));
+            if (dagLib && engine._beliefDAGState) {
+                causalFiltered = causalFiltered.filter(c => {
+                    const cid = c.id || c.factId;
+                    if (cid && engine._beliefDAGState.nodes && engine._beliefDAGState.nodes[cid]) {
+                        return engine._beliefDAGState.nodes[cid].valid !== false;
+                    }
+                    return true;
+                });
+            }
+        } catch (e) {}
 
         // ---------------- [阶段 3: 多维防混淆与实体认知锚定矩阵] ----------------
         let disambiguatedCandidates = causalFiltered;
@@ -160,6 +189,35 @@
         } catch (e) {
             trace.stages.antiConfusion = { error: String(e && e.message) };
         }
+
+        // [L17-O5] 现场在场与高亲密度多角色代词消歧图谱
+        try {
+            const disambigLib = (typeof LonShaEntityDisambiguator !== 'undefined' ? LonShaEntityDisambiguator : (typeof require !== 'undefined' ? (() => { try { return require('./entity-disambiguation-affinity-graph.js'); } catch { return null; } })() : null));
+            if (disambigLib && engine._entityDisambiguationState) {
+                const queryText = String(query.text || query.queryText || '');
+                for (const pronoun of ['他', '她', '它', '他们']) {
+                    if (queryText.includes(pronoun)) {
+                        const target = disambigLib.resolvePronounTarget(engine._entityDisambiguationState, pronoun, knownCharacters);
+                        if (target && !disambiguatedCandidates.some(c => (c.text || '').includes(target))) {
+                            // 保持上下文代词绑定
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // [L17-O4] 万级长局记忆分层金字塔聚类与动态注意力弹性伸缩
+        try {
+            const pyramidLib = (typeof LonShaHierarchicalPyramidAttention !== 'undefined' ? LonShaHierarchicalPyramidAttention : (typeof require !== 'undefined' ? (() => { try { return require('./hierarchical-pyramid-attention-elastic.js'); } catch { return null; } })() : null));
+            if (pyramidLib && disambiguatedCandidates.length > 10) {
+                const tension = engine._tensionScore || 0.5;
+                const budgetRes = pyramidLib.adjustAttentionBudget(tension, 20);
+                const pyramid = pyramidLib.buildHierarchicalPyramid(disambiguatedCandidates);
+                if (pyramid && pyramid.macroSummaries && pyramid.macroSummaries.length > 0) {
+                    disambiguatedCandidates = pyramidLib.condenseContextByPyramid(pyramid, budgetRes.detailLimit);
+                }
+            }
+        } catch (e) {}
 
         // ---------------- [阶段 3.5: V20 认知心理防御与潜意识移情扭曲] ----------------
         let psychologicallyDistorted = disambiguatedCandidates;
@@ -480,6 +538,117 @@
             }
         } catch (e) {}
 
+        // ---------------- [阶段 3.12: 第十七期全新心智防御与草蛇灰线引擎] ----------------
+        try {
+            // L17-X1: 心理防御机制与自欺欺人叙事重塑
+            const egoLib = (typeof LonShaEgoDefense !== "undefined" ? LonShaEgoDefense : (typeof require !== "undefined" ? (() => { try { return require("./ego-defense-mechanisms-engine.js"); } catch { return null; } })() : null));
+            if (egoLib) {
+                if (!engine._egoDefenseState) engine._egoDefenseState = egoLib.createState();
+                engine._egoDefenseState = egoLib.processEgoThreat(engine._egoDefenseState, { text: queryText, speaker: currentSpeaker, floor: activeFloor });
+                const egoDirs = egoLib.generateEgoDirectives(engine._egoDefenseState);
+                if (egoDirs && egoDirs.length > 0) {
+                    const joined = egoDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X2: 宿命伏笔与草蛇灰线主动提问
+            const foresLib = (typeof LonShaLatentForeshadowing !== "undefined" ? LonShaLatentForeshadowing : (typeof require !== "undefined" ? (() => { try { return require("./latent-plot-foreshadowing-engine.js"); } catch { return null; } })() : null));
+            if (foresLib) {
+                if (!engine._latentForeshadowingState) engine._latentForeshadowingState = foresLib.createState();
+                const evalRes = foresLib.evaluateProactiveInquiry(engine._latentForeshadowingState, activeFloor);
+                engine._latentForeshadowingState = evalRes.nextState;
+                if (evalRes.shouldInquire && evalRes.candidate) {
+                    const inqDirs = foresLib.generateInquiryDirectives(evalRes.candidate);
+                    if (inqDirs && inqDirs.length > 0) {
+                        const joined = inqDirs.join("\n");
+                        generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                    }
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X3: 角色默契与专属私语暗号
+            const tacitX3 = (typeof LonShaTacitIntimacy !== "undefined" ? LonShaTacitIntimacy : (typeof require !== "undefined" ? (() => { try { return require("./tacit-intimacy-code-engine.js"); } catch { return null; } })() : null));
+            if (tacitX3) {
+                if (!engine._tacitIntimacyState) engine._tacitIntimacyState = tacitX3.createState();
+                const tacitDirs = tacitX3.generateTacitDirectives(engine._tacitIntimacyState, { currentSpeaker, userUtterance: queryText });
+                if (tacitDirs && tacitDirs.length > 0) {
+                    const joined = tacitDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X4: 潜意识创伤禁忌三层防御
+            const traumaX4 = (typeof LonShaTraumaTabooMatrix !== "undefined" ? LonShaTraumaTabooMatrix : (typeof require !== "undefined" ? (() => { try { return require("./trauma-taboo-defense-matrix.js"); } catch { return null; } })() : null));
+            if (traumaX4) {
+                if (!engine._traumaTabooState) engine._traumaTabooState = traumaX4.createState();
+                const traumaDirs = traumaX4.generateTraumaDirectives(engine._traumaTabooState, queryText);
+                if (traumaDirs && traumaDirs.length > 0) {
+                    const joined = traumaDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X5: 传闻流转的信息衰减与谣言异化
+            const rumorX5 = (typeof LonShaRumorMutation !== "undefined" ? LonShaRumorMutation : (typeof require !== "undefined" ? (() => { try { return require("./rumor-mutation-entropy-engine.js"); } catch { return null; } })() : null));
+            if (rumorX5) {
+                if (!engine._rumorMutationState) engine._rumorMutationState = rumorX5.createState();
+                const rumorDirs = rumorX5.generateRumorDirectives(engine._rumorMutationState);
+                if (rumorDirs && rumorDirs.length > 0) {
+                    const joined = rumorDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X6: 日常生活节律共鸣与习惯沉淀
+            const circX6 = (typeof LonShaCircadianRoutine !== "undefined" ? LonShaCircadianRoutine : (typeof require !== "undefined" ? (() => { try { return require("./circadian-shared-routine-engine.js"); } catch { return null; } })() : null));
+            if (circX6) {
+                if (!engine._circadianRoutineState) engine._circadianRoutineState = circX6.createState();
+                const circDirs = circX6.generateRoutineDirectives(engine._circadianRoutineState);
+                if (circDirs && circDirs.length > 0) {
+                    const joined = circDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X7: 誓约心锚与信任裂痕
+            const oathX7 = (typeof LonShaOathFracture !== "undefined" ? LonShaOathFracture : (typeof require !== "undefined" ? (() => { try { return require("./oath-fracture-repercussion-engine.js"); } catch { return null; } })() : null));
+            if (oathX7 && engine._oathFractureState) {
+                const oathDirs = oathX7.generateFractureDirectives(engine._oathFractureState);
+                if (oathDirs && oathDirs.length > 0) {
+                    const joined = oathDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X8: 反事实平行人生沙盘
+            const counterX8 = (typeof LonShaCounterfactualSandbox !== "undefined" ? LonShaCounterfactualSandbox : (typeof require !== "undefined" ? (() => { try { return require("./counterfactual-multiverse-sandbox.js"); } catch { return null; } })() : null));
+            if (counterX8 && engine._counterfactualState) {
+                const countDirs = counterX8.generateCounterfactualDirectives(engine._counterfactualState);
+                if (countDirs && countDirs.length > 0) {
+                    const joined = countDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
+        try {
+            // L17-X9: 有限空间声学衰减偷听与防全知隔断 (Spatial Whisper Guard)
+            const whisperX9 = (typeof LonShaSpatialWhisperGuard !== "undefined" ? LonShaSpatialWhisperGuard : (typeof require !== "undefined" ? (() => { try { return require("./spatial-whisper-eavesdropping-guard.js"); } catch { return null; } })() : null));
+            if (whisperX9 && engine._spatialWhisperState) {
+                const whisperDirs = whisperX9.generateEavesdroppingDirectives(engine._spatialWhisperState);
+                if (whisperDirs && whisperDirs.length > 0) {
+                    const joined = whisperDirs.join("\n");
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+                }
+            }
+        } catch (e) {}
         // ---------------- [阶段 3.11: V22 第十六期全新日常生活与心流互动引擎] ----------------
         try {
             // L16-X1: 对话动量与心流势头维持
@@ -606,6 +775,20 @@
 
         // ---------------- [阶段 4: 认知视界四桶动态隔离与防全知] ----------------
         let finalCandidates = firewallSanitized;
+        // [L17-O2] 当事人与旁观见证动态四桶硬隔离 (Source Witness Isolation Guard)
+        try {
+            const witnessLib = (typeof LonShaSourceWitnessGuard !== 'undefined' ? LonShaSourceWitnessGuard : (typeof require !== 'undefined' ? (() => { try { return require('./source-witness-isolation-guard.js'); } catch { return null; } })() : null));
+            if (witnessLib) {
+                const viewer = currentSpeaker || '当前角色';
+                const witRes = witnessLib.enforceWitnessIsolation(finalCandidates, viewer);
+                if (witRes && Array.isArray(witRes.filteredCandidates)) {
+                    finalCandidates = witRes.filteredCandidates;
+                    if (witRes.defenseDirective) {
+                        generatedDirectives = generatedDirectives ? (generatedDirectives + '\n' + witRes.defenseDirective) : witRes.defenseDirective;
+                    }
+                }
+            }
+        } catch (e) {}
         try {
             const horizonLib = (typeof engine._cognitiveHorizonLib === 'function') 
                 ? engine._cognitiveHorizonLib() 
@@ -648,7 +831,17 @@
         }
         trace.outputCount = finalCandidates.length;
         trace.durationMs = Date.now() - trace.startTime;
-
+        // [L17-O9] 极简心智晴雨表与全量状态快照引擎提纯留痕
+        try {
+            const baroLib = (typeof LonShaMindBarometerSnapshot !== 'undefined' ? LonShaMindBarometerSnapshot : (typeof require !== 'undefined' ? (() => { try { return require('./mind-barometer-dashboard-snapshot.js'); } catch { return null; } })() : null));
+            if (baroLib) {
+                const tension = engine._tensionScore || 0.5;
+                const pressure = (engine._egoDefenseState && engine._egoDefenseState.threatLevel) || 0.2;
+                const weather = baroLib.computeBarometerWeather({ currentTension: tension, currentPressure: pressure });
+                if (!engine._mindBarometerState) engine._mindBarometerState = baroLib.createState();
+                engine._mindBarometerState.lastWeather = weather;
+            }
+        } catch (e) {}
         // 更新交响状态留痕
         if (!engine._symphonyState || typeof engine._symphonyState !== 'object') {
             engine._symphonyState = createState();

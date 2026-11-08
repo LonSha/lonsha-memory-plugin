@@ -129,6 +129,43 @@
   }
 
   /**
+   * [v3.460.0] 同步 LonSha 记忆至 RubyPhone 运行时状态 (对齐 pipeline 调用规范)
+   * @param {Object} syncPayload { floor, speaker, contactNote, todoItem }
+   * @param {Object} runtimeState RubyPhone 的 runtimeState 或 window.VirtualPhone
+   * @returns {Object} 同步回执
+   */
+  function syncMemoryToPhone(syncPayload = {}, runtimeState = null) {
+    var payload = syncPayload || {};
+    var speaker = payload.speaker || 'unknown';
+    var floor = payload.floor || 0;
+    
+    // 若 runtimeState 存在，尝试写入手机端通知或备忘
+    var synced = false;
+    try {
+      if (runtimeState && typeof runtimeState === 'object') {
+        if (Array.isArray(runtimeState.syncedMemoryLedger)) {
+          runtimeState.syncedMemoryLedger.push({
+            floor: floor,
+            speaker: speaker,
+            contactNote: payload.contactNote || null,
+            todoItem: payload.todoItem || null,
+            syncedAt: Date.now()
+          });
+          synced = true;
+        }
+      }
+    } catch (_e) {}
+
+    return {
+      ok: true,
+      floor: floor,
+      speaker: speaker,
+      synced: synced,
+      timestamp: Date.now()
+    };
+  }
+
+  /**
    * 检验双向桥接通信链路健康度
    * @param {Object} bridgeStatus { lastPhonePing, lastMemorySync, sequenceDelta }
    * @returns {Object} 健康审计结论
@@ -152,6 +189,7 @@
     PHONE_EVENT_TYPES: PHONE_EVENT_TYPES,
     ingestPhoneInteraction: ingestPhoneInteraction,
     projectMemoriesToPhoneState: projectMemoriesToPhoneState,
+    syncMemoryToPhone: syncMemoryToPhone,
     verifyBridgeHealth: verifyBridgeHealth,
 
     /**

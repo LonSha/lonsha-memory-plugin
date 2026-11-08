@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.459.0';
+    const VERSION = '3.460.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11350,6 +11350,36 @@ function _collectNewFace() {
         reportError(error, tag = 'external') {
             errLog(error, tag);
             return true;
+        }
+
+        /** [v3.460.0 · 双向共生] 接收来自 RubyPhone 的全息操作事件并即时推演入库 */
+        onRubyPhoneHolographicEvent(event) {
+            try {
+                if (!event || !this.engine) return false;
+                const br = (typeof LonShaRubyPhoneBridge !== 'undefined' ? LonShaRubyPhoneBridge : null) || (typeof require !== 'undefined' ? require('./ruby-phone-bidirectional-bridge.js') : null);
+                if (br && typeof br.ingestPhoneInteraction === 'function') {
+                    const currentFloor = (typeof this.engine.getCurrentFloor === 'function') ? this.engine.getCurrentFloor() : 0;
+                    const proposal = br.ingestPhoneInteraction({
+                        eventType: event.type,
+                        sender: event.payload?.sender || 'user',
+                        recipient: event.payload?.recipient || 'assistant',
+                        content: event.payload?.content || event.payload?.text || JSON.stringify(event.payload || {}),
+                        timestamp: event.timestamp || Date.now()
+                    }, currentFloor);
+                    if (this.engine.ledger && typeof this.engine.ledger.record === 'function') {
+                        this.engine.ledger.record(currentFloor, {
+                            category: proposal.category,
+                            statement: proposal.statement,
+                            confidence: proposal.confidence,
+                            source: proposal.bridgeSource
+                        });
+                    }
+                    return true;
+                }
+            } catch (e) {
+                errLog(e, 'onRubyPhoneHolographicEvent');
+            }
+            return false;
         }
         getErrorLog(limit = 15) {
             const n = Math.max(0, Math.min(50, Number(limit) || 15));

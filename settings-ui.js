@@ -3105,7 +3105,7 @@
                 </div>
 <details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">⚙️ 进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
 <div class="ls-group">
-                    <div class="ls-group-title">[CHRONO] 故事整理</div>
+                    <div class="ls-group-title">📜 故事脉络与章节归档</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
                     <div class="ls-slider-label"><span>卷摘要保留上限</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
                     <input type="range" class="ls-slider" min="4" max="200" step="2" value="${c.volumeRetention || 40}" data-cfg-num="volumeRetention" oninput="document.getElementById('ls-v-volret').textContent=this.value">
@@ -3133,7 +3133,7 @@
                     <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[LEDGER] 物品记录</div>
+                    <div class="ls-group-title">🎒 随身物品与钱财记录</div>
                     ${ck('reflectionEnabled', '反思节点（需额外模型支持）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
                     <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
@@ -3174,7 +3174,7 @@
                     <div class="ls-hint" style="padding:0 8px;">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[DOMAIN] 分类记录</div>
+                    <div class="ls-group-title">🏷️ 剧情领域与分类记录</div>
                     ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
                     ${ck('clockSyncEnabled', '剧情时钟权威同步', '正文时间锚点回填手机时钟；关闭后手机时钟不被剧情时间改写')}
                     ${ck('pairMemoryEnabled', '配对记忆', '从 relationships 提取双人关系记忆；关闭后只保留单角色记忆')}
@@ -3190,7 +3190,7 @@
                     <input type="range" class="ls-slider" min="10" max="500" step="10" value="${c.snapshotEveryFloors ?? 50}" data-cfg-num="snapshotEveryFloors">
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[INFERENCE] 推理与多路策略</div>
+                    <div class="ls-group-title">🧠 剧情理解与多路联想</div>
                     <div class="ls-row">
                         <div><div>预算裁剪策略</div><div class="ls-hint">balanced=常驻全保留+触发截断到剩余预算；relevance=触发只保留 RRF 前 60%；recency=触发只保留时间/状态类分区</div></div>
                         <select class="ls-input" data-cfg-text="budgetStrategy">
@@ -3216,7 +3216,7 @@
                     <div class="ls-hint">可选任务键：extract / summarize / embed / select / rerank / rewrite / state。未配的任务回落主通道；JSON 解析失败时保留原值并提示。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[RERANK] 回忆排序优化（可选）</div>
+                    <div class="ls-group-title">⚖️ 回忆排序与精选权重</div>
                     ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
                     <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
                     <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
@@ -3225,7 +3225,7 @@
                      <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
                  </div>
 <div class="ls-group">
-                     <div class="ls-group-title">[INTELLIGENCE] 记忆巩固</div>
+                     <div class="ls-group-title">💡 记忆巩固与长效沉淀</div>
                      ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选→前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
                      <div class="ls-slider-label"><span>精选候选上限</span><span class="ls-slider-val" id="ls-v-aiselcand">${c.aiSelectMaxCandidates || 20}</span></div>
                      <input type="range" class="ls-slider" min="8" max="40" step="4" value="${c.aiSelectMaxCandidates || 20}" data-cfg-num="aiSelectMaxCandidates">
@@ -3241,7 +3241,7 @@
                      <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
                  </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[PROMPT] 提取规则模板（高级）</div>
+                    <div class="ls-group-title">📝 记忆提取规则模板</div>
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
                     <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
                     <button class="ls-btn" id="ls-prompt-reset">↩ 恢复默认提示词</button>
@@ -3251,7 +3251,7 @@
 <div class="ls-tab-pane" data-tab-pane="advanced">
 <details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">🧪 底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
 <div class="ls-group">
-                    <div class="ls-group-title">[RECALL] 回忆多少</div>
+                    <div class="ls-group-title">🎯 回忆检索数量与深度</div>
                     <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
                     <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
@@ -3285,7 +3285,7 @@
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[TOPOLOGY] 因果追踪</div>
+                    <div class="ls-group-title">🔗 故事因果脉络追踪</div>
                     ${ck('hippoDiffusionEnabled', 'HippoRAG 联合引燃', '从 BM25 / 道具中提取高频匹配实体，与角色联合作为图扩散种子，实现概念引燃因果拓扑')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
                     ${ck('entropyReflectionEnabled', '自适应叙事熵反思', '根据事件重要度与剧情惊奇度动态蓄力，冲顶时提前触发反思提炼，告别机械固定轮数')}
@@ -3293,7 +3293,7 @@
                     ${ck('cacheFriendlyInjection', 'Prompt Cache 友好型分流', '顶槽锁定绝对稳定的史记前缀，动态周记下沉，使 Claude/DeepSeek/Kimi 持续命中 Prefix Caching')}
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[WORLDLINE] 世界线记忆（多世界线题材）</div>
+                    <div class="ls-group-title">🌌 世界线记忆与分支题材</div>
                     ${ck('worldlineMemoryEnabled', '分层记忆与跨层污染闸', '适用于任何一种「同一角色不止一段人生」的机制：梦境层级、时间循环轮次、平行宇宙、存档读档、位面、世界线……插件不认识任何具体世界观，只认两件抽象事实：① 层标记（当前在哪一层，名字由你的卡自己定）② 切换楼层（第几楼切过去的）。两者合起来叫「纪元」。开启后每条记忆按归属判：同纪元可当事实；异纪元默认挡下（谁都不例外，主角也不给特权）；连楼层都没有的判不了、绝不冒充本纪元。另有一道「未来纪元」闸：起线楼层比你晚的记忆，对任何角色都不可见（防剧透）。默认关。')}
                     <div class="ls-slider-label"><span>当前层标记（名字由你的卡定，如 现实 / 梦一 / 第二轮 / 平行A）</span></div>
                     <input type="text" class="ls-input" placeholder="留空 = 未设定，条目一律判不了" value="${c.worldlineId || ''}" data-cfg-text="worldlineId" autocomplete="off">
@@ -3412,7 +3412,7 @@
                     </details>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">[ADVANCED] 高级调整</div>
+                    <div class="ls-group-title">⚙️ 内核底层微调</div>
                     ${ck('protagonistTracking', '主角档案追踪', 'baibai 主角客观档案与生活习惯癖好追踪')}
                     ${ck('dualTimeAnchorEnabled', '正文时间锚点', 'baibai 正文起止时间锚点（故事内时间推演）')}
                     ${ck('charMemEnabled', '角色记忆银行', '两层记忆（短期/长期）按角色隔离')}
@@ -4363,10 +4363,18 @@
                     </div>
                 </div>
                 <div class="ls-home-section">
-                    <div class="ls-home-title">◷ 最近发生的事</div>
+                    <div class="ls-home-title" style="display:flex;justify-content:space-between;align-items:center;"><span>◷ 最近发生的事</span><span class="ls-home-more" data-home-jump="timeline" style="font-size:12px;cursor:pointer;">故事时间线 ›</span></div>
                     ${recent.length === 0 ? '<div class="ls-hint">还没有故事记录。继续聊天，这里会自动写下发生过的事。</div>'
-                      : recent.map(m => `<div class="ls-home-event">${esc(String(m.text || m.summary || '').slice(0, 60))}${String(m.text || m.summary || '').length > 60 ? '…' : ''}<span class="ls-home-event-meta">第 ${m.floor ?? '?'} 楼</span></div>`).join('')}
+                      : recent.map(m => `<div class="ls-home-event" data-home-jump="timeline" style="cursor:pointer;">${esc(String(m.text || m.summary || '').slice(0, 70))}${String(m.text || m.summary || '').length > 70 ? '…' : ''}<span class="ls-home-event-meta">第 ${m.floor ?? '?'} 楼</span></div>`).join('')}
                 </div>
+                ${(() => {
+                    const sus = s.suspense?.openItems?.() || [];
+                    if (!sus.length) return '';
+                    return `<div class="ls-home-section">
+                        <div class="ls-home-title" style="display:flex;justify-content:space-between;align-items:center;"><span>🤝 未完约定与悬念</span><span class="ls-home-more" data-home-jump="suspense" style="font-size:12px;cursor:pointer;">${sus.length} 条约定 ›</span></div>
+                        ${sus.slice(0, 3).map(item => `<div class="ls-home-event" data-home-jump="suspense" style="cursor:pointer;border-left:3px solid var(--ls-accent,#58a6ff);"><span style="font-weight:600;">「${esc(item.title || item.text || '')}」</span><span class="ls-home-event-meta">${item.floor ? '第 ' + item.floor + ' 楼起' : '履约中'}</span></div>`).join('')}
+                    </div>`;
+                })()}
                 <div class="ls-home-section">
                     <div class="ls-home-title">◈ 这里的人 <span class="ls-home-more" data-home-jump="status">${chars.length} 人 ›</span></div>
                     ${chars.length === 0 ? '<div class="ls-hint">登场人物出现后会自动记录。</div>'

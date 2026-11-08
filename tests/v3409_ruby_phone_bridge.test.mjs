@@ -59,3 +59,22 @@ test('L10-O9 · verifyBridgeHealth 通信链路健康度检验', () => {
   assert.equal(check2.healthy, false);
   assert.equal(check2.status, 'BRIDGE_DEGRADED');
 });
+
+test('L16-O1/R16 · syncMemoryToPhone 记忆向手机状态双向真实同步', () => {
+  const mockVirtualPhoneRuntime = {
+    syncedMemoryLedger: []
+  };
+  const syncPayload = {
+    floor: 25,
+    speaker: 'Alice',
+    contactNote: '咖啡馆赴约中',
+    todoItem: '订两杯摩卡'
+  };
+  const receipt = Bridge.syncMemoryToPhone(syncPayload, mockVirtualPhoneRuntime);
+  assert.equal(receipt.ok, true);
+  assert.equal(receipt.floor, 25);
+  assert.equal(receipt.speaker, 'Alice');
+  assert.equal(receipt.synced, true);
+  assert.equal(mockVirtualPhoneRuntime.syncedMemoryLedger.length, 1);
+  assert.equal(mockVirtualPhoneRuntime.syncedMemoryLedger[0].contactNote, '咖啡馆赴约中');
+});
