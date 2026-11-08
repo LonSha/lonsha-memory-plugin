@@ -11855,6 +11855,85 @@ function _collectNewFace() {
                     if (Cls) this.engine.chaosResilienceShield = new Cls();
                 }
                 this._moduleStatus.v18Engines = true;
+                // [36项演化双计划 · 18大新引擎挂载至交响编排中枢生命周期]
+                try {
+                    const opt36 = (typeof LonShaOptionalEngineRegistry !== "undefined" ? LonShaOptionalEngineRegistry.loadAll() : {});
+                    if (!this.engine._waveScheduler) {
+                        const Cls = opt36.EngineSymphonyWaveScheduler || (typeof EngineSymphonyWaveScheduler !== "undefined" ? EngineSymphonyWaveScheduler : null);
+                        if (Cls) this.engine._waveScheduler = new Cls();
+                    }
+                    if (!this.engine._epiphanyEngine) {
+                        const Cls = opt36.ActiveReminiscenceEpiphanyEngine || (typeof ActiveReminiscenceEpiphanyEngine !== "undefined" ? ActiveReminiscenceEpiphanyEngine : null);
+                        if (Cls) this.engine._epiphanyEngine = new Cls();
+                    }
+                    if (!this.engine._moodResidueEngine) {
+                        const Cls = opt36.EmotionalInertiaMoodResidueEngine || (typeof EmotionalInertiaMoodResidueEngine !== "undefined" ? EmotionalInertiaMoodResidueEngine : null);
+                        if (Cls) this.engine._moodResidueEngine = new Cls();
+                    }
+                    if (!this.engine._covenantResonator) {
+                        const Cls = opt36.LongTermCovenantBreachResonator || (typeof LongTermCovenantBreachResonator !== "undefined" ? LongTermCovenantBreachResonator : null);
+                        if (Cls) this.engine._covenantResonator = new Cls();
+                    }
+                    if (!this.engine._socialDebtMatrix) {
+                        const Cls = opt36.LatentSocialDebtReciprocityMatrix || (typeof LatentSocialDebtReciprocityMatrix !== "undefined" ? LatentSocialDebtReciprocityMatrix : null);
+                        if (Cls) this.engine._socialDebtMatrix = new Cls();
+                    }
+                    if (!this.engine._fourBucketGuard) {
+                        const Cls = opt36.EpistemicFourBucketGuard || (typeof EpistemicFourBucketGuard !== "undefined" ? EpistemicFourBucketGuard : null);
+                        if (Cls) this.engine._fourBucketGuard = new Cls();
+                    }
+                    if (!this.engine._hesitationEngine) {
+                        const Cls = opt36.HesitationSubtextMicroflowEngine || (typeof HesitationSubtextMicroflowEngine !== "undefined" ? HesitationSubtextMicroflowEngine : null);
+                        if (Cls) this.engine._hesitationEngine = new Cls();
+                    }
+                    if (!this.engine._spatioTemporalResolver) {
+                        const Cls = opt36.MultiAgentSpatialTemporalResolver || (typeof MultiAgentSpatialTemporalResolver !== "undefined" ? MultiAgentSpatialTemporalResolver : null);
+                        if (Cls) this.engine._spatioTemporalResolver = new Cls();
+                    }
+                    if (!this.engine._hebbianCurator) {
+                        const Cls = opt36.BiomimeticHebbianSalienceCurator || (typeof BiomimeticHebbianSalienceCurator !== "undefined" ? BiomimeticHebbianSalienceCurator : null);
+                        if (Cls) this.engine._hebbianCurator = new Cls();
+                    }
+                    if (!this.engine._conflictHealingArbitrator) {
+                        const Cls = opt36.MemoryConflictHealingArbitrator || (typeof MemoryConflictHealingArbitrator !== "undefined" ? MemoryConflictHealingArbitrator : null);
+                        if (Cls) this.engine._conflictHealingArbitrator = new Cls();
+                    }
+                    if (!this.engine._dreamSynthesizer) {
+                        const Cls = opt36.MetaphoricalDreamSynthesizer || (typeof MetaphoricalDreamSynthesizer !== "undefined" ? MetaphoricalDreamSynthesizer : null);
+                        if (Cls) this.engine._dreamSynthesizer = new Cls();
+                    }
+                    if (!this.engine._conspiracyCoordinator) {
+                        const Cls = opt36.MultiFactionGameConspiracyCoordinator || (typeof MultiFactionGameConspiracyCoordinator !== "undefined" ? MultiFactionGameConspiracyCoordinator : null);
+                        if (Cls) this.engine._conspiracyCoordinator = new Cls();
+                    }
+                    if (!this.engine._revealCatharsisHub) {
+                        const Cls = opt36.DramaticRevealCatharsisHub || (typeof DramaticRevealCatharsisHub !== "undefined" ? DramaticRevealCatharsisHub : null);
+                        if (Cls) this.engine._revealCatharsisHub = new Cls();
+                    }
+                    if (!this.engine._microMannerismHabits) {
+                        const Cls = opt36.EmbodiedMicroMannerismHabits || (typeof EmbodiedMicroMannerismHabits !== "undefined" ? EmbodiedMicroMannerismHabits : null);
+                        if (Cls) this.engine._microMannerismHabits = new Cls();
+                    }
+                    if (!this.engine._runtimeResetGuard) {
+                        const Cls = opt36.RuntimeMemoryResetGuard || (typeof RuntimeMemoryResetGuard !== "undefined" ? RuntimeMemoryResetGuard : null);
+                        if (Cls) this.engine._runtimeResetGuard = new Cls();
+                    }
+                    if (!this.engine._budgetBalancer) {
+                        const Cls = opt36.AdaptiveAttentionBudgetBalancer || (typeof AdaptiveAttentionBudgetBalancer !== "undefined" ? AdaptiveAttentionBudgetBalancer : null);
+                        if (Cls) this.engine._budgetBalancer = new Cls();
+                    }
+                    if (!this.engine._compactionLedger) {
+                        const Cls = opt36.HierarchicalCompactionLedger || (typeof HierarchicalCompactionLedger !== "undefined" ? HierarchicalCompactionLedger : null);
+                        if (Cls) this.engine._compactionLedger = new Cls();
+                    }
+                    if (!this.engine._telemetryVisualizer) {
+                        const Cls = opt36.UITelemetryMetricsVisualizer || (typeof UITelemetryMetricsVisualizer !== "undefined" ? UITelemetryMetricsVisualizer : null);
+                        if (Cls) this.engine._telemetryVisualizer = new Cls();
+                    }
+                    this._moduleStatus.evolution36Engines = true;
+                    console.log(`[${PLUGIN_NAME}] ✓ 36项演化双计划 · 18大认知心智核心引擎全量融会贯通与就绪`);
+                } catch (evoErr) { errLog(evoErr, "loadModules.evolution36Engines"); }
+
                 console.log(`[${PLUGIN_NAME}] ✓ 第十八期18项灵魂深潜主观认知失真引擎全量就绪并挂载`);
             } catch (e) { errLog(e, 'loadModules.v18Engines'); }
             // 加载图扩散模块
