@@ -1182,6 +1182,38 @@
             }
 
             const _finalize = () => {
+                /* [v3.461.0 · 波纹队列消费方] 编排器在同步管线里只**入队**收尾波纹
+                 *   （见 memory-symphony-orchestrator 的 L-O10：flushWaveSchedule 是 async，
+                 *   硬等会把同步契约改成异步，不等又会谎报已完成）。
+                 *   真执行放在这里——召回已定型、结果已可交付的时机，用微任务+空闲回调跑，
+                 *   失败只记 trace，绝不影响本次召回结果。
+                 *   这就是那 7 个休眠引擎里最后一个（波纹调度）真正被消费的地方。 */
+                try {
+                    /* 宿主句柄：本段在真实链路里拿到的是 recallMemory(engine, query) 的入参，
+                     *   在抽取式契约测试里拿到的是 run.call(engine) 的 this —— 两条路径必须
+                     *   指向同一个实例。这里绝不能裸写 `engine`：那会把「收尾段只依赖 this」
+                     *   的抽取契约偷偷打破，测试环境直接 ReferenceError（v3249 A3 已实测）。 */
+                    const _host = (typeof engine !== 'undefined' && engine) ? engine : this;
+                    if (_host && typeof _host.flushEvolutionWaveQueue === 'function') {
+                        const flush = () => {
+                            Promise.resolve()
+                                .then(() => _host.flushEvolutionWaveQueue())
+                                .then((res) => {
+                                    if (_host._lastSymphonyTrace && res) {
+                                        _host._lastSymphonyTrace.stages = _host._lastSymphonyTrace.stages || {};
+                                        _host._lastSymphonyTrace.stages.waveFlush = {
+                                            executedCount: res.executedCount || 0,
+                                            failedCount: res.failedCount || 0,
+                                            remaining: res.remainingCount ?? null
+                                        };
+                                    }
+                                })
+                                .catch((e) => errLog(e, 'recall.evolutionWaveFlush'));
+                        };
+                        if (typeof requestIdleCallback === 'function') requestIdleCallback(flush, { timeout: 1500 });
+                        else setTimeout(flush, 0);
+                    }
+                } catch (e) { errLog(e, 'recall.evolutionWaveFlushWire'); }
                 if (engine.config.config.recallAuditEnabled) {
                     try {
                         const rec = engine._auditRecall(query, results, finalMerged);

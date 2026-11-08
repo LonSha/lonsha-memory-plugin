@@ -77,7 +77,37 @@
         ['PromptBudgetDynamicAllocator', 'prompt-budget-dynamic-allocator.js'],
         ['EpistemicBoundaryAuditor', 'epistemic-boundary-auditor.js'],
         ['AsyncIndexingPipelineDebouncer', 'async-indexing-pipeline-debouncer.js'],
-        ['StateMachineChaosMonkeyResilience', 'state-machine-chaos-monkey-resilience.js']
+        ['StateMachineChaosMonkeyResilience', 'state-machine-chaos-monkey-resilience.js'],
+        // [v18·36项演化双计划] 18 大认知心智引擎（index.js 的 loadModules 走 loadAll() 取类）
+        //   登记纪律：此表之外的模块 index.js 取不到 ⇒ 静默 null ⇒ 引擎永不实例化。
+        ['EngineSymphonyWaveScheduler', 'engine-symphony-wave-scheduler.js'],
+        ['ActiveReminiscenceEpiphanyEngine', 'active-reminiscence-epiphany-engine.js'],
+        ['EmotionalInertiaMoodResidueEngine', 'emotional-inertia-mood-residue-engine.js'],
+        ['LongTermCovenantBreachResonator', 'long-term-covenant-breach-resonator.js'],
+        ['LatentSocialDebtReciprocityMatrix', 'latent-social-debt-reciprocity-matrix.js'],
+        ['EpistemicFourBucketGuard', 'epistemic-four-bucket-guard.js'],
+        ['HesitationSubtextMicroflowEngine', 'hesitation-subtext-microflow-engine.js'],
+        ['MultiAgentSpatialTemporalResolver', 'multi-agent-spatial-temporal-resolver.js'],
+        ['BiomimeticHebbianSalienceCurator', 'biomimetic-hebbian-salience-curator.js'],
+        ['MemoryConflictHealingArbitrator', 'memory-conflict-healing-arbitrator.js'],
+        ['MetaphoricalDreamSynthesizer', 'metaphorical-dream-synthesizer.js'],
+        ['MultiFactionGameConspiracyCoordinator', 'multi-faction-game-conspiracy-coordinator.js'],
+        ['DramaticRevealCatharsisHub', 'dramatic-reveal-catharsis-hub.js'],
+        ['EmbodiedMicroMannerismHabits', 'embodied-micro-mannerism-habits.js'],
+        ['RuntimeMemoryResetGuard', 'runtime-memory-reset-guard.js'],
+        ['AdaptiveAttentionBudgetBalancer', 'adaptive-attention-budget-balancer.js'],
+        ['HierarchicalCompactionLedger', 'hierarchical-compaction-ledger.js'],
+        ['UITelemetryMetricsVisualizer', 'ui-telemetry-metrics-visualizer.js'],
+        // [v18·补登记] 此前仅在 manifest.extra_js 登记、未进注册表，index.js 取不到
+        //   注意：以下 6 项是**工厂对象**而非类（导出 {…} 方法集合，不是 constructor），
+        //   故登记名用它们真实挂载的全局名；调用方必须按「工厂」消费（见 index.js 的
+        //   _factoryOrClass 取用纪律），不得直接 `new`。
+        ['LonShaTacitUnderstanding', 'character-tacit-understanding-engine.js'],
+        ['LonShaRoutineRhythm', 'everyday-shared-routine-rhythm-engine.js'],
+        ['LonShaSocialBondReciprocity', 'latent-social-bond-reciprocity-engine.js'],
+        ['LonShaCommitmentMilestone', 'long-term-commitment-milestone-engine.js'],
+        ['LonShaNarrativeMomentum', 'narrative-momentum-flow-inertia-engine.js'],
+        ['LonShaUnspokenHesitation', 'unspoken-hesitation-subtext-engine.js']
     ];
     function loadOne(globalName, fileName) {
         try {

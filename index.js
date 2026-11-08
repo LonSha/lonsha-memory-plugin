@@ -11855,84 +11855,79 @@ function _collectNewFace() {
                     if (Cls) this.engine.chaosResilienceShield = new Cls();
                 }
                 this._moduleStatus.v18Engines = true;
-                // [36项演化双计划 · 18大新引擎挂载至交响编排中枢生命周期]
+                /* [36项演化双计划 · 18大新引擎挂载至交响编排中枢生命周期]
+                 * [v3.461.0 · 接线修复] 修前实测（tools/audit-wiring.mjs A2/A3）：
+                 *   ① 槽位键名与编排器读取面错位 —— 写 `_epiphanyEngine`，编排器读
+                 *      `_activeReminiscenceEngine`；写 `_dreamSynthesizer`，读 `_dreamSynthesizerEngine`；
+                 *      写 `_socialDebtMatrix`，读 `_socialDebtEngine` …… 18 项里仅 2 项同名。
+                 *      后果：编排器每阶段都走 `if (!engine._X) engine._X = new Lib()` 自建第二个实例，
+                 *      而 index.js 辛苦 new 出来的那一份全程无人读取（同一引擎双实例、状态互不可见）。
+                 *   ② `_moduleStatus.evolution36Engines = true` 落在 try 内无条件执行，
+                 *      Cls 全为 null 时日志照样打「全量就绪」—— 谎报。
+                 * [修法] 与 `memory-symphony-orchestrator.js` 的读取名逐一核对；键名以**消费方**为准；
+                 *   状态按实际就绪数三态派生（ok / partial / unavailable），绝不静默谎报。
+                 */
                 try {
-                    const opt36 = (typeof LonShaOptionalEngineRegistry !== "undefined" ? LonShaOptionalEngineRegistry.loadAll() : {});
-                    if (!this.engine._waveScheduler) {
-                        const Cls = opt36.EngineSymphonyWaveScheduler || (typeof EngineSymphonyWaveScheduler !== "undefined" ? EngineSymphonyWaveScheduler : null);
-                        if (Cls) this.engine._waveScheduler = new Cls();
+                    const opt36 = (typeof LonShaOptionalEngineRegistry !== 'undefined' && LonShaOptionalEngineRegistry && typeof LonShaOptionalEngineRegistry.loadAll === 'function')
+                        ? LonShaOptionalEngineRegistry.loadAll() : {};
+                    /* 取类纪律：先注册表，再全局（index.js 为 classic script，裸标识符可回落全局）。 */
+                    const pick = (regName, globalName) => opt36[regName] || (typeof globalThis !== 'undefined' ? globalThis[globalName] : null) || null;
+                    /* 槽位表：[槽位名, 注册名, 全局名]
+                     *   —— 槽位名 = memory-symphony-orchestrator.js / engine-injection-pipeline.js 的实际读取名。 */
+                    const EVO36 = [
+                        ['_waveScheduler',            'EngineSymphonyWaveScheduler',            'EngineSymphonyWaveScheduler'],
+                        ['_activeReminiscenceEngine', 'ActiveReminiscenceEpiphanyEngine',       'ActiveReminiscenceEpiphanyEngine'],
+                        ['_moodResidueEngine',        'EmotionalInertiaMoodResidueEngine',      'EmotionalInertiaMoodResidueEngine'],
+                        ['_covenantBreachEngine',     'LongTermCovenantBreachResonator',        'LongTermCovenantBreachResonator'],
+                        ['_socialDebtEngine',         'LatentSocialDebtReciprocityMatrix',      'LatentSocialDebtReciprocityMatrix'],
+                        ['_fourBucketGuard',          'EpistemicFourBucketGuard',               'EpistemicFourBucketGuard'],
+                        ['_hesitationSubtextEngine',  'HesitationSubtextMicroflowEngine',       'HesitationSubtextMicroflowEngine'],
+                        ['_spatialTemporalResolver',  'MultiAgentSpatialTemporalResolver',      'MultiAgentSpatialTemporalResolver'],
+                        ['_hebbianCurator',           'BiomimeticHebbianSalienceCurator',       'BiomimeticHebbianSalienceCurator'],
+                        ['_conflictHealingArbitrator', 'MemoryConflictHealingArbitrator',       'MemoryConflictHealingArbitrator'],
+                        ['_dreamSynthesizerEngine',   'MetaphoricalDreamSynthesizer',           'MetaphoricalDreamSynthesizer'],
+                        ['_factionConspiracyEngine',  'MultiFactionGameConspiracyCoordinator',  'MultiFactionGameConspiracyCoordinator'],
+                        ['_catharsisEngine',          'DramaticRevealCatharsisHub',             'DramaticRevealCatharsisHub'],
+                        ['_mannerismHabitsEngine',    'EmbodiedMicroMannerismHabits',           'EmbodiedMicroMannerismHabits'],
+                        ['_runtimeResetGuard',        'RuntimeMemoryResetGuard',                'RuntimeMemoryResetGuard'],
+                        ['_budgetBalancer',           'AdaptiveAttentionBudgetBalancer',        'AdaptiveAttentionBudgetBalancer'],
+                        ['_compactionLedger',         'HierarchicalCompactionLedger',           'HierarchicalCompactionLedger'],
+                        ['_telemetryVisualizer',      'UITelemetryMetricsVisualizer',           'UITelemetryMetricsVisualizer']
+                    ];
+                    const evo = { ok: [], missing: [], threw: [] };
+                    for (const [slot, regName, globalName] of EVO36) {
+                        try {
+                            if (this.engine[slot]) { evo.ok.push(slot); continue; }   // 幂等：已有不重建
+                            const Cls = pick(regName, globalName);
+                            if (typeof Cls !== 'function') { evo.missing.push(slot); continue; }
+                            this.engine[slot] = new Cls();
+                            evo.ok.push(slot);
+                        } catch (e) { evo.threw.push(slot + ':' + String((e && e.message) || e)); errLog(e, 'loadModules.evolution36Engines.' + slot); }
                     }
-                    if (!this.engine._epiphanyEngine) {
-                        const Cls = opt36.ActiveReminiscenceEpiphanyEngine || (typeof ActiveReminiscenceEpiphanyEngine !== "undefined" ? ActiveReminiscenceEpiphanyEngine : null);
-                        if (Cls) this.engine._epiphanyEngine = new Cls();
+                    /* 三态如实派生（与 extra_js 装载读数同规格：partial 不得读成 ok）。 */
+                    this._evolution36Read = {
+                        at: Date.now(),
+                        total: EVO36.length,
+                        okCount: evo.ok.length,
+                        ok: evo.ok.slice(),
+                        missing: evo.missing.slice(),
+                        threw: evo.threw.slice(),
+                        status: evo.ok.length === EVO36.length ? 'ok'
+                            : (evo.ok.length > 0 ? 'partial' : 'unavailable')
+                    };
+                    this._moduleStatus.evolution36Engines = this._evolution36Read.status === 'ok';
+                    if (this._evolution36Read.status === 'ok') {
+                        console.log(`[${PLUGIN_NAME}] ✓ 36项演化双计划 · ${evo.ok.length}/${EVO36.length} 大认知心智引擎已挂载并就绪`);
+                    } else {
+                        console.warn(`[${PLUGIN_NAME}] ⚠️ 认知心智引擎装载 ${this._evolution36Read.status}：`
+                            + `${evo.ok.length}/${EVO36.length} 就绪`
+                            + (evo.missing.length ? `；未取到 ${evo.missing.length} 项（${evo.missing.slice(0, 6).join(',')}）` : '')
+                            + (evo.threw.length ? `；抛错 ${evo.threw.length} 项` : ''));
                     }
-                    if (!this.engine._moodResidueEngine) {
-                        const Cls = opt36.EmotionalInertiaMoodResidueEngine || (typeof EmotionalInertiaMoodResidueEngine !== "undefined" ? EmotionalInertiaMoodResidueEngine : null);
-                        if (Cls) this.engine._moodResidueEngine = new Cls();
-                    }
-                    if (!this.engine._covenantResonator) {
-                        const Cls = opt36.LongTermCovenantBreachResonator || (typeof LongTermCovenantBreachResonator !== "undefined" ? LongTermCovenantBreachResonator : null);
-                        if (Cls) this.engine._covenantResonator = new Cls();
-                    }
-                    if (!this.engine._socialDebtMatrix) {
-                        const Cls = opt36.LatentSocialDebtReciprocityMatrix || (typeof LatentSocialDebtReciprocityMatrix !== "undefined" ? LatentSocialDebtReciprocityMatrix : null);
-                        if (Cls) this.engine._socialDebtMatrix = new Cls();
-                    }
-                    if (!this.engine._fourBucketGuard) {
-                        const Cls = opt36.EpistemicFourBucketGuard || (typeof EpistemicFourBucketGuard !== "undefined" ? EpistemicFourBucketGuard : null);
-                        if (Cls) this.engine._fourBucketGuard = new Cls();
-                    }
-                    if (!this.engine._hesitationEngine) {
-                        const Cls = opt36.HesitationSubtextMicroflowEngine || (typeof HesitationSubtextMicroflowEngine !== "undefined" ? HesitationSubtextMicroflowEngine : null);
-                        if (Cls) this.engine._hesitationEngine = new Cls();
-                    }
-                    if (!this.engine._spatioTemporalResolver) {
-                        const Cls = opt36.MultiAgentSpatialTemporalResolver || (typeof MultiAgentSpatialTemporalResolver !== "undefined" ? MultiAgentSpatialTemporalResolver : null);
-                        if (Cls) this.engine._spatioTemporalResolver = new Cls();
-                    }
-                    if (!this.engine._hebbianCurator) {
-                        const Cls = opt36.BiomimeticHebbianSalienceCurator || (typeof BiomimeticHebbianSalienceCurator !== "undefined" ? BiomimeticHebbianSalienceCurator : null);
-                        if (Cls) this.engine._hebbianCurator = new Cls();
-                    }
-                    if (!this.engine._conflictHealingArbitrator) {
-                        const Cls = opt36.MemoryConflictHealingArbitrator || (typeof MemoryConflictHealingArbitrator !== "undefined" ? MemoryConflictHealingArbitrator : null);
-                        if (Cls) this.engine._conflictHealingArbitrator = new Cls();
-                    }
-                    if (!this.engine._dreamSynthesizer) {
-                        const Cls = opt36.MetaphoricalDreamSynthesizer || (typeof MetaphoricalDreamSynthesizer !== "undefined" ? MetaphoricalDreamSynthesizer : null);
-                        if (Cls) this.engine._dreamSynthesizer = new Cls();
-                    }
-                    if (!this.engine._conspiracyCoordinator) {
-                        const Cls = opt36.MultiFactionGameConspiracyCoordinator || (typeof MultiFactionGameConspiracyCoordinator !== "undefined" ? MultiFactionGameConspiracyCoordinator : null);
-                        if (Cls) this.engine._conspiracyCoordinator = new Cls();
-                    }
-                    if (!this.engine._revealCatharsisHub) {
-                        const Cls = opt36.DramaticRevealCatharsisHub || (typeof DramaticRevealCatharsisHub !== "undefined" ? DramaticRevealCatharsisHub : null);
-                        if (Cls) this.engine._revealCatharsisHub = new Cls();
-                    }
-                    if (!this.engine._microMannerismHabits) {
-                        const Cls = opt36.EmbodiedMicroMannerismHabits || (typeof EmbodiedMicroMannerismHabits !== "undefined" ? EmbodiedMicroMannerismHabits : null);
-                        if (Cls) this.engine._microMannerismHabits = new Cls();
-                    }
-                    if (!this.engine._runtimeResetGuard) {
-                        const Cls = opt36.RuntimeMemoryResetGuard || (typeof RuntimeMemoryResetGuard !== "undefined" ? RuntimeMemoryResetGuard : null);
-                        if (Cls) this.engine._runtimeResetGuard = new Cls();
-                    }
-                    if (!this.engine._budgetBalancer) {
-                        const Cls = opt36.AdaptiveAttentionBudgetBalancer || (typeof AdaptiveAttentionBudgetBalancer !== "undefined" ? AdaptiveAttentionBudgetBalancer : null);
-                        if (Cls) this.engine._budgetBalancer = new Cls();
-                    }
-                    if (!this.engine._compactionLedger) {
-                        const Cls = opt36.HierarchicalCompactionLedger || (typeof HierarchicalCompactionLedger !== "undefined" ? HierarchicalCompactionLedger : null);
-                        if (Cls) this.engine._compactionLedger = new Cls();
-                    }
-                    if (!this.engine._telemetryVisualizer) {
-                        const Cls = opt36.UITelemetryMetricsVisualizer || (typeof UITelemetryMetricsVisualizer !== "undefined" ? UITelemetryMetricsVisualizer : null);
-                        if (Cls) this.engine._telemetryVisualizer = new Cls();
-                    }
-                    this._moduleStatus.evolution36Engines = true;
-                    console.log(`[${PLUGIN_NAME}] ✓ 36项演化双计划 · 18大认知心智核心引擎全量融会贯通与就绪`);
-                } catch (evoErr) { errLog(evoErr, "loadModules.evolution36Engines"); }
+                } catch (evoErr) {
+                    this._moduleStatus.evolution36Engines = false;
+                    errLog(evoErr, "loadModules.evolution36Engines");
+                }
 
                 console.log(`[${PLUGIN_NAME}] ✓ 第十八期18项灵魂深潜主观认知失真引擎全量就绪并挂载`);
             } catch (e) { errLog(e, 'loadModules.v18Engines'); }

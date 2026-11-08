@@ -27,6 +27,35 @@
     }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
+    /* [v3.461.0 · 诊断留痕] 空 catch 会把「引擎接线写错」变成永久静默失败：
+     *   本轮实测誓约反噬引擎因块作用域越界恒抛 ReferenceError，被 catch (e) { _symphonyFail('stage', e); } 吞掉，
+     *   投产以来一次都没生效且零痕迹。以下收集器只记录、不抛、不改控制流。 */
+    const _SYMPHONY_FAILS = { count: 0, byStage: Object.create(null), last: null };
+    function _symphonyFail(stage, e) {
+        try {
+            const name = String(stage || 'unknown');
+            const msg = String((e && e.message) || e);
+            _SYMPHONY_FAILS.count++;
+            _SYMPHONY_FAILS.byStage[name] = (_SYMPHONY_FAILS.byStage[name] || 0) + 1;
+            _SYMPHONY_FAILS.last = { at: Date.now(), stage: name, message: msg.slice(0, 300) };
+            /* 首个失败立刻吼一次：反复失败靠 getFailureReport() 读，不刷屏。 */
+            if (_SYMPHONY_FAILS.count === 1 && typeof console !== 'undefined') {
+                console.warn('[LonShaSymphony] ⚠️ 引擎阶段失败（后续同类失败只计数）:', name, msg.slice(0, 200));
+            }
+            return _SYMPHONY_FAILS.last;
+        } catch (_ignore) { return null; }
+    }
+    function getFailureReport() {
+        /* [v3.461.0 · 读数口统一] 内部计数器叫 count，但历史注释与使用方都写成 total
+         *   （L-O9 遥测里 getFailureReport().total ⇒ 恒 undefined ⇒ 遥测面板永远显示 0 次失败）。
+         *   两名字都给，且 total 为真值来源 count 的别名 —— 不造第二个计数器。 */
+        return {
+            count: _SYMPHONY_FAILS.count,
+            total: _SYMPHONY_FAILS.count,
+            byStage: Object.assign({}, _SYMPHONY_FAILS.byStage),
+            last: _SYMPHONY_FAILS.last
+        };
+    }
 
     const VERSION = '3.457.0';
 
@@ -140,7 +169,7 @@
                 }
                 causalFiltered = fusePassed;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // [L17-O3] 矛盾假说级联作废与信念自愈 DAG 校验
         try {
             const dagLib = (typeof LonShaBeliefSelfHealingDAG !== 'undefined' ? LonShaBeliefSelfHealingDAG : (typeof require !== 'undefined' ? (() => { try { return require('./cascading-belief-self-healing-dag.js'); } catch { return null; } })() : null));
@@ -153,7 +182,7 @@
                     return true;
                 });
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // ---------------- [阶段 3: 多维防混淆与实体认知锚定矩阵] ----------------
         let disambiguatedCandidates = causalFiltered;
@@ -204,7 +233,7 @@
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // [L17-O4] 万级长局记忆分层金字塔聚类与动态注意力弹性伸缩
         try {
@@ -217,7 +246,7 @@
                     disambiguatedCandidates = pyramidLib.condenseContextByPyramid(pyramid, budgetRes.detailLimit);
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // ---------------- [阶段 3.5: V20 认知心理防御与潜意识移情扭曲] ----------------
         let psychologicallyDistorted = disambiguatedCandidates;
@@ -298,7 +327,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const epochOn = cfg.macroEpochDriftEnabled !== false;
         try {
@@ -312,7 +341,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // ---------------- [阶段 3.8: V20 特工潜伏、心理创伤与誓约反噬] ----------------
         const espionageOn = cfg.covertEspionageEnabled !== false;
@@ -328,7 +357,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const traumaOn = cfg.obsessiveTraumaEnabled !== false;
         try {
@@ -343,7 +372,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const covenantOn = cfg.dynamicCovenantEnabled !== false;
         try {
@@ -358,7 +387,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // ---------------- [阶段 3.9: V20 梦境隐喻、生理微表情与多方博弈张力] ----------------
         const dreamOn = cfg.dreamMetaphorEnabled !== false;
@@ -373,7 +402,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const somaticOn = cfg.somaticReflexEnabled !== false;
         try {
@@ -392,7 +421,7 @@
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const gameTheoryOn = cfg.multiAgentGameTheoryEnabled !== false;
         try {
@@ -406,7 +435,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const atlasOn = cfg.deepMemoryAtlasEnabled !== false;
         try {
@@ -420,7 +449,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const territoryOn = cfg.factionTerritoryEnabled !== false;
         try {
@@ -434,7 +463,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const flashbackOn = cfg.longTailFlashbackEnabled !== false;
         try {
@@ -452,7 +481,7 @@
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const reputationOn = cfg.multiDimensionalReputationEnabled !== false;
         try {
@@ -466,7 +495,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const soulBrandOn = cfg.soulBrandReincarnationEnabled !== false;
         try {
@@ -480,7 +509,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         const climaxLoomOn = cfg.fateClimaxLoomEnabled !== false;
         try {
@@ -494,7 +523,7 @@
                     trace.antiConfusionDirectives = generatedDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // ---------------- [阶段 3.10: V21 史诗级心智扩展引擎指令注入] ----------------
         try {
@@ -504,7 +533,7 @@
                 const waDir = waLib.generateAssimilatorDirectives(engine._worldaxisAssimilatorState, currentSpeaker);
                 if (waDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${waDir}` : waDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X2: 闲暇梦境与反刍隐喻
             const dreamLib = (typeof LonShaRuminationDream !== 'undefined' ? LonShaRuminationDream : (typeof require !== 'undefined' ? (() => { try { return require('./autonomous-rumination-dream-engine.js'); } catch { return null; } })() : null));
@@ -512,7 +541,7 @@
                 const dDir = dreamLib.generateRuminationDirectives(engine._ruminationDreamState, currentSpeaker);
                 if (dDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${dDir}` : dDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X4: 自律神经与躯体微表情爆发
             const flareLib = (typeof LonShaSomaticFlare !== 'undefined' ? LonShaSomaticFlare : (typeof require !== 'undefined' ? (() => { try { return require('./autonomic-nervous-somatic-flare-engine.js'); } catch { return null; } })() : null));
@@ -520,7 +549,7 @@
                 const fDir = flareLib.generateSomaticFlareDirectives(engine._somaticFlareState, currentSpeaker);
                 if (fDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${fDir}` : fDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X7: 隐秘特工身份暴露风险矩阵
             const riskLib = (typeof LonShaExposureRisk !== 'undefined' ? LonShaExposureRisk : (typeof require !== 'undefined' ? (() => { try { return require('./dual-identity-exposure-risk-matrix.js'); } catch { return null; } })() : null));
@@ -528,7 +557,7 @@
                 const rDir = riskLib.generateRiskDirectives(engine._exposureRiskState, currentSpeaker);
                 if (rDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${rDir}` : rDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X8: 心理耗竭与抗逆韧性衰减
             const burnLib = (typeof LonShaBurnoutDecay !== 'undefined' ? LonShaBurnoutDecay : (typeof require !== 'undefined' ? (() => { try { return require('./psychological-burnout-resilience-decay.js'); } catch { return null; } })() : null));
@@ -536,7 +565,7 @@
                 const bDir = burnLib.generateBurnoutDirectives(engine._burnoutDecayState, currentSpeaker);
                 if (bDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${bDir}` : bDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // ---------------- [阶段 3.12: 第十七期全新心智防御与草蛇灰线引擎] ----------------
         try {
@@ -551,7 +580,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // ---------------- [阶段 3.13: 第十八期灵魂深潜主观认知失真引擎] ----------------
         // L18-X1: 闪光灯主观时间膨胀与情绪像素定格
@@ -560,21 +589,21 @@
                 const flashPrompt = engine.flashbulbDilationEngine.formatPromptInjection(2);
                 if (flashPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${flashPrompt}` : flashPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X2: 伪装面具与多重解离人格视界防火墙
         try {
             if (engine.dissociativeMaskMatrix && typeof engine.dissociativeMaskMatrix.formatMaskStatusPrompt === 'function') {
                 const maskPrompt = engine.dissociativeMaskMatrix.formatMaskStatusPrompt();
                 if (maskPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${maskPrompt}` : maskPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X3: 曼德拉记忆二次重构与自愈虚构
         try {
             if (engine.mandelaConfabulationEngine && typeof engine.mandelaConfabulationEngine.formatConfabulationInjection === 'function') {
                 const confabPrompt = engine.mandelaConfabulationEngine.formatConfabulationInjection();
                 if (confabPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${confabPrompt}` : confabPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X4: 普鲁斯特感官通感诱发反射
         try {
             if (engine.proustianSynesthesiaEngine) {
@@ -587,42 +616,42 @@
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X5: 蔡格尼克未闭合执念与潜意识反刍回路
         try {
             if (engine.zeigarnikLoopEngine && typeof engine.zeigarnikLoopEngine.formatRuminationPrompt === 'function') {
                 const zeigPrompt = engine.zeigarnikLoopEngine.formatRuminationPrompt();
                 if (zeigPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${zeigPrompt}` : zeigPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X6: 反事实推演与懊悔/侥幸代偿
         try {
             if (engine.whatIfRegretMatrix && typeof engine.whatIfRegretMatrix.formatCounterfactualPrompt === 'function') {
                 const whatIfPrompt = engine.whatIfRegretMatrix.formatCounterfactualPrompt();
                 if (whatIfPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${whatIfPrompt}` : whatIfPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X7: 群体流言熵增失真与 NPC 社交传染
         try {
             if (engine.rumorEntropyDiffusion && typeof engine.rumorEntropyDiffusion.formatRumorPrompt === 'function') {
                 const rumorPrompt = engine.rumorEntropyDiffusion.formatRumorPrompt();
                 if (rumorPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${rumorPrompt}` : rumorPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X8: 认知盲点与防御性选择性失聪守卫
         try {
             if (engine.cognitiveScatomaGuard && typeof engine.cognitiveScatomaGuard.formatScatomaPrompt === 'function') {
                 const scatomaPrompt = engine.cognitiveScatomaGuard.formatScatomaPrompt();
                 if (scatomaPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${scatomaPrompt}` : scatomaPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // L18-X9: 独处走神白日梦与潜意识心象漂移
         try {
             if (engine.daydreamWanderingEngine && typeof engine.daydreamWanderingEngine.formatDaydreamPrompt === 'function') {
                 const daydreamPrompt = engine.daydreamWanderingEngine.formatDaydreamPrompt();
                 if (daydreamPrompt) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${daydreamPrompt}` : daydreamPrompt;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X2: 宿命伏笔与草蛇灰线主动提问
             const foresLib = (typeof LonShaLatentForeshadowing !== "undefined" ? LonShaLatentForeshadowing : (typeof require !== "undefined" ? (() => { try { return require("./latent-plot-foreshadowing-engine.js"); } catch { return null; } })() : null));
@@ -638,7 +667,7 @@
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X3: 角色默契与专属私语暗号
             const tacitX3 = (typeof LonShaTacitIntimacy !== "undefined" ? LonShaTacitIntimacy : (typeof require !== "undefined" ? (() => { try { return require("./tacit-intimacy-code-engine.js"); } catch { return null; } })() : null));
@@ -650,7 +679,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X4: 潜意识创伤禁忌三层防御
             const traumaX4 = (typeof LonShaTraumaTabooMatrix !== "undefined" ? LonShaTraumaTabooMatrix : (typeof require !== "undefined" ? (() => { try { return require("./trauma-taboo-defense-matrix.js"); } catch { return null; } })() : null));
@@ -662,7 +691,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X5: 传闻流转的信息衰减与谣言异化
             const rumorX5 = (typeof LonShaRumorMutation !== "undefined" ? LonShaRumorMutation : (typeof require !== "undefined" ? (() => { try { return require("./rumor-mutation-entropy-engine.js"); } catch { return null; } })() : null));
@@ -674,7 +703,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X6: 日常生活节律共鸣与习惯沉淀
             const circX6 = (typeof LonShaCircadianRoutine !== "undefined" ? LonShaCircadianRoutine : (typeof require !== "undefined" ? (() => { try { return require("./circadian-shared-routine-engine.js"); } catch { return null; } })() : null));
@@ -686,7 +715,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X7: 誓约心锚与信任裂痕
             const oathX7 = (typeof LonShaOathFracture !== "undefined" ? LonShaOathFracture : (typeof require !== "undefined" ? (() => { try { return require("./oath-fracture-repercussion-engine.js"); } catch { return null; } })() : null));
@@ -697,7 +726,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X8: 反事实平行人生沙盘
             const counterX8 = (typeof LonShaCounterfactualSandbox !== "undefined" ? LonShaCounterfactualSandbox : (typeof require !== "undefined" ? (() => { try { return require("./counterfactual-multiverse-sandbox.js"); } catch { return null; } })() : null));
@@ -708,7 +737,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             // L17-X9: 有限空间声学衰减偷听与防全知隔断 (Spatial Whisper Guard)
             const whisperX9 = (typeof LonShaSpatialWhisperGuard !== "undefined" ? LonShaSpatialWhisperGuard : (typeof require !== "undefined" ? (() => { try { return require("./spatial-whisper-eavesdropping-guard.js"); } catch { return null; } })() : null));
@@ -719,7 +748,7 @@
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // ---------------- [阶段 3.11: V22 第十六期全新日常生活与心流互动引擎] ----------------
         try {
             // L16-X1: 对话动量与心流势头维持
@@ -730,7 +759,7 @@
                 const mDir = momentumLib.generateMomentumDirectives(engine._narrativeMomentumState);
                 if (mDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${mDir}` : mDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X2: 隐性人情羁绊与互惠张力
@@ -739,7 +768,7 @@
                 const bondDir = bondLib.generateReciprocityDirectives(engine._socialBondState, currentSpeaker);
                 if (bondDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${bondDir}` : bondDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X3: 角色默契心领神会与未言明暗号
@@ -748,7 +777,7 @@
                 const tDir = tacitLib.generateTacitDirectives(engine._tacitUnderstandingState, currentSpeaker, queryText);
                 if (tDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${tDir}` : tDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X4: 欲言又止与潜台词心机
@@ -757,7 +786,7 @@
                 const hDir = hesitLib.generateHesitationDirectives(engine._unspokenHesitationState);
                 if (hDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${hDir}` : hDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X5: 长期承诺与约定里程碑追踪
@@ -766,7 +795,7 @@
                 const cDir = cmtLib.generateCommitmentDirectives(engine._commitmentMilestoneState);
                 if (cDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${cDir}` : cDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X6: 日常生活习惯共生与节律共鸣
@@ -775,7 +804,7 @@
                 const rDir = routineLib.generateRoutineDirectives();
                 if (rDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${rDir}` : rDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X7: 誓约心锚与背弃反噬共振中心
@@ -784,7 +813,7 @@
                 const aDir = anchorLib.generateAnchorDirectives(engine._emotionalAnchorState, currentSpeaker);
                 if (aDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${aDir}` : aDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X8: 创伤禁忌三层渐进心理防线
@@ -795,7 +824,7 @@
                     generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${defenseRes.directive}` : defenseRes.directive;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-X9: 客观世界因果桥主观折射摄入引擎
@@ -804,7 +833,7 @@
                 const asDir = assimLib.generateAssimilatorDirectives(engine._worldAxisAssimilatorState, currentSpeaker);
                 if (asDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${asDir}` : asDir;
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-O1: 全引擎交响总线波纹级联驱动 (Ripple Bus Dispatch)
@@ -818,7 +847,7 @@
                 }, { engine, directives: generatedDirectives });
                 trace.stages.rippleBus = { ok: busResult.ok, dispatched: busResult.dispatched };
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-O4: 分层折叠金字塔与演化替代处理 (Hierarchical Pyramid Evolution)
@@ -829,7 +858,7 @@
                     trace.stages.pyramidClusters = plan.clusters.length;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         try {
             // L16-O8: 潜意识未明言动机暗涌推演 (Subconscious Undercurrent)
@@ -840,7 +869,7 @@
                     generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${uRes.undercurrentDirective}` : uRes.undercurrentDirective;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         trace.antiConfusionDirectives = generatedDirectives;
 
@@ -849,24 +878,138 @@
         // [L17-O2] 当事人与旁观见证动态四桶硬隔离 (Source Witness Isolation Guard)
         try {
             const witnessLib = (typeof LonShaSourceWitnessGuard !== 'undefined' ? LonShaSourceWitnessGuard : (typeof require !== 'undefined' ? (() => { try { return require('./source-witness-isolation-guard.js'); } catch { return null; } })() : null));
-            if (witnessLib) {
+            /* [v3.461.0 · 契约修复] 原调用 `witnessLib.enforceWitnessIsolation(finalCandidates, viewer)`
+             *   但该模块真实导出的是 { createState, recordWitness, verifyKnowledgeAccess } ——
+             *   没有 enforceWitnessIsolation。恒抛 TypeError，被 catch(e){} 空吞 ⇒ 见证隔离自投产起从未生效。
+             *   现按真实 API 消费：对每条候选做 verifyKnowledgeAccess，被拒的从候选里摘除，
+             *   并在指令里写明「该角色不知晓」而不泄露事实本体。 */
+            /* [v3.461.0 · 契约修正 2] 上一版按真实 API 调了 verifyKnowledgeAccess，但**用错了默认语义**：
+             *   该函数对「未登记」的事实返回 { allowed:false, reason:'NO_WITNESS_RECORD' }，
+             *   那是它内部给"本引擎已登记维度"用的保守默认。若把整批召回直接喂进去，
+             *   凡是没预先登记见证记录的候选全被判为不可知 ⇒ **召回被整批清空**
+             *   （实测：4 条候选 → 输出 0 条；三个下游引擎齐刷刷走 skipped）。
+             *   正确做法（本版）：
+             *     ① 先用候选自身的真实见证信息（witnesses / present / bucket）登记；
+             *     ② 只拦「确认不在场」这一类 —— 即引擎给出明确禁区判据的 ABSENT；
+             *     ③ 未登记的事实**不做推断**，原样放行：证据不足不等于有罪。
+             */
+            if (witnessLib && typeof witnessLib.verifyKnowledgeAccess === 'function') {
+                if (!engine._witnessState && typeof witnessLib.createState === 'function') {
+                    engine._witnessState = witnessLib.createState();
+                }
                 const viewer = currentSpeaker || '当前角色';
-                const witRes = witnessLib.enforceWitnessIsolation(finalCandidates, viewer);
-                if (witRes && Array.isArray(witRes.filteredCandidates)) {
-                    finalCandidates = witRes.filteredCandidates;
-                    if (witRes.defenseDirective) {
-                        generatedDirectives = generatedDirectives ? (generatedDirectives + '\n' + witRes.defenseDirective) : witRes.defenseDirective;
+                /* ① 登记：把候选里能读到的真实见证信息写进隔离状态，不编造 */
+                if (typeof witnessLib.recordWitness === 'function' && engine._witnessState) {
+                    const known = new Set((engine._witnessState.witnessRecords || []).map(r => r && (r.factId + '|' + r.character)));
+                    for (const cand of finalCandidates) {
+                        const factId = String((cand && (cand.id ?? cand.key)) ?? '');
+                        if (!factId || known.has(factId + '|' + viewer)) continue;
+                        const witnesses = Array.isArray(cand && cand.witnesses) ? cand.witnesses : null;
+                        const absent = Array.isArray(cand && cand.absentCharacters) ? cand.absentCharacters : [];
+                        const present = Array.isArray(cand && cand.presentCharacters) ? cand.presentCharacters : [];
+                        let role = null;
+                        if (present.includes(viewer)) role = 'WITNESS';
+                        else if (absent.includes(viewer)) role = 'ABSENT';
+                        else if (witnesses && witnesses.includes(viewer)) role = 'WITNESS';
+                        else if (cand && cand.bucket === 'experienced' && Array.isArray(present) === false && !witnesses) {
+                            /* 叙事记忆里「亲历」桶但没标在场名单：登记为亲历方是**过度推断**，
+                             * 故这里不登记，留给 ③ 的放行分支，避免把不确定当确定。 */
+                            role = null;
+                        } else if (witnesses && !witnesses.includes(viewer)) role = 'HEARSAY';
+                        if (role) {
+                            try { witnessLib.recordWitness(engine._witnessState, factId, viewer, role, 1.0); } catch (_e) {}
+                        }
                     }
                 }
+                /* ② 只拦「确认不在场」；③ 未登记/信息不足 ⇒ 放行 */
+                const kept = [];
+                let absentBlocked = 0;
+                for (const cand of finalCandidates) {
+                    const factId = String((cand && (cand.id ?? cand.key)) ?? '');
+                    if (!factId) { kept.push(cand); continue; }
+                    let verdict = null;
+                    try { verdict = witnessLib.verifyKnowledgeAccess(engine._witnessState, factId, viewer); } catch (_e) { verdict = null; }
+                    if (verdict && verdict.allowed === false && verdict.reason === 'CONFIRMED_ABSENT_RESTRICTION') {
+                        absentBlocked++;   // 有明确禁区判据 ⇒ 绝不可进入上下文
+                        continue;
+                    }
+                    kept.push(cand);       // NO_WITNESS_RECORD / 其他 ⇒ 证据不足，放行
+                }
+                if (absentBlocked > 0) {
+                    const dir = `【见证隔离】${viewer}当时并不在场，其中 ${absentBlocked} 件旧事不得表现出知情。`;
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + '\n' + dir) : dir;
+                }
+                finalCandidates = kept;
+                trace.stages.witnessIsolation = {
+                    viewer, kept: kept.length, absentBlocked,
+                    unverified: kept.length - (engine._witnessState.witnessRecords || []).filter(r => r && r.character === viewer && r.role !== 'ABSENT').length
+                };
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
+        /* ---------------- [阶段 4.5: L-O11 多知情视角剧场材料投影] ----------------
+         * multi-perspective-theater-bench.js 是纯函数内核（projectEventMaterialsByPerspective），
+         * 自投产起全仓零消费 —— 本段是它唯一的真实调用方。
+         * 语义：同一事件按「亲历者 / 旁观者 / 未来回望者 / 档案研究者」四种知情身份投影可见材料。
+         * 纪律：只摘除被内核**明确判为不可见**（redacted）且带 id 的事实；
+         *       无 id / 内核跳过的条目一律保留 —— 证据不足不等于有罪（同见证隔离口径）。 */
+        try {
+            const theaterLib = (typeof MultiPerspectiveTheaterBench !== 'undefined' ? MultiPerspectiveTheaterBench : (typeof require !== 'undefined' ? (() => { try { return require('./multi-perspective-theater-bench.js'); } catch { return null; } })() : null));
+            if (theaterLib && typeof theaterLib.projectEventMaterialsByPerspective === 'function' && finalCandidates.length) {
+                const roles = theaterLib.PERSPECTIVE_ROLES || {};
+                const viewer2 = currentSpeaker || '当前角色';
+                let perspectiveRole = roles.ONLOOKER || 'onlooker';
+                let sawPresent = false;
+                for (const cand of finalCandidates) {
+                    const present = Array.isArray(cand && cand.presentCharacters) ? cand.presentCharacters : [];
+                    if (present.includes(viewer2)) { sawPresent = true; break; }
+                }
+                if (sawPresent) {
+                    perspectiveRole = roles.PARTICIPANT || 'participant';
+                } else if (engine._viewerPerspective && Object.values(roles).includes(engine._viewerPerspective)) {
+                    perspectiveRole = engine._viewerPerspective;   // 宿主显式指定身份时以宿主为准
+                }
+                const facts = finalCandidates.map(c => ({
+                    id: String((c && (c.id ?? c.key)) ?? ''),
+                    isSecret: Boolean(c && (c.isSecret || c.bucket === 'secret')),
+                    scope: (c && c.scope) || ((c && c.bucket === 'inner_monologue') ? 'inner_monologue' : undefined),
+                    hasDocumentEvidence: Boolean(c && c.hasDocumentEvidence),
+                    __src: c
+                }));
+                const projection = theaterLib.projectEventMaterialsByPerspective(facts, perspectiveRole, {
+                    isDecryptedInFuture: Boolean(engine._futureRetrospective)
+                });
+                const redactedIds = new Set((projection.redacted || []).map(r => String(r.id)).filter(Boolean));
+                if (redactedIds.size > 0) {
+                    finalCandidates = finalCandidates.filter(c => !redactedIds.has(String((c && (c.id ?? c.key)) ?? '')));
+                    const roleLabel = perspectiveRole === (roles.PARTICIPANT || 'participant') ? '亲历者'
+                        : perspectiveRole === (roles.FUTURE_RETROSPECTIVE || 'future_retrospective') ? '事后回望者'
+                        : perspectiveRole === (roles.ARCHIVAL_RESEARCHER || 'archival_researcher') ? '档案研究者'
+                        : '旁观者';
+                    const dir2 = `【视角材料】你现在是这场旧事的${roleLabel}，其中 ${redactedIds.size} 件细节你没有途径得知，不得表现出看见过。`;
+                    generatedDirectives = generatedDirectives ? (generatedDirectives + '\n' + dir2) : dir2;
+                }
+                trace.stages.theaterProjection = {
+                    perspectiveRole,
+                    total: facts.length,
+                    visible: projection.visibleCount,
+                    redacted: redactedIds.size,
+                    kept: finalCandidates.length
+                };
+            } else {
+                trace.stages.theaterProjection = { status: 'skipped_or_unavailable' };
+            }
+        } catch (e) { _symphonyFail('stage', e); }
         try {
             const horizonLib = (typeof engine._cognitiveHorizonLib === 'function') 
                 ? engine._cognitiveHorizonLib() 
                 : (typeof LonShaCognitiveHorizonFilter !== 'undefined' ? LonShaCognitiveHorizonFilter : (typeof require !== 'undefined' ? (() => { try { return require('./cognitive-horizon-bucket-filter.js'); } catch { return null; } })() : null));
             if (horizonLib && typeof horizonLib.filterContextForCognitiveHorizon === 'function') {
                 const viewer = currentSpeaker || '当前角色';
-                const filterRes = horizonLib.filterContextForCognitiveHorizon(disambiguatedCandidates, viewer, {
+                /* [v3.461.0 · 输入源修正] 原传 `disambiguatedCandidates`（阶段 0 的输入快照），
+                 *   等于把防火墙 + 见证隔离已经摘除的候选整体**复活**：两个上游安检的成果被静默丢弃，
+                 *   表现就是「隔离看起来没生效」。此处必须消费当前最终候选集 `finalCandidates`。 */
+                const horizonInput = Array.isArray(finalCandidates) ? finalCandidates : disambiguatedCandidates;
+                const filterRes = horizonLib.filterContextForCognitiveHorizon(horizonInput, viewer, {
                     inSceneCharacters: knownCharacters,
                     strictOmniscienceBan: true
                 });
@@ -877,7 +1020,7 @@
                 }
                 trace.stages.cognitiveHorizon = {
                     viewer,
-                    before: disambiguatedCandidates.length,
+                    before: horizonInput.length,
                     after: finalCandidates.length
                 };
             } else {
@@ -904,15 +1047,33 @@
         trace.durationMs = Date.now() - trace.startTime;
         // [L17-O9] 极简心智晴雨表与全量状态快照引擎提纯留痕
         try {
-            const baroLib = (typeof LonShaMindBarometerSnapshot !== 'undefined' ? LonShaMindBarometerSnapshot : (typeof require !== 'undefined' ? (() => { try { return require('./mind-barometer-dashboard-snapshot.js'); } catch { return null; } })() : null));
-            if (baroLib) {
-                const tension = engine._tensionScore || 0.5;
-                const pressure = (engine._egoDefenseState && engine._egoDefenseState.threatLevel) || 0.2;
-                const weather = baroLib.computeBarometerWeather({ currentTension: tension, currentPressure: pressure });
-                if (!engine._mindBarometerState) engine._mindBarometerState = baroLib.createState();
-                engine._mindBarometerState.lastWeather = weather;
+            /* [v3.461.0 · 全局名修正] 原检查 `typeof LonShaMindBarometerSnapshot`，
+             *   但 mind-barometer-dashboard-snapshot.js 真实挂的是 `LonShaMindBarometerDashboard`
+             *   （见该文件 root.LonShaMindBarometerDashboard = factory()）。
+             *   两个名字只差一个词，Node 侧靠 require 兜底掩盖了这个错位；
+             *   浏览器侧没有 require ⇒ 取到 null ⇒ 晴雨表在真宿主里静默失效。
+             *   现在两名字都认（旧名留兼容），并把实际来源记进 trace 便于回归核对。 */
+            const baroLib = (typeof LonShaMindBarometerDashboard !== 'undefined' ? LonShaMindBarometerDashboard
+                : (typeof LonShaMindBarometerSnapshot !== 'undefined' ? LonShaMindBarometerSnapshot
+                    : (typeof require !== 'undefined' ? (() => { try { return require('./mind-barometer-dashboard-snapshot.js'); } catch { return null; } })() : null)));
+            /* [v3.461.0 · 契约修复] 原调用 `baroLib.computeBarometerWeather({...})`，
+             *   该模块真实导出为 { createState, aggregateBarometer, exportMindSnapshot } ——
+             *   没有 computeBarometerWeather。恒抛 TypeError 且被空 catch 吞掉 ⇒ 心智晴雨表从未工作。
+             *   现按真实签名 aggregateBarometer(egoState, traumaState, intimacyState) 消费。 */
+            if (baroLib && typeof baroLib.aggregateBarometer === 'function') {
+                const weather = baroLib.aggregateBarometer(
+                    engine._egoDefenseState || ((engine._psychologicalDefenseState) || null),
+                    engine._traumaTabooState || null,
+                    engine._tacitUnderstandingState || engine._socialBondState || null
+                );
+                if (!engine._mindBarometerState && typeof baroLib.createState === 'function') {
+                    engine._mindBarometerState = baroLib.createState();
+                }
+                if (engine._mindBarometerState && weather) {
+                    engine._mindBarometerState.lastWeather = weather;
+                }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
         // [L18-O7] 认识论边界审计与防全知终审
         try {
             const auditorLib = (typeof EpistemicBoundaryAuditor !== "undefined" ? EpistemicBoundaryAuditor : (typeof require !== "undefined" ? (() => { try { return require("./epistemic-boundary-auditor.js").default || require("./epistemic-boundary-auditor.js"); } catch { return null; } })() : null));
@@ -923,7 +1084,7 @@
                     generatedDirectives = auditRes.text;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         
         // ============================================================
@@ -940,7 +1101,7 @@
 ${epiRes.promptDirective}` : epiRes.promptDirective;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X1', e); }
 
         // 2. [L-X2] 情绪余震滞后阻尼与心境残余 (Emotional Inertia Mood Residue)
         try {
@@ -953,7 +1114,7 @@ ${epiRes.promptDirective}` : epiRes.promptDirective;
 ${residueRes.promptDirective}` : residueRes.promptDirective;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X2', e); }
 
         // 3. [L-X3] 隐性人情亏欠补偿网络 (Latent Social Debt Reciprocity)
         try {
@@ -966,7 +1127,7 @@ ${residueRes.promptDirective}` : residueRes.promptDirective;
 ${debtRes.promptDirective}` : debtRes.promptDirective;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X3', e); }
 
         // 4. [L-X4] 欲言又止微流潜台词 (Hesitation Subtext Microflow)
         try {
@@ -981,7 +1142,7 @@ ${subtextRes.formattedInjection}` : subtextRes.formattedInjection;
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X4', e); }
 
         // 5. [L-X5] 长期誓约碎裂冰川共鸣 (Long-term Covenant Breach Resonator)
         try {
@@ -998,12 +1159,12 @@ ${subtextRes.formattedInjection}` : subtextRes.formattedInjection;
                         }
                     }
                 }
-                if (covRes && covRes.promptDirective) {
-                    generatedDirectives = generatedDirectives ? `${generatedDirectives}
-${covRes.promptDirective}` : covRes.promptDirective;
-                }
+                /* [v3.461.0 · 接线修复] 此处原有一段 `if (covRes && covRes.promptDirective)`
+                 *   落在 `const covRes` 的块作用域**之外** —— 恒抛 ReferenceError，
+                 *   而外层是 `catch (e) { _symphonyFail('stage', e); }` 空吞：誓约反噬的注入在本引擎投产以来**从未生效**过，
+                 *   且失败一点痕迹都不留。已删除该段（其职责与上方块内分支完全重复）。 */
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // 6. [L-X6] 角色专属口癖习惯微动作 (Embodied Micro Mannerism Habits)
         try {
@@ -1016,7 +1177,7 @@ ${covRes.promptDirective}` : covRes.promptDirective;
 ${mannerRes.directive}` : mannerRes.directive;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X6', e); }
 
         // 7. [L-X7] 戏剧性高潮揭露中枢 (Dramatic Reveal Catharsis Hub)
         try {
@@ -1029,7 +1190,7 @@ ${mannerRes.directive}` : mannerRes.directive;
 ${cathRes.promptDirective}` : cathRes.promptDirective;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X7', e); }
 
         // 8. [L-X8] 潜意识超现实残梦隐喻 (Metaphorical Dream Synthesizer)
         try {
@@ -1042,7 +1203,7 @@ ${cathRes.promptDirective}` : cathRes.promptDirective;
 ${dreamRes.promptDirective}` : dreamRes.promptDirective;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X8', e); }
 
         // 9. [L-X9] 多方暗流同盟博弈 (Multi-Faction Game Conspiracy Coordinator)
         try {
@@ -1055,7 +1216,7 @@ ${dreamRes.promptDirective}` : dreamRes.promptDirective;
 【阵营博弈立场】当前依附阵营结盟方: ${standing.allies.join(", ")}` : `【阵营博弈立场】当前依附阵营结盟方: ${standing.allies.join(", ")}`;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-X9', e); }
 
         // 10. [L-O3] 多主体时空连续性校验与代词消歧 (Multi-Agent Spatial Temporal Resolver)
         try {
@@ -1068,9 +1229,9 @@ ${dreamRes.promptDirective}` : dreamRes.promptDirective;
 ${spatialDirectives}` : spatialDirectives;
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-O3', e); }
 
-        // 11. [L-O2] 动态注意力与Token弹性平衡 (Adaptive Attention Budget Balancer)
+        // [L-O2] 动态注意力与Token弹性平衡 (Adaptive Attention Budget Balancer)
         try {
             const BudgetBalancerLib = (typeof AdaptiveAttentionBudgetBalancer !== "undefined" ? AdaptiveAttentionBudgetBalancer : (typeof require !== "undefined" ? (() => { try { return require("./adaptive-attention-budget-balancer.js"); } catch { return null; } })() : null));
             if (BudgetBalancerLib && generatedDirectives) {
@@ -1080,7 +1241,238 @@ ${spatialDirectives}` : spatialDirectives;
                     generatedDirectives = generatedDirectives.slice(0, budgetAlloc.maxChars) + "[...弹性预算截断]";
                 }
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('L-O2', e); }
+
+        /* ============================================================
+         * [v3.461.0 · 休眠引擎接线] 以下 7 个引擎此前**实例已挂上正确槽位，
+         *   但编排器全仓零读取** —— 建好了却没人用，属「静默孤岛」。
+         *   本轮按各自真实 API 接入，每一项都写进 trace，
+         *   失败走 _symphonyFail（不再被空 catch 吞掉）。
+         * ============================================================ */
+
+        // [L-O10] 交响波纹调度：把「该落账但不必阻塞本回合」的收尾工作排成异步波纹。
+        //   刻意做成**边车**：flushWaveSchedule 是 async（内部 Promise.race 超时防护），
+        //   而本编排器是同步契约（引擎侧直接读返回值）。硬 await 会把同步契约改成异步、
+        //   波及所有调用方；不 await 又会出现「已返回但任务还在跑」的谎报。
+        //   故只入队 + 记录读数，由宿主在空闲时机调 flushEvolutionWaveQueue() 真执行，
+        //   队列与执行结果都留在 engine._waveScheduler 上，可观测、可重放。
+        try {
+            const WaveLib = (typeof EngineSymphonyWaveScheduler !== "undefined" ? EngineSymphonyWaveScheduler : (typeof require !== "undefined" ? (() => { try { return require("./engine-symphony-wave-scheduler.js").default || require("./engine-symphony-wave-scheduler.js"); } catch { return null; } })() : null));
+            if (WaveLib) {
+                if (!engine._waveScheduler) engine._waveScheduler = new (WaveLib.EngineSymphonyWaveScheduler || WaveLib)();
+                const wave = engine._waveScheduler;
+                let queued = 0;
+                /* ① 落账任务：本回合实际注入了哪些事实（供压实账本日后压成场景时知道原料从哪来） */
+                if (Array.isArray(finalCandidates) && finalCandidates.length) {
+                    try {
+                        wave.enqueueTask('ledger_commit', 'consolidation', 4, {
+                            count: finalCandidates.length,
+                            ids: finalCandidates.slice(0, 12).map(c => String((c && (c.id || c.key)) || '')).filter(Boolean),
+                            speaker: currentSpeaker
+                        });
+                        queued++;
+                    } catch (_e) { /* 队列满由引擎自身淘汰策略处理 */ }
+                }
+                /* ② 遗忘衰减任务：每回合推进一次赫布衰减与余震阻尼，避免长期不跑而失真 */
+                try {
+                    wave.enqueueTask('salience_decay', 'maintenance', 3, { deltaHours: 1 });
+                    queued++;
+                } catch (_e) {}
+                trace.stages.waveScheduler = { queued, pending: (wave.queue && wave.queue.length) || 0 };
+                /* 供宿主调用的执行口（幂等：可反复调，无队列时立即返回） */
+                if (typeof engine.flushEvolutionWaveQueue !== 'function') {
+                    engine.flushEvolutionWaveQueue = async () => {
+                        const w = engine._waveScheduler;
+                        if (!w || typeof w.flushWaveSchedule !== 'function') return { executedCount: 0, reason: 'no-scheduler' };
+                        return w.flushWaveSchedule(async (item) => {
+                            /* 每个波纹任务在这里兑现：只做轻量、幂等、可重放的收尾动作。 */
+                            if (item.taskName === 'salience_decay') {
+                                const h = engine._hebbianCurator;
+                                if (h && typeof h.stepDecay === 'function') h.stepDecay(Number(item.payload && item.payload.deltaHours) || 1);
+                                return { decayed: true };
+                            }
+                            if (item.taskName === 'ledger_commit') {
+                                const l = engine._compactionLedger;
+                                if (l && typeof l.recordRawFact === 'function') {
+                                    let n = 0;
+                                    for (const id of (item.payload && item.payload.ids) || []) {
+                                        try { l.recordRawFact(id, '', { floor: null, speaker: (item.payload && item.payload.speaker) || null }); n++; } catch (_e) {}
+                                    }
+                                    return { recorded: n };
+                                }
+                                return { recorded: 0 };
+                            }
+                            return { skipped: true, taskName: item.taskName };
+                        });
+                    };
+                }
+            } else {
+                trace.stages.waveScheduler = { status: 'skipped_or_unavailable' };
+            }
+        } catch (e) { _symphonyFail('L-O10', e); }
+
+        // [L-O4] 认识论四桶守卫：按「谁知道什么」过滤候选，防角色说出不该知道的事
+        try {
+            const BucketLib = (typeof EpistemicFourBucketGuard !== "undefined" ? EpistemicFourBucketGuard : (typeof require !== "undefined" ? (() => { try { return require("./epistemic-four-bucket-guard.js").default || require("./epistemic-four-bucket-guard.js"); } catch { return null; } })() : null));
+            if (BucketLib && finalCandidates.length) {
+                if (!engine._fourBucketGuard) engine._fourBucketGuard = new (BucketLib.EpistemicFourBucketGuard || BucketLib)();
+                const guard = engine._fourBucketGuard;
+                /* 先用候选自身携带的桶类型登记（没有就按来源保守归为 hearsay —— 听说的事不该被当成亲历） */
+                for (const cand of finalCandidates) {
+                    const id = String(cand && (cand.id || cand.key || cand.text || '')).slice(0, 80);
+                    if (!id) continue;
+                    const bucket = cand && (cand.bucket || cand.knowledgeBucket);
+                    guard.assignFact(id, String((cand && (cand.text || cand.content)) || ''), bucket, {
+                        perspectiveHolder: currentSpeaker,
+                        witnesses: Array.isArray(cand && cand.witnesses) ? cand.witnesses : []
+                    });
+                }
+                /* 再过一遍「当前说话人能否知道」：canCharacterKnow 拒绝的直接剔除候选 */
+                let denied = 0;
+                const allowed = [];
+                for (const cand of finalCandidates) {
+                    const id = String(cand && (cand.id || cand.key || cand.text || '')).slice(0, 80);
+                    const verdict = id ? guard.canCharacterKnow(currentSpeaker, id) : { permitted: true };
+                    if (verdict && verdict.permitted === false) denied++; else allowed.push(cand);
+                }
+                if (denied > 0) finalCandidates = allowed;
+                trace.stages.fourBucketGuard = { checked: finalCandidates.length + denied, denied, kept: finalCandidates.length };
+                if (denied > 0) {
+                    const line = `【认识论边界】${currentSpeaker}对其中 ${denied} 件旧事并无可靠获知途径，本回合不应主动提起。`;
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${line}` : line;
+                }
+            } else {
+                trace.stages.fourBucketGuard = { status: 'skipped_or_unavailable' };
+            }
+        } catch (e) { _symphonyFail('L-O4', e); }
+
+        // [L-O5] 仿生赫布突显：候选之间共激活 ⇒ 相互强化；久未触碰 ⇒ 衰减
+        try {
+            const HebbianLib = (typeof BiomimeticHebbianSalienceCurator !== "undefined" ? BiomimeticHebbianSalienceCurator : (typeof require !== "undefined" ? (() => { try { return require("./biomimetic-hebbian-salience-curator.js").default || require("./biomimetic-hebbian-salience-curator.js"); } catch { return null; } })() : null));
+            if (HebbianLib && finalCandidates.length) {
+                if (!engine._hebbianCurator) engine._hebbianCurator = new (HebbianLib.BiomimeticHebbianSalienceCurator || HebbianLib)();
+                const curator = engine._hebbianCurator;
+                const ids = [];
+                for (const cand of finalCandidates) {
+                    const id = String(cand && (cand.id || cand.key || cand.text || '')).slice(0, 80);
+                    if (!id) continue;
+                    ids.push(id);
+                    try { curator.registerNode(id, Number(cand.importance || cand.score || 1) / 10 || 1, Boolean(cand.pinned)); } catch (_e) { /* 单条登记失败不阻断整批 */ }
+                }
+                /* 同一次召回里一起出现的记忆 ⇒ 共激活强化（赫布学习：同时激活则连接增强） */
+                for (let i = 0; i + 1 < ids.length && i < 12; i++) {
+                    try { curator.reinforceHebbianCoActivation(ids[i], ids[i + 1]); } catch (_e) {}
+                }
+                try { curator.stepDecay(1); } catch (_e) {}
+                const active = (typeof curator.getActiveSalientNodes === 'function') ? curator.getActiveSalientNodes(0.35) : null;
+                const activeCount = Array.isArray(active) ? active.length : (active && active.length);
+                trace.stages.hebbianCurator = { nodes: ids.length, active: activeCount ?? null };
+            } else {
+                trace.stages.hebbianCurator = { status: 'skipped_or_unavailable' };
+            }
+        } catch (e) { _symphonyFail('L-O5', e); }
+
+        // [L-O6] 冲突自愈仲裁：同一事实新旧两版互相矛盾时给出裁决（谎言/潜意识扭曲走双轨隔离）
+        try {
+            const ArbLib = (typeof MemoryConflictHealingArbitrator !== "undefined" ? MemoryConflictHealingArbitrator : (typeof require !== "undefined" ? (() => { try { return require("./memory-conflict-healing-arbitrator.js").default || require("./memory-conflict-healing-arbitrator.js"); } catch { return null; } })() : null));
+            if (ArbLib && finalCandidates.length > 1) {
+                if (!engine._conflictHealingArbitrator) engine._conflictHealingArbitrator = new (ArbLib.MemoryConflictHealingArbitrator || ArbLib)();
+                const arb = engine._conflictHealingArbitrator;
+                let rulings = 0;
+                let dualBranches = 0;
+                /* 只在「同一对象/同一实体」的候选对之间裁：对象不同就是两件事，不必仲裁 */
+                for (let i = 0; i < finalCandidates.length && i < 20; i++) {
+                    for (let j = i + 1; j < finalCandidates.length && j < 20; j++) {
+                        const a = finalCandidates[i], b = finalCandidates[j];
+                        const ka = a && (a.entity || a.subject || a.participants);
+                        const kb = b && (b.entity || b.subject || b.participants);
+                        if (!ka || !kb) continue;
+                        const sa = JSON.stringify(ka), sb = JSON.stringify(kb);
+                        if (sa !== sb) continue;
+                        const res = arb.arbitrate(
+                            { text: String(a.text || a.content || ''), turnIndex: Number(a.floor || a.turnIndex || 0) },
+                            { text: String(b.text || b.content || ''), turnIndex: Number(b.floor || b.turnIndex || 0), isLie: Boolean(b.isLie), isDenial: Boolean(b.isDenial), isSubconsciousDistortion: Boolean(b.isSubconsciousDistortion) }
+                        );
+                        if (!res) continue;
+                        rulings++;
+                        if (res.dualBranch) dualBranches++;
+                        if (res.dualBranch && res.dualBranch.objectiveTruth) {
+                            const line = `【认知双轨】客观发生: ${String(res.dualBranch.objectiveTruth).slice(0, 60)}；而角色主观认定: ${String(res.dualBranch.subjectiveBelief || '').slice(0, 60)}（起因: ${res.dualBranch.distortionOrigin || '未注明'}）。回复须体现这种自我说服的偏差，不要纠正对方。`;
+                            generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${line}` : line;
+                        }
+                    }
+                }
+                trace.stages.conflictHealing = { rulings, dualBranches };
+            } else {
+                trace.stages.conflictHealing = { status: 'skipped_or_unavailable' };
+            }
+        } catch (e) { _symphonyFail('L-O6', e); }
+
+        // [L-O7] 会话边界重置守卫：上下文被清/换会话时，旧状态必须作废而不是继续生效
+        try {
+            const ResetLib = (typeof RuntimeMemoryResetGuard !== "undefined" ? RuntimeMemoryResetGuard : (typeof require !== "undefined" ? (() => { try { return require("./runtime-memory-reset-guard.js").default || require("./runtime-memory-reset-guard.js"); } catch { return null; } })() : null));
+            if (ResetLib) {
+                if (!engine._runtimeResetGuard) engine._runtimeResetGuard = new (ResetLib.RuntimeMemoryResetGuard || ResetLib)();
+                const guard = engine._runtimeResetGuard;
+                const sessionId = String((query && (query.sessionId || query.chatId)) || (engine._sessionId || 'default'));
+                let purged = false;
+                const res = guard.assertSessionBoundary(sessionId, String(currentSpeaker || ''), () => {
+                    /* 真跨会话时把**跨会话会串味**的瞬时态清掉；长期记忆与账本不动。 */
+                    purged = true;
+                    engine._hebbianCurator = null;
+                    engine._conflictHealingArbitrator = null;
+                    engine._fourBucketGuard = null;
+                });
+                engine._sessionId = sessionId;
+                trace.stages.runtimeResetGuard = { sessionId, purged: !!purged, verdict: (res && (res.reset || res.sameSession)) ?? null };
+                if (purged) {
+                    const line = '【会话边界】新的对话已开始，只保留长期记忆与已发生的因果，不把上一场戏的临场情绪当成现在的。';
+                    generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${line}` : line;
+                }
+            } else {
+                trace.stages.runtimeResetGuard = { status: 'skipped_or_unavailable' };
+            }
+        } catch (e) { _symphonyFail('L-O7', e); }
+
+        // [L-O8] 分层压实账本：把本轮实际注入的候选登记为「原始事实」，供日后压成场景/纪元后可回溯出处
+        try {
+            const LedgerLib = (typeof HierarchicalCompactionLedger !== "undefined" ? HierarchicalCompactionLedger : (typeof require !== "undefined" ? (() => { try { return require("./hierarchical-compaction-ledger.js").default || require("./hierarchical-compaction-ledger.js"); } catch { return null; } })() : null));
+            if (LedgerLib) {
+                if (!engine._compactionLedger) engine._compactionLedger = new (LedgerLib.HierarchicalCompactionLedger || LedgerLib)();
+                const ledger = engine._compactionLedger;
+                let recorded = 0;
+                for (const cand of finalCandidates) {
+                    const id = String(cand && (cand.id || cand.key || '')).slice(0, 80);
+                    if (!id) continue;
+                    try {
+                        ledger.recordRawFact(id, String((cand && (cand.text || cand.content)) || '').slice(0, 300), {
+                            floor: Number((cand && (cand.floor || cand.turnIndex)) || activeFloor) || null,
+                            speaker: currentSpeaker
+                        });
+                        recorded++;
+                    } catch (_e) { /* 单条登记失败不阻断 */ }
+                }
+                trace.stages.compactionLedger = { recorded };
+            } else {
+                trace.stages.compactionLedger = { status: 'skipped_or_unavailable' };
+            }
+        } catch (e) { _symphonyFail('L-O8', e); }
+
+        // [L-O9] 遥测人性化面板：把上面各阶段的读数翻成一句人话，挂进 trace 供诊断页直读
+        try {
+            const TelemetryLib = (typeof UITelemetryMetricsVisualizer !== "undefined" ? UITelemetryMetricsVisualizer : (typeof require !== "undefined" ? (() => { try { return require("./ui-telemetry-metrics-visualizer.js").default || require("./ui-telemetry-metrics-visualizer.js"); } catch { return null; } })() : null));
+            if (TelemetryLib) {
+                if (!engine._telemetryVisualizer) engine._telemetryVisualizer = new (TelemetryLib.UITelemetryMetricsVisualizer || TelemetryLib)();
+                const humanized = engine._telemetryVisualizer.renderHumanizedDashboard({
+                    candidates: (Array.isArray(finalCandidates) ? finalCandidates.length : 0),
+                    outputCount: trace.outputCount,
+                    durationMs: Date.now() - trace.startTime,
+                    directiveChars: String(generatedDirectives || '').length,
+                    stageFailures: (typeof getFailureReport === 'function' ? getFailureReport().total : 0)
+                });
+                if (humanized) trace.humanized = humanized;
+            }
+        } catch (e) { _symphonyFail('L-O9', e); }
 
         // [L18-O6] 提示词预算动态弹性竞价分配
         try {
@@ -1089,7 +1481,7 @@ ${spatialDirectives}` : spatialDirectives;
                 const allocator = new (allocLib.PromptBudgetDynamicAllocator || allocLib)();
                 generatedDirectives = allocator.enforceBudget(generatedDirectives, 1200);
             }
-        } catch (e) {}
+        } catch (e) { _symphonyFail('stage', e); }
 
         // 更新交响状态留痕
         if (!engine._symphonyState || typeof engine._symphonyState !== 'object') {
@@ -1110,6 +1502,8 @@ ${spatialDirectives}` : spatialDirectives;
         VERSION,
         createState,
         hydrateState,
-        orchestrateMemorySymphony
+        orchestrateMemorySymphony,
+        /* [v3.461.0 · 诊断面] 空 catch 不再无声：各引擎阶段的失败次数与最后一条原因从这里读。 */
+        getFailureReport
     };
 }));

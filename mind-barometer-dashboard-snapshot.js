@@ -4,7 +4,12 @@
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
+        /* [v3.461.0 · 全局名双挂] 编排器历史上有两处检查过不同的名字：
+         *   一处写的是 LonShaMindBarometerDashboard（本文件真实名），
+         *   另一处写的是 LonShaMindBarometerSnapshot（只存在于旧注释里）。
+         *   两个名字挂同一份对象，避免任何一方取不到而在真宿主里静默失效。 */
         root.LonShaMindBarometerDashboard = factory();
+        root.LonShaMindBarometerSnapshot = root.LonShaMindBarometerDashboard;
     }
 }(typeof self !== 'undefined' ? self : this, function () {
     'use strict';

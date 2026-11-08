@@ -370,7 +370,13 @@
     "runtime-memory-reset-guard.js",
     "adaptive-attention-budget-balancer.js",
     "hierarchical-compaction-ledger.js",
-    "ui-telemetry-metrics-visualizer.js"
+    "ui-telemetry-metrics-visualizer.js",
+    "character-tacit-understanding-engine.js",
+    "everyday-shared-routine-rhythm-engine.js",
+    "latent-social-bond-reciprocity-engine.js",
+    "long-term-commitment-milestone-engine.js",
+    "narrative-momentum-flow-inertia-engine.js",
+    "unspoken-hesitation-subtext-engine.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",
