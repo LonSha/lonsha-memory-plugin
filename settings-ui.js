@@ -177,6 +177,17 @@
             .ls-mode-pill { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ls-text-2, #94a3b8); border-radius: 4px; cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
             .ls-mode-pill:hover { color: var(--ls-text, #f1f5f9); background: rgba(255,255,255,0.04); }
             .ls-mode-pill.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-3, #1b2436); box-shadow: var(--ls-inner-rim), 0 0 12px rgba(56,189,248,0.15); }
+            @media (max-width: 480px) { #lonsha-settings-overlay .ls-tabs-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } #lonsha-settings-overlay .ls-tab-btn { white-space: normal; min-height: 44px; padding: 8px 4px; } }
+            #lonsha-settings-overlay [hidden] { display: none !important; }
+            #lonsha-settings-overlay .ls-player-welcome { padding: 12px; margin-bottom: 12px; border: 1px solid var(--ls-accent-line); border-radius: 10px; background: var(--ls-bg-2); }
+            #lonsha-settings-overlay .ls-player-details { margin: 8px 0; padding: 8px; border: 1px solid var(--ls-line); border-radius: 8px; }
+            #lonsha-settings-overlay .ls-player-details > summary { cursor: pointer; min-height: 44px; padding: 10px 4px; box-sizing: border-box; color: var(--ls-text-2); overflow-wrap: anywhere; }
+            #lonsha-settings-overlay .ls-player-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+            #lonsha-settings-overlay .ls-player-actions .ls-btn { width: 100%; min-width: 0; margin: 0; min-height: 44px; }
+            #lonsha-settings-overlay .ls-mode-pill, #lonsha-home-overlay .ls-mode-pill { border: 1px solid transparent; background: transparent; font: inherit; font-size: 12px; min-width: 0; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+            #lonsha-settings-overlay .ls-mode-pill.active, #lonsha-home-overlay .ls-mode-pill.active { background: var(--ls-bg-3); border-color: var(--ls-accent-line); }
+            #lonsha-settings-overlay :focus-visible, #lonsha-home-overlay .ls-mode-pill:focus-visible { outline: 2px solid var(--ls-accent); outline-offset: 2px; }
+            #lonsha-settings-overlay .ls-settings-footer { position: sticky; bottom: -16px; padding-bottom: 12px; background: var(--ls-bg-1); z-index: 1; }
             /* ==== [v3.423] 玩家主页（FAB 直达） ==== */
             .ls-home-status { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-md, 10px); padding: 14px; margin-bottom: 16px; box-shadow: var(--ls-inner-rim); }
             .ls-home-status-main { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -2950,6 +2961,7 @@
             // [v3.271] 面板 HTML 构造期需要转义器；此前本函数体内未定义 esc，
             //   一进入模板串即抛 ReferenceError: esc is not defined，设置面板整块打不开。
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const escAttr = (value) => esc(value).replace(/"/g, '&quot;');
             const c = this.engine.config.config;
             const beforeConfig = JSON.parse(JSON.stringify(c));
             const ck = (key, label, hint) => `
@@ -2961,23 +2973,30 @@
                 <div class="ls-tabs-nav">
                     <button type="button" class="ls-tab-btn active" data-tab="general">🚀 开始使用</button>
                     <button type="button" class="ls-tab-btn" data-tab="narrative">📖 人物与故事</button>
-                    <button type="button" class="ls-tab-btn" data-tab="retrieval">🔧 进阶设置</button>
+                    <button type="button" class="ls-tab-btn" data-tab="retrieval">💾 备份与调校</button>
                     <button type="button" class="ls-tab-btn" data-tab="advanced">🧪 高级实验室</button>
                 </div>
-                <div style="margin:10px 8px;padding:12px 14px;border-radius:10px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.22);line-height:1.75;">
-                    <div style="font-size:14px;font-weight:600;margin-bottom:4px;">👋 开箱即用，只需两步</div>
-                    <div style="font-size:12px;opacity:0.9;">① 在下方「AI 接口连接」填好接口（或直接用游戏当前接口，零配置）；② 选一个记忆档位。<br>其余底层能力已<b>默认全部开启并配好最佳实践数值</b>，普通玩家完全不用碰。想看人物心境、关系与剧情，随时打开「统计」面板即可。</div>
-                </div>
-                <div class="ls-mode-banner" id="ls-mode-banner">
-                    <!-- [v3.422] 三档抽取节奏预设：点击立即写回 extractionProfile 并保存，无需再点保存。
-                         [v3.458] 极简重构：文案通俗化，保留 .ls-mode-pill / data-profile 契约（事件绑定依赖）。 -->
-                    <div style="font-size:12px;opacity:0.85;padding:4px 8px 2px;">记忆档位（点一下即可，随时可改）：</div>
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'balanced' ? ' active' : ''}" data-profile="balanced" role="button" title="均衡档：每 3 楼攒批提取，叙事与记忆成本平衡">⚖️ 平衡（推荐）</div>
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'quality' ? ' active' : ''}" data-profile="quality" role="button" title="质量档：每楼都提取，记忆最完整（API 消耗最高）">🌌 深度沉浸</div>
-                    <div class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'low-cost' ? ' active' : ''}" data-profile="low-cost" role="button" title="省流档：每 5 楼攒批且只抽核心类型（API 消耗最低）">⚡ 轻量省流</div>
-                </div>
-                
 <div class="ls-tab-pane active" data-tab-pane="general">
+                <div class="ls-player-welcome">
+                    <strong>开箱即用，把注意力留给故事</strong>
+                    <p class="ls-hint">默认使用当前对话的 AI 接口。保存设置后继续聊天，新的剧情会按所选档位整理；已有故事可在下方「找回漏记剧情」中补记。</p>
+                    <p class="ls-hint" id="ls-memory-state" role="status"></p>
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">日常只需要这三个开关</div>
+                    ${ck('enabled', '启用记忆', '让已保存的经历参与后续对话')}
+                    ${ck('extractionEnabled', '自动记住新剧情', '按记忆档位整理新的 AI 回复，会使用 AI 接口')}
+                    ${ck('autoSave', '随对话保存', '把新记忆保存在当前对话存档中')}
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">记忆档位 <span class="ls-hint">切换即保存</span></div>
+                    <div class="ls-mode-banner" id="ls-mode-banner" role="group" aria-label="记忆档位">
+                        <button type="button" class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'balanced' ? ' active' : ''}" data-profile="balanced" aria-pressed="${(c.extractionProfile || 'balanced') === 'balanced'}">平衡（推荐）</button>
+                        <button type="button" class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'quality' ? ' active' : ''}" data-profile="quality" aria-pressed="${(c.extractionProfile || 'balanced') === 'quality'}">细致记录</button>
+                        <button type="button" class="ls-mode-pill${(c.extractionProfile || 'balanced') === 'low-cost' ? ' active' : ''}" data-profile="low-cost" aria-pressed="${(c.extractionProfile || 'balanced') === 'low-cost'}">轻量省流</button>
+                    </div>
+                    <p class="ls-hint" id="ls-profile-help" aria-live="polite"></p>
+                </div>
 <div class="ls-group">
                     <!-- [v3.423] API 连接前置：玩家第一件事就是连 API，不再埋在第 3 个 tab 里 -->
                     <div class="ls-group-title">🔗 AI 接口连接</div>
@@ -2985,33 +3004,32 @@
                         <div><div>使用自己的 AI 接口</div><div class="ls-hint">关闭 = 直接用游戏当前对话的接口（推荐，零配置）。开启 = 填下方专用接口。</div></div>
                         <input type="checkbox" data-cfg="apiProviderCustom" ${c.apiProviderCustom ? 'checked' : ''}>
                     </label>
-                    <div style="padding: 4px 8px;">
-                        <input type="text" class="ls-input" placeholder="API 地址（如 https://api.xxx.com/v1）" value="${c.apiUrl || ''}" data-cfg-text="apiUrl" autocomplete="off">
-                        <input type="password" class="ls-input" placeholder="API Key" value="${c.apiKey || ''}" data-cfg-text="apiKey" autocomplete="off">
+                    <div id="ls-custom-api-fields" ${c.apiProviderCustom ? '' : 'hidden'} style="padding: 4px 8px;">
+                        <input type="text" class="ls-input" aria-label="专用接口地址" placeholder="API 地址（如 https://api.xxx.com/v1）" value="${escAttr(c.apiUrl || '')}" data-cfg-text="apiUrl" autocomplete="off">
+                        <input type="password" class="ls-input" placeholder="API Key" value="${escAttr(c.apiKey || '')}" data-cfg-text="apiKey" autocomplete="off">
                         <div style="display:flex;gap:6px;">
-                            <select class="ls-input" id="ls-model-select" data-cfg-text="apiModel" style="flex:1;display:none;"><option value="${c.apiModel || ''}">${c.apiModel || '点击右侧抓取模型'}</option></select>
-                            <input type="text" class="ls-input" id="ls-model-input" placeholder="模型名（或点右侧抓取列表）" value="${c.apiModel || ''}" style="flex:1;display:block;" autocomplete="off">
-                            <button class="ls-btn" id="ls-fetch-models" style="width:auto;padding:0 14px;margin:5px 0;white-space:nowrap;">🔄</button>
+                            <select class="ls-input" id="ls-model-select" data-cfg-text="apiModel" style="flex:1;display:none;"><option value="${escAttr(c.apiModel || '')}">${esc(c.apiModel || '点击右侧抓取模型')}</option></select>
+                            <input type="text" class="ls-input" id="ls-model-input" placeholder="模型名（或点右侧抓取列表）" value="${escAttr(c.apiModel || '')}" style="flex:1;display:block;" autocomplete="off">
+                            <button class="ls-btn" id="ls-fetch-models" type="button" aria-label="获取模型列表" style="width:auto;padding:0 14px;margin:5px 0;white-space:nowrap;">🔄</button>
+                        </div>
                         <div class="ls-hint" id="ls-model-status"></div>
                         <div class="ls-hint">兼容 OpenAI 格式；地址填 base 即可（自动补 /chat/completions）</div>
                     </div>
-                    <div style="padding: 0 8px;"><div class="ls-group-title" style="margin-top:10px">Embedding（向量检索用）</div></div>
+                    <details class="ls-player-details" id="ls-embedding-settings"><summary>可选：语义检索接口</summary><p class="ls-hint">普通聊天可以先不配。需要更精细地查找相似经历时，再设置专用的向量接口。</p>
                     <div style="padding: 4px 8px;">
-                        <input type="text" class="ls-input" placeholder="Embedding 地址（留空=同提取API）" value="${c.embeddingUrl || ''}" data-cfg-text="embeddingUrl" autocomplete="off">
-                        <input type="password" class="ls-input" placeholder="Embedding Key（留空=用提取Key）" value="${c.embeddingKey || ''}" data-cfg-text="embeddingKey" autocomplete="off">
-                        <input type="text" class="ls-input" placeholder="Embedding 模型（如 text-embedding-3-small）" value="${c.embeddingModel || ''}" data-cfg-text="embeddingModel" autocomplete="off">
-                        <div class="ls-hint">不配置时向量功能用简化算法（弱但免费），配置后为真语义检索</div>
+                        <input type="text" class="ls-input" placeholder="Embedding 地址（留空=同提取API）" value="${escAttr(c.embeddingUrl || '')}" data-cfg-text="embeddingUrl" autocomplete="off">
+                        <input type="password" class="ls-input" placeholder="Embedding Key（留空=用提取Key）" value="${escAttr(c.embeddingKey || '')}" data-cfg-text="embeddingKey" autocomplete="off">
+                        <input type="text" class="ls-input" placeholder="Embedding 模型（如 text-embedding-3-small）" value="${escAttr(c.embeddingModel || '')}" data-cfg-text="embeddingModel" autocomplete="off">
+                        <div class="ls-hint">不配置时使用本地相似度算法；配置后调用向量接口，可能产生额外费用</div>
                     </div>
+                    </details>
                 </div>
-                </div>
+<details class="ls-player-details" id="ls-background-settings"><summary>更多设置：检索、保存与排查</summary>
 <div class="ls-group">
-                    <div class="ls-group-title">🔘 基础开关（已默认开好）</div>
-                    ${ck('preferModuleFiles', 'extra_js 自装载', '模块按清单顺序自动加载，保障所有记忆机制生效')}
-                    ${ck('enabled', '启用插件', '总开关，关闭后不提取也不注入')}
-                    ${ck('extractionEnabled', '自动提取', '每条 AI 回复后自动用 LLM 提取记忆')}
-                    ${ck('vectorEnabled', '向量检索', '需要 Embedding API，关闭则只用关键词+图谱')}
-                    ${ck('graphDiffusionEnabled', 'PageRank 图扩散', '从已知角色出发扩散召回关联记忆')}
-                    ${ck('autoSave', '自动保存', '每次提取后自动写入对话存档')}
+                    <div class="ls-group-title">记忆的后台处理</div>
+                    ${ck('preferModuleFiles', '自动加载记忆组件', '仅在排查加载问题时调整；重新加载插件后生效')}
+                    ${ck('vectorEnabled', '按含义查找回忆', '未配置语义接口时使用本地相似度算法；关闭后只用关键词和人物关联')}
+                    ${ck('graphDiffusionEnabled', '联想相关经历', '从已知角色出发，找回与他们有关的经历')}
                     ${ck('debugMode', '调试模式', 'console 显示召回分数与提取详情')}
                 </div>
 <div class="ls-group">
@@ -3022,12 +3040,29 @@
                     <input type="range" class="ls-slider" min="1000" max="6000" step="200" value="${c.injectionBudget || 3000}" data-cfg-num="injectionBudget">
                     <div class="ls-hint" style="padding:0 8px;">注入简报超预算时自动裁剪，保护上下文窗口。</div>
                 </div>
-<div style="margin:10px 8px;padding:12px 14px;border-radius:10px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.22);line-height:1.75;">
-<div style="font-size:13px;font-weight:600;margin-bottom:4px;">✅ 其余的都替你配好了</div>
-<div style="font-size:12px;opacity:0.9;">自动记忆、防串角色、防胡说、因果关联、人物心境与关系追踪……全部默认开启，参数已调到最佳实践，不用再动。<br>想看人物好感 / 心境变化 / 剧情时间线 / 物品归属？关掉本窗口，打开「统计」面板即可，随时可查。</div>
-</div>
+</details>
+                <div class="ls-group">
+                    <div class="ls-group-title">看看故事记住了什么</div>
+                    <div class="ls-player-actions">
+                        <button type="button" class="ls-btn" data-settings-view="summaries">剧情回顾</button>
+                        <button type="button" class="ls-btn" data-settings-view="status">人物近况</button>
+                        <button type="button" class="ls-btn" data-settings-view="relations">人物关系</button>
+                    </div>
+                    <p class="ls-hint">查看后关闭上层窗口，即可回到这里继续设置。</p>
+                </div>
 </div>
 <div class="ls-tab-pane" data-tab-pane="narrative">
+<div class="ls-group">
+    <div class="ls-group-title">跟上人物和故事的变化</div>
+    <p class="ls-hint">这些记录来自当前对话；尚未整理的剧情会暂时没有内容。</p>
+    <div class="ls-player-actions">
+        <button type="button" class="ls-btn" data-settings-view="status">人物近况</button>
+        <button type="button" class="ls-btn" data-settings-view="relations">人物关系</button>
+        <button type="button" class="ls-btn" data-settings-view="timeline">故事时间线</button>
+        <button type="button" class="ls-btn" data-settings-view="suspense">未完的约定</button>
+    </div>
+</div>
+<details class="ls-player-details"><summary>调整人物与故事偏好</summary>
 <div class="ls-group">
                      <div class="ls-group-title">💗 人物心境与好感</div>
                      ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
@@ -3088,6 +3123,7 @@
                     <input type="range" class="ls-slider" min="1" max="8" step="1" value="${c.rubyPhoneRecallTopN ?? 3}" data-cfg-num="rubyPhoneRecallTopN">
                     <div class="ls-hint" style="padding:0 8px;">需要已安装 <b>RubyPhone (ruby-phone)</b> 扩展；未安装时自动跳过，不影响本插件。</div>
                 </div>
+</details>
 </details>
 </div>
 <div class="ls-tab-pane" data-tab-pane="retrieval">
@@ -3455,17 +3491,59 @@
                 </div>
 </details>
 </div>
-<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
-                    <button class="ls-btn ls-btn-primary" id="ls-save" style="margin:0;">◈ 保存配置</button>
-                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
-                        <button class="ls-btn" id="ls-snap-restore" style="padding:9px 4px;font-size:12px;margin:0;">◷ 快照还原</button>
-                        <button class="ls-btn" id="ls-backfill" style="padding:9px 4px;font-size:12px;margin:0;">⊕ 补提取缺失</button>
-                        <button class="ls-btn" id="ls-extract-roles" style="padding:9px 4px;font-size:12px;margin:0;">⬡ 提取角色</button>
+<div class="ls-settings-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
+                    <button class="ls-btn ls-btn-primary" id="ls-save" style="margin:0;">保存设置，继续故事</button>
+                    <details class="ls-player-details"><summary>找回漏记剧情 / 恢复存档</summary>
+                    <p class="ls-hint">补记剧情和整理人物会调用 AI 接口；可先查看范围，再决定是否继续。</p>
+                    <div class="ls-player-actions">
+                        <button class="ls-btn" id="ls-snap-restore" style="padding:9px 4px;font-size:12px;margin:0;">恢复到旧存档</button>
+                        <button class="ls-btn" id="ls-backfill" style="padding:9px 4px;font-size:12px;margin:0;">找回漏记剧情</button>
+                        <button class="ls-btn" id="ls-extract-roles" style="padding:9px 4px;font-size:12px;margin:0;">整理登场人物</button>
                     </div>
                 </div>
             `;
 
             const overlay = makeSheet('lonsha-settings-overlay', '⚙ 设置', body);
+            const PROFILE_HELP = {
+                balanced: '每 3 条 AI 回复整理一次，适合大多数故事。',
+                quality: '每条 AI 回复都整理，记录更及时，接口用量也更高。',
+                'low-cost': '每 5 条 AI 回复整理一次，只记录核心内容，减少接口用量。',
+            };
+            const updateProfileHelp = () => {
+                const profile = this.engine.config.config.extractionProfile || 'balanced';
+                overlay.querySelector('#ls-profile-help').textContent = PROFILE_HELP[profile] || PROFILE_HELP.balanced;
+                overlay.querySelectorAll('.ls-mode-pill').forEach(p => p.setAttribute('aria-pressed', String(p.dataset.profile === profile)));
+            };
+            let playerDraftChanged = false;
+            const syncPlayerState = () => {
+                const custom = overlay.querySelector('[data-cfg="apiProviderCustom"]').checked;
+                overlay.querySelector('#ls-custom-api-fields').hidden = !custom;
+                const enabled = overlay.querySelector('[data-cfg="enabled"]').checked;
+                const automatic = overlay.querySelector('[data-cfg="extractionEnabled"]').checked;
+                const state = overlay.querySelector('#ls-memory-state');
+                state.textContent = !enabled ? '记忆已关闭。'
+                    : !automatic ? '自动记录已暂停，已有记忆仍可参与对话。'
+                    : custom ? '自动记忆已开启。请确认专用接口地址、密钥和模型填写正确；尚未验证连接。'
+                    : '自动记忆已开启，使用当前对话接口；实际可用性以对话中的调用结果为准。';
+                if (playerDraftChanged) state.textContent += ' 当前是预览，点击保存后生效。';
+            };
+            ['apiProviderCustom', 'enabled', 'extractionEnabled'].forEach(key => {
+                const control = overlay.querySelector('[data-cfg=' + key + ']');
+                control.addEventListener('change', () => {
+                    playerDraftChanged = true;
+                    syncPlayerState();
+                });
+            });
+            overlay.querySelectorAll('[data-settings-view]').forEach(el => el.addEventListener('click', () => plugin.showBrowser(el.dataset.settingsView)));
+            const modelInput = overlay.querySelector('#ls-model-input');
+            const modelSelect = overlay.querySelector('#ls-model-select');
+            modelInput.addEventListener('input', () => {
+                const value = modelInput.value.trim();
+                modelSelect.innerHTML = '<option value="' + escAttr(value) + '">' + esc(value) + '</option>';
+                modelSelect.value = value;
+            });
+            syncPlayerState();
+            updateProfileHelp();
             overlay.querySelectorAll('.ls-tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const tab = btn.dataset.tab;
@@ -3477,23 +3555,36 @@
             //   点击毫无反应。现映射到真实配置 extractionProfile（quality/balanced/low-cost）：
             //   点击 → 立即写 config + saveConfig 落盘 + 同步「联想与世界」页的档位下拉与 active 高亮，无需再点保存。
             const VALID_PROFILES = ['balanced', 'quality', 'low-cost'];
+            // 抽成函数：点击与键盘兜底复用同一条真实路径，避免「鼠标能切、键盘不能切」的双轨实现。
+            const applyProfile = (pill, profile) => {
+                if (!VALID_PROFILES.includes(profile)) return;
+                this.engine.config.config.extractionProfile = profile;
+                this.engine.config.saveConfig();
+                overlay.querySelectorAll('.ls-mode-pill').forEach(p => p.classList.toggle('active', p === pill));
+                overlay.querySelectorAll('.ls-mode-pill').forEach(p => p.setAttribute('aria-pressed', String(p === pill)));
+                const profSel = overlay.querySelector('select[data-cfg-text="extractionProfile"]');
+                if (profSel) {
+                    profSel.value = profile;
+                    // 档位读数 = 档位下拉紧邻的前一个 .ls-slider-label 里的 .ls-slider-val
+                    //   （不能全局 querySelector('.ls-slider-val')，那会抓到 vectorTopK 等首个滑杆的读数）
+                    const labelDiv = profSel.previousElementSibling;
+                    const profLabel = labelDiv ? labelDiv.querySelector('.ls-slider-val') : null;
+                    if (profLabel) profLabel.textContent = profile;
+                }
+                updateProfileHelp();
+                toast('已切换到「' + pill.textContent.trim() + '」，已保存。');
+            };
             overlay.querySelectorAll('.ls-mode-pill').forEach(pill => {
-                pill.addEventListener('click', () => {
-                    const profile = pill.dataset.profile;
-                    if (!VALID_PROFILES.includes(profile)) return;
-                    this.engine.config.config.extractionProfile = profile;
-                    this.engine.config.saveConfig();
-                    overlay.querySelectorAll('.ls-mode-pill').forEach(p => p.classList.toggle('active', p === pill));
-                    const profSel = overlay.querySelector('select[data-cfg-text="extractionProfile"]');
-                    if (profSel) {
-                        profSel.value = profile;
-                        // 档位读数 = 档位下拉紧邻的前一个 .ls-slider-label 里的 .ls-slider-val
-                        //   （不能全局 querySelector('.ls-slider-val')，那会抓到 vectorTopK 等首个滑杆的读数）
-                        const labelDiv = profSel.previousElementSibling;
-                        const profLabel = labelDiv ? labelDiv.querySelector('.ls-slider-val') : null;
-                        if (profLabel) profLabel.textContent = profile;
-                    }
-                    toast('✅ 已切换到「' + pill.textContent.trim() + '」（抽取档位 ' + profile + '，已保存）');
+                pill.addEventListener('click', () => applyProfile(pill, pill.dataset.profile));
+                // [v3.461.0] 键盘可达兜底。首屏档位由 div 改成原生 button 后，桌面/Android WebView
+                //   理应自己把 Enter/Space 合成 click，但实测本插件所在的 Android WebView 里
+                //   keydown 能派发、click 却不合成（同容器临时插入的对照 button 同样不触发），
+                //   造成「鼠标切得动档、键盘切不动」。这里显式接键盘：Enter / 空格键 → 走 applyProfile，
+                //   Space 同时 preventDefault 以免页面滚动。点击路径不变，不新增任何第二套实现。
+                pill.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+                    e.preventDefault();
+                    applyProfile(pill, pill.dataset.profile);
                 });
             });
             // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
@@ -4345,10 +4436,9 @@
             const cfg = s.config.config;
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             const running = cfg.enabled !== false && cfg.extractionEnabled !== false;
-            const hasApi = !!(cfg.apiUrl && cfg.apiKey) || cfg.apiProviderCustom !== true; // 未配独立API时默认走宿主接口，视为可用
-            const apiLabel = cfg.apiProviderCustom ? (cfg.apiUrl ? '✅ 已连接' : '⚠️ 未配置') : '✅ 用游戏自带接口';
-            const modeName = { balanced: '◈ 沉浸叙事', quality: '◷ 深度推演', 'low-cost': '⬡ 极简轻量' }[cfg.extractionProfile || 'balanced'] || '◈ 沉浸叙事';
-            const chars = Object.keys(s.status?.characters || {});
+            const hasApi = !!(cfg.apiUrl && cfg.apiKey && cfg.apiModel) || cfg.apiProviderCustom !== true; // 仅表示配置完整，不表示连接已验证
+            const apiLabel = cfg.apiProviderCustom ? (hasApi ? '专用接口已填写，未验证连接' : '专用接口待填写') : '使用当前对话接口，未验证连接';
+                        const chars = Object.keys(s.status?.characters || {});
             const recent = (s.summary.summaries || []).slice(-5).reverse();
             const memoryCount = (s.summary.summaries || []).length;
             const body = `
@@ -4356,12 +4446,12 @@
                     <div class="ls-home-status-main">
                         <span class="ls-home-dot" style="background:${running && hasApi ? 'var(--ls-success,#34d399)' : 'var(--ls-warn,#fbbf24)'};box-shadow:0 0 8px ${running && hasApi ? 'var(--ls-success,#34d399)' : 'var(--ls-warn,#fbbf24)'};"></span>
                         <div>
-                            <div style="font-size:15px;font-weight:600;color:var(--ls-text,#f1f5f9);">${running && hasApi ? '记忆正在运转' : (running ? '记忆在运转，接口未连' : '记忆已暂停')}</div>
+                            <div style="font-size:15px;font-weight:600;color:var(--ls-text,#f1f5f9);">${running && hasApi ? '自动记忆已开启' : (running ? '请先填写专用接口' : '自动记忆已暂停')}</div>
                             <div class="ls-hint" style="margin:2px 0 0;">已记住 ${memoryCount} 段剧情 · 接口 ${apiLabel}</div>
                         </div>
                     </div>
                     <div class="ls-home-modes">
-                        ${['balanced','quality','low-cost'].map(p => `<div class="ls-mode-pill${(cfg.extractionProfile || 'balanced') === p ? ' active' : ''}" data-home-profile="${p}" role="button">${ {balanced:'◈ 沉浸叙事',quality:'◷ 深度推演','low-cost':'⬡ 极简轻量'}[p] }</div>`).join('')}
+                        ${['balanced','quality','low-cost'].map(p => `<button type="button" class="ls-mode-pill${(cfg.extractionProfile || 'balanced') === p ? ' active' : ''}" data-home-profile="${p}" aria-pressed="${(cfg.extractionProfile || 'balanced') === p}">${ {balanced:'平衡（推荐）',quality:'细致记录','low-cost':'轻量省流'}[p] }</button>`).join('')}
                     </div>
                 </div>
                 <div class="ls-home-section">
@@ -4394,8 +4484,11 @@
                 if (!['balanced','quality','low-cost'].includes(profile)) return;
                 this.engine.config.config.extractionProfile = profile;
                 this.engine.config.saveConfig();
-                ov.querySelectorAll('[data-home-profile]').forEach(p => p.classList.toggle('active', p.dataset.homeProfile === profile));
-                toast('✅ 已切换到「' + {balanced:'沉浸叙事',quality:'深度推演','low-cost':'极简轻量'}[profile] + '」');
+                ov.querySelectorAll('[data-home-profile]').forEach(p => {
+                    p.classList.toggle('active', p.dataset.homeProfile === profile);
+                    p.setAttribute('aria-pressed', String(p.dataset.homeProfile === profile));
+                });
+                toast('✅ 已切换到「' + {balanced:'平衡（推荐）',quality:'细致记录','low-cost':'轻量省流'}[profile] + '」');
             };
             ov.querySelectorAll('[data-home-profile]').forEach(p => p.addEventListener('click', () => profileWrite(p.dataset.homeProfile)));
             ov.querySelectorAll('[data-home-jump]').forEach(el => el.addEventListener('click', () => {
