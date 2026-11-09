@@ -199,6 +199,24 @@ for (const f of loadOrder) {
         if (!providers.get(m[1]).includes(f)) providers.get(m[1]).push(f);
     }
 }
+/* [v3.461.0 · L18] 水合表真名核对需要「文件 -> 真实挂载名」映射。
+ *   UMD 尾巴的挂载形态是 \`root.X = api\`（root 即 globalThis），与 \`window.X =\` 语义等价，
+ *   但 GLOBAL_RE 只认后者 —— 只看 GLOBAL_RE 会把 36 个 R18 引擎的挂载全漏掉，
+ *   于是真名核对永远失败、判据退化成全红。这里把 root / Object.assign(root,{..}) 一并收入。 */
+const FILE_MOUNT_RE = /(?:window|global|globalThis|self|root)\s*\.\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*=(?!=)/g;
+const ASSIGN_MOUNT_RE = /Object\.assign\(\s*(?:window|global|globalThis|self|root)\s*,\s*\{([\s\S]{0,1500}?)\}\s*\)/g;
+const providersByFile = new Map(); // moduleFile -> Set<globalName>
+for (const f of loadOrder) {
+    const code = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const set = new Set();
+    for (const m of code.matchAll(FILE_MOUNT_RE)) {
+        const nm = m[1];
+        if (/^(LonSha|GraphDiffusion|MemoryVisualizer)/.test(nm)) set.add(nm);
+        else if (/(Engine|Ledger|Matrix|Guard|Loop|Rollback|Reconciliation|Diffusion|Sandbox|Funnel|Workbench|Modulator|Exposure|Resilience|Attention|Pruner|Register|Cache|Store)$/.test(nm)) set.add(nm);
+    }
+    for (const m of code.matchAll(ASSIGN_MOUNT_RE)) for (const n of m[1].matchAll(/([A-Za-z_$][A-Za-z0-9_$]*)\s*[:,]/g)) set.add(n[1]);
+    providersByFile.set(f, set);
+}
 // 真加载后再确认一次（静态可能把分支里的赋值也算上）
 const actuallyProvided = new Set();
 for (const k of Object.keys(sandbox)) {
@@ -223,10 +241,18 @@ const entryCode = fs.readFileSync(path.join(ROOT, entry), 'utf8');
  *   报成「已挂载但零消费」。判据量错了对象，与上面 A1 刀口那串假红同族：
  *   修法是让消费面认这类宿主直挂模块，不是把符号塞进账本（记账会把真接线记成腐烂）。 */
 const HOST_FACE_CONSUMERS = ['settings-ui.js'].filter((f) => loadOrder.includes(f));
+/* [v3.461.0 · 第十八期接线修复] 消费面必须认**交响编排器**这个真消费宿主。
+ *   memory-symphony-orchestrator.js 是 L-O1~L-O9 各引擎的**唯一**调用方，形态为
+ *   `typeof LonShaX !== 'undefined' ? LonShaX : require('./x.js')` 的裸守卫三元式 ——
+ *   既没有 `window.LonShaX` 文本、也没有 `_winModule('LonShaX')`，于是 19 个**真接线**
+ *   被 B4 当场报成「已挂载但零消费」。这与 v3.264（A1 刀口）、v3.301（_winModule 形态）、
+ *   v3.439（宿主直挂面板）是同一家族：判据量错了对象。修法是让消费面认第三种形态，
+ *   不是把符号塞进账本（记账会把真接线记成腐烂）。 */
 const A1_CARRIERS = Array.from(new Set([
     'memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js',
     'memory-organs.js', 'memory-core.js', 'memory-config.js', 'engine-diagnostic-lines.js',
-    'engine-report.js', 'engine-recall.js', ...HOST_MODULES, ...HOST_FACE_CONSUMERS
+    'engine-report.js', 'engine-recall.js', 'memory-symphony-orchestrator.js',
+    ...HOST_MODULES, ...HOST_FACE_CONSUMERS
 ])).filter((f) => loadOrder.includes(f));
 const consumptionCode = [entryCode].concat(
     A1_CARRIERS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))).join(String.fromCharCode(10));
@@ -237,6 +263,47 @@ for (const m of consumptionCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)/
  *   若消费面只认 `window.LonShaX` 文本，这三个**真接线**会被 B4 当场误报成「已挂载但零消费」
  *   —— 正是本文件开头点名的假红（「判据量错了对象」）。两条形态都算真消费，非放宽判定。 */
 for (const m of consumptionCode.matchAll(/\b_winModule\(\s*['"](LonSha[A-Za-z0-9_]*)['"]/g)) referenced.add(m[1]);
+/* [v3.461.0] 第三种取库形态：裸全局守卫三元式
+ *   `typeof LonShaX !== 'undefined' ? LonShaX : require('./x.js')`
+ *   这是编排器与持久化水合表外的真实消费形态。只认「typeof 后跟符号名」这一处，
+ *   不认注释里的同名文本（consumptionCode 已剥注释由 _audit_lib 负责；此处再收紧为
+ *   必须紧跟 !== 'undefined' 的比较，防把「只是提了一嘴名字」算成消费）。
+ *   假绿风险：本形态要求符号确实被**读出来用**（三元式的真分支），比纯文本命中更严。 */
+for (const m of consumptionCode.matchAll(/typeof\s+(LonSha[A-Za-z0-9_]*)\s*!==\s*['"]undefined['"]/g)) referenced.add(m[1]);
+/* [v3.461.0] 第四种形态（水合表字符串登记）经实测**不采纳**：
+ *   第 3 列是「期望的全局名」，名字写错时它正是缺陷本身 —— 把它当消费，
+ *   等于让「取错名」这件事自证为绿（实测：加上该形态后 B4 从 23 降到 3，
+ *   代价是 B3 当场冒出 12 个「引用了但无人供给」—— 假绿被挪进了另一条判据）。
+ *   正确修法是统一真源：让消费方按模块**真实挂载名**取库，而不是放宽消费面。 */
+/* [v3.461.0 · L18 接线闭环] 第四种取库形态：**持久化水合表的字符串登记**
+ *   engine-persistence-ops.js 的 v21Engines 表每行形如
+ *     ['lonshaXState', '_xState', 'TemporalFlashbulbDilationEngine', 'x.js', 'hydrateState']
+ *   恢复存档时按第 3 列的全局名 hydrate —— 这是**真接线**（36 个 R18 引擎的唯一持久化消费点），
+ *   但它既无 window.* 文本也无 typeof 守卫，于是 B4 把它报成「已挂载但零消费」。
+ *   ★ 为什么不能像前三种形态那样直接 add 进 referenced（本次实测踩过的坑）：
+ *     第 3 列写的是「**期望**的全局名」，名字写错时它恰恰就是缺陷本身。若直接当消费计入，
+ *     等于让「取错名」自证为绿 —— 实测加上后 B4 从 23 降到 3，代价是 B3 当场冒出 12 个
+ *     「引用了但无人供给」：假绿只是被挪进了另一条判据，不是修好。
+ *   ★ 收紧口径（三重齐备 + 真名核对）：
+ *     ① 一行内同时出现 '_xxxState' 状态槽、全局名字符串、'x.js' 文件名三者；
+ *     ② 该行登记的全局名必须**等于该文件真实挂载的全局名**（providersByFile 真名核对），
+ *        名字写错时核对失败 -> 仍报 B4，杜绝登记表自证；
+ *     ③ 只影响 B4，不进 referenced（不改 B3 引用面）。
+ *   一句话：判据只承认「登记名 == 真名」的登记，写错名永远只能报红。 */
+const hydrateRegistered = new Set();
+for (const line of consumptionCode.split(String.fromCharCode(10))) {
+    if (!/'_[A-Za-z0-9]+State'/.test(line)) continue;
+    const fm = /'([A-Za-z0-9._-]+\.js)'/.exec(line);
+    if (!fm) continue;
+    const owner = providersByFile.get(fm[1]);
+    if (!owner || owner.size === 0) continue;
+    /* 该行的**全部**字符串字面量逐个拿去核对真名：不能只取第一个，
+     * 水合表第 1 格是 extKey（lonshaXState）、第 3 格才是全局名，
+     * 只取首个字面量会永远错到 extKey 上，判据退化成全红（本次实测踩到）。 */
+    for (const q of line.matchAll(/'([A-Za-z_$][A-Za-z0-9_$]*)'/g)) {
+        if (owner.has(q[1])) hydrateRegistered.add(q[1]);
+    }
+}
 // index.js 自身产出（同文件内既有赋值）也算供给；[v3.264.0] getter 挂载（defineProperty）同为自产
 const selfProvided = new Set();
 for (const m of entryCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)\s*=/g)) selfProvided.add(m[1]);
@@ -266,6 +333,7 @@ for (const sym of actuallyProvided) {
     if (sym === 'GraphDiffusion' || sym === 'MemoryVisualizer') continue; // 类名经裸标识符消费，下面单独判
     if (selfProvided.has(sym)) continue;                                   // index.js 自产自销
     if (referenced.has(sym)) continue;                                     // 被 index.js 引用
+    if (hydrateRegistered.has(sym)) continue;                              // 持久化水合表按真名登记（L18）
     unconsumed.push(sym);
 }
 // GraphDiffusion / MemoryVisualizer：仅在确实被某个脚本挂载时，才要求 index.js 消费它

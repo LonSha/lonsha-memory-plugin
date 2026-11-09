@@ -53,7 +53,6 @@
         ['LonShaNarrativeMomentum', 'narrative-momentum-flow-inertia-engine.js'],
         ['LonShaSocialBondReciprocity', 'latent-social-bond-reciprocity-engine.js'],
         ['LonShaTacitUnderstanding', 'character-tacit-understanding-engine.js'],
-        ['LonShaUnspokenHesitation', 'unspoken-hesitation-subtext-engine.js'],
         ['LonShaCommitmentMilestone', 'long-term-commitment-milestone-engine.js'],
         ['LonShaRoutineRhythm', 'everyday-shared-routine-rhythm-engine.js'],
         ['HierarchicalPyramidEvolution', 'hierarchical-pyramid-evolution.js'],
@@ -102,11 +101,6 @@
         //   注意：以下 6 项是**工厂对象**而非类（导出 {…} 方法集合，不是 constructor），
         //   故登记名用它们真实挂载的全局名；调用方必须按「工厂」消费（见 index.js 的
         //   _factoryOrClass 取用纪律），不得直接 `new`。
-        ['LonShaTacitUnderstanding', 'character-tacit-understanding-engine.js'],
-        ['LonShaRoutineRhythm', 'everyday-shared-routine-rhythm-engine.js'],
-        ['LonShaSocialBondReciprocity', 'latent-social-bond-reciprocity-engine.js'],
-        ['LonShaCommitmentMilestone', 'long-term-commitment-milestone-engine.js'],
-        ['LonShaNarrativeMomentum', 'narrative-momentum-flow-inertia-engine.js'],
         ['LonShaUnspokenHesitation', 'unspoken-hesitation-subtext-engine.js']
     ];
     function loadOne(globalName, fileName) {

@@ -3551,6 +3551,27 @@ function relativeTimeLabel(eventTime, nowTime) {
             if (res.ok && res.applied && res.applied.state && this.charMem && typeof this.charMem.import === 'function') {
                 this.charMem.import(res.applied.state);
             }
+            /* [v3.461.0 · L17-O7 接线] 分支事实级差集：包比对（上面那条）回答的是
+             *   「条目级谁覆盖谁」，回答不了「两条世界线各自独有哪些事实」——
+             *   后者正是 branch-diff-incremental-merger.js 的全部职责，而它此前
+             *   **只有单测在调、生产侧零消费**（B4 判据当场记死）。
+             *   这里把两侧的事实列表交给它算差集，读数进 res.branchDiff，
+             *   面板与诊断面据此显示「本分支独有 / 对方独有 / 共有」。
+             *   取不到模块时**不编造读数**（res.branchDiff = null），
+             *   与本文其余模块缺席的处理口径一致：没查过 ≠ 查过没问题。 */
+            try {
+                const BD = _moduleLib(() => window.LonShaBranchDiffMerger, 'branch-diff-incremental-merger.js');
+                if (BD && typeof BD.diffBranches === 'function') {
+                    const pickFacts = (st) => (Array.isArray(st?.facts) ? st.facts
+                        : (Array.isArray(st?.memories) ? st.memories : []));
+                    const incoming = Array.isArray(pack?.entries)
+                        ? pack.entries.map((e) => e && e.item).filter(Boolean)
+                        : pickFacts(pack);
+                    res.branchDiff = BD.diffBranches(incoming, pickFacts(src));
+                } else {
+                    res.branchDiff = null;
+                }
+            } catch (e) { errLog(e, 'compareAndMergeMigrate.branchDiff'); res.branchDiff = null; }
             return res;
         }
         /** [v3.453.0 · L15-X8] 分支命运反事实推演沙盘宿主入口 */
@@ -10692,24 +10713,24 @@ function _collectNewFace() {
     function _soulBrandReincarnationLib() { return _moduleLib(() => window.SoulBrandReincarnationHub, 'soul-brand-reincarnation-hub.js'); }
     function _fateClimaxLoomLib() { return _moduleLib(() => window.FateConvergenceClimaxLoom, 'fate-convergence-climax-loom.js'); }
     /* [v3.460.0 · V21 史诗级双计划] 新增 18 项可选认知与心智引擎取库口 */
-    function _rippleBusLib() { return _moduleLib(() => window.LonShaRippleBus, 'engine-orchestration-ripple-bus.js'); }
+    function _rippleBusLib() { return _moduleLib(() => window.LonShaEngineOrchestration, 'engine-orchestration-ripple-bus.js'); }
     function _causalityLockLib() { return _moduleLib(() => window.LonShaCausalityLock, 'spatiotemporal-causality-lock.js'); }
-    function _graphPrunerLib() { return _moduleLib(() => window.LonShaGraphPruner, 'sleep-consolidation-graph-pruner.js'); }
-    function _tabooDefenseLib() { return _moduleLib(() => window.LonShaTabooDefense, 'obsessive-taboo-multi-tier-defense.js'); }
+    function _graphPrunerLib() { return _moduleLib(() => window.LonShaSleepConsolidation, 'sleep-consolidation-graph-pruner.js'); }
+    function _tabooDefenseLib() { return _moduleLib(() => window.LonShaMultiTierDefense, 'obsessive-taboo-multi-tier-defense.js'); }
     function _parallaxIsolationLib() { return _moduleLib(() => window.LonShaParallaxIsolation, 'intersubjective-parallax-isolation.js'); }
-    function _resonanceRecallFunnelLib() { return _moduleLib(() => window.LonShaResonanceFunnel, 'tri-modal-resonance-recall-funnel.js'); }
-    function _butterflySandboxLib() { return _moduleLib(() => window.LonShaButterflySandbox, 'counterfactual-butterfly-sandbox.js'); }
-    function _diagnosticsTelemetryLib() { return _moduleLib(() => window.LonShaDiagnosticsDashboard, 'engine-diagnostics-telemetry-dashboard.js'); }
-    function _soulBrandSynthesisLib() { return _moduleLib(() => window.LonShaSoulBrandSynthesis, 'transgenerational-soul-brand-synthesis.js'); }
+    function _resonanceRecallFunnelLib() { return _moduleLib(() => window.LonShaTriModalRecall, 'tri-modal-resonance-recall-funnel.js'); }
+    function _butterflySandboxLib() { return _moduleLib(() => window.LonShaCounterfactualSandbox, 'counterfactual-butterfly-sandbox.js'); }
+    function _diagnosticsTelemetryLib() { return _moduleLib(() => window.LonShaEngineDiagnostics, 'engine-diagnostics-telemetry-dashboard.js'); }
+    function _soulBrandSynthesisLib() { return _moduleLib(() => window.LonShaSoulBrand, 'transgenerational-soul-brand-synthesis.js'); }
     function _worldaxisAssimilatorLib() { return _moduleLib(() => window.LonShaWorldAxisAssimilator, 'worldaxis-objective-to-subjective-assimilator.js'); }
-    function _ruminationDreamLib() { return _moduleLib(() => window.LonShaRuminationDream, 'autonomous-rumination-dream-engine.js'); }
+    function _ruminationDreamLib() { return _moduleLib(() => window.LonShaDreamEngine, 'autonomous-rumination-dream-engine.js'); }
     function _emotionalAnchorLib() { return _moduleLib(() => window.LonShaEmotionalAnchor, 'emotional-anchor-binding-resonance-hub.js'); }
-    function _somaticFlareLib() { return _moduleLib(() => window.LonShaSomaticFlare, 'autonomic-nervous-somatic-flare-engine.js'); }
-    function _amnesiaPuzzleLib() { return _moduleLib(() => window.LonShaAmnesiaPuzzle, 'dissociative-amnesia-puzzle-workbench.js'); }
-    function _stylisticDriftLib() { return _moduleLib(() => window.LonShaStylisticDrift, 'stylistic-drift-emotional-lexicon-modulator.js'); }
+    function _somaticFlareLib() { return _moduleLib(() => window.LonShaSomaticEngine, 'autonomic-nervous-somatic-flare-engine.js'); }
+    function _amnesiaPuzzleLib() { return _moduleLib(() => window.LonShaAmnesiaWorkbench, 'dissociative-amnesia-puzzle-workbench.js'); }
+    function _stylisticDriftLib() { return _moduleLib(() => window.LonShaStyleModulator, 'stylistic-drift-emotional-lexicon-modulator.js'); }
     function _gaslightingNeutralizerLib() { return _moduleLib(() => window.LonShaGaslightingNeutralizer, 'unreliable-narrator-gaslighting-neutralizer.js'); }
-    function _exposureRiskLib() { return _moduleLib(() => window.LonShaExposureRisk, 'dual-identity-exposure-risk-matrix.js'); }
-    function _burnoutDecayLib() { return _moduleLib(() => window.LonShaBurnoutDecay, 'psychological-burnout-resilience-decay.js'); }
+    function _exposureRiskLib() { return _moduleLib(() => window.LonShaIdentityExposure, 'dual-identity-exposure-risk-matrix.js'); }
+    function _burnoutDecayLib() { return _moduleLib(() => window.LonShaBurnoutResilience, 'psychological-burnout-resilience-decay.js'); }
     function _causalCircuitLib() { return _moduleLib(() => window.LonShaCausalCircuit, 'proactive-causal-verification-circuit.js'); }
     function _cognitiveHorizonLib() { return _moduleLib(() => window.LonShaCognitiveHorizonFilter, 'cognitive-horizon-bucket-filter.js'); }
     /* [L14-X1] 消息转告链取库口（knowledge-relay-chain.js）。
@@ -11854,7 +11875,22 @@ function _collectNewFace() {
                     const Cls = optEngines.StateMachineChaosMonkeyResilience || (typeof StateMachineChaosMonkeyResilience !== 'undefined' ? StateMachineChaosMonkeyResilience : null);
                     if (Cls) this.engine.chaosResilienceShield = new Cls();
                 }
-                this._moduleStatus.v18Engines = true;
+                /* [v3.461.0 · 第十八期签证] 修前这里是 `this._moduleStatus.v18Engines = true;`
+                 *   无条件执行 —— 18 个 Cls 全为 null（extra_js 未加载 / 注册表空）时，
+                 *   状态表照样写 true，紧接着还打「18 项…全量就绪并挂载」成功日志。
+                 *   这正是被 v3165【3】当场抓住的谎报形态，与上方 evolution36Engines 同族：
+                 *   **状态必须按实际就绪数派生，不得由控制流无条件宣布**。
+                 *   改为三态（ok / partial / unavailable），partial 与 unavailable 各有失败出口。 */
+                const v18Slots = ['flashbulbDilationEngine', 'dissociativeMaskMatrix', 'mandelaConfabulationEngine',
+                    'proustianSynesthesiaEngine', 'zeigarnikLoopEngine', 'whatIfRegretMatrix', 'rumorEntropyDiffusion',
+                    'cognitiveScatomaGuard', 'daydreamWanderingEngine', 'hybridRetrievalOptimizer', 'tieredStorageLedger',
+                    'conflictGraphRollbackHub', 'memorySalienceDecayCurator', 'identityReconciliationHub',
+                    'promptBudgetAllocator', 'epistemicAuditor', 'asyncDebounceScheduler', 'chaosResilienceShield'];
+                const v18Ready = v18Slots.filter((k) => this.engine[k]);
+                const v18Status = v18Ready.length === v18Slots.length ? 'ok'
+                    : (v18Ready.length > 0 ? 'partial' : 'unavailable');
+                this._v18EnginesRead = { at: Date.now(), total: v18Slots.length, readyCount: v18Ready.length, status: v18Status };
+                this._moduleStatus.v18Engines = v18Status === 'ok';
                 /* [36项演化双计划 · 18大新引擎挂载至交响编排中枢生命周期]
                  * [v3.461.0 · 接线修复] 修前实测（tools/audit-wiring.mjs A2/A3）：
                  *   ① 槽位键名与编排器读取面错位 —— 写 `_epiphanyEngine`，编排器读
@@ -11929,7 +11965,14 @@ function _collectNewFace() {
                     errLog(evoErr, "loadModules.evolution36Engines");
                 }
 
-                console.log(`[${PLUGIN_NAME}] ✓ 第十八期18项灵魂深潜主观认知失真引擎全量就绪并挂载`);
+                /* [同族修复] 成功文案必须由三态派生，否则「全量就绪」在 0/18 时也会打出。 */
+                if (v18Status === 'ok') {
+                    console.log(`[${PLUGIN_NAME}] ✓ 第十八期18项灵魂深潜主观认知失真引擎全量就绪并挂载`);
+                } else {
+                    console.warn(`[${PLUGIN_NAME}] ⚠️ 第十八期认知失真引擎装载 ${v18Status}：${v18Ready.length}/${v18Slots.length} 就绪`
+                        + (v18Slots.filter((k) => !this.engine[k]).length
+                            ? `；未取到 ${v18Slots.filter((k) => !this.engine[k]).slice(0, 6).join(',')}` : ''));
+                }
             } catch (e) { errLog(e, 'loadModules.v18Engines'); }
             // 加载图扩散模块
             if (typeof GraphDiffusion !== 'undefined') {

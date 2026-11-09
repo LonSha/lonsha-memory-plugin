@@ -135,8 +135,17 @@ test('[2] every key this release declared is settable from the settings panel', 
     assert.deepStrictEqual(unreachable, [], 'declared but no control: ' + unreachable.join(', '));
 });
 test('[2b] the settings panel really renders those controls (behavioural)', () => {
-    const startIdx = sui.indexOf('[DOMAIN] 分类记录') !== -1 ? sui.indexOf('[DOMAIN] 分类记录') : sui.indexOf('🧩 记忆域开关');
-    const endIdx = sui.indexOf('[TOPOLOGY] 因果追踪') !== -1 ? sui.indexOf('[TOPOLOGY] 因果追踪') : sui.indexOf('🏛️ 工业级体系化增强');
+    /* [v3.461.0 · 历史签证修复] 锚点随 `c57cfde`（全量精简面板文案、消灭技术黑话）更新：
+     *   旧锚 `[DOMAIN] 分类记录` / `[INFERENCE] 推理` / 🧩🏛️ emoji 兜底已被产品面替换，
+     *   本用例的**意图**没变（该组在面板里真的渲染出全部控件），所以修的是锚点而不是判据。
+     *   锚点写成候选链：新标题优先，旧形态留作兜底 —— 若两边都找不到，indexOf 得 -1，
+     *   slice 为空，断言仍然当场失败（判据不会静默变松）。 */
+    const pick = (cands) => {
+        for (const c of cands) { const i = sui.indexOf(c); if (i !== -1) return i; }
+        return -1;
+    };
+    const startIdx = pick(['🏷️ 剧情领域与分类记录', '[DOMAIN] 分类记录', '🧩 记忆域开关']);
+    const endIdx = pick(['🧠 剧情理解与多路联想', '[TOPOLOGY] 因果追踪', '🏛️ 工业级体系化增强']);
     const group = sui.slice(startIdx, endIdx);
     assert.ok(group.length > 0, 'the new group is present');
     for (const k of ['diaryBridgeEnabled', 'clockSyncEnabled', 'pairMemoryEnabled', 'conflictBookEnabled',

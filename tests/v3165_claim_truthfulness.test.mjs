@@ -468,7 +468,11 @@ test('【3】行为验证：loadModules 模块缺失时有失败出口，不再�
      *   按方法体里出现的 **取库口形态** 统一补 null 桩：语义正是「这些模块都没加载」，
      *   也正好是本条想测的那个场景。 */
     const _libStubs = {};
-    for (const mm of m.matchAll(/\b([A-Za-z_$][\w$]*Lib)\(\)/g)) _libStubs[mm[1]] = () => null;
+    /* [v3.461.0] 补桩口径必须同时认**裸引用**形态：依赖表里写 `_rippleBusLib: _rippleBusLib,` 时
+     *   标识符后面没有括号，旧正则只认调用形态 `XxxLib()` 就把它漏掉 ⇒ objOf 求值时
+     *   ReferenceError: _rippleBusLib is not defined（判据惩罚夹具，不是产品缺陷）。
+     *   语义不变：本用例要测的就是「全部模块都没加载」，所以两者都补 null 桩。 */
+    for (const mm of m.matchAll(/\b([A-Za-z_$][\w$]*Lib)\b/g)) _libStubs[mm[1]] = () => null;
     const obj = objOf(m, Object.assign({ errLog: () => {}, PLUGIN_NAME: 'T', console: fakeConsole }, _libStubs));
     obj.engine = { graph: {} };
     // 两个模块都未定义（真机上就是 extra_js 没加载）：状态表必须是 false，且必须有 warn

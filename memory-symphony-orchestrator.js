@@ -156,7 +156,7 @@
         }
         // [L17-O6] 剧情日历因果不变量主动熔断
         try {
-            const fuseLockLib = (typeof LonShaCausalInvariantFuseLock !== 'undefined' ? LonShaCausalInvariantFuseLock : (typeof require !== 'undefined' ? (() => { try { return require('./causality-invariant-fuse-lock.js'); } catch { return null; } })() : null));
+            const fuseLockLib = (typeof LonShaCausalityInvariantLock !== 'undefined' ? LonShaCausalityInvariantLock : (typeof require !== 'undefined' ? (() => { try { return require('./causality-invariant-fuse-lock.js'); } catch { return null; } })() : null));
             if (fuseLockLib && engine._causalityFuseLockState) {
                 const fusePassed = [];
                 for (const c of causalFiltered) {
@@ -237,7 +237,7 @@
 
         // [L17-O4] 万级长局记忆分层金字塔聚类与动态注意力弹性伸缩
         try {
-            const pyramidLib = (typeof LonShaHierarchicalPyramidAttention !== 'undefined' ? LonShaHierarchicalPyramidAttention : (typeof require !== 'undefined' ? (() => { try { return require('./hierarchical-pyramid-attention-elastic.js'); } catch { return null; } })() : null));
+            const pyramidLib = (typeof LonShaPyramidClusterEngine !== 'undefined' ? LonShaPyramidClusterEngine : (typeof require !== 'undefined' ? (() => { try { return require('./hierarchical-pyramid-attention-elastic.js'); } catch { return null; } })() : null));
             if (pyramidLib && disambiguatedCandidates.length > 10) {
                 const tension = engine._tensionScore || 0.5;
                 const budgetRes = pyramidLib.adjustAttentionBudget(tension, 20);
@@ -536,7 +536,7 @@
         } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X2: 闲暇梦境与反刍隐喻
-            const dreamLib = (typeof LonShaRuminationDream !== 'undefined' ? LonShaRuminationDream : (typeof require !== 'undefined' ? (() => { try { return require('./autonomous-rumination-dream-engine.js'); } catch { return null; } })() : null));
+            const dreamLib = (typeof LonShaDreamEngine !== 'undefined' ? LonShaDreamEngine : (typeof require !== 'undefined' ? (() => { try { return require('./autonomous-rumination-dream-engine.js'); } catch { return null; } })() : null));
             if (dreamLib && engine._ruminationDreamState) {
                 const dDir = dreamLib.generateRuminationDirectives(engine._ruminationDreamState, currentSpeaker);
                 if (dDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${dDir}` : dDir;
@@ -544,7 +544,7 @@
         } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X4: 自律神经与躯体微表情爆发
-            const flareLib = (typeof LonShaSomaticFlare !== 'undefined' ? LonShaSomaticFlare : (typeof require !== 'undefined' ? (() => { try { return require('./autonomic-nervous-somatic-flare-engine.js'); } catch { return null; } })() : null));
+            const flareLib = (typeof LonShaSomaticEngine !== 'undefined' ? LonShaSomaticEngine : (typeof require !== 'undefined' ? (() => { try { return require('./autonomic-nervous-somatic-flare-engine.js'); } catch { return null; } })() : null));
             if (flareLib && engine._somaticFlareState) {
                 const fDir = flareLib.generateSomaticFlareDirectives(engine._somaticFlareState, currentSpeaker);
                 if (fDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${fDir}` : fDir;
@@ -552,7 +552,7 @@
         } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X7: 隐秘特工身份暴露风险矩阵
-            const riskLib = (typeof LonShaExposureRisk !== 'undefined' ? LonShaExposureRisk : (typeof require !== 'undefined' ? (() => { try { return require('./dual-identity-exposure-risk-matrix.js'); } catch { return null; } })() : null));
+            const riskLib = (typeof LonShaIdentityExposure !== 'undefined' ? LonShaIdentityExposure : (typeof require !== 'undefined' ? (() => { try { return require('./dual-identity-exposure-risk-matrix.js'); } catch { return null; } })() : null));
             if (riskLib && engine._exposureRiskState) {
                 const rDir = riskLib.generateRiskDirectives(engine._exposureRiskState, currentSpeaker);
                 if (rDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${rDir}` : rDir;
@@ -560,7 +560,7 @@
         } catch (e) { _symphonyFail('stage', e); }
         try {
             // L21-X8: 心理耗竭与抗逆韧性衰减
-            const burnLib = (typeof LonShaBurnoutDecay !== 'undefined' ? LonShaBurnoutDecay : (typeof require !== 'undefined' ? (() => { try { return require('./psychological-burnout-resilience-decay.js'); } catch { return null; } })() : null));
+            const burnLib = (typeof LonShaBurnoutResilience !== 'undefined' ? LonShaBurnoutResilience : (typeof require !== 'undefined' ? (() => { try { return require('./psychological-burnout-resilience-decay.js'); } catch { return null; } })() : null));
             if (burnLib && engine._burnoutDecayState) {
                 const bDir = burnLib.generateBurnoutDirectives(engine._burnoutDecayState, currentSpeaker);
                 if (bDir) generatedDirectives = generatedDirectives ? `${generatedDirectives}\n${bDir}` : bDir;

@@ -106,8 +106,16 @@ test('[1c] the two secret / global keys are deliberately kept out of the card', 
 });
 // ================= 2. the shipped controls =================
 test('[2] the new reasoning group renders every one of the nine', () => {
-    const g0 = sui.indexOf('[INFERENCE] 推理') !== -1 ? sui.indexOf('[INFERENCE] 推理') : sui.indexOf('🧭 推理调优');
-    const g1 = sui.indexOf('[TOPOLOGY] 因果追踪') !== -1 ? sui.indexOf('[TOPOLOGY] 因果追踪') : sui.indexOf('🏛️ 工业级体系化增强');
+    /* [v3.461.0 · 历史签证修复] 同族锚点更新：`c57cfde` 精简文案后，推理组标题改为
+     *   「🧠 剧情理解与多路联想」，紧随其后的是「⚖️ 回忆排序与精选权重」组。
+     *   判据意图不变（九个控件真的渲染在**同一组**里），只换锚点；找不到时 pick 返回 -1，
+     *   下面的 `g1 > g0` 断言照旧当场失败（不会静默变松）。 */
+    const pick = (cands) => {
+        for (const c of cands) { const i = sui.indexOf(c); if (i !== -1) return i; }
+        return -1;
+    };
+    const g0 = pick(['🧠 剧情理解与多路联想', '[INFERENCE] 推理', '🧭 推理调优']);
+    const g1 = pick(['⚖️ 回忆排序与精选权重', '[TOPOLOGY] 因果追踪', '🏛️ 工业级体系化增强']);
     assert.ok(g0 > 0 && g1 > g0, 'the reasoning group sits before the industrial group');
     const group = sui.slice(g0, g1);
     for (const k of ['memoryTreeEnabled', 'aiRecallOpsDebug']) {

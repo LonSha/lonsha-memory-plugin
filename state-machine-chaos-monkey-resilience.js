@@ -9,7 +9,7 @@
  *   秒级回退至上一个已知健康状态并自愈补全缺损字段，保障系统永不崩溃。
  * ============================================================ */
 
-export class StateMachineChaosMonkeyResilience {
+class StateMachineChaosMonkeyResilience {
     constructor(options = {}) {
         this.options = Object.assign({
             autoSelfHealing: true,
@@ -77,4 +77,22 @@ export class StateMachineChaosMonkeyResilience {
     }
 }
 
-export default StateMachineChaosMonkeyResilience;
+/* ============================================================
+ * [v3.461.0 接线修复] 本文件此前是 ESM 形态（export …），而宿主 extra_js、
+ * 审计沙箱与 optional-engine-registry 的 require 全部按经典脚本加载 ——
+ * `export` 在那里直接是语法错误，模块在真机上从未挂载成功。
+ * 改回本仓统一的 UMD/IIFE 注册形态（同 ego-defense-mechanisms-engine.js）：
+ * CJS 侧保留 module.exports 供测试与注册表的 require 使用，
+ * 经典脚本侧把引擎类挂到全局，让取库口与编排器真的取得到。
+ * ============================================================ */
+(function (root, factory) {
+    if (typeof module === 'object' && module.exports) {
+        module.exports = factory();
+    } else {
+        var api = factory();
+                root.StateMachineChaosMonkeyResilience = api;
+    }
+}(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+    'use strict';
+    return StateMachineChaosMonkeyResilience;
+}));

@@ -3,14 +3,19 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
-const Orchestrator = require("../memory-symphony-orchestrator.js");
-const Scheduler = require("../engine-symphony-wave-scheduler.js").default;
-const Hebbian = require("../biomimetic-hebbian-salience-curator.js").default;
-const Epiphany = require("../active-reminiscence-epiphany-engine.js").default;
-const MoodResidue = require("../emotional-inertia-mood-residue-engine.js").default;
-const CovenantBreach = require("../long-term-covenant-breach-resonator.js").default;
-const Catharsis = require("../dramatic-reveal-catharsis-hub.js").default;
-
+/* [v3.461.0] 取类形态随 UMD 转换对齐：这些引擎从 ESM（export default）转回仓内统一
+ *   UMD/IIFE 后，CJS 侧直接 `module.exports = 类`（同 ego-defense-mechanisms-engine.js），
+ *   再取 `.default` 就拿到 undefined —— 这才是本轮 6 条断言集体 `X is not a constructor` 的原因。
+ *   ★ 兼容两种形态：`m && m.default ? m.default : m`。不写死单形态，是为了让「以后谁再
+ *   把它改回 ESM」也不会当场把测试炸掉（形态之争归形态判据，不归本用例）。 */
+const pick = (m) => (m && m.default) ? m.default : m;
+const Orchestrator = pick(require('../memory-symphony-orchestrator.js'));
+const Scheduler = pick(require('../engine-symphony-wave-scheduler.js'));
+const Hebbian = pick(require('../biomimetic-hebbian-salience-curator.js'));
+const Epiphany = pick(require('../active-reminiscence-epiphany-engine.js'));
+const MoodResidue = pick(require('../emotional-inertia-mood-residue-engine.js'));
+const CovenantBreach = pick(require('../long-term-covenant-breach-resonator.js'));
+const Catharsis = pick(require('../dramatic-reveal-catharsis-hub.js'));
 test("[LonSha] 36项演化双计划 · 核心引擎水合与管线协同综合校验", async (t) => {
     await t.test("波纹调度器与微任务池状态机导出与水合", () => {
         const scheduler = new Scheduler({ timeSliceMs: 30 });

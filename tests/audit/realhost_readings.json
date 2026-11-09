@@ -1,6 +1,6 @@
 {
   "schema": "realhost-readings@1",
-  "generatedAt": "2026-11-08T18:40:55.146Z",
+  "generatedAt": "2026-11-09T10:41:08.357Z",
   "version": "3.461.0",
   "verdict": "environment-unavailable",
   "reason": "ST 未就绪（http://127.0.0.1:1/ ⇒ 0）—— 先起 SillyTavern",

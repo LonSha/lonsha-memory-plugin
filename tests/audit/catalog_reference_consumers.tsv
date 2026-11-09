@@ -458,10 +458,15 @@ l15_batch_c_elastic_taboo.test.mjs
 l15_batch_d_disambiguate_perspective.test.mjs
 l15_batch_e_calendar_autobio.test.mjs
 l15_batch_f_vertical.test.mjs
+l16_mind_leap.test.mjs		L16 心智跃迁（第二十期）主验收：18 内核接线与交响编排
 l16_omniscience_ban.test.mjs
 l16_vertical_omniscience.test.mjs
 l17_memory_resonance.test.mjs
+l17_mind_leap.test.mjs		L17 心智跃迁验收档
 l17_vertical_recall_wiring.test.mjs
+l18_e2e_mind_symphony_fusion.test.mjs		L18 端到端心智交响融合验收
+l18_evolution_36_symphony.test.mjs		L18 第 36 期演化交响：36 引擎同波调度验收（UMD 取类形态兼容）
+l18_mind_abyss.test.mjs		L18 心智深渊（18 内核）验收
 l18_pyramid_evolution.test.mjs
 l18_vertical_pyramid_recall.test.mjs
 l19_symphony_anti_confusion.test.mjs
@@ -475,6 +480,8 @@ l20_epic_batch5.test.mjs
 l20_epic_batch6.test.mjs
 l20_epic_batch7.test.mjs
 l20_production_adjudication.test.mjs
+l21_v21_deep_integration.test.mjs		L21 深集成验收
+l21_v21_epic_architecture.test.mjs		L21 史诗架构验收
 v20_optional_engine_assembly.test.mjs
 v20_optional_engine_registry.test.mjs
 v3445_l14_o5_temporal_validity.test.mjs
@@ -498,4 +505,5 @@ v3448_l14_x7_x8_x9_vertical.test.mjs
 v3449_l14_o3_generation_material_reconcile.test.mjs
 v3450_l14_o4_recall_disambiguate.test.mjs
 v3459_settings_ui_simplify.test.mjs
+v3461_r18_wiring_truth.test.mjs		v3.461.0 当版 frontier：R18 接线真实度（水合表同源 / 状态位三态 / 接线扫描器与版本守卫双绿）
 v3459_gates_green.test.mjs

@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.459.0",
+  "measured_at": "v3.461.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3308,6 +3308,42 @@
         "top5_pct": 0.0,
         "top40_pct": 0.0
       }
+    },
+    "v3.461.0": {
+      "reason": "[v3.461.0] 第十八期 R18 接线真实度收口轮：① 36 个 R18 内核补 UMD 尾巴并接进 host 取库口（`_moduleLib(() => window.LonShaXxx, 'xxx.js')`），另加 BranchDiff 增量合并接线；② 接线扫描器新增「水合表严格形态」判据（行内任一字面量等于 providersByFile 真挂载名才算登记），水合表 16 处登记名按真实挂载名回填；③ `_moduleStatus.v18Engines` 从**无条件宣布就绪**改为 18 槽三态派生（ok/partial/unavailable），并补 `_v18EnginesRead` 读数面与 warn 失败出口；④ 注册表尾部 6 组重复登记去重（条目 98→92，loadAll 键 92 = 条目 92）。入口 index.js 12739 → 13034 行（+295），成员 1340 → 1342，全部真实计入读数。",
+      "readings": {
+        "total_lines": 13034,
+        "surface_lines": 35625,
+        "member_count": 1342,
+        "duplicate_member_names": 161,
+        "top5_lines": 6708,
+        "top5_pct": 18.8,
+        "top40_lines": 14872,
+        "top40_pct": 41.7,
+        "prefix_rule_coverage_lines": 5570,
+        "prefix_rule_coverage_pct": 15.6,
+        "unclassified_lines": 29056,
+        "seam_distinct_modules": 222,
+        "seam_reference_sites": 577,
+        "seam_call_shape_sites": 759,
+        "members_over_80_lines": 64,
+        "low_coupling_members": 19,
+        "high_coupling_members": 23
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版做 R18 接线真实度与门禁收口，未拆任何宿主巨兽成员",
+      "delta_from": "v3.459.0",
+      "delta": {
+        "total_lines": 295,
+        "surface_lines": 462,
+        "member_count": 2,
+        "top40_lines": 393,
+        "top5_pct": -0.1,
+        "top40_pct": 0.5
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3321,20 +3357,20 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 12739,
-    "surface_lines": 35163,
-    "member_count": 1340,
+    "total_lines": 13034,
+    "surface_lines": 35625,
+    "member_count": 1342,
     "duplicate_member_names": 161,
-    "top5_lines": 6657,
-    "top5_pct": 18.9,
-    "top40_lines": 14479,
-    "top40_pct": 41.2,
-    "prefix_rule_coverage_lines": 5510,
-    "prefix_rule_coverage_pct": 15.7,
-    "unclassified_lines": 28655,
-    "seam_distinct_modules": 203,
-    "seam_reference_sites": 557,
-    "seam_call_shape_sites": 738,
+    "top5_lines": 6708,
+    "top5_pct": 18.8,
+    "top40_lines": 14872,
+    "top40_pct": 41.7,
+    "prefix_rule_coverage_lines": 5570,
+    "prefix_rule_coverage_pct": 15.6,
+    "unclassified_lines": 29056,
+    "seam_distinct_modules": 222,
+    "seam_reference_sites": 577,
+    "seam_call_shape_sites": 759,
     "members_over_80_lines": 64,
     "low_coupling_members": 19,
     "high_coupling_members": 23
@@ -3342,39 +3378,39 @@
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1267,
-      "lines": 28655,
-      "lines_pct": 81.5,
-      "outside_refs": 26139,
-      "internal_refs": 9959,
-      "outside_ref_share_pct": 72.4
+      "members": 1268,
+      "lines": 29056,
+      "lines_pct": 81.6,
+      "outside_refs": 27069,
+      "internal_refs": 10217,
+      "outside_ref_share_pct": 72.6
     },
     {
       "domain": "诊断与导出",
       "members": 21,
       "lines": 2051,
       "lines_pct": 5.8,
-      "outside_refs": 1558,
-      "internal_refs": 323,
-      "outside_ref_share_pct": 82.8
+      "outside_refs": 2350,
+      "internal_refs": 4,
+      "outside_ref_share_pct": 99.8
     },
     {
       "domain": "召回与注入",
       "members": 20,
-      "lines": 1494,
-      "lines_pct": 4.2,
-      "outside_refs": 152,
+      "lines": 1526,
+      "lines_pct": 4.3,
+      "outside_refs": 154,
       "internal_refs": 80,
-      "outside_ref_share_pct": 65.5
+      "outside_ref_share_pct": 65.8
     },
     {
       "domain": "宿主事件接线",
-      "members": 3,
-      "lines": 865,
+      "members": 4,
+      "lines": 893,
       "lines_pct": 2.5,
       "outside_refs": 50,
-      "internal_refs": 33,
-      "outside_ref_share_pct": 60.2
+      "internal_refs": 34,
+      "outside_ref_share_pct": 59.5
     },
     {
       "domain": "配置与持久化",
@@ -3399,9 +3435,9 @@
       "members": 11,
       "lines": 150,
       "lines_pct": 0.4,
-      "outside_refs": 166,
+      "outside_refs": 172,
       "internal_refs": 10,
-      "outside_ref_share_pct": 94.3
+      "outside_ref_share_pct": 94.5
     },
     {
       "domain": "场所/场景",
@@ -3462,14 +3498,20 @@
     {
       "name": "recallMemory",
       "file": "engine-recall.js",
-      "lines": 1004,
-      "outside_refs": 36
+      "lines": 1036,
+      "outside_refs": 37
     },
     {
       "name": "typedFactsBlocks",
       "file": "index.js",
-      "lines": 972,
+      "lines": 991,
       "outside_refs": 2
+    },
+    {
+      "name": "restoreFromPayload",
+      "file": "engine-persistence-ops.js",
+      "lines": 591,
+      "outside_refs": 44
     },
     {
       "name": "onBeforeGeneration",
@@ -3478,15 +3520,9 @@
       "outside_refs": 4
     },
     {
-      "name": "restoreFromPayload",
-      "file": "engine-persistence-ops.js",
-      "lines": 524,
-      "outside_refs": 44
-    },
-    {
       "name": "_assembleComponents",
       "file": "index.js",
-      "lines": 497,
+      "lines": 516,
       "outside_refs": 0
     },
     {
@@ -3500,6 +3536,12 @@
       "file": "index.js",
       "lines": 473,
       "outside_refs": 0
+    },
+    {
+      "name": "loadModules",
+      "file": "index.js",
+      "lines": 427,
+      "outside_refs": 1
     },
     {
       "name": "exportMemoryReport",
@@ -3532,10 +3574,10 @@
       "outside_refs": 9
     },
     {
-      "name": "loadModules",
-      "file": "index.js",
-      "lines": 222,
-      "outside_refs": 0
+      "name": "collectExport",
+      "file": "engine-persistence-ops.js",
+      "lines": 220,
+      "outside_refs": 53
     },
     {
       "name": "rollbackFloor",
@@ -3554,12 +3596,6 @@
       "file": "index.js",
       "lines": 169,
       "outside_refs": 1
-    },
-    {
-      "name": "collectExport",
-      "file": "engine-persistence-ops.js",
-      "lines": 169,
-      "outside_refs": 53
     },
     {
       "name": "agencyContractAct",
@@ -3691,14 +3727,14 @@
       {
         "name": "typedFactsBlocks",
         "file": "index.js",
-        "lines": 972,
+        "lines": 991,
         "outside_refs": 2,
         "is_host_lifecycle": false
       },
       {
         "name": "_assembleComponents",
         "file": "index.js",
-        "lines": 497,
+        "lines": 516,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -3712,8 +3748,8 @@
       {
         "name": "loadModules",
         "file": "index.js",
-        "lines": 222,
-        "outside_refs": 0,
+        "lines": 427,
+        "outside_refs": 1,
         "is_host_lifecycle": false
       },
       {
@@ -3791,14 +3827,14 @@
       {
         "name": "recallMemory",
         "file": "engine-recall.js",
-        "lines": 1004,
-        "outside_refs": 36,
+        "lines": 1036,
+        "outside_refs": 37,
         "is_host_lifecycle": false
       },
       {
         "name": "restoreFromPayload",
         "file": "engine-persistence-ops.js",
-        "lines": 524,
+        "lines": 591,
         "outside_refs": 44,
         "is_host_lifecycle": false
       },
@@ -3831,6 +3867,13 @@
         "is_host_lifecycle": false
       },
       {
+        "name": "collectExport",
+        "file": "engine-persistence-ops.js",
+        "lines": 220,
+        "outside_refs": 53,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "rollbackFloor",
         "file": "index.js",
         "lines": 202,
@@ -3842,13 +3885,6 @@
         "file": "engine-injection-pipeline.js",
         "lines": 196,
         "outside_refs": 12,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "collectExport",
-        "file": "engine-persistence-ops.js",
-        "lines": 169,
-        "outside_refs": 53,
         "is_host_lifecycle": false
       },
       {
@@ -3904,7 +3940,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 13112,
     "maxSlack": 400,
-    "note": "[v3.459.0 同版重绑] 入口 index.js 12739 行、成员数 1340；行上界**不抬，仍为 13112**（余量 373 <= slack 400）、成员上界**不抬，仍为 1366**（余量 26 <= member_slack 30）。合并面 35163 行，TOP5 占 18.9%，TOP40 占 41.2%。",
+    "note": "[v3.461.0] 入口 index.js 13034 行、成员数 1342；行上界**不抬，仍为 13112**（余量 78 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35625 行，TOP5 占 18.8%，TOP40 占 41.7%。",
     "history": [
       {
         "ceiling": 15000,
@@ -4314,14 +4350,20 @@
         "member_ceiling": 1366,
         "milestone_version": "v3.459.0",
         "reason": "[v3.459.0 同版重绑] 入口 index.js 12739 行、成员数 1340；行上界**不抬，仍为 13112**（余量 373 <= slack 400）、成员上界**不抬，仍为 1366**（余量 26 <= member_slack 30）。合并面 35163 行，TOP5 占 18.9%，TOP40 占 41.2%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.461.0",
+        "reason": "[v3.461.0] 入口 index.js 13034 行、成员数 1342；行上界**不抬，仍为 13112**（余量 78 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35625 行，TOP5 占 18.8%，TOP40 占 41.7%。"
       }
     ],
     "member_ceiling": 1366,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 12739,
-  "member_count": 1340,
+  "total_lines": 13034,
+  "member_count": 1342,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
 }
