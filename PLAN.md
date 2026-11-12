@@ -91,7 +91,7 @@
   接线在 orchestrator 阶段 3.12 谣言引擎段（判定存 `engine._rumorTraceBacks`，
   trace 记 `stages.rumorTraceBack`）。判据 `tests/v21_x5_rumor_traceback.test.mjs` **8/8**
   （六判定 + 原始证据覆盖负控制 + 接线真消费）／
-  `L21-X6` 起居习惯「已沉淀 vs 待观察」（复用 `circadian-shared-routine-engine`）／
+  `L21-X6` 起居习惯「已沉淀 vs 待观察」（复用 `circadian-shared-routine-engine`） —— **已完成（v3.465.8）**：新增 `shared-routine-evidence.js`（挂 `LonShaRoutineEvidence`）：observed/established/atypical 三档互斥，阈值 `ESTABLISH_THRESHOLD = 5` 单一具名常量不藏魔数，atypical 优先于计数（今天反常不提）；生活看板每行带「第 n/5 次」进度。判据 `tests/v21_x6_routine_evidence.test.mjs` **8/8**（三档判定 + observed 当 established 负控制 + 魔数扫描 + 接线真消费落 `trace.stages.routineEvidence`）／
   `L21-X7` 世界线草稿保存前语义自检（复用 `worldline-memory`）／
   `L21-X8` 一次操作的完整回声四档（复用 `echo-ledger` + `oplog`）／
   `L21-X9` 「我为什么不记得」话题级四态归因（复用 `memory-archaeology-gap-bench`）。
@@ -164,8 +164,8 @@
 > [优化提升九项](.agents/notes/implemented/architecture/2026-10-31-product-optimization-v13.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-10-31-product-expansion-v13.md) · [基线、差异化与验收边界](docs/planning/2026-10-31-product-evidence-v13.md)。
 > **期号口径**：本期用 `L13` 而非 L12 —— `CHANGELOG.md` 的 v3.420.0 已用 `L11-*` 指另外十八件模块，第十一期因此改名 L12；`L12-*` 已被 v3.428.0~v3.430.0 用掉，故顺延 L13（见证据页第一节）。
 > **第九期产品计划（2026-10-24，历史提案）**：[优化九项](.agents/notes/proposed/architecture/2026-10-24-product-optimization-v9.md) · [拓展九项](.agents/notes/proposed/feature/2026-10-24-product-expansion-v9.md) · [证据页](docs/planning/2026-10-24-product-evidence-v9.md)。
-> **当前执行状态（2026-11-12，v3.465.7）**：第二十一期**优化面 O1~O9 全部交付**（v3.465.2 收账提交 `27402ff` 已推送）；
-> 拓展面 `L21-X1`（v3.465.3 12/12）、`L21-X2`（v3.465.4 9/9）、`L21-X3`（v3.465.5 10/10）、`L21-X4`（v3.465.6 8/8）、`L21-X5`（v3.465.7 8/8）已交付；X6~X9 与 ruby-phone R21 18 项进行中。
+> **当前执行状态（2026-11-12，v3.465.8）**：第二十一期**优化面 O1~O9 全部交付**（v3.465.2 收账提交 `27402ff` 已推送）；
+> 拓展面 `L21-X1`（v3.465.3 12/12）、`L21-X2`（v3.465.4 9/9）、`L21-X3`（v3.465.5 10/10）、`L21-X4`（v3.465.6 8/8）、`L21-X5`（v3.465.7 8/8）、`L21-X6`（v3.465.8 8/8）已交付；X7~X9 与 ruby-phone R21 18 项进行中。
 > v3.465.1 是收账轮的自证复核版，把 v3.465.0 交付后暴露的**全仓审计 25 项红**逐条追到根因。v3.465.2 续收账：把全量审计（509 文件）暴露的 9 失败文件 / 12 失败断言逐条归因修复 —— 判据滞后 7 处只改判据并在判据内留痕归因（v21_o4 判定体类缩进、v21_o9 版本真源、v3156 / v337 去黑话文案锚、v34230 tab 锚、v3271 escAttr 三行锚、v3227 耗时上界并发余量、v323 collectExport 抽取口径）；真缺陷 2 处修产品（`_umd_reload_judge.mjs` 漏登 EXEMPT、本状态行停版）。
 > **本版性质（先说清楚，避免被读成「又加了一批功能」）**：三项红**是我自己造成的**，两项是判据侧的死前提，一批是读数欠账。**没有一项是「顺手改了别人的东西」。**
 > **① 写入侧从来没写过（本版最重的一条，排在所有其它项之前）**：`collectExport` 把 9 个含 `Map`/`Set` 的状态对象**原样**塞进存档，而 `JSON.stringify(Map)` 恒为 `{}` ——「存了 3 个沙盒」与「一个都没存」在文件上完全同形。我上一刀的 `hydrateState` **只修了读取端**，真实链路里 Map 根本到不了 JSON ⇒ 写得再对也是空转。**这一条同时掲出我自己的假绿探针**：拿 `JSON.stringify(默认状态)` 当「落盘」，元素早已丢光，而它只核 `instanceof Map` —— 空 Map 当然也是 Map，于是打印「通过」。修法一次补齐三段：写入段 `_flattenColl`/`_collForSave`（`Map`→`{__map:[[k,v],…]}`、`Set`→`{__set:[…]}`，**用带前缀的标记对象而不是裸数组**；`_collForSave` 先扫一遍、**只有真含容器才摊平** ⇒ 无容器模块存档格式一个字节不变）、还原段 `_unflattenColl`（**只在一处做**，9 份反向实现就是 9 个第二真源）、读取段（按形状归一化）。判据 `tests/v21_o4b_volatile_container_chain.test.mjs` **18/18**（判定体 `_volatile_container_judge.mjs` 纯函数不碰 fs），三段各自可证伪 + **四条负控制全真跑** + `D1` 落盘侧↔登记表双向一致（防幽灵键）+ `D2` 摊平不误伤 + `E1` 判据纯度。

@@ -790,6 +790,21 @@ generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined
                     const joined = circDirs.join("\n");
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
+                // [L21-X6] 共同起居习惯「已沉淀 vs 待观察」分档读面：observed/established/atypical
+                //   三档互斥，阈值 ESTABLISH_THRESHOLD 可读不藏魔数；atypical 优先于计数（今天反常不提）。
+                //   只读不改，判定落 trace 供生活看板「☕ 共同起居」每行带「第 n/5 次」进度。
+                try {
+                    const routineEvidence = (typeof LonShaRoutineEvidence !== "undefined" ? LonShaRoutineEvidence : (typeof require !== "undefined" ? (() => { try { return require("./shared-routine-evidence.js"); } catch { return null; } })() : null));
+                    if (routineEvidence) {
+                        const habits = engine._circadianRoutineState && Array.isArray(engine._circadianRoutineState.habits) ? engine._circadianRoutineState.habits : [];
+                        const routineEvidenceAll = routineEvidence.classifyAll(habits);
+                        engine._routineEvidenceVerdicts = routineEvidenceAll.verdicts;
+                        trace.stages.routineEvidence = {
+                            habits: routineEvidenceAll.verdicts.length,
+                            established: routineEvidenceAll.mentionable.length
+                        };
+                    }
+                } catch (e) { _symphonyFail('stage', e); }
             }
         } catch (e) { _symphonyFail('stage', e); }
         try {

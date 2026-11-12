@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-12T10:32:00.033Z",
-  "extra_js_count": 370,
+  "generated_at": "2026-11-12T10:35:32.073Z",
+  "extra_js_count": 371,
   "host_injected_count": 223,
-  "total_modules": 371,
+  "total_modules": 372,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 359,
+  "active_count": 360,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -7846,6 +7846,25 @@
       "callers": [
         {
           "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "shared-routine-evidence.js": {
+      "module": "shared-routine-evidence.js",
+      "surface": [
+        "shared-routine-evidence"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-symphony-orchestrator.js",
           "count": 1,
           "type": "file_binding"
         }
