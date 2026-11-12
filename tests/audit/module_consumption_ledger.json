@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-12T10:35:32.073Z",
-  "extra_js_count": 371,
+  "generated_at": "2026-11-12T10:38:01.726Z",
+  "extra_js_count": 372,
   "host_injected_count": 223,
-  "total_modules": 372,
+  "total_modules": 373,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 360,
+  "active_count": 361,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -9100,6 +9100,25 @@
           "type": "file_binding+exclusive_global"
         }
       ]
+    },
+    "worldline-draft-audit.js": {
+      "module": "worldline-draft-audit.js",
+      "surface": [
+        "worldline-draft-audit"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-diagnostic-lines.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
     },
     "worldline-memory.js": {
       "module": "worldline-memory.js",

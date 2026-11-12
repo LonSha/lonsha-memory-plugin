@@ -765,10 +765,29 @@
                 epochs.push({ floor: r.floor, lineId: r.lineId, epoch: ep });
             }
             const first = rows.length ? rows[0].floor : null;
+            /* ★ [v3.465.9 · L21-X7] 保存前语义自检：解析器只报「坏行」，不报「语义上不成立的跳」。
+             *   这里把 ok 行交给 worldline-draft-audit（五档各报各的：楼层回退/纪元编号冲突/
+             *   前史缺口/why为空/楼层重复），**不合成一个总布尔**，只挂 `audit` 读面字段。
+             *   why 取自行内第二个分隔符之后的余文（单源解析不动 parseJumpsText 的返回形状）。 */
+            let audit = null;
+            try {
+                const auditLib = (typeof LonShaWorldlineDraftAudit !== "undefined" ? LonShaWorldlineDraftAudit : (typeof require !== "undefined" ? (() => { try { return require("./worldline-draft-audit.js"); } catch { return null; } })() : null));
+                if (auditLib) {
+                    const jumps = parsed.entries
+                        .filter(function (en) { return en.kind === 'ok'; })
+                        .map(function (en) {
+                            const segs = en.text.split(/[:：=]/);
+                            const why = segs.length > 2 ? segs.slice(2).join(':').trim() : '';
+                            return { floor: en.floor, lineId: en.lineId, divergence: en.divergence, line: en.line, why: why };
+                        });
+                    audit = auditLib.auditDraft(jumps);
+                }
+            } catch (_e) { audit = null; }
             return {
                 kind: 'worldline_jump_draft', ok: parsed.rejects.length === 0,
                 text: text, rows: rows, rejects: parsed.rejects, warns: parsed.warns, entries: parsed.entries,
                 epochs: epochs, firstFloor: first,
+                audit: audit,
                 /* 前史缺口：首跳在第 N 楼（N>1）时，第 1..N-1 楼的条目推不出纪元 ⇒ **判不了**。
                  *   ★ 这是信息缺失，不是「安全」：那批条目既不当事实，也不被挡。
                  *   面板必须把这两个读数做成不同形（有缺口 / 已覆盖 / 根本没登记）。 */
