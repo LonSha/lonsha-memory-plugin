@@ -56,7 +56,15 @@
   判定存 `engine._defenseConsistencyVerdicts`，trace 记 `stages.defenseConsistency`。
   判据 `tests/v21_x1_defense_consistency.test.mjs` **12/12**（八判定 + 三真源码破坏负控制：
   压态/改铁律/恒放行各一条 + 接线面真消费）／
-  `L21-X2` 伏笔时机四因子可解释（复用 `latent-plot-foreshadowing-engine`）／
+  `L21-X2` 伏笔时机四因子可解释（复用 `latent-plot-foreshadowing-engine`）
+  —— **已完成（v3.465.4）**：新增 `foreshadow-timing-explain.js`（挂 `LonShaForeshadowTimingExplain`）：
+  对每条未决伏笔回答「为什么现在提 / 为什么不提」——四因子（时间距离 / 情绪张力 / 话题邻近度 /
+  在场人物）**各自独立给出布尔裁决 + 可读理由，绝不加权合成分数**（判据 N1 双向锁死：源码不得出现
+  map+reduce 合成、因子不得携带 weight 字段）。裁决规则显式：时间门 + 张力一票否决 + （邻近 或 在场）支持。
+  验收旅程闭环：时间够+话题邻近 ⇒ 提，理由「已经过了约 5 天；聊到『收音机』正好相关」；
+  张力 0.9 ⇒ 不提，理由直说「正在气头或应激上」。接线在 orchestrator 阶段 3.12 伏笔引擎之后
+  （`explainAll` 批量，判定存 `engine._foreshadowTimingExplains`，trace 记 `stages.foreshadowTiming`）。
+  判据 `tests/v21_x2_foreshadow_timing.test.mjs` **9/9**（七判定 + 合成回潮负控制 + 接线真消费）／
   `L21-X3` 默契暗号存在性与含义分离（复用 `tacit-intimacy-code-engine`）／
   `L21-X4` 创伤防线分档含 `undecided`（复用 `trauma-taboo-defense-matrix`）／
   `L21-X5` 谣言可回溯原始证据链（复用 `rumor-mutation-entropy-engine`）／
@@ -133,8 +141,8 @@
 > [优化提升九项](.agents/notes/implemented/architecture/2026-10-31-product-optimization-v13.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-10-31-product-expansion-v13.md) · [基线、差异化与验收边界](docs/planning/2026-10-31-product-evidence-v13.md)。
 > **期号口径**：本期用 `L13` 而非 L12 —— `CHANGELOG.md` 的 v3.420.0 已用 `L11-*` 指另外十八件模块，第十一期因此改名 L12；`L12-*` 已被 v3.428.0~v3.430.0 用掉，故顺延 L13（见证据页第一节）。
 > **第九期产品计划（2026-10-24，历史提案）**：[优化九项](.agents/notes/proposed/architecture/2026-10-24-product-optimization-v9.md) · [拓展九项](.agents/notes/proposed/feature/2026-10-24-product-expansion-v9.md) · [证据页](docs/planning/2026-10-24-product-evidence-v9.md)。
-> **当前执行状态（2026-11-12，v3.465.3）**：第二十一期**优化面 O1~O9 全部交付**（v3.465.2 收账提交 `27402ff` 已推送）；
-> 拓展面 `L21-X1` 已交付（v3.465.3，防御叙事一致性守门 12/12）；X2~X9 与 ruby-phone R21 18 项进行中。
+> **当前执行状态（2026-11-12，v3.465.4）**：第二十一期**优化面 O1~O9 全部交付**（v3.465.2 收账提交 `27402ff` 已推送）；
+> 拓展面 `L21-X1`（v3.465.3 防御叙事一致性守门 12/12）、`L21-X2`（v3.465.4 伏笔时机四因子可解释 9/9）已交付；X3~X9 与 ruby-phone R21 18 项进行中。
 > v3.465.1 是收账轮的自证复核版，把 v3.465.0 交付后暴露的**全仓审计 25 项红**逐条追到根因。v3.465.2 续收账：把全量审计（509 文件）暴露的 9 失败文件 / 12 失败断言逐条归因修复 —— 判据滞后 7 处只改判据并在判据内留痕归因（v21_o4 判定体类缩进、v21_o9 版本真源、v3156 / v337 去黑话文案锚、v34230 tab 锚、v3271 escAttr 三行锚、v3227 耗时上界并发余量、v323 collectExport 抽取口径）；真缺陷 2 处修产品（`_umd_reload_judge.mjs` 漏登 EXEMPT、本状态行停版）。
 > **本版性质（先说清楚，避免被读成「又加了一批功能」）**：三项红**是我自己造成的**，两项是判据侧的死前提，一批是读数欠账。**没有一项是「顺手改了别人的东西」。**
 > **① 写入侧从来没写过（本版最重的一条，排在所有其它项之前）**：`collectExport` 把 9 个含 `Map`/`Set` 的状态对象**原样**塞进存档，而 `JSON.stringify(Map)` 恒为 `{}` ——「存了 3 个沙盒」与「一个都没存」在文件上完全同形。我上一刀的 `hydrateState` **只修了读取端**，真实链路里 Map 根本到不了 JSON ⇒ 写得再对也是空转。**这一条同时掲出我自己的假绿探针**：拿 `JSON.stringify(默认状态)` 当「落盘」，元素早已丢光，而它只核 `instanceof Map` —— 空 Map 当然也是 Map，于是打印「通过」。修法一次补齐三段：写入段 `_flattenColl`/`_collForSave`（`Map`→`{__map:[[k,v],…]}`、`Set`→`{__set:[…]}`，**用带前缀的标记对象而不是裸数组**；`_collForSave` 先扫一遍、**只有真含容器才摊平** ⇒ 无容器模块存档格式一个字节不变）、还原段 `_unflattenColl`（**只在一处做**，9 份反向实现就是 9 个第二真源）、读取段（按形状归一化）。判据 `tests/v21_o4b_volatile_container_chain.test.mjs` **18/18**（判定体 `_volatile_container_judge.mjs` 纯函数不碰 fs），三段各自可证伪 + **四条负控制全真跑** + `D1` 落盘侧↔登记表双向一致（防幽灵键）+ `D2` 摊平不误伤 + `E1` 判据纯度。

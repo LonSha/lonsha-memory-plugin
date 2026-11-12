@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-12T03:19:09.883Z",
-  "extra_js_count": 365,
+  "generated_at": "2026-11-12T10:22:57.018Z",
+  "extra_js_count": 367,
   "host_injected_count": 223,
-  "total_modules": 366,
+  "total_modules": 368,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 354,
+  "active_count": 356,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -1727,6 +1727,25 @@
         }
       ]
     },
+    "defense-narrative-consistency-guard.js": {
+      "module": "defense-narrative-consistency-guard.js",
+      "surface": [
+        "defense-narrative-consistency-guard"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-symphony-orchestrator.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "dependency-closure.js": {
       "module": "dependency-closure.js",
       "surface": [
@@ -2330,8 +2349,8 @@
       "surface": [
         "EngineOrchestrationRippleBus"
       ],
-      "prod_call_sites": 6,
-      "business_call_sites": 4,
+      "prod_call_sites": 5,
+      "business_call_sites": 3,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -2350,11 +2369,6 @@
           "file": "memory-symphony-orchestrator.js",
           "count": 1,
           "type": "file_binding"
-        },
-        {
-          "file": "tmp_probe_o4h.mjs",
-          "count": 1,
-          "type": "file_binding"
         }
       ],
       "load_surface_callers": [
@@ -2370,8 +2384,8 @@
       "surface": [
         "engine-persistence-ops"
       ],
-      "prod_call_sites": 33,
-      "business_call_sites": 33,
+      "prod_call_sites": 29,
+      "business_call_sites": 29,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -2379,26 +2393,6 @@
         {
           "file": "index.js",
           "count": 29,
-          "type": "file_binding"
-        },
-        {
-          "file": "tmp_probe_o4f.mjs",
-          "count": 1,
-          "type": "file_binding"
-        },
-        {
-          "file": "tmp_probe_o4g.mjs",
-          "count": 1,
-          "type": "file_binding"
-        },
-        {
-          "file": "tmp_probe_o4h.mjs",
-          "count": 1,
-          "type": "file_binding"
-        },
-        {
-          "file": "tmp_probe_o4i.mjs",
-          "count": 1,
           "type": "file_binding"
         }
       ],
@@ -3562,6 +3556,25 @@
       ],
       "load_surface_callers": []
     },
+    "foreshadow-timing-explain.js": {
+      "module": "foreshadow-timing-explain.js",
+      "surface": [
+        "foreshadow-timing-explain"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-symphony-orchestrator.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "fuzzy-patch.js": {
       "module": "fuzzy-patch.js",
       "surface": [
@@ -3985,8 +3998,8 @@
         "LonShaMemory",
         "lonsha_memory_bridge_v1"
       ],
-      "prod_call_sites": 37,
-      "business_call_sites": 37,
+      "prod_call_sites": 36,
+      "business_call_sites": 36,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -4045,11 +4058,6 @@
           "file": "settings-ui.js",
           "count": 5,
           "type": "exclusive_global"
-        },
-        {
-          "file": "tmp_probe_o4j.mjs",
-          "count": 1,
-          "type": "file_binding"
         }
       ],
       "load_surface_callers": []
@@ -5282,8 +5290,8 @@
       "surface": [
         "LonShaMemoryOrgans"
       ],
-      "prod_call_sites": 4,
-      "business_call_sites": 4,
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -5292,16 +5300,6 @@
           "file": "index.js",
           "count": 2,
           "type": "file_binding+exclusive_global"
-        },
-        {
-          "file": "tmp_probe_o4b.mjs",
-          "count": 1,
-          "type": "file_binding"
-        },
-        {
-          "file": "tmp_probe_o4f.mjs",
-          "count": 1,
-          "type": "file_binding"
         }
       ],
       "load_surface_callers": []

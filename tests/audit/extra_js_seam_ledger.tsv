@@ -306,6 +306,8 @@ unreliable-narrator-gaslighting-neutralizer.js	yes	yes	optional-engine-registry.
 dual-identity-exposure-risk-matrix.js	yes	yes	memory-symphony-orchestrator.js;optional-engine-registry.js	host-seam
 psychological-burnout-resilience-decay.js	yes	yes	memory-symphony-orchestrator.js;optional-engine-registry.js	host-seam
 ego-defense-mechanisms-engine.js	yes	yes	memory-symphony-orchestrator.js	host-seam
+defense-narrative-consistency-guard.js	yes	no	memory-symphony-orchestrator.js	module-internal
+foreshadow-timing-explain.js	yes	no	memory-symphony-orchestrator.js	module-internal
 latent-plot-foreshadowing-engine.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 tacit-intimacy-code-engine.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 trauma-taboo-defense-matrix.js	yes	yes	memory-symphony-orchestrator.js	host-seam
@@ -320,7 +322,7 @@ causality-invariant-fuse-lock.js	yes	yes	memory-symphony-orchestrator.js	host-se
 hierarchical-pyramid-attention-elastic.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 entity-disambiguation-affinity-graph.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 branch-diff-incremental-merger.js	yes	yes	none	host-seam
-floor-fingerprint-self-healer.js	yes	yes	none	host-seam
+floor-fingerprint-self-healer.js	yes	no	none	orphan
 mind-barometer-dashboard-snapshot.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 temporal-flashbulb-dilation-engine.js	yes	yes	optional-engine-registry.js	host-seam
 dissociative-persona-mask-matrix.js	yes	yes	optional-engine-registry.js	host-seam

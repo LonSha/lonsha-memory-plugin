@@ -689,6 +689,23 @@
                         generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                     }
                 }
+                // [L21-X2] 伏笔时机四因子可解释面：对未决伏笔给出「为什么提/为什么不提」的
+                //   显式理由链（时间距离/情绪张力/话题邻近度/在场人物，各自可读不相加）。
+                try {
+                    const explainLib = (typeof LonShaForeshadowTimingExplain !== "undefined" ? LonShaForeshadowTimingExplain : (typeof require !== "undefined" ? (() => { try { return require("./foreshadow-timing-explain.js"); } catch { return null; } })() : null));
+                    if (explainLib) {
+                        const explainRes = explainLib.explainAll(engine._latentForeshadowingState.openSuspenses || [], {
+                            now: Date.now(), currentFloor: activeFloor, queryText,
+                            tension: (engine._narrativeEcgState && Number.isFinite(engine._narrativeEcgState.tension)) ? engine._narrativeEcgState.tension : undefined,
+                            presentCharacters: (trace.stages.perception && trace.stages.perception.knownCharacters) || []
+                        });
+                        engine._foreshadowTimingExplains = explainRes;
+                        trace.stages.foreshadowTiming = {
+                            explained: explainRes.length,
+                            readyToMention: explainRes.filter(e => e.shouldMention).length
+                        };
+                    }
+                } catch (e) { _symphonyFail('stage', e); }
             }
         } catch (e) { _symphonyFail('stage', e); }
         try {
