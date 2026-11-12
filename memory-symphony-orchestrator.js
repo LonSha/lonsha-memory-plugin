@@ -763,8 +763,21 @@
                 const rumorDirs = rumorX5.generateRumorDirectives(engine._rumorMutationState);
                 if (rumorDirs && rumorDirs.length > 0) {
                     const joined = rumorDirs.join("\n");
-                    generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
+generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
+                // [L21-X5] 谣言可回溯证据链读面：originFact 永远可读 + 逐跳"改了什么" +
+                //   异化度直读（不重算）。只读不改，判定落 trace 供面板「这条传言从哪来的」折叠块。
+                try {
+                    const traceLib = (typeof LonShaRumorTraceBack !== "undefined" ? LonShaRumorTraceBack : (typeof require !== "undefined" ? (() => { try { return require("./rumor-trace-back.js"); } catch { return null; } })() : null));
+                    if (traceLib) {
+                        const rumorTraceBacks = traceLib.traceAll(engine._rumorMutationState);
+                        engine._rumorTraceBacks = rumorTraceBacks;
+                        trace.stages.rumorTraceBack = {
+                            traced: rumorTraceBacks.length,
+                            worstHop: rumorTraceBacks.length ? rumorTraceBacks[0].hops : 0
+                        };
+                    }
+                } catch (e) { _symphonyFail('stage', e); }
             }
         } catch (e) { _symphonyFail('stage', e); }
         try {

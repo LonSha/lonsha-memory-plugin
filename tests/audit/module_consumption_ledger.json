@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-12T10:28:18.900Z",
-  "extra_js_count": 369,
+  "generated_at": "2026-11-12T10:32:00.033Z",
+  "extra_js_count": 370,
   "host_injected_count": 223,
-  "total_modules": 370,
+  "total_modules": 371,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 358,
+  "active_count": 359,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -7529,6 +7529,25 @@
           "count": 1,
           "type": "file_binding"
         },
+        {
+          "file": "memory-symphony-orchestrator.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "rumor-trace-back.js": {
+      "module": "rumor-trace-back.js",
+      "surface": [
+        "rumor-trace-back"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
         {
           "file": "memory-symphony-orchestrator.js",
           "count": 1,
