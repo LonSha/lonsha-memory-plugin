@@ -579,6 +579,29 @@
                     const joined = egoDirs.join("\n");
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
+                // [L21-X1] 防御叙事一致性守门：在防御引擎产出主观润色之后，比对 lockedFacts。
+                //   三态 consistent/strained/contradicts；绝不修改防御引擎输出、绝不修改铁律（两侧都是 owner 地盘）。
+                //   contradicts 时只注入「该句与铁律不符 + 替代措辞」的提示指令，不删不改 egoDirs。
+                try {
+                    const guardLib = (typeof LonShaDefenseConsistency !== "undefined" ? LonShaDefenseConsistency : (typeof require !== "undefined" ? (() => { try { return require("./defense-narrative-consistency-guard.js"); } catch { return null; } })() : null));
+                    if (guardLib) {
+                        const lfList = (engine.summary && typeof engine.summary.getLockedFacts === "function") ? (engine.summary.getLockedFacts() || []) : [];
+                        const verdicts = guardLib.guardDistortions(engine._egoDefenseState.subjectiveDistortions, lfList);
+                        engine._defenseConsistencyVerdicts = verdicts;
+                        const warn = guardLib.summarize(verdicts);
+                        if (warn) {
+                            const bad = verdicts.filter(v => v.verdict.state === guardLib.STATES.CONTRADICTS).slice(0, 2);
+                            const detail = bad.map(v => `替代措辞：${v.verdict.suggested}（${v.verdict.reason}）`).join("\n");
+                            const block = warn + (detail ? "\n" + detail : "") + "\n【一致性提醒】以上说法与已锁定事实不符，叙述时不要把这些自我开脱当成已发生的真相，用替代措辞或如实带过。";
+                            generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + block) : block;
+                        }
+                        trace.stages.defenseConsistency = {
+                            checked: verdicts.length,
+                            contradicts: verdicts.filter(v => v.verdict.state === guardLib.STATES.CONTRADICTS).length,
+                            strained: verdicts.filter(v => v.verdict.state === guardLib.STATES.STRAINED).length
+                        };
+                    }
+                } catch (e) { _symphonyFail('stage', e); }
             }
         } catch (e) { _symphonyFail('stage', e); }
 
