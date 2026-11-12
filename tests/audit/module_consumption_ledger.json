@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-12T10:40:46.344Z",
-  "extra_js_count": 373,
+  "generated_at": "2026-11-12T10:44:00.822Z",
+  "extra_js_count": 374,
   "host_injected_count": 223,
-  "total_modules": 374,
+  "total_modules": 375,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 362,
+  "active_count": 363,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -8632,6 +8632,25 @@
           "type": "file_binding+exclusive_global"
         }
       ]
+    },
+    "topic-absence-explain.js": {
+      "module": "topic-absence-explain.js",
+      "surface": [
+        "topic-absence-explain"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-evidence-center.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
     },
     "transgenerational-soul-brand-synthesis.js": {
       "module": "transgenerational-soul-brand-synthesis.js",

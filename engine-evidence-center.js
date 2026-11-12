@@ -751,7 +751,33 @@ function errLog(e, tag) {
         return (function (face) {
             const C = _memoryCenterLib();
             if (!C || typeof C.sheetHtml !== 'function') return '';
-            try { return C.sheetHtml(face); } catch (e) { errLog(e, 'plugin.memoryCenterSheet'); return ''; }
+            let html = '';
+            try { html = C.sheetHtml(face); } catch (e) { errLog(e, 'plugin.memoryCenterSheet'); return ''; }
+            /* [v3.466.1 · L21-X9] 搜索空结果页底部「为什么没有这条？」：
+             *   话题级四态归因（never-told / told-but-dropped / told-before-branch / undecided），
+             *   **undecided 绝不并进 never-told**（判不了要人去看，没记过不用管 —— 处置相反）。
+             *   证据只取真读数：墓碑账命中 ⇒ told-but-dropped（带原楼层与删除原因）；
+             *   证据不齐 ⇒ 如实 undecided，绝不因为「没查到」就说「没记过」。 */
+            try {
+                const TA = (typeof LonShaTopicAbsence !== 'undefined' ? LonShaTopicAbsence : (typeof require !== 'undefined' ? (() => { try { return require('./topic-absence-explain.js'); } catch { return null; } })() : null));
+                if (TA && face && face.view === 'empty' && face.reason === 'no-match') {
+                    const kwText = String((face.state && face.state.text) || '').trim();
+                    if (kwText) {
+                        const ev = { searchable: false, everRecorded: null, dropped: null, otherBranch: null };
+                        try {
+                            const tombs = (host && host.charMem && typeof host.charMem.getTombstones === 'function') ? host.charMem.getTombstones() : [];
+                            const hit = (Array.isArray(tombs) ? tombs : []).filter((t) => String((t && t.item && t.item.text) || '').indexOf(kwText) >= 0)[0];
+                            if (hit && hit.item && Number.isFinite(hit.item.floor)) {
+                                ev.dropped = { floor: hit.item.floor, why: String(hit.reason || 'manual-delete') };
+                            }
+                        } catch (_e) { /* 墓碑账缺席 ⇒ 证据不齐，走 undecided */ }
+                        const absence = TA.explain(kwText, ev);
+                        const absenceLine = TA.formatLine(absence);
+                        if (absenceLine) html += '<div class="ls-mc-absence" style="margin-top:8px;font-size:12px;color:var(--ls-text-2,#9da7b3);">' + absenceLine + '</div>';
+                    }
+                }
+            } catch (_e) { /* 归因面缺席不拖垮整页渲染 */ }
+            return html;
         }).apply(host, args);
     },
     /** [v3.310.0 · M-X1] 面自述：依赖缺哪一格、缺了会怎样（只读、不抛）。 */
