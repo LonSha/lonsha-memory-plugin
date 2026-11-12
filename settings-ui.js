@@ -1407,11 +1407,29 @@
                         + `<div class="ls-hint" style="${(st.truncated || st.trimFields) ? 'color:var(--ls-warn,#e3b341)' : ''}">📒 账本自述：${esc(opLog.auditSummary?.() || ('窗口 ' + st.total))}${(st.truncated || st.trimFields) ? '　（下方类型统计只覆盖当前窗口；已淘汰事件不计入，且其类型会从统计中整体消失）' : ''}</div>`;
                     // [v3.59] B: 楼层过滤输入框（输入楼层号只显示该楼事件；空=全部）
                     const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
-                    const rows = opLog.recent(80).slice().reverse().map(e => `
+                    const rows = opLog.recent(80).slice().reverse().map(e => {
+                        /* [v3.466.0 · L21-X8] 每行可展开的「↩️ 这次改动牵动了什么」：
+                         *   operation-echo-report 四档（graph/summary/injection/timeline）三态
+                         *   （受影响/未受影响/判不了），「判不了」绝不并进「未受影响」。 */
+                        let echoLine = '';
+                        try {
+                            const echoLib = (typeof LonShaOperationEcho !== 'undefined' ? LonShaOperationEcho : (typeof require !== 'undefined' ? (() => { try { return require('./operation-echo-report.js'); } catch { return null; } })() : null));
+                            if (echoLib) {
+                                const ctx = {
+                                    graph: (typeof s.graphStats === 'function' ? () => s.graphStats()?.nodes + ' 节点在读' : ''),
+                                    summary: (typeof s.getSummaries === 'function' ? () => (s.getSummaries()?.length || 0) + ' 条摘要待重建' : ''),
+                                    injection: (typeof s.getLockedFacts === 'function' ? () => '锁定事实 ' + (s.getLockedFacts()?.length || 0) + ' 条将随下次生成注入' : ''),
+                                    timeline: ''
+                                };
+                                echoLine = echoLib.formatLine(echoLib.echoForEntry(e, ctx));
+                            }
+                        } catch (_) { echoLine = ''; }
+                        return `
                         <div class="ls-item">
                             <div class="ls-item-meta">#${e.seq} · ${typeCn[e.type] || e.type} · ${esc(e.op)} · ${e.floor !== null && e.floor !== undefined ? `第${e.floor}楼` : '—'} · ${fmtTime(e.ts)}</div>
                             <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:var(--ls-text-2,#9da7b3)">— ${esc(e.meta)}</span>` : ''}</div>
-                        </div>`).join('');
+                            ${echoLine ? `<details class="ls-echo"><summary style="cursor:pointer;font-size:12px;color:var(--ls-text-2,#9da7b3);">↩️ 这次改动牵动了什么</summary><div class="ls-item-text" style="font-size:12px;">${esc(echoLine.replace('↩️ 这次改动牵动了什么：', ''))}</div></details>` : ''}
+                        </div>`; }).join('');
                     const tombstones = typeof s.charMem?.getTombstones === 'function' ? s.charMem.getTombstones() : [];
                     const tombRows = tombstones.length
                         ? tombstones.slice().reverse().map(t => `<div class="ls-item"><div class="ls-item-meta">🪦 ${esc(t.char || '角色')} · 已删除 · ${fmtTime(t.deletedAt)} · ${esc(t.reason || 'manual-delete')}</div><div class="ls-item-text">${esc(t.item?.text || t.item?.id || '')} <button class="ls-btn ls-tomb-restore" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;">↺ 恢复</button> <button class="ls-btn ls-tomb-purge" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;color:var(--ls-danger,#f85149);">彻底清除</button></div></div>`).join('')

@@ -313,6 +313,7 @@ trauma-defense-depth-read.js	yes	no	memory-symphony-orchestrator.js	module-inter
 rumor-trace-back.js	yes	no	memory-symphony-orchestrator.js	module-internal
 shared-routine-evidence.js	yes	no	memory-symphony-orchestrator.js	module-internal
 worldline-draft-audit.js	yes	yes	none	host-seam
+operation-echo-report.js	yes	yes	none	host-seam
 latent-plot-foreshadowing-engine.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 tacit-intimacy-code-engine.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 trauma-taboo-defense-matrix.js	yes	yes	memory-symphony-orchestrator.js	host-seam
