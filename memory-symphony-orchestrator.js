@@ -718,6 +718,19 @@
                     const joined = tacitDirs.join("\n");
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
+                // [L21-X3] 默契暗号可解码性：存在性与含义分离 —— 对话里暗号句只标「（暗号）」，
+                //   含义只有羁绊达标且无第三者在场时才在词典读面解锁；ambiguous 列候选不猜。
+                try {
+                    const legibLib = (typeof LonShaTacitCodeLegibility !== "undefined" ? LonShaTacitCodeLegibility : (typeof require !== "undefined" ? (() => { try { return require("./tacit-code-legibility.js"); } catch { return null; } })() : null));
+                    if (legibLib) {
+                        const legibilityVerdicts = legibLib.classify(queryText, engine._tacitIntimacyState.codebook || [], {
+                            intimacyLevel: engine._tacitIntimacyState.intimacyLevel,
+                            inPresenceOthers: (trace.stages.perception && (trace.stages.perception.knownCharacters || []).length > 1)
+                        });
+                        engine._tacitLegibilityVerdict = legibilityVerdicts;
+                        trace.stages.tacitLegibility = { state: legibilityVerdicts.state, candidates: legibilityVerdicts.candidates.length };
+                    }
+                } catch (e) { _symphonyFail('stage', e); }
             }
         } catch (e) { _symphonyFail('stage', e); }
         try {
