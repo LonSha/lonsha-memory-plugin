@@ -743,6 +743,16 @@
                     const joined = traumaDirs.join("\n");
                     generatedDirectives = generatedDirectives ? (generatedDirectives + "\n" + joined) : joined;
                 }
+                // [L21-X4] 创伤防线分档读面：把三层映射为 deflect/guard/flashback + undecided
+                //   （判不了不许猜层）。只读不改引擎状态，判定落 trace 供面板「🛡️ 心理戒备区」读。
+                try {
+                    const depthLib = (typeof LonShaTraumaDefenseDepthRead !== "undefined" ? LonShaTraumaDefenseDepthRead : (typeof require !== "undefined" ? (() => { try { return require("./trauma-defense-depth-read.js"); } catch { return null; } })() : null));
+                    if (depthLib) {
+                        const traumaDepthVerdict = depthLib.readDepth(engine._traumaTabooState, queryText);
+                        engine._traumaDepthVerdict = traumaDepthVerdict;
+                        trace.stages.traumaDepth = { level: traumaDepthVerdict.level, topic: traumaDepthVerdict.topic };
+                    }
+                } catch (e) { _symphonyFail('stage', e); }
             }
         } catch (e) { _symphonyFail('stage', e); }
         try {

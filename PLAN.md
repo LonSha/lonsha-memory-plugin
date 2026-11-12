@@ -73,7 +73,15 @@
   接线在 orchestrator 阶段 3.12 默契引擎段（判定存 `engine._tacitLegibilityVerdict`，
   trace 记 `stages.tacitLegibility`）。判据 `tests/v21_x3_tacit_legibility.test.mjs` **10/10**
   （八判定 + ambiguous 并入 coded 负控制 + 接线真消费）／
-  `L21-X4` 创伤防线分档含 `undecided`（复用 `trauma-taboo-defense-matrix`）／
+  `L21-X4` 创伤防线分档含 `undecided`（复用 `trauma-taboo-defense-matrix`）
+  —— **已完成（v3.465.6）**：新增 `trauma-defense-depth-read.js`（挂 `LonShaTraumaDefenseDepthRead`）：
+  把三层映射为可读分档 `deflect`（浅层礼貌推脱）/ `guard`（中层戒备）/ `flashback`（深层应激）
+  **+ `undecided`**（判不了不许猜层：无命中、余波、tier 读数异常三种情形都归 undecided）。
+  每档带可读触发依据（关键词命中 + 压力读数 + 第几层）；读面**只读不改**引擎状态。
+  验收旅程：追问创伤 ⇒ 「guard：提到具体年份相关内容，压力读数 0.68，处于第 2 层防线」；
+  无从判断 ⇒ 「无法判断」。接线在 orchestrator 阶段 3.12 创伤引擎段
+  （判定存 `engine._traumaDepthVerdict`，trace 记 `stages.traumaDepth`）。
+  判据 `tests/v21_x4_trauma_depth.test.mjs` **8/8**（六判定 + undecided 并档负控制 + 接线）／
   `L21-X5` 谣言可回溯原始证据链（复用 `rumor-mutation-entropy-engine`）／
   `L21-X6` 起居习惯「已沉淀 vs 待观察」（复用 `circadian-shared-routine-engine`）／
   `L21-X7` 世界线草稿保存前语义自检（复用 `worldline-memory`）／
@@ -148,8 +156,8 @@
 > [优化提升九项](.agents/notes/implemented/architecture/2026-10-31-product-optimization-v13.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-10-31-product-expansion-v13.md) · [基线、差异化与验收边界](docs/planning/2026-10-31-product-evidence-v13.md)。
 > **期号口径**：本期用 `L13` 而非 L12 —— `CHANGELOG.md` 的 v3.420.0 已用 `L11-*` 指另外十八件模块，第十一期因此改名 L12；`L12-*` 已被 v3.428.0~v3.430.0 用掉，故顺延 L13（见证据页第一节）。
 > **第九期产品计划（2026-10-24，历史提案）**：[优化九项](.agents/notes/proposed/architecture/2026-10-24-product-optimization-v9.md) · [拓展九项](.agents/notes/proposed/feature/2026-10-24-product-expansion-v9.md) · [证据页](docs/planning/2026-10-24-product-evidence-v9.md)。
-> **当前执行状态（2026-11-12，v3.465.5）**：第二十一期**优化面 O1~O9 全部交付**（v3.465.2 收账提交 `27402ff` 已推送）；
-> 拓展面 `L21-X1`（v3.465.3 12/12）、`L21-X2`（v3.465.4 9/9）、`L21-X3`（v3.465.5 10/10）已交付；X4~X9 与 ruby-phone R21 18 项进行中。
+> **当前执行状态（2026-11-12，v3.465.6）**：第二十一期**优化面 O1~O9 全部交付**（v3.465.2 收账提交 `27402ff` 已推送）；
+> 拓展面 `L21-X1`（v3.465.3 12/12）、`L21-X2`（v3.465.4 9/9）、`L21-X3`（v3.465.5 10/10）、`L21-X4`（v3.465.6 8/8）已交付；X5~X9 与 ruby-phone R21 18 项进行中。
 > v3.465.1 是收账轮的自证复核版，把 v3.465.0 交付后暴露的**全仓审计 25 项红**逐条追到根因。v3.465.2 续收账：把全量审计（509 文件）暴露的 9 失败文件 / 12 失败断言逐条归因修复 —— 判据滞后 7 处只改判据并在判据内留痕归因（v21_o4 判定体类缩进、v21_o9 版本真源、v3156 / v337 去黑话文案锚、v34230 tab 锚、v3271 escAttr 三行锚、v3227 耗时上界并发余量、v323 collectExport 抽取口径）；真缺陷 2 处修产品（`_umd_reload_judge.mjs` 漏登 EXEMPT、本状态行停版）。
 > **本版性质（先说清楚，避免被读成「又加了一批功能」）**：三项红**是我自己造成的**，两项是判据侧的死前提，一批是读数欠账。**没有一项是「顺手改了别人的东西」。**
 > **① 写入侧从来没写过（本版最重的一条，排在所有其它项之前）**：`collectExport` 把 9 个含 `Map`/`Set` 的状态对象**原样**塞进存档，而 `JSON.stringify(Map)` 恒为 `{}` ——「存了 3 个沙盒」与「一个都没存」在文件上完全同形。我上一刀的 `hydrateState` **只修了读取端**，真实链路里 Map 根本到不了 JSON ⇒ 写得再对也是空转。**这一条同时掲出我自己的假绿探针**：拿 `JSON.stringify(默认状态)` 当「落盘」，元素早已丢光，而它只核 `instanceof Map` —— 空 Map 当然也是 Map，于是打印「通过」。修法一次补齐三段：写入段 `_flattenColl`/`_collForSave`（`Map`→`{__map:[[k,v],…]}`、`Set`→`{__set:[…]}`，**用带前缀的标记对象而不是裸数组**；`_collForSave` 先扫一遍、**只有真含容器才摊平** ⇒ 无容器模块存档格式一个字节不变）、还原段 `_unflattenColl`（**只在一处做**，9 份反向实现就是 9 个第二真源）、读取段（按形状归一化）。判据 `tests/v21_o4b_volatile_container_chain.test.mjs` **18/18**（判定体 `_volatile_container_judge.mjs` 纯函数不碰 fs），三段各自可证伪 + **四条负控制全真跑** + `D1` 落盘侧↔登记表双向一致（防幽灵键）+ `D2` 摊平不误伤 + `E1` 判据纯度。
