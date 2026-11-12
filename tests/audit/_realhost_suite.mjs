@@ -51,7 +51,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { judgeLoad, judgeWrite, judgeWorldline, judgePageErrors } from './_realhost_judge.mjs';
+import { judgeLoad, judgeWrite, judgeWorldline, judgePageErrors, classifyCause, ALL_CAUSES } from './_realhost_judge.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -82,24 +82,50 @@ function reap() {
  * `LONSHA_REALHOST_NO_WRITE=1`，避免测试夹具覆盖工作树上的最新证据。
  */
 let repoVersion = '';
-function recordUnavailable(msg) {
+/**
+ * L21-O3：落一份「跑不了」的读数。**必须带成因码**。
+ *
+ * 修前只有一句 `environment-unavailable` + `reason`：四种完全不同的处置
+ * （起服务 / 装驱动 / 换版本 / 查负载）被压成同一句话，而且**没有任何门在读它**
+ * （本项立项依据）。现在每条 bail 都必须交出 `env` 现场读数，由 `classifyCause`
+ * （纯函数，唯一真源在 `_realhost_judge.mjs`）判成成因码，并附「下一步谁动手」。
+ */
+function recordUnavailable(msg, env) {
     if (process.env.LONSHA_REALHOST_NO_WRITE === '1') return;
+    const verdict = classifyCause(env);
+    /* 成因码判不出来 ⇒ **不落盘**：宁可留上一份真读数，也不写一份「成因未知」污染账本。 */
+    if (verdict.cause === null) {
+        console.error('[realhost] 未能归因（' + verdict.why + '）⇒ 不落盘：' + String(msg));
+        return;
+    }
     try {
         fs.writeFileSync(OUT_JSON, JSON.stringify({
+            /* schema 不升版：L21-O3 是**增量字段**（cause/causeGroup/causeAction/causeWhy/env/note），
+             *   不是破坏性变更 —— v3433 的 F 段与本档 A1 都按 @1 锁着契约。
+             *   升版会把「加了一个字段」记成「换了读数格式」，那是假的破坏。 */
             schema: 'realhost-readings@1',
             generatedAt: new Date().toISOString(),
             version: repoVersion || null,
             verdict: 'environment-unavailable',
+            cause: verdict.cause,
+            causeGroup: verdict.group,
+            causeAction: verdict.action,
+            causeWhy: verdict.why,
+            env: env && typeof env === 'object' ? env : {},
             reason: String(msg),
+            /* 诚实边界（计划验收③）：本读数**不等价于真机通过**。 */
+            note: '本读数是「跑不了」的成因记录，不是真机通过；真机结论只能由真机给。'
+                + ' 装载面替代证明见 tests/audit/loading_surface_proof.json。',
             source: 'tests/audit/_realhost_suite.mjs bail',
         }, null, 2) + '\n', 'utf8');
     } catch (e) {
         console.error('[realhost] 环境失败记录落盘失败：' + String((e && e.message) || e));
     }
 }
-function bail(msg) {
+/** @param {object} env 现场读数（字段见 `classifyCause`）；不传 ⇒ 判不出 ⇒ 不落盘 */
+function bail(msg, env) {
     console.error('[realhost] 环境缺失或探针失效：' + msg);
-    recordUnavailable(msg);
+    recordUnavailable(msg, env);
     reap();
     process.exit(2);
 }
@@ -111,19 +137,21 @@ const nap = (ms) => new Promise((r) => setTimeout(r, ms));
 /* ── 0. 前置：仓库 / 部署 / 浏览器 / ST 四件都在，否则 exit 2（不猜） ── */
 try {
     repoVersion = String(JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8')).version);
-} catch (_e) { bail('仓库 manifest.json 读不到（工作目录可能不对：' + ROOT + '）'); }
+} catch (_e) { bail('仓库 manifest.json 读不到（工作目录可能不对：' + ROOT + '）', { probeOk: false }); }
 const deployedManifest = path.join(EXT, 'manifest.json');
-if (!fs.existsSync(deployedManifest)) bail('真宿主插件目录里没有 manifest.json（' + deployedManifest + '）');
+if (!fs.existsSync(deployedManifest)) bail('真宿主插件目录里没有 manifest.json（' + deployedManifest + '）', { deploy: 'missing' });
 let deployedVersion = '';
 try { deployedVersion = String(JSON.parse(fs.readFileSync(deployedManifest, 'utf8')).version); }
-catch (_e) { bail('真宿主插件 manifest.json 解析失败：' + deployedManifest); }
+catch (_e) { bail('真宿主插件 manifest.json 解析失败：' + deployedManifest, { deploy: 'missing' }); }
 if (deployedVersion !== repoVersion) {
     /* 测旧版比测不出来更坏：读数会挂到错误版本的账上。 */
-    bail('真宿主装的是 ' + deployedVersion + '，仓库是 ' + repoVersion + ' —— 先把仓库文件同步到 ' + EXT);
+    bail('真宿主装的是 ' + deployedVersion + '，仓库是 ' + repoVersion + ' —— 先把仓库文件同步到 ' + EXT,
+        { deploy: 'version-mismatch', deployedVersion, repoVersion });
 }
-if (!fs.existsSync(BIN)) bail('Chromium 不在 ' + BIN + '（设 LONSHA_CHROME 覆盖）');
+if (!fs.existsSync(BIN)) bail('Chromium 不在 ' + BIN + '（设 LONSHA_CHROME 覆盖）', { binPresent: false, bin: BIN });
 const stStatus = await fetch(ST_URL, { method: 'GET' }).then((r) => r.status).catch(() => 0);
-if (stStatus !== 200) bail('ST 未就绪（' + ST_URL + ' ⇒ ' + stStatus + '）—— 先起 SillyTavern');
+if (stStatus !== 200) bail('ST 未就绪（' + ST_URL + ' ⇒ ' + stStatus + '）—— 先起 SillyTavern',
+    { binPresent: true, stStatus, stUrl: ST_URL });
 note('pre', 'version', repoVersion, '仓库 manifest.version（与真宿主部署版本逐字相同）');
 
 /* ── 1. 最小 CDP 客户端（Node 自带 WebSocket，零依赖） ──
@@ -144,7 +172,8 @@ const wsEndpoint = await new Promise((res, rej) => {
         if (hit) { clearTimeout(timer); res(hit[0]); }
     });
     cdpProcRef.on('exit', (code) => { clearTimeout(timer); rej(new Error('浏览器提前退出 code=' + code)); });
-}).catch((e) => bail(String(e.message) + ' | stderr: ' + stderrBuf.slice(0, 300)));
+}).catch((e) => bail(String(e.message) + ' | stderr: ' + stderrBuf.slice(0, 300),
+    { probeOk: false, binPresent: true, phase: 'browser-spawn' }));
 
 class Wire {
     constructor(ws) { this.ws = ws; this.seq = 0; this.waiting = new Map(); }
@@ -236,11 +265,16 @@ while (Date.now() < BOOT_DEADLINE) {
      */
     if (boot && boot.hasST && boot.hasOrgans && boot.hasPlugin && boot.hasStorage && boot.initialized) break;
 }
-if (!boot || !boot.hasST) bail('真页面里 SillyTavern 上下文不可用（60s 轮询内未就绪）');
-if (!boot.hasPlugin) bail('真页面里 window.LonShaMemory 不在场 —— 插件未装/未装载');
-if (!boot.hasOrgans) bail('真页面里 LonShaMemoryOrgans 不在场 —— 内存器官未装载');
-if (!boot.hasStorage) bail('真页面里 window.LonShaMemory.engine.storage.save 不可用');
-if (!boot.initialized) bail('真页面里 LonShaMemory.init 未完成（60s 轮询内未完成真实装配）');
+if (!boot || !boot.hasST) bail('真页面里 SillyTavern 上下文不可用（60s 轮询内未就绪）',
+    { binPresent: true, stStatus: 200, mounted: 'missing', phase: 'boot-poll' });
+if (!boot.hasPlugin) bail('真页面里 window.LonShaMemory 不在场 —— 插件未装/未装载',
+    { binPresent: true, stStatus: 200, mounted: 'missing', phase: 'boot-poll' });
+if (!boot.hasOrgans) bail('真页面里 LonShaMemoryOrgans 不在场 —— 内存器官未装载',
+    { binPresent: true, stStatus: 200, mounted: 'missing', phase: 'boot-poll' });
+if (!boot.hasStorage) bail('真页面里 window.LonShaMemory.engine.storage.save 不可用',
+    { binPresent: true, stStatus: 200, mounted: 'init-incomplete', phase: 'boot-poll' });
+if (!boot.initialized) bail('真页面里 LonShaMemory.init 未完成（60s 轮询内未完成真实装配）',
+    { binPresent: true, stStatus: 200, mounted: 'init-incomplete', phase: 'boot-poll' });
 
 /* ═══════════ 块 ① 装载面 ═══════════ */
 if (!ONE || ONE === 'load') {
@@ -359,7 +393,7 @@ if (!ONE || ONE === 'write') {
         }
         return out;
     })()`);
-    if (!write || write.err) bail('写盘闭环块执行失败：' + (write && write.err));
+    if (!write || write.err) bail('写盘闭环块执行失败：' + (write && write.err), { probeOk: false, phase: 'block-write' });
     note('write', 'same.ret', write.same.ret, '真宿主 StorageManager.save 返回值（同会话）');
     note('write', 'same.markInCurrentAfter', write.same.markInCurrentAfter, '同会话：跑完后当前会话里是否留着本批数据');
     note('write', 'swap.ret', write.swap.ret, '★ await 期间切聊后的返回值（期望 false）');
@@ -431,7 +465,7 @@ if (!ONE || ONE === 'worldline') {
         }
         return out;
     })()`);
-    if (!wl || wl.err) bail('世界线纪元块执行失败：' + (wl && wl.err));
+    if (!wl || wl.err) bail('世界线纪元块执行失败：' + (wl && wl.err), { probeOk: false, phase: 'block-worldline' });
     note('worldline', 'epochAdvance', wl.epochAdvance, '真宿主 _worldlineState({floor:60}).epochAdvance（期望 applied:true / floor:60）');
     note('worldline', 'current', wl.current, '真宿主闸门的当前纪元（期望 lineId=α线 / epoch=α线@47）');
     note('worldline', 'counts', wl.counts, '真宿主闸门四桶计数');
@@ -463,7 +497,7 @@ const report = {
 try {
     fs.writeFileSync(OUT_JSON, JSON.stringify(report, null, 2) + '\n', 'utf8');
 } catch (e) {
-    bail('读数落盘失败（' + OUT_JSON + '）：' + String((e && e.message) || e));
+    bail('读数落盘失败（' + OUT_JSON + '）：' + String((e && e.message) || e), { probeOk: false, phase: 'persist' });
 }
 note('tail', 'readingsFile', path.relative(ROOT, OUT_JSON), '本文件落盘位置');
 

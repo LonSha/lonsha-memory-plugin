@@ -174,9 +174,11 @@ test('v3271 D1. ★★★ 删掉 showSettingsPanel 内的 esc 定义 ⇒ 门禁�
      *   只拿 esc 那一行会命中 3 次 —— 破坏工具会当场拒绝（口径①）。
      *   故锚点带上紧随其后的 `const c = this.engine.config.config;`：
      *   那是本函数体独有的上下文，实测全文件恰中 1 次。 */
-    const ESC_ANCHOR = ESC_LINE + '            const c = this.engine.config.config;';
+    /* v3.303.0 M-O2 inserted escAttr between esc and const c; 2-line anchor hit 0 times. Widened to esc+escAttr+const c (still unique); replacement keeps escAttr so the break stays exactly on the missing-esc condition. */
+    const ESC_ATTR_LINE = "            const escAttr = (value) => esc(value).replace(/\"/g, '&quot;');";
+    const ESC_ANCHOR = ESC_LINE + ESC_ATTR_LINE + "\n            const c = this.engine.config.config;";
     okCases([
-        ['N1 删 esc（D1 复发）', (s) => breakSource(s, ESC_ANCHOR, '            const c = this.engine.config.config;', 'D1 esc'),
+        ['N1 删 esc（D1 复发）', (s) => breakSource(s, ESC_ANCHOR, ESC_ATTR_LINE + "\n            const c = this.engine.config.config;", 'D1 esc'),
             1, 'U2 showSettingsPanel 调用抛错'],
     ], 'D1');
 });

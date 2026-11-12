@@ -138,6 +138,66 @@
         collectExport() {
             // [v3.138] CP-L2: 数据版本戳 = 最近一次成功存档时的插件版本（区别于恒为当前版本的 payload.version）。
             // 嵌入存档恢复判旧用它，不再被「collectExport 恒打当前版本戳」污染。
+            /**
+             * [v3.464.0 · L21-O4] 落盘取值：类形态实例必须走 `exportState()`。
+             *
+             * 为什么不能直接把实例塞进存档：`JSON.stringify(new SomeEngine())` 序列化的是
+             * 实例的**自有字段**，而本仓这 12 个类形态把状态放在 `Map` / 派生结构里
+             * （如 `this.frozenMoments = new Map()`）—— Map 直接序列化成 `{}`，
+             * 于是「存了」与「什么都没存」在文件上完全同形，读回来还是空的。
+             * 只有 `exportState()` 会把 Map 转数组、把派生结构摊平。
+             * ★ 函数库形态（无 exportState）原样返回，行为不变。
+             */
+            const _stateForSave = (v) => {
+                if (!v) return v;
+                if (typeof v.exportState === 'function') {
+                    try { return v.exportState(); } catch (e) { errLog(e, 'collectExport.exportState'); return null; }
+                }
+                return v;
+            };
+            /* [v3.465.1 · 收账真缺陷②] 函数库形态的状态里带 **Map / Set** 时，原样塞进存档会
+             *   被 `JSON.stringify` 规约成 `{}` —— 于是「存了 3 个沙盒」与「一个都没存」
+             *   在文件上**完全同形**（实测 `JSON.stringify({m:new Map([['a',1]])})` = `{"m":{}}`）。
+             *   本仓此前只修了**读取侧**（`hydrateState` 重建 Map），写入侧从未做过 —— 即
+             *   「读得对，但从来没写进去过」。v3.464.0 的 O4 水合面对这 9 个模块是空转的。
+             *   处置：按**容器**递归摊平（Map→`{__map:[...]}`、Set→`{__set:[...]}`），
+             *   用带前缀的标记对象而不是裸数组 —— 裸数组无法与「本来就是数组的字段」区分，
+             *   读回来时会把数组误重建成 Map（另一种同形混淆）。读侧两形都收（见各模块 hydrateState）。*/
+            const _flattenColl = (v, depth) => {
+                if (v == null) return v;
+                if (depth > 8) return v;   // 防御性深度上限：真实状态层次数远小于此
+                if (v instanceof Map) {
+                    const arr = [];
+                    for (const [k, val] of v.entries()) arr.push([String(k), _flattenColl(val, depth + 1)]);
+                    return { __map: arr };
+                }
+                if (v instanceof Set) {
+                    const arr = [];
+                    for (const val of v.values()) arr.push(_flattenColl(val, depth + 1));
+                    return { __set: arr };
+                }
+                if (Array.isArray(v)) return v.map((x) => _flattenColl(x, depth + 1));
+                if (typeof v === 'object') {
+                    const out = {};
+                    for (const k of Object.keys(v)) out[k] = _flattenColl(v[k], depth + 1);
+                    return out;
+                }
+                return v;
+            };
+            /* 只要对象里真含 Map/Set 才摊平（无容器则原样返回，保持既有字节不变）。
+             * 这样「本来就是普通对象的模块」存档格式**一个字节都不变**，不制造无谓迁移。*/
+            const _collForSave = (v) => {
+                if (!v || typeof v !== 'object') return v;
+                let touched = false;
+                const scan = (x, d) => {
+                    if (!x || typeof x !== 'object' || d > 8) return;
+                    if (x instanceof Map || x instanceof Set) { touched = true; return; }
+                    if (Array.isArray(x)) { for (const y of x) scan(y, d + 1); return; }
+                    for (const k of Object.keys(x)) scan(x[k], d + 1);
+                };
+                scan(v, 0);
+                return touched ? _flattenColl(v, 0) : v;
+            };
             return {
                 version: VERSION,
                 clock: this.clock?.export?.() || null,
@@ -232,43 +292,70 @@
                     this._causalityFuseLockState ? { lonshaCausalityFuseLockState: this._causalityFuseLockState } : {},
                     this._hierarchicalPyramidState ? { lonshaHierarchicalPyramidState: this._hierarchicalPyramidState } : {},
                     this._entityDisambiguationState ? { lonshaEntityDisambiguationState: this._entityDisambiguationState } : {},
-                    this._floorFingerprintState ? { lonshaFloorFingerprintState: this._floorFingerprintState } : {},
                     this._mindBarometerState ? { lonshaMindBarometerState: this._mindBarometerState } : {},
-                    this._flashbulbDilationState ? { lonshaFlashbulbDilationState: this._flashbulbDilationState } : {},
-                    this._dissociativeMaskState ? { lonshaDissociativeMaskState: this._dissociativeMaskState } : {},
-                    this._mandelaConfabulationState ? { lonshaMandelaConfabulationState: this._mandelaConfabulationState } : {},
-                    this._proustianSynesthesiaState ? { lonshaProustianSynesthesiaState: this._proustianSynesthesiaState } : {},
-                    this._zeigarnikLoopState ? { lonshaZeigarnikLoopState: this._zeigarnikLoopState } : {},
-                    this._counterfactualRegretState ? { lonshaCounterfactualRegretState: this._counterfactualRegretState } : {},
-                    this._rumorEntropyState ? { lonshaRumorEntropyState: this._rumorEntropyState } : {},
-                    this._cognitiveScatomaState ? { lonshaCognitiveScatomaState: this._cognitiveScatomaState } : {},
-                    this._daydreamWanderingState ? { lonshaDaydreamWanderingState: this._daydreamWanderingState } : {},
-                    this._tieredStorageState ? { lonshaTieredStorageState: this._tieredStorageState } : {},
-                    this._realtimeRollbackState ? { lonshaRealtimeRollbackState: this._realtimeRollbackState } : {},
-                    this._identityReconciliationState ? { lonshaIdentityReconciliationState: this._identityReconciliationState } : {},
+                    this._flashbulbDilationState ? { lonshaFlashbulbDilationState: _stateForSave(this._flashbulbDilationState) } : {},
+                    this._dissociativeMaskState ? { lonshaDissociativeMaskState: _stateForSave(this._dissociativeMaskState) } : {},
+                    this._mandelaConfabulationState ? { lonshaMandelaConfabulationState: _stateForSave(this._mandelaConfabulationState) } : {},
+                    this._proustianSynesthesiaState ? { lonshaProustianSynesthesiaState: _stateForSave(this._proustianSynesthesiaState) } : {},
+                    this._zeigarnikLoopState ? { lonshaZeigarnikLoopState: _stateForSave(this._zeigarnikLoopState) } : {},
+                    this._counterfactualRegretState ? { lonshaCounterfactualRegretState: _stateForSave(this._counterfactualRegretState) } : {},
+                    this._rumorEntropyState ? { lonshaRumorEntropyState: _stateForSave(this._rumorEntropyState) } : {},
+                    this._cognitiveScatomaState ? { lonshaCognitiveScatomaState: _stateForSave(this._cognitiveScatomaState) } : {},
+                    this._daydreamWanderingState ? { lonshaDaydreamWanderingState: _stateForSave(this._daydreamWanderingState) } : {},
+                    this._tieredStorageState ? { lonshaTieredStorageState: _stateForSave(this._tieredStorageState) } : {},
+                    this._realtimeRollbackState ? { lonshaRealtimeRollbackState: _stateForSave(this._realtimeRollbackState) } : {},
+                    this._identityReconciliationState ? { lonshaIdentityReconciliationState: _stateForSave(this._identityReconciliationState) } : {},
                     this._narrativeMomentumState ? { lonshaNarrativeMomentumState: this._narrativeMomentumState } : {},
                     this._latentReciprocityState ? { lonshaLatentReciprocityState: this._latentReciprocityState } : {},
                     this._tacitUnderstandingState ? { lonshaTacitUnderstandingState: this._tacitUnderstandingState } : {},
                     this._hesitationSubtextState ? { lonshaHesitationSubtextState: this._hesitationSubtextState } : {},
                     this._commitmentMilestoneState ? { lonshaCommitmentMilestoneState: this._commitmentMilestoneState } : {},
-                    this._rippleBusState ? { lonshaRippleBusState: this._rippleBusState } : {},
-                    this._causalityLockState ? { lonshaCausalityLockState: this._causalityLockState } : {},
+                    this._rippleBusState ? { lonshaRippleBusState: _collForSave(this._rippleBusState) } : {},
+                    this._causalityLockState ? { lonshaCausalityLockState: _collForSave(this._causalityLockState) } : {},
                     this._graphPrunerState ? { lonshaGraphPrunerState: this._graphPrunerState } : {},
-                    this._tabooDefenseState ? { lonshaTabooDefenseState: this._tabooDefenseState } : {},
-                    this._parallaxIsolationState ? { lonshaParallaxIsolationState: this._parallaxIsolationState } : {},
-                    this._resonanceRecallFunnelState ? { lonshaResonanceRecallFunnelState: this._resonanceRecallFunnelState } : {},
-                    this._butterflySandboxState ? { lonshaButterflySandboxState: this._butterflySandboxState } : {},
-                    this._diagnosticsTelemetryState ? { lonshaDiagnosticsTelemetryState: this._diagnosticsTelemetryState } : {},
+                    this._tabooDefenseState ? { lonshaTabooDefenseState: _collForSave(this._tabooDefenseState) } : {},
+                    this._parallaxIsolationState ? { lonshaParallaxIsolationState: _collForSave(this._parallaxIsolationState) } : {},
+                    /* [v3.464.0 · L21-O4 撤登记] lonshaResonanceRecallFunnelState 原先在这里落盘。
+                     *   撤销理由：该模块是**纯函数内核**，没有 createState / 没有累加状态，
+                     *   每次由输入快照现算输出指令（assimilate / evaluate / modulate 形态）。
+                     *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
+                     *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
+                    this._butterflySandboxState ? { lonshaButterflySandboxState: _collForSave(this._butterflySandboxState) } : {},
+                    /* [v3.464.0 · L21-O4 撤登记] lonshaDiagnosticsTelemetryState 原先在这里落盘。
+                     *   撤销理由：该模块是**纯函数内核**，没有 createState / 没有累加状态，
+                     *   每次由输入快照现算输出指令（assimilate / evaluate / modulate 形态）。
+                     *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
+                     *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
                     this._soulBrandSynthesisState ? { lonshaSoulBrandSynthesisState: this._soulBrandSynthesisState } : {},
-                    this._worldaxisAssimilatorState ? { lonshaWorldaxisAssimilatorState: this._worldaxisAssimilatorState } : {},
-                    this._ruminationDreamState ? { lonshaRuminationDreamState: this._ruminationDreamState } : {},
-                    this._emotionalAnchorState ? { lonshaEmotionalAnchorState: this._emotionalAnchorState } : {},
-                    this._somaticFlareState ? { lonshaSomaticFlareState: this._somaticFlareState } : {},
-                    this._amnesiaPuzzleState ? { lonshaAmnesiaPuzzleState: this._amnesiaPuzzleState } : {},
-                    this._stylisticDriftState ? { lonshaStylisticDriftState: this._stylisticDriftState } : {},
-                    this._gaslightingNeutralizerState ? { lonshaGaslightingNeutralizerState: this._gaslightingNeutralizerState } : {},
-                    this._exposureRiskState ? { lonshaExposureRiskState: this._exposureRiskState } : {},
-                    this._burnoutDecayState ? { lonshaBurnoutDecayState: this._burnoutDecayState } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    /* [v3.464.0 · L21-O4 撤登记] lonshaWorldaxisAssimilatorState 原先在这里落盘。
+                     *   撤销理由：该模块是**纯函数内核**，没有 createState / 没有累加状态，
+                     *   每次由输入快照现算输出指令（assimilate / evaluate / modulate 形态）。
+                     *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
+                     *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
+                    /* [v3.464.0 · L21-O4 撤登记] lonshaRuminationDreamState 原先在这里落盘。
+                     *   撤销理由：该模块是**纯函数内核**，没有 createState / 没有累加状态，
+                     *   每次由输入快照现算输出指令（assimilate / evaluate / modulate 形态）。
+                     *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
+                     *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
+                    this._emotionalAnchorState ? { lonshaEmotionalAnchorState: _collForSave(this._emotionalAnchorState) } : {},
+                    /* [v3.464.0 · L21-O4 撤登记] lonshaSomaticFlareState 原先在这里落盘。
+                     *   撤销理由：该模块是**纯函数内核**，没有 createState / 没有累加状态，
+                     *   每次由输入快照现算输出指令（assimilate / evaluate / modulate 形态）。
+                     *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
+                     *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
+                    this._amnesiaPuzzleState ? { lonshaAmnesiaPuzzleState: _collForSave(this._amnesiaPuzzleState) } : {},
+                    /* [v3.464.0 · L21-O4 撤登记] lonshaStylisticDriftState 原先在这里落盘。
+                     *   撤销理由：该模块是**纯函数内核**，没有 createState / 没有累加状态，
+                     *   每次由输入快照现算输出指令（assimilate / evaluate / modulate 形态）。
+                     *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
+                     *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
+                    /* [v3.464.0 · L21-O4 撤登记] lonshaGaslightingNeutralizerState 原先在这里落盘。
+                     *   撤销理由：该模块是**纯函数内核**，没有 createState / 没有累加状态，
+                     *   每次由输入快照现算输出指令（assimilate / evaluate / modulate 形态）。
+                     *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
+                     *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
+                    this._exposureRiskState ? { lonshaExposureRiskState: _collForSave(this._exposureRiskState) } : {},
+                    this._burnoutDecayState ? { lonshaBurnoutDecayState: _collForSave(this._burnoutDecayState) } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -680,7 +767,11 @@
                 ['lonshaCausalityFuseLockState', '_causalityFuseLockState', 'LonShaCausalityInvariantLock', 'causality-invariant-fuse-lock.js', 'hydrateState'],
                 ['lonshaHierarchicalPyramidState', '_hierarchicalPyramidState', 'LonShaPyramidClusterEngine', 'hierarchical-pyramid-attention-elastic.js', 'hydrateState'],
                 ['lonshaEntityDisambiguationState', '_entityDisambiguationState', 'LonShaEntityDisambiguator', 'entity-disambiguation-affinity-graph.js', 'hydrateState'],
-                ['lonshaFloorFingerprintState', '_floorFingerprintState', 'LonShaFloorFingerprintSelfHealer', 'floor-fingerprint-self-healer.js', 'hydrateState'],
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaFloorFingerprintState / _floorFingerprintState / hydrateState
+                 *   撤销理由：floor-fingerprint-self-healer.js 是**纯函数内核**
+                 *   （computeFingerprint / reanchorEvidence），没有 createState、没有累加状态；
+                 *   全仓对该宿主字段**零赋值点**，写盘写出的永远是 undefined。
+                 *   给它造 hydrateState 就是凭空发明一份不存在、也无人读的状态。 */
                 ['lonshaMindBarometerState', '_mindBarometerState', 'LonShaMindBarometerSnapshot', 'mind-barometer-dashboard-snapshot.js', 'hydrateState'],
                 ['lonshaFlashbulbDilationState', '_flashbulbDilationState', 'TemporalFlashbulbDilationEngine', 'temporal-flashbulb-dilation-engine.js', 'hydrateState'],
                 ['lonshaDissociativeMaskState', '_dissociativeMaskState', 'DissociativePersonaMaskMatrix', 'dissociative-persona-mask-matrix.js', 'hydrateState'],
@@ -704,28 +795,97 @@
                 ['lonshaGraphPrunerState', '_graphPrunerState', 'LonShaSleepConsolidation', 'sleep-consolidation-graph-pruner.js', 'hydratePrunerState'],
                 ['lonshaTabooDefenseState', '_tabooDefenseState', 'LonShaMultiTierDefense', 'obsessive-taboo-multi-tier-defense.js', 'hydrateDefenseState'],
                 ['lonshaParallaxIsolationState', '_parallaxIsolationState', 'LonShaParallaxIsolation', 'intersubjective-parallax-isolation.js', 'hydrateParallaxState'],
-                ['lonshaResonanceRecallFunnelState', '_resonanceRecallFunnelState', 'LonShaTriModalRecall', 'tri-modal-resonance-recall-funnel.js', 'hydrateFunnelState'],
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaResonanceRecallFunnelState / _resonanceRecallFunnelState / hydrateFunnelState
+                 *   撤销理由同上方写盘面：无 createState 即无可恢复状态，
+                 *   登记 hydrateFunnelState 只会让判据以为「有恢复面」。 */
                 ['lonshaButterflySandboxState', '_butterflySandboxState', 'LonShaCounterfactualSandbox', 'counterfactual-butterfly-sandbox.js', 'hydrateSandboxState'],
-                ['lonshaDiagnosticsTelemetryState', '_diagnosticsTelemetryState', 'LonShaEngineDiagnostics', 'engine-diagnostics-telemetry-dashboard.js', 'hydrateTelemetryState'],
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaDiagnosticsTelemetryState / _diagnosticsTelemetryState / hydrateTelemetryState
+                 *   撤销理由同上方写盘面：无 createState 即无可恢复状态，
+                 *   登记 hydrateTelemetryState 只会让判据以为「有恢复面」。 */
                 ['lonshaSoulBrandSynthesisState', '_soulBrandSynthesisState', 'LonShaSoulBrand', 'transgenerational-soul-brand-synthesis.js', 'hydrateSynthesisState'],
-                ['lonshaWorldaxisAssimilatorState', '_worldaxisAssimilatorState', 'LonShaWorldAxisAssimilator', 'worldaxis-objective-to-subjective-assimilator.js', 'hydrateAssimilatorState'],
-                ['lonshaRuminationDreamState', '_ruminationDreamState', 'LonShaDreamEngine', 'autonomous-rumination-dream-engine.js', 'hydrateDreamState'],
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaWorldaxisAssimilatorState / _worldaxisAssimilatorState / hydrateAssimilatorState
+                 *   撤销理由同上方写盘面：无 createState 即无可恢复状态，
+                 *   登记 hydrateAssimilatorState 只会让判据以为「有恢复面」。 */
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaRuminationDreamState / _ruminationDreamState / hydrateDreamState
+                 *   撤销理由同上方写盘面：无 createState 即无可恢复状态，
+                 *   登记 hydrateDreamState 只会让判据以为「有恢复面」。 */
                 ['lonshaEmotionalAnchorState', '_emotionalAnchorState', 'LonShaEmotionalAnchor', 'emotional-anchor-binding-resonance-hub.js', 'hydrateAnchorState'],
-                ['lonshaSomaticFlareState', '_somaticFlareState', 'LonShaSomaticEngine', 'autonomic-nervous-somatic-flare-engine.js', 'hydrateFlareState'],
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaSomaticFlareState / _somaticFlareState / hydrateFlareState
+                 *   撤销理由同上方写盘面：无 createState 即无可恢复状态，
+                 *   登记 hydrateFlareState 只会让判据以为「有恢复面」。 */
                 ['lonshaAmnesiaPuzzleState', '_amnesiaPuzzleState', 'LonShaAmnesiaWorkbench', 'dissociative-amnesia-puzzle-workbench.js', 'hydratePuzzleState'],
-                ['lonshaStylisticDriftState', '_stylisticDriftState', 'LonShaStyleModulator', 'stylistic-drift-emotional-lexicon-modulator.js', 'hydrateDriftState'],
-                ['lonshaGaslightingNeutralizerState', '_gaslightingNeutralizerState', 'LonShaGaslightingNeutralizer', 'unreliable-narrator-gaslighting-neutralizer.js', 'hydrateNeutralizerState'],
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaStylisticDriftState / _stylisticDriftState / hydrateDriftState
+                 *   撤销理由同上方写盘面：无 createState 即无可恢复状态，
+                 *   登记 hydrateDriftState 只会让判据以为「有恢复面」。 */
+                /* [v3.464.0 · L21-O4 撤登记] 原登记行：lonshaGaslightingNeutralizerState / _gaslightingNeutralizerState / hydrateNeutralizerState
+                 *   撤销理由同上方写盘面：无 createState 即无可恢复状态，
+                 *   登记 hydrateNeutralizerState 只会让判据以为「有恢复面」。 */
                 ['lonshaExposureRiskState', '_exposureRiskState', 'LonShaIdentityExposure', 'dual-identity-exposure-risk-matrix.js', 'hydrateRiskState'],
                 ['lonshaBurnoutDecayState', '_burnoutDecayState', 'LonShaBurnoutResilience', 'psychological-burnout-resilience-decay.js', 'hydrateBurnoutState']
             ];
             if (!dry && _ext) {
+                /* [v3.465.1 · 收账真缺陷②] 写入侧摊平的逆运算：`{__map:[...]}` / `{__set:[...]}` 还原成
+                 *   真 Map / Set。**只在一处做**（模块自己的 hydrateState 不必各自认标记 —— 那样
+                 *   9 份反向实现就是 9 个第二真源）。顺序：先还原容器 → 再交给模块 hydrateState；
+                 *   这样模块侧只看到「本来就是 Map/Set」的输入，与它创建时的形状完全一致。
+                 *   标记对象之外一律原样下传（老存档里没有标记 ⇒ 一个字节不受影响）。*/
+                const _unflattenColl = (v, depth) => {
+                    if (v == null || typeof v !== 'object' || depth > 8) return v;
+                    if (Array.isArray(v)) return v.map((x) => _unflattenColl(x, depth + 1));
+                    const keys = Object.keys(v);
+                    if (keys.length === 1 && keys[0] === '__map' && Array.isArray(v.__map)) {
+                        const m = new Map();
+                        for (const pair of v.__map) {
+                            if (!Array.isArray(pair) || pair.length < 2) continue;
+                            m.set(String(pair[0]), _unflattenColl(pair[1], depth + 1));
+                        }
+                        return m;
+                    }
+                    if (keys.length === 1 && keys[0] === '__set' && Array.isArray(v.__set)) {
+                        return new Set(v.__set.map((x) => _unflattenColl(x, depth + 1)));
+                    }
+                    const out = {};
+                    for (const k of keys) out[k] = _unflattenColl(v[k], depth + 1);
+                    return out;
+                };
                 for (const [extKey, propKey, globalName, modFile, hydrator] of v21Engines) {
                     if (_ext[extKey]) {
                         try {
                             const mod = _moduleLib(() => (typeof window !== 'undefined' ? window[globalName] : null), modFile);
-                            this[propKey] = (mod && typeof mod[hydrator] === 'function')
-                                ? mod[hydrator](_ext[extKey]) : _ext[extKey];
+                            /* [v3.464.0 · L21-O4 接线真源修复]
+                             * 现场实测（本版起点，可复算）：表里 12 项是**类形态**模块
+                             * （`class TemporalFlashbulbDilationEngine { hydrateState(s){} }` +
+                             *  UMD `root.Xxx = api`），而这里是按**静态函数**调的 ——
+                             * `typeof mod[hydrator] === 'function'` 恒假，于是静默走
+                             * `: _ext[extKey]` 兜底，把原始 payload 直接赋给宿主字段：
+                             * 类实例从未被创建，实例方法从未被调用过。
+                             * 现在把两种形态分开：
+                             *   ① 静态实现存在（函数库形态）⇒ 直接调，行为不变；
+                             *   ② 静态没有、但导出的是**构造函数**且原型上有该方法 ⇒
+                             *      `new` 一个实例、调实例方法，把恢复出来的状态挂在实例上。
+                             *      实例本身会落进 `this[propKey]`，下次存盘它的自身字段即可序列化。
+                             * ★ 两种都没有 ⇒ 仍然回落原始 payload，但**必须计数**
+                             *   （`res.hydrateFallback`），否则「没恢复成」与「恢复成空」又同形。 */
+                            let next = null;
+                            let how = 'none';
+                            if (mod && typeof mod[hydrator] === 'function') {
+                                next = mod[hydrator](_unflattenColl(_ext[extKey], 0));
+                                how = 'static';
+                            } else if (typeof mod === 'function' && mod.prototype && typeof mod.prototype[hydrator] === 'function') {
+                                const inst = new mod();
+                                inst[hydrator](_unflattenColl(_ext[extKey], 0));
+                                next = inst;
+                                how = 'instance';
+                            } else {
+                                next = _unflattenColl(_ext[extKey], 0);
+                                how = 'raw';
+                            }
+                            this[propKey] = next;
                             res.restored.push(`extensions.${extKey}`);
+                            if (how === 'raw') {
+                                res.hydrateFallback = res.hydrateFallback || [];
+                                res.hydrateFallback.push({ key: extKey, why: 'no-static-no-instance-hydrator' });
+                            }
                         } catch (e) {
                             res.failed.push({ key: `extensions.${extKey}`, error: String(e?.message || e) });
                         }

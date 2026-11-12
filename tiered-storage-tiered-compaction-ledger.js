@@ -10,101 +10,6 @@
  *   实现千轮对话长局平滑稳定，内存开销降低 80% 以上。
  * ============================================================ */
 
-class TieredStorageCompactionLedger {
-    constructor(options = {}) {
-        this.options = Object.assign({
-            hotCapacity: 50,
-            warmCapacity: 250,
-            autoCompactionEnabled: true
-        }, options);
-
-        this.hotTier = [];   // [{ id, text, timestamp, fullDetail }]
-        this.warmTier = [];  // [{ id, summary, causalityKeys, timestamp }]
-        this.coldArchive = []; // [{ epochId, timeRange, epochChronicle, keyFacts: [] }]
-    }
-
-    addMemory(memory) {
-        if (!memory) return;
-        const entry = Object.assign({
-            id: memory.id || ("mem_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6)),
-            text: memory.text || memory.summary || "",
-            timestamp: memory.timestamp || Date.now(),
-            fullDetail: memory
-        });
-
-        this.hotTier.push(entry);
-
-        if (this.options.autoCompactionEnabled && this.hotTier.length > this.options.hotCapacity) {
-            this.compactHotToWarm();
-        }
-
-        return entry;
-    }
-
-    compactHotToWarm() {
-        const overflow = this.hotTier.splice(0, this.hotTier.length - this.options.hotCapacity);
-        for (const item of overflow) {
-            this.warmTier.push({
-                id: item.id,
-                summary: item.text.slice(0, 100),
-                timestamp: item.timestamp,
-                condensed: true
-            });
-        }
-
-        if (this.warmTier.length > this.options.warmCapacity) {
-            this.compactWarmToCold();
-        }
-    }
-
-    compactWarmToCold() {
-        const overflow = this.warmTier.splice(0, this.warmTier.length - this.options.warmCapacity);
-        if (overflow.length === 0) return;
-
-        const epochChronicle = `历史纪元归档 [共${overflow.length}条记忆冷凝]: ` + 
-            overflow.slice(0, 5).map(o => o.summary).join("；") + "...";
-
-        this.coldArchive.push({
-            epochId: "epoch_" + Date.now(),
-            count: overflow.length,
-            timeRange: [overflow[0].timestamp, overflow[overflow.length - 1].timestamp],
-            epochChronicle,
-            keyFacts: overflow.map(o => o.summary)
-        });
-    }
-
-    getStats() {
-        return {
-            hotCount: this.hotTier.length,
-            warmCount: this.warmTier.length,
-            coldEpochs: this.coldArchive.length
-        };
-    }
-
-    exportState() {
-        return {
-            hotTier: this.hotTier,
-            warmTier: this.warmTier,
-            coldArchive: this.coldArchive
-        };
-    }
-
-    hydrateState(state) {
-        if (!state) return;
-        if (Array.isArray(state.hotTier)) this.hotTier = [...state.hotTier];
-        if (Array.isArray(state.warmTier)) this.warmTier = [...state.warmTier];
-        if (Array.isArray(state.coldArchive)) this.coldArchive = [...state.coldArchive];
-    }
-}
-
-/* ============================================================
- * [v3.461.0 接线修复] 本文件此前是 ESM 形态（export …），而宿主 extra_js、
- * 审计沙箱与 optional-engine-registry 的 require 全部按经典脚本加载 ——
- * `export` 在那里直接是语法错误，模块在真机上从未挂载成功。
- * 改回本仓统一的 UMD/IIFE 注册形态（同 ego-defense-mechanisms-engine.js）：
- * CJS 侧保留 module.exports 供测试与注册表的 require 使用，
- * 经典脚本侧把引擎类挂到全局，让取库口与编排器真的取得到。
- * ============================================================ */
 (function (root, factory) {
     if (typeof module === 'object' && module.exports) {
         module.exports = factory();
@@ -114,5 +19,100 @@ class TieredStorageCompactionLedger {
     }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
+    class TieredStorageCompactionLedger {
+        constructor(options = {}) {
+            this.options = Object.assign({
+                hotCapacity: 50,
+                warmCapacity: 250,
+                autoCompactionEnabled: true
+            }, options);
+
+            this.hotTier = [];   // [{ id, text, timestamp, fullDetail }]
+            this.warmTier = [];  // [{ id, summary, causalityKeys, timestamp }]
+            this.coldArchive = []; // [{ epochId, timeRange, epochChronicle, keyFacts: [] }]
+        }
+
+        addMemory(memory) {
+            if (!memory) return;
+            const entry = Object.assign({
+                id: memory.id || ("mem_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6)),
+                text: memory.text || memory.summary || "",
+                timestamp: memory.timestamp || Date.now(),
+                fullDetail: memory
+            });
+
+            this.hotTier.push(entry);
+
+            if (this.options.autoCompactionEnabled && this.hotTier.length > this.options.hotCapacity) {
+                this.compactHotToWarm();
+            }
+
+            return entry;
+        }
+
+        compactHotToWarm() {
+            const overflow = this.hotTier.splice(0, this.hotTier.length - this.options.hotCapacity);
+            for (const item of overflow) {
+                this.warmTier.push({
+                    id: item.id,
+                    summary: item.text.slice(0, 100),
+                    timestamp: item.timestamp,
+                    condensed: true
+                });
+            }
+
+            if (this.warmTier.length > this.options.warmCapacity) {
+                this.compactWarmToCold();
+            }
+        }
+
+        compactWarmToCold() {
+            const overflow = this.warmTier.splice(0, this.warmTier.length - this.options.warmCapacity);
+            if (overflow.length === 0) return;
+
+            const epochChronicle = `历史纪元归档 [共${overflow.length}条记忆冷凝]: ` + 
+                overflow.slice(0, 5).map(o => o.summary).join("；") + "...";
+
+            this.coldArchive.push({
+                epochId: "epoch_" + Date.now(),
+                count: overflow.length,
+                timeRange: [overflow[0].timestamp, overflow[overflow.length - 1].timestamp],
+                epochChronicle,
+                keyFacts: overflow.map(o => o.summary)
+            });
+        }
+
+        getStats() {
+            return {
+                hotCount: this.hotTier.length,
+                warmCount: this.warmTier.length,
+                coldEpochs: this.coldArchive.length
+            };
+        }
+
+        exportState() {
+            return {
+                hotTier: this.hotTier,
+                warmTier: this.warmTier,
+                coldArchive: this.coldArchive
+            };
+        }
+
+        hydrateState(state) {
+            if (!state) return;
+            if (Array.isArray(state.hotTier)) this.hotTier = [...state.hotTier];
+            if (Array.isArray(state.warmTier)) this.warmTier = [...state.warmTier];
+            if (Array.isArray(state.coldArchive)) this.coldArchive = [...state.coldArchive];
+        }
+    }
+
+    /* ============================================================
+     * [v3.461.0 接线修复] 本文件此前是 ESM 形态（export …），而宿主 extra_js、
+     * 审计沙箱与 optional-engine-registry 的 require 全部按经典脚本加载 ——
+     * `export` 在那里直接是语法错误，模块在真机上从未挂载成功。
+     * 改回本仓统一的 UMD/IIFE 注册形态（同 ego-defense-mechanisms-engine.js）：
+     * CJS 侧保留 module.exports 供测试与注册表的 require 使用，
+     * 经典脚本侧把引擎类挂到全局，让取库口与编排器真的取得到。
+     * ============================================================ */
     return TieredStorageCompactionLedger;
 }));

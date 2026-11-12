@@ -129,6 +129,86 @@ export function judgeWorldline(wl) {
     return bad;
 }
 
+/* ════════════════════════════════════════════════════════════
+ * L21-O3 · 「跑不了」的四态成因码（唯一真源）
+ * ------------------------------------------------------------
+ * 【为什么必须拆（本项立项依据）】
+ *   修前 `realhost_readings.json` 只有一句 `environment-unavailable`，
+ *   **且没有任何门在读它** —— 三个真机套件 bail 掉之后，装载面就没人管了。
+ *   而「跑不了」其实是四种不同的事，处置完全相反：
+ *     · `no-st-endpoint`      端口不通       ⇒ 有人起 SillyTavern 就好了
+ *     · `endpoint-timeout`    请求挂住       ⇒ 查负载/端口占用，可能需要调超时
+ *     · `no-browser-driver`   Chromium 缺   ⇒ 装驱动 / 设 LONSHA_CHROME
+ *     · `st-version-mismatch` 版本对不上     ⇒ 换 ST 版本或改插件兼容声明
+ *   把四件事写成同一句话，等于把「装驱动」和「起服务」都记成「环境不可用」，
+ *   下一个人只能从头再查一遍。
+ *
+ * 【实测推翻计划原文一处（如实记）】
+ *   计划原文写「拆成四个成因码」。实勘 bail 点共 17 个，其中 6 个**不是环境问题**：
+ *     部署目录版本不符 / 插件未装载 / init 未完成 / 块执行失败 / 读数落盘失败 / 仓库读不到。
+ *   把这几档硬塞进四态，就是把「产品缺陷」和「探针自身失效」混进环境账 ——
+ *   那正是本仓治过多次的「用一句话盖住两件事」。
+ *   故成因码分**两组**：`env`（四态，处置=人动环境）与 `non-env`（处置=修产品/同步部署/修探针）。
+ *   分组不是为了多写代码，是为了让读数能回答「下一步该谁动手」。
+ * ════════════════════════════════════════════════════════════ */
+/** 环境四态（计划点名的那四个，顺序即优先级）。 */
+export const ENV_CAUSES = ['no-browser-driver', 'no-st-endpoint', 'endpoint-timeout', 'st-version-mismatch'];
+/** 非环境成因（明列，不许悄悄混进上面四态）。 */
+export const NONENV_CAUSES = ['deploy-unsynced', 'plugin-not-mounted', 'probe-self-fault'];
+/** 全部合法成因码。 */
+export const ALL_CAUSES = [...ENV_CAUSES, ...NONENV_CAUSES];
+/** 成因码 → 「下一步谁动手」。读数必须能回答这个问题，否则还是同一句话。 */
+export const CAUSE_ACTION = {
+    'no-browser-driver': '装 Playwright Chromium，或设 LONSHA_CHROME 指向可用的 chrome',
+    'no-st-endpoint': '起 SillyTavern（默认 http://127.0.0.1:8123/），或设 LONSHA_ST_URL',
+    'endpoint-timeout': '查 ST 负载与端口占用；确认 URL 指向本机而非外网',
+    'st-version-mismatch': '换 ST 到插件声明的兼容版本，或改插件的兼容声明（两者不可同时默认）',
+    'deploy-unsynced': '把仓库文件同步到真宿主插件目录（两侧 manifest.version 必须逐字相同）',
+    'plugin-not-mounted': '产品面缺陷：真页面里 window.LonShaMemory / LonShaMemoryOrgans 不在场，需查装载链路',
+    'probe-self-fault': '探针或仓库结构自身失效（与产品无关）：先修探针，再看结论',
+};
+/**
+ * 把一份「环境现场读数」判成一个成因码（纯函数，离线可证伪）。
+ *
+ * @param {object} env 现场读数，字段都是可缺的（缺 = 不知道，不是 false）：
+ *   `binPresent`   Chromium 文件在不在
+ *   `stStatus`     ST 根路径 HTTP 码（0 = 连不上）
+ *   `stTimedOut`   fetch 是否超时（超时与拒绝是两件事：前者查负载，后者查服务）
+ *   `stVersion`    真页面里 `SillyTavern.version`
+ *   `stSupported`  插件声明支持的 ST 版本集合（空/缺 = 不判这条）
+ *   `deploy`       部署态：`ok` / `missing` / `version-mismatch`
+ *   `mounted`      真页面装配态：`ok` / `missing` / `init-incomplete`
+ *   `probeOk`      探针自检（块执行 / 落盘是否成功）
+ * @returns {{cause:string|null, group:'env'|'non-env'|null, action:string, why:string}}
+ *   判不出来时 `cause = null`（**不许猜**：猜出来的成因码比没有更坏）。
+ */
+export function classifyCause(env) {
+    const E = isObj(env) ? env : {};
+    const out = (cause, why) => ({
+        cause,
+        group: cause === null ? null : (ENV_CAUSES.includes(cause) ? 'env' : 'non-env'),
+        action: cause === null ? '现场读数不足，无法归因（需补读数，不许猜）' : CAUSE_ACTION[cause],
+        why,
+    });
+    /* 探针自身失效排最前：探针坏了，它对环境的所有判断都不可信。 */
+    if (E.probeOk === false) return out('probe-self-fault', '探针块执行 / 读数落盘失败 ⇒ 本次读数不可信');
+    if (E.deploy === 'version-mismatch') return out('deploy-unsynced', '真宿主部署版本与仓库不一致（测旧版比测不出来更坏）');
+    if (E.deploy === 'missing') return out('deploy-unsynced', '真宿主插件目录里没有 manifest.json ⇒ 插件未同步部署');
+    if (E.binPresent === false) return out('no-browser-driver', 'Chromium 可执行文件不存在');
+    if (E.stTimedOut === true) return out('endpoint-timeout', 'ST 根路径请求超时（连接挂住，非拒绝）');
+    if (typeof E.stStatus === 'number' && E.stStatus !== 200) {
+        return out('no-st-endpoint', 'ST 根路径返回 ' + E.stStatus + '（0 = 连接被拒）');
+    }
+    /* 版本这条只在**能连上并且读到版本**时才判：读不到版本 ≠ 版本不符。 */
+    if (typeof E.stVersion === 'string' && Array.isArray(E.stSupported) && E.stSupported.length > 0) {
+        if (!E.stSupported.includes(E.stVersion)) {
+            return out('st-version-mismatch', 'ST 版本 ' + E.stVersion + ' 不在插件声明支持集 ' + show(E.stSupported));
+        }
+    }
+    if (E.mounted === 'missing') return out('plugin-not-mounted', '页面里插件对象不在场（这是产品缺陷，不是环境缺失）');
+    if (E.mounted === 'init-incomplete') return out('plugin-not-mounted', '插件对象在、init 未完成 ⇒ 真实装配未成立');
+    return out(null, '环境四态都不成立，且装配态正常 ⇒ 不该走 environment-unavailable 分支');
+}
 /**
  * 收尾：真页面未捕获异常。
  * @param {string[]} pageErrors

@@ -1,0 +1,18 @@
+{
+  "file": "tests/audit/write_only_ledger.json",
+  "note": "L21-O8「写了不读」反向扫描的豁免登记表。扫描器（tools/scan_write_only_fields.mjs）单文件视野看不到「state.X 写入 + raw.X 装载读」的跨对象形态，此类在此逐条给理由；无理由登记无效（判据 B2 会红）。",
+  "entries": [
+    {
+      "field": "lastDirectives",
+      "write": "anti-confusion-matrix-disambiguator.js:213",
+      "read": "anti-confusion-matrix-disambiguator.js:58（hydrate 侧 raw.lastDirectives）",
+      "reason": "持久化镜像字段：写入 state 供 exportState 序列化落盘，装载侧以 raw.lastDirectives 读回 —— 扫描器单文件正则视野看不到跨对象（state→raw）读，非死写。"
+    },
+    {
+      "field": "updatedAt",
+      "write": "anti-confusion-matrix-disambiguator.js:214 / hypergraph-causal-backtracking-hub.js:72,99 / memory-healing-immunity-adjudicator.js:126",
+      "read": "各文件 hydrate 的 raw.updatedAt（如 anti-confusion:59 / hypergraph:54 / healing:55）",
+      "reason": "审计时间戳（last-touched）：随 exportState 序列化落盘，装载侧 raw.updatedAt 读回并参与新旧比较 —— 同上，跨对象读形态，非死写。"
+    }
+  ]
+}

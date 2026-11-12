@@ -1,0 +1,46 @@
+{
+  "schema": "loading-surface-proof@1",
+  "generatedAt": "2026-11-12T05:06:16.106Z",
+  "version": "3.465.1",
+  "root": "../../../tmp/lsp-t-7fbzx3gj",
+  "moduleCount": 365,
+  "ok": true,
+  "failedSegments": [],
+  "boundary": "本证明只覆盖「模块能否被装进一个最小上下文」，不等价于真机：宿主是否真加载 extra_js、init 是否真跑完、storage.save 是否真落盘，仍只能由真机（tests/audit/_realhost_suite.mjs）回答。",
+  "equivRealhost": false,
+  "segments": {
+    "disk": {
+      "question": "清单里的每个模块，磁盘上真有一份非空文件吗？",
+      "ok": true,
+      "checked": 365,
+      "defects": []
+    },
+    "syntax": {
+      "question": "每个模块能被 JS 引擎编译通过吗（v3.461.0 那类整文件语法错误）？",
+      "ok": true,
+      "checked": 365,
+      "defects": []
+    },
+    "umd-tail": {
+      "question": "每个模块的尾部形态合法吗（有包装、有导出/挂载通道）？",
+      "ok": true,
+      "checked": 365,
+      "defects": []
+    },
+    "global-eval": {
+      "question": "按 manifest 顺序累积装载后，模块声明过的全局名真的挂上了吗？",
+      "ok": true,
+      "checked": 365,
+      "defects": [],
+      "evaluated": 365,
+      "mountedTotal": 449
+    },
+    "ledger": {
+      "question": "台账里对每个模块都有一条真实消费记录吗（不是零消费、不是分类假象）？",
+      "ok": true,
+      "checked": 365,
+      "defects": [],
+      "dormantExcluded": 12
+    }
+  }
+}

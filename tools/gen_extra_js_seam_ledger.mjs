@@ -1,4 +1,16 @@
 import fs from 'node:fs';
+/* ★ [L21-O1 修·口径唯一真源] 消费识别**必须**与台账生成器 / R1 门禁同源。
+ *   修前本工具内联第三份识别规则（只认 `window.LonSha*` / `globalThis.*Lib`），
+ *   于是 `global.LonSha*` / `window.GraphDiffusion` / `_winModule('X')` 全部读不到
+ *   ⇒ 6 个**早已接好**的模块被判 orphan ⇒ seam 门禁红。
+ *   实测假阳性清单（每条都有真实消费点，见 _consumption_lib.mjs 头部）：
+ *     config-effect-registry / modules_combined / graph_algorithms /
+ *     world-clock-reader / world-ledger-reader / api-channels
+ *   修法：与台账、门禁共用 `tests/_consumption_lib.mjs`。 */
+import {
+  extractModuleGlobals as _libExtractGlobals, countConsumptionIn, parseRegistryAliases,
+} from '../tests/_consumption_lib.mjs';
+
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripComments } from '../tests/_audit_lib.mjs';
@@ -61,17 +73,21 @@ for (const f of nonHostProd) {
   nonHostCodeMap.set(f, stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8')));
 }
 
+/* 全局名提取走共享库（收源码）。保留同名包装以免改多处调用点。 */
 function extractModuleGlobals(modFile) {
   const p = path.join(ROOT, modFile);
   if (!fs.existsSync(p)) return [];
-  const code = stripComments(fs.readFileSync(p, 'utf8'));
-  const globals = new Set();
-  for (const m of code.matchAll(/window\.(LonSha[A-Za-z0-9_]+)\s*=/g)) globals.add('window.' + m[1]);
-  for (const m of code.matchAll(/globalThis\.([A-Za-z0-9_]+Lib)\s*=/g)) globals.add('globalThis.' + m[1]);
-  return Array.from(globals);
+  return _libExtractGlobals(stripComments(fs.readFileSync(p, 'utf8')));
 }
 
 export function generateSeamLedger() {
+  /* 注册表登记名映射：不自挂全局名的模块，消费标识符只在注册表 entries 里。
+   *   与台账生成器 / R1 门禁同源（parseRegistryAliases），三处不可能再分叉。 */
+  const registryAliases = parseRegistryAliases(
+    hostCodeMap.get('optional-engine-registry.js')
+      || nonHostCodeMap.get('optional-engine-registry.js')
+      || ''
+  );
   const rows = [];
   rows.push(['module', 'loaded', 'seam_referenced', 'referenced_by', 'verdict'].join('\t'));
 
@@ -81,43 +97,27 @@ export function generateSeamLedger() {
 
   for (const mod of extraJs) {
     const loaded = 'yes';
-    const base = mod.replace(/\.js$/, '');
-    const modGlobals = extractModuleGlobals(mod);
+    const ownGlobals = extractModuleGlobals(mod);
+    const alias = registryAliases.get(mod);
+    const modGlobals = alias && !ownGlobals.includes(alias) ? [...ownGlobals, alias] : ownGlobals;
 
     // 1. 检查宿主面是否引用该模块
     let isHostSeam = false;
     for (const [hf, hcode] of hostCodeMap.entries()) {
       if (hf === mod) continue;
-      const fileRefRegex = new RegExp(`['"\`][./]*${mod}['"\`]|['"\`][./]*${base}['"\`]|_moduleLib\\([^,]+,[\\s]*['"\`]${mod}['"\`]\\)`, 'g');
-      if (fileRefRegex.test(hcode)) {
+      /* 文件绑定 + 全局符号（含 `_winModule('X')` 字符串取全局）一律走共享库，
+       *   修前这里只做裸名正则，`api-channels` 这种「字符串取全局」的接线看不见。 */
+      if (countConsumptionIn(hcode, mod, modGlobals).count > 0) {
         isHostSeam = true;
         break;
       }
-      for (const g of modGlobals) {
-        const gRegex = new RegExp(`\\b${g.replace('.', '\\.')}\\b`, 'g');
-        if (gRegex.test(hcode)) {
-          isHostSeam = true;
-          break;
-        }
-      }
-      if (isHostSeam) break;
     }
 
     // 2. 检查非宿主模块是否引用该模块
     const refBy = [];
     for (const [pf, code] of nonHostCodeMap.entries()) {
       if (pf === mod) continue;
-      const re = new RegExp(`['"\`][./]*${mod}['"\`]|['"\`][./]*${base}['"\`]|\\brequire\\(['"\`][./]*${base}['"\`]\\)`, 'g');
-      if (re.test(code)) {
-        refBy.push(pf);
-      }
-      for (const g of modGlobals) {
-        const gRegex = new RegExp(`\\b${g.replace('.', '\\.')}\\b`, 'g');
-        if (gRegex.test(code)) {
-          refBy.push(pf);
-          break;
-        }
-      }
+      if (countConsumptionIn(code, mod, modGlobals).count > 0) refBy.push(pf);
     }
 
     let verdict = '';

@@ -255,6 +255,10 @@ const EXEMPT = {
     //   故与 v3272 / v3210 / v3211 同款，用「真源 stripComments（等长占位、偏移不变）
     //   + 真源 braceMatch」的**串联**，起点由 marker 末尾花括号显式给出。不是第二份实现。
     'tests/v3302_mo1_write_closure.test.mjs': ['bodyOf'],
+    // [v3.465.2] UMD 重载幂等判定体：必须保持「纯函数、零 import」才能被当夹具在任意源码上跑
+    //   （见该文件头部【诚实边界】③）。stripCommentsLite 是语义面远小于真源的本地最小剥离器，
+    //   不是第二真源；判据侧 E2 会断言它与真源 stripComments 在真实文件上判定一致，防漂移。
+    'tests/audit/_umd_reload_judge.mjs': ['stripComments'],
 };
 
 const filesToScan = [];

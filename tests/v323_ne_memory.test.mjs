@@ -205,8 +205,14 @@ function extractFn(name, params) {
     if (src.includes('_migrateRestored')) ok('T4: 防重入标志存在');
     else fail('T4: _migrateRestored 缺失');
     // collectExport 带 version
-    const ce = src.match(/collectExport\(\) \{[\s\S]*?return \{([\s\S]*?)\n            \};/);
-    if (ce && /version: VERSION/.test(ce[1])) ok('T4: collectExport 含 version 字段');
+    /* [v3.465.x 归因] 旧判据抠「collectExport 后第一个 return {...}」再查 version: VERSION。
+     *   v3.465.1（收账真缺陷②）在 collectExport 体首插入了 _flattenColl 助手，其内部的
+     *   `return { __map: arr };` 抢占懒惰首命中 —— 抠到的是助手片段而非主 return，假红。
+     *   产品无缺陷：version: VERSION 实际就在 collectExport 主 return 内
+     *   （engine-persistence-ops.js:201）。改为：自方法体起点起、有界懒惰（20k 字符
+     *   ≈ 方法体量级）直接要求 version: VERSION 在场，不依赖 return 与缩进的精确形态。 */
+    const ceOk = /collectExport\(\) \{[\s\S]{0,20000}?version: VERSION/.test(src);
+    if (ceOk) ok('T4: collectExport 含 version 字段');
     else fail('T4: collectExport 缺 version 字段');
 }
 

@@ -1,3 +1,335 @@
+## v3.465.2
+**第二十一期收账轮第三刀：36 个 R18 内核的 UMD 包装只包了尾巴、没包类体 —— 同一上下文加载第二次必抛 `SyntaxError`。**
+这一刀不是计划项，是 v3.465.1 收账时被两条已有判据当场顶出来的**存量真缺陷**。
+### 一、缺陷本体（一条真缺陷，两处现形）
+`v3159 [2d]`（健康树上每个审计脚本都必须 `exit 0`）报 `scan_v3193_host_matrix.mjs` 失败；
+进去看，该门的 M3 段（重复加载幂等）点名 **36 个脚本**「第二次加载抛异常」。
+两个判据、同一根因。
+形态长这样：
+```js
+class Foo { ... }                 // ← 顶层词法声明（全局词法作用域）
+(function (root, factory) { ... }(globalThis, function () {
+    'use strict'; return Foo;
+}));
+```
+v3.461.0 把 36 个内核从 ESM 改成 UMD 时，**只换了尾巴，类体仍留在文件顶层**。
+单看每一次加载都成功，`node --check` 也过 —— 语法合法。
+但 `class` / `const` / `let` 是 lexical binding，落在全局词法作用域里**不允许二次声明**，
+同一经典脚本上下文再跑一遍同一份源码 ⇒
+`SyntaxError: Identifier 'Foo' has already been declared`。
+### 二、为什么这条缺陷活了四个版本
+它同时满足了三个「看不见」的条件：
+1. **每次加载都成功** —— 只有重复加载才炸，而宿主正常只加载一次；
+2. **`node --check` 过** —— 语法真的合法，静态检查器不判语义；
+3. **单测全绿** —— 测试走 `import` / `require`（CJS 分支），根本走不到经典脚本的全局词法作用域。
+能抓到它纯属**副作用**：`v3159 [2d]` 是「健康树上每个审计脚本都必须过」这种**全量**判据，
+它把 `scan_v3193_host_matrix` 一起跑了；而那个门的 M3 段恰好是「同一 context 加载两次」。
+**一个全量判据 + 一个抽样判据的交叉点**，才照出这条。
+### 三、修法（只搬位置，不改语义）
+36 个文件逐个把 `class X { ... }` 整块搬进 `factory()` 内部、缩进 4 空格。
+`module.exports = factory()` 与 `root.X = api` 两条分支**一字未改** ——
+搬完 CJS 侧与经典脚本侧取到的仍是同一个类。
+搬动由脚本做（`find_block_end` 按花括号配平定位类体，不信行号），36 个逐一打印 `class a-b moved=N` 留痕。
+### 四、判据（`tests/v21_o4c_umd_reload_idempotent.test.mjs`，17 条，17/17）
+判定体 `tests/audit/_umd_reload_judge.mjs`（154 行纯函数、不 import 任何东西）：
+`QUESTION` 一句话问题 / `BOUNDARY` 三条诚实边界 / `stripCommentsLite` / `umdStartLine` /
+`topLevelLexicalDecls` / `judgeSource` / `judgeAll` / `issueLines`。
+- **A** 判定体自身：不 import / 剥注释不误伤字符串 / 裸脚本不在射程 / **不误伤 `var`**（`var` 不是 lexical binding，
+  重复加载不抛，把它算进来就是判据过宽、会逼人改无书的代码）/ 四种声明与 1 基行号。
+- **B** 真仓全量：**manifest 全量 365 个模块**都过一遍形态（不只是那 36 个）+ 36 个已知修复点逐条复验
+  + 搬位置不得丢掉 `module.exports` / `root.X = api` / `factory` 的 `return`。
+- **C** 真仓真加载：36 个文件在**同一 context** 里跑两遍必须都成功；跑完挂载名仍可取。
+- **D** 三条负控制：① 把类体搬回 UMD 外 ⇒ 判定体必须红，**且真加载必须真抛**（证明判据与真实行为不脱节）；
+  ② 把 UMD 尾巴整个去掉 ⇒ 不得判红（证明射程没放宽）；③ 36 个里任意一个退回旧形态 ⇒
+  全量判据必须红，**且只点名它一个**（证明不多报）。
+- **E** 纯度：判定体必须真被 `import`；判据里不得另写一份声明识别正则；
+  判定体自带的剥注释器与 `_audit_lib.mjs::stripComments` 在 36 个真实文件上**判定必须一致**（防漂移）。
+- **F** 自防护 + 当版锚。
+### 五、为什么判据不能只靠 M3
+M3 是**运行时**观测：它只知道「抛了」，不知道「为什么抛」，也不知道别的模块会不会也这么写。
+而这条缺陷的成因是一个**形态**，形态可以静态枚举 —— 本判据覆盖全量 365 个，M3 只抽样。
+两层各司其职：判定体判形态（快、全量、可离线证伪），M3 判真实加载（慢、抽样、证明形态确实会炸）。
+### 六、读数（真仓实测）
+- 重复加载抛异常：**36 → 0**（`vm` 同 context 跑两遍，manifest 全量 365 个里 `already been declared` 归零）。
+- `scan_v3193_host_matrix` 缺陷数 **1 → 0**；`v3159` **13/14 → 14/14**；`v3461` 仍 **10/10**；
+  `l18_mind_abyss` 18/18、`l18_e2e_mind_symphony_fusion` 1/1 不受影响。
+### 七、诚实边界
+- 本版**没有跑全量 `npm test`**；全量实跑仍留到双仓收口点，读数登记**不假装**已经验过。
+- 本版**不证明**真实 SillyTavern 会话里 `extra_js` 会被加载两次；它只证明「**若**加载两次，不再抛」。
+  宿主是否重复加载由宿主决定，本版不置评。
+- 本版**不恢复**已发生的加载失败：形态改对只保证「从现在起可重载」。
+
+## v3.465.1
+**第二十一期收账轮的**自证复核版**：把 v3.465.0 交付后暴露的「全仓审计 25 项红」逐条追到根因，
+其中 **2 项是我自己上一刀写出来的真缺陷**、**1 项是我自己的判定体在别人身上复发**。
+
+### 一、我自己写出来的真缺陷（v3.464.0 的 O4 交付物）
+
+`L21-O4` 给 19 个心智引擎补齐 `hydrateState` 时，我用了一份**通用的「以默认形状为底逐键浅合并」**
+函数体，复制到 19 个文件里。它同时犯了本仓两条已写进纪律的病：
+
+1. **逐字副本**：19 份字节相同 ⇒ `tests/v3281_o7_module_copy_ledger.test.mjs` 的 B1 当场翻红，
+   点名 `hydrateState` 一簇 11 成员（另 8 个因外层包装差异归入相邻簇）。本仓「两份实现即第二真源」。
+2. **它本身就是它声称要修的那个病**：这些模块的状态里有 **`Map` / `Set` 字段**
+   （`activeSandboxes` / `hiddenFragments` / `covertIdentities` / `activeCovenants` / `registeredEngines` /
+   `tabooSensors` / `stressTension` / `actorResilience` / `timelineEvents` / `characterLifespans` /
+   `characterDossiers` / `sharedPublicFacts` …）。落盘走 JSON，读回来时这些字段是**普通对象/数组**；
+   浅合并把普通对象原样写回字段 ⇒ 此后每次 `.get` / `.has` / `.add` / `.set` 全是 `TypeError`。
+   **「登记成立」被我当成了「恢复正确」** —— 而 O4 那一刀的整个立论就是「不许把原始 payload 直接塞进宿主字段」。
+
+**修法**：19 个模块各按自己的真实状态形状重写归一化体 —— Map 由 `entries` / 数组 / 普通对象重建、
+Set 由数组重建、数值按字段值域夹紧、枚举按受控词表回落、可空时间戳保持 `null`（不用 `0` 冒充
+「公元 0 年亡故」）。**行为已实证**：把各模块的默认状态 `JSON` 往返后再走 `hydrateState`，
+`Map`/`Set` 字段回来的是**真的 Map/Set**（修复前是普通对象/数组）。
+
+### 二、我上一刀的判定体在别人身上复发（真缺陷，不是判据问题）
+
+`scan_audit_lib_consolidation` 的 N5 负控制（「漏接出口的 drift 必须被兜底拦下」）转红，
+`status=1` 而非期望的 `exit 2`。根因不是本轮新增的两个文件，而是
+**`tests/v3461_r18_wiring_truth.test.mjs:48` 本地重写了一份 `stripComments`**
+（只做两条正则替换、不认字符串/正则字面量）。N5 的机制是把整个 `tests/` 镜像到临时目录再跑扫描器，
+扫描器在镜像里先报出这条真缺陷并以 `exit 1` 提前退出，**兜底检查根本没跑到** ——
+一份第二实现同时让「唯一真源」和「兜底自证」两项失效。
+修法：改走真源 `_audit_lib.mjs` 的 `stripComments`（严格更强、等长占位保偏移），
+三处用法都只需「注释不参与匹配」，不存在「语义不同」，故**不登记 EXEMPT**（登记才是放水）。
+修后：本地重写 **1 → 0**、N5 兜底拦下并 `exit 2`、`v3461` 仍 10/10。
+
+### 三、三处判据的「死前提」（实勘推翻，不是产品缺陷）
+
+`floor-fingerprint-self-healer.js` 在 v3.464.0 撤掉那条**不成立的水合登记**后，真实状态是
+**全仓零引用**（既无业务消费，也不在可选引擎注册表 entries 里）。四份判据仍假设它属于
+「装载面洗白」那一类，于是要求读数归零或要求「装载面引用 > 0」：
+
+| 判据 | 原文前提 | 实况 | 改法 |
+|---|---|---|---|
+| `v21_o1` ④ | `zero_consumption_count === 0` | 真实 1（已如实定性为休眠内核） | 改为「零引用必须逐条定性 + 差异**恰好**等于 triage 里写明「全仓无调用点」的那几条」，多一个都红 |
+| `v21_o1` ⑧ | dormant 模块 `load_surface_callers` 必非空 | 它连装载面都没有 | 改为「**若有**装载面引用，必须解释掉全部 prod」；零装载面的则强制要有「全仓无调用点」理由 |
+| `v3163` / `v3173` | 输出必须含 `已挂载未消费 0 个（账本 0 个）` | 账本 1 条（如实记账） | 改为「未消费数 **必须等于** 账本数」—— 多出来的才是没记账的静默腐烂 |
+
+三条改动都**保留负控制**（删 triage 条目必红、篡改 business 读数必红、口径分叉必红仍在跑）。
+理由同一条：**判据要求一个只有造假才能满足的读数，它就退化成「防不绿」**。
+
+### 四、读数欠账（走脚本重绑，零手抄）
+
+`index.js` 入口 13034 → **13069** 行（`split('\n')` 口径，与判据同源），9 个「基线行数须等于真行数」
+的档集体转红。按纪律写 `tools/rebind_host_beast_v3465.py`（沿用 v3461 的公式，只换 VER / REASON /
+前置版本校验），探针实测落盘：入口 13069 / 合并面 35753 / 成员 1342 / TOP40 占 42.0%，
+行上界 13112 与成员上界 1366 **均不需上抬**（余量在 `maxSlack` 内）。
+
+`dead_code_budget`：活跃代码 366 文件 / 实测 139653 行，登记上界 138664 → **140053**。
+抬升分两次并各有理由：① +912（19 个模块的归一化 `hydrateState` 与 `engine-persistence-ops.js`
+水合表 50→42 项改造）；② +477（把首版弱实现换成按形状归一后的净增）。
+两次都写进 `history`，且**没有为了凑读数删任何文件**（文件数 366 与声明 366 一致）。
+
+### 五、写完这一节才发现的最重一条：写入侧从来没写过
+审查「修复是否真的有效」时发现问题：**我上一节的修法只修了读取端**。
+`collectExport()` 把这 9 个含 `Map`/`Set` 的状态对象 **原样** 塞进存档：
+```js
+this._butterflySandboxState ? { lonshaButterflySandboxState: this._butterflySandboxState } : {}
+```
+而 `JSON.stringify({m:new Map([['a',1]])})` 恒为 `{"m":{}}` —— **「存了 3 个沙盒」与「一个都没存」在文件上完全同形**。
+所以真实链路里 Map 根本到不了 JSON，**读取端把 `hydrateState` 写得再对也是空转**。
+我上一节那句「行为已实证：JSON 往返后 Map/Set 真被重建」是**假的**，而且是两层假：
+1. **探针自己就错**：它拿 `JSON.stringify(默认状态)` 当「落盘」，元素在探针里就已丢光，
+   而它只核对 `instanceof Map` —— **空 Map 当然也是 Map**，于是打印「通过」。
+   形状对、内容空，是本仓最难发现的一种假绿。
+2. **就算探针写对，产品侧也救不回来**：写入端从来没写过。
+
+**修法（三段一次补齐，不再分段交差）**：
+- **写入段** `_flattenColl` / `_collForSave`：按容器递归摊平（`Map` → `{__map:[[k,v],…]}`、
+  `Set` → `{__set:[…]}`）。**用带前缀的标记对象而不是裸数组** —— 裸数组无法与
+  「本来就是数组的字段」区分，读回来会把数组误重建成 Map（另一种同形混淆）。
+  `_collForSave` 先扫一遍、**只有真含容器才摊平** ⇒ 无容器模块的存档格式**一个字节都不变**，
+  不制造无谓迁移。
+- **还原段** `_unflattenColl`：**只在一处做**（模块自己的 `hydrateState` 不必各自认标记 ——
+  那样 9 份反向实现就是 9 个第二真源）。顺序：先还原容器 → 再交给模块水合，
+  这样模块侧只看到「本来就是 Map/Set」的输入，与它创建时的形状完全一致。
+- **读取段**：沿用上一节的按形状归一化（`Map` 由 `entries`/数组/普通对象重建、`Set` 由数组重建、
+  数值按值域夹紧、枚举按受控词表回落、可空时间戳保持 `null`）。
+
+**判据 `tests/v21_o4b_volatile_container_chain.test.mjs`（18 条，18/18 全绿）**（判定体 `tests/audit/_volatile_container_judge.mjs`
+纯函数、不 import fs）。三段各自可离线证伪：`W` 摊平后不得残留任何容器实例 /
+`R` 摊平→JSON→还原 后**种类与元素**都要回来 / `H` 还原后的载荷交给模块自己的水合函数仍须是容器。
+**四条负控制全部真跑**：① 把 9 处 `_collForSave` 调用改回原样 ⇒ 翻红（并断言「不摊平时
+`JSON.stringify` 必须把 Map 规约成 `{}`」—— 把缺陷本体钉成断言）；② 还原函数退化成「不认标记、
+粗糙 Map 化」⇒ 报 `restore-loss`；③ 摊平退化成恒等 ⇒ 报 `write`；④ 水合退化成浅合并 ⇒ 报 `read`。
+另加两条纪律：`D1` 落盘侧与登记表**双向一致**（含容器的 9 个键必须全走摊平、走了摊平的键必须都在登记表里，
+防幽灵键）、`D2` 摊平不误伤（无容器模块落盘字节与改动前完全一致）。
+`E1` 判据纯度：摊平/还原**必须从真源码抠**，不许在判据里另写一份（那就成了第二真源）。
+
+### 六、诚实边界
+
+- 本版**没有**跑全量 `npm test`；回归只覆盖上表涉及的那些档与被改动文件的直接下游。
+  全量实跑仍留到双仓收口点，读数登记**不假装**已经验过。
+- `hydrateState` / `_flattenColl` / `_unflattenColl` 三段**只在单进程里做过端到端往返**
+  （摊平 → `JSON.parse(JSON.stringify(...))` → 还原 → 模块水合，12 个容器字段逐一核对元素），
+  真实 SillyTavern 会话的存档/读档链路**未执行**（无真机环境）。
+- **老存档救不回来**：本版之前那些字段在文件里本来就是 `{}`，信息已经丢了。
+  本版只保证「从现在起不再丢」，**不能凭空恢复历史数据**。
+- 「未消费数 = 账本数」这一条**不保证零未消费**。它只保证「未消费的都有账」。
+  `floor-fingerprint-self-healer.js` 仍是休眠内核，仍是零引用 —— 这是如实状态，本版不掩盖。
+
+## v3.465.0
+**第二十一期 L21-O9：【取库口的声明 ↔ 真码对账】。** `index.js` 里有 **171 个 `_xxxLib()` 取库口**，
+每个的真码只有一行 `_moduleLib(() => window.Xxx, 'xxx.js')`，旁边却常常有长注释介绍「本模块指向 xxx.js」
+—— 同一个事实有**两份可能漂移的声明**。v3.444.0 已经栽过一次：`_eraContinuationLib` 同名两份，
+JS 后者静默覆盖前者，自检拿到错误的库、静默失效，**且没有任何门能发现**（两份都语法正确、都能取到库）。
+本版把那次缺陷变成正面回归位，并把对账覆盖到全量 171 个。
+### 交付
+- **判定体 `tests/audit/_lib_handle_judge.mjs`**（纯函数、不 import fs、以 `readModule` 参数注入读盘）：
+  四档缺口各单列，绝不压成一个布尔 —— `duplicate`（同名重复）/ `missingFile`（目标文件不在盘）/
+  `globalNotMounted`（声明取 `window.Xxx`，但模块真码里没有这个挂载名）/ `commentMismatch`（注释声称的
+  文件名与真码不符）。切片失败一律返回 `null` **并显式报 `slice-failed`**，不许当通过。
+  豁免也双向：豁免表**只允许登记取库原语 `_moduleLib` 本身**；真取库口进了豁免、理由为空、
+  或名字在源码里已不存在，三种都判红（防豁免表腐烂成垃圾桶）。
+- **判据 `tests/v21_o9_lib_handle_truth.test.mjs`：14/14 全绿**（A 组 8 / B 组 3 / C 组 2 / Z 组 1）。
+  含两条计划要求的负控制：`A5` 造同名两份 ⇒ `duplicate` 必须红（v3.444.0 形态的正面回归位）；
+  `A6` 真码改指向、注释不改 ⇒ `commentMismatch` 必须红。另加 `A7` 配平切不出必须报 `slice-failed`、
+  `A8` 豁免双向四问（含一条正控：只豁免原语属合法）。
+### 读数（真仓实测）
+- 取库口声明 **171** / 唯一变量名 **171**（同名重复 **0** —— v3.444.0 那一刀没有复发）。
+- 目标文件不在盘 **0**；挂载名与声明不符 **0**（初版探针报了 5 项，查清是我探针写死了前缀白名单，
+  本仓实测有 `window` / `global` / `globalThis` / `root` / `self` / `g` 六种挂载写法，`g.LonShaLedgerReplay`
+  这类被判成「没挂载」——**假阳性**，改「任意标识符 . 大写名 =」后归零）。
+### 实勘推翻计划原文一处（如实记）
+原文写「注释里声称的文件名」，隐含假设「每个取库口旁边都有一句『本模块=x.js』」。实测：
+171 个里 **84 个没有任何注释**（同批追加、靠函数名自解释），**1 个共享块**（`_institutionLib` 挨着
+一段讲「五件零消费内核」的分组注释，块里出现的 `index.js` / `engine-diagnostic-lines.js` 讲的是别的事），
+**1 个显式区分**（`_gapBenchLib` 特意写「与 `_archaeologyLib`（memory-archaeology.js）**不是同一件**」
+—— 提到别的文件名正是为了防误合并）。若把这三类都判成「注释说错」，判据会要求人去改 84 处空注释、
+删掉两条有用的区分说明 —— 那是**判据虚报逼着人做坏事**。故三分单列：
+`commentAbsent`（无注释，不是缺口但必须可见）/ `commentShared`（分组块，块里没有「本模块/本件」一类自指词）/
+`commentDisambiguated`（显式区分语句）；只有「自指 + 没说不区分 + 声称的文件名与真码不符」才判红。
+### 两处自我纠错（都是判定标准的缺陷，被负控制当场抓住，如实记）
+1. **区分语义词表过宽**：初版把 `不同`、`与 ` ` 这类泛词放进「显式区分」词表，于是夹具里
+   「本件与别件不同，故单独一个取库口」被误判成区分语句 ⇒ **真缺口（真码指向 demo-new.js、
+   注释声称 demo-old.js）被放过**。判据过宽造成的静默通过比漏报更坏（它会让人以为已经查过了）。
+   收紧成完整短语（`不是同一件` / `别合并` / `别搞混` / `两件名字像` …）。
+2. **A8 夹具缺少取库原语**：夹具里没有 `_moduleLib` 声明，于是任一豁免名都命中「变量名在源码里
+   不存在」——那是**另一条**违规理由，判据看似通过而实际测的是别的东西。补上原语后四条问全部落到
+   预期分支。
+### 顺带修掉的两处「死数伪装成判据」（放眼前一版留下的自伤）
+`v21_o3` 与 `v21_o4` 的「当版锚」原先写成「manifest.version 必须恰好等于我出生那一版」。
+抬版到 v3.465.0 后它们立刻转红 —— 这不是发现了新缺陷，而是判据本身在**每抬一版就逼人回来改数字**。
+正确做法（本仓 V3 段头写的正是这条）：出生版本写成字面量（可读、可被 V4 数到锚），
+比较用 `>=` —— 仓库版本不得**回退到**本套件出生之前。两处已改，改后 `v21_o3` 22/22、`v21_o4` 18/18。
+### 一处被撤登记连带暴露的存量问题（如实登记，不造假消费点）
+`floor-fingerprint-self-healer.js` 的 `prod_call_sites` 归 0 后，`v21_o3` 的 S5（台账每条有真实业务消费、
+dormant 单列不静默吞）转红。它不是新缺陷，而是**同一件被掩盖的事实第二次现形**：
+L21-O4 撤掉那条不成立的水合登记后，它的零消费状态才被看见。按 O1 纪律逐条定性 ——
+已登记进 `tests/audit/l21_o1_triage.json` 的 `declared_dormant`（11 → **12 项**），写明
+「能力面有、全仓无调用点、无等价实现、无自然落点；按 `do not add a consumer solely to satisfy the audit`
+不设假消费点」。S5 随后转绿。
+### 诚实边界
+本判定只做**静态**对账：证明「取库口声明 ↔ 磁盘真码 ↔ 注释」三者文字一致，**不能证明运行时真的
+取到了正确的库** —— 同名二次赋值、条件分支里的覆盖挂载都在射程外。它绿的含义是
+「不可能因为改名 / 重名 / 写错文件名而静默取到错的库」，不是「取库一定成功」。这句话写进判定体导出
+`BOUNDARY`，由判据 C2 钉住。
+## v3.464.0
+**第二十一期 L21-O4：【持久化字段登记判据】。** 计划原文只写了一句「`WorldProgress` 的字段集合
+与导出 / 导入 / 水合表三向对账」。实勘下来，同一个「登记不全」底下是**三条形态完全不同的真缺陷**，
+绝不许合成一句话糊过去。而三条里**有两条是产品缺陷，必须动代码**：
+### 三条真缺陷（全部实地检查，非估）
+- **形态甲 · 字段级漏格**：`WorldProgress.export()` 写了 `knowledgeTraces` / `branchSemanticsRead` /
+  `volumeContinuationRead` 三键、`import()` 也读回来了，但**构造函数里一个都没建格**。
+  实测全新实例上 `worldProg.knowledgeTraces === undefined`，而读取侧靠 `this.x || (this.x = {...})`
+  懒建 —— 「还没记过」与「记了但读不到」在存档层**同形**。
+  修法：构造函数末尾补 5 个初始声明（`knowledgeTraces = { version: 1, traces: [] }`、三个 `= null`、
+  `branchComparison = null`），注释里写明「`null` 表示还没算过、`{}` 表示算过但为空，两者必须可分」。
+  读数：`ctor` 38 → **43**，五类缺口全空，`exemptViolations = []`。
+- **形态乙 · 水合函数名对不上真码**：`engine-persistence-ops.js` 的 `v21Engines` 表登记 50 项，
+  其中 **39 项登记的水合函数在模块导出面上根本不存在**（表里写 `hydrateRippleState`，
+  而 `engine-orchestration-ripple-bus.js` 只有 `createOrchestrationState` / `registerEngine` /
+  `dispatchRippleEvent`）。三分类实测：类形态 12（`hydrateState` 是实例方法）、
+  有 `createState` 的函数库 19、无状态纯函数 8。三路**分别**处置，绝不统一补一个空函数：
+  · 函数库 19 项：补**宽容合并**的 `hydrateState`（非对象回落默认、只合默认形状已有的键、缺失保留默认），
+    并按表中登记名补别名 `const hydrateXxxState = hydrateState` —— **单实现 + 别名**，不是两份实现
+    （v3.444.0 同名两份的教训）。
+  · 类形态 12 项：**不动模块，改宿主**。`restoreFromPayload` 的循环里把单行三元展开成三支：
+    静态函数存在则直调；否则若 `typeof mod === 'function' && mod.prototype[hydrator]` 则 `new mod()`
+    后调实例方法；两者都无则回落原始 payload **但必须计入 `res.hydrateFallback`**
+    （否则「没恢复成」与「恢复成空」又同形）。写入面同步加 `_stateForSave(v)`（有 `exportState()`
+    就调，否则原样返回）—— `this.frozenMoments = new Map()` 直接 `JSON.stringify` 会变成 `{}`，
+    「存了」与「什么都没存」在文件上同形。
+  · 无状态纯函数 8 项（含 `floor-fingerprint`）：**不硬造 `createState`**，而是从两张表层**撤销登记**
+    并在原位留标注。理由写在原位：「该模块是纯函数内核，没有 createState、没有累加状态……
+    造一个 createState 会凭空发明不存在的状态并静默写入磁盘 —— 比不登记更坏」。
+  读数：`judgeHydrationTable.ok = true`，`staticForm 30 / instanceForm 12 / table 42`，`hydratorMissing = 0`
+  （修前 50 项缺 39；函数面补完后又因「专用名 vs 补的通用名」二次缺口 31，别名后归零）。
+- **形态丙 · 初始化表 18/18 全部不存在**：`index.js` 的 `v21Initializers` 登记 `createInitialRippleState`
+  等 18 个名字，模块实际只有 `createOrchestrationState` 等 —— 这正是 v3.460.0 宣称
+  「18 项心智引擎初始状态与宿主生命周期融合挂载」**从未发生**的机器证据。
+  修法：11 项补别名 `const createInitialXxxState = createXxxState`；7 项无状态模块撤销登记
+  （「补一个空 createState 只会让 `_moduleStatus[key] = true` 亮起 —— 那是报了一个不存在的引擎已加载」）。
+  修后：缺失 / 异常 **0 / 11**。
+### 判定体与判据
+- `tests/audit/_persistence_field_judge.mjs`（纯函数，判定体与探针分离）：`sliceClass` / `sliceMethod` /
+  `extractCtorFields` / `extractExportKeys` / `extractImportPairs` / `extractHydrationSurface` /
+  `extractExports` / `judgeWorldProgressFields`（五类缺口 + 豁免双向）/ `judgeHydrationTable`。
+  切片失败一律返回 `null` **并显式报 `slice-failed`**，不许当作通过。
+- `tests/v21_o4_persistence_enrollment.test.mjs`：**18/18 全绿**（A 组 8 / B 组 7 / C 组 2 / Z 组 1，
+  含 `A5` 假字段负控制、`A6` 豁免表反负控制、`A7` 导出独有键负控制、`B5` 撤销项加回表负控制）。
+### 三次自我纠错（都是判定标准的缺陷，不是产品缺陷，如实记）
+1. `extractExports` 最初用 `return\s*\{([^}]*)\}`，被函数体里的 `return base;` 截断，
+   导致**已经导出的** `hydrateState` 被判不存在 —— 判据虚报比漏报更坏，它会让人去修一个不存在的问题。
+   改为从文件末尾 `lastIndexOf('return {')` 按花括号配平取整块。
+2. 补丁脚本一开始给 19 项统一补 `hydrateState`，但表中 18 项登记的是专用名 ⇒ 补完仍缺 31 项。
+   改为「单一实现 + 别名」。
+3. `B4` 最初断言 `miswired` 必须为空 —— 语义误读：`miswired` 的含义是「模块有能力、宿主按静态登记」，
+   断言为空等于要求 12 个类形态引擎再造静态包装。改判为「必须被点名 + 宿主真码必须有 `new mod()`
+   与 `prototype[hydrator]` 分支 + 必须走 `exportState`」。
+### 回归与一处被掩盖的事实
+- 既有判据回归：`v3368` 8/8、`v21_o3` 22/22、`v3461_r18_wiring_truth` **10/10**。
+- `v3461` D1 一度因本轮改动转红，报「已挂载但零消费：`LonShaFloorFingerprintSelfHealer`」。
+  查清因果：该模块**此前一直靠「水合表登记」获得豁免**（`scan_module_wiring.mjs` 的
+  `if (hydrateRegistered.has(sym)) continue;`），撤销登记后豁免消失，真实状态暴露 ——
+  **它从来没有被宿主消费过**。全仓无等价实现，也没有自然落点（本仓编辑/回滚路径走 `factVersions`
+  与 `repairLog`）。按纪律**不设假消费点**，改为在 `UNCONSUMED_LEDGER` 中如实登记并写明理由：
+  「强行塞入一个调用点就是 `do not add a consumer solely to satisfy the audit`，
+  那会让本审计从防静默腐烂退化成防不通过」。
+### 读写数
+- `WorldProgress`：`ctor 43 / export 34 / import 34`，三向零缺口、豁免违例 0。
+- 水合表：**50 → 42 登记项**（8 项纯函数撤登记），`static 30 / instance 12` 单列计数，函数缺失 0。
+- 初始化表：18 项 → 11 项（7 项纯函数撤登记），函数缺失 0。
+- 撤销登记留痕：`engine-persistence-ops.js` ≥ 8 处、`index.js` ≥ 7 处「L21-O4 撤登记」字样（判据 B7 守住）。
+### 诚实边界
+本判据证明的是「**声明面与真码面在静态上一致**」，**不能证明运行时真的恢复正确** ——
+两侧都漏登记的那种双错不在本判定射程内。这句话写进了判定体导出 `BOUNDARY`，由 C2 钉住。
+## v3.463.0
+**第二十一期 L21-O3：【真机不可用 → 可算的替代证据链】。** 修前 `realhost_readings.json` 只有一句
+`environment-unavailable`，且**没有任何门在读它** —— 三个真机套件 bail 之后，装载面就没人管了，
+而 v3.461.0 修的 36 个 R18 内核整文件 ESM 语法错误正是**只有真装载才暴露**的失效形态。
+### 交付
+- **四态成因码**（`tests/audit/_realhost_judge.mjs` 唯一真源）：`no-st-endpoint` / `endpoint-timeout` /
+  `no-browser-driver` / `st-version-mismatch` —— 同是「跑不了」，处置完全相反（起服务 vs 装驱动 vs 换版本 vs 查负载）。
+  每条 bail 都交出 `env` 现场读数，由纯函数 `classifyCause` 判成因码，读数额外带 `causeGroup` /
+  `causeAction`（下一步谁动手）/ `causeWhy`；**判不出则不落盘**（宁可留上一份真读数）。
+- **实测推翻计划原文一处**（如实记）：原写「拆成四个成因码」，实勘 17 个 bail 点里有 6 个不是环境问题
+  （部署未同步 / 插件未装载 / init 未完成 / 块执行失败 / 落盘失败 / 仓库读不到）。故分**两组**：
+  `env`（四态）+ `non-env`（`deploy-unsynced` / `plugin-not-mounted` / `probe-self-fault`）。
+  把产品缺陷记成「环境不可用」，正是本仓反复治过的「用一句话盖住两件事」。
+- **装载面五段替代证据链**（`tests/audit/loading_surface_proof.mjs` + `_loading_surface_judge.mjs`）：
+  S1 disk / S2 syntax / S3 umd-tail / S4 global-eval / S5 ledger，**每段独立可红**、不合成一个布尔。
+  S4 按 `manifest` 顺序在**同一上下文累积装载**（首轮实测：`ledger-entity.js` 是 9 个账本模块的前置契约，
+  单独装载会因正确的 fail-closed 抛错而误报 10 条）。
+- **诚实边界写进读数**：`equivRealhost: false` + `boundary` 原文，判据 F1/F2 钉死「不许把替代证据吹成真机」。
+### 读数
+- 五段全绿：365 个模块｜S1 全在盘非空｜S2 全可编译｜S3 全有包装与出口｜
+  S4 `evaluated=365` / `mounted=449` 个全局名｜S5 对账通过且 `dormantExcluded=11`。
+- 真机读数：`cause=deploy-unsynced`（真宿主目录无 manifest.json ⇒ 先同步部署）。
+### 顺带修正（本轮实勘的真缺陷，不是口径调整）
+- ★ `tests/_consumption_lib.mjs` 的 `HOST_MOUNT_RE` 两处**假阳性**：
+  ① `report.global.state = 'ready'` 里的 `global` 是**属性名**，被当成宿主对象 ⇒ `public-interface.js`
+  的对外面多出 `state` / `reason`，`prod_call_sites` 虚报 **6435**；
+  ② `typeof global._ledgerApis === "function"` 是**比较**，`\s*=` 吃掉第一个等号 ⇒ `engine-evidence-center.js`
+  多出 3 个口子。修法：前置 `(?<![\w$.])` + `=(?![=>])`。修后 `public-interface.js` 6435 转 **2**，
+  `engine-evidence-center.js` 转 **74**。台账/门禁/seam 三处共用同一真源，读数因此同步收敛。
+### 判据
+- `tests/v21_o3_loading_surface_proof.test.mjs` **22 条**（含 6 条负控制 + 1 条当版锚点）：
+  A 结构单源 / B 五段正控 / C 五段负控 / D 措辞单源 / E 成因码四态 / F 诚实边界 / G 段不连坐 / Z 当版锚。
+- 相关门禁全绿：`scan_exit_codes`（70 份三态自述同源）、`scan_fixture_sync`（20 对负控制）、
+  `scan_cross_repo_binding`（在役 505 / 参考基准 505）。全仓 audit 65 绿 / 3 红（三红为已确认存量）。
+
 ## v3.461.0
 **第十八期重大跃升：【灵魂深潜·主观认知失真与物联拟真双计划】。落地全量 18 项认知失真与拟真引擎，并完成设置面板玩家动线精简与文本去黑话重构。**
 ### 认知失真与物联拟真（L18-X1～X18）

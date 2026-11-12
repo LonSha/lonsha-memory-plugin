@@ -84,7 +84,29 @@ assert('onMessageReceived 优先盖章 timeTagFound', idxSrc.includes('extracted
 assert('config 拥有 cacheFriendlyInjection', idxSrc.includes('cacheFriendlyInjection: true'));
 assert('buildVolumeInjection 顶槽锁定绝对静态史记', idxSrc.includes('isCacheFriendly ? [] :'));
 assert('buildInjection 动态渲染阶段周记', idxSrc.includes('[阶段进展·周记]'));
-assert('settings-ui 包含五大前沿支柱设置面板', suiSrc.includes('[TOPOLOGY] 因果追踪') && suiSrc.includes('hippoDiffusionEnabled'));
+/* ★ v3.465.2 修正：原先断言 `suiSrc.includes('[TOPOLOGY] 因果追踪')`。
+ *   那个标题是借来的技术黑话（TOPOLOGY 是图模型术语），`f04ca28`「设置全面去黑话」
+ *   与 `80fb72b` 两刀把它换成了用户能懂的「🔗 故事因果脉络追踪」。
+ *   面板没被删一个字，**五个配置键一个不少**，而判据还在找旧标题 → 自此常红。
+ *   本条要答的问题是「五大支柱在面板上都有开关」，那就直接查开关本身：
+ *   `ck()` 是面板里唯一的复选框原语，五个键必须各有一个 ck，且必须同处一组。 */
+{
+    const PILLARS = ['hippoDiffusionEnabled', 'temporalGraphEnabled', 'entropyReflectionEnabled',
+        'timeTagAnchorEnabled', 'cacheFriendlyInjection'];
+    for (const k of PILLARS) {
+        assert('settings-ui 五大支柱面板有开关：' + k, suiSrc.includes(`ck('${k}'`));
+    }
+    /* 同组性：五个开关必须落在同一个 ls-group 里，不许散落成「各管一段」 */
+    const grpStart = suiSrc.indexOf(`ck('hippoDiffusionEnabled'`);
+    const grpOpen = suiSrc.lastIndexOf('ls-group', grpStart);
+    const grpEnd = suiSrc.indexOf('ls-group-next-marker-never', grpStart) < 0
+        ? suiSrc.indexOf('<div class="ls-group">', grpStart + 1)
+        : -1;
+    const inGroup = suiSrc.slice(grpOpen, grpEnd > 0 ? grpEnd : grpOpen + 2400);
+    for (const k of PILLARS) {
+        assert('五大支柱同处一组：' + k, inGroup.includes(`ck('${k}'`));
+    }
+}
 
 // ===== 3. 行为模拟：时态图谱（Temporal Graph）=====
 {

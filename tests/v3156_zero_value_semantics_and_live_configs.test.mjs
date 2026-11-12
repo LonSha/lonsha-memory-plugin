@@ -457,9 +457,18 @@ test('[7] slider values no longer render as undefined', () => {
     }
 });
 test('[7b] the 0-semantics hints are stated in the UI', () => {
+    /* ★ v3.465.2 修正：这里原先还有一条 `sui.includes('v3.156 起真正生效')`。
+     *   那条串是 v3.156.0 当初为了「证明 0 真的可及」而写进面板的历史标注，
+     *   后来 `c57cfde`「全量精简设置面板文案、消灭技术黑话」把它删了 ——
+     *   删得对：用户不需要知道哪个版本起生效。产品形态变了、**语义一个字没变**，
+     *   而判据还在找那条历史串，于是从那时起一直红着。这是判据滞后于产品，不是产品缺陷。
+     *   本条要答的真正问题是「0 在 UI 上被明说，用户不会把 0 当成坏值」。
+     *   故改为语义断言：0 的两种含义（每楼 / 关闭）必须各自被明说，且不得只靠占位串过。 */
     assert.ok(sui.includes('0=每楼'), 'diary hint states 0 means every floor');
-    assert.ok(sui.includes('v3.156 起真正生效'), 'diary hint marks when 0 became reachable');
     assert.ok(sui.includes('回响池上限（0=关闭）'), 'echo pool label states 0 turns it off');
+    /* 负向：0 不得被写成空/无/禁用之类会让人以为「没设」的措辞（这两处标签都必须带「0=」或「0是」） */
+    const zeroLabels = sui.match(/0=(?:每楼|关闭)/g) || [];
+    assert.ok(zeroLabels.length >= 2, 'at least two 0-semantics labels present, got ' + zeroLabels.length);
 });
 test('[7c] version is synced across the four declaration sites', () => {
     // [v3.157] 当版独占的四处同步断言已交新版接管：改为版本下限断言，

@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.461.0';
+let VERSION = '3.465.2';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1454,6 +1454,22 @@ class WorldProgress {
          *       是**主题表**不是动作表，静音清单要拿它才能把 id 说成人能认的名字。 */
         this.seasonState = null;
         this.topicSeasons = [];
+        /* [v3.464.0 · L21-O4 三向对账] 三个**导出/导入都枚举、构造函数却没建格**的持久化字段。
+         *   现场实测（本版起点，可复算）：`export()` 写了 knowledgeTraces / branchSemanticsRead /
+         *   volumeContinuationRead 三个键，`import()` 也逐个读回来了 —— 但构造函数里一个都没建格。
+         *   于是全新实例上 `worldProg.knowledgeTraces === undefined`，而 readKnowledgeTrace* /
+         *   refreshKnowledgeTraceRead 用的又是 `this.x || (this.x = {...})` 这种**懒建**写法：
+         *   「还没记过」与「记了但读不到」于是同形 —— 正是本仓反复点名的
+         *   「undefined 与真的没有同形」。三处枚举齐了、格没建，属于最隐蔽的一种漏登记：
+         *   存盘不丢、读档也不丢，只有**首轮在内存里读**的那一下读到 undefined。
+         *   ★ 三者都只是**读数缓存**（不是状态本体），故一律初始化成 null 而不是空对象：
+         *     null = 「还没算过」，{} = 「算过、结果是空的」—— 两者必须可分。
+         *     knowledgeTraces 例外，它是**本体**（轨迹条目本身），故按导出侧同款给初值。 */
+        this.knowledgeTraces = { version: 1, traces: [] };
+        this._knowledgeTraceRead = null;
+        this._branchSemanticsRead = null;
+        this._volumeContinuationRead = null;
+        this.branchComparison = null;
     }
 
     // ===== 约定账本 (Promises Ledger) =====

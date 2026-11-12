@@ -39,6 +39,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripComments } from '../_audit_lib.mjs';
+/* ★ [L21-O1 修·口径唯一真源] 消费识别**必须**与台账生成器同源。
+ *   历史事故（2026-11-12 实勘）：本门禁内联的识别规则只认 `window.LonSha*` /
+ *   `globalThis.*Lib`，而台账生成器已扩到 `global.*` / 任意前缀 / `_winModule('X')`；
+ *   两份实现各自演进后：**台账说 0 个零消费，本门禁说 6 个**，双双 exit=1。
+ *   根因不是哪一边算错，而是「同一事实两套口径」——本仓反复治理过的缺陷形态。
+ *   修法：两边都 import `tests/_consumption_lib.mjs`，从此不可能再分叉。 */
+import {
+  extractModuleGlobals, countConsumptionIn, countsAsBusiness, parseRegistryAliases,
+} from '../_consumption_lib.mjs';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = process.env.LONSHA_AUDIT_ROOT || path.resolve(__dir, '../..');
@@ -134,12 +143,15 @@ export function auditModuleConsumption(customRoot = ROOT, opts = {}) {
     }
   }
 
-  function extractModuleGlobals(modFile) {
-    const code = fileCodeMap.get(modFile) || '';
-    const globals = new Set();
-    for (const m of code.matchAll(/window\.(LonSha[A-Za-z0-9_]+)\s*=/g)) globals.add('window.' + m[1]);
-    for (const m of code.matchAll(/globalThis\.([A-Za-z0-9_]+Lib)\s*=/g)) globals.add('globalThis.' + m[1]);
-    return Array.from(globals);
+  /* 注册表登记名映射：有一批模块**不挂载任何全局名**，消费方按注册表登记名取它
+   *   （`optEngines.X || typeof X !== 'undefined' ? X : null` 再 `new Cls()`）。
+   *   不补这层，这类真实接线会被误判成「零业务消费」。 */
+  const registryAliases = parseRegistryAliases(fileCodeMap.get('optional-engine-registry.js') || '');
+
+  /* 全局名提取走共享库（收**源码**，不是文件名）。
+   *   配置与判定见 tests/_consumption_lib.mjs —— 与台账生成器同源。 */
+  function extractModuleGlobalsOf(modFile) {
+    return extractModuleGlobals(fileCodeMap.get(modFile) || '');
   }
 
   const unconsumedUnregistered = [];
@@ -153,31 +165,28 @@ export function auditModuleConsumption(customRoot = ROOT, opts = {}) {
 
   for (const modFile of extraJs) {
     totalChecked++;
-    const baseName = modFile.replace(/\.js$/, '');
-    const modGlobals = extractModuleGlobals(modFile);
-    let prodCallSites = 0;
+    const ownGlobals = extractModuleGlobalsOf(modFile);
+    const alias = registryAliases.get(modFile);
+    const modGlobals = alias && !ownGlobals.includes(alias) ? [...ownGlobals, alias] : ownGlobals;
+    let prodCallSites = 0;          // 业务口径：扣除装载面登记与 docs 探针
+    let prodCallSitesAll = 0;       // 旧口径：含装载面 + docs，仅用于对账读数，不参与判红
     let prodCallSitesFromDocs = 0;
-
+    /* ★ [L21-O1] 判定口径 = **业务消费**（business）。
+     *   为什么要扣：
+     *     · 装载面（optional-engine-registry.js）对模块的 entries 字符串登记
+     *       ⇒ 被 loadAll() 取到 ≠ 被产品使用。旧口径把它算成 1 处消费，
+     *       于是 13 个「装载了但没人用」的模块被**洗白成 active**。
+     *     · docs/ 下的计划探针同理：文档提一句不等于产品在用。
+     *   本门禁与 `tools/gen_module_consumption_ledger.mjs` 用的是同一个
+     *   `countConsumptionIn` + `countsAsBusiness`（见 tests/_consumption_lib.mjs），
+     *   读数天然一致 —— 这正是「两套口径打架」的根治办法。 */
     for (const [pf, code] of fileCodeMap.entries()) {
       if (pf === modFile) continue;
-
-      // 绑定级消费：
-      // 1. 文件级路径绑定：require('./xxx') / import ... from './xxx' / _moduleLib(..., 'xxx.js')
-      const fileRefRegex = new RegExp(`['"\`][./]*${modFile}['"\`]|['"\`][./]*${baseName}['"\`]|_moduleLib\\([^,]+,[\\s]*['"\`]${modFile}['"\`]\\)`, 'g');
-      const fMatches = code.match(fileRefRegex);
-      if (fMatches) {
-        prodCallSites += fMatches.length;
-        if (pf.startsWith('docs/')) prodCallSitesFromDocs += fMatches.length;
-      }
-
-      // 2. 独占命名空间全局符号消费
-      for (const g of modGlobals) {
-        const gRegex = new RegExp(`\\b${g.replace('.', '\\.')}\\b`, 'g');
-        const gMatches = code.match(gRegex);
-        if (gMatches) {
-          prodCallSites += gMatches.length;
-        }
-      }
+      const { count } = countConsumptionIn(code, modFile, modGlobals);
+      if (count <= 0) continue;
+      prodCallSitesAll += count;
+      if (countsAsBusiness(pf)) prodCallSites += count;
+      else if (pf.startsWith('docs/')) prodCallSitesFromDocs += count;
     }
 
     const ledgerEntry = registeredModules[modFile];

@@ -10,6 +10,7 @@
 #   G = 删掉镜像根目录全部 .js；T = 镜像 tests/ 下（除 audit/ 与 _audit_lib.mjs）所有 .mjs 置为「// gutted」；
 #   H = 不改动。每个扫描器从**镜像内**路径执行，且带 LONSHA_AUDIT_ROOT=镜像。
 dead_code_budget.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
+loading_surface_proof.mjs	0	1	0	读根 .js 面（manifest.extra_js 里的 365 个模块逐个找源码，S1 disk / S2 syntax / S3 umd-tail / S4 global-eval 都靠它）；G 档删根 .js ⇒ S1/S2 报 357 条「读不到源码」⇒ exit 1（真缺陷档，不是结构漂移档 —— 因为它不是「没得判」而是「判出了 357 个装不上的模块」）；T 档对它无影响（本探针只读根 .js 与三张台账，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。★ 本行是 v3.465.1 补登记的：该文件生于 v3.463.0（L21-O3），首版**故意不以 `_` 开头**（理由写在它自己头部：下划线在本仓的语义是「要真宿主/真浏览器才能跑」，而它恰恰是「没真机也有读数」的替代证据），于是被 v3226 的「在役扫描器」名单收进来，却一直没登记进本表 —— 那条判据因此从 v3.463.0 起就红着，而红的原因不是产品缺陷，是**新增扫描器漏登记**。三档实测（镜像树 + LONSHA_AUDIT_ROOT）H/G/T = 0/1/0
 scan_audit_lib_consolidation.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）
 scan_break_kit.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）
 scan_bridge_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）

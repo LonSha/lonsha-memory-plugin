@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.461.0';
+    const VERSION = '3.465.2';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11776,17 +11776,52 @@ function _collectNewFace() {
                 ['graphPruner', _graphPrunerLib, 'createInitialPrunerState', '_graphPrunerState', '深度睡眠遗忘与图谱修剪机'],
                 ['tabooDefense', _tabooDefenseLib, 'createInitialDefenseState', '_tabooDefenseState', '创伤禁忌三层渐进心理防线'],
                 ['parallaxIsolation', _parallaxIsolationLib, 'createInitialParallaxState', '_parallaxIsolationState', '主体间认知视差物理隔离墙'],
-                ['resonanceRecallFunnel', _resonanceRecallFunnelLib, 'createInitialFunnelState', '_resonanceRecallFunnelState', '三模态仿生共振检索漏斗'],
+                /* [v3.464.0 · L21-O4 撤登记] 三模态仿生共振检索漏斗（_resonanceRecallFunnelState）
+                 *   原登记：initFn=createInitialFunnelState
+                 *   撤销理由：该模块是**纯函数内核**，导出面里没有任何 create*，
+                 *   每次调用由输入快照现算输出（assimilate / evaluate / modulate 形态），
+                 *   没有需要初始化的累加状态。补一个空 createState 只会让
+                 *   `_moduleStatus[key] = true` 亮起 —— 那是「报了一个不存在的引擎已加载」。 */
                 ['butterflySandbox', _butterflySandboxLib, 'createInitialSandboxState', '_butterflySandboxState', '反事实推演沙盒蝴蝶效应隔离舱'],
-                ['diagnosticsTelemetry', _diagnosticsTelemetryLib, 'createInitialTelemetryState', '_diagnosticsTelemetryState', '全景诊断遥测面板'],
+                /* [v3.464.0 · L21-O4 撤登记] 全景诊断遥测面板（_diagnosticsTelemetryState）
+                 *   原登记：initFn=createInitialTelemetryState
+                 *   撤销理由：该模块是**纯函数内核**，导出面里没有任何 create*，
+                 *   每次调用由输入快照现算输出（assimilate / evaluate / modulate 形态），
+                 *   没有需要初始化的累加状态。补一个空 createState 只会让
+                 *   `_moduleStatus[key] = true` 亮起 —— 那是「报了一个不存在的引擎已加载」。 */
                 ['soulBrandSynthesis', _soulBrandSynthesisLib, 'createInitialSynthesisState', '_soulBrandSynthesisState', '代际灵魂烙印深度合成机'],
-                ['worldaxisAssimilator', _worldaxisAssimilatorLib, 'createInitialAssimilatorState', '_worldaxisAssimilatorState', 'WorldAxis 客观世界快照主观折射摄入中枢'],
-                ['ruminationDream', _ruminationDreamLib, 'createInitialDreamState', '_ruminationDreamState', '闲暇反刍梦境与隐喻编织机'],
+                /* [v3.464.0 · L21-O4 撤登记] WorldAxis 客观世界快照主观折射摄入中枢（_worldaxisAssimilatorState）
+                 *   原登记：initFn=createInitialAssimilatorState
+                 *   撤销理由：该模块是**纯函数内核**，导出面里没有任何 create*，
+                 *   每次调用由输入快照现算输出（assimilate / evaluate / modulate 形态），
+                 *   没有需要初始化的累加状态。补一个空 createState 只会让
+                 *   `_moduleStatus[key] = true` 亮起 —— 那是「报了一个不存在的引擎已加载」。 */
+                /* [v3.464.0 · L21-O4 撤登记] 闲暇反刍梦境与隐喻编织机（_ruminationDreamState）
+                 *   原登记：initFn=createInitialDreamState
+                 *   撤销理由：该模块是**纯函数内核**，导出面里没有任何 create*，
+                 *   每次调用由输入快照现算输出（assimilate / evaluate / modulate 形态），
+                 *   没有需要初始化的累加状态。补一个空 createState 只会让
+                 *   `_moduleStatus[key] = true` 亮起 —— 那是「报了一个不存在的引擎已加载」。 */
                 ['emotionalAnchor', _emotionalAnchorLib, 'createInitialAnchorState', '_emotionalAnchorState', '誓约信物与情感心锚共鸣中枢'],
-                ['somaticFlare', _somaticFlareLib, 'createInitialFlareState', '_somaticFlareState', '植物神经与躯体微表情爆发机'],
+                /* [v3.464.0 · L21-O4 撤登记] 植物神经与躯体微表情爆发机（_somaticFlareState）
+                 *   原登记：initFn=createInitialFlareState
+                 *   撤销理由：该模块是**纯函数内核**，导出面里没有任何 create*，
+                 *   每次调用由输入快照现算输出（assimilate / evaluate / modulate 形态），
+                 *   没有需要初始化的累加状态。补一个空 createState 只会让
+                 *   `_moduleStatus[key] = true` 亮起 —— 那是「报了一个不存在的引擎已加载」。 */
                 ['amnesiaPuzzle', _amnesiaPuzzleLib, 'createInitialPuzzleState', '_amnesiaPuzzleState', '记忆迷雾与心因性解离考古工作台'],
-                ['stylisticDrift', _stylisticDriftLib, 'createInitialDriftState', '_stylisticDriftState', '长期关系演变文风词表动态漂移调制机'],
-                ['gaslightingNeutralizer', _gaslightingNeutralizerLib, 'createInitialNeutralizerState', '_gaslightingNeutralizerState', '不可靠叙事与煤气灯效应真伪中和判定仪'],
+                /* [v3.464.0 · L21-O4 撤登记] 长期关系演变文风词表动态漂移调制机（_stylisticDriftState）
+                 *   原登记：initFn=createInitialDriftState
+                 *   撤销理由：该模块是**纯函数内核**，导出面里没有任何 create*，
+                 *   每次调用由输入快照现算输出（assimilate / evaluate / modulate 形态），
+                 *   没有需要初始化的累加状态。补一个空 createState 只会让
+                 *   `_moduleStatus[key] = true` 亮起 —— 那是「报了一个不存在的引擎已加载」。 */
+                /* [v3.464.0 · L21-O4 撤登记] 不可靠叙事与煤气灯效应真伪中和判定仪（_gaslightingNeutralizerState）
+                 *   原登记：initFn=createInitialNeutralizerState
+                 *   撤销理由：该模块是**纯函数内核**，导出面里没有任何 create*，
+                 *   每次调用由输入快照现算输出（assimilate / evaluate / modulate 形态），
+                 *   没有需要初始化的累加状态。补一个空 createState 只会让
+                 *   `_moduleStatus[key] = true` 亮起 —— 那是「报了一个不存在的引擎已加载」。 */
                 ['exposureRisk', _exposureRiskLib, 'createInitialRiskState', '_exposureRiskState', '隐秘双重身份暴露风险矩阵'],
                 ['burnoutDecay', _burnoutDecayLib, 'createInitialBurnoutState', '_burnoutDecayState', '心理耗竭与抗逆韧性动态衰减机']
             ];

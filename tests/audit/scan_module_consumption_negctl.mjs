@@ -43,6 +43,13 @@ function createTempRepo() {
   fs.copyFileSync(path.join(REPO, 'manifest.json'), path.join(tmp, 'manifest.json'));
   fs.copyFileSync(path.join(REPO, 'index.js'), path.join(tmp, 'index.js'));
   fs.copyFileSync(path.join(REPO, 'tests/audit/module_consumption_ledger.json'), path.join(tmp, 'tests/audit/module_consumption_ledger.json'));
+  /* [L21-O1] 门禁已改为读注册表 entries 拿「消费标识符」（parseRegistryAliases）：
+   *   有一批模块**不挂载任何全局名**，消费点只在注册表登记名上，例如
+   *     index.js:11843 `optEngines.VectorSemanticSparseHybridRetrieval || ...` 再 `new Cls()`。
+   *   夹具缺这一文件 ⇒ 门禁读不到别名 ⇒ 那些模块退化成「零业务消费」
+   *   ⇒ 本负控制的期望读数整体偏移，且夹具结构差异会把 exit 2 混进断言。
+   *   （scan_fixture_sync 的 E2 报的就是这条：夹具缺门禁会读的文件。） */
+  fs.copyFileSync(path.join(REPO, 'optional-engine-registry.js'), path.join(tmp, 'optional-engine-registry.js'));
   return tmp;
 }
 
@@ -137,6 +144,10 @@ try {
     throw new Error(`K4 锚点须恰中 1 次（实 ${hits}）—— 锚点漂移即破坏位置不可复现`);
   }
   fs.copyFileSync(path.join(REPO, 'tests/_audit_lib.mjs'), path.join(tmp4, 'tests/_audit_lib.mjs'));
+  /* [L21-O1] 门禁已改走 `tests/_consumption_lib.mjs`（口径唯一真源），
+   *   夹具必须一并复制它，否则两个探针都因 import 失败而 exit 1，
+   *   N4 的「破坏版应不红」会被误判成「破坏没打到判据」—— 是夹具缺文件，不是判据问题。 */
+  fs.copyFileSync(path.join(REPO, 'tests/_consumption_lib.mjs'), path.join(tmp4, 'tests/_consumption_lib.mjs'));
   fs.writeFileSync(path.join(tmp4, 'tests/audit/scan_orig_probe.mjs'), gateSrc, 'utf8');
   fs.writeFileSync(path.join(tmp4, 'tests/audit/scan_broken_probe.mjs'), gateSrc.replace(N4_ANCHOR, N4_BREAK), 'utf8');
 

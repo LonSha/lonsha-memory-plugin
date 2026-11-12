@@ -88,25 +88,38 @@ try {
 // N2: orphan 对应条目 why 设为空串
 const tmp2 = createTempRepo();
 try {
+  /* ★ [L21-O1 修·夹具去硬编码] 原实现钉死 `modules_combined.js` 当 orphan。
+   *   该模块在 L21-O1 修完识别口径后**已被判为 host-seam**（它有真实宿主消费点
+   *   `new MemoryVisualizer(...)`），不再是 orphan ⇒ 本组负控制静默失效：
+   *   台账条目还在（所以走不到 missing 分支），但 TSV 里它不是 orphan
+   *   ⇒ 门禁根本不进 R2 分支 ⇒ 期望 exit 1 实得 0。
+   *   教训：负控制夹具**不许依赖被测对象的当前读数**，否则判据一变就退化成
+   *   「永远绿的空转」。改为与 N1 一致：**自己造**一个 orphan，并登记成
+   *   allowed:0 但 why 为空 —— 命中的正是 R2 判据本体。 */
   const cons = JSON.parse(fs.readFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), 'utf8'));
-  const firstOrphan = 'modules_combined.js';
-  if (cons.modules[firstOrphan]) {
-    cons.modules[firstOrphan].why = '';
-    fs.writeFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), JSON.stringify(cons), 'utf8');
-
+  const fakeOrphan = 'fake_empty_why_orphan.js';
+  const man2 = JSON.parse(fs.readFileSync(path.join(tmp2, 'manifest.json'), 'utf8'));
+  man2.extra_js.push(fakeOrphan);
+  fs.writeFileSync(path.join(tmp2, 'manifest.json'), JSON.stringify(man2), 'utf8');
+  fs.writeFileSync(path.join(tmp2, fakeOrphan), 'module.exports = {};', 'utf8');
+  fs.appendFileSync(
+    path.join(tmp2, 'tests/audit/extra_js_seam_ledger.tsv'),
+    `${fakeOrphan}\tyes\tno\tnone\torphan\n`,
+    'utf8'
+  );
+  cons.modules[fakeOrphan] = { module: fakeOrphan, allowed: 0, why: '' };
+  fs.writeFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), JSON.stringify(cons), 'utf8');
+  {
     const n2 = spawnSync(process.execPath, [GATE], {
       cwd: tmp2,
       env: { ...process.env, LONSHA_AUDIT_ROOT: tmp2, LONSHA_AUDIT_FIXTURE: '1' },
       encoding: 'utf8',
     });
-
     if (n2.status !== 1) {
       failures.push(`N2 负控制失败：空理由期望 exit 1，实得 ${n2.status}\n${n2.stderr || n2.stdout}`);
     } else if (!n2.stderr.includes('理由为空')) {
       failures.push('N2 负控制失败：输出未包含「理由为空」');
     }
-  } else {
-    failures.push('N2 负控制失败：未在 ledger 找到测试 orphan 条目');
   }
 } finally {
   fs.rmSync(tmp2, { recursive: true, force: true });

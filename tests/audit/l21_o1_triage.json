@@ -1,0 +1,164 @@
+{
+  "schema": "l21-o1-triage@1",
+  "generated_by": "tools/gen_module_consumption_ledger.mjs 的台账读数 + 逐条人工查证（每条附证据）",
+  "note": "本表禁止出现「待后续 / 待定 / TODO / TBD」类占位词：每个模块必须在此有终局判定。   【v3.465.0 补记】declared_dormant 由 11 项增至 12 项：floor-fingerprint-self-healer.js 此前靠「水合表登记」被豁免掩盖，L21-O4 撤掉那条不成立的登记后暴露为真零消费。",
+  "verdicts": {
+    "wired_all_along": {
+      "desc": "产品侧早有真实消费点，旧判据读不到（假阳性）",
+      "modules": {
+        "world-clock-reader.js": {
+          "verdict": "wired_all_along",
+          "evidence": [
+            "memory-core.js:1394 window.LonShaWorldClockReader",
+            "world-clock-reader.js:279 global.LonShaWorldClockReader = Object.freeze(api)"
+          ],
+          "prod_call_sites": 2,
+          "business_call_sites": 2,
+          "why_in_ledger": "active"
+        },
+        "world-ledger-reader.js": {
+          "verdict": "wired_all_along",
+          "evidence": [
+            "memory-core.js:1458 window.LonShaWorldLedgerReader",
+            "world-ledger-reader.js 挂载 global.LonShaWorldLedgerReader"
+          ],
+          "prod_call_sites": 1,
+          "business_call_sites": 1,
+          "why_in_ledger": "active"
+        },
+        "config-effect-registry.js": {
+          "verdict": "wired_all_along",
+          "evidence": [
+            "settings-ui.js 消费 LonShaMemoryConfigEffects"
+          ],
+          "prod_call_sites": 1,
+          "business_call_sites": 1,
+          "why_in_ledger": "active"
+        },
+        "graph_algorithms.js": {
+          "verdict": "wired_all_along",
+          "evidence": [
+            "index.js:11978 typeof GraphDiffusion",
+            "modules_combined.js ×4 引用"
+          ],
+          "prod_call_sites": 8,
+          "business_call_sites": 8,
+          "why_in_ledger": "active"
+        },
+        "modules_combined.js": {
+          "verdict": "wired_all_along",
+          "evidence": [
+            "index.js:11991 new MemoryVisualizer(...)"
+          ],
+          "prod_call_sites": 4,
+          "business_call_sites": 4,
+          "why_in_ledger": "active"
+        },
+        "api-channels.js": {
+          "verdict": "wired_all_along",
+          "evidence": [
+            "index.js:2433 this._winModule('LonShaApiChannels')"
+          ],
+          "prod_call_sites": 1,
+          "business_call_sites": 1,
+          "why_in_ledger": "active"
+        }
+      }
+    },
+    "declared_dormant": {
+      "desc": "L9-O*/L9-X* 规划期产出的纯函数内核：装载面登记但业务侧零消费。判定为**休眠内核**——保留文件与注册表条目（不删代码），但**不计入业务能力**，不得在任何文档里被描述为「已接入/已生效」。",
+      "modules": {
+        "evidence-conflict-adjudication-bench.js": {
+          "verdict": "declared_dormant",
+          "reason": "证据冲突裁定基准器（171 行纯函数）：只被 optional-engine-registry entries 登记，产品侧无任何实例化点；无单测。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "fact-postgen-replay-receipt.js": {
+          "verdict": "declared_dormant",
+          "reason": "事实生成后回放回执（91 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "fact-unified-lifecycle-bench.js": {
+          "verdict": "declared_dormant",
+          "reason": "事实统一生命周期基准（234 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "generation-material-budget-plan.js": {
+          "verdict": "declared_dormant",
+          "reason": "生成素材预算编排（88 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "maintenance-cold-warm-session.js": {
+          "verdict": "declared_dormant",
+          "reason": "冷暖记忆分级维护会话（59 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "meaning-evolution-map.js": {
+          "verdict": "declared_dormant",
+          "reason": "意义演化地图（59 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "memory-action-symbiosis-circuit.js": {
+          "verdict": "declared_dormant",
+          "reason": "记忆-行动共生回路（67 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "memory-task-workbench.js": {
+          "verdict": "declared_dormant",
+          "reason": "记忆任务工作台首层投影（90 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "project-migration-boundary-bench.js": {
+          "verdict": "declared_dormant",
+          "reason": "项目迁移边界基准（56 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "recall-route-feedback-bench.js": {
+          "verdict": "declared_dormant",
+          "reason": "召回路由反馈基准（124 行纯函数）：同上，仅注册表登记。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "unified-narrative-clock-axis.js": {
+          "verdict": "declared_dormant",
+          "reason": "叙事时钟双时间轴统合（188 行纯函数）：同上，仅注册表登记；其文件头自称要治理 dual-time / ancient-story-clock / story-clock-parse，但三者仍在独立使用，本模块未被接入。",
+          "prod_call_sites": 2,
+          "business_call_sites": 0,
+          "why_in_ledger": "load_surface_only"
+        },
+        "floor-fingerprint-self-healer.js": {
+          "verdict": "declared_dormant",
+          "reason": "楼层文本指纹自愈器（computeFingerprint / reanchorEvidence，零依赖纯函数）。【为什么会到这一步，如实记】它此前一直被当成「已接线的持久化模块」——因为 engine-persistence-ops.js 的 v21Engines 水合表里登记着它，而 scan_module_wiring 的「已挂载但零消费」审计对水合表登记项直接 continue 豁免。L21-O4 撤销那条**不成立**的登记（表里写的 hydrateFloorFingerprintState 在该模块导出面上根本不存在）之后，豁免消失，真实状态才暴露：全仓无任何调用点、无等价实现，也没有自然落点（本仓编辑/回滚路径走 factVersions 与 repairLog）。按本仓纪律不设假消费点（`do not add a consumer solely to satisfy the audit`），故定性为休眠内核：保留文件与注册表条目，不计入业务能力。",
+          "prod_call_sites": 0,
+          "business_call_sites": 0,
+          "why_in_ledger": "zero_consumption",
+          "evidence": [
+            "floor-fingerprint-self-healer.js 能力面：computeFingerprint / reanchorEvidence（零依赖）",
+            "grep -rn \"floorFingerprint|reanchorEvidence|computeFingerprint\" --include=*.js . → 仅本文件自身",
+            "engine-persistence-ops.js 的 v21Engines 原登记项已于 v3.464.0（L21-O4）撤销并留标注",
+            "scan_module_wiring.mjs 的 UNCONSUMED_LEDGER 已如实登记该全局名并写明理由"
+          ]
+        }
+      }
+    }
+  }
+}

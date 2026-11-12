@@ -1,8 +1,18 @@
 {
   "schema": "realhost-readings@1",
-  "generatedAt": "2026-11-09T10:41:08.357Z",
-  "version": "3.461.0",
+  "generatedAt": "2026-11-12T07:09:37.336Z",
+  "version": "3.465.2",
   "verdict": "environment-unavailable",
+  "cause": "no-st-endpoint",
+  "causeGroup": "env",
+  "causeAction": "起 SillyTavern（默认 http://127.0.0.1:8123/），或设 LONSHA_ST_URL",
+  "causeWhy": "ST 根路径返回 0（0 = 连接被拒）",
+  "env": {
+    "binPresent": true,
+    "stStatus": 0,
+    "stUrl": "http://127.0.0.1:1/"
+  },
   "reason": "ST 未就绪（http://127.0.0.1:1/ ⇒ 0）—— 先起 SillyTavern",
+  "note": "本读数是「跑不了」的成因记录，不是真机通过；真机结论只能由真机给。 装载面替代证明见 tests/audit/loading_surface_proof.json。",
   "source": "tests/audit/_realhost_suite.mjs bail"
 }

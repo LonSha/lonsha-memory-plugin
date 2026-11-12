@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.461.0",
+  "version": "3.465.2",
   "version_sources": {
-    "manifest": "3.461.0",
-    "package": "3.461.0",
-    "index_const": "3.461.0"
+    "manifest": "3.465.2",
+    "package": "3.465.2",
+    "index_const": "3.465.2"
   },
   "version_same": true,
-  "human_index_version": "3.461.0",
+  "human_index_version": "3.465.2",
   "triple_consistent": true,
   "loading": {
     "extra_js": 365,
@@ -383,7 +383,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 502,
+    "test_files": 509,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -426,6 +426,13 @@
       "supersede.test.mjs",
       "v20_optional_engine_assembly.test.mjs",
       "v20_optional_engine_registry.test.mjs",
+      "v21_o1_zero_consumption_triage.test.mjs",
+      "v21_o2_ledger_coverage.test.mjs",
+      "v21_o3_loading_surface_proof.test.mjs",
+      "v21_o4_persistence_enrollment.test.mjs",
+      "v21_o4b_volatile_container_chain.test.mjs",
+      "v21_o4c_umd_reload_idempotent.test.mjs",
+      "v21_o9_lib_handle_truth.test.mjs",
       "v3100_canonical_stringify.test.mjs",
       "v3101_loose_json.test.mjs",
       "v3102_model_response.test.mjs",
@@ -889,8 +896,8 @@
       "v39_shift_floors.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 72,
-    "audit_probes": 8,
+    "audit_gated": 73,
+    "audit_probes": 13,
     "tiers": {
       "schema": "gate-tiers@1",
       "tiers": [
@@ -928,7 +935,7 @@
     "tests_total": 430,
     "assertions": 4658,
     "audit": "68/68",
-    "reason": "登记版本 3.431.0 ≠ 当前 3.461.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.431.0 ≠ 当前 3.465.2 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -947,19 +954,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "88b4908d32c3",
-      "package.json": "2c5e74cbc635",
-      "index.js": "d03f7dd4a8de",
+      "manifest.json": "28038d139016",
+      "package.json": "a2b4248ae5a6",
+      "index.js": "2248b786b6e7",
       "update-log.json": null,
-      "README.md": "77bb58c830af",
-      "PLAN.md": "5192ddf6349b",
-      "CHANGELOG.md": "3c388ff6a62c",
-      "TODO.md": "910b5cc8b26d",
+      "README.md": "b10a6f1f0cf8",
+      "PLAN.md": "904c27adaa86",
+      "CHANGELOG.md": "652b02e39628",
+      "TODO.md": "c593e2193a5e",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.461.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.465.2"
   ],
   "unknown_count": 1
 }

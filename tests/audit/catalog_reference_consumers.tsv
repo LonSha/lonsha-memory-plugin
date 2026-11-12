@@ -507,3 +507,10 @@ v3450_l14_o4_recall_disambiguate.test.mjs
 v3459_settings_ui_simplify.test.mjs
 v3461_r18_wiring_truth.test.mjs		v3.461.0 当版 frontier：R18 接线真实度（水合表同源 / 状态位三态 / 接线扫描器与版本守卫双绿）
 v3459_gates_green.test.mjs
+v21_o1_zero_consumption_triage.test.mjs		v3.462.0 当版新增：第二十一期 L21-O1 零消费逐条定性判据（11 条含 3 负控制）
+v21_o2_ledger_coverage.test.mjs		v3.462.0 当版新增：第二十一期 L21-O2 台账覆盖判据（9 条含 4 负控制）
+v21_o3_loading_surface_proof.test.mjs		v3.463.0 当版新增：第二十一期 L21-O3 装载面五段替代证据链判据（21 条含 6 负控制）
+v21_o4_persistence_enrollment.test.mjs		v3.464.0 当版新增：第二十一期 L21-O4 持久化字段三向对账判据（18 条含 4 负控制 + 豁免双向）
+v21_o9_lib_handle_truth.test.mjs		v3.465.0 当版新增：第二十一期 L21-O9 取库口声明↔真码对账判据（14 条含 2 计划负控制 + 豁免双向）
+v21_o4b_volatile_container_chain.test.mjs		v3.465.1 当版新增：第二十一期 L21-O4b 易失容器三段链判据（18 条含 4 负控制；写入侧摊平 / 还原 / 读取三段端到端）
+v21_o4c_umd_reload_idempotent.test.mjs		v3.465.2 当版新增：第二十一期 L21-O4c UMD 重载幂等判据（17 条含 3 负控制；36 个 R18 内核类体搬进 factory）

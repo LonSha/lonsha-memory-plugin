@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.461.0",
+  "measured_at": "v3.465.2",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3344,6 +3344,78 @@
         "top5_pct": -0.1,
         "top40_pct": 0.5
       }
+    },
+    "v3.465.1": {
+      "reason": "[v3.465.1] 第二十一期收账轮两版真实产品改动落在入口：① L21-O4 持久化字段登记判据——v21Initializers 初始化表 18→11 项（11 项补宿主登记名别名、7 项撤掉不成立的登记并留标注），并在模块侧按各自状态形状补齐 hydrateState 归一化面；② L21-O9 取库口声明↔真码对账——产品侧无行为改动，交付在判定体与判据（171 个取库口全量对账）；③ 四源版本号抬升（index.js 内 const VERSION）。入口 index.js 13069 → 0 行（+0），成员 1342 → 1342，全部真实计入读数。",
+      "readings": {
+        "total_lines": 13069,
+        "surface_lines": 35820,
+        "member_count": 1342,
+        "duplicate_member_names": 161,
+        "top5_lines": 6708,
+        "top5_pct": 18.7,
+        "top40_lines": 15067,
+        "top40_pct": 42.1,
+        "prefix_rule_coverage_lines": 5570,
+        "prefix_rule_coverage_pct": 15.5,
+        "unclassified_lines": 29251,
+        "seam_distinct_modules": 222,
+        "seam_reference_sites": 577,
+        "seam_call_shape_sites": 759,
+        "members_over_80_lines": 64,
+        "low_coupling_members": 19,
+        "high_coupling_members": 23
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版做持久化登记判据与取库口对账，未拆任何宿主巨兽成员",
+      "delta_from": "v3.465.1(同版重绑)",
+      "delta": {
+        "total_lines": 0,
+        "surface_lines": 0,
+        "member_count": 0,
+        "top40_lines": 0,
+        "top5_pct": 0.0,
+        "top40_pct": 0.0
+      }
+    },
+    "v3.465.2": {
+      "reason": "[v3.465.1] 第二十一期收账轮两版真实产品改动落在入口：① L21-O4 持久化字段登记判据——v21Initializers 初始化表 18→11 项（11 项补宿主登记名别名、7 项撤掉不成立的登记并留标注），并在模块侧按各自状态形状补齐 hydrateState 归一化面；② L21-O9 取库口声明↔真码对账——产品侧无行为改动，交付在判定体与判据（171 个取库口全量对账）；③ 四源版本号抬升（index.js 内 const VERSION）。入口 index.js 13069 → 0 行（+0），成员 1342 → 1342，全部真实计入读数。",
+      "readings": {
+        "total_lines": 13069,
+        "surface_lines": 35820,
+        "member_count": 1342,
+        "duplicate_member_names": 161,
+        "top5_lines": 6708,
+        "top5_pct": 18.7,
+        "top40_lines": 15067,
+        "top40_pct": 42.1,
+        "prefix_rule_coverage_lines": 5570,
+        "prefix_rule_coverage_pct": 15.5,
+        "unclassified_lines": 29251,
+        "seam_distinct_modules": 222,
+        "seam_reference_sites": 577,
+        "seam_call_shape_sites": 759,
+        "members_over_80_lines": 64,
+        "low_coupling_members": 19,
+        "high_coupling_members": 23
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版做持久化登记判据与取库口对账，未拆任何宿主巨兽成员",
+      "delta_from": "v3.465.2(同版重绑)",
+      "delta": {
+        "total_lines": 0,
+        "surface_lines": 0,
+        "member_count": 0,
+        "top40_lines": 0,
+        "top5_pct": 0.0,
+        "top40_pct": 0.0
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3357,17 +3429,17 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13034,
-    "surface_lines": 35625,
+    "total_lines": 13069,
+    "surface_lines": 35820,
     "member_count": 1342,
     "duplicate_member_names": 161,
     "top5_lines": 6708,
-    "top5_pct": 18.8,
-    "top40_lines": 14872,
-    "top40_pct": 41.7,
+    "top5_pct": 18.7,
+    "top40_lines": 15067,
+    "top40_pct": 42.1,
     "prefix_rule_coverage_lines": 5570,
-    "prefix_rule_coverage_pct": 15.6,
-    "unclassified_lines": 29056,
+    "prefix_rule_coverage_pct": 15.5,
+    "unclassified_lines": 29251,
     "seam_distinct_modules": 222,
     "seam_reference_sites": 577,
     "seam_call_shape_sites": 759,
@@ -3379,18 +3451,18 @@
     {
       "domain": "（未归类）",
       "members": 1268,
-      "lines": 29056,
-      "lines_pct": 81.6,
-      "outside_refs": 27069,
-      "internal_refs": 10217,
-      "outside_ref_share_pct": 72.6
+      "lines": 29251,
+      "lines_pct": 81.7,
+      "outside_refs": 27248,
+      "internal_refs": 10206,
+      "outside_ref_share_pct": 72.8
     },
     {
       "domain": "诊断与导出",
       "members": 21,
       "lines": 2051,
-      "lines_pct": 5.8,
-      "outside_refs": 2350,
+      "lines_pct": 5.7,
+      "outside_refs": 2361,
       "internal_refs": 4,
       "outside_ref_share_pct": 99.8
     },
@@ -3510,7 +3582,7 @@
     {
       "name": "restoreFromPayload",
       "file": "engine-persistence-ops.js",
-      "lines": 591,
+      "lines": 664,
       "outside_refs": 44
     },
     {
@@ -3540,7 +3612,7 @@
     {
       "name": "loadModules",
       "file": "index.js",
-      "lines": 427,
+      "lines": 462,
       "outside_refs": 1
     },
     {
@@ -3554,6 +3626,12 @@
       "file": "index.js",
       "lines": 379,
       "outside_refs": 1
+    },
+    {
+      "name": "collectExport",
+      "file": "engine-persistence-ops.js",
+      "lines": 307,
+      "outside_refs": 54
     },
     {
       "name": "onMessageReceived",
@@ -3572,12 +3650,6 @@
       "file": "index.js",
       "lines": 252,
       "outside_refs": 9
-    },
-    {
-      "name": "collectExport",
-      "file": "engine-persistence-ops.js",
-      "lines": 220,
-      "outside_refs": 53
     },
     {
       "name": "rollbackFloor",
@@ -3748,7 +3820,7 @@
       {
         "name": "loadModules",
         "file": "index.js",
-        "lines": 427,
+        "lines": 462,
         "outside_refs": 1,
         "is_host_lifecycle": false
       },
@@ -3834,7 +3906,7 @@
       {
         "name": "restoreFromPayload",
         "file": "engine-persistence-ops.js",
-        "lines": 591,
+        "lines": 664,
         "outside_refs": 44,
         "is_host_lifecycle": false
       },
@@ -3853,6 +3925,13 @@
         "is_host_lifecycle": false
       },
       {
+        "name": "collectExport",
+        "file": "engine-persistence-ops.js",
+        "lines": 307,
+        "outside_refs": 54,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "_worldlineState",
         "file": "engine-diagnostic-lines.js",
         "lines": 263,
@@ -3864,13 +3943,6 @@
         "file": "index.js",
         "lines": 252,
         "outside_refs": 9,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "collectExport",
-        "file": "engine-persistence-ops.js",
-        "lines": 220,
-        "outside_refs": 53,
         "is_host_lifecycle": false
       },
       {
@@ -3940,7 +4012,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 13112,
     "maxSlack": 400,
-    "note": "[v3.461.0] 入口 index.js 13034 行、成员数 1342；行上界**不抬，仍为 13112**（余量 78 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35625 行，TOP5 占 18.8%，TOP40 占 41.7%。",
+    "note": "[v3.465.2] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35820 行，TOP5 占 18.7%，TOP40 占 42.1%。",
     "history": [
       {
         "ceiling": 15000,
@@ -4356,13 +4428,49 @@
         "member_ceiling": 1366,
         "milestone_version": "v3.461.0",
         "reason": "[v3.461.0] 入口 index.js 13034 行、成员数 1342；行上界**不抬，仍为 13112**（余量 78 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35625 行，TOP5 占 18.8%，TOP40 占 41.7%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.465.1",
+        "reason": "[v3.465.1] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35753 行，TOP5 占 18.8%，TOP40 占 42.0%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.465.1",
+        "reason": "[v3.465.1] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35753 行，TOP5 占 18.8%，TOP40 占 42.0%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.465.1",
+        "reason": "[v3.465.1] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35820 行，TOP5 占 18.7%，TOP40 占 42.1%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.465.1",
+        "reason": "[v3.465.1] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35820 行，TOP5 占 18.7%，TOP40 占 42.1%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.465.2",
+        "reason": "[v3.465.1] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35820 行，TOP5 占 18.7%，TOP40 占 42.1%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.465.2",
+        "reason": "[v3.465.2] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35820 行，TOP5 占 18.7%，TOP40 占 42.1%。"
       }
     ],
     "member_ceiling": 1366,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13034,
+  "total_lines": 13069,
   "member_count": 1342,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096

@@ -320,6 +320,23 @@ const UNCONSUMED_LEDGER = [
     //   entity-semantic / extraction-cadence / floor-range / npc-ties / turn-reconciler）。
     //   v3.173 把 7 个全部接上真实消费点，故账本清空 —— 从此本判据变成**零容忍**：
     //   任何新挂载却无人消费的模块立即报 B4，不再有「先记账再慢慢接」的缓冲。
+    //
+    /* [v3.464.0 · L21-O4] 重新建账 1 项，并写明为什么这次必须记账而不是接线。
+     * `LonShaFloorFingerprintSelfHealer`（floor-fingerprint-self-healer.js，
+     *   computeFingerprint / reanchorEvidence）。
+     * 它是怎么暴露的：本版撤掉了它那条**错误的水合登记**（该模块无 createState、无累加状态，
+     *   宿主 `_floorFingerprintState` 全仓零赋值点）。撤掉之后它失去「水合表登记」这条豁免，
+     *   B4 立刻报「已挂载但零消费」—— 也就是说：**它此前一直被水合登记掩盖着**，
+     *   登记本身从来没让任何人真的调用它。
+     * 为什么不趁这次接上：接线需要有**真实宿主时机**。它的语义是「楼层文本被编辑/回档后
+     *   重新锚定证据」，而本仓当前的编辑/回档路径（importSupersede / 快照环回滚）里
+     *   证据锚点走的是 `factVersions` 与 `repairLog`，没有一处能自然落到它头上。
+     *   硬塞一个调用点就是 `config-effect-registry.js` 明令禁止的
+     *   `do not add a consumer solely to satisfy the audit` —— 那会让本审计从
+     *   「防静默腐烂」退化成「防不绿」，是假绿的另一张脸。
+     * 故：如实记账（这条记录本身说明「已挂载、零消费、缺时机」），
+     *   待真有编辑/回档锚点需求时再接，届时删掉本条即可（本条只是计数凭据，不是永久豁免）。 */
+    'LonShaFloorFingerprintSelfHealer',
 ];
 // [v3.173] 清空必须是有凭据的清空：下列 7 个模块是**本版声明已接线**的，必须逐个确认
 //   index.js 里真有对它全局符号的引用。否则「删掉引用 + 删掉账本记录」也能让 B4 全绿 ——

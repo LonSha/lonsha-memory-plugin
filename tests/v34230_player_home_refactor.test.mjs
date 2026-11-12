@@ -84,9 +84,32 @@ test('v34230 C. 组标题全面玩家语言', () => {
     const noHan = titles.filter((t) => !/[\u4e00-\u9fa5]/.test(t));
     assert.deepStrictEqual(noHan, [], '静态组标题必须含中文白话（实测黑话残留：' + JSON.stringify(noHan) + '）');
     // ③ 四个 tab 覆盖玩家三件事 + 高级面
-    const tabs = [...SUI.matchAll(/data-tab="([a-z]+)">([^<]+)</g)].map((m) => m[2].trim());
-    assert.deepStrictEqual(tabs.map((t) => t.split(' ').pop()), ['开始使用', '人物与故事', '进阶设置', '高级实验室'],
-        '四个 tab 玩家语言（实测 ' + JSON.stringify(tabs) + '）');
+    /* ★ v3.465.2 修正：这条原本把四个 tab 文案**逐字**写死成
+     *   ['开始使用','人物与故事','进阶设置','高级实验室']，与本条自述的
+     *   「交棒不弱化，改锚到实质、不硬锁当版文案」直接矛盾 ——
+     *   于是 `9a6e158` 把「进阶设置」换成更贴玩家的「备份与调校」时，它又红了。
+     *   那次改名是对的（玩家要知道这一页是干嘛，不是「进阶」两个字），
+     *   所以修的是判据，不是产品。按③自己的原话实现：
+     *   四个 tab 必须各自覆盖「上手」「人物与故事」「存档与调校」「高级」四个面，
+     *   **面必须在，措辞不锁**；另加：必须恰好四个、不许黑话回流。 */
+    const tabRows = [...SUI.matchAll(/data-tab="([a-z]+)">([^<]+)</g)].map((m) => ({ key: m[1], label: m[2].trim() }));
+    assert.strictEqual(tabRows.length, 4, '必须恰好四个 tab（实测 ' + JSON.stringify(tabRows.map(r => r.label)) + '）');
+    assert.deepStrictEqual(tabRows.map(r => r.key), ['general', 'narrative', 'retrieval', 'advanced'],
+        '四个 tab 的 data-tab 键序固定（键是结构契约，不随文案改）');
+    /* 每个 tab 各有自己的语义面：按 key 绑面，不按文案绑 */
+    const FACE = {
+        general: /开始|上手|基础|快速/,
+        narrative: /人物|角色|故事/,
+        retrieval: /备份|调校|设置|存档|迁移/,
+        advanced: /高级|实验|进阶/,
+    };
+    for (const r of tabRows) {
+        assert.ok(FACE[r.key].test(r.label),
+            'tab ' + r.key + ' 必须覆盖它的语义面（' + FACE[r.key].source + '），实测 ' + r.label);
+        /* 去黑话：不允许纯英文/方括号技术名回流到 tab 上 */
+        assert.ok(!/^[\[A-Za-z0-9 _\-\]]+$/.test(r.label), 'tab 不得是纯英文/方括号黑话：' + r.label);
+        assert.ok(/[\u4e00-\u9fa5]/.test(r.label), 'tab 必须含中文：' + r.label);
+    }
     assert.ok(SUI.includes("'⚙ 设置'"), '设置面板标题翻新');
     assert.ok(SUI.includes("'📖 记忆总览'"), '总览面板标题翻新');
 });

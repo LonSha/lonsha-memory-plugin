@@ -153,10 +153,19 @@ test('【3】词典随存档持久化（collectExport/restore 对称 + 契约登
     // collectExport 在契约清单之后且含 lexicon 导出
     const ce = src.indexOf('collectExport() {');
     assert.ok(ce > keysDecl, 'collectExport 在契约声明之后');
-    assert.ok(src.slice(ce, ce + 6000).includes('lexicon: this.lexicon.export(),'), 'collectExport 导出 lexicon');
-    // restore 分派
+    /* [v3.465.1 · 判据窗口从「6000 字符」改成「到下一个顶层方法为止」]
+     * 原判据用 `src.slice(ce, ce + 6000)` 当 collectExport 的函数体窗口。这个数是个
+     * 与实现无关的魔数：v3.465.1 在 collectExport 之前插了写入侧摊平的注释与函数，
+     * 函数体本身没动一个字，`lexicon: this.lexicon.export(),` 却整体被挤出窗口 ——
+     * 判据假红，而「collectExport 必须导出 lexicon」这条实质没变。
+     * 改判**自然边界**：collectExport 的体必然整体落在它自己与 restoreFromPayload 之间，
+     * 这两个顶层方法是源码里既定的先后关系（rf > ce 单独断言）。不再依赖任何字符数，
+     * 以后往 collectExport 里加多少行都不会再假红。 */
     const rf = src.indexOf('restoreFromPayload(data) {');
     assert.ok(rf > 0, 'restoreFromPayload 存在');
+    assert.ok(rf > ce, 'restoreFromPayload 在 collectExport 之后（窗口的自然右界）');
+    assert.ok(src.slice(ce, rf).includes('lexicon: this.lexicon.export(),'), 'collectExport 导出 lexicon');
+    // restore 分派
     const lexImp = src.indexOf("_imp('lexicon'", rf);
     assert.ok(lexImp > rf, "restore 分派 _imp('lexicon')");
     // 契约清单内的 'lexicon' 必须是独立一行（不被前缀串味）
