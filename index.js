@@ -1241,6 +1241,9 @@
         /* ── PlotTimeline ── */
         searchNear() { return []; }
         _norm() { return ''; }
+        /* [v2026.11 审计修] 真实现新增近重复合并助手——退路与真实现必须同形（v3261 A 组判据） */
+        static _normText(t) { return ''; }
+        static _bigramJaccard(a, b) { return 0; }
         getChangesSince() { return []; }
         /* ── BM25 ── */
         _tokenize() { return []; }
@@ -4671,6 +4674,15 @@ function relativeTimeLabel(eventTime, nowTime) {
                 .replace(/\{\{.*?\}\}/g, '')          // {{宏}}
                 .trim();
         }
+        // [v2026.11 审计修] 思维链剥离对外出口：补提取/批量补齐等旁路此前只调 cleanMessageText
+        //   （只剥标签壳，<think> 块内容原样进入 LLM 提取输入），设定 echo 与思维链草稿
+        //   随摘要入库。主链路（onMessageReceived）一直先 extractThinkingChain 再清洗，
+        //   本方法把同一语义暴露给旁路调用方，避免每条旁路各抄一份剥离逻辑。
+        stripThinkingText(text) {
+            const raw = String(text || '');
+            try { return extractThinkingChain(raw).content || ''; }
+            catch (e) { errLog(e, 'stripThinkingText'); return raw; }
+        }
         
         async onBeforeGeneration(context) { // preserveRuntime: true 生成路径只读加载
             if (!this.config.config.enabled) return '';
@@ -5616,7 +5628,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                         try {
                             // 复用主管线消息对象构造（与 onMessageReceived 相同语义）
                             const msg = { ...m, index: idx };
-                            msg.mes = this.cleanMessageText(msg.mes || '');
+                            // [v2026.11 审计修] 与主链路同语义：先剥思维链再剥标签壳。
+                            //   修前只 cleanMessageText——<think> 块内容原样进 LLM 提取，
+                            //   思维链草稿与设定 echo 随补提取摘要入库。
+                            const _tcBF = extractThinkingChain(msg.mes || '');
+                            msg.mes = this.cleanMessageText(_tcBF.content || '');
                             if (!msg.mes) { done.skipped++; continue; }
                             const extracted = await this.extractMemoryWithLLM(msg);
                             // [v3.141] CP-L4: 租约失效（用户已切换聊天）则中止整轮，且不得落盘——

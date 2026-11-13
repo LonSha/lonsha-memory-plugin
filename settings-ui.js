@@ -2707,7 +2707,13 @@
                         compBtn.disabled = true; compBtn.textContent = '⏳ 补齐中…';
                         try {
                             const chat = window.SillyTavern?.getContext?.()?.chat || [];
-                            const r = await s.summary.completeMissingFloors(s.config.config, s.llm, (f) => String(chat?.[f]?.mes || ''), 5);
+                            // [v2026.11 审计修] chatLookup 原样回传 m.mes ⇒ 思维链整段喂给补齐 LLM，
+                            //   设定 echo（题材确认/文风指令）随摘要入库。先剥推理块再交（与主链路同语义）。
+                            const _stripThink = (raw) => {
+                                try { if (typeof s.stripThinkingText === 'function') return s.stripThinkingText(raw); } catch (e) { reportUiError(e, 'nonfatal'); }
+                                return String(raw || '');
+                            };
+                            const r = await s.summary.completeMissingFloors(s.config.config, s.llm, (f) => _stripThink(String(chat?.[f]?.mes || '')), 5);
                             if (r?.skipped) { toast('⚠️ 上一批仍在进行中'); }
                             else {
                                 toast('✅ 已补齐 ' + (r.done || 0) + ' 楼' + (r.missing ? '（还剩 ' + r.missing + ' 楼）' : ''));

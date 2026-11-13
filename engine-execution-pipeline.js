@@ -328,6 +328,15 @@
 
                 // [v1.8] P0: 写入剧情时间线
                 if (this.config.config.plotTimeline && extracted?.summary) {
+                    /* [v2026.11 审计修] 设定层 echo 守门：题材确认/文风指令/尺度边界声明是
+                     *   作者↔模型的元信息，不是剧情事实——不进时间线（时间线只记摄像头拍得到的
+                     *   事）。prompt 规则0（记忆整理员侧）挡在源头，此处为入库前兜底。
+                     *   命中特征词即跳过（跳过有 opLog 留痕，不静默）。 */
+                    const _metaEcho = /(故事题材|叙事题材|写作风格|语言风格|文风|叙事格式|创作方向|内容边界|尺度设定|nsfw\s*边界|题材确认|风格确认|确认.{0,6}题材|严禁古风|保持现代)/i;
+                    if (_metaEcho.test(extracted.summary)) {
+                        this.opLog?.log?.('timeline', 'skip-meta-echo', `tl_${message.index || 0}`, message.index || 0, String(extracted.summary).slice(0, 40));
+                        if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [审计修] 设定层 echo 不进时间线 (楼层 ${message.index})`);
+                    } else {
                     let sd = this.extractStoryDate(message.mes || '', extracted.story_date);
                     // [v3.72] B: 正文时间标签的 end 优先为剧情日期（正文事实优先于 LLM 猜测）
                     try {
@@ -361,6 +370,7 @@
                     } else if (sd) {
                         this._lastStoryDate = sd;
                     }
+                    } /* [v2026.11 审计修] else(设定层守门) 闭合 */
                 }
 
                 // [v3.48] P1: 大纲轮次推进（每个 AI 楼层处理完 → 当前 turn 记入简史并推进指针）

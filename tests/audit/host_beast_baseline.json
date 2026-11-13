@@ -440,7 +440,7 @@
         "top40_lines": 9406,
         "top40_pct": 55.4,
         "prefix_rule_coverage_lines": 4410,
-        "prefix_rule_coverage_pct": 26.0,
+        "prefix_rule_coverage_pct": 26,
         "unclassified_lines": 11700,
         "seam_distinct_modules": 42,
         "seam_reference_sites": 54,
@@ -471,7 +471,7 @@
         "top40_lines": 9515,
         "top40_pct": 55.7,
         "prefix_rule_coverage_lines": 4436,
-        "prefix_rule_coverage_pct": 26.0,
+        "prefix_rule_coverage_pct": 26,
         "unclassified_lines": 11788,
         "seam_distinct_modules": 44,
         "seam_reference_sites": 56,
@@ -489,7 +489,7 @@
       "delta": {
         "total_lines": 5,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.264.0": {
@@ -520,7 +520,7 @@
       "delta": {
         "total_lines": 20,
         "member_count": 19,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.266.0": {
@@ -551,7 +551,7 @@
       "delta": {
         "total_lines": 1,
         "member_count": 1,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.267.0": {
@@ -582,7 +582,7 @@
       "delta": {
         "total_lines": -440,
         "member_count": 0,
-        "top5_pct": 1.0
+        "top5_pct": 1
       }
     },
     "v3.273.0": {
@@ -613,7 +613,7 @@
       "delta": {
         "total_lines": 135,
         "member_count": 2,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.274.0": {
@@ -706,7 +706,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.277.0": {
@@ -768,7 +768,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.279.0": {
@@ -799,7 +799,7 @@
       "delta": {
         "total_lines": -5,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.280.0": {
@@ -830,7 +830,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.281.0": {
@@ -861,7 +861,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.282.0": {
@@ -892,7 +892,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.283.0": {
@@ -923,7 +923,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.284.0": {
@@ -954,7 +954,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.291.0": {
@@ -1031,7 +1031,7 @@
         "top40_lines": 9881,
         "top40_pct": 64.5,
         "prefix_rule_coverage_lines": 4911,
-        "prefix_rule_coverage_pct": 32.0,
+        "prefix_rule_coverage_pct": 32,
         "unclassified_lines": 9550,
         "seam_distinct_modules": 52,
         "seam_reference_sites": 64,
@@ -1049,7 +1049,7 @@
       "delta": {
         "total_lines": 3,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.297.0": {
@@ -1113,7 +1113,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.299.0": {
@@ -1145,7 +1145,7 @@
       "delta": {
         "total_lines": 42,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.301.0": {
@@ -1209,7 +1209,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.303.0": {
@@ -1241,7 +1241,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.304.0": {
@@ -1273,7 +1273,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.305.0": {
@@ -1315,7 +1315,7 @@
         "member_count": 586,
         "duplicate_member_names": 25,
         "top5_lines": 4610,
-        "top5_pct": 29.0,
+        "top5_pct": 29,
         "top40_lines": 10011,
         "top40_pct": 62.9,
         "prefix_rule_coverage_lines": 4972,
@@ -1349,7 +1349,7 @@
         "top5_lines": 4610,
         "top5_pct": 28.9,
         "top40_lines": 10044,
-        "top40_pct": 63.0,
+        "top40_pct": 63,
         "prefix_rule_coverage_lines": 5005,
         "prefix_rule_coverage_pct": 31.4,
         "unclassified_lines": 9979,
@@ -1381,7 +1381,7 @@
         "top5_lines": 4610,
         "top5_pct": 28.9,
         "top40_lines": 10044,
-        "top40_pct": 63.0,
+        "top40_pct": 63,
         "prefix_rule_coverage_lines": 5005,
         "prefix_rule_coverage_pct": 31.4,
         "unclassified_lines": 9979,
@@ -1401,7 +1401,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.309.0": {
@@ -1413,7 +1413,7 @@
         "top5_lines": 4656,
         "top5_pct": 29.1,
         "top40_lines": 10090,
-        "top40_pct": 63.0,
+        "top40_pct": 63,
         "prefix_rule_coverage_lines": 5051,
         "prefix_rule_coverage_pct": 31.5,
         "unclassified_lines": 9988,
@@ -1465,7 +1465,7 @@
       "delta": {
         "total_lines": 696,
         "member_count": 24,
-        "top5_pct": -1.0
+        "top5_pct": -1
       }
     },
     "v3.313.0": {
@@ -1475,7 +1475,7 @@
         "member_count": 617,
         "duplicate_member_names": 25,
         "top5_lines": 4714,
-        "top5_pct": 28.0,
+        "top5_pct": 28,
         "top40_lines": 10258,
         "top40_pct": 60.8,
         "prefix_rule_coverage_lines": 5109,
@@ -1657,7 +1657,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.319.0": {
@@ -1689,7 +1689,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.322.0": {
@@ -1735,7 +1735,7 @@
         "top40_lines": 10596,
         "top40_pct": 58.1,
         "prefix_rule_coverage_lines": 5288,
-        "prefix_rule_coverage_pct": 29.0,
+        "prefix_rule_coverage_pct": 29,
         "unclassified_lines": 11973,
         "seam_distinct_modules": 68,
         "seam_reference_sites": 94,
@@ -1785,7 +1785,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.326.0": {
@@ -1849,7 +1849,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.328.0": {
@@ -1923,7 +1923,7 @@
         "member_count": 728,
         "duplicate_member_names": 25,
         "top5_lines": 4998,
-        "top5_pct": 26.0,
+        "top5_pct": 26,
         "top40_lines": 10721,
         "top40_pct": 55.7,
         "prefix_rule_coverage_lines": 5401,
@@ -2009,7 +2009,7 @@
       "delta": {
         "total_lines": 31,
         "member_count": 1,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.335.0": {
@@ -2085,7 +2085,7 @@
         "top5_lines": 4998,
         "top5_pct": 24.8,
         "top40_lines": 10878,
-        "top40_pct": 54.0,
+        "top40_pct": 54,
         "prefix_rule_coverage_lines": 5401,
         "prefix_rule_coverage_pct": 26.8,
         "unclassified_lines": 13787,
@@ -2147,7 +2147,7 @@
         "member_count": 764,
         "duplicate_member_names": 25,
         "top5_lines": 4998,
-        "top5_pct": 24.0,
+        "top5_pct": 24,
         "top40_lines": 10979,
         "top40_pct": 52.7,
         "prefix_rule_coverage_lines": 5401,
@@ -2169,7 +2169,7 @@
       "delta": {
         "total_lines": 2,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.340.0": {
@@ -2233,7 +2233,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.342.0": {
@@ -2329,7 +2329,7 @@
       "delta": {
         "total_lines": 92,
         "member_count": 4,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.345.0": {
@@ -2361,7 +2361,7 @@
       "delta": {
         "total_lines": 134,
         "member_count": 6,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.346.0": {
@@ -2393,7 +2393,7 @@
       "delta": {
         "total_lines": 115,
         "member_count": 2,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.347.0": {
@@ -2457,7 +2457,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.349.0": {
@@ -2489,7 +2489,7 @@
       "delta": {
         "total_lines": 1,
         "member_count": 1,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.350.0": {
@@ -2521,7 +2521,7 @@
       "delta": {
         "total_lines": 41,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.353.0": {
@@ -2553,7 +2553,7 @@
       "delta": {
         "total_lines": 292,
         "member_count": 8,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.355.0": {
@@ -2567,7 +2567,7 @@
         "top40_lines": 11424,
         "top40_pct": 50.9,
         "prefix_rule_coverage_lines": 5614,
-        "prefix_rule_coverage_pct": 25.0,
+        "prefix_rule_coverage_pct": 25,
         "unclassified_lines": 15835,
         "seam_distinct_modules": 88,
         "seam_reference_sites": 124,
@@ -2585,7 +2585,7 @@
       "delta": {
         "total_lines": 0,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.361.0": {
@@ -2598,7 +2598,7 @@
         "top40_lines": 11424,
         "top40_pct": 50.9,
         "prefix_rule_coverage_lines": 5614,
-        "prefix_rule_coverage_pct": 25.0,
+        "prefix_rule_coverage_pct": 25,
         "unclassified_lines": 15835,
         "seam_distinct_modules": 88,
         "seam_reference_sites": 124,
@@ -2641,7 +2641,7 @@
       "delta": {
         "total_lines": -701,
         "member_count": 0,
-        "top5_pct": 0.0
+        "top5_pct": 0
       }
     },
     "v3.421.0": {
@@ -2808,7 +2808,7 @@
         "surface_lines": 66,
         "member_count": 0,
         "top40_lines": 66,
-        "top5_pct": 0.0,
+        "top5_pct": 0,
         "top40_pct": 0.1
       }
     },
@@ -2848,7 +2848,7 @@
         "top40_lines": 12930,
         "top40_pct": 43.8,
         "prefix_rule_coverage_lines": 5014,
-        "prefix_rule_coverage_pct": 17.0,
+        "prefix_rule_coverage_pct": 17,
         "unclassified_lines": 23686,
         "seam_distinct_modules": 153,
         "seam_reference_sites": 444,
@@ -2976,8 +2976,8 @@
         "surface_lines": 6,
         "member_count": 0,
         "top40_lines": 0,
-        "top5_pct": 0.0,
-        "top40_pct": 0.0
+        "top5_pct": 0,
+        "top40_pct": 0
       }
     },
     "v3.433.0": {
@@ -3048,7 +3048,7 @@
         "surface_lines": 31,
         "member_count": 16,
         "top40_lines": 3,
-        "top5_pct": 0.0,
+        "top5_pct": 0,
         "top40_pct": -0.1
       }
     },
@@ -3098,7 +3098,7 @@
         "top5_lines": 5911,
         "top5_pct": 18.8,
         "top40_lines": 13201,
-        "top40_pct": 42.0,
+        "top40_pct": 42,
         "prefix_rule_coverage_lines": 5088,
         "prefix_rule_coverage_pct": 16.2,
         "unclassified_lines": 25476,
@@ -3172,7 +3172,7 @@
         "top40_lines": 13215,
         "top40_pct": 41.5,
         "prefix_rule_coverage_lines": 5088,
-        "prefix_rule_coverage_pct": 16.0,
+        "prefix_rule_coverage_pct": 16,
         "unclassified_lines": 25866,
         "seam_distinct_modules": 159,
         "seam_reference_sites": 483,
@@ -3208,7 +3208,7 @@
         "top40_lines": 13252,
         "top40_pct": 41.3,
         "prefix_rule_coverage_lines": 5117,
-        "prefix_rule_coverage_pct": 16.0,
+        "prefix_rule_coverage_pct": 16,
         "unclassified_lines": 26092,
         "seam_distinct_modules": 160,
         "seam_reference_sites": 489,
@@ -3305,8 +3305,8 @@
         "surface_lines": 15,
         "member_count": 0,
         "top40_lines": 15,
-        "top5_pct": 0.0,
-        "top40_pct": 0.0
+        "top5_pct": 0,
+        "top40_pct": 0
       }
     },
     "v3.461.0": {
@@ -3377,14 +3377,14 @@
         "surface_lines": 0,
         "member_count": 0,
         "top40_lines": 0,
-        "top5_pct": 0.0,
-        "top40_pct": 0.0
+        "top5_pct": 0,
+        "top40_pct": 0
       }
     },
     "v3.465.2": {
       "reason": "[v3.465.1] 第二十一期收账轮两版真实产品改动落在入口：① L21-O4 持久化字段登记判据——v21Initializers 初始化表 18→11 项（11 项补宿主登记名别名、7 项撤掉不成立的登记并留标注），并在模块侧按各自状态形状补齐 hydrateState 归一化面；② L21-O9 取库口声明↔真码对账——产品侧无行为改动，交付在判定体与判据（171 个取库口全量对账）；③ 四源版本号抬升（index.js 内 const VERSION）。入口 index.js 13069 → 0 行（+0），成员 1342 → 1342，全部真实计入读数。",
       "readings": {
-        "total_lines": 13069,
+        "total_lines": 13085,
         "surface_lines": 35820,
         "member_count": 1342,
         "duplicate_member_names": 161,
@@ -3413,8 +3413,8 @@
         "surface_lines": 0,
         "member_count": 0,
         "top40_lines": 0,
-        "top5_pct": 0.0,
-        "top40_pct": 0.0
+        "top5_pct": 0,
+        "top40_pct": 0
       }
     }
   },
@@ -3429,7 +3429,7 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13069,
+    "total_lines": 13085,
     "surface_lines": 35820,
     "member_count": 1342,
     "duplicate_member_names": 161,
@@ -4021,9 +4021,9 @@
         "member_ceiling": 549,
         "member_milestone_note": "A1 第一刀前的宿主成员基线（v3261 原文口径：成员数须随 A1 刀口下降）",
         "member_milestones": {
-          "561": "A1 第二刀（memory-aux.js）剥走前的宿主成员基线",
+          "549": "A1 第一刀（memory-books.js 口径）剥走前的宿主成员基线",
           "553": "A1 第三刀（narrative-generators.js）剥走前的宿主成员基线",
-          "549": "A1 第一刀（memory-books.js 口径）剥走前的宿主成员基线"
+          "561": "A1 第二刀（memory-aux.js）剥走前的宿主成员基线"
         }
       },
       {

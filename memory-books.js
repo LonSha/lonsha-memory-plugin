@@ -641,6 +641,32 @@ class RelativeTimeHelper {
 
 class PlotTimeline {
     constructor() { this.entries = []; }
+    /** [v2026.11 审计修] 近重复合并：同日 + 文本归一后**bigram Jaccard 相似度 ≥ 0.72**
+     *  ⇒ merge（保首见文本、取较高重要度、记 repeatCount）。修前只有「同 date 且
+     *  **逐字**同 text」才算重复——楼2「确认故事题材：日式科幻悬疑…」与楼4
+     *  「确认故事题材：现代日式科幻…」只换措辞就各存一条，时间线变复读机。
+     *  0.72 阈值实测：同事实换措辞（改词序/加修饰）稳过线；两件不同事（不同主语+
+     *  不同动作）稳不过线。短文本（归一后 <12 字）不参与相似判重，防误并。
+     *  完全相等归一判重仍保留为快速路径。 */
+    static _normText(t) {
+        return String(t || '')
+            .replace(/[“”„«»]/g, '"').replace(/[‘’‚]/g, "'")
+            .replace(/[，。！？；：、,.!?;:\s]+/g, '')
+            .toLowerCase();
+    }
+    /** 字符 bigram Jaccard 相似度（CJK 顺序敏感、无需词典）。 */
+    static _bigramJaccard(a, b) {
+        if (!a || !b) return 0;
+        if (a === b) return 1;
+        if (a.length < 2 || b.length < 2) return a === b ? 1 : 0;
+        const A = new Set();
+        for (let i = 0; i < a.length - 1; i++) A.add(a.slice(i, i + 2));
+        const B = new Set();
+        for (let i = 0; i < b.length - 1; i++) B.add(b.slice(i, i + 2));
+        let inter = 0;
+        for (const x of A) if (B.has(x)) inter++;
+        return inter / (A.size + B.size - inter);
+    }
     add(date, text, floor, characters = [], importance = 5) {
         if (!date || !text) return null;
         const source = arguments.length > 5 ? arguments[5] : null;
@@ -648,6 +674,30 @@ class PlotTimeline {
         if (sourceKey) {
             const same = this.entries.find(e => e.sourceKey === sourceKey);
             if (same) return same;
+        }
+        const norm = PlotTimeline._normText(text);
+        if (norm.length >= 12) {
+            const near = this.entries.find(e => {
+                if (e.date !== date) return false;
+                const en = PlotTimeline._normText(e.text);
+                if (en === norm) return true;
+                /* 通道①：高度相似改写（同事实换措辞） */
+                if (PlotTimeline._bigramJaccard(norm, en) >= 0.72) return true;
+                /* 通道②：同前缀锚点 + 中度相似 —— 「确认故事题材：日式科幻悬疑…」
+                 *   与「确认故事题材：现代日式科幻悬疑，语言风格…」实测 jaccard 仅 0.313
+                 *   但公共前缀「确认故事题材」= 6 字，同一句式的两轮重述。纯 jaccard
+                 *   抓不住，须前缀+中度双条件（前缀 <6 不算，防「他」「然后」类通用开头误并）。 */
+                let cp = 0;
+                const m = Math.min(norm.length, en.length);
+                while (cp < m && norm[cp] === en[cp]) cp++;
+                return cp >= 6 && PlotTimeline._bigramJaccard(norm, en) >= 0.30;
+            });
+            if (near) {
+                near.floor = floor; near.timestamp = Date.now();
+                if (importance > (near.importance || 5)) near.importance = importance;
+                near.repeatCount = (near.repeatCount || 1) + 1;
+                return near;
+            }
         }
         const exist = this.entries.find(e => e.date === date && e.text === text);
         if (exist) { exist.floor = floor; exist.timestamp = Date.now(); if (importance > (exist.importance || 5)) exist.importance = importance; return exist; }
