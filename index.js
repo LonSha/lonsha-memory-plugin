@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.466.1';
+    const VERSION = '3.467.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -4666,12 +4666,35 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
 
         // [v1.4] 正文清洗：剥离注释/标签/世界书标记
+        // [v3.467.0 清洗补强] 六步增强：
+        //  1) 成对的"非HTML白名单"自定义块（<status>…</status> 等）整块剥除——
+        //     此前只剥壳不剥内容，状态栏文本会以裸文本形式漏进提取；
+        //     排版类 HTML 标签（p/div/span…）不在白名单内，保持原有剥壳行为不受影响。
+        //  2) 代码围栏 ```…``` 整块剥除（状态栏/表格常藏在代码块里）。
+        //  3) 行首元标签（[旁白]/【场景】/[OOC] 等）剥壳留内容——旁白本身是剧情事实，
+        //     只删标签壳，不丢叙述内容；OOC 与作者注整行剥除。
         cleanMessageText(text) {
-            return String(text || '')
-                .replace(/<!--[\s\S]*?-->/g, '')      // HTML注释 (SDC-start 等)
-                .replace(/<\/?[a-zA-Z_][\w-]*[^>]*>/g, '')  // 自定义标签 (konatan_planning 等)
-                .replace(/\[\[.*?\]\]/g, '')           // [[宏]]
-                .replace(/\{\{.*?\}\}/g, '')          // {{宏}}
+            let s = String(text || '');
+            // 1) 成对非 HTML 白名单自定义块：整块剥除（含内容）
+            const HTML_TAGS = new Set(['p','div','span','br','hr','em','strong','i','b','u','s',
+                'small','sub','sup','code','pre','blockquote','ul','ol','li','table','thead',
+                'tbody','tfoot','tr','td','th','h1','h2','h3','h4','h5','h6','a','img','font','center']);
+            s = s.replace(/<([a-zA-Z_][\w-]*)((?:\s[^>]*)?)>([\s\S]*?)<\/\1\s*>/g,
+                (m, tag) => HTML_TAGS.has(tag.toLowerCase()) ? m : ''); // 非白名单：整块剥
+            // 2) HTML注释与残壳
+            s = s.replace(/<!--[\s\S]*?-->/g, '')
+                 .replace(/<\/?[a-zA-Z_][\w-]*[^>]*>/g, '');
+            // 3) 代码围栏整块剥
+            s = s.replace(/```[\s\S]*?```/g, '');
+            // 4) 行首元标签：剥壳留内容
+            s = s.replace(/^[ \t]*[\[【](?:旁白|独白|内心|心理|系统|场景|环境|天气|时间|地点)[\]】：:][ \t]*/gm, '');
+            // 5) OOC / 作者注：整行剥
+            s = s.replace(/^[ \t]*(?:\[OOC\]|\(OOC\)|OOC[ \t]*[:：]|作者注[ \t]*[:：]|【作者附注】).*(?:\r?\n|$)/gim, '');
+            // 6) 分隔线与宏
+            return s
+                .replace(/^(?:[-*_][ \t]*){3,}$/gm, '')
+                .replace(/\[\[.*?\]\]/g, '')
+                .replace(/\{\{.*?\}\}/g, '')
                 .trim();
         }
         // [v2026.11 审计修] 思维链剥离对外出口：补提取/批量补齐等旁路此前只调 cleanMessageText
