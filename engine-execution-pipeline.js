@@ -175,7 +175,7 @@
                             label: rel.type, weight: 1.0,
                             floor: message.index || 0,
                             data: Object.assign(
-                                {attitude: rel.attitude || 'neutral', note: rel.note || '', relClass: classifyRelationshipType(rel.type)},
+                                {attitude: rel.attitude || 'unknown', note: rel.note || '', relClass: classifyRelationshipType(rel.type)},
                                 _disc ? {disclosure: _disc} : null
                             )
                         });

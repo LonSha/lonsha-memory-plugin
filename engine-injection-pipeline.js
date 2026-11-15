@@ -1017,7 +1017,7 @@
                 const CLS_CN = { family: '血缘', intimate: '亲密', hostile: '敌对', social: '社交', other: '其他' };
                 const _RM2 = _moduleLib(() => window.LonShaRelationMutual, 'relation-mutual.js');
                 _relKept.forEach(i => {
-                    const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : '中立';
+                    const att = i.data?.attitude === 'positive' ? '友好' : i.data?.attitude === 'negative' ? '排斥' : (i.data?.attitude === 'unknown' || !i.data?.attitude) ? '未知' : '中立';   // [v3.470.0] 未知≠中性：无态度记录显示「未知」而非默认中立（借鉴 baibai 5ea5692）
                     const fromName = this.graph.nodes.get(i.from)?.name || i.from || i.name;
                     const toName = this.graph.nodes.get(i.to)?.name || i.to || '';
                     const histNote = (i.active === false && i.validTo != null) ? `（曾于第${i.validTo}楼前）` : '';

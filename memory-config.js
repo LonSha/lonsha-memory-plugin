@@ -158,12 +158,12 @@ class ConfigManager {
 0d. **概率与证据强度保真**：角色说的原话是「推测、可能、声称、打算、怀疑、担心」，就按原话记录，**不升级为事实或完成**；程度副词不增强不弱化（极可能≠可能、似乎≠确定、几乎≠绝对、至少≠约），保留原文的至少/至多/仅/仍/尚未等限定词。依据迹象的判断要写明「据…推测」，不把物证的存在写成某人确实做过某事。
 1. characters：本轮实际登场、有名有戏份的角色。必须使用已知角色名单中的主名（别名归并）；纯路人忽略；不要把用户本人算进去。
 2. events：只写已发生的事实。涉及约定、承诺、冲突、物品交付、地点移动、关系变化时，写清具体内容，禁止泛化成"某物""发生变化"。每个事件标注 scope："objective"（公开事实，所有在场角色都知道）或 "pov"（仅某角色亲眼看到/独自知道的事实，此时必须给出 owner=该角色主名）。每个事件还要标注 importance（1-10，数字越大越重要：1-3日常琐事、4-6值得注意、7-8重大事件、9-10故事定义级）。
-3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral。
+3. relationships：单向主观关系（from 看 to）。A看B 与 B看A 可能不同，分别各记一条。type 用简短词（如：暗恋、警惕、依赖、挚友、敌视）。attitude 只能填 positive / negative / neutral，**拿不准就填 unknown 或省略——「未知≠中性」：没有证据表明态度如何时，严禁为了凑字段填 neutral**（角色这轮没表现出态度，不代表他态度中性）。
 3.1 relationships.disclosure：该关系**本轮该不该披露**的触发条件（可选，人类可读）。填法同正则片段，多个条件用逗号或换行分隔，表示「或」；前缀 ! 表示排除项。例：{"from":"A","to":"B","type":"暗恋","attitude":"positive","disclosure":"告白|结婚|约会,!开玩笑"}，意为「对话里出现告白/结婚/约会时这条关系才给模型看，但若同时说到开玩笑则不给」。仅当这条关系【只在特定情形下才成立或才有意义】时才填；普遍有效的关系一律留空字符串，留空即每轮都注入。不要为了填而填。
 3b. conflicts：本轮对话中出现【同一事实的两个版本对不上】时登记（如某角色在甲事件声称X、本轮又声称Y）。
 先判断是更正还是真矛盾：更正（时间线自然演进，如搬家/换工作）不登记，由正常提取覆盖；
 真矛盾（说不通的版本冲突，如自相矛盾的口供、立场摇摆）填 {"subject":"角色名或事实","versionA":"版本A描述","versionB":"版本B描述","note":"矛盾性质一句话","severity":"low/medium/high（按矛盾严重度）"}。没有则填空数组。
-4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。story_date 若剧情明确写出时间，必须保留完整年份或纪年（如"1988年9月29日""庆历四年"），禁止省略年份只写月日的短格式（"9月29日"不带年份时照抄原文但标注无年份）；古风/奇幻题材保留完整纪年与年份。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）。纯叙述句，无 markdown。
+4. summary（最重要，必填）：用【监控摄像头视角】+【警察做笔录风格】重写本轮剧情，30-80字。必须包含：①谁对谁做了/说了什么（写具体动作或台词大意）②明确写出的状态变化③新信息或结果。时间锚定：保留具体人名、物品名、地点名。story_date 若剧情明确写出时间，必须保留完整年份或纪年（如"1988年9月29日""庆历四年"），禁止省略年份只写月日的短格式（"9月29日"不带年份时照抄原文但标注无年份）；古风/奇幻题材保留完整纪年与年份。严禁照抄原文句子（必须用你自己的话重新组织）；严禁氛围描写（"气氛变得…"）和阅读理解句式（"体现了…的心态"）；严禁剧情续写（止步于原文最后一个动作）；**严禁元话语**（“原文止于…”“按要求…”“以下是…”“本段摘要…”等谈论摘要自身的句子一律不写——摘要里只有剧情，没有关于摘要的话）。纯叙述句，无 markdown。
 5. story_date：本轮剧情中明确写出的日期（如"3月12日""2026年5月1日"）；未明确写出则填 null。禁止编造日期。
 6. pov_memories：本轮产生的角色私密认知/秘密/内心独白（摄像头拍不到、仅该角色自己知道的内容）。每条必须给出 owner（哪个角色知道）和 content（一句话说清）。可选 knowers 填**已经知道这件事的人**（不在场而没说出口的填 owner，已经在对话里明确知道的填进 knowers）；缺省留空 ⇒ 系统按「谁知道判不了」处理，只保证不会因这条泄漏，不保证一定注入。已在对话中公开说出口的内容不算。没有则填空数组。
 7. plans：本轮剧情中【新出现】的约定、目标、伏笔或未解之谜。kind 填 "plan"（角色主动要做的事）或 "suspense"（埋下的谜团/伏笔）。content 一句话写清。contentIsNew 必须为 true。没有新悬念则填空数组。禁止把悬念簿里已有的悬项重复登记。
@@ -540,6 +540,13 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
         // [v3.166] 配置迁移台账（loadConfig 填充；诊断面读取）
         this._lastMigrationReport = null;
         this._configLoadError = null;
+        // [v3.470.0] 配置损坏 fail-closed（借鉴 shujuku bef90f3 config-read.ts）：
+        //   修前 JSON.parse(saved) 失败时 this.config 停在默认值且只记台账——随后任何
+        //   saveConfig() 都会把默认值覆盖写回 localStorage，用户原配置（可能只是局部
+        //   损坏、可人工抢救）被静默销毁。现在：损坏即进入只读模式，saveConfig 拒绝
+        //   落盘，用户设置页看到明确错误提示后可自行导出修复，数据零损失。
+        this._configReadOnly = false;
+        this._configLoadError = null;
         // [v3.166] 在合并 localStorage 之前冻结默认值模板（深拷贝，防后续改动污染）。
         if (!_configDefaultsTemplate) {
             try { _configDefaultsTemplate = JSON.parse(JSON.stringify(this.config)); }
@@ -553,7 +560,21 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
         const _mig = { at: Date.now(), checks: 0, applied: [], skipped: [], failed: [] };
         try {
             const saved = localStorage.getItem('lonsha_memory_config');
-            if (saved) this.config = {...this.config, ...JSON.parse(saved)};
+            if (saved) {
+                // [v3.470.0] fail-closed 分级（借鉴 shujuku config-read.ts 的 corrupt/read_failed 二分）：
+                //   解析失败不等于键不存在——损坏的原串还在 localStorage 里，只是我们读不动。
+                //   修前行为：catch 后 config=默认值继续跑，首次 saveConfig 即覆盖损坏原串。
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('config root is not an object');
+                    this.config = {...this.config, ...parsed};
+                } catch (parseErr) {
+                    this._configReadOnly = true;   // 损坏 ⇒ 只读：所有 saveConfig 拒绝落盘
+                    this._configLoadError = '配置存储损坏（JSON 无法解析），已进入只读保护模式——设置不会写入，原数据保留在 localStorage 键 lonsha_memory_config 中，请导出修复后重新加载。原始错误: ' + String(parseErr?.message || parseErr);
+                    errLog(parseErr, 'ConfigManager.loadConfig.corrupt');
+                    _mig.failed.push('loadConfig:corrupt-readonly');
+                }
+            }
             // [v3.129] anima 配置三级合并：角色卡 data.extensions.LonShaMemory > 全局 localStorage > 默认。
             //   角色级覆盖只允许白名单键（策略/数值类），提示词与 API 密钥等全局资产不随卡携带；
             //   卡上配置只读（保存面板时写回全局层，不回写角色卡），对象深合并、数组直接覆盖。
@@ -724,6 +745,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
         } catch (e) { errLog(e, 'ConfigManager._applyCardOverrides'); return 0; }
     }
     saveConfig() {
+        // [v3.470.0] 只读保护（fail-closed）：配置损坏时拒绝一切写盘，防默认值覆盖用户原数据
+        if (this._configReadOnly) {
+            errLog(new Error('配置只读保护生效中，拒绝写盘'), 'ConfigManager.saveConfig.readonly');
+            return;
+        }
         try {
             localStorage.setItem('lonsha_memory_config', JSON.stringify(this.config));
             clearApiCooldowns();
