@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.467.0';
+    const VERSION = '3.468.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -3856,7 +3856,8 @@ function relativeTimeLabel(eventTime, nowTime) {
                         } else if (window.VirtualPhone?.memoryCore) {
                             // 兜底: 桥未挂载时直接写入记忆库 (摘要→长期记忆)
                             const s = String(extracted.summary || '').trim();
-                            if (s.length >= 15) window.VirtualPhone.memoryCore.record('ai', '[剧情] ' + s, {});
+                            // [v3.468.0 记忆保真] 回填同样守门，且 <15 字的边角料不回填
+                            if (s.length >= 15 && !this._metaEchoGuard(s)) window.VirtualPhone.memoryCore.record('ai', '[剧情] ' + s, {});
                         }
                     } catch (e) {
                         if (this.config.config.debugMode) console.warn(`[${PLUGIN_NAME}] RubyPhone回填失败:`, e);
@@ -4008,6 +4009,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                 const jsonMatch = response.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
                     const parsed = JSON.parse(sanitizeJson(jsonMatch[0]));
+                    // [v3.468.0 记忆保真] LLM 提取结果出口守门：即使模型违反规则0把设定层
+                    //   元信息写进 summary，也在入库前拦下（时间线守门的同源上游）。
+                    if (parsed.summary && this._metaEchoGuard(parsed.summary)) {
+                        console.warn(`[${PLUGIN_NAME}] [记忆保真] 提取 summary 命中设定层 echo，置空 (楼层 ${message?.index})`);
+                        parsed.summary = '';
+                    }
                     // [v3.62] 锁定事实校验器（dsh validateDetailedSummary 理念）：summary 遗漏锁定事实→警告并附提示重试一次
                     if (lockedText && parsed.summary) {
                         const factItems = lockedText.split('\n').map(l => l.replace(/^- /, '').replace(/（第\d+楼锁定）$/, '').trim()).filter(Boolean);
@@ -4365,7 +4372,14 @@ function relativeTimeLabel(eventTime, nowTime) {
                 if (node.type === 'character' && node.name) known.add(node.name);
             }
             const characters = Array.from(known).filter(n => n && content.includes(n)).slice(0, 5);
-            return {characters, events: [], relationships: [], entities: [], summary: this.summary.smartTruncate(content, 100)};
+            // [v3.468.0 记忆保真] 降级摘要也过设定层守门：LLM 关闭/失败/平淡楼时
+            //   smartTruncate 会把「确认故事题材…」这类元信息截 100 字入库——与 LLM 路径同罪同罚。
+            let _s = this.summary.smartTruncate(content, 100);
+            if (_s && this._metaEchoGuard(_s)) {
+                if (this.config.config.debugMode) console.log(`[${PLUGIN_NAME}] [记忆保真] 降级摘要命中设定层 echo，弃记 (楼层 ${message?.index})`);
+                _s = '';
+            }
+            return {characters, events: [], relationships: [], entities: [], summary: _s};
         }
         
         // [v1.8] P0: 剧情日期提取（优先 LLM 标注，其次从正文匹配，最后兜底实时日期）
@@ -4666,7 +4680,7 @@ function relativeTimeLabel(eventTime, nowTime) {
         }
 
         // [v1.4] 正文清洗：剥离注释/标签/世界书标记
-        // [v3.467.0 清洗补强] 六步增强：
+        // [v3.467.0→3.468.0 清洗补强] 六步增强（3.468.0 增补 OOC 成对块/括号式剥除）：
         //  1) 成对的"非HTML白名单"自定义块（<status>…</status> 等）整块剥除——
         //     此前只剥壳不剥内容，状态栏文本会以裸文本形式漏进提取；
         //     排版类 HTML 标签（p/div/span…）不在白名单内，保持原有剥壳行为不受影响。
@@ -4686,10 +4700,13 @@ function relativeTimeLabel(eventTime, nowTime) {
                  .replace(/<\/?[a-zA-Z_][\w-]*[^>]*>/g, '');
             // 3) 代码围栏整块剥
             s = s.replace(/```[\s\S]*?```/g, '');
+            // 3b) OOC 成对块/括号式 OOC：整段剥（调度指令不是剧情）
+            s = s.replace(/<ooc[\s\S]*?<\/ooc\s*>/gi, '')
+                 .replace(/\(\s*OOC\s*[:：][^\n\)]*\)/gi, '');
             // 4) 行首元标签：剥壳留内容
             s = s.replace(/^[ \t]*[\[【](?:旁白|独白|内心|心理|系统|场景|环境|天气|时间|地点)[\]】：:][ \t]*/gm, '');
             // 5) OOC / 作者注：整行剥
-            s = s.replace(/^[ \t]*(?:\[OOC\]|\(OOC\)|OOC[ \t]*[:：]|作者注[ \t]*[:：]|【作者附注】).*(?:\r?\n|$)/gim, '');
+            s = s.replace(/^[ \t]*(?:\[OOC\]|\(OOC\)|【OOC\]|OOC[ \t]*[:：]|作者注[ \t]*[:：]|【作者附注】).*(?:\r?\n|$)/gim, '');
             // 6) 分隔线与宏
             return s
                 .replace(/^(?:[-*_][ \t]*){3,}$/gm, '')
@@ -4705,6 +4722,16 @@ function relativeTimeLabel(eventTime, nowTime) {
             const raw = String(text || '');
             try { return extractThinkingChain(raw).content || ''; }
             catch (e) { errLog(e, 'stripThinkingText'); return raw; }
+        }
+        // [v3.468.0 记忆保真] 设定层 echo 判定（与 engine-execution-pipeline.js 时间线守门同源同正则）：
+        //   题材/文风/尺度/叙事格式等「作者↔模型元信息」不是剧情事实，命中返回 true。
+        //   单一真源收口到这里，入库面（摘要/时间线/手机回填）不再各抄一份正则。
+        //   误杀取舍与既有时间线守门一致：剧情角色真讨论「故事题材」时会被拦——
+        //   宁可漏记不可错记。
+        _metaEchoGuard(text) {
+            try {
+                return /(故事题材|叙事题材|写作风格|语言风格|文风|叙事格式|创作方向|内容边界|尺度设定|nsfw\s*边界|题材确认|风格确认|确认.{0,6}题材|严禁古风|保持现代)/i.test(String(text || ''));
+            } catch (e) { errLog(e, '_metaEchoGuard'); return false; }
         }
         
         async onBeforeGeneration(context) { // preserveRuntime: true 生成路径只读加载
