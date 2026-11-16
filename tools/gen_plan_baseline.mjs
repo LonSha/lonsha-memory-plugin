@@ -30,15 +30,21 @@ function replaceOneRow(content, label, nextRow) {
   if (hits !== 1) throw new Error(`PLAN.md 应有且仅有一行「${label}」表行，实际 ${hits} 行`);
   return out.join('\n');
 }
-function versionFromIndex() {
-  const source = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+/* [v3.467.0 并发竞态修复] root 参数化（默认真仓 ROOT，向后兼容）：
+ *   v34271 的负控制曾**直接篡改真仓** index.js / PLAN.md 再还原 —— 并发跑全量时，
+ *   其他档（v3430/v3439~v3445 等 L13 版本同源判据）恰好在篡改窗口里读盘，
+ *   报「VERSION 实 9.9.9」集体假红（实测两轮全量分别炸 12 档 / 1 档）。
+ *   修法与负控制纪律同源：「破坏发生在独立 fixture 目录」—— 判据的读数根可指向
+ *   副本树，篡改只落在副本里，真仓在并发下永远只读。 */
+function versionFromIndex(root) {
+  const source = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
   const match = /const VERSION = '([0-9]+\.[0-9]+\.[0-9]+)'/.exec(source);
   if (!match) throw new Error('index.js 中找不到 VERSION 真源');
   return match[1];
 }
-function diskCounts() {
-  const tests = fs.readdirSync(TESTS_DIR);
-  const audits = fs.existsSync(AUDIT_DIR) ? fs.readdirSync(AUDIT_DIR) : [];
+function diskCounts(root) {
+  const tests = fs.readdirSync(path.join(root, 'tests'));
+  const audits = fs.existsSync(path.join(root, 'tests', 'audit')) ? fs.readdirSync(path.join(root, 'tests', 'audit')) : [];
   return {
     testFileCount: tests.filter((name) => name.endsWith('.test.mjs')).length,
     auditMjsCount: audits.filter((name) => name.endsWith('.mjs')).length,
@@ -52,12 +58,13 @@ function probeMemberCount() {
   if (!Number.isInteger(data.member_count)) throw new Error('宿主巨兽探针未返回整数 member_count');
   return data.member_count;
 }
-export function computeLonshaBaseline() {
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
-  const version = versionFromIndex();
-  const counts = diskCounts();
-  const indexLines = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8').split('\n').length;
+export function computeLonshaBaseline(root) {
+  const r = root || ROOT;
+  const pkg = JSON.parse(fs.readFileSync(path.join(r, 'package.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(r, 'manifest.json'), 'utf8'));
+  const version = versionFromIndex(r);
+  const counts = diskCounts(r);
+  const indexLines = fs.readFileSync(path.join(r, 'index.js'), 'utf8').split('\n').length;
   const extraJsCount = Array.isArray(manifest.extra_js) ? manifest.extra_js.length : 0;
   const memberCount = probeMemberCount();
   const versionLine = `| 版本 | **v${version}**（index.js VERSION 真源） | index.js |`;
@@ -66,11 +73,13 @@ export function computeLonshaBaseline() {
   const volumeLine = `| 体量 | \`index.js\` **${indexLines} 行**(探针读数;\`wc -l\` ${indexLines}) / **${memberCount}** 成员 —— 宿主巨兽探针实读对账;+ extra_js **${extraJsCount}** 项 | \`wc -l\` / \`manifest.json\` / \`tests/audit/host_beast_probe.cjs\` |`;
   return { version, pkgVersion: pkg.version, manifestVersion: manifest.version, indexLines, memberCount, extraJsCount, ...counts, versionLine, gateLine, volumeLine };
 }
-export function checkPlanBaseline() {
+export function checkPlanBaseline(root, planFile) {
+  const r = root || ROOT;
+  const plan = planFile || path.join(r, 'PLAN.md');
   let data;
-  try { data = computeLonshaBaseline(); } catch (error) { return { ok: false, errors: [error.message] }; }
-  if (!fs.existsSync(PLAN_FILE)) return { ok: false, errors: ['PLAN.md 不存在'] };
-  const content = fs.readFileSync(PLAN_FILE, 'utf8');
+  try { data = computeLonshaBaseline(r); } catch (error) { return { ok: false, errors: [error.message] }; }
+  if (!fs.existsSync(plan)) return { ok: false, errors: ['PLAN.md 不存在'] };
+  const content = fs.readFileSync(plan, 'utf8');
   const errors = [];
   let versionRow, gateRow, volumeRow;
   try { versionRow = oneRow(content, '版本'); gateRow = oneRow(content, '门禁'); volumeRow = oneRow(content, '体量'); }

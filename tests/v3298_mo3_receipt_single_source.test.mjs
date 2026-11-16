@@ -192,8 +192,11 @@ function dupEngine(src, cfg, router, receipt) {
 }
 /** 硬截断场景：recency + 无 recency 标记块 ⇒ `full.slice(0, budget)`，切口落在块内部。 */
 function hardEngine(src) {
+    /* [v3.467.0] 块长 300 → 400，理由同 v3274 hardEngine：recency 降级阶梯逐级放宽后，
+     *   300 字块（触发容量 329）整块装得下 ⇒ 不再硬截断 ⇒ 本场景（半段定位）不再发生。
+     *   取 400（> 329）让 L3 也放不下首块，真正回落到 slice，切点落在首块内部。 */
     const e = engineFrom(src, { injectionBudget: 420, recallTierEnabled: true, budgetStrategy: 'recency' }, 'router');
-    e.buildInjection([{ source: 'bm25', text: '字'.repeat(300) }, { source: 'bm25', text: '乙'.repeat(300) }]);
+    e.buildInjection([{ source: 'bm25', text: '字'.repeat(400) }, { source: 'bm25', text: '乙'.repeat(400) }]);
     return e;
 }
 /** 未裁剪场景：预算宽裕。 */

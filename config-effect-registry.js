@@ -147,6 +147,7 @@
         "smartTriggerThreshold": "immediate",
         "smartTriggerPatterns": "immediate",
         "extractionProfile": "next-turn",
+        "gameplayPreset": "immediate",
         "vectorTailRecoveryEnabled": "immediate",
         "vectorTailRecoveryLimit": "immediate",
         "atomicRestoreEnabled": "immediate",

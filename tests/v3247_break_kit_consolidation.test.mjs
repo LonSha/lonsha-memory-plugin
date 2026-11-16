@@ -426,6 +426,12 @@ const REGISTRY = [
     /* [v3.445.0 · L13-X5] 迁移包判据：本档从 `tests/_break_kit.mjs` 取 `breakSource` /
      *   `assertSingleHit`（真源码破坏：stub 摘除后 fail-closed 必须显式报因、头锚漂移须翻红）。 */
     'v3445_l13_x5_migrate_pack.test.mjs',
+    /* [v3.467.0 补登记] L21-O5 组装↔回执对账判据：本档从 `tests/_break_kit.mjs` 取 `breakOnce`
+     *   （两条真源码破坏：组装写入改反向 / projection 掐断透传）。
+     *   ★ 本档原先自持一份 `breakSource(mutate)` 加两处手抄的「恰中 1 次」校验，被 B2 与
+     *   scan_break_kit 当场点名（全仓只准唯一真源一处）—— 故改为从真源 import 并按台账纪律登记。
+     *   收编是按判据点名做的，不是为过门禁放宽判据。 */
+    'v21_o5_assembly_receipt_parity.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

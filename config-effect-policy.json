@@ -222,6 +222,7 @@
         "longTailFlashbackEnabled": "immediate",
         "multiDimensionalReputationEnabled": "immediate",
         "soulBrandReincarnationEnabled": "immediate",
-        "fateClimaxLoomEnabled": "immediate"
+        "fateClimaxLoomEnabled": "immediate",
+        "gameplayPreset": "immediate"
     }
 }

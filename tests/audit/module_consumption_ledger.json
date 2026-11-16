@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-12T10:44:00.822Z",
-  "extra_js_count": 374,
+  "generated_at": "2026-11-14T16:07:06.267Z",
+  "extra_js_count": 376,
   "host_injected_count": 223,
-  "total_modules": 375,
+  "total_modules": 377,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 363,
+  "active_count": 365,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -3604,6 +3604,25 @@
       ],
       "load_surface_callers": []
     },
+    "gameplay-preset.js": {
+      "module": "gameplay-preset.js",
+      "surface": [
+        "gameplay-preset"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "public-interface.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "generation-fact-receipt.js": {
       "module": "generation-fact-receipt.js",
       "surface": [
@@ -4546,6 +4565,30 @@
       "callers": [
         {
           "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "local-ngram-vectorizer.js": {
+      "module": "local-ngram-vectorizer.js",
+      "surface": [
+        "local-ngram-vectorizer"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-organs.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "sleep-awaken.js",
           "count": 1,
           "type": "file_binding"
         }

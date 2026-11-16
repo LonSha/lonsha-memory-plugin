@@ -514,3 +514,19 @@ v21_o4_persistence_enrollment.test.mjs		v3.464.0 当版新增：第二十一期 
 v21_o9_lib_handle_truth.test.mjs		v3.465.0 当版新增：第二十一期 L21-O9 取库口声明↔真码对账判据（14 条含 2 计划负控制 + 豁免双向）
 v21_o4b_volatile_container_chain.test.mjs		v3.465.1 当版新增：第二十一期 L21-O4b 易失容器三段链判据（18 条含 4 负控制；写入侧摊平 / 还原 / 读取三段端到端）
 v21_o4c_umd_reload_idempotent.test.mjs		v3.465.2 当版新增：第二十一期 L21-O4c UMD 重载幂等判据（17 条含 3 负控制；36 个 R18 内核类体搬进 factory）
+v3467_local_vector_fallback.test.mjs		v3.467.0 当版新增：本地 N-gram 向量器与按来源分档语义阈值判据（12 条；含旧 simpleEmbedding 反排序对照与能力边界反面断言）
+v3467_gameplay_preset.test.mjs		v3.467.0 当版新增：玩法流派预设档与 /lonsha-preset 入口判据（22 条；含凭据零污染装载期抛错、未知档位不静默、不自行写盘）
+v202611_audit_fix.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— [v2026.11 记忆摄取审计修] 判据：近重复合并 / 设定层守门 / 旁路思维链剥离
+v21_o5_assembly_receipt_parity.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_o5_assembly_receipt_parity.test.mjs — 注入面「组装 ↔ 回执」双向对账 [L21-O5 · v3.465.2]
+v21_o6_view_drive_truth.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_o6_view_drive_truth.test.mjs — 27 视图「每个都真能打开」驱动门 [L21-O6 · v3.465.2]
+v21_o7_frozen_cache_freshness.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_o7_frozen_cache_freshness.test.mjs — 冻结读数新鲜度三态门 [L21-O7 · v3.465.2]
+v21_o8_write_only_scan.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_o8_write_only_scan.test.mjs — 「写了不读」反向扫描判据 [L21-O8 · v3.465.2]
+v21_x1_defense_consistency.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x1_defense_consistency.test.mjs — L21-X1 防御叙事一致性守门 [v3.465.3]
+v21_x2_foreshadow_timing.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x2_foreshadow_timing.test.mjs — L21-X2 伏笔时机四因子可解释面 [v3.465.4]
+v21_x3_tacit_legibility.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x3_tacit_legibility.test.mjs — L21-X3 默契暗号可解码性双向校验 [v3.465.5]
+v21_x4_trauma_depth.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x4_trauma_depth.test.mjs — L21-X4 创伤防线分档含 undecided [v3.465.6]
+v21_x5_rumor_traceback.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x5_rumor_traceback.test.mjs — L21-X5 谣言可回溯原始证据链 [v3.465.7]
+v21_x6_routine_evidence.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x6_routine_evidence.test.mjs — L21-X6 共同起居习惯「已沉淀 vs 待观察」分档 [v3.465.8]
+v21_x7_worldline_draft_audit.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x7_worldline_draft_audit.test.mjs — L21-X7 世界线草稿保存前语义自检 [v3.465.9]
+v21_x8_operation_echo.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x8_operation_echo.test.mjs — L21-X8 一次操作的完整回声四档 [v3.466.0]
+v21_x9_topic_absence.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x9_topic_absence.test.mjs — L21-X9「我为什么不记得」话题级四态归因 [v3.466.1]

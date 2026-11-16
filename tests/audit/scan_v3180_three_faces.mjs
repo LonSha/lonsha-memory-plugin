@@ -139,6 +139,20 @@ for (const st of ["'ready'", "'absent'", "'failed'"]) {
 for (const pp of ["path = 'addCommandObject'", "path = 'addCommand'", "path = 'macro-system'", "path = 'macros'"]) {
     if (!pub.includes(pp)) problems.push('M2 对外入口缺路径标注 ' + pp + '——「注册成功」与「注册到哪条路径」是两件事');
 }
+/* [v3.467.0 V3 负控制失效修复] 上面的 includes 是「文件里某处存在」的下界——
+ *   当 ready+path 的赋值点出现在**多个函数**里（report.slash 153/162、report.macro 221/234、
+ *   slot 321/327 共 6 处），破坏其中一处、另一处仍在，判据就**恒绿**（V3 负控制当场抓到：
+ *   锚点恰中 1 次、node --check 通过，主判据却 exit 0）。收紧为逐行核验：
+ *   每个「state = 'ready'」落点（global 无 path 概念，豁免）必须**同一行**带 path 标注——
+ *   破坏任一注册点即红；未来新增注册点漏写标注同样当场翻红。 */
+{
+    const readySites = pub.split('\n')
+        .map((l, i) => [i + 1, l])
+        .filter(([, l]) => /state = 'ready'/.test(l) && !/\.global\.state = 'ready'/.test(l));
+    const untagged = readySites.filter(([, l]) => !/path = '/.test(l));
+    if (untagged.length) problems.push('M2 对外入口 ready 落点缺路径标注（第 '
+        + untagged.map(([n]) => n).join(',') + ' 行）——每个注册成功点都必须标注注册到哪条路径');
+}
 if (/parameterized = true/.test(pub)) notes.push('M2 对外三入口三态 + 四条路径 + 参数化标注在位');
 else problems.push('M2 参数化宏可用性未标注');
 

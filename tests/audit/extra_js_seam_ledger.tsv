@@ -373,3 +373,5 @@ latent-social-bond-reciprocity-engine.js	yes	yes	memory-symphony-orchestrator.js
 long-term-commitment-milestone-engine.js	yes	yes	memory-symphony-orchestrator.js;optional-engine-registry.js	host-seam
 narrative-momentum-flow-inertia-engine.js	yes	yes	memory-symphony-orchestrator.js;optional-engine-registry.js	host-seam
 unspoken-hesitation-subtext-engine.js	yes	yes	memory-symphony-orchestrator.js;optional-engine-registry.js	host-seam
+local-ngram-vectorizer.js	yes	no	memory-organs.js;sleep-awaken.js	module-internal
+gameplay-preset.js	yes	yes	public-interface.js	host-seam

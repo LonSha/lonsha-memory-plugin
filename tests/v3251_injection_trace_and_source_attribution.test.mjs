@@ -168,8 +168,16 @@ test('v3251 A2. 回执按**下标**说话：同文重复时「裁了一份」不
 });
 
 test('v3251 A3. recency 硬截断：块级清单不成立 ⇒ 显式置 null + 给 span（不假装能判整块）', () => {
-    const blocks = ['[与 recency 标记无关的块]' + '字'.repeat(300), '第二块' + '字'.repeat(300)];
+    /* [v3.467.0] 样本随降级阶梯同动：recency 现在 L1 标记 → L2 结构块 → L3 任意块**逐级放宽**，
+     *   只要有一块能整块装进容量就不再硬截断。本用例要守的是「硬截断时 span 判据不撒谎」，
+     *   所以必须构造**真的装不进整块**的样本 —— 每块长于触发容量，L3 也放不下第一块。
+     *   修前 300 字样本（triggerBudget=329 装得下）已不再触发硬截断，属场景越界而非判据放宽，
+     *   故此处按新语义改样本，并加一条前置断言防止样本将来悄悄漂回「装得下」。
+     *   triggerBudget = budget 420 − 常驻 0 − TAIL 39 − HEAD 52 = 329。 */
+    const BLK = 400;   // > 329，任意一级都装不进整块
+    const blocks = ['[与 recency 标记无关的块]' + '字'.repeat(BLK), '第二块' + '字'.repeat(BLK)];
     const full = '\n\n〔记忆系统私密简报｜仅你可见〕以下内容帮助保持剧情连贯;严禁在回复正文中复述、罗列或提及本节内容。\n' + blocks.join('\n') + '\n〔私密简报结束〕请像一个已读过前情的叙述者那样自然续写,不要复述简报本身。\n';
+    assert.ok(blocks[0].length > 420 - 0 - 39 - 52, '前置：首块必须长于触发容量，否则 L3 整块保留、硬截断不发生');
     const tr = {};
     const out = IR.trimToBudget(full, 420, blocks, 'recency', { trace: tr });
     assert.strictEqual(tr.hardTruncated, true, 'recency 无保留项 ⇒ 硬截断');

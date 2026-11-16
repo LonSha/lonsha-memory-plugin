@@ -9,6 +9,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { judgeParity } from './audit/_assembly_receipt_judge.mjs';
+/* [v3.467.0] 破坏工具唯一真源（v3.247.0 收编）：本档只做运行器的事，改坏源码一律走这里。 */
+import { breakOnce } from './_break_kit.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PIPE_PATH = path.join(ROOT, 'engine-injection-pipeline.js');
@@ -60,10 +62,19 @@ test('v21_o5 B2. swapped 是「总数对」假绿的天敌', () => {
 });
 
 /* ── 负控制：真源码破坏 ── */
-function breakSource(mutate) {
+/* [v3.467.0 修·判据侧重写已收编] 本档原先自带两处**本地重写破坏工具**：
+ *   ① `function breakSource(mutate)` —— 自己读源、自己断言「必须真的改了源码」；
+ *   ② 两个调用点各写一遍 `assert.equal(s.split(anchor).length - 1, 1, '破坏锚点必须恰中 1 次')`
+ *      —— 那正是 `tests/_break_kit.mjs` 的 `assertSingleHit` 已经做的事（v3.247.0 收编过的）。
+ *   v3159 / v3247 B2 会当场点名（本轮实测两条红）。
+ *   修法：破坏动作与「恰中一次」校验**一起**走唯一真源，本档只留运行器的事
+ *   （造临时目录、写增量源码、跑完清理）。顺带把「本地手抄一次锚点校验」也删掉了 ——
+ *   那是同一份纪律的第二个出口，且它用的是 `assert.equal` 而不是真源的 `throwMsg`，
+ *   消息口径本来就与真源不同源。 */
+function brokenTree(anchor, replacement) {
     const src = fs.readFileSync(PIPE_PATH, 'utf8');
-    const broken = mutate(src);
-    assert.notEqual(broken, src, '破坏必须真的改了源码');
+    // breakOnce 自带「锚点恰中 1 次」+「同值必抛」+「锚点为空必抛」，本档不再另写一份。
+    const broken = breakOnce(src, anchor, replacement);
     const t = fs.mkdtempSync(path.join(os.tmpdir(), 'o5-negctl-'));
     const p = path.join(t, 'engine-injection-pipeline.js');
     fs.writeFileSync(p, broken);
@@ -72,10 +83,7 @@ function breakSource(mutate) {
 
 test('v21_o5 N1. 负控制·组装写入改为反向 ⇒ 接线判据必须翻红', () => {
     const anchor = ANCHORS.asmWrite;
-    const { brokenPath, cleanup } = breakSource((s) => {
-        assert.equal(s.split(anchor).length - 1, 1, '破坏锚点必须恰中 1 次');
-        return s.replace(anchor, '_trace.blockSources.byInjectionOrder = _allSrc.slice().reverse();');
-    });
+    const { brokenPath, cleanup } = brokenTree(anchor, '_trace.blockSources.byInjectionOrder = _allSrc.slice().reverse();');
     try {
         const broken = fs.readFileSync(brokenPath, 'utf8');
         assert.ok(wired(broken).includes('asmWrite'), '破坏后接线判据必须翻红（组装面写入不再保序）');
@@ -88,10 +96,7 @@ test('v21_o5 N1. 负控制·组装写入改为反向 ⇒ 接线判据必须翻�
 
 test('v21_o5 N2. 负控制·projection 掐断透传 ⇒ 判据必须翻红', () => {
     const anchor = ANCHORS.projPass;
-    const { brokenPath, cleanup } = breakSource((s) => {
-        assert.equal(s.split(anchor).length - 1, 1, '破坏锚点必须恰中 1 次');
-        return s.replace(anchor, 'byInjectionOrder: null,');
-    });
+    const { brokenPath, cleanup } = brokenTree(anchor, 'byInjectionOrder: null,');
     try {
         const broken = fs.readFileSync(brokenPath, 'utf8');
         assert.ok(wired(broken).includes('projPass'), '破坏后接线判据必须翻红（回执面拿不到来源清单）');

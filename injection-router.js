@@ -284,19 +284,60 @@
             return `${HEAD}${[...resident, ...keptT].join('\n')}${TAIL}`;
         }
         if (st === 'recency') {
-            const keptT = _fillTrigger(trigger.filter((b) => RECENCY_MARKERS.some((k) => b.startsWith(k) || b.includes(k))));
+            /* [v3.467.0] 降级阶梯（吸收 ST-Persistent-Memory injector.js 的分阶段裁减形态）：
+             *   修前：只有「按 RECENCY_MARKERS 筛出的块」这一个候选集，装不下就 `slice(0, budget)`
+             *   硬截断 —— 切口落在块内部，于是 `keptIdxInAll` 必须置 null，块级两格记「不可测」。
+             *   也就是说：**明明还能按整块再退一步，却直接掉进了不可测**。
+             *   现在按「特异度」分三级放宽（越往后越宽容，但永远是**整块**取舍）：
+             *     L1 只留 RECENCY_MARKERS（修前行为）；
+             *     L2 放宽到「结构块」：带 `[xxx]` / `〔xxx〕` 行首标签的（它们是分节标题，不是散句）；
+             *     L3 再放宽到「任意非空触发块」（全收，仍是整块）。
+             *   只有在 L3 也装不下、且**连第一块都放不进**时才做硬截断 —— 那时块级清单才真的不成立。
+             *   每一级都记进 `trace.degradeStage`，让「这次是几级降级」可读。
+             *   为什么这不算「偷偷放宽判据」：块的选择**本来就**是启发式（RECENCY_MARKERS 是手写词表），
+             *     硬截断从来不是设计意图，而是容量算不准时的兜底。把兜底发生在**整块**面而非**半块**面，
+             *     换来的是「谁被丢了」从此可测 —— 这正是本仓 L13-O6 点名要的「被裁要看得见」。 */
+            const _hasMarker = (b) => RECENCY_MARKERS.some((k) => b.startsWith(k) || b.includes(k));
+            const _hasHeader = (b) => /^\s*(\[[^\]]{1,30}\]|〔[^〕]{1,30}〕)/.test(String(b));
+            /* ★ 表头块（只有标签、没有正文）判据 —— 首版阶梯漏了它，实测当场翻车：
+             *   引擎侧块模型是**按行拆**的，`[相关片段·关键词命中]` 与它下面的正文行是**两个块**。
+             *   于是 L2 只装进那个 10 字符表头就判定「降级成功」，正文 400 字全丢，
+             *   载荷 101 字符 —— 而硬截断 `slice(0, 420)` 本可带进 329 字正文。
+             *   **只留标签等于没留内容**，那比硬截断更差，不能算降级成功。 */
+            const _isLabelOnly = (b) => {
+                const s = String(b == null ? '' : b);
+                return s.length <= 32 && /^\s*(\[[^\]]{1,30}\]|〔[^〕]{1,30}〕)\s*$/.test(s);
+            };
+            const _stageSpecs = [
+                { id: 'L1-markers', pred: (b) => _hasMarker(b) },
+                { id: 'L2-headers', pred: (b) => _hasMarker(b) || _hasHeader(b) },
+                { id: 'L3-all-blocks', pred: (b) => true }
+            ];
+            let keptT = [];
+            let _usedStage = null;
+            for (const _sp of _stageSpecs) {
+                const _cands = trigger.filter(_sp.pred);
+                if (_cands.length === 0) continue;      // 这一级什么都筛不出 ⇒ 继续放宽
+                const _got = _fillTrigger(_cands);
+                if (_got.length === 0) continue;        // 连第一块都装不进 ⇒ 继续放宽
+                // 只装进表头 ⇒ 不算降级成功（这时硬截断明显更划算），继续放宽到下一级
+                if (_got.every((b) => _isLabelOnly(b))) continue;
+                keptT = _got; _usedStage = _sp.id; break;
+            }
             const kept = [...resident, ...keptT];
             if (_trace) {
                 // recency 的保留集**非连续**（按标记筛，中间会跳）：只记一个断点下标是错的，
                 //   故显式记 contiguous=false + 真实保留清单，下游不得按下标算区间。
                 _trace.contiguous = false;
+                _trace.degradeStage = _usedStage;   // 未降级时是 L1（与修前同义），降过级这里能读出来
                 /* ★ 位置必须用**同一个判据**重算，不能拿保留文本回查下标：
                  *   `keptT.indexOf(trigger[i])` 在「两条同文触发块」时会把第二条也认成保留
                  *   （回查到第一条）—— 那正是本方法要治的同文盲区，绝不能在自己的实现里再犯。
-                 *   这里直接用筛 keptT 时的同一谓词（RECENCY_MARKERS）对 trigger 逐个判，
-                 *   且容量截断只发生在谓词命中的尾部（保序装 ⇒ 命中集的前缀保留）。 */
-                _markKeptByPos(_posRange(trigger.length).filter((i) =>
-                    RECENCY_MARKERS.some((k) => trigger[i].startsWith(k) || trigger[i].includes(k))).slice(0, keptT.length));
+                 *   这里用**该级实际生效的谓词**逐个判 trigger，且容量截断只发生在命中集尾部
+                 *   （保序装 ⇒ 命中集的前缀保留）。取谓词时必须按 `_usedStage` 回查，
+                 *   不能一律用 L1 的 —— 否则 L2/L3 生效时会漏记（首稿就是这么错的）。 */
+                const _usedPred = (_stageSpecs.find((x) => x.id === _usedStage) || _stageSpecs[0]).pred;
+                _markKeptByPos(_posRange(trigger.length).filter((i) => _usedPred(trigger[i])).slice(0, keptT.length));
             }
             if (kept.length) return `${HEAD}${kept.join('\n')}${TAIL}`;
             /* 硬截断：`full.slice(0, budget)` 的切口可能落在**块内部**。

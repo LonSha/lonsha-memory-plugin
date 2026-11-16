@@ -1960,15 +1960,36 @@
                 } else if (strategy === 'recency') {
                     // 保留常驻 + 近期分区（[v3.273.0] O3 同源等价：kept 同样按容量装，不再整批全塞）
                     const recencyTypes = ['[关键事件·影响当前]', '[剧情时间线]', '[角色状态]', 'POV', '[手机生活记忆]', '[前情摘要]', '[节日]'];
-                    const _cands = triggerBlocks.filter(b => recencyTypes.some(k => b.startsWith(k) || b.includes(k)));
                     const _resFrameLen = residentBlocks.length ? (`\n\n${NOTE}\n${residentBlocks.join('\n')}`).length : 0;
                     const _trigBudget = Math.max(0, budget - _resFrameLen - (`\n${END}\n`).length - (residentBlocks.length ? 1 : (`\n\n${NOTE}\n`).length));
-                    const keptT = [];
-                    let _acc = 0;
-                    for (const t of _cands) {
-                        const _sep = (residentBlocks.length + keptT.length) ? 1 : 0;
-                        if (_acc + t.length + _sep > _trigBudget) break;
-                        keptT.push(t); _acc += t.length + _sep;
+                    /* [v3.467.0] 降级阶梯 —— 与 injection-router.js 模块版**逐字等价**（v3273 C2 守着这条）。
+                     *   修前：单一候选集（recencyTypes 筛），装不下就 `full.slice(0, budget)` 硬截断，
+                     *   切口落在块内部 ⇒ 块级保留清单不成立。现在按特异度分三级放宽、永远整块取舍：
+                     *     L1 只留 recencyTypes；L2 放宽到行首结构块 `[xxx]`/`〔xxx〕`；L3 任意非空触发块。
+                     *   只在 L3 仍一个都装不进时才硬截断。改这一份时**必须同步**改模块版，两份任一漂移即 C2 红。 */
+                    const _hasMarker = (b) => recencyTypes.some(k => b.startsWith(k) || b.includes(k));
+                    const _hasHeader = (b) => /^\s*(\[[^\]]{1,30}\]|〔[^〕]{1,30}〕)/.test(String(b));
+                    const _stages = [
+                        (b) => _hasMarker(b),
+                        (b) => _hasMarker(b) || _hasHeader(b),
+                        () => true
+                    ];
+                    const _fill = (cands) => {
+                        const out = [];
+                        let acc = 0;
+                        for (let i = 0; i < cands.length; i++) {
+                            const t = String(cands[i] == null ? '' : cands[i]);
+                            if (!t) continue;
+                            const sep = (residentBlocks.length + out.length) ? 1 : 0;
+                            if (acc + t.length + sep > _trigBudget) break;
+                            out.push(cands[i]); acc += t.length + sep;
+                        }
+                        return out;
+                    };
+                    let keptT = [];
+                    for (const _pred of _stages) {
+                        const _got = _fill(triggerBlocks.filter(_pred));
+                        if (_got.length > 0) { keptT = _got; break; }
                     }
                     const kept = [...residentBlocks, ...keptT];
                     full = kept.length ? `\n\n${NOTE}\n${kept.join('\n')}\n${END}\n` : full.slice(0, budget);

@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.465.2';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.467.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -368,6 +368,15 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             //   档位只影响「平淡楼花不花 LLM」，永不影响「关键事件会不会被漏掉」。
             //   未知值回落 balanced 并在诊断行如实标「档位未知已回落」（不静默当默认）。
             extractionProfile: 'balanced',
+            /* [v3.467.0] 玩法流派预设：**记录当前用的是哪一档**，不是第二份配置。
+             *   为什么必须落这个键：预设会把 6~7 个键一起改掉，若不记「这批值来自哪一档」，
+             *   下次打开设置页只能看到一堆散值 —— 用户无法回答「我现在是言情档还是自己手调的」。
+             *   语义边界（三条，写清楚免得被误用）：
+             *     · 它只是**标签**：引擎任何路径都不读它做决策，改它不改变任何行为；
+             *     · 手动改过预设里任一键**不自动清除**它（清不清由用户决定；自动清会让「我就差一个键」
+             *       这类微调把档位标签反复抹掉）；
+             *     · 空字符串 = 未使用预设（默认），不假装是某一档。 */
+            gameplayPreset: '',
             // [v3.111] 掉队候选补召回（缝合 bionic collectVectorTailCandidates）
             vectorTailRecoveryEnabled: false,  // 默认关：开启后把「无向量/零向量/维度不符」的条目低分补进候选池
             vectorTailRecoveryLimit: 8,        // 每轮最多补召回条数（防脏库灌爆候选池）
@@ -727,6 +736,11 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
                 //   永远是硬编码回退值 3，旋钮在面板上不存在（v3161 [1] 当场报红）。
                 //   它是纯数值、无密钥、非全局资产，按 v3.160 三键同口径可进卡。
                 'nativeToolMaxRounds',
+                // [v3.467.0] 补 gameplayPreset：该键此前只被声明（memory-config 默认块空串标签）、
+                //   被 gameplay-preset.js 的 LABEL_KEY 写入，却既无面板控件也不在白名单里
+                //   （v3160/v3161/v34355 三红同源）。它是纯题材标签、无密钥、非全局提示词资产，
+                //   按 v3.160 三原则同口径可进卡（与 nativeToolMaxRounds 补登案同口径）。
+                'gameplayPreset',
             ];
             let applied = 0;
             for (const k of CARD_CFG_KEYS) {

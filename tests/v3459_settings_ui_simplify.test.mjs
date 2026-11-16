@@ -58,7 +58,10 @@ test('学术参数默认折叠、开箱即用文案在场、控件契约零丢�
     assert.ok(body.includes('开箱即用'), '首屏必须有开箱即用指引');
     assert.ok(body.includes('高级实验室'), '学术参数必须归入高级实验室');
     assert.equal((body.match(/\bck\('/g) || []).length, 131, '复选框控件数不得变化');
-    assert.equal((body.match(/data-cfg(?:-num|-text)?="/g) || []).length, 82, '文本/滑块控件数不得变化');
+    /* [v3.467.0 重绑 82→83] 新增 gameplayPreset 的 data-cfg-text 控件（可达性补全，
+ *   v3160/v3161/v34355 三红同源修复的 UI 落点）。钉数随真功能面重绑，非放宽：
+ *   断言仍钉死总数，未来任何无对应判据的增删仍会当场翻红。 */
+assert.equal((body.match(/data-cfg(?:-num|-text)?="/g) || []).length, 83, '文本/滑块控件数不得变化');
     for (const id of ['ls-save', 'ls-clear', 'ls-export', 'ls-import', 'ls-snap-restore', 'ls-extract-roles']) {
         assert.ok(body.includes('id="' + id + '"'), '关键控件 ' + id + ' 必须在册');
     }

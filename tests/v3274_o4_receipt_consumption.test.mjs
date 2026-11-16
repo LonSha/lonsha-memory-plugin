@@ -191,9 +191,18 @@ function dupEngine(src, router) {
 /** 硬截断场景：recency + 无 recency 标记块 ⇒ `full.slice(0, budget)`，切口落在块内部。 */
 function hardEngine(src, router) {
     /* ★ 刻意**不给常驻块**：recency 的保留集（常驻 + 带 recency 标记的触发块）为空时
-     *   才走 `full.slice(0, budget)` 硬截断 —— 有常驻就整批保留，永远碰不到那条路径。 */
+     *   才走 `full.slice(0, budget)` 硬截断 —— 有常驻就整批保留，永远碰不到那条路径。
+     * [v3.467.0] 块长随降级阶梯同动 300 → 400：recency 现在 L1 标记 → L2 结构块 → L3 任意块
+     *   逐级放宽，只要有一块能整块装进容量就不再硬截断。本场景要守的是「span 判据在半段上不撒谎」，
+*   triggerBudget = budget 420 − 常驻 0 − TAIL 39 − HEAD 52 = 329。
+     *   ★ 取 340 而不是「远大于 329」：本用例下游有硬编码计数（保留 2 / 切半 1 / 丢 1），
+     *     要求切点 420 恰好落在**第二块内部**。块模型按行拆，布局是
+     *     HEAD(52) + 表头块(11) + 正文1(340)@[64,404) + 正文2(340)@[405,745) + 可提关联块。
+     *     340 > 329 保证 L3 也装不下正文1（剩余容量 318），只装进表头 ⇒ 表头-only 不算降级成功 ⇒ 硬截断；
+     *     420 落在正文2 内部 ⇒ 保留 表头+正文1、切半 正文2、丢 可提关联块 —— 与下游三态断言一致。
+     *     取 400 会让切点落进正文1、丢两块，A3 的计数断言当场红（实测踩过）。 */
     const e = engineFrom(src, { injectionBudget: 420, recallTierEnabled: true, budgetStrategy: 'recency' }, 'router', router);
-    const html = e.buildInjection([{ source: 'bm25', text: '字'.repeat(300) }, { source: 'bm25', text: '乙'.repeat(300) }]);
+    const html = e.buildInjection([{ source: 'bm25', text: '字'.repeat(340) }, { source: 'bm25', text: '乙'.repeat(340) }]);
     return { e, html };
 }
 /** 不可测场景：路由模块缺席 ⇒ 内联回落真裁了但没有块级清单。 */

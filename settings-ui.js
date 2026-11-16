@@ -3086,6 +3086,18 @@
         <button type="button" class="ls-btn" data-settings-view="suspense">未完的约定</button>
     </div>
 </div>
+<div class="ls-group">
+                    <!-- [v3.467.0 可达性补全] gameplayPreset 此前只被 memory-config 声明、gameplay-preset.js
+                         写入（LABEL_KEY / /lonsha-preset），但面板无控件、policy 无 effect_at、卡白名单无键 ——
+                         v3160/v3161/v34355 三红同源。它只是**标签**：引擎不据此改变任何行为；
+                         手动改预设内任一键**不自动清除**它（自动清会让"只差一个键"的微调反复抹掉档位）；
+                         空字符串 = 未使用预设（默认），不假装是某一档。 -->
+                    <div class="ls-group-title">🎬 玩法预设标签</div>
+                    <label class="ls-row">
+                        <div><div>当前玩法预设</div><div class="ls-hint">由 /lonsha-preset 写入的档位标签（mystery_detective / romance / fantasy_ttrpg / ensemble_drama），留空 = 未使用预设。仅作标记，不影响引擎行为；手动微调预设参数不会清除此标签。</div></div>
+                        <input type="text" class="ls-input" value="${escAttr(c.gameplayPreset || '')}" data-cfg-text="gameplayPreset" placeholder="留空 = 未使用预设" autocomplete="off" style="max-width:190px;">
+                    </label>
+                </div>
 <details class="ls-player-details"><summary>调整人物与故事偏好</summary>
 <div class="ls-group">
                      <div class="ls-group-title">💗 人物心境与好感</div>

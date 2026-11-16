@@ -219,6 +219,18 @@ const ALIAS_LEDGER = [
     ['fn', ['_arr', 'arr', 'arrOf', 'safeArr'], ['batch-maintenance-pipeline.js', 'character-growth-drama.js', 'condition-patch.js', 'conditional-consequence.js', 'conflict-adjudication-bench.js', 'continuous-research.js', 'cross-project-migration-desk.js', 'era-continuation-drama.js', 'era-handoff-draft.js', 'fact-correction-transaction.js', 'generation-fact-replay.js', 'institutional-memory.js', 'meaning-map.js', 'memory-archaeology.js', 'memory-budget-orchestrator.js', 'memory-readable-workbench.js', 'memory-ritual.js', 'memory-season.js', 'memory-work-mode.js', 'recall-route-orchestrator.js', 'relationship-repair-response.js', 'secret-theater.js', 'temporal-validity-workflow.js', 'world-ledger-reader.js'], 33, '6b39ffca', '数组归一原语（非数组 ⇒ 空数组）。多模块同批落盘、各自自持，收拢即跨模块读旧值。'],
     ['fn', ['_str', 'strOf'], ['autobiographical-memory.js', 'character-agency-contract.js', 'conditional-consequence.js', 'continuous-research.js', 'goal-reroute.js', 'goal-tracker.js', 'institutional-memory.js', 'relation-dynamics.js'], 43, 'ae1368bf', '文本化原语（缺省空串）。两人格制记忆面各自自持，装载时机互不包含。'],
     ['fn', ['_num', 'numOr'], ['hierarchical-pyramid-evolution.js', 'sleep-awaken.js', 'stm-close-quota.js'], 56, 'ee0d41d9', '数值兜底原语（缺省值必填）。睡眠唤醒面与 STM 截断配额面同批落盘、各自自持。'],
+    /* ── [v3.467.0] 第二十一期 X 面四件读层内核（X2 伏笔时机 / X3 默契暗号 / X4 创伤防线，
+     *   外加 X 面之前的 engine-story-annual）各自持有一份「取值门」原语：两个名字
+     *   `kOf`（story-annual 侧）与 `textOf`（X2/X3/X4 三侧）**同体不同名** ——
+     *   名字不同，故按**名**配对的三层判据（v3280 / v3281）整片看不见它，正落入本档射程。
+     *   **为什么留四份**：四个模块全是**零依赖 IIFE**（档头声明能力一律经 deps 注入、
+     *   不引兄弟模块的原语），装载时机与存活期互不包含；收拢会把「本模块自足」换成
+     *   「依赖另一个模块先挂载」—— 本仓反过的跨模块静默读旧值，与 PRECHECK/PREVIEW、
+     *   keyOf/strOf、KINDS/TARGET_KINDS 同族处理。
+     *   ★ 本行是**判据真抓到东西**（不是为过门禁而补登记）：三件 X 面内核与 story-annual
+     *   确实各持一份逐字体。体长 34 / md5 由判据体在真磁盘上复算得出（/tmp 探针复算，
+     *   零手抄；四个文件逐字同为 `String(x == null ? '' : x).trim();`）。 */
+    ['arr', ['kOf', 'textOf'], ['engine-story-annual.js', 'foreshadow-timing-explain.js', 'tacit-code-legibility.js', 'trauma-defense-depth-read.js'], 34, '72bf1001', '取值门原语（nullish ⇒ 空串 ⇒ trim）。四模块零依赖 IIFE 各自自持，收拢即跨模块读旧值。'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

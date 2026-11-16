@@ -1,3 +1,69 @@
+## v3.467.0
+**第二十一期收账轮第四刀：从 ST-Persistent-Memory 缝合三项剩余增量 —— 向量降级出口 / 预算降级可测 / 玩法流派预设。**
+前三项（L0 现场快照、三档 ACL + Fail-Closed、POV 四档投影、演化血缘、随伴标签、休眠唤醒、RRF 混合检索）
+本仓早已吸收（`scene-state-tracker.js:5`、`presence-routing-guard.js`、`engine-injection-pipeline.js:1178` 均注明出处），
+故本版只做**真缺口的三项**，同一版本号一次落地。
+> 第四项候选（注入逐条「为什么没注入」理由）**明确不做**：`recall-explain.js` 已有七档 `why`（含
+> `missing`/`hit`，且守「不得把判不了当通过」），比对方单条 reason 更严；再做一遍是重复实现。
+### 一、① 本地确定性 N-gram 向量器 + 按来源分档的语义阈值（新模块 `local-ngram-vectorizer.js`）
+**修前实测**：`memory-organs.js` 的 `simpleEmbedding` 是 `vec[i%dim] += charCodeAt(i)/10000`——
+按字符码落桶，**无关文本相似度 0.9467，高于部分重叠的 0.8634**：连「相关/无关」都分不开，
+却与真嵌入共用同一个阈值 0.62。四个降级路径（noKey / apiError / missingVector / exception）全都落到它身上。
+**修后**：本地 N-gram 向量器（词级 + 1/2/3-gram、FNV-1a 双散列符号投射、L2 归一）。实测分数：
+完全相同 1.0000 / 西文词序调换 0.9869 / CJK 部分重叠 0.2735 与 0.3914 / 完全无关 0.0256 / **纯同义改写 0.0169**。
+据此**明写能力边界**：纯同义改写认不出来（与无关同档），任何文档/注释/报账都不得写成「同义召回」。
+阈值按来源分档：`api:0.62`（真嵌入标定）/ `local-ngram:0.22`（低于最弱相关样本 0.2735 留余量、远高于无关 0.0256）/
+`legacy-simple:null` 与 `unknown:null`（**给不出阈值就不给**：任何阈值都只会把噪声当相关）。
+`sleep-awaken.js` 改为按池内来源查阈值、混合取 `Math.min` 并标 `source:mixed(min)`；
+来源无阈值则 `degrade:'semantic-threshold-unavailable'` 且 mode 落 `literal`（与 `no-vector` 分开记）。
+四条硬纪律：维度由调用方给（缺即 `ok:false`）、返回 `source`+`semanticParity:false` 不冒充真嵌入、
+不改既有行为（`config.localVectorFallback !== false` 才启用，默认开且只替换原本就是伪向量那条路）、
+不提供 `cosine`（重复第二份相似度公式是本仓反复治过的漂移源）。另增 `dimensionMismatch` 计数：
+API 返回维数与存量库不符时不缓存（否则跨维混存让 `emb.length === qemb.length` 静默丢召回）。
+### 二、② 注入预算逐级降级阶梯（`injection-router.js` + `engine-injection-pipeline.js` 内联回落同步）
+**修前**：recency 分支只有一个候选集（`RECENCY_MARKERS` 七个标记筛出的块），装不下即 `full.slice(0, budget)`
+硬截断——切口落在块内部，`keptIdxInAll` 必须置 null，下游两格记 null 并留「块级保留清单不成立」：
+**明明还能按整块再退一步，却直接掉进了不可测**。
+**修后**：`L1-markers`（修前行为）→ `L2-headers`（行首 `[xxx]`/`〔xxx〕` 结构块）→ `L3-all-blocks`（任意非空触发块），
+每级仍是**整块**取舍，只在 L3 也装不下时才硬截断，并记 `trace.degradeStage`。
+★ **实施中抓到自己的真缺陷（留痕）**：引擎侧块模型是**按行拆**的，表头 `[相关片段·关键词命中]` 与正文是两块。
+首版阶梯 L2 只装进那个 10 字符表头就判定「降级成功」，正文 400 字全丢、载荷 101 字符——
+而硬截断本可带进 329 字正文。**只留标签等于没留内容**，比硬截断更差。
+故加 `_isLabelOnly` 判据：某级只装进纯标签块时不算降级成功，继续放宽。
+★ 第二处陷阱（留痕）：`_usedPred` 必须按 `_usedStage` **回查**取谓词，一律用 L1 谓词会让 L2/L3 生效时漏记。
+### 三、③ 玩法流派预设档 + `/lonsha-preset`（新模块 `gameplay-preset.js`）
+本仓只有「抽取节奏档」`extractionProfile`（只覆盖抽取频率一维）；换一张卡（推理→言情→群像）要手改 5~7 个键，
+改漏一个就出现「推理卡开着自适应扩容」这类不协调组合。本版给四档：
+`mystery_detective`（relevance / 3600 / 关自适应）、`romance`（balanced / 2800）、
+`ensemble_drama`（recency / 3800）、`fantasy_ttrpg`（balanced / 4000 / `hybridAlpha 0.4` 偏稀疏——生造词靠 BM25）。
+三条硬纪律：**凭据零污染**（密钥/提示词类键运行时校验，预置表出现即抛错，不是靠人眼）、
+**不自行写盘**（`plan()` 纯计算；写入必须由调用方注入 `apply`，落盘走 `ConfigManager.saveConfig`，与设置页同一条路）、
+**未知档位不静默回落**（抛错给用户看见——静默回落会让人以为切了档却没切）。
+`/lonsha-preset` 三形态：无参列档（不碰配置）/ `--dry` 预览 / 带档位应用。新增 `gameplayPreset` 配置键仅作**标签**
+（引擎不读它做决策；手动微调不清标签，否则「就差一个键」的调法会反复抹掉档位）。
+> ✖ 刻意不做（原第四项）：**注入逐条理由**（`recall-explain.js` 已更严，见文首）。
+### 四、判据与回归（本版最费时的部分，如实记账）
+新增 `tests/v3467_local_vector_fallback.test.mjs`（12 条）+ `tests/v3467_gameplay_preset.test.mjs`（22 条）。
+两套首跑都不全绿，**红的一半是判据自己写错**，全部留痕在测试文件注释里：
+· 向量套件 A5 抓到实现真缺陷（`'的了吧是'` 仍产出向量：2/3-gram 层未判「全停用词片段」、西文通道把整串 CJK 当词收了）⇒ 补 `allStopChars()` + 语气助词表（**明确不收** `不/没/别/未`，否定词翻转语义）；
+· 向量套件 A2 抓到自己断言写错（比「前 10 位」在稀疏向量上恒真）⇒ 改比较非零位置集合；
+· 预设套件 E1 用整段原文扫 `localStorage`，被**自己头部的说明注释**打红 ⇒ 改为剥注释后扫；
+· 预设套件 D 段原用 `PI.register` 驱动，撞上进程级幂等标记 `register._done`（第二个用例起拿不到命令对象，会写成假绿）⇒ 导出 `registerPreset` 单独驱动。
+**连带回归 5 套 10 条红，逐条定性后处置**：
+· `v3273 C2` 报 `mod=152 inl=200` —— **真缺陷**：内联回落（`engine-injection-pipeline.js:1960`）是同一套逻辑的第二份实现，我只改了模块版 ⇒ 逐字同步阶梯，C2 转绿；
+· `v3273 C1` 报 `threeTrig/recency mod=152 inl=200` 同源，随上一并修复；
+· `v3251 A3` / `v3274 A3` / `v3298 D4`（含 `B2`/`C2` / `keptFrom:'trace-span'`）共 7 条：判据守的是**硬截断会发生**这一旧行为。
+  定性：**不是放宽判据，是场景越界**——它们要守的其实是「硬截断时 span 判据在半段上不撒谎」，而阶梯生效后 300 字样本（容量 329）整块装得下、不再触发硬截断。
+  处置：**改样本而非改断言**——块长 300→340（`>329` 让 L3 也装不下，且切点 420 恰好落在第二块内部，维持下游「保留2/切半1/丢1」的三态计数），
+  并加前置断言防止样本将来漂回「装得下」；`v3251 A3` 另改 400 并附容量算式。
+  中间踩过一次：先取 400 让切点落进第一块 ⇒ 丢掉两块，A3 的硬编码计数当场红（已留痕）。
+· 版本锚 3 条（`v3251 H1` / `v3273` / `v3274` / `v3298` 的「package.json 与 index.js 版本必须一致」）：
+  **抬版前就是不一致的存量事实**（`package.json`/`manifest.json` = 3.465.2，`index.js` = 3.466.1），本版统一到 3.467.0。
+最终读数：七套 125 条全绿（`v3467` 12 + `v3467` 22 + `v3114` 10 + `v3251` 23 + `v3273` 14 + `v3274` 20 + `v3298` 24）。
+### 五、登记与版本
+`manifest.extra_js` 374 → **376**（新增 `local-ngram-vectorizer.js`、`gameplay-preset.js`）。
+版本号五源统一 **3.467.0**：`package.json` / `manifest.json` / `index.js`（VERSION）/ `memory-config.js`（VERSION 副本）/ `memory-organs.js` / `memory-core.js`。
+
 ## v3.465.2
 **第二十一期收账轮第三刀：36 个 R18 内核的 UMD 包装只包了尾巴、没包类体 —— 同一上下文加载第二次必抛 `SyntaxError`。**
 这一刀不是计划项，是 v3.465.1 收账时被两条已有判据当场顶出来的**存量真缺陷**。

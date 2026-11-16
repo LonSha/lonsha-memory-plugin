@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.465.2",
+  "version": "3.467.0",
   "version_sources": {
-    "manifest": "3.465.2",
-    "package": "3.465.2",
-    "index_const": "3.465.2"
+    "manifest": "3.467.0",
+    "package": "3.467.0",
+    "index_const": "3.467.0"
   },
   "version_same": true,
-  "human_index_version": "3.465.2",
+  "human_index_version": "3.467.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 365,
+    "extra_js": 376,
     "extra_js_list": [
       "ledger-entity.js",
       "psychological-defense-engine.js",
@@ -320,6 +320,15 @@
       "dual-identity-exposure-risk-matrix.js",
       "psychological-burnout-resilience-decay.js",
       "ego-defense-mechanisms-engine.js",
+      "defense-narrative-consistency-guard.js",
+      "foreshadow-timing-explain.js",
+      "tacit-code-legibility.js",
+      "trauma-defense-depth-read.js",
+      "rumor-trace-back.js",
+      "shared-routine-evidence.js",
+      "worldline-draft-audit.js",
+      "operation-echo-report.js",
+      "topic-absence-explain.js",
       "latent-plot-foreshadowing-engine.js",
       "tacit-intimacy-code-engine.js",
       "trauma-taboo-defense-matrix.js",
@@ -377,13 +386,15 @@
       "latent-social-bond-reciprocity-engine.js",
       "long-term-commitment-milestone-engine.js",
       "narrative-momentum-flow-inertia-engine.js",
-      "unspoken-hesitation-subtext-engine.js"
+      "unspoken-hesitation-subtext-engine.js",
+      "local-ngram-vectorizer.js",
+      "gameplay-preset.js"
     ],
-    "root_js": 366,
+    "root_js": 377,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 509,
+    "test_files": 525,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -424,6 +435,7 @@
       "stress_bench.test.mjs",
       "supersede-integration.test.mjs",
       "supersede.test.mjs",
+      "v202611_audit_fix.test.mjs",
       "v20_optional_engine_assembly.test.mjs",
       "v20_optional_engine_registry.test.mjs",
       "v21_o1_zero_consumption_triage.test.mjs",
@@ -432,7 +444,20 @@
       "v21_o4_persistence_enrollment.test.mjs",
       "v21_o4b_volatile_container_chain.test.mjs",
       "v21_o4c_umd_reload_idempotent.test.mjs",
+      "v21_o5_assembly_receipt_parity.test.mjs",
+      "v21_o6_view_drive_truth.test.mjs",
+      "v21_o7_frozen_cache_freshness.test.mjs",
+      "v21_o8_write_only_scan.test.mjs",
       "v21_o9_lib_handle_truth.test.mjs",
+      "v21_x1_defense_consistency.test.mjs",
+      "v21_x2_foreshadow_timing.test.mjs",
+      "v21_x3_tacit_legibility.test.mjs",
+      "v21_x4_trauma_depth.test.mjs",
+      "v21_x5_rumor_traceback.test.mjs",
+      "v21_x6_routine_evidence.test.mjs",
+      "v21_x7_worldline_draft_audit.test.mjs",
+      "v21_x8_operation_echo.test.mjs",
+      "v21_x9_topic_absence.test.mjs",
       "v3100_canonical_stringify.test.mjs",
       "v3101_loose_json.test.mjs",
       "v3102_model_response.test.mjs",
@@ -837,6 +862,8 @@
       "v3459_settings_ui_simplify.test.mjs",
       "v345_deep_bastion.test.mjs",
       "v3461_r18_wiring_truth.test.mjs",
+      "v3467_gameplay_preset.test.mjs",
+      "v3467_local_vector_fallback.test.mjs",
       "v346_fortress_pyramid.test.mjs",
       "v3470_m4x9_lore_crosscheck.test.mjs",
       "v347_hc_mechanics.test.mjs",
@@ -897,7 +924,7 @@
     ],
     "audit_dir_exists": true,
     "audit_gated": 73,
-    "audit_probes": 13,
+    "audit_probes": 15,
     "tiers": {
       "schema": "gate-tiers@1",
       "tiers": [
@@ -935,7 +962,7 @@
     "tests_total": 430,
     "assertions": 4658,
     "audit": "68/68",
-    "reason": "登记版本 3.431.0 ≠ 当前 3.465.2 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.431.0 ≠ 当前 3.467.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -954,19 +981,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "28038d139016",
-      "package.json": "a2b4248ae5a6",
-      "index.js": "2248b786b6e7",
+      "manifest.json": "b3ffb387c491",
+      "package.json": "7b552114288f",
+      "index.js": "e0ea5e9b2c86",
       "update-log.json": null,
-      "README.md": "b10a6f1f0cf8",
-      "PLAN.md": "904c27adaa86",
-      "CHANGELOG.md": "652b02e39628",
-      "TODO.md": "c593e2193a5e",
+      "README.md": "45c36a076f08",
+      "PLAN.md": "57b5d7b0d208",
+      "CHANGELOG.md": "eeedceb03cf3",
+      "TODO.md": "4ea055ec04b4",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.465.2"
+    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.467.0"
   ],
   "unknown_count": 1
 }

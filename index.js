@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.470.0';
+    const VERSION = '3.471.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1360,6 +1360,12 @@
         async search() { return []; }
         getCacheStats() { return { cacheSize: 0, vectorCount: 0 }; }
         heatByText() { return undefined; }
+        /* [v3.467.0] 逐条向量来源：退路必须与 `memory-organs.js` 的公开面同形（v3264 A 对账）。
+         *   退路没有向量层 ⇒ 一律回 'unknown'，**不伪报 'api'** —— 那会让「降级向量」
+         *   与「真向量」在召回表上同形（本仓反复治的那笔老账）。 */
+        embedSourceOf() { return 'unknown'; }
+        /* [v3.467.0] 向量来源侧的读数（诊断面用）：退路无向量层，如实回报空。 */
+        getEmbedSourceStats() { return { sources: {}, unknown: 0 }; }
         /* ── CharacterMemoryBank ── */
         addCore() { return null; }
         addRecent() { return null; }
@@ -11642,12 +11648,40 @@ function _collectNewFace() {
                             try { return (eng && typeof eng._floorLedgerCoverage === 'function') ? eng._floorLedgerCoverage() : null; }
                             catch (e) { return null; }
                         },
+                        /* [v3.467.0] 预设入口需要写配置，这里注入**三条与设置页同源**的薄口：
+                         *   configRead  → 现算读（不缓存，避免面板显示旧值）
+                         *   configWrite → 逐键写（gameplay-preset 白名单已在模块内守，此处不做键过滤）
+                         *   configSave  → ConfigManager.saveConfig（与设置页点按钮**完全同一条**落盘路径）
+                         *   注入而不让 public-interface 自己 import，是为了让那个模块保持「不依赖宿主模块」。
+                         *   ★ 取库口**只在宿主**（见下 presetModule）：接线扫描器 B4/B5 的消费凭据只认
+                         *     `index.js` 里对模块全局名的直接取值文本，模块自己取会被判「已挂载但零消费」
+                         *     —— 那条红的真实含义是「没有任何宿主代码认领它」，不是台账噪音。
+                         *     （写这条注释时我踩过：把示例记号照抄进注释，会被扫描器当成真引用。） */
+                        presetModule: () => {
+                            try { return (typeof window !== 'undefined' && window.LonShaGameplayPreset) || null; }
+                            catch (e) { return null; }
+                        },
+                        configRead: () => {
+                            try { return (this.engine && this.engine.config && this.engine.config.config) || null; }
+                            catch (e) { return null; }
+                        },
+                        configWrite: (k, v) => {
+                            try {
+                                if (this.engine && this.engine.config && this.engine.config.config) this.engine.config.config[k] = v;
+                                return true;
+                            } catch (e) { errLog(e, 'publicInterface.configWrite'); return false; }
+                        },
+                        configSave: () => {
+                            try {
+                                if (this.engine && this.engine.config && typeof this.engine.config.saveConfig === 'function') this.engine.config.saveConfig();
+                            } catch (e) { errLog(e, 'publicInterface.configSave'); throw e; }
+                        },
                         // 宿主版本差异：斜杠命令两条路径、宏两条路径，由 public-interface 按可用性探测。
                         //   这里只提供 dynamicImport 原语（宿主模块经 URL 动态载入）。
                         dynamicImport: (p) => import(/* webpackIgnore: true */ p)
                     });
                     this._publicInterfaceReport = rep;
-                    console.log(`[${PLUGIN_NAME}] 公开接口: 斜杠=${rep?.slash?.state || '—'}(${rep?.slash?.path || '—'}) 宏=${rep?.macro?.state || '—'}(${rep?.macro?.path || '—'}) 全局=${rep?.global?.state || '—'}`);
+                    console.log(`[${PLUGIN_NAME}] 公开接口: 斜杠=${rep?.slash?.state || '—'}(${rep?.slash?.path || '—'}) 宏=${rep?.macro?.state || '—'}(${rep?.macro?.path || '—'}) 预设=${rep?.preset?.state || '—'}(${rep?.preset?.path || '—'}) 全局=${rep?.global?.state || '—'}`);
                     return rep;
                 } catch (e) { errLog(e, 'publicInterface.register'); return null; }
             };

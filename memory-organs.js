@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.465.2';
+let VERSION = '3.467.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -739,6 +739,11 @@ class VectorStore {
         this.vectors = [];
         this.dimension = 1536;
         this.embedCache = new Map(); // [v3.147] 向量层双 hash 分层对账 cache
+        /* [v3.467.0] 逐条向量来源账（docHash → api | local-ngram | legacy-simple）。
+         *   为什么必须有：降级向量与真嵌入**不在同一语义空间**，余弦跨空间是噪声。
+         *   修前两者在 vectors[] 里同形（都只有 embedding 数组），召回侧无从区分，
+         *   于是「无密钥用户的向量召回整层失效」这件事在任何面板上都看不见。 */
+        this.embedSourceByDoc = new Map();
     }
     
     // [v3.147] 双 hash 计算（docHash: 文本内容 hash; payloadHash: 状态/元数据 hash）
@@ -754,7 +759,56 @@ class VectorStore {
         //   四条都退回 simpleEmbedding（按字符码位的伪向量，与真嵌入的语义空间毫不相干）。
         //   旧实现只 console.warn 一行，而诊断面板看不到任何东西：用户侧表现为
         //   「向量召回效果奇差」却完全不知道向量层早已整层降级——四条路径合计零计数。
+        // [v3.467.0] 降级出口换人：四条路径不再退 simpleEmbedding，改走本地确定性 N-gram 向量
+        //   （local-ngram-vectorizer.js）。理由：simpleEmbedding 是「按字符码位摊到固定下标」，
+        //   同一句换个说法几乎正交、长文本尾巴被 i<dimension 截掉，与真嵌入的语义空间毫不相干；
+        //   混存后余弦在两者之间是噪声，而召回侧照常当可比读数用。
+        //   四条路径的**计数与理由**原样保留（`_embedDegrade` 语义不变），只换出口 + 记来源。
+        //   另：`embedSource` 逐条标记（api / local-ngram / local-ngram-after:<降级因>），
+        //   使「降级向量」与「真向量」在召回表上可分开统计 —— 否则这正是本仓反复治的
+        //   「两态同形」老账。simpleEmbedding 保留为最后一档兜底（本模块缺席时）。
         this._embedDegrade = this._embedDegrade || { noKey: 0, apiError: 0, missingVector: 0, exception: 0 };
+        this._embedFallback = this._embedFallback || {
+            used: 0, byReason: {}, rejected: 0, legacy: 0,
+        };
+        /* ★ 来源表**惰性自建**（[v3.467.0 修] 首稿直接 `this.embedSourceByDoc.set(...)`，
+         *   而本仓判据把方法体抠进 `new Function` 重放时沙箱里没有这个成员 ⇒ 拿到真向量后
+         *   抛 TypeError，被外层 catch 当成 `exception` 走降级，v3168 I4 负向当场红成 [0,0,0]。
+         *   惰性自建后本方法**不再假设调用方预置了任何字段**，与「出口自给自足」同一纪律。 */
+        this.embedSourceByDoc = this.embedSourceByDoc || new Map();
+        const _fallback = (str, docHash, reason, cacheable = true) => {
+            /* ★ 出口必须**自给自足**：本仓多套判据把 `getEmbedding` 方法体抠进 `new Function`
+             *   重放（v3168 I4 / v3264 等），沙箱只提供**方法体里出现过的**成员。所以降级出口
+             *   的落地逻辑就地写在这里，**不调本类的其它方法**（`_localVector` 在沙箱里不可达，
+             *   实测让 v3168 I4 三条当场 `TypeError`）。模块优先、simpleEmbedding 兜底与
+             *   `_localVector()` 逐字同义，只是搬了位置。 */
+            const _str = String(str ?? '');
+            let _vec = null;
+            let _mod = null;
+            try {
+                _mod = (typeof window !== 'undefined' && window.LonShaLocalNgramVectorizer)
+                    || (typeof require === 'function' ? (() => { try { return require('./local-ngram-vectorizer.js'); } catch { return null; } })() : null);
+            } catch { _mod = null; }
+            const _cfg = (this.config && this.config.config) || {};
+            if (_cfg.localVectorFallback !== false && _mod && typeof _mod.vectorize === 'function') {
+                const _r = _mod.vectorize(_str, this.dimension);
+                if (_r && _r.ok && Array.isArray(_r.vector) && _r.vector.length === this.dimension) {
+                    _vec = _r.vector;
+                    this._embedFallback.used++;
+                    this._embedFallback.byReason[reason] = (this._embedFallback.byReason[reason] || 0) + 1;
+                    if (typeof this.embedSourceByDoc !== 'undefined') this.embedSourceByDoc.set(docHash, _mod.SOURCE || 'local-ngram');
+                } else {
+                    this._embedFallback.rejected = (this._embedFallback.rejected || 0) + 1;
+                }
+            }
+            if (!_vec) {
+                this._embedFallback.legacy = (this._embedFallback.legacy || 0) + 1;
+                if (typeof this.embedSourceByDoc !== 'undefined') this.embedSourceByDoc.set(docHash, 'legacy-simple');
+                _vec = this.simpleEmbedding(_str);
+            }
+            if (cacheable) this.embedCache.set(docHash, _vec);
+            return _vec;
+        };
         try {
             const str = String(text ?? '');
             const docHash = 'doc_' + hash32(str);
@@ -767,11 +821,9 @@ class VectorStore {
             const api_base = (cfg.embeddingUrl || 'https://api.openai.com').replace(/\/+$/, '');
             
             if (!api_key) {
-                console.warn(`[${PLUGIN_NAME}] 无Embedding密钥，使用简化向量（可在设置中配置）`);
+                console.warn(`[${PLUGIN_NAME}] 无Embedding密钥，降级为本地确定性向量（可在设置中配置真嵌入）`);
                 this._embedDegrade.noKey++;
-                const vec = this.simpleEmbedding(str);
-                this.embedCache.set(docHash, vec);
-                return vec;
+                return _fallback(str, docHash, 'noKey');
             }
             
             const url = api_base.endsWith('/v1') ? `${api_base}/embeddings` : `${api_base}/v1/embeddings`;
@@ -785,24 +837,53 @@ class VectorStore {
             if (data.error) {
                 console.warn(`[${PLUGIN_NAME}] Embedding API错误，降级`, data.error);
                 this._embedDegrade.apiError++;
-                const vec = this.simpleEmbedding(str);
-                this.embedCache.set(docHash, vec);
-                return vec;
+                return _fallback(str, docHash, 'apiError');
             }
             
-            if (!data.data?.[0]?.embedding) this._embedDegrade.missingVector++;
-            const vec = data.data?.[0]?.embedding || this.simpleEmbedding(str);
-            this.embedCache.set(docHash, vec);
-            return vec;
+            const _apiVec = data.data && data.data[0] && data.data[0].embedding;
+            if (!_apiVec) {
+                this._embedDegrade.missingVector++;
+                return _fallback(str, docHash, 'missingVector');
+            }
+            /* 真向量：**原样返回，不因维度不同就替换**。
+             *   [v3.467.0 修] 首稿在「API 维数 ≠ this.dimension」时退回本地向量并**不缓存**，
+             *   动机是防跨维混存。但那等于「用户配了真嵌入，因为维数不同被静默换成伪向量」——
+             *   与「真嵌入优先」相悖，且判据 v3168 I4 负向（真向量须原样返回）当场红。
+             *   修后：真向量照常返回并缓存，维数不符**只登记**，让跨维混存在诊断面上看得见
+             *   （reader 可据此判「这一条与库不同源」），但**不偷偷降低质量**。
+             *   跨维真正有害的调用方（sleep-awaken 的长度判）本就判不了，
+             *   它的诚实出口是「判不了就说判不了」，不是这里替它改数据。
+             *   ★ 登记**不进 `_embedDegrade`**：那本账的契约是「四条降级路径各自计数」，
+             *     而维数不符**不是降级**（向量照常返回、质量不降）。塞进去就成了
+             *     「降级」与「异常」两态同形 —— 正是本仓反复治的老账。
+             *     故单独立 `_embedAnomaly`，只登记、不参与任何降级判定。 */
+            if (Array.isArray(_apiVec) && _apiVec.length !== this.dimension) {
+                this._embedAnomaly = this._embedAnomaly || { dimensionMismatch: 0 };
+                this._embedAnomaly.dimensionMismatch++;
+            }
+            this.embedCache.set(docHash, _apiVec);
+            this.embedSourceByDoc.set(docHash, 'api');
+            return _apiVec;
         } catch (err) {
             console.warn(`[${PLUGIN_NAME}] Embedding失败，降级:`, err);
             if (this._embedDegrade) this._embedDegrade.exception++;
             const str = String(text ?? '');
             const docHash = 'doc_' + hash32(str);
-            const vec = this.simpleEmbedding(str);
-            this.embedCache.set(docHash, vec);
-            return vec;
+            return _fallback(str, docHash, 'exception');
         }
+    }
+    
+    /**
+     * 逐条向量来源（docHash → 'api' | 'local-ngram' | 'legacy-simple'）。
+     *  召回表要能分「真向量 / 降级向量」分开统计，否则两者同形。
+     *  ★ 降级出口的**唯一实现**在 `getEmbedding` 的 `_fallback` 里（见那里的注释：
+     *    必须自给自足，因为同一方法体会被本仓判据抠进 `new Function` 重放）。
+     *    这里刻意**不**再提供 `_localVector()` —— 两份实现就是第二个真源，
+     *    而本仓刚在 v3273 C2 上被「内联回落与模块版漂移」咬过一次。
+     */
+    embedSourceOf(text) {
+        const docHash = 'doc_' + hash32(String(text ?? ''));
+        return this.embedSourceByDoc.get(docHash) || 'unknown';
     }
     
     simpleEmbedding(text) {
@@ -828,6 +909,10 @@ class VectorStore {
             id,
             text,
             embedding,
+            /* [v3.467.0] 向量来源随条目落盘（与 docHash 同层，不另建表）：
+             *   召回诊断可据此分「真向量 / 本地确定性 / 旧伪向量」三档统计；
+             *   值取 docHash 那一份（同一文本恒同来源），缺失记 unknown 而不猜。 */
+            embedSource: this.embedSourceByDoc.get(docHash) || 'unknown',
             metadata: metaWithHashes,
             docHash,
             payloadHash,

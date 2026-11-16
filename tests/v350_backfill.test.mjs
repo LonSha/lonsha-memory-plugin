@@ -125,6 +125,39 @@ function extractAsyncMethod(name) {
 /* ══════════ 2. backfillFloors 行为（含去重防放大） ══════════ */
 {
     const fnSrc = extractAsyncMethod('backfillFloors');
+    /* [v3.467.0 修·判据侧欠账] v2026.11 审计修给 `backfillFloors` 加了一处真依赖：
+     *   楼文本必须**先剥思维链**再剥标签壳，故方法体里出现 `extractThinkingChain(...)`。
+     *   本档旧沙箱只注入了 window/errLog/PLUGIN_NAME，于是每个楼层都抛 ReferenceError，
+     *   被方法体自己的 floor 级 catch 吞掉 ⇒ done.fail++ ⇒ `r.ok` 恒 0。
+     *   修法：把**真源码**里的该函数体一并注进沙箱（不是给桩 —— 桩会让「先剥思维链」
+     *   这条判据变成永远成立的空断言）。函数的真身从合并面抽取，零手抄。
+     */
+    const SEEKING_TC_SRC = (() => {
+        /* 为什么按**缩进**而不是花括号配平抽这段：`extractThinkingChain` 体内含
+         *   /```[\s\S]*?```/g 这类正则字面量，其字符类里带引号/斜杠；本档的 braceEnd
+         *   只跳字符串不跳正则（v3282 档头已记录过这个失步形态），实测在这里截出
+         *   32691 行的失步体 → `SyntaxError: missing ) after argument list`。
+         *   宿主面里函数声明的缩进恒为 4 空格，函数体结束行是缩进 <=4 的单独 `}`，
+         *   故用「行首缩进」定位尾部，与体内有什么字符无关。 */
+        const lines = srcI.split(String.fromCharCode(10));
+        let start = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (/^[ \t]*function extractThinkingChain[ \t]*\(/.test(lines[i])) { start = i; break; }
+        }
+        if (start < 0) throw new Error('缺 extractThinkingChain —— 判据沙箱与真源脱节');
+        const indent = lines[start].match(/^[ \t]*/)[0].length;
+        let end = -1;
+        for (let i = start + 1; i < lines.length; i++) {
+            const m = lines[i].match(/^([ \t]*)\}[ \t]*$/);
+            if (m && m[1].length <= indent) { end = i; break; }
+        }
+        if (end < 0) throw new Error('extractThinkingChain 尾部未闭合（抽面与真源脱节）');
+        const body = lines.slice(start, end + 1).join(String.fromCharCode(10));
+        if (!/function extractThinkingChain/.test(body) || body.length < 200) {
+            throw new Error('extractThinkingChain 抽面异常短（' + body.length + ' 字符）');
+        }
+        return body;
+    })();
     const makeEnv = (chat, extracted, graphState) => {
         const calls = { summary: [], addNode: [], addEdge: [] };
         const eng = {
@@ -156,6 +189,7 @@ function extractAsyncMethod(name) {
             _leaseDrop() {},
         };
         const wrapped = new Function('window', 'errLog', 'PLUGIN_NAME', `
+            ${SEEKING_TC_SRC}
             ${fnSrc}
             return { backfillFloors };
         `);

@@ -1,443 +1,451 @@
 {
-  "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
-  "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
-  "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 140053,
-  "maxSlack": 400,
-  "note": "[v3.465.1] L21-O4 复检：把 19 个模块的 hydrateState 从「通用浅合并」重写为按各自状态形状归一。增长来源：每个模块的归一化体都在逐字段重建容器（Map 由 entries 重建、Set 由数组重建）、按值域夹紧数值、按受控词表回落枚举，平均每模块 +19 行，全仓 +477 行。这不是新增功能面，而是把首版弱实现（它本身会装脏：Map/Set 字段被 JSON 普通对象覆盖）换成真能用的实现；首版同时违反「不许逐字副本」纪律（v3281 B1 点名 hydrateState 一簇 11 成员）。全为活跃功能增长，非死代码回流。",
-  "history": [
-    {
-      "ceiling": 21000,
-      "reason": "v3.152 词典线 +197"
-    },
-    {
-      "ceiling": 21300,
-      "reason": "v3.168 携带契约/静默降级线 +235"
-    },
-    {
-      "ceiling": 21700,
-      "reason": "v3.170 巩固面（stm-ltm 内核审计账本 + 三态 + selfReport）"
-    },
-    {
-      "ceiling": 22100,
-      "reason": "v3.171 门控读数面（smart-trigger 读侧计数 + 双态面板 + 总账/自检两行）"
-    },
-    {
-      "ceiling": 22750,
-      "reason": "v3.172 召回漏斗读数面（缝合四模块收缩阶段计数 + 面板 + 宿主五处接线）"
-    },
-    {
-      "ceiling": 23000,
-      "reason": "v3.174 桥的读者契约面（来源五态 + 类型三态 + JSON 出口 + 快照自述 + 审计脚本）"
-    },
-    {
-      "ceiling": 23400,
-      "reason": "v3.175 世界钟读者面（world-clock-reader.js + GameClock 对账/诊断行/manifest）"
-    },
-    {
-      "ceiling": 24000,
-      "reason": "v3.176 世界账本读者面（world-ledger-reader.js 全账本对读 + 宿主投影收集 + 快照携带 + 桥外供 + 审计脚本）"
-    },
-    {
-      "ceiling": 25000,
-      "reason": "v3.180 归属性/年龄三态/对外只读口（floor-ledger.js + age-anchor.js + public-interface.js，含宿主接线 224 行）"
-    },
-    {
-      "ceiling": 26200,
-      "reason": "v3.181 场所图景（SceneBook 抽为 scene-book.js 724 行 + 六面能力 + 宿主 12 处接线 + 携带契约第 24 键 scenePresence）"
-    },
-    {
-      "ceiling": 29000,
-      "reason": "v3.183 分支一致性三件套（summary-provenance.js 302 + branch-guard.js 405 + crosslink.js 285 + 宿主接线）"
-    },
-    {
-      "ceiling": 31300,
-      "reason": "v3.184 调研清单收尾四件套（净增小于四模块之和：同时净减了旧字面 replace 与旧内联判据）"
-    },
-    {
-      "ceiling": 31500,
-      "reason": "v3.195.0 伏笔账本 seed-ledger.js（218 行）+ 宿主四处接线（清扫/场景头落笔/注入行/召回封印）"
-    },
-    {
-      "ceiling": 32100,
-      "reason": "v3.196.0 平行事实账本 parallel-ledger.js + 秘密账本 secret-ledger.js（合计 505 行）+ 宿主四处接线与两个宿主入口"
-    },
-    {
-      "ceiling": 32700,
-      "reason": "v3.202.0 回滚面收口（ledger-replay.js 九账统一 helper + 宿主携带面拓宽 + 显式豁免表）"
-    },
-    {
-      "ceiling": 33251,
-      "reason": "v3.207.0 账本实体契约：新增 ledger-entity.js（172 行），六本账委派收编后各账净减（纯重构、逐字节等价）；活跃总量实测 32652 → 32851（+199）"
-    },
-    {
-      "ceiling": 33870,
-      "reason": "v3.208.0 投影管线 + 成本预测：新增 projection-pipeline.js（202 行）+ cost-forecast.js（255 行）两个模块与宿主接线（内含投影取库口/预测对账/两行诊断）；另修内联回落预算路径与 injection-router.deriveBudget 不等价（1152 组枚举里 58 组分歧）的真缺陷"
-    },
-    {
-      "ceiling": 34331,
-      "reason": "v3.209.0 迁移与运行时兼容性收口：新增 schema-migration.js（189 行）+ module-registry.js（137 行）与宿主接线（含取库失败登记表、两取库口、恢复旧档方向、两行诊断）"
-    },
-    {
-      "ceiling": 34336,
-      "reason": "v3.209.0 迁移与运行时兼容性收口：新增 schema-migration.js（200 行）+ module-registry.js（137 行）与宿主接线（含取库失败登记表、两取库口、恢复旧档方向、两行诊断），另修取库口空白 catch 与两处测试汇总死读数"
-    },
-    {
-      "ceiling": 34690,
-      "reason": "v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）"
-    },
-    {
-      "ceiling": 35173,
-      "reason": "v3.212.0 投影契约出口（L-F5）：projection-pipeline.js 新增 envelope 出口（结构版常量 + 11 项字段单一真源 + buildEnvelope/contractOf/envelopeOf，9067→15850 字符）+ 宿主接线（_buildProjectionEnvelope + 快照 projection 字段 + readWorldLedger 内刷新）"
-    },
-    {
-      "ceiling": 35749,
-      "reason": "v3.214.0 R1-E 九账证据工作台（evidence-workbench.js 413 行：九账登记表 + 三态读数 + 出处投影 + 四态检索 + ref 定位 + 诊断行）+ 宿主接线（_evidenceWorkbench/_ledgerApis/searchEvidence + 快照 evidence 字段）"
-    },
-    {
-      "ceiling": 36025,
-      "reason": "v3.214.0 R1-F 修复预览与受控写入面（repair-loop.js preview/validate + dedupeKey 幂等；index.js abandonRepair/repairRevision + 桥 repair 命名空间与恒定回执）"
-    },
-    {
-      "ceiling": 36313,
-      "reason": "v3.215.0 R2-A 注入读数真实性（index.js _injectionRecord/_injectionBlocksOf/_injectionRefOf/_injectionDiscardStale/_buildDiagnosticsInjection/buildInjectionReadout + 桥 injection 快照面与 injectionRefOf；settings-ui 注入面板逐块读数与诊断分格）"
-    },
-    {
-      "ceiling": 36393,
-      "reason": "v3.216.0 R2-B 迟到隔离（index.js _injectionStage/_injectionCommit 暂存-提交两段式 + 过期清暂存与载荷读数）"
-    },
-    {
-      "ceiling": 36442,
-      "reason": "v3.217.0 R2-D 跨路径暂存隔离（index.js _injectionCommit 载荷自身代核对 + _injectionClose 收尾唯一入口 + interceptor 路径收尾）"
-    },
-    {
-      "ceiling": 36514,
-      "reason": "v3.218.0 R2-E 取消留痕（index.js _injectionEnd 结局标注 + outcome 外供 + 自检行；settings-ui 面板结局徽标）"
-    },
-    {
-      "ceiling": 37147,
-      "reason": "v3.219.0 R2-F 双向关系对账 + 知情网络（relation-mutual.js + knowledge-network.js 两个新模块 + 宿主接线：注入侧标注/认知侧登记与解除/两行诊断）"
-    },
-    {
-      "ceiling": 37538,
-      "reason": "v3.223.0 O-1 场所面「没给」与「给了 0」判开收口（scene-book.js 15 处取值口径同族收干净：numOrNull 本体/num 别名/coverage 列号/外供面 tree+currentChain/回滚三法/floors；v3224 套件 32 条；v3181 与 negctl 锚点对齐）"
-    },
-    {
-      "ceiling": 37960,
-      "reason": "v3.233.0 F-2 跨平台事件来源构成（event-completeness.js 新增受控词表/分级四态/构成面/诊断行 + evidence-workbench.js 出处列修正与来源构成 + index.js 两处接线）+ 同轮抬版连带接管（v3232 基线按本版重建、v3214 两处锤点交棒）"
-    },
-    {
-      "ceiling": 38449,
-      "reason": "v3.235.0 R4-A 回滚预览（dry-run）：ledger-replay.js 新增只读预览面（previewDrop/previewShift/previewLine/DROP_NOTHING + 形状扫描）与 index.js 宿主接线（配置键/预览方法/删楼点预告/诊断行/初始化）"
-    },
-    {
-      "ceiling": 38765,
-      "reason": "v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记"
-    },
-    {
-      "ceiling": 39284,
-      "reason": "v3.237.0 R4-C 命名检查点 + 分支只读对照：新增 snapshot-checkpoint.js（412 行）+ index.js 接线 8 个成员（含 checkpointStore 与模块取库口）"
-    },
-    {
-      "ceiling": 39502,
-      "reason": "v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口"
-    },
-    {
-      "ceiling": 39679,
-      "reason": "v3.240.0 账本实体契约「没给」判开收口：ledger-entity.js 重写 finite 本体（先挡「没给」与非数值）+ 新增 finiteFloor/numOrNull 两个一行转发别名 + 九本账 floor 一族全部改走 finiteFloor（含三本独立账收编，删其本地 finite/text 拷贝）"
-    },
-    {
-      "ceiling": 40022,
-      "reason": "v3.249.0 M-O1：index.js 召回收尾改为唯一出口（_finalize 四路径收口 + rerankPath/injectedIds 归因）与图谱全量候选接线，活跃代码 +31 行（实测 39622）"
-    },
-    {
-      "ceiling": 40576,
-      "reason": "v3.251.0 M-O3：注入回执（五阶段/token 口径/分层/禁用对账）+ 拼装现场归因记账 + v3251 专锁"
-    },
-    {
-      "ceiling": 40941,
-      "reason": "v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）"
-    },
-    {
-      "ceiling": 41640,
-      "reason": "v3.254.0 M-O4：新增 cache-identity.js（224 行：四位身份 + 六词失效原因 + 具名差异）与 cache-workload.js（326 行：四条消费路径的可注入量测台，含方向分型与两态时钟归因）两个模块，加宿主接线（两个取库口 + 三个宿主口 + 两处消费点改造 + selfCheck 缓存身份行）与配套判据面（scan_v3254_cache_identity.mjs 312 行 + v3254 套件）"
-    },
-    {
-      "ceiling": 41663,
-      "reason": "v3.255.0 M-O4 兑现审计：index.js 新增 C9 身份来源头注（为何不能接落盘计数器）与新墙查；代码面未改行为（revision 改为 null 净增几行）"
-    },
-    {
-      "ceiling": 41709,
-      "reason": "v3.256.0 M-O4 cacheHit 探针真调用与探针覆盖面常驻判据；只改审计模块/测试，不增产品活跃代码"
-    },
-    {
-      "ceiling": 41996,
-      "reason": "A1 第三刀：新增 narrative-generators.js（420 行）并将三个生成侧类类实体迁出 index.js；活跃代码实测上升，按本仓口径限制内抬升上界"
-    },
-    {
-      "ceiling": 43047,
-      "reason": "v3.260.0 缝合 shujuku：新增 native-tools.js（协议机制 21 出口）与 pristine-fetch.js（传输机制 11 出口），二者均为「先落机制、判据套件真执行」的模块，出口消费在 index.js 接线点"
-    },
-    {
-      "ceiling": 43580,
-      "reason": "v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）"
-    },
-    {
-      "ceiling": 44184,
-      "reason": "v3.264.0 A1 第五刀：宿主六器官类（LLMCaller/VectorStore/CharacterMemoryBank/EntityLexicon/WorldProgress/StorageManager）外移 memory-organs.js，宿主行数下降；模块侧新增逐字副本与依赖收口（活跃代码总量随模块新代码合法回涨，非死代码回流）"
-    },
-    {
-      "ceiling": 44651,
-      "reason": "v3.266.0 A1 第六刀：四个内核数据模型类（CharacterState/SummarySystem/GameClock/MemoryGraph）87 行）外移，模块侧新增逐字副本与取库链；活跃代码总量随模块新代码合法回涨，非死代码回流"
-    },
-    {
-      "ceiling": 44883,
-      "reason": "v3.267.0 A1 第七刀：memory-config.js 承载 ConfigManager、默认配置块与迁移逻辑，活跃实现新增为合法模块抽取，不是死代码回流"
-    },
-    {
-      "ceiling": 45313,
-      "reason": "v3.273.0：① O3 注入预算裁剪契约（index.js 内联回落与 injection-router.js 同构化，+23 行）；② 收口 v3.271.0 的误删 —— 该版修 D2 时把 showBrowser 的 4 段交互绑定整块删掉（那是唯一实现），本版搬回并补 eng 别名，+139 行。两者均为活跃功能增长，非死代码回流。"
-    },
-    {
-      "ceiling": 45518,
-      "reason": "v3.274.0 O4：① index.js 回执消费改造（_lastBudgetStats 从逐块读数导出 + countedBlocks/partialBlockChars 等新读数键，+74 行）；② 新增 _trimAttempted 本地事实与「路由在场但未标 trimmed」的不可测分支；③ cost-ledger.js 补 span 判据（+445 字节）。均为活跃功能增长，非死代码回流。"
-    },
-    {
-      "ceiling": 45790,
-      "reason": "v3.275.0 O5：① index.js 新增归档处置留痕接线（_archiveShiftLog 初始化 + CHAT_CHANGED 归零 + selfCheck「归档处置」三态行）与召回产物截断自述传递（selectedMemoryIdsTotal / 真总数入参 + 报告面警示行）；② archive-shift.js 新增 explainShift/explainPrune 唯一真源（旧 API 改薄投影）；③ ledger-replay.js 新增有界留痕器与出处可读性标记；④ recall-artifact.js 新增 selectedTotalOf/selectedTruncOf 唯一口径入口。均为活跃功能增长，非死代码回流。"
-    },
-    {
-      "ceiling": 45733,
-      "reason": "v3.276.0 O6：O5 抬到 45790 后余量 457 超过 maxSlack=400（上界与实测脱节＝等于没守），按工具建议收紧到 45733（实测 45333 + 400）。本版 O6 不改 index.js 宿主成员，行数变化来自 recall-artifact/archive-shift/ledger-replay 的 O5 改造与新增评测夹具（夹具不计入活跃代码）。"
-    },
-    {
-      "ceiling": 46135,
-      "reason": "v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行"
-    },
-    {
-      "ceiling": 46570,
-      "reason": "X4 手机事实受控准入面新增 native-fact-admission.js（377 行活性代码，宿主 _factAdmissionLib 消费）"
-    },
-    {
-      "ceiling": 48074,
-      "reason": "v3.292.0 X6 分支语义对照与受控交接：新增 branch-semantics.js（672 行纯函数面）+ index.js 三入口与退路（37 行）+ memory-organs.js 读数与 export/import（60 行），均为活跃功能增长（非死代码回流）"
-    },
-    {
-      "ceiling": 49546,
-      "reason": "v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）"
-    },
-    {
-      "ceiling": 52238,
-      "reason": "v3.294.0 X8 召回解释（recall-explain.js 800 行 + 宿主三出口与体检行）+ v3.295.0 X2 修复流程（repair-loop.js 两态依赖/落定证据/方案/落笔通道 + 宿主 _repairPoolFor 与桥接）+ v3.296.0 X1 结构化证据查询（evidence-query.js 636 行 + 宿主取库口/四只读口/诊断行/selfCheck 行）—— 三版均为活跃功能增长（非死代码回流）"
-    },
-    {
-      "ceiling": 52703,
-      "reason": "v3.298.0 M-O3 预算回执单一真源：injection-receipt.js + 宿主取库口/读数面/诊断行"
-    },
-    {
-      "ceiling": 53150,
-      "reason": "v3.299.0 M-O6 事实状态单一真源：fact-state.js（400 行）为活跃新模块，宿主新增取库口/准入门/体检行，全属功能增长非死代码回流"
-    },
-    {
-      "ceiling": 53613,
-      "reason": "v3.302.0 M-O1 会话身份写入闭环（第一刀 + 第二刀）：memory-organs.js 的 StorageManager.save 内联三处 await 后重核（含约定槽读数）+ 批次回执五态 + 排干批每批重绑，全部为活跃功能增长（修真实错档缺陷），非死代码回流；宿主八十八文件 53013 → 53213 行"
-    },
-    {
-      "ceiling": 54730,
-      "reason": "v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流"
-    },
-    {
-      "ceiling": 55140,
-      "reason": "v3.309.0 M-O8 第四刀：世界推进账本写入纳入分支守卫（判定前移 + 块头闸 + 两组读数分开记，index.js +55 行），非死代码回流"
-    },
-    {
-      "ceiling": 57559,
-      "reason": "v3.310.0-v3.312.0 M-X1/M-X2/M-X4 三刀活跃代码增长（memory-center.js 新建 / repair-settle.js 新建 / fact-lifecycle.js 新建 702 行 + 宿主三刀接线），均为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 58444,
-      "reason": "v3.313.0 M-X8 活跃代码增长（memory-package.js 新建 705 行 + 宿主五出口接线），均为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 59222,
-      "reason": "v3.314.0 M-X6 手机事实桥 2.0 活跃代码增长（新增 phone-fact-bridge.js 597 行 + 宿主七出口接线），均为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 60039,
-      "reason": "v3.315.0 M-X5 角色知识传播的可见范围预演活跃代码增长（新增 knowledge-preview.js 591 行 + 宿主七出口与装配点接线），均为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 60846,
-      "reason": "v3.316.0 M-X7 提取质量反馈活跃代码增长（新增 extract-feedback.js 625 行 + 宿主十出口与装配点接线），均为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 61953,
-      "reason": "v3.317.0 M-X3 项目 / 卷 / 章节管理面活跃代码增长（新增 project-registry.js 896 行 + 宿主取库口 / 唯一装配点 / 十四出口 / 自检面诊断行接线），均为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 63705,
-      "reason": "v3.321.0 B 包记忆侧 M3-X1 问答面宿主出口接线（index.js 出口 + 已知人名装配点 + selfCheck 诊断行 + 外供登记行），属活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 65332,
-      "reason": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：新增三个运行时模块 relation-history.js / causal-chain.js / perspective-card.js 并全部进 manifest.extra_js（96 → 99，活跃代码文件 97 → 100），全为活跃功能增长、非死代码回流：实测 63705 → 64932，抬到实测 64932 + slack 400 = 65332。"
-    },
-    {
-      "ceiling": 66462,
-      "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。"
-    },
-    {
-      "ceiling": 67071,
-      "reason": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：memory-center.js 从技术表扩成资料页组织层（资料页三轴 / 详情与修订链 / 批量影响预览 / 导航保留筛选页码）+ index.js 宿主两出口（memoryCenterSourceText 真原文取数口 / memoryCenterFactState 事实账读口）与可选依赖装配 + settings-ui.js 组织层交互接线。全为活跃功能增长、非死代码回流：实测 66062 → 66671，抬到实测 66671 + slack 400 = 67071。"
-    },
-    {
-      "ceiling": 68495,
-      "reason": "[v3.327.0] E 包记忆侧第一刀(M3-X5 设定资料与前史分层导入 + M3-X7 章节回顾与可编辑故事年鉴):新增两个运行时模块 lore-import.js / story-annual.js 并全部进 manifest.extra_js(102 → 104,活跃代码文件 103 → 105),全为活跃功能增长、非死代码回流。"
-    },
-    {
-      "ceiling": 69800,
-      "reason": "[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 70314,
-      "reason": "[v3.330.0] M4-O2 问句保留主题、多人物与时点:evidence-query.js 主题与宽查分列(literals 新增)+宿主别名装配点/关系求交出口/主题外送(+264 模块 +53 宿主,含 v3.329.0 M4-O1 一并结清的 +139/+58)。全为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 70904,
-      "reason": "[v3.332.0] M4-O4 异步查询三面接线:queryAsync onShard+尾片进度(QUERY_VERSION 3)/memory-tools-api 六能力+canceled 六态/index.js 双异步出口+宿主基线增量(+190 模块,实测 70504),全为活跃功能增长、非死代码回流"
-    },
-    {
-      "ceiling": 71414,
-      "reason": "[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)"
-    },
-    {
-      "ceiling": 72714,
-      "reason": "[v3.338.0] M4-O8 记忆控制中心处置类动作生产方落地：宿主纠错方案落笔/两路撤销/面板取数口/单条撤回直写面/保存条件唯一出口/saved 真源注入点 + settings-ui 侧 9 个 handler（活跃功能增长，非死代码回流）"
-    },
-    {
-      "ceiling": 73101,
-      "reason": "[v3.339.0] M4-X1 可校订的分层导入与源资料更新：宿主侧新增 _loreImportOwners/_loreImportLedgerState/loreImportOverride/loreImportConfirmMapping/loreImportApply/loreImportLedger 六面 + collectExport/restoreFromPayload 各一处接线；内核 lore-import.js 增人工校订三态与三原语（活跃功能增长，非死代码回流）"
-    },
-    {
-      "ceiling": 73742,
-      "reason": "[v3.340.0] M4-X4 带消歧与条件继承的多轮记忆问答：新增内核模块 qa-thread.js（422 行，对话状态 + 消歧 + 条件继承）+ 宿主 index.js 取库口与四方法（_qaThreadLib/_qaThreadState/askMemoryQuestionFollowUp/qaThreadResolve/qaThread）+ 四处契约与持久化接线 + 自检面诊断行；全为活跃功能增长、非死代码回流。"
-    },
-    {
-      "ceiling": 74271,
-      "reason": "[v3.341.0] M4-X2 面向读者的章节回顾与年鉴成稿：内核 story-annual.js 增成稿面（compose / composeForPlayer / rebuildAffected / applyEdits 等九个新原语，+387 行）+ 宿主 index.js 增六出口与草稿册四处契约面（+140 行）。全为活跃功能增长，非死代码回流。"
-    },
-    {
-      "ceiling": 74984,
-      "reason": "[v3.342.0] M4-X3 正史选择真正进入下一卷：内核 branch-canon.js 增落卷面（ADOPT/UNMAPPED 六张常量面 + adoptItemOf/adoptableItems/buildContinuePack/adoptionBrief/revokeGuard/adoptionLine/adoptProbeDeps/adoptProbePlan 八个新原语）+ 宿主 index.js 增六出口与落卷凭据四处契约面。全为活跃功能增长，非死代码回流。"
-    },
-    {
-      "ceiling": 75691,
-      "reason": "[v3.343.0] M4-X5 同一事件的多方证词与争议档案:新增内核 testimony-board.js(来源去重 supportsOf / 争议三档 disputesOf / 四态 stateOfOf / 揭密分面 identitiesOf / 撤回重算 revokeEvidence + build·line·selfCheck,导出面 24)+ 宿主 index.js 取库口与三出口(纯只读聚合投影,复用 worldProg.knowledgeTraces.traces,不新增持久化键)。全为活跃功能增长,非死代码回流。"
-    },
-    {
-      "ceiling": 76359,
-      "reason": "v3.344.0 M4-X6 梦境、假设、计划与现实的叙事层记忆:新增内核 narrative-layer.js(五层判定 modalityOf / 嵌套链 frameOf / 计划闸 planStateOf / 现实面隔离 realityView / 提示读数 hintOf / 自证 selfCheck,导出面 22)+ 宿主 index.js 取库口、三出口与自检面行(纯只读层判定,层标注落在既有条目上,不新增持久化键)。全为活跃功能增长,非死代码回流。"
-    },
-    {
-      "ceiling": 77117,
-      "reason": "v3.345.0 M4-X7 旧事重现进入真实生成且由玩家控频:新增内核 return-gate.js(控频闸,585 行,导出面 38)+ 宿主 index.js 取库口、五出口与自检面行(零顶层落盘面,状态经 worldProg.returnGate 携带)。全为活跃功能增长,非死代码回流。"
-    },
-    {
-      "ceiling": 77900,
-      "reason": "v3.346.0 M4-X8 按下一幕任务生成精简记忆材料包:新增内核 material-pack.js(33124 字节,导出面 36,四任务轴 + 十面 + 未发生/受限两闸 + 缺口具名 + 越预算名单)+ 宿主 index.js 取库口、三法与自检面行(无状态只读面,不新增持久化键)。全为活跃功能增长,非死代码回流。"
-    },
-    {
-      "ceiling": 78672,
-      "reason": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。"
-    },
-    {
-      "ceiling": 79151,
-      "reason": "[v3.349.0] 缝入上游 conditionPatch:新内核 condition-patch.js(414 行 / 26065 字节)+ 宿主 index.js 取库口 _conditionPatchLib 与两处 hasAny 键表补登 + memory-core.js setProtagonist 施加与取库口。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。"
-    },
-    {
-      "ceiling": 79152,
-      "reason": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。"
-    },
-    {
-      "ceiling": 79544,
-      "reason": "[v3.350.0] 第五期第一批四项（M5-O1 时间方向三态与多人比较不覆盖 / M5-O2 叙事层标注落账并进指纹 / M5-O3 极性判定与覆盖不足判 unchecked / M5-O8 容量优先保留未完成项且满了显式拒绝）+ 手机 R5-O9 的条件清除委托口（可清轴表 QT_CLEAR_AXES 与逐轴具名四形）。全为活跃功能增长、非死代码回流；本版无新模块（extra_js 仍 113）。行上界按「实测 + slack」贴回。"
-    },
-    {
-      "ceiling": 81074,
-      "reason": "v3.353.0 第四包新增 impact-preview.js(103行) + hypothesis-workspace.js(142行) + research-collection.js(165行) + scene-book.js whereaboutsOf(87行) + index.js 接线(114行)"
-    },
-    {
-      "ceiling": 82321,
-      "reason": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）：新增两个内核模块 experience-rebuild.js（33791B）与 dual-time.js（19651B），均为**活跃功能**（连续经历重建单元 / 三轴双时间坐标），宿主侧增两个取库口 + 两个宿主出口 + selfCheck 两行。属活跃功能增长、非死代码回流。"
-    },
-    {
-      "ceiling": 86960,
-      "reason": "v3.361.0 index.js剥离第一批：诊断行方法群62方法提取为engine-diagnostic-lines.js IIFE模块，index.js净减1404行但新增模块1409行，活跃总量微增"
-    },
-    {
-      "ceiling": 88744,
-      "reason": "十批剥离新增7个engine子模块及委托桩，代码量实测88344行，合规抬升ceiling"
-    },
-    {
-      "ceiling": 88874,
-      "reason": "[v3.371.0] 第十一批架构剥离：engine-execution-pipeline.js 剥离 index.js 1099 行提取后执行管线，并新增配套测试"
-    },
-    {
-      "ceiling": 106054,
-      "reason": "v3.421.0 补回 24 个从未入册的游离模块（第八期/第十一期交付漏登记 manifest.extra_js），活跃代码总量随之从 88874 上界在实测 10.5 万行下失效；同时 index.js 已外提到 11613 行"
-    },
-    {
-      "ceiling": 107197,
-      "reason": "v3.424.0 M7-X1 新增 worldline-memory.js 内核(691行)与宿主接线面：世界线归属四态判定/跨线污染闸/收束三态/换线计划，属真实功能增长而非死代码回溯"
-    },
-    {
-      "ceiling": 107910,
-      "reason": "v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长"
-    },
-    {
-      "ceiling": 108969,
-      "reason": "v3.428.0 L12-O1 五件零消费内核接管产品面：engine-diagnostic-lines.js 新增五件内核的读/动作/诊断行业务（+650 行）、index.js 新增五个取库口与十五个三件套出口（+53 行）、engine-self-check.js 新增两行自检（+49 行）、settings-ui.js 三态出口（+4080 字节）。均为活跃功能增长，非死代码回流"
-    },
-    {
-      "ceiling": 109378,
-      "reason": "[v3.429.0] L12-O8 世界线跳跃表结构化编辑器：engine-diagnostic-lines.js 新增解析单源 parseJumpsText 与预览读数 worldlineJumpDraft（坏行具名 + 逐行原文 1:1），settings-ui.js 新增结构化行编辑器与三态读数行；均为活跃功能增长，非死代码回流"
-    },
-    {
-      "ceiling": 110629,
-      "reason": "[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流"
-    },
-    {
-      "ceiling": 111332,
-      "reason": "L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复"
-    },
-    {
-      "ceiling": 113338,
-      "reason": "v3.435.0~v3.439.0 五版活跃功能增长：O3 四态/O8 软删闭环/O4 可达性扫描器/O5 世界线读口/O6 注入回执 + X3 视角投影面新内核 pov-projection.js（642 行）与面板三态投影"
-    },
-    {
-      "ceiling": 116058,
-      "reason": "v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。"
-    },
-    {
-      "ceiling": 116788,
-      "reason": "v3.445.0 L13-X5 迁移包接线：新增 memory-migrate-pack.js（宿主三桩+取库口）、面板双按钮双 handler、前作按钮硬化，均为活跃功能增长，非死代码回流"
-    },
-    {
-      "ceiling": 129737,
-      "reason": "v3.445.0~v3.459.0 连续活跃功能增长：L14~L20 各批次新增引擎模块（超图因果回溯/记忆交响编排/防混淆消歧/心理防御/证据源定位等 12 个新 .js）与宿主接线；入口 index.js 由 12082 行增至 12711 行。全量实测 289 文件 129337 行，声明面 289 文件，无游离文件、无死代码回流。"
-    },
-    {
-      "ceiling": 138664,
-      "reason": "[v3.461.0] 第十八期接线真源修复把 36 个 R18 引擎从 ESM 形态转回仓内统一 UMD/IIFE（每个文件 +19 行注册尾巴），并在同轮接上 LonShaBranchDiffMerger 的宿主级消费点、V18 组状态位改三态派生（+13 行）、水合表 16 处登记名回填。存量对账：实测 366 文件 138264 行 vs 登记上界 129737（差 8527，远超 maxSlack），差额包含本轮新增（约 +700 行）与 v3.460.0 当时未同步登记的量；本版一并如实贴回 ceiling = 实测 + 400。全为活跃功能增长与形态统一，无死代码回流。"
-    },
-    {
-      "ceiling": 139576,
-      "reason": "[v3.465.0] L21-O4 持久化字段登记判据落地：按「登记名必须真在模块导出面上」补齐水合面。实测增长构成：① 19 个心智引擎模块各新增一段 hydrateState（含节选说明与单一实现+导出别名，共 681 行）—— 此前宿主 engine-persistence-ops.js 的 42 项水合表按登记名调 typeof mod.hydrateState/typeof mod.hydrateSandboxState，而这些模块根本没有该函数，于是恢复路径恒走 `: _ext[key]` 兜底，把未归一的原始 payload 直接赋给宿主字段（表面恢复、实则装脏）；本轮让登记真的成立，恢复路径首次真实经模块归一。② engine-persistence-ops.js +93 行（水合表 50→42 项、静态/实例两形态分列、_stateForSave 与别名容错）。③ index.js +35、memory-organs.js +16、memory-config.js / memory-core.js 各 +1（版本与初始化表对齐）。全为活跃功能增长，非死代码回流；无新增文件（活跃文件 366 与声明 366 一致、无游离文件）。"
-    },
-    {
-      "ceiling": 140053,
-      "reason": "[v3.465.1] L21-O4 复检：把 19 个模块的 hydrateState 从「通用浅合并」重写为按各自状态形状归一。增长来源：每个模块的归一化体都在逐字段重建容器（Map 由 entries 重建、Set 由数组重建）、按值域夹紧数值、按受控词表回落枚举，平均每模块 +19 行，全仓 +477 行。这不是新增功能面，而是把首版弱实现（它本身会装脏：Map/Set 字段被 JSON 普通对象覆盖）换成真能用的实现；首版同时违反「不许逐字副本」纪律（v3281 B1 点名 hydrateState 一簇 11 成员）。全为活跃功能增长，非死代码回流。"
-    }
-  ],
-  "_history_last": "ceiling 139576 → 140053（实测 139653 + slack 400）：[v3.465.1] L21-O4 复检：把 19 个模块的 hydrateState 从「通用浅合并」重写为按各自状态形状归一。增长来源：每个模块的归一化体都在逐字段重建容器（Map 由 entries 重建、Set 由数组重建）、按值域夹紧数值、按受控词表回落枚举，平均每模块 +19 行，全仓 +477 行。这不是新增功能面，而是把首版弱实现（它本身会装脏：Map/Set 字段被 JSON 普通对象覆盖）换成真能用的实现；首版同时违反「不许逐字副本」纪律（v3281 B1 点名 hydrateState 一簇 11 成员）。全为活跃功能增长，非死代码回流。"
+ "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
+ "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
+ "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
+ "ceiling": 142132,
+ "maxSlack": 400,
+ "note": "[v3.467.0] 同版收紧 1 行：ceiling 142133 -> 142132。原因不是「抬不动就降」——是同版内先把 v21_o5 的本地破坏重写收编到唯一真源（净 -3 行），实测总量随之从 141733 降到 141732， 于是原先的 +400 余量变成 401、越过 maxSlack 上界。纪律要求「余量过大等于没守」， 故按实测收紧到 141732 + maxSlack 400 = 142132。收紧比抬升更严格，不改判据强度。",
+ "history": [
+  {
+   "ceiling": 21000,
+   "reason": "v3.152 词典线 +197"
+  },
+  {
+   "ceiling": 21300,
+   "reason": "v3.168 携带契约/静默降级线 +235"
+  },
+  {
+   "ceiling": 21700,
+   "reason": "v3.170 巩固面（stm-ltm 内核审计账本 + 三态 + selfReport）"
+  },
+  {
+   "ceiling": 22100,
+   "reason": "v3.171 门控读数面（smart-trigger 读侧计数 + 双态面板 + 总账/自检两行）"
+  },
+  {
+   "ceiling": 22750,
+   "reason": "v3.172 召回漏斗读数面（缝合四模块收缩阶段计数 + 面板 + 宿主五处接线）"
+  },
+  {
+   "ceiling": 23000,
+   "reason": "v3.174 桥的读者契约面（来源五态 + 类型三态 + JSON 出口 + 快照自述 + 审计脚本）"
+  },
+  {
+   "ceiling": 23400,
+   "reason": "v3.175 世界钟读者面（world-clock-reader.js + GameClock 对账/诊断行/manifest）"
+  },
+  {
+   "ceiling": 24000,
+   "reason": "v3.176 世界账本读者面（world-ledger-reader.js 全账本对读 + 宿主投影收集 + 快照携带 + 桥外供 + 审计脚本）"
+  },
+  {
+   "ceiling": 25000,
+   "reason": "v3.180 归属性/年龄三态/对外只读口（floor-ledger.js + age-anchor.js + public-interface.js，含宿主接线 224 行）"
+  },
+  {
+   "ceiling": 26200,
+   "reason": "v3.181 场所图景（SceneBook 抽为 scene-book.js 724 行 + 六面能力 + 宿主 12 处接线 + 携带契约第 24 键 scenePresence）"
+  },
+  {
+   "ceiling": 29000,
+   "reason": "v3.183 分支一致性三件套（summary-provenance.js 302 + branch-guard.js 405 + crosslink.js 285 + 宿主接线）"
+  },
+  {
+   "ceiling": 31300,
+   "reason": "v3.184 调研清单收尾四件套（净增小于四模块之和：同时净减了旧字面 replace 与旧内联判据）"
+  },
+  {
+   "ceiling": 31500,
+   "reason": "v3.195.0 伏笔账本 seed-ledger.js（218 行）+ 宿主四处接线（清扫/场景头落笔/注入行/召回封印）"
+  },
+  {
+   "ceiling": 32100,
+   "reason": "v3.196.0 平行事实账本 parallel-ledger.js + 秘密账本 secret-ledger.js（合计 505 行）+ 宿主四处接线与两个宿主入口"
+  },
+  {
+   "ceiling": 32700,
+   "reason": "v3.202.0 回滚面收口（ledger-replay.js 九账统一 helper + 宿主携带面拓宽 + 显式豁免表）"
+  },
+  {
+   "ceiling": 33251,
+   "reason": "v3.207.0 账本实体契约：新增 ledger-entity.js（172 行），六本账委派收编后各账净减（纯重构、逐字节等价）；活跃总量实测 32652 → 32851（+199）"
+  },
+  {
+   "ceiling": 33870,
+   "reason": "v3.208.0 投影管线 + 成本预测：新增 projection-pipeline.js（202 行）+ cost-forecast.js（255 行）两个模块与宿主接线（内含投影取库口/预测对账/两行诊断）；另修内联回落预算路径与 injection-router.deriveBudget 不等价（1152 组枚举里 58 组分歧）的真缺陷"
+  },
+  {
+   "ceiling": 34331,
+   "reason": "v3.209.0 迁移与运行时兼容性收口：新增 schema-migration.js（189 行）+ module-registry.js（137 行）与宿主接线（含取库失败登记表、两取库口、恢复旧档方向、两行诊断）"
+  },
+  {
+   "ceiling": 34336,
+   "reason": "v3.209.0 迁移与运行时兼容性收口：新增 schema-migration.js（200 行）+ module-registry.js（137 行）与宿主接线（含取库失败登记表、两取库口、恢复旧档方向、两行诊断），另修取库口空白 catch 与两处测试汇总死读数"
+  },
+  {
+   "ceiling": 34690,
+   "reason": "v3.210.0 记忆类型系统：新增 memory-type.js（187 行，9 类型 x 6 策略注册表 + 断言/查询/路由面）+ 宿主类型化接线（取库口 _memoryTypeLib / _absorbFactVersions 五类字段分派与三态读数 / selfCheck 诊断行）"
+  },
+  {
+   "ceiling": 35173,
+   "reason": "v3.212.0 投影契约出口（L-F5）：projection-pipeline.js 新增 envelope 出口（结构版常量 + 11 项字段单一真源 + buildEnvelope/contractOf/envelopeOf，9067→15850 字符）+ 宿主接线（_buildProjectionEnvelope + 快照 projection 字段 + readWorldLedger 内刷新）"
+  },
+  {
+   "ceiling": 35749,
+   "reason": "v3.214.0 R1-E 九账证据工作台（evidence-workbench.js 413 行：九账登记表 + 三态读数 + 出处投影 + 四态检索 + ref 定位 + 诊断行）+ 宿主接线（_evidenceWorkbench/_ledgerApis/searchEvidence + 快照 evidence 字段）"
+  },
+  {
+   "ceiling": 36025,
+   "reason": "v3.214.0 R1-F 修复预览与受控写入面（repair-loop.js preview/validate + dedupeKey 幂等；index.js abandonRepair/repairRevision + 桥 repair 命名空间与恒定回执）"
+  },
+  {
+   "ceiling": 36313,
+   "reason": "v3.215.0 R2-A 注入读数真实性（index.js _injectionRecord/_injectionBlocksOf/_injectionRefOf/_injectionDiscardStale/_buildDiagnosticsInjection/buildInjectionReadout + 桥 injection 快照面与 injectionRefOf；settings-ui 注入面板逐块读数与诊断分格）"
+  },
+  {
+   "ceiling": 36393,
+   "reason": "v3.216.0 R2-B 迟到隔离（index.js _injectionStage/_injectionCommit 暂存-提交两段式 + 过期清暂存与载荷读数）"
+  },
+  {
+   "ceiling": 36442,
+   "reason": "v3.217.0 R2-D 跨路径暂存隔离（index.js _injectionCommit 载荷自身代核对 + _injectionClose 收尾唯一入口 + interceptor 路径收尾）"
+  },
+  {
+   "ceiling": 36514,
+   "reason": "v3.218.0 R2-E 取消留痕（index.js _injectionEnd 结局标注 + outcome 外供 + 自检行；settings-ui 面板结局徽标）"
+  },
+  {
+   "ceiling": 37147,
+   "reason": "v3.219.0 R2-F 双向关系对账 + 知情网络（relation-mutual.js + knowledge-network.js 两个新模块 + 宿主接线：注入侧标注/认知侧登记与解除/两行诊断）"
+  },
+  {
+   "ceiling": 37538,
+   "reason": "v3.223.0 O-1 场所面「没给」与「给了 0」判开收口（scene-book.js 15 处取值口径同族收干净：numOrNull 本体/num 别名/coverage 列号/外供面 tree+currentChain/回滚三法/floors；v3224 套件 32 条；v3181 与 negctl 锚点对齐）"
+  },
+  {
+   "ceiling": 37960,
+   "reason": "v3.233.0 F-2 跨平台事件来源构成（event-completeness.js 新增受控词表/分级四态/构成面/诊断行 + evidence-workbench.js 出处列修正与来源构成 + index.js 两处接线）+ 同轮抬版连带接管（v3232 基线按本版重建、v3214 两处锤点交棒）"
+  },
+  {
+   "ceiling": 38449,
+   "reason": "v3.235.0 R4-A 回滚预览（dry-run）：ledger-replay.js 新增只读预览面（previewDrop/previewShift/previewLine/DROP_NOTHING + 形状扫描）与 index.js 宿主接线（配置键/预览方法/删楼点预告/诊断行/初始化）"
+  },
+  {
+   "ceiling": 38765,
+   "reason": "v3.236.0 R4-B 快照恢复收编单真源：index.js 新增 6 个成员（restoreFromSnapshot / restoreSnapshotFlow / snapshotRestoreMenu / snapshotClearCoverage / clearRuntimeMemory / _snapshotAnchorOf）与 settings-ui.js 面板收编（快照恢复流程下沉引擎后只取列表 + 播报结局）、清空面逐面登记"
+  },
+  {
+   "ceiling": 39284,
+   "reason": "v3.237.0 R4-C 命名检查点 + 分支只读对照：新增 snapshot-checkpoint.js（412 行）+ index.js 接线 8 个成员（含 checkpointStore 与模块取库口）"
+  },
+  {
+   "ceiling": 39502,
+   "reason": "v3.238.0 R4-D 检查点接产品面：index.js 新增 4 个纯函数文案口（菜单行/详情/预览/对照）+ settings-ui.js 新增检查点面板与两处入口"
+  },
+  {
+   "ceiling": 39679,
+   "reason": "v3.240.0 账本实体契约「没给」判开收口：ledger-entity.js 重写 finite 本体（先挡「没给」与非数值）+ 新增 finiteFloor/numOrNull 两个一行转发别名 + 九本账 floor 一族全部改走 finiteFloor（含三本独立账收编，删其本地 finite/text 拷贝）"
+  },
+  {
+   "ceiling": 40022,
+   "reason": "v3.249.0 M-O1：index.js 召回收尾改为唯一出口（_finalize 四路径收口 + rerankPath/injectedIds 归因）与图谱全量候选接线，活跃代码 +31 行（实测 39622）"
+  },
+  {
+   "ceiling": 40576,
+   "reason": "v3.251.0 M-O3：注入回执（五阶段/token 口径/分层/禁用对账）+ 拼装现场归因记账 + v3251 专锁"
+  },
+  {
+   "ceiling": 40941,
+   "reason": "v3.252.0 F7 首阶段内容级只读对照：数据层并列新出口 + 引擎读侧/文案口 + 面板真调用（新增判据套件 v3252）"
+  },
+  {
+   "ceiling": 41640,
+   "reason": "v3.254.0 M-O4：新增 cache-identity.js（224 行：四位身份 + 六词失效原因 + 具名差异）与 cache-workload.js（326 行：四条消费路径的可注入量测台，含方向分型与两态时钟归因）两个模块，加宿主接线（两个取库口 + 三个宿主口 + 两处消费点改造 + selfCheck 缓存身份行）与配套判据面（scan_v3254_cache_identity.mjs 312 行 + v3254 套件）"
+  },
+  {
+   "ceiling": 41663,
+   "reason": "v3.255.0 M-O4 兑现审计：index.js 新增 C9 身份来源头注（为何不能接落盘计数器）与新墙查；代码面未改行为（revision 改为 null 净增几行）"
+  },
+  {
+   "ceiling": 41709,
+   "reason": "v3.256.0 M-O4 cacheHit 探针真调用与探针覆盖面常驻判据；只改审计模块/测试，不增产品活跃代码"
+  },
+  {
+   "ceiling": 41996,
+   "reason": "A1 第三刀：新增 narrative-generators.js（420 行）并将三个生成侧类类实体迁出 index.js；活跃代码实测上升，按本仓口径限制内抬升上界"
+  },
+  {
+   "ceiling": 43047,
+   "reason": "v3.260.0 缝合 shujuku：新增 native-tools.js（协议机制 21 出口）与 pristine-fetch.js（传输机制 11 出口），二者均为「先落机制、判据套件真执行」的模块，出口消费在 index.js 接线点"
+  },
+  {
+   "ceiling": 43580,
+   "reason": "v3.261.0 缝合 MyriadKnots：新增 floor-identity.js（楼层身份匹配证明，7 出口）与 archive-audit.js（存档三分体检，10 出口）两个模块，加宿主三处接线（两取库口 + restoreFromPayload 存档体检消费点 + itemOps 认领证明台账）"
+  },
+  {
+   "ceiling": 44184,
+   "reason": "v3.264.0 A1 第五刀：宿主六器官类（LLMCaller/VectorStore/CharacterMemoryBank/EntityLexicon/WorldProgress/StorageManager）外移 memory-organs.js，宿主行数下降；模块侧新增逐字副本与依赖收口（活跃代码总量随模块新代码合法回涨，非死代码回流）"
+  },
+  {
+   "ceiling": 44651,
+   "reason": "v3.266.0 A1 第六刀：四个内核数据模型类（CharacterState/SummarySystem/GameClock/MemoryGraph）87 行）外移，模块侧新增逐字副本与取库链；活跃代码总量随模块新代码合法回涨，非死代码回流"
+  },
+  {
+   "ceiling": 44883,
+   "reason": "v3.267.0 A1 第七刀：memory-config.js 承载 ConfigManager、默认配置块与迁移逻辑，活跃实现新增为合法模块抽取，不是死代码回流"
+  },
+  {
+   "ceiling": 45313,
+   "reason": "v3.273.0：① O3 注入预算裁剪契约（index.js 内联回落与 injection-router.js 同构化，+23 行）；② 收口 v3.271.0 的误删 —— 该版修 D2 时把 showBrowser 的 4 段交互绑定整块删掉（那是唯一实现），本版搬回并补 eng 别名，+139 行。两者均为活跃功能增长，非死代码回流。"
+  },
+  {
+   "ceiling": 45518,
+   "reason": "v3.274.0 O4：① index.js 回执消费改造（_lastBudgetStats 从逐块读数导出 + countedBlocks/partialBlockChars 等新读数键，+74 行）；② 新增 _trimAttempted 本地事实与「路由在场但未标 trimmed」的不可测分支；③ cost-ledger.js 补 span 判据（+445 字节）。均为活跃功能增长，非死代码回流。"
+  },
+  {
+   "ceiling": 45790,
+   "reason": "v3.275.0 O5：① index.js 新增归档处置留痕接线（_archiveShiftLog 初始化 + CHAT_CHANGED 归零 + selfCheck「归档处置」三态行）与召回产物截断自述传递（selectedMemoryIdsTotal / 真总数入参 + 报告面警示行）；② archive-shift.js 新增 explainShift/explainPrune 唯一真源（旧 API 改薄投影）；③ ledger-replay.js 新增有界留痕器与出处可读性标记；④ recall-artifact.js 新增 selectedTotalOf/selectedTruncOf 唯一口径入口。均为活跃功能增长，非死代码回流。"
+  },
+  {
+   "ceiling": 45733,
+   "reason": "v3.276.0 O6：O5 抬到 45790 后余量 457 超过 maxSlack=400（上界与实测脱节＝等于没守），按工具建议收紧到 45733（实测 45333 + 400）。本版 O6 不改 index.js 宿主成员，行数变化来自 recall-artifact/archive-shift/ledger-replay 的 O5 改造与新增评测夹具（夹具不计入活跃代码）。"
+  },
+  {
+   "ceiling": 46135,
+   "reason": "v3.289.0 X3 注入策略对照新增活性面：compareStrategies() + COMPARE_VERSION 定义 + 宿主 _projectionStrategyCompare() + 诊断面策略对照体检行"
+  },
+  {
+   "ceiling": 46570,
+   "reason": "X4 手机事实受控准入面新增 native-fact-admission.js（377 行活性代码，宿主 _factAdmissionLib 消费）"
+  },
+  {
+   "ceiling": 48074,
+   "reason": "v3.292.0 X6 分支语义对照与受控交接：新增 branch-semantics.js（672 行纯函数面）+ index.js 三入口与退路（37 行）+ memory-organs.js 读数与 export/import（60 行），均为活跃功能增长（非死代码回流）"
+  },
+  {
+   "ceiling": 49546,
+   "reason": "v3.293.0 X7 长篇剧情分卷与选择性接续：新增 volume-continuation.js（909 行纯函数面）+ index.js 落笔闭环与体检行接线 + memory-organs.js 读数与 export/import，均为活跃功能增长（非死代码回流）"
+  },
+  {
+   "ceiling": 52238,
+   "reason": "v3.294.0 X8 召回解释（recall-explain.js 800 行 + 宿主三出口与体检行）+ v3.295.0 X2 修复流程（repair-loop.js 两态依赖/落定证据/方案/落笔通道 + 宿主 _repairPoolFor 与桥接）+ v3.296.0 X1 结构化证据查询（evidence-query.js 636 行 + 宿主取库口/四只读口/诊断行/selfCheck 行）—— 三版均为活跃功能增长（非死代码回流）"
+  },
+  {
+   "ceiling": 52703,
+   "reason": "v3.298.0 M-O3 预算回执单一真源：injection-receipt.js + 宿主取库口/读数面/诊断行"
+  },
+  {
+   "ceiling": 53150,
+   "reason": "v3.299.0 M-O6 事实状态单一真源：fact-state.js（400 行）为活跃新模块，宿主新增取库口/准入门/体检行，全属功能增长非死代码回流"
+  },
+  {
+   "ceiling": 53613,
+   "reason": "v3.302.0 M-O1 会话身份写入闭环（第一刀 + 第二刀）：memory-organs.js 的 StorageManager.save 内联三处 await 后重核（含约定槽读数）+ 批次回执五态 + 排干批每批重绑，全部为活跃功能增长（修真实错档缺陷），非死代码回流；宿主八十八文件 53013 → 53213 行"
+  },
+  {
+   "ceiling": 54730,
+   "reason": "v3.306.0 M-O8 第一刀：秘密的知识范围注入侧隔离（活跃功能增长 +717 行：secret-ledger 三件真源 + 宿主 secrets 提取通道/记账 + WorldProgress 注入侧 fail-closed 与八档读数 + 自检面「秘密隔离」行），非死代码回流"
+  },
+  {
+   "ceiling": 55140,
+   "reason": "v3.309.0 M-O8 第四刀：世界推进账本写入纳入分支守卫（判定前移 + 块头闸 + 两组读数分开记，index.js +55 行），非死代码回流"
+  },
+  {
+   "ceiling": 57559,
+   "reason": "v3.310.0-v3.312.0 M-X1/M-X2/M-X4 三刀活跃代码增长（memory-center.js 新建 / repair-settle.js 新建 / fact-lifecycle.js 新建 702 行 + 宿主三刀接线），均为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 58444,
+   "reason": "v3.313.0 M-X8 活跃代码增长（memory-package.js 新建 705 行 + 宿主五出口接线），均为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 59222,
+   "reason": "v3.314.0 M-X6 手机事实桥 2.0 活跃代码增长（新增 phone-fact-bridge.js 597 行 + 宿主七出口接线），均为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 60039,
+   "reason": "v3.315.0 M-X5 角色知识传播的可见范围预演活跃代码增长（新增 knowledge-preview.js 591 行 + 宿主七出口与装配点接线），均为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 60846,
+   "reason": "v3.316.0 M-X7 提取质量反馈活跃代码增长（新增 extract-feedback.js 625 行 + 宿主十出口与装配点接线），均为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 61953,
+   "reason": "v3.317.0 M-X3 项目 / 卷 / 章节管理面活跃代码增长（新增 project-registry.js 896 行 + 宿主取库口 / 唯一装配点 / 十四出口 / 自检面诊断行接线），均为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 63705,
+   "reason": "v3.321.0 B 包记忆侧 M3-X1 问答面宿主出口接线（index.js 出口 + 已知人名装配点 + selfCheck 诊断行 + 外供登记行），属活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 65332,
+   "reason": "[v3.323.0] C 包记忆侧三项（M3-X2 关系变化史 / M3-X3 因果链导航 / M3-X4 视角记忆卡）：新增三个运行时模块 relation-history.js / causal-chain.js / perspective-card.js 并全部进 manifest.extra_js（96 → 99，活跃代码文件 97 → 100），全为活跃功能增长、非死代码回流：实测 63705 → 64932，抬到实测 64932 + slack 400 = 65332。"
+  },
+  {
+   "ceiling": 66462,
+   "reason": "[v3.324.0] D 包记忆侧第一刀（M3-O5 抽取节奏 / M3-O7 可比较修正方案 + M3-X9 局部重提取与原文对照）：新增两个运行时模块 extraction-driver.js / correction-plan.js 并全部进 manifest.extra_js（99 → 101，活跃代码文件 100 → 102），全为活跃功能增长、非死代码回流：实测 64932 → 66062，抬到实测 66062 + slack 400 = 66462。"
+  },
+  {
+   "ceiling": 67071,
+   "reason": "[v3.325.0] D 包记忆侧收口第二刀（M3-O8 记忆控制中心从技术表变成可操作资料页）：memory-center.js 从技术表扩成资料页组织层（资料页三轴 / 详情与修订链 / 批量影响预览 / 导航保留筛选页码）+ index.js 宿主两出口（memoryCenterSourceText 真原文取数口 / memoryCenterFactState 事实账读口）与可选依赖装配 + settings-ui.js 组织层交互接线。全为活跃功能增长、非死代码回流：实测 66062 → 66671，抬到实测 66671 + slack 400 = 67071。"
+  },
+  {
+   "ceiling": 68495,
+   "reason": "[v3.327.0] E 包记忆侧第一刀(M3-X5 设定资料与前史分层导入 + M3-X7 章节回顾与可编辑故事年鉴):新增两个运行时模块 lore-import.js / story-annual.js 并全部进 manifest.extra_js(102 → 104,活跃代码文件 103 → 105),全为活跃功能增长、非死代码回流。"
+  },
+  {
+   "ceiling": 69800,
+   "reason": "[v3.328.0] F 包 M3-X6/M3-X8 新增两个运行时模块 branch-canon.js / fated-recall.js 并全部进 manifest.extra_js(104 -> 106,活跃代码文件 105 -> 107),全为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 70314,
+   "reason": "[v3.330.0] M4-O2 问句保留主题、多人物与时点:evidence-query.js 主题与宽查分列(literals 新增)+宿主别名装配点/关系求交出口/主题外送(+264 模块 +53 宿主,含 v3.329.0 M4-O1 一并结清的 +139/+58)。全为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 70904,
+   "reason": "[v3.332.0] M4-O4 异步查询三面接线:queryAsync onShard+尾片进度(QUERY_VERSION 3)/memory-tools-api 六能力+canceled 六态/index.js 双异步出口+宿主基线增量(+190 模块,实测 70504),全为活跃功能增长、非死代码回流"
+  },
+  {
+   "ceiling": 71414,
+   "reason": "[v3.335.0] M4-O6 真实供数派生层:唯一取数口 _o6RealOwners + 六面派生 + annualSources 出口(活跃功能增长,非死代码回流)"
+  },
+  {
+   "ceiling": 72714,
+   "reason": "[v3.338.0] M4-O8 记忆控制中心处置类动作生产方落地：宿主纠错方案落笔/两路撤销/面板取数口/单条撤回直写面/保存条件唯一出口/saved 真源注入点 + settings-ui 侧 9 个 handler（活跃功能增长，非死代码回流）"
+  },
+  {
+   "ceiling": 73101,
+   "reason": "[v3.339.0] M4-X1 可校订的分层导入与源资料更新：宿主侧新增 _loreImportOwners/_loreImportLedgerState/loreImportOverride/loreImportConfirmMapping/loreImportApply/loreImportLedger 六面 + collectExport/restoreFromPayload 各一处接线；内核 lore-import.js 增人工校订三态与三原语（活跃功能增长，非死代码回流）"
+  },
+  {
+   "ceiling": 73742,
+   "reason": "[v3.340.0] M4-X4 带消歧与条件继承的多轮记忆问答：新增内核模块 qa-thread.js（422 行，对话状态 + 消歧 + 条件继承）+ 宿主 index.js 取库口与四方法（_qaThreadLib/_qaThreadState/askMemoryQuestionFollowUp/qaThreadResolve/qaThread）+ 四处契约与持久化接线 + 自检面诊断行；全为活跃功能增长、非死代码回流。"
+  },
+  {
+   "ceiling": 74271,
+   "reason": "[v3.341.0] M4-X2 面向读者的章节回顾与年鉴成稿：内核 story-annual.js 增成稿面（compose / composeForPlayer / rebuildAffected / applyEdits 等九个新原语，+387 行）+ 宿主 index.js 增六出口与草稿册四处契约面（+140 行）。全为活跃功能增长，非死代码回流。"
+  },
+  {
+   "ceiling": 74984,
+   "reason": "[v3.342.0] M4-X3 正史选择真正进入下一卷：内核 branch-canon.js 增落卷面（ADOPT/UNMAPPED 六张常量面 + adoptItemOf/adoptableItems/buildContinuePack/adoptionBrief/revokeGuard/adoptionLine/adoptProbeDeps/adoptProbePlan 八个新原语）+ 宿主 index.js 增六出口与落卷凭据四处契约面。全为活跃功能增长，非死代码回流。"
+  },
+  {
+   "ceiling": 75691,
+   "reason": "[v3.343.0] M4-X5 同一事件的多方证词与争议档案:新增内核 testimony-board.js(来源去重 supportsOf / 争议三档 disputesOf / 四态 stateOfOf / 揭密分面 identitiesOf / 撤回重算 revokeEvidence + build·line·selfCheck,导出面 24)+ 宿主 index.js 取库口与三出口(纯只读聚合投影,复用 worldProg.knowledgeTraces.traces,不新增持久化键)。全为活跃功能增长,非死代码回流。"
+  },
+  {
+   "ceiling": 76359,
+   "reason": "v3.344.0 M4-X6 梦境、假设、计划与现实的叙事层记忆:新增内核 narrative-layer.js(五层判定 modalityOf / 嵌套链 frameOf / 计划闸 planStateOf / 现实面隔离 realityView / 提示读数 hintOf / 自证 selfCheck,导出面 22)+ 宿主 index.js 取库口、三出口与自检面行(纯只读层判定,层标注落在既有条目上,不新增持久化键)。全为活跃功能增长,非死代码回流。"
+  },
+  {
+   "ceiling": 77117,
+   "reason": "v3.345.0 M4-X7 旧事重现进入真实生成且由玩家控频:新增内核 return-gate.js(控频闸,585 行,导出面 38)+ 宿主 index.js 取库口、五出口与自检面行(零顶层落盘面,状态经 worldProg.returnGate 携带)。全为活跃功能增长,非死代码回流。"
+  },
+  {
+   "ceiling": 77900,
+   "reason": "v3.346.0 M4-X8 按下一幕任务生成精简记忆材料包:新增内核 material-pack.js(33124 字节,导出面 36,四任务轴 + 十面 + 未发生/受限两闸 + 缺口具名 + 越预算名单)+ 宿主 index.js 取库口、三法与自检面行(无状态只读面,不新增持久化键)。全为活跃功能增长,非死代码回流。"
+  },
+  {
+   "ceiling": 78672,
+   "reason": "[v3.347.0] M4-X9「资料与剧情分区的联合查证」宿主侧真实接线:内核 lore-crosscheck.js(受控 sourceMode 三模式 / 四分区 / 六态判定 / 撤除与失效引用 / 批注分列,导出面 38)+ 宿主 index.js 新增取库口 _loreCrosscheckLib 与三法 _crosscheckChatRows / loreCrosscheck / _loreCrosscheckLine + 自检面「资料对照」行。★ 本面是无状态只读面:不新增任何持久化键。全为活跃功能增长、非死代码回流。"
+  },
+  {
+   "ceiling": 79151,
+   "reason": "[v3.349.0] 缝入上游 conditionPatch:新内核 condition-patch.js(414 行 / 26065 字节)+ 宿主 index.js 取库口 _conditionPatchLib 与两处 hasAny 键表补登 + memory-core.js setProtagonist 施加与取库口。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。"
+  },
+  {
+   "ceiling": 79152,
+   "reason": "[v3.349.0] 缝入上游 conditionPatch(伤情编号片段补丁)收口:index.js 两处 keys 键表恢复六字段共享形态(保住与 settings-ui.js 的 pFields 别名副本簇)、hasAny 补丁识别下沉为独立具名子句、退路类 CoreFallback 补同形 _conditionPatchLib。★ 本面是零落盘面(不新增任何持久化键),全为活跃功能增长、非死代码回流。行上界按「实测 + slack」贴回:21975 → 21977。"
+  },
+  {
+   "ceiling": 79544,
+   "reason": "[v3.350.0] 第五期第一批四项（M5-O1 时间方向三态与多人比较不覆盖 / M5-O2 叙事层标注落账并进指纹 / M5-O3 极性判定与覆盖不足判 unchecked / M5-O8 容量优先保留未完成项且满了显式拒绝）+ 手机 R5-O9 的条件清除委托口（可清轴表 QT_CLEAR_AXES 与逐轴具名四形）。全为活跃功能增长、非死代码回流；本版无新模块（extra_js 仍 113）。行上界按「实测 + slack」贴回。"
+  },
+  {
+   "ceiling": 81074,
+   "reason": "v3.353.0 第四包新增 impact-preview.js(103行) + hypothesis-workspace.js(142行) + research-collection.js(165行) + scene-book.js whereaboutsOf(87行) + index.js 接线(114行)"
+  },
+  {
+   "ceiling": 82321,
+   "reason": "[v3.355.0] 第六期批次 A 两项（M6-O1 连续经历重建 / M6-O5 双时间经历）：新增两个内核模块 experience-rebuild.js（33791B）与 dual-time.js（19651B），均为**活跃功能**（连续经历重建单元 / 三轴双时间坐标），宿主侧增两个取库口 + 两个宿主出口 + selfCheck 两行。属活跃功能增长、非死代码回流。"
+  },
+  {
+   "ceiling": 86960,
+   "reason": "v3.361.0 index.js剥离第一批：诊断行方法群62方法提取为engine-diagnostic-lines.js IIFE模块，index.js净减1404行但新增模块1409行，活跃总量微增"
+  },
+  {
+   "ceiling": 88744,
+   "reason": "十批剥离新增7个engine子模块及委托桩，代码量实测88344行，合规抬升ceiling"
+  },
+  {
+   "ceiling": 88874,
+   "reason": "[v3.371.0] 第十一批架构剥离：engine-execution-pipeline.js 剥离 index.js 1099 行提取后执行管线，并新增配套测试"
+  },
+  {
+   "ceiling": 106054,
+   "reason": "v3.421.0 补回 24 个从未入册的游离模块（第八期/第十一期交付漏登记 manifest.extra_js），活跃代码总量随之从 88874 上界在实测 10.5 万行下失效；同时 index.js 已外提到 11613 行"
+  },
+  {
+   "ceiling": 107197,
+   "reason": "v3.424.0 M7-X1 新增 worldline-memory.js 内核(691行)与宿主接线面：世界线归属四态判定/跨线污染闸/收束三态/换线计划，属真实功能增长而非死代码回溯"
+  },
+  {
+   "ceiling": 107910,
+   "reason": "v3.425.0 纪元主键换血：内核去世界观化 + 纪元原语（normFloor/epochOf/epochAt/futureEpochOf）+ 宿主侧接入 jumps/startFloor/layerAlias/readerPolicy + 面板与配置五新键，均为活跃功能增长"
+  },
+  {
+   "ceiling": 108969,
+   "reason": "v3.428.0 L12-O1 五件零消费内核接管产品面：engine-diagnostic-lines.js 新增五件内核的读/动作/诊断行业务（+650 行）、index.js 新增五个取库口与十五个三件套出口（+53 行）、engine-self-check.js 新增两行自检（+49 行）、settings-ui.js 三态出口（+4080 字节）。均为活跃功能增长，非死代码回流"
+  },
+  {
+   "ceiling": 109378,
+   "reason": "[v3.429.0] L12-O8 世界线跳跃表结构化编辑器：engine-diagnostic-lines.js 新增解析单源 parseJumpsText 与预览读数 worldlineJumpDraft（坏行具名 + 逐行原文 1:1），settings-ui.js 新增结构化行编辑器与三态读数行；均为活跃功能增长，非死代码回流"
+  },
+  {
+   "ceiling": 110629,
+   "reason": "[v3.430.0] L12-X1~X9 九项拓展接线：engine-diagnostic-lines.js 新增九面业务（组织与制度记忆真入口 / 意义演化 / 前史回填 / 事实纠错可解释面 / 世界线跳转草稿 / 卸载演练 / 对象化反例 / 秘密排除 / 沉默状态可解释，+1742 行）、index.js 九面转发桩（+146 行）、settings-ui.js 面板九面（+661 行）、engine-self-check.js 自检行（+49 行）、memory-organs.js 与 memory-config.js 登记面（+25 / +1 行）；均为活跃功能增长，非死代码回流"
+  },
+  {
+   "ceiling": 111332,
+   "reason": "L13-X2 反事实推演面：counterfactual-experiment-bench.js 扩展 counterfactualImpact(+153) + engine-diagnostic-lines.js 宿主业务 + settings-ui.js whatif 视图 + timeline 分支缺右括号存量缺陷修复"
+  },
+  {
+   "ceiling": 113338,
+   "reason": "v3.435.0~v3.439.0 五版活跃功能增长：O3 四态/O8 软删闭环/O4 可达性扫描器/O5 世界线读口/O6 注入回执 + X3 视角投影面新内核 pov-projection.js（642 行）与面板三态投影"
+  },
+  {
+   "ceiling": 116058,
+   "reason": "v3.444.0 L13-X9 跨代传承面接线：内核 era-continuation-inheritance-tree.js 从零调用补成可读可声明的面（FATE_CAUSES 每态成因表 + buildInheritanceRoster 对接既有 eraTransitions 槽 + 第五档 pending + 秘密边界四档），engine-diagnostic-lines.js 新增取库口与三出口一诊断行，index.js 新增取库口注入键与四转发桩，settings-ui.js 在既有 prequel 视图内新增跨代传承块与声明/撤销委托绑定。全部是活跃功能增长，非死代码回流。"
+  },
+  {
+   "ceiling": 116788,
+   "reason": "v3.445.0 L13-X5 迁移包接线：新增 memory-migrate-pack.js（宿主三桩+取库口）、面板双按钮双 handler、前作按钮硬化，均为活跃功能增长，非死代码回流"
+  },
+  {
+   "ceiling": 129737,
+   "reason": "v3.445.0~v3.459.0 连续活跃功能增长：L14~L20 各批次新增引擎模块（超图因果回溯/记忆交响编排/防混淆消歧/心理防御/证据源定位等 12 个新 .js）与宿主接线；入口 index.js 由 12082 行增至 12711 行。全量实测 289 文件 129337 行，声明面 289 文件，无游离文件、无死代码回流。"
+  },
+  {
+   "ceiling": 138664,
+   "reason": "[v3.461.0] 第十八期接线真源修复把 36 个 R18 引擎从 ESM 形态转回仓内统一 UMD/IIFE（每个文件 +19 行注册尾巴），并在同轮接上 LonShaBranchDiffMerger 的宿主级消费点、V18 组状态位改三态派生（+13 行）、水合表 16 处登记名回填。存量对账：实测 366 文件 138264 行 vs 登记上界 129737（差 8527，远超 maxSlack），差额包含本轮新增（约 +700 行）与 v3.460.0 当时未同步登记的量；本版一并如实贴回 ceiling = 实测 + 400。全为活跃功能增长与形态统一，无死代码回流。"
+  },
+  {
+   "ceiling": 139576,
+   "reason": "[v3.465.0] L21-O4 持久化字段登记判据落地：按「登记名必须真在模块导出面上」补齐水合面。实测增长构成：① 19 个心智引擎模块各新增一段 hydrateState（含节选说明与单一实现+导出别名，共 681 行）—— 此前宿主 engine-persistence-ops.js 的 42 项水合表按登记名调 typeof mod.hydrateState/typeof mod.hydrateSandboxState，而这些模块根本没有该函数，于是恢复路径恒走 `: _ext[key]` 兜底，把未归一的原始 payload 直接赋给宿主字段（表面恢复、实则装脏）；本轮让登记真的成立，恢复路径首次真实经模块归一。② engine-persistence-ops.js +93 行（水合表 50→42 项、静态/实例两形态分列、_stateForSave 与别名容错）。③ index.js +35、memory-organs.js +16、memory-config.js / memory-core.js 各 +1（版本与初始化表对齐）。全为活跃功能增长，非死代码回流；无新增文件（活跃文件 366 与声明 366 一致、无游离文件）。"
+  },
+  {
+   "ceiling": 140053,
+   "reason": "[v3.465.1] L21-O4 复检：把 19 个模块的 hydrateState 从「通用浅合并」重写为按各自状态形状归一。增长来源：每个模块的归一化体都在逐字段重建容器（Map 由 entries 重建、Set 由数组重建）、按值域夹紧数值、按受控词表回落枚举，平均每模块 +19 行，全仓 +477 行。这不是新增功能面，而是把首版弱实现（它本身会装脏：Map/Set 字段被 JSON 普通对象覆盖）换成真能用的实现；首版同时违反「不许逐字副本」纪律（v3281 B1 点名 hydrateState 一簇 11 成员）。全为活跃功能增长，非死代码回流。"
+  },
+  {
+   "ceiling": 142133,
+   "reason": "[v3.467.0] 第二十一期 X 面八件读层内核（v3.465.3 v21_x1 防御叙事 / v3.465.4 X2 伏笔时机 / v3.465.5 X3 默契暗号 / v3.465.6 X4 创伤防线 / v3.465.7 X5 传闻溯源 / v3.465.8 X6 日常证据 / v3.465.9 X7 世界线草稿审计 / v3.466.0 X8 操作回声 / v3.466.1 X9 话题缺席归因）+ 本版两件新内核（local-ngram-vectorizer.js 293 行本地向量器 / gameplay-preset.js 245 行玩法流派档）全部登记进 manifest.extra_js 并在宿主接线（extra_js 374 -> 376，总模块 377），并按判据逐件配了读面判据。增长全为活跃功能面，无死代码回流：本轮同时把 _localVector 独立方法删除（改内联降级），新增行数来自真实能力而非分行。"
+  },
+  {
+   "ceiling": 142132,
+   "reason": "[v3.467.0] 同版收紧 1 行：ceiling 142133 -> 142132。原因不是「抬不动就降」——是同版内先把 v21_o5 的本地破坏重写收编到唯一真源（净 -3 行），实测总量随之从 141733 降到 141732， 于是原先的 +400 余量变成 401、越过 maxSlack 上界。纪律要求「余量过大等于没守」， 故按实测收紧到 141732 + maxSlack 400 = 142132。收紧比抬升更严格，不改判据强度。"
+  }
+ ],
+ "_history_last": "ceiling 140053 → 142133（实测 141733 + slack 400）：[v3.467.0] 第二十一期 X 面八件读层内核（v3.465.3 v21_x1 防御叙事 / v3.465.4 X2 伏笔时机 / v3.465.5 X3 默契暗号 / v3.465.6 X4 创伤防线 / v3.465.7 X5 传闻溯源 / v3.465.8 X6 日常证据 / v3.465.9 X7 世界线草稿审计 / v3.466.0 X8 操作回声 / v3.466.1 X9 话题缺席归因）+ 本版两件新内核（local-ngram-vectorizer.js 293 行本地向量器 / gameplay-preset.js 245 行玩法流派档）全部登记进 manifest.extra_js 并在宿主接线（extra_js 374 -> 376，总模块 377），并按判据逐件配了读面判据。增长全为活跃功能面，无死代码回流：本轮同时把 _localVector 独立方法删除（改内联降级），新增行数来自真实能力而非分行。"
 }

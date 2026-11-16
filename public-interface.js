@@ -105,6 +105,8 @@ function makeReport() {
         ns: NS,
         slash: { state: 'absent', reason: null, path: null },
         macro: { state: 'absent', reason: null, path: null, parameterized: false },
+        /* [v3.467.0] 第四入口：唯一会改配置的入口。独立成败槽 —— 它失败不得让 slash/macro 变红。 */
+        preset: { state: 'absent', reason: null, path: null },
         global: { state: 'absent', reason: null }
     };
 }
@@ -241,6 +243,96 @@ async function registerMacro(report, deps) {
     return report;
 }
 
+/* ---------- ④ [v3.467.0] 玩法流派预设斜杠命令：`/lonsha-preset <档位>` ----------
+ *  与 ①②③ 的唯一区别：**它会写配置**。写入路径刻意做成「与设置页按钮同一条」：
+ *    1) 取值来源 = 宿主现算的 `deps.configRead()`（不缓存快照，避免「面板显示旧值」）；
+ *    2) 逐键调用注入的 `deps.configWrite(k, v)`；
+ *    3) 落盘由注入的 `deps.configSave()` 完成（宿主传的就是 `config.saveConfig`）。
+ *  三条都由宿主注入 ⇒ 本模块不 import 任何宿主模块、不碰 localStorage，
+ *  单测可以只测「算了哪些键、调了几次写、没写凭据」。
+ *  参数形态：
+ *    `/lonsha-preset mystery`        直接应用
+ *    `/lonsha-preset`                列出四档（先看再改）
+ *    `/lonsha-preset mystery --dry`  只预览改写清单，不落盘
+ *   ★ 未知档位一律抛错（不静默回落默认档）：静默回落会让用户以为切了档而其实没切。 */
+const PRESET_DRY_FLAGS = ['--dry', '-n', '--dry-run'];
+async function registerPreset(report, deps) {
+    const slot = report.preset;
+    try {
+        /* [v3.467.0 修·自抓真缺陷] 取库口必须由**宿主**注入，模块不自己取。
+         *   三代修法留痕（每一代都是判据顶出来的，不是我想出来的）：
+         *   ① 首稿 `global.LonShaGameplayPreset` —— 本仓 UMD 挂的是 `globalThis`，
+         *      浏览器里 `global` **是 undefined**（那是 Node 的名字）⇒ 取库口恒 null ⇒
+         *      `/lonsha-preset` 在真实宿主里永远回「gameplay-preset.js 未加载」；
+         *   ② 改 `(typeof window !== 'undefined' ? window.LonShaGameplayPreset : undefined)` ——
+         *      行为对了，但接线扫描器仍报「LonShaGameplayPreset 已挂载但零消费」：
+         *      它的消费凭据只从 **index.js 与少数 A1 载体**里抽，本模块不在那张表上，
+         *      于是「模块自己取」永远无法被机器认领为一次真实消费；
+         *   ③ 正解：宿主注入 `deps.presetModule()`（见 index.js 那一处），模块只调不查。
+         *      这同时符合本仓「取库口只在宿主」的既有约定，且 B5 能真读到 `window.` 文本。
+         *   为什么前两代单测没抓到：CJS 走 `require` 分支就能拿到模块，压根不读 root。
+         *   **是接线扫描器抓的** —— 而它那条红的真实含义是「没有宿主代码认领这个模块」。 */
+        const P = (typeof deps.presetModule === 'function' ? deps.presetModule() : null);
+        if (!P || typeof P.plan !== 'function') { slot.state = 'failed'; slot.reason = 'gameplay-preset.js 未加载'; return report; }
+        if (typeof deps.configRead !== 'function' || typeof deps.configWrite !== 'function') {
+            slot.state = 'failed'; slot.reason = '宿主未提供 configRead/configWrite（预设入口不自行写盘）'; return report;
+        }
+        let parser = null;
+        try {
+            const mod = await deps.dynamicImport('/scripts/slash-commands/SlashCommandParser.js');
+            parser = mod && mod.SlashCommandParser;
+        } catch (_e) { parser = null; }
+        if (!parser) { slot.state = 'failed'; slot.reason = 'SlashCommandParser 未导出'; return report; }
+
+        const presetNames = P.list().map((x) => x.id);
+        const callback = (args, unnamed) => {
+            const argv = (Array.isArray(unnamed) ? unnamed.map((x) => String(x == null ? '' : x)) : [])
+                .concat(String((args && args.value) || '').trim() ? [String(args.value).trim()] : []);
+            const dry = argv.some((a) => PRESET_DRY_FLAGS.indexOf(a) >= 0);
+            const wanted = argv.filter((a) => PRESET_DRY_FLAGS.indexOf(a) < 0).join(' ').trim();
+            // 无参数 ⇒ 列档（把「看」和「改」分成两个动作：不带参数永远不改东西）
+            if (!wanted) {
+                return P.list().map((x) => `- ${x.id}（${x.label}）${x.why}\n  ${Object.keys(x.values).map((k) => k + '=' + x.values[k]).join(' ')}`).join('\n')
+                    + '\n用法：/lonsha-preset <' + presetNames.join('|') + '> [--dry]';
+            }
+            const p = P.plan(wanted, deps.configRead() || {});
+            if (!p.ok) throw new TypeError(p.reason);   // 未知档位：抛给用户看见（不静默）
+            if (dry) {
+                const cl = p.changes.length
+                    ? p.changes.map((c) => '  ' + c.key + ' ' + String(c.from) + '→' + String(c.to)).join('\n')
+                    : '  （当前配置本已是该档，改写 0 键）';
+                return '【预览】预设 ' + p.id + '（' + p.label + '）将改写 ' + p.changes.length + ' 键：\n' + cl;
+            }
+            const res = P.applyPreset(p.id, deps.configRead() || {}, (k, v) => deps.configWrite(k, v));
+            if (!res.ok) throw new TypeError(res.reason || '应用失败');
+            if (typeof deps.configSave === 'function') {
+                try { deps.configSave(); } catch (e) {
+                    // 写入成功但落盘失败必须说清（否则重启后「档位自己变回去了」无从解释）
+                    return P.receiptLine(res) + '\n⚠️ 配置已改但落盘失败：' + String((e && e.message) || e);
+                }
+            }
+            return P.receiptLine(res);
+        };
+        const canObject = typeof deps.makeCommandObject === 'function' && typeof parser.addCommandObject === 'function';
+        if (canObject) {
+            const cmdObj = deps.makeCommandObject({ name: NS + '-preset', callback, resources: presetNames });
+            if (cmdObj) {
+                parser.addCommandObject(cmdObj);
+                slot.state = 'ready'; slot.path = 'addCommandObject'; slot.reason = null; return report;
+            }
+            slot.reason = 'SlashCommand.fromProps 不可用（无法构造命令对象）';
+        }
+        if (typeof parser.addCommand === 'function') {
+            parser.addCommand(NS + '-preset', callback, [], '切换 LonSha 记忆引擎的玩法流派预设（只改题材参数，不碰凭据）', true, false);
+            slot.state = 'ready'; slot.path = 'addCommand'; return report;
+        }
+        slot.state = 'failed'; slot.reason = slot.reason || 'SlashCommandParser 无 addCommandObject/addCommand';
+    } catch (e) {
+        slot.state = 'failed';
+        slot.reason = String((e && e.message) || e);
+    }
+    return report;
+}
 /**
  * 主入口：按依赖注入注册三入口。
  * deps = { snapshot(), coverage(), makeCommandObject?, dynamicImport? }
@@ -261,6 +353,15 @@ async function register(deps = {}) {
     probeGlobal(report);
     await registerMacro(report, D);
     await registerSlash(report, D);
+    /* [v3.467.0] 第四个入口 `/lonsha-preset`：**唯一一个会改配置的入口**。
+     *   ★ 与本模块「三入口全部只读」的边界怎么共存（这条必须说清，否则下一个人会以为越界）：
+     *     · 它不改任何**账**（记忆条目/楼层/台账），只改本插件**自有配置键**，
+     *       且键集由 gameplay-preset.js 的白名单限定（凭据类键运行时可校验拒绝）；
+     *     · 它的写入最终仍走 ConfigManager.saveConfig —— 与设置页点按钮**完全同一条路**，
+     *       不新开持久化通道、不绕过任何校验；
+     *     · 它的 `apply` 由这里注入，模块自身不碰 config、不碰 localStorage。
+     *   独立成败：注册失败只让它自己 state='failed'，连坐不到斜杠/宏（见上两条的既有纪律）。 */
+    await registerPreset(report, deps);
     register._done = true;
     register._report = report;
     return report;
@@ -270,7 +371,11 @@ function lastReport() { return register._report || null; }
 /** 供测试与宿主复用（不注册，只取值）。 */
 function snapshotOf(deps) { return { resources: RESOURCES, apiVersion: API_VERSION, ns: NS }; }
 
-const api = { register, lastReport, queryResource, formatResult, macroTable, RESOURCES, API_VERSION, NS, snapshotOf };
+/* 供测试与宿主复用：registerPreset 单独导出，理由是 `register()` 带进程级幂等标记
+ *   （`register._done`），重复调用不会再注册到新 parser —— 单测若只能走 register，
+ *   第二个用例起就拿到 undefined 回调，会写出「假绿」。导出它让「注册动作」可独立驱动。
+ *   注意：直接调用它**不置** `_done`，也不改 `register._report`（不带副作用）。 */
+const api = { register, registerPreset, lastReport, queryResource, formatResult, macroTable, RESOURCES, API_VERSION, NS, snapshotOf };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof global !== 'undefined' && global) {
     try { global.LonShaPublicInterface = Object.freeze(api); } catch (_e) { /* 忽略 */ }

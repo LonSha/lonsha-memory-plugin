@@ -105,6 +105,77 @@
     if (!qt && !qemb) return _reject(REASONS['no-query'], { pool: pool.length });
 
     const threshold = _num(opt.threshold, DEFAULTS.threshold);
+    /* [v3.467.0] 语义阈值必须**按向量来源**取，不能用一个数打天下。
+     *   现场：`DEFAULTS.threshold = 0.62` 是按**真嵌入**的分数分布标定的；
+     *   而 v3.467.0 起无密钥用户的向量来自本地确定性 n-gram（相关档实测 0.27~0.39）。
+     *   只换向量器不换阈值 ⇒ 中文条目仍然一条都唤不醒（等于没改）。
+     *   三条纪律：
+     *     ① 调用方**显式**给了 threshold ⇒ 一律尊重（不回退、不覆盖），只在结果里回显
+     *        `thresholdFrom:'caller'`，让它知道这个数是自己说了算的；
+     *     ② 没给 ⇒ 按**本轮实际参与计分的池子来源**查表（`opt.vectorSource`，
+     *        或逐条 `s.embedSource`），不是按查询猜；
+     *     ③ 来源查不到阈值（'legacy-simple' / 'unknown' / 旧伪向量）⇒ **拒绝按语义唤醒**，
+     *        退回字面共现并在结果里明写原因。旧伪向量的无关分（0.9467）高于相关分（0.8634），
+     *        任何阈值都只会把噪声当相关 —— 静默套默认值正是本仓反复治的两态同形。 */
+    const _poolSources = (() => {
+        const set = new Set();
+        if (opt && opt.vectorSource) set.add(String(opt.vectorSource));
+        for (const s of pool) {
+            if (s && s.embedSource) set.add(String(s.embedSource));
+        }
+        return Array.from(set);
+    })();
+    const _scalarVectorize = (() => {
+        try {
+            return (typeof window !== 'undefined' && window.LonShaLocalNgramVectorizer)
+                || (typeof require === 'function' ? (() => { try { return require('./local-ngram-vectorizer.js'); } catch { return null; } })() : null);
+        } catch { return null; }
+    })();
+    const _thresholdForSource = (src) => {
+        if (_scalarVectorize && typeof _scalarVectorize.thresholdFor === 'function') return _scalarVectorize.thresholdFor(src);
+        // 模块缺席时的最小内联口径（与模块表同值；两处不同步会被判据抓）
+        const T = { 'api': 0.62, 'local-ngram': 0.22 };
+        const v = T[String(src == null ? 'unknown' : src)];
+        return (typeof v === 'number') ? v : null;
+    };
+    const callerGaveThreshold = (opt && opt.threshold !== undefined && opt.threshold !== null && opt.threshold !== ''
+        && Number.isFinite(Number(opt.threshold)));
+    let thresholdFrom = 'caller';
+    let semanticThreshold = threshold;
+    if (!callerGaveThreshold) {
+        /* ★ 「未标注」与「已知坏来源」必须分开，否则一次改版把存量用户的语义面全关掉。
+         *   [v3.467.0 修·自抓真回归 v3235 第 7 条]
+         *   首稿把「池子里一条来源都查不到」与「来源无阈值」压成同一分支 ⇒ 一律拒发语义通行证。
+         *   而落盘侧写的是 `embedSource: … || 'unknown'`，**存量数据全部是 'unknown'**，
+         *   于是首稿等于「升级即静默关停所有人的语义唤醒」—— 这不是诚实，这是把一次改版的
+         *   代价转嫁给用户，且没有任何一行字告诉他。
+         *   分三档：
+         *     ① 全部未标注（无 embedSource / 'unknown' / 空池来源集）⇒ 沿用调用方或默认阈值，
+         *        但**如实标** `thresholdFrom:'default-unattributed'`：读数上看得见「这次用的是默认值，
+         *        我们并不知道这批向量是谁产的」。行为不变，含糊不再隐形。
+         *     ② 任一条**显式**标了无阈值来源（'legacy-simple' 等已知伪向量）⇒ 拒发语义通行证。
+         *        这类来源的分数分布是已知坏的（实测无关 0.9467 > 相关 0.8634），任何阈值都只会
+         *        把噪声当相关 —— 静默套默认值正是本仓反复治的两态同形。
+         *     ③ 其余 ⇒ 按可用阈值取最小（最保守）。
+         *   为什么不猜：不按「有没有密钥」倒推存量向量的来源 —— 那是猜测，不是读数。 */
+        const UNSET = (x) => (x == null || x === '');
+        const ATTR_UNKNOWN = 'unknown';   // 与落盘侧 `|| 'unknown'` 同值：语义是「没标」，不是「标了坏」
+        const _declared = _poolSources.filter((s) => !UNSET(s));
+        const _realDecl = _declared.filter((s) => s !== ATTR_UNKNOWN);
+        const _usable = _realDecl.map(_thresholdForSource).filter((x) => typeof x === 'number');
+        const _poison = _realDecl.filter((s) => _thresholdForSource(s) === null);
+        if (_poison.length) {
+            semanticThreshold = null;
+            thresholdFrom = 'unavailable-source:' + _poison.join(',');
+        } else if (!_realDecl.length) {
+            // ① 全未标注：行为与修前逐字相同，只把含糊写进读数
+            semanticThreshold = threshold;
+            thresholdFrom = 'default-unattributed';
+        } else {
+            semanticThreshold = Math.min.apply(null, _usable);
+            thresholdFrom = (_realDecl.length === 1) ? ('source:' + _realDecl[0]) : 'source:mixed(min)';
+        }
+    }
     const maxAwaken = Math.max(1, _num(opt.maxAwaken, DEFAULTS.maxAwaken));
     const qTokens = tokens(qt, opt.minLen);
     // [v3.234.0] 语义面只有「查询向量在场」且「确实发生了至少一次向量计分」才算数。
@@ -127,19 +198,35 @@
     scored.sort((a, b) => b.score - a.score);
 
     const literalMode = vecScored === 0;
-    const minScore = literalMode ? Math.max(threshold * 0.5, 0.15) : threshold;
+    /* [v3.467.0] 语义面门槛取 `semanticThreshold`（按来源），不是 `threshold`（可能只是默认值）。
+     *   来源查不到阈值 ⇒ `semanticThreshold === null` ⇒ 本轮**不发语义通行证**：
+     *   mode 落 literal、`degrade` 明写 `semantic-threshold-unavailable`，
+     *   而不是拿一个可能不匹配分布的默认值硬套。 */
+    const semanticBlocked = !literalMode && (semanticThreshold === null);
+    const minScore = literalMode
+        ? Math.max(threshold * 0.5, 0.15)
+        : (semanticBlocked ? Math.max(threshold * 0.5, 0.15) : semanticThreshold);
+    const effectiveMode = (literalMode || semanticBlocked) ? 'literal' : 'semantic';
     const awakened = [];
     for (const c of scored) {
       if (awakened.length >= maxAwaken) break;
       if (c.score < minScore) continue;
-      awakened.push(Object.assign({}, c, { reason: literalMode ? '字面共现命中（无向量面）' : '语义相似命中' }));
+      awakened.push(Object.assign({}, c, { reason: c.by === 'cosine' && !semanticBlocked ? '语义相似命中' : '字面共现命中（无向量面或来源无阈值）' }));
     }
     return {
       ok: true, reason: REASONS.ok,
-      mode: literalMode ? 'literal' : 'semantic',
-      // 降级必须留名：字面面把「无可用向量」写进结果，读得出「这次是语义命中还是退而求其次」
-      degrade: literalMode ? REASONS['no-vector'] : null,
+      mode: effectiveMode,
+      /* 降级必须留名：字面面把「无可用向量」写进结果，读得出「这次是语义命中还是退而求其次」。
+       * [v3.467.0] 新增第二档 `semantic-threshold-unavailable`：向量算过了，
+       *   但池子来源无对应阈值 ⇒ 语义面被收口。与「没有向量」是两件事，不合并成一个 null。 */
+      degrade: literalMode ? REASONS['no-vector']
+        : (semanticBlocked ? 'semantic-threshold-unavailable' : null),
       threshold: minScore, requestedThreshold: threshold,
+      /* [v3.467.0] 阈值出处 + 本轮实际用到的来源集合：判据与诊断面据此分辨
+       *   「用户显式设的 0.62」与「按来源查到的 0.22」—— 两者修前同形（都只是一个数）。 */
+      thresholdFrom: thresholdFrom,
+      thresholdSource: callerGaveThreshold ? null : semanticThreshold,
+      poolSources: _poolSources,
       considered: scored.length, pool: pool.length,
       awakened: awakened
     };

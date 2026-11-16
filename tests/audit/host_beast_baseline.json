@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.427.0] 本版只改审计面，宿主面一行未动；读数沿用上一版（探针复核 total_lines / member_count 逐项相同），仅当版指针抬版。line_budget 行上界与成员上界不动（余量仍在 slack 内，不抬即是不给增长开口子）。",
-  "measured_at": "v3.465.2",
+  "measured_at": "v3.467.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3416,6 +3416,42 @@
         "top5_pct": 0,
         "top40_pct": 0
       }
+    },
+    "v3.467.0": {
+      "reason": "[v3.467.0] ST-Persistent-Memory 三项增量缝合落在入口：① 本地确定性 N-gram 向量器（local-ngram-vectorizer.js）接入 embedding 降级出口，入口补逐条来源读数口；② recency 预算裁剪三级降级阶梯（injection-router.js + engine-injection-pipeline.js 内联回落逐字同步）；③ 玩法流派预设四档与 /lonsha-preset 斜杠入口（gameplay-preset.js + public-interface.js 第四入口）；④ OrganFallback 退路补齐 embedSourceOf / getEmbedSourceStats，与 memory-organs.js 公开面同形（v3264 A「退路缺方法 VectorStore.embedSourceOf」当场顶出来）；⑤ 六源版本号统一抬到 3.467.0（抬版前 package/manifest 3.465.2 与 index.js 3.466.1 本就不一致）。入口 index.js 13119 → 8 行（+8），成员 1345 → 1345，全部真实计入读数。",
+      "readings": {
+        "total_lines": 13119,
+        "surface_lines": 35946,
+        "member_count": 1345,
+        "duplicate_member_names": 161,
+        "top5_lines": 6739,
+        "top5_pct": 18.7,
+        "top40_lines": 15098,
+        "top40_pct": 42.0,
+        "prefix_rule_coverage_lines": 5570,
+        "prefix_rule_coverage_pct": 15.5,
+        "unclassified_lines": 29377,
+        "seam_distinct_modules": 222,
+        "seam_reference_sites": 577,
+        "seam_call_shape_sites": 759,
+        "members_over_80_lines": 64,
+        "low_coupling_members": 19,
+        "high_coupling_members": 23
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版做向量降级出口/预算降级阶梯/玩法预设三项缝合，未拆任何宿主巨兽成员",
+      "delta_from": "v3.467.0(同版重绑)",
+      "delta": {
+        "total_lines": 8,
+        "surface_lines": 8,
+        "member_count": 0,
+        "top40_lines": 0,
+        "top5_pct": -0.1,
+        "top40_pct": 0.0
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3429,17 +3465,17 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13085,
-    "surface_lines": 35820,
-    "member_count": 1342,
+    "total_lines": 13119,
+    "surface_lines": 35946,
+    "member_count": 1345,
     "duplicate_member_names": 161,
-    "top5_lines": 6708,
+    "top5_lines": 6739,
     "top5_pct": 18.7,
-    "top40_lines": 15067,
-    "top40_pct": 42.1,
+    "top40_lines": 15098,
+    "top40_pct": 42.0,
     "prefix_rule_coverage_lines": 5570,
     "prefix_rule_coverage_pct": 15.5,
-    "unclassified_lines": 29251,
+    "unclassified_lines": 29377,
     "seam_distinct_modules": 222,
     "seam_reference_sites": 577,
     "seam_call_shape_sites": 759,
@@ -3450,11 +3486,11 @@
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1268,
-      "lines": 29251,
+      "members": 1271,
+      "lines": 29377,
       "lines_pct": 81.7,
-      "outside_refs": 27248,
-      "internal_refs": 10206,
+      "outside_refs": 27401,
+      "internal_refs": 10229,
       "outside_ref_share_pct": 72.8
     },
     {
@@ -3470,7 +3506,7 @@
       "domain": "召回与注入",
       "members": 20,
       "lines": 1526,
-      "lines_pct": 4.3,
+      "lines_pct": 4.2,
       "outside_refs": 154,
       "internal_refs": 80,
       "outside_ref_share_pct": 65.8
@@ -3481,15 +3517,15 @@
       "lines": 893,
       "lines_pct": 2.5,
       "outside_refs": 50,
-      "internal_refs": 34,
-      "outside_ref_share_pct": 59.5
+      "internal_refs": 35,
+      "outside_ref_share_pct": 58.8
     },
     {
       "domain": "配置与持久化",
       "members": 3,
       "lines": 490,
       "lines_pct": 1.4,
-      "outside_refs": 32,
+      "outside_refs": 35,
       "internal_refs": 0,
       "outside_ref_share_pct": 100
     },
@@ -3552,7 +3588,7 @@
     {
       "name": "buildInjection",
       "file": "engine-injection-pipeline.js",
-      "lines": 1785,
+      "lines": 1806,
       "outside_refs": 59
     },
     {
@@ -3564,7 +3600,7 @@
     {
       "name": "applyExtractedPayload",
       "file": "engine-execution-pipeline.js",
-      "lines": 1335,
+      "lines": 1345,
       "outside_refs": 3
     },
     {
@@ -3601,7 +3637,7 @@
       "name": "saveConfig",
       "file": "index.js",
       "lines": 488,
-      "outside_refs": 21
+      "outside_refs": 24
     },
     {
       "name": "extractThinkingChain",
@@ -3885,7 +3921,7 @@
       {
         "name": "buildInjection",
         "file": "engine-injection-pipeline.js",
-        "lines": 1785,
+        "lines": 1806,
         "outside_refs": 59,
         "is_host_lifecycle": false
       },
@@ -3914,7 +3950,7 @@
         "name": "saveConfig",
         "file": "index.js",
         "lines": 488,
-        "outside_refs": 21,
+        "outside_refs": 24,
         "is_host_lifecycle": false
       },
       {
@@ -4010,9 +4046,9 @@
   "line_budget": {
     "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-    "ceiling": 13112,
+    "ceiling": 13519,
     "maxSlack": 400,
-    "note": "[v3.465.2] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35820 行，TOP5 占 18.7%，TOP40 占 42.1%。",
+    "note": "[v3.467.0] 入口 index.js 13119 行、成员数 1345；行上界**上抬至 13519**（余量 400 <= slack 400）、成员上界**不抬，仍为 1366**（余量 21 <= member_slack 30）。合并面 35946 行，TOP5 占 18.7%，TOP40 占 42.0%。",
     "history": [
       {
         "ceiling": 15000,
@@ -4464,14 +4500,26 @@
         "member_ceiling": 1366,
         "milestone_version": "v3.465.2",
         "reason": "[v3.465.2] 入口 index.js 13069 行、成员数 1342；行上界**不抬，仍为 13112**（余量 43 <= slack 400）、成员上界**不抬，仍为 1366**（余量 24 <= member_slack 30）。合并面 35820 行，TOP5 占 18.7%，TOP40 占 42.1%。"
+      },
+      {
+        "ceiling": 13112,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.467.0",
+        "reason": "[v3.467.0] 入口 index.js 13111 行、成员数 1345；行上界**不抬，仍为 13112**（余量 1 <= slack 400）、成员上界**不抬，仍为 1366**（余量 21 <= member_slack 30）。合并面 35938 行，TOP5 占 18.8%，TOP40 占 42.0%。"
+      },
+      {
+        "ceiling": 13519,
+        "member_ceiling": 1366,
+        "milestone_version": "v3.467.0",
+        "reason": "[v3.467.0] 入口 index.js 13119 行、成员数 1345；行上界**上抬至 13519**（余量 400 <= slack 400）、成员上界**不抬，仍为 1366**（余量 21 <= member_slack 30）。合并面 35946 行，TOP5 占 18.7%，TOP40 占 42.0%。"
       }
     ],
     "member_ceiling": 1366,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13069,
-  "member_count": 1342,
+  "total_lines": 13119,
+  "member_count": 1345,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
 }
