@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.471.0';
+    const VERSION = '3.472.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -1645,6 +1645,8 @@
         _ageAnchor() { return null; }
         _conditionPatchLib() { return null; }
         getProtagonist() { return null; }
+        /* [v3.472.0 · L22] 观察者角色缺省值（真实形态取当前说话角色，取不到才空）。 */
+        get r22ViewerCharacter() { return String(this._r22ViewerCharacter || ''); }
         getProtagonistPrompt() { return ''; }
         _normalizeDetailText() { return ''; }
         addLifeDetail() { return null; }
@@ -2338,6 +2340,16 @@ function relativeTimeLabel(eventTime, nowTime) {
             //   载荷在代际确认之后由 _injectionCommit 落成读数。
             //   不设这一层，读数会在 await 期间被写脏（后到的 STARTED 会把它超过）。
             this._injectionPending = null;
+            /* [v3.472.0 · L22] 产品读数的**输入源**（此前 r22ProductReadout 读的是一批
+             *   全仓零赋值的占位属性 ⇒ 18 项读数恒为空壳）。这里只立**真源**，不立读数：
+             *   · _r22ReadCache   文件级缓存（manifest/磁盘清单/存储读写点），只在面板读取时算一次；
+             *   · _r22OpenProbes 视图可达性探针结果，由 showBrowser 真实开合后回填；
+             *   · _r22ArchiveRange 归档区间，由导出/归档流程回填；
+             *   · _r22ViewerCharacter 观察者角色，缺省取当前说话角色。 */
+            this._r22ReadCache = null;
+            this._r22OpenProbes = [];
+            this._r22ArchiveRange = null;
+            this._r22ViewerCharacter = '';
             this._injectionStale = 0;                   // 代际过期累计次数（≥0 即「有过迟到结果」）
             // [v3.218.0] R2-E：结局计数账（completed / aborted / noReadout / afterReadout）。
             //   为什么要分四个数：正常完成、被用户中止、本轮没跑注入、已判定后又来一次信号 ——
@@ -5168,6 +5180,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                         }
                     } catch (e) { errLog(e, 'onBeforeGeneration.returnGateAdmit'); }
                     let inj2 = this.buildInjection(candidateItems);
+                    /* [L22] 产品面读数随真实生成周期刷新，不是装载自检：图谱、摘要与本轮回执均取现值。 */
+                    try { this.r22ProductReadout(); } catch (e) { errLog(e, 'L22.product-readout'); }
+                    /* [v3.472.0 · L22] 文件级读数（manifest / 模块台账 / index.js 源码）是异步的：
+                     *   在真实生成周期里顺手刷新一次，面板打开时就不必等。失败只入日志，
+                     *   不阻塞注入 —— 它是诊断面，不是记忆本体。 */
+                    try { this.r22LoadFileReadings(false).catch(() => {}); } catch (e) { errLog(e, 'L22.file-readings'); }
                 if (_diaryChangeFloor != null) this._diaryInjectFloor = _diaryChangeFloor;
                 if (_timelineChangeFloor != null) this._timelineInjectFloor = _timelineChangeFloor;
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
@@ -8163,7 +8181,312 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             return read;
         }
 
+        /* [v3.472.0 · L22 business consumers] 第二十二期 18 个产品桥接到真实引擎读路径。
+         *   输入来自当前 graph/summary/本轮注入回执，模块只算投影；本方法只挂结果供诊断/UI 消费。
+         *   惰性取库（extra_js 在入口之后加载），每项独立 try/catch，缺模块不污染注入主线。 */
+        /* [v3.472.0 · L22] 产品读数的**事实来源**：文件级读数只在面板打开时算一次，
+         *   读的是**真装在盘上的东西**（manifest / 审计台账 / 本仓 index.js 源码），
+         *   而不是把数字写在调用点里。
+         *   为什么必须异步单独取：fetch 是异步的，而 r22ProductReadout 被同步调；
+         *   把两者合并只能二选一 —— 要么同步时读不到、要么编一个 0。
+         *   本实现选第三条：同步读数在「未取到」时报 face:'pending' 并写明原因，
+         *   绝不把「还没读」冒充成「读到了 0」。 */
+        _r22BaseUrl() {
+            try {
+                const list = Array.from(document.scripts || []);
+                for (const sc of list) {
+                    const src = String(sc.src || '');
+                    if (/\/index\.js(\?|$)/.test(src)) return src.replace(/index\.js(\?.*)?$/, '');
+                }
+                for (const sc of list) {
+                    const src = String(sc.src || '');
+                    if (/\/scripts\/extensions\//.test(src)) return src.replace(/[^/]*$/, '');
+                }
+            } catch (e) { /* 取不到基址就返回空串，fetch 会按相对路径解析 */ }
+            return '';
+        }
+        /** 读盘：manifest / 审计台账 / index.js 源码。结果缓存在 _r22ReadCache（每实例一次）。 */
+        async r22LoadFileReadings(force) {
+            if (this._r22ReadCache && !force) return this._r22ReadCache;
+            const base = this._r22BaseUrl();
+            const cache = { at: Date.now(), base, manifest: null, ledger: null, indexLines: null, fieldUsage: null, fail: [] };
+            const getText = async (rel) => {
+                try {
+                    const r = await fetch(base + rel, { cache: 'no-store' });
+                    if (!r || !r.ok) { cache.fail.push({ file: rel, why: 'http-' + String(r && r.status) }); return null; }
+                    return await r.text();
+                } catch (e) { cache.fail.push({ file: rel, why: String((e && e.message) || e) }); return null; }
+            };
+            const mfText = await getText('manifest.json');
+            if (mfText) { try { cache.manifest = JSON.parse(mfText); } catch (e) { cache.fail.push({ file: 'manifest.json', why: 'json' }); } }
+            const lgText = await getText('tests/audit/module_consumption_ledger.json');
+            if (lgText) { try { cache.ledger = JSON.parse(lgText); } catch (e) { cache.fail.push({ file: 'tests/audit/module_consumption_ledger.json', why: 'json' }); } }
+            /* index.js 源码：巨型文件拆分计划与「写了不读」扫描都需要**真实行数**与**真实读写点**。
+             *   修前这两项分别用写死的 lines:13235 与空数组 —— 一个会随文件长大而失真，
+             *   另一个恒为空所以永远报「没有写了不读的字段」（假绿）。 */
+            const idxText = await getText('index.js');
+            if (idxText) {
+                cache.indexLines = idxText.split('\n').length;
+                const writes = {}; const refs = {};
+                const reW = /this\.(_[A-Za-z0-9_]+)\s*=(?![=>])/g;
+                const reR = /this\.(_[A-Za-z0-9_]+)/g;
+                let m;
+                while ((m = reW.exec(idxText))) { writes[m[1]] = (writes[m[1]] || 0) + 1; }
+                while ((m = reR.exec(idxText))) { refs[m[1]] = (refs[m[1]] || 0) + 1; }
+                const usage = [];
+                for (const k of Object.keys(writes)) {
+                    const w = writes[k]; const total = refs[k] || w;
+                    usage.push({ key: k, writes: w, reads: Math.max(0, total - w) });
+                }
+                cache.fieldUsage = usage;
+            }
+            this._r22ReadCache = cache;
+            return cache;
+        }
+        /** 视图可达性探针登记（由 showBrowser 真实开合后回填；不登记就不计入读数）。 */
+        r22RecordOpenProbe(id, state, why) {
+            const key = String(id == null ? '' : id);
+            if (!key) return;
+            const list = Array.isArray(this._r22OpenProbes) ? this._r22OpenProbes : (this._r22OpenProbes = []);
+            const rec = { id: key, at: Date.now() };
+            if (state === 'opened') rec.opened = true;
+            else if (state === 'threw') { rec.threw = true; rec.why = String(why || ''); }
+            else { rec.missing = true; rec.why = String(why || ''); }
+            const i = list.findIndex(x => x && x.id === key);
+            if (i >= 0) list[i] = rec; else list.push(rec);
+            if (list.length > 40) list.shift();
+        }
+        /* [v3.472.0 · L22] 十八项产品读数。
+         *   **本函数只做取数，不做编数**。每一项的输入必须能回答「它从哪个真源来」：
+         *     · 会话内状态（this.graph / this.summary / this.worldProg / 各注入读数）
+         *     · 文件级事实（manifest / 模块消耗台账 / index.js 源码，见 r22LoadFileReadings）
+         *   取不到就报 `face:'pending'` 或 `face:'absent'` 并写明原因，**绝不回落成 0 或空数组**：
+         *   「没读到」与「读到了 0」在面板上是两句话，压成一句就是撒谎。
+         */
+        r22ProductReadout() {
+            const safe = (fn) => { try { return fn(); } catch (e) { return { face: 'error', why: String(e && e.message || e) }; } };
+            const now = Date.now();
+            const nodes = Array.from(this.graph?.nodes?.values?.() || []);
+            const edges = Array.from(this.graph?.edges?.values?.() || []);
+            const summaries = Array.isArray(this.summary?.summaries) ? this.summary.summaries : [];
+            const at = (x) => Number(x?.storyAt ?? x?.timestamp ?? x?.createdAt ?? x?.floor ?? null);
+            const records = summaries.map((x, i) => ({ key: String(x?.id || ('sum_' + (x?.floor ?? i))), text: String(x?.text || ''), summary: String(x?.text || ''), storyAt: at(x), at: at(x), salience: Number(x?.salience ?? x?.importance ?? 0), importance: Number(x?.importance ?? 0), ownerChar: String(x?.ownerChar || ''), shared: x?.shared === true }));
+            const fileRead = this._r22ReadCache || null;
+            const pending = (what) => ({ face: 'pending', why: '文件级读数未取到：' + what + '（面板打开时会异步取一次）' });
+
+            /* ── 会话内读数 ─────────────────────────────────────────── */
+            const timeline = safe(() => { const m = window.LonShaMemoryTimeline; return m ? m.buildTimeline(records) : { face: 'absent' }; });
+            const relation = safe(() => { const m = window.LonShaRelationMilestone; return m ? m.milestones(edges.map(e => ({ kind: e.kind, storyAt: e.storyAt ?? e.timestamp, label: e.label }))) : { face: 'absent' }; });
+            const map = safe(() => { const m = window.LonShaMemoryMap; return m ? m.buildMap(nodes.map(n => ({ id: n.id, label: n.name || n.label, kind: n.type })), edges.map(e => ({ from: e.from, to: e.to, kind: e.type || e.kind }))) : { face: 'absent' }; });
+            const sleep = safe(() => { const m = window.LonShaSleepConsolidation; return m ? m.planConsolidation(records) : { face: 'absent' }; });
+            const archive = safe(() => { const m = window.LonShaMemoryArchivePack; return m ? m.buildPack(records, this._r22ArchiveRange || null) : { face: 'absent' }; });
+
+            /* 观察者角色：显式指定优先，否则取「最近一次注入里真正说话的角色」。
+             *   修前恒为空串 —— 空串在 filterVisible 里等于「谁也看不见」，读数永远是 0 条可见。 */
+            const isolation = safe(() => {
+                const m = window.LonShaMultiCharIsolation; if (!m) return { face: 'absent' };
+                let viewer = String(this._r22ViewerCharacter || '');
+                if (!viewer) {
+                    const st = this.status?.getProtagonist?.();
+                    viewer = String((st && (st.name || st.mainName)) || '');
+                }
+                if (!viewer) return { face: 'pending', why: '没有观察者角色（未指定且主角档案为空）' };
+                return m.filterVisible(records, viewer);
+            });
+
+            /* 体检四项：冲突读真账本，过期读摘要折叠史，零消费读召回账本，重复读摘要指纹。
+             *   修前读 _conflictCount / _zeroConsumptionCount / _duplicateCount 三个**全仓零赋值**属性，
+             *   于是体检永远报「四项全 0 健康」—— 一个不会红的体检表等于没有体检。 */
+            const checkup = safe(() => {
+                const m = window.LonShaMemoryCheckup; if (!m) return { face: 'absent' };
+                const conflicts = Array.isArray(this.conflicts?.conflicts) ? this.conflicts.conflicts.length : (this.conflicts?.export?.()?.conflicts || []).length;
+                const stale = summaries.filter(x => x && (x.stale === true || x.superseded === true || x.folded === true)).length;
+                const audit = Array.isArray(this._recallAudit) ? this._recallAudit : [];
+                const zeroConsumption = audit.filter(r => r && r.empty === true).length;
+                const seen = {}; let duplicates = 0;
+                for (const x of summaries) { const k = String(x?.text || '').trim().slice(0, 40); if (!k) continue; if (seen[k]) duplicates++; else seen[k] = 1; }
+                return m.checkup({ conflicts, stale, zeroConsumption, duplicates });
+            });
+
+            /* 时间胶囊：真源是 worldProg.promises 里**立了截止楼层**的那些约定。
+             *   deadlineFloor 换算成 openAt：仍取该楼在聊天里的真实时间（取不到就按楼层差估算）。
+             *   修前读 _r22Capsule（零赋值）⇒ 恒 invalid。 */
+            const capsule = safe(() => {
+                const m = window.LonShaMemoryCapsule; if (!m) return { face: 'absent' };
+                const ps = Array.isArray(this.worldProg?.promises) ? this.worldProg.promises : [];
+                const withDeadline = ps.filter(p => p && Number.isFinite(Number(p.deadlineFloor)));
+                if (!withDeadline.length) return { face: 'none', why: '还没有立下带截止楼层的约定' };
+                const cur = Number(this._currentFloor);
+                const pick = withDeadline[0];
+                const openAt = Number.isFinite(cur) && cur >= 0 && Number(pick.deadlineFloor) > cur
+                    ? now + (Number(pick.deadlineFloor) - cur) * 60000   // 楼层差按每分钟一楼估算，**估算口径写明**
+                    : now;
+                const st = m.capsuleState({ openAt, openedAt: (pick.status === 'fulfilled' || pick.status === 'broken') ? now : null }, now);
+                return Object.assign({}, st, { promiseId: String(pick.id || ''), content: String(pick.content || '').slice(0, 60), deadlineFloor: Number(pick.deadlineFloor), estimated: true });
+            });
+
+            /* 未来信：真源是 worldProg.seedLedger（伏笔生命周期）里**还没兑现**的种子。
+             *   修前读 _r22FutureLetters（零赋值）⇒ 恒空数组。 */
+            const future = safe(() => {
+                const m = window.LonShaFutureLetter; if (!m) return { face: 'absent' };
+                const seeds = this.worldProg?.seedLedger;
+                const list = Array.isArray(seeds) ? seeds : (Array.isArray(seeds?.seeds) ? seeds.seeds : []);
+                if (!list.length) return { face: 'none', why: '还没有种下伏笔（seedLedger 为空）' };
+                const letters = list.filter(s => s && s.status !== 'paid' && s.status !== 'abandoned')
+                    .map(s => ({ text: String(s.text || s.content || s.label || ''), openAt: Number(s.openAt ?? s.dueFloor ?? now) }));
+                return m.dueCandidates(letters, now);
+            });
+
+            /* ── 注入与证据链（参数形状按内核契约改对）───────────────────── */
+            /* injection-receipt-facets 吃的是六个**面**：candidate/trim/drop/resident/unknown/capacity。
+             *   修前传的是 {generation, draft, pending, commit, write} 五个**阶段**，键名零交集
+             *   ⇒ 恒报 partial 且缺面恒为全部六面。现在按面从真读数取，取不到就**不写该键**
+             *   （内核按 hasOwnProperty + !=null 判在场，缺席要如实缺席）。 */
+            const injection = safe(() => {
+                const m = window.LonShaInjectionReceiptFacets; if (!m) return { face: 'absent' };
+                const bs = this._lastBudgetStats || null;
+                const draft = Array.isArray(this._lastInjectionDraft) ? this._lastInjectionDraft : null;
+                const out = {};
+                if (bs) {
+                    if (Number.isFinite(bs.beforeChars)) out.candidate = bs.beforeChars;
+                    if (Number.isFinite(bs.overBudgetChars)) out.trim = bs.overBudgetChars;
+                    if (Number.isFinite(bs.droppedBlocks)) out.drop = bs.droppedBlocks;
+                    if (Number.isFinite(bs.residentOverflowChars)) out.resident = bs.residentOverflowChars;
+                    if (Number.isFinite(bs.partialBlocks)) out.unknown = bs.partialBlocks;
+                    if (Number.isFinite(bs.requested)) out.capacity = bs.requested;
+                }
+                /* 预算读数缺席但逐块草稿在场：drop 面仍可从块清单现算（kept=false 的块数）。
+                 *   两路都缺席 ⇒ 不填任何面，内核报「六面全缺」—— 那是**真话**。 */
+                if (draft && out.drop === undefined) out.drop = draft.filter(x => x && x.kept === false && x.partial !== true).length;
+                return m.aggregate(out);
+            });
+
+            /* 证据链吃 {evidences:[{tier,source}]}。修前传 {direct,substitute,source} ⇒ 形状全错。
+             *   真源：本次注入的**读数来源等级**。
+             *     · 有真生成读数（_lastInjection 且 origin=generation）⇒ direct；
+             *     · 只有草稿/预算统计 ⇒ corroborate（旁证：能算出规模但不能证明内容进过载荷）；
+             *     · 只有召回账本命中 ⇒ circumstantial（间接）。 */
+            const evidence = safe(() => {
+                const m = window.LonShaEvidenceSubstituteChain; if (!m) return { face: 'absent' };
+                const evs = [];
+                if (this._lastInjection && String(this._lastInjection.origin || '') === 'generation') evs.push({ tier: 'direct', source: 'injection:' + String(this._lastInjection.round ?? '') });
+                if (this._lastBudgetStats) evs.push({ tier: 'corroborate', source: 'budget-stats' });
+                if (Array.isArray(this._lastInjectionDraft) && this._lastInjectionDraft.length) evs.push({ tier: 'corroborate', source: 'block-draft' });
+                if (Array.isArray(this._recallAudit) && this._recallAudit.length) evs.push({ tier: 'circumstantial', source: 'recall-audit' });
+                return m.buildChain({ evidences: evs });
+            });
+
+            /* 真机判定吃 {verdict, samples?, threshold?, cause?}。修前 fallback 传 {available:false, cause}，
+             *   而内核按 verdict 分支 —— 'available' 不是合法 verdict ⇒ 恒 invalid 而不是 unavailable。
+             *   真源：宿主有没有 SillyTavern 上下文、最近一次 AI 调用是否真拿到样本。 */
+            const realhost = safe(() => {
+                const m = window.LonShaRealhostVerdict; if (!m) return { face: 'absent' };
+                let ctx = null;
+                try { ctx = window.SillyTavern?.getContext?.() || null; } catch (e) { ctx = null; }
+                if (!ctx) return m.judgeRealhost({ verdict: 'unavailable', cause: 'no-st-context', causeGroup: 'host' });
+                const samples = Number(this._recallAudit?.length || 0);
+                const threshold = 1;
+                if (samples > 0) return m.judgeRealhost({ verdict: 'available', samples, threshold });
+                return m.judgeRealhost({ verdict: 'unavailable', cause: 'no-generation-samples', causeGroup: 'runtime' });
+            });
+
+            /* ── 文件级读数（缓存未就绪时如实报 pending）──────────────────── */
+            /* 目录登记：真源是 manifest.extra_js 与磁盘上的 .js 清单。
+             *   修前读 _testCatalogFiles / _registeredTestFiles（零赋值）⇒ 恒 invalid。 */
+            const catalog = safe(() => {
+                const m = window.LonShaCatalogRegistration; if (!m) return { face: 'absent' };
+                if (!fileRead || !fileRead.manifest) return pending('manifest.json');
+                const onDisk = Array.isArray(fileRead.manifest.extra_js) ? fileRead.manifest.extra_js : [];
+                const ledger = (fileRead.ledger && fileRead.ledger.modules) ? Object.keys(fileRead.ledger.modules) : null;
+                if (!ledger) return pending('模块消耗台账');
+                return m.reconcile(onDisk, ledger);
+            });
+
+            /* 模块定性：真源是模块消耗台账里的 business_call_sites / load_surface_only / why。
+             *   修前读 _loadSurfaceModules（零赋值）⇒ 恒 invalid。 */
+            const disposition = safe(() => {
+                const m = window.LonShaLoadSurfaceDisposition; if (!m) return { face: 'absent' };
+                const mods = fileRead && fileRead.ledger && fileRead.ledger.modules;
+                if (!mods) return pending('模块消耗台账');
+                const rows = Object.keys(mods).map(k => {
+                    const v = mods[k] || {};
+                    return { module: k, business_call_sites: Number(v.business_call_sites), load_surface_only: v.load_surface_only === true, why: String(v.why || '') };
+                });
+                return m.dispose(rows);
+            });
+
+            /* 巨型文件拆分计划：真源是 index.js 的**真实行数**（fetch 现算）。
+             *   修前写死 lines:13235 —— 文件一长大计划就失真，且读者无法分辨这是读数还是常量。 */
+            const split = safe(() => {
+                const m = window.LonShaGiantFileSplitPlan; if (!m) return { face: 'absent' };
+                if (!fileRead || !Number.isFinite(fileRead.indexLines)) return pending('index.js 行数');
+                return m.planSplit({ file: 'index.js', lines: fileRead.indexLines, budget: 3000, responsibilities: [{ name: 'assembly', weight: 25 }, { name: 'lifecycle', weight: 25 }, { name: 'injection', weight: 30 }, { name: 'diagnostics', weight: 20 }] });
+            });
+
+            /* 写了不读扫描：真源是 index.js 源码里每个 `this._x` 的**赋值次数与引用次数**。
+             *   修前读 _writeOnlyFieldReadings（零赋值）⇒ 恒空数组 ⇒ 永远报「没有写了不读的字段」。
+             *   这条假绿最危险：它让「写了没人读」这类真缺陷在面板上永久不可见。 */
+            const writeOnly = safe(() => {
+                const m = window.LonShaWriteOnlyScan; if (!m) return { face: 'absent' };
+                if (!fileRead || !Array.isArray(fileRead.fieldUsage)) return pending('index.js 字段读写点');
+                return m.scan(fileRead.fieldUsage);
+            });
+
+            /* 视图可达性：真源是 showBrowser 真实开合后回填的探针。
+             *   修前读 _viewOpenabilityReadings（零赋值）⇒ 恒 none。 */
+            const openability = safe(() => {
+                const m = window.LonShaViewOpenability; if (!m) return { face: 'absent' };
+                const probes = Array.isArray(this._r22OpenProbes) ? this._r22OpenProbes : [];
+                if (!probes.length) return { face: 'pending', why: '还没有视图被打开过（探针未登记）' };
+                return m.judgeOpen(probes);
+            });
+
+            /* 冻结新鲜度：真源是最近一次装配读数的时间（_assembleRead.at）。 */
+            const frozen = safe(() => {
+                const m = window.LonShaFrozenFreshness; if (!m) return { face: 'absent' };
+                const t = Number(this._assembleRead?.at ?? this._assembleRead?.ts);
+                if (!Number.isFinite(t)) return { face: 'pending', why: '还没有装配读数' };
+                return m.judgeFreshness(t, now);
+            });
+
+            const out = { at: now, fileReadAt: fileRead ? fileRead.at : null, timeline, capsule, future, relation, checkup, map, sleep, archive, isolation, split, injection, openability, evidence, realhost, catalog, disposition, frozen, writeOnly };
+            this._r22ProductReadout = out;
+            return out;
+        }
         // [v3.367.0] 系统健康自检与全景诊断委托桩 (从 index.js 剥离至 engine-self-check.js)
+        /* [v3.472.0 · L22] 第二十二期十八项纯函数内核的装配点自检。
+         *   同既有 _moduleLib 挂法：extra_js 后加载，惰性取；坏了不影响记忆本体（全是增强面）。 */
+        r22KernelSelfChecks() {
+            const map = [
+                ['memory-capsule.js', () => window.LonShaMemoryCapsule, 'memory-capsule.js'],
+                ['future-letter.js', () => window.LonShaFutureLetter, 'future-letter.js'],
+                ['relation-milestone.js', () => window.LonShaRelationMilestone, 'relation-milestone.js'],
+                ['memory-checkup.js', () => window.LonShaMemoryCheckup, 'memory-checkup.js'],
+                ['memory-timeline.js', () => window.LonShaMemoryTimeline, 'memory-timeline.js'],
+                ['memory-map.js', () => window.LonShaMemoryMap, 'memory-map.js'],
+                ['sleep-consolidation.js', () => window.LonShaSleepConsolidation, 'sleep-consolidation.js'],
+                ['memory-archive-pack.js', () => window.LonShaMemoryArchivePack, 'memory-archive-pack.js'],
+                ['multi-char-memory-isolation.js', () => window.LonShaMultiCharIsolation, 'multi-char-memory-isolation.js'],
+                ['memory-giant-file-split-plan.js', () => window.LonShaGiantFileSplitPlan, 'memory-giant-file-split-plan.js'],
+                ['injection-receipt-facets.js', () => window.LonShaInjectionReceiptFacets, 'injection-receipt-facets.js'],
+                ['view-openability.js', () => window.LonShaViewOpenability, 'view-openability.js'],
+                ['evidence-substitute-chain.js', () => window.LonShaEvidenceSubstituteChain, 'evidence-substitute-chain.js'],
+                ['realhost-verdict.js', () => window.LonShaRealhostVerdict, 'realhost-verdict.js'],
+                ['catalog-registration.js', () => window.LonShaCatalogRegistration, 'catalog-registration.js'],
+                ['load-surface-disposition.js', () => window.LonShaLoadSurfaceDisposition, 'load-surface-disposition.js'],
+                ['frozen-freshness.js', () => window.LonShaFrozenFreshness, 'frozen-freshness.js'],
+                ['write-only-scan.js', () => window.LonShaWriteOnlyScan, 'write-only-scan.js'],
+            ];
+            const out = [];
+            for (const [name, getGlobal, file] of map) {
+                const lib = _moduleLib(getGlobal, file);
+                if (!lib || typeof lib.selfCheck !== 'function') { out.push({ name, ok: false, absent: true }); continue; }
+                try { const r = lib.selfCheck(); out.push({ name, ok: r && r.ok === true, bad: (r && r.bad) || [] }); }
+                catch (e) { out.push({ name, ok: false, threw: String(e && e.message || e) }); }
+            }
+            return out;
+        }
+
         async selfCheck(...args) {
             // [v3.277.0 O7] 保证 _formatBindDepsRow(this._bindDepsRead, this._bindDepsRebindRead), 诊断调用在场
             const M = _moduleLib(() => window.LonShaEngineSelfCheck, 'engine-self-check.js');

@@ -98,7 +98,15 @@ test('【3】data-cfg-num 键保存逻辑可达', () => {
 
 // ---------- 4 ----------
 test('【4】保存逻辑整数取整（语义修复）', () => {
-  const saveAt = suiSrc.indexOf("overlay.querySelectorAll('[data-cfg-num]')");
+  /* [v3.472.0] 锚点收紧：原来取「文件里第一处 [data-cfg-num] 选择器」，
+   *   但底栏的未保存计数（_dirtyNow）也会用同一个选择器，且它在文件里更靠前，
+   *   于是这一段被切到了计数逻辑上，判成「既有 parseInt 特例未删」（假红）。
+   *   口径不变、断言不变，只把锚点从「第一处出现」改成「保存处理器内部」：
+   *   本测试要验的是保存时的取整语义，不是任何一处同名选择器。 */
+  const saveBtnAt = suiSrc.indexOf("overlay.querySelector('#ls-save')");
+  assert.ok(saveBtnAt > 0, '找不到保存按钮的处理器');
+  const saveAt = suiSrc.indexOf("overlay.querySelectorAll('[data-cfg-num]')", saveBtnAt);
+  assert.ok(saveAt > saveBtnAt, '保存处理器里找不到 data-cfg-num 分支');
   const block = suiSrc.slice(saveAt, suiSrc.indexOf('});', saveAt));
   assert.ok(/Math\.round/.test(block), '整数步进的滑条保存时取整');
   assert.ok(/Number\.isInteger\(step\)/.test(block), '按 step 判定是否取整');

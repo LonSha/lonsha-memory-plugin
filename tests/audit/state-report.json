@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.471.0",
+  "version": "3.472.0",
   "version_sources": {
-    "manifest": "3.471.0",
-    "package": "3.471.0",
-    "index_const": "3.471.0"
+    "manifest": "3.472.0",
+    "package": "3.472.0",
+    "index_const": "3.472.0"
   },
   "version_same": true,
-  "human_index_version": "3.471.0",
+  "human_index_version": "3.472.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 376,
+    "extra_js": 394,
     "extra_js_list": [
       "ledger-entity.js",
       "psychological-defense-engine.js",
@@ -388,13 +388,31 @@
       "narrative-momentum-flow-inertia-engine.js",
       "unspoken-hesitation-subtext-engine.js",
       "local-ngram-vectorizer.js",
-      "gameplay-preset.js"
+      "gameplay-preset.js",
+      "memory-capsule.js",
+      "future-letter.js",
+      "relation-milestone.js",
+      "memory-checkup.js",
+      "memory-timeline.js",
+      "memory-map.js",
+      "sleep-consolidation.js",
+      "memory-archive-pack.js",
+      "multi-char-memory-isolation.js",
+      "memory-giant-file-split-plan.js",
+      "injection-receipt-facets.js",
+      "view-openability.js",
+      "evidence-substitute-chain.js",
+      "realhost-verdict.js",
+      "catalog-registration.js",
+      "load-surface-disposition.js",
+      "frozen-freshness.js",
+      "write-only-scan.js"
     ],
-    "root_js": 377,
+    "root_js": 395,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 525,
+    "test_files": 529,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -866,6 +884,10 @@
       "v3467_local_vector_fallback.test.mjs",
       "v346_fortress_pyramid.test.mjs",
       "v3470_m4x9_lore_crosscheck.test.mjs",
+      "v3471_model_fetch_degrade.test.mjs",
+      "v3472_l22_lab_search.test.mjs",
+      "v3472_l22_ui_panel.test.mjs",
+      "v3472_r22_product_wiring.test.mjs",
       "v347_hc_mechanics.test.mjs",
       "v3480_closeout_fourth_phase.test.mjs",
       "v3490_condition_patch.test.mjs",
@@ -962,7 +984,7 @@
     "tests_total": 430,
     "assertions": 4658,
     "audit": "68/68",
-    "reason": "登记版本 3.431.0 ≠ 当前 3.467.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.431.0 ≠ 当前 3.472.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -981,19 +1003,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "b3ffb387c491",
-      "package.json": "7b552114288f",
-      "index.js": "e0ea5e9b2c86",
+      "manifest.json": "53dcfb7bb5aa",
+      "package.json": "9769a8dc9d73",
+      "index.js": "1bc283ba64fd",
       "update-log.json": null,
-      "README.md": "45c36a076f08",
-      "PLAN.md": "57b5d7b0d208",
-      "CHANGELOG.md": "eeedceb03cf3",
-      "TODO.md": "4ea055ec04b4",
+      "README.md": "96dafb849d2e",
+      "PLAN.md": "41ab8a9986ca",
+      "CHANGELOG.md": "781d5d858434",
+      "TODO.md": "816cc37becfe",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.467.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.472.0"
   ],
   "unknown_count": 1
 }

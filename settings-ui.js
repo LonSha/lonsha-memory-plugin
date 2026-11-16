@@ -171,6 +171,46 @@
             .ls-tab-btn { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); color: var(--ls-text-2, #94a3b8); padding: 7px 13px; border-radius: var(--ls-r-sm, 6px); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all var(--ls-t-fast, 140ms); flex-shrink: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
             .ls-tab-btn:hover { color: var(--ls-text, #f1f5f9); background: var(--ls-bg-3, #1b2436); border-color: var(--ls-line-strong); }
             .ls-tab-btn.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-4, #27334a); border-color: var(--ls-accent-line); font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(56,189,248,0.3); }
+            /* [v3.472.0 · L22 UI] 面板骨架重排：固定头 / 固定底栏 / 可滚动主体。
+             *   修前三个问题：
+             *     ① 「保存」在 body 最末尾 —— 用户在实验室改完要滚过几屏才能找到它；
+             *     ② 点遮罩 / 点 ✕ 直接 remove() —— 未保存的改动静默丢失，也不提示；
+             *     ③ 页签是普通 button，无 role/aria-selected，键盘不可用。
+             *   本段只新增类，不改动既有 token 与既有类名（避免已有渲染判据整片失效）。 */
+            .lonsha-sheet-head-fixed { position: sticky; top: 0; z-index: 3; background: var(--ls-bg-2, #111827); }
+            .lonsha-sheet-close { background: transparent; font-family: inherit; line-height: 1; }
+            .lonsha-sheet-close:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; }
+            .ls-sheet-body-scroll { padding-bottom: 8px; }
+            .ls-dirtybar { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--ls-bg-glass, rgba(10,15,24,0.88)); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); border-top: 1px solid var(--ls-line-strong, rgba(255,255,255,0.14)); box-shadow: 0 -6px 20px -8px rgba(0,0,0,0.7); }
+            .ls-dirtybar[data-dirty="0"] { opacity: 0.55; }
+            .ls-dirty-count { flex: 1; min-width: 0; font-size: 12px; color: var(--ls-text-2, #94a3b8); overflow-wrap: anywhere; }
+            .ls-dirtybar[data-dirty="1"] .ls-dirty-count { color: var(--ls-gold, #fbbf24); font-weight: 600; }
+            .ls-dirtybar .ls-btn { margin: 0; width: auto; }
+            .ls-confirm-inline { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--ls-warn-soft, rgba(251,191,36,0.10)); border-top: 1px solid var(--ls-gold-line, rgba(251,191,36,0.30)); font-size: 12px; color: var(--ls-text, #f1f5f9); flex-wrap: wrap; }
+            .ls-confirm-inline .ls-btn { margin: 0; width: auto; padding: 6px 12px; font-size: 12px; }
+            .ls-tab-btn:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; }
+            @media (prefers-reduced-motion: reduce) {
+                .lonsha-overlay, .lonsha-sheet, .ls-tab-pane.active { animation: none !important; }
+                .ls-row, .ls-btn, .ls-tab-btn { transition: none !important; }
+            }
+            /* [v3.472.0 · L22 UI] 健康页卡片：三态必须不同形（有数据 / 真的没有 / 读不到），
+             *   压成一句「暂无」就是把「你去聊几句」和「模块没装上」说成同一件事。 */
+            .ls-health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+            .ls-health-card { border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-md, 10px); padding: 10px 12px; background: var(--ls-bg-2, #111827); cursor: pointer; transition: border-color var(--ls-t-fast,140ms) var(--ls-ease,ease); }
+            .ls-health-card:hover { border-color: var(--ls-accent-line, rgba(56,189,248,0.28)); }
+            .ls-health-card[data-face="ok"] { border-left: 3px solid var(--ls-success, #34d399); }
+            .ls-health-card[data-face="warn"] { border-left: 3px solid var(--ls-warn, #fbbf24); }
+            .ls-health-card[data-face="crit"] { border-left: 3px solid var(--ls-danger, #f87171); }
+            .ls-health-card[data-face="none"], .ls-health-card[data-face="pending"], .ls-health-card[data-face="absent"] { border-left: 3px solid var(--ls-text-4, #475569); opacity: 0.8; }
+            .ls-health-card .ls-hc-k { font-size: 11px; color: var(--ls-text-3, #64748b); }
+            .ls-health-card .ls-hc-v { font-size: 20px; font-weight: 600; color: var(--ls-text, #f1f5f9); font-variant-numeric: tabular-nums; line-height: 1.3; }
+            .ls-health-card .ls-hc-w { font-size: 11px; color: var(--ls-text-3, #64748b); overflow-wrap: anywhere; }
+            /* [v3.472.0 · L22 Lab] 实验室搜索：分组过滤，不改控件 DOM / 保存契约。 */
+            .ls-lab-searchbar { display: flex; gap: 8px; align-items: center; margin: 0 8px 10px; }
+            .ls-lab-search { flex: 1; min-width: 0; margin: 0 !important; }
+            .ls-lab-clear { width: auto !important; margin: 0 !important; padding: 8px 12px !important; }
+            .ls-lab-result { min-height: 18px; padding: 0 8px 8px; font-size: 11px; color: var(--ls-text-3, #64748b); }
+            .ls-lab-result[data-state="empty"] { color: var(--ls-warn, #fbbf24); }
             .ls-tab-pane { display: none; }
             .ls-tab-pane.active { display: block; animation: ls-fade var(--ls-t-fast,150ms) var(--ls-ease,ease); }
             .ls-mode-banner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 16px 0; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); }
@@ -246,7 +286,19 @@
         document.head.appendChild(style);
 
         // ========== 工具 ==========
-        const closeOverlay = (id) => document.getElementById(id)?.remove();
+        /* [v3.472.0 · L22 UI] 关窗 = 卸 DOM + 退订监听 + 归还焦点。
+         *   修前就是一句 getElementById(id)?.remove()：每条面板都在 document 上
+         *   留一个 keydown 处理器永不摘除，开过十个面板就有十个僵尸处理器，
+         *   且它们仍在对着已分离的 DOM 调 tryClose()。
+         *   焦点同理：关窗后焦点落到 body，键盘用户得从头 Tab 回入口。 */
+        const closeOverlay = (id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            try { if (el._lsKeyHandler) document.removeEventListener('keydown', el._lsKeyHandler); } catch (e) { /* 非致命 */ }
+            try { if (el._lsButtonGuard && el._lsButtonGuard.disconnect) el._lsButtonGuard.disconnect(); } catch (e) { /* 非致命 */ }
+            try { if (typeof el._lsRestoreFocus === 'function') el._lsRestoreFocus(); } catch (e) { /* 非致命 */ }
+            el.remove();
+        };
         /* [v3.445.0] 面板按钮硬化：用 inline !important 写入底色与字色。
          *   为何不能只靠样式表：宿主主题若用带 ID 且带 !important 的选择器
          *   写按钮底，特异性高于本面板任何类选择器，样式表怎么加都会输；
@@ -284,30 +336,104 @@
             });
             return n;
         };
-        const makeSheet = (id, title, bodyHTML) => {
+        const makeSheet = (id, title, bodyHTML, opts) => {
             closeOverlay(id);
+            const o = opts || {};
             const overlay = document.createElement('div');
             overlay.id = id;
             overlay.className = 'lonsha-overlay';
+            const _ttl = String(title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
             overlay.innerHTML = `
-                <div class="lonsha-sheet">
-                    <div class="lonsha-sheet-header"><span>${title}</span><span class="lonsha-sheet-close">✕</span></div>
-                    <div class="lonsha-sheet-body">${bodyHTML}</div>
+                <div class="lonsha-sheet" role="dialog" aria-modal="true" aria-label="${_ttl}">
+                    <div class="lonsha-sheet-header lonsha-sheet-head-fixed"><span>${title}</span><button type="button" class="lonsha-sheet-close" aria-label="关闭">✕</button></div>
+                    <div class="lonsha-sheet-body ls-sheet-body-scroll">${bodyHTML}</div>
+                    ${o.footerHTML ? `<div class="ls-dirtybar" data-dirty="0">${o.footerHTML}</div>` : ''}
                 </div>
             `;
-            overlay.querySelector('.lonsha-sheet-close').addEventListener('click', () => closeOverlay(id));
+            /* [v3.472.0 · L22 UI] 关闭不再是一键 remove()：
+             *   修前点 ✕ / 点遮罩 = 直接删 DOM，未保存的改动静默丢失。
+             *   现在若调用方给了 beforeClose()（返回 false 表示不许关），先问它；
+             *   它说不行就留在面板里，由调用方自己渲染确认条。
+             *   拦截点必须在**关闭动作本身**，而不是在每个按钮上各加一次提示。 */
+            const tryClose = () => {
+                let ok = true;
+                try { ok = (typeof o.beforeClose === 'function') ? (o.beforeClose() !== false) : true; }
+                catch (e) { ok = true; }
+                if (ok) closeOverlay(id);
+                return ok;
+            };
+            overlay._lsTryClose = tryClose;
+            /* 关闭按钮是 <button> 而不是 <span>：修前键盘用户无法到达它。 */
+            overlay.querySelector('.lonsha-sheet-close').addEventListener('click', () => { tryClose(); });
             /* [v3.445.0] 开启时先硬化一次，再挂观察器：面板内部视图切换是
-             * 整段 body.innerHTML 重写的（不是局部补节点），不挂观察器就只有首屏可读。 */
+             *   整段 body.innerHTML 重写的（不是局部补节点），不挂观察器就只有首屏可读。 */
             hardenButtons(overlay);
             try {
                 const _mo = new MutationObserver(() => { hardenButtons(overlay); });
                 _mo.observe(overlay, { childList: true, subtree: true });
                 overlay._lsButtonGuard = _mo;
             } catch (_e) { /* 环境无 MutationObserver 时不影响主流程 */ }
-            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(id); });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) tryClose(); });
+            /* Esc 关闭：修前全文件零 keydown 处理，键盘用户只能靠鼠标点遮罩。 */
+            overlay._lsKeyHandler = (e) => {
+                if (e && e.key === 'Escape') { e.preventDefault(); tryClose(); }
+            };
+            document.addEventListener('keydown', overlay._lsKeyHandler);
+            /* [v3.472.0 · L22 UI] 页签键盘导航 + 焦点陷阱，写在共用的 sheet 骨架里。
+             *   为什么不在设置面板里单挂：方向键切页签、Tab 不出窗是「弹层」的通用预期，
+             *     和具体是哪个面板无关；写在骨架里，新面板自动继承，也不会漏挂。
+             *   为什么用事件委托：页签按钮是 bodyHTML 里生成、由调用方接线的，
+             *     骨架拿不到引用；委托到 overlay 上就能覆盖「重绘后的新按钮」。 */
+            overlay.addEventListener('keydown', (e) => {
+                if (!e || !e.key) return;
+                const tab = (e.target && e.target.closest) ? e.target.closest('[role="tab"]') : null;
+                if (tab && (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Home' || e.key === 'End')) {
+                    const list = Array.prototype.slice.call(tab.parentElement.querySelectorAll('[role="tab"]'));
+                    if (!list.length) return;
+                    let i = list.indexOf(tab);
+                    if (i < 0) return;
+                    if (e.key === 'ArrowRight') i = (i + 1) % list.length;
+                    else if (e.key === 'ArrowLeft') i = (i - 1 + list.length) % list.length;
+                    else if (e.key === 'Home') i = 0;
+                    else i = list.length - 1;
+                    e.preventDefault();
+                    try { list[i].focus(); } catch (_e1) { }
+                    try { list[i].click(); } catch (_e2) { }
+                    return;
+                }
+                if (e.key !== 'Tab') return;
+                /* 焦点陷阱：Tab / Shift+Tab 在弹层内首尾回环，不逃到宿主页面上。
+                 *   offsetParent === null 用来排除 display:none 的页签内控件，
+                 *   否则焦点会跳进看不见的元素，等于丢焦点。 */
+                const all = overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                const vis = [];
+                for (let k = 0; k < all.length; k++) {
+                    const el = all[k];
+                    if (el.disabled) continue;
+                    if (el.offsetParent === null) continue;
+                    vis.push(el);
+                }
+                if (!vis.length) return;
+                const first = vis[0];
+                const last = vis[vis.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); try { last.focus(); } catch (_e3) { } }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); try { first.focus(); } catch (_e4) { } }
+            });
+            /* 开场把焦点放进弹层（关闭键），关窗时归还给触发它的那个元素。 */
+            try {
+                overlay._lsPrevFocus = document.activeElement;
+                const _f0 = overlay.querySelector('.lonsha-sheet-close');
+                if (_f0 && _f0.focus) _f0.focus();
+            } catch (_e5) { /* 非致命 */ }
+            overlay._lsRestoreFocus = () => {
+                const back = overlay._lsPrevFocus;
+                if (back && back.focus) { try { back.focus(); } catch (_e6) { /* 非致命 */ } }
+            };
             document.body.appendChild(overlay);
             return overlay;
         };
+
+
         const toast = (msg) => {
             const t = document.createElement('div');
             t.className = 'ls-toast';
@@ -2293,6 +2419,17 @@
                 + '" data-face-why="' + escAttr(faceState.state === 'ok' ? '' : (faceState.code || 'unspecified')) + '">';
             const _bodyWrapped = _faceRoot + (body ? (opHint + body) : '<div class="ls-hint">暂无数据</div>') + '</div>';
             const ov = makeSheet('lonsha-browser-overlay', title, _bodyWrapped);
+            /* [v3.472.0 · L22] 视图可达性**探针登记**：L22-O12 的 judgeOpen 吃的是
+             *   「哪个视图真的开成了 / 抛了 / 找不到」——修前那份清单全仓零赋值，
+             *   所以读数恒为 none（等于没测）。这里在**真开合点**回填，成功与失败都记。
+             *   注意登记的是「面板真的挂上了 DOM」这一事实，不是「函数被调用过」。 */
+            try {
+                const _eng0 = plugin.engine;
+                if (_eng0 && typeof _eng0.r22RecordOpenProbe === 'function') {
+                    _eng0.r22RecordOpenProbe(String(viewType || ''), 'opened');
+                    try { _eng0.r22ProductReadout(); } catch (e) { /* 读数失败不影响面板 */ }
+                }
+            } catch (e) { /* 探针非致命 */ }
             /* [v3.428.0 · L12-O4] 失败态留重试：抛错是可恢复的，不给按钮等于让人关面板重开。 */
             ov.querySelectorAll('.ls-face-retry').forEach(btn => {
                 btn.addEventListener('click', () => { ov.remove(); plugin.showBrowser(viewType); });
@@ -2994,13 +3131,14 @@
                     <input type="checkbox" data-cfg="${key}" ${c[key] ? 'checked' : ''}>
                 </label>`;
             const body = `
-                <div class="ls-tabs-nav">
-                    <button type="button" class="ls-tab-btn active" data-tab="general">🚀 开始使用</button>
-                    <button type="button" class="ls-tab-btn" data-tab="narrative">📖 人物与故事</button>
-                    <button type="button" class="ls-tab-btn" data-tab="retrieval">💾 备份与调校</button>
-                    <button type="button" class="ls-tab-btn" data-tab="advanced">🧪 高级实验室</button>
+                <div class="ls-tabs-nav" role="tablist" aria-label="设置分类">
+                    <button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-general" class="ls-tab-btn active" data-tab="general">🚀 开始使用</button>
+                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-narrative" class="ls-tab-btn" data-tab="narrative">📖 人物与故事</button>
+                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-health" class="ls-tab-btn" data-tab="health">🩺 记忆健康</button>
+                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-retrieval" class="ls-tab-btn" data-tab="retrieval">💾 备份与调校</button>
+                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-advanced" class="ls-tab-btn" data-tab="advanced">🧪 实验室</button>
                 </div>
-<div class="ls-tab-pane active" data-tab-pane="general">
+<div class="ls-tab-pane active" role="tabpanel" id="ls-pane-general" data-tab-pane="general">
                 <div class="ls-player-welcome">
                     <strong>开箱即用，把注意力留给故事</strong>
                     <p class="ls-hint">默认使用当前对话的 AI 接口。保存设置后继续聊天，新的剧情会按所选档位整理；已有故事可在下方「找回漏记剧情」中补记。</p>
@@ -3075,7 +3213,37 @@
                     <p class="ls-hint">查看后关闭上层窗口，即可回到这里继续设置。</p>
                 </div>
 </div>
-<div class="ls-tab-pane" data-tab-pane="narrative">
+<div class="ls-tab-pane" role="tabpanel" id="ls-pane-health" data-tab-pane="health">
+                <div class="ls-group">
+                    <div class="ls-group-title">记忆健康</div>
+                    <p class="ls-hint" id="ls-health-summary" aria-live="polite">正在读取当前会话的记忆状态…</p>
+                    <div class="ls-health-grid" id="ls-health-grid"></div>
+                    <div class="ls-player-actions">
+                        <button type="button" class="ls-btn" id="ls-health-refresh">重新检查</button>
+                    </div>
+                    <p class="ls-hint">体检只报事实，不改动记忆。点开每张卡可以看明细。</p>
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">约定与伏笔</div>
+                    <p class="ls-hint" id="ls-health-capsule"></p>
+                    <p class="ls-hint" id="ls-health-future"></p>
+                </div>
+                <div class="ls-group">
+                    <div class="ls-group-title">故事结构</div>
+                    <div class="ls-player-actions">
+                        <button type="button" class="ls-btn" data-settings-view="summaries">剧情回顾</button>
+                        <button type="button" class="ls-btn" data-settings-view="relations">人物关系</button>
+                        <button type="button" class="ls-btn" data-settings-view="timeline">时间线</button>
+                        <button type="button" class="ls-btn" data-settings-view="conflicts">矛盾账本</button>
+                    </div>
+                </div>
+                <details class="ls-player-details" id="ls-health-dev">
+                    <summary>开发者读数（注入回执 / 模块定性 / 真机判定）</summary>
+                    <div class="ls-hint" id="ls-health-dev-body" style="white-space:pre-wrap;font-family:var(--ls-mono);font-size:11px;line-height:1.6;"></div>
+                </details>
+            </div>
+
+<div class="ls-tab-pane" role="tabpanel" id="ls-pane-narrative" data-tab-pane="narrative">
 <div class="ls-group">
     <div class="ls-group-title">跟上人物和故事的变化</div>
     <p class="ls-hint">这些记录来自当前对话；尚未整理的剧情会暂时没有内容。</p>
@@ -3162,7 +3330,7 @@
 </details>
 </details>
 </div>
-<div class="ls-tab-pane" data-tab-pane="retrieval">
+<div class="ls-tab-pane" role="tabpanel" id="ls-pane-retrieval" data-tab-pane="retrieval">
 <div class="ls-group">
                     <div class="ls-group-title">💾 备份与迁移</div>
                     <button class="ls-btn" id="ls-export">📤 导出档案 (JSON)</button>
@@ -3322,10 +3490,15 @@
                 </div>
 </details>
 </div>
-<div class="ls-tab-pane" data-tab-pane="advanced">
+<div class="ls-tab-pane" role="tabpanel" id="ls-pane-advanced" data-tab-pane="advanced">
 <details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">🧪 底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
+<div class="ls-lab-searchbar" role="search" aria-label="实验室设置搜索">
+    <input type="search" id="ls-lab-search" class="ls-input ls-lab-search" placeholder="搜索：召回、向量、世界线、角色……" autocomplete="off" aria-controls="ls-pane-advanced">
+    <button type="button" class="ls-btn ls-lab-clear" id="ls-lab-clear">清空</button>
+</div>
+<div class="ls-lab-result" id="ls-lab-result" role="status" aria-live="polite">显示全部 4 组实验室设置</div>
 <div class="ls-group">
-                    <div class="ls-group-title">🎯 回忆检索数量与深度</div>
+                    <div class="ls-group-title">🎯 召回、预算与摘要</div>
                     <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
                     <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
@@ -3359,7 +3532,7 @@
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🔗 故事因果脉络追踪</div>
+                    <div class="ls-group-title">🔗 因果、时间与叙事机制</div>
                     ${ck('hippoDiffusionEnabled', '关键道具与线索联合联想', '将关键道具、地点与在场角色联动唤醒，由物及人触发深层回忆连锁')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
                     ${ck('entropyReflectionEnabled', '自适应叙事熵反思', '根据事件重要度与剧情惊奇度动态蓄力，冲顶时提前触发反思提炼，告别机械固定轮数')}
@@ -3367,7 +3540,7 @@
                     ${ck('cacheFriendlyInjection', 'Prompt Cache 友好型分流', '顶槽锁定绝对稳定的史记前缀，动态周记下沉，使 Claude/DeepSeek/Kimi 持续命中 Prefix Caching')}
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🌌 世界线记忆与分支题材</div>
+                    <div class="ls-group-title">🌌 世界线、分支与跨层隔离</div>
                     ${ck('worldlineMemoryEnabled', '分层记忆与跨层污染闸', '适用于任何一种「同一角色不止一段人生」的机制：梦境层级、时间循环轮次、平行宇宙、存档读档、位面、世界线……插件不认识任何具体世界观，只认两件抽象事实：① 层标记（当前在哪一层，名字由你的卡自己定）② 切换楼层（第几楼切过去的）。两者合起来叫「纪元」。开启后每条记忆按归属判：同纪元可当事实；异纪元默认挡下（谁都不例外，主角也不给特权）；连楼层都没有的判不了、绝不冒充本纪元。另有一道「未来纪元」闸：起线楼层比你晚的记忆，对任何角色都不可见（防剧透）。默认关。')}
                     <div class="ls-slider-label"><span>当前层标记（名字由你的卡定，如 现实 / 梦一 / 第二轮 / 平行A）</span></div>
                     <input type="text" class="ls-input" placeholder="留空 = 未设定，条目一律判不了" value="${c.worldlineId || ''}" data-cfg-text="worldlineId" autocomplete="off">
@@ -3486,7 +3659,7 @@
                     </details>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">⚙️ 内核底层微调</div>
+                    <div class="ls-group-title">⚙️ 角色、系统与底层开关</div>
                     ${ck('protagonistTracking', '主角档案追踪', '追踪主角客观档案、个人喜好与生活习惯')}
                     ${ck('dualTimeAnchorEnabled', '正文时间锚点', '通过正文内容识别起止时间，推演故事内的时间流逝')}
                     ${ck('charMemEnabled', '角色记忆银行', '两层记忆（短期/长期）按角色隔离')}
@@ -3528,7 +3701,8 @@
 </details>
 </div>
 <div class="ls-settings-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
-                    <button class="ls-btn ls-btn-primary" id="ls-save" style="margin:0;">保存设置，继续故事</button>
+                    <!-- [v3.472.0 · L22 UI] 「保存」已搬到固定底栏（随时可见）；
+                         这里只留会调 AI / 改存档的重操作，与常用保存分开。 -->
                     <details class="ls-player-details"><summary>找回漏记剧情 / 恢复存档</summary>
                     <p class="ls-hint">补记剧情和整理人物会调用 AI 接口；可先查看范围，再决定是否继续。</p>
                     <div class="ls-player-actions">
@@ -3539,7 +3713,67 @@
                 </div>
             `;
 
-            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 设置', body);
+            /* [v3.472.0 · L22 UI] 未保存计数与关闭拦截：
+             *   修前改了二十个滑块后误触遮罩 = 全丢。现在底栏实时报数，
+             *   关闭动作先问一句（用面板内确认条，不用原生 confirm）。 */
+            /* [v3.472.0 · L22 UI] 未保存计数必须读**控件现值**，不能读 config。
+             *   修前拿 config 与打开时的快照比 —— 但面板控件在点「保存」之前根本不写 config，
+             *   于是这个计数恒为 0：底栏一直报「没有未保存的修改」，
+             *   而用户其实刚拖了二十个滑块。这是「指示器撒谎」，
+             *   比没有指示器更坏 —— 它会让人放心地把面板关掉。
+             *   现在按 data-cfg / data-cfg-num / data-cfg-text 逐项取现值与快照比；
+             *   专用控件（金字塔层级 / 提示词 / 副 API）仍是「保存时才收集」，
+             *   它们与快照不同形（数组 vs 文本），强行折算会误报，故不计入。 */
+            const _dirtyNow = () => {
+                let n = 0;
+                try {
+                    if (!overlay) return 0;
+                    const c0 = beforeConfig || {};
+                    overlay.querySelectorAll('[data-cfg]').forEach(el => {
+                        const k = el.dataset.cfg;
+                        if (!!c0[k] !== !!el.checked) n++;
+                    });
+                    overlay.querySelectorAll('[data-cfg-num]').forEach(el => {
+                        const k = el.dataset.cfgNum;
+                        const raw = parseFloat(el.value);
+                        if (!Number.isFinite(raw)) return;
+                        const step = parseFloat(el.step) || 1;
+                        const v = Number.isInteger(step) ? Math.round(raw) : raw;
+                        const cur = Number(c0[k]);
+                        if (!Number.isFinite(cur) || cur !== v) n++;
+                    });
+                    overlay.querySelectorAll('[data-cfg-text]').forEach(el => {
+                        const k = el.dataset.cfgText;
+                        const before = (c0[k] === undefined || c0[k] === null) ? '' : String(c0[k]);
+                        if (before !== String(el.value).trim()) n++;
+                    });
+                } catch (e) { /* 读不到就当无改动，绝不阻塞关闭 */ }
+                return n;
+            };
+            let _confirming = false;
+            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 设置', body, {
+                footerHTML: '<span class="ls-dirty-count" id="ls-dirty-count">已修改 0 项</span>'
+                    + '<button type="button" class="ls-btn" id="ls-dirty-reset">还原</button>'
+                    + '<button type="button" class="ls-btn ls-btn-primary" id="ls-save">保存并继续</button>',
+                beforeClose: () => {
+                    const n = _dirtyNow();
+                    if (n <= 0 || _confirming) return true;
+                    /* 弹面板内确认条：不用原生 confirm()（移动端体验差且不可样式化）。 */
+                    _confirming = true;
+                    const bar = overlay.querySelector('.ls-dirtybar');
+                    if (bar && !bar.querySelector('.ls-confirm-inline')) {
+                        const tip = document.createElement('div');
+                        tip.className = 'ls-confirm-inline';
+                        tip.innerHTML = '<span>放弃这 ' + n + ' 项修改？</span>'
+                            + '<button type="button" class="ls-btn" id="ls-confirm-back">回去保存</button>'
+                            + '<button type="button" class="ls-btn" id="ls-confirm-drop">放弃</button>';
+                        bar.appendChild(tip);
+                        tip.querySelector('#ls-confirm-back').addEventListener('click', () => { _confirming = false; tip.remove(); });
+                        tip.querySelector('#ls-confirm-drop').addEventListener('click', () => { _confirming = false; closeOverlay('lonsha-settings-overlay'); });
+                    }
+                    return false;
+                }
+            });
             const PROFILE_HELP = {
                 balanced: '每 3 条 AI 回复整理一次，适合大多数故事。',
                 quality: '每条 AI 回复都整理，记录更及时，接口用量也更高。',
@@ -3580,13 +3814,202 @@
             });
             syncPlayerState();
             updateProfileHelp();
-            overlay.querySelectorAll('.ls-tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const tab = btn.dataset.tab;
-                    overlay.querySelectorAll('.ls-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-                    overlay.querySelectorAll('.ls-tab-pane').forEach(p => p.classList.toggle('active', p.dataset.tabPane === tab));
+            /* [v3.472.0 · L22 UI] 底栏未保存计数：监听整块 body 的 change/input，
+             *   比逐个控件挂监听更不容易漏（面板里的控件由多段模板拼出，逐个挂会漂移）。
+             *   这里只读 config 与 beforeConfig 的差异，不写任何配置。 */
+            const _syncDirty = () => {
+                const n = _dirtyNow();
+                const bar = overlay.querySelector('.ls-dirtybar');
+                const cnt = overlay.querySelector('#ls-dirty-count');
+                if (bar) bar.setAttribute('data-dirty', n > 0 ? '1' : '0');
+                if (cnt) cnt.textContent = n > 0 ? ('已修改 ' + n + ' 项') : '没有未保存的修改';
+            };
+            overlay.addEventListener('change', _syncDirty);
+            overlay.addEventListener('input', _syncDirty);
+            const _resetBtn = overlay.querySelector('#ls-dirty-reset');
+            if (_resetBtn) {
+                /* 「还原」= 把本次面板内的改动撤回到打开时的快照。
+                 *   只写回 config 内存对象（不落盘），然后重建面板以使控件回到旧值。 */
+                /* 「还原」= 把控件退回打开时的值。
+                 *   修前是把快照写回 config 再关窗重建面板：三个副作用都不必要 ——
+                 *     ① 重建会丢掉当前所在页签，用户在「实验室」点还原会被弹回「开始使用」；
+                 *     ② 写回 config 等于偷偷改内存里的配置，只是没落盘；
+                 *     ③ 重建后底栏计数归零，看不出「刚才确实改过又撤回」。
+                 *   现在原地回填，并派发 input 让滑杆读数与状态文案跟着刷新。 */
+                _resetBtn.addEventListener('click', () => {
+                    let hit = 0;
+                    try {
+                        const c0 = beforeConfig || {};
+                        overlay.querySelectorAll('[data-cfg]').forEach(el => {
+                            const v = !!c0[el.dataset.cfg];
+                            if (el.checked !== v) { el.checked = v; hit++; }
+                        });
+                        overlay.querySelectorAll('[data-cfg-num]').forEach(el => {
+                            const k = el.dataset.cfgNum;
+                            const cur = Number(c0[k]);
+                            if (!Number.isFinite(cur)) return;
+                            if (String(el.value) !== String(cur)) {
+                                el.value = String(cur);
+                                hit++;
+                                try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (_e1) { /* 非致命 */ }
+                            }
+                        });
+                        overlay.querySelectorAll('[data-cfg-text]').forEach(el => {
+                            const k = el.dataset.cfgText;
+                            const before = (c0[k] === undefined || c0[k] === null) ? '' : String(c0[k]);
+                            if (String(el.value) !== before) { el.value = before; hit++; }
+                        });
+                    } catch (e) { /* 非致命 */ }
+                    _syncDirty();
+                    toast(hit > 0 ? ('已撤回 ' + hit + ' 处改动，尚未保存') : '没有可撤回的改动');
                 });
+            }
+            /* [v3.472.0 · L22 UI] 健康页渲染：把 r22ProductReadout() 的十八项读数
+             *   翻成**玩家能读的三态卡片**。三条硬纪律：
+             *     ① 有数据 / 真的没有 / 读不到，三态不同形（data-face 与文案都不同）；
+             *     ② 读不到必须写原因（why），不许回落成 0 条；
+             *     ③ 「开发者读数」折叠区里放工程项，玩家默认看不到但可展开。
+             *   为什么读数是「异步先取一次、再渲染」：文件级读数要 fetch，
+             *   同步渲染只能拿到 pending —— 那会把「还没读」显示成「读不到」。 */
+            const _hc = (label, face, value, why) => {
+                const f = String(face || 'none');
+                const v = (value === null || value === undefined || value === '') ? '—' : String(value);
+                const w = String(why || '');
+                return '<div class="ls-health-card" data-face="' + escAttr(f) + '" data-health-label="' + escAttr(label) + '">'
+                    + '<div class="ls-hc-k">' + esc(label) + '</div>'
+                    + '<div class="ls-hc-v">' + esc(v) + '</div>'
+                    + (w ? '<div class="ls-hc-w">' + esc(w) + '</div>' : '')
+                    + '</div>';
+            };
+            const renderHealth = () => {
+                const grid = overlay.querySelector('#ls-health-grid');
+                const sum = overlay.querySelector('#ls-health-summary');
+                const capEl = overlay.querySelector('#ls-health-capsule');
+                const futEl = overlay.querySelector('#ls-health-future');
+                const devEl = overlay.querySelector('#ls-health-dev-body');
+                if (!grid) return;
+                let r = null;
+                try { r = this.engine.r22ProductReadout(); } catch (e) { r = null; }
+                if (!r) {
+                    grid.innerHTML = _hc('读数', 'absent', '不可用', '记忆引擎未就绪');
+                    if (sum) sum.textContent = '读不到记忆引擎状态。';
+                    return;
+                }
+                const ck = r.checkup || {};
+                const items = Array.isArray(ck.items) ? ck.items : [];
+                const _faceOfLevel = (lv) => lv === 'ok' ? 'ok' : lv === 'warning' ? 'warn' : lv === 'critical' ? 'crit' : 'pending';
+                if (items.length) {
+                    grid.innerHTML = items.map(it => _hc(
+                        String(it.label || it.key || ''),
+                        _faceOfLevel(String(it.level || 'unknown')),
+                        String(it.value === undefined ? '—' : it.value),
+                        String(it.note || it.why || '')
+                    )).join('');
+                } else {
+                    /* 内核返回的形状不含 items 时，按它自己的 face 如实报，
+                     *   不自己编一套四项数字。 */
+                    grid.innerHTML = _hc('记忆体检', String(ck.face || 'absent'), String(ck.face || ''), String(ck.why || ck.reason || ''));
+                }
+                if (sum) {
+                    const bad = items.filter(it => it && (it.level === 'warning' || it.level === 'critical')).length;
+                    const unk = items.filter(it => it && it.level === 'unknown').length;
+                    if (bad > 0) sum.textContent = '有 ' + bad + ' 项需要看一眼。';
+                    else if (unk > 0) sum.textContent = '有 ' + unk + ' 项读不到数据（不等于 0）。';
+                    else sum.textContent = '未发现需要处理的问题。';
+                }
+                if (capEl) {
+                    const cp = r.capsule || {};
+                    capEl.textContent = cp.face === 'sealed' ? ('还有一个未到期的约定：' + String(cp.content || '') )
+                        : cp.face === 'openable' ? ('有约定已到期：' + String(cp.content || ''))
+                        : cp.face === 'opened' ? '约定已结束。'
+                        : cp.face === 'none' ? String(cp.why || '还没有立下带截止楼层的约定。')
+                        : ('读不到：' + String(cp.why || cp.face || ''));
+                }
+                if (futEl) {
+                    const fu = r.future || {};
+                    futEl.textContent = fu.face === 'due' ? ('有 ' + String(fu.count || 0) + ' 条伏笔已到期。')
+                        : fu.face === 'none' ? String(fu.why || '还没有种下伏笔。')
+                        : ('读不到：' + String(fu.why || fu.face || ''));
+                }
+                if (devEl) {
+                    const pick = (k) => {
+                        const v = r[k] || {};
+                        return k + ': face=' + String(v.face || '?') + (v.why ? (' why=' + String(v.why)) : '');
+                    };
+                    const lines = ['injection', 'evidence', 'realhost', 'catalog', 'disposition', 'split', 'writeOnly', 'openability', 'frozen', 'isolation']
+                        .map(pick);
+                    if (Array.isArray(r.split && r.split.plan)) {
+                        lines.push('split.plan: ' + r.split.plan.map(x => x.name + '=' + x.weight + '/' + x.budget + (x.over ? '!over' : '')).join(', '));
+                    }
+                    devEl.textContent = lines.join('\n');
+                }
+            };
+            renderHealth();
+            const _hRefresh = overlay.querySelector('#ls-health-refresh');
+            if (_hRefresh) {
+                _hRefresh.addEventListener('click', async () => {
+                    _hRefresh.disabled = true;
+                    try { await this.engine.r22LoadFileReadings(true); } catch (e) { /* 非致命 */ }
+                    try { renderHealth(); } catch (e) { /* 非致命 */ }
+                    _hRefresh.disabled = false;
+                });
+            }
+            /* 首次打开面板时顺手取一次文件级读数，取到后重画卡片。 */
+            try {
+                this.engine.r22LoadFileReadings(false).then(() => { try { renderHealth(); } catch (e) {} }).catch(() => {});
+            } catch (e) { /* 非致命 */ }
+            /* [v3.472.0 · L22 UI] 页签状态同步集中到 _syncTabs：
+             *   修前只切 .active 类，aria-selected 永远停在初始值，
+             *   读屏软件会把当前页报错；且五个按钮都可 Tab 聚焦，
+             *   键盘用户要按五次 Tab 才能离开页签条。 */
+            const _syncTabs = (activeBtn) => {
+                if (!activeBtn) return;
+                overlay.querySelectorAll('.ls-tab-btn').forEach(b => {
+                    const on = (b === activeBtn);
+                    b.classList.toggle('active', on);
+                    b.setAttribute('aria-selected', on ? 'true' : 'false');
+                    b.setAttribute('tabindex', on ? '0' : '-1');
+                });
+                const tab = activeBtn.dataset.tab;
+                overlay.querySelectorAll('.ls-tab-pane').forEach(p => {
+                    const on = (p.dataset.tabPane === tab);
+                    p.classList.toggle('active', on);
+                    if (on) p.removeAttribute('hidden'); else p.setAttribute('hidden', 'hidden');
+                });
+            };
+            overlay.querySelectorAll('.ls-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => { _syncTabs(btn); });
             });
+            _syncTabs(overlay.querySelector('.ls-tab-btn.active') || overlay.querySelector('.ls-tab-btn'));
+            /* [v3.472.0 · L22 Lab] 实验室搜索只隐藏组容器，不改控件、不改 config。
+             *   搜索匹配组标题 + 组内说明/标签；清空后恢复全部四组。
+             *   这样旧用户的配置键、保存器和 DOM 结构都保持原契约。 */
+            const _labSearch = overlay.querySelector('#ls-lab-search');
+            const _labClear = overlay.querySelector('#ls-lab-clear');
+            const _labResult = overlay.querySelector('#ls-lab-result');
+            const _labGroups = Array.prototype.slice.call(overlay.querySelectorAll('#ls-pane-advanced .ls-group'));
+            const _applyLabSearch = () => {
+                const q = String(_labSearch?.value || '').trim().toLocaleLowerCase();
+                let shown = 0;
+                _labGroups.forEach(group => {
+                    const hay = String(group.textContent || '').toLocaleLowerCase();
+                    const hit = !q || hay.includes(q);
+                    group.hidden = !hit;
+                    if (hit) shown++;
+                });
+                if (_labResult) {
+                    _labResult.dataset.state = q && shown === 0 ? 'empty' : 'ok';
+                    _labResult.textContent = q
+                        ? (shown ? ('找到 ' + shown + ' 组相关设置') : '没有匹配的实验室设置，换个关键词试试')
+                        : ('显示全部 ' + _labGroups.length + ' 组实验室设置');
+                }
+            };
+            if (_labSearch) _labSearch.addEventListener('input', _applyLabSearch);
+            if (_labClear) _labClear.addEventListener('click', () => {
+                if (_labSearch) { _labSearch.value = ''; _labSearch.focus(); }
+                _applyLabSearch();
+            });
+            _applyLabSearch();
             // [v3.422] 缺陷修复：模式 pill 接线。此前三个 .ls-mode-pill 是纯装饰 div（全文件零监听、active 硬编码），
             //   点击毫无反应。现映射到真实配置 extractionProfile（quality/balanced/low-cost）：
             //   点击 → 立即写 config + saveConfig 落盘 + 同步「联想与世界」页的档位下拉与 active 高亮，无需再点保存。

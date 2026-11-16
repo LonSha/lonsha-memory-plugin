@@ -1,4 +1,13 @@
 # TODO — LonSha 记忆插件
+> **第二十二期已立项（2026-11-16，目标版 v3.472.0 / 18ba158）**：`L22-O1～O9 / L22-X1～X9`
+> （双仓合计 36 项，全部为产品项；判据/台账为每项默认纪律，不占名额）。
+> 证据：ruby-phone 仓 docs/planning/2026-11-16-product-evidence-v22.md §2（两仓共用一份证据书）
+> · [优化九项](.agents/notes/proposed/architecture/2026-11-16-product-optimization-v22.md)
+> · [拓展九项](.agents/notes/proposed/feature/2026-11-16-product-expansion-v22.md)。
+> 下方第二十一期记录（L21 十八项，已于 v3.465.2 全部交付）保留为历史。
+
+> **最近更新：v3.472.0**（第二十二期双仓产品优化与拓展交付批次；详见 CHANGELOG 与产品证据台账。版本同源已同步，完整门禁与业务闭环复核仍在进行。）
+
 > **本版进度（2026-11-16，v3.471.0）**：**模型列表抓取三级降级**（修「接 API 模型拿不到列表只能手填」）——
 > 代理（酒馆后端 `/api/backends/chat-completions/status`，CSRF 对齐 RubyPhone 先例）→ 直连（原裸 fetch
 > 不回退）→ 聚合报错（原因不吞、明示「可手动填模型名」，绝不静默空列表）。`settings-ui.js` 消费端按

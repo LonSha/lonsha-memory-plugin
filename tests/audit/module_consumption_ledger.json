@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-14T16:07:06.267Z",
-  "extra_js_count": 376,
-  "host_injected_count": 223,
-  "total_modules": 377,
+  "generated_at": "2026-11-16T07:28:51.553Z",
+  "extra_js_count": 394,
+  "host_injected_count": 241,
+  "total_modules": 395,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 365,
+  "active_count": 383,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -659,6 +659,25 @@
           "file": "memory-symphony-orchestrator.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "catalog-registration.js": {
+      "module": "catalog-registration.js",
+      "surface": [
+        "LonShaCatalogRegistration"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -3037,6 +3056,25 @@
       ],
       "load_surface_callers": []
     },
+    "evidence-substitute-chain.js": {
+      "module": "evidence-substitute-chain.js",
+      "surface": [
+        "LonShaEvidenceSubstituteChain"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "evidence-workbench.js": {
       "module": "evidence-workbench.js",
       "surface": [
@@ -3575,6 +3613,44 @@
       ],
       "load_surface_callers": []
     },
+    "frozen-freshness.js": {
+      "module": "frozen-freshness.js",
+      "surface": [
+        "LonShaFrozenFreshness"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "future-letter.js": {
+      "module": "future-letter.js",
+      "surface": [
+        "LonShaFutureLetter"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "fuzzy-patch.js": {
       "module": "fuzzy-patch.js",
       "surface": [
@@ -3607,7 +3683,7 @@
     "gameplay-preset.js": {
       "module": "gameplay-preset.js",
       "surface": [
-        "gameplay-preset"
+        "LonShaGameplayPreset"
       ],
       "prod_call_sites": 1,
       "business_call_sites": 1,
@@ -3616,9 +3692,9 @@
       "why": "active",
       "callers": [
         {
-          "file": "public-interface.js",
+          "file": "index.js",
           "count": 1,
-          "type": "file_binding"
+          "type": "exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -4017,8 +4093,8 @@
         "LonShaMemory",
         "lonsha_memory_bridge_v1"
       ],
-      "prod_call_sites": 36,
-      "business_call_sites": 36,
+      "prod_call_sites": 37,
+      "business_call_sites": 37,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -4054,6 +4130,11 @@
           "type": "exclusive_global"
         },
         {
+          "file": "memory-giant-file-split-plan.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
           "file": "memory-organs.js",
           "count": 6,
           "type": "exclusive_global"
@@ -4077,6 +4158,25 @@
           "file": "settings-ui.js",
           "count": 5,
           "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "injection-receipt-facets.js": {
+      "module": "injection-receipt-facets.js",
+      "surface": [
+        "LonShaInjectionReceiptFacets"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -4571,6 +4671,25 @@
       ],
       "load_surface_callers": []
     },
+    "load-surface-disposition.js": {
+      "module": "load-surface-disposition.js",
+      "surface": [
+        "LonShaLoadSurfaceDisposition"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "local-ngram-vectorizer.js": {
       "module": "local-ngram-vectorizer.js",
       "surface": [
@@ -4969,6 +5088,25 @@
       ],
       "load_surface_callers": []
     },
+    "memory-archive-pack.js": {
+      "module": "memory-archive-pack.js",
+      "surface": [
+        "LonShaMemoryArchivePack"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "memory-aux.js": {
       "module": "memory-aux.js",
       "surface": [
@@ -5031,6 +5169,25 @@
       ],
       "load_surface_callers": []
     },
+    "memory-capsule.js": {
+      "module": "memory-capsule.js",
+      "surface": [
+        "LonShaMemoryCapsule"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "memory-center.js": {
       "module": "memory-center.js",
       "surface": [
@@ -5056,6 +5213,25 @@
           "file": "index.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "memory-checkup.js": {
+      "module": "memory-checkup.js",
+      "surface": [
+        "LonShaMemoryCheckup"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -5162,6 +5338,25 @@
           "file": "index.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "memory-giant-file-split-plan.js": {
+      "module": "memory-giant-file-split-plan.js",
+      "surface": [
+        "LonShaGiantFileSplitPlan"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -5286,6 +5481,25 @@
           "file": "index.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "memory-map.js": {
+      "module": "memory-map.js",
+      "surface": [
+        "LonShaMemoryMap"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -5636,6 +5850,25 @@
         }
       ]
     },
+    "memory-timeline.js": {
+      "module": "memory-timeline.js",
+      "surface": [
+        "LonShaMemoryTimeline"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "memory-tools-api.js": {
       "module": "memory-tools-api.js",
       "surface": [
@@ -5916,6 +6149,25 @@
           "type": "file_binding+exclusive_global"
         }
       ]
+    },
+    "multi-char-memory-isolation.js": {
+      "module": "multi-char-memory-isolation.js",
+      "surface": [
+        "LonShaMultiCharIsolation"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
     },
     "multi-dimensional-reputation-social-graph.js": {
       "module": "multi-dimensional-reputation-social-graph.js",
@@ -6980,6 +7232,25 @@
       ],
       "load_surface_callers": []
     },
+    "realhost-verdict.js": {
+      "module": "realhost-verdict.js",
+      "surface": [
+        "LonShaRealhostVerdict"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "realtime-conflict-graph-rollback.js": {
       "module": "realtime-conflict-graph-rollback.js",
       "surface": [
@@ -7251,6 +7522,25 @@
           "file": "index.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "relation-milestone.js": {
+      "module": "relation-milestone.js",
+      "surface": [
+        "LonShaRelationMilestone"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -7986,6 +8276,35 @@
           "type": "file_binding+exclusive_global"
         }
       ]
+    },
+    "sleep-consolidation.js": {
+      "module": "sleep-consolidation.js",
+      "surface": [
+        "LonShaSleepConsolidation"
+      ],
+      "prod_call_sites": 7,
+      "business_call_sites": 7,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-persistence-ops.js",
+          "count": 1,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "index.js",
+          "count": 4,
+          "type": "file_binding+exclusive_global"
+        },
+        {
+          "file": "sleep-consolidation-graph-pruner.js",
+          "count": 2,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
     },
     "smart-trigger.js": {
       "module": "smart-trigger.js",
@@ -9046,6 +9365,25 @@
         }
       ]
     },
+    "view-openability.js": {
+      "module": "view-openability.js",
+      "surface": [
+        "LonShaViewOpenability"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "volume-continuation.js": {
       "module": "volume-continuation.js",
       "surface": [
@@ -9215,6 +9553,25 @@
         {
           "file": "index.js",
           "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "write-only-scan.js": {
+      "module": "write-only-scan.js",
+      "surface": [
+        "LonShaWriteOnlyScan"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
           "type": "file_binding+exclusive_global"
         }
       ],

@@ -1,7 +1,7 @@
 {
   "schema": "realhost-readings@1",
-  "generatedAt": "2026-11-16T00:45:37.130Z",
-  "version": "3.471.0",
+  "generatedAt": "2026-11-16T12:23:16.741Z",
+  "version": "3.472.0",
   "verdict": "environment-unavailable",
   "cause": "no-st-endpoint",
   "causeGroup": "env",
@@ -14,6 +14,5 @@
   },
   "reason": "ST 未就绪（http://127.0.0.1:1/ ⇒ 0）—— 先起 SillyTavern",
   "note": "本读数是「跑不了」的成因记录，不是真机通过；真机结论只能由真机给。 装载面替代证明见 tests/audit/loading_surface_proof.json。",
-  "source": "tests/audit/_realhost_suite.mjs bail",
-  "version_sources": {}
+  "source": "tests/audit/_realhost_suite.mjs bail"
 }
