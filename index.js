@@ -1347,7 +1347,7 @@
         async callAPI() { return null; }
         async rewriteQuery() { return null; }
         async rerank() { return null; }
-        async fetchModels() { return []; }
+        async fetchModels() { return { models: [], source: 'unavailable', reason: 'memory-organs.js 缺席，抓取面不可用' }; }
         async callOpenAI() { return null; }
         getLastIntent() { return null; }
         getLastEventChain() { return null; }

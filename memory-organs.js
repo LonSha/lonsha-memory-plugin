@@ -296,7 +296,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.467.0';
+let VERSION = '3.471.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -568,14 +568,69 @@ class LLMCaller {
         } catch (e) { return null; }
     }
     // [v1.4.1] 抓取模型列表（OpenAI 兼容 /models 端点）
-    async fetchModels(url, key) {
-        let base = url.replace(/\/+$/, '');
-        if (base.includes('/chat/completions')) base = base.replace(/\/chat\/completions$/, '');
-        const endpoint = base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
-        const res = await fetchWithTimeoutRetry(endpoint, { headers: { 'Authorization': `Bearer ${key}` } }, { timeoutSec: 15, retries: 1, label: '模型列表' });
-        if (!res.ok) throw new Error(`模型列表 ${res.status}`);
+    // [v3.471.0 · 模型列表三级降级] 修前只有「浏览器直连」一条路：第三方端点不带 CORS 头时
+    //   fetch 必被浏览器拦截（Failed to fetch），抓取永远失败 → 用户只能手填。
+    //   本仓 _ERROR_HINTS 的 CORS 条目早就写明了这个形态，但 fetchModels 自己没接住。
+    //   修后三级：① 酒馆后端代理（同源 /api/backends/chat-completions/status，与 RubyPhone
+    //   settings-app 同款，带 CSRF）；② 浏览器直连（原路径，CORS 放行的端点仍走它）；
+    //   ③ 两级都失败 → 抛出**点名哪级什么原因**的聚合错误（不静默、不伪造空列表）。
+    //   读数纪律：来源随结果交付（source: proxy / direct），UI 可如实展示走的哪条路。
+    _normalizeModelsPayload(data) {
+        const arr = (data && (data.data || data.models)) || (Array.isArray(data) ? data : []);
+        return arr.map(m => (typeof m === 'string' ? m : (m && (m.id || m.name || m.model))))
+            .filter(Boolean).map(String).sort();
+    }
+    async _fetchModelsViaProxy(url, key) {
+        // 与宿主同源的后端代理：不用插件的 key 打宿主的通道，只借它的「同源无 CORS」通道转发。
+        let headers = { 'Content-Type': 'application/json' };
+        if (typeof window !== 'undefined' && typeof window.getRequestHeaders === 'function') {
+            const gh = window.getRequestHeaders() || {};
+            if (gh['X-CSRF-Token'] || gh['x-csrf-token']) headers['X-CSRF-Token'] = gh['X-CSRF-Token'] || gh['x-csrf-token'];
+        }
+        if (!headers['X-CSRF-Token']) {
+            try {
+                const r = await fetch('/csrf-token', { credentials: 'include', cache: 'no-store' });
+                if (r.ok) { const d = await r.json(); if (d && d.token) headers['X-CSRF-Token'] = d.token; }
+            } catch (_e) { /* 拿不到 token 就裸发：部分酒馆部署不校验 */ }
+        }
+        // 同源拼绝对地址：浏览器里相对路径 OK，Node 单测桩环境（window 有 origin）也能跑通
+        const proxyUrl = (typeof window !== 'undefined' && window.location && window.location.origin && !window.location.origin.startsWith('null'))
+            ? window.location.origin + '/api/backends/chat-completions/status'
+            : '/api/backends/chat-completions/status';
+        const res = await fetchWithTimeoutRetry(proxyUrl, {
+            method: 'POST', headers, credentials: 'include',
+            body: JSON.stringify({ chat_completion_source: 'openai', custom_url: url, reverse_proxy: url, proxy_password: key })
+        }, { timeoutSec: 15, retries: 0, label: '模型列表(代理)' });
+        if (!res.ok) throw new Error(`代理 ${res.status}`);
         const data = await res.json();
-        return (data.data || data.models || []).map(m => m.id || m.name).filter(Boolean).sort();
+        const models = this._normalizeModelsPayload(data);
+        if (!models.length) throw new Error('代理返回空列表');
+        return models;
+    }
+    async fetchModels(url, key) {
+        let base = String(url || '').trim().replace(/\/+$/, '');
+        if (base.includes('/chat/completions')) base = base.replace(/\/chat\/completions$/, '');
+        if (!base) throw new Error('API 地址为空');
+        const endpoint = base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
+        const proxyError = [];
+        // ① 酒馆后端代理：只在页面环境（有宿主）时尝试；纯 Node 单测无 window 直接跳过
+        if (typeof window !== 'undefined' && window.location && window.location.pathname !== undefined) {
+            try {
+                const models = await this._fetchModelsViaProxy(base, key);
+                return { models, source: 'proxy' };
+            } catch (e) { proxyError.push('代理: ' + (e && e.message || e)); }
+        }
+        // ② 浏览器直连（原 v1.4.1 路径）
+        try {
+            const res = await fetchWithTimeoutRetry(endpoint, { headers: { 'Authorization': `Bearer ${key}` } }, { timeoutSec: 15, retries: 1, label: '模型列表' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const models = this._normalizeModelsPayload(data);
+            if (!models.length) throw new Error('列表为空');
+            return { models, source: 'direct' };
+        } catch (e) { proxyError.push('直连: ' + (e && e.message || e)); }
+        // ③ 聚合报错：点名每一级的原因（不静默、不给假空）
+        throw new Error('模型列表抓取失败（' + proxyError.join('；') + '）——可手动填模型名');
     }
     /**
      * [v3.260.0 缝合 shujuku] callOpenAI 分派：原生函数调用路径优先，未开启/失败时逐字节回落旧路径。

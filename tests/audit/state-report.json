@@ -1,14 +1,14 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.467.0",
+  "version": "3.471.0",
   "version_sources": {
-    "manifest": "3.467.0",
-    "package": "3.467.0",
-    "index_const": "3.467.0"
+    "manifest": "3.471.0",
+    "package": "3.471.0",
+    "index_const": "3.471.0"
   },
   "version_same": true,
-  "human_index_version": "3.467.0",
+  "human_index_version": "3.471.0",
   "triple_consistent": true,
   "loading": {
     "extra_js": 376,

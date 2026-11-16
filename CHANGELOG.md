@@ -1,3 +1,28 @@
+## v3.471.0
+**模型列表抓取三级降级：代理 → 直连 → 聚合报错放手填。修「接 API 模型拿不到列表只能手填」的产品缺口。**
+**修前**：`memory-organs.js` 的 `fetchModels` 只有一条裸 `fetch` 直连 `{base}/v1/models`——浏览器跨域调用
+私有/公网端点被 CORS 拦死时整个功能静默不可用。讽刺的是 `index.js` 的 `_ERROR_HINTS` 早就收录了 CORS
+条目（「配置反向代理（如酒馆内置代理）或在服务端放行 CORS」）——**诊断表知道病因，药方没开**。
+**修后（三级降级，每级带来源标签）**：
+① **代理级**（页面环境才走）：同源 POST `/api/backends/chat-completions/status`（`window.location.origin`
+拼绝对路径，Node 单测零 URL 解析炸弹），CSRF 取法对齐 RubyPhone `api-manager.js::_getCsrfToken` 先例——
+先 `window.getRequestHeaders()` 大小写双查 `X-CSRF-Token`，拿不到再 GET `/csrf-token`；body 为
+`{ chat_completion_source:'openai', custom_url, reverse_proxy, proxy_password }`，`credentials:'include'`。
+② **直连级**：保留原裸 fetch（端点拼接逻辑不变：`/chat/completions` 剥后缀 → `/v1/models` 补齐），
+代理不可用或失败时的既有行为不回退。
+③ **聚合报错**：两级都败时抛 `模型列表抓取失败（代理: …；直连: …）——可手动填模型名`，**原因不吞、
+退路明示**，绝不静默返回空列表。
+新增 `_normalizeModelsPayload`：认 `data.data` / `data.models` / 裸数组三种载荷，条目取 `id`/`name`/`model`，
+排序去空；空列表抛「列表为空」，空地址抛「API 地址为空」。
+**消费端**（`settings-ui.js`）：抓取处理器拆分校验文案（地址/Key 分列提示），按 `{models, source}` 新形状读、
+`Array.isArray(r)` 兼容宿主降级退路，状态文案带来源标签（经酒馆后端代理 / 直连）。
+**退路同形**（`index.js` OrganFallback）：`fetchModels()` 返回 `{ models:[], source:'unavailable', reason:… }`
+不再裸返回 `[]`，UI 兼容分支兜住。
+**判据**：`tests/v3471_model_fetch_degrade.test.mjs` 16 条全绿——A 归一化三形态 / B 直连真 socket / C 代理级
+优先·回落·双败聚合报错 / D UI 消费端与退路接线 / E 三条负控制（删代理级调用·换静默空列表·抹空列表守卫，
+一律走 `tests/_break_kit.mjs` 真源码破坏）/ F 五源版本下限。另有六个一次性探针验证行为基线（/tmp 探针，
+读数见 git 记录）。
+
 ## v3.467.0
 **第二十一期收账轮第四刀：从 ST-Persistent-Memory 缝合三项剩余增量 —— 向量降级出口 / 预算降级可测 / 玩法流派预设。**
 前三项（L0 现场快照、三档 ACL + Fail-Closed、POV 四档投影、演化血缘、随伴标签、休眠唤醒、RRF 混合检索）

@@ -4049,23 +4049,28 @@
             });
 
             // [v1.4.1] 抓取模型列表
+            // [v3.471.0 · 模型列表三级降级] fetchModels 返回 {models, source}（proxy=酒馆后端代理/
+            //   direct=直连）；错误聚合点名每一级原因。UI 只消费读数，不自己判来源。
             overlay.querySelector('#ls-fetch-models').addEventListener('click', async () => {
                 const url = overlay.querySelector('[data-cfg-text="apiUrl"]').value.trim();
                 const key = overlay.querySelector('[data-cfg-text="apiKey"]').value.trim();
                 const status = overlay.querySelector('#ls-model-status');
-                if (!url || !key) { status.textContent = '⚠️ 请先填 API 地址和 Key'; return; }
+                if (!url) { status.textContent = '⚠️ 请先填 API 地址'; return; }
+                if (!key) { status.textContent = '⚠️ 请先填 API Key'; return; }
                 status.textContent = '⏳ 抓取中...';
                 try {
-                    const models = await this.engine.llm.fetchModels(url, key);
-                    if (!models.length) { status.textContent = '⚠️ 列表为空'; return; }
+                    const r = await this.engine.llm.fetchModels(url, key);
+                    const models = Array.isArray(r) ? r : (r && r.models) || [];
+                    if (!models.length) { status.textContent = '⚠️ 列表为空（端点没返回任何模型）'; return; }
+                    const srcTag = (r && r.source === 'proxy') ? '（经酒馆后端代理）' : (r && r.source === 'direct') ? '（直连）' : '';
                     const sel = overlay.querySelector('#ls-model-select');
                     sel.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
                     if (models.includes(this.engine.config.config.apiModel)) sel.value = this.engine.config.config.apiModel;
                     sel.style.display = 'block';
                     overlay.querySelector('#ls-model-input').style.display = 'none';
-                    status.textContent = `✅ 已加载 ${models.length} 个模型`;
+                    status.textContent = `✅ 已加载 ${models.length} 个模型${srcTag}；换手填请刷新页面`;
                 } catch (e) {
-                    status.textContent = '❌ 抓取失败: ' + e.message + '（可手动填模型名）';
+                    status.textContent = '❌ 抓取失败: ' + e.message;
                 }
             });
 
