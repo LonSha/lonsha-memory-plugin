@@ -1,3 +1,62 @@
+## v3.474.0
+
+**第二十三期优化九项第三刀（L23-O2）：11 个 `load_surface_only` 全量归档，装载面零消费真归 0。**
+
+- 对象：台账里 `why === 'load_surface_only'` 的 11 个模块（`evidence-conflict-adjudication-bench` /
+  `fact-postgen-replay-receipt` / `fact-unified-lifecycle-bench` / `generation-material-budget-plan` /
+  `maintenance-cold-warm-session` / `meaning-evolution-map` / `memory-action-symbiosis-circuit` /
+  `memory-task-workbench` / `project-migration-boundary-bench` / `recall-route-feedback-bench` /
+  `unified-narrative-clock-axis`）。它们**不是「没人知道该不该用」**：处置台账里每条的
+  `reason_kind` 都是 `superseded_by_active_duplicate`，且各自被 ≥2 个在役模块真消费着
+  （`superseded_by` 有名字、`revive_trigger` 写了「什么条件下才重估」）。故与 O3 同构处理：
+  **从 `manifest.extra_js` 撤出（407 → 396）**，文件与理由留盘，`disposition` 记为 `archived`
+  并新增 `archived_in: "v3.474.0（L23-O2）"`。处置词表同步加 `archived` 一词（词表是判据读的真源，
+  不许有词表外的自由文本）。
+- 读数（全部是机器读数，重跑生成器后落盘）：`load_surface_only_count` **11 → 0**；
+  `active_count` **397 === total_modules 397**（撤出的模块不再算「在役」）；`extra_js_seam_ledger`
+  的 `module-internal` **34 → 23**（撤走的 11 条内部边消失）、`orphan` 仍 **0**；
+  `loading_surface_proof` 覆盖 **396**。
+- **判据**：`tests/l23_o2_load_surface_zero.test.mjs`。A 计数面（`load_surface_only_count === 0`
+  且 `active_count === total_modules`）、B 归档面（11 条都是 `archived`、都不在 `extra_js`、
+  **文件仍在盘仍可 `require`**、`superseded_by` 里的替代方全部在役）、C 四组负控制
+  （计数回 1 / 出现 orphan / 偷塞回 manifest / 理由被改短 —— 四种形态各自必须翻红）。
+
+**`scan_module_disposition` 的守卫升级（0 从「探针失效」变成「真终局」）**
+
+- 原守卫把「0 个休眠」直接当 fail-closed（`status:'fail_closed'`），理由是「0 一般是扫描器瞎了」。
+  O2 之后 0 是**合法终局**，这条守卫就成了拦路石。改法不是把守卫删掉（那等于放弃 fail-closed），
+  而是把「0 合法」的前提写成**归档面自洽**，全部由真读数据判定：
+  ① 归档集非空；② 每条归档都不在 `manifest.extra_js`；③ 文件仍在盘；④ 理由 ≥80 字且不是灰标签；
+  ⑤ 替代方 `business_call_sites > 0`（真有别人在用）。
+  任一条不成立 ⇒ `status:'fail_closed', exitCode:2, error:'归档面不自洽'` + `violations.archivedBroken`。
+  另：ghost 循环豁免 `archived` 条目（它们本来就不该在装载面里）。
+
+**四处「0 成真之后必须同步口径」的判据（不是放宽，是改钉真事）**
+
+- `l22_o7`（休眠终局处置，20/20）：真台账已无休眠行，④⑤ 两组负控制的驱动数据消失 ⇒ 改成
+  **合成行驱动**（否则是空转的假负控制）；`loadSurface` 口径改读 `ARCHIVED`；
+  `dormantCount` 语义改为「装载面 0 条 + 处置条目 11 条」两向都看得见。
+- `l23_o3`（零消费归零，8/8）：A2 原断「`load_surface_only` 仍是 11」被 O2 合法变为 0 ⇒ 改钉
+  「11 个必须以**归档条目在场**，不许凭空消失」。
+- `v21_o1`（零消费定性，11/11）：⑤ 的空转守卫从「必须还有 `load_surface_only` 模块」升级为
+  「0 必须由 11 条归档条目 + 都不在 `extra_js` 背书」（单点真源 `archiveBacked`，⑤ 正着用、⑨ 反着用）；
+  ⑥⑧ 的 dormant 读数行已随归档消失 ⇒ dormant 分两态真查（在役查读数、归档查处置台账 + 文件在盘），
+  负控制改打 `assertDormantArchived`（词表篡改 / 灰标签理由各自必红）。
+- `v21_o3`（装载面五段，22/22）：B5 原断 `dormantExcluded === 11` 的前提是 11 个都还挂在装载面里；
+  归档后装载面里一个 dormant 都没有，`dormantExcluded` 诚实归 0 ⇒ 改钉
+  「等于**仍在装载面里的** dormant 条数」+「不在装载面的必须 archived 且文件在盘」。
+
+**同一刀修掉的两类红（分开报，不许混成一坨）**
+
+- **本批引入的真回归（基线树绿、当树红）**：`v3164` / `v3165` / `v3185` / `v3203` / `v3168` 五档都在断
+  「CHANGELOG 顶节应为 v3.474.0」。根因是抬版后 L23-O3 的条目被插到了 `## v3.474.0` 标题**之上**，
+  `changelog.startsWith('## v')` 遂不成立。修法：标题移回首行，条目按倒序排在标题之下。五档转绿。
+- **存量红（基线树同红）**：`v3431`（审计门禁面绝对量级 73/70）与 `v3459`（参考基准 = 磁盘在役测试全集）
+  没跟着本批三个新套件扩面。已补登 `catalog_reference_consumers.tsv`（`l23_o2` / `l23_o3`，`l23_o5` 已在），
+  并把 73/70 **显式**改为 76/73（写明来历，不让磁盘自己漂）。两档转绿。
+  其余存量红（`scan_index_split R2`、`v3159 [2d]`、`v3277`、`v3427 #7` 等）逐档与基线树对照后
+  如实记进 `tests/audit/preexisting_red_ledger.json`，**不抬账、不修数**；`R2` 的归属是 `L23-O1`。
+
 **第二十三期优化九项第二刀（L23-O3）：唯一零消费模块归档，计数真归 0。**
 
 - 对象：`floor-fingerprint-self-healer.js`（`business_call_sites` 0）。L21-O1 已判 `declared_dormant`，
@@ -18,7 +77,7 @@
   一度把自己的自报读数判成「已被消费」）。
 - 上述修正后`scan_module_wiring` B5 恢复 ok：已挂载未消费 **0**（账本 1 = `LonShaDiagnosticLinesParts`，
   它是给判据读的「缺片可读」读数，产品侧无消费，如实建账而非造假接线）。
-## v3.474.0
+
 **第二十三期优化九项第一刀（L23-O5）：`engine-diagnostic-lines.js` 5915 行单体拆分 + 本仓首次长文件上界门。**
 
 - 拆分形态：**装配面 261 行 + 三片**（part-a 2086 / part-b 2053 / part-c 1984 行）。

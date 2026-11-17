@@ -35,32 +35,32 @@ const real = auditDispositions({ rootDir: ROOT });
 
 /* ── 正面：真台账四关全过 ────────────────────────────────── */
 assert('真台账处置检查 rc=0', real.exitCode === 0 && real.status === 'ok', real.violations);
-assert('装载面模块数 = 11', real.checked === 11, { checked: real.checked });
-assert('休眠声明条目数 = 11', real.dormantCount === 11, { dormant: real.dormantCount });
-assert('11 个模块全部 require 成功（休眠 ≠ 坏掉）', (real.violations.loadFailed || []).length === 0, real.violations.loadFailed);
-assert('声明 API 运行时全部可取', (real.violations.apiMissingAtRuntime || []).length === 0, real.violations.apiMissingAtRuntime);
-assert('无幽灵条目 / 无过期处置', (real.violations.ghost || []).length === 0, real.violations.ghost);
-
-const loadSurface = Object.keys(ledger.modules).filter((k) => ledger.modules[k].load_surface_only === true);
-assert('11 条休眠条目与生成台账的 load_surface_only 逐一对齐',
-  loadSurface.length === 11 && loadSurface.every((m) => disposition.entries[m]),
-  { loadSurface: loadSurface.length });
-assert('11 条理由均为实质理由（≥' + MIN_WHY_CHARS + ' 字，且不是标签）',
-  loadSurface.every((m) => {
-    const w = String(disposition.entries[m].why || '').trim();
-    return [...w].length >= MIN_WHY_CHARS && !isGreyReason(w, disposition.grey_tags);
-  }),
-  loadSurface.map((m) => [m, [...String(disposition.entries[m].why || '').trim()].length]));
-
-/* 反向闸在真数据上必须干净：这些模块确实零业务消费（否则声明腐坏） */
-assert('真数据上无「已接线却仍休眠」',
-  loadSurface.every((m) => !(ledger.modules[m].business_call_sites > 0)),
-  loadSurface.filter((m) => ledger.modules[m].business_call_sites > 0));
+/* ★ [v3.474.0 · L23-O2] 本项收口后这 11 个模块已**归档**（撤出 extra_js）：它们各自都被 ≥2 个
+ *   在役模块替代（reason_kind = superseded_by_active_duplicate），继续留在装载面只是让每份
+ *   宿主多背一份永不调用的副本，load_surface_only 计数也只能靠白名单维持在 11。
+ *   断言不再要求「11 个仍可装载」，而是改成**归档面**（牙齿保留）：
+ *   ① 装载面 0 条休眠；② 归档集恰为 11 个且逐个不在 manifest、文件仍在盘；
+ *   ③ 理由仍是实质理由；④ superseded_by 指向的模块必须都**在役**（否则「被替代」是假理由）。 */
+const ARCHIVED = Object.keys(disposition.entries).filter((k) => disposition.entries[k].disposition === 'archived');
+const mf = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+/* dormantCount 在扫描器里数的是**处置条目数**（历史口径），O2 之后这 11 条全是归档条目：
+ * 故此处要求「装载面 0 条 + 处置条目恰 11 条」，两边都钉住，避免「静默消失」被读成「已清空」。 */
+assert('装载面休眠 0 条，处置条目 11 条（全为归档）', real.checked === 0 && real.dormantCount === 11, { checked: real.checked, entries: real.dormantCount });
+assert('归档集恰为 11 个', ARCHIVED.length === 11, { archived: ARCHIVED.length });
+assert('归档模块全部不在 manifest.extra_js', ARCHIVED.every((k) => !(mf.extra_js || []).includes(k)), ARCHIVED.filter((k) => (mf.extra_js || []).includes(k)));
+assert('归档模块文件均仍在盘（归档 ≠ 删除）', ARCHIVED.every((k) => fs.existsSync(path.join(ROOT, k))), ARCHIVED.filter((k) => !fs.existsSync(path.join(ROOT, k))));
+assert('归档理由均为实质理由（≥' + MIN_WHY_CHARS + ' 字，且不是标签）',
+  ARCHIVED.every((k) => { const w = String(disposition.entries[k].why || '').trim(); return [...w].length >= MIN_WHY_CHARS && !isGreyReason(w, disposition.grey_tags); }),
+  ARCHIVED.map((k) => [k, [...String(disposition.entries[k].why || '').trim()].length]));
+assert('归档理由的替代方必须都在役（否则「被替代」是假理由）',
+  ARCHIVED.every((k) => { const sup = disposition.entries[k].superseded_by || []; return sup.length > 0 && sup.every((x) => (ledger.modules[x] || {}).business_call_sites > 0); }),
+  ARCHIVED.filter((k) => { const sup = disposition.entries[k].superseded_by || []; return !(sup.length && sup.every((x) => (ledger.modules[x] || {}).business_call_sites > 0)); }));
+assert('台账不再有任何 load_surface_only 条', Object.keys(ledger.modules).filter((k) => ledger.modules[k].load_surface_only === true).length === 0, null);
 
 /* ── 反面控制 ① 灰标签理由 ──────────────────────────────── */
 const greyWhy = 'load_surface_only';
 assert('灰标签被识别（load_surface_only）', isGreyReason(greyWhy, disposition.grey_tags) === true);
-assert('实质理由不被误伤', isGreyReason(disposition.entries[loadSurface[0]].why, disposition.grey_tags) === false);
+assert('实质理由不被误伤', isGreyReason(disposition.entries[ARCHIVED[0]].why, disposition.grey_tags) === false);
 
 {
   const led = { modules: { 'a.js': { module: 'a.js', load_surface_only: true, business_call_sites: 0 }, 'b.js': { module: 'b.js', load_surface_only: false, business_call_sites: 3 } } };
@@ -116,34 +116,44 @@ assert('实质理由不被误伤', isGreyReason(disposition.entries[loadSurface[
 
 /* ── 反面控制 ④ 声明 API 抄错 ───────────────────────────── */
 {
+  /* [v3.474.0 · L23-O2] 同⑤：真台账已无休眠行，④ 必须用合成行，否则「声明 API 抄错」这条判据空转。 */
+  const victim = "recall-route-feedback-bench.js"; // 该模块源码里真有 rankByRoute
+  const led = JSON.parse(JSON.stringify(ledger));
+  led.modules[victim] = Object.assign({}, led.modules[victim] || {}, { module: victim, load_surface_only: true, business_call_sites: 0 });
+  led.load_surface_only_count = 1;
   const disp = JSON.parse(JSON.stringify(disposition));
-  disp.entries['recall-route-feedback-bench.js'].declared_api = ['rankByRoute', 'recordFeedbackTypo'];
-  const r = auditDispositions({ rootDir: ROOT, ledger, disposition: disp });
-  assert('负控制④：声明 API 抄错 → 源码面报错',
-    (r.violations.apiMissingInSource || []).some((v) => v.api === 'recordFeedbackTypo'), r.violations.apiMissingInSource);
-  assert('负控制④：正确名字不误报',
-    !(r.violations.apiMissingInSource || []).some((v) => v.api === 'rankByRoute'), r.violations.apiMissingInSource);
+  disp.entries[victim].disposition = "declared_dormant";
+  disp.entries[victim].declared_api = ["rankByRoute", "recordFeedbackTypo"];
+  const r = auditDispositions({ rootDir: ROOT, ledger: led, disposition: disp, loadModules: false });
+  assert("负控制④：声明 API 抄错 → 源码面报错",
+    (r.violations.apiMissingInSource || []).some((v) => v.api === "recordFeedbackTypo"), r.violations.apiMissingInSource);
+  assert("负控制④：正确名字不误报",
+    !(r.violations.apiMissingInSource || []).some((v) => v.api === "rankByRoute"), r.violations.apiMissingInSource);
 }
 
 /* ── 反面控制 ⑤ 已接线却仍休眠（声明腐坏） ──────────────── */
+/* ── 反面控制 ⑤ 已接线却仍休眠（声明腐坏） ──────────────── */
+/* [v3.474.0 · L23-O2] 真台账已没有休眠行，本组改用**合成行**（把一条归档模块临时装作仍在装载面），
+ *  否则「声明腐坏」这条判据会随休眠清零而退化成空转。 */
 {
+  const victim = 'recall-route-feedback-bench.js'; // 该模块源码里真有 rankByRoute
   const led = JSON.parse(JSON.stringify(ledger));
-  led.modules['memory-task-workbench.js'].business_call_sites = 4;
-  const r = auditDispositions({ rootDir: ROOT, ledger: led, disposition, loadModules: false });
-  assert('负控制⑤：已长出业务调用点 → 报声明腐坏',
-    (r.violations.staleDeclaration || []).some((v) => v.module === 'memory-task-workbench.js'), r.violations.staleDeclaration);
+  led.modules[victim] = Object.assign({}, led.modules[victim] || {}, { module: victim, load_surface_only: true, business_call_sites: 4, why: "synthetic-fixture" });
+  led.load_surface_only_count = 1;
+  const disp = JSON.parse(JSON.stringify(disposition));
+  disp.entries[victim].disposition = "declared_dormant";
+  const r = auditDispositions({ rootDir: ROOT, ledger: led, disposition: disp, loadModules: false });
+  assert("负控制⑤：已长出业务调用点 → 报声明腐坏",
+    (r.violations.staleDeclaration || []).some((v) => v.module === victim), r.violations.staleDeclaration);
 }
 
-/* ── 反面控制 ⑥ 漏处置 / 幽灵条目 ──────────────────────── */
+/* ── 反面控制 ⑥ 归档面不自洽（O2 之后的 fail-closed 形态） ───────── */
 {
   const disp = JSON.parse(JSON.stringify(disposition));
-  delete disp.entries['meaning-evolution-map.js'];
-  disp.entries['no-such-module.js'] = disp.entries['recall-route-feedback-bench.js'];
+  disp.entries[ARCHIVED[0]].superseded_by = ["definitely-not-a-module.js"];
   const r = auditDispositions({ rootDir: ROOT, ledger, disposition: disp, loadModules: false });
-  assert('负控制⑥：漏处置 → 报灰色留存',
-    (r.violations.missing || []).some((v) => v.module === 'meaning-evolution-map.js'), r.violations.missing);
-  assert('负控制⑥：幽灵条目 → 报条目过期',
-    (r.violations.ghost || []).some((v) => v.module === 'no-such-module.js'), r.violations.ghost);
+  assert("负控制⑥：归档面不自洽 → fail-closed exit 2",
+    r.status === "fail_closed" && r.exitCode === 2 && /归档面不自洽/.test(String(r.error || "")), { error: r.error, violations: r.violations });
 }
 
 /* ── 反面控制 ⑦ fail-closed：探针扫不到装载面模块 ───────── */

@@ -30,8 +30,12 @@
  *      `declared_dormant` 的模块 `business_call_sites === 0`
  *   ⑦ triage 禁止占位词：不得出现「待后续 / 待定 / TODO / TBD / 以后再说」
  *   ⑧ 装载面不被当消费：注册表自己的 entries 行不计入 `business_call_sites`
- *   ⑨ 负控制·删 triage 条目必红：删掉一条 dormant 判定后 ⑤ 必须失败
- *   ⑩ 负控制·篡改 business 读数必红：把 dormant 模块的 business 改成 1 后 ⑥ 必须失败
+ *   ⑨ 负控制·抽归档背书必红：抽掉一条归档条目 / 把它塞回 extra_js，⑤ 的背书守卫必须失败
+ *   ⑩ 负控制·篡改归档处置必红：处置词改成 active / 理由缩成灰标签，⑥ 的归档分支必须失败
+ *   ★ [v3.474.0 · L23-O2] 11 个 dormant 全部归档后，⑨⑩ 的旧形态（依赖台账里还有 dormant 行、
+ *     以及装载面里还有 load_surface_only 模块）已无数据可打。改为直接打「归档面」的同一段真源
+ *     代码（archiveBacked / assertDormantArchived）—— 负控制必须打在被测的那段代码上，
+ *     不许用合成行糊弄出「看起来有条负控制」。
  *   ⑪ 负控制·口径分叉必红：往生成器里塞回内联旧正则，① 必须失败
  * ============================================================ */
 import assert from 'node:assert/strict';
@@ -160,9 +164,49 @@ test('④ 台账里每个零引用/零业务模块都已逐条定性，且 why �
   /* ★ 诚实边界：本条不保证「零引用是好事」。它只保证「零引用有据可查、不静默」。 */
 });
 
+/* ★ [v3.474.0 · L23-O2] 归档面读数：11 个 dormant 全部退出装载面后，判定只剩两条可查真源
+ *   —— 处置台账（词表 / 理由 / 替代方）与 manifest（是否真的不再装载）。下面三个常量 + 两个函数
+ *   就是这两条真源的唯一入口：⑤⑥⑨⑩ 都必须经由它们，不许各自另写一份口径。 */
+const DISP = path.join(ROOT, 'tests/audit/module_disposition_ledger.json');
+const MANIFEST = path.join(ROOT, 'manifest.json');
+const disposition = readJson(DISP);
+const manifest = readJson(MANIFEST);
+const archived = Object.keys(disposition.entries).filter((k) => disposition.entries[k].disposition === 'archived');
+
+/* ⑤ 的空转守卫真源：0 个 load_surface_only 只有在「归档条目与 dormant 同数、且都不在装载面」
+ *   时才是合法终局，否则本判据已经空转（没有可判对象）。 */
+function archiveBacked(dis, mf) {
+  const arch = Object.keys(dis.entries).filter((k) => dis.entries[k].disposition === 'archived');
+  return dormant.length > 0 && arch.length === dormant.length
+    && dormant.every((k) => arch.includes(k) && !mf.extra_js.includes(k));
+}
+
+/* ⑥ 的归档分支真源：一条 dormant 在「已退出装载面」之后的全部自洽要求。
+ *   ⑥ 正着用它，⑩ 拿篡改后的数据反着用它 —— 负控制打在同一段代码上，才是真负控制。 */
+function assertDormantArchived(m, dis, mf) {
+  const rec = dis.entries[m];
+  assert.ok(rec, `${m} 被判 declared_dormant，但既不在消费台账里、也不在处置台账里 —— 凭空消失`);
+  assert.equal(rec.disposition, 'archived',
+    `${m} 不在装载面且无业务消费，处置词表里必须是 archived，实测 ${rec.disposition} —— 判定与处置矛盾`);
+  assert.ok(!mf.extra_js.includes(m),
+    `${m} 记为归档却仍在 manifest.extra_js —— 归档与装载面矛盾`);
+  assert.ok(fs.existsSync(path.join(ROOT, m)),
+    `${m} 记为归档但文件已不在盘 —— 归档不等于删除`);
+  assert.ok(Array.isArray(rec.superseded_by) && rec.superseded_by.length > 0 && rec.revive_trigger,
+    `${m} 归档必须写清替代方与复活条件（否则读者无法判断能不能拆）`);
+  assert.ok(String(rec.why || '').length >= 80,
+    `${m} 归档理由过短，等于灰标签（「重复实现」这种话不算理由）`);
+}
+
 /* ── ⑤ triage 完整性：每个 load_surface_only 都要有终局判定 ── */
 test('⑤ 台账里每个 load_surface_only 模块都在 triage 表里有终局判定（不许漏判）', () => {
-  assert.ok(loadSurfaceOnly.length > 0, '台账里应存在 load_surface_only 模块（否则本判据空转）');
+  /* [v3.474.0 · L23-O2] 原断言要求「必须还有 load_surface_only 模块，否则空转」——那是 11 个模块
+   *   仍在装载面时的空转守卫。O2 把这 11 个全部归档后，0 是**真终局**，空转守卫必须改口径：
+   *   0 只在「归档条目与 dormant 同数、且都不在 manifest.extra_js」时合法，否则仍判空转。
+   *   判据本身写在 archiveBacked 里：⑤ 正着用、⑨ 反着用，同一段代码。 */
+  assert.ok(loadSurfaceOnly.length > 0 || archiveBacked(disposition, manifest),
+    'load_surface_only 为 0 时必须由归档条目背书，否则本判据空转：'
+    + `archived=${archived.length} dormant=${dormant.length}`);
   const covered = new Set([...dormant, ...wired]);
   const uncovered = loadSurfaceOnly.filter((m) => !covered.has(m));
   assert.deepEqual(uncovered, [],
@@ -177,11 +221,20 @@ test('⑥ triage 判定与台账读数自洽（wired 必有业务消费 / dorman
     assert.ok(n.business_call_sites > 0,
       `${m} 被判 wired_all_along，但 business_call_sites=${n.business_call_sites} —— 判定与读数矛盾`);
   }
+  /* ★ [v3.474.0 · L23-O2] 原实现在这里硬要求 `modules[m]` 存在。O2 把 11 个 dormant 全部归档后，
+   *   它们退出装载面 ⇒ 消费台账不再为它们出行（台账只覆盖在役模块）。此时若仍硬要求行在场，
+   *   唯一出路就是给台账造一行假读数 —— 判据在逼人做坏事（同 v3.465.1 那条 note 的教训）。
+   *   故 dormant 分两态，各自真查，且两态都不许「既不在消费台账、也不在处置台账」（凭空消失）：
+   *     · 仍在役：读数必须 business_call_sites === 0（判定没过期）；
+   *     · 已归档：由处置台账背书（词表 / 不在 manifest / 文件在盘 / 替代方 + 复活条件 / 理由非灰标签）。 */
   for (const m of dormant) {
     const n = modules[m];
-    assert.ok(n, `dormant 模块 ${m} 必须出现在台账中`);
-    assert.equal(n.business_call_sites, 0,
-      `${m} 被判 declared_dormant，但 business_call_sites=${n.business_call_sites} —— 它其实有人用，判定过期`);
+    if (n) {
+      assert.equal(n.business_call_sites, 0,
+        `${m} 被判 declared_dormant，但 business_call_sites=${n.business_call_sites} —— 它其实有人用，判定过期`);
+      continue;
+    }
+    assertDormantArchived(m, disposition, manifest);
   }
 });
 
@@ -218,6 +271,18 @@ test('⑧ 注册表 entries 行不计入 business_call_sites（装载 ≠ 消费
   // 读数侧自证：dormant 模块**不得**有业务消费；来自装载面的引用（若有）必须解释掉全部 prod
   for (const m of dormant) {
     const n = modules[m];
+    if (!n) {
+      /* [v3.474.0 · L23-O2] 已归档 ⇒ 退出装载面 ⇒ 台账无行。此时「装载面洗白」这个风险面随归档
+       *   消失，可查的等价物有两条，缺一不可：
+       *     ① 它确实不在 manifest.extra_js（没有装载面引用可供洗白）；
+       *     ② triage 里的定性理由仍在（判定可追溯，不是悄悄删掉）。 */
+      assert.ok(!manifest.extra_js.includes(m),
+        `${m} 已归档却仍在 manifest.extra_js —— 装载面引用没清掉`);
+      const rec = triage.verdicts?.declared_dormant?.modules?.[m];
+      assert.ok(rec && String(rec.reason || '').trim().length > 0,
+        `${m} 归档后 triage 理由被清空 —— 判定失去可追溯性`);
+      continue;
+    }
     assert.equal(n.business_call_sites, 0,
       `${m} 已被定性为休眠，但读数里 business_call_sites=${n.business_call_sites}（读数与定性矛盾）`);
     const loadRefs = (n.load_surface_callers || []).reduce((a, c) => a + c.count, 0);
@@ -240,32 +305,46 @@ test('⑧ 注册表 entries 行不计入 business_call_sites（装载 ≠ 消费
   }
 });
 
-/* ── ⑨ 负控制：删 triage 一条判定，⑤ 必须红 ── */
-test('⑨ 负控制·删掉一条 dormant 判定后，⑤ 的完整性检查必须失败', () => {
+/* ── ⑨ 负控制：抽掉归档背书，⑤ 必须红 ── */
+test('⑨ 负控制·抽掉一条归档条目 / 塞回装载面后，⑤ 的归档背书守卫必须失败', () => {
+  /* ★ [v3.474.0 · L23-O2] 旧形态是「删掉一条 dormant 判定后 ⑤ 必须红」—— 它确实有牙齿，
+   *   因为那时待判模块还在装载面里、⑤ 还有可判对象。归档后 loadSurfaceOnly === 0，
+   *   ⑤ 的可打对象变成「归档背书」，故负控制同步改打 archiveBacked（与 ⑤ 同一段代码）。
+   *   保留正向对照，防止守卫恒假时负控制假装有牙齿。 */
+  assert.equal(archiveBacked(disposition, manifest), true,
+    '原处置台账本身不满足背书条件 —— ⑤ 的口径需复核（否则下面的负控制没有对象）');
+
   const victim = dormant[0];
-  const mutated = JSON.parse(JSON.stringify(triage));
-  delete mutated.verdicts.declared_dormant.modules[victim];
-  const covered = new Set([
-    ...Object.keys(mutated.verdicts.declared_dormant.modules),
-    ...Object.keys(mutated.verdicts.wired_all_along.modules),
-  ]);
-  const uncovered = loadSurfaceOnly.filter((m) => !covered.has(m));
-  assert.ok(uncovered.includes(victim),
-    `负控制失败：删掉 ${victim} 的判定后，完整性检查没发现它 —— 说明 ⑤ 是假绿`);
+  const dropped = JSON.parse(JSON.stringify(disposition));
+  delete dropped.entries[victim];
+  assert.equal(archiveBacked(dropped, manifest), false,
+    `负控制失败：抽掉 ${victim} 的归档条目后背书守卫仍判成立 —— 说明 ⑤ 的空转守卫是假绿`);
+
+  const remounted = JSON.parse(JSON.stringify(manifest));
+  remounted.extra_js = remounted.extra_js.concat([victim]);
+  assert.equal(archiveBacked(disposition, remounted), false,
+    `负控制失败：${victim} 被塞回 manifest.extra_js 后背书守卫仍成立 —— 归档面与装载面失联`);
 });
 
-/* ── ⑩ 负控制：篡改 business 读数，⑥ 必须红 ── */
-test('⑩ 负控制·把 dormant 模块的 business 改成 1 后，⑥ 的自洽检查必须失败', () => {
+/* ── ⑩ 负控制：篡改归档处置，⑥ 必须红 ── */
+test('⑩ 负控制·处置词改成 active / 理由缩成灰标签后，⑥ 的归档分支必须失败', () => {
+  /* ★ [v3.474.0 · L23-O2] 旧形态「把 dormant 的 business 改成 1 后 ⑥ 必须红」依赖台账里还有
+   *   dormant 行；归档后行已不在。负控制改打 assertDormantArchived（⑥ 的归档分支真源），
+   *   三向自证：正向通过 + 词表篡改必红 + 灰标签理由必红。 */
   const victim = dormant[0];
-  const fake = JSON.parse(JSON.stringify(modules));
-  fake[victim].business_call_sites = 1;
-  assert.throws(() => {
-    for (const m of dormant) {
-      assert.equal(fake[m].business_call_sites, 0,
-        `${m} business_call_sites=${fake[m].business_call_sites} —— 与 dormant 判定矛盾`);
-    }
-  }, (e) => e.message.includes(victim) && e.message.includes('矛盾'),
-    '负控制失败：篡改后 ⑥ 没有以预期方式报错');
+  assertDormantArchived(victim, disposition, manifest);
+
+  const retagged = JSON.parse(JSON.stringify(disposition));
+  retagged.entries[victim].disposition = 'active';
+  assert.throws(() => assertDormantArchived(victim, retagged, manifest),
+    (e) => e.message.includes(victim),
+    `负控制失败：${victim} 的处置词改成 active 后 ⑥ 没报错 —— 归档分支是空壳`);
+
+  const grey = JSON.parse(JSON.stringify(disposition));
+  grey.entries[victim].why = '重复实现';
+  assert.throws(() => assertDormantArchived(victim, grey, manifest),
+    (e) => e.message.includes(victim),
+    '负控制失败：灰标签理由没被 ⑥ 拦住 —— 归档理由的长度门是摆设');
 });
 
 /* ── ⑪ 负控制：往生成器塞回内联旧正则，① 必须红 ── */

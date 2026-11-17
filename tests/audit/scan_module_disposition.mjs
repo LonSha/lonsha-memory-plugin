@@ -99,9 +99,35 @@ export function auditDispositions(opts = {}) {
   const modules = ledger.modules;
   const dormant = Object.keys(modules).filter((k) => modules[k] && modules[k].load_surface_only === true);
 
-  /* 探针失效 fail-closed：装载面模块一个都没扫到，说明口径坏了（不是「都处置完了」）。 */
+  /* 探针失效 fail-closed。
+   * [v3.474.0 · L23-O2] 0 个休眠现在是**合法终局**（那 11 个都按 superseded_by_active_duplicate 归档了），
+   *   但「0」本身不能当结论放行 —— 判据从「必须还有休眠」改成「**归档面必须自洽**」：
+   *   归档集非空、每个不在 manifest.extra_js、文件仍在盘（归档≠删除）、理由实质、替代方全在役。
+   *   台账生成器坏掉时归档集也会变空，故 fail-closed 仍然成立（不是「清空了就放行」）。 */
+  const archivedEntries = Object.keys(disposition.entries)
+    .filter((k) => (disposition.entries[k] || {}).disposition === 'archived');
   if (dormant.length === 0) {
-    return fail('generated ledger 中 load_surface_only 模块为 0 —— 探针失效，fail-closed（不是「已清空」）');
+    if (archivedEntries.length === 0) {
+      return fail('load_surface_only 为 0 且归档集也为空 —— 探针失效，fail-closed（不是「已清空」）');
+    }
+    const mf = readJson(path.join(rootDir, 'manifest.json')) || {};
+    const extra = Array.isArray(mf.extra_js) ? mf.extra_js : [];
+    const broken = [];
+    for (const k of archivedEntries) {
+      const e = disposition.entries[k] || {};
+      if (extra.includes(k)) broken.push(k + ': 仍在 manifest.extra_js');
+      if (!fs.existsSync(path.join(rootDir, k))) broken.push(k + ': 文件缺失（归档≠删除）');
+      const why = String(e.why || '');
+      if (isGreyReason(why, greyTags) || [...why.trim()].length < MIN_WHY_CHARS) broken.push(k + ': 理由过短或是标签');
+      const sup = Array.isArray(e.superseded_by) ? e.superseded_by : [];
+      if (!sup.length) broken.push(k + ': 未点名替代方');
+      for (const sp of sup) {
+        if (!((modules[sp] || {}).business_call_sites > 0)) broken.push(k + ': 替代方不在役 ' + sp);
+      }
+    }
+    if (broken.length) {
+      return { status: 'fail_closed', exitCode: 2, error: '归档面不自洽', checked: 0, dormantCount: 0, violations: { archivedBroken: broken } };
+    }
   }
 
   const violations = {
@@ -223,6 +249,8 @@ export function auditDispositions(opts = {}) {
 
   /* ④ 反向闸 + 幽灵条目 */
   for (const modFile of Object.keys(disposition.entries)) {
+    /* [v3.474.0 · L23-O2] 归档条目本就不在装载面（已在上面自洽校验），不算幽灵。 */
+    if ((disposition.entries[modFile] || {}).disposition === 'archived') continue;
     const m = modules[modFile];
     if (!m) {
       violations.ghost.push({ module: modFile, why: '处置条目指向的模块不在 generated ledger 中' });

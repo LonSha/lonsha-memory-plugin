@@ -1,11 +1,11 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-17T13:53:28.381Z",
-  "extra_js_count": 407,
+  "generated_at": "2026-11-17T14:19:57.475Z",
+  "extra_js_count": 396,
   "host_injected_count": 252,
-  "total_modules": 408,
+  "total_modules": 397,
   "zero_consumption_count": 0,
-  "load_surface_only_count": 11,
+  "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
   "active_count": 397,
   "modules": {
@@ -3081,25 +3081,6 @@
         }
       ]
     },
-    "evidence-conflict-adjudication-bench.js": {
-      "module": "evidence-conflict-adjudication-bench.js",
-      "surface": [
-        "EvidenceConflictAdjudicationBench"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
-    },
     "evidence-query.js": {
       "module": "evidence-query.js",
       "surface": [
@@ -3407,25 +3388,6 @@
       ],
       "load_surface_callers": []
     },
-    "fact-postgen-replay-receipt.js": {
-      "module": "fact-postgen-replay-receipt.js",
-      "surface": [
-        "FactPostgenReplayReceipt"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
-    },
     "fact-replay-pipeline.js": {
       "module": "fact-replay-pipeline.js",
       "surface": [
@@ -3468,25 +3430,6 @@
         }
       ],
       "load_surface_callers": []
-    },
-    "fact-unified-lifecycle-bench.js": {
-      "module": "fact-unified-lifecycle-bench.js",
-      "surface": [
-        "FactUnifiedLifecycleBench"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
     },
     "fact-unified-lifecycle-matrix.js": {
       "module": "fact-unified-lifecycle-matrix.js",
@@ -3888,25 +3831,6 @@
         }
       ],
       "load_surface_callers": []
-    },
-    "generation-material-budget-plan.js": {
-      "module": "generation-material-budget-plan.js",
-      "surface": [
-        "GenerationMaterialBudgetPlan"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
     },
     "generation-material-reconcile.js": {
       "module": "generation-material-reconcile.js",
@@ -5116,25 +5040,6 @@
         }
       ]
     },
-    "maintenance-cold-warm-session.js": {
-      "module": "maintenance-cold-warm-session.js",
-      "surface": [
-        "MaintenanceColdWarmSession"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
-    },
     "material-pack.js": {
       "module": "material-pack.js",
       "surface": [
@@ -5164,25 +5069,6 @@
       ],
       "load_surface_callers": []
     },
-    "meaning-evolution-map.js": {
-      "module": "meaning-evolution-map.js",
-      "surface": [
-        "MeaningEvolutionMap"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
-    },
     "meaning-map.js": {
       "module": "meaning-map.js",
       "surface": [
@@ -5201,25 +5087,6 @@
         }
       ],
       "load_surface_callers": []
-    },
-    "memory-action-symbiosis-circuit.js": {
-      "module": "memory-action-symbiosis-circuit.js",
-      "surface": [
-        "MemoryActionSymbiosisCircuit"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
     },
     "memory-archaeology-gap-bench.js": {
       "module": "memory-archaeology-gap-bench.js",
@@ -6121,25 +5988,6 @@
         }
       ],
       "load_surface_callers": []
-    },
-    "memory-task-workbench.js": {
-      "module": "memory-task-workbench.js",
-      "surface": [
-        "MemoryTaskWorkbench"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
     },
     "memory-timeline.js": {
       "module": "memory-timeline.js",
@@ -7294,25 +7142,6 @@
       ],
       "load_surface_callers": []
     },
-    "project-migration-boundary-bench.js": {
-      "module": "project-migration-boundary-bench.js",
-      "surface": [
-        "ProjectMigrationBoundaryBench"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
-    },
     "project-registry.js": {
       "module": "project-registry.js",
       "surface": [
@@ -7754,25 +7583,6 @@
         }
       ],
       "load_surface_callers": []
-    },
-    "recall-route-feedback-bench.js": {
-      "module": "recall-route-feedback-bench.js",
-      "surface": [
-        "RecallRouteFeedbackBench"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
     },
     "recall-route-orchestrator.js": {
       "module": "recall-route-orchestrator.js",
@@ -9585,25 +9395,6 @@
         }
       ],
       "load_surface_callers": []
-    },
-    "unified-narrative-clock-axis.js": {
-      "module": "unified-narrative-clock-axis.js",
-      "surface": [
-        "UnifiedNarrativeClockAxis"
-      ],
-      "prod_call_sites": 2,
-      "business_call_sites": 0,
-      "load_surface_only": true,
-      "allowed": 0,
-      "why": "load_surface_only",
-      "callers": [],
-      "load_surface_callers": [
-        {
-          "file": "optional-engine-registry.js",
-          "count": 2,
-          "type": "file_binding+exclusive_global"
-        }
-      ]
     },
     "unified-recall.js": {
       "module": "unified-recall.js",

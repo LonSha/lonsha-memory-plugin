@@ -24,6 +24,8 @@
  *   C4 声明了却没挂上 ⇒ S4 必红
  *   C5 台账缺条 / 零消费 / 装载面洗白 ⇒ S5 必红（三态各一条）
  *   C6 dormant 项不得被算作缺陷（否则 S5 会把 L21-O1 的定性成果抹平）
+ *   ★ [v3.474.0 · L23-O2] B5 的口径随归档改写：dormantExcluded 只统计**仍在装载面里的**
+ *     dormant（少一条=把休眠记成成立），不在装载面的必须由处置台账背书 archived + 文件在盘。
  *   D1 五段的「答什么问题」措辞不许两处各写一份
  *   E1 四态互斥 + 每态可单独判出
  *   E2 environment-unavailable 时必须有 cause；cause 为 null 时探针不落盘
@@ -78,6 +80,9 @@ const manifest = JSON.parse(read('manifest.json'));
 const ledgerRaw = JSON.parse(read('tests/audit/module_consumption_ledger.json'));
 const triage = JSON.parse(read('tests/audit/l21_o1_triage.json'));
 const dormant = Object.keys(triage.verdicts.declared_dormant.modules);
+/* [v3.474.0 · L23-O2] 归档面读数：11 个 dormant 退出装载面后，「休眠没被记成成立」这件事
+ *   只剩两条可查真源 —— 处置台账（是不是 archived）与磁盘（文件还在不在）。 */
+const disposition = JSON.parse(read('tests/audit/module_disposition_ledger.json'));
 const cache = new Map();
 const realWorld = {
     manifest,
@@ -182,9 +187,30 @@ test('v21O3 B4. S4 global-eval：按 manifest 顺序累积装载，声明过的�
 test('v21O3 B5. S5 ledger：台账每条有真实业务消费，dormant 单列不静默吞', () => {
     const r = judgeLedger(realWorld);
     assert.equal(r.ok, true, 'S5 必须成立：' + JSON.stringify(r.defects.slice(0, 5)));
-    assert.equal(r.dormantExcluded, dormant.length,
-        'dormantExcluded 必须等于 triage 表里的 declared_dormant 条数（少一条就是把休眠记成了成立）');
-    ok('S5 成立：' + r.checked + ' 条台账对账通过，' + r.dormantExcluded + ' 条 dormant 单列');
+    /* ★ [v3.474.0 · L23-O2] 原断言是 `r.dormantExcluded === dormant.length`（11）—— 那前提是
+     *   11 个 dormant 全都还挂在装载面里、被「排除」掉。O2 把它们归档（撤出 extra_js）之后，
+     *   装载面里一个 dormant 都没有，dormantExcluded 诚实归 0；此时仍钉 11，就是钉一个已经不
+     *   存在的读数（要么改不出来，要么只能把文件塞回 manifest 去凑 —— 两者都不是好事）。
+     *   改钉两件真事，缺一不可：
+     *     ① dormantExcluded 必须等于「仍在装载面里的 dormant 条数」：少一条 = 把休眠记成成立，
+     *        多一条 = 凭空排除；
+     *     ② 不在装载面的 dormant 必须由处置台账背书为 archived、且文件仍在盘 —— 不许靠删文件
+     *        或抹掉 triage 理由来让「休眠消失」，那才是真的抹平 L21-O1 的定性成果。 */
+    const inList = dormant.filter((m) => manifest.extra_js.includes(m));
+    assert.equal(r.dormantExcluded, inList.length,
+        'dormantExcluded 必须等于仍在装载面里的 dormant 条数（' + inList.length + '），实测 '
+        + r.dormantExcluded + ' —— 少一条就是把休眠记成了成立，多一条就是凭空排除');
+    for (const m of dormant) {
+        if (manifest.extra_js.includes(m)) continue;
+        const rec = disposition.entries[m];
+        assert.equal(rec && rec.disposition, 'archived',
+            m + ' 既不在装载面、也不在役 ⇒ 处置台账必须记为 archived（实测 '
+            + (rec && rec.disposition) + '）');
+        assert.ok(fs.existsSync(path.join(ROOT, m)),
+            m + ' 记为 archived 但文件已不在盘 —— 归档不等于删除');
+    }
+    ok('S5 成立：' + r.checked + ' 条台账对账通过，' + r.dormantExcluded + ' 条 dormant 单列（装载面内）'
+        + '，' + (dormant.length - inList.length) + ' 条已归档且文件在盘');
 });
 
 test('v21O3 C1. ★★★ 负控制：磁盘缺件 ⇒ S1 必红（其余段不连坐）', () => {

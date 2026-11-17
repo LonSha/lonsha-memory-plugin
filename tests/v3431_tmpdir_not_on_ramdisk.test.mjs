@@ -160,13 +160,16 @@ test('A5 ★★ 审计面「71 vs 68」必须是恒等式：差集恰为被套�
    *   它生于 v3.463.0 而当时**没同步这三个数**，于是本档从 v3.463.0 起一直红着 ——
    *   红的不是产品缺陷，是**口径变更没走这道闸**（正是本条注释警告的形态）。
    *   这次一并补上：磁盘实测 70 个非 `_` 前缀 .mjs + 3 个 .cjs = 73。
+   *   [v3.474.0 · L23-O2/O3/O5] 73→76 / 70→73：本批新增三个在役套件
+   *   `l23_o5_diag_split` / `l23_o3_zero_consumption` / `l23_o2_load_surface_zero`
+   *   （各是一个 tests/*.test.mjs，都进 runner，故两侧同增 3）。仍按本条纪律显式改数，不让磁盘自己漂。
    *   ★ 这两个数字是**口径变更的显式闸**：脚本增减必须在此改数并写明来历，
    *   不许让它悄悄跟着磁盘漂 —— 否则恒等式自洽却已失去意义。 */
-  assert.equal(v.diskGated.length, 73,
-    `审计门禁面应为 73（.mjs∪.cjs 且非 _ 前缀），实测 ${v.diskGated.length}`
+  assert.equal(v.diskGated.length, 76,
+    `审计门禁面应为 76（.mjs∪.cjs 且非 _ 前缀），实测 ${v.diskGated.length}`
     + '；若确属新增脚本，请同步 tools/gen_state_report.mjs 与 v3427 的口径');
-  assert.equal(v.runnerRan.length, 70,
-    `runner 独立执行的审计脚本应为 70（仅 .mjs），实测 ${v.runnerRan.length}`);
+  assert.equal(v.runnerRan.length, 73,
+    `runner 独立执行的审计脚本应为 73（仅 .mjs），实测 ${v.runnerRan.length}`);
 
   assert.deepEqual(v.problems, [],
     '审计面口径自证失败：\n- ' + v.problems.join('\n- '));

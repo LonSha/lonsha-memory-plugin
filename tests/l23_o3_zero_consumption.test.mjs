@@ -91,7 +91,12 @@ test('L23O3 A1. ★★★ 零消费计数真归 0；seam orphan 也归 0（归�
 });
 
 test('L23O3 A2. ★★ 台账无空 why；11 个 load_surface_only 仍是另一件事（不得被本项顺手改掉）', () => {
-    assert.equal(LED.load_surface_only_count, 11, 'load_surface_only 仍是 11（那是 L23-O2 的对象，不许被 O3 顺手抹平）');
+    /* [v3.474.0] 原断言是「load_surface_only 仍是 11，不许被 O3 顺手抹平」—— 那是 O3 交付时的防线。
+     *   O2 随后合法地把这 11 个归档了，故防线换成：**它们必须以归档形式存在，而不是凭空消失**。 */
+    const DIS = JSON.parse(read('tests/audit/module_disposition_ledger.json'));
+    const arch = Object.keys(DIS.entries).filter((k) => DIS.entries[k].disposition === 'archived');
+    assert.equal(LED.load_surface_only_count, 0, 'O2 之后 load_surface_only 应为 0');
+    assert.equal(arch.length, 11, '那 11 个必须仍以归档条目在场（否则是被静默删掉，不是被处置）');
     const empty = ROWS.filter((m) => m && !m.why).map((m) => m.module);
     assert.deepEqual(empty, [], 'why 为空的条目：' + empty.join(','));
     console.log('  ok load_surface_only 11（O2 的对象／未动）· why 无空值');

@@ -11,7 +11,7 @@
   "human_index_version": "3.474.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 407,
+    "extra_js": 396,
     "extra_js_list": [
       "ledger-entity.js",
       "index-helpers.js",
@@ -210,23 +210,12 @@
       "curated-exhibition-bench.js",
       "memory-inspiration-desk.js",
       "playable-archive-engine.js",
-      "fact-unified-lifecycle-bench.js",
-      "evidence-conflict-adjudication-bench.js",
-      "unified-narrative-clock-axis.js",
-      "recall-route-feedback-bench.js",
-      "generation-material-budget-plan.js",
-      "fact-postgen-replay-receipt.js",
-      "maintenance-cold-warm-session.js",
-      "project-migration-boundary-bench.js",
-      "memory-task-workbench.js",
       "memory-season-silence-manager.js",
-      "meaning-evolution-map.js",
       "memory-archaeology-gap-bench.js",
       "counterfactual-experiment-bench.js",
       "institutional-collective-memory.js",
       "character-habit-growth-evidence.js",
       "multi-perspective-theater-bench.js",
-      "memory-action-symbiosis-circuit.js",
       "era-continuation-inheritance-tree.js",
       "era-handoff-draft.js",
       "relationship-repair-response.js",
@@ -425,7 +414,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 544,
+    "test_files": 545,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -463,6 +452,7 @@
       "l22_o1_index_split.test.mjs",
       "l22_o4_evidence_binding.test.mjs",
       "l22_o7_declared_dormant.test.mjs",
+      "l23_o2_load_surface_zero.test.mjs",
       "l23_o3_zero_consumption.test.mjs",
       "l23_o5_diag_split.test.mjs",
       "l23_x1_causal_chain.test.mjs",
@@ -1031,13 +1021,13 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "0fa6dd17ce4a",
+      "manifest.json": "48ad853170ad",
       "package.json": "f8fe65b52029",
       "index.js": "e94581cccd11",
       "update-log.json": null,
       "README.md": "77cf3f28aa24",
-      "PLAN.md": "add599a14e1f",
-      "CHANGELOG.md": "86caae2956d1",
+      "PLAN.md": "8201db881d6b",
+      "CHANGELOG.md": "e8bf2330a986",
       "TODO.md": "739c99e1450d",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
