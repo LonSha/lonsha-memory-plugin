@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { breakSource } from './_break_kit.mjs';
 import { stripComments } from './_audit_lib.mjs';
 import os from 'node:os';
+import { readModuleSource } from './_module_sources.mjs';
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -39,7 +40,7 @@ const UI = path.join(ROOT, 'settings-ui.js');
 const ORGANS = path.join(ROOT, 'memory-organs.js');
 
 const K = require(KERNEL);
-const diagSrc = fs.readFileSync(DIAG, 'utf8');
+const diagSrc = readModuleSource('engine-diagnostic-lines.js'); // [L23-O5] 诊断层已拆片：源码断言必须读聚合面（装配面+三片），否则断言的是“被搬走的空壳”
 const hostSrc = fs.readFileSync(HOST, 'utf8');
 const uiSrc = fs.readFileSync(UI, 'utf8');
 const organsSrc = fs.readFileSync(ORGANS, 'utf8');

@@ -43,13 +43,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { breakSource } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const KER_SRC = read('era-continuation-inheritance-tree.js');
-const DIAG_SRC = read('engine-diagnostic-lines.js');
+const DIAG_SRC = readModuleSource('engine-diagnostic-lines.js');
 const HOST_SRC = read('index.js');
 const UI_SRC = read('settings-ui.js');
 const SL_SRC = read('secret-ledger.js');

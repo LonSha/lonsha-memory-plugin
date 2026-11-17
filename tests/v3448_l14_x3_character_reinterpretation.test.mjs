@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Reinterpretation from '../character-reinterpretation-versions.js';
+import { readModuleSource } from './_module_sources.mjs';
 
 test('L14-X3: createReinterpretationLedger and selfCheck', () => {
   const check = Reinterpretation.characterReinterpretationSelfCheck();
@@ -186,7 +187,7 @@ test('L14-X3: vertical integration - diagnostic lines, injection pipeline, and s
   assert.ok(pipeSrc.includes('_characterReinterpretationLib'), 'pipeline binds reinterpretation lib');
   assert.ok(pipeSrc.includes('[角色改观·当前采纳认知]'), 'pipeline injects active reinterpretation header');
 
-  const diagSrc = await fs.readFile(new URL('../engine-diagnostic-lines.js', import.meta.url), 'utf8');
+  const diagSrc = readModuleSource('engine-diagnostic-lines.js');
   assert.ok(diagSrc.includes('characterReinterpretationState'), 'diagnostic exports state function');
   assert.ok(diagSrc.includes('_characterReinterpretationLine'), 'diagnostic exports line function');
 

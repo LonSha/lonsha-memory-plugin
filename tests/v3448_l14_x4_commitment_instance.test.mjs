@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Lifecycle from '../commitment-instance-lifecycle.js';
+import { readModuleSource } from './_module_sources.mjs';
 
 test('L14-X4: createCommitmentInstance initializes instance derived from commitment', () => {
     assert.equal(Lifecycle.createCommitmentInstance({}).ok, false);
@@ -159,7 +160,7 @@ test('L14-X4: vertical integration - diagnostic lines, injection pipeline, and s
     assert.ok(pipeSrc.includes('_commitmentLifecycleLib'), 'pipeline binds commitment lifecycle lib');
     assert.ok(pipeSrc.includes('[约定待办与履约跟踪]'), 'pipeline injects commitment instance tracking header');
 
-    const diagSrc = await fs.readFile(new URL('../engine-diagnostic-lines.js', import.meta.url), 'utf8');
+    const diagSrc = readModuleSource('engine-diagnostic-lines.js');
     assert.ok(diagSrc.includes('commitmentInstanceState'), 'diagnostic exports state function');
     assert.ok(diagSrc.includes('_commitmentInstanceLine'), 'diagnostic exports line function');
 

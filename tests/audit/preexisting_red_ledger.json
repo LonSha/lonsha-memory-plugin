@@ -1,0 +1,121 @@
+{
+  "_note": "第二十三期「账实对齐」：存量红台账。用途 —— 区分「本刀引入的回归」与「干净基线上就红的存量红」，让收口只需跑受影响面子集，不必靠全量跑证明。判法：同一个测试文件在 git worktree 的干净基线树与当前树上各跑一次，两边都红 = 存量红（不得顺手抹平）；只有当前红 = 回归（必须修）。",
+  "baseline_tree": "/home/user/_baseline（git worktree add --detach HEAD=e710253）",
+  "classify_command": "node tests/run.mjs <pattern...>  分别在两棵树上跑（同一 run.mjs 口径）",
+  "verified_at_version": "3.474.0",
+  "preexisting_red": [
+    {
+      "files": [
+        "v3207_ledger_entity_contract",
+        "v3208_projection_forecast",
+        "v3329_m4o1_gc_scope",
+        "v3209_migration_registry",
+        "v3264_a1_memory_organs",
+        "v3266_a1_memory_core",
+        "v3323_c_pack_group_relation",
+        "v3324_d_pack_extraction_driver",
+        "v3326_a1_memory_gc_split",
+        "v3327_e_pack_lore_annual",
+        "v3328_f_pack_canon_fated",
+        "v3350_m4o6_real_supply",
+        "l22_o1_index_split"
+      ],
+      "symptom": "manifest.extra_js[0] 自 L22-O1（4440a35）起是 index-helpers.js，而「ledger-entity.js 必须在首位」的 v3.207 不变量写在这 12 档里",
+      "fix": "已修（v3.474.0）：改单点真源 manifest.extra_js 的顺序（ledger-entity 回首位、index-helpers 让到第二），12 档全绿。两模块零交集，实测确认可交换。"
+    },
+    {
+      "files": [
+        "l22_o1_index_split"
+      ],
+      "symptom": "门禁 R2「index.js 行数只降不涨」：实测 12992 行 > 台账天花板 12963，自 4440a35 起就红（该 commit 实测 13350 行，天花板历史上从未达成过）",
+      "reading": "index.js = 12992 行（基线树同为 12992，与本刀无关）",
+      "status": "未修：这是 L22-O1 的收口目标口径，改它与本刀无关；已记进 TODO 待重定基",
+      "owner": "L23-O1（index.js 拆解）",
+      "note": "不抬账：这条天花板应该在 O1 把 index.js 真拆小时自然回到健康值；现在抬到 12992 等于把压力卸掉，且会掩盖后续增长。"
+    },
+    {
+      "files": [
+        "v3257_a1_memory_ledgers",
+        "v3262_native_tools_pristine_fetch",
+        "v3263_floor_identity_archive_audit"
+      ],
+      "symptom": "「基线行数须等于真 index.js 行数」，两边同红于同一断言",
+      "status": "未修（存量）"
+    },
+    {
+      "files": [
+        "v3232_host_beast_triage"
+      ],
+      "symptom": "骨架计数/行数基线漂移（基线树：onBeforeGeneration 基线 571 / 实测 574）",
+      "status": "未修（存量）"
+    },
+    {
+      "files": [
+        "v3427_l11_audit_face_repair"
+      ],
+      "symptom": "健康树上不得误红（H 必须 0），实得 1；「在役扫描器未登记进灵敏度矩阵」",
+      "status": "未修（存量）"
+    },
+    {
+      "files": [
+        "v3277_o7_dep_injection",
+        "v3283_o7_const_table_copy_ledger",
+        "v3327_e_pack_lore_annual",
+        "v3328_f_pack_canon_fated",
+        "v3295_x2_repair_flow",
+        "v353_panel_ethics_fix",
+        "v313_thinking_split",
+        "v3128",
+        "v3209",
+        "v3264",
+        "v3278",
+        "v330",
+        "v337",
+        "v345",
+        "v350"
+      ],
+      "symptom": "前一轮已逐档对照确认为基线同红（见各档报错文本）",
+      "status": "未修（存量）"
+    },
+    {
+      "files": [
+        "v3159_audit_failclosed_and_fallback_parity"
+      ],
+      "symptom": "[2d]「健康树上每个 audit 脚本都 status 0」：本刀重生成 seam 台账后仍有 scan_index_split R2 恒红（index.js 12992 > 天花板 12963）",
+      "reading": "两棵树均 rc=1（[2d] 失败断言 13/14）：当前树首错点名 scan_index_split（R2 行数天花板，同根因）；基线树首错点名 scan_extra_js_seam（seam 台账陈旧）—— 后者在本刀重生成后已绿，前者属存量。",
+      "status": "未修（等 L23-O1 收口；R2 是其归属账）"
+    }
+  ],
+  "regression_found_and_fixed": [
+    {
+      "id": "scan_version_guard V4",
+      "symptom": "当版前沿档缺「vnum 恰好锚 3.474.0」的锚点，内嵌 audit 子集 rc=1（v3227 连带红）",
+      "fix": "O5 判据新增 G1 出生版本锚（数值形自证 + 仓库版本作下界）"
+    },
+    {
+      "id": "scan_index_split R1",
+      "symptom": "导出面 64 → 66：拆片新增 LonShaDiagParts / LonShaDiagnosticLinesParts 两个全局符号，未登记进 index_exports.json",
+      "fix": "按 L22-O1 引入 LonShaIndexHelpers 的同一口径如实登记（含 discovered 说明），判据 G2 钉住 count 与 surface 项数一致"
+    },
+    {
+      "id": "v3428 / v34240 / v3430 / v3440",
+      "symptom": "在单文件里找方法体/破坏锚点，拆片后命中 0 次",
+      "fix": "anchorOwners() 跨全量定位 + runSourceInVm() 真装载（只改定位，不放宽断言）"
+    },
+    {
+      "id": "v3429",
+      "symptom": "worldlineJumpDraft 两形态",
+      "fix": "两种导出形态兼容"
+    },
+    {
+      "id": "v3186 / v3201",
+      "symptom": "hostSurface 展开分片后修复",
+      "fix": "已修"
+    },
+    {
+      "id": "v21_o2_ledger_coverage / v3459_gates_green / v34271_plan_baseline / v3297 / v3116 / v3159",
+      "symptom": "台账读数随拆片与抬版陈旧",
+      "fix": "跑生成器重生成与 dead_code_budget --bump"
+    }
+  ]
+}

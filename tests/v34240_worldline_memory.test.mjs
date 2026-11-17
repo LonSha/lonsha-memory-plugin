@@ -34,6 +34,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { readModuleSource, anchorOwners, runSourceInVm } from './_module_sources.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
@@ -74,7 +75,7 @@ function vnum(s) {
     return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
 }
 const src = readFileSync(path.join(ROOT, 'index.js'), 'utf8');
-const diagSrc = readFileSync(path.join(ROOT, 'engine-diagnostic-lines.js'), 'utf8');
+const diagSrc = readModuleSource('engine-diagnostic-lines.js', ROOT);
 const recallSrc = readFileSync(path.join(ROOT, 'engine-recall.js'), 'utf8');
 const uiSrc = readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
 const cfgSrc = readFileSync(path.join(ROOT, 'memory-config.js'), 'utf8');
@@ -483,6 +484,28 @@ function withBrokenCopy(fileName, from, to, fn) {
     } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+/* ★ [v3.474.0 · L23-O5] 拆片后的破坏装载口：
+ *   `withBrokenCopy` 是「复制单个文件 → require 副本」，拆片后 `engine-diagnostic-lines.js` 只剩装配面，
+ *   方法体在 part-a/b/c 里 ⇒ 单文件副本既找不到锚点（命中 0 次），也 require 不到实现。
+ *   这里改成：① `anchorOwners` 在全量源码里定位锚点真正所在的文件（要求恰 1 文件恰 1 次）；
+ *   ② 在**聚合源码**上替换；③ `runSourceInVm` 真装载整棵模块（分片自登记、装配面装配）。
+ *   破坏副本必须「还装得上 + 行为真变」，否则测到的是语法错或空转，不是语义漂移。 */
+function withBrokenDiag(from, to, fn) {
+    const own = anchorOwners('engine-diagnostic-lines.js', from);
+    assert.strictEqual(own.length, 1, '破坏锚点必须在真源恰命中 1 个文件（实中 ' + own.length + ' 个：'
+        + own.map((x) => x.file + '×' + x.hits).join(',') + '）');
+    assert.strictEqual(own[0].hits, 1, '破坏锚点在 ' + own[0].file + ' 内必须恰中 1 次（实中 ' + own[0].hits + '）');
+    assert.strictEqual(diagSrc.split(from).length - 1, 1, '锚点在聚合源码内必须恰中 1 次（聚合面唯一真源）');
+    const ctx = runSourceInVm(diagSrc.replace(from, to));
+    const broken = ctx.LonShaDiagnosticLines;
+    assert.ok(broken && typeof broken._worldlineRead === 'function', '破坏副本装载后必须仍挂 LonShaDiagnosticLines');
+    broken.bindDeps({
+        moduleLib: () => null, errLog: () => {},
+        libs: { _worldlineMemoryLib: () => WM },
+    });
+    fn(broken, own[0].file);
+}
+
 test('G1 破坏「无标落 unknown」⇒ 四态不再穷尽（行为真变）', () => {
     /* 原版阳性对照 */
     const L1 = { lineId: 'A', divergence: 0.2 };
@@ -527,19 +550,12 @@ test('G3 破坏「未登记 ⇒ unregistered」⇒ 未登记被读成不会发�
 test('G4 破坏「关着报 disabled」⇒ 关闸被读成全放行（行为真变）', () => {
     const off = makeEngine({ worldlineMemoryEnabled: false });
     assert.strictEqual(off._worldlineRead({ items: [] }).disabled, true);
-    withBrokenCopy('engine-diagnostic-lines.js', ANCHOR_DISABLED,
-        "if (false) return absent('disabled');", (target) => {
-            delete require_.cache[target];
-            const broken = require_(target);
-            broken.bindDeps({
-                moduleLib: () => null, errLog: () => {},
-                libs: { _worldlineMemoryLib: () => WM },
-            });
-            const r = broken._worldlineRead(off, { items: [{ id: 'a' }] });
-            assert.notStrictEqual(r.reason, 'disabled', '破坏后关闸状态不再被识别');
-            assert.strictEqual(r.ok, true, '破坏后关着也照判 —— 正是「没开闸读成放行」');
-        });
-    delete require_.cache[path.join(ROOT, 'engine-diagnostic-lines.js')];
+    withBrokenDiag(ANCHOR_DISABLED, "if (false) return absent('disabled');", (broken, ownerFile) => {
+        const r = broken._worldlineRead(off, { items: [{ id: 'a' }] });
+        assert.notStrictEqual(r.reason, 'disabled', '破坏后关闸状态不再被识别');
+        assert.strictEqual(r.ok, true, '破坏后关着也照判 —— 正是「没开闸读成放行」');
+        console.log('  （破坏落在 ' + ownerFile + '）');
+    });
     bindReal();
 });
 
@@ -663,18 +679,11 @@ test('M4 负控制：真源码破坏后行为必须真变（两条修复各有�
     const e = makeEngine({ worldlineMemoryEnabled: true, worldlineJumps: '1:α线\n40:β线\n47:α线' });
     e._currentFloor = 60;
     assert.strictEqual(e._worldlineState({}).current.startFloor, 47, '原版：推到 47');
-    withBrokenCopy('engine-diagnostic-lines.js', ANCHOR_EPOCH_ADVANCE,
-        'const at = { epoch: "", lineId: "", startFloor: null, why: "broken" };', (target) => {
-            delete require_.cache[target];
-            const broken = require_(target);
-            broken.bindDeps({
-                moduleLib: () => null, errLog: () => {},
-                libs: { _worldlineMemoryLib: () => WM },
-            });
+    withBrokenDiag(ANCHOR_EPOCH_ADVANCE,
+        'const at = { epoch: "", lineId: "", startFloor: null, why: "broken" };', (broken) => {
             const st = broken._worldlineState(e, {});
             assert.strictEqual(st.current.startFloor, null, '破坏后不再推进（证明原版真的走了这条路）');
         });
-    delete require_.cache[path.join(ROOT, 'engine-diagnostic-lines.js')];
     bindReal();
     /* ② 破坏「证据不对称判不了」⇒ 粗线标又被当成细纪元（退回修前行为） */
     const asym = () => WM.relationOf({ lineId: 'α线' }, { lineId: 'α线', startFloor: 47 }).relation;
@@ -694,17 +703,10 @@ test('M4 负控制：真源码破坏后行为必须真变（两条修复各有�
     });
     e2._currentFloor = 1;                       /* 反推会得 α线@1 */
     assert.strictEqual(e2._worldlineState({}).current.startFloor, 47, '原版：手工配置生效');
-    withBrokenCopy('engine-diagnostic-lines.js', ANCHOR_ADVANCE_CONFIGURED, 'if (false) return out;', (target) => {
-        delete require_.cache[target];
-        const broken = require_(target);
-        broken.bindDeps({
-            moduleLib: () => null, errLog: () => {},
-            libs: { _worldlineMemoryLib: () => WM },
-        });
+    withBrokenDiag(ANCHOR_ADVANCE_CONFIGURED, 'if (false) return out;', (broken) => {
         assert.strictEqual(broken._worldlineState(e2, {}).current.startFloor, 1,
             '破坏后反推夺权（证明「手工配置优先」这条纪律真的被这条分支守住）');
     });
-    delete require_.cache[path.join(ROOT, 'engine-diagnostic-lines.js')];
     bindReal();
 });
 /* ================= H 判据纯度与版本锚 ================= */

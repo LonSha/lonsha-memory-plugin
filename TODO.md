@@ -19,6 +19,27 @@
 > 读数：`extra_js` 395 → **405**；`module_consumption_ledger` 里 `zero_consumption_count` 仍 **1**（新增十件全部 active）；
 > `loading_surface_proof` 覆盖 **405** 模块；`scan_module_wiring` B5 结构健康 ok。
 > 判据：10 个测试文件 65 条（每条带负控制），含「缺项按 0 顶替 / 断环丢行 / 无 actor 当已裁决 / 缺锚补 0 楼」四类作弊实现当场判红。
+> **交付记录（2026-11-17 · v3.474.0）：L23-O5 已交付。**
+> `engine-diagnostic-lines.js` 5915 行 → **装配面 261 行 + 三片**（2086 / 2053 / 1984）；
+> 拆分前 183 个函数体**逐字节未改**（`tests/audit/diag_split_verbatim.json` 存 sha256，判据逐条重算）；
+> **首次补上本仓的长文件上界门**（装配面 ≤400 / 每片 ≤2100，上界从 ledger 真读，四种负控制全部报红）。
+> 读数：`extra_js` 405 → **408**（片排在装配面之前）；`module_consumption_ledger` 重跑 406 → **409**（三片全 active，零消费仍 1）；
+> 四文件合计比拆前 **多 469 行**（片头别名 + 片尾登记 + 装载器），已在 CHANGELOG 与 ledger 里如实记账。
+> 同轮清掉的旧账：`_recallExplainLib` 同名两份（死代码被静默覆盖）→ 只剩 engine 版一份。
+> 判据：`tests/l23_o5_diag_split.test.mjs` **16/16**（上界门 / 三处同源 / 逐字节对拍 / 封闭集 / 缺片不同形 / `_libs` 实时视图
+> / 当版出生锚 / 导出面台账自证 / 存量红台账自证）。
+> 收口时又查出并当场收敛的几件：
+> · **导出面 64 → 66**：拆片必须给跨 classic script 的登记留全局面，新增 `LonShaDiagParts`（登记槽）与
+>   `LonShaDiagnosticLinesParts`（已装分片 id 读数），按 L22-O1 引入 `LonShaIndexHelpers` 的同一口径如实登记进
+>   `tests/audit/index_exports.json`；其余 64 个符号逐字未动。
+> · **修掉一条自 L22-O1 起恒红的真缺陷**：`manifest.extra_js[0]` 被 `index-helpers.js` 占着，而"`ledger-entity.js` 必须在首位"
+>   这条 v3.207 不变量写在 **12 档判据**里。修的是单点真源（顺序换回），不是放宽 12 处历史断言；修后 12 档全绿。
+> · 版本守卫 V4 补锚：当版前沿档案里补上 `vnum('3.474.0')` 出生锚（`v3227` 内嵌 audit 子集随之为绿）。
+> · **待重定基（存量）**：`scan_index_split` R2「index.js 只降不涨」实测 12992 > 天花板 12963，
+>   自 4440a35 起就红（那版实测 13350），天花板历史上从未达成过；与 O5 无关，已入存量红台账，不顺手抹。
+> · 收口纪律已落成台账 `tests/audit/preexisting_red_ledger.json`：**每个刀只跑受影响面子集**（拿干净基线树 × 同一子集判存量红），
+>   **全量跑留到双计划收尾的最后一步**。
+>
 > **仍未开工的是 L23-O1~O9 九项**（`index.js` 拆解 / `load_surface_only` 定性 / 零消费归零 / realhost 接门 / `engine-diagnostic-lines.js` 拆解 / 写了不读 / 回执覆盖 / 34 视图真调 / 冻读取新鲜度）。
 >
 > ---
@@ -29,7 +50,8 @@
 > · [拓展九项](.agents/notes/proposed/feature/2026-11-16-product-expansion-v22.md)。
 > 下方第二十一期记录（L21 十八项，已于 v3.465.2 全部交付）保留为历史。
 
-> **最近更新：v3.473.0**（第二十三期拓展九项 L23-X1~X9 交付：九个可回源纯函数桥 + 装配面 + `trace` 公开资源；详见 CHANGELOG。优化九项 L23-O1~O9 仍未开工，不计入「已交付」。）
+> **最近更新：v3.474.0**（第二十三期优化九项第一刀 **L23-O5 已交付**：`engine-diagnostic-lines.js` 5915 行 → 装配面 261 行 + 三片，183 个函数体逐字节对拍 + 本仓首次长文件上界门；判据 `tests/l23_o5_diag_split.test.mjs` 13/13。详见 CHANGELOG。
+> 优化九项进度 **1/9 已交付**（O5）；O1/O2/O3/O4/O6/O7/O8/O9 仍未开工，不计入「已交付」。）
 
 > **本版进度（2026-11-16，v3.471.0）**：**模型列表抓取三级降级**（修「接 API 模型拿不到列表只能手填」）——
 > 代理（酒馆后端 `/api/backends/chat-completions/status`，CSRF 对齐 RubyPhone 先例）→ 直连（原裸 fetch

@@ -22,12 +22,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { breakSource } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 const R = process.cwd();
 const require_ = createRequire(import.meta.url);
 const BS_SRC = fs.readFileSync(path.join(R, 'branch-semantics.js'), 'utf8');
 const ORG_SRC = fs.readFileSync(path.join(R, 'memory-organs.js'), 'utf8');
 const IDX_SRC = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
-const DL_SRC = fs.readFileSync(path.join(R, 'engine-diagnostic-lines.js'), 'utf8');
+const DL_SRC = readModuleSource('engine-diagnostic-lines.js', R);
 const BS = require_(path.join(R, 'branch-semantics.js'));
 /** 两侧都「模块全在」的载荷工厂。 */
 const ALL = { factVersion: true, characterState: true, unfinished: true, money: true, storyTime: true };

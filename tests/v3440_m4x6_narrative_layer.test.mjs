@@ -38,6 +38,7 @@ import { breakOnce } from './_break_kit.mjs';
 import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
 import __hostPath from 'node:path';
 import { fileURLToPath as __hostFu } from 'node:url';
+import { readModuleSource } from './_module_sources.mjs';
 /* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
  *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
 function __hostSurface() {
@@ -68,7 +69,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
 const IDX = __hostSurface();
-const DL = read('engine-diagnostic-lines.js');
+const DL = readModuleSource('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const NL_SRC = read('narrative-layer.js');

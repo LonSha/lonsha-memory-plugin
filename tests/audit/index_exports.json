@@ -5,7 +5,7 @@
   "tool": "tests/_index_loader.cjs",
   "host": "最小宿主：window=globalThis + localStorage/document 桩 + jQuery/toastr/SillyTavern 空桩（只够装，不模拟业务）",
   "loaded": true,
-  "count": 64,
+  "count": 66,
   "surface": {
     "ActiveReminiscenceEpiphanyEngine": "function",
     "AdaptiveAttentionBudgetBalancer": "function",
@@ -24,7 +24,9 @@
     "LonShaCharacterGrowthDrama": "object",
     "LonShaConflictAdjudication": "object",
     "LonShaCrossProjectMigrationDesk": "object",
+    "LonShaDiagParts": "array",
     "LonShaDiagnosticLines": "object",
+    "LonShaDiagnosticLinesParts": "array",
     "LonShaEmotionalAntiphony": "object",
     "LonShaEngineEvidenceCenter": "object",
     "LonShaEntityLexicon": "object",
@@ -75,6 +77,10 @@
   "discovered": [
     "index.js 是单个 IIFE，结尾没有 module.exports —— 对外面全部挂在 window 上（64 个符号）。",
     "装载期会打日志并注册定时器/监听：工具必须主动 process.exit，否则 node 不退出（实测会挂到超时）。",
-    "navigator 在 node 里是只读 getter，宿主桩不能给它赋值（首版就是在这里抛的）。"
+    "navigator 在 node 里是只读 getter，宿主桩不能给它赋值（首版就是在这里抛的）。",
+    "[v3.474.0 · L23-O5] 导出面 64 → 66：`engine-diagnostic-lines.js` 拆为装配面 + 三片后，跨 classic script 的登记必须过全局（与 L22-O1 的 `LonShaIndexHelpers` 同一口径）：",
+    "  · `LonShaDiagParts`（array）= 分片登记槽。三片**总是** push（不去重），装配面按 `__partId` 取最后一次 —— 同进程重载先装破坏版再装原版时必须拿到后者。",
+    "  · `LonShaDiagnosticLinesParts`（array，冻结）= 已装分片 id 读数。缺片时这份清单会少项且 api 少键，判据靠「名单覆盖率」翻红，不靠静默降级。",
+    "  口径不变：这两个符号是**模块自身的命名空间面**（`LonSha*`），不是宿主私有钩子；除此之外对外面逐字未动（其余 64 个符号名字与类型全等）。"
   ]
 }

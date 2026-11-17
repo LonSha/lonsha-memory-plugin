@@ -35,6 +35,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { breakOnce } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
@@ -42,7 +43,7 @@ const IDX_RAW = read('index.js');
 const SC_OPS_SRC = read('engine-self-check.js');
 /* [v3.367.0] selfCheck 已外移 engine-self-check.js，合看以保持 C5/E12 判据生效 */
 const IDX = IDX_RAW + '\n' + SC_OPS_SRC;
-const DL = read('engine-diagnostic-lines.js');
+const DL = readModuleSource('engine-diagnostic-lines.js');
 const MF = JSON.parse(read('manifest.json'));
 const PKG = JSON.parse(read('package.json'));
 const ED_SRC = read('extraction-driver.js');

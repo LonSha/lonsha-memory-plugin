@@ -49,7 +49,13 @@ const RUN_REL = 'tests/run.mjs';
 // [v3.370.1] 指纹显式复核并同步：本轮唯一真源新增 hostSurface / HOST_MODULES
 //   （十批剥离后「入口 + 外移模块」合并面的唯一派生点），自证仍通过（node tests/_audit_lib.mjs）。
 //   复核结论：新增的是公共派生辅助，未改动 stripComments/bodyOf/braceMatch/codeLines 的任何口径。
-const EXPECT_LIB_MD5 = '25e8cb20d6043c71d7c484a445e8fddd';
+// [v3.474.0 · L23-O5] 指纹显式复核并同步：本轮 hostSurface 改为**按 module_split_ledger 展开分片**
+//   （片在前、装配面在后），因为 engine-diagnostic-lines.js 已拆为装配面 + 三片 —— 只读装配面会把
+//   「方法体不在位」误判成缺陷，且以后再把函数搬走一处就会静默退化成空转。
+//   复核结论：stripComments / bodyOf / braceMatch / codeLines 四个口径**一字未动**（逐行 diff 只动了
+//   hostSurface 与新增的 _splitPartsOf）；行为面 7 形态与 5 组负控制仍全绿（见本脚本 E3/E4）。
+//   12776 → 13774 字符、md5 b46fe7808e2af9eb4b8942d48f8c4bc4。
+const EXPECT_LIB_MD5 = 'b46fe7808e2af9eb4b8942d48f8c4bc4';
 const MIN_AUDIT_SCRIPTS = 25;
 const MIN_LIB_BYTES = 8000;
 const MIN_IMPORTERS = 8;

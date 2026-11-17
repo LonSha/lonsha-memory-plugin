@@ -24,6 +24,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { breakSource, assertSingleHit } from './_break_kit.mjs';
+import { readModuleSource, anchorOwners } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -32,7 +33,7 @@ const readRoot = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const ok = (m) => console.log('  + ' + m);
 
 const HOST_SRC = readRoot('index.js');
-const OWNER_SRC = readRoot('engine-diagnostic-lines.js');
+const OWNER_SRC = readModuleSource('engine-diagnostic-lines.js');
 const UI_SRC = readRoot('settings-ui.js');
 
 const FACES = ['institutionRuleState', 'meaningViewState', 'worldlinePrehistory',
@@ -433,8 +434,16 @@ const A_SECRET = 'if (d.secret === true || d.isSecret === true) { secretsExclude
  *  破坏副本还必须**仍能装载**：若它连装载都失败，测到的是语法错，不是语义漂移。 */
 async function twoSides(rel, anchor, repl, label) {
     const h = await bootReady(null);
-    const broken = breakSource(readRoot(rel), anchor, repl, label);
-    const b = await bootReady({ [rel]: broken });
+    /* ★ [v3.474.0 · L23-O5] 拆片后 `rel` 只剩装配面，方法体在分片里：锚点必须先在全量源码
+     *   （装配面 + 分片）里定位到真正所在的那一个文件，破坏就打在那个文件上，覆盖装载也替换那个文件。
+     *   否则 `breakSource(readRoot(rel), ...)` 会因「锚点命中 0 次」拒绝破坏 —— 红是对的，
+     *   但若把拒绝改放宽，负控制就静默退化成对原文件断言（假绿第一形）。 */
+    const own = anchorOwners(rel, anchor);
+    assert.strictEqual(own.length, 1, '破坏锚点必须在真源恰命中 1 个文件（实中 ' + own.length + ' 个：'
+        + own.map((x) => x.file + '×' + x.hits).join(',') + '）');
+    const ownerFile = own[0].file;
+    const broken = breakSource(readRoot(ownerFile), anchor, repl, label);
+    const b = await bootReady({ [ownerFile]: broken });
     assert.equal(h.loadFails.length, 0, '原版侧装载必须零失败：' + JSON.stringify(h.loadFails.slice(0, 3)));
     assert.equal(b.loadFails.length, 0, '破坏副本必须仍能装载（否则测的是语法错）：'
         + JSON.stringify(b.loadFails.slice(0, 3)));
@@ -552,7 +561,9 @@ test('v3430X1X9 G3. ★★★ 三枚破坏锚点在本档各只声明一次（�
         /* H5：锚点字面量只能出现一次 —— 写第二处等于判据自己引用了锚点串，
          *   以后改锚点时会“改一处、漏一处”，负控制静默退化成对原文件断言。 */
         assert.strictEqual(n, 1, '锚点 ' + name + ' 在本档应恰出现 1 次（实 ' + n + ' 次）');
-        assertSingleHit(readRoot(rel), lit, name);
+        const own = anchorOwners(rel, lit);
+        assert.strictEqual(own.length, 1, '锚点 ' + name + ' 必须在真源恰命中 1 个文件（实中 ' + own.length + ' 个）');
+        assertSingleHit(readRoot(own[0].file), lit, name);
     }
     ok('三枚锚点各只声明一次（H5），且在真源上各恰中 1 次');
 });

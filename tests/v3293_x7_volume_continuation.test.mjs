@@ -39,6 +39,7 @@ import { breakSource } from './_break_kit.mjs';
 import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
 import __hostPath from 'node:path';
 import { fileURLToPath as __hostFu } from 'node:url';
+import { readModuleSource } from './_module_sources.mjs';
 /* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
  *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
 function __hostSurface() {
@@ -70,7 +71,7 @@ const require_ = createRequire(import.meta.url);
 const VC_SRC = fs.readFileSync(path.join(R, 'volume-continuation.js'), 'utf8');
 const ORG_SRC = fs.readFileSync(path.join(R, 'memory-organs.js'), 'utf8');
 const IDX_SRC = __hostSurface();
-const DL_SRC = fs.readFileSync(path.join(R, 'engine-diagnostic-lines.js'), 'utf8');
+const DL_SRC = readModuleSource('engine-diagnostic-lines.js', R);
 const VC = require_(path.join(R, 'volume-continuation.js'));
 const BS = require_(path.join(R, 'branch-semantics.js'));
 const ORG = require_(path.join(R, 'memory-organs.js'));

@@ -22,11 +22,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readModuleSource } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const UI = fs.readFileSync(path.join(ROOT, 'settings-ui.js'), 'utf8');
-const DL = fs.readFileSync(path.join(ROOT, 'engine-diagnostic-lines.js'), 'utf8');
+const DL = readModuleSource('engine-diagnostic-lines.js', ROOT);
 const IDX = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8');
 
 /* ── 锚点（唯一声明处）───────────────────────────────────────────── */

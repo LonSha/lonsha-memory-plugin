@@ -14,13 +14,14 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { breakSource } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const readRoot = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const MODULE_SRC = readRoot('counterfactual-experiment-bench.js');
-const DIAG_SRC = readRoot('engine-diagnostic-lines.js');
+const DIAG_SRC = readModuleSource('engine-diagnostic-lines.js');
 const HOST_SRC = readRoot('index.js');
 const UI_SRC = readRoot('settings-ui.js');
 

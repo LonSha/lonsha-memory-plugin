@@ -35,12 +35,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { breakSource } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const KER_SRC = read('round-entry-snapshot.js');
-const DIAG_SRC = read('engine-diagnostic-lines.js');
+const DIAG_SRC = readModuleSource('engine-diagnostic-lines.js');
 const HOST_SRC = read('index.js');
 const UI_SRC = read('settings-ui.js');
 const MANIFEST = JSON.parse(read('manifest.json'));
@@ -584,10 +585,13 @@ test('G4: 诊断层 —— 取库口 / 四出口 / 四态措辞 / api 冻结表�
     for (const t of ['不可用', 'no-round', 'half-round', "state === 'undone'", '只标待复核，不回退']) {
         assert.ok(line.includes(t), '诊断行必须处理这一态：' + t);
     }
-    /* api 冻结表已挂五个出口（缺一个，宿主取不到）。 */
+    /* api 面已挂五个出口（缺一个，宿主取不到）。
+     * [L23-O5] 拆片后 api 由各片登记 `api.<name> = <fn>`，不再靠单条字面量 ⇒ 两种形态都认，必须命中其一。 */
     const apiFace = DIAG_SRC.split('var api = Object.freeze({')[1] || '';
     for (const name of ['roundSnapshotBefore', 'roundSnapshotAfter', 'roundUndoState', 'roundUndo', '_roundUndoLine']) {
-        assert.ok(new RegExp('\\b' + name + ',?\\s').test(apiFace), 'api 冻结表必须挂 ' + name);
+        const inTable = new RegExp('\\b' + name + ',?\\s').test(apiFace);
+        const registered = new RegExp('api\\.' + name + '\\s*=').test(DIAG_SRC);
+        assert.ok(inTable || registered, 'api 面必须挂 ' + name);
     }
 });
 

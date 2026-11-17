@@ -35,6 +35,7 @@ import os from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { breakSource } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const require_ = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -42,7 +43,7 @@ const ROOT = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 const KB_SRC = read('memory-archaeology-gap-bench.js');
-const DIAG_SRC = read('engine-diagnostic-lines.js');
+const DIAG_SRC = readModuleSource('engine-diagnostic-lines.js');
 const HOST_SRC = read('index.js');
 const UI_SRC = read('settings-ui.js');
 const MANIFEST = JSON.parse(read('manifest.json'));

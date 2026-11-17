@@ -180,9 +180,11 @@ const CONST_LEDGER = [
      *   · keys（主角面键名表）：补提取留在 engine-execution-pipeline.js，主提取留在 index.js；
      *   · cnMonths（中文月表）：召回面外提到 engine-recall.js，入口留一份。
      *   三者都是通用词表/字面量原语，模块零依赖自足 —— 与 FACES / PREVIEW / mutating 同族。 */
-    ['lease', ['engine-diagnostic-lines.js', 'engine-repair-ops.js', 'engine-story-annual.js'], 63, '1f1532f4', '{'],
+    /* [v3.474.0 · L23-O5] lease 的宿主份随拆片搬到 part-a（装配面已无实现，只有装载器）。
+     *   登记名必须跟着搬，否则本档会把「代码搬家」读成「副本漂移」。 */
+    ['lease', ['engine-diagnostic-lines-part-a.js', 'engine-repair-ops.js', 'engine-story-annual.js'], 63, '1f1532f4', '{'],
     ['keys', ['engine-execution-pipeline.js', 'index.js'], 64, '0b16baa8', '['],
-    ['cnMonths', ['engine-recall.js', 'index.js'], 61, '5d34e745', '['],
+    ['cnMonths', ['engine-recall.js', 'index-helpers.js'], 61, '5d34e745', '['],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有） ---- */

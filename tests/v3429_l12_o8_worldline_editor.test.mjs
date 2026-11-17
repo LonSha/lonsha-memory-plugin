@@ -36,6 +36,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { breakSource, assertSingleHit } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -49,8 +50,12 @@ const readRoot = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const ok = (m) => console.log('  ✓ ' + m);
 const NL = String.fromCharCode(10);
 
+/* ★ [v3.474.0 · L23-O5] 编辑器面已随 `engine-diagnostic-lines.js` 拆到三片里，
+ *   故 `OWNER_SRC` 读**聚合面**（分片 + 装配面）。合成树把它整份写进单个文件，
+ *   门那边 require 得到的仍是可装载的完整模块（片先自登记、装配面再装配），
+ *   破坏也仍打在真方法体所在的那份文本上 —— 判据一个字都没放宽。 */
+const OWNER_SRC = readModuleSource(OWNER_REL);
 const UI_SRC = readRoot(UI_REL);
-const OWNER_SRC = readRoot(OWNER_REL);
 const HOST_SRC = readRoot(HOST_REL);
 const GATE_SRC = readRoot(GATE_REL);
 
@@ -126,7 +131,13 @@ test('v3429O8 A2. ★★★ 解析单源：闸的 jumps 必须走 parseJumpsText
     assert.ok(OWNER_SRC.includes('function parseJumpsText(raw) {'), '缺 parseJumpsText');
     assert.ok(OWNER_SRC.includes('rejects.push({ line: no, text: s, why:'), '坏行必须带行号与成因');
     /* 取数口导出 + 宿主一行转发（本仓接线范式）。 */
-    assert.ok(/worldlineJumpDraft, _materialInventory/.test(OWNER_SRC), '诊断线模块必须导出 worldlineJumpDraft');
+    /* ★ [v3.474.0 · L23-O5] 拆片后导出面不再是一段冻结字面量：公开名在片尾 `api.<name> = <name>;` 登记，
+     *   私有名进 `S.hidden`。故这里认两形态：字面量并肩出现，或两处片尾登记各自在场 ——
+     *   放宽的是**形态**，不是「有没有导出」这件事。 */
+    const dblLiteral = /worldlineJumpDraft, _materialInventory/.test(OWNER_SRC);
+    const dblRegs = /api\.worldlineJumpDraft = worldlineJumpDraft;/.test(OWNER_SRC)
+        && /api\._materialInventory = _materialInventory;/.test(OWNER_SRC);
+    assert.ok(dblLiteral || dblRegs, '诊断线模块必须导出 worldlineJumpDraft 与 _materialInventory（字面量或片尾登记）');
     assert.strictEqual((HOST_SRC.match(/worldlineJumpDraft\(\.\.\.args\)/g) || []).length, 1,
         '宿主 worldlineJumpDraft 转发必须恰 1 处');
     /* 取数口**不写配置**：函数体里不得出现任何 `config[...] =` / saveConfig。 */

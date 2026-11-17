@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { readModuleSource } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -81,7 +82,7 @@ test('L17-O2 访问强化与混合评分共振重排：真闭环 + 时间保留�
 test('L17-O3 全链路垂直贯通 + 真 buildInjection 回写 + 存档对称 + 负控制', async () => {
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const idx = read('index.js'), rec = read('engine-recall.js'), pipe = read('engine-injection-pipeline.js');
-  const pers = read('engine-persistence-ops.js'), diag = read('engine-diagnostic-lines.js');
+  const pers = read('engine-persistence-ops.js'), diag = readModuleSource('engine-diagnostic-lines.js');
   const ui = read('settings-ui.js'), cfg = read('memory-config.js'), reg = read('config-effect-registry.js');
   const mf = JSON.parse(read('manifest.json'));
 

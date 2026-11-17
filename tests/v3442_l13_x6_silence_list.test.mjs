@@ -35,13 +35,14 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { breakSource } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const require_ = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
-const DIAG_SRC = read('engine-diagnostic-lines.js');
+const DIAG_SRC = readModuleSource('engine-diagnostic-lines.js');
 const HOST_SRC = read('index.js');
 const UI_SRC = read('settings-ui.js');
 const ORG_SRC = read('memory-organs.js');
@@ -429,10 +430,14 @@ test('F1: 接线面 —— 宿主三桩在场 / 持久化三处齐备 / api 冻�
     assert.equal(occ(ORG_SRC, 'topicSeasons: this.topicSeasons || []'), 1, '导出面必须带上主题表');
     assert.equal(occ(ORG_SRC, 'this.seasonState = (data.seasonState'), 1, '导入面必须读回静音动作表');
     assert.equal(occ(ORG_SRC, 'Array.isArray(data.topicSeasons)'), 1, '导入面必须读回主题表');
-    /* api 冻结表已挂三个出口（缺一个，宿主取不到）。 */
+    /* api 面已挂三个出口（缺一个，宿主取不到）。
+     * [L23-O5] 诊断层拆片后，api 不再由单条 `Object.freeze({...})` 字面量装配，
+     *   而由各片登记 `api.<name> = <fn>` ⇒ 两种形态都认，但**必须命中其一**。 */
+    const apiFace = DIAG_SRC.split('var api = Object.freeze({')[1] || '';
     for (const name of ['silenceListState', 'silenceLift', '_silenceListLine']) {
-        assert.ok(new RegExp('\\b' + name + ',?\\s').test(DIAG_SRC.split('var api = Object.freeze({')[1] || ''),
-            'api 冻结表必须挂 ' + name);
+        const inTable = new RegExp('\\b' + name + ',?\\s').test(apiFace);
+        const registered = new RegExp('api\\.' + name + '\\s*=').test(DIAG_SRC);
+        assert.ok(inTable || registered, 'api 面必须挂 ' + name);
     }
 });
 

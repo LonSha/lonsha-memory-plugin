@@ -1,19 +1,20 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.472.0",
+  "version": "3.474.0",
   "version_sources": {
-    "manifest": "3.472.0",
-    "package": "3.472.0",
-    "index_const": "3.472.0"
+    "manifest": "3.474.0",
+    "package": "3.474.0",
+    "index_const": "3.474.0"
   },
   "version_same": true,
-  "human_index_version": "3.472.0",
+  "human_index_version": "3.474.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 394,
+    "extra_js": 408,
     "extra_js_list": [
       "ledger-entity.js",
+      "index-helpers.js",
       "psychological-defense-engine.js",
       "hypergraph-causal-backtracking-hub.js",
       "memory-healing-immunity-adjudicator.js",
@@ -176,6 +177,9 @@
       "recall-reinterpretation.js",
       "counterfactual-experiment.js",
       "era-inheritance.js",
+      "engine-diagnostic-lines-part-a.js",
+      "engine-diagnostic-lines-part-b.js",
+      "engine-diagnostic-lines-part-c.js",
       "engine-diagnostic-lines.js",
       "engine-report.js",
       "engine-recall.js",
@@ -406,13 +410,23 @@
       "catalog-registration.js",
       "load-surface-disposition.js",
       "frozen-freshness.js",
-      "write-only-scan.js"
+      "write-only-scan.js",
+      "recall-ranking-explain.js",
+      "memory-causal-chain-replay.js",
+      "memory-bias-surface.js",
+      "commitment-followthrough.js",
+      "forgetting-explanation.js",
+      "memory-conflict-bench.js",
+      "memory-revision-history.js",
+      "memory-capacity-watermark.js",
+      "cross-session-continuation.js",
+      "memory-trace-surface.js"
     ],
-    "root_js": 395,
+    "root_js": 409,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 529,
+    "test_files": 543,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -447,6 +461,20 @@
       "l20_production_adjudication.test.mjs",
       "l21_v21_deep_integration.test.mjs",
       "l21_v21_epic_architecture.test.mjs",
+      "l22_o1_index_split.test.mjs",
+      "l22_o4_evidence_binding.test.mjs",
+      "l22_o7_declared_dormant.test.mjs",
+      "l23_o5_diag_split.test.mjs",
+      "l23_x1_causal_chain.test.mjs",
+      "l23_x2_bias_surface.test.mjs",
+      "l23_x3_commitment.test.mjs",
+      "l23_x4_forgetting.test.mjs",
+      "l23_x5_conflict_bench.test.mjs",
+      "l23_x6_recall_ranking.test.mjs",
+      "l23_x7_revision_history.test.mjs",
+      "l23_x8_capacity.test.mjs",
+      "l23_x9_cross_session.test.mjs",
+      "l23_x_surface.test.mjs",
       "narrative-pulse.test.mjs",
       "projection-absence.test.mjs",
       "story-clock-parse.test.mjs",
@@ -945,8 +973,8 @@
       "v39_shift_floors.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 73,
-    "audit_probes": 15,
+    "audit_gated": 76,
+    "audit_probes": 16,
     "tiers": {
       "schema": "gate-tiers@1",
       "tiers": [
@@ -984,7 +1012,7 @@
     "tests_total": 430,
     "assertions": 4658,
     "audit": "68/68",
-    "reason": "登记版本 3.431.0 ≠ 当前 3.472.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.431.0 ≠ 当前 3.474.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -1003,19 +1031,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "53dcfb7bb5aa",
-      "package.json": "9769a8dc9d73",
-      "index.js": "2d44da20b49c",
+      "manifest.json": "6fefee87735d",
+      "package.json": "f8fe65b52029",
+      "index.js": "e94581cccd11",
       "update-log.json": null,
-      "README.md": "96dafb849d2e",
-      "PLAN.md": "15206670e517",
-      "CHANGELOG.md": "e3c6af77593b",
-      "TODO.md": "816cc37becfe",
+      "README.md": "77cf3f28aa24",
+      "PLAN.md": "db3ba4adfef2",
+      "CHANGELOG.md": "2736ff74c6e4",
+      "TODO.md": "8a1e0ac76377",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.472.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.474.0"
   ],
   "unknown_count": 1
 }

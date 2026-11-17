@@ -213,6 +213,21 @@ export function braceMatch(text, openIdx) {
 //   · 换行分隔保证不会把上一文件末行的 `this.` 与下一文件首行的 `foo()` 粘成 `this.foo()`；
 //   · 分隔注释在 stripComments 后变空白但保留换行，故 code 面不会出现假命中。
 // ============================================================
+/* ★ [v3.474.0 · L23-O5] 拆片模块的扫描面展开：
+ *   `engine-diagnostic-lines.js` 拆成「装配面 + 三片」后，hostSurface 若只读装配面，
+ *   十几组门禁会集体报「诊断行不在位 / 方法体找不到」——那不是缺陷，是**判据读错了地方**，
+ *   且最危险：以后再把函数搬走一处，判据会静默退化成空转。
+ *   故这里按 `tests/audit/module_split_ledger.json` 把分片一并并入，顺序「片在前、装配面在后」
+ *   （与 tests/_module_sources.mjs 同口径：片先自登记，装配面才装得上）。
+ *   清单读不到 / 没有该模块 ⇒ 退回单文件（拆片前后行为一致，不静默变成空面）。 */
+function _splitPartsOf(root, IO, name) {
+    try {
+        const led = JSON.parse(IO.fs.readFileSync(IO.path.join(root, 'tests', 'audit', 'module_split_ledger.json'), 'utf8'));
+        const e = led && led[name];
+        return (e && Array.isArray(e.parts)) ? e.parts.slice() : [];
+    } catch (_e) { return []; }
+}
+
 /** 默认并入的外移模块（逐个试读，缺失即跳过，不报错） */
 export const HOST_MODULES = [
     'engine-diagnostic-lines.js', 'engine-evidence-center.js', 'engine-execution-pipeline.js', 'engine-injection-pipeline.js',
@@ -246,15 +261,23 @@ export function hostSurface(root, opts) {
     const files = [];
     const missing = [];
     const chunks = [];
+    const IO = { fs: fs, path: path };
     for (const name of want) {
-        let raw = null;
-        try {
-            const p = path.join(root, name);
-            if (fs.existsSync(p)) raw = fs.readFileSync(p, 'utf8');
-        } catch (_e) { raw = null; }
-        if (raw == null) { missing.push(name); continue; }
-        files.push({ name: name, raw: raw, code: stripComments(raw) });
-        chunks.push('\n// ==== ' + name + ' ====\n' + raw);
+        /* [v3.474.0 · L23-O5] 片在前、装配面在后（同 _module_sources.mjs 口径） */
+        const physical = _splitPartsOf(root, IO, name).concat([name]);
+        let any = false;
+        for (const f of physical) {
+            let raw = null;
+            try {
+                const p = path.join(root, f);
+                if (fs.existsSync(p)) raw = fs.readFileSync(p, 'utf8');
+            } catch (_e) { raw = null; }
+            if (raw == null) { continue; }
+            any = true;
+            files.push({ name: f, raw: raw, code: stripComments(raw) });
+            chunks.push('\n// ==== ' + f + ' ====\n' + raw);
+        }
+        if (!any) missing.push(name);
     }
     const raw = chunks.join('');
     return {

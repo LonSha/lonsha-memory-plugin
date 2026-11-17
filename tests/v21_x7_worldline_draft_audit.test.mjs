@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const _mod = await import('../worldline-draft-audit.js');
 const lib = (_mod.default ?? _mod);
@@ -96,7 +97,7 @@ test('T8 负控制：五档合一 ⇒ 红（结构级：拆掉任一档或合成
 });
 
 test('T9 接线真消费：worldlineJumpDraft 真调 auditDraft 且不合成总布尔', () => {
-    const src = readFileSync(new URL('../engine-diagnostic-lines.js', import.meta.url), 'utf8');
+    const src = readModuleSource('engine-diagnostic-lines.js');
     const iFn = src.indexOf('function worldlineJumpDraft');
     const iEnd = src.indexOf('function _worldlineState');
     assert.ok(iFn > 0 && iEnd > iFn);

@@ -27,6 +27,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { breakOnce } from './_break_kit.mjs';
+import { readModuleSource } from './_module_sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
@@ -35,7 +36,7 @@ const BORN_V = '3.428.0';
 const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
 
 const IDX = read('index.js');
-const DL = read('engine-diagnostic-lines.js');
+const DL = readModuleSource('engine-diagnostic-lines.js');
 const SC = read('engine-self-check.js');
 const UI = read('settings-ui.js');
 const MF = JSON.parse(read('manifest.json'));
@@ -165,14 +166,24 @@ function judgeStruct(idx, dl, ui, mf, sc) {
             bad.push('manifest.extra_js 缺 ' + file.replace(/'/g, ''));
         }
     }
-    /* 诊断层必须把这十五个名字**放进冻结 api 面**（不放进去宿主转发必然 undefined）。 */
+    /* 诊断层必须把这十五个名字**放进 api 面**（不放进去宿主转发必然 undefined）。
+     * ★ [v3.474.0 · L23-O5] 拆片后 api 不再是「一段冻结字面量」，而是装配面
+     *   `Object.freeze(Object.assign({}, _partApi, _coreApi))`，各片在片尾 `api.<name> = ...` 登记。
+     *   若继续抄字面量，会把「已登记」误报成「缺」（实测 15/15 全报缺）。
+     *   故主判据改成**真装载后的导出面**（D 已 bindDeps）：名字真在导出面上且是函数才算数 ——
+     *   这比扫字面量更强（字面量在、却被别处覆盖掉，照样报缺）。
+     *   旁证保留两形态（字面量键 或 片尾 `api.<name> =` 登记）：要求「有登记处」，
+     *   否则 api 面若靠某个整体 assign 兜出来，义务就不清楚了。 */
     const apiLine = (/var api = Object\.freeze\(\{([\s\S]*?)\}\);/.exec(dl) || [])[1] || '';
     for (const nm of ['institutionState', 'institutionAct', '_institutionLine',
         'relationDynamicsState', 'relationDynamicsAct', '_relationDynamicsLine',
         'agencyContractState', 'agencyContractAct', '_agencyContractLine',
         'symbolicEvolutionState', 'symbolicEvolutionAct', '_symbolicEvolutionLine',
         'eraInheritanceState', 'eraInheritanceAct', '_eraInheritanceLine']) {
-        if (!new RegExp('(^|[\\s,{])' + nm + '(\\s*[,}])').test(apiLine)) bad.push('api 面缺 ' + nm);
+        if (typeof D[nm] !== 'function') bad.push('api 面缺 ' + nm + '（真装载后取不到）');
+        const literalHit = new RegExp('(^|[\\s,{])' + nm + '(\\s*[,}])').test(apiLine);
+        const regHit = new RegExp('api\\.' + nm + ' = ').test(dl);
+        if (!literalHit && !regHit) bad.push('api 面没有 ' + nm + ' 的登记处（字面量/片尾登记皆无）');
     }
     /* 体检面逐件一行（不合并）—— 五件的标签必须各自在场。 */
     for (const label of ['组织记忆', '关系动力', '心智扩展', '意象变迁', '时代传承']) {

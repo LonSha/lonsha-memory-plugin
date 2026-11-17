@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-17T11:31:45.336Z",
-  "extra_js_count": 405,
-  "host_injected_count": 242,
-  "total_modules": 406,
+  "generated_at": "2026-11-17T13:09:30.144Z",
+  "extra_js_count": 408,
+  "host_injected_count": 252,
+  "total_modules": 409,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 394,
+  "active_count": 397,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -535,7 +535,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 3,
           "type": "file_binding"
         },
@@ -833,7 +833,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 2,
           "type": "file_binding"
         },
@@ -1006,12 +1006,17 @@
       "surface": [
         "LonShaCommitmentFollowthrough"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -1032,7 +1037,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 2,
           "type": "file_binding"
         },
@@ -1596,12 +1601,17 @@
       "surface": [
         "LonShaCrossSessionContinuation"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -2300,10 +2310,98 @@
         }
       ]
     },
+    "engine-diagnostic-lines-part-a.js": {
+      "module": "engine-diagnostic-lines-part-a.js",
+      "surface": [
+        "LonShaDiagParts"
+      ],
+      "prod_call_sites": 7,
+      "business_call_sites": 7,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-diagnostic-lines-part-b.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "engine-diagnostic-lines-part-c.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "engine-diagnostic-lines.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "engine-diagnostic-lines-part-b.js": {
+      "module": "engine-diagnostic-lines-part-b.js",
+      "surface": [
+        "LonShaDiagParts"
+      ],
+      "prod_call_sites": 7,
+      "business_call_sites": 7,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-diagnostic-lines-part-a.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "engine-diagnostic-lines-part-c.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "engine-diagnostic-lines.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "engine-diagnostic-lines-part-c.js": {
+      "module": "engine-diagnostic-lines-part-c.js",
+      "surface": [
+        "LonShaDiagParts"
+      ],
+      "prod_call_sites": 7,
+      "business_call_sites": 7,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-diagnostic-lines-part-a.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "engine-diagnostic-lines-part-b.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "engine-diagnostic-lines.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "engine-diagnostic-lines.js": {
       "module": "engine-diagnostic-lines.js",
       "surface": [
-        "LonShaDiagnosticLines"
+        "LonShaDiagnosticLines",
+        "LonShaDiagnosticLinesParts"
       ],
       "prod_call_sites": 294,
       "business_call_sites": 294,
@@ -2849,7 +2947,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -3014,7 +3112,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -3082,8 +3180,13 @@
       "why": "active",
       "callers": [
         {
+          "file": "engine-diagnostic-lines-part-b.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
           "file": "engine-diagnostic-lines.js",
-          "count": 3,
+          "count": 2,
           "type": "file_binding+exclusive_global"
         },
         {
@@ -3525,7 +3628,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 3,
           "type": "file_binding"
         },
@@ -3586,7 +3689,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 2,
           "type": "file_binding+exclusive_global"
         },
@@ -3656,12 +3759,17 @@
       "surface": [
         "LonShaForgettingExplanation"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -3720,7 +3828,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-b.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -4428,7 +4536,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -4471,7 +4579,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -4500,7 +4608,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -4643,7 +4751,7 @@
           "type": "file_binding"
         },
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-b.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -4969,7 +5077,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 2,
           "type": "file_binding"
         },
@@ -5207,12 +5315,17 @@
       "surface": [
         "LonShaMemoryBiasSurface"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -5269,12 +5382,17 @@
       "surface": [
         "LonShaMemoryCapacityWatermark"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -5307,12 +5425,17 @@
       "surface": [
         "LonShaMemoryCausalChainReplay"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -5393,12 +5516,17 @@
       "surface": [
         "LonShaMemoryConflictBench"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -5795,12 +5923,17 @@
       "surface": [
         "LonShaMemoryRevisionHistory"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -5821,7 +5954,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -6069,12 +6202,17 @@
       "surface": [
         "LonShaMemoryTraceSurface"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "public-interface.js",
           "count": 2,
@@ -6662,7 +6800,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -6885,7 +7023,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 2,
           "type": "file_binding"
         },
@@ -7066,7 +7204,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -7526,7 +7664,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-b.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -7565,7 +7703,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -7592,12 +7730,17 @@
       "surface": [
         "LonShaRecallRankingExplain"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "memory-trace-surface.js",
           "count": 2,
@@ -7675,7 +7818,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -7766,7 +7909,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -7790,7 +7933,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -8183,7 +8326,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 2,
           "type": "file_binding"
         },
@@ -8236,7 +8379,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-c.js",
           "count": 1,
           "type": "file_binding"
         },
@@ -8324,8 +8467,13 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
-          "count": 3,
+          "file": "engine-diagnostic-lines-part-a.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "engine-diagnostic-lines-part-c.js",
+          "count": 2,
           "type": "file_binding"
         },
         {
@@ -9605,7 +9753,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 3,
           "type": "file_binding"
         },
@@ -9741,7 +9889,7 @@
       "why": "active",
       "callers": [
         {
-          "file": "engine-diagnostic-lines.js",
+          "file": "engine-diagnostic-lines-part-a.js",
           "count": 1,
           "type": "file_binding"
         }

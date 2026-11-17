@@ -1,0 +1,14 @@
+{
+  "_note": "L23-O5：拆片模块清单（源码聚合读取的唯一真源）。新增/移动分片必须先改这里，再改 manifest.extra_js；缺片会使 readModuleSource 拼出占位符、assertModuleComplete 直接抛。",
+  "engine-diagnostic-lines.js": {
+    "parts": [
+      "engine-diagnostic-lines-part-a.js",
+      "engine-diagnostic-lines-part-b.js",
+      "engine-diagnostic-lines-part-c.js"
+    ],
+    "core_lines_max": 400,
+    "part_lines_max": 2100,
+    "lines_before_split": 5915,
+    "why": "5915 行单体无行数上界门；拆为装配面+三片并把上界钉进 tests/l23_o5_diag_split.test.mjs"
+  }
+}

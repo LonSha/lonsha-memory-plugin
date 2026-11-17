@@ -1,7 +1,7 @@
 {
   "schema": "realhost-readings@1",
-  "generatedAt": "2026-11-17T05:18:07.748Z",
-  "version": "3.472.0",
+  "generatedAt": "2026-11-17T12:44:59.894Z",
+  "version": "3.474.0",
   "verdict": "environment-unavailable",
   "cause": "no-st-endpoint",
   "causeGroup": "env",
