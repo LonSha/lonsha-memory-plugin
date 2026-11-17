@@ -1,7 +1,7 @@
 {
   "schema": "index-split@1",
   "plan": "L22-O1",
-  "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。",
+  "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。batch5 是收口段：辅助层已到顶，“剩下的怎么拆”写在那里。",
   "source": "index.js",
   "lines_before_split": 13546,
   "index_lines_max": 12963,
@@ -492,5 +492,38 @@
       "remaining_engine": "引擎主体仍在 index.js。下一批要么动「有 this / 依赖 let 状态」的函数（需要先有状态访问器的注入方案），要么就承认辅助层真正到顶。",
       "ruby_phone": "RubyPhone 侧仍未动（chat-view.js 19628 行）。"
     }
+  },
+  "batch5": {
+    "what": "收口段（L22-O1 终）：**不再搬迁**。本段把「为什么辅助层已经到顶」写成可核对的读数分类，并明确「若还要继继拆，必须改什么口径」。写了这一段，L22-O1 才算真正完结 —— 否则下一轮又会有人重算一遗闭包、再失望一次。",
+    "inventory": {
+      "index_lines": 12963,
+      "helpers_lines": 815,
+      "moved_functions": 29,
+      "top_level_function_decls": 214,
+      "top_level_function_decl_lines": 895,
+      "classes": 10,
+      "class_method_body_lines": 10440,
+      "methods_over_100_lines": {
+        "count": 15,
+        "lines": 4754
+      },
+      "reading": "index.js 的 12963 行里，**顶层函数声明只占 895 行**（已搬走 29 个），剩下约 1.04 万行在 10 个 class 的方法体里（≥100 行的方法 15 个 / 4754 行，最大 565 行的 onBeforeGeneration）。换句话说：辅助层已经搬完，剩下的不是「函数」，是类实现。"
+    },
+    "why_nothing_left": [
+      "54 个候选里 62 个**装载期可达**（实测：_probe_init_reach.mjs）——搬走就装载即抛。这条不是保守，是 b3 实测出来的：numOr、全部 _xxxLib/_newXxx、errLog、hintForError 都在里面。",
+      "124 个（285 行）只注入 _moduleLib ⇒ 被 R6 拦。理由不是形式主义：取库口搬进 helpers，纯函数模块就变回取库口集合，依赖面一点没变，只把行数挪了个地方。",
+      "21 个闭包仍未满足 ⇒ 它们依赖的是 let 状态（_moduleFailures / _credCooldowns / plugin …）、同名双声明（parseStoryDateLoose×2）、或模块级常量。在**逐字节搬迁**纪律下不可搬：函数体里写的是 _moduleFailures.has(x)，要改成 getter 调用才能注入，那就是改代码、是改语义，不是搬。",
+      "1 个（_newRelativeTimeHelper 5 行）注入两个库访问器（_memoryBooksLib / _newMemoryBooks）⇒ 同样是依赖面外移，收益 5 行，不值。",
+      "2 个顶层函数含 this（_qaHelpDeps 12 行 / _ledgerBooks 10 行）⇒ helpers 是纯函数、不绑 this，搬走必须改成显式参数传入，那就是改签名、改语义。"
+    ],
+    "what_would_be_needed": {
+      "statement": "如果确实还要继续压 index.js，要动的不是「选哪些函数」，而是**口径本身**。三个候选项，每个都要单独的计划与判据：",
+      "options": [
+        "① 类方法外移：把 class 里 10440 行的辅助方法搬到单独文件，但必须有 this 绑定机制（如 fromClass(obj) 把方法装回去，或改成显式参数）。风险：事件注册/生命周期顺序会变，不是纯搬运。",
+        "② 状态访问器注入：给 helpers 提供 _moduleFailureSnapshot 这类读接口，并把函数体里的 _moduleFailures.has(x) 改成 snapshot().has(x)。代价：这是**改代码**，逐字节对比与 sha256 校验将失效，需要新的等价性证明方式（行为快照 + 双跑对拍）。",
+        "③ 保留现状：index.js 12963 行、helpers 816 行。已经拆掉的是真正无依赖的那一层（29 个函数 / 539+ 行）。"
+      ]
+    },
+    "done_definition": "L22-O1 的「做完」= ①辅助层无剩余可搬（已证明）②每一项未尽事宜都有具名、可复核的拦截理由（上面五条）③继续拆的前提条件写清（上面三条）。三条都满足，故本计划在此关闭。"
   }
 }
