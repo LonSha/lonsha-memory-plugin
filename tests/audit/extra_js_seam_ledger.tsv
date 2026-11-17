@@ -1,4 +1,5 @@
 module	loaded	seam_referenced	referenced_by	verdict
+index-helpers.js	yes	yes	index.js	host-seam
 ledger-entity.js	yes	yes	commitment-ledger.js;docs/planning/2026-10-22-product-probe-v6.mjs;echo-ledger.js	host-seam
 psychological-defense-engine.js	yes	yes	memory-symphony-orchestrator.js	host-seam
 hypergraph-causal-backtracking-hub.js	yes	yes	memory-symphony-orchestrator.js	host-seam

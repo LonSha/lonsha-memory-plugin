@@ -13,6 +13,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { breakSource } from './_break_kit.mjs';
 import { auditDispositions, isGreyReason, MIN_WHY_CHARS } from './audit/scan_module_disposition.mjs';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
@@ -149,6 +152,38 @@ assert('实质理由不被误伤', isGreyReason(disposition.entries[loadSurface[
   const r = auditDispositions({ rootDir: ROOT, ledger: led, disposition, loadModules: false });
   assert('负控制⑦：装载面模块扫成 0 → fail-closed exit 2（不许「通过」）',
     r.status === 'fail_closed' && r.exitCode === 2, { status: r.status, exitCode: r.exitCode });
+}
+
+
+/* ── 负控制 ⑧ 门禁本体被打瞎后，① 必须转绿（两向自证） ─────────────
+ * 为什么补这一组：scan_fixture_sync 的 E4 判「这个门禁有没有观测点」——
+ *   上面 ①–⑦ 全是**喂坏数据**，没有一处**打坏判据本身**。于是一个问题没人回答：
+ *   若把灰理由那条判据改成恒假，① 还会不会红？不会的话，① 的红就不是那条判据在守。
+ * 手法：真破坏门禁源码（breakSource，锚点须恰中 1 次）→ 写到临时 .mjs →
+ *   带 query 动态 import（换掉模块实例，不吃缓存）→ 用**同一个坏数据**重跑。 */
+{
+  const gatePath = path.join(ROOT, 'tests', 'audit', 'scan_module_disposition.mjs');
+  const gateSrc = fs.readFileSync(gatePath, 'utf8');
+  const blind = breakSource(gateSrc, 'if (isGreyReason(why, greyTags) || [...why].length < MIN_WHY_CHARS) {', 'if (false) {', '灰理由判据');
+  const tmp = path.join(os.tmpdir(), 'l22o7_gate_broken_' + process.pid + '.mjs');
+  fs.writeFileSync(tmp, blind, 'utf8');
+  let brokenMod = null;
+  try {
+    brokenMod = await import(pathToFileURL(tmp).href + '?v=' + process.pid);
+  } finally {
+    /* 模块已加载进内存，源文件可以立刻删（不留在盘上被别的扫描面当垃圾） */
+    try { fs.unlinkSync(tmp); } catch (_e) { /* 清理失败不影响结论 */ }
+  }
+  const led = { modules: { 'a.js': { module: 'a.js', load_surface_only: true, business_call_sites: 0 }, 'b.js': { module: 'b.js', load_surface_only: false, business_call_sites: 3 } } };
+  const disp = {
+    disposition_vocabulary: ['declared_dormant'],
+    reason_kind_vocabulary: ['superseded_by_active_duplicate'],
+    grey_tags: disposition.grey_tags,
+    entries: { 'a.js': { disposition: 'declared_dormant', reason_kind: 'superseded_by_active_duplicate', why: 'load_surface_only', superseded_by: ['b.js'], declared_api: [] } },
+  };
+  const r = brokenMod.auditDispositions({ rootDir: ROOT, ledger: led, disposition: disp, loadModules: false });
+  assert('负控制⑧：门禁的灰理由判据被打瞎后，同一个坏数据转绿（两向自证）',
+    (r.violations.greyReason || []).length === 0, r.violations.greyReason);
 }
 
 console.log('\n' + pass + ' 通过, ' + fail + ' 失败');

@@ -1,21 +1,59 @@
 {
-  "schema": "index-structure@1",
+  "schema": "index-structure@2",
   "target": "index.js",
-  "totalLines": 13546,
-  "blockCount": 175,
-  "coveredLines": 12295,
+  "method": "top-level-slice",
+  "method_note": "按顶层条目切段（非括号配对）：条目结束 = 下一顶层起点前一行。足够判“拆了多少块/多大”，不作语法边界用。",
+  "totalLines": 13350,
+  "blockCount": 307,
+  "coveredLines": 13338,
   "byKind": {
-    "function": 164,
+    "var": 60,
+    "function": 236,
     "class": 10,
     "object": 1
   },
   "blocks": [
     {
+      "kind": "var",
+      "name": "PLUGIN_NAME",
+      "start": 3,
+      "end": 3,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "VERSION",
+      "start": 4,
+      "end": 10,
+      "size": 7
+    },
+    {
+      "kind": "var",
+      "name": "EXPECTED_EVENT_TYPES",
+      "start": 11,
+      "end": 14,
+      "size": 4
+    },
+    {
+      "kind": "var",
+      "name": "SHIFT_FACE_LABELS",
+      "start": 15,
+      "end": 40,
+      "size": 26
+    },
+    {
       "kind": "function",
       "name": "_moduleLib",
       "start": 41,
-      "end": 65,
-      "size": 25
+      "end": 67,
+      "size": 27
+    },
+    {
+      "kind": "var",
+      "name": "_moduleFailures",
+      "start": 68,
+      "end": 68,
+      "size": 1
     },
     {
       "kind": "function",
@@ -28,1212 +66,2101 @@
       "kind": "function",
       "name": "_moduleFailureSnapshot",
       "start": 76,
-      "end": 81,
+      "end": 95,
+      "size": 20
+    },
+    {
+      "kind": "var",
+      "name": "_indexHelpersLib",
+      "start": 96,
+      "end": 96,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "_indexHelpersProbed",
+      "start": 97,
+      "end": 97,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_indexHelpers",
+      "start": 98,
+      "end": 104,
+      "size": 7
+    },
+    {
+      "kind": "function",
+      "name": "_indexHelperCall",
+      "start": 105,
+      "end": 113,
+      "size": 9
+    },
+    {
+      "kind": "var",
+      "name": "loadExtraJsScript",
+      "start": 114,
+      "end": 114,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "estimateTextTokens",
+      "start": 115,
+      "end": 115,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "hash32",
+      "start": 116,
+      "end": 116,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "stripMemoryOpsTags",
+      "start": 117,
+      "end": 117,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "extractTimeTagFast",
+      "start": 118,
+      "end": 118,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "sanitizeJson",
+      "start": 119,
+      "end": 119,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "safeJsonParse",
+      "start": 120,
+      "end": 120,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "cyclePositionFor",
+      "start": 121,
+      "end": 121,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "_initEbbingMeta",
+      "start": 122,
+      "end": 122,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "ledgerClip",
+      "start": 123,
+      "end": 128,
       "size": 6
     },
     {
       "kind": "function",
       "name": "_schemaMigrationLib",
-      "start": 87,
-      "end": 89,
-      "size": 3
+      "start": 129,
+      "end": 132,
+      "size": 4
     },
     {
       "kind": "function",
       "name": "_moduleRegistryLib",
-      "start": 91,
-      "end": 93,
-      "size": 3
+      "start": 133,
+      "end": 146,
+      "size": 14
+    },
+    {
+      "kind": "var",
+      "name": "_changesetStore",
+      "start": 147,
+      "end": 147,
+      "size": 1
     },
     {
       "kind": "function",
       "name": "_changeset",
-      "start": 106,
-      "end": 114,
-      "size": 9
+      "start": 148,
+      "end": 163,
+      "size": 16
     },
     {
       "kind": "function",
       "name": "_cacheIdentityLib",
-      "start": 122,
-      "end": 124,
-      "size": 3
+      "start": 164,
+      "end": 171,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_cacheWorkloadLib",
-      "start": 130,
-      "end": 132,
-      "size": 3
+      "start": 172,
+      "end": 187,
+      "size": 16
     },
     {
       "kind": "function",
       "name": "_strengthPolicyLib",
-      "start": 146,
-      "end": 148,
+      "start": 188,
+      "end": 190,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_strengthProposalLib",
-      "start": 149,
-      "end": 151,
-      "size": 3
+      "start": 191,
+      "end": 202,
+      "size": 12
     },
     {
       "kind": "function",
       "name": "_stmCloseQuotaLib",
-      "start": 161,
-      "end": 163,
-      "size": 3
+      "start": 203,
+      "end": 207,
+      "size": 5
+    },
+    {
+      "kind": "var",
+      "name": "ARCHIVE_TOP_LEVEL_KEYS",
+      "start": 208,
+      "end": 270,
+      "size": 63
+    },
+    {
+      "kind": "var",
+      "name": "ARCHIVE_TOP_LEVEL_KEY_SET",
+      "start": 271,
+      "end": 278,
+      "size": 8
+    },
+    {
+      "kind": "var",
+      "name": "CARRYOVER_CONTRACT_KEYS",
+      "start": 279,
+      "end": 295,
+      "size": 17
+    },
+    {
+      "kind": "var",
+      "name": "CARRYOVER_EXEMPT_KEYS",
+      "start": 296,
+      "end": 335,
+      "size": 40
+    },
+    {
+      "kind": "var",
+      "name": "ARCHIVE_SCHEMA_VERSION",
+      "start": 336,
+      "end": 336,
+      "size": 1
     },
     {
       "kind": "function",
       "name": "compareVersion",
-      "start": 295,
-      "end": 305,
-      "size": 11
+      "start": 337,
+      "end": 349,
+      "size": 13
+    },
+    {
+      "kind": "var",
+      "name": "STORAGE_FP_FIELDS",
+      "start": 350,
+      "end": 351,
+      "size": 2
+    },
+    {
+      "kind": "var",
+      "name": "_credCooldowns",
+      "start": 352,
+      "end": 352,
+      "size": 1
     },
     {
       "kind": "function",
       "name": "_getCredKey",
-      "start": 311,
-      "end": 314,
+      "start": 353,
+      "end": 356,
       "size": 4
     },
     {
       "kind": "function",
       "name": "clearApiCooldowns",
-      "start": 315,
-      "end": 317,
+      "start": 357,
+      "end": 359,
       "size": 3
     },
     {
       "kind": "function",
       "name": "getApiCooldownStats",
-      "start": 318,
-      "end": 325,
-      "size": 8
+      "start": 360,
+      "end": 370,
+      "size": 11
     },
     {
       "kind": "function",
       "name": "fetchWithTimeoutRetry",
-      "start": 329,
-      "end": 384,
-      "size": 56
+      "start": 371,
+      "end": 430,
+      "size": 60
     },
     {
       "kind": "function",
       "name": "normalizeCharName",
-      "start": 389,
-      "end": 393,
-      "size": 5
+      "start": 431,
+      "end": 442,
+      "size": 12
+    },
+    {
+      "kind": "var",
+      "name": "INJECT_POSITION_IN_CHAT",
+      "start": 443,
+      "end": 443,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "INJECT_ROLE_SYSTEM",
+      "start": 444,
+      "end": 446,
+      "size": 3
+    },
+    {
+      "kind": "var",
+      "name": "INJECT_SLOTS",
+      "start": 447,
+      "end": 450,
+      "size": 4
     },
     {
       "kind": "function",
       "name": "writeInjectSlot",
-      "start": 409,
-      "end": 416,
+      "start": 451,
+      "end": 458,
       "size": 8
     },
     {
       "kind": "function",
       "name": "clearInjectSlots",
-      "start": 417,
-      "end": 419,
-      "size": 3
+      "start": 459,
+      "end": 485,
+      "size": 27
+    },
+    {
+      "kind": "var",
+      "name": "_LOADED_SRC",
+      "start": 486,
+      "end": 489,
+      "size": 4
+    },
+    {
+      "kind": "var",
+      "name": "EXTRA_JS_FILE_RE",
+      "start": 490,
+      "end": 491,
+      "size": 2
+    },
+    {
+      "kind": "var",
+      "name": "_extraJsLoad",
+      "start": 492,
+      "end": 492,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "extraJsLoadReport",
+      "start": 493,
+      "end": 496,
+      "size": 4
     },
     {
       "kind": "function",
       "name": "_extraJsBaseDir",
-      "start": 455,
-      "end": 476,
-      "size": 22
-    },
-    {
-      "kind": "function",
-      "name": "loadExtraJsScript",
-      "start": 478,
-      "end": 489,
-      "size": 12
+      "start": 497,
+      "end": 519,
+      "size": 23
     },
     {
       "kind": "function",
       "name": "ensureExtraJsOnce",
-      "start": 491,
-      "end": 522,
+      "start": 520,
+      "end": 551,
       "size": 32
     },
     {
       "kind": "function",
-      "name": "estimateTextTokens",
-      "start": 526,
-      "end": 536,
-      "size": 11
-    },
-    {
-      "kind": "function",
-      "name": "hash32",
-      "start": 540,
-      "end": 545,
-      "size": 6
-    },
-    {
-      "kind": "function",
       "name": "msgTextOf",
-      "start": 546,
-      "end": 552,
+      "start": 553,
+      "end": 559,
       "size": 7
     },
     {
       "kind": "function",
       "name": "msgFpOf",
-      "start": 553,
-      "end": 557,
-      "size": 5
-    },
-    {
-      "kind": "function",
-      "name": "extractThinkingChain",
-      "start": 562,
-      "end": 858,
-      "size": 297
-    },
-    {
-      "kind": "function",
-      "name": "thinkingAnchorHeader",
-      "start": 617,
-      "end": 619,
-      "size": 3
-    },
-    {
-      "kind": "function",
-      "name": "extractSynopsisFast",
-      "start": 622,
-      "end": 632,
-      "size": 11
-    },
-    {
-      "kind": "function",
-      "name": "extractMemoryOpsFromText",
-      "start": 635,
-      "end": 691,
-      "size": 57
-    },
-    {
-      "kind": "function",
-      "name": "buildNpcTierInjection",
-      "start": 693,
-      "end": 719,
-      "size": 27
-    },
-    {
-      "kind": "function",
-      "name": "fmtNpcTiesContext",
-      "start": 722,
-      "end": 751,
-      "size": 30
-    },
-    {
-      "kind": "function",
-      "name": "classifyRelationshipType",
-      "start": 753,
-      "end": 764,
-      "size": 12
-    },
-    {
-      "kind": "function",
-      "name": "detectEthicsConflict",
-      "start": 766,
-      "end": 793,
-      "size": 28
-    },
-    {
-      "kind": "function",
-      "name": "stripMemoryOpsTags",
-      "start": 796,
-      "end": 805,
-      "size": 10
-    },
-    {
-      "kind": "function",
-      "name": "extractTimeTagFast",
-      "start": 808,
-      "end": 819,
-      "size": 12
-    },
-    {
-      "kind": "function",
-      "name": "sanitizeJson",
-      "start": 859,
-      "end": 916,
-      "size": 58
-    },
-    {
-      "kind": "function",
-      "name": "safeJsonParse",
-      "start": 1000,
-      "end": 1011,
-      "size": 12
-    },
-    {
-      "kind": "function",
-      "name": "hintForError",
-      "start": 1012,
-      "end": 1020,
+      "start": 560,
+      "end": 568,
       "size": 9
     },
     {
       "kind": "function",
-      "name": "errLog",
-      "start": 1022,
-      "end": 1037,
-      "size": 16
+      "name": "extractThinkingChain",
+      "start": 569,
+      "end": 623,
+      "size": 55
     },
     {
       "kind": "function",
-      "name": "numOr",
-      "start": 1044,
-      "end": 1051,
-      "size": 8
+      "name": "thinkingAnchorHeader",
+      "start": 624,
+      "end": 627,
+      "size": 4
+    },
+    {
+      "kind": "var",
+      "name": "SYNOPSIS_BLOCK_RE",
+      "start": 628,
+      "end": 628,
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_memoryLedgersLib",
-      "start": 1076,
-      "end": 1078,
-      "size": 3
-    },
-    {
-      "kind": "class",
-      "name": "MemoryLedgerFallback",
-      "start": 1083,
-      "end": 1102,
-      "size": 20
-    },
-    {
-      "kind": "function",
-      "name": "_newMemoryLedger",
-      "start": 1104,
-      "end": 1108,
-      "size": 5
-    },
-    {
-      "kind": "function",
-      "name": "_memoryAuxLib",
-      "start": 1117,
-      "end": 1119,
-      "size": 3
-    },
-    {
-      "kind": "function",
-      "name": "_memoryGcLib",
-      "start": 1121,
-      "end": 1123,
-      "size": 3
-    },
-    {
-      "kind": "class",
-      "name": "MemoryAuxFallback",
-      "start": 1129,
-      "end": 1167,
-      "size": 39
-    },
-    {
-      "kind": "function",
-      "name": "_newMemoryAux",
-      "start": 1170,
-      "end": 1175,
-      "size": 6
-    },
-    {
-      "kind": "function",
-      "name": "_narrativeGeneratorsLib",
-      "start": 1184,
-      "end": 1186,
-      "size": 3
-    },
-    {
-      "kind": "class",
-      "name": "NarrativeGeneratorFallback",
-      "start": 1191,
-      "end": 1217,
-      "size": 27
-    },
-    {
-      "kind": "function",
-      "name": "_newNarrativeGenerator",
-      "start": 1219,
-      "end": 1223,
-      "size": 5
-    },
-    {
-      "kind": "function",
-      "name": "_memoryBooksLib",
-      "start": 1235,
-      "end": 1237,
-      "size": 3
-    },
-    {
-      "kind": "class",
-      "name": "MemoryBooksFallback",
-      "start": 1243,
-      "end": 1318,
-      "size": 76
-    },
-    {
-      "kind": "function",
-      "name": "_newMemoryBooks",
-      "start": 1322,
-      "end": 1326,
-      "size": 5
-    },
-    {
-      "kind": "function",
-      "name": "_newRelativeTimeHelper",
-      "start": 1331,
-      "end": 1335,
-      "size": 5
-    },
-    {
-      "kind": "function",
-      "name": "_memoryOrgansLib",
-      "start": 1351,
-      "end": 1353,
-      "size": 3
-    },
-    {
-      "kind": "class",
-      "name": "OrganFallback",
-      "start": 1360,
-      "end": 1533,
-      "size": 174
-    },
-    {
-      "kind": "function",
-      "name": "_newMemoryOrgan",
-      "start": 1537,
-      "end": 1541,
-      "size": 5
-    },
-    {
-      "kind": "function",
-      "name": "_bindOrganDeps",
-      "start": 1546,
-      "end": 1563,
-      "size": 18
-    },
-    {
-      "kind": "function",
-      "name": "_memoryCoreLib",
-      "start": 1579,
-      "end": 1581,
-      "size": 3
-    },
-    {
-      "kind": "class",
-      "name": "CoreFallback",
-      "start": 1587,
-      "end": 1698,
-      "size": 112
-    },
-    {
-      "kind": "function",
-      "name": "_newCore",
-      "start": 1702,
-      "end": 1706,
-      "size": 5
-    },
-    {
-      "kind": "function",
-      "name": "_bindCoreDeps",
-      "start": 1711,
-      "end": 1725,
-      "size": 15
-    },
-    {
-      "kind": "function",
-      "name": "_memoryConfigLib",
-      "start": 1742,
-      "end": 1744,
-      "size": 3
-    },
-    {
-      "kind": "class",
-      "name": "ConfigManagerFallback",
-      "start": 1751,
-      "end": 1756,
-      "size": 6
-    },
-    {
-      "kind": "function",
-      "name": "_newConfigManager",
-      "start": 1765,
-      "end": 1777,
+      "name": "extractSynopsisFast",
+      "start": 629,
+      "end": 641,
       "size": 13
     },
     {
       "kind": "function",
-      "name": "_bindConfigDeps",
-      "start": 1787,
-      "end": 1800,
-      "size": 14
+      "name": "extractMemoryOpsFromText",
+      "start": 642,
+      "end": 699,
+      "size": 58
     },
     {
       "kind": "function",
-      "name": "_formatBindDepsRow",
-      "start": 1808,
-      "end": 1832,
-      "size": 25
+      "name": "buildNpcTierInjection",
+      "start": 700,
+      "end": 728,
+      "size": 29
     },
     {
       "kind": "function",
-      "name": "cyclePositionFor",
-      "start": 1887,
-      "end": 1890,
-      "size": 4
+      "name": "fmtNpcTiesContext",
+      "start": 729,
+      "end": 759,
+      "size": 31
     },
     {
       "kind": "function",
-      "name": "parseStoryTimeConstraint",
-      "start": 1894,
-      "end": 1920,
-      "size": 27
+      "name": "classifyRelationshipType",
+      "start": 760,
+      "end": 772,
+      "size": 13
     },
     {
       "kind": "function",
-      "name": "filterTimelineByConstraint",
-      "start": 1922,
-      "end": 1968,
-      "size": 47
+      "name": "detectEthicsConflict",
+      "start": 773,
+      "end": 800,
+      "size": 28
+    },
+    {
+      "kind": "var",
+      "name": "stripInternalTags",
+      "start": 802,
+      "end": 804,
+      "size": 3
+    },
+    {
+      "kind": "var",
+      "name": "_errBuf",
+      "start": 805,
+      "end": 807,
+      "size": 3
+    },
+    {
+      "kind": "var",
+      "name": "_ERROR_HINTS",
+      "start": 808,
+      "end": 835,
+      "size": 28
     },
     {
       "kind": "function",
-      "name": "isSystemHiddenMsg",
-      "start": 1971,
-      "end": 1976,
-      "size": 6
-    },
-    {
-      "kind": "function",
-      "name": "decayScore",
-      "start": 1982,
-      "end": 2004,
-      "size": 23
-    },
-    {
-      "kind": "function",
-      "name": "_initEbbingMeta",
-      "start": 2006,
-      "end": 2015,
+      "name": "hintForError",
+      "start": 836,
+      "end": 845,
       "size": 10
     },
     {
       "kind": "function",
+      "name": "errLog",
+      "start": 846,
+      "end": 867,
+      "size": 22
+    },
+    {
+      "kind": "function",
+      "name": "numOr",
+      "start": 868,
+      "end": 880,
+      "size": 13
+    },
+    {
+      "kind": "var",
+      "name": "_configDefaultsTemplate",
+      "start": 881,
+      "end": 888,
+      "size": 8
+    },
+    {
+      "kind": "var",
+      "name": "_FACTS_PROMPT_ANCHOR_OLD",
+      "start": 889,
+      "end": 889,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "_FACTS_PROMPT_ANCHOR_NEW",
+      "start": 890,
+      "end": 890,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "_FACTS_PROMPT_IDEMPOTENT",
+      "start": 891,
+      "end": 899,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_memoryLedgersLib",
+      "start": 900,
+      "end": 906,
+      "size": 7
+    },
+    {
+      "kind": "class",
+      "name": "MemoryLedgerFallback",
+      "start": 907,
+      "end": 927,
+      "size": 21
+    },
+    {
+      "kind": "function",
+      "name": "_newMemoryLedger",
+      "start": 928,
+      "end": 940,
+      "size": 13
+    },
+    {
+      "kind": "function",
+      "name": "_memoryAuxLib",
+      "start": 941,
+      "end": 944,
+      "size": 4
+    },
+    {
+      "kind": "function",
+      "name": "_memoryGcLib",
+      "start": 945,
+      "end": 952,
+      "size": 8
+    },
+    {
+      "kind": "class",
+      "name": "MemoryAuxFallback",
+      "start": 953,
+      "end": 993,
+      "size": 41
+    },
+    {
+      "kind": "function",
+      "name": "_newMemoryAux",
+      "start": 994,
+      "end": 1007,
+      "size": 14
+    },
+    {
+      "kind": "function",
+      "name": "_narrativeGeneratorsLib",
+      "start": 1008,
+      "end": 1014,
+      "size": 7
+    },
+    {
+      "kind": "class",
+      "name": "NarrativeGeneratorFallback",
+      "start": 1015,
+      "end": 1042,
+      "size": 28
+    },
+    {
+      "kind": "function",
+      "name": "_newNarrativeGenerator",
+      "start": 1043,
+      "end": 1058,
+      "size": 16
+    },
+    {
+      "kind": "function",
+      "name": "_memoryBooksLib",
+      "start": 1059,
+      "end": 1066,
+      "size": 8
+    },
+    {
+      "kind": "class",
+      "name": "MemoryBooksFallback",
+      "start": 1067,
+      "end": 1145,
+      "size": 79
+    },
+    {
+      "kind": "function",
+      "name": "_newMemoryBooks",
+      "start": 1146,
+      "end": 1154,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_newRelativeTimeHelper",
+      "start": 1155,
+      "end": 1174,
+      "size": 20
+    },
+    {
+      "kind": "function",
+      "name": "_memoryOrgansLib",
+      "start": 1175,
+      "end": 1183,
+      "size": 9
+    },
+    {
+      "kind": "class",
+      "name": "OrganFallback",
+      "start": 1184,
+      "end": 1360,
+      "size": 177
+    },
+    {
+      "kind": "function",
+      "name": "_newMemoryOrgan",
+      "start": 1361,
+      "end": 1369,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_bindOrganDeps",
+      "start": 1370,
+      "end": 1402,
+      "size": 33
+    },
+    {
+      "kind": "function",
+      "name": "_memoryCoreLib",
+      "start": 1403,
+      "end": 1410,
+      "size": 8
+    },
+    {
+      "kind": "class",
+      "name": "CoreFallback",
+      "start": 1411,
+      "end": 1525,
+      "size": 115
+    },
+    {
+      "kind": "function",
+      "name": "_newCore",
+      "start": 1526,
+      "end": 1534,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_bindCoreDeps",
+      "start": 1535,
+      "end": 1565,
+      "size": 31
+    },
+    {
+      "kind": "function",
+      "name": "_memoryConfigLib",
+      "start": 1566,
+      "end": 1574,
+      "size": 9
+    },
+    {
+      "kind": "class",
+      "name": "ConfigManagerFallback",
+      "start": 1575,
+      "end": 1588,
+      "size": 14
+    },
+    {
+      "kind": "function",
+      "name": "_newConfigManager",
+      "start": 1589,
+      "end": 1610,
+      "size": 22
+    },
+    {
+      "kind": "function",
+      "name": "_bindConfigDeps",
+      "start": 1611,
+      "end": 1631,
+      "size": 21
+    },
+    {
+      "kind": "function",
+      "name": "_formatBindDepsRow",
+      "start": 1632,
+      "end": 1663,
+      "size": 32
+    },
+    {
+      "kind": "var",
+      "name": "s",
+      "start": 1664,
+      "end": 1665,
+      "size": 2
+    },
+    {
+      "kind": "var",
+      "name": "m",
+      "start": 1666,
+      "end": 1669,
+      "size": 4
+    },
+    {
+      "kind": "var",
+      "name": "monthId",
+      "start": 1670,
+      "end": 1670,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "dayM",
+      "start": 1671,
+      "end": 1675,
+      "size": 5
+    },
+    {
+      "kind": "var",
+      "name": "ev",
+      "start": 1676,
+      "end": 1676,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "now",
+      "start": 1677,
+      "end": 1688,
+      "size": 12
+    },
+    {
+      "kind": "var",
+      "name": "mkTs",
+      "start": 1689,
+      "end": 1689,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "evTs",
+      "start": 1690,
+      "end": 1691,
+      "size": 2
+    },
+    {
+      "kind": "var",
+      "name": "days",
+      "start": 1692,
+      "end": 1705,
+      "size": 14
+    },
+    {
+      "kind": "var",
+      "name": "abs",
+      "start": 1706,
+      "end": 1713,
+      "size": 8
+    },
+    {
+      "kind": "function",
+      "name": "parseStoryTimeConstraint",
+      "start": 1714,
+      "end": 1741,
+      "size": 28
+    },
+    {
+      "kind": "function",
+      "name": "filterTimelineByConstraint",
+      "start": 1742,
+      "end": 1790,
+      "size": 49
+    },
+    {
+      "kind": "function",
+      "name": "isSystemHiddenMsg",
+      "start": 1791,
+      "end": 1801,
+      "size": 11
+    },
+    {
+      "kind": "function",
+      "name": "decayScore",
+      "start": 1802,
+      "end": 1826,
+      "size": 25
+    },
+    {
+      "kind": "var",
+      "name": "_recallDedupState",
+      "start": 1827,
+      "end": 1827,
+      "size": 1
+    },
+    {
+      "kind": "function",
       "name": "recallDedupMark",
-      "start": 2019,
-      "end": 2033,
+      "start": 1828,
+      "end": 1842,
       "size": 15
     },
     {
       "kind": "function",
       "name": "recallDedupRemember",
-      "start": 2034,
-      "end": 2039,
-      "size": 6
+      "start": 1843,
+      "end": 1850,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "resetRecallDedup",
-      "start": 2042,
-      "end": 2044,
+      "start": 1851,
+      "end": 1873,
+      "size": 23
+    },
+    {
+      "kind": "var",
+      "name": "LEDGER_ITEM_ACTIONS",
+      "start": 1874,
+      "end": 1874,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "LEDGER_REMOVE_STATES",
+      "start": 1875,
+      "end": 1875,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "LEDGER_ITEM_LIMITS",
+      "start": 1876,
+      "end": 1881,
+      "size": 6
+    },
+    {
+      "kind": "var",
+      "name": "LEDGER_HOLDER_PLACEHOLDERS",
+      "start": 1882,
+      "end": 1884,
       "size": 3
     },
     {
       "kind": "function",
       "name": "ledgerItemKey",
-      "start": 2076,
-      "end": 2085,
-      "size": 10
-    },
-    {
-      "kind": "function",
-      "name": "ledgerClip",
-      "start": 2087,
-      "end": 2091,
-      "size": 5
+      "start": 1885,
+      "end": 1901,
+      "size": 17
     },
     {
       "kind": "function",
       "name": "validateLedgerItemOp",
-      "start": 2098,
-      "end": 2182,
-      "size": 85
+      "start": 1902,
+      "end": 1991,
+      "size": 90
     },
     {
       "kind": "function",
       "name": "validateLedgerItemOps",
-      "start": 2188,
-      "end": 2208,
-      "size": 21
+      "start": 1992,
+      "end": 2014,
+      "size": 23
     },
     {
       "kind": "function",
       "name": "validateCarriedItems",
-      "start": 2211,
-      "end": 2239,
+      "start": 2015,
+      "end": 2043,
       "size": 29
     },
     {
       "kind": "class",
       "name": "MemoryEngine",
-      "start": 2241,
-      "end": 10711,
-      "size": 8471
+      "start": 2045,
+      "end": 10525,
+      "size": 8481
     },
     {
       "kind": "function",
       "name": "_ledgerReplayLib",
-      "start": 10722,
-      "end": 10724,
-      "size": 3
+      "start": 10526,
+      "end": 10533,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_archiveShiftLib",
-      "start": 10730,
-      "end": 10732,
-      "size": 3
+      "start": 10534,
+      "end": 10542,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_sleepAwakenLib",
-      "start": 10739,
-      "end": 10741,
+      "start": 10543,
+      "end": 10545,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_sceneBookLib",
-      "start": 10742,
-      "end": 10744,
-      "size": 3
+      "start": 10546,
+      "end": 10554,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_summaryProvenanceLib",
-      "start": 10751,
-      "end": 10753,
-      "size": 3
+      "start": 10555,
+      "end": 10558,
+      "size": 4
     },
     {
       "kind": "function",
       "name": "_evidenceSourceLocatorLib",
-      "start": 10755,
-      "end": 10757,
-      "size": 3
+      "start": 10559,
+      "end": 10564,
+      "size": 6
     },
     {
       "kind": "function",
       "name": "_branchGuardLib",
-      "start": 10761,
-      "end": 10763,
-      "size": 3
+      "start": 10565,
+      "end": 10574,
+      "size": 10
     },
     {
       "kind": "function",
       "name": "_floorIdentityLib",
-      "start": 10771,
-      "end": 10773,
-      "size": 3
+      "start": 10575,
+      "end": 10582,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_archiveAuditLib",
-      "start": 10779,
-      "end": 10781,
-      "size": 3
+      "start": 10583,
+      "end": 10587,
+      "size": 5
     },
     {
       "kind": "function",
       "name": "_crosslinkLib",
-      "start": 10784,
-      "end": 10786,
-      "size": 3
+      "start": 10588,
+      "end": 10595,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_emotionOppositeLib",
-      "start": 10792,
-      "end": 10794,
-      "size": 3
+      "start": 10596,
+      "end": 10601,
+      "size": 6
     },
     {
       "kind": "function",
       "name": "_costLedgerLib",
-      "start": 10798,
-      "end": 10800,
-      "size": 3
+      "start": 10602,
+      "end": 10609,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_costForecastLib",
-      "start": 10806,
-      "end": 10808,
-      "size": 3
+      "start": 10610,
+      "end": 10619,
+      "size": 10
     },
     {
       "kind": "function",
       "name": "_injectionReceiptLib",
-      "start": 10816,
-      "end": 10818,
-      "size": 3
+      "start": 10620,
+      "end": 10624,
+      "size": 5
     },
     {
       "kind": "function",
       "name": "_generationMaterialReconcileLib",
-      "start": 10821,
-      "end": 10823,
-      "size": 3
+      "start": 10625,
+      "end": 10628,
+      "size": 4
     },
     {
       "kind": "function",
       "name": "_recallRouteFeedbackHubLib",
-      "start": 10825,
-      "end": 10827,
-      "size": 3
+      "start": 10629,
+      "end": 10636,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_projectionLib",
-      "start": 10833,
-      "end": 10835,
-      "size": 3
+      "start": 10637,
+      "end": 10645,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_factAdmissionLib",
-      "start": 10842,
-      "end": 10844,
-      "size": 3
+      "start": 10646,
+      "end": 10653,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_factVersionLib",
-      "start": 10850,
-      "end": 10852,
-      "size": 3
+      "start": 10654,
+      "end": 10663,
+      "size": 10
     },
     {
       "kind": "function",
       "name": "_memoryTypeLib",
-      "start": 10860,
-      "end": 10862,
-      "size": 3
+      "start": 10664,
+      "end": 10673,
+      "size": 10
     },
     {
       "kind": "function",
       "name": "_factStateLib",
-      "start": 10870,
-      "end": 10872,
-      "size": 3
+      "start": 10674,
+      "end": 10681,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_factLifecycleLib",
-      "start": 10878,
-      "end": 10880,
-      "size": 3
+      "start": 10682,
+      "end": 10690,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_memoryPackageLib",
-      "start": 10887,
-      "end": 10889,
-      "size": 3
+      "start": 10691,
+      "end": 10699,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_phoneFactBridgeLib",
-      "start": 10896,
-      "end": 10898,
-      "size": 3
+      "start": 10700,
+      "end": 10709,
+      "size": 10
     },
     {
       "kind": "function",
       "name": "_knowledgePreviewLib",
-      "start": 10906,
-      "end": 10908,
-      "size": 3
+      "start": 10710,
+      "end": 10720,
+      "size": 11
     },
     {
       "kind": "function",
       "name": "_extractFeedbackLib",
-      "start": 10917,
-      "end": 10919,
-      "size": 3
+      "start": 10721,
+      "end": 10731,
+      "size": 11
     },
     {
       "kind": "function",
       "name": "_projectRegistryLib",
-      "start": 10928,
-      "end": 10930,
-      "size": 3
+      "start": 10732,
+      "end": 10739,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_loreImportLib",
-      "start": 10936,
-      "end": 10938,
-      "size": 3
+      "start": 10740,
+      "end": 10747,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_storyAnnualLib",
+      "start": 10748,
+      "end": 10757,
+      "size": 10
+    },
+    {
+      "kind": "function",
+      "name": "_branchCanonLib",
+      "start": 10758,
+      "end": 10765,
+      "size": 8
+    },
+    {
+      "kind": "function",
+      "name": "_fatedRecallLib",
+      "start": 10766,
+      "end": 10777,
+      "size": 12
+    },
+    {
+      "kind": "function",
+      "name": "_relationHistoryLib",
+      "start": 10778,
+      "end": 10786,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_causalChainLib",
+      "start": 10787,
+      "end": 10794,
+      "size": 8
+    },
+    {
+      "kind": "function",
+      "name": "_perspectiveCardLib",
+      "start": 10795,
+      "end": 10803,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_extractionDriverLib",
+      "start": 10804,
+      "end": 10812,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_correctionPlanLib",
+      "start": 10813,
+      "end": 10815,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_eventCompletenessLib",
+      "start": 10816,
+      "end": 10822,
+      "size": 7
+    },
+    {
+      "kind": "function",
+      "name": "_evidenceWorkbenchLib",
+      "start": 10823,
+      "end": 10831,
+      "size": 9
+    },
+    {
+      "kind": "function",
+      "name": "_evidenceQueryLib",
+      "start": 10832,
+      "end": 10838,
+      "size": 7
+    },
+    {
+      "kind": "function",
+      "name": "_qaThreadLib",
+      "start": 10839,
+      "end": 10851,
+      "size": 13
+    },
+    {
+      "kind": "var",
+      "name": "SPEC",
+      "start": 10852,
+      "end": 10889,
+      "size": 38
+    },
+    {
+      "kind": "var",
+      "name": "missing",
+      "start": 10890,
+      "end": 10890,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "problems",
+      "start": 10891,
+      "end": 10891,
+      "size": 1
+    },
+    {
+      "kind": "var",
+      "name": "seen",
+      "start": 10892,
+      "end": 10907,
+      "size": 16
+    },
+    {
+      "kind": "function",
+      "name": "_testimonyBoardLib",
+      "start": 10909,
+      "end": 10914,
+      "size": 6
+    },
+    {
+      "kind": "function",
+      "name": "_memoryWeatherLib",
+      "start": 10915,
+      "end": 10915,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_memoryRitualLib",
+      "start": 10916,
+      "end": 10916,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_memoryRevisitScheduleLib",
+      "start": 10917,
+      "end": 10921,
+      "size": 5
+    },
+    {
+      "kind": "function",
+      "name": "_eraHandoffDraftLib",
+      "start": 10922,
+      "end": 10926,
+      "size": 5
+    },
+    {
+      "kind": "function",
+      "name": "_repairResponseLib",
+      "start": 10927,
+      "end": 10929,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_sceneTrackerLib",
+      "start": 10930,
+      "end": 10932,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_presenceGuardLib",
+      "start": 10933,
+      "end": 10937,
+      "size": 5
+    },
+    {
+      "kind": "function",
+      "name": "_resonanceLib",
+      "start": 10938,
+      "end": 10940,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_pyramidEvolutionLib",
+      "start": 10941,
+      "end": 10943,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_memorySymphonyLib",
       "start": 10944,
       "end": 10946,
       "size": 3
     },
     {
       "kind": "function",
-      "name": "_branchCanonLib",
+      "name": "_antiConfusionLib",
+      "start": 10947,
+      "end": 10948,
+      "size": 2
+    },
+    {
+      "kind": "function",
+      "name": "_psychologicalDefenseLib",
+      "start": 10949,
+      "end": 10949,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_hypergraphCausalHubLib",
+      "start": 10950,
+      "end": 10950,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_memoryHealingImmunityLib",
+      "start": 10951,
+      "end": 10951,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_sceneTabooReflectorLib",
+      "start": 10952,
+      "end": 10952,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_counterfactualFirewallLib",
+      "start": 10953,
+      "end": 10953,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_epistemicParallaxLib",
       "start": 10954,
+      "end": 10954,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_macroEpochLib",
+      "start": 10955,
+      "end": 10955,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_covertEspionageLib",
+      "start": 10956,
       "end": 10956,
-      "size": 3
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_fatedRecallLib",
+      "name": "_obsessiveTraumaLib",
+      "start": 10957,
+      "end": 10957,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_dynamicCovenantLib",
+      "start": 10958,
+      "end": 10958,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_dreamMetaphorLib",
+      "start": 10959,
+      "end": 10959,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_somaticReflexLib",
+      "start": 10960,
+      "end": 10960,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_gameTheoryLib",
+      "start": 10961,
+      "end": 10961,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_deepMemoryAtlasLib",
       "start": 10962,
+      "end": 10962,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_factionTerritoryLib",
+      "start": 10963,
+      "end": 10963,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_longTailFlashbackLib",
+      "start": 10964,
       "end": 10964,
-      "size": 3
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_relationHistoryLib",
+      "name": "_reputationSocialGraphLib",
+      "start": 10965,
+      "end": 10965,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_soulBrandReincarnationLib",
+      "start": 10966,
+      "end": 10966,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_fateClimaxLoomLib",
+      "start": 10967,
+      "end": 10968,
+      "size": 2
+    },
+    {
+      "kind": "function",
+      "name": "_rippleBusLib",
+      "start": 10969,
+      "end": 10969,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_causalityLockLib",
+      "start": 10970,
+      "end": 10970,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_graphPrunerLib",
+      "start": 10971,
+      "end": 10971,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_tabooDefenseLib",
+      "start": 10972,
+      "end": 10972,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_parallaxIsolationLib",
+      "start": 10973,
+      "end": 10973,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_resonanceRecallFunnelLib",
       "start": 10974,
+      "end": 10974,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_butterflySandboxLib",
+      "start": 10975,
+      "end": 10975,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_diagnosticsTelemetryLib",
+      "start": 10976,
       "end": 10976,
-      "size": 3
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_causalChainLib",
+      "name": "_soulBrandSynthesisLib",
+      "start": 10977,
+      "end": 10977,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_worldaxisAssimilatorLib",
+      "start": 10978,
+      "end": 10978,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_ruminationDreamLib",
+      "start": 10979,
+      "end": 10979,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_emotionalAnchorLib",
+      "start": 10980,
+      "end": 10980,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_somaticFlareLib",
+      "start": 10981,
+      "end": 10981,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_amnesiaPuzzleLib",
+      "start": 10982,
+      "end": 10982,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_stylisticDriftLib",
       "start": 10983,
+      "end": 10983,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_gaslightingNeutralizerLib",
+      "start": 10984,
+      "end": 10984,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_exposureRiskLib",
+      "start": 10985,
       "end": 10985,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_burnoutDecayLib",
+      "start": 10986,
+      "end": 10986,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_causalCircuitLib",
+      "start": 10987,
+      "end": 10987,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_cognitiveHorizonLib",
+      "start": 10988,
+      "end": 10990,
       "size": 3
     },
     {
       "kind": "function",
-      "name": "_perspectiveCardLib",
+      "name": "_knowledgeRelayLib",
       "start": 10991,
       "end": 10993,
       "size": 3
     },
     {
       "kind": "function",
-      "name": "_extractionDriverLib",
+      "name": "_narrationCompareLib",
+      "start": 10994,
+      "end": 10996,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_characterReinterpretationLib",
+      "start": 10997,
+      "end": 10999,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_loreConclusionReconcileLib",
       "start": 11000,
       "end": 11002,
       "size": 3
     },
     {
       "kind": "function",
-      "name": "_correctionPlanLib",
-      "start": 11009,
+      "name": "_sceneSeatingPartitionLib",
+      "start": 11003,
+      "end": 11005,
+      "size": 3
+    },
+    {
+      "kind": "function",
+      "name": "_commitmentLifecycleLib",
+      "start": 11006,
+      "end": 11010,
+      "size": 5
+    },
+    {
+      "kind": "function",
+      "name": "_factCorrectionTxLib",
+      "start": 11011,
       "end": 11011,
-      "size": 3
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_eventCompletenessLib",
+      "name": "_memorySeasonLib",
       "start": 11012,
+      "end": 11012,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_meaningMapLib",
+      "start": 11013,
+      "end": 11013,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_workModeLib",
+      "start": 11014,
       "end": 11014,
-      "size": 3
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_evidenceWorkbenchLib",
+      "name": "_conflictBenchLib",
+      "start": 11015,
+      "end": 11015,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_temporalValidityLib",
+      "start": 11016,
+      "end": 11016,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_archaeologyLib",
+      "start": 11017,
+      "end": 11017,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_budgetOrchestratorLib",
+      "start": 11018,
+      "end": 11018,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_readableWorkbenchLib",
       "start": 11019,
+      "end": 11019,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_symbiosisBridgeLib",
+      "start": 11020,
+      "end": 11020,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_recallRouteLib",
+      "start": 11021,
       "end": 11021,
-      "size": 3
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_evidenceQueryLib",
+      "name": "_secretTheaterLib",
+      "start": 11022,
+      "end": 11022,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_batchMaintenanceLib",
+      "start": 11023,
+      "end": 11023,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_characterGrowthLib",
+      "start": 11024,
+      "end": 11024,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_crossProjectDeskLib",
+      "start": 11025,
+      "end": 11025,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_eraContinuationLib",
+      "start": 11026,
+      "end": 11026,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_generationReplayLib",
+      "start": 11027,
+      "end": 11027,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_antiphonyLib",
       "start": 11028,
+      "end": 11028,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_volumeSealingLib",
+      "start": 11029,
+      "end": 11029,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_multiProtagonistLib",
+      "start": 11030,
       "end": 11030,
-      "size": 3
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_qaThreadLib",
-      "start": 11035,
-      "end": 11037,
-      "size": 3
+      "name": "_storyClockLib",
+      "start": 11031,
+      "end": 11031,
+      "size": 1
     },
     {
       "kind": "function",
-      "name": "_testimonyBoardLib",
-      "start": 11105,
-      "end": 11107,
-      "size": 3
+      "name": "_factReplayLib",
+      "start": 11032,
+      "end": 11032,
+      "size": 1
+    },
+    {
+      "kind": "function",
+      "name": "_inbandExtractionLib",
+      "start": 11033,
+      "end": 11041,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_narrativeLayerLib",
-      "start": 11238,
-      "end": 11240,
-      "size": 3
+      "start": 11042,
+      "end": 11049,
+      "size": 8
     },
     {
       "kind": "function",
       "name": "_institutionLib",
-      "start": 11246,
-      "end": 11248,
+      "start": 11050,
+      "end": 11052,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_relationDynamicsLib",
-      "start": 11249,
-      "end": 11251,
+      "start": 11053,
+      "end": 11055,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_agencyContractLib",
-      "start": 11252,
-      "end": 11254,
-      "size": 3
+      "start": 11056,
+      "end": 11066,
+      "size": 11
     },
     {
       "kind": "function",
       "name": "_symbolicEvolutionLib",
-      "start": 11263,
-      "end": 11265,
+      "start": 11067,
+      "end": 11069,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_eraInheritanceLib",
-      "start": 11266,
-      "end": 11268,
-      "size": 3
+      "start": 11070,
+      "end": 11080,
+      "size": 11
     },
     {
       "kind": "function",
       "name": "_eraContinuationTreeLib",
-      "start": 11277,
-      "end": 11279,
-      "size": 3
+      "start": 11081,
+      "end": 11089,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_habitGrowthLib",
-      "start": 11286,
-      "end": 11288,
-      "size": 3
+      "start": 11090,
+      "end": 11098,
+      "size": 9
     },
     {
       "kind": "function",
       "name": "_gapBenchLib",
-      "start": 11295,
-      "end": 11297,
-      "size": 3
+      "start": 11099,
+      "end": 11110,
+      "size": 12
     },
     {
       "kind": "function",
       "name": "_institutionalCollectiveLib",
-      "start": 11307,
-      "end": 11309,
+      "start": 11111,
+      "end": 11113,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_seasonSilenceLib",
-      "start": 11310,
-      "end": 11312,
+      "start": 11114,
+      "end": 11116,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_recallEchoLib",
-      "start": 11313,
-      "end": 11315,
-      "size": 3
+      "start": 11117,
+      "end": 11122,
+      "size": 6
     },
     {
       "kind": "function",
       "name": "_migratePackLib",
-      "start": 11319,
-      "end": 11321,
+      "start": 11123,
+      "end": 11125,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_roundSnapshotLib",
-      "start": 11322,
-      "end": 11324,
+      "start": 11126,
+      "end": 11128,
       "size": 3
     },
     {
       "kind": "function",
       "name": "_factCorrectionBenchLib",
-      "start": 11325,
-      "end": 11327,
-      "size": 3
+      "start": 11129,
+      "end": 11138,
+      "size": 10
     },
     {
       "kind": "function",
       "name": "_returnGateLib",
-      "start": 11335,
-      "end": 11337,
-      "size": 3
+      "start": 11139,
+      "end": 11151,
+      "size": 13
     },
     {
       "kind": "function",
       "name": "_materialPackLib",
-      "start": 11348,
-      "end": 11350,
-      "size": 3
+      "start": 11152,
+      "end": 11170,
+      "size": 19
     },
     {
       "kind": "function",
       "name": "_loreCrosscheckLib",
-      "start": 11367,
-      "end": 11369,
-      "size": 3
+      "start": 11171,
+      "end": 11183,
+      "size": 13
     },
     {
       "kind": "function",
       "name": "_worldlineMemoryLib",
-      "start": 11380,
-      "end": 11382,
-      "size": 3
+      "start": 11184,
+      "end": 11195,
+      "size": 12
     },
     {
       "kind": "function",
       "name": "_conditionPatchLib",
-      "start": 11392,
-      "end": 11394,
-      "size": 3
+      "start": 11196,
+      "end": 11202,
+      "size": 7
     },
     {
       "kind": "function",
       "name": "_goalTrackerLib",
-      "start": 11399,
-      "end": 11401,
-      "size": 3
+      "start": 11203,
+      "end": 11208,
+      "size": 6
     },
     {
       "kind": "function",
       "name": "_impactPreviewLib",
-      "start": 11405,
-      "end": 11407,
-      "size": 3
+      "start": 11209,
+      "end": 11214,
+      "size": 6
     },
     {
       "kind": "function",
       "name": "_hypothesisWorkspaceLib",
-      "start": 11411,
-      "end": 11413,
-      "size": 3
+      "start": 11215,
+      "end": 11220,
+      "size": 6
     },
     {
       "kind": "function",
       "name": "_researchCollectionLib",
-      "start": 11417,
-      "end": 11419,
-      "size": 3
+      "start": 11221,
+      "end": 11227,
+      "size": 7
     },
     {
       "kind": "function",
       "name": "_experienceRebuildLib",
-      "start": 11424,
-      "end": 11426,
-      "size": 3
+      "start": 11228,
+      "end": 11234,
+      "size": 7
     },
     {
       "kind": "function",
       "name": "_dualTimeLib",
-      "start": 11431,
-      "end": 11433,
-      "size": 3
+      "start": 11235,
+      "end": 11241,
+      "size": 7
     },
     {
       "kind": "function",
       "name": "_evidenceSolverLib",
-      "start": 11438,
-      "end": 11440,
-      "size": 3
+      "start": 11242,
+      "end": 11248,
+      "size": 7
     },
     {
       "kind": "function",
       "name": "_resolutionLadderLib",
-      "start": 11445,
-      "end": 11447,
-      "size": 3
+      "start": 11249,
+      "end": 11255,
+      "size": 7
     },
     {
       "kind": "function",
       "name": "_sceneOrchestratorLib",
-      "start": 11452,
-      "end": 11454,
-      "size": 3
+      "start": 11256,
+      "end": 11267,
+      "size": 12
     },
     {
       "kind": "function",
       "name": "_memoryToolsLib",
-      "start": 11464,
-      "end": 11466,
-      "size": 3
+      "start": 11268,
+      "end": 11277,
+      "size": 10
     },
     {
       "kind": "function",
       "name": "_memoryCenterLib",
-      "start": 11474,
-      "end": 11476,
-      "size": 3
+      "start": 11278,
+      "end": 11288,
+      "size": 11
     },
     {
       "kind": "function",
       "name": "_repairSettleLib",
-      "start": 11485,
-      "end": 11487,
-      "size": 3
+      "start": 11289,
+      "end": 11295,
+      "size": 7
     },
     {
       "kind": "function",
       "name": "_recallArtifactLib",
-      "start": 11492,
-      "end": 11494,
-      "size": 3
+      "start": 11296,
+      "end": 11323,
+      "size": 28
     },
     {
       "kind": "function",
       "name": "_qaHelpDeps",
-      "start": 11520,
-      "end": 11531,
+      "start": 11324,
+      "end": 11335,
       "size": 12
     },
     {
       "kind": "function",
       "name": "_evidenceQueryLedgersOf",
-      "start": 11532,
-      "end": 11537,
-      "size": 6
+      "start": 11336,
+      "end": 11358,
+      "size": 23
     },
     {
       "kind": "function",
       "name": "_ledgerApis",
-      "start": 11555,
-      "end": 11568,
-      "size": 14
+      "start": 11359,
+      "end": 11375,
+      "size": 17
     },
     {
       "kind": "function",
       "name": "_repairLoopLib",
-      "start": 11572,
-      "end": 11574,
-      "size": 3
+      "start": 11376,
+      "end": 11386,
+      "size": 11
     },
     {
       "kind": "function",
       "name": "_ledgerEntityLib",
-      "start": 11583,
-      "end": 11585,
-      "size": 3
+      "start": 11387,
+      "end": 11391,
+      "size": 5
     },
     {
       "kind": "function",
       "name": "_ledgerBooks",
-      "start": 11588,
-      "end": 11597,
+      "start": 11392,
+      "end": 11401,
       "size": 10
     },
     {
       "kind": "function",
       "name": "_newSceneBook",
-      "start": 11598,
-      "end": 11604,
-      "size": 7
+      "start": 11402,
+      "end": 11411,
+      "size": 10
     },
     {
       "kind": "class",
       "name": "SceneBookFallback",
-      "start": 11608,
-      "end": 11659,
-      "size": 52
+      "start": 11412,
+      "end": 11464,
+      "size": 53
     },
     {
       "kind": "function",
       "name": "parseStoryDateLoose",
-      "start": 11661,
-      "end": 11678,
+      "start": 11465,
+      "end": 11482,
       "size": 18
     },
     {
       "kind": "function",
       "name": "storyDayDiff",
-      "start": 11679,
-      "end": 11690,
-      "size": 12
+      "start": 11483,
+      "end": 11495,
+      "size": 13
     },
     {
       "kind": "function",
       "name": "relativePrefix",
-      "start": 11692,
-      "end": 11712,
-      "size": 21
+      "start": 11496,
+      "end": 11518,
+      "size": 23
+    },
+    {
+      "kind": "var",
+      "name": "RELATION_CONFLICT_GROUPS",
+      "start": 11519,
+      "end": 11522,
+      "size": 4
     },
     {
       "kind": "function",
       "name": "areLabelsInConflict",
-      "start": 11719,
-      "end": 11727,
-      "size": 9
+      "start": 11523,
+      "end": 11577,
+      "size": 55
     },
     {
       "kind": "class",
       "name": "LonShaMemoryPlugin",
-      "start": 11780,
-      "end": 13161,
-      "size": 1382
+      "start": 11584,
+      "end": 12995,
+      "size": 1412
+    },
+    {
+      "kind": "var",
+      "name": "plugin",
+      "start": 12996,
+      "end": 13008,
+      "size": 13
     },
     {
       "kind": "function",
       "name": "repairReceipt",
-      "start": 13205,
-      "end": 13231,
-      "size": 27
+      "start": 13009,
+      "end": 13041,
+      "size": 33
     },
     {
       "kind": "function",
       "name": "repairRevisionOf",
-      "start": 13238,
-      "end": 13244,
-      "size": 7
+      "start": 13042,
+      "end": 13056,
+      "size": 15
     },
     {
       "kind": "function",
       "name": "injectionRefOf",
-      "start": 13253,
-      "end": 13259,
-      "size": 7
+      "start": 13057,
+      "end": 13075,
+      "size": 19
     },
     {
       "kind": "object",
       "name": "window.lonsha_memory_bridge_v1",
-      "start": 13272,
-      "end": 13527,
+      "start": 13076,
+      "end": 13331,
       "size": 256
     },
     {
       "kind": "function",
       "name": "opLogStatsCompat",
-      "start": 13528,
-      "end": 13542,
-      "size": 15
+      "start": 13332,
+      "end": 13350,
+      "size": 19
     }
   ]
 }

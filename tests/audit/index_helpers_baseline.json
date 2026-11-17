@@ -1,0 +1,290 @@
+{
+  "schema": "index-helpers-baseline@1",
+  "plan": "L22-O1",
+  "note": "index.js 拆出的 10 个纯函数：每段的源码 sha256 + 行为快照。闸（tests/audit/scan_index_split.mjs）逐段比对 sha256，逐调用比对输出 —— 搬的时候顺手改了逻辑会立刻红。fixtures 是同一台账里“算出来一样”的那一半，闸 R7 真 require 模块逐调用重放。",
+  "source": {
+    "file": "index.js",
+    "origin": "搬迁前 index.js（HEAD 版本）逐字节"
+  },
+  "extracted": [
+    {
+      "name": "loadExtraJsScript",
+      "source_line": 477,
+      "source_end_line": 489,
+      "lines": 13,
+      "sha256": "c9d8ac4455f6b0da66fa18bd26b21cefd2daf4ad2281a163d0a826fcc974b2cc",
+      "body_sha256": "fa7f108203ec0a6c140d00d2e3258d76740bbd3c680e0bb430fa4e70edf0b1e4"
+    },
+    {
+      "name": "estimateTextTokens",
+      "source_line": 524,
+      "source_end_line": 536,
+      "lines": 13,
+      "sha256": "324bec2c51468b171a4329610b7102a9153797bab45bf255cb91bcd1d9c1d123",
+      "body_sha256": "4f56a9dd65cfedce6d3a8d1fca502a554842d5784b4be24c57396bafa29b5406"
+    },
+    {
+      "name": "hash32",
+      "source_line": 537,
+      "source_end_line": 545,
+      "lines": 9,
+      "sha256": "142449538b3352d81f2f418a2ccabff016b6509c385e7d5fa4af1817ed4c68e7",
+      "body_sha256": "0e6be152e830c8ea914b4a6fa916750ec739c7aaeadceab7267be67484b4b49c"
+    },
+    {
+      "name": "stripMemoryOpsTags",
+      "source_line": 795,
+      "source_end_line": 805,
+      "lines": 11,
+      "sha256": "3d699850656fab7873f7dbfc7fe75a8b3abeb6032a64370e0d621c254b78d0ef",
+      "body_sha256": "1effcb4f7a506401ed10ab6eefadfbceb13a9f00330c301348df912148d5fed2"
+    },
+    {
+      "name": "extractTimeTagFast",
+      "source_line": 807,
+      "source_end_line": 819,
+      "lines": 13,
+      "sha256": "0c0f3b1c4deb773a4342572f76391d49a89551879831cff19aac9673ae8c60ad",
+      "body_sha256": "b1f57eb4068ab7bfb8129a588498aaa244659ac51f06d5aa31b5f9894a77a45d"
+    },
+    {
+      "name": "sanitizeJson",
+      "source_line": 853,
+      "source_end_line": 999,
+      "lines": 147,
+      "sha256": "4a5abb42c932f13bef31fa16f98f51f2cfa60728b541807155704c991cbf8585",
+      "body_sha256": "401b69875995c927a0977880e99605b7b7436ec29a0a2c8244c0b5c9a2105c21"
+    },
+    {
+      "name": "safeJsonParse",
+      "source_line": 1000,
+      "source_end_line": 1011,
+      "lines": 12,
+      "sha256": "7d7a48a8b44239280612dba9d010c6d871e50a4951b12e99f617e4aa2bda6c85",
+      "body_sha256": "7d7a48a8b44239280612dba9d010c6d871e50a4951b12e99f617e4aa2bda6c85"
+    },
+    {
+      "name": "cyclePositionFor",
+      "source_line": 1887,
+      "source_end_line": 1890,
+      "lines": 4,
+      "sha256": "5a9872ba71f507699eadb8e03e83c91927a995f1c74dcec5065eca995686f794",
+      "body_sha256": "5a9872ba71f507699eadb8e03e83c91927a995f1c74dcec5065eca995686f794"
+    },
+    {
+      "name": "_initEbbingMeta",
+      "source_line": 2005,
+      "source_end_line": 2015,
+      "lines": 11,
+      "sha256": "6dd4b0fc15e1bf72c640a51a3954ef379d25db84af6723bcc310c21612ba9155",
+      "body_sha256": "6e02123b3f950d2bfddfd36ca46ce349e7741288b9fc3c2df4e59c84fc39ab6d"
+    },
+    {
+      "name": "ledgerClip",
+      "source_line": 2087,
+      "source_end_line": 2091,
+      "lines": 5,
+      "sha256": "f668a9e6b39d8cf5045f7b2b8b6ff82811f77c7de1fff7845c5e1d15457cb649",
+      "body_sha256": "f668a9e6b39d8cf5045f7b2b8b6ff82811f77c7de1fff7845c5e1d15457cb649"
+    }
+  ],
+  "fixtures": {
+    "hash32": [
+      {
+        "args": [
+          "abc"
+        ],
+        "out": "1a47e90b"
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": "811c9dc5"
+      },
+      {
+        "args": [
+          "LonSha记忆"
+        ],
+        "out": "4b595e36"
+      }
+    ],
+    "estimateTextTokens": [
+      {
+        "args": [
+          "hello world"
+        ],
+        "out": 3
+      },
+      {
+        "args": [
+          "中文测试"
+        ],
+        "out": 4
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": 0
+      }
+    ],
+    "stripMemoryOpsTags": [
+      {
+        "args": [
+          "a<memory_op>b</memory_op>c"
+        ],
+        "out": "a<memory_op>b</memory_op>c"
+      },
+      {
+        "args": [
+          "plain text"
+        ],
+        "out": "plain text"
+      }
+    ],
+    "extractTimeTagFast": [
+      {
+        "args": [
+          "x[time]2026-01-01[/time]y"
+        ],
+        "out": null
+      },
+      {
+        "args": [
+          "no tag here"
+        ],
+        "out": null
+      }
+    ],
+    "sanitizeJson": [
+      {
+        "args": [
+          "```json\n{\"a\":1}\n```"
+        ],
+        "out": "{\"a\":1}"
+      },
+      {
+        "args": [
+          "{\"a\":1}"
+        ],
+        "out": "{\"a\":1}"
+      },
+      {
+        "args": [
+          "garbage"
+        ],
+        "out": "garbage"
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": ""
+      }
+    ],
+    "safeJsonParse": [
+      {
+        "args": [
+          "{\"a\":1}"
+        ],
+        "out": {
+          "a": 1
+        }
+      },
+      {
+        "args": [
+          "bad json"
+        ],
+        "out": null
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": null
+      }
+    ],
+    "cyclePositionFor": [
+      {
+        "args": [
+          0,
+          10
+        ],
+        "out": 0
+      },
+      {
+        "args": [
+          5,
+          10
+        ],
+        "out": 5
+      },
+      {
+        "args": [
+          10,
+          10
+        ],
+        "out": 10
+      },
+      {
+        "args": [
+          3,
+          0
+        ],
+        "out": 0
+      }
+    ],
+    "_initEbbingMeta": [
+      {
+        "args": [
+          {
+            "ts": 1000
+          }
+        ],
+        "out": {
+          "ts": 1000,
+          "lastActive": 1000,
+          "activationCount": 1,
+          "importance": 3,
+          "memoryStrength": 0.5,
+          "reinforcementCount": 0,
+          "emotion": {
+            "valence": 0.5,
+            "arousal": 0.5
+          }
+        }
+      }
+    ],
+    "ledgerClip": [
+      {
+        "args": [
+          "abcdef",
+          3
+        ],
+        "out": "abc"
+      },
+      {
+        "args": [
+          "ab",
+          5
+        ],
+        "out": "ab"
+      },
+      {
+        "args": [
+          null,
+          5
+        ],
+        "out": "__undefined"
+      }
+    ]
+  },
+  "not_called": {
+    "loadExtraJsScript": "它要往 document 里插 <script>（装载期副作用），快照只在纯字符串/数字口径内取样，故不调用它；它的等价性由 sha256 那段钉住。"
+  },
+  "honest_limits": [
+    "快照只覆盖上面列出的调用；这不等于全输入空间。",
+    "loadExtraJsScript 不取样（原因见 not_called）。"
+  ]
+}

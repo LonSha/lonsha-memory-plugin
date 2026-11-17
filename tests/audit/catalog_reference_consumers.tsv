@@ -534,3 +534,6 @@ v3471_model_fetch_degrade.test.mjs		v3.471.0 补登：模型列表抓取三级�
 v3472_l22_lab_search.test.mjs		v3.472.0 补登：实验室页签任务分组 / 搜索 / 配置键唯一性 — tests/v3472_l22_lab_search.test.mjs
 v3472_l22_ui_panel.test.mjs		v3.472.0 补登：L22 UI 面板可访问性 / 未保存改动 / 健康页出口 — tests/v3472_l22_ui_panel.test.mjs
 v3472_r22_product_wiring.test.mjs		v3.472.0 补登：R22 产品接线（真实生成路径消费） — tests/v3472_r22_product_wiring.test.mjs
+l22_o1_index_split.test.mjs		L22-O1 补登：index.js 拆分判据门（36 条判据含 9 组镜像破坏负控制）
+l22_o4_evidence_binding.test.mjs		L22-O4 补登：替代证据链负控制门（此前漏登，P3 报红后补）
+l22_o7_declared_dormant.test.mjs		L22-O7 补登：休眠声明台账四关门禁（此前漏登）

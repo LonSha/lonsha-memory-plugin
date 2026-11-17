@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-16T07:28:51.553Z",
-  "extra_js_count": 394,
-  "host_injected_count": 241,
-  "total_modules": 395,
+  "generated_at": "2026-11-17T08:21:24.125Z",
+  "extra_js_count": 395,
+  "host_injected_count": 242,
+  "total_modules": 396,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 383,
+  "active_count": 384,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -668,15 +668,15 @@
       "surface": [
         "LonShaCatalogRegistration"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -3061,15 +3061,15 @@
       "surface": [
         "LonShaEvidenceSubstituteChain"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -3618,15 +3618,15 @@
       "surface": [
         "LonShaFrozenFreshness"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -3637,15 +3637,15 @@
       "surface": [
         "LonShaFutureLetter"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -4086,6 +4086,25 @@
       ],
       "load_surface_callers": []
     },
+    "index-helpers.js": {
+      "module": "index-helpers.js",
+      "surface": [
+        "LonShaIndexHelpers"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "index.js": {
       "module": "index.js",
       "surface": [
@@ -4167,15 +4186,15 @@
       "surface": [
         "LonShaInjectionReceiptFacets"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -4676,15 +4695,15 @@
       "surface": [
         "LonShaLoadSurfaceDisposition"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -5093,15 +5112,15 @@
       "surface": [
         "LonShaMemoryArchivePack"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -5174,15 +5193,15 @@
       "surface": [
         "LonShaMemoryCapsule"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -5222,15 +5241,15 @@
       "surface": [
         "LonShaMemoryCheckup"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -5347,15 +5366,15 @@
       "surface": [
         "LonShaGiantFileSplitPlan"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -5490,15 +5509,15 @@
       "surface": [
         "LonShaMemoryMap"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -5855,15 +5874,15 @@
       "surface": [
         "LonShaMemoryTimeline"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -6155,15 +6174,15 @@
       "surface": [
         "LonShaMultiCharIsolation"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -7237,15 +7256,15 @@
       "surface": [
         "LonShaRealhostVerdict"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -7531,15 +7550,15 @@
       "surface": [
         "LonShaRelationMilestone"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -8282,8 +8301,8 @@
       "surface": [
         "LonShaSleepConsolidation"
       ],
-      "prod_call_sites": 7,
-      "business_call_sites": 7,
+      "prod_call_sites": 8,
+      "business_call_sites": 8,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -8295,7 +8314,7 @@
         },
         {
           "file": "index.js",
-          "count": 4,
+          "count": 5,
           "type": "file_binding+exclusive_global"
         },
         {
@@ -9370,15 +9389,15 @@
       "surface": [
         "LonShaViewOpenability"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -9563,15 +9582,15 @@
       "surface": [
         "LonShaWriteOnlyScan"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 3,
+          "count": 4,
           "type": "file_binding+exclusive_global"
         }
       ],

@@ -1,0 +1,117 @@
+{
+  "schema": "index-split@1",
+  "plan": "L22-O1",
+  "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。",
+  "source": "index.js",
+  "lines_before_split": 13546,
+  "index_lines_max": 13350,
+  "module": "index-helpers.js",
+  "module_lines": 305,
+  "wiring": {
+    "load": "_moduleLib(() => window.LonShaIndexHelpers, 'index-helpers.js')",
+    "lazy": "经 _indexHelpers() / _indexHelperCall(name, args) 惰性探针 —— extra_js 在入口脚本之后加载，装载期取库会绑成缺席桩（自伤，只在真宿主现形）",
+    "absence": "缺席时 _noteModuleFailure 登记归因并抛**点名**错误，不静默降级、也不留同形兜底实现"
+  },
+  "batch1": {
+    "what": "10 个无状态纯函数（逐字节搬迁，注释一并搬走）",
+    "why_this_cluster": "对本件顶层函数逐个做自由标识符实测：依赖闭包为空或自洽、且**声明唯一**的只有这 10 个。其余函数都摸到 IIFE 里的东西 —— 其中 175 个是 _moduleLib(...) 取库，那要先回答「库怎么拿」，不属于第一簇。",
+    "functions": [
+      {
+        "name": "loadExtraJsScript",
+        "source": "L477-L489",
+        "why": "按需插一条 extra_js（幂等，按 src 去重）"
+      },
+      {
+        "name": "estimateTextTokens",
+        "source": "L524-L536",
+        "why": "粗估 token（中文按字、英文按词），只做量级判断"
+      },
+      {
+        "name": "hash32",
+        "source": "L537-L545",
+        "why": "FNV-1a 32 位指纹（缓存键/去重键）"
+      },
+      {
+        "name": "stripMemoryOpsTags",
+        "source": "L795-L805",
+        "why": "剥掉记忆操作标签，防标签漏进正文"
+      },
+      {
+        "name": "extractTimeTagFast",
+        "source": "L807-L819",
+        "why": "快速取时间标签（不跑完整解析）"
+      },
+      {
+        "name": "sanitizeJson",
+        "source": "L853-L999",
+        "why": "脏 JSON 清洗（围栏、注释、尾逗号、单引号等 141 行）"
+      },
+      {
+        "name": "safeJsonParse",
+        "source": "L1000-L1011",
+        "why": "先 JSON.parse，失败再过 sanitizeJson，仍失败给 fallback"
+      },
+      {
+        "name": "cyclePositionFor",
+        "source": "L1887-L1890",
+        "why": "周期调度位置取模"
+      },
+      {
+        "name": "_initEbbingMeta",
+        "source": "L2005-L2015",
+        "why": "记忆强度元数据缺省值初始化"
+      },
+      {
+        "name": "ledgerClip",
+        "source": "L2087-L2091",
+        "why": "账本字段裁剪（压空白 + 截断）"
+      }
+    ],
+    "excluded_because_duplicate": {
+      "parseStoryDateLoose": "本件里被声明了两次：L1839（列首、签名 dateStr）与 L11661（缩进 4、签名 s），后定义覆盖前定义，relativeTimeLabel 用的是后者。搬走后「剩下的那一份」会变成唯一实现 —— 那是**改语义**不是搬代码，故整簇不碰它。",
+      "storyDayDiff": "依赖 parseStoryDateLoose，随其一起留在 index.js。"
+    }
+  },
+  "equivalence_proof": {
+    "entry_loadable": "tests/_index_loader.cjs（自带最小宿主：window=globalThis + localStorage/document 桩 + jQuery/toastr/SillyTavern 空桩），装载后主动 process.exit（插件注册了定时器，否则 node 不退出）",
+    "export_surface": "tests/audit/index_exports.json —— 64 个符号（名字→类型）拆前/拆后逐字相同",
+    "byte_identical": "tests/audit/index_helpers_baseline.json —— 每个函数体 sha256，闸逐段比对（改一个字符就红）",
+    "behaviour_snapshot": "同一台账里记了 8 个函数的多组调用输出（hash32 / estimateTextTokens / stripMemoryOpsTags / extractTimeTagFast / sanitizeJson / safeJsonParse / cyclePositionFor / _initEbbingMeta / ledgerClip），闸重跑比对",
+    "gate": "tests/audit/scan_index_split.mjs（七关：R1 导出面 / R2 行数 ratchet / R3 单份实现+委托绑定 / R4 逐字节 sha256 / R5 惰性取库 / R6 纯模块（剥注释后再查，不拿散文当代码）/ R7 fixtures 真重放 / R0 fail-closed）",
+    "test": "tests/l22_o1_index_split.test.mjs（36 条：23 条正向读数 + 10 组真破坏负控制：N0 卫生态对照、N1–N7 逐关破坏被检物（含缺台账 exit 2）、N8/N9 两向自证（把判据改成恒假 ⇒ 同一坏输入转绿）、N10–N12 单位级）",
+    "honest_limits": [
+      "本环境跑不动全量 node tests/run.mjs；只逐档跑相关判据。CI 上补跑全量之前，这一步不算最终验收。",
+      "行为快照只覆盖列出的调用，不是全输入空间。",
+      "loadExtraJsScript 不取样（装载期会插 <script>），它的等价性只由 sha256 钉住。",
+      "扫描面之外仍有 5 个真宿主/浏览器探针（_mo1/_mo2/_mo8/_p3/_realhost_suite）在本机红：它们在 HEAD 上同样红（已用 worktree 逐条复核），缺的是 /tmp/st 宿主与稳定锚点，与本项无关。",
+      "window 面**确实多了一个** LonShaIndexHelpers（见 surface_additions），不是零变动。"
+    ]
+  },
+  "findings": [
+    "index.js 是单个 IIFE、结尾没有 module.exports：对外面全靠 window 挂 64 个符号，所以「导出面」必须当作判据来守。",
+    "结构快照工具（tests/audit/snapshot_index_structure.mjs）旧实现用配对花括号求块边界，连错两次：不跳字符串时 sanitizeJson 被量成 58 行（实为 141 行）；补跳字符串后正则字面量又把配对打飞（extractThinkingChain 被量成 6016 行、覆盖率算到 119%）。现已改为「顶层条目切段」，并把两次事故写进工具头注释。",
+    "同名双声明（parseStoryDateLoose）说明「同名不同物」在 index.js 里真实存在：只按名字做依赖分析会算错，必须先查声明唯一性。",
+    "拆分等价性必须七件一起验：导出面 / 行数 / 单份实现 / 逐字节 / 惰性取库 / 无依赖面 / 行为快照。少任何一件都能造假绿（本轮 R6 首版就被自己的头注释判红，R7 首版压根没写、却在台账里声称「闸重跑比对」——两条都是本轮实测抓到的）。"
+  ],
+  "not_done": {
+    "remaining_engine": "MemoryEngine（8471 行）与 LonShaMemoryPlugin（1382 行）都还没动；前者依赖 201 个 IIFE 局部名，后者 56 个（40+ 是 _xxxLib 一行取库包装）。",
+    "next_batch": "第一簇之后，优先搬「只依赖 _moduleLib 的 _xxxLib 包装」这一批——它们只有一行，搬走后 MemoryEngine 的依赖数会明显下降，再谈引擎本体分簇搬迁。",
+    "duplicates": "parseStoryDateLoose 的同名双声明应当先合并成一份（那是语义决定，不是搬运），否则它永远搬不动。"
+  },
+  "surface_additions": {
+    "window_key": "LonShaIndexHelpers",
+    "why": "拆出的模块按仓内既有约把 API 挂到 window（300+ 个同形模块都这么做）；入口 index.js 自己的 64 个符号一个没变。",
+    "measured_by": "tests/_index_loader.cjs 只装入口、不装 extra_js，所以它看到的仍是 64 个 —— 这一点必须写明，否则读者会把它误读成「对外面零变动」。",
+    "registered_on": [
+      "manifest.json extra_js（第 1 位，无依赖）",
+      "tests/audit/module_consumption_ledger.json（active，2 个调用点在 index.js）",
+      "tests/audit/extra_js_seam_ledger.tsv（host-seam）"
+    ]
+  },
+  "connected_fixes": [
+    "manifest.json：index-helpers.js 未登记进 extra_js 就是「真宿主里 10 个函数全缺席」的自伤（惰性探针会在首次调用抛点名错误）。装载面五段证明 S5 现场抓到并报红，才补上。",
+    "module_consumption_ledger.json 是用 tools/gen_module_consumption_ledger.mjs 重跑生成的，不是手改：重跑同时吸收了 2026-11-16 之后已存在的漂移（在 HEAD 未改代码的 worktree 上重跑就已经变 55 行，与本项无关）。",
+    "extra_js_seam_ledger.tsv 补一行；catalog_reference_consumers.tsv 补登本项与两条历史漏登（l22_o4 / l22_o7）。",
+    "tests/audit/scan_exit_codes.mjs 要求每个门禁自述三态 —— 头注释补「退出码：0 / 1 / 2」一行。"
+  ]
+}
