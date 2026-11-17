@@ -1,0 +1,120 @@
+{
+  "schema": "module-disposition-ledger@1",
+  "plan": "L22-O7",
+  "note": "装载面模块（generated ledger 里 load_surface_only===true）的终局处置台账。generated ledger 的 why 字段是**机器分类标签**（生成器每次重写，不能当理由），所以处置写在本文件：一条一句实质理由 + 被谁取代 + 复活条件 + 声明的 API。门禁 tests/audit/scan_module_disposition.mjs 会逐条核对：理由不得是标签、被取代者必须自己真的活跃、声明 API 必须真在模块里且运行时可取。",
+  "disposition_vocabulary": ["declared_dormant"],
+  "reason_kind_vocabulary": ["superseded_by_active_duplicate", "no_host_consumer"],
+  "grey_tags": ["load_surface_only", "zero_consumption", "docs_probe_only", "dormant", "unused", "todo", "tbd", "wip", "pending", "n/a", "na"],
+  "entries": {
+    "evidence-conflict-adjudication-bench.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "第九期 M9-O2 的多视角冲突成组裁决台：把指向同一 subject::predicate 的矛盾事实聚类成证据束后做 ADOPT/SUPERSEDE 等法定裁决。第十期 L10-O2 已投产同一能力 conflict-group-arbitration-workbench（clusterEvidenceBundles/executeArbitration/undoArbitration），且 memory-conflict-healing-arbitrator 在生成链上有真实业务调用。本件是同一能力的前一版实现，生产链上零消费者；接线等于让两套裁决器抢同一份输入。",
+      "overlap": "clusterConflictBundles/adjudicateBundle ↔ conflict-group-arbitration-workbench.clusterEvidenceBundles/executeArbitration（同一 subject::predicate 证据束聚类 + 法定裁决）",
+      "superseded_by": ["conflict-group-arbitration-workbench.js", "memory-conflict-healing-arbitrator.js"],
+      "revive_trigger": "只有 conflict-group-arbitration-workbench 退役、且产品需要一个『多视角并列解释 + 成组裁决』的独立面时才重估；重估时必须同刀删掉旧接线，不许两套并存。",
+      "declared_api": ["clusterConflictBundles", "adjudicateBundle"],
+      "removal_candidate": true
+    },
+    "fact-postgen-replay-receipt.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-O6 的生成后事实逐句回放台（ADOPT/REJECT/DEFER 三档 + 按楼层撤销）。生产链上『这条算不算事实』由 native-fact-admission 五档裁决承担，『按楼层可逆』由 fact-version 的楼层有效区间与修订史承担；宿主也没有逐句审阅面板可挂。本件的 createReplayBatch/adjudicateCandidate 无任何调用点。",
+      "overlap": "adjudicateCandidate 的采纳/驳回/暂缓 ↔ native-fact-admission 五档裁决；按楼层撤销 ↔ fact-version 修订链",
+      "superseded_by": ["native-fact-admission.js", "fact-version.js"],
+      "revive_trigger": "真做出逐句审阅面板（用户逐条点采纳/驳回/暂缓）时，把本件当该面板的纯函数内核接进去；在此之前接进生成链只是多一层无消费者的裁决。",
+      "declared_api": ["createReplayBatch", "adjudicateCandidate"],
+      "removal_candidate": true
+    },
+    "fact-unified-lifecycle-bench.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "M9-O1 的事实全生命周期工作台（normalizeFact/transitionFact/evaluateAdmission）。生产链上这些职责已被三件活跃模块按面拆走：fact-state 定五态与有效范围、fact-lifecycle 定遗忘/撤回/保留、fact-version 定楼层区间与修订史。本件是它们的合并视图，没有任何宿主调它取投影，属被取代的重复实现。",
+      "overlap": "transitionFact/evaluateAdmission ↔ fact-state 的状态推导 + fact-lifecycle 的处置动作；normalizeFact ↔ fact-version 的条目归一",
+      "superseded_by": ["fact-state.js", "fact-lifecycle.js", "fact-version.js"],
+      "revive_trigger": "若产品要一个『单视口看完整生命周期』的面板且面板真的读它，则接该面板；不得为了点亮模块而在生成链上旁路调用。",
+      "declared_api": ["normalizeFact", "transitionFact", "evaluateAdmission"],
+      "removal_candidate": true
+    },
+    "generation-material-budget-plan.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-O5 的生成材料分层预算编排（REQUIRED/OPTIONAL/CONFLICT 三层 + token 估算）。生产链上预算由 prompt-budget-dynamic-allocator 在注入前按硬配额分配，裁剪由 injection-router 的 deriveBudget/trimToBudget 承担。再接一份材料计划器，会让两套预算口径同时改同一段注入内容——正是本仓反复治理过的『同一事实两套口径』。",
+      "overlap": "estimateTokenCount/orchestrateMaterialPlan ↔ prompt-budget-dynamic-allocator 的配额分配 + injection-router.trimToBudget 的裁剪",
+      "superseded_by": ["prompt-budget-dynamic-allocator.js", "injection-router.js"],
+      "revive_trigger": "只有注入预算链整体重写（改由材料分层而非分区裁剪驱动）时，本件才作为新预算链的内核进入设计；此时必须先下线旧的两处预算实现。",
+      "declared_api": ["estimateTokenCount", "orchestrateMaterialPlan"],
+      "removal_candidate": true
+    },
+    "maintenance-cold-warm-session.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-O7 的冷暖记忆批量迁移会话（planMaintenanceBatch：WARM 常驻 / COLD 封存）。生产链上冷热分层由 tiered-storage-tiered-compaction-ledger 在持久化侧做（Hot/Warm/Cold 三层 + 压缩账本），批量压缩由 hierarchical-compaction-ledger 承担。本件只有一个纯函数且无消费者，它的迁移计划与既有账本会各记一份冷热事实。",
+      "overlap": "planMaintenanceBatch 的冷暖分级迁移 ↔ tiered-storage-tiered-compaction-ledger 的分层冷凝 + hierarchical-compaction-ledger 的批量压缩",
+      "superseded_by": ["tiered-storage-tiered-compaction-ledger.js", "hierarchical-compaction-ledger.js"],
+      "revive_trigger": "只有维护会话要变成用户可见的『可中断批量迁移』交互时（需要预览/单项排除/断点恢复）才复活；复活前提是让它读写同一份分层账本，而不是自造状态。",
+      "declared_api": ["planMaintenanceBatch"],
+      "removal_candidate": true
+    },
+    "meaning-evolution-map.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-X2 的意义演化地图（按视角存解释、删除单解释只级联其衍生节点）。同一能力在生产链上已由 symbolic-evolution（字面事实/作者确认/候选三层）与 meaning-map（意象演变阶段）承担，另有 character-reinterpretation-versions 管重释版本。本件的 addMeaningInterpretation/getTargetMeaningsByActor 没有任何宿主调用点。",
+      "overlap": "addMeaningInterpretation 的多视角解释 ↔ symbolic-evolution 的三层意象契约；getTargetMeaningsByActor ↔ meaning-map 的意象阶段投影",
+      "superseded_by": ["symbolic-evolution.js", "meaning-map.js"],
+      "revive_trigger": "若要做『删除单个解释并级联其衍生节点』的图谱编辑面（现有两件都不支持级联删），本件才具备独有价值；届时接图谱编辑入口，不接生成链。",
+      "declared_api": ["addMeaningInterpretation", "getTargetMeaningsByActor"],
+      "removal_candidate": true
+    },
+    "memory-action-symbiosis-circuit.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-X8 的记忆—行动共生回路（accepted/rejected/timed_out/partially_completed 四态反馈）。跨仓行动反馈在生产链上由 ruby-phone-bidirectional-bridge 与 phone-fact-bridge 承担，后者带 EVIDENCE_GUARDS 与双向回执版本。本件『绝不复制外部状态』的自述在链上没有落点，接线会与真桥抢同一批手机事件。",
+      "overlap": "ingestActionFeedback 的四态反馈 ↔ phone-fact-bridge 的确认/撤回双向回执 + ruby-phone-bidirectional-bridge 的跨仓事件入库",
+      "superseded_by": ["ruby-phone-bidirectional-bridge.js", "phone-fact-bridge.js"],
+      "revive_trigger": "只有当真桥要上『建议被采纳/拒绝/超时』的行动结果闭环、且真桥自身不承载该四态时才复活；那时应把四态并入真桥回执，而不是另起一套状态。",
+      "declared_api": ["ingestActionFeedback"],
+      "removal_candidate": true
+    },
+    "memory-task-workbench.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-O9 的六任务区首层投影（buildTaskWorkbenchState：待确认/待修订/在用/召回复核/边界风险/断点）。首层工作台在生产链上由 memory-readable-workbench 的 assembleReadableDashboard/normalizeWorkbenchState 承担，任务队列由 task-inbox 状态机承担。本件无宿主取投影的调用点，接线需要面板侧真的改读它，否则只是并行第二份投影。",
+      "overlap": "buildTaskWorkbenchState 的六区聚合 ↔ memory-readable-workbench 的四类首层任务卡 + task-inbox 的队列状态机",
+      "superseded_by": ["memory-readable-workbench.js", "task-inbox.js"],
+      "revive_trigger": "面板要改成六区（现有是四卡）时，把本件当投影内核替换掉 assembleReadableDashboard 的位置；替换必须一刀切，不许两套投影同时喂面板。",
+      "declared_api": ["buildTaskWorkbenchState"],
+      "removal_candidate": true
+    },
+    "project-migration-boundary-bench.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-O8 的项目/分支迁移边界工作台（planMigrationTransfer：SHARED 可迁、PRIVATE 阻断）。生产链上该面已被三件活跃模块分掉：branch-semantics 的 proposeImport/precheckImport/confirmImport（导入前置检查）、secret-ledger 的 filterForViewer（按知情范围过滤）、schema-migration（存档结构升级）。本件无消费者，与 branch-semantics 职责重叠。",
+      "overlap": "planMigrationTransfer 的 SHARED/PRIVATE 判定与阻断 ↔ branch-semantics 的导入预检 + secret-ledger 的按视角过滤",
+      "superseded_by": ["branch-semantics.js", "secret-ledger.js", "schema-migration.js"],
+      "revive_trigger": "只有『跨项目迁移』升级为独立交互流程（用户选项目→预览阻断项→确认迁移）时才复活，且必须复用 branch-semantics 的预检结论而不是重算一遍。",
+      "declared_api": ["planMigrationTransfer"],
+      "removal_candidate": true
+    },
+    "recall-route-feedback-bench.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-O4 的多路由召回仲裁与质量反馈（五大路线 + rankByRoute/recordFeedback）。第十期 L10-O4 的 dynamic-recall-route-feedback-hub 是同一能力的投产版（rankCandidatesByRoute/disambiguateEntities/recordFeedbackAndAdjust），召回分区与预算另由 injection-router 承担。本件是前一版实现，生产链零消费者。",
+      "overlap": "rankByRoute/recordFeedback ↔ dynamic-recall-route-feedback-hub.rankCandidatesByRoute/recordFeedbackAndAdjust（同一批召回路线 + 反馈调权）",
+      "superseded_by": ["dynamic-recall-route-feedback-hub.js", "injection-router.js"],
+      "revive_trigger": "只有召回路线体系要改（路线集合变化、或反馈要按用户画像分桶）时，把本件当候选设计稿重估；不得与投产版并行接线。",
+      "declared_api": ["rankByRoute", "recordFeedback"],
+      "removal_candidate": true
+    },
+    "unified-narrative-clock-axis.js": {
+      "disposition": "declared_dormant",
+      "reason_kind": "superseded_by_active_duplicate",
+      "why": "L9-O3 的叙事时钟双时间轴统合（四维锚定 + evaluateTemporalValidity）。生产链上时间面已被 dual-time（何时发生/何时得知）、story-clock-parse（文本时间戳解析）、ancient-story-clock（古代时辰）覆盖；第二十二期 R22-O5 又把裸钟统一收敛到 storyNowWallFallback 单一出口。本件无宿主调用点，接线会形成第三套时间口径。",
+      "overlap": "parseStoryTimestamp/evaluateTemporalValidity ↔ dual-time 的双时间 + story-clock-parse 的时间戳解析；四维锚定 ↔ ancient-story-clock 的时辰换算",
+      "superseded_by": ["dual-time.js", "story-clock-parse.js", "ancient-story-clock.js"],
+      "revive_trigger": "只有时间面要统一成单一锚定模型（把 dual-time/时辰/章节推进合并成一个坐标）时，本件才作为目标设计复活；复活先删旧三件的时间解析，不许叠层。",
+      "declared_api": ["parseStoryTimestamp", "normalizeTimelineEvent", "evaluateTemporalValidity", "projectNarrativeAxis"],
+      "removal_candidate": true
+    }
+  }
+}
