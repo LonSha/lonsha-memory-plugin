@@ -1348,6 +1348,11 @@
         async rewriteQuery() { return null; }
         async rerank() { return null; }
         async fetchModels() { return { models: [], source: 'unavailable', reason: 'memory-organs.js 缺席，抓取面不可用' }; }
+        /* [v3.471.0] 模型列表三级降级带出两个私有出口：退路必须与 `memory-organs.js` 的类面同形
+         *   （v3264 A 按方法名对账）。两个都**如实回报空**，不伪造模型名 ——
+         *   退路本就没有网络层，编一个列表出来会让「抓取失败」与「抓到空」在下游同形。 */
+        _normalizeModelsPayload() { return []; }
+        async _fetchModelsViaProxy() { throw new Error('memory-organs.js 缺席，代理面不可用'); }
         async callOpenAI() { return null; }
         getLastIntent() { return null; }
         getLastEventChain() { return null; }

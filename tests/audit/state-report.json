@@ -1005,11 +1005,11 @@
     "per_file": {
       "manifest.json": "53dcfb7bb5aa",
       "package.json": "9769a8dc9d73",
-      "index.js": "1bc283ba64fd",
+      "index.js": "62780b85a0f1",
       "update-log.json": null,
       "README.md": "96dafb849d2e",
-      "PLAN.md": "41ab8a9986ca",
-      "CHANGELOG.md": "781d5d858434",
+      "PLAN.md": "19be5a9bcf31",
+      "CHANGELOG.md": "5a82bdc14f2e",
       "TODO.md": "816cc37becfe",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }

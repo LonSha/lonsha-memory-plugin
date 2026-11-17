@@ -4,6 +4,17 @@
 - 新增记忆胶囊、未来信、关系里程碑、体检、时间线/地图、睡眠整理、档案包、多角色隔离。
 - 新增注入分面、视图真开、替代证据、realhost 门、登记/装载处置、冻结新鲜度、写了不读扫描。
 - `r22ProductReadout()` 在真实生成周期读取当前图谱、摘要与注入回执；18 个模块均登记并 active。
+**判据**（可磁盘重算的档自述）：
+- `tests/v3471_model_fetch_degrade.test.mjs` 16 条全绿 —— 模型列表三级降级（代理优先 / 直连保留 / 双败聚合报错不吞因），含三条真源码破坏负控制；本版补 `OrganFallback` 的 `_normalizeModelsPayload` / `_fetchModelsViaProxy` 两个同形退路（v3264 A 按方法名对账的欠账）。
+- `tests/v3472_l22_lab_search.test.mjs` 4 条全绿 —— 实验室页签任务分组 / 搜索 / 配置键唯一性。
+- `tests/v3472_l22_ui_panel.test.mjs` 9 条全绿 —— L22 UI 面板可访问性 / 未保存改动拦截 / 健康页出口。
+- `tests/v3472_r22_product_wiring.test.mjs` 6 条全绿 —— R22 十八模块在真实生成路径上被读取。
+
+**本轮顺带修的两处真缺陷**（不是读数）：
+- `memory-core.js` / `memory-organs.js` 的 `sanitizeJson` 逐字副本与宿主失同步 —— v3.469.0 只改了 `index.js` 的结构感知双遍状态机，两份副本仍停在旧实现（1550 词元 vs 2048）。判据 v3264 A6 / v3266 A8 按「副本必须与宿主逐字同源」当场照出。
+- `index.js` 的 `OrganFallback` 缺 `_normalizeModelsPayload` / `_fetchModelsViaProxy` —— v3.471.0 只改了 `memory-organs.js`，退路面没跟上。
+
+**读数重绑**：`tools/rebind_host_beast.py` 从「硬编码 v3.363.0 + 三个死常量」重写为「从 index.js 真读版号 + 三方互校 + 只准前进 + 落盘前十条自校验」，入口 13201 → 13530 行、成员 1345 → 1559，行上界 13519 → 13930（余量 400 = slack，不跟随实测漂移）、成员上界 1366 → 1589。
 
 ## v3.471.0
 **模型列表抓取三级降级：代理 → 直连 → 聚合报错放手填。修「接 API 模型拿不到列表只能手填」的产品缺口。**

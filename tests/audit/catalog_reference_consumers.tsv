@@ -530,3 +530,7 @@ v21_x6_routine_evidence.test.mjs		v3.467.0 补登·存量盲区：该档在役�
 v21_x7_worldline_draft_audit.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x7_worldline_draft_audit.test.mjs — L21-X7 世界线草稿保存前语义自检 [v3.465.9]
 v21_x8_operation_echo.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x8_operation_echo.test.mjs — L21-X8 一次操作的完整回声四档 [v3.466.0]
 v21_x9_topic_absence.test.mjs		v3.467.0 补登·存量盲区：该档在役但从未登记进本台账（v3480 台账双向门长红蛰伏），本次只补「存在」这一事实，不改其档案内容 —— tests/v21_x9_topic_absence.test.mjs — L21-X9「我为什么不记得」话题级四态归因 [v3.466.1]
+v3471_model_fetch_degrade.test.mjs		v3.471.0 补登：模型列表抓取三级降级（代理→直连→聚合报错）判据 16/16，含三条真源码破坏负控制 — tests/v3471_model_fetch_degrade.test.mjs
+v3472_l22_lab_search.test.mjs		v3.472.0 补登：实验室页签任务分组 / 搜索 / 配置键唯一性 — tests/v3472_l22_lab_search.test.mjs
+v3472_l22_ui_panel.test.mjs		v3.472.0 补登：L22 UI 面板可访问性 / 未保存改动 / 健康页出口 — tests/v3472_l22_ui_panel.test.mjs
+v3472_r22_product_wiring.test.mjs		v3.472.0 补登：R22 产品接线（真实生成路径消费） — tests/v3472_r22_product_wiring.test.mjs

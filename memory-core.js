@@ -103,18 +103,89 @@ function sanitizeJson(raw) {
         let s = String(raw).trim();
         if (!s) return '';
 
-        // 1. 全角引号与全角标点归一化
-        s = s.replace(/[\u201c\u201d\u201e\u300c\u300d]/g, '"')
-             .replace(/[\u2018\u2019]/g, "'")
-             .replace(/\uff0c/g, ',')
-             .replace(/\uff1a/g, ':')
-             .replace(/\uff1b/g, ';');
-        // 单引号键值向双引号转换（保护 don't, it's 等字母间缩写）
-        s = s.replace(/([a-zA-Z])'([a-zA-Z])/g, '$1__APOSTROPHE__$2')
-             .replace(/'/g, '"')
-             .replace(/__APOSTROPHE__/g, "'");
+        // 1. 引号结构状态机（第一遍）：直引号 / 全角弯引号 / 直角引号定界 + 结构位标点归一化
+        const OPENERS = new Map([['"', '"'], ['“', '”'], ['「', '」']]);
+        let out = '';
+        let inStr = false;
+        let closer = '';
+        let escaped = false;
+        for (let i = 0; i < s.length; i++) {
+            const ch = s[i];
+            if (inStr) {
+                if (closer === '"' && !escaped && ch === '\\') { out += ch; escaped = true; continue; }
+                if (escaped) { out += ch; escaped = false; continue; }
+                if (ch === closer) {
+                    if (closer === '"') {
+                        let nextNonSpace = '';
+                        for (let j = i + 1; j < s.length; j++) {
+                            const nc = s[j];
+                            if (nc !== ' ' && nc !== '\t' && nc !== '\n' && nc !== '\r') { nextNonSpace = nc; break; }
+                        }
+                        if (!nextNonSpace || nextNonSpace === ',' || nextNonSpace === ':' || nextNonSpace === '}' || nextNonSpace === ']') {
+                            inStr = false; out += '"'; continue;
+                        }
+                        out += '\\\"'; continue;   // 字符串内部裸引号：转义保留原文
+                    }
+                    inStr = false; out += '"'; continue;  // 全角/直角关引号 → 结构位 "
+                }
+                if (closer !== '"' && ch === '"') { out += '\\\"'; continue; }  // 直角/弯引号串内的直引号
+                out += ch;   // 字符串内部：原样保留（含 ，：；‘’“”「」）
+                continue;
+            }
+            if (OPENERS.has(ch)) { inStr = true; closer = OPENERS.get(ch); out += '"'; continue; }
+            if (ch === '”' || ch === '」') { out += '"'; continue; }   // 孤立关引号防串位
+            if (ch === '，') { out += ','; continue; }
+            if (ch === '：') { out += ':'; continue; }
+            if (ch === '；') { out += ';'; continue; }
+            out += ch;
+        }
+        s = out;
 
-        // 2. 剥离外层闲聊废话与 Markdown 围栏
+        // 2. 单引号第二遍：字符串外部的 ' 归一为 "（词内撇号 don't 与串内 '原文' 保留）
+        out = '';
+        let inDq = false;
+        let inSq = false;
+        escaped = false;
+        for (let i = 0; i < s.length; i++) {
+            const ch = s[i];
+            if (inDq) {
+                if (escaped) { out += ch; escaped = false; continue; }
+                if (ch === '\\') { out += ch; escaped = true; continue; }
+                if (ch === '"') {
+                    let nextNonSpace = '';
+                    for (let j = i + 1; j < s.length; j++) {
+                        const nc = s[j];
+                        if (nc !== ' ' && nc !== '\t' && nc !== '\n' && nc !== '\r') { nextNonSpace = nc; break; }
+                    }
+                    if (!nextNonSpace || nextNonSpace === ',' || nextNonSpace === ':' || nextNonSpace === '}' || nextNonSpace === ']') {
+                        inDq = false; out += ch; continue;
+                    }
+                    out += '\\\"'; continue;
+                }
+                out += ch; continue;   // 直引号串内：' 与其余字符都是内容
+            }
+            if (inSq) {
+                if (ch === "'") {
+                    let nextNonSpace = '';
+                    for (let j = i + 1; j < s.length; j++) {
+                        const nc = s[j];
+                        if (nc !== ' ' && nc !== '\t' && nc !== '\n' && nc !== '\r') { nextNonSpace = nc; break; }
+                    }
+                    if (!nextNonSpace || nextNonSpace === ',' || nextNonSpace === ':' || nextNonSpace === '}' || nextNonSpace === ']') {
+                        inSq = false; out += '"'; continue;
+                    }
+                    out += ch; continue;   // 词内撇号/内容
+                }
+                if (ch === '"') { out += '\\\"'; continue; }   // 单引号串内的直引号需转义
+                out += ch; continue;
+            }
+            if (ch === '"') { inDq = true; out += ch; continue; }
+            if (ch === "'") { inSq = true; out += '"'; continue; }
+            out += ch;
+        }
+        s = out;
+
+        // 3. 剥离外层闲聊废话与 Markdown 围栏
         const firstObj = s.indexOf('{');
         const firstArr = s.indexOf('[');
         let startIdx = -1;
@@ -140,55 +211,13 @@ function sanitizeJson(raw) {
             s = s.slice(startIdx);
         }
 
-        // 3. 字符流状态机：修复未转义双引号与字符串内部裸引号
-        let out = '';
-        let inString = false;
-        let escaped = false;
-        for (let i = 0; i < s.length; i++) {
-            const ch = s[i];
-            if (escaped) {
-                out += ch;
-                escaped = false;
-                continue;
-            }
-            if (ch === '\\') {
-                out += ch;
-                escaped = true;
-                continue;
-            }
-            if (ch === '"') {
-                if (!inString) {
-                    inString = true;
-                    out += ch;
-                } else {
-                    // 前瞻下一个非空白字符
-                    let nextNonSpace = '';
-                    for (let j = i + 1; j < s.length; j++) {
-                        const nc = s[j];
-                        if (nc !== ' ' && nc !== '\t' && nc !== '\r' && nc !== '\n') {
-                            nextNonSpace = nc;
-                            break;
-                        }
-                    }
-                    if (!nextNonSpace || nextNonSpace === ',' || nextNonSpace === ':' || nextNonSpace === '}' || nextNonSpace === ']') {
-                        inString = false;
-                        out += ch;
-                    } else {
-                        out += '\\"';
-                    }
-                }
-            } else {
-                out += ch;
-            }
-        }
-
         // 4. 清除对象/数组尾部多余的逗号（悬挂逗号：, } 或 , ]）
-        out = out.replace(/,\s*([}\]])/g, '$1');
+        s = s.replace(/,\s*([}\]])/g, '$1');
 
         // 5. 修复未加引号的纯英文字母对象键（如 { name: "value" } -> { "name": "value" }）
-        out = out.replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":');
+        s = s.replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":');
 
-        return out.trim();
+        return s.trim();
     } catch (e) {
         return String(raw || '').trim();
     }
