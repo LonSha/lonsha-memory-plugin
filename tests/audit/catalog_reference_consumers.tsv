@@ -550,3 +550,4 @@ l23_x_surface.test.mjs		L23-X1~X9 装配面/真消费点判据（7 条含版本�
 l23_o5_diag_split.test.mjs		L23-O5 拆片判据（13 条：上界门 / 三处同源 / 逐字节对拍 / 缺片不同形 / _libs 实时视图）
 l23_o2_load_surface_zero.test.mjs		L23-O2 装载面零消费判据（11 模块归档后 load_surface_only 真归 0，带四组负控制）
 l23_o3_zero_consumption.test.mjs		L23-O3 零消费归零判据（唯一零消费模块归档，5 组负控制）
+l23_o1_index_layer_blocker.test.mjs		L23-O1 四层拆分前提核验 + 行数天花板重定基（ratchet，两向自证）

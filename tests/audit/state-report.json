@@ -414,7 +414,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 545,
+    "test_files": 546,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -452,6 +452,7 @@
       "l22_o1_index_split.test.mjs",
       "l22_o4_evidence_binding.test.mjs",
       "l22_o7_declared_dormant.test.mjs",
+      "l23_o1_index_layer_blocker.test.mjs",
       "l23_o2_load_surface_zero.test.mjs",
       "l23_o3_zero_consumption.test.mjs",
       "l23_o5_diag_split.test.mjs",
@@ -1026,8 +1027,8 @@
       "index.js": "e94581cccd11",
       "update-log.json": null,
       "README.md": "77cf3f28aa24",
-      "PLAN.md": "8201db881d6b",
-      "CHANGELOG.md": "e8bf2330a986",
+      "PLAN.md": "af622747891c",
+      "CHANGELOG.md": "75911d0aec2f",
       "TODO.md": "739c99e1450d",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }

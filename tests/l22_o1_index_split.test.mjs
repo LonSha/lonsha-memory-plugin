@@ -97,7 +97,21 @@ try { nowSurface = JSON.parse(fs.readFileSync(surfaceOut, 'utf8')); } catch (_e)
 try { fs.unlinkSync(surfaceOut); } catch (_e) { /* 清理失败不影响结论 */ }
 ok('P4 入口真装得起来（装载器 rc=0）', runLoader.status === 0, String(runLoader.stderr || '').slice(-300));
 const surfaceCmp = nowSurface ? compareSurface(exportsBase.surface, nowSurface.surface || {}) : { ok: false, problems: ['装载器没产出导出面'] };
-ok('P5 对外面 64 个符号逐字不变（独立复算）', surfaceCmp.ok && Object.keys(nowSurface.surface || {}).length === 64, JSON.stringify(surfaceCmp.problems.slice(0, 4)));
+/* [v3.474.0 · L23-O1] 原文把导出面数量写死成 64。L23-O5 拆片时为跨 classic script 的登记
+ *   新增了两个全局符号（`LonShaDiagParts` / `LonShaDiagnosticLinesParts`），已按 L22-O1 引入
+ *   `LonShaIndexHelpers` 的同一口径如实登记进 `tests/audit/index_exports.json`。
+ *   于是「64」这个常量本身成了过期硬度：它断的不是「导出面没变」，而是「没人加过符号」——
+ *   后者本来就不该被禁（加符号要走的是**登记**，不是禁止）。
+ *   改读登记真源：数量必须 === 台账 count，且与基线逐字比对仍然 ok（名字/类型一个不许变）。 */
+const exportsLedger = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/audit/index_exports.json'), 'utf8'));
+const exportsCount = exportsLedger.count || Object.keys(exportsLedger.surface || {}).length;
+ok('P5 对外面符号逐字不变 + 数量与登记台账一致（独立复算）',
+    surfaceCmp.ok
+    && Object.keys(nowSurface.surface || {}).length === exportsCount
+    && Object.keys(exportsBase.surface || {}).length === exportsCount,
+    '台账 count=' + exportsCount + ' / 实得 ' + Object.keys(nowSurface.surface || {}).length
+    + ' / 基线 ' + Object.keys(exportsBase.surface || {}).length
+    + ' ' + JSON.stringify(surfaceCmp.problems.slice(0, 4)));
 
 const idxLines = linesOf(indexText);
 const helperLines = linesOf(helpersText);

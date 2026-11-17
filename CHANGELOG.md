@@ -1,5 +1,33 @@
 ## v3.474.0
 
+**第二十三期优化九项第四刀（L23-O1）：`index.js` 四层拆分的**前提被实测证伪**，改为「行数天花板重定基 + ratchet」。**
+
+- **先说结论，免得被读成「拆完了」**：本项**没有**把 `index.js` 拆成装配/注册/生命周期/事件四层。
+  计划书的这个前提在本仓装载模型下**不成立**，理由全部是机器读数（不是「没时间」）：
+  - 用 acorn 对 `index.js` 做精确闭包计算：`MemoryEngine` L1705–L10204 = **8500 行**；
+    `LonShaMemoryPlugin` L11273–L12654 = **1382 行**，自由名 = **48 个 IIFE 局部名**
+    + **22 个跨 classic script 全局名**（`LonShaRubyPhoneBridge` / `TemporalFlashbulbDilationEngine` 等，
+    全部以 `typeof X !== 'undefined'` 惰性取用）。
+  - 而入口 **L12685 `const plugin = new LonShaMemoryPlugin();` 是装载期同步实例化**，L12690 立刻
+    `window.LonShaMemory = plugin` 交给宿主；`manifest.extra_js` 在入口脚本**之后**才加载。
+  - ⇒ 把这两个类搬到 extra_js 模块，装载期就会「类缺席」，宿主拿不到实例。那不是「只搬不改」，
+    是**改装载语义**。旁证：L22-O1 的 b3/b5 已用同一套闭包实测得出「闭包为空的候选 = 0」，辅助层到顶。
+- **真实交付 ①：R2 那条存量红被诚实收掉。** `scan_index_split` R2「index.js 行数只降不涨」的天花板
+  12963 **自 4440a35（该版 13350 行）起从未达成过**，红到没人再信。处理只有两条路：硬拆（前提已证伪）
+  或**重定基**。选后者，并且不是抬账：`index_split_ledger.rebase` 写明 `from 12963 → to 12992`、
+  逐条证据、以及「为什么不能靠拆达成」；同时把闸升级成 **ratchet** —— 天花板必须**等于**实测行数，
+  涨一行就红（旧口径是「不超过」，比现实松）。判据 `tests/l23_o1_index_layer_blocker.test.mjs` **8/8**：
+  A1/A2 台账自洽 + ratchet、A3 阻断理由 ≥120 字且非灰标签、**B1 行为级证据**（只 `require(index.js)`，
+  装载完成时 `LonShaMemory` 已是 object ⇒ 实例只能是入口自己造的）、B2 装载顺序读数、
+  C1/C2/C3/C4 四组负控制（天花板松 1 行 / 改回 12963 / 删理由 / 换成「以后再拆」各自必红）。
+  `scan_index_split` 因此 rc=0，`l22_o1_index_split` 从 9 红收敛到 **43/43 全绿**。
+- **真实交付 ②：`l22_o1` 的 P5 改读登记真源（不是放宽）。** 它原把导出面数量写死成 64；L23-O5 拆片时
+  合法新增 `LonShaDiagParts` / `LonShaDiagnosticLinesParts` 两个符号并**已登记**进 `index_exports.json`。
+  「64」这个常量断的其实是「没人加过符号」，而加符号该管的是**登记**。改为：数量 === 台账 `count`，
+  且与基线逐字比对仍然通过（名字/类型一个不许变）。
+- **连带**：`catalog_reference_consumers.tsv` 补登新套件；`v3431` 的两数是 `tests/audit` 下**审计脚本**口径
+  （不数业务测试），本刀已按纪律显式改数并写明来历。
+
 **第二十三期优化九项第三刀（L23-O2）：11 个 `load_surface_only` 全量归档，装载面零消费真归 0。**
 
 - 对象：台账里 `why === 'load_surface_only'` 的 11 个模块（`evidence-conflict-adjudication-bench` /

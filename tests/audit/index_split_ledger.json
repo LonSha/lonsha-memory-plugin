@@ -1,529 +1,544 @@
 {
-  "schema": "index-split@1",
-  "plan": "L22-O1",
-  "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。batch5 是收口段：辅助层已到顶，“剩下的怎么拆”写在那里。",
-  "source": "index.js",
-  "lines_before_split": 13546,
-  "index_lines_max": 12963,
-  "module": "index-helpers.js",
-  "module_lines": 815,
-  "wiring": {
-    "load": "_moduleLib(() => window.LonShaIndexHelpers, 'index-helpers.js')",
-    "lazy": "经 _indexHelpers() / _indexHelperCall(name, args) 惰性探针 —— extra_js 在入口脚本之后加载，装载期取库会绑成缺席桩（自伤，只在真宿主现形）",
-    "absence": "缺席时 _noteModuleFailure 登记归因并抛**点名**错误，不静默降级、也不留同形兜底实现"
-  },
-  "batch1": {
-    "what": "10 个无状态纯函数（逐字节搬迁，注释一并搬走）",
-    "why_this_cluster": "对本件顶层函数逐个做自由标识符实测：依赖闭包为空或自洽、且**声明唯一**的只有这 10 个。其余函数都摸到 IIFE 里的东西 —— 其中 175 个是 _moduleLib(...) 取库，那要先回答「库怎么拿」，不属于第一簇。",
-    "functions": [
-      {
-        "name": "loadExtraJsScript",
-        "source": "L477-L489",
-        "why": "按需插一条 extra_js（幂等，按 src 去重）"
-      },
-      {
-        "name": "estimateTextTokens",
-        "source": "L524-L536",
-        "why": "粗估 token（中文按字、英文按词），只做量级判断"
-      },
-      {
-        "name": "hash32",
-        "source": "L537-L545",
-        "why": "FNV-1a 32 位指纹（缓存键/去重键）"
-      },
-      {
-        "name": "stripMemoryOpsTags",
-        "source": "L795-L805",
-        "why": "剥掉记忆操作标签，防标签漏进正文"
-      },
-      {
-        "name": "extractTimeTagFast",
-        "source": "L807-L819",
-        "why": "快速取时间标签（不跑完整解析）"
-      },
-      {
-        "name": "sanitizeJson",
-        "source": "L853-L999",
-        "why": "脏 JSON 清洗（围栏、注释、尾逗号、单引号等 141 行）"
-      },
-      {
-        "name": "safeJsonParse",
-        "source": "L1000-L1011",
-        "why": "先 JSON.parse，失败再过 sanitizeJson，仍失败给 fallback"
-      },
-      {
-        "name": "cyclePositionFor",
-        "source": "L1887-L1890",
-        "why": "周期调度位置取模"
-      },
-      {
-        "name": "_initEbbingMeta",
-        "source": "L2005-L2015",
-        "why": "记忆强度元数据缺省值初始化"
-      },
-      {
-        "name": "ledgerClip",
-        "source": "L2087-L2091",
-        "why": "账本字段裁剪（压空白 + 截断）"
-      }
-    ],
-    "excluded_because_duplicate": {
-      "parseStoryDateLoose": "本件里被声明了两次：L1839（列首、签名 dateStr）与 L11661（缩进 4、签名 s），后定义覆盖前定义，relativeTimeLabel 用的是后者。搬走后「剩下的那一份」会变成唯一实现 —— 那是**改语义**不是搬代码，故整簇不碰它。",
-      "storyDayDiff": "依赖 parseStoryDateLoose，随其一起留在 index.js。"
-    }
-  },
-  "equivalence_proof": {
-    "entry_loadable": "tests/_index_loader.cjs（自带最小宿主：window=globalThis + localStorage/document 桩 + jQuery/toastr/SillyTavern 空桩），装载后主动 process.exit（插件注册了定时器，否则 node 不退出）",
-    "export_surface": "tests/audit/index_exports.json —— 64 个符号（名字→类型）拆前/拆后逐字相同",
-    "byte_identical": "tests/audit/index_helpers_baseline.json —— 每个函数体 sha256，闸逐段比对（改一个字符就红）",
-    "behaviour_snapshot": "同一台账里记了 22 个函数的多组调用输出（第 1 批 9 个 / 25 组 + 第 2 批 13 个 / 54 组；合计 79 组），闸真 require 模块逐调用重放比对；另 3 个（loadExtraJsScript / decayScore / repairReceipt）登记在 not_called 并写明不可重放的理由。",
-    "gate": "tests/audit/scan_index_split.mjs（七关：R1 导出面 / R2 行数 ratchet / R3 单份实现+委托绑定 / R4 逐字节 sha256 / R5 惰性取库 / R6 纯模块（剥注释后再查，不拿散文当代码）/ R7 fixtures 真重放 / R0 fail-closed）",
-    "test": "tests/l22_o1_index_split.test.mjs（36 条：23 条正向读数 + 10 组真破坏负控制：N0 卫生态对照、N1–N7 逐关破坏被检物（含缺台账 exit 2）、N8/N9 两向自证（把判据改成恒假 ⇒ 同一坏输入转绿）、N10–N12 单位级）",
-    "honest_limits": [
-      "本环境跑不动全量 node tests/run.mjs；只逐档跑相关判据。CI 上补跑全量之前，这一步不算最终验收。",
-      "行为快照只覆盖列出的调用，不是全输入空间。",
-      "loadExtraJsScript 不取样（装载期会插 <script>），它的等价性只由 sha256 钉住。",
-      "扫描面之外仍有 5 个真宿主/浏览器探针（_mo1/_mo2/_mo8/_p3/_realhost_suite）在本机红：它们在 HEAD 上同样红（已用 worktree 逐条复核），缺的是 /tmp/st 宿主与稳定锚点，与本项无关。",
-      "window 面**确实多了一个** LonShaIndexHelpers（见 surface_additions），不是零变动。",
-      "第 2 批的 15 个函数是按「函数体」记账的（body_sha256），紧贴注释另记 attach_comment_lines；注释改动不会让 R4 红（它只钉函数体），这是刻意的口径边界。",
-      "numOr 未外移，所以「闭包为空就能搬」不成立 —— 第 4 条判据是实证出来的，不是先验。"
-    ]
-  },
-  "findings": [
-    "index.js 是单个 IIFE、结尾没有 module.exports：对外面全靠 window 挂 64 个符号，所以「导出面」必须当作判据来守。",
-    "结构快照工具（tests/audit/snapshot_index_structure.mjs）旧实现用配对花括号求块边界，连错两次：不跳字符串时 sanitizeJson 被量成 58 行（实为 141 行）；补跳字符串后正则字面量又把配对打飞（extractThinkingChain 被量成 6016 行、覆盖率算到 119%）。现已改为「顶层条目切段」，并把两次事故写进工具头注释。",
-    "同名双声明（parseStoryDateLoose）说明「同名不同物」在 index.js 里真实存在：只按名字做依赖分析会算错，必须先查声明唯一性。",
-    "拆分等价性必须七件一起验：导出面 / 行数 / 单份实现 / 逐字节 / 惰性取库 / 无依赖面 / 行为快照。少任何一件都能造假绿（本轮 R6 首版就被自己的头注释判红，R7 首版压根没写、却在台账里声称「闸重跑比对」——两条都是本轮实测抓到的）。",
-    "装载期可达性是拆分的第一道硬墙：node 里因 require 回落而看不见，真宿主里却是「插件装载即抛」。本轮实测证据：把 numOr 搬走后 node 全绿、导出面却从 64 变 65（多出 LonShaIndexHelpers）—— 导出面这个读数成了「装载期偷偷 require 了 helpers」的告警器，比装载有没有抛更灵敏。",
-    "「紧贴注释」必须跟函数一起搬：首版按裸函数行号抽取，把 11 个函数的注释留在原地变成孤儿（其中两块是多行 JSDoc 的尾行，悬空后完全失去主语）。修法是显式登记每段的注释起点 attach_from，并按它做抽取与删除；同时用「段内恰有 1 个顶层 function 声明」做硬校验，防止吞掉相邻函数。"
+ "schema": "index-split@1",
+ "plan": "L22-O1",
+ "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。batch5 是收口段：辅助层已到顶，“剩下的怎么拆”写在那里。",
+ "source": "index.js",
+ "lines_before_split": 13546,
+ "index_lines_max": 12992,
+ "module": "index-helpers.js",
+ "module_lines": 815,
+ "wiring": {
+  "load": "_moduleLib(() => window.LonShaIndexHelpers, 'index-helpers.js')",
+  "lazy": "经 _indexHelpers() / _indexHelperCall(name, args) 惰性探针 —— extra_js 在入口脚本之后加载，装载期取库会绑成缺席桩（自伤，只在真宿主现形）",
+  "absence": "缺席时 _noteModuleFailure 登记归因并抛**点名**错误，不静默降级、也不留同形兜底实现"
+ },
+ "batch1": {
+  "what": "10 个无状态纯函数（逐字节搬迁，注释一并搬走）",
+  "why_this_cluster": "对本件顶层函数逐个做自由标识符实测：依赖闭包为空或自洽、且**声明唯一**的只有这 10 个。其余函数都摸到 IIFE 里的东西 —— 其中 175 个是 _moduleLib(...) 取库，那要先回答「库怎么拿」，不属于第一簇。",
+  "functions": [
+   {
+    "name": "loadExtraJsScript",
+    "source": "L477-L489",
+    "why": "按需插一条 extra_js（幂等，按 src 去重）"
+   },
+   {
+    "name": "estimateTextTokens",
+    "source": "L524-L536",
+    "why": "粗估 token（中文按字、英文按词），只做量级判断"
+   },
+   {
+    "name": "hash32",
+    "source": "L537-L545",
+    "why": "FNV-1a 32 位指纹（缓存键/去重键）"
+   },
+   {
+    "name": "stripMemoryOpsTags",
+    "source": "L795-L805",
+    "why": "剥掉记忆操作标签，防标签漏进正文"
+   },
+   {
+    "name": "extractTimeTagFast",
+    "source": "L807-L819",
+    "why": "快速取时间标签（不跑完整解析）"
+   },
+   {
+    "name": "sanitizeJson",
+    "source": "L853-L999",
+    "why": "脏 JSON 清洗（围栏、注释、尾逗号、单引号等 141 行）"
+   },
+   {
+    "name": "safeJsonParse",
+    "source": "L1000-L1011",
+    "why": "先 JSON.parse，失败再过 sanitizeJson，仍失败给 fallback"
+   },
+   {
+    "name": "cyclePositionFor",
+    "source": "L1887-L1890",
+    "why": "周期调度位置取模"
+   },
+   {
+    "name": "_initEbbingMeta",
+    "source": "L2005-L2015",
+    "why": "记忆强度元数据缺省值初始化"
+   },
+   {
+    "name": "ledgerClip",
+    "source": "L2087-L2091",
+    "why": "账本字段裁剪（压空白 + 截断）"
+   }
   ],
-  "not_done": {
-    "remaining_engine": "MemoryEngine（8471 行）与 LonShaMemoryPlugin（1382 行）都还没动；前者依赖 201 个 IIFE 局部名，后者 56 个（40+ 是 _xxxLib 一行取库包装）。",
-    "next_batch": "第 2 批之后，index.js 仍有 221 个顶层函数声明。下一批仍是同一纪律：重算闭包只看「剩下的是不是已搬走的那些」，并且逐条过装载期可达性实测。引擎本体（MemoryEngine 8471 行 / LonShaMemoryPlugin 1382 行）仍不动 —— 它们依赖 201 / 56 个 IIFE 局部名，要先靠上面这些小块把依赖数降下来。",
-    "duplicates": "parseStoryDateLoose 的同名双声明应当先合并成一份（那是语义决定，不是搬运），否则它永远搬不动。"
-  },
-  "surface_additions": {
-    "window_key": "LonShaIndexHelpers",
-    "why": "拆出的模块按仓内既有约把 API 挂到 window（300+ 个同形模块都这么做）；入口 index.js 自己的 64 个符号一个没变。",
-    "measured_by": "tests/_index_loader.cjs 只装入口、不装 extra_js，所以它看到的仍是 64 个 —— 这一点必须写明，否则读者会把它误读成「对外面零变动」。",
-    "registered_on": [
-      "manifest.json extra_js（第 1 位，无依赖）",
-      "tests/audit/module_consumption_ledger.json（active，2 个调用点在 index.js）",
-      "tests/audit/extra_js_seam_ledger.tsv（host-seam）"
-    ]
-  },
-  "connected_fixes": [
-    "manifest.json：index-helpers.js 未登记进 extra_js 就是「真宿主里 10 个函数全缺席」的自伤（惰性探针会在首次调用抛点名错误）。装载面五段证明 S5 现场抓到并报红，才补上。",
-    "module_consumption_ledger.json 是用 tools/gen_module_consumption_ledger.mjs 重跑生成的，不是手改：重跑同时吸收了 2026-11-16 之后已存在的漂移（在 HEAD 未改代码的 worktree 上重跑就已经变 55 行，与本项无关）。",
-    "extra_js_seam_ledger.tsv 补一行；catalog_reference_consumers.tsv 补登本项与两条历史漏登（l22_o4 / l22_o7）。",
-    "tests/audit/scan_exit_codes.mjs 要求每个门禁自述三态 —— 头注释补「退出码：0 / 1 / 2」一行。"
-  ],
-  "batch2": {
-    "what": "15 个无状态纯函数（函数体合计 301 行；其中 11 个的紧贴注释 28 行一并搬走，避免在 index.js 里留孤儿注释）",
-    "why_this_cluster": "判据不是「挑看着简单的」，而是对**拆完第 1 批之后**的 index.js 重新计算依赖闭包：闭包里剩余的 IIFE 局部名**只允许**是第 1 批已搬走的那些 —— 这保证本批不需要引入任何注入机制，与第 1 批同一条纪律的级联，不是标准放宽。实测：拆后本件 236 个顶层函数声明 / 305 个唯名（同名多次声明只有 parseStoryDateLoose×2）。在「闭包已满足 + 声明唯一 + 无 this」三条之上，本轮实测又补了第 4 条：**装载期不可达**（见 excluded_because_init_time_call）。满足前三条者 16 个 / 309 行，去掉违反第 4 条的 numOr，本批 15 个 / 301 行。",
-    "criterion_4_init_time": {
-      "statement": "装载期可达的函数不许外移：extra_js 在入口脚本之后加载，装载期 window.LonShaIndexHelpers 尚不存在，此时任何一次取库都会抛点名错误（真宿主里表现为插件装载即抛）。",
-      "how_measured": "在 _indexHelperCall 里插 console.error 打调用栈（TRACE_HELPER=1），用 tests/_index_loader.cjs 的 makeHost() 造宿主后 require index.js，再等 500ms 覆盖异步延续段，统计装载期被调到的名字。",
-      "reading": "只有 numOr ×1；调用链 new LonShaMemoryPlugin()（IIFE 顶层）→ new MemoryEngine → _assembleComponents → numOr。另用「require('index-helpers') 是否被触发」作更强的旁证：本批落盘后装载期**一次都没 require 过** index-helpers.js，即 15 个函数全部装载期不可达（这同时说明第 1 批那 10 个也没问题）。",
-      "note": "这一条只在 node 里被掩盖：_moduleLib 有 require 回落，所以 numOr 搬走时 node 里照样绿灯、导出面却从 64 变 65（多出 LonShaIndexHelpers），真宿主才会炸。因此判据必须看「装载期有没有 require helpers」而不是「装载有没有抛」。"
-    },
-    "functions": [
-      {
-        "name": "compareVersion",
-        "source": "L337-L347",
-        "lines_body": 11,
-        "attach_comment_lines": 0,
-        "why": "版本号按点分数字逐段比较（缺段按 0），判旧/版本真值的唯一实现"
-      },
-      {
-        "name": "_getCredKey",
-        "source": "L353-L356",
-        "lines_body": 4,
-        "attach_comment_lines": 0,
-        "why": "按 url + 认证头 + 选项算 32 位凭据指纹（供 401/403 冷却表分桶）"
-      },
-      {
-        "name": "msgTextOf",
-        "source": "L553-L559",
-        "lines_body": 7,
-        "attach_comment_lines": 0,
-        "why": "取消息正文（mes 优先、回落 content），全仓统一入口"
-      },
-      {
-        "name": "thinkingAnchorHeader",
-        "source": "L623-L626",
-        "lines_body": 3,
-        "attach_comment_lines": 1,
-        "why": "思维链投递头的固定框定语（防草稿被下游当已发生事实）"
-      },
-      {
-        "name": "extractMemoryOpsFromText",
-        "source": "L641-L698",
-        "lines_body": 57,
-        "attach_comment_lines": 1,
-        "why": "从回复原文解析 <field>/<todo>/<item> 标签为结构化操作（57 行，本批最大一段）"
-      },
-      {
-        "name": "buildNpcTierInjection",
-        "source": "L699-L726",
-        "lines_body": 27,
-        "attach_comment_lines": 1,
-        "why": "NPC 四档压平分级注入（含性别铁律）"
-      },
-      {
-        "name": "classifyRelationshipType",
-        "source": "L759-L771",
-        "lines_body": 12,
-        "attach_comment_lines": 1,
-        "why": "关系五分类学（family/intimate/hostile/social/other 正则分类）"
-      },
-      {
-        "name": "_formatBindDepsRow",
-        "source": "L1625-L1656",
-        "lines_body": 25,
-        "attach_comment_lines": 7,
-        "why": "依赖注入诊断行的纯函数格式化（三态数组 → [标题, 值] 两元组）"
-      },
-      {
-        "name": "parseStoryTimeConstraint",
-        "source": "L1711-L1740",
-        "lines_body": 27,
-        "attach_comment_lines": 3,
-        "why": "从 recall 查询里解析剧情时间约束（Day X / 月 / ISO 日期 / 相对时间）"
-      },
-      {
-        "name": "filterTimelineByConstraint",
-        "source": "L1741-L1788",
-        "lines_body": 47,
-        "attach_comment_lines": 1,
-        "why": "按时间约束过滤 timeline 条目（作用于 date 匹配）"
-      },
-      {
-        "name": "isSystemHiddenMsg",
-        "source": "L1789-L1796",
-        "lines_body": 6,
-        "attach_comment_lines": 2,
-        "why": "识别 ST 安静生成的消息（is_system 且非 user 且非空）"
-      },
-      {
-        "name": "decayScore",
-        "source": "L1799-L1824",
-        "lines_body": 23,
-        "attach_comment_lines": 3,
-        "why": "Ebbinghaus 衰减评分（重要性 × 激活^0.3 × e^(-λ·天) × 情绪权重 × 强化保护）"
-      },
-      {
-        "name": "ledgerItemKey",
-        "source": "L1884-L1894",
-        "lines_body": 10,
-        "attach_comment_lines": 1,
-        "why": "账本条目键名归一（与 MemoryEngine.normalizeItemKey 同源规则）"
-      },
-      {
-        "name": "repairReceipt",
-        "source": "L13002-L13035",
-        "lines_body": 27,
-        "attach_comment_lines": 7,
-        "why": "受控写入面的恒定回执构造点（13 键同形，失败分支与成功分支同形）"
-      },
-      {
-        "name": "opLogStatsCompat",
-        "source": "L13332-L13346",
-        "lines_body": 15,
-        "attach_comment_lines": 0,
-        "why": "账本统计兼容层（三态自述：无账本 / stats 缺失 / 统计抛错）"
-      }
-    ],
-    "intra_cluster_dependency": {
-      "_getCredKey": "hash32（第 1 批已搬入同一模块，模块内仍是兄弟函数，无需注入）",
-      "others": "零依赖（14 个）"
-    },
-    "not_called": {
-      "decayScore": "内部读 Date.now()，样本不可跨时间重放；只由 sha256 钉住。",
-      "repairReceipt": "函数体含 at: Date.now()，输出带当前时刻，不可重放；只由 sha256 钉住。"
-    },
-    "excluded_because_init_time_call": {
-      "numOr": "签名 numOr(v, fallback)，8 行，闭包为空、声明唯一、无 this —— 前三条全满足。但它在装载期就被调用，故**不外移**（实测调用链见 criterion_4_init_time）。它在 v3.224.0 还修过一个语义坑（数组不能读成 0），是本仓有故事的函数，留在原地更稳。"
-    },
-    "excluded_because_duplicate": {
-      "parseStoryDateLoose": "同上批理由：同名双声明（列首 + 缩进 4）必须先合并再搬，那是语义决定不是搬运。本批仍未碰。"
-    },
-    "leftovers_flagged_not_touched": {
-      "index.js L1797-L1798": "decayScore 上方这两行是 v3.259.0 把「增量书签」外移后遗留的死注释（附近已无对应函数）。不属于本批任何函数，故不随迁、也未删除 —— 只登记，不擅自替别人清理。"
-    }
-  },
-  "batch3": {
-    "what": "第 3 批（b3）：**零搬迁**。本批不是「搬了 N 个」，而是一次「辅助层这条矿脉到底了吗」的实测收口 —— 结论是无候选，于是把「为什么无候选」的机器读数、注入面纪律、以及用来保命的闸/判据落盘。硬凑一个函数搬出去才是真缺陷。",
-    "why_not_migrated": [
-      "在「逐字节搬迁 + 不注入」的纪律下，b3 候选 = 0：候选原料 215 个中，62 个装载期可达（搬走就装载即抛），剩下 153 个的依赖闭包里正是那 62 个。",
-      "「闭包为空」这个口径已被两次证伪，不能再用：numOr 闭包为空但它是**被调方**（IIFE 顶层 new LonShaMemoryPlugin() → _assembleComponents 调它）；hintForError 闭包为空但它是**调用方可达**（装载期可达的 errLog 会调它）。两个方向静态闭包分析都看不见。",
-      "所以第 4 条判据从 b2 的「装载期不可达」升级为硬门槛：b2 剔除 1 个，到 b3 剔除 62 个。"
-    ],
-    "measurement": {
-      "index_lines": 13052,
-      "top_level_function_decls": 221,
-      "unique_names": 305,
-      "duplicate_names": [
-        "parseStoryDateLoose×2"
-      ],
-      "candidate_rule": "声明唯一 + 函数体不含 this + 不在基线 extracted 里 + 4 空格缩进",
-      "candidate_pool": 215,
-      "init_time_reachable": 62,
-      "closure_unsatisfied": 153,
-      "selectable": 0,
-      "selectable_lines": 0,
-      "reading_file": "/tmp/b3_init_hits.json（临时读数；本台账已内联名单与读数，不依赖该文件存续）",
-      "measured_at": "2026-11-17T09:10:12.805Z",
-      "instrumented": 215,
-      "missing": [],
-      "conclusion": "装载期可达 62 / 闭包未满足 153 / 可选 0 个 0 行 ⇒ 辅助层在「不注入」纪律下已到顶。"
-    },
-    "how_measured": {
-      "scanner": "/tmp/lonsha_scan3.cjs：MOVED 名单从 tests/audit/index_helpers_baseline.json 的 extracted 读，不第二次硬编码；同批内互相依赖用定点迭代（不是单轮），initHits 只用来**剔除**候选、不当「依赖已满足」白名单。",
-      "reach_probe": "/tmp/b3_measure_reach2.mjs：按文本偏移在 `function NAME(` 后第一个 `{` 之后插 `try { (globalThis.__B3HIT = globalThis.__B3HIT || []).push(NAME); } catch (_e) { }`，215/215 全覆盖（按行插桩只覆盖 135/215，因为 100 个声明的 `{` 不在行尾）；用 tests/_index_loader.cjs 的 makeHost() 造宿主后 require(index.js)，再等 500ms 覆盖 init() 的异步延续段；从后往前插使偏移不漂；跑完必须 git checkout -- index.js 回滚。",
-      "why_probe_not_scanner": "扫描器算的是「闭包引用集」，探头算的是「装载期真的执行到了」。前者看不见调用方方向的可达，也看不见异步延续段。"
-    },
-    "init_time_reachable_names": [
-      "_antiphonyLib",
-      "_archaeologyLib",
-      "_batchMaintenanceLib",
-      "_bindConfigDeps",
-      "_bindCoreDeps",
-      "_bindOrganDeps",
-      "_budgetOrchestratorLib",
-      "_characterGrowthLib",
-      "_characterReinterpretationLib",
-      "_commitmentLifecycleLib",
-      "_conflictBenchLib",
-      "_crossProjectDeskLib",
-      "_eraContinuationLib",
-      "_eraHandoffDraftLib",
-      "_factCorrectionTxLib",
-      "_factReplayLib",
-      "_factVersionLib",
-      "_generationMaterialReconcileLib",
-      "_generationReplayLib",
-      "_inbandExtractionLib",
-      "_knowledgeRelayLib",
-      "_loreConclusionReconcileLib",
-      "_loreImportLib",
-      "_meaningMapLib",
-      "_memoryAuxLib",
-      "_memoryBooksLib",
-      "_memoryConfigLib",
-      "_memoryCoreLib",
-      "_memoryLedgersLib",
-      "_memoryOrgansLib",
-      "_memoryRevisitScheduleLib",
-      "_memoryRitualLib",
-      "_memorySeasonLib",
-      "_memoryWeatherLib",
-      "_moduleLib",
-      "_multiProtagonistLib",
-      "_narrationCompareLib",
-      "_narrativeGeneratorsLib",
-      "_newConfigManager",
-      "_newCore",
-      "_newMemoryAux",
-      "_newMemoryBooks",
-      "_newMemoryLedger",
-      "_newMemoryOrgan",
-      "_newNarrativeGenerator",
-      "_newSceneBook",
-      "_readableWorkbenchLib",
-      "_recallRouteFeedbackHubLib",
-      "_recallRouteLib",
-      "_repairResponseLib",
-      "_sceneBookLib",
-      "_sceneSeatingPartitionLib",
-      "_secretTheaterLib",
-      "_storyAnnualLib",
-      "_storyClockLib",
-      "_symbiosisBridgeLib",
-      "_temporalValidityLib",
-      "_volumeSealingLib",
-      "_workModeLib",
-      "errLog",
-      "hintForError",
-      "numOr"
-    ],
-    "blocking_surface": {
-      "statement": "为什么 153 个闭包未满足：通用阻塞点反复出现，不是每个函数各有各的依赖。",
-      "blockers": {
-        "_moduleFailures": 191,
-        "_noteModuleFailure": 189,
-        "_moduleLib": 188
-      },
-      "injection_simulation": [
-        {
-          "k": 1,
-          "unlocked": 176,
-          "lines": 418
-        },
-        {
-          "k": 20,
-          "unlocked": 197,
-          "lines": 773
-        },
-        {
-          "k": 30,
-          "unlocked": 198,
-          "lines": 781
-        }
-      ],
-      "reading": "k=1（仅注入最高频那一个名字）即可解锁 176 个候选；k=30 后解锢 198 个 /781 行，再增不再涨。这组数据决定了 b3 的两条路：要么引入注入机制，要么承认辅助层到顶。本轮选了后者 + 把前者的机制先做成活的。"
-    },
-    "injection_discipline": {
-      "allowed": [
-        "函数声明（身份稳定）：_moduleLib / _noteModuleFailure / _moduleFailureSnapshot",
-        "const 字面量（身份稳定）：_ERROR_HINTS / _errBuf"
-      ],
-      "forbidden": [
-        "let/var 标量：_moduleFailures 初值 null、首次登记才 new Map()；按值注入当时拿到的是 null，helpers 侧再登记会自建一个 Map，与 index.js 那份互不可见（状态分裂）"
-      ],
-      "gate_contract": "api.__bindHost(host) 必须幂等、逐项显式赋值、不写动态循环（注入面要能一眼数清）；每一个注入项必项在基线 extracted[*].host_deps 里登记，R8 保证「槽声明」与「host.NAME 赋值」一一对应，且 index.js 真的调用过。",
-      "why_gate_first": "本轮没有搬迁用户，但机制和判据必须现在就活着（否则又是没人跑的代码）。P27/P28/N14 就是它的保鲜膜。"
-    },
-    "attempted_and_reverted": {
-      "what": "把 hintForError（9 行）搬进 helpers，加 let _ERROR_HINTS = null 注入槽 + api.__bindHost 闸口，index.js 侧 _indexHelpers() 取到库后调 __bindHost({ _ERROR_HINTS })。",
-      "behavior": "端到端行为验证通过：注入后 401 Unauthorized / Failed to fetch / timeout of 3000ms exceeded / 完全未知的错 四条输出全对（17 条规则）；未注入时抛 TypeError: _ERROR_HINTS is not iterable（显式失败而非静默错值）。",
-      "why_reverted": "闸报红：R1 导出面 LonShaIndexHelpers 从 (无) 变 object（64→65）、R2 行数 13059 > 天花板 13052。根因：hintForError 闭包为空，但被装载期可达的 errLog 调用（调用方方向可达）。",
-      "how_reverted": "git checkout -- index.js index-helpers.js 整批回滚，并从基线台账移除 hintForError 条目（回到 25 个 extracted / 22 组 fixtures）。",
-      "lesson": "R1 的「多出 1 个符号」是装载期偷偷 require 了 helpers 的告警器，比「装载有没有抛」灵敏得多：node 里 _moduleLib 有 require 回落，既不抛也不报。所以入批判据必须是「装载期不可达」，不能是「闭包为空」。"
-    },
-    "gate_changes": {
-      "R8_new": "注入面自洽：index-helpers.js 的注入槽（^ {4}let NAME = null;）与 api.__bindHost 里 host.NAME 赋值一一对应，且 index.js 必须真的调用过 .__bindHost({；否则跑闸即红。",
-      "checkFixtures_injection": "checkFixtures 新增第三参 indexText：重放前先按 baseline.extracted[*].host_deps 收集注入项，用 constInitializer 从 index.js 现取真值、new Function 求值后 api.__bindHost(shim)。不复制一份数据，也不保留两份真值。",
-      "constInitializer_bugfix": "本轮新增 constInitializer 时踩了 off-by-one：closeMark 是 '\\n    ];'（7 字符），原写 e + length - 2 会把末尾 ] 丢掉，new Function('return (' + init + ');') 抛 Unexpected token ')';已修为 - 1。该坑只在 host_deps 非空时暴露，b3 的 P27 第一次把它点出来（P27 就是它的回归锁）。",
-      "header_wording": "R6 口径改为「不许自取库」——注入不算自取（否则注入机制一上就与 R6 自相矛盾）。"
-    },
-    "criteria_changes": {
-      "count": "40 → 43 条（P1–P28 + N0–N14）",
-      "P27": "constInitializer 能从 index.js 取到 _ERROR_HINTS 真值并求值（17 条、每条 re 是 RegExp、title 是字符串）。",
-      "P28": "真仓上 R8 自洽（当前没有注入槽 ⇒ 也不许有悬空注入）。",
-      "N14": "R8 两向自证：对齐 ⇒ 绿；缺注入 / 悬空注入 / index.js 没调用 ⇒ 各自红。输入是完全合成的迷你 helpers 文本，不读不改真仓（真仓此刻没有 __bindHost，拿它当基底会让坏用例静默不命中、假红成「都红」）。",
-      "P2_P3_dehardcode": "P2/P3 原先写死「7 关」，闸扩到八关后假红。改成与门禁自己的 --json results 对齐（关数相等 + 编号 R1..Rn 连续），扩关当天自动跟随 —— 不在判据里第二次硬编码同一个事实。"
-    },
-    "not_done": {
-      "no_migration": "本轮没有搬迁任何函数（候选为 0）。引入注入机制后的搬迁是下一批的事，需要先把「搬完谁注入谁」的传导链想清楚：搬走 _xxxLib 后它自身也可能成为别人的注入项。",
-      "ruby_phone": "RubyPhone 侧本轮未动（chat-view.js 仍 19628 行）。"
-    }
-  },
-  "batch4": {
-    "what": "第 3 批（b4）：4 个函数 / 92 行 + 4 行紧贴注释外移（normalizeCharName 5 / msgFpOf 5 / extractThinkingChain 54 / detectEthicsConflict 28）。本批首次启用**宿主注入面**。",
-    "why_this_cluster": "b3 的结论是「闭包为空的候选= 0」。b4 把那条界线挪到正确的位置：闭包不为空 ≠ 搬走就不能跑 ——只要缺的那个东西能靠注入提供就成立。四条判据：①声明唯一 ②无 this ③装载期**不可达**（实测）④闭包在**注入边界处截断**后，只许剩已搬走的 + 注入项。",
-    "why_b3_missed_it": "b3 要求闭包**为空**。这个口径过严：它把「依赖一个可注入的宿主能力」与「依赖一份留在原地的状态」当成同一件事。两个方向的教训（numOr 被调方可达、hintForError 调用方可达）说明真正要问的是「装载期会不会被调到」，而不是「闭包里有没有东西」。",
-    "closure_truncation": {
-      "statement": "注入边界截断：若依赖 D 在注入面里，就把 D 记进闭包但**不展开 D 的内部依赖**。",
-      "why": "helpers 里搬来的函数调用注入来的 errLog 时，执行的是 index.js 里那一份实现，它内部用什么变量与 helpers 无关。不截断会把被注入函数的内部依赖算到调用方头上，让「注入」这条路在判据上等于没生效。",
-      "measured_effect": "同一份 153 个闭包未满足：不截断 ⇒ 选定 0；截断后（注入=62 个装载期可达 + 2 个宿主保留）⇒ 选定 130 个 / 396 行。"
-    },
-    "injection_surface": {
-      "slots": [
-        "errLog"
-      ],
-      "why_errLog": "它是**宿主日志能力**（函数声明，身份稳定），只在 catch 路径被调用；不携带任何业务状态。重放时给静默桩。",
-      "forbidden": [
-        "let/var 标量：_moduleFailures 初值 null、首次登记才 new Map；按值注入会分裂成两份状态"
-      ],
-      "gate": "R8 保证「槽声明」与「__bindHost 里 host.NAME 赋值」一一对应，且 index.js 真的调用过 .__bindHost({。",
-      "where_bound": "index.js 的 _indexHelpers() 里：取到库后 __bindHost({ errLog })。幂等，库本身只探一次。"
-    },
-    "why_not_130": {
-      "count": 130,
-      "lines": 396,
-      "reason": "这 130 个（396 行）在 b6 口径下确实可搬，但它们的注入项是 _moduleLib。R6 明禁 index-helpers.js 里出现 _moduleLib —— 否则纯函数模块就变回了取库口集合，等于只把行数挪了个地方，依赖面一点没变。",
-      "decision": "这是**判据在替我们做决定**，不是为了多搬而放宽。若将来要动它们，必须先回答「取库口该不该跟纯函数同层」，那是架构决定，不是搬运。"
-    },
-    "functions": [
-      {
-        "name": "normalizeCharName",
-        "source": "L433-L438",
-        "lines_body": 5,
-        "attach_comment_lines": 1,
-        "host_deps": [
-          "errLog"
-        ],
-        "why": "角色名归一化（NFKC + 空白折叠），防跨楼身份分裂"
-      },
-      {
-        "name": "msgFpOf",
-        "source": "L557-L561",
-        "lines_body": 5,
-        "attach_comment_lines": 0,
-        "host_deps": [
-          "errLog"
-        ],
-        "why": "消息指纹（u/a + swipe + 正文 hash32 + send_date），去重与幂等的判据源"
-      },
-      {
-        "name": "extractThinkingChain",
-        "source": "L564-L619",
-        "lines_body": 54,
-        "attach_comment_lines": 2,
-        "host_deps": [
-          "errLog"
-        ],
-        "why": "思维链剥离（围栏遮罩 + 5 类标签 + 未闭合宽容熔断），本批最大一段"
-      },
-      {
-        "name": "detectEthicsConflict",
-        "source": "L670-L698",
-        "lines_body": 28,
-        "attach_comment_lines": 1,
-        "host_deps": [
-          "errLog"
-        ],
-        "why": "伦理冲突检测（family × intimate 交叉告警，逐条 tie 判定）"
-      }
-    ],
-    "tooling_fixes": [
-      "functionBody 原先不认正则字面量：extractThinkingChain 的正则字符类里有 ' \" `，被当成字符串起点，配对花括号错位、返回 null（b1/b2 的 25 个函数恰好都没这种正则）。已补「/ 是除号还是正则开头」的启发式（与仓内 scrub 同一套），并验过 25 个已搬函数的 sha256 未变。",
-      "checkFixtures 原先只会从 const 字面量取注入值；errLog 是函数声明，会报「找不到 const 初始化式」。已分流：函数声明型注入项给**静默桩**（重放只该断言返回值，不该依赖日志副作用；复制 errLog 实现等于第二份实现）。",
-      "constInitializer 的 off-by-one（b3）已修：closeMark 7 字符，原 -2 会丢掉末尾的 ]。"
-    ],
-    "verification": {
-      "gate": "八关全绿（R1 导出面仍 64 —— 证明装载期一次都没 require helpers，这正是 hintForError 那次栽的关）",
-      "criteria": "43 条全绿",
-      "probe": "_probe_init_reach.mjs 复测：装载期可达仍 62，这 4 个都不在名单内（所以搬走不会装载即抛）",
-      "after_lines": "index.js 13052 → 12963；index-helpers.js 687 → 815"
-    },
-    "not_done": {
-      "remaining_engine": "引擎主体仍在 index.js。下一批要么动「有 this / 依赖 let 状态」的函数（需要先有状态访问器的注入方案），要么就承认辅助层真正到顶。",
-      "ruby_phone": "RubyPhone 侧仍未动（chat-view.js 19628 行）。"
-    }
-  },
-  "batch5": {
-    "what": "收口段（L22-O1 终）：**不再搬迁**。本段把「为什么辅助层已经到顶」写成可核对的读数分类，并明确「若还要继继拆，必须改什么口径」。写了这一段，L22-O1 才算真正完结 —— 否则下一轮又会有人重算一遗闭包、再失望一次。",
-    "inventory": {
-      "index_lines": 12963,
-      "helpers_lines": 815,
-      "moved_functions": 29,
-      "top_level_function_decls": 214,
-      "top_level_function_decl_lines": 895,
-      "classes": 10,
-      "class_method_body_lines": 10440,
-      "methods_over_100_lines": {
-        "count": 15,
-        "lines": 4754
-      },
-      "reading": "index.js 的 12963 行里，**顶层函数声明只占 895 行**（已搬走 29 个），剩下约 1.04 万行在 10 个 class 的方法体里（≥100 行的方法 15 个 / 4754 行，最大 565 行的 onBeforeGeneration）。换句话说：辅助层已经搬完，剩下的不是「函数」，是类实现。"
-    },
-    "why_nothing_left": [
-      "54 个候选里 62 个**装载期可达**（实测：_probe_init_reach.mjs）——搬走就装载即抛。这条不是保守，是 b3 实测出来的：numOr、全部 _xxxLib/_newXxx、errLog、hintForError 都在里面。",
-      "124 个（285 行）只注入 _moduleLib ⇒ 被 R6 拦。理由不是形式主义：取库口搬进 helpers，纯函数模块就变回取库口集合，依赖面一点没变，只把行数挪了个地方。",
-      "21 个闭包仍未满足 ⇒ 它们依赖的是 let 状态（_moduleFailures / _credCooldowns / plugin …）、同名双声明（parseStoryDateLoose×2）、或模块级常量。在**逐字节搬迁**纪律下不可搬：函数体里写的是 _moduleFailures.has(x)，要改成 getter 调用才能注入，那就是改代码、是改语义，不是搬。",
-      "1 个（_newRelativeTimeHelper 5 行）注入两个库访问器（_memoryBooksLib / _newMemoryBooks）⇒ 同样是依赖面外移，收益 5 行，不值。",
-      "2 个顶层函数含 this（_qaHelpDeps 12 行 / _ledgerBooks 10 行）⇒ helpers 是纯函数、不绑 this，搬走必须改成显式参数传入，那就是改签名、改语义。"
-    ],
-    "what_would_be_needed": {
-      "statement": "如果确实还要继续压 index.js，要动的不是「选哪些函数」，而是**口径本身**。三个候选项，每个都要单独的计划与判据：",
-      "options": [
-        "① 类方法外移：把 class 里 10440 行的辅助方法搬到单独文件，但必须有 this 绑定机制（如 fromClass(obj) 把方法装回去，或改成显式参数）。风险：事件注册/生命周期顺序会变，不是纯搬运。",
-        "② 状态访问器注入：给 helpers 提供 _moduleFailureSnapshot 这类读接口，并把函数体里的 _moduleFailures.has(x) 改成 snapshot().has(x)。代价：这是**改代码**，逐字节对比与 sha256 校验将失效，需要新的等价性证明方式（行为快照 + 双跑对拍）。",
-        "③ 保留现状：index.js 12963 行、helpers 816 行。已经拆掉的是真正无依赖的那一层（29 个函数 / 539+ 行）。"
-      ]
-    },
-    "done_definition": "L22-O1 的「做完」= ①辅助层无剩余可搬（已证明）②每一项未尽事宜都有具名、可复核的拦截理由（上面五条）③继续拆的前提条件写清（上面三条）。三条都满足，故本计划在此关闭。"
+  "excluded_because_duplicate": {
+   "parseStoryDateLoose": "本件里被声明了两次：L1839（列首、签名 dateStr）与 L11661（缩进 4、签名 s），后定义覆盖前定义，relativeTimeLabel 用的是后者。搬走后「剩下的那一份」会变成唯一实现 —— 那是**改语义**不是搬代码，故整簇不碰它。",
+   "storyDayDiff": "依赖 parseStoryDateLoose，随其一起留在 index.js。"
   }
+ },
+ "equivalence_proof": {
+  "entry_loadable": "tests/_index_loader.cjs（自带最小宿主：window=globalThis + localStorage/document 桩 + jQuery/toastr/SillyTavern 空桩），装载后主动 process.exit（插件注册了定时器，否则 node 不退出）",
+  "export_surface": "tests/audit/index_exports.json —— 64 个符号（名字→类型）拆前/拆后逐字相同",
+  "byte_identical": "tests/audit/index_helpers_baseline.json —— 每个函数体 sha256，闸逐段比对（改一个字符就红）",
+  "behaviour_snapshot": "同一台账里记了 22 个函数的多组调用输出（第 1 批 9 个 / 25 组 + 第 2 批 13 个 / 54 组；合计 79 组），闸真 require 模块逐调用重放比对；另 3 个（loadExtraJsScript / decayScore / repairReceipt）登记在 not_called 并写明不可重放的理由。",
+  "gate": "tests/audit/scan_index_split.mjs（七关：R1 导出面 / R2 行数 ratchet / R3 单份实现+委托绑定 / R4 逐字节 sha256 / R5 惰性取库 / R6 纯模块（剥注释后再查，不拿散文当代码）/ R7 fixtures 真重放 / R0 fail-closed）",
+  "test": "tests/l22_o1_index_split.test.mjs（36 条：23 条正向读数 + 10 组真破坏负控制：N0 卫生态对照、N1–N7 逐关破坏被检物（含缺台账 exit 2）、N8/N9 两向自证（把判据改成恒假 ⇒ 同一坏输入转绿）、N10–N12 单位级）",
+  "honest_limits": [
+   "本环境跑不动全量 node tests/run.mjs；只逐档跑相关判据。CI 上补跑全量之前，这一步不算最终验收。",
+   "行为快照只覆盖列出的调用，不是全输入空间。",
+   "loadExtraJsScript 不取样（装载期会插 <script>），它的等价性只由 sha256 钉住。",
+   "扫描面之外仍有 5 个真宿主/浏览器探针（_mo1/_mo2/_mo8/_p3/_realhost_suite）在本机红：它们在 HEAD 上同样红（已用 worktree 逐条复核），缺的是 /tmp/st 宿主与稳定锚点，与本项无关。",
+   "window 面**确实多了一个** LonShaIndexHelpers（见 surface_additions），不是零变动。",
+   "第 2 批的 15 个函数是按「函数体」记账的（body_sha256），紧贴注释另记 attach_comment_lines；注释改动不会让 R4 红（它只钉函数体），这是刻意的口径边界。",
+   "numOr 未外移，所以「闭包为空就能搬」不成立 —— 第 4 条判据是实证出来的，不是先验。"
+  ]
+ },
+ "findings": [
+  "index.js 是单个 IIFE、结尾没有 module.exports：对外面全靠 window 挂 64 个符号，所以「导出面」必须当作判据来守。",
+  "结构快照工具（tests/audit/snapshot_index_structure.mjs）旧实现用配对花括号求块边界，连错两次：不跳字符串时 sanitizeJson 被量成 58 行（实为 141 行）；补跳字符串后正则字面量又把配对打飞（extractThinkingChain 被量成 6016 行、覆盖率算到 119%）。现已改为「顶层条目切段」，并把两次事故写进工具头注释。",
+  "同名双声明（parseStoryDateLoose）说明「同名不同物」在 index.js 里真实存在：只按名字做依赖分析会算错，必须先查声明唯一性。",
+  "拆分等价性必须七件一起验：导出面 / 行数 / 单份实现 / 逐字节 / 惰性取库 / 无依赖面 / 行为快照。少任何一件都能造假绿（本轮 R6 首版就被自己的头注释判红，R7 首版压根没写、却在台账里声称「闸重跑比对」——两条都是本轮实测抓到的）。",
+  "装载期可达性是拆分的第一道硬墙：node 里因 require 回落而看不见，真宿主里却是「插件装载即抛」。本轮实测证据：把 numOr 搬走后 node 全绿、导出面却从 64 变 65（多出 LonShaIndexHelpers）—— 导出面这个读数成了「装载期偷偷 require 了 helpers」的告警器，比装载有没有抛更灵敏。",
+  "「紧贴注释」必须跟函数一起搬：首版按裸函数行号抽取，把 11 个函数的注释留在原地变成孤儿（其中两块是多行 JSDoc 的尾行，悬空后完全失去主语）。修法是显式登记每段的注释起点 attach_from，并按它做抽取与删除；同时用「段内恰有 1 个顶层 function 声明」做硬校验，防止吞掉相邻函数。"
+ ],
+ "not_done": {
+  "remaining_engine": "MemoryEngine（8471 行）与 LonShaMemoryPlugin（1382 行）都还没动；前者依赖 201 个 IIFE 局部名，后者 56 个（40+ 是 _xxxLib 一行取库包装）。",
+  "next_batch": "第 2 批之后，index.js 仍有 221 个顶层函数声明。下一批仍是同一纪律：重算闭包只看「剩下的是不是已搬走的那些」，并且逐条过装载期可达性实测。引擎本体（MemoryEngine 8471 行 / LonShaMemoryPlugin 1382 行）仍不动 —— 它们依赖 201 / 56 个 IIFE 局部名，要先靠上面这些小块把依赖数降下来。",
+  "duplicates": "parseStoryDateLoose 的同名双声明应当先合并成一份（那是语义决定，不是搬运），否则它永远搬不动。",
+  "four_layer_split": "未做，且**前提已被实测证伪**：计划要求把 index.js 拆为「装配/注册/生命周期/事件」四层，但本仓装载模型是「entry 单文件 + extra_js 后置加载」，而 MemoryEngine（8500 行）与 LonShaMemoryPlugin（1382 行）都在**装载期**被构造（L12685 new / L12690 导给宿主），所以这两块不能离开入口文件。L22-O1 的 b1~b5 已经把「装载期不可达」的顶层函数搬完（b3/b5 实测零候选）。结论：四层拆分需要先改装载模型（例如引入构建期拼接或宿主侧多脚本同步加载），属于结构变更，不得以搬代码名义做成行为变更。"
+ },
+ "surface_additions": {
+  "window_key": "LonShaIndexHelpers",
+  "why": "拆出的模块按仓内既有约把 API 挂到 window（300+ 个同形模块都这么做）；入口 index.js 自己的 64 个符号一个没变。",
+  "measured_by": "tests/_index_loader.cjs 只装入口、不装 extra_js，所以它看到的仍是 64 个 —— 这一点必须写明，否则读者会把它误读成「对外面零变动」。",
+  "registered_on": [
+   "manifest.json extra_js（第 1 位，无依赖）",
+   "tests/audit/module_consumption_ledger.json（active，2 个调用点在 index.js）",
+   "tests/audit/extra_js_seam_ledger.tsv（host-seam）"
+  ]
+ },
+ "connected_fixes": [
+  "manifest.json：index-helpers.js 未登记进 extra_js 就是「真宿主里 10 个函数全缺席」的自伤（惰性探针会在首次调用抛点名错误）。装载面五段证明 S5 现场抓到并报红，才补上。",
+  "module_consumption_ledger.json 是用 tools/gen_module_consumption_ledger.mjs 重跑生成的，不是手改：重跑同时吸收了 2026-11-16 之后已存在的漂移（在 HEAD 未改代码的 worktree 上重跑就已经变 55 行，与本项无关）。",
+  "extra_js_seam_ledger.tsv 补一行；catalog_reference_consumers.tsv 补登本项与两条历史漏登（l22_o4 / l22_o7）。",
+  "tests/audit/scan_exit_codes.mjs 要求每个门禁自述三态 —— 头注释补「退出码：0 / 1 / 2」一行。"
+ ],
+ "batch2": {
+  "what": "15 个无状态纯函数（函数体合计 301 行；其中 11 个的紧贴注释 28 行一并搬走，避免在 index.js 里留孤儿注释）",
+  "why_this_cluster": "判据不是「挑看着简单的」，而是对**拆完第 1 批之后**的 index.js 重新计算依赖闭包：闭包里剩余的 IIFE 局部名**只允许**是第 1 批已搬走的那些 —— 这保证本批不需要引入任何注入机制，与第 1 批同一条纪律的级联，不是标准放宽。实测：拆后本件 236 个顶层函数声明 / 305 个唯名（同名多次声明只有 parseStoryDateLoose×2）。在「闭包已满足 + 声明唯一 + 无 this」三条之上，本轮实测又补了第 4 条：**装载期不可达**（见 excluded_because_init_time_call）。满足前三条者 16 个 / 309 行，去掉违反第 4 条的 numOr，本批 15 个 / 301 行。",
+  "criterion_4_init_time": {
+   "statement": "装载期可达的函数不许外移：extra_js 在入口脚本之后加载，装载期 window.LonShaIndexHelpers 尚不存在，此时任何一次取库都会抛点名错误（真宿主里表现为插件装载即抛）。",
+   "how_measured": "在 _indexHelperCall 里插 console.error 打调用栈（TRACE_HELPER=1），用 tests/_index_loader.cjs 的 makeHost() 造宿主后 require index.js，再等 500ms 覆盖异步延续段，统计装载期被调到的名字。",
+   "reading": "只有 numOr ×1；调用链 new LonShaMemoryPlugin()（IIFE 顶层）→ new MemoryEngine → _assembleComponents → numOr。另用「require('index-helpers') 是否被触发」作更强的旁证：本批落盘后装载期**一次都没 require 过** index-helpers.js，即 15 个函数全部装载期不可达（这同时说明第 1 批那 10 个也没问题）。",
+   "note": "这一条只在 node 里被掩盖：_moduleLib 有 require 回落，所以 numOr 搬走时 node 里照样绿灯、导出面却从 64 变 65（多出 LonShaIndexHelpers），真宿主才会炸。因此判据必须看「装载期有没有 require helpers」而不是「装载有没有抛」。"
+  },
+  "functions": [
+   {
+    "name": "compareVersion",
+    "source": "L337-L347",
+    "lines_body": 11,
+    "attach_comment_lines": 0,
+    "why": "版本号按点分数字逐段比较（缺段按 0），判旧/版本真值的唯一实现"
+   },
+   {
+    "name": "_getCredKey",
+    "source": "L353-L356",
+    "lines_body": 4,
+    "attach_comment_lines": 0,
+    "why": "按 url + 认证头 + 选项算 32 位凭据指纹（供 401/403 冷却表分桶）"
+   },
+   {
+    "name": "msgTextOf",
+    "source": "L553-L559",
+    "lines_body": 7,
+    "attach_comment_lines": 0,
+    "why": "取消息正文（mes 优先、回落 content），全仓统一入口"
+   },
+   {
+    "name": "thinkingAnchorHeader",
+    "source": "L623-L626",
+    "lines_body": 3,
+    "attach_comment_lines": 1,
+    "why": "思维链投递头的固定框定语（防草稿被下游当已发生事实）"
+   },
+   {
+    "name": "extractMemoryOpsFromText",
+    "source": "L641-L698",
+    "lines_body": 57,
+    "attach_comment_lines": 1,
+    "why": "从回复原文解析 <field>/<todo>/<item> 标签为结构化操作（57 行，本批最大一段）"
+   },
+   {
+    "name": "buildNpcTierInjection",
+    "source": "L699-L726",
+    "lines_body": 27,
+    "attach_comment_lines": 1,
+    "why": "NPC 四档压平分级注入（含性别铁律）"
+   },
+   {
+    "name": "classifyRelationshipType",
+    "source": "L759-L771",
+    "lines_body": 12,
+    "attach_comment_lines": 1,
+    "why": "关系五分类学（family/intimate/hostile/social/other 正则分类）"
+   },
+   {
+    "name": "_formatBindDepsRow",
+    "source": "L1625-L1656",
+    "lines_body": 25,
+    "attach_comment_lines": 7,
+    "why": "依赖注入诊断行的纯函数格式化（三态数组 → [标题, 值] 两元组）"
+   },
+   {
+    "name": "parseStoryTimeConstraint",
+    "source": "L1711-L1740",
+    "lines_body": 27,
+    "attach_comment_lines": 3,
+    "why": "从 recall 查询里解析剧情时间约束（Day X / 月 / ISO 日期 / 相对时间）"
+   },
+   {
+    "name": "filterTimelineByConstraint",
+    "source": "L1741-L1788",
+    "lines_body": 47,
+    "attach_comment_lines": 1,
+    "why": "按时间约束过滤 timeline 条目（作用于 date 匹配）"
+   },
+   {
+    "name": "isSystemHiddenMsg",
+    "source": "L1789-L1796",
+    "lines_body": 6,
+    "attach_comment_lines": 2,
+    "why": "识别 ST 安静生成的消息（is_system 且非 user 且非空）"
+   },
+   {
+    "name": "decayScore",
+    "source": "L1799-L1824",
+    "lines_body": 23,
+    "attach_comment_lines": 3,
+    "why": "Ebbinghaus 衰减评分（重要性 × 激活^0.3 × e^(-λ·天) × 情绪权重 × 强化保护）"
+   },
+   {
+    "name": "ledgerItemKey",
+    "source": "L1884-L1894",
+    "lines_body": 10,
+    "attach_comment_lines": 1,
+    "why": "账本条目键名归一（与 MemoryEngine.normalizeItemKey 同源规则）"
+   },
+   {
+    "name": "repairReceipt",
+    "source": "L13002-L13035",
+    "lines_body": 27,
+    "attach_comment_lines": 7,
+    "why": "受控写入面的恒定回执构造点（13 键同形，失败分支与成功分支同形）"
+   },
+   {
+    "name": "opLogStatsCompat",
+    "source": "L13332-L13346",
+    "lines_body": 15,
+    "attach_comment_lines": 0,
+    "why": "账本统计兼容层（三态自述：无账本 / stats 缺失 / 统计抛错）"
+   }
+  ],
+  "intra_cluster_dependency": {
+   "_getCredKey": "hash32（第 1 批已搬入同一模块，模块内仍是兄弟函数，无需注入）",
+   "others": "零依赖（14 个）"
+  },
+  "not_called": {
+   "decayScore": "内部读 Date.now()，样本不可跨时间重放；只由 sha256 钉住。",
+   "repairReceipt": "函数体含 at: Date.now()，输出带当前时刻，不可重放；只由 sha256 钉住。"
+  },
+  "excluded_because_init_time_call": {
+   "numOr": "签名 numOr(v, fallback)，8 行，闭包为空、声明唯一、无 this —— 前三条全满足。但它在装载期就被调用，故**不外移**（实测调用链见 criterion_4_init_time）。它在 v3.224.0 还修过一个语义坑（数组不能读成 0），是本仓有故事的函数，留在原地更稳。"
+  },
+  "excluded_because_duplicate": {
+   "parseStoryDateLoose": "同上批理由：同名双声明（列首 + 缩进 4）必须先合并再搬，那是语义决定不是搬运。本批仍未碰。"
+  },
+  "leftovers_flagged_not_touched": {
+   "index.js L1797-L1798": "decayScore 上方这两行是 v3.259.0 把「增量书签」外移后遗留的死注释（附近已无对应函数）。不属于本批任何函数，故不随迁、也未删除 —— 只登记，不擅自替别人清理。"
+  }
+ },
+ "batch3": {
+  "what": "第 3 批（b3）：**零搬迁**。本批不是「搬了 N 个」，而是一次「辅助层这条矿脉到底了吗」的实测收口 —— 结论是无候选，于是把「为什么无候选」的机器读数、注入面纪律、以及用来保命的闸/判据落盘。硬凑一个函数搬出去才是真缺陷。",
+  "why_not_migrated": [
+   "在「逐字节搬迁 + 不注入」的纪律下，b3 候选 = 0：候选原料 215 个中，62 个装载期可达（搬走就装载即抛），剩下 153 个的依赖闭包里正是那 62 个。",
+   "「闭包为空」这个口径已被两次证伪，不能再用：numOr 闭包为空但它是**被调方**（IIFE 顶层 new LonShaMemoryPlugin() → _assembleComponents 调它）；hintForError 闭包为空但它是**调用方可达**（装载期可达的 errLog 会调它）。两个方向静态闭包分析都看不见。",
+   "所以第 4 条判据从 b2 的「装载期不可达」升级为硬门槛：b2 剔除 1 个，到 b3 剔除 62 个。"
+  ],
+  "measurement": {
+   "index_lines": 13052,
+   "top_level_function_decls": 221,
+   "unique_names": 305,
+   "duplicate_names": [
+    "parseStoryDateLoose×2"
+   ],
+   "candidate_rule": "声明唯一 + 函数体不含 this + 不在基线 extracted 里 + 4 空格缩进",
+   "candidate_pool": 215,
+   "init_time_reachable": 62,
+   "closure_unsatisfied": 153,
+   "selectable": 0,
+   "selectable_lines": 0,
+   "reading_file": "/tmp/b3_init_hits.json（临时读数；本台账已内联名单与读数，不依赖该文件存续）",
+   "measured_at": "2026-11-17T09:10:12.805Z",
+   "instrumented": 215,
+   "missing": [],
+   "conclusion": "装载期可达 62 / 闭包未满足 153 / 可选 0 个 0 行 ⇒ 辅助层在「不注入」纪律下已到顶。"
+  },
+  "how_measured": {
+   "scanner": "/tmp/lonsha_scan3.cjs：MOVED 名单从 tests/audit/index_helpers_baseline.json 的 extracted 读，不第二次硬编码；同批内互相依赖用定点迭代（不是单轮），initHits 只用来**剔除**候选、不当「依赖已满足」白名单。",
+   "reach_probe": "/tmp/b3_measure_reach2.mjs：按文本偏移在 `function NAME(` 后第一个 `{` 之后插 `try { (globalThis.__B3HIT = globalThis.__B3HIT || []).push(NAME); } catch (_e) { }`，215/215 全覆盖（按行插桩只覆盖 135/215，因为 100 个声明的 `{` 不在行尾）；用 tests/_index_loader.cjs 的 makeHost() 造宿主后 require(index.js)，再等 500ms 覆盖 init() 的异步延续段；从后往前插使偏移不漂；跑完必须 git checkout -- index.js 回滚。",
+   "why_probe_not_scanner": "扫描器算的是「闭包引用集」，探头算的是「装载期真的执行到了」。前者看不见调用方方向的可达，也看不见异步延续段。"
+  },
+  "init_time_reachable_names": [
+   "_antiphonyLib",
+   "_archaeologyLib",
+   "_batchMaintenanceLib",
+   "_bindConfigDeps",
+   "_bindCoreDeps",
+   "_bindOrganDeps",
+   "_budgetOrchestratorLib",
+   "_characterGrowthLib",
+   "_characterReinterpretationLib",
+   "_commitmentLifecycleLib",
+   "_conflictBenchLib",
+   "_crossProjectDeskLib",
+   "_eraContinuationLib",
+   "_eraHandoffDraftLib",
+   "_factCorrectionTxLib",
+   "_factReplayLib",
+   "_factVersionLib",
+   "_generationMaterialReconcileLib",
+   "_generationReplayLib",
+   "_inbandExtractionLib",
+   "_knowledgeRelayLib",
+   "_loreConclusionReconcileLib",
+   "_loreImportLib",
+   "_meaningMapLib",
+   "_memoryAuxLib",
+   "_memoryBooksLib",
+   "_memoryConfigLib",
+   "_memoryCoreLib",
+   "_memoryLedgersLib",
+   "_memoryOrgansLib",
+   "_memoryRevisitScheduleLib",
+   "_memoryRitualLib",
+   "_memorySeasonLib",
+   "_memoryWeatherLib",
+   "_moduleLib",
+   "_multiProtagonistLib",
+   "_narrationCompareLib",
+   "_narrativeGeneratorsLib",
+   "_newConfigManager",
+   "_newCore",
+   "_newMemoryAux",
+   "_newMemoryBooks",
+   "_newMemoryLedger",
+   "_newMemoryOrgan",
+   "_newNarrativeGenerator",
+   "_newSceneBook",
+   "_readableWorkbenchLib",
+   "_recallRouteFeedbackHubLib",
+   "_recallRouteLib",
+   "_repairResponseLib",
+   "_sceneBookLib",
+   "_sceneSeatingPartitionLib",
+   "_secretTheaterLib",
+   "_storyAnnualLib",
+   "_storyClockLib",
+   "_symbiosisBridgeLib",
+   "_temporalValidityLib",
+   "_volumeSealingLib",
+   "_workModeLib",
+   "errLog",
+   "hintForError",
+   "numOr"
+  ],
+  "blocking_surface": {
+   "statement": "为什么 153 个闭包未满足：通用阻塞点反复出现，不是每个函数各有各的依赖。",
+   "blockers": {
+    "_moduleFailures": 191,
+    "_noteModuleFailure": 189,
+    "_moduleLib": 188
+   },
+   "injection_simulation": [
+    {
+     "k": 1,
+     "unlocked": 176,
+     "lines": 418
+    },
+    {
+     "k": 20,
+     "unlocked": 197,
+     "lines": 773
+    },
+    {
+     "k": 30,
+     "unlocked": 198,
+     "lines": 781
+    }
+   ],
+   "reading": "k=1（仅注入最高频那一个名字）即可解锁 176 个候选；k=30 后解锢 198 个 /781 行，再增不再涨。这组数据决定了 b3 的两条路：要么引入注入机制，要么承认辅助层到顶。本轮选了后者 + 把前者的机制先做成活的。"
+  },
+  "injection_discipline": {
+   "allowed": [
+    "函数声明（身份稳定）：_moduleLib / _noteModuleFailure / _moduleFailureSnapshot",
+    "const 字面量（身份稳定）：_ERROR_HINTS / _errBuf"
+   ],
+   "forbidden": [
+    "let/var 标量：_moduleFailures 初值 null、首次登记才 new Map()；按值注入当时拿到的是 null，helpers 侧再登记会自建一个 Map，与 index.js 那份互不可见（状态分裂）"
+   ],
+   "gate_contract": "api.__bindHost(host) 必须幂等、逐项显式赋值、不写动态循环（注入面要能一眼数清）；每一个注入项必项在基线 extracted[*].host_deps 里登记，R8 保证「槽声明」与「host.NAME 赋值」一一对应，且 index.js 真的调用过。",
+   "why_gate_first": "本轮没有搬迁用户，但机制和判据必须现在就活着（否则又是没人跑的代码）。P27/P28/N14 就是它的保鲜膜。"
+  },
+  "attempted_and_reverted": {
+   "what": "把 hintForError（9 行）搬进 helpers，加 let _ERROR_HINTS = null 注入槽 + api.__bindHost 闸口，index.js 侧 _indexHelpers() 取到库后调 __bindHost({ _ERROR_HINTS })。",
+   "behavior": "端到端行为验证通过：注入后 401 Unauthorized / Failed to fetch / timeout of 3000ms exceeded / 完全未知的错 四条输出全对（17 条规则）；未注入时抛 TypeError: _ERROR_HINTS is not iterable（显式失败而非静默错值）。",
+   "why_reverted": "闸报红：R1 导出面 LonShaIndexHelpers 从 (无) 变 object（64→65）、R2 行数 13059 > 天花板 13052。根因：hintForError 闭包为空，但被装载期可达的 errLog 调用（调用方方向可达）。",
+   "how_reverted": "git checkout -- index.js index-helpers.js 整批回滚，并从基线台账移除 hintForError 条目（回到 25 个 extracted / 22 组 fixtures）。",
+   "lesson": "R1 的「多出 1 个符号」是装载期偷偷 require 了 helpers 的告警器，比「装载有没有抛」灵敏得多：node 里 _moduleLib 有 require 回落，既不抛也不报。所以入批判据必须是「装载期不可达」，不能是「闭包为空」。"
+  },
+  "gate_changes": {
+   "R8_new": "注入面自洽：index-helpers.js 的注入槽（^ {4}let NAME = null;）与 api.__bindHost 里 host.NAME 赋值一一对应，且 index.js 必须真的调用过 .__bindHost({；否则跑闸即红。",
+   "checkFixtures_injection": "checkFixtures 新增第三参 indexText：重放前先按 baseline.extracted[*].host_deps 收集注入项，用 constInitializer 从 index.js 现取真值、new Function 求值后 api.__bindHost(shim)。不复制一份数据，也不保留两份真值。",
+   "constInitializer_bugfix": "本轮新增 constInitializer 时踩了 off-by-one：closeMark 是 '\\n    ];'（7 字符），原写 e + length - 2 会把末尾 ] 丢掉，new Function('return (' + init + ');') 抛 Unexpected token ')';已修为 - 1。该坑只在 host_deps 非空时暴露，b3 的 P27 第一次把它点出来（P27 就是它的回归锁）。",
+   "header_wording": "R6 口径改为「不许自取库」——注入不算自取（否则注入机制一上就与 R6 自相矛盾）。"
+  },
+  "criteria_changes": {
+   "count": "40 → 43 条（P1–P28 + N0–N14）",
+   "P27": "constInitializer 能从 index.js 取到 _ERROR_HINTS 真值并求值（17 条、每条 re 是 RegExp、title 是字符串）。",
+   "P28": "真仓上 R8 自洽（当前没有注入槽 ⇒ 也不许有悬空注入）。",
+   "N14": "R8 两向自证：对齐 ⇒ 绿；缺注入 / 悬空注入 / index.js 没调用 ⇒ 各自红。输入是完全合成的迷你 helpers 文本，不读不改真仓（真仓此刻没有 __bindHost，拿它当基底会让坏用例静默不命中、假红成「都红」）。",
+   "P2_P3_dehardcode": "P2/P3 原先写死「7 关」，闸扩到八关后假红。改成与门禁自己的 --json results 对齐（关数相等 + 编号 R1..Rn 连续），扩关当天自动跟随 —— 不在判据里第二次硬编码同一个事实。"
+  },
+  "not_done": {
+   "no_migration": "本轮没有搬迁任何函数（候选为 0）。引入注入机制后的搬迁是下一批的事，需要先把「搬完谁注入谁」的传导链想清楚：搬走 _xxxLib 后它自身也可能成为别人的注入项。",
+   "ruby_phone": "RubyPhone 侧本轮未动（chat-view.js 仍 19628 行）。"
+  }
+ },
+ "batch4": {
+  "what": "第 3 批（b4）：4 个函数 / 92 行 + 4 行紧贴注释外移（normalizeCharName 5 / msgFpOf 5 / extractThinkingChain 54 / detectEthicsConflict 28）。本批首次启用**宿主注入面**。",
+  "why_this_cluster": "b3 的结论是「闭包为空的候选= 0」。b4 把那条界线挪到正确的位置：闭包不为空 ≠ 搬走就不能跑 ——只要缺的那个东西能靠注入提供就成立。四条判据：①声明唯一 ②无 this ③装载期**不可达**（实测）④闭包在**注入边界处截断**后，只许剩已搬走的 + 注入项。",
+  "why_b3_missed_it": "b3 要求闭包**为空**。这个口径过严：它把「依赖一个可注入的宿主能力」与「依赖一份留在原地的状态」当成同一件事。两个方向的教训（numOr 被调方可达、hintForError 调用方可达）说明真正要问的是「装载期会不会被调到」，而不是「闭包里有没有东西」。",
+  "closure_truncation": {
+   "statement": "注入边界截断：若依赖 D 在注入面里，就把 D 记进闭包但**不展开 D 的内部依赖**。",
+   "why": "helpers 里搬来的函数调用注入来的 errLog 时，执行的是 index.js 里那一份实现，它内部用什么变量与 helpers 无关。不截断会把被注入函数的内部依赖算到调用方头上，让「注入」这条路在判据上等于没生效。",
+   "measured_effect": "同一份 153 个闭包未满足：不截断 ⇒ 选定 0；截断后（注入=62 个装载期可达 + 2 个宿主保留）⇒ 选定 130 个 / 396 行。"
+  },
+  "injection_surface": {
+   "slots": [
+    "errLog"
+   ],
+   "why_errLog": "它是**宿主日志能力**（函数声明，身份稳定），只在 catch 路径被调用；不携带任何业务状态。重放时给静默桩。",
+   "forbidden": [
+    "let/var 标量：_moduleFailures 初值 null、首次登记才 new Map；按值注入会分裂成两份状态"
+   ],
+   "gate": "R8 保证「槽声明」与「__bindHost 里 host.NAME 赋值」一一对应，且 index.js 真的调用过 .__bindHost({。",
+   "where_bound": "index.js 的 _indexHelpers() 里：取到库后 __bindHost({ errLog })。幂等，库本身只探一次。"
+  },
+  "why_not_130": {
+   "count": 130,
+   "lines": 396,
+   "reason": "这 130 个（396 行）在 b6 口径下确实可搬，但它们的注入项是 _moduleLib。R6 明禁 index-helpers.js 里出现 _moduleLib —— 否则纯函数模块就变回了取库口集合，等于只把行数挪了个地方，依赖面一点没变。",
+   "decision": "这是**判据在替我们做决定**，不是为了多搬而放宽。若将来要动它们，必须先回答「取库口该不该跟纯函数同层」，那是架构决定，不是搬运。"
+  },
+  "functions": [
+   {
+    "name": "normalizeCharName",
+    "source": "L433-L438",
+    "lines_body": 5,
+    "attach_comment_lines": 1,
+    "host_deps": [
+     "errLog"
+    ],
+    "why": "角色名归一化（NFKC + 空白折叠），防跨楼身份分裂"
+   },
+   {
+    "name": "msgFpOf",
+    "source": "L557-L561",
+    "lines_body": 5,
+    "attach_comment_lines": 0,
+    "host_deps": [
+     "errLog"
+    ],
+    "why": "消息指纹（u/a + swipe + 正文 hash32 + send_date），去重与幂等的判据源"
+   },
+   {
+    "name": "extractThinkingChain",
+    "source": "L564-L619",
+    "lines_body": 54,
+    "attach_comment_lines": 2,
+    "host_deps": [
+     "errLog"
+    ],
+    "why": "思维链剥离（围栏遮罩 + 5 类标签 + 未闭合宽容熔断），本批最大一段"
+   },
+   {
+    "name": "detectEthicsConflict",
+    "source": "L670-L698",
+    "lines_body": 28,
+    "attach_comment_lines": 1,
+    "host_deps": [
+     "errLog"
+    ],
+    "why": "伦理冲突检测（family × intimate 交叉告警，逐条 tie 判定）"
+   }
+  ],
+  "tooling_fixes": [
+   "functionBody 原先不认正则字面量：extractThinkingChain 的正则字符类里有 ' \" `，被当成字符串起点，配对花括号错位、返回 null（b1/b2 的 25 个函数恰好都没这种正则）。已补「/ 是除号还是正则开头」的启发式（与仓内 scrub 同一套），并验过 25 个已搬函数的 sha256 未变。",
+   "checkFixtures 原先只会从 const 字面量取注入值；errLog 是函数声明，会报「找不到 const 初始化式」。已分流：函数声明型注入项给**静默桩**（重放只该断言返回值，不该依赖日志副作用；复制 errLog 实现等于第二份实现）。",
+   "constInitializer 的 off-by-one（b3）已修：closeMark 7 字符，原 -2 会丢掉末尾的 ]。"
+  ],
+  "verification": {
+   "gate": "八关全绿（R1 导出面仍 64 —— 证明装载期一次都没 require helpers，这正是 hintForError 那次栽的关）",
+   "criteria": "43 条全绿",
+   "probe": "_probe_init_reach.mjs 复测：装载期可达仍 62，这 4 个都不在名单内（所以搬走不会装载即抛）",
+   "after_lines": "index.js 13052 → 12963；index-helpers.js 687 → 815"
+  },
+  "not_done": {
+   "remaining_engine": "引擎主体仍在 index.js。下一批要么动「有 this / 依赖 let 状态」的函数（需要先有状态访问器的注入方案），要么就承认辅助层真正到顶。",
+   "ruby_phone": "RubyPhone 侧仍未动（chat-view.js 19628 行）。"
+  }
+ },
+ "batch5": {
+  "what": "收口段（L22-O1 终）：**不再搬迁**。本段把「为什么辅助层已经到顶」写成可核对的读数分类，并明确「若还要继继拆，必须改什么口径」。写了这一段，L22-O1 才算真正完结 —— 否则下一轮又会有人重算一遗闭包、再失望一次。",
+  "inventory": {
+   "index_lines": 12963,
+   "helpers_lines": 815,
+   "moved_functions": 29,
+   "top_level_function_decls": 214,
+   "top_level_function_decl_lines": 895,
+   "classes": 10,
+   "class_method_body_lines": 10440,
+   "methods_over_100_lines": {
+    "count": 15,
+    "lines": 4754
+   },
+   "reading": "index.js 的 12963 行里，**顶层函数声明只占 895 行**（已搬走 29 个），剩下约 1.04 万行在 10 个 class 的方法体里（≥100 行的方法 15 个 / 4754 行，最大 565 行的 onBeforeGeneration）。换句话说：辅助层已经搬完，剩下的不是「函数」，是类实现。"
+  },
+  "why_nothing_left": [
+   "54 个候选里 62 个**装载期可达**（实测：_probe_init_reach.mjs）——搬走就装载即抛。这条不是保守，是 b3 实测出来的：numOr、全部 _xxxLib/_newXxx、errLog、hintForError 都在里面。",
+   "124 个（285 行）只注入 _moduleLib ⇒ 被 R6 拦。理由不是形式主义：取库口搬进 helpers，纯函数模块就变回取库口集合，依赖面一点没变，只把行数挪了个地方。",
+   "21 个闭包仍未满足 ⇒ 它们依赖的是 let 状态（_moduleFailures / _credCooldowns / plugin …）、同名双声明（parseStoryDateLoose×2）、或模块级常量。在**逐字节搬迁**纪律下不可搬：函数体里写的是 _moduleFailures.has(x)，要改成 getter 调用才能注入，那就是改代码、是改语义，不是搬。",
+   "1 个（_newRelativeTimeHelper 5 行）注入两个库访问器（_memoryBooksLib / _newMemoryBooks）⇒ 同样是依赖面外移，收益 5 行，不值。",
+   "2 个顶层函数含 this（_qaHelpDeps 12 行 / _ledgerBooks 10 行）⇒ helpers 是纯函数、不绑 this，搬走必须改成显式参数传入，那就是改签名、改语义。"
+  ],
+  "what_would_be_needed": {
+   "statement": "如果确实还要继续压 index.js，要动的不是「选哪些函数」，而是**口径本身**。三个候选项，每个都要单独的计划与判据：",
+   "options": [
+    "① 类方法外移：把 class 里 10440 行的辅助方法搬到单独文件，但必须有 this 绑定机制（如 fromClass(obj) 把方法装回去，或改成显式参数）。风险：事件注册/生命周期顺序会变，不是纯搬运。",
+    "② 状态访问器注入：给 helpers 提供 _moduleFailureSnapshot 这类读接口，并把函数体里的 _moduleFailures.has(x) 改成 snapshot().has(x)。代价：这是**改代码**，逐字节对比与 sha256 校验将失效，需要新的等价性证明方式（行为快照 + 双跑对拍）。",
+    "③ 保留现状：index.js 12963 行、helpers 816 行。已经拆掉的是真正无依赖的那一层（29 个函数 / 539+ 行）。"
+   ]
+  },
+  "done_definition": "L22-O1 的「做完」= ①辅助层无剩余可搬（已证明）②每一项未尽事宜都有具名、可复核的拦截理由（上面五条）③继续拆的前提条件写清（上面三条）。三条都满足，故本计划在此关闭。"
+ },
+ "rebase": {
+  "at": "v3.474.0（L23-O1）",
+  "from": 12963,
+  "to": 12992,
+  "measured_index_lines": 12992,
+  "what": "不是「拆到了天花板」，而是把**从未达成过**的天花板重定基到实测，并改成 ratchet（涨一行即红）。",
+  "evidence": [
+   "2026-11-17 用 acorn 对 index.js 做精确闭包实测（拆层前）：LonShaMemoryPlugin L11273-L12654 = 1382 行，自由名 = 48 个 IIFE 局部 + 22 个跳 script 全局（LonShaRubyPhoneBridge / TemporalFlashbulbDilationEngine 等）。",
+   "MemoryEngine L1705-L10204 = 8500 行，依赖面更大（同法可算，未逐项列出）。",
+   "**阻断点**：index.js L12685 `const plugin = new LonShaMemoryPlugin();` 是**装载期同步实例化**，紧接 L12690 `window.LonShaMemory = plugin`；而 extra_js 在入口脚本之后才加载（见本账 wiring.lazy）。故「把类搬到 extra_js 模块」会使装载期类缺席 —— 不是搬代码，是改装载语义。",
+   "b3/b5 已实测结论：「闭包为空的候选 = 0」，辅助层这条矿脉到顶；再拆必须先建「装载期可用的注入面」，那是结构变更，不是一个刀能回。"
+  ],
+  "why_not_silent": "本仓纪律：拆分/归档产生的读数变化必须如实记账。抬天花板不是达成，故必须写明 from/to/证据，并由 tests/l23_o1_index_layer_blocker.test.mjs 钉住「ceiling == 实测行数」的 ratchet。"
+ }
 }

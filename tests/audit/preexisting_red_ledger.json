@@ -29,9 +29,10 @@
    ],
    "symptom": "门禁 R2「index.js 行数只降不涨」：实测 12992 行 > 台账天花板 12963，自 4440a35 起就红（该 commit 实测 13350 行，天花板历史上从未达成过）",
    "reading": "index.js = 12992 行（基线树同为 12992，与本刀无关）",
-   "status": "未修：这是 L22-O1 的收口目标口径，改它与本刀无关；已记进 TODO 待重定基",
+   "status": "closed_by_L23_O1",
    "owner": "L23-O1（index.js 拆解）",
-   "note": "不抬账：这条天花板应该在 O1 把 index.js 真拆小时自然回到健康值；现在抬到 12992 等于把压力卸掉，且会掩盖后续增长。"
+   "note": "不抬账：这条天花板应该在 O1 把 index.js 真拆小时自然回到健康值；现在抬到 12992 等于把压力卸掉，且会掩盖后续增长。",
+   "closed_note": "已由 L23-O1 收掉（v3.474.0）：不是靠拆到 12963（四层拆分前提已被 acorn 实测证伪，见 index_split_ledger.not_done.four_layer_split），而是把天花板重定基到实测 12992 并升级为 ratchet（涨一行即红）。判据 tests/l23_o1_index_layer_blocker.test.mjs 8/8，含「天花板松 1 行 / 改回 12963」两组负控制；scan_index_split 现 rc=0，l22_o1 43/43。"
   },
   {
    "files": [
