@@ -30,7 +30,18 @@ const SCAN = path.join(SRC, 'tests/audit/scan_v3185_xref_consumer.mjs');
 /* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
  *   夹具名册必须同源派生，不得手抄：否则原版对照在夹具里必红（模块缺席），
  *   且破坏锚点已搬进外移模块、打不到 index.js ⇒ 整组负控制失效。 */
-const FILES = ['crosslink.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'].concat(HOST_MODULES);
+/* [v3.474.0 · L23 收口] 十批剥离把 engine-diagnostic-lines.js 拆成 part-a/b/c：诊断行实现
+ *   实测在 part-a。夹具名册必须同源派生到分片，并带上 module_split_ledger.json
+ *   （hostSurface 靠它把装配面还原成「片 + 装配」）；否则原版对照在夹具里必红 ——
+ *   红在夹具缺件上，不是判据在工作。 */
+function splitParts(name) {
+    const m = /^(.*)[.]js$/.exec(name);
+    if (!m) return [];
+    return fs.readdirSync(SRC).filter((f) => f.startsWith(m[1] + '-part-') && f.endsWith('.js')).sort();
+}
+const FILES = [...new Set(['crosslink.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js']
+    .concat(HOST_MODULES)
+    .reduce((acc, f) => acc.concat([f], splitParts(f)), ['tests/audit/module_split_ledger.json']))];
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
 const bad = (m) => { fail++; console.error('  ✗ ' + m); };
@@ -50,7 +61,11 @@ function snapshotDir() {
     // [v3.191] 夹具必须镜像仓库布局：扫描器副本在 tests/audit/ 下，其 '../_audit_lib.mjs' 才能解析。
     fs.mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
     fs.copyFileSync(path.join(SRC, 'tests', '_audit_lib.mjs'), path.join(dir, 'tests', '_audit_lib.mjs'));
-    for (const f of FILES) fs.copyFileSync(path.join(SRC, f), path.join(dir, f));
+    for (const f of FILES) {
+        const to = path.join(dir, f);
+        fs.mkdirSync(path.dirname(to), { recursive: true });   /* [v3.474.0] 名册含子路径（split 台账） */
+        fs.copyFileSync(path.join(SRC, f), to);
+    }
     return dir;
 }
 function runScanAt(scanPath, dir) {

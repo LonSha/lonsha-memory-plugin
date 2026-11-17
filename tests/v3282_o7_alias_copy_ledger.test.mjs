@@ -122,6 +122,11 @@ const MIN_CLUSTERS = 6;
 const ALIAS_LEDGER = [
     ['fn', ['num', 'safeNum'], ['commitment-instance-lifecycle.js', 'knowledge-relay-chain.js', 'lineage-heritage-tree.js', 'memory-maintenance-session.js', 'memory-migration-boundary.js', 'profile-dossier-view.js'], 64, 'd8bcc558'],
     ['fn', ['finiteOrNull', 'numOrNull'], ['dual-time.js', 'experience-rebuild.js', 'temporal-validity-workflow.js'], 98, 'dbac9c0d'],
+    /* [v3.474.0] L23-X 内核引入的「同体不同名」副本：十二件持 `numOrNull`、memory-causal-chain-replay
+     *   持同体的 `floorOf`（名字不同、体逐字相同 ⇒ 它不是同名簇，归本档而不是 v3280/v3281）。
+     *   前七件是 v3.472.0 L22 内核，后五件是 v3.473.0 L23-X 新内核 —— 抬版时本台账没跟上，
+     *   B1 的「新增未登记」当场点名（体长 109 / md5 28e37536 由盘上实测得出，不是手抄）。 */
+    ['fn', ['floorOf', 'numOrNull'], ['commitment-followthrough.js', 'cross-session-continuation.js', 'forgetting-explanation.js', 'future-letter.js', 'memory-archive-pack.js', 'memory-capacity-watermark.js', 'memory-capsule.js', 'memory-causal-chain-replay.js', 'memory-checkup.js', 'memory-timeline.js', 'recall-ranking-explain.js', 'relation-milestone.js', 'sleep-consolidation.js'], 109, '28e37536'],
     ['arr', ['safeStr', 'trim'], ['generation-material-reconcile.js', 'scene-book.js'], 34, '2f6d2657'],
 
     ['meth', ['_numOrNull', 'numOrNull'], ['engine-persistence-ops.js', 'snapshot-checkpoint.js'], 258, '2ea9877b'],

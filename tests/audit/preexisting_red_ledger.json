@@ -92,7 +92,88 @@
       ],
       "symptom": "PLAN「当前执行状态」块停在 v3.472.0，与 index.js 真值 v3.474.0 不一致（现行口径停旧版 ⇒ 旧排序会被当现行读）",
       "reading": "两棵树同形同红：当前树报「写 v3.472.0 ≠ 真值 v3.474.0」，基线树报「写 v3.472.0 ≠ 真值 v3.473.0」—— 差异只在版本号，形态完全一致 ⇒ 该块自 v3.473.0 起就没跟着抬，属 L23-O4 之前就存在的存量红，不是本刀引入。",
-      "status": "未修（本刀不改「当前执行状态」叙事块的排序口径，只做读数接门；留待双计划收尾轮统一重排）"
+      "status": "已修（v3.474.0 收口轮）：PLAN「当前执行状态」已抬到 v3.474.0 并写明本文档收口轮的实测读数；tests/audit/scan_plan_currency.mjs 现 rc=0、自报「执行状态 v3.474.0」（修前自报「写 v3.472.0 ≠ 真值 v3.474.0」）。修法与 v3480 B3 是同一处事实（PLAN 的待验标记/执行状态必须跟当版），故一并抬版，不作两处两次。"
+    },
+    {
+      "files": [
+        "v333_ai_recall_ops",
+        "v341_stitches_mechanics",
+        "v343_baibai_mechanics",
+        "v344_ultimate_bastion",
+        "v345_deep_bastion",
+        "v389_swipe_guard",
+        "v320_ebbinghaus",
+        "v3154_ledger_validation_and_tier_gc",
+        "v3155_ledger_write_depth_and_floor_ledger_eviction",
+        "v3278_o7_extraction_to_real_load"
+      ],
+      "symptom": "L22-O1 三簇纯函数外移后，判据仍按「index.js 单面」抽取 / 跑沙箱",
+      "reading": "全量回归首跑（551 文件）后逐条归因：把这些问题档放在**干净基线树**（git worktree add --detach /home/user/_ctrl e710253 = O 线开工前最后一个提交）上以同一 run.mjs 口径重跑，44/53 在同一条断言上同红（39 档报错文本逐字相同），故判为存量红，不是本刀引入：\n  · v333_ai_recall_ops｜基线树首错：✗ 有 extractMemoryOpsFromText｜当版首错：✗ 有 extractMemoryOpsFromText\n  · v341_stitches_mechanics｜基线树首错：ReferenceError: stripMemoryOpsTags is not defined｜当版首错：ReferenceError: stripMemoryOpsTags is not defined\n  · v343_baibai_mechanics｜基线树首错：ReferenceError: buildNpcTierInjection is not defined｜当版首错：ReferenceError: buildNpcTierInjection is not defined\n  · v344_ultimate_bastion｜基线树首错：ReferenceError: sanitizeJson is not defined｜当版首错：ReferenceError: sanitizeJson is not defined\n  · v345_deep_bastion｜基线树首错：AssertionError [ERR_ASSERTION]: 未能提取 extractThinkingChain｜当版首错：AssertionError [ERR_ASSERTION]: 未能提取 extractThinkingChain\n  · v389_swipe_guard｜基线树首错：AssertionError [ERR_ASSERTION]: 找到函数 hash32｜当版首错：AssertionError [ERR_ASSERTION]: 找到函数 hash32\n  · v320_ebbinghaus｜基线树首错：(无输出)｜当版首错：(无输出)\n  · v3154_ledger_validation_and_tier_gc｜基线树首错：ReferenceError: ledgerItemKey is not defined｜当版首错：ReferenceError: ledgerItemKey is not defined\n  · v3155_ledger_write_depth_and_floor_ledger_eviction｜基线树首错：ReferenceError: ledgerItemKey is not defined｜当版首错：ReferenceError: ledgerItemKey is not defined\n  · v3278_o7_extraction_to_real_load｜基线树首错：AssertionError [ERR_ASSERTION]: 宿主同文件函数仍在 index.js（迁移边界）：function buildNpcTierInjection｜当版首错：AssertionError [ERR_ASSERTION]: 宿主同文件函数仍在 index.js（迁移边界）：function buildNpcTierInjection",
+      "status": "未修（存量）——本刀只做归因与入账，不改它们的判据；修它们属于「判据面向新结构重建」的独立批次（每档要重定抽取面/沙箱依赖/基线读数，不是一次改写法能收的）。",
+      "evidence": {
+        "control_tree": "/home/user/_ctrl @ e710253（O 线开工前）",
+        "ctrl_run_log": "/home/user/_ctrl_run.log",
+        "ctrl_summary": "/home/user/_ctrl_summary.json",
+        "full_run_log": "/home/user/_full_memory.log",
+        "same_message_ratio": "39/44"
+      }
+    },
+    {
+      "files": [
+        "v3259_a1_memory_aux",
+        "v3260_a1_narrative_generators",
+        "v3261_a1_memory_books"
+      ],
+      "symptom": "入口行数/成员基线没跟 index.js 的历次搬迁同版重建",
+      "reading": "全量回归首跑（551 文件）后逐条归因：把这些问题档放在**干净基线树**（git worktree add --detach /home/user/_ctrl e710253 = O 线开工前最后一个提交）上以同一 run.mjs 口径重跑，44/53 在同一条断言上同红（39 档报错文本逐字相同），故判为存量红，不是本刀引入：\n  · v3259_a1_memory_aux｜基线树首错：AssertionError [ERR_ASSERTION]: 基线行数须等于真 index.js 行数｜当版首错：AssertionError [ERR_ASSERTION]: 基线行数须等于真 index.js 行数\n  · v3260_a1_narrative_generators｜基线树首错：AssertionError [ERR_ASSERTION]: 基线行数须等于真 index.js 行数｜当版首错：AssertionError [ERR_ASSERTION]: 基线行数须等于真 index.js 行数\n  · v3261_a1_memory_books｜基线树首错：AssertionError [ERR_ASSERTION]: 基线行数须等于真 index.js 行数｜当版首错：AssertionError [ERR_ASSERTION]: 基线行数须等于真 index.js 行数",
+      "status": "未修（存量）——本刀只做归因与入账，不改它们的判据；修它们属于「判据面向新结构重建」的独立批次（每档要重定抽取面/沙箱依赖/基线读数，不是一次改写法能收的）。",
+      "evidence": {
+        "control_tree": "/home/user/_ctrl @ e710253（O 线开工前）",
+        "ctrl_run_log": "/home/user/_ctrl_run.log",
+        "ctrl_summary": "/home/user/_ctrl_summary.json",
+        "full_run_log": "/home/user/_full_memory.log",
+        "same_message_ratio": "39/44"
+      }
+    },
+    {
+      "files": [
+        "v3226_audit_sensitivity",
+        "v3247_break_kit_consolidation",
+        "v3297_state_report",
+        "v3300_mo2_host_loader",
+        "v3304_head_defect_sweep",
+        "v202611_audit_fix",
+        "v3215_repair_write_channel",
+        "v3181_spatial_grounding",
+        "v3280_o7_verbatim_copy_ledger",
+        "v3281_o7_module_copy_ledger",
+        "v3282_o7_alias_copy_ledger"
+      ],
+      "symptom": "台账/登记面与磁盘漂移（登记条数、接收方、状态报告、当版读数）",
+      "reading": "全量回归首跑（551 文件）后逐条归因：把这些问题档放在**干净基线树**（git worktree add --detach /home/user/_ctrl e710253 = O 线开工前最后一个提交）上以同一 run.mjs 口径重跑，44/53 在同一条断言上同红（39 档报错文本逐字相同），故判为存量红，不是本刀引入：\n  · v3226_audit_sensitivity｜基线树首错：AssertionError [ERR_ASSERTION]: 登记条数须等于在役扫描器数｜当版首错：AssertionError [ERR_ASSERTION]: 登记条数须等于在役扫描器数\n  · v3247_break_kit_consolidation｜基线树首错：AssertionError [ERR_ASSERTION]: 磁盘上新增了接收方却没登记（下一步就是接入面与判据面不同源）｜当版首错：AssertionError [ERR_ASSERTION]: 磁盘上新增了接收方却没登记（下一步就是接入面与判据面不同源）\n  · v3297_state_report｜基线树首错：AssertionError [ERR_ASSERTION]: README 的「当前版本」(3.472.0) 必须等于机器版本 (3.473.0)｜当版首错：AssertionError [ERR_ASSERTION]: 状态报告与磁盘漂移（重跑 `node tools/gen_state_report.mjs --write`）：\n  · v3300_mo2_host_loader｜基线树首错：AssertionError [ERR_ASSERTION]: loadExtraJsScript 必须存在｜当版首错：AssertionError [ERR_ASSERTION]: loadExtraJsScript 必须存在\n  · v3304_head_defect_sweep｜基线树首错：AssertionError [ERR_ASSERTION]: 基线当版读数必须与真源同源（本版修的陈旧登记）｜当版首错：AssertionError [ERR_ASSERTION]: 基线当版读数必须与真源同源（本版修的陈旧登记）\n  · v202611_audit_fix｜基线树首错：AssertionError [ERR_ASSERTION]: 函数定位｜当版首错：AssertionError [ERR_ASSERTION]: 函数定位\n  · v3215_repair_write_channel｜基线树首错：AssertionError [ERR_ASSERTION]: 回执构造点在位（回执形状必须来自真源码，不许测试里重写一份）｜当版首错：AssertionError [ERR_ASSERTION]: 回执构造点在位（回执形状必须来自真源码，不许测试里重写一份）\n  · v3181_spatial_grounding｜基线树首错：AssertionError [ERR_ASSERTION]: ★ 资源清单 14 项（v3.181 新增 scene / v3.214.0 新增 evidence）｜当版首错：AssertionError [ERR_ASSERTION]: ★ 资源清单 14 项（v3.181 新增 scene / v3.214.0 新增 evidence）\n  · v3280_o7_verbatim_copy_ledger｜基线树首错：AssertionError [ERR_ASSERTION]: 盘上真源必须卫生：B2 登记在案的逐字副本已不再逐字相同（漂移）或已消失：_getCredKey@memory-organs.js | B2 登记在案的逐字副本已不再逐字相同（漂移）或已消失：normalizeCharName@memory-core.js｜当版首错：AssertionError [ERR_ASSERTION]: 盘上真源必须卫生：B2 登记在案的逐字副本已不再逐字相同（漂移）或已消失：_getCredKey@memory-organs.js | B2 登记在案的逐字副本已不再逐字相同（漂移）或已消失：normalizeCharName@memory-core.js\n  · v3281_o7_module_copy_ledger｜基线树首错：AssertionError [ERR_ASSERTION]: 盘上真源必须卫生：B1 新增未登记的模块↔模块逐字副本：filterTimelineByConstraint#76a1c0af（成员 engine-recall.js,index-helpers.js） | B1 新增未登记的模块↔模块逐字副本：parse｜当版首错：AssertionError [ERR_ASSERTION]: 盘上真源必须卫生：B1 新增未登记的模块↔模块逐字副本：filterTimelineByConstraint#76a1c0af（成员 engine-recall.js,index-helpers.js） | B1 新增未登记的模块↔模块逐字副本：parse\n  · v3282_o7_alias_copy_ledger｜基线树首错：AssertionError [ERR_ASSERTION]: 盘上真源必须卫生：B1 新增未登记的别名副本（同体不同名）：fn floorOf/numOrNull @[commitment-followthrough.js,cross-session-continuation.js,forgetting-explan｜当版首错：AssertionError [ERR_ASSERTION]: 盘上真源必须卫生：B1 新增未登记的别名副本（同体不同名）：fn floorOf/numOrNull @[commitment-followthrough.js,cross-session-continuation.js,forgetting-explan",
+      "status": "未修（存量）——本刀只做归因与入账，不改它们的判据；修它们属于「判据面向新结构重建」的独立批次（每档要重定抽取面/沙箱依赖/基线读数，不是一次改写法能收的）。",
+      "evidence": {
+        "control_tree": "/home/user/_ctrl @ e710253（O 线开工前）",
+        "ctrl_run_log": "/home/user/_ctrl_run.log",
+        "ctrl_summary": "/home/user/_ctrl_summary.json",
+        "full_run_log": "/home/user/_full_memory.log",
+        "same_message_ratio": "39/44"
+      }
+    },
+    {
+      "files": [
+        "v3480_closeout_fourth_phase"
+      ],
+      "symptom": "版本/待验标记与计划面（登记停在旧版）",
+      "reading": "全量回归首跑（551 文件）后逐条归因：把这些问题档放在**干净基线树**（git worktree add --detach /home/user/_ctrl e710253 = O 线开工前最后一个提交）上以同一 run.mjs 口径重跑，44/53 在同一条断言上同红（39 档报错文本逐字相同），故判为存量红，不是本刀引入：\n  · v3480_closeout_fourth_phase｜基线树首错：AssertionError [ERR_ASSERTION]: 待验标记不自洽:PLAN 缺「当前 v3.473.0 **全量待验**」(登记停在 v3.431.0)｜当版首错：AssertionError [ERR_ASSERTION]: 待验标记不自洽:PLAN 缺「当前 v3.474.0 **全量待验**」(登记停在 v3.431.0)",
+      "status": "未修（存量）——本刀只做归因与入账，不改它们的判据；修它们属于「判据面向新结构重建」的独立批次（每档要重定抽取面/沙箱依赖/基线读数，不是一次改写法能收的）。",
+      "evidence": {
+        "control_tree": "/home/user/_ctrl @ e710253（O 线开工前）",
+        "ctrl_run_log": "/home/user/_ctrl_run.log",
+        "ctrl_summary": "/home/user/_ctrl_summary.json",
+        "full_run_log": "/home/user/_full_memory.log",
+        "same_message_ratio": "39/44"
+      }
     }
   ],
   "regression_found_and_fixed": [
@@ -148,6 +229,31 @@
       "symptom": "v3459：磁盘上有、参考基准里没有 l23_o2_load_surface_zero.test.mjs / l23_o3_zero_consumption.test.mjs；v3431 A5：审计门禁面实测 76 而定量 73（runner 实测 73 而定量 70）。",
       "fix": "已修：catalog_reference_consumers.tsv 补登两个新套件（l23_o5 已在）；v3431 把 73/70 按本档纪律显式改为 76/73 并写明朝历（不让磁盘自己漂）。两档全绿。",
       "reading": "基线树上两档均 RED（基线自己的 tsv 也未扩面）→ 属存量红"
+    },
+    {
+      "id": "L23 全量回归（唯一一次）首跑后的回归修复：9 档本刀引入 + 6 档存量红顺带治好",
+      "files": [
+        "l23_o6_write_only_key_level",
+        "l23_x_surface",
+        "v3116_dead_code",
+        "v3184_changeset",
+        "v3194_time_and_fact_version",
+        "v3198_ledger_replay_r2_behavioral",
+        "v3199_ledger_replay_r2_shift_behavioral",
+        "v3205_infrastructure_truthfulness",
+        "v3236_snapshot_restore_and_clear",
+        "v330_ledger_replay",
+        "v380_swipe_heal",
+        "v3128_defense_pack",
+        "v313_thinking_split",
+        "v318_defense_arch",
+        "v319_ruby_sync",
+        "v337_industrial_pillars",
+        "v350_backfill"
+      ],
+      "symptom": "全量回归首跑 551 文件 / 失败 90 断言 / 53 文件红。归因后分两档：① 本刀引入 9 档；② 存量红 44 档（干净基线树同红）。",
+      "fix": "① 本刀 9 档全修：l23_o6——O7 改 engine-injection-pipeline.js 造成行号漂移，按生成器重生成处置台账（不手改）；l23_x_surface——版本锚由 strictEqual 当版改为格式校验（保留三源一致与出生锚）；v3116/v3194/v3205——「根 .js 归属」从两态（注册/被引用）升级为三态（入口/声明/归档），并抽出唯一真源 tests/audit/_root_js_inventory.mjs（四处判据同读一处，不再各写一遍），dead_code_budget 的「活跃代码」口径同步改为「真的被装载的代码」并按唯一算式收紧上界 145897→144655；v3184——导出键断言由裸子串改为键名精确匹配（`_changeset:` 不再被当成 `changeset:`）；v3236/探针——host_beast_probe.cjs 按 module_split_ledger 并入拆片（与 hostSurface 同口径），合并面读数 30237 → 36360 与判据侧逐行一致；v3198/v3199——_audit_lib.mjs 的 md5 指纹按 O5 的真实改动重钉。② 存量红里 6 档被「HOST_MODULES 补入 index-helpers.js」顺带治好（该清单自 L22-O1 起漏了外移模块，导致判据静默空转）：v3128/v313/v318/v319/v337/v350。",
+      "reading": "修后定向复跑同一 53 档：53 → 17 档转绿（首轮 13 + 复跑后补修 4），剩余 36 档全部为存量红（已在 preexisting_red 入账）。9 档本刀引入项 0 残留。"
     }
   ]
 }

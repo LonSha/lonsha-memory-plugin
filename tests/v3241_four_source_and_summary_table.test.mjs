@@ -27,6 +27,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { breakText } from './_break_kit.mjs';
+/* [v3.474.0 · L23 收口] 夹具复制带「过滤平台快照残骸 + 解引用」选项：
+ *   平台文件层会把被访问过的文件换成指向 `.l2s.*` 快照的链接，直接 cpSync 会 EINVAL。 */
+import { notPlatformJunk } from './_fixture_sync.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SELF = readFileSync(fileURLToPath(import.meta.url), 'utf-8');
@@ -104,7 +107,7 @@ function mkTree(withDocs) {
     for (const f of ['index.js', 'manifest.json', 'package.json']) {
         writeFileSync(path.join(dir, f), readFileSync(path.join(ROOT, f)));
     }
-    cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true });
+    cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true, dereference: true, filter: notPlatformJunk });
     if (withDocs) {
         for (const f of ['CHANGELOG.md', 'TODO.md']) {
             writeFileSync(path.join(dir, f), readFileSync(path.join(ROOT, f)));

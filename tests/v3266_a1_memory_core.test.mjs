@@ -83,6 +83,14 @@ const BS = String.fromCharCode(92);
 const MOD_REL = 'memory-core.js';
 const IDX = read('index.js');
 const MOD = read(MOD_REL);
+/* [v3.474.0 · L23 收口] 本档两条判据的「宿主」已不再是单个入口文件：
+ *   normalizeCharName / sanitizeJson 随纯函数簇外移到 index-helpers.js（L22-O1），
+ *   入口只剩一行委派。故「逐字副本与宿主同源」⑧ 与「依赖锚点仍在宿主」⑭ 的尺子
+ *   改成**入口 + index-helpers.js 合看面**。判据形态一字未改（仍是空白归一后逐字比对、
+ *   仍是 (function|let) 声明在场），只把尺子跟到真源所在 —— 否则本档会砸在
+ *   「宿主缺 sanitizeJson（判据自身失效）」上，即判据坏掉而不是产品坏掉。 */
+const HI_SRC = read('index-helpers.js');
+const HOSTSRC = IDX + NL + HI_SRC;
 const MC = (await import('../memory-core.js')).default;
 const SELF = read('tests/v3266_a1_memory_core.test.mjs');
 /** 本刀剥走的四个内核数据模型类。 */
@@ -204,7 +212,7 @@ function judgeSlice(idxSrc, modSrc) {
     /* ⑧ 逐字副本必须与宿主同源（唯一真源仍是宿主） */
     for (const fn of VERBATIM_FNS) {
         const modBody = fnBody(modSrc, 'function ' + fn);
-        const hostBody = fnBody(idxSrc, 'function ' + fn);
+        const hostBody = fnBody(idxSrc, 'function ' + fn) || fnBody(HI_SRC, 'function ' + fn);
         if (!modBody) { problems.push(MOD_REL + ' 缺 ' + fn + ' 的逐字副本'); continue; }
         if (!hostBody) { problems.push('宿主缺 ' + fn + '（判据自身失效）'); continue; }
         if (nz(modBody) !== nz(hostBody)) problems.push(MOD_REL + ' 的 ' + fn + ' 副本与宿主不逐字同源（副本已漂移）');
@@ -249,7 +257,7 @@ function judgeSlice(idxSrc, modSrc) {
         if (!new RegExp('(const|let)\\s+' + c + '\\s*=').test(idxSrc)) problems.push('宿主已丢失 ' + c + '（依赖锚点被搬走）');
     }
     for (const fn of ['errLog', 'sanitizeJson', '_moduleLib', '_changeset', '_memoryBooksLib', '_newRelativeTimeHelper']) {
-        if (!new RegExp('(function|let)\\s+' + fn + '\\b').test(idxSrc)) problems.push('宿主已丢失 ' + fn + '（依赖锚点被搬走）');
+        if (!new RegExp('(function|let)\\s+' + fn + '\\b').test(HOSTSRC)) problems.push('宿主已丢失 ' + fn + '（依赖锚点被搬走）');
     }
     return problems;
 }

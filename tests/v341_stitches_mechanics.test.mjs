@@ -23,6 +23,9 @@ const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'ut
 const require_ = createRequire(import.meta.url);
 const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
 const MO = require_(new URL('../memory-organs.js', import.meta.url).pathname);
+/* [v3.474.0 · L23 收口] stripMemoryOpsTags / extractTimeTagFast 等纯函数簇已外移 index-helpers.js。
+ * 与本档既有的「真模块装载」同口径：直接 require 真模块拿真函数，不抠源码切片。 */
+const HI = require_(new URL('../index-helpers.js', import.meta.url).pathname);
 
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
@@ -152,10 +155,10 @@ console.log('=== 5. 剧情支线衰减时钟 (Plot Arc Decay) 动态测试 ===')
 
 console.log('=== 6. 终极上下文标签净化 (Context Cleaning Shield) 动态测试 ===');
 {
-    const cleanFn = new Function('src', `
-        ${src.slice(src.indexOf('function stripMemoryOpsTags'), src.indexOf('function extractTimeTagFast'))}
-        return stripMemoryOpsTags;
-    `)(src);
+    /* [v3.474.0] 修前从 index.js 切片；搬家后 indexOf 全 -1 ⇒ 切片为空 ⇒ ReferenceError（假红）。
+     * 改真模块装载：断言一字未改，只换「被跑的对象」。 */
+    assert.equal(typeof HI.stripMemoryOpsTags, 'function', 'index-helpers.js 必须导出 stripMemoryOpsTags');
+    const cleanFn = HI.stripMemoryOpsTags;
 
     const dirtyText = `
 你好，我是爱丽丝。<time:Day3 14:00>

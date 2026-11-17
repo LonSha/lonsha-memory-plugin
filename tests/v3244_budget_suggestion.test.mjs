@@ -66,10 +66,23 @@ const MAX_SLACK = 400;
 function mkFixture(ceiling, breakScript) {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3244-budget-'));
     mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
-    writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ extra_js: [] }));
+    /* [v3.474.0 · L23 收口] 夹具必须能过 _root_js_inventory 的三态不变式（活跃口径已从
+     *   「根目录所有 .js」改成「入口 + manifest.extra_js 声明面」）：
+     *   · manifest.js = index.js（入口），extra_js 空；
+     *   · 被测行数落在**入口**这 FIXTURE_LINES 行；
+     *   · 两本归档登记各喂一条 archived（读空它自己 fail-closed，不喂就是红在夹具上）；
+     *   · 逐字拷 _root_js_inventory.mjs（死代码预算的读数唯一真源，脚本已 import 它）。
+     *   ——夹具变的是「树形」，四态判据与期望值一个字没动。 */
+    writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ js: 'index.js', extra_js: [] }));
     /* 不加尾部换行：`'a\nb\n'`.split('\n') 会多出一项空串（实测行数 12 → 13）。
      *   本组首跑就被这个差 1 拦住（计数面差 1 是最容易被忽略的形态）。 */
-    writeFileSync(path.join(dir, 'a.js'), Array(FIXTURE_LINES).fill('x').join('\n'));
+    writeFileSync(path.join(dir, 'index.js'), Array(FIXTURE_LINES).fill('x').join('\n'));
+    mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
+    writeFileSync(path.join(dir, 'tests', 'audit', 'module_disposition_ledger.json'),
+        JSON.stringify({ entries: { 'fixture-retired.js': { disposition: 'archived', why: '夹具：已退役' } } }));
+    writeFileSync(path.join(dir, 'tests', 'audit', 'l21_o1_triage.json'),
+        JSON.stringify({ verdicts: { archived: { modules: { 'fixture-dormant.js': { verdict: 'archived', why: '夹具：休眠转归档' } } } } }));
+    copyFileSync(path.join(ROOT, 'tests', '_root_js_inventory.mjs'), path.join(dir, 'tests', '_root_js_inventory.mjs'));
     const dest = path.join(dir, SCRIPT_REL);
     writeFileSync(dest, breakScript ? breakScript(SCRIPT) : SCRIPT);
     const budget = { _doc: 'fixture', ceiling, maxSlack: MAX_SLACK };

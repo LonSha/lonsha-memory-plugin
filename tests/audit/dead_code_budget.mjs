@@ -30,6 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { rootJsInventory } from '../_root_js_inventory.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -40,15 +41,31 @@ function failClosed(msg) {
     process.exit(2);
 }
 
-/** 活跃代码总量 = 根目录所有 .js（入口 + manifest 声明的模块）的行数之和 */
+/** 活跃代码总量 = **真的被装载**的 .js（入口 + manifest.extra_js）的行数之和。
+ *
+ *  [v3.474.0 · L23-O2/O3] 修前这里是「根目录所有 .js」—— 归档态一落地，
+ *    12 个已撤出装载面的退役文件（1287 行）也被算成「活跃代码」，
+ *    于是上界被退役代码垫高、判据名义上守「不给死代码留余量」实际留了。
+ *    归属三态（入口 / 声明 / 登记归档）的唯一真源是 _root_js_inventory；
+ *    本函数只吃它的 declaredOnDisk 面，并把 onDisk / archived / unexplained
+ *    三个读数一起交出去 —— 让「活跃降了」与「盘上少了文件」在读数上不同形。
+ */
 export function measureActiveLines(root = ROOT) {
-    let mf;
-    try { mf = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf-8')); }
-    catch (e) { failClosed('读不到/坏掉的 manifest.json：' + e.message); }
-    const allJs = fs.readdirSync(root).filter((f) => f.endsWith('.js')).sort();
+    const inv = rootJsInventory(root);
     let total = 0;
-    for (const f of allJs) total += fs.readFileSync(path.join(root, f), 'utf-8').split('\n').length;
-    return { total, files: allJs.length, declared: 1 + ((mf.extra_js || []).length) };
+    for (const f of inv.declaredOnDisk) {
+        total += fs.readFileSync(path.join(root, f), 'utf-8').split('\n').length;
+    }
+    return {
+        total,
+        files: inv.declaredOnDisk.length,   // 盘上真存在的声明模块（+入口）
+        declared: inv.declared.length,      // manifest 声明的数量（含入口）
+        entry: inv.entry.length,
+        onDisk: inv.onDisk.length,          // 根目录 .js 总数（含归档）
+        archived: inv.archivedOnDisk.length,
+        unexplained: inv.unexplained.length,
+        missing: inv.missing.length,
+    };
 }
 
 /** 余量「将尽」的判据：低于 maxSlack 的一半就提前预告 —— 下次功能增长即会翻红。 */
@@ -117,6 +134,8 @@ if (invokedDirectly) {
         process.exit(0);
     }
     console.log('活跃代码 ' + m.files + ' 文件（声明 ' + m.declared + '） / 实测 ' + m.total + ' 行');
+    console.log('盘上面：根目录 ' + m.onDisk + ' 个 .js = 活跃 ' + m.files + ' + 登记归档 ' + m.archived
+        + ' + 游离 ' + m.unexplained + '（游离必须恒为 0；归档不计入活跃）');
     console.log('登记上界 ' + b.ceiling + ' 行（余量 ' + slack + '，上限 maxSlack=' + b.maxSlack + '）');
     /* [v3.244.0] --suggest：只打建议，机器可读（供脚本/看板消费）。不写盘、恒 exit 0。 */
     if (args.includes('--suggest')) {

@@ -437,6 +437,14 @@ const REGISTRY = [
      *   ★ 本档是 v3.471.0 落盘时漏登记的：那一次抬版未同步本台账，B1 的「磁盘有、台账无」
      *   差集当场点名（v3471_model_fetch_degrade.test.mjs）。按台账纪律补登，不是放宽判据。 */
     'v3471_model_fetch_degrade.test.mjs',
+    /* [v3.474.0 补登记] L22-O1 / L22-O7 / L23-O7 / L23-O8 四档从唯一真源取 `breakSource`
+     *   却漏进本台账（v3.470~v3.473 四次抬版累积欠账，四档各自当时都绿，只有 B1 的双向差集
+     *   看得见）。★ 磁盘 156 / 台账 152 的差额就是这四条 —— 修法按台账纪律补登记，
+     *   不是把判据从「双向差集」退回「计数相等」（那会让新文件接入 + 老文件掉队互相抵消）。 */
+    'l22_o1_index_split.test.mjs',
+    'l22_o7_declared_dormant.test.mjs',
+    'l23_o7_receipt_all_paths.test.mjs',
+    'l23_o8_view_drive_all.test.mjs',
 ];
 /* 本地重写的检测名集（与门禁 C1 同源口径）：只放破坏工具的出口名。
  *   名字表要按「语义是什么」写，不是按「名字像什么」写 —— v3.247.0 首版把

@@ -45,6 +45,11 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const NL = String.fromCharCode(10);
 const Q = String.fromCharCode(39);
 const IDX = read('index.js');
+/* [v3.474.0 · L23 收口] _formatBindDepsRow 已外移 index-helpers.js（纯函数簇，入口只留委派）。
+ *   F 段的抽取面因此改成「入口 + index-helpers.js」两处找、模块优先 —— 判据与断言一字未改；
+ *   否则会砸在「找不到 _formatBindDepsRow」上（那是判据失效，不是三态格式化坏了）。 */
+const HI = read('index-helpers.js');
+const BIND_ROW_SRC = HI + NL + IDX;
 const SELF = read('tests/v3277_o7_dep_injection.test.mjs');
 const MF = JSON.parse(read('manifest.json'));
 
@@ -238,6 +243,7 @@ function judgeE(overrides) {
 }
 /** F：三态格式化真跑。 */
 function judgeF(idxSrc) {
+    /* [v3.474.0] idxSrc 现在是「模块在前、入口在后」的合看面：模块面才有真函数，入口只有委派桩。 */
     /* bodyOf 返回的是花括号体（不含参数列表），故这里自己接上声明头。 */
     const head = 'function _formatBindDepsRow(constructRead, rebindRead)';
     const at = idxSrc.indexOf(head);
@@ -325,7 +331,7 @@ test('v3277 E. config 模板：null 必须被忽略（不得清空已冻值）�
 
 /* ========== F 三态格式化真跑 ========== */
 test('v3277 F. 依赖注入诊断行：三态真跑（未注入 / 已补齐 / 失败点名 / 未重绑）', () => {
-    const p = judgeF(IDX);
+    const p = judgeF(BIND_ROW_SRC);
     assert.equal(p, null, p || '');
     assert.ok(IDX.includes('_formatBindDepsRow(this._bindDepsRead, this._bindDepsRebindRead),'), 'selfCheck 必须真的调用这个纯函数（否则纯函数是死代码）');
     ok('三态真跑：未注入 / 已补齐 / 失败点名 / 未重绑；selfCheck 真调用它');
@@ -345,7 +351,7 @@ test('v3277 G. 判据面自防护：实现住本档 + 破坏走唯一真源 + �
         ['键面行', A_KEY, IDX],
         ['init 重绑调用', A_INIT, IDX],
         ['null 过滤', A_NULL, read('memory-config.js')],
-        ['失败过滤', A_BADOF, IDX],
+        ['失败过滤', A_BADOF, HI],   /* [v3.474.0] badOf 随 _formatBindDepsRow 外移到 index-helpers.js */
         ['重绑收集点', A_REBIND, IDX],
         ['取库口', A_LIB, IDX],
         ['重绑方法', A_METHOD, IDX],
@@ -381,7 +387,7 @@ test('v3277 H. 真源码破坏 -> 同一条判据必须翻红（键名 / 时机 
     assert.ok(p3b && p3b.indexOf('config') >= 0, '撤掉 null 过滤后 C 必须一起翻红（实得 ' + p3b + ' ⇒ 两个观测点没闭环）');
     noted.push('null');
     /* ④ 失败过滤退化成空数组 ⇒ 三态判据必须翻红（有失败也报 ok）。 */
-    const b4 = breakSource(IDX, A_BADOF, '        const badOf = (r) => [];', 'O7-三态退化');
+    const b4 = breakSource(HI, A_BADOF, '        const badOf = (r) => [];', 'O7-三态退化');   /* [v3.474.0] 破坏打在真源所在模块 */
     const p4 = judgeF(b4);
     assert.ok(p4, '三态退化后 F 必须翻红（实得 null ⇒ 判据没在工作）');
     noted.push('三态');
@@ -391,7 +397,7 @@ test('v3277 H. 真源码破坏 -> 同一条判据必须翻红（键名 / 时机 
     assert.ok(p5, '重绑伪报后 C 必须翻红（实得 null ⇒ 判据被伪报骗过）');
     noted.push('伪报');
     /* 破坏口径（真源唯一）：锚点恰中 1 次由 breakSource 保证，这里补「必须真的改变源码」。 */
-    for (const [tag, a, b] of [['键名', IDX, b1], ['重绑调用', IDX, b2], ['null 过滤', read('memory-config.js'), b3], ['三态', IDX, b4], ['重绑伪报', IDX, b5]]) {
+    for (const [tag, a, b] of [['键名', IDX, b1], ['重绑调用', IDX, b2], ['null 过滤', read('memory-config.js'), b3], ['三态', HI, b4], ['重绑伪报', IDX, b5]]) {
         assert.notEqual(a, b, tag + ' 的破坏必须真的改变源码');
     }
     ok('五条真源码破坏各自打在观测点上并让同款判据翻红：' + noted.join(' / '));

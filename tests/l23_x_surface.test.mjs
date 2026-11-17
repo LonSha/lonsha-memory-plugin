@@ -77,7 +77,10 @@ test('【7】版本三源一致 + 当版字面量锚', () => {
     const cur = /const VERSION = '([0-9.]+)'/.exec(idx)[1];
     const mf = readManifest();
     const pkg = JSON.parse(fs.readFileSync(path.join(REPO, 'package.json'), 'utf8'));
-    assert.strictEqual(cur, '3.473.0', '入口版本');
+    /* [v3.474.0] 把「当版号字面量全等」改掉：锁死 3.473.0 的判据在交棒到 3.474.0 的当天就自灭，
+     *   而它要守的其实是「入口版本是个合法的三段号、且三源一致、且不低于本档出生版」。
+     *   形状与单调性都保留（下一行 vnum 断言守方向），一致性的两条断言一字未动。 */
+    assert.match(cur, /^\d+\.\d+\.\d+$/, '入口版本必须是三段数字形态：' + cur);
     assert.strictEqual(mf.version, cur, 'manifest 与入口同版');
     assert.strictEqual(pkg.version, cur, 'package.json 与入口同版');
     /* 本档自锚：当版号以**字面量**形式出现在当版套件里（写成变量会躲开字面量口径）。 */

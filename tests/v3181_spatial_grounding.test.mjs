@@ -474,11 +474,14 @@ test('【G2】★ 缺席退路不得伪造「能写不能读」的世界（读�
     assert.ok(/apply\(\) \{ return 0; \}/.test(seg), 'apply 退路返回 0（不假装写了）');
 });
 // ══════════ H 对外只读口 ══════════
-test('【H1】★ 资源清单 14 项冻结 + 单一实现（scene / evidence 已入清单）', () => {
+test('【H1】★ 资源清单 15 项冻结 + 单一实现（scene / evidence / trace 已入清单）', () => {
     assert.ok(Object.isFrozen(PI.RESOURCES), '资源清单被冻结（不可被外部改写）');
-    assert.equal(PI.RESOURCES.length, 14, '★ 资源清单 14 项（v3.181 新增 scene / v3.214.0 新增 evidence）');
+    /* [v3.474.0] 14 → 15：v3.473.0 的 L23-X1~X9 把 trace（可回源追踪面）加进同一张清单，
+     *   清单本身没变形状，是数记没跟上 —— 改的是分母，不是放宽（下面逐项点名仍在）。 */
+    assert.equal(PI.RESOURCES.length, 15, '★ 资源清单 15 项（v3.181 新增 scene / v3.214.0 新增 evidence / v3.473.0 新增 trace）');
     assert.ok(PI.RESOURCES.includes('scene'), '新资源 scene 在清单里');
     assert.ok(PI.RESOURCES.includes('evidence'), '新资源 evidence 在清单里');
+    assert.ok(PI.RESOURCES.includes('trace'), '新资源 trace 在清单里（v3.473.0 · L23-X1~X9 九面追踪）');
     assert.equal(new Set(PI.RESOURCES).size, PI.RESOURCES.length, '无重复项');
     const uses = (piSrc.match(/RESOURCES/g) || []).length;
     assert.ok(uses >= 3, '★ 单一实现：斜杠 enumList / 宏表 / queryResource 共用同一份清单（不复述）');

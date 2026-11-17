@@ -8,7 +8,10 @@ const srcRaw = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [v3.266.0 A1 第六刀] MemoryGraph / SummarySystem / GameClock / CharacterState 已外移
  *   memory-core.js：本文件的类抽取面与静态面改读「入口 + 该模块」合看（语义一字不改，
  *   只换被读的文件面；不放宽：每一条仍须在场）。 */
-const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8');
+const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-core.js', import.meta.url), 'utf8')
+    /* [v3.474.0 · L23 收口] hash32 / msgTextOf / msgFpOf 已外移 index-helpers.js：合看面追加该模块。
+     *   抽取器与断言一字未改，只把「这几只函数住哪」跟到真位置。 */
+    + String.fromCharCode(10) + readFileSync(new URL('../index-helpers.js', import.meta.url), 'utf8');
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 

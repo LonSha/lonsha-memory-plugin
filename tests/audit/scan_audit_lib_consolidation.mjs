@@ -54,8 +54,8 @@ const RUN_REL = 'tests/run.mjs';
 //   「方法体不在位」误判成缺陷，且以后再把函数搬走一处就会静默退化成空转。
 //   复核结论：stripComments / bodyOf / braceMatch / codeLines 四个口径**一字未动**（逐行 diff 只动了
 //   hostSurface 与新增的 _splitPartsOf）；行为面 7 形态与 5 组负控制仍全绿（见本脚本 E3/E4）。
-//   12776 → 13774 字符、md5 b46fe7808e2af9eb4b8942d48f8c4bc4。
-const EXPECT_LIB_MD5 = 'b46fe7808e2af9eb4b8942d48f8c4bc4';
+//   12776 → 13774 字符、md5 efb554f633e90396c7c9b96d48729ae6。
+const EXPECT_LIB_MD5 = 'efb554f633e90396c7c9b96d48729ae6';
 const MIN_AUDIT_SCRIPTS = 25;
 const MIN_LIB_BYTES = 8000;
 const MIN_IMPORTERS = 8;

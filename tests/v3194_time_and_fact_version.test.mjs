@@ -22,6 +22,8 @@ import { stripComments, braceMatch } from './_audit_lib.mjs';
  *   顺序：入口在前、模块在后 —— 版本常量这类「以入口为准」的断言必须先命中入口；
  *   而入口里的单行委派体一律先剥掉，否则抽取助手取首次命中会抠到委派（只剩一句委托）。 */
 import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
+/* [v3.474.0] 根 .js 三态归属的唯一真源（四处判据同吃一张分母，见模块头注释）。 */
+import { rootJsInventory } from './_root_js_inventory.mjs';
 import __hostPath from 'node:path';
 import { fileURLToPath as __hostFu } from 'node:url';
 /* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
@@ -349,11 +351,19 @@ test('v3194 16. 三个模块登记进 extra_js，且消费面不悬空', () => {
     assert.ok(ej.includes(f), f + ' 必须在 manifest.extra_js（不登记 = 不加载 = 机制零生效）');
     assert.match(raw, new RegExp("window\\.LonSha\\w+, '" + f.replace('.', '\\.') + "'"), f + ' 有取库口引用');
   }
-  // 根 .js 数 = 入口 + 声明模块（防游离文件与悬空注册两个方向）
-  const allJs = readdirSync(ROOT).filter((f) => f.endsWith('.js'));
-  assert.equal(allJs.length, 1 + ej.length,
-    '根 .js 数应等于 入口(index.js) + extra_js（实 ' + allJs.length + ' vs ' + (1 + ej.length) + '）');
-  for (const f of ej) assert.ok(allJs.includes(f), 'extra_js 指向的文件必须真实存在: ' + f);
+  // 根 .js 归属三态（入口 / 声明 / 登记归档）的唯一真源：tests/_root_js_inventory.mjs。
+  // [v3.474.0] 修前这里自己扫一遍盘、再拿「1 + extra_js」当分母 —— L23-O2/O3 把 12 个
+  //   退役文件登记为**归档**（文件留盘、撤出装载面、理由与替代方留账）之后，本判据就把
+  //   「归档」读成了「游离」（实测 409 vs 397），报的是分类缺失而不是产品漂移。
+  //   分母换成三态真源后两个方向**各自**仍然成立：连归档也解释不了才是游离，声明了却
+  //   不在盘上才是悬空注册 —— 判据强度不变，只是不再把已登记的退役文件当垃圾。
+  const inv = rootJsInventory(ROOT);
+  assert.deepEqual(inv.unexplained, [], '根目录不得有游离 .js（既非入口、未被 extra_js 声明、也未登记归档）: ' + JSON.stringify(inv.unexplained));
+  assert.deepEqual(inv.missing, [], 'extra_js 声明的文件必须真实在盘上（悬空注册）: ' + JSON.stringify(inv.missing));
+  assert.deepEqual(inv.declaredButArchived, [], '归档文件不得同时留在装载面上: ' + JSON.stringify(inv.declaredButArchived));
+  assert.equal(inv.onDisk.length, inv.declaredOnDisk.length + inv.archivedOnDisk.length,
+    '盘上根 .js 数必须等于 声明在盘 ' + inv.declaredOnDisk.length + ' + 登记归档 ' + inv.archivedOnDisk.length + '（实 ' + inv.onDisk.length + '）');
+  for (const f of ej) assert.ok(inv.onDisk.includes(f), 'extra_js 指向的文件必须真实存在: ' + f);
 });
 
 test('v3194 17. 三面账进契约键、进存档、进恢复（少一处就是「存了不读」）', () => {

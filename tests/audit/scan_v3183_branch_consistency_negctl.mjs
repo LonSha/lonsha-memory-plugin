@@ -29,7 +29,15 @@ const MF = 'manifest.json';
 /* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
  *   夹具名册必须同源派生：否则原版对照在夹具里必红（模块缺席），
  *   且破坏锚点已搬进外移模块、打不到 index.js ⇒ 整组负控制失效。 */
-const COPY = [SP, BG, XL, IDX, MF].concat(HOST_MODULES);
+/* [v3.474.0 · L23 收口] 十批剥离把 engine-diagnostic-lines.js 拆成了 part-a/b/c 分片，
+ *   真锚点搬进 part-a（实测 4 处，见 N6）。夹具名册必须与判据扫描面同源派生到分片，
+ *   否则「夹具里没有该文件 / 锚点命中 0 次」⇒ 整组负控制作废（不是判据在工作）。 */
+function splitParts(name) {
+    const m = /^(.*)[.]js$/.exec(name);
+    if (!m) return [];
+    return fs.readdirSync(REPO).filter((f) => f.startsWith(m[1] + '-part-') && f.endsWith('.js')).sort();
+}
+const COPY = [...new Set([SP, BG, XL, IDX, MF].concat(HOST_MODULES).reduce((acc, f) => acc.concat([f], splitParts(f)), []))];
 
 // 每组都带「期望缺陷归因」（第 8 个元素）：只验退出码是不够的——
 //   破坏可能因为**另一条无关缺陷**而翻红，那样这组负控制对它声称的规则是空转的。
@@ -74,11 +82,11 @@ const CASES = [
     //   （定义 / errLog 标签 / api 导出表）+ engine-self-check.js 2（typeof 探测 + 调用）= 7。
     //   只抹一处是假破坏：残留文本仍带着名字，R6 的名字判据照样绿（本组历史教训）。
     ['N6-删掉诊断入口（全名抹除）', [
-        { file: IDX, anchor: '_branchGuardLine', expectHits: 2 },
-        { file: 'engine-diagnostic-lines.js', anchor: '_branchGuardLine', expectHits: 3 },
-        { file: 'engine-self-check.js', anchor: '_branchGuardLine', expectHits: 2 },
+        { file: IDX, anchor: '_branchGuardLine', expectHits: 2 },   /* [v3.474.0] 入口：委托绑定 + 注释/调用面，实测 2 处（按出现次数计，不是行数） */
+        { file: 'engine-diagnostic-lines-part-a.js', anchor: '_branchGuardLine', expectHits: 5 },   /* [v3.474.0] 定义/errLog 标签/api 导出表已随分片搬进 part-a，实测 5 处（出现次数） */
+        { file: 'engine-self-check.js', anchor: '_branchGuardLine', expectHits: 2 },   /* [v3.474.0] typeof 探测 + 调用，实测 2 处 */
     ], null, '_branchGuardDiagRenamed',
-        7, 1,
+        9, 1,   /* [v3.474.0] 实测总数 2 + 5 + 2 = 9（旧值 7 是拆分前、按行计的读数） */
         '入口彻底消失 → 名字判据与调用点判据都必须翻红', 'R6 缺诊断入口：分支守护读数'],
 
     // 入口还在、只是没人念 —— 本仓式失效（函数写好了、零调用点），必须与「入口消失」分开验。

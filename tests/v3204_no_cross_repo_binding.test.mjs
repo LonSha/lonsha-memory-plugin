@@ -44,6 +44,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { breakText } from './_break_kit.mjs';
+/* [v3.474.0 · L23 收口] 夹具复制统一带「过滤平台快照残骸 + 解引用」选项，
+ *   否则本机文件层的 `.l2s.*` 链接链会让 cpSync 报 EINVAL、或复制出悬空链接——
+ *   那是平台产物的假红，不是判据在说话。 */
+import { notPlatformJunk } from './_fixture_sync.mjs';
 /* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
  *   入口只剩一行委派。只读入口的测试因此两重受害 ——
  *   ① 方法体根本不在入口里（断言找不到）；
@@ -167,7 +171,7 @@ function mkTree() {
     for (const f of ['index.js', 'manifest.json', 'package.json']) {
         writeFileSync(path.join(dir, f), readFileSync(path.join(ROOT, f)));
     }
-    cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true });
+    cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true, dereference: true, filter: notPlatformJunk });
     return dir;
 }
 function withTree(mutate) {
@@ -366,7 +370,7 @@ test('v3204 16. 可移植性证明：整仓复制到仓库之外 → 关键用�
     try {
         for (const item of readdirSync(ROOT)) {
             if (item === '.git' || item === 'node_modules') continue;
-            cpSync(path.join(ROOT, item), path.join(dir, item), { recursive: true });
+            cpSync(path.join(ROOT, item), path.join(dir, item), { recursive: true, dereference: true, filter: notPlatformJunk });
         }
         // 只看「曾经绑死本机路径」的那一族：取参考基准里前 12 个用例（覆盖绝对路径改写面）
         const probes = rows(REF).map((c) => c[0]).slice(0, 12).join(' ');

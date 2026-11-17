@@ -208,5 +208,8 @@ test('v3199【7】tests/_audit_lib.mjs 本版零改动（md5 不变）', async (
   const { createHash } = await import('node:crypto');
   const buf = readFileSync(path.join(ROOT, 'tests/_audit_lib.mjs'));
   const md5 = createHash('md5').update(buf).digest('hex');
-  assert.equal(md5, '25e8cb20d6043c71d7c484a445e8fddd', `_audit_lib.mjs md5 变了（${md5}）——若真改过请更新本断言与 CHANGELOG`);
+  // [v3.474.0] 重钉：L23 收口轮给 HOST_MODULES 补入 index-helpers.js（L22-O1 把宿主纯函数搬进它，
+  //   判据面没跟上 ⇒ hostSurface 在入口里找不到实现，十几组门禁静默空转）。这一改是真改，
+  //   故按本档纪律「真改就抬这一行并写 CHANGELOG」重钉，不是把指纹放宽：期望值仍是单值全等。
+  assert.equal(md5, 'efb554f633e90396c7c9b96d48729ae6', `_audit_lib.mjs md5 变了（${md5}）——若真改过请更新本断言与 CHANGELOG`);
 });

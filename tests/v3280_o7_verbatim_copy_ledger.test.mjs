@@ -131,6 +131,9 @@ const A_SELF_PAIRS = 'const LEDGER = [';
 /* 根级模块面（与 scan_wiring 的 ROOT_MODULES 同口径：根目录 .js，排除 .bak） */
 const MODULES = fs.readdirSync(ROOT)
     .filter((f) => f.endsWith('.js') && !f.endsWith('.bak'))
+    /* [v3.474.0] 抽取库不算模块面：它是**宿主侧的搬运结果**（L22-O1 把 29 只纯函数整块搬进来），
+     *   若把它也当模块，宿主面自己和自己比，凡搬进它的函数都成「恒等副本」，登记表被自反项冲垮。 */
+    .filter((f) => f !== 'index-helpers.js')
     .sort();
 
 const INDEX_SRC = __hostSurface();
@@ -138,7 +141,12 @@ const INDEX_SRC = __hostSurface();
  *   合并面把模块面也包了进来，而模块侧本来就是那些文件 —— 两边同一份源码
  *   互相一比，什么都是「逐字相同」，登记表会被 180 余项恒等副本冲垮。
  *   本档口径一直是「入口 vs 模块」两套维护面，入口侧就该只有 index.js。 */
-const IDX_ENTRY = read('index.js');
+/* [v3.474.0] 宿主侧改成「入口 + 抽取库」两份：L22-O1 把 _getCredKey / normalizeCharName 等
+ *   逐字搬进 index-helpers.js。只读入口时，登记表里那些副本无处对账 —— 判据报的会是
+ *   「副本已不再逐字相同（漂移）或已消失」，即**坏掉的判据**而不是坏掉的副本。
+ *   口径仍是「宿主 vs 模块」两套维护面，只是宿主面这一侧现在包含它的抽取库；
+ *   模块面同步排除 index-helpers.js（见上），两侧不重叠 ⇒ 不会自己比自己。 */
+const IDX_ENTRY = read('index.js') + String.fromCharCode(10) + read('index-helpers.js');
 
 /* ══════════════ 判据体（纯函数：吃文本，返回问题列表） ══════════════ */
 

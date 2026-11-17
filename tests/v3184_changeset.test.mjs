@@ -258,7 +258,13 @@ test('v3184c 11. 分工声明：与 SnapshotManager / OpLog 不得重复', () =>
     assert.ok(MOD_SRC.includes('行级前后值'), '声明的职责');
     assert.ok(MOD_SRC.includes('不同分辨率'), '声明四者是分辨率差异');
     // 刻意不导出（顶层导出键集是冻结契约；改动它会破 v3139 的键集断言）
-    assert.ok(!src.includes("changeset: _changeset"), '不得挂进导出对象');
+    /* [v3.474.0] 裸子串会误命中私有注入表里的 `_changeset: _changeset,`（engine-diagnostic-lines.js），
+     *   那是注入表键名不是导出对象键名 —— 裸串判据因此把「本来就没问题」报成缺陷。键名精确匹配：
+     *   前面不许是单词字符或下划线，所以 `_changeset:` 不会算成 `changeset:`。 */
+    assert.ok(!/(^|[^\w$])changeset\s*:\s*_changeset\b/.test(src),
+        '不得挂进导出对象（键名精确匹配 changeset: _changeset，不按裸子串误伤 _changeset: 注入表）');
+    /* 反向断言：私有注入表里的 `_changeset:` 必须仍在 —— 否则上面那条会因为「什么都没写」而恒真。 */
+    assert.ok(/(^|[^\w$])_changeset\s*:/.test(src), '反向：私有注入表 _changeset: 必须仍在（不给「什么都没写」开绿灯）');
     assert.ok(src.includes('刻意不导出'), '理由必须留档');
 });
 

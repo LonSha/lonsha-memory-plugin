@@ -1,6 +1,6 @@
 {
   "schema": "realhost-readings@1",
-  "generatedAt": "2026-11-17T12:44:59.894Z",
+  "generatedAt": "2026-11-17T21:50:12.786Z",
   "version": "3.474.0",
   "verdict": "environment-unavailable",
   "cause": "no-st-endpoint",

@@ -4,7 +4,8 @@
 // 判定规则：
 //   V0 原版基线：直接执行门禁必须 exit 0；
 //   N1 未登记零消费：制造一个零消费且未登记的 extra_js 模块 => 必 exit 1 并点名模块；
-//   N2 空理由违规：把 ledger 里 allowed:0 的 why 改为空串 => 必 exit 1 并报 R2 违规；
+//   N2 空理由违规（两向自证）：夹具里真造一个零消费模块并登记 allowed:0：
+//     N2a why 为空白 => 必 exit 1 并报 R2 违规；N2b 同一棵树补上理由 => 必 exit 0；
 //   N3 结构健康下限：manifest 模块数过少 => 必 exit 2 (fail-closed)；
 //   N4 判据自证（K4 定点破坏）：锚点须恰中 1 次，破坏判据本体后同一红树上原版必红 / 破坏版必不红。
 //
@@ -35,6 +36,29 @@ if (v0.status !== 0) {
   failures.push('V0 原版基线失败：输出未包含「检查通过」');
 }
 
+/** 把一份生产文件搬进夹具（hardlink 优先，失败退化拷贝）。 */
+function putMirror(tmp, rel) {
+  const src = path.join(REPO, rel);
+  const dst = path.join(tmp, rel);
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  try { fs.linkSync(src, dst); } catch { fs.copyFileSync(src, dst); }
+}
+/** 生产面全镜像：根目录其余 .js（含 docs/ 下的计划探针）逐字搬入夹具。 */
+function mirrorProd(tmp) {
+  const copied = new Set(['manifest.json', 'index.js', 'optional-engine-registry.js']);
+  for (const f of fs.readdirSync(REPO)) {
+    if (!f.endsWith('.js') || copied.has(f)) continue;
+    putMirror(tmp, f);
+  }
+  const walk = (rel) => {
+    for (const d of fs.readdirSync(path.join(REPO, rel), { withFileTypes: true })) {
+      const r = rel + '/' + d.name;
+      if (d.isDirectory()) walk(r); else if (d.isFile()) putMirror(tmp, r);
+    }
+  };
+  if (fs.existsSync(path.join(REPO, 'docs'))) walk('docs');
+}
+
 // 辅助创建临时轻量镜像
 function createTempRepo() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lonsha_cons_negctl_'));
@@ -50,6 +74,12 @@ function createTempRepo() {
    *   ⇒ 本负控制的期望读数整体偏移，且夹具结构差异会把 exit 2 混进断言。
    *   （scan_fixture_sync 的 E2 报的就是这条：夹具缺门禁会读的文件。） */
   fs.copyFileSync(path.join(REPO, 'optional-engine-registry.js'), path.join(tmp, 'optional-engine-registry.js'));
+  /* [v3.474.0] 生产面全镜像：门禁是按「根目录全部 .js + docs/」数消费点的。
+   *   只拷上面四件时，其余 390+ 模块的消费点会全为 0 —— 夹具上的「零消费」是**结构造成的
+   *   假读数**，N2b 的绿于是成了空对空（真树绿、假树也绿，什么都没证）。
+   *   镜子要照全，判据不因此放宽：这里只是把「门禁会读的面」逐字搬进夹具。
+   *   hardlink 优先（同文件系统近乎零成本），失败退化为拷贝；两者内容与生产面逐字相同。 */
+  mirrorProd(tmp);
   return tmp;
 }
 
@@ -76,29 +106,50 @@ try {
   fs.rmSync(tmp1, { recursive: true, force: true });
 }
 
-// N2: allowed:0 但 why 为空
+// N2a / N2b: allowed:0 的空理由与补齐理由（两向自证）
+/* ★ [v3.474.0] 修前这一组是**恒假红**：它在生产台账里找 allowed:0 的条目，找不到就推一条失败。
+ *   而生产台账 397 条全是 allowed:1（零消费模块早已清零）⇒ “找不到” 是常态，本组从那天起
+ *   就永远红 —— 判据坏了，产品没坏。判据自己坏掉与产品坏掉必须不同形，故改成：
+ *   在夹具里真造一个零消费模块（写进 manifest + 台账 allowed:0），然后分两向自证：
+ *     N2a 同树上 why 留空白 ⇒ 必 exit 1 且必须报 R2 违规；
+ *     N2b 同树补上理由 ⇒ 必 exit 0（证明红是「空理由」造成的，不是这个模块本身）。
+ *   只做 N2a 而不做 N2b 的话，一棵永远红的树也能让 N2a 一直是“绿”的。 */
+const N2_MOD = 'n2_zero_consumption_probe.js';
+const N2_WHY = '负控制夹具：真零消费模块，仅供 N2 两向自证';
 const tmp2 = createTempRepo();
 try {
-  const led = JSON.parse(fs.readFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), 'utf8'));
-  // 找一个 allowed:0 的条目，将 why 设为空串
-  const k = Object.keys(led.modules).find(m => led.modules[m].allowed === 0);
-  if (k) {
-    led.modules[k].why = '   ';
-    fs.writeFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), JSON.stringify(led), 'utf8');
+  const man2 = JSON.parse(fs.readFileSync(path.join(tmp2, 'manifest.json'), 'utf8'));
+  man2.extra_js.push(N2_MOD);
+  fs.writeFileSync(path.join(tmp2, 'manifest.json'), JSON.stringify(man2), 'utf8');
+  /* 模块本体只声明一个产品面绝不重名的全局名 ⇒ 全仓无人消费（真零消费，不是“找不到消费点”）。 */
+  fs.writeFileSync(path.join(tmp2, N2_MOD), 'window.N2ZeroConsumptionProbe = function () { return 1; };\n', 'utf8');
+  const led2 = JSON.parse(fs.readFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), 'utf8'));
+  led2.modules[N2_MOD] = {
+    module: N2_MOD,
+    surface: ['N2ZeroConsumptionProbe'],
+    prod_call_sites: 0,
+    business_call_sites: 0,
+    load_surface_only: false,
+    allowed: 0,
+    why: '   '
+  };
+  fs.writeFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), JSON.stringify(led2), 'utf8');
 
-    const n2 = spawnSync(process.execPath, [GATE], {
-      cwd: tmp2,
-      env: { ...process.env, LONSHA_AUDIT_ROOT: tmp2, LONSHA_AUDIT_FIXTURE: '1' },
-      encoding: 'utf8',
-    });
+  const env2 = { ...process.env, LONSHA_AUDIT_ROOT: tmp2, LONSHA_AUDIT_FIXTURE: '1' };
+  const n2a = spawnSync(process.execPath, [GATE], { cwd: tmp2, env: env2, encoding: 'utf8' });
+  if (n2a.status !== 1) {
+    failures.push(`N2a 负控制失败：allowed:0 但理由空白期望 exit 1，实得 ${n2a.status}\n${n2a.stderr || n2a.stdout}`);
+  } else if (!n2a.stderr.includes('R2 违规')) {
+    failures.push('N2a 负控制失败：输出未包含「R2 违规」');
+  }
 
-    if (n2.status !== 1) {
-      failures.push(`N2 负控制失败：空理由期望 exit 1，实得 ${n2.status}\n${n2.stderr || n2.stdout}`);
-    } else if (!n2.stderr.includes('R2 违规')) {
-      failures.push('N2 负控制失败：输出未包含「R2 违规」');
-    }
-  } else {
-    failures.push('N2 负控制失败：未在 ledger 中找到 allowed:0 的条目');
+  /* N2b：同一棵树，只把理由补上 ⇒ 必须转绿。这一向才证明 N2a 的红来自“空理由”。 */
+  led2.modules[N2_MOD].why = N2_WHY;
+  fs.writeFileSync(path.join(tmp2, 'tests/audit/module_consumption_ledger.json'), JSON.stringify(led2), 'utf8');
+  const n2b = spawnSync(process.execPath, [GATE], { cwd: tmp2, env: env2, encoding: 'utf8' });
+  if (n2b.status !== 0) {
+    failures.push(`N2b 两向自证失败：同一棵树补上理由后期望 exit 0，实得 ${n2b.status}`
+      + ` —— 若此处仍红，说明 R2 的红不是理由造成的\n${n2b.stderr || n2b.stdout}`);
   }
 } finally {
   fs.rmSync(tmp2, { recursive: true, force: true });

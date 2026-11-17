@@ -60,11 +60,14 @@ for (const fp of ['KIT_API', 'NOT_SCOPE', 'MIN_RECEIVERS', 'MIN_DEFECT_SITES',
 }
 
 /** 造一份整仓镜像（实测 1.18s / 10.4MB）。 */
+/* [v3.474.0] 一并排除平台快照残骸 `.l2s.<name>0001`：它们是文件层在被访问过的文件旁
+ *   生成的备份（git 跟踪 0 个），混进镜像会让 cpSync 报 EINVAL —— 那会让本负控制
+ *   在**没跑到任何判据**的情况下红，归因完全错位。排除的是平台产物，不是仓库内容。 */
 function mirror() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'breakkit-negctl-'));
     fs.cpSync(REPO, dir, {
-        recursive: true,
-        filter: (p) => !/(^|\/)(\.git|node_modules)(\/|$)/.test(p),
+        recursive: true, dereference: true,
+        filter: (p) => !/(^|\/)(\.git|node_modules)(\/|$)/.test(p) && !/(^|\/)[.]l2s[.]/.test(p),
     });
     return dir;
 }

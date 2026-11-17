@@ -35,7 +35,18 @@ const SCAN = path.join(SRC, 'tests/audit/scan_v3186_emotion_recall.mjs');
 /* [v3.370.1] 门禁扫描面已扩到「入口 + 外移模块」（十批剥离的刀口），
  *   夹具名册必须同源派生，不得手抄：否则原版对照在夹具里必红（模块缺席），
  *   且破坏锚点已搬进外移模块、打不到 index.js ⇒ 整组负控制失效。 */
-const FILES = ['narrative-pulse.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js'].concat(HOST_MODULES);
+/* [v3.474.0 · L23 收口] 十批剥离把 engine-diagnostic-lines.js 拆成 part-a/b/c：诊断行实现
+ *   实测在 part-a。夹具名册必须同源派生到分片，并带上 module_split_ledger.json
+ *   （hostSurface 靠它把装配面还原成「片 + 装配」）；否则 scanner 在夹具里读不到方法体，
+ *   红在夹具缺件上，不是判据在工作。 */
+function splitParts(name) {
+    const m = /^(.*)[.]js$/.exec(name);
+    if (!m) return [];
+    return fs.readdirSync(SRC).filter((f) => f.startsWith(m[1] + '-part-') && f.endsWith('.js')).sort();
+}
+const FILES = [...new Set(['narrative-pulse.js', 'index.js', 'settings-ui.js', 'manifest.json', 'memory-config.js']
+    .concat(HOST_MODULES)
+    .reduce((acc, f) => acc.concat([f], splitParts(f)), ['tests/audit/module_split_ledger.json']))];
 let pass = 0, fail = 0;
 const ok = (m) => { pass++; console.log('  ok ' + m); };
 const bad = (m) => { fail++; console.error('  ✗ ' + m); };
@@ -55,7 +66,11 @@ function snapshotDir() {
     // [v3.191] 夹具必须镜像仓库布局：扫描器副本在 tests/audit/ 下，其 '../_audit_lib.mjs' 才能解析。
     fs.mkdirSync(path.join(dir, 'tests', 'audit'), { recursive: true });
     fs.copyFileSync(path.join(SRC, 'tests', '_audit_lib.mjs'), path.join(dir, 'tests', '_audit_lib.mjs'));
-    for (const f of FILES) fs.copyFileSync(path.join(SRC, f), path.join(dir, f));
+    for (const f of FILES) {
+        const to = path.join(dir, f);
+        fs.mkdirSync(path.dirname(to), { recursive: true });   /* [v3.474.0] 名册含子路径（split 台账） */
+        fs.copyFileSync(path.join(SRC, f), to);
+    }
     // 扫描器自身也要拷进同一夹具目录，供「破坏扫描器」组使用。
     fs.copyFileSync(SCAN, path.join(dir, 'tests', 'audit', 'scanner_copy.mjs'));
     return dir;
@@ -96,7 +111,9 @@ const ANCHORS = [
     ['engine-recall.js', 'let merged = engine.hybridMerge(results);'],
     ['engine-recall.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppositeKeys.has(_ek2))) {\n                            _it.rrfScore = (_it.rrfScore || 0) + 0.006;'],
     ['engine-self-check.js', 'Number(this._emoOppositeRounds || 0) >= 5'],
-    ['engine-diagnostic-lines.js', '待本轮（尚无召回）'],
+    /* [v3.474.0 · L23 收口] 三态读数随十批剥离搬进 part-a（grep 仅此一处）：
+     *   锚点自证必须跟着实现走，否则「恰中 1 次」前提恒假，后续每条失败都被错归因。 */
+    ['engine-diagnostic-lines-part-a.js', '待本轮（尚无召回）'],
     ['engine-recall.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });'],
     ['memory-config.js', 'emotionOppositeRecall: false'],
     ['engine-self-check.js', "['情绪反向', line + (idle ? ' ⚠️' : '')]"],
@@ -162,7 +179,10 @@ mutate('engine-recall.js', 'if (_emoOppositeKeys.has(_ek1) || (_ek2 && _emoOppos
 // ── N-R5 读数可分辨：三态之一被抹掉 ⇒ 必须翻红 ──
 //   注意替换文本不能含原 needle 子串（`待本轮XX` 仍包含 `待本轮`，那样判据照样能命中，
 //   破坏等于没做——这类「破坏写法本身失效」是负控制的常见假绿来源）。
-mutate('engine-diagnostic-lines.js', '待本轮（尚无召回）', '本轮尚无召回',
+/* [v3.474.0 · L23 收口] 十批剥离把该读数搬进了 engine-diagnostic-lines-part-a.js
+ *   （实测 grep 仅此一处）。破坏对象必须跟着实现走：仍打装配面 = 锚点 0 次 = 破坏不可复现，
+ *   负控制会退化成「没破坏也绿」的空转。 */
+mutate('engine-diagnostic-lines-part-a.js', '待本轮（尚无召回）', '本轮尚无召回',
     'N-R5a 抹掉「待本轮」态（三态不可分）', 'R5 三态不可分辨');
 
 // ── N-R5b idle 警示绑定被拆 ⇒ 必须翻红 ──
@@ -291,7 +311,7 @@ if (!EXPECT_ATTRIB || !EXPECT_ATTRIB.length) {
         ['memory-config.js', 'emotionOppositeRecall: false'],
         ['engine-self-check.js', "['情绪反向', line + (idle ? ' ⚠️' : '')]"],
         ['engine-recall.js', 'const _er = EL.recallByOppositeEmotion({ queryText: query.text, docs: _emoDocs });'],
-        ['engine-diagnostic-lines.js', '待本轮（尚无召回）'],
+        ['engine-diagnostic-lines-part-a.js', '待本轮（尚无召回）'],
         ['narrative-pulse.js', 'for (const p of (EMOTION_OPPOSITES[w] || [])) out.add(p);'],
     ];
     const dirty = checks.filter(([f, needle]) => !fs.readFileSync(path.join(SRC, f), 'utf8').includes(needle));

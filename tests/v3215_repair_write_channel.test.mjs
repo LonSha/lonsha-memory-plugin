@@ -28,6 +28,13 @@ const R = process.cwd();
 const idxSrc = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
 const rlSrc = fs.readFileSync(path.join(R, 'repair-loop.js'), 'utf8');
 const roSrc = fs.readFileSync(path.join(R, 'engine-repair-ops.js'), 'utf8');
+/* [v3.474.0] 宿主面 = 入口 + 抽取库。
+ *   L22-O1 把约 29 只纯函数整块搬进了 index-helpers.js，repairReceipt / repairRevisionOf 在
+ *   其中 —— 入口只剩一行委派。本档原来只读 index.js，于是「回执构造点在位」红：不是产品
+ *   少了回执，而是被拷问的那张面里没有它了。面变大只影响「去哪找真源码」：找到的仍必须是
+ *   产品**真在用**的那一份（下面 blockOf 抽出来的就是），不是测试里重写的复制品。 */
+const helpersSrc = fs.readFileSync(path.join(R, 'index-helpers.js'), 'utf8');
+const HOST_SRC = idxSrc + '\n' + helpersSrc;
 const require_ = createRequire(import.meta.url);
 const RL = require_(path.join(R, 'repair-loop.js'));
 
@@ -111,10 +118,15 @@ function engineFrom(src, rl, roSource) {
     return Object.assign(eng, makePoolHost());
 }
 /** 用给定源码里的**真桥字面量 + 真回执构造点**造桥。 */
-function bridgeFrom(src, plugin) {
+function bridgeFrom(src, plugin, face) {
     const lit = bridgeLiteralOf(src);
-    const receipt = blockOf(src, 'function repairReceipt(extra) {');
-    const revOf = blockOf(src, 'function repairRevisionOf() {');
+    /* [v3.474.0] 先在传入面里找；找不到则回到宿主面（入口 + 抽取库）。
+     *   负控制的四组特意传「被破坏的 index.js 单面」，而被破坏的锚点仍落在入口里；
+     *   回执/修订口搬去了抽取库 —— 所以这个回退必须存在，但**只回退到真源码面**：
+     *   既不接受测试里重写的回执，也不在 src 找到时偷偷用宿主面的新版覆盖（N3 要能现形）。 */
+    const hostFace = face || HOST_SRC;
+    const receipt = blockOf(src, 'function repairReceipt(extra) {') || blockOf(hostFace, 'function repairReceipt(extra) {'); 
+    const revOf = blockOf(src, 'function repairRevisionOf() {') || blockOf(hostFace, 'function repairRevisionOf() {');
     assert.ok(lit, '桥对象字面量可提取');
     assert.ok(receipt, '回执构造点在位（回执形状必须来自真源码，不许测试里重写一份）');
     assert.ok(revOf, '修订取值口在位');
@@ -453,7 +465,9 @@ test('v3215 10. 负控制：四处真破坏必须在同一套判据上各自现�
     assert.equal(JUDGE.abandonThenRetry(idxSrc, loadRLFrom(n2, 'n2')), false, 'N2：丢掉未放弃限定后必须现形');
 
     // N3 破坏：回执构造点漏掉 revision 键 ⇒ 失败分支与成功分支不再同形
-    const n3 = breakSource(idxSrc,
+    /* [v3.474.0] 破坏点打在**宿主面**上：回执构造点已搬进 index-helpers.js，打在单入口面上
+     *   会报「锚点不存在」（工具自证抛错），而不是验证「漏键必须现形」。 */
+    const n3 = breakSource(HOST_SRC,
         'revision: Number.isFinite(e.revision) ? e.revision : 0,',
         '', 'N3');
     assert.equal(JUDGE.receiptShape(n3, RL), false, 'N3：回执漏键后形状判据必须现形');

@@ -20,10 +20,14 @@ const MIGRATED = [
     ['v340_database_evolution.test.mjs', ['memory-core.js', 'memory-organs.js'], 5868, 5],
     ['chaos_resilience.test.mjs',        ['memory-core.js'],                   4710, 5],
     ['stress_bench.test.mjs',            ['memory-core.js', 'memory-books.js'], 5599, 0],
-    ['v341_stitches_mechanics.test.mjs', ['memory-core.js', 'memory-organs.js'], 10375, 6],
+    /* [v3.474.0 · L23 收口 字节钉抬升] 三档的**抽取面**跟到搬家后的真源（stripMemoryOpsTags /
+     *   buildNpcTierInjection / extractThinkingChain 随纯函数簇外移 index-helpers.js）：
+     *   字节变大是注释+装载语句，代码面守卫仍全过（extractClass/braceEnd/手抄副本 0、真装载在场），
+     *   不是回退到重放形态。 */
+    ['v341_stitches_mechanics.test.mjs', ['memory-core.js', 'memory-organs.js'], 10846, 6],
     ['v342_caikis_mechanics.test.mjs',   ['memory-core.js'],                   6588, 5],
-    ['v343_baibai_mechanics.test.mjs',   ['memory-core.js', 'memory-books.js'], 8026, 4],
-    ['v345_deep_bastion.test.mjs',       ['memory-core.js', 'memory-books.js'], 11803, 0],
+    ['v343_baibai_mechanics.test.mjs',   ['memory-core.js', 'memory-books.js'], 8335, 4],
+    ['v345_deep_bastion.test.mjs',       ['memory-core.js', 'memory-books.js'], 12033, 0],
     /* [字节钉抬升] v346/v360 在后续迭代中被合法扩充（新增判据内容；代码面守卫仍全过 ——
      *   extractClass/braceEnd/手抄副本为 0、createRequire 真装载在场，非回退到重放形态）。 */
     ['v346_fortress_pyramid.test.mjs',   ['memory-core.js', 'memory-books.js'], 11625, 0],
@@ -83,9 +87,19 @@ test('B. 真模块导出面齐备；宿主同文件函数不冒充已迁移（�
     assert.ok(mcCode.includes('function areLabelsInConflict(l1, l2) {'), 'memory-core.js 必须自带 areLabelsInConflict 真源');
     assert.ok(mcCode.includes('const RELATION_CONFLICT_GROUPS = ['), 'memory-core.js 必须自带关系冲突组真源');
     const idx = read('../index.js');
-    for (const hostFn of ['function buildNpcTierInjection', 'function fmtNpcTiesContext', 'function extractThinkingChain', 'function stripMemoryOpsTags']) {
-        assert.ok(idx.includes(hostFn), '宿主同文件函数仍在 index.js（迁移边界）：' + hostFn);
+    /* [v3.474.0 · L23 收口] 迁移边界改口径（不是放宽，是跟着真源搬家）：
+     *   下列四只纯函数已随 index-helpers.js 外移。旧断言「仍在 index.js」变成**反指**：
+     *   若它们真回到入口，就出现「入口内联 + 模块同名」两份实现 —— 那才是本档要防的事。
+     *   故改成双向：模块面必须有**声明**，入口面必须**没有同形声明**（只允许委派绑定）。 */
+    const hlp = read('../index-helpers.js');
+    /* 已外移三只：模块面必须有声明、入口面必须无同形实现。 */
+    for (const hostFn of ['function buildNpcTierInjection(', 'function extractThinkingChain(', 'function stripMemoryOpsTags(']) {
+        assert.ok(hlp.includes(hostFn), '真源已在 index-helpers.js（迁移边界）：' + hostFn);
+        assert.ok(!idx.includes(hostFn), '入口不得再留同形实现（否则就是第二份真源）：' + hostFn);
     }
+    /* fmtNpcTiesContext 仍在宿主单文件（本刀不搬）：两条面都钉住，防它在两边长出两份。 */
+    assert.ok(idx.includes('function fmtNpcTiesContext('), '宿主同文件函数仍在 index.js（迁移边界）：fmtNpcTiesContext');
+    assert.ok(!hlp.includes('function fmtNpcTiesContext('), 'index-helpers.js 不得出现 fmtNpcTiesContext 的第二份实现');
     console.log('  ✓ 九类真模块装载可构造；宿主同文件函数仍留抽取面（不冒充已迁移）');
 });
 

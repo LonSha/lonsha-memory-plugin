@@ -30,6 +30,19 @@ const HOST_MODULES = (() => {
     if (!m) throw new Error('取不到 tests/_audit_lib.mjs 的 HOST_MODULES');
     return (m[1].match(/'([^']+)'/g) || []).map((x) => x.slice(1, -1));
 })();
+/* ★ [v3.474.0 · L23-O5] 拆片展开：`engine-diagnostic-lines.js` 拆成「装配面 + 三片」后，
+ *   判据侧（tests/_audit_lib.mjs 的 hostSurface）已按 tests/audit/module_split_ledger.json
+ *   把分片并进扫描面，而本探针仍只读装配面 ⇒ surface_lines 差出一整片（实测差 6121 行），
+ *   v3236 E1「合并面行数须与判据侧逐行一致」当场翻红。
+ *   修法与判据侧同源：清单读同一份 JSON、顺序同为「片在前、装配面在后」；读不到 ⇒ 退回单文件
+ *   （拆片前后行为一致，绝不静默变成空面）。 */
+function splitPartsOf(name) {
+    try {
+        const led = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'audit', 'module_split_ledger.json'), 'utf8'));
+        const e = led && led[name];
+        return (e && Array.isArray(e.parts)) ? e.parts.slice() : [];
+    } catch (e) { return []; }
+}
 const DELEG = /^[ \t]*[_a-zA-Z$][\w$]*[ \t]*\(.*\)[ \t]*\{.*_moduleLib\(.*\}[ \t]*$/;
 function faceOf(name) {
     const p = path.join(ROOT, name);
@@ -40,8 +53,14 @@ function faceOf(name) {
     }
     return { text: keep.join('\n'), deleg };
 }
-const __entry = faceOf('index.js');
-const __mods = HOST_MODULES.map(faceOf);
+/* 每项展开成「片… + 装配面」，与 hostSurface 的 physical 序一致 */
+const __entryNames = splitPartsOf('index.js').concat(['index.js']);
+const __modNames = HOST_MODULES.reduce((a, n) => a.concat(splitPartsOf(n)).concat([n]), []);
+const __entry = __entryNames.map(faceOf).reduce((a, f) => ({
+    text: a.text ? a.text + '\n' + f.text : f.text,
+    deleg: a.deleg.concat(f.deleg),
+}), { text: '', deleg: [] });
+const __mods = __modNames.map(faceOf);
 const __delegAll = [__entry.deleg].concat(__mods.map((f) => f.deleg)).reduce((a, b) => a.concat(b), []);
 const SRC = [__entry.text].concat(__mods.map((f) => f.text)).join('\n')
     + '\n' + '// ==== 剥下的单行委派（入口原文） ====' + '\n' + __delegAll.join('\n');

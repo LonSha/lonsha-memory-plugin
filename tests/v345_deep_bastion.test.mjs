@@ -26,6 +26,9 @@ const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8
 const require_ = createRequire(import.meta.url);
 const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
 const MB = require_(new URL('../memory-books.js', import.meta.url).pathname);
+/* [v3.474.0 · L23 收口] extractThinkingChain 已外移 index-helpers.js（纯函数簇）。
+ * 同本档 O7 口径：真模块装载拿真函数，不抠源码切片（搬家后 old regex 必 MISS）。 */
+const HI = require_(new URL('../index-helpers.js', import.meta.url).pathname);
 
 
 test('=== 1. 静态关键锚点与版本检查 ===', () => {
@@ -130,10 +133,9 @@ test('=== 4. 悬念簿近期已了结事项防复读注入动态测试 ===', () 
 });
 
 test('=== 5. 现代推理标签与截断宽容熔断器动态测试 ===', () => {
-    const etcMatch = src.match(/function extractThinkingChain\(text\) \{([\s\S]*?)\n    \}/);
-    assert.ok(etcMatch, '未能提取 extractThinkingChain');
-    const errLog = () => {};
-    const extractThinkingChain = new Function('errLog', 'return function extractThinkingChain(text) {' + etcMatch[1] + '};')(errLog);
+    assert.equal(typeof HI.extractThinkingChain, 'function', 'index-helpers.js 必须导出 extractThinkingChain');
+    /* [v3.474.0] 真模块装载（被跑对象换了，断言一条没动）。 */
+    const extractThinkingChain = HI.extractThinkingChain;
 
     const r1 = extractThinkingChain('<think>仔细权衡利弊，确定方案A</think>好的，我们将采取方案A行动。');
     assert.equal(r1.content, '好的，我们将采取方案A行动。');

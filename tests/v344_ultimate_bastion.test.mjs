@@ -8,6 +8,10 @@ const __dirname = path.dirname(__filename);
 const src = fs.readFileSync(path.resolve(__dirname, '../index.js'), 'utf-8');
 /* [v3.264.0 A1 第五刀] StorageManager 已外移 memory-organs.js：抽取面改读该模块（语义一字不改）。 */
 const orgSrc = fs.readFileSync(path.resolve(__dirname, '../memory-organs.js'), 'utf-8');
+/* [v3.474.0 · L23 收口] sanitizeJson / safeJsonParse 已整块外移 index-helpers.js（L22-O1 第一批）。
+ * 本刀只换**抽取面**：切片仍取同一段源码文本，断言与行为判据一字未动。
+ * 反过来说——若哪天它们被搬回 index.js，这里的 indexOf 会 -1 而立刻红，不会静默空转。 */
+const hlpSrc = fs.readFileSync(path.resolve(__dirname, '../index-helpers.js'), 'utf-8');
 
 
 console.log('=== 1. 静态关键锚点与版本检查 ===');
@@ -21,10 +25,12 @@ console.log('✓ 静态锚点与接口声明检查全部通过');
 
 // 提取 sanitizeJson 和 safeJsonParse
 function extractSanitizer() {
-    const start = src.indexOf('function sanitizeJson(raw) {');
-    const end = src.indexOf('function hintForError(err) {', start);
-    /* [v3.264.0] sanitizeJson 仍在宿主：本段从 index.js 切片（不要跟 StorageManager 那段一起换源） */
-    const code = src.slice(start, end);
+    const start = hlpSrc.indexOf('function sanitizeJson(raw) {');
+    const end = hlpSrc.indexOf('function cyclePositionFor(', start);
+    /* [v3.474.0] 抽取面 = index-helpers.js（sanitizeJson / safeJsonParse 同段相邻；旧边界
+     * hintForError 留在宿主，跨文件切片会切出半段，故改用本模块内的下一函数作右界）。 */
+    assert.ok(start >= 0 && end > start, 'sanitizeJson 段必须能在 index-helpers.js 内定位（不得静默切空段）');
+    const code = hlpSrc.slice(start, end);
     const fn = new Function(`${code}; return { sanitizeJson, safeJsonParse };`);
     return fn();
 }

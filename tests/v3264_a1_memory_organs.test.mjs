@@ -76,6 +76,13 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const NL = String.fromCharCode(10);
 const Q = String.fromCharCode(39);
 const MOD_REL = 'memory-organs.js';
+/* [v3.474.0] 宿主面 = 入口 + 抽取库。L22-O1 把 hash32 / sanitizeJson / decayScore /
+ *   _initEbbingMeta 等整块搬进 index-helpers.js，入口只剩委派 —— 只喂 index.js 的判据于是在
+ *   自己的面里永远找不到实现，报成「宿主缺 X（判据自身失效）」/「依赖锚点被搬走」。
+ *   这不是放宽：面变大只会更容易命中真源码（下面每条仍要求在场且逐字同源），
+ *   而 D 段的破坏副本照旧打在**被改的那一份**上（hostFace 只是把它和抽取库拼起来）。 */
+const HELPERS = read('index-helpers.js');
+const hostFace = (idx) => idx + NL + HELPERS;
 const IDX = read('index.js');
 const MOD = read(MOD_REL);
 const M = (await import('../memory-organs.js')).default;
@@ -252,7 +259,7 @@ function fallbackParity(idxSrc, modSrc) {
 
 /* ========== A 接线逐点在场 ========== */
 test('v3264 A. \u63a5\u7ebf\u9010\u70b9\u5728\u573a\uff1a\u5bbf\u4e3b\u4e0d\u5185\u8054 / \u6a21\u5757\u771f\u58f0\u660e\u4e14\u6210\u5458\u9f50 / \u516d\u5904\u6784\u9020\u70b9\u5bf9\u4f4d / \u9000\u8def\u540c\u5f62 / \u4f9d\u8d56\u6536\u53e3', () => {
-    const problems = judgeSlice(IDX, MOD);
+    const problems = judgeSlice(hostFace(IDX), MOD);
     assert.deepEqual(problems, [], '\u63a5\u7ebf\u9762\u7f3a\u9677\uff1a' + JSON.stringify(problems));
     ok('\u63a5\u7ebf\u9010\u70b9\u5728\u573a\uff08\u5224\u636e\u4f53\u4e0e D \u6bb5\u8d1f\u63a7\u5236\u540c\u6e90\uff09');
 });
@@ -372,20 +379,20 @@ test('v3264 C. \u52a0\u8f7d\u9762\u4e0e\u57fa\u7ebf\uff1amanifest \u6070 1 \u987
 test('v3264 D. \u771f\u6e90\u7801\u7834\u574f -> \u540c\u4e00\u6761\u5224\u636e\u5fc5\u987b\u7ffb\u7ea2\uff08\u53d6\u5e93\u53e3 / \u6a21\u5757\u7c7b\u540d / \u6784\u9020\u70b9 / \u9000\u8def\u65b9\u6cd5 / \u4f9d\u8d56\u6ce8\u5165 / \u526f\u672c\u540c\u6e90 / \u6210\u5458\u9762 \u5404\u4e00\u6761\uff09', () => {
     const b1 = breakSource(IDX, "_moduleLib(() => window.LonShaMemoryOrgans, 'memory-organs.js')",
         "_moduleLib(() => window.LonShaMemoryOrgansTYPO, 'memory-organs.js')", 'A1-\u53d6\u5e93\u53e3');
-    assert.ok(judgeSlice(b1, MOD).some((p) => p.includes('\u771f\u8bfb\u8868\u8fbe\u5f0f')), '\u53d6\u5e93\u53e3\u8bfb\u9519\u5168\u5c40\u540d\u5fc5\u987b\u7ffb\u7ea2');
+    assert.ok(judgeSlice(hostFace(b1), MOD).some((p) => p.includes('\u771f\u8bfb\u8868\u8fbe\u5f0f')), '\u53d6\u5e93\u53e3\u8bfb\u9519\u5168\u5c40\u540d\u5fc5\u987b\u7ffb\u7ea2');
     const b2 = breakSource(MOD, 'class EntityLexicon {', 'class EntityLexiconX {', 'A1-\u6a21\u5757\u7c7b\u540d');
-    assert.ok(judgeSlice(IDX, b2).some((p) => p.includes('\u7f3a EntityLexicon')), '\u6a21\u5757\u7f3a\u7c7b\u5fc5\u987b\u7ffb\u7ea2');
+    assert.ok(judgeSlice(hostFace(IDX), b2).some((p) => p.includes('\u7f3a EntityLexicon')), '\u6a21\u5757\u7f3a\u7c7b\u5fc5\u987b\u7ffb\u7ea2');
     const b3 = breakSource(IDX, "this.vector = _newMemoryOrgan('VectorStore', config);", 'this.vector = null;', 'A1-\u6f0f\u63a5\u6784\u9020\u70b9');
-    assert.ok(judgeSlice(b3, MOD).some((p) => p.includes("_newMemoryOrgan('VectorStore'")), '\u6f0f\u63a5\u6784\u9020\u70b9\u5fc5\u987b\u7ffb\u7ea2');
+    assert.ok(judgeSlice(hostFace(b3), MOD).some((p) => p.includes("_newMemoryOrgan('VectorStore'")), '\u6f0f\u63a5\u6784\u9020\u70b9\u5fc5\u987b\u7ffb\u7ea2');
     const b4 = breakSource(IDX, '        getRevision() { return 0; }\n', '', 'A1-\u9000\u8def\u7f3a\u65b9\u6cd5');
-    assert.ok(judgeSlice(b4, MOD).some((p) => p.includes('\u9000\u8def\u7f3a\u65b9\u6cd5 StorageManager.getRevision')), '\u9000\u8def\u5c11\u4e00\u4e2a\u65b9\u6cd5\u5fc5\u987b\u7ffb\u7ea2');
+    assert.ok(judgeSlice(hostFace(b4), MOD).some((p) => p.includes('\u9000\u8def\u7f3a\u65b9\u6cd5 StorageManager.getRevision')), '\u9000\u8def\u5c11\u4e00\u4e2a\u65b9\u6cd5\u5fc5\u987b\u7ffb\u7ea2');
     /* \u7834\u574f\u5fc5\u987b\u6253\u5728\u89c2\u6d4b\u70b9\u4e0a\uff1a\u76ee\u6807\u662f\u300c\u952e\u9762\u6d88\u5931\u300d\uff0c\u6545\u628a\u952e\u9762\u672c\u8eab\u6362\u6389\u3002 */
     const b5 = breakSource(IDX, '                errLog, numOr, decayScore, sanitizeJson,', '                /* \u4f9d\u8d56\u9762\u88ab\u6458 */', 'A1-\u4f9d\u8d56\u6ce8\u5165\u88ab\u6458');
-    assert.ok(judgeSlice(b5, MOD).some((p) => p.includes('\u672a\u63d0\u4f9b')), '\u4f9d\u8d56\u6ce8\u5165\u88ab\u6458\u5fc5\u987b\u7ffb\u7ea2');
+    assert.ok(judgeSlice(hostFace(b5), MOD).some((p) => p.includes('\u672a\u63d0\u4f9b')), '\u4f9d\u8d56\u6ce8\u5165\u88ab\u6458\u5fc5\u987b\u7ffb\u7ea2');
     const b6 = breakSource(MOD, 'return (h >>> 0).toString(16).padStart(8, ' + Q + '0' + Q + ');', 'return String(h);', 'A1-\u526f\u672c\u6f02\u79fb');
-    assert.ok(judgeSlice(IDX, b6).some((p) => p.includes('\u4e0d\u9010\u5b57\u540c\u6e90')), '\u526f\u672c\u4e0e\u5bbf\u4e3b\u4e0d\u540c\u6e90\u5fc5\u987b\u7ffb\u7ea2');
+    assert.ok(judgeSlice(hostFace(IDX), b6).some((p) => p.includes('\u4e0d\u9010\u5b57\u540c\u6e90')), '\u526f\u672c\u4e0e\u5bbf\u4e3b\u4e0d\u540c\u6e90\u5fc5\u987b\u7ffb\u7ea2');
     const b7 = breakSource(MOD, '    toInjection(knownChars = []) {', '    toInjectionRENAMED(knownChars = []) {', 'A1-\u6210\u5458\u9762\u7f29\u6c34');
-    assert.ok(judgeSlice(IDX, b7).some((p) => p.includes('\u7f3a\u6210\u5458 toInjection')), '\u6210\u5458\u9762\u7f29\u6c34\u5fc5\u987b\u7ffb\u7ea2');
+    assert.ok(judgeSlice(hostFace(IDX), b7).some((p) => p.includes('\u7f3a\u6210\u5458 toInjection')), '\u6210\u5458\u9762\u7f29\u6c34\u5fc5\u987b\u7ffb\u7ea2');
     /* [v3.277.0 O7] 新增负控制：调用点改回**裸语句**（返回值被丢弃）必须翻红。 */
     /* 只打掉**一处**收集点即须翻红 —— 这正是「两处」不变量在工作（收集点从 2 掉到 1）。 */
     const b8 = breakSource(IDX,
@@ -394,7 +401,7 @@ test('v3264 D. \u771f\u6e90\u7801\u7834\u574f -> \u540c\u4e00\u6761\u5224\u636e\
         '                _bindOrganDeps();' + NL
         + '                Object.assign({ tag: ' + Q + 'core' + Q + ' }, _bindCoreDeps()),   // [v3.266.0] A1 第六刀',
         'A1-注入读数被丢');
-    assert.ok(judgeSlice(b8, MOD).some((p) => p.includes('收集点只有')), '收集点掉到 1 处必须翻红（否则「两轮」不变量没有观测点）');
+    assert.ok(judgeSlice(hostFace(b8), MOD).some((p) => p.includes('收集点只有')), '收集点掉到 1 处必须翻红（否则「两轮」不变量没有观测点）');
     ok('\u4e03\u6761\u771f\u6e90\u7801\u7834\u574f\u5404\u81ea\u88ab\u540c\u4e00\u6761\u5224\u636e\u6293\u5230');
 });
 

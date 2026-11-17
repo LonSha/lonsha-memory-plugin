@@ -44,6 +44,21 @@ import { stripComments, HOST_MODULES } from './_audit_lib.mjs';
 /** 文件名候选：引号里的仓内相对路径（含扩展名）。刻意不认反引号 —— 路径拼接出来的名字不是清单。 */
 export const FILE_RE = /'([A-Za-z0-9_][A-Za-z0-9_\-./]*\.(?:js|json|tsv|mjs))'/g;
 
+/* ★ [v3.474.0 · L23 收口] 平台快照残骸过滤器（唯一真源）。
+ *   本机文件层会在「被访问过的文件」旁生成 `.l2s.<name>0001` 快照，并把原件换成指向它的链接。
+ *   它们是**平台产物、不是仓库内容**（git 跟踪 0 个），却会给夹具复制造出两类**假红**：
+ *     ① `cpSync` 撞上链接链 ⇒ `EINVAL`：整批门禁**一个判据都没跑**就先红了，归因完全错位；
+ *     ② 只过滤残骸却不 `dereference` ⇒ 复制出**悬空链接**（目标已被过滤掉）⇒ 夹具里读不到
+ *        文件，门禁于是「读残实现再报实现缺东西」——本仓最忌的假归因。
+ *   故夹具复制统一带「过滤残骸 + 解引用」选项（链接按内容抄成真文件）。
+ *   判据强度不变：健康树读的仍是仓库真实内容（链接指向的也是同一份内容），面没有缩小。 */
+export const PLATFORM_JUNK_RE = /(^|\/)[.]l2s[.]/;
+export const notPlatformJunk = (p) => !PLATFORM_JUNK_RE.test(String(p));
+/* 用法：`cpSync(src, dst, { recursive: true, dereference: true, filter: notPlatformJunk })`
+ *   —— 选项写成字面量（不包成函数）是故意的：`scan_fixture_sync` 靠
+ *   `/cpSync\s*\(/` + `/recursive:\s*true/` 识别「整树镜像型」夹具，
+ *   包进 helper 会让那套识别静默失效（夹具面被判成「不在场」）。 */
+
 /** 从源码里抽出全部文件名字面量（先剥注释：解释性文字里的名字不算消费） */
 export function fileLits(src) {
     const out = new Set();

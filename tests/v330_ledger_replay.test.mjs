@@ -4,7 +4,11 @@
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 
-const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+/* [v3.474.0 · L23 收口] hash32 / msgTextOf / msgFpOf 已外移 index-helpers.js（纯函数簇）：
+ *   提取面改为「入口 + 该模块」合看。抽取器与断言一字未改；
+ *   搬家后只读入口就会缺失这几只函数（判据空转），合看才是它们现在的真位置。 */
+const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8')
+    + String.fromCharCode(10) + readFileSync(new URL('../index-helpers.js', import.meta.url), 'utf8');
 let pass = 0;
 const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 

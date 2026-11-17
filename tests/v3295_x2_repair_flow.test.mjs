@@ -41,6 +41,11 @@ const require_ = createRequire(import.meta.url);
 const IDX_SRC = fs.readFileSync(path.join(R, 'index.js'), 'utf8');
 const RL_SRC = fs.readFileSync(path.join(R, 'repair-loop.js'), 'utf8');
 const RO_SRC = fs.readFileSync(path.join(R, 'engine-repair-ops.js'), 'utf8');
+/* [v3.474.0] 宿主面 = 入口 + 抽取库。L22-O1 把 repairReceipt / repairRevisionOf 整块搬进
+ *   index-helpers.js，入口只剩委派 —— 只读 index.js 的取法于是报「回执构造点在位」红。
+ *   面变大只影响「去哪找真源码」，判据一条没放宽（抽出来的仍是产品在用的那一份）。 */
+const HELPERS_SRC = fs.readFileSync(path.join(R, 'index-helpers.js'), 'utf8');
+const HOST_SRC = IDX_SRC + '\n' + HELPERS_SRC;
 const RL = require_(path.join(R, 'repair-loop.js'));
 const PKG = JSON.parse(fs.readFileSync(path.join(R, 'package.json'), 'utf8')).version;
 const vnum = (v) => String(v).split('.').map(Number);
@@ -197,10 +202,13 @@ function engineFrom(src, rl, EC, CL, FV, roSource) {
     )(() => {}, 'v3295', makeLibWindow(rl, EC, CL, FV));
     return Object.assign(eng, makeHost());
 }
-function bridgeFrom(src, plugin) {
+function bridgeFrom(src, plugin, face) {
     const lit = bridgeLiteralOf(src);
-    const receipt = methodBody(src, 'function repairReceipt(extra) {');
-    const revOf = methodBody(src, 'function repairRevisionOf() {');
+    /* [v3.474.0] 先在传入面里找，找不到回到宿主面（入口 + 抽取库）——
+     *   负控制特意传「被破坏的单面」，而回执/修订口住在抽取库里。回退只认真源码面。 */
+    const hostFace = face || HOST_SRC;
+    const receipt = methodBody(src, 'function repairReceipt(extra) {') || methodBody(hostFace, 'function repairReceipt(extra) {');
+    const revOf = methodBody(src, 'function repairRevisionOf() {') || methodBody(hostFace, 'function repairRevisionOf() {');
     assert.ok(lit, '桥对象字面量可提取');
     assert.ok(receipt, '回执构造点在位');
     assert.ok(revOf, '修订取值口在位');
@@ -554,7 +562,8 @@ test('v3295 6. 栅栏失效如实计数：stale 时已落的条数不得被抹�
 });
 
 test('v3295 7. 回执 13 键恒定（含落笔四项读数；失败分支与成功分支同形）', () => {
-    const receipt = blockOf(IDX_SRC, 'function repairReceipt(extra) {');
+    /* [v3.474.0] 回执构造点已搬进 index-helpers.js：读宿主面，不读单入口面。 */
+    const receipt = blockOf(HOST_SRC, 'function repairReceipt(extra) {');
     assert.ok(receipt, '回执构造点在位');
     for (const k of ['applied', 'verified', 'readback', 'items']) {
         assert.ok(receipt.indexOf(k + ':') > 0, '回执必须带落笔读数：' + k);

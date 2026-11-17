@@ -234,6 +234,14 @@ export const HOST_MODULES = [
     'engine-persistence-ops.js', 'engine-qa-tools.js', 'engine-recall.js', 'engine-repair-ops.js',
     'engine-report.js', 'engine-self-check.js', 'engine-story-annual.js',
     'memory-core.js',
+    /* ★ [v3.474.0] 补入 `index-helpers.js`：L22-O1 把 index.js 的纯函数三簇（约 29 个，
+     *   含 hash32 / sanitizeJson / stripMemoryOpsTags / extractThinkingChain / ledgerItemKey /
+     *   buildNpcTierInjection / normalizeCharName 等）整块搬进了这只模块，而本清单没跟上。
+     *   后果不是「新红」而是**判据静默空转**：十几组只看宿主面的门禁继续在自己那张面里
+     *   找不到实现，报成 ReferenceError / 「缺 fn」/「函数定位」—— 判据坏了，被判的东西没问题。
+     *   这不是放宽（面变大 ⇒ 断言只会更容易命中真源码，不会更容易通过），而是把
+     *   「搬走的实现」重新纳入同一张扫描面；入口单文件语义的判据仍走 files[] 的 entry 面。 */
+    'index-helpers.js',
 ];
 /**
  * 把「宿主入口 + 外移模块」拼成一个统一扫描面。

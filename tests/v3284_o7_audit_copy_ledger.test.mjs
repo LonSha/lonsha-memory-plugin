@@ -17,7 +17,8 @@
 //     改一处、漏四处，四面门禁照样全绿。
 //     这比 v3.283.0 更尖锐：**探测器的实现若在副本间漂移，探测器给出的结论本身就该被怀疑**。
 //
-//   【本档登记（15 簇，实测逐字相同；体长 ≥ 40；v3.293.0 口径起，v3.303.0 补 3 簇，v3.318.0 补 1 簇）】
+//   【本档登记（16 簇，实测逐字相同；体长 ≥ 40；v3.293.0 口径起，v3.303.0 补 3 簇，v3.318.0 补 1 簇，
+//        v3.474.0 补 1 簇）】
 //     名字                       成员数  体长  md5
 //     mutate                     2       640   3460e9a2
 //     extractMethod              2       399   cf7b47d4
@@ -34,6 +35,7 @@
 //     downstreamModule / …       2       91    3d714a19
 //     readOrNull                 2       75    3501fac1
 //     read / readOrNull          2       74    b7ad68f6
+//     splitParts                 3       159   3fbf908e   ← v3.474.0 补（拆片台账的名册派生）
 //
 //   【判据（fail-closed）】
 //     A  枚举面：audit 面 .mjs 文件数下限 + function 体枚举下限 + 跨文件簇下限
@@ -127,6 +129,14 @@ const AUDIT_LEDGER = [
     ['parseHTML', ['scan_ui_interaction.mjs', 'scan_ui_panel_drive.mjs'], 995, '0d50a373'],
     ['findTagEnd', ['scan_ui_interaction.mjs', 'scan_ui_panel_drive.mjs'], 218, 'bcc29c37'],
     ['matchSimple', ['scan_ui_interaction.mjs', 'scan_ui_panel_drive.mjs'], 131, 'e2b7ff1a'],
+    /* [v3.474.0 · L23 收口] 十批剥离把 `engine-diagnostic-lines.js` 拆成「装配面 + part-a/b/c」
+     *   之后，三档 negctl（v3184 / v3185 / v3186）各自需要同一段「按拆片台账把装配面展开成片」的
+     *   名册派生逻辑（否则夹具缺件 ⇒ 原版对照在夹具里必红，红因不是判据在工作）。
+     *   **刻意各持一份**：它跑在**临时夹具副本**里，夹具必须自我完备；让三档互相 import 会把
+     *   「谁的 SRC 基准 / 文件前缀」耦在一起，一份改动污染另外两档的归因。
+     *   登记之后，这三份一旦发生值级漂移（改一处漏两处），B2b 会当场点名。 */
+    ['splitParts', ['scan_v3184_final_four_negctl.mjs', 'scan_v3185_xref_consumer_negctl.mjs',
+        'scan_v3186_emotion_recall_negctl.mjs'], 159, '3fbf908e'],
 ];
 
 /* ---- 破坏锚点（逐字取自真源，禁改；本档须逐字持有；全部单行，无转义） ----

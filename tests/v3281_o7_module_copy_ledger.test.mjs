@@ -197,14 +197,21 @@ const LEDGER = [
      *   （那两簇的形态各自带不同的取值分支），故是**独立簇**而不是既有一簇加成员。
      *   七件都是零依赖 IIFE：档头声明不引兄弟模块的常量 —— 收拢会把「本模块自足」换成「依赖另一块
      *   先挂载」，即本仓反过的跨模块静默读旧值形态（与 v3.292 三份副本漂移同族风险）。
-     *   体 md5 由 v3281 B1 从盘上实测枚举得出，不是手抄。 */
-    ['numOrNull', ['future-letter.js', 'memory-archive-pack.js', 'memory-capsule.js', 'memory-checkup.js',
-        'memory-timeline.js', 'relation-milestone.js', 'sleep-consolidation.js'], '28e37536',
+     *   体 md5 由 v3281 B1 从盘上实测枚举得出，不是手抄。
+     *   ★ [v3.474.0] 七 → 十二：v3.473.0 的 L23-X 五件内核（commitment-followthrough /
+     *   cross-session-continuation / forgetting-explanation / memory-capacity-watermark /
+     *   recall-ranking-explain）各自持**同一形态**的数值归一，体 md5 仍是 28e37536（与本簇同源，
+     *   与另两簇不同源）—— 故按其自足纪律并入本簇，而不是给它们单开一条。
+     *   这次是 B2 的「成员集合变了」当场点名的（登记七、实测十二），不是人去看盘。 */
+    ['numOrNull', ['commitment-followthrough.js', 'cross-session-continuation.js', 'forgetting-explanation.js',
+        'future-letter.js', 'memory-archive-pack.js', 'memory-capacity-watermark.js', 'memory-capsule.js',
+        'memory-checkup.js', 'memory-timeline.js', 'recall-ranking-explain.js', 'relation-milestone.js',
+        'sleep-consolidation.js'], '28e37536',
         '数值归一（没给 ⇒ null；布尔/对象/函数 ⇒ null，不拿 0 冒充「就是 0」）。\n'
-        + '**为什么留七份**：与上面两个 numOrNull 簇同族 —— 它是**通用数值原语**，不是账本条目结构的取值代码；\n'
-        + '七件内核的装载时机与存活期互不包含（任一件 callback 可缺席而其余在），\n'
+        + '**为什么留十二份**：与上面两个 numOrNull 簇同族 —— 它是**通用数值原语**，不是账本条目结构的取值代码；\n'
+        + '十二件内核的装载时机与存活期互不包含（任一件 callback 可缺席而其余在），\n'
         + '收拢会把「本模块自足」换成「依赖另一块先挂载」。\n'
-        + '★ **当版自报（v3.472.0 轮）**：七件同批落盘、同批登记；抬版时未同步本台账则 B1 当场点名。'],
+        + '★ **当版自报（v3.474.0 轮）**：L23-X 五件与本簇同源并入；抬版时未同步本台账则 B2 当场点名。'],
     /* [v3.439.0 · L13 期内] **第二个** strList 簇：evidence-solver.js 与 scene-orchestrator.js
      *   各持一份「字符串列表归一」，体与上面 dual-time/experience-rebuild 那一簇**不同源**
      *   （那一簇带 `cap` 上限截断，这一簇不吃 cap），故是**独立簇**而不是既有一簇加成员。
@@ -391,6 +398,11 @@ const A_LIB_IMPORT = "from './_audit_lib.mjs'";
 /* 模块面（与 scan_wiring 的根级模块口径同形：根目录 .js，排除 .bak 与宿主 index.js） */
 const MODULES = fs.readdirSync(ROOT)
     .filter((f) => f.endsWith('.js') && !f.endsWith('.bak') && f !== 'index.js')
+    /* [v3.474.0] 抽取库不是**模块面**：index-helpers.js 是宿主入口的搬运结果（L22-O1），
+     *   它和 engine-recall / memory-core / memory-organs 之间的逐字相同，是「宿主 vs 模块」那条
+     *   口径（v3280 逐对登记），不是模块↔模块自足副本。两档都算就会把同一对副本登记两次，
+     *   且 hash32 / normalizeCharName 等簇的成员集合会凭空多出一个宿主侧成员。 */
+    .filter((f) => f !== 'index-helpers.js')
     .sort();
 
 /* ══════════════ 判据体（纯函数：吃模块源码表，返回问题列表） ══════════════ */

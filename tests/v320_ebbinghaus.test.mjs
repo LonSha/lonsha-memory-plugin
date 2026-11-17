@@ -5,14 +5,18 @@ const src = readFileSync(new URL('../index.js', import.meta.url), 'utf-8');
 /* [v3.264.0 A1 第五刀] CharacterMemoryBank 已外移 memory-organs.js：下方 ST1/ST2/ST3 的类内消费面改读该模块。
  *   decayScore / _initEbbingMeta 本身仍留宿主（第五刀不搬宿主函数，改由 bindDeps 现算注入）。 */
 const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf-8');
+/* [v3.474.0 · L23 收口] decayScore / _initEbbingMeta 已随纯函数簇外移 index-helpers.js：
+ *   本档的**提取面**改读该模块（正则与断言一字未改，抽的仍是同一段源码文本）；
+ *   搬家后旧面 index.js 里已无这两段，再读旧面就是空切片 —— 那是判据失效，不是产品坏。 */
+const hlpSrc = readFileSync(new URL('../index-helpers.js', import.meta.url), 'utf-8');
 
 let pass = 0;
 const ok = (m) => { pass++; console.log('ok: ' + m); };
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
 
 // 抽取 decayScore
-const dM = src.match(/    function decayScore\(m, conf\) \{[\s\S]*?\n    \}\n/);
-if (!dM) fail('decayScore 未找到');
+const dM = hlpSrc.match(/    function decayScore\(m, conf\) \{[\s\S]*?\n    \}\n/);
+if (!dM) fail('decayScore 未在 index-helpers.js 找到（不得空切片）');
 const decayScore = new Function('return ' + dM[0].trim() + '; decayScore;')();
 
 // TC1: 基础公式（重要性越高分越高）
@@ -51,8 +55,8 @@ const decayScore = new Function('return ' + dM[0].trim() + '; decayScore;')();
 { if (decayScore(null, {}) !== 0) fail('TC6 null'); const v = decayScore({}, {}); if (!Number.isFinite(v) || v < 0 || v > 2000) fail('TC6 范围: ' + v); ok('TC6: 无效输入安全（null=0，空对象有限）'); }
 
 // 抽取 _initEbbingMeta
-const iM = src.match(/    function _initEbbingMeta\(m\) \{[\s\S]*?\n    \}\n/);
-if (!iM) fail('_initEbbingMeta 未找到');
+const iM = hlpSrc.match(/    function _initEbbingMeta\(m\) \{[\s\S]*?\n    \}\n/);
+if (!iM) fail('_initEbbingMeta 未在 index-helpers.js 找到（不得空切片）');
 const _initEbbingMeta = new Function('return ' + iM[0].trim() + '; _initEbbingMeta;')();
 // TC7: 初始化默认字段
 {

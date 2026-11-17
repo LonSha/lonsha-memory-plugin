@@ -91,11 +91,37 @@ const readAudit = (f) => readFileSync(path.join(AUDIT_DIR, f), 'utf-8');
 //   独占，用例之间无共享可变状态。
 const AUDIT_CONCURRENCY = (() => {
     const n = parseInt(process.env.V3159_AUDIT_JOBS || '', 10);
-    return Number.isFinite(n) && n > 0 ? n : 4;
+    if (Number.isFinite(n) && n > 0) return n;
+    /* ★ [v3.474.0 · L23 收口] 嵌套并发预算（**不是**抬超时）。
+     *   现象（四轮全量实测）：本档单跑时 [2d] 87s 全绿；放进 `tests/run.mjs`（默认 7 路并发）
+     *   跑全量时，同一个健康树在 [2d] 里被 `AUDIT_TIMEOUT` 杀掉（`got null`），
+     *   而**同一条** `scan_break_kit_negctl.mjs` 单跑 42.9s、5/5 全绿 ⇒ 不是判据坏了，
+     *   是**嵌套并发撞核**：外层 7（测试文件）× 内层 4（审计脚本）= 28 个 node 进程
+     *   抢 8 核 ⇒ 3.5 倍超订，CPU 密集脚本的墙钟被拉长到 3 倍量级。
+     *   阈值不是病根，**总并发**才是：内层按「两层并发乘积 ≈ 3×核数」自适应（下限 2，
+     *   上限 4）——单跑（无外层并发）仍取 4，与历史口径一致；显式 `V3159_AUDIT_JOBS` 最优先。
+     *   下面的 `AUDIT_TIMEOUT` 只是把**兜底超时**按同一份超订倍数放缩（上限 2×），
+     *   它守的是「脚本挂死」，不是「脚本刚好慢」——放缩系数来自实际并发比，不是拍脑袋调大。 */
+    const cores = (typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length) || 4;
+    const outer = (() => {
+        const k = parseInt(process.env.LONSHA_TEST_JOBS || '', 10);
+        return Number.isFinite(k) && k > 0 ? k : 1;
+    })();
+    return Math.max(2, Math.min(4, Math.round((3 * cores) / outer)));
 })();
 const AUDIT_TIMEOUT = (() => {
     const n = parseInt(process.env.V3159_AUDIT_TIMEOUT || '', 10);
-    return Number.isFinite(n) && n > 0 ? n : 120000;
+    if (Number.isFinite(n) && n > 0) return n;
+    /* [v3.474.0] 兜底超时按超订倍数放缩（见上）：单跑 = 120s（历史口径）；
+     *   全量 7 路并发下 7×3/8 ≈ 2.6 ⇒ 取上限 2× = 240s。
+     *   仍远小于「真挂死」的合理上限，且任何脚本单跑都在 43s 内。 */
+    const cores = (typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length) || 4;
+    const outer = (() => {
+        const k = parseInt(process.env.LONSHA_TEST_JOBS || '', 10);
+        return Number.isFinite(k) && k > 0 ? k : 1;
+    })();
+    const factor = Math.max(1, Math.min(2, (outer * 3) / cores));
+    return Math.round(120000 * factor);
 })();
 
 /* [v3.206.0] 与 tests/run.mjs 同一条真根因：**孙进程泄漏**。
@@ -149,6 +175,14 @@ async function runAuditBatch(cwd, files, jobs = AUDIT_CONCURRENCY) {
     return byFile;
 }
 
+/* [v3.474.0] 平台快照残骸过滤：本机文件层会在被访问过的文件旁生成 `.l2s.<name>0001`
+ *   快照并把原件换成指向它的链接。它们是**平台产物、不是仓库内容**（git 跟踪 0 个），
+ *   但混在镜像里会让 cpSync 报 EINVAL（链接目标链太长/悬空），整批门禁没跑就红。
+ *   这里只把它们排除出**夹具**：健康树仍按仓库真实内容照全（判据不因此放宽），
+ *   取证留痕：git status 里这类条目恒为未跟踪。 */
+const PLATFORM_JUNK = /(^|\/)[.]l2s[.]/;
+const notPlatformJunk = (p) => !PLATFORM_JUNK.test(p);
+
 async function runInScratch(mutate) {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3159-'));
     try {
@@ -161,6 +195,16 @@ async function runInScratch(mutate) {
         writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(mft, null, 2) + '\n');
         const scripts = [mft.js, ...(mft.extra_js || [])].filter(Boolean);
         for (const f of scripts) {
+            writeFileSync(path.join(dir, f), readFileSync(path.join(ROOT, f), 'utf-8'));
+        }
+        /* [v3.474.0 · L23 收口] 归档模块也必须物化：L23-O2/O3 把 11 个 load_surface_only 模块从
+         *   manifest.extra_js 摘掉、**文件留盘**（归档≠删除）。而上面只按 manifest 物化 ⇒ 归档件在
+         *   夹具里缺席 ⇒ scan_module_disposition 的「归档面自洽（每个归档文件仍在盘）」当场判
+         *   「文件缺失」⇒ [2d] 在夹具缺件上假红。
+         *   健康树夹具必须真的像健康树（与 v3.163 / v3.191 / v3.293 / v3.427 同族理由）；
+         *   判据与期望值一个字没改，只把镜子照全。 */
+        for (const f of readdirSync(ROOT).filter((x) => x.endsWith('.js') && notPlatformJunk(x))) {
+            if (existsSync(path.join(dir, f))) continue;      // manifest 面已写过，不重复
             writeFileSync(path.join(dir, f), readFileSync(path.join(ROOT, f), 'utf-8'));
         }
         for (const f of [...(mft.extra_css || [])]) {
@@ -191,7 +235,7 @@ async function runInScratch(mutate) {
         // [v3.191] 整份镜像 tests/：库用例（scan_audit_lib_consolidation）核对唯一真源
         //   tests/_audit_lib.mjs 与 tests/run.mjs 是否在场——缺了就 fail-closed 判结构漂移。
         //   健康树夹具必须真的像健康树；判据不因此放宽。
-        cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true });
+        cpSync(path.join(ROOT, 'tests'), path.join(dir, 'tests'), { recursive: true, dereference: true, filter: notPlatformJunk });
         /* [v3.427.0] 再镜像 docs/：v3.427.0 的 scan_module_consumption 把「生产消费面」定义为
          *   「非 tests / 非 tools / 非点目录的全部 .js/.mjs/.cjs」，docs/planning/ 下的计划探针
          *   因此也在面内，并且实测**确实是某些模块唯一的消费点**（unified-recall.js 全仓仅
@@ -200,7 +244,7 @@ async function runInScratch(mutate) {
          *   这与上一条同族：夹具缺件被读成「门禁不过」。判据不因此放宽，镜子要照全。
          *   （该口径本身的问题另记在门禁文件头的留痕里，不在夹具里解决。） */
         if (existsSync(path.join(ROOT, 'docs'))) {
-            cpSync(path.join(ROOT, 'docs'), path.join(dir, 'docs'), { recursive: true });
+            cpSync(path.join(ROOT, 'docs'), path.join(dir, 'docs'), { recursive: true, dereference: true, filter: notPlatformJunk });
         }
         const which = mutate(dir);
         // [v3.205.0] 受控并发（见 runAuditBatch 注释）。语义与串行逐位等价：结果仍按文件名索引。

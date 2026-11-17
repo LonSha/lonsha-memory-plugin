@@ -1,7 +1,7 @@
 {
   "file": "tests/audit/host_beast_baseline.json",
   "note": "[v3.472.0] v3.472.0 抬版后基线未重绑（入口 13201→13524 行）+ 修两处真实缺陷：sanitizeJson 双副本与宿主失同步（v3.469.0 只改宿主）、OrganFallback 缺 _normalizeModelsPayload/_fetchModelsViaProxy 两个退路（v3.471.0 只改 memory-organs.js）。 入口 index.js 13119 → 13530 行（+411），成员 1345 → 1559，合并面 36386 行；全部读数由 tests/audit/host_beast_probe.cjs 直接落盘（零手抄）。本版只量不拆：未拆任何宿主巨兽成员。",
-  "measured_at": "v3.472.0",
+  "measured_at": "v3.474.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3488,6 +3488,42 @@
         "top5_pct": 0.0,
         "top40_pct": 0.0
       }
+    },
+    "v3.474.0": {
+      "reason": "[v3.474.0] 本版**没有新增功能**：L22-O1 把 index.js 的纯函数三簇（约 29 个，hash32 / sanitizeJson / stripMemoryOpsTags / extractThinkingChain / ledgerItemKey / buildNpcTierInjection / normalizeCharName 等）整块搬进 index-helpers.js，入口因此 13546 → 12992 行（-554）。这不是「代码变少」而是「代码搬走」——合并面（入口 + 模块 + 拆片）仍是 37176 行，成员数 1374。按纪律：入口上界**跟着实测收紧**，不拿「反正没删东西」把余量留宽（那正是本条要治的「给死代码留余量」）。",
+      "readings": {
+        "total_lines": 12992,
+        "surface_lines": 37176,
+        "member_count": 1374,
+        "duplicate_member_names": 212,
+        "top5_lines": 9466,
+        "top5_pct": 25.5,
+        "top40_lines": 19592,
+        "top40_pct": 52.7,
+        "prefix_rule_coverage_lines": 4985,
+        "prefix_rule_coverage_pct": 13.4,
+        "unclassified_lines": 31050,
+        "seam_distinct_modules": 223,
+        "seam_reference_sites": 579,
+        "seam_call_shape_sites": 765,
+        "members_over_80_lines": 52,
+        "low_coupling_members": 18,
+        "high_coupling_members": 18
+      },
+      "unchanged": [
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版做向量降级出口/预算降级阶梯/玩法预设三项缝合，未拆任何宿主巨兽成员",
+      "delta_from": "v3.472.0",
+      "delta": {
+        "total_lines": -554,
+        "surface_lines": 758,
+        "member_count": -185,
+        "top40_lines": 5729,
+        "top5_pct": 7.9,
+        "top40_pct": 14.6
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3501,57 +3537,57 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13546,
-    "surface_lines": 36418,
-    "member_count": 1559,
-    "duplicate_member_names": 232,
-    "top5_lines": 6412,
-    "top5_pct": 17.6,
-    "top40_lines": 13863,
-    "top40_pct": 38.1,
-    "prefix_rule_coverage_lines": 5252,
-    "prefix_rule_coverage_pct": 14.4,
-    "unclassified_lines": 30122,
-    "seam_distinct_modules": 222,
-    "seam_reference_sites": 577,
-    "seam_call_shape_sites": 760,
-    "members_over_80_lines": 63,
-    "low_coupling_members": 19,
-    "high_coupling_members": 21
+    "total_lines": 12992,
+    "surface_lines": 37176,
+    "member_count": 1374,
+    "duplicate_member_names": 212,
+    "top5_lines": 9466,
+    "top5_pct": 25.5,
+    "top40_lines": 19592,
+    "top40_pct": 52.7,
+    "prefix_rule_coverage_lines": 4985,
+    "prefix_rule_coverage_pct": 13.4,
+    "unclassified_lines": 31050,
+    "seam_distinct_modules": 223,
+    "seam_reference_sites": 579,
+    "seam_call_shape_sites": 765,
+    "members_over_80_lines": 52,
+    "low_coupling_members": 18,
+    "high_coupling_members": 18
   },
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1469,
-      "lines": 30122,
-      "lines_pct": 82.7,
-      "outside_refs": 29160,
-      "internal_refs": 11148,
-      "outside_ref_share_pct": 72.3
+      "members": 1294,
+      "lines": 31050,
+      "lines_pct": 83.5,
+      "outside_refs": 29076,
+      "internal_refs": 11049,
+      "outside_ref_share_pct": 72.5
     },
     {
       "domain": "诊断与导出",
       "members": 22,
       "lines": 2052,
-      "lines_pct": 5.6,
-      "outside_refs": 2473,
+      "lines_pct": 5.5,
+      "outside_refs": 2541,
       "internal_refs": 6,
       "outside_ref_share_pct": 99.8
     },
     {
       "domain": "召回与注入",
-      "members": 28,
-      "lines": 1638,
-      "lines_pct": 4.5,
-      "outside_refs": 165,
-      "internal_refs": 94,
-      "outside_ref_share_pct": 63.7
+      "members": 25,
+      "lines": 1615,
+      "lines_pct": 4.3,
+      "outside_refs": 152,
+      "internal_refs": 87,
+      "outside_ref_share_pct": 63.6
     },
     {
       "domain": "宿主事件接线",
       "members": 4,
-      "lines": 900,
-      "lines_pct": 2.5,
+      "lines": 903,
+      "lines_pct": 2.4,
       "outside_refs": 50,
       "internal_refs": 35,
       "outside_ref_share_pct": 58.8
@@ -3566,33 +3602,6 @@
       "outside_ref_share_pct": 84.2
     },
     {
-      "domain": "承诺账本",
-      "members": 12,
-      "lines": 155,
-      "lines_pct": 0.4,
-      "outside_refs": 181,
-      "internal_refs": 13,
-      "outside_ref_share_pct": 93.3
-    },
-    {
-      "domain": "场所/场景",
-      "members": 9,
-      "lines": 106,
-      "lines_pct": 0.3,
-      "outside_refs": 38,
-      "internal_refs": 15,
-      "outside_ref_share_pct": 71.7
-    },
-    {
-      "domain": "业务状态面",
-      "members": 2,
-      "lines": 74,
-      "lines_pct": 0.2,
-      "outside_refs": 9,
-      "internal_refs": 0,
-      "outside_ref_share_pct": 100
-    },
-    {
       "domain": "世界账本读取",
       "members": 3,
       "lines": 68,
@@ -3600,6 +3609,15 @@
       "outside_refs": 21,
       "internal_refs": 15,
       "outside_ref_share_pct": 58.3
+    },
+    {
+      "domain": "承诺账本",
+      "members": 9,
+      "lines": 55,
+      "lines_pct": 0.1,
+      "outside_refs": 168,
+      "internal_refs": 10,
+      "outside_ref_share_pct": 94.4
     },
     {
       "domain": "事件链/完整性",
@@ -3611,6 +3629,15 @@
       "outside_ref_share_pct": 63.6
     },
     {
+      "domain": "场所/场景",
+      "members": 6,
+      "lines": 32,
+      "lines_pct": 0.1,
+      "outside_refs": 24,
+      "internal_refs": 13,
+      "outside_ref_share_pct": 64.9
+    },
+    {
       "domain": "配置与持久化",
       "members": 3,
       "lines": 12,
@@ -3618,43 +3645,75 @@
       "outside_refs": 42,
       "internal_refs": 0,
       "outside_ref_share_pct": 100
+    },
+    {
+      "domain": "业务状态面",
+      "members": 1,
+      "lines": 1,
+      "lines_pct": 0,
+      "outside_refs": 3,
+      "internal_refs": 0,
+      "outside_ref_share_pct": 100
     }
   ],
   "biggest_members_top40": [
     {
+      "name": "install",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 2069,
+      "outside_refs": 14
+    },
+    {
+      "name": "install",
+      "file": "engine-evidence-center.js",
+      "lines": 2036,
+      "outside_refs": 14
+    },
+    {
+      "name": "install",
+      "file": "engine-execution-pipeline.js",
+      "lines": 1967,
+      "outside_refs": 14
+    },
+    {
       "name": "buildInjection",
-      "file": "engine-injection-pipeline.js",
-      "lines": 1806,
+      "file": "engine-recall.js",
+      "lines": 1833,
       "outside_refs": 59
     },
     {
       "name": "selfCheck",
-      "file": "engine-self-check.js",
+      "file": "index-helpers.js",
       "lines": 1561,
-      "outside_refs": 284
+      "outside_refs": 318
     },
     {
       "name": "applyExtractedPayload",
-      "file": "engine-execution-pipeline.js",
+      "file": "engine-qa-tools.js",
       "lines": 1345,
       "outside_refs": 3
     },
     {
       "name": "recallMemory",
-      "file": "engine-recall.js",
+      "file": "engine-self-check.js",
       "lines": 1036,
       "outside_refs": 37
     },
     {
       "name": "restoreFromPayload",
-      "file": "engine-persistence-ops.js",
+      "file": "engine-repair-ops.js",
       "lines": 664,
       "outside_refs": 44
     },
     {
+      "name": "sanitizeJson",
+      "lines": 638,
+      "outside_refs": 28
+    },
+    {
       "name": "onBeforeGeneration",
       "file": "index.js",
-      "lines": 571,
+      "lines": 574,
       "outside_refs": 4
     },
     {
@@ -3670,14 +3729,8 @@
       "outside_refs": 1
     },
     {
-      "name": "extractThinkingChain",
-      "file": "index.js",
-      "lines": 438,
-      "outside_refs": 0
-    },
-    {
       "name": "exportMemoryReport",
-      "file": "engine-report.js",
+      "file": "memory-core.js",
       "lines": 396,
       "outside_refs": 15
     },
@@ -3689,7 +3742,7 @@
     },
     {
       "name": "collectExport",
-      "file": "engine-persistence-ops.js",
+      "file": "engine-repair-ops.js",
       "lines": 307,
       "outside_refs": 54
     },
@@ -3700,15 +3753,9 @@
       "outside_refs": 44
     },
     {
-      "name": "_worldlineState",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 263,
-      "outside_refs": 14
-    },
-    {
       "name": "refresh",
       "file": "index.js",
-      "lines": 233,
+      "lines": 238,
       "outside_refs": 11
     },
     {
@@ -3719,7 +3766,7 @@
     },
     {
       "name": "buildBridgeSnapshot",
-      "file": "engine-injection-pipeline.js",
+      "file": "engine-recall.js",
       "lines": 196,
       "outside_refs": 12
     },
@@ -3736,14 +3783,8 @@
       "outside_refs": 1
     },
     {
-      "name": "agencyContractAct",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 165,
-      "outside_refs": 6
-    },
-    {
       "name": "askMemoryQuestion",
-      "file": "engine-qa-tools.js",
+      "file": "engine-report.js",
       "lines": 162,
       "outside_refs": 4
     },
@@ -3755,7 +3796,7 @@
     },
     {
       "name": "askMemoryQuestionFollowUp",
-      "file": "engine-qa-tools.js",
+      "file": "engine-report.js",
       "lines": 156,
       "outside_refs": 4
     },
@@ -3767,27 +3808,21 @@
     },
     {
       "name": "applyRepairPlan",
-      "file": "engine-repair-ops.js",
+      "file": "engine-story-annual.js",
       "lines": 153,
-      "outside_refs": 10
-    },
-    {
-      "name": "applyCorrectionPlan",
-      "file": "engine-repair-ops.js",
-      "lines": 139,
-      "outside_refs": 11
-    },
-    {
-      "name": "silenceExplainState",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 137,
       "outside_refs": 10
     },
     {
       "name": "_stmCloseQuotaLib",
       "file": "index.js",
-      "lines": 134,
+      "lines": 141,
       "outside_refs": 0
+    },
+    {
+      "name": "applyCorrectionPlan",
+      "file": "engine-story-annual.js",
+      "lines": 139,
+      "outside_refs": 11
     },
     {
       "name": "retryRepairItems",
@@ -3797,19 +3832,18 @@
     },
     {
       "name": "askMemoryQuestionAsync",
-      "file": "engine-qa-tools.js",
+      "file": "engine-report.js",
       "lines": 131,
       "outside_refs": 4
     },
     {
       "name": "persistenceOpsDescribe",
-      "file": "engine-persistence-ops.js",
+      "file": "engine-repair-ops.js",
       "lines": 129,
       "outside_refs": 3
     },
     {
       "name": "loreImportApply",
-      "file": "engine-story-annual.js",
       "lines": 127,
       "outside_refs": 10
     },
@@ -3826,12 +3860,6 @@
       "outside_refs": 1
     },
     {
-      "name": "explainRecallHost",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 123,
-      "outside_refs": 8
-    },
-    {
       "name": "optimizeMemory",
       "file": "index.js",
       "lines": 118,
@@ -3844,12 +3872,6 @@
       "outside_refs": 0
     },
     {
-      "name": "institutionRuleAct",
-      "file": "engine-diagnostic-lines.js",
-      "lines": 112,
-      "outside_refs": 7
-    },
-    {
       "name": "backfillFloors",
       "file": "index.js",
       "lines": 111,
@@ -3857,16 +3879,26 @@
     },
     {
       "name": "maybeFold",
-      "file": "memory-core.js",
       "lines": 111,
       "outside_refs": 6
+    },
+    {
+      "name": "_o9Gate",
+      "lines": 109,
+      "outside_refs": 9
+    },
+    {
+      "name": "storyCanonAdoptConfirm",
+      "file": "index.js",
+      "lines": 106,
+      "outside_refs": 0
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 63,
-    "low_coupling_non_lifecycle": 19,
-    "high_coupling_non_lifecycle": 21,
+    "total_over_threshold": 52,
+    "low_coupling_non_lifecycle": 18,
+    "high_coupling_non_lifecycle": 18,
     "low_coupling_examples": [
       {
         "name": "_assembleComponents",
@@ -3880,13 +3912,6 @@
         "file": "index.js",
         "lines": 462,
         "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "extractThinkingChain",
-        "file": "index.js",
-        "lines": 438,
-        "outside_refs": 0,
         "is_host_lifecycle": false
       },
       {
@@ -3913,7 +3938,7 @@
       {
         "name": "_stmCloseQuotaLib",
         "file": "index.js",
-        "lines": 134,
+        "lines": 141,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -3951,62 +3976,89 @@
         "lines": 111,
         "outside_refs": 1,
         "is_host_lifecycle": false
+      },
+      {
+        "name": "storyCanonAdoptConfirm",
+        "file": "index.js",
+        "lines": 106,
+        "outside_refs": 0,
+        "is_host_lifecycle": false
       }
     ],
     "high_coupling_examples": [
       {
+        "name": "install",
+        "file": "engine-diagnostic-lines.js",
+        "lines": 2069,
+        "outside_refs": 14,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "install",
+        "file": "engine-evidence-center.js",
+        "lines": 2036,
+        "outside_refs": 14,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "install",
+        "file": "engine-execution-pipeline.js",
+        "lines": 1967,
+        "outside_refs": 14,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "buildInjection",
-        "file": "engine-injection-pipeline.js",
-        "lines": 1806,
+        "file": "engine-recall.js",
+        "lines": 1833,
         "outside_refs": 59,
         "is_host_lifecycle": false
       },
       {
         "name": "selfCheck",
-        "file": "engine-self-check.js",
+        "file": "index-helpers.js",
         "lines": 1561,
-        "outside_refs": 284,
+        "outside_refs": 318,
         "is_host_lifecycle": false
       },
       {
         "name": "recallMemory",
-        "file": "engine-recall.js",
+        "file": "engine-self-check.js",
         "lines": 1036,
         "outside_refs": 37,
         "is_host_lifecycle": false
       },
       {
         "name": "restoreFromPayload",
-        "file": "engine-persistence-ops.js",
+        "file": "engine-repair-ops.js",
         "lines": 664,
         "outside_refs": 44,
         "is_host_lifecycle": false
       },
       {
+        "name": "sanitizeJson",
+        "lines": 638,
+        "outside_refs": 28,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "exportMemoryReport",
-        "file": "engine-report.js",
+        "file": "memory-core.js",
         "lines": 396,
         "outside_refs": 15,
         "is_host_lifecycle": false
       },
       {
         "name": "collectExport",
-        "file": "engine-persistence-ops.js",
+        "file": "engine-repair-ops.js",
         "lines": 307,
         "outside_refs": 54,
         "is_host_lifecycle": false
       },
       {
-        "name": "_worldlineState",
-        "file": "engine-diagnostic-lines.js",
-        "lines": 263,
-        "outside_refs": 14,
-        "is_host_lifecycle": false
-      },
-      {
         "name": "refresh",
         "file": "index.js",
-        "lines": 233,
+        "lines": 238,
         "outside_refs": 11,
         "is_host_lifecycle": false
       },
@@ -4015,27 +4067,6 @@
         "file": "index.js",
         "lines": 202,
         "outside_refs": 17,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "buildBridgeSnapshot",
-        "file": "engine-injection-pipeline.js",
-        "lines": 196,
-        "outside_refs": 12,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "applyRepairPlan",
-        "file": "engine-repair-ops.js",
-        "lines": 153,
-        "outside_refs": 10,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "applyCorrectionPlan",
-        "file": "engine-repair-ops.js",
-        "lines": 139,
-        "outside_refs": 11,
         "is_host_lifecycle": false
       }
     ]
@@ -4082,9 +4113,9 @@
   "line_budget": {
     "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-    "ceiling": 13930,
+    "ceiling": 13392,
     "maxSlack": 400,
-    "note": "[v3.472.0] 入口 index.js 13546 行、成员数 1559；行上界**不抬，仍为 13930**（余量 384 <= slack 400）、成员上界**不抬，仍为 1589**（余量 30 <= member_slack 30）。合并面 36418 行，TOP5 占 17.6%，TOP40 占 38.1%。",
+    "note": "[v3.474.0] 入口 index.js 12992 行、成员数 1374；行上界**上抬至 13392**（余量 400 <= slack 400）、成员上界**上抬至 1404**（余量 30 <= member_slack 30）。合并面 37176 行，TOP5 占 25.5%，TOP40 占 52.7%。",
     "history": [
       {
         "ceiling": 15000,
@@ -4560,14 +4591,20 @@
         "member_ceiling": 1589,
         "milestone_version": "v3.472.0",
         "reason": "[v3.472.0] 入口 index.js 13546 行、成员数 1559；行上界**不抬，仍为 13930**（余量 384 <= slack 400）、成员上界**不抬，仍为 1589**（余量 30 <= member_slack 30）。合并面 36418 行，TOP5 占 17.6%，TOP40 占 38.1%。"
+      },
+      {
+        "ceiling": 13392,
+        "member_ceiling": 1404,
+        "milestone_version": "v3.474.0",
+        "reason": "[v3.474.0] 入口 index.js 12992 行、成员数 1374；行上界**上抬至 13392**（余量 400 <= slack 400）、成员上界**上抬至 1404**（余量 30 <= member_slack 30）。合并面 37176 行，TOP5 占 25.5%，TOP40 占 52.7%。"
       }
     ],
-    "member_ceiling": 1589,
+    "member_ceiling": 1404,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13546,
-  "member_count": 1559,
+  "total_lines": 12992,
+  "member_count": 1374,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
 }

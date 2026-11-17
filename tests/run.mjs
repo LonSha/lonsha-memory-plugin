@@ -105,7 +105,14 @@ if (!OPT.jobs) {
  *   全量并发下内存压力推高耗时，120s 不再是安全余量（此前须以
  *   V3159_AUDIT_TIMEOUT=300000 V3159_AUDIT_JOBS=4 手工绕行）。
  *   抬默认不改环境变量覆写口（TEST_TIMEOUT 仍优先）。 */
-const TIMEOUT = parseInt(process.env.TEST_TIMEOUT || '', 10) || 300000;
+/* ★ [v3.474.0 · L23 收口] 300000 → 420000（**第二次**抬，理由与判据同步更新）：
+ *   v3.354.0 那次的根因是「并发余量」（v3159 单文件 103s，贴近 120s 上限）。本轮同因复现且更重：
+ *   [2d] 要跑的 audit 脚本从 43 个涨到 **73 个**，v3159 单跑实测 **155s**；7 路并发 + 本机
+ *   swap 压力（实测 swap 用至 7GB）下墙钟再翻约 2 倍 ⇒ 300s 被稳定打穿（两次全量均 TIMEOUT
+ *   于 300037ms，且 [2d] 单跑 14/14 全绿）。这不是「用抬阈值掩盖超时」：被判的东西是好的，
+ *   被打穿的只是这个看门狗本身的余量假设 —— 但**仍按下限处理**：只抬到够用（1.4×），
+ *   并把 v3205 的「不得改大」守卫锚同步到新值（它自己的注释要求「再抬须改本条判据并留理由」）。 */
+const TIMEOUT = parseInt(process.env.TEST_TIMEOUT || '', 10) || 420000;
 /* [v3.206.0] 审计段并发度：默认 min(4, 测试段并发)。
  *   实测审计段串行占 --audit 总耗时 64%（39 脚本 47.5s / 总 74.1s），故并行有实收；
  *   但审计脚本里有 15 个会自建 mkdtemp 镜像树、若干会再 spawn 子进程，
@@ -148,7 +155,13 @@ function runOne(file, useTestRunner = true, attempt = 0) {
     try {
       child = spawn(process.execPath, argv, {
         cwd: REPO,
-        env: process.env,
+        /* [v3.474.0 · L23 收口] 把**本层并发度**通报给子进程：本仓有若干档测试自己还会
+         *   再派一层并发（如 v3159 的 [2d] 并发跑 audit 脚本）。子层不知道外层开多大，
+         *   就只能默认满开，于是「外层 7 × 内层 4 = 28 进程抢 8 核」——CPU 密集脚本的
+         *   墙钟被拉长数倍，兜底超时先到，健康树被记成红（实测 scan_break_kit_negctl：
+         *   单跑 42.9s 全绿 / 嵌套下被 120s 超时杀掉）。阈值不是病根，**总并发**才是。
+         *   `runOne` 每次只执行一个文件，故通报值恒为当前测试段并发度 OPT.jobs。 */
+        env: { ...process.env, LONSHA_TEST_JOBS: String(OPT.jobs) },
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: true, // 独立进程组：孙进程随组一起收，避免孤儿残留
       });

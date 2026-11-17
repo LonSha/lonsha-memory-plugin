@@ -61,7 +61,18 @@ function vnum(s) {
     return m ? Number(m[1]) * 1000000 + Number(m[2] || 0) * 1000 + Number(m[3] || 0) : NaN;
 }
 // ===== 写入侧校验内核（v3.154 建立，本版复用）零依赖真执行 =====
-const _kseg = src.slice(src.indexOf('const LEDGER_ITEM_ACTIONS'), src.indexOf('class MemoryEngine {'));
+/* [v3.474.0 · L23 收口] ledgerItemKey / ledgerClip 已外移 index-helpers.js（同一簇纯函数）。
+ *   旧写法只从入口切片 ⇒ new Function 里 ledgerItemKey 未定义 —— 判据自己塌了，不是产品坏。
+ *   修法：校验内核仍从入口切，再把这两段纯函数按原位拼回同一作用域；缺段即红（不静默空转）。 */
+const _hlpSrc = readFileSync(new URL('../index-helpers.js', import.meta.url), 'utf-8');
+function _hlpSeg(from, to) {
+    const a = _hlpSrc.indexOf(from), b = _hlpSrc.indexOf(to);
+    assert.ok(a >= 0 && b > a, 'index-helpers.js 段必须可定位：' + from);
+    return _hlpSrc.slice(a, b);
+}
+const _kseg = src.slice(src.indexOf('const LEDGER_ITEM_ACTIONS'), src.indexOf('class MemoryEngine {'))
+    + String.fromCharCode(10) + _hlpSeg('function ledgerClip(', 'function compareVersion(')
+    + String.fromCharCode(10) + _hlpSeg('function ledgerItemKey(', 'function repairReceipt(');
 const K = new Function(_kseg + '\nreturn { validateLedgerItemOp, validateLedgerItemOps, validateCarriedItems, ledgerItemKey };')();
 // ===== 切出两条「整体替换」路径的源码块 =====
 const _i1 = src.indexOf('if (Array.isArray(pack.itemOps)) {');

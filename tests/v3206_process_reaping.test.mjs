@@ -38,6 +38,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { breakText } from './_break_kit.mjs';
+/* [v3.474.0 · L23 收口] 整仓镜像带「过滤平台快照残骸 + 解引用」选项：
+ *   本机文件层会在被访问过的文件旁生成 `.l2s.*` 快照并把原件换成链接，
+ *   直接 cpSync 会 EINVAL（一个判据都没跑就红）或留下悬空链接。 */
+import { notPlatformJunk } from './_fixture_sync.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ROOT = REPO_ROOT;
@@ -119,7 +123,7 @@ function mkTree() {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'v3206-reap-'));
     for (const item of readdirSync(ROOT)) {
         if (item === '.git' || item === 'node_modules') continue;
-        cpSync(path.join(ROOT, item), path.join(dir, item), { recursive: true });
+        cpSync(path.join(ROOT, item), path.join(dir, item), { recursive: true, dereference: true, filter: notPlatformJunk });
     }
     return dir;
 }

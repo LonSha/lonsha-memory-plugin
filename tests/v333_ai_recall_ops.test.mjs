@@ -1,6 +1,8 @@
 // v3.33 AI 主动记忆操作符 测试（st-memory-enhancement AI 编辑表格理念轻量版）
 import fs from 'node:fs';
-const src = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8') + String.fromCharCode(10) + fs.readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8');
+/* [v3.474.0 · L23 收口] extractMemoryOpsFromText / stripMemoryOpsTags 已外移 index-helpers.js：
+ *   合看面追加该模块（语义一字不改，断言仍要求「声明在场」；只是把「在场」放到它真住的文件）。 */
+const src = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8') + String.fromCharCode(10) + fs.readFileSync(new URL('../memory-config.js', import.meta.url), 'utf8') + String.fromCharCode(10) + fs.readFileSync(new URL('../index-helpers.js', import.meta.url), 'utf8');
 let pass = 0, fail = 0;
 const assert = (n, c) => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}`); } };
 // ===== 1. 静态锚点 =====

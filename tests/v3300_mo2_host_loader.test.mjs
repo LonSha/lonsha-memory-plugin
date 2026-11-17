@@ -148,7 +148,10 @@ const GOOD_MF = { display_name: "LonSha's Memory Engine", extra_js: ['a.js', 'b.
 
 /* ══════════════════ A. 面结构 ══════════════════ */
 test('v3300 A. 面结构：幂等入口 / 三态常量 / 注入形态 / 不 eval 内容', () => {
-    const s = stripComments(IDX_SRC);
+    /* [v3.474.0 · L23 收口] loadExtraJsScript 已外移 index-helpers.js（纯函数簇，入口只留委派）：
+     *   本节的面结构判据改读「入口 + 该模块」合看面 —— 幂等/三态常量仍先命中入口，
+     *   注入形态（module 型原生脚本 / onerror reject）命中模块里的真实现。断言一字未改。 */
+    const s = stripComments(IDX_SRC + String.fromCharCode(10) + read('index-helpers.js'));
     const once = fnAt(s, 'async function ensureExtraJsOnce()');
     assert.ok(once, '装载入口必须在源码里（不在 = 本次修复没落地）');
     /* 幂等：入口首行必须挡第二次（清单只读一次、注入只做一次）。 */

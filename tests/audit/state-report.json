@@ -414,7 +414,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 546,
+    "test_files": 551,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -455,7 +455,12 @@
       "l23_o1_index_layer_blocker.test.mjs",
       "l23_o2_load_surface_zero.test.mjs",
       "l23_o3_zero_consumption.test.mjs",
+      "l23_o4_realhost_two_shapes.test.mjs",
       "l23_o5_diag_split.test.mjs",
+      "l23_o6_write_only_key_level.test.mjs",
+      "l23_o7_receipt_all_paths.test.mjs",
+      "l23_o8_view_drive_all.test.mjs",
+      "l23_o9_frozen_freshness_all.test.mjs",
       "l23_x1_causal_chain.test.mjs",
       "l23_x2_bias_surface.test.mjs",
       "l23_x3_commitment.test.mjs",
@@ -965,7 +970,7 @@
     ],
     "audit_dir_exists": true,
     "audit_gated": 76,
-    "audit_probes": 16,
+    "audit_probes": 17,
     "tiers": {
       "schema": "gate-tiers@1",
       "tiers": [
@@ -1027,9 +1032,9 @@
       "index.js": "e94581cccd11",
       "update-log.json": null,
       "README.md": "77cf3f28aa24",
-      "PLAN.md": "af622747891c",
-      "CHANGELOG.md": "75911d0aec2f",
-      "TODO.md": "739c99e1450d",
+      "PLAN.md": "3221fc255038",
+      "CHANGELOG.md": "127f772ca43d",
+      "TODO.md": "00f56c01880a",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },

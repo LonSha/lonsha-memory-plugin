@@ -15,6 +15,10 @@ import { readFileSync } from 'fs';
 import { hostSurface as __hostSurfaceRaw } from './_audit_lib.mjs';
 import __hostPath from 'node:path';
 import { fileURLToPath as __hostFu } from 'node:url';
+/* [v3.474.0] 真模块装载需要的两件：ROOT（仓根 URL 形态）与 require（ESM 里取 CJS 模块）。 */
+import { createRequire as __createRequire } from 'node:module';
+const require = __createRequire(import.meta.url);
+const ROOT = new URL('..', import.meta.url).pathname;
 /* 写成函数声明而不是 const 箭头：读取语句常落在文件前几行，而 import 段可能在它下面。
  *   声明提升是唯一与语句顺序无关的写法（const 会撞 TDZ，实测 4 档因此新红）。 */
 function __hostSurface() {
@@ -74,25 +78,17 @@ test('=== 2. P14 伦理检测静默缺口修复验证 ===', () => {
 });
 
 test('=== 3. 伦理检测端到端模拟 ===', () => {
-    // 提取 normalizeCharName + 两函数做行为验证
-    const normStart = src.indexOf('function normalizeCharName(');
-    const braceOf = (start) => {
-        let depth = 0;
-        const brace = src.indexOf('{', start);
-        for (let i = brace; i < src.length; i++) {
-            if (src[i] === '{') depth++;
-            else if (src[i] === '}') { depth--; if (depth === 0) return i; }
-        }
-        return -1;
-    };
-    const normBody = src.slice(normStart, braceOf(normStart) + 1);
-    const clsStart = src.indexOf('function classifyRelationshipType(');
-    const clsBody = src.slice(clsStart, braceOf(clsStart) + 1);
-    const detStart = src.indexOf('function detectEthicsConflict(');
-    const detBody = src.slice(detStart, braceOf(detStart) + 1);
-    const { detectEthicsConflict } = new Function(
-        normBody + clsBody + detBody + '\nreturn { detectEthicsConflict };'
-    )();
+    /* [v3.474.0] 修前在合并面里按 function 关键字抠 normalizeCharName / classifyRelationshipType /
+     *   detectEthicsConflict 三具函数体，再 new Function 重放。L22-O1 把这三只整块搬进
+     *   index-helpers.js，而入口那三行是**委派桩**（`_deps.classifyRelationshipType(...)`）——
+     *   抽到的正是桩，沙箱里没有 _deps ⇒ ReferenceError: _deps is not defined（报的是机制，
+     *   不是产品）。改为真模块装载：产品在用的那一份，不是测试里重写的复制品。 */
+    const H = require(ROOT + 'index-helpers.js');
+    if (typeof H.__bindHost === 'function') H.__bindHost({ errLog: () => {} });
+    const detectEthicsConflict = H.detectEthicsConflict;
+    assert.equal(typeof detectEthicsConflict, 'function', 'detectEthicsConflict 真模块装载');
+    assert.equal(typeof H.normalizeCharName, 'function', 'normalizeCharName 真模块装载');
+    assert.equal(typeof H.classifyRelationshipType, 'function', 'classifyRelationshipType 真模块装载');
 
     // 真实数据格式（getNpcTiesRecords 的输出）
     const realTies = [

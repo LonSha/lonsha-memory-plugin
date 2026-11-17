@@ -23,6 +23,9 @@ import { execSync } from 'node:child_process';
 import path from 'node:path';
 // [v3.205.0] T3：死代码行数上界的唯一真源（见下方【4】的落法注释）
 import { readBudget } from './audit/dead_code_budget.mjs';
+// [v3.474.0] 活跃总量只吃「真的被装载的代码」：口径函数与根 .js 三态同出一个真源。
+import { measureActiveLines } from './audit/dead_code_budget.mjs';
+import { rootJsInventory } from './_root_js_inventory.mjs';
 /* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
  *   入口只剩一行委派。只读入口的测试因此两重受害 ——
  *   ① 方法体根本不在入口里（断言找不到）；
@@ -112,28 +115,18 @@ test('【2】manifest extra_js 不含任何已删模块', () => {
 });
 
 // ---------- 3 ----------
-test('【3】现存所有根 .js 文件均「已注册或被引用」', () => {
-  const registered = new Set([
-    ...(typeof manifest.js === 'string' ? [manifest.js] : (manifest.js || [])),
-    ...(manifest.extra_js || []),
-  ]);
-  const allJs = readdirSync(ROOT).filter(f => f.endsWith('.js'));
-  const orphans = [];
-  for (const f of allJs) {
-    if (registered.has(f)) continue;
-    // 被引用检测：其他文件中出现该文件名（作为模块标识）
-    const base = f.replace(/\.js$/, '');
-    let ref = false;
-    for (const g of allJs) {
-      if (g === f) continue;
-      const gs = readFileSync(path.join(ROOT, g), 'utf8');
-      const re = new RegExp(`(^|[^\\w./-])${base.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}(\\.js)?['"]`);
-      if (re.test(gs)) { ref = true; break; }
-    }
-    if (!ref) orphans.push(f);
-  }
-  assert.deepStrictEqual(orphans, [], `仍存在未被注册也未被引用的孤立文件: ${JSON.stringify(orphans)}`);
-  ok(`现存 ${allJs.length} 个根 .js 文件全部活跃（注册或被引用）`);
+test('【3】现存所有根 .js 文件均「已注册、被引用或登记归档」', () => {
+  /* [v3.474.0] 修前这里的分类只有两态：注册 or「文件名在别的文件里出现过」。
+   *   L23-O2/O3 把 12 个退役文件登记为**归档**（文件留盘、撤出装载面、理由与替代方留账）后，
+   *   它们既不在 manifest 也没有人再引用 ⇒ 被判成「孤立文件」红（实测 floor-fingerprint-self-healer.js）。
+   *   而「文件名在别处出现过就算活着」本来就是猜不是判：注释里出现一次就洗白了真孤儿。
+   *   改为走唯一真源 tests/_root_js_inventory.mjs 的三态，并把两个反向读数一并守住：
+   *   游离（三态都解释不了）与悬空注册（声明了却不在盘上）各自报错，归档不得同时留在装载面。 */
+  const inv = rootJsInventory(ROOT);
+  assert.deepStrictEqual(inv.unexplained, [], `仍存在游离的 .js（未注册、未被声明、也未登记归档）: ${JSON.stringify(inv.unexplained)}`);
+  assert.deepStrictEqual(inv.missing, [], `extra_js / 入口声明了却不在盘上（悬空注册）: ${JSON.stringify(inv.missing)}`);
+  assert.deepStrictEqual(inv.declaredButArchived, [], `归档文件不得同时留在装载面上: ${JSON.stringify(inv.declaredButArchived)}`);
+  ok(`现存 ${inv.onDisk.length} 个根 .js 全部有名分（活跃 ${inv.declaredOnDisk.length} + 登记归档 ${inv.archivedOnDisk.length}，游离 0）`);
 });
 
 // ---------- 4 ----------
@@ -145,21 +138,26 @@ test('【3】现存所有根 .js 文件均「已注册或被引用」', () => {
  *   本判据仍守住「不给死代码留余量」：上界必须 >= 实测，且余量不得超过 maxSlack ——
  *   上界与实测脱节（余量过大）本身就是判据失效，故一并报。 */
 test('【4】活跃代码总量下降', () => {
-  const allJs = readdirSync(ROOT).filter(f => f.endsWith('.js'));
-  let total = 0;
-  for (const f of allJs) total += readFileSync(path.join(ROOT, f), 'utf8').split('\n').length;
-  // [v3.175] 判据不绑可变形状：根 .js 数 = 入口(index.js) + manifest 声明的 extra_js。
-  //   写死数字每加一个模块就翻红，而它真正要守的是「根目录没有游离的 .js」这条不变式。
-  const declaredMods = 1 + ((manifest.extra_js || []).length);
-  assert.ok(allJs.length === declaredMods, `根 .js 文件数应等于入口+声明模块 ${declaredMods}，实 ${allJs.length}（游离 ${allJs.length - declaredMods} 个）`);
+  /* [v3.474.0] 口径改为「真的被装载的代码」：唯一真源是 tests/_root_js_inventory.mjs 的三态
+   *   （入口 / manifest.extra_js 声明 / 登记归档）。改前的两行各扫一遍盘 ——
+   *   ① 行数把 12 个已登记归档的退役文件（1287 行）也垫进「活跃代码」，于是上界被退役
+   *     代码抬高，「不给死代码留余量」名存实亡（余量 1642 > maxSlack 400 反而报红）；
+   *   ② 文件数拿「1 + extra_js」当分母，归档态一落地就把归档读成游离。
+   *   改用 measureActiveLines（只吃 declaredOnDisk 面）与三态读数后，两处不再各写一遍。 */
+  const m = measureActiveLines(ROOT);
+  const total = m.total;
+  // 判据不绑可变形状，但「盘上 = 声明在盘 + 登记归档」这条恒等式必须成立（游离恒为 0）。
+  assert.equal(m.unexplained, 0, `根目录不得有游离 .js（既非入口、未被 extra_js 声明、也未登记归档）: ${m.unexplained} 个`);
+  assert.equal(m.missing, 0, `manifest 声明的文件必须真实在盘上（悬空注册 ${m.missing} 个）`);
+  assert.equal(m.onDisk, m.files + m.archived, `盘上根 .js ${m.onDisk} 应等于 声明在盘 ${m.files} + 登记归档 ${m.archived}（差 ${m.onDisk - m.files - m.archived}）`);
   // [v3.205.0] 上界与余量都从唯一真源读（见上方注释：T3）。
   const { ceiling, maxSlack } = readBudget();
-  assert.ok(total < ceiling, `总行数 ${total} < 上界 ${ceiling}（上界见 tests/audit/dead_code_budget.json；`
+  assert.ok(total < ceiling, `活跃总量 ${total} < 上界 ${ceiling}（上界见 tests/audit/dead_code_budget.json；`
     + `若是活跃功能增长：node tests/audit/dead_code_budget.mjs --bump --reason='...'；若是死代码回流：删掉它）`);
   assert.ok(ceiling - total <= maxSlack, `上界余量 ${ceiling - total} 不得超过 maxSlack ${maxSlack}`
     + `（余量过大 = 上界与实测脱节，等于没守；抬升请带理由走 --bump）`);
-  assert.ok(total > 15000, `总行数 ${total} > 15000（未误删活跃代码）`);
-  ok(`活跃代码 ${allJs.length} 文件 / ${total} 行（上界 ${ceiling}）`);
+  assert.ok(total > 15000, `活跃总量 ${total} > 15000（未误删活跃代码）`);
+  ok(`活跃代码 ${m.files} 文件 / ${total} 行（上界 ${ceiling}；盘上 ${m.onDisk} = 活跃 ${m.files} + 归档 ${m.archived}，游离 0）`);
 });
 
 // ---------- 5 ----------

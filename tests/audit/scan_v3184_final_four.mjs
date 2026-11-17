@@ -134,8 +134,12 @@ const libs = [
 /* 取库口是**宿主侧契约**：逐条在它该在的那份文件里判（见上）。
  *   模块侧副本另有专门判据（第六刀套件 A 段「取库链副本」），此处不得放宽。 */
 const _fileCode = (name) => {
-    const f = HOST.files.find((x) => x.name === name);
-    return f ? f.code : '';
+    /* [v3.474.0 · L23 收口] 十批剥离把 engine-diagnostic-lines.js 拆成 part-a/b/c 分片，
+     *   取库口实测已随分片搬进 part-a。只读装配面 = 假红（宿主明明按契约取了库）。
+     *   故该面 = 装配面 + 它的全部分片（HOST.files 里逐物理文件一条）。 */
+    const base = name.replace(/[.]js$/, '');
+    const hit = HOST.files.filter((x) => x.name === name || x.name.indexOf(base + '-part-') === 0);
+    return hit.map((x) => x.code).join(String.fromCharCode(10));
 };
 for (const [name, re, where] of libs) {
     const missing = where.filter((f) => !re.test(_fileCode(f)));

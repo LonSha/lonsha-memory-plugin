@@ -78,13 +78,16 @@ test('C2 批量补齐 chatLookup 不再原样回传 m.mes', () => {
     assert.ok(ui.includes('_stripThink'), 'chatLookup 必须过思维链剥离');
 });
 test('C3 extractThinkingChain 行为自证：think 块剥离、正文保留', () => {
-    // 从 index.js 抽函数真跑（replicate v332 的抠函数手法，这里用构造隔离环境）
-    const src = read('index.js');
-    const i = src.indexOf('function extractThinkingChain');
-    const j = src.indexOf('function thinkingAnchorHeader');
-    assert.ok(i > 0 && j > i, '函数定位');
-    const fnSrc = src.slice(i, j);
-    const fn = new Function(fnSrc + '\nreturn extractThinkingChain;')();
+    /* [v3.474.0] L22-O1 把 extractThinkingChain 整块搬进了 index-helpers.js，入口只剩一行委派
+     *   （`const extractThinkingChain = (...args) => _indexHelperCall(...)`）。原来「在 index.js 里
+     *   从 function 关键字抠到下一个顶层 function」的取法因此抠不到真体：搬过去的是 IIFE 内层
+     *   （缩进 4 的声明），没有后继顶层锚点 ⇒ 切片一路延到 IIFE 收尾，拼出来带 return，
+     *   `new Function` 直接报 Illegal return statement（报成「函数定位」假红）。
+     *   改为真模块装载：拿到的就是产品实际在用的那一份，不是测试里重写的复制品。 */
+    const H = require(ROOT + 'index-helpers.js');
+    if (typeof H.__bindHost === 'function') H.__bindHost({ errLog: () => {} });
+    const fn = H.extractThinkingChain;
+    assert.equal(typeof fn, 'function', '函数定位（真模块装载 index-helpers.js）');
     const r = fn('旁白：雨停了。\n<think>用户想要日式科幻悬疑，先确认题材再写。严禁古风。</think>\n她推开门走进来。');
     assert.equal(r.content.includes('题材'), false, '思维链内容不得出现在正文');
     assert.equal(r.content.includes('她推开门走进来'), true, '正文必须保留');

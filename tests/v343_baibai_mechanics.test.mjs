@@ -23,6 +23,9 @@ const bkSrc = readFileSync(new URL('../memory-books.js', import.meta.url), 'utf8
 const require_ = createRequire(import.meta.url);
 const MC = require_(new URL('../memory-core.js', import.meta.url).pathname);
 const MB = require_(new URL('../memory-books.js', import.meta.url).pathname);
+/* [v3.474.0 · L23 收口] buildNpcTierInjection 已外移 index-helpers.js（纯函数簇）。
+ * 同本档 O7 口径：真模块装载拿真函数（修前抠 index.js 切片，搬家后 indexOf=-1 ⇒ 空切片）。 */
+const HI = require_(new URL('../index-helpers.js', import.meta.url).pathname);
 let pass = 0, fail = 0;
 const ok = (msg) => { pass++; console.log('✓ ' + msg); };
 const bad = (msg) => { fail++; console.log('✗ ' + msg); };
@@ -38,11 +41,9 @@ ok('静态锚点声明检查全部通过');
 
 console.log('=== 2. NPC 四档压平注入与性别铁律动态测试 ===');
 // 模拟引擎调用 buildNpcTierInjection
-const engineMockSrc = src.slice(src.indexOf('function buildNpcTierInjection'), src.indexOf('// [v3.43] end NPC tier injection'));
-const buildNpcFn = new Function('errLog', `
-    ${engineMockSrc}
-    return buildNpcTierInjection;
-`)(errLog);
+assert.equal(typeof HI.buildNpcTierInjection, 'function', 'index-helpers.js 必须导出 buildNpcTierInjection');
+/* [v3.474.0] 真模块装载：断言一字未改，只换「被跑的对象」。 */
+const buildNpcFn = HI.buildNpcTierInjection;
 
 {
     const npcs = [

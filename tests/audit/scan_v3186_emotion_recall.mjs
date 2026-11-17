@@ -295,8 +295,15 @@ else ok('R4 键匹配在场');
  *   方法体必须从**外移模块原文**取（HOST.files 里那份），不能再用入口单文件 idxRaw ——
  *   否则 lineBody 恒空，「三态不可分辨」全成假红（判据读残了实现，然后报实现缺东西）。 */
 const diagRaw = (() => {
-    const f = HOST.files.find((x) => x.name === 'engine-diagnostic-lines.js');
-    return f ? f.raw : '';
+    /* [v3.474.0 · L23 收口] 十批剥离把 engine-diagnostic-lines.js 拆成 part-a/b/c：实测
+     *   _emotionOppositeLine 的方法体落在 part-a。只取装配面 ⇒ lineBody 恒空 ⇒ 五条读数
+     *   全成假红（判据把实现读残了，再报实现缺东西）。故取面 = 装配面 + 全部分片，
+     *   按 HOST.files 顺序拼接；一个都取不到时 diagRaw 为空 → 下面立即红（不静默切空段）。 */
+    const base = 'engine-diagnostic-lines';
+    return HOST.files
+        .filter((x) => x.name === base + '.js' || x.name.indexOf(base + '-part-') === 0)
+        .map((x) => x.raw)
+        .join(String.fromCharCode(10));
 })();
 if (!diagRaw) bad('R5 实现不可取', 'engine-diagnostic-lines.js 不在扫描面（结构漂移）');
 const lineBody = (() => {

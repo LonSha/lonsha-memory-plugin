@@ -1,5 +1,44 @@
 ## v3.474.0
 
+**第二十三期收口（终刀）：全量 `node tests/run.mjs` **551/551 文件、5591 断言、0 失败**（303s，无重试）；审计段 73/73。**
+
+- **拆片扫描面同源化（红因是「判据读残实现」，不是产品坏）**：十批剥离把 `engine-diagnostic-lines.js` 拆成装配面 + part-a/b/c，
+  而 `scan_v3185_xref_consumer` / `scan_v3186_emotion_recall` 仍只取装配面 ⇒ 方法体恒空 ⇒ 五条三态读数全成假红。
+  两者取面改为「装配面 + 全部分片」（按 `HOST.files` 顺序拼接；一个都取不到即红，不静默切空段），
+  其负控制名册同源派生到分片并带上 `module_split_ledger.json`（+子路径 `mkdirSync`），破坏锚点随实现迁到 part-a
+  （`待本轮（尚无召回）` 实测仅在 part-a）——`scan_v3186` 58 判据点 / 缺陷 0，负控制 18/18。
+- **嵌套并发预算（阈值不是病根，总并发才是）**：`tests/run.mjs` 把本层并发度通报给子进程（`LONSHA_TEST_JOBS`）；
+  v3159 的 `[2d]` 内层并发按「两层并发乘积 ≈ 3×核数」自适应（下限 2 / 上限 4），兜底超时按同一份超订倍数放缩（上限 2×）。
+  实测：7 路并发 × 内层 4 路 = 28 进程抢 8 核 ⇒ `scan_break_kit_negctl` 单跑 42.9s 却被 120s 兜底超时杀掉（`got null`）；
+  自适应后 `[2d]` 稳定通过（单跑 100.9s / 14 组全绿）。
+- **审计面副本台账补登记**：三档 negctl 各自持一份 `splitParts`（夹具必须自我完备：互相 import 会把三档的 SRC 基准与文件前缀耦在一起），
+  按 v3284 的登记纪律补入 `AUDIT_LEDGER`（159 字符 / md5 `3fbf908e` / 成员 3 档），15 簇 → 16 簇；登记后值级漂移会被 B2b 当场点名。
+- **平台快照残骸（`.l2s.*`）不再污染夹具**：本机文件层会在被访问过的文件旁生成 `.l2s.<name>0001` 快照并把原件换成链接，
+  于是（a）`cpSync` 撞链接链报 `EINVAL`——整批门禁一个判据都没跑就先红；（b）只过滤残骸却不 deref ⇒ 复制出悬空链接 ⇒ 夹具读不到文件。
+  新增唯一真源 `tests/_fixture_sync.mjs` 的 `PLATFORM_JUNK_RE` / `notPlatformJunk`，夹具复制统一带 `{ dereference: true, filter: notPlatformJunk }`
+  （v3159 / scan_break_kit_negctl / v3204 / v3206 / v3241）。**判据强度不变**：健康树读的仍是仓库真实内容。
+- **读数登记（如实）**：`tests/audit/doc_readings.json` 仍停 **v3.431.0**（430 / 4658 / 审计 68/68）——
+  当版读数**未重绑**（重绑需 `TEST_SUMMARY_JSON=<path> node tests/run.mjs --audit` 的摘要，本机环境层在长跑中
+  反复生成 `.l2s.*` 残骸会污染该次取证），故 PLAN 仍如实标「当前 v3.474.0 **全量待验**」。
+  本节给出的 551/551 是**本轮实跑读数**（`_full5` 551/551·5591·303s / `_full7` 551/551·5591·303.3s，审计段 73/73），
+  与「登记已对齐当版」是两件事：前者是证据，后者要等一次干净的 `--audit` 取证。
+- **边界（诚实）**：第 4 条只让**夹具**免疫平台残骸；平台层仍会继续生成 `.l2s.*`，清场是运维动作，不是仓库内容（git 跟踪 0 个）。
+
+
+**同版回归收口（L23 收口轮）：全量首跑 53 档红 —— 9 档本刀引入已全修、6 档存量红顺带治好、36 档存量红如实入账。**
+
+- **先给证据，不给结论**：全量 `node tests/run.mjs --jobs 2` 首跑 **53 档失败**；为避免「顺手把存量红当自己修的」，另建**基线对照树**
+  `git worktree add --detach /home/user/_ctrl e710253`（O 线开工前最后一个提交，manifest 3.473.0），在该树上跑**同一批 53 档、同一口径**
+  ⇒ **44 档本来就红**，且 **39/44 的报错文本逐字相同**（剩 5 档差异逐条解释：版本号 3.473.0→3.474.0、首错先后、三档同族不同表述）。
+  ⇒ 分档口径落到磁盘：**9 档 = 本刀引入**（必须修），**44 档 = 存量红**（不许暗中抹平，入 `tests/audit/preexisting_red_ledger.json`）。
+- **本刀引入 9 档（全修，逐档给真因）**：① `tests/l23_o6_write_only_key_level.test.mjs`（12 条）—— O7 改 `engine-injection-pipeline.js` 致行号漂移（证据站点 2294→2309），**按生成器重生成台账、不手改行号**；② `tests/l23_x_surface.test.mjs`（7 条）—— 版本锚由 `strictEqual(cur,'3.473.0')` 改为格式校验（锁死当版号会在交棒后自灭）；③ `tests/v3116_dead_code.test.mjs`（8 条）—— 判据侧自建的三态归类**与台账不同源**，且把「文件名在别处出现过」当第三态（那是猜不是判），改为统一走新真源；④ `tests/v3184_changeset.test.mjs`（18 条）—— 裸子串 `changeset: _changeset` 被私有注入表误命中，改**键名精确正则**，并反向断言「`_changeset:` 必须仍在」（不给「什么都没写」开绿灯）；⑤ `tests/v3194_time_and_fact_version.test.mjs`（20 条）/ ⑥ `tests/v3205_infrastructure_truthfulness.test.mjs`（18 条）—— 根 .js 归属读法改为同一真源；⑦ `tests/v3198_ledger_replay_r2_behavioral.test.mjs`（7 条）/ ⑧ `tests/v3199_ledger_replay_r2_shift_behavioral.test.mjs`（8 条）—— O5 真实改动后 `_audit_lib.mjs` 的 md5 指纹失配，重钉；⑨ `tests/v3236_snapshot_restore_and_clear.test.mjs`（18 条）—— 探针只读装配面、判据侧已按 `module_split_ledger.json` 并入拆片，`surface_lines` 差 6121 行（30237 vs 36360）；探针补**同源** `splitPartsOf()` 后 36360 逐行一致。
+- **抽出一处第二真源（这才是根因，不是九个孤立的补丁）**：根目录 .js 的「活跃 / 登记归档 / 游离」三态，此前在 `v3116` / `v3194` / `v3205` / `dead_code_budget` **四处各写一遍**（各读一遍 manifest + 各扫一遍盘）。新建 `tests/audit/_root_js_inventory.mjs` 作唯一真源，导出 `rootJsInventory()` / `archivedModuleFiles()`：两本归档登记表（`module_disposition_ledger.json` 的 11 条 + `l21_o1_triage.json` 的 `verdicts.archived.modules` 1 条）任一读空即**抛错**，并按 `unexplained` / `declaredButArchived` / `missing` 三个反向读数报异 —— **盘上 409 个根 .js = 活跃 397 + 登记归档 12 + 游离 0**。
+- **口径一改，预算跟着收紧（不是抬升）**：`dead_code_budget.mjs` 的 `measureActiveLines` 原先把根目录**所有** .js 都算作「活跃代码」，把 12 个已退役的也垫进去；改后只吃**真被装载**的 397 个 ⇒ 实测 **145542 → 144255**。按唯一算式（实测 + maxSlack 400）ceiling 从 145897 **收紧到 144655**：退役代码不再垫高上界，「给死代码留余量」的口子关掉。
+- **顺带治好 6 档存量红（根因一条，不是六条）**：`tests/_audit_lib.mjs` 的 `HOST_MODULES` 自 L22-O1 起**漏了 `index-helpers.js`** —— 而 `hash32` / `sanitizeJson` / `stripMemoryOpsTags` / `extractThinkingChain` / `ledgerItemKey` / `buildNpcTierInjection` / `normalizeCharName` 全住在那只模块里 ⇒ 十几组只看宿主面的门禁**在自己的面里永远找不到实现**，报成 `ReferenceError` / 「缺 fn」/「函数定位」，即**判据静默空转（坏的判据，不是坏的产品）**。补入后 `tests/v3128_defense_pack.test.mjs`（3 条）/ `tests/v313_thinking_split.test.mjs`（16 条）/ `tests/v318_defense_arch.test.mjs`（18 条）/ `tests/v319_ruby_sync.test.mjs`（14 条）/ `tests/v337_industrial_pillars.test.mjs`（40 条）/ `tests/v350_backfill.test.mjs`（8 条）转绿。
+  ★ 试过但**已回滚**的七档（`v343` / `v341` / `v345` / `v389` / `v320` / `v333` / `v344`）：逐档在本档里追加读 `index-helpers.js` 后仍报 `xxx is not defined` ⇒ 它们缺的不是「读取面少一只文件」而是抽取/沙箱机制，属存量族（见台账族①），**不靠改读取面蒙过**。
+- **存量红如实入账（12 条，按族给逐行首错）**：`tests/audit/preexisting_red_ledger.json` 的 `preexisting_red` 8 → **12 条**、`regression_found_and_fixed` **9 条**；每条带 `symptom` + 每档「基线树首错 / 当版首错」逐行读数 + `evidence`（`control_tree: /home/user/_ctrl @ e710253` / `ctrl_summary` / `same_message_ratio: 39/44`）。四族：① L22-O1 纯函数外移后判据仍按入口单面抽取（10 档）；② 入口行数/成员基线没跟搬迁同版重建（3 档）；③ 台账/登记面与磁盘漂移（11 档）；④ 版本/待验标记停在旧版（1 档）。自证 `tests/l23_o5_diag_split.test.mjs`（16 条）仍全绿 —— 它要求每条存量红必有 symptom +（读数或修法），只写文件名通不过。
+- **边界（不装作已经完事）**：本版**仍有 36 档存量红**（含 `v3480` 的 B4/B5/D3：宿主基线 `measured_at` 停在 v3.472.0、`readings.total_lines` 13546 未跟上入口 12992 —— 需重跑探针整份重建基线，属独立一刀，不在本轮范围）。故 PLAN 标「当前 v3.474.0 **全量待验**」是**如实**：当版未达 0 失败，不得当已验。
+
 **第二十三期优化九项第九刀（L23-O9）：冻结读数新鲜度三态全量覆盖 —— 顺手揭穿「解析器一直在说『缺时间戳』」。**
 
 - **修的是什么（两处，都属于「看起来有门，其实没门」）**：
