@@ -2,8 +2,9 @@
 > **第二十三期产品计划（2026-11-17，现行 · 唯一现行排序）**：【账实对齐 · 可回源双线计划】。双仓协同各18项，合起来一共36项（`L23-O1~O9` / `L23-X1~X9`）。
 > **立项依据**：全部来自 2026-11-17 实勘机器读数，见[第二十三期产品证据](docs/planning/2026-11-17-product-evidence-v23.md)（每条附可复跑命令与真实读数）。
 > **核心使命**：本仓**不缺引擎**（`manifest.extra_js` 394 项全部真加载），缺的是「登记了就以为做了」这一层账。
-> ① **L22 优化九项多数未落地**（`index.js` 仍 13546 行 / `load_surface_only` 仍 11 / 零消费仍 1 / 无「写了不读」台账 / realhost 无门），
->    而 `CHANGELOG` 写的是「十八项同批交付」——本期**先把账对齐**，再把存量收口；
+> ① **L22 优化九项：已做 6 / 部分 2 / 未做 2**（逐条读数 + 复跑命令见[对账台账](docs/planning/2026-11-17-v22-reconcile.md)）。真未做的是结构项：`index.js` 仍 13546 行、`load_surface_only` 仍 11、零消费仍 1；部分的是替代证据链（扫描器在盘、无测试钉住）与 realhost（判定体与 `cause` 都在盘，available 分支本环境不可证）。
+>    **上一轮本文件写的「无『写了不读』台账」「realhost 无门」两句已证伪并撤下**：台账是 `tools/scan_write_only_fields.mjs` + `tests/audit/write_only_ledger.json`（entries=2 逐条带理由），`v21_o8_write_only_scan` 5 条判据真跑绿；`_realhost_judge.mjs` 是纯判定体、`_realhost_suite.mjs` 是探针，`realhost_readings.json` 的 `verdict`/`cause` 两态字段齐备。**判「已做」只认三条：判据真跑绿 / 台账字段真读数 / 有真实 reader**，不认文件名像不像。
+>    而 `CHANGELOG` 写的是「十八项同批交付」——真实构成是「拓展九项交付 + 优化六项可证已做」，本期**先把账对齐**，再把存量收口；
 > ② **`engine-diagnostic-lines.js` 5915 行**从未进过任何拆解计划；
 > ③ **可回源能力稀薄**：`evidence-query.js` 是条目级证据，但「这条记忆来自哪句话」没有机器守的出口。
 > [优化提升九项](.agents/notes/proposed/architecture/2026-11-17-product-optimization-v23.md) · [拓展创新九项](.agents/notes/proposed/feature/2026-11-17-product-expansion-v23.md)。
