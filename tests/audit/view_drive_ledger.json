@@ -1,0 +1,25 @@
+{
+  "file": "tests/audit/view_drive_ledger.json",
+  "note": "L23-O8「视图分支逐个真调」的计数与差异台账。判据 tests/l23_o8_view_drive_all.test.mjs 会重新枚举盘面并与本文件逐项比对：数字一变就红，所以这份读数不能手抄着漂。口径：『视图分支』= settings-ui.js 里 `viewType === 'x'` 的浏览器视图 + modules_combined.js 里 `render*View()` 的可视化视图；memory-center.js 的 `view` 是**面态**（panel/result/empty/unknown/error）不是视图，不计入。",
+  "counts": {
+    "settings_ui": 27,
+    "viz_panel": 4,
+    "total": 31
+  },
+  "plan_expectation": 34,
+  "why": "计划写「34 个视图分支逐个真调」，本次按机器枚举实测 31（27 + 4），差 3。差异原因：计划里的 34 是立项时的粗计数，没有绑定到任何可复算的枚举口径；本刀把口径钉成可复算的两条（viewType 分支 + render*View 方法）后落到 31。处理方式是**留档差异、不凑数**——不为了对齐 34 去造三个没有渲染分支的假视图，也不改计划原文去迎合实测。真正的验收线是「枚举到的每一个都被真调过」，而不是「数字等于 34」。",
+  "driven_by": [
+    "tests/v21_o6_view_drive_truth.test.mjs（27 个 settings-ui 视图，最小 DOM shim 里逐个真调 showBrowser）",
+    "tests/l23_o8_view_drive_all.test.mjs（4 个 viz 视图，vm 隔离 context 里逐个真调 render*View）"
+  ],
+  "entry_sites": 1,
+  "entry_note": "实测三件事实（判据逐条复验）：① `new MemoryVisualizer(this.engine)` 在产品侧 **1** 处（index.js:11998，模块装载时被实例化）；② `.createPanel(` 调用 **1** 处，但它在 `modules_combined.js:506` 的 `clearData()` **内部**（先有面板才可能点清空，再重画）；③ 从类**外部**打开面板的调用 `visualizer.createPanel(` = **0** 处。⇒ 这 4 个视图在真机上**跑得到但打不开**：实例在、渲染函数在、面板从来没人创建。三次读数分开记（实例化 / 内部自调用 / 外部入口），因为合成一个「可达」布尔就会把「能渲染」读成「用户点得到」——那正是本仓反复治的谎报形态。本刀不顺手造入口（接线属于面板 IA 的决定），只如实登记。",
+  "face_states": {
+    "empty": "本来就没有数据（叫你别等）",
+    "ok": "有数据",
+    "blocked": "依赖缺席 —— GraphDiffusion 未加载（叫你去装/去开）"
+  },
+  "instantiations_product": 1,
+  "panel_openers": 1,
+  "external_entry_sites": 0
+}

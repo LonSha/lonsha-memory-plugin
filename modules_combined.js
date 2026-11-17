@@ -87,6 +87,15 @@ class MemoryVisualizer {
         if (target) target.classList.add('active');
     }
     
+    /* [L23-O8] 机器可读面态：四个渲染分支共用**一处**实现（同一事实不许四份代码）。
+     *   三态不同形：empty（本来就没有数据）/ ok（有数据）/ blocked（依赖缺席，去装/去开点什么才行）。
+     *   写在容器属性上，面板与判据读同一处；`why` 是短横线英文码，不写中文句子。 */
+    _face(el, state, why) {
+        if (!el || typeof el.setAttribute !== 'function') return;
+        el.setAttribute('data-face-state', String(state));
+        el.setAttribute('data-face-why', String(why || ''));
+    }
+
     // 渲染图谱视图（简化版D3.js力导向图）
     renderGraphView() {
         const container = document.getElementById('lonsha-viz-graph');
@@ -98,8 +107,10 @@ class MemoryVisualizer {
         
         if (nodes.length === 0) {
             container.innerHTML = '<div class="lonsha-empty">暂无图谱数据</div>';
+            this._face(container, 'empty', 'no-graph-data');
             return;
         }
+        this._face(container, 'ok', '');
         
         // 使用Canvas绘制（轻量级替代D3.js）
         container.innerHTML = `
@@ -313,8 +324,10 @@ class MemoryVisualizer {
         
         if (summaries.length === 0) {
             container.innerHTML = '<div class="lonsha-empty">暂无时间线数据</div>';
+            this._face(container, 'empty', 'no-timeline-data');
             return;
         }
+        this._face(container, 'ok', '');
         
         // 按时间排序
         const sorted = [...summaries].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -353,6 +366,7 @@ class MemoryVisualizer {
             vectors: this.engine.vector.vectors.length
         };
         
+        this._face(container, 'ok', '');
         container.innerHTML = `
             <div class="lonsha-stats-grid">
                 <div class="stat-card">
@@ -412,6 +426,8 @@ class MemoryVisualizer {
         
         if (!window.GraphDiffusion) {
             container.innerHTML = '<div class="lonsha-empty">图算法模块未加载</div>';
+            /* 依赖缺席 ⇒ blocked：与「有模块但没数据」的 empty 不同形（你去装它才有得看） */
+            this._face(container, 'blocked', 'graph-diffusion-missing');
             return;
         }
         
@@ -420,8 +436,10 @@ class MemoryVisualizer {
         
         if (communities.length === 0) {
             container.innerHTML = '<div class="lonsha-empty">暂无社区数据</div>';
+            this._face(container, 'empty', 'no-communities');
             return;
         }
+        this._face(container, 'ok', '');
         
         let html = '<div class="lonsha-communities">';
         html += `<h3>检测到 ${communities.length} 个社区</h3>`;
