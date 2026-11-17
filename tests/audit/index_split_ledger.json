@@ -251,5 +251,162 @@
     "leftovers_flagged_not_touched": {
       "index.js L1797-L1798": "decayScore 上方这两行是 v3.259.0 把「增量书签」外移后遗留的死注释（附近已无对应函数）。不属于本批任何函数，故不随迁、也未删除 —— 只登记，不擅自替别人清理。"
     }
+  },
+  "batch3": {
+    "what": "第 3 批（b3）：**零搬迁**。本批不是「搬了 N 个」，而是一次「辅助层这条矿脉到底了吗」的实测收口 —— 结论是无候选，于是把「为什么无候选」的机器读数、注入面纪律、以及用来保命的闸/判据落盘。硬凑一个函数搬出去才是真缺陷。",
+    "why_not_migrated": [
+      "在「逐字节搬迁 + 不注入」的纪律下，b3 候选 = 0：候选原料 215 个中，62 个装载期可达（搬走就装载即抛），剩下 153 个的依赖闭包里正是那 62 个。",
+      "「闭包为空」这个口径已被两次证伪，不能再用：numOr 闭包为空但它是**被调方**（IIFE 顶层 new LonShaMemoryPlugin() → _assembleComponents 调它）；hintForError 闭包为空但它是**调用方可达**（装载期可达的 errLog 会调它）。两个方向静态闭包分析都看不见。",
+      "所以第 4 条判据从 b2 的「装载期不可达」升级为硬门槛：b2 剔除 1 个，到 b3 剔除 62 个。"
+    ],
+    "measurement": {
+      "index_lines": 13052,
+      "top_level_function_decls": 221,
+      "unique_names": 305,
+      "duplicate_names": [
+        "parseStoryDateLoose×2"
+      ],
+      "candidate_rule": "声明唯一 + 函数体不含 this + 不在基线 extracted 里 + 4 空格缩进",
+      "candidate_pool": 215,
+      "init_time_reachable": 62,
+      "closure_unsatisfied": 153,
+      "selectable": 0,
+      "selectable_lines": 0,
+      "reading_file": "/tmp/b3_init_hits.json（临时读数；本台账已内联名单与读数，不依赖该文件存续）",
+      "measured_at": "2026-11-17T09:10:12.805Z",
+      "instrumented": 215,
+      "missing": [],
+      "conclusion": "装载期可达 62 / 闭包未满足 153 / 可选 0 个 0 行 ⇒ 辅助层在「不注入」纪律下已到顶。"
+    },
+    "how_measured": {
+      "scanner": "/tmp/lonsha_scan3.cjs：MOVED 名单从 tests/audit/index_helpers_baseline.json 的 extracted 读，不第二次硬编码；同批内互相依赖用定点迭代（不是单轮），initHits 只用来**剔除**候选、不当「依赖已满足」白名单。",
+      "reach_probe": "/tmp/b3_measure_reach2.mjs：按文本偏移在 `function NAME(` 后第一个 `{` 之后插 `try { (globalThis.__B3HIT = globalThis.__B3HIT || []).push(NAME); } catch (_e) { }`，215/215 全覆盖（按行插桩只覆盖 135/215，因为 100 个声明的 `{` 不在行尾）；用 tests/_index_loader.cjs 的 makeHost() 造宿主后 require(index.js)，再等 500ms 覆盖 init() 的异步延续段；从后往前插使偏移不漂；跑完必须 git checkout -- index.js 回滚。",
+      "why_probe_not_scanner": "扫描器算的是「闭包引用集」，探头算的是「装载期真的执行到了」。前者看不见调用方方向的可达，也看不见异步延续段。"
+    },
+    "init_time_reachable_names": [
+      "_antiphonyLib",
+      "_archaeologyLib",
+      "_batchMaintenanceLib",
+      "_bindConfigDeps",
+      "_bindCoreDeps",
+      "_bindOrganDeps",
+      "_budgetOrchestratorLib",
+      "_characterGrowthLib",
+      "_characterReinterpretationLib",
+      "_commitmentLifecycleLib",
+      "_conflictBenchLib",
+      "_crossProjectDeskLib",
+      "_eraContinuationLib",
+      "_eraHandoffDraftLib",
+      "_factCorrectionTxLib",
+      "_factReplayLib",
+      "_factVersionLib",
+      "_generationMaterialReconcileLib",
+      "_generationReplayLib",
+      "_inbandExtractionLib",
+      "_knowledgeRelayLib",
+      "_loreConclusionReconcileLib",
+      "_loreImportLib",
+      "_meaningMapLib",
+      "_memoryAuxLib",
+      "_memoryBooksLib",
+      "_memoryConfigLib",
+      "_memoryCoreLib",
+      "_memoryLedgersLib",
+      "_memoryOrgansLib",
+      "_memoryRevisitScheduleLib",
+      "_memoryRitualLib",
+      "_memorySeasonLib",
+      "_memoryWeatherLib",
+      "_moduleLib",
+      "_multiProtagonistLib",
+      "_narrationCompareLib",
+      "_narrativeGeneratorsLib",
+      "_newConfigManager",
+      "_newCore",
+      "_newMemoryAux",
+      "_newMemoryBooks",
+      "_newMemoryLedger",
+      "_newMemoryOrgan",
+      "_newNarrativeGenerator",
+      "_newSceneBook",
+      "_readableWorkbenchLib",
+      "_recallRouteFeedbackHubLib",
+      "_recallRouteLib",
+      "_repairResponseLib",
+      "_sceneBookLib",
+      "_sceneSeatingPartitionLib",
+      "_secretTheaterLib",
+      "_storyAnnualLib",
+      "_storyClockLib",
+      "_symbiosisBridgeLib",
+      "_temporalValidityLib",
+      "_volumeSealingLib",
+      "_workModeLib",
+      "errLog",
+      "hintForError",
+      "numOr"
+    ],
+    "blocking_surface": {
+      "statement": "为什么 153 个闭包未满足：通用阻塞点反复出现，不是每个函数各有各的依赖。",
+      "blockers": {
+        "_moduleFailures": 191,
+        "_noteModuleFailure": 189,
+        "_moduleLib": 188
+      },
+      "injection_simulation": [
+        {
+          "k": 1,
+          "unlocked": 176,
+          "lines": 418
+        },
+        {
+          "k": 20,
+          "unlocked": 197,
+          "lines": 773
+        },
+        {
+          "k": 30,
+          "unlocked": 198,
+          "lines": 781
+        }
+      ],
+      "reading": "k=1（仅注入最高频那一个名字）即可解锁 176 个候选；k=30 后解锢 198 个 /781 行，再增不再涨。这组数据决定了 b3 的两条路：要么引入注入机制，要么承认辅助层到顶。本轮选了后者 + 把前者的机制先做成活的。"
+    },
+    "injection_discipline": {
+      "allowed": [
+        "函数声明（身份稳定）：_moduleLib / _noteModuleFailure / _moduleFailureSnapshot",
+        "const 字面量（身份稳定）：_ERROR_HINTS / _errBuf"
+      ],
+      "forbidden": [
+        "let/var 标量：_moduleFailures 初值 null、首次登记才 new Map()；按值注入当时拿到的是 null，helpers 侧再登记会自建一个 Map，与 index.js 那份互不可见（状态分裂）"
+      ],
+      "gate_contract": "api.__bindHost(host) 必须幂等、逐项显式赋值、不写动态循环（注入面要能一眼数清）；每一个注入项必项在基线 extracted[*].host_deps 里登记，R8 保证「槽声明」与「host.NAME 赋值」一一对应，且 index.js 真的调用过。",
+      "why_gate_first": "本轮没有搬迁用户，但机制和判据必须现在就活着（否则又是没人跑的代码）。P27/P28/N14 就是它的保鲜膜。"
+    },
+    "attempted_and_reverted": {
+      "what": "把 hintForError（9 行）搬进 helpers，加 let _ERROR_HINTS = null 注入槽 + api.__bindHost 闸口，index.js 侧 _indexHelpers() 取到库后调 __bindHost({ _ERROR_HINTS })。",
+      "behavior": "端到端行为验证通过：注入后 401 Unauthorized / Failed to fetch / timeout of 3000ms exceeded / 完全未知的错 四条输出全对（17 条规则）；未注入时抛 TypeError: _ERROR_HINTS is not iterable（显式失败而非静默错值）。",
+      "why_reverted": "闸报红：R1 导出面 LonShaIndexHelpers 从 (无) 变 object（64→65）、R2 行数 13059 > 天花板 13052。根因：hintForError 闭包为空，但被装载期可达的 errLog 调用（调用方方向可达）。",
+      "how_reverted": "git checkout -- index.js index-helpers.js 整批回滚，并从基线台账移除 hintForError 条目（回到 25 个 extracted / 22 组 fixtures）。",
+      "lesson": "R1 的「多出 1 个符号」是装载期偷偷 require 了 helpers 的告警器，比「装载有没有抛」灵敏得多：node 里 _moduleLib 有 require 回落，既不抛也不报。所以入批判据必须是「装载期不可达」，不能是「闭包为空」。"
+    },
+    "gate_changes": {
+      "R8_new": "注入面自洽：index-helpers.js 的注入槽（^ {4}let NAME = null;）与 api.__bindHost 里 host.NAME 赋值一一对应，且 index.js 必须真的调用过 .__bindHost({；否则跑闸即红。",
+      "checkFixtures_injection": "checkFixtures 新增第三参 indexText：重放前先按 baseline.extracted[*].host_deps 收集注入项，用 constInitializer 从 index.js 现取真值、new Function 求值后 api.__bindHost(shim)。不复制一份数据，也不保留两份真值。",
+      "constInitializer_bugfix": "本轮新增 constInitializer 时踩了 off-by-one：closeMark 是 '\\n    ];'（7 字符），原写 e + length - 2 会把末尾 ] 丢掉，new Function('return (' + init + ');') 抛 Unexpected token ')';已修为 - 1。该坑只在 host_deps 非空时暴露，b3 的 P27 第一次把它点出来（P27 就是它的回归锁）。",
+      "header_wording": "R6 口径改为「不许自取库」——注入不算自取（否则注入机制一上就与 R6 自相矛盾）。"
+    },
+    "criteria_changes": {
+      "count": "40 → 43 条（P1–P28 + N0–N14）",
+      "P27": "constInitializer 能从 index.js 取到 _ERROR_HINTS 真值并求值（17 条、每条 re 是 RegExp、title 是字符串）。",
+      "P28": "真仓上 R8 自洽（当前没有注入槽 ⇒ 也不许有悬空注入）。",
+      "N14": "R8 两向自证：对齐 ⇒ 绿；缺注入 / 悬空注入 / index.js 没调用 ⇒ 各自红。输入是完全合成的迷你 helpers 文本，不读不改真仓（真仓此刻没有 __bindHost，拿它当基底会让坏用例静默不命中、假红成「都红」）。",
+      "P2_P3_dehardcode": "P2/P3 原先写死「7 关」，闸扩到八关后假红。改成与门禁自己的 --json results 对齐（关数相等 + 编号 R1..Rn 连续），扩关当天自动跟随 —— 不在判据里第二次硬编码同一个事实。"
+    },
+    "not_done": {
+      "no_migration": "本轮没有搬迁任何函数（候选为 0）。引入注入机制后的搬迁是下一批的事，需要先把「搬完谁注入谁」的传导链想清楚：搬走 _xxxLib 后它自身也可能成为别人的注入项。",
+      "ruby_phone": "RubyPhone 侧本轮未动（chat-view.js 仍 19628 行）。"
+    }
   }
 }

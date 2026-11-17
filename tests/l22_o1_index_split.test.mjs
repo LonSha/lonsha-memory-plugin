@@ -27,6 +27,7 @@ import { stripComments } from './_audit_lib.mjs';
 import {
   ROOT, linesOf, defCount, bindingCount, checkSingleImplementation, checkByteIdentical,
   checkLazyProbe, checkPureModule, checkFixtures, checkRatchet, compareSurface, functionBody,
+  constInitializer, checkHostSurface,
 } from './audit/scan_index_split.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -70,12 +71,22 @@ const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'u
 const runReal = spawnSync(process.execPath, [GATE], { cwd: ROOT, encoding: 'utf8', timeout: 180000 });
 ok('P1 门禁在真仓上 rc=0 且报「通过」', runReal.status === 0 && /通过/.test(runReal.stdout || ''), 'rc=' + runReal.status + ' ' + String(runReal.stderr || '').slice(0, 300));
 const okLines = String(runReal.stdout || '').split('\n').filter((l) => l.startsWith('OK   [')).length;
-ok('P2 门禁报了 7 关（R1–R7），不是少跑一关', okLines === 7, '实得 ' + okLines + ' 关');
 
 const runJson = spawnSync(process.execPath, [GATE, '--json'], { cwd: ROOT, encoding: 'utf8', timeout: 180000 });
 let gateJson = null;
 try { gateJson = JSON.parse(runJson.stdout); } catch (_e) { gateJson = null; }
-ok('P3 门禁 --json 可机读且七关全 ok', !!gateJson && gateJson.ok === true && gateJson.results.length === 7 && gateJson.results.every((r) => r.ok), gateJson ? JSON.stringify(gateJson.results.map((r) => r.id + ':' + r.ok)) : 'JSON 解析失败');
+
+/* 关数不写死在判据里：门禁加一关就自动跟随。原先这里写死 7（后改 8），扩关当天会假红，
+   逼人再去改数字 —— 那正是本仓治过的「同一事实两处硬编码」。真源是门禁自己的 results。 */
+const gateIds = gateJson ? gateJson.results.map((r) => r.id) : [];
+const gateIdsExpect = gateIds.map((_id, k) => 'R' + (k + 1));
+ok('P2 门禁报的关数 == --json 报的关数，且编号 R1..Rn 连续不跳号',
+  !!gateJson && gateIds.length > 0 && okLines === gateIds.length && gateIds.join(',') === gateIdsExpect.join(','),
+  'stdout ' + okLines + ' 关 / json ' + gateIds.length + ' 关：' + gateIds.join(','));
+
+ok('P3 门禁 --json 可机读且每一关都 ok',
+  !!gateJson && gateJson.ok === true && gateJson.results.length > 0 && gateJson.results.every((r) => r.ok),
+  gateJson ? JSON.stringify(gateJson.results.map((r) => r.id + ':' + r.ok)) : 'JSON 解析失败');
 
 /* 导出面：独立跑一次装载器，不借门禁的读数 */
 const surfaceOut = path.join(os.tmpdir(), 'l22o1_surface_' + process.pid + '.json');
@@ -167,6 +178,51 @@ ok('P25 台账把「为什么不是 16 个」写清楚了（第 4 条判据 + nu
   const hits = (out.match(/REQUIRE_HITS=(\d+)/) || [])[1];
   ok('P26 装载期一次都没 require 过 index-helpers.js（⇒ 25 个函数全部装载期不可达）',
     hits === '0', 'REQUIRE_HITS=' + hits + ' ' + out.slice(-200));
+}
+
+/* ---------- P27-P28 / N14：b3 注入面机制（机制先落地；搬迁用户待装载契约放行） ---------- */
+ok('P27 注入项取值机制可用（constInitializer 从 index.js 取到 _ERROR_HINTS 真值并求值）', (() => {
+  const init = constInitializer(indexText, '_ERROR_HINTS');
+  if (!init) return false;
+  const v = new Function('return (' + init + ');')();
+  return Array.isArray(v) && v.length === 17
+    && v.every((x) => x && x.re instanceof RegExp && typeof x.title === 'string');
+})(), 'constInitializer 取不到，或求值结果不是 17 条带 re/title 的错误规则');
+
+ok('P28 真仓上 R8 自洽（当前没有注入槽 ⇒ 也不许有悬空注入）',
+  checkHostSurface(helpersText, indexText).ok,
+  JSON.stringify(checkHostSurface(helpersText, indexText).problems));
+
+/* N14 两向自证：R8 的三条判据各自都能红。输入是**完全合成的迷你 helpers 文本**，
+ *     既不读也不改真仓 —— 真仓此刻没有 __bindHost（已随 hintForError 整批回滚），
+ *     拿它当基底会让坏用例静默不命中、假红成「都红」。判据走的仍是门禁里的
+ *     checkHostSurface 本体，不是另写一份逻辑。 */
+{
+  const mkHelpers = (slots, injs, bind) => {
+    const L = [];
+    for (const s of slots) L.push('    let ' + s + ' = null;');
+    if (slots.length) L.push('');
+    L.push('    const api = { x: 1 };');
+    L.push('');
+    if (bind) {
+      L.push('    api.__bindHost = function (host) {');
+      for (const i of injs) L.push('        if (host.' + i + ') ' + i + ' = host.' + i + ';');
+      L.push('        return true;');
+      L.push('    };');
+    }
+    return L.join('\n') + '\n';
+  };
+  const callIdx = '    const api = {};\n    _indexHelpersLib.__bindHost({ __tA: 1 });\n';
+  const nocallIdx = '    const api = {};\n    _indexHelpersLib = makeHelpers();\n';
+
+  const r1 = checkHostSurface(mkHelpers(['__tA'], ['__tA'], true), callIdx);
+  const r2 = checkHostSurface(mkHelpers(['__tA'], [], true), callIdx);
+  const r3 = checkHostSurface(mkHelpers([], ['__tA'], true), callIdx);
+  const r4 = checkHostSurface(mkHelpers(['__tA'], ['__tA'], true), nocallIdx);
+
+  ok('N14 R8 两向自证：对齐 ⇒ 绿；缺注入 / 悬空注入 / index.js 没调用 ⇒ 各自红',
+    r1.ok === true && r2.ok === false && r3.ok === false && r4.ok === false,
+    JSON.stringify({ good: r1.ok, noInject: r2.problems, noSlot: r3.problems, noCall: r4.problems }));
 }
 
 /* ---------- N：镜像树上的真源码破坏（证明每一关都会红） ---------- */
