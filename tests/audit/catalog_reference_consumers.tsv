@@ -551,3 +551,4 @@ l23_o5_diag_split.test.mjs		L23-O5 拆片判据（13 条：上界门 / 三处同
 l23_o2_load_surface_zero.test.mjs		L23-O2 装载面零消费判据（11 模块归档后 load_surface_only 真归 0，带四组负控制）
 l23_o3_zero_consumption.test.mjs		L23-O3 零消费归零判据（唯一零消费模块归档，5 组负控制）
 l23_o1_index_layer_blocker.test.mjs		L23-O1 四层拆分前提核验 + 行数天花板重定基（ratchet，两向自证）
+l23_o4_realhost_two_shapes.test.mjs		L23-O4 realhost 读数接门（11 条：两态键面互斥 / 环境态成因面齐 / 跑过态过阈值 / 五组负控制）

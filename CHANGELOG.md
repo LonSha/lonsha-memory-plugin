@@ -1,5 +1,47 @@
 ## v3.474.0
 
+**第二十三期优化九项第五刀（L23-O4）：`realhost` 读数接门 —— 「跑不了」与「跑过」从此**不同形**。**
+
+- **先说这一刀修的是什么**：`tests/audit/realhost_readings.json` 早在盘上，由 `_realhost_suite.mjs` 落盘，
+  但**全仓没有任何门在读它**（消费者 = 0）。它当前的真内容是
+  `verdict: 'environment-unavailable'` / `cause: 'no-st-endpoint'` / `causeGroup: 'env'`，
+  也就是「这次没跑成」。没有门读它 ⇒ 这份读数**说什么都不影响任何判定**；
+  更糟的是它和「真跑过」长在**同一个平铺对象形状**里（都只是 `{verdict, ...}`），
+  于是「跑不了」可以被读成「跑过了，没问题」—— 这正是计划原文要求「两态不同形」要堵的那个洞。
+- **真实交付 ①：判定真源 `tests/audit/_realhost_readings_shape.mjs`（115 行，纯函数）。**
+  - `ENV_ONLY_KEYS`（`cause`/`causeGroup`/`causeAction`/`causeWhy`/`env`/`reason`）与
+    `RAN_ONLY_KEYS`（`blocks`/`readings`/`ok`/`defects`/`pageErrors`）做**键面互斥**：
+    环境态出现跑过态的键 ⇒ 红（「跑不了」伪装成「跑过」）；跑过态出现环境态的键 ⇒ 红（归因混进读数）。
+  - 环境态还必须**成因面齐全**：`cause` ∈ 成因词表、`causeGroup` 与 `cause` 同源、
+    `causeAction` **逐字等于**处置表 `CAUSE_ACTION[cause]` —— 缺 `cause` 的「跑不了」等于没说清为什么。
+  - 跑过态则把平铺读数**还原成三块**（`regroupReadings`）后调 `judgeLoad` / `judgeWrite` / `judgeWorldline`
+    三块**真阈值**，并要求 `ok` / `defects` / `verdict` 三者自洽（`product-defect` 却没有缺陷条目 ⇒ 红）。
+  - **阈值一个都不重写**：`MIN_GLOBALS = 85` 等全部 `import` 自 `_realhost_judge.mjs`；
+    E1 断言连注释外的字面量 `85` 都不得出现，同一事实两处实现是本仓明令禁止的形态。
+- **真实交付 ②：判据 `tests/l23_o4_realhost_two_shapes.test.mjs` **11/11 全绿**
+  （A1 真读数环境态成因面齐 / A2 落盘者唯一 / B1 两态键面互斥 / C1 跑过态三块过阈值 /
+  C2 低于 `MIN_GLOBALS` 必红 / D1–D5 五组负控制 / E1 阈值单一真源）。
+  - **A2 的扫描口径是本刀最值得记的一条**：判「谁写了 `realhost_readings.json`」必须
+    **两件同时成立** —— ① 文件里存在一条绑定/字面量命中该文件名，② `writeFileSync` 的首参就是它。
+    真源码的写法是 `const OUT_JSON = path.join(HERE, 'realhost_readings.json')` +
+    `fs.writeFileSync(OUT_JSON, …)`，**只搜字面量会漏掉真落盘者**（`v21_o1` ⑦ 与 `v3436` 同形态）。
+    另外必须**排除判据自身**（它把这条判定当被测样本写在源码里 ⇒ 不排除就是把元信息当被测对象），
+    并保留**正向对照**：扫描面必须真的看得见 `_realhost_suite.mjs`，看不见就是扫描器坏了，
+    此时「唯一」这个断言没有任何信息量（**空清单不许当绿**）。
+- **首跑 3 红逐条归因（判据侧 3、产品侧 0）**：
+  ① A2 把判据自己也扫成写入者 —— 元信息当被测对象，加自身排除 + 正向对照；
+  ② B1/C1 红在夹具上：worldline 夹具把 `buckets` 写成裸字符串 `era1: 'blocked'`，而真源要求每格是
+  `{bucket, why}` 对象、四格（`era1`/`now`/`beta`/`nolocate`）缺一即红，另需 `epochAdvance.applied === true`
+  —— 夹具照真源形状重写后转绿（红在夹具上等于判据没被测到）；
+  ③ C2 的断言文案只认 `globals` 字面量，而真报错写的是「LonSha* 全局数 84 < 85」⇒ 改按语义认
+  （`/全局数|globals/i`），**不是放宽阈值**，是让断言指向真源的实际措辞。
+- **诚实边界（不许被读成「真机跑过了」）**：本刀**没有**伪造一份 `available` 读数。
+  真实 SillyTavern 现场仍然是 `environment-unavailable`（`cause: no-st-endpoint`，ST 根路径返回 0 = 连接被拒），
+  所以「跑过态过阈值」这条只由**合成夹具**证到（C1 正向 / C2 与 D4/D5 反向），**真机 available 态未验证**。
+  本刀交付的是**门**：从这一版起，这份读数两态不同形且必须自洽，谁想拿它当结论都得先过这把尺子。
+- **连带**：`catalog_reference_consumers.tsv` 补登新套件；`v3459_gates_green` / `v3431` 仍绿；
+  `v3427 #7`（在役扫描器未登记进灵敏度矩阵）仍是**存量红**，与本刀无关（基线树同红）。
+
 **第二十三期优化九项第四刀（L23-O1）：`index.js` 四层拆分的**前提被实测证伪**，改为「行数天花板重定基 + ratchet」。**
 
 - **先说结论，免得被读成「拆完了」**：本项**没有**把 `index.js` 拆成装配/注册/生命周期/事件四层。
