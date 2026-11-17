@@ -14,6 +14,27 @@
 - `memory-core.js` / `memory-organs.js` 的 `sanitizeJson` 逐字副本与宿主失同步 —— v3.469.0 只改了 `index.js` 的结构感知双遍状态机，两份副本仍停在旧实现（1550 词元 vs 2048）。判据 v3264 A6 / v3266 A8 按「副本必须与宿主逐字同源」当场照出。
 - `index.js` 的 `OrganFallback` 缺 `_normalizeModelsPayload` / `_fetchModelsViaProxy` —— v3.471.0 只改了 `memory-organs.js`，退路面没跟上。
 
+**收账补记（同版第二轮，清存量红）**：把全仓审计的 27 档存量红逐族追到根因，14 类根因逐个闭环。
+**真实代码缺陷 3 处（不是读数，改的是产品）**：
+- `index.js` 的 `sanitizeJson` 在 v3.469.0 重写时引入**混用定界回归**：串内「全角/直角开引号 + 直引号收尾」被无条件当裸引号转义，
+  于是 `{"desc": “这是全角引号”， “count": 3}` 这类常见模型输出**永远收不了尾**，整段被当一个未闭合字符串吞掉、`safeJsonParse` 返回 null。
+  修法与该串自身的收尾判据同源：后续第一个非空白是结构位（`, : } ]`）则收尾，否则维持转义（后者保住 `他说 "好" 然后` 这类真·串内裸引号）。
+  ★ 连带把 `memory-core.js` / `memory-organs.js` 两份逐字副本**同步回同源** —— 改完宿主不同步副本，v3264 A6 / v3266 A8 当场翻红，这是判据正常承重。
+- `settings-ui.js` 的 `_syncTabs` 在页签键读不出时会把五个 pane **全数 hide**，用户看到一张空白面板且无任何说明 —— 正是本仓所谓「吞成空」形态；
+  补结构异常时的不动兜底（读不出键就不改可见面）。
+- `settings-ui.js` 的未保存计数块 `_dirtyNow` 写在 `makeSheet(...)` 之前就调用 `overlay.querySelectorAll`，属于 overlay 声明前使用（TDZ 静态判据），整块移后。
+**判据侧真缺陷 1 处**：`tests/audit/scan_module_wiring.mjs` 第 269 行原文声称「consumptionCode 已剥注释由 _audit_lib 负责」，
+  实际**从未调用** `stripComments` —— 注释里写一句 `window.LonShaX` 就算该模块被消费，这是该面唯一剩下的假绿通道；
+  实测同一处还附带假红（注释里的裸 `LonSha` 撞 B3）。改为真调 `_audit_lib.stripComments`，引用面 324 → 322，B5 结构健康 ok。
+**演练 shim 不真 1 处**：`tools/drill_unload.mjs` 的 `fakeElement()` 未建模 `dataset`（Element 的标准属性），
+  `_syncTabs` 读 `activeBtn.dataset.tab` 直接抛错、面板整块打不开；按该文件第 111-114 行同族自伤的同样口径补上（可读可写、稳定同一对象）。
+**锚点/读数重绑（不删判据、不降强度）**：`v3129`（v3.470.0 fail-closed 分级后的新合并行）、`v3152`（判据窗口 `slice(ex, ex+8000)`
+  比真方法体矮 53 字符，改为花括号配平取整体 —— 是加强不是放宽）、`v3467`（extra_js 模块版本是**出生版本自述**，不随抬版同步，
+  三源断言改下界）、`v34230` / `v3459_settings_ui_simplify`（页签 4 → 5，健康页是真实产品面增长；关键控件 `ls-save` 已移到 footerHTML）。
+**台账与基线按纪律重建（零手抄）**：`dead_code_budget` 142132 → 144271（新增 18 件活跃内核共 1141 行，逐件核对 manifest / ledger / load_surface_only）、
+  `extra_js_seam_ledger` 394 模块、`loading_surface_proof` 394 checked、`host_beast_baseline` 入口 13530 → 13546 行（走 `tools/rebind_host_beast_v3472.py`，
+  行上界与成员上界**均不上抬**：余量仍在 slack 内，不抬即是不给增长开口子）、`PLAN.md` 三行 + 当前执行状态口径升到 v3.472.0。
+
 **读数重绑**：`tools/rebind_host_beast.py` 从「硬编码 v3.363.0 + 三个死常量」重写为「从 index.js 真读版号 + 三方互校 + 只准前进 + 落盘前十条自校验」，入口 13201 → 13530 行、成员 1345 → 1559，行上界 13519 → 13930（余量 400 = slack，不跟随实测漂移）、成员上界 1366 → 1589。
 
 ## v3.471.0

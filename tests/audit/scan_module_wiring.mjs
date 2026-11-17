@@ -28,7 +28,7 @@
 import fs from 'fs';
 import vm from 'node:vm';
 import path from 'node:path';
-import { HOST_MODULES } from '../_audit_lib.mjs';
+import { HOST_MODULES, stripComments } from '../_audit_lib.mjs';
 
 const FIXTURE_MODE = process.env.LONSHA_AUDIT_FIXTURE === '1';
 const ROOT = process.env.LONSHA_AUDIT_ROOT || process.cwd();
@@ -226,7 +226,13 @@ if (actuallyProvided.size < MIN_GLOBALS) {
     console.error('[module-wiring] 真加载后仅观测到 ' + actuallyProvided.size + ' 个模块全局（低于下限 ' + MIN_GLOBALS + '），沙箱已退化');
     process.exit(2);
 }
-const entryCode = fs.readFileSync(path.join(ROOT, entry), 'utf8');
+/* [v3.472.0 · 注释不算消费] entryCode 必须**剥注释**再参与判定。
+ *   修前这里是原始文本：第 269 行原话写着「consumptionCode 已剥注释由 _audit_lib 负责」，
+ *   但实际从未调用过 stripComments —— 于是**注释里写一句 `window.LonShaX` 就算该模块被消费**。
+ *   这是本面唯一剩下的假绿通道（实测：在注释里写 `window.LonSha*`，referenced 立刻多两个
+ *   只存在于注释里的符号，其中一个裸 `LonSha` 还当场把 B3 撞红 —— 假红与假绿同源于此）。
+ *   真源是 _audit_lib.stripComments（审计基建唯一实现），不另立去除器。 */
+const entryCode = stripComments(fs.readFileSync(path.join(ROOT, entry), 'utf8'));
 /* [v3.264.0 A1 第五刀] 消费面的真实形态：A1 刀口把类外移后，那些类对其他模块全局符号的 *   消费点**随类一起搬走了**（同一全局作用域、同一插件，仍是真消费）。
  *   若消费面只认入口一个文件，每一刀都会把「真接线」误报成「零消费」——
  *   那是假红，与 B4 想拓的假绿同属「判据量错了对象」。
@@ -255,7 +261,7 @@ const A1_CARRIERS = Array.from(new Set([
     ...HOST_MODULES, ...HOST_FACE_CONSUMERS
 ])).filter((f) => loadOrder.includes(f));
 const consumptionCode = [entryCode].concat(
-    A1_CARRIERS.map((f) => fs.readFileSync(path.join(ROOT, f), 'utf8'))).join(String.fromCharCode(10));
+    A1_CARRIERS.map((f) => stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8')))).join(String.fromCharCode(10));
 const referenced = new Set();
 for (const m of consumptionCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)/g)) referenced.add(m[1]);
 /* [v3.301.0 M-O2 第二刀] 消费面必须认**第二种取库形态**：`this._winModule('LonShaX','Y')`。

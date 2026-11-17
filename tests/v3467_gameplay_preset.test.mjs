@@ -323,18 +323,22 @@ function vnum(s) {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
     return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
 }
-test('v3467 F0. 当版锚：三源版本经 vnum 恰好落在 3.467.0（防「抄对号码但脱离真源」）', () => {
-    assert.equal(vnum(CUR), 3467000, '★ 当版锚点');
+test('v3467 F0. 三源版本都不低于本档出生版本 3.467.0（下界锚，抬版不跟着变）', () => {
+    assert.equal(vnum(CUR), 3467000, '★ 本档出生版本锚点（抬版不跟着变）');
     const mf = MANIFEST.version, pk = PKG.version, ix = (/const VERSION\s*=\s*'([^']+)'/.exec(IDX_SRC) || [])[1];
-    assert.equal(vnum(mf), vnum(CUR), 'manifest 版本必须与当版锚同值，实：' + mf);
-    assert.equal(vnum(pk), vnum(CUR), 'package 版本必须与当版锚同值，实：' + pk);
-    assert.equal(vnum(ix), vnum(CUR), 'index.js VERSION 必须与当版锚同值，实：' + ix);
+    /* [v3.472.0 交棒] 三源与模块版本下界锚：修前这里是 `assert.equal(vnum(mf), vnum(CUR))` —— 把
+     *   「当版」写进历史文件，抬版即翻红（scan_version_guard V2 当场点名四处）。按本仓交棒口径
+     *   （同 v285/v286/v287/v3226/v3227）改为下界：历史测试只锁自己的出生版本，不承诺现版。
+     *   模块自身 VERSION（gameplay-preset.js 的 3.467.0）是**出生版本自述**，与抬版无关，仍等值锁。 */
+    assert.ok(vnum(mf) >= vnum(CUR), 'manifest 版本不得低于本档出生版本，实：' + mf);
+    assert.ok(vnum(pk) >= vnum(CUR), 'package 版本不得低于本档出生版本，实：' + pk);
+    assert.ok(vnum(ix) >= vnum(CUR), 'index.js VERSION 不得低于本档出生版本，实：' + ix);
 });
-test('v3467 F1. 模块版本锚 = 3.467.0，且与 index.js 一致', () => {
-    assert.strictEqual(P.VERSION, '3.467.0', 'gameplay-preset 版本锚');
+test('v3467 F1. 模块版本锚 = 本档出生版本 3.467.0，且宿主不低于它', () => {
+    assert.strictEqual(P.VERSION, '3.467.0', 'gameplay-preset 版本锚（出生版本自述，不随抬版改）');
     const m = IDX_SRC.match(/const VERSION\s*=\s*'([^']+)'/);
     assert.ok(m, 'index.js 必须有 VERSION 常量');
-    assert.strictEqual(m[1], '3.467.0', 'index.js 版本必须与本版一致，实：' + m[1]);
+    assert.ok(vnum(m[1]) >= vnum(CUR), 'index.js 版本不得低于本档出生版本，实：' + m[1]);
 });
 test('v3467 F2. manifest.extra_js 必须登记 gameplay-preset.js（否则宿主不装载）', () => {
     const list = MANIFEST.extra_js || [];

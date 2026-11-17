@@ -232,15 +232,32 @@ test('【5】感知配额：computeRecallQuota 接线与数据源', () => {
 
 // ================= 6. 提取管线登记到词典（查询端数据来源） =================
 test('【6】提取产物登记词典（surface 化，查询端单真源）', () => {
+    /* [v3.472.0 重锤·窗口改真方法体] 修前用固定窗口 src.slice(ex, ex + 8000)。
+     *   这个窗口已三次被真实增长顶破（6400 → 8000 → 本轮实测真方法体 8053 字符），
+     *   而超窗口不是「文本变了」而是「判据看不到」—— 断言会以『图节点别名集合』翻红，
+     *   信息量却是错的（锚确实在场，在窗口外）。固定窗口这种形态本身就是本仓治过的
+     *   「判据面比真源短」的病。故改为取**真方法体**：从签名起到花括号配平为止，
+     *   之后不再随方法变长而假红。这比原窗口更强（不再漏掉方法尾部的任何一行）。 */
     const ex = src.indexOf('async extractMemoryWithLLM(message) {');
     assert.ok(ex > 0, '提取方法存在');
-    // [v3.184] 窗口由 6400 提到 8000：提示词填充改走 fuzzy-patch（patchTokens）后方法体变长，
-    //   原窗口恰好切在条款边界内（下方 patchTokens 断言因此曾取不到）。
-    const seg = src.slice(ex, ex + 8000);
+    const _open = src.indexOf('{', ex);
+    let _d = 0, _end = -1;
+    for (let i = _open; i < src.length; i++) {
+        if (src[i] === '{') _d++;
+        else if (src[i] === '}') { _d--; if (_d === 0) { _end = i; break; } }
+    }
+    assert.ok(_end > _open, '提取方法的花括号必须配平（配不平则判据无法定位真方法体）');
+    const seg = src.slice(ex, _end + 1);
     assert.ok(seg.includes('this.lexicon.resolve('), '提取产物 resolve 登记');
     // 别名通道同步喂图（省一轮 LLM）
     assert.ok(seg.includes('const node = [...this.graph.nodes.values()].find'), '别名喂图按节点查找');
-    assert.ok(seg.includes("(node.data?.aliases || [])"), '图节点别名集合');
+    /* [v3.472.0 重锤·锚随真源搬家] 修前锤 `(node.data?.aliases || [])` 这个裸表达式。
+     *   真源现在是 `const cur = new Set(node.data?.aliases || []); if (!cur.has(alias)) {…}`
+     *   （去重后再写回，上限 8）—— 别名仍从**图节点**取、仍写回同一节点，语义没变；
+     *   故锚点改为能同时被两种写法命中的「从节点读 aliases」形态，判据不删不弱：
+     *   既要求 node.data?.aliases 在场，也要求写回落到 node.data。 */
+    assert.ok(/node\.data\??\.aliases/.test(seg), '图节点别名集合（从节点读 aliases）');
+    assert.ok(/node\.data = \{/.test(seg), '别名必须写回同一图节点（不是只读不写）');
     // [v3.184] 占位符填充改走 fuzzy-patch：{{LORE}}/{{ROLE_COUNT}} 必须经 patchTokens 落
     //   （字面 replace 在占位符被写成全角/带空格形态时零命中，且无日志）。
     assert.ok(seg.includes('patchTokens'), '占位符经宽容匹配填充');

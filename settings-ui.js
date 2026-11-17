@@ -3713,6 +3713,30 @@
                 </div>
             `;
 
+            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 设置', body, {
+                footerHTML: '<span class="ls-dirty-count" id="ls-dirty-count">已修改 0 项</span>'
+                    + '<button type="button" class="ls-btn" id="ls-dirty-reset">还原</button>'
+                    + '<button type="button" class="ls-btn ls-btn-primary" id="ls-save">保存并继续</button>',
+                beforeClose: () => {
+                    const n = _dirtyNow();
+                    if (n <= 0 || _confirming) return true;
+                    /* 弹面板内确认条：不用原生 confirm()（移动端体验差且不可样式化）。 */
+                    _confirming = true;
+                    const bar = overlay.querySelector('.ls-dirtybar');
+                    if (bar && !bar.querySelector('.ls-confirm-inline')) {
+                        const tip = document.createElement('div');
+                        tip.className = 'ls-confirm-inline';
+                        tip.innerHTML = '<span>放弃这 ' + n + ' 项修改？</span>'
+                            + '<button type="button" class="ls-btn" id="ls-confirm-back">回去保存</button>'
+                            + '<button type="button" class="ls-btn" id="ls-confirm-drop">放弃</button>';
+                        bar.appendChild(tip);
+                        tip.querySelector('#ls-confirm-back').addEventListener('click', () => { _confirming = false; tip.remove(); });
+                        tip.querySelector('#ls-confirm-drop').addEventListener('click', () => { _confirming = false; closeOverlay('lonsha-settings-overlay'); });
+                    }
+                    return false;
+                }
+            });
+
             /* [v3.472.0 · L22 UI] 未保存计数与关闭拦截：
              *   修前改了二十个滑块后误触遮罩 = 全丢。现在底栏实时报数，
              *   关闭动作先问一句（用面板内确认条，不用原生 confirm）。 */
@@ -3750,30 +3774,7 @@
                 } catch (e) { /* 读不到就当无改动，绝不阻塞关闭 */ }
                 return n;
             };
-            let _confirming = false;
-            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 设置', body, {
-                footerHTML: '<span class="ls-dirty-count" id="ls-dirty-count">已修改 0 项</span>'
-                    + '<button type="button" class="ls-btn" id="ls-dirty-reset">还原</button>'
-                    + '<button type="button" class="ls-btn ls-btn-primary" id="ls-save">保存并继续</button>',
-                beforeClose: () => {
-                    const n = _dirtyNow();
-                    if (n <= 0 || _confirming) return true;
-                    /* 弹面板内确认条：不用原生 confirm()（移动端体验差且不可样式化）。 */
-                    _confirming = true;
-                    const bar = overlay.querySelector('.ls-dirtybar');
-                    if (bar && !bar.querySelector('.ls-confirm-inline')) {
-                        const tip = document.createElement('div');
-                        tip.className = 'ls-confirm-inline';
-                        tip.innerHTML = '<span>放弃这 ' + n + ' 项修改？</span>'
-                            + '<button type="button" class="ls-btn" id="ls-confirm-back">回去保存</button>'
-                            + '<button type="button" class="ls-btn" id="ls-confirm-drop">放弃</button>';
-                        bar.appendChild(tip);
-                        tip.querySelector('#ls-confirm-back').addEventListener('click', () => { _confirming = false; tip.remove(); });
-                        tip.querySelector('#ls-confirm-drop').addEventListener('click', () => { _confirming = false; closeOverlay('lonsha-settings-overlay'); });
-                    }
-                    return false;
-                }
-            });
+
             const PROFILE_HELP = {
                 balanced: '每 3 条 AI 回复整理一次，适合大多数故事。',
                 quality: '每条 AI 回复都整理，记录更及时，接口用量也更高。',
@@ -3941,6 +3942,18 @@
                     if (Array.isArray(r.split && r.split.plan)) {
                         lines.push('split.plan: ' + r.split.plan.map(x => x.name + '=' + x.weight + '/' + x.budget + (x.over ? '!over' : '')).join(', '));
                     }
+                    /* [v3.472.0 · L22] 装配点自检的**真实消费点**（不是只定义）。
+                     *   为什么要接在这里：十八件内核走的是 `window.LonSha*` + `_moduleLib` 惰性取，
+                     *   任何一件 extra_js 申明漏了、脚本没加载、selfCheck 抱死，宿主都不会报错，
+                     *   只会让读数静默回落成 absent。若无出口，「只加载不消费」会在这个仓里重现。
+                     *   放开发者折叠区而非玩家卡：这是装配缺陷，不是玩家的数据问题；
+                     *   但必须**可展开、可截图**，否则没人会发现它。 */
+                    try {
+                        const ks = this.engine.r22KernelSelfChecks();
+                        const bad = ks.filter((x) => !x.ok);
+                        lines.push('kernels: ' + (ks.length - bad.length) + '/' + ks.length + ' ok'
+                            + (bad.length ? ' · 缺席/坏: ' + bad.map((x) => x.name + (x.absent ? '(absent)' : x.threw ? '(threw)' : '(selfCheck false)')).join(', ') : ''));
+                    } catch (e) { lines.push('kernels: 自检不可用 ' + String(e && e.message || e)); }
                     devEl.textContent = lines.join('\n');
                 }
             };
@@ -3970,7 +3983,12 @@
                     b.setAttribute('aria-selected', on ? 'true' : 'false');
                     b.setAttribute('tabindex', on ? '0' : '-1');
                 });
-                const tab = activeBtn.dataset.tab;
+                /* [v3.472.0 · L22 UI] 读不出页签键时**不得把五个 pane 全藏掉**：
+                 *   那是「吞成空」的形态（用户看到一张空白面板，且没有任何说明）。
+                 *   控件本身没有 data-tab 属于结构异常，此时保持现有可见面不动，
+                 *   比静默把界面清空更接近「降级成可用」。 */
+                const tab = (activeBtn.dataset && activeBtn.dataset.tab) || '';
+                if (!tab) return;
                 overlay.querySelectorAll('.ls-tab-pane').forEach(p => {
                     const on = (p.dataset.tabPane === tab);
                     p.classList.toggle('active', on);

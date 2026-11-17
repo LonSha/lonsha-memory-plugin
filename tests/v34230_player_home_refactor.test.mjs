@@ -93,13 +93,17 @@ test('v34230 C. 组标题全面玩家语言', () => {
      *   四个 tab 必须各自覆盖「上手」「人物与故事」「存档与调校」「高级」四个面，
      *   **面必须在，措辞不锁**；另加：必须恰好四个、不许黑话回流。 */
     const tabRows = [...SUI.matchAll(/data-tab="([a-z]+)">([^<]+)</g)].map((m) => ({ key: m[1], label: m[2].trim() }));
-    assert.strictEqual(tabRows.length, 4, '必须恰好四个 tab（实测 ' + JSON.stringify(tabRows.map(r => r.label)) + '）');
-    assert.deepStrictEqual(tabRows.map(r => r.key), ['general', 'narrative', 'retrieval', 'advanced'],
-        '四个 tab 的 data-tab 键序固定（键是结构契约，不随文案改）');
+    /* [v3.472.0 重绑 4 → 5] v3.472.0 按玩家动线新增了第五个页签「🩺 记忆健康」（R22 十八项读数
+     *   的玩家出口）—— 这是真实的产品面增长，不是文案改名。判据随之重绑，钉的仍是**结构契约**：
+     *   页签数、键序、每键的语义面、不许黑话回流。再增一个页签就再翻红一次，属预期。 */
+    assert.strictEqual(tabRows.length, 5, '必须恰好五个 tab（实测 ' + JSON.stringify(tabRows.map(r => r.label)) + '）');
+    assert.deepStrictEqual(tabRows.map(r => r.key), ['general', 'narrative', 'health', 'retrieval', 'advanced'],
+        '五个 tab 的 data-tab 键序固定（键是结构契约，不随文案改）');
     /* 每个 tab 各有自己的语义面：按 key 绑面，不按文案绑 */
     const FACE = {
         general: /开始|上手|基础|快速/,
         narrative: /人物|角色|故事/,
+        health: /健康|状态|体检/,
         retrieval: /备份|调校|设置|存档|迁移/,
         advanced: /高级|实验|进阶/,
     };

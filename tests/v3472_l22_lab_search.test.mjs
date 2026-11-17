@@ -1,5 +1,4 @@
-/**
- * v3.472.0 — 实验室页签：任务分组、搜索、配置键唯一性
+/* tests/v3472_l22_lab_search.test.mjs — v3.472.0：实验室页签的任务分组、搜索与配置键唯一性
  *
  * 这组判据锁两个容易回归的事实：
  *   ① 实验室搜索必须是可执行接线，不是只有一个装饰 input；
@@ -56,4 +55,16 @@ test('实验室重组不改变通用保存契约', () => {
   assert.match(src, /overlay\.querySelectorAll\('\[data-cfg-num\]'\)/, '数值保存入口缺失');
   assert.match(src, /overlay\.querySelectorAll\('\[data-cfg-text\]'\)/, '文本保存入口缺失');
   assert.match(src, /role="tabpanel"[^>]*id="ls-pane-advanced"/, '实验室必须仍是 tabpanel');
+});
+
+/* [v3.472.0 · 版本锚] 当版锚点必须住在**当版套件**里（写进历史文件会被 scan_version_guard V2 抓）。
+ *   本档是本版新建、且头部自述 v3.472.0，故是当版档案；抬版时锚点随本档交棒给下一版的 frontier。
+ *   为何用 `vnum` 数值形而非串相等：V4 的计数口径只认 vnum（见 scan_version_guard 段头）。 */
+test('版本锚：本套件只在 v3.472.0 及以后成立', () => {
+  const vnum = (v) => Number(String(v).split('.').reduce((a, x) => a * 1000 + Number(x), 0));
+  const idx = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
+  const ver = (/const VERSION = '([^']+)'/.exec(idx) || [])[1];
+  assert.ok(ver, 'index.js 里必须有 const VERSION');
+  assert.equal(vnum('3.472.0'), 3472000, '当版锚点');
+  assert.ok(vnum(ver) >= vnum('3.472.0'), '版本必须不低于本版下限 3.472.0，实为 ' + ver);
 });

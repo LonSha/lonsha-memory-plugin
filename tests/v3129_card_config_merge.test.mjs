@@ -76,8 +76,14 @@ test('v3.129 载入与切换角色接线', () => {
      *   入口段在前、模块段在后；iLoad 取入口、iSaved 取模块，比较仍是「同一次 loadConfig 内」。 */
     const iLoad = cfgModSrc.indexOf('this._applyCardOverrides();');
     assert.ok(iLoad > 0, 'loadConfig 接线存在');
-    const iSaved = cfgModSrc.indexOf("if (saved) this.config = {...this.config, ...JSON.parse(saved)};");
-    assert.ok(iSaved > 0 && iLoad > iSaved, '卡覆盖发生在全局层合并之后');
+    /* [v3.472.0 重锤·锚随真源搬家] 修前锤的是 `if (saved) this.config = {...JSON.parse(saved)};`
+     *   单行形态。v3.470.0 把这里改成了 fail-closed 分级（损坏 ⇒ _configReadOnly 只读保护，
+     *   原串保留不再被首次 saveConfig 覆盖），于是合并落到 try 内先解析后展开的两行上。
+     *   语义没变（角色卡覆盖仍必须在**全局层合并之后**），故只换锚点、不删判据：
+     *   新锚取「全局层展开」那一行，仍是同一个 loadConfig 体内、仍是严格次序比较。 */
+    const iSaved = cfgModSrc.indexOf('this.config = {...this.config, ...parsed};');
+    assert.ok(iSaved > 0, '全局层合并行必须在场（loadConfig 内的 localStorage 合并）');
+    assert.ok(iLoad > iSaved, '卡覆盖发生在全局层合并之后');
     // CHAT_CHANGED 事件重放
     assert.match(src, /this\.engine\.config\?\._applyCardOverrides\?\.\(\)/);
 });

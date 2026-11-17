@@ -101,9 +101,17 @@ if (notInOrder.length) drift('指定要摘的模块不在 manifest.extra_js 里�
 /* ---------- 2. 沙箱（与 tests 里既有的 buildSandbox 同形，不另立一套） ---------- */
 const noop = () => {};
 function fakeElement() {
+    /* dataset 是**每个 Element 都有的标准属性**，不是本仓自造的面。
+     *   修前这里没建模它：settings-ui 的 _syncTabs 读 activeBtn.dataset.tab 直接
+     *   Cannot read properties of undefined (reading tab)，面板整块抛错 ——
+     *   与第 111-114 行记录的同族自伤一样，是 shim 不真，不是产品坏了。
+     *   真 dataset 是**可读可写**的（settings-ui:333 写 el.dataset.lsHardened），
+     *   故用一个稳定的对象承载，读写都落在同一处。 */
+    let _ds = null;
     return new Proxy({}, {
         get: (t, k) => {
             if (k === 'style') return {};
+            if (k === 'dataset') { if (!_ds) _ds = {}; return _ds; }
             if (k === 'classList') return { add: noop, remove: noop, toggle: noop, contains: () => false };
             if (typeof k === 'symbol') return undefined;
             if (['appendChild', 'removeChild', 'remove', 'addEventListener', 'removeEventListener',

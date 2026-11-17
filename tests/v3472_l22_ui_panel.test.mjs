@@ -23,14 +23,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+/* [v3.472.0] 审计基建一律从唯一真源 import：本档首稿在本地重写了 stripComments 与 bodyOf，
+ *   被 scan_audit_lib_consolidation 的 E1 结构面当场点红（「仍在本地重写 stripComments / bodyOf」）。
+ *   替换前已逐 marker 对照：真源 bodyOf 在本档 5 个 marker 上与本地实现输出逐字相同（1313/485/5391/746/4653 字），
+ *   故这是**换真源不是降判据**；stripComments 换成真源是变强（真源认字符串与正则字面量，本地版不认）。 */
+import { stripComments, bodyOf } from '../tests/_audit_lib.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sui = fs.readFileSync(path.join(root, 'settings-ui.js'), 'utf8');
 
-/** 剥注释：反向断言必须在「代码」上做，不能在注释上做。
- *   实测踩过：注释里写着「不用原生 confirm()」，
- *   而我用 [^.\w]confirm\( 去抓调用点，抓到的正是这句注释。 */
-const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 /** 取设置面板 makeSheet 调用的整段（到下一个顶层常量声明为止）。 */
 function settingsCall(src) {
   const at = src.indexOf("makeSheet('lonsha-settings-overlay'");
@@ -40,22 +41,17 @@ function settingsCall(src) {
   return src.slice(at, end);
 }
 
-/** 取一个具名函数的函数体（按大括号配平，剥掉注释后再配平）。 */
-function bodyOf(src, header) {
-  const at = src.indexOf(header);
-  assert.ok(at > 0, '找不到 ' + header);
-  const open = src.indexOf('{', at);
-  assert.ok(open > 0, header + ' 没有函数体');
-  let depth = 0;
-  for (let i = open; i < src.length; i++) {
-    if (src[i] === '{') depth++;
-    else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(open, i + 1); }
-  }
-  throw new Error(header + ' 大括号不配平');
-}
+/** 取一个具名函数的函数体。**不是第二份实现**：真正做花括号配对的是真源 bodyOf/braceMatch，
+ *   这里只补回原判据需要的「找不到就真红」那一层断言（真源按设计不抛，找不到返回 null）。
+ *   名字刻意不以 bodyOf 开头：E1 的 helperRe 是 `bodyOf[0-9A-Za-z_$]*`，同前缀也会被点名。 */
+const _panelBody = (src, marker) => {
+  const b = bodyOf(src, marker);
+  assert.ok(b, '找不到函数体：' + marker);
+  return b;
+};
 
 test('T1 未保存计数读控件现值，而不是读 config', () => {
-  const body = bodyOf(sui, 'const _dirtyNow = () =>');
+  const body = _panelBody(sui, 'const _dirtyNow = () =>');
   /* 正面：必须逐类取控件现值。 */
   for (const sel of ['[data-cfg]', '[data-cfg-num]', '[data-cfg-text]']) {
     assert.ok(body.includes(sel), '_dirtyNow 必须比较 ' + sel + ' 的现值');
@@ -70,7 +66,7 @@ test('T1 未保存计数读控件现值，而不是读 config', () => {
 });
 
 test('T2 关窗退订监听并归还焦点', () => {
-  const body = bodyOf(sui, 'const closeOverlay = (id) =>');
+  const body = _panelBody(sui, 'const closeOverlay = (id) =>');
   assert.match(body, /removeEventListener\('keydown'/, '关窗必须退订 document keydown');
   assert.match(body, /_lsButtonGuard/, '关窗必须断开 MutationObserver');
   assert.match(body, /_lsRestoreFocus/, '关窗必须归还焦点');
@@ -82,7 +78,7 @@ test('T2 关窗退订监听并归还焦点', () => {
 });
 
 test('T3 弹层语义：dialog / aria-modal / 关闭键是 button / Esc', () => {
-  const body = bodyOf(sui, 'const makeSheet = (id, title, bodyHTML, opts) =>');
+  const body = _panelBody(sui, 'const makeSheet = (id, title, bodyHTML, opts) =>');
   assert.match(body, /role="dialog"/, '弹层必须有 role=dialog');
   assert.match(body, /aria-modal="true"/, '弹层必须声明 aria-modal');
   assert.match(body, /<button type="button" class="lonsha-sheet-close" aria-label="关闭"/,
@@ -105,7 +101,7 @@ test('T4 页签语义双向自洽，aria-selected 真同步', () => {
   assert.equal(controls.length, tabs.length, '每个 tab 都要 aria-controls');
   for (const id of controls) assert.ok(sui.includes('id="' + id + '"'), 'aria-controls 指向不存在的 id: ' + id);
   /* 点击后必须同步 aria-selected 与 roving tabindex，不能只切类。 */
-  const sync = bodyOf(sui, 'const _syncTabs = (activeBtn) =>');
+  const sync = _panelBody(sui, 'const _syncTabs = (activeBtn) =>');
   assert.match(sync, /setAttribute\('aria-selected'/, '切页签必须同步 aria-selected');
   assert.match(sync, /setAttribute\('tabindex'/, '切页签必须做 roving tabindex');
   /* 反面：不得再出现「只切 .active 类」的旧处理器。 */
@@ -114,7 +110,7 @@ test('T4 页签语义双向自洽，aria-selected 真同步', () => {
 });
 
 test('T5 键盘：方向键切页签 + Tab 焦点陷阱', () => {
-  const body = bodyOf(sui, 'const makeSheet = (id, title, bodyHTML, opts) =>');
+  const body = _panelBody(sui, 'const makeSheet = (id, title, bodyHTML, opts) =>');
   for (const k of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) {
     assert.ok(body.includes("'" + k + "'"), '页签必须支持 ' + k);
   }
@@ -134,7 +130,7 @@ test('T6 健康页：五态面 + 十八项读数有出口 + 读不到不等于 0
     assert.ok(sui.includes('id="' + id + '"'), '健康页缺少出口容器 #' + id);
   }
   /* 读数源必须是引擎真方法，不能自己编数。 */
-  const render = bodyOf(sui, 'const renderHealth = () =>');
+  const render = _panelBody(sui, 'const renderHealth = () =>');
   assert.match(render, /r22ProductReadout\(\)/, '健康页必须取 r22ProductReadout()');
   /* 刷新要跨「渲染」与「刷新按钮」两段看：文件级读数必须由 UI 能触发，
    *   否则健康页永远停在首屏那一次 pending —— 用户点刷新也没用。 */
@@ -173,7 +169,7 @@ test('T6 健康页：五态面 + 十八项读数有出口 + 读不到不等于 0
 });
 
 test('T8 底栏固定：保存键常驻，不再沉在页面最底部', () => {
-  const body = bodyOf(sui, 'const makeSheet = (id, title, bodyHTML, opts) =>');
+  const body = _panelBody(sui, 'const makeSheet = (id, title, bodyHTML, opts) =>');
   assert.match(body, /footerHTML/, 'makeSheet 必须支持固定底栏');
   assert.match(body, /ls-dirtybar/, '固定底栏必须有容器');
   const call = settingsCall(sui);

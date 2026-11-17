@@ -114,7 +114,23 @@ let sanitizeJson = function sanitizeJson(raw) {
                         }
                         inStr = false; out += '"'; continue;  // 全角/直角关引号 → 结构位 "
                     }
-                    if (closer !== '"' && ch === '"') { out += '\\\"'; continue; }  // 直角/弯引号串内的直引号
+                    /* [v3.472.0 修·混用定界] «弯/直角开引号 + 直引号收尾» 的混用形态。
+                     *   修前本行无条件把串内直引号当「裸引号」转义，于是 `“count"` 这类写法永远收不了尾，
+                     *   整段被当成一个未闭合字符串吞掉（实测 v344 的 raw4 当场解析成 null）。
+                     *   判法与该串自己的收尾判据同源：后面第一个非空白是结构位 ⇒ 它就是收尾。
+                     *   为什么不一律收尾：`他说 "好" 然后` 这类真·串内裸引号必须继续转义保留，
+                     *   那正是 v3.469.0 修过的形态，两者只能按后续字符分。 */
+                    if (closer !== '"' && ch === '"') {
+                        let nextNS = '';
+                        for (let j = i + 1; j < s.length; j++) {
+                            const nc = s[j];
+                            if (nc !== ' ' && nc !== '\t' && nc !== '\n' && nc !== '\r') { nextNS = nc; break; }
+                        }
+                        if (!nextNS || nextNS === ',' || nextNS === ':' || nextNS === '}' || nextNS === ']') {
+                            inStr = false; out += '"'; continue;
+                        }
+                        out += '\\"'; continue;
+                    }
                     out += ch;   // 字符串内部：原样保留（含 ，：；‘’“”「」）
                     continue;
                 }

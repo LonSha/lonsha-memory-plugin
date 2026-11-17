@@ -2,9 +2,9 @@
  "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
  "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
  "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
- "ceiling": 142132,
+ "ceiling": 144271,
  "maxSlack": 400,
- "note": "[v3.467.0] 同版收紧 1 行：ceiling 142133 -> 142132。原因不是「抬不动就降」——是同版内先把 v21_o5 的本地破坏重写收编到唯一真源（净 -3 行），实测总量随之从 141733 降到 141732， 于是原先的 +400 余量变成 401、越过 maxSlack 上界。纪律要求「余量过大等于没守」， 故按实测收紧到 141732 + maxSlack 400 = 142132。收紧比抬升更严格，不改判据强度。",
+ "note": "[v3.472.0] 第二十二期 L22/R22 收口 + v3.471.0 模型列表三级降级：新增 18 件活跃内核（catalog-registration / evidence-substitute-chain / frozen-freshness / future-letter / injection-receipt-facets / load-surface-disposition / memory-archive-pack / memory-capsule / memory-checkup / memory-giant-file-split-plan / memory-map / memory-timeline / multi-char-memory-isolation / realhost-verdict / relation-milestone / sleep-consolidation / view-openability / write-only-scan，共 1141 行），全部登记进 manifest.extra_js、module_consumption_ledger 标 active 且 load_surface_only=false，并在宿主 r22ProductReadout() 真实消费；增长另来自 index.js 接线面 +332、settings-ui.js 面板骨架 +492、memory-organs.js LLMCaller 三级降级 +208。已逐件核对：无一件是死代码回流，无「只被加载不被调用」的登记项，未把没跑到写进台账。实测 141732 -> 143871（+2139），故 ceiling 按唯一算式 measured + maxSlack 抬到 144271。",
  "history": [
   {
    "ceiling": 21000,
@@ -445,7 +445,11 @@
   {
    "ceiling": 142132,
    "reason": "[v3.467.0] 同版收紧 1 行：ceiling 142133 -> 142132。原因不是「抬不动就降」——是同版内先把 v21_o5 的本地破坏重写收编到唯一真源（净 -3 行），实测总量随之从 141733 降到 141732， 于是原先的 +400 余量变成 401、越过 maxSlack 上界。纪律要求「余量过大等于没守」， 故按实测收紧到 141732 + maxSlack 400 = 142132。收紧比抬升更严格，不改判据强度。"
+  },
+  {
+   "ceiling": 144271,
+   "reason": "[v3.472.0] 第二十二期 L22/R22 收口 + v3.471.0 模型列表三级降级：新增 18 件活跃内核（catalog-registration / evidence-substitute-chain / frozen-freshness / future-letter / injection-receipt-facets / load-surface-disposition / memory-archive-pack / memory-capsule / memory-checkup / memory-giant-file-split-plan / memory-map / memory-timeline / multi-char-memory-isolation / realhost-verdict / relation-milestone / sleep-consolidation / view-openability / write-only-scan，共 1141 行），全部登记进 manifest.extra_js、module_consumption_ledger 标 active 且 load_surface_only=false，并在宿主 r22ProductReadout() 真实消费；增长另来自 index.js 接线面 +332、settings-ui.js 面板骨架 +492、memory-organs.js LLMCaller 三级降级 +208。已逐件核对：无一件是死代码回流，无「只被加载不被调用」的登记项，未把没跑到写进台账。实测 141732 -> 143871（+2139），故 ceiling 按唯一算式 measured + maxSlack 抬到 144271。"
   }
  ],
- "_history_last": "ceiling 140053 → 142133（实测 141733 + slack 400）：[v3.467.0] 第二十一期 X 面八件读层内核（v3.465.3 v21_x1 防御叙事 / v3.465.4 X2 伏笔时机 / v3.465.5 X3 默契暗号 / v3.465.6 X4 创伤防线 / v3.465.7 X5 传闻溯源 / v3.465.8 X6 日常证据 / v3.465.9 X7 世界线草稿审计 / v3.466.0 X8 操作回声 / v3.466.1 X9 话题缺席归因）+ 本版两件新内核（local-ngram-vectorizer.js 293 行本地向量器 / gameplay-preset.js 245 行玩法流派档）全部登记进 manifest.extra_js 并在宿主接线（extra_js 374 -> 376，总模块 377），并按判据逐件配了读面判据。增长全为活跃功能面，无死代码回流：本轮同时把 _localVector 独立方法删除（改内联降级），新增行数来自真实能力而非分行。"
+ "_history_last": "ceiling 142132 → 144271（实测 143871 + slack 400）：[v3.472.0] 第二十二期 L22/R22 收口 + v3.471.0 模型列表三级降级：新增 18 件活跃内核（catalog-registration / evidence-substitute-chain / frozen-freshness / future-letter / injection-receipt-facets / load-surface-disposition / memory-archive-pack / memory-capsule / memory-checkup / memory-giant-file-split-plan / memory-map / memory-timeline / multi-char-memory-isolation / realhost-verdict / relation-milestone / sleep-consolidation / view-openability / write-only-scan，共 1141 行），全部登记进 manifest.extra_js、module_consumption_ledger 标 active 且 load_surface_only=false，并在宿主 r22ProductReadout() 真实消费；增长另来自 index.js 接线面 +332、settings-ui.js 面板骨架 +492、memory-organs.js LLMCaller 三级降级 +208。已逐件核对：无一件是死代码回流，无「只被加载不被调用」的登记项，未把没跑到写进台账。实测 141732 -> 143871（+2139），故 ceiling 按唯一算式 measured + maxSlack 抬到 144271。"
 }

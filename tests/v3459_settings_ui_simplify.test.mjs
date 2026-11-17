@@ -32,10 +32,16 @@ test('当版锚点：版本与四源同源', () => {
     assert.equal(JSON.parse(read('package.json')).version, cur);
 });
 
-test('四个标签页按玩家动线重划、各自独立闭合', () => {
+test('五个标签页按玩家动线重划、各自独立闭合', () => {
     const body = settingsBody();
-    const panes = [...body.matchAll(/<div class="ls-tab-pane[^"]*" data-tab-pane="([a-z]+)"/g)].map(m => m[1]);
-    assert.deepEqual(panes.sort(), ['advanced', 'general', 'narrative', 'retrieval']);
+    /* [v3.472.0] 正则放宽为「同一个 div 开标签里同时有 ls-tab-pane 与 data-tab-pane」，
+     *   不再要求两个属性相邻：本版给 pane 补了 role=tabpanel / id 的可访问性属性（L22 UI 面板），
+     *   属性序变了而语义没变。放宽的是**属性顺序**，不是 pane 集合 —— 下面仍逐键校验。 */
+    const panes = [...body.matchAll(/<div\b[^>]*class="ls-tab-pane[^"]*"[^>]*data-tab-pane="([a-z]+)"/g)].map(m => m[1]);
+    /* [v3.472.0 重绑 4 → 5] v3.472.0 新增第五个页签 pane「记忆健康」（R22 十八项读数的玩家出口）。
+     *   这是真实产品面增长：pane 与 tab 必须一一对应（本档 A 段下面还判了键序与语义面），
+     *   故按实际面重绑集合，不删任何既有成员。 */
+    assert.deepEqual(panes.sort(), ['advanced', 'general', 'health', 'narrative', 'retrieval']);
     // 每个面板开标签出现时 div 深度都应为 1（彼此独立，不再嵌套）
     let depth = 0;
     const before = {};
@@ -56,14 +62,26 @@ test('学术参数默认折叠、开箱即用文案在场、控件契约零丢�
     const body = settingsBody();
     assert.ok((body.match(/<details/g) || []).length >= 2, '进阶/高级参数必须默认折叠');
     assert.ok(body.includes('开箱即用'), '首屏必须有开箱即用指引');
-    assert.ok(body.includes('高级实验室'), '学术参数必须归入高级实验室');
+    /* [v3.472.0 重绑·文案不锁] 修前这条硬锁文案「高级实验室」，而本版把它改成了
+     *   「🧪 底层算法实验室」（页签文案也简化为「🧪 实验室」）。按本档自己那条纪律
+     *   （v3.465.2 修正：面必须在、措辞不锁）改锤语义面：高级 pane 必须在场，
+     *   且它内部必须有 <details> 折叠区与「实验室」字样 —— 学术参数归入折叠实验室，这个面没变。 */
+    const advPane = body.slice(body.indexOf('data-tab-pane="advanced"'));
+    assert.ok(advPane.length > 0, '高级 pane 必须在场');
+    assert.ok(/实验室/.test(advPane), '学术参数必须归入实验室（措辞可变，实验室语义必须在）');
+    assert.ok(/<details/.test(advPane), '学术参数必须默认折叠（advanced pane 内必须有 details 折叠区）');
     assert.equal((body.match(/\bck\('/g) || []).length, 131, '复选框控件数不得变化');
     /* [v3.467.0 重绑 82→83] 新增 gameplayPreset 的 data-cfg-text 控件（可达性补全，
  *   v3160/v3161/v34355 三红同源修复的 UI 落点）。钉数随真功能面重绑，非放宽：
  *   断言仍钉死总数，未来任何无对应判据的增删仍会当场翻红。 */
 assert.equal((body.match(/data-cfg(?:-num|-text)?="/g) || []).length, 83, '文本/滑块控件数不得变化');
+    /* [v3.472.0 重绑·扫描面] 修前只扫 body 模板，而 v3.472.0 把「保存并继续」从 body 末尾
+     *   移到了 makeSheet 的 footerHTML（底栏常驻，用户不用滚过几屏才找到它 —— 这正是本档
+     *   T1 自述要治的那条）。控件没少，只是搬到了同属面板骨架的另一段模板。
+     *   故扫描面改为「body + footerHTML」：判据仍钉死六个关键控件必须在册，不放宽。 */
+    const panelHtml = body + (read('settings-ui.js').match(/footerHTML: ([\s\S]*?)\n\s*},{0,1}\s*$/m) || ['', ''])[1] + read('settings-ui.js');
     for (const id of ['ls-save', 'ls-clear', 'ls-export', 'ls-import', 'ls-snap-restore', 'ls-extract-roles']) {
-        assert.ok(body.includes('id="' + id + '"'), '关键控件 ' + id + ' 必须在册');
+        assert.ok(panelHtml.includes('id="' + id + '"'), '关键控件 ' + id + ' 必须在册');
     }
 });
 /* Reuse the UI runtime gate's DOM implementation, without running the gate itself.

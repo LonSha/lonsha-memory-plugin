@@ -4,6 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+/* [v3.472.0] 审计基建从唯一真源 import：本档首稿在本地重写了 stripComments，
+ *   被 scan_audit_lib_consolidation 的 E1 结构面点红。真源版认字符串/正则字面量（本地版不认），
+ *   故这是**加强**不是放宽：同一份判据在真源下能看见的代码面只会更多。 */
+import { stripComments } from '../tests/_audit_lib.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const require=createRequire(import.meta.url);
 const modules=['memory-capsule.js','future-letter.js','relation-milestone.js','memory-checkup.js','memory-timeline.js','memory-map.js','sleep-consolidation.js','memory-archive-pack.js','multi-char-memory-isolation.js','memory-giant-file-split-plan.js','injection-receipt-facets.js','view-openability.js','evidence-substitute-chain.js','realhost-verdict.js','catalog-registration.js','load-surface-disposition.js','frozen-freshness.js','write-only-scan.js'];
@@ -22,7 +26,6 @@ test('L22 manifest loads every new module and consumption ledger marks each acti
  *     ③ 读数体**内部**的赋值算「输出」不算「输入」：this._r22ProductReadout = out
  *        是函数自己的产物，不该被要求外部还有赋值点。
  *   为什么不写成白名单：白名单会随下次新增字段漂移，而漂移的表现恰好是本条要抓的东西。 */
-const stripComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 test('L22 readout inputs all have a real assignment site', () => {
     const src = stripComments(fs.readFileSync(path.join(root, 'index.js'), 'utf8'));
     const start = src.indexOf('r22ProductReadout() {');

@@ -191,6 +191,20 @@ const LEDGER = [
      + 'M6-O1 连续经历两模块各自持一份（两模块零依赖 IIFE，装载时机与存活期互不包含）。\n'
      + '**为什么留多份**：与既有 numOrNull 簇同族 —— 它是**通用数值原语**，不是账本条目结构的取值代码；\n'
      + '收拢会把「本模块自足」换成「依赖另一个模块先挂载」，即本仓反过的「跨模块静默读旧值」形态。'],
+    /* [v3.472.0 · L22/R22 批] **第三个** numOrNull 簇：第二十二期十八件纯函数内核里，有七件各自持一份
+     *   「数值归一」原语（future-letter / memory-archive-pack / memory-capsule / memory-checkup /
+     *   memory-timeline / relation-milestone / sleep-consolidation），体 md5 28e37536 与上面两簇**都不同源**
+     *   （那两簇的形态各自带不同的取值分支），故是**独立簇**而不是既有一簇加成员。
+     *   七件都是零依赖 IIFE：档头声明不引兄弟模块的常量 —— 收拢会把「本模块自足」换成「依赖另一块
+     *   先挂载」，即本仓反过的跨模块静默读旧值形态（与 v3.292 三份副本漂移同族风险）。
+     *   体 md5 由 v3281 B1 从盘上实测枚举得出，不是手抄。 */
+    ['numOrNull', ['future-letter.js', 'memory-archive-pack.js', 'memory-capsule.js', 'memory-checkup.js',
+        'memory-timeline.js', 'relation-milestone.js', 'sleep-consolidation.js'], '28e37536',
+        '数值归一（没给 ⇒ null；布尔/对象/函数 ⇒ null，不拿 0 冒充「就是 0」）。\n'
+        + '**为什么留七份**：与上面两个 numOrNull 簇同族 —— 它是**通用数值原语**，不是账本条目结构的取值代码；\n'
+        + '七件内核的装载时机与存活期互不包含（任一件 callback 可缺席而其余在），\n'
+        + '收拢会把「本模块自足」换成「依赖另一块先挂载」。\n'
+        + '★ **当版自报（v3.472.0 轮）**：七件同批落盘、同批登记；抬版时未同步本台账则 B1 当场点名。'],
     /* [v3.439.0 · L13 期内] **第二个** strList 簇：evidence-solver.js 与 scene-orchestrator.js
      *   各持一份「字符串列表归一」，体与上面 dual-time/experience-rebuild 那一簇**不同源**
      *   （那一簇带 `cap` 上限截断，这一簇不吃 cap），故是**独立簇**而不是既有一簇加成员。

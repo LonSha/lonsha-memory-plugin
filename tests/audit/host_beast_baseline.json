@@ -3454,19 +3454,19 @@
       }
     },
     "v3.472.0": {
-      "reason": "[v3.472.0] v3.472.0 抬版后基线未重绑（入口 13201→13524 行）+ 修两处真实缺陷：sanitizeJson 双副本与宿主失同步（v3.469.0 只改宿主）、OrganFallback 缺 _normalizeModelsPayload/_fetchModelsViaProxy 两个退路（v3.471.0 只改 memory-organs.js）。 入口 index.js 13119 → 13530 行（+411），成员 1345 → 1559，合并面 36386 行；全部读数由 tests/audit/host_beast_probe.cjs 直接落盘（零手抄）。本版只量不拆：未拆任何宿主巨兽成员。",
+      "reason": "[v3.472.0] 本版把两处**真实代码缺陷的修复**落在入口，读数随之增长（不是新增功能，是判据顶出来的）：① sanitizeJson 的「全角/直角开引号 + 直引号收尾」混用定界回归（v3.469.0 重写引入）：修前无条件把弯引号串内的直引号当裸引号转义，`{\"desc\": “这是全角引号”}` 这类写法永远收不了尾，整段被当成未闭合字符串吞掉、safeJsonParse 返回 null；修法与该串自身的收尾判据同源（后续第一个非空白是结构位 ⇒ 收尾）；② 面板 _syncTabs 在页签键读不出时不得把五个 pane 全藏掉（那是「吞成空」形态），补结构异常时的不动兜底。另有本期 L22/R22 收口的 r22KernelSelfChecks 消费点接在 settings-ui.js（不改入口）。入口 index.js 13546 → 16 行（+16），成员 1559 → 1559，全部真实计入读数。",
       "readings": {
-        "total_lines": 13530,
-        "surface_lines": 36386,
+        "total_lines": 13546,
+        "surface_lines": 36418,
         "member_count": 1559,
         "duplicate_member_names": 232,
         "top5_lines": 6412,
         "top5_pct": 17.6,
-        "top40_lines": 13847,
+        "top40_lines": 13863,
         "top40_pct": 38.1,
         "prefix_rule_coverage_lines": 5252,
         "prefix_rule_coverage_pct": 14.4,
-        "unclassified_lines": 30106,
+        "unclassified_lines": 30122,
         "seam_distinct_modules": 222,
         "seam_reference_sites": 577,
         "seam_call_shape_sites": 760,
@@ -3478,15 +3478,15 @@
         "生命周期接线面不变",
         "本版只量不拆：未拆任何宿主巨兽成员"
       ],
-      "not_done": "本版只重绑读数，未拆任何宿主巨兽成员",
-      "delta_from": "v3.467.0",
+      "not_done": "本版做向量降级出口/预算降级阶梯/玩法预设三项缝合，未拆任何宿主巨兽成员",
+      "delta_from": "v3.472.0(同版重绑)",
       "delta": {
-        "total_lines": 411,
-        "surface_lines": 440,
-        "member_count": 214,
-        "top40_lines": -1251,
-        "top5_pct": -1.1,
-        "top40_pct": -3.9
+        "total_lines": 16,
+        "surface_lines": 32,
+        "member_count": 0,
+        "top40_lines": 16,
+        "top5_pct": 0.0,
+        "top40_pct": 0.0
       }
     }
   },
@@ -3501,17 +3501,17 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13530,
-    "surface_lines": 36386,
+    "total_lines": 13546,
+    "surface_lines": 36418,
     "member_count": 1559,
     "duplicate_member_names": 232,
     "top5_lines": 6412,
     "top5_pct": 17.6,
-    "top40_lines": 13847,
+    "top40_lines": 13863,
     "top40_pct": 38.1,
     "prefix_rule_coverage_lines": 5252,
     "prefix_rule_coverage_pct": 14.4,
-    "unclassified_lines": 30106,
+    "unclassified_lines": 30122,
     "seam_distinct_modules": 222,
     "seam_reference_sites": 577,
     "seam_call_shape_sites": 760,
@@ -3523,10 +3523,10 @@
     {
       "domain": "（未归类）",
       "members": 1469,
-      "lines": 30106,
+      "lines": 30122,
       "lines_pct": 82.7,
-      "outside_refs": 29149,
-      "internal_refs": 11158,
+      "outside_refs": 29160,
+      "internal_refs": 11148,
       "outside_ref_share_pct": 72.3
     },
     {
@@ -3534,7 +3534,7 @@
       "members": 22,
       "lines": 2052,
       "lines_pct": 5.6,
-      "outside_refs": 2469,
+      "outside_refs": 2473,
       "internal_refs": 6,
       "outside_ref_share_pct": 99.8
     },
@@ -3631,7 +3631,7 @@
       "name": "selfCheck",
       "file": "engine-self-check.js",
       "lines": 1561,
-      "outside_refs": 282
+      "outside_refs": 284
     },
     {
       "name": "applyExtractedPayload",
@@ -3672,7 +3672,7 @@
     {
       "name": "extractThinkingChain",
       "file": "index.js",
-      "lines": 422,
+      "lines": 438,
       "outside_refs": 0
     },
     {
@@ -3885,7 +3885,7 @@
       {
         "name": "extractThinkingChain",
         "file": "index.js",
-        "lines": 422,
+        "lines": 438,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -3965,7 +3965,7 @@
         "name": "selfCheck",
         "file": "engine-self-check.js",
         "lines": 1561,
-        "outside_refs": 282,
+        "outside_refs": 284,
         "is_host_lifecycle": false
       },
       {
@@ -4084,7 +4084,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 13930,
     "maxSlack": 400,
-    "note": "[v3.472.0] 入口 index.js 13530 行、成员数 1559；行上界**上抬至 13930**（余量 400 <= slack 400）、成员上界**上抬至 1589**（余量 30 <= member_slack 30）。合并面 36386 行，TOP5 占 17.6%，TOP40 占 38.1%。",
+    "note": "[v3.472.0] 入口 index.js 13546 行、成员数 1559；行上界**不抬，仍为 13930**（余量 384 <= slack 400）、成员上界**不抬，仍为 1589**（余量 30 <= member_slack 30）。合并面 36418 行，TOP5 占 17.6%，TOP40 占 38.1%。",
     "history": [
       {
         "ceiling": 15000,
@@ -4554,13 +4554,19 @@
         "member_ceiling": 1589,
         "milestone_version": "v3.472.0",
         "reason": "[v3.472.0] 入口 index.js 13530 行、成员数 1559；行上界**上抬至 13930**（余量 400 <= slack 400）、成员上界**上抬至 1589**（余量 30 <= member_slack 30）。合并面 36386 行，TOP5 占 17.6%，TOP40 占 38.1%。"
+      },
+      {
+        "ceiling": 13930,
+        "member_ceiling": 1589,
+        "milestone_version": "v3.472.0",
+        "reason": "[v3.472.0] 入口 index.js 13546 行、成员数 1559；行上界**不抬，仍为 13930**（余量 384 <= slack 400）、成员上界**不抬，仍为 1589**（余量 30 <= member_slack 30）。合并面 36418 行，TOP5 占 17.6%，TOP40 占 38.1%。"
       }
     ],
     "member_ceiling": 1589,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13530,
+  "total_lines": 13546,
   "member_count": 1559,
   "index_total_lines": 11719,
   "index_line_ceiling": 12096
