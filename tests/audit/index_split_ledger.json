@@ -4,9 +4,9 @@
   "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。",
   "source": "index.js",
   "lines_before_split": 13546,
-  "index_lines_max": 13052,
+  "index_lines_max": 12963,
   "module": "index-helpers.js",
-  "module_lines": 686,
+  "module_lines": 815,
   "wiring": {
     "load": "_moduleLib(() => window.LonShaIndexHelpers, 'index-helpers.js')",
     "lazy": "经 _indexHelpers() / _indexHelperCall(name, args) 惰性探针 —— extra_js 在入口脚本之后加载，装载期取库会绑成缺席桩（自伤，只在真宿主现形）",
@@ -407,6 +407,90 @@
     "not_done": {
       "no_migration": "本轮没有搬迁任何函数（候选为 0）。引入注入机制后的搬迁是下一批的事，需要先把「搬完谁注入谁」的传导链想清楚：搬走 _xxxLib 后它自身也可能成为别人的注入项。",
       "ruby_phone": "RubyPhone 侧本轮未动（chat-view.js 仍 19628 行）。"
+    }
+  },
+  "batch4": {
+    "what": "第 3 批（b4）：4 个函数 / 92 行 + 4 行紧贴注释外移（normalizeCharName 5 / msgFpOf 5 / extractThinkingChain 54 / detectEthicsConflict 28）。本批首次启用**宿主注入面**。",
+    "why_this_cluster": "b3 的结论是「闭包为空的候选= 0」。b4 把那条界线挪到正确的位置：闭包不为空 ≠ 搬走就不能跑 ——只要缺的那个东西能靠注入提供就成立。四条判据：①声明唯一 ②无 this ③装载期**不可达**（实测）④闭包在**注入边界处截断**后，只许剩已搬走的 + 注入项。",
+    "why_b3_missed_it": "b3 要求闭包**为空**。这个口径过严：它把「依赖一个可注入的宿主能力」与「依赖一份留在原地的状态」当成同一件事。两个方向的教训（numOr 被调方可达、hintForError 调用方可达）说明真正要问的是「装载期会不会被调到」，而不是「闭包里有没有东西」。",
+    "closure_truncation": {
+      "statement": "注入边界截断：若依赖 D 在注入面里，就把 D 记进闭包但**不展开 D 的内部依赖**。",
+      "why": "helpers 里搬来的函数调用注入来的 errLog 时，执行的是 index.js 里那一份实现，它内部用什么变量与 helpers 无关。不截断会把被注入函数的内部依赖算到调用方头上，让「注入」这条路在判据上等于没生效。",
+      "measured_effect": "同一份 153 个闭包未满足：不截断 ⇒ 选定 0；截断后（注入=62 个装载期可达 + 2 个宿主保留）⇒ 选定 130 个 / 396 行。"
+    },
+    "injection_surface": {
+      "slots": [
+        "errLog"
+      ],
+      "why_errLog": "它是**宿主日志能力**（函数声明，身份稳定），只在 catch 路径被调用；不携带任何业务状态。重放时给静默桩。",
+      "forbidden": [
+        "let/var 标量：_moduleFailures 初值 null、首次登记才 new Map；按值注入会分裂成两份状态"
+      ],
+      "gate": "R8 保证「槽声明」与「__bindHost 里 host.NAME 赋值」一一对应，且 index.js 真的调用过 .__bindHost({。",
+      "where_bound": "index.js 的 _indexHelpers() 里：取到库后 __bindHost({ errLog })。幂等，库本身只探一次。"
+    },
+    "why_not_130": {
+      "count": 130,
+      "lines": 396,
+      "reason": "这 130 个（396 行）在 b6 口径下确实可搬，但它们的注入项是 _moduleLib。R6 明禁 index-helpers.js 里出现 _moduleLib —— 否则纯函数模块就变回了取库口集合，等于只把行数挪了个地方，依赖面一点没变。",
+      "decision": "这是**判据在替我们做决定**，不是为了多搬而放宽。若将来要动它们，必须先回答「取库口该不该跟纯函数同层」，那是架构决定，不是搬运。"
+    },
+    "functions": [
+      {
+        "name": "normalizeCharName",
+        "source": "L433-L438",
+        "lines_body": 5,
+        "attach_comment_lines": 1,
+        "host_deps": [
+          "errLog"
+        ],
+        "why": "角色名归一化（NFKC + 空白折叠），防跨楼身份分裂"
+      },
+      {
+        "name": "msgFpOf",
+        "source": "L557-L561",
+        "lines_body": 5,
+        "attach_comment_lines": 0,
+        "host_deps": [
+          "errLog"
+        ],
+        "why": "消息指纹（u/a + swipe + 正文 hash32 + send_date），去重与幂等的判据源"
+      },
+      {
+        "name": "extractThinkingChain",
+        "source": "L564-L619",
+        "lines_body": 54,
+        "attach_comment_lines": 2,
+        "host_deps": [
+          "errLog"
+        ],
+        "why": "思维链剥离（围栏遮罩 + 5 类标签 + 未闭合宽容熔断），本批最大一段"
+      },
+      {
+        "name": "detectEthicsConflict",
+        "source": "L670-L698",
+        "lines_body": 28,
+        "attach_comment_lines": 1,
+        "host_deps": [
+          "errLog"
+        ],
+        "why": "伦理冲突检测（family × intimate 交叉告警，逐条 tie 判定）"
+      }
+    ],
+    "tooling_fixes": [
+      "functionBody 原先不认正则字面量：extractThinkingChain 的正则字符类里有 ' \" `，被当成字符串起点，配对花括号错位、返回 null（b1/b2 的 25 个函数恰好都没这种正则）。已补「/ 是除号还是正则开头」的启发式（与仓内 scrub 同一套），并验过 25 个已搬函数的 sha256 未变。",
+      "checkFixtures 原先只会从 const 字面量取注入值；errLog 是函数声明，会报「找不到 const 初始化式」。已分流：函数声明型注入项给**静默桩**（重放只该断言返回值，不该依赖日志副作用；复制 errLog 实现等于第二份实现）。",
+      "constInitializer 的 off-by-one（b3）已修：closeMark 7 字符，原 -2 会丢掉末尾的 ]。"
+    ],
+    "verification": {
+      "gate": "八关全绿（R1 导出面仍 64 —— 证明装载期一次都没 require helpers，这正是 hintForError 那次栽的关）",
+      "criteria": "43 条全绿",
+      "probe": "_probe_init_reach.mjs 复测：装载期可达仍 62，这 4 个都不在名单内（所以搬走不会装载即抛）",
+      "after_lines": "index.js 13052 → 12963；index-helpers.js 687 → 815"
+    },
+    "not_done": {
+      "remaining_engine": "引擎主体仍在 index.js。下一批要么动「有 this / 依赖 let 状态」的函数（需要先有状态访问器的注入方案），要么就承认辅助层真正到顶。",
+      "ruby_phone": "RubyPhone 侧仍未动（chat-view.js 19628 行）。"
     }
   }
 }

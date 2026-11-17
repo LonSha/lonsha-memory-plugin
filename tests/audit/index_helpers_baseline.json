@@ -1,7 +1,7 @@
 {
   "schema": "index-helpers-baseline@1",
   "plan": "L22-O1",
-  "note": "index.js 拆出的 25 个纯函数（第 1 批 10 个 + 第 2 批 · b2 15 个）：每段的源码 sha256 + 行为快照。闸（tests/audit/scan_index_split.mjs）逐段比对 sha256，逐调用比对输出 —— 搬的时候顺手改了逻辑会立刻红。fixtures 是同一台账里“算出来一样”的那一半，闸 R7 真 require 模块逐调用重放。",
+  "note": "index.js 拆出的 29 个函数（第 1 批 10 + 第 2 批 · b2 15 + 第 3 批 · b4 4）：每段的源码 sha256 + 行为快照。闸（tests/audit/scan_index_split.mjs）逐段比对 sha256，逐调用比对输出 —— 搬的时候顺手改了逻辑会立刻红。fixtures 是同一台账里“算出来一样”的那一半，闸 R7 真 require 模块逐调用重放（b4 起先按 host_deps 注入，函数声明型注入项给静默桩）。",
   "source": {
     "file": "index.js",
     "origin": "搬迁前 index.js（HEAD 版本）逐字节"
@@ -80,6 +80,19 @@
       "source_line_is": "紧贴注释起点（不是 function 行）"
     },
     {
+      "name": "detectEthicsConflict",
+      "source_line": 670,
+      "source_end_line": 698,
+      "lines": 28,
+      "sha256": "24b2150d9f0db2d1acc63dac4c185899ee7e2c4416be4c2eabed99d0016beaf7",
+      "body_sha256": "af409de25121ef5442e62be1089ce1ddb4a4f6cf7af658089067c1c75b8f347e",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）",
+      "host_deps": [
+        "errLog"
+      ]
+    },
+    {
       "name": "estimateTextTokens",
       "source_line": 524,
       "source_end_line": 536,
@@ -96,6 +109,19 @@
       "body_sha256": "64f2991a3ff190932dd603006b0e5310b10dd11fcc2a2220823ffdd9bd015948",
       "attach_comment_lines": 1,
       "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "extractThinkingChain",
+      "source_line": 564,
+      "source_end_line": 619,
+      "lines": 54,
+      "sha256": "5d4558e3c65e4ee01eec1855f2302a4f088721e6730a0402b7bf18ca6144f310",
+      "body_sha256": "6d95ab4f7814cc4f85787e5183c561ce4c60f3fcca2fb7e087e4819d102ef5a6",
+      "attach_comment_lines": 2,
+      "source_line_is": "紧贴注释起点（不是 function 行）",
+      "host_deps": [
+        "errLog"
+      ]
     },
     {
       "name": "extractTimeTagFast",
@@ -160,12 +186,38 @@
       "body_sha256": "fa7f108203ec0a6c140d00d2e3258d76740bbd3c680e0bb430fa4e70edf0b1e4"
     },
     {
+      "name": "msgFpOf",
+      "source_line": 557,
+      "source_end_line": 561,
+      "lines": 5,
+      "sha256": "f2ca1d76b89baa6184e1ae7b1f31632a4641b8adfde00671e44e599b5d0e4b31",
+      "body_sha256": "f2ca1d76b89baa6184e1ae7b1f31632a4641b8adfde00671e44e599b5d0e4b31",
+      "attach_comment_lines": 0,
+      "source_line_is": "function 行（无紧贴注释）",
+      "host_deps": [
+        "errLog"
+      ]
+    },
+    {
       "name": "msgTextOf",
       "source_line": 553,
       "source_end_line": 559,
       "lines": 7,
       "sha256": "412e9f8ca2c7a6d727d8cecea0f26fceb24b1ecf141325ed7a36df3fb5a2a0f9",
       "body_sha256": "412e9f8ca2c7a6d727d8cecea0f26fceb24b1ecf141325ed7a36df3fb5a2a0f9"
+    },
+    {
+      "name": "normalizeCharName",
+      "source_line": 433,
+      "source_end_line": 438,
+      "lines": 5,
+      "sha256": "89cf88dad1d5bdc876890a2f23383dc52be908d2c0fb2089fc74cd58023d0e9d",
+      "body_sha256": "bfb9a2864063839a82ebd8151133d70125e786c05f7a262421a42e990fc4c2be",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）",
+      "host_deps": [
+        "errLog"
+      ]
     },
     {
       "name": "opLogStatsCompat",
@@ -1007,6 +1059,139 @@
           "absent": true
         }
       }
+    ],
+    "normalizeCharName": [
+      {
+        "args": [
+          "Ａ Ｂc"
+        ],
+        "out": "abc"
+      },
+      {
+        "args": [
+          null
+        ],
+        "out": ""
+      },
+      {
+        "args": [
+          "  Lin  一 "
+        ],
+        "out": "lin一"
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": ""
+      }
+    ],
+    "msgFpOf": [
+      {
+        "args": [
+          {
+            "is_user": true,
+            "swipe_id": 2,
+            "mes": "hello",
+            "send_date": "2024-01-01"
+          }
+        ],
+        "out": "u|2|4f9f2cab|2024-01-01"
+      },
+      {
+        "args": [
+          {
+            "role": "assistant",
+            "mes": "hi"
+          }
+        ],
+        "out": "a|0|683af69a|"
+      },
+      {
+        "args": [
+          {}
+        ],
+        "out": "a|0|811c9dc5|"
+      }
+    ],
+    "extractThinkingChain": [
+      {
+        "args": [
+          "a<think>b</think>c"
+        ],
+        "out": {
+          "content": "ac",
+          "thinking": "b"
+        }
+      },
+      {
+        "args": [
+          "x<thinking>y"
+        ],
+        "out": {
+          "content": "x",
+          "thinking": "y"
+        }
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": {
+          "content": "",
+          "thinking": ""
+        }
+      },
+      {
+        "args": [
+          "plain"
+        ],
+        "out": {
+          "content": "plain",
+          "thinking": ""
+        }
+      }
+    ],
+    "detectEthicsConflict": [
+      {
+        "args": [
+          "甲",
+          "乙",
+          "恋人",
+          [
+            {
+              "name": "乙",
+              "ties": [
+                "甲:父子"
+              ]
+            }
+          ]
+        ],
+        "out": {
+          "from": "甲",
+          "to": "乙",
+          "relation": "恋人",
+          "tie": "甲:父子"
+        }
+      },
+      {
+        "args": [
+          "甲",
+          "乙",
+          "朋友",
+          []
+        ],
+        "out": null
+      },
+      {
+        "args": [
+          "甲",
+          "乙",
+          "恋人",
+          []
+        ],
+        "out": null
+      }
     ]
   },
   "not_called": {
@@ -1019,6 +1204,8 @@
     "loadExtraJsScript 不取样（原因见 not_called）。",
     "第 2 批里 _getCredKey 的 fixtures 是「把 hash32 作为参数位注入沙箱」后求得的（它在 index.js 里与本函数同处 IIFE，搬到 helpers 后仍是同模块兄弟函数）；其余 14 个零依赖。",
     "numOr 实测满足「闭包已满足 + 声明唯一 + 无 this」，但它在装载期就被调用（new LonShaMemoryPlugin() 在 IIFE 顶层 → new MemoryEngine → _assembleComponents → numOr），故**未外移**；真宿主里 window.LonShaIndexHelpers 在入口脚本之后才存在，搬走它会让插件装载即抛。",
-    "decayScore 上方 index.js L1797–L1798 是 v3.259.0 把「增量书签」外移后遗留的死注释（附近已无对应函数）。它不属于本批任何函数，故**不随迁、也未删除**；decayScore 自己的注释（L1799–L1801）已随函数搬入 helpers。"
+    "decayScore 上方 index.js L1797–L1798 是 v3.259.0 把「增量书签」外移后遗留的死注释（附近已无对应函数）。它不属于本批任何函数，故**不随迁、也未删除**；decayScore 自己的注释（L1799–L1801）已随函数搬入 helpers。",
+    "b4 的 4 个函数注入 errLog（宿主日志能力，函数声明型）。重放时给静默桩 —— fixtures 只断言返回值，没有一个用例依赖日志副作用。若以后某个搬迁函数在非 catch 路径依赖注入函数的返回值，静默桩会在 R7 上立刻现形。",
+    "第 3 批只搬 4 个、只搬 92 行，不是能搬的上限：同期实测还有 130 个候选 / 396 行，但它们的注入项是 _moduleLib，R6 明禁 index-helpers.js 出现 _moduleLib（那会把纯函数模块变回取库口集合）。这是判据在替我们做决定，不是为了多搬而放宽。"
   ]
 }

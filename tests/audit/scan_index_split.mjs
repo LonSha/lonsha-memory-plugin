@@ -71,6 +71,30 @@ export function functionBody(text, name) {
     const c = text[i], n = text[i + 1];
     if (c === '/' && n === '/') { while (i < text.length && text[i] !== '\n') i++; continue; }
     if (c === '/' && n === '*') { i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i += 2; continue; }
+    /* 正则字面量必须先于字符串处理：b4 的 extractThinkingChain 里有一个字符类是
+     *   /(?=[\u4e00-\u9fa5A-Za-z0-9"'#*[{`])/
+     *   其中含 ' " ` —— 不认正则的话，这三个引号会被当成字符串起点，把后面的代码整段吃掉，
+     *   配对花括号正好错位，functionBody 直接返回 null（b1/b2 的 25 个函数没有这种正则，所以一直没暴露）。
+     *   「/ 是除号还是正则开头」用前一个非空白字符判定，与仓内既有 scrub 同一套启发式。 */
+    if (c === '/') {
+      let k = i - 1;
+      while (k >= 0 && /\s/.test(text[k])) k--;
+      const prev = k >= 0 ? text[k] : '';
+      if (prev === '' || '(,=:[!&|?{};+-*%~^<>'.includes(prev)) {
+        i++; let inClass = false;
+        while (i < text.length) {
+          const ch = text[i];
+          if (ch === '\\') { i += 2; continue; }
+          if (ch === '[') inClass = true;
+          else if (ch === ']') inClass = false;
+          else if (ch === '/' && !inClass) { i++; break; }
+          else if (ch === '\n') break;
+          i++;
+        }
+        while (i < text.length && /[a-z]/.test(text[i])) i++;
+        continue;
+      }
+    }
     if (c === "'" || c === '"' || c === '`') {
       const q = c; i++;
       while (i < text.length) {
@@ -201,8 +225,17 @@ export function checkFixtures(baseline, helpersPath, indexText) {
   if (hostNames.length) {
     const shim = {};
     for (const n of hostNames) {
+      /* b4 起：注入项有两种，取值方式必须分开。
+       *   ① const 字面量（_ERROR_HINTS / LEDGER_* 这类）：从 index.js **现取**初始化式求值，
+       *      不复制一份数据 —— 否则仓里就有两份真值。
+       *   ② 函数声明（errLog 这类宿主能力）：**给静默桩**。理由：重放只该断言「返回值」，
+       *      不该依赖日志副作用；而且复制 index.js 里 errLog 的实现等于第二份实现。
+       *      （如果哪天某个搬迁函数在非 catch 路径依赖了宿主函数的**返回值**，静默桩会立刻
+       *       在 R7 上现形 —— 这正是我们要的失败形态，不允许悄悄放过。） */
+      const isFnDecl = !!indexText && new RegExp('^ {4}function ' + n.replace(/\$/g, '\\$&') + '\\s*\\(', 'm').test(indexText);
+      if (isFnDecl) { shim[n] = function () { }; continue; }
       const init = indexText ? constInitializer(indexText, n) : null;
-      if (!init) { problems.push('注入项 ' + n + '：在 index.js 里找不到它的 const 初始化式'); continue; }
+      if (!init) { problems.push('注入项 ' + n + '：在 index.js 里既不是函数声明，也找不到它的 const 初始化式'); continue; }
       try { shim[n] = new Function('return (' + init + ');')(); } catch (e) {
         problems.push('注入项 ' + n + '：初始化式求值失败 ' + String((e && e.message) || e));
       }

@@ -99,6 +99,11 @@
         if (!_indexHelpersProbed) {
             _indexHelpersProbed = true;
             _indexHelpersLib = _moduleLib(() => window.LonShaIndexHelpers, 'index-helpers.js');
+            /* b4：把宿主能力注入给 helpers。只注入身份稳定的东西（函数声明 / const），绝不注入 let 标量。
+             *   幂等：库本身只探一次，重复调用不会出错。 */
+            if (_indexHelpersLib && typeof _indexHelpersLib.__bindHost === 'function') {
+                _indexHelpersLib.__bindHost({ errLog });
+            }
         }
         return _indexHelpersLib;
     }
@@ -137,6 +142,11 @@
     const ledgerItemKey = (...args) => _indexHelperCall('ledgerItemKey', args);
     const repairReceipt = (...args) => _indexHelperCall('repairReceipt', args);
     const opLogStatsCompat = (...args) => _indexHelperCall('opLogStatsCompat', args);
+    // 【第 3 批 · b4 委托绑定】这 4 个的实现引用注入项 errLog（宿主能力），调用点一行未改。
+    const normalizeCharName = (...args) => _indexHelperCall('normalizeCharName', args);
+    const msgFpOf = (...args) => _indexHelperCall('msgFpOf', args);
+    const extractThinkingChain = (...args) => _indexHelperCall('extractThinkingChain', args);
+    const detectEthicsConflict = (...args) => _indexHelperCall('detectEthicsConflict', args);
 
     // [v3.209.0] 结构迁移（schema-migration.js）取库口。与 _costLedgerLib 同形（全局优先 + require 回落）。
     //   为什么必须有这一面：v3.209 侦察实测 restoreFromPayload 对 schemaVersion **只处理一个方向**
@@ -430,13 +440,6 @@
     fetchWithTimeoutRetry.clearCooldowns = clearApiCooldowns;
     fetchWithTimeoutRetry.getCooldownStats = getApiCooldownStats;
 
-    // [v3.1] SF4: 角色名归一化（抄 yuzuki character-name-matcher——NFKC+空白折叠，防跨楼身份分裂）
-    function normalizeCharName(name) {
-        try {
-            return String(name || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
-        } catch (e) { errLog(e, 'SF4.normalizeCharName'); return String(name || ''); }
-    }
-
     // [v3.2] DF5: 注入槽位唯一写入通道——修复 v2.8 起 setExtensionPrompt 参数错位 bug。
     // ST 标准签名（权威源: shujuku @types/iframe/exported.sillytavern.d.ts + baibai inject.ts 抄 script.js:486）:
     //   setExtensionPrompt(prompt_id, content, position, depth, scan, role, filter)
@@ -554,69 +557,7 @@
     }
 
     // [L22-O1 · b2] msgTextOf 已外移到 index-helpers.js（此处只留同名委托绑定，见文件头部）。
-    function msgFpOf(m) {
-        try {
-            return [(m?.is_user === true || m?.role === 'user') ? 'u' : 'a', Math.max(0, Math.round(Number(m?.swipe_id) || 0)), hash32(msgTextOf(m)), String(m?.send_date || m?.extra?.send_date || '')].join('|');
-        } catch (e) { errLog(e, 'V33.msgFpOf'); return ''; }
-    }
-
     // [v3.13] 思维链/正文分流
-    // [v3.45] 吸收 shujuku lenient-text: 扩展主流推理标签 (think/thinking/thought/reasoning/analysis)
-    // 并在未闭合截断时引入宽容熔断器，剥离开标签、保护真实正文不被吞没白屏
-    function extractThinkingChain(text) {
-        try {
-            let s = String(text || '');
-            if (!s) return { content: '', thinking: '' };
-            const thinkingParts = [];
-            const fenceMask = [];
-            // 先遮罩 ``` 围栏，防止剥掉代码示例里的推理标签
-            s = s.replace(/```[\s\S]*?```/g, (m) => { fenceMask.push(m); return '\u0000F' + (fenceMask.length - 1) + '\u0000'; });
-            
-            // [v3.45] 扩展支持 think|thinking|thought|reasoning|analysis 5类推理标签
-            let out = '', depth = 0, buf = '';
-            const tokens = s.split(/(<\/?(?:think|thinking|thought|reasoning|analysis)\b[^>]*>)/i);
-            for (const tk of tokens) {
-                if (/^<(?:think|thinking|thought|reasoning|analysis)\b[^>]*>$/i.test(tk)) {
-                    if (depth === 0) buf = '';
-                    depth++;
-                } else if (/^<\/(?:think|thinking|thought|reasoning|analysis)\s*>$/i.test(tk)) {
-                    depth--;
-                    if (depth <= 0) {
-                        if (buf && buf.trim()) thinkingParts.push(buf.trim());
-                        buf = '';
-                        depth = 0;
-                    } else if (buf) {
-                        buf += tk;
-                    }
-                } else if (depth > 0) {
-                    buf += tk;
-                } else {
-                    out += tk;
-                }
-            }
-            // [v3.45] 宽容熔断器 (shujuku lenient-text): 处理未闭合标签
-            if (depth > 0 && buf) {
-                const switchMatch = buf.match(/\n\s*\n(?=[\u4e00-\u9fa5A-Za-z0-9"'#*[{`])/);
-                if (switchMatch) {
-                    const thinkContent = buf.slice(0, switchMatch.index).trim();
-                    const bodyContent = buf.slice(switchMatch.index).trim();
-                    if (thinkContent) thinkingParts.push(thinkContent);
-                    out += (out ? '\n\n' : '') + bodyContent;
-                } else {
-                    // 纯思考且截断
-                    if (buf.trim()) thinkingParts.push(buf.trim());
-                }
-            }
-
-            // 清理剥离后残留的空标签与多余空行，还原围栏
-            out = out.replace(/<\/?(?:think|thinking|thought|reasoning|analysis)\b[^>]*>/gi, '').replace(/\n{3,}/g, '\n\n').trim();
-            out = out.replace(/\u0000F(\d+)\u0000/g, (_, i) => fenceMask[Number(i)] || '');
-            return {
-                content: out,
-                thinking: thinkingParts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim()
-            };
-        } catch (e) { errLog(e, 'V313.extractThinkingChain'); return { content: String(text || ''), thinking: '' }; }
-    }
     // [L22-O1 · b2] thinkingAnchorHeader 已外移到 index-helpers.js（此处只留同名委托绑定，见文件头部）。
     // [v3.27] <synopsis> 轻量提取（AnchorNote）: AI 回复已带 synopsis 标签时正则直取做摘要，省一次 LLM 调用
     const SYNOPSIS_BLOCK_RE = /(?:^|\n)\s*<synopsis\b[^>]*>\s*\n?([\s\S]*?)\n?\s*<\/synopsis>\s*(?=\n|$)/i;
@@ -667,36 +608,6 @@
         return rows.length ? `[角色长期关系网]（血缘/婚姻/主仆/宿敌等，不因是否在场而失效）：\n${rows.join('\n')}` : '';
     }
     // [L22-O1 · b2] classifyRelationshipType 已外移到 index-helpers.js（此处只留同名委托绑定，见文件头部）。
-    // [v3.48] 吸收 yuzuki + 配合 v3.45 羁绊网: 伦理冲突检测（family × intimate 交叉即告警）
-    function detectEthicsConflict(fromName, toName, relationType, existingTies) {
-        try {
-            const cls = classifyRelationshipType(relationType);
-            const bloodRe = /(父|母|兄|弟|姐|妹|祖|孙|叔|伯|姑|姨|舅|侄|甥|血缘|血亲|亲生|兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女)/;
-            const bidirectionalRe = /(兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女|祖孙|血缘|血亲)/;
-            if (cls !== 'intimate') return null;
-            // 检查两人之间是否已有 family 类羁绊（血缘/婚姻）
-            const key = normalizeCharName(toName);
-            for (const tie of (existingTies || [])) {
-                const tName = normalizeCharName(tie?.name || '');
-                if (tName !== key) continue;
-                const ties = Array.isArray(tie?.ties) ? tie.ties.join(';') : String(tie?.ties || '');
-                // [v3.53] P14b 逐条判定修复：join(';') 后 includes(fromName) 会把「林一:朋友」误判为
-                // 林一的血亲证据（名字出现在朋友关系的 tie 里）。改为逐条 tie：
-                // 命中 = 该条 tie 同时含 from 名与血缘词，或该条 tie 含双向血缘词（兄妹/父子等）
-                const bloodRe = /(父|母|兄|弟|姐|妹|祖|孙|叔|伯|姑|姨|舅|侄|甥|血缘|血亲|亲生|兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女)/;
-                const hitTie = ties.split(';').find(t => {
-                    const hasBlood = bloodRe.test(t);
-                    if (!hasBlood) return false;
-                    return t.includes(fromName) || bidirectionalRe.test(t);
-                });
-                if (hitTie) {
-                    return { from: fromName, to: toName, relation: relationType, tie: hitTie };
-                }
-            }
-            return null;
-        } catch (e) { return null; }
-    }
-
     const stripInternalTags = stripMemoryOpsTags;
 
     // [v3.0] SD: 错误记录器——环形缓冲存最近50条，替代静默吞错。诊断面板读取展示。

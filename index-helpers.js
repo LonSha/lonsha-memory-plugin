@@ -653,6 +653,126 @@
         } catch (e) { return { total: 0, byType: {}, error: String(e?.message || e) }; }
     }
 
+    /* ================================================================
+     * 【第 3 批 · b4】4 个函数：装载期不可达 + 闭包只依赖**注入项** errLog
+     *   选簇口径（b2 纪律的第 4 条，升级版）：
+     *     · 声明唯一、无 this、未搬（同 b2）；
+     *     · **装载期不可达**（实测：tests/audit/_probe_init_reach.mjs —— 插桩后装载一遍，看谁被调到）；
+     *     · 闭包在**注入边界处截断**：只许剩已搬走的 + 注入项。
+     *   为何 b3 挖不到而 b4 挖到了：b3 要求闭包**为空**。闭包不为空 ≠ 搬走就不能跑 ——
+     *   只要缺的那个东西能靠注入提供就成立。b3 把这条界线画错了地方。
+     *   为何只选注入 errLog 的 4 个：另有一批 130 个候选（396 行）注入项是 _moduleLib，
+     *   **纪律上不许搬** —— R6 明禁 index-helpers.js 里出现 _moduleLib（那会把纯函数模块
+     *   变回取库口集合，等于只把行数挪了个地方）。这不是为多搬而放宽判据，是判据在替我们做决定。
+     * ================================================================ */
+
+    /* ---- 宿主注入面（b4 起）。注入项必须**身份稳定**：函数声明 / const 字面量。
+     *      绝不注入 let/var 标量：按值注入拿到的是当时的快照，与 index.js 那份会分裂成两份状态。 ---- */
+    let errLog = null;
+    /* ——— normalizeCharName ———（自 index.js 逐字节搬迁 5 行 + 紧贴注释 1 行；body sha256 bfb9a2864063839a…；改它必须同时改基线台账） */
+    // [v3.1] SF4: 角色名归一化（抄 yuzuki character-name-matcher——NFKC+空白折叠，防跨楼身份分裂）
+    function normalizeCharName(name) {
+        try {
+            return String(name || '').normalize('NFKC').replace(/\s+/g, '').trim().toLowerCase();
+        } catch (e) { errLog(e, 'SF4.normalizeCharName'); return String(name || ''); }
+    }
+
+    /* ——— msgFpOf ———（自 index.js 逐字节搬迁 5 行；body sha256 f2ca1d76b89baa61…；改它必须同时改基线台账） */
+    function msgFpOf(m) {
+        try {
+            return [(m?.is_user === true || m?.role === 'user') ? 'u' : 'a', Math.max(0, Math.round(Number(m?.swipe_id) || 0)), hash32(msgTextOf(m)), String(m?.send_date || m?.extra?.send_date || '')].join('|');
+        } catch (e) { errLog(e, 'V33.msgFpOf'); return ''; }
+    }
+
+    /* ——— extractThinkingChain ———（自 index.js 逐字节搬迁 54 行 + 紧贴注释 2 行；body sha256 6d95ab4f7814cc4f…；改它必须同时改基线台账） */
+    // [v3.45] 吸收 shujuku lenient-text: 扩展主流推理标签 (think/thinking/thought/reasoning/analysis)
+    // 并在未闭合截断时引入宽容熔断器，剥离开标签、保护真实正文不被吞没白屏
+    function extractThinkingChain(text) {
+        try {
+            let s = String(text || '');
+            if (!s) return { content: '', thinking: '' };
+            const thinkingParts = [];
+            const fenceMask = [];
+            // 先遮罩 ``` 围栏，防止剥掉代码示例里的推理标签
+            s = s.replace(/```[\s\S]*?```/g, (m) => { fenceMask.push(m); return '\u0000F' + (fenceMask.length - 1) + '\u0000'; });
+            
+            // [v3.45] 扩展支持 think|thinking|thought|reasoning|analysis 5类推理标签
+            let out = '', depth = 0, buf = '';
+            const tokens = s.split(/(<\/?(?:think|thinking|thought|reasoning|analysis)\b[^>]*>)/i);
+            for (const tk of tokens) {
+                if (/^<(?:think|thinking|thought|reasoning|analysis)\b[^>]*>$/i.test(tk)) {
+                    if (depth === 0) buf = '';
+                    depth++;
+                } else if (/^<\/(?:think|thinking|thought|reasoning|analysis)\s*>$/i.test(tk)) {
+                    depth--;
+                    if (depth <= 0) {
+                        if (buf && buf.trim()) thinkingParts.push(buf.trim());
+                        buf = '';
+                        depth = 0;
+                    } else if (buf) {
+                        buf += tk;
+                    }
+                } else if (depth > 0) {
+                    buf += tk;
+                } else {
+                    out += tk;
+                }
+            }
+            // [v3.45] 宽容熔断器 (shujuku lenient-text): 处理未闭合标签
+            if (depth > 0 && buf) {
+                const switchMatch = buf.match(/\n\s*\n(?=[\u4e00-\u9fa5A-Za-z0-9"'#*[{`])/);
+                if (switchMatch) {
+                    const thinkContent = buf.slice(0, switchMatch.index).trim();
+                    const bodyContent = buf.slice(switchMatch.index).trim();
+                    if (thinkContent) thinkingParts.push(thinkContent);
+                    out += (out ? '\n\n' : '') + bodyContent;
+                } else {
+                    // 纯思考且截断
+                    if (buf.trim()) thinkingParts.push(buf.trim());
+                }
+            }
+
+            // 清理剥离后残留的空标签与多余空行，还原围栏
+            out = out.replace(/<\/?(?:think|thinking|thought|reasoning|analysis)\b[^>]*>/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+            out = out.replace(/\u0000F(\d+)\u0000/g, (_, i) => fenceMask[Number(i)] || '');
+            return {
+                content: out,
+                thinking: thinkingParts.join('\n\n').replace(/\n{3,}/g, '\n\n').trim()
+            };
+        } catch (e) { errLog(e, 'V313.extractThinkingChain'); return { content: String(text || ''), thinking: '' }; }
+    }
+
+    /* ——— detectEthicsConflict ———（自 index.js 逐字节搬迁 28 行 + 紧贴注释 1 行；body sha256 af409de25121ef54…；改它必须同时改基线台账） */
+    // [v3.48] 吸收 yuzuki + 配合 v3.45 羁绊网: 伦理冲突检测（family × intimate 交叉即告警）
+    function detectEthicsConflict(fromName, toName, relationType, existingTies) {
+        try {
+            const cls = classifyRelationshipType(relationType);
+            const bloodRe = /(父|母|兄|弟|姐|妹|祖|孙|叔|伯|姑|姨|舅|侄|甥|血缘|血亲|亲生|兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女)/;
+            const bidirectionalRe = /(兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女|祖孙|血缘|血亲)/;
+            if (cls !== 'intimate') return null;
+            // 检查两人之间是否已有 family 类羁绊（血缘/婚姻）
+            const key = normalizeCharName(toName);
+            for (const tie of (existingTies || [])) {
+                const tName = normalizeCharName(tie?.name || '');
+                if (tName !== key) continue;
+                const ties = Array.isArray(tie?.ties) ? tie.ties.join(';') : String(tie?.ties || '');
+                // [v3.53] P14b 逐条判定修复：join(';') 后 includes(fromName) 会把「林一:朋友」误判为
+                // 林一的血亲证据（名字出现在朋友关系的 tie 里）。改为逐条 tie：
+                // 命中 = 该条 tie 同时含 from 名与血缘词，或该条 tie 含双向血缘词（兄妹/父子等）
+                const bloodRe = /(父|母|兄|弟|姐|妹|祖|孙|叔|伯|姑|姨|舅|侄|甥|血缘|血亲|亲生|兄妹|姐弟|兄弟|姐妹|父子|父女|母子|母女)/;
+                const hitTie = ties.split(';').find(t => {
+                    const hasBlood = bloodRe.test(t);
+                    if (!hasBlood) return false;
+                    return t.includes(fromName) || bidirectionalRe.test(t);
+                });
+                if (hitTie) {
+                    return { from: fromName, to: toName, relation: relationType, tie: hitTie };
+                }
+            }
+            return null;
+        } catch (e) { return null; }
+    }
+
     const api = {
         loadExtraJsScript,
         estimateTextTokens,
@@ -679,8 +799,17 @@
         ledgerItemKey,
         repairReceipt,
         opLogStatsCompat,
+        normalizeCharName,
+        msgFpOf,
+        extractThinkingChain,
+        detectEthicsConflict,
     };
 
+    /* 宿主注入面：逐项显式赋值（不写动态循环 —— 注入面要能一眼数清）。幂等，可反复调用。 */
+    api.__bindHost = function (host) {
+        if (host.errLog) errLog = host.errLog;
+        return true;
+    };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     global.LonShaIndexHelpers = api;
 })(typeof window !== 'undefined' ? window : globalThis);

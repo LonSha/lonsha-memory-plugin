@@ -40,15 +40,16 @@ const LEDGER = path.join(ROOT, 'tests', 'audit', 'index_split_ledger.json');
 const LOADER = path.join(ROOT, 'tests', '_index_loader.cjs');
 const AUDIT_LIB = path.join(ROOT, 'tests', '_audit_lib.mjs');
 
-/* 25 个 = 第 1 批 10 个 + 第 2 批 · b2 15 个。顺序是**基线台账的排序**（localeCompare），
+/* 29 个 = 第 1 批 10 个 + 第 2 批 · b2 15 个 + 第 3 批 · b4 4 个。顺序是**基线台账的排序**（localeCompare），
  *   P9 用逐字比对来钉「判据里的名单 = 台账里的名单」，所以顺序也必须一致。
  *   ★ 名单里**故意没有 numOr**：它闭包为空、声明唯一，但装载期就被调用（见 P24 / 台账 batch2.criterion_4_init_time）。 */
 const NAMES = [
   '_formatBindDepsRow', '_getCredKey', '_initEbbingMeta', 'buildNpcTierInjection',
   'classifyRelationshipType', 'compareVersion', 'cyclePositionFor', 'decayScore',
-  'estimateTextTokens', 'extractMemoryOpsFromText', 'extractTimeTagFast', 'filterTimelineByConstraint',
-  'hash32', 'isSystemHiddenMsg', 'ledgerClip', 'ledgerItemKey',
-  'loadExtraJsScript', 'msgTextOf', 'opLogStatsCompat', 'parseStoryTimeConstraint',
+  'detectEthicsConflict', 'estimateTextTokens', 'extractMemoryOpsFromText', 'extractThinkingChain',
+  'extractTimeTagFast', 'filterTimelineByConstraint', 'hash32', 'isSystemHiddenMsg',
+  'ledgerClip', 'ledgerItemKey', 'loadExtraJsScript', 'msgFpOf',
+  'msgTextOf', 'normalizeCharName', 'opLogStatsCompat', 'parseStoryTimeConstraint',
   'repairReceipt', 'safeJsonParse', 'sanitizeJson', 'stripMemoryOpsTags',
   'thinkingAnchorHeader',
 ];
@@ -107,8 +108,8 @@ ok('P7 台账读数是机器读数（天花板/模块行数/拆前行数三者�
 ok('P8 台账没有把「没做的事」写成做了（not_done 三项都在）',
   !!(ledger.not_done && ledger.not_done.remaining_engine && ledger.not_done.next_batch && ledger.not_done.duplicates));
 
-ok('P9 基线恰 25 个函数（第 1 批 10 + 第 2 批 15），名单与台账一致',
-  baseline.extracted.length === 25 && baseline.extracted.map((e) => e.name).join(',') === NAMES.join(','),
+ok('P9 基线恰 29 个函数（第 1 批 10 + 第 2 批 15 + 第 3 批 4），名单与台账一致',
+  baseline.extracted.length === 29 && baseline.extracted.map((e) => e.name).join(',') === NAMES.join(','),
   baseline.extracted.map((e) => e.name).join(','));
 ok('P10 每个函数都记了 64 位函数体 sha256（不是占位串）',
   baseline.extracted.every((e) => /^[0-9a-f]{64}$/.test(e.body_sha256)));
@@ -116,7 +117,7 @@ ok('P11 同名双声明的 parseStoryDateLoose 没被顺手搬走（它是语义
   !stripComments(helpersText).includes('parseStoryDateLoose') && !stripComments(helpersText).includes('storyDayDiff'));
 
 const single = checkSingleImplementation(indexText, helpersText, NAMES);
-ok('P12 25 个函数各恰一份实现 + index.js 各有委托绑定', single.ok, JSON.stringify(single.problems.slice(0, 3)));
+ok('P12 29 个函数各恰一份实现 + index.js 各有委托绑定', single.ok, JSON.stringify(single.problems.slice(0, 3)));
 ok('P13 每个名字在 index.js 里定义 0 次（第二份实现不许留）', NAMES.every((n) => defCount(indexText, n) === 0));
 ok('P14 每个名字恰有 1 条委托绑定（const NAME = (...args) => _indexHelperCall(...)）', NAMES.every((n) => bindingCount(indexText, n) === 1));
 ok('P15 逐字节：函数体 sha256 与基线逐一相同', checkByteIdentical(helpersText, baseline).ok);
@@ -124,7 +125,12 @@ ok('P16 取库是惰性的（extra_js 在入口之后加载，装载期取库会
 ok('P17 缺席时抛点名错误，不留同形兜底', /缺导出：/.test(indexText) && /_noteModuleFailure/.test(indexText));
 ok('P18 纯函数模块不持依赖面（且判据剥注释后再查，不拿散文当代码）',
   checkPureModule(helpersText).ok && !/function stripComments/.test(gateText) && /import \{ stripComments \} from '\.\.\/_audit_lib\.mjs';/.test(gateText));
-ok('P19 行为快照复放（fixtures 逐调用真跑模块）', checkFixtures(baseline, HELPERS).ok, JSON.stringify(checkFixtures(baseline, HELPERS).problems.slice(0, 3)));
+ok('P19 行为快照复放（fixtures 逐调用真跑模块）', (() => {
+  /* 必须传 indexText：b4 起注入项有两种取值方式（const 字面量从 index.js 现取 / 函数声明给静默桩），
+     不传第三参就分不出函数声明型注入项，会误报「找不到 const 初始化式」。 */
+  const r = checkFixtures(baseline, HELPERS, indexText);
+  return r.ok;
+})(), JSON.stringify(checkFixtures(baseline, HELPERS, indexText).problems.slice(0, 3)));
 ok('P20 台账 not_called 里的函数都写了理由（不许悄悄漏掉）',
   Object.keys(baseline.not_called || {}).every((k) => String(baseline.not_called[k] || '').trim().length > 0));
 
