@@ -1,5 +1,38 @@
 ## v3.474.0
 
+**第二十三期优化九项第九刀（L23-O9）：冻结读数新鲜度三态全量覆盖 —— 顺手揭穿「解析器一直在说『缺时间戳』」。**
+
+- **修的是什么（两处，都属于「看起来有门，其实没门」）**：
+  - **覆盖只有 2/10**：三态判定与判据早就在（`v21_o7`），但登记表 `READING_PRODUCERS` 只有 **2** 份
+    （realhost / loading_surface），而盘上带时间戳的 `tests/audit/*.json` 实测 **10** 份 ⇒
+    另外 8 份**没有任何新鲜度门**，谁把 42 天前的基线当现行读都没人管。
+  - **解析器撒谎**：版本式时间戳（`measured_at: v3.431.0`）靠 `git log -S measured_at v3.431.0 -- <file>` 取提交时间，
+    可本仓**没有逐版本 git tag**（`fatal: bad revision 'v3.431.0'`，实测 7 份全中）⇒ 这条路径**从来没成功过**，
+    全部落到 `null` 然后被报成「缺时间戳 ⇒ expired」。这不是「读数没写时间」，是**解析器找不到**。
+- **真实交付 ①：解析器补两条 + 两种失败分开报。**
+  ① 同义键名一起认：`generatedAt` 与 `generated_at`（snake 实测存在于 `module_consumption_ledger.json`）——
+  修前只有 camel 被认，snake 那份**有时间的读数**被判成「缺时间戳」。
+  ② 版本式时间戳取不到 tag 时回落一次：按 `package.json` 改成该版本的那次提交计时。
+  ③ 「说了却查不到」与「根本没写」现在是**两个 why**（结论都 fail-closed 成 `expired`，原因不同形）。
+- **读数变化（如实记账，不是抹平）**：修前这 7 份全部被报 `expired / 缺时间戳`；
+  修后实测 **stale（42～52 天）**，其余仍是 fresh ⇒ 当版 **6 fresh / 4 stale / 0 expired**。
+  ⇒ 旧读数里那些「expired」有 7 条是**假的**（解析失败冒充过期）。
+- **真实交付 ②：登记表扩到 10 份，可信度分列。** `FROZEN_READINGS` 每条带
+  `producer_verified`：`true` = 已实测「跑它真的会重写这份 JSON」（realhost←`_realhost_suite.mjs`、
+  loading←`loading_surface_proof.mjs`、consumption←`scan_module_consumption.mjs`）；
+  `false` = 只确认「这份读数归它管」，**没验过重跑会不会重写**，且必须写 `why_unverified`
+  （判据 B2 逐条要，≥20 字，不许用「大概能重生」糊过去）。
+- **真实交付 ③：台账生成器 + 判据（11 条）**。
+  `tools/gen_freshness_report.mjs` 写 `tests/audit/freshness_ledger.json`（每份：`state` / `ageDays` / `why` / `refresh`），
+  阈值全部 import 自判定体（单一真源）。判据 `tests/l23_o9_frozen_freshness_all.test.mjs` **11/11**：
+  A1 覆盖齐（盘上每份带时间戳的读数都在表里，10/10）/ A2 三态各答各的 + expired 给可复制命令 /
+  A3 snake 键名 / A4 两种失败不同形 / B1 缺时间戳一律 expired / B2 未验证必须写明 /
+  C1 台账用自身 `judged_at` 重算必须逐行一致（手改即红）/ C2 生成器 `--check` 绿 /
+  D1 把阈值放大后同一份必须改判 fresh（三态真的读阈值）/ D2 判据不许自带阈值 / E1 出生锚。
+  `v21_o7` 五条老判据（含「ageDays 恒 0 ⇒ 三态归一必须被识破」的负控制）扩面后**仍全绿**。
+- **一处自伤，记在这里**：生成器 `--check` 首版把 `judged_at`（本次跑的时钟）也算进逐字节相等性 ⇒
+  永远红。改成「比对判断结论（counts + rows），不比对本次时钟」——**一条永远红的自检等于没有自检**。
+
 **第二十三期优化九项第八刀（L23-O8）：视图分支逐个真调 —— 补齐 4 个**从来没被真调过**的可视化视图，并把 34/31 的差异留档。**
 
 - **先给实测口径（可复算，不是估的）**：计划写「34 个视图分支」。

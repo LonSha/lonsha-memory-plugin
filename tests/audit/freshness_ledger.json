@@ -1,0 +1,102 @@
+{
+  "file": "tests/audit/freshness_ledger.json",
+  "generator": "tools/gen_freshness_report.mjs（由它写；判据 --check 逐字节比对，手改即红）",
+  "note": "L23-O9 冻结读数新鲜度台账。三态口径来自 tests/audit/_freshness_judge.mjs（阈值单一真源）。`ageDays` 是整岁天数；版本式时间戳（measured_at）按该版本提交日计龄。expired 的读数**不得再作依据**，refresh 一列给出可复制的刷新命令。",
+  "judged_at": "2026-11-17T15:13:35.629Z",
+  "counts": {
+    "fresh": 6,
+    "stale": 4
+  },
+  "rows": [
+    {
+      "rel": "tests/audit/realhost_readings.json",
+      "producer": "tests/audit/_realhost_suite.mjs",
+      "producer_verified": true,
+      "state": "fresh",
+      "ageDays": 0,
+      "why": "读数 0 天前生成 —— 现行",
+      "refresh": "node tests/audit/_realhost_suite.mjs"
+    },
+    {
+      "rel": "tests/audit/loading_surface_proof.json",
+      "producer": "tests/audit/loading_surface_proof.mjs",
+      "producer_verified": true,
+      "state": "fresh",
+      "ageDays": 0,
+      "why": "读数 0 天前生成 —— 现行",
+      "refresh": "node tests/audit/loading_surface_proof.mjs"
+    },
+    {
+      "rel": "tests/audit/doc_readings.json",
+      "producer": "tools/_rebind_doc_readings.py",
+      "producer_verified": false,
+      "state": "fresh",
+      "ageDays": 16,
+      "why": "读数 16 天前生成 —— 现行",
+      "refresh": "node tools/_rebind_doc_readings.py"
+    },
+    {
+      "rel": "tests/audit/test_cost_readings.json",
+      "producer": "tools/gen_test_budget.mjs",
+      "producer_verified": false,
+      "state": "fresh",
+      "ageDays": 16,
+      "why": "读数 16 天前生成 —— 现行",
+      "refresh": "node tools/gen_test_budget.mjs"
+    },
+    {
+      "rel": "tests/audit/host_beast_baseline.json",
+      "producer": "tests/audit/host_beast_probe.cjs",
+      "producer_verified": false,
+      "state": "fresh",
+      "ageDays": 0,
+      "why": "读数 0 天前生成 —— 现行",
+      "refresh": "node tests/audit/host_beast_probe.cjs"
+    },
+    {
+      "rel": "tests/audit/gate_timing_baseline.json",
+      "producer": "tests/v3227_gate_isolation_and_timing.test.mjs",
+      "producer_verified": false,
+      "state": "stale",
+      "ageDays": 52,
+      "why": "读数已 52 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "refresh": "node tests/v3227_gate_isolation_and_timing.test.mjs"
+    },
+    {
+      "rel": "tests/audit/perf_baseline.json",
+      "producer": "tests/v3229_perf_evidence.test.mjs",
+      "producer_verified": false,
+      "state": "stale",
+      "ageDays": 52,
+      "why": "读数已 52 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "refresh": "node tests/v3229_perf_evidence.test.mjs"
+    },
+    {
+      "rel": "tests/audit/scale_archive_baseline.json",
+      "producer": "tests/v3231_snapshot_scale_evidence.test.mjs",
+      "producer_verified": false,
+      "state": "stale",
+      "ageDays": 42,
+      "why": "读数已 42 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "refresh": "node tests/v3231_snapshot_scale_evidence.test.mjs"
+    },
+    {
+      "rel": "tests/audit/snapshot_baseline.json",
+      "producer": "tests/v3231_snapshot_scale_evidence.test.mjs",
+      "producer_verified": false,
+      "state": "stale",
+      "ageDays": 52,
+      "why": "读数已 52 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "refresh": "node tests/v3231_snapshot_scale_evidence.test.mjs"
+    },
+    {
+      "rel": "tests/audit/module_consumption_ledger.json",
+      "producer": "tests/audit/scan_module_consumption.mjs",
+      "producer_verified": true,
+      "state": "fresh",
+      "ageDays": 0,
+      "why": "读数 0 天前生成 —— 现行",
+      "refresh": "node tests/audit/scan_module_consumption.mjs"
+    }
+  ]
+}
