@@ -39,9 +39,17 @@ const LEDGER = path.join(ROOT, 'tests', 'audit', 'index_split_ledger.json');
 const LOADER = path.join(ROOT, 'tests', '_index_loader.cjs');
 const AUDIT_LIB = path.join(ROOT, 'tests', '_audit_lib.mjs');
 
+/* 25 个 = 第 1 批 10 个 + 第 2 批 · b2 15 个。顺序是**基线台账的排序**（localeCompare），
+ *   P9 用逐字比对来钉「判据里的名单 = 台账里的名单」，所以顺序也必须一致。
+ *   ★ 名单里**故意没有 numOr**：它闭包为空、声明唯一，但装载期就被调用（见 P24 / 台账 batch2.criterion_4_init_time）。 */
 const NAMES = [
-  'loadExtraJsScript', 'estimateTextTokens', 'hash32', 'stripMemoryOpsTags', 'extractTimeTagFast',
-  'sanitizeJson', 'safeJsonParse', 'cyclePositionFor', '_initEbbingMeta', 'ledgerClip',
+  '_formatBindDepsRow', '_getCredKey', '_initEbbingMeta', 'buildNpcTierInjection',
+  'classifyRelationshipType', 'compareVersion', 'cyclePositionFor', 'decayScore',
+  'estimateTextTokens', 'extractMemoryOpsFromText', 'extractTimeTagFast', 'filterTimelineByConstraint',
+  'hash32', 'isSystemHiddenMsg', 'ledgerClip', 'ledgerItemKey',
+  'loadExtraJsScript', 'msgTextOf', 'opLogStatsCompat', 'parseStoryTimeConstraint',
+  'repairReceipt', 'safeJsonParse', 'sanitizeJson', 'stripMemoryOpsTags',
+  'thinkingAnchorHeader',
 ];
 
 let pass = 0, fail = 0;
@@ -88,8 +96,8 @@ ok('P7 台账读数是机器读数（天花板/模块行数/拆前行数三者�
 ok('P8 台账没有把「没做的事」写成做了（not_done 三项都在）',
   !!(ledger.not_done && ledger.not_done.remaining_engine && ledger.not_done.next_batch && ledger.not_done.duplicates));
 
-ok('P9 基线恰 10 个函数，名单与台账一致',
-  baseline.extracted.length === 10 && baseline.extracted.map((e) => e.name).join(',') === NAMES.join(','),
+ok('P9 基线恰 25 个函数（第 1 批 10 + 第 2 批 15），名单与台账一致',
+  baseline.extracted.length === 25 && baseline.extracted.map((e) => e.name).join(',') === NAMES.join(','),
   baseline.extracted.map((e) => e.name).join(','));
 ok('P10 每个函数都记了 64 位函数体 sha256（不是占位串）',
   baseline.extracted.every((e) => /^[0-9a-f]{64}$/.test(e.body_sha256)));
@@ -97,7 +105,7 @@ ok('P11 同名双声明的 parseStoryDateLoose 没被顺手搬走（它是语义
   !stripComments(helpersText).includes('parseStoryDateLoose') && !stripComments(helpersText).includes('storyDayDiff'));
 
 const single = checkSingleImplementation(indexText, helpersText, NAMES);
-ok('P12 10 个函数各恰一份实现 + index.js 各有委托绑定', single.ok, JSON.stringify(single.problems.slice(0, 3)));
+ok('P12 25 个函数各恰一份实现 + index.js 各有委托绑定', single.ok, JSON.stringify(single.problems.slice(0, 3)));
 ok('P13 每个名字在 index.js 里定义 0 次（第二份实现不许留）', NAMES.every((n) => defCount(indexText, n) === 0));
 ok('P14 每个名字恰有 1 条委托绑定（const NAME = (...args) => _indexHelperCall(...)）', NAMES.every((n) => bindingCount(indexText, n) === 1));
 ok('P15 逐字节：函数体 sha256 与基线逐一相同', checkByteIdentical(helpersText, baseline).ok);
@@ -109,7 +117,7 @@ ok('P19 行为快照复放（fixtures 逐调用真跑模块）', checkFixtures(b
 ok('P20 台账 not_called 里的函数都写了理由（不许悄悄漏掉）',
   Object.keys(baseline.not_called || {}).every((k) => String(baseline.not_called[k] || '').trim().length > 0));
 
-ok('P21 manifest 把 index-helpers.js 登记进 extra_js（否则真宿主里 10 个函数全缺席）',
+ok('P21 manifest 把 index-helpers.js 登记进 extra_js（否则真宿主里全部委托函数缺席）',
   manifest.js === 'index.js' && Array.isArray(manifest.extra_js) && manifest.extra_js.includes('index-helpers.js'), 'extra_js=' + (manifest.extra_js || []).length);
 ok('P22 它同时进了装载面台账（module_consumption_ledger 里是 active，不是零消费孤儿）', (() => {
   const j = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'audit', 'module_consumption_ledger.json'), 'utf8'));
@@ -121,6 +129,45 @@ ok('P23 它也进了 extra_js seam 台账（host-seam，不是 orphan）', (() =
   const row = t.find((l) => l.startsWith('index-helpers.js\t'));
   return !!row && row.split('\t')[4] === 'host-seam';
 })(), 'seam 台账缺行');
+
+/* ---------- P24–P26：第 2 批 · b2 专有的两件事 ---------- */
+/* numOr 的「是否留在原地」判定抽成纯函数，好让下面能做两向自证 */
+const numOrStayed = (it, ht) => defCount(it, 'numOr') === 1 && defCount(ht, 'numOr') === 0 && bindingCount(it, 'numOr') === 0;
+
+ok('P24 numOr 未被外移（它装载期可达 ⇒ 必须留在 index.js 且无委托绑定）',
+  numOrStayed(indexText, helpersText),
+  'index.js 定义 ' + defCount(indexText, 'numOr') + ' 次 / helpers 定义 ' + defCount(helpersText, 'numOr') + ' 次 / 绑定 ' + bindingCount(indexText, 'numOr') + ' 条');
+
+ok('P25 台账把「为什么不是 16 个」写清楚了（第 4 条判据 + numOr 实证不写在代码里就等于没写）',
+  !!(ledger.batch2 && ledger.batch2.criterion_4_init_time
+    && /装载期/.test(ledger.batch2.criterion_4_init_time.statement || '')
+    && ledger.batch2.excluded_because_init_time_call && ledger.batch2.excluded_because_init_time_call.numOr
+    && Array.isArray(ledger.batch2.functions) && ledger.batch2.functions.length === 15),
+  ledger.batch2 ? 'batch2.functions=' + (ledger.batch2.functions || []).length : '缺 batch2 段');
+
+/* P26：直接实测「装载期有没有 require 过 index-helpers.js」。
+ *   这是第 4 条判据唯一的行为读数 —— 比「装载有没有抛」强：node 里 _moduleLib 有 require 回落，
+ *   装载期取库既不抛也不报，只有「多挂了一个 window.LonShaIndexHelpers」这一丝痕迹。 */
+{
+  const probe = path.join(os.tmpdir(), 'l22o1_probe_' + process.pid + '.cjs');
+  fs.writeFileSync(probe, [
+    "const R = " + JSON.stringify(ROOT) + ";",
+    "const Module = require('module');",
+    'const orig = Module.prototype.require;',
+    'let hit = 0;',
+    'Module.prototype.require = function (p) { if (String(p).includes("index-helpers")) hit++; return orig.apply(this, arguments); };',
+    "const { makeHost } = require(R + '/tests/_index_loader.cjs');",
+    'makeHost();',
+    "try { require(R + '/index.js'); } catch (e) { console.error('[LOAD-ERR] ' + (e && e.message)); }",
+    'setTimeout(() => { console.log("REQUIRE_HITS=" + hit); process.exit(0); }, 500);',
+  ].join('\n'), 'utf8');
+  const r = spawnSync(process.execPath, [probe], { cwd: ROOT, encoding: 'utf8', timeout: 180000 });
+  try { fs.unlinkSync(probe); } catch (_e) { /* 清理失败不影响结论 */ }
+  const out = String(r.stdout || '') + String(r.stderr || '');
+  const hits = (out.match(/REQUIRE_HITS=(\d+)/) || [])[1];
+  ok('P26 装载期一次都没 require 过 index-helpers.js（⇒ 25 个函数全部装载期不可达）',
+    hits === '0', 'REQUIRE_HITS=' + hits + ' ' + out.slice(-200));
+}
 
 /* ---------- N：镜像树上的真源码破坏（证明每一关都会红） ---------- */
 /** 造一个「门禁能跑」的镜像树。
@@ -193,9 +240,10 @@ delete exportsShort.surface.LonShaMemory;
 const n4 = withMirror({ exports: JSON.stringify(exportsShort) }, (d) => runGateIn(d));
 ok('N4 对外面少一个符号 ⇒ rc=1 且点名 R1', n4.status === 1 && /\[R1\]/.test(n4.out), n4.out.slice(-260));
 
-/* N5 门槛被人为抬高（天花板 13300） → R2 必须红（ratchet 不许注水） */
+/* N5 天花板被调到低于当前行数 → R2 必须红（ratchet 不许注水）
+ *   ★ 这里的数字必须跟着 index.js 一起降：写死一个「曾经的红值」会让负控制自己失效。 */
 const ledgerTight = JSON.parse(JSON.stringify(ledger));
-ledgerTight.index_lines_max = 13300;
+ledgerTight.index_lines_max = idxLines - 50;
 const n5 = withMirror({ ledger: JSON.stringify(ledgerTight) }, (d) => runGateIn(d));
 ok('N5 天花板被调紧 ⇒ rc=1 且点名 R2', n5.status === 1 && /\[R2\]/.test(n5.out), n5.out.slice(-260));
 
@@ -225,6 +273,17 @@ ok('N9 门禁 R4 被打瞎后，改了一个字符的副本转绿（两向自证
 ok('N10 checkRatchet 对「行数涨回拆前」返回 not-ok', checkRatchet(ledger, 13546).ok === false);
 ok('N11 compareSurface 对空基线返回 not-ok（空表不是通过）', compareSurface({}, { A: 'function' }).ok === false);
 ok('N12 functionBody 对不存在的函数返回 null（不缺就当成功）', functionBody(helpersText, 'noSuchFunction') === null);
+
+/* N13 P24 的两向自证：把 numOr 真的「搬走」（helpers 里加一份、index.js 里删掉定义），
+ *     同一个判定必须转假 —— 否则 P24 可能只是「因为没人搬」而绿。 */
+{
+  const numOrBody = functionBody(indexText, 'numOr');
+  const idxMoved = numOrBody ? indexText.replace(numOrBody, '') : indexText;
+  const helpersMoved = helpersText.replace('    const api = {', '    function numOr(v, fallback) { return v == null ? fallback : v; }\n\n    const api = {');
+  ok('N13 把 numOr 搬走后，P24 的判定转假（两向自证）',
+    numOrStayed(indexText, helpersText) === true && numOrStayed(idxMoved, helpersMoved) === false,
+    'numOrBody=' + (numOrBody ? numOrBody.split('\n').length + ' 行' : '取不到'));
+}
 
 console.log('\n' + pass + ' 通过, ' + fail + ' 失败');
 process.exit(fail > 0 ? 1 : 0);

@@ -10,7 +10,7 @@
  *   R1 入口能装 + 对外面逐字不变：跑 tests/_index_loader.cjs 取导出面，与
  *      tests/audit/index_exports.json 的 64 个符号（名字+类型）完全一致。
  *   R2 行数只降不涨：index.js 行数 ≤ 台账天花板，且必须低于拆前。
- *   R3 单份实现：10 个函数在 index-helpers.js 里各定义恰 1 次、在 index.js 里 0 次定义；
+ *   R3 单份实现：台账里的每个函数在 index-helpers.js 里各定义恰 1 次、在 index.js 里 0 次定义；
  *      且 index.js 里必须有一行 `const NAME = (...args) => _indexHelperCall(...)` 绑定。
  *   R4 逐字节搬迁：index-helpers.js 里每个函数体（从 `    function NAME(` 到配对结束）
  *      的 sha256 必须等于基线台账里记的 body_sha256。改一个字符就红。
@@ -123,7 +123,7 @@ export function checkByteIdentical(helpersText, baseline) {
 export function checkLazyProbe(indexText) {
   const problems = [];
   const eager = /^ {4}const \w+ = _moduleLib\(\(\) => window\.LonShaIndexHelpers/m;
-  if (eager.test(indexText)) problems.push('index.js 里出现了装载期就取 index-helpers 的写法（extra_js 顺序会让它取空，10 个函数全变缺席桩）');
+  if (eager.test(indexText)) problems.push('index.js 里出现了装载期就取 index-helpers 的写法（extra_js 顺序会让它取空，全部委托函数变缺席桩）');
   if (!/function _indexHelpers\(\)/.test(indexText)) problems.push('index.js 缺惰性探针 _indexHelpers()');
   if (!/function _indexHelperCall\(name, args\)/.test(indexText)) problems.push('index.js 缺 _indexHelperCall(name, args)');
   if (!/_moduleLib\(\(\) => window\.LonShaIndexHelpers, 'index-helpers\.js'\)/.test(indexText)) {
@@ -199,7 +199,7 @@ export function runChecks({ indexText, helpersText, baseline, exportsBase, ledge
   const push = (id, name, r) => results.push({ id, name, ok: r.ok, problems: r.problems || [] });
   push('R1', '入口导出面与基线逐字一致（' + exportsBase.count + ' 个符号）', compareSurface(exportsBase.surface, nowSurface));
   push('R2', 'index.js 行数只降不涨', checkRatchet(ledger, linesOf(indexText)));
-  push('R3', '10 个函数各一份实现 + index.js 有委托绑定', checkSingleImplementation(indexText, helpersText, baseline.extracted.map((e) => e.name)));
+  push('R3', baseline.extracted.length + ' 个函数各一份实现 + index.js 有委托绑定', checkSingleImplementation(indexText, helpersText, baseline.extracted.map((e) => e.name)));
   push('R4', '逐字节搬迁（每个函数体 sha256 与基线一致）', checkByteIdentical(helpersText, baseline));
   push('R5', '取库惰性（装载期不探 index-helpers）', checkLazyProbe(indexText));
   push('R6', '纯函数模块不持依赖面', checkPureModule(helpersText));
@@ -243,7 +243,7 @@ async function main() {
     push('R1', '入口能装 + 导出面一致', compareSurface(exportsBase.surface, nowSurface));
   }
   push('R2', 'index.js 行数只降不涨', checkRatchet(ledger, linesOf(indexText)));
-  push('R3', '10 个函数各一份实现 + 委托绑定', checkSingleImplementation(indexText, helpersText, baseline.extracted.map((e) => e.name)));
+  push('R3', baseline.extracted.length + ' 个函数各一份实现 + 委托绑定', checkSingleImplementation(indexText, helpersText, baseline.extracted.map((e) => e.name)));
   push('R4', '逐字节搬迁（函数体 sha256）', checkByteIdentical(helpersText, baseline));
   push('R5', '取库惰性', checkLazyProbe(indexText));
   push('R6', '纯函数模块不依赖其它模块', checkPureModule(helpersText));

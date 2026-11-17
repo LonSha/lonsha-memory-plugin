@@ -1,75 +1,29 @@
 {
   "schema": "index-helpers-baseline@1",
   "plan": "L22-O1",
-  "note": "index.js 拆出的 10 个纯函数：每段的源码 sha256 + 行为快照。闸（tests/audit/scan_index_split.mjs）逐段比对 sha256，逐调用比对输出 —— 搬的时候顺手改了逻辑会立刻红。fixtures 是同一台账里“算出来一样”的那一半，闸 R7 真 require 模块逐调用重放。",
+  "note": "index.js 拆出的 25 个纯函数（第 1 批 10 个 + 第 2 批 · b2 15 个）：每段的源码 sha256 + 行为快照。闸（tests/audit/scan_index_split.mjs）逐段比对 sha256，逐调用比对输出 —— 搬的时候顺手改了逻辑会立刻红。fixtures 是同一台账里“算出来一样”的那一半，闸 R7 真 require 模块逐调用重放。",
   "source": {
     "file": "index.js",
     "origin": "搬迁前 index.js（HEAD 版本）逐字节"
   },
   "extracted": [
     {
-      "name": "loadExtraJsScript",
-      "source_line": 477,
-      "source_end_line": 489,
-      "lines": 13,
-      "sha256": "c9d8ac4455f6b0da66fa18bd26b21cefd2daf4ad2281a163d0a826fcc974b2cc",
-      "body_sha256": "fa7f108203ec0a6c140d00d2e3258d76740bbd3c680e0bb430fa4e70edf0b1e4"
+      "name": "_formatBindDepsRow",
+      "source_line": 1625,
+      "source_end_line": 1656,
+      "lines": 25,
+      "sha256": "bd843f0c4bc2f7e7807502296919330a91bdca533bf964a2d28afcf68606e83f",
+      "body_sha256": "8f7d55c41bc7180994edee36ded91e1175f493fdfab8edeece2ccd0ba38e3fd2",
+      "attach_comment_lines": 7,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
     },
     {
-      "name": "estimateTextTokens",
-      "source_line": 524,
-      "source_end_line": 536,
-      "lines": 13,
-      "sha256": "324bec2c51468b171a4329610b7102a9153797bab45bf255cb91bcd1d9c1d123",
-      "body_sha256": "4f56a9dd65cfedce6d3a8d1fca502a554842d5784b4be24c57396bafa29b5406"
-    },
-    {
-      "name": "hash32",
-      "source_line": 537,
-      "source_end_line": 545,
-      "lines": 9,
-      "sha256": "142449538b3352d81f2f418a2ccabff016b6509c385e7d5fa4af1817ed4c68e7",
-      "body_sha256": "0e6be152e830c8ea914b4a6fa916750ec739c7aaeadceab7267be67484b4b49c"
-    },
-    {
-      "name": "stripMemoryOpsTags",
-      "source_line": 795,
-      "source_end_line": 805,
-      "lines": 11,
-      "sha256": "3d699850656fab7873f7dbfc7fe75a8b3abeb6032a64370e0d621c254b78d0ef",
-      "body_sha256": "1effcb4f7a506401ed10ab6eefadfbceb13a9f00330c301348df912148d5fed2"
-    },
-    {
-      "name": "extractTimeTagFast",
-      "source_line": 807,
-      "source_end_line": 819,
-      "lines": 13,
-      "sha256": "0c0f3b1c4deb773a4342572f76391d49a89551879831cff19aac9673ae8c60ad",
-      "body_sha256": "b1f57eb4068ab7bfb8129a588498aaa244659ac51f06d5aa31b5f9894a77a45d"
-    },
-    {
-      "name": "sanitizeJson",
-      "source_line": 853,
-      "source_end_line": 999,
-      "lines": 147,
-      "sha256": "4a5abb42c932f13bef31fa16f98f51f2cfa60728b541807155704c991cbf8585",
-      "body_sha256": "401b69875995c927a0977880e99605b7b7436ec29a0a2c8244c0b5c9a2105c21"
-    },
-    {
-      "name": "safeJsonParse",
-      "source_line": 1000,
-      "source_end_line": 1011,
-      "lines": 12,
-      "sha256": "7d7a48a8b44239280612dba9d010c6d871e50a4951b12e99f617e4aa2bda6c85",
-      "body_sha256": "7d7a48a8b44239280612dba9d010c6d871e50a4951b12e99f617e4aa2bda6c85"
-    },
-    {
-      "name": "cyclePositionFor",
-      "source_line": 1887,
-      "source_end_line": 1890,
+      "name": "_getCredKey",
+      "source_line": 353,
+      "source_end_line": 356,
       "lines": 4,
-      "sha256": "5a9872ba71f507699eadb8e03e83c91927a995f1c74dcec5065eca995686f794",
-      "body_sha256": "5a9872ba71f507699eadb8e03e83c91927a995f1c74dcec5065eca995686f794"
+      "sha256": "13d964fc59cf61d80853a4e7404e816c3c882b65dc0c38cd04f235f41a7fad2d",
+      "body_sha256": "13d964fc59cf61d80853a4e7404e816c3c882b65dc0c38cd04f235f41a7fad2d"
     },
     {
       "name": "_initEbbingMeta",
@@ -80,12 +34,200 @@
       "body_sha256": "6e02123b3f950d2bfddfd36ca46ce349e7741288b9fc3c2df4e59c84fc39ab6d"
     },
     {
+      "name": "buildNpcTierInjection",
+      "source_line": 699,
+      "source_end_line": 726,
+      "lines": 27,
+      "sha256": "0e3513a1912d7c5a441eb14e9fb83044c129906ef381cb39a5cb593f24dd2289",
+      "body_sha256": "78732cdba1c6d282baee0a88a975b1a1ded7e8711f6a2f9d9196cfa65fd9fa99",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "classifyRelationshipType",
+      "source_line": 759,
+      "source_end_line": 771,
+      "lines": 12,
+      "sha256": "96179c2b3e0775a2b66f31f8e67ebaae36b41cc0f70e3ef816dfb56ffb2fdb68",
+      "body_sha256": "77b995572d9282dec8914cecc21f36d1ae55f05f78c6f11983e9625124c7bd2e",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "compareVersion",
+      "source_line": 337,
+      "source_end_line": 347,
+      "lines": 11,
+      "sha256": "9ac3236be91944d643580c105236a8695256ae6fb918413fe37a1fdb0400bcdb",
+      "body_sha256": "9ac3236be91944d643580c105236a8695256ae6fb918413fe37a1fdb0400bcdb"
+    },
+    {
+      "name": "cyclePositionFor",
+      "source_line": 1887,
+      "source_end_line": 1890,
+      "lines": 4,
+      "sha256": "5a9872ba71f507699eadb8e03e83c91927a995f1c74dcec5065eca995686f794",
+      "body_sha256": "5a9872ba71f507699eadb8e03e83c91927a995f1c74dcec5065eca995686f794"
+    },
+    {
+      "name": "decayScore",
+      "source_line": 1799,
+      "source_end_line": 1824,
+      "lines": 23,
+      "sha256": "e8b141e736c028777114efb624af0f283f289e7cbc672e33e874881465d255f5",
+      "body_sha256": "ede993f4d32e4d970416fd87bc66925b0c2e7b7e548d552358d50589dc7d7d5e",
+      "attach_comment_lines": 3,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "estimateTextTokens",
+      "source_line": 524,
+      "source_end_line": 536,
+      "lines": 13,
+      "sha256": "324bec2c51468b171a4329610b7102a9153797bab45bf255cb91bcd1d9c1d123",
+      "body_sha256": "4f56a9dd65cfedce6d3a8d1fca502a554842d5784b4be24c57396bafa29b5406"
+    },
+    {
+      "name": "extractMemoryOpsFromText",
+      "source_line": 641,
+      "source_end_line": 698,
+      "lines": 57,
+      "sha256": "fbe83edb19407c0e81decdd118a5dce19326084957afd1be213a0904c89ca427",
+      "body_sha256": "64f2991a3ff190932dd603006b0e5310b10dd11fcc2a2220823ffdd9bd015948",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "extractTimeTagFast",
+      "source_line": 807,
+      "source_end_line": 819,
+      "lines": 13,
+      "sha256": "0c0f3b1c4deb773a4342572f76391d49a89551879831cff19aac9673ae8c60ad",
+      "body_sha256": "b1f57eb4068ab7bfb8129a588498aaa244659ac51f06d5aa31b5f9894a77a45d"
+    },
+    {
+      "name": "filterTimelineByConstraint",
+      "source_line": 1741,
+      "source_end_line": 1788,
+      "lines": 47,
+      "sha256": "59a1ee4b733ca5f8695b1fdf0938f64bff92eafa257b459fc87c62ee034b8770",
+      "body_sha256": "4d491b998b4c5f783e4b4f5c6a432f7ae8e4d0ff72c83cdfeb385a6ef833b805",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "hash32",
+      "source_line": 537,
+      "source_end_line": 545,
+      "lines": 9,
+      "sha256": "142449538b3352d81f2f418a2ccabff016b6509c385e7d5fa4af1817ed4c68e7",
+      "body_sha256": "0e6be152e830c8ea914b4a6fa916750ec739c7aaeadceab7267be67484b4b49c"
+    },
+    {
+      "name": "isSystemHiddenMsg",
+      "source_line": 1789,
+      "source_end_line": 1796,
+      "lines": 6,
+      "sha256": "bb5f7dd84d7d574c1749b3126e996ab706acaeee7429c97010c11ba6ba5239c0",
+      "body_sha256": "553d592136968cf7d8f828ed146671e09b31036de97a90ca6dd38275b4853a8f",
+      "attach_comment_lines": 2,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
       "name": "ledgerClip",
       "source_line": 2087,
       "source_end_line": 2091,
       "lines": 5,
       "sha256": "f668a9e6b39d8cf5045f7b2b8b6ff82811f77c7de1fff7845c5e1d15457cb649",
       "body_sha256": "f668a9e6b39d8cf5045f7b2b8b6ff82811f77c7de1fff7845c5e1d15457cb649"
+    },
+    {
+      "name": "ledgerItemKey",
+      "source_line": 1884,
+      "source_end_line": 1894,
+      "lines": 10,
+      "sha256": "d3094f62223eb9d245b809663a8f6f8e7f20312dd8cfb3e4ba43a9f28c8616d1",
+      "body_sha256": "b8b2e16f1a82208a624f30d624ce2597c8c3d0d4e234cea8db6a0e62fe8a7be2",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "loadExtraJsScript",
+      "source_line": 477,
+      "source_end_line": 489,
+      "lines": 13,
+      "sha256": "c9d8ac4455f6b0da66fa18bd26b21cefd2daf4ad2281a163d0a826fcc974b2cc",
+      "body_sha256": "fa7f108203ec0a6c140d00d2e3258d76740bbd3c680e0bb430fa4e70edf0b1e4"
+    },
+    {
+      "name": "msgTextOf",
+      "source_line": 553,
+      "source_end_line": 559,
+      "lines": 7,
+      "sha256": "412e9f8ca2c7a6d727d8cecea0f26fceb24b1ecf141325ed7a36df3fb5a2a0f9",
+      "body_sha256": "412e9f8ca2c7a6d727d8cecea0f26fceb24b1ecf141325ed7a36df3fb5a2a0f9"
+    },
+    {
+      "name": "opLogStatsCompat",
+      "source_line": 13332,
+      "source_end_line": 13346,
+      "lines": 15,
+      "sha256": "e58d1ce2066d9f427ceaac5f609424fe8cd268398f19cf7792cb30d8da6d0e25",
+      "body_sha256": "e58d1ce2066d9f427ceaac5f609424fe8cd268398f19cf7792cb30d8da6d0e25"
+    },
+    {
+      "name": "parseStoryTimeConstraint",
+      "source_line": 1711,
+      "source_end_line": 1740,
+      "lines": 27,
+      "sha256": "7e35be3f5f3ba9fede88ab39cfff942f046513f0b0e41715db4e91bf555c8450",
+      "body_sha256": "61c934553494f6781c8a6bb39ddbc7be75e6141077db5136085bc599652a19ff",
+      "attach_comment_lines": 3,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "repairReceipt",
+      "source_line": 13002,
+      "source_end_line": 13035,
+      "lines": 27,
+      "sha256": "fee1526a8c92ba506d1f682cbb32be30294d7c543a326d0c3dfd0d1fbd692e17",
+      "body_sha256": "a1affe2ab3f0903cdcf1a2e2bfc32150b834418453978e11027423f465e6a6bd",
+      "attach_comment_lines": 7,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
+    },
+    {
+      "name": "safeJsonParse",
+      "source_line": 1000,
+      "source_end_line": 1011,
+      "lines": 12,
+      "sha256": "7d7a48a8b44239280612dba9d010c6d871e50a4951b12e99f617e4aa2bda6c85",
+      "body_sha256": "7d7a48a8b44239280612dba9d010c6d871e50a4951b12e99f617e4aa2bda6c85"
+    },
+    {
+      "name": "sanitizeJson",
+      "source_line": 853,
+      "source_end_line": 999,
+      "lines": 147,
+      "sha256": "4a5abb42c932f13bef31fa16f98f51f2cfa60728b541807155704c991cbf8585",
+      "body_sha256": "401b69875995c927a0977880e99605b7b7436ec29a0a2c8244c0b5c9a2105c21"
+    },
+    {
+      "name": "stripMemoryOpsTags",
+      "source_line": 795,
+      "source_end_line": 805,
+      "lines": 11,
+      "sha256": "3d699850656fab7873f7dbfc7fe75a8b3abeb6032a64370e0d621c254b78d0ef",
+      "body_sha256": "1effcb4f7a506401ed10ab6eefadfbceb13a9f00330c301348df912148d5fed2"
+    },
+    {
+      "name": "thinkingAnchorHeader",
+      "source_line": 623,
+      "source_end_line": 626,
+      "lines": 3,
+      "sha256": "b328871f4a223ceefdd0b83c26a151896103c318c85f7f61fb5e29b4fd8eda74",
+      "body_sha256": "3b4187f50236f968c396b484d0c95d1c4aaff185fcb87f2266b8257f04373720",
+      "attach_comment_lines": 1,
+      "source_line_is": "紧贴注释起点（不是 function 行）"
     }
   ],
   "fixtures": {
@@ -278,13 +420,605 @@
         ],
         "out": "__undefined"
       }
+    ],
+    "compareVersion": [
+      {
+        "args": [
+          "1.2.3",
+          "1.2"
+        ],
+        "out": 1
+      },
+      {
+        "args": [
+          "1.2",
+          "1.2.0"
+        ],
+        "out": 0
+      },
+      {
+        "args": [
+          "abc",
+          "1"
+        ],
+        "out": -1
+      },
+      {
+        "args": [
+          "",
+          ""
+        ],
+        "out": 0
+      },
+      {
+        "args": [
+          "3.472.0",
+          "3.472"
+        ],
+        "out": 0
+      }
+    ],
+    "_getCredKey": [
+      {
+        "args": [
+          "https://x/y",
+          {
+            "headers": {
+              "Authorization": "Bearer abc"
+            }
+          },
+          {}
+        ],
+        "out": "e94b88f6"
+      },
+      {
+        "args": [
+          "https://x/y",
+          {},
+          {}
+        ],
+        "out": "8171233a"
+      },
+      {
+        "args": [
+          "",
+          {},
+          {}
+        ],
+        "out": null
+      }
+    ],
+    "msgTextOf": [
+      {
+        "args": [
+          {
+            "mes": "hi"
+          }
+        ],
+        "out": "hi"
+      },
+      {
+        "args": [
+          {
+            "content": "c"
+          }
+        ],
+        "out": "c"
+      },
+      {
+        "args": [
+          {
+            "swipes": [
+              "a",
+              "b"
+            ],
+            "swipe_id": 1
+          }
+        ],
+        "out": "b"
+      },
+      {
+        "args": [
+          null
+        ],
+        "out": ""
+      }
+    ],
+    "thinkingAnchorHeader": [
+      {
+        "args": [],
+        "out": "【思维链·场外信号（仅供检索参考，其中构思/模拟/内心独白段落尚未发生，严禁当作剧情事实写入摘要/时间线/图谱）】"
+      }
+    ],
+    "extractMemoryOpsFromText": [
+      {
+        "args": [
+          "<field:小明.好感=+3><todo:小明.买伞|明天>"
+        ],
+        "out": {
+          "changes": [
+            {
+              "character": "小明",
+              "field": "好感",
+              "delta": 3
+            }
+          ],
+          "todos": [
+            {
+              "character": "小明",
+              "text": "买伞",
+              "date": "明天"
+            }
+          ],
+          "items": []
+        }
+      },
+      {
+        "args": [
+          "<item:取得=小明.伞|黑伞>"
+        ],
+        "out": {
+          "changes": [],
+          "todos": [],
+          "items": [
+            {
+              "action": "add",
+              "name": "伞",
+              "desc": "黑伞",
+              "holder": "小明",
+              "state": ""
+            }
+          ]
+        }
+      },
+      {
+        "args": [
+          "无标签"
+        ],
+        "out": {
+          "changes": [],
+          "todos": [],
+          "items": []
+        }
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": {
+          "changes": [],
+          "todos": [],
+          "items": []
+        }
+      }
+    ],
+    "buildNpcTierInjection": [
+      {
+        "args": [
+          [
+            {
+              "name": "甲",
+              "roleTier": "important",
+              "title": "队长",
+              "fields": [
+                [
+                  "a",
+                  "b"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "name": "乙",
+              "roleTier": "present",
+              "now": "坐着"
+            }
+          ],
+          [
+            {
+              "name": "丙",
+              "roleTier": "same_area",
+              "traits": [
+                "冷"
+              ]
+            }
+          ],
+          [
+            {
+              "name": "丁"
+            }
+          ],
+          []
+        ],
+        "out": [
+          "- 甲（队长） — a:b"
+        ]
+      }
+    ],
+    "classifyRelationshipType": [
+      {
+        "args": [
+          "师父"
+        ],
+        "out": "social"
+      },
+      {
+        "args": [
+          "母亲"
+        ],
+        "out": "family"
+      },
+      {
+        "args": [
+          "恋人"
+        ],
+        "out": "intimate"
+      },
+      {
+        "args": [
+          "宿敌"
+        ],
+        "out": "hostile"
+      },
+      {
+        "args": [
+          "同事"
+        ],
+        "out": "social"
+      },
+      {
+        "args": [
+          ""
+        ],
+        "out": "other"
+      },
+      {
+        "args": [
+          "路人"
+        ],
+        "out": "other"
+      }
+    ],
+    "_formatBindDepsRow": [
+      {
+        "args": [
+          null,
+          null
+        ],
+        "out": [
+          "依赖注入",
+          "—（尚未走到构造期，未注入）"
+        ]
+      },
+      {
+        "args": [
+          [
+            {
+              "tag": "a",
+              "swapped": 1,
+              "ok": true
+            }
+          ],
+          null
+        ],
+        "out": [
+          "依赖注入",
+          "a 1（共换 1 项）"
+        ]
+      },
+      {
+        "args": [
+          null,
+          [
+            {
+              "tag": "b",
+              "swapped": 2,
+              "ok": true
+            }
+          ]
+        ],
+        "out": [
+          "依赖注入",
+          "b 2（共换 2 项）"
+        ]
+      },
+      {
+        "args": [
+          null,
+          [
+            {
+              "tag": "c",
+              "swapped": 0,
+              "ok": false,
+              "why": "缺"
+            }
+          ]
+        ],
+        "out": [
+          "依赖注入",
+          "⚠ 装载后仍有 1/1 处未注入：c（缺） · 成功处 "
+        ]
+      }
+    ],
+    "parseStoryTimeConstraint": [
+      {
+        "args": [
+          "Day 3"
+        ],
+        "out": {
+          "type": "narrative",
+          "period": "Day 3"
+        }
+      },
+      {
+        "args": [
+          "Day 3 到 Day 8"
+        ],
+        "out": {
+          "type": "narrative_range",
+          "from": "Day 3",
+          "to": "Day 8",
+          "period": "Day 3-8"
+        }
+      },
+      {
+        "args": [
+          "2026-05 发生了什么"
+        ],
+        "out": {
+          "type": "absolute",
+          "period": "2026-05",
+          "month": 5,
+          "year": 2026
+        }
+      },
+      {
+        "args": [
+          "昨天"
+        ],
+        "out": {
+          "type": "relative",
+          "period": "昨天"
+        }
+      },
+      {
+        "args": [
+          "今天怎么样"
+        ],
+        "out": {
+          "type": "relative_today",
+          "period": "今天"
+        }
+      },
+      {
+        "args": [
+          "五月"
+        ],
+        "out": {
+          "type": "absolute",
+          "period": "五月",
+          "month": 5,
+          "year": null,
+          "cn": true
+        }
+      },
+      {
+        "args": [
+          "随便"
+        ],
+        "out": null
+      }
+    ],
+    "filterTimelineByConstraint": [
+      {
+        "args": [
+          [
+            {
+              "date": "Day 5"
+            },
+            {
+              "date": "Day 9"
+            }
+          ],
+          {
+            "type": "narrative",
+            "period": "Day 5"
+          }
+        ],
+        "out": [
+          {
+            "date": "Day 5"
+          }
+        ]
+      },
+      {
+        "args": [
+          [
+            {
+              "date": "2026-05-03"
+            }
+          ],
+          {
+            "type": "absolute",
+            "period": "2026-05",
+            "month": 5,
+            "year": 2026
+          }
+        ],
+        "out": [
+          {
+            "date": "2026-05-03"
+          }
+        ]
+      },
+      {
+        "args": [
+          [
+            {
+              "date": "昨天"
+            }
+          ],
+          {
+            "type": "relative",
+            "period": "昨天"
+          }
+        ],
+        "out": [
+          {
+            "date": "昨天"
+          }
+        ]
+      },
+      {
+        "args": [
+          [],
+          {
+            "type": "narrative"
+          }
+        ],
+        "out": []
+      }
+    ],
+    "isSystemHiddenMsg": [
+      {
+        "args": [
+          {
+            "is_system": true,
+            "name": "x",
+            "mes": "y"
+          }
+        ],
+        "out": true
+      },
+      {
+        "args": [
+          {
+            "is_system": true,
+            "name": "x",
+            "mes": ""
+          }
+        ],
+        "out": false
+      },
+      {
+        "args": [
+          {
+            "is_system": true,
+            "is_user": true,
+            "mes": "y"
+          }
+        ],
+        "out": false
+      },
+      {
+        "args": [
+          {}
+        ],
+        "out": false
+      },
+      {
+        "args": [
+          null
+        ],
+        "out": false
+      }
+    ],
+    "ledgerItemKey": [
+      {
+        "args": [
+          "《记忆》 【核心】"
+        ],
+        "out": "记忆 核心"
+      },
+      {
+        "args": [
+          "  A  B "
+        ],
+        "out": "a b"
+      },
+      {
+        "args": [
+          null
+        ],
+        "out": ""
+      },
+      {
+        "args": [
+          "“引号”"
+        ],
+        "out": "引号"
+      }
+    ],
+    "opLogStatsCompat": [
+      {
+        "args": [
+          {
+            "opLog": {}
+          }
+        ],
+        "out": {
+          "total": 0,
+          "byType": {},
+          "absent": true
+        }
+      },
+      {
+        "args": [
+          {
+            "opLog": {}
+          }
+        ],
+        "out": {
+          "total": 0,
+          "byType": {},
+          "absent": true
+        }
+      },
+      {
+        "args": [
+          {
+            "opLog": {}
+          }
+        ],
+        "out": {
+          "total": 0,
+          "byType": {},
+          "absent": true
+        }
+      },
+      {
+        "args": [
+          {}
+        ],
+        "out": {
+          "total": 0,
+          "byType": {},
+          "absent": true
+        }
+      },
+      {
+        "args": [
+          null
+        ],
+        "out": {
+          "total": 0,
+          "byType": {},
+          "absent": true
+        }
+      }
     ]
   },
   "not_called": {
-    "loadExtraJsScript": "它要往 document 里插 <script>（装载期副作用），快照只在纯字符串/数字口径内取样，故不调用它；它的等价性由 sha256 那段钉住。"
+    "loadExtraJsScript": "它要往 document 里插 <script>（装载期副作用），快照只在纯字符串/数字口径内取样，故不调用它；它的等价性由 sha256 那段钉住。",
+    "decayScore": "内部读 Date.now()（Ebbinghaus 衰减按当前时间算），样本不可跨时间重放；只由 sha256 钉住。与第 1 批 loadExtraJsScript 同一处置。",
+    "repairReceipt": "函数体最后一行是 `at: Date.now()`（回执时间戳），输出里带当前时刻，快照跨时间不可重放；只由 sha256 钉住。要真跑它须先注入假时钟，本轮不改函数（搬就是搬），故与第 1 批 loadExtraJsScript 同一处置。"
   },
   "honest_limits": [
     "快照只覆盖上面列出的调用；这不等于全输入空间。",
-    "loadExtraJsScript 不取样（原因见 not_called）。"
+    "loadExtraJsScript 不取样（原因见 not_called）。",
+    "第 2 批里 _getCredKey 的 fixtures 是「把 hash32 作为参数位注入沙箱」后求得的（它在 index.js 里与本函数同处 IIFE，搬到 helpers 后仍是同模块兄弟函数）；其余 14 个零依赖。",
+    "numOr 实测满足「闭包已满足 + 声明唯一 + 无 this」，但它在装载期就被调用（new LonShaMemoryPlugin() 在 IIFE 顶层 → new MemoryEngine → _assembleComponents → numOr），故**未外移**；真宿主里 window.LonShaIndexHelpers 在入口脚本之后才存在，搬走它会让插件装载即抛。",
+    "decayScore 上方 index.js L1797–L1798 是 v3.259.0 把「增量书签」外移后遗留的死注释（附近已无对应函数）。它不属于本批任何函数，故**不随迁、也未删除**；decayScore 自己的注释（L1799–L1801）已随函数搬入 helpers。"
   ]
 }
