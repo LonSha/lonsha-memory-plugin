@@ -1,5 +1,20 @@
 # TODO — LonSha 记忆插件
-> **第二十二期已立项（2026-11-16，目标版 v3.472.0 / 18ba158）**：`L22-O1～O9 / L22-X1～X9`
+> **第二十三期已立项（2026-11-17，目标版待定 / 基线 v3.472.0 `550b433`）**：`L23-O1～O9 / L23-X1～X9`
+> （双仓合计 36 项，全部为产品项；判据/台账为每项默认纪律，不占名额）。
+> 证据：[2026-11-17-product-evidence-v23](docs/planning/2026-11-17-product-evidence-v23.md)
+> · [优化九项](.agents/notes/proposed/architecture/2026-11-17-product-optimization-v23.md)
+> · [拓展九项](.agents/notes/proposed/feature/2026-11-17-product-expansion-v23.md)。
+>
+> **第 0 刀（不占名额，先于一切施工）：v22 账实对账。**
+> 立项实勘发现 L22 **拓展九项已落盘、优化九项多数未落地**（`index.js` 仍 13546 行 /
+> `load_surface_only` 仍 11 / `zero_consumption` 仍 1 / 无「写了不读」台账 / realhost 无门），
+> 而 CHANGELOG 写的是「十八项同批交付」。按本仓纪律：**发现账实不符先记账**，
+> 把 L22-O1~O9 逐条重登为 **已做 / 部分 / 未做**，**不许用一个「补登」抹平两种事实**。
+>
+> 下方第二十二期记录保留为历史；**其优化九项不得按「已交付」读取**。
+>
+> ---
+> **第二十二期原立项（2026-11-16，目标版 v3.472.0 / 18ba158）**：`L22-O1～O9 / L22-X1～X9`
 > （双仓合计 36 项，全部为产品项；判据/台账为每项默认纪律，不占名额）。
 > 证据：ruby-phone 仓 docs/planning/2026-11-16-product-evidence-v22.md §2（两仓共用一份证据书）
 > · [优化九项](.agents/notes/proposed/architecture/2026-11-16-product-optimization-v22.md)
